@@ -2,7 +2,7 @@
 // - 顶栏：九宫格 · 余响/拾录/百味 分段滑块 · 右圆分享（2026-10-24 留言板撤了）；没有搜索栏、快捷面板、页脚；抽屉只有四个应用（主站 / 奇趣（书签+星）/ 日刻 / 博客）
 // - 页签：默认余响，#trove / #flavors 直达，点页签改 hash；英文页 Echo / Trove / Flavors
 // - 余响：今日一句；再抽一句 → 回到今日；长按复制；管理员抽到公开句子 → 设为今日（PUT /api/today）→ 回到今日状态 + toast；访客没有设为今日
-// - 拾录：全部句子新的在前；访客没有「记一句」；管理员有，私密句子带锁
+// - 拾录：全部句子新的在前；账号没登录没有「记一句」、页底「登录账号后可编辑」；能编辑时有，私密句子带锁；写接口 401 account 不刷新、提示登录
 // - 百味：自建专题在前（管理员有「＋ 新建」），再是人物（每位作者一组）；点进分组、页内返回；管理员上移 / 移出
 // - 记一句：预览、加译文、作者补全 + 最近作者、出处类型 + 名字补全、归入百味（含就地新建）、标签块、随手一笔、公开；
 //   保存 → 已拾录；编辑时删除要确认
@@ -16,11 +16,12 @@ const QUOTES = [
 ];
 const COLS = [{ id: 'cccccccccc01', name: '晨读', intro: '早上读一遍', created_at: 1, sort: 0, quote_ids: ['aaaaaaaaaaa3', 'aaaaaaaaaaa1', 'aaaaaaaaaaa2'] }];
 
-async function mock(page, admin) {
-  const list = admin
+/* signedIn = true：接口回 canWrite / showPrivate 都是 true（账号已登录）；false：都是 false（进门了、账号没登录） */
+async function mock(page, signedIn) {
+  const list = signedIn
     ? QUOTES.map((q) => ({ ...q, note: '', collections: COLS[0].quote_ids.includes(q.id) ? ['cccccccccc01'] : [] }))
     : QUOTES.filter((q) => q.visibility === 'public');
-  let cols = admin ? COLS.map((c) => ({ ...c, quote_ids: c.quote_ids.slice() })) : COLS.map((c) => ({ ...c, quote_ids: c.quote_ids.filter((id) => list.some((q) => q.id === id)) }));
+  let cols = signedIn ? COLS.map((c) => ({ ...c, quote_ids: c.quote_ids.slice() })) : COLS.map((c) => ({ ...c, quote_ids: c.quote_ids.filter((id) => list.some((q) => q.id === id)) }));
   const calls = [];
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
@@ -28,7 +29,7 @@ async function mock(page, admin) {
   await page.route('**/api/collections**', async (r) => {
     const req = r.request();
     calls.push({ method: req.method(), url: req.url(), body: req.postDataJSON ? req.postDataJSON() : null });
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, admin, collections: cols } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: signedIn, showPrivate: signedIn, collections: cols } });
     if (req.method() === 'POST') {
       const c = { id: 'cccccccccc09', name: req.postDataJSON().name, intro: req.postDataJSON().intro || '', created_at: 9, sort: 9, quote_ids: [] };
       cols = cols.concat(c);
@@ -43,7 +44,7 @@ async function mock(page, admin) {
   });
   await page.route('**/api/quotes**', async (r) => {
     const req = r.request();
-    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, admin, quotes: list } });
+    if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: signedIn, showPrivate: signedIn, quotes: list } });
     const body = req.postDataJSON();
     calls.push({ method: req.method(), url: req.url(), body });
     if (req.method() === 'POST') {
@@ -243,12 +244,32 @@ test('余响 · 访客：再抽一句后没有设为今日；英文页按钮文�
   await expect(page.locator('#dm-set-today')).toBeHidden();
 });
 
-test('拾录 · 访客：只有公开句子、没有记一句和锁', async ({ page }) => {
+test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；页底「登录账号后可编辑」链到 /account/', async ({ page }) => {
   await mock(page, false);
   await page.goto('/daymark/#trove');
   await expect(page.locator('#dm-list .dm-card')).toHaveCount(3);
   await expect(page.locator('#dm-fab')).toBeHidden();
   await expect(page.locator('.dm-lock')).toHaveCount(0);
+  await expect(page.locator('#dm-signin')).toBeVisible();
+  await expect(page.locator('#dm-signin a')).toHaveText('登录账号后可编辑');
+  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', '/account/');
+});
+
+test('拾录 · 写接口回 401 account（账号会话刚过期）：不刷新页面，编辑弹层提示登录账号', async ({ page }) => {
+  await mock(page, true);
+  await page.route('**/api/quotes**', (r) => (r.request().method() === 'PUT'
+    ? r.fulfill({ status: 401, json: { ok: false, error: 'account' } })
+    : r.fallback()));
+  let navs = 0;
+  page.on('framenavigated', (f) => { if (f === page.mainFrame()) navs++; });
+  await page.goto('/daymark/#trove');
+  await expect(page.locator('#dm-signin')).toBeHidden();
+  const before = navs;
+  await page.locator('#dm-list .dm-card').first().click();
+  await expect(page.locator('#edit-wrap')).toHaveClass(/open/);
+  await page.locator('#edit-save').click();
+  await expect(page.locator('#edit-err')).toHaveText('登录账号后可编辑。');
+  expect(navs).toBe(before);
 });
 
 test('拾录 · 管理员：新的在前、私密带锁、右下角记一句；点句子进入编辑，删除要确认', async ({ page }) => {

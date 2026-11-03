@@ -75,17 +75,25 @@ test('再抽一句：不和现在这句重复；只有一句就还是它；空�
   assert.equal(D.pickRandom(QS, null, () => 0.9999).id, 'e');
 });
 
-test('设为今日：只管理员、抽过、公开、不是今天这句才显示', () => {
+test('设为今日：能编辑（canWrite）、抽过、公开、不是今天这句才显示', () => {
   const pub = { id: 'x1', visibility: 'public' };
   const pri = { id: 'x2', visibility: 'private' };
   const today = { id: 't0' };
   assert.equal(D.canSetToday(true, true, pub, today), true);
   assert.equal(D.canSetToday(true, true, { id: 'x3' }, null), true, '今天还没有句子也能设');
-  assert.equal(D.canSetToday(false, true, pub, today), false, '访客没有');
+  assert.equal(D.canSetToday(false, true, pub, today), false, '没登录账号（canWrite=false）没有');
   assert.equal(D.canSetToday(true, false, pub, today), false, '没抽过（今日状态）没有');
   assert.equal(D.canSetToday(true, true, pri, today), false, '私密句子不能设');
   assert.equal(D.canSetToday(true, true, { id: 't0', visibility: 'public' }, today), false, '抽到的就是今天这句');
   assert.equal(D.canSetToday(true, true, null, today), false);
+});
+
+test('isLockedReply：写请求只有 401 unauthorized（或没码的 401）才当锁定；401 account / reauth 不刷新（P2-2）', () => {
+  assert.equal(D.isLockedReply(401, 'unauthorized'), true);
+  assert.equal(D.isLockedReply(401, ''), true);
+  assert.equal(D.isLockedReply(401, 'account'), false);
+  assert.equal(D.isLockedReply(401, 'reauth'), false);
+  assert.equal(D.isLockedReply(403, 'scope'), false);
 });
 
 test('moveItem：上移 / 下移，越界不动', () => {

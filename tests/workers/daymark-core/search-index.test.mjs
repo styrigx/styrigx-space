@@ -8,6 +8,7 @@
 // 运行：node --test tests/workers/search-index.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { conclusionAuth } from '../_conclusion.mjs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,14 +62,15 @@ function makeCtx() {
   const pending = [];
   return { pending, waitUntil(p) { pending.push(p); }, flush: () => Promise.all(pending) };
 }
-const auth = (role) => ({ async lockSession() { return role ? { ok: true, role } : { ok: false }; } });
+/* 网关结论替身（../_conclusion.mjs）：'owner' 账号已登录、'lock' 进门没登录账号 */
+const auth = (who) => conclusionAuth(who);
 const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/daymark';
-async function call(p, { role = 'admin', db, kv = makeKV(), ctx = makeCtx(), method = 'GET', body } = {}) {
+async function call(p, { who = 'owner', db, kv = makeKV(), ctx = makeCtx(), method = 'GET', body } = {}) {
   const headers = { Cookie: 'x', Origin: ORIGIN };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const req = new Request(ORIGIN + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-  const env = { AUTH: auth(role), D1_QUOTES: db };
+  const env = { AUTH: auth(who), D1_QUOTES: db };
   if (kv) env.KV_SEARCH_INDEX = kv;
   const res = await worker.fetch(req, env, ctx);
   await ctx.flush();
@@ -158,7 +160,7 @@ test('写接口成功后重建并 put site:daymark；读接口、失败的写不
   /* 读、失败的写、访客的写不触发 */
   await call('/daymark/api/quotes', { db, kv });
   await call('/daymark/api/quotes', { db, kv, method: 'POST', body: { text: ' ' } });
-  await call('/daymark/api/quotes', { db, kv, role: 'visitor', method: 'POST', body: { text: 'x' } });
+  await call('/daymark/api/quotes', { db, kv, who: 'lock', method: 'POST', body: { text: 'x' } });
   await call('/daymark/api/today', { db, kv });
   assert.equal(kv.puts.length, 2);
   /* 专题改动也重建 */
@@ -174,7 +176,7 @@ test('重建在 waitUntil 里：响应不等它', async () => {
   const db = makeD1();
   const ctx = makeCtx();
   const kv = makeKV();
-  const env = { AUTH: auth('admin'), D1_QUOTES: db, KV_SEARCH_INDEX: kv };
+  const env = { AUTH: auth('owner'), D1_QUOTES: db, KV_SEARCH_INDEX: kv };
   const req = new Request(ORIGIN + '/daymark/api/quotes', { method: 'POST', headers: { Cookie: 'x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'x' }) });
   const res = await worker.fetch(req, env, ctx);
   assert.equal(res.status, 201);

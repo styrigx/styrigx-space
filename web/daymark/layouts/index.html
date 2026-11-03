@@ -1,7 +1,8 @@
 {{ define "main" }}
 {{ $isEn := eq .Lang "en" }}
 {{/* 日刻首页：三个页签面板（余响 · 拾录 · 百味），顶栏分段滑块切换（daymark.js）。
-   管理员（admin）：拾录右下角「记一句」，点句子打开编辑弹层；百味能建专题、排序。访客只读、只看公开句子。
+   能编辑（接口回 canWrite：账号已登录 + daymark.write）：拾录右下角「记一句」，点句子打开编辑弹层；百味能建专题、排序。
+   账号没登录：只读、只看公开句子，页底一行「登录账号后可编辑」（#dm-signin）。
    没有搜索栏、没有标签筛选条。数据全走 /daymark/api/*（接口 Worker，见 workers/daymark-core）。 */}}
 <main id="dm-main" class="w-full mx-auto" style="max-width:860px;padding-left:16px;padding-right:16px">
   <div id="dm-panes">
@@ -64,6 +65,8 @@
   </section>
 
   </div>
+  {{/* 不能编辑（接口回 canWrite=false：账号没登录）：编辑入口换成这一行（daymark.js 按 canWrite 显隐），链到主站账号页 */}}
+  <p id="dm-signin" class="hidden text-center pt-2 pb-8 text-sm text-m-on-surface-variant"><a href="{{ if $isEn }}/en/account/{{ else }}/account/{{ end }}" class="underline underline-offset-4">{{ if $isEn }}Sign in to your account to edit{{ else }}登录账号后可编辑{{ end }}</a></p>
 </main>
 
 {{/* ===== 拾录：记一句（管理员，右下角浮动按钮） ===== */}}

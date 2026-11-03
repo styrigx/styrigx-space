@@ -1,16 +1,16 @@
-// /api/collections —— 百味里的自建专题（管理员建的句子合集）。
+// /api/collections —— 百味里的自建专题（主人建的句子合集）。
 //
-// GET    /api/collections            任何有效会话。按 sort、created_at 排好。
-//                                    返回 {ok:true, admin, collections:[{id,name,intro,created_at,sort,quote_ids:[…按专题内顺序]}]}
-//                                    访客：quote_ids 只含公开句子；一句公开句子都没有的专题不返回。
-// POST   /api/collections            admin + 同源：新建。body {name, intro?}；排到最后
-// PUT    /api/collections?id=<id>    admin + 同源：改 name / intro / sort；给 quote_ids 就按它重设专题里的句子和顺序
+// GET    /api/collections            进门即可。按 sort、created_at 排好。
+//                                    返回 {ok:true, canWrite, showPrivate, collections:[{id,name,intro,created_at,sort,quote_ids:[…按专题内顺序]}]}
+//                                    没登录账号：quote_ids 只含公开句子；一句公开句子都没有的专题不返回。
+// POST   /api/collections            账号会话 + 作用域 daymark.write + 同源：新建。body {name, intro?}；排到最后
+// PUT    /api/collections?id=<id>    账号会话 + daymark.write + 同源：改 name / intro / sort；给 quote_ids 就按它重设专题里的句子和顺序
 //                                    （排序、移出都走这里；不存在的句子 id 忽略）
-// DELETE /api/collections?id=<id>    admin + 同源：删专题（句子本身不删）
+// DELETE /api/collections?id=<id>    账号会话 + daymark.write + 同源：删专题（句子本身不删）
 // 写操作成功返回 {ok:true, collection}（删除返回 {ok:true}）。
-// 错误：400 bad-json / bad-body / bad-name / bad-sort / bad-quote-ids / nothing / bad-id；403 origin / role；404 not-found；409 limit；413 too-large
+// 错误：400 bad-json / bad-body / bad-name / bad-sort / bad-quote-ids / nothing / bad-id；401 account；403 origin / scope；404 not-found；409 limit；413 too-large
 import { json, err, methodNotAllowed } from './_lib.js';
-import { sessionRole } from './_auth.js';
+import { conclusionOf, canReadPrivate, visibility } from './_auth.js';
 import { readBody, guardWrite, idParam } from './_write.js';
 import { ensureSchema, parseCollection, newId, LIMITS } from './_quotes.js';
 
@@ -20,9 +20,9 @@ function rowToCollection(r, quoteIds) {
   return { id: r.id, name: r.name, intro: r.intro || '', created_at: r.created_at || 0, sort: r.sort || 0, quote_ids: quoteIds };
 }
 
-/** 专题里的句子 id（按位置）；visitorOnly=true 时只要公开句子 */
-async function members(db, visitorOnly) {
-  const sql = visitorOnly
+/** 专题里的句子 id（按位置）；publicOnly=true 时只要公开句子 */
+async function members(db, publicOnly) {
+  const sql = publicOnly
     ? "SELECT cq.collection_id AS c, cq.quote_id AS q FROM collection_quotes cq JOIN quotes q ON q.id = cq.quote_id WHERE q.visibility = 'public' ORDER BY cq.collection_id, cq.position, cq.quote_id"
     : 'SELECT cq.collection_id AS c, cq.quote_id AS q FROM collection_quotes cq JOIN quotes q ON q.id = cq.quote_id ORDER BY cq.collection_id, cq.position, cq.quote_id';
   const { results } = await db.prepare(sql).all();
@@ -40,16 +40,16 @@ async function one(db, id) {
 }
 
 export async function onRequestGet(context) {
-  const { request, env } = context;
-  const role = await sessionRole(context);
-  if (!role) return err('unauthorized', 401);
+  const { env } = context;
+  const c = await conclusionOf(context);
+  if (!c.lock.ok) return err('unauthorized', 401);
   await ensureSchema(env.D1_QUOTES);
-  const admin = role === 'admin';
+  const showPrivate = canReadPrivate(c);
   const { results } = await env.D1_QUOTES.prepare(`SELECT ${COLS} FROM collections ORDER BY sort, created_at, id`).all();
-  const by = await members(env.D1_QUOTES, !admin);
+  const by = await members(env.D1_QUOTES, !showPrivate);
   let list = (results || []).map((r) => rowToCollection(r, by[r.id] || []));
-  if (!admin) list = list.filter((c) => c.quote_ids.length > 0);
-  return json({ ok: true, admin, collections: list });
+  if (!showPrivate) list = list.filter((x) => x.quote_ids.length > 0);
+  return json({ ok: true, ...visibility(c), collections: list });
 }
 
 export async function onRequestPost(context) {
