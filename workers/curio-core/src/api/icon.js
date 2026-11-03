@@ -1,5 +1,5 @@
 // workers/core/src/api/icon.js
-// GET /api/icon?id=<收藏 id>  —— 收藏的小图标，缓存在 R2（R2_PHOTOS）。任何有效会话；访客只能取公开收藏的图标。
+// GET /api/icon?id=<收藏 id>  —— 收藏的小图标，缓存在 R2（R2_PHOTOS）。进门即可；没登录账号只能取公开收藏的图标。
 //
 // 缓存 key：收藏自己填了图标网址 → icons/u/<sha256(图标网址) 前 24 位>；没填 → icons/h/<域名>（同一个网站的收藏共用一份）。
 // 没缓存时现抓：自己填的图标网址，否则 https://<域名>/apple-touch-icon.png、/favicon.ico。
@@ -8,7 +8,7 @@
 // 响应：200 图片，Cache-Control private, no-cache + ETag（R2 的 httpEtag）+ Vary: Cookie（_image.js）：
 //   浏览器每次用前都回来验会话，图标没变回 304（不重传）；会话失效 / 收藏改私密后本地副本不会再被直接拿出来用。
 import { err, methodNotAllowed } from './_lib.js';
-import { sessionRole } from './_auth.js';
+import { conclusionOf, canReadPrivate } from './_auth.js';
 import { idParam } from './_write.js';
 import { previewAllowed } from './_preview.js';
 import { etagMatches, imageResponse, notModified, r2Etag } from './_image.js';
@@ -83,8 +83,8 @@ function image(bytes, type, etag) {
 
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const role = await sessionRole(context);
-  if (!role) return err('unauthorized', 401);
+  const c = await conclusionOf(context);
+  if (!c.lock.ok) return err('unauthorized', 401);
   const id = idParam(request);
   if (!id) return err('bad-id', 400);
   const db = env && env.D1_FINDS;
@@ -94,7 +94,7 @@ export async function onRequestGet(context) {
     .prepare('SELECT l.url, l.icon, l.private AS lp, c.private AS cp FROM links l LEFT JOIN cats c ON c.id = l.cat_id WHERE l.id = ?1')
     .bind(id)
     .first();
-  if (!link || (role !== 'admin' && (link.lp || link.cp))) return err('not-found', 404);
+  if (!link || (!canReadPrivate(c) && (link.lp || link.cp))) return err('not-found', 404);
   const plan = await iconPlan(link);
   if (!plan.key) return err('not-found', 404);
 

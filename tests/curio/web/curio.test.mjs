@@ -75,6 +75,15 @@ test('importSummary：中英文', () => {
 });
 
 /* ===== 设备 / 游戏（curio-items.js）、页签（curio-tabs.js） ===== */
+test('isLockedReply：写请求只有 401 unauthorized（或没码的 401）才当锁定；401 account / reauth 不刷新（P2-2）', () => {
+  assert.equal(C.isLockedReply(401, 'unauthorized'), true);
+  assert.equal(C.isLockedReply(401, undefined), true);
+  assert.equal(C.isLockedReply(401, 'account'), false);
+  assert.equal(C.isLockedReply(401, 'reauth'), false);
+  assert.equal(C.isLockedReply(403, 'scope'), false);
+  assert.equal(C.isLockedReply(200, ''), false);
+});
+
 const IT = require('../../../web/curio/assets/js/curio-items.js');
 const TB = require('../../../web/curio/assets/js/curio-tabs.js');
 

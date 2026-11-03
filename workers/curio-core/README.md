@@ -10,7 +10,7 @@
 ## 入口
 
 ```
-src/index.js         入口：先问网关会话 → 按路由表分发；scheduled（搜索索引 + 照片清扫）
+src/index.js         入口：先问网关结论（AUTH.conclusion）→ 按路由表分发；scheduled（搜索索引 + 照片清扫）
 src/routes.js        路由表（去掉 /curio 前缀后的 /api/*）
 src/api/*.js         一个接口一个文件；_ 开头的是接口共用的内部模块（会话、存储、写操作、图片、书签导入导出、网页预览）
 src/search-index.js  KV site:curio 的索引
@@ -29,9 +29,25 @@ src/photo-sweep.js   R2 photos/ 清扫
 
 - D1 `styrigx-curio-core`：`D1_FINDS`（links、cats、imports）、`D1_DEVICES`（devices）、`D1_GAMES`（games），同一个库。
 - R2 `styrigx-curio-core`：`R2_PHOTOS`（icons/、imports/、photos/）。
-- 服务绑定 `AUTH` → `styrigx-auth-gateway` 的 `AuthVerifier`（验锁屏会话）。
+- 服务绑定 `AUTH` → `styrigx-auth-gateway` 的 `AuthVerifier`（`conclusion()`：网关验门，再问账号 Worker，回结论）。
 - KV `KV_SEARCH_INDEX`（`styrigx-search-index`，只写 `site:curio`）。
 - Cron `23 * * * *`。
+
+## 鉴权（P2-2，方案 3.4 R14、4.6）
+
+每个 `/curio/api/*` 请求只问网关一次 `AUTH.conclusion(cookie, clientContext, { reauth })`，结论放 `context.data.conclusion`（`src/api/_auth.js`）；
+`POST /curio/api/import` 这一问带 `reauth: true`（`src/index.js` 的 `REAUTH_ROUTES`）。
+
+| 接口 | 进门 | 账号会话 | 作用域 | 账号复验 |
+|---|---|---|---|---|
+| `GET /api/links`、`/api/items`、`/api/icon`、`/api/photo` | 是 | 有则含私密 | — | — |
+| `GET /api/export`（含私密） | 是 | 是 | — | — |
+| `POST /api/links`、`POST /api/items`、`POST` / `DELETE /api/photo`、`GET /api/preview` | 是 | 是 | `curio.write` | — |
+| `POST /api/import` | 是 | 是 | `curio.write` | 是 |
+
+- 错误码：没进门 `401 unauthorized`；没账号会话 `401 account`；没作用域 `403 scope`（带 `scope` 字段）；要复验没复验 `401 reauth`；非同源 `403 origin`。
+- 读接口回 `canWrite`（有 `curio.write`）、`showPrivate`（账号会话有效）两个布尔，代替以前的 `admin`。
+- 网关绑定缺失 / 出错 → 500（不回 401，免得前端当成锁定去刷新）。
 
 ## 钥匙
 

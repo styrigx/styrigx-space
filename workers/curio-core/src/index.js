@@ -5,15 +5,17 @@
  * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 AUTH，见 src/api/_auth.js）。
  *
  * 请求顺序（下面的 /api/* 都是去掉 /curio 前缀后的路径，公开地址是 styrigx.com/curio/api/*）：
- *   1. 所有 /api/*：先问网关会话（admin、visitor 都可）；无效 → 401 JSON（不 302，fetch 不跟跳转）。没有公开接口。
- *      角色放进 context.data.role，handler 用 sessionRole(context) 直接取，每个请求只问网关一次。
- *   2. 按路由表交给 src/api/<路径>.js；写操作自己再要求 admin（读 context.data.role）+ 同源
+ *   1. 所有 /api/*：先问网关要结论（AUTH.conclusion()，方案 4.6）；没进门 → 401 unauthorized（不 302，fetch 不跟跳转）。没有公开接口。
+ *      结论放进 context.data.conclusion，handler 用 conclusionOf(context) 直接取，每个请求只问网关一次
+ *      （POST /api/import 这一问就带上 reauth: true，见 REAUTH_ROUTES）。
+ *   2. 按路由表交给 src/api/<路径>.js；读私密要账号会话（account.ok），写要账号会话 + 作用域 curio.write + 同源，
+ *      批量导入另要账号复验（_auth.js requireScope）
  * 不在路由表里的路径 → 404；方法不支持 → 405。
  *
  * 全站搜索：改内容的写接口成功后 ctx.waitUntil 重建 KV site:curio；Cron 每小时兜底（scheduled），见 src/search-index.js。
  */
 import { API_ROUTES } from './routes.js';
-import { verifySession } from './api/_auth.js';
+import { askConclusion } from './api/_auth.js';
 import { rebuildSearchIndex, isContentMutation } from './search-index.js';
 import { sweepPhotos, isSweepHour } from './photo-sweep.js';
 
@@ -48,6 +50,14 @@ export function isPublic() {
   return false;
 }
 
+/** 要账号复验结论的接口（网关那一问带 reauth: true，账号侧多读一张票）：方法 + 路由表路径 */
+export const REAUTH_ROUTES = new Set(['POST /api/import']);
+
+/** 这个请求要不要复验结论 */
+export function wantsReauth(pathname, method) {
+  return REAUTH_ROUTES.has(String(method || 'GET').toUpperCase() + ' ' + routeKey(pathname));
+}
+
 /** 找处理模块：{ mod, params, functionPath } 或 null */
 export function resolve(pathname) {
   const key = routeKey(pathname);
@@ -55,12 +65,12 @@ export function resolve(pathname) {
   return mod ? { mod, params: {}, functionPath: key } : null;
 }
 
-function makeContext(request, env, ctx, params, functionPath, role) {
+function makeContext(request, env, ctx, params, functionPath, conclusion, reauth) {
   return {
     request,
     env,
     params,
-    data: role ? { role } : {},
+    data: conclusion ? { conclusion, conclusionReauth: reauth } : {},
     functionPath,
     waitUntil: (p) => { if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p); },
     passThroughOnException: () => {},
@@ -96,17 +106,18 @@ export async function handle(request, env, ctx) {
   const path = apiPath(url.pathname);
   if (!path) return json(404, { ok: false, error: 'not-found' });
 
-  let role = null;
+  let conclusion = null;
+  const reauth = wantsReauth(path, request.method);
   if (!isPublic(path)) {
-    role = await verifySession(request, env);
-    if (!role) return json(401, { ok: false, error: 'unauthorized' });
+    conclusion = await askConclusion(request, env, { reauth });
+    if (!conclusion.lock.ok) return json(401, { ok: false, error: 'unauthorized' });
   }
 
   const hit = resolve(path);
   if (!hit) return json(404, { ok: false, error: 'not-found' });
   const handler = pickHandler(hit.mod, request.method);
   if (!handler) return json(405, { ok: false, error: 'method' });
-  const res = await handler(makeContext(request, env, ctx, hit.params, hit.functionPath, role));
+  const res = await handler(makeContext(request, env, ctx, hit.params, hit.functionPath, conclusion, reauth));
   if (res && isContentMutation(hit.functionPath, request.method, res.status) && ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(rebuildSearchIndex(env));
   }

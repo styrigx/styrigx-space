@@ -2,14 +2,16 @@
  *
  * - 「发现」页签（顶栏分段滑块，切换在 curio-tabs.js）：分类筛选条（全部 + 每个分类，hash #c/<分类 id>，只用 replaceState）。
  *   顶栏没有搜索栏（2026-10-22 起）；filterCats 仍支持搜索词，留给以后。
- * - 按分类分组的格子：图标（/api/icon?id=，R2 缓存；取不到显示首字母方块）、名字、简介；私密的带小锁（只有管理员看得到私密的）。
+ * - 按分类分组的格子：图标（/api/icon?id=，R2 缓存；取不到显示首字母方块）、名字、简介；私密的带小锁（只有账号已登录看得到私密的）。
  *   点格子在新标签页打开网址。
- * - 管理员：右下角「收藏」新建；长按格子（或键盘 Enter 以外的 E 键）编辑；分类条右边「⋯」：管理分类 / 导入浏览器书签 / 导出书签。
+ * - 能编辑（接口回 canWrite：账号已登录 + 作用域 curio.write）：右下角「收藏」新建；长按格子（或键盘 Enter 以外的 E 键）编辑；分类条右边「⋯」：管理分类 / 导入浏览器书签 / 导出书签。
  *   编辑弹层：网址（「自动填写」抓标题、简介、图标）、名字、英文名和英文简介、简介、分类（可就地新建）、自定义图标、仅自己可见、上移 / 下移、删除。
+ * - 不能编辑（canWrite=false）：编辑入口换成一行「登录账号后可编辑」（#cu-signin，链到 /account/）。
+ *   写接口回 401 account / 403 scope 时也提示这一句；导入回 401 reauth（要账号复验）时提示去账号页验证一次再回来导入（P3-1 前的简版）。
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
  *
  * 数据：GET /api/links；写：POST /api/links {op}、POST /api/import（原文）；GET /api/preview；导出是 /api/export 的下载链接。
- * 读请求走 sgxLockSync.apiFetch（401 = 锁定 → 刷新去锁屏）。纯函数导出给 tests/web/curio.test.mjs。
+ * 读请求走 sgxLockSync.apiFetch（401 = 锁定 → 刷新去锁屏）；写请求只有 401 unauthorized 才当锁定（401 account / reauth 是账号的事，不刷新）。纯函数导出给 tests/web/curio.test.mjs。
  */
 (function(){
 "use strict";
@@ -44,7 +46,7 @@ function catHash(id){ return id ? '#c/' + id : ''; }
 
 /**
  * 筛选：cat 为 0 是全部；q 按空白切成多个词，每个词都要出现在名字（两种语言）、简介（两种语言）或网址里。
- * 返回新的分类数组（不改原数组）。有搜索词时只留有命中的分类；没有搜索词时空分类也保留（管理员要能看到、往里加；访客拿到的本来就没有空分类）。
+ * 返回新的分类数组（不改原数组）。有搜索词时只留有命中的分类；没有搜索词时空分类也保留（账号已登录要能看到、往里加；没登录拿到的本来就没有空分类）。
  */
 function filterCats(cats, q, cat){
   var words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
@@ -86,13 +88,21 @@ function normalizeUrl(s){
   } catch (e) { return ''; }
 }
 
+/**
+ * 写请求的 401 是不是「锁定了」（要刷新去锁屏）：401 account（没登录账号）/ 401 reauth（要账号复验）不是，其余 401 都是。
+ * @param {number} status @param {string} code
+ */
+function isLockedReply(status, code){
+  return status === 401 && code !== 'account' && code !== 'reauth';
+}
+
 /** 导入结果的一句话 */
 function importSummary(r, en){
   if (en) return 'Added ' + r.added + (r.added === 1 ? ' link' : ' links') + (r.cats_added ? ', ' + r.cats_added + ' new ' + (r.cats_added === 1 ? 'category' : 'categories') : '') + (r.skipped ? '; ' + r.skipped + ' already here' : '') + '.';
   return '新增 ' + r.added + ' 条' + (r.cats_added ? '、' + r.cats_added + ' 个分类' : '') + (r.skipped ? '，' + r.skipped + ' 条已经有了' : '') + '。';
 }
 
-var pure = { pick: pick, hostOf: hostOf, initial: initial, parseHash: parseHash, catHash: catHash, filterCats: filterCats, countLinks: countLinks, moveId: moveId, normalizeUrl: normalizeUrl, importSummary: importSummary };
+var pure = { pick: pick, hostOf: hostOf, initial: initial, parseHash: parseHash, catHash: catHash, filterCats: filterCats, countLinks: countLinks, moveId: moveId, normalizeUrl: normalizeUrl, importSummary: importSummary, isLockedReply: isLockedReply };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxCurio = pure;
 
@@ -107,7 +117,8 @@ var T = isEn ? {
   delLink: 'Delete this link?', delCat: 'Delete this category?', notEmpty: 'Empty the category first.', del: 'Delete',
   importing: 'Importing…', notBookmarks: 'That isn\'t a bookmarks file.', emptyFile: 'No links in that file.', tooLarge: 'The file is too large.',
   limit: 'That would go over the limit.', backup: 'Couldn\'t back up the file, so nothing was imported.', count: function(n){ return n + (n === 1 ? ' link' : ' links'); },
-  makePrivate: 'Only me', makePublic: 'Visible to visitors', up: 'Move up', down: 'Move down'
+  makePrivate: 'Only me', makePublic: 'Visible to visitors', up: 'Move up', down: 'Move down',
+  needAccount: 'Sign in to your account to edit.', needReauth: 'Verify your account again before importing: open Account › Security and privacy, then come back within 3 minutes.'
 } : {
   all: '全部', add: '收藏', edit: '编辑', saved: '已保存', deleted: '已删除', failed: '出了点问题，请再试一次。',
   needUrl: '填一个有效的网址。', needName: '起个名字。', needCat: '选一个分类。', dup: '这个网址已经收藏过了。',
@@ -116,12 +127,14 @@ var T = isEn ? {
   delLink: '确定删除这条收藏吗？', delCat: '确定删除这个分类吗？', notEmpty: '先把分类清空。', del: '删除',
   importing: '正在导入…', notBookmarks: '这不是书签文件。', emptyFile: '文件里没有网址。', tooLarge: '文件太大了。',
   limit: '超出上限了。', backup: '备份原文件失败，所以没有导入。', count: function(n){ return n + ' 条'; },
-  makePrivate: '仅自己可见', makePublic: '访客可见', up: '上移', down: '下移'
+  makePrivate: '仅自己可见', makePublic: '访客可见', up: '上移', down: '下移',
+  needAccount: '登录账号后可编辑。', needReauth: '导入前要再验证一次账号：打开 账号 › 安全与隐私 验证后，3 分钟内回来导入。'
 };
 
 var $ = function(s){ return doc.querySelector(s); };
 var cats = [];
-var admin = false;
+var canWrite = false;    /* 接口回的 canWrite：账号已登录 + curio.write */
+var showPrivate = false; /* 接口回的 showPrivate：账号已登录（看得到私密的） */
 var loaded = false;
 var cat = 0;
 var query = '';
@@ -145,8 +158,12 @@ function send(url, body, type){
     headers: { 'Content-Type': type || 'application/json' },
     body: type ? body : JSON.stringify(body),
   }).then(function(r){
-    if (r.type === 'opaqueredirect' || r.status === 401) { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
-    return r.json().catch(function(){ return {}; }).then(function(j){ if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error }); return j; });
+    if (r.type === 'opaqueredirect') { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+    return r.json().catch(function(){ return {}; }).then(function(j){
+      if (isLockedReply(r.status, j.error)) { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
+      return j;
+    });
   });
 }
 function op(body){ return send('/curio/api/links', body).then(function(j){ cats = j.cats || []; render(); return j; }); }
@@ -160,7 +177,8 @@ function toast(msg){
 function errText(e){
   var c = e && e.code;
   return c === 'duplicate' ? T.dup : c === 'not-empty' ? T.notEmpty : c === 'bad-url' ? T.needUrl : c === 'bad-name' ? T.needName
-    : c === 'not-bookmarks' ? T.notBookmarks : c === 'empty' ? T.emptyFile : c === 'too-large' ? T.tooLarge : c === 'limit' ? T.limit : c === 'backup' ? T.backup : T.failed;
+    : c === 'not-bookmarks' ? T.notBookmarks : c === 'empty' ? T.emptyFile : c === 'too-large' ? T.tooLarge : c === 'limit' ? T.limit : c === 'backup' ? T.backup
+    : c === 'account' || c === 'scope' ? T.needAccount : c === 'reauth' ? T.needReauth : T.failed;
 }
 
 /** 长按（≈550ms，手指不挪）触发 fn；触发后吞掉随后的那次点击（不打开网址） */
@@ -175,7 +193,7 @@ function onLongPress(root, sel, fn){
   });
   root.addEventListener('pointermove', function(e){ if (Math.abs(e.clientX - x0) > 10 || Math.abs(e.clientY - y0) > 10) clearTimeout(timer); });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(function(t){ root.addEventListener(t, function(){ clearTimeout(timer); }); });
-  root.addEventListener('contextmenu', function(e){ if (admin && e.target.closest && e.target.closest(sel)) e.preventDefault(); });
+  root.addEventListener('contextmenu', function(e){ if (canWrite && e.target.closest && e.target.closest(sel)) e.preventDefault(); });
   root.addEventListener('click', function(e){ if (fired) { fired = false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 }
 
@@ -213,7 +231,7 @@ function findLink(id){
 function tileHTML(l, c){
   var name = pick(l.name, isEn) || hostOf(l.url);
   var desc = pick(l.desc, isEn) || hostOf(l.url);
-  var locked = admin && (l.private || c.private);
+  var locked = showPrivate && (l.private || c.private);
   return '<a class="cu-tile" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer" data-id="' + l.id + '" title="' + esc(desc + ' · ' + l.url) + '">'
     + '<span class="cu-ic"><span class="cu-ic-letter" aria-hidden="true">' + esc(initial(name, l.url)) + '</span>'
     + '<img src="/curio/api/icon?id=' + l.id + '" alt="" width="48" height="48" loading="lazy" decoding="async" onerror="this.remove()"></span>'
@@ -224,9 +242,9 @@ function tileHTML(l, c){
 function renderChips(){
   var html = '<button type="button" role="tab" class="cu-chip" aria-selected="' + (cat === 0) + '" data-cat="0">' + esc(T.all) + '</button>';
   cats.forEach(function(c){
-    if (!admin && !c.links.length) return;
+    if (!showPrivate && !c.links.length) return;
     html += '<button type="button" role="tab" class="cu-chip" aria-selected="' + (cat === c.id) + '" data-cat="' + c.id + '">'
-      + (admin && c.private ? '<span class="cu-chip-lock">' + LOCK + '</span>' : '') + esc(pick(c.name, isEn)) + '</button>';
+      + (showPrivate && c.private ? '<span class="cu-chip-lock">' + LOCK + '</span>' : '') + esc(pick(c.name, isEn)) + '</button>';
   });
   $('#cu-chips').innerHTML = html;
   var sel = $('#cu-chips [aria-selected="true"]');
@@ -239,13 +257,13 @@ function render(){
   var list = $('#cu-list');
   list.innerHTML = shown.map(function(c){
     return '<section class="cu-sec" data-cat="' + c.id + '"><h2 class="cu-sec-h"><span>' + esc(pick(c.name, isEn)) + '</span>'
-      + (admin && c.private ? '<span class="cu-lock-inline" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '')
+      + (showPrivate && c.private ? '<span class="cu-lock-inline" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '')
       + '<span class="cu-sec-n">' + esc(T.count(c.links.length)) + '</span></h2>'
       + '<div class="cu-grid">' + c.links.map(function(l){ return tileHTML(l, c); }).join('') + '</div></section>';
   }).join('');
   var empty = $('#cu-empty');
   var none = loaded && !countLinks(shown);
-  empty.textContent = query ? T.noMatch : admin ? T.emptyAdmin : T.emptyVisitor;
+  empty.textContent = query ? T.noMatch : canWrite ? T.emptyAdmin : T.emptyVisitor;
   empty.classList.toggle('hidden', !none);
 }
 
@@ -356,14 +374,14 @@ $('#f-up').addEventListener('click', function(){ moveLink(-1); });
 $('#f-down').addEventListener('click', function(){ moveLink(1); });
 $('#cu-fab').addEventListener('click', function(){ openEdit(null); });
 
-/* 管理员：长按格子编辑；键盘：格子上按 E 编辑 */
+/* 能编辑：长按格子编辑；键盘：格子上按 E 编辑 */
 onLongPress($('#cu-list'), '.cu-tile', function(el){
-  if (!admin) return;
+  if (!canWrite) return;
   var hit = findLink(Number(el.dataset.id));
   if (hit) { try { navigator.vibrate && navigator.vibrate(12); } catch (e) {} openEdit(hit.link, hit.cat.id); }
 });
 $('#cu-list').addEventListener('keydown', function(e){
-  if (!admin || (e.key !== 'e' && e.key !== 'E')) return;
+  if (!canWrite || (e.key !== 'e' && e.key !== 'E')) return;
   var el = e.target.closest && e.target.closest('.cu-tile');
   var hit = el && findLink(Number(el.dataset.id));
   if (hit) { e.preventDefault(); openEdit(hit.link, hit.cat.id); }
@@ -418,7 +436,19 @@ $('#cats-add').addEventListener('click', function(){
 });
 
 var impFile = null;
-function impMsg(text, bad){ var el = $('#imp-msg'); el.textContent = text || ''; el.classList.toggle('hidden', !text); el.classList.toggle('text-m-error', !!bad); }
+function impMsg(text, bad, link){
+  var el = $('#imp-msg');
+  el.textContent = text || '';
+  if (text && link) {
+    /* 要账号复验（401 reauth）：提示后面带一个去账号页的链接（P3-1 前的简版） */
+    var a = doc.createElement('a');
+    a.href = link.href; a.textContent = link.label; a.className = 'underline font-bold ml-1';
+    el.appendChild(a);
+  }
+  el.classList.toggle('hidden', !text); el.classList.toggle('text-m-error', !!bad);
+}
+/** 账号页「安全与隐私」（每次进都要验证账号，验过 3 分钟内导入不再要求复验） */
+var REAUTH_LINK = { href: isEn ? '/en/account/security/' : '/account/security/', label: isEn ? 'Verify now' : '去验证' };
 function resetImport(){
   impFile = null;
   $('#imp-file').value = '';
@@ -448,19 +478,22 @@ $('#imp-go').addEventListener('click', function(){
     render();
     impMsg(importSummary(j, isEn));
     impFile = null;
-  }).catch(function(e){ if (!e.sgxLocked) { impMsg(errText(e), true); btn.disabled = false; } });
+  }).catch(function(e){ if (!e.sgxLocked) { impMsg(errText(e), true, e.code === 'reauth' ? REAUTH_LINK : null); btn.disabled = false; } });
 });
 
 /* ---------- 启动 ---------- */
 function boot(){
   cat = parseHash(G.location.hash);
   getJSON('/curio/api/links').then(function(j){
-    admin = !!j.admin;
+    canWrite = !!j.canWrite;
+    showPrivate = !!j.showPrivate;
     cats = j.cats || [];
     loaded = true;
-    doc.documentElement.classList.toggle('cu-admin', admin);
-    $('#cu-fab').classList.toggle('hidden', !admin);
-    $('#cu-menu-btn').classList.toggle('hidden', !admin);
+    doc.documentElement.classList.toggle('cu-admin', canWrite);
+    $('#cu-fab').classList.toggle('hidden', !canWrite);
+    $('#cu-menu-btn').classList.toggle('hidden', !canWrite);
+    var hint = $('#cu-signin');
+    if (hint) hint.classList.toggle('hidden', canWrite);
     $('#cu-loading').classList.add('hidden');
     render();
   }).catch(function(e){
