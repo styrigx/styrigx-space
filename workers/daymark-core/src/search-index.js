@@ -24,7 +24,7 @@ import { ensureSchema, QUOTE_COLS, rowToQuote } from './api/_quotes.js';
 export const SITE = 'daymark';
 export const KEY = 'site:' + SITE;
 /** 本站在图志下的地址（不带结尾斜杠）：条目链接 = SITE_URL + /（中文）或 /en/（英文）+ hash */
-export const SITE_URL = 'https://atlas.styrigx.com/daymark';
+export const SITE_URL = 'https://styrigx.com/daymark';
 const TITLE_MAX = 80;
 const TEXT_MAX = 2000;
 /* KV 单值上限 25 MiB；留余量，超了就去掉 text（标题、署名还能搜） */

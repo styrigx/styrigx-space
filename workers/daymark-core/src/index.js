@@ -1,10 +1,10 @@
 /**
- * @fileoverview styrigx-daymark-core：日刻接口 Worker（路由 atlas.styrigx.com/daymark/api/*，见 wrangler.toml）。
+ * @fileoverview styrigx-daymark-core：日刻接口 Worker（路由 styrigx.com/daymark/api/*，过渡期兼 atlas.styrigx.com/daymark/api/*，见 wrangler.toml）。
  *
  * 数据接口都在这里，D1（D1_QUOTES）只绑在本 Worker 上；Pages 只放静态文件。
  * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 AUTH，见 src/api/_auth.js）。
  *
- * 请求顺序（下面的 /api/* 都是去掉 /daymark 前缀后的路径，公开地址是 atlas.styrigx.com/daymark/api/*）：
+ * 请求顺序（下面的 /api/* 都是去掉 /daymark 前缀后的路径，公开地址是 styrigx.com/daymark/api/*）：
  *   1. GET /api/today：今日一句，主站首页 / 锁屏跨站调用的公开只读接口（带 CORS），不验会话；只给北京时间的今天（?d= 别的日期 400），
  *      边缘缓存最多 60 秒、不跨过换天（见 api/today.js）；
  *      PUT /api/today（余响「设为今日」）和其他写接口一样先问网关，接口里再要 admin + 同源
@@ -87,7 +87,7 @@ function tag(res) {
   return out;
 }
 
-/** 本站在图志（atlas.styrigx.com）下的前缀：接口公开地址是 {BASE}/api/*，路由表按去掉前缀后的 /api/* 登记 */
+/** 本站在主域名（styrigx.com；旧图志 atlas.styrigx.com 同一前缀）下的前缀：接口公开地址是 {BASE}/api/*，路由表按去掉前缀后的 /api/* 登记 */
 export const BASE = '/daymark';
 
 /** 公开地址 → 路由表里的路径（/daymark/api/x → /api/x）；不是本站接口返回 '' */

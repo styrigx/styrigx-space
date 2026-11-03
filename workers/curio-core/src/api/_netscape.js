@@ -113,7 +113,7 @@ export function renderBookmarks(cats, lang = 'zh', now = Date.now()) {
   const sec = (ms) => Math.floor((ms || now) / 1000);
   const lines = [
     '<!DOCTYPE NETSCAPE-Bookmark-file-1>',
-    '<!-- This is an automatically generated file. Exported from Curio (atlas.styrigx.com/curio/). -->',
+    '<!-- This is an automatically generated file. Exported from Curio (styrigx.com/curio/). -->',
     '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">',
     '<TITLE>Bookmarks</TITLE>',
     '<H1>Bookmarks</H1>',

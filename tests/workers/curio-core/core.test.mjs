@@ -5,7 +5,7 @@
 // - 导出：Netscape HTML，只给管理员 + 同源
 // - 图标：R2 缓存命中直接回；没缓存现抓并存；抓不到存「没有」标记；访客拿不到私密收藏的图标；内网地址不抓
 // - 迁移 0001 + 0002 在 SQLite 上跑两次不报错，种子和 data/seed.json 一致；SCHEMA 与迁移一致
-// - wrangler.toml：不开 workers.dev，只挂 atlas.styrigx.com/curio/api/*，D1 + R2 + 网关服务绑定，不持钥匙
+// - wrangler.toml：不开 workers.dev，只挂 styrigx.com/curio/api/*（+ 过渡期 atlas.styrigx.com/curio/api/*），D1 + R2 + 网关服务绑定，不持钥匙
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。
 // 运行：node --test tests/workers/core.test.mjs
 import { test } from 'node:test';
@@ -80,7 +80,7 @@ function auth(role = null, throws = false) {
   };
 }
 const CTX = { waitUntil() {} };
-const ORIGIN = 'https://atlas.styrigx.com';
+const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/curio';
 function call(p, { role = null, db = makeD1(), r2 = makeR2(), method = 'GET', body, origin = ORIGIN, throws = false, headers: extra = {} } = {}) {
   const headers = { Cookie: 'sgx-lock-session=x', ...extra };
@@ -591,7 +591,8 @@ test('wrangler.toml：不开 workers.dev，只挂 curio 的 /api/*，D1 + R2 + �
   assert.match(t, /^name = "styrigx-curio-core"$/m);
   assert.match(t, /^workers_dev = false$/m);
   assert.match(t, /^preview_urls = false$/m);
-  assert.match(t, /^pattern = "atlas\.styrigx\.com\/curio\/api\/\*"$/m);
+  /* 合并 PR3：主域名路由 + 过渡期的旧图志路由，只有这两条 */
+  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/curio/api/*', 'atlas.styrigx.com/curio/api/*']);
   assert.match(t, /^database_id = "[0-9a-f-]{36}"$/m);
   assert.match(t, /^bucket_name = "styrigx-curio-core"$/m);
   assert.match(t, /^service = "styrigx-auth-gateway"$/m);

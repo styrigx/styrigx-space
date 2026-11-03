@@ -49,7 +49,7 @@ function makeR2() {
   };
 }
 const auth = (role) => ({ async lockSession() { return role ? { ok: true, role } : { ok: false }; } });
-const ORIGIN = 'https://atlas.styrigx.com';
+const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/curio';
 function call(p, { role = null, db, r2, method = 'GET', body, origin = ORIGIN, type, inm } = {}) {
   const headers = { Cookie: 'sgx-lock-session=x' };

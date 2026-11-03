@@ -62,7 +62,7 @@ function makeCtx() {
   return { pending, waitUntil(p) { pending.push(p); }, flush: () => Promise.all(pending) };
 }
 const auth = (role) => ({ async lockSession() { return role ? { ok: true, role } : { ok: false }; } });
-const ORIGIN = 'https://atlas.styrigx.com';
+const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/daymark';
 async function call(p, { role = 'admin', db, kv = makeKV(), ctx = makeCtx(), method = 'GET', body } = {}) {
   const headers = { Cookie: 'x', Origin: ORIGIN };
@@ -92,12 +92,12 @@ test('一句 → zh + en 两条：标题、署名、全文、链接', () => {
     {
       id: 'quote:aaaaaaaaaaaa', type: 'quote', lang: 'zh', title: '人是一根绳索，系在野兽与超人之间。',
       subtitle: '尼采 · 《查拉图斯特拉如是说》', text: '人是一根绳索，系在野兽与超人之间。\nMan is a rope.\n#超越',
-      url: 'https://atlas.styrigx.com/daymark/#flavors/a/%E5%B0%BC%E9%87%87',
+      url: 'https://styrigx.com/daymark/#flavors/a/%E5%B0%BC%E9%87%87',
     },
     {
       id: 'quote:aaaaaaaaaaaa:en', type: 'quote', lang: 'en', title: 'Man is a rope.',
       subtitle: '尼采 · 查拉图斯特拉如是说', text: 'Man is a rope.\n人是一根绳索，系在野兽与超人之间。\n#超越',
-      url: 'https://atlas.styrigx.com/daymark/en/#flavors/a/%E5%B0%BC%E9%87%87',
+      url: 'https://styrigx.com/daymark/en/#flavors/a/%E5%B0%BC%E9%87%87',
     },
   ]);
 });
@@ -105,8 +105,8 @@ test('一句 → zh + en 两条：标题、署名、全文、链接', () => {
 test('没作者 → 链到拾录；没译文 → 英文条目用原文；长句标题截到 80 字，text ≤2000', () => {
   const long = '字'.repeat(500);
   const [zh, en] = S.quoteItems({ id: 'bbbbbbbbbbbb', text: long, trans: '', author: '', source: '', source_type: '', tags: [], visibility: 'public' });
-  assert.equal(zh.url, 'https://atlas.styrigx.com/daymark/#trove');
-  assert.equal(en.url, 'https://atlas.styrigx.com/daymark/en/#trove');
+  assert.equal(zh.url, 'https://styrigx.com/daymark/#trove');
+  assert.equal(en.url, 'https://styrigx.com/daymark/en/#trove');
   assert.equal([...zh.title].length, 80);
   assert.ok(zh.title.endsWith('…'));
   assert.equal(en.title, zh.title);

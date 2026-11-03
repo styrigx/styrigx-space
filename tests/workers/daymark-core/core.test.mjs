@@ -7,7 +7,7 @@
 //   记下的那句被删 / 改私密就重挑；PUT /api/today 设为今日只给管理员 + 同源（未登录 401、访客 403、私密 409）
 // - 三页签：出处类型、随手一笔（访客和 /api/today 永不返回）、百味专题的增删改、归属与排序、访客只见公开
 // - 迁移 0001 + 0002 依次跑在 SQLite 上，接口照常工作
-// - wrangler.toml：不开 workers.dev，只挂 atlas.styrigx.com/daymark/api/*，服务绑定网关，不持钥匙
+// - wrangler.toml：不开 workers.dev，只挂 styrigx.com/daymark/api/*（+ 过渡期 atlas.styrigx.com/daymark/api/*），服务绑定网关，不持钥匙
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。
 // 运行：node --test tests/workers/core.test.mjs
 import { test } from 'node:test';
@@ -59,7 +59,7 @@ function auth(role = null, throws = false) {
   };
 }
 const CTX = { waitUntil() {} };
-const ORIGIN = 'https://atlas.styrigx.com';
+const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/daymark';
 function call(p, { role = null, db = makeD1(), method = 'GET', body, origin = ORIGIN, throws = false } = {}) {
   const headers = { Cookie: 'sgx-lock-session=x' };
@@ -291,7 +291,8 @@ test('wrangler.toml：不开 workers.dev，只挂 daymark 的 /api/*，D1 + 网�
   const t = readFileSync(W + '/wrangler.toml', 'utf8');
   assert.match(t, /^name = "styrigx-daymark-core"$/m);
   assert.match(t, /^workers_dev = false$/m);
-  assert.match(t, /^pattern = "atlas\.styrigx\.com\/daymark\/api\/\*"$/m);
+  /* 合并 PR3：主域名路由 + 过渡期的旧图志路由，只有这两条 */
+  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/daymark/api/*', 'atlas.styrigx.com/daymark/api/*']);
   assert.match(t, /^database_id = "[0-9a-f-]{36}"$/m);
   assert.match(t, /^service = "styrigx-auth-gateway"$/m);
   assert.match(t, /^entrypoint = "AuthVerifier"$/m);
@@ -610,7 +611,7 @@ test('设为今日：只管理员 + 同源；未登录 401、访客 403、非同
   const target = db.raw.prepare('SELECT id FROM quotes WHERE id != ? ORDER BY id').get(before).id;
   assert.equal((await setToday(db, target, { role: null })).status, 401);
   assert.equal((await setToday(db, target, { role: 'visitor' })).status, 403);
-  assert.equal((await setToday(db, target, { origin: 'https://styrigx.com' })).status, 403);
+  assert.equal((await setToday(db, target, { origin: 'https://atlas.styrigx.com' })).status, 403); /* 合并 PR3 起接口在主域名：旧图志源算跨源 */
   assert.equal((await setToday(db, target, { origin: 'https://evil.com' })).status, 403);
   assert.equal((await setToday(db, target, { origin: null })).status, 403);
   assert.equal((await call('/daymark/api/today', { db, method: 'PUT', body: { id: target }, throws: true })).status, 500);

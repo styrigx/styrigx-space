@@ -52,7 +52,7 @@ function makeR2() {
   return { m, async put(k, v) { m.set(k, v); }, async get(k) { return m.has(k) ? { body: m.get(k), httpMetadata: {} } : null; }, async delete(k) { m.delete(k); } };
 }
 const auth = (role) => ({ async lockSession() { return role ? { ok: true, role } : { ok: false }; } });
-const ORIGIN = 'https://atlas.styrigx.com';
+const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/curio';
 
 /** 发请求并等完 waitUntil 里的活 */

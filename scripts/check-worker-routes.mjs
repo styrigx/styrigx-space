@@ -13,15 +13,15 @@
  *     账号 Worker 没有任何路由（wrangler.toml 无 [[routes]]）
  * 2c. 分享短链（/s/<码>、/api/share，带查询串也算）归短链 Worker styrigx-share（workers/share/wrangler.toml，2026-10-24）；
  *     网关的每个接口、每个页面、每条转发路径仍归网关
- * 3. 路由不重复，只登记 styrigx.com 和 SUBSITE_HOSTS 里的域名
- * 4. 图志（atlas.styrigx.com：/blog/ /curio/ /daymark/）必须登记的路径（含各站首页 + 查询串、根上的锁屏复查和搜索）都覆盖
- * 5. 日刻的句子接口（atlas.styrigx.com/daymark/api/*，styrigx-daymark-core）、奇趣的收藏接口（atlas.styrigx.com/curio/api/*，
- *    styrigx-curio-core）不能被网关更具体的规则抢走
- * 静态资源现在也进网关（整站通配），由 src/app.js（主站）/ src/gate.js 图志关口原样回源；单测 auth-flow-2026-10-21 覆盖。
+ * 3. 路由不重复，只登记 styrigx.com 和 SUBSITE_HOSTS 里的域名（合并 PR3 起只剩旧图志 atlas.styrigx.com，网关在那里只做 301）
+ * 4. 子站（合并 PR3：styrigx.com/blog/ /curio/ /daymark/）必须登记的路径（含各站首页 + 查询串、RSS、站点地图）和三站产物里的每个页面
+ *    都归网关（子站关口按路径前缀验会话）；旧图志 atlas.styrigx.com 的页面和根上的接口也都归网关（301）
+ * 5. 两个子站接口 Worker（workers/curio-core、workers/daymark-core 的 wrangler.toml）：styrigx.com/<站>/api/* 必须登记、归它们，
+ *    过渡期的 atlas.styrigx.com/<站>/api/* 也归它们；网关不得有更具体的规则抢走，它们也不得抢走网关的接口、主站页面和子站页面
+ * 静态资源现在也进网关（整站通配），由 src/app.js 原样回源（主站静态目录、子站静态后缀）；单测 auth-flow-2026-10-21 覆盖。
  *
- * 需要先构建网站（hugo --minify -s web/atlas），读 web/atlas/public/ 下的 .html。
- * 只扫主站产物，不扫拼好的单树 dist/site/（合并 PR2）：子站 /blog/ /curio/ /daymark/ 的页面在 styrigx.com 上由网关整站通配
- * styrigx.com/* 接住、走主站中间件验会话；子站前缀分发逻辑在合并 PR3，那时再把三站前缀登记进来。
+ * 需要先构建网站（hugo --minify -s web/atlas）和三站（npm run build:sites），读 web/atlas/public/、web/<站>/public/ 下的 .html
+ * （子站页面按 /<站>/ 前缀登记；没构建就报错）。
  * 用法：node scripts/check-worker-routes.mjs
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -39,7 +39,7 @@ const PUBLIC_DIR = path.join(REPO, 'web/atlas/public');
 const EXEMPT = new Set(['/404.html']);
 /* 必须过网关的非页面路径（含锁屏入口本身，带查询串） */
 const MUST_ROUTE = ['/api/geo', '/api/lock-session-check',
-  '/?lock=1', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fatlas.styrigx.com%2Fblog%2F', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
+  '/?lock=1', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2Fblog%2F', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
   '/en/?lock=1', '/files-index.json'];
 /* 账号路径：必须归网关、在转发表里转给 ACCOUNT（账号 Worker styrigx-account 没有路由） */
 const ACCOUNT_MUST = ['/api/account', '/api/account?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24',
@@ -49,20 +49,28 @@ const FORWARD_BINDINGS = new Set(['ACCOUNT']);
 const FORWARD_GATES = new Set(['admin', 'session', 'public']);
 /* 必须归短链 Worker（styrigx-share）的路径 */
 const SHARE_MUST = ['/s/AAAAAAAAAAAAAAAAAAAAAA', '/s/AAAAAAAAAAAAAAAAAAAAAA/', '/s/AAAAAAAAAAAAAAAAAAAAAA?x=1', '/s/', '/api/share', '/api/share/', '/api/share?x=1'];
-/* 子站：域名 → 必须登记的路径（图志一个域名下三站；2026-11-02 起旧的 blog / daymark / curio 子域名不再登记） */
+/* 子站（合并 PR3）：主域名下的前缀，三站产物都按 /<站>/ 登记 */
+export const SUBSITES = ['blog', 'curio', 'daymark'];
+/* 子站在主域名上必须归网关的路径（页面、RSS、站点地图都要会话，网关子站关口验） */
+const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?a', '/blog/tags/x/', '/blog/en/', '/blog/en/?a', '/blog/rss.xml', '/blog/rss.xml?a',
+  '/curio/', '/curio/?x=1', '/curio/en/', '/curio/zh/', '/curio/sitemap.xml', '/curio/sitemap.xml?a',
+  '/daymark/', '/daymark/?x=1', '/daymark/en/', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a'];
+/* 别的域名 → 必须登记（归网关）的路径。旧图志 atlas.styrigx.com：网关任意路径 301 到主域名（接口 Worker 的旧路由除外） */
 const SUBSITE_HOSTS = {
   'atlas.styrigx.com': {
     mustRoute: ['/', '/?x=1', '/robots.txt', '/api/lock-session-check', '/api/search?q=a',
-      '/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?a', '/blog/tags/x/', '/blog/en/', '/blog/en/?a', '/blog/rss.xml', '/blog/rss.xml?a',
-      '/curio/', '/curio/?x=1', '/curio/en/', '/curio/zh/', '/curio/sitemap.xml', '/curio/sitemap.xml?a',
-      '/daymark/', '/daymark/?x=1', '/daymark/en/', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a'],
-    /* 归两个接口 Worker 的路径：网关不得有比它们更具体的规则 */
-    otherWorkers: [
-      { pattern: 'atlas.styrigx.com/daymark/api/*', samples: ['/daymark/api/quotes', '/daymark/api/today'] },
-      { pattern: 'atlas.styrigx.com/curio/api/*', samples: ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export', '/curio/api/preview?url=x'] },
-    ],
+      '/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/en/', '/blog/rss.xml', '/blog/rss.xml?a',
+      '/curio/', '/curio/?x=1', '/curio/en/', '/curio/sitemap.xml', '/daymark/', '/daymark/?x=1', '/daymark/en/', '/daymark/sitemap.xml'],
   },
 };
+/* 两个子站接口 Worker：必须登记的路由和归它们的样例路径（主域名 + 过渡期的旧图志） */
+export const CORE_WORKERS = [
+  { name: 'curio-core', label: '奇趣接口 Worker（styrigx-curio-core）', dir: 'workers/curio-core', site: 'curio',
+    samples: ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export', '/curio/api/preview?url=x', '/curio/api/photo?kind=device&id=1'] },
+  { name: 'daymark-core', label: '日刻接口 Worker（styrigx-daymark-core）', dir: 'workers/daymark-core', site: 'daymark',
+    samples: ['/daymark/api/quotes', '/daymark/api/today', '/daymark/api/today?x=1'] },
+];
+const ATLAS_HOST = 'atlas.styrigx.com';
 
 /** web/atlas/public 里的 a/b/index.html → /a/b/；其他 .html 原样 */
 export function htmlToPath(rel) {
@@ -70,11 +78,11 @@ export function htmlToPath(rel) {
   return p.endsWith('/index.html') ? p.slice(0, -'index.html'.length) : p;
 }
 
-function walk(dir, out = []) {
+function walk(dir, out = [], root = dir) {
   for (const name of readdirSync(dir)) {
     const full = path.join(dir, name);
-    if (statSync(full).isDirectory()) walk(full, out);
-    else if (name.endsWith('.html')) out.push(path.relative(PUBLIC_DIR, full));
+    if (statSync(full).isDirectory()) walk(full, out, root);
+    else if (name.endsWith('.html')) out.push(path.relative(root, full));
   }
   return out;
 }
@@ -90,14 +98,11 @@ export function check(routes, pagePaths) {
   }
   for (const [host, conf] of Object.entries(SUBSITE_HOSTS)) {
     for (const p of conf.mustRoute) {
-      if (!pickRoute(routes, host, p)) errors.push('子站路径没有路由（不过网关）：' + host + p);
+      if (!pickRoute(routes, host, p)) errors.push('旧图志路径没有路由（不过网关，301 不生效）：' + host + p);
     }
-    for (const ow of conf.otherWorkers || []) {
-      for (const p of ow.samples) {
-        const mine = pickRoute(routes, host, p);
-        if (mine && mine.length >= ow.pattern.length) errors.push('网关抢了别的 Worker 的路径：' + host + p + ' ← ' + mine);
-      }
-    }
+  }
+  for (const p of SUBSITE_MUST) {
+    if (!pickRoute(routes, HOST, p)) errors.push('子站路径没有路由（不过网关）：' + p);
   }
   for (const p of pagePaths) {
     if (EXEMPT.has(p)) continue;
@@ -159,6 +164,53 @@ export function checkSplit(gateway, workers, gatewayApis, pagePaths) {
 }
 
 /**
+ * 两个子站接口 Worker（合并 PR3）：styrigx.com/<站>/api/* 必须登记且归它；过渡期的 atlas.styrigx.com/<站>/api/* 有就归它；
+ * 只许登记本站接口前缀（不许写宽）；网关、短链、另一个接口 Worker 都不得抢它的路径；它也不得抢网关的接口、主站页面、子站页面、
+ * 子站必须过网关的路径、旧图志的页面。
+ * @param {string[]} gateway 网关的路由
+ * @param {string[]} share 短链 Worker 的路由
+ * @param {{name:string, label:string, site:string, routes:string[], samples:string[]}[]} cores
+ * @param {string[]} gatewayApis 网关路由表里的接口（含转发路径）
+ * @param {string[]} pagePaths 主站页面 + 子站页面（/<站>/…）
+ */
+export function checkCores(gateway, share, cores, gatewayApis, pagePaths) {
+  const errors = [];
+  const all = gateway.concat(share, ...cores.map((c) => c.routes));
+  const owner = (host, p) => {
+    const r = pickRoute(all, host, p);
+    if (r === null) return null;
+    const c = cores.find((x) => x.routes.includes(r));
+    if (c) return c.name;
+    return share.includes(r) ? 'share' : 'gateway';
+  };
+  for (const c of cores) {
+    const allowed = new Set([HOST + '/' + c.site + '/api/*', ATLAS_HOST + '/' + c.site + '/api/*']);
+    if (new Set(c.routes).size !== c.routes.length) errors.push(c.label + '有重复路由');
+    if (!c.routes.includes(HOST + '/' + c.site + '/api/*')) errors.push(c.label + '没有登记主域名路由 ' + HOST + '/' + c.site + '/api/*');
+    for (const r of c.routes) {
+      if (!allowed.has(r)) errors.push(c.label + '只许登记本站接口前缀（' + [...allowed].join('、') + '）：' + r);
+      if (gateway.includes(r) || share.includes(r)) errors.push('两个 Worker 登记了同一条路由：' + r);
+    }
+    const hosts = [HOST].concat(c.routes.some((r) => r.startsWith(ATLAS_HOST + '/')) ? [ATLAS_HOST] : []);
+    for (const h of hosts) {
+      for (const p of c.samples) {
+        if (owner(h, p) !== c.name) errors.push('应归' + c.label + '却没有：' + h + p + '（现在 → ' + owner(h, p) + '）');
+      }
+    }
+  }
+  const notCore = (host, p, what) => {
+    const o = owner(host, p);
+    if (cores.some((c) => c.name === o)) errors.push(what + '被子站接口 Worker 抢走了：' + host + p + '（现在 → ' + o + '）');
+  };
+  for (const a of gatewayApis) for (const p of [a, a + '?x=1', a + '/']) notCore(HOST, p, '网关的接口');
+  for (const p of pagePaths) if (!EXEMPT.has(p)) notCore(HOST, p, '页面');
+  for (const p of SUBSITE_MUST) notCore(HOST, p, '子站路径');
+  for (const p of MUST_ROUTE) notCore(HOST, p, '网关路径');
+  for (const [host, conf] of Object.entries(SUBSITE_HOSTS)) for (const p of conf.mustRoute) notCore(host, p, '旧图志路径');
+  return errors;
+}
+
+/**
  * 账号路径归网关、走转发表；账号 Worker 一条路由都没有（方案第 4 节）。
  * @param {string[]} gateway 网关的路由
  * @param {string[]} account 账号 Worker 的路由（必须为空）
@@ -194,14 +246,16 @@ export function checkAccount(gateway, account, gatewayApis, pagePaths, forwardin
 }
 
 /**
- * 网关 + 转发表 + 账号 Worker + 短链 Worker 一起核对。
+ * 网关 + 转发表 + 账号 Worker + 短链 Worker（+ 子站接口 Worker，合并 PR3）一起核对。
  * @param {string[]} gateway @param {string[]} account @param {string[]} share @param {string[]} gatewayApis @param {string[]} pagePaths
+ * @param {{name:string, label:string, site:string, routes:string[], samples:string[]}[]} [cores] 不给就不核对子站接口 Worker
  */
-export function checkWorkers(gateway, account, share, gatewayApis, pagePaths) {
+export function checkWorkers(gateway, account, share, gatewayApis, pagePaths, cores) {
   const fwdPaths = ACCOUNT_MUST.filter((p) => !p.includes('?'));
-  return checkAccount(gateway, account, gatewayApis, pagePaths).concat(
+  const errors = checkAccount(gateway, account, gatewayApis, pagePaths).concat(
     checkSplit(gateway, [{ name: 'share', label: '短链 Worker', routes: share, must: SHARE_MUST }], gatewayApis.concat(fwdPaths), pagePaths),
   );
+  return cores ? errors.concat(checkCores(gateway, share, cores, gatewayApis.concat(fwdPaths, SHARE_MUST), pagePaths)) : errors;
 }
 
 export { matchForwarding };
@@ -211,12 +265,25 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const accountRoutes = readRoutes(readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
   const shareRoutes = readRoutes(readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));
   const gatewayApis = readApiRoutes(readFileSync(path.join(REPO, 'workers/auth-gateway/src/router.js'), 'utf8'));
+  const cores = CORE_WORKERS.map((c) => ({ ...c, routes: readRoutes(readFileSync(path.join(REPO, c.dir, 'wrangler.toml'), 'utf8')) }));
   let pages;
   try {
     pages = walk(PUBLIC_DIR).map(htmlToPath);
   } catch (e) {
     console.error('check-worker-routes.mjs: 读不到 web/atlas/public，先运行 hugo --minify -s web/atlas');
     process.exit(1);
+  }
+  /* 子站页面（合并 PR3）：web/<站>/public 下的 .html → /<站>/… */
+  let subPages = [];
+  for (const site of SUBSITES) {
+    const dir = path.join(REPO, 'web', site, 'public');
+    let list;
+    try { list = walk(dir); } catch (e) { list = []; }
+    if (!list.length) {
+      console.error(`check-worker-routes.mjs: web/${site}/public 里没有 HTML，先运行 npm run build:sites`);
+      process.exit(1);
+    }
+    subPages = subPages.concat(list.map((rel) => '/' + site + htmlToPath(rel)));
   }
   if (!pages.length) {
     console.error('check-worker-routes.mjs: web/atlas/public 里没有 HTML，先构建网站');
@@ -226,10 +293,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.error('check-worker-routes.mjs: 没读到网关路由表（workers/auth-gateway/src/router.js）');
     process.exit(1);
   }
-  const errors = check(routes, pages).concat(checkWorkers(routes, accountRoutes, shareRoutes, gatewayApis, pages));
+  const allPages = pages.concat(subPages);
+  const errors = check(routes, allPages).concat(checkWorkers(routes, accountRoutes, shareRoutes, gatewayApis, allPages, cores));
   if (errors.length) {
     for (const e of errors) console.error('✗ ' + e);
     process.exit(1);
   }
-  console.log(`check-worker-routes.mjs: 通过（网关 ${routes.length} 条 + 账号 ${accountRoutes.length} 条 + 短链 ${shareRoutes.length} 条路由，${gatewayApis.length} 个网关接口，转发表 ${FORWARDING.length} 条，${pages.length} 个页面）`);
+  const coreCount = cores.map((c) => c.name + ' ' + c.routes.length + ' 条').join(' + ');
+  console.log(`check-worker-routes.mjs: 通过（网关 ${routes.length} 条 + 账号 ${accountRoutes.length} 条 + 短链 ${shareRoutes.length} 条 + ${coreCount}路由，${gatewayApis.length} 个网关接口，转发表 ${FORWARDING.length} 条，主站 ${pages.length} 个页面 + 子站 ${subPages.length} 个页面）`);
 }

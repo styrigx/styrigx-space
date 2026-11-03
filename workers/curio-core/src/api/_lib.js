@@ -18,7 +18,7 @@ export function methodNotAllowed(allowed) {
   return json({ ok: false, error: 'method' }, 405, { Allow: allowed });
 }
 
-/** 写操作必须同源：Origin 头的 host 等于请求 host（atlas.styrigx.com） */
+/** 写操作必须同源：Origin 头的 host 等于请求 host（styrigx.com；按请求 host 比，主域名和旧域名路由都适用） */
 export function isSameOrigin(request) {
   const origin = request.headers.get('Origin') || '';
   if (!origin) return false;
