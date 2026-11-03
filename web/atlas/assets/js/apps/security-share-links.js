@@ -32,11 +32,12 @@ export function durMs(d) {
   return d.hours ? d.hours * 3600e3 : (d.days || 0) * 86400e3;
 }
 
-/** 目标能指向的站（同服务端 workers/share/src/lib/links.js TARGET_HOSTS） */
-export const TARGET_HOSTS = ['styrigx.com', 'atlas.styrigx.com'];
+/** 新建短链时目标能指向的站：合并 PR3 起只剩主域名（子站在 /blog/ /curio/ /daymark/）。
+ *  服务端 workers/share/src/lib/links.js TARGET_HOSTS 过渡期还认旧图志域名（已有短链照样能存能开），这里不再让新建的指过去 */
+export const TARGET_HOSTS = ['styrigx.com'];
 
 /**
- * 目标输入 → 提交值：空 = '/'；站内路径（/ 开头，不能 // 或 /\）或 https://（styrigx.com / 图志 atlas.styrigx.com）地址，
+ * 目标输入 → 提交值：空 = '/'；站内路径（/ 开头，不能 // 或 /\；子站是 /blog/ /curio/ /daymark/）或 https://styrigx.com 地址，
  * 不带端口 / 用户名；不含空白和反斜杠。服务端再严格校验并规范化一次。不合法返回 null。
  * @param {string} v
  */

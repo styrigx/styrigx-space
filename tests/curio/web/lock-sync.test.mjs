@@ -31,7 +31,7 @@ console.log('sgx-lock-sync isLockSignal:');
 await test('数据接口 401 → 视为已锁定', () => {
   assert.equal(sgx.isLockSignal('/api/links', 401), true);
   assert.equal(sgx.isLockSignal('/api/lock-session-check', 401), true);
-  assert.equal(sgx.isLockSignal('https://atlas.styrigx.com/curio/api/links', 401), true);
+  assert.equal(sgx.isLockSignal('https://styrigx.com/curio/api/links', 401), true);
 });
 await test('非 401 状态 → 不 reload', () => {
   assert.equal(sgx.isLockSignal('/api/links', 200), false);

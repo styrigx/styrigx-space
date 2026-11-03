@@ -134,6 +134,13 @@ test('目标：站内相对路径或 styrigx.com / 三个子站的 https 地址�
   assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/s/x/'), 'https://atlas.styrigx.com/blog/s/x/');
   assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/apix/'), 'https://atlas.styrigx.com/blog/apix/');
   assert.equal(links.targetUrl('/blog/'), 'https://styrigx.com/blog/');
+  /* 合并 PR3：子站在主域名 /blog/ /curio/ /daymark/ 下（存相对路径）；主域名上的 /<站>/api/ 同样不能当目标 */
+  assert.equal(links.cleanTarget('https://styrigx.com/curio/en/?a=1'), '/curio/en/?a=1');
+  assert.equal(links.cleanTarget('/daymark/#trove'), '/daymark/#trove');
+  for (const bad of ['/curio/api/links', '/daymark/api', '/daymark/api/today?x=1', 'https://styrigx.com/curio/api/export', '/blog/api/x']) {
+    assert.equal(links.cleanTarget(bad), null, bad);
+  }
+  assert.equal(links.cleanTarget('/blog/apix/'), '/blog/apix/');
   assert.equal(links.targetUrl('https://atlas.styrigx.com/blog/p/'), 'https://atlas.styrigx.com/blog/p/');
   for (const bad of ['//evil.com', '/\\evil.com', '\\\\evil.com', 'https://evil.com/', 'http://styrigx.com/', 'http://atlas.styrigx.com/', 'evil.com', 'javascript:alert(1)',
     'JavaScript:alert(1)', 'data:text/html,x', 'https:evil.com', 'https:/atlas.styrigx.com/', 'https:///atlas.styrigx.com/',

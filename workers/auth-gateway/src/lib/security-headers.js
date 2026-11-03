@@ -38,11 +38,10 @@ export const PERMISSIONS_POLICY = 'camera=(), microphone=(), payment=(), usb=(),
 /** 强制执行的 CSP：不含任何 script / style / default 指令（单测检查） */
 export const CSP_ENFORCED = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'";
 
-/** 主站页面会连的外部地址（connect-src）：天气（open-meteo 预报 + 城市解析）、日刻 · 今日一句 */
+/** 主站页面会连的外部地址（connect-src）：天气（open-meteo 预报 + 城市解析）。日刻 · 今日一句合并 PR3 起同源（/daymark/api/today），不再列 */
 export const CONNECT_EXTERNAL = [
   'https://api.open-meteo.com',
   'https://geocoding-api.open-meteo.com',
-  'https://atlas.styrigx.com',
 ];
 
 /** 只报告、不拦截的完整 CSP（主站） */

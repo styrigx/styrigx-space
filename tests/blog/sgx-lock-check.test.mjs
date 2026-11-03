@@ -10,7 +10,7 @@ const src = readFileSync(new URL('../../web/blog/assets/js/blog/sgx-lock-check.j
  * 在假的 window / document 里跑脚本，返回触发器和记录。
  * respond：fetch 的回答（{status, json} 或 'network'），json 是函数时当 r.json() 的实现
  */
-function load({ href = 'https://atlas.styrigx.com/blog/post/a/', respond = { status: 204 }, now = 100000 } = {}) {
+function load({ href = 'https://styrigx.com/blog/post/a/', respond = { status: 204 }, now = 100000 } = {}) {
   const docListeners = {};
   const winListeners = {};
   const replaced = [];
@@ -90,7 +90,7 @@ test('401 带网关原因名：原样带上 why，参数顺序 lock → why → 
     assert.deepEqual(t.keys, ['lock', 'why', 'return']);
     assert.equal(t.p.get('lock'), '1');
     assert.equal(t.p.get('why'), why);
-    assert.equal(t.p.get('return'), 'https://atlas.styrigx.com/blog/post/a/');
+    assert.equal(t.p.get('return'), 'https://styrigx.com/blog/post/a/');
   }
 });
 
@@ -114,18 +114,18 @@ test('401 没有 / 不认识的 why、或 body 不是 JSON：一律 invalid-sess
 
 test('回跳地址去掉已有的 lock / why / return，保留其他参数和 #hash', async () => {
   const href =
-    'https://atlas.styrigx.com/blog/en/post/b/?lock=1&q=x&why=no-cookie&return=https%3A%2F%2Fatlas.styrigx.com%2Fblog%2F&page=2#sec';
+    'https://styrigx.com/blog/en/post/b/?lock=1&q=x&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2Fblog%2F&page=2#sec';
   const s = load({ href, respond: { status: 401, json: { ok: false, why: 'no-cookie' } } });
   await s.focus();
   const ret = parse(s.replaced[0]).p.get('return');
-  assert.equal(ret, 'https://atlas.styrigx.com/blog/en/post/b/?q=x&page=2#sec');
+  assert.equal(ret, 'https://styrigx.com/blog/en/post/b/?q=x&page=2#sec');
   /* 只有这三个参数时连 ? 一起去掉 */
   const s2 = load({
-    href: 'https://atlas.styrigx.com/blog/?lock=1&why=invalid-session&return=%2F',
+    href: 'https://styrigx.com/blog/?lock=1&why=invalid-session&return=%2F',
     respond: { status: 401, json: { ok: false, why: 'invalid-session' } },
   });
   await s2.focus();
-  assert.equal(parse(s2.replaced[0]).p.get('return'), 'https://atlas.styrigx.com/blog/');
+  assert.equal(parse(s2.replaced[0]).p.get('return'), 'https://styrigx.com/blog/');
 });
 
 test('其他状态码 / 网络错误：不跳，下次再查', async () => {

@@ -49,11 +49,10 @@
       <div class="sgx-drawer-body">
       <ul class="sgx-drawer-list">
         {{- range $nav.items }}
-        {{- /* 图志三站（blog / curio / daymark）同在 atlas.styrigx.com 下，按 id 走 /<id>/（英文 /<id>/en/），博客自己用站内地址；其余项（主站）用 origin + path */}}
+        {{- /* 三站（blog / curio / daymark）和主站同在 styrigx.com 下（合并 PR3），按 id 走站内相对地址 /<id>/（英文 /<id>/en/）；其余项（主站）用 origin + path */}}
         {{- $href := "" }}
         {{- if in (slice "blog" "curio" "daymark") .id }}
         {{- $href = printf "/%s/%s" .id (cond $isEn "en/" "") }}
-        {{- if ne .id "blog" }}{{ $href = print "https://atlas.styrigx.com" $href }}{{ end }}
         {{- else }}
         {{- $href = print .origin (cond $isEn (print "/en" .path) .path) }}
         {{- end }}

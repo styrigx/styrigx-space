@@ -8,8 +8,8 @@ src/gate.js         门：只认 styrigx.com；/s/* 谁都能开；/api/share* �
 src/auth.js         会话：本 Worker 自己一份（只认管理员锁屏会话，问网关 AuthVerifier / AUTH；不问账号会话）
 src/open.js         打开短链：普通 → 302；带会话 → 请网关 ShareIssuer 签访客会话 → 302（去掉码）；失败统一 302 /?lock=1；限速
 src/api/share.js    POST /api/share { list | create | revoke }（只认管理员锁屏会话；同源，图志跨源只许 create + reuse）
-src/lib/links.js    规则（码、有效期、会话档位、目标：站内路径或 styrigx.com / 图志 atlas.styrigx.com 的 https 地址）、复用查询和 D1 语句
-src/lib/cors.js     /api/share 的跨源：只认图志 https://atlas.styrigx.com 一个 Origin，预检 OPTIONS、Allow-Credentials、Vary: Origin
+src/lib/links.js    规则（码、有效期、会话档位、目标：站内路径或 styrigx.com / 旧图志 atlas.styrigx.com 的 https 地址）、复用查询和 D1 语句
+src/lib/cors.js     /api/share 的跨源：合并 PR3 起三站和主站同源；只剩旧图志 https://atlas.styrigx.com 一个 Origin（过渡期保留），预检 OPTIONS、Allow-Credentials、Vary: Origin
 migrations/         D1 styrigx-share 的表结构（0001_share_links.sql：share_link、share_fail）
 ```
 

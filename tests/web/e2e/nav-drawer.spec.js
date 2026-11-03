@@ -85,10 +85,11 @@ test.describe('导航抽屉', () => {
     await expect(drawer(page).locator('a[href*="/files/"]')).toHaveCount(0);
     /* 链接 */
     await expect(items.nth(0)).toHaveAttribute('href', '/');
-    await expect(items.nth(1)).toHaveAttribute('href', 'https://atlas.styrigx.com/curio/');
+    /* 合并 PR3：三站和主站同在 styrigx.com，抽屉里是相对地址 */
+    await expect(items.nth(1)).toHaveAttribute('href', '/curio/');
     await expect(items.nth(1)).toHaveAttribute('data-nav', 'curio');
-    await expect(items.nth(2)).toHaveAttribute('href', 'https://atlas.styrigx.com/daymark/');
-    await expect(items.nth(3)).toHaveAttribute('href', 'https://atlas.styrigx.com/blog/');
+    await expect(items.nth(2)).toHaveAttribute('href', '/daymark/');
+    await expect(items.nth(3)).toHaveAttribute('href', '/blog/');
     /* 设置子页：抽屉里没有对应项，没有高亮 */
     await expect(drawer(page).locator('[aria-current="page"]')).toHaveCount(0);
     /* 抽屉贴左边 */
@@ -116,7 +117,7 @@ test.describe('导航抽屉', () => {
     await go(page, '/en/', 'en');
     await openDrawer(page);
     await expect(drawer(page).locator('.sgx-drawer-label')).toHaveText(['Space', 'Curio', 'Daymark', 'Blog']);
-    await expect(drawer(page).locator('.sgx-drawer-item').nth(1)).toHaveAttribute('href', 'https://atlas.styrigx.com/curio/en/');
+    await expect(drawer(page).locator('.sgx-drawer-item').nth(1)).toHaveAttribute('href', '/curio/en/');
     const s = drawer(page).locator('.sgx-drawer-foot a.sgx-drawer-search');
     await expect(s).toHaveAttribute('href', '/en/search/');
     await expect(s).toHaveAttribute('aria-label', 'Search');

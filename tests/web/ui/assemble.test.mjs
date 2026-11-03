@@ -276,7 +276,11 @@ test('真实构建：拼好的树根文件归主站、三站各在前缀下、�
     const html = readFileSync(path.join(out, s, 'index.html'), 'utf8');
     const refs = [...html.matchAll(/(?:href|src)="?(\/[^"\s>]*)/g)].map((m) => m[1]);
     assert.ok(refs.length > 3, s);
-    assert.deepEqual(refs.filter((r) => !r.startsWith('/' + s + '/')), [], s + '：站内地址都带 /' + s + '/');
+    /* 合并 PR3：抽屉里另两个子站是同源相对地址 /<站>/（英文 /<站>/en/），其余站内地址都带本站前缀 */
+    const others = SITES.filter((x) => x !== s).map((x) => '/' + x + '/');
+    assert.deepEqual(refs.filter((r) => !r.startsWith('/' + s + '/') && !others.includes(r)), [], s + '：站内地址都带 /' + s + '/（另两站的抽屉项除外）');
+    assert.deepEqual(others.filter((o) => !refs.includes(o)), [], s + '：抽屉里另两站是相对地址');
+    assert.doesNotMatch(html, /atlas\.styrigx\.com/, s + '：不再有旧图志域名');
     const canon = html.match(/<link rel="?canonical"? href="?([^"\s>]+)/);
     if (canon) assert.ok(canon[1].startsWith(`https://styrigx.com/${s}/`), s + ' canonical ' + canon[1]);
   }

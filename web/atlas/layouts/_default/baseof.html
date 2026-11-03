@@ -220,8 +220,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    JS 接管：点击里同步打开原地搜索层，抽屉原地淡掉、搜索框变成底部搜索栏，见 head-buttons.js / search-host.js）。 */}}
 {{ $navCur := "" }}
 {{ if .IsHome }}{{ $navCur = "home" }}{{ end }}
-{{/* 抽屉项来自 web/data/shell-nav.json（共享外壳：scripts/gen-shell.mjs 把它连同图标生成 web/shared/shell/nav.json，子站同步同一份）。
-   主站自己的项（origin = https://styrigx.com）用站内相对地址；子站项用绝对地址，英文加 /en 前缀。 */}}
+{{/* 抽屉项来自 web/atlas/data/shell-nav.json（共享外壳：scripts/gen-shell.mjs 把它连同图标生成 web/atlas/shared/shell/nav.json，子站同步同一份）。
+   合并 PR3 起全部用站内相对地址（partials/shell-nav-href.html）：主站项英文加 /en 前缀，子站项英文在站目录后加 en/。 */}}
 {{ $shellNav := index site.Data "shell-nav" }}
 <dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ cond $isEn $shellNav.label.en $shellNav.label.zh }}">
   <nav class="sgx-drawer-sheet">

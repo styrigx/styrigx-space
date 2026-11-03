@@ -22,7 +22,7 @@ export function cookieLang(U, cookieHeader) {
   return lang === 'zh' || lang === 'en' ? lang : '';
 }
 
-/** 本站在图志（atlas.styrigx.com）下的前缀：中文 /daymark/xxx，英文 /daymark/en/xxx */
+/** 本站在主域名（styrigx.com）下的前缀：中文 /daymark/xxx，英文 /daymark/en/xxx */
 export const BASE = '/daymark/';
 
 /**

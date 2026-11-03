@@ -1,5 +1,5 @@
 {
-  "_note": "博客在主站单树下（styrigx.com/blog/；合并 PR3 之前线上入口仍是 atlas.styrigx.com/blog/）的全部地址：pages / feeds / anchors 是相对 web/public/ 的路径（线上加 /blog 前缀），sitemap / rss 是完整网址。tests/urls.test.mjs 核对 Hugo 构建一一对应。新增 / 删除页面时同步改这里。",
+  "_note": "博客在主站单树下（styrigx.com/blog/；合并 PR3 起线上入口就是这里，旧 atlas.styrigx.com/blog/ 由网关 301 过来）的全部地址：pages / feeds / anchors 是相对 web/public/ 的路径（线上加 /blog 前缀），sitemap / rss 是完整网址。tests/urls.test.mjs 核对 Hugo 构建一一对应。新增 / 删除页面时同步改这里。",
   "pages": [
     "/",
     "/404.html",

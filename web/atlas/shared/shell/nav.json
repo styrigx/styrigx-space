@@ -19,7 +19,7 @@
       "icon": "nav-curio",
       "zh": "奇趣",
       "en": "Curio",
-      "origin": "https://atlas.styrigx.com",
+      "origin": "https://styrigx.com",
       "path": "/curio/"
     },
     {
@@ -27,7 +27,7 @@
       "icon": "nav-daymark",
       "zh": "日刻",
       "en": "Daymark",
-      "origin": "https://atlas.styrigx.com",
+      "origin": "https://styrigx.com",
       "path": "/daymark/"
     },
     {
@@ -35,7 +35,7 @@
       "icon": "nav-blog",
       "zh": "博客",
       "en": "Blog",
-      "origin": "https://atlas.styrigx.com",
+      "origin": "https://styrigx.com",
       "path": "/blog/"
     }
   ],

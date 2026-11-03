@@ -64,6 +64,8 @@ test('地址：3 个公开（主站首页 + 图志 robots.txt + 规则集 health
   /* 公开地址都是 styrigx.com 的；服务绑定的主机名不是公网域名（只给绑定用） */
   for (const t of TARGETS) assert.equal(/styrigx\.com$/.test(new URL(t.url).host), !t.binding, t.site);
   assert.equal(TARGETS.find((t) => t.site === 'atlas').url, 'https://atlas.styrigx.com/robots.txt');
+  /* 合并 PR3：atlas.styrigx.com 由网关 301 到主域名；同一次部署里 status 先于网关上线，过渡期 301 / 200 都算正常 */
+  assert.deepEqual(TARGETS.find((t) => t.site === 'atlas').expect, [301, 200]);
   assert.ok(!TARGETS.some((t) => /book|muse-invite|blog\.|curio\.|daymark\./.test(t.url)));
   assert.equal(FAIL_THRESHOLD, 3);
   assert.equal(TIMEOUT_MS, 10000);
