@@ -467,8 +467,9 @@ test('PR-E Digital wellbeing: one screen-time card (this device when signed out)
   await expect(card).toContainText('我的屏幕时间');
   await expect(card.locator('[data-wb="scope"]')).toHaveText('今天 · 本机');
   await expect(card.locator('[data-wb="total"]')).not.toHaveText('--');
-  /* 没有admin 会话：不拉 / 不显示所有设备的数据 */
-  await expect(card).not.toHaveAttribute('data-wb-root', /.*/);
+  /* P2-2：卡片不再按 data-sgx-role 去掉 data-wb-root；改为带 data-wb-detail，只有 /api/wellbeing 回 detail:true（账号已登录）才换成所有设备 */
+  await expect(card).toHaveAttribute('data-wb-root', /.*/);
+  await expect(card).toHaveAttribute('data-wb-detail', /.*/);
   const tip = pg.locator('#row-welltip');
   await expect(tip.locator('.switch')).toHaveAttribute('aria-checked', 'true');
   await tip.click();

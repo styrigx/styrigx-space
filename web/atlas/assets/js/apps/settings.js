@@ -590,12 +590,12 @@ export function mountSettings() {
   });
   paintWellTip();
   featOn('well-tip', paintWellTip);
-  /* 屏幕时间卡（2026-10-23 PR-E 两张并一张）：先画本机记录（sgx-well-v）；admin 会话下 core 的 loadWb() 拉到所有设备的数据后
-     覆盖同一组 [data-wb] 槽位并把范围改成「所有设备」。不是admin 会话就去掉 data-wb-root，不显示管理员的数据。 */
+  /* 屏幕时间卡（2026-10-23 PR-E 两张并一张）：先画本机记录（sgx-well-v）；core 的 loadWb() 拉到 /api/wellbeing 且 detail:true
+     （账号已登录，P2-2）时覆盖同一组 [data-wb] 槽位并把范围改成「所有设备」；detail:false 就保持本机记录（卡上的 data-wb-detail，lib/wb-view.js wbFits）。
+     P2-2 起不再看 data-sgx-role。 */
   (function () {
     const card = $('wb-card');
     if (!card) return;
-    if (document.documentElement.getAttribute('data-sgx-role') !== 'admin') card.removeAttribute('data-wb-root');
     const q = function (/** @type {string} */ n) {
       return /** @type {HTMLElement|null} */ (card.querySelector('[data-wb="' + n + '"]'));
     };

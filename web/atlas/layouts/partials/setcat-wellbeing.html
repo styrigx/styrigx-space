@@ -1,10 +1,10 @@
 {{/* 2.6.0：设置子页「wellbeing」分类组。
-   2026-10-23 PR-E：两张时间卡并成一张 —— 登录（admin 会话）时显示所有设备（/api/wellbeing，wb-view.js 渲染，[data-wb-root]），
-   没登录时只显示本机记录（settings.js 从 sgx-well-v 画，同一组 data-wb 槽位）；15 分钟提醒只在这里。 */}}
+   2026-10-23 PR-E：两张时间卡并成一张 —— 账号已登录时显示所有设备（/api/wellbeing 回 detail:true 才画，wb-view.js，[data-wb-root][data-wb-detail]；
+   P2-2 起按 detail，不看 data-sgx-role），否则只显示本机记录（settings.js 从 sgx-well-v 画，同一组 data-wb 槽位）；15 分钟提醒只在这里。 */}}
 {{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
 <div class="set-group scroll-mt-24" id="sg-wellbeing">
 <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.26s">
-      <div class="p-5" id="wb-card" data-wb-root>
+      <div class="p-5" id="wb-card" data-wb-root data-wb-detail>
         <div class="flex items-baseline justify-between gap-3 mb-3">
           <p class="text-sm font-medium">{{ if $isEn }}My screen time{{ else }}我的屏幕时间{{ end }}</p>
           <p class="text-[11px] text-m-on-surface-variant text-right" data-wb="scope">{{ if $isEn }}Today · this device{{ else }}今天 · 本机{{ end }}</p>

@@ -281,6 +281,8 @@ import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
    * @param {any} [status]
    */
   function showLogin(notice, status) {
+    /* 首帧提示跟着改（avatar-edit.js 按它启用头像按钮；P2-2） */
+    document.documentElement.setAttribute('data-sgx-account-session', 'out');
     mainEl.hidden = true;
     loginEl.hidden = false;
     setPageTitle('loginTitle');
@@ -307,6 +309,7 @@ import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
   }
 
   function showMain(j) {
+    document.documentElement.setAttribute('data-sgx-account-session', 'in');
     setPageTitle('acctTitle');
     const secSub = $('acct-sec-sub');
     if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');

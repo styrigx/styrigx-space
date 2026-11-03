@@ -5,7 +5,9 @@
  *   加自定义主题色 sgx-accent 和天气城市；不同步语言（跟随各设备系统）、布局（每台屏幕不同）、
  *   精确定位、锁屏 / 凭证类（本来就不在 localStorage）。
  * - 每项记一个本机修改时间（localStorage sgx-sync-meta），和云端（/api/prefs）逐项比，新的赢。
- * - 时机（2026-10-24 拉取节流）：只限管理员；没登录账号 401 → 记下来，之后不再请求，直到账号页重新登录。
+ * - 时机（2026-10-24 拉取节流）：只在锁屏已解锁的页面（<html data-sgx-lock-session="valid">）请求；P2-2 起不再看 data-sgx-role，
+ *   能不能同步直接按 /api/prefs 的结果：401 account（没登录账号）→ 记下来，之后不再请求，直到账号页重新登录；
+ *   其他 401 / 403（锁屏会话过期、过渡期网关对访客的 403 role、没有 prefs.sync 作用域）→ 这次不同步，不记 out。
  *   - 普通拉取（每页加载 shell/core.js、页面回到前台）最多每 5 分钟一次：上次成功拉取 / 推送的时刻按账号记在
  *     localStorage sgx-sync-pull（{ <账号>: 毫秒 }），没过 5 分钟就不发 GET /api/prefs。
  *   - 强制拉取不受节流（force）：刚登录、打开总开关、进账号页 /account/ 和云同步页 /account/sync/。
@@ -159,6 +161,11 @@ let inflight = null;
 /** 本页上次成功拉取的时刻 */
 let okAt = 0;
 
+/** 服务端说「没登录账号」吗（401 account；P2-2 起 /api/prefs 的唯一一种 out） @param {{s:number, j:any}} res */
+function saysAccountOut(res) {
+  return res.s === 401 && !!res.j && res.j.error === 'account';
+}
+
 function onAuthOut() {
   sset(AUTH_KEY, 'out');
   clearPullStamp();
@@ -173,7 +180,7 @@ function flush() {
   s.pending = {};
   if (!Object.keys(changes).length || !syncEnabled()) return;
   call('POST', { changes: changes }).then(function (res) {
-    if (res.s === 401) { onAuthOut(); return; }
+    if (saysAccountOut(res)) { onAuthOut(); return; }
     if (res.j && res.j.ok) {
       const now = Date.now();
       sset(LAST_KEY, String(now));
@@ -236,10 +243,12 @@ function pull() {
   const stored = getJSON(META_KEY, {}) || {};
   for (const k of Object.keys(stored)) if ((Number(stored[k]) || 0) > (s.meta[k] || 0)) s.meta[k] = Number(stored[k]);
   return call('GET').then(function (res) {
-    if (res.s === 401) {
+    if (saysAccountOut(res)) {
       onAuthOut();
       return 'out';
     }
+    /* 别的 401 / 403（锁屏过期、访客 403 role、没作用域）：这次不同步，也不标 out（换成主人会话后照常拉） */
+    if (res.s === 401 || res.s === 403) return 'skip';
     if (!(res.j && res.j.ok)) return 'error';
     sset(AUTH_KEY, 'in');
     const now = Date.now();
@@ -270,13 +279,13 @@ function pull() {
 
 /**
  * 主站每页调用一次（shell/core.js），页面回到前台再调；账号页 / 云同步页 / 登录 / 打开开关时 force。
- * 管理员 + 开关开 + 没被标「没登录账号」才动；普通调用 5 分钟内拉过就不拉（'fresh'）。
+ * 锁屏已解锁 + 开关开 + 没被标「没登录账号」才动（P2-2 起不看 data-sgx-role，按 /api/prefs 的结果）；普通调用 5 分钟内拉过就不拉（'fresh'）。
  * @param {{force?: boolean}} [opts] force：忽略节流和 'out' 标记（刚登录 / 打开开关 / 进账号页、云同步页）
  * @returns {Promise<string>} 'off' | 'skip' | 'out' | 'fresh' | 'ok' | 'error'
  */
 export function initCloudSync(opts) {
   const force = !!(opts && opts.force);
-  if (document.documentElement.getAttribute('data-sgx-role') !== 'admin') return Promise.resolve('skip');
+  if (document.documentElement.getAttribute('data-sgx-lock-session') !== 'valid') return Promise.resolve('skip');
   if (!syncEnabled()) return Promise.resolve('off');
   if (!force && sget(AUTH_KEY) === 'out') return Promise.resolve('out');
 
