@@ -2,9 +2,12 @@
  * 服务绑定验票（workers/auth-gateway/src/core/lock-session.js，RPC 入口 AuthVerifier 只是薄包装）：
  * - checkLockSession：与网关验页面同一套逻辑；只回结论
  * - wrangler 入口导出 AuthVerifier
+ * - AuthVerifier.conclusion()（P2-1，逻辑在 core/conclusion.js，细节见 conclusion.test.mjs）：经 RPC 入口走一遍——
+ *   Secrets Store 绑定换成字符串后验门、问 ACCOUNT_VERIFIER；没进门不问账号；lockSession() 不变
  *
  * 运行：node --test tests/workers/auth-gateway/verifier.test.mjs
  */
+import '../account/_cf-workers.mjs'; /* cloudflare:workers 替身：AuthVerifier 是 WorkerEntrypoint */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -18,6 +21,8 @@ const { checkLockSession } = await import(REPO + '/workers/auth-gateway/src/core
 const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
 
 const LOCK = await genKeyPair();
+const { AuthVerifier } = await import(REPO + '/workers/auth-gateway/src/rpc/auth-verifier.js');
+const { _resetSecretCache } = await import(REPO + '/workers/auth-gateway/src/secrets.js');
 
 function env({ epoch = '0', kvThrows = false } = {}) {
   const d1 = makeAuthD1({ epochs: { 'lock-epoch': Number(epoch) } }); /* 纪元在 D1 */
@@ -66,3 +71,51 @@ test('部署入口导出 AuthVerifier、ShareIssuer（短链 Worker 专用），
   assert.doesNotMatch(av, /class ShareIssuer|createLinkKey|revokeLinkKey|openLinkSession/);
 });
 
+/* ---------------- AuthVerifier.conclusion（P2-1） ---------------- */
+
+const DEV = 'devtestdevtest01';
+function fakeVerifier(reply) {
+  const calls = [];
+  return { calls, async authorize(c, x, o) { calls.push([c, x, o]); return reply; }, async accountSession() { return { ok: true }; } };
+}
+
+test('AuthVerifier：有 lockSession 和 conclusion 两个方法，没有 fetch', () => {
+  assert.equal(typeof AuthVerifier.prototype.lockSession, 'function');
+  assert.equal(typeof AuthVerifier.prototype.conclusion, 'function');
+  assert.equal(AuthVerifier.prototype.fetch, undefined);
+});
+
+test('AuthVerifier.conclusion：进门 + 账号会话有效 → { lock, account }；锁屏公钥是 Secrets Store 绑定也能读；opts.reauth 原样要', async () => {
+  _resetSecretCache();
+  const v = fakeVerifier({ ok: true, reason: 'ok', deviceId: DEV, scopes: ['daymark.write', 'curio.write'], reauth: true });
+  const e = { ...env(), SGX_LOCK_PUBLIC: { get: async () => LOCK.pub }, ACCOUNT_VERIFIER: v };
+  const ck = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password')) + '; sgx-account-session=x';
+  const r = await new AuthVerifier({}, e).conclusion(ck, { ua: 'UA' }, { reauth: true });
+  assert.deepEqual(r, {
+    lock: { ok: true, by: 'password', tempkeyId: '', reason: 'ok' },
+    account: { ok: true, deviceId: DEV, scopes: ['curio.write', 'daymark.write'], reauth: true, reason: 'ok' },
+  });
+  assert.deepEqual(v.calls, [[ck, { ua: 'UA' }, { reauth: true }]]);
+});
+
+test('AuthVerifier.conclusion：没进门 → lock.ok=false、account no-lock，不调账号；账号绑定缺失 → account.ok=false', async () => {
+  _resetSecretCache();
+  const v = fakeVerifier({ ok: true, reason: 'ok', deviceId: DEV, scopes: [], reauth: false });
+  const r = await new AuthVerifier({}, { ...env(), ACCOUNT_VERIFIER: v }).conclusion('sgx-account-session=x', {});
+  assert.equal(r.lock.ok, false);
+  assert.equal(r.account.ok, false);
+  assert.equal(r.account.reason, 'no-lock');
+  assert.equal(v.calls.length, 0);
+  _resetSecretCache();
+  const ck = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'visitor'));
+  const r2 = await new AuthVerifier({}, env()).conclusion(ck, {});
+  assert.equal(r2.lock.ok, true);
+  assert.equal(r2.lock.by, 'tempkey');
+  assert.deepEqual(r2.account, { ok: false, deviceId: '', scopes: [], reauth: false, reason: 'no-verifier' });
+});
+
+test('AuthVerifier.lockSession：行为不变（仍回 { ok, role }）', async () => {
+  _resetSecretCache();
+  const c = await testLockSession(LOCK.priv, 0, 'admin');
+  assert.deepEqual(await new AuthVerifier({}, env()).lockSession('sgx-lock-session=' + c), { ok: true, role: 'admin' });
+});
