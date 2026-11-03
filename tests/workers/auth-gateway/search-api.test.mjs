@@ -101,18 +101,26 @@ test('/api/search：没绑定 503；上游抛错 503；空查询直接空结果�
   assert.equal((await searchCall(makeKV(), 'x'.repeat(101), sess, null)).status, 400);
 });
 
-test('子站 /api/search 也走网关：图志上没会话 401、有会话转发', async () => {
+test('子站的 /api/search（合并 PR3 起同源，在主域名根上）：没会话 401、有会话转发、POST 405；子站关口不再有自己的 /api/search，旧图志一律 301', async () => {
+  const worker = (await import('../../../workers/auth-gateway/src/app.js')).default;
   const { handleSubsite } = await import('../../../workers/auth-gateway/src/gate.js');
   const log = [];
-  const env = Object.assign(envFor(makeKV()), { SEARCH: fakeSearch(log) });
-  const origin = async () => new Response('origin', { status: 200 });
-  let r = await handleSubsite(new Request('https://atlas.styrigx.com/api/search?q=a'), env, origin);
+  const env = Object.assign(envFor(makeKV()), { SGX_SITE: 'space', SEARCH: fakeSearch(log) });
+  const CTX = { waitUntil() {} };
+  let r = await worker.fetch(new Request('https://styrigx.com/api/search?q=a'), env, CTX);
   assert.equal(r.status, 401);
-  r = await handleSubsite(new Request('https://atlas.styrigx.com/api/search?q=a', { headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, origin);
+  r = await worker.fetch(new Request('https://styrigx.com/api/search?q=a', { headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, CTX);
   assert.equal(r.status, 200);
   assert.equal(log[0].role, 'visitor');
-  r = await handleSubsite(new Request('https://atlas.styrigx.com/api/search?q=a', { method: 'POST', headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, origin);
+  r = await worker.fetch(new Request('https://styrigx.com/api/search?q=a', { method: 'POST', headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, CTX);
   assert.equal(r.status, 405);
+  /* 子站关口只认主域名的子站前缀：别的地址一律 404（不回源） */
+  const origin = async () => new Response('origin', { status: 200 });
+  assert.equal((await handleSubsite(new Request('https://atlas.styrigx.com/api/search?q=a'), env, origin)).status, 404);
+  r = await worker.fetch(new Request('https://atlas.styrigx.com/api/search?q=a', { headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, CTX);
+  assert.equal(r.status, 301);
+  assert.equal(r.headers.get('Location'), 'https://styrigx.com/api/search?q=a');
+  assert.equal(log.length, 1, '旧图志不转发');
 });
 
 /* ---- 站点监测 /api/status（2026-10-22）：同样是网关只做门，转给 styrigx-status ---- */

@@ -465,12 +465,12 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
   assert.equal(r.status, 302);
   assert.equal(r.headers.get('Location'), 'https://blog-preview.styrigx.com/post/abc/');
 
-  r = await tryReturn('https://atlas.styrigx.com/daymark/en/');
+  r = await tryReturn('https://styrigx.com/daymark/en/');
   assert.equal(r.status, 302);
-  assert.equal(r.headers.get('Location'), 'https://atlas.styrigx.com/daymark/en/');
+  assert.equal(r.headers.get('Location'), 'https://styrigx.com/daymark/en/');
 
-  /* 已并入图志的旧子域名 → 回首页 */
-  for (const h of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) {
+  /* 已下线的旧子域名、旧图志（合并 PR3 起只剩 301）→ 回首页 */
+  for (const h of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com', 'atlas.styrigx.com']) {
     r = await tryReturn('https://' + h + '/');
     assert.equal(r.headers.get('Location'), '/', h);
   }
@@ -490,7 +490,7 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
   assert.equal(r.headers.get('Location'), '/');
 
   /* http（非 https）→ 回首页 */
-  r = await tryReturn('http://atlas.styrigx.com/blog/');
+  r = await tryReturn('http://styrigx.com/blog/');
   assert.equal(r.headers.get('Location'), '/');
 
   /* 带 userinfo → 回首页 */
@@ -525,7 +525,7 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
 test('middleware：首页 ?return=子站&why= + 有效会话 → 200 不 302（防主站↔子站死循环）', async () => {
   const env = PROD_ENV();
   const cookie = await validCookie(0);
-  const url = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent('https://atlas.styrigx.com/daymark/') + '&why=sig';
+  const url = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent('https://styrigx.com/daymark/') + '&why=sig';
   const r = await mw(mwCtx(url, { cookie, env }));
   /* L1 不 302：返回 200 首页，让 lock.js 显示失败原因，而不是在主站↔子站间无限跳转 */
   assert.equal(r.status, 200);
@@ -536,10 +536,10 @@ test('middleware：首页 ?return=子站&why= + 有效会话 → 200 不 302（�
 test('middleware：首页 ?return=子站（无 why）+ 有效会话 → 302 回子站（原有行为不变）', async () => {
   const env = PROD_ENV();
   const cookie = await validCookie(0);
-  const url = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent('https://atlas.styrigx.com/daymark/');
+  const url = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent('https://styrigx.com/daymark/');
   const r = await mw(mwCtx(url, { cookie, env }));
   assert.equal(r.status, 302);
-  assert.equal(r.headers.get('Location'), 'https://atlas.styrigx.com/daymark/');
+  assert.equal(r.headers.get('Location'), 'https://styrigx.com/daymark/');
 });
 
 test('middleware：无有效会话访问内页 → 302 到首页锁屏（return 为站内路径）', async () => {

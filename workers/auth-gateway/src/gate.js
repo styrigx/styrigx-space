@@ -3,10 +3,11 @@
  * 原 functions/_middleware.js（主站关口）、src/subsites.js（图志关口）、functions/_kernel/html.js（HTML 会话标记）、
  * gate.js（公开页清单）。
  *
- * 两个调用点（src/app.js）：
- * - 主站 styrigx.com：onRequest(context)（会话、角色、白名单、no-store、锁屏瘦身），放行后 context.next() 交给 router.js
- * - 图志 atlas.styrigx.com（/blog/ /curio/ /daymark/）：handleSubsite(request, env, origin)
- * 只 import api/（图志的 /api/search 和主站同一个处理函数）、core/、lib/，不 import router / app。
+ * 调用点（src/app.js）：
+ * - 旧图志 atlas.styrigx.com：atlasRedirect(url)（任意路径 301 到主域名，合并 PR3）
+ * - 子站 styrigx.com/blog/ /curio/ /daymark/：handleSubsite(request, env, origin)（合并 PR3 起按路径前缀）
+ * - 主站 styrigx.com 其余路径：onRequest(context)（会话、角色、白名单、no-store、锁屏瘦身），放行后 context.next() 交给 router.js
+ * 只 import core/、lib/，不 import router / app / api。
  */
 import { verifyLockSession, ROLE_ADMIN, ROLE_VISITOR } from './core/lock-session.js';
 import { verifyLockResetTicket } from './core/tickets.js';
@@ -14,7 +15,6 @@ import { withNoStore, json, apiError, NO_STORE } from './lib/http.js';
 import { askAccountSessionFor } from './core/account-rpc.js';
 import { isAdminOnlyPath, resolveReturn } from './core/return.js';
 import { anonLimit } from './core/anon-limit.js';
-import * as searchApi from './api/search.js';
 
 /* ================= HTML 会话标记（原 _kernel/html.js） ================= */
 
@@ -445,32 +445,37 @@ async function handleRequest(context) {
   return next();
 }
 
-/* ================= 图志关口（原 src/subsites.js） ================= */
+/* ================= 子站关口（原 src/subsites.js；合并 PR3 起按主域名路径前缀） ================= */
 
 /**
- * @fileoverview 子站门禁：图志 atlas.styrigx.com（/blog/、/curio/、/daymark/ 三站同一个 Pages）的会话检查由网关统一做。
+ * @fileoverview 子站门禁：博客、奇趣、日刻在主域名 styrigx.com 的 /blog/、/curio/、/daymark/ 下（合并 PR2 起和主站拼成一棵树、同一个 Pages），
+ * 会话检查由网关统一做（合并 PR3，2026-11-03）。
  *
- * 子站 Pages 不再持有任何公钥、不再带验票代码。网关接管整个 atlas.styrigx.com（路由见 wrangler.toml）；
- * /curio/api/*、/daymark/api/* 是更具体的路由，归两个接口 Worker（styrigx-atlas 仓库），不进网关：
+ * 子站 Pages 不持有任何公钥、不带验票代码。网关整站通配 styrigx.com/*（路由见 wrangler.toml）；
+ * styrigx.com/curio/api/*、styrigx.com/daymark/api/* 是更具体的路由，归两个接口 Worker（workers/curio-core、workers/daymark-core），不进网关：
  *   - 会话有效（admin 或 visitor，与主站同一套 verifyLockSession：验签 + exp + epoch）→ 回源取页面，
  *     HTML 加 private, no-store（防锁定后切回标签页看到缓存的旧页面）
- *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/api/* 回 401 JSON（fetch 不跟跳转）
- *   - /api/search：全站搜索（三站共用，在图志根上），和主站同一个处理（路由表 router.js 里的 /api/search）
- *   - /api/lock-session-check：三站前端切回标签页时问的（在图志根上），网关直接回答：有效 204，失效 401 {ok:false, why}
- *     （blog 认 204；curio、daymark 只认 401，其他状态什么都不做）
- *   - 静态资源后缀（被页面路由顺带覆盖到的 js/css/字体/图片）直接回源，不验会话，与原子站白名单一致
+ *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/<站>/api/*（正常归接口 Worker，漏到网关时）回 401 JSON
+ *   - 静态资源后缀（js/css/字体/图片）直接回源，不验会话，与原子站白名单一致；/curio/、/daymark/ 下像图片的回答由 Pages 的 _worker.js 404
+ *   - xml / json 不在静态后缀里：博客全文 RSS、站点地图、各站 index.json 一律要会话（合并 PR2 时 _worker.js 的过渡 404 规则随之删掉）
+ * 子站前端问的 /api/lock-session-check、/api/search 在主域名根上，由主站关口 + 路由表回答（同源；有效 200 {ok:true}、失效 401 {ok:false}：
+ * blog 只对 401 跳锁屏、其余状态不动，curio / daymark 只认 401，见 tests/workers/auth-gateway/subsites.test.mjs）。
+ *
+ * 旧域名 atlas.styrigx.com（2026-11-02 起三站的正式入口）：任意路径 301 到 https://styrigx.com 同路径 + 查询串（atlasRedirect），
+ * 不验会话、不回源；接口 Worker 在 atlas.styrigx.com/<站>/api/* 的旧路由过渡期还在（更具体，不进网关）。
  *
  * 子站不做角色区分：admin、visitor 都能看页面（与原子站 middleware 一致）；
  * 管理员专属的操作（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker 再问网关（服务绑定 AuthVerifier）。
-
  */
 const MAIN_ORIGIN = 'https://styrigx.com';
+/** 子站所在的主机（主域名） */
+const MAIN_HOST = 'styrigx.com';
 
-/** 图志：三个子站共用的唯一主机 */
+/** 旧图志主机：只剩 301 到主域名（app.js 第一步） */
 export const ATLAS_HOST = 'atlas.styrigx.com';
 
 /**
- * 图志里的子站：第一段路径 → 配置。新增子站在这里加一项（图志 Pages 和 styrigx-atlas 仓库同步加目录）。
+ * 主域名下的子站前缀：第一段路径 → 配置。新增子站加一项 + web/<站>/ 包（scripts/assemble.mjs 的 SITES 同步加）。
  */
 export const SUBSITES = Object.freeze({
   blog: { site: 'blog' },
@@ -478,52 +483,93 @@ export const SUBSITES = Object.freeze({
   daymark: { site: 'daymark' },
 });
 
-/* 不验会话的静态资源后缀（不含正文内容）。和原子站 middleware 白名单一致。 */
+/* 不验会话的静态资源后缀（不含正文内容）。和原子站 middleware 白名单一致（图片后缀照旧，见代码方案待定 P3）。 */
 const STATIC_EXT = new Set([
   'css', 'js', 'mjs', 'map',
   'woff', 'woff2', 'ttf', 'otf', 'eot',
   'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'ico',
 ]);
 
-/* 不带正文的公开文件（以前子站只登记页面目录，这些都不过网关；改成整站通配后照旧放行）。
-   manifest 由浏览器不带 cookie 去取，挡了就是坏图标。robots.txt、favicon.ico 在图志根上，manifest 只有博客有。 */
-const PUBLIC_FILES = new Set(['/robots.txt', '/favicon.ico', '/blog/manifest.json']);
-
-/** @param {string} pathname */
-export function isStaticAsset(pathname) {
-  if (PUBLIC_FILES.has(pathname)) return true;
-  const dot = pathname.lastIndexOf('.');
-  const slash = pathname.lastIndexOf('/');
-  if (dot <= slash || dot < 0) return false;
-  return STATIC_EXT.has(pathname.slice(dot + 1).toLowerCase());
-}
+/* 不带正文的公开文件：博客的 manifest（浏览器不带 cookie 去取，挡了就是坏图标）。robots.txt / favicon.ico 在主域名根上，归主站。 */
+const BLOG_MANIFEST = '/blog/manifest.json';
 
 /**
- * 网关要不要按子站处理这个主机：只有图志。
- * @param {string} hostname
+ * 路径归一（只用来判断，不改回源地址）：百分号解码一次、反斜杠当斜杠、小写、连续斜杠并成一个、解析 . / .. 段。
+ * /%62log/rss.xml、//blog/rss.xml、/BLOG/rss.xml、/blog%2Frss.xml、/css/..%2Fblog/rss.xml 都认成 /blog/rss.xml，
+ * 不会漏到主站关口的公开后缀白名单（它对 .xml / .json 放行）或主站静态直通去回源拿全文 RSS（回源时 Pages 自己会解码）。
+ * @param {string} pathname
  */
-export function subsiteFor(hostname) {
-  return hostname === ATLAS_HOST ? { host: ATLAS_HOST } : null;
+export function normPath(pathname) {
+  let p = String(pathname || '');
+  try { p = decodeURIComponent(p); } catch (e) { /* 解不开就按原样比 */ }
+  p = p.replace(/\\/g, '/').toLowerCase().replace(/\/{2,}/g, '/');
+  const out = [];
+  const segs = p.split('/');
+  for (let i = 1; i < segs.length; i++) {
+    const seg = segs[i];
+    if (seg === '.') { if (i === segs.length - 1) out.push(''); continue; }
+    if (seg === '..') { out.pop(); if (i === segs.length - 1) out.push(''); continue; }
+    out.push(seg);
+  }
+  return '/' + out.join('/');
 }
 
 /**
- * 路径属于哪个子站（第一段）：/curio/xxx → curio。根上的文件和不认识的目录返回 null（照样要会话，只是日志里记 atlas）。
+ * 子站路径是不是免会话的静态文件。只认「本来就规整」的路径：带百分号编码、反斜杠、多斜杠、. / .. 段的一律不算
+ * （回源时 Pages 自己会解码，解码后指向哪个文件说不准，比如 rss.xml%3F.css），交给会话检查（fail closed）。
+ * @param {string} pathname
+ */
+export function isStaticAsset(pathname) {
+  const raw = String(pathname || '');
+  if (/[%\\]/.test(raw)) return false;
+  const p = normPath(raw);
+  if (p !== raw.toLowerCase()) return false;
+  if (p === BLOG_MANIFEST) return true;
+  const dot = p.lastIndexOf('.');
+  const slash = p.lastIndexOf('/');
+  if (dot <= slash || dot < 0) return false;
+  return STATIC_EXT.has(p.slice(dot + 1));
+}
+
+/**
+ * 路径属于哪个子站（归一后的第一段）：/curio/xxx → curio。根上的文件和不认识的目录返回 null。
  * @param {string} pathname
  */
 export function siteOf(pathname) {
-  const seg = pathname.split('/')[1] || '';
+  const seg = normPath(pathname).split('/')[1] || '';
   return Object.prototype.hasOwnProperty.call(SUBSITES, seg) ? SUBSITES[seg].site : null;
 }
 
+/**
+ * 这个请求是不是子站：主域名 styrigx.com 且第一段在 SUBSITES。返回 { site } 或 null。
+ * @param {URL} url
+ */
+export function subsiteOf(url) {
+  if (!url || url.hostname !== MAIN_HOST) return null;
+  const site = siteOf(url.pathname);
+  return site ? { site } : null;
+}
 
 /**
- * 302 到主站锁屏。why 让主站知道是子站踢回来的（主站见到 why 不再自动回跳，防两站之间死循环）。
+ * 旧域名 atlas.styrigx.com 任意路径 → 301 https://styrigx.com + 原路径 + 原查询串（不验会话、不回源；no-store：回滚时浏览器不会记住旧跳转）。
+ * 安全头由 app.js 按主站那组补（同主站的其他 301 / 302）。
+ * @param {URL} url
+ */
+export function atlasRedirect(url) {
+  return new Response(null, {
+    status: 301,
+    headers: { 'Location': MAIN_ORIGIN + url.pathname + url.search, 'Cache-Control': 'no-store' },
+  });
+}
+
+/**
+ * 302 到主站锁屏。why 让主站知道是子站踢回来的（主站见到 why 不再自动回跳，防死循环）；return 是子站的完整地址（同源）。
  * @param {URL} url
  * @param {string} why
  */
 export function lockRedirect(url, why) {
   const target = MAIN_ORIGIN + '/?lock=1&why=' + encodeURIComponent(why) +
-    '&return=' + encodeURIComponent(url.origin + url.pathname + url.search);
+    '&return=' + encodeURIComponent(MAIN_ORIGIN + url.pathname + url.search);
   return new Response(null, {
     status: 302,
     headers: { 'Location': target, 'Cache-Control': NO_STORE, 'X-Robots-Tag': 'noindex' },
@@ -565,38 +611,25 @@ async function subsitePage(res, role) {
 }
 
 /**
- * 子站请求处理（只在 hostname 命中 SUBSITES 时调用）。
+ * 子站请求处理（只在 subsiteOf(url) 命中时调用；app.js 已先把静态后缀直通回源，这里再判一次兜底）。
  * @param {Request} request
  * @param {Record<string, any>} env  已换好密钥字符串的 env
  * @param {(req: Request) => Promise<Response>} origin  回源函数
  */
 export async function handleSubsite(request, env, origin) {
   const url = new URL(request.url);
-  const conf = subsiteFor(url.hostname);
+  const conf = subsiteOf(url);
   if (!conf) return apiError(404, 'not-found');
-  const path = url.pathname;
+  const path = normPath(url.pathname);
 
-  if (path === '/api/lock-session-check') {
-    if (request.method !== 'GET' && request.method !== 'HEAD') return apiError(405, 'method');
-    const sess = await verifyLockSession(request, env);
-    if (sess.ok) return new Response(null, { status: 204, headers: { 'Cache-Control': NO_STORE } });
-    return json(401, { ok: false, why: sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session' });
-  }
-
-  /* 全站搜索：子站也问网关（api/search.js 自己验会话，再转 styrigx-search-index；和主站路由表里的 /api/search 是同一个处理函数） */
-  if (path === '/api/search') {
-    if (request.method !== 'GET') return apiError(405, 'method');
-    return searchApi.onRequestGet({ request, env });
-  }
-
-  if (isStaticAsset(path)) return origin(request);
+  if (isStaticAsset(url.pathname)) return origin(request);
 
   const sess = await verifyLockSession(request, env);
   if (sess.ok) return subsitePage(await origin(request), sess.role);
 
   const why = sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session';
-  console.log('[sgx-subsite] deny site=' + (siteOf(path) || 'atlas') + ' reason=' + sess.reason);
-  /* 根上的 /api/* 和各站的 /<站>/api/*（正常归接口 Worker，漏到网关时）都回 401 JSON，fetch 不跟跳转 */
-  if (path.startsWith('/api/') || /^\/[^/]+\/api\//.test(path)) return apiError(401, 'unauthorized');
+  console.log('[sgx-subsite] deny site=' + conf.site + ' reason=' + sess.reason);
+  /* /<站>/api/*（正常归接口 Worker，漏到网关时）回 401 JSON，fetch 不跟跳转 */
+  if (/^\/[^/]+\/api(\/|$)/.test(path)) return apiError(401, 'unauthorized');
   return lockRedirect(url, why);
 }

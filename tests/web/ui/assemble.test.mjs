@@ -3,7 +3,7 @@
  * - scripts/assemble.mjs：主站产物整份在根上（域名根文件 _worker.js / _headers / _redirects / robots.txt / 404.html 都归主站），
  *   三站产物在 /blog/ /curio/ /daymark/ 下、各带自己的 404.html；子站产物带根文件、主站产物里已有子站目录、哪个包没构建 → 失败，且不出半棵树
  * - web/atlas/static/_worker.js：非 styrigx.com 一律 301（host 判断不变）；/curio/ /daymark/ 下像图片的回答一律 404 no-store，
- *   主站（/images/ /avatar/ /og.png 收藏图标）和 /blog/（og.png）照旧；过渡期三站 .xml 一律 404（PR3 网关接管子站前缀后删）
+ *   主站（/images/ /avatar/ /og.png 收藏图标）和 /blog/（og.png）照旧；PR2 的过渡规则「三站 .xml 一律 404」在合并 PR3 删掉（网关按子站前缀验会话）
  * - web/atlas/static/_headers：子站缓存规则在 @gen-security-headers 段外（gen-csp 不管）
  * - 三站 baseURL 都是 https://styrigx.com/<站>/；子站包不带自己的 Pages 根文件；奇趣、日刻的 web/ 里没有图片文件
  * - 最后一组对真实构建拼树（先 npm run build 或 CI 的 Build site + Build subsites；没构建就跳过）
@@ -195,22 +195,16 @@ test('_worker.js：跳转原样放行（Pages 补尾斜杠、_redirects），不
   assert.equal(b.status, 302);
 });
 
-test('_worker.js 过渡期（PR2 → PR3）：三站的 .xml（全文 RSS、站点地图）一律 404 no-store；主站 /sitemap.xml、子站页面 / manifest.json 照旧', async () => {
+test('_worker.js：合并 PR3 删掉 PR2 的过渡规则——三站 .xml 原样交给静态文件（会话由网关子站关口验，见 tests/workers/auth-gateway/subsites.test.mjs）', async () => {
   const xml = (p) => () => new Response('<rss>' + p + '</rss>', { headers: { 'Content-Type': 'application/rss+xml' } });
   const assets = assetsWith({
-    '/blog/rss.xml': xml('a'), '/blog/en/rss.xml': xml('b'), '/blog/sitemap-0.xml': xml('c'), '/curio/sitemap.xml': xml('d'),
-    '/blog/feed': xml('e'), '/sitemap.xml': xml('main'),
+    '/blog/rss.xml': xml('a'), '/blog/en/rss.xml': xml('b'), '/curio/sitemap.xml': xml('d'), '/sitemap.xml': xml('main'),
     '/blog/manifest.json': () => new Response('{}', { headers: { 'Content-Type': 'application/json' } }),
   });
-  for (const p of ['/blog/rss.xml', '/blog/en/rss.xml', '/blog/sitemap-0.xml', '/blog/sitemap-index.xml', '/curio/sitemap.xml', '/daymark/sitemap.xml', '/BLOG/RSS.XML', '/blog/feed']) {
-    const res = await pagesWorker.fetch(new Request(HOST + p), { ASSETS: assets });
-    assert.equal(res.status, 404, p);
-    assert.equal(res.headers.get('Cache-Control'), 'no-store', p);
-    assert.equal(await res.text(), 'not found', p);
-  }
-  for (const p of ['/sitemap.xml', '/blog/manifest.json', '/blog/']) {
+  for (const p of ['/blog/rss.xml', '/blog/en/rss.xml', '/curio/sitemap.xml', '/sitemap.xml', '/blog/manifest.json', '/blog/']) {
     assert.equal((await pagesWorker.fetch(new Request(HOST + p), { ASSETS: assets })).status, 200, p);
   }
+  assert.doesNotMatch(read('web/atlas/static/_worker.js'), /NO_XML_PREFIXES/);
 });
 
 /* ---------------- 根文件归属 / 包内容 ---------------- */

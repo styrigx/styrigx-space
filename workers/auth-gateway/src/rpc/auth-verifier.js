@@ -4,7 +4,7 @@
  *
  * 只能通过服务绑定调用（其他 Worker 的 wrangler.toml 写 service = "styrigx-auth-gateway"、
  * entrypoint = "AuthVerifier"），公网路由进不来。逻辑在 core/lock-session.js checkLockSession（node 单测直接测它）。
- * 调用方：styrigx-daymark-core、styrigx-curio-core（styrigx-atlas 仓库的两个接口 Worker）、styrigx-share（workers/share，只用 lockSession）。
+ * 调用方：styrigx-daymark-core、styrigx-curio-core（workers/daymark-core、workers/curio-core 两个接口 Worker）、styrigx-share（workers/share，只用 lockSession）。
  * 应用通行证（appPass / appEpoch）已随应用凭证删除；后台上传等服务操作以后由账号体系管控。
  */
 import { WorkerEntrypoint } from 'cloudflare:workers';

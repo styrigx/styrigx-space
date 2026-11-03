@@ -66,6 +66,7 @@ test('wrangler.toml：不开 workers.dev、生产模式、4 个密钥全走 Secr
   assert.ok(!SECRET_NAMES.includes('TURNSTILE_SECRET'), 'Turnstile 已删，不再绑定');
   /* 2026-10-21：整站通配（不带 * 的规则遇到查询串不命中，锁屏入口 /?lock=1 曾因此绕过网关）。
      2026-11-02 起只接 styrigx.com 和图志 atlas.styrigx.com，两条都是通配，不许有精确规则；旧 blog / daymark / curio 子域名不再登记。
+     合并 PR3 起 atlas.styrigx.com/* 只做 301（子站在 styrigx.com/<站>/，由 styrigx.com/* 接住）。
      完整核对见 scripts/check-worker-routes.mjs。 */
   const routes = [...toml.matchAll(/^pattern = "([^"]+)"$/gm)].map(m => m[1]);
   assert.deepEqual(routes, ['styrigx.com/*', 'atlas.styrigx.com/*']);
