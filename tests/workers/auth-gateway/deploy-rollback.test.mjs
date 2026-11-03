@@ -268,10 +268,13 @@ const WORKER_JOBS = {
   'deploy-auth-worker': { dir: 'workers/auth-gateway', secret: 'STYRIGX_AUTH_GATEWAY_DEPLOY', internal: false },
   'deploy-account-worker': { dir: 'workers/account', secret: 'STYRIGX_ACCOUNT_DEPLOY', internal: false },
   'deploy-share-worker': { dir: 'workers/share', secret: 'STYRIGX_SHARE_DEPLOY', internal: false },
+  /* 合并 PR3：两个子站接口 Worker 从 styrigx-atlas 接过来部署（GitHub 环境 / 环境密钥已建好，名字同 token） */
+  'deploy-curio-core': { dir: 'workers/curio-core', secret: 'STYRIGX_CURIO_CORE_DEPLOY', internal: false },
+  'deploy-daymark-core': { dir: 'workers/daymark-core', secret: 'STYRIGX_DAYMARK_CORE_DEPLOY', internal: false },
 };
 const isDeploy = (/** @type {any} */ st) => st.uses && String(st.uses).startsWith('cloudflare/wrangler-action') && /^deploy\b/.test(String(st.with && st.with.command));
 
-test('deploy.yml：7 个 Worker job 都是「记线上版本 → 部署 → (核对) → 失败回滚」，token 同部署那一步', () => {
+test('deploy.yml：9 个 Worker job 都是「记线上版本 → 部署 → (核对) → 失败回滚」，token 同部署那一步', () => {
   for (const [name, cfg] of Object.entries(WORKER_JOBS)) {
     const steps = wf.jobs[name].steps;
     const snap = steps.findIndex((s) => s.id === 'live');
@@ -335,6 +338,23 @@ test('deploy.yml：部署顺序 账号、短链（可并行）→ 网关 → Pag
   assert.ok(needs('deploy-auth-worker').includes('deploy-account-worker'));
   assert.ok(needs('deploy-auth-worker').includes('deploy-share-worker'));
   assert.ok(needs('build-and-deploy').includes('deploy-auth-worker'));
+  /* 合并 PR3：两个子站接口 Worker 等 status 的健康闸门、排在网关之前（网关切子站前缀分发 / atlas 301 时主域名接口已在），不等网关 */
+  for (const c of ['deploy-curio-core', 'deploy-daymark-core']) {
+    assert.ok(needs(c).includes('deploy-status-worker'), c);
+    assert.ok(!needs(c).includes('deploy-auth-worker'), c);
+    assert.ok(needs('deploy-auth-worker').includes(c), 'gateway waits for ' + c);
+    assert.equal(wf.jobs[c].environment, WORKER_JOBS[c].secret, c + ' environment = secret name');
+    const steps = wf.jobs[c].steps;
+    const mig = steps.findIndex((st) => st.with && /^d1 migrations apply styrigx-/.test(String(st.with.command)));
+    assert.ok(mig >= 0 && mig < steps.findIndex(isDeploy), c + ': D1 migrations before deploy');
+    const smoke = steps.find((st) => /^Smoke test/.test(st.name)).run;
+    assert.match(smoke, new RegExp('https://styrigx\\.com/' + c.replace('deploy-', '').replace('-core', '') + '/api/'), c + ': smoke hits the main-domain route');
+    assert.match(smoke, new RegExp('https://atlas\\.styrigx\\.com/' + c.replace('deploy-', '').replace('-core', '') + '/api/'), c + ': old atlas route still answers');
+  }
+  /* 网关冒烟：子站前缀 302（子站格式）+ 旧图志 301 带 Location */
+  const gw = wf.jobs['deploy-auth-worker'].steps.find((st) => /^Smoke test/.test(st.name)).run;
+  assert.match(gw, /redir 'https:\/\/atlas\.styrigx\.com\/curio\/\?a=1' 301 'https:\/\/styrigx\.com\/curio\/\?a=1'/);
+  assert.match(gw, /why=no-cookie&return=https%3A%2F%2Fstyrigx\.com%2F\$s%2F/);
   /* 网关冒烟：伪造身份头必须 401（或旧路由残留时账号默认 fetch 404），头像带账号运行时标记 */
   const smoke = wf.jobs['deploy-auth-worker'].steps.find((s) => /^Smoke test/.test(s.name)).run;
   assert.match(smoke, /X-Styrigx-Lock-Role: admin/);

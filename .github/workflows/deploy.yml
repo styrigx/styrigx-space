@@ -24,7 +24,7 @@ env:
   # 所有 wrangler（npx 和 wrangler-action）用同一个固定版本；升级时只改这里
   WRANGLER_VERSION: '4.152.0'
 
-# 自动回滚（main 部署）：Pages 和 7 个 Worker 的 job 部署前记下线上版本（step id live），部署 / 冒烟 / 部署后核对失败
+# 自动回滚（main 部署）：Pages 和 9 个 Worker（合并 PR3 起含 curio-core / daymark-core）的 job 部署前记下线上版本（step id live），部署 / 冒烟 / 部署后核对失败
 # 就退回那个版本（scripts/deploy-rollback.mjs；Worker 用 wrangler rollback，Pages 用回滚 API），job 照样红。
 # 只用各 job 部署本来就用的那把 token，不加 secret、不加权限。第一次部署（没有旧版本）/ 记录失败 → 不回滚，同以前。
 # 不回滚：D1 迁移（只进不退，迁移要写成兼容旧代码）、KV 数据（搜索索引）、Secrets Store、路由 / 自定义域名、已部署的其他 job。
@@ -123,7 +123,7 @@ jobs:
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-proxy-rules-dist
 
       - name: Curio core Worker bundle check (styrigx-curio-core, dry-run)
-        # 子站接口 Worker（2026-11-02 从 styrigx-atlas 搬来，PR1 只进仓、只打包检查；线上部署在合并 PR3 之前仍由 styrigx-atlas 仓库负责）
+        # 子站接口 Worker（2026-11-02 从 styrigx-atlas 搬来；合并 PR3 起由本工作流 deploy-curio-core / deploy-daymark-core 部署）
         working-directory: workers/curio-core
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-curio-core-dist
 
@@ -224,13 +224,17 @@ jobs:
           IMG='\.(png|apng|jpe?g|jfif|pjpeg|pjp|gif|webp|avif|svgz?|ico|cur|bmp|tiff?|heic|heif|jxl)$'
           bad=$(find "$T" -type f ! -path "$T/blog/*" | grep -iE "$IMG" | grep -vE "^$T/(images|avatar|fav)/|^$T/(og\.png|favicon\.ico|favicon\.svg)$" || true)
           [ -z "$bad" ] || fail "image files outside /blog/ and the main-site image dirs: $bad"
+          # 合并 PR3：子站和主站同在 styrigx.com，产物里不许再有旧图志域名（跨站链接、接口地址都是相对路径）；
+          # 只有 _worker.js 的注释提到它（解释为什么 host 判断不能沿用 atlas 版）
+          bad=$(grep -rlI 'atlas\.styrigx\.com' "$T" | grep -vx "$T/_worker.js" || true)
+          [ -z "$bad" ] || fail "atlas.styrigx.com still hardcoded in the single tree: $bad"
           # 拼树单测的真实构建一组（Unit tests 那一步还没构建，跳过了；这里补跑）
           node --test tests/web/ui/assemble.test.mjs
           echo "OK: single tree $(find "$T" -type f | wc -l) files"
 
       - name: Blog search index builds (site:blog)
         # 每个分支都跑：网址和构建产物对不上 / 0 篇文章 → 红。只写 RUNNER_TEMP，不进 dist/site（含 private 文章，不随 Pages 发出去）。
-        # 合并 PR3 之前不上传：线上 site:blog 仍由 styrigx-atlas 仓库写
+        # 合并 PR3 起 main 上传给 deploy-search-worker 写进 KV site:blog（styrigx-atlas 仓库不再写）
         run: |
           node scripts/blog/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-blog.json"
           test -s "$RUNNER_TEMP/search-index/search-blog.json"
@@ -252,6 +256,15 @@ jobs:
         with:
           name: search-index-space
           path: ${{ runner.temp }}/search-index/search-space.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload blog search index (for deploy-search-worker, site:blog)
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: search-index-blog
+          path: ${{ runner.temp }}/search-index/search-blog.json
           if-no-files-found: error
           retention-days: 1
 
@@ -297,7 +310,7 @@ jobs:
         run: SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep-invert "baseline screenshot"
 
       - name: Edge flow e2e（真实网关 + 线上路由规则 + 真实域名 + 虚拟认证器）
-        # 生产构建；本地 HTTPS 代理把 styrigx.com / blog / daymark 接到真实网关代码，路由按 wrangler.toml + 线上匹配规则
+        # 生产构建；本地 HTTPS 代理把 styrigx.com（含 /blog/ /daymark/ 子站前缀）、atlas.styrigx.com（301）接到真实网关代码，路由按 wrangler.toml + 线上匹配规则
         run: SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
 
       - name: Lock screen baseline screenshot
@@ -834,7 +847,7 @@ jobs:
           path: web/atlas/public
 
       - name: Assert static-only Pages build
-        # 生产部署只能带静态的 _worker.js（pages.dev → styrigx.com 跳转 + 子站图片 / 过渡期 xml 404），不能带网关代码。
+        # 生产部署只能带静态的 _worker.js（pages.dev → styrigx.com 跳转 + /curio/ /daymark/ 图片 404），不能带网关代码。
         # 合并 PR2 起产物是拼好的单树：三站在 /blog/ /curio/ /daymark/ 下，子站目录里没有域名根文件
         run: |
           for f in _headers _redirects index.html; do test -s "web/atlas/public/$f" || { echo "::error::web/atlas/public/$f missing"; exit 1; }; done
@@ -900,11 +913,13 @@ jobs:
           done
           echo "::error::styrigx.com/ does not serve build $short"; exit 1
 
-      - name: Smoke test single tree (subsites behind the main-site middleware, pages.dev redirect, no subsite images / feeds)
-        # 合并 PR2：网关还没有子站前缀逻辑，styrigx.com/<站>/ 由网关整站通配接住、走主站中间件。只发不带 cookie 的只读请求：
-        # - 三站首页未登录：302 到 https://styrigx.com/?lock=1&return=%2F<站>%2F，X-SGX-Runtime: worker（主站中间件只对 / 和 /en/ 直出 200 锁屏）
-        # - 三站指纹 CSS：200 text/css（主站中间件的公开后缀白名单直接回源 → 证明这次部署的树里真的有 /<站>/）
-        # - /curio/、/daymark/ 图片路径、三站 .xml：不得拿到内容（网关公开后缀直接回源 → _worker.js 404；以后网关改成验会话就是 302）
+      - name: Smoke test single tree (subsites behind the gateway's subsite gate, static files direct, no images / feeds without a session)
+        # 合并 PR3：网关已按子站前缀验会话（deploy-auth-worker 先部署、先冒烟）。只发不带 cookie 的只读请求：
+        # - 三站产物里每个一级页面目录各抽一个页面：302 到 https://styrigx.com/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2F<站>…，
+        #   X-SGX-Runtime: worker（子站关口格式，带 why 和完整 return；新目录没被网关接管 → 红）
+        # - 三站指纹 CSS：200 text/css，没有 X-SGX-Runtime（子站静态后缀直通回源 → 也证明这次部署的树里真的有 /<站>/）
+        # - /curio/、/daymark/ 图片路径：不得拿到图片（网关直通回源 → _worker.js 404）
+        # - 三站 .xml（博客全文 RSS、站点地图）和编码 / 大小写 / 多斜杠绕法：302 到锁屏、worker，绝不出 xml（PR2 的 _worker.js 过渡 404 规则已删）
         # - styrigx-space.pages.dev/blog/：301 到 https://styrigx.com/blog/（或同 /settings/ 一样被 Access 拦在登录页）
         run: |
           set -u
@@ -912,31 +927,45 @@ jobs:
           hdr() { curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$1" | tr -d '\r' || true; }
           field() { printf '%s' "$1" | awk -F': ' -v h="$2" 'tolower($1)==h{print $2}' | tail -1; }
           code_of() { printf '%s' "$1" | sed -n 's/^HTTP_CODE://p'; }
-          for s in blog curio daymark; do
-            pass=1
+          locked() { # 路径：未登录必须 302 到子站格式的锁屏地址（return = 本站完整地址，按前缀比：页面路径可能含中文等编码字符），由网关回答
+            site=$(printf '%s' "$1" | cut -d/ -f2)
+            want="https://styrigx.com/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2F$site%2F"
             for i in 1 2 3 4 5 6; do
-              h=$(hdr "https://styrigx.com/$s/"); code=$(code_of "$h"); rt=$(field "$h" x-sgx-runtime); loc=$(field "$h" location)
-              echo "styrigx.com/$s/ -> $code runtime=${rt:-none} location=${loc:-none} (try $i)"
-              case "$code $rt $loc" in "302 worker https://styrigx.com/?lock=1&return=%2F$s%2F"*) pass=0; break ;; esac
+              h=$(hdr "https://styrigx.com$1"); code=$(code_of "$h"); rt=$(field "$h" x-sgx-runtime); loc=$(field "$h" location); ct=$(field "$h" content-type)
+              echo "styrigx.com$1 -> $code runtime=${rt:-none} location=${loc:-none} (try $i)"
+              case "$ct" in image/*|*xml*) echo "::error::styrigx.com$1 without session returned $ct"; return 1 ;; esac
+              case "$code $rt $loc" in "302 worker $want"*) return 0 ;; esac
               sleep 5
             done
-            [ $pass = 0 ] || { echo "::error::styrigx.com/$s/ expected 302 to the lock screen from the gateway"; ok=1; }
+            echo "::error::styrigx.com$1 expected 302 to $want… from the gateway"; return 1
+          }
+          for s in blog curio daymark; do
+            paths=$(cd "web/atlas/public/$s" && find . -name '*.html' ! -name '404.html' | sed 's|^\.||; s|index\.html$||' | awk -F/ '{k=($2==""?"/":$2); if(!(k in seen)){seen[k]=1; print}}')
+            for p in $paths; do locked "/$s$p" || ok=1; done
             css=$(cd "web/atlas/public/$s" && find css -name '*.css' | head -1)
             if [ -z "$css" ]; then echo "::error::no css/*.css in the $s package"; ok=1; continue; fi
             pass=1
             for i in 1 2 3 4 5 6; do
-              h=$(hdr "https://styrigx.com/$s/$css"); code=$(code_of "$h"); ct=$(field "$h" content-type)
-              echo "styrigx.com/$s/$css -> $code ${ct:-no-type} (try $i)"
-              case "$code $ct" in "200 text/css"*) pass=0; break ;; esac
+              h=$(hdr "https://styrigx.com/$s/$css"); code=$(code_of "$h"); ct=$(field "$h" content-type); rt=$(field "$h" x-sgx-runtime)
+              echo "styrigx.com/$s/$css -> $code ${ct:-no-type} runtime=${rt:-none} (try $i)"
+              case "$code $ct" in "200 text/css"*) [ -z "$rt" ] && { pass=0; break; } ;; esac
               sleep 5
             done
-            [ $pass = 0 ] || { echo "::error::styrigx.com/$s/$css not served from this deployment"; ok=1; }
+            [ $pass = 0 ] || { echo "::error::styrigx.com/$s/$css not served directly from this deployment"; ok=1; }
           done
-          for p in /curio/sgx-image-probe.png /daymark/sgx-image-probe.png /blog/rss.xml /blog/sitemap-index.xml /curio/sitemap.xml /daymark/sitemap.xml; do
+          for p in /blog/rss.xml /blog/en/rss.xml /blog/sitemap-index.xml /curio/sitemap.xml /daymark/sitemap.xml; do locked "$p" || ok=1; done
+          # 绕法：编码 / 大小写 / 多斜杠，网关归一后同样按子站验会话（302 的 return 是原样的请求路径，这里只断言 302 + worker + 不出 xml）
+          for p in /%62log/rss.xml //blog/rss.xml /BLOG/rss.xml; do
+            h=$(hdr "https://styrigx.com$p"); code=$(code_of "$h"); rt=$(field "$h" x-sgx-runtime); ct=$(field "$h" content-type)
+            echo "styrigx.com$p -> $code runtime=${rt:-none} ${ct:-no-type}"
+            case "$code $rt" in "302 worker") ;; *) echo "::error::styrigx.com$p without session answered $code (runtime ${rt:-none})"; ok=1 ;; esac
+            case "$ct" in *xml*) echo "::error::styrigx.com$p without session returned $ct"; ok=1 ;; esac
+          done
+          for p in /curio/sgx-image-probe.png /daymark/sgx-image-probe.png; do
             h=$(hdr "https://styrigx.com$p"); code=$(code_of "$h"); ct=$(field "$h" content-type)
             echo "styrigx.com$p -> $code ${ct:-no-type}"
             case "$code" in 404|302) ;; *) echo "::error::styrigx.com$p without session answered $code"; ok=1 ;; esac
-            case "$ct" in image/*|*xml*) echo "::error::styrigx.com$p without session returned $ct"; ok=1 ;; esac
+            case "$ct" in image/*) echo "::error::styrigx.com$p without session returned $ct"; ok=1 ;; esac
           done
           pass=1
           for i in 1 2 3 4 5 6; do
@@ -964,7 +993,8 @@ jobs:
   deploy-search-worker:
     # 全站搜索 styrigx-search-index（workers/search-index）：先于网关部署（网关的服务绑定 SEARCH 指向它，它不在就部署不了）。
     # 没有公开地址（workers_dev=false、没有路由），只能从网关 /api/search 进。
-    # 部署后把主站索引写进 KV styrigx-search-index 的 site:space（scripts/build-search-index.mjs，要先构建网站）。
+    # 部署后把主站索引写进 KV styrigx-search-index 的 site:space（scripts/build-search-index.mjs，要先构建网站），
+    # 合并 PR3 起再写博客的 site:blog（scripts/blog/build-search-index.mjs）。
     # token：Cloudflare 上 styrigx-search-index-deploy = GitHub 环境 STYRIGX_SEARCH_INDEX_DEPLOY 里的同名密钥，
     # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + Account Settings 读取；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
@@ -993,8 +1023,17 @@ jobs:
           name: search-index-space
           path: ${{ runner.temp }}
 
+      - name: Download blog search index (site:blog, built in quality)
+        # 合并 PR3 起博客索引由本仓库写（同一把 token：已有 Workers KV Storage 编辑）；styrigx-atlas 仓库不再写
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: search-index-blog
+          path: ${{ runner.temp }}
+
       - name: Check search index
-        run: test -s "$RUNNER_TEMP/search-space.json"
+        run: |
+          test -s "$RUNNER_TEMP/search-space.json"
+          test -s "$RUNNER_TEMP/search-blog.json"
 
       - name: Record live Worker version (rollback target)
         # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
@@ -1039,6 +1078,17 @@ jobs:
           workingDirectory: workers/search-index
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: kv key put site:space --path=${{ runner.temp }}/search-space.json --binding=KV_SEARCH_INDEX --remote
+
+      - name: Upload blog search index to KV (site:blog)
+        # 博客的条目链接是 https://styrigx.com/blog/…（scripts/blog/build-search-index.mjs 的 SITE_URL）；site:curio / site:daymark 由各自接口 Worker 自己写。
+        # KV 写失败：搜索还是旧索引（atlas 链接，打开时 301 到主域名），job 红；数据不回滚
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/search-index
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: kv key put site:blog --path=${{ runner.temp }}/search-blog.json --binding=KV_SEARCH_INDEX --remote
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)
         # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
@@ -1363,13 +1413,203 @@ jobs:
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
+  deploy-curio-core:
+    # 奇趣接口 Worker styrigx-curio-core（workers/curio-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
+    # 路由见 workers/curio-core/wrangler.toml：styrigx.com/curio/api/*（新）+ atlas.styrigx.com/curio/api/*（过渡期保留一个版本），
+    # 都比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：会话问网关 AuthVerifier.lockSession()（服务绑定 AUTH）。
+    # 排在网关之前（deploy-auth-worker 的 needs）：网关切子站前缀分发 / atlas 301 时，主域名上的接口已经在。和网关一样等 status 的健康闸门。
+    # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 核对新版本 → 冒烟 → 失败回滚。
+    # token：Cloudflare 上 styrigx-curio-core-deploy = GitHub 环境 STYRIGX_CURIO_CORE_DEPLOY 里的同名环境密钥 STYRIGX_CURIO_CORE_DEPLOY
+    # （styrigx-atlas 仓库时用的同一把；权限 Workers Scripts 编辑 + D1 编辑 + styrigx.com 的 Workers Routes 编辑，部署前 Gray 核对）；环境只允许 main。
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: [quality, passkey-e2e, deploy-status-worker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: STYRIGX_CURIO_CORE_DEPLOY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Apply D1 migrations (styrigx-curio-core)
+        # 不新增迁移：表结构在 styrigx-atlas 时已迁到最新，这一步应是 No migrations to apply
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/curio-core
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: d1 migrations apply styrigx-curio-core --remote
+
+      - name: Record live Worker version (rollback target)
+        # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。记录失败 → 空，只打 warning、不拦部署：空 = 这次失败不自动回滚
+        id: live
+        continue-on-error: true
+        working-directory: workers/curio-core
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+
+      - name: Deploy 奇趣 core Worker (styrigx-curio-core)
+        # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：主域名路由在这一步挂上，atlas 旧路由保留
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/curio-core
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: deploy
+
+      - name: Post-deploy check (live version switched)
+        working-directory: workers/curio-core
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+
+      - name: Smoke test production (styrigx.com/curio/api/* and the old atlas route both land on this Worker)
+        # 只发不带 cookie 的只读请求。这时网关可能还是旧版本：接口路由比网关的通配更具体，新旧网关下回答相同。
+        run: |
+          set -u
+          check() { # 地址 期望状态码
+            for i in 1 2 3 4 5 6; do
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$1" | tr -d '\r' || true)
+              code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
+              rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-curio-runtime"{print $2}')
+              echo "$1 -> $code X-Curio-Runtime=${rt:-none} (try $i)"
+              if [ "$code" = "$2" ] && [ "$rt" = "worker" ]; then return 0; fi
+              sleep 5
+            done
+            echo "::error::$1 expected $2 with X-Curio-Runtime: worker"; return 1
+          }
+          ok=0
+          check "https://styrigx.com/curio/api/links" 401 || ok=1
+          check "https://styrigx.com/curio/api/icon?id=1" 401 || ok=1
+          check "https://styrigx.com/curio/api/photo?kind=device&id=1" 401 || ok=1
+          check "https://atlas.styrigx.com/curio/api/links" 401 || ok=1
+          exit $ok
+
+      - name: Roll back to the recorded version (deploy or post-deploy check failed)
+        # 只换代码版本：D1 迁移、路由不回滚（回滚后的旧版本照样能接新旧两条路由上的请求：接口按去掉 /curio 前缀的路径分发，不看主机）。
+        # job 照样红，网关不部署
+        if: failure() && steps.live.outputs.version != ''
+        working-directory: workers/curio-core
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+
+  deploy-daymark-core:
+    # 日刻接口 Worker styrigx-daymark-core（workers/daymark-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
+    # 路由见 workers/daymark-core/wrangler.toml：styrigx.com/daymark/api/*（新）+ atlas.styrigx.com/daymark/api/*（过渡期保留一个版本），
+    # 都比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：会话问网关 AuthVerifier.lockSession()（服务绑定 AUTH）。
+    # 排在网关之前（deploy-auth-worker 的 needs）：网关切子站前缀分发 / atlas 301 时，主域名上的接口已经在。和网关一样等 status 的健康闸门。
+    # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 核对新版本 → 冒烟 → 失败回滚。
+    # token：Cloudflare 上 styrigx-daymark-core-deploy = GitHub 环境 STYRIGX_DAYMARK_CORE_DEPLOY 里的同名环境密钥 STYRIGX_DAYMARK_CORE_DEPLOY
+    # （styrigx-atlas 仓库时用的同一把；权限 Workers Scripts 编辑 + D1 编辑 + styrigx.com 的 Workers Routes 编辑，部署前 Gray 核对）；环境只允许 main。
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: [quality, passkey-e2e, deploy-status-worker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: STYRIGX_DAYMARK_CORE_DEPLOY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Apply D1 migrations (styrigx-daymark-core)
+        # 不新增迁移：表结构在 styrigx-atlas 时已迁到最新，这一步应是 No migrations to apply
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/daymark-core
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: d1 migrations apply styrigx-daymark-core --remote
+
+      - name: Record live Worker version (rollback target)
+        # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。记录失败 → 空，只打 warning、不拦部署：空 = 这次失败不自动回滚
+        id: live
+        continue-on-error: true
+        working-directory: workers/daymark-core
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+
+      - name: Deploy 日刻 core Worker (styrigx-daymark-core)
+        # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：主域名路由在这一步挂上，atlas 旧路由保留
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/daymark-core
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: deploy
+
+      - name: Post-deploy check (live version switched)
+        working-directory: workers/daymark-core
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+
+      - name: Smoke test production (styrigx.com/daymark/api/* and the old atlas route both land on this Worker)
+        # 只发不带 cookie 的只读请求。这时网关可能还是旧版本：接口路由比网关的通配更具体，新旧网关下回答相同。
+        run: |
+          set -u
+          check() { # 地址 期望状态码
+            for i in 1 2 3 4 5 6; do
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$1" | tr -d '\r' || true)
+              code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
+              rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-daymark-runtime"{print $2}')
+              echo "$1 -> $code X-Daymark-Runtime=${rt:-none} (try $i)"
+              if [ "$code" = "$2" ] && [ "$rt" = "worker" ]; then return 0; fi
+              sleep 5
+            done
+            echo "::error::$1 expected $2 with X-Daymark-Runtime: worker"; return 1
+          }
+          ok=0
+          check "https://styrigx.com/daymark/api/quotes" 401 || ok=1
+          check "https://styrigx.com/daymark/api/today" 200 || ok=1
+          check "https://atlas.styrigx.com/daymark/api/quotes" 401 || ok=1
+          check "https://atlas.styrigx.com/daymark/api/today" 200 || ok=1
+          exit $ok
+
+      - name: Roll back to the recorded version (deploy or post-deploy check failed)
+        # 只换代码版本：D1 迁移、路由不回滚（回滚后的旧版本照样能接新旧两条路由上的请求：接口按去掉 /daymark 前缀的路径分发，不看主机）。
+        # job 照样红，网关不部署
+        if: failure() && steps.live.outputs.version != ''
+        working-directory: workers/daymark-core
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+
   deploy-auth-worker:
     # 鉴权网关 styrigx-auth-gateway：main 上真部署。先于 Pages 部署（Pages 只放静态文件，靠网关验会话）。
     # 路由见 workers/auth-gateway/wrangler.toml（整站通配；workers_dev=false）。账号拆分 PR3 起 /api/account、/api/prefs*、/api/avatar*、
     # /api/wellbeing*、/avatar/* 也归网关：验门后经服务绑定 ACCOUNT 转给账号 Worker（src/router.js 的转发表 FORWARDING）。部署后自动冒烟检查线上。
     # Pages 部署（build-and-deploy）等这里成功后才开始。
-    # 部署顺序：账号、短链（互不依赖，可并行）→ 网关 → Pages。
+    # 部署顺序：账号、短链、两个子站接口 Worker（互不依赖，可并行）→ 网关 → Pages。
     # - 服务绑定指向的 Worker 要先在：search / status / chat，以及 ACCOUNT / ACCOUNT_VERIFIER 指向的 styrigx-account（deploy-account-worker）。
+    # - 合并 PR3：curio-core / daymark-core 先挂上 styrigx.com/<站>/api/* 路由（atlas 旧路由仍在），网关再切子站前缀分发 + atlas.styrigx.com 301，
+    #   这样 301 过去的页面一打开，主域名上的接口已经在了。它们任何一个失败 → 网关不部署（atlas 照旧由旧网关 + styrigx-atlas Pages 服务）。
     # - 短链排在网关之前：短链只认管理员锁屏会话（AUTH.lockSession），对新旧网关同样能用（AUTH.lockSession / ISSUER 接口没变）。
     # 密钥全在 Secrets Store，CI 不传任何密值。
     # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
@@ -1379,7 +1619,7 @@ jobs:
     # 其他分支即使改了工作流也拿不到它。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-search-worker, deploy-status-worker, deploy-chat-worker, deploy-account-worker, deploy-share-worker]
+    needs: [quality, passkey-e2e, deploy-search-worker, deploy-status-worker, deploy-chat-worker, deploy-account-worker, deploy-share-worker, deploy-curio-core, deploy-daymark-core]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_AUTH_GATEWAY_DEPLOY
@@ -1435,7 +1675,6 @@ jobs:
           check /api/lock-session-check 401 || ok=1
           # 全站搜索：没会话 401（网关先拦），子站同样
           check '/api/search?q=a' 401 || ok=1
-          check 'https://atlas.styrigx.com/api/search?q=a' 401 || ok=1
           # 站点监测：没会话 401
           check /api/status 401 || ok=1
           # 聊天：没会话 401（网关先拦，不进 styrigx-chat）
@@ -1477,11 +1716,28 @@ jobs:
             sleep 5
           done
           [ $avatar_ok = 0 ] || { echo "::error::/avatar/96.webp expected X-SGX-Runtime: account"; ok=1; }
-          # 图志：三站页面未登录 302 到主站锁屏、根上的 session-check 401，都由网关回答（图志 Pages 不持钥匙）
-          check https://atlas.styrigx.com/blog/ 302 || ok=1
-          check https://atlas.styrigx.com/curio/ 302 || ok=1
-          check https://atlas.styrigx.com/daymark/ 302 || ok=1
-          check https://atlas.styrigx.com/api/lock-session-check 401 || ok=1
+          # 子站（合并 PR3）：三站页面未登录 302 到主站锁屏（子站关口格式：why + 完整 return），由网关回答
+          redir() { # 地址 期望状态码 期望 Location（逐字）
+            for i in 1 2 3 4 5 6; do
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$1" | tr -d '\r' || true)
+              code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
+              rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
+              loc=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="location"{print $2}')
+              echo "$1 -> $code runtime=${rt:-none} location=${loc:-none} (try $i)"
+              if [ "$code" = "$2" ] && [ "$rt" = "worker" ] && [ "$loc" = "$3" ]; then return 0; fi
+              sleep 5
+            done
+            echo "::error::$1 expected $2 to $3 from worker"; return 1
+          }
+          for s in blog curio daymark; do
+            redir "https://styrigx.com/$s/" 302 "https://styrigx.com/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2F$s%2F" || ok=1
+          done
+          # 旧图志域名：任意路径 301 到主域名同路径 + 查询串（不验会话、不回源）
+          redir https://atlas.styrigx.com/blog/ 301 https://styrigx.com/blog/ || ok=1
+          redir 'https://atlas.styrigx.com/curio/?a=1' 301 'https://styrigx.com/curio/?a=1' || ok=1
+          redir https://atlas.styrigx.com/daymark/en/ 301 https://styrigx.com/daymark/en/ || ok=1
+          redir https://atlas.styrigx.com/api/lock-session-check 301 https://styrigx.com/api/lock-session-check || ok=1
+          redir 'https://atlas.styrigx.com/api/search?q=a' 301 'https://styrigx.com/api/search?q=a' || ok=1
           # 静态资源不过网关：不能带 worker 标记
           css=$(curl -sS -o /dev/null -D - https://styrigx.com/robots.txt | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "/robots.txt runtime=${css:-none}"
