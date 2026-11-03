@@ -1,11 +1,12 @@
 # 日刻（sites/daymark/）结构
 
-图志仓库（styrigx-atlas）里的日刻，线上在 `https://atlas.styrigx.com/daymark/`（英文 `/daymark/en/`），接口在 `/daymark/api/*`。
+日刻原在图志仓库（styrigx-atlas），2026-11-02 并入本仓库；线上在 `https://styrigx.com/daymark/`（英文 `/daymark/en/`），接口在 `styrigx.com/daymark/api/*`；旧地址 `atlas.styrigx.com/daymark/…` 301 到主域名同路径。
+下面的目录树是并入前的布局，现在的位置（`web/daymark/`、`workers/daymark-core/`、`tests/daymark/`、`scripts/daymark/`）见仓库根 `STRUCTURE.md`。
 仓库整体（三站合成一个 Pages、共用的 `root/`、CI）见仓库根 README。改页面只动 `web/`，改接口只动 `workers/core/`。
 
 ```
 sites/daymark/
-├─ web/          网站本体（Hugo，baseURL https://atlas.styrigx.com/daymark/），产物由仓库根 scripts/assemble.mjs 合进 public/daymark/
+├─ web/          网站本体（Hugo，baseURL https://styrigx.com/daymark/），产物由仓库根 scripts/assemble.mjs 合进 public/daymark/
 ├─ workers/
 │  └─ core/      Worker styrigx-daymark-core：句子的存、读、今日一句
 ├─ scripts/      生成脚本（种子迁移 SQL）、主站共享外壳同步
@@ -34,7 +35,7 @@ CSS 类名里的 `bk-` 前缀沿用自 styrigx-book 的共用组件（弹层、�
 
 | 位置 | 是什么 |
 |---|---|
-| `wrangler.toml` | 路由 `atlas.styrigx.com/daymark/api/*`、D1 绑定 `D1_QUOTES`、网关服务绑定 `AUTH`（entrypoint `AuthVerifier`）、全站搜索 KV `KV_SEARCH_INDEX`、每小时 Cron |
+| `wrangler.toml` | 路由 `styrigx.com/daymark/api/*`（`atlas.styrigx.com/daymark/api/*` 旧路由过渡期保留）、D1 绑定 `D1_QUOTES`、网关服务绑定 `AUTH`（entrypoint `AuthVerifier`）、全站搜索 KV `KV_SEARCH_INDEX`、每小时 Cron |
 | `src/index.js` | 入口（公开地址 `/daymark/api/*` 去掉 `/daymark` 前缀后按路由表找）：`/api/today` 公开，其余先问网关会话 |
 | `src/search-index.js` | 全站搜索索引：句子 → KV `site:daymark`（写接口成功后重建 + Cron 每小时兜底，内容没变不写 KV；私密句子 `private:true`） |
 | `src/routes.js` | 路由表（与 `src/api/` 一一对应，测试核对） |
@@ -48,4 +49,4 @@ CSS 类名里的 `bk-` 前缀沿用自 styrigx-book 的共用组件（弹层、�
 
 ## 部署
 
-见仓库根 `.github/workflows/deploy.yml`：测试 → 构建合成 → 网关闸门 → 两个 core（D1 迁移 + 部署）→ Pages `styrigx-atlas` → 冒烟。
+见仓库根 `.github/workflows/deploy.yml`（合并 PR3 起）：测试 → 接口 Worker（两个 core：D1 迁移 + 部署，挂 `styrigx.com/<站>/api/*`）→ 网关 → Pages `styrigx-space`（主站 + 三站一棵树）→ 冒烟（主域名 + atlas 301）。

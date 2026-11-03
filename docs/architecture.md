@@ -5,7 +5,7 @@
 
 ## 模型
 
-space（styrigx.com）相当于 One UI，图志 atlas.styrigx.com 的 blog、daymark、curio 相当于其中的 App。
+space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrigx.com/<站>/`）相当于其中的 App。
 锁屏属于系统层，管住所有站点。
 
 ## 唯一状态源
@@ -29,7 +29,8 @@ space（styrigx.com）相当于 One UI，图志 atlas.styrigx.com 的 blog、day
 
 ### L1 内核·权限：`workers/auth-gateway/src/gate.js`
 - **页面和 `/api/*` 进门时决定是否已解锁的只有这一个文件**（2026-11-02 由原 `functions/_middleware.js` 和 `src/subsites.js` 合成），两个调用点（都在 `src/app.js`）：
-  主站 `styrigx.com` 走 `onRequest`（原 `_middleware`），图志 `atlas.styrigx.com` 走 `handleSubsite`（原 `subsites`）；
+  主站路径走 `onRequest`（原 `_middleware`），子站路径前缀 `styrigx.com/blog/`、`/curio/`、`/daymark/` 走 `handleSubsite`（原 `subsites`）；
+  旧域名 `atlas.styrigx.com` 在进门之前就 301 到主域名同路径（`atlasRedirect`，不验会话）；
   两处都用 L0 同一个 `verifyLockSession`，没有第二套判断。每个页面请求都在这里判断会话。
 - 这是粗粒度的门（有没有会话、什么角色、哪些路径公开）；L2 的处理函数可以按角色再验一次（例如 `api/lock-tempkey.js` 再要求管理员锁屏会话），
   用的也是 L0 同一份 `lock-session.js`，不另写判断。
@@ -91,11 +92,12 @@ space（styrigx.com）相当于 One UI，图志 atlas.styrigx.com 的 blog、day
   顶栏三栏各一个入口 `entry-tab-<id>.js`：当前栏静态带上，另两栏 `import('./lazy-<id>.js')` 按需取。
   首帧前必须跑的（主题、语言、布局、防闪）仍是 `<head>` 里的同步内联脚本，不进模块。
 
-### L6 外部 App：图志 atlas.styrigx.com（blog、daymark、curio）
-- 图志是一个域名、一个 Pages 项目 `styrigx-atlas`，三个站各占一个路径 `/blog/`、`/curio/`、`/daymark/`，代码在 styrigx-atlas 仓库。
-- 图志页面由网关（`workers/auth-gateway/src/gate.js` 的 `handleSubsite`）验同一份锁屏会话，图志 Pages 不持任何钥匙。
+### L6 外部 App：子站 styrigx.com/blog/、/curio/、/daymark/
+- 合并 PR3 起三站和主站是同一个 Pages 项目 `styrigx-space` 里的一棵树，各占一个路径 `/blog/`、`/curio/`、`/daymark/`，代码在本仓库 `web/<站>/`。
+  旧图志域名 `atlas.styrigx.com` 任意路径 301 到 `https://styrigx.com` 同路径（保留查询串）。
+- 子站页面由网关（`workers/auth-gateway/src/gate.js` 的 `handleSubsite`，按路径前缀）验同一份锁屏会话，Pages 不持任何钥匙。
 - 未解锁时 302 到 space 锁屏并带完整 return。
-- 图志的接口 `atlas.styrigx.com/daymark/api/*`、`/curio/api/*` 归 styrigx-atlas 仓库的两个接口 Worker `styrigx-daymark-core`、`styrigx-curio-core`；管理员专属操作（daymark 记句子、curio 改收藏）由它们经服务绑定 `AuthVerifier` 再问网关。
+- 子站的接口 `styrigx.com/daymark/api/*`、`/curio/api/*` 归本仓库的两个接口 Worker `styrigx-daymark-core`、`styrigx-curio-core`（`workers/daymark-core`、`workers/curio-core`；atlas 上的旧接口路由过渡期保留）；管理员专属操作（daymark 记句子、curio 改收藏）由它们经服务绑定 `AuthVerifier` 再问网关。
 
 ## 一致性规则
 

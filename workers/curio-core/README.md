@@ -1,6 +1,6 @@
 # styrigx-curio-core
 
-奇趣（`/curio/`）的接口 Worker：收藏的存、读、导入导出、网站小图标缓存、设备照片 / 游戏封面。2026-11-02 从 styrigx-atlas 仓库的 `sites/curio/workers/core/` 原样搬来（PR1 搬运），代码、路由、绑定都没改。
+奇趣（`/curio/`）的接口 Worker：收藏的存、读、导入导出、网站小图标缓存、设备照片 / 游戏封面。2026-11-02 从 styrigx-atlas 仓库的 `sites/curio/workers/core/` 原样搬来（PR1 搬运）；合并 PR3 加了主域名路由（见「路由」）。
 
 ## 职责
 
@@ -21,7 +21,9 @@ src/photo-sweep.js   R2 photos/ 清扫
 
 ## 路由
 
-`atlas.styrigx.com/curio/api/*`（`wrangler.toml`）。比网关的 `atlas.styrigx.com/*` 更具体，接口请求直接落到本 Worker。主域名路由 `styrigx.com/curio/api/*` 在合并 PR3 加。
+`styrigx.com/curio/api/*`（`wrangler.toml`，合并 PR3 起）。比网关的 `styrigx.com/*` 更具体，接口请求直接落到本 Worker；`scripts/check-worker-routes.mjs` 核对它登记了、且不抢网关的页面。
+旧路由 `atlas.styrigx.com/curio/api/*` 保留一个版本（同样比网关的 `atlas.styrigx.com/*` 更具体，老页面的接口请求还能落到这里），以后的清理 PR 删。
+部署：本仓库 `.github/workflows/deploy.yml` 的 `deploy-curio-core`（D1 迁移 + 部署），在网关之前。
 
 ## 绑定
 

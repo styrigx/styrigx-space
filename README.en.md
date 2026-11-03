@@ -8,7 +8,7 @@
 
 Sloan Gray's personal portal — Home, Chat, Settings and Account — and the auth gateway that guards the whole site family.
 
-[styrigx.com](https://styrigx.com) · [Atlas atlas.styrigx.com](https://atlas.styrigx.com/blog/en/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
+[styrigx.com](https://styrigx.com) · [Blog styrigx.com/blog/](https://styrigx.com/blog/en/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
@@ -40,8 +40,8 @@ Sloan Gray's personal portal — Home, Chat, Settings and Account — and the au
 This is the source of styrigx.com and the "system" repository of the site family:
 
 - **Portal** — four apps (Home, Chat, Settings, Account), fully bilingual.
-- **Auth gateway** — every page and API on the main site and on Atlas (atlas.styrigx.com) goes through it first. The whole site is locked by design; sharing only happens through short links that carry a visitor key.
-- **Shared shell** — the top bar, navigation drawer and search layer are generated here; Atlas syncs them at a pinned commit.
+- **Auth gateway** — every page and API on the main site and on the sub-sites (Blog, Curio, Daymark at `styrigx.com/<site>/`) goes through it first; the old Atlas domain atlas.styrigx.com 301-redirects any path to the same path on styrigx.com. The whole site is locked by design; sharing only happens through short links that carry a visitor key.
+- **Shared shell** — the top bar, navigation drawer and search layer are generated here; each sub-site keeps a synced copy pinned to a shell version (git tree hash).
 - **Shared CI** — Hugo, Node and Playwright setup are published as composite actions (`v*` tags) that Atlas references by tag.
 
 The interface is **Styrigx UI**, built in-house, with version numbers that track One UI; the **SGX** kernel handles sign-in and sessions. It works on phone, tablet and DeX, and feels much like a Samsung phone.
@@ -71,10 +71,11 @@ The interface is **Styrigx UI**, built in-house, with version numbers that track
 flowchart LR
   V([Visitor]) --> GW
   subgraph CF[Cloudflare]
-    GW[styrigx-auth-gateway<br/>styrigx.com/*<br/>atlas.styrigx.com/*]
+    GW[styrigx-auth-gateway<br/>styrigx.com/*<br/>atlas.styrigx.com/* → 301]
     SH[styrigx-share<br/>/s/* · /api/share*]
-    GW --> P1[(Pages<br/>styrigx-space)]
-    GW --> P2[(Pages<br/>styrigx-atlas)]
+    CC[styrigx-curio-core<br/>/curio/api/*]
+    DC[styrigx-daymark-core<br/>/daymark/api/*]
+    GW --> P1[(Pages<br/>styrigx-space<br/>main site + /blog/ /curio/ /daymark/)]
     GW -. service binding .-> AC[styrigx-account]
     GW -. service binding .-> CH[styrigx-chat]
     GW -. service binding .-> SE[styrigx-search-index]
@@ -82,20 +83,24 @@ flowchart LR
     PR[styrigx-proxy-rules<br/>proxy-rules.styrigx.com]
   end
   V --> SH
+  V --> CC
+  V --> DC
   V --> PR
 ```
 
 | Worker | Responsibility | Entry |
 |---|---|---|
-| `styrigx-auth-gateway` | Issues and verifies lock sessions, lock credentials, admin APIs; checks the session on every page before serving it from Pages | `styrigx.com/*`, `atlas.styrigx.com/*` |
+| `styrigx-auth-gateway` | Issues and verifies lock sessions, lock credentials, admin APIs; checks the session on every page (including the `/blog/`, `/curio/`, `/daymark/` sub-sites) before serving it from Pages; the old atlas.styrigx.com domain only 301-redirects | `styrigx.com/*`, `atlas.styrigx.com/*` |
 | `styrigx-account` | Account system: password, passkeys, devices, account root key, avatar, cloud sync, digital wellbeing | Gateway service binding only, no public route |
 | `styrigx-share` | Share short links and their admin API | `styrigx.com/s/*`, `styrigx.com/api/share*` |
 | `styrigx-chat` | Chat backend; forwards to the model, stores nothing | Gateway service binding only |
 | `styrigx-search-index` | Site-wide search (KV index) | Gateway service binding only |
 | `styrigx-status` | Checks every minute, reads usage hourly (D1) | Gateway service binding only |
 | `styrigx-proxy-rules` | Accelerating proxy for rule sets, allow-listed upstream only | `proxy-rules.styrigx.com` (bypasses the gateway) |
+| `styrigx-curio-core` | Curio API (D1 + R2) | `styrigx.com/curio/api/*` (more specific than the gateway; the old `atlas.styrigx.com/curio/api/*` route stays for a transition release) |
+| `styrigx-daymark-core` | Daymark API (D1) | `styrigx.com/daymark/api/*` (same) |
 
-Atlas's two API Workers (`styrigx-curio-core`, `styrigx-daymark-core`) live in [styrigx-atlas](https://github.com/styrigx/styrigx-atlas).
+The sub-sites and the main site are one tree in a single Pages project (main site at the root, the three sites under `/blog/`, `/curio/`, `/daymark/`), deployed together.
 
 ## Security model
 
@@ -139,7 +144,7 @@ Production build: `hugo --minify -s web/atlas`, output in `web/atlas/public/`. E
 | Static | Generated-file consistency (shell, CSP, palettes, cookie contract), Worker route registry, front-end layering, stylelint |
 | passkey-e2e | Full passkey flow against real Workers in a preview environment |
 
-Pull requests must pass `quality` and `passkey-e2e` (squash-only, linear history). Merging to `main` deploys Pages and the 7 Workers; every deploy is followed by a smoke check and rolls back to the previous version on failure, and search and chat also sit behind a health gate fed by the status monitor. Dependencies are updated weekly by Renovate.
+Pull requests must pass `quality` and `passkey-e2e` (squash-only, linear history). Merging to `main` deploys Pages and the 9 Workers, in the order API Workers (including Curio and Daymark) → gateway → Pages; every deploy is followed by a smoke check and rolls back to the previous version on failure, and search and chat also sit behind a health gate fed by the status monitor. Dependencies are updated weekly by Renovate.
 
 ## Repository layout
 
@@ -159,8 +164,9 @@ Full details in [STRUCTURE.md](STRUCTURE.md) (Chinese).
 
 | Repository | Address | What |
 |---|---|---|
-| **styrigx-space** (this repo) | [styrigx.com](https://styrigx.com) | Portal and auth gateway |
-| [styrigx-atlas](https://github.com/styrigx/styrigx-atlas) | [atlas.styrigx.com](https://atlas.styrigx.com/blog/en/) | Atlas: Blog, Curio, Daymark |
+| **styrigx-space** (this repo) | [styrigx.com](https://styrigx.com) | Portal and auth gateway; sub-sites [Blog](https://styrigx.com/blog/en/), [Curio](https://styrigx.com/curio/en/), [Daymark](https://styrigx.com/daymark/en/) (merged in from styrigx-atlas, 2026-11) |
+
+The old Atlas domain atlas.styrigx.com 301-redirects any path to the same path on styrigx.com (query string kept).
 
 ## License
 
