@@ -1,7 +1,7 @@
 /**
  * 账号拆分 PR2b：账号 Worker 的 /api/account 身份接口（workers/account/src/api/account.js + src/core/，原 identity/）。
  * 从网关 tests/workers/auth-gateway/account.test.mjs、account-devices.test.mjs 复制改写：
- * - 身份只看网关写的规范头（X-Styrigx-Lock-Role 必须 admin，logout / reauth-clear 除外），不读锁屏会话 cookie
+ * - 身份只看网关写的规范头（要进门：X-Styrigx-Lock-Session: 1，logout / reauth-clear 除外；P2-2 起不看 Role），不读锁屏会话 cookie
  * - 客户端地址 / 国家 / 城市读 X-Styrigx-Client-*（不读 CF-Connecting-IP、request.cf）
  * - action 名、错误码、cookie、票格式与网关一致；网关签的账号票这里照样认（切换不掉线）
  * - 与网关有意不同：首次配置不推 Lock 纪元、不查「与锁屏密码相同」、不查锁屏通行密钥、legacy_handle 读本库
@@ -48,17 +48,24 @@ const parseSess = (v) => { const [by, epoch, authAt, exp, deviceId] = v.split('.
 
 /* ================= 身份头 ================= */
 
-test('readLockIdentity：白名单——role 只认 admin / visitor，by 只认 password / passkey / tempkey，其它值当作没有；tempkeyId 只给访客', () => {
+test('readLockIdentity：只认 X-Styrigx-Lock-Session: 1（= 进门）；by 只认 password / passkey / tempkey，其它值当作没有；tempkeyId 只在 by=tempkey 时给；不读 Role 头（P2-2）', () => {
   const r = (h) => readLockIdentity(new Request(URL_, { headers: h }).headers);
-  assert.deepEqual(r({ 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'passkey' }), { role: 'admin', by: 'passkey', tempkeyId: '' });
-  assert.deepEqual(r({ 'x-styrigx-lock-role': 'visitor', 'x-styrigx-lock-by': 'tempkey', 'x-styrigx-lock-tempkey-id': 'tk_1' }), { role: 'visitor', by: 'tempkey', tempkeyId: 'tk_1' });
+  const S = { 'X-Styrigx-Lock-Session': '1' };
+  assert.deepEqual(r({ ...S, 'X-Styrigx-Lock-By': 'passkey' }), { session: true, by: 'passkey', tempkeyId: '' });
+  assert.deepEqual(r({ 'x-styrigx-lock-session': '1', 'x-styrigx-lock-by': 'tempkey', 'x-styrigx-lock-tempkey-id': 'tk_1' }), { session: true, by: 'tempkey', tempkeyId: 'tk_1' });
+  assert.deepEqual(r({ ...S, 'X-Styrigx-Lock-Role': 'visitor', 'X-Styrigx-Lock-By': 'password' }), { session: true, by: 'password', tempkeyId: '' }, 'Role 头不进结果');
   assert.equal(r({}), null);
-  assert.equal(r({ 'X-Styrigx-Lock-Role': 'Admin' }), null, '大小写不同也不认');
-  assert.equal(r({ 'X-Styrigx-Lock-Role': 'root' }), null);
+  assert.equal(r({ 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'password' }), null, '只有 Role 没有 Session 不算进门');
+  assert.equal(r({ 'X-Styrigx-Lock-Session': '0' }), null);
+  assert.equal(r({ 'X-Styrigx-Lock-Session': 'yes' }), null);
   assert.equal(r({ 'X-Sgx-Role': 'admin' }), null, '旧头名不认');
-  assert.equal(r({ 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'magic' }).by, '');
-  assert.equal(r({ 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-Tempkey-Id': 'tk_1' }).tempkeyId, '', 'admin 不带 tempkeyId');
-  assert.equal(account.isAdmin(new Request(URL_, { headers: { 'X-Styrigx-Lock-Role': 'visitor' } })), false);
+  assert.equal(r({ ...S, 'X-Styrigx-Lock-By': 'magic' }).by, '');
+  assert.equal(r({ ...S, 'X-Styrigx-Lock-By': 'password', 'X-Styrigx-Lock-Tempkey-Id': 'tk_1' }).tempkeyId, '', '不是 tempkey 进门不带 tempkeyId');
+  assert.equal(r({ ...S, 'X-Styrigx-Lock-By': 'tempkey', 'X-Styrigx-Lock-Tempkey-Id': 'bad id!' }).tempkeyId, '');
+  assert.equal(account.hasLockSession(new Request(URL_, { headers: { 'X-Styrigx-Lock-Role': 'admin' } })), false);
+  assert.equal(account.hasLockSession(new Request(URL_, { headers: S })), true);
+  assert.equal('isAdmin' in account, false);
+  assert.equal('ROLE_ADMIN' in account, false);
 });
 
 test('clientAddress：读 X-Styrigx-Client-Address；不认 CF-Connecting-IP / X-Forwarded-For；格式不对或没有 → unknown', () => {
@@ -89,24 +96,28 @@ test('lib/lock-identity.js：账号侧只读——导出头名常量 + readLockI
   assert.equal('readLockIdentity' in account, false, 'api/account.js 不再自带一份白名单');
 });
 
-test('GET：没有身份头 / 访客 / 不认识的角色 → 401 session；只带锁屏会话 cookie 也不算（不验锁屏会话）', async () => {
+test('GET：没进门（没有 X-Styrigx-Lock-Session: 1）→ 401 session；只带锁屏会话 cookie 也不算（不验锁屏会话）；进了门不看 Role', async () => {
   const env = makeEnv();
-  for (const identity of [null, { role: 'visitor', by: 'tempkey' }, { role: 'owner' }]) {
+  for (const identity of [null, { session: '', role: 'admin' }, { session: '0' }]) {
     const r = await get(env, {}, { identity });
     assert.equal(r.status, 401);
     assert.equal((await r.json()).error, 'session');
+  }
+  for (const identity of [{ role: 'visitor', by: 'tempkey', tempkeyId: 'tk1' }, { role: '' }, { role: 'owner' }]) {
+    const r = await get(env, {}, { identity });
+    assert.equal(r.status, 200, JSON.stringify(identity));
   }
   const r = await get(env, { 'sgx-lock-session': 'password.admin.0.9999999999999..sig' }, { identity: null });
   assert.equal(r.status, 401);
 });
 
-test('POST：除 logout / reauth-clear 外每个 action 都要 admin 身份（401 session，不读不写库）', async () => {
+test('POST：除 logout / reauth-clear 外每个 action 都要进门（401 session，不读不写库）', async () => {
   const env = makeEnv();
   const actions = ['login-challenge', 'login-passkey', 'login-password', 'passkey-list', 'passkey-register-challenge', 'passkey-register',
     'passkey-delete', 'passkey-rename', 'password-change', 'device-list', 'device-revoke', 'device-revoke-all', 'root-reauth', 'root-reset', 'audit-list', 'nope'];
   const before = env.D1_ACCOUNT_AUTH.statements.length;
   for (const action of actions) {
-    for (const identity of [null, { role: 'visitor', by: 'tempkey', tempkeyId: 'tk1' }]) {
+    for (const identity of [null, { session: '', role: 'admin' }]) {
       const r = await post(env, { action, key: 'x', password: 'whatever-123' }, await full(), { identity });
       assert.equal(r.status, 401, action);
       assert.equal((await r.json()).error, 'session', action);

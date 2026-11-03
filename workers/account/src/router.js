@@ -4,9 +4,9 @@
  * 管管理员账号的全部身份和数据：
  * - 账号身份：POST / GET /api/account（api/account.js：账号密码、账号 Passkey、设备、账号会话 / reauth / reset、
  *   账号根密钥 SGX_ACCOUNT_ROOT_KEY、账号审计）
- * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（只许管理员）→ KV_PROFILE
- * - 设置云同步：GET / POST /api/prefs（管理员 + 账号会话）→ D1_SETTINGS_SYNC
- * - 数字健康：POST / GET /api/wellbeing → D1_WELLBEING
+ * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（进门 + 账号会话 + avatar.write）→ KV_PROFILE
+ * - 设置云同步：GET / POST /api/prefs（进门 + 账号会话 + prefs.sync）→ D1_SETTINGS_SYNC
+ * - 数字健康：POST /api/wellbeing（账号会话 + wellbeing.write 才记）/ GET（进门；明细只给账号会话）→ D1_WELLBEING
  *
  * 请求只经网关进来（浏览器 → 网关验锁屏、剥外部 x-styrigx-* 头、写规范身份头 → 服务绑定 ACCOUNT → 命名入口 AccountService，
  * 见 rpc/account-service.js）。默认 fetch（app.js）一律 404，不经这里。

@@ -5,8 +5,8 @@
  * 切换时前端不用改（账号页其余调用地址不变）。由命名入口 AccountService（src/rpc/account-service.js）把网关转发的请求交进来（PR2 暗上线，PR3 网关才开始转发）。
  *
  * 身份：不验锁屏会话，只读网关写的规范身份头（workers/account/src/lib/lock-identity.js）：
- * - X-Styrigx-Lock-Role 必须是 admin（logout / reauth-clear 除外）；没有 / 不认识的值 / visitor → 401 session（同网关无 admin 会话）。
- *   白名单校验：role ∈ admin | visitor，by ∈ password | passkey | tempkey，其它值一律当作没有身份。
+ * - 要进门：X-Styrigx-Lock-Session: 1（logout / reauth-clear 除外）；没有 → 401 session（P2-2 起不再看 X-Styrigx-Lock-Role，方案 3.4 R12）。
+ *   账号自己的 action 照旧验账号会话 / 复验票。白名单校验：by ∈ password | passkey | tempkey，其它值一律当作没有。
  * - X-Styrigx-Client-Address：输错限速分桶、审计 IP 前缀（没有 → 'unknown'）；不读 CF-Connecting-IP。
  * - X-Styrigx-Client-Country / City：设备「上次活动地点」（account-devices.js）。
  * 这些头只能由网关写：本接口只挂在命名入口 AccountService（src/rpc/account-service.js）的路由表里，默认 fetch（公开路由）没有 /api/account、
@@ -96,12 +96,10 @@ const CHALLENGE_TTL = CH.ttl; /* 5 分钟 */
 
 /* ---------------- 身份头 ---------------- */
 
-export const ROLE_ADMIN = 'admin';
-export const ROLE_VISITOR = 'visitor';
-/** 身份头是 admin 吗（网关写的锁屏身份，lib/lock-identity.js readLockIdentity 白名单校验；没有 / 不认识 = 无会话） @param {any} request */
-export function isAdmin(request) {
+/** 进门了吗：网关写的 X-Styrigx-Lock-Session: 1（lib/lock-identity.js readLockIdentity 白名单校验；没有 = 无会话） @param {any} request */
+export function hasLockSession(request) {
   const id = readLockIdentity(request && request.headers);
-  return !!(id && id.role === ROLE_ADMIN);
+  return !!(id && id.session === true);
 }
 
 /**
@@ -118,7 +116,7 @@ export function clientAddress(request) {
 export async function onRequestGet(context) {
   try {
     const { request, env } = context;
-    if (!isAdmin(request)) return apiError(401, 'session');
+    if (!hasLockSession(request)) return apiError(401, 'session');
     if (!storeReady(env)) return apiError(500, 'config');
     let password = false;
     let passkey = false;
@@ -199,8 +197,8 @@ async function handlePost(context) {
     return json(200, { ok: true }, headers);
   }
 
-  /* 其余 action：身份头必须是 admin（前置条件，不是账号认证） */
-  if (!isAdmin(request)) return apiError(401, 'session');
+  /* 其余 action：要进门（前置条件，不是账号认证） */
+  if (!hasLockSession(request)) return apiError(401, 'session');
   if (!storeReady(env)) return apiError(500, 'config');
 
   /* ============ 账号根密钥 / 审计 ============ */

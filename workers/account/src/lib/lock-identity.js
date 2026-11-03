@@ -2,15 +2,16 @@
  * 内部请求头：账号 Worker 读的一侧（方案第 3 节；本 Worker 自己一份，写的一侧在网关）。
  *
  * 只在命名入口 AccountService 的请求上读网关写的锁屏身份和客户端上下文；头名大小写不敏感（Headers 会统一小写）。
- * - readLockIdentity(headers)：白名单校验；没有 / 不认识的值 → null（= 无会话）
+ * - readLockIdentity(headers)：X-Styrigx-Lock-Session: 1（= 进门，P2-2 起只认它）才算有身份，By / Tempkey-Id 白名单校验；没有 → null（= 无会话）
+ *   P2-2 起不再读 X-Styrigx-Lock-Role（网关 P2-3 前还会写，这里不看；进门之后能做什么由账号会话 + 作用域决定，core/authz.js）。
  * - readClientContext(headers)：读客户端上下文；格式不对的项当作没有（''）
  *
  * 不 import 任何东西。
  */
 
-/** 锁屏身份：角色、凭什么解的锁、临时钥匙 id */
+/** 锁屏身份：进门有效、凭什么解的锁、临时钥匙 id */
 export const LOCK_IDENTITY_HEADERS = Object.freeze({
-  role: 'X-Styrigx-Lock-Role',
+  session: 'X-Styrigx-Lock-Session',
   by: 'X-Styrigx-Lock-By',
   tempkeyId: 'X-Styrigx-Lock-Tempkey-Id',
 });
@@ -23,7 +24,6 @@ export const CLIENT_CONTEXT_HEADERS = Object.freeze({
 });
 
 /* 白名单 */
-const ROLES = Object.freeze(['admin', 'visitor']);
 const BYS = Object.freeze(['password', 'passkey', 'tempkey']);
 const TEMPKEY_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const ADDRESS_RE = /^[0-9A-Fa-f:.]{1,64}$/;
@@ -51,32 +51,31 @@ function normalizeClientContext(c) {
 }
 
 /**
- * 规范化锁屏会话（网关 verifyLockSession 的结论）：ok 且 role 在白名单里才算有身份；by 不认识 → ''；
- * tempkeyId 只给访客且格式合规。没有身份 → null。
+ * 规范化锁屏身份：session 必须是 '1'（网关验过的进门）才算有身份；by 不认识 → ''；
+ * tempkeyId 只在 by=tempkey 且格式合规时给。没有身份 → null。
  * @param {any} s
- * @returns {{role:string, by:string, tempkeyId:string}|null}
+ * @returns {{session:true, by:string, tempkeyId:string}|null}
  */
 function normalizeLockIdentity(s) {
   if (!s || typeof s !== 'object') return null;
-  const role = typeof s.role === 'string' ? s.role.trim() : '';
-  if (ROLES.indexOf(role) === -1) return null;
+  if (s.session !== '1') return null;
   const byRaw = typeof s.by === 'string' ? s.by.trim() : '';
   const by = BYS.indexOf(byRaw) !== -1 ? byRaw : '';
   const tk = typeof s.tempkeyId === 'string' ? s.tempkeyId.trim() : '';
-  const tempkeyId = role === 'visitor' && TEMPKEY_ID_RE.test(tk) ? tk : '';
-  return { role, by, tempkeyId };
+  const tempkeyId = by === 'tempkey' && TEMPKEY_ID_RE.test(tk) ? tk : '';
+  return { session: true, by, tempkeyId };
 }
 
 /**
- * 读网关写的锁屏身份（白名单校验）。没有 / 不认识的值 → null（= 无会话）。
- * role 区分大小写（只认小写 admin / visitor）；by 不认识 → ''；tempkeyId 只给访客。
+ * 读网关写的锁屏身份（白名单校验）。没有 X-Styrigx-Lock-Session: 1 → null（= 没进门 / 无会话）。
+ * session 只认 '1'；by 不认识 → ''；tempkeyId 只在 by=tempkey 时给。
  * @param {Headers|null|undefined} headers
- * @returns {{role:string, by:string, tempkeyId:string}|null}
+ * @returns {{session:true, by:string, tempkeyId:string}|null}
  */
 export function readLockIdentity(headers) {
   if (!headers || typeof headers.get !== 'function') return null;
   return normalizeLockIdentity({
-    role: String(headers.get(LOCK_IDENTITY_HEADERS.role) || ''),
+    session: String(headers.get(LOCK_IDENTITY_HEADERS.session) || '').trim(),
     by: String(headers.get(LOCK_IDENTITY_HEADERS.by) || ''),
     tempkeyId: String(headers.get(LOCK_IDENTITY_HEADERS.tempkeyId) || ''),
   });

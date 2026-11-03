@@ -1,8 +1,8 @@
 /**
  * 账号云同步：设置项（外观 / 时区天气 / 搜索引擎 / Good Lock 等）跨设备同步。
  *
- * 只有登录了账号（sgx-account-session）的管理员能用：先要 admin lock 会话（前置条件），再要账号会话；
- * 访客 / 没登录账号一律 401，前端停在「只存本机」。
+ * 进门 + 账号会话 + 作用域 prefs.sync（方案 3.4 R12；src/gate.js scopeDenial，同一份 core/authz.js）：
+ * 没进门 401 session；没登录账号 401 account；没作用域 403 scope。前端（lib/cloud-sync.js）遇到 401 / 403 停在「只存本机」。
  *
  * 存储：D1 styrigx-account 的 settings_sync 表（绑定 D1_SETTINGS_SYNC，migrations/0002_settings_sync.sql），一项设置一行
  *   (k, v, t, updated_at)。2026-10-28 之前在 KV account-prefs，旧值由 scripts/migrate-prefs-kv-to-d1.mjs 一次性导入；运行时不读 KV、没有回落。
@@ -17,8 +17,8 @@
  * GET  /api/prefs → { ok, items, updatedAt }
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）
  */
-import { ROLE_ADMIN } from './account.js';
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
+import { scopeDenial } from '../gate.js';
 
 const KEY_RE = /^sgx-[a-z0-9-]{1,48}$/;
 const MAX_ITEMS = 80;
@@ -52,13 +52,11 @@ function prefsDb(env) {
   return (env && env.D1_SETTINGS_SYNC) || null;
 }
 
-/** admin lock 会话 + 账号会话（都由网关写的身份头，AccountService 读，见 src/gate.js headerAuth）；不满足返回错误响应 @param {any} context */
+/** 进门 + 账号会话 + prefs.sync（context.auth，见 src/gate.js headerAuth / scopeDenial）；不满足返回错误响应 @param {any} context */
 async function gate(context) {
   const { env, auth } = context;
-  const sess = await auth.lockSession();
-  if (!sess.ok || sess.role !== ROLE_ADMIN) return apiError(401, 'session');
-  const acc = await auth.accountSession();
-  if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
+  const denied = await scopeDenial(auth, 'prefs.sync');
+  if (denied) return denied;
   if (!prefsDb(env)) return apiError(500, 'config');
   return null;
 }
