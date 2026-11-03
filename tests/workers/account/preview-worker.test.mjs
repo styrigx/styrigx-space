@@ -21,6 +21,7 @@ test('preview-worker：网关那一半没有任何账号钥匙 / 账号库，有
   for (const k of ['SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_ADMIN_KEY', 'SGX_PW_PEPPER', 'D1_LOCK_AUTH', 'ASSETS', 'SGX_ENV']) assert.equal(g[k], FULL[k], k);
   assert.equal(typeof g.ACCOUNT.fetch, 'function');
   assert.equal(typeof g.ACCOUNT_VERIFIER.accountSession, 'function');
+  assert.equal(typeof g.ACCOUNT_VERIFIER.authorize, 'function', 'P2-2：网关 api/search.js、api/chat.js 要问 authorize');
 });
 
 test('preview-worker：账号那一半只拿账号的绑定，没有锁屏钥匙 / 锁屏根密钥 / 锁屏库', () => {

@@ -1,19 +1,21 @@
 /**
  * @fileoverview /api/search：全站搜索（2026-10-22）。四个站（styrigx.com、blog、daymark、curio）同一个接口。
  *
- * 网关只做门：验锁屏会话（admin / visitor 都能搜；没会话 401），再通过服务绑定 SEARCH 转给 styrigx-search-index Worker，
- * 带上角色头 X-Sgx-Role（私密条目只给 admin）。styrigx-search-index 没有公开地址，角色头只可能是这里写的。
+ * 网关只做门：验锁屏会话（进了门都能搜；没会话 401），再问账号 Worker 要授权结论（core/account-rpc.js askAuthorizeFor），
+ * 通过服务绑定 SEARCH 转给 styrigx-search-index Worker，带上账号结论头（core/conclusion.js writeAccountConclusion：
+ * 有账号会话才写 X-Styrigx-Account-Session: 1 等，私密条目只给账号会话；方案 2.3.1、3.4 R14）。
+ * P2-2 起不再写 X-Sgx-Role。styrigx-search-index 没有公开地址，结论头只可能是这里写的。
  *
  *   GET /api/search?q=…&lang=zh|en&site=space|blog|daymark|curio&limit=1..50
  *   → 200 { ok, q, hits: [{ site, type, title, subtitle, url }] }
  *   401 没会话 · 400 参数 · 503 搜索服务不可用（没绑定 / 出错）
  */
-import { ROLE_ADMIN } from '../core/lock-session.js';
 import { lockSessionOf } from '../core/lock-session.js';
+import { askAuthorizeFor } from '../core/account-rpc.js';
+import { writeAccountConclusion } from '../core/conclusion.js';
 import { json, apiError, NO_STORE } from '../lib/http.js';
 
 
-/** @param {number} status @param {any} body */
 /** @param {{request: Request, env: any, data?: any}} context */
 export async function onRequestGet(context) {
   const { request, env } = context;
@@ -31,11 +33,11 @@ export async function onRequestGet(context) {
     const v = url.searchParams.get(k);
     if (v) fwd.searchParams.set(k, v.slice(0, 16));
   }
+  /* 账号结论：进了门才问；没有 / 出错 → 不写结论头（= 没有账号会话，不给私密） */
+  const account = await askAuthorizeFor(request, env);
+  const headers = writeAccountConclusion(new Headers(), account);
   try {
-    const res = await svc.fetch(new Request(fwd.toString(), {
-      method: 'GET',
-      headers: { 'X-Sgx-Role': sess.role === ROLE_ADMIN ? 'admin' : 'visitor' },
-    }));
+    const res = await svc.fetch(new Request(fwd.toString(), { method: 'GET', headers }));
     const body = await res.text();
     return new Response(body, {
       status: res.status,

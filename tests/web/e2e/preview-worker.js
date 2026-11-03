@@ -19,7 +19,7 @@
  */
 import gateway from '../../../workers/auth-gateway/src/app.js';
 import { serviceFetch } from '../../../workers/account/src/rpc/account-service.js';
-import { checkAccountSession } from '../../../workers/account/src/rpc/account-verifier.js';
+import { checkAccountSession, checkAuthorize } from '../../../workers/account/src/rpc/account-verifier.js';
 
 /** 账号那一半能看到的 env 键（同 workers/account/wrangler.toml 的绑定 / 变量；预览不绑账号资料库，有就带上） */
 export const ACCOUNT_ENV_KEYS = Object.freeze([
@@ -55,6 +55,8 @@ export function gatewayEnvOf(env, ctx) {
   out.ACCOUNT = { fetch: (/** @type {Request} */ req) => serviceFetch(req, acct, ctx) };
   out.ACCOUNT_VERIFIER = {
     accountSession: (/** @type {string} */ cookie, /** @type {any} */ clientContext) => checkAccountSession(acct, cookie, clientContext),
+    /* P2-2：网关 api/search.js、api/chat.js 经 core/account-rpc.js askAuthorize 问它（AccountVerifier.authorize 的实现） */
+    authorize: (/** @type {string} */ cookie, /** @type {any} */ clientContext, /** @type {any} */ opts) => checkAuthorize(acct, cookie, clientContext, opts),
   };
   return out;
 }
