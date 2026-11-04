@@ -90,6 +90,13 @@ service = "styrigx-status"
 binding = "CHAT"
 service = "styrigx-chat"
 
+# 站内对话助手（P4-1，方案 5.3）：POST /api/ai 由 src/api/ai.js 验同源、进门、过两档 AI 限流、写账号结论头，再转给 styrigx-ai 的 POST /ask。
+# styrigx-ai 没有公开地址（workers_dev / preview_urls 关、没有路由），唯一入口是这个绑定。
+# 部署顺序：deploy.yml 里 deploy-ai-worker 先于本 Worker。
+[[services]]
+binding = "AI_SERVICE"
+service = "styrigx-ai"
+
 # ---- 限流（Workers Rate Limiting，2026-10-28）----
 # 无会话写接口（锁屏 / 重置 / 进站凭证 / 临时钥匙进门的 POST）按 IP 每 60 秒 20 次，超了 429；计数在边缘，不占存储、不收费。
 # 代码见 core/anon-limit.js（绑定缺失时放行）。namespace_id 是本账号内自定的整数，别的 Worker 不要复用。
@@ -97,6 +104,14 @@ service = "styrigx-chat"
 name = "ANON_LIMITER"
 namespace_id = "2801"
 simple = { limit = 20, period = 60 }
+
+# /api/ai 第一档：每 IP 每 60 秒 6 次（P4-1，方案 5.6）；超了 429 cooldown。代码见 core/ai-limit.js（绑定缺失时放行）。
+# 单独的 namespace，不和 ANON_LIMITER 共用（共用会让 AI 请求挤占锁屏接口的配额）。
+# 第二档全站总闸每分钟 60 次不用 Rate Limiting（它按机房计数），走 D1_LOCK_AUTH 的 attempt_limit（realm='ai'），见 core/ai-limit.js。
+[[ratelimits]]
+name = "AI_LIMITER"
+namespace_id = "2802"
+simple = { limit = 6, period = 60 }
 
 # ---- 数据绑定（正式 D1）----
 # 网关的认证状态全部在 D1 styrigx-auth-gateway（强一致），不绑定任何 KV（2026-10-27）。

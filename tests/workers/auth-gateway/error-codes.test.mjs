@@ -59,6 +59,8 @@ const KNOWN_FIXED = new Set([
   'too-long',
   'unauthorized',
   'upstream',
+  /* /api/ai（P4-1）：AI 窗口在 P5-1，按码显示固定文案（全站太忙，稍后再试），不进 apiErrorText */
+  'busy',
 ]);
 
 function read(p) {
