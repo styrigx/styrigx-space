@@ -78,7 +78,7 @@ async function mock(page, signedIn) {
   return calls;
 }
 
-test('访客：顶栏分段滑块（没有搜索栏）、抽屉同主站；没有收藏按钮和菜单；只看公开；图标取不到显示首字母', async ({ page }) => {
+test('账号未登录：顶栏分段滑块（没有搜索栏）、抽屉同主站；没有收藏按钮和菜单；只看公开；图标取不到显示首字母', async ({ page }) => {
   await mock(page, false);
   await page.goto('/curio/');
   await expect(page.locator('[data-cu-seg] .sgx-seg-btn')).toHaveText(['发现', '设备', '游戏']);
@@ -163,7 +163,7 @@ test('分类条筛选并写 hash，刷新还在', async ({ page }) => {
   await expect(page.locator('.cu-tile')).toHaveCount(2);
 });
 
-test('管理员：私密带锁、空分类也在；收藏 → 自动填写 → 保存发 link.add', async ({ page }) => {
+test('账号已登录（可写）：私密带锁、空分类也在；收藏 → 自动填写 → 保存发 link.add', async ({ page }) => {
   const calls = await mock(page, true);
   await page.goto('/curio/');
   await expect(page.locator('#cu-fab')).toBeVisible();
@@ -186,7 +186,7 @@ test('管理员：私密带锁、空分类也在；收藏 → 自动填写 → �
   await expect(page.locator('#bk-toast')).toHaveText('已保存');
 });
 
-test('管理员：长按格子编辑，删除要确认', async ({ page }) => {
+test('账号已登录（可写）：长按格子编辑，删除要确认', async ({ page }) => {
   const calls = await mock(page, true);
   await page.goto('/curio/');
   const tile = page.locator('.cu-tile[data-id="21"]');
@@ -205,7 +205,7 @@ test('管理员：长按格子编辑，删除要确认', async ({ page }) => {
   await expect(page.locator('.cu-tile[data-id="21"]')).toHaveCount(0);
 });
 
-test('管理员：管理分类新建；导入把文件原文发给 /api/import（默认私密）并显示结果', async ({ page }) => {
+test('账号已登录（可写）：管理分类新建；导入把文件原文发给 /api/import（默认私密）并显示结果', async ({ page }) => {
   const calls = await mock(page, true);
   await page.goto('/curio/');
   await page.locator('#cu-menu-btn').click();
@@ -305,7 +305,7 @@ test('页签：点「设备」切面板写 #devices、换右下角按钮；刷�
   await expect(page.locator('#cu-pane-finds')).toBeVisible();
 });
 
-test('访客：设备 / 游戏只读（没有新建按钮、详情没有编辑）；看不到私密设备；退役的标出来；使用天数算到退役日', async ({ page }) => {
+test('账号未登录：设备 / 游戏只读（没有新建按钮、详情没有编辑）；看不到私密设备；退役的标出来；使用天数算到退役日', async ({ page }) => {
   await mock(page, false);
   await page.goto('/curio/#devices');
   await expect(page.locator('#dv-list .it-name')).toHaveText(['Galaxy S23', 'Galaxy S25 Ultra']);
@@ -334,7 +334,7 @@ test('访客：设备 / 游戏只读（没有新建按钮、详情没有编辑�
   await expect(page.locator('#gm-fab')).toBeHidden();
 });
 
-test('管理员：添加设备（类型、日期、照片缩图转 webp 上传），详情里编辑成退役并选换成的那台；删除要确认', async ({ page }) => {
+test('账号已登录（可写）：添加设备（类型、日期、照片缩图转 webp 上传），详情里编辑成退役并选换成的那台；删除要确认', async ({ page }) => {
   const calls = await mock(page, true);
   await page.goto('/curio/#devices');
   await expect(page.locator('#dv-list .it-card')).toHaveCount(3);
@@ -398,7 +398,7 @@ test('管理员：添加设备（类型、日期、照片缩图转 webp 上传�
   await expect(page.locator('#dv-list [data-dev="3"]')).toHaveCount(0);
 });
 
-test('管理员：添加游戏（状态、评分、平台联想、关联设备）', async ({ page }) => {
+test('账号已登录（可写）：添加游戏（状态、评分、平台联想、关联设备）', async ({ page }) => {
   const calls = await mock(page, true);
   await page.goto('/curio/#games');
   await page.locator('#gm-fab').click();
@@ -431,7 +431,7 @@ async function halves(page, w, h) {
 }
 const frameBox = (page) => page.locator('.cu-crop-frame').boundingBox();
 
-test('管理员：游戏封面「移动和缩放」——框是卡片的 3:4；拖动换位置；取消不改；点缩略图重新调整；Esc 只关裁剪', async ({ page }) => {
+test('账号已登录（可写）：游戏封面「移动和缩放」——框是卡片的 3:4；拖动换位置；取消不改；点缩略图重新调整；Esc 只关裁剪', async ({ page }) => {
   const calls = await mock(page, true);
   await page.goto('/curio/#games');
   await page.locator('#gm-list [data-game="8"]').click();

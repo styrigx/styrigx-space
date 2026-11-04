@@ -1,13 +1,10 @@
 /**
  * @fileoverview 安全与隐私页。
- * - 三个入口（访客与管理员看到完全一样）：锁屏凭证、临时钥匙、立即锁定。
- * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或进站凭证验一次，3 分钟reauth 票）。
- *   访客（服务端注入 data-sgx-role="visitor"）点它：不跳页，就地弹管理员验证层（shell/upgrade.js
- *   openAdminVerify：只有通行密钥 / 密码，没有访客入口）；通过 → 进锁屏凭证页；取消 → 原页，访客会话不动。
- *   以前是跳过去由中间件 302 到 /?lock=1&return=…，那一页不过网关 → 整个锁屏闪一下（2026-10-21）。
- * - 临时钥匙 → /settings/security/tempkeys/（含分享短链；管理员专属页，只认管理员锁屏会话）。访客点它同样就地弹管理员验证层。
+ * - 三个入口（所有进门的人看到完全一样）：锁屏凭证、临时钥匙、立即锁定。
+ * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或进站凭证验一次，3 分钟 reauth 票）。点了就进页，进页照旧先复验。
+ * - 临时钥匙 → /settings/security/tempkeys/（含分享短链）：列表只要进门；新建 / 作废前在那一页复验（apps/security-tempkeys.js）。
  * - 立即锁定：调服务端 /api/lock-now 清除会话 cookie 后重载，回到锁屏。
- * - 从 GET /api/lock-credentials（需 admin 会话）读取锁屏凭证是否已设置，渲染状态卡片与锁屏凭证行副标题（访客不调用）。
+ * - 从 GET /api/lock-credentials（进门即可）读取锁屏凭证是否已设置，渲染状态卡片与锁屏凭证行副标题。
  * - localStorage 统一走 storage.js。
  * - 隐私分组（2026-10-20 从浏览器页 ⋮ 搬来）：搜索引擎（engines.js，sgx-search-engine，点行打开同一个选择弹层）、
  *   （清除浏览记录 2026-10-22 随最近搜索一起删掉）。原顶栏 ⋮（#sec-more = 刷新状态）已删除：进页即读取。
@@ -17,7 +14,6 @@ import { get as storeGet } from '../lib/storage.js';
 import { openSheet } from '../shell/sheet.js';
 import { engines as SE } from '../shell/engines.js';
 import { confirmLockNow } from '../auth/lock-now.js';
-import { openAdminVerify } from '../shell/upgrade.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -68,10 +64,6 @@ import { openAdminVerify } from '../shell/upgrade.js';
   }
 
   function refresh() {
-    /* 访客不调用 /api/lock-credentials（需 admin 会话，访客 401）；状态卡片保持隐藏。 */
-    try {
-      if (document.documentElement.dataset.sgxRole === 'visitor') return;
-    } catch (e) {}
     fetch('/api/lock-credentials', { method: 'GET', credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
@@ -87,20 +79,6 @@ import { openAdminVerify } from '../shell/upgrade.js';
         /* 读取失败：保持现状 */
       });
   }
-
-  /* 访客点「锁屏凭证」「临时钥匙」：就地管理员验证（见文件头） */
-  [
-    ['sec-lock-cred', en ? '/en/settings/security/lock/' : '/settings/security/lock/'],
-    ['sec-tempkeys', en ? '/en/settings/security/tempkeys/' : '/settings/security/tempkeys/'],
-  ].forEach(function (pair) {
-    const a = /** @type {HTMLAnchorElement|null} */ (document.getElementById(pair[0]));
-    if (!a) return;
-    on(a, 'click', function (/** @type {MouseEvent} */ e) {
-      if (document.documentElement.dataset.sgxRole !== 'visitor') return;
-      e.preventDefault();
-      openAdminVerify(a.getAttribute('href') || pair[1]);
-    });
-  });
 
   /* B1-1 立即锁定：确认层 + /api/lock-now 在 auth/lock-now.js（顶栏快捷面板的「立即锁定」磁贴共用同一份） */
   const lockNow = document.getElementById('sec-locknow');

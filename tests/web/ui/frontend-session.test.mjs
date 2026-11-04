@@ -67,7 +67,7 @@ test('sgx-account-card.html：只保留名字和头像（解锁入口已移走�
 
 test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；没有管理凭证、应用凭证；账号在顶栏头像', () => {
   const secHtml = readFileSync('web/atlas/layouts/_default/security.html', 'utf8');
-  assert.ok(!secHtml.includes('id="sec-owner-cred"'), '管理员凭证入口已移到顶栏头像（账号页）');
+  assert.ok(!secHtml.includes('id="sec-owner-cred"'), '锁屏凭证入口已移到顶栏头像（账号页）');
   assert.ok(!secHtml.includes('id="sec-mgmt-cred"'), '管理凭证已删除');
   assert.ok(!secHtml.includes('管理凭证'), '不应再出现「管理凭证」');
   assert.ok(secHtml.includes('id="sec-lock-cred"'), '应有锁屏凭证入口');

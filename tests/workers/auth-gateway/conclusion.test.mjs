@@ -46,7 +46,7 @@ const OK = (opts) => ({ ok: true, reason: 'ok', deviceId: DEV, scopes: ALL.slice
 function env(extra) {
   return Object.assign({ SGX_LOCK_PUBLIC: LOCK.pub, D1_LOCK_AUTH: makeAuthD1({ epochs: { 'lock-epoch': 0 } }) }, extra || {});
 }
-const lockCookie = async (role = 'admin', by = 'password', priv = LOCK.priv, epoch = 0) => 'sgx-lock-session=' + (await testLockSession(priv, epoch, role, by));
+const lockCookie = async (by = 'password', priv = LOCK.priv, epoch = 0) => 'sgx-lock-session=' + (await testLockSession(priv, epoch, by));
 
 /* ---------------- 导出与头名 ---------------- */
 
@@ -77,8 +77,8 @@ test('结论头名逐字固定（方案 2.3.1），冻结，都以 x-styrigx-acc
 
 test('conclusionFor：进门 + 账号会话有效 → lock / account 两段结论；作用域排序；Cookie 原样、clientContext 只留三项、没要复验 reauth:false', async () => {
   const v = verifier((c, x, o) => OK(o));
-  const ck = (await lockCookie('admin', 'passkey')) + '; ' + ACC_COOKIE;
-  const r = await conclusionFor(env({ ACCOUNT_VERIFIER: v }), ck, { ua: 'UA', country: 'JP', city: 'Tokyo', role: 'admin', ip: '1.2.3.4' });
+  const ck = (await lockCookie('passkey')) + '; ' + ACC_COOKIE;
+  const r = await conclusionFor(env({ ACCOUNT_VERIFIER: v }), ck, { ua: 'UA', country: 'JP', city: 'Tokyo', role: 'password', ip: '1.2.3.4' });
   assert.deepEqual(r, {
     lock: { ok: true, by: 'passkey', tempkeyId: '', reason: 'ok' },
     account: { ok: true, deviceId: DEV, scopes: ALL, reauth: false, reason: 'ok' },
@@ -101,7 +101,7 @@ test('conclusionFor：opts.reauth === true 才向账号要复验结论；别的�
 
 test('conclusionFor：临时钥匙进门 → lock.by=tempkey、带 tempkeyId', async () => {
   const v = verifier(OK());
-  const r = await conclusionFor(env({ ACCOUNT_VERIFIER: v }), await lockCookie('visitor'), {});
+  const r = await conclusionFor(env({ ACCOUNT_VERIFIER: v }), await lockCookie('tempkey'), {});
   assert.deepEqual(r.lock, { ok: true, by: 'tempkey', tempkeyId: TEST_TEMPKEY_ID, reason: 'ok' });
 });
 
@@ -112,8 +112,8 @@ test('conclusionFor：lock.ok=false（没 cookie / 只有账号会话 / 别的�
     ['', 'no-cookie'],
     [undefined, 'no-cookie'],
     [ACC_COOKIE, 'no-cookie'],
-    [await lockCookie('admin', 'password', OTHER.priv, 2), 'bad-sig'],
-    [await lockCookie('admin', 'password', LOCK.priv, 1), 'epoch-low'],
+    [await lockCookie('password', OTHER.priv, 2), 'bad-sig'],
+    [await lockCookie('password', LOCK.priv, 1), 'epoch-low'],
   ];
   for (const [ck, reason] of cases) {
     const r = await conclusionFor(e, /** @type {any} */ (ck), {}, { reauth: true });
@@ -216,7 +216,7 @@ test('askAuthorize：没 cookie 不问；超长 cookie 截到 8192；clientConte
 /* ---------------- 白名单函数 ---------------- */
 
 test('normalizeLockConclusion：by 只认 password / passkey / tempkey；tempkeyId 只给 tempkey 且合格式', () => {
-  assert.deepEqual(normalizeLockConclusion({ ok: true, role: 'admin', by: 'password', tempkeyId: 'tk1' }), { ok: true, by: 'password', tempkeyId: '', reason: 'ok' });
+  assert.deepEqual(normalizeLockConclusion({ ok: true, role: 'password', by: 'password', tempkeyId: 'tk1' }), { ok: true, by: 'password', tempkeyId: '', reason: 'ok' });
   assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'space' }), { ok: true, by: '', tempkeyId: '', reason: 'ok' });
   assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'tempkey', tempkeyId: 'bad id!' }), { ok: true, by: 'tempkey', tempkeyId: '', reason: 'ok' });
   assert.deepEqual(normalizeLockConclusion({ ok: false, reason: 'expired' }), { ok: false, by: '', tempkeyId: '', reason: 'expired' });
@@ -271,8 +271,8 @@ test('writeAccountConclusion：作用域里夹带换行 / 非法字符的项丢�
 });
 
 test('stripAccountConclusion：只剥 x-styrigx-account-*，别的 x-styrigx-* 和普通头不动；null 原样', () => {
-  const h = stripAccountConclusion(new Headers({ 'X-Styrigx-Account-Session': '1', 'x-styrigx-account-device': 'd', 'X-Styrigx-Lock-Role': 'admin', Cookie: 'a=1' }));
-  assert.deepEqual([...h.keys()].sort(), ['cookie', 'x-styrigx-lock-role']);
+  const h = stripAccountConclusion(new Headers({ 'X-Styrigx-Account-Session': '1', 'x-styrigx-account-device': 'd', 'X-Styrigx-Lock-Level': 'password', Cookie: 'a=1' }));
+  assert.deepEqual([...h.keys()].sort(), ['cookie', 'x-styrigx-lock-level']);
   assert.equal(stripAccountConclusion(null), null);
 });
 
@@ -282,7 +282,7 @@ test('浏览器带来的 X-Styrigx-Account-*：网关第一步就剥掉，转到
   _resetSecretCache();
   const seen = [];
   const ACCOUNT = { async fetch(req) { seen.push(Object.fromEntries([...req.headers])); return new Response('{"ok":true}', { headers: { 'Content-Type': 'application/json' } }); } };
-  const ck = await lockCookie('admin', 'password');
+  const ck = await lockCookie('password');
   const e = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: LOCK.pub, D1_LOCK_AUTH: authD1For(makeKV()), ACCOUNT };
   const forged = {
     Cookie: ck,

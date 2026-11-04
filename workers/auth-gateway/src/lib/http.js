@@ -48,20 +48,16 @@ export const ERROR_CODES = Object.freeze({
   purpose: [400],
   bad_request: [400],
   'too-long': [400],
-  /* 会话 / 票 / 角色 */
+  /* 会话 / 票 */
   session: [401, 400], /* 400：分享 Worker 的 session（有效天数）参数不对 */
   unauthorized: [401],
   account: [401],
-  denied: [401],
-  role: [403],
   scope: [403], /* 账号作用域不够（P2-2：/api/avatar、/api/prefs；带 scope 字段） */
-  admin_only: [403],
-  reauth: [403],
+  reauth: [403, 401], /* 403：锁屏凭证管理（checkLockManage）；401：临时钥匙 create / revoke、短链 create / revoke 没有锁侧复验 */
   challenge: [403],
   /* 凭证 */
   auth: [401],
   wrong: [403],
-  verify: [403],
   'unknown-key': [403],
   'not-set': [403],
   exists: [403],
@@ -91,7 +87,7 @@ export const ERROR_CODES = Object.freeze({
   no_key: [503],
   'sign-failed': [500],
   'session-sign-failed': [500],
-  'invalid-role': [500],
+  'invalid-by': [500],
   'no-session-key': [500],
 });
 

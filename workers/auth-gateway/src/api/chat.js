@@ -3,21 +3,20 @@
  *
  * 网关只做门，再通过服务绑定 CHAT 转给 styrigx-chat，回答原样流回去（状态码、响应头、SSE 一字不改）：
  * - POST 只接受同源（workers/auth-gateway/src/lib/http.js isSameOrigin，同 /api/prefs）→ 否则 403 origin
- * - 锁屏会话：没有 / 无效 → 401 unauthorized；访客（visitor）→ 403 { error: 'admin_only' }（过渡期：网关 role 门 P2-3 才改）
- * - 账号会话（P2-2 过渡门槛，方案 3.4 R15 / 定案第 1 条）：问账号 Worker（core/account-rpc.js askAuthorizeFor），没有 → 401 { error: 'account' }
+ * - 锁屏会话（进门）：没有 / 无效 → 401 unauthorized
+ * - 账号会话（过渡门槛，方案 3.4 R5 / 定案第 1 条：门槛挂在入口上，P4-2 连同 /chat/ 页一起退役）：问账号 Worker（core/account-rpc.js askAuthorizeFor），没有 → 401 { error: 'account' }
  *   （前端 apps/chat.js 显示「登录账号后可用」卡）
  * 门只在网关（方案 2.3.1）：styrigx-chat 没有公开地址（workers_dev / preview_urls 关、没有路由和域名），唯一入口是这里的服务绑定 CHAT，
- * 所以转进去的内部请求不带任何身份头（P2-2 起不再写 X-Sgx-Role），也不转 cookie。
+ * 所以转进去的内部请求不带任何身份头，也不转 cookie。
  *
  *   GET  /api/chat → styrigx-chat GET /models：200 { ok:true, default:'<id>', models:[{ id, label, search }] }（不看 Origin）
  *   POST /api/chat { messages, model? } → styrigx-chat POST /chat：200 text/event-stream，或 JSON 错误
  *       400 bad_request / bad_model · 503 no_key · 429 rate_limited · 502 model_unavailable / upstream（详见 workers/chat/src/chat.js）
- *   网关这边的错误：401 unauthorized / account · 403 origin / admin_only · 405 method ·
+ *   网关这边的错误：401 unauthorized / account · 403 origin · 405 method ·
  *       503 no_key（没绑定 CHAT = 聊天没配置）· 502 upstream（调 styrigx-chat 抛错）
  * 钥匙 SGX_CHAT_API_KEY 和 CHAT_* 变量都只在 styrigx-chat（workers/chat/wrangler.toml），网关不碰。
  */
 import { lockSessionOf } from '../core/lock-session.js';
-import { ROLE_ADMIN } from '../core/lock-session.js';
 import { askAuthorizeFor } from '../core/account-rpc.js';
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 
@@ -25,14 +24,13 @@ import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 const CHAT_BASE = 'https://styrigx-chat';
 
 /**
- * 门：锁屏会话 + 过渡期只许 admin 锁屏 + 账号会话。通过 → null；否则错误响应。会话先用关口验过的结论，没有再自己验。
- * 顺序：没会话 401 unauthorized → 访客 403 admin_only（P2-3 删 role 时一起删）→ 没账号会话 401 account。
+ * 门：进门 + 账号会话。通过 → null；否则错误响应。会话先用关口验过的结论，没有再自己验。
+ * 顺序：没进门 401 unauthorized → 没账号会话 401 account。
  * @param {any} context
  */
 async function chatGate(context) {
   const sess = await lockSessionOf(context);
   if (!sess.ok) return apiError(401, 'unauthorized');
-  if (sess.role !== ROLE_ADMIN) return apiError(403, 'admin_only');
   const account = await askAuthorizeFor(context.request, context.env);
   if (!account.ok) return apiError(401, 'account');
   return null;

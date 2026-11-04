@@ -55,7 +55,7 @@ let countdownExpiresAt = 0;
  * @param {string} [detail] 服务端原因码（如 no-pubkey、epoch-changed），拼在文案末尾方便定位
  */
 function verifyMessage(t, reason, detail) {
-  /* 批次 A 验收修复 P0：代管中途管理员层被配置 → 明确提示，不无提示踢回安全页 */
+  /* 批次 A 验收修复 P0：代管中途锁屏凭证被配置 → 明确提示，不无提示踢回安全页 */
   if (reason === 'account-configured' || detail === 'account-configured') {
     return tx(t, 'errAccountConfigured', '账号凭证已设置，请先登录账号再进入', 'Account credentials are set; please sign in to your account first');
   }

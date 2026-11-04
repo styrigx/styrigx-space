@@ -5,7 +5,7 @@
  * - A2（2.11更新）：/api/space-auth 校验 SGX_LOCK_SPACE_KEY 通过后签发 sgx-stepup(by=space, scope=space)；
  *       错误密钥 → 401 并计数；超限 → 429；缺 SGX_LOCK_SPACE_KEY/SGX_STEPUP_PRIVATE → 拒绝；
  *       每次使用写审计记录（D1 audit）；D1 出错 fail closed
- * - B6：register 必须要求 admin 会话；第一把 lock 也要求 stepup
+ * - B6：register 必须要求 进门会话；第一把 lock 也要求 stepup
  * - B9：bumpAppEpoch KV 失败时抛错（删除被拒绝，fail closed）
  * - B10：删应用类密钥只加 app-epoch:<aud>，不推进会话纪元
  * - B7 已在 tests/ui/app-token.test.mjs 覆盖
@@ -123,7 +123,7 @@ test('A2：D1 出错 fail closed（真路径：锁屏未设置、限速表读出
   assert.equal(res.headers.get('Set-Cookie'), null, '不签票');
 });
 
-/* ============ B6：register 要求 admin 会话 ============ */
+/* ============ B6：register 要求 进门会话 ============ */
 
 test('B6：无会话时 register challenge → 401', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/lock-passkey.js');
@@ -131,7 +131,7 @@ test('B6：无会话时 register challenge → 401', async () => {
   const env = authEnv(kv);
   const req = postReq('https://styrigx.com/api/lock-passkey', { action: 'challenge', type: 'register' });
   const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 401, '无 admin 会话时 register 应被拒');
+  assert.equal(res.status, 401, '无 进门会话时 register 应被拒');
 });
 
 /* ============ B9/B10：删除应用类密钥 ============ */

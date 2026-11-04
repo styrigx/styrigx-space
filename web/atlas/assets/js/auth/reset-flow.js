@@ -25,7 +25,7 @@ const TXT = {
   next: { zh: '下一步', en: 'Continue' },
   step2: { zh: '再验证一次锁屏凭证', en: 'Now verify your lock credential' },
   noLock: { zh: '锁屏还没有设置凭证，无法用锁屏凭证验证。', en: 'No lock credential is set, so it can’t be used to verify.' },
-  recover: { zh: '锁屏凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效', en: 'Lock credential unavailable too? Enable one-time recovery in the site admin, valid for 24 hours.' },
+  recover: { zh: '锁屏凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效', en: 'Lock credential unavailable too? Enable one-time recovery in the site dashboard, valid for 24 hours.' },
   mPasskey: { zh: '锁屏通行密钥', en: 'Lock passkey' },
   mPasskeySub: { zh: '使用指纹或设备锁屏', en: 'Use fingerprint or device screen lock' },
   mPassword: { zh: '解锁密码', en: 'Unlock password' },

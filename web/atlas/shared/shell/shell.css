@@ -114,6 +114,24 @@
 .sgx-share-toast.show { opacity: 1; transform: translate(-50%, 0); }
 .reduced-motion .sgx-share-toast { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-share-toast { transition: none; } }
+/* 分享前的最小锁侧复验步骤（share.js lockReauthStep，P2-3）：底部弹层，宽屏居中；只用 --sgx-* 角色 */
+.sgx-share-reauth { box-sizing: border-box; width: min(100%, 480px); max-width: 100%; margin: auto auto 0; padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  border: 0; border-radius: 24px 24px 0 0; background: var(--sgx-surface); color: var(--sgx-on-surface);
+  font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; }
+.sgx-share-reauth::backdrop { background: rgba(0,0,0,.5); }
+.sgx-share-reauth-title { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
+.sgx-share-reauth-desc { margin: 0 0 20px; font-size: 14px; color: var(--sgx-on-surface-variant); }
+.sgx-share-reauth-pw { display: flex; flex-direction: column; gap: 12px; margin: 0 0 12px; }
+.sgx-share-reauth-in { box-sizing: border-box; width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--sgx-outline-variant);
+  background: var(--sgx-surface-container-highest); color: var(--sgx-on-surface); font-size: 16px; }
+.sgx-share-reauth-btn { display: block; box-sizing: border-box; width: 100%; padding: 14px; margin: 0 0 12px; border: 0; border-radius: 12px;
+  background: var(--sgx-btn-primary-bg); color: var(--sgx-btn-primary-fg); font-size: 16px; font-weight: 600; cursor: pointer; }
+.sgx-share-reauth-pw .sgx-share-reauth-btn { margin: 0; }
+.sgx-share-reauth-cancel { display: block; width: 100%; padding: 12px; border: 0; background: none; color: var(--sgx-on-surface-variant); font-size: 15px; cursor: pointer; }
+.sgx-share-reauth-err { margin: 0 0 12px; font-size: 14px; text-align: center; color: var(--sgx-primary); }
+.sgx-share-reauth-err[hidden] { display: none; }
+.sgx-share-reauth[aria-busy="true"] .sgx-share-reauth-btn { opacity: .6; pointer-events: none; }
+@media (min-width: 840px) { .sgx-share-reauth { margin: auto; border-radius: 24px; } }
 /* ---- drawer ---- */
 /* 导航抽屉（2026-10-20，Gmail Android 式左侧抽屉；主站 baseof.html #sgx-drawer，head-buttons.js 开关；子站同一份）：
    <dialog> 模态铺满视口，::backdrop 是遮罩（--sgx-scrim）；.sgx-drawer-sheet 从左滑入（is-open）。

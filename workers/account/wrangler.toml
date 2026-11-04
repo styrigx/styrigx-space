@@ -1,6 +1,6 @@
 # styrigx-account：账号 Worker（CI 部署；完整的账号系统，账号拆分 PR3）
 #
-# 管管理员账号的全部身份和数据：账号密码、账号 Passkey、已登录设备、账号会话 / reauth / reset、Account 纪元、
+# 管站点账号的全部身份和数据：账号密码、账号 Passkey、已登录设备、账号会话 / reauth / reset、Account 纪元、
 # 账号根密钥 SGX_ACCOUNT_ROOT_KEY、账号审计（D1_ACCOUNT_AUTH），以及头像（KV_PROFILE）、设置云同步（D1_SETTINGS_SYNC）、数字健康（D1_WELLBEING）。
 # 代码：src/（部署入口 index.js：默认 fetch = app.js（一律 404），命名入口 rpc/account-service.js AccountService、rpc/account-verifier.js AccountVerifier；
 # 身份头门 gate.js、路由 router.js、接口 api/、账号身份 core/、公共 lib/；骨架见 workers/README.md）+ migrations/（D1 styrigx-account）。分层与边界见 workers/account/README.md、docs/architecture.md「Worker 边界」。

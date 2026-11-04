@@ -65,7 +65,7 @@ const TRACKED = [SESSION, REAUTH, RESET, ACCOUNT_SESSION, ACCOUNT_REAUTH, ACCOUN
 /**
  * worker 进程内的缓存（测试失败换 worker 后丢失，adminSession 会走重置）：
  * - password：本次运行设过的锁屏密码
- * - session / reauth：服务端最近一次发下来的 admin 锁屏会话、LockReauthTicket 的值（absorbCookies 顺手记下）。
+ * - session / reauth：服务端最近一次发下来的 锁屏进门会话、LockReauthTicket 的值（absorbCookies 顺手记下）。
  *   每个用例是新的 context，以前每次都要重新密码解锁、重新 space-auth 进门；而网关每次密码解锁成功会删两个限速键、
  *   每次 space-auth 成功会写一条审计并删一个限速行。所以 adminSession / lockReauth 先把缓存的值
  *   放回 context，用只读接口（lock-session-check / lock-reauth status，只有 D1 读）问服务端还认不认，认就直接用，
@@ -321,7 +321,7 @@ async function unlockWithPassword(page, password) {
 }
 
 /**
- * 让页面 context 拿到 admin 锁屏会话（sgx-lock-session，按预览主机写入）。返回当前锁屏密码。
+ * 让页面 context 拿到 锁屏进门会话（sgx-lock-session，按预览主机写入）。返回当前锁屏密码。
  * @param {import('@playwright/test').Page} page
  * @param {import('@playwright/test').TestType<any, any>} test
  */
@@ -381,7 +381,7 @@ function rememberPassword(pw) {
 }
 
 /**
- * 进锁屏凭证的门：space-auth purpose:lock-reauth → LockReauthTicket（要 admin 会话）。
+ * 进锁屏凭证的门：space-auth purpose:lock-reauth → LockReauthTicket（要 进门会话）。
  * @param {import('@playwright/test').Page} page
  */
 async function lockReauth(page) {

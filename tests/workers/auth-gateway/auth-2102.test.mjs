@@ -2,7 +2,7 @@
  * 2.10.2 鉴权修复测试（space）。
  *
  * 覆盖：
- * - 2：管理操作需 admin 会话 + stepup；/api/lock-now 清除 stepup 和 app cookie；
+ * - 2：管理操作需 进门会话 + stepup；/api/lock-now 清除 stepup 和 app cookie；
  *     锁定后调用管理接口必须拒绝
  * - 3：删应用密钥先推 app-epoch 再删；推失败 503 且密钥仍在
  * - 4：删锁屏密钥先推 lock-epoch 再删；失败 503（fail closed）
@@ -46,8 +46,8 @@ function baseEnv(kv, overrides = {}) {
   };
 }
 
-/* 签一个有效的 admin 会话 cookie（role.epoch.exp.sig） */
-async function makeSessionCookie(env, role = 'admin') {
+/* 签一个有效的 进门会话 cookie（role.epoch.exp.sig） */
+async function makeSessionCookie(env, role = 'password') {
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const epoch = 0;
   return await testLockSession(env.SGX_LOCK_PRIVATE, epoch, role);
@@ -65,7 +65,7 @@ before(async () => {
   assert.ok(LOCK_PRIV && LOCK_PUB);
 });
 
-/* ============ 2：管理操作需 admin 会话 + stepup ============ */
+/* ============ 2：管理操作需 进门会话 + stepup ============ */
 
 
 
@@ -108,7 +108,7 @@ test('6：verifyLockSession 无纪元存储（D1）→ d1-error（不跳过）',
   const { verifyLockSession } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   /* 造一个格式正确但无法验 epoch 的 cookie：用真密钥签名 */
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
-  const val = await testLockSession(LOCK_PRIV, 0, 'admin', 'password');
+  const val = await testLockSession(LOCK_PRIV, 0, 'password');
   const req = new Request('https://styrigx.com/', {
     headers: { 'Cookie': 'sgx-lock-session=' + val },
   });
@@ -197,15 +197,8 @@ test('1a：锁屏方法弹层按配置显示入口（PR3：进站凭证 / 重置
   /* 配置以服务端为准 */
   assert.ok(src.includes('/api/lock-entry'), '应从 /api/lock-entry 读取配置');
   /* 其他选项必须存在 */
-  assert.ok(src.includes('sgx-mopt-visitor'), '应有访客进入');
+  assert.ok(src.includes('sgx-mopt-tempkey'), '应有临时钥匙');
   assert.ok(src.includes('sgx-mopt-pk'), '应有通行密钥');
   assert.ok(src.includes('sgx-mopt-pw'), '应有密码');
   assert.ok(!src.includes('sgx-mopt-reset'), '「重置锁屏」一行已并入「无法登录？」');
-});
-
-test('1b：升级弹层没有进站凭证入口（SpaceKey 不拥有会话，不能把访客升级成 admin）', () => {
-  const src = fs.readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/upgrade.js'), 'utf8');
-  assert.ok(!src.includes('sgx-upgrade-mk'), '升级弹层不应有进站凭证按钮');
-  assert.ok(!src.includes('/api/space-auth') && !src.includes('/api/root-session'), '不调 space-auth / root-session');
-  assert.ok(src.includes("'Admin verification'"), '文案是 admin 验证');
 });

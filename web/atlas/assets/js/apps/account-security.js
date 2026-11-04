@@ -395,7 +395,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
     });
   }
 
-  /* 进页：读状态。没有账号会话（访客 / 只有锁屏会话 / 读失败）→ 回账号页登录；没有reauth 票 → 门口 */
+  /* 进页：读状态。没有账号会话（账号未登录 / 读失败）→ 回账号页登录；没有reauth 票 → 门口 */
   function loadStatus() {
     return fetch(ACCOUNT_API, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) { return r.json(); })

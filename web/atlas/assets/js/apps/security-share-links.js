@@ -3,24 +3,26 @@
  *
  * 接口：POST /api/share（分享短链 Worker styrigx-share，workers/share）{ action:'list' | 'create' | 'revoke' }。
  * - 进页 list → 列表：名字 + 类型（带会话 / 普通）+ 状态（有效 / 已过期 / 已作废）、打开的页面、到期时间和剩余、
- *   带会话的：点开后能看多久、最近一次发出的访客会话还剩多久；有效的才有「复制」「作废」（两步确认）
+ *   带会话的：点开后能看多久、最近一次发出的临时会话还剩多久；有效的才有「复制」「作废」（两步确认）
  * - 「新建分享短链」→ 弹层：名字（可空）+ 链接有效期（1–24 小时 / 3 / 7 / 15 / 30 天）+ 打开的页面（站内路径或 styrigx.com / 子站链接，默认首页）
  *   +「带临时会话」开关（默认开）+ 点开后能看多久（30 分钟–7 天，比链接有效期长的档位禁用）
  *   → create → 弹层原地换成链接 + 复制；关掉开关 = 普通短链（session 0），服务端不签钥匙、不发会话
  * - 码不在页面地址里出现；复制的是 location.origin + /s/<码>
- * 只认管理员锁屏会话（不问账号会话）；lock 会话失效的处理与临时钥匙列表一致（apps/security-tempkeys.js）。
+ * 列表只要锁屏进门会话（不问账号会话）；lock 会话失效的处理与临时钥匙列表一致（apps/security-tempkeys.js）。
+ * 新建（含复用）/ 作废要锁侧复验（P2-3，定案第 7 条）：服务端回 401 reauth 时弹锁侧复验层（auth/lock-reauth.js），通过后自动重试。
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 import { postJSON, errText } from '../auth/account-api.js';
+import { withLockReauth, needsLockReauth } from '../auth/lock-reauth.js';
 import { createT } from './account-common.js';
 import { leftText, durationParam } from './security-tempkeys.js';
 
 /** 分享短链管理接口（styrigx-share） */
 export const SHARE_API = '/api/share';
 
-/** 访客会话时长档位（秒），与服务端 SHARE_SESSION_OPTS 一致 */
+/** 临时会话时长档位（秒），与服务端 SHARE_SESSION_OPTS 一致 */
 export const SESSION_OPTS = [1800, 3600, 10800, 43200, 86400, 259200, 604800];
 
 /**
@@ -136,7 +138,7 @@ export function metaLines(t, en, l, now) {
   /** @param {{s:number, j:any}} res @returns {boolean} 已处理 */
   function authFail(res) {
     if (res.s !== 401) return false;
-    toast(t('sessExp'));
+    if (!needsLockReauth(res)) toast(t('sessExp'));
     return true;
   }
 
@@ -224,8 +226,12 @@ export function metaLines(t, en, l, now) {
       }
       window.clearTimeout(timer);
       btn.disabled = true;
-      postJSON(SHARE_API, { action: 'revoke', id: l.id }).then(function (res) {
-        if (authFail(res)) return;
+      withLockReauth(function () { return postJSON(SHARE_API, { action: 'revoke', id: l.id }); }, { en: en }).then(function (res) {
+        if (authFail(res)) {
+          btn.disabled = false;
+          disarm();
+          return;
+        }
         if ((res.j && res.j.ok) || (res.j && res.j.error === 'not-found')) {
           toast(t('tkRevoked'));
           load();
@@ -357,8 +363,9 @@ export function metaLines(t, en, l, now) {
       return;
     }
     go.disabled = true;
-    postJSON(SHARE_API, Object.assign({ action: 'create', name: name, to: to, session: session }, dur)).then(function (res) {
+    withLockReauth(function () { return postJSON(SHARE_API, Object.assign({ action: 'create', name: name, to: to, session: session }, dur)); }, { en: en }).then(function (res) {
       go.disabled = false;
+      if (needsLockReauth(res)) return; /* 复验取消：弹层留着，可以再点「生成」 */
       if (authFail(res)) { closeDlg('auth'); return; }
       if (!(res.j && res.j.ok)) {
         const e = res.j && res.j.error;

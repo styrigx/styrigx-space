@@ -26,7 +26,7 @@ function dayStr(d) {
 }
 
 /**
- * 读今日访客数据。
+ * 读今日访问数据。
  * @returns {{day: string, min: number, areas: Record<string, number>}}
  */
 export function wellLoad() {

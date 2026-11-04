@@ -15,7 +15,7 @@ import { genKeyPair, authD1For } from '../_harness.mjs';
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 const KV = { async get() { return null; }, async put() {}, async delete() {} };
 const ENV = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB, KV_LOCK_DOOR: KV, D1_LOCK_AUTH: authD1For(KV) , D1_LOCK_AUTH: authD1For(KV)};
-const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin'));
+const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
 
 /* 原样拼在查询串里的 return 值（浏览器地址栏 / 攻击链接里的写法） */
 const EVIL_RAW = [
@@ -81,8 +81,10 @@ test('/api/lock-session-check：复现用例 next 一律 /', async () => {
   }
 });
 
-test('resolveReturn：管理员专属页 / 访客升级逻辑不变', () => {
-  assert.deepEqual(resolveReturn('/settings/security/lock/', 'admin'), { location: '/settings/security/', upgrade: false });
-  assert.deepEqual(resolveReturn('/settings/security/lock/', 'visitor'), { location: '/settings/security/lock/', upgrade: true });
-  assert.deepEqual(resolveReturn('/%09/evil.com', 'admin'), { location: '/', upgrade: false });
+test('resolveReturn(ret)：只做地址白名单，不看进门方式；门内页也原样回去（不再有升级验证）', () => {
+  assert.equal(resolveReturn('/settings/security/lock/'), '/settings/security/lock/');
+  assert.equal(resolveReturn('/en/settings/status/?x=1'), '/en/settings/status/?x=1');
+  assert.equal(resolveReturn('https://styrigx.com/curio/a/'), 'https://styrigx.com/curio/a/');
+  assert.equal(resolveReturn('/%09/evil.com'), '/');
+  assert.equal(resolveReturn(''), '/');
 });

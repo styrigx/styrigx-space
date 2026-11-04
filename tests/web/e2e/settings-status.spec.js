@@ -1,7 +1,7 @@
 /**
  * 服务状态（设置 → 服务状态 /settings/status/）+ 主站顶栏三栏验收。/api/status 一律 mock（tests/fixtures/status-summary.cjs，形状 = workers/status/src/monitor.js summary）。
  * 2026-10-24 PR4：原顶栏「状态」页（/status/，status-page.spec.js）整页挪进账号页，顶栏第三栏换成「设置」；旧地址 404、不跳转。
- * 之后从账号页搬到设置（本文件也随之改名）：/settings/status/（+ /en/），旧地址删除、不跳转；只认管理员锁屏会话，不问账号会话。
+ * 之后从账号页搬到设置（本文件也随之改名）：/settings/status/（+ /en/），旧地址删除、不跳转；只认锁屏进门会话，不问账号会话。
  * - 顶栏：主页 / 聊天 / 设置三页的长条里是三个标签（en：Home / Chat / Settings），当前页 aria-current="page"；点了切页；
  *   其他页（设置子页、服务状态）长条照旧只有页名；长条仍在屏幕正中，标签在长条里居中。
  * - 入口：设置首页分类列表「服务状态」一行（第 7 项，独立页面）→ /settings/status/；账号页没有入口。
@@ -511,7 +511,7 @@ test.describe('聊天页空状态', () => {
 });
 
 /* 2026-10-24 PR4：服务状态挪进账号页；之后从账号页搬到设置（/settings/status/），旧地址删除、不跳转。
-   只认管理员锁屏会话，不问账号会话（不再调 requireAccountSession，不 mock /api/account）。 */
+   只认锁屏进门会话，不问账号会话（不再调 requireAccountSession，不 mock /api/account）。 */
 test.describe('设置 → 服务状态（入口 / 旧地址删除）', () => {
   test.use({ viewport: { width: 412, height: 915 } });
 

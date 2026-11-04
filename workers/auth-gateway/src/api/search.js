@@ -4,7 +4,7 @@
  * 网关只做门：验锁屏会话（进了门都能搜；没会话 401），再问账号 Worker 要授权结论（core/account-rpc.js askAuthorizeFor），
  * 通过服务绑定 SEARCH 转给 styrigx-search-index Worker，带上账号结论头（core/conclusion.js writeAccountConclusion：
  * 有账号会话才写 X-Styrigx-Account-Session: 1 等，私密条目只给账号会话；方案 2.3.1、3.4 R14）。
- * P2-2 起不再写 X-Sgx-Role。styrigx-search-index 没有公开地址，结论头只可能是这里写的。
+ * styrigx-search-index 没有公开地址，结论头只可能是这里写的。
  *
  *   GET /api/search?q=…&lang=zh|en&site=space|blog|daymark|curio&limit=1..50
  *   → 200 { ok, q, hits: [{ site, type, title, subtitle, url }] }

@@ -1,6 +1,6 @@
 {{/* 安全与隐私（2.4.0 安全与隐私）：只读状态卡片 + 安全/隐私分组。
    状态来自 GET /api/lock-credentials（需鉴权，只返回锁屏凭证是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
-   安全分组三个入口：锁屏凭证（门在那一页，3 分钟reauth 票）/ 临时钥匙（含分享短链，只认管理员锁屏会话）/ 立即锁定；账号凭证在顶栏右圆头像（账号 → 安全与隐私）。
+   安全分组三个入口：锁屏凭证（门在那一页，3 分钟reauth 票）/ 临时钥匙（含分享短链；列表只要进门，新建 / 作废要锁侧复验）/ 立即锁定；账号凭证在顶栏右圆头像（账号 → 安全与隐私）。
    脚本走 ES Module 入口 entry-security.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security.js" }}
@@ -21,7 +21,7 @@
     {{ partial "icon.html" "chev-r" }}
   </a>
 
-  <!-- 安全分组：三个入口（访客与管理员看到完全一样） -->
+  <!-- 安全分组：三个入口（所有进门的人看到完全一样） -->
   <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security{{ else }}安全{{ end }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
     {{/* 锁屏凭证 → 锁屏凭证页（进页先过门：锁屏凭证或进站凭证，3 分钟reauth 票，离开即失效） */}}
@@ -33,12 +33,12 @@
       </span>
       {{ partial "icon.html" "chev-r" }}
     </a>
-    {{/* 临时钥匙 → 临时钥匙页（给访客的临时 LockKey + 分享短链；管理员专属页，只认管理员锁屏会话） */}}
+    {{/* 临时钥匙 → 临时钥匙页（发给别人的临时 LockKey + 分享短链；列表只要进门，新建 / 作废要锁侧复验） */}}
     <a class="set-row" id="sec-tempkeys" href="{{ $tkUrl }}">
       <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "key" }}</span>
       <span class="flex-1 min-w-0">
         <span class="block font-medium">{{ if $isEn }}Temporary keys{{ else }}临时钥匙{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Let visitors past the lock screen, share links{{ else }}给访客的进门钥匙、分享短链{{ end }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Let others past the lock screen, share links{{ else }}给别人的进门钥匙、分享短链{{ end }}</span>
       </span>
       {{ partial "icon.html" "chev-r" }}
     </a>

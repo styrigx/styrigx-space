@@ -112,7 +112,7 @@ html, body {
 @supports (overflow-x: clip) {
   html, body { overflow-x: clip; }
 }
-/* @sgx-shell:begin styrigx/styrigx-space@5df9d0130e5243bb2e12220788cee4f13b7f3796 web/shared/shell v004e9054e471（scripts/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:44c9abf78363 web/atlas/shared/shell vef85484b246b（scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space scripts/gen-shell.mjs 从 web/data/palette-roles.json 生成，勿手改；子站用 scripts/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -6863,6 +6863,24 @@ html, body {
 .sgx-share-toast.show { opacity: 1; transform: translate(-50%, 0); }
 .reduced-motion .sgx-share-toast { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-share-toast { transition: none; } }
+/* 分享前的最小锁侧复验步骤（share.js lockReauthStep，P2-3）：底部弹层，宽屏居中；只用 --sgx-* 角色 */
+.sgx-share-reauth { box-sizing: border-box; width: min(100%, 480px); max-width: 100%; margin: auto auto 0; padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  border: 0; border-radius: 24px 24px 0 0; background: var(--sgx-surface); color: var(--sgx-on-surface);
+  font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; }
+.sgx-share-reauth::backdrop { background: rgba(0,0,0,.5); }
+.sgx-share-reauth-title { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
+.sgx-share-reauth-desc { margin: 0 0 20px; font-size: 14px; color: var(--sgx-on-surface-variant); }
+.sgx-share-reauth-pw { display: flex; flex-direction: column; gap: 12px; margin: 0 0 12px; }
+.sgx-share-reauth-in { box-sizing: border-box; width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--sgx-outline-variant);
+  background: var(--sgx-surface-container-highest); color: var(--sgx-on-surface); font-size: 16px; }
+.sgx-share-reauth-btn { display: block; box-sizing: border-box; width: 100%; padding: 14px; margin: 0 0 12px; border: 0; border-radius: 12px;
+  background: var(--sgx-btn-primary-bg); color: var(--sgx-btn-primary-fg); font-size: 16px; font-weight: 600; cursor: pointer; }
+.sgx-share-reauth-pw .sgx-share-reauth-btn { margin: 0; }
+.sgx-share-reauth-cancel { display: block; width: 100%; padding: 12px; border: 0; background: none; color: var(--sgx-on-surface-variant); font-size: 15px; cursor: pointer; }
+.sgx-share-reauth-err { margin: 0 0 12px; font-size: 14px; text-align: center; color: var(--sgx-primary); }
+.sgx-share-reauth-err[hidden] { display: none; }
+.sgx-share-reauth[aria-busy="true"] .sgx-share-reauth-btn { opacity: .6; pointer-events: none; }
+@media (min-width: 840px) { .sgx-share-reauth { margin: auto; border-radius: 24px; } }
 /* ---- drawer ---- */
 /* 导航抽屉（2026-10-20，Gmail Android 式左侧抽屉；主站 baseof.html #sgx-drawer，head-buttons.js 开关；子站同一份）：
    <dialog> 模态铺满视口，::backdrop 是遮罩（--sgx-scrim）；.sgx-drawer-sheet 从左滑入（is-open）。
@@ -7249,8 +7267,8 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 /* 拾录：句子卡（内容底板，小一号圆角） */
 .dm-pane-trove { padding-bottom: 88px; }
 .dm-card { position: relative; border-radius: 1.25rem; padding: 16px 18px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.dm-admin .dm-card[role="button"] { cursor: pointer; transition: transform .15s ease; }
-.dm-admin .dm-card[role="button"]:active { transform: scale(.99); }
+.dm-can-write .dm-card[role="button"] { cursor: pointer; transition: transform .15s ease; }
+.dm-can-write .dm-card[role="button"]:active { transform: scale(.99); }
 .dm-card .dm-text { font-family: var(--dm-serif); font-size: 17px; line-height: 1.7; white-space: pre-line; overflow-wrap: anywhere; }
 .dm-card .dm-lock + .dm-text { padding-right: 22px; }
 .dm-card .dm-trans { margin-top: 6px; font-size: 14px; line-height: 1.6; color: var(--sgx-text-secondary); white-space: pre-line; overflow-wrap: anywhere; }

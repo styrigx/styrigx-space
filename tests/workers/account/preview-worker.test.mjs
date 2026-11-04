@@ -40,7 +40,7 @@ test('preview-worker：ACCOUNT.fetch 只认网关写的身份头；没有身份�
 test('preview-worker：默认导出是 { fetch }，只交给网关（伪造的 x-styrigx-* 先被网关剥掉）', async () => {
   assert.equal(typeof pw.default.fetch, 'function');
   const env = Object.assign({}, FULL, { SGX_ENV: 'preview' });
-  const r = await pw.default.fetch(new Request('https://x.pages.dev/api/prefs', { headers: { 'X-Styrigx-Lock-Role': 'admin' } }), env, { waitUntil() {} });
+  const r = await pw.default.fetch(new Request('https://x.pages.dev/api/prefs', { headers: { 'X-Styrigx-Lock-Level': 'password' } }), env, { waitUntil() {} });
   /* 预览 SGX_ENV=preview 时网关不拦 /api/*：剥头后转发，账号 Worker 看不到身份头 → 401（没剥掉就会以 admin 身份进 prefs） */
   assert.equal(r.status, 401);
   assert.equal(r.headers.get('X-SGX-Runtime'), 'account');

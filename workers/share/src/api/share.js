@@ -1,21 +1,23 @@
 /**
- * @fileoverview 分享短链管理：POST /api/share { action }（同源；子站只许 create + reuse；只认管理员锁屏会话，门已拦掉访客和没会话的）。
+ * @fileoverview 分享短链管理：POST /api/share { action }（同源；子站只许 create + reuse）。
+ * 鉴权（方案 3.4 R13、3.6）：list = 进门；create（含 reuse:true）/ revoke = 进门 + 锁侧复验——先问网关 ShareIssuer.checkReauth，
+ * 没有有效 sgx-lock-reauth → 原样回 401 reauth（前端先走锁侧复验，通过后自动重试）。生成短链就是发放一张入门凭证，与发临时钥匙同级。
  *
  * - list → { links: [view] }（新到旧；含已过期 / 已作废的，留 7 天后删；字段见 lib/links.js view）
  * - create { name?, hours? | days?, to?, session? } → { link: view }
  *     有效期：hours 1–24 或 days 3 / 7 / 15 / 30；to 站内相对路径或 styrigx.com / 三个子站的 https 地址（默认 /，lib/links.js cleanTarget）；
- *     session = 访客会话秒数（0 / 不传 = 普通短链，不签钥匙、不发会话），只收 1800 / 3600 / 10800 / 43200 / 86400 / 259200 / 604800，
+ *     session = 短链进门会话秒数（0 / 不传 = 普通短链，不签钥匙、不发会话），只收 1800 / 3600 / 10800 / 43200 / 86400 / 259200 / 604800，
  *     且不超过有效期；同时有效最多 20 条（409 full）。
- *     带会话：请网关（ISSUER → ShareIssuer.createLinkKey）签一把新的短链钥匙，网关再验一次管理员锁屏会话；
+ *     带会话：请网关（ISSUER → ShareIssuer.createLinkKey）签一把新的短链钥匙，网关再验一次进门 + 锁侧复验；
  *     短链到期时间 = 钥匙到期时间。写 D1 失败 → 把刚签的钥匙作废，不留孤儿。
  * - create 加 reuse:true（子站顶栏分享按钮用）：已有同一目标（规范化后）、同一会话档位、同一有效期、没作废、还剩 ≥ 12 小时的短链
  *     → 直接返回它（{ link, reused:true }），不签新钥匙、不占名额，临时钥匙列表不会越点越长；名字超过 24 字截断（按钮拿页面标题当名字）。
  * - 跨源：只认三个子站的 Origin（lib/cors.js），而且只许 create + reuse:true；list / revoke 只能在主站同源调。
- * - revoke { id } → 作废（带会话的先请网关作废钥匙：拿它进来的访客下一个请求就进不来；网关失败 → 503，D1 不改，可以重试）
+ * - revoke { id } → 作废（带会话的先请网关作废钥匙：拿它进门的人下一个请求就进不来；网关失败 → 503，D1 不改，可以重试）
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { isSubsiteOrigin } from '../lib/cors.js';
-import { ROLE_ADMIN, cookieOf } from '../auth.js';
+import { cookieOf } from '../auth.js';
 import {
   SQL, SHARE_MAX, NAME_MAX, KEEP_DEAD_MS, REUSE_MIN_LEFT_MS, REUSE_SLACK_MS, durationMs, cleanName, cleanTarget, sessionSeconds,
   newCode, newId, isId, view, first, all, run,
@@ -39,7 +41,7 @@ export async function onRequestPost(context) {
 
 /** 网关回的错误码 → 本接口的响应 @param {string} e */
 function issuerError(e) {
-  if (e === 'session') return json(401, { ok: false, error: e });
+  if (e === 'session' || e === 'reauth') return json(401, { ok: false, error: e });
   if (e === 'duration' || e === 'name' || e === 'params') return json(400, { ok: false, error: e });
   return apiError(503, 'server');
 }
@@ -50,7 +52,7 @@ async function handle(context) {
   const cross = !isSameOrigin(request);
   if (cross && !isSubsiteOrigin(request)) return originDenied();
   const sess = await auth.lockSession();
-  if (!sess.ok || sess.role !== ROLE_ADMIN) return apiError(401, 'session');
+  if (!sess.ok) return apiError(401, 'session');
   const db = env && env.D1_SHARE_LINK;
   const issuer = env && env.ISSUER;
   if (!db) return apiError(500, 'config');
@@ -63,6 +65,18 @@ async function handle(context) {
   const reuse = !!(body && body.reuse === true);
   if (cross && !(action === 'create' && reuse)) return originDenied();
   const now = Date.now();
+
+  /* 生成 / 作废：进门 + 锁侧复验，统一先问网关（不管带不带会话、reuse 命不命中） */
+  if (action === 'create' || action === 'revoke') {
+    if (!issuer || typeof issuer.checkReauth !== 'function') return apiError(503, 'config');
+    let g;
+    try {
+      g = await issuer.checkReauth(cookieOf(request));
+    } catch (e) {
+      return apiError(503, 'server');
+    }
+    if (!g || g.ok !== true) return issuerError(g && g.error);
+  }
 
   if (action === 'list') {
     try {

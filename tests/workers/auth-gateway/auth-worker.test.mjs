@@ -160,34 +160,26 @@ test('页面：未登录首页 → 回源、锁屏态、去掉桌面内容，会
   });
 });
 
-test('页面：管理员访问门内页 → 回源、valid + admin，带 cookie 回源', async () => {
-  _resetSecretCache();
-  const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
-  await withOrigin(PAGE, async (calls) => {
-    const res = await worker.fetch(new Request('https://styrigx.com/settings/security/lock/', { headers: { Cookie: cookie } }), baseEnv(), CTX);
-    assert.equal(res.status, 200);
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].headers.get('Cookie'), cookie);
-    const html = await res.text();
-    assert.match(html, /data-sgx-role="admin"/);
-    assert.match(html, /data-sgx-lock-session="valid"/);
-    assert.match(html, /desk/);
-  });
-});
-
-test('页面：访客访问门内页 → 302 到锁屏，不回源', async () => {
-  _resetSecretCache();
-  const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'visitor'));
-  await withOrigin(PAGE, async (calls) => {
-    const res = await worker.fetch(new Request('https://styrigx.com/en/settings/security/lock/', { headers: { Cookie: cookie } }), baseEnv(), CTX);
-    assert.equal(res.status, 302);
-    assert.equal(calls.length, 0);
-  });
+test('页面：进门的人（锁屏密码 / 临时钥匙进门都一样）访问门内页 → 回源、valid，带 cookie 回源，页面上没有 data-sgx-role', async () => {
+  for (const by of ['password', 'tempkey']) {
+    _resetSecretCache();
+    const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, by));
+    await withOrigin(PAGE, async (calls) => {
+      const res = await worker.fetch(new Request('https://styrigx.com/settings/security/lock/', { headers: { Cookie: cookie } }), baseEnv(), CTX);
+      assert.equal(res.status, 200, by);
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].headers.get('Cookie'), cookie);
+      const html = await res.text();
+      assert.doesNotMatch(html, /data-sgx-role|data-sgx-upgrade/);
+      assert.match(html, /data-sgx-lock-session="valid"/);
+      assert.match(html, /desk/);
+    });
+  }
 });
 
 test('页面：Pages 的跳转（补尾斜杠）原样交回', async () => {
   _resetSecretCache();
-  const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
+  const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
   await withOrigin('', async () => {
     const res = await worker.fetch(new Request('https://styrigx.com/settings', { headers: { Cookie: cookie } }), baseEnv(), CTX);
     assert.equal(res.status, 308);
@@ -279,15 +271,15 @@ async function same(makeReq, role) {
   return a;
 }
 
-test('一致性：GET /api/lock-session-check 无会话 / 访客 / 管理员', async () => {
+test('一致性：GET /api/lock-session-check 无会话 / 所有进门的人', async () => {
   const mk = (h) => new Request('https://styrigx.com/api/lock-session-check', { headers: h });
   assert.equal((await same(mk)).status, 401);
-  assert.equal((await same(mk, 'visitor')).status, 200);
-  assert.equal((await same(mk, 'admin')).status, 200);
+  assert.equal((await same(mk, 'tempkey')).status, 200);
+  assert.equal((await same(mk, 'password')).status, 200);
 });
 
 test('一致性：访客调管理员接口 / 无会话调非白名单接口', async () => {
-  await same((h) => new Request('https://styrigx.com/api/lock-all-devices', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: '{}' }), 'visitor');
+  await same((h) => new Request('https://styrigx.com/api/lock-all-devices', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: '{}' }), 'tempkey');
   await same((h) => new Request('https://styrigx.com/api/geo-nope', { headers: h }));
 });
 
@@ -295,7 +287,7 @@ test('账号路径（/api/account、头像、云同步、数字健康）不在�
   for (const p of ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']) assert.equal(API_ROUTES.has(p), false, p);
   _resetSecretCache();
   const env = baseEnv();
-  const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
+  const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
   await withOrigin('X', async (calls) => {
     for (const p of ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']) {
       const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: ck } }), env, CTX);
@@ -354,7 +346,7 @@ test('头像 /avatar/<尺寸>.webp：未登录放行，转给账号 Worker（ACC
     assert.equal(await res.text(), 'IMG');
     assert.equal(seen.length, 1);
     assert.equal(seen[0].url, 'https://styrigx.com/avatar/96.webp?v=3');
-    assert.equal(seen[0].headers.get('X-Styrigx-Lock-Role'), null, '没有锁屏会话不写身份头');
+    assert.equal(seen[0].headers.get('X-Styrigx-Lock-Level'), null, '没有锁屏会话不写身份头');
     const bad = await worker.fetch(new Request('https://styrigx.com/avatar/100.webp'), env, CTX);
     assert.equal(bad.status, 302);
     assert.equal(seen.length, 1, '门没过的不转发');

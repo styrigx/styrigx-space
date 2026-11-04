@@ -1,4 +1,4 @@
-# 四站锁屏 / 解锁 / 回跳 / 管理员验证 / 账号页：状态机（2026-10-21）
+# 四站锁屏 / 解锁 / 回跳 / 复验 / 账号页：状态机（2026-10-21）
 
 唯一状态源是服务端（网关 `styrigx-auth-gateway`）验签过的 cookie。前端只「反映服务端的回答」：
 页面里的 `<html data-sgx-lock-session / data-sgx-role / data-sgx-account-session / data-sgx-upgrade>`（网关注入）和
@@ -46,16 +46,16 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 | 无效 | 首页 `/`、`/en/`（任意查询串） | 200，`data-sgx-lock-session="locked"`，桌面（`SGX-DESKTOP` 标记之间）剥掉，no-store |
 | 无效 | 其他页面 | 302 `/?lock=1&return=<站内路径>` |
 | 无效 | `/api/*` 白名单外 | 401 JSON |
-| 有效 | 首页 + `return`、无 `why` | 302 到 `resolveReturn(return)`；访客 + 管理员专属页 → 200 `data-sgx-upgrade="1"`（管理员验证层，不出锁屏） |
+| 有效 | 首页 + `return`、无 `why` | 302 到 `resolveReturn(return)`；访客 + 门内页 → 200 `data-sgx-upgrade="1"`（复验层，不出锁屏） |
 | 有效 | 首页 + `why`（子站踢回） | 200 valid（不 302，防两站来回跳；前端问 session-check 拿 next，20 秒窗口防死循环） |
-| 访客 | 锁屏凭证页 `/settings/security/lock/` | 302 `/?return=<该页>`（管理员验证，不带 `lock=1`） |
+| 访客 | 锁屏凭证页 `/settings/security/lock/` | 302 `/?return=<该页>`（复验，不带 `lock=1`） |
 | 有效 | 其他页面 | 200 valid + role，no-store；账号页另注入 `data-sgx-account-session="in|out"`（in 时登录区整段不下发） |
 
 图志（`workers/auth-gateway/src/gate.js` 的 `handleSubsite`）：有效 → 回源 + no-store；无效 → 302 `https://styrigx.com/?lock=1&why=<no-cookie|invalid-session>&return=<完整地址>`；
 图志根上的 `/api/lock-session-check`：有效 204、无效 401 `{ ok:false }`（`src/api/lock-session-check.js`）。
 
 `resolveReturn(return, role)`（唯一实现，首页 302 和 session-check 共用）：站内路径（不许 `//`、`/\`、`/lock/`）或 `https://*.styrigx.com`
-（无用户名密码、无反斜杠、不含已下线子站），否则回首页；已登录 + 门内页 → 安全与隐私总览；访客 + 管理员专属页 → upgrade。
+（无用户名密码、无反斜杠、不含已下线子站），否则回首页；已登录 + 门内页 → 安全与隐私总览；访客 + 门内页 → upgrade。
 
 ## 4. 前端状态机（`web/atlas/assets/js/shell/lock-guard.js` 判定 + `shell/lock.js` 锁屏界面，按需加载）
 
@@ -77,14 +77,14 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 ```
 
 `proceed(answer)`：
-- `upgrade` → `/?return=<next>`（服务端给管理员验证层）
+- `upgrade` → `/?return=<next>`（服务端给复验层）
 - `next` 是别处 → `location.replace(next)`（带 `why` 时先过 20 秒同 target 防死循环，触发则出失败卡）
 - 无 `next`：页面是 `locked`（瘦身过）→ 换到去掉 `lock/why/return` 的地址重新取（10 秒同地址只一次）；`valid` / `unknown` → 原地开锁并改地址栏
 
 永不「重载同一个锁屏地址等服务端 302」。
 
-管理员验证（访客 → 管理员，`shell/upgrade.js`）是独立的一态：就地弹层，只有通行密钥 / 密码（进站凭证兜底），没有访客入口；
-不出锁屏、不跳页；取消不调任何接口（访客会话保留）；通过 → 服务端签 admin 锁屏会话 → 跳目标页。
+复验（访客 → 管理员，`shell/upgrade.js`）是独立的一态：就地弹层，只有通行密钥 / 密码（进站凭证兜底），没有访客入口；
+不出锁屏、不跳页；取消不调任何接口（临时会话保留）；通过 → 服务端签 锁屏进门会话 → 跳目标页。
 入口：安全与隐私页里访客点「锁屏凭证」（`apps/security.js`）、服务端 upgrade 页（`data-sgx-upgrade`）。
 
 账号页（`apps/account.js`）：登录区、总览默认都隐藏；网关注入 `data-sgx-account-session`（经 `ACCOUNT_VERIFIER` 问账号 Worker；没绑定 / RPC 出错就不给属性）：`in` → 登录区不下发、总览首帧可见；

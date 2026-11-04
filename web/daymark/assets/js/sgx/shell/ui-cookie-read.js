@@ -1,7 +1,7 @@
-/* @sgx-shell:begin styrigx/styrigx-space@5df9d0130e5243bb2e12220788cee4f13b7f3796 web/shared/shell v004e9054e471（scripts/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:44c9abf78363 web/atlas/shared/shell vef85484b246b（scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- ui-cookie-read.js ---- */
 /**
- * @fileoverview sgx-ui cookie 只读解析器（2026-10-22）：子站（博客 / 日刻 / 珍格）首帧前读主站写的外观，<html> 落到和主站一样的状态。
+ * @fileoverview sgx-ui cookie 只读解析器（2026-10-22）：子站（博客 / 日刻 / 奇趣）首帧前读主站写的外观，<html> 落到和主站一样的状态。
  *
  * - 主站 lib/ui-cookie.js 写（localStorage 是唯一来源，cookie 只是镜像）；子站只读，永远不写 sgx-ui。
  *   写端也用这里的 NAME / V / MODES / FONT_SIZES / PRESETS / encode / decode，两边同一份字段表，不会各说各话。

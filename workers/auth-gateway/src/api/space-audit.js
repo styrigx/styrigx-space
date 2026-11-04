@@ -3,8 +3,8 @@
  * 前端同时请求账号 Worker 的 audit-list，合成一张表并标注「锁屏 / 账号」，方案 5.2）。
  *
  * GET /api/space-audit
- * - 只要 admin 锁屏会话（访客 / 无会话 / 坏会话 → 401 session）。不要 LockReauthTicket：
- *   只读、不含凭证；页面是管理员专属页（core/return.js ADMIN_ONLY_PATHS），访客被网关 302 出去，管理员已解锁；这里仍在服务端校验 admin，防直接调接口。
+ * - 进门 + 账号会话（方案 3.4 R7、定案第 9 条）：没进门 / 坏会话 → 401 session；账号会话无效 → 401 account（经 askAuthorizeFor 问账号 Worker）。
+ *   不要 LockReauthTicket（展开不另加复验）：只读、不含凭证，但含 IP 前缀；服务状态页展开时它和账号审计 audit-list 合成一张表，后者本来就要账号会话。
  * - 返回最近 50 条审计（时间、IP 前缀、结果），新的在前；不返回 decoy / via / path 标记
  * - 只读；D1 失败 → 503
  *
@@ -13,7 +13,7 @@
  */
 import { verifyLockSession } from '../core/lock-session.js';
 import { listSpaceAudit } from '../core/space-audit.js';
-import { ROLE_ADMIN } from '../core/lock-session.js';
+import { askAuthorizeFor } from '../core/account-rpc.js';
 import { json, apiError } from '../lib/http.js';
 import { REALM_LOCK } from '../core/realms.js';
 
@@ -37,8 +37,12 @@ async function handleGet(context) {
   }
 
   const sess = await verifyLockSession(request, env);
-  if (!sess.ok || sess.role !== ROLE_ADMIN) {
+  if (!sess.ok) {
     return apiError(401, 'session');
+  }
+  const account = await askAuthorizeFor(request, env);
+  if (!account.ok) {
+    return apiError(401, 'account');
   }
   try {
     return json(200, { ok: true, items: await listSpaceAudit(env, AUDIT_SHOW) });

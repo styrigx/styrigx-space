@@ -338,7 +338,7 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     await page.click('#sgx-lock-avatar');
     await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
-    await page.click('#sgx-mopt-visitor');
+    await page.click('#sgx-mopt-tempkey');
     await page.fill('#sgx-temp-input', 'AAAA-BBBB-CCCC');
     await page.click('#sgx-temp-go');
     /* 等 handleSessionOk 跑完 */

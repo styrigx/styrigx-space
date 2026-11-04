@@ -215,7 +215,7 @@ test('照片：图片一律要过会话——private, no-cache + ETag；304 排�
   const no = await call('/curio/api/photo?kind=device&id=' + id, { ...e, inm: etag });
   assert.equal(no.status, 401);
   assert.equal(no.headers.get('Cache-Control'), 'private, no-store');
-  /* 私密条目：访客带上管理员拿到的 ETag 也是 404 */
+  /* 私密条目：账号未登录带上账号已登录时拿到的 ETag 也是 404 */
   const pe = (await call('/curio/api/photo?kind=device&id=' + pid, { ...e, who: 'owner' })).headers.get('ETag');
   assert.equal((await call('/curio/api/photo?kind=device&id=' + pid, { ...e, who: 'lock', inm: pe })).status, 404);
   assert.equal((await call('/curio/api/photo?kind=device&id=' + pid, { ...e, who: 'owner', inm: pe })).status, 304);

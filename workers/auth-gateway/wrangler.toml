@@ -4,7 +4,7 @@
 # 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步、数字健康）在账号 Worker styrigx-account（workers/account）：
 # 账号拆分 PR3 起它没有任何公开路由，/api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/avatar/* 由本 Worker 验门后
 # 经服务绑定 ACCOUNT 转发（src/router.js 的转发表 FORWARDING）。
-# 分享短链（/s/*、/api/share*）在短链 Worker styrigx-share（workers/share，2026-10-24），同样挂更具体的路由；短链钥匙和访客会话由本 Worker 的 ShareIssuer RPC 签。
+# 分享短链（/s/*、/api/share*）在短链 Worker styrigx-share（workers/share，2026-10-24），同样挂更具体的路由；短链钥匙和临时会话由本 Worker 的 ShareIssuer RPC 签。
 # Pages 只放静态文件（配置见 web/atlas/wrangler.toml），网关验完会话回源取页面。
 #
 # 安全：
@@ -59,7 +59,7 @@ SGX_RP_ID = "styrigx.com"
 # ---- 服务绑定 ----
 # 账号 Worker styrigx-account（workers/account；没有公开地址，只能从这里进；方案第 1、10.1 节）：
 # - ACCOUNT（entrypoint AccountService）：src/router.js 转发表里的路径验完门后原样转过去，写全套身份头（X-Styrigx-Lock-* / X-Styrigx-Client-*）
-# - ACCOUNT_VERIFIER（entrypoint AccountVerifier）：只读 RPC accountSession()——只有账号页首帧提示用（临时钥匙、短链只认管理员锁屏会话）
+# - ACCOUNT_VERIFIER（entrypoint AccountVerifier）：只读 RPC accountSession()——只有账号页首帧提示用（临时钥匙、短链只认锁屏进门会话 + 锁侧复验）
 # 部署顺序：deploy.yml 里 deploy-account-worker 先于本 Worker（命名入口 PR2 已导出）。
 [[services]]
 binding = "ACCOUNT"
@@ -83,7 +83,7 @@ service = "styrigx-search-index"
 binding = "STATUS"
 service = "styrigx-status"
 
-# 聊天 styrigx-chat（workers/chat，2026-10-22 从网关拆出来；没有公开地址，只能从这里进）。/api/chat 验完门（同源 + 会话 + 只许管理员）转给它，
+# 聊天 styrigx-chat（workers/chat，2026-10-22 从网关拆出来；没有公开地址，只能从这里进）。/api/chat 验完门（同源 + 进门 + 账号会话）转给它，
 # 回答原样流回去。聊天钥匙 SGX_CHAT_API_KEY 只绑在它那边，网关不绑：钥匙没建好不影响网关部署。
 # 部署顺序：deploy.yml 里 deploy-chat-worker 先于本 Worker。
 [[services]]

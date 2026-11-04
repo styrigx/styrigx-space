@@ -36,9 +36,9 @@ async function seedPw(kv, realm, password) {
   const { makePasswordRecord } = await import('../../../workers/auth-gateway/src/core/password.js');
   authD1For(kv).putPassword(realm, await makePasswordRecord(password, 'test-pepper'));
 }
-/** admin 锁屏会话 + LockReauthTicket（进锁屏凭证管理的门） */
+/** 锁屏进门会话 + LockReauthTicket（进锁屏凭证管理的门） */
 async function manageCookie() {
-  const sess = await testLockSession(LOCK_PRIV, 0, 'admin', 'password');
+  const sess = await testLockSession(LOCK_PRIV, 0, 'password');
   const reauth = await testTicket(LOCK_PRIV, 'LockReauthTicket', 'password', 0);
   return 'sgx-lock-session=' + sess + '; sgx-lock-reauth=' + reauth;
 }

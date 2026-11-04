@@ -100,7 +100,7 @@ jobs:
           npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/web/e2e/preview-worker.js --dry-run --outdir /tmp/preview-worker-dist \
             --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' web/atlas/wrangler.toml)"
           grep -q "X-SGX-Runtime" /tmp/preview-worker-dist/preview-worker.js
-          grep -q "X-Styrigx-Lock-Role" /tmp/preview-worker-dist/preview-worker.js
+          grep -q "X-Styrigx-Lock-Session" /tmp/preview-worker-dist/preview-worker.js
 
       - name: Share Worker bundle check (styrigx-share, dry-run)
         working-directory: workers/share
@@ -616,7 +616,7 @@ jobs:
             --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' web/atlas/wrangler.toml)"
           cp "$RUNNER_TEMP/preview-dist/preview-worker.js" web/atlas/public/_worker.js
           grep -q "X-SGX-Runtime" web/atlas/public/_worker.js
-          grep -q "X-Styrigx-Lock-Role" web/atlas/public/_worker.js
+          grep -q "X-Styrigx-Lock-Session" web/atlas/public/_worker.js
 
       - name: Generate Ed25519 test key pairs (CI only)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
@@ -1246,7 +1246,7 @@ jobs:
 
   deploy-chat-worker:
     # 聊天 styrigx-chat（workers/chat，2026-10-22 从网关拆出来）：先于网关部署（网关的服务绑定 CHAT 指向它，它不在就部署不了）。
-    # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/chat 进（网关先验同源 + 会话 + 只许管理员）。
+    # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/chat 进（网关先验同源 + 会话 + 要进门）。
     # 钥匙：Secrets Store 的 SGX_CHAT_API_KEY 只绑在这里（网关不绑）。Cloudflare 部署时会核对 Secrets Store 绑定，
     # 密钥还没建 → 第一步部署失败；这时退一步部署不带钥匙绑定的同一份代码（从第一个 [[secrets_store_secrets]] 删到文件末尾），
     # 聊天回 503 no_key，job 仍然成功，网关和 Pages 照常部署。建好密钥后下一次部署自动带上绑定。
@@ -1610,7 +1610,7 @@ jobs:
     # - 服务绑定指向的 Worker 要先在：search / status / chat，以及 ACCOUNT / ACCOUNT_VERIFIER 指向的 styrigx-account（deploy-account-worker）。
     # - 合并 PR3：curio-core / daymark-core 先挂上 styrigx.com/<站>/api/* 路由（atlas 旧路由仍在），网关再切子站前缀分发 + atlas.styrigx.com 301，
     #   这样 301 过去的页面一打开，主域名上的接口已经在了。它们任何一个失败 → 网关不部署（atlas 照旧由旧网关 + styrigx-atlas Pages 服务）。
-    # - 短链排在网关之前：短链只认管理员锁屏会话（AUTH.lockSession），对新旧网关同样能用（AUTH.lockSession / ISSUER 接口没变）。
+    # - 短链排在网关之前：短链只认锁屏进门会话（AUTH.lockSession），对新旧网关同样能用（AUTH.lockSession / ISSUER 接口没变）。
     # 密钥全在 Secrets Store，CI 不传任何密值。
     # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
     # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
@@ -1690,7 +1690,7 @@ jobs:
           check /api/account 401 || ok=1
           forged() { # 路径：带伪造的 X-Styrigx-Lock-* 头，必须 401 且由网关回答（不许 200、不许进账号 Worker 的接口）
             for i in 1 2 3 4 5 6; do
-              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Lock-Role: admin' -H 'X-Styrigx-Lock-By: password' "https://styrigx.com$1" || true)
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Lock-Session: 1' -H 'X-Styrigx-Lock-By: password' "https://styrigx.com$1" || true)
               code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
               rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
               echo "forged $1 -> $code runtime=${rt:-none} (try $i)"
@@ -1828,12 +1828,12 @@ jobs:
         # 只发不带 cookie 的只读请求。这时网关可能还是旧版本、账号的 4 条旧路由可能还在（见上），所以每条只断言「碰不到接口」：
         # - 旧路由还在 → 进本 Worker 的默认 fetch：404 + X-SGX-Runtime: account（同时证明线上已是新代码：旧代码在这些路径回 401 / 200）；
         # - 旧路由已删 → 进网关：无会话 401 + X-SGX-Runtime: worker。
-        # 绝不许 200（伪造的 X-Styrigx-Lock-Role: admin 不能当身份用）。
+        # 绝不许 200（伪造的 X-Styrigx-Lock-Session: 1 不能当身份用）。
         run: |
           set -u
           check() { # 路径
             for i in 1 2 3 4 5 6; do
-              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Lock-Role: admin' -H 'X-Styrigx-Lock-By: password' "https://styrigx.com$1" || true)
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Lock-Session: 1' -H 'X-Styrigx-Lock-By: password' "https://styrigx.com$1" || true)
               code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
               rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
               echo "forged $1 -> $code runtime=${rt:-none} (try $i)"
@@ -1868,11 +1868,11 @@ jobs:
   deploy-share-worker:
     # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理员管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
     # 路由见 workers/share/wrangler.toml（styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体）；workers_dev=false、preview_urls=false。
-    # 不持任何钥匙：只认管理员锁屏会话，问网关 AuthVerifier.lockSession()（服务绑定 AUTH），不问账号会话（不绑账号 Worker）；
+    # 不持任何钥匙：只认锁屏进门会话，问网关 AuthVerifier.lockSession()（服务绑定 AUTH），不问账号会话（不绑账号 Worker）；
     # 签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER）。CI 不传任何密值。
     # 部署顺序：账号、短链（互不依赖，可并行）→ 网关 → Pages。短链不绑账号 Worker，所以不再等 deploy-account-worker（needs 里已去掉）；
     # 仍排在网关之前：新短链对旧网关同样能用（lockSession / ShareIssuer 接口没变，旧网关的 ShareIssuer 仍会多验一次账号会话）；
-    # 新网关的 ShareIssuer 只验管理员锁屏会话。
+    # 新网关的 ShareIssuer 只验锁屏进门会话。
     # 和网关一样等 status 的健康闸门。
     # 步骤：迁移 D1 styrigx-share（migrations/；失败要让 job 红，不 continue-on-error）
     # → 查 d1_migrations 和表，确认 0001_share_links.sql 真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。

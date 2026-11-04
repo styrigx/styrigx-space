@@ -104,14 +104,15 @@ test('inpage-tabs.js / core.js：构建签名比对、模块失败整页导航�
   assert.ok(core.includes("sessionStorage.getItem('sgx-js-retry') === location.pathname"), 'core 初始化成功清标记');
 });
 
-test('锁屏 / 升级按需加载（frontend-js #6）：core 只带守卫，界面和鉴权模块不进每页的 core', () => {
+test('锁屏按需加载（frontend-js #6）：core 只带守卫，界面和鉴权模块不进每页的 core；P2-3 起没有升级层', () => {
   const core = rd('web/atlas/assets/js/shell/core.js');
-  assert.ok(core.includes("import { initLock, initUpgrade } from './lock-guard.js';"), 'core 从 lock-guard.js 取 initLock / initUpgrade');
-  assert.ok(!/from '\.\/(lock|upgrade)\.js'/.test(core), 'core 不静态 import 锁屏界面 / 升级层');
+  assert.ok(core.includes("import { initLock } from './lock-guard.js';"), 'core 从 lock-guard.js 取 initLock');
+  assert.ok(!/from '\.\/(lock|upgrade)\.js'/.test(core), 'core 不静态 import 锁屏界面');
+  assert.ok(!/initUpgrade/.test(core), '升级层入口已删');
   const guard = rd('web/atlas/assets/js/shell/lock-guard.js');
   const staticImports = [...guard.matchAll(/^import [^\n]* from '([^']+)';$/gm)].map((m) => m[1]);
-  assert.deepEqual(staticImports, ['../lib/diag-jumptrace.js'], '守卫只静态依赖 lib/diag-jumptrace.js');
-  assert.ok(guard.includes("import('./lock.js')") && guard.includes("import('./upgrade.js')"), '界面按需 import()');
+  assert.deepEqual(staticImports, ['../lib/diag-jumptrace.js', '../lib/lock-state.js'], '守卫只静态依赖 lib/diag-jumptrace.js、lib/lock-state.js');
+  assert.ok(guard.includes("import('./lock.js')") && !guard.includes("import('./upgrade.js')"), '界面按需 import()；没有升级层');
   /* fail closed：先同步盖遮罩再 import，加载失败遮罩不撤 */
   const open = guard.slice(guard.indexOf('function openLockScreen()'));
   assert.ok(open.indexOf('showLockCover()') < open.indexOf("import('./lock.js')"), '先盖遮罩再加载');
@@ -123,7 +124,7 @@ test('锁屏 / 升级按需加载（frontend-js #6）：core 只带守卫，界�
   assert.ok(!init.includes('showLockScreen'), 'initLock 不直接调锁屏界面');
   const lock = rd('web/atlas/assets/js/shell/lock.js');
   assert.ok(lock.includes('export function showLockScreen()') && lock.includes("getElementById('sgx-lock-cover')"), '锁屏画上后撤掉遮罩');
-  assert.ok(!rd('web/atlas/assets/js/shell/upgrade.js').includes('export function initUpgrade'), 'initUpgrade 只在守卫里一份');
+  assert.ok(!existsSync(join(root, 'web/atlas/assets/js/shell/upgrade.js')) && !guard.includes('initUpgrade'), 'P2-3：升级层整个删除');
 });
 
 test('锁屏按需加载 × 页面自带的门（2026-10-26 回归）：门内页撤锁屏走 releaseLockScreen，晚到的锁屏界面不再画上', () => {

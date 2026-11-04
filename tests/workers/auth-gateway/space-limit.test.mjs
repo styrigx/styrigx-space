@@ -18,6 +18,8 @@ import {
   SPACE_GLOBAL_DELAY_MS,
 } from '../../../workers/auth-gateway/src/core/space-limit.js';
 import { makeAuthD1, genKeyPair } from '../_harness.mjs';
+import { testLockSession } from './_tickets.mjs';
+import { makePasswordRecord } from '../../../workers/auth-gateway/src/core/password.js';
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 const SPACE_KEY = 'test-root-key-abcdef-123456';
@@ -38,25 +40,39 @@ function post(body, ip) {
     body: JSON.stringify(body),
   });
 }
-/* 锁屏未设置（空库）时 lock-reset 走真路径（无需会话）；lock-reauth 无会话走假入口 */
+/* 锁屏未设置（空库）时 lock-reset 走真路径（无需会话）；锁屏已设置时 lock-reset 走假入口（P2-3 起唯一的假入口）；
+   lock-reauth 要进门，进了门就走真路径 */
 const real = (db, key, ip) => spaceAuth({ request: post({ key, purpose: 'lock-reset' }, ip), env: env(db) });
-const decoy = (db, key, ip) => spaceAuth({ request: post({ key, purpose: 'lock-reauth' }, ip), env: env(db) });
+const decoy = (db, key, ip) => spaceAuth({ request: post({ key, purpose: 'lock-reset' }, ip), env: env(db) });
+const SESS = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'tempkey'));
+const realReauth = (db, key, ip) => {
+  const r = post({ key, purpose: 'lock-reauth' }, ip);
+  r.headers.set('Cookie', SESS);
+  return spaceAuth({ request: r, env: env(db) });
+};
+const PW_REC = await makePasswordRecord('lock-pass-1', 'pep');
+/** 锁屏已设置的库（lock-reset 走假入口） */
+function configuredDb() {
+  const db = makeAuthD1();
+  db.putPassword('lock', PW_REC);
+  return db;
+}
 
 test('假入口：多个 IP 刷错只计单 IP，不推全局计数；主人随后用正确 SpaceKey 不受影响、不减速', async () => {
-  const db = makeAuthD1();
+  const db = configuredDb();
   const n = SPACE_GLOBAL_SLOW_AT + 5;
   const rs = await Promise.all(Array.from({ length: n }, (_, i) => decoy(db, 'wrong', '198.51.100.' + i)));
   for (const r of rs) assert.equal(r.status, 401);
   assert.equal(row(db, '*'), null, '假入口不写全局计数');
   assert.equal(row(db, '198.51.100.0').count, 1, '单 IP 照样计数');
   const t0 = Date.now();
-  const ok = await real(db, SPACE_KEY, '203.0.113.7');
+  const ok = await realReauth(db, SPACE_KEY, '203.0.113.7');
   assert.equal(ok.status, 200);
   assert.ok(Date.now() - t0 < SPACE_GLOBAL_DELAY_MS, '没有触发全局减速');
 });
 
 test('假入口：同一 IP 刷满 5 次照样被单 IP 锁（与真路径一致）', async () => {
-  const db = makeAuthD1();
+  const db = configuredDb();
   for (let i = 0; i < 5; i++) assert.equal((await decoy(db, 'wrong', '198.51.100.9')).status, 401);
   assert.equal((await decoy(db, 'wrong', '198.51.100.9')).status, 429);
 });
@@ -80,11 +96,11 @@ test('全局计数：只有真比对失败才加；满阈值后 checkSpaceLimit 
 });
 
 test('全局暂停不存在：全局计数爆表时正确的 SpaceKey 仍然通过，只是先等几秒', async () => {
-  const db = makeAuthD1();
+  const db = configuredDb();
   const now = Date.now();
   db.raw.prepare("INSERT INTO attempt_limit (realm, kind, bucket, count, window_start, expires_at) VALUES ('lock', 'spacekey', '*', 100000, ?, ?)").run(now, now + 3600 * 1000);
   const t0 = Date.now();
-  const ok = await real(db, SPACE_KEY, '203.0.113.8');
+  const ok = await realReauth(db, SPACE_KEY, '203.0.113.8');
   assert.equal(ok.status, 200, '不是 429');
   assert.ok(Date.now() - t0 >= SPACE_GLOBAL_DELAY_MS - 50, '全局减速：比对前先等');
   /* 假入口同样等（时间上和真路径分不出来） */

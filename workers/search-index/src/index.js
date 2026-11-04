@@ -3,7 +3,7 @@
  *
  * 请求：GET https://search/search?q=…&lang=zh|en&site=&limit=
  *   头 X-Styrigx-Account-Session: 1（网关的账号结论头，core/conclusion.js writeAccountConclusion；有账号会话才写，
- *   没有 / 别的值一律当没有账号会话）。P2-2 起不再读旧的锁屏角色头（旧头写 admin 也不给私密）。
+ *   没有 / 别的值一律当没有账号会话）。不读任何锁屏头（锁屏只管进门）。
  * 回答：{ ok: true, q, hits: [{ site, type, title, subtitle, url }] }
  *   私密条目（private）只在有账号会话时出现（方案 3.4 R14）；正文 text 永远不回。
  *

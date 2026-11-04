@@ -1,12 +1,12 @@
 /**
- * 临时 LockKey（2026-10-23，取代 Turnstile「访客进入」）。
+ * 临时 LockKey（2026-10-23，取代 Turnstile「临时钥匙」）。
  * 运行：node --test tests/workers/auth-gateway/lock-tempkey.test.mjs
  *
  * - 临时码：12 位 Crockford Base32，规范化（大小写 / 连字符 / 空格 / O→0、I L→1）
  * - 有效期：1–24 小时、3 / 7 / 15 / 30 天，别的一律 400
- * - /api/lock-tempkey：只要 admin lock 会话（不问账号会话）；list / create / revoke；名字只在管理员侧
- * - /api/lock-tempkey-unlock：对 → visitor 锁屏会话（by=tempkey，票里带 tempkeyId）；错 → 403，同 IP 连错 5 次 429
- * - middleware：visitor 会话没有 tempkeyId / 钥匙被作废 → 当作没会话；访客打不开账号页和临时钥匙页
+ * - /api/lock-tempkey：只要 锁屏进门会话（不问账号会话）；list / create / revoke；名字只在管理员侧
+ * - /api/lock-tempkey-unlock：对 → 临时钥匙进门的锁屏会话（by=tempkey，票里带 tempkeyId）；错 → 403，同 IP 连错 5 次 429
+ * - middleware：临时钥匙进门的会话没有 tempkeyId / 钥匙被作废 → 当作没会话；访客打不开账号页和临时钥匙页
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,7 +19,7 @@ import { ed25519Sign } from '../../../workers/auth-gateway/src/lib/crypto.js';
 import { onRequest as mw } from '../../../workers/auth-gateway/src/gate.js';
 import { verifyLockSession } from '../../../workers/auth-gateway/src/core/lock-session.js';
 import { API_ROUTES } from '../../../workers/auth-gateway/src/router.js';
-import { testLockSession } from './_tickets.mjs';
+import { testLockSession, testTicket } from './_tickets.mjs';
 import { makeAuthD1 } from '../_harness.mjs';
 
 function pair() {
@@ -44,9 +44,10 @@ function env(db) {
   };
 }
 
-async function adminCookies() {
-  const lock = await testLockSession(LOCK.priv, 0, 'admin', 'password');
-  return 'sgx-lock-session=' + lock; /* 只有锁屏会话，没有账号会话 cookie */
+/** 进门（锁屏密码）+ 锁侧复验票（lockkey 签出）；没有账号会话 cookie */
+async function adminCookies(by = 'password') {
+  const lock = await testLockSession(LOCK.priv, 0, by);
+  return 'sgx-lock-session=' + lock + '; sgx-lock-reauth=' + (await testTicket(LOCK.priv, 'LockReauthTicket', 'password', 0));
 }
 
 function post(url, body, cookie, ip) {
@@ -161,7 +162,7 @@ test('D1 行（第 5 层）：tempkey 表 realm=lock、code_hash 唯一；码哈
   await TL.revokeTempkey(e2, k2.key.id);
 });
 
-test('作废立即生效：revoke 后紧接着的下一次校验（isTempkeyRevoked / findByCode / 访客会话）就不认', async () => {
+test('作废立即生效：revoke 后紧接着的下一次校验（isTempkeyRevoked / findByCode / 临时会话）就不认', async () => {
   const db = makeAuthD1();
   const e = env(db);
   const { key, code } = await TL.createTempkey(e, PEPPER, { name: '', ms: 3600e3 });
@@ -203,36 +204,52 @@ test('过期立即不认：行还没被清掉（expires_at 已过、revoked_at =
 
 /* ---------------- /api/lock-tempkey（管理） ---------------- */
 
-test('管理接口：要同源 + admin lock 会话；不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也能 list）', async () => {
+test('管理接口：要同源 + 进门；list 只要进门（临时钥匙进门也能看）；不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也能 list）', async () => {
   const db = makeAuthD1();
   const noOrigin = new Request('https://styrigx.com/api/lock-tempkey', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: await adminCookies() }, body: '{"action":"list"}' });
   assert.equal((await tempPost({ request: noOrigin, env: env(db) })).status, 403);
   const none = await T({ action: 'list' }, '', db);
   assert.equal(none.status, 401);
   assert.equal((await none.json()).error, 'session');
-  const visitor = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'visitor'));
-  const v = await T({ action: 'list' }, visitor, db);
-  assert.equal(v.status, 401, '访客不是管理员');
-  assert.equal((await v.json()).error, 'session');
+  const viaTempkey = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'tempkey'));
+  const v = await T({ action: 'list' }, viaTempkey, db);
+  assert.equal(v.status, 200, '看 = 进门');
   /* 绑了一个一碰就抛的 ACCOUNT_VERIFIER：管理接口根本不该问它 */
   let asked = 0;
-  const trap = { accountSession() { asked++; throw new Error('不该问账号会话'); } };
+  const trap = { accountSession() { asked++; throw new Error('不该问账号会话'); }, authorize() { asked++; throw new Error('不该问账号'); } };
   const ok = await tempPost({ request: post('https://styrigx.com/api/lock-tempkey', { action: 'list' }, await adminCookies()), env: { ...env(db), ACCOUNT_VERIFIER: trap } });
   assert.equal(ok.status, 200);
   assert.equal(asked, 0);
 });
 
-test('管理接口：只有 admin 锁屏会话、没有账号会话 → 能签也能废', async () => {
+test('管理接口：create / revoke 要锁侧复验——没有 sgx-lock-reauth → 401 reauth（任何进门方式都一样；临时钥匙进门的会话本身不算复验）；有 → 200', async () => {
   const db = makeAuthD1();
-  const lockOnly = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
-  assert.ok(!/sgx-account-session/.test(lockOnly));
-  let r = await T({ action: 'create', name: '无账号', hours: 2 }, lockOnly, db);
-  assert.equal(r.status, 200);
-  const j = await r.json();
-  assert.match(j.code, /^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/);
-  r = await T({ action: 'revoke', id: j.key.id }, lockOnly, db);
-  assert.equal(r.status, 200);
-  assert.deepEqual(await TL.listTempkeys(env(db)), []);
+  const made = await TL.createTempkey(env(db), PEPPER, { name: '已有', ms: 3600e3 });
+  for (const by of ['password', 'passkey', 'tempkey']) {
+    const inOnly = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, by));
+    for (const body of [{ action: 'create', name: 'x', hours: 2 }, { action: 'revoke', id: made.key.id }]) {
+      const r = await T(body, inOnly, db);
+      assert.equal(r.status, 401, by + ' ' + body.action);
+      assert.deepEqual(await r.json(), { ok: false, error: 'reauth' });
+    }
+  }
+  assert.equal((await TL.listTempkeys(env(db))).length, 1, '没复验时既没签也没废');
+  /* 复验票过期 / 别的钥匙签的 / 纪元旧了 → 同样 401 reauth */
+  const lockC = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'password'));
+  const expired = lockC + '; sgx-lock-reauth=' + (await testTicket(LOCK.priv, 'LockReauthTicket', 'password', 0, Date.now() - 181e3));
+  assert.equal((await T({ action: 'create', hours: 1 }, expired, db)).status, 401, '复验票 3 分钟后过期');
+  const otherKey = generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const forged = lockC + '; sgx-lock-reauth=' + (await testTicket(otherKey, 'LockReauthTicket', 'password', 0));
+  assert.equal((await T({ action: 'create', hours: 1 }, forged, db)).status, 401);
+  /* 有效复验（临时钥匙进门的人也能用锁屏凭证复验后发放：复验靠的是锁凭证，不是进门方式） */
+  for (const by of ['password', 'tempkey']) {
+    const r = await T({ action: 'create', name: '无账号', hours: 2 }, await adminCookies(by), db);
+    assert.equal(r.status, 200, by);
+    const j = await r.json();
+    assert.match(j.code, /^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/);
+    assert.equal((await T({ action: 'revoke', id: j.key.id }, await adminCookies(by), db)).status, 200);
+  }
+  assert.equal((await T({ action: 'list' }, lockC, db)).status, 200, 'list 不受复验影响');
 });
 
 test('管理接口：create → 只这一次返回临时码；list 有名字和到期；revoke', async () => {
@@ -259,21 +276,22 @@ test('管理接口：create → 只这一次返回临时码；list 有名字和�
 
 /* ---------------- /api/lock-tempkey-unlock（进门） ---------------- */
 
-test('进门：码对 → visitor 会话（by=tempkey、带 tempkeyId），Max-Age 不超过钥匙剩余时间', async () => {
+test('进门：码对 → 锁屏进门会话（v2：by=tempkey、带 tempkeyId），Max-Age 不超过钥匙剩余时间', async () => {
   const db = makeAuthD1();
   const { key, code } = await TL.createTempkey(env(db), PEPPER, { name: '', ms: 2 * 3600e3 });
   const r = await U(code.toLowerCase().replace(/-/g, ' '), db, '1.1.1.1');
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, role: 'visitor' });
+  assert.deepEqual(await r.json(), { ok: true });
   const sc = r.headers.getSetCookie();
   const v = sc.find((c) => c.startsWith('sgx-lock-session=') && c.includes('Domain='));
   const age = (s) => parseInt(/Max-Age=(\d+)/.exec(s)[1], 10);
   assert.ok(age(v) <= 7200 && age(v) > 7100);
   assert.equal(sc.find((c) => c.startsWith('sgx-tk=')), undefined, '不再有单独的钥匙票');
   const val = v.split(';')[0].slice('sgx-lock-session='.length).split('.');
-  assert.deepEqual([val[0], val[1], val[4]], ['tempkey', 'visitor', key.id]);
+  assert.equal(val.length, 5, 'v2 票 5 段');
+  assert.deepEqual([val[0], val[3]], ['tempkey', key.id]);
   const sess = await verifyLockSession(new Request('https://styrigx.com/', { headers: { Cookie: cookiesFrom(r) } }), env(db));
-  assert.deepEqual([sess.ok, sess.role, sess.by, sess.tempkeyId], [true, 'visitor', 'tempkey', key.id]);
+  assert.deepEqual([sess.ok, sess.by, sess.tempkeyId], [true, 'tempkey', key.id]);
 });
 
 test('进门：30 天的钥匙，一次会话最长 12 小时', async () => {
@@ -298,12 +316,14 @@ test('进门：码错 403 wrong；同 IP 连错 5 次 429 locked，锁定后码�
   assert.equal((await U(code, db, '8.8.8.8')).status, 200, '别的 IP 不受影响');
 });
 
-test('进门：已经是管理员 → ok，不降级成访客、不下发 cookie', async () => {
-  const db = makeAuthD1();
-  const admin = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
-  const r = await U('AAAA-BBBB-CCCC', db, '1.2.3.4', admin);
-  assert.deepEqual(await r.json(), { ok: true, role: 'admin' });
-  assert.equal(r.headers.get('Set-Cookie'), null);
+test('进门：已有有效进门会话（任何进门方式）→ 直接 ok，不重签、不下发 cookie、不读钥匙', async () => {
+  for (const by of ['password', 'tempkey']) {
+    const db = makeAuthD1();
+    const cur = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, by));
+    const r = await U('AAAA-BBBB-CCCC', db, '1.2.3.4', cur);
+    assert.deepEqual(await r.json(), { ok: true }, by);
+    assert.equal(r.headers.get('Set-Cookie'), null);
+  }
 });
 
 test('进门：缺 pepper 503，D1 坏了 503、没绑 500，都不签会话', async () => {
@@ -336,7 +356,7 @@ async function visitorFor(db) {
 const page = (path, cookie) => new Request('https://styrigx.com' + path, { headers: cookie ? { Cookie: cookie } : {} });
 const next = async () => new Response('<html><body>PAGE</body></html>', { headers: { 'Content-Type': 'text/html' } });
 
-test('middleware：visitor 会话没有 tempkeyId（以前 Turnstile 签的访客会话 / 旧格式）→ 无效', async () => {
+test('middleware：临时钥匙进门的会话没有 tempkeyId（以前 Turnstile 签的临时会话 / 旧格式）→ 无效', async () => {
   const db = makeAuthD1();
   const payload = 'tempkey.visitor.0.' + (Date.now() + 3600e3) + '.';
   const sig = await ed25519Sign(LOCK.priv, 'sgx-lock-session|' + payload);
@@ -348,11 +368,11 @@ test('middleware：visitor 会话没有 tempkeyId（以前 Turnstile 签的访�
   assert.equal(res.status, 302);
 });
 
-test('middleware：visitor 会话签名不对 / 别的 lock 私钥签的 / 改了 tempkeyId → 无效', async () => {
+test('middleware：临时钥匙进门的会话签名不对 / 别的 lock 私钥签的 / 改了 tempkeyId → 无效', async () => {
   const db = makeAuthD1();
   const { cookie } = await visitorFor(db);
   const other = pair();
-  const forged = 'sgx-lock-session=' + (await testLockSession(other.priv, 0, 'visitor'));
+  const forged = 'sgx-lock-session=' + (await testLockSession(other.priv, 0, 'tempkey'));
   assert.equal((await verifyLockSession(page('/', forged), env(db))).reason, 'bad-sig');
   const p = cookie.slice('sgx-lock-session='.length).split('.');
   p[4] = 'tktesttesttest99';
@@ -367,25 +387,21 @@ test('middleware：作废钥匙 → 拿它进来的访客下一个请求就进�
   const s = await verifyLockSession(page('/', cookie), env(db));
   assert.equal(s.reason, 'tempkey-revoked');
   assert.equal((await mw({ request: page('/blog/', cookie), env: env(db), next })).status, 302);
-  const admin = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
+  const admin = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'password'));
   assert.equal((await mw({ request: page('/blog/', admin), env: env(db), next })).status, 200);
 });
 
-test('middleware：访客打不开账号页（302 回首页）和临时钥匙页（302 到首页的管理员验证），也调不了临时钥匙管理接口', async () => {
+test('middleware：临时钥匙进门的人能打开账号页（看到登录页）和临时钥匙页（页面自己要复验），临时钥匙管理接口 list 可达', async () => {
   const db = makeAuthD1();
   const { cookie } = await visitorFor(db);
-  for (const p of ['/account/', '/en/account/devices/']) {
+  for (const p of ['/account/', '/en/account/devices/', '/settings/security/tempkeys/', '/en/settings/security/tempkeys/', '/settings/security/lock/', '/settings/status/']) {
     const res = await mw({ request: page(p, cookie), env: env(db), next });
-    assert.equal(res.status, 302, p);
-    assert.equal(res.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/'));
+    assert.equal(res.status, 200, p);
   }
-  for (const p of ['/settings/security/tempkeys/', '/en/settings/security/tempkeys/']) {
-    const res = await mw({ request: page(p, cookie), env: env(db), next });
-    assert.equal(res.status, 302, p);
-    assert.equal(res.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/') + '?return=' + encodeURIComponent(p));
-  }
-  const api = await mw({ request: post('https://styrigx.com/api/lock-tempkey', { action: 'list' }, cookie), env: env(db), next });
-  assert.equal(api.status, 403);
+  let hit = false;
+  const api = await mw({ request: post('https://styrigx.com/api/lock-tempkey', { action: 'list' }, cookie), env: env(db), next: async () => { hit = true; return Response.json({ ok: true }); } });
+  assert.equal(api.status, 200);
+  assert.equal(hit, true, '关口不再按进门方式拦接口');
 });
 
 test('middleware：/api/lock-tempkey-unlock 无会话可达（白名单），/api/verify 已删除', async () => {

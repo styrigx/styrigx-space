@@ -56,7 +56,7 @@ function kvOf(map) {
   return { async get(k, t) { const v = map[k]; return v === undefined ? null : t === 'json' ? JSON.parse(v) : v; } };
 }
 
-test('入口：GET /search 回结果、不回正文；只认账号结论头 X-Styrigx-Account-Session: 1，旧头 X-Sgx-Role: admin 不给私密；没 KV 503', async () => {
+test('入口：GET /search 回结果、不回正文；只认账号结论头 X-Styrigx-Account-Session: 1，旧头 X-Sgx-Legacy: admin 不给私密；没 KV 503', async () => {
   _resetCache();
   const env = { KV_SEARCH_INDEX: kvOf({ 'site:space': JSON.stringify(IX[0]), 'site:blog': JSON.stringify(IX[1]) }) };
   let r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('主题模式') + '&lang=zh'), env);
@@ -66,7 +66,7 @@ test('入口：GET /search 回结果、不回正文；只认账号结论头 X-St
   assert.equal(j.hits[0].text, undefined);
   r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号')), env);
   assert.equal((await r.json()).hits.length, 0);
-  r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号'), { headers: { 'X-Sgx-Role': 'admin' } }), env);
+  r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号'), { headers: { 'X-Sgx-Legacy': 'admin' } }), env);
   assert.equal((await r.json()).hits.length, 0, '旧角色头不再给私密');
   r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号'), { headers: { 'X-Styrigx-Account-Session': 'yes' } }), env);
   assert.equal((await r.json()).hits.length, 0, '只认值 1');

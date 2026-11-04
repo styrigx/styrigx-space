@@ -1,32 +1,32 @@
 {
   "_note": "scripts/curio/sync-shell.mjs 写入，勿手改：tree 是本站共享外壳副本对应的主站外壳目录（dir）的 git tree 哈希；from 只作记录",
   "source": "styrigx/styrigx-space",
-  "dir": "web/shared/shell",
-  "tree": "bec36e3176ca3329b6dfe94fda6ab675e0dff090",
-  "from": "5df9d0130e5243bb2e12220788cee4f13b7f3796",
-  "version": "004e9054e471",
+  "dir": "web/atlas/shared/shell",
+  "tree": "44c9abf7836387df56b7d97fc10b083954bc0cdf",
+  "from": "worktree",
+  "version": "ef85484b246b",
   "files": {
     "tokens.css": "f56a0696035458455a1c210634bd9c3abdb3d6acb332e00f5e327f90e528fba8",
-    "shell.css": "703a1fff24775fb2470bee53fcb1f9d4ab8c0e963dc17c32f1735a1efaa42de5",
+    "shell.css": "e292d4b4c94d0149963a84bcaeca5b732b934cde4cd851d9f77a93177379cfc0",
     "palette-scheme.js": "c51e4304e54ee888768144ca29bc52898479e79dd7ba4dfdda37e8664e7c2f63",
     "search.js": "d9b091a8cbcf675054e4fcb8ca52dfa7630f9e0bfbdb8a417ab8aafe03973ee8",
-    "share.js": "1835057b213f5550b9219ea3ffb6f4a3268641865ded947e3ae5fdd7ecd65991",
-    "nav.json": "1465967a1f517e1bf682874d359b41641368931689202d129db0876ee0f2e458",
+    "share.js": "607376bcf3475bb76425cd3324a18ccd78175e63b010b8124d051428bea4397a",
+    "nav.json": "026b8cc175e6ca29f251fd0afbe7ad3ae913324532e198ae02962449426ffef0",
     "palettes.json": "8acce76979dfeec50d305c8f84e59a83c56b7bbbfa4b45c2f85d631f90bc3c08",
-    "ui-cookie-read.js": "972a3435d5dc8221733f53524e23412ae6a32f737ab1785c2a4df88e5279398d",
+    "ui-cookie-read.js": "d563535ee2f06b3bb064890f1cc16225e645b15e4f30ca6e4dc4824365ca7978",
     "ui-cookie-contract.json": "3a532a97fe211aae8b238ad05140d2f44e6f162be4302ab613aef5c0fe1750d0",
     "favicon.js": "4bb7f9fe412988861d682b8c2a88eb93f68fc39f9fb51bd5df38441755b5d433",
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
-    "README.md": "8d6f839e906cec6ef55476cafdf802fb917b83d51405ad18bd23b2cd2624b0d0"
+    "README.md": "bf8dc56ebba96fc2be16f916dcfb73d2c1f8bd21b62f9ae6c102113ac4e8a97a"
   },
   "vendored": {
-    "web/assets/css/input.css": "d53e42b903fbaee7965f4d44a79dd51b6da1242c4f1cac88d40051745bae2468",
+    "web/assets/css/input.css": "99d17b433d47282e626bde7187e2036bbf112ac89fa00f4cf3c36812be187685",
     "web/assets/js/sgx/shell/palette-scheme.js": "4d21311374acb7daaf8c2b0c8cda71d99f4a75ee96da3614ed3d95fa458b4b17",
     "web/assets/js/sgx/shell/search.js": "a065ace177d976ce642d8d6a22450f5f15a2efd3202d6144d0e743b860a1724a",
-    "web/assets/js/sgx/shell/share.js": "36bc004012586c0aaaaac84b29e45a9057738c344f768f1725a4960030d68426",
-    "web/assets/sgx-shell/nav.json": "1465967a1f517e1bf682874d359b41641368931689202d129db0876ee0f2e458",
+    "web/assets/js/sgx/shell/share.js": "502d6ebe6c9accd25f496d31a4d37194fc2ba5f7e683352ff9793f48e5af418f",
+    "web/assets/sgx-shell/nav.json": "026b8cc175e6ca29f251fd0afbe7ad3ae913324532e198ae02962449426ffef0",
     "web/assets/sgx-shell/palettes.json": "8acce76979dfeec50d305c8f84e59a83c56b7bbbfa4b45c2f85d631f90bc3c08",
-    "web/assets/js/sgx/shell/ui-cookie-read.js": "70484d5efa27f92320707f3a38d251195d74ffcac65785536ed5eed4a9a4cc2f",
+    "web/assets/js/sgx/shell/ui-cookie-read.js": "d552358e6f672fba9cd9812d4f207d0e8f0776dab0dcd3c325ab9cb52ac3ced9",
     "tests/fixtures/ui-cookie-contract.json": "3a532a97fe211aae8b238ad05140d2f44e6f162be4302ab613aef5c0fe1750d0"
   }
 }

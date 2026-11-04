@@ -49,7 +49,7 @@
 | 路径 | 处理 |
 |---|---|
 | `GET` / `POST /api/account` | `api/account.js` |
-| `PUT` / `DELETE /api/avatar` | `api/avatar.js`（只许管理员） |
+| `PUT` / `DELETE /api/avatar` | `api/avatar.js`（要进门） |
 | `GET /avatar/<32\|96\|192\|512>.webp` | `api/avatar-file.js`（公开；没上传过回 Pages 上的默认头像） |
 | `GET` / `POST /api/prefs` | `api/prefs.js`（设置云同步，管理员 + 账号会话） |
 | `POST` / `GET /api/wellbeing` | `api/wellbeing.js`（数字健康；访客上报 204 丢弃） |

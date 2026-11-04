@@ -5,11 +5,11 @@
  *
  * POST /api/lock-passkey
  * - { action: 'challenge', type: 'register'|'auth' } → 返回 challenge
- *   - register 需要 LockReauthTicket + admin 锁屏会话，或 LockResetTicket
+ *   - register 需要 LockReauthTicket + 进门，或 LockResetTicket
  *   - auth 不需要（用于锁屏解锁 / 锁屏凭证的门）
  * - { action: 'register', cid, credential } → 验证并追加存储（再验票）
  * - { action: 'auth', cid, credential, reauth? } → 验证断言；签发会话 cookie；
- *   reauth:true（安全与隐私 → 锁屏凭证，需 admin 锁屏会话）改签 3 分钟 LockReauthTicket，会话不动
+ *   reauth:true（安全与隐私 → 锁屏凭证，要进门）改签 3 分钟 LockReauthTicket，会话不动
  * - { action: 'list' } → 列出锁屏通行密钥（需 LockReauthTicket 或 LockResetTicket）
  * - { action: 'rename', credId, name } → 重命名设备名（需 LockReauthTicket；重置锁屏不可）
  * - { action: 'delete', credId } → 删除指定通行密钥（需 LockReauthTicket 或 LockResetTicket；先推纪元再删，失败 503 且密钥仍在）
@@ -42,13 +42,12 @@ import {
   issueLockSession,
   bumpLockEpoch,
   reissueLockSessionWithEpoch,
-  ROLE_ADMIN,
 } from '../core/lock-session.js';
 import { checkLockManage, TICKET_IDS } from '../core/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../core/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSKEY } from '../core/realms.js';
 import { isLockEffectivelyConfigured } from '../core/lock-configured.js';
-import { verifyLockSession, looksVisitor } from '../core/lock-session.js';
+import { verifyLockSession } from '../core/lock-session.js';
 import { REALM_LOCK, KEY_LOCK, rpConfig, rpConfigMissing } from '../core/realms.js';
 import { hasPassword } from '../core/password.js';
 import {
@@ -68,7 +67,7 @@ import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 const CH = REALM_LOCK.challenge;
 
 /**
- * 锁屏通行密钥管理门禁：LockReauthTicket + admin 锁屏会话，或 LockResetTicket（
+ * 锁屏通行密钥管理门禁：LockReauthTicket + 进门，或 LockResetTicket（
  * 可 list/register/delete，不可 rename）。见 core/lock-manage.js checkLockManage。
  * @param {any} request
  * @param {any} env
@@ -258,16 +257,12 @@ async function handlePost(context) {
 
   /* ============ auth ============
      只认锁屏通行密钥；verify 时服务端再次校验分类（浏览器凭据选择器不是安全边界）。
-     reauth:true：安全与隐私 → 锁屏凭证，要求 admin 锁屏会话，成功只签 3 分钟 LockReauthTicket（会话不动）；
-     访客写死失败，不读存储。 */
+     reauth:true：安全与隐私 → 锁屏凭证，要先进门（任何进门方式），成功只签 3 分钟 LockReauthTicket（会话不动）。 */
   if (action === 'auth') {
     const toReauth = !!(body && body.reauth === true);
     if (toReauth) {
-      if (looksVisitor(request)) {
-        return apiError(403, 'verify');
-      }
       const ds = await verifyLockSession(request, env);
-      if (!ds.ok || ds.role !== ROLE_ADMIN) {
+      if (!ds.ok) {
         return apiError(401, 'session');
       }
     }
@@ -313,14 +308,14 @@ async function handlePost(context) {
       stored.lastUsedAt = Date.now();
       try { await updatePasskey(env, PASSKEY_LOCK, stored); } catch (e2) {}
       /* 通过：签发 Ed25519 会话 cookie（fail closed；issueLockSession 永不抛错）。
-         通行密钥验证签admin 会话（12 小时）。reauth:true：只签 LockReauthTicket（by=passkey）。 */
+         锁屏通行密钥进门 12 小时。reauth:true：只签 LockReauthTicket（by=passkey）。 */
       const headers = new Headers();
       if (toReauth) {
         const dErr = await issueTicket(env, headers, LOCK_REAUTH_TICKET, BY_PASSKEY);
         if (dErr) return json(dErr.status, dErr.body);
         return json(200, { ok: true }, headers);
       }
-      const signErr = await issueLockSession(env, headers, { by: BY_PASSKEY, role: ROLE_ADMIN });
+      const signErr = await issueLockSession(env, headers, { by: BY_PASSKEY });
       if (signErr) {
         return json(signErr.status, signErr.body);
       }

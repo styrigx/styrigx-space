@@ -6,26 +6,27 @@
  * 调用点（src/app.js）：
  * - 旧图志 atlas.styrigx.com：atlasRedirect(url)（任意路径 301 到主域名，合并 PR3）
  * - 子站 styrigx.com/blog/ /curio/ /daymark/：handleSubsite(request, env, origin)（合并 PR3 起按路径前缀）
- * - 主站 styrigx.com 其余路径：onRequest(context)（会话、角色、白名单、no-store、锁屏瘦身），放行后 context.next() 交给 router.js
+ * - 主站 styrigx.com 其余路径：onRequest(context)（会话、白名单、no-store、锁屏瘦身），放行后 context.next() 交给 router.js
  * 只 import core/、lib/，不 import router / app / api。
  */
-import { verifyLockSession, ROLE_ADMIN, ROLE_VISITOR } from './core/lock-session.js';
+import { verifyLockSession } from './core/lock-session.js';
 import { verifyLockResetTicket } from './core/tickets.js';
 import { withNoStore, json, apiError, NO_STORE } from './lib/http.js';
 import { askAccountSessionFor } from './core/account-rpc.js';
-import { isAdminOnlyPath, resolveReturn } from './core/return.js';
+import { resolveReturn } from './core/return.js';
 import { anonLimit } from './core/anon-limit.js';
 
 /* ================= HTML 会话标记（原 _kernel/html.js） ================= */
 
 /**
- * 网关改写 HTML：会话标记（data-sgx-lock-session / role / account-session / upgrade）的清理与注入。
- * 主站 middleware（injectSessionState / injectUpgradeState）和子站（下面图志关口的 markSubsiteRole）共用。
+ * 网关改写 HTML：会话标记（data-sgx-lock-session / account-session）的注入，以及旧标记的清理。
+ * 主站 middleware（injectSessionState）和子站（下面图志关口的 subsitePage）共用。
 
  */
-/* 网关自己注入的会话标记（只有这些会被先清掉再重新写）。
+/* 网关注入的会话标记（只有这些会被先清掉再重新写）。
    2026-10-21：以前清的是 <html> 上所有 data-sgx-*，把 baseof.html 写的构建标记 data-sgx-build 也一起删了；
-   现在只清网关会写的这几种：lock-session / role / account-session / upgrade / upgrade-return。 */
+   现在只清网关会写的 lock-session / account-session，外加 P2-3 退役的旧标记（等级标记、升级验证标记），
+   防止页面源码或旧缓存里混进伪造 / 过时的标记（方案 3.2）。 */
 const SESSION_ATTR_RE = /\s+data-sgx-(?:lock-session|role|account-session|upgrade|upgrade-return)="[^"]*"/gi;
 
 /**
@@ -40,15 +41,14 @@ export function stripSessionAttrs(html) {
 
 /**
  * L1 向 HTML 注入会话状态（2.4.1 分层规范）。
- * 把 <html> 变成 <html data-sgx-lock-session="valid|locked|lock-reset" data-sgx-role="admin|visitor">，
- * 前端只读这个，不自己猜。
+ * 把 <html> 变成 <html data-sgx-lock-session="valid|locked|lock-reset">，前端只读这个，不自己猜。进门二值：没有等级标记。
  * 同时设置 Cache-Control: private, no-store（防浏览器缓存绕过锁屏）。
  * 非 HTML 响应原样返回。
  * @param {Response} res
  * @param {'valid'|'locked'|'lock-reset'} state
- * @param {string|null} role 'admin'|'visitor'|null
+ * @param {'in'|'out'|null} [account] 账号页首帧提示
  */
-export async function injectSessionState(res, state, role, account) {
+export async function injectSessionState(res, state, account) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
   let html = stripSessionAttrs(await res.text());
@@ -71,40 +71,12 @@ export async function injectSessionState(res, state, role, account) {
       injected = injected.replace(/<div id="acct-login" class="acct-login" hidden>/, '<div id="acct-login" class="acct-login">');
     }
   }
-  /* 2.8.0：注入角色供 UI 展示（UI 不做鉴权） */
-  if (role === ROLE_ADMIN || role === ROLE_VISITOR) {
-    injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
-  }
   const headers = new Headers(res.headers);
   headers.set('Cache-Control', 'private, no-store');
   /* 2.8.0 搜索收录：锁屏态页面不被搜索引擎收录。重置锁屏票页同样不收录。 */
   if (state === 'locked' || state === 'lock-reset') {
     headers.set('X-Robots-Tag', 'noindex');
   }
-  return new Response(injected, {
-    status: res.status,
-    statusText: res.statusText,
-    headers,
-  });
-}
-
-/* 2.9.3：访客 + 管理员专属 return 时，首页返回 200 并标记升级验证。
-   前端读 data-sgx-upgrade="1" 和 data-sgx-upgrade-return 打开验证层
-   （只显示通行密钥+密码，不显示访客入口，带「需要管理员验证」提示）。
-   验证通过后前端跳回 return。绝不 302。 */
-export async function injectUpgradeState(res, role, returnPath) {
-  const ct = res.headers.get('Content-Type') || '';
-  if (!ct.includes('text/html')) return res;
-  const html = stripSessionAttrs(await res.text());
-  let injected = html.replace(/<html(\s|>)/i, '<html data-sgx-lock-session="valid"$1');
-  if (role === ROLE_ADMIN || role === ROLE_VISITOR) {
-    injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
-  }
-  /* 升级标记：前端据此打开验证层 */
-  injected = injected.replace(/<html(\s|>)/i,
-    '<html data-sgx-upgrade="1" data-sgx-upgrade-return="' + returnPath.replace(/"/g, '&quot;') + '"$1');
-  const headers = new Headers(res.headers);
-  headers.set('Cache-Control', 'private, no-store');
   return new Response(injected, {
     status: res.status,
     statusText: res.statusText,
@@ -152,27 +124,9 @@ const LOCK_RESET_PATHS = [
   '/settings/security/lock/',
   '/en/settings/security/lock/',
 ];
-/* 2.8.0：管理员专属 API（visitor 调用 → 403）。
-   账号拆分 PR3：/api/account、/api/prefs 经转发表（router.js FORWARDING）转给账号 Worker，门在这里（/api/prefs 从账号 Worker 的 gate.js 收回）。 */
-const ADMIN_ONLY_APIS = [
-  '/api/account',
-  '/api/prefs',
-  '/api/lock-password',
-  '/api/lock-passkey',
-  '/api/lock-all-devices',
-  '/api/lock-reauth',
-  '/api/lock-tempkey', /* 临时钥匙管理：只认管理员锁屏会话（接口里再验一次 admin） */
-];
-/* 认证类 action（visitor 可调用，用于就地升级为管理员：锁屏密码 verify、锁屏通行密钥 challenge / auth） */
-const AUTH_ACTIONS = new Set(['verify', 'challenge', 'register', 'auth']);
-
 /* 重置锁屏票可开的路径（仅锁屏凭证管理页） */
 function isLockResetPath(pathname) {
   return LOCK_RESET_PATHS.some(p => pathname === p || pathname.startsWith(p));
-}
-
-function isAdminOnlyApi(pathname) {
-  return ADMIN_ONLY_APIS.some(p => pathname === p || pathname.startsWith(p + '/'));
 }
 
 /* 白名单路径（验证必需 + 锁屏自身 + 静态资源） */
@@ -219,12 +173,6 @@ function isWhitelisted(pathname) {
 /** 首页前缀（/ 或 /en/） */
 function homeOf(pathname) {
   return pathname === '/en' || pathname.startsWith('/en/') ? '/en/' : '/';
-}
-
-/** 账号区（账号页及其子页，中英）：访客一律不给看 */
-function isAccountArea(pathname) {
-  return pathname === '/account' || pathname.startsWith('/account/') ||
-    pathname === '/en/account' || pathname.startsWith('/en/account/');
 }
 
 /** 账号页（顶栏右圆头像进入）：注入账号会话提示，首帧不闪登录区 */
@@ -290,8 +238,8 @@ async function handleRequest(context) {
   /* 2.4.1：会话检查（生产环境 space 站点一律执行；缺 SGX_LOCK_PUBLIC 时
      verifyLockSession 返回 ok:false → fail closed，只放白名单路径。
      没有「未配置就放行」开关。）
-     2.8.0 会话角色分离：L1 是唯一按角色放行的地方。
-     分层规范 L1：middleware 是唯一决定是否已解锁的地方。
+     进门二值（P2-3）：/api/* 只分三类——白名单（无会话可调）、要进门、进门之后由各接口自己要锁侧复验或账号结论；
+     页面只分「要进门 / 公开」。分层规范 L1：middleware 是唯一决定是否已解锁的地方。
      2.10.2：SGX_SITE 不是 'space' 一律拒绝（fail closed，与子站一致；
      配错站点名不再静默放行）。 */
   const site = env && env.SGX_SITE;
@@ -308,80 +256,28 @@ async function handleRequest(context) {
     /* 验过的结论交给转发（router.js forward）：写身份头不再重验 */
     if (context.data) context.data.lockSession = sess;
     const sessionValid = sess.ok;
-    const role = sess.role; /* 'admin'|'visitor'|null */
-    const isVisitor = role === ROLE_VISITOR;
 
     /* 无会话写接口的按 IP 总限流（防刷 D1 写入额度；超了 429 cooldown，不进端点）：见 core/anon-limit.js */
     const limited = await anonLimit(request, env, sessionValid);
     if (limited) return limited;
 
-    /* 2.8.0：访客调用管理员专属 API → 403（改密码、通行密钥管理等）。
-       2.10.1：访客就地升级——认证类 action（AUTH_ACTIONS：verify/challenge/auth/register）
-       放行，由端点自身的会话/reauth 票机制保护（纵深防御），middleware 不再一律拒绝。 */
-    if (isVisitor && isAdminOnlyApi(pathname)) {
-      let isAuthAction = false;
-      if (request.method === 'POST') {
-        try {
-          const body = await request.clone().json();
-          isAuthAction = body && AUTH_ACTIONS.has(body.action);
-        } catch (e) {}
-      }
-      if (!isAuthAction) {
-        return apiError(403, 'role');
-      }
-    }
-
     /* L1：首页不再无条件白名单。照常返回页面，但把会话状态注入 HTML
-       （<html data-sgx-lock-session="valid|locked" data-sgx-role="admin|visitor">），
-       前端只读这个，不自己猜。 */
+       （<html data-sgx-lock-session="valid|locked">），前端只读这个，不自己猜。 */
     if (isHomepage) {
-      /* ?return= 回跳：会话有效时 302 到目标（站内路径或 *.styrigx.com 白名单）。
-         2.9.3 防死循环：如果 return 指向管理员专属路径而当前只是访客，不 302，
-         直接返回 200 首页，前端打开升级验证层（只显示通行密钥+密码）。
-         防死循环失效修复：子站踢回时带 ?why=（子站验签失败），此时也不 302，
+      /* ?return= 回跳：会话有效时 302 到目标（站内路径或 *.styrigx.com 白名单；resolveReturn 只做地址白名单）。
+         防死循环：子站踢回时带 ?why=（子站验签失败），此时不 302，
          返回 200 首页让 lock.js 显示失败原因；否则 JS 没机会跑，
          浏览器会在主站↔子站之间无限 302。 */
       const returnPath = url.searchParams.get('return');
       if (returnPath && sessionValid && !url.searchParams.get('why')) {
-        const dest = resolveReturn(returnPath, role);
-        if (!dest.upgrade) {
-          /* 手动构造 302（Node/undici 的 Response.redirect 不接受相对路径）。no-store：绝不缓存这个跳转。 */
-          return new Response(null, {
-            status: 302,
-            headers: { 'Location': dest.location, 'Cache-Control': 'private, no-store' },
-          });
-        }
-        /* 访客 + 管理员专属 return：不跳转，200 返回首页并标记升级验证。
-           前端读 data-sgx-upgrade="1" 打开管理员验证层（不出锁屏）。 */
-        const res = await next();
-        return injectUpgradeState(res, role, dest.location);
+        /* 手动构造 302（Node/undici 的 Response.redirect 不接受相对路径）。no-store：绝不缓存这个跳转。 */
+        return new Response(null, {
+          status: 302,
+          headers: { 'Location': resolveReturn(returnPath), 'Cache-Control': 'private, no-store' },
+        });
       }
       const res = await next();
-      return injectSessionState(res, sessionValid ? 'valid' : 'locked', role);
-    }
-
-    /* 访客直接打开管理员专属路径（锁屏凭证页、临时钥匙页、服务状态页）→ 302 到首页的「管理员验证」（?return=，不带 lock=1）：
-       首页按 访客 + 管理员专属 return 返回 upgrade 态，前端只弹管理员验证层，不出锁屏、不动访客会话。
-       （站内点「锁屏凭证」不走这里：security.js 对访客就地弹同一个验证层，不跳页。）
-       以前带 lock=1，并且 styrigx.com/ 路由不认查询串 → 锁屏页从 Pages 直出、没有会话标记 → 整个锁屏闪一下。 */
-    if (isVisitor && isAdminOnlyPath(pathname)) {
-      const dest = 'https://styrigx.com' + homeOf(pathname) + '?return=' + encodeURIComponent(url.pathname + url.search);
-      return new Response(null, {
-        status: 302,
-        headers: {
-          'Location': dest,
-          'Cache-Control': 'no-store',
-          'X-Robots-Tag': 'noindex',
-        },
-      });
-    }
-
-    /* 临时 LockKey：访客眼里没有账号——账号页（/account/ 及子页，中英）直接 302 回首页，不出页面。 */
-    if (isVisitor && isAccountArea(pathname)) {
-      return new Response(null, {
-        status: 302,
-        headers: { 'Location': 'https://styrigx.com' + homeOf(pathname), 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' },
-      });
+      return injectSessionState(res, sessionValid ? 'valid' : 'locked');
     }
 
     /* 重置锁屏票可打开锁屏凭证页（重置锁屏流程），但仍进不了主页。
@@ -395,7 +291,7 @@ async function handleRequest(context) {
         const res = await next();
         const ct = res.headers.get('Content-Type') || '';
         if (ct.includes('text/html')) {
-          return injectSessionState(res, 'lock-reset', null);
+          return injectSessionState(res, 'lock-reset');
         }
         return res;
       }
@@ -417,7 +313,7 @@ async function handleRequest(context) {
             account = null;
           }
         }
-        return injectSessionState(res, 'valid', role, account);
+        return injectSessionState(res, 'valid', account);
       }
       return res;
     }
@@ -453,7 +349,7 @@ async function handleRequest(context) {
  *
  * 子站 Pages 不持有任何公钥、不带验票代码。网关整站通配 styrigx.com/*（路由见 wrangler.toml）；
  * styrigx.com/curio/api/*、styrigx.com/daymark/api/* 是更具体的路由，归两个接口 Worker（workers/curio-core、workers/daymark-core），不进网关：
- *   - 会话有效（admin 或 visitor，与主站同一套 verifyLockSession：验签 + exp + epoch）→ 回源取页面，
+ *   - 会话有效（进门，与主站同一套 verifyLockSession：验签 + exp + epoch）→ 回源取页面，
  *     HTML 加 private, no-store（防锁定后切回标签页看到缓存的旧页面）
  *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/<站>/api/*（正常归接口 Worker，漏到网关时）回 401 JSON
  *   - 静态资源后缀（js/css/字体/图片）直接回源，不验会话，与原子站白名单一致；/curio/、/daymark/ 下像图片的回答由 Pages 的 _worker.js 404
@@ -464,8 +360,8 @@ async function handleRequest(context) {
  * 旧域名 atlas.styrigx.com（2026-11-02 起三站的正式入口）：任意路径 301 到 https://styrigx.com 同路径 + 查询串（atlasRedirect），
  * 不验会话、不回源；接口 Worker 在 atlas.styrigx.com/<站>/api/* 的旧路由过渡期还在（更具体，不进网关）。
  *
- * 子站不做角色区分：admin、visitor 都能看页面（与原子站 middleware 一致）；
- * 管理员专属的操作（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker 再问网关（服务绑定 AuthVerifier）。
+ * 进门的人都能看子站页面；写操作和私密内容（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker
+ * 问网关要结论（服务绑定 AuthVerifier.conclusion：进门 + 账号会话 + 作用域）。
  */
 const MAIN_ORIGIN = 'https://styrigx.com';
 /** 子站所在的主机（主域名） */
@@ -576,34 +472,11 @@ export function lockRedirect(url, why) {
   });
 }
 
-/* 抽屉头的头像（三个子站模板都是 <a class="sgx-drawer-me" href="…主站账号页"><img …></a>） */
-const DRAWER_ME_RE = /<a\b([^>]*\bclass="sgx-drawer-me"[^>]*)>([\s\S]*?)<\/a>/gi;
-
-/**
- * 访客打开子站：和主站一样，抽屉头的头像只是装饰，点了不跳主站账号页（用户 2026-10-24）。
- * 主站靠 data-sgx-role + head-buttons.js 去链接；子站不读角色，所以网关直接在 HTML 里把它换成不可点的 <span>：
- * 去掉 href / aria-label，读屏跳过，键盘聚焦不到，子站抽屉的点击代理（只认 a.sgx-drawer-me）也不再命中。
- * 同时和主站一样给 <html> 标上 data-sgx-role（只是展示提示，UI 不做鉴权）。
- * @param {string} html
- * @param {string|null} role
- */
-export function markSubsiteRole(html, role) {
-  let out = stripSessionAttrs(html);
-  if (role === 'admin' || role === 'visitor') {
-    out = out.replace(/<html(\s|>)/i, '<html data-sgx-role="' + role + '"$1');
-  }
-  if (role === 'visitor') {
-    out = out.replace(DRAWER_ME_RE, (_m, _attrs, inner) =>
-      '<span class="sgx-drawer-me" aria-hidden="true" style="pointer-events:none;cursor:default">' + inner + '</span>');
-  }
-  return out;
-}
-
-/** 会话有效的子站页面：HTML 按角色处理 + no-store；其他原样返回 */
-async function subsitePage(res, role) {
+/** 会话有效的子站页面：HTML 清掉旧会话标记 + no-store；其他原样返回 */
+async function subsitePage(res) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
-  const html = markSubsiteRole(await res.text(), role);
+  const html = stripSessionAttrs(await res.text());
   const headers = new Headers(res.headers);
   headers.set('Cache-Control', NO_STORE);
   headers.delete('Content-Length');
@@ -625,7 +498,7 @@ export async function handleSubsite(request, env, origin) {
   if (isStaticAsset(url.pathname)) return origin(request);
 
   const sess = await verifyLockSession(request, env);
-  if (sess.ok) return subsitePage(await origin(request), sess.role);
+  if (sess.ok) return subsitePage(await origin(request));
 
   const why = sess.reason === 'no-cookie' ? 'no-cookie' : 'invalid-session';
   console.log('[sgx-subsite] deny site=' + conf.site + ' reason=' + sess.reason);

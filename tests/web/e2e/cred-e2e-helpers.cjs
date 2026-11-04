@@ -9,7 +9,7 @@
  *   d1.password('account') 这类观测照旧。返回 { kv, d1, env, accountEnv, close, mintAuth, … }。
  * - makeAttestationCredential：Node 端合成 WebAuthn 注册 attestation
  *   （UV=1；CDP 虚拟认证器开 UV 会抛 NotAllowedError，故不用浏览器仪式）。
- * - mintAuth(by)：按当前 Lock 纪元重签 admin 锁屏会话 + LockReauthTicket（sgx-lock-reauth）
+ * - mintAuth(by)：按当前 Lock 纪元重签 锁屏进门会话 + LockReauthTicket（sgx-lock-reauth）
  * - mintAccount(by, authAt)：账号会话（sgx-account-session，by 只能 password|passkey）；mintAccountReauth(by)：AccountReauthTicket（sgx-account-reauth）；
  *   mintAccountReset()：AccountResetTicket（sgx-account-reset，by=root）。都用账号 Worker 的代码和账号钥匙签（workers/account/src/core/account-session.js）
  *   （set/change/remove/register 会推进 epoch，每次鉴权操作前重签）。

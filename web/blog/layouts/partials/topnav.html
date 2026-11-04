@@ -8,8 +8,8 @@
   links   标签页 / 404 等子页：只有页名（.title，不给就用页面标题；.sgx-tb-title 居中、太长省略号），不放图标。
   article 文章页：只有页名（文章标题）；长条底边一条强调色细线是阅读进度。
 - 抽屉：导航项分隔线下面，文章页（≥2 个标题）再加「目录」（.toc：partials/toc-items.html 的结果）。
-- 右圆 .sgx-tb-end.sgx-tb-share（共享外壳 .sgx-tb-end 样式，52px 圆 + 22px 图标，同左边九宫格圆；2026-10-24 留言板撤了，只剩分享；管理员和访客一样）：
-  共享外壳 share.js（entries/topnav.ts 挂上）：管理员生成带临时会话的短链再系统分享，访客分享当前页地址；没有系统分享就复制。
+- 右圆 .sgx-tb-end.sgx-tb-share（共享外壳 .sgx-tb-end 样式，52px 圆 + 22px 图标，同左边九宫格圆；2026-10-24 留言板撤了，只剩分享；所有进门的人都一样）：
+  共享外壳 share.js（entries/topnav.ts 挂上）：生成带临时会话的短链（先锁侧复验）再系统分享；没有系统分享就复制。
 参数：.page .mode .title .toc */ -}}
 {{- $lang := .page.Language.Lang -}}
 {{- $isEn := eq $lang "en" -}}

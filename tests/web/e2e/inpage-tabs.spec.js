@@ -35,11 +35,11 @@ async function setup(page, o = {}) {
   /* settle() 读 Resource Timing：调大缓冲，免得资源多的页面把预取那几条挤掉 */
   await page.addInitScript(() => { try { performance.setResourceTimingBufferSize(1000); } catch (e) {} });
   await page.route('**/api/**', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' }));
-  if (o.admin) {
-    /* 网关给管理员的页面在 <html> 上注入 data-sgx-lock-session="valid" data-sgx-role="admin"：三栏的 HTML（整页和后台取的）都改 */
+  if (o.entered) {
+    /* 网关给进门的人的页面在 <html> 上注入 data-sgx-lock-session="valid"：三栏的 HTML（整页和后台取的）都改 */
     await page.route((u) => /^\/(en\/)?(chat\/|settings\/)?$/.test(u.pathname), async (route) => {
       const res = await route.fetch();
-      const html = (await res.text()).replace(/<html(\s|>)/i, '<html data-sgx-lock-session="valid" data-sgx-role="admin"$1');
+      const html = (await res.text()).replace(/<html(\s|>)/i, '<html data-sgx-lock-session="valid"$1');
       await route.fulfill({ response: res, body: html });
     });
   }
@@ -360,7 +360,7 @@ test('反复切换不泄漏：window / document 监听数不涨，计时器不�
 });
 
 test('云同步：管理员页内切换不重复 GET /api/prefs（core 只初始化一次）', async ({ page }) => {
-  await setup(page, { admin: true });
+  await setup(page, { entered: true });
   let gets = 0;
   await page.route('**/api/prefs', (r) => {
     if (r.request().method() === 'GET') gets++;
@@ -368,7 +368,7 @@ test('云同步：管理员页内切换不重复 GET /api/prefs（core 只初始
   });
   const docs = trackDocs(page);
   await page.goto('/');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-role', 'admin');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   await settle(page);
   await mark(page);
   docs.length = 0;
@@ -381,7 +381,7 @@ test('云同步：管理员页内切换不重复 GET /api/prefs（core 只初始
   /* C8：原来固定等 500ms；改成等过渡结束 + 冲刷请求事件（之后还没记到的文档 / prefs 请求就是没发） */
   await animationsDone(page);
   await flushRequests(page);
-  expect(await sameDoc(page), 'admin 会话下也是页内切换').toBe(true);
+  expect(await sameDoc(page), '进门会话下也是页内切换').toBe(true);
   expect(docs).toEqual([]);
   expect(gets).toBe(1);
 });

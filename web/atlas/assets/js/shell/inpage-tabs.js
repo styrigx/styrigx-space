@@ -4,7 +4,7 @@
  * 以前每点一栏都是整页导航：重新拉 HTML、重跑整份 core JS、云同步 GET、等数据，药丸先动、内容慢几帧。
  * 现在：
  * - 三个地址照旧都是真页面（/、/chat/、/settings/，英文 /en 前缀）：直接打开 / 刷新 / 分享时服务器直出那一栏的完整 HTML，
- *   网关对这三个路径的判定（锁屏、访客、会话）一点没变，没 JS 也照常能用。
+ *   网关对这三个路径的判定（锁屏、会话）一点没变，没 JS 也照常能用。
  * - 进来以后，空闲时在后台把另外两栏的 HTML 取回来（同一个网关、同一份 cookie），只抽 <main id="sgx-main"> 里的内容
  *   和几项页面专属的 <head> / <body> 信息，缓存在内存里；点标签 / 左右滑 / 前进后退时在同一个文档里换内容（history.pushState / popstate），
  *   药丸、内容、标题、地址在同一次更新里一起换（document.startViewTransition 包着，效果同跨页过渡；不支持就直接换）。
@@ -117,7 +117,7 @@ function hardNav(href, push) {
 /** 会话标记（网关注入在 <html> 上）；取回来的页面必须和当前一致 @param {Document} doc */
 function sessionSig(doc) {
   const h = doc.documentElement;
-  return ['data-sgx-build', 'data-sgx-lock-session', 'data-sgx-role', 'data-sgx-upgrade', 'lang'].map((a) => a + '=' + (h.getAttribute(a) || '')).join('&');
+  return ['data-sgx-build', 'data-sgx-lock-session', 'lang'].map((a) => a + '=' + (h.getAttribute(a) || '')).join('&');
 }
 
 function reduced() {
@@ -171,7 +171,6 @@ export function initInpageTabs() {
     links.length > 1 &&
     st !== 'locked' &&
     st !== 'lock-reset' &&
-    !html.hasAttribute('data-sgx-upgrade') &&
     typeof fetch === 'function' &&
     typeof DOMParser === 'function' &&
     !!(history && history.pushState);

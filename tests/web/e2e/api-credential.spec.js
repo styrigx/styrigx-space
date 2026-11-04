@@ -19,7 +19,7 @@ const PORT = 8937;
 
 let t; // { kv, env, origin, mintAuth, makeAttestationCredential, close }
 
-/* 按当前 Lock 纪元重签 admin 锁屏会话 + LockReauthTicket，写入浏览器 context。
+/* 按当前 Lock 纪元重签 锁屏进门会话 + LockReauthTicket，写入浏览器 context。
    set/change/remove/register 会推进 epoch，每次鉴权操作前都重签。 */
 async function mintBrowserAuth(context, reauthBy) {
   const { sessionCookie, reauthCookie } = await t.mintAuth(reauthBy);

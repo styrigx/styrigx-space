@@ -201,7 +201,7 @@ test('成功但审计写不进去 → 503 server，不签票（fail closed）', 
 test('身份：root-reauth / root-reset / audit-list 都要进门（没有 X-Styrigx-Lock-Session: 1 → 401 session，不计数、不写审计）', async () => {
   const env = makeEnv();
   for (const action of ['root-reset', 'root-reauth', 'audit-list']) {
-    for (const identity of [null, { session: '', role: 'admin', by: 'password' }]) {
+    for (const identity of [null, { session: '', role: 'password', by: 'password' }]) {
       const r = await post(env, { action, key: ROOT_KEY }, { 'sgx-account-session': await accSession() }, { identity });
       assert.equal(r.status, 401);
       assert.equal((await r.json()).error, 'session');

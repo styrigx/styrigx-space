@@ -12,7 +12,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -131,7 +131,6 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
     'web/atlas/assets/js/apps/security-lock.js',
     'web/atlas/assets/js/apps/security.js',
     'web/atlas/assets/js/shell/lock.js',
-    'web/atlas/assets/js/shell/upgrade.js',
   ]) {
     const src = read(f);
     assert.ok(!src.includes("classList.toggle('off'"), f + ' 不应再 toggle .off');
@@ -149,7 +148,8 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
   assert.ok(/export function createKeyField[\s\S]*?bindPwEye\(eye, input, o\.en\)/.test(rows), '进站凭证框（重置第一步）应有眼睛按钮');
   assert.ok(/eye\.className = 'sgx-pw-eye';\s*bindPwEye\(eye, input, en\)/.test(rows), '第二步展开的账号密码框应有眼睛按钮');
   assert.ok(read('web/atlas/assets/js/shell/lock.js').includes('mountResetFlow'), '锁屏弹层用 auth/reset-flow.js');
-  assert.ok(read('web/atlas/assets/js/shell/upgrade.js').includes('sgx-upgrade-eye'), '访客升级弹层应有眼睛按钮');
+  /* P2-3：升级验证层（shell/upgrade.js）已删除 */
+  assert.ok(!existsSync(join(ROOT, 'web/atlas/assets/js/shell/upgrade.js')), 'shell/upgrade.js 已删除');
 });
 
 test('行反馈：tapFeedback 有 vibrate 时以 10ms 调用，不支持时不报错', () => {

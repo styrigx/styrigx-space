@@ -6,17 +6,15 @@
  * （POST /api/account，比对账号根密钥 SGX_ACCOUNT_ROOT_KEY），两套进站凭证互不相干、各自计数。
  *
  * POST /api/space-auth { key, purpose }，purpose 只有两个值（缺失 / 其它值 → 400 purpose，不比对、不计数）：
- * - 'lock-reauth' → LockReauthTicket（sgx-lock-reauth）：安全与隐私 → 锁屏凭证；要 admin 锁屏会话
+ * - 'lock-reauth' → LockReauthTicket（sgx-lock-reauth）：安全与隐私 → 锁屏凭证等锁侧复验；要先进门（任何进门方式，
+ *                   含临时钥匙 / 短链进门；进门会话本身不算复验，复验靠这里比对进站凭证），不要求别的会话（方案 2.2.2、定案第 6 条）
  * - 'lock-reset'  → LockResetTicket（sgx-lock-reset）：只在锁屏未设置时可用（从零设置第一把 LockKey，
  *                   无需会话）；锁屏已设置时走 /api/lock-reset（进站凭证 + 重置开关 / 锁屏凭据），这里按假入口处理
  * 两张票都是 3 分钟、各自独立 cookie（见 realms.js TICKETS）。
  *
- * 访客假入口：访客会话（sgx-lock-session role=visitor）直接写死返回 401：
- * 不读 D1、环境变量里的任何凭证，不做任何比对；不计入进站凭证限速；
- * 不写审计。状态码、响应体、响应头、固定最小延迟与真失败一致。
- * 缺 Origin 仍先 403。
- * 无会话假入口：不满足上面各用途的前置条件（无 admin 会话，且不是锁屏未设置时的 lock-reset）→ 写死 401 auth，
- * 与真失败逐字节相同；只计单 IP 限速（不比对，不计全局），全局减速时同样先等，不写审计。
+ * lock-reauth 没进门 → 401 session（完整验票，不比对、不计数、不写审计）。v1 的会话假入口已删（P2-3）。
+ * 锁屏已设置时的 lock-reset 假入口：写死 401 auth，与真失败逐字节相同；只计单 IP 限速（不比对，不计全局），
+ * 全局减速时同样先等，不写审计。缺 Origin 仍先 403。
  *
  * - 恒定时间比较 env.SGX_LOCK_SPACE_KEY（防长度泄露）
  * - 限速：进站凭证的路径共用一套（core/space-limit.js，attempt_limit realm='lock' kind='spacekey'）：单 IP 连错 5 次锁 15 分钟；
@@ -29,10 +27,8 @@
  *
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  */
-import { ed25519Verify } from '../lib/crypto.js';
-import { readAllCookies } from '../lib/cookies.js';
 import { checkSpaceCredential, sleep } from '../core/space-check.js';
-import { ROLE_ADMIN, ROLE_VISITOR, verifyLockSession } from '../core/lock-session.js';
+import { verifyLockSession } from '../core/lock-session.js';
 import { checkSpaceLimit, recordSpaceFail } from '../core/space-limit.js';
 import { writeSpaceAudit } from '../core/space-audit.js';
 import { isLockEffectivelyConfigured } from '../core/lock-configured.js';
@@ -43,7 +39,6 @@ import {
   BY_SPACE,
   LOCK_REAUTH_TICKET,
   LOCK_RESET_TICKET,
-  realmPublicKey,
 } from '../core/realms.js';
 import { issueTicket } from '../core/tickets.js';
 
@@ -71,32 +66,6 @@ function decoyAuth() {
   return apiError(401, 'auth');
 }
 
-/**
- * 轻量会话检查（不读存储）：解析 sgx-lock-session、验 Ed25519 签名、检查 exp 与 role。
- * 只读 SGX_LOCK_PUBLIC（公钥，非凭证）。
- * - role=visitor：仅用于识别访客假入口
- * - role=admin：仅用于决定走真路径还是假入口；真路径内再做完整校验（含 D1 纪元）
- * @param {any} request
- * @param {any} env
- * @param {string} wantRole ROLE_VISITOR 或 ROLE_ADMIN
- * @returns {Promise<boolean>} 是否看起来像该角色的有效会话
- */
-async function lightSession(request, env, wantRole) {
-  try {
-    const pubKey = realmPublicKey(env, REALM_LOCK); /* SGX_LOCK_PUBLIC */
-    if (!pubKey) return false;
-    for (const val of readAllCookies(request, REALM_LOCK.cookie)) { /* sgx-lock-session */
-      const parts = val.split('.');
-      if (parts.length !== 6) continue;
-      if (parts[1] !== wantRole) continue;
-      const exp = parseInt(parts[3], 10);
-      if (!Number.isFinite(exp) || exp <= Date.now()) continue;
-      if (await ed25519Verify(pubKey, REALM_LOCK.cookie + '|' + parts.slice(0, 5).join('.'), parts[5])) return true;
-    }
-  } catch (e) {}
-  return false;
-}
-
 /** @param {any} context */
 export async function onRequestPost(context) {
   try {
@@ -116,13 +85,6 @@ async function handlePost(context) {
   /* Origin 必须与本站同 host（CSRF 防护），缺失或解析失败一律 403 */
   if (!isSameOrigin(request)) return originDenied();
 
-  /* B1-9 访客假入口统一 401（安全）：访客会话直接返回 401，
-     不读任何存储（D1），不区分新站旧站。放在所有存储读取之前。 */
-  if (await lightSession(request, env, ROLE_VISITOR)) {
-    await padTo(t0);
-    return apiError(401, 'denied');
-  }
-
   const spaceDb = env && env[REALM_LOCK.d1Binding]; /* 进站凭证限速 / 审计：D1_LOCK_AUTH（realm='lock'） */
   const ip = clientIp(request);
 
@@ -137,6 +99,15 @@ async function handlePost(context) {
   const ticket = SPACE_PURPOSES[purpose];
   const auditPath = purpose;
 
+  /* lock-reauth：要先进门（完整校验，含 D1 纪元）；没进门 → 401 session，不比对、不计数 */
+  if (ticket === LOCK_REAUTH_TICKET) {
+    const sess = await verifyLockSession(request, env);
+    if (!sess.ok) {
+      await padTo(t0);
+      return apiError(401, 'session');
+    }
+  }
+
   /* 锁屏是否已设置（D1 读失败按已设置处理）：只决定 lock-reset 能不能走 */
   let lockCfg = true;
   try {
@@ -145,14 +116,11 @@ async function handlePost(context) {
     lockCfg = true;
   }
 
-  /* 真路径还是无会话假入口：
-     - lock-reset：只在锁屏未设置时走真路径（从零设置，无需会话）
-     - lock-reauth：有疑似有效的 admin 锁屏会话才走真路径 */
-  const looksAdmin = await lightSession(request, env, ROLE_ADMIN);
-  const realPath = ticket === LOCK_RESET_TICKET ? !lockCfg : looksAdmin;
+  /* 真路径还是假入口：lock-reset 只在锁屏未设置时走真路径（从零设置，无需会话）；lock-reauth 已在上面验过进门 */
+  const realPath = ticket === LOCK_RESET_TICKET ? !lockCfg : true;
 
   if (!realPath) {
-    /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
+    /* ===== 锁屏已设置时的 lock-reset 假入口：写死 401，与真失败逐字节相同 =====
        不检查环境变量（缺 SGX_LOCK_SPACE_KEY 等时也返回 401，不泄露 500 config）。
        限速检查与真路径相同（D1 出错时 fail closed，全局减速时同样先等）；
        失败只计单 IP、不计全局（没有比对，不算猜测，刷这里推不动全局计数）；不写审计（不让刷接口灌满审计）。
@@ -179,7 +147,7 @@ async function handlePost(context) {
 
   /* ===== 真路径 =====
      缺关键配置 → 直接拒绝（fail closed）。假入口在上面已返回，这里只处理真路径，
-     避免无会话时因缺环境变量泄露 500 config。该票的签名钥匙缺失 → 503 config（先于比对，不浪费限流次数）。 */
+     避免假入口因缺环境变量泄露 500 config。该票的签名钥匙缺失 → 503 config（先于比对，不浪费限流次数）。 */
   const spaceKey = (env && env[REALM_LOCK.spaceKey]) || ''; /* SGX_LOCK_SPACE_KEY */
   const conf = TICKETS[ticket];
   if (!(env && env[conf.privateKey]) || !(env && env[conf.publicKey])) {
@@ -187,14 +155,6 @@ async function handlePost(context) {
   }
   if (!spaceKey || !spaceDb) {
     return apiError(500, 'config');
-  }
-
-  if (ticket !== LOCK_RESET_TICKET) {
-    /* 完整会话校验（含 D1 纪元）；轻量检查通过但完整校验失败（如纪元已推进）→ 401 session */
-    const sess = await verifyLockSession(request, env);
-    if (!sess.ok || sess.role !== ROLE_ADMIN) {
-      return apiError(401, 'session');
-    }
   }
 
   /* 进站凭证比对（限速 / 恒定时间比较 / 失败计数 / 审计）：网关里只有一份实现（core/space-check.js） */

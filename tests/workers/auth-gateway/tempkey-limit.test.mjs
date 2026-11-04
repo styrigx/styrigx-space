@@ -111,5 +111,5 @@ test('接口：全站已错满（含残留 locked_until），对的临时码照�
   });
   const res = await unlockPost({ request: req, env });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true, role: 'visitor' });
+  assert.deepEqual(await res.json(), { ok: true });
 });

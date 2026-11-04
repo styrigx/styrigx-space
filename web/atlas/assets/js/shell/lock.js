@@ -1,20 +1,20 @@
 /**
  * @fileoverview 全站锁屏界面（按需加载：由 shell/lock-guard.js 在 locked / unknown 时 import()；守卫、去处判定在 lock-guard.js）。
- * 原说明：全站锁屏（2.4.0 H；2026-10-23 访客进入改临时 LockKey，去掉 Turnstile）。
+ * 原说明：全站锁屏（2.4.0 H；2026-10-23 Turnstile 入口改临时 LockKey）。
  * 分层规范 L4：lock.js 只负责两件事——
  * 1. 按 L1（middleware 注入的 <html data-sgx-lock-session>）画锁屏，不自己判断会话；
  * 2. 把密码或通行密钥提交给 L2（workers/auth-gateway/src/api/*）。
  * 唯一状态源是服务端签发的 sgx-lock-session 会话；禁止用 sessionStorage、
  * localStorage、前端内存或标签页状态另做判断。
- * - 点头像（电脑回车/空格）→ 解锁方式弹层：访客进入（输入临时钥匙）/ 通行密钥 / 密码；
+ * - 点头像（电脑回车/空格）→ 解锁方式弹层：临时钥匙 / 通行密钥 / 密码；
  *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示。
  * - 本地开发（localhost）跳过验证。
  * - 安全与隐私：临时钥匙/密码/通行密钥三态共用同一个底部弹层组件（圆角、材质、
  *   拖动条、标题字号位置、按钮样式一致）；弹层背景完全不透明；打开时底层
  *   名字与入口设 visibility:hidden + inert；容器无 outline，:focus-visible 只在
  *   内部可交互元素上用本站焦点色。
- * - 临时钥匙：admin 在设置 → 安全与隐私 → 临时钥匙页签发（12 位，XXXX-XXXX-XXXX），访客在这里输入 → POST /api/lock-tempkey-unlock
- *   → 访客会话（没有账号、设置里的锁屏凭证等 admin 权限）。
+ * - 临时钥匙：在设置 → 安全与隐私 → 临时钥匙页复验后签发（12 位，XXXX-XXXX-XXXX），拿到的人在这里输入 → POST /api/lock-tempkey-unlock
+ *   → 锁屏进门会话（by=tempkey；进门二值，和别的进门方式一样，只是锁侧复验时不算数；账号照样要账号密码登录）。
  */
 import { on } from '../lib/events.js';
 import { reducedMotion } from '../lib/util.js';
@@ -118,7 +118,7 @@ export function showLockScreen() {
     proceed(ans, doUnlockAnimation);
   }
 
-  /* 解锁成功（密码 / 通行密钥 / 访客）后：先向服务端确认会话真的生效，再按服务端给的 next 走；
+  /* 解锁成功（密码 / 通行密钥 / 临时钥匙）后：先向服务端确认会话真的生效，再按服务端给的 next 走；
      没确认到 → 停在锁屏显示错误，绝不跳转。 */
   function unlock() {
     if (done) return;
@@ -274,10 +274,10 @@ export function showLockScreen() {
    * One UI 风格：底部弹层（宽屏居中卡片），各带图标和一行说明。
    *
    * 补充定稿七.1：入口按锁屏凭证配置显示（配置以服务端 /api/lock-entry 为准，
-   * 读取失败按「已配置」处理）。「访客进入」始终在第一位，最下面一行小字「无法登录？」（PR3）：
-   * - 两者都有 → 访客进入 / 通行密钥 / 密码 / 无法登录？
-   * - 仅通行密钥 / 仅密码 → 访客进入 / 该项 / 无法登录？
-   * - 都没设置（启动站）→ 访客进入 / 无法登录？（里面的进站凭证走 space-auth 引导，原「进站凭证」一行）
+   * 读取失败按「已配置」处理）。「临时钥匙」始终在第一位，最下面一行小字「无法登录？」（PR3）：
+   * - 两者都有 → 临时钥匙 / 通行密钥 / 密码 / 无法登录？
+   * - 仅通行密钥 / 仅密码 → 临时钥匙 / 该项 / 无法登录？
+   * - 都没设置（启动站）→ 临时钥匙 / 无法登录？（里面的进站凭证走 space-auth 引导，原「进站凭证」一行）
    * 「无法登录？」→ 弹层原地切到重置登录（openResetInSheet）。
    * 点外部、Esc 或下滑关闭；键盘可操作。
    */
@@ -319,10 +319,10 @@ export function showLockScreen() {
        点击即关弹层并在同一 tick 打开下一态；通行密钥行 → openPk() 已有带转圈的加载态。 */
     /** @type {import('../auth/auth-sheet.js').MethodOpt[]} */
     const opts = [
-      /* 1. 访客进入（临时钥匙，2026-10-23 取代 Turnstile） */
-      { id: 'sgx-mopt-visitor', icon: METHOD_ICONS.visitor, name: en ? 'Visitor' : '访客进入',
+      /* 1. 临时钥匙（2026-10-23 取代 Turnstile） */
+      { id: 'sgx-mopt-tempkey', icon: METHOD_ICONS.tempkey, name: en ? 'Temporary key' : '临时钥匙',
         desc: en ? 'Enter the temporary key you received' : '输入收到的临时钥匙',
-        ariaLabel: en ? 'Enter as visitor with a temporary key' : '访客进入，输入临时钥匙',
+        ariaLabel: en ? 'Enter with a temporary key' : '用临时钥匙进门',
         onPick: function () { tapFeedback(); openTemp(); } },
     ];
     /* 2. 通行密钥（已配置且设备支持） */
@@ -372,7 +372,7 @@ export function showLockScreen() {
   }
 
 
-  /* ---------- 临时钥匙态（访客进入；与密码态同一弹层） ---------- */
+  /* ---------- 临时钥匙态（与密码态同一弹层） ---------- */
   let tempLockedUntil = 0;
   function openTemp() {
     if (isLocal) {

@@ -1,7 +1,7 @@
 /**
  * @fileoverview 账号 Worker 的命名入口 AccountVerifier（WorkerEntrypoint，RPC；只有网关绑定，服务绑定 ACCOUNT_VERIFIER）：
  * - accountSession(cookieHeader, clientContext)：只回账号会话的校验结论（网关的账号页首帧提示用；
- *   临时钥匙管理、短链只认管理员锁屏会话，不再问它）。
+ *   临时钥匙管理、短链只认锁屏进门会话 + 锁侧复验，不再问它）。
  * - authorize(cookieHeader, clientContext, opts)：授权结论 { ok, reason, deviceId, scopes, reauth }（方案 2.3.3；逻辑在 core/authz.js）。
  *   P2-1 只新增：网关 core/account-rpc.js askAuthorize 会问它，但网关里还没有调用方（P2-2 起子站接口经 AuthVerifier.conclusion() 间接用）。
  * 两个方法都不签发任何东西。

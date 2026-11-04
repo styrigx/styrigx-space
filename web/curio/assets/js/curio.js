@@ -127,7 +127,7 @@ var T = isEn ? {
   delLink: '确定删除这条收藏吗？', delCat: '确定删除这个分类吗？', notEmpty: '先把分类清空。', del: '删除',
   importing: '正在导入…', notBookmarks: '这不是书签文件。', emptyFile: '文件里没有网址。', tooLarge: '文件太大了。',
   limit: '超出上限了。', backup: '备份原文件失败，所以没有导入。', count: function(n){ return n + ' 条'; },
-  makePrivate: '仅自己可见', makePublic: '访客可见', up: '上移', down: '下移',
+  makePrivate: '仅自己可见', makePublic: '公开', up: '上移', down: '下移',
   needAccount: '登录账号后可编辑。', needReauth: '导入前要再验证一次账号：打开 账号 › 安全与隐私 验证后，3 分钟内回来导入。'
 };
 
@@ -489,7 +489,7 @@ function boot(){
     showPrivate = !!j.showPrivate;
     cats = j.cats || [];
     loaded = true;
-    doc.documentElement.classList.toggle('cu-admin', canWrite);
+    doc.documentElement.classList.toggle('cu-can-write', canWrite);
     $('#cu-fab').classList.toggle('hidden', !canWrite);
     $('#cu-menu-btn').classList.toggle('hidden', !canWrite);
     var hint = $('#cu-signin');

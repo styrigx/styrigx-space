@@ -12,7 +12,7 @@
  * 强制的 CSP（Content-Security-Policy）只放「不可能弄坏脚本」的指令：
  *   frame-ancestors 'none'（防点击劫持）、object-src 'none'、base-uri 'self'、form-action 'self'。
  *   全站唯一的 <form> 是聊天输入框（JS 接管提交，没有 action，退化提交也是同源），锁屏 / 解锁 / 通行密钥都不走表单提交。
- *   强制策略里绝不出现 script-src / style-src / default-src 等：一旦写错，锁屏、解锁、通行密钥脚本被拦，管理员会被锁在自己的站外。
+ *   强制策略里绝不出现 script-src / style-src / default-src 等：一旦写错，锁屏、解锁、通行密钥脚本被拦，所有人都会被锁在站外。
  * script-src / style-src / connect-src / img-src 等先放 Content-Security-Policy-Report-Only：只在浏览器控制台报，不拦。
  *   内联脚本的 sha256 由 scripts/gen-csp.mjs 从生产构建（hugo --minify -s web/atlas）算出，写进 csp-hashes.js；CI 里 --check。
  *   style-src 暂时 'unsafe-inline'：模板里有几十个 style="" 属性、首屏主题色 <style> 是脚本动态插的，不在这次改。

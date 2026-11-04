@@ -3,14 +3,14 @@
  * 先弹确认层（#sec-locknow-confirm），确认后清掉本标签页里的管理内容缓存（ADMIN_SESSION_KEYS），
  * POST /api/lock-now 清除服务端会话 cookie，成功后 location.replace('/?lock=1') → 锁屏出现（中间不渲染主页）。
  * 请求失败（网络错误或非 2xx）：会话 cookie 可能还在，不跳锁屏、不假装已锁，toast 提示锁定失败。
- * 访客和管理员都能用，不设限。
+ * 所有进门的人都能用，不设限。
  * 弹层关闭后 400ms 内的点击忽略（防误触，见 dialog-behavior.js）。
  */
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
 import { toast } from '../lib/toast.js';
 
-/* 本标签页 sessionStorage 里的管理内容：锁定时清掉，免得同一标签页换访客解锁后还能读到 */
+/* 本标签页 sessionStorage 里的管理内容：锁定时清掉，免得同一标签页换人解锁后还能读到 */
 const ADMIN_SESSION_KEYS = ['sgx-chat-convo'];
 
 function clearAdminSessionData() {

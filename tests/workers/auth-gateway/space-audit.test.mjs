@@ -2,7 +2,7 @@
  * 进站凭证审计（src/core/space-audit.js + GET /api/space-audit）：
  * - 存储：D1_LOCK_AUTH 的 audit 表，realm = 'lock'；只追加（INSERT，不 UPDATE / REPLACE），保留 7 天（expires_at），过期行读时不认
  * - GET 返回最新的 50 条（gateway 审计 #8）：一条 ORDER BY ts DESC LIMIT 50；新的在前
- * - 只给时间、IP 前缀、结果三项；只要 admin 锁屏会话
+ * - 只给时间、IP 前缀、结果三项；要进门 + 账号会话（方案 3.4 R7、定案第 9 条），不要锁侧复验
  *
  * 运行：node --test tests/workers/auth-gateway/space-audit.test.mjs
  */
@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { onRequestGet, AUDIT_SHOW } from '../../../workers/auth-gateway/src/api/space-audit.js';
 import { writeSpaceAudit, listSpaceAudit, ipPrefix } from '../../../workers/auth-gateway/src/core/space-audit.js';
-import { testLockSessionCookie, testTicketCookie } from './_tickets.mjs';
+import { testLockSessionCookie, testTicketCookie, fakeAuthorizeVerifier, TEST_ACCOUNT_COOKIE } from './_tickets.mjs';
 import { LOCK_REAUTH_TICKET } from '../../../workers/auth-gateway/src/core/realms.js';
 import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 
@@ -19,7 +19,7 @@ const { priv: PRIV, pub: PUB } = await genKeyPair();
 const DAY = 86400e3;
 
 /* 三个 D1 绑定同一个库（同正式部署）；纪元在 D1，空库 → 0 */
-const envOf = (db) => ({ SGX_LOCK_PUBLIC: PUB, D1_LOCK_AUTH: db });
+const envOf = (db) => ({ SGX_LOCK_PUBLIC: PUB, D1_LOCK_AUTH: db, ACCOUNT_VERIFIER: fakeAuthorizeVerifier() });
 
 /** 直接摆一行审计（不走网关代码） */
 function putAudit(db, row) {
@@ -31,7 +31,7 @@ function putAudit(db, row) {
 const audits = (db) => db.raw.prepare('SELECT * FROM audit ORDER BY ts, rowid').all().map((r) => Object.assign({}, r));
 
 async function req() {
-  const cookie = (await testLockSessionCookie(PRIV, 0, 'admin')) + '; ' + (await testTicketCookie(PRIV, LOCK_REAUTH_TICKET, 'space', 0));
+  const cookie = (await testLockSessionCookie(PRIV, 0, 'password')) + '; ' + (await testTicketCookie(PRIV, LOCK_REAUTH_TICKET, 'space', 0)) + '; ' + TEST_ACCOUNT_COOKIE;
   return new Request('https://styrigx.com/api/space-audit', { headers: { Cookie: cookie } });
 }
 
@@ -141,7 +141,7 @@ test('writeSpaceAudit：D1 出错或没绑 → false（调用方据此 fail clos
   assert.equal(await writeSpaceAudit({}, '192.0.2.1', true, { path: 'space-auth' }), false);
 });
 
-/* ===== 账号 → 服务状态页的折叠区：只要 admin 锁屏会话，不要 LockReauthTicket ===== */
+/* ===== 账号 → 服务状态页的折叠区：只要 锁屏进门会话，不要 LockReauthTicket ===== */
 
 /** @param {string} cookie */
 function reqWith(cookie) {
@@ -156,28 +156,37 @@ function seeded() {
   return db;
 }
 
-test('space-audit：只有 admin 锁屏会话（没有 sgx-lock-reauth）→ 200 列表', async () => {
-  const db = seeded();
-  const res = await onRequestGet({ request: reqWith(await testLockSessionCookie(PRIV, 0, 'admin')), env: envOf(db) });
-  assert.equal(res.status, 200);
-  const j = await res.json();
-  assert.deepEqual(j.items.map((x) => x.ts), [T2, T1]);
+test('space-audit：进门（任何进门方式）+ 账号会话（没有 sgx-lock-reauth）→ 200 列表', async () => {
+  for (const by of ['password', 'tempkey']) {
+    const db = seeded();
+    const res = await onRequestGet({ request: reqWith((await testLockSessionCookie(PRIV, 0, by)) + '; ' + TEST_ACCOUNT_COOKIE), env: envOf(db) });
+    assert.equal(res.status, 200, by);
+    const j = await res.json();
+    assert.deepEqual(j.items.map((x) => x.ts), [T2, T1]);
+  }
 });
 
-test('space-audit：访客会话 / 没有会话 / 坏会话 → 401 session，不读审计', async () => {
-  for (const cookie of [await testLockSessionCookie(PRIV, 0, 'visitor', 'tempkey'), '', 'sgx-lock-session=1.2.3']) {
+test('space-audit：没进门 / 坏会话 → 401 session；进门但账号未登录 → 401 account；都不读审计', async () => {
+  const cases = [
+    ['', 'session'],
+    ['sgx-lock-session=1.2.3; ' + TEST_ACCOUNT_COOKIE, 'session'],
+    [TEST_ACCOUNT_COOKIE, 'session'],
+    [await testLockSessionCookie(PRIV, 0, 'password'), 'account'],
+    [(await testLockSessionCookie(PRIV, 0, 'tempkey')) + '; ' + (await testTicketCookie(PRIV, LOCK_REAUTH_TICKET, 'password', 0)), 'account'],
+  ];
+  for (const [cookie, error] of cases) {
     const db = seeded();
     db.failOn = (sql) => { if (/FROM audit/.test(sql)) throw new Error('不该读审计'); return false; };
     const res = await onRequestGet({ request: reqWith(cookie), env: envOf(db) });
     assert.equal(res.status, 401, cookie || '(无 cookie)');
-    assert.deepEqual(await res.json(), { ok: false, error: 'session' });
+    assert.deepEqual(await res.json(), { ok: false, error }, cookie);
     assert.equal(db.calls.filter((s) => /FROM audit/.test(s)).length, 0);
   }
 });
 
 test('space-audit：只给时间、IP 前缀、结果三项，decoy / via / path 不出接口', async () => {
   const db = seeded();
-  const res = await onRequestGet({ request: reqWith(await testLockSessionCookie(PRIV, 0, 'admin')), env: envOf(db) });
+  const res = await onRequestGet({ request: reqWith((await testLockSessionCookie(PRIV, 0, 'password')) + '; ' + TEST_ACCOUNT_COOKIE), env: envOf(db) });
   const { items } = await res.json();
   for (const it of items) assert.deepEqual(Object.keys(it).sort(), ['ipPrefix', 'ok', 'ts']);
   assert.deepEqual(items[1], { ts: T1, ipPrefix: '203.0.113.x', ok: false });
@@ -185,7 +194,7 @@ test('space-audit：只给时间、IP 前缀、结果三项，decoy / via / path
 
 test('space-audit：响应不缓存（Cache-Control no-store）', async () => {
   const db = seeded();
-  const res = await onRequestGet({ request: reqWith(await testLockSessionCookie(PRIV, 0, 'admin')), env: envOf(db) });
+  const res = await onRequestGet({ request: reqWith(await testLockSessionCookie(PRIV, 0, 'password')), env: envOf(db) });
   assert.match(res.headers.get('Cache-Control') || '', /no-store/);
 });
 

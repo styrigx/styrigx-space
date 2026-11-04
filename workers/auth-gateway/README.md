@@ -14,7 +14,7 @@
 |---|---|---|
 | `default` | `src/app.js` | 公网请求的总流程：剥头 → 静态资源直通 → 取密钥 → 关口 → 路由 |
 | `AuthVerifier` | `src/rpc/auth-verifier.js` | RPC `lockSession(cookieHeader)` → `{ ok, role }` 或 `{ ok:false, reason }`（逻辑在 `core/lock-session.js` `checkLockSession`）；`conclusion(cookieHeader, clientContext, opts)` → 网关结论（见下文「结论」，逻辑在 `core/conclusion.js`）。调用方：`styrigx-daymark-core`、`styrigx-curio-core`（styrigx-atlas 仓库）、`styrigx-share`；调用方写 `[[services]] binding = "AUTH"`、`service = "styrigx-auth-gateway"`、`entrypoint = "AuthVerifier"` |
-| `ShareIssuer` | `src/rpc/share-issuer.js` | 只给 `styrigx-share`：签 / 作废短链钥匙、点开时换访客会话（逻辑在 `core/link-keys.js`） |
+| `ShareIssuer` | `src/rpc/share-issuer.js` | 只给 `styrigx-share`：签 / 作废短链钥匙、点开时换临时会话（逻辑在 `core/link-keys.js`） |
 
 请求在 `src/` 里的走向：
 
@@ -54,7 +54,7 @@
 | `styrigx.com/*` | 主站整站，含子站 `/blog/`、`/curio/`、`/daymark/`（同一个 Pages、一棵树；按路径前缀走子站关口 `handleSubsite`，子站页面用的 `/api/lock-session-check`、`/api/search` 就是主站根上的同一个接口）。短链 Worker 的 `styrigx.com/s/*`、`styrigx.com/api/share*` 和接口 Worker 的 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*` 更具体，不进网关 |
 | `atlas.styrigx.com/*` | 旧图志域名（合并 PR3 起）：任意路径 301 到 `https://styrigx.com` 同路径 + 查询串（`src/gate.js` `atlasRedirect`，不验会话、不回源）。`atlas.styrigx.com/<站>/api/*` 的旧接口路由过渡期仍归两个接口 Worker |
 
-- 账号路径（转发表 `src/router.js` 的 `FORWARDING`）：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`。关口先验（`/api/account`、`/api/prefs*` 只许管理员；`/api/avatar*`、`/api/wellbeing*` 要有会话；`/avatar/*` 公开），放行后经 `ACCOUNT`（entrypoint `AccountService`）原样转给账号 Worker，按验过的锁屏会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`。没绑定或绑定出错 → 503 upstream，不落回网关路由表、不回源。转发回来的响应保留 `X-SGX-Runtime: account`。
+- 账号路径（转发表 `src/router.js` 的 `FORWARDING`）：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`。关口先验（`/api/account`、`/api/prefs*` 要进门；`/api/avatar*`、`/api/wellbeing*` 要有会话；`/avatar/*` 公开），放行后经 `ACCOUNT`（entrypoint `AccountService`）原样转给账号 Worker，按验过的锁屏会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`。没绑定或绑定出错 → 503 upstream，不落回网关路由表、不回源。转发回来的响应保留 `X-SGX-Runtime: account`。
 - 网关自己的接口：`src/router.js` 的 `API_ROUTES`（锁屏、锁屏凭证、进站凭证、临时钥匙、`geo`，以及只做门再转出去的 `chat`、`search`、`status`）。接口分工见 `docs/status-apis.md`。
 - 路由按域名整站通配，新增页面目录不用加路由。
 
@@ -63,7 +63,7 @@
 | 类别 | 名字 | 说明 |
 |---|---|---|
 | 服务绑定 | `ACCOUNT`（AccountService）、`ACCOUNT_VERIFIER`（AccountVerifier） | 账号 Worker `styrigx-account`：转发 / 只读账号会话 RPC（只给账号页首帧提示 `data-sgx-account-session` 用，`core/account-rpc.js`） |
-| 服务绑定 | `SEARCH`、`STATUS`、`CHAT` | `styrigx-search-index`、`styrigx-status`、`styrigx-chat`：都没有公开地址，网关先验会话再转（`/api/chat` 验同源 + 会话 + 只许管理员，回答原样流回） |
+| 服务绑定 | `SEARCH`、`STATUS`、`CHAT` | `styrigx-search-index`、`styrigx-status`、`styrigx-chat`：都没有公开地址，网关先验会话再转（`/api/chat` 验同源 + 会话 + 要进门，回答原样流回） |
 | D1 | `D1_LOCK_AUTH` | D1 `styrigx-auth-gateway`，只读写 `realm='lock'` 的行和恢复开关表 `lock_reset_switch` |
 | 限流 | `ANON_LIMITER` | 无会话写接口按 IP 每 60 秒 20 次（`core/anon-limit.js`，绑定缺失时放行） |
 

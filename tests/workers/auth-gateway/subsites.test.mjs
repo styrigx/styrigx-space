@@ -21,7 +21,7 @@ import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
 const worker = (await import(REPO + '/workers/auth-gateway/src/app.js')).default;
-const { isStaticAsset, subsiteOf, siteOf, normPath, markSubsiteRole } = await import(REPO + '/workers/auth-gateway/src/gate.js');
+const { isStaticAsset, subsiteOf, siteOf, normPath, stripSessionAttrs } = await import(REPO + '/workers/auth-gateway/src/gate.js');
 const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
@@ -46,7 +46,7 @@ function env(epoch = '0') {
   };
 }
 
-async function cookie(role = 'visitor', epoch = 0) {
+async function cookie(role = 'tempkey', epoch = 0) {
   const v = await testLockSession(PRIV, epoch, role);
   return 'sgx-lock-session=' + v;
 }
@@ -126,25 +126,25 @@ for (const site of ['blog', 'daymark', 'curio']) {
     assert.deepEqual(e.seen, []);
   });
 
-  test(site + '：访客、管理员会话都回源，HTML 加 private, no-store，<html> 标上角色', async () => {
-    for (const role of ['visitor', 'admin']) {
+  test(site + '：任何进门方式都回源，HTML 加 private, no-store，<html> 不标等级（进门二值）', async () => {
+    for (const by of ['tempkey', 'password', 'passkey']) {
       const e = env();
-      const res = await worker.fetch(req(base + '/', await cookie(role)), e, CTX);
+      const res = await worker.fetch(req(base + '/', await cookie(by)), e, CTX);
       assert.equal(res.status, 200);
-      assert.equal(await res.text(), '<html data-sgx-role="' + role + '"><body>page</body></html>');
+      assert.equal(await res.text(), '<html><body>page</body></html>');
       assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
       assert.deepEqual(e.seen, [host + '/' + site + '/']);
     }
   });
 
   test(site + '：伪造签名、epoch 过低都算无效（why=invalid-session）', async () => {
-    const good = await cookie('admin');
+    const good = await cookie('password');
     const i = good.length - 10; /* 改签名中间一位（最后一位可能只是补位） */
     const bad = good.slice(0, i) + (good[i] === 'A' ? 'B' : 'A') + good.slice(i + 1);
     let res = await worker.fetch(req(base + '/', bad), env(), CTX);
     assert.equal(res.status, 302);
     assert.equal(new URL(res.headers.get('Location')).searchParams.get('why'), 'invalid-session');
-    res = await worker.fetch(req(base + '/', await cookie('admin', 1)), env('2'), CTX);
+    res = await worker.fetch(req(base + '/', await cookie('password', 1)), env('2'), CTX);
     assert.equal(res.status, 302);
   });
 
@@ -176,7 +176,7 @@ for (const site of ['blog', 'daymark', 'curio']) {
       assert.equal(res.status, 302, p);
       assert.deepEqual(e.seen, [], p);
       const ok = env();
-      const r2 = await worker.fetch(req(base + p, await cookie('visitor')), ok, CTX);
+      const r2 = await worker.fetch(req(base + p, await cookie('tempkey')), ok, CTX);
       assert.equal(r2.status, 200, p);
       assert.deepEqual(ok.seen, [host + '/' + site + p]);
     }
@@ -197,7 +197,7 @@ test('绕法：编码 / 大小写 / 多斜杠 / .. / 反斜杠拼出来的子站
 });
 
 test('主域名根上的 /api/lock-session-check（子站前端问的）：有效 200 {ok:true}、无效 401 {ok:false}——blog 只对 401 跳锁屏，curio / daymark 只认 401', async () => {
-  const c = await cookie('visitor');
+  const c = await cookie('tempkey');
   let res = await worker.fetch(req('https://styrigx.com/api/lock-session-check', c), env(), CTX);
   assert.equal(res.status, 200);
   assert.equal((await res.json()).ok, true);
@@ -229,7 +229,7 @@ test('旧图志 atlas.styrigx.com：任意路径 301 到 https://styrigx.com 同
     ['/?lock=1', 'https://styrigx.com/?lock=1'],
   ];
   for (const [p, loc] of cases) {
-    for (const ck of [null, await cookie('admin')]) {
+    for (const ck of [null, await cookie('password')]) {
       const e = env();
       /* 不解密钥：Secrets Store 绑定被读就抛错 */
       e.SGX_LOCK_PUBLIC = { get() { throw new Error('secret read'); } };
@@ -267,36 +267,25 @@ test('主站照旧；未登记的子域名照旧 301 回主站', async () => {
 });
 
 /* 用户 2026-10-24：三个子站访客模式点边栏头像还能跳主站账号页，主站访客点不了。网关在子站 HTML 里替访客去掉这个链接。 */
-const DRAWER = '<html lang="zh-CN" data-sgx-role="admin"><body><div class="sgx-drawer-head"><span class="sgx-drawer-brand">S</span>'
+const DRAWER = '<html lang="zh-CN" data-sgx-' + 'role="x" data-sgx-upgrade="1"><body><div class="sgx-drawer-head"><span class="sgx-drawer-brand">S</span>'
   + '<a class="sgx-drawer-me" href="https://styrigx.com/account/" aria-label="账号">'
   + '<img src="https://styrigx.com/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar"></a></div>'
   + '<a class="sgx-drawer-item" href="https://styrigx.com/">主站</a></body></html>';
 
-test('子站访客：抽屉头像换成不可点的 span（不带 href / aria-label，读屏跳过），其他链接不动', () => {
-  const out = markSubsiteRole(DRAWER, 'visitor');
-  assert.doesNotMatch(out, /<a class="sgx-drawer-me"/);
-  assert.doesNotMatch(out, /account\//);
-  assert.match(out, /<span class="sgx-drawer-me" aria-hidden="true" style="pointer-events:none;cursor:default"><img src="https:\/\/styrigx.com\/avatar\/192.webp"[^>]*><\/span>/);
-  assert.match(out, /<a class="sgx-drawer-item" href="https:\/\/styrigx.com\/">主站<\/a>/);
-  assert.match(out, /^<html data-sgx-role="visitor" lang="zh-CN">/, '页面里伪造的角色标记先去掉，再按会话标');
-});
-
-test('子站管理员：抽屉头像照旧链到主站账号页', () => {
-  const out = markSubsiteRole(DRAWER, 'admin');
+test('子站页面：页面源码里混进的旧会话标记（等级 / 升级验证）先清掉；抽屉头像原样（进门的人都能点进账号页）', () => {
+  const out = stripSessionAttrs(DRAWER);
+  assert.match(out, /^<html lang="zh-CN"><body>/);
   assert.match(out, /<a class="sgx-drawer-me" href="https:\/\/styrigx.com\/account\/" aria-label="账号">/);
-  assert.match(out, /^<html data-sgx-role="admin" lang="zh-CN">/);
 });
 
 for (const site of ['blog', 'daymark', 'curio']) {
   const host = 'styrigx.com/' + site;
-  test(site + '：访客经网关拿到的页面里头像不可点，管理员可点', async () => {
+  test(site + '：临时钥匙进门、锁屏密码进门拿到的页面一样，头像都可点、没有旧会话标记', async () => {
     const page = (e) => { e.ASSETS.fetch = async () => new Response(DRAWER, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }); return e; };
-    let res = await worker.fetch(req('https://' + host + '/', await cookie('visitor')), page(env()), CTX);
-    let html = await res.text();
-    assert.match(html, /<span class="sgx-drawer-me"/);
-    assert.doesNotMatch(html, /href="https:\/\/styrigx.com\/account\/"/);
-    res = await worker.fetch(req('https://' + host + '/', await cookie('admin')), page(env()), CTX);
-    html = await res.text();
-    assert.match(html, /<a class="sgx-drawer-me" href="https:\/\/styrigx.com\/account\/"/);
+    const a = await (await worker.fetch(req('https://' + host + '/', await cookie('tempkey')), page(env()), CTX)).text();
+    const b = await (await worker.fetch(req('https://' + host + '/', await cookie('password')), page(env()), CTX)).text();
+    assert.equal(a, b);
+    assert.match(a, /<a class="sgx-drawer-me" href="https:\/\/styrigx.com\/account\/"/);
+    assert.doesNotMatch(a, /data-sgx-(?:role|upgrade)/);
   });
 }

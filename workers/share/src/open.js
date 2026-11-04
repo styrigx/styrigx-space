@@ -3,8 +3,8 @@
  *
  * - 目标可以是主站路径或三个子站的地址（lib/links.js cleanTarget；点开时再验一次，存坏了也只走失败响应）。
  * - 普通短链：302 到目标，不签钥匙、不发会话；没解锁的人到了目标页由网关照常送去锁屏。
- * - 带临时会话：已是管理员 → 只 302（不降级）；否则请网关（服务绑定 ISSUER → ShareIssuer.openLinkSession）用这条短链的钥匙
- *   签 visitor 会话 + 钥匙票，Set-Cookie 原样放进这次 302。访客不用在锁屏输入任何东西。
+ * - 带临时会话：已有有效进门会话（任何进门方式）→ 只 302，不重签；否则请网关（服务绑定 ISSUER → ShareIssuer.openLinkSession）
+ *   用这条短链的钥匙签锁屏进门会话（by=tempkey），Set-Cookie 原样放进这次 302。点开的人不用在锁屏输入任何东西。
  *   会话只发给发起这次 GET 的浏览器：响应 private, no-store（任何缓存都不能存、不能转给别人）；HEAD 和浏览器预取
  *   （Sec-Purpose / Purpose: prefetch）不发会话——预取直接 503（浏览器丢掉预取、真点开时再走一遍），HEAD 只 302。
  * - 码只出现在 /s/<码> 这一跳：Location 是干净的目标地址（不带码），Referrer-Policy: no-referrer，
@@ -15,7 +15,6 @@
  *   share_fail 每个打不开过的 IP 一行：每次写失败计数时约 FAIL_PURGE_RATE 的概率顺手删掉窗口和锁定都已过期的行
  *   （SQL.failPurge），不然换 IP 刷就能让表一直长。
  */
-import { ROLE_ADMIN } from './auth.js';
 import { ORIGIN, SQL, isCode, cleanTarget, targetUrl, statusOf, first, run } from './lib/links.js';
 import { clientIp } from './lib/http.js';
 
@@ -97,7 +96,7 @@ async function dbFail(db, ip, now) {
  * @param {Request} request
  * @param {Record<string, any>} env
  * @param {{ waitUntil(p: Promise<any>): void }} ctx
- * @param {{ lockSession: () => Promise<{ok:boolean, role:string|null}> }} auth
+ * @param {{ lockSession: () => Promise<{ok:boolean}> }} auth
  * @param {string} code
  */
 export async function openShare(request, env, ctx, auth, code) {
@@ -140,7 +139,7 @@ export async function openShare(request, env, ctx, auth, code) {
   }
   if (request.method === 'HEAD') return redirect(dest);
   const sess = await auth.lockSession();
-  if (sess.ok && sess.role === ROLE_ADMIN) return redirect(dest);
+  if (sess.ok) return redirect(dest);
 
   const issuer = env && env.ISSUER;
   if (!issuer || typeof issuer.openLinkSession !== 'function') return failResponse();

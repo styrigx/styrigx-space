@@ -16,7 +16,7 @@
  * 网关库里没有 realm='account' / realm='root' 的行（账号数据在账号 Worker 的 D1 styrigx-account；网关库的旧行 PR4 已由 --cleanup 删除）。
  *
  * 三张票（见 TICKETS），SGX_LOCK_* 签名，共用 Lock 纪元：
- * - LockSessionTicket（锁屏解锁后的 admin / visitor 会话）
+ * - LockSessionTicket（锁屏进门会话；by 只作审计，不分等级）
  * - LockResetTicket（重置锁屏，by ∈ space / password / passkey）
  * - LockReauthTicket（进「安全与隐私 → 锁屏凭证」前再验一次，by ∈ password / passkey / space）
  *
@@ -50,10 +50,6 @@ export const BY_PASSKEY = 'passkey';
 export const BY_TEMPKEY = 'tempkey';
 export const BY_SPACE = 'space';
 
-/* ---------- 锁屏会话的 role ---------- */
-export const ROLE_ADMIN = 'admin';
-export const ROLE_VISITOR = 'visitor';
-
 /* ---------- 票名（代码类型名） ---------- */
 export const LOCK_SESSION_TICKET = 'LockSessionTicket';
 export const LOCK_RESET_TICKET = 'LockResetTicket';
@@ -66,7 +62,7 @@ export const SHORT_TICKET_MAX_AGE = 180;
  * 三张锁屏票总表：票名 → cookie → 私钥 → 公钥 → 时长 → cookie 属性 → 允许的 by → 纪元归哪个域（realm：lock）。
  *
  * 票内容都是点分，最后一段是签名；签名串 = "<cookie 名>|<票内容>"，同一把私钥签的票互相冒充不了。
- * - LockSessionTicket     by.role.epoch.exp.tempkeyId（lock-session.js；admin 的 tempkeyId 段为空串）
+ * - LockSessionTicket     by.epoch.exp.tempkeyId（v2，lock-session.js；by=password / passkey 时 tempkeyId 段为空串）
  * - 两张 reset / reauth   by.epoch.iat.exp（tickets.js 按本表通用签发 / 验证）
  * 私钥、公钥是 Secrets Store 密钥名（不改名）。纪元按域存在 D1（d1-state.js readEpoch / bumpEpoch，每次验票都读主库，不缓存）。
  */
@@ -75,7 +71,7 @@ export const TICKETS = Object.freeze({
     cookie: LOCK_SESSION_COOKIE,
     privateKey: 'SGX_LOCK_PRIVATE',
     publicKey: 'SGX_LOCK_PUBLIC',
-    maxAge: 43200, /* admin 12 小时；visitor 按临时钥匙剩余时间，上限同为 12 小时（lock-tempkey.js TEMPKEY_SESSION_MAX） */
+    maxAge: 43200, /* 锁屏密码 / 通行密钥进门 12 小时；临时钥匙进门按钥匙剩余时间，上限同为 12 小时（lock-tempkey.js TEMPKEY_SESSION_MAX） */
     cookieAttrs: SHARED_SESSION_ATTRS,
     bys: Object.freeze([BY_PASSWORD, BY_PASSKEY, BY_TEMPKEY]),
     realm: 'lock',
@@ -108,7 +104,7 @@ export const REALM_LOCK = Object.freeze({
   publicKey: 'SGX_LOCK_PUBLIC',
   cookie: LOCK_SESSION_COOKIE,
   cookieAttrs: SHARED_SESSION_ATTRS,
-  maxAge: TICKETS[LOCK_SESSION_TICKET].maxAge, /* admin 12 小时；visitor 会话时长见 lock-session.js */
+  maxAge: TICKETS[LOCK_SESSION_TICKET].maxAge, /* 锁屏密码 / 通行密钥进门 12 小时；临时钥匙进门的时长见 lock-session.js */
   pepper: 'SGX_PW_PEPPER', /* 锁屏密码 + 临时钥匙码哈希；与账号 Worker 绑同一个密值（方案 6.2，Secrets Store 密钥名不改） */
   d1Binding: 'D1_LOCK_AUTH', /* lock 的行 + 恢复开关 lock_reset_switch */
   epoch: LOCK_EPOCH, /* 纪元名（票里的纪元归属；D1 epoch 表按 realm 存一行） */

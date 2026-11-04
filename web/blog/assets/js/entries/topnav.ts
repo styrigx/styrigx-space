@@ -84,7 +84,7 @@ function initTopbar() {
     if (drawer.querySelector('[data-toc-root]')) mountTocSpy();
   }
 
-  /* 右圆分享按钮（共享外壳 share.js：管理员 = 带临时会话的短链，访客 = 当前页地址） */
+  /* 右圆分享按钮（共享外壳 share.js：带临时会话的短链；生成前要锁侧复验，share.js 自带最小复验步骤） */
   mountShare({ button: r.querySelector('[data-sgx-share]') });
 
   updateProgress();

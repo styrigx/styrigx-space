@@ -16,7 +16,7 @@ import { conclusionFor } from '../core/conclusion.js';
 
 export class AuthVerifier extends WorkerEntrypoint {
   /**
-   * 锁屏会话：{ ok, role } / { ok:false, reason }。子站接口 Worker、短链 Worker 用。
+   * 锁屏会话（进门二值，方案 3.4 R11）：{ ok:true, reason:'ok' } / { ok:false, reason }，不回任何等级。短链 Worker 用。
    * @param {string} cookieHeader
    */
   async lockSession(cookieHeader) {

@@ -149,30 +149,30 @@ async function wbCookie(role, acc) {
 }
 const body = () => JSON.stringify({ d: new Date().toISOString().slice(0, 10), s: [{ k: 'home', sec: 30 }] });
 
-test('POST：进门没账号会话 → 204 丢弃不写（admin / 访客锁屏一样）；进门 + 账号会话 → 写入', async () => {
-  for (const role of ['admin', 'visitor']) {
+test('POST：进门没账号会话 → 204 丢弃不写（admin / 临时钥匙进门一样）；进门 + 账号会话 → 写入', async () => {
+  for (const role of ['password', 'tempkey']) {
     const db = wbDb();
     const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: { Cookie: await wbCookie(role, false) } }), env: wbEnv(db) });
     assert.equal(r.status, 204);
     assert.equal(db.writes, 0, role);
   }
   const db = wbDb();
-  const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: { Cookie: await wbCookie('admin', true) } }), env: wbEnv(db) });
+  const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: { Cookie: await wbCookie('password', true) } }), env: wbEnv(db) });
   assert.equal(r.status, 204);
   assert.ok(db.writes >= 1);
 });
 
 test('GET：没账号会话 detail:false 只有合计；有账号会话 detail:true 带书名', async () => {
-  const a = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('admin', false) } }), env: wbEnv(wbDb()) });
+  const a = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('password', false) } }), env: wbEnv(wbDb()) });
   assert.equal(a.status, 200);
   const ja = await a.json();
   assert.equal(ja.detail, false);
   assert.equal(ja.total, 90);
   assert.deepEqual(ja.items, []);
-  const b = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('visitor', true) } }), env: wbEnv(wbDb()) });
+  const b = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('tempkey', true) } }), env: wbEnv(wbDb()) });
   const jb = await b.json();
   assert.equal(jb.detail, true);
   assert.equal(jb.items[0].t, '三体');
-  const c = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('admin', false) } }), env: { ...wbEnv(null), D1_WELLBEING: undefined } });
+  const c = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('password', false) } }), env: { ...wbEnv(null), D1_WELLBEING: undefined } });
   assert.equal((await c.json()).detail, false);
 });

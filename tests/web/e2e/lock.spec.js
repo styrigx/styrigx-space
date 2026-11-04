@@ -2,7 +2,7 @@
  * Hark：锁屏专用测试（与视觉回归/Lighthouse 分离）。
  * - 未解锁时锁屏覆盖内容（无法交互）
  * - ?lock=1 强制触发锁屏
- * - 访客进入（临时钥匙）弹层行为
+ * - 临时钥匙（临时钥匙）弹层行为
  * - 锁屏基准截图（Hark：冻结时间 + 遮罩时钟/日期/天气，否则每次必然不同）
  *
  * 注意：这些测试需要锁屏启用的构建（生产构建）；CI 的 visual/Lighthouse
@@ -78,10 +78,10 @@ test.describe('lock screen', () => {
 
   test('avatar → method sheet → visitor unlocks (local fallback)', async ({ page }) => {
     await freezeTime(page);
-    /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"访客进入"直接解锁（本地不输临时钥匙），验证兜底路径 */
+    /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"临时钥匙"直接解锁（本地不输临时钥匙），验证兜底路径 */
     await gotoLock(page);
     await openMethodSheet(page);
-    await page.click('#sgx-mopt-visitor');
+    await page.click('#sgx-mopt-tempkey');
     /* 本地应直接解锁，锁屏消失 */
     const lock = page.locator('#sgx-lock');
     await expect(lock).toBeHidden({ timeout: 5000 });
@@ -155,7 +155,7 @@ test.describe('lock screen', () => {
     await expect(err).toHaveText(/密码错误|wrong/i, { timeout: 10000 });
   });
 
-  /* 2026-10-23：访客进入 = 输入临时钥匙（取代 Turnstile）。test-no-local-bypass 让 localhost 也走线上逻辑 */
+  /* 2026-10-23：临时钥匙 = 输入临时钥匙（取代 Turnstile）。test-no-local-bypass 让 localhost 也走线上逻辑 */
   test('visitor: temporary key dialog — wrong key shows error, right key unlocks (mocked API)', async ({ page }) => {
     await freezeTime(page);
     const seen = [];
@@ -170,9 +170,9 @@ test.describe('lock screen', () => {
     await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     await openMethodSheet(page);
-    /* 方法弹层：访客进入在第一行，说明是临时钥匙，不再提 Cloudflare / 机器人 */
-    const opt = page.locator('#sgx-mopt-visitor');
-    await expect(opt).toContainText('访客进入');
+    /* 方法弹层：临时钥匙在第一行，说明是临时钥匙，不再提 Cloudflare / 机器人 */
+    const opt = page.locator('#sgx-mopt-tempkey');
+    await expect(opt).toContainText('临时钥匙');
     await expect(opt).toContainText('临时钥匙');
     await expect(page.locator('#sgx-method-sheet')).not.toContainText(/Cloudflare|机器人/);
     await opt.click();
@@ -200,7 +200,7 @@ test.describe('lock screen', () => {
     await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     await openMethodSheet(page);
-    await page.click('#sgx-mopt-visitor');
+    await page.click('#sgx-mopt-tempkey');
     await page.fill('#sgx-temp-input', 'AAAA-BBBB-CCCC');
     await page.click('#sgx-temp-go');
     await expect(page.locator('#sgx-verify-err')).toHaveText('尝试次数过多', { timeout: 10000 });
@@ -357,15 +357,15 @@ test.describe('lock screen redesign (2.8.0)', () => {
     await expect(page.locator('#sgx-lock-pkbtn')).toHaveCount(0);
     /* 点头像 → 弹层出现 */
     await openMethodSheet(page);
-    /* 三个选项：访客进入在前，通行密钥，密码 */
-    const visitorOpt = page.locator('#sgx-mopt-visitor');
+    /* 三个选项：临时钥匙在前，通行密钥，密码 */
+    const visitorOpt = page.locator('#sgx-mopt-tempkey');
     const pkOpt = page.locator('#sgx-mopt-pk');
     const pwOpt = page.locator('#sgx-mopt-pw');
     await expect(visitorOpt).toBeVisible();
     await expect(pwOpt).toBeVisible();
     /* 访客是第一个 */
     const firstId = await page.locator('.sgx-method-opt').first().getAttribute('id');
-    expect(firstId).toBe('sgx-mopt-visitor');
+    expect(firstId).toBe('sgx-mopt-tempkey');
     /* 选密码 → 密码框出现 */
     await pwOpt.click();
     await expect(page.locator('#sgx-pw-input')).toBeVisible();
@@ -569,7 +569,7 @@ test.describe('A-2 锁屏凭证清空态 / 启动站（PR3：只剩「无法登�
     await gotoLock(page);
     await openMethodSheet(page);
     const ids = await page.locator('.sgx-method-opt').evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(['sgx-mopt-visitor']);
+    expect(ids).toEqual(['sgx-mopt-tempkey']);
     await expect(page.locator('#sgx-mopt-cant')).toHaveText('无法登录？');
     await expect(page.locator('#sgx-mopt-reset, #sgx-mopt-mk')).toHaveCount(0);
   });
@@ -631,7 +631,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     /* 同一个弹层（没有关掉再开别的） */
     await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible();
     await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
-    await expect(page.locator('#sgx-mopt-visitor')).toHaveCount(0);
+    await expect(page.locator('#sgx-mopt-tempkey')).toHaveCount(0);
     await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('SpaceKey');
     await page.fill('#sgx-reset-space', 'root-key');
     await page.click('#sgx-reset-go');

@@ -320,7 +320,7 @@ for (const lang of DOOR_LANGS) {
 }
 
 /* ===== 子页（只拍手机）：账号子页（2026-10-24 PR4）云同步（总开关 + 同步项）/ 设备（此设备卡：登录方式 + 退出账号）；
- * 设置里的管理员专属页：服务状态（/settings/status/，原顶栏「状态」页 → 账号页 → 设置）/ 临时钥匙（/settings/security/tempkeys/，原账号 → 临时钥匙）=====
+ * 设置里的门内页：服务状态（/settings/status/，原顶栏「状态」页 → 账号页 → 设置）/ 临时钥匙（/settings/security/tempkeys/，原账号 → 临时钥匙）=====
  * 截图名 mobile-<stem>-<lang>-<theme>：账号子页 stem = account-sub-<id>，设置页 stem = settings-status / settings-tempkeys（2026-11 从 account-sub-status / account-sub-tempkeys 改名，页面内容不变）。
  * 手机 412×915 × 中英 × 深浅色。/api/status 用 tests/fixtures/status-summary.cjs（含用量），/api/account 固定已登录（设置页不读它）、设备列表固定两台。 */
 const fxStatus = require('../../fixtures/status-summary.cjs');

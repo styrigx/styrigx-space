@@ -73,8 +73,7 @@ test('realms：三张锁屏票总表（cookie / 钥匙 / 时长 / 属性 / by / 
   }
   assert.ok(T.LockSessionTicket.cookieAttrs.includes('Domain=.styrigx.com') && T.LockSessionTicket.cookieAttrs.includes('SameSite=Lax'));
   for (const n of ['LockResetTicket', 'LockReauthTicket']) assert.equal(T[n].cookieAttrs, 'Path=/; HttpOnly; Secure; SameSite=Strict', n);
-  assert.equal(R.ROLE_ADMIN, 'admin');
-  assert.equal(R.ROLE_VISITOR, 'visitor');
+  assert.deepEqual(Object.keys(R).filter((k) => k.startsWith('ROLE_')), [], '进门二值：没有等级常量');
 });
 
 test('realms：网关 Secrets Store 只剩 4 个（SGX_LOCK_PRIVATE / SGX_LOCK_PUBLIC / SGX_LOCK_SPACE_KEY / SGX_PW_PEPPER）；账号钥匙、旧 SGX_ROOT_KEY 都不绑', () => {

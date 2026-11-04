@@ -3,7 +3,7 @@
  * - GET /avatar/<尺寸>.webp：没上传过 → 默认图（ETag "d-<尺寸>"）；上传过 → KV 里的图（ETag "<版本>-<尺寸>"）；
  *   If-None-Match 命中 → 304；不认识的尺寸 → 404；公开缓存头。
  * - PUT /api/avatar（P2-2 起：进门 + 账号会话 + avatar.write，不看 role）：不同源 403；没进门 401 session；
- *   进门没账号会话 401 account（访客锁屏同样）；缺尺寸 400；不是 WebP/PNG 415；太大 413；进门 + 账号会话 + 四张合法图 → 写四张 + 版本号。
+ *   进门没账号会话 401 account（临时钥匙进门同样）；缺尺寸 400；不是 WebP/PNG 415；太大 413；进门 + 账号会话 + 四张合法图 → 写四张 + 版本号。
  * - DELETE /api/avatar：同一道门；没账号会话 401 account；有 → 删版本号和四张。
  *
  * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关搬来）；锁屏身份经网关这一跳写成身份头（_auth.mjs）。
@@ -111,12 +111,12 @@ test('GET 不认识的尺寸 → 404', async () => {
 });
 
 test('PUT 不同源 → 403', async () => {
-  const res = await onRequestPut({ request: await putReq({ role: 'admin', origin: 'https://evil.example', parts: ALL }), env: env(makeKv()) });
+  const res = await onRequestPut({ request: await putReq({ role: 'password', origin: 'https://evil.example', parts: ALL }), env: env(makeKv()) });
   assert.equal(res.status, 403);
 });
 
-test('PUT 没进门 401 session；进门没账号会话 401 account（admin / 访客锁屏一样），不写 KV', async () => {
-  for (const [role, acc, code] of [[null, false, 'session'], [null, true, 'session'], ['admin', false, 'account'], ['visitor', false, 'account']]) {
+test('PUT 没进门 401 session；进门没账号会话 401 account（admin / 临时钥匙进门一样），不写 KV', async () => {
+  for (const [role, acc, code] of [[null, false, 'session'], [null, true, 'session'], ['password', false, 'account'], ['tempkey', false, 'account']]) {
     const kv = makeKv();
     const res = await onRequestPut({ request: await putReq({ role, acc, parts: ALL }), env: env(kv) });
     assert.equal(res.status, 401, String(role) + '/' + acc);
@@ -128,13 +128,13 @@ test('PUT 没进门 401 session；进门没账号会话 401 account（admin / �
 
 test('PUT 缺尺寸 400 / 格式不对 415 / 太大 413', async () => {
   const kv = makeKv();
-  let res = await onRequestPut({ request: await putReq({ role: 'admin', parts: { 32: WEBP, 96: WEBP, 192: WEBP } }), env: env(kv) });
+  let res = await onRequestPut({ request: await putReq({ role: 'password', parts: { 32: WEBP, 96: WEBP, 192: WEBP } }), env: env(kv) });
   assert.equal(res.status, 400);
-  res = await onRequestPut({ request: await putReq({ role: 'admin', parts: { ...ALL, 96: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) } }), env: env(kv) });
+  res = await onRequestPut({ request: await putReq({ role: 'password', parts: { ...ALL, 96: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) } }), env: env(kv) });
   assert.equal(res.status, 415);
   const big = new Uint8Array(70 * 1024);
   big.set(WEBP);
-  res = await onRequestPut({ request: await putReq({ role: 'admin', parts: { ...ALL, 32: big } }), env: env(kv) });
+  res = await onRequestPut({ request: await putReq({ role: 'password', parts: { ...ALL, 32: big } }), env: env(kv) });
   assert.equal(res.status, 413);
   assert.equal(kv.m.size, 0);
 });
@@ -142,7 +142,7 @@ test('PUT 缺尺寸 400 / 格式不对 415 / 太大 413', async () => {
 test('PUT 进门 + 账号会话 → 写四张 + 版本号；GET 读到新图和新 ETag；DELETE 回到默认', async () => {
   const kv = makeKv();
   const e = env(kv);
-  const res = await onRequestPut({ request: await putReq({ role: 'admin', parts: ALL }), env: e });
+  const res = await onRequestPut({ request: await putReq({ role: 'password', parts: ALL }), env: e });
   assert.equal(res.status, 200);
   const j = await res.json();
   assert.equal(j.ok, true);
@@ -156,7 +156,7 @@ test('PUT 进门 + 账号会话 → 写四张 + 版本号；GET 读到新图和�
   assert.deepEqual(new Uint8Array(await g.arrayBuffer()), PNG);
 
   const noAccDel = await onRequestDelete({
-    request: new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { Origin: 'https://styrigx.com', Cookie: await cookie('admin', false) } }),
+    request: new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { Origin: 'https://styrigx.com', Cookie: await cookie('password', false) } }),
     env: e,
   });
   assert.equal(noAccDel.status, 401);
@@ -164,7 +164,7 @@ test('PUT 进门 + 账号会话 → 写四张 + 版本号；GET 读到新图和�
   assert.ok(kv.m.has('avatar:ver'));
 
   const del = await onRequestDelete({
-    request: new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { Origin: 'https://styrigx.com', Cookie: await cookie('admin', true) } }),
+    request: new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { Origin: 'https://styrigx.com', Cookie: await cookie('password', true) } }),
     env: e,
   });
   assert.equal(del.status, 200);

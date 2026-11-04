@@ -1,15 +1,14 @@
 /**
  * 聊天 /chat/ 与服务状态 /settings/status/（含 /en/）和其他主站内页一样过网关 gate.js：
- *   没会话 / 坏 cookie → 302 到首页锁屏（?lock=1&return=<原路径>，no-store）；admin 会话放行（200）；
- *   visitor：聊天放行；服务状态是管理员专属页（src/core/return.js ADMIN_ONLY_PATHS）→ 和锁屏凭证页一样 302 到首页的管理员验证（?return=）。
- *   服务状态页只认管理员锁屏会话，不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也 200）。
+ *   没会话 / 坏 cookie → 302 到首页锁屏（?lock=1&return=<原路径>，no-store）；进门会话（任何 by，含临时钥匙）放行（200）。
+ *   进门二值（P2-3）：页面只分「要进门 / 公开」，没有按角色的 302。
+ *   页面本身只认锁屏进门会话，不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也 200）。
  *   /api/status 本身的会话校验见 tests/workers/auth-gateway/search-api.test.mjs。
  * 运行：node --test tests/workers/auth-gateway/status-page-gate.test.mjs
  * Ed25519 测试密钥在测试内临时生成，不用生产密钥。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { signLockSessionTicket } from '../../../workers/auth-gateway/src/core/lock-session.js';
 import { onRequest as mw } from '../../../workers/auth-gateway/src/gate.js';
 import { testLockSession } from './_tickets.mjs';
 import { genKeyPair, withAuthD1 } from '../_harness.mjs';
@@ -33,7 +32,6 @@ function ctx(url, cookie) {
 }
 
 const PAGES = ['/settings/status/', '/en/settings/status/', '/chat/', '/en/chat/'];
-const ADMIN_ONLY = (p) => p.includes('/settings/status/');
 
 test('没会话：/settings/status/、/chat/（中英）302 到首页锁屏，return = 原路径，no-store', async () => {
   for (const p of PAGES) {
@@ -48,18 +46,15 @@ test('没会话：/settings/status/、/chat/（中英）302 到首页锁屏，re
   }
 });
 
-test('admin 会话（没有账号会话）：/settings/status/、/chat/（中英）都放行 200；visitor：聊天 200，服务状态 302 到首页的管理员验证', async () => {
-  for (const role of ['admin', 'visitor']) {
-    const cookie = role === 'admin' ? await testLockSession(PRIV, 0, 'admin') : await testLockSession(PRIV, 0, 'visitor');
+test('进门会话（没有账号会话；锁屏密码 / 锁屏通行密钥 / 临时钥匙进门都一样）：/settings/status/、/chat/（中英）都放行 200，页面上没有 data-sgx-role', async () => {
+  for (const by of ['password', 'passkey', 'tempkey']) {
+    const cookie = await testLockSession(PRIV, 0, by);
     for (const p of PAGES) {
       const r = await mw(ctx('https://styrigx.com' + p, cookie));
-      if (role === 'visitor' && ADMIN_ONLY(p)) {
-        assert.equal(r.status, 302, 'visitor 访问 ' + p + ' 应 302');
-        assert.equal(r.headers.get('Location'), 'https://styrigx.com' + (p.startsWith('/en/') ? '/en/' : '/') + '?return=' + encodeURIComponent(p));
-        continue;
-      }
-      assert.equal(r.status, 200, role + ' 访问 ' + p + ' 应 200');
-      assert.match(await r.text(), /PAGE/);
+      assert.equal(r.status, 200, by + ' 访问 ' + p + ' 应 200');
+      const html = await r.text();
+      assert.match(html, /PAGE/);
+      assert.doesNotMatch(html, /data-sgx-role|data-sgx-upgrade/, by + ' ' + p);
     }
   }
 });

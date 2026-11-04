@@ -4,7 +4,7 @@
  * - 发送（示例 / 输入框 + 按钮 / 桌面 Enter）→ 请求体 { messages:[{role,text}] }、同源带 cookie；回答流式渲染（安全 Markdown）、来源 chip（域名 + 标题，新标签页）。
  * - 流式中：输入框禁用、发送键变「停止」；点停止 → 保留已收到的部分 +「已停止」。
  * - 对话只在 sessionStorage：刷新还在；「新对话」清空。
- * - 错误：403 admin_only（及访客 data-sgx-role="visitor"）→「聊天仅管理员可用」卡；429 / SSE rate_limited →「今天的免费额度用完了，明天再来」；
+ * - 错误：401 account →「登录账号后可用」卡（账号未登录时同一标签页里之前的对话不画、清掉）；429 / SSE rate_limited →「今天的免费额度用完了，明天再来」；
  *   503 no_key →「聊天还没配置」；502 upstream → 重试按钮（点了重新问）；401 →「会话已过期」+ 重新解锁。
  * - XSS：模型输出里的 <img onerror>、<script>、javascript: 链接都不会变成元素 / 链接。
  * - 手机 412×915：输入栏在底部、不压顶栏、不横向溢出；滚到底最后一条不被输入栏挡住。
@@ -40,7 +40,7 @@ const okBody = (parts = ANSWER, sources = SOURCES) => sse([...parts.map((text) =
 /**
  * @param {import('@playwright/test').Page} page
  * @param {string} path
- * @param {{api?: any, visitor?: boolean, lang?: string, models?: any, modelsRes?: {status:number, json:any}}} [opt]
+ * @param {{api?: any, lang?: string, models?: any, modelsRes?: {status:number, json:any}}} [opt]
  *   api：函数 (n, body) → { status?, body, json? }；不给 = 正常回答（只管 POST）
  *   models：GET /api/chat 的 JSON（200）；'fail' = 500；不给 = 404（同静态服务器：没有模型切换，老用例照旧）
  *   modelsRes：GET /api/chat 的状态码和 JSON（优先于 models；P2-2 测 401 account 用）
@@ -50,14 +50,6 @@ async function go(page, path, opt = {}) {
   await blockExternalRequests(page);
   await freezeTime(page);
   await page.addInitScript((l) => { try { localStorage.setItem('sgx-lang', l); } catch (e) {} }, lang);
-  if (opt.visitor) {
-    /* 网关给访客的页面注入 <html data-sgx-role="visitor">：这里改 HTML 模拟 */
-    await page.route((u) => u.pathname === path, async (route) => {
-      const res = await route.fetch();
-      const html = (await res.text()).replace(/<html(\s|>)/i, '<html data-sgx-role="visitor"$1');
-      await route.fulfill({ response: res, body: html });
-    });
-  }
   const calls = [];
   /** @type {number[]} */
   const gets = [];
@@ -212,18 +204,6 @@ test.describe('聊天页（手机 412×915）', () => {
     await expect(page.locator('.chat-err')).toHaveCount(0);
   });
 
-  test('403 admin_only →「聊天仅管理员可用」卡，输入关掉', async ({ page }) => {
-    await go(page, '/chat/', { api: () => ({ status: 403, json: { ok: false, error: 'admin_only' } }) });
-    await page.locator('#chat-input').fill('hi');
-    await page.locator('#chat-send').click();
-    await expect(page.locator('#chat-gate')).toBeVisible();
-    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('聊天仅管理员可用');
-    await expect(page.locator('#chat-gate [data-c="btn"]')).toBeHidden();
-    await expect(page.locator('#chat-input')).toBeDisabled();
-    await expect(page.locator('#chat-send')).toBeDisabled();
-    await expect(page.locator('#chat-list')).toBeHidden();
-  });
-
   test('P2-2：POST 回 401 account →「登录账号后可用」卡，按钮去账号页，输入关掉', async ({ page }) => {
     await go(page, '/chat/', { api: () => ({ status: 401, json: { ok: false, error: 'account' } }) });
     await page.locator('#chat-input').fill('hi');
@@ -244,31 +224,20 @@ test.describe('聊天页（手机 412×915）', () => {
     expect(calls.length).toBe(0);
   });
 
-  test('访客（data-sgx-role="visitor"）：一进来就是「聊天仅管理员可用」，不发请求', async ({ page }) => {
-    const calls = await go(page, '/chat/', { visitor: true });
-    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('聊天仅管理员可用');
-    await expect(page.locator('#chat-empty')).toBeHidden();
-    await expect(page.locator('#chat-input')).toBeDisabled();
-    expect(calls.length).toBe(0);
-    // @ts-ignore
-    expect(calls.gets.length).toBe(0);
-    await expect(page.locator('#chat-model')).toBeHidden();
-  });
-
-  test('访客进同一个标签页：本标签页里管理员留下的对话不画进 DOM，并从 sessionStorage 清掉', async ({ page }) => {
+  test('P2-3：账号未登录进同一个标签页（GET /api/chat 回 401 account）：之前留下的对话不画进 DOM，并从 sessionStorage 清掉；不再按角色出卡', async ({ page }) => {
     await page.addInitScript(() => {
       try {
         if (!sessionStorage.getItem('sgx-test-seeded')) {
           sessionStorage.setItem('sgx-test-seeded', '1');
-          sessionStorage.setItem('sgx-chat-convo', JSON.stringify({ v: 1, msgs: [{ role: 'user', text: 'ADMIN-SECRET-Q' }, { role: 'model', text: 'ADMIN-SECRET-A' }] }));
+          sessionStorage.setItem('sgx-chat-convo', JSON.stringify({ v: 1, msgs: [{ role: 'user', text: 'PREV-SECRET-Q' }, { role: 'model', text: 'PREV-SECRET-A' }] }));
         }
       } catch (e) {}
     });
-    await go(page, '/chat/', { visitor: true });
-    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('聊天仅管理员可用');
-    expect(await page.locator('#chat-list').evaluate((el) => el.innerHTML)).not.toContain('ADMIN-SECRET');
-    expect(await page.content()).not.toContain('ADMIN-SECRET');
+    await go(page, '/chat/', { modelsRes: { status: 401, json: { ok: false, error: 'account' } } });
+    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('登录账号后可用');
+    expect(await page.locator('#chat-list').evaluate((el) => el.innerHTML)).not.toContain('PREV-SECRET');
     expect(await page.evaluate(() => sessionStorage.getItem('sgx-chat-convo'))).toBeNull();
+    expect(await page.locator('html').getAttribute('data-sgx-role')).toBe(null);
   });
 
   test('429 / SSE rate_limited →「今天的免费额度用完了，明天再来」，没有重试', async ({ page }) => {

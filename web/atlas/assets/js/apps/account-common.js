@@ -37,7 +37,7 @@ export function goAccountLogin(en) {
 
 /**
  * 账号子页进页查一次账号会话（GET /api/account）：服务端明确说没有账号会话（ok 且 session=null）→ 回账号页登录。
- * 读不到（网络 / 访客 401 / 非 JSON）不跳，返回 null；有会话返回那份状态。
+ * 读不到（网络 / 401 / 非 JSON）不跳，返回 null；有会话返回那份状态。
  * @param {boolean} en
  * @returns {Promise<any|null>}
  */

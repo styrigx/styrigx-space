@@ -12,7 +12,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { testLockSession, testTicket } from './_tickets.mjs';
+import { testLockSession, testTicket, fakeAuthorizeVerifier, TEST_ACCOUNT_COOKIE } from './_tickets.mjs';
 import { makePasswordRecord } from '../../../workers/auth-gateway/src/core/password.js';
 import { genKeyPair, makeAuthD1, forbiddenKV } from '../_harness.mjs';
 
@@ -115,6 +115,8 @@ test('网关只经 D1_LOCK_AUTH 读写 realm=lock 的行；已删的 D1_ACCOUNT_
     SGX_LOCK_SPACE_KEY: SPACE_KEY, SGX_PW_PEPPER: PEPPER,
     SGX_LOCK_PRIVATE: LOCK.priv, SGX_LOCK_PUBLIC: LOCK.pub,
     SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: 'https://styrigx.com', SGX_ENV: 'production',
+    /* space-audit 要进门 + 账号会话（askAuthorize）：账号侧只给个替身，D1 一行不碰 */
+    ACCOUNT_VERIFIER: fakeAuthorizeVerifier(),
   };
   /* 库里遗留的账号行（拆分前写的）：网关不该读到、也不该改 */
   d1.db.putPassword('account', await makePasswordRecord('account-pass-5678', PEPPER));
@@ -133,7 +135,7 @@ test('网关只经 D1_LOCK_AUTH 读写 realm=lock 的行；已删的 D1_ACCOUNT_
   r = jar.absorb(await call('lock-password.js', 'onRequestPost', post('/api/lock-password', { action: 'set', password: 'lock-pass-1234' }, jar.header())));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
 
-  /* 解锁 → admin 锁屏会话 */
+  /* 解锁 → 锁屏进门会话 */
   r = jar.absorb(await call('lock-password.js', 'onRequestPost', post('/api/lock-password', { action: 'verify', password: 'lock-pass-1234' }, jar.header())));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
 
@@ -156,6 +158,9 @@ test('网关只经 D1_LOCK_AUTH 读写 realm=lock 的行；已删的 D1_ACCOUNT_
   r = await call('lock-credentials.js', 'onRequestGet', get('/api/lock-credentials', jar.header()));
   assert.ok(r.status === 200 || r.status === 401, String(r.status));
   r = await call('space-audit.js', 'onRequestGet', get('/api/space-audit', jar.header()));
+  assert.equal(r.status, 401, '进站凭证使用记录：进门但没账号会话 → 401 account');
+  assert.equal((await r.json()).error, 'account');
+  r = await call('space-audit.js', 'onRequestGet', get('/api/space-audit', jar.header() + '; ' + TEST_ACCOUNT_COOKIE));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
 
   /* 无法登录 → lock-reset：challenge（没有锁屏通行密钥 → not-set）；进站凭证 + 锁屏密码证明 → LockResetTicket(by=password) */

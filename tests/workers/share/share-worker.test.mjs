@@ -7,18 +7,18 @@
  * D1：有 node:sqlite 时真 SQL（migrations + lib/links.js 的语句）和内存替身各跑一遍；Node 20 只跑内存替身。
  *
  * - 规则：码 128 位、目标只收站内相对路径（防开放重定向）、有效期 / 会话档位和网关一致、会话不超过有效期
- * - 生成：带会话 → 网关签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；网关再验一次管理员锁屏会话（不问账号会话）
- * - 点开：带会话 → visitor 会话（by=tempkey，票里带 tempkeyId）（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；管理员不降级；
+ * - 生成：带会话 → 网关签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；网关再验一次锁屏进门会话（不问账号会话）
+ * - 点开：带会话 → 临时钥匙进门的会话（by=tempkey，票里带 tempkeyId）（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；管理员不降级；
  *   预取 / HEAD 不发会话；不存在 / 过期 / 作废 / 格式不对 → 同一个响应；限速
- * - 作废：带会话的连钥匙一起作废，已发出的访客会话下一个请求就进不来
- * - 权限：只认管理员锁屏会话（不问账号会话）；访客 403、没会话 401、跨源 403
+ * - 作废：带会话的连钥匙一起作废，已发出的临时会话下一个请求就进不来
+ * - 权限：只认锁屏进门会话（不问账号会话）；访客 403、没会话 401、跨源 403
  * - 路由：/s/*、/api/share* 归短链 Worker，网关的接口和页面一条没被抢
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { shareD1, HAS_SQLITE } from '../../fixtures/share-d1.mjs';
-import { testLockSession } from '../auth-gateway/_tickets.mjs';
+import { testLockSession, testTicket } from '../auth-gateway/_tickets.mjs';
 import { makeAuthD1, genKeyPair } from '../_harness.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
@@ -56,15 +56,21 @@ function setup(d1opts) {
       createLinkKey: (c, p) => { calls.push('create'); return issuerMod.createLinkKey(c, p, gwEnv); },
       revokeLinkKey: (c, id) => { calls.push('revoke'); return issuerMod.revokeLinkKey(c, id, gwEnv); },
       openLinkSession: (id, s) => { calls.push('open'); return issuerMod.openLinkSession(id, s, gwEnv); },
+      checkReauth: (c) => issuerMod.checkLinkReauth(c, gwEnv), /* 只判断，不记进 calls */
     },
   };
   _resetMem();
   return { authDb, gwEnv, db, env, calls };
 }
 
+/** 进门（锁屏密码）+ 锁侧复验票（lockkey 签出）；没有账号会话 cookie */
 async function adminCookie() {
-  const lock = await testLockSession(LOCK.priv, 0, 'admin', 'password');
-  return 'sgx-lock-session=' + lock; /* 只有锁屏会话，没有账号会话 cookie */
+  const lock = await testLockSession(LOCK.priv, 0, 'password');
+  return 'sgx-lock-session=' + lock + '; sgx-lock-reauth=' + (await testTicket(LOCK.priv, 'LockReauthTicket', 'password', 0));
+}
+/** 只进门（任何进门方式），没有锁侧复验 */
+async function inCookie(by = 'password') {
+  return 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, by));
 }
 
 const ctx = { waitUntil() {} };
@@ -177,7 +183,7 @@ test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由�
   assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/s/*', 'styrigx.com/api/share*']);
   assert.match(t, /binding = "AUTH"\nservice = "styrigx-auth-gateway"\nentrypoint = "AuthVerifier"/);
   assert.match(t, /binding = "ISSUER"\nservice = "styrigx-auth-gateway"\nentrypoint = "ShareIssuer"/);
-  assert.doesNotMatch(t, /ACCOUNT_VERIFIER|AccountVerifier|service = "styrigx-account"/, '短链只认管理员锁屏会话，正式和 preview 都不绑账号 Worker');
+  assert.doesNotMatch(t, /ACCOUNT_VERIFIER|AccountVerifier|service = "styrigx-account"/, '短链只认锁屏进门会话，正式和 preview 都不绑账号 Worker');
   assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-share"\n/);
   assert.match(t, /\[env\.preview\]\nname = "styrigx-share-preview"\nworkers_dev = false\npreview_urls = false\nroutes = \[\]/);
   /* 预览 D1 = 所有 Worker 预览共用的测试库（2026-10-29）；共库所以迁移记录表单独用 d1_migrations_share */
@@ -244,13 +250,14 @@ for (const K of KINDS) {
     assert.equal(res.headers.get('Referrer-Policy'), 'no-referrer');
     assert.equal(res.headers.get('X-SGX-Runtime'), 'share');
     const ck = cookiesFrom(res);
-    assert.match(ck, new RegExp('sgx-lock-session=tempkey\\.visitor\\.\\d+\\.\\d+\\.' + row.key_id + '\\.'));
+    assert.match(ck, new RegExp('sgx-lock-session=tempkey\\.\\d+\\.\\d+\\.' + row.key_id + '\\.'), 'v2 票：by.epoch.exp.tempkeyId.sig');
     assert.doesNotMatch(ck, /sgx-tk=/);
     const ma = age(res, 'sgx-lock-session');
     assert.ok(ma <= 3 * 3600 && ma > 3 * 3600 - 5, 'Max-Age = 会话时长');
     const v = await verifyLockSession(new Request('https://styrigx.com/', { headers: { Cookie: ck } }), gwEnv);
     assert.equal(v.ok, true);
-    assert.equal(v.role, 'visitor', '和临时钥匙访客完全一样');
+    assert.equal(v.by, 'tempkey', '和锁屏输临时码进门完全一样');
+    assert.equal(v.tempkeyId, row.key_id);
     /* 被打开的记录 */
     const l2 = await api(env, { action: 'list' });
     assert.equal(l2.j.links[0].opens, 1);
@@ -286,7 +293,7 @@ for (const K of KINDS) {
     assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
   });
 
-  T('管理员自己点开带会话的短链：只 302，不降级成访客', async () => {
+  T('已进门的人点开带会话的短链：只 302，不重签', async () => {
     const { env, calls } = mk();
     const r = await api(env, { action: 'create', hours: 2, session: 1800 });
     const res = await open(env, r.j.link.path, { cookie: await adminCookie() });
@@ -332,7 +339,7 @@ for (const K of KINDS) {
     for (const p of paths) assert.deepEqual(await failShape(await open(env, p, { ip: '10.0.0.' + (ip++) })), FAIL, p);
   });
 
-  T('作废带会话的短链：钥匙一起作废，已发出去的访客会话下一个请求就进不来；再点开也是失败响应', async () => {
+  T('作废带会话的短链：钥匙一起作废，已发出去的临时会话下一个请求就进不来；再点开也是失败响应', async () => {
     const { env, gwEnv, calls, db, authDb } = mk();
     const l = (await api(env, { action: 'create', days: 7, session: 86400 })).j.link;
     const ck = cookiesFrom(await open(env, l.path));
@@ -384,7 +391,7 @@ for (const K of KINDS) {
     assert.equal((await api(env, { action: 'create', hours: 1 })).s, 200);
   });
 
-  T('link 钥匙在网关 D1 里已过期（行还没清掉）：短链再点开换不到会话（已发出的访客会话靠票自己的 exp，不晚于钥匙到期）', async () => {
+  T('link 钥匙在网关 D1 里已过期（行还没清掉）：短链再点开换不到会话（已发出的临时会话靠票自己的 exp，不晚于钥匙到期）', async () => {
     const { env, db, authDb, gwEnv } = mk();
     const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
     const ck = cookiesFrom(await open(env, l.path));
@@ -405,40 +412,54 @@ for (const K of KINDS) {
     assert.equal(r.s, 200, JSON.stringify(r.j));
   });
 
-  T('权限：访客 403、没会话 401、跨源 403；网关 ShareIssuer 自己也要管理员锁屏会话', async () => {
-    const { env, gwEnv } = mk();
+  T('权限：list 只要进门（短链 / 临时钥匙进门也能看）；create（含 reuse）/ revoke 要锁侧复验，没有 → 401 reauth；没会话 401、跨源 403；网关 ShareIssuer 自己也验', async () => {
+    const { env, gwEnv, calls, db } = mk();
     const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
-    const visitor = cookiesFrom(await open(env, l.path));
-    let r = await api(env, { action: 'list' }, visitor);
-    assert.equal(r.s, 403);
-    assert.equal(r.j.error, 'role');
-    r = await api(env, { action: 'create', hours: 1, session: 1800 }, visitor);
-    assert.equal(r.s, 403);
+    const viaLink = cookiesFrom(await open(env, l.path)); /* 短链进门的会话（by=tempkey） */
+    let r = await api(env, { action: 'list' }, viaLink);
+    assert.equal(r.s, 200, '看 = 进门');
+    for (const cookie of [viaLink, await inCookie('password'), await inCookie('tempkey')]) {
+      for (const body of [{ action: 'create', hours: 1, session: 1800 }, { action: 'create', hours: 1 }, { action: 'create', hours: 2, session: 1800, reuse: true }, { action: 'revoke', id: l.id }]) {
+        r = await api(env, body, cookie);
+        assert.equal(r.s, 401, JSON.stringify(body));
+        assert.equal(r.j.error, 'reauth', JSON.stringify(body));
+      }
+    }
+    assert.deepEqual(calls, ['create', 'open'], '没复验时一把钥匙都没签 / 废');
+    assert.equal(db.rows().length, 1);
     assert.equal((await api(env, { action: 'list' }, '')).s, 401);
+    assert.equal((await api(env, { action: 'create', hours: 1 }, '')).s, 401);
     assert.equal((await api(env, { action: 'list' }, undefined, 'https://evil.com')).s, 403);
-    /* 直接调网关内部接口：没有管理员锁屏会话就不签、不作废 */
-    assert.deepEqual(await issuerMod.createLinkKey(visitor, { hours: 1 }, gwEnv), { ok: false, error: 'session' });
+    /* 直接调网关内部接口：没进门 → session；进门没复验（含短链进门）→ reauth；都不签、不作废 */
     assert.deepEqual(await issuerMod.createLinkKey('', { hours: 1 }, gwEnv), { ok: false, error: 'session' });
-    assert.deepEqual(await issuerMod.revokeLinkKey(visitor, 'A'.repeat(16), gwEnv), { ok: false, error: 'session' });
-    const admin = await adminCookie();
-    assert.deepEqual(await issuerMod.createLinkKey(admin, { hours: 25 }, gwEnv), { ok: false, error: 'duration' });
+    assert.deepEqual(await issuerMod.createLinkKey(viaLink, { hours: 1 }, gwEnv), { ok: false, error: 'reauth' });
+    assert.deepEqual(await issuerMod.revokeLinkKey(viaLink, 'A'.repeat(16), gwEnv), { ok: false, error: 'reauth' });
+    assert.deepEqual(await issuerMod.checkLinkReauth(viaLink, gwEnv), { ok: false, error: 'reauth' });
+    assert.deepEqual(await issuerMod.checkLinkReauth('', gwEnv), { ok: false, error: 'session' });
+    const owner = await adminCookie();
+    assert.deepEqual(await issuerMod.checkLinkReauth(owner, gwEnv), { ok: true });
+    assert.deepEqual(await issuerMod.createLinkKey(owner, { hours: 25 }, gwEnv), { ok: false, error: 'duration' });
+    /* 别的钥匙签的复验票不算 */
+    const other = await genKeyPair();
+    const forged = (await inCookie('password')) + '; sgx-lock-reauth=' + (await testTicket(other.priv, 'LockReauthTicket', 'password', 0));
+    assert.deepEqual(await issuerMod.checkLinkReauth(forged, gwEnv), { ok: false, error: 'reauth' });
     /* 普通临时钥匙不能经短链接口作废 */
     const plain = await TL.createTempkey(gwEnv, 'share-test-pepper', { name: '', ms: H });
-    assert.deepEqual(await issuerMod.revokeLinkKey(admin, plain.key.id, gwEnv), { ok: false, error: 'params' });
+    assert.deepEqual(await issuerMod.revokeLinkKey(owner, plain.key.id, gwEnv), { ok: false, error: 'params' });
     /* GET / 别的接口路径 */
-    const g = await worker.fetch(new Request('https://styrigx.com/api/share', { headers: { Cookie: admin } }), env, ctx);
+    const g = await worker.fetch(new Request('https://styrigx.com/api/share', { headers: { Cookie: owner } }), env, ctx);
     assert.equal(g.status, 405);
-    const other = await worker.fetch(new Request('https://styrigx.com/api/shared', { method: 'POST', headers: { Cookie: admin, Origin: 'https://styrigx.com' } }), env, ctx);
-    assert.equal(other.status, 404);
+    const o2 = await worker.fetch(new Request('https://styrigx.com/api/shared', { method: 'POST', headers: { Cookie: owner, Origin: 'https://styrigx.com' } }), env, ctx);
+    assert.equal(o2.status, 404);
   });
 
-  T('只有管理员锁屏会话、没有账号会话（两边绑了一碰就抛的 ACCOUNT_VERIFIER 也不问）：能签带会话的短链，也能作废；网关 ShareIssuer 直接签 / 废也行', async () => {
+  T('进门 + 锁侧复验、没有账号会话（两边绑了一碰就抛的 ACCOUNT_VERIFIER 也不问）：能签带会话的短链，也能作废；网关 ShareIssuer 直接签 / 废也行', async () => {
     const { env, gwEnv, authDb } = mk();
     let asked = 0;
-    const trap = { accountSession() { asked++; throw new Error('不该问账号会话'); } };
+    const trap = { accountSession() { asked++; throw new Error('不该问账号会话'); }, authorize() { asked++; throw new Error('不该问账号'); } };
     env.ACCOUNT_VERIFIER = trap;
     gwEnv.ACCOUNT_VERIFIER = trap;
-    const lockOnly = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'admin', 'password'));
+    const lockOnly = await adminCookie();
     const c = await api(env, { action: 'create', hours: 2, session: 1800 }, lockOnly);
     assert.equal(c.s, 200, JSON.stringify(c.j));
     const keyId = authDb.rows('tempkey').find((r) => r.realm === 'lock' && r.link)?.id;

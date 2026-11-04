@@ -3,7 +3,7 @@
  * 模型切换（CHAT_MODELS 白名单、GET /models、bad_model、每个模型的工具开关、model_unavailable、工具被拒不带工具重试一次）、
  * Gemini SSE → 我们自己的事件（delta / sources / done / error，来源去重 ≤ 8）、上游 429 → rate_limited、OpenAI 兼容模式、
  * 入口不验身份（P2-2 起门只在网关）、wrangler.toml（变量、钥匙绑定、没有公开地址）。
- * 门（同源 / 会话 / 只许管理员）和转发在网关，见 tests/workers/auth-gateway/chat-api.test.mjs。
+ * 门（同源 / 会话 / 要进门）和转发在网关，见 tests/workers/auth-gateway/chat-api.test.mjs。
  * 上游 fetch 一律 mock（globalThis.fetch），不发真实请求。
  * 运行：node --test tests/workers/chat/*.test.mjs
  */
@@ -30,7 +30,7 @@ const MSGS = [{ role: 'user', text: 'Hugo 最新版本？' }];
 /** 网关转进来的样子：POST https://styrigx-chat/chat，不带身份头 / cookie / Origin（P2-2 起）；role 只用来测旧头不起作用 */
 function req(body, { role = null, raw, path = '/chat', method = 'POST' } = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (role) headers['X-Sgx-Role'] = role;
+  if (role) headers['X-Sgx-Legacy'] = role;
   return new Request('https://styrigx-chat' + path, { method, headers, body: method === 'GET' ? undefined : raw !== undefined ? raw : JSON.stringify(body) });
 }
 const call = (r, e = env()) => worker.fetch(r, e);
@@ -87,7 +87,7 @@ test('wrangler.toml：没有公开地址（workers_dev / preview_urls 关、没�
   assert.doesNotMatch(toml.slice(toml.search(/^\[\[secrets_store_secrets\]\]/m)), /^\[(?!\[secrets_store_secrets\]\])/m, '钥匙段后面不能再有别的表');
 });
 
-test('入口：不看身份头（P2-2 起门只在网关；X-Sgx-Role 有没有、是什么都一样）；未知路径 404；方法不对 405；都不调上游', async () => {
+test('入口：不看身份头（P2-2 起门只在网关；X-Sgx-Legacy 有没有、是什么都一样）；未知路径 404；方法不对 405；都不调上游', async () => {
   mockFetch(() => { throw new Error('不应调用上游'); });
   for (const role of [null, 'visitor', 'admin']) {
     const r = await call(req(null, { role, path: '/models', method: 'GET' }));

@@ -4,17 +4,17 @@
 
 ```
 src/index.js        入口：/s/<码> → open.js；/api/share → api/share.js；X-SGX-Runtime: share
-src/gate.js         门：只认 styrigx.com；/s/* 谁都能开；/api/share* 只许管理员（访客 403、没会话 401）
-src/auth.js         会话：本 Worker 自己一份（只认管理员锁屏会话，问网关 AuthVerifier / AUTH；不问账号会话）
-src/open.js         打开短链：普通 → 302；带会话 → 请网关 ShareIssuer 签访客会话 → 302（去掉码）；失败统一 302 /?lock=1；限速
-src/api/share.js    POST /api/share { list | create | revoke }（只认管理员锁屏会话；同源，图志跨源只许 create + reuse）
+src/gate.js         门：只认 styrigx.com；/s/* 谁都能开；/api/share* 要进门（访客 403、没会话 401）
+src/auth.js         会话：本 Worker 自己一份（只认锁屏进门会话，问网关 AuthVerifier / AUTH；不问账号会话）
+src/open.js         打开短链：普通 → 302；带会话 → 请网关 ShareIssuer 签临时会话 → 302（去掉码）；失败统一 302 /?lock=1；限速
+src/api/share.js    POST /api/share { list | create | revoke }（只认锁屏进门会话；同源，图志跨源只许 create + reuse）
 src/lib/links.js    规则（码、有效期、会话档位、目标：站内路径或 styrigx.com / 旧图志 atlas.styrigx.com 的 https 地址）、复用查询和 D1 语句
 src/lib/cors.js     /api/share 的跨源：合并 PR3 起三站和主站同源；只剩旧图志 https://atlas.styrigx.com 一个 Origin（过渡期保留），预检 OPTIONS、Allow-Credentials、Vary: Origin
 migrations/         D1 styrigx-share 的表结构（0001_share_links.sql：share_link、share_fail）
 ```
 
 - 钥匙和会话：本 Worker 不持任何钥匙、不绑认证库。带会话的短链由网关签一把「短链钥匙」（临时 LockKey，link=true，没有临时码），
-  点开时由网关签 visitor 会话 + 钥匙票（和锁屏输临时码进门同一套代码，`workers/auth-gateway/src/rpc/share-issuer.js`），
+  点开时由网关签 临时钥匙进门的会话 + 钥匙票（和锁屏输临时码进门同一套代码，`workers/auth-gateway/src/rpc/share-issuer.js`），
   经服务绑定 `ISSUER`（entrypoint `ShareIssuer`，只有本 Worker 绑定）调用。
 - 作废：带会话的短链先请网关作废钥匙（写作废标记），拿它进来的访客下一个请求就进不来；再在 D1 记 revoked_at。
 - 数据：D1 `styrigx-share`（绑定 `D1_SHARE_LINK`）；预览 D1 是所有 Worker 的预览共用的测试库 `styrigx-test-preview`，登记在 `[env.preview]`（迁移记录表 `d1_migrations_share`；passkey-e2e 部署预览前会跑这套迁移；还没有部署预览 Worker 的 CI job）。

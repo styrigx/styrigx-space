@@ -24,7 +24,7 @@
  *   allowCredentials = 锁屏通行密钥列表；没有锁屏通行密钥 → 403 not-set
  * - { action: 'verify', spaceKey, lockProof? } → 见上
  *
- * 只接受 POST；校验 Origin；访客会话直接 401 denied（B1-9 假入口）。
+ * 只接受 POST；校验 Origin。不看锁屏会话（没进门的人本来就能在锁屏上试进站凭证，与 /api/space-auth 共用 space-limit 限速）。
  */
 import { checkSpaceCredential } from '../core/space-check.js';
 import { issueTicket } from '../core/tickets.js';
@@ -36,7 +36,6 @@ import { recordSpaceFail } from '../core/space-limit.js';
 import { writeSpaceAudit } from '../core/space-audit.js';
 import { checkLockResetSwitch, claimLockResetSwitch } from '../core/lock-reset-switch.js';
 import { isSameOrigin, json, apiError, clientIp } from '../lib/http.js';
-import { looksVisitor } from '../core/lock-session.js';
 import { REALM_LOCK, realmPrivateKey, realmPublicKey, rpConfig, rpConfigMissing } from '../core/realms.js';
 
 /* 重置锁屏（本接口）的锁屏通行密钥 challenge：D1 challenge 表 realm='lock'、purpose='reset'（与锁屏解锁、注册的 challenge 隔离） */
@@ -58,11 +57,6 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  /* B1-9 访客假入口统一 401：访客会话直接返回，不读任何存储，也到不了进站凭证比对。
-     判断与 lock-password / lock-passkey 共用 core/lock-session.js looksVisitor（六段票）。 */
-  if (looksVisitor(request)) {
-    return apiError(401, 'denied');
-  }
   if (request.method !== 'POST') {
     return json(405, { ok: false });
   }

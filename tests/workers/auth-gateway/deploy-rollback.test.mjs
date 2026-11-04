@@ -361,7 +361,7 @@ test('deploy.yml：部署顺序 账号、短链（可并行）→ 网关 → Pag
   assert.match(gw, /why=no-cookie&return=https%3A%2F%2Fstyrigx\.com%2F\$s%2F/);
   /* 网关冒烟：伪造身份头必须 401（或旧路由残留时账号默认 fetch 404），头像带账号运行时标记 */
   const smoke = wf.jobs['deploy-auth-worker'].steps.find((s) => /^Smoke test/.test(s.name)).run;
-  assert.match(smoke, /X-Styrigx-Lock-Role: admin/);
+  assert.match(smoke, /X-Styrigx-Lock-Session: 1/);
   assert.match(smoke, /forged \/api\/account/);
   assert.match(smoke, /\/avatar\/96\.webp/);
   assert.match(smoke, /"\$rt" = "account"/);

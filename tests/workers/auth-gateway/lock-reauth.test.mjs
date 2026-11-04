@@ -4,11 +4,11 @@
  * 覆盖：
  * - 短票（src/core/tickets.js）：LockReauth / LockReset 用 SGX_LOCK_* 签、各自 cookie；签名串带 cookie 名，
  *   互相冒充不了；账号钥匙签的票验不过；by 按票限制（LockReset 只认 root / password / passkey）；纪元 = Lock 纪元
- * - 再验证：解锁密码 verify reauth:true 只签 LockReauthTicket 不签会话；访客写死「密码错误」不读存储；没会话 401；
- *   锁屏通行密钥 auth reauth:true 同样要 admin 会话、访客写死失败；
+ * - 再验证：解锁密码 verify reauth:true 只签 LockReauthTicket 不签会话；没会话 401；前置是「进门」（任何 by，含临时钥匙），
+ *   临时钥匙进门的会话本身不算复验，要真的提交锁屏密码 / 锁屏通行密钥（v1 的假入口已删）；
  *   进站凭证 /api/space-auth purpose=lock-reauth 签 LockReauthTicket(by=space)
  * - /api/lock-reauth：status（凭证是否已设置 + 票有效期）、clear；LockResetTicket 无会话也能读状态
- * - 管理：lock-passkey / lock-password / lock-all-devices 没票 403 reauth、没会话 401（space-audit 只读，只要 admin 会话）；
+ * - 管理：lock-passkey / lock-password / lock-all-devices 没票 403 reauth、没会话 401（space-audit 只读：进门 + 账号会话，不要复验票）；
  *   sgx-account-reauth（网关不签不验账号票）不能开锁屏凭证；LockResetTicket 只能 list/register/delete、set/change，不能 rename/remove
  * - 纪元推进（改解锁密码 / 删锁屏通行密钥）：票与当前设备会话随即重签，票剩余时间不延长
  * - 删最后一把锁屏凭证：任何时候都 403 last-key（账号拆分 PR3，不再看账号）；还有别的锁屏凭证 → 200
@@ -23,7 +23,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { testLockSession, testTicket } from './_tickets.mjs';
+import { testLockSession, testTicket, fakeAuthorizeVerifier, TEST_ACCOUNT_COOKIE } from './_tickets.mjs';
 import { makeKV, genKeyPair, authD1For } from '../_harness.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -67,8 +67,8 @@ function pick(res, name) {
   }
   return null;
 }
-const adminSess = (epoch = 0, by = 'password') => testLockSession(LOCK.priv, epoch, 'admin', by);
-const visitorSess = (epoch = 0) => testLockSession(LOCK.priv, epoch, 'visitor');
+const lockSess = (epoch = 0, by = 'password') => testLockSession(LOCK.priv, epoch, by);
+const tempkeySess = (epoch = 0) => testLockSession(LOCK.priv, epoch, 'tempkey');
 const reauthTicket = (by = 'password', epoch = 0, now) => testTicket(LOCK.priv, 'LockReauthTicket', by, epoch, now);
 const resetTicket = (by = 'space', epoch = 0) => testTicket(LOCK.priv, 'LockResetTicket', by, epoch);
 const cookies = (o) => Object.entries(o).map(([k, v]) => k + '=' + v).join('; ');
@@ -133,7 +133,7 @@ test('短票：by 按票限制（LockReset 只认 root / password / passkey，�
 test('再验证（解锁密码）：verify reauth:true 只签 3 分钟 LockReauthTicket，不签会话；密码错计入限速', async () => {
   const kv = makeKV({ 'lock-password': JSON.stringify(await makePasswordRecord('lockpass99', PEPPER)) });
   const { onRequestPost } = await import(API + 'lock-password.js');
-  const sess = await adminSess();
+  const sess = await lockSess();
   let res = await onRequestPost({ request: post('/api/lock-password', { action: 'verify', password: 'lockpass99', reauth: true }, 'sgx-lock-session=' + sess), env: envFor(kv) });
   assert.equal(res.status, 200);
   const t = pick(res, 'sgx-lock-reauth');
@@ -148,35 +148,39 @@ test('再验证（解锁密码）：verify reauth:true 只签 3 分钟 LockReaut
   assert.equal(fail.count, 1);
 });
 
-test('再验证（解锁密码）：访客写死「密码错误」不读存储；没有会话 → 401 session', async () => {
+test('再验证（解锁密码）：临时钥匙进门的会话也能提交锁屏密码 → 签 LockReauthTicket(by=password)，错密码 403 wrong；没有会话 → 401 session', async () => {
   const kv = makeKV({ 'lock-password': JSON.stringify(await makePasswordRecord('lockpass99', PEPPER)) });
   const { onRequestPost } = await import(API + 'lock-password.js');
-  let res = await onRequestPost({ request: post('/api/lock-password', { action: 'verify', password: 'lockpass99', reauth: true }, 'sgx-lock-session=' + (await visitorSess())), env: envFor(kv) });
+  const tk = 'sgx-lock-session=' + (await tempkeySess());
+  let res = await onRequestPost({ request: post('/api/lock-password', { action: 'verify', password: 'wrong-pass', reauth: true }, tk), env: envFor(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'wrong');
-  assert.deepEqual(kv._reads, [], '访客：不读任何存储');
-  assert.deepEqual(authD1For(kv).calls, [], '访客：也不查 D1');
+  assert.equal(pick(res, 'sgx-lock-reauth'), null);
+  res = await onRequestPost({ request: post('/api/lock-password', { action: 'verify', password: 'lockpass99', reauth: true }, tk), env: envFor(kv) });
+  assert.equal(res.status, 200);
+  const t = pick(res, 'sgx-lock-reauth');
+  assert.ok(t && t.startsWith('password.0.'), '应签 LockReauthTicket, by=password');
+  assert.equal(pick(res, 'sgx-lock-session'), null, '再验证不签会话（临时钥匙会话原样保留）');
   res = await onRequestPost({ request: post('/api/lock-password', { action: 'verify', password: 'lockpass99', reauth: true }), env: envFor(kv) });
   assert.equal(res.status, 401);
   assert.equal(pick(res, 'sgx-lock-reauth'), null);
 });
 
-test('再验证（锁屏通行密钥）：auth reauth:true 访客写死失败不读存储；没会话 401', async () => {
+test('再验证（锁屏通行密钥）：auth reauth:true 临时钥匙进门也走真验证（没有假入口）：挑战不存在 → 403 challenge、不签票；没会话 401', async () => {
   const kv = makeKV();
   const { onRequestPost } = await import(API + 'lock-passkey.js');
-  let res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'auth', reauth: true, cid: 'x', credential: {} }, 'sgx-lock-session=' + (await visitorSess())), env: envFor(kv) });
+  let res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'auth', reauth: true, cid: 'x', credential: {} }, 'sgx-lock-session=' + (await tempkeySess())), env: envFor(kv) });
   assert.equal(res.status, 403);
-  assert.equal((await res.json()).error, 'verify');
-  assert.deepEqual(kv._reads, []);
-  assert.deepEqual(authD1For(kv).calls, [], '访客：也不查 D1');
+  assert.equal((await res.json()).error, 'challenge');
+  assert.equal(pick(res, 'sgx-lock-reauth'), null);
   res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'auth', reauth: true, cid: 'x', credential: {} }), env: envFor(kv) });
   assert.equal(res.status, 401);
 });
 
-test('再验证（进站凭证）：purpose=lock-reauth + admin 会话 → 签 LockReauthTicket(by=space)，不签会话；错 → 401；缺 purpose → 400', async () => {
+test('再验证（进站凭证）：purpose=lock-reauth + 进门会话 → 签 LockReauthTicket(by=space)，不签会话；错 → 401；缺 purpose → 400', async () => {
   const kv = makeKV({ 'lock-configured': '1' });
   const { onRequestPost } = await import(API + 'space-auth.js');
-  const sess = await adminSess();
+  const sess = await lockSess();
   let res = await onRequestPost({ request: post('/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reauth' }, 'sgx-lock-session=' + sess), env: envFor(kv) });
   assert.equal(res.status, 200);
   assert.ok((pick(res, 'sgx-lock-reauth') || '').startsWith('space.'));
@@ -197,7 +201,7 @@ test('再验证（进站凭证）：purpose=lock-reauth + admin 会话 → 签 L
 test('/api/lock-reauth status：有会话无票 → valid=false + 凭证是否已设置；有票 → ticket=lock-reauth + expiresAt', async () => {
   const kv = makeKV({ 'lock-password': JSON.stringify(await makePasswordRecord('lockpass99', PEPPER)) });
   const { onRequestPost } = await import(API + 'lock-reauth.js');
-  const sess = await adminSess();
+  const sess = await lockSess();
   let res = await onRequestPost({ request: post('/api/lock-reauth', { action: 'status' }, 'sgx-lock-session=' + sess), env: envFor(kv) });
   let j = await res.json();
   assert.equal(j.ok, true);
@@ -235,7 +239,7 @@ test('管理：锁屏通行密钥 list —— 没会话 401；有会话没票 40
   const kv = makeKV();
   await seedLockKey(kv);
   const { onRequestPost } = await import(API + 'lock-passkey.js');
-  const sess = await adminSess();
+  const sess = await lockSess();
   const call = (c) => onRequestPost({ request: post('/api/lock-passkey', { action: 'list' }, c), env: envFor(kv) });
   let res = await call('sgx-lock-reauth=' + (await reauthTicket()));
   assert.equal(res.status, 401);
@@ -276,7 +280,7 @@ test('管理：LockResetTicket 可 list，不可 rename；可改解锁密码，�
 test('管理：lock-all-devices 要 LockReauthTicket；通过后 epoch+1、清会话和票', async () => {
   const kv = withEpoch(2);
   const { onRequestPost } = await import(API + 'lock-all-devices.js');
-  const sess = await adminSess(2);
+  const sess = await lockSess(2);
   let res = await onRequestPost({ request: post('/api/lock-all-devices', {}, 'sgx-lock-session=' + sess), env: envFor(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'reauth');
@@ -289,14 +293,18 @@ test('管理：lock-all-devices 要 LockReauthTicket；通过后 epoch+1、清�
   assert.ok(sc.some((c) => c.startsWith('sgx-lock-reauth=;')));
 });
 
-test('space-audit：只读列表不要 LockReauthTicket（admin 会话即可；有票也照样 200）', async () => {
+test('space-audit：只读列表不要 LockReauthTicket（进门 + 账号会话即可；有票也照样 200；没账号会话 401 account）', async () => {
   const kv = makeKV();
   const { onRequestGet } = await import(API + 'space-audit.js');
-  const sess = await adminSess();
-  let res = await onRequestGet({ request: get('/api/space-audit', 'sgx-lock-session=' + sess), env: envFor(kv) });
+  const sess = await lockSess();
+  const env = envFor(kv, { ACCOUNT_VERIFIER: fakeAuthorizeVerifier() });
+  let res = await onRequestGet({ request: get('/api/space-audit', 'sgx-lock-session=' + sess), env });
+  assert.equal(res.status, 401);
+  assert.equal((await res.json()).error, 'account');
+  res = await onRequestGet({ request: get('/api/space-audit', 'sgx-lock-session=' + sess + '; ' + TEST_ACCOUNT_COOKIE), env });
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { ok: true, items: [] });
-  res = await onRequestGet({ request: get('/api/space-audit', cookies({ 'sgx-lock-session': sess, 'sgx-lock-reauth': await reauthTicket('space') })), env: envFor(kv) });
+  res = await onRequestGet({ request: get('/api/space-audit', cookies({ 'sgx-lock-session': sess, 'sgx-lock-reauth': await reauthTicket('space') }) + '; ' + TEST_ACCOUNT_COOKIE), env });
   assert.equal(res.status, 200);
 });
 
@@ -307,7 +315,7 @@ test('改解锁密码：epoch+1，LockReauthTicket 与当前设备会话重签�
   const { onRequestPost } = await import(API + 'lock-password.js');
   const iat = Date.now() - 60000; /* 已过 1 分钟 */
   const t = await reauthTicket('password', 5, iat);
-  const res = await onRequestPost({ request: post('/api/lock-password', { action: 'change', password: 'newlock123' }, cookies({ 'sgx-lock-session': await adminSess(5), 'sgx-lock-reauth': t })), env: envFor(kv) });
+  const res = await onRequestPost({ request: post('/api/lock-password', { action: 'change', password: 'newlock123' }, cookies({ 'sgx-lock-session': await lockSess(5), 'sgx-lock-reauth': t })), env: envFor(kv) });
   assert.equal(res.status, 200);
   assert.equal(lockEpoch(kv), '6');
   const nt = tickets.parseTicket('LockReauthTicket', pick(res, 'sgx-lock-reauth'));
@@ -322,14 +330,14 @@ test('删锁屏通行密钥：最后一把（没有解锁密码）→ 403 last-k
   /* 只有这一把锁屏凭证：不能删（库里遗留的账号密码不算） */
   let kv = withEpoch(1, { 'account-password': JSON.stringify(await makePasswordRecord('acctpass99', PEPPER)) });
   let credId = await seedLockKey(kv);
-  let res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'delete', credId }, cookies({ 'sgx-lock-session': await adminSess(1), 'sgx-lock-reauth': await reauthTicket('passkey', 1) })), env: envFor(kv) });
+  let res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'delete', credId }, cookies({ 'sgx-lock-session': await lockSess(1), 'sgx-lock-reauth': await reauthTicket('passkey', 1) })), env: envFor(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'last-key');
   assert.equal(lockEpoch(kv), '1');
   /* 还有解锁密码 */
   kv = withEpoch(1, { 'lock-password': JSON.stringify(await makePasswordRecord('lockpass99', PEPPER)) });
   credId = await seedLockKey(kv);
-  res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'delete', credId }, cookies({ 'sgx-lock-session': await adminSess(1), 'sgx-lock-reauth': await reauthTicket('passkey', 1) })), env: envFor(kv) });
+  res = await onRequestPost({ request: post('/api/lock-passkey', { action: 'delete', credId }, cookies({ 'sgx-lock-session': await lockSess(1), 'sgx-lock-reauth': await reauthTicket('passkey', 1) })), env: envFor(kv) });
   assert.equal(res.status, 200);
   assert.equal(lockEpoch(kv), '2');
   assert.equal(tickets.parseTicket('LockReauthTicket', pick(res, 'sgx-lock-reauth')).epoch, 2);
@@ -354,7 +362,7 @@ test('从零设置：锁屏未配置时进站凭证无会话只能签 LockResetT
   res = await onRequestPost({ request: post('/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reauth' }), env: envFor(kv) });
   assert.equal(res.status, 401);
   kv = makeKV({ 'lock-configured': '1', 'lock-password': JSON.stringify(await makePasswordRecord('lockpass99', PEPPER)) });
-  res = await onRequestPost({ request: post('/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reset' }, 'sgx-lock-session=' + (await adminSess())), env: envFor(kv) });
+  res = await onRequestPost({ request: post('/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reset' }, 'sgx-lock-session=' + (await lockSess())), env: envFor(kv) });
   assert.equal(res.status, 401);
   assert.equal(pick(res, 'sgx-lock-reset'), null);
 });

@@ -1,5 +1,5 @@
 /**
- * 账号页 E2E（管理员凭证升级为账号；静态构建 + API mock，无需真实后端）。
+ * 账号页 E2E（锁屏凭证升级为账号；静态构建 + API mock，无需真实后端）。
  *
  * 覆盖：
  * - 账号登录（PR3）：顶栏页名「登录账号」；头像 + 欢迎回来；通行密钥登录（强调色主按钮）/ 密码登录（原地展开）/
@@ -658,33 +658,19 @@ test.describe('账号总览：signalCurrentUserDetails', () => {
   });
 });
 
-test.describe('访客头像', () => {
-  test('访客：抽屉头的头像只是装饰 —— 没有链接、点了不跳转', async ({ page }) => {
+test.describe('抽屉头像', () => {
+  test('进门的人（含临时钥匙进门）：头像照常链到账号页（P2-3 起不再按角色去掉链接）', async ({ page }) => {
     await zh(page);
-    /* 像线上 L1 那样把会话角色写进 <html> */
     await page.route(/^http:\/\/localhost:\d+\/$/, async (route) => {
       const res = await route.fetch();
-      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid" data-sgx-role="visitor">');
+      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid">');
       await route.fulfill({ response: res, body: body });
     });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     const me = page.locator('.sgx-drawer-me');
-    await page.locator('.sgx-tb-nav').click();
-    await expect(page.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
-    await expect(me).not.toHaveAttribute('href', /.*/);
-    await expect(me).toHaveAttribute('aria-disabled', 'true');
-    expect(await me.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
-    const navs = await armNavProbe(page);
-    await me.click({ force: true });
-    await nextFrames(page);
-    expect(await navs(), '访客点头像不触发任何导航').toEqual([]);
-    expect(new URL(page.url()).pathname).toBe('/');
-  });
-
-  test('管理员：头像照常链到账号页', async ({ page }) => {
-    await zh(page);
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/account/');
+    await expect(me).toHaveAttribute('href', '/account/');
+    expect(await me.getAttribute('aria-disabled')).toBe(null);
+    expect(await me.evaluate((el) => getComputedStyle(el).pointerEvents)).not.toBe('none');
   });
 });
 
@@ -825,10 +811,10 @@ test.describe('设备子页（2026-10-22）', () => {
 });
 
 /* 临时钥匙（含分享短链）从账号页搬到设置 → 安全与隐私 → 临时钥匙（/settings/security/tempkeys/），旧地址删除、不跳转。
-   只认管理员锁屏会话、不问账号会话：静态构建 + API mock 下不用准备账号会话（不 mock /api/account）。 */
+   只认锁屏进门会话、不问账号会话：静态构建 + API mock 下不用准备账号会话（不 mock /api/account）。 */
 const TK = '/settings/security/tempkeys/';
 
-test.describe('设置 → 安全与隐私 → 临时钥匙（2026-10-23，取代 Turnstile 访客进入）', () => {
+test.describe('设置 → 安全与隐私 → 临时钥匙（2026-10-23，取代 Turnstile 临时钥匙）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
   /** mock /api/lock-tempkey：keys 是服务端的「有效钥匙」列表 */
@@ -917,7 +903,7 @@ test.describe('设置 → 安全与隐私 → 临时钥匙（2026-10-23，取代
     await expect(page.locator('#tk-dlg')).toBeVisible();
   });
 
-  test('只认管理员锁屏会话：401（不论 error 是什么）→ 只提示回锁屏重新解锁，不跳账号页', async ({ page }) => {
+  test('只认锁屏进门会话：401（不论 error 是什么）→ 只提示回锁屏重新解锁，不跳账号页', async ({ page }) => {
     /* 锁屏会话失效时两个接口都回 401；同页的分享短链区块也会拉 /api/share，不拦就会被它的错误提示盖掉 */
     const unauth = (/** @type {import('@playwright/test').Route} */ route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"session"}' });
     await page.route('**/api/lock-tempkey', unauth);
@@ -1195,8 +1181,8 @@ test.describe('账号页是独立页 /account/（2026-10-22 从 /settings/accoun
 });
 
 test.describe('云同步拉取节流（2026-10-24）', () => {
-  /** 像线上 L1 那样给 HTML 页面注入管理员角色；/api/prefs 计数 */
-  async function adminWithPrefs(page) {
+  /** 像线上 L1 那样给 HTML 页面注入进门 + 账号已登录标记；/api/prefs 计数 */
+  async function enteredWithPrefs(page) {
     await zh(page);
     await page.route(/^http:\/\/localhost:\d+\/[^?]*\/?$/, async (route) => {
       const req = route.request();
@@ -1204,7 +1190,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
       const res = await route.fetch();
       const ct = res.headers()['content-type'] || '';
       if (!ct.includes('text/html')) return route.fulfill({ response: res });
-      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid" data-sgx-role="admin" data-sgx-account-session="in">');
+      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid" data-sgx-account-session="in">');
       await route.fulfill({ response: res, body: body });
     });
     const prefs = { get: 0, post: 0 };
@@ -1218,7 +1204,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
   }
 
   test('普通页面 5 分钟内只拉一次；进云同步页强制再拉', async ({ page }) => {
-    const prefs = await adminWithPrefs(page);
+    const prefs = await enteredWithPrefs(page);
     /* request 事件按发出顺序投递，配合 flushRequests 判断「没有再发」 */
     let gets = 0;
     page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/prefs' && r.method() === 'GET') gets++; });
@@ -1239,7 +1225,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     await expect.poll(() => prefs.get).toBe(2);
   });
 
-  test('P2-2：锁屏已解锁、账号未登录（/api/prefs 回 401 account）→ 停在本机（标 out），之后普通页面不再请求；不看 data-sgx-role', async ({ page }) => {
+  test('P2-2：锁屏已解锁、账号未登录（/api/prefs 回 401 account）→ 停在本机（标 out），之后普通页面不再请求', async ({ page }) => {
     await zh(page);
     await page.route(/^http:\/\/localhost:\d+\/[^?]*\/?$/, async (route) => {
       const req = route.request();
@@ -1247,8 +1233,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
       const res = await route.fetch();
       const ct = res.headers()['content-type'] || '';
       if (!ct.includes('text/html')) return route.fulfill({ response: res });
-      /* 角色写成 visitor：P2-2 起前端不看它，照样按 /api/prefs 的结果走 */
-      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid" data-sgx-role="visitor">');
+      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid">');
       await route.fulfill({ response: res, body: body });
     });
     let gets = 0;
@@ -1265,7 +1250,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
   });
 
   test('时刻超过 5 分钟 → 普通页面再拉', async ({ page }) => {
-    const prefs = await adminWithPrefs(page);
+    const prefs = await enteredWithPrefs(page);
     await page.addInitScript(() => {
       try { localStorage.setItem('sgx-sync-pull', JSON.stringify({ account: Date.now() - 6 * 60 * 1000 })); } catch (e) {}
     });

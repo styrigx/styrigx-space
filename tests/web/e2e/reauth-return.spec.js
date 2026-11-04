@@ -214,7 +214,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
     await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'keys' });
-    /* 账号体系：原管理员凭证门已升级为账号页，门内页用锁屏页（同一套门内组件 app-gate.js）测 */
+    /* 账号体系：原锁屏凭证门已升级为账号页，门内页用锁屏页（同一套门内组件 app-gate.js）测 */
     await mockJson(page, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: true });
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, ticket: 'lock-reauth', expiresAt: Date.now() + 175000, password: true, passkey: true });
   });

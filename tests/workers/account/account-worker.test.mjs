@@ -96,9 +96,9 @@ test('wrangler.toml：styrigx-account、不开公开地址、没有路由、没�
   }
 });
 
-test('默认 fetch：一律 404（任何路径、任何方法；伪造的 X-Styrigx-Lock-Role: admin 也不起作用），带 X-SGX-Runtime: account 和安全头', async () => {
+test('默认 fetch：一律 404（任何路径、任何方法；伪造的 X-Styrigx-Lock-Level: admin 也不起作用），带 X-SGX-Runtime: account 和安全头', async () => {
   for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['GET', '/avatar/96.webp'], ['GET', '/'], ['POST', '/api/wellbeing']]) {
-    const r = await worker.fetch(new Request('https://styrigx.com' + p, { method: m, headers: { 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'password', Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{"action":"login-challenge"}' }), {}, CTX);
+    const r = await worker.fetch(new Request('https://styrigx.com' + p, { method: m, headers: { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Lock-By': 'password', Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{"action":"login-challenge"}' }), {}, CTX);
     assert.equal(r.status, 404, m + ' ' + p);
     assert.deepEqual(await r.json(), { ok: false, error: 'not-found' });
     assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
@@ -138,9 +138,9 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-sto
   assert.equal(page.status, 404, '网关只转发表里的路径；别的路径不在这里出页面');
 });
 
-test('AccountService：v1 访客锁屏会话（网关写 Session: 1 + Role: visitor）在账号 Worker 只算进门——没有账号会话 → /api/prefs 401 account、/api/account 管理 action 401 account（网关那道 403 role 门 P2-3 才删）', async () => {
+test('AccountService：v1 临时钥匙进门会话（网关写 Session: 1 + Role: visitor）在账号 Worker 只算进门——没有账号会话 → /api/prefs 401 account、/api/account 管理 action 401 account（网关那道 403 role 门 P2-3 才删）', async () => {
   const { env } = setup();
-  const ck = await sess('visitor');
+  const ck = await sess('tempkey');
   let r = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: ck } }), env);
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');
@@ -158,7 +158,7 @@ test('进门但没登录账号：PUT /api/avatar 401 account、数字健康上�
     batch: async () => { touched += 100; },
   };
   const { env } = setup({ D1_WELLBEING: db });
-  const ck = await sess('visitor');
+  const ck = await sess('tempkey');
   const put = await call(new Request('https://styrigx.com/api/avatar', { method: 'PUT', headers: { Cookie: ck, Origin: 'https://styrigx.com' }, body: new FormData() }), env);
   assert.equal(put.status, 401);
   assert.equal((await put.json()).error, 'account');
@@ -174,7 +174,7 @@ test('进门但没登录账号：PUT /api/avatar 401 account、数字健康上�
 
 test('管理员：未知子路径 404、不支持的方法 405；/api/prefs/ 尾斜杠同 /api/prefs', async () => {
   const { env, authKv } = setup();
-  const ck = await sess('admin');
+  const ck = await sess('password');
   assert.equal((await call(new Request('https://styrigx.com/api/avatarx', { headers: { Cookie: ck } }), env)).status, 404);
   assert.equal((await call(new Request('https://styrigx.com/api/avatar', { headers: { Cookie: ck } }), env)).status, 405);
   /* 没登账号 → 401 account（尾斜杠也进 prefs） */
@@ -189,9 +189,9 @@ test('管理员：未知子路径 404、不支持的方法 405；/api/prefs/ 尾
   assert.ok(authKv);
 });
 
-test('身份头白名单：没有 X-Styrigx-Lock-Session: 1（只有 Role / By、Session 不是 1、旧头名 X-Sgx-Role）→ 当作无会话（401）', async () => {
+test('身份头白名单：没有 X-Styrigx-Lock-Session: 1（只有 Role / By、Session 不是 1、旧头名 X-Sgx-Legacy）→ 当作无会话（401）', async () => {
   const { env } = setup();
-  for (const h of [{ 'X-Styrigx-Lock-Role': 'admin' }, { 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'passkey' }, { 'X-Styrigx-Lock-By': 'password' }, { 'X-Styrigx-Lock-Session': 'true' }, { 'X-Sgx-Role': 'admin' }]) {
+  for (const h of [{ 'X-Styrigx-Lock-Level': 'password' }, { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Lock-By': 'passkey' }, { 'X-Styrigx-Lock-By': 'password' }, { 'X-Styrigx-Lock-Session': 'true' }, { 'X-Sgx-Legacy': 'password' }]) {
     const r = await serviceFetch(new Request('https://styrigx.com/api/wellbeing', { headers: h }), env, CTX);
     assert.equal(r.status, 401, JSON.stringify(h));
     const del = await serviceFetch(new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { ...h, Origin: 'https://styrigx.com' } }), env, CTX);
@@ -204,22 +204,22 @@ test('身份头白名单：没有 X-Styrigx-Lock-Session: 1（只有 Role / By�
 test('伪造 / 过期的锁屏 cookie：网关这一跳验签不过 → 不写身份头 → 401', async () => {
   const { env } = setup();
   const { priv: otherPriv } = await genKeyPair();
-  const forged = 'sgx-lock-session=' + (await testLockSession(otherPriv, 0, 'admin', 'password'));
+  const forged = 'sgx-lock-session=' + (await testLockSession(otherPriv, 0, 'password'));
   const r = await call(new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: forged } }), env);
   assert.equal(r.status, 401);
 });
 
 test('网关这一跳：验过的锁屏会话写成身份头，外来伪造的 x-styrigx-* 头先被剥掉', async () => {
   const { env } = setup();
-  const ck = await sess('admin');
-  const fake = { 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Client-Address': '6.6.6.6' };
+  const ck = await sess('password');
+  const fake = { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Client-Address': '6.6.6.6' };
   const none = await gatewayHop(new Request('https://styrigx.com/api/prefs', { headers: { ...fake, 'X-Styrigx-Lock-Session': '1' } }), env);
-  assert.equal(none.headers.get('X-Styrigx-Lock-Role'), null, '没有锁屏会话：伪造的身份头被剥掉');
+  assert.equal(none.headers.get('X-Styrigx-Lock-Level'), null, '没有锁屏会话：伪造的身份头被剥掉');
   assert.equal(none.headers.get('X-Styrigx-Lock-Session'), null);
   assert.equal(none.headers.get('X-Styrigx-Client-Address'), null);
   const real = await gatewayHop(new Request('https://styrigx.com/api/prefs', { headers: { ...fake, Cookie: ck, 'CF-Connecting-IP': '203.0.113.5' } }), env);
   assert.equal(real.headers.get('X-Styrigx-Lock-Session'), '1');
-  assert.equal(real.headers.get('X-Styrigx-Lock-Role'), 'admin');
+  assert.equal(real.headers.get('X-Styrigx-Lock-Level'), null, '进门二值：网关不写等级头，外来的也剥掉');
   assert.equal(real.headers.get('X-Styrigx-Lock-By'), 'password');
   assert.equal(real.headers.get('X-Styrigx-Client-Address'), '203.0.113.5');
 });

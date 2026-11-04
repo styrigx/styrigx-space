@@ -577,7 +577,7 @@ test('图标：没缓存现抓（apple-touch-icon → favicon.ico），存 R2 �
   assert.equal(f.calls.length, 2);
 });
 
-test('图标：抓不到存「没有」标记，7 天内不再抓；访客拿不到私密收藏的图标；坏 id 400', async () => {
+test('图标：抓不到存「没有」标记，7 天内不再抓；账号未登录拿不到私密收藏的图标；坏 id 400', async () => {
   const db = makeD1();
   const r2 = makeR2();
   await op(db, { op: 'cat.add', name: 'x' });
@@ -623,7 +623,7 @@ test('图标：图片一律要过会话——private, no-cache + ETag，304 只�
   assert.equal(no.status, 401);
   assert.equal(no.headers.get('Cache-Control'), 'private, no-store');
   assert.equal(no.headers.get('ETag'), null);
-  /* 私密分类下的收藏和公开的同域名共用一份图标缓存：访客带着同一个 ETag 也是 404 */
+  /* 私密分类下的收藏和公开的同域名共用一份图标缓存：账号未登录带着同一个 ETag 也是 404 */
   assert.equal((await get(2, 'lock', etag)).status, 404);
   assert.equal((await get(2, 'owner', etag)).status, 304);
 });

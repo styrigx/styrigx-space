@@ -58,7 +58,7 @@ export const TICKETS = Object.freeze({
     cookie: ACCOUNT_SESSION_COOKIE,
     privateKey: 'SGX_ACCOUNT_PRIVATE',
     publicKey: 'SGX_ACCOUNT_PUBLIC',
-    /* 400 天（浏览器 Max-Age 上限）：不点退出就一直登录；进账号页仍要先有 admin 锁屏会话 */
+    /* 400 天（浏览器 Max-Age 上限）：不点退出就一直登录；进账号页仍要先进门（锁屏进门会话） */
     maxAge: 34560000,
     cookieAttrs: ACCOUNT_SESSION_ATTRS,
     bys: Object.freeze([BY_PASSWORD, BY_PASSKEY]),

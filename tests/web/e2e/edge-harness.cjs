@@ -15,11 +15,11 @@
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
  *   Pages = 单树：web/atlas/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
  *   cloudflare:workers（rpc/*.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。
- * - 访客进入用临时 LockKey：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
+ * - 临时钥匙用临时 LockKey：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
  * - 分享短链 Worker = workers/share/src/index.js（路由 workers/share/wrangler.toml：/s/*、/api/share*），D1 用 tests/fixtures/share-d1.mjs，
  *   服务绑定 AUTH 接网关 verifier.js（只用 lockSession）、ISSUER 接网关 src/share-issuer.js（ShareIssuer RPC 里跑的同一份代码）；
- *   不绑 ACCOUNT_VERIFIER（短链管理只认管理员锁屏会话，不问账号会话；同正式 workers/share/wrangler.toml）。
+ *   不绑 ACCOUNT_VERIFIER（短链管理只认锁屏进门会话，生成 / 作废另要锁侧复验，不问账号会话；同正式 workers/share/wrangler.toml）。
  */
 const https = require('node:https');
 const http = require('node:http');
@@ -114,7 +114,7 @@ function pagesFor(req) {
 
 /**
  * 启动测试台。
- * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedTempkey:()=>Promise<string>, mintCookie:(role:string)=>Promise<string>}>}
+ * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedTempkey:()=>Promise<string>, mintCookie:(by:string)=>Promise<string>, mintReauth:()=>Promise<string>}>}
  */
 async function startEdge() {
   const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', 'scripts/lib/cf-routes.mjs')).href);
@@ -133,6 +133,7 @@ async function startEdge() {
   const { shareD1 } = await mod('tests/fixtures/share-d1.mjs');
   const sessMod = await mod('workers/auth-gateway/src/core/lock-session.js');
   const tempMod = await mod('workers/auth-gateway/src/core/lock-tempkey.js');
+  const ticketMod = await mod('workers/auth-gateway/src/core/tickets.js');
 
   const kv = makeKV();
   const d1 = makeAuthD1(); /* 网关 D1（全部认证状态） */
@@ -170,7 +171,7 @@ async function startEdge() {
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
     D1_LOCK_AUTH: d1, /* 网关只绑 D1（2026-10-27 起不绑 KV） */
     SGX_LOCK_PRIVATE: privPem, SGX_LOCK_PUBLIC: pubPem,
-    SGX_LOCK_SPACE_KEY: 'edge-test-admin-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
+    SGX_LOCK_SPACE_KEY: 'edge-test-space-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
     ACCOUNT, ACCOUNT_VERIFIER,
     ASSETS: assets,
   };
@@ -291,14 +292,20 @@ async function startEdge() {
     };
   }
 
-  /** 按当前 Lock 纪元签一个锁屏会话 cookie 值（admin：by=password；visitor：先登记一把 1 小时临时钥匙，by=tempkey、带它的 tempkeyId） */
-  async function mintCookie(role) {
+  /** 按当前 Lock 纪元签一个 v2 锁屏会话 cookie 值（by=password | passkey；by=tempkey 时先登记一把 1 小时临时钥匙，带它的 tempkeyId） */
+  async function mintCookie(by) {
     const ep = await sessMod.getLockEpoch(env);
-    if (role === 'visitor') {
+    if (by === 'tempkey') {
       const r = await tempMod.createTempkey(env, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
-      return sessMod.signLockSessionTicket(privPem, { by: 'tempkey', role: 'visitor', epoch: ep, exp: Date.now() + 3600 * 1000, tempkeyId: r.key.id });
+      return sessMod.signLockSessionTicket(privPem, { by: 'tempkey', epoch: ep, exp: Date.now() + 3600 * 1000, tempkeyId: r.key.id });
     }
-    return sessMod.signLockSessionTicket(privPem, { by: 'password', role: 'admin', epoch: ep, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
+    return sessMod.signLockSessionTicket(privPem, { by: by || 'password', epoch: ep, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
+  }
+
+  /** 锁侧复验短票 sgx-lock-reauth 的值（by=password，当前 Lock 纪元，3 分钟）：测试里直接塞 cookie，省掉每次走一遍复验界面 */
+  async function mintReauth() {
+    const ep = await sessMod.getLockEpoch(env);
+    return ticketMod.signLockReauthTicket(privPem, 'password', ep);
   }
 
   /** 签发一把 1 小时的临时 LockKey，返回临时码（XXXX-XXXX-XXXX） */
@@ -329,7 +336,7 @@ async function startEdge() {
     await new Promise((r) => proxy.close(() => r()));
   }
 
-  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedTempkey, mintCookie, mintAccount };
+  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedTempkey, mintCookie, mintReauth, mintAccount };
 }
 
 module.exports = { startEdge, LAUNCH, PROXY_PORT, REPO };

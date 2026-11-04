@@ -3,7 +3,7 @@
  *
  * 只在命名入口 AccountService 的请求上读网关写的锁屏身份和客户端上下文；头名大小写不敏感（Headers 会统一小写）。
  * - readLockIdentity(headers)：X-Styrigx-Lock-Session: 1（= 进门，P2-2 起只认它）才算有身份，By / Tempkey-Id 白名单校验；没有 → null（= 无会话）
- *   P2-2 起不再读 X-Styrigx-Lock-Role（网关 P2-3 前还会写，这里不看；进门之后能做什么由账号会话 + 作用域决定，core/authz.js）。
+ *   只有这一个进门结论（P2-3 起网关不分等级）；进门之后能做什么由账号会话 + 作用域决定（core/authz.js）。
  * - readClientContext(headers)：读客户端上下文；格式不对的项当作没有（''）
  *
  * 不 import 任何东西。

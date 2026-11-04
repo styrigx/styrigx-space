@@ -129,7 +129,7 @@ export async function requireAccount(context) {
   return { response: null, conclusion: c };
 }
 
-/** 响应里的两个布尔（方案 3.4 R14：代替旧的 admin 字段） */
+/** 响应里的两个布尔（方案 3.4 R14：代替旧的等级字段） */
 export function visibility(c) {
   return { canWrite: can(c, SCOPE_WRITE), showPrivate: canReadPrivate(c) };
 }

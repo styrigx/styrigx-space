@@ -1,9 +1,10 @@
 /**
  * 会话自检接口：前端唯一的「现在是什么状态、接下来去哪」的来源。
  * GET /api/lock-session-check[?return=<url>]
- * - 有有效 sgx-lock-session 会话 → 200 {ok:true, role:'admin'|'visitor', next, upgrade}
- *   - 带 return：next = 服务端校验后的去处（与首页 302 同一个 resolveReturn：站内路径或 *.styrigx.com 白名单，
- *     不合法回首页）；upgrade=true 表示访客要去管理员专属页 → 前端就地弹管理员验证，不跳、不出锁屏
+ * - 有有效 sgx-lock-session 会话（进门）→ 200 {ok:true, by, exp, next}
+ *   - by：进门方式（password | passkey | tempkey），只用于展示（例如「你是用临时钥匙进来的」），不分等级（方案 3.7）
+ *   - exp：会话到期（毫秒）
+ *   - 带 return：next = 服务端校验后的去处（与首页 302 同一个 resolveReturn：站内路径或 *.styrigx.com 白名单，不合法回首页）
  *   - 不带 return：next = null
  * - 否则 → 401 {ok:false}
  * 锁屏前端解锁成功后、页面状态与 cookie 可能不一致时（切回标签页、bfcache 恢复）都只问这里，
@@ -22,15 +23,10 @@ export async function onRequestGet(context) {
   const sess = await verifyLockSession(request, env);
   if (!sess.ok) return json(401, { ok: false });
   let next = null;
-  let upgrade = false;
   let ret = '';
   try {
     ret = new URL(request.url).searchParams.get('return') || '';
   } catch (e) {}
-  if (ret) {
-    const dest = resolveReturn(ret, sess.role);
-    next = dest.location;
-    upgrade = dest.upgrade;
-  }
-  return json(200, { ok: true, role: sess.role, next, upgrade });
+  if (ret) next = resolveReturn(ret);
+  return json(200, { ok: true, by: sess.by, exp: sess.exp || 0, next });
 }
