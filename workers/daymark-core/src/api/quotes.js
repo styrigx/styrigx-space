@@ -1,16 +1,16 @@
 // /api/quotes —— 句子的读和写。
 //
-// GET    /api/quotes             任何有效会话：admin 拿全部，visitor 只拿公开的。按添加时间倒序。
-//                                返回 {ok:true, admin, quotes:[{id,text,trans,author,source,source_type,tags,visibility,created_at,updated_at}]}
-//                                admin 的每句另带 note（随手一笔）和 collections（所在百味专题 id）；访客的响应里没有这两个键。
-// POST   /api/quotes             admin + 同源：新增。body {text, trans?, author?, source?, source_type?, tags?, visibility?, note?, collections?}
-// PUT    /api/quotes?id=<id>     admin + 同源：修改，只改给了的字段（collections 给了就按它重设归属：新加的排到专题末尾）
-// DELETE /api/quotes?id=<id>     admin + 同源：删除（连同它在百味专题里的位置）
+// GET    /api/quotes             进门即可：账号已登录拿全部，没登录只拿公开的。按添加时间倒序。
+//                                返回 {ok:true, canWrite, showPrivate, quotes:[{id,text,trans,author,source,source_type,tags,visibility,created_at,updated_at}]}
+//                                showPrivate 时每句另带 note（随手一笔）和 collections（所在百味专题 id）；没登录账号的响应里没有这两个键。
+// POST   /api/quotes             账号会话 + 作用域 daymark.write + 同源：新增。body {text, trans?, author?, source?, source_type?, tags?, visibility?, note?, collections?}
+// PUT    /api/quotes?id=<id>     账号会话 + daymark.write + 同源：修改，只改给了的字段（collections 给了就按它重设归属：新加的排到专题末尾）
+// DELETE /api/quotes?id=<id>     账号会话 + daymark.write + 同源：删除（连同它在百味专题里的位置）
 // 写操作成功返回 {ok:true, quote}（删除返回 {ok:true}）。
 // 错误：400 bad-json / bad-body / bad-text / bad-visibility / bad-source-type / bad-collections / nothing / bad-id；
-//       403 origin / role；404 not-found；409 limit；413 too-large
+//       401 account；403 origin / scope；404 not-found；409 limit；413 too-large
 import { json, err, methodNotAllowed } from './_lib.js';
-import { sessionRole } from './_auth.js';
+import { conclusionOf, canReadPrivate, visibility } from './_auth.js';
 import { readBody, guardWrite, idParam } from './_write.js';
 import { ensureSchema, parseQuote, rowToQuote, newId, LIMITS, QUOTE_COLS } from './_quotes.js';
 
@@ -41,7 +41,7 @@ async function setCollections(db, quoteId, ids) {
   if (stmts.length) await db.batch(stmts);
 }
 
-async function adminQuote(db, id) {
+async function fullQuote(db, id) {
   const row = await db.prepare(`SELECT ${QUOTE_COLS} FROM quotes WHERE id = ?1`).bind(id).first();
   if (!row) return null;
   const q = rowToQuote(row, true);
@@ -50,17 +50,17 @@ async function adminQuote(db, id) {
 }
 
 export async function onRequestGet(context) {
-  const { request, env } = context;
-  const role = await sessionRole(context);
-  if (!role) return err('unauthorized', 401);
+  const { env } = context;
+  const c = await conclusionOf(context);
+  if (!c.lock.ok) return err('unauthorized', 401);
   await ensureSchema(env.D1_QUOTES);
-  const admin = role === 'admin';
-  const sql = admin
+  const showPrivate = canReadPrivate(c);
+  const sql = showPrivate
     ? `SELECT ${QUOTE_COLS} FROM quotes ORDER BY created_at DESC, id`
     : `SELECT ${QUOTE_COLS} FROM quotes WHERE visibility = 'public' ORDER BY created_at DESC, id`;
   const { results } = await env.D1_QUOTES.prepare(sql).all();
-  const quotes = (results || []).map((r) => rowToQuote(r, admin));
-  if (admin) {
+  const quotes = (results || []).map((r) => rowToQuote(r, showPrivate));
+  if (showPrivate) {
     const m = await env.D1_QUOTES.prepare(
       'SELECT cq.quote_id AS q, cq.collection_id AS c FROM collection_quotes cq JOIN collections c ON c.id = cq.collection_id ORDER BY c.sort, c.created_at, c.id'
     ).all();
@@ -69,7 +69,7 @@ export async function onRequestGet(context) {
     for (const r of m.results || []) (by[r.q] = by[r.q] || []).push(r.c);
     for (const q of quotes) q.collections = by[q.id] || [];
   }
-  return json({ ok: true, admin, quotes });
+  return json({ ok: true, ...visibility(c), quotes });
 }
 
 export async function onRequestPost(context) {
@@ -90,7 +90,7 @@ export async function onRequestPost(context) {
     'INSERT INTO quotes (id, text, trans, author, source, source_type, tags, visibility, note, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)'
   ).bind(id, f.text, f.trans, f.author, f.source, f.source_type, JSON.stringify(f.tags), f.visibility, f.note, now).run();
   if (p.collections && p.collections.length) await setCollections(env.D1_QUOTES, id, p.collections);
-  return json({ ok: true, quote: await adminQuote(env.D1_QUOTES, id) }, 201);
+  return json({ ok: true, quote: await fullQuote(env.D1_QUOTES, id) }, 201);
 }
 
 export async function onRequestPut(context) {
@@ -116,7 +116,7 @@ export async function onRequestPut(context) {
   const res = await env.D1_QUOTES.prepare('UPDATE quotes SET ' + sets.join(', ') + ' WHERE id = ?' + args.length).bind(...args).run();
   if (!res.meta || !res.meta.changes) return err('not-found', 404);
   if (p.collections) await setCollections(env.D1_QUOTES, id, p.collections);
-  return json({ ok: true, quote: await adminQuote(env.D1_QUOTES, id) });
+  return json({ ok: true, quote: await fullQuote(env.D1_QUOTES, id) });
 }
 
 export async function onRequestDelete(context) {

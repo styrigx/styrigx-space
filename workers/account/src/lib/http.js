@@ -53,6 +53,7 @@ export const ERROR_CODES = Object.freeze({
   account: [401],
   denied: [401],
   role: [403],
+  scope: [403], /* 账号作用域不够（P2-2：/api/avatar、/api/prefs；带 scope 字段） */
   admin_only: [403],
   reauth: [403],
   challenge: [403],

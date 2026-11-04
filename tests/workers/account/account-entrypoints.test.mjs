@@ -110,29 +110,35 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false}（最小门）�
   assert.deepEqual(calls, []);
 });
 
-test('AccountService：白名单外的身份值（ADMIN / root / 空 / 只有 By 头）一律当作无身份 → 401', async () => {
+test('AccountService：没有 X-Styrigx-Lock-Session: 1 一律当作没进门 → 401（只有 Role / By 头、Session 不是 1 都不算）', async () => {
   const { env } = makeEnv();
   for (const h of [
-    { 'X-Styrigx-Lock-Role': 'ADMIN' },
-    { 'X-Styrigx-Lock-Role': 'root' },
-    { 'X-Styrigx-Lock-Role': '' },
-    { 'X-Styrigx-Lock-Role': 'admin,visitor' },
+    { 'X-Styrigx-Lock-Role': 'admin' },
+    { 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'password' },
     { 'X-Styrigx-Lock-By': 'password' },
+    { 'X-Styrigx-Lock-Session': '0' },
+    { 'X-Styrigx-Lock-Session': 'true' },
+    { 'X-Styrigx-Lock-Session': '' },
+    { 'X-Styrigx-Lock-Session': '1,1' },
+    { 'X-Sgx-Role': 'admin' },
   ]) {
     const r = await service(env).fetch(req('/api/account', { headers: h }));
     assert.equal(r.status, 401, JSON.stringify(h));
   }
 });
 
-test('AccountService：访客身份头 → /api/prefs 403 role（门）、/api/account 401 session（接口）', async () => {
+test('AccountService：P2-2 起不看 X-Styrigx-Lock-Role——进门（Session: 1）+ Role: visitor 也照常走到账号判断（/api/prefs 没账号会话 401 account、/api/account 读状态 200）', async () => {
   const { env } = makeEnv();
   const h = idHeaders({ role: 'visitor', by: 'tempkey', tempkeyId: 'tk1' });
   let r = await service(env).fetch(req('/api/prefs', { headers: h }));
-  assert.equal(r.status, 403);
-  assert.deepEqual(await r.json(), { ok: false, error: 'role' });
-  r = await service(env).fetch(req('/api/account', { headers: h }));
   assert.equal(r.status, 401);
-  assert.equal((await r.json()).error, 'session');
+  assert.equal((await r.json()).error, 'account');
+  r = await service(env).fetch(req('/api/account', { headers: h }));
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).session, null);
+  /* 账号会话有效就放行，不管 Role 头写的是什么（网关 P2-3 前对访客的 /api/prefs 仍有 403 role 门，那是网关的事） */
+  r = await service(env).fetch(req('/api/prefs', { headers: { ...h, Cookie: await accCookie() } }));
+  assert.equal(r.status, 200);
 });
 
 test('AccountService：/api/prefs 的账号会话在本 Worker 验（账号库），不回调网关；没账号会话 401 account', async () => {
@@ -313,21 +319,47 @@ test('verifierRequest：只带 Cookie / User-Agent / 地点头，不带锁屏身
   assert.deepEqual([...r.headers.keys()].sort(), ['cookie', 'user-agent', 'x-styrigx-client-city', 'x-styrigx-client-country']);
 });
 
-test('lockIdentityDenial：只按身份头的结论拒；/api/* 无身份 401、访客调 /api/prefs（含子路径）403 role；/api/prefsX、/api/account、/avatar/* 不在这里拒', async () => {
+test('lockIdentityDenial：只按身份头的结论拒；/api/* 没进门 401；进了门（不管怎么进的）一律放行，后面由各接口按账号会话 / 作用域判断；/avatar/* 不在这里拒', async () => {
   const deny = (p, id) => ep.lockIdentityDenial(new Request(ORIGIN + p), id);
-  const admin = { role: 'admin', by: 'password', tempkeyId: '' };
-  const visitor = { role: 'visitor', by: 'tempkey', tempkeyId: 'tk1' };
-  assert.equal(deny('/api/prefs', admin), null);
+  const byPassword = { session: true, by: 'password', tempkeyId: '' };
+  const byTempkey = { session: true, by: 'tempkey', tempkeyId: 'tk1' };
   assert.equal(deny('/avatar/96.webp', null), null, '头像文件公开');
-  const r401 = deny('/api/wellbeing', null);
-  assert.equal(r401.status, 401);
-  assert.deepEqual(await r401.json(), { ok: false });
-  for (const p of ['/api/prefs', '/api/prefs/']) {
-    const r = deny(p, visitor);
-    assert.equal(r.status, 403, p);
-    assert.equal((await r.json()).error, 'role');
+  for (const p of ['/api/wellbeing', '/api/prefs', '/api/account', '/api/avatar']) {
+    const r401 = deny(p, null);
+    assert.equal(r401.status, 401, p);
+    assert.deepEqual(await r401.json(), { ok: false });
+    assert.equal(deny(p, byPassword), null, p);
+    assert.equal(deny(p, byTempkey), null, p + '（用临时钥匙进门也算进门）');
   }
-  assert.equal(deny('/api/prefsX', visitor), null, '不是 /api/prefs 的子路径');
-  assert.equal(deny('/api/account', visitor), null, '访客调 /api/account 交给 api/account.js');
-  assert.equal(deny('/api/wellbeing', visitor), null);
+  assert.equal(deny('/api/prefs', { by: 'password', tempkeyId: '' }).status, 401, '没有 session: true 不算');
+});
+
+test('headerAuth：lockSession 只看进门；authorize 用 core/authz.js（同一请求、同样的 reauth 只算一次）；scopeDenial 401 session / 401 account / 403 scope', async () => {
+  const { env } = makeEnv();
+  const e = await (await import(SRC + 'secrets.js')).resolveSecrets(env);
+  const mk = (headers) => ep.headerAuth(new Request(ORIGIN + '/api/prefs', { headers }), e);
+  const none = mk({});
+  assert.deepEqual(await none.lockSession(), { ok: false, by: '', reason: 'no-identity' });
+  let r = await ep.scopeDenial(none, 'prefs.sync');
+  assert.equal(r.status, 401);
+  assert.equal((await r.json()).error, 'session');
+  const lockOnly = mk(idHeaders({ by: 'passkey' }));
+  assert.deepEqual(await lockOnly.lockSession(), { ok: true, by: 'passkey', reason: 'ok' });
+  r = await ep.scopeDenial(lockOnly, 'prefs.sync', { 'Cache-Control': 'private, no-store' });
+  assert.equal(r.status, 401);
+  assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
+  const j = await r.json();
+  assert.equal(j.error, 'account');
+  assert.equal(j.reason, 'no-cookie');
+  const owner = mk({ ...idHeaders(), Cookie: await accCookie() });
+  const a1 = owner.authorize();
+  assert.equal(owner.authorize(), a1, '同一请求只算一次');
+  assert.notEqual(owner.authorize({ reauth: true }), a1, '要复验的另算一次');
+  const a = await a1;
+  assert.equal(a.ok, true);
+  assert.deepEqual(a.scopes, ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'wellbeing.write']);
+  assert.equal(await ep.scopeDenial(owner, 'prefs.sync'), null);
+  r = await ep.scopeDenial(owner, 'nope.scope');
+  assert.equal(r.status, 403);
+  assert.deepEqual(await r.json(), { ok: false, error: 'scope', scope: 'nope.scope' });
 });

@@ -101,4 +101,4 @@
 
 部署和回滚（`.github/workflows/deploy.yml`）：接口 Worker（搜索、聊天 → 监测 → 账号 ∥ 短链 ∥ 奇趣接口 ∥ 日刻接口）→ **网关** → Pages。接口 Worker 先挂上 `styrigx.com/<站>/api/*`，网关再按路径分发子站、把 atlas 301 过来；网关冒烟通过后才部署 Pages。Pages 上已经没有后端代码，不能靠删路由回滚；main 部署冒烟失败时 CI 自动 `wrangler rollback` 到部署前的版本（`scripts/deploy-rollback.mjs`，只换代码版本，D1 数据和路由都不回滚；回滚下限见 `scripts/deploy-rollback-floor.json`）。预览（passkey-e2e）用组合入口 `tests/web/e2e/preview-worker.js`，预览资源只用一个 `styrigx-test-preview`。
 
-遗留项：网关发给 chat / search 的内部请求仍写旧头 `X-Sgx-Role`（`src/api/chat.js`、`src/api/search.js`），那两个 Worker 也仍认它；统一留待以后。
+P2-2 起网关不再写旧头 `X-Sgx-Role`：`src/api/search.js` 改写账号结论头（`X-Styrigx-Account-*`，search-index 只认 `X-Styrigx-Account-Session: 1`）；`src/api/chat.js` 门在网关（过渡期：admin 锁屏 + 账号会话，没有账号会话 401 `account`），转给 styrigx-chat 的请求不带身份头。入站的 `x-sgx-role` 仍照剥。

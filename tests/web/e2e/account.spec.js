@@ -1239,6 +1239,31 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     await expect.poll(() => prefs.get).toBe(2);
   });
 
+  test('P2-2：锁屏已解锁、账号未登录（/api/prefs 回 401 account）→ 停在本机（标 out），之后普通页面不再请求；不看 data-sgx-role', async ({ page }) => {
+    await zh(page);
+    await page.route(/^http:\/\/localhost:\d+\/[^?]*\/?$/, async (route) => {
+      const req = route.request();
+      if (req.resourceType() !== 'document') return route.fallback();
+      const res = await route.fetch();
+      const ct = res.headers()['content-type'] || '';
+      if (!ct.includes('text/html')) return route.fulfill({ response: res });
+      /* 角色写成 visitor：P2-2 起前端不看它，照样按 /api/prefs 的结果走 */
+      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid" data-sgx-role="visitor">');
+      await route.fulfill({ response: res, body: body });
+    });
+    let gets = 0;
+    await page.route('**/api/prefs', async (route) => {
+      if (route.request().method() === 'GET') gets++;
+      await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'account', reason: 'missing' }) });
+    });
+    await page.goto('/', { waitUntil: 'load' });
+    await expect.poll(() => gets).toBe(1);
+    await page.waitForFunction(() => localStorage.getItem('sgx-sync-auth') === 'out');
+    await page.goto('/settings/', { waitUntil: 'load' });
+    await flushRequests(page);
+    expect(gets).toBe(1);
+  });
+
   test('时刻超过 5 分钟 → 普通页面再拉', async ({ page }) => {
     const prefs = await adminWithPrefs(page);
     await page.addInitScript(() => {

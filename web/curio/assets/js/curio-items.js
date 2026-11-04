@@ -4,11 +4,12 @@
  *   点卡片 → 详情（参数、配件、体验、购买 / 退役日期、使用天数、换代历史：从哪台换来、后来换成哪台）。
  *   使用天数不存，按 购买日期 → 退役日期（没退役就是今天）现算。
  * 游戏：卡片（封面、名字、平台、状态、评分），筛选条 全部 / 想玩 / 在玩 / 通关 / 搁置。详情里有版本、在哪台设备上玩、评价。
- * 管理员：右下角「设备」「游戏」新建；详情左上角编辑；编辑弹层里删除（要确认）。
+ * 能编辑（接口回 canWrite：账号已登录 + curio.write）：右下角「设备」「游戏」新建；详情左上角编辑；编辑弹层里删除（要确认）。
  * 照片：选图 → 全屏「移动和缩放」（同主站头像裁剪：单指拖、双指 / 滚轮缩放，照片始终盖满取景框）。
  *   取景框 = 卡片显示的比例（设备 .it-media 4:3、游戏 .it-media--cover 3:4），裁好的图卡片里正好铺满、详情里完整显示。
  *   完成 → 浏览器里裁成长边 ≤1200（不放大）、转 webp（不支持就 jpeg），保存时再传；保存前点缩略图可以重新调整。
- * 访客只读、只看公开的。
+ * 账号没登录：只读、只看公开的（showPrivate=false）；「登录账号后可编辑」那一行在 curio.js（#cu-signin）。
+ * 写请求只有 401 unauthorized 才当锁定刷新（401 account / reauth 是账号的事，提示「登录账号后可编辑」）。
  *
  * 数据：GET /api/items；写：POST /api/items {op}；照片：/api/photo?kind=device|game&id=（GET 图、POST 传、DELETE 删）。
  * 页签切换在 curio-tabs.js；确认框、提示条、弹层开关借 curio.js 的（window.SgxCurioUI）。
@@ -138,7 +139,7 @@ var T = isEn ? {
   status: { want: 'Want to play', playing: 'Playing', done: 'Finished', shelved: 'On hold' },
   addDevice: 'Add a device', editDevice: 'Edit device', addGame: 'Add a game', editGame: 'Edit game',
   emptyDevAdmin: 'No devices yet. Tap "Device" to add one.', emptyGameAdmin: 'No games yet. Tap "Game" to add one.', empty: 'Nothing here yet.', noMatch: 'Nothing in this filter.',
-  needName: 'Give it a name.', badDate: 'Check the dates.', failed: 'Something went wrong. Please try again.', saved: 'Saved.', deleted: 'Deleted.',
+  needName: 'Give it a name.', needAccount: 'Sign in to your account to edit.', badDate: 'Check the dates.', failed: 'Something went wrong. Please try again.', saved: 'Saved.', deleted: 'Deleted.',
   photoFail: 'Saved, but the photo didn\'t upload.', notImage: 'That isn\'t a photo we can use.', tooLarge: 'The photo is too large.',
   delDevice: 'Delete this device?', delGame: 'Delete this game?', del: 'Delete', none: 'None', priv: 'Only you can see this',
   used: 'In use for', usedFor: 'Used for', bought: 'Bought', retiredOn: 'Retired', os: 'System', specs: 'Specs', acc: 'Accessories', notes: 'How it\'s been',
@@ -150,7 +151,7 @@ var T = isEn ? {
   status: { want: '想玩', playing: '在玩', done: '通关', shelved: '搁置' },
   addDevice: '添加设备', editDevice: '编辑设备', addGame: '添加游戏', editGame: '编辑游戏',
   emptyDevAdmin: '还没有设备。点「设备」添加第一台。', emptyGameAdmin: '还没有游戏。点「游戏」添加。', empty: '这里还空着。', noMatch: '这个筛选下没有。',
-  needName: '起个名字。', badDate: '日期不对，检查一下。', failed: '出了点问题，请再试一次。', saved: '已保存', deleted: '已删除',
+  needName: '起个名字。', needAccount: '登录账号后可编辑。', badDate: '日期不对，检查一下。', failed: '出了点问题，请再试一次。', saved: '已保存', deleted: '已删除',
   photoFail: '已保存，但照片没传上去。', notImage: '这张图用不了。', tooLarge: '照片太大了。',
   delDevice: '确定删除这台设备吗？', delGame: '确定删除这个游戏吗？', del: '删除', none: '无', priv: '仅自己可见',
   used: '已经用了', usedFor: '用了', bought: '购买', retiredOn: '退役', os: '系统', specs: '参数', acc: '配件', notes: '体验',
@@ -176,7 +177,7 @@ var LOCK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="
 function starSvg(n){ return '<svg viewBox="0 0 24 24" width="' + n + '" height="' + n + '" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="currentColor"/></svg>'; }
 var STAR = starSvg(16);
 
-var devices = [], games = [], admin = false, loaded = false;
+var devices = [], games = [], canWrite = false, showPrivate = false, loaded = false;
 var dvFilter = 'all', gmFilter = 'all';
 var ver = {}; /* 照片缓存破坏：换过照片的条目带 ?v= */
 
@@ -195,8 +196,13 @@ function send(method, url, body, type){
     headers: body === undefined ? {} : { 'Content-Type': type || 'application/json' },
     body: body === undefined ? undefined : type ? body : JSON.stringify(body),
   }).then(function(r){
-    if (r.type === 'opaqueredirect' || r.status === 401) { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
-    return r.json().catch(function(){ return {}; }).then(function(j){ if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error }); return j; });
+    if (r.type === 'opaqueredirect') { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+    return r.json().catch(function(){ return {}; }).then(function(j){
+      /* 只有 401 unauthorized（没进门）当锁定；401 account / reauth 是账号的事（同 curio.js isLockedReply） */
+      if (r.status === 401 && j.error !== 'account' && j.error !== 'reauth') { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
+      return j;
+    });
   });
 }
 function op(body){ return send('POST', '/curio/api/items', body).then(function(j){ devices = j.devices || []; games = j.games || []; render(); return j; }); }
@@ -206,6 +212,7 @@ function errText(e){
   if (/^bad-(bought|retired)-at$/.test(c)) return T.badDate;
   if (c === 'not-image') return T.notImage;
   if (c === 'too-large') return T.tooLarge;
+  if (c === 'account' || c === 'scope') return T.needAccount;
   return T.failed;
 }
 function findDev(id){ return devices.filter(function(d){ return d.id === id; })[0] || null; }
@@ -220,7 +227,7 @@ function devCard(d){
   var sub = [T.kinds[d.kind] || T.kinds.other, d.os].filter(Boolean).join(' · ');
   return '<button type="button" class="it-card' + (d.retired_at ? ' is-retired' : '') + '" data-dev="' + d.id + '">'
     + '<span class="it-media">' + (d.photo ? '<img src="' + photoUrl('device', d.id) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '') + '<span class="it-media-ic">' + icon(d.kind) + '</span></span>'
-    + '<span class="it-body"><span class="it-name">' + esc(d.name) + (admin && d.private ? '<span class="cu-lock-inline" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '') + '</span>'
+    + '<span class="it-body"><span class="it-name">' + esc(d.name) + (showPrivate && d.private ? '<span class="cu-lock-inline" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '') + '</span>'
     + '<span class="it-sub">' + esc(sub) + '</span>'
     + (days != null ? '<span class="it-meta">' + esc((d.retired_at ? T.usedFor : T.used) + ' ' + daysText(days, isEn)) + '</span>' : '')
     + (d.retired_at ? '<span class="it-badge">' + esc(T.retired) + '</span>' : '')
@@ -237,7 +244,7 @@ function gameCard(g){
   var sub = [g.platform, dev && dev.name].filter(Boolean).join(' · ');
   return '<button type="button" class="it-card it-card--game" data-game="' + g.id + '">'
     + '<span class="it-media it-media--cover">' + (g.cover ? '<img src="' + photoUrl('game', g.id) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '') + '<span class="it-media-ic">' + icon('game') + '</span></span>'
-    + '<span class="it-body"><span class="it-name">' + esc(g.title) + (admin && g.private ? '<span class="cu-lock-inline" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '') + '</span>'
+    + '<span class="it-body"><span class="it-name">' + esc(g.title) + (showPrivate && g.private ? '<span class="cu-lock-inline" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '') + '</span>'
     + (sub ? '<span class="it-sub">' + esc(sub) + '</span>' : '')
     + '<span class="it-row"><span class="it-status it-status--' + esc(g.status) + '">' + esc(T.status[g.status] || '') + '</span>' + stars(g.rating) + '</span>'
     + '</span></button>';
@@ -250,8 +257,8 @@ function render(){
   var gs = filterGames(games, gmFilter);
   $('#gm-list').innerHTML = gs.map(gameCard).join('');
   var de = $('#dv-empty'), ge = $('#gm-empty');
-  de.textContent = devices.length ? T.noMatch : admin ? T.emptyDevAdmin : T.empty;
-  ge.textContent = games.length ? T.noMatch : admin ? T.emptyGameAdmin : T.empty;
+  de.textContent = devices.length ? T.noMatch : canWrite ? T.emptyDevAdmin : T.empty;
+  ge.textContent = games.length ? T.noMatch : canWrite ? T.emptyGameAdmin : T.empty;
   de.classList.toggle('hidden', !loaded || ds.length > 0);
   ge.classList.toggle('hidden', !loaded || gs.length > 0);
 }
@@ -291,7 +298,7 @@ function showView(title, html){
   $('#it-view-title').textContent = title;
   $('#it-view-body').innerHTML = html;
   $('#it-view-body').scrollTop = 0;
-  $('#it-view-edit').classList.toggle('hidden', !admin);
+  $('#it-view-edit').classList.toggle('hidden', !canWrite);
   open('it-view-wrap');
 }
 $('#it-view-body').addEventListener('click', function(e){
@@ -588,9 +595,9 @@ $('#gm-del').addEventListener('click', function(){
 
 /* ---------- 启动 ---------- */
 getJSON('/curio/api/items').then(function(j){
-  admin = !!j.admin; devices = j.devices || []; games = j.games || []; loaded = true;
-  $('#dv-fab').dataset.admin = admin ? '1' : '';
-  $('#gm-fab').dataset.admin = admin ? '1' : '';
+  canWrite = !!j.canWrite; showPrivate = !!j.showPrivate; devices = j.devices || []; games = j.games || []; loaded = true;
+  $('#dv-fab').dataset.canWrite = canWrite ? '1' : '';
+  $('#gm-fab').dataset.canWrite = canWrite ? '1' : '';
   doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); });
   render();
   if (G.SgxCurioTabs) G.SgxCurioTabs.refresh();

@@ -2,7 +2,7 @@
 
 ## 职责
 
-全站搜索：按关键词在各站的索引里查，回标题、副标题、地址，不回正文。私密条目（`private`）只在管理员请求时出现。
+全站搜索：按关键词在各站的索引里查，回标题、副标题、地址，不回正文。私密条目（`private`）只在有账号会话的请求时出现（P2-2 起由网关的账号结论头决定，不看锁屏角色）。
 
 ## 入口
 
@@ -14,7 +14,7 @@
 
 | 路径 | 谁调 | 结果 |
 |---|---|---|
-| `GET /search?q=&lang=zh\|en&site=&limit=` | 网关 `styrigx-auth-gateway` 的服务绑定 `SEARCH`（浏览器请求 `/api/search`，网关先验会话，再写 `X-Sgx-Role: admin\|visitor`） | 200 `{ ok, q, hits }`；读不到索引 503 `{ ok:false, error:'index' }` |
+| `GET /search?q=&lang=zh\|en&site=&limit=` | 网关 `styrigx-auth-gateway` 的服务绑定 `SEARCH`（浏览器请求 `/api/search`，网关先验锁屏会话、再问账号 Worker，有账号会话才写 `X-Styrigx-Account-Session: 1` 等结论头；P2-2 起不再写也不再读 `X-Sgx-Role`） | 200 `{ ok, q, hits }`；读不到索引 503 `{ ok:false, error:'index' }` |
 | `GET /healthz` | `styrigx-status` 的服务绑定 `SEARCH`（每分钟） | 至少一个站的索引读得到 200 `{ ok, sites, missing }`；一个都没有 503 |
 | 其他 | | 404；方法不对 405 |
 

@@ -2,15 +2,15 @@
  * 主站头像接口
  * - GET /avatar/<尺寸>.webp：没上传过 → 默认图（ETag "d-<尺寸>"）；上传过 → KV 里的图（ETag "<版本>-<尺寸>"）；
  *   If-None-Match 命中 → 304；不认识的尺寸 → 404；公开缓存头。
- * - PUT /api/avatar：不同源 403；无会话 / 访客 403；缺尺寸 400；不是 WebP/PNG 415；太大 413；
- *   管理员 + 四张合法图 → 写四张 + 版本号。
- * - DELETE /api/avatar：管理员 → 删版本号和四张；访客 403。
+ * - PUT /api/avatar（P2-2 起：进门 + 账号会话 + avatar.write，不看 role）：不同源 403；没进门 401 session；
+ *   进门没账号会话 401 account（访客锁屏同样）；缺尺寸 400；不是 WebP/PNG 415；太大 413；进门 + 账号会话 + 四张合法图 → 写四张 + 版本号。
+ * - DELETE /api/avatar：同一道门；没账号会话 401 account；有 → 删版本号和四张。
  *
  * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关搬来）；锁屏身份经网关这一跳写成身份头（_auth.mjs）。
  *
  * 运行：node --test tests/workers/account/avatar.test.mjs
  */
-import { wrap } from './_auth.mjs';
+import { wrap, testAccountSessionCookie } from './_auth.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -28,6 +28,7 @@ const { sniffImage, sizeOfFile } = await import(REPO + '/workers/account/src/lib
 const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
+const ACC = await genKeyPair();
 
 const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 1, 2, 3]);
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9]);
@@ -54,23 +55,28 @@ function makeKv(init = {}) {
 }
 function env(kv) {
   return {
-    SGX_LOCK_PUBLIC: PUB,
+    SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: ACC.pub,
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, KV_PROFILE: kv,
     D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv),
     ASSETS: { fetch: async (u) => new Response('DEFAULT:' + new URL(u).pathname, { status: 200 }) },
   };
 }
-async function cookie(role) {
-  return 'sgx-lock-session=' + (await testLockSession(PRIV, 0, role));
+/** 锁屏 cookie（role 为空 → 不带）+ 账号会话 cookie（acc 为真才带） @param {string|null} role @param {boolean} [acc] */
+async function cookie(role, acc) {
+  const c = [];
+  if (role) c.push('sgx-lock-session=' + (await testLockSession(PRIV, 0, role)));
+  if (acc) c.push(await testAccountSessionCookie(ACC.priv, 'password', 0, Date.now()));
+  return c.join('; ');
 }
 function form(parts) {
   const fd = new FormData();
   for (const [k, v] of Object.entries(parts)) fd.append(k, new Blob([v]), k + '.webp');
   return fd;
 }
-async function putReq({ role, origin = 'https://styrigx.com', parts }) {
+async function putReq({ role, acc = true, origin = 'https://styrigx.com', parts }) {
   const headers = { Origin: origin };
-  if (role) headers.Cookie = await cookie(role);
+  const ck = await cookie(role, acc);
+  if (ck) headers.Cookie = ck;
   return new Request('https://styrigx.com/api/avatar', { method: 'PUT', headers, body: form(parts) });
 }
 const ALL = { 32: WEBP, 96: WEBP, 192: PNG, 512: WEBP };
@@ -109,11 +115,13 @@ test('PUT 不同源 → 403', async () => {
   assert.equal(res.status, 403);
 });
 
-test('PUT 无会话 / 访客 → 403，不写 KV', async () => {
-  for (const role of [null, 'visitor']) {
+test('PUT 没进门 401 session；进门没账号会话 401 account（admin / 访客锁屏一样），不写 KV', async () => {
+  for (const [role, acc, code] of [[null, false, 'session'], [null, true, 'session'], ['admin', false, 'account'], ['visitor', false, 'account']]) {
     const kv = makeKv();
-    const res = await onRequestPut({ request: await putReq({ role, parts: ALL }), env: env(kv) });
-    assert.equal(res.status, 403);
+    const res = await onRequestPut({ request: await putReq({ role, acc, parts: ALL }), env: env(kv) });
+    assert.equal(res.status, 401, String(role) + '/' + acc);
+    assert.equal((await res.json()).error, code);
+    assert.match(res.headers.get('Cache-Control') || '', /no-store/);
     assert.equal(kv.m.size, 0);
   }
 });
@@ -131,7 +139,7 @@ test('PUT 缺尺寸 400 / 格式不对 415 / 太大 413', async () => {
   assert.equal(kv.m.size, 0);
 });
 
-test('PUT 管理员 → 写四张 + 版本号；GET 读到新图和新 ETag；DELETE 回到默认', async () => {
+test('PUT 进门 + 账号会话 → 写四张 + 版本号；GET 读到新图和新 ETag；DELETE 回到默认', async () => {
   const kv = makeKv();
   const e = env(kv);
   const res = await onRequestPut({ request: await putReq({ role: 'admin', parts: ALL }), env: e });
@@ -147,15 +155,16 @@ test('PUT 管理员 → 写四张 + 版本号；GET 读到新图和新 ETag；DE
   assert.equal(g.headers.get('Content-Type'), 'image/png');
   assert.deepEqual(new Uint8Array(await g.arrayBuffer()), PNG);
 
-  const visitorDel = await onRequestDelete({
-    request: new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { Origin: 'https://styrigx.com', Cookie: await cookie('visitor') } }),
+  const noAccDel = await onRequestDelete({
+    request: new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { Origin: 'https://styrigx.com', Cookie: await cookie('admin', false) } }),
     env: e,
   });
-  assert.equal(visitorDel.status, 403);
+  assert.equal(noAccDel.status, 401);
+  assert.equal((await noAccDel.json()).error, 'account');
   assert.ok(kv.m.has('avatar:ver'));
 
   const del = await onRequestDelete({
-    request: new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { Origin: 'https://styrigx.com', Cookie: await cookie('admin') } }),
+    request: new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { Origin: 'https://styrigx.com', Cookie: await cookie('admin', true) } }),
     env: e,
   });
   assert.equal(del.status, 200);

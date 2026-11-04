@@ -49,10 +49,11 @@ globalThis.window = {
   clearTimeout(id) { timers = timers.filter((x) => x.id !== id); },
   location: { reload() { reloads++; } },
 };
-let role = 'admin';
+/** <html data-sgx-lock-session>（P2-2 起 cloud-sync 只看它，不看 data-sgx-role） */
+let lockState = 'valid';
 globalThis.document = {
   getElementById() { return null; },
-  documentElement: { getAttribute: (n) => (n === 'data-sgx-role' ? role : null) },
+  documentElement: { getAttribute: (n) => (n === 'data-sgx-lock-session' ? lockState : n === 'data-sgx-role' ? 'visitor' : null) },
   cookie: '',
   visibilityState: 'visible',
   addEventListener(t, fn) { (docListeners[t] = docListeners[t] || []).push(fn); },
@@ -102,7 +103,7 @@ beforeEach(() => {
   SS.clear();
   newPage();
   calls = [];
-  role = 'admin';
+  lockState = 'valid';
   document.visibilityState = 'visible';
   getReply = { s: 200, j: { ok: true, items: {} } };
   postReply = { s: 200, j: { ok: true, items: {} } };
@@ -225,7 +226,7 @@ test('GET 401 → 标 out、清掉时刻；之后普通拉取不再请求', asyn
 
 test('POST 401 → 同样清掉时刻', async () => {
   await initCloudSync();
-  postReply = { s: 401, j: { ok: false } };
+  postReply = { s: 401, j: { ok: false, error: 'account' } };
   LS.set('sgx-accent', '#123456');
   window.dispatchEvent({ type: 'sgx-settings-changed' });
   await tick(PUSH_DEBOUNCE);
@@ -319,10 +320,35 @@ test('拉下来自定义主题色：设值 → 按需加载角色引擎；清空
   assert.equal(posts().length, 0);
 });
 
-test('访客 / 开关关：不请求', async () => {
-  role = 'visitor';
-  assert.equal(await initCloudSync({ force: true }), 'skip');
-  role = 'admin';
+test('P2-2：不看 data-sgx-role（桩里永远是 visitor 也照常拉）；按 /api/prefs 结果：403 role / 403 scope / 401 session → skip，不标 out、不清时刻', async () => {
+  assert.equal(await initCloudSync({ force: true }), 'ok');
+  const t0 = lastPullAt();
+  assert.ok(t0 > 0);
+  for (const r of [{ s: 403, j: { ok: false, error: 'role' } }, { s: 403, j: { ok: false, error: 'scope', scope: 'prefs.sync' } }, { s: 401, j: { ok: false, error: 'session' } }]) {
+    newPage();
+    clock += 1;
+    getReply = r;
+    assert.equal(await initCloudSync({ force: true }), 'skip', JSON.stringify(r));
+    assert.notEqual(LS.get(AUTH_KEY), 'out');
+    assert.equal(lastPullAt(), t0);
+  }
+  /* POST 403 也不标 out */
+  newPage();
+  getReply = { s: 200, j: { ok: true, items: {} } };
+  await initCloudSync({ force: true });
+  postReply = { s: 403, j: { ok: false, error: 'role' } };
+  LS.set('sgx-accent', '#654321');
+  window.dispatchEvent({ type: 'sgx-settings-changed' });
+  await tick(PUSH_DEBOUNCE);
+  assert.notEqual(LS.get(AUTH_KEY), 'out');
+});
+
+test('锁屏没解锁 / 开关关：不请求', async () => {
+  for (const s of [null, 'locked', 'lock-reset']) {
+    lockState = s;
+    assert.equal(await initCloudSync({ force: true }), 'skip');
+  }
+  lockState = 'valid';
   LS.set('sgx-cloud-sync', '0');
   assert.equal(await initCloudSync({ force: true }), 'off');
   assert.equal(calls.length, 0);

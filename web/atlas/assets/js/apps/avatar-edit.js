@@ -1,5 +1,6 @@
 /**
- * @fileoverview 账号页账号卡（/account/ 登录后总览顶部）：换头像 / 移除头像（只有管理员会话可用）。
+ * @fileoverview 账号页账号卡（/account/ 登录后总览顶部）：换头像 / 移除头像（账号已登录才可用：<html data-sgx-account-session="in">，
+ * P2-2 起不看 data-sgx-role；服务端 /api/avatar 另要账号会话 + avatar.write）。
  *
  * 点头像 → 底部弹层「选择照片… / 移除照片」（没有自定义头像时只有第一项）。
  * 选照片 → 全屏裁剪：圆形取景框，单指拖动、双指缩放（电脑上滚轮缩放），照片始终盖满取景框。
@@ -317,9 +318,13 @@ async function removeAvatar() {
 
 /* ---------- 入口 ---------- */
 
-/** 绑定账户卡头像按钮（设置页可能有手机、宽屏两个账户卡）。只有管理员会话启用。 */
+/** 账号登录了吗：网关首帧注入的 data-sgx-account-session（账号页登录 / 退出后 apps/account.js 就地改它） */
+function signedIn() {
+  return document.documentElement.getAttribute('data-sgx-account-session') === 'in';
+}
+
+/** 绑定账户卡头像按钮（账号页可能有手机、宽屏两个账户卡）。账号已登录才启用（P2-2）；登录状态在本页变了跟着变。 */
 export function initAvatarEdit() {
-  if (document.documentElement.getAttribute('data-sgx-role') !== 'admin') return;
   const btns = document.querySelectorAll('[data-avatar-edit]');
   if (!btns.length) return;
   const input = document.createElement('input');
@@ -332,12 +337,24 @@ export function initAvatarEdit() {
     input.value = '';
     if (f) openCrop(f);
   });
-  hasCustom().then(function (v) {
-    custom = v;
-  });
+  let checked = false;
+  const sync = function () {
+    const ok = signedIn();
+    btns.forEach(function (b) { /** @type {HTMLButtonElement} */ (b).disabled = !ok; });
+    if (ok && !checked) {
+      checked = true;
+      hasCustom().then(function (v) {
+        custom = v;
+      });
+    }
+  };
+  sync();
+  try {
+    new MutationObserver(sync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-sgx-account-session'] });
+  } catch (e) {}
   btns.forEach(function (b) {
-    /** @type {HTMLButtonElement} */ (b).disabled = false;
     on(b, 'click', function () {
+      if (!signedIn()) return;
       openSheet({
         title: TXT.title,
         options: [{ label: TXT.pick, value: 'pick' }].concat(custom ? [{ label: TXT.remove, value: 'remove' }] : []),

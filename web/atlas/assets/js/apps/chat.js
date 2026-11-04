@@ -1,10 +1,11 @@
 /**
- * @fileoverview 聊天页（/chat/）：联网检索问答。POST /api/chat（网关验锁屏会话 + 只许管理员），回答按 SSE 流式显示。
+ * @fileoverview 聊天页（/chat/）：联网检索问答。POST /api/chat（网关验锁屏会话 + 过渡期只许管理员 + 账号会话，P2-2），回答按 SSE 流式显示。
  *
  * - 对话只存 sessionStorage（sgx-chat-convo，关掉标签页就没了），「新对话」清空；服务器不存。
  * - 发送：按钮；桌面（精确指针）Enter 发送、Shift+Enter 换行；手机 Enter 换行。流式中输入框禁用，按钮变「停止」（中断请求，已收到的部分保留）。
  * - 来源：回答下面一排小 chip（域名 + 标题），新标签页打开。
- * - 错误：401 → 「会话已过期」卡 + 重新解锁（同状态页：重新载入走锁屏）；403 admin_only → 「聊天仅管理员可用」卡（访客：页面一开就是这张卡）；
+ * - 错误：401 → 「会话已过期」卡 + 重新解锁（同状态页：重新载入走锁屏）；401 account →「登录账号后可用」卡 + 去账号页（/account/）登录
+ *   （P2-2；GET /api/chat 回 401 account 时页面一开就是这张卡）；403 admin_only → 「聊天仅管理员可用」卡（访客：页面一开就是这张卡）；
  *   rate_limited → 「今天的免费额度用完了」；no_key → 「聊天还没配置」；400 → 对话太长；其他（upstream / 断网）→ 出错 + 重试。
  *   没配钥匙（GET /api/chat 回 configured:false 或 503 no_key）→ 页面一开就是「聊天还没配置」卡，输入框关掉，不用等发了问题才报错。
  * - 模型切换（2026-10-22）：GET /api/chat 拿白名单（{ default, models:[{id,label,search}] }），≥ 2 个才在输入栏上方显示小药丸；
@@ -91,7 +92,7 @@ export function mountChat() {
   /** @type {AbortController|null} */
   let ctl = null;
   /** 页面级的拦截（会话过期 / 访客 / 没配置）：只显示那张卡，输入框关掉 */
-  /** @type {''|'auth'|'admin'|'nokey'} */
+  /** @type {''|'auth'|'admin'|'nokey'|'account'} */
   let gated = '';
 
   const finePointer = (() => {
@@ -160,9 +161,9 @@ export function mountChat() {
   }
 
   /** 卡片文案：标题 key、副标题 key */
-  const GATE_TEXT = { auth: ['errAuth', 'errAuthSub'], admin: ['adminOnly', 'adminOnlySub'], nokey: ['errNoKey', 'errNoKeySub'] };
+  const GATE_TEXT = { auth: ['errAuth', 'errAuthSub'], admin: ['adminOnly', 'adminOnlySub'], nokey: ['errNoKey', 'errNoKeySub'], account: ['needAccount', 'needAccountSub'] };
 
-  /** @param {'auth'|'admin'|'nokey'} kind */
+  /** @param {'auth'|'admin'|'nokey'|'account'} kind */
   function showGate(kind) {
     gated = kind;
     const title = /** @type {HTMLElement} */ (gate.querySelector('[data-c="title"]'));
@@ -171,8 +172,8 @@ export function mountChat() {
     gate.setAttribute('data-kind', kind);
     title.textContent = t(GATE_TEXT[kind][0]);
     sub.textContent = t(GATE_TEXT[kind][1]);
-    btn.hidden = kind !== 'auth';
-    btn.textContent = t('unlock');
+    btn.hidden = kind !== 'auth' && kind !== 'account';
+    btn.textContent = t(kind === 'account' ? 'signInAccount' : 'unlock');
     gate.hidden = false;
     form.setAttribute('data-gated', '1');
     syncChrome();
@@ -226,7 +227,8 @@ export function mountChat() {
         let j = null;
         try { j = await r.json(); } catch (e) {}
         const code = (j && j.error) || '';
-        if (r.status === 401) errCode = 'unauthorized';
+        if (r.status === 401 && code === 'account') errCode = 'account';
+        else if (r.status === 401) errCode = 'unauthorized';
         else if (r.status === 403 && (code === 'admin_only' || code === 'role')) errCode = 'admin_only';
         else if (r.status === 429 || code === 'rate_limited') errCode = 'rate_limited';
         else if (code === 'no_key') errCode = 'no_key';
@@ -274,10 +276,10 @@ export function mountChat() {
     /* 白名单改了（选的模型下线）：换回默认，重试就用默认 */
     if (errCode === 'bad_model' && models) setModel(models.def);
     if (c.signal.aborted && !ans.text) errCode = '';
-    if (errCode === 'unauthorized' || errCode === 'admin_only') {
-      /* 回答作废；对话保留（重新解锁后还在） */
+    if (errCode === 'unauthorized' || errCode === 'admin_only' || errCode === 'account') {
+      /* 回答作废；对话保留（重新解锁 / 登录账号后还在） */
       renderAll();
-      showGate(errCode === 'unauthorized' ? 'auth' : 'admin');
+      showGate(errCode === 'unauthorized' ? 'auth' : errCode === 'account' ? 'account' : 'admin');
       return;
     }
     if (ans.text && (!errCode || c.signal.aborted)) {
@@ -351,7 +353,10 @@ export function mountChat() {
     ask();
   });
   on(gate, 'click', (e) => {
-    if (/** @type {HTMLElement} */ (e.target).closest('[data-c="btn"]')) location.reload();
+    if (!(/** @type {HTMLElement} */ (e.target).closest('[data-c="btn"]'))) return;
+    /* 没登录账号：去账号页登录（P3-1 授权卡页之前的简版）；会话过期：重新载入走锁屏 */
+    if (gated === 'account') location.href = '/account/';
+    else location.reload();
   });
 
   /* ---- 模型切换 ---- */
@@ -433,6 +438,11 @@ export function mountChat() {
       try { j = await r.json(); } catch (e) {}
       if (modelsSayNoKey(r.status, j)) {
         if (!gated && !ctl) showGate('nokey');
+        return;
+      }
+      /* 锁屏进了门但没登录账号（P2-2 过渡门槛）：一开就给「登录账号后可用」卡，不用等发了问题才报错 */
+      if (r.status === 401 && j && j.error === 'account') {
+        if (!gated && !ctl) showGate('account');
         return;
       }
       if (!r.ok) return;

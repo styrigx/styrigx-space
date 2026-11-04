@@ -2,17 +2,18 @@
  *
  * 三个页签（顶栏分段滑块，顺序固定）：余响 Echo（默认）· 拾录 Trove · 百味 Flavors。
  *   hash：余响 = 无，#trove，#flavors；百味里的分组 #flavors/c/<专题 id>、#flavors/a/<作者>。只用 replaceState，切页签不加历史。
- * - 余响：整屏一句（今日一句 /api/today，当天锁定）；「再抽一句」从能看到的句子里随机抽（管理员：全部；访客：公开），抽过后多一个「回到今日」；
- *   管理员抽到公开句子时还多一个「设为今日」（PUT /api/today 改写今天那句，回到今日状态，toast 已设为今日；主站首页和锁屏跟着变）。
+ * - 余响：整屏一句（今日一句 /api/today，当天锁定）；「再抽一句」从能看到的句子里随机抽（账号已登录：全部；没登录：公开），抽过后多一个「回到今日」；
+ *   能编辑（接口回 canWrite：账号已登录 + daymark.write）时抽到公开句子还多一个「设为今日」（PUT /api/today 改写今天那句，回到今日状态，toast 已设为今日；主站首页和锁屏跟着变）。
  *   长按复制（toast 已复制），右上角分享（navigator.share，不支持就复制）。
- * - 拾录：全部句子，新的在前；没有搜索。管理员：右下角「记一句」，点句子进编辑；私密句子带小锁。
- * - 百味：先是管理员的自建专题（管理员多一张「＋ 新建」），再是按作者自动分组的「人物」；点进去是该组的句子（页内返回）。
- *   管理员在自建专题里可以上移 / 下移 / 移出句子、删专题。
+ * - 拾录：全部句子，新的在前；没有搜索。能编辑：右下角「记一句」，点句子进编辑；私密句子带小锁（showPrivate：账号已登录）。
+ * - 百味：先是自建专题（能编辑时多一张「＋ 新建」），再是按作者自动分组的「人物」；点进去是该组的句子（页内返回）。
+ *   能编辑时在自建专题里可以上移 / 下移 / 移出句子、删专题。
+ * - 不能编辑（canWrite=false）：编辑入口换成一行「登录账号后可编辑」（#dm-signin，链到 /account/）；写接口回 401 account / 403 scope 也提示这一句。
  * - 记一句（底部弹层）：顶部实时预览；句子；「＋ 加译文」；作者（自动补全 + 最近作者）；出处（类型 + 名字自动补全）；
- *   归入百味（多选 + 就地新建）；标签（回车 / 逗号成块，推荐已有标签）；随手一笔（只管理员看得到）；公开开关。
+ *   归入百味（多选 + 就地新建）；标签（回车 / 逗号成块，推荐已有标签）；随手一笔（只有账号已登录看得到）；公开开关。
  *
- * 数据：GET /api/quotes、GET /api/collections、GET /api/today；写：POST/PUT/DELETE /api/quotes、/api/collections、PUT /api/today（只管理员 + 同源）。
- * 读请求走 sgxLockSync.apiFetch（401 = 锁定 → 刷新去锁屏）。纯函数导出给 tests/web/daymark.test.mjs。
+ * 数据：GET /api/quotes、GET /api/collections、GET /api/today；写：POST/PUT/DELETE /api/quotes、/api/collections、PUT /api/today（账号会话 + daymark.write + 同源）。
+ * 读请求走 sgxLockSync.apiFetch（401 = 锁定 → 刷新去锁屏）；写请求只有 401 unauthorized 才当锁定（401 account 是账号的事，不刷新）。纯函数导出给 tests/web/daymark.test.mjs。
  */
 (function(){
 "use strict";
@@ -122,8 +123,16 @@ function pickRandom(list, excludeId, rnd){
 }
 
 /** 「设为今日」显不显示：管理员、抽过、抽到的是公开句子、而且不是今天这句（私密句子不出 /api/today，不让设） */
-function canSetToday(isAdmin, isDrawn, q, todayQuote){
-  return !!(isAdmin && isDrawn && q && q.visibility !== 'private' && !(todayQuote && todayQuote.id === q.id));
+function canSetToday(canWrite, isDrawn, q, todayQuote){
+  return !!(canWrite && isDrawn && q && q.visibility !== 'private' && !(todayQuote && todayQuote.id === q.id));
+}
+
+/**
+ * 写请求的 401 是不是「锁定了」（要刷新去锁屏）：401 account（没登录账号）/ 401 reauth 不是，其余 401 都是（同奇趣 curio.js）。
+ * @param {number} status @param {string} code
+ */
+function isLockedReply(status, code){
+  return status === 401 && code !== 'account' && code !== 'reauth';
 }
 
 /** 数组里第 i 项挪 delta 位（越界不动），返回新数组 */
@@ -187,7 +196,7 @@ function shareText(q, isEn){
 var pure = {
   TABS: TABS, SOURCE_TYPES: SOURCE_TYPES, parseHash: parseHash, routeHash: routeHash, parseTagInput: parseTagInput, addTags: addTags,
   allTags: allTags, authorGroups: authorGroups, recentAuthors: recentAuthors, knownSources: knownSources, suggest: suggest,
-  pickRandom: pickRandom, canSetToday: canSetToday, moveItem: moveItem, groupQuotes: groupQuotes, attribution: attribution, fmtDay: fmtDay, fmtKept: fmtKept,
+  pickRandom: pickRandom, canSetToday: canSetToday, isLockedReply: isLockedReply, moveItem: moveItem, groupQuotes: groupQuotes, attribution: attribution, fmtDay: fmtDay, fmtKept: fmtKept,
   shareText: shareText
 };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
@@ -203,7 +212,8 @@ var T = isEn ? {
   count: function(n){ return n + (n === 1 ? ' line' : ' lines'); }, newCol: 'New', colCreated: 'Collection created.',
   delQuote: 'Delete this line? This cannot be undone.', delCol: 'Delete this collection? The lines in it stay in your Trove.',
   removed: 'Removed from this collection.', groupEmpty: 'Nothing in here yet.', edit2: 'Edit', done: 'Done', needName: 'Give it a name first.',
-  previewPh: 'Your line will show here, just like in Echo.', up: 'Move up', down: 'Move down', remove: 'Remove from collection'
+  previewPh: 'Your line will show here, just like in Echo.', up: 'Move up', down: 'Move down', remove: 'Remove from collection',
+  needAccount: 'Sign in to your account to edit.'
 } : {
   add: '记一句', edit: '编辑这一句', kept: '已拾录', deleted: '已删除', failed: '出了点问题，请再试一次。',
   needText: '先写下这一句。', priv: '仅自己可见', emptyAdmin: '还没有句子。点「记一句」留下第一句。',
@@ -211,13 +221,15 @@ var T = isEn ? {
   count: function(n){ return n + ' 句'; }, newCol: '新建', colCreated: '专题已建好',
   delQuote: '确定删除这一句吗？删除后无法恢复。', delCol: '确定删除这个专题吗？里面的句子还留在拾录里。',
   removed: '已移出专题', groupEmpty: '这里还没有句子。', edit2: '编辑', done: '完成', needName: '先给专题起个名字。',
-  previewPh: '写下的句子会像在余响里这样显示。', up: '上移', down: '下移', remove: '移出专题'
+  previewPh: '写下的句子会像在余响里这样显示。', up: '上移', down: '下移', remove: '移出专题',
+  needAccount: '登录账号后可编辑。'
 };
 
 var $ = function(s){ return doc.querySelector(s); };
 var quotes = [];
 var collections = [];
-var admin = false;
+var canWrite = false;    /* 接口回的 canWrite：账号已登录 + daymark.write */
+var showPrivate = false; /* 接口回的 showPrivate：账号已登录（私密句子、随手一笔） */
 var loaded = false;
 var today = { day: '', quote: null };
 var echoQuote = null;
@@ -247,10 +259,16 @@ function send(method, url, body){
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
   }).then(function(r){
-    if (r.type === 'opaqueredirect' || r.status === 401) { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
-    return r.json().catch(function(){ return {}; }).then(function(j){ if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; });
+    if (r.type === 'opaqueredirect') { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+    return r.json().catch(function(){ return {}; }).then(function(j){
+      if (isLockedReply(r.status, j.error)) { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
+      return j;
+    });
   });
 }
+/** 写失败的提示：没登录账号 / 没授权 →「登录账号后可编辑」，其余通用 */
+function failText(e){ var c = e && e.code; return c === 'account' || c === 'scope' ? T.needAccount : T.failed; }
 function toast(msg){
   var el = $('#bk-toast');
   el.textContent = msg;
@@ -321,8 +339,8 @@ function bodyHTML(q){
     + (a ? '<p class="dm-attr">' + esc(a) + '</p>' : '');
 }
 function cardHTML(q, ctl){
-  return '<article class="dm-card" data-id="' + esc(q.id) + '"' + (admin && !ctl ? ' tabindex="0" role="button"' : '') + '>'
-    + (admin && q.visibility === 'private' ? '<span class="dm-lock" role="img" aria-label="' + esc(T.priv) + '" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '')
+  return '<article class="dm-card" data-id="' + esc(q.id) + '"' + (canWrite && !ctl ? ' tabindex="0" role="button"' : '') + '>'
+    + (showPrivate && q.visibility === 'private' ? '<span class="dm-lock" role="img" aria-label="' + esc(T.priv) + '" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '')
     + bodyHTML(q)
     + ((q.tags || []).length ? '<div class="dm-meta">' + q.tags.map(function(t){ return '<span class="dm-tag">#' + esc(t) + '</span>'; }).join('') + '</div>' : '')
     + (ctl || '')
@@ -333,7 +351,7 @@ function bindCards(box){
   box.querySelectorAll('.dm-card').forEach(function(card){
     var q = findQuote(card.dataset.id);
     onLongPress(card, function(){ copyQuote(findQuote(card.dataset.id)); });
-    if (!admin) return;
+    if (!canWrite) return;
     function act(e){
       if (e && e.target && e.target.closest && e.target.closest('[data-move],[data-remove]')) return;
       if (groupEditing && box.id === 'dm-g-list') return;
@@ -353,7 +371,7 @@ function renderEcho(){
   $('#dm-echo-body').innerHTML = q ? bodyHTML(q) : '<p class="dm-trans">' + esc(loaded || today.day ? T.noToday : '') + '</p>';
   $('#dm-share').classList.toggle('hidden', !q);
   $('#dm-back-today').classList.toggle('hidden', !drawn);
-  $('#dm-set-today').classList.toggle('hidden', !canSetToday(admin, drawn, q, today.quote));
+  $('#dm-set-today').classList.toggle('hidden', !canSetToday(canWrite, drawn, q, today.quote));
 }
 $('#dm-draw').addEventListener('click', function(){
   var q = pickRandom(quotes, echoQuote && echoQuote.id);
@@ -364,13 +382,13 @@ $('#dm-back-today').addEventListener('click', function(){ echoQuote = today.quot
 var settingToday = false;
 $('#dm-set-today').addEventListener('click', function(){
   var q = echoQuote;
-  if (settingToday || !canSetToday(admin, drawn, q, today.quote)) return;
+  if (settingToday || !canSetToday(canWrite, drawn, q, today.quote)) return;
   settingToday = true;
   send('PUT', '/daymark/api/today', { id: q.id }).then(function(j){
     today = { day: j.day, quote: j.quote };
     if (echoQuote === q) { echoQuote = j.quote; drawn = false; }
     renderEcho(); haptic(); toast(T.setToday);
-  }).catch(function(e){ if (!e.sgxLocked) toast(T.failed); }).then(function(){ settingToday = false; });
+  }).catch(function(e){ if (!e.sgxLocked) toast(failText(e)); }).then(function(){ settingToday = false; });
 });
 $('#dm-share').addEventListener('click', function(){
   var q = echoQuote; if (!q) return;
@@ -387,13 +405,13 @@ function renderTrove(){
   var box = $('#dm-list');
   box.innerHTML = quotes.map(function(q){ return cardHTML(q); }).join('');
   bindCards(box);
-  $('#dm-empty').textContent = admin ? T.emptyAdmin : T.emptyVisitor;
+  $('#dm-empty').textContent = canWrite ? T.emptyAdmin : T.emptyVisitor;
   $('#dm-empty').classList.toggle('hidden', !loaded || quotes.length > 0);
 }
 
 /* ---------- 百味 ---------- */
 function renderFlavors(){
-  var showCols = admin || collections.length > 0;
+  var showCols = canWrite || collections.length > 0;
   $('#dm-cols-sec').classList.toggle('hidden', !showCols);
   $('#dm-cols').innerHTML = collections.map(function(c){
     var n = groupQuotes(quotes, collections, { kind: 'c', key: c.id }).length;
@@ -401,7 +419,7 @@ function renderFlavors(){
       + '<span class="dm-fcard-name">' + esc(c.name) + '</span>'
       + (c.intro ? '<span class="dm-fcard-intro">' + esc(c.intro) + '</span>' : '')
       + '<span class="dm-fcard-count">' + esc(T.count(n)) + '</span></button>';
-  }).join('') + (admin ? '<button type="button" class="dm-fcard dm-fcard-new" id="dm-col-new"><span class="dm-fcard-plus" aria-hidden="true">＋</span><span class="dm-fcard-name">' + esc(T.newCol) + '</span></button>' : '');
+  }).join('') + (canWrite ? '<button type="button" class="dm-fcard dm-fcard-new" id="dm-col-new"><span class="dm-fcard-plus" aria-hidden="true">＋</span><span class="dm-fcard-name">' + esc(T.newCol) + '</span></button>' : '');
   var authors = authorGroups(quotes);
   $('#dm-authors-sec').classList.toggle('hidden', !authors.length);
   $('#dm-authors').innerHTML = authors.map(function(a){
@@ -432,7 +450,7 @@ function renderGroup(){
   $('#dm-g-intro').textContent = col && col.intro ? col.intro : '';
   $('#dm-g-intro').classList.toggle('hidden', !(col && col.intro));
   $('#dm-g-count').textContent = T.count(list.length);
-  var canEdit = admin && !!col;
+  var canEdit = canWrite && !!col;
   if (!canEdit) groupEditing = false;
   $('#dm-g-tools').classList.toggle('hidden', !canEdit);
   $('#dm-g-edit').textContent = groupEditing ? T.done : T.edit2;
@@ -475,7 +493,7 @@ function reorder(ids, msg){
     if (msg) toast(msg);
   }).catch(function(e){
     if (e.sgxLocked) return;
-    col.quote_ids = before; syncQuoteCollections(); renderGroup(); toast(T.failed);
+    col.quote_ids = before; syncQuoteCollections(); renderGroup(); toast(failText(e));
   });
 }
 /** 专题的 quote_ids 改了之后，句子上的 collections 跟着改（编辑器里的「归入百味」读它） */
@@ -493,7 +511,7 @@ $('#dm-g-del').addEventListener('click', function(){
       collections = collections.filter(function(c){ return c.id !== col.id; });
       syncQuoteCollections(); groupEditing = false;
       go({ tab: 'flavors' }); toast(T.deleted);
-    }).catch(function(e){ if (!e.sgxLocked) toast(T.failed); });
+    }).catch(function(e){ if (!e.sgxLocked) toast(failText(e)); });
   });
 });
 
@@ -516,7 +534,7 @@ $('#col-save').addEventListener('click', function(){
   createCollection(name, $('#c-intro').value.trim()).then(function(c){
     closeOverlay('col-wrap'); renderFlavors(); haptic(); toast(T.colCreated);
     go({ tab: 'flavors', group: { kind: 'c', key: c.id } });
-  }).catch(function(e){ if (!e.sgxLocked) { $('#col-err').textContent = T.failed; $('#col-err').classList.remove('hidden'); } });
+  }).catch(function(e){ if (!e.sgxLocked) { $('#col-err').textContent = failText(e); $('#col-err').classList.remove('hidden'); } });
 });
 
 /* ---------- 页签 ---------- */
@@ -540,7 +558,7 @@ function setTab(next, opts){
   });
   if (seg) seg.style.setProperty('--seg-pos', String(i));
   doc.documentElement.setAttribute('data-dm-active', next);
-  $('#dm-fab').classList.toggle('hidden', !(admin && next === 'trove'));
+  $('#dm-fab').classList.toggle('hidden', !(canWrite && next === 'trove'));
   if (opts.focus && tabBtns[i]) tabBtns[i].focus();
   writeHash();
   if (changed && !opts.initial) G.scrollTo({ top: scrolls[next] || 0, behavior: 'auto' });
@@ -643,7 +661,7 @@ function addInlineCol(){
     ed.cols.push(c.id);
     $('#f-col-new-row').classList.add('hidden');
     renderCols(); renderFlavors(); haptic();
-  }).catch(function(e){ if (!e.sgxLocked) toast(T.failed); });
+  }).catch(function(e){ if (!e.sgxLocked) toast(failText(e)); });
 }
 $('#f-col-add').addEventListener('click', addInlineCol);
 $('#f-col-name').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); addInlineCol(); } });
@@ -763,7 +781,7 @@ $('#edit-save').addEventListener('click', function(){
     if (!was || (today.quote && today.quote.id === j.quote.id)) loadToday();
   }).catch(function(e){
     if (e.sgxLocked) return;
-    $('#edit-err').textContent = T.failed; $('#edit-err').classList.remove('hidden');
+    $('#edit-err').textContent = failText(e); $('#edit-err').classList.remove('hidden');
   }).then(function(){ saving = false; });
 });
 $('#edit-del').addEventListener('click', function(){
@@ -775,7 +793,7 @@ $('#edit-del').addEventListener('click', function(){
       if (echoQuote && echoQuote.id === q.id) { echoQuote = today.quote; drawn = false; }
       closeOverlay('edit-wrap');
       renderAll(); toast(T.deleted); loadToday();
-    }).catch(function(e){ if (!e.sgxLocked) toast(T.failed); });
+    }).catch(function(e){ if (!e.sgxLocked) toast(failText(e)); });
   });
 });
 $('#dm-fab').addEventListener('click', function(){ openEdit(null); });
@@ -796,12 +814,15 @@ function boot(){
   renderEcho();
   loadToday();
   Promise.all([getJSON('/daymark/api/quotes'), getJSON('/daymark/api/collections').catch(function(e){ if (e && e.sgxLocked) throw e; return { collections: [] }; })]).then(function(res){
-    admin = !!res[0].admin;
+    canWrite = !!res[0].canWrite;
+    showPrivate = !!res[0].showPrivate;
     quotes = res[0].quotes || [];
     collections = res[1].collections || [];
-    if (admin) syncQuoteCollections();
+    if (showPrivate) syncQuoteCollections();
     loaded = true;
-    doc.documentElement.classList.toggle('dm-admin', admin);
+    doc.documentElement.classList.toggle('dm-admin', canWrite);
+    var hint = $('#dm-signin');
+    if (hint) hint.classList.toggle('hidden', canWrite);
     renderAll();
     setTab(tab, { initial: true });
   }).catch(function(e){

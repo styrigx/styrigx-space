@@ -40,9 +40,10 @@ const okBody = (parts = ANSWER, sources = SOURCES) => sse([...parts.map((text) =
 /**
  * @param {import('@playwright/test').Page} page
  * @param {string} path
- * @param {{api?: any, visitor?: boolean, lang?: string, models?: any}} [opt]
+ * @param {{api?: any, visitor?: boolean, lang?: string, models?: any, modelsRes?: {status:number, json:any}}} [opt]
  *   api：函数 (n, body) → { status?, body, json? }；不给 = 正常回答（只管 POST）
  *   models：GET /api/chat 的 JSON（200）；'fail' = 500；不给 = 404（同静态服务器：没有模型切换，老用例照旧）
+ *   modelsRes：GET /api/chat 的状态码和 JSON（优先于 models；P2-2 测 401 account 用）
  */
 async function go(page, path, opt = {}) {
   const lang = opt.lang || (path.startsWith('/en/') ? 'en' : 'zh');
@@ -64,7 +65,8 @@ async function go(page, path, opt = {}) {
     const req = route.request();
     if (req.method() === 'GET') {
       gets.push(1);
-      if (opt.models && opt.models !== 'fail') await route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(opt.models) });
+      if (opt.modelsRes) await route.fulfill({ status: opt.modelsRes.status, contentType: 'application/json; charset=utf-8', body: JSON.stringify(opt.modelsRes.json) });
+      else if (opt.models && opt.models !== 'fail') await route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(opt.models) });
       else await route.fulfill({ status: opt.models === 'fail' ? 500 : 404, contentType: 'application/json; charset=utf-8', body: '{"ok":false}' });
       return;
     }
@@ -220,6 +222,26 @@ test.describe('聊天页（手机 412×915）', () => {
     await expect(page.locator('#chat-input')).toBeDisabled();
     await expect(page.locator('#chat-send')).toBeDisabled();
     await expect(page.locator('#chat-list')).toBeHidden();
+  });
+
+  test('P2-2：POST 回 401 account →「登录账号后可用」卡，按钮去账号页，输入关掉', async ({ page }) => {
+    await go(page, '/chat/', { api: () => ({ status: 401, json: { ok: false, error: 'account' } }) });
+    await page.locator('#chat-input').fill('hi');
+    await page.locator('#chat-send').click();
+    await expect(page.locator('#chat-gate')).toBeVisible();
+    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('登录账号后可用');
+    const btn = page.locator('#chat-gate [data-c="btn"]');
+    await expect(btn).toBeVisible();
+    await expect(btn).toHaveText('去登录账号');
+    await expect(page.locator('#chat-input')).toBeDisabled();
+    await Promise.all([page.waitForURL((u) => u.pathname === '/account/'), btn.click()]);
+  });
+
+  test('P2-2：锁屏已解锁、账号未登录（GET /api/chat 回 401 account）→ 一进来就是「登录账号后可用」卡，不发 POST', async ({ page }) => {
+    const calls = await go(page, '/chat/', { modelsRes: { status: 401, json: { ok: false, error: 'account' } } });
+    await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('登录账号后可用');
+    await expect(page.locator('#chat-input')).toBeDisabled();
+    expect(calls.length).toBe(0);
   });
 
   test('访客（data-sgx-role="visitor"）：一进来就是「聊天仅管理员可用」，不发请求', async ({ page }) => {

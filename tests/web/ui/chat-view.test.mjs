@@ -238,7 +238,7 @@ test('文案：apps/chat.js 用到的 key 在 chat-i18n.html 里都有中英', (
   const app = readFileSync(new URL('../../../web/atlas/assets/js/apps/chat.js', import.meta.url), 'utf8');
   const used = new Set([...app.matchAll(/\bt\('([A-Za-z0-9]+)'\)/g)].map((m) => m[1]));
   for (const k of ['errRate', 'errNoKey', 'errTooLong', 'errUpstream', 'errRateModel', 'errModel', 'errBadModel']) used.add(k);
-  for (const k of ['errAuth', 'errAuthSub', 'adminOnly', 'adminOnlySub', 'stop', 'send']) used.add(k);
+  for (const k of ['errAuth', 'errAuthSub', 'adminOnly', 'adminOnlySub', 'needAccount', 'needAccountSub', 'signInAccount', 'stop', 'send']) used.add(k);
   for (const k of used) {
     assert.ok(dict[k], 'chat-i18n.html 缺文案：' + k);
     assert.ok(dict[k].zh && dict[k].en, k);
@@ -254,6 +254,11 @@ test('文案：apps/chat.js 用到的 key 在 chat-i18n.html 里都有中英', (
   assert.deepEqual(dict.noWebUsed, { zh: '未联网', en: 'No web' });
   assert.equal(dict.adminOnly.zh, '聊天仅管理员可用');
   assert.equal(dict.adminOnly.en, 'Chat is admin-only');
+  /* P2-2：401 account →「登录账号后可用」卡 */
+  for (const k of ['needAccount', 'needAccountSub', 'signInAccount']) assert.ok(dict[k] && dict[k].zh && dict[k].en, k);
+  assert.equal(dict.needAccount.zh, '登录账号后可用');
+  assert.match(app, /code === 'account'/);
+  assert.match(app, /location\.href = '\/account\/'/);
 });
 
 test('modelsSayNoKey：configured:false 或 503 no_key → 「聊天还没配置」卡；其他（没字段、404、500、坏 JSON）照常', () => {

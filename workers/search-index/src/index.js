@@ -2,9 +2,10 @@
  * @fileoverview styrigx-search-index 入口。只接网关服务绑定转来的 GET /search（没有公开地址，见 wrangler.toml）。
  *
  * 请求：GET https://search/search?q=…&lang=zh|en&site=&limit=
- *   头 X-Sgx-Role: admin | visitor（网关验完会话写的；没有 / 别的值一律当访客）
+ *   头 X-Styrigx-Account-Session: 1（网关的账号结论头，core/conclusion.js writeAccountConclusion；有账号会话才写，
+ *   没有 / 别的值一律当没有账号会话）。P2-2 起不再读旧的锁屏角色头（旧头写 admin 也不给私密）。
  * 回答：{ ok: true, q, hits: [{ site, type, title, subtitle, url }] }
- *   私密条目（private）只在 admin 时出现；正文 text 永远不回。
+ *   私密条目（private）只在有账号会话时出现（方案 3.4 R14）；正文 text 永远不回。
  *
  * 健康检查（2026-10-28）：GET /healthz，只给 styrigx-status 的服务绑定 SEARCH 每分钟测一次（网关只转 /search，进不来）。
  *   至少一个站的索引读得到 → 200 { ok: true, sites: n, missing: [...] }（某个子站还没写过索引只算缺项、不算故障，
@@ -51,7 +52,7 @@ export default {
     const lang = url.searchParams.get('lang');
     const site = url.searchParams.get('site') || '';
     const limit = parseInt(url.searchParams.get('limit') || '20', 10) || 20;
-    const admin = request.headers.get('X-Sgx-Role') === 'admin';
+    const showPrivate = request.headers.get('X-Styrigx-Account-Session') === '1';
     let indexes;
     try {
       indexes = await loadIndexes(env);
@@ -63,7 +64,7 @@ export default {
       q,
       lang: lang === 'en' || lang === 'zh' ? lang : undefined,
       site: SITES.indexOf(site) !== -1 ? site : undefined,
-      admin,
+      showPrivate,
       limit,
     }).map((h) => ({ site: h.site, type: h.type, title: h.title, subtitle: h.subtitle, url: h.url }));
     return json(200, { ok: true, q, hits });

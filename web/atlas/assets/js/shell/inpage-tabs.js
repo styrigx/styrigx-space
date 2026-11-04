@@ -126,7 +126,7 @@ function reduced() {
 
 /**
  * 启动：挂上当前这一栏（不管能不能页内切换，当前栏的脚本都在这里挂），能页内切换时接管顶栏三个标签。
- * 必须在 initCore() 之前调（设置页要先去掉访客的 data-wb-root，core 再拉数字健康，同以前的顺序）。
+ * 必须在 initCore() 之前调（当前栏先挂好，core 再拉数字健康，同以前的顺序）。
  */
 export function initInpageTabs() {
   const main = document.getElementById('sgx-main');

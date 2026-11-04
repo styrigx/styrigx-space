@@ -14,7 +14,7 @@
 | `AccountService` | `src/rpc/account-service.js` | 网关经服务绑定 `ACCOUNT` 转发来的请求：`serviceFetch` → `gate.js` → `router.js` |
 | `AccountVerifier` | `src/rpc/account-verifier.js` | 只读 RPC，不签任何东西，调用方只有网关（服务绑定 `ACCOUNT_VERIFIER`）：`accountSession(cookieHeader, clientContext)` → `{ ok }` 或 `{ ok:false, reason }`（账号页首帧提示）；`authorize(cookieHeader, clientContext, opts)` → 授权结论（见下文「结论」） |
 
-- `src/gate.js`：只有 `AccountService` 读身份头——网关写的 `X-Styrigx-Lock-*`（Role / By / Tempkey-Id）、`X-Styrigx-Client-*`（Address / Country / City），`src/lib/lock-identity.js` 白名单校验。纵深防御：没有身份头的 `/api/*` → 401，访客调 `/api/prefs` → 403 role；访客调 `/api/account` 由 `api/account.js` 自己回 401 session。
+- `src/gate.js`：只有 `AccountService` 读身份头——网关写的 `X-Styrigx-Lock-*`（Session / By / Tempkey-Id；P2-2 起不读 Role）、`X-Styrigx-Client-*`（Address / Country / City），`src/lib/lock-identity.js` 白名单校验。纵深防御：没进门（没有 `X-Styrigx-Lock-Session: 1`）的 `/api/*` → 401；进门之后 `/api/prefs`、`/api/avatar` 要账号会话 + 作用域（`gate.js scopeDenial`：401 account / 403 scope），`/api/account` 由 `api/account.js` 自己回 401 session。
 - `src/router.js`：接口路由表 `API_ROUTES` 和头像文件 `/avatar/<尺寸>.webp`。
 - `src/api/account.js`：`/api/account` 单入口 + action；账号身份的其余部分在 `src/core/`（`scopes.js` 作用域表、`authz.js` 授权判断、`account-session.js` 账号会话与两张短票、`account-devices.js` 已登录设备、`account-root.js` 账号根密钥与审计、`account-store.js` 账号库域对象、`realm.js` 的 `REALM_ACCOUNT` 与三张账号票）。
 - `src/lib/`：本 Worker 自己的一份通用件和账号域实现（crypto、cookies、http、d1-state、passkey-verify、password*、root-*、tickets、lock-identity、avatar、security-headers、csp-hashes），不 import 网关或任何别的 Worker。
@@ -37,7 +37,7 @@
   - `grantedScopes(env, accountSession)`：**骨架阶段**账号会话有效 → 作用域表里的全部作用域（行为上等于现在「账号会话能做一切」）；第 3 件实现（另批）只把它换成读授权记录（已授权 ∩ 作用域表），签名和结论形状不变。
   - `authorize(env, request, opts)` → `{ ok, reason, deviceId, scopes, reauth }`：验账号会话（过期、纪元变了、设备已退出都是 `ok:false`，`reason` 是原因代号）→ `deviceId` 取自票 → `scopes` 按字母排序 → 只有 `opts.reauth === true` 才读 `sgx-account-reauth`。只读不签，永不抛错。
 - RPC：`AccountVerifier.authorize(cookieHeader, clientContext, opts)` 原样回上面的结论；网关 `core/account-rpc.js` 的 `askAuthorize` 问它，再由网关 `core/conclusion.js` 交给下游（RPC 结论 / 结论头，见网关 README「结论」）。
-- 现状（P2-1）：只新增，没有调用方，现有接口的判断一行没改。网关转来的请求多了 `X-Styrigx-Lock-Session: 1`（与 `X-Styrigx-Lock-Role` 并存），本 Worker 还不读它；P2-2 起 `/api/account`、`/api/prefs`、`/api/avatar`、`/api/wellbeing` 改用同一份 `core/authz.js` 判断并改读它，P2-3 删 role。
+- 现状（P2-2）：`/api/prefs`（prefs.sync）、`/api/avatar`（avatar.write）、`/api/wellbeing`（POST 要 wellbeing.write，否则 204；GET 明细只给账号会话，响应带 `detail`）用同一份 `core/authz.js` 判断；进门只认 `X-Styrigx-Lock-Session: 1`，不再读 `X-Styrigx-Lock-Role`（网关 P2-3 前仍并写，P2-3 删）。
 - 测试：`tests/workers/account/authz.test.mjs`、`account-entrypoints.test.mjs`。
 
 ## 路由

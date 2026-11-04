@@ -1,15 +1,16 @@
 // workers/core/src/api/export.js
 // GET /api/export[?lang=en]  —— 导出全部收藏为浏览器书签文件（Netscape HTML，Chrome / 三星浏览器都能导入）。
-// 只有管理员；必须同站（_lib.js 的 isSameSite：直接点链接下载时浏览器只带 Sec-Fetch-Site）。私密的也导出。
+// 要账号会话（含私密，方案 4.2：读私密 = 账号会话，不要作用域）；必须同站（_lib.js 的 isSameSite：直接点链接下载时浏览器只带 Sec-Fetch-Site）。
+// 没进门 401 unauthorized；没账号会话 401 account。私密的也导出。
 import { err, methodNotAllowed, isSameSite } from './_lib.js';
-import { requireAdmin } from './_auth.js';
+import { requireAccount } from './_auth.js';
 import { ensureSchema } from './_store.js';
 import { renderBookmarks } from './_netscape.js';
 
 export async function onRequestGet(context) {
   const { request, env } = context;
   if (!isSameSite(request)) return err('origin', 403);
-  const { response } = await requireAdmin(context);
+  const { response } = await requireAccount(context);
   if (response) return response;
   const db = env && env.D1_FINDS;
   if (!db) return err('server', 503);

@@ -32,6 +32,8 @@ function env(over = {}) {
     SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN,
     D1_LOCK_AUTH: db, D1_ACCOUNT_AUTH: db, D1_ROOT_AUTH: db,
     SEARCH: okJson(), STATUS: okJson(), CHAT: okJson(),
+    /* P2-2：/api/chat 要账号会话、/api/search 问账号结论（AccountVerifier.authorize 替身；Cookie 里有 sgx-account-session=ok 才算有） */
+    ACCOUNT_VERIFIER: { async authorize(c) { return /sgx-account-session=ok/.test(c) ? { ok: true, reason: 'ok', deviceId: 'devtestdevtest01', scopes: ['curio.write'], reauth: false } : { ok: false, reason: 'missing' }; } },
     ...over,
   };
 }
@@ -49,11 +51,18 @@ function post(path, body, cookie) {
   return new Request(ORIGIN + path, { method: 'POST', headers, body: JSON.stringify(body) });
 }
 
+/** 再带上账号会话 cookie（P2-2：/api/chat 要账号会话） @param {Request} r */
+function withAccount(r) {
+  const h = new Headers(r.headers);
+  h.set('Cookie', (h.get('Cookie') || '') + '; sgx-account-session=ok');
+  return new Request(r, { headers: h });
+}
+
 const CASES = [
   ['GET /api/search', () => get('/api/search?q=hugo', ADMIN)],
   ['GET /api/status', () => get('/api/status', ADMIN)],
-  ['GET /api/chat', () => get('/api/chat', ADMIN)],
-  ['POST /api/chat', () => post('/api/chat', { messages: [{ role: 'user', text: 'hi' }] }, ADMIN)],
+  ['GET /api/chat', () => withAccount(get('/api/chat', ADMIN))],
+  ['POST /api/chat', () => withAccount(post('/api/chat', { messages: [{ role: 'user', text: 'hi' }] }, ADMIN))],
   ['POST /api/lock-tempkey', () => post('/api/lock-tempkey', { action: 'list' }, ADMIN)],
 ];
 

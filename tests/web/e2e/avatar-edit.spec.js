@@ -1,8 +1,8 @@
 /**
  * 账号页换头像（账号卡已从设置页移到账号总览 /account/）：管理员会话下点账号卡头像 → 选择照片 → 裁剪（拖动、滚轮缩放）→ 完成，
  * PUT /api/avatar 带 512 / 192 / 96 / 32 四张 WebP，成功后页面头像换成带 ?v= 的新地址。
- * 访客：头像按钮 disabled，没有铅笔。
- * 测试构建是静态服务器：管理员身份靠改写 HTML 注入 data-sgx-role，/api/avatar 用 mock。
+ * 没登录账号：头像按钮 disabled，没有铅笔（P2-2 起按 <html data-sgx-account-session="in"> 启用，不看 data-sgx-role）。
+ * 测试构建是静态服务器：锁屏 / 账号状态靠改写 HTML 注入 data-sgx-role / data-sgx-account-session，/api/account、/api/avatar 用 mock。
  */
 const { test, expect } = require('@playwright/test');
 const path = require('path');
@@ -30,18 +30,20 @@ async function makePhoto(page) {
   return p;
 }
 
-async function asRole(page, role) {
-  /* 账号总览：已登录账号（账号卡在登录后的总览里） */
+/** @param {any} page @param {string} role 过渡期的锁屏角色（P2-2 起头像不看它） @param {'in'|'out'} [acc] 账号会话 */
+async function asRole(page, role, acc = 'in') {
+  /* 账号总览：acc='in' 已登录账号（账号卡在登录后的总览里）；'out' 没登录账号 */
   await page.route('**/api/account', async (route) => {
     if (route.request().method() === 'GET') {
-      await route.fulfill({ json: { ok: true, password: true, passkey: true, ready: true, session: { by: 'password', authAt: Date.now(), expiresAt: Date.now() + 3600000, recent: true } } });
+      const session = acc === 'in' ? { by: 'password', authAt: Date.now(), expiresAt: Date.now() + 3600000, recent: true } : null;
+      await route.fulfill({ json: { ok: true, password: true, passkey: true, ready: true, session } });
       return;
     }
     await route.fulfill({ json: { ok: true, keys: [] } });
   });
   await page.route('**/account/', async (route) => {
     const r = await route.fetch();
-    const html = (await r.text()).replace(/<html/, '<html data-sgx-role="' + role + '" data-sgx-lock-session="valid"');
+    const html = (await r.text()).replace(/<html/, '<html data-sgx-role="' + role + '" data-sgx-lock-session="valid" data-sgx-account-session="' + acc + '"');
     await route.fulfill({ response: r, body: html });
   });
 }
@@ -103,8 +105,8 @@ test('管理员：裁剪时点取消，不上传', async ({ page }) => {
   expect(called).toBe(false);
 });
 
-test('访客：头像按钮不可点，没有铅笔', async ({ page }) => {
-  await asRole(page, 'visitor');
+test('P2-2 没登录账号（锁屏是 admin 也一样）：头像按钮不可点，没有铅笔', async ({ page }) => {
+  await asRole(page, 'admin', 'out');
   await page.goto('/account/');
   const btn = page.locator('#acct-main [data-avatar-edit]');
   await expect(btn).toBeDisabled();

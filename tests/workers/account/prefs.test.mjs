@@ -1,5 +1,5 @@
 /**
- * 账号云同步 /api/prefs（2026-10-22）：admin lock 会话 + 账号会话；逐项新的赢。
+ * 账号云同步 /api/prefs（2026-10-22）：进门 + 账号会话 + 作用域 prefs.sync（P2-2 起不看 role）；逐项新的赢。
  *
  * 2026-10-24 搬到账号 Worker styrigx-account（workers/account）；锁屏身份经网关这一跳写成身份头、账号会话由账号 Worker 自己验（_auth.mjs）。
  *
@@ -95,18 +95,53 @@ before(async () => {
   LOCK = await genKeyPair(); ACCOUNT = await genKeyPair(); OTHER = await genKeyPair();
 });
 
-test('要 admin lock 会话 + 账号会话：缺一个都 401', async () => {
+test('进门 + 账号会话 + prefs.sync：没进门 401 session、没账号 401 account；访客锁屏 + 账号会话也放行（P2-2 起账号 Worker 不看 role）', async () => {
   const kv = makeKV();
-  assert.equal((await prefsCall(kv, 'GET', null, {})).status, 401);
+  const none = await prefsCall(kv, 'GET', null, {});
+  assert.equal(none.status, 401);
+  assert.equal((await none.json()).error, 'session');
+  /* 有账号会话、没进门 → 仍是 401 session */
+  const noLock = await prefsCall(kv, 'GET', null, { 'sgx-account-session': await accTicket() });
+  assert.equal(noLock.status, 401);
+  assert.equal((await noLock.json()).error, 'session');
   const sess = await adminSess();
   const r = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess });
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');
+  /* 账号票签名不对 → 401 account */
+  const bad = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess, 'sgx-account-session': await accTicket('password', Date.now(), 0, OTHER.priv) });
+  assert.equal(bad.status, 401);
+  assert.equal((await bad.json()).error, 'account');
+  /* 过渡期：访客锁屏会话（网关 role 门 P2-3 前还会挡 /api/prefs）在账号 Worker 这一层只看进门 + 账号会话 */
   const vis = await visitorSess();
-  assert.equal((await prefsCall(kv, 'GET', null, { 'sgx-lock-session': vis, 'sgx-account-session': await accTicket() })).status, 401);
+  assert.equal((await prefsCall(kv, 'GET', null, { 'sgx-lock-session': vis, 'sgx-account-session': await accTicket() })).status, 200);
   const ok = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess, 'sgx-account-session': await accTicket() });
   assert.equal(ok.status, 200);
   assert.deepEqual((await ok.json()).items, {});
+  /* POST 同一道门 */
+  const pNo = await prefsCall(kv, 'POST', { changes: { 'sgx-theme': { v: 'dark', t: Date.now() - 1000 } } }, { 'sgx-lock-session': sess });
+  assert.equal(pNo.status, 401);
+  assert.equal((await pNo.json()).error, 'account');
+});
+
+test('没作用域 prefs.sync → 403 scope（gate.scopeDenial，带 scope 字段）', async () => {
+  const { scopeDenial } = await import('../../../workers/account/src/gate.js');
+  const lockOk = { ok: true, by: 'password', reason: 'ok' };
+  const auth = (a) => ({ lockSession: async () => lockOk, authorize: async () => a });
+  const d = await scopeDenial(auth({ ok: true, reason: 'ok', deviceId: 'x', scopes: ['curio.write'], reauth: false }), 'prefs.sync');
+  assert.equal(d.status, 403);
+  const j = await d.json();
+  assert.equal(j.error, 'scope');
+  assert.equal(j.scope, 'prefs.sync');
+  assert.equal(await scopeDenial(auth({ ok: true, reason: 'ok', deviceId: 'x', scopes: ['prefs.sync'], reauth: false }), 'prefs.sync'), null);
+  const nl = await scopeDenial({ lockSession: async () => ({ ok: false, by: '', reason: 'no-identity' }), authorize: async () => { throw new Error('不该问账号'); } }, 'prefs.sync');
+  assert.equal(nl.status, 401);
+  assert.equal((await nl.json()).error, 'session');
+  const na = await scopeDenial(auth({ ok: false, reason: 'missing', deviceId: '', scopes: [], reauth: false }), 'prefs.sync');
+  assert.equal(na.status, 401);
+  const nj = await na.json();
+  assert.equal(nj.error, 'account');
+  assert.equal(nj.reason, 'missing');
 });
 
 test('POST 合并：逐项新的赢；旧的不覆盖；非 sgx- key / 未来时间 / 超长值丢掉', async () => {

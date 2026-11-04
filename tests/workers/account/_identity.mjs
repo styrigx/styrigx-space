@@ -3,7 +3,8 @@
  *
  * - keys()：一次生成 ACCOUNT / OTHER 两对 Ed25519 钥匙（before 里调）
  * - makeEnv(overrides?)：账号 Worker env：D1_ACCOUNT_AUTH（node:sqlite 替身，跑过账号全部迁移）、账号票钥匙、根密钥、pepper、RP
- * - req / post / get：带网关身份头（默认 admin、by=password、客户端地址 10.9.9.9、CN / Shanghai）的请求；identity:null 表示不带身份头
+ * - req / post / get：带网关身份头（默认进门 X-Styrigx-Lock-Session: 1、by=password、客户端地址 10.9.9.9、CN / Shanghai；
+ *   过渡期网关还会并写 X-Styrigx-Lock-Role，这里默认 admin，账号 Worker P2-2 起不读它）的请求；identity:null 表示不带身份头
  * - accSession / reauth / reset：按真实格式签账号会话和两张短票（账号侧的签名函数）
  * - seedPassword / seedPasskey / assertion：账号库里直接写凭证；按 WebAuthn 格式签断言
  * - setCookies / pickCookie / cookies
@@ -49,11 +50,12 @@ export function makeEnv(overrides = {}) {
   };
 }
 
-/** 网关写的身份头。identity === null → 不带任何身份头 */
+/** 网关写的身份头。identity === null → 不带任何身份头；identity.session = '' → 不带 X-Styrigx-Lock-Session（= 没进门） */
 export function idHeaders(identity) {
   if (identity === null) return {};
-  const i = { role: 'admin', by: 'password', ip: IP, country: 'CN', city: 'Shanghai', ...(identity || {}) };
+  const i = { session: '1', role: 'admin', by: 'password', ip: IP, country: 'CN', city: 'Shanghai', ...(identity || {}) };
   const h = {};
+  if (i.session) h['X-Styrigx-Lock-Session'] = i.session;
   if (i.role) h['X-Styrigx-Lock-Role'] = i.role;
   if (i.by) h['X-Styrigx-Lock-By'] = i.by;
   if (i.tempkeyId) h['X-Styrigx-Lock-Tempkey-Id'] = i.tempkeyId;

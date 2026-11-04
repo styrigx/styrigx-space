@@ -137,7 +137,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
   （账号卡 + 头像编辑、已登录卡、「安全与隐私」一行）；账号密码和账号通行密钥在子页
   `/account/security/`（`apps/account-security.js`）。顶栏没有 ‹ 返回（2026-10-20 删除），
   返回走浏览器 / 系统返回。原管理员凭证页（`security-owner`）已删除。
-- 遗留项（照实记录）：网关发给 chat / search 的内部请求仍写旧头 `X-Sgx-Role`（那两个 Worker 仍认它，统一留待以后）。
+- P2-2 起网关不再写旧头 `X-Sgx-Role`：发给 search-index 的请求写账号结论头（只认 `X-Styrigx-Account-Session: 1`），发给 chat 的请求不带身份头（门只在网关，过渡期 admin 锁屏 + 账号会话）。入站的 `x-sgx-role` 仍照剥。
 - 账号拆分已完成（PR4）：D1 `styrigx-auth-gateway` 不再存账号数据，只剩锁屏数据（`realm='lock'` 的行和恢复开关表 `lock_reset_switch`）；
   网关库里 `realm='account'` / `'root'` 的旧行和旧开关表 `recovery_switch` 已由 `scripts/migrate-account-auth.mjs --cleanup --confirm` 删除
   （预览库走网关 `migrations/0009_drop_recovery_switch.sql`）；Secrets Store 里的旧 `SGX_ROOT_KEY` 已删除。
@@ -163,7 +163,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - `X-Styrigx-Account-*` 只写给两处：`styrigx-ai`（第 4 件）和 P4-2 之前过渡期的 `search-index`（`/api/search`）。账号 Worker 自己验账号会话和作用域，网关只给它写 `X-Styrigx-Lock-*` 和 `X-Styrigx-Client-*`。
 - RPC 结论 `AuthVerifier.conclusion(cookieHeader, clientContext, opts)` → `{ lock: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }`；`lock.ok=false` 时不问账号；账号绑定没配、RPC 出错、回了看不懂的东西 → `account.ok=false`。子站接口 Worker（curio-core、daymark-core）P2-2 起用它。
 - 骨架阶段账号会话自动拥有全部作用域；第 3 件实现只换 `grantedScopes` 的数据源，函数签名、RPC 形状、结论头都不变。
-- 将来删掉的：`X-Styrigx-Lock-Role`（转发给账号）、`X-Sgx-Role`（发给 chat / search-index），P2-3 删。
+- 将来删掉的：`X-Styrigx-Lock-Role`（转发给账号；账号 Worker P2-2 起已不读），P2-3 删。`X-Sgx-Role` 已在 P2-2 停写停读。
 - P2-1 只新增，没有调用方，线上行为不变。
 
 ## 锁定与过期

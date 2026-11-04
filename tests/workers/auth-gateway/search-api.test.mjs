@@ -57,13 +57,30 @@ function pickCookie(res, name) {
 
 
 
-async function searchCall(kv, q, cookieObj, svc, host) {
+/** 账号 Worker AccountVerifier 替身（P2-2）：Cookie 里有 sgx-account-session=ok → 有账号会话；=boom → RPC 抛错；否则没有 */
+function fakeVerifier(calls) {
+  return {
+    async authorize(cookie, ctx, opts) {
+      if (calls) calls.push({ cookie, opts });
+      if (/sgx-account-session=boom/.test(cookie)) throw new Error('rpc');
+      if (/sgx-account-session=ok/.test(cookie)) return { ok: true, reason: 'ok', deviceId: 'devtestdevtest01', scopes: ['curio.write', 'daymark.write'], reauth: false };
+      return { ok: false, reason: 'missing' };
+    },
+  };
+}
+async function searchCall(kv, q, cookieObj, svc, host, verifier) {
   const m = await import(API + 'search.js');
   const req = new Request('https://' + (host || 'styrigx.com') + '/api/search?q=' + encodeURIComponent(q) + '&lang=zh', { headers: { Cookie: cookies(cookieObj) } });
-  return await m.onRequestGet({ request: req, env: Object.assign(envFor(kv), svc === undefined ? {} : { SEARCH: svc }) });
+  const env = Object.assign(envFor(kv), svc === undefined ? {} : { SEARCH: svc }, { ACCOUNT_VERIFIER: verifier === undefined ? fakeVerifier() : verifier });
+  return await m.onRequestGet({ request: req, env });
 }
 function fakeSearch(log) {
-  return { async fetch(req) { log.push({ url: req.url, role: req.headers.get('X-Sgx-Role') }); return new Response(JSON.stringify({ ok: true, q: 'x', hits: [] }), { status: 200 }); } };
+  return {
+    async fetch(req) {
+      log.push({ url: req.url, role: req.headers.get('X-Sgx-Role'), acc: req.headers.get('X-Styrigx-Account-Session'), device: req.headers.get('X-Styrigx-Account-Device'), scopes: req.headers.get('X-Styrigx-Account-Scopes'), cookie: req.headers.get('Cookie') });
+      return new Response(JSON.stringify({ ok: true, q: 'x', hits: [] }), { status: 200 });
+    },
+  };
 }
 
 /* 测试钥匙：before 里生成（不算一条用例，单独跑某条用例时也会先执行） */
@@ -78,17 +95,41 @@ test('/api/search：没会话 401，不转发', async () => {
   assert.equal(log.length, 0);
 });
 
-test('/api/search：管理员转发带 admin，访客带 visitor；参数原样带过去', async () => {
+test('/api/search：有账号会话才写 X-Styrigx-Account-Session: 1（不看锁屏角色）；不再写 X-Sgx-Role；参数原样带过去', async () => {
   const log = [];
-  let r = await searchCall(makeKV(), '主题', { 'sgx-lock-session': await adminSess() }, fakeSearch(log));
+  const calls = [];
+  const v = fakeVerifier(calls);
+  let r = await searchCall(makeKV(), '主题', { 'sgx-lock-session': await adminSess() }, fakeSearch(log), undefined, v);
   assert.equal(r.status, 200);
-  r = await searchCall(makeKV(), '主题', { 'sgx-lock-session': await visitorSess() }, fakeSearch(log));
+  r = await searchCall(makeKV(), '主题', { 'sgx-lock-session': await adminSess(), 'sgx-account-session': 'ok' }, fakeSearch(log), undefined, v);
   assert.equal(r.status, 200);
-  assert.deepEqual(log.map((x) => x.role), ['admin', 'visitor']);
+  r = await searchCall(makeKV(), '主题', { 'sgx-lock-session': await visitorSess(), 'sgx-account-session': 'ok' }, fakeSearch(log), undefined, v);
+  assert.equal(r.status, 200);
+  assert.deepEqual(log.map((x) => x.acc), [null, '1', '1']);
+  assert.deepEqual(log.map((x) => x.role), [null, null, null]);
+  assert.equal(log[1].device, 'devtestdevtest01');
+  assert.equal(log[1].scopes, 'curio.write daymark.write');
+  assert.ok(log.every((x) => x.cookie === null), '不转 cookie');
+  assert.ok(calls.every((c) => c.opts && c.opts.reauth === false), '搜索不要复验结论');
   const u = new URL(log[0].url);
   assert.equal(u.pathname, '/search');
   assert.equal(u.searchParams.get('q'), '主题');
   assert.equal(u.searchParams.get('lang'), 'zh');
+});
+
+test('/api/search：账号绑定缺失 / RPC 抛错 → 照常搜，但不写账号结论头（fail closed，不给私密）', async () => {
+  const log = [];
+  const ck = { 'sgx-lock-session': await adminSess(), 'sgx-account-session': 'ok' };
+  assert.equal((await searchCall(makeKV(), '主题', ck, fakeSearch(log), undefined, null)).status, 200);
+  assert.equal((await searchCall(makeKV(), '主题', { ...ck, 'sgx-account-session': 'boom' }, fakeSearch(log), undefined, fakeVerifier())).status, 200);
+  assert.deepEqual(log.map((x) => x.acc), [null, null]);
+});
+
+test('/api/search：没进门不问账号', async () => {
+  const calls = [];
+  const r = await searchCall(makeKV(), '主题', { 'sgx-account-session': 'ok' }, fakeSearch([]), undefined, fakeVerifier(calls));
+  assert.equal(r.status, 401);
+  assert.equal(calls.length, 0);
 });
 
 test('/api/search：没绑定 503；上游抛错 503；空查询直接空结果；超长 400', async () => {
@@ -111,7 +152,8 @@ test('子站的 /api/search（合并 PR3 起同源，在主域名根上）：没
   assert.equal(r.status, 401);
   r = await worker.fetch(new Request('https://styrigx.com/api/search?q=a', { headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, CTX);
   assert.equal(r.status, 200);
-  assert.equal(log[0].role, 'visitor');
+  assert.equal(log[0].role, null, 'P2-2 起不写 X-Sgx-Role');
+  assert.equal(log[0].acc, null, '没账号会话不写结论头');
   r = await worker.fetch(new Request('https://styrigx.com/api/search?q=a', { method: 'POST', headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, CTX);
   assert.equal(r.status, 405);
   /* 子站关口只认主域名的子站前缀：别的地址一律 404（不回源） */

@@ -138,20 +138,20 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-sto
   assert.equal(page.status, 404, '网关只转发表里的路径；别的路径不在这里出页面');
 });
 
-test('AccountService：访客身份调 /api/prefs → 403 role（纵深防御，门在网关）；/api/account 由 account.js 自己按身份拒（401 session）', async () => {
+test('AccountService：v1 访客锁屏会话（网关写 Session: 1 + Role: visitor）在账号 Worker 只算进门——没有账号会话 → /api/prefs 401 account、/api/account 管理 action 401 account（网关那道 403 role 门 P2-3 才删）', async () => {
   const { env } = setup();
   const ck = await sess('visitor');
   let r = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: ck } }), env);
-  assert.equal(r.status, 403);
-  assert.deepEqual(await r.json(), { ok: false, error: 'role' });
+  assert.equal(r.status, 401);
+  assert.equal((await r.json()).error, 'account');
   r = await call(new Request('https://styrigx.com/api/prefs', { method: 'POST', headers: { Cookie: ck, Origin: 'https://styrigx.com', 'Content-Type': 'application/json' }, body: '{"changes":{}}' }), env);
-  assert.equal(r.status, 403);
+  assert.equal(r.status, 401);
   r = await call(new Request('https://styrigx.com/api/account', { method: 'POST', headers: { Cookie: ck, Origin: 'https://styrigx.com', 'Content-Type': 'application/json' }, body: '{"action":"device-list"}' }), env);
   assert.equal(r.status, 401);
-  assert.equal((await r.json()).error, 'session');
+  assert.equal((await r.json()).error, 'account');
 });
 
-test('访客：PUT /api/avatar 403、数字健康上报 204 丢弃（不写库）、读取 200', async () => {
+test('进门但没登录账号：PUT /api/avatar 401 account、数字健康上报 204 丢弃（不写库）、读取 200 且 detail:false', async () => {
   let touched = 0;
   const db = {
     prepare() { touched++; return { run: async () => ({}), bind() { return this; }, all: async () => ({ results: [] }) }; },
@@ -160,14 +160,16 @@ test('访客：PUT /api/avatar 403、数字健康上报 204 丢弃（不写库�
   const { env } = setup({ D1_WELLBEING: db });
   const ck = await sess('visitor');
   const put = await call(new Request('https://styrigx.com/api/avatar', { method: 'PUT', headers: { Cookie: ck, Origin: 'https://styrigx.com' }, body: new FormData() }), env);
-  assert.equal(put.status, 403);
-  assert.deepEqual(await put.json(), { ok: false, error: 'role' });
+  assert.equal(put.status, 401);
+  assert.equal((await put.json()).error, 'account');
   const post = await call(new Request('https://styrigx.com/api/wellbeing', { method: 'POST', headers: { Cookie: ck }, body: '{"d":"2026-10-24","s":[{"k":"home","sec":5}]}' }), env);
   assert.equal(post.status, 204);
   assert.equal(touched, 0);
   const get = await call(new Request('https://styrigx.com/api/wellbeing?d=2000-01-01', { headers: { Cookie: ck } }), env);
   assert.equal(get.status, 200);
-  assert.equal((await get.json()).ok, true);
+  const gj = await get.json();
+  assert.equal(gj.ok, true);
+  assert.equal(gj.detail, false);
 });
 
 test('管理员：未知子路径 404、不支持的方法 405；/api/prefs/ 尾斜杠同 /api/prefs', async () => {
@@ -187,15 +189,15 @@ test('管理员：未知子路径 404、不支持的方法 405；/api/prefs/ 尾
   assert.ok(authKv);
 });
 
-test('身份头白名单：不认识的 role / 只有 by 没有 role / 旧头名 X-Sgx-Role → 当作无会话（401）', async () => {
+test('身份头白名单：没有 X-Styrigx-Lock-Session: 1（只有 Role / By、Session 不是 1、旧头名 X-Sgx-Role）→ 当作无会话（401）', async () => {
   const { env } = setup();
-  for (const h of [{ 'X-Styrigx-Lock-Role': 'root' }, { 'X-Styrigx-Lock-Role': 'Admin' }, { 'X-Styrigx-Lock-By': 'password' }, { 'X-Sgx-Role': 'admin' }]) {
+  for (const h of [{ 'X-Styrigx-Lock-Role': 'admin' }, { 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'passkey' }, { 'X-Styrigx-Lock-By': 'password' }, { 'X-Styrigx-Lock-Session': 'true' }, { 'X-Sgx-Role': 'admin' }]) {
     const r = await serviceFetch(new Request('https://styrigx.com/api/wellbeing', { headers: h }), env, CTX);
     assert.equal(r.status, 401, JSON.stringify(h));
     const del = await serviceFetch(new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { ...h, Origin: 'https://styrigx.com' } }), env, CTX);
     assert.equal(del.status, 401, JSON.stringify(h));
   }
-  const ok = await serviceFetch(new Request('https://styrigx.com/api/wellbeing?d=2000-01-01', { headers: { 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'passkey' } }), { ...env, D1_WELLBEING: makeAccountD1() }, CTX);
+  const ok = await serviceFetch(new Request('https://styrigx.com/api/wellbeing?d=2000-01-01', { headers: { 'X-Styrigx-Lock-Session': '1', 'X-Styrigx-Lock-By': 'passkey' } }), { ...env, D1_WELLBEING: makeAccountD1() }, CTX);
   assert.equal(ok.status, 200, '合规的身份头 → 放行');
 });
 
@@ -211,10 +213,12 @@ test('网关这一跳：验过的锁屏会话写成身份头，外来伪造的 x
   const { env } = setup();
   const ck = await sess('admin');
   const fake = { 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Client-Address': '6.6.6.6' };
-  const none = await gatewayHop(new Request('https://styrigx.com/api/prefs', { headers: fake }), env);
+  const none = await gatewayHop(new Request('https://styrigx.com/api/prefs', { headers: { ...fake, 'X-Styrigx-Lock-Session': '1' } }), env);
   assert.equal(none.headers.get('X-Styrigx-Lock-Role'), null, '没有锁屏会话：伪造的身份头被剥掉');
+  assert.equal(none.headers.get('X-Styrigx-Lock-Session'), null);
   assert.equal(none.headers.get('X-Styrigx-Client-Address'), null);
   const real = await gatewayHop(new Request('https://styrigx.com/api/prefs', { headers: { ...fake, Cookie: ck, 'CF-Connecting-IP': '203.0.113.5' } }), env);
+  assert.equal(real.headers.get('X-Styrigx-Lock-Session'), '1');
   assert.equal(real.headers.get('X-Styrigx-Lock-Role'), 'admin');
   assert.equal(real.headers.get('X-Styrigx-Lock-By'), 'password');
   assert.equal(real.headers.get('X-Styrigx-Client-Address'), '203.0.113.5');

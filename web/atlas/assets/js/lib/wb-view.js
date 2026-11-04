@@ -117,6 +117,15 @@ const FRESH_MS = 60000;
  * 2026-10-24 页内切换：同一文档里拿到过今天的数据就先同步画上；超过 1 分钟再静默拉新覆盖。
  * @returns {Promise<void>}
  */
+/**
+ * 这个容器画不画这份数据：带 data-wb-detail 的（设置 › 数字健康的根卡）只在 detail:true（账号会话，P2-2）时画，
+ * 否则保持本机记录；首页小组件不带，区域合计照画。
+ * @param {HTMLElement} root @param {any} data
+ */
+export function wbFits(root, data) {
+  return !root.hasAttribute('data-wb-detail') || !!(data && data.detail === true);
+}
+
 export async function loadWb() {
   const roots = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-wb-root]'));
   if (!roots.length) return;
@@ -124,7 +133,7 @@ export async function loadWb() {
   const day = localDay();
   if (last && last.d === day) {
     const data = last.data;
-    roots.forEach((root) => renderWb(root, data, en));
+    roots.forEach((root) => { if (wbFits(root, data)) renderWb(root, data, en); });
     if (Date.now() - last.ts < FRESH_MS) return;
   }
   try {
@@ -133,6 +142,6 @@ export async function loadWb() {
     const data = await r.json();
     if (!data || !data.ok) return;
     last = { d: day, ts: Date.now(), data };
-    roots.forEach((root) => { if (root.isConnected) renderWb(root, data, en); });
+    roots.forEach((root) => { if (root.isConnected && wbFits(root, data)) renderWb(root, data, en); });
   } catch (e) {}
 }

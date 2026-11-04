@@ -101,6 +101,15 @@ export async function askAuthorize(env, cookieHeader, clientContext, opts) {
 }
 
 /**
+ * 请求版 askAuthorize：取请求的 Cookie 头和客户端上下文再问（P2-2：api/search.js、api/chat.js 用）。
+ * @param {Request} request @param {Record<string, any>} env @param {{reauth?:boolean}} [opts]
+ * @returns {Promise<AskedAuthorization>}
+ */
+export function askAuthorizeFor(request, env, opts) {
+  return askAuthorize(env, (request && request.headers.get('Cookie')) || '', verifierContextOf(request), opts);
+}
+
+/**
  * 请求版：取请求的 Cookie 头和客户端上下文再问（只给 gate.js 账号页首帧提示用）。
  * @param {Request} request @param {Record<string, any>} env
  */

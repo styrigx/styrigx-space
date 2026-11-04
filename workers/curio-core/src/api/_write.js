@@ -1,7 +1,7 @@
 // workers/core/src/api/_write.js
-// 写接口共用：读 JSON body（限大小）、写操作门槛（同源 + admin）、?id= 参数。下划线开头：不是接口。
+// 写接口共用：读 JSON body（限大小）、写操作门槛（同源 + 账号会话 + 作用域 curio.write）、?id= 参数。下划线开头：不是接口。
 import { err, isSameOrigin } from './_lib.js';
-import { requireAdmin } from './_auth.js';
+import { requireScope, SCOPE_WRITE } from './_auth.js';
 
 const MAX_BODY = 65536; // 排序一次带一个分类的全部条目 id
 
@@ -16,10 +16,15 @@ export async function readBody(request) {
   }
 }
 
-/** 写操作：先看同源（非同源 403 origin），再要 admin（未登录 401、访客 403 role）；通过返回 null */
-export async function guardWrite(context) {
+/**
+ * 写操作：先看同源（非同源 403 origin），再要作用域 curio.write（没进门 401 unauthorized、没账号会话 401 account、
+ * 没作用域 403 scope；opts.reauth 时另要账号复验，没有 401 reauth）；通过返回 null。
+ * @param {any} context
+ * @param {{reauth?: boolean}} [opts]
+ */
+export async function guardWrite(context, opts) {
   if (!isSameOrigin(context.request)) return err('origin', 403);
-  const { response } = await requireAdmin(context);
+  const { response } = await requireScope(context, SCOPE_WRITE, opts);
   return response;
 }
 

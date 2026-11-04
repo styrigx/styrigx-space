@@ -57,7 +57,7 @@ database_id = "26ae9cd2-43c9-4bc0-b558-b35560ed9d7c"
 binding = "R2_PHOTOS"
 bucket_name = "styrigx-curio-core"
 
-# 验票：主站鉴权网关的 RPC 入口 AuthVerifier（lockSession）。
+# 鉴权：主站鉴权网关的 RPC 入口 AuthVerifier（conclusion：网关验门、问账号 Worker，回结论；见 src/api/_auth.js）。
 [[services]]
 binding = "AUTH"
 service = "styrigx-auth-gateway"

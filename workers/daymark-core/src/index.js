@@ -7,17 +7,18 @@
  * 请求顺序（下面的 /api/* 都是去掉 /daymark 前缀后的路径，公开地址是 styrigx.com/daymark/api/*）：
  *   1. GET /api/today：今日一句，主站首页 / 锁屏跨站调用的公开只读接口（带 CORS），不验会话；只给北京时间的今天（?d= 别的日期 400），
  *      边缘缓存最多 60 秒、不跨过换天（见 api/today.js）；
- *      PUT /api/today（余响「设为今日」）和其他写接口一样先问网关，接口里再要 admin + 同源
- *   2. 其余 /api/*：先问网关会话（admin、visitor 都可）；无效 → 401 JSON（不 302，fetch 不跟跳转）。
- *      角色放进 context.data.role，handler 用 sessionRole(context) 直接取，每个请求只问网关一次。
- *   3. 按路由表交给 src/api/<路径>.js；写操作自己再要求 admin（读 context.data.role）+ 同源
+ *      PUT /api/today（余响「设为今日」）和其他写接口一样先问网关，接口里再要账号会话 + daymark.write + 同源
+ *   2. 其余 /api/*：先问网关要结论（AUTH.conclusion()，方案 4.6）；没进门 → 401 unauthorized（不 302，fetch 不跟跳转）。
+ *      结论放进 context.data.conclusion，handler 用 conclusionOf(context) 直接取，每个请求只问网关一次。
+ *   3. 按路由表交给 src/api/<路径>.js；读私密（私密句子、随手一笔）要账号会话（account.ok），
+ *      写要账号会话 + 作用域 daymark.write + 同源（_auth.js requireScope）
  * 不在路由表里的路径 → 404；方法不支持 → 405。
  *
  * 全站搜索索引（src/search-index.js）：写接口成功后用 ctx.waitUntil 重建 KV site:daymark；
  * Cron（wrangler.toml [triggers]）每小时兜底重建，内容没变不写 KV。重建出错只打日志，不影响接口响应。
  */
 import { API_ROUTES } from './routes.js';
-import { verifySession } from './api/_auth.js';
+import { askConclusion } from './api/_auth.js';
 import { rebuildSearchIndex, isMutation } from './search-index.js';
 import { purgeTodayCache } from './api/today.js';
 
@@ -59,12 +60,12 @@ export function resolve(pathname) {
   return mod ? { mod, params: {}, functionPath: key } : null;
 }
 
-function makeContext(request, env, ctx, params, functionPath, role) {
+function makeContext(request, env, ctx, params, functionPath, conclusion) {
   return {
     request,
     env,
     params,
-    data: role ? { role } : {},
+    data: conclusion ? { conclusion, conclusionReauth: false } : {},
     functionPath,
     waitUntil: (p) => { if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p); },
     passThroughOnException: () => {},
@@ -100,17 +101,17 @@ export async function handle(request, env, ctx) {
   const path = apiPath(url.pathname);
   if (!path) return json(404, { ok: false, error: 'not-found' });
 
-  let role = null;
+  let conclusion = null;
   if (!isPublic(path, request.method)) {
-    role = await verifySession(request, env);
-    if (!role) return json(401, { ok: false, error: 'unauthorized' });
+    conclusion = await askConclusion(request, env);
+    if (!conclusion.lock.ok) return json(401, { ok: false, error: 'unauthorized' });
   }
 
   const hit = resolve(path);
   if (!hit) return json(404, { ok: false, error: 'not-found' });
   const handler = pickHandler(hit.mod, request.method);
   if (!handler) return json(405, { ok: false, error: 'method' });
-  const res = await handler(makeContext(request, env, ctx, hit.params, hit.functionPath, role));
+  const res = await handler(makeContext(request, env, ctx, hit.params, hit.functionPath, conclusion));
   /* 设为今日不改句子本身，不用重建搜索索引（它自己清今日缓存） */
   if (res && isMutation(request.method, res.status) && hit.functionPath !== '/api/today') {
     scheduleRebuild(env, ctx);

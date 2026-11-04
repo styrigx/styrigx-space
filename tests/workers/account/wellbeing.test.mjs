@@ -5,7 +5,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseReport, summarize, dayOk, sectionOf, onRequestPost as rawPost, onRequestGet as rawGet } from '../../../workers/account/src/api/wellbeing.js';
-import { wrap } from './_auth.mjs';
+import { wrap, testAccountSessionCookie } from './_auth.mjs';
+import { testLockSessionCookie } from '../auth-gateway/_tickets.mjs';
+import { genKeyPair, authD1For, makeKV } from '../_harness.mjs';
 
 const onRequestPost = wrap(rawPost);
 const onRequestGet = wrap(rawGet);
@@ -51,7 +53,7 @@ test('parseReport：非法上报全部拒绝', () => {
   for (const b of bad) assert.equal(parseReport(b, NOW), null, JSON.stringify(b));
 });
 
-test('summarize：按区域合计；书名只给 admin', () => {
+test('summarize：按区域合计；书名只给 detail（账号会话）', () => {
   const rows = [
     { k: 'home', t: '', sec: 120 },
     { k: 'book:a', t: '三体', sec: 600 },
@@ -116,4 +118,61 @@ test('fmtDur：中英文时长', () => {
   assert.equal(fmtDur(120 * 60, false), '2 小时');
   assert.equal(fmtDur(5 * 60, true), '5 min');
   assert.equal(fmtDur(150 * 60, true, true), '2 hrs 30 min');
+});
+
+/* ---- P2-2：POST 只记账号会话 + wellbeing.write；GET 明细只给账号会话，响应带 detail ---- */
+const LK = await genKeyPair();
+const AK = await genKeyPair();
+/** D1_WELLBEING 替身：记下写入；SELECT 返回固定两行 */
+function wbDb() {
+  const db = {
+    writes: 0,
+    prepare(sql) {
+      return {
+        run: async () => ({}),
+        bind: () => ({ all: async () => ({ results: [{ k: 'home', t: '', sec: 60 }, { k: 'book:a', t: '三体', sec: 30 }] }) }),
+        sql,
+      };
+    },
+    async batch(stmts) { db.writes += stmts.length; return []; },
+  };
+  return db;
+}
+function wbEnv(db) {
+  const kv = makeKV();
+  return { SGX_LOCK_PUBLIC: LK.pub, SGX_ACCOUNT_PUBLIC: AK.pub, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_WELLBEING: db };
+}
+async function wbCookie(role, acc) {
+  const c = [await testLockSessionCookie(LK.priv, 0, role)];
+  if (acc) c.push(await testAccountSessionCookie(AK.priv, 'password', 0, Date.now()));
+  return c.join('; ');
+}
+const body = () => JSON.stringify({ d: new Date().toISOString().slice(0, 10), s: [{ k: 'home', sec: 30 }] });
+
+test('POST：进门没账号会话 → 204 丢弃不写（admin / 访客锁屏一样）；进门 + 账号会话 → 写入', async () => {
+  for (const role of ['admin', 'visitor']) {
+    const db = wbDb();
+    const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: { Cookie: await wbCookie(role, false) } }), env: wbEnv(db) });
+    assert.equal(r.status, 204);
+    assert.equal(db.writes, 0, role);
+  }
+  const db = wbDb();
+  const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: { Cookie: await wbCookie('admin', true) } }), env: wbEnv(db) });
+  assert.equal(r.status, 204);
+  assert.ok(db.writes >= 1);
+});
+
+test('GET：没账号会话 detail:false 只有合计；有账号会话 detail:true 带书名', async () => {
+  const a = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('admin', false) } }), env: wbEnv(wbDb()) });
+  assert.equal(a.status, 200);
+  const ja = await a.json();
+  assert.equal(ja.detail, false);
+  assert.equal(ja.total, 90);
+  assert.deepEqual(ja.items, []);
+  const b = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('visitor', true) } }), env: wbEnv(wbDb()) });
+  const jb = await b.json();
+  assert.equal(jb.detail, true);
+  assert.equal(jb.items[0].t, '三体');
+  const c = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('admin', false) } }), env: { ...wbEnv(null), D1_WELLBEING: undefined } });
+  assert.equal((await c.json()).detail, false);
 });
