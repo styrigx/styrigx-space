@@ -107,7 +107,7 @@ test.describe('credential APIs 真请求 e2e', () => {
 
   test('账号密码 set/change（/api/account；D1 password 表的 account 行，account-epoch 在 D1）', async ({ page, context }) => {
     const d1 = t.d1;
-    await mintBrowserAuth(context, 'root');
+    await mintBrowserAuth(context, 'space');
     // 第一次设账号密码：没有账号会话，凭账号根凭证签的 AccountResetTicket
     await mintBrowserAccountReset(context);
     let r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-222' });
@@ -116,7 +116,7 @@ test.describe('credential APIs 真请求 e2e', () => {
     const rec1 = d1.password('account');
     expect(rec1 && rec1.hash).toBeTruthy();
     // 首次配置推进了 lock-epoch：重签 lock 会话；之后用账号会话 + AccountReauthTicket 改密码
-    await mintBrowserAuth(context, 'root');
+    await mintBrowserAuth(context, 'space');
     await context.clearCookies({ name: 'sgx-account-reset' });
     await mintBrowserAccount(context, 'password');
     r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-333' });

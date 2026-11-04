@@ -281,21 +281,25 @@ test('P2-3 临时钥匙页新建 → 没有锁侧复验时弹复验层 → 通�
   await expect(page.locator('#tk-code')).toHaveText(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
 });
 
-test('P2-3 子站点分享 → 弹共享外壳复验 → 通行密钥通过后拿到短链', async ({ page, context }) => {
-  await addAuthenticator(page);
+test('P2-3 子站点分享（共享外壳同一个请求）：没有锁侧复验 → 401 reauth；有复验票 → 拿到带会话的短链', async ({ page, context }) => {
+  /* 测试台的子站是固定页（只有正文、没有共享外壳顶栏），这里不点按钮，只在子站页里发共享外壳 share.js 发的同一个请求：
+     验的是 styrigx-share 的 checkReauth 对临时钥匙进门的会话生效。按钮 → 复验弹层 → 重试的前端流程在 tests/blog/e2e/share-button.spec.js；
+     通行密钥复验签发 sgx-lock-reauth 在上面「临时钥匙页新建」那条 */
+  await edge.resetShareLimit();
   await setSession(context, 'tempkey');
-  /* 博客首页（真实存在的页面；/post/hello/ 在构建里不存在，测试台回的是主站 404 页，没有子站顶栏） */
   await page.goto(BLOG + '/');
-  await page.evaluate(() => {
-    window.__shared = null;
-    Object.defineProperty(navigator, 'share', { configurable: true, value: async (d) => { window.__shared = d; } });
-  });
-  await page.click('.sgx-topbar [data-sgx-share]');
-  const step = page.locator('dialog.sgx-share-reauth[open]');
-  await expect(step).toBeVisible({ timeout: 10000 });
-  await step.locator('[data-pk]').click();
-  await expect(step).toHaveCount(0, { timeout: 20000 });
-  await expect.poll(() => page.evaluate(() => window.__shared && window.__shared.url), { timeout: 10000 }).toMatch(/^https:\/\/styrigx\.com\/s\/[A-Za-z0-9_-]{22}$/);
+  await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT blog');
+  const body = { action: 'create', reuse: true, name: 'blog', to: BLOG + '/', hours: 24, session: 12 * 3600 };
+  const r1 = await shareApi(page, body);
+  expect(r1.s, JSON.stringify(r1.j)).toBe(401);
+  expect(r1.j.error).toBe('reauth');
+  await setReauth(context);
+  const r2 = await shareApi(page, body);
+  expect(r2.s, JSON.stringify(r2.j)).toBe(200);
+  expect(r2.j.link.path).toMatch(/^\/s\/[A-Za-z0-9_-]{22}$/);
+  /* 测试台的短链库跨用例共享（作废的也留在列表里）：作废后把这一行删掉，后面「临时钥匙页列表只有 1 条」的用例不受影响 */
+  expect((await shareApi(page, { action: 'revoke', id: r2.j.link.id })).s).toBe(200);
+  await edge.shareDb.prepare('DELETE FROM share_link WHERE id = ?1').bind(r2.j.link.id).run();
 });
 
 for (const role of ['password', 'tempkey']) {
