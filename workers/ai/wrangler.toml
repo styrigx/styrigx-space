@@ -1,0 +1,31 @@
+# styrigx-ai：站内对话助手（P4-1，方案 5.2）。站内召回 + Workers AI 流式回答。
+#
+# 没有公开地址：不开 workers.dev、不挂路由、不挂域名。唯一入口是鉴权网关 styrigx-auth-gateway 的服务绑定 AI_SERVICE：
+#   POST /api/ai 由网关验进门、过两档 AI 限流、写账号结论头（X-Styrigx-Account-Session）后转进来（POST /ask）。
+# 所以这里不验 cookie、不持任何钥匙；结论头只可能是网关写的。
+# 不存对话、不写 KV、不联网搜索、不调外部模型；没有 D1、R2、Secrets Store。
+
+name = "styrigx-ai"
+main = "src/index.js"
+compatibility_date = "2026-10-09"
+workers_dev = false
+preview_urls = false
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# Workers AI（计费见方案 5.6；单次封顶靠下面三个变量）
+[ai]
+binding = "AI"
+
+# 全站搜索索引（KV styrigx-search-index，各站 CI 写 site:<站名>）。只读：site:space / site:blog / site:curio / site:daymark。
+[[kv_namespaces]]
+binding = "KV_SEARCH_INDEX"
+id = "bd1babcc3fe74d58994e254c74d34ced"
+
+[vars]
+# 模型以 Workers AI 模型目录为准（合并前 Gray 确认）
+AI_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+AI_MAX_TOKENS = "512"
+AI_CONTEXT_HITS = "5"
