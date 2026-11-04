@@ -142,7 +142,7 @@ test('回滚下限：floor 文件里网关和账号 Worker 都要求 D1 绑定�
   const ac = floorFor(workerNameFromToml(acToml));
   /* 账号拆分 PR3：网关要有转发绑定 ACCOUNT，账号要有账号库 D1_ACCOUNT_AUTH（自动回滚不退过拆分点）。
      P2-3 放宽：不再要求进站凭证的绑定名（P2-3 之前的版本绑的是旧名，P2-3 部署失败时要能回到它） */
-  assert.deepEqual(gw && gw.requireBindings, ['D1_LOCK_AUTH', 'ACCOUNT']);
+  assert.deepEqual(gw && gw.requireBindings, ['D1_LOCK_AUTH', 'ACCOUNT', 'SGX_LOCK_SPACE_KEY']);
   assert.deepEqual(ac && ac.requireBindings, ['D1_ACCOUNT_AUTH', 'D1_SETTINGS_SYNC']);
   // 要求的绑定当前 wrangler.toml 里确实有（否则每次部署都记不到目标）
   for (const [toml, f] of [[gwToml, gw], [acToml, ac]]) {
@@ -152,16 +152,16 @@ test('回滚下限：floor 文件里网关和账号 Worker 都要求 D1 绑定�
   assert.equal(floorFor('$comment'), null);
 });
 
-test('回滚下限：bindings 里的服务绑定 / Secrets Store 绑定也按名字认（拆分前的网关版本没有 ACCOUNT、绑的是旧名 → 不满足）', () => {
+test('回滚下限：bindings 里的服务绑定 / Secrets Store 绑定也按名字认（拆分前的网关版本没有 ACCOUNT、P2-3 之前绑的是旧名 → 不满足）', () => {
   const gw = floorFor('styrigx-auth-gateway');
   const v = (list) => JSON.stringify({ id: V1, metadata: { created_on: 'Fri 2026-10-30 8:00 AM CST (UTC+08:00)' }, resources: { bindings: list } });
   const after = [{ type: 'd1', name: 'D1_LOCK_AUTH' }, { type: 'service', name: 'ACCOUNT' }, { type: 'service', name: 'ACCOUNT_VERIFIER' }, { type: 'secrets_store_secret', name: 'SGX_LOCK_SPACE_KEY' }];
   assert.equal(checkFloor(v(after), gw).ok, true);
   const before = [{ type: 'd1', name: 'D1_LOCK_AUTH' }, { type: 'd1', name: 'D1_ACCOUNT_AUTH' }, { type: 'd1', name: 'D1_ROOT_AUTH' }, { type: 'secrets_store_secret', name: 'SGX_ROOT_KEY' }];
-  assert.match(checkFloor(v(before), gw).reason, /missing binding\(s\) ACCOUNT$/);
-  /* P2-3 之前的版本（有 ACCOUNT、进站凭证绑的是旧名）仍是合格的回滚目标 */
+  assert.match(checkFloor(v(before), gw).reason, /missing binding\(s\) ACCOUNT, SGX_LOCK_SPACE_KEY$/);
+  /* P4-1 起：P2-3 之前的版本（进站凭证绑的是旧名，旧名 secret 已由 Gray 删除）不再是合格的回滚目标 */
   const preP23 = [{ type: 'd1', name: 'D1_LOCK_AUTH' }, { type: 'service', name: 'ACCOUNT' }, { type: 'secrets_store_secret', name: 'SGX_OLD_LOCK_KEY_NAME' }];
-  assert.equal(checkFloor(v(preP23), gw).ok, true);
+  assert.match(checkFloor(v(preP23), gw).reason, /missing binding\(s\) SGX_LOCK_SPACE_KEY$/);
 });
 
 test('回滚下限：checkFloor 缺绑定 / 太早 / 坏 JSON → 不满足', () => {
