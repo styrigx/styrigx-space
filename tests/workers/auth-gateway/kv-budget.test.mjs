@@ -116,7 +116,13 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
   /* 必需检查：job 名、触发条件、上游不变 */
   assert.ok(wf.on.push && wf.on.pull_request && 'workflow_dispatch' in wf.on);
   assert.equal(job.if, "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository");
-  assert.equal(job.needs, 'quality');
+  /* 2026-11-04 CI 拆分：不等 quality（两条路都自己构建；needs 不能按事件区分）。部署 job 仍同时 needs quality 和 passkey-e2e */
+  assert.equal(job.needs, undefined);
+  for (const [n, j] of Object.entries(wf.jobs)) {
+    if (!n.startsWith('deploy-') && n !== 'build-and-deploy') continue;
+    const needs = [].concat(j.needs || []);
+    if (needs.includes('passkey-e2e')) assert.ok(needs.includes('quality'), n);
+  }
   const step = (name) => {
     const s = job.steps.find((x) => x.name === name || (x.name && x.name.startsWith(name)));
     assert.ok(s, name);

@@ -53,12 +53,26 @@ test('主站工作流用本地共享 action；必需检查的 job 名（quality�
   const wf = yaml.load(read('.github/workflows/deploy.yml'));
   for (const j of ['quality', 'passkey-e2e', 'build-and-deploy']) assert.ok(wf.jobs[j], j);
   const uses = (job) => wf.jobs[job].steps.map((s) => s.uses).filter(Boolean);
-  assert.ok(uses('quality').includes('./.github/actions/setup-hugo'));
-  assert.ok(uses('quality').includes('./.github/actions/setup-node-deps'));
-  assert.ok(uses('quality').includes('./.github/actions/setup-playwright'));
+  /* 2026-11-04 CI 拆分：quality 是汇总作业，检查分在 6 个并行作业里 */
+  const PARTS = ['unit', 'build', 'e2e-lock', 'e2e-sites', 'visual', 'lighthouse'];
+  for (const j of PARTS) {
+    assert.ok(wf.jobs[j], j);
+    assert.ok(uses(j).includes('./.github/actions/setup-node-deps'), j);
+  }
+  for (const j of ['build', 'e2e-lock', 'visual', 'lighthouse']) assert.ok(uses(j).includes('./.github/actions/setup-hugo'), j);
+  for (const j of ['e2e-lock', 'e2e-sites', 'visual']) {
+    const s = wf.jobs[j].steps.find((x) => x.uses === './.github/actions/setup-playwright');
+    assert.ok(s, j);
+    assert.equal(s.with['cjk-fonts'], 'true', j + '：截图要 CJK 字体');
+  }
   assert.ok(uses('passkey-e2e').includes('./.github/actions/setup-hugo'));
-  const q = wf.jobs.quality.steps.find((s) => s.uses === './.github/actions/setup-playwright');
-  assert.equal(q.with['cjk-fonts'], 'true', '视觉回归要 CJK 字体');
+  /* 汇总作业：等全部 6 个，always() 跑，任何一个不是 success 就红 */
+  const q = wf.jobs.quality;
+  assert.deepEqual([...q.needs].sort(), [...PARTS].sort());
+  assert.match(q.if, /always\(\)/);
+  assert.match(q.steps.at(-1).run, /result !== "success"/);
+  /* e2e 作业测 build 上传的那份产物，不自己重建生产构建 */
+  for (const j of ['e2e-lock', 'e2e-sites']) assert.equal(wf.jobs[j].needs, 'build', j);
   const snap = yaml.load(read('.github/workflows/update-snapshots.yml'));
   const su = snap.jobs.update.steps.map((s) => s.uses).filter(Boolean);
   for (const a of ['setup-hugo', 'setup-node-deps', 'setup-playwright']) assert.ok(su.includes('./.github/actions/' + a), a);

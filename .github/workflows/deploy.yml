@@ -37,12 +37,40 @@ env:
 # 读 D1 用 status 部署本来就有的 token（D1 编辑），不经网关、不开免会话口子、不加 Worker / 子域名 / secret。
 
 jobs:
-  # 质量闸门：单元测试、打包检查、生成物同步、分层 / 前端守卫、锁屏 / 边缘 / 凭证接口 / 视觉 e2e、Lighthouse、stylelint。
+  # 质量闸门：拆成 6 个并行作业（unit、build、e2e-lock、e2e-sites、visual、lighthouse）+ 汇总作业 quality（必需检查名不变）。
   # PR 也跑，变绿再合入 main；只有 main 的 push（或 main 上手动触发）才部署。
-  quality:
+  unit:
+    # 单元测试（workers + ui）。不构建站点、不装浏览器，最先出结果；和其他检查并行，不当前置门（2026-11-04 定）。
     # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node + install dependencies (lockfile)
+        # Node 22：D1 的真 SQL 测试要 node:sqlite（Node 20 上会整段跳过）。
+        # 测试工具（Playwright、stylelint、Lighthouse CI、http-server）都在 devDependencies 里，按 lockfile npm ci
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+
+      - name: Unit tests (workers + ui)
+        # tests/workers/** 与 tests/web/ui 的全部单元测试；新加的测试文件自动纳入，不用再改这里。
+        # 先确认 node:sqlite 可用：没有它 D1 的真 SQL 测试会静默跳过
+        run: |
+          node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, D1 SQL tests would be skipped"; exit 1; }
+          node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
+
+  build:
+    # 生产构建只做一次：打包 dry-run、生成物同步、分层 / 前端守卫、CSP、产物检查、搜索索引、子站构建与单测、拼树、路由检查、stylelint。
+    # 上传主站生产构建（给 e2e-lock）和单树（给 e2e-sites 与 build-and-deploy），main 另传两份搜索索引。
+    # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -67,22 +95,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Playwright Chromium + CJK fonts (shared action, cached)
-        # 视觉回归对比中文截图；默认中文字体与基线生成环境（Noto Sans CJK）不一致会有 1-2% 像素漂移。
-        # 浏览器按 lockfile 的 @playwright/test 版本缓存；字体缓存 apt 候选版本的 .deb，渲染与直接 apt 安装逐字节一致
-        uses: ./.github/actions/setup-playwright
-        with:
-          cjk-fonts: 'true'
-
       - name: Build CSS
         run: node scripts/build-css.cjs --minify
-
-      - name: Unit tests (workers + ui)
-        # tests/workers/** 与 tests/web/ui 的全部单元测试；新加的测试文件自动纳入，不用再改这里。
-        # 先确认 node:sqlite 可用：没有它 D1 的真 SQL 测试会静默跳过
-        run: |
-          node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, D1 SQL tests would be skipped"; exit 1; }
-          node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
         # 主站后端代码全在 workers/auth-gateway/src/；只打包不部署，import 断了 CI 就红
@@ -158,6 +172,7 @@ jobs:
       - name: Build site (生产构建，锁屏启用)
         # 这一份就是要上线的 Pages 产物（main 上传 artifact 给 build-and-deploy / deploy-search-worker 复用，不再各自重建），
         # 所以和以前 Pages job 一样带构建 SHA
+        id: prod
         run: hugo --minify -s web/atlas
         env:
           SGX_BUILD_SHA: ${{ github.sha }}
@@ -184,6 +199,16 @@ jobs:
           if grep -q "X-SGX-Runtime" web/atlas/public/_worker.js; then echo "::error::gateway bundle in production Pages build"; exit 1; fi
           grep -q "Content-Security-Policy" web/atlas/public/_headers
 
+      - name: Upload main-site production build (for e2e-lock)
+        # 锁屏 / 边缘 / 基线截图测的就是这一份生产构建（e2e-lock 下载到原路径，不重建）
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: site-atlas-production
+          path: web/atlas/public/
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: true
+
       - name: Build search index (site:space, from the production build)
         # PR 上也跑（不需密钥、几秒）：#217 只在 main 跑这步，输出目录不存在的问题合并后才暴露
         run: |
@@ -200,7 +225,7 @@ jobs:
         run: npm run test:sites
 
       - name: Assemble single tree (web/atlas/public + web/<站>/public → dist/site/)
-        # 紧跟主站生产构建：后面的锁测 / 视觉步骤会重建 web/atlas/public（测试构建），拼树必须用这一份。
+        # 用上面这份主站生产构建拼树（测试构建在 e2e-lock / visual / lighthouse 各自的作业里，不会碰到这里）。
         # 子站产物带 _worker.js / _headers / _redirects / robots.txt、主站产物里已有 blog/ curio/ daymark/、哪个包没构建 → 失败
         run: node scripts/assemble.mjs
 
@@ -243,10 +268,8 @@ jobs:
           node scripts/blog/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-blog.json"
           test -s "$RUNNER_TEMP/search-index/search-blog.json"
 
-      - name: Upload production site (for build-and-deploy)
-        # 只在会部署的 main 运行上传；后面的锁测 / 预览 / 视觉步骤会重建 web/atlas/public，所以紧跟生产构建和检查之后上传。
-        # 合并 PR2 起上传拼好的单树 dist/site（主站在根上，三站在 /blog/ /curio/ /daymark/），build-and-deploy 原样部署
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      - name: Upload production site (for e2e-sites and build-and-deploy)
+        # 拼好的单树 dist/site：e2e-sites 测的、build-and-deploy 部署的是同一份（PR 也上传，给 e2e-sites）
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: site-production
@@ -283,49 +306,69 @@ jobs:
           node scripts/blog/gen-code-tokens.mjs --check
           for s in blog curio daymark; do node "scripts/$s/sync-shell.mjs" --check; done
 
-      - name: Subsite Playwright - blog (behaviour + visual regression, against dist/site)
-        # 对着拼好的单树 dist/site（scripts/blog/serve-static.mjs 模拟 Pages 回静态文件），博客在 /blog/ 下。
-        # 视觉基线 tests/blog/e2e/blog-visual.spec.js-snapshots 来自 styrigx-atlas（Playwright 1.64.1，Chromium 1248 与本仓 1.64.0 同一版本）；
-        # 有像素差就走 update-snapshots.yml（同 runner、同字体 action）重生成
-        run: npx playwright test --config=tests/blog/config/playwright.config.js
-
-      - name: Subsite Playwright - curio (phone E2E, against dist/site)
-        run: npx playwright test --config=tests/curio/config/playwright.e2e.config.js
-
-      - name: Subsite Playwright - daymark (phone E2E, against dist/site)
-        run: npx playwright test --config=tests/daymark/config/playwright.e2e.config.js
-
-      - name: Upload subsite test artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: subsite-test-results
-          path: |
-            tests/blog/test-results/
-            tests/blog/playwright-report/
-            test-results/
-          retention-days: 30
-
       - name: stylelint（禁止硬编码颜色）
         run: npx stylelint --config tests/config/stylelintrc.json "web/atlas/assets/css/input.css"
 
+  e2e-lock:
+    # 锁屏、边缘、锁屏基线截图、凭证接口、lock-gate 关。测 build 上传的主站生产构建。
+    # 前一步红了后面照跑（if: !cancelled()），一轮看全；job 照样红，不用 continue-on-error。
+    needs: build
+    # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Hugo (shared action; version + extended defined only in .github/actions/setup-hugo)
+        uses: ./.github/actions/setup-hugo
+
+      - name: Setup Node + install dependencies (lockfile)
+        # Node 22：D1 的真 SQL 测试要 node:sqlite（Node 20 上会整段跳过）。
+        # 测试工具（Playwright、stylelint、Lighthouse CI、http-server）都在 devDependencies 里，按 lockfile npm ci
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Playwright Chromium + CJK fonts (shared action, cached)
+        # 视觉回归对比中文截图；默认中文字体与基线生成环境（Noto Sans CJK）不一致会有 1-2% 像素漂移。
+        # 浏览器按 lockfile 的 @playwright/test 版本缓存；字体缓存 apt 候选版本的 .deb，渲染与直接 apt 安装逐字节一致
+        uses: ./.github/actions/setup-playwright
+        with:
+          cjk-fonts: 'true'
+
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+
+      - name: Download site-atlas-production
+        id: prod
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: site-atlas-production
+          path: web/atlas/public/
+
       - name: Lock screen tests (生产构建，锁屏启用；含 lock-flags 的 lock-gate 开)
+        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
         # 截图基线在下一步单独跑
         run: SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep-invert "baseline screenshot"
 
       - name: Edge flow e2e（真实网关 + 线上路由规则 + 真实域名 + 虚拟认证器）
+        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
         # 生产构建；本地 HTTPS 代理把 styrigx.com（含 /blog/ /daymark/ 子站前缀）、atlas.styrigx.com（301）接到真实网关代码，路由按 wrangler.toml + 线上匹配规则
         run: SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
 
       - name: Lock screen baseline screenshot
+        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
         run: SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot"
 
       - name: Credential API e2e（真实 handler + 内存 D1，自带测试服务器）
+        if: ${{ !cancelled() }}
         # 锁屏密码 / 锁屏通行密钥 / 账号密码 / 账号通行密钥的真请求；不需要 Hugo 构建
         run: SGX_TEST_SUITE=credential npx playwright test --config=tests/config/playwright.config.js
 
       - name: Lock flags test (lock-gate off)
-        # lock-gate 关：锁屏完全不出现（要单独构建）
+        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
+        # lock-gate 关：锁屏完全不出现（要单独构建；会覆盖 web/atlas/public，所以放最后）
         run: |
           SGX_TEST_LOCK_GATE=0 hugo --minify -s web/atlas
           SGX_TEST_SUITE=lock SGX_TEST_FLAGS=gate-off npx playwright test --config=tests/config/playwright.config.js lock-flags.spec.js
@@ -339,8 +382,95 @@ jobs:
             test-results/
             playwright-report/
 
+  e2e-sites:
+    # blog / curio / daymark 的 Playwright，对着 build 上传的单树 dist/site。前一步红了后面照跑。
+    needs: build
+    # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node + install dependencies (lockfile)
+        # Node 22：D1 的真 SQL 测试要 node:sqlite（Node 20 上会整段跳过）。
+        # 测试工具（Playwright、stylelint、Lighthouse CI、http-server）都在 devDependencies 里，按 lockfile npm ci
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Playwright Chromium + CJK fonts (shared action, cached)
+        # 视觉回归对比中文截图；默认中文字体与基线生成环境（Noto Sans CJK）不一致会有 1-2% 像素漂移。
+        # 浏览器按 lockfile 的 @playwright/test 版本缓存；字体缓存 apt 候选版本的 .deb，渲染与直接 apt 安装逐字节一致
+        uses: ./.github/actions/setup-playwright
+        with:
+          cjk-fonts: 'true'
+
+      - name: Download site-production
+        id: prod
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: site-production
+          path: dist/site/
+
+      - name: Subsite Playwright - blog (behaviour + visual regression, against dist/site)
+        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
+        # 对着拼好的单树 dist/site（scripts/blog/serve-static.mjs 模拟 Pages 回静态文件），博客在 /blog/ 下。
+        # 视觉基线 tests/blog/e2e/blog-visual.spec.js-snapshots 来自 styrigx-atlas（Playwright 1.64.1，Chromium 1248 与本仓 1.64.0 同一版本）；
+        # 有像素差就走 update-snapshots.yml（同 runner、同字体 action）重生成
+        run: npx playwright test --config=tests/blog/config/playwright.config.js
+
+      - name: Subsite Playwright - curio (phone E2E, against dist/site)
+        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
+        run: npx playwright test --config=tests/curio/config/playwright.e2e.config.js
+
+      - name: Subsite Playwright - daymark (phone E2E, against dist/site)
+        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
+        run: npx playwright test --config=tests/daymark/config/playwright.e2e.config.js
+
+      - name: Upload subsite test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: subsite-test-results
+          path: |
+            tests/blog/test-results/
+            tests/blog/playwright-report/
+            test-results/
+          retention-days: 30
+
+  visual:
+    # 视觉回归 + 布局断言（默认组，阻塞），测试构建（锁屏禁用）。不等 build，自己构建。
+    # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Hugo (shared action; version + extended defined only in .github/actions/setup-hugo)
+        uses: ./.github/actions/setup-hugo
+
+      - name: Setup Node + install dependencies (lockfile)
+        # Node 22：D1 的真 SQL 测试要 node:sqlite（Node 20 上会整段跳过）。
+        # 测试工具（Playwright、stylelint、Lighthouse CI、http-server）都在 devDependencies 里，按 lockfile npm ci
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Playwright Chromium + CJK fonts (shared action, cached)
+        # 视觉回归对比中文截图；默认中文字体与基线生成环境（Noto Sans CJK）不一致会有 1-2% 像素漂移。
+        # 浏览器按 lockfile 的 @playwright/test 版本缓存；字体缓存 apt 候选版本的 .deb，渲染与直接 apt 安装逐字节一致
+        uses: ./.github/actions/setup-playwright
+        with:
+          cjk-fonts: 'true'
+
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+
       - name: Rebuild for visual / Lighthouse (测试构建，锁屏禁用)
         # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰
+        id: testbuild
         run: hugo --minify -s web/atlas
         env:
           SGX_TEST_NO_LOCK: "1"
@@ -348,6 +478,7 @@ jobs:
           SGX_TEST_NO_WEATHER: "1"
 
       - name: Visual regression + layout assertions (默认组，阻塞)
+        if: ${{ !cancelled() && steps.testbuild.outcome == 'success' }}
         # 默认 testMatch 已含 visual / pc-layout / layout-292 等全部默认 spec，失败即 CI 红。
         # 不要再给这一步加 continue-on-error。
         run: npx playwright test --config=tests/config/playwright.config.js
@@ -362,11 +493,72 @@ jobs:
             playwright-report/
           retention-days: 30
 
+  lighthouse:
+    # Lighthouse CI，测试构建（锁屏禁用）。单独一个作业：仓库公开、Actions 分钟免费，取墙钟短的（2026-11-04 定）。
+    # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Hugo (shared action; version + extended defined only in .github/actions/setup-hugo)
+        uses: ./.github/actions/setup-hugo
+
+      - name: Setup Node + install dependencies (lockfile)
+        # Node 22：D1 的真 SQL 测试要 node:sqlite（Node 20 上会整段跳过）。
+        # 测试工具（Playwright、stylelint、Lighthouse CI、http-server）都在 devDependencies 里，按 lockfile npm ci
+        uses: ./.github/actions/setup-node-deps
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Playwright Chromium + CJK fonts (shared action, cached)
+        # 视觉回归对比中文截图；默认中文字体与基线生成环境（Noto Sans CJK）不一致会有 1-2% 像素漂移。
+        # 浏览器按 lockfile 的 @playwright/test 版本缓存；字体缓存 apt 候选版本的 .deb，渲染与直接 apt 安装逐字节一致
+        uses: ./.github/actions/setup-playwright
+        with:
+          cjk-fonts: 'false'
+
+      - name: Build CSS
+        run: node scripts/build-css.cjs --minify
+
+      - name: Rebuild for visual / Lighthouse (测试构建，锁屏禁用)
+        # 视觉回归和 Lighthouse 用锁屏禁用的构建，避免锁屏干扰
+        id: testbuild
+        run: hugo --minify -s web/atlas
+        env:
+          SGX_TEST_NO_LOCK: "1"
+          # 测试构建禁用天气组件（依赖外网，CI 不稳定会让 Lighthouse errors-in-console 误报）；生产构建绝不设置
+          SGX_TEST_NO_WEATHER: "1"
+
       - name: Lighthouse CI
+        if: ${{ !cancelled() && steps.testbuild.outcome == 'success' }}
         # lhci 自己起服务（见 tests/config/lighthouserc.json 的 startServerCommand）；gzip 模拟线上 Cloudflare 压缩
         run: |
           find web/atlas/public -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) -exec gzip -k -9 {} \;
           npx lhci autorun --config=tests/config/lighthouserc.json
+
+  quality:
+    # 汇总：分支保护的必需检查名仍是 quality（仓库设置不动）。6 个作业都 success 才绿；任何一个失败 / 取消 / 跳过都红。
+    # 部署作业照旧 needs: quality，所以也照旧等全部检查。
+    if: ${{ always() }}
+    needs: [unit, build, e2e-lock, e2e-sites, visual, lighthouse]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: All quality jobs succeeded
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | node -e '
+            const n = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            let bad = 0;
+            for (const [job, v] of Object.entries(n)) {
+              console.log(`${job}: ${v.result}`);
+              if (v.result !== "success") bad++;
+            }
+            if (bad) { console.log(`::error::${bad} quality job(s) not successful`); process.exit(1); }
+          '
 
   passkey-e2e:
     # WebAuthn 虚拟认证器 + 真实网关代码的 E2E（tests/web/e2e/passkey.spec.js、account-challenge.spec.js）。生产部署的所有 job 都等它通过。
@@ -381,8 +573,9 @@ jobs:
     # 两条路都只用每次运行在 runner 上现生成的测试凭证（进站凭证、账号根密钥、pepper；真实预览另加 Ed25519 钥匙对），绝不用生产 secret，也不存 GitHub Secrets。
     # 真实预览只用仓库级的 CLOUDFLARE_ACCOUNT_ID 与 STYRIGX_SPACE_PAGES_DEPLOY（部署预览、写预览 D1）。
     # 外部 fork 的 PR 不跑（同仓库分支的 PR 照跑）。
+    # 不等 quality（2026-11-04 CI 拆分）：两条路都自己构建，不用 quality 的产物；GitHub 的 needs 不能按事件区分，所以 main 上也不等。
+    # 部署作业照旧同时 needs quality 和 passkey-e2e，没过检查的提交仍然不会上线；main 上只是共享预览可能在 quality 出结果前先部署（测试凭证、预览 D1，不碰生产）。
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -1000,7 +1193,7 @@ jobs:
     # 部署后把主站索引写进 KV styrigx-search-index 的 site:space（scripts/build-search-index.mjs，要先构建网站），
     # 合并 PR3 起再写博客的 site:blog（scripts/blog/build-search-index.mjs）。
     # token：Cloudflare 上 styrigx-search-index-deploy = GitHub 环境 STYRIGX_SEARCH_INDEX_DEPLOY 里的同名密钥，
-    # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑 + Account Settings 读取；环境只允许 main。
+    # 权限 Workers Scripts 编辑 + Workers KV Storage 编辑（2026-11-04 起去掉 Account Settings 读取，最小权限；CI 显式传账号 id，wrangler 不用读）；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e]
@@ -1252,7 +1445,7 @@ jobs:
     # 站内对话助手 styrigx-ai（workers/ai，P4-1）：先于网关部署（网关的服务绑定 AI_SERVICE 指向它，它不在就部署不了）。
     # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/ai 进。只读 KV styrigx-search-index，不写索引。
     # token：复用 GitHub 环境 STYRIGX_SEARCH_INDEX_DEPLOY 和它的同名密钥（Cloudflare 上 styrigx-search-index-deploy，
-    # 已有 Workers Scripts 编辑 + Workers KV Storage 编辑 + Account Settings 读取；方案 5.7）。
+    # 只有 Workers Scripts 编辑 + Workers KV Storage 编辑，范围整个账号；方案 5.7；2026-11-04 起去掉 Account Settings 读取，最小权限）。
     # Workers AI 绑定要不要额外权限文档没写清：先不加；首次部署若报权限错，Gray 给这把 token 加 Workers AI 权限后重跑（对线上无影响）。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
