@@ -4,6 +4,7 @@
 #
 # 用法：scripts/ci-local.sh [组 ...]
 #   组：unit build e2e-lock e2e-sites visual lighthouse passkey；不写 = 除 lighthouse 外全部（lighthouse 要 Chrome，按需加）。
+#   VISUAL_SHARD=1 或 2（可选）：visual 组只跑 CI 的那一片（--shard=N/2），复现 visual (1) / visual (2)；不设 = 整组跑。
 # 前提：Node 22（node:sqlite）、已 npm ci、hugo 在 PATH 上（版本见 .github/actions/setup-hugo）。
 # 不碰 Cloudflare：passkey 组走本地模拟器（tests/web/e2e/preview-emulator.cjs），凭证每次现生成。
 # 构建顺序和 CI 一致：build 组做主站生产构建 → 拼树；e2e-lock 用这份生产构建，gate 关的构建放最后；
@@ -96,7 +97,11 @@ fi
 if want visual; then
   begin visual
   step visual "测试构建（锁屏禁用）" bash -c 'node scripts/build-css.cjs --minify >/dev/null && SGX_TEST_NO_LOCK=1 SGX_TEST_NO_WEATHER=1 hugo --minify -s web/atlas >/dev/null'
-  step visual "visual 默认组" bash -c "$PW --reporter=line"
+  case "${VISUAL_SHARD:-}" in
+    "") step visual "visual 默认组" bash -c "$PW --reporter=line" ;;
+    1|2|1/2|2/2) step visual "visual 默认组（第 ${VISUAL_SHARD%/2}/2 片）" bash -c "$PW --shard=${VISUAL_SHARD%/2}/2 --reporter=line" ;;
+    *) echo "!! VISUAL_SHARD 只能是 1 或 2（现在是 ${VISUAL_SHARD}）"; RESULT[visual]=fail ;;
+  esac
 fi
 
 if want lighthouse; then
