@@ -44,14 +44,14 @@ export async function timingSafeEqual(a, b) {
 }
 
 /**
- * 根凭证规范化：去掉所有空白字符（空格、制表符、换行 \r \n）。
- * 根凭证是单行密码框输入，粘贴多行时浏览器会去掉换行；服务端两边（提交值与
+ * 进站凭证规范化：去掉所有空白字符（空格、制表符、换行 \r \n）。
+ * 进站凭证是单行密码框输入，粘贴多行时浏览器会去掉换行；服务端两边（提交值与
  * SGX_ROOT_KEY）都用同一函数规范化后再比对。去空白后为空一律拒绝。
- * 只有根凭证这样处理；管理员密码、解锁密码不做任何规范化。
+ * 只有进站凭证这样处理；管理员密码、解锁密码不做任何规范化。
  * @param {string} s
  * @returns {string}
  */
-export function normalizeRootKey(s) {
+export function normalizeSpaceKey(s) {
   return String(s || '').replace(/\s+/g, '');
 }
 

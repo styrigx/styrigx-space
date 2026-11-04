@@ -2,14 +2,14 @@
  * 锁屏凭证再验证（LockReauthTicket）：状态查询与清票。
  *
  * 安全与隐私 → 锁屏凭证是安全操作页：每次进页都要再验一次锁屏凭证（锁屏通行密钥 / 锁屏密码，
- * 设了哪个显示哪个）或根凭证，通过后签 3 分钟 LockReauthTicket（cookie sgx-lock-reauth，SGX_LOCK_* 签名，
+ * 设了哪个显示哪个）或进站凭证，通过后签 3 分钟 LockReauthTicket（cookie sgx-lock-reauth，SGX_LOCK_* 签名，
  * core/tickets.js）。离开页面前端立即 clear，再进重新验证。
  *
  * 签票的三个入口（各自签票，本接口只管状态与清票）：
  * - 锁屏通行密钥：/api/lock-passkey { action:'auth', reauth:true }（challenge 同解锁）
  * - 锁屏密码：/api/lock-password { action:'verify', reauth:true }（与解锁共用限速）
- * - 根凭证：/api/root-auth { key, purpose:'lock-reauth' }（要 admin 锁屏会话，by=root）
- * 重置锁屏（/api/lock-reset，或锁屏从零设置时 /api/root-auth purpose:'lock-reset'）签 LockResetTicket（sgx-lock-reset）：
+ * - 进站凭证：/api/space-auth { key, purpose:'lock-reauth' }（要 admin 锁屏会话，by=space）
+ * 重置锁屏（/api/lock-reset，或锁屏从零设置时 /api/space-auth purpose:'lock-reset'）签 LockResetTicket（sgx-lock-reset）：
  * 没有会话，只能设置锁屏密码 / 增删锁屏通行密钥。
  *
  * POST /api/lock-reauth

@@ -1,7 +1,7 @@
 /**
  * @fileoverview 安全与隐私 → 锁屏凭证（/settings/security/lock/）。
  * - 门（安全操作）：进页 POST /api/lock-reauth status —— 没有有效reauth 票 → 显示验证行：
- *   锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 根凭证（一直在，防止忘了凭证网站就死了）；
+ *   锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 进站凭证（一直在，防止忘了凭证网站就死了）；
  *   通过后签 3 分钟LockReauthTicket（SGX_LOCK_* 签，HttpOnly cookie），页内倒计时按服务端 expiresAt；
  *   剩余时间内刷新 / 离开再回来都不用重新验证（2026-10-24，以前 pagehide 就作废），到期回门口。
  * - 门内：解锁密码（弹层设置/修改，最少 8 位）；锁屏通行密钥列表（设备名可编辑、注册日期、可删除），
@@ -616,13 +616,13 @@ import { KEY_LOCK } from '../lib/key-names.js';
       });
     },
     /** @param {string} value */
-    root: function (value) {
-      return api('/api/root-auth', { key: value, purpose: 'lock-reauth' }).then(function (res) {
+    space: function (value) {
+      return api('/api/space-auth', { key: value, purpose: 'lock-reauth' }).then(function (res) {
         const j = res.json;
         if (j && j.ok) return;
         if (res.status === 429) throw { message: t('errLocked') };
         if (j && j.error === 'config') throw { message: t('errConfig') };
-        throw { message: t('errWrongRoot'), clear: true };
+        throw { message: t('errWrongSpace'), clear: true };
       }, function () {
         throw { message: t('errNetwork') };
       });
@@ -659,7 +659,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
   };
 
   /**
-   * 显示门口（验证行）：设了哪个锁屏凭证显示哪个，根凭证一直在。
+   * 显示门口（验证行）：设了哪个锁屏凭证显示哪个，进站凭证一直在。
    * @param {{password?:boolean, passkey?:boolean}} st
    * @param {string} [notice]
    */
@@ -671,7 +671,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
     const kinds = [];
     if (st && st.passkey) kinds.push('passkey');
     if (st && st.password) kinds.push('password');
-    kinds.push('root');
+    kinds.push('space');
     reauthMethods = renderAccountMethods({
       el: reauthMethodsEl,
       t: t,

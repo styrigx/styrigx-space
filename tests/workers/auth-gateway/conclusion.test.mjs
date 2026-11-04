@@ -217,7 +217,7 @@ test('askAuthorize：没 cookie 不问；超长 cookie 截到 8192；clientConte
 
 test('normalizeLockConclusion：by 只认 password / passkey / tempkey；tempkeyId 只给 tempkey 且合格式', () => {
   assert.deepEqual(normalizeLockConclusion({ ok: true, role: 'admin', by: 'password', tempkeyId: 'tk1' }), { ok: true, by: 'password', tempkeyId: '', reason: 'ok' });
-  assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'root' }), { ok: true, by: '', tempkeyId: '', reason: 'ok' });
+  assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'space' }), { ok: true, by: '', tempkeyId: '', reason: 'ok' });
   assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'tempkey', tempkeyId: 'bad id!' }), { ok: true, by: 'tempkey', tempkeyId: '', reason: 'ok' });
   assert.deepEqual(normalizeLockConclusion({ ok: false, reason: 'expired' }), { ok: false, by: '', tempkeyId: '', reason: 'expired' });
   assert.deepEqual(normalizeLockConclusion(null), { ok: false, by: '', tempkeyId: '', reason: 'no-session' });

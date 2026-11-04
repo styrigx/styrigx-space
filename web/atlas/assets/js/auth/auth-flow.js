@@ -45,7 +45,7 @@ export function bindPwEye(eye, input, en) {
 export const PM_USER_STYLE = 'position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;';
 
 /**
- * 隐藏用户名框 HTML：让 Samsung Pass / Google 密码管理器把密码存成这个名字（AccountKey / LockKey / RootKey）。
+ * 隐藏用户名框 HTML：让 Samsung Pass / Google 密码管理器把密码存成这个名字（AccountKey / LockKey / SpaceKey）。
  * @param {string} name lib/key-names.js 里的 KEY_*
  */
 export function pmUserHtml(name) {

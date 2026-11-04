@@ -5,7 +5,7 @@
  *   sig = Ed25519(SGX_LOCK_PRIVATE, "sgx-lock-session|by.role.epoch.exp.tempkeyId")
  * - role：admin（锁屏密码 / 锁屏通行密钥，12 小时）| visitor（临时钥匙：锁屏输临时码 min(钥匙剩余时间, 12 小时)；
  *   分享短链按短链的会话档位，同样不超过钥匙剩余时间）
- * - by：admin → password | passkey；visitor → tempkey。RootKey 不拥有会话，by 永远没有 root。
+ * - by：admin → password | passkey；visitor → tempkey。SpaceKey 不拥有会话，by 永远没有 root。
  * - tempkeyId：visitor 会话是哪把临时钥匙换来的（lock-tempkey.js）；验票时查这把钥匙有没有被作废，
  *   作废后访客下一个请求就进不来。admin 会话这一段固定为空串（票里就是连着的两个点 "<exp>..<sig>"），
  *   空串只对 admin 合法、非空只对 visitor 合法，解析时两边都卡死。
@@ -229,7 +229,7 @@ function allLockSessionCookies(request) {
 
 /**
  * 请求是不是带着访客会话（只看格式和 role 段，不验签、不读存储）。
- * 访客假入口（root-auth / lock-reset / lock-password / lock-passkey）用它在读任何存储之前直接返回写死的失败，
+ * 访客假入口（space-auth / lock-reset / lock-password / lock-passkey）用它在读任何存储之前直接返回写死的失败，
  * 走真路径前再完整验票。格式按 parseLockSessionTicket（六段，visitor 必须带合法 tempkeyId）。
  * @param {any} request
  * @returns {boolean}

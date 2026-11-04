@@ -1,46 +1,46 @@
 /**
- * 锁屏根密钥（RootKey，SGX_ADMIN_KEY）入口：比对通过后按用途签一张锁屏短票（by=root）。
+ * 进站凭证（SpaceKey，SGX_LOCK_SPACE_KEY）入口：比对通过后按用途签一张锁屏短票（by=space）。
  *
- * RootKey 不拥有会话：只用于比对（core/root-check.js），不签名；本接口从不签锁屏会话。
+ * SpaceKey 不拥有会话：只用于比对（core/space-check.js），不签名；本接口从不签锁屏会话。
  * 账号拆分 PR3（方案 5.2、6.2）：purpose 只剩 lock-reauth、lock-reset；账号的 root-reauth / root-reset 在账号 Worker
- * （POST /api/account，比对账号根密钥 SGX_ACCOUNT_ROOT_KEY），两套根密钥互不相干、各自计数。
+ * （POST /api/account，比对账号根密钥 SGX_ACCOUNT_ROOT_KEY），两套进站凭证互不相干、各自计数。
  *
- * POST /api/root-auth { key, purpose }，purpose 只有两个值（缺失 / 其它值 → 400 purpose，不比对、不计数）：
+ * POST /api/space-auth { key, purpose }，purpose 只有两个值（缺失 / 其它值 → 400 purpose，不比对、不计数）：
  * - 'lock-reauth' → LockReauthTicket（sgx-lock-reauth）：安全与隐私 → 锁屏凭证；要 admin 锁屏会话
  * - 'lock-reset'  → LockResetTicket（sgx-lock-reset）：只在锁屏未设置时可用（从零设置第一把 LockKey，
- *                   无需会话）；锁屏已设置时走 /api/lock-reset（锁屏根密钥 + 重置开关 / 锁屏凭据），这里按假入口处理
+ *                   无需会话）；锁屏已设置时走 /api/lock-reset（进站凭证 + 重置开关 / 锁屏凭据），这里按假入口处理
  * 两张票都是 3 分钟、各自独立 cookie（见 realms.js TICKETS）。
  *
  * 访客假入口：访客会话（sgx-lock-session role=visitor）直接写死返回 401：
- * 不读 D1、环境变量里的任何凭证，不做任何比对；不计入根密钥限速；
+ * 不读 D1、环境变量里的任何凭证，不做任何比对；不计入进站凭证限速；
  * 不写审计。状态码、响应体、响应头、固定最小延迟与真失败一致。
  * 缺 Origin 仍先 403。
  * 无会话假入口：不满足上面各用途的前置条件（无 admin 会话，且不是锁屏未设置时的 lock-reset）→ 写死 401 auth，
  * 与真失败逐字节相同；只计单 IP 限速（不比对，不计全局），全局减速时同样先等，不写审计。
  *
- * - 恒定时间比较 env.SGX_ADMIN_KEY（防长度泄露）
- * - 限速：锁屏根密钥的路径共用一套（core/root-limit.js，attempt_limit realm='lock' kind='rootkey'）：单 IP 连错 5 次锁 15 分钟；
+ * - 恒定时间比较 env.SGX_LOCK_SPACE_KEY（防长度泄露）
+ * - 限速：进站凭证的路径共用一套（core/space-limit.js，attempt_limit realm='lock' kind='spacekey'）：单 IP 连错 5 次锁 15 分钟；
  *   全局只减速不封锁（每小时真比对失败满 20 次后每次先等几秒），任何人都刷不出全站暂停
  * - 失败：401 auth（并计数）；超限：429
- * - 缺 SGX_ADMIN_KEY → 500 config；缺该票的签名钥匙 → 503 config
+ * - 缺 SGX_LOCK_SPACE_KEY → 500 config；缺该票的签名钥匙 → 503 config
  *
- * 审计：真路径每次使用（成功/失败）在 D1 audit 表留一行（core/root-audit.js，realm='lock'，path = purpose）；
+ * 审计：真路径每次使用（成功/失败）在 D1 audit 表留一行（core/space-audit.js，realm='lock'，path = purpose）；
  * 假入口不写审计。写入失败则不签发（fail closed）。
  *
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  */
 import { ed25519Verify } from '../lib/crypto.js';
 import { readAllCookies } from '../lib/cookies.js';
-import { checkRootCredential, sleep } from '../core/root-check.js';
+import { checkSpaceCredential, sleep } from '../core/space-check.js';
 import { ROLE_ADMIN, ROLE_VISITOR, verifyLockSession } from '../core/lock-session.js';
-import { checkRootLimit, recordRootFail } from '../core/root-limit.js';
-import { writeRootAudit } from '../core/root-audit.js';
+import { checkSpaceLimit, recordSpaceFail } from '../core/space-limit.js';
+import { writeSpaceAudit } from '../core/space-audit.js';
 import { isLockEffectivelyConfigured } from '../core/lock-configured.js';
 import { isSameOrigin, originDenied, json, apiError, clientIp } from '../lib/http.js';
 import {
   REALM_LOCK,
   TICKETS,
-  BY_ROOT,
+  BY_SPACE,
   LOCK_REAUTH_TICKET,
   LOCK_RESET_TICKET,
   realmPublicKey,
@@ -48,7 +48,7 @@ import {
 import { issueTicket } from '../core/tickets.js';
 
 /** purpose → 签哪张票 */
-export const ROOT_PURPOSES = Object.freeze({
+export const SPACE_PURPOSES = Object.freeze({
   'lock-reauth': LOCK_REAUTH_TICKET,
   'lock-reset': LOCK_RESET_TICKET,
 });
@@ -123,18 +123,18 @@ async function handlePost(context) {
     return apiError(401, 'denied');
   }
 
-  const rootDb = env && env[REALM_LOCK.d1Binding]; /* 锁屏根密钥限速 / 审计：D1_LOCK_AUTH（realm='lock'） */
+  const spaceDb = env && env[REALM_LOCK.d1Binding]; /* 进站凭证限速 / 审计：D1_LOCK_AUTH（realm='lock'） */
   const ip = clientIp(request);
 
   /* body 只读一次（purpose 决定签哪张票；key 在限流检查之后才比对） */
   let body = null;
   try { body = await request.json(); } catch (e) {}
   const purpose = body && typeof body.purpose === 'string' ? body.purpose : '';
-  if (!Object.prototype.hasOwnProperty.call(ROOT_PURPOSES, purpose)) {
+  if (!Object.prototype.hasOwnProperty.call(SPACE_PURPOSES, purpose)) {
     await padTo(t0);
     return apiError(400, 'purpose');
   }
-  const ticket = ROOT_PURPOSES[purpose];
+  const ticket = SPACE_PURPOSES[purpose];
   const auditPath = purpose;
 
   /* 锁屏是否已设置（D1 读失败按已设置处理）：只决定 lock-reset 能不能走 */
@@ -153,13 +153,13 @@ async function handlePost(context) {
 
   if (!realPath) {
     /* ===== 无会话假入口：写死 401，与真失败逐字节相同 =====
-       不检查环境变量（缺 SGX_ADMIN_KEY 等时也返回 401，不泄露 500 config）。
+       不检查环境变量（缺 SGX_LOCK_SPACE_KEY 等时也返回 401，不泄露 500 config）。
        限速检查与真路径相同（D1 出错时 fail closed，全局减速时同样先等）；
        失败只计单 IP、不计全局（没有比对，不算猜测，刷这里推不动全局计数）；不写审计（不让刷接口灌满审计）。
        D1 缺失时无法限速，直接返回 401（不泄露配置状态）。 */
-    if (rootDb) {
+    if (spaceDb) {
       try {
-        const lim = await checkRootLimit(env, ip);
+        const lim = await checkSpaceLimit(env, ip);
         if (lim.limited) {
           return apiError(429, 'cooldown');
         }
@@ -168,7 +168,7 @@ async function handlePost(context) {
         return apiError(503, 'server');
       }
       try {
-        await recordRootFail(env, ip, { global: false });
+        await recordSpaceFail(env, ip, { global: false });
       } catch (e) {
         return apiError(503, 'server');
       }
@@ -180,12 +180,12 @@ async function handlePost(context) {
   /* ===== 真路径 =====
      缺关键配置 → 直接拒绝（fail closed）。假入口在上面已返回，这里只处理真路径，
      避免无会话时因缺环境变量泄露 500 config。该票的签名钥匙缺失 → 503 config（先于比对，不浪费限流次数）。 */
-  const rootKey = (env && env[REALM_LOCK.rootKey]) || ''; /* SGX_ADMIN_KEY */
+  const spaceKey = (env && env[REALM_LOCK.spaceKey]) || ''; /* SGX_LOCK_SPACE_KEY */
   const conf = TICKETS[ticket];
   if (!(env && env[conf.privateKey]) || !(env && env[conf.publicKey])) {
     return apiError(503, 'config');
   }
-  if (!rootKey || !rootDb) {
+  if (!spaceKey || !spaceDb) {
     return apiError(500, 'config');
   }
 
@@ -197,8 +197,8 @@ async function handlePost(context) {
     }
   }
 
-  /* 锁屏根密钥比对（限速 / 恒定时间比较 / 失败计数 / 审计）：网关里只有一份实现（core/root-check.js） */
-  const rc = await checkRootCredential({
+  /* 进站凭证比对（限速 / 恒定时间比较 / 失败计数 / 审计）：网关里只有一份实现（core/space-check.js） */
+  const rc = await checkSpaceCredential({
     env: env,
     ip: ip,
     key: (body && typeof body.key === 'string' && body.key) || '',
@@ -208,13 +208,13 @@ async function handlePost(context) {
   if (!rc.ok) return rc.response;
 
   const headers = new Headers();
-  const tErr = await issueTicket(env, headers, ticket, BY_ROOT);
+  const tErr = await issueTicket(env, headers, ticket, BY_SPACE);
   if (tErr) {
-    await writeRootAudit(env, ip, false, { path: auditPath });
+    await writeSpaceAudit(env, ip, false, { path: auditPath });
     return json(tErr.status, tErr.body);
   }
   /* 审计写入失败则不签发（fail closed） */
-  if (!(await writeRootAudit(env, ip, true, { path: auditPath }))) {
+  if (!(await writeSpaceAudit(env, ip, true, { path: auditPath }))) {
     return apiError(503, 'server');
   }
   return json(200, { ok: true }, headers);

@@ -231,7 +231,7 @@ async function handlePost(context) {
         uv: 1,
       };
       await savePasskey(env, PASSKEY_LOCK, item);
-      /* 首次配置锁屏层时推进纪元（废止根凭证代开的解锁会话，必修安全项 2；
+      /* 首次配置锁屏层时推进纪元（废止进站凭证代开的解锁会话，必修安全项 2；
          纪元推进失败则返回 503）。纪元推进后用新纪元重签 reauth / reset 票 + 当前设备会话，保持当前设备不掉线。 */
       let regNewEpoch = null;
       try {

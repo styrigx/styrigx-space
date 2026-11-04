@@ -1,7 +1,7 @@
 /**
  * 网关的 D1 认证状态（2026-10-27 从 KV 全部搬来；网关不再绑定 KV）。一个文件两层：
  * - 通用原语（authDb / onAuthDb / withSchema / sweepExpired / parseRecord / SCHEMA）：按域描述对象（至少有 id、d1Binding）工作，
- *   只按形状校验（realmShape；字符串只认锁屏域的 id 'lock'，lock-tempkey.js 这样传），不认识别的具体的域。限流（attempt-limit.js）、challenge（passkey-verify.js）、审计（root-audit.js）、
+ *   只按形状校验（realmShape；字符串只认锁屏域的 id 'lock'，lock-tempkey.js 这样传），不认识别的具体的域。限流（attempt-limit.js）、challenge（passkey-verify.js）、审计（space-audit.js）、
  *   临时钥匙（lock-tempkey.js）这些按域参数化的模块经这里访问自己的表。
  * - 记录读写（纪元、通行密钥、密码、user handle）：只认网关自己的锁屏域 REALM_LOCK（realmOf；也认它的 id 'lock'），
  *   账号拆分 PR3 起传 'account' / 'root' 或别的域一律抛 'd1-state: bad realm'。网关库里也已经没有 realm='account' / 'root' 的行
@@ -19,7 +19,7 @@
  * 表（migrations/0005_lock_account_state.sql、0006_auth_state.sql，库 styrigx-auth-gateway；SCHEMA 是同一份语句的代码兜底）：
  * 都是小写 snake_case 名词、都有 realm 列（网关只读写 'lock'）。本文件管 epoch / passkey / password / user_handle；
  * challenge（passkey-verify.js）、attempt_limit（attempt-limit.js）、tempkey（lock-tempkey.js）、
- * audit（root-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。
+ * audit（space-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。
  * 绑定按域：realm.d1Binding（网关只有 lock → D1_LOCK_AUTH）。
  * 恢复开关表 lock_reset_switch 也经 D1_LOCK_AUTH（lock-reset-switch.js，迁移 migrations/0008_lock_reset_switch.sql）。
  *

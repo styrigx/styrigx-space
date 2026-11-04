@@ -177,9 +177,9 @@ function isAdminOnlyApi(pathname) {
 
 /* 白名单路径（验证必需 + 锁屏自身 + 静态资源） */
 const API_WHITELIST = [
-  '/api/root-auth',
+  '/api/space-auth',
   '/api/lock-reset',
-  '/api/root-audit',
+  '/api/space-audit',
   '/api/lock-password',
   '/api/lock-passkey',
   '/api/lock-credentials',

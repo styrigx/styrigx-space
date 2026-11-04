@@ -1,12 +1,12 @@
 /**
  * @fileoverview 账号 → 安全与隐私（/account/security/）：管理账号凭证（AccountKey）。
  *
- * - 账号密码：设置 / 修改（根凭证登录时为「重置」，恢复路径）
+ * - 账号密码：设置 / 修改（账号根凭证登录时为「重置」，恢复路径）
  * - 账号通行密钥：添加（注册成功弹命名弹层，预填设备名；改了名才调 rename）、
  *   列表内点名字直接改名（失焦 / 回车保存）、两步确认删除
  * - 命名弹层与锁屏页同一套行为：A1 遮罩不关、A2 返回先收键盘、A3 × 关闭，弹层随键盘上移
  * - 再验证（安全操作）：进页 GET /api/account ——
- *   有效的 AccountResetTicket（重置登录：根凭证验过）→ 直接显示管理区（没有账号会话也行，标题显示「重置」）；
+ *   有效的 AccountResetTicket（重置登录：账号根凭证验过）→ 直接显示管理区（没有账号会话也行，标题显示「重置」）；
  *   否则没有账号会话 → 跳账号页 ?return=<本页> 登录后回来；
  *   有账号会话但没有有效 AccountReauthTicket → 显示验证行（账号通行密钥 / 账号密码，设了哪个显示哪个；
  *   reauth:true 换 3 分钟票），通过后显示管理区 + 倒计时胶囊；
@@ -171,7 +171,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
   const pwDialog = createSetPwDialog({
     $: $,
     t: function (k) {
-      /* 根凭证登录时标题为「重置账号密码」（恢复路径） */
+      /* 账号根凭证登录时标题为「重置账号密码」（恢复路径） */
       if (k === 'changeTitle' && sessBy === 'root') return t('resetTitle');
       return t(k);
     },

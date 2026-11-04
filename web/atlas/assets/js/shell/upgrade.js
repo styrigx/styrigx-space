@@ -8,7 +8,7 @@
  * 无人监听的 sgx:upgrade-* 事件）。访客调用认证类 action 由中间件放行
  * （AUTH_ACTIONS），端点自身做会话/reauth 票校验。
  *
- * 根凭证/密码改用弹层内联输入，不用原生弹窗（全站禁止原生弹窗，
+ * 进站凭证/密码改用弹层内联输入，不用原生弹窗（全站禁止原生弹窗，
  * 见 scripts/check-frontend.mjs）。
  */
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
@@ -38,7 +38,7 @@ export function upgradePasskeyErrorText(e, isEn) {
 /**
  * 管理员验证层（访客 → 管理员的「升级」，状态机里独立于锁屏的一态）：
  * - 就地弹出，盖在当前页面上；不出锁屏、不跳页。
- * - 只给 admin 方式：通行密钥、密码（根凭证不拥有会话，不在这里）；没有访客入口。
+ * - 只给 admin 方式：通行密钥、密码（进站凭证不拥有会话，不在这里）；没有访客入口。
  * - 取消 / 失败：关掉弹层留在原页；不调任何接口，访客会话原样保留。
  * - 通过：服务端签发 admin 会话（替换访客会话）→ 跳到 returnPath（站内路径，由调用方给：
  *   security.js 给锁屏凭证页地址；lock-guard.js 的 initUpgrade 按需加载本模块后给服务端校验过的 data-sgx-upgrade-return）。
@@ -84,7 +84,7 @@ export function openAdminVerify(returnPath) {
   document.getElementById('sgx-upgrade-cancel').addEventListener('click', close);
 
   /* 密码走弹层内联输入：当前待验证的方式（'pw' 密码），null 表示停在按钮的初始状态。
-     根凭证不拥有会话，不能把访客升级成 admin，所以这里没有根凭证入口。 */
+     进站凭证不拥有会话，不能把访客升级成 admin，所以这里没有进站凭证入口。 */
   let pendingKind = null;
   const optsEl = document.getElementById('sgx-upgrade-opts');
   const formEl = document.getElementById('sgx-upgrade-form');

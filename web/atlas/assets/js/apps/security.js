@@ -1,7 +1,7 @@
 /**
  * @fileoverview 安全与隐私页。
  * - 三个入口（访客与管理员看到完全一样）：锁屏凭证、临时钥匙、立即锁定。
- * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或根凭证验一次，3 分钟reauth 票）。
+ * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或进站凭证验一次，3 分钟reauth 票）。
  *   访客（服务端注入 data-sgx-role="visitor"）点它：不跳页，就地弹管理员验证层（shell/upgrade.js
  *   openAdminVerify：只有通行密钥 / 密码，没有访客入口）；通过 → 进锁屏凭证页；取消 → 原页，访客会话不动。
  *   以前是跳过去由中间件 302 到 /?lock=1&return=…，那一页不过网关 → 整个锁屏闪一下（2026-10-21）。

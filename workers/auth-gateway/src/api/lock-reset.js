@@ -1,39 +1,39 @@
 /**
  * 重置锁屏（丢了锁屏凭证时；方案第 7 节）。
  *
- * 前端「重置登录」（auth/reset-flow.js，锁屏弹层里的「无法登录？」）先交锁屏根密钥，服务端决定下一步。
+ * 前端「重置登录」（auth/reset-flow.js，锁屏弹层里的「无法登录？」）先交进站凭证，服务端决定下一步。
  *
  * verify 步骤：
- * 1. 验 SGX_ADMIN_KEY（core/root-check.js：限速 → 比对 → 计数 / 审计）。错 → 401 auth。
- * 2. 根密钥正确后才读重置开关（core/lock-reset-switch.js：D1 lock_reset_switch 表，开关 + 计时 / 单次都在 D1）。
- *    开关有效 → 原子 claim → 签 LockResetTicket（by=root，审计 via=switch）。claim 被并发抢走 → 按开关无效处理。
+ * 1. 验 SGX_LOCK_SPACE_KEY（core/space-check.js：限速 → 比对 → 计数 / 审计）。错 → 401 auth。
+ * 2. 进站凭证正确后才读重置开关（core/lock-reset-switch.js：D1 lock_reset_switch 表，开关 + 计时 / 单次都在 D1）。
+ *    开关有效 → 原子 claim → 签 LockResetTicket（by=space，审计 via=switch）。claim 被并发抢走 → 按开关无效处理。
  * 3. 开关无效 → 验锁屏凭据（锁屏密码或锁屏通行密钥）：
  *    - 无 lockProof → 200 { ok:true, needLock:true, passkey, password }（布尔值 = 锁屏有没有对应凭据；
  *      响应形态与开关有效时一致，前端不提示开关存在）
  *    - 锁屏凭据一项都没有 → 计失败，401 auth（不泄露 not-set）
  *    - lockProof { type:'password', password } → verifyRealmPassword(REALM_LOCK, SGX_PW_PEPPER)
  *    - lockProof { type:'passkey', cid, credential } → 消费下面 challenge 下发的那次，按锁屏通行密钥验断言（UV 必需）
- *    - 通过 → LockResetTicket（by=password 或 passkey）；失败 → 计入锁屏根密钥的失败计数 + 审计，401 auth
+ *    - 通过 → LockResetTicket（by=password 或 passkey）；失败 → 计入进站凭证的失败计数 + 审计，401 auth
  *
  * LockResetTicket（sgx-lock-reset，SGX_LOCK_* 签，3 分钟）只能增删锁屏凭证、设置锁屏密码；不签会话；完成后 Lock 纪元 +1。
- * 本接口不调账号 Worker、不读账号的任何东西（方案第 2 节）。前置检查只要 D1_LOCK_AUTH、SGX_LOCK_*、SGX_ADMIN_KEY、SGX_PW_PEPPER。
+ * 本接口不调账号 Worker、不读账号的任何东西（方案第 2 节）。前置检查只要 D1_LOCK_AUTH、SGX_LOCK_*、SGX_LOCK_SPACE_KEY、SGX_PW_PEPPER。
  *
  * POST /api/lock-reset
  * - { action: 'status' } → { ok:true, available:true }（无需会话；不读开关）
  * - { action: 'challenge' } → 锁屏通行密钥断言 challenge（realm='lock'，purpose=reset，5 分钟、单次）；
  *   allowCredentials = 锁屏通行密钥列表；没有锁屏通行密钥 → 403 not-set
- * - { action: 'verify', rootKey, lockProof? } → 见上
+ * - { action: 'verify', spaceKey, lockProof? } → 见上
  *
  * 只接受 POST；校验 Origin；访客会话直接 401 denied（B1-9 假入口）。
  */
-import { checkRootCredential } from '../core/root-check.js';
+import { checkSpaceCredential } from '../core/space-check.js';
 import { issueTicket } from '../core/tickets.js';
-import { LOCK_RESET_TICKET, BY_ROOT, BY_PASSWORD, BY_PASSKEY } from '../core/realms.js';
+import { LOCK_RESET_TICKET, BY_SPACE, BY_PASSWORD, BY_PASSKEY } from '../core/realms.js';
 import { randB64, verifyAssertion, rpIdHashOf, consumeChallenge, issueChallenge, findStoredKey } from '../core/passkey-verify.js';
 import { getPasskeys, getUserHandle, updatePasskey, PASSKEY_LOCK } from '../core/passkey-store.js';
 import { getPepper, verifyRealmPassword, hasPassword } from '../core/password.js';
-import { recordRootFail } from '../core/root-limit.js';
-import { writeRootAudit } from '../core/root-audit.js';
+import { recordSpaceFail } from '../core/space-limit.js';
+import { writeSpaceAudit } from '../core/space-audit.js';
 import { checkLockResetSwitch, claimLockResetSwitch } from '../core/lock-reset-switch.js';
 import { isSameOrigin, json, apiError, clientIp } from '../lib/http.js';
 import { looksVisitor } from '../core/lock-session.js';
@@ -58,7 +58,7 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  /* B1-9 访客假入口统一 401：访客会话直接返回，不读任何存储，也到不了根凭证比对。
+  /* B1-9 访客假入口统一 401：访客会话直接返回，不读任何存储，也到不了进站凭证比对。
      判断与 lock-password / lock-passkey 共用 core/lock-session.js looksVisitor（六段票）。 */
   if (looksVisitor(request)) {
     return apiError(401, 'denied');
@@ -80,7 +80,7 @@ async function handlePost(context) {
   const action = (body && body.action) || '';
 
   /* ============ status：始终允许进入第一步（不暴露锁屏凭证是否配置；
-     不读开关；开关只在 verify 根密钥正确后读） ============ */
+     不读开关；开关只在 verify 进站凭证正确后读） ============ */
   if (action === 'status') {
     return json(200, {
       ok: true,
@@ -90,11 +90,11 @@ async function handlePost(context) {
 
   const rp = rpConfig(env);
   const lockKeysReady = !!(realmPrivateKey(env, REALM_LOCK) && realmPublicKey(env, REALM_LOCK)); /* SGX_LOCK_* */
-  const rootKey = (env && env[REALM_LOCK.rootKey]) || ''; /* SGX_ADMIN_KEY */
+  const spaceKey = (env && env[REALM_LOCK.spaceKey]) || ''; /* SGX_LOCK_SPACE_KEY */
   if (!rp) return rpConfigMissing();
   const RP_ID = rp.rpId;
   const EXPECT_ORIGIN = rp.origin;
-  if (!lockKeysReady || !rootKey) {
+  if (!lockKeysReady || !spaceKey) {
     return apiError(500, 'config');
   }
 
@@ -125,39 +125,39 @@ async function handlePost(context) {
     });
   }
 
-  /* ============ verify：锁屏根密钥 → 开关 → 锁屏凭据 ============ */
+  /* ============ verify：进站凭证 → 开关 → 锁屏凭据 ============ */
   if (action === 'verify') {
     const ip = clientIp(request);
 
-    /* fail()：锁屏凭据错误时记失败计数（计入锁屏根密钥那一套限速）；写 D1 出错时返回 503 响应对象 */
+    /* fail()：锁屏凭据错误时记失败计数（计入进站凭证那一套限速）；写 D1 出错时返回 503 响应对象 */
     const fail = async function () {
       try {
-        await recordRootFail(env, ip);
+        await recordSpaceFail(env, ip);
       } catch (e) {
-        await writeRootAudit(env, ip, false, { path: PURPOSE });
+        await writeSpaceAudit(env, ip, false, { path: PURPOSE });
         return apiError(503, 'server');
       }
-      await writeRootAudit(env, ip, false, { path: PURPOSE });
+      await writeSpaceAudit(env, ip, false, { path: PURPOSE });
       return null;
     };
 
-    /* --- 步骤 1：锁屏根密钥（core/root-check.js：限速 → 比对 → 计数 / 审计；不读开关） --- */
-    const rc = await checkRootCredential({
+    /* --- 步骤 1：进站凭证（core/space-check.js：限速 → 比对 → 计数 / 审计；不读开关） --- */
+    const rc = await checkSpaceCredential({
       env: env,
       ip: ip,
-      key: (body && typeof body.rootKey === 'string' && body.rootKey) || '',
+      key: (body && typeof body.spaceKey === 'string' && body.spaceKey) || '',
       auditPath: PURPOSE,
     });
     if (!rc.ok) return rc.response;
 
-    /* --- 步骤 2：根密钥正确后才读重置开关 --- */
+    /* --- 步骤 2：进站凭证正确后才读重置开关 --- */
     const db = env && env[REALM_LOCK.d1Binding]; /* lock_reset_switch 经 D1_LOCK_AUTH */
     const sw = await checkLockResetSwitch(db);
     if (sw.valid) {
       /* 开关路径：原子标记已用（抢不到则视为已用，走锁屏凭据路径） */
       const claimed = await claimLockResetSwitch(db, sw.hash);
       if (claimed) {
-        return await issueLockResetTicket(ip, BY_ROOT, { via: 'switch' });
+        return await issueLockResetTicket(ip, BY_SPACE, { via: 'switch' });
       }
       /* 被并发抢走 → 按开关无效处理 */
     }
@@ -214,10 +214,10 @@ async function handlePost(context) {
       const headers = new Headers();
       const dErr = await issueTicket(env, headers, LOCK_RESET_TICKET, ticketBy);
       if (dErr) {
-        await writeRootAudit(env, ipAddr, false, { path: PURPOSE });
+        await writeSpaceAudit(env, ipAddr, false, { path: PURPOSE });
         return json(dErr.status, dErr.body);
       }
-      const auditOk = await writeRootAudit(
+      const auditOk = await writeSpaceAudit(
         env, ipAddr, true,
         auditExtra && auditExtra.via === 'switch' ? { path: PURPOSE, via: 'switch' } : { path: PURPOSE }
       );

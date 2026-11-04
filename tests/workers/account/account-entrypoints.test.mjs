@@ -200,7 +200,7 @@ test('源码：账号 Worker 没有任何回调网关的代码（不读 env.AUTH
   const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + e.name + '/') : [d + e.name]));
   for (const f of walk(root).filter((x) => x.endsWith('.js'))) {
     const code = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-    assert.doesNotMatch(code, /env\.AUTH\b|env\[['"]AUTH['"]\]|AuthVerifier|auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_ADMIN_KEY|lock_reset_switch/, f);
+    assert.doesNotMatch(code, /env\.AUTH\b|env\[['"]AUTH['"]\]|AuthVerifier|auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_LOCK_SPACE_KEY|lock_reset_switch/, f);
   }
 });
 

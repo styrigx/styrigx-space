@@ -3,7 +3,7 @@
  *
  * 用途：
  * 1. 不碰 Cloudflare 就能跑 SGX_TEST_SUITE=passkey 的 17 条用例：本地，以及 CI 里 pull_request 的 passkey-e2e
- *    （.github/workflows/deploy.yml「Start local preview emulator」，固定 --port 8788、--admin-key / --account-root-key / --pepper 每次现生成；
+ *    （.github/workflows/deploy.yml「Start local preview emulator」，固定 --port 8788、--space-key / --account-root-key / --pepper 每次现生成；
  *    main 的 push / 手动运行仍打真实预览站）；
  * 2. 统计一次运行到底花了多少 KV 操作（读 / 写 / 删 / 列），按「谁发的」（网关 = 预览站上的应用代码；
  *    rest = 测试进程和 CI 步骤经 Cloudflare REST 发的）和键前缀分开。scripts/kv-budget.mjs 里的
@@ -26,15 +26,15 @@
  * - Cloudflare KV REST：/client/v4/accounts/<a>/storage/kv/namespaces/<id>/values/<key>（GET/PUT/DELETE）、/keys（列表，
  *   prefix / cursor / limit）、/bulk/delete（POST，按 Cloudflare 的计费口径每个键算一次删除）；D1 REST 只有
  *   /client/v4/accounts/<a>/d1/database/<id>/query（POST { sql, params }：scripts/kv-budget.mjs 清预览 D1、
- *   scripts/migrate-kv-to-d1.mjs 导入、e2e helper 打开重置开关 / 清根凭证限速用）。测试进程用
+ *   scripts/migrate-kv-to-d1.mjs 导入、e2e helper 打开重置开关 / 清进站凭证限速用）。测试进程用
  *   SGX_TEST_CF_API=http://127.0.0.1:<port>/client/v4 指过来。
  * - /__kv/stats（GET）：当前计数；/__kv/stats/reset（POST）清零计数（不清数据）；/__kv/dump（GET）：全部键和过期时间。
  *
  * 运行：
- *   node tests/web/e2e/preview-emulator.cjs [--port 8788] [--state /tmp/pv-kv.json] [--admin-key K] [--account-root-key A] [--pepper P] [--stale-ms N [--stale-keys …]] [--no-migrations]
- *   --admin-key = 网关的锁屏根密钥 SGX_ADMIN_KEY；--account-root-key = 账号 Worker 的账号根密钥 SGX_ACCOUNT_ROOT_KEY（两把不同）。
+ *   node tests/web/e2e/preview-emulator.cjs [--port 8788] [--state /tmp/pv-kv.json] [--space-key K] [--account-root-key A] [--pepper P] [--stale-ms N [--stale-keys …]] [--no-migrations]
+ *   --space-key = 网关的进站凭证 SGX_LOCK_SPACE_KEY；--account-root-key = 账号 Worker 的账号根密钥 SGX_ACCOUNT_ROOT_KEY（两把不同）。
  *   --state：启动时从该文件恢复 KV 和 D1 全部表（模拟「上一次运行留下的预览 KV / D1」），退出（SIGINT/SIGTERM）时写回。
- *   然后：SGX_TEST_SUITE=passkey SGX_TEST_BASE=http://localhost:8788 SGX_TEST_ADMIN_KEY=K SGX_TEST_ACCOUNT_ROOT_KEY=A \
+ *   然后：SGX_TEST_SUITE=passkey SGX_TEST_BASE=http://localhost:8788 SGX_TEST_SPACE_KEY=K SGX_TEST_ACCOUNT_ROOT_KEY=A \
  *         SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4 SGX_TEST_CF_TOKEN=x SGX_TEST_CF_ACCOUNT=x SGX_TEST_PREVIEW_D1_ID=local CI=1 \
  *         npx playwright test --config=tests/config/playwright.config.js
  */
@@ -51,7 +51,7 @@ const arg = (name, dflt) => {
 };
 const PORT = Number(arg('port', 8788));
 const STATE = arg('state', '');
-const ADMIN_KEY = arg('admin-key', 'local-preview-admin-key');
+const SPACE_KEY = arg('space-key', 'local-preview-space-key');
 const ACCOUNT_ROOT_KEY = arg('account-root-key', 'local-preview-account-root-key');
 const PEPPER = arg('pepper', 'local-preview-pepper');
 const STALE_MS = Number(arg('stale-ms', 0)) || 0;
@@ -333,7 +333,7 @@ async function main() {
     D1_LOCK_AUTH: d1, D1_ACCOUNT_AUTH: d1,
     SGX_LOCK_PRIVATE: await pem(lkp.privateKey, 'pkcs8', 'PRIVATE KEY'), SGX_LOCK_PUBLIC: await pem(lkp.publicKey, 'spki', 'PUBLIC KEY'),
     SGX_ACCOUNT_PRIVATE: await pem(akp.privateKey, 'pkcs8', 'PRIVATE KEY'), SGX_ACCOUNT_PUBLIC: await pem(akp.publicKey, 'spki', 'PUBLIC KEY'),
-    SGX_ADMIN_KEY: ADMIN_KEY, SGX_ACCOUNT_ROOT_KEY: ACCOUNT_ROOT_KEY, SGX_PW_PEPPER: PEPPER,
+    SGX_LOCK_SPACE_KEY: SPACE_KEY, SGX_ACCOUNT_ROOT_KEY: ACCOUNT_ROOT_KEY, SGX_PW_PEPPER: PEPPER,
     ASSETS: { fetch: (input, init) => assets(input instanceof Request ? input : new Request(input, init)) },
   };
 

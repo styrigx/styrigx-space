@@ -13,12 +13,12 @@
  */
 import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from './passkey-assert.js';
 import { renderCredRows, CRED_ICONS } from './cred-rows.js';
-import { KEY_ACCOUNT } from '../lib/key-names.js';
+import { KEY_ACCOUNT, KEY_SPACE } from '../lib/key-names.js';
 import { ACCOUNT_API, postJSON, errText as errTextT } from './account-api.js';
 import { deviceHints } from '../lib/device-hints.js';
 
 /**
- * 要显示的入口（固定顺序：通行密钥、密码）。PR3：根凭证不再是登录入口（改走「无法登录？」→ 重置登录）。
+ * 要显示的入口（固定顺序：通行密钥、密码）。PR3：账号根凭证不再是登录入口（改走「无法登录？」→ 重置登录）。
  * 设了哪个显示哪个；读不到状态（访客 / 网络失败）时两个都显示，界面与管理员一致，服务端一律拒绝。
  * 都没设 → 空数组（页面只留「无法登录？」）。
  * @param {{password?:boolean, passkey?:boolean}|null} status GET /api/account 的结果；null = 读不到
@@ -63,7 +63,7 @@ export function accountSubmitters(t, opts) {
       if (res.j && res.j.ok) return;
       if (res.s === 429) throw { message: t('errLocked') };
       if (res.j && res.j.error === 'config') throw { message: t('errConfig') };
-      /* 401（含访客假入口）：统一提示根凭证不正确 */
+      /* 401（含访客假入口）：统一提示账号根凭证不正确 */
       throw { message: t('errWrongRoot'), clear: true };
     }, function () {
       throw { message: t('errNetwork') };
@@ -113,7 +113,7 @@ export function accountSubmitters(t, opts) {
  * @param {function(string): string} o.t
  * @param {boolean} o.en
  * @param {string[]} o.kinds visibleKinds() 的结果
- * @param {{passkey:Function, password:Function, root?:Function}} o.submit accountSubmitters() 的结果（锁屏凭证的门另给 root）
+ * @param {{passkey:Function, password:Function, space?:Function}} o.submit accountSubmitters() 的结果（锁屏凭证的门另给 space）
  * @param {Function} o.onSuccess
  * @param {string} [o.pmUser] 密码行的隐藏用户名（默认 AccountKey；锁屏凭证的门传 LockKey）
  * @returns {{collapse: Function}}
@@ -123,8 +123,8 @@ export function renderAccountMethods(o) {
   const defs = {
     passkey: { kind: 'passkey', field: 'webauthn', icon: CRED_ICONS.passkey, title: t('mPasskey'), sub: t('mPasskeySub'), submit: o.submit.passkey },
     password: { kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: o.submit.password, pmUser: o.pmUser || KEY_ACCOUNT },
-    /* 只给锁屏凭证的门用（security-lock.js 的 kinds 带 root、submit 带 root）；账号页不再有根凭证行 */
-    root: o.submit.root ? { kind: 'root', field: 'root', icon: CRED_ICONS.root, title: t('mRoot'), sub: t('mRootSub'), submit: o.submit.root } : null,
+    /* 只给锁屏凭证的门用（security-lock.js 的 kinds 带 space、submit 带 space）：进站凭证行；账号页没有这一行 */
+    space: o.submit.space ? { kind: 'space', field: 'key', icon: CRED_ICONS.key, title: t('mSpace'), sub: t('mSpaceSub'), submit: o.submit.space, pmUser: KEY_SPACE } : null,
   };
   return renderCredRows({
     el: o.el,

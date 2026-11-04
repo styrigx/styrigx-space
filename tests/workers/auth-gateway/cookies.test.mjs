@@ -2,7 +2,7 @@
  * workers/auth-gateway/src/lib/cookies.js：网关读 Cookie 头的唯一实现。
  *
  * - 语义和以前四处手写的解析（account-session / tickets 的 readCookie、lock-session 的 allLockSessionCookies、
- *   root-auth 的 lightSession 循环）逐字一致：拿以前的实现当参照，对一批刁钻的 Cookie 头逐个比结果
+ *   space-auth 的 lightSession 循环）逐字一致：拿以前的实现当参照，对一批刁钻的 Cookie 头逐个比结果
  * - looksVisitor 仍按六段票判断（访客必须带合法 tempkeyId），五段的旧格式不算访客
  * - 源码守卫：网关里除了 cookies.js 没有别的地方自己切 Cookie 头
  */

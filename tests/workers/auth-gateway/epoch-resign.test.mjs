@@ -63,30 +63,30 @@ before(async () => {
 
 
 
-/* ============ 审查返工：必修安全项 1/2，helper 层跳过 by=root ============ */
+/* ============ 审查返工：必修安全项 1/2，helper 层跳过 by=space ============ */
 
-test('必修安全项 2：by=root 会话不重签（首次配 lock 的 epoch bump 不被抵消）', async () => {
+test('必修安全项 2：by=space 会话不重签（首次配 lock 的 epoch bump 不被抵消）', async () => {
   const { reissueLockSessionWithEpoch } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const { verifyLockSession } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const kv = makeKV();
   authD1For(kv).setEpoch('lock-epoch', 5); /* 纪元在 D1 */
-  /* by=root 代开会话（epoch 5） */
+  /* by=space 代开会话（epoch 5） */
   const rootSess = await testLockSession(LOCK_PRIV, 5, 'admin', 'password');
   /* epoch bump 到 6（模拟首次配 lock） */
   authD1For(kv).setEpoch('lock-epoch', 6);
   /* helper 应跳过，不发新 cookie */
   const headers = new Headers();
-  await reissueLockSessionWithEpoch(testEnv(kv), headers, { ok: true, by: 'root', role: 'admin' }, 6);
+  await reissueLockSessionWithEpoch(testEnv(kv), headers, { ok: true, by: 'space', role: 'admin' }, 6);
   const setCookies = headers.getSetCookie ? headers.getSetCookie() : [];
   const reissued = setCookies.some((c) => c.startsWith('sgx-lock-session=') && !c.startsWith('sgx-lock-session=;'));
-  assert.equal(reissued, false, 'by=root 会话不应重签');
+  assert.equal(reissued, false, 'by=space 会话不应重签');
   /* 旧会话 session-check 401（epoch 已变） */
   const v = await verifyLockSession(
     new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-lock-session=' + rootSess } }),
     testEnv(kv)
   );
-  assert.equal(v.ok, false, '旧 by=root 会话应在 epoch bump 后失效');
+  assert.equal(v.ok, false, '旧 by=space 会话应在 epoch bump 后失效');
 });
 
 

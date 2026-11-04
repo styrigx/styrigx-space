@@ -40,8 +40,8 @@ import * as lockReset from './api/lock-reset.js';
 import * as lockSessionCheck from './api/lock-session-check.js';
 import * as lockTempkey from './api/lock-tempkey.js';
 import * as lockTempkeyUnlock from './api/lock-tempkey-unlock.js';
-import * as rootAudit from './api/root-audit.js';
-import * as rootAuth from './api/root-auth.js';
+import * as spaceAudit from './api/space-audit.js';
+import * as spaceAuth from './api/space-auth.js';
 import * as search from './api/search.js';
 import * as status from './api/status.js';
 
@@ -60,8 +60,8 @@ export const API_ROUTES = new Map([
   ['/api/lock-session-check', lockSessionCheck],
   ['/api/lock-tempkey', lockTempkey],
   ['/api/lock-tempkey-unlock', lockTempkeyUnlock],
-  ['/api/root-audit', rootAudit],
-  ['/api/root-auth', rootAuth],
+  ['/api/space-audit', spaceAudit],
+  ['/api/space-auth', spaceAuth],
   ['/api/search', search],
   ['/api/status', status],
 ]);

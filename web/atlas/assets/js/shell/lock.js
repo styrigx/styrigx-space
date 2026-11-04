@@ -23,7 +23,7 @@ import { tapFeedback } from '../lib/dialog-behavior.js';
 import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../auth/auth-sheet.js';
 import { getPasskeyAssertion, passkeyErrorText, assertionOptions, assertionToJSON, isPasskeyCancel } from '../auth/passkey-assert.js';
 import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../auth/auth-flow.js';
-import { KEY_LOCK } from '../lib/key-names.js';
+import { KEY_LOCK, KEY_SPACE } from '../lib/key-names.js';
 import { mountResetFlow, resetT } from '../auth/reset-flow.js';
 
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
@@ -277,7 +277,7 @@ export function showLockScreen() {
    * 读取失败按「已配置」处理）。「访客进入」始终在第一位，最下面一行小字「无法登录？」（PR3）：
    * - 两者都有 → 访客进入 / 通行密钥 / 密码 / 无法登录？
    * - 仅通行密钥 / 仅密码 → 访客进入 / 该项 / 无法登录？
-   * - 都没设置（启动站）→ 访客进入 / 无法登录？（里面的根凭证走 root-auth 引导，原「根凭证」一行）
+   * - 都没设置（启动站）→ 访客进入 / 无法登录？（里面的进站凭证走 space-auth 引导，原「进站凭证」一行）
    * 「无法登录？」→ 弹层原地切到重置登录（openResetInSheet）。
    * 点外部、Esc 或下滑关闭；键盘可操作。
    */
@@ -302,7 +302,7 @@ export function showLockScreen() {
       .catch(function () {
         methodSheetLoading = false;
         if (methodSheet) return;
-        /* 读取失败按已配置处理：不暴露根凭证入口 */
+        /* 读取失败按已配置处理：不暴露进站凭证入口 */
         buildMethodSheet({ passkey: true, password: true });
       });
   }
@@ -312,7 +312,7 @@ export function showLockScreen() {
    */
   function buildMethodSheet(cfg) {
     const hasPk = !!(window.PublicKeyCredential);
-    /* PR3：根凭证不再是单独一行；锁屏凭证都没设置（启动站）时，「无法登录？」里的根凭证走 root-auth 引导。 */
+    /* PR3：进站凭证不再是单独一行；锁屏凭证都没设置（启动站）时，「无法登录？」里的进站凭证走 space-auth 引导。 */
     const showPk = cfg.passkey && hasPk;
     const showPw = cfg.password;
     /* 批次 A 验收修复 P2：方法行点击轻触觉反馈。(b) 行 busy 不适用：
@@ -339,7 +339,7 @@ export function showLockScreen() {
       ariaLabel: en ? 'Choose unlock method' : '选择解锁方式',
       title: en ? 'Unlock' : '解锁',
       options: opts,
-      /* 4. PR3：「无法登录？」小字（原「重置锁屏」「根凭证」两行合并到这里）：点了弹层原地切到重置登录 */
+      /* 4. PR3：「无法登录？」小字（原「重置锁屏」「进站凭证」两行合并到这里）：点了弹层原地切到重置登录 */
       cant: { id: 'sgx-mopt-cant', text: en ? 'Can’t sign in?' : '无法登录？',
         onClick: function (card) { tapFeedback(); openResetInSheet(card, cfg); } },
       /* 关闭一开始（Esc / 遮罩 / 下滑 / 选了方式 / closeMethodSheet）：清本地状态 */
@@ -579,13 +579,13 @@ export function showLockScreen() {
 
   /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 auth/reset-flow.js） ----------
      与账号页 /account/reset/ 同一个界面，提交不同：
-     - 锁屏凭证已设置（或读不到配置，按已设置处理）：根凭证 → POST /api/lock-reset verify；
+     - 锁屏凭证已设置（或读不到配置，按已设置处理）：进站凭证 → POST /api/lock-reset verify；
        恢复开关有效直接拿到重置锁屏票（sgx-lock-reset）；否则服务端回 needLock → 再验锁屏凭证（锁屏通行密钥 / 解锁密码，
        账号拆分 PR3 起网关不读账号凭证）→ 重置锁屏票 → 去 /settings/security/lock/ 重设解锁方式。
-     - 锁屏凭证都没设置（启动站）：视为从零重置——根凭证 → POST /api/root-auth { purpose:'lock-reset' }
+     - 锁屏凭证都没设置（启动站）：视为从零重置——进站凭证 → POST /api/space-auth { purpose:'lock-reset' }
        （重置锁屏票 by=root）→ 同样去 /settings/security/lock/ 设第一把锁屏凭证，再正常解锁进站。
-       根凭证不拥有会话，也不是单独的解锁入口。
-     根凭证只存在 reset-flow 的闭包里。 */
+       进站凭证不拥有会话，也不是单独的解锁入口。
+     进站凭证只存在 reset-flow 的闭包里。 */
   /**
    * @param {HTMLElement} cardEl 方法弹层卡片
    * @param {{passkey:boolean, password:boolean}} cfg
@@ -614,7 +614,7 @@ export function showLockScreen() {
     const netErr = function () { throw { message: en ? 'Network error' : '网络错误' }; };
     const tooMany = { message: en ? 'Too many attempts' : '尝试次数过多' };
     const failed = { message: en ? 'Verification failed' : '验证失败', clear: true };
-    /* 键盘避让：根凭证框、第二步展开的解锁密码框，聚焦时卡片随键盘上移（与其他弹层同一套 followKeyboard） */
+    /* 键盘避让：进站凭证框、第二步展开的解锁密码框，聚焦时卡片随键盘上移（与其他弹层同一套 followKeyboard） */
     let kbStop = null;
     /** @type {any} */ let kbFor = null;
     on(host, 'focusin', function (/** @type {FocusEvent} */ e) {
@@ -627,16 +627,22 @@ export function showLockScreen() {
     flow = mountResetFlow({
       el: host,
       en: en,
-      submitRoot: function (key) {
+      /* 锁屏侧：进站凭证（SpaceKey） */
+      keyKind: 'space',
+      pmUser: KEY_SPACE,
+      keyText: en
+        ? { lead: 'First, verify with your space credential', ph: 'Space credential', empty: 'Enter space credential' }
+        : { lead: '先用进站凭证验证身份', ph: '进站凭证', empty: '请输入进站凭证' },
+      submitKey: function (key) {
         if (bootstrap) {
-          return post('/api/root-auth', { key: key, purpose: 'lock-reset' }).then(function (res) {
+          return post('/api/space-auth', { key: key, purpose: 'lock-reset' }).then(function (res) {
             if (res.j && res.j.ok) return {};
             if (res.s === 429) throw tooMany;
             if (res.s === 503 || res.s === 500) throw { message: en ? 'Server error' : '服务器错误' };
-            throw { message: en ? 'Wrong root credential' : '根凭证错误', clear: true };
+            throw { message: en ? 'Wrong space credential' : '进站凭证错误', clear: true };
           }, netErr);
         }
-        return post('/api/lock-reset', { action: 'verify', rootKey: key }).then(function (res) {
+        return post('/api/lock-reset', { action: 'verify', spaceKey: key }).then(function (res) {
           if (res.s === 200 && res.j && res.j.ok) {
             return res.j.needLock ? { needLock: { passkey: !!res.j.passkey, password: !!res.j.password } } : {};
           }
@@ -644,9 +650,9 @@ export function showLockScreen() {
           throw failed;
         }, netErr);
       },
-      lock: function (rootKey) {
+      lock: function (spaceKey) {
         const verify = function (proof) {
-          return post('/api/lock-reset', { action: 'verify', rootKey: rootKey, lockProof: proof }).then(function (res) {
+          return post('/api/lock-reset', { action: 'verify', spaceKey: spaceKey, lockProof: proof }).then(function (res) {
             if (res.s === 200 && res.j && res.j.ok && !res.j.needLock) return;
             if (res.s === 429) throw tooMany;
             throw failed;

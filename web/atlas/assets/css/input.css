@@ -7748,7 +7748,7 @@
     text-align: left; cursor: pointer; color: var(--sgx-text-primary);
     /* 批次 A 验收修复 P2：按下态整行背景变色（现有 --m-container-* 色），松开恢复 */
     &:active, &.sgx-row-pressed { background: var(--sgx-surface-container-high); }
-    /* 选中态（根凭证/密码行展开时）：背景保持高亮 */
+    /* 选中态（进站凭证/密码行展开时）：背景保持高亮 */
     &.sgx-row-selected { background: var(--sgx-surface-container-high); }
   }
   .sgx-credential-ic {
@@ -8279,7 +8279,7 @@
   .st-inc-site { font-size: 15px; font-weight: 700; }
   .st-inc-cause { margin: 4px 0 0; font-size: 13px; }
   .st-inc-time { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
-  /* 根凭证使用记录（设置 → 服务状态页底）：<details> 折叠卡，展开才加载（apps/settings-status.js） */
+  /* 进站凭证使用记录（设置 → 服务状态页底）：<details> 折叠卡，展开才加载（apps/settings-status.js） */
   .st-audit-wrap { margin-top: 12px; }
   .st-audit-card { overflow: hidden; border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
   .st-audit-sum { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 12px 18px;
@@ -8394,7 +8394,7 @@
      不用 280px 上限；输入框留出右侧眼睛位 */
   #sgx-upgrade-form .sgx-pw-field { max-width: none; margin-bottom: 12px; }
   #sgx-upgrade-form .sgx-upgrade-input { padding-right: 48px; }
-  /* 弹层内联输入（根凭证/密码验证）：整宽输入框，配整宽实心验证按钮 */
+  /* 弹层内联输入（进站凭证/密码验证）：整宽输入框，配整宽实心验证按钮 */
   .sgx-upgrade-input {
     display: block; width: 100%; box-sizing: border-box;
     padding: 14px; margin-bottom: 12px;

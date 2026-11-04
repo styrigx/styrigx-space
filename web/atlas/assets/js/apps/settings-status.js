@@ -13,7 +13,7 @@
  * - 站点卡下面是「免费额度」（2026-10-27）：data.quota 有 → 今天的操作次数 / 上限 / 进度条（≥ 80% 琥珀、≥ 95% 红）；
  *   null → 「额度未配置 / 暂时拿不到」一行提示；没有 quota 字段（旧版监测 Worker）→ 整块不显示。额度卡有 Workers 请求时，用量卡不再重复那一行。
  * - 再下面是「用量」（PR3）：data.usage 有 → 每项值 / 上限 / 进度条 + 「更新于 N 分钟前」；null → 「用量未配置」等一行提示。
- * - 页底「根凭证使用记录」折叠区（<details id="st-audit">）：默认收起，第一次展开才请求 GET /api/root-audit（KV list + 最多 50 次 get，
+ * - 页底「进站凭证使用记录」折叠区（<details id="st-audit">）：默认收起，第一次展开才请求 GET /api/space-audit（KV list + 最多 50 次 get，
  *   所以不随页面加载、也不随 60 秒刷新）；成功后本页不再重复取，失败可点「重试」，401 只提示重新解锁。
  *   页面不做角色判断（访客进不了本页，网关 302），接口服务端照样只认 admin 锁屏会话。
  * 渲染全在 lib/status-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
@@ -25,7 +25,7 @@ import { visibleInterval } from '../lib/scheduler.js';
 import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderQuota, renderSite, renderUsage, slotText } from '../lib/status-view.js';
 
 export const STATUS_API = '/api/status';
-export const AUDIT_API = '/api/root-audit';
+export const AUDIT_API = '/api/space-audit';
 export const REFRESH_MS = 60 * 1000;
 export const CACHE_KEY = 'sgx-status-cache';
 export const CACHE_MAX_MS = 24 * 3600 * 1000;
@@ -201,7 +201,7 @@ function init() {
     detail.hidden = false;
   });
 
-  /* 根凭证使用记录：展开才取（见文件头） */
+  /* 进站凭证使用记录：展开才取（见文件头） */
   const auditEl = /** @type {HTMLDetailsElement|null} */ (document.getElementById('st-audit'));
   const auditBody = document.getElementById('st-audit-body');
   /** @type {'idle'|'loading'|'done'|'error'} */

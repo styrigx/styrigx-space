@@ -1113,7 +1113,7 @@ test('LockResetTicket 只放行 /settings/security/lock/，不开总览；LockRe
   await genTestKeys();
   const { signLockResetTicket, signLockReauthTicket } = await import('../../../workers/auth-gateway/src/core/tickets.js');
   const ticket = 'sgx-lock-reset=' + (await signLockResetTicket(TEST_PRIV_PEM, 'password', 0));
-  const lockTicket = 'sgx-lock-reauth=' + (await signLockReauthTicket(TEST_PRIV_PEM, 'root', 0));
+  const lockTicket = 'sgx-lock-reauth=' + (await signLockReauthTicket(TEST_PRIV_PEM, 'space', 0));
   const env = {
     SGX_ENV: 'production',
     SGX_SITE: 'space',

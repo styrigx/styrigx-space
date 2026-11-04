@@ -163,10 +163,10 @@ jobs:
         run: node scripts/gen-csp.mjs --check
 
       - name: 前端技术名词检查（生产构建的 HTML 里不许出现后端变量名）
-        # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_ADMIN_KEY / SGX_ACCOUNT_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
+        # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_LOCK_SPACE_KEY / SGX_ACCOUNT_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
         # 后端变量名只许出现在 workers/ 与注释里，不许进 web/atlas/public/ HTML。
         run: |
-          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_ADMIN_KEY\|SGX_ACCOUNT_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" web/atlas/public/ --include="*.html"; then
+          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_LOCK_SPACE_KEY\|SGX_ACCOUNT_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" web/atlas/public/ --include="*.html"; then
             echo "FAIL: 技术变量名出现在 HTML 产物中"
             exit 1
           fi
@@ -374,7 +374,7 @@ jobs:
     # - push 到 main、workflow_dispatch：真实预览部署 passkey-e2e.styrigx-space.pages.dev + 预览 D1（下面带
     #   github.event_name != 'pull_request' 的步骤，和改动前一样）。模拟器测不到真实 D1、Pages 打包和真实绑定，
     #   所以 PR 的通过不顶替真实预览：main 的每次 push（只改文档 / 样式的除外）照跑真实预览，不再复用 PR 运行的结果。
-    # 两条路都只用每次运行在 runner 上现生成的测试凭证（锁屏根密钥、账号根密钥、pepper；真实预览另加 Ed25519 钥匙对），绝不用生产 secret，也不存 GitHub Secrets。
+    # 两条路都只用每次运行在 runner 上现生成的测试凭证（进站凭证、账号根密钥、pepper；真实预览另加 Ed25519 钥匙对），绝不用生产 secret，也不存 GitHub Secrets。
     # 真实预览只用仓库级的 CLOUDFLARE_ACCOUNT_ID 与 STYRIGX_SPACE_PAGES_DEPLOY（部署预览、写预览 D1）。
     # 外部 fork 的 PR 不跑（同仓库分支的 PR 照跑）。
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -512,25 +512,25 @@ jobs:
 
       - name: Generate preview test credentials (CI only)
         if: steps.gate.outputs.run == 'true'
-        # 预览站的测试锁屏根密钥（网关 SGX_ADMIN_KEY）、测试账号根密钥（账号 Worker SGX_ACCOUNT_ROOT_KEY，两把不同）和密码 pepper（SGX_PW_PEPPER）：
+        # 预览站的测试进站凭证（网关 SGX_LOCK_SPACE_KEY）、测试账号根密钥（账号 Worker SGX_ACCOUNT_ROOT_KEY，两把不同）和密码 pepper（SGX_PW_PEPPER）：
         # 每次运行新生成，只给这次的预览（PR：本地模拟器）用，和下面的 Ed25519 测试钥匙对一样不进仓库、不存 GitHub Secrets。
-        # 根密钥只要求去空白后非空（两边 lib/crypto.js normalizeRootKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
+        # 根密钥只要求去空白后非空（两边 lib/crypto.js normalizeSpaceKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
         # 先 ::add-mask:: 再写进 $GITHUB_ENV，后面各步骤的日志里都打码。
         run: |
-          admin_key="$(openssl rand -hex 32)"
+          space_key="$(openssl rand -hex 32)"
           account_root_key="$(openssl rand -hex 32)"
           pepper="$(openssl rand -hex 32)"
-          test "${#admin_key}" -eq 64 && test "${#account_root_key}" -eq 64 && test "${#pepper}" -eq 64
-          test "$admin_key" != "$account_root_key"
-          echo "::add-mask::$admin_key"
+          test "${#space_key}" -eq 64 && test "${#account_root_key}" -eq 64 && test "${#pepper}" -eq 64
+          test "$space_key" != "$account_root_key"
+          echo "::add-mask::$space_key"
           echo "::add-mask::$account_root_key"
           echo "::add-mask::$pepper"
           {
-            echo "PREVIEW_TEST_ADMIN_KEY=$admin_key"
+            echo "PREVIEW_TEST_SPACE_KEY=$space_key"
             echo "PREVIEW_TEST_ACCOUNT_ROOT_KEY=$account_root_key"
             echo "PREVIEW_TEST_PW_PEPPER=$pepper"
           } >> "$GITHUB_ENV"
-          echo "preview test admin key / account root key / pepper generated (preview only)"
+          echo "preview test space key / account root key / pepper generated (preview only)"
 
       - name: Reset preview D1 (state that would change this run)
         # 每次运行换了两把根密钥、pepper 和 Ed25519 钥匙对。2026-10-27 起网关的认证状态全部在 D1（不再绑定 KV），
@@ -569,13 +569,13 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
         # tests/web/e2e/preview-emulator.cjs：仓库里的组合入口（不打包，直接 import tests/web/e2e/preview-worker.js：网关 + 账号 Worker）+
         # node:sqlite 的 D1 + 本机的 Cloudflare D1 / KV REST；env.ASSETS 读上面构建的 web/atlas/public。Ed25519 钥匙对由它自己现生成。
-        # 根密钥 / pepper 用本次生成的 PREVIEW_TEST_ADMIN_KEY / PREVIEW_TEST_ACCOUNT_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。固定端口 8788，和下一步的 SGX_TEST_BASE 一致。
+        # 根密钥 / pepper 用本次生成的 PREVIEW_TEST_SPACE_KEY / PREVIEW_TEST_ACCOUNT_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。固定端口 8788，和下一步的 SGX_TEST_BASE 一致。
         # 后台跑到 job 结束（runner 收尾时回收）；日志写 emulator-log/，失败时随测试结果一起上传。
         run: |
           node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, the emulator's D1 needs it"; exit 1; }
           mkdir -p emulator-log
           log=emulator-log/preview-emulator.log
-          nohup node tests/web/e2e/preview-emulator.cjs --port 8788 --admin-key "$PREVIEW_TEST_ADMIN_KEY" --account-root-key "$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "$PREVIEW_TEST_PW_PEPPER" > "$log" 2>&1 &
+          nohup node tests/web/e2e/preview-emulator.cjs --port 8788 --space-key "$PREVIEW_TEST_SPACE_KEY" --account-root-key "$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "$PREVIEW_TEST_PW_PEPPER" > "$log" 2>&1 &
           pid=$!
           for _ in $(seq 60); do
             if curl -fsS -o /dev/null http://127.0.0.1:8788/__kv/stats; then echo "preview emulator ready on http://localhost:8788 (pid $pid)"; exit 0; fi
@@ -593,7 +593,7 @@ jobs:
         env:
           SGX_TEST_SUITE: passkey
           SGX_TEST_BASE: http://localhost:8788
-          SGX_TEST_ADMIN_KEY: ${{ env.PREVIEW_TEST_ADMIN_KEY }}
+          SGX_TEST_SPACE_KEY: ${{ env.PREVIEW_TEST_SPACE_KEY }}
           SGX_TEST_ACCOUNT_ROOT_KEY: ${{ env.PREVIEW_TEST_ACCOUNT_ROOT_KEY }}
           SGX_TEST_CF_API: http://127.0.0.1:8788/client/v4
           SGX_TEST_CF_TOKEN: x
@@ -656,7 +656,7 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 只写 preview 环境（PATCH deployment_configs.preview），绝不碰 production。
         # 必须在部署之前写，否则新值要到下一次部署才生效。secret 都经 env 传进来，不拼进脚本；
-        # SGX_ADMIN_KEY（网关锁屏根密钥）/ SGX_ACCOUNT_ROOT_KEY（账号根密钥）/ SGX_PW_PEPPER 用上面本次生成的值（已打码）。
+        # SGX_LOCK_SPACE_KEY（网关进站凭证）/ SGX_ACCOUNT_ROOT_KEY（账号根密钥）/ SGX_PW_PEPPER 用上面本次生成的值（已打码）。
         # 账号拆分 PR3 起预览不再写 SGX_ROOT_KEY（网关代码不读它）；预览环境里以前写过的旧值是以前某次运行的测试值，不删也不被读。
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -670,14 +670,14 @@ jobs:
           lock_priv, lock_pub = rd("lock-priv.pem"), rd("lock-pub.pem")
           acct_priv, acct_pub = rd("account-priv.pem"), rd("account-pub.pem")
           assert "PRIVATE KEY" in lock_priv and "PRIVATE KEY" in acct_priv
-          admin_key, account_root_key = env["PREVIEW_TEST_ADMIN_KEY"], env["PREVIEW_TEST_ACCOUNT_ROOT_KEY"]
+          space_key, account_root_key = env["PREVIEW_TEST_SPACE_KEY"], env["PREVIEW_TEST_ACCOUNT_ROOT_KEY"]
           pepper = env["PREVIEW_TEST_PW_PEPPER"]
-          assert len(admin_key) == 64 and len(account_root_key) == 64 and len(pepper) == 64 and admin_key != account_root_key
+          assert len(space_key) == 64 and len(account_root_key) == 64 and len(pepper) == 64 and space_key != account_root_key
           pv = tomllib.load(open("web/atlas/wrangler.toml", "rb"))["env"]["preview"]["vars"]
           secret = lambda v: {"type": "secret_text", "value": v}
           plain = lambda v: {"type": "plain_text", "value": v}
           body = json.dumps({"deployment_configs": {"preview": {"env_vars": {
-              "SGX_ADMIN_KEY": secret(admin_key),
+              "SGX_LOCK_SPACE_KEY": secret(space_key),
               "SGX_ACCOUNT_ROOT_KEY": secret(account_root_key),
               "SGX_PW_PEPPER": secret(pepper),
               "SGX_LOCK_PRIVATE": secret(lock_priv),
@@ -742,7 +742,7 @@ jobs:
       - name: Wait until preview alias serves this deployment
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 别名 passkey-e2e.styrigx-space.pages.dev 刚部署后有一段时间仍会把部分请求路由到上一次部署。
-        # 上一次部署是上一次运行生成的 Ed25519 钥匙 / RootKey（PR1.5 首跑时还连着旧预览库），
+        # 上一次部署是上一次运行生成的 Ed25519 钥匙 / SpaceKey（PR1.5 首跑时还连着旧预览库），
         # 请求混着打到两次部署就会出现 {"error":"session"}、轮询变慢、限速计数分散（2026-10-29 run 40904956665 两次 attempt）。
         # 连续 10 次读到本次标记才开跑；最多等约 240 秒，超时让 CI 红（不带着混合路由跑测试）。
         run: |
@@ -762,12 +762,12 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 跑 passkey 组的全部 describe（testMatch 已限定文件，不再 --grep）。
         # 预览地址和预览 D1 id 从 web/atlas/wrangler.toml 读，不在这里重复写。
-        # SGX_TEST_ADMIN_KEY / SGX_TEST_ACCOUNT_ROOT_KEY 是本次生成、已写进预览 SGX_ADMIN_KEY / SGX_ACCOUNT_ROOT_KEY 的同一对值。
-        # 测试进程写预览 D1（打开重置开关、清根凭证限速计数）用 Pages 部署 token（和上面清 D1 同一个）。
+        # SGX_TEST_SPACE_KEY / SGX_TEST_ACCOUNT_ROOT_KEY 是本次生成、已写进预览 SGX_LOCK_SPACE_KEY / SGX_ACCOUNT_ROOT_KEY 的同一对值。
+        # 测试进程写预览 D1（打开重置开关、清进站凭证限速计数）用 Pages 部署 token（和上面清 D1 同一个）。
         # 测试 helper 尽量少写：缓存会话 / 进门票并用只读接口确认（tests/web/e2e/preview-helpers.cjs 文件头）。
         env:
           SGX_TEST_SUITE: passkey
-          SGX_TEST_ADMIN_KEY: ${{ env.PREVIEW_TEST_ADMIN_KEY }}
+          SGX_TEST_SPACE_KEY: ${{ env.PREVIEW_TEST_SPACE_KEY }}
           SGX_TEST_ACCOUNT_ROOT_KEY: ${{ env.PREVIEW_TEST_ACCOUNT_ROOT_KEY }}
           SGX_TEST_CF_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           SGX_TEST_CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -803,7 +803,7 @@ jobs:
           names = sorted(prod.keys())
           print("production vars:", names)
           # Pages 只放静态文件，会话检查全在网关；生产部署按 web/atlas/wrangler.toml 不带任何变量
-          forbidden = ["SGX_LOCK_PRIVATE", "SGX_ACCOUNT_PRIVATE", "SGX_STEPUP_PRIVATE", "SGX_APP_PRIVATE", "SGX_ROOT_KEY", "SGX_ADMIN_KEY", "SGX_ACCOUNT_ROOT_KEY", "SGX_PW_PEPPER", "TURNSTILE_SECRET", "OWNER_KEY"]
+          forbidden = ["SGX_LOCK_PRIVATE", "SGX_ACCOUNT_PRIVATE", "SGX_STEPUP_PRIVATE", "SGX_APP_PRIVATE", "SGX_ROOT_KEY", "SGX_LOCK_SPACE_KEY", "SGX_ACCOUNT_ROOT_KEY", "SGX_PW_PEPPER", "TURNSTILE_SECRET", "OWNER_KEY"]
           present = [v for v in forbidden if v in names]
           assert not present, f"private vars must not be on Pages production: {present}"
           print("guard OK: no private vars on Pages production")

@@ -1,12 +1,12 @@
 /**
- * 锁屏层是否已配置（root-auth / lock-entry / lock-passkey 共用）。
+ * 锁屏层是否已配置（space-auth / lock-entry / lock-passkey 共用）。
  *
  * 「是否已配置」不单独存标记，直接由 D1 里锁屏自己的真实凭证推出（password / passkey 表 realm='lock'，强一致）：
- * 锁屏层已配置 ⇔ 有锁屏密码或锁屏通行密钥。任何读取失败按已配置处理（根密钥代开被拒，fail closed）。
+ * 锁屏层已配置 ⇔ 有锁屏密码或锁屏通行密钥。任何读取失败按已配置处理（进站凭证代开被拒，fail closed）。
  *
  * 账号拆分 PR3（方案第 2 节）：去掉账号那一半——网关读不到账号凭证，锁屏是否已配置只看锁屏自己的凭证；
  * 锁屏凭证任何时候都不许删到 0（403 last-key，方案第 15 节 U3），所以「锁屏凭证删光但账号已配置」这种状态不再出现。
- * 规则：锁屏层没有自己的凭证时，锁屏根密钥可代开（/api/root-auth purpose=lock-reset）；配置后根密钥只能走 /api/lock-reset。
+ * 规则：锁屏层没有自己的凭证时，进站凭证可代开（/api/space-auth purpose=lock-reset）；配置后进站凭证只能走 /api/lock-reset。
  */
 
 import { REALM_LOCK } from './realms.js';

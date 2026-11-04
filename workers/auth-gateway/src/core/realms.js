@@ -3,22 +3,22 @@
  *
  * 账号拆分 PR3（方案第 2、6.2、8 节）：网关只管锁屏。账号凭证（AccountKey）、账号三张票、Account 纪元、账号根密钥
  * 全在账号 Worker styrigx-account（workers/account/src/core/realm.js）；网关不读账号的表、不持账号钥匙。
- * 原来的根域 REALM_ROOT 和 BY_ACCOUNT 删除：锁屏根密钥并入 REALM_LOCK（rootKey = 'SGX_ADMIN_KEY'，rootIssues = 两张锁屏短票）。
+ * 原来的根域 REALM_ROOT 和 BY_ACCOUNT 删除：进站凭证并入 REALM_LOCK（spaceKey = 'SGX_LOCK_SPACE_KEY'，spaceIssues = 两张锁屏短票）。
  *
  * 钥匙概念名：
- * - RootKey：根密钥（网关这一把是锁屏根密钥 SGX_ADMIN_KEY）：只用来比对，验过后签 LockReauthTicket / LockResetTicket，不拥有会话
+ * - SpaceKey：进站凭证（SGX_LOCK_SPACE_KEY）：只用来比对，验过后签 LockReauthTicket / LockResetTicket，不拥有会话
  * - LockKey：「安全与隐私 → 锁屏凭证」里存放的钥匙（解锁密码、锁屏通行密钥）
  *
  * 存储：D1 styrigx-auth-gateway，只经 D1_LOCK_AUTH 读写 realm='lock' 的行和恢复开关表 lock_reset_switch
  * （方案 9.4 由 recovery_switch 改名；旧表已在 PR4 由 scripts/migrate-account-auth.mjs --cleanup --confirm DROP，预览库走 migrations/0009）。
  * 表见 migrations/0005_lock_account_state.sql、0006_auth_state.sql、0008_lock_reset_switch.sql（读写入口 d1-state.js 与各 core/ 模块）。
- * 锁屏根密钥的限速（attempt_limit kind='rootkey'）和审计（audit）也是 realm='lock' 的行。
+ * 进站凭证的限速（attempt_limit kind='spacekey'）和审计（audit）也是 realm='lock' 的行。
  * 网关库里没有 realm='account' / realm='root' 的行（账号数据在账号 Worker 的 D1 styrigx-account；网关库的旧行 PR4 已由 --cleanup 删除）。
  *
  * 三张票（见 TICKETS），SGX_LOCK_* 签名，共用 Lock 纪元：
  * - LockSessionTicket（锁屏解锁后的 admin / visitor 会话）
- * - LockResetTicket（重置锁屏，by ∈ root / password / passkey）
- * - LockReauthTicket（进「安全与隐私 → 锁屏凭证」前再验一次，by ∈ password / passkey / root）
+ * - LockResetTicket（重置锁屏，by ∈ space / password / passkey）
+ * - LockReauthTicket（进「安全与隐私 → 锁屏凭证」前再验一次，by ∈ password / passkey / space）
  *
  * 本文件几乎是叶子模块：只 import lib/ 里同为叶子的 http.js（错误响应）、cookies.js（COOKIE_EXPIRED），避免循环依赖。
  */
@@ -26,7 +26,7 @@ import { apiError } from '../lib/http.js';
 import { COOKIE_EXPIRED } from '../lib/cookies.js';
 
 /* 钥匙概念名 */
-export const KEY_ROOT = 'RootKey';
+export const KEY_SPACE = 'SpaceKey';
 export const KEY_LOCK = 'LockKey';
 
 /* 锁屏会话 cookie 的作用域：主站与子站（blog/daymark/curio）共享（子站要读） */
@@ -48,7 +48,7 @@ export const LOCK_REAUTH_COOKIE = 'sgx-lock-reauth';
 export const BY_PASSWORD = 'password';
 export const BY_PASSKEY = 'passkey';
 export const BY_TEMPKEY = 'tempkey';
-export const BY_ROOT = 'root';
+export const BY_SPACE = 'space';
 
 /* ---------- 锁屏会话的 role ---------- */
 export const ROLE_ADMIN = 'admin';
@@ -86,7 +86,7 @@ export const TICKETS = Object.freeze({
     publicKey: 'SGX_LOCK_PUBLIC',
     maxAge: SHORT_TICKET_MAX_AGE,
     cookieAttrs: SHORT_TICKET_ATTRS,
-    bys: Object.freeze([BY_ROOT, BY_PASSWORD, BY_PASSKEY]),
+    bys: Object.freeze([BY_SPACE, BY_PASSWORD, BY_PASSKEY]),
     realm: 'lock',
   }),
   [LOCK_REAUTH_TICKET]: Object.freeze({
@@ -95,7 +95,7 @@ export const TICKETS = Object.freeze({
     publicKey: 'SGX_LOCK_PUBLIC',
     maxAge: SHORT_TICKET_MAX_AGE,
     cookieAttrs: SHORT_TICKET_ATTRS,
-    bys: Object.freeze([BY_PASSWORD, BY_PASSKEY, BY_ROOT]),
+    bys: Object.freeze([BY_PASSWORD, BY_PASSKEY, BY_SPACE]),
     realm: 'lock',
   }),
 });
@@ -114,10 +114,10 @@ export const REALM_LOCK = Object.freeze({
   epoch: LOCK_EPOCH, /* 纪元名（票里的纪元归属；D1 epoch 表按 realm 存一行） */
   /* challenge 表的 purpose（锁屏通行密钥注册 / 解锁，重置锁屏时验锁屏通行密钥）；5 分钟 */
   challenge: Object.freeze({ register: 'register', auth: 'auth', reset: 'reset', ttl: 300 }),
-  /* 锁屏根密钥（方案 6.2）：Secrets Store 名 SGX_ADMIN_KEY（后台新建一份，值等于原 SGX_ROOT_KEY；Secrets Store 不能直接改名，旧的 SGX_ROOT_KEY 已在 PR4 删除）；只比对、不签会话 */
-  rootKey: 'SGX_ADMIN_KEY',
-  /* 锁屏根密钥验过后能签的票（by=root） */
-  rootIssues: Object.freeze([LOCK_REAUTH_TICKET, LOCK_RESET_TICKET]),
+  /* 进站凭证（方案 6.2）：Secrets Store 名 SGX_LOCK_SPACE_KEY（后台新建一份，值等于原 SGX_ROOT_KEY；Secrets Store 不能直接改名，旧的 SGX_ROOT_KEY 已在 PR4 删除）；只比对、不签会话 */
+  spaceKey: 'SGX_LOCK_SPACE_KEY',
+  /* 进站凭证验过后能签的票（by=space） */
+  spaceIssues: Object.freeze([LOCK_REAUTH_TICKET, LOCK_RESET_TICKET]),
 });
 
 /** 全部凭证域（按 id 索引，供测试与通用代码遍历） */

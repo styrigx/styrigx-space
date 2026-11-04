@@ -10,7 +10,7 @@ const pw = await import('../../web/e2e/preview-worker.js');
 
 const FULL = {
   SGX_ENV: 'preview', SGX_SITE: 'space', SGX_RP_ID: 'x.pages.dev', SGX_ORIGIN: 'https://x.pages.dev',
-  SGX_LOCK_PRIVATE: 'lp', SGX_LOCK_PUBLIC: 'lu', SGX_ADMIN_KEY: 'admin', SGX_PW_PEPPER: 'pep',
+  SGX_LOCK_PRIVATE: 'lp', SGX_LOCK_PUBLIC: 'lu', SGX_LOCK_SPACE_KEY: 'space', SGX_PW_PEPPER: 'pep',
   SGX_ACCOUNT_PRIVATE: 'ap', SGX_ACCOUNT_PUBLIC: 'au', SGX_ACCOUNT_ROOT_KEY: 'acct-root',
   D1_LOCK_AUTH: { d1: 'lock' }, D1_ACCOUNT_AUTH: { d1: 'account' }, ASSETS: { fetch() {} },
 };
@@ -18,15 +18,15 @@ const FULL = {
 test('preview-worker：网关那一半没有任何账号钥匙 / 账号库，有 ACCOUNT / ACCOUNT_VERIFIER', () => {
   const g = pw.gatewayEnvOf(FULL, { waitUntil() {} });
   for (const k of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_ROOT_KEY', 'D1_ACCOUNT_AUTH']) assert.equal(g[k], undefined, k);
-  for (const k of ['SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_ADMIN_KEY', 'SGX_PW_PEPPER', 'D1_LOCK_AUTH', 'ASSETS', 'SGX_ENV']) assert.equal(g[k], FULL[k], k);
+  for (const k of ['SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_LOCK_SPACE_KEY', 'SGX_PW_PEPPER', 'D1_LOCK_AUTH', 'ASSETS', 'SGX_ENV']) assert.equal(g[k], FULL[k], k);
   assert.equal(typeof g.ACCOUNT.fetch, 'function');
   assert.equal(typeof g.ACCOUNT_VERIFIER.accountSession, 'function');
   assert.equal(typeof g.ACCOUNT_VERIFIER.authorize, 'function', 'P2-2：网关 api/search.js、api/chat.js 要问 authorize');
 });
 
-test('preview-worker：账号那一半只拿账号的绑定，没有锁屏钥匙 / 锁屏根密钥 / 锁屏库', () => {
+test('preview-worker：账号那一半只拿账号的绑定，没有锁屏钥匙 / 进站凭证 / 锁屏库', () => {
   const a = pw.accountEnvOf(FULL);
-  for (const k of ['SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_ADMIN_KEY', 'D1_LOCK_AUTH']) assert.equal(a[k], undefined, k);
+  for (const k of ['SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_LOCK_SPACE_KEY', 'D1_LOCK_AUTH']) assert.equal(a[k], undefined, k);
   for (const k of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_ROOT_KEY', 'SGX_PW_PEPPER', 'D1_ACCOUNT_AUTH', 'ASSETS']) assert.equal(a[k], FULL[k], k);
 });
 

@@ -159,14 +159,14 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
   assert.ok(pos('Build site') < pos(EMU_START) && pos(EMU_START) < pos(EMU_RUN), '先建站、再起模拟器、再跑用例');
   assert.ok(pos('Generate preview test credentials') < pos(EMU_START));
   assert.match(start.run, /node -e "require\('node:sqlite'\)"/);
-  assert.match(start.run, /node tests\/web\/e2e\/preview-emulator\.cjs --port 8788 --admin-key "\$PREVIEW_TEST_ADMIN_KEY" --account-root-key "\$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "\$PREVIEW_TEST_PW_PEPPER" > "\$log" 2>&1 &/);
+  assert.match(start.run, /node tests\/web\/e2e\/preview-emulator\.cjs --port 8788 --space-key "\$PREVIEW_TEST_SPACE_KEY" --account-root-key "\$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "\$PREVIEW_TEST_PW_PEPPER" > "\$log" 2>&1 &/);
   assert.match(start.run, /curl -fsS -o \/dev\/null http:\/\/127\.0\.0\.1:8788\/__kv\/stats/, '等它就绪');
   assert.match(start.run, /exit 1\s*$/, '超时就红');
   /* 用例变量按 preview-emulator.cjs 文件头；端口和起模拟器的一致 */
   assert.deepEqual(emu.env, {
     SGX_TEST_SUITE: 'passkey',
     SGX_TEST_BASE: 'http://localhost:8788',
-    SGX_TEST_ADMIN_KEY: '${{ env.PREVIEW_TEST_ADMIN_KEY }}',
+    SGX_TEST_SPACE_KEY: '${{ env.PREVIEW_TEST_SPACE_KEY }}',
     SGX_TEST_ACCOUNT_ROOT_KEY: '${{ env.PREVIEW_TEST_ACCOUNT_ROOT_KEY }}',
     SGX_TEST_CF_API: 'http://127.0.0.1:8788/client/v4',
     SGX_TEST_CF_TOKEN: 'x',

@@ -10,7 +10,7 @@
 |---|---|---|---|---|---|
 | `sgx-lock-session` | 网关（SGX_LOCK_PRIVATE） | `Domain=.styrigx.com; Path=/` | HttpOnly, Secure, SameSite=Lax | admin 12 h / visitor 按临时钥匙剩余时间（上限 12 h） | LockSessionTicket `by.role.epoch.exp.tempkeyId.sig`（签名串带 `sgx-lock-session\|` 前缀）；主站和 blog / daymark / curio 共用；role = `admin` / `visitor`；by = password / passkey / tempkey；admin 的 tempkeyId 为空串，visitor 必须带一把未作废的临时钥匙 id；epoch ≠ Lock 纪元即失效 |
 | （同名清除） | 网关 | host-only `Path=/` | Max-Age=0 | — | 每次签发 / 清除都附带，清掉 host-only 同名 cookie |
-| `sgx-lock-reset` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockResetTicket `by.epoch.iat.exp.sig`：重置锁屏；by = root / password / passkey（锁屏根密钥 + 恢复开关，或锁屏根密钥 + 锁屏凭证） |
+| `sgx-lock-reset` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockResetTicket `by.epoch.iat.exp.sig`：重置锁屏；by = root / password / passkey（进站凭证 + 恢复开关，或进站凭证 + 锁屏凭证） |
 | `sgx-lock-reauth` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockReauthTicket `by.epoch.iat.exp.sig`：进「锁屏凭证」页前再验一次；by = password / passkey / root |
 | `sgx-account-session` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 400 天 | AccountSessionTicket `by.epoch.authAt.exp.deviceId.sig`：账号会话（与锁屏会话无关）；by = password / passkey；Account 纪元变了或设备被单独退出即失效 |
 | `sgx-account-reset` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | AccountResetTicket `by.epoch.iat.exp.sig`：重置账号登录方式；by = root |
@@ -19,7 +19,7 @@
 
 六张票分两处登记：锁屏三张在网关 `workers/auth-gateway/src/core/realms.js`（`TICKETS`），账号三张在账号 Worker `workers/account/src/core/realm.js`（`TICKETS`）；网关不签、不验账号票（账号拆分 PR3）。签名串一律是 `<cookie 名>|<票内容>`，
 同一把私钥签的票互相冒充不了。Lock 三张票共用 Lock 纪元，Account 三张票共用 Account 纪元。
-RootKey 不拥有会话，两把各管各的：锁屏根密钥 `SGX_ADMIN_KEY` 走网关 `/api/root-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`；
+SpaceKey 不拥有会话，两把各管各的：进站凭证 `SGX_LOCK_SPACE_KEY` 走网关 `/api/space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`；
 账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 走账号 Worker `POST /api/account { action:'root-reauth' | 'root-reset', key }`。各签一张对应的短票（by=root）；LockSessionTicket 的 by 永远没有 root。
 
 立即锁定 = `POST /api/lock-now` 清 `sgx-lock-session`（两条）+ `sgx-lock-reauth` + `sgx-lock-reset`。锁定所有设备 = Lock 纪元 +1。
@@ -83,7 +83,7 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 
 永不「重载同一个锁屏地址等服务端 302」。
 
-管理员验证（访客 → 管理员，`shell/upgrade.js`）是独立的一态：就地弹层，只有通行密钥 / 密码（根凭证兜底），没有访客入口；
+管理员验证（访客 → 管理员，`shell/upgrade.js`）是独立的一态：就地弹层，只有通行密钥 / 密码（进站凭证兜底），没有访客入口；
 不出锁屏、不跳页；取消不调任何接口（访客会话保留）；通过 → 服务端签 admin 锁屏会话 → 跳目标页。
 入口：安全与隐私页里访客点「锁屏凭证」（`apps/security.js`）、服务端 upgrade 页（`data-sgx-upgrade`）。
 

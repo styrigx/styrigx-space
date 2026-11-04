@@ -370,7 +370,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await expect(page).toHaveURL(/\/settings\/security\/lock\//);
     /* reauth 票失效后不发起任何 WebAuthn challenge */
     expect(challengeCalls).toBe(0);
-    /* 「重新验证」→ 清票 → 回到本页，门口出现（锁屏通行密钥 / 解锁密码 / 根凭证） */
+    /* 「重新验证」→ 清票 → 回到本页，门口出现（锁屏通行密钥 / 解锁密码 / 进站凭证） */
     await dlg.locator('button.sgx-verify-skip').click();
     await expect(page.locator('#lock-reauth')).toBeVisible({ timeout: 10000 });
     await expect(page).toHaveURL(/\/settings\/security\/lock\/$/);

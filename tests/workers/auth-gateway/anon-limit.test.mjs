@@ -62,10 +62,10 @@ test('有效会话、GET、别的接口：不碰限流器', async () => {
 });
 
 test('绑定缺失 / 限流器抛错 / 返回怪值：放行', async () => {
-  assert.equal(await anonLimit(post('/api/root-auth'), env(undefined), false), null);
-  assert.equal(await anonLimit(post('/api/root-auth'), env({}), false), null);
-  assert.equal(await anonLimit(post('/api/root-auth'), env({ limit: async () => { throw new Error('edge down'); } }), false), null);
-  assert.equal(await anonLimit(post('/api/root-auth'), env({ limit: async () => undefined }), false), null);
+  assert.equal(await anonLimit(post('/api/space-auth'), env(undefined), false), null);
+  assert.equal(await anonLimit(post('/api/space-auth'), env({}), false), null);
+  assert.equal(await anonLimit(post('/api/space-auth'), env({ limit: async () => { throw new Error('edge down'); } }), false), null);
+  assert.equal(await anonLimit(post('/api/space-auth'), env({ limit: async () => undefined }), false), null);
 });
 
 test('没有 CF-Connecting-IP：按 unknown 一个桶算（不认 X-Forwarded-For）', async () => {

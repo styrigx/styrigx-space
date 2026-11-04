@@ -3,7 +3,7 @@
  *
  * 覆盖：锁屏凭证页添加 / 命名通行密钥（真实页面）、锁屏通行密钥解锁（真实页面）、伪造会话 cookie、
  * 通行密钥删除 / 重命名 / UV=0 拒绝、锁屏密码删除 / 修改后旧会话失效、重置开关单次有效、
- * LockResetTicket 的权限边界、会话 cookie 属性、退出所有设备推进纪元、根凭证单 IP 限速。
+ * LockResetTicket 的权限边界、会话 cookie 属性、退出所有设备推进纪元、进站凭证单 IP 限速。
  *
  * 预览站 SGX_ENV=preview：网关只在正式域名上拦页面、注入会话标记，预览上页面不拦；
  * 所以这里只断言接口和前端行为，页面级的门由 edge-flow.spec.js（本地代理正式域名）覆盖。
@@ -15,16 +15,16 @@
  *
  * 预览站的 _worker.js 是组合入口 preview-worker.js（网关 + 账号 Worker 两边的真实代码，账号拆分 PR3）。
  *
- * 运行：SGX_TEST_SUITE=passkey SGX_TEST_BASE=https://<preview> SGX_TEST_ADMIN_KEY=<预览测试锁屏根密钥> \
+ * 运行：SGX_TEST_SUITE=passkey SGX_TEST_BASE=https://<preview> SGX_TEST_SPACE_KEY=<预览测试进站凭证> \
  *   SGX_TEST_ACCOUNT_ROOT_KEY=<预览测试账号根密钥> \
  *   [SGX_TEST_CF_TOKEN=… SGX_TEST_CF_ACCOUNT=… SGX_TEST_PREVIEW_D1_ID=…] \
  *   npx playwright test --config=tests/config/playwright.config.js
- * 本地没配 SGX_TEST_BASE / SGX_TEST_ADMIN_KEY / SGX_TEST_ACCOUNT_ROOT_KEY 时跳过；CI（CI=true）里缺了直接失败。
+ * 本地没配 SGX_TEST_BASE / SGX_TEST_SPACE_KEY / SGX_TEST_ACCOUNT_ROOT_KEY 时跳过；CI（CI=true）里缺了直接失败。
  */
 const { test, expect } = require('@playwright/test');
 const h = require('./preview-helpers.cjs');
 
-const { BASE, ORIGIN, ADMIN_KEY, SESSION, REAUTH } = h;
+const { BASE, ORIGIN, SPACE_KEY, SESSION, REAUTH } = h;
 
 test.describe('锁屏凭证 e2e（预览站）', () => {
   h.requirePreview(test);
@@ -298,14 +298,14 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     await h.armResetSwitch();
     let first = null;
     await expect.poll(async () => {
-      const r = await h.api(page, '/api/lock-reset', { action: 'verify', rootKey: ADMIN_KEY });
+      const r = await h.api(page, '/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY });
       if (r.status === 200 && r.json && r.json.ok && !r.json.needLock) { first = r; return 'ticket'; }
       return r.status + ' ' + JSON.stringify(r.json);
     }, { timeout: 90000, intervals: [3000, 10000, 15000, 20000] }).toBe('ticket');
     expect(h.setCookieLine(first.resp, 'sgx-lock-reset')).toContain('sgx-lock-reset=');
 
     /* 已用过：锁屏凭证已设置 → 200 needLock（再验锁屏凭证）；都没设置 → 401 auth。两种都不签票（账号拆分 PR3 起网关不读账号凭证） */
-    const again = await h.api(page, '/api/lock-reset', { action: 'verify', rootKey: ADMIN_KEY });
+    const again = await h.api(page, '/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY });
     expect(h.setCookieLine(again.resp, 'sgx-lock-reset')).toBe('');
     if (again.status === 200) expect(again.json.needLock).toBe(true);
     else expect(again.status).toBe(401);
@@ -373,15 +373,15 @@ test.describe('会话安全 e2e（预览站）', () => {
 });
 
 /* 放在最后：连错会把本机 IP 锁 15 分钟（码对也 429）。结束后清掉预览 D1 里的单 IP 计数。 */
-test.describe('根凭证限速 e2e（预览站）', () => {
+test.describe('进站凭证限速 e2e（预览站）', () => {
   h.requirePreview(test);
 
-  test('root-auth 连错 5 次后 429', async ({ request }) => {
+  test('space-auth 连错 5 次后 429', async ({ request }) => {
     h.requireCf(test);
     const statuses = [];
     try {
       for (let i = 0; i < 6; i++) {
-        const r = await request.post(BASE + '/api/root-auth', {
+        const r = await request.post(BASE + '/api/space-auth', {
           headers: { Origin: ORIGIN },
           data: { key: 'wrong-key-' + h.rand(), purpose: 'lock-reset' },
         });
@@ -391,7 +391,7 @@ test.describe('根凭证限速 e2e（预览站）', () => {
       expect(statuses.slice(0, -1).every((s) => s === 401), statuses.join(',')).toBe(true);
       expect(statuses[statuses.length - 1], statuses.join(',')).toBe(429);
     } finally {
-      await h.clearRootLimits();
+      await h.clearSpaceLimits();
     }
   });
 });

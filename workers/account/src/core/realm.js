@@ -5,7 +5,7 @@
  * （tests/workers/account/account-realm.test.mjs 拿网关 realms.js 逐字段核对），切换时现有账号票继续有效。
  *
  * 和网关域对象的区别只有两项（方案第 6.2 节）：
- * - rootKey：账号根密钥的 Secrets Store 名 SGX_ACCOUNT_ROOT_KEY（新建，值与锁屏根密钥不同）。只用来比对，永远不签会话。
+ * - rootKey：账号根密钥的 Secrets Store 名 SGX_ACCOUNT_ROOT_KEY（新建，值与进站凭证不同）。只用来比对，永远不签会话。
  * - rootIssues：账号根密钥验过后能签的票（AccountReauthTicket、AccountResetTicket，by=root）。
  * 根密钥的限速 / 审计行就在本域：attempt_limit realm='account' kind='rootkey'、audit realm='account'。
  *

@@ -39,7 +39,7 @@ async function mintBrowserAccount(context, by, authAt) {
   ]);
 }
 
-/* AccountResetTicket 写入浏览器 context（RootKey 只签重置票，不签账号会话） */
+/* AccountResetTicket 写入浏览器 context（账号根凭证只签重置票，不签账号会话） */
 async function mintBrowserAccountReset(context) {
   const x = await t.mintAccountReset();
   await context.addCookies([{ name: 'sgx-account-reset', value: x, domain: 'localhost', path: '/' }]);
@@ -108,7 +108,7 @@ test.describe('credential APIs 真请求 e2e', () => {
   test('账号密码 set/change（/api/account；D1 password 表的 account 行，account-epoch 在 D1）', async ({ page, context }) => {
     const d1 = t.d1;
     await mintBrowserAuth(context, 'root');
-    // 第一次设账号密码：没有账号会话，凭根凭证签的 AccountResetTicket
+    // 第一次设账号密码：没有账号会话，凭账号根凭证签的 AccountResetTicket
     await mintBrowserAccountReset(context);
     let r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-222' });
     expect(r.json.ok).toBe(true);

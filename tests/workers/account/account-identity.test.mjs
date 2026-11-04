@@ -814,7 +814,7 @@ test('依赖边界：账号身份（api/account.js + core/ 原 identity/ 的五�
       assert.ok(ok, f + ' imports ' + spec);
     }
     const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-    assert.doesNotMatch(code, /auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_ROOT_KEY|SGX_ADMIN_KEY|CF-Connecting-IP|request\.cf|tempkey \(|recovery_switch/, f);
+    assert.doesNotMatch(code, /auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_ROOT_KEY|SGX_LOCK_SPACE_KEY|CF-Connecting-IP|request\.cf|tempkey \(|recovery_switch/, f);
   }
 });
 

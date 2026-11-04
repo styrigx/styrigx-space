@@ -58,8 +58,8 @@ test('wrangler.toml：不开 workers.dev、生产模式、4 个密钥全走 Secr
   for (const n of SECRET_NAMES) {
     assert.match(toml, new RegExp(`binding = "${n}"\\nstore_id = "[^"]+"\\nsecret_name = "${n}"`));
   }
-  assert.deepEqual([...SECRET_NAMES].sort(), ['SGX_ADMIN_KEY', 'SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_PW_PEPPER']);
-  /* 账号拆分 PR3：账号钥匙、账号根密钥只绑在账号 Worker；锁屏根密钥后台改名为 SGX_ADMIN_KEY（旧名 SGX_ROOT_KEY 不再绑定） */
+  assert.deepEqual([...SECRET_NAMES].sort(), ['SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_LOCK_SPACE_KEY', 'SGX_PW_PEPPER']);
+  /* 账号拆分 PR3：账号钥匙、账号根密钥只绑在账号 Worker；进站凭证后台改名为 SGX_LOCK_SPACE_KEY（旧名 SGX_ROOT_KEY 不再绑定） */
   const code = toml.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
   assert.doesNotMatch(code, /SGX_ACCOUNT_|SGX_ROOT_KEY|D1_ACCOUNT_AUTH|D1_ROOT_AUTH/);
   for (const ep of ['AccountService', 'AccountVerifier']) assert.match(code, new RegExp(`service = "styrigx-account"\\nentrypoint = "${ep}"`), ep);
@@ -99,7 +99,7 @@ test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不�
   assert.equal(out.SGX_PW_PEPPER, 'P');
   assert.equal(out.KV_LOCK_DOOR, kv);
   assert.equal(out.SGX_SITE, 'space');
-  assert.equal('SGX_ADMIN_KEY' in out, false);
+  assert.equal('SGX_LOCK_SPACE_KEY' in out, false);
   assert.equal(typeof env.SGX_LOCK_PRIVATE, 'object'); /* 不改原 env */
 });
 
@@ -107,16 +107,16 @@ test('resolveSecrets：60 秒缓存；取值失败留空且不缓存', async () 
   _resetSecretCache();
   let n = 0;
   const counting = { get: async () => { n++; return 'v' + n; } };
-  assert.equal((await resolveSecrets({ SGX_ADMIN_KEY: counting }, 0)).SGX_ADMIN_KEY, 'v1');
-  assert.equal((await resolveSecrets({ SGX_ADMIN_KEY: counting }, 30_000)).SGX_ADMIN_KEY, 'v1');
-  assert.equal((await resolveSecrets({ SGX_ADMIN_KEY: counting }, 61_000)).SGX_ADMIN_KEY, 'v2');
+  assert.equal((await resolveSecrets({ SGX_LOCK_SPACE_KEY: counting }, 0)).SGX_LOCK_SPACE_KEY, 'v1');
+  assert.equal((await resolveSecrets({ SGX_LOCK_SPACE_KEY: counting }, 30_000)).SGX_LOCK_SPACE_KEY, 'v1');
+  assert.equal((await resolveSecrets({ SGX_LOCK_SPACE_KEY: counting }, 61_000)).SGX_LOCK_SPACE_KEY, 'v2');
 
   _resetSecretCache();
   let fail = true;
   const flaky = { get: async () => { if (fail) throw new Error('x'); return 'ok'; } };
-  assert.equal((await resolveSecrets({ SGX_ADMIN_KEY: flaky }, 0)).SGX_ADMIN_KEY, '');
+  assert.equal((await resolveSecrets({ SGX_LOCK_SPACE_KEY: flaky }, 0)).SGX_LOCK_SPACE_KEY, '');
   fail = false;
-  assert.equal((await resolveSecrets({ SGX_ADMIN_KEY: flaky }, 1)).SGX_ADMIN_KEY, 'ok');
+  assert.equal((await resolveSecrets({ SGX_LOCK_SPACE_KEY: flaky }, 1)).SGX_LOCK_SPACE_KEY, 'ok');
 });
 
 /* 页面：网关验会话，放行后回源（这里把 fetch 换成假的 Pages） */

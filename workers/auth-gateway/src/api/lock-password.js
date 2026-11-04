@@ -149,7 +149,7 @@ async function handlePost(context) {
   }
 
   /* ============ set/change/remove ============
-     需 LockReauthTicket（锁屏凭证或根凭证再验证）+ admin 锁屏会话；
+     需 LockReauthTicket（锁屏凭证或进站凭证再验证）+ admin 锁屏会话；
      LockResetTicket 可 set/change（重置流程，无会话），不可 remove。 */
   if (action === 'set' || action === 'change' || action === 'remove') {
     /* 门禁。sess 保留到 remove/set/change，纪元推进后用它重签当前设备会话。 */

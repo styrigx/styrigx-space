@@ -568,9 +568,9 @@ test.describe('设置 → 服务状态（入口 / 旧地址删除）', () => {
   });
 });
 
-/* 根凭证使用记录（2026-10-26）：服务状态页底的折叠区，默认收起；展开才请求 GET /api/root-audit（省 KV 读），
+/* 进站凭证使用记录（2026-10-26）：服务状态页底的折叠区，默认收起；展开才请求 GET /api/space-audit（省 KV 读），
    页面加载和 60 秒刷新都不碰它；取到以后本页不再重复取；503 可重试，401 只提示重新解锁。本页只有管理员进得来（网关 302 访客），页面不做角色判断。 */
-test.describe('根凭证使用记录', () => {
+test.describe('进站凭证使用记录', () => {
   test.use({ viewport: { width: 412, height: 915 } });
   const ITEMS = [
     { ts: fx.NOW - 30 * 60 * 1000, ipPrefix: '203.0.113.x', ok: true },
@@ -580,7 +580,7 @@ test.describe('根凭证使用记录', () => {
   /** @param {import('@playwright/test').Page} page @param {(n:number)=>{status?:number, body:any}} reply */
   async function mockAudit(page, reply) {
     const calls = [];
-    await page.route('**/api/root-audit', async (route) => {
+    await page.route('**/api/space-audit', async (route) => {
       calls.push(route.request());
       const r = reply(calls.length);
       await route.fulfill({ status: r.status || 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(r.body) });
@@ -595,7 +595,7 @@ test.describe('根凭证使用记录', () => {
     const det = page.locator('#st-audit');
     await expect(det).toBeVisible();
     expect(await det.evaluate((el) => /** @type {HTMLDetailsElement} */ (el).open)).toBe(false);
-    await expect(page.locator('#st-audit-h')).toHaveText('根凭证使用记录');
+    await expect(page.locator('#st-audit-h')).toHaveText('进站凭证使用记录');
     await expect(det.locator('summary')).toContainText('最近 7 天：时间、IP 前缀和结果');
     await page.clock.fastForward(61 * 1000);
     await expect.poll(() => status.length).toBe(2);
@@ -639,7 +639,7 @@ test.describe('根凭证使用记录', () => {
     await expect(page.locator('.st-audit-item')).toHaveCount(2);
     expect(audit.length).toBe(2);
 
-    await page.unroute('**/api/root-audit');
+    await page.unroute('**/api/space-audit');
     await mockAudit(page, () => ({ status: 401, body: { ok: false, error: 'session' } }));
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.locator('#st-audit summary').click();
@@ -647,10 +647,10 @@ test.describe('根凭证使用记录', () => {
     await expect(page.locator('[data-audit-retry]')).toHaveCount(0);
   });
 
-  test('英文页：RootKey activity / Succeeded / Failed / 合计行', async ({ page }) => {
+  test('英文页：Space credential activity / Succeeded / Failed / 合计行', async ({ page }) => {
     await go(page, '/en/settings/status/');
     await mockAudit(page, () => ({ body: { ok: true, items: ITEMS } }));
-    await expect(page.locator('#st-audit-h')).toHaveText('RootKey activity');
+    await expect(page.locator('#st-audit-h')).toHaveText('Space credential activity');
     await expect(page.locator('#st-audit summary')).toContainText('Last 7 days: time, IP prefix and result');
     await page.locator('#st-audit summary').click();
     await expect(page.locator('.st-audit-meta')).toHaveText('2 records, 1 failed (Beijing time)');

@@ -1,7 +1,7 @@
 /**
  * @fileoverview 锁屏凭证门内页共用：进门探针 + 门内直调接口 + 错误码文案 + 倒计时 + 到期弹框。
  *
- * 门在锁屏凭证页本身（进页验一次锁屏凭证或根凭证，3 分钟 LockReauthTicket（sgx-lock-reauth）），门内（有效期内）
+ * 门在锁屏凭证页本身（进页验一次锁屏凭证或进站凭证，3 分钟 LockReauthTicket（sgx-lock-reauth）），门内（有效期内）
  * 查看/添加/重命名/删除/改密码全部直接调接口，不弹验证、不发起 WebAuthn
  * 挑战（添加密钥时创建凭据本身除外）。
  * - enterReauth()：探针确认验证有效才进管理区（onEnter 拿到 expiresAt 后启动倒计时）；

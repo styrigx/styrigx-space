@@ -9,7 +9,7 @@
  *   账号 Worker 账号拆分 PR3 起没有路由（读到有就照样挂上，测试会因此红），只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
  * - 网关 = 仓库里真实的 workers/auth-gateway/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
- *   （锁屏钥匙、SGX_ADMIN_KEY、pepper、D1_LOCK_AUTH）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
+ *   （锁屏钥匙、SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
  *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAccountSession，AccountService / AccountVerifier 里跑的同一份代码）。
  *   账号 Worker 自己一对 Ed25519 钥匙、账号根密钥和自己的库（tests/workers/account/_d1.mjs：账号鉴权表 + 云同步），
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
@@ -165,12 +165,12 @@ async function startEdge() {
   };
   const ACCOUNT_VERIFIER = { accountSession: (c, m) => accountEntry.checkAccountSession(accountEnv, c, m) };
 
-  /* 网关：只绑正式网关 wrangler.toml 里有的（锁屏钥匙、锁屏根密钥 SGX_ADMIN_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER） */
+  /* 网关：只绑正式网关 wrangler.toml 里有的（锁屏钥匙、进站凭证 SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER） */
   const env = {
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
     D1_LOCK_AUTH: d1, /* 网关只绑 D1（2026-10-27 起不绑 KV） */
     SGX_LOCK_PRIVATE: privPem, SGX_LOCK_PUBLIC: pubPem,
-    SGX_ADMIN_KEY: 'edge-test-admin-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
+    SGX_LOCK_SPACE_KEY: 'edge-test-admin-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
     ACCOUNT, ACCOUNT_VERIFIER,
     ASSETS: assets,
   };

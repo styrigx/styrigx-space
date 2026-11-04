@@ -24,7 +24,7 @@
   <!-- 安全分组：三个入口（访客与管理员看到完全一样） -->
   <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security{{ else }}安全{{ end }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
-    {{/* 锁屏凭证 → 锁屏凭证页（进页先过门：锁屏凭证或根凭证，3 分钟reauth 票，离开即失效） */}}
+    {{/* 锁屏凭证 → 锁屏凭证页（进页先过门：锁屏凭证或进站凭证，3 分钟reauth 票，离开即失效） */}}
     <a class="set-row" id="sec-lock-cred" href="{{ $lockUrl }}">
       <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "key" }}</span>
       <span class="flex-1 min-w-0">

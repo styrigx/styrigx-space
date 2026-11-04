@@ -6,7 +6,7 @@
    结构：横幅（全部正常 / 有 N 个故障）→ 每站一张卡（站名、当前状态、最近一次检查的延迟、90 天可用率条 + 百分比）→ 免费额度 → 用量 → 近期故障（北京时间）。
    四种状态（#st-root data-state）：loading 骨架 · ready 有数据 · empty 还没有任何检查结果 · error 第一次就失败（之后刷新失败只在页脚提示，保留旧数据）。
    管理员专属页：访客进不来（网关 src/core/return.js ADMIN_ONLY_PATHS，302）；只认管理员锁屏会话，不问账号会话。
-   页底「根凭证使用记录」折叠区：展开才请求 GET /api/root-audit（见下方模板注释）。
+   页底「进站凭证使用记录」折叠区：展开才请求 GET /api/space-audit（见下方模板注释）。
    noindex（见 baseof）。渲染：lib/status-view.js（纯函数，tests/web/ui/status-view.test.mjs）；DOM / 请求：apps/settings-status.js；入口 entry-settings-status.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-settings-status.js" }}
@@ -62,11 +62,11 @@
     <div id="st-inc" class="widget bg-m-container-lowest st-inc-card"></div>
   </section>
 
-  {{/* 根凭证使用记录：默认收起，展开时 apps/settings-status.js 才请求 GET /api/root-audit（省 KV 读）。
+  {{/* 进站凭证使用记录：默认收起，展开时 apps/settings-status.js 才请求 GET /api/space-audit（省 KV 读）。
      本页只有管理员进得来（访客被网关 302），页面不做角色判断；接口服务端仍只认 admin 锁屏会话。
-     记录保留 7 天、最多显示最近 50 条（workers/auth-gateway/src/api/root-audit.js）。 */}}
+     记录保留 7 天、最多显示最近 50 条（workers/auth-gateway/src/api/space-audit.js）。 */}}
   <section class="st-audit-wrap" aria-labelledby="st-audit-h">
-    <h3 class="acct-dev-h" id="st-audit-h">{{ if $isEn }}RootKey activity{{ else }}根凭证使用记录{{ end }}</h3>
+    <h3 class="acct-dev-h" id="st-audit-h">{{ if $isEn }}Space credential activity{{ else }}进站凭证使用记录{{ end }}</h3>
     <details id="st-audit" class="widget bg-m-container-lowest st-audit-card">
       <summary class="st-audit-sum">
         <span class="st-audit-sum-txt">{{ if $isEn }}Last 7 days: time, IP prefix and result{{ else }}最近 7 天：时间、IP 前缀和结果{{ end }}</span>

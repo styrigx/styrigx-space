@@ -11,11 +11,11 @@
  * - 绝不打印密钥值。
  */
 
-/** 放在 Secrets Store 里的密钥（方案 10.1，只剩 4 个）：锁屏签名钥匙对、锁屏根密钥 SGX_ADMIN_KEY、密码 pepper。
+/** 放在 Secrets Store 里的密钥（方案 10.1，只剩 4 个）：锁屏签名钥匙对、进站凭证 SGX_LOCK_SPACE_KEY、密码 pepper。
  *  账号钥匙（SGX_ACCOUNT_*、SGX_ACCOUNT_ROOT_KEY）只绑在账号 Worker styrigx-account；聊天钥匙只绑在 styrigx-chat。网关都不碰。 */
 export const SECRET_NAMES = Object.freeze([
   'SGX_LOCK_PRIVATE',
-  'SGX_ADMIN_KEY',
+  'SGX_LOCK_SPACE_KEY',
   'SGX_PW_PEPPER',
   'SGX_LOCK_PUBLIC',
 ]);

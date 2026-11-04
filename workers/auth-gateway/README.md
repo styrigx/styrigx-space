@@ -55,7 +55,7 @@
 | `atlas.styrigx.com/*` | 旧图志域名（合并 PR3 起）：任意路径 301 到 `https://styrigx.com` 同路径 + 查询串（`src/gate.js` `atlasRedirect`，不验会话、不回源）。`atlas.styrigx.com/<站>/api/*` 的旧接口路由过渡期仍归两个接口 Worker |
 
 - 账号路径（转发表 `src/router.js` 的 `FORWARDING`）：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`。关口先验（`/api/account`、`/api/prefs*` 只许管理员；`/api/avatar*`、`/api/wellbeing*` 要有会话；`/avatar/*` 公开），放行后经 `ACCOUNT`（entrypoint `AccountService`）原样转给账号 Worker，按验过的锁屏会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`。没绑定或绑定出错 → 503 upstream，不落回网关路由表、不回源。转发回来的响应保留 `X-SGX-Runtime: account`。
-- 网关自己的接口：`src/router.js` 的 `API_ROUTES`（锁屏、锁屏凭证、根密钥、临时钥匙、`geo`，以及只做门再转出去的 `chat`、`search`、`status`）。接口分工见 `docs/status-apis.md`。
+- 网关自己的接口：`src/router.js` 的 `API_ROUTES`（锁屏、锁屏凭证、进站凭证、临时钥匙、`geo`，以及只做门再转出去的 `chat`、`search`、`status`）。接口分工见 `docs/status-apis.md`。
 - 路由按域名整站通配，新增页面目录不用加路由。
 
 ## 绑定
@@ -76,14 +76,14 @@
 | 名字 | 用途 |
 |---|---|
 | `SGX_LOCK_PRIVATE` / `SGX_LOCK_PUBLIC` | 锁屏会话和两张锁屏短票的签名钥匙对 |
-| `SGX_ADMIN_KEY` | 锁屏根密钥（`/api/root-auth`、`/api/lock-reset` 比对） |
+| `SGX_LOCK_SPACE_KEY` | 进站凭证（`/api/space-auth`、`/api/lock-reset` 比对） |
 | `SGX_PW_PEPPER` | 密码哈希 pepper；与账号 Worker 绑同一个密值（有意共用，Sloan 2026-10-30 确认不拆） |
 
 账号钥匙 `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC`、账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 只绑在账号 Worker；聊天钥匙 `SGX_CHAT_API_KEY` 只绑在 `styrigx-chat`。换钥只在 Cloudflare 后台改，不用改代码或重新部署（最多 60 秒生效）。
 
 ## 数据与迁移
 
-认证状态全部在 D1 `styrigx-auth-gateway`（强一致，不绑 KV），只有一个绑定名 `D1_LOCK_AUTH`（凭证域 `core/realms.js` 的 `REALM_LOCK`）：纪元、锁屏密码 / 通行密钥、user handle、challenge、密码 / 临时码 / 锁屏根密钥输错计数、临时钥匙、锁屏根密钥审计（都是 `realm='lock'`），另外恢复开关表 `lock_reset_switch`。
+认证状态全部在 D1 `styrigx-auth-gateway`（强一致，不绑 KV），只有一个绑定名 `D1_LOCK_AUTH`（凭证域 `core/realms.js` 的 `REALM_LOCK`）：纪元、锁屏密码 / 通行密钥、user handle、challenge、密码 / 临时码 / 进站凭证输错计数、临时钥匙、进站凭证审计（都是 `realm='lock'`），另外恢复开关表 `lock_reset_switch`。
 
 | 迁移 | 内容 |
 |---|---|

@@ -3,8 +3,8 @@
  *
  * 验收标准：
  * 1. 存储全空、存储里有凭证两种情况下，访客提交任意值都返回同一个 401 和同一 body
- * 2. 用 D1 替身的执行记录断言该请求 D1 访问次数为 0（不读存储，也到不了根凭证比对；网关不绑 KV）
- * 3. root-auth 和 lock-reset 都测；lock-reset 再测「带对的 RootKey 也一样」和对照组（无访客会话 → 真比对）
+ * 2. 用 D1 替身的执行记录断言该请求 D1 访问次数为 0（不读存储，也到不了进站凭证比对；网关不绑 KV）
+ * 3. space-auth 和 lock-reset 都测；lock-reset 再测「带对的 SpaceKey 也一样」和对照组（无访客会话 → 真比对）
  * 4. looksVisitor 只认六段的 LockSessionTicket（by.role.epoch.exp.tempkeyId.sig）
  *
  * 运行：node --test tests/workers/auth-gateway/b1-9-guest-401.test.mjs
@@ -14,12 +14,12 @@ import assert from 'node:assert/strict';
 import { testLockSession, TEST_TEMPKEY_ID } from './_tickets.mjs';
 import { looksVisitor } from '../../../workers/auth-gateway/src/core/lock-session.js';
 import { ed25519Sign } from '../../../workers/auth-gateway/src/lib/crypto.js';
-import { onRequestPost as rootAuthPost } from '../../../workers/auth-gateway/src/api/root-auth.js';
+import { onRequestPost as spaceAuthPost } from '../../../workers/auth-gateway/src/api/space-auth.js';
 import { onRequestPost as lockResetPost } from '../../../workers/auth-gateway/src/api/lock-reset.js';
 import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 import { makePasswordRecord } from '../../../workers/auth-gateway/src/core/password.js';
 
-const ROOT_KEY = 'test-root-key-12345';
+const SPACE_KEY = 'test-root-key-12345';
 const EXPECTED_BODY = JSON.stringify({ ok: false, error: 'denied' });
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
@@ -47,7 +47,7 @@ function post(path, body, cookie, ip = '203.0.113.9') {
   if (cookie) headers.Cookie = cookie;
   return new Request('https://styrigx.com' + path, { method: 'POST', headers, body: JSON.stringify(body) });
 }
-const env = (db) => ({ SGX_LOCK_PUBLIC: PUB, SGX_LOCK_PRIVATE: PRIV, SGX_ADMIN_KEY: ROOT_KEY, D1_LOCK_AUTH: db, SGX_PW_PEPPER: 'test-pepper', ...RP });
+const env = (db) => ({ SGX_LOCK_PUBLIC: PUB, SGX_LOCK_PRIVATE: PRIV, SGX_LOCK_SPACE_KEY: SPACE_KEY, D1_LOCK_AUTH: db, SGX_PW_PEPPER: 'test-pepper', ...RP });
 const visitorCookie = async () => 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'visitor'));
 
 /* ============ looksVisitor ============ */
@@ -72,14 +72,14 @@ test('looksVisitor：六段访客票 → true；admin、五段旧格式、乱值
   assert.equal(looksVisitor(req('sgx-lock-reset=' + visitor)), false, '别的 cookie 名不算');
 });
 
-/* ============ root-auth ============ */
+/* ============ space-auth ============ */
 
-test('root-auth：访客会话，存储空 vs 有凭证 → 同一 401/body，D1 一次都不碰', async () => {
+test('space-auth：访客会话，存储空 vs 有凭证 → 同一 401/body，D1 一次都不碰', async () => {
   const cookie = await visitorCookie();
   const bodies = [];
   for (const seed of [false, CONFIGURED]) {
     const kv = makeStore(seed);
-    const res = await rootAuthPost({ request: post('/api/root-auth', { key: 'any-value-' + Math.random(), purpose: 'lock-reset' }, cookie), env: env(kv) });
+    const res = await spaceAuthPost({ request: post('/api/space-auth', { key: 'any-value-' + Math.random(), purpose: 'lock-reset' }, cookie), env: env(kv) });
     assert.equal(res.status, 401);
     const body = await res.text();
     assert.equal(body, EXPECTED_BODY);
@@ -96,7 +96,7 @@ test('lock-reset：访客会话，存储空 vs 有凭证 → 同一 401/body，D
   const bodies = [];
   for (const seed of [false, CONFIGURED]) {
     const kv = makeStore(seed);
-    const res = await lockResetPost({ request: post('/api/lock-reset', { action: 'verify', rootKey: 'wrong-' + Math.random() }, cookie), env: env(kv) });
+    const res = await lockResetPost({ request: post('/api/lock-reset', { action: 'verify', spaceKey: 'wrong-' + Math.random() }, cookie), env: env(kv) });
     assert.equal(res.status, 401);
     const body = await res.text();
     assert.equal(body, EXPECTED_BODY);
@@ -106,13 +106,13 @@ test('lock-reset：访客会话，存储空 vs 有凭证 → 同一 401/body，D
   assert.equal(bodies[0], bodies[1]);
 });
 
-test('lock-reset：访客带对的 RootKey 也是假 401，不比对、不计数、不写审计、不签票', async () => {
+test('lock-reset：访客带对的 SpaceKey 也是假 401，不比对、不计数、不写审计、不签票', async () => {
   const cookie = await visitorCookie();
   for (const seed of [false, CONFIGURED]) {
     const kv = makeStore(seed);
     const before = snapshot(kv);
     for (const action of ['verify', 'status', 'challenge']) {
-      const res = await lockResetPost({ request: post('/api/lock-reset', { action, rootKey: ROOT_KEY }, cookie), env: env(kv) });
+      const res = await lockResetPost({ request: post('/api/lock-reset', { action, spaceKey: SPACE_KEY }, cookie), env: env(kv) });
       assert.equal(res.status, 401, action);
       assert.equal(await res.text(), EXPECTED_BODY, action);
       assert.equal(res.headers.get('Set-Cookie'), null, action + '：不签任何票');
@@ -127,7 +127,7 @@ test('lock-reset：访客假入口先于 Origin / 方法检查（与以前一致
   const req = new Request('https://styrigx.com/api/lock-reset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: await visitorCookie() },
-    body: JSON.stringify({ action: 'verify', rootKey: 'x' }),
+    body: JSON.stringify({ action: 'verify', spaceKey: 'x' }),
   });
   const res = await lockResetPost({ request: req, env: env(kv) });
   assert.equal(res.status, 401);
@@ -135,14 +135,14 @@ test('lock-reset：访客假入口先于 Origin / 方法检查（与以前一致
   assert.equal(totalCalls(kv), 0);
 });
 
-test('lock-reset 对照组：没有访客会话 / admin 会话 → 真比对 RootKey（错了 401 auth，计数、写审计）', async () => {
+test('lock-reset 对照组：没有访客会话 / admin 会话 → 真比对 SpaceKey（错了 401 auth，计数、写审计）', async () => {
   for (const cookie of ['', 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin'))]) {
     const kv = makeStore(false);
-    const res = await lockResetPost({ request: post('/api/lock-reset', { action: 'verify', rootKey: 'wrong' }, cookie, '198.51.100.7'), env: env(kv) });
+    const res = await lockResetPost({ request: post('/api/lock-reset', { action: 'verify', spaceKey: 'wrong' }, cookie, '198.51.100.7'), env: env(kv) });
     assert.equal(res.status, 401);
     assert.deepEqual(await res.json(), { ok: false, error: 'auth' }, '真比对失败是 auth，不是访客的 denied');
     assert.ok(kv.calls.some((sql) => /^\s*SELECT .* FROM attempt_limit/i.test(sql)), '真路径要读限速');
-    const fail = kv.raw.prepare("SELECT count FROM attempt_limit WHERE realm = 'lock' AND kind = 'rootkey' AND bucket = '198.51.100.7'").get();
+    const fail = kv.raw.prepare("SELECT count FROM attempt_limit WHERE realm = 'lock' AND kind = 'spacekey' AND bucket = '198.51.100.7'").get();
     assert.equal(fail && fail.count, 1, '真比对失败计入单 IP');
     const audits = kv.raw.prepare("SELECT * FROM audit WHERE realm = 'lock'").all();
     assert.equal(audits.length, 1, '写审计');
@@ -154,7 +154,7 @@ test('lock-reset：五段旧格式的「访客」cookie 不再被当成访客（
   const p5 = 'tempkey.visitor.0.' + (Date.now() + 3600e3);
   const five = 'sgx-lock-session=' + p5 + '.' + (await ed25519Sign(PRIV, 'sgx-lock-session|' + p5));
   const kv = makeStore(false);
-  const res = await lockResetPost({ request: post('/api/lock-reset', { action: 'verify', rootKey: 'wrong' }, five, '198.51.100.8'), env: env(kv) });
+  const res = await lockResetPost({ request: post('/api/lock-reset', { action: 'verify', spaceKey: 'wrong' }, five, '198.51.100.8'), env: env(kv) });
   assert.equal(res.status, 401);
   assert.deepEqual(await res.json(), { ok: false, error: 'auth' });
 });
