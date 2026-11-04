@@ -284,7 +284,8 @@ test('P2-3 临时钥匙页新建 → 没有锁侧复验时弹复验层 → 通�
 test('P2-3 子站点分享 → 弹共享外壳复验 → 通行密钥通过后拿到短链', async ({ page, context }) => {
   await addAuthenticator(page);
   await setSession(context, 'tempkey');
-  await page.goto(BLOG + '/post/hello/');
+  /* 博客首页（真实存在的页面；/post/hello/ 在构建里不存在，测试台回的是主站 404 页，没有子站顶栏） */
+  await page.goto(BLOG + '/');
   await page.evaluate(() => {
     window.__shared = null;
     Object.defineProperty(navigator, 'share', { configurable: true, value: async (d) => { window.__shared = d; } });
