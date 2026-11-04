@@ -1,12 +1,12 @@
 /**
- * 临时 LockKey（2026-10-23，取代 Turnstile「访客进入」）。
+ * 临时 LockKey（2026-10-23，取代 Turnstile 入口）。
  *
- * 定位：lock 是保护 account 的一道屏障；临时 LockKey 是管理员在 /settings/security/ 签发给别人的一把临时进门钥匙。
+ * 定位：lock 是保护 account 的一道屏障；临时 LockKey 是进门的人在 /settings/security/tempkeys/ 复验锁屏凭证后签发给别人的一把临时进门钥匙。
  * 不是另一套认证体系：
- * - 访客在锁屏输入临时码 → 签发的仍是锁屏会话 LockSessionTicket（role=visitor，by=tempkey，tempkeyId=<钥匙 id>），
+ * - 在锁屏输入临时码 → 签发的仍是锁屏会话 LockSessionTicket v2（by=tempkey，tempkeyId=<钥匙 id>；进门二值，不分等级），
  *   用 lock 私钥（SGX_LOCK_PRIVATE）签名、lock 公钥验签（lock-session.js）。
  * - 会话的到期时间不晚于钥匙本身；验会话时再查「这把钥匙有没有被作废」（D1 tempkey 表一次主键读，主库、不缓存）：
- *   钥匙到期（票自己的 exp）或被作废，访客下一个请求就进不来（以前 KV 作废标记在别的节点上最长约 60 秒才生效）。
+ *   钥匙到期（票自己的 exp）或被作废，拿它进门的人下一个请求就进不来（以前 KV 作废标记在别的节点上最长约 60 秒才生效）。
  *
  * 临时码：12 位 Crockford Base32（60 位随机，不含 I L O U），显示成 XXXX-XXXX-XXXX；
  * 输入时忽略大小写、空格和连字符，O→0、I/L→1。服务端只存 SHA-256(pepper|code)，
@@ -21,9 +21,9 @@
  *   已作废的不出现在列表里、临时码进不来、不占上限；过期行读时一律不认，签发新钥匙时顺手清掉
  * - 输错限速：attempt_limit 表 realm = 'lock'、kind = 'tempkey'（attempt-limit.js，原子 UPSERT）：
  *   单 IP 连错 5 次冷却 15 分钟（IPv6 按 /64，见 http.js ipBucket）；全站每小时错满 30 次后，每次校验先等 2 秒（只减速、不封锁）。
- *   不设全站暂停：以前错满 30 次暂停 1 小时，任何人换几个 IP 就能让所有访客都进不来。
+ *   不设全站暂停：以前错满 30 次暂停 1 小时，任何人换几个 IP 就能让所有拿临时钥匙的人都进不来。
  *   临时码 60 位随机、同时最多 20 把，穷举靠单 IP 冷却 + 减速就够。
- * 名字只在管理员侧保存和显示，访客那边永远拿不到。
+ * 名字只在临时钥匙页的列表里保存和显示，拿钥匙进门的那一边永远拿不到。
  */
 import { b64urlEnc } from '../lib/crypto.js';
 import { REALM_LOCK } from './realms.js';
@@ -40,7 +40,7 @@ const CODE_HASH_DOMAIN = 'lock-tempkey|';
 export const TEMPKEY_MAX = 20;
 /** 名字最长（字符） */
 export const TEMPKEY_NAME_MAX = 24;
-/** 一次访客会话最长 12 小时（钥匙剩余时间更短时取剩余时间），到点重新输入临时码 */
+/** 一次临时钥匙进门的会话最长 12 小时（钥匙剩余时间更短时取剩余时间），到点重新输入临时码 */
 export const TEMPKEY_SESSION_MAX = 12 * 3600;
 
 const HOUR = 3600 * 1000;
@@ -224,7 +224,7 @@ export async function findByCode(env, pepper, code) {
 }
 
 /**
- * 钥匙是否已被作废（验访客会话时用：每个请求一次主键读，主库、不缓存；到期由会话票自己的 exp 管）。D1 出错抛错。
+ * 钥匙是否已被作废（验临时钥匙进门的会话时用：每个请求一次主键读，主库、不缓存；到期由会话票自己的 exp 管）。D1 出错抛错。
  * @param {any} env
  * @param {string} id
  */

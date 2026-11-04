@@ -1,5 +1,5 @@
 /**
- * D1：重置登录第 2 步（锁屏弹层「无法登录？」→ 锁屏根密钥 → needLock → 锁屏凭证行）通行密钥行 busy 态与取消不误报（e2e，mock WebAuthn）。
+ * D1：重置登录第 2 步（锁屏弹层「无法登录？」→ 进站凭证 → needLock → 锁屏凭证行）通行密钥行 busy 态与取消不误报（e2e，mock WebAuthn）。
  * 账号拆分 PR3：第 2 步验的是锁屏凭证（lockProof），网关不再读账号凭证。
  * PR3：行与账号登录同一套（auth/cred-rows.js），错误都在行内；验证时隐藏的是方法弹层 #sgx-method-sheet。
  *
@@ -106,7 +106,7 @@ async function awaitPkGate(page) {
   await page.waitForFunction(() => !!window.__pkGate, null, { timeout: 8000 });
 }
 
-/* 走到重置锁屏 (2/2)：锁屏 → 头像 → 重置 → step1 根凭证验证 → step2 */
+/* 走到重置锁屏 (2/2)：锁屏 → 头像 → 重置 → step1 进站凭证验证 → step2 */
 /** @param {import('@playwright/test').Page} page */
 async function gotoResetStep2(page) {
   await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
@@ -114,8 +114,8 @@ async function gotoResetStep2(page) {
   await page.click('#sgx-lock-avatar');
   await expect(page.locator('#sgx-mopt-cant')).toBeVisible({ timeout: 8000 });
   await page.click('#sgx-mopt-cant');
-  await expect(page.locator('#sgx-reset-root')).toBeVisible({ timeout: 8000 });
-  await page.locator('#sgx-reset-root').fill('test-root-key');
+  await expect(page.locator('#sgx-reset-space')).toBeVisible({ timeout: 8000 });
+  await page.locator('#sgx-reset-space').fill('test-root-key');
   await page.click('#sgx-reset-go');
   await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row')).toBeVisible({ timeout: 8000 });
   await expect(page.locator('.sgx-reset-opts [data-kind="password"] .sgx-credential-row')).toBeVisible({ timeout: 8000 });
@@ -140,7 +140,7 @@ test.describe('reset (2/2) passkey busy', () => {
     /* 箭头换成转圈（B1-2：get 期间弹层隐藏，转圈存在但不可见） */
     await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(1, { timeout: 8000 });
     await expect(page.locator('#sgx-method-sheet')).toHaveCSS('visibility', 'hidden');
-    /* 两行都 disabled（通行密钥行 + 管理员密码行） */
+    /* 两行都 disabled（通行密钥行 + 账号密码行） */
     await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row')).toBeDisabled();
     await expect(page.locator('.sgx-reset-opts [data-kind="password"] .sgx-credential-row')).toBeDisabled();
     /* 连点第二次（合成事件）：handler 判 disabled 直接 return，不发 challenge */

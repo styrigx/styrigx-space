@@ -7,8 +7,8 @@
  * POST /api/lock-password
  * Body: { action: "verify"|"set"|"change"|"remove", ... }
  * - verify { password, reauth? }：锁屏密码解锁（IP 限速：每连错 5 次冷却一轮，30 秒起逐轮翻倍、封顶 1 小时，429 cooldown；全局只减速）；
- *   reauth:true（有 admin 锁屏会话）不签会话，改签 3 分钟 LockReauthTicket（安全与隐私 → 锁屏凭证）
- * - set / change { password }：需 LockReauthTicket + admin 锁屏会话，或 LockResetTicket
+ *   reauth:true（要进门）不签会话，改签 3 分钟 LockReauthTicket（安全与隐私 → 锁屏凭证）
+ * - set / change { password }：需 LockReauthTicket + 进门，或 LockResetTicket
  * - remove：只认 LockReauthTicket（重置锁屏不能删）
  * - 哈希：PBKDF2-SHA256 + 随机 salt + SGX_PW_PEPPER（workers/auth-gateway/src/core/password.js）；旧 hash 下次成功登录时重哈希；缺 pepper fail closed
  *
@@ -24,12 +24,11 @@ import {
   issueLockSession,
   bumpLockEpoch,
   reissueLockSessionWithEpoch,
-  ROLE_ADMIN,
 } from '../core/lock-session.js';
 import { checkLockManage } from '../core/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../core/tickets.js';
 import { LOCK_REAUTH_TICKET, BY_PASSWORD } from '../core/realms.js';
-import { verifyLockSession, looksVisitor } from '../core/lock-session.js';
+import { verifyLockSession } from '../core/lock-session.js';
 import { getPasskeys, PASSKEY_LOCK } from '../core/passkey-store.js';
 import { isSameOrigin, originDenied, json, apiError, clientIp } from '../lib/http.js';
 import { passwordLimiter } from '../core/password-limit.js';
@@ -78,14 +77,10 @@ async function handlePost(context) {
   /* 只认锁屏密码；账号密码不能解锁（各层凭证不互相替代）。 */
   if (action === 'verify') {
     const toReauth = !!(body && body.reauth === true);
-    /* 再验证：访客写死「密码错误」，不读任何存储；不是admin 会话 → 401 session */
-    let reauthSess = null;
+    /* 再验证：要先进门（任何进门方式；临时钥匙进门的会话本身不算复验，复验靠这里验锁屏密码）；没进门 → 401 session */
     if (toReauth) {
-      if (looksVisitor(request)) {
-        return apiError(403, 'wrong');
-      }
-      reauthSess = await verifyLockSession(request, env);
-      if (!reauthSess.ok || reauthSess.role !== ROLE_ADMIN) {
+      const reauthSess = await verifyLockSession(request, env);
+      if (!reauthSess.ok) {
         return apiError(401, 'session');
       }
     }
@@ -133,7 +128,7 @@ async function handlePost(context) {
       } catch (e) {}
     }
     /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
-       绝不静默跳过然后返回 ok:true）。密码验证签admin 会话（12 小时） */
+       绝不静默跳过然后返回 ok:true）。锁屏密码进门 12 小时 */
     const headers = new Headers();
     if (toReauth) {
       /* 再验证：只签 LockReauthTicket（3 分钟），会话不动 */
@@ -141,7 +136,7 @@ async function handlePost(context) {
       if (dErr) return json(dErr.status, dErr.body);
       return json(200, { ok: true }, headers);
     }
-    const signErr = await issueLockSession(env, headers, { by: BY_PASSWORD, role: ROLE_ADMIN });
+    const signErr = await issueLockSession(env, headers, { by: BY_PASSWORD });
     if (signErr) {
       return json(signErr.status, signErr.body);
     }
@@ -149,7 +144,7 @@ async function handlePost(context) {
   }
 
   /* ============ set/change/remove ============
-     需 LockReauthTicket（锁屏凭证或根凭证再验证）+ admin 锁屏会话；
+     需 LockReauthTicket（锁屏凭证或进站凭证再验证）+ 进门；
      LockResetTicket 可 set/change（重置流程，无会话），不可 remove。 */
   if (action === 'set' || action === 'change' || action === 'remove') {
     /* 门禁。sess 保留到 remove/set/change，纪元推进后用它重签当前设备会话。 */

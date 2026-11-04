@@ -3,7 +3,7 @@
  *
  * 网关不再持账号钥匙、不读账号库，经服务绑定 ACCOUNT_VERIFIER（styrigx-account / AccountVerifier）问一句，只拿结论：
  * - askAccountSessionFor：账号页首帧提示（gate.js）用。临时钥匙管理（api/lock-tempkey.js）和短链签发 / 作废（core/link-keys.js）
- *   只认管理员锁屏会话，不再问账号会话。
+ *   只认锁屏进门会话（生成 / 作废另要锁侧复验），不再问账号会话。
  * - askAuthorize：授权结论（core/conclusion.js 组装网关结论时用；P2-1 只新增，还没有调用方）。
  * 绑定没配 / RPC 抛错 / 回了看不懂的东西 → 按「无账号会话」处理（fail closed，account.ok=false），reason 只是原因代号。
  * askAuthorize 只管传话和「ok 是不是 true」；deviceId、作用域的白名单校验在 core/conclusion.js。

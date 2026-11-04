@@ -46,7 +46,7 @@ const ACCOUNT_MUST = ['/api/account', '/api/account?x=1', '/api/avatar', '/api/p
   '/avatar/32.webp', '/avatar/96.webp', '/avatar/192.webp?v=abc', '/avatar/512.webp'];
 /* 转发表允许的绑定、门 */
 const FORWARD_BINDINGS = new Set(['ACCOUNT']);
-const FORWARD_GATES = new Set(['admin', 'session', 'public']);
+const FORWARD_GATES = new Set(['session', 'public']);
 /* 必须归短链 Worker（styrigx-share）的路径 */
 const SHARE_MUST = ['/s/AAAAAAAAAAAAAAAAAAAAAA', '/s/AAAAAAAAAAAAAAAAAAAAAA/', '/s/AAAAAAAAAAAAAAAAAAAAAA?x=1', '/s/', '/api/share', '/api/share/', '/api/share?x=1'];
 /* 子站（合并 PR3）：主域名下的前缀，三站产物都按 /<站>/ 登记 */

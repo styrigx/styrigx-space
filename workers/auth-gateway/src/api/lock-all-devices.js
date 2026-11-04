@@ -1,12 +1,10 @@
 /**
  * 锁定所有设备 —— 独立 L2 API（从锁屏密码接口的 lockout action 拆出）。
  *
- * 锁屏凭证门内操作：需有效 admin 锁屏会话 + LockReauthTicket。
+ * 锁屏凭证门内操作：进门 + LockReauthTicket（锁侧复验，方案 3.6）。
  *
  * POST /api/lock-all-devices
- * - 只允许admin 会话调用（L1 middleware 已按 ADMIN_ONLY_APIS 拒绝 visitor → 403；
- *   本接口再做一次角色校验，纵深防御）。
- * - 无会话 → 401；visitor 会话 → 403 {ok:false, error:'role'}。
+ * - 没进门 → 401。
  * - 无 LockReauthTicket → 403 reauth（前端重新验证）。
  * - 逻辑：lock-epoch +1（D1，所有设备旧 cookie 失效），用 Set-Cookie 清当前锁屏会话和 LockReauthTicket。
  * - 返回 {ok:true}。
@@ -18,7 +16,6 @@ import { verifyLockSession } from '../core/lock-session.js';
 import {
   clearLockSessionCookie,
   bumpLockEpoch,
-  ROLE_ADMIN,
 } from '../core/lock-session.js';
 import { checkLockManage } from '../core/lock-manage.js';
 import { clearTicket } from '../core/tickets.js';
@@ -42,13 +39,10 @@ async function handlePost(context) {
     return apiError(500, 'config');
   }
 
-  /* 会话校验：必须是管理员。L1 已拒绝 visitor（403），这里再验一次。 */
+  /* 会话校验：要进门 */
   const sess = await verifyLockSession(request, env);
   if (!sess.ok) {
     return json(401, { ok: false });
-  }
-  if (sess.role !== ROLE_ADMIN) {
-    return apiError(403, 'role');
   }
   /* LockReauthTicket（见 checkLockManage） */
   const gate = await checkLockManage(request, env);

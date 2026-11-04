@@ -1,16 +1,16 @@
 /**
- * 设置 → 服务状态页的「根凭证使用记录」折叠区：
+ * 设置 → 服务状态页的「进站凭证使用记录」折叠区：
  * - 渲染（lib/status-view.js renderAudit，纯函数）：合计行、每条结果 / 北京时间 / IP 前缀、空状态、满 50 条提示、转义、坏数据跳过；
  * - 源码守卫：模板里是默认收起的 <details>（不带 open）、没有内联脚本、中英文案齐全；
- *   apps/settings-status.js 只在折叠区展开（toggle 且 open）时请求 GET /api/root-audit，页面加载和 60 秒刷新都不碰它；
- *   页面没有角色判断（admin 由网关和接口服务端保证）。
- * 运行：node --test tests/web/ui/root-audit-panel.test.mjs
+ *   apps/settings-status.js 只在折叠区展开（toggle 且 open）时请求 GET /api/space-audit，页面加载和 60 秒刷新都不碰它；
+ *   页面没有身份判断（进门 + 账号会话由网关和接口服务端保证）。
+ * 运行：node --test tests/web/ui/space-audit-panel.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { renderAudit, AUDIT_MAX } from '../../../web/atlas/assets/js/lib/status-view.js';
-import { AUDIT_SHOW } from '../../../workers/auth-gateway/src/api/root-audit.js';
+import { AUDIT_SHOW } from '../../../workers/auth-gateway/src/api/space-audit.js';
 
 const read = (p) => readFileSync(new URL('../../../' + p, import.meta.url), 'utf8');
 const I18N = read('web/atlas/layouts/partials/status-i18n.html');
@@ -84,18 +84,18 @@ test('模板：默认收起的 <details id="st-audit">，标题 / 摘要中英�
   assert.ok(m, '有 <details id="st-audit">');
   assert.ok(!/\bopen\b/.test(m[0]), '默认收起');
   assert.match(tpl, /<div id="st-audit-body" class="st-audit-body" aria-live="polite"/);
-  assert.match(tpl, /RootKey activity\{\{ else \}\}根凭证使用记录/);
+  assert.match(tpl, /Space credential activity\{\{ else \}\}进站凭证使用记录/);
   assert.match(tpl, /Last 7 days: time, IP prefix and result\{\{ else \}\}最近 7 天：时间、IP 前缀和结果/);
   assert.ok(!/<script(?![^>]*type="application\/json")/.test(tpl), '模板里没有可执行的内联脚本（CSP）');
-  assert.ok(!/sgx-role|data-sgx-role|visitor|admin/i.test(tpl.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '')), '页面不做角色判断');
+  assert.ok(!/sgx-role|data-sgx-role|visitor|admin/i.test(tpl.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '')), '页面不做角色判断'); // old-name guard
 });
 
-test('apps/settings-status.js：只在折叠区展开时请求 /api/root-audit；加载和 60 秒刷新不碰它；成功后不重复取', () => {
+test('apps/settings-status.js：只在折叠区展开时请求 /api/space-audit；加载和 60 秒刷新不碰它；成功后不重复取', () => {
   const js = read('web/atlas/assets/js/apps/settings-status.js');
-  assert.match(js, /export const AUDIT_API = '\/api\/root-audit';/);
+  assert.match(js, /export const AUDIT_API = '\/api\/space-audit';/);
   assert.equal((js.match(/fetch\(AUDIT_API/g) || []).length, 1, '只有一处请求');
   const code = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  assert.equal((code.match(/\/api\/root-audit/g) || []).length, 1, '代码里地址只出现在 AUDIT_API 常量');
+  assert.equal((code.match(/\/api\/space-audit/g) || []).length, 1, '代码里地址只出现在 AUDIT_API 常量');
   /* 调用 loadAudit() 的地方只有两处：toggle（且 open）和「重试」按钮 */
   const calls = [...js.matchAll(/(?<!function )\bloadAudit\(\)/g)].map((m) => js.slice(Math.max(0, m.index - 160), m.index));
   assert.equal(calls.length, 2, 'loadAudit() 调用处：toggle + 重试');
@@ -105,7 +105,7 @@ test('apps/settings-status.js：只在折叠区展开时请求 /api/root-audit�
   assert.ok(!/loadAudit|AUDIT_API/.test(visible), '60 秒刷新不取审计');
   assert.match(js, /auditState === 'loading' \|\| auditState === 'done'\) return;/, '取到以后不重复取');
   assert.match(js, /credentials: 'same-origin', cache: 'no-store'/);
-  assert.ok(!/sgx-role|data-sgx-role/.test(js), '页面不做角色判断');
+  assert.ok(!/sgx-role|data-sgx-role/.test(js), '页面不做角色判断'); // old-name guard
 });
 
 test('文案：折叠区用到的键中英都有', () => {

@@ -1,5 +1,5 @@
 /**
- * P2-2：设置 › 数字健康的根卡按 /api/wellbeing 的 detail 显示（lib/wb-view.js wbFits），不再看 data-sgx-role。
+ * P2-2：设置 › 数字健康的根卡按 /api/wellbeing 的 detail 显示（lib/wb-view.js wbFits），不再看旧等级标记。
  * - 带 data-wb-detail 的容器：detail:true 才画服务端数据，否则保持本机记录
  * - 不带的（首页小组件）：照画区域合计
  * 运行：node --test tests/web/ui/wb-detail.test.mjs
@@ -21,9 +21,9 @@ test('wbFits：根卡（data-wb-detail）只在 detail:true 时画；首页小�
   assert.equal(wbFits(widget, { ok: true, detail: true }), true);
 });
 
-test('模板和脚本：根卡带 data-wb-detail；settings.js 不再按 data-sgx-role 去掉 data-wb-root', () => {
+test('模板和脚本：根卡带 data-wb-detail；settings.js 不再按旧等级标记去掉 data-wb-root', () => {
   const tpl = readFileSync(new URL('../../../web/atlas/layouts/partials/setcat-wellbeing.html', import.meta.url), 'utf8');
   assert.match(tpl, /id="wb-card" data-wb-root data-wb-detail/);
   const js = readFileSync(new URL('../../../web/atlas/assets/js/apps/settings.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(js, /getAttribute\('data-sgx-role'\)/);
+  assert.doesNotMatch(js, /getAttribute\('data-sgx-role'\)/); // old-name guard
 });

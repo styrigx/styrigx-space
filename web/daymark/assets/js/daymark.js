@@ -122,7 +122,7 @@ function pickRandom(list, excludeId, rnd){
   return pool[Math.min(pool.length - 1, Math.floor(r * pool.length))];
 }
 
-/** 「设为今日」显不显示：管理员、抽过、抽到的是公开句子、而且不是今天这句（私密句子不出 /api/today，不让设） */
+/** 「设为今日」显不显示：canWrite、抽过、抽到的是公开句子、而且不是今天这句（私密句子不出 /api/today，不让设） */
 function canSetToday(canWrite, isDrawn, q, todayQuote){
   return !!(canWrite && isDrawn && q && q.visibility !== 'private' && !(todayQuote && todayQuote.id === q.id));
 }
@@ -484,7 +484,7 @@ function renderGroup(){
 function reorder(ids, msg){
   var col = currentCollection(); if (!col) return;
   var before = col.quote_ids.slice();
-  /* 访客看不到的私密句子也在专题里：管理员的 quote_ids 就是全部，直接用 */
+  /* 账号未登录看不到的私密句子也在专题里：showPrivate 时 quote_ids 就是全部，直接用 */
   col.quote_ids = ids;
   syncQuoteCollections();
   renderGroup();
@@ -820,7 +820,7 @@ function boot(){
     collections = res[1].collections || [];
     if (showPrivate) syncQuoteCollections();
     loaded = true;
-    doc.documentElement.classList.toggle('dm-admin', canWrite);
+    doc.documentElement.classList.toggle('dm-can-write', canWrite);
     var hint = $('#dm-signin');
     if (hint) hint.classList.toggle('hidden', canWrite);
     renderAll();

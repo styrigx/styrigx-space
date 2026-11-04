@@ -7,12 +7,12 @@
  * 越界的语句照常执行（流程不被打断），但记下来，最后断言一条都没有。
  * env 里同时放上以前的 KV 绑定名和已删的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH，换成碰一下就抛错的替身：运行时一次都不能碰。
  *
- * 跑的流程：锁屏域的真实入口——root-auth（lock-reset / lock-reauth）、lock-entry、lock-password set / verify / change、
- * lock-reauth status、lock-passkey challenge、lock-credentials、lock-reset（challenge、带锁屏密码证明的 verify）、root-audit。
+ * 跑的流程：锁屏域的真实入口——space-auth（lock-reset / lock-reauth）、lock-entry、lock-password set / verify / change、
+ * lock-reauth status、lock-passkey challenge、lock-credentials、lock-reset（challenge、带锁屏密码证明的 verify）、space-audit。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { testLockSession, testTicket } from './_tickets.mjs';
+import { testLockSession, testTicket, fakeAuthorizeVerifier, TEST_ACCOUNT_COOKIE } from './_tickets.mjs';
 import { makePasswordRecord } from '../../../workers/auth-gateway/src/core/password.js';
 import { genKeyPair, makeAuthD1, forbiddenKV } from '../_harness.mjs';
 
@@ -70,7 +70,7 @@ function splitD1() {
   return { db, violations, used, lock: view('D1_LOCK_AUTH', 'lock') };
 }
 
-const ROOT_KEY = 'split-root-key-123456';
+const SPACE_KEY = 'split-root-key-123456';
 const PEPPER = 'split-pepper';
 let LOCK;
 
@@ -112,9 +112,11 @@ test('网关只经 D1_LOCK_AUTH 读写 realm=lock 的行；已删的 D1_ACCOUNT_
     KV_LOCK_DOOR: forbiddenKV('KV_LOCK_DOOR', touched), KV_ACCOUNT_LOGIN: forbiddenKV('KV_ACCOUNT_LOGIN', touched),
     D1_ACCOUNT_AUTH: forbiddenKV('D1_ACCOUNT_AUTH', touched), D1_ROOT_AUTH: forbiddenKV('D1_ROOT_AUTH', touched),
     D1_LOCK_AUTH: d1.lock,
-    SGX_ADMIN_KEY: ROOT_KEY, SGX_PW_PEPPER: PEPPER,
+    SGX_LOCK_SPACE_KEY: SPACE_KEY, SGX_PW_PEPPER: PEPPER,
     SGX_LOCK_PRIVATE: LOCK.priv, SGX_LOCK_PUBLIC: LOCK.pub,
     SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: 'https://styrigx.com', SGX_ENV: 'production',
+    /* space-audit 要进门 + 账号会话（askAuthorize）：账号侧只给个替身，D1 一行不碰 */
+    ACCOUNT_VERIFIER: fakeAuthorizeVerifier(),
   };
   /* 库里遗留的账号行（拆分前写的）：网关不该读到、也不该改 */
   d1.db.putPassword('account', await makePasswordRecord('account-pass-5678', PEPPER));
@@ -123,29 +125,29 @@ test('网关只经 D1_LOCK_AUTH 读写 realm=lock 的行；已删的 D1_ACCOUNT_
   const call = async (mod, method, req) => (await import(API + mod))[method]({ request: req, env, waitUntil() {} });
   const jar = cookieJar();
 
-  /* 启动站：锁屏什么都没设（遗留的账号凭证不算）→ lock-entry 两个 false；root-auth lock-reset 签 LockResetTicket */
+  /* 启动站：锁屏什么都没设（遗留的账号凭证不算）→ lock-entry 两个 false；space-auth lock-reset 签 LockResetTicket */
   let r = await call('lock-entry.js', 'onRequestGet', get('/api/lock-entry'));
   assert.deepEqual(await r.json(), { ok: true, passkey: false, password: false });
-  r = jar.absorb(await call('root-auth.js', 'onRequestPost', post('/api/root-auth', { key: ROOT_KEY, purpose: 'lock-reset' })));
+  r = jar.absorb(await call('space-auth.js', 'onRequestPost', post('/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reset' })));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
 
   /* 用 LockResetTicket 设锁屏密码（不再看账号密码） */
   r = jar.absorb(await call('lock-password.js', 'onRequestPost', post('/api/lock-password', { action: 'set', password: 'lock-pass-1234' }, jar.header())));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
 
-  /* 解锁 → admin 锁屏会话 */
+  /* 解锁 → 锁屏进门会话 */
   r = jar.absorb(await call('lock-password.js', 'onRequestPost', post('/api/lock-password', { action: 'verify', password: 'lock-pass-1234' }, jar.header())));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
 
   /* 账号的两个 purpose 网关不认了：400 purpose，不比对、不计数 */
   for (const purpose of ['account-reset', 'account-reauth']) {
-    r = await call('root-auth.js', 'onRequestPost', post('/api/root-auth', { key: ROOT_KEY, purpose }, jar.header()));
+    r = await call('space-auth.js', 'onRequestPost', post('/api/space-auth', { key: SPACE_KEY, purpose }, jar.header()));
     assert.equal(r.status, 400, purpose);
     assert.equal((await r.json()).error, 'purpose');
   }
 
-  /* 锁屏凭证页：根密钥 lock-reauth → 改锁屏密码（和遗留的账号密码相同也行）、状态、通行密钥 challenge、凭证列表 */
-  r = jar.absorb(await call('root-auth.js', 'onRequestPost', post('/api/root-auth', { key: ROOT_KEY, purpose: 'lock-reauth' }, jar.header())));
+  /* 锁屏凭证页：进站凭证 lock-reauth → 改锁屏密码（和遗留的账号密码相同也行）、状态、通行密钥 challenge、凭证列表 */
+  r = jar.absorb(await call('space-auth.js', 'onRequestPost', post('/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reauth' }, jar.header())));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
   r = await call('lock-reauth.js', 'onRequestPost', post('/api/lock-reauth', { action: 'status' }, jar.header()));
   assert.equal(r.status, 200);
@@ -155,14 +157,17 @@ test('网关只经 D1_LOCK_AUTH 读写 realm=lock 的行；已删的 D1_ACCOUNT_
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
   r = await call('lock-credentials.js', 'onRequestGet', get('/api/lock-credentials', jar.header()));
   assert.ok(r.status === 200 || r.status === 401, String(r.status));
-  r = await call('root-audit.js', 'onRequestGet', get('/api/root-audit', jar.header()));
+  r = await call('space-audit.js', 'onRequestGet', get('/api/space-audit', jar.header()));
+  assert.equal(r.status, 401, '进站凭证使用记录：进门但没账号会话 → 401 account');
+  assert.equal((await r.json()).error, 'account');
+  r = await call('space-audit.js', 'onRequestGet', get('/api/space-audit', jar.header() + '; ' + TEST_ACCOUNT_COOKIE));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
 
-  /* 无法登录 → lock-reset：challenge（没有锁屏通行密钥 → not-set）；根密钥 + 锁屏密码证明 → LockResetTicket(by=password) */
+  /* 无法登录 → lock-reset：challenge（没有锁屏通行密钥 → not-set）；进站凭证 + 锁屏密码证明 → LockResetTicket(by=password) */
   const anon = cookieJar();
   r = await call('lock-reset.js', 'onRequestPost', post('/api/lock-reset', { action: 'challenge' }));
   assert.equal((await r.json()).error, 'not-set', '没有锁屏通行密钥：回 not-set（遗留的账号通行密钥不算）');
-  r = anon.absorb(await call('lock-reset.js', 'onRequestPost', post('/api/lock-reset', { action: 'verify', rootKey: ROOT_KEY, lockProof: { type: 'password', password: 'account-pass-5678' } })));
+  r = anon.absorb(await call('lock-reset.js', 'onRequestPost', post('/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY, lockProof: { type: 'password', password: 'account-pass-5678' } })));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
   assert.match(anon.header(), /sgx-lock-reset=/);
 
@@ -170,7 +175,7 @@ test('网关只经 D1_LOCK_AUTH 读写 realm=lock 的行；已删的 D1_ACCOUNT_
   assert.deepEqual(d1.db.rows('epoch').map((x) => x.realm), ['lock']);
   assert.equal(JSON.stringify([d1.db.rows('password').filter((x) => x.realm === 'account'), d1.db.rows('passkey')]), JSON.stringify([JSON.parse(legacy)[0], JSON.parse(legacy)[1]]));
   const audits = d1.db.rows('audit');
-  assert.ok(audits.length >= 1 && audits.every((x) => x.realm === 'lock'), '锁屏根密钥审计在 realm=lock');
+  assert.ok(audits.length >= 1 && audits.every((x) => x.realm === 'lock'), '进站凭证审计在 realm=lock');
   for (const x of d1.db.rows('attempt_limit')) assert.equal(x.realm, 'lock', JSON.stringify(x));
   for (const x of d1.db.rows('challenge')) assert.equal(x.realm, 'lock', JSON.stringify(x));
   assert.ok(d1.used.lock > 0, JSON.stringify(d1.used));

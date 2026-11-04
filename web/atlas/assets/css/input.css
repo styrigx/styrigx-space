@@ -6,7 +6,7 @@
    - 自定义层用 sgx- 前缀，不和 Tailwind 的 base / components / utilities 同名；
    - overrides 承接原来靠 !important 硬压的规则（!important 只留在减弱动效里）；
    - 同一层内保持原文件相对顺序，层分配沿文件自上而下只升不降，避免优先级翻转。
-   - 不分层的部分（有意为之，优先于所有层）：文件开头的 View Transitions；文件末尾从 #sgx-upgrade-overlay 起的一段——
+   - 不分层的部分（有意为之，优先于所有层）：文件开头的 View Transitions；文件末尾 overrides（续）之后的一段——
      共享外壳的 @shell 区块（scripts/gen-shell.mjs 原样抽给子站，子站里同样不分层），以及必须压过外壳规则的主站规则
      （主站 layout 层、顶栏三栏、快捷面板、头像裁剪、输入方式）。往这一段加规则前先确认确实要压过所有层。 ===== */
 @layer tw, reset, tokens, sgx-base, sgx-components, sgx-utilities, overrides;
@@ -7390,7 +7390,7 @@
     .set-layout.single-cat .set-group.active { display: block; }
     .set-layout.single-cat .set-group.active > .set-gh { display: none; }
   }
-  /* ===== 账号卡：左 Sloan Gray / Styrigx，右圆形头像（管理员可换头像） =====
+  /* ===== 账号卡：左 Sloan Gray / Styrigx，右圆形头像（账号已登录可换头像） =====
      只在账号页 /account/（登录后总览）顶部显示。 */
   .sgx-account-card {
     display: flex; width: 100%; align-items: center; gap: 12px; margin: 0 0 12px;
@@ -7417,7 +7417,7 @@
     .sgx-ac-state { flex-shrink: 0; margin: 0; font-size: 12px; font-weight: 600; color: var(--m-primary); }
     .sgx-ac-state svg { display: inline-block; vertical-align: -2px; margin-right: 3px; }
     .sgx-ac-img { width: 48px; height: 48px; border-radius: 999px; object-fit: cover; flex-shrink: 0; }
-    /* 头像按钮：访客 disabled 只看；管理员可点，右下角铅笔 */
+    /* 头像按钮：账号未登录 disabled 只看；账号已登录可点，右下角铅笔 */
     .sgx-ac-av { position: relative; flex-shrink: 0; padding: 0; border: 0; background: none; border-radius: 999px; cursor: default; }
     .sgx-ac-av:not(:disabled) { cursor: pointer; }
     .sgx-ac-av:not(:disabled):active .sgx-ac-img { filter: brightness(.88); }
@@ -7700,7 +7700,7 @@
     &:disabled { opacity: .5; }
   }
   .sgx-pw-count { font-size: 13px; color: var(--sgx-text-secondary); margin: 0; }
-  /* 2026-10-23 临时钥匙（访客进入）：等宽数字、字距略开，输入时自动大写；不带眼睛按钮，右边距还原 */
+  /* 2026-10-23 临时钥匙：等宽数字、字距略开，输入时自动大写；不带眼睛按钮，右边距还原 */
   .sgx-pw-field .sgx-temp-input { padding-right: 16px; letter-spacing: .08em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
   .sgx-temp-input::placeholder { letter-spacing: .08em; }
   .sgx-temp-hint { font-size: 13px; color: var(--sgx-text-secondary); margin: 0; }
@@ -7748,7 +7748,7 @@
     text-align: left; cursor: pointer; color: var(--sgx-text-primary);
     /* 批次 A 验收修复 P2：按下态整行背景变色（现有 --m-container-* 色），松开恢复 */
     &:active, &.sgx-row-pressed { background: var(--sgx-surface-container-high); }
-    /* 选中态（根凭证/密码行展开时）：背景保持高亮 */
+    /* 选中态（进站凭证/密码行展开时）：背景保持高亮 */
     &.sgx-row-selected { background: var(--sgx-surface-container-high); }
   }
   .sgx-credential-ic {
@@ -8279,7 +8279,7 @@
   .st-inc-site { font-size: 15px; font-weight: 700; }
   .st-inc-cause { margin: 4px 0 0; font-size: 13px; }
   .st-inc-time { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
-  /* 根凭证使用记录（设置 → 服务状态页底）：<details> 折叠卡，展开才加载（apps/settings-status.js） */
+  /* 进站凭证使用记录（设置 → 服务状态页底）：<details> 折叠卡，展开才加载（apps/settings-status.js） */
   .st-audit-wrap { margin-top: 12px; }
   .st-audit-card { overflow: hidden; border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
   .st-audit-sum { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 12px 18px;
@@ -8364,55 +8364,9 @@
   }
 }
 
-/* ===== overrides 层（续）：升级验证层、布局切换 snackbar、设置 / 账号页底部留白、关于页页脚 =====
+/* ===== overrides 层（续）：布局切换 snackbar、设置 / 账号页底部留白、关于页页脚 =====
    以前放在所有层之外；这一段不和后面不分层的共享外壳规则抢同一属性，放进 overrides 后结果不变。 */
 @layer overrides {
-  /* 访客升级验证层 */
-  #sgx-upgrade-overlay {
-    position: fixed; inset: 0; z-index: 9999;
-    background: rgba(0,0,0,.5);
-    display: flex; align-items: flex-end; justify-content: center;
-  }
-  .sgx-upgrade-sheet {
-    background: var(--m-surface, var(--m-container-lowest));
-    border-radius: 24px 24px 0 0;
-    padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
-    width: 100%; max-width: 480px;
-  }
-  .sgx-upgrade-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-  .sgx-upgrade-desc { font-size: 14px; color: var(--m-on-surface-variant); margin-bottom: 20px; }
-  .sgx-upgrade-btn {
-    display: block; width: 100%; padding: 14px; margin-bottom: 12px;
-    border-radius: 12px; border: none; font-size: 16px; font-weight: 600;
-    background: var(--m-primary-fill); color: var(--m-on-primary-fill); cursor: pointer;
-  }
-  .sgx-upgrade-cancel {
-    display: block; width: 100%; padding: 12px; border: none;
-    background: none; font-size: 15px; color: var(--m-on-surface-variant); cursor: pointer;
-  }
-  /* 升级弹层密码框包 .sgx-pw-field（眼睛按钮绝对定位），
-     不用 280px 上限；输入框留出右侧眼睛位 */
-  #sgx-upgrade-form .sgx-pw-field { max-width: none; margin-bottom: 12px; }
-  #sgx-upgrade-form .sgx-upgrade-input { padding-right: 48px; }
-  /* 弹层内联输入（根凭证/密码验证）：整宽输入框，配整宽实心验证按钮 */
-  .sgx-upgrade-input {
-    display: block; width: 100%; box-sizing: border-box;
-    padding: 14px; margin-bottom: 12px;
-    border-radius: 12px; border: 1px solid var(--m-outline-variant);
-    background: var(--m-surface-container-highest, var(--m-surface));
-    color: var(--m-on-surface); font-size: 16px; outline: none;
-  }
-  .sgx-upgrade-input::placeholder { color: var(--m-on-surface-variant); opacity: .7; }
-  .sgx-upgrade-input:focus { border-color: var(--m-primary); box-shadow: 0 0 0 1px var(--m-primary); }
-  .sgx-upgrade-err {
-    margin: 4px 0 0; font-size: 14px; text-align: center;
-    color: var(--m-error);
-  }
-  .sgx-upgrade-err[hidden] { display: none; }
-  @media (min-width: 840px) {
-    #sgx-upgrade-overlay { align-items: center; }
-    .sgx-upgrade-sheet { border-radius: 24px; }
-  }
   /* 布局切换 snackbar：正常大小，底部居中 */
   #sgx-layout-snackbar {
     position: fixed;
@@ -8587,6 +8541,24 @@
 .sgx-share-toast.show { opacity: 1; transform: translate(-50%, 0); }
 .reduced-motion .sgx-share-toast { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-share-toast { transition: none; } }
+/* 分享前的最小锁侧复验步骤（share.js lockReauthStep，P2-3）：底部弹层，宽屏居中；只用 --sgx-* 角色 */
+.sgx-share-reauth { box-sizing: border-box; width: min(100%, 480px); max-width: 100%; margin: auto auto 0; padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  border: 0; border-radius: 24px 24px 0 0; background: var(--sgx-surface); color: var(--sgx-on-surface);
+  font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; }
+.sgx-share-reauth::backdrop { background: rgba(0,0,0,.5); }
+.sgx-share-reauth-title { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
+.sgx-share-reauth-desc { margin: 0 0 20px; font-size: 14px; color: var(--sgx-on-surface-variant); }
+.sgx-share-reauth-pw { display: flex; flex-direction: column; gap: 12px; margin: 0 0 12px; }
+.sgx-share-reauth-in { box-sizing: border-box; width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--sgx-outline-variant);
+  background: var(--sgx-surface-container-highest); color: var(--sgx-on-surface); font-size: 16px; }
+.sgx-share-reauth-btn { display: block; box-sizing: border-box; width: 100%; padding: 14px; margin: 0 0 12px; border: 0; border-radius: 12px;
+  background: var(--sgx-btn-primary-bg); color: var(--sgx-btn-primary-fg); font-size: 16px; font-weight: 600; cursor: pointer; }
+.sgx-share-reauth-pw .sgx-share-reauth-btn { margin: 0; }
+.sgx-share-reauth-cancel { display: block; width: 100%; padding: 12px; border: 0; background: none; color: var(--sgx-on-surface-variant); font-size: 15px; cursor: pointer; }
+.sgx-share-reauth-err { margin: 0 0 12px; font-size: 14px; text-align: center; color: var(--sgx-primary); }
+.sgx-share-reauth-err[hidden] { display: none; }
+.sgx-share-reauth[aria-busy="true"] .sgx-share-reauth-btn { opacity: .6; pointer-events: none; }
+@media (min-width: 840px) { .sgx-share-reauth { margin: auto; border-radius: 24px; } }
 /* @shell:end topbar-frame */
 /* 主站 layout 层（2026-10-23 PR-D，只在主站，不进共享外壳）：外壳框最宽按布局模式定 —— Mobile 640（宽竖屏内容栏）、DeX 1440。
    顶栏在各页都跟随这个框（不按页面内容收缩，切页时两侧圆不跳）；页面外框（首页 / 设置 / 账号 / 聊天 / 404）宽 = --sgx-shell-w、
@@ -8600,8 +8572,6 @@ html.layout-dex { --sgx-content-max: 1440px; }
 .chat-wrap > :not(.sr-only) { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; }
 /* 底部搜索栏高度（原地搜索层 --sgx-srch-h 同值；main 底部留白也用） */
 :root { --sgx-bottom-dock-h: 56px; }
-/* 访客：抽屉头的头像只是装饰，点了没反应（JS 另把链接去掉，见 head-buttons.js initVisitorAvatar） */
-html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: default; }
 /* @shell:begin drawer（共享外壳：scripts/gen-shell.mjs 原样抽到 web/shared/shell/shell.css，子站 scripts/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 导航抽屉（2026-10-20，Gmail Android 式左侧抽屉；主站 baseof.html #sgx-drawer，head-buttons.js 开关；子站同一份）：
    <dialog> 模态铺满视口，::backdrop 是遮罩（--sgx-scrim）；.sgx-drawer-sheet 从左滑入（is-open）。
@@ -8794,7 +8764,7 @@ html[data-sgx-role="visitor"] .sgx-drawer-me { pointer-events: none; cursor: def
    1px 实线发丝线（--sgx-text-primary 12% 透明度：浅色 / 深色都是低对比细线；--sgx-outline-variant 在浅色毛玻璃上几乎看不见），左右缘 = 导航项药丸左右缘，上下各留 18px；纯装饰（aria-hidden）。
    要虚线只改 border-top-style 为 dashed。 */
 .sgx-drawer-sep { border: 0; border-top: 1px solid color-mix(in srgb, var(--sgx-text-primary) 12%, transparent); margin: 18px 0; height: 0; }
-/* 主站顶栏三栏（2026-10-22，只在主站，不进共享外壳；子管理员条照旧只有页名）：主页 / 聊天 / 设置这三页（2026-10-24 PR4 第三栏由「状态」换成「设置」）的长条里是三个标签 .sgx-tb-tab
+/* 主站顶栏三栏（2026-10-22，只在主站，不进共享外壳；子站的长条照旧只有页名）：主页 / 聊天 / 设置这三页（2026-10-24 PR4 第三栏由「状态」换成「设置」）的长条里是三个标签 .sgx-tb-tab
    （partials/topbar-tabs.html，data/topbar-tabs.yaml），代替页名。标签高 = --sgx-tb-ic（40px），正好填满长条内边距里的高度；
    三等分、宽屏最宽 400px 居中。当前页 aria-current="page" = 导航抽屉当前项同一套 tonal 药丸（--sgx-nav-selected / --sgx-on-nav-selected），
    其他两个是次要文字色，悬停 / 按下走状态层。只用 --sgx-* 角色，不写死颜色。 */

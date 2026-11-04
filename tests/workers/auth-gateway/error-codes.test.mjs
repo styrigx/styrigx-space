@@ -16,7 +16,7 @@
  *
  * KNOWN_FIXED 说明：
  * - auth：lockreset 401，lock.js 按 HTTP 状态 + 固定文案处理
- * - purpose：/api/root-auth 缺 purpose / purpose 不认识（前端总是带四个固定值之一，只在请求被篡改时出现）
+ * - purpose：/api/space-auth 缺 purpose / purpose 不认识（前端总是带四个固定值之一，只在请求被篡改时出现）
  * - code / no-session-key：/api/lock-tempkey-unlock，lock.js submitTemp 按码显示固定文案（无效或已过期 / 服务器错误）
  * - duration / name / full：/api/lock-tempkey create，security-tempkeys.js 显示固定文案（名字太长 / 已满 20 把；duration 只在下拉被篡改时出现）
  * - bad-form / missing / bad-type / too-large：/api/avatar 换头像，avatar-edit.js 只看 ok，失败一律固定文案
@@ -39,7 +39,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 const KNOWN_FIXED = new Set([
   'auth',
-  'purpose', /* /api/root-auth：前端总是带固定 purpose */
+  'purpose', /* /api/space-auth：前端总是带固定 purpose */
   'denied',
   'code', /* /api/lock-tempkey-unlock：lock.js 显示「临时钥匙无效或已过期」 */
   'no-session-key', /* /api/lock-tempkey-unlock：lock.js 显示「服务器错误」 */

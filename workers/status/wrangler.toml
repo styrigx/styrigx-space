@@ -23,7 +23,7 @@
 name = "styrigx-status"
 main = "src/index.js"
 compatibility_date = "2026-10-09"
-# 检查请求按公网发出（同账号同区域的子站也走公网，经过网关和 Pages，和访客看到的一样）
+# 检查请求按公网发出（同账号同区域的子站也走公网，经过网关和 Pages，和外部访问看到的一样）
 compatibility_flags = ["global_fetch_strictly_public"]
 workers_dev = false
 preview_urls = false

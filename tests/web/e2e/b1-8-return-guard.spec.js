@@ -8,7 +8,7 @@
  *
  * 两条路径：
  * A. 会话已经有效时被踢回（initLock 分支）
- * B. 会话无效、访客解锁后被踢回（handleSessionOk 分支）
+ * B. 会话无效、用临时钥匙解锁后被踢回（handleSessionOk 分支）
  *
  * 时钟：不 mock，直接把 sessionStorage 记录的时间改到 10 / 25 秒前。
  * sessionStorage 只在每个测试开始时清一次。
@@ -103,7 +103,7 @@ async function mockSessionCheck(page) {
     if (page.__locked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
     const ret = new URL(route.request().url()).searchParams.get('return');
     await route.fulfill({ status: 200, contentType: 'application/json',
-      body: JSON.stringify({ ok: true, role: 'visitor', next: ret || null, upgrade: false }) });
+      body: JSON.stringify({ ok: true, by: 'tempkey', exp: Date.now() + 3600e3, next: ret || null }) });
   });
 }
 
@@ -311,7 +311,7 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
   });
 });
 
-test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
+test.describe('B1-8 路径B：会话无效、用临时钥匙解锁后被踢回', () => {
   const TARGET = TARGET_DAYMARK;
 
   test.beforeEach(async ({ page }) => {
@@ -322,14 +322,14 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
     await blockJsNavigation(page);
     trackJumps(page);
     await mockSessionCheck(page);
-    /* 访客入口：临时钥匙，/api/lock-tempkey-unlock 成功 → 会话生效 */
+    /* 临时钥匙入口：/api/lock-tempkey-unlock 成功 → 会话生效 */
     await page.route('**/api/lock-tempkey-unlock', async (route) => {
       page.__locked = false;
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     });
   });
 
-  /* 访客解锁流程：解锁 → session-check?return → proceed（回跳或失败卡） */
+  /* 临时钥匙解锁流程：解锁 → session-check?return → proceed（回跳或失败卡） */
   async function unlockAsVisitor(page, target, why) {
     page.__locked = true;
     resetJumpTrace(page);
@@ -338,7 +338,7 @@ test.describe('B1-8 路径B：会话无效、访客解锁后被踢回', () => {
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     await page.click('#sgx-lock-avatar');
     await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
-    await page.click('#sgx-mopt-visitor');
+    await page.click('#sgx-mopt-tempkey');
     await page.fill('#sgx-temp-input', 'AAAA-BBBB-CCCC');
     await page.click('#sgx-temp-go');
     /* 等 handleSessionOk 跑完 */

@@ -1,5 +1,5 @@
 {{/* 安全与隐私 → 锁屏凭证（/settings/security/lock/）。
-   这是安全操作页：每次进页都要先过门 —— 锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 根凭证（一直在），
+   这是安全操作页：每次进页都要先过门 —— 锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 进站凭证（一直在），
    通过后签 3 分钟LockReauthTicket（SGX_LOCK_* 签），页内倒计时；离开本页reauth 票立即作废，再进重新验证。
    门内：解锁密码、锁屏通行密钥、会话（退出所有设备）。重置锁屏（reset 票）直接进门内。
    noindex、不进 sitemap（见 baseof/sitemap）。
@@ -10,7 +10,7 @@
 
 <div class="set-layout lock-page pb-28">
 
-  <!-- 门：每次进页验一次锁屏凭证或根凭证（JS 渲染验证行） -->
+  <!-- 门：每次进页验一次锁屏凭证或进站凭证（JS 渲染验证行） -->
   <div id="lock-reauth" hidden>
     <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Verify it's you{{ else }}验证身份{{ end }}</span></h2>
     <p class="sec-note mb-3">{{ if $isEn }}Changing lock screen credentials is a security action. Verify to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改锁屏凭证属于安全操作，请先验证。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
@@ -139,12 +139,12 @@
   "mPasskeySub" (dict "zh" "使用指纹或设备锁屏" "en" "Use fingerprint or device screen lock")
   "mPassword" (dict "zh" "解锁密码" "en" "Unlock password")
   "mPasswordSub" (dict "zh" "输入解锁密码" "en" "Enter unlock password")
-  "mRoot" (dict "zh" "根凭证" "en" "Root credential")
-  "mRootSub" (dict "zh" "粘贴或输入根凭证" "en" "Paste or enter root credential")
+  "mSpace" (dict "zh" "进站凭证" "en" "Space credential")
+  "mSpaceSub" (dict "zh" "粘贴或输入进站凭证" "en" "Paste or enter space credential")
   "verifyBtn" (dict "zh" "验证" "en" "Verify")
   "enterCred" (dict "zh" "请输入凭证" "en" "Enter credential")
   "passkeyBusy" (dict "zh" "正在唤起通行密钥…" "en" "Opening passkey…")
-  "errWrongRoot" (dict "zh" "根凭证不正确" "en" "Incorrect root credential")
+  "errWrongSpace" (dict "zh" "进站凭证不正确" "en" "Incorrect space credential")
   "outAllTitle" (dict "zh" "退出所有设备？" "en" "Sign out of all devices?")
   "outAllDesc" (dict "zh" "所有设备（包括本机）都会回到锁屏，需要重新解锁" "en" "Every device, this one included, returns to the lock screen and must unlock again.")
   "outAllBtn" (dict "zh" "退出" "en" "Sign out")

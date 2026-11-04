@@ -3,31 +3,29 @@
  * 锁屏弹层里的「无法登录？」→ 弹层原地切到同一个界面。两处只是提交函数不同。
  *
  * 流程（服务端决定下一步）：
- * 1. 根密钥（全站唯一的根密钥输入框 createRootField；锁屏重置交锁屏根密钥，账号重置交账号根密钥）→ submitRoot(key)
+ * 1. 兜底凭证（全站唯一的兜底凭证输入框 createKeyField；种类由调用方给：锁屏重置交进站凭证 keyKind='space'，
+ *    账号重置交账号根凭证 keyKind='root'）→ submitKey(key)
  *    - resolve {}（或 { done:true }）→ 完成 → onDone()
  *    - resolve { needLock: { passkey, password } } → 第 2 步（只有锁屏重置会出现：恢复开关无效时，账号拆分 PR3）
  *    - reject { message, clear? } → 行内报错
  * 2. 锁屏凭证（与锁屏解锁同一类凭证，验证行 auth/cred-rows.js：锁屏通行密钥 / 解锁密码，按服务端给的配置显示）
- *    → lock.passkey() / lock.password(value)（调用方把第 1 步的根密钥一起提交）→ onDone()
+ *    → lock.passkey() / lock.password(value)（调用方把第 1 步的凭证一起提交）→ onDone()
  *
- * 根密钥只存在闭包里，完成 / 卸载即清空，不挂 window、不留在 DOM。
- * 文案自带中英（锁屏在每个页面都可能出现，不依赖账号页的 i18n 表）。
+ * 第 1 步的凭证只存在闭包里，完成 / 卸载即清空，不挂 window、不留在 DOM。
+ * 锁屏侧文案自带中英（锁屏在每个页面都可能出现，不依赖账号页的 i18n 表）；第 1 步的凭证文案由调用方按种类给（keyText）。
  * 本文件在 lib/ 层：不 import shell/ 或 apps/。
  */
 import { onEnter, focusNoScroll } from './auth-flow.js';
 import { bindSubmitButton } from '../lib/dialog-behavior.js';
-import { renderCredRows, createRootField, CRED_ICONS } from './cred-rows.js';
+import { renderCredRows, createKeyField, CRED_ICONS } from './cred-rows.js';
 import { KEY_LOCK } from '../lib/key-names.js';
 
 const TXT = {
   title: { zh: '重置登录', en: 'Reset sign-in' },
-  step1: { zh: '先用根凭证验证身份', en: 'First, verify with your root credential' },
-  rootPh: { zh: '根凭证', en: 'Root credential' },
   next: { zh: '下一步', en: 'Continue' },
-  enterRoot: { zh: '请输入根凭证', en: 'Enter root credential' },
   step2: { zh: '再验证一次锁屏凭证', en: 'Now verify your lock credential' },
   noLock: { zh: '锁屏还没有设置凭证，无法用锁屏凭证验证。', en: 'No lock credential is set, so it can’t be used to verify.' },
-  recover: { zh: '锁屏凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效', en: 'Lock credential unavailable too? Enable one-time recovery in the site admin, valid for 24 hours.' },
+  recover: { zh: '锁屏凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效', en: 'Lock credential unavailable too? Enable one-time recovery in the site dashboard, valid for 24 hours.' },
   mPasskey: { zh: '锁屏通行密钥', en: 'Lock passkey' },
   mPasskeySub: { zh: '使用指纹或设备锁屏', en: 'Use fingerprint or device screen lock' },
   mPassword: { zh: '解锁密码', en: 'Unlock password' },
@@ -52,29 +50,32 @@ export function resetT(en) {
  * @param {object} o
  * @param {HTMLElement} o.el 容器
  * @param {boolean} o.en
- * @param {(key: string) => Promise<{needLock?: {passkey?: boolean, password?: boolean}}|void>} o.submitRoot
- * @param {(rootKey: string) => {passkey: () => Promise<any>, password: (v: string) => Promise<any>}} [o.lock] 第 2 步提交（锁屏凭证）
+ * @param {string} o.keyKind 第 1 步凭证的种类（输入框 id 后缀）：锁屏侧 'space'，账号侧 'root'
+ * @param {string} o.pmUser 第 1 步输入框的隐藏用户名：锁屏侧 KEY_SPACE，账号侧 KEY_ROOT
+ * @param {{lead: string, ph: string, empty: string}} o.keyText 第 1 步文案（已按语言选好）：引导句、占位、空值提示
+ * @param {(key: string) => Promise<{needLock?: {passkey?: boolean, password?: boolean}}|void>} o.submitKey
+ * @param {(key: string) => {passkey: () => Promise<any>, password: (v: string) => Promise<any>}} [o.lock] 第 2 步提交（锁屏凭证）
  * @param {() => void} o.onDone
- * @param {(step: 'root'|'lock') => void} [o.onStep]
+ * @param {(step: 'key'|'lock') => void} [o.onStep]
  * @param {boolean} [o.autofocus] 默认 true
  * @returns {{destroy: () => void}}
  */
 export function mountResetFlow(o) {
   const t = resetT(o.en);
   const el = o.el;
-  let rootKey = '';
+  let firstKey = '';
   let alive = true;
 
   function step1() {
     el.textContent = '';
-    if (o.onStep) o.onStep('root');
+    if (o.onStep) o.onStep('key');
     const wrap = document.createElement('div');
     wrap.className = 'sgx-reset';
-    wrap.dataset.step = 'root';
+    wrap.dataset.step = 'key';
     const lead = document.createElement('p');
     lead.className = 'sgx-reset-lead';
-    lead.textContent = t('step1');
-    const rf = createRootField({ id: 'sgx-reset-root', placeholder: t('rootPh'), en: o.en });
+    lead.textContent = o.keyText.lead;
+    const rf = createKeyField({ id: 'sgx-reset-' + o.keyKind, placeholder: o.keyText.ph, pmUser: o.pmUser, en: o.en });
     const err = document.createElement('p');
     err.className = 'sgx-credential-err';
     err.id = 'sgx-reset-err';
@@ -95,21 +96,21 @@ export function mountResetFlow(o) {
       const v = rf.input.value;
       err.hidden = true;
       if (!v) {
-        err.textContent = t('enterRoot');
+        err.textContent = o.keyText.empty;
         err.hidden = false;
         return;
       }
       busy = true;
       go.disabled = true;
-      o.submitRoot(v).then(function (r) {
+      o.submitKey(v).then(function (r) {
         if (!alive) return;
         if (r && r.needLock) {
-          rootKey = v;
+          firstKey = v;
           rf.input.value = '';
           step2(r.needLock);
           return;
         }
-        rootKey = '';
+        firstKey = '';
         rf.input.value = '';
         o.onDone();
       }, function (e) {
@@ -146,10 +147,10 @@ export function mountResetFlow(o) {
     hint.className = 'sgx-reset-recover-hint';
     hint.textContent = t('recover');
     el.appendChild(wrap);
-    const sub = o.lock ? o.lock(rootKey) : null;
+    const sub = o.lock ? o.lock(firstKey) : null;
     const guard = function (fn) {
       return function (/** @type {any} */ v) {
-        if (!rootKey) return Promise.reject({ message: t('sessionLost') });
+        if (!firstKey) return Promise.reject({ message: t('sessionLost') });
         return fn(v);
       };
     };
@@ -169,7 +170,7 @@ export function mountResetFlow(o) {
         defs: defs,
         onSuccess: function () {
           if (!alive) return;
-          rootKey = '';
+          firstKey = '';
           o.onDone();
         },
       });
@@ -181,7 +182,7 @@ export function mountResetFlow(o) {
   return {
     destroy: function () {
       alive = false;
-      rootKey = '';
+      firstKey = '';
       try { if (first) first.value = ''; } catch (e) {}
       el.textContent = '';
     },

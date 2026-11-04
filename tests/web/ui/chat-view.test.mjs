@@ -238,7 +238,7 @@ test('文案：apps/chat.js 用到的 key 在 chat-i18n.html 里都有中英', (
   const app = readFileSync(new URL('../../../web/atlas/assets/js/apps/chat.js', import.meta.url), 'utf8');
   const used = new Set([...app.matchAll(/\bt\('([A-Za-z0-9]+)'\)/g)].map((m) => m[1]));
   for (const k of ['errRate', 'errNoKey', 'errTooLong', 'errUpstream', 'errRateModel', 'errModel', 'errBadModel']) used.add(k);
-  for (const k of ['errAuth', 'errAuthSub', 'adminOnly', 'adminOnlySub', 'needAccount', 'needAccountSub', 'signInAccount', 'stop', 'send']) used.add(k);
+  for (const k of ['errAuth', 'errAuthSub', 'needAccount', 'needAccountSub', 'signInAccount', 'stop', 'send']) used.add(k);
   for (const k of used) {
     assert.ok(dict[k], 'chat-i18n.html 缺文案：' + k);
     assert.ok(dict[k].zh && dict[k].en, k);
@@ -252,8 +252,9 @@ test('文案：apps/chat.js 用到的 key 在 chat-i18n.html 里都有中英', (
   assert.deepEqual(dict.web, { zh: '联网', en: 'Web' });
   assert.deepEqual(dict.noWeb, { zh: '不联网', en: 'No web' });
   assert.deepEqual(dict.noWebUsed, { zh: '未联网', en: 'No web' });
-  assert.equal(dict.adminOnly.zh, '聊天仅管理员可用');
-  assert.equal(dict.adminOnly.en, 'Chat is admin-only');
+  /* P2-3：按角色拦的卡已删（聊天只看账号会话） */
+  assert.equal(dict.adminOnly, undefined);
+  assert.equal(dict.adminOnlySub, undefined);
   /* P2-2：401 account →「登录账号后可用」卡 */
   for (const k of ['needAccount', 'needAccountSub', 'signInAccount']) assert.ok(dict[k] && dict[k].zh && dict[k].en, k);
   assert.equal(dict.needAccount.zh, '登录账号后可用');

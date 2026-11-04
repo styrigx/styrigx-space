@@ -41,9 +41,9 @@ test('搜索：主题 → 主题模式排在壁纸和主题前；按语言过滤
   assert.deepEqual(search(IX, { q: '深色', lang: 'zh' }).map((h) => h.title), ['主题模式']);
 });
 
-test('私密：没账号会话搜不到，showPrivate 才能搜到；旧参数 admin 不再认', () => {
+test('私密：没账号会话搜不到，showPrivate 才能搜到；旧的等级参数不再认', () => {
   assert.equal(search(IX, { q: '账号', lang: 'zh' }).length, 0);
-  assert.equal(search(IX, { q: '账号', lang: 'zh', admin: true }).length, 0);
+  assert.equal(search(IX, { q: '账号', lang: 'zh', admin: true }).length, 0); // old-name guard
   assert.equal(search(IX, { q: '账号', lang: 'zh', showPrivate: true }).length, 1);
 });
 
@@ -56,7 +56,7 @@ function kvOf(map) {
   return { async get(k, t) { const v = map[k]; return v === undefined ? null : t === 'json' ? JSON.parse(v) : v; } };
 }
 
-test('入口：GET /search 回结果、不回正文；只认账号结论头 X-Styrigx-Account-Session: 1，旧头 X-Sgx-Role: admin 不给私密；没 KV 503', async () => {
+test('入口：GET /search 回结果、不回正文；只认账号结论头 X-Styrigx-Account-Session: 1，旧角色头不给私密；没 KV 503', async () => {
   _resetCache();
   const env = { KV_SEARCH_INDEX: kvOf({ 'site:space': JSON.stringify(IX[0]), 'site:blog': JSON.stringify(IX[1]) }) };
   let r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('主题模式') + '&lang=zh'), env);
@@ -66,7 +66,7 @@ test('入口：GET /search 回结果、不回正文；只认账号结论头 X-St
   assert.equal(j.hits[0].text, undefined);
   r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号')), env);
   assert.equal((await r.json()).hits.length, 0);
-  r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号'), { headers: { 'X-Sgx-Role': 'admin' } }), env);
+  r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号'), { headers: { 'X-Sgx-Role': 'admin' } }), env); // old-name guard
   assert.equal((await r.json()).hits.length, 0, '旧角色头不再给私密');
   r = await worker.fetch(new Request('https://x/search?q=' + encodeURIComponent('账号'), { headers: { 'X-Styrigx-Account-Session': 'yes' } }), env);
   assert.equal((await r.json()).hits.length, 0, '只认值 1');

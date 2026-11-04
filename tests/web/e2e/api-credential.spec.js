@@ -19,7 +19,7 @@ const PORT = 8937;
 
 let t; // { kv, env, origin, mintAuth, makeAttestationCredential, close }
 
-/* 按当前 Lock 纪元重签 admin 锁屏会话 + LockReauthTicket，写入浏览器 context。
+/* 按当前 Lock 纪元重签 锁屏进门会话 + LockReauthTicket，写入浏览器 context。
    set/change/remove/register 会推进 epoch，每次鉴权操作前都重签。 */
 async function mintBrowserAuth(context, reauthBy) {
   const { sessionCookie, reauthCookie } = await t.mintAuth(reauthBy);
@@ -39,7 +39,7 @@ async function mintBrowserAccount(context, by, authAt) {
   ]);
 }
 
-/* AccountResetTicket 写入浏览器 context（RootKey 只签重置票，不签账号会话） */
+/* AccountResetTicket 写入浏览器 context（账号根凭证只签重置票，不签账号会话） */
 async function mintBrowserAccountReset(context) {
   const x = await t.mintAccountReset();
   await context.addCookies([{ name: 'sgx-account-reset', value: x, domain: 'localhost', path: '/' }]);
@@ -107,8 +107,8 @@ test.describe('credential APIs 真请求 e2e', () => {
 
   test('账号密码 set/change（/api/account；D1 password 表的 account 行，account-epoch 在 D1）', async ({ page, context }) => {
     const d1 = t.d1;
-    await mintBrowserAuth(context, 'root');
-    // 第一次设账号密码：没有账号会话，凭根凭证签的 AccountResetTicket
+    await mintBrowserAuth(context, 'space');
+    // 第一次设账号密码：没有账号会话，凭账号根凭证签的 AccountResetTicket
     await mintBrowserAccountReset(context);
     let r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-222' });
     expect(r.json.ok).toBe(true);
@@ -116,7 +116,7 @@ test.describe('credential APIs 真请求 e2e', () => {
     const rec1 = d1.password('account');
     expect(rec1 && rec1.hash).toBeTruthy();
     // 首次配置推进了 lock-epoch：重签 lock 会话；之后用账号会话 + AccountReauthTicket 改密码
-    await mintBrowserAuth(context, 'root');
+    await mintBrowserAuth(context, 'space');
     await context.clearCookies({ name: 'sgx-account-reset' });
     await mintBrowserAccount(context, 'password');
     r = await apiFetch(page, '/api/account', { action: 'password-change', password: 'AccountPass-333' });

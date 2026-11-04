@@ -2,14 +2,14 @@
  * 锁屏凭证的门 E2E（静态构建 + API mock，无需真实后端）。
  *
  * stepup / 管理凭证 / 应用凭证已删除：安全与隐私只留「锁屏凭证」一个入口，门在锁屏凭证页本身——
- * 每次进页验一次锁屏凭证（锁屏通行密钥 / 解锁密码，设了哪个显示哪个）或根凭证（一直在），
+ * 每次进页验一次锁屏凭证（锁屏通行密钥 / 解锁密码，设了哪个显示哪个）或进站凭证（一直在），
  * 换 3 分钟LockReauthTicket（POST /api/lock-reauth status 读状态；lock-password verify / lock-passkey auth 带 reauth:true、
- * root-auth purpose:'lock-reauth' 签票），页内倒计时；剩余时间内刷新 / 离开再回来不用重新验证（2026-10-24）。
+ * space-auth purpose:'lock-reauth' 签票），页内倒计时；剩余时间内刷新 / 离开再回来不用重新验证（2026-10-24）。
  *
  * 覆盖：
  * - 安全与隐私：锁屏凭证行链到锁屏凭证页，没有「管理凭证」
- * - 门口按已设置的锁屏凭证显示入口；都没设只显示根凭证
- * - 解锁密码 / 根凭证进门 → 门内 + 倒计时；密码错误留在门口
+ * - 门口按已设置的锁屏凭证显示入口；都没设只显示进站凭证
+ * - 解锁密码 / 进站凭证进门 → 门内 + 倒计时；密码错误留在门口
  * - 验证后刷新reauth 票仍在（倒计时按服务端剩余时间），到期回门口；管理区操作返回 403 reauth → 到期框「重新验证」→ 回到门口
  * - 通行密钥列表加载中显示占位，不出现空列表
  * - A-1：连续 10 次进门都成功、无 JS 错误
@@ -67,7 +67,7 @@ async function mockLockDoor(page, opts) {
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
   });
-  await page.route('**/api/root-auth', async (route) => {
+  await page.route('**/api/space-auth', async (route) => {
     let body = {};
     try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
     st.roots++;
@@ -115,24 +115,24 @@ test.describe('安全与隐私：只剩锁屏凭证入口', () => {
 test.describe('锁屏凭证的门', () => {
   test.beforeEach(async ({ page }) => { await setup(page); });
 
-  test('只设了解锁密码：门口显示解锁密码 + 根凭证；门内区不渲染', async ({ page }) => {
+  test('只设了解锁密码：门口显示解锁密码 + 进站凭证；门内区不渲染', async ({ page }) => {
     await mockLockDoor(page, { password: true, passkey: false });
     await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#lock-reauth')).toBeVisible({ timeout: 15000 });
     const rows = page.locator('#lock-reauth-methods .sgx-credential-row');
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(0)).toContainText('解锁密码');
-    await expect(rows.nth(1)).toContainText('根凭证');
+    await expect(rows.nth(1)).toContainText('进站凭证');
     await expect(page.locator('#lockmgr')).toBeHidden();
     await expect(page.locator('#sgx-credential-countdown')).toHaveCount(0);
   });
 
-  test('锁屏凭证都没设：只显示根凭证', async ({ page }) => {
+  test('锁屏凭证都没设：只显示进站凭证', async ({ page }) => {
     await mockLockDoor(page, { password: false, passkey: false });
     await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
     const rows = page.locator('#lock-reauth-methods .sgx-credential-row');
     await expect(rows).toHaveCount(1, { timeout: 15000 });
-    await expect(rows.first()).toContainText('根凭证');
+    await expect(rows.first()).toContainText('进站凭证');
   });
 
   test('解锁密码再验证（reauth:true）→ 门内 + 倒计时；错误密码留在门口', async ({ page }) => {
@@ -153,10 +153,10 @@ test.describe('锁屏凭证的门', () => {
     expect(st.verifies.every((b) => b.reauth === true)).toBe(true);
   });
 
-  test('根凭证进门：/api/root-auth { key }（不带 target）→ 门内', async ({ page }) => {
+  test('进站凭证进门：/api/space-auth { key }（不带 target）→ 门内', async ({ page }) => {
     const st = await mockLockDoor(page);
     await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
-    await page.locator('#lock-reauth-methods .sgx-credential-row').filter({ hasText: '根凭证' }).click();
+    await page.locator('#lock-reauth-methods .sgx-credential-row').filter({ hasText: '进站凭证' }).click();
     await page.locator('#lock-reauth-methods .sgx-credential-expand input[type="password"]').fill('root-key-1');
     await page.locator('#lock-reauth-methods .sgx-credential-btn-primary').click();
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 10000 });
@@ -253,7 +253,7 @@ test.describe('A-1 进门不能马上被判过期（10 次连续进门）', () =
 
 test.describe('A-3 验证行样式', () => {
   test.beforeEach(async ({ page }) => {
-    /* PR3：账号登录页改成按钮，验证行样式改在锁屏凭证的门口量（解锁密码 + 根凭证两行） */
+    /* PR3：账号登录页改成按钮，验证行样式改在锁屏凭证的门口量（解锁密码 + 进站凭证两行） */
     await setup(page);
     await mockLockDoor(page);
     await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });

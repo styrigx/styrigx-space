@@ -1,7 +1,7 @@
 /**
  * 网关剥头与转发帮手（账号拆分 PR3，方案第 3 节）。
  *
- * - stripRequest(request)：网关 fetch 第一步，删掉入站请求里所有 x-styrigx-* 和 x-sgx-role（之后的主站、子站回源、静态直通、转发用的都是剥过的请求）
+ * - stripRequest(request)：网关 fetch 第一步，删掉入站请求里所有 x-styrigx-* 和 x-sgx-*（之后的主站、子站回源、静态直通、转发用的都是剥过的请求）
  * - clientContextOf(request)：客户端上下文（IP 用 lib/http.js clientIp() 读 CF-Connecting-IP，国家城市读 request.cf）
  * - forwardToService(svc, target, lockSession, clientContext)：用 target（浏览器的请求，fetch 第一步已剥过头）构造一个新请求，
  *   再剥一次头、按验过的锁屏会话写全套身份头 + 客户端上下文头（lib/lock-identity.js writeLockIdentity），交给服务绑定 svc.fetch。

@@ -320,7 +320,7 @@ for (const lang of DOOR_LANGS) {
 }
 
 /* ===== 子页（只拍手机）：账号子页（2026-10-24 PR4）云同步（总开关 + 同步项）/ 设备（此设备卡：登录方式 + 退出账号）；
- * 设置里的管理员专属页：服务状态（/settings/status/，原顶栏「状态」页 → 账号页 → 设置）/ 临时钥匙（/settings/security/tempkeys/，原账号 → 临时钥匙）=====
+ * 设置里的门内页：服务状态（/settings/status/，原顶栏「状态」页 → 账号页 → 设置）/ 临时钥匙（/settings/security/tempkeys/，原账号 → 临时钥匙）=====
  * 截图名 mobile-<stem>-<lang>-<theme>：账号子页 stem = account-sub-<id>，设置页 stem = settings-status / settings-tempkeys（2026-11 从 account-sub-status / account-sub-tempkeys 改名，页面内容不变）。
  * 手机 412×915 × 中英 × 深浅色。/api/status 用 tests/fixtures/status-summary.cjs（含用量），/api/account 固定已登录（设置页不读它）、设备列表固定两台。 */
 const fxStatus = require('../../fixtures/status-summary.cjs');
@@ -374,9 +374,9 @@ for (const lang of LANGS) {
   }
 }
 
-/* ===== 服务状态页底「根凭证使用记录」展开态（2026-10-26）：手机 412×915 × 中英 × 深浅色 =====
+/* ===== 服务状态页底「进站凭证使用记录」展开态（2026-10-26）：手机 412×915 × 中英 × 深浅色 =====
  * 默认收起态已在 mobile-settings-status-*（首屏，不含页底折叠区）；这里点开摘要、等两条记录渲染完，把折叠区滚到视口里拍首屏。
- * 数据：/api/status 同 settings-status；/api/root-audit 固定两条（一条成功、一条失败），时间相对 fxStatus.NOW。 */
+ * 数据：/api/status 同 settings-status；/api/space-audit 固定两条（一条成功、一条失败），时间相对 fxStatus.NOW。 */
 const AUDIT_ITEMS = [
   { ts: fxStatus.NOW - 30 * 60 * 1000, ipPrefix: '203.0.113.x', ok: true },
   { ts: fxStatus.NOW - 26 * 3600 * 1000, ipPrefix: '2001:db8:1:2::x', ok: false },
@@ -392,7 +392,7 @@ for (const lang of LANGS) {
         body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'passkey', authAt: 1760000000000, expiresAt: 4102444800000, recent: true } }) }));
       await pg.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
         body: JSON.stringify(fxStatus.withUsage(fxStatus.normal(), fxStatus.usage())) }));
-      await pg.route('**/api/root-audit', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+      await pg.route('**/api/space-audit', (route) => route.fulfill({ status: 200, contentType: 'application/json',
         body: JSON.stringify({ ok: true, items: AUDIT_ITEMS }) }));
       await pg.addInitScript(([t, ln]) => {
         try {

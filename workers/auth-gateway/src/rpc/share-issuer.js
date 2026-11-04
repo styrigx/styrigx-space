@@ -1,15 +1,15 @@
 /**
  * @fileoverview 服务绑定 RPC 入口 ShareIssuer（2026-10-24）：分享短链 Worker styrigx-share（workers/share）专用的单独入口——
- * 签 / 作废短链钥匙、点开时换访客会话。逻辑在 core/link-keys.js（node 单测直接测它）。
+ * 签 / 作废短链钥匙、点开时换锁屏进门会话。逻辑在 core/link-keys.js（node 单测直接测它）。
  * 只有 styrigx-share 的 wrangler.toml 绑定它（entrypoint = "ShareIssuer"），拿 AuthVerifier 的 Worker 调不到；公网路由进不来。
  */
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { resolveSecrets } from '../secrets.js';
-import { createLinkKey, revokeLinkKey, openLinkSession } from '../core/link-keys.js';
+import { createLinkKey, revokeLinkKey, openLinkSession, checkLinkReauth } from '../core/link-keys.js';
 
 export class ShareIssuer extends WorkerEntrypoint {
   /**
-   * 签一把短链钥匙（只要管理员锁屏会话）。
+   * 签一把短链钥匙（要进门 + 锁侧复验；没复验 → { ok:false, error:'reauth' }）。
    * @param {string} cookieHeader
    * @param {{hours?:number, days?:number, name?:string}} p
    */
@@ -18,7 +18,7 @@ export class ShareIssuer extends WorkerEntrypoint {
   }
 
   /**
-   * 作废短链钥匙（只要管理员锁屏会话）。
+   * 作废短链钥匙（要进门 + 锁侧复验）。
    * @param {string} cookieHeader
    * @param {string} id
    */
@@ -27,7 +27,15 @@ export class ShareIssuer extends WorkerEntrypoint {
   }
 
   /**
-   * 访客点开带会话的短链：签 visitor 会话 + 钥匙票，只回 Set-Cookie 值。
+   * 只判断「进门 + 锁侧复验」（不经 createLinkKey 的生成路径和作废前用）：{ ok } / { ok:false, error:'session'|'reauth'|'config' }。
+   * @param {string} cookieHeader
+   */
+  async checkReauth(cookieHeader) {
+    return checkLinkReauth(cookieHeader, await resolveSecrets(this.env));
+  }
+
+  /**
+   * 点开带会话的短链：签锁屏进门会话（by=tempkey），只回 Set-Cookie 值。
    * @param {string} id
    * @param {number} sessionSec
    */

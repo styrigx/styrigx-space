@@ -3,11 +3,12 @@
  * - 读网关注入的 <html data-sgx-lock-session> 判断页面状态；valid 页只绑自动锁定（切回前台问服务端，401 → 重载）
  * - locked / unknown：先同步盖一层不透明遮罩（fail closed，和以前直接画锁屏同一时刻），再 import() 锁屏界面（shell/lock.js）；
  *   界面加载失败时遮罩不撤，只给「重新加载」按钮——绝不因为脚本没取到而露出页面
- * - 访客升级（data-sgx-upgrade="1"）：同样按需 import() shell/upgrade.js
- * 锁屏界面、升级层、auth-sheet / auth-flow / reset-flow / passkey-assert 这些只在锁屏 / 升级时用的模块因此不在每页的 core 里。
+ * 锁屏界面、auth-sheet / auth-flow / reset-flow / passkey-assert 这些只在锁屏时用的模块因此不在每页的 core 里。
+ * 进门二值（P2-3）：没有等级、没有升级验证层；进门之后的事（锁侧复验、账号）由各页自己要。
  * 去处判定（askServer / proceed）和本地开发判断放这里，锁屏界面从这里 import，两边是同一份。
  */
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
+import { lockState } from '../lib/lock-state.js';
 
 /**
  * 是否本地开发（无 Functions 后端）。
@@ -25,10 +26,10 @@ export function isLocalDev() {
    - 页面状态 pageState()：网关注入的 <html data-sgx-lock-session>：
        valid / locked / lock-reset；没有这个属性 = unknown（页面没经过网关，例如路由漏了这种 URL，
        或缓存/测试环境）。unknown 一律先画锁屏（fail closed），并立刻问服务端。
-   - 服务端回答 askServer()：GET /api/lock-session-check[?return=]：{ok, role, next, upgrade}。
+   - 服务端回答 askServer()：GET /api/lock-session-check[?return=]：{ok, by, exp, next}。
      next 是服务端校验过的去处（与首页 302 同一个 resolveReturn）；前端不做白名单，只照着跳。
+     by（进门方式）只用于展示，记进 lib/lock-state.js 的 lockState.lockBy（方案 3.7）；不分等级。
    - 解锁成功 / 切回标签页 / bfcache 恢复 / 首帧对账，都走同一个 proceed(answer)：
-       upgrade      → 去首页 ?return=（服务端给 admin 验证层，不出锁屏）
        next 是别处  → location.replace(next)（子站或站内原页面）
        没有 next    → 页面是 locked（锁屏态被瘦身过）就换到干净地址重新取一次（服务端画 valid），
                       valid / unknown 就原地开锁并把地址里的 lock/why/return 去掉
@@ -55,7 +56,7 @@ export function qp(k) {
 
 /**
  * 问服务端：会话是否有效、带 return 时该去哪。失败（401/网络）→ {ok:false}。
- * @returns {Promise<{ok:boolean, role?:string, next?:string|null, upgrade?:boolean}>}
+ * @returns {Promise<{ok:boolean, by?:string, exp?:number, next?:string|null}>}
  */
 export function askServer() {
   const ret = qp('return');
@@ -65,7 +66,11 @@ export function askServer() {
       if (!r.ok) return { ok: false };
       return r.json().catch(function () { return { ok: false }; });
     })
-    .then(function (d) { return d && d.ok === true ? d : { ok: false }; })
+    .then(function (d) {
+      if (!d || d.ok !== true) return { ok: false };
+      lockState.lockBy = typeof d.by === 'string' ? d.by : '';
+      return d;
+    })
     .catch(function () { return { ok: false }; });
 }
 
@@ -148,18 +153,12 @@ function reloadGuardOk(url) {
 
 /**
  * 服务端已确认会话有效后的唯一去处判定。
- * @param {{next?:string|null, upgrade?:boolean}} ans
+ * @param {{next?:string|null}} ans
  * @param {() => void} unlockInPlace 原地开锁（锁屏态时是开锁动画；valid 页面是空操作）
  * @returns {'navigate'|'in-place'|'failure'}
  */
 export function proceed(ans, unlockInPlace) {
   const why = qp('why');
-  if (ans.upgrade && ans.next) {
-    /* 访客 + admin 专属去处：首页 ?return= 由服务端给 admin 验证层（不出锁屏） */
-    const home = document.documentElement.lang === 'en' ? '/en/' : '/';
-    sgxReplace(home + '?return=' + encodeURIComponent(ans.next));
-    return 'navigate';
-  }
   if (ans.next) {
     if (why && checkSubsiteLoop(ans.next)) {
       unlockInPlace();
@@ -235,9 +234,8 @@ export function initLock() {
   if (state === 'lock-reset') return; /* LockResetTicket页：落地页需可操作 */
   if (state === 'valid') {
     bindAutoLock();
-    /* 子站踢回（带 why）但主站会话有效：问服务端 next，回子站（20 秒窗口防死循环）。
-       admin 验证页（data-sgx-upgrade）带 return 但不能跳走。 */
-    if (qp('why') && qp('return') && document.documentElement.getAttribute('data-sgx-upgrade') !== '1') {
+    /* 子站踢回（带 why）但主站会话有效：问服务端 next，回子站（20 秒窗口防死循环） */
+    if (qp('why') && qp('return')) {
       askServer().then(function (ans) {
         if (ans.ok) proceed(ans, function () {});
       });
@@ -249,7 +247,7 @@ export function initLock() {
 }
 
 /* ============================================================
-   按需加载锁屏界面 / 升级层（frontend-js #6）
+   按需加载锁屏界面（frontend-js #6）
    ============================================================ */
 
 /** 锁屏界面加载前的遮罩：不透明、盖住整页、挡住点击和读屏（fail closed） */
@@ -308,14 +306,4 @@ export function releaseLockScreen() {
     if (cover) cover.remove();
     document.body.classList.remove('sgx-locked');
   } catch (e) {}
-}
-
-/**
- * 访客升级验证层：页面带 data-sgx-upgrade="1" 时按需加载 shell/upgrade.js 打开。
- */
-export function initUpgrade() {
-  const html = document.documentElement;
-  if (html.getAttribute('data-sgx-upgrade') !== '1') return;
-  const ret = html.getAttribute('data-sgx-upgrade-return') || '/';
-  import('./upgrade.js').then(function (m) { m.openAdminVerify(ret); }).catch(function () {});
 }

@@ -52,9 +52,7 @@ export const ERROR_CODES = Object.freeze({
   unauthorized: [401],
   account: [401],
   denied: [401],
-  role: [403],
   scope: [403], /* 账号作用域不够（P2-2：/api/avatar、/api/prefs；带 scope 字段） */
-  admin_only: [403],
   reauth: [403],
   challenge: [403],
   /* 凭证 */
@@ -92,7 +90,7 @@ export const ERROR_CODES = Object.freeze({
   no_key: [503],
   'sign-failed': [500],
   'session-sign-failed': [500],
-  'invalid-role': [500],
+  'invalid-by': [500],
   'no-session-key': [500],
 });
 

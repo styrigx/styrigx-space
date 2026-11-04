@@ -1,7 +1,7 @@
 /**
  * 服务状态（设置 → 服务状态 /settings/status/）+ 主站顶栏三栏验收。/api/status 一律 mock（tests/fixtures/status-summary.cjs，形状 = workers/status/src/monitor.js summary）。
  * 2026-10-24 PR4：原顶栏「状态」页（/status/，status-page.spec.js）整页挪进账号页，顶栏第三栏换成「设置」；旧地址 404、不跳转。
- * 之后从账号页搬到设置（本文件也随之改名）：/settings/status/（+ /en/），旧地址删除、不跳转；只认管理员锁屏会话，不问账号会话。
+ * 之后从账号页搬到设置（本文件也随之改名）：/settings/status/（+ /en/），旧地址删除、不跳转；只认锁屏进门会话，不问账号会话。
  * - 顶栏：主页 / 聊天 / 设置三页的长条里是三个标签（en：Home / Chat / Settings），当前页 aria-current="page"；点了切页；
  *   其他页（设置子页、服务状态）长条照旧只有页名；长条仍在屏幕正中，标签在长条里居中。
  * - 入口：设置首页分类列表「服务状态」一行（第 7 项，独立页面）→ /settings/status/；账号页没有入口。
@@ -511,7 +511,7 @@ test.describe('聊天页空状态', () => {
 });
 
 /* 2026-10-24 PR4：服务状态挪进账号页；之后从账号页搬到设置（/settings/status/），旧地址删除、不跳转。
-   只认管理员锁屏会话，不问账号会话（不再调 requireAccountSession，不 mock /api/account）。 */
+   只认锁屏进门会话，不问账号会话（不再调 requireAccountSession，不 mock /api/account）。 */
 test.describe('设置 → 服务状态（入口 / 旧地址删除）', () => {
   test.use({ viewport: { width: 412, height: 915 } });
 
@@ -568,9 +568,9 @@ test.describe('设置 → 服务状态（入口 / 旧地址删除）', () => {
   });
 });
 
-/* 根凭证使用记录（2026-10-26）：服务状态页底的折叠区，默认收起；展开才请求 GET /api/root-audit（省 KV 读），
-   页面加载和 60 秒刷新都不碰它；取到以后本页不再重复取；503 可重试，401 只提示重新解锁。本页只有管理员进得来（网关 302 访客），页面不做角色判断。 */
-test.describe('根凭证使用记录', () => {
+/* 进站凭证使用记录（2026-10-26）：服务状态页底的折叠区，默认收起；展开才请求 GET /api/space-audit（省 KV 读），
+   页面加载和 60 秒刷新都不碰它；取到以后本页不再重复取；503 可重试，401 只提示重新解锁。进门的人都能打开本页，接口另要账号会话（P2-3），页面不做身份判断。 */
+test.describe('进站凭证使用记录', () => {
   test.use({ viewport: { width: 412, height: 915 } });
   const ITEMS = [
     { ts: fx.NOW - 30 * 60 * 1000, ipPrefix: '203.0.113.x', ok: true },
@@ -580,7 +580,7 @@ test.describe('根凭证使用记录', () => {
   /** @param {import('@playwright/test').Page} page @param {(n:number)=>{status?:number, body:any}} reply */
   async function mockAudit(page, reply) {
     const calls = [];
-    await page.route('**/api/root-audit', async (route) => {
+    await page.route('**/api/space-audit', async (route) => {
       calls.push(route.request());
       const r = reply(calls.length);
       await route.fulfill({ status: r.status || 200, contentType: 'application/json; charset=utf-8', body: JSON.stringify(r.body) });
@@ -595,7 +595,7 @@ test.describe('根凭证使用记录', () => {
     const det = page.locator('#st-audit');
     await expect(det).toBeVisible();
     expect(await det.evaluate((el) => /** @type {HTMLDetailsElement} */ (el).open)).toBe(false);
-    await expect(page.locator('#st-audit-h')).toHaveText('根凭证使用记录');
+    await expect(page.locator('#st-audit-h')).toHaveText('进站凭证使用记录');
     await expect(det.locator('summary')).toContainText('最近 7 天：时间、IP 前缀和结果');
     await page.clock.fastForward(61 * 1000);
     await expect.poll(() => status.length).toBe(2);
@@ -639,7 +639,7 @@ test.describe('根凭证使用记录', () => {
     await expect(page.locator('.st-audit-item')).toHaveCount(2);
     expect(audit.length).toBe(2);
 
-    await page.unroute('**/api/root-audit');
+    await page.unroute('**/api/space-audit');
     await mockAudit(page, () => ({ status: 401, body: { ok: false, error: 'session' } }));
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.locator('#st-audit summary').click();
@@ -647,10 +647,10 @@ test.describe('根凭证使用记录', () => {
     await expect(page.locator('[data-audit-retry]')).toHaveCount(0);
   });
 
-  test('英文页：RootKey activity / Succeeded / Failed / 合计行', async ({ page }) => {
+  test('英文页：Space credential activity / Succeeded / Failed / 合计行', async ({ page }) => {
     await go(page, '/en/settings/status/');
     await mockAudit(page, () => ({ body: { ok: true, items: ITEMS } }));
-    await expect(page.locator('#st-audit-h')).toHaveText('RootKey activity');
+    await expect(page.locator('#st-audit-h')).toHaveText('Space credential activity');
     await expect(page.locator('#st-audit summary')).toContainText('Last 7 days: time, IP prefix and result');
     await page.locator('#st-audit summary').click();
     await expect(page.locator('.st-audit-meta')).toHaveText('2 records, 1 failed (Beijing time)');

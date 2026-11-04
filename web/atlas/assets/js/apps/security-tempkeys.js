@@ -1,16 +1,19 @@
 /**
- * @fileoverview 设置 → 安全与隐私 → 临时钥匙（/settings/security/tempkeys/）：给访客的临时 LockKey。
+ * @fileoverview 设置 → 安全与隐私 → 临时钥匙（/settings/security/tempkeys/）：发给别人的临时 LockKey。
  *
- * - 只认管理员锁屏会话（不问账号会话）。进页 POST /api/lock-tempkey { action:'list' }：
+ * - 只认锁屏进门会话（不问账号会话）。进页 POST /api/lock-tempkey { action:'list' }（只要进门）：
  *   lock 会话失效（401 session）→ 提示回锁屏
- * - 「新建临时钥匙」→ 弹层：名字（可空，最多 24 字，只有管理员看得到）+ 有效期（1–24 小时 / 3 / 7 / 15 / 30 天）
+ * - 「新建临时钥匙」→ 弹层：名字（可空，最多 24 字，只在本页列表里显示）+ 有效期（1–24 小时 / 3 / 7 / 15 / 30 天）
  *   → create → 弹层原地换成临时码（只显示这一次）+ 复制
  * - 列表：名字 + 剩余时间（每分钟刷新一次）；「作废」两步确认 → revoke
+ * - 新建 / 作废要锁侧复验（P2-3，方案 3.3）：服务端回 401 reauth 时弹锁侧复验层（auth/lock-reauth.js），通过后自动重试刚才的操作；
+ *   临时钥匙 / 短链进门的会话本身不算复验。
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
 import { postJSON, errText } from '../auth/account-api.js';
+import { withLockReauth, needsLockReauth } from '../auth/lock-reauth.js';
 import { createT } from './account-common.js';
 
 export const TEMPKEY_API = '/api/lock-tempkey';
@@ -63,10 +66,10 @@ export function durationParam(v) {
   /** @type {Array<{id:string, name:string, createdAt:number, expiresAt:number}>} */
   let keys = [];
 
-  /** @param {{s:number, j:any}} res @returns {boolean} 已处理 */
+  /** @param {{s:number, j:any}} res @returns {boolean} 已处理（复验被取消也算：不再报别的错） */
   function authFail(res) {
     if (res.s !== 401) return false;
-    toast(t('sessExp'));
+    if (!needsLockReauth(res)) toast(t('sessExp'));
     return true;
   }
 
@@ -110,8 +113,12 @@ export function durationParam(v) {
       }
       window.clearTimeout(timer);
       btn.disabled = true;
-      postJSON(TEMPKEY_API, { action: 'revoke', id: k.id }).then(function (res) {
-        if (authFail(res)) return;
+      withLockReauth(function () { return postJSON(TEMPKEY_API, { action: 'revoke', id: k.id }); }, { en: en }).then(function (res) {
+        if (authFail(res)) {
+          btn.disabled = false;
+          disarm();
+          return;
+        }
         if ((res.j && res.j.ok) || (res.j && res.j.error === 'not-found')) {
           toast(t('tkRevoked'));
           load();
@@ -206,8 +213,9 @@ export function durationParam(v) {
     const dur = durationParam(durIn ? durIn.value : '');
     if (!dur) return;
     go.disabled = true;
-    postJSON(TEMPKEY_API, Object.assign({ action: 'create', name: name }, dur)).then(function (res) {
+    withLockReauth(function () { return postJSON(TEMPKEY_API, Object.assign({ action: 'create', name: name }, dur)); }, { en: en }).then(function (res) {
       go.disabled = false;
+      if (needsLockReauth(res)) return; /* 复验取消：弹层留着，可以再点「生成」 */
       if (authFail(res)) { closeDlg('auth'); return; }
       if (!(res.j && res.j.ok)) {
         const e = res.j && res.j.error;

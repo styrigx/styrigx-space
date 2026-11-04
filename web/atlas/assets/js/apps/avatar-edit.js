@@ -1,6 +1,6 @@
 /**
  * @fileoverview 账号页账号卡（/account/ 登录后总览顶部）：换头像 / 移除头像（账号已登录才可用：<html data-sgx-account-session="in">，
- * P2-2 起不看 data-sgx-role；服务端 /api/avatar 另要账号会话 + avatar.write）。
+ * 服务端 /api/avatar 另要账号会话 + avatar.write）。
  *
  * 点头像 → 底部弹层「选择照片… / 移除照片」（没有自定义头像时只有第一项）。
  * 选照片 → 全屏裁剪：圆形取景框，单指拖动、双指缩放（电脑上滚轮缩放），照片始终盖满取景框。

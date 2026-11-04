@@ -115,7 +115,7 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
     await expect(page.locator('#lockmgr-pwdel')).toBeHidden();
   });
 
-  /* 管理员页删除密码：账号体系后账号密码只能设置/修改/重置（账号页），无删除入口。 */
+  /* 删除账号密码：账号体系后账号密码只能设置/修改/重置（账号页），无删除入口。 */
 });
 
 test.describe('批次 A 验收修复 P1：双向相同密码错误文案', () => {
@@ -214,7 +214,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
     await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'keys' });
-    /* 账号体系：原管理员凭证门已升级为账号页，门内页用锁屏页（同一套门内组件 app-gate.js）测 */
+    /* 账号体系：原锁屏凭证门已升级为账号页，门内页用锁屏页（同一套门内组件 app-gate.js）测 */
     await mockJson(page, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: true });
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, ticket: 'lock-reauth', expiresAt: Date.now() + 175000, password: true, passkey: true });
   });
@@ -370,7 +370,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await expect(page).toHaveURL(/\/settings\/security\/lock\//);
     /* reauth 票失效后不发起任何 WebAuthn challenge */
     expect(challengeCalls).toBe(0);
-    /* 「重新验证」→ 清票 → 回到本页，门口出现（锁屏通行密钥 / 解锁密码 / 根凭证） */
+    /* 「重新验证」→ 清票 → 回到本页，门口出现（锁屏通行密钥 / 解锁密码 / 进站凭证） */
     await dlg.locator('button.sgx-verify-skip').click();
     await expect(page.locator('#lock-reauth')).toBeVisible({ timeout: 10000 });
     await expect(page).toHaveURL(/\/settings\/security\/lock\/$/);

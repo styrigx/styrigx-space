@@ -5,7 +5,7 @@
  * 切换时前端不用改（账号页其余调用地址不变）。由命名入口 AccountService（src/rpc/account-service.js）把网关转发的请求交进来（PR2 暗上线，PR3 网关才开始转发）。
  *
  * 身份：不验锁屏会话，只读网关写的规范身份头（workers/account/src/lib/lock-identity.js）：
- * - 要进门：X-Styrigx-Lock-Session: 1（logout / reauth-clear 除外）；没有 → 401 session（P2-2 起不再看 X-Styrigx-Lock-Role，方案 3.4 R12）。
+ * - 要进门：X-Styrigx-Lock-Session: 1（logout / reauth-clear 除外）；没有 → 401 session（只看这一个结论头，方案 3.4 R12）。
  *   账号自己的 action 照旧验账号会话 / 复验票。白名单校验：by ∈ password | passkey | tempkey，其它值一律当作没有。
  * - X-Styrigx-Client-Address：输错限速分桶、审计 IP 前缀（没有 → 'unknown'）；不读 CF-Connecting-IP。
  * - X-Styrigx-Client-Country / City：设备「上次活动地点」（account-devices.js）。

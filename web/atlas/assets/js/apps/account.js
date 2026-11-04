@@ -3,7 +3,7 @@
  *
  * - 未登录：账号登录（顶栏页名「登录账号」，2026-10-24 与锁屏同一套界面）—— 头像 + 欢迎回来 + 「登录」；
  *   点「登录」（或头像）→ 与锁屏同一个底部弹层（auth/auth-sheet.js）选 通行密钥 / 密码，设了哪个显示哪个；
- *   最下面小字「无法登录？」→ 重置登录页（/account/reset/，apps/account-reset.js）。根凭证不再是登录入口。
+ *   最下面小字「无法登录？」→ 重置登录页（/account/reset/，apps/account-reset.js）。账号根凭证不再是登录入口。
  *   密码 → 与锁屏同一个密码弹层；通行密钥 → 同一弹层里的「正在验证」态，失败给 重试 / 使用密码。
  *   成功即得到账号会话（sgx-account-session，400 天，不点退出一直登录；与锁屏会话无关，但进账号页的前提是锁屏已解锁）。
  * - 已登录：账号总览（三星账号式）—— 账号卡（名字 + 「已登录」+ 头像；卡片本身只是展示，不能点、没有详情页；
@@ -13,11 +13,11 @@
  *   另一组：云同步（副标题 = 开关状态 / 上次同步，进 /account/sync/ 看同步了哪些项、开关）。
  *   临时钥匙和服务状态已搬到设置（/settings/security/tempkeys/、/settings/status/），账号页不再有入口。
  * - ?return=/account/(security|devices|sync)/：子页没有账号会话时跳来，登录后回子页。
- * - 访客：读不到状态，两个按钮都显示，服务端一律拒绝（统一显示「不正确 / 验证失败」）。
+ * - 读不到状态（401 / 网络）：两个按钮都显示，服务端照常校验（统一显示「不正确 / 验证失败」）。
  * - 首帧（2026-10-21）：页面默认两块都隐藏；网关在 <html data-sgx-account-session="in|out"> 注入服务端验过的账号会话，
  *   这里同步按它显示总览或登录区。没有这个属性（中性态）就等 /api/account。
  *   「欢迎回来」只在服务端说未登录时出现：属性 out、或 /api/account 明确 session=null。
- *   属性 in 而 /api/account 读不到（访客 401 / 网络）→ 保持总览，不退回登录区。
+ *   属性 in 而 /api/account 读不到（401 / 网络）→ 保持总览，不退回登录区。
  */
 import { initCloudSync, syncEnabled, AUTH_KEY } from '../lib/cloud-sync.js';
 import { set as sset } from '../lib/storage.js';
@@ -67,7 +67,7 @@ import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
   const hint0 = document.documentElement.dataset.sgxAccountSession || '';
   if (!loginEl && mainEl && hint0 === 'in') {
     /* 服务端说已登录，登录区没下发：只填总览；/api/account 明确说没有账号会话（刚过期 / 别处退出）
-       → 重新取页面，由服务端画登录区。读不到（访客 401 / 网络）→ 保持总览。 */
+       → 重新取页面，由服务端画登录区。读不到（401 / 网络）→ 保持总览。 */
     mainEl.hidden = false;
     let ret0 = '';
     try {
@@ -129,7 +129,7 @@ import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
     loadStatus();
   }
 
-  /** GET /api/account 的最近一次结果（访客 / 读失败为 null） */
+  /** GET /api/account 的最近一次结果（读失败为 null） */
   let lastStatus = null;
   /** 网关注入的账号会话提示：'in' | 'out' | ''（中性） */
   const hint = document.documentElement.dataset.sgxAccountSession || '';
@@ -275,7 +275,7 @@ import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
   }
 
   /**
-   * 显示登录区。设了哪个凭证显示哪个；读不到状态时两个都显示（访客与管理员界面一致）。
+   * 显示登录区。设了哪个凭证显示哪个；读不到状态时两个都显示（界面一致）。
    * 都没设 → 提示，「登录」弹层里只剩「无法登录？」。
    * @param {string} [notice]
    * @param {any} [status]
@@ -320,7 +320,7 @@ import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
     maybeSignalName();
   }
 
-  /* 进页：读状态（访客/读失败 → 登录区，三个入口都显示，界面一致） */
+  /* 进页：读状态（读失败 → 登录区，三个入口都显示，界面一致） */
   function loadStatus() {
     return fetch(ACCOUNT_API, { method: 'GET', credentials: 'same-origin' })
       .then(function (r) { return r.json(); })

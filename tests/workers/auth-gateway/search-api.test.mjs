@@ -35,11 +35,11 @@ function getReq(url, headers = {}) {
 
 async function adminSess(epoch = 0) {
   const { signLockSessionTicket } = await import(KERNEL + 'lock-session.js');
-  return await testLockSession(LOCK.priv, epoch, 'admin', 'password');
+  return await testLockSession(LOCK.priv, epoch, 'password');
 }
 async function visitorSess() {
   const { signLockSessionTicket } = await import(KERNEL + 'lock-session.js');
-  return await testLockSession(LOCK.priv, 0, 'visitor');
+  return await testLockSession(LOCK.priv, 0, 'tempkey');
 }
 function cookies(o) {
   return Object.entries(o).filter(([, v]) => v).map(([k, v]) => k + '=' + v).join('; ');
@@ -77,7 +77,7 @@ async function searchCall(kv, q, cookieObj, svc, host, verifier) {
 function fakeSearch(log) {
   return {
     async fetch(req) {
-      log.push({ url: req.url, role: req.headers.get('X-Sgx-Role'), acc: req.headers.get('X-Styrigx-Account-Session'), device: req.headers.get('X-Styrigx-Account-Device'), scopes: req.headers.get('X-Styrigx-Account-Scopes'), cookie: req.headers.get('Cookie') });
+      log.push({ url: req.url, role: req.headers.get('X-Sgx-Legacy'), acc: req.headers.get('X-Styrigx-Account-Session'), device: req.headers.get('X-Styrigx-Account-Device'), scopes: req.headers.get('X-Styrigx-Account-Scopes'), cookie: req.headers.get('Cookie') });
       return new Response(JSON.stringify({ ok: true, q: 'x', hits: [] }), { status: 200 });
     },
   };
@@ -95,7 +95,7 @@ test('/api/search：没会话 401，不转发', async () => {
   assert.equal(log.length, 0);
 });
 
-test('/api/search：有账号会话才写 X-Styrigx-Account-Session: 1（不看锁屏角色）；不再写 X-Sgx-Role；参数原样带过去', async () => {
+test('/api/search：有账号会话才写 X-Styrigx-Account-Session: 1（不看锁屏角色）；不再写 X-Sgx-Legacy；参数原样带过去', async () => {
   const log = [];
   const calls = [];
   const v = fakeVerifier(calls);
@@ -152,7 +152,7 @@ test('子站的 /api/search（合并 PR3 起同源，在主域名根上）：没
   assert.equal(r.status, 401);
   r = await worker.fetch(new Request('https://styrigx.com/api/search?q=a', { headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, CTX);
   assert.equal(r.status, 200);
-  assert.equal(log[0].role, null, 'P2-2 起不写 X-Sgx-Role');
+  assert.equal(log[0].role, null, 'P2-2 起不写 X-Sgx-Legacy');
   assert.equal(log[0].acc, null, '没账号会话不写结论头');
   r = await worker.fetch(new Request('https://styrigx.com/api/search?q=a', { method: 'POST', headers: { Cookie: 'sgx-lock-session=' + await visitorSess() } }), env, CTX);
   assert.equal(r.status, 405);
@@ -175,7 +175,7 @@ function fakeStatus(log, status = 200) {
   return { async fetch(req) { log.push(req.url); return new Response(JSON.stringify({ ok: status === 200, sites: [] }), { status }); } };
 }
 
-test('/api/status：没会话 401 不转发；管理员 / 访客都转到 /summary，原样回', async () => {
+test('/api/status：没会话 401 不转发；所有进门的人都转到 /summary，原样回', async () => {
   const log = [];
   assert.equal((await statusCall(makeKV(), {}, fakeStatus(log))).status, 401);
   assert.equal(log.length, 0);

@@ -43,7 +43,7 @@ src/search-index.js  KV site:daymark 的索引
 | `POST` / `PUT` / `DELETE /api/quotes`、`/api/collections`，`PUT /api/today` | 是 | 是 | `daymark.write` |
 
 - 错误码：没进门 `401 unauthorized`；没账号会话 `401 account`；没作用域 `403 scope`（带 `scope` 字段）；非同源 `403 origin`。日刻没有要账号复验的接口。
-- 读接口回 `canWrite`（有 `daymark.write`）、`showPrivate`（账号会话有效）两个布尔，代替以前的 `admin`。
+- 读接口回 `canWrite`（有 `daymark.write`）、`showPrivate`（账号会话有效）两个布尔，代替以前的等级字段（P2-2）。
 - 网关绑定缺失 / 出错 → 500（不回 401，免得前端当成锁定去刷新）。
 
 ## 钥匙

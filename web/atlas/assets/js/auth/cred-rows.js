@@ -8,32 +8,34 @@
  */
 import { on } from '../lib/events.js';
 import { bindPwEye, onEnter, focusNoScroll, PM_USER_STYLE } from './auth-flow.js';
-import { KEY_ROOT } from '../lib/key-names.js';
 import { bindSubmitButton, tapFeedback, setRowBusy, setRowSelected } from '../lib/dialog-behavior.js';
 
 const CHEV = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>';
-/** 行图标（通行密钥 / 密码 / 根凭证） */
+/** 行图标（通行密钥 / 密码 / 兜底凭证：锁屏侧进站凭证、账号侧账号根凭证） */
 export const CRED_ICONS = {
   passkey: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7.5 3v5.25c0 4.6-3.2 7.9-7.5 9.75-4.3-1.85-7.5-5.15-7.5-9.75V6L12 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l2 2 3.5-4"/></svg>',
   password: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
-  root: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="16" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M10.8 13.2L20 4m-3 3l3 3"/></svg>',
+  key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="16" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M10.8 13.2L20 4m-3 3l3 3"/></svg>',
 };
 
 /**
- * 根凭证输入框（全站只有这一个组件：重置登录第一步用）。隐藏用户名字段（值 RootKey）让 Samsung Pass 能填充、按这个名字保存。
+ * 兜底凭证输入框（全站只有这一个组件：重置登录第一步、锁屏凭证页的进站凭证行用）。
+ * 种类由调用方给：锁屏侧传 pmUser = KEY_SPACE（进站凭证），账号侧传 KEY_ROOT（账号根凭证）。
+ * 隐藏用户名字段（值 = pmUser）让 Samsung Pass 能填充、按这个名字保存。
  * @param {object} o
  * @param {string} o.id 输入框 id
  * @param {string} o.placeholder
+ * @param {string} o.pmUser 隐藏用户名（KEY_SPACE / KEY_ROOT）
  * @param {boolean} o.en
  * @returns {{field: HTMLElement, input: HTMLInputElement}}
  */
-export function createRootField(o) {
+export function createKeyField(o) {
   const field = document.createElement('div');
   field.className = 'sgx-pw-field';
   const userField = document.createElement('input');
   userField.type = 'text';
   userField.autocomplete = 'username';
-  userField.value = KEY_ROOT;
+  userField.value = o.pmUser;
   userField.setAttribute('aria-hidden', 'true');
   userField.tabIndex = -1;
   userField.style.cssText = PM_USER_STYLE;
@@ -61,7 +63,7 @@ export function createRootField(o) {
  * @param {function(string): string} o.t
  * @param {boolean} o.en
  * @param {Array<{kind:string, field:string, icon:string, title:string, sub:string, submit:Function, pmUser?:string}>} o.defs 要画的行（按顺序）
- *   field：webauthn（点行直接调起系统验证）| password | root（点行在行下展开输入框；root 带隐藏用户名 root）
+ *   field：webauthn（点行直接调起系统验证）| password | key（点行在行下展开输入框；都带隐藏用户名 pmUser）
  * @param {Function} o.onSuccess 任一入口验证通过
  * @returns {{collapse: Function}}
  */
@@ -140,8 +142,8 @@ export function renderCredRows(o) {
       const form = document.createElement('div');
       form.className = 'sgx-credential-expand';
       let field, input;
-      if (m.field === 'root') {
-        const rf = createRootField({ id: 'sgx-cred-root-' + m.kind, placeholder: m.sub, en: en });
+      if (m.field === 'key') {
+        const rf = createKeyField({ id: 'sgx-cred-key-' + m.kind, placeholder: m.sub, pmUser: m.pmUser || '', en: en });
         field = rf.field;
         input = rf.input;
         input.setAttribute('aria-label', m.title);

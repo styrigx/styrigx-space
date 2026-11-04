@@ -85,7 +85,7 @@ test('路由表：AccountService = /api/account + 三个账号数据接口（rou
 
 /* ---------------- AccountService ---------------- */
 
-test('AccountService：admin 身份头 → GET /api/account 200（X-SGX-Runtime: account、no-store），不回调网关', async () => {
+test('AccountService：进门身份头 → GET /api/account 200（X-SGX-Runtime: account、no-store），不回调网关', async () => {
   const { env, calls } = makeEnv();
   const r = await service(env).fetch(req('/api/account', { headers: idHeaders() }));
   assert.equal(r.status, 200);
@@ -113,30 +113,30 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false}（最小门）�
 test('AccountService：没有 X-Styrigx-Lock-Session: 1 一律当作没进门 → 401（只有 Role / By 头、Session 不是 1 都不算）', async () => {
   const { env } = makeEnv();
   for (const h of [
-    { 'X-Styrigx-Lock-Role': 'admin' },
-    { 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'password' },
+    { 'X-Styrigx-Lock-Level': 'password' },
+    { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Lock-By': 'password' },
     { 'X-Styrigx-Lock-By': 'password' },
     { 'X-Styrigx-Lock-Session': '0' },
     { 'X-Styrigx-Lock-Session': 'true' },
     { 'X-Styrigx-Lock-Session': '' },
     { 'X-Styrigx-Lock-Session': '1,1' },
-    { 'X-Sgx-Role': 'admin' },
+    { 'X-Sgx-Legacy': 'password' },
   ]) {
     const r = await service(env).fetch(req('/api/account', { headers: h }));
     assert.equal(r.status, 401, JSON.stringify(h));
   }
 });
 
-test('AccountService：P2-2 起不看 X-Styrigx-Lock-Role——进门（Session: 1）+ Role: visitor 也照常走到账号判断（/api/prefs 没账号会话 401 account、/api/account 读状态 200）', async () => {
+test('AccountService：不看外来的 X-Styrigx-Lock-Level——进门（Session: 1）+ 任意 Level 也照常走到账号判断（/api/prefs 没账号会话 401 account、/api/account 读状态 200）', async () => {
   const { env } = makeEnv();
-  const h = idHeaders({ role: 'visitor', by: 'tempkey', tempkeyId: 'tk1' });
+  const h = idHeaders({ role: 'tempkey', by: 'tempkey', tempkeyId: 'tk1' });
   let r = await service(env).fetch(req('/api/prefs', { headers: h }));
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');
   r = await service(env).fetch(req('/api/account', { headers: h }));
   assert.equal(r.status, 200);
   assert.equal((await r.json()).session, null);
-  /* 账号会话有效就放行，不管 Role 头写的是什么（网关 P2-3 前对访客的 /api/prefs 仍有 403 role 门，那是网关的事） */
+  /* 账号会话有效就放行，不管外来的 Level 头写的是什么 */
   r = await service(env).fetch(req('/api/prefs', { headers: { ...h, Cookie: await accCookie() } }));
   assert.equal(r.status, 200);
 });
@@ -174,9 +174,9 @@ test('AccountService：处理中抛错 → 500 internal（仍打 X-SGX-Runtime�
 
 /* ---------------- 默认 fetch：一律 404（第二道保险） ---------------- */
 
-test('默认 fetch：任何路径一律 404，伪造的 x-styrigx-* admin 头 + 有效锁屏 cookie 也碰不到接口', async () => {
+test('默认 fetch：任何路径一律 404，伪造的 x-styrigx-* 进门头 + 有效锁屏 cookie 也碰不到接口', async () => {
   const { env } = makeEnv();
-  const ck = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'admin'));
+  const ck = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'password'));
   for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/wellbeing'], ['GET', '/api/prefs'], ['GET', '/avatar/32.webp']]) {
     const r = await index.default.fetch(req(p, { method: m, headers: { ...idHeaders(), Cookie: ck }, body: m === 'POST' ? '{"action":"login-password"}' : undefined }), env, CTX);
     assert.equal(r.status, 404, m + ' ' + p);
@@ -200,7 +200,7 @@ test('源码：账号 Worker 没有任何回调网关的代码（不读 env.AUTH
   const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + e.name + '/') : [d + e.name]));
   for (const f of walk(root).filter((x) => x.endsWith('.js'))) {
     const code = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-    assert.doesNotMatch(code, /env\.AUTH\b|env\[['"]AUTH['"]\]|AuthVerifier|auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_ADMIN_KEY|lock_reset_switch/, f);
+    assert.doesNotMatch(code, /env\.AUTH\b|env\[['"]AUTH['"]\]|AuthVerifier|auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_LOCK_SPACE_KEY|lock_reset_switch/, f);
   }
 });
 
@@ -223,7 +223,7 @@ test('AccountVerifier：有效账号会话 → { ok:true }，不签发任何东�
 test('AccountVerifier：反例——没 cookie / 非字符串 / 只有锁屏会话 / 格式错 / 别的钥匙签 / 纪元变了 / 过期，各回原因代号', async () => {
   const { env } = makeEnv();
   const v = new ep.AccountVerifier(CTX, env);
-  const lock = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'admin'));
+  const lock = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'password'));
   assert.deepEqual(await v.accountSession('', {}), { ok: false, reason: 'no-cookie' });
   assert.deepEqual(await v.accountSession(undefined), { ok: false, reason: 'no-cookie' });
   assert.deepEqual(await v.accountSession({ Cookie: 'x' }), { ok: false, reason: 'no-cookie' });
@@ -275,7 +275,7 @@ test('AccountVerifier.authorize：opts.reauth === true 才验 sgx-account-reauth
 test('AccountVerifier.authorize：反例——没 cookie / 非字符串 / 只有锁屏会话 / 格式错 / 别的钥匙签 / 纪元变了 / 过期 / 设备已退出', async () => {
   const { env } = makeEnv();
   const v = new ep.AccountVerifier(CTX, env);
-  const lock = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'admin'));
+  const lock = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'password'));
   assert.deepEqual(await v.authorize('', {}), DENY('no-cookie'));
   assert.deepEqual(await v.authorize(undefined), DENY('no-cookie'));
   assert.deepEqual(await v.authorize({ Cookie: 'x' }), DENY('no-cookie'));
@@ -310,12 +310,12 @@ test('checkAuthorize：env 缺省也不抛（fail closed）', async () => {
 });
 
 test('verifierRequest：只带 Cookie / User-Agent / 地点头，不带锁屏身份头；超长 cookie 截断', () => {
-  const r = ep.verifierRequest('a=' + 'x'.repeat(10000), { ua: 'U'.repeat(600), country: 'CN', city: 'Shanghai', role: 'admin' });
+  const r = ep.verifierRequest('a=' + 'x'.repeat(10000), { ua: 'U'.repeat(600), country: 'CN', city: 'Shanghai', role: 'password' });
   assert.equal(r.headers.get('Cookie').length, 8192);
   assert.equal(r.headers.get('User-Agent').length, 512);
   assert.equal(r.headers.get('X-Styrigx-Client-Country'), 'CN');
   assert.equal(r.headers.get('X-Styrigx-Client-City'), 'Shanghai');
-  assert.equal(r.headers.get('X-Styrigx-Lock-Role'), null);
+  assert.equal(r.headers.get('X-Styrigx-Lock-Level'), null);
   assert.deepEqual([...r.headers.keys()].sort(), ['cookie', 'user-agent', 'x-styrigx-client-city', 'x-styrigx-client-country']);
 });
 

@@ -6,7 +6,7 @@
  * - 只返回「是否已设置」，不返回任何敏感数据。
  * - 口径统一：用 core/lock-configured.js 的 isLockEffectivelyConfigured（由 D1 里锁屏自己的真实凭证推出）。
  *   锁屏凭证存在、或任何读取失败，都算已配置（passkey/password 按实际，失败时均为 true），
- *   避免失败时暴露根密钥代开入口（fail closed）。两个都为 false = 锁屏从未设置，前端显示根密钥代开入口。
+ *   避免失败时暴露进站凭证代开入口（fail closed）。两个都为 false = 锁屏从未设置，前端显示进站凭证代开入口。
  * - passkey / password 读 D1（强一致）：刚注册的通行密钥下一个请求就显示入口，删掉的就不显示。
  * - 账号拆分 PR3（方案第 2 节）：不再返回 accountConfigured / resetOnly（网关读不到账号凭证；锁屏凭证也不许删到 0）。
  */

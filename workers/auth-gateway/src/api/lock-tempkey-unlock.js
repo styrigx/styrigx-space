@@ -2,15 +2,15 @@
  * 用临时 LockKey 进门（锁屏「临时钥匙」）。说明见 core/lock-tempkey.js。
  *
  * POST /api/lock-tempkey-unlock { code }（只接受同源；无需会话，在白名单里）
- * - 规范化后按哈希找钥匙；对得上 → 签 visitor 锁屏会话（LockSessionTicket：role=visitor，by=tempkey，
+ * - 规范化后按哈希找钥匙；对得上 → 签锁屏进门会话（LockSessionTicket：by=tempkey，
  *   tempkeyId=钥匙 id，lock 私钥签名），Max-Age = min(钥匙剩余时间, 12 小时)
  * - 输错：403 wrong；同一 IP（IPv6 按 /64）连错 5 次锁 15 分钟 → 429 cooldown；
  *   全站每小时错满 30 次后只减速（每次先等 2 秒），不封锁
  * - 格式不对（不是 12 位）也算一次输错，不提示格式
- * - 已有 admin 会话：直接 ok，不降级成访客
+ * - 已有有效进门会话（任何进门方式）：直接 {ok:true}，不重签、不读钥匙（方案 3.3）
  * - D1 / 密钥出错一律 5xx，绝不签发会话
  */
-import { issueLockSession, ROLE_ADMIN, ROLE_VISITOR } from '../core/lock-session.js';
+import { issueLockSession } from '../core/lock-session.js';
 import { BY_TEMPKEY, REALM_LOCK } from '../core/realms.js';
 import { getPepper } from '../core/password.js';
 import { isSameOrigin, originDenied, json, apiError, clientIp } from '../lib/http.js';
@@ -53,9 +53,9 @@ async function handle(context) {
   const raw = body && body.code;
   if (!raw || typeof raw !== 'string') return apiError(400, 'code');
 
-  /* 已经是管理员：不降级 */
+  /* 已经进门：直接 ok，不重签（原会话的进门方式和到期都不变） */
   const cur = await verifyLockSession(request, env);
-  if (cur.ok && cur.role === ROLE_ADMIN) return json(200, { ok: true, role: ROLE_ADMIN });
+  if (cur.ok) return json(200, { ok: true });
 
   const ip = clientIp(request);
   try {
@@ -87,7 +87,7 @@ async function handle(context) {
   const left = Math.floor((key.expiresAt - Date.now()) / 1000);
   const maxAge = Math.max(60, Math.min(TEMPKEY_SESSION_MAX, left));
   const headers = new Headers();
-  const err = await issueLockSession(env, headers, { by: BY_TEMPKEY, role: ROLE_VISITOR, maxAge: maxAge, tempkeyId: key.id });
+  const err = await issueLockSession(env, headers, { by: BY_TEMPKEY, maxAge: maxAge, tempkeyId: key.id });
   if (err) return json(err.status, err.body);
-  return json(200, { ok: true, role: 'visitor' }, headers);
+  return json(200, { ok: true }, headers);
 }

@@ -1,8 +1,8 @@
 /**
  * 网关写身份头的一侧（账号拆分 PR3，方案第 3 节）：
  * - src/core/lock-identity.js：头名常量、stripInternalHeaders、writeLockIdentity（只写白名单里的值）
- * - 授权骨架 P2-1：有身份时额外写 X-Styrigx-Lock-Session: 1（与 X-Styrigx-Lock-Role 并存）；没身份不写；浏览器伪造的同名头剥掉
- * - src/app.js 第一步剥掉外来的 x-styrigx-* / x-sgx-role；账号路径（src/router.js 的 FORWARDING）门过了才经 ACCOUNT 转发，
+ * - 授权骨架 P2-1：有身份时额外写 X-Styrigx-Lock-Session: 1（与 X-Styrigx-Lock-Level 并存）；没身份不写；浏览器伪造的同名头剥掉
+ * - src/app.js 第一步剥掉外来的 x-styrigx-* / x-sgx-legacy；账号路径（src/router.js 的 FORWARDING）门过了才经 ACCOUNT 转发，
  *   身份头由网关按验过的锁屏会话写；ACCOUNT 没绑 / 出错 → 503 upstream（fail closed）。
  */
 import { test } from 'node:test';
@@ -27,7 +27,6 @@ test('导出：三个头名常量 + stripInternalHeaders / writeLockIdentity（�
 test('头名逐字固定', () => {
   assert.deepEqual({ ...LOCK_IDENTITY_HEADERS }, {
     session: 'X-Styrigx-Lock-Session',
-    role: 'X-Styrigx-Lock-Role',
     by: 'X-Styrigx-Lock-By',
     tempkeyId: 'X-Styrigx-Lock-Tempkey-Id',
   });
@@ -53,23 +52,24 @@ test('所有头名都以内部前缀开头（小写比较），且互不重复',
   assert.equal([...hd.keys()].length, all.length);
 });
 
-test('stripInternalHeaders：任意大小写的 x-styrigx-* 和旧 x-sgx-role 都删，别的头不动', () => {
-  const h = new Headers({ 'X-STYRIGX-LOCK-ROLE': 'admin', 'x-styrigx-whatever': '1', 'X-Sgx-Role': 'admin', Cookie: 'a=1', 'X-Sgx-Other': 'keep' });
+test('stripInternalHeaders：任意大小写的 x-styrigx-* 和旧前缀 x-sgx-* 都删，别的头不动', () => {
+  const h = new Headers({ 'X-STYRIGX-LOCK-LEVEL': 'password', 'x-styrigx-whatever': '1', 'X-SGX-LEGACY': 'password', 'x-sgx-other': '1', Cookie: 'a=1', 'X-Other': 'keep' });
   stripInternalHeaders(h);
-  assert.deepEqual([...h.keys()].sort(), ['cookie', 'x-sgx-other']);
+  assert.deepEqual([...h.keys()].sort(), ['cookie', 'x-other']);
 });
 
-test('writeLockIdentity：先剥再写；admin / 访客（带合规 tempkeyId）；不认识的角色、ok:false → 不写身份头；上下文不合规的项不写', () => {
+test('writeLockIdentity：先剥再写；进门（by 只作审计，tempkeyId 只在 by=tempkey 时写）；ok 不是 true → 不写身份头；上下文不合规的项不写', () => {
   const w = (s, c, init) => Object.fromEntries([...writeLockIdentity(new Headers(init || {}), s, c)]);
-  assert.deepEqual(w({ ok: true, role: 'admin', by: 'password', tempkeyId: 'tk1' }, { address: '1.2.3.4', country: 'JP', city: 'Tokyo' }, { 'X-Styrigx-Lock-Role': 'visitor' }), {
-    'x-styrigx-lock-session': '1', 'x-styrigx-lock-role': 'admin', 'x-styrigx-lock-by': 'password',
+  assert.deepEqual(w({ ok: true, by: 'password', tempkeyId: 'tk1' }, { address: '1.2.3.4', country: 'JP', city: 'Tokyo' }, { 'X-Styrigx-Lock-By': 'tempkey' }), {
+    'x-styrigx-lock-session': '1', 'x-styrigx-lock-by': 'password',
     'x-styrigx-client-address': '1.2.3.4', 'x-styrigx-client-country': 'JP', 'x-styrigx-client-city': 'Tokyo',
   });
-  assert.deepEqual(w({ ok: true, role: 'visitor', by: 'tempkey', tempkeyId: 'tk_01' }, {}), {
-    'x-styrigx-lock-session': '1', 'x-styrigx-lock-role': 'visitor', 'x-styrigx-lock-by': 'tempkey', 'x-styrigx-lock-tempkey-id': 'tk_01',
+  assert.deepEqual(w({ ok: true, by: 'tempkey', tempkeyId: 'tk_01' }, {}), {
+    'x-styrigx-lock-session': '1', 'x-styrigx-lock-by': 'tempkey', 'x-styrigx-lock-tempkey-id': 'tk_01',
   });
-  assert.deepEqual(w({ ok: true, role: 'owner' }, {}, { 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-Session': '1' }), {}, '外来的头剥掉，不认识的角色不写');
-  assert.deepEqual(w({ ok: false, role: 'admin' }, {}, { 'x-styrigx-lock-session': '1' }), {}, 'ok:false → 也不写 Lock-Session');
+  assert.deepEqual(w({ ok: true, by: 'owner' }, {}, { 'X-Styrigx-Lock-Session': '1' }), { 'x-styrigx-lock-session': '1' }, '不认识的 by 不写 By，进门照写');
+  assert.deepEqual(w({ ok: 'yes', by: 'password' }, {}, { 'X-Styrigx-Lock-Session': '1' }), {}, '外来的头剥掉，ok 不是 true 不写');
+  assert.deepEqual(w({ ok: false, by: 'password' }, {}, { 'x-styrigx-lock-session': '1' }), {}, 'ok:false → 也不写 Lock-Session');
   assert.deepEqual(w(null, { address: 'evil; x', country: 'JAPAN', city: 'a\u0007b' }), {});
 });
 
@@ -96,7 +96,7 @@ function fakeAccount() {
     },
   };
 }
-const FORGED = { 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-Session': '1', 'x-styrigx-lock-by': 'password', 'X-Styrigx-Client-Address': '6.6.6.6', 'X-Sgx-Role': 'admin' };
+const FORGED = { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Lock-Session': '1', 'x-styrigx-lock-by': 'password', 'X-Styrigx-Client-Address': '6.6.6.6', 'X-Sgx-Legacy': 'password' };
 
 test('伪造身份头、没有锁屏会话：/api/prefs、/api/account → 网关 401，账号 Worker 一次都没被调', async () => {
   _resetSecretCache();
@@ -108,13 +108,13 @@ test('伪造身份头、没有锁屏会话：/api/prefs、/api/account → 网�
   assert.equal(acct.seen.length, 0);
 });
 
-test('admin 会话：转发原样带 URL / 方法 / 正文 / Cookie / Origin；外来身份头剥掉，按验过的会话重写；客户端上下文取自 CF-Connecting-IP / cf', async () => {
+test('进门会话：转发原样带 URL / 方法 / 正文 / Cookie / Origin；外来身份头剥掉，按验过的会话重写；客户端上下文取自 CF-Connecting-IP / cf', async () => {
   _resetSecretCache();
   const acct = fakeAccount();
-  const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'passkey'));
+  const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'passkey'));
   const req = new Request('https://styrigx.com/api/account?x=1', {
     method: 'POST',
-    headers: { ...FORGED, 'X-Styrigx-Lock-Role': 'visitor', Cookie: ck, Origin: 'https://styrigx.com', 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.9' },
+    headers: { ...FORGED, 'X-Styrigx-Lock-By': 'tempkey', Cookie: ck, Origin: 'https://styrigx.com', 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.9' },
     body: '{"action":"device-list"}',
   });
   Object.defineProperty(req, 'cf', { value: { country: 'JP', city: 'Osaka' } });
@@ -128,39 +128,36 @@ test('admin 会话：转发原样带 URL / 方法 / 正文 / Cookie / Origin；�
   assert.equal(f.body, '{"action":"device-list"}');
   assert.equal(f.headers.cookie, ck);
   assert.equal(f.headers.origin, 'https://styrigx.com', '同源在转发后仍成立');
-  assert.equal(f.headers['x-styrigx-lock-session'], '1', 'P2-1：进门有效，与 Lock-Role 并存');
-  assert.equal(f.headers['x-styrigx-lock-role'], 'admin');
+  assert.equal(f.headers['x-styrigx-lock-session'], '1', '进门有效');
+  assert.deepEqual(Object.keys(f.headers).filter((k) => k.startsWith('x-styrigx-lock-')).sort(), ['x-styrigx-lock-by', 'x-styrigx-lock-session'], '进门二值：没有等级头');
   assert.equal(f.headers['x-styrigx-lock-by'], 'passkey');
   assert.equal(f.headers['x-styrigx-client-address'], '203.0.113.9', '不是客户端伪造的 6.6.6.6');
   assert.equal(f.headers['x-styrigx-client-country'], 'JP');
   assert.equal(f.headers['x-styrigx-client-city'], 'Osaka');
-  assert.equal(f.headers['x-sgx-role'], undefined);
+  assert.deepEqual(Object.keys(f.headers).filter((k) => k.startsWith('x-sgx-')), []);
   assert.equal(f.headers['x-styrigx-lock-tempkey-id'], undefined);
 });
 
-test('访客会话：/api/prefs、/api/account → 网关 403 role 不转发；/api/wellbeing 转发、身份头写 visitor', async () => {
+test('临时钥匙进门：/api/prefs、/api/account、/api/wellbeing 都照常转发（网关不再按等级拦，进门之后由账号 Worker 看账号会话）；身份头 by=tempkey + tempkeyId', async () => {
   _resetSecretCache();
   const acct = fakeAccount();
-  const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'visitor'));
+  const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'tempkey'));
   const e = env({ ACCOUNT: acct });
-  for (const p of ['/api/prefs', '/api/account']) {
-    const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: ck } }), e, CTX);
-    assert.equal(res.status, 403, p);
-    assert.equal((await res.json()).error, 'role', p);
+  for (const p of ['/api/prefs', '/api/account', '/api/wellbeing?d=2026-10-30']) {
+    const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: ck, ...FORGED } }), e, CTX);
+    assert.equal(res.status, 200, p);
   }
-  assert.equal(acct.seen.length, 0, '访客进不了账号接口');
-  const res = await worker.fetch(new Request('https://styrigx.com/api/wellbeing?d=2026-10-30', { headers: { Cookie: ck, ...FORGED } }), e, CTX);
-  assert.equal(res.status, 200);
-  assert.equal(acct.seen.length, 1);
-  assert.equal(acct.seen[0].headers['x-styrigx-lock-session'], '1');
-  assert.equal(acct.seen[0].headers['x-styrigx-lock-role'], 'visitor');
-  assert.equal(acct.seen[0].headers['x-styrigx-lock-by'], 'tempkey');
-  assert.equal(acct.seen[0].headers['x-styrigx-lock-tempkey-id'], 'tktesttesttest01');
+  assert.equal(acct.seen.length, 3);
+  for (const s of acct.seen) {
+    assert.equal(s.headers['x-styrigx-lock-session'], '1');
+    assert.equal(s.headers['x-styrigx-lock-by'], 'tempkey');
+    assert.equal(s.headers['x-styrigx-lock-tempkey-id'], 'tktesttesttest01');
+  }
 });
 
 test('ACCOUNT 没绑 / fetch 抛错 → 503 upstream（不落回网关路由表、不回源）', async () => {
   _resetSecretCache();
-  const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
+  const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
   const orig = globalThis.fetch;
   let origin = 0;
   globalThis.fetch = async () => { origin++; return new Response('PAGE'); };
@@ -179,34 +176,34 @@ test('ACCOUNT 没绑 / fetch 抛错 → 503 upstream（不落回网关路由表�
 test('不在转发表里的路径（/api/prefsX）不转发：有会话 → 网关路由表 404', async () => {
   _resetSecretCache();
   const acct = fakeAccount();
-  const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
+  const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
   const res = await worker.fetch(new Request('https://styrigx.com/api/prefsX', { headers: { Cookie: ck } }), env({ ACCOUNT: acct }), CTX);
   assert.equal(res.status, 404);
   assert.equal(acct.seen.length, 0);
 });
 
-test('静态直通和页面回源也先剥头：回源请求里没有外来的 x-styrigx-* / x-sgx-role', async () => {
+test('静态直通和页面回源也先剥头：回源请求里没有外来的 x-styrigx-* / x-sgx-legacy', async () => {
   _resetSecretCache();
   const orig = globalThis.fetch;
   const seen = [];
   globalThis.fetch = async (req) => { seen.push(Object.fromEntries([...req.headers])); return new Response('x', { headers: { 'Content-Type': 'text/css' } }); };
   try {
     await worker.fetch(new Request('https://styrigx.com/css/main.css', { headers: FORGED }), env(), CTX);
-    const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
+    const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
     await worker.fetch(new Request('https://styrigx.com/settings/', { headers: { ...FORGED, Cookie: ck } }), env(), CTX);
   } finally { globalThis.fetch = orig; }
   assert.equal(seen.length, 2);
   for (const h of seen) {
-    for (const k of Object.keys(h)) assert.ok(!k.startsWith('x-styrigx-') && k !== 'x-sgx-role', k);
+    for (const k of Object.keys(h)) assert.ok(!k.startsWith('x-styrigx-') && k !== 'x-sgx-legacy', k);
   }
 });
 
 test('X-Styrigx-Lock-Session（P2-1）：头像文件公开路径无会话转发时不带它；伪造的 Lock-Session 剥掉', async () => {
   _resetSecretCache();
   const acct = fakeAccount();
-  const res = await worker.fetch(new Request('https://styrigx.com/avatar/96.webp', { headers: { 'X-Styrigx-Lock-Session': '1', 'X-Styrigx-Lock-Role': 'admin' } }), env({ ACCOUNT: acct }), CTX);
+  const res = await worker.fetch(new Request('https://styrigx.com/avatar/96.webp', { headers: { 'X-Styrigx-Lock-Session': '1', 'X-Styrigx-Lock-Level': 'password' } }), env({ ACCOUNT: acct }), CTX);
   assert.equal(res.status, 200);
   assert.equal(acct.seen.length, 1);
   assert.equal(acct.seen[0].headers['x-styrigx-lock-session'], undefined);
-  assert.equal(acct.seen[0].headers['x-styrigx-lock-role'], undefined);
+  assert.equal(acct.seen[0].headers['x-styrigx-lock-level'], undefined);
 });

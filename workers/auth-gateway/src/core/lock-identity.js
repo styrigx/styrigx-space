@@ -7,21 +7,20 @@
  * （core/conclusion.js，P2-2）；api/chat.js 新建内部请求、不带身份头（门只在网关，P2-2）；api/status.js 不带任何身份头。
  * 头名大小写不敏感（Headers 会统一小写）；剥离外来同名头时按 INTERNAL_HEADER_PREFIX（小写）匹配前缀。
  *
- * - stripInternalHeaders(headers)：删掉所有 x-styrigx-* 和 x-sgx-role（网关 fetch 第一步剥浏览器带来的；writeLockIdentity 写之前再剥一次）
+ * - stripInternalHeaders(headers)：删掉所有 x-styrigx-* 和旧前缀 x-sgx-*（网关 fetch 第一步剥浏览器带来的；writeLockIdentity 写之前再剥一次）
  * - writeLockIdentity(headers, lockSession, clientContext)：先剥，再按验过的锁屏会话写身份头和客户端上下文头（只写白名单里的值）
  *
- * X-Styrigx-Lock-Session: 1（授权骨架 P2-1，方案 2.3.1）：网关验过的锁屏会话有效（进门）。与 X-Styrigx-Lock-Role **并存**，
- * 有身份就写；账号 Worker 现在还不读它（P2-2 起改读它，P2-3 删 X-Styrigx-Lock-Role）。
+ * X-Styrigx-Lock-Session: 1（授权骨架 P2-1，方案 2.3.1）：网关验过的锁屏会话有效（进门）。进门二值（P2-3）：没有等级头，
+ * 只有进门与否；By / Tempkey-Id 只作审计。
  *
  * 不带会话 id、不签名（方案第 3 节）：靠三道保险——网关剥头、账号 Worker 只在命名入口读头（默认 fetch 一律 404）、账号 Worker 没有公开路由
  * （wrangler.toml 无 [[routes]]；PR3 前的 4 条旧路由 wrangler deploy 不会自动删，部署后手动删，删之前进来的请求也只碰到默认 fetch 的 404）。
  * 不 import 任何东西。
  */
 
-/** 锁屏身份：进门有效、角色、凭什么解的锁、临时钥匙 id */
+/** 锁屏身份：进门有效、凭什么进的门（只作审计）、临时钥匙 id */
 export const LOCK_IDENTITY_HEADERS = Object.freeze({
   session: 'X-Styrigx-Lock-Session',
-  role: 'X-Styrigx-Lock-Role',
   by: 'X-Styrigx-Lock-By',
   tempkeyId: 'X-Styrigx-Lock-Tempkey-Id',
 });
@@ -36,12 +35,11 @@ export const CLIENT_CONTEXT_HEADERS = Object.freeze({
 /** 所有内部头的公共前缀（小写） */
 export const INTERNAL_HEADER_PREFIX = 'x-styrigx-';
 
-/** X-Sgx-Role：旧内部头。P2-2 起网关不再写、下游也不再读；浏览器带来的同名头仍在网关 fetch 第一步剥掉（留着这道保险），
- *  不会经回源 / 转发带到任何下游。 */
-const LEGACY_ROLE_HEADER = 'x-sgx-role';
+/** 旧内部头前缀（小写）：P2-2 起网关不再写、下游也不再读任何 x-sgx-* 请求头；浏览器带来的同前缀头仍在网关 fetch 第一步剥掉
+ *  （留着这道保险），不会经回源 / 转发带到任何下游。 */
+const LEGACY_HEADER_PREFIX = 'x-sgx-';
 
 /* 白名单 */
-const ROLES = Object.freeze(['admin', 'visitor']);
 const BYS = Object.freeze(['password', 'passkey', 'tempkey']);
 const TEMPKEY_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const ADDRESS_RE = /^[0-9A-Fa-f:.]{1,64}$/;
@@ -51,11 +49,11 @@ const MAX_CITY = 40;
 /** 这个头名要剥吗（大小写不敏感） @param {string} name */
 function isInternalHeader(name) {
   const n = String(name || '').toLowerCase();
-  return n.startsWith(INTERNAL_HEADER_PREFIX) || n === LEGACY_ROLE_HEADER;
+  return n.startsWith(INTERNAL_HEADER_PREFIX) || n.startsWith(LEGACY_HEADER_PREFIX);
 }
 
 /**
- * 就地删掉所有内部头（x-styrigx-* 任意大小写、旧 x-sgx-role），返回同一个对象。
+ * 就地删掉所有内部头（x-styrigx-* 任意大小写、旧前缀 x-sgx-*），返回同一个对象。
  * @param {Headers|null|undefined} headers
  */
 export function stripInternalHeaders(headers) {
@@ -87,29 +85,26 @@ function normalizeClientContext(c) {
 }
 
 /**
- * 规范化锁屏会话（verifyLockSession 的结论）：ok 且 role 在白名单里才算有身份；by 不认识 → ''；
- * tempkeyId 只给访客且格式合规。没有身份 → null。
+ * 规范化锁屏会话（verifyLockSession 的结论）：ok === true 才算进门；by 不认识 → ''；
+ * tempkeyId 只在 by=tempkey 时给、且格式合规。没进门 → null。
  * @param {any} s
- * @returns {{role:string, by:string, tempkeyId:string}|null}
+ * @returns {{by:string, tempkeyId:string}|null}
  */
 function normalizeLockIdentity(s) {
-  if (!s || typeof s !== 'object') return null;
-  if (s.ok === false) return null;
-  const role = typeof s.role === 'string' ? s.role.trim() : '';
-  if (ROLES.indexOf(role) === -1) return null;
+  if (!s || typeof s !== 'object' || s.ok !== true) return null;
   const byRaw = typeof s.by === 'string' ? s.by.trim() : '';
   const by = BYS.indexOf(byRaw) !== -1 ? byRaw : '';
   const tk = typeof s.tempkeyId === 'string' ? s.tempkeyId.trim() : '';
-  const tempkeyId = role === 'visitor' && TEMPKEY_ID_RE.test(tk) ? tk : '';
-  return { role, by, tempkeyId };
+  const tempkeyId = by === 'tempkey' && TEMPKEY_ID_RE.test(tk) ? tk : '';
+  return { by, tempkeyId };
 }
 
 /**
  * 先剥掉所有内部头，再按验过的锁屏会话写身份头、按客户端上下文写上下文头（只写白名单里的非空值）。
- * 有身份 → X-Styrigx-Lock-Session: 1 + X-Styrigx-Lock-Role（两者并存）+ 白名单里的 By / Tempkey-Id。
+ * 进门 → X-Styrigx-Lock-Session: 1 + 白名单里的 By / Tempkey-Id。
  * 没有锁屏会话 → 不带任何 X-Styrigx-Lock-* 头（= 下游看到的是无会话）。
  * @param {Headers} headers 要写的头（就地改）
- * @param {any} lockSession verifyLockSession 的结论 { ok, role, by?, tempkeyId? }
+ * @param {any} lockSession verifyLockSession 的结论 { ok, by?, tempkeyId? }
  * @param {any} clientContext { address, country, city }
  * @returns {Headers}
  */
@@ -118,7 +113,6 @@ export function writeLockIdentity(headers, lockSession, clientContext) {
   const id = normalizeLockIdentity(lockSession);
   if (id) {
     headers.set(LOCK_IDENTITY_HEADERS.session, '1');
-    headers.set(LOCK_IDENTITY_HEADERS.role, id.role);
     if (id.by) headers.set(LOCK_IDENTITY_HEADERS.by, id.by);
     if (id.tempkeyId) headers.set(LOCK_IDENTITY_HEADERS.tempkeyId, id.tempkeyId);
   }

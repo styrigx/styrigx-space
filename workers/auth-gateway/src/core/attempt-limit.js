@@ -1,8 +1,8 @@
 /**
  * 输错计数的 D1 读写（D1 attempt_limit 表，2026-10-27 从 KV 搬来）：锁屏 / 账号密码（password-limit.js）、
- * 临时码（lock-tempkey.js）、根凭证（root-limit.js）共用。
+ * 临时码（lock-tempkey.js）、进站凭证（space-limit.js）共用。
  *
- * 行：(realm, kind, bucket)。realm = 'lock' | 'account' | 'root'；kind = 'password' | 'tempkey' | 'rootkey'；
+ * 行：(realm, kind, bucket)。realm = 'lock' | 'account' | 'root'；kind = 'password' | 'tempkey' | 'spacekey'；
  * bucket = IP 分桶（http.js ipBucket），全局窗口那一行 bucket = GLOBAL_BUCKET（'*'）。
  *
  * 每次记失败都是一条原子 UPSERT（INSERT ... ON CONFLICT DO UPDATE SET count = count + 1 ... RETURNING）：

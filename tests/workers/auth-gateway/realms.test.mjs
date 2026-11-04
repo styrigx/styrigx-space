@@ -2,7 +2,7 @@
  * 凭证域配置（src/core/realms.js）钉死测试：账号拆分 PR3 起网关只有锁屏一个域，线上格式一个字都不能变。
  *
  * 覆盖：
- * - REALM_LOCK 的 cookie 名 / 属性 / 有效期 / 钥匙名 / D1 绑定钉死；锁屏根密钥并入 REALM_LOCK（rootKey = SGX_ADMIN_KEY、rootIssues = 两张锁屏短票）
+ * - REALM_LOCK 的 cookie 名 / 属性 / 有效期 / 钥匙名 / D1 绑定钉死；进站凭证并入 REALM_LOCK（spaceKey = SGX_LOCK_SPACE_KEY、spaceIssues = 两张锁屏短票）
  * - 账号域 REALM_ACCOUNT、根域 REALM_ROOT、BY_ACCOUNT、账号三张票从网关删掉（它们只在账号 Worker）
  * - 三张锁屏票总表；LockResetTicket 的 by = root / password / passkey（方案第 7 节）
  * - 每个钥匙名都在 src/secrets.js 的 SECRET_NAMES 与 wrangler.toml 的 Secrets Store 绑定里；网关只剩 4 个（方案 10.1）
@@ -22,7 +22,7 @@ import { withAuthD1 } from '../_harness.mjs';
 const { REALMS, REALM_LOCK, LOCK_EPOCH, realmPrivateKey, realmPublicKey, realmCookie, realmClearCookie, rpConfig, rpConfigMissing } = R;
 const REPO = new URL('../../../', import.meta.url).pathname;
 
-test('realms：REALM_LOCK 线上格式逐字相同；锁屏根密钥 rootKey = SGX_ADMIN_KEY（方案 6.2）', () => {
+test('realms：REALM_LOCK 线上格式逐字相同；进站凭证 spaceKey = SGX_LOCK_SPACE_KEY（方案 6.2）', () => {
   assert.equal(REALM_LOCK.id, 'lock');
   assert.equal(REALM_LOCK.keyName, 'LockKey');
   assert.equal(REALM_LOCK.cookie, 'sgx-lock-session');
@@ -31,11 +31,11 @@ test('realms：REALM_LOCK 线上格式逐字相同；锁屏根密钥 rootKey = S
   assert.equal(REALM_LOCK.privateKey, 'SGX_LOCK_PRIVATE');
   assert.equal(REALM_LOCK.publicKey, 'SGX_LOCK_PUBLIC');
   assert.equal(REALM_LOCK.pepper, 'SGX_PW_PEPPER', 'pepper 与账号 Worker 共用（Sloan 2026-10-30 定，不拆）');
-  assert.equal(REALM_LOCK.rootKey, 'SGX_ADMIN_KEY');
-  assert.deepEqual([...REALM_LOCK.rootIssues], ['LockReauthTicket', 'LockResetTicket']);
+  assert.equal(REALM_LOCK.spaceKey, 'SGX_LOCK_SPACE_KEY');
+  assert.deepEqual([...REALM_LOCK.spaceIssues], ['LockReauthTicket', 'LockResetTicket']);
   assert.equal(LOCK_EPOCH, 'lock-epoch');
   assert.equal(REALM_LOCK.epoch, 'lock-epoch');
-  assert.ok(Object.isFrozen(REALM_LOCK) && Object.isFrozen(REALM_LOCK.rootIssues) && Object.isFrozen(REALM_LOCK.challenge));
+  assert.ok(Object.isFrozen(REALM_LOCK) && Object.isFrozen(REALM_LOCK.spaceIssues) && Object.isFrozen(REALM_LOCK.challenge));
 });
 
 test('realms：只经 D1_LOCK_AUTH；不再有账号域 / 根域；没有任何 KV 键名 / KV 绑定', () => {
@@ -59,8 +59,8 @@ test('realms：三张锁屏票总表（cookie / 钥匙 / 时长 / 属性 / by / 
   const T = R.TICKETS;
   const want = {
     LockSessionTicket: ['sgx-lock-session', 43200, ['password', 'passkey', 'tempkey']],
-    LockResetTicket: ['sgx-lock-reset', 180, ['root', 'password', 'passkey']],
-    LockReauthTicket: ['sgx-lock-reauth', 180, ['password', 'passkey', 'root']],
+    LockResetTicket: ['sgx-lock-reset', 180, ['space', 'password', 'passkey']],
+    LockReauthTicket: ['sgx-lock-reauth', 180, ['password', 'passkey', 'space']],
   };
   assert.deepEqual(Object.keys(T).sort(), Object.keys(want).sort());
   for (const [name, [cookie, maxAge, bys]] of Object.entries(want)) {
@@ -73,12 +73,11 @@ test('realms：三张锁屏票总表（cookie / 钥匙 / 时长 / 属性 / by / 
   }
   assert.ok(T.LockSessionTicket.cookieAttrs.includes('Domain=.styrigx.com') && T.LockSessionTicket.cookieAttrs.includes('SameSite=Lax'));
   for (const n of ['LockResetTicket', 'LockReauthTicket']) assert.equal(T[n].cookieAttrs, 'Path=/; HttpOnly; Secure; SameSite=Strict', n);
-  assert.equal(R.ROLE_ADMIN, 'admin');
-  assert.equal(R.ROLE_VISITOR, 'visitor');
+  assert.deepEqual(Object.keys(R).filter((k) => k.startsWith('ROLE_')), [], '进门二值：没有等级常量');
 });
 
-test('realms：网关 Secrets Store 只剩 4 个（SGX_LOCK_PRIVATE / SGX_LOCK_PUBLIC / SGX_ADMIN_KEY / SGX_PW_PEPPER）；账号钥匙、旧 SGX_ROOT_KEY 都不绑', () => {
-  assert.deepEqual([...SECRET_NAMES].sort(), ['SGX_ADMIN_KEY', 'SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_PW_PEPPER']);
+test('realms：网关 Secrets Store 只剩 4 个（SGX_LOCK_PRIVATE / SGX_LOCK_PUBLIC / SGX_LOCK_SPACE_KEY / SGX_PW_PEPPER）；账号钥匙、旧 SGX_ROOT_KEY 都不绑', () => {
+  assert.deepEqual([...SECRET_NAMES].sort(), ['SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_LOCK_SPACE_KEY', 'SGX_PW_PEPPER']);
   const toml = readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8').split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
   assert.deepEqual([...toml.matchAll(/^binding = "(SGX_[A-Z_]+)"$/gm)].map((m) => m[1]).sort(), [...SECRET_NAMES].sort());
   for (const n of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_ROOT_KEY', 'SGX_ROOT_KEY', 'SGX_STEPUP_PRIVATE', 'SGX_APP_PRIVATE']) {
@@ -88,7 +87,7 @@ test('realms：网关 Secrets Store 只剩 4 个（SGX_LOCK_PRIVATE / SGX_LOCK_P
 
 test('realms：钥匙名符合 SGX_<PURPOSE>_PRIVATE/PUBLIC，且都在 SECRET_NAMES 与 wrangler.toml 里', () => {
   const toml = readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8');
-  for (const n of [REALM_LOCK.privateKey, REALM_LOCK.publicKey, REALM_LOCK.rootKey, REALM_LOCK.pepper]) {
+  for (const n of [REALM_LOCK.privateKey, REALM_LOCK.publicKey, REALM_LOCK.spaceKey, REALM_LOCK.pepper]) {
     assert.ok(SECRET_NAMES.includes(n), n + ' 应在 src/secrets.js 的 SECRET_NAMES 里');
     assert.ok(toml.includes('binding = "' + n + '"'), n + ' 应在 wrangler.toml 的 Secrets Store 绑定里');
   }

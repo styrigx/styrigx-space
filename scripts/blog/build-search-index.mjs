@@ -6,7 +6,7 @@
  *
  * 来源：
  *   - web/content/<lang>/post/*.md 的 front matter：标题、描述、标签、draft、private
- *     （draft: true 跳过；private: true 标 private，只给管理员搜到——和 index.sitemap0.xml 的 .Params.private 是同一个开关）
+ *     （draft: true 跳过；private: true 标 private，只给账号已登录的人搜到——和 index.sitemap0.xml 的 .Params.private 是同一个开关）
  *   - hugo 构建后的 web/public/[en/]post/<文件名>/index.html：正文（<section id="article-start"> 里，短代码 / Markdown 已渲染好），
  *     去掉代码块标题栏和行号、HTML 标签，压成纯文本，最多 2000 字。
  *     网址按 hugo.yaml 的 permalinks（/post/:contentbasename/，英文带 /en/）拼，并核对构建产物里确实有这一页——

@@ -1,24 +1,8 @@
 /**
  * ?return= 回跳：校验（safeReturn）和「解锁后去哪」（resolveReturn）的唯一实现。
  * 首页 302（gate.js）和 /api/lock-session-check 共用；前端不做白名单，只照着跳。
- * 管理员专属页（锁屏凭证页、临时钥匙页、服务状态页）的路径表也在这里，middleware 的访客 302 用同一份。
+ * 进门二值（P2-3）：页面只分「要进门 / 公开」，解锁后回到原页；门内页（锁屏凭证页等）由页面自己要锁侧复验。
  */
-import { ROLE_VISITOR } from './lock-session.js';
-
-/* 访客可进安全与隐私总览页（/settings/security/）；锁屏凭证页、临时钥匙页（含短链）、服务状态页要 admin 会话。 */
-export const ADMIN_ONLY_PATHS = Object.freeze([
-  '/settings/security/lock/',
-  '/en/settings/security/lock/',
-  '/settings/security/tempkeys/',
-  '/en/settings/security/tempkeys/',
-  '/settings/status/',
-  '/en/settings/status/',
-]);
-
-/** @param {string} pathname */
-export function isAdminOnlyPath(pathname) {
-  return ADMIN_ONLY_PATHS.some(p => pathname === p || pathname.startsWith(p));
-}
 
 const MAIN_ORIGIN = 'https://styrigx.com';
 /* 已下线的子站：不再作为回跳目标（blog / curio / daymark 2026-11-02 并入图志 atlas.styrigx.com；合并 PR3 起三站在 styrigx.com/<站>/，
@@ -72,27 +56,10 @@ export function safeReturn(ret) {
 
 /**
  * 解锁后去哪（唯一实现；首页 302 和 /api/lock-session-check?return= 共用，前端不做白名单）。
- * - return 不合法 → 首页
- * - 已登录用户 return 指向门内页（ADMIN_ONLY_PATHS）→ 安全与隐私总览（定稿 #1）
- * - 访客 + 管理员专属 return → upgrade（不跳；就地管理员验证）
+ * 只做地址白名单（safeReturn）：合法 → 原地址；不合法 → 首页。不看进门方式（方案 3.2）。
  * @param {string} ret 原始 return 参数
- * @param {string|null} role 'admin'|'visitor'
- * @returns {{location:string, upgrade:boolean}}
+ * @returns {string}
  */
-export function resolveReturn(ret, role) {
-  const isVisitor = role === ROLE_VISITOR;
-  let safeLoc = safeReturn(ret) || '/';
-  let locPath = '';
-  try {
-    const u = new URL(safeLoc, 'https://styrigx.com');
-    locPath = u.hostname === 'styrigx.com' ? u.pathname : '';
-  } catch (e) {
-    locPath = '';
-  }
-  if (locPath && isAdminOnlyPath(locPath) && !isVisitor) {
-    safeLoc = locPath.startsWith('/en/') ? '/en/settings/security/' : '/settings/security/';
-    locPath = safeLoc;
-  }
-  const isAdminReturn = locPath ? isAdminOnlyPath(locPath) : false;
-  return { location: safeLoc, upgrade: isVisitor && isAdminReturn };
+export function resolveReturn(ret) {
+  return safeReturn(ret) || '/';
 }

@@ -158,8 +158,8 @@ export function clearShortTicket(headers, conf) {
 /**
  * 两张锁屏短票：按 realms.js 的 TICKETS 总表通用签发、验证（LockSessionTicket 在 lock-session.js）。
  * - LockResetTicket  （sgx-lock-reset） 重置锁屏（丢了锁屏凭证，没有会话）—— 只能设置解锁密码 / 增删锁屏通行密钥；
- *                     by = root（锁屏根密钥 + 重置开关，或锁屏从零设置）| password | passkey（锁屏根密钥 + 锁屏凭证双验）
- * - LockReauthTicket （sgx-lock-reauth）进「安全与隐私 → 锁屏凭证」前再验一次；by = password | passkey | root
+ *                     by = space（进站凭证 + 重置开关，或锁屏从零设置）| password | passkey（进站凭证 + 锁屏凭证双验）
+ * - LockReauthTicket （sgx-lock-reauth）进「安全与隐私 → 锁屏凭证」前再验一次；by = password | passkey | space
  * 账号的 AccountResetTicket / AccountReauthTicket 在账号 Worker（账号拆分 PR3），网关不签、不验。
  *
  * 票内容：by.epoch.iat.exp，最后一段是签名：sig = Ed25519(SGX_LOCK_PRIVATE, "<cookie 名>|by.epoch.iat.exp")。

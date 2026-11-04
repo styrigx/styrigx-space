@@ -1,20 +1,20 @@
 /**
- * 2.11 定稿测试：根凭证 / 管理员凭证鉴权拆分。
+ * 2.11 定稿测试：进站凭证 / 锁屏凭证鉴权拆分。
  *
  * 九组（定稿第十节）：
- * 1. 越权：scope 不匹配 403；lock passkey 开 stepup 被拒；已配置层拒 by=root
- * 2. 无 lock 会话：单用管理员凭证进入口 2、单用根凭证进入口 1 均被拒
+ * 1. 越权：scope 不匹配 403；lock passkey 开 stepup 被拒；已配置层拒 by=space
+ * 2. 无 lock 会话：单用锁屏凭证进入口 2、单用进站凭证进入口 1 均被拒
  * 3. 重置锁屏（账号拆分 PR3，方案第 7 节）：只锁屏凭证或只根（开关关闭）被拒；两者都过拿到 lockreset（by=password / passkey）；
  *    lockreset 访问主页面/APP/会话/入口1/2 均 403 且不产生 sgx-verified；
  *    完成后旧会话失效；锁屏凭证一项都没有时被拒；网关不读账号凭证
  * 4. 开关：缺失/过期/超 24 小时/格式错误时单根被拒；有效时单根拿到 lockreset；
- *    有效时单管理员仍被拒
- * 5. 假入口：访客提交正确 SGX_ADMIN_KEY 返回 401 auth，与错误密钥响应逐字节相同
+ *    有效时仍被拒
+ * 5. 假入口（只剩 lock-reset，锁屏已设置时）：提交正确 SGX_LOCK_SPACE_KEY 返回 401 auth，与错误密钥响应逐字节相同；lock-reauth 要先进门（任何 by）
  * 6. 接管：未配时根可代管；配置后失效；接管后旧 root 票/会话被拒；
  *    D1 读失败时根代管被拒
  * 7. pepper：旧 hash 重哈希；缺 pepper fail closed；锁屏密码不再与账号密码比对（网关不读账号表）
- * 8. /api/root-auth：错误 401 auth，缺 Origin 403；/api/owner-auth 不可用
- * 9. 限速：根凭证各路径共用计数
+ * 8. /api/space-auth：错误 401 auth，缺 Origin 403；/api/owner-auth 不可用
+ * 9. 限速：进站凭证各路径共用计数
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -74,7 +74,7 @@ await genTestKeys();
 function baseEnv(kv, overrides) {
   return Object.assign({
     D1_LOCK_AUTH: authD1For(kv),
-    SGX_ADMIN_KEY: 'test-root-key-12345',
+    SGX_LOCK_SPACE_KEY: 'test-root-key-12345',
     SGX_LOCK_PRIVATE: TEST_PRIV_PEM,
     SGX_LOCK_PUBLIC: TEST_PUB_PEM,
     SGX_PW_PEPPER: 'test-pepper',
@@ -107,25 +107,26 @@ function configuredKV(o) {
 /* ============ 2. 无 lock 会话 ============ */
 
 
-test('2.11 无 lock 会话：单用根凭证进入口 1 被拒（无会话且 lock 已配置 → 假入口 401 auth）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
+test('2.11 无 lock 会话：单用进站凭证进不了 lock-reauth（没进门 → 401 session，不比对、不计数）', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
+  const req = postReq('https://test.example.com/api/space-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
   const res = await onRequestPost({ request: req, env });
-  /* 无会话 + lock 已配置 → 假入口，即使密钥正确也 401 auth */
+  /* 无会话：即使密钥正确也 401 session；不比对，所以不计数 */
   assert.equal(res.status, 401);
-  assert.deepEqual(await res.json(), { ok: false, error: 'auth' });
+  assert.deepEqual(await res.json(), { ok: false, error: 'session' });
+  assert.equal(switchDb(kv).raw.prepare("SELECT COUNT(*) AS n FROM attempt_limit WHERE realm = 'lock' AND kind = 'spacekey'").get().n, 0);
 });
 
 /* ============ 3. 重置锁屏 ============ */
 
-test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needLock（带锁屏凭证的 passkey / password 布尔）', async () => {
+test('2.11 重置锁屏：开关关闭时只进站凭证 → 返回 needLock（带锁屏凭证的 passkey / password 布尔）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true, account: true });
   const env = baseEnv(kv); /* 无开关 → 关闭 */
   const req = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345',
+    action: 'verify', spaceKey: 'test-root-key-12345',
     /* 无 lockProof */
   });
   const res = await onRequestPost({ request: req, env });
@@ -134,34 +135,34 @@ test('2.11 重置锁屏：开关关闭时只根凭证 → 返回 needLock（带�
   assert.equal(res.headers.get('Set-Cookie'), null, '没签票');
 });
 
-test('2.11 重置锁屏：开关关闭时只锁屏凭证被拒（缺根密钥 → 401）', async () => {
+test('2.11 重置锁屏：开关关闭时只锁屏凭证被拒（缺进站凭证 → 401）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify',
     lockProof: { type: 'password', password: 'lock-pass-1' },
-    /* 无 rootKey */
+    /* 无 spaceKey */
   });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
   assert.equal(res.headers.get('Set-Cookie'), null);
 });
 
-test('2.11 重置锁屏：根密钥 + 锁屏密码 → LockResetTicket(by=password)；锁屏密码错 → 401 auth 并计入根密钥限速', async () => {
+test('2.11 重置锁屏：进站凭证 + 锁屏密码 → LockResetTicket(by=password)；锁屏密码错 → 401 auth 并计入进站凭证限速', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const { verifyLockResetTicket } = await import(REPO + '/workers/auth-gateway/src/core/tickets.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const h = { 'CF-Connecting-IP': '9.9.9.1' };
   const bad = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345', lockProof: { type: 'password', password: 'wrong-pass' } }, h), env });
+    action: 'verify', spaceKey: 'test-root-key-12345', lockProof: { type: 'password', password: 'wrong-pass' } }, h), env });
   assert.equal(bad.status, 401);
   assert.deepEqual(await bad.json(), { ok: false, error: 'auth' });
-  const rows = authD1For(kv).raw.prepare("SELECT count FROM attempt_limit WHERE realm = 'lock' AND kind = 'rootkey' AND bucket = ?").all('9.9.9.1');
-  assert.equal(rows.length, 1, '锁屏凭证错计入锁屏根密钥那一行');
+  const rows = authD1For(kv).raw.prepare("SELECT count FROM attempt_limit WHERE realm = 'lock' AND kind = 'spacekey' AND bucket = ?").all('9.9.9.1');
+  assert.equal(rows.length, 1, '锁屏凭证错计入进站凭证那一行');
   const ok = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345', lockProof: { type: 'password', password: 'lock-pass-1' } }, h), env });
+    action: 'verify', spaceKey: 'test-root-key-12345', lockProof: { type: 'password', password: 'lock-pass-1' } }, h), env });
   assert.equal(ok.status, 200);
   assert.deepEqual(await ok.json(), { ok: true });
   const sc = ok.headers.get('Set-Cookie') || '';
@@ -177,7 +178,7 @@ test('2.11 重置锁屏：库里遗留的账号密码不算锁屏凭证（网关
   const kv = configuredKV({ account: true }); /* 只有拆分前遗留的账号密码行 */
   const env = baseEnv(kv);
   const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345', lockProof: { type: 'password', password: 'account-pass-1' } }), env });
+    action: 'verify', spaceKey: 'test-root-key-12345', lockProof: { type: 'password', password: 'account-pass-1' } }), env });
   assert.equal(res.status, 401);
   assert.equal(res.headers.get('Set-Cookie'), null);
 });
@@ -197,11 +198,11 @@ test('2.11 重置锁屏：锁屏凭证一项都没有且开关关闭 → status 
   const st = postReq('https://test.example.com/api/lock-reset', { action: 'status' });
   const stRes = await onRequestPost({ request: st, env });
   const stBody = await stRes.json();
-  /* status 不再按管理员凭证配置返回 available，始终允许进入第一步 */
+  /* status 不再按锁屏凭证配置返回 available，始终允许进入第一步 */
   assert.equal(stBody.available, true);
   assert.ok(!('skippable' in stBody), 'status 不再返回 skippable');
   const req = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345',
+    action: 'verify', spaceKey: 'test-root-key-12345',
   });
   const res = await onRequestPost({ request: req, env });
   /* 锁屏凭证一项都没有：不返回 403 not-set，改为通用 401 auth */
@@ -229,12 +230,12 @@ function switchEnv(kv, hash) {
   return env;
 }
 
-test('2.11 开关：不存在 → 关闭（根凭证正确后返回 needLock）', async () => {
+test('2.11 开关：不存在 → 关闭（进站凭证正确后返回 needLock）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv); /* lock_reset_switch 没有行 */
   const req = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345',
+    action: 'verify', spaceKey: 'test-root-key-12345',
   });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 200);
@@ -250,7 +251,7 @@ test('2.11 开关：已用后再用 → 关闭（返回 needLock）', async () =
   const env = switchEnv(kv, 'switch-1');
   /* 第一次：成功（单根拿到 lockreset），开关标记已用 */
   const req1 = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345',
+    action: 'verify', spaceKey: 'test-root-key-12345',
   });
   const res1 = await onRequestPost({ request: req1, env });
   assert.equal(res1.status, 200);
@@ -258,7 +259,7 @@ test('2.11 开关：已用后再用 → 关闭（返回 needLock）', async () =
   assert.equal(switchRows(switchDb(kv))[0].used, 1);
   /* 第二次：同一行已用 → needLock */
   const req2 = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345',
+    action: 'verify', spaceKey: 'test-root-key-12345',
   });
   const res2 = await onRequestPost({ request: req2, env });
   assert.equal(res2.status, 200);
@@ -289,14 +290,14 @@ test('2.11 开关：插新行重新开启', async () => {
   /* 旧行已用 */
   const env1 = switchEnv(kv, 'old');
   const req1 = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345',
+    action: 'verify', spaceKey: 'test-root-key-12345',
   });
   await onRequestPost({ request: req1, env: env1 });
   assert.equal(switchRows(switchDb(kv)).find((x) => x.hash === 'old').used, 1);
   /* 插一行新的 */
   const env2 = switchEnv(kv, 'new-2');
   const req2 = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345',
+    action: 'verify', spaceKey: 'test-root-key-12345',
   });
   const res2 = await onRequestPost({ request: req2, env: env2 });
   assert.equal(res2.status, 200);
@@ -326,32 +327,32 @@ test('2.11 开关：D1 出错时重置路径不签 lockreset（单根）', async
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'switch-1');
   switchDb(kv).failOn = (sql) => /lock_reset_switch/.test(sql);
-  const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', { action: 'verify', rootKey: 'test-root-key-12345' }), env });
+  const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', { action: 'verify', spaceKey: 'test-root-key-12345' }), env });
   const body = await res.json();
   assert.notDeepEqual(body, { ok: true }, '开关读不到不能当打开');
   assert.equal(res.headers.get('Set-Cookie'), null);
 });
 
-test('2.11 开关：根凭证错误时不读开关', async () => {
+test('2.11 开关：进站凭证错误时不读开关', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'secret');
   const db = switchDb(kv);
   db.calls.length = 0;
   const req = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'wrong-key',
+    action: 'verify', spaceKey: 'wrong-key',
   });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
-  assert.equal(touchedSwitch(db), false, '根凭证错误时不应读开关');
+  assert.equal(touchedSwitch(db), false, '进站凭证错误时不应读开关');
   assert.equal(switchRows(db)[0].first_seen, 0, '不开始计时');
 });
 
-test('2.11 开关：有效时单锁屏凭证仍被拒（根密钥优先，不可跳过）', async () => {
+test('2.11 开关：有效时单锁屏凭证仍被拒（进站凭证优先，不可跳过）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'switch-1');
-  /* 有 lockProof 但无 rootKey → 401（根密钥不可跳过） */
+  /* 有 lockProof 但无 spaceKey → 401（进站凭证不可跳过） */
   const req = postReq('https://test.example.com/api/lock-reset', {
     action: 'verify',
     lockProof: { type: 'password', password: 'lock-pass-1' },
@@ -363,18 +364,24 @@ test('2.11 开关：有效时单锁屏凭证仍被拒（根密钥优先，不可
 
 /* ============ 5. 假入口 ============ */
 
-test('2.11 假入口：访客提交正确根凭证 → 401 auth，与错误密钥响应逐字节相同', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
-  const kv1 = configuredKV({ lock: true });
-  const kv2 = configuredKV({ lock: true });
-  const env1 = baseEnv(kv1);
-  const env2 = baseEnv(kv2);
-  /* 正确密钥 */
-  const req1 = postReq('https://test.example.com/api/root-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
-  const res1 = await onRequestPost({ request: req1, env: env1 });
-  /* 错误密钥 */
-  const req2 = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key', purpose: 'lock-reauth' });
-  const res2 = await onRequestPost({ request: req2, env: env2 });
+test('2.11 lock-reauth：临时钥匙进门的会话提交正确进站凭证 → 200 签 LockReauthTicket(by=space)；错误 → 401 auth（v1 会话假入口已删）', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
+  const env = baseEnv(configuredKV({ lock: true }));
+  const cookie = 'sgx-lock-session=' + (await testLockSession(TEST_PRIV_PEM, 0, 'tempkey'));
+  const ok = await onRequestPost({ request: postReq('https://test.example.com/api/space-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' }, { Cookie: cookie }), env });
+  assert.equal(ok.status, 200);
+  const sc = typeof ok.headers.getSetCookie === 'function' ? ok.headers.getSetCookie() : [ok.headers.get('set-cookie') || ''];
+  assert.ok(sc.some((c) => c.startsWith('sgx-lock-reauth=space.')), '签 LockReauthTicket，by=space');
+  assert.ok(!sc.some((c) => c.startsWith('sgx-lock-session=')), '不签会话');
+  const bad = await onRequestPost({ request: postReq('https://test.example.com/api/space-auth', { key: 'wrong-key', purpose: 'lock-reauth' }, { Cookie: cookie }), env });
+  assert.equal(bad.status, 401);
+  assert.deepEqual(await bad.json(), { ok: false, error: 'auth' });
+});
+
+test('2.11 假入口（只剩 lock-reset）：锁屏已设置时 lock-reset 提交正确进站凭证 → 401 auth，与错误密钥响应逐字节相同', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
+  const res1 = await onRequestPost({ request: postReq('https://test.example.com/api/space-auth', { key: 'test-root-key-12345', purpose: 'lock-reset' }), env: baseEnv(configuredKV({ lock: true })) });
+  const res2 = await onRequestPost({ request: postReq('https://test.example.com/api/space-auth', { key: 'wrong-key', purpose: 'lock-reset' }), env: baseEnv(configuredKV({ lock: true })) });
   assert.equal(res1.status, 401);
   assert.equal(res2.status, 401);
   const b1 = await res1.text();
@@ -384,10 +391,10 @@ test('2.11 假入口：访客提交正确根凭证 → 401 auth，与错误密�
 });
 
 test('2.11 假入口：缺 Origin → 403（先于假入口）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
-  const req = new Request('https://test.example.com/api/root-auth', {
+  const req = new Request('https://test.example.com/api/space-auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key: 'test-root-key-12345' }),
@@ -404,7 +411,7 @@ test('2.11 pepper：锁屏密码不再与账号密码比对（库里遗留同值
   const { signLockReauthTicket } = await import(REPO + '/workers/auth-gateway/src/core/tickets.js');
   const kv = configuredKV({ lock: true, account: true }); /* 纪元在 D1，没有 → 0；遗留账号密码 = account-pass-1 */
   const env = baseEnv(kv);
-  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'password');
   const reauth = await signLockReauthTicket(TEST_PRIV_PEM, 'password', 0);
   const res = await pwPost({ request: postReq('https://test.example.com/api/lock-password',
     { action: 'change', password: 'account-pass-1' }, { Cookie: 'sgx-lock-session=' + sessCv + '; sgx-lock-reauth=' + reauth }), env });
@@ -417,23 +424,23 @@ test('2.11 pepper：锁屏密码不再与账号密码比对（库里遗留同值
   assert.equal((await res2.json()).error, 'reauth');
 });
 
-/* ============ 8. root-auth ============ */
+/* ============ 8. space-auth ============ */
 
-test('2.11 root-auth：错误密钥 401 auth（引导模式）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
+test('2.11 space-auth：错误密钥 401 auth（引导模式，lock-reset）', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
   const kv = makeKV(); /* lock 未配置 → 引导模式 */
   const env = baseEnv(kv);
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key', purpose: 'lock-reauth' });
+  const req = postReq('https://test.example.com/api/space-auth', { key: 'wrong-key', purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
   assert.deepEqual(await res.json(), { ok: false, error: 'auth' });
 });
 
-test('2.11 root-auth：缺 Origin 403 origin', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
+test('2.11 space-auth：缺 Origin 403 origin', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
   const kv = makeKV();
   const env = baseEnv(kv);
-  const req = new Request('https://test.example.com/api/root-auth', {
+  const req = new Request('https://test.example.com/api/space-auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key: 'x' }),
@@ -443,39 +450,40 @@ test('2.11 root-auth：缺 Origin 403 origin', async () => {
   assert.equal((await res.json()).error, 'origin');
 });
 
-test('2.11 root-auth：旧 /api/owner-auth 不再可用（文件不存在）', async () => {
+test('2.11 space-auth：旧 /api/owner-auth 不再可用（文件不存在）', async () => {
   const fs = await import('node:fs');
   assert.equal(fs.existsSync(REPO + '/workers/auth-gateway/src/api/owner-auth.js'), false);
 });
 
 /* ============ 9. 限速 ============ */
 
-test('2.11 限速：根凭证各路径共用计数（root-auth 失败计入 lockreset 限速）', async () => {
-  const { checkRootLimit, recordRootFail } = await import(REPO + '/workers/auth-gateway/src/core/root-limit.js');
-  const { onRequestPost: rootAuth } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
+test('2.11 限速：进站凭证各路径共用计数（space-auth 失败计入 lockreset 限速）', async () => {
+  const { checkSpaceLimit, recordSpaceFail } = await import(REPO + '/workers/auth-gateway/src/core/space-limit.js');
+  const { onRequestPost: spaceAuth } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
   const { onRequestPost: lockReset } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
   const ip = '1.2.3.4';
   /* 单元：5 次失败后锁定（D1 attempt_limit，realm=root） */
   for (let i = 0; i < 5; i++) {
-    await recordRootFail(env, ip);
+    await recordSpaceFail(env, ip);
   }
-  const lim = await checkRootLimit(env, ip);
+  const lim = await checkSpaceLimit(env, ip);
   assert.equal(lim.limited, true);
-  /* 跨路径：root-auth（无会话 lock-reauth 假入口）失败 3 次 + lock-reset 失败 2 次 → 同一行计到锁定 */
+  /* 跨路径：space-auth（进门会话 lock-reauth 真比对）失败 3 次 + lock-reset 失败 2 次 → 同一行计到锁定 */
   const ip2 = '1.2.3.5';
   const h = { 'CF-Connecting-IP': ip2 };
+  const hs = { ...h, Cookie: 'sgx-lock-session=' + (await testLockSession(TEST_PRIV_PEM, 0, 'password')) };
   for (let i = 0; i < 3; i++) {
-    assert.equal((await rootAuth({ request: postReq('https://test.example.com/api/root-auth', { key: 'wrong', purpose: 'lock-reauth' }, h), env })).status, 401);
+    assert.equal((await spaceAuth({ request: postReq('https://test.example.com/api/space-auth', { key: 'wrong', purpose: 'lock-reauth' }, hs), env })).status, 401);
   }
   for (let i = 0; i < 2; i++) {
-    assert.equal((await lockReset({ request: postReq('https://test.example.com/api/lock-reset', { action: 'verify', rootKey: 'wrong' }, h), env })).status, 401);
+    assert.equal((await lockReset({ request: postReq('https://test.example.com/api/lock-reset', { action: 'verify', spaceKey: 'wrong' }, h), env })).status, 401);
   }
-  const rows = switchDb(kv).raw.prepare("SELECT * FROM attempt_limit WHERE realm = 'lock' AND kind = 'rootkey' AND bucket = ?").all(ip2);
+  const rows = switchDb(kv).raw.prepare("SELECT * FROM attempt_limit WHERE realm = 'lock' AND kind = 'spacekey' AND bucket = ?").all(ip2);
   assert.equal(rows.length, 1, '各路径共用一行');
   assert.ok(rows[0].locked_until > Date.now(), '合计 5 次 → 锁定');
-  const res = await lockReset({ request: postReq('https://test.example.com/api/lock-reset', { action: 'verify', rootKey: 'test-root-key-12345' }, h), env });
+  const res = await lockReset({ request: postReq('https://test.example.com/api/lock-reset', { action: 'verify', spaceKey: 'test-root-key-12345' }, h), env });
   assert.equal(res.status, 429, '锁定中 lock-reset 码对也 429');
 });
 
@@ -507,9 +515,9 @@ test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效',
   assert.ok(switchRows(db)[0].first_seen > 0);
   /* 把首次时间拨到 25 小时前（模拟过期） */
   db.raw.prepare('UPDATE lock_reset_switch SET first_seen = ? WHERE hash = ?').run(Date.now() - 25 * 3600 * 1000, 'timer-1');
-  /* 重置路径：根凭证正确，但开关已过期 → needLock（而非 lockreset） */
+  /* 重置路径：进站凭证正确，但开关已过期 → needLock（而非 lockreset） */
   const req = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'test-root-key-12345',
+    action: 'verify', spaceKey: 'test-root-key-12345',
   });
   const res = await onRequestPost({ request: req, env: env0 });
   assert.equal(res.status, 200);
@@ -522,12 +530,12 @@ test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效',
 
 /* ============ 11. 补充四：恢复开关提示仅出现在重置第二步 ============ */
 
-test('2.11 补充四：根凭证错误的 lockreset 响应不含 lock-reset-switch / lock_reset_switch / recovery_switch', async () => {
+test('2.11 补充四：进站凭证错误的 lockreset 响应不含 lock-reset-switch / lock_reset_switch / recovery_switch', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'some-secret');
   const req = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', rootKey: 'wrong-key',
+    action: 'verify', spaceKey: 'wrong-key',
   });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
@@ -535,12 +543,12 @@ test('2.11 补充四：根凭证错误的 lockreset 响应不含 lock-reset-swit
   assert.ok(!text.includes('lock-reset-switch') && !text.includes('lock_reset_switch') && !text.includes('recovery_switch') && !text.includes('some-secret'), '错误响应不应泄露开关');
 });
 
-test('2.11 补充四：访客假入口（root-auth）响应不含 lock-reset-switch / lock_reset_switch / recovery_switch', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/root-auth.js');
+test('2.11 补充四：lock-reset 假入口（space-auth，锁屏已设置）响应不含 lock-reset-switch / lock_reset_switch / recovery_switch', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
   const kv = configuredKV({ lock: true });
   const env = switchEnv(kv, 'some-secret');
-  /* 访客无会话，提交错误密钥 → 假入口 401 */
-  const req = postReq('https://test.example.com/api/root-auth', { key: 'wrong-key', purpose: 'lock-reauth' });
+  /* 无会话、锁屏已设置，lock-reset 提交错误密钥 → 假入口 401 */
+  const req = postReq('https://test.example.com/api/space-auth', { key: 'wrong-key', purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
   const text = await res.text();
@@ -553,9 +561,9 @@ test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）',
   /* C2：底部恢复提示改成新文案，不出现 lock-reset-switch 键名 */
   assert.ok(!src.includes('lock-reset-switch'), 'lock.js 不应再出现 lock-reset-switch 键名');
   assert.ok(!src.includes('sgx-reset-switch-hint'), '旧提示元素已删除');
-  /* PR3：重置界面在 auth/reset-flow.js（锁屏与账号页共用），不出现「管理员」；账号拆分 PR3 起第二步是锁屏凭证，恢复提示只在第二步 */
+  /* PR3：重置界面在 auth/reset-flow.js（锁屏与账号页共用），不出现旧角色名；账号拆分 PR3 起第二步是锁屏凭证，恢复提示只在第二步 */
   const rf = fs.readFileSync(REPO + 'web/atlas/assets/js/auth/reset-flow.js', 'utf8');
-  assert.ok(!src.includes('管理员') && !rf.includes('管理员'), '不再出现「管理员」字样');
+  assert.ok(!src.includes('管理员') && !rf.includes('管理员'), '不再出现「管理员」字样'); // old-name guard
   assert.ok(!rf.includes('lock-reset-switch'), 'reset-flow.js 不应出现开关键名');
   assert.ok(rf.includes('锁屏凭证也无法使用？'), '恢复提示说的是锁屏凭证');
   assert.ok(!/needAccount|accountProof/.test(rf + src), '前端不再有 needAccount / accountProof');
@@ -563,5 +571,5 @@ test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）',
   const step1Idx = rf.indexOf('function step1');
   const hintUse = rf.indexOf("t('recover')");
   assert.ok(step2Idx > 0 && hintUse > step2Idx, '恢复提示只在第二步');
-  assert.ok(!rf.slice(step1Idx, step2Idx).includes("t('recover')"), '第一步（根凭证）不显示恢复提示');
+  assert.ok(!rf.slice(step1Idx, step2Idx).includes("t('recover')"), '第一步（进站凭证）不显示恢复提示');
 });

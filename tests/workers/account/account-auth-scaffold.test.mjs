@@ -124,9 +124,9 @@ test('realm：REALM_ACCOUNT 钉死字面量（拆分前网关 REALM_ACCOUNT 的�
   assert.deepEqual(a.rootIssues, ['AccountReauthTicket', 'AccountResetTicket']);
   assert.equal(a.d1Binding, 'D1_ACCOUNT_AUTH');
   assert.ok(Object.isFrozen(a) && Object.isFrozen(a.challenge) && Object.isFrozen(a.rootIssues) && Object.isFrozen(a.bys));
-  /* 根密钥名不是网关的锁屏根密钥 */
-  assert.notEqual(a.rootKey, gw.REALM_LOCK.rootKey);
-  assert.equal(gw.REALM_LOCK.rootKey, 'SGX_ADMIN_KEY');
+  /* 根密钥名不是网关的进站凭证 */
+  assert.notEqual(a.rootKey, gw.REALM_LOCK.spaceKey);
+  assert.equal(gw.REALM_LOCK.spaceKey, 'SGX_LOCK_SPACE_KEY');
 });
 
 test('realm：三张账号票钉死字面量（方案第 8 节：cookie 名 / TTL / 属性 / by / 钥匙不变，切换时现有票继续有效）；网关不再有这三张票', () => {
@@ -234,7 +234,7 @@ test('secrets：wrangler.toml 正式段恰好这四个 Secrets Store 绑定，st
     if (b.binding === 'SGX_PW_PEPPER') assert.equal(g && g.name, 'SGX_PW_PEPPER', 'pepper 两边绑同一个密值（方案 6.2）');
     else assert.equal(g, undefined, b.binding + '：账号钥匙只绑在账号 Worker，网关不绑');
   }
-  assert.deepEqual(theirs.map((b) => b.binding).sort(), ['SGX_ADMIN_KEY', 'SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_PW_PEPPER'], '网关只剩 4 个（方案 10.1）');
+  assert.deepEqual(theirs.map((b) => b.binding).sort(), ['SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_LOCK_SPACE_KEY', 'SGX_PW_PEPPER'], '网关只剩 4 个（方案 10.1）');
   assert.equal(mine.find((b) => b.binding === 'SGX_ACCOUNT_ROOT_KEY').store, 'a5a984f365424401bad5ad6ddcd44479');
   const code = preview.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
   assert.doesNotMatch(code, /secrets_store_secrets|SGX_ACCOUNT_PRIVATE|SGX_ACCOUNT_ROOT_KEY|SGX_PW_PEPPER/, '预览照网关预览：不绑 Secrets Store，测试密钥由 CI 现生成');

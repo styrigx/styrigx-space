@@ -1,7 +1,7 @@
 /**
  * @fileoverview styrigx-account 的路由（AccountService 放行之后的去向）：接口路由表 API_ROUTES 与头像文件 /avatar/<尺寸>.webp。
  *
- * 管管理员账号的全部身份和数据：
+ * 管站点账号的全部身份和数据：
  * - 账号身份：POST / GET /api/account（api/account.js：账号密码、账号 Passkey、设备、账号会话 / reauth / reset、
  *   账号根密钥 SGX_ACCOUNT_ROOT_KEY、账号审计）
  * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（进门 + 账号会话 + avatar.write）→ KV_PROFILE

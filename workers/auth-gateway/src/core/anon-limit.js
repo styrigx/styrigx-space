@@ -8,7 +8,7 @@
  * 每个 IP 60 秒 20 次；计数在 Cloudflare 边缘，不占存储、不收费）。只管「没有有效锁屏会话 + POST + 下面这几个接口」；
  * 有会话的、GET 的都不限。超过 → 429 { error: 'cooldown' }（前端已有的「太频繁」文案）+ Retry-After: 60，不进端点，不写 D1。
  *
- * 这只是防刷的总闸，不是安全门：真正的门槛仍是各端点自己的输错锁定（password-limit / root-limit / lock-tempkey）。
+ * 这只是防刷的总闸，不是安全门：真正的门槛仍是各端点自己的输错锁定（password-limit / space-limit / lock-tempkey）。
  * 所以绑定缺失（本地、单测、Pages 预览不支持这个绑定）或调用出错时放行，只打一行日志。
  */
 import { apiError, clientIp } from '../lib/http.js';
@@ -18,7 +18,7 @@ export const ANON_LIMITED_APIS = Object.freeze([
   '/api/lock-passkey',
   '/api/lock-reset',
   '/api/lock-password',
-  '/api/root-auth',
+  '/api/space-auth',
   '/api/lock-tempkey-unlock',
 ]);
 

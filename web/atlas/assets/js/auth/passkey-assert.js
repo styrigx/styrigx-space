@@ -4,7 +4,7 @@
  * 拿到结果或失败后再恢复。30 秒总超时（AbortController + WebAuthn timeout 双保险）。
  * 抛出带 kind 的错误：cancelled（已取消）/ timeout（超时）/ nokey（无匹配钥匙）/ failed（其他）。
  *
- * frontend-js #9（2026-10-26）：全站五处通行密钥断言（锁屏解锁、锁屏里的重置、访客升级、锁屏凭证页再验证、
+ * frontend-js #9（2026-10-26）：全站五处通行密钥断言（锁屏解锁、锁屏里的重置、主站锁侧复验弹层（auth/lock-reauth.js，P2-3 代替原升级层）、锁屏凭证页再验证、
  * 账号登录 / 再验证）都走 getPasskeyAssertion，选项用 assertionOptions(ch)、提交体用 assertionToJSON(cred)，
  * 不再各自手写 allowCredentials 映射和序列化。
  */

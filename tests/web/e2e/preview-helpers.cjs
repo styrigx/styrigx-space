@@ -4,15 +4,15 @@
  *
  * 环境变量（CI 的 passkey-e2e job 注入；本地没配时整组跳过，CI 里缺了直接失败）：
  * - SGX_TEST_BASE：预览站地址（https://passkey-e2e.styrigx-space.pages.dev）
- * - SGX_TEST_ADMIN_KEY：预览站的测试锁屏根密钥（与预览网关的 SGX_ADMIN_KEY 相同，绝不是生产值；CI 每次运行现生成，
- *   连同 SGX_PW_PEPPER 一起写进预览，不存 GitHub Secrets）。/api/root-auth、/api/lock-reset 用它。
- * - SGX_TEST_ACCOUNT_ROOT_KEY：预览站的测试账号根密钥（与预览账号那一半的 SGX_ACCOUNT_ROOT_KEY 相同，值与锁屏根密钥不同，
+ * - SGX_TEST_SPACE_KEY：预览站的测试进站凭证（与预览网关的 SGX_LOCK_SPACE_KEY 相同，绝不是生产值；CI 每次运行现生成，
+ *   连同 SGX_PW_PEPPER 一起写进预览，不存 GitHub Secrets）。/api/space-auth、/api/lock-reset 用它。
+ * - SGX_TEST_ACCOUNT_ROOT_KEY：预览站的测试账号根密钥（与预览账号那一半的 SGX_ACCOUNT_ROOT_KEY 相同，值与进站凭证不同，
  *   同样每次现生成）。POST /api/account { action:'root-reset' | 'root-reauth', key } 用它（账号拆分 PR3）。
- * - SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_D1_ID：写预览 D1（打开重置开关、清锁屏根密钥限速计数；D1 REST query）
+ * - SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_D1_ID：写预览 D1（打开重置开关、清进站凭证限速计数；D1 REST query）
  * - SGX_TEST_CF_API：只在模拟预览站（preview-emulator.cjs：本地，或 CI 里 pull_request 的运行）时设，把 Cloudflare REST 指到本机
  *
  * 用量：2026-10-27 起网关不再用 KV（认证状态全在 D1），这里也不碰 KV。D1 免费计划按行读写计（额度远大于 KV 的写 / 删 / 列），
- * 仍尽量少写：会话 / LockReauthTicket 缓存后先用只读接口确认（见 state），不再每个用例重新密码解锁 / root-auth；
+ * 仍尽量少写：会话 / LockReauthTicket 缓存后先用只读接口确认（见 state），不再每个用例重新密码解锁 / space-auth；
  * 重置开关行不删（签过的行在 D1 标了已用，见 resetTicketViaSwitch）。
  * 一次运行花多少可以用 preview-emulator.cjs 在本地量（/__kv/stats 的 d1 一栏）。
  *
@@ -25,9 +25,9 @@
  * 预览站用同一个 D1。CI 每次开跑前清掉预览 D1 里的密码、通行密钥和输错计数
  * （scripts/kv-budget.mjs reset-preview；根密钥、pepper 每次都换，旧的密码哈希没用了），
  * 本地跑也不一定清，所以 helper 仍不假设起始状态：
- * - adminSession：先用本次运行设过的锁屏密码解锁；不行就拿 LockResetTicket（锁屏未设置时 root-auth
+ * - adminSession：先用本次运行设过的锁屏密码解锁；不行就拿 LockResetTicket（锁屏未设置时 space-auth
  *   purpose:lock-reset；已设置时在 D1 插一行新的重置开关，轮询 /api/lock-reset），设一个新密码再解锁。
- * - 根凭证正确时服务端会清掉本 IP 的失败计数，所以轮询重置开关不会把自己锁住。
+ * - 进站凭证正确时服务端会清掉本 IP 的失败计数，所以轮询重置开关不会把自己锁住。
  *
  * 写后读：以前状态在 KV（最终一致，边缘缓存的读最长约 60 秒才看到新值）；2026-10-27 起网关的认证状态全部在 D1
  * （强一致），改凭证后下一个请求就能看到新值，下面这些轮询正常情况下第一次就满足；留着它们当兜底（只多花一次读）。
@@ -41,7 +41,7 @@
 const { expect } = require('@playwright/test');
 
 const BASE = (process.env.SGX_TEST_BASE || '').replace(/\/+$/, '');
-const ADMIN_KEY = process.env.SGX_TEST_ADMIN_KEY || '';
+const SPACE_KEY = process.env.SGX_TEST_SPACE_KEY || '';
 const ACCOUNT_ROOT_KEY = process.env.SGX_TEST_ACCOUNT_ROOT_KEY || '';
 const CF_TOKEN = process.env.SGX_TEST_CF_TOKEN || '';
 const CF_ACCOUNT = process.env.SGX_TEST_CF_ACCOUNT || '';
@@ -49,7 +49,7 @@ const D1_ID = process.env.SGX_TEST_PREVIEW_D1_ID || '';
 /* Cloudflare API 根地址：只有模拟预览站（preview-emulator.cjs；本地或 CI 的 PR 运行）时才改，真实预览不设 */
 const CF_API = (process.env.SGX_TEST_CF_API || 'https://api.cloudflare.com/client/v4').replace(/\/+$/, '');
 
-const READY = !!(BASE && ADMIN_KEY && ACCOUNT_ROOT_KEY);
+const READY = !!(BASE && SPACE_KEY && ACCOUNT_ROOT_KEY);
 const HAS_CF = !!(CF_TOKEN && CF_ACCOUNT && D1_ID);
 const ORIGIN = BASE ? new URL(BASE).origin : '';
 const SECURE = ORIGIN.startsWith('https:');
@@ -65,9 +65,9 @@ const TRACKED = [SESSION, REAUTH, RESET, ACCOUNT_SESSION, ACCOUNT_REAUTH, ACCOUN
 /**
  * worker 进程内的缓存（测试失败换 worker 后丢失，adminSession 会走重置）：
  * - password：本次运行设过的锁屏密码
- * - session / reauth：服务端最近一次发下来的 admin 锁屏会话、LockReauthTicket 的值（absorbCookies 顺手记下）。
- *   每个用例是新的 context，以前每次都要重新密码解锁、重新 root-auth 进门；而网关每次密码解锁成功会删两个限速键、
- *   每次 root-auth 成功会写一条审计并删一个限速行。所以 adminSession / lockReauth 先把缓存的值
+ * - session / reauth：服务端最近一次发下来的 锁屏进门会话、LockReauthTicket 的值（absorbCookies 顺手记下）。
+ *   每个用例是新的 context，以前每次都要重新密码解锁、重新 space-auth 进门；而网关每次密码解锁成功会删两个限速键、
+ *   每次 space-auth 成功会写一条审计并删一个限速行。所以 adminSession / lockReauth 先把缓存的值
  *   放回 context，用只读接口（lock-session-check / lock-reauth status，只有 D1 读）问服务端还认不认，认就直接用，
  *   不认（纪元推进、过期）才走原来的路。是不是有效由服务端判断，测试断言一条不少。
  */
@@ -91,10 +91,10 @@ function rand() {
 function requirePreview(test) {
   if (process.env.CI) {
     test.beforeAll(() => {
-      if (!READY) throw new Error('passkey-e2e 需要 SGX_TEST_BASE、SGX_TEST_ADMIN_KEY 与 SGX_TEST_ACCOUNT_ROOT_KEY（CI 里缺失视为失败）');
+      if (!READY) throw new Error('passkey-e2e 需要 SGX_TEST_BASE、SGX_TEST_SPACE_KEY 与 SGX_TEST_ACCOUNT_ROOT_KEY（CI 里缺失视为失败）');
     });
   } else {
-    test.skip(!READY, '需要 SGX_TEST_BASE、SGX_TEST_ADMIN_KEY 与 SGX_TEST_ACCOUNT_ROOT_KEY');
+    test.skip(!READY, '需要 SGX_TEST_BASE、SGX_TEST_SPACE_KEY 与 SGX_TEST_ACCOUNT_ROOT_KEY');
   }
 }
 
@@ -256,11 +256,11 @@ async function armResetSwitch() {
   await d1Query('CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
   await d1Query('INSERT INTO lock_reset_switch (hash, first_seen, used) VALUES (?, 0, 0)', ['e2e-' + rand()]);
 }
-/** 清掉锁屏根密钥的单 IP 限速计数（D1 attempt_limit realm='lock'、kind='rootkey'，账号拆分 PR3 起网关的根密钥计数归锁屏域；
+/** 清掉进站凭证的单 IP 限速计数（D1 attempt_limit realm='lock'、kind='spacekey'，账号拆分 PR3 起网关的根密钥计数归锁屏域；
  *  全局窗口不动）。表还没建（没跑迁移、网关还没记过数）= 没有可清的。 */
-async function clearRootLimits() {
+async function clearSpaceLimits() {
   try {
-    await d1Query("DELETE FROM attempt_limit WHERE realm = 'lock' AND kind = 'rootkey' AND bucket <> '*'");
+    await d1Query("DELETE FROM attempt_limit WHERE realm = 'lock' AND kind = 'spacekey' AND bucket <> '*'");
   } catch (e) {
     if (!/no such table/.test(String(e && e.message))) throw e;
   }
@@ -268,7 +268,7 @@ async function clearRootLimits() {
 
 /**
  * 用重置开关拿 LockResetTicket：在 D1 插一行新开关，轮询 /api/lock-reset verify 直到签票
- * （D1 强一致，正常第一次就签）。每次轮询根凭证都正确，服务端先清本 IP 的失败计数，不会自锁。
+ * （D1 强一致，正常第一次就签）。每次轮询进站凭证都正确，服务端先清本 IP 的失败计数，不会自锁。
  * @param {import('@playwright/test').Page} page
  * @returns {Promise<import('@playwright/test').APIResponse>} 签票的那次响应
  */
@@ -276,7 +276,7 @@ async function resetTicketViaSwitch(page) {
   await armResetSwitch();
   let hit = null;
   await expect.poll(async () => {
-    const r = await api(page, '/api/lock-reset', { action: 'verify', rootKey: ADMIN_KEY });
+    const r = await api(page, '/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY });
     if (r.status === 200 && r.json && r.json.ok && !r.json.needLock) {
       hit = r.resp;
       return 'ticket';
@@ -284,20 +284,20 @@ async function resetTicketViaSwitch(page) {
     return r.status + ' ' + JSON.stringify(r.json);
   }, { message: '重置开关签 LockResetTicket', timeout: 90000, intervals: [3000, 10000, 15000, 20000] }).toBe('ticket');
   /* 不删开关行：签过票的行在 D1 里标了已用，永不再生效；下次要用时再插一行。万一没签成（轮询超时），
-     这一行也只对本次运行现生成的预览锁屏根密钥有用，24 小时后过期。lock-reset-switch.js：已用 / 过期的行永不重新生效。 */
+     这一行也只对本次运行现生成的预览进站凭证有用，24 小时后过期。lock-reset-switch.js：已用 / 过期的行永不重新生效。 */
   return /** @type {any} */ (hit);
 }
 
 /**
- * 拿 LockResetTicket（写进 context）：锁屏未设置 → root-auth purpose:lock-reset；已设置 → 重置开关。
+ * 拿 LockResetTicket（写进 context）：锁屏未设置 → space-auth purpose:lock-reset；已设置 → 重置开关。
  * @param {import('@playwright/test').Page} page
  * @param {import('@playwright/test').TestType<any, any>} test
  */
 async function lockResetTicket(page, test) {
-  const r = await api(page, '/api/root-auth', { key: ADMIN_KEY, purpose: 'lock-reset' });
-  if (r.status === 200 && r.json && r.json.ok) return 'root-auth';
-  /* 锁屏已设置时 root-auth 的 lock-reset 是假入口，固定 401 */
-  expect(r.status, 'root-auth lock-reset: ' + JSON.stringify(r.json)).toBe(401);
+  const r = await api(page, '/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reset' });
+  if (r.status === 200 && r.json && r.json.ok) return 'space-auth';
+  /* 锁屏已设置时 space-auth 的 lock-reset 是假入口，固定 401 */
+  expect(r.status, 'space-auth lock-reset: ' + JSON.stringify(r.json)).toBe(401);
   requireCf(test);
   await resetTicketViaSwitch(page);
   return 'switch';
@@ -321,7 +321,7 @@ async function unlockWithPassword(page, password) {
 }
 
 /**
- * 让页面 context 拿到 admin 锁屏会话（sgx-lock-session，按预览主机写入）。返回当前锁屏密码。
+ * 让页面 context 拿到 锁屏进门会话（sgx-lock-session，按预览主机写入）。返回当前锁屏密码。
  * @param {import('@playwright/test').Page} page
  * @param {import('@playwright/test').TestType<any, any>} test
  */
@@ -381,7 +381,7 @@ function rememberPassword(pw) {
 }
 
 /**
- * 进锁屏凭证的门：root-auth purpose:lock-reauth → LockReauthTicket（要 admin 会话）。
+ * 进锁屏凭证的门：space-auth purpose:lock-reauth → LockReauthTicket（要 进门会话）。
  * @param {import('@playwright/test').Page} page
  */
 async function lockReauth(page) {
@@ -391,8 +391,8 @@ async function lockReauth(page) {
   })) {
     return;
   }
-  const r = await api(page, '/api/root-auth', { key: ADMIN_KEY, purpose: 'lock-reauth' });
-  expect(r.json && r.json.ok, 'root-auth lock-reauth: ' + JSON.stringify(r.json)).toBe(true);
+  const r = await api(page, '/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reauth' });
+  expect(r.json && r.json.ok, 'space-auth lock-reauth: ' + JSON.stringify(r.json)).toBe(true);
 }
 
 /** @param {import('@playwright/test').Page} page */
@@ -528,15 +528,15 @@ async function deleteAllPasskeys(page) {
   }
 }
 
-/** 锁屏会话 cookie 值里的纪元（by.role.epoch.exp.tempkeyId.sig） */
+/** 锁屏会话 cookie 值里的纪元（LockSessionTicket v2：by.epoch.exp.tempkeyId.sig，纪元是第 2 段） */
 function cookieEpoch(line) {
-  return parseInt(cookieValue(line).split('.')[2], 10);
+  return parseInt(cookieValue(line).split('.')[1], 10);
 }
 
 module.exports = {
   BASE,
   ORIGIN,
-  ADMIN_KEY,
+  SPACE_KEY,
   ACCOUNT_ROOT_KEY,
   READY,
   HAS_CF,
@@ -558,7 +558,7 @@ module.exports = {
   waitLockEntryPasskey,
   d1Query,
   armResetSwitch,
-  clearRootLimits,
+  clearSpaceLimits,
   resetTicketViaSwitch,
   lockResetTicket,
   unlockWithPassword,

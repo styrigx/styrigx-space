@@ -2,7 +2,7 @@
  * Hark：锁屏专用测试（与视觉回归/Lighthouse 分离）。
  * - 未解锁时锁屏覆盖内容（无法交互）
  * - ?lock=1 强制触发锁屏
- * - 访客进入（临时钥匙）弹层行为
+ * - 临时钥匙（临时钥匙）弹层行为
  * - 锁屏基准截图（Hark：冻结时间 + 遮罩时钟/日期/天气，否则每次必然不同）
  *
  * 注意：这些测试需要锁屏启用的构建（生产构建）；CI 的 visual/Lighthouse
@@ -76,12 +76,12 @@ test.describe('lock screen', () => {
     await expect(page).toHaveScreenshot('lock-screen.png', { animations: 'disabled' });
   });
 
-  test('avatar → method sheet → visitor unlocks (local fallback)', async ({ page }) => {
+  test('avatar → method sheet → temporary key unlocks (local fallback)', async ({ page }) => {
     await freezeTime(page);
-    /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"访客进入"直接解锁（本地不输临时钥匙），验证兜底路径 */
+    /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"临时钥匙"直接解锁（本地不输临时钥匙），验证兜底路径 */
     await gotoLock(page);
     await openMethodSheet(page);
-    await page.click('#sgx-mopt-visitor');
+    await page.click('#sgx-mopt-tempkey');
     /* 本地应直接解锁，锁屏消失 */
     const lock = page.locator('#sgx-lock');
     await expect(lock).toBeHidden({ timeout: 5000 });
@@ -155,8 +155,8 @@ test.describe('lock screen', () => {
     await expect(err).toHaveText(/密码错误|wrong/i, { timeout: 10000 });
   });
 
-  /* 2026-10-23：访客进入 = 输入临时钥匙（取代 Turnstile）。test-no-local-bypass 让 localhost 也走线上逻辑 */
-  test('visitor: temporary key dialog — wrong key shows error, right key unlocks (mocked API)', async ({ page }) => {
+  /* 2026-10-23：临时钥匙 = 输入临时钥匙（取代 Turnstile）。test-no-local-bypass 让 localhost 也走线上逻辑 */
+  test('temporary key dialog — wrong key shows error, right key unlocks (mocked API)', async ({ page }) => {
     await freezeTime(page);
     const seen = [];
     await page.route('**/api/lock-tempkey-unlock', async (route) => {
@@ -164,15 +164,15 @@ test.describe('lock screen', () => {
       seen.push(body.code);
       const ok = body.code === 'abcd-efgh-jkmn';
       await route.fulfill({ status: ok ? 200 : 403, contentType: 'application/json',
-        body: JSON.stringify(ok ? { ok: true, role: 'visitor' } : { ok: false, error: 'wrong' }) });
+        body: JSON.stringify(ok ? { ok: true } : { ok: false, error: 'wrong' }) });
     });
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     await openMethodSheet(page);
-    /* 方法弹层：访客进入在第一行，说明是临时钥匙，不再提 Cloudflare / 机器人 */
-    const opt = page.locator('#sgx-mopt-visitor');
-    await expect(opt).toContainText('访客进入');
+    /* 方法弹层：临时钥匙在第一行，说明是临时钥匙，不再提 Cloudflare / 机器人 */
+    const opt = page.locator('#sgx-mopt-tempkey');
+    await expect(opt).toContainText('临时钥匙');
     await expect(opt).toContainText('临时钥匙');
     await expect(page.locator('#sgx-method-sheet')).not.toContainText(/Cloudflare|机器人/);
     await opt.click();
@@ -193,14 +193,14 @@ test.describe('lock screen', () => {
     await expect.poll(() => seen.length).toBe(2);
   });
 
-  test('visitor: temporary key locked out (429) disables input with countdown (mocked API)', async ({ page }) => {
+  test('temporary key locked out (429) disables input with countdown (mocked API)', async ({ page }) => {
     await freezeTime(page);
     await page.route('**/api/lock-tempkey-unlock', (route) => route.fulfill({ status: 429, contentType: 'application/json', body: '{"ok":false,"error":"cooldown"}' }));
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     await openMethodSheet(page);
-    await page.click('#sgx-mopt-visitor');
+    await page.click('#sgx-mopt-tempkey');
     await page.fill('#sgx-temp-input', 'AAAA-BBBB-CCCC');
     await page.click('#sgx-temp-go');
     await expect(page.locator('#sgx-verify-err')).toHaveText('尝试次数过多', { timeout: 10000 });
@@ -269,7 +269,7 @@ test.describe('lock screen', () => {
     await page.route('**/api/lock-session-check*', async (route) => {
       checks.push(route.request().url());
       if (!unlocked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, role: 'admin', next: '/settings/', upgrade: false }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/settings/' }) });
     });
     await page.goto('/?lock=1&return=' + encodeURIComponent('/settings/') + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
@@ -357,15 +357,15 @@ test.describe('lock screen redesign (2.8.0)', () => {
     await expect(page.locator('#sgx-lock-pkbtn')).toHaveCount(0);
     /* 点头像 → 弹层出现 */
     await openMethodSheet(page);
-    /* 三个选项：访客进入在前，通行密钥，密码 */
-    const visitorOpt = page.locator('#sgx-mopt-visitor');
+    /* 三个选项：临时钥匙在前，通行密钥，密码 */
+    const visitorOpt = page.locator('#sgx-mopt-tempkey');
     const pkOpt = page.locator('#sgx-mopt-pk');
     const pwOpt = page.locator('#sgx-mopt-pw');
     await expect(visitorOpt).toBeVisible();
     await expect(pwOpt).toBeVisible();
-    /* 访客是第一个 */
+    /* 临时钥匙是第一个 */
     const firstId = await page.locator('.sgx-method-opt').first().getAttribute('id');
-    expect(firstId).toBe('sgx-mopt-visitor');
+    expect(firstId).toBe('sgx-mopt-tempkey');
     /* 选密码 → 密码框出现 */
     await pwOpt.click();
     await expect(page.locator('#sgx-pw-input')).toBeVisible();
@@ -554,7 +554,7 @@ test.describe('lock method sheet row feedback (批次 A 验收修复 P2)', () =>
 test.describe('A-2 锁屏凭证清空态 / 启动站（PR3：只剩「无法登录？」）', () => {
   /* 账号拆分 PR3：lock-entry 只回锁屏自己的 passkey / password（resetOnly / accountConfigured 已删），
      「清空态」就是两项都是 false；多带的旧字段前端不认 */
-  test('锁屏凭证清空：方法弹层只显示访客 +「无法登录？」（无通行密钥/密码/根凭证入口）', async ({ page }) => {
+  test('锁屏凭证清空：方法弹层只显示临时钥匙 +「无法登录？」（无通行密钥/密码/进站凭证入口）', async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
 
@@ -569,12 +569,12 @@ test.describe('A-2 锁屏凭证清空态 / 启动站（PR3：只剩「无法登�
     await gotoLock(page);
     await openMethodSheet(page);
     const ids = await page.locator('.sgx-method-opt').evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(['sgx-mopt-visitor']);
+    expect(ids).toEqual(['sgx-mopt-tempkey']);
     await expect(page.locator('#sgx-mopt-cant')).toHaveText('无法登录？');
     await expect(page.locator('#sgx-mopt-reset, #sgx-mopt-mk')).toHaveCount(0);
   });
 
-  test('启动站（lock-entry 全 false）：根凭证在「无法登录？」里，走 /api/root-auth { purpose:lock-reset } → 锁屏凭证页设第一把', async ({ page }) => {
+  test('启动站（lock-entry 全 false）：进站凭证在「无法登录？」里，走 /api/space-auth { purpose:lock-reset } → 锁屏凭证页设第一把', async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
 
@@ -587,7 +587,7 @@ test.describe('A-2 锁屏凭证清空态 / 启动站（PR3：只剩「无法登�
       });
     });
     const calls = [];
-    await page.route('**/api/root-auth', async (route) => {
+    await page.route('**/api/space-auth', async (route) => {
       calls.push(JSON.parse(route.request().postData() || '{}'));
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     });
@@ -597,7 +597,7 @@ test.describe('A-2 锁屏凭证清空态 / 启动站（PR3：只剩「无法登�
     await expect(page.locator('#sgx-mopt-mk')).toHaveCount(0);
     await page.click('#sgx-mopt-cant');
     await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
-    await page.fill('#sgx-reset-root', 'root-key');
+    await page.fill('#sgx-reset-space', 'root-key');
     await page.click('#sgx-reset-go');
     await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
     expect(calls).toEqual([{ key: 'root-key', purpose: 'lock-reset' }]);
@@ -613,7 +613,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
   });
 
   /* 账号拆分 PR3：第 2 步是锁屏凭证（lockProof；网关不读账号凭证），服务端回 needLock */
-  test('根凭证 → needLock → 锁屏凭证行（锁屏通行密钥 / 解锁密码，没有「管理员」「账号」字样）→ 解锁密码通过 → /settings/security/lock/', async ({ page }) => {
+  test('进站凭证 → needLock → 锁屏凭证行（锁屏通行密钥 / 解锁密码，不出现旧角色名和「账号」字样）→ 解锁密码通过 → /settings/security/lock/', async ({ page }) => {
     const bodies = [];
     await page.route('**/api/lock-reset', async (route) => {
       const b = JSON.parse(route.request().postData() || '{}');
@@ -631,23 +631,23 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     /* 同一个弹层（没有关掉再开别的） */
     await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible();
     await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
-    await expect(page.locator('#sgx-mopt-visitor')).toHaveCount(0);
-    await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('RootKey');
-    await page.fill('#sgx-reset-root', 'root-key');
+    await expect(page.locator('#sgx-mopt-tempkey')).toHaveCount(0);
+    await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('SpaceKey');
+    await page.fill('#sgx-reset-space', 'root-key');
     await page.click('#sgx-reset-go');
     await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
     await expect(page.locator('.sgx-reset-opts .sgx-credential-rowtitle')).toHaveText(['锁屏通行密钥', '解锁密码']);
-    await expect(page.locator('#sgx-method-sheet')).not.toContainText('管理员');
+    await expect(page.locator('#sgx-method-sheet')).not.toContainText('管理员'); // old-name guard
     await expect(page.locator('#sgx-method-sheet')).not.toContainText('账号');
     await page.locator('.sgx-credential-row').filter({ hasText: '解锁密码' }).click();
     await page.locator('.sgx-credential-expand input[type="password"]').fill('lock-pw');
     await page.locator('.sgx-credential-expand .sgx-credential-btn-primary').click();
     await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
-    expect(bodies[0]).toEqual({ action: 'verify', rootKey: 'root-key' });
-    expect(bodies[1]).toEqual({ action: 'verify', rootKey: 'root-key', lockProof: { type: 'password', password: 'lock-pw' } });
+    expect(bodies[0]).toEqual({ action: 'verify', spaceKey: 'root-key' });
+    expect(bodies[1]).toEqual({ action: 'verify', spaceKey: 'root-key', lockProof: { type: 'password', password: 'lock-pw' } });
   });
 
-  test('恢复开关有效（verify 直接 ok）→ 不要锁屏凭证，直接去锁屏凭证页；根凭证错误 → 行内「验证失败」并清空', async ({ page }) => {
+  test('恢复开关有效（verify 直接 ok）→ 不要锁屏凭证，直接去锁屏凭证页；进站凭证错误 → 行内「验证失败」并清空', async ({ page }) => {
     let n = 0;
     await page.route('**/api/lock-reset', async (route) => {
       n++;
@@ -661,11 +661,11 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     await gotoLock(page);
     await openMethodSheet(page);
     await page.click('#sgx-mopt-cant');
-    await page.fill('#sgx-reset-root', 'wrong');
-    await page.press('#sgx-reset-root', 'Enter');
+    await page.fill('#sgx-reset-space', 'wrong');
+    await page.press('#sgx-reset-space', 'Enter');
     await expect(page.locator('#sgx-reset-err')).toHaveText('验证失败');
-    await expect(page.locator('#sgx-reset-root')).toHaveValue('');
-    await page.fill('#sgx-reset-root', 'right');
+    await expect(page.locator('#sgx-reset-space')).toHaveValue('');
+    await page.fill('#sgx-reset-space', 'right');
     await page.click('#sgx-reset-go');
     await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
   });

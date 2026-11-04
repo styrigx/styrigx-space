@@ -2,7 +2,7 @@
  * @fileoverview styrigx-auth-gateway 的默认 handler（src/index.js 的 default）：请求的总流程。
  *
  * 承接 styrigx.com、atlas.styrigx.com 整站（路由见 wrangler.toml）：/api/*、全部页面；atlas.styrigx.com 合并 PR3 起只做 301。
- * fetch 第一步剥掉入站请求里所有 x-styrigx-* 和旧的 x-sgx-role（主站、子站回源、静态直通都剥；方案第 3 节第一道保险）。
+ * fetch 第一步剥掉入站请求里所有 x-styrigx-* 和 x-sgx-*（主站、子站回源、静态直通都剥；方案第 3 节第一道保险）。
  * 客户端上下文（IP、cf 国家城市）从原请求取（core/forward.js clientContextOf），放进关口 context.data.clientContext。
  * 静态资源目录（MAIN_STATIC_PREFIXES）和根目录几张公开图第一行就原样回源（isMainStaticPassthrough），不验会话、不改响应。
  * 顺序（合并 PR3，2026-11-03）：
@@ -72,7 +72,7 @@ export default {
    * @param {{ waitUntil(p: Promise<any>): void }} ctx
    */
   async fetch(rawRequest, rawEnv, ctx) {
-    /* 第一道保险：客户端上下文先从原请求取，再剥掉所有外来的 x-styrigx-* / x-sgx-role（下游只认网关写的） */
+    /* 第一道保险：客户端上下文先从原请求取，再剥掉所有外来的 x-styrigx-* / x-sgx-*（下游只认网关写的） */
     const clientContext = clientContextOf(rawRequest);
     const request = stripRequest(rawRequest);
     const url0 = new URL(request.url);

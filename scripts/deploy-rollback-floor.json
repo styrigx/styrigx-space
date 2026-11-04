@@ -1,8 +1,8 @@
 {
   "$comment": "自动回滚的下限（scripts/deploy-rollback.mjs 读）。键 = Worker 名（wrangler.toml 的 name）。部署前线上的版本不满足这里的条件，就不记成回滚目标，这次部署失败也不自动回滚（job 照样红，线上留在新版本，人工处理）。requireBindings：目标版本必须带这些绑定名；notBefore（可选，ISO 时间）：目标版本的创建时间不能早于它。存储改成旧代码读不懂的格式时在这里加一行；以后放宽只能删条件，不要改成更早的时间。",
   "styrigx-auth-gateway": {
-    "why": "账号拆分 PR3（原子切流）：更早的版本自己验账号、按旧名 SGX_ROOT_KEY 绑锁屏根密钥，且没有转发（ACCOUNT）；账号数据已拷到账号库，退回去会读旧库。#226 的 D1 下限随之被覆盖",
-    "requireBindings": ["D1_LOCK_AUTH", "ACCOUNT", "SGX_ADMIN_KEY"]
+    "why": "账号拆分 PR3（原子切流）：更早的版本自己验账号、没有转发（ACCOUNT）；账号数据已拷到账号库，退回去会读旧库。#226 的 D1 下限随之被覆盖。P2-3 放宽：去掉进站凭证的绑定名条件（P2-3 起绑定名是 SGX_LOCK_SPACE_KEY，P2-3 之前是旧名），让 P2-3 自己部署失败时还能自动回到 P2-3 之前；旧名 secret 删除后由下一个碰网关的 PR 加回 SGX_LOCK_SPACE_KEY",
+    "requireBindings": ["D1_LOCK_AUTH", "ACCOUNT"]
   },
   "styrigx-account": {
     "why": "账号拆分 PR3：更早的版本还挂着公开路由、问网关验会话（AUTH）；#226 设置同步 KV_SETTINGS_SYNC → D1 的下限随之被覆盖",

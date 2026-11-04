@@ -72,7 +72,7 @@ export async function scopeDenial(auth, scope, headers) {
  * 按网关写的锁屏身份（readLockIdentity 的结论）算出这个请求该被拒的响应；放行 → null。
  * 纵深防御的最小门（门本身在网关 src/gate.js，结论相同）：/api/* 没进门（没有 X-Styrigx-Lock-Session: 1）→ 401 {ok:false}。
  * 进门之后的判断在各接口（/api/account 自己验账号会话 / 复验票；/api/prefs、/api/avatar 要账号会话 + 作用域）；头像文件 /avatar/* 不要身份。
- * P2-2 起不再按角色拦（原来访客调 /api/prefs → 403 role；网关 P2-3 前仍有这道 role 门）。
+ * 不按进门方式拦（P2-3 起网关也不再分等级）：进门之后能做什么由账号会话 + 作用域决定。
  * 只看身份头、不看 cookie，也不验任何会话（锁屏会话网关已验过）。
  * @param {Request} request
  * @param {{session:true, by:string, tempkeyId:string}|null} identity readLockIdentity(request.headers)

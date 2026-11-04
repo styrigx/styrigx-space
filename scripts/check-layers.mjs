@@ -12,7 +12,7 @@
  *  3. shell/ 不得 import apps/、entries/
  *  4. apps/ 不得 import entries/
  *  5. 前端不得 import web/atlas/assets/js/ 以外的文件（前后端隔离，含 functions/、workers/）
- *  6. lib/ 不得包含鉴权逻辑：不得出现鉴权接口地址（/api/lock-*、/api/root-*、/api/account）
+ *  6. lib/ 不得包含鉴权逻辑：不得出现鉴权接口地址（/api/lock-*、/api/space-*、/api/account）
  *     和 navigator.credentials（这些放 auth/）
  *  7. 前端代码禁止出现 cookie 名 `sgx-lock-session`（HttpOnly，前端读不到；`data-sgx-lock-session` 属性名不算）
  *  8. 前端代码禁止出现 `sgx-lock-shown` 字符串
@@ -156,7 +156,7 @@ const FRONTEND_ALLOWED = {
 };
 
 /* 规则 6：lib/ 里不许出现的鉴权痕迹 */
-const LIB_AUTH_RE = /\/api\/(?:lock-|root-|account\b)|navigator\s*\.\s*credentials/;
+const LIB_AUTH_RE = /\/api\/(?:lock-|space-|account\b)|navigator\s*\.\s*credentials/;
 
 const EXTERNAL_OK = new Set(['cloudflare:workers']);
 

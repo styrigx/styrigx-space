@@ -2,7 +2,7 @@
  * 锁屏凭证管理的门槛（lock-password / lock-passkey / lock-all-devices 共用）和票标识。
  * 放在内核而不是 api/lock-reauth.js：api/ 之间不互相 import（分层规则 4）。
  */
-import { verifyLockSession, ROLE_ADMIN } from './lock-session.js';
+import { verifyLockSession } from './lock-session.js';
 import { LOCK_REAUTH_TICKET, LOCK_RESET_TICKET } from './realms.js';
 import { verifyTicket } from './tickets.js';
 
@@ -12,9 +12,9 @@ export const TICKET_IDS = Object.freeze({ [LOCK_REAUTH_TICKET]: 'lock-reauth', [
 /**
  * 锁屏凭证管理的统一检查（lock-password / lock-passkey / lock-all-devices 共用）。
  *
- * - LockReauthTicket 有效 + admin 锁屏会话有效 → 通过
+ * - LockReauthTicket 有效 + 进门（锁屏会话有效，任何进门方式）→ 通过
  * - allowReset 时，LockResetTicket 有效 → 通过（无会话，sess=null）
- * - 都没有：无 admin 会话 → 401 session；有会话 → 403 reauth（前端回到验证入口重新验证）
+ * - 都没有：没进门 → 401 session；进门了 → 403 reauth（前端回到验证入口重新验证）
  *
  * @param {any} request
  * @param {any} env
@@ -29,7 +29,7 @@ export async function checkLockManage(request, env, opts) {
     if (rv.ok) return { ok: true, tv: rv, ticket: LOCK_RESET_TICKET, isLockReset: true, sess: null };
   }
   const sess = await verifyLockSession(request, env);
-  if (!sess.ok || sess.role !== ROLE_ADMIN) {
+  if (!sess.ok) {
     return { ok: false, status: 401, body: { ok: false, error: 'session' } };
   }
   if (!tv.ok) {

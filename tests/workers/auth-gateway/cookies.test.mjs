@@ -2,8 +2,7 @@
  * workers/auth-gateway/src/lib/cookies.js：网关读 Cookie 头的唯一实现。
  *
  * - 语义和以前四处手写的解析（account-session / tickets 的 readCookie、lock-session 的 allLockSessionCookies、
- *   root-auth 的 lightSession 循环）逐字一致：拿以前的实现当参照，对一批刁钻的 Cookie 头逐个比结果
- * - looksVisitor 仍按六段票判断（访客必须带合法 tempkeyId），五段的旧格式不算访客
+ *   以前 space-auth 的快速会话判断循环）逐字一致：拿以前的实现当参照，对一批刁钻的 Cookie 头逐个比结果
  * - 源码守卫：网关里除了 cookies.js 没有别的地方自己切 Cookie 头
  */
 import { test } from 'node:test';
@@ -12,7 +11,6 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readCookie, readAllCookies, MAX_COOKIE_HEADER } from '../../../workers/auth-gateway/src/lib/cookies.js';
-import { looksVisitor } from '../../../workers/auth-gateway/src/core/lock-session.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -95,22 +93,6 @@ test('cookies：规则本身（同名按顺序、值里的 = 保留、不解码�
   assert.equal(readCookie(null, 'x'), '');
   assert.deepEqual(readAllCookies({}, 'x'), []);
   assert.equal(MAX_COOKIE_HEADER, 8192);
-});
-
-test('looksVisitor：六段访客票（合法 tempkeyId）才算；五段旧格式、管理员票、坏 tempkeyId 都不算', () => {
-  const visitor6 = 'tempkey.visitor.3.9999999999999.AbCdEfGhIjKlMn_-.sig';
-  const visitor5 = 'tempkey.visitor.3.9999999999999.sig';
-  const admin6 = 'password.admin.3.9999999999999..sig';
-  const badId = 'tempkey.visitor.3.9999999999999.short.sig';
-  assert.equal(looksVisitor(req('sgx-lock-session=' + visitor6)), true);
-  assert.equal(looksVisitor(req('sgx-lock-session=' + visitor5)), false);
-  assert.equal(looksVisitor(req('sgx-lock-session=' + admin6)), false);
-  assert.equal(looksVisitor(req('sgx-lock-session=' + badId)), false);
-  assert.equal(looksVisitor(req()), false);
-  /* 同名并存：任一个是访客票就算 */
-  assert.equal(looksVisitor(req('sgx-lock-session=' + admin6 + '; sgx-lock-session=' + visitor6)), true);
-  /* 名字不对不算 */
-  assert.equal(looksVisitor(req('sgx-lock-sessionx=' + visitor6)), false);
 });
 
 test('源码守卫：网关里只有 src/lib/cookies.js 自己切 Cookie 头', () => {

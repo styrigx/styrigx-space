@@ -222,7 +222,7 @@ test('删句子：句子和专题归属在同一个事务里删；第二条失�
   assert.equal((await call('/daymark/api/quotes?id=' + q.id, { who: 'owner', db, method: 'DELETE' })).status, 404);
 });
 
-test('写：非同源 403、没 Origin 403、访客 403、未登录 401', async () => {
+test('写：非同源 403、没 Origin 403、没写权限 403、未登录 401', async () => {
   const body = { text: 'x' };
   assert.equal((await call('/daymark/api/quotes', { who: 'owner', method: 'POST', body, origin: 'https://evil.com' })).status, 403);
   assert.equal((await call('/daymark/api/quotes', { who: 'owner', method: 'POST', body, origin: null })).status, 403);
@@ -243,19 +243,19 @@ test('新增：校验与规整；坏 JSON 400；空句子 400', async () => {
   assert.equal((await call('/daymark/api/quotes', { who: 'owner', db, method: 'POST', body: { text: 'x', visibility: 'secret' } })).status, 400);
 });
 
-test('读：没登录账号只拿公开，账号已登录拿全部；响应是 canWrite / showPrivate，没有 admin', async () => {
+test('读：没登录账号只拿公开，账号已登录拿全部；响应是 canWrite / showPrivate，没有旧等级字段', async () => {
   const db = makeD1();
   await add(db, { text: '公开' });
   await add(db, { text: '私密', visibility: 'private' });
   const v = await (await call('/daymark/api/quotes', { who: 'lock', db })).json();
   assert.equal(v.canWrite, false);
   assert.equal(v.showPrivate, false);
-  assert.equal('admin' in v, false);
+  assert.equal('admin' in v, false); // old-name guard
   assert.deepEqual(v.quotes.map((q) => q.text), ['公开']);
   const o = await (await call('/daymark/api/quotes', { who: 'owner', db })).json();
   assert.equal(o.canWrite, true);
   assert.equal(o.showPrivate, true);
-  assert.equal('admin' in o, false);
+  assert.equal('admin' in o, false); // old-name guard
   assert.equal(o.quotes.length, 2);
   /* 账号已登录但没有 daymark.write：私密照看（含随手一笔键），不能写 */
   const n = await (await call('/daymark/api/quotes', { who: 'noscope', db })).json();
@@ -343,7 +343,7 @@ test('wrangler.toml：不开 workers.dev，只挂 daymark 的 /api/*，D1 + 网�
 const addC = async (db, c) => (await (await call('/daymark/api/collections', { who: 'owner', db, method: 'POST', body: c })).json()).collection;
 const listC = async (db, who) => (await (await call('/daymark/api/collections', { who, db })).json());
 
-test('出处类型 + 随手一笔：管理员拿得到；类型不合法 400', async () => {
+test('出处类型 + 随手一笔：账号已登录拿得到；类型不合法 400', async () => {
   const db = makeD1();
   const q = await add(db, { text: '床前明月光', author: '李白', source: '静夜思', source_type: 'poetry', note: '小时候背的第一首' });
   assert.equal(q.source_type, 'poetry');
@@ -357,7 +357,7 @@ test('出处类型 + 随手一笔：管理员拿得到；类型不合法 400', a
   assert.equal(o.quotes[0].note, '改了');
 });
 
-test('随手一笔不外泄：访客列表、访客专题、/api/today 都没有 note 键，也没有内容', async () => {
+test('随手一笔不外泄：账号未登录的列表、专题、/api/today 都没有 note 键，也没有内容', async () => {
   const db = makeD1();
   const SECRET = '只给自己看的悄悄话';
   const q = await add(db, { text: '公开的一句', note: SECRET });
@@ -383,7 +383,7 @@ test('随手一笔不外泄：访客列表、访客专题、/api/today 都没有
   }
 });
 
-test('百味专题：新建校验、写操作只给管理员 + 同源', async () => {
+test('百味专题：新建校验、写操作只给账号已登录（可写） + 同源', async () => {
   const db = makeD1();
   assert.equal((await call('/daymark/api/collections', { who: 'owner', db, method: 'POST', body: { name: ' ' } })).status, 400);
   assert.equal((await call('/daymark/api/collections', { who: 'lock', db, method: 'POST', body: { name: 'x' } })).status, 401);
@@ -447,7 +447,7 @@ test('百味专题：归入（句子的 collections）、排序和移出（专�
   assert.deepEqual(left.find((q) => q.id === q1.id).collections, []);
 });
 
-test('百味专题 · 访客：只含公开句子，空专题不返回', async () => {
+test('百味专题 · 账号未登录：只含公开句子，空专题不返回', async () => {
   const db = makeD1();
   const pub = await add(db, { text: '公开' });
   const pri = await add(db, { text: '私密', visibility: 'private' });
@@ -533,7 +533,7 @@ test('种子迁移：全新库上连跑两次都不报错，得到 63 句 + 2 �
     { name: '尼采', intro: '尼采原著摘句，英文为公版译本', sort: 0 },
     { name: '了不起的盖茨比', intro: '菲茨杰拉德原文摘句', sort: 1 },
   ]);
-  /* 通过接口读：管理员看到两专题；访客看到的都是公开句子；note 为空、类型是 book */
+  /* 通过接口读：账号已登录看到两专题；账号未登录看到的都是公开句子；note 为空、类型是 book */
   const db = makeD1(raw);
   const o = await (await call('/daymark/api/collections', { who: 'owner', db })).json();
   assert.equal(o.collections[0].quote_ids.length + o.collections[1].quote_ids.length, 63);
@@ -668,7 +668,7 @@ test('设为今日：账号会话 + daymark.write + 同源；没进门 401、没
   assert.equal((await call('/daymark/api/today', { db, method: 'DELETE', who: 'owner' })).status, 405);
 });
 
-test('设为今日：管理员改写当天这一句；所有人的 GET 跟着变；之后加句子也不变；校验 / 404 / 私密 409', async () => {
+test('设为今日：账号已登录（可写）时改写当天这一句；所有人的 GET 跟着变；之后加句子也不变；校验 / 404 / 私密 409', async () => {
   const db = makeD1();
   for (let i = 0; i < 6; i++) await add(db, { text: '句' + i });
   const pri = await add(db, { text: '私密', visibility: 'private', note: '心里话' });
@@ -694,7 +694,7 @@ test('设为今日：管理员改写当天这一句；所有人的 GET 跟着变
   /* 再设一次照样覆盖 */
   assert.equal((await (await setToday(db, before)).json()).quote.id, before);
   assert.equal((await getToday(db)).quote.id, before);
-  /* GET 的缓存：公开、最多一分钟、不跨过北京时间零点（管理员改了之后主站很快跟上） */
+  /* GET 的缓存：公开、最多一分钟、不跨过北京时间零点（改了之后主站很快跟上） */
   const cc = (await call('/daymark/api/today', { db })).headers.get('Cache-Control');
   const m = /^public, max-age=(\d+), s-maxage=(\d+)$/.exec(cc) || /^public, max-age=(0), must-revalidate$/.exec(cc);
   assert.ok(m, cc);

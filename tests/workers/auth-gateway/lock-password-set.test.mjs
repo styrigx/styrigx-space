@@ -25,7 +25,7 @@ function setup() {
 }
 
 async function manageCookie() {
-  const sess = await testLockSession(PRIV, 0, 'admin', 'password');
+  const sess = await testLockSession(PRIV, 0, 'password');
   const reauth = await testTicket(PRIV, 'LockReauthTicket', 'password', 0);
   return 'sgx-lock-session=' + sess + '; sgx-lock-reauth=' + reauth;
 }

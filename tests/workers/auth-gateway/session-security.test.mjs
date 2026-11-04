@@ -5,8 +5,8 @@
  * - sgx-verified 设置/清除走同一函数、属性只定义一处（含 Domain=.styrigx.com）
  * - getLockEpoch：D1 出错 / 没绑抛错；新库当 0；每次读 D1 不缓存；bump 出错绝不写入；没有 KV 回落
  * - 纪元接口已删除（第 6 层）
- * - /api/lock-all-devices（2.8.0 独立 L2 API）：admin 会话 → epoch+1、清 cookie 带 Domain、
- *   KV 出错 → 503 且不写入；visitor 会话 → 403；无会话 → 401；旧三段式 cookie 无效
+ * - /api/lock-all-devices（2.8.0 独立 L2 API）：进门会话 → epoch+1、清 cookie 带 Domain、
+ *   KV 出错 → 503 且不写入；临时钥匙进门的会话 → 403；无会话 → 401；旧三段式 cookie 无效
  * - gate.js：缺 SGX_LOCK_PUBLIC 时生产环境 fail closed（只放白名单）；
  *   过期 cookie 被拒；旧 epoch cookie 被拒；伪造签名被拒；
  *   未验证的非白名单路径 302 到 https://styrigx.com/?lock=1&return=<站内路径>
@@ -67,10 +67,10 @@ async function genTestKeys() {
 }
 
 
-/* 2.10.2：签发测试用 admin 会话 cookie */
+/* 2.10.2：签发测试用 进门会话 cookie */
 async function mintSessionCookie() {
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
-  return await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
+  return await testLockSession(TEST_PRIV_PEM, 0, 'password');
 }
 
 /* 在 account-password 记录里预置密码 test-pass-12345（100000 次迭代与服务端一致） */
@@ -223,16 +223,16 @@ test('password verify：密码错误 → 403（不签发）', async () => {
  * ================================================================ */
 
 
-test('lock-all-devices：visitor 会话 → 403 {ok:false, error:role}（epoch 不变）', async () => {
+test('lock-all-devices：临时钥匙进门、没有锁侧复验 → 403 reauth（epoch 不变；进门会话本身不算复验）', async () => {
   const kv = kvWithEpoch(2);
-  const cookie = await testLockSession(TEST_PRIV_PEM, 2, 'visitor');
+  const cookie = await testLockSession(TEST_PRIV_PEM, 2, 'tempkey');
   const env = { D1_LOCK_AUTH: authD1For(kv), SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-lock-session=' + cookie }),
     env,
   });
   assert.equal(r.status, 403);
-  assert.deepEqual(await r.json(), { ok: false, error: 'role' });
+  assert.equal((await r.json()).error, 'reauth');
   assert.equal(lockEpochOf(kv), 2);
 });
 
@@ -247,7 +247,7 @@ test('lock-all-devices：无会话 → 401', async () => {
   assert.equal(lockEpochOf(kv), 2);
 });
 
-test('lock-all-devices：旧三段式（无 role）cookie → 401 无效', async () => {
+test('lock-all-devices：旧三段式 cookie → 401 无效', async () => {
   const kv = kvWithEpoch(2);
   const env = { D1_LOCK_AUTH: authD1For(kv), SGX_LOCK_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
@@ -281,7 +281,7 @@ const PROD_ENV = () => ({
 });
 const PROD_URL = 'https://styrigx.com/settings/';
 
-async function validCookie(epoch = 0, role = 'admin') {
+async function validCookie(epoch = 0, role = 'password') {
   return await testLockSession(TEST_PRIV_PEM, epoch, role);
 }
 
@@ -369,7 +369,7 @@ test('middleware：伪造签名被拒（302 到首页锁屏）', async () => {
 test('middleware：lockout 后旧 epoch cookie 失效', async () => {
   const kv = kvWithEpoch(0);
   const env = { SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: TEST_PUB_PEM, D1_LOCK_AUTH: authD1For(kv) };
-  const oldCookie = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
+  const oldCookie = await testLockSession(TEST_PRIV_PEM, 0, 'password');
   /* 旧 cookie 有效 */
   const r1 = await mw(mwCtx(PROD_URL, { cookie: oldCookie, env }));
   assert.equal(await r1.text(), 'NEXT-BY-APP');
@@ -380,7 +380,7 @@ test('middleware：lockout 后旧 epoch cookie 失效', async () => {
   assert.equal(r2.status, 302);
   assert.ok(r2.headers.get('Location').startsWith('https://styrigx.com/?lock=1&return='));
   /* 新 cookie 有效 */
-  const newCookie = await testLockSession(TEST_PRIV_PEM, 1, 'admin', 'password');
+  const newCookie = await testLockSession(TEST_PRIV_PEM, 1, 'password');
   const r3 = await mw(mwCtx(PROD_URL, { cookie: newCookie, env }));
   assert.equal(await r3.text(), 'NEXT-BY-APP');
 });
@@ -558,7 +558,7 @@ test('middleware：无有效会话访问内页 → 302 到首页锁屏（return 
  * /api/lock-session-check（2.4.1 防循环）
  * ================================================================ */
 
-/* lock-session-check 的 200 / 401 契约（管理员、访客、无会话、旧三段式坏票）2026-10-26 并进
+/* lock-session-check 的 200 / 401 契约（锁屏密码进门、临时钥匙进门、无会话、旧三段式坏票）2026-10-26 并进
  * auth-flow-2026-10-21.test.mjs 的 B 段（经真实网关入口，断言逐条保留），这里不再重复。 */
 
 /* ================================================================
@@ -573,7 +573,7 @@ function assertSessionCookieAttrs(sc, maxAge) {
   assert.match(sc, /HttpOnly/);
   assert.match(sc, /SameSite=Lax/);
   assert.match(sc, /Domain=\.styrigx\.com/);
-  /* 2.8.0：admin 43200，visitor 3600 */
+  /* 2.8.0：锁屏密码 / 通行密钥进门 43200，临时钥匙进门按钥匙剩余时间 */
   const expected = maxAge || '43200';
   assert.match(sc, new RegExp('Max-Age=' + expected));
 }
@@ -588,7 +588,7 @@ test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/Sa
   assertSessionCookieAttrs(r.headers.get('Set-Cookie'));
 });
 
-test('临时 LockKey 进门通过：Set-Cookie 属性齐全（visitor 锁屏会话带 tempkeyId，Max-Age = 剩余时间封顶 12 小时；没有 sgx-tk）', async () => {
+test('临时 LockKey 进门通过：Set-Cookie 属性齐全（v2 锁屏会话 by=tempkey、带 tempkeyId，Max-Age = 剩余时间封顶 12 小时；没有 sgx-tk）', async () => {
   const { onRequestPost: tkPost } = await import('../../../workers/auth-gateway/src/api/lock-tempkey-unlock.js');
   const { createTempkey } = await import('../../../workers/auth-gateway/src/core/lock-tempkey.js');
   const kv = makeKV();
@@ -596,15 +596,17 @@ test('临时 LockKey 进门通过：Set-Cookie 属性齐全（visitor 锁屏会�
   const env = { D1_LOCK_AUTH: authD1For(kv), SGX_LOCK_PRIVATE: TEST_PRIV_PEM, SGX_PW_PEPPER: 'test-pepper' };
   const r = await tkPost({ request: postReq('https://styrigx.com/api/lock-tempkey-unlock', { code }), env });
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, role: 'visitor' });
+  assert.deepEqual(await r.json(), { ok: true });
   const all = r.headers.getSetCookie();
   const sc = all.find((c) => c.startsWith('sgx-lock-session=') && c.includes('Domain='));
   assertSessionCookieAttrs(sc, '43200');
+  /* LockSessionTicket v2：by.epoch.exp.tempkeyId.sig */
   const parts = sc.split(';')[0].slice('sgx-lock-session='.length).split('.');
-  assert.equal(parts.length, 6);
+  assert.equal(parts.length, 5);
   assert.equal(parts[0], 'tempkey');
-  assert.equal(parts[1], 'visitor');
-  assert.match(parts[4], /^[A-Za-z0-9_-]{16}$/, 'tempkeyId');
+  assert.match(parts[1], /^\d+$/, 'epoch');
+  assert.match(parts[2], /^\d+$/, 'exp');
+  assert.match(parts[3], /^[A-Za-z0-9_-]{16}$/, 'tempkeyId');
   assert.ok(!all.some((c) => c.startsWith('sgx-tk=')), '钥匙票已并入会话');
 });
 
@@ -702,7 +704,7 @@ test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
 test('diag: issueLockSession 无 SGX_LOCK_PRIVATE → 500 no-session-key（不签发）', async () => {
   const { issueLockSession } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const headers = new Headers();
-  const err = await issueLockSession({ ...stores() }, headers, { by: 'password', role: 'admin' });
+  const err = await issueLockSession({ ...stores() }, headers, { by: 'password', role: 'password' });
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'no-session-key' } });
   assert.equal(headers.get('Set-Cookie'), null);
 });
@@ -710,7 +712,7 @@ test('diag: issueLockSession 无 SGX_LOCK_PRIVATE → 500 no-session-key（不�
 test('diag: issueLockSession 私钥格式错误 → 500 session-sign-failed', async () => {
   const { issueLockSession } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const headers = new Headers();
-  const err = await issueLockSession({ ...stores(), SGX_LOCK_PRIVATE: 'not-a-key' }, headers, { by: 'password', role: 'admin' });
+  const err = await issueLockSession({ ...stores(), SGX_LOCK_PRIVATE: 'not-a-key' }, headers, { by: 'password', role: 'password' });
   assert.deepEqual(err, { status: 500, body: { ok: false, error: 'session-sign-failed' } });
   assert.equal(headers.get('Set-Cookie'), null);
 });
@@ -720,7 +722,7 @@ test('diag: issueLockSession 读纪元出错（D1）→ 503（不签发）', asy
   const headers = new Headers();
   const kv = makeKV();
   authD1For(kv).failOn = () => true;
-  const err = await issueLockSession({ ...stores(kv), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, { by: 'password', role: 'admin' });
+  const err = await issueLockSession({ ...stores(kv), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, { by: 'password', role: 'password' });
   assert.equal(err.status, 503);
   assert.deepEqual(err.body, { ok: false, error: 'server' });
   assert.equal(headers.get('Set-Cookie'), null);
@@ -730,7 +732,7 @@ test('diag: issueLockSession 正常 → null 且 Set-Cookie 已设置', async ()
   const { issueLockSession, LOCK_SESSION_COOKIE } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   assert.equal(LOCK_SESSION_COOKIE, 'sgx-lock-session');
   const headers = new Headers();
-  const err = await issueLockSession({ ...stores(), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, { by: 'password', role: 'admin' });
+  const err = await issueLockSession({ ...stores(), SGX_LOCK_PRIVATE: TEST_PRIV_PEM }, headers, { by: 'password', role: 'password' });
   assert.equal(err, null);
   assert.match(headers.get('Set-Cookie'), /^sgx-lock-session=[^;]+; /);
 });
@@ -853,11 +855,11 @@ test('diag: passkey auth 私钥格式错误 → 500 session-sign-failed（不被
 test('diag: 写入/读取对账：signLockSessionTicket 签发的 cookie 能被 middleware 验签放行', async () => {
   const { LOCK_SESSION_COOKIE } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   assert.equal(LOCK_SESSION_COOKIE, 'sgx-lock-session');
-  const cv = await testLockSession(TEST_PRIV_PEM, 0, 'admin', 'password');
-  /* LockSessionTicket：by.role.epoch.exp.tempkeyId.sig（admin 的 tempkeyId 为空串） */
-  assert.equal(cv.split('.').length, 6);
-  assert.ok(cv.startsWith('password.admin.'));
-  assert.equal(cv.split('.')[4], '');
+  const cv = await testLockSession(TEST_PRIV_PEM, 0, 'password');
+  /* LockSessionTicket v2：by.epoch.exp.tempkeyId.sig（不是临时钥匙进门时 tempkeyId 为空串） */
+  assert.equal(cv.split('.').length, 5);
+  assert.ok(cv.startsWith('password.0.'));
+  assert.equal(cv.split('.')[3], '');
   const r = await mw(mwCtx(PROD_URL, { cookie: cv, env: PROD_ENV() }));
   assert.equal(r.status, 200);
   assert.equal(await r.text(), 'NEXT-BY-APP');
@@ -1046,66 +1048,29 @@ test('2.8.0：未验证 302 带 X-Robots-Tag: noindex', async () => {
  * 2.8.0 会话角色分离
  * ================================================================ */
 
-async function visitorCookie(epoch = 0) {
+async function tempkeyCookie(epoch = 0) {
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
-  return await testLockSession(TEST_PRIV_PEM, epoch, 'visitor');
+  return await testLockSession(TEST_PRIV_PEM, epoch, 'tempkey');
 }
 
-test('2.9.3：visitor 可以访问桌面（/）、设置（/settings/）、文件（/files/），owner 可以访问安全锁屏', async () => {
-  const vCookie = await visitorCookie(0);
+test('进门二值：临时钥匙进门的人可以访问桌面（/）、设置（/settings/）、文件（/files/）、安全总览和锁屏凭证页（中英），页面上没有等级标记', async () => {
+  const vCookie = await tempkeyCookie(0);
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
-  /* visitor 访问首页 → 200 + visitor 角色 */
-  let ctx = {
-    request: new Request('https://styrigx.com/', {
-      headers: { 'Cookie': 'sgx-lock-session=' + vCookie },
-    }),
+  const r0 = await mw({
+    request: new Request('https://styrigx.com/', { headers: { 'Cookie': 'sgx-lock-session=' + vCookie } }),
     next: htmlNext,
     env: PROD_ENV(),
-  };
-  let r = await mw(ctx);
-  assert.equal(r.status, 200);
-  const html = await r.text();
-  assert.ok(html.includes('data-sgx-role="visitor"'), '应注入 visitor 角色');
-
-  /* 2.9.3：visitor 访问设置 → 200（可进） */
-  r = await mw(mwCtx('https://styrigx.com/settings/', { cookie: vCookie, env: PROD_ENV() }));
-  assert.equal(r.status, 200);
-
-  /* 2.9.3：visitor 访问文件 → 200（可进） */
-  r = await mw(mwCtx('https://styrigx.com/files/', { cookie: vCookie, env: PROD_ENV() }));
-  assert.equal(r.status, 200);
-
-  /* 2.9.3（2026-10-21 改）：visitor 访问锁屏凭证页 → 302 到首页管理员验证（管理员专属；不带 lock=1，不出锁屏） */
-  r = await mw(mwCtx('https://styrigx.com/settings/security/lock/', { cookie: vCookie, env: PROD_ENV() }));
-  assert.equal(r.status, 302);
-  assert.ok(r.headers.get('Location').includes('?return=') && !r.headers.get('Location').includes('lock=1'));
-
-  /* owner 访问设置 → 200 */
-  const oCookie = await validCookie(0);
-  r = await mw(mwCtx('https://styrigx.com/settings/', { cookie: oCookie, env: PROD_ENV() }));
-  assert.equal(r.status, 200);
-});
-
-test('visitor 进 /settings/display/ 严格 200；/settings/security/ 总览 200（定稿 #13/R3），锁屏凭证页 302 到锁屏', async () => {
-  const vCookie = await visitorCookie(0);
-  for (const p of ['/settings/display/', '/en/settings/']) {
+  });
+  assert.equal(r0.status, 200);
+  const html = await r0.text();
+  assert.ok(html.includes('data-sgx-lock-session="valid"'));
+  assert.ok(!/data-sgx-role|data-sgx-upgrade/.test(html), '不再注入等级 / 升级标记'); // old-name guard
+  for (const p of ['/settings/', '/files/', '/settings/display/', '/en/settings/', '/settings/security/', '/en/settings/security/', '/settings/security/lock/', '/en/settings/security/lock/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
-    assert.equal(r.status, 200, 'visitor 访问 ' + p + ' 应严格 200');
-  }
-  /* 定稿 #13/R3：安全与隐私总览页访客可进（200），结构与管理员一致 */
-  for (const p of ['/settings/security/', '/en/settings/security/']) {
-    const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
-    assert.equal(r.status, 200, 'visitor 访问 ' + p + ' 应 200（总览页）');
-  }
-  /* 定稿 #21（2026-10-21 改）：锁屏凭证页访客 302 到首页的管理员验证（?return=，不带 lock=1：不出锁屏） */
-  for (const p of ['/settings/security/lock/', '/en/settings/security/lock/']) {
-    const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
-    assert.equal(r.status, 302, 'visitor 访问 ' + p + ' 应 302');
-    const loc = r.headers.get('Location');
-    assert.ok(loc.includes('?return=') && !loc.includes('lock=1'), p + ' 应跳到管理员验证，不是锁屏：' + loc);
+    assert.equal(r.status, 200, '临时钥匙进门访问 ' + p + ' 应 200');
   }
 });
 
@@ -1113,7 +1078,7 @@ test('LockResetTicket 只放行 /settings/security/lock/，不开总览；LockRe
   await genTestKeys();
   const { signLockResetTicket, signLockReauthTicket } = await import('../../../workers/auth-gateway/src/core/tickets.js');
   const ticket = 'sgx-lock-reset=' + (await signLockResetTicket(TEST_PRIV_PEM, 'password', 0));
-  const lockTicket = 'sgx-lock-reauth=' + (await signLockReauthTicket(TEST_PRIV_PEM, 'root', 0));
+  const lockTicket = 'sgx-lock-reauth=' + (await signLockReauthTicket(TEST_PRIV_PEM, 'space', 0));
   const env = {
     SGX_ENV: 'production',
     SGX_SITE: 'space',
@@ -1142,64 +1107,42 @@ test('LockResetTicket 只放行 /settings/security/lock/，不开总览；LockRe
   r = await mw(ctx('https://styrigx.com/settings/security/lock/', lockTicket));
   assert.equal(r.status, 302);
 });
-test('2.9.3：visitor 进 /settings/security/lock/ 只跳一次，目标不再跳', async () => {
-  const vCookie = await visitorCookie(0);
-  // 第一次：302 到锁屏
-  let r = await mw(mwCtx('https://styrigx.com/settings/security/lock/', { cookie: vCookie, env: PROD_ENV() }));
-  assert.equal(r.status, 302);
-  const loc = r.headers.get('Location');
-  assert.ok(loc.includes('?return=') && !loc.includes('lock=1'), '应跳到管理员验证（不带 lock=1）');
-  // 第二次：带着 return 回首页，不再 302（防死循环）
-  const returnUrl = 'https://styrigx.com/?return=' + encodeURIComponent('/settings/security/lock/');
+test('进门二值：临时钥匙进门的人首页带 return=锁屏凭证页 → 直接 302 回原页（不再有升级验证层）', async () => {
+  const vCookie = await tempkeyCookie(0);
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
-  const ctx = {
-    request: new Request(returnUrl, { headers: { 'Cookie': 'sgx-lock-session=' + vCookie } }),
+  const r = await mw({
+    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/settings/security/lock/'), { headers: { 'Cookie': 'sgx-lock-session=' + vCookie } }),
     next: htmlNext,
     env: PROD_ENV(),
-  };
-  r = await mw(ctx);
-  assert.equal(r.status, 200, '首页带 return 不应再 302');
-  const html = await r.text();
-  assert.ok(html.includes('data-sgx-upgrade="1"'), '应注入升级验证层标记');
+  });
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get('Location'), '/settings/security/lock/');
 });
 
-test('2.8.0：visitor 调用管理员 API → 403', async () => {
-  const vCookie = await visitorCookie(0);
-  const ctx = {
-    request: new Request('https://styrigx.com/api/lock-passkey', {
-      method: 'POST',
-      headers: { 'Cookie': 'sgx-lock-session=' + vCookie, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'list' }),
-    }),
-    next: async () => new Response('SHOULD-NOT-REACH'),
-    env: PROD_ENV(),
-  };
-  const r = await mw(ctx);
-  assert.equal(r.status, 403);
-  assert.deepEqual(await r.json(), { ok: false, error: 'role' });
-});
-
-test('2.9.3：visitor 调管理员专属 API 都是 403（lock-password/lock-all-devices/lock-reauth）', async () => {
-  const vCookie = await visitorCookie(0);
-  for (const api of ['/api/lock-password', '/api/lock-all-devices', '/api/lock-reauth']) {
+test('进门二值：关口不再按角色拦锁屏凭证接口——临时钥匙进门的 POST 都交给接口（调 next），由接口自己要复验', async () => {
+  const vCookie = await tempkeyCookie(0);
+  for (const api of ['/api/lock-passkey', '/api/lock-password', '/api/lock-all-devices', '/api/lock-reauth', '/api/lock-tempkey']) {
+    let reached = false;
     const ctx = {
       request: new Request('https://styrigx.com' + api, {
         method: 'POST',
-        headers: { 'Cookie': 'sgx-lock-session=' + vCookie, 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        headers: { 'Cookie': 'sgx-lock-session=' + vCookie, 'Content-Type': 'application/json', Origin: 'https://styrigx.com' },
+        body: JSON.stringify({ action: 'list' }),
       }),
-      next: async () => new Response('SHOULD-NOT-REACH'),
+      next: async () => { reached = true; return new Response('REACHED'); },
       env: PROD_ENV(),
     };
     const r = await mw(ctx);
-    assert.equal(r.status, 403, api + ' 应对 visitor 返回 403');
+    assert.equal(r.status, 200, api);
+    assert.equal(await r.text(), 'REACHED', api + ' 应交给接口');
+    assert.ok(reached);
   }
 });
 
-test('2.9.3：无会话调非白名单管理员 API 是 401', async () => {
+test('2.9.3：无会话调非白名单 API 是 401', async () => {
   // /api/lock-password 和 /api/lock-passkey 在白名单里（升级验证用），无会话时放行到 handler
   // /api/lock-all-devices 和 /api/stepup 不在白名单，无会话 → 401
   for (const api of ['/api/lock-all-devices', '/api/stepup']) {
@@ -1217,8 +1160,8 @@ test('2.9.3：无会话调非白名单管理员 API 是 401', async () => {
   }
 });
 
-test('2.9.3：middleware 放行 visitor 的 POST /api/lock-now（调 next）', async () => {
-  const vCookie = await visitorCookie(0);
+test('2.9.3：middleware 放行临时钥匙进门的 POST /api/lock-now（调 next）', async () => {
+  const vCookie = await tempkeyCookie(0);
   let nextCalled = false;
   const ctx = {
     request: new Request('https://styrigx.com/api/lock-now', {
@@ -1232,13 +1175,13 @@ test('2.9.3：middleware 放行 visitor 的 POST /api/lock-now（调 next）', a
     env: PROD_ENV(),
   };
   const r = await mw(ctx);
-  assert.ok(nextCalled, 'visitor 调 /api/lock-now 应调用 next()');
+  assert.ok(nextCalled, '临时钥匙进门调 /api/lock-now 应调用 next()');
   assert.equal(await r.text(), 'PASSED-TO-HANDLER', '应返回 handler 的响应');
 });
 
 test('2.9.3：POST /api/lock-now handler 返回 200 并清除 sgx-verified', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/lock-now.js');
-  const vCookie = await visitorCookie(0);
+  const vCookie = await tempkeyCookie(0);
   for (const cookie of [vCookie, null]) {
     const r = await onRequestPost({
       request: new Request('https://styrigx.com/api/lock-now', {
@@ -1247,7 +1190,7 @@ test('2.9.3：POST /api/lock-now handler 返回 200 并清除 sgx-verified', asy
       }),
       env: PROD_ENV(),
     });
-    assert.equal(r.status, 200, (cookie ? 'visitor' : '无会话') + ' 调 handler 应 200');
+    assert.equal(r.status, 200, (cookie ? 'tempkey' : '无会话') + ' 调 handler 应 200');
     assert.deepEqual(await r.json(), { ok: true });
     const setCookie = r.headers.get('Set-Cookie') || '';
     assert.ok(setCookie.includes('sgx-lock-session=') && setCookie.includes('Max-Age=0'),
@@ -1274,13 +1217,12 @@ test('2.8.0：旧三段式 cookie（无 role）一律无效', async () => {
   assert.ok(html.includes('data-sgx-lock-session="locked"'), '旧 cookie 应被视为无效');
 });
 
-test('定稿 #1：owner 解锁后 return 指向门内页 → 回总览页（门内页不能当返回目标）', async () => {
+test('进门二值：解锁后 return 指向锁屏凭证页 → 回原页（resolveReturn 只做地址白名单；页面自己要锁侧复验）', async () => {
   const oCookie = await mintSessionCookie();
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
-  /* admin 会话 + return=门内页 → 302 到总览页，不是门内页 */
   const ctx = {
     request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/settings/security/lock/'), {
       headers: { 'Cookie': 'sgx-lock-session=' + oCookie },
@@ -1290,11 +1232,10 @@ test('定稿 #1：owner 解锁后 return 指向门内页 → 回总览页（门�
   };
   const r = await mw(ctx);
   assert.equal(r.status, 302, '应 302');
-  const loc = r.headers.get('Location');
-  assert.equal(loc, '/settings/security/', '门内页 return 应改到总览页，实际: ' + loc);
+  assert.equal(r.headers.get('Location'), '/settings/security/lock/');
 });
 
-test('定稿 #1：owner 解锁后 return 指向普通页 → 正常回跳', async () => {
+test('解锁后 return 指向普通页 → 正常回跳', async () => {
   const oCookie = await mintSessionCookie();
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
     status: 200,

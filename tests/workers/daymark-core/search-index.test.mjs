@@ -157,7 +157,7 @@ test('写接口成功后重建并 put site:daymark；读接口、失败的写不
   await call('/daymark/api/quotes?id=' + id, { db, kv, method: 'PUT', body: { visibility: 'private' } });
   assert.equal(kv.puts.length, 2);
   assert.ok(kv.last().value.items.every((i) => i.private === true));
-  /* 读、失败的写、访客的写不触发 */
+  /* 读、失败的写、没写权限的写不触发 */
   await call('/daymark/api/quotes', { db, kv });
   await call('/daymark/api/quotes', { db, kv, method: 'POST', body: { text: ' ' } });
   await call('/daymark/api/quotes', { db, kv, who: 'lock', method: 'POST', body: { text: 'x' } });

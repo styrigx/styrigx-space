@@ -1,8 +1,8 @@
 /**
- * 账号页换头像（账号卡已从设置页移到账号总览 /account/）：管理员会话下点账号卡头像 → 选择照片 → 裁剪（拖动、滚轮缩放）→ 完成，
+ * 账号页换头像（账号卡已从设置页移到账号总览 /account/）：进门 + 账号已登录时点账号卡头像 → 选择照片 → 裁剪（拖动、滚轮缩放）→ 完成，
  * PUT /api/avatar 带 512 / 192 / 96 / 32 四张 WebP，成功后页面头像换成带 ?v= 的新地址。
- * 没登录账号：头像按钮 disabled，没有铅笔（P2-2 起按 <html data-sgx-account-session="in"> 启用，不看 data-sgx-role）。
- * 测试构建是静态服务器：锁屏 / 账号状态靠改写 HTML 注入 data-sgx-role / data-sgx-account-session，/api/account、/api/avatar 用 mock。
+ * 没登录账号：头像按钮 disabled，没有铅笔（按 <html data-sgx-account-session="in"> 启用）。
+ * 测试构建是静态服务器：锁屏 / 账号状态靠改写 HTML 注入 data-sgx-lock-session / data-sgx-account-session，/api/account、/api/avatar 用 mock。
  */
 const { test, expect } = require('@playwright/test');
 const path = require('path');
@@ -30,8 +30,8 @@ async function makePhoto(page) {
   return p;
 }
 
-/** @param {any} page @param {string} role 过渡期的锁屏角色（P2-2 起头像不看它） @param {'in'|'out'} [acc] 账号会话 */
-async function asRole(page, role, acc = 'in') {
+/** @param {any} page @param {'in'|'out'} [acc] 账号会话（锁屏一律是已进门的 valid；进门二值，没有角色） */
+async function asSession(page, acc = 'in') {
   /* 账号总览：acc='in' 已登录账号（账号卡在登录后的总览里）；'out' 没登录账号 */
   await page.route('**/api/account', async (route) => {
     if (route.request().method() === 'GET') {
@@ -43,13 +43,13 @@ async function asRole(page, role, acc = 'in') {
   });
   await page.route('**/account/', async (route) => {
     const r = await route.fetch();
-    const html = (await r.text()).replace(/<html/, '<html data-sgx-role="' + role + '" data-sgx-lock-session="valid" data-sgx-account-session="' + acc + '"');
+    const html = (await r.text()).replace(/<html/, '<html data-sgx-lock-session="valid" data-sgx-account-session="' + acc + '"');
     await route.fulfill({ response: r, body: html });
   });
 }
 
-test('管理员：选择照片 → 裁剪 → 完成，上传四个尺寸并刷新页面头像', async ({ page }) => {
-  await asRole(page, 'admin');
+test('账号已登录：选择照片 → 裁剪 → 完成，上传四个尺寸并刷新页面头像', async ({ page }) => {
+  await asSession(page);
   /** @type {{method:string, body:Buffer}|null} */
   let put = null;
   await page.route('**/api/avatar', async (route) => {
@@ -87,8 +87,8 @@ test('管理员：选择照片 → 裁剪 → 完成，上传四个尺寸并刷�
   await expect(page.locator('.sgx-tb-avatar')).toHaveAttribute('src', '/avatar/192.webp?v=abc');
 });
 
-test('管理员：裁剪时点取消，不上传', async ({ page }) => {
-  await asRole(page, 'admin');
+test('账号已登录：裁剪时点取消，不上传', async ({ page }) => {
+  await asSession(page);
   let called = false;
   await page.route('**/api/avatar', async (route) => {
     called = true;
@@ -105,8 +105,8 @@ test('管理员：裁剪时点取消，不上传', async ({ page }) => {
   expect(called).toBe(false);
 });
 
-test('P2-2 没登录账号（锁屏是 admin 也一样）：头像按钮不可点，没有铅笔', async ({ page }) => {
-  await asRole(page, 'admin', 'out');
+test('账号未登录（已进门）：头像按钮不可点，没有铅笔', async ({ page }) => {
+  await asSession(page, 'out');
   await page.goto('/account/');
   const btn = page.locator('#acct-main [data-avatar-edit]');
   await expect(btn).toBeDisabled();
@@ -114,7 +114,7 @@ test('P2-2 没登录账号（锁屏是 admin 也一样）：头像按钮不可�
 });
 
 test('设置页不再有账号卡（已移到账号页）', async ({ page }) => {
-  await asRole(page, 'admin');
+  await asSession(page);
   await page.goto('/settings/');
   await expect(page.locator('main')).toBeVisible();
   await expect(page.locator('.sgx-account-card')).toHaveCount(0);
@@ -123,7 +123,7 @@ test('设置页不再有账号卡（已移到账号页）', async ({ page }) => 
 
 /* 2026-10-24 PR4：账号卡只是展示（兼作个人资料卡）——显示「已登录」，卡片不能点、没有详情页；点头像直接换头像 */
 test('账号卡：显示「已登录」；卡片本身不能点（不跳页、没有 link 角色）；点头像直接出换头像弹层', async ({ page }) => {
-  await asRole(page, 'admin');
+  await asSession(page);
   await page.goto('/account/');
   const card = page.locator('#acct-main [data-acct-card]');
   await expect(card).toBeVisible();
@@ -149,7 +149,7 @@ test('账号卡：显示「已登录」；卡片本身不能点（不跳页、�
 
 test('英文账号卡：Signed in', async ({ page }) => {
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
-  await asRole(page, 'admin');
+  await asSession(page);
   await page.goto('/en/account/');
   await expect(page.locator('#acct-main [data-acct-card] .sgx-ac-state')).toHaveText('Signed in');
 });

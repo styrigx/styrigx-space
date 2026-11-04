@@ -53,19 +53,19 @@ test('readLockIdentity：只认 X-Styrigx-Lock-Session: 1（= 进门）；by 只
   const S = { 'X-Styrigx-Lock-Session': '1' };
   assert.deepEqual(r({ ...S, 'X-Styrigx-Lock-By': 'passkey' }), { session: true, by: 'passkey', tempkeyId: '' });
   assert.deepEqual(r({ 'x-styrigx-lock-session': '1', 'x-styrigx-lock-by': 'tempkey', 'x-styrigx-lock-tempkey-id': 'tk_1' }), { session: true, by: 'tempkey', tempkeyId: 'tk_1' });
-  assert.deepEqual(r({ ...S, 'X-Styrigx-Lock-Role': 'visitor', 'X-Styrigx-Lock-By': 'password' }), { session: true, by: 'password', tempkeyId: '' }, 'Role 头不进结果');
+  assert.deepEqual(r({ ...S, 'X-Styrigx-Lock-Level': 'tempkey', 'X-Styrigx-Lock-By': 'password' }), { session: true, by: 'password', tempkeyId: '' }, 'Role 头不进结果');
   assert.equal(r({}), null);
-  assert.equal(r({ 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'password' }), null, '只有 Role 没有 Session 不算进门');
+  assert.equal(r({ 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Lock-By': 'password' }), null, '只有 Role 没有 Session 不算进门');
   assert.equal(r({ 'X-Styrigx-Lock-Session': '0' }), null);
   assert.equal(r({ 'X-Styrigx-Lock-Session': 'yes' }), null);
-  assert.equal(r({ 'X-Sgx-Role': 'admin' }), null, '旧头名不认');
+  assert.equal(r({ 'X-Sgx-Legacy': 'password' }), null, '旧头名不认');
   assert.equal(r({ ...S, 'X-Styrigx-Lock-By': 'magic' }).by, '');
   assert.equal(r({ ...S, 'X-Styrigx-Lock-By': 'password', 'X-Styrigx-Lock-Tempkey-Id': 'tk_1' }).tempkeyId, '', '不是 tempkey 进门不带 tempkeyId');
   assert.equal(r({ ...S, 'X-Styrigx-Lock-By': 'tempkey', 'X-Styrigx-Lock-Tempkey-Id': 'bad id!' }).tempkeyId, '');
-  assert.equal(account.hasLockSession(new Request(URL_, { headers: { 'X-Styrigx-Lock-Role': 'admin' } })), false);
+  assert.equal(account.hasLockSession(new Request(URL_, { headers: { 'X-Styrigx-Lock-Level': 'password' } })), false);
   assert.equal(account.hasLockSession(new Request(URL_, { headers: S })), true);
-  assert.equal('isAdmin' in account, false);
-  assert.equal('ROLE_ADMIN' in account, false);
+  assert.equal('isAdmin' in account, false); // old-name guard
+  assert.equal('ROLE_ADMIN' in account, false); // old-name guard
 });
 
 test('clientAddress：读 X-Styrigx-Client-Address；不认 CF-Connecting-IP / X-Forwarded-For；格式不对或没有 → unknown', () => {
@@ -98,16 +98,16 @@ test('lib/lock-identity.js：账号侧只读——导出头名常量 + readLockI
 
 test('GET：没进门（没有 X-Styrigx-Lock-Session: 1）→ 401 session；只带锁屏会话 cookie 也不算（不验锁屏会话）；进了门不看 Role', async () => {
   const env = makeEnv();
-  for (const identity of [null, { session: '', role: 'admin' }, { session: '0' }]) {
+  for (const identity of [null, { session: '', role: 'password' }, { session: '0' }]) {
     const r = await get(env, {}, { identity });
     assert.equal(r.status, 401);
     assert.equal((await r.json()).error, 'session');
   }
-  for (const identity of [{ role: 'visitor', by: 'tempkey', tempkeyId: 'tk1' }, { role: '' }, { role: 'owner' }]) {
+  for (const identity of [{ role: 'tempkey', by: 'tempkey', tempkeyId: 'tk1' }, { role: '' }, { role: 'owner' }]) {
     const r = await get(env, {}, { identity });
     assert.equal(r.status, 200, JSON.stringify(identity));
   }
-  const r = await get(env, { 'sgx-lock-session': 'password.admin.0.9999999999999..sig' }, { identity: null });
+  const r = await get(env, { 'sgx-lock-session': 'password.admin.0.9999999999999..sig' }, { identity: null }); // v1 fixture
   assert.equal(r.status, 401);
 });
 
@@ -117,7 +117,7 @@ test('POST：除 logout / reauth-clear 外每个 action 都要进门（401 sessi
     'passkey-delete', 'passkey-rename', 'password-change', 'device-list', 'device-revoke', 'device-revoke-all', 'root-reauth', 'root-reset', 'audit-list', 'nope'];
   const before = env.D1_ACCOUNT_AUTH.statements.length;
   for (const action of actions) {
-    for (const identity of [null, { session: '', role: 'admin' }]) {
+    for (const identity of [null, { session: '', role: 'password' }]) {
       const r = await post(env, { action, key: 'x', password: 'whatever-123' }, await full(), { identity });
       assert.equal(r.status, 401, action);
       assert.equal((await r.json()).error, 'session', action);
@@ -135,7 +135,7 @@ test('logout / reauth-clear：不要身份、不要会话（幂等）；logout �
   assert.ok(sc[0].startsWith('sgx-account-session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'));
   assert.ok(sc[1].startsWith('sgx-account-reauth=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'));
   assert.ok(sc[2].startsWith('sgx-account-reset=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'));
-  const rc = await post(env, { action: 'reauth-clear' }, {}, { identity: { role: 'visitor' } });
+  const rc = await post(env, { action: 'reauth-clear' }, {}, { identity: { role: 'tempkey' } });
   assert.equal(rc.status, 200);
   assert.deepEqual(setCookies(rc).map((c) => c.split('=')[0]), ['sgx-account-reauth', 'sgx-account-reset']);
 });
@@ -814,7 +814,7 @@ test('依赖边界：账号身份（api/account.js + core/ 原 identity/ 的五�
       assert.ok(ok, f + ' imports ' + spec);
     }
     const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-    assert.doesNotMatch(code, /auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_ROOT_KEY|SGX_ADMIN_KEY|CF-Connecting-IP|request\.cf|tempkey \(|recovery_switch/, f);
+    assert.doesNotMatch(code, /auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_ROOT_KEY|SGX_LOCK_SPACE_KEY|CF-Connecting-IP|request\.cf|tempkey \(|recovery_switch/, f);
   }
 });
 

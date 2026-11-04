@@ -2,7 +2,7 @@
  * 2.10.2 鉴权修复测试（space）。
  *
  * 覆盖：
- * - 2：管理操作需 admin 会话 + stepup；/api/lock-now 清除 stepup 和 app cookie；
+ * - 2：管理操作需 进门会话 + stepup；/api/lock-now 清除 stepup 和 app cookie；
  *     锁定后调用管理接口必须拒绝
  * - 3：删应用密钥先推 app-epoch 再删；推失败 503 且密钥仍在
  * - 4：删锁屏密钥先推 lock-epoch 再删；失败 503（fail closed）
@@ -31,12 +31,12 @@ async function genKeys() {
   ({ priv: LOCK_PRIV, pub: LOCK_PUB } = await genKeyPair());
 }
 
-const SGX_ADMIN_KEY = 'test-root-key-2102';
+const SGX_LOCK_SPACE_KEY = 'test-root-key-2102';
 
 function baseEnv(kv, overrides = {}) {
   return {
     KV_LOCK_DOOR: kv, D1_LOCK_AUTH: authD1For(kv), KV_ACCOUNT_LOGIN: kv,
-    SGX_ADMIN_KEY,
+    SGX_LOCK_SPACE_KEY,
     SGX_LOCK_PRIVATE: LOCK_PRIV,
     SGX_LOCK_PUBLIC: LOCK_PUB,
     SGX_RP_ID: 'styrigx.com',
@@ -46,8 +46,8 @@ function baseEnv(kv, overrides = {}) {
   };
 }
 
-/* 签一个有效的 admin 会话 cookie（role.epoch.exp.sig） */
-async function makeSessionCookie(env, role = 'admin') {
+/* 签一个有效的 进门会话 cookie（role.epoch.exp.sig） */
+async function makeSessionCookie(env, role = 'password') {
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   const epoch = 0;
   return await testLockSession(env.SGX_LOCK_PRIVATE, epoch, role);
@@ -65,7 +65,7 @@ before(async () => {
   assert.ok(LOCK_PRIV && LOCK_PUB);
 });
 
-/* ============ 2：管理操作需 admin 会话 + stepup ============ */
+/* ============ 2：管理操作需 进门会话 + stepup ============ */
 
 
 
@@ -108,7 +108,7 @@ test('6：verifyLockSession 无纪元存储（D1）→ d1-error（不跳过）',
   const { verifyLockSession } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   /* 造一个格式正确但无法验 epoch 的 cookie：用真密钥签名 */
   const { signLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
-  const val = await testLockSession(LOCK_PRIV, 0, 'admin', 'password');
+  const val = await testLockSession(LOCK_PRIV, 0, 'password');
   const req = new Request('https://styrigx.com/', {
     headers: { 'Cookie': 'sgx-lock-session=' + val },
   });
@@ -141,13 +141,13 @@ test('7：verify 时限速 D1 出错 → 503', async () => {
 
 /* ============ 8：审计写入失败 → 不签发会话 ============ */
 
-test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
+test('8：space-auth 审计写入失败 → 503 且无 cookie', async () => {
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/space-auth.js');
   const kv = makeKV();
   const env = baseEnv(kv);
   /* 让审计写入失败：D1 audit 表的 INSERT 抛错，其他放行 */
   env.D1_LOCK_AUTH.failOn = (sql) => /^\s*INSERT INTO audit/i.test(sql);
-  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' });
+  const req = postReq('https://styrigx.com/api/space-auth', { key: SGX_LOCK_SPACE_KEY, purpose: 'lock-reset' });
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 503, '审计失败应 503');
   const cookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
@@ -159,19 +159,19 @@ test('8：root-auth 审计写入失败 → 503 且无 cookie', async () => {
 
 /* ============ 9：Origin 缺失/解析失败 → 403 ============ */
 
-test('9a：root-auth 缺 Origin → 403', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
+test('9a：space-auth 缺 Origin → 403', async () => {
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/space-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' }, { Origin: null });
+  const req = postReq('https://styrigx.com/api/space-auth', { key: SGX_LOCK_SPACE_KEY, purpose: 'lock-reset' }, { Origin: null });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'origin');
 });
 
-test('9b：root-auth Origin 解析失败 → 403', async () => {
-  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/root-auth.js');
+test('9b：space-auth Origin 解析失败 → 403', async () => {
+  const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/space-auth.js');
   const kv = makeKV();
-  const req = postReq('https://styrigx.com/api/root-auth', { key: SGX_ADMIN_KEY, purpose: 'lock-reset' }, { Origin: '::not-a-url::' });
+  const req = postReq('https://styrigx.com/api/space-auth', { key: SGX_LOCK_SPACE_KEY, purpose: 'lock-reset' }, { Origin: '::not-a-url::' });
   const res = await onRequestPost({ request: req, env: baseEnv(kv) });
   assert.equal(res.status, 403);
 });
@@ -187,25 +187,18 @@ test('9c：lock-passkey 缺 Origin → 403', async () => {
 
 /* ============ 1：管理密钥入口静态检查 ============ */
 
-test('1a：锁屏方法弹层按配置显示入口（PR3：根凭证 / 重置锁屏两行合并成「无法登录？」）', () => {
+test('1a：锁屏方法弹层按配置显示入口（PR3：进站凭证 / 重置锁屏两行合并成「无法登录？」）', () => {
   const src = fs.readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/lock.js'), 'utf8');
-  /* 根凭证不再是单独一行；都没设置（启动站）时「无法登录？」里的根凭证走 root-auth 引导 */
-  assert.ok(!src.includes("'sgx-mopt-mk'") && !src.includes('id="sgx-mopt-mk"'), '不应再有根凭证一行');
+  /* 进站凭证不再是单独一行；都没设置（启动站）时「无法登录？」里的进站凭证走 space-auth 引导 */
+  assert.ok(!src.includes("'sgx-mopt-mk'") && !src.includes('id="sgx-mopt-mk"'), '不应再有进站凭证一行');
   assert.ok(src.includes('sgx-mopt-cant'), '应有「无法登录？」');
   assert.ok(src.includes('function openResetInSheet'), '弹层原地切到重置登录');
-  assert.ok(/bootstrap[\s\S]*?'\/api\/root-auth'/.test(src), '启动站：根凭证走 /api/root-auth');
+  assert.ok(/bootstrap[\s\S]*?'\/api\/space-auth'/.test(src), '启动站：进站凭证走 /api/space-auth');
   /* 配置以服务端为准 */
   assert.ok(src.includes('/api/lock-entry'), '应从 /api/lock-entry 读取配置');
   /* 其他选项必须存在 */
-  assert.ok(src.includes('sgx-mopt-visitor'), '应有访客进入');
+  assert.ok(src.includes('sgx-mopt-tempkey'), '应有临时钥匙');
   assert.ok(src.includes('sgx-mopt-pk'), '应有通行密钥');
   assert.ok(src.includes('sgx-mopt-pw'), '应有密码');
   assert.ok(!src.includes('sgx-mopt-reset'), '「重置锁屏」一行已并入「无法登录？」');
-});
-
-test('1b：升级弹层没有根凭证入口（RootKey 不拥有会话，不能把访客升级成 admin）', () => {
-  const src = fs.readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/upgrade.js'), 'utf8');
-  assert.ok(!src.includes('sgx-upgrade-mk'), '升级弹层不应有根凭证按钮');
-  assert.ok(!src.includes('/api/root-auth') && !src.includes('/api/root-session'), '不调 root-auth / root-session');
-  assert.ok(src.includes("'Admin verification'"), '文案是 admin 验证');
 });

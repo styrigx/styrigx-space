@@ -62,10 +62,10 @@ test('有效会话、GET、别的接口：不碰限流器', async () => {
 });
 
 test('绑定缺失 / 限流器抛错 / 返回怪值：放行', async () => {
-  assert.equal(await anonLimit(post('/api/root-auth'), env(undefined), false), null);
-  assert.equal(await anonLimit(post('/api/root-auth'), env({}), false), null);
-  assert.equal(await anonLimit(post('/api/root-auth'), env({ limit: async () => { throw new Error('edge down'); } }), false), null);
-  assert.equal(await anonLimit(post('/api/root-auth'), env({ limit: async () => undefined }), false), null);
+  assert.equal(await anonLimit(post('/api/space-auth'), env(undefined), false), null);
+  assert.equal(await anonLimit(post('/api/space-auth'), env({}), false), null);
+  assert.equal(await anonLimit(post('/api/space-auth'), env({ limit: async () => { throw new Error('edge down'); } }), false), null);
+  assert.equal(await anonLimit(post('/api/space-auth'), env({ limit: async () => undefined }), false), null);
 });
 
 test('没有 CF-Connecting-IP：按 unknown 一个桶算（不认 X-Forwarded-For）', async () => {
@@ -86,7 +86,7 @@ test('中间件：无会话超限 → 429，不进端点；带有效会话照常
   assert.equal(r2.status, 429);
   assert.equal((await r2.json()).error, 'cooldown');
   assert.equal(reached, 1, '被限的那次没进端点');
-  const sess = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin'));
+  const sess = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
   const r3 = await onRequest({ request: post('/api/lock-passkey', '203.0.113.9', sess), env: env(lim), next });
   assert.notEqual(r3.status, 429, '有会话不过限流器');
   assert.equal(reached, 2);

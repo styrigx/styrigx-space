@@ -1,17 +1,17 @@
 /**
  * 账号根密钥（SGX_ACCOUNT_ROOT_KEY）与账号审计（账号拆分 PR2b，方案第 5.1、6.2、7.3 节）。
  *
- * POST /api/account 里的三个 action 由 account.js 交到这里（身份头已确认 admin、同源、账号库已绑）：
+ * POST /api/account 里的三个 action 由 account.js 交到这里（身份头已确认进门、同源、账号库已绑）：
  * - root-reauth { key } → AccountReauthTicket（by=root）。要有效账号会话（没有 → 401 account）。
  * - root-reset  { key } → AccountResetTicket（by=root）。不要账号会话；不签会话（拿票设好新凭证后正常登录）。
  * - audit-list          → { items:[{ ts, ipPrefix, ok, event }] }，最近 50 条，新的在前（根密钥使用 + 安全事件）。
  *
  * 账号拆分前这两条路径在网关 /api/root-auth（purpose account-reauth / account-reset），PR3 起只在这里，差别：
- * - 比对的是账号自己的根密钥 SGX_ACCOUNT_ROOT_KEY（REALM_ACCOUNT.rootKey），不是锁屏根密钥；没有恢复开关。
+ * - 比对的是账号自己的根密钥 SGX_ACCOUNT_ROOT_KEY（REALM_ACCOUNT.rootKey），不是进站凭证；没有恢复开关。
  * - 限速行在本库 attempt_limit realm='account' kind='rootkey'；审计行在本库 audit realm='account'，
  *   path = root-reauth / root-reset（网关原来写 realm='root'、path = account-reauth / account-reset）。
- * - 没有访客 / 无会话假入口：非 admin 身份在 account.js 就 401 session（网关的门本来也不放非 admin 进账号接口）。
- * 规则与网关锁屏根密钥相同（本 Worker 自己的 lib/root-check / root-limit / root-audit）：单 IP 连错 5 次锁 15 分钟（429 cooldown）；
+ * - 没有假入口：没进门在 account.js 就 401 session（网关的门本来也不放没进门的请求进账号接口）。
+ * 规则与网关进站凭证相同（本 Worker 自己的 lib/root-check / root-limit / root-audit）：单 IP 连错 5 次锁 15 分钟（429 cooldown）；
  * 全局每小时满 20 次后每次先等 3 秒；成功清计数；失败统一 401 auth，返回前对齐到 200 毫秒；
  * 缺根密钥或账号库 → 500 config；缺该票的签名钥匙 → 503 config（先于比对）；限速 / 计数 D1 出错 → 503 server；
  * 每次真比对写审计（7 天），成功时写不进审计就不签票（503 server，fail closed）。

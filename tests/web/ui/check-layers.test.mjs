@@ -190,7 +190,7 @@ test('check-layers：lib/ 不得包含鉴权逻辑（鉴权接口地址、naviga
   const lib = join(REPO, FE + 'lib/util.js');
   for (const code of [
     "fetch('/api/lock-now', { method: 'POST' });",
-    "fetch('/api/root-auth');",
+    "fetch('/api/space-auth');",
     "const ACCOUNT_API = '/api/account';",
     'navigator.credentials.get({ publicKey: o });',
   ]) {
@@ -320,7 +320,7 @@ test('规则 16：网关 wrangler.toml 去掉 # 注释后也查；checkRepo 会�
   assert.match(bad[0], /^workers\/auth-gateway\/wrangler\.toml:2: 网关源码禁止出现账号鉴权标识 SGX_ACCOUNT_PRIVATE（规则 16/);
   const root = fixture({
     [GW + 'wrangler.toml']: 'name = "styrigx-auth-gateway"\nmain = "src/index.js"\n[[d1_databases]]\nbinding = "D1_ROOT_AUTH"\n',
-    [GW + 'src/index.js']: "export const k = 'SGX_ADMIN_KEY';",
+    [GW + 'src/index.js']: "export const k = 'SGX_LOCK_SPACE_KEY';",
     ...skeletonFiles(GW),
   });
   try {

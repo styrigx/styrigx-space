@@ -1,7 +1,7 @@
 /**
  * 安全响应头（PR D，workers #3 / #4 / web-templates P2 CSP）：
  * - security-headers.js：强制 CSP 里没有任何 script / style / default 指令；Report-Only 带上所有内联脚本哈希；HSTS 不带 includeSubDomains / preload
- * - 网关：锁屏首页、内页 302、www / 别的域名 301、pages.dev 301、管理员页、访客 302、?return= 302、升级态、/api/* 401 / 403、500 都带全套头
+ * - 网关：锁屏首页、内页 302、www / 别的域名 301、pages.dev 301、门内页、?return= 302、/api/* 401 / 403、500 都带全套头
  *   子站经网关的响应只有 HSTS（不套主站 CSP）；原样回源的静态资源不改
  * - Pages：_worker.js 的 301 带和 security-headers.js 一致的头；_headers 解析后每个路径最多一条 Cache-Control、安全头恰好一份且和模块一致
  * - 模板：会执行的内联脚本只剩 baseof 的 5 段 + alias + search-redirect，且后两者正文是常量（每页一个哈希）；没有 on*="…" 属性
@@ -210,18 +210,18 @@ test('网关·域名跳转：www 301、别的域名 301 / 403、styrigx-space.pa
   }
 });
 
-test('网关·管理员页、访客打开门内页 302、账号区 302、?return= 302、访客升级态 200，都带安全头', async () => {
+test('网关·进门的人打开门内页 / 账号区 200、?return= 302，都带安全头（进门二值：没有按角色的 302、没有升级态）', async () => {
   _resetSecretCache();
-  const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
-  const visitor = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'visitor'));
+  const pw = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
+  const tk = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'tempkey'));
   await withOrigin(PAGE, async () => {
     const cases = [
-      ['/settings/security/lock/', admin, 200],
-      ['/chat/', admin, 200],
-      ['/settings/security/lock/', visitor, 302],
-      ['/account/', visitor, 302],
-      ['/?return=%2Fchat%2F', admin, 302],
-      ['/?return=%2Fsettings%2Fsecurity%2Flock%2F', visitor, 200],
+      ['/settings/security/lock/', pw, 200],
+      ['/chat/', pw, 200],
+      ['/settings/security/lock/', tk, 200],
+      ['/account/', tk, 200],
+      ['/?return=%2Fchat%2F', pw, 302],
+      ['/?return=%2Fsettings%2Fsecurity%2Flock%2F', tk, 302],
     ];
     for (const [p, cookie, st] of cases) {
       const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: cookie } }), baseEnv(), CTX);
@@ -233,28 +233,29 @@ test('网关·管理员页、访客打开门内页 302、账号区 302、?return
 
 test('网关·Pages 自己的跳转（补尾斜杠 308）经网关交回时也带安全头', async () => {
   _resetSecretCache();
-  const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
+  const pw = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
   await withOrigin('', async () => {
-    const res = await worker.fetch(new Request('https://styrigx.com/settings', { headers: { Cookie: admin } }), baseEnv(), CTX);
+    const res = await worker.fetch(new Request('https://styrigx.com/settings', { headers: { Cookie: pw } }), baseEnv(), CTX);
     assert.equal(res.status, 308);
     assert.equal(res.headers.get('Location'), '/settings/');
     assertMainHeaders(res, '308');
   }, { status: 308, headers: { Location: '/settings/' } });
 });
 
-test('网关·/api/*：401、404、访客调管理员接口 403 都带安全头，Cache-Control 不被安全头改掉', async () => {
+test('网关·/api/*：401、进门但没账号会话的 401 account、404 都带安全头，Cache-Control 不被安全头改掉', async () => {
   _resetSecretCache();
-  const visitor = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'visitor'));
+  const tk = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'tempkey'));
   const r1 = await worker.fetch(new Request('https://styrigx.com/api/lock-session-check'), baseEnv(), CTX);
   assert.equal(r1.status, 401);
   assertMainHeaders(r1, '401');
-  const r2 = await worker.fetch(new Request('https://styrigx.com/api/account', { headers: { Cookie: visitor } }), baseEnv(), CTX);
-  assert.equal(r2.status, 403);
+  const r2 = await worker.fetch(new Request('https://styrigx.com/api/space-audit', { headers: { Cookie: tk } }), baseEnv(), CTX);
+  assert.equal(r2.status, 401);
+  assert.equal((await r2.clone().json()).error, 'account');
   /* JSON 响应统一由 workers/auth-gateway/src/lib/http.js json() 发，默认 private, no-store（以前这一处手写 no-store） */
   assert.equal(r2.headers.get('Cache-Control'), 'private, no-store');
-  assertMainHeaders(r2, '403');
-  const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
-  const r3 = await worker.fetch(new Request('https://styrigx.com/api/nope', { headers: { Cookie: admin } }), baseEnv(), CTX);
+  assertMainHeaders(r2, '401 account');
+  const pw = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
+  const r3 = await worker.fetch(new Request('https://styrigx.com/api/nope', { headers: { Cookie: pw } }), baseEnv(), CTX);
   assert.equal(r3.status, 404);
   assertMainHeaders(r3, '404');
 });
@@ -300,7 +301,7 @@ test('网关·预览（Pages 的 _worker.js，env.ASSETS）：锁屏首页同样
 
 test('网关·子站：302 到锁屏、401、会话有效的页面都带子站那组安全头，不套主站完整 CSP / Permissions-Policy', async () => {
   _resetSecretCache();
-  const admin = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'admin', 'password'));
+  const pw = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
   await withOrigin('<html><head></head><body>blog</body></html>', async () => {
     for (const host of ['styrigx.com/blog', 'styrigx.com/daymark', 'styrigx.com/curio']) {
       const lock = await worker.fetch(new Request('https://' + host + '/posts/x/'), baseEnv(), CTX);
@@ -311,7 +312,7 @@ test('网关·子站：302 到锁屏、401、会话有效的页面都带子站�
       assert.equal(api.status, 401);
       assert.equal(api.headers.get('Strict-Transport-Security'), SH.HSTS);
       assertSubsiteHeaders(api, host + ' 401');
-      const page = await worker.fetch(new Request('https://' + host + '/posts/x/', { headers: { Cookie: admin } }), baseEnv(), CTX);
+      const page = await worker.fetch(new Request('https://' + host + '/posts/x/', { headers: { Cookie: pw } }), baseEnv(), CTX);
       assert.equal(page.status, 200);
       assert.equal(page.headers.get('Strict-Transport-Security'), SH.HSTS);
       assertSubsiteHeaders(page, host + ' page');

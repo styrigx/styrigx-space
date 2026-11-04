@@ -1,7 +1,7 @@
 /**
  * 账号拆分 PR2b：账号根密钥 SGX_ACCOUNT_ROOT_KEY（POST /api/account root-reauth / root-reset）与审计（audit-list、安全事件）。
  * 从网关 root-auth / root-check / root-limit / root-audit 的测试复制改写（账号那两条真路径）：
- * - 只认 SGX_ACCOUNT_ROOT_KEY（锁屏根密钥的值不认）；root-reset 不签会话；root-reauth 要账号会话
+ * - 只认 SGX_ACCOUNT_ROOT_KEY（进站凭证的值不认）；root-reset 不签会话；root-reauth 要账号会话
  * - 限速 attempt_limit realm='account' kind='rootkey'：单 IP 5 次锁 15 分钟（429 cooldown）、全局只减速、成功清计数
  * - 审计 audit realm='account' path = root-reauth / root-reset（7 天）；成功写不进审计不签票（503）
  * - 错误码：401 auth / 401 account / 429 cooldown / 500 config / 503 config / 503 server
@@ -117,9 +117,9 @@ test('缺 key / 空串 / 只有空白 → 401 auth（也计数）；两边去空
   assert.equal((await post(env, { action: 'root-reset', key: spaced })).status, 200);
 });
 
-test('只认 SGX_ACCOUNT_ROOT_KEY：锁屏根密钥（SGX_ROOT_KEY / SGX_ADMIN_KEY）的值不认', async () => {
-  const env = makeEnv({ SGX_ROOT_KEY: 'lock-root-key-zzz', SGX_ADMIN_KEY: 'lock-admin-key-zzz' });
-  for (const key of ['lock-root-key-zzz', 'lock-admin-key-zzz']) {
+test('只认 SGX_ACCOUNT_ROOT_KEY：进站凭证（SGX_ROOT_KEY / SGX_LOCK_SPACE_KEY）的值不认', async () => {
+  const env = makeEnv({ SGX_ROOT_KEY: 'lock-root-key-zzz', SGX_LOCK_SPACE_KEY: 'lock-space-key-zzz' });
+  for (const key of ['lock-root-key-zzz', 'lock-space-key-zzz']) {
     const r = await post(env, { action: 'root-reset', key });
     assert.equal(r.status, 401, key);
   }
@@ -201,7 +201,7 @@ test('成功但审计写不进去 → 503 server，不签票（fail closed）', 
 test('身份：root-reauth / root-reset / audit-list 都要进门（没有 X-Styrigx-Lock-Session: 1 → 401 session，不计数、不写审计）', async () => {
   const env = makeEnv();
   for (const action of ['root-reset', 'root-reauth', 'audit-list']) {
-    for (const identity of [null, { session: '', role: 'admin', by: 'password' }]) {
+    for (const identity of [null, { session: '', role: 'password', by: 'password' }]) {
       const r = await post(env, { action, key: ROOT_KEY }, { 'sgx-account-session': await accSession() }, { identity });
       assert.equal(r.status, 401);
       assert.equal((await r.json()).error, 'session');

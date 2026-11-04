@@ -5,7 +5,7 @@
  * （tests/workers/account/account-realm.test.mjs 拿网关 realms.js 逐字段核对），切换时现有账号票继续有效。
  *
  * 和网关域对象的区别只有两项（方案第 6.2 节）：
- * - rootKey：账号根密钥的 Secrets Store 名 SGX_ACCOUNT_ROOT_KEY（新建，值与锁屏根密钥不同）。只用来比对，永远不签会话。
+ * - rootKey：账号根密钥的 Secrets Store 名 SGX_ACCOUNT_ROOT_KEY（新建，值与进站凭证不同）。只用来比对，永远不签会话。
  * - rootIssues：账号根密钥验过后能签的票（AccountReauthTicket、AccountResetTicket，by=root）。
  * 根密钥的限速 / 审计行就在本域：attempt_limit realm='account' kind='rootkey'、audit realm='account'。
  *
@@ -58,7 +58,7 @@ export const TICKETS = Object.freeze({
     cookie: ACCOUNT_SESSION_COOKIE,
     privateKey: 'SGX_ACCOUNT_PRIVATE',
     publicKey: 'SGX_ACCOUNT_PUBLIC',
-    /* 400 天（浏览器 Max-Age 上限）：不点退出就一直登录；进账号页仍要先有 admin 锁屏会话 */
+    /* 400 天（浏览器 Max-Age 上限）：不点退出就一直登录；进账号页仍要先进门（锁屏进门会话） */
     maxAge: 34560000,
     cookieAttrs: ACCOUNT_SESSION_ATTRS,
     bys: Object.freeze([BY_PASSWORD, BY_PASSKEY]),

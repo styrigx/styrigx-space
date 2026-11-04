@@ -4,12 +4,12 @@
  * - startCredentialTestServer(port)：启动本地测试服务器，/api/lock-password、/api/lock-passkey、/api/lock-reauth
  *   路由到网关 src/api/ 下的真实 handler（onRequestPost）；/api/account 走网关的转发（src/router.js forward：验锁屏会话、
  *   剥头、写身份头）→ 账号 Worker AccountService 的实现（workers/account/src/rpc/account-service.js serviceFetch），同正式的两跳（账号拆分 PR3）。
- *   网关 env 只绑正式网关有的（锁屏钥匙、SGX_ADMIN_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER）；账号 env 自己一对钥匙、
+ *   网关 env 只绑正式网关有的（锁屏钥匙、SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER）；账号 env 自己一对钥匙、
  *   账号根密钥、D1_ACCOUNT_AUTH。两边的 D1 绑定接同一个库（同预览共库 styrigx-test-preview，表按 realm 列分开），
  *   d1.password('account') 这类观测照旧。返回 { kv, d1, env, accountEnv, close, mintAuth, … }。
  * - makeAttestationCredential：Node 端合成 WebAuthn 注册 attestation
  *   （UV=1；CDP 虚拟认证器开 UV 会抛 NotAllowedError，故不用浏览器仪式）。
- * - mintAuth(by)：按当前 Lock 纪元重签 admin 锁屏会话 + LockReauthTicket（sgx-lock-reauth）
+ * - mintAuth(by)：按当前 Lock 纪元重签 锁屏进门会话 + LockReauthTicket（sgx-lock-reauth）
  * - mintAccount(by, authAt)：账号会话（sgx-account-session，by 只能 password|passkey）；mintAccountReauth(by)：AccountReauthTicket（sgx-account-reauth）；
  *   mintAccountReset()：AccountResetTicket（sgx-account-reset，by=root）。都用账号 Worker 的代码和账号钥匙签（workers/account/src/core/account-session.js）
  *   （set/change/remove/register 会推进 epoch，每次鉴权操作前重签）。
@@ -165,7 +165,7 @@ async function startCredentialTestServer(port) {
     SGX_PW_PEPPER: 'e2e-test-pepper',
     SGX_LOCK_PRIVATE: privPem,
     SGX_LOCK_PUBLIC: pubPem,
-    SGX_ADMIN_KEY: 'e2e-test-admin-key',
+    SGX_LOCK_SPACE_KEY: 'e2e-test-space-key',
     SGX_RP_ID: 'localhost',
     SGX_ORIGIN: origin,
     ACCOUNT: { fetch: (req) => acctEntry.serviceFetch(req, accountEnv, { waitUntil() {} }) },
@@ -234,7 +234,7 @@ async function startCredentialTestServer(port) {
 
   async function mintAuth(reauthBy) {
     const epoch = await sessMod.getLockEpoch(env);
-    const sessionCookie = await sessMod.signLockSessionTicket(privPem, { by: 'password', role: 'admin', epoch, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
+    const sessionCookie = await sessMod.signLockSessionTicket(privPem, { by: 'password', epoch, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
     const reauthCookie = await ticketsMod.signTicket(privPem, 'LockReauthTicket', reauthBy || 'password', epoch);
     return { sessionCookie, reauthCookie };
   }
@@ -251,7 +251,7 @@ async function startCredentialTestServer(port) {
     return await acctSess.signTicket(acctPrivPem, 'AccountReauthTicket', by || 'password', epoch);
   }
 
-  /* AccountResetTicket（sgx-account-reset）：只有 by=root（RootKey 不签账号会话，第一次设账号凭证走重置票） */
+  /* AccountResetTicket（sgx-account-reset）：只有 by=root（账号根凭证不签账号会话，第一次设账号凭证走重置票） */
   async function mintAccountReset() {
     const epoch = await acctSess.getAccountEpoch(accountEnv);
     return await acctSess.signTicket(acctPrivPem, 'AccountResetTicket', 'root', epoch);

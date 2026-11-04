@@ -1,8 +1,8 @@
 /**
  * 测试用：按三张锁屏票的真实格式签测试 cookie 值（与 workers/auth-gateway/src/core 同一套签名函数）。
  * 账号票（会话 / reauth / reset）只在账号 Worker 签：见 tests/workers/account/_auth.mjs（账号拆分 PR3）。
- * - testLockSession(priv, epoch, role, by?)：role 'admin' | 'visitor'；admin 的 by 默认 password（可传 passkey）；
- *   visitor 固定 by=tempkey、tempkeyId=TEST_TEMPKEY_ID（验票只查这把钥匙有没有被作废）
+ * - testLockSession(priv, epoch, by?, o?)：LockSessionTicket v2（by.epoch.exp.tempkeyId，进门二值）；
+ *   by = password（默认）| passkey | tempkey；by=tempkey 时 tempkeyId 默认 TEST_TEMPKEY_ID（验票只查这把钥匙有没有被作废）
  * - testTicket(priv, name, by, epoch, now?)：两张锁屏 reset / reauth 短票（name 用 realms.js 的票名常量）
  * - *Cookie() 版本直接返回「cookie名=值」
  */
@@ -16,24 +16,23 @@ export const TEST_DEVICE_ID = 'devtestdevtest01';
 /**
  * @param {string} priv SGX_LOCK_PRIVATE
  * @param {number} epoch
- * @param {string} role 'admin' | 'visitor'
- * @param {string} [by] admin：password（默认）| passkey
+ * @param {string} [by] password（默认）| passkey | tempkey
  * @param {{ttlSec?:number, tempkeyId?:string}} [o]
  */
-export function testLockSession(priv, epoch, role, by, o) {
+export function testLockSession(priv, epoch, by, o) {
   const opts = o || {};
-  const visitor = role === 'visitor';
+  const b = by || 'password';
+  const tk = b === 'tempkey';
   return signLockSessionTicket(priv, {
-    by: visitor ? 'tempkey' : (by || 'password'),
-    role: role,
+    by: b,
     epoch: epoch,
-    exp: Date.now() + (opts.ttlSec || (visitor ? 3600 : 43200)) * 1000,
-    tempkeyId: visitor ? (opts.tempkeyId || TEST_TEMPKEY_ID) : '',
+    exp: Date.now() + (opts.ttlSec || (tk ? 3600 : 43200)) * 1000,
+    tempkeyId: tk ? (opts.tempkeyId || TEST_TEMPKEY_ID) : '',
   });
 }
-/** @param {string} priv @param {number} epoch @param {string} role @param {string} [by] @param {any} [o] */
-export async function testLockSessionCookie(priv, epoch, role, by, o) {
-  return LOCK_SESSION_COOKIE + '=' + (await testLockSession(priv, epoch, role, by, o));
+/** @param {string} priv @param {number} epoch @param {string} [by] @param {any} [o] */
+export async function testLockSessionCookie(priv, epoch, by, o) {
+  return LOCK_SESSION_COOKIE + '=' + (await testLockSession(priv, epoch, by, o));
 }
 
 /** @param {string} priv @param {string} name 票名 @param {string} by @param {number} epoch @param {number} [now] */
@@ -64,6 +63,24 @@ export function fakeAccountVerifier(o) {
       if (o && o.throws) throw new Error('down');
       if (!cookieHeader) return { ok: false, reason: 'no-cookie' };
       return String(cookieHeader).split(/;\s*/).includes(TEST_ACCOUNT_COOKIE) ? { ok: true } : { ok: false, reason: 'denied' };
+    },
+  };
+}
+
+/**
+ * ACCOUNT_VERIFIER.authorize 的替身（P2-2 起网关问账号结论用 askAuthorize）：Cookie 头里有 TEST_ACCOUNT_COOKIE → { ok:true }；
+ * 没 cookie → no-cookie；否则 missing。
+ */
+export function fakeAuthorizeVerifier() {
+  const calls = [];
+  return {
+    calls,
+    async authorize(cookieHeader, ctx, opts) {
+      calls.push([cookieHeader, opts]);
+      if (!cookieHeader) return { ok: false, reason: 'no-cookie' };
+      return String(cookieHeader).split(/;\s*/).includes(TEST_ACCOUNT_COOKIE)
+        ? { ok: true, reason: 'ok', deviceId: TEST_DEVICE_ID, scopes: [], reauth: false }
+        : { ok: false, reason: 'missing' };
     },
   };
 }

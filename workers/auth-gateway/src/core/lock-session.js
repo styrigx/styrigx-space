@@ -1,16 +1,16 @@
 /**
  * 锁屏会话（LockSessionTicket，cookie sgx-lock-session）：签发、解析、验证、Lock 纪元。
  *
- * 票内容：by.role.epoch.exp.tempkeyId，最后一段是签名：
- *   sig = Ed25519(SGX_LOCK_PRIVATE, "sgx-lock-session|by.role.epoch.exp.tempkeyId")
- * - role：admin（锁屏密码 / 锁屏通行密钥，12 小时）| visitor（临时钥匙：锁屏输临时码 min(钥匙剩余时间, 12 小时)；
- *   分享短链按短链的会话档位，同样不超过钥匙剩余时间）
- * - by：admin → password | passkey；visitor → tempkey。RootKey 不拥有会话，by 永远没有 root。
- * - tempkeyId：visitor 会话是哪把临时钥匙换来的（lock-tempkey.js）；验票时查这把钥匙有没有被作废，
- *   作废后访客下一个请求就进不来。admin 会话这一段固定为空串（票里就是连着的两个点 "<exp>..<sig>"），
- *   空串只对 admin 合法、非空只对 visitor 合法，解析时两边都卡死。
+ * 票内容（v2，5 段）：by.epoch.exp.tempkeyId，最后一段是签名：
+ *   sig = Ed25519(SGX_LOCK_PRIVATE, "sgx-lock-session|by.epoch.exp.tempkeyId")
+ * 进门二值（设计方案 2.2.1、3.1）：票里没有等级，有效就是进门了。by 只记进门方式、只作审计，不分等级：
+ * - by：password | passkey（锁屏密码 / 锁屏通行密钥，12 小时）| tempkey（临时钥匙：锁屏输临时码 min(钥匙剩余时间, 12 小时)；
+ *   分享短链按短链的会话档位，同样不超过钥匙剩余时间）。进站凭证（SpaceKey）不拥有会话，by 永远没有 space。
+ * - tempkeyId：by=tempkey 时是哪把临时钥匙换来的（lock-tempkey.js）；验票时查这把钥匙有没有被作废，
+ *   作废后下一个请求就进不来。by=password / passkey 时这一段固定为空串（票里就是连着的两个点 "<exp>..<sig>"）。
+ *   by=tempkey ⇔ tempkeyId 合法非空：这只是格式一致性检查，不是放行依据。
  * - epoch：Lock 纪元（D1 epoch 表 realm='lock' 那一行，见 d1-state.js；改锁屏凭证 / 退出所有设备 +1，旧票随即失效）
- * 验票只认 role=admin / visitor，其它格式一律无效。
+ * v1 的 6 段票（by.role.epoch.exp.tempkeyId.sig）一律 bad-format，和没有 cookie 一样（方案 3.8：上线即作废）。
  *
  * cookie 属性见 realms.js TICKETS.LockSessionTicket：Domain=.styrigx.com; SameSite=Lax（子站要读）。
  * 纪元、临时钥匙是否还在都每次读 D1 主库（不缓存），读出错一律 fail closed（签发返回 503、验证无效 d1-error）。
@@ -23,8 +23,6 @@ import {
   LOCK_SESSION_TICKET,
   LOCK_SESSION_COOKIE,
   COOKIE_EXPIRED,
-  ROLE_ADMIN,
-  ROLE_VISITOR,
   BY_PASSWORD,
   BY_PASSKEY,
   BY_TEMPKEY,
@@ -34,21 +32,22 @@ import {
 import { isTempkeyId, isTempkeyRevoked } from './lock-tempkey.js';
 import { readEpoch, bumpEpoch } from './d1-state.js';
 
-export { LOCK_SESSION_COOKIE, ROLE_ADMIN, ROLE_VISITOR };
+export { LOCK_SESSION_COOKIE };
 const CONF = TICKETS[LOCK_SESSION_TICKET];
 /* cookie 属性：只定义一处（realms.js），这里转出给 diag / 测试对账 */
 export const LOCK_SESSION_COOKIE_ATTRS = CONF.cookieAttrs;
-export const LOCK_SESSION_MAX_AGE = CONF.maxAge; /* admin 12 小时 */
+export const LOCK_SESSION_MAX_AGE = CONF.maxAge; /* 锁屏密码 / 通行密钥进门 12 小时 */
 const SIG_PREFIX = LOCK_SESSION_COOKIE + '|';
-const ADMIN_BYS = Object.freeze([BY_PASSWORD, BY_PASSKEY]);
+const LOCKKEY_BYS = Object.freeze([BY_PASSWORD, BY_PASSKEY]);
 
 /**
- * by / role / tempkeyId 组合是否合法：admin ⇔ by∈{password,passkey} 且 tempkeyId=''；visitor ⇔ by=tempkey 且 tempkeyId 合法。
- * @param {string} by @param {string} role @param {string} tempkeyId
+ * by / tempkeyId 格式是否一致：by∈{password,passkey} ⇔ tempkeyId=''；by=tempkey ⇔ tempkeyId 合法非空。
+ * 只是格式校验，不是放行依据（进门不分等级）。
+ * @param {string} by @param {string} tempkeyId
  */
-function validCombo(by, role, tempkeyId) {
-  if (role === ROLE_ADMIN) return ADMIN_BYS.indexOf(by) !== -1 && tempkeyId === '';
-  if (role === ROLE_VISITOR) return by === BY_TEMPKEY && isTempkeyId(tempkeyId);
+function validCombo(by, tempkeyId) {
+  if (LOCKKEY_BYS.indexOf(by) !== -1) return tempkeyId === '';
+  if (by === BY_TEMPKEY) return isTempkeyId(tempkeyId);
   return false;
 }
 
@@ -68,39 +67,38 @@ export function clearLockSessionCookie(headers) {
 /**
  * 签锁屏会话票值。
  * @param {string} privatePem SGX_LOCK_PRIVATE
- * @param {{by:string, role:string, epoch:number, exp:number, tempkeyId?:string}} t
+ * @param {{by:string, epoch:number, exp:number, tempkeyId?:string}} t
  */
 export async function signLockSessionTicket(privatePem, t) {
   const tempkeyId = (t && t.tempkeyId) || '';
-  if (!t || !validCombo(t.by, t.role, tempkeyId)) {
-    throw new Error('signLockSessionTicket: bad by/role/tempkeyId ' + JSON.stringify([t && t.by, t && t.role, tempkeyId]));
+  if (!t || !validCombo(t.by, tempkeyId)) {
+    throw new Error('signLockSessionTicket: bad by/tempkeyId ' + JSON.stringify([t && t.by, tempkeyId]));
   }
   if (!Number.isFinite(t.epoch) || !Number.isFinite(t.exp)) throw new Error('signLockSessionTicket: bad epoch/exp');
-  const payload = t.by + '.' + t.role + '.' + t.epoch + '.' + t.exp + '.' + tempkeyId;
+  const payload = t.by + '.' + t.epoch + '.' + t.exp + '.' + tempkeyId;
   const sig = await ed25519Sign(privatePem, SIG_PREFIX + payload);
   return payload + '.' + sig;
 }
 
 /**
- * 解析锁屏会话票值（不验签）。六段：by.role.epoch.exp.tempkeyId.sig。
+ * 解析锁屏会话票值（不验签）。五段：by.epoch.exp.tempkeyId.sig；v1 的 6 段票返回 null（bad-format）。
  * @param {string} val
- * @returns {{by:string, role:string, epoch:number, exp:number, tempkeyId:string, sig:string, payload:string}|null}
+ * @returns {{by:string, epoch:number, exp:number, tempkeyId:string, sig:string, payload:string}|null}
  */
 export function parseLockSessionTicket(val) {
   if (!val || typeof val !== 'string') return null;
   const parts = val.split('.');
-  if (parts.length !== 6) return null;
-  const [by, role, epochStr, expStr, tempkeyId, sig] = parts;
-  if (!validCombo(by, role, tempkeyId)) return null;
+  if (parts.length !== 5) return null;
+  const [by, epochStr, expStr, tempkeyId, sig] = parts;
+  if (!validCombo(by, tempkeyId)) return null;
   if (!/^\d+$/.test(epochStr) || !/^\d+$/.test(expStr) || !sig) return null;
   return {
     by,
-    role,
     epoch: parseInt(epochStr, 10),
     exp: parseInt(expStr, 10),
     tempkeyId,
     sig,
-    payload: parts.slice(0, 5).join('.'),
+    payload: parts.slice(0, 4).join('.'),
   };
 }
 
@@ -127,17 +125,17 @@ export async function bumpLockEpoch(env) {
  * 签发锁屏会话 cookie（fail closed，永不抛错）。成功返回 null；失败返回 { status, body }。
  * - SGX_LOCK_PRIVATE 为空 → 500 no-session-key
  * - 读纪元出错 → 503 server
- * - by / role / tempkeyId 组合不对 → 500 invalid-role
+ * - by / tempkeyId 组合不对 → 500 invalid-by
  * - 签名出错 → 500 session-sign-failed
  * @param {any} env
  * @param {Headers} headers
- * @param {{by:string, role:string, maxAge?:number, tempkeyId?:string}} o
- *   maxAge：秒；admin 默认 12 小时；visitor 必须传（按钥匙剩余时间算好）
+ * @param {{by:string, maxAge?:number, tempkeyId?:string}} o
+ *   maxAge：秒；锁屏密码 / 通行密钥默认 12 小时；by=tempkey 必须传（按钥匙剩余时间算好）
  */
 export async function issueLockSession(env, headers, o) {
   const tempkeyId = (o && o.tempkeyId) || '';
-  if (!o || !validCombo(o.by, o.role, tempkeyId)) {
-    return { status: 500, body: { ok: false, error: 'invalid-role' } };
+  if (!o || !validCombo(o.by, tempkeyId)) {
+    return { status: 500, body: { ok: false, error: 'invalid-by' } };
   }
   const priv = realmPrivateKey(env, REALM_LOCK); /* SGX_LOCK_PRIVATE */
   if (!priv) return { status: 500, body: { ok: false, error: 'no-session-key' } };
@@ -147,12 +145,12 @@ export async function issueLockSession(env, headers, o) {
   } catch (e) {
     return { status: 503, body: { ok: false, error: 'server' } };
   }
-  /* visitor 的时长由调用方按钥匙剩余时间算好传进来（锁屏输临时码：上限 TEMPKEY_SESSION_MAX；分享短链：按短链档位） */
-  if (o.role === ROLE_VISITOR && !o.maxAge) return { status: 500, body: { ok: false, error: 'invalid-role' } };
+  /* by=tempkey 的时长由调用方按钥匙剩余时间算好传进来（锁屏输临时码：上限 TEMPKEY_SESSION_MAX；分享短链：按短链档位） */
+  if (o.by === BY_TEMPKEY && !o.maxAge) return { status: 500, body: { ok: false, error: 'invalid-by' } };
   const maxAge = o.maxAge || CONF.maxAge;
   let v;
   try {
-    v = await signLockSessionTicket(priv, { by: o.by, role: o.role, epoch, exp: Date.now() + maxAge * 1000, tempkeyId });
+    v = await signLockSessionTicket(priv, { by: o.by, epoch, exp: Date.now() + maxAge * 1000, tempkeyId });
   } catch (e) {
     return { status: 500, body: { ok: false, error: 'session-sign-failed' } };
   }
@@ -162,60 +160,60 @@ export async function issueLockSession(env, headers, o) {
 
 /**
  * 纪元推进后重签当前设备的锁屏会话（删锁屏钥匙 / 改密码后保持当前设备不掉线）。
- * admin 按默认时长重签；visitor 不延长（沿用原 exp）。失败静默（调用方已返回业务成功）。
+ * 一律保留原 exp，不看进门方式、不延长（方案 2.2.1）。失败静默（调用方已返回业务成功）。
  * 没有会话（如重置锁屏）时 sess 为 null，不做任何事。
  * @param {any} env
  * @param {Headers} headers
- * @param {{ok:boolean, by?:string, role?:string, exp?:number, tempkeyId?:string}|null} sess verifyLockSession 的结果
+ * @param {{ok:boolean, by?:string|null, exp?:number, tempkeyId?:string}|null} sess verifyLockSession 的结果
  * @param {number} newEpoch
  */
 export async function reissueLockSessionWithEpoch(env, headers, sess, newEpoch) {
-  if (!sess || !sess.ok || !sess.by || !sess.role) return;
+  if (!sess || !sess.ok || !sess.by) return;
   const priv = realmPrivateKey(env, REALM_LOCK);
   if (!priv) return;
   try {
     const now = Date.now();
-    const exp = sess.role === ROLE_ADMIN ? now + CONF.maxAge * 1000 : (sess.exp || 0);
+    const exp = sess.exp || 0;
     if (exp <= now) return;
-    const v = await signLockSessionTicket(priv, { by: sess.by, role: sess.role, epoch: newEpoch, exp, tempkeyId: sess.tempkeyId || '' });
+    const v = await signLockSessionTicket(priv, { by: sess.by, epoch: newEpoch, exp, tempkeyId: sess.tempkeyId || '' });
     setLockSessionCookie(headers, v, Math.ceil((exp - now) / 1000));
   } catch (e) {}
 }
 
 /**
- * 验单个锁屏会话票值（签名、到期、Lock 纪元；visitor 另查临时钥匙是否被作废）。
+ * 验单个锁屏会话票值（签名、到期、Lock 纪元；tempkeyId 非空时另查这把钥匙是否被作废）。
  * @param {string} val
  * @param {any} env
- * @returns {Promise<{status:string, role:string|null, by:string|null, exp?:number, tempkeyId?:string}>}
+ * @returns {Promise<{status:string, by:string|null, exp?:number, tempkeyId?:string}>}
  *   status: ok / bad-format / expired / no-pubkey / bad-sig / d1-error / epoch-low / tempkey-revoked
  */
 export async function verifyLockSessionTicket(val, env) {
   const p = parseLockSessionTicket(val);
-  if (!p) return { status: 'bad-format', role: null, by: null };
-  if (p.exp < Date.now()) return { status: 'expired', role: null, by: null };
+  if (!p) return { status: 'bad-format', by: null };
+  if (p.exp < Date.now()) return { status: 'expired', by: null };
   const pub = realmPublicKey(env, REALM_LOCK); /* SGX_LOCK_PUBLIC */
-  if (!pub) return { status: 'no-pubkey', role: null, by: null };
+  if (!pub) return { status: 'no-pubkey', by: null };
   let sigOk = false;
   try { sigOk = await ed25519Verify(pub, SIG_PREFIX + p.payload, p.sig); } catch (e) { sigOk = false; }
-  if (!sigOk) return { status: 'bad-sig', role: null, by: null };
+  if (!sigOk) return { status: 'bad-sig', by: null };
   let cur;
   try {
     cur = await getLockEpoch(env);
   } catch (e) {
-    return { status: 'd1-error', role: null, by: null };
+    return { status: 'd1-error', by: null };
   }
   /* 纪元只认相等：比当前小是旧票；比当前大同样不认（纪元不会回退，除非存储出了事故，那时也不让票复活） */
-  if (p.epoch !== cur) return { status: 'epoch-low', role: null, by: null };
-  if (p.role !== ROLE_VISITOR) return { status: 'ok', role: p.role, by: p.by, exp: p.exp, tempkeyId: p.tempkeyId };
+  if (p.epoch !== cur) return { status: 'epoch-low', by: null };
+  if (!p.tempkeyId) return { status: 'ok', by: p.by, exp: p.exp, tempkeyId: '' };
   try {
-    /* visitor：钥匙到期由票自己的 exp 管（不晚于钥匙到期）；作废每个请求读一次 D1 主库，不缓存 */
+    /* 临时钥匙换来的会话：钥匙到期由票自己的 exp 管（不晚于钥匙到期）；作废按「钥匙是否还有效」每个请求读一次 D1 主库，不缓存 */
     if (await isTempkeyRevoked(env, p.tempkeyId)) {
-      return { status: 'tempkey-revoked', role: null, by: null };
+      return { status: 'tempkey-revoked', by: null };
     }
   } catch (e) {
-    return { status: 'd1-error', role: null, by: null };
+    return { status: 'd1-error', by: null };
   }
-  return { status: 'ok', role: p.role, by: p.by, exp: p.exp, tempkeyId: p.tempkeyId };
+  return { status: 'ok', by: p.by, exp: p.exp, tempkeyId: p.tempkeyId };
 }
 
 /**
@@ -228,36 +226,19 @@ function allLockSessionCookies(request) {
 }
 
 /**
- * 请求是不是带着访客会话（只看格式和 role 段，不验签、不读存储）。
- * 访客假入口（root-auth / lock-reset / lock-password / lock-passkey）用它在读任何存储之前直接返回写死的失败，
- * 走真路径前再完整验票。格式按 parseLockSessionTicket（六段，visitor 必须带合法 tempkeyId）。
- * @param {any} request
- * @returns {boolean}
- */
-export function looksVisitor(request) {
-  try {
-    for (const val of allLockSessionCookies(request)) {
-      const p = parseLockSessionTicket(val);
-      if (p && p.role === ROLE_VISITOR) return true;
-    }
-  } catch (e) {}
-  return false;
-}
-
-/**
  * 验请求里的锁屏会话（网关页面、接口、子站 RPC 共用这一个实现）。任一同名值验过即有效。
  * 每次失败打 [sgx-verify] fail: <原因> 日志（只记原因，不记密钥和 cookie 值）。
  * @param {any} request
  * @param {any} env
- * @returns {Promise<{ok:boolean, role:string|null, by:string|null, exp?:number, tempkeyId?:string, reason:string}>}
+ * @returns {Promise<{ok:boolean, by:string|null, exp?:number, tempkeyId?:string, reason:string}>}
  */
 export async function verifyLockSession(request, env) {
   const vals = allLockSessionCookies(request);
-  if (!vals.length) return { ok: false, role: null, by: null, reason: 'no-cookie' };
+  if (!vals.length) return { ok: false, by: null, reason: 'no-cookie' };
   let reason = 'bad-format';
   for (const val of vals) {
     const r = await verifyLockSessionTicket(val, env);
-    if (r.status === 'ok') return { ok: true, role: r.role, by: r.by, exp: r.exp, tempkeyId: r.tempkeyId, reason: 'ok' };
+    if (r.status === 'ok') return { ok: true, by: r.by, exp: r.exp, tempkeyId: r.tempkeyId, reason: 'ok' };
     /* 记录最有信息量的失败原因：优先非 bad-format */
     if (reason === 'bad-format' || r.status !== 'bad-format') reason = r.status;
   }
@@ -269,7 +250,7 @@ export async function verifyLockSession(request, env) {
   } else {
     console.log('[sgx-verify] fail: ' + reason);
   }
-  return { ok: false, role: null, by: null, reason };
+  return { ok: false, by: null, reason };
 }
 
 /* ---------------- 给其他 Worker 的验票（原 src/verifier.js） ---------------- */
@@ -294,13 +275,13 @@ function cookieRequest(cookieHeader) {
 }
 
 /**
- * 会话：{ ok: true, role: 'admin'|'visitor' } 或 { ok: false, reason }（reason 只是原因代号）。
+ * 会话：{ ok: true } 或 { ok: false, reason }（reason 只是原因代号）。进门二值：不回 by 以外的等级（方案 3.4 R11）。
  * @param {string} cookieHeader 浏览器发来的 Cookie 头
  * @param {Record<string, any>} env 已换好密钥字符串的 env
  */
 export async function checkLockSession(cookieHeader, env) {
   const s = await verifyLockSession(cookieRequest(cookieHeader), env);
-  return s.ok ? { ok: true, role: s.role } : { ok: false, reason: s.reason };
+  return s.ok ? { ok: true, reason: 'ok' } : { ok: false, reason: s.reason };
 }
 
 /**

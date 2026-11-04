@@ -2,7 +2,7 @@
  * 临时码输错限速（src/core/lock-tempkey.js）：
  * - 单 IP 连错 5 次冷却 15 分钟（IPv6 按 /64 分桶，换地址绕不开）
  * - 全站只减速、不封锁：每小时错满 TEMPKEY_GLOBAL_SLOW_AT 次后每次先等 TEMPKEY_GLOBAL_DELAY_MS，
- *   以前的「全站错 30 次暂停 1 小时」已去掉（别人刷错就能让所有访客进不来），全站那一行（D1 attempt_limit bucket='*'）的 locked_until 不再生效
+ *   以前的「全站错 30 次暂停 1 小时」已去掉（别人刷错就能让所有拿临时钥匙的人进不来），全站那一行（D1 attempt_limit bucket='*'）的 locked_until 不再生效
  * - 接口层：全站减速时对的临时码照样能进门
  *
  * 运行：node --test tests/workers/auth-gateway/tempkey-limit.test.mjs
@@ -111,5 +111,5 @@ test('接口：全站已错满（含残留 locked_until），对的临时码照�
   });
   const res = await unlockPost({ request: req, env });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true, role: 'visitor' });
+  assert.deepEqual(await res.json(), { ok: true });
 });

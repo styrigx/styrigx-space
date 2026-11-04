@@ -14,7 +14,7 @@ import { initNav } from './nav.js';
 import { initGoodLock, wellRetarget } from './goodlock.js';
 import { initScrollFx } from './scrollfx.js';
 /* 锁屏 / 升级只放守卫进 core；界面在 lock-guard.js 里按需 import()（frontend-js #6） */
-import { initLock, initUpgrade } from './lock-guard.js';
+import { initLock } from './lock-guard.js';
 import { on as featOn } from '../lib/features.js';
 import { normPalette, DEFAULT_PALETTE } from '../lib/prefs.js';
 import { toast } from '../lib/toast.js';
@@ -68,7 +68,6 @@ export function initCore() {
   initFeatSync();
   /* Hark：CI 测试构建禁用锁屏（构建期摇掉，线上无残留） */
   if (!SGX_TEST_NO_LOCK) initLock();
-  initUpgrade();
   engines.init();
   /* 标签页图标跟主题色（换色板 / 自定义色 / 深浅色时换 SVG 图标的底色） */
   initFavicon();

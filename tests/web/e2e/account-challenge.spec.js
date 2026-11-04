@@ -27,17 +27,17 @@ test.describe('锁屏门 / 账号 challenge e2e（预览站）', () => {
     expect(r.status()).toBe(401);
   });
 
-  test('伪造身份头：无会话带 X-Styrigx-Lock-Role: admin 仍 401', async ({ request }) => {
-    const forged = { Origin: ORIGIN, 'X-Styrigx-Lock-Role': 'admin', 'X-Styrigx-Lock-By': 'password' };
+  test('伪造身份头：无会话带 X-Styrigx-Lock-Session: 1 仍 401', async ({ request }) => {
+    const forged = { Origin: ORIGIN, 'X-Styrigx-Lock-Session': '1', 'X-Styrigx-Lock-By': 'password' };
     /* 正式域名上网关的门先拒（无会话 /api/* 401）；预览不拦 /api/*，网关剥掉外来的 x-styrigx-* 后转发，
-       账号 Worker 看不到身份头同样 401（没剥掉的话 GET /api/account 会以 admin 身份回 200） */
+       账号 Worker 看不到身份头同样 401（没剥掉的话 GET /api/account 会当成已进门回 200） */
     for (const path of ['/api/account', '/api/prefs']) {
       const r = await request.get(BASE + path, { headers: forged, maxRedirects: 0 });
       expect(r.status(), path).toBe(401);
     }
   });
 
-  test('有 admin 会话：/api/account 经网关转发，响应来自账号 Worker', async ({ page }) => {
+  test('有 进门会话：/api/account 经网关转发，响应来自账号 Worker', async ({ page }) => {
     await h.adminSession(page, test);
     const r = await h.apiGet(page, '/api/account');
     expect(r.status, JSON.stringify(r.json)).toBe(200);
