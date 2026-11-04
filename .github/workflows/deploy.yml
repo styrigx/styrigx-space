@@ -82,7 +82,7 @@ jobs:
         # 先确认 node:sqlite 可用：没有它 D1 的真 SQL 测试会静默跳过
         run: |
           node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, D1 SQL tests would be skipped"; exit 1; }
-          node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
+          node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/chat/*.test.mjs tests/workers/search-index/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
 
       - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
         # 主站后端代码全在 workers/auth-gateway/src/；只打包不部署，import 断了 CI 就红
@@ -113,6 +113,10 @@ jobs:
       - name: Search Worker bundle check (styrigx-search-index, dry-run)
         working-directory: workers/search-index
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-search-dist
+
+      - name: AI Worker bundle check (styrigx-ai, dry-run)
+        working-directory: workers/ai
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-ai-dist
 
       - name: Status Worker bundle check (styrigx-status, dry-run)
         working-directory: workers/status
@@ -1244,6 +1248,75 @@ jobs:
           PREVIOUS: ${{ needs.deploy-chat-worker.outputs.previous }}
         run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
+  deploy-ai-worker:
+    # 站内对话助手 styrigx-ai（workers/ai，P4-1）：先于网关部署（网关的服务绑定 AI_SERVICE 指向它，它不在就部署不了）。
+    # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/ai 进。只读 KV styrigx-search-index，不写索引。
+    # token：复用 GitHub 环境 STYRIGX_SEARCH_INDEX_DEPLOY 和它的同名密钥（Cloudflare 上 styrigx-search-index-deploy，
+    # 已有 Workers Scripts 编辑 + Workers KV Storage 编辑 + Account Settings 读取；方案 5.7）。
+    # Workers AI 绑定要不要额外权限文档没写清：先不加；首次部署若报权限错，Gray 给这把 token 加 Workers AI 权限后重跑（对线上无影响）。
+    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: [quality, passkey-e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: STYRIGX_SEARCH_INDEX_DEPLOY
+    outputs:
+      previous: ${{ steps.live.outputs.version }}
+      started_at: ${{ steps.t0.outputs.at }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Record live Worker version (rollback target)
+        # 部署前记下线上 100% 流量的版本（scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
+        # 只打 warning、不拦部署：空 = 这次失败不自动回滚
+        id: live
+        continue-on-error: true
+        working-directory: workers/ai
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+
+      - name: Record deploy start
+        # 毫秒时间戳（UTC）；P4-2 起给 status 的健康闸门做部署前基线（status 监测项 ai 在 P4-2 加）
+        id: t0
+        run: echo "at=$(date +%s%3N)" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy AI Worker (styrigx-ai)
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/ai
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: deploy
+
+      - name: Post-deploy check (no public address, so check the live version)
+        # 没有公开地址、冒烟打不到（只能经网关 + 会话进）：核对线上确实换成了一个吃 100% 流量的新版本
+        working-directory: workers/ai
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+
+      - name: Roll back to the recorded version (deploy or post-deploy check failed)
+        # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变什么都不做。
+        # job 照样红，后面依赖它的 job（网关）不部署
+        if: failure() && steps.live.outputs.version != ''
+        working-directory: workers/ai
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIOUS: ${{ steps.live.outputs.version }}
+        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+
   deploy-chat-worker:
     # 聊天 styrigx-chat（workers/chat，2026-10-22 从网关拆出来）：先于网关部署（网关的服务绑定 CHAT 指向它，它不在就部署不了）。
     # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/chat 进（网关先验同源 + 会话 + 要进门）。
@@ -1619,7 +1692,7 @@ jobs:
     # 其他分支即使改了工作流也拿不到它。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-search-worker, deploy-status-worker, deploy-chat-worker, deploy-account-worker, deploy-share-worker, deploy-curio-core, deploy-daymark-core]
+    needs: [quality, passkey-e2e, deploy-search-worker, deploy-ai-worker, deploy-status-worker, deploy-chat-worker, deploy-account-worker, deploy-share-worker, deploy-curio-core, deploy-daymark-core]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_AUTH_GATEWAY_DEPLOY

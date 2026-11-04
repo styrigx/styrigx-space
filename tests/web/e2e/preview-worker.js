@@ -14,6 +14,8 @@
  *
  * 和真实服务绑定的差别（只影响预览）：请求 / 响应对象在同一个 isolate 里直接传，不经序列化；账号那一半没有自己的默认 fetch
  * （正式的默认 fetch 一律 404，预览里根本没有公网入口能到它）。
+ * styrigx-ai（P4-1）：预览不调真实 Workers AI。网关 env 的 AI_SERVICE 换成桩 previewAiService：POST /ask 回固定 hits + 固定回答流
+ * （有账号结论头 X-Styrigx-Account-Session: 1 时多一条私密来源，X-Styrigx-AI-Scope 同正式），GET /healthz 200。
  * 打包：deploy.yml「Bundle preview _worker.js」用 wrangler deploy --dry-run 打这个文件；本地模拟器 preview-emulator.cjs 直接 import。
  * cloudflare:workers 由 rpc/*.js 引入（WorkerEntrypoint，这里不用）；node 里由 tests/workers/account/_cf-workers.mjs 提供替身。
  */
@@ -32,6 +34,37 @@ export const ACCOUNT_ENV_KEYS = Object.freeze([
 /** 网关那一半不许看到的 env 键（正式网关 wrangler.toml 不绑这些） @param {string} k */
 export function isAccountOnlyKey(k) {
   return k.startsWith('SGX_ACCOUNT_') || k === 'D1_ACCOUNT_AUTH' || k === 'KV_PROFILE' || k === 'D1_SETTINGS_SYNC' || k === 'D1_WELLBEING';
+}
+
+/** 预览桩的固定来源（公开一条；有账号会话再加私密一条） */
+export const PREVIEW_AI_HITS = Object.freeze({
+  public: Object.freeze([{ site: 'space', type: 'setting', title: '主题模式', subtitle: '外观', url: '/settings/' }]),
+  private: Object.freeze([{ site: 'space', type: 'setting', title: '账号', subtitle: '', url: '/account/' }]),
+});
+export const PREVIEW_AI_ANSWER = Object.freeze(['这是预览环境的固定回答。', '\n\n- 主题模式：/settings/']);
+
+/**
+ * styrigx-ai 的预览桩（同服务绑定的形状：只有 fetch）。事件顺序同正式：hits → delta… → done。
+ * @param {Request} req
+ */
+export async function previewAiService(req) {
+  const url = new URL(req.url);
+  const enc = new TextEncoder();
+  const ev = (/** @type {string} */ name, /** @type {any} */ data) => 'event: ' + name + '\ndata: ' + JSON.stringify(data) + '\n\n';
+  if (url.pathname === '/healthz' && req.method === 'GET') return Response.json({ ok: true, sites: 1, missing: [], preview: true });
+  if (url.pathname !== '/ask') return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
+  if (req.method !== 'POST') return Response.json({ ok: false, error: 'method' }, { status: 405 });
+  let body;
+  try { body = await req.json(); } catch (e) { return Response.json({ ok: false, error: 'bad_request' }, { status: 400 }); }
+  if (!body || typeof body.q !== 'string' || !body.q.trim()) return Response.json({ ok: false, error: 'bad_request' }, { status: 400 });
+  if ([...body.q.trim()].length > 200) return Response.json({ ok: false, error: 'too-long' }, { status: 400 });
+  const priv = req.headers.get('X-Styrigx-Account-Session') === '1';
+  const hits = priv ? PREVIEW_AI_HITS.public.concat(PREVIEW_AI_HITS.private) : PREVIEW_AI_HITS.public.slice();
+  const text = ev('hits', { hits }) + PREVIEW_AI_ANSWER.map((t) => ev('delta', { text: t })).join('') + ev('done', {});
+  return new Response(enc.encode(text), {
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Styrigx-AI-Scope': priv ? 'private' : 'public' },
+  });
 }
 
 /** @param {Record<string, any>} env */
@@ -58,6 +91,8 @@ export function gatewayEnvOf(env, ctx) {
     /* P2-2：网关 api/search.js、api/chat.js 经 core/account-rpc.js askAuthorize 问它（AccountVerifier.authorize 的实现） */
     authorize: (/** @type {string} */ cookie, /** @type {any} */ clientContext, /** @type {any} */ opts) => checkAuthorize(acct, cookie, clientContext, opts),
   };
+  /* P4-1：不调真实 Workers AI */
+  out.AI_SERVICE = { fetch: previewAiService };
   return out;
 }
 

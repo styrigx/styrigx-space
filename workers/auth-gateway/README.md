@@ -63,9 +63,11 @@
 | 类别 | 名字 | 说明 |
 |---|---|---|
 | 服务绑定 | `ACCOUNT`（AccountService）、`ACCOUNT_VERIFIER`（AccountVerifier） | 账号 Worker `styrigx-account`：转发 / 只读账号会话 RPC（只给账号页首帧提示 `data-sgx-account-session` 用，`core/account-rpc.js`） |
-| 服务绑定 | `SEARCH`、`STATUS`、`CHAT` | `styrigx-search-index`、`styrigx-status`、`styrigx-chat`：都没有公开地址，网关先验会话再转（`/api/chat` 验同源 + 会话 + 要进门，回答原样流回） |
+| 服务绑定 | `SEARCH`、`STATUS`、`CHAT` | `styrigx-search-index`、`styrigx-status`、`styrigx-chat`：都没有公开地址，网关先验会话再转（`/api/chat` 验同源 + 会话 + 要进门，回答原样流回）；`SEARCH`、`CHAT` 在 P4-2 删除 |
+| 服务绑定 | `AI_SERVICE` | `styrigx-ai`（P4-1）：没有公开地址；`POST /api/ai`（`src/api/ai.js`）验同源、进门、两档 AI 限流、写账号结论头后转给它的 `POST /ask`，SSE 原样流回 |
 | D1 | `D1_LOCK_AUTH` | D1 `styrigx-auth-gateway`，只读写 `realm='lock'` 的行和恢复开关表 `lock_reset_switch` |
 | 限流 | `ANON_LIMITER` | 无会话写接口按 IP 每 60 秒 20 次（`core/anon-limit.js`，绑定缺失时放行） |
+| 限流 | `AI_LIMITER`（namespace 2802） | `/api/ai` 第一档：每 IP 每 60 秒 6 次，超了 429 `cooldown`（`core/ai-limit.js`，绑定缺失时放行）。第二档全站总闸每分钟 60 次不用绑定：`D1_LOCK_AUTH` 的 `attempt_limit` 里 `realm='ai'`、`kind='global'`、bucket = 当前分钟的一行，单条 upsert 判断 + 计数，超了或 D1 出错 429 `busy`（不改表结构、不加迁移） |
 
 明文变量：`SGX_ENV = "production"`、`SGX_SITE = "space"`、`SGX_ORIGIN`、`SGX_RP_ID`。不开 `*.workers.dev`、不开预览地址。
 
@@ -99,6 +101,6 @@
 没有 0002。正式部署 job 不跑迁移：代码在第一次遇到「no such table」时按 `core/d1-state.js` 的 SCHEMA 建表（幂等，单测核对与迁移文件一致）。恢复开关：在 D1 控制台插一行即可开启（首次读到起 24 小时内有效，用一次作废）：
 `INSERT INTO lock_reset_switch (hash, first_seen, used) VALUES (lower(hex(randomblob(16))), 0, 0);`
 
-部署和回滚（`.github/workflows/deploy.yml`）：接口 Worker（搜索、聊天 → 监测 → 账号 ∥ 短链 ∥ 奇趣接口 ∥ 日刻接口）→ **网关** → Pages。接口 Worker 先挂上 `styrigx.com/<站>/api/*`，网关再按路径分发子站、把 atlas 301 过来；网关冒烟通过后才部署 Pages。Pages 上已经没有后端代码，不能靠删路由回滚；main 部署冒烟失败时 CI 自动 `wrangler rollback` 到部署前的版本（`scripts/deploy-rollback.mjs`，只换代码版本，D1 数据和路由都不回滚；回滚下限见 `scripts/deploy-rollback-floor.json`）。预览（passkey-e2e）用组合入口 `tests/web/e2e/preview-worker.js`，预览资源只用一个 `styrigx-test-preview`。
+部署和回滚（`.github/workflows/deploy.yml`）：接口 Worker（搜索、AI、聊天 → 监测 → 账号 ∥ 短链 ∥ 奇趣接口 ∥ 日刻接口）→ **网关** → Pages。接口 Worker 先挂上 `styrigx.com/<站>/api/*`，网关再按路径分发子站、把 atlas 301 过来；网关冒烟通过后才部署 Pages。Pages 上已经没有后端代码，不能靠删路由回滚；main 部署冒烟失败时 CI 自动 `wrangler rollback` 到部署前的版本（`scripts/deploy-rollback.mjs`，只换代码版本，D1 数据和路由都不回滚；回滚下限见 `scripts/deploy-rollback-floor.json`）。预览（passkey-e2e）用组合入口 `tests/web/e2e/preview-worker.js`，预览资源只用一个 `styrigx-test-preview`。
 
-下游的身份头：`src/api/search.js` 改写账号结论头（`X-Styrigx-Account-*`，search-index 只认 `X-Styrigx-Account-Session: 1`）；`src/api/chat.js` 门在网关（进门 + 账号会话，没有账号会话 401 `account`；P4-2 连同 /chat/ 页退役），转给 styrigx-chat 的请求不带身份头。入站的旧前缀 `x-sgx-*` 头仍照剥。
+下游的身份头：`src/api/search.js`、`src/api/ai.js` 改写账号结论头（`X-Styrigx-Account-*`，search-index、styrigx-ai 只认 `X-Styrigx-Account-Session: 1`）；`src/api/chat.js` 门在网关（进门 + 账号会话，没有账号会话 401 `account`；P4-2 连同 /chat/ 页退役），转给 styrigx-chat 的请求不带身份头。入站的旧前缀 `x-sgx-*` 头仍照剥。

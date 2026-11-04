@@ -93,12 +93,15 @@ test('中间件：无会话超限 → 429，不进端点；带有效会话照常
   assert.equal(lim.keys.length, 2, '有会话那次没调 limit');
 });
 
-test('wrangler.toml：[[ratelimits]] ANON_LIMITER 每 60 秒 20 次，周期和代码一致；Pages 预览不绑（缺绑定放行）', () => {
+test('wrangler.toml：[[ratelimits]] ANON_LIMITER 每 60 秒 20 次，周期和代码一致，不和 AI_LIMITER 共用 namespace；Pages 预览不绑（缺绑定放行）', () => {
   const toml = readFileSync(new URL('../../../workers/auth-gateway/wrangler.toml', import.meta.url), 'utf8');
-  const block = toml.split(/\n(?=\[\[)/).find((b) => /^\[\[ratelimits\]\]/m.test(b)) || '';
+  const block = toml.split(/\n(?=\[\[)/).find((b) => /^\[\[ratelimits\]\]/m.test(b) && /^name = "ANON_LIMITER"$/m.test(b)) || '';
   assert.match(block, /^name = "ANON_LIMITER"$/m);
   assert.match(block, /^namespace_id = "\d+"$/m);
   assert.match(block, /^simple = \{ limit = 20, period = 60 \}$/m);
   assert.equal(ANON_LIMIT_PERIOD, 60);
-  assert.equal((toml.match(/^\[\[ratelimits\]\]/gm) || []).length, 1);
+  /* P4-1 起还有 AI_LIMITER（namespace 2802，见 ai-api.test.mjs）；两个绑定不共用 namespace */
+  assert.equal((toml.match(/^\[\[ratelimits\]\]/gm) || []).length, 2);
+  const ns = [...toml.matchAll(/^namespace_id = "(\d+)"$/gm)].map((m) => m[1]);
+  assert.equal(new Set(ns).size, ns.length);
 });

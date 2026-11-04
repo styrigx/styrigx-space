@@ -45,11 +45,12 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - 查询：`lock-session-check`、`lock-credentials`、`lock-entry`（锁屏上显示哪些入口，无需会话）、`space-audit`（进站凭证使用记录）。`layer-status` 已删除（PR3，前端无调用方）。
 - 账号：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*` 不在这一层：网关 `src/gate.js` 验门后经服务绑定 `ACCOUNT` 转给账号 Worker（转发表 `src/router.js` 的 `FORWARDING`，见下面「账号会话」）。
 - 锁屏凭证页的再验证：`lock-reauth`（LockReauthTicket 状态 / 清票）；由 `lock-passkey`/`lock-password`（`reauth:true`）或 `space-auth`（`purpose:'lock-reauth'`）签 3 分钟 LockReauthTicket `sgx-lock-reauth`（SGX_LOCK_* 签）。
-- 进站凭证（`SGX_LOCK_SPACE_KEY`）：`space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`，各签一张 3 分钟锁屏短票（by=root），不签任何会话；`space-audit` 只读进站凭证使用记录。账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 在账号 Worker（`POST /api/account { action:'root-reauth' | 'root-reset' }`），两套互不相干、各自计数。
+- 进站凭证（`SGX_LOCK_SPACE_KEY`）：`space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`，各签一张 3 分钟锁屏短票（by=space），不签任何会话；`space-audit` 只读进站凭证使用记录。账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 在账号 Worker（`POST /api/account { action:'root-reauth' | 'root-reset' }`），两套互不相干、各自计数。
 - 重置与临时钥匙：`lock-reset`（丢了锁屏凭证：先交进站凭证，再按重置开关或锁屏凭证（`needLock` / `lockProof`）签 LockResetTicket；不读账号的任何东西）、`lock-tempkey`（设置 → 安全与隐私 → 临时钥匙页的列表 / 新建 / 作废；只认锁屏进门会话，不问账号会话）。
 - 网关只有 4 个密钥：锁屏签名钥匙 `SGX_LOCK_PRIVATE` / `SGX_LOCK_PUBLIC`、进站凭证 `SGX_LOCK_SPACE_KEY`、密码 pepper `SGX_PW_PEPPER`（与账号 Worker 共用同一个密值）。账号签名钥匙 `SGX_ACCOUNT_*` 和 `SGX_ACCOUNT_ROOT_KEY` 只在账号 Worker（stepup、应用凭证已删除）。
 - 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，子站一起上锁）、`lock-all-devices`（Lock 纪元 +1，所有设备一起上锁；要 LockReauthTicket）。
 - 其他：`geo`（Cloudflare 给的城市 / 坐标 / 时区）；`chat`、`search`、`status` 只做门，验锁屏会话后经服务绑定转给 styrigx-chat / styrigx-search-index / styrigx-status。
+- 站内对话助手（P4-1）：`ai`（`POST /api/ai`）验同源、进门（不要账号会话），过两档 AI 限流（`core/ai-limit.js`：每 IP 每分钟 6 次走 Rate Limiting 绑定 `AI_LIMITER`，超了 429 `cooldown`；全站每分钟 60 次走 D1 `attempt_limit`（`realm='ai'`、`kind='global'`、bucket = 当前分钟）单条 upsert，超了或 D1 出错 429 `busy`），再写账号结论头，经服务绑定 `AI_SERVICE` 转给 styrigx-ai，SSE 原样流回。
 - 前端改变会话只能通过这些接口。
 
 ### L3 共享库：`assets/js/lib/`（util、storage、events、scheduler、i18n、theme 等）

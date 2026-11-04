@@ -18,6 +18,8 @@
  *    都归网关（子站关口按路径前缀验会话）；旧图志 atlas.styrigx.com 的页面和根上的接口也都归网关（301）
  * 5. 两个子站接口 Worker（workers/curio-core、workers/daymark-core 的 wrangler.toml）：styrigx.com/<站>/api/* 必须登记、归它们，
  *    过渡期的 atlas.styrigx.com/<站>/api/* 也归它们；网关不得有更具体的规则抢走，它们也不得抢走网关的接口、主站页面和子站页面
+ * 6. 没有公开地址的 Worker（NO_ROUTE_WORKERS：P4-1 起 styrigx-ai）：wrangler.toml 一条路由都没有，workers_dev / preview_urls 关，
+ *    只经网关的服务绑定进来
  * 静态资源现在也进网关（整站通配），由 src/app.js 原样回源（主站静态目录、子站静态后缀）；单测 auth-flow-2026-10-21 覆盖。
  *
  * 需要先构建网站（hugo --minify -s web/atlas）和三站（npm run build:sites），读 web/atlas/public/、web/<站>/public/ 下的 .html
@@ -260,6 +262,28 @@ export function checkWorkers(gateway, account, share, gatewayApis, pagePaths, co
 
 export { matchForwarding };
 
+/** 没有公开地址的 Worker：只经网关服务绑定进来（P4-1 起登记 styrigx-ai） */
+export const NO_ROUTE_WORKERS = Object.freeze([
+  Object.freeze({ name: 'styrigx-ai', dir: 'workers/ai', binding: 'AI_SERVICE' }),
+]);
+
+/**
+ * 核对没有公开地址的 Worker：0 条路由、workers_dev = false、preview_urls = false。
+ * @param {{name:string, toml:string}[]} list
+ */
+export function checkNoRoutes(list) {
+  const errors = [];
+  for (const w of list) {
+    const routes = readRoutes(w.toml);
+    for (const r of routes) errors.push(w.name + ' 不许有路由（只经网关服务绑定进来）：' + r);
+    const body = w.toml.replace(/^\s*#.*$/gm, '');
+    if (!/^workers_dev\s*=\s*false\s*$/m.test(body)) errors.push(w.name + ' 要 workers_dev = false');
+    if (!/^preview_urls\s*=\s*false\s*$/m.test(body)) errors.push(w.name + ' 要 preview_urls = false');
+    if (/^route\s*=/m.test(body)) errors.push(w.name + ' 不许有 route = ');
+  }
+  return errors;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const routes = readRoutes(readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
   const accountRoutes = readRoutes(readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
@@ -294,11 +318,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     process.exit(1);
   }
   const allPages = pages.concat(subPages);
-  const errors = check(routes, allPages).concat(checkWorkers(routes, accountRoutes, shareRoutes, gatewayApis, allPages, cores));
+  const noRoute = NO_ROUTE_WORKERS.map((w) => ({ name: w.name, toml: readFileSync(path.join(REPO, w.dir, 'wrangler.toml'), 'utf8') }));
+  const errors = check(routes, allPages).concat(checkWorkers(routes, accountRoutes, shareRoutes, gatewayApis, allPages, cores), checkNoRoutes(noRoute));
   if (errors.length) {
     for (const e of errors) console.error('✗ ' + e);
     process.exit(1);
   }
   const coreCount = cores.map((c) => c.name + ' ' + c.routes.length + ' 条').join(' + ');
-  console.log(`check-worker-routes.mjs: 通过（网关 ${routes.length} 条 + 账号 ${accountRoutes.length} 条 + 短链 ${shareRoutes.length} 条 + ${coreCount}路由，${gatewayApis.length} 个网关接口，转发表 ${FORWARDING.length} 条，主站 ${pages.length} 个页面 + 子站 ${subPages.length} 个页面）`);
+  console.log(`check-worker-routes.mjs: 通过（网关 ${routes.length} 条 + 账号 ${accountRoutes.length} 条 + 短链 ${shareRoutes.length} 条 + ${coreCount}路由，${NO_ROUTE_WORKERS.map((w) => w.name).join('、')} 0 条，${gatewayApis.length} 个网关接口，转发表 ${FORWARDING.length} 条，主站 ${pages.length} 个页面 + 子站 ${subPages.length} 个页面）`);
 }

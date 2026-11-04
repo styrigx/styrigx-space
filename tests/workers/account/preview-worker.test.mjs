@@ -45,3 +45,20 @@ test('preview-worker：默认导出是 { fetch }，只交给网关（伪造的 x
   assert.equal(r.status, 401);
   assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
 });
+
+test('preview-worker：AI_SERVICE 是桩（P4-1，不调真实 Workers AI）：固定 hits + 固定回答流，账号结论头决定私密来源', async () => {
+  const g = pw.gatewayEnvOf(FULL, { waitUntil() {} });
+  assert.equal(typeof g.AI_SERVICE.fetch, 'function');
+  const ask = (h = {}) => g.AI_SERVICE.fetch(new Request('https://styrigx-ai/ask', { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ q: '主题' }) }));
+  let r = await ask();
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('X-Styrigx-AI-Scope'), 'public');
+  const txt = await r.text();
+  assert.deepEqual([...txt.matchAll(/^event: (\w+)$/gm)].map((m) => m[1]), ['hits', 'delta', 'delta', 'done']);
+  assert.ok(!txt.includes('/account/'));
+  r = await ask({ 'X-Styrigx-Account-Session': '1' });
+  assert.equal(r.headers.get('X-Styrigx-AI-Scope'), 'private');
+  assert.ok((await r.text()).includes('/account/'));
+  assert.equal((await g.AI_SERVICE.fetch(new Request('https://styrigx-ai/healthz'))).status, 200);
+  assert.equal((await g.AI_SERVICE.fetch(new Request('https://styrigx-ai/search?q=x'))).status, 404);
+});

@@ -65,6 +65,7 @@ export const ERROR_CODES = Object.freeze({
   short: [400],
   password: [400],
   cooldown: [429],
+  busy: [429], /* /api/ai 全站总闸（P4-1；D1 出错也回它，fail closed） */
   /* 临时钥匙 / 账号设备 */
   code: [400],
   name: [400],
