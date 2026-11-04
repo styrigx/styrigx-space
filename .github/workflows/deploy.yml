@@ -441,9 +441,17 @@ jobs:
 
   visual:
     # 视觉回归 + 布局断言（默认组，阻塞），测试构建（锁屏禁用）。不等 build，自己构建。
+    # 分 2 片并行（2026-11-04）：显示为 visual (1)、visual (2)；每片自己做测试构建（几十秒，比多一个串行构建作业再传产物快）。
+    # fail-fast: false：一片红了另一片照跑完，一轮看全。quality 的 needs.visual.result 是两片的合并结果，任一片非 success 即非 success。
+    # 切法：Playwright 按用例顺序连续切；默认组没开 fullyParallel（avatar-edit.spec.js 两条用例共用同一个临时文件，并行会互相覆盖），按文件成组。
+    # 截图基线路径与分片无关，分片不重新生成任何基线。
     # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -479,15 +487,16 @@ jobs:
 
       - name: Visual regression + layout assertions (默认组，阻塞)
         if: ${{ !cancelled() && steps.testbuild.outcome == 'success' }}
-        # 默认 testMatch 已含 visual / pc-layout / layout-292 等全部默认 spec，失败即 CI 红。
+        # 默认 testMatch 已含 visual / pc-layout / layout-292 等全部默认 spec，失败即 CI 红。按 matrix.shard 只跑其中一片。
         # 不要再给这一步加 continue-on-error。
-        run: npx playwright test --config=tests/config/playwright.config.js
+        run: npx playwright test --config=tests/config/playwright.config.js --shard=${{ matrix.shard }}/2
 
       - name: Upload visual diffs on failure
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: visual-diffs
+          # 按片命名：两片同名会撞（upload-artifact v4+ 不许同名覆盖）
+          name: visual-diff-${{ matrix.shard }}
           path: |
             test-results/
             playwright-report/
@@ -540,6 +549,7 @@ jobs:
 
   quality:
     # 汇总：分支保护的必需检查名仍是 quality（仓库设置不动）。6 个作业都 success 才绿；任何一个失败 / 取消 / 跳过都红。
+    # visual 是 2 片 matrix：needs.visual.result 是两片合并后的结论（任一片失败 / 取消即非 success），这里不用改。
     # 部署作业照旧 needs: quality，所以也照旧等全部检查。
     if: ${{ always() }}
     needs: [unit, build, e2e-lock, e2e-sites, visual, lighthouse]

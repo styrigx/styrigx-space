@@ -78,6 +78,28 @@ test('主站工作流用本地共享 action；必需检查的 job 名（quality�
   for (const a of ['setup-hugo', 'setup-node-deps', 'setup-playwright']) assert.ok(su.includes('./.github/actions/' + a), a);
 });
 
+test('visual 分 2 片：matrix.shard=[1,2]、fail-fast 关、带 CJK 字体、按片跑与按片传产物；quality 仍等 visual', () => {
+  const wf = yaml.load(read('.github/workflows/deploy.yml'));
+  const v = wf.jobs.visual;
+  /* 作业名不改（matrix 显示为 visual (1)、visual (2)），quality 的 needs 仍写 visual */
+  assert.equal(v.name, undefined, 'visual 作业不另起名');
+  assert.deepEqual(v.strategy.matrix.shard, [1, 2]);
+  assert.equal(v.strategy['fail-fast'], false);
+  const pw = v.steps.find((s) => s.uses === './.github/actions/setup-playwright');
+  assert.equal(pw.with['cjk-fonts'], 'true');
+  const run = v.steps.find((s) => typeof s.run === 'string' && /npx playwright test --config=tests\/config\/playwright\.config\.js/.test(s.run));
+  assert.ok(run, 'visual 的 Playwright 步骤');
+  assert.ok(run.run.includes('--shard=${{ matrix.shard }}/2'), run.run);
+  const up = v.steps.find((s) => typeof s.uses === 'string' && s.uses.startsWith('actions/upload-artifact@'));
+  assert.equal(up.with.name, 'visual-diff-${{ matrix.shard }}');
+  /* 不用 continue-on-error 掩盖失败 */
+  assert.equal(v['continue-on-error'], undefined);
+  for (const s of v.steps) assert.equal(s['continue-on-error'], undefined, s.name);
+  assert.ok(wf.jobs.quality.needs.includes('visual'));
+  /* 本地复现某一片：ci-local.sh 的 visual 组认 VISUAL_SHARD */
+  assert.match(read('scripts/ci-local.sh'), /VISUAL_SHARD[\s\S]*--shard=\$\{VISUAL_SHARD%\/2\}\/2/);
+});
+
 test('Renovate 预设：Hugo 只从 setup-hugo 认；子站对 styrigx-space 的 tag / SHA 引用两种写法都认', () => {
   const preset = JSON.parse(read('.github/renovate-preset.json'));
   const hugo = preset.customManagers.find((m) => m.depNameTemplate === 'gohugoio/hugo');
