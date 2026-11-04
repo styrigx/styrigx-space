@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:44c9abf78363 web/atlas/shared/shell vef85484b246b（scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:145e0eb5bbed web/atlas/shared/shell v6384a02ddc44（scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- palette-scheme.js ---- */
 /**
  * @fileoverview 主题色引擎（PR3 色彩角色 token 的运行时一半）：自定义 #rrggbb 种子 → 整套亮 / 暗色彩角色。

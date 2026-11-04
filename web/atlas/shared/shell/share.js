@@ -21,7 +21,7 @@
 /** 生成短链的接口（分享短链 Worker styrigx-share；CORS 只认三个子站） */
 export const SHARE_API = 'https://styrigx.com/api/share';
 export const SHARE_ORIGIN = 'https://styrigx.com';
-/** 管理员一键分享的档位：链接 24 小时、点开后能看 12 小时（和设置 → 临时钥匙页「新建分享短链」的默认一样） */
+/** 一键分享的档位：链接 24 小时、点开后能看 12 小时（和设置 → 临时钥匙页「新建分享短链」的默认一样） */
 export const QUICK = Object.freeze({ hours: 24, session: 12 * 3600 });
 /** 分享地址里去掉的查询参数（同服务端 STRIP_PARAMS） */
 export const STRIP_PARAMS = Object.freeze(['lock', 'why', 'return', 'share']);

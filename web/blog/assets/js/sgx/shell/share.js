@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:44c9abf78363 web/atlas/shared/shell vef85484b246b（scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:145e0eb5bbed web/atlas/shared/shell v6384a02ddc44（scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- share.js ---- */
 /**
  * @fileoverview 子站顶栏的分享按钮（共享外壳组件，2026-10-24；gen-shell 原样复制成 web/shared/shell/share.js，三个子站 sync-shell 同步）。
@@ -23,7 +23,7 @@
 /** 生成短链的接口（分享短链 Worker styrigx-share；CORS 只认三个子站） */
 export const SHARE_API = 'https://styrigx.com/api/share';
 export const SHARE_ORIGIN = 'https://styrigx.com';
-/** 管理员一键分享的档位：链接 24 小时、点开后能看 12 小时（和设置 → 临时钥匙页「新建分享短链」的默认一样） */
+/** 一键分享的档位：链接 24 小时、点开后能看 12 小时（和设置 → 临时钥匙页「新建分享短链」的默认一样） */
 export const QUICK = Object.freeze({ hours: 24, session: 12 * 3600 });
 /** 分享地址里去掉的查询参数（同服务端 STRIP_PARAMS） */
 export const STRIP_PARAMS = Object.freeze(['lock', 'why', 'return', 'share']);
