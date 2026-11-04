@@ -167,14 +167,14 @@ test('每个接口请求只问网关一次（index.js 问到的结论经 context
   assert.equal(calls.length, 2);
   /* 绑定缺失 / 只有旧的 lockSession() → 抛错（index.js 回 500，不回 401） */
   await assert.rejects(() => A.askConclusion(req('/curio/api/links'), {}), /auth-binding-missing/);
-  await assert.rejects(() => A.askConclusion(req('/curio/api/links'), { AUTH: { async lockSession() { return { ok: true, role: 'admin' }; } } }), /auth-binding-missing/);
+  await assert.rejects(() => A.askConclusion(req('/curio/api/links'), { AUTH: { async lockSession() { return { ok: true, role: 'admin' }; } } }), /auth-binding-missing/); // v1 fixture
 });
 
 test('结论白名单：lock.ok / account.ok / reauth 只认 true；作用域只留合格式的；没进门时账号部分一律不算', async () => {
   const A = await import(W + '/src/api/_auth.js');
   const N = A.normalizeConclusion;
   assert.equal(N(null).lock.ok, false);
-  assert.equal(N({ ok: true, role: 'admin' }).lock.ok, false);
+  assert.equal(N({ ok: true, role: 'admin' }).lock.ok, false); // v1 fixture
   assert.equal(N({ lock: { ok: 'yes' }, account: { ok: true, scopes: ['curio.write'] } }).lock.ok, false);
   const noLock = N({ lock: { ok: false }, account: { ok: true, scopes: ['curio.write'], reauth: true } });
   assert.equal(noLock.account.ok, false);
@@ -243,7 +243,7 @@ test('导入要账号复验：没复验 401 reauth（一条不写）；没账号
   const j = await r.json();
   assert.equal(j.canWrite, true);
   assert.equal(j.showPrivate, true);
-  assert.equal('admin' in j, false);
+  assert.equal('admin' in j, false); // old-name guard
 });
 
 test('接口响应都带 nosniff 和 HSTS（core 不经过网关，自己补）', async () => {
@@ -328,7 +328,7 @@ test('增、改、换分类、排序、删；重复网址 409；分类非空不�
   assert.deepEqual(j.cats.map((c) => c.id), [c2.id]);
 });
 
-test('读：没登录账号只看公开（私密分类整个不给、私密收藏不给、空分类不给），账号已登录全看到；响应是 canWrite / showPrivate，没有 admin', async () => {
+test('读：没登录账号只看公开（私密分类整个不给、私密收藏不给、空分类不给），账号已登录全看到；响应是 canWrite / showPrivate，没有旧等级字段', async () => {
   const db = makeD1();
   await op(db, { op: 'cat.add', name: '公开' });
   await op(db, { op: 'cat.add', name: '私密', private: true });
@@ -339,13 +339,13 @@ test('读：没登录账号只看公开（私密分类整个不给、私密收�
   const v = await list(db, 'lock');
   assert.equal(v.canWrite, false);
   assert.equal(v.showPrivate, false);
-  assert.equal('admin' in v, false);
+  assert.equal('admin' in v, false); // old-name guard
   assert.deepEqual(v.cats.map((c) => c.name.zh), ['公开']);
   assert.deepEqual(v.cats[0].links.map((l) => l.url), ['https://p.com/']);
   const o = await list(db, 'owner');
   assert.equal(o.canWrite, true);
   assert.equal(o.showPrivate, true);
-  assert.equal('admin' in o, false);
+  assert.equal('admin' in o, false); // old-name guard
   assert.deepEqual(o.cats.map((c) => c.links.length), [2, 1, 0]);
   /* 账号已登录但没有 curio.write（第 3 件取消授权后）：私密照看，不能写 */
   const n = await list(db, 'noscope');

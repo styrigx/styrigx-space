@@ -40,7 +40,7 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 这是 styrigx.com 的源码仓库，也是整个站点家族的「系统仓库」：
 
 - **门户**：主页、聊天、设置、账号四个应用，中英双语。
-- **鉴权网关**：主站和子站（博客、奇趣、日刻，在 `styrigx.com/<站>/`）的每个页面、每个接口都先经过它；旧图志域名 atlas.styrigx.com 任意路径 301 到 styrigx.com 同路径。全站上锁是设计本身，对外分享只用带访客密钥的短链。
+- **鉴权网关**：主站和子站（博客、奇趣、日刻，在 `styrigx.com/<站>/`）的每个页面、每个接口都先经过它；旧图志域名 atlas.styrigx.com 任意路径 301 到 styrigx.com 同路径。全站上锁是设计本身，对外分享只用带临时钥匙的短链。
 - **共享外壳**：顶栏、导航抽屉、搜索层由这里生成，子站按锁定的外壳版本（git tree 哈希）同步一份副本。
 - **共享 CI**：Hugo、Node、Playwright 的安装步骤以 composite action 形式发布（`v*` tag），图志按 tag 引用。
 
@@ -61,15 +61,15 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 |---|---|---|
 | 主页 | `/` | 名片、双时钟、天气、日刻「今日一句」、屏幕时间。 |
 | 搜索 | 导航抽屉底栏 | 原地搜索层（不跳页）：站内结果，或交给所选的搜索引擎。 |
-| 聊天 | `/chat/` | 联网检索问答（仅管理员）：Gemini 2.5 Flash，以 Google 搜索为依据，流式输出并附来源；对话只存在当前标签页。 |
-| 设置 | `/settings/` | 显示、语言、布局等系统设置，存在本地，登录账号后可云同步。管理员还能看到服务状态（主站、图志、规则集的可用率与故障）和临时钥匙（含分享短链）。 |
-| 账号 | `/account/` | 从导航抽屉头的头像进入（仅管理员）：账号登录、云同步、设备、账号安全。 |
+| 聊天 | `/chat/` | 联网检索问答（进门后还要登录账号）：Gemini 2.5 Flash，以 Google 搜索为依据，流式输出并附来源；对话只存在当前标签页。 |
+| 设置 | `/settings/` | 显示、语言、布局等系统设置，存在本地，登录账号后可云同步。还有服务状态（主站、图志、规则集的可用率与故障）和临时钥匙（含分享短链；新建、作废前要锁侧复验）。 |
+| 账号 | `/account/` | 从导航抽屉头的头像进入：账号登录、云同步、设备、账号安全。 |
 
 ## 架构
 
 ```mermaid
 flowchart LR
-  V([访客]) --> GW
+  V([浏览器]) --> GW
   subgraph CF[Cloudflare]
     GW[styrigx-auth-gateway<br/>styrigx.com/*<br/>atlas.styrigx.com/* → 301]
     SH[styrigx-share<br/>/s/* · /api/share*]
@@ -90,7 +90,7 @@ flowchart LR
 
 | Worker | 职责 | 入口 |
 |---|---|---|
-| `styrigx-auth-gateway` | 锁屏会话的签发与校验、锁屏凭证、管理员接口；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages；旧域名 atlas.styrigx.com 只做 301 | `styrigx.com/*`、`atlas.styrigx.com/*` |
+| `styrigx-auth-gateway` | 锁屏会话的签发与校验、锁屏凭证与临时钥匙接口；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages；旧域名 atlas.styrigx.com 只做 301 | `styrigx.com/*`、`atlas.styrigx.com/*` |
 | `styrigx-account` | 账号系统：密码、通行密钥、设备、账号根密钥、头像、云同步、数字健康 | 只走网关服务绑定，无公开路由 |
 | `styrigx-share` | 分享短链与管理接口 | `styrigx.com/s/*`、`styrigx.com/api/share*` |
 | `styrigx-chat` | 聊天后端，转发给模型，不存对话 | 只走网关服务绑定 |
@@ -109,7 +109,7 @@ flowchart LR
 - **最小暴露**：账号、聊天、搜索、监测没有公开路由，只能经网关的服务绑定进入；网关会剥掉外部伪造的身份头。
 - **钥匙管理**：密钥只放在 Cloudflare Secrets Store 和各 Worker 的 secret 中，仓库里一把都没有；每个 Worker 一把最小权限的部署令牌，放在 GitHub 环境里，只允许 main 使用。
 - **浏览器侧**：严格 CSP（内联脚本按哈希放行，由 `gen-csp` 生成并在 CI 校验）、HSTS、`nosniff`。
-- **分享**：只能通过带时限的访客短链，由管理员签发，可随时作废。
+- **分享**：只能通过带时限的短链（背后是一把临时钥匙），生成前要锁侧复验，可随时作废。
 
 设计细节见 [docs/architecture.md](docs/architecture.md)、[docs/auth-state-machine.md](docs/auth-state-machine.md)。
 

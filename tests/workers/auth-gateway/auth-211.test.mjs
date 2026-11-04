@@ -8,7 +8,7 @@
  *    lockreset 访问主页面/APP/会话/入口1/2 均 403 且不产生 sgx-verified；
  *    完成后旧会话失效；锁屏凭证一项都没有时被拒；网关不读账号凭证
  * 4. 开关：缺失/过期/超 24 小时/格式错误时单根被拒；有效时单根拿到 lockreset；
- *    有效时单管理员仍被拒
+ *    有效时仍被拒
  * 5. 假入口（只剩 lock-reset，锁屏已设置时）：提交正确 SGX_LOCK_SPACE_KEY 返回 401 auth，与错误密钥响应逐字节相同；lock-reauth 要先进门（任何 by）
  * 6. 接管：未配时根可代管；配置后失效；接管后旧 root 票/会话被拒；
  *    D1 读失败时根代管被拒
@@ -561,9 +561,9 @@ test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）',
   /* C2：底部恢复提示改成新文案，不出现 lock-reset-switch 键名 */
   assert.ok(!src.includes('lock-reset-switch'), 'lock.js 不应再出现 lock-reset-switch 键名');
   assert.ok(!src.includes('sgx-reset-switch-hint'), '旧提示元素已删除');
-  /* PR3：重置界面在 auth/reset-flow.js（锁屏与账号页共用），不出现「管理员」；账号拆分 PR3 起第二步是锁屏凭证，恢复提示只在第二步 */
+  /* PR3：重置界面在 auth/reset-flow.js（锁屏与账号页共用），不出现旧角色名；账号拆分 PR3 起第二步是锁屏凭证，恢复提示只在第二步 */
   const rf = fs.readFileSync(REPO + 'web/atlas/assets/js/auth/reset-flow.js', 'utf8');
-  assert.ok(!src.includes('管理员') && !rf.includes('管理员'), '不再出现「管理员」字样');
+  assert.ok(!src.includes('管理员') && !rf.includes('管理员'), '不再出现「管理员」字样'); // old-name guard
   assert.ok(!rf.includes('lock-reset-switch'), 'reset-flow.js 不应出现开关键名');
   assert.ok(rf.includes('锁屏凭证也无法使用？'), '恢复提示说的是锁屏凭证');
   assert.ok(!/needAccount|accountProof/.test(rf + src), '前端不再有 needAccount / accountProof');

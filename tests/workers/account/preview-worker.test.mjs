@@ -41,7 +41,7 @@ test('preview-worker：默认导出是 { fetch }，只交给网关（伪造的 x
   assert.equal(typeof pw.default.fetch, 'function');
   const env = Object.assign({}, FULL, { SGX_ENV: 'preview' });
   const r = await pw.default.fetch(new Request('https://x.pages.dev/api/prefs', { headers: { 'X-Styrigx-Lock-Level': 'password' } }), env, { waitUntil() {} });
-  /* 预览 SGX_ENV=preview 时网关不拦 /api/*：剥头后转发，账号 Worker 看不到身份头 → 401（没剥掉就会以 admin 身份进 prefs） */
+  /* 预览 SGX_ENV=preview 时网关不拦 /api/*：剥头后转发，账号 Worker 看不到身份头 → 401（没剥掉就会当成已进门进 prefs） */
   assert.equal(r.status, 401);
   assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
 });

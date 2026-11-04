@@ -266,8 +266,9 @@ test('主站照旧；未登记的子域名照旧 301 回主站', async () => {
   }
 });
 
-/* 用户 2026-10-24：三个子站访客模式点边栏头像还能跳主站账号页，主站访客点不了。网关在子站 HTML 里替访客去掉这个链接。 */
-const DRAWER = '<html lang="zh-CN" data-sgx-' + 'role="x" data-sgx-upgrade="1"><body><div class="sgx-drawer-head"><span class="sgx-drawer-brand">S</span>'
+/* 子站页面源码里混进旧会话标记（等级 / 升级验证）时，网关先清掉；P2-3 起不分进门方式，抽屉头像都能点进账号页。 */
+const DRAWER = '<html lang="zh-CN" data-sgx-' + 'role="x" data-sgx-upgrade="1"><body>' // old-name guard（伪造的旧标记要被剥掉）
+  + '<div class="sgx-drawer-head"><span class="sgx-drawer-brand">S</span>'
   + '<a class="sgx-drawer-me" href="https://styrigx.com/account/" aria-label="账号">'
   + '<img src="https://styrigx.com/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar"></a></div>'
   + '<a class="sgx-drawer-item" href="https://styrigx.com/">主站</a></body></html>';

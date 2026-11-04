@@ -243,19 +243,19 @@ test('新增：校验与规整；坏 JSON 400；空句子 400', async () => {
   assert.equal((await call('/daymark/api/quotes', { who: 'owner', db, method: 'POST', body: { text: 'x', visibility: 'secret' } })).status, 400);
 });
 
-test('读：没登录账号只拿公开，账号已登录拿全部；响应是 canWrite / showPrivate，没有 admin', async () => {
+test('读：没登录账号只拿公开，账号已登录拿全部；响应是 canWrite / showPrivate，没有旧等级字段', async () => {
   const db = makeD1();
   await add(db, { text: '公开' });
   await add(db, { text: '私密', visibility: 'private' });
   const v = await (await call('/daymark/api/quotes', { who: 'lock', db })).json();
   assert.equal(v.canWrite, false);
   assert.equal(v.showPrivate, false);
-  assert.equal('admin' in v, false);
+  assert.equal('admin' in v, false); // old-name guard
   assert.deepEqual(v.quotes.map((q) => q.text), ['公开']);
   const o = await (await call('/daymark/api/quotes', { who: 'owner', db })).json();
   assert.equal(o.canWrite, true);
   assert.equal(o.showPrivate, true);
-  assert.equal('admin' in o, false);
+  assert.equal('admin' in o, false); // old-name guard
   assert.equal(o.quotes.length, 2);
   /* 账号已登录但没有 daymark.write：私密照看（含随手一笔键），不能写 */
   const n = await (await call('/daymark/api/quotes', { who: 'noscope', db })).json();

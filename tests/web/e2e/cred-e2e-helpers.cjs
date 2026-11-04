@@ -234,7 +234,7 @@ async function startCredentialTestServer(port) {
 
   async function mintAuth(reauthBy) {
     const epoch = await sessMod.getLockEpoch(env);
-    const sessionCookie = await sessMod.signLockSessionTicket(privPem, { by: 'password', role: 'admin', epoch, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
+    const sessionCookie = await sessMod.signLockSessionTicket(privPem, { by: 'password', epoch, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
     const reauthCookie = await ticketsMod.signTicket(privPem, 'LockReauthTicket', reauthBy || 'password', epoch);
     return { sessionCookie, reauthCookie };
   }

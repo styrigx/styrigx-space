@@ -40,7 +40,7 @@ Sloan Gray's personal portal — Home, Chat, Settings and Account — and the au
 This is the source of styrigx.com and the "system" repository of the site family:
 
 - **Portal** — four apps (Home, Chat, Settings, Account), fully bilingual.
-- **Auth gateway** — every page and API on the main site and on the sub-sites (Blog, Curio, Daymark at `styrigx.com/<site>/`) goes through it first; the old Atlas domain atlas.styrigx.com 301-redirects any path to the same path on styrigx.com. The whole site is locked by design; sharing only happens through short links that carry a visitor key.
+- **Auth gateway** — every page and API on the main site and on the sub-sites (Blog, Curio, Daymark at `styrigx.com/<site>/`) goes through it first; the old Atlas domain atlas.styrigx.com 301-redirects any path to the same path on styrigx.com. The whole site is locked by design; sharing only happens through short links that carry a temporary key.
 - **Shared shell** — the top bar, navigation drawer and search layer are generated here; each sub-site keeps a synced copy pinned to a shell version (git tree hash).
 - **Shared CI** — Hugo, Node and Playwright setup are published as composite actions (`v*` tags) that Atlas references by tag.
 
@@ -61,15 +61,15 @@ The interface is **Styrigx UI**, built in-house, with version numbers that track
 |---|---|---|
 | Home | `/en/` | Profile card, dual clocks, weather, Daymark's quote of the day, screen time. |
 | Search | Navigation drawer footer | In-place search layer (no page change): on-site results, or hand off to your chosen search engine. |
-| Chat | `/en/chat/` | Web-grounded Q&A (admin only): Gemini 2.5 Flash with Google Search grounding, streamed with sources; the conversation lives only in the current tab. |
-| Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally and synced once you sign in. Admins also see service status (uptime and incidents for the main site, Atlas and Proxy rules) and temporary keys (including share links). |
-| Account | `/en/account/` | Opened from the avatar in the drawer head (admin only): account sign-in, cloud sync, devices, account security. |
+| Chat | `/en/chat/` | Web-grounded Q&A (after unlocking, also needs an account sign-in): Gemini 2.5 Flash with Google Search grounding, streamed with sources; the conversation lives only in the current tab. |
+| Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally and synced once you sign in. Also service status (uptime and incidents for the main site, Atlas and Proxy rules) and temporary keys (including share links; creating or revoking one asks for a lock re-verification). |
+| Account | `/en/account/` | Opened from the avatar in the drawer head: account sign-in, cloud sync, devices, account security. |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  V([Visitor]) --> GW
+  V([Browser]) --> GW
   subgraph CF[Cloudflare]
     GW[styrigx-auth-gateway<br/>styrigx.com/*<br/>atlas.styrigx.com/* → 301]
     SH[styrigx-share<br/>/s/* · /api/share*]
@@ -90,9 +90,9 @@ flowchart LR
 
 | Worker | Responsibility | Entry |
 |---|---|---|
-| `styrigx-auth-gateway` | Issues and verifies lock sessions, lock credentials, admin APIs; checks the session on every page (including the `/blog/`, `/curio/`, `/daymark/` sub-sites) before serving it from Pages; the old atlas.styrigx.com domain only 301-redirects | `styrigx.com/*`, `atlas.styrigx.com/*` |
+| `styrigx-auth-gateway` | Issues and verifies lock sessions, lock credentials and temporary-key APIs; checks the session on every page (including the `/blog/`, `/curio/`, `/daymark/` sub-sites) before serving it from Pages; the old atlas.styrigx.com domain only 301-redirects | `styrigx.com/*`, `atlas.styrigx.com/*` |
 | `styrigx-account` | Account system: password, passkeys, devices, account root key, avatar, cloud sync, digital wellbeing | Gateway service binding only, no public route |
-| `styrigx-share` | Share short links and their admin API | `styrigx.com/s/*`, `styrigx.com/api/share*` |
+| `styrigx-share` | Share short links and their management API | `styrigx.com/s/*`, `styrigx.com/api/share*` |
 | `styrigx-chat` | Chat backend; forwards to the model, stores nothing | Gateway service binding only |
 | `styrigx-search-index` | Site-wide search (KV index) | Gateway service binding only |
 | `styrigx-status` | Checks every minute, reads usage hourly (D1) | Gateway service binding only |
@@ -109,7 +109,7 @@ The sub-sites and the main site are one tree in a single Pages project (main sit
 - **Minimal exposure** — account, chat, search and status have no public routes and are reachable only through the gateway's service bindings; the gateway strips any forged identity headers from outside.
 - **Key handling** — secrets live only in Cloudflare Secrets Store and per-Worker secrets, never in the repo; each Worker deploys with its own least-privilege token, stored in a GitHub environment restricted to `main`.
 - **In the browser** — strict CSP (inline scripts allowed by hash, generated by `gen-csp` and verified in CI), HSTS, `nosniff`.
-- **Sharing** — only through time-limited visitor short links, issued by the admin and revocable at any time.
+- **Sharing** — only through time-limited short links (each backed by a temporary key); creating one asks for a lock re-verification, and any link can be revoked at any time.
 
 Design details: [docs/architecture.md](docs/architecture.md), [docs/auth-state-machine.md](docs/auth-state-machine.md).
 

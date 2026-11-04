@@ -195,13 +195,13 @@ test('B session-check：没有会话 / 坏会话 → 401 no-store', async () => 
 });
 
 /* ---------------- C. 进门的人打开门内页 ---------------- */
-test('C 临时钥匙进门的人直接打开锁屏凭证页（中英）→ 200 回源、valid，没有 data-sgx-upgrade / data-sgx-role（复验由页面自己要）', async () => {
+test('C 临时钥匙进门的人直接打开锁屏凭证页（中英）→ 200 回源、valid，没有升级 / 等级标记（复验由页面自己要）', async () => {
   for (const p of ['/settings/security/lock/', '/en/settings/security/lock/']) {
     const res = await get('https://styrigx.com' + p, await lockCookie('tempkey'));
     assert.equal(res.status, 200, p);
     const html = await res.text();
     assert.match(html, /data-sgx-lock-session="valid"/);
-    assert.doesNotMatch(html, /data-sgx-upgrade|data-sgx-role/);
+    assert.doesNotMatch(html, /data-sgx-upgrade|data-sgx-role/); // old-name guard
   }
   /* 首页带 return：进门的人直接 302 回原页 */
   const home = await get('https://styrigx.com/?return=' + encodeURIComponent('/settings/security/lock/'), await lockCookie('tempkey'));

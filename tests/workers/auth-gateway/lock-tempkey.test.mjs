@@ -4,9 +4,9 @@
  *
  * - 临时码：12 位 Crockford Base32，规范化（大小写 / 连字符 / 空格 / O→0、I L→1）
  * - 有效期：1–24 小时、3 / 7 / 15 / 30 天，别的一律 400
- * - /api/lock-tempkey：只要 锁屏进门会话（不问账号会话）；list / create / revoke；名字只在管理员侧
+ * - /api/lock-tempkey：只要 锁屏进门会话（不问账号会话）；list 只要进门，create / revoke 另要锁侧复验；名字只在管理侧
  * - /api/lock-tempkey-unlock：对 → 临时钥匙进门的锁屏会话（by=tempkey，票里带 tempkeyId）；错 → 403，同 IP 连错 5 次 429
- * - middleware：临时钥匙进门的会话没有 tempkeyId / 钥匙被作废 → 当作没会话；访客打不开账号页和临时钥匙页
+ * - middleware：临时钥匙进门的会话没有 tempkeyId / 钥匙被作废 → 当作没会话
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -358,7 +358,7 @@ const next = async () => new Response('<html><body>PAGE</body></html>', { header
 
 test('middleware：临时钥匙进门的会话没有 tempkeyId（以前 Turnstile 签的临时会话 / 旧格式）→ 无效', async () => {
   const db = makeAuthD1();
-  const payload = 'tempkey.visitor.0.' + (Date.now() + 3600e3) + '.';
+  const payload = 'tempkey.visitor.0.' + (Date.now() + 3600e3) + '.'; // v1 fixture
   const sig = await ed25519Sign(LOCK.priv, 'sgx-lock-session|' + payload);
   const bare = 'sgx-lock-session=' + payload + '.' + sig;
   const s = await verifyLockSession(page('/', bare), env(db));
@@ -379,7 +379,7 @@ test('middleware：临时钥匙进门的会话签名不对 / 别的 lock 私钥�
   assert.equal((await verifyLockSession(page('/', 'sgx-lock-session=' + p.join('.')), env(db))).reason, 'bad-sig');
 });
 
-test('middleware：作废钥匙 → 拿它进来的访客下一个请求就进不来；管理员不受影响', async () => {
+test('middleware：作废钥匙 → 拿它进来的人下一个请求就进不来；锁屏密码进门的不受影响', async () => {
   const db = makeAuthD1();
   const { key, cookie } = await visitorFor(db);
   assert.equal((await mw({ request: page('/blog/', cookie), env: env(db), next })).status, 200);
@@ -387,8 +387,8 @@ test('middleware：作废钥匙 → 拿它进来的访客下一个请求就进�
   const s = await verifyLockSession(page('/', cookie), env(db));
   assert.equal(s.reason, 'tempkey-revoked');
   assert.equal((await mw({ request: page('/blog/', cookie), env: env(db), next })).status, 302);
-  const admin = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'password'));
-  assert.equal((await mw({ request: page('/blog/', admin), env: env(db), next })).status, 200);
+  const byPassword = 'sgx-lock-session=' + (await testLockSession(LOCK.priv, 0, 'password'));
+  assert.equal((await mw({ request: page('/blog/', byPassword), env: env(db), next })).status, 200);
 });
 
 test('middleware：临时钥匙进门的人能打开账号页（看到登录页）和临时钥匙页（页面自己要复验），临时钥匙管理接口 list 可达', async () => {

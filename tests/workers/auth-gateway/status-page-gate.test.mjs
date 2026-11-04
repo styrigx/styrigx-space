@@ -46,7 +46,7 @@ test('没会话：/settings/status/、/chat/（中英）302 到首页锁屏，re
   }
 });
 
-test('进门会话（没有账号会话；锁屏密码 / 锁屏通行密钥 / 临时钥匙进门都一样）：/settings/status/、/chat/（中英）都放行 200，页面上没有 data-sgx-role', async () => {
+test('进门会话（没有账号会话；锁屏密码 / 锁屏通行密钥 / 临时钥匙进门都一样）：/settings/status/、/chat/（中英）都放行 200，页面上没有等级标记', async () => {
   for (const by of ['password', 'passkey', 'tempkey']) {
     const cookie = await testLockSession(PRIV, 0, by);
     for (const p of PAGES) {
@@ -54,7 +54,7 @@ test('进门会话（没有账号会话；锁屏密码 / 锁屏通行密钥 / �
       assert.equal(r.status, 200, by + ' 访问 ' + p + ' 应 200');
       const html = await r.text();
       assert.match(html, /PAGE/);
-      assert.doesNotMatch(html, /data-sgx-role|data-sgx-upgrade/, by + ' ' + p);
+      assert.doesNotMatch(html, /data-sgx-role|data-sgx-upgrade/, by + ' ' + p); // old-name guard
     }
   }
 });

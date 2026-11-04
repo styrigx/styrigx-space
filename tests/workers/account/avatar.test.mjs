@@ -115,7 +115,7 @@ test('PUT 不同源 → 403', async () => {
   assert.equal(res.status, 403);
 });
 
-test('PUT 没进门 401 session；进门没账号会话 401 account（admin / 临时钥匙进门一样），不写 KV', async () => {
+test('PUT 没进门 401 session；进门没账号会话 401 account（锁屏密码 / 临时钥匙进门一样），不写 KV', async () => {
   for (const [role, acc, code] of [[null, false, 'session'], [null, true, 'session'], ['password', false, 'account'], ['tempkey', false, 'account']]) {
     const kv = makeKv();
     const res = await onRequestPut({ request: await putReq({ role, acc, parts: ALL }), env: env(kv) });

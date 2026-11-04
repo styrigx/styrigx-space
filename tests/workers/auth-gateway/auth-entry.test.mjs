@@ -90,7 +90,7 @@ test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口（PR3�
 /* ============ 2. 安全页 DOM 一致 ============ */
 
 
-/* ============ 3. 访客假入口 ============ */
+/* ============ 3. 认证入口：临时钥匙进门也走真比对（v1 的假入口已删） ============ */
 
 const setCk = (res) => (typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [res.headers.get('set-cookie') || '']);
 
@@ -171,7 +171,7 @@ test('认证入口：前端重置弹层不再出现「重置锁屏不可用」',
 /* ============ 5. 通行密钥命名 ============ */
 
 
-/* ============ 7. 补充定稿七：锁屏入口按配置 + 访客管理凭证假入口 ============ */
+/* ============ 7. 补充定稿七：锁屏入口按配置 ============ */
 
 test('补充七：/api/lock-entry 四种配置返回正确', async () => {
   const { onRequestGet } = await import(REPO + '/workers/auth-gateway/src/api/lock-entry.js');

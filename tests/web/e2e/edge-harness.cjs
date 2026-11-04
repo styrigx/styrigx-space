@@ -186,6 +186,8 @@ async function startEdge() {
       createLinkKey: (c, p) => issuer.createLinkKey(c, p, env),
       revokeLinkKey: (c, id, m) => issuer.revokeLinkKey(c, id, env, m),
       openLinkSession: (id, s) => issuer.openLinkSession(id, s, env),
+      /* P2-3：生成 / 作废前 share Worker 先问「进门 + 锁侧复验」（同正式 ShareIssuer.checkReauth） */
+      checkReauth: (c) => issuer.checkLinkReauth(c, env),
     },
     ASSETS: env.ASSETS,
   };

@@ -78,7 +78,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 ### L4 桌面环境·One UI：nav、goodlock、lock.js、sheet、capsule
 - 锁屏拆两块（2026-10-26）：`lock-guard.js` 在每页的 core 里，只读 L1 给出的状态（`data-sgx-lock-session`）、
   绑自动锁定、做去处判定；locked / unknown 时先同步盖不透明遮罩（fail closed），再 `import()` 锁屏界面 `lock.js`
-  （加载失败遮罩不撤，只给重新加载）。访客升级层 `upgrade.js` 同样按需加载。
+  （加载失败遮罩不撤，只给重新加载）。旧的升级验证层 `upgrade.js` 已在 P2-3 删除（进门二值）；锁侧复验弹层 `auth/lock-reauth.js` 按需加载。
 - `lock.js` 只负责两件事：
   1. 画锁屏；
   2. 把密码或通行密钥提交给 L2。
@@ -117,7 +117,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
   由账号 Worker 的 `workers/account/src/core/account-session.js` 签发与验证，格式 `by.epoch.authAt.exp.deviceId.sig`，
   用 `SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC`（Ed25519，PKCS8 / SPKI PEM，只绑在账号 Worker）签名。
   凭证域定义在 `workers/account/src/core/realm.js` 的 `REALM_ACCOUNT`。
-- 请求路径（账号拆分 PR3）：浏览器 → 网关（验锁屏门、剥外来 `x-styrigx-*` / `x-sgx-role` 头、按验过的锁屏会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`）
+- 请求路径（账号拆分 PR3）：浏览器 → 网关（验锁屏门、剥外来 `x-styrigx-*` / `x-sgx-*` 头、按验过的锁屏会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`）
   → 服务绑定 `ACCOUNT` → 账号 Worker 命名入口 `AccountService`。账号 Worker 没有公开路由，默认 fetch 一律 404。
   网关只有账号页首帧提示还要账号会话结论，经 `ACCOUNT_VERIFIER`（`AccountVerifier.accountSession()`）问账号 Worker；临时钥匙、短链只认锁屏进门会话，短链 Worker 不绑账号 Worker。
 - 登录入口两者平级：账号通行密钥、账号密码；前置条件是已解锁的 锁屏进门会话。账号根密钥不签账号会话。
@@ -137,7 +137,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
   （账号卡 + 头像编辑、已登录卡、「安全与隐私」一行）；账号密码和账号通行密钥在子页
   `/account/security/`（`apps/account-security.js`）。顶栏没有 ‹ 返回（2026-10-20 删除），
   返回走浏览器 / 系统返回。原锁屏凭证页（`security-owner`）已删除。
-- P2-2 起网关不再写旧头 `X-Sgx-Role`：发给 search-index 的请求写账号结论头（只认 `X-Styrigx-Account-Session: 1`），发给 chat 的请求不带身份头（门只在网关，过渡期 admin 锁屏 + 账号会话）。入站的 `x-sgx-role` 仍照剥。
+- 发给 search-index 的请求写账号结论头（只认 `X-Styrigx-Account-Session: 1`），发给 chat 的请求不带身份头（门只在网关：进门 + 账号会话，P4-2 连同 /chat/ 页退役）。入站的旧前缀 `x-sgx-*` 头仍照剥。
 - 账号拆分已完成（PR4）：D1 `styrigx-auth-gateway` 不再存账号数据，只剩锁屏数据（`realm='lock'` 的行和恢复开关表 `lock_reset_switch`）；
   网关库里 `realm='account'` / `'root'` 的旧行和旧开关表 `recovery_switch` 已由 `scripts/migrate-account-auth.mjs --cleanup --confirm` 删除
   （预览库走网关 `migrations/0009_drop_recovery_switch.sql`）；Secrets Store 里的旧 `SGX_ROOT_KEY` 已删除。
@@ -147,11 +147,11 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 
 门归网站、账号管授权：网关只验门（锁屏会话）；能不能写、能不能读私密由账号 Worker 回答（`workers/account/src/core/authz.js`，作用域表 `core/scopes.js`）；网关把结论交给下游，下游只信结论。依赖方向：浏览器 → 网关（验门）→ 需要授权时网关经 `ACCOUNT_VERIFIER.authorize()` 问账号 Worker → RPC 回结论对象（`AuthVerifier.conclusion()`）/ HTTP 转发写结论头。账号 Worker 不调网关，网关不读账号库（规则 14、16 不变）。
 
-结论头（网关 fetch 第一步照旧剥掉所有入站 `x-styrigx-*`、`x-sgx-role`，再按验过的结果重写；只写白名单值，某一项没有就不写这个头，不写 `0`）：
+结论头（网关 fetch 第一步照旧剥掉所有入站 `x-styrigx-*`、`x-sgx-*`，再按验过的结果重写；只写白名单值，某一项没有就不写这个头，不写 `0`）：
 
 | 头 | 值 | 含义 | 谁写（P2-1 起） |
 |---|---|---|---|
-| `X-Styrigx-Lock-Session` | `1` | 进门有效（网关验过的锁屏会话） | `core/lock-identity.js`，转发给账号 Worker 时写；与 `X-Styrigx-Lock-Role` 并存到 P2-3 |
+| `X-Styrigx-Lock-Session` | `1` | 进门有效（网关验过的锁屏会话） | `core/lock-identity.js`，转发给账号 Worker 时写（P2-3 起唯一的锁侧身份头，没有等级头） |
 | `X-Styrigx-Lock-By` | `password` \| `passkey` \| `tempkey` | 进门方式，只作审计 | `core/lock-identity.js`（不变） |
 | `X-Styrigx-Lock-Tempkey-Id` | `<id>` | 审计，只在 `by=tempkey` 时有 | `core/lock-identity.js`（不变） |
 | `X-Styrigx-Account-Session` | `1` | 网关问过账号 Worker，账号会话有效 | `core/conclusion.js` `writeAccountConclusion` |
@@ -163,7 +163,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - `X-Styrigx-Account-*` 只写给两处：`styrigx-ai`（第 4 件）和 P4-2 之前过渡期的 `search-index`（`/api/search`）。账号 Worker 自己验账号会话和作用域，网关只给它写 `X-Styrigx-Lock-*` 和 `X-Styrigx-Client-*`。
 - RPC 结论 `AuthVerifier.conclusion(cookieHeader, clientContext, opts)` → `{ lock: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }`；`lock.ok=false` 时不问账号；账号绑定没配、RPC 出错、回了看不懂的东西 → `account.ok=false`。子站接口 Worker（curio-core、daymark-core）P2-2 起用它。
 - 骨架阶段账号会话自动拥有全部作用域；第 3 件实现只换 `grantedScopes` 的数据源，函数签名、RPC 形状、结论头都不变。
-- 将来删掉的：`X-Styrigx-Lock-Role`（转发给账号；账号 Worker P2-2 起已不读），P2-3 删。`X-Sgx-Role` 已在 P2-2 停写停读。
+- 已删除：锁侧等级头在 P2-3 删（网关不再写，账号 Worker P2-2 起已不读）；旧前缀的等级头 P2-2 停写停读。
 - P2-1 只新增，没有调用方，线上行为不变。
 
 ## 锁定与过期

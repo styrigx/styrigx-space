@@ -144,7 +144,7 @@ test.describe('账号登录', () => {
     await expect(page.locator('#acct-cant')).toBeVisible();
   });
 
-  test('英文页：Sign in / Welcome back / Passkey · Password / Can’t sign in?（访客读不到状态也显示两个）', async ({ page }) => {
+  test('英文页：Sign in / Welcome back / Passkey · Password / Can’t sign in?（读不到状态也显示两个）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, { status: { ok: false, error: 'session' } });
     await page.goto('/en/account/', { waitUntil: 'domcontentloaded' });

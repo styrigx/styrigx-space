@@ -83,7 +83,7 @@ test('security.js：读锁屏凭证状态，不再走 stepup；无角色条件�
   assert.ok(!/stepup/i.test(js), '不应再有 stepup');
   assert.ok(js.includes("'/api/lock-credentials'"), '状态卡片读 /api/lock-credentials');
   assert.ok(js.includes("getElementById('sec-locknow')"), '应操作立即锁定入口');
-  assert.ok(!js.includes("role === 'visitor'"), '不应有访客角色条件分支');
+  assert.ok(!js.includes("role === 'visitor'"), '不应有按角色的条件分支'); // old-name guard
 });
 
 test('/api/lock-now：POST 下发 Set-Cookie 清除头（锁屏会话 + LockReauthTicket + LockResetTicket）', async () => {

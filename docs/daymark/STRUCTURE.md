@@ -39,12 +39,12 @@ CSS 类名里的 `bk-` 前缀沿用自 styrigx-book 的共用组件（弹层、�
 | `src/index.js` | 入口（公开地址 `/daymark/api/*` 去掉 `/daymark` 前缀后按路由表找）：`/api/today` 公开，其余先问网关会话 |
 | `src/search-index.js` | 全站搜索索引：句子 → KV `site:daymark`（写接口成功后重建 + Cron 每小时兜底，内容没变不写 KV；私密句子 `private:true`） |
 | `src/routes.js` | 路由表（与 `src/api/` 一一对应，测试核对） |
-| `src/api/quotes.js` | `GET` 列表（管理员全部 + 随手一笔 + 所在专题 / 访客公开），`POST` `PUT` `DELETE` 只管理员 + 同源 |
-| `src/api/collections.js` | 百味自建专题：`GET`（访客只含公开句子、空的不给），`POST` `PUT`（含排序 `quote_ids`）`DELETE` 只管理员 + 同源 |
-| `src/api/today.js` | 今日一句：`GET` 公开（CORS 只给 `https://styrigx.com`）；`PUT` 设为今日，只管理员 + 同源 |
+| `src/api/quotes.js` | `GET` 列表（账号已登录：全部 + 随手一笔 + 所在专题；没登录账号：公开），`POST` `PUT` `DELETE` 要同源 + 账号会话 + `daymark.write` |
+| `src/api/collections.js` | 百味自建专题：`GET`（没登录账号只含公开句子、空的不给），`POST` `PUT`（含排序 `quote_ids`）`DELETE` 要同源 + 账号会话 + `daymark.write` |
+| `src/api/today.js` | 今日一句：`GET` 公开（CORS 只给 `https://styrigx.com`）；`PUT` 设为今日，要同源 + 账号会话 + `daymark.write` |
 | `src/api/_today.js` | 今日一句的锁定（`daily_pick`：当天第一次请求挑好写进去，失效（删了 / 改私密）就重挑）与改写 |
-| `src/api/_quotes.js` | 表结构、校验、行映射（`note` 只给管理员）、按日期挑句子 |
-| `src/api/_write.js` | 写接口共用：读 body、同源 + 管理员门槛、`?id=` |
+| `src/api/_quotes.js` | 表结构、校验、行映射（`note` 只给账号已登录）、按日期挑句子 |
+| `src/api/_write.js` | 写接口共用：读 body、写操作门槛（同源 + 账号会话 + `daymark.write`）、`?id=` |
 | `migrations/` | D1 迁移：`0001_init`（quotes）、`0002_three_tabs`（quotes.source_type / note，collections、collection_quotes）、`0003_seed_quotes`（63 句种子 + 专题「尼采」「了不起的盖茨比」，只增不删，由 `scripts/gen-seed-sql.mjs` 生成）、`0004_daily_pick`（今日一句锁定表）、`0005_daily_pick_set_by_admin`（`set_by` 的 `'owner'` → `'admin'`）。代码里的 `CREATE TABLE IF NOT EXISTS` 只兜底全新的库，不做 ALTER |
 
 ## 部署

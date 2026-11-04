@@ -1866,10 +1866,10 @@ jobs:
         run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-share-worker:
-    # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理员管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
+    # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
     # 路由见 workers/share/wrangler.toml（styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体）；workers_dev=false、preview_urls=false。
     # 不持任何钥匙：只认锁屏进门会话，问网关 AuthVerifier.lockSession()（服务绑定 AUTH），不问账号会话（不绑账号 Worker）；
-    # 签 / 作废短链钥匙、给访客换会话问网关 ShareIssuer（服务绑定 ISSUER）。CI 不传任何密值。
+    # 签 / 作废短链钥匙、给打开短链的人换会话问网关 ShareIssuer（服务绑定 ISSUER）。CI 不传任何密值。
     # 部署顺序：账号、短链（互不依赖，可并行）→ 网关 → Pages。短链不绑账号 Worker，所以不再等 deploy-account-worker（needs 里已去掉）；
     # 仍排在网关之前：新短链对旧网关同样能用（lockSession / ShareIssuer 接口没变，旧网关的 ShareIssuer 仍会多验一次账号会话）；
     # 新网关的 ShareIssuer 只验锁屏进门会话。

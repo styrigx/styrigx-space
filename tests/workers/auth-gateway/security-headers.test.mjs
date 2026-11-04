@@ -1,7 +1,7 @@
 /**
  * 安全响应头（PR D，workers #3 / #4 / web-templates P2 CSP）：
  * - security-headers.js：强制 CSP 里没有任何 script / style / default 指令；Report-Only 带上所有内联脚本哈希；HSTS 不带 includeSubDomains / preload
- * - 网关：锁屏首页、内页 302、www / 别的域名 301、pages.dev 301、管理员页、访客 302、?return= 302、升级态、/api/* 401 / 403、500 都带全套头
+ * - 网关：锁屏首页、内页 302、www / 别的域名 301、pages.dev 301、门内页、?return= 302、/api/* 401 / 403、500 都带全套头
  *   子站经网关的响应只有 HSTS（不套主站 CSP）；原样回源的静态资源不改
  * - Pages：_worker.js 的 301 带和 security-headers.js 一致的头；_headers 解析后每个路径最多一条 Cache-Control、安全头恰好一份且和模块一致
  * - 模板：会执行的内联脚本只剩 baseof 的 5 段 + alias + search-redirect，且后两者正文是常量（每页一个哈希）；没有 on*="…" 属性

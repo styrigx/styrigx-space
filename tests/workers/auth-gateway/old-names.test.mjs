@@ -40,7 +40,7 @@ const OLD_NAMES = [
   ['/api/root-session', /\/api\/root-session/],
   ['SessionVerifier', /SessionVerifier/],
   ['data-sgx-session', /data-sgx-session(?![\w-])/],
-  ['data-sgx-role="owner"', /data-sgx-role=["']owner/],
+  ['data-sgx-role="owner"', /data-sgx-role=["']owner/], // old-name guard
   ['role owner', /role\s*===?\s*['"]owner['"]|ROLE_OWNER/],
   ['recovery-switch', /recovery-switch/],
   ['root-auth-*（旧 KV 键）', /root-auth-(fail|global|audit)/],

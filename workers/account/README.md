@@ -2,7 +2,7 @@
 
 ## 职责
 
-账号 Worker：管理员账号的完整账号系统（账号拆分 PR3 起）。账号身份（账号密码、账号通行密钥、已登录设备、账号会话 / reauth / reset 三张票、Account 纪元、账号根密钥、账号审计）和账号名下的数据（头像、设置云同步、数字健康）都在这里；网关 `styrigx-auth-gateway` 里没有任何账号鉴权代码。本 Worker 不调网关、不绑任何锁屏数据或钥匙（没有 `[[services]]`）。
+账号 Worker：主人账号的完整账号系统（账号拆分 PR3 起）。账号身份（账号密码、账号通行密钥、已登录设备、账号会话 / reauth / reset 三张票、Account 纪元、账号根密钥、账号审计）和账号名下的数据（头像、设置云同步、数字健康）都在这里；网关 `styrigx-auth-gateway` 里没有任何账号鉴权代码。本 Worker 不调网关、不绑任何锁屏数据或钥匙（没有 `[[services]]`）。
 
 ## 入口
 
@@ -37,22 +37,22 @@
   - `grantedScopes(env, accountSession)`：**骨架阶段**账号会话有效 → 作用域表里的全部作用域（行为上等于现在「账号会话能做一切」）；第 3 件实现（另批）只把它换成读授权记录（已授权 ∩ 作用域表），签名和结论形状不变。
   - `authorize(env, request, opts)` → `{ ok, reason, deviceId, scopes, reauth }`：验账号会话（过期、纪元变了、设备已退出都是 `ok:false`，`reason` 是原因代号）→ `deviceId` 取自票 → `scopes` 按字母排序 → 只有 `opts.reauth === true` 才读 `sgx-account-reauth`。只读不签，永不抛错。
 - RPC：`AccountVerifier.authorize(cookieHeader, clientContext, opts)` 原样回上面的结论；网关 `core/account-rpc.js` 的 `askAuthorize` 问它，再由网关 `core/conclusion.js` 交给下游（RPC 结论 / 结论头，见网关 README「结论」）。
-- 现状（P2-2）：`/api/prefs`（prefs.sync）、`/api/avatar`（avatar.write）、`/api/wellbeing`（POST 要 wellbeing.write，否则 204；GET 明细只给账号会话，响应带 `detail`）用同一份 `core/authz.js` 判断；进门只认 `X-Styrigx-Lock-Session: 1`，不再读 `X-Styrigx-Lock-Role`（网关 P2-3 前仍并写，P2-3 删）。
+- 现状（P2-3）：`/api/prefs`（prefs.sync）、`/api/avatar`（avatar.write）、`/api/wellbeing`（POST 要 wellbeing.write，否则 204；GET 明细只给账号会话，响应带 `detail`）用同一份 `core/authz.js` 判断；进门只认 `X-Styrigx-Lock-Session: 1`（P2-3 起网关不再写锁侧等级头，`lib/lock-identity.js` 也不读）。
 - 测试：`tests/workers/account/authz.test.mjs`、`account-entrypoints.test.mjs`。
 
 ## 路由
 
 没有公开路由（第一道保险）：`wrangler.toml` 没有任何 `[[routes]]` / `route`（`[env.preview]` 只写 `routes = []`），`workers_dev = false`、`preview_urls = false`。`scripts/check-worker-routes.mjs` 核对 0 条路由，`scripts/check-layers.mjs` 规则 17 禁止这个 toml 出现非空的 routes。
 
-浏览器请求只能先进网关：网关验锁屏门、剥掉外来的 `x-styrigx-*` / `x-sgx-role` 头，再经 `ACCOUNT` 转进 `AccountService`。转发的路径登记在网关 `workers/auth-gateway/src/router.js` 的 `FORWARDING`，和这里一一对应：
+浏览器请求只能先进网关：网关验锁屏门、剥掉外来的 `x-styrigx-*` / `x-sgx-*` 头，再经 `ACCOUNT` 转进 `AccountService`。转发的路径登记在网关 `workers/auth-gateway/src/router.js` 的 `FORWARDING`，和这里一一对应：
 
 | 路径 | 处理 |
 |---|---|
 | `GET` / `POST /api/account` | `api/account.js` |
 | `PUT` / `DELETE /api/avatar` | `api/avatar.js`（要进门） |
 | `GET /avatar/<32\|96\|192\|512>.webp` | `api/avatar-file.js`（公开；没上传过回 Pages 上的默认头像） |
-| `GET` / `POST /api/prefs` | `api/prefs.js`（设置云同步，管理员 + 账号会话） |
-| `POST` / `GET /api/wellbeing` | `api/wellbeing.js`（数字健康；访客上报 204 丢弃） |
+| `GET` / `POST /api/prefs` | `api/prefs.js`（设置云同步，进门 + 账号会话 + `prefs.sync`） |
+| `POST` / `GET /api/wellbeing` | `api/wellbeing.js`（数字健康；没有 `wellbeing.write` 的上报 204 丢弃） |
 
 ## 绑定
 

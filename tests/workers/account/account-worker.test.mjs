@@ -3,7 +3,7 @@
  * - wrangler.toml：名字、不开 workers.dev / 预览地址、没有 [[routes]]、没有 [[services]]（不回调网关）、正式 / 预览库 id、
  *   D1_ACCOUNT_AUTH 指向账号库、不绑网关认证库（Secrets Store 绑定见 account-auth-scaffold.test.mjs）
  * - 默认 fetch：一律 404（第二道保险：残留公开路由也碰不到接口），伪造的 x-styrigx-* 头不起作用
- * - AccountService（serviceFetch）：只认网关写的身份头；没有身份头 → /api/* 401；访客调 /api/prefs 403；头像文件公开
+ * - AccountService（serviceFetch）：只认网关写的身份头；没有身份头 → /api/* 401；进门没账号会话调 /api/prefs 401 account；头像文件公开
  * - 头像：默认图回源、KV 里的图、只读 KV_PROFILE；X-SGX-Runtime: account；/api/* no-store
  * - AccountVerifier（checkAccountSession）：账号会话本 Worker 自己验；吊销 → revoked；设备记录带上 User-Agent
  *
@@ -96,7 +96,7 @@ test('wrangler.toml：styrigx-account、不开公开地址、没有路由、没�
   }
 });
 
-test('默认 fetch：一律 404（任何路径、任何方法；伪造的 X-Styrigx-Lock-Level: admin 也不起作用），带 X-SGX-Runtime: account 和安全头', async () => {
+test('默认 fetch：一律 404（任何路径、任何方法；伪造的 x-styrigx-* 头也不起作用），带 X-SGX-Runtime: account 和安全头', async () => {
   for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['GET', '/avatar/96.webp'], ['GET', '/'], ['POST', '/api/wellbeing']]) {
     const r = await worker.fetch(new Request('https://styrigx.com' + p, { method: m, headers: { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Lock-By': 'password', Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{"action":"login-challenge"}' }), {}, CTX);
     assert.equal(r.status, 404, m + ' ' + p);
@@ -138,7 +138,7 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-sto
   assert.equal(page.status, 404, '网关只转发表里的路径；别的路径不在这里出页面');
 });
 
-test('AccountService：v1 临时钥匙进门会话（网关写 Session: 1 + Role: visitor）在账号 Worker 只算进门——没有账号会话 → /api/prefs 401 account、/api/account 管理 action 401 account（网关那道 403 role 门 P2-3 才删）', async () => {
+test('AccountService：临时钥匙进门会话（网关写 Session: 1 + By: tempkey）在账号 Worker 只算进门——没有账号会话 → /api/prefs 401 account、/api/account 管理 action 401 account', async () => {
   const { env } = setup();
   const ck = await sess('tempkey');
   let r = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: ck } }), env);
@@ -172,7 +172,7 @@ test('进门但没登录账号：PUT /api/avatar 401 account、数字健康上�
   assert.equal(gj.detail, false);
 });
 
-test('管理员：未知子路径 404、不支持的方法 405；/api/prefs/ 尾斜杠同 /api/prefs', async () => {
+test('进门：未知子路径 404、不支持的方法 405；/api/prefs/ 尾斜杠同 /api/prefs', async () => {
   const { env, authKv } = setup();
   const ck = await sess('password');
   assert.equal((await call(new Request('https://styrigx.com/api/avatarx', { headers: { Cookie: ck } }), env)).status, 404);
@@ -299,7 +299,7 @@ test('check-worker-routes：现在通过；账号 Worker 只要登记任何一�
 /* ---------------- 安全响应头（PR D，workers #3）：和网关主站同一套 ---------------- */
 const SECH = await import(REPO + 'workers/account/src/lib/security-headers.js');
 
-test('安全头：头像文件、/api/* 401、访客 /api/prefs 403、不认识的头像尺寸 404 都带全套安全头（和网关同值）', async () => {
+test('安全头：头像文件、/api/* 401、不认识的头像尺寸 404 都带全套安全头（和网关同值）', async () => {
   const { env } = setup();
   const reqs = [
     [new Request('https://styrigx.com/avatar/96.webp'), 200],

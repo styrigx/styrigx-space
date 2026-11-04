@@ -160,7 +160,7 @@ test('页面：未登录首页 → 回源、锁屏态、去掉桌面内容，会
   });
 });
 
-test('页面：进门的人（锁屏密码 / 临时钥匙进门都一样）访问门内页 → 回源、valid，带 cookie 回源，页面上没有 data-sgx-role', async () => {
+test('页面：进门的人（锁屏密码 / 临时钥匙进门都一样）访问门内页 → 回源、valid，带 cookie 回源，页面上没有等级标记', async () => {
   for (const by of ['password', 'tempkey']) {
     _resetSecretCache();
     const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, by));
@@ -170,7 +170,7 @@ test('页面：进门的人（锁屏密码 / 临时钥匙进门都一样）访�
       assert.equal(calls.length, 1);
       assert.equal(calls[0].headers.get('Cookie'), cookie);
       const html = await res.text();
-      assert.doesNotMatch(html, /data-sgx-role|data-sgx-upgrade/);
+      assert.doesNotMatch(html, /data-sgx-role|data-sgx-upgrade/); // old-name guard
       assert.match(html, /data-sgx-lock-session="valid"/);
       assert.match(html, /desk/);
     });
@@ -188,12 +188,12 @@ test('页面：Pages 的跳转（补尾斜杠）原样交回', async () => {
 });
 
 test('stripSessionAttrs：只清 <html> 上的会话标记（body 等别的标签不动）', () => {
-  const html = '<html data-sgx-lock-session="valid" lang="en" data-sgx-role="admin"><body data-sgx-x="1"></body></html>';
+  const html = '<html data-sgx-lock-session="valid" lang="en" data-sgx-role="admin"><body data-sgx-x="1"></body></html>'; // old-name guard（伪造的旧标记要被剥掉）
   assert.equal(htmlKernel.stripSessionAttrs(html), '<html lang="en"><body data-sgx-x="1"></body></html>');
 });
 
 test('stripSessionAttrs：只清网关会写的会话标记，保留构建标记 data-sgx-build（2026-10-21）', () => {
-  const html = '<html data-sgx-build="abc1234" data-sgx-lock-session="valid" lang="zh" data-sgx-role="admin" data-sgx-account-session="in" data-sgx-upgrade="1" data-sgx-upgrade-return="/x/"><head></head></html>';
+  const html = '<html data-sgx-build="abc1234" data-sgx-lock-session="valid" lang="zh" data-sgx-role="admin" data-sgx-account-session="in" data-sgx-upgrade="1" data-sgx-upgrade-return="/x/"><head></head></html>'; // old-name guard（伪造的旧标记要被剥掉）
   assert.equal(htmlKernel.stripSessionAttrs(html), '<html data-sgx-build="abc1234" lang="zh"><head></head></html>');
 });
 
@@ -278,7 +278,7 @@ test('一致性：GET /api/lock-session-check 无会话 / 所有进门的人', a
   assert.equal((await same(mk, 'password')).status, 200);
 });
 
-test('一致性：访客调管理员接口 / 无会话调非白名单接口', async () => {
+test('一致性：无会话调非白名单接口', async () => {
   await same((h) => new Request('https://styrigx.com/api/lock-all-devices', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: '{}' }), 'tempkey');
   await same((h) => new Request('https://styrigx.com/api/geo-nope', { headers: h }));
 });

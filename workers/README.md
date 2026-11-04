@@ -37,8 +37,8 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 - `app.js` 和 `rpc/*` 是同一层（都是 `index.js` 导出的入口），可以互相取用：账号 `rpc/account-service.js` 用 `app.js` 的 `tagRuntime`。
 - `secrets.js` 谁都能 import。
 - 服务绑定：`api/` 可以经 `core/` 调，也可以直接用 `env` 上的绑定。现状：网关 `api/chat.js`、`api/search.js`、`api/status.js` 直接调 `CHAT` / `SEARCH` / `STATUS`；`ACCOUNT_VERIFIER` 经 `core/account-rpc.js`；`ACCOUNT` 由 `router.js` 经 `core/forward.js` 转发。
-- `gate.js` 是粗粒度的门（有没有会话、什么角色、哪些路径公开）；handler 里可以按角色再验，例如网关 `api/lock-tempkey.js` 自己再要求一次锁屏进门会话。
-- 同层的横向 import（现有两处）：网关 `gate.js` 的图志关口直接用 `api/search.js`（和主站路由表里的 `/api/search` 同一个处理函数）；账号 `api/avatar.js`、`api/prefs.js`、`api/wellbeing.js` 从 `api/account.js` 取 `ROLE_ADMIN`。
+- `gate.js` 是粗粒度的门（有没有会话、哪些路径公开）；handler 里可以再验，例如网关 `api/lock-tempkey.js` 自己再要求一次锁屏进门会话。
+- 同层的横向 import：现在没有（P2-3 起账号 `api/avatar.js`、`api/prefs.js`、`api/wellbeing.js` 不再从 `api/account.js` 取等级常量；网关 `gate.js` 只 import `core/`、`lib/`）。
 - 依赖方向不进 CI（`scripts/check-layers.mjs` 不查 Worker 内部的方向），靠评审守住。
 
 ## 3. 对齐现状（2026-11-02）

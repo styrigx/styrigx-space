@@ -49,11 +49,11 @@ globalThis.window = {
   clearTimeout(id) { timers = timers.filter((x) => x.id !== id); },
   location: { reload() { reloads++; } },
 };
-/** <html data-sgx-lock-session>（P2-2 起 cloud-sync 只看它，不看 data-sgx-role） */
+/** <html data-sgx-lock-session>（P2-2 起 cloud-sync 只看它，不看旧等级标记；下面的桩故意对旧标记回一个旧值） */
 let lockState = 'valid';
 globalThis.document = {
   getElementById() { return null; },
-  documentElement: { getAttribute: (n) => (n === 'data-sgx-lock-session' ? lockState : n === 'data-sgx-role' ? 'visitor' : null) },
+  documentElement: { getAttribute: (n) => (n === 'data-sgx-lock-session' ? lockState : n === 'data-sgx-role' ? 'visitor' : null) }, // old-name guard
   cookie: '',
   visibilityState: 'visible',
   addEventListener(t, fn) { (docListeners[t] = docListeners[t] || []).push(fn); },
@@ -320,7 +320,7 @@ test('拉下来自定义主题色：设值 → 按需加载角色引擎；清空
   assert.equal(posts().length, 0);
 });
 
-test('P2-2：不看 data-sgx-role（桩里永远是 visitor 也照常拉）；按 /api/prefs 结果：403 role / 403 scope / 401 session → skip，不标 out、不清时刻', async () => {
+test('P2-2：不看旧等级标记（桩里永远给旧值也照常拉）；按 /api/prefs 结果：403 role / 403 scope / 401 session → skip，不标 out、不清时刻', async () => {
   assert.equal(await initCloudSync({ force: true }), 'ok');
   const t0 = lastPullAt();
   assert.ok(t0 > 0);

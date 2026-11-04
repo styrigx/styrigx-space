@@ -76,7 +76,7 @@ test.describe('lock screen', () => {
     await expect(page).toHaveScreenshot('lock-screen.png', { animations: 'disabled' });
   });
 
-  test('avatar → method sheet → visitor unlocks (local fallback)', async ({ page }) => {
+  test('avatar → method sheet → temporary key unlocks (local fallback)', async ({ page }) => {
     await freezeTime(page);
     /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"临时钥匙"直接解锁（本地不输临时钥匙），验证兜底路径 */
     await gotoLock(page);
@@ -156,7 +156,7 @@ test.describe('lock screen', () => {
   });
 
   /* 2026-10-23：临时钥匙 = 输入临时钥匙（取代 Turnstile）。test-no-local-bypass 让 localhost 也走线上逻辑 */
-  test('visitor: temporary key dialog — wrong key shows error, right key unlocks (mocked API)', async ({ page }) => {
+  test('temporary key dialog — wrong key shows error, right key unlocks (mocked API)', async ({ page }) => {
     await freezeTime(page);
     const seen = [];
     await page.route('**/api/lock-tempkey-unlock', async (route) => {
@@ -164,7 +164,7 @@ test.describe('lock screen', () => {
       seen.push(body.code);
       const ok = body.code === 'abcd-efgh-jkmn';
       await route.fulfill({ status: ok ? 200 : 403, contentType: 'application/json',
-        body: JSON.stringify(ok ? { ok: true, role: 'visitor' } : { ok: false, error: 'wrong' }) });
+        body: JSON.stringify(ok ? { ok: true } : { ok: false, error: 'wrong' }) });
     });
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
@@ -193,7 +193,7 @@ test.describe('lock screen', () => {
     await expect.poll(() => seen.length).toBe(2);
   });
 
-  test('visitor: temporary key locked out (429) disables input with countdown (mocked API)', async ({ page }) => {
+  test('temporary key locked out (429) disables input with countdown (mocked API)', async ({ page }) => {
     await freezeTime(page);
     await page.route('**/api/lock-tempkey-unlock', (route) => route.fulfill({ status: 429, contentType: 'application/json', body: '{"ok":false,"error":"cooldown"}' }));
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
@@ -269,7 +269,7 @@ test.describe('lock screen', () => {
     await page.route('**/api/lock-session-check*', async (route) => {
       checks.push(route.request().url());
       if (!unlocked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, role: 'admin', next: '/settings/', upgrade: false }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/settings/' }) });
     });
     await page.goto('/?lock=1&return=' + encodeURIComponent('/settings/') + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
@@ -363,7 +363,7 @@ test.describe('lock screen redesign (2.8.0)', () => {
     const pwOpt = page.locator('#sgx-mopt-pw');
     await expect(visitorOpt).toBeVisible();
     await expect(pwOpt).toBeVisible();
-    /* 访客是第一个 */
+    /* 临时钥匙是第一个 */
     const firstId = await page.locator('.sgx-method-opt').first().getAttribute('id');
     expect(firstId).toBe('sgx-mopt-tempkey');
     /* 选密码 → 密码框出现 */
@@ -554,7 +554,7 @@ test.describe('lock method sheet row feedback (批次 A 验收修复 P2)', () =>
 test.describe('A-2 锁屏凭证清空态 / 启动站（PR3：只剩「无法登录？」）', () => {
   /* 账号拆分 PR3：lock-entry 只回锁屏自己的 passkey / password（resetOnly / accountConfigured 已删），
      「清空态」就是两项都是 false；多带的旧字段前端不认 */
-  test('锁屏凭证清空：方法弹层只显示访客 +「无法登录？」（无通行密钥/密码/进站凭证入口）', async ({ page }) => {
+  test('锁屏凭证清空：方法弹层只显示临时钥匙 +「无法登录？」（无通行密钥/密码/进站凭证入口）', async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
 
@@ -613,7 +613,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
   });
 
   /* 账号拆分 PR3：第 2 步是锁屏凭证（lockProof；网关不读账号凭证），服务端回 needLock */
-  test('进站凭证 → needLock → 锁屏凭证行（锁屏通行密钥 / 解锁密码，没有「管理员」「账号」字样）→ 解锁密码通过 → /settings/security/lock/', async ({ page }) => {
+  test('进站凭证 → needLock → 锁屏凭证行（锁屏通行密钥 / 解锁密码，不出现旧角色名和「账号」字样）→ 解锁密码通过 → /settings/security/lock/', async ({ page }) => {
     const bodies = [];
     await page.route('**/api/lock-reset', async (route) => {
       const b = JSON.parse(route.request().postData() || '{}');
@@ -637,7 +637,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     await page.click('#sgx-reset-go');
     await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
     await expect(page.locator('.sgx-reset-opts .sgx-credential-rowtitle')).toHaveText(['锁屏通行密钥', '解锁密码']);
-    await expect(page.locator('#sgx-method-sheet')).not.toContainText('管理员');
+    await expect(page.locator('#sgx-method-sheet')).not.toContainText('管理员'); // old-name guard
     await expect(page.locator('#sgx-method-sheet')).not.toContainText('账号');
     await page.locator('.sgx-credential-row').filter({ hasText: '解锁密码' }).click();
     await page.locator('.sgx-credential-expand input[type="password"]').fill('lock-pw');

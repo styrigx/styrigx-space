@@ -64,8 +64,8 @@ test('readLockIdentity：只认 X-Styrigx-Lock-Session: 1（= 进门）；by 只
   assert.equal(r({ ...S, 'X-Styrigx-Lock-By': 'tempkey', 'X-Styrigx-Lock-Tempkey-Id': 'bad id!' }).tempkeyId, '');
   assert.equal(account.hasLockSession(new Request(URL_, { headers: { 'X-Styrigx-Lock-Level': 'password' } })), false);
   assert.equal(account.hasLockSession(new Request(URL_, { headers: S })), true);
-  assert.equal('isAdmin' in account, false);
-  assert.equal('ROLE_ADMIN' in account, false);
+  assert.equal('isAdmin' in account, false); // old-name guard
+  assert.equal('ROLE_ADMIN' in account, false); // old-name guard
 });
 
 test('clientAddress：读 X-Styrigx-Client-Address；不认 CF-Connecting-IP / X-Forwarded-For；格式不对或没有 → unknown', () => {
@@ -107,7 +107,7 @@ test('GET：没进门（没有 X-Styrigx-Lock-Session: 1）→ 401 session；只
     const r = await get(env, {}, { identity });
     assert.equal(r.status, 200, JSON.stringify(identity));
   }
-  const r = await get(env, { 'sgx-lock-session': 'password.admin.0.9999999999999..sig' }, { identity: null });
+  const r = await get(env, { 'sgx-lock-session': 'password.admin.0.9999999999999..sig' }, { identity: null }); // v1 fixture
   assert.equal(r.status, 401);
 });
 

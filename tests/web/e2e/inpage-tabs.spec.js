@@ -26,7 +26,7 @@ function trackDocs(page) {
 
 /**
  * @param {import('@playwright/test').Page} page
- * @param {{lang?: string, admin?: boolean, prefs?: () => any}} [o]
+ * @param {{lang?: string, entered?: boolean, prefs?: () => any}} [o]
  */
 async function setup(page, o = {}) {
   await blockExternalRequests(page);
@@ -359,7 +359,7 @@ test('反复切换不泄漏：window / document 监听数不涨，计时器不�
   expect(b).toEqual(a);
 });
 
-test('云同步：管理员页内切换不重复 GET /api/prefs（core 只初始化一次）', async ({ page }) => {
+test('云同步：进门的人页内切换不重复 GET /api/prefs（core 只初始化一次）', async ({ page }) => {
   await setup(page, { entered: true });
   let gets = 0;
   await page.route('**/api/prefs', (r) => {

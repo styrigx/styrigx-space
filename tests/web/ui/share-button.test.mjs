@@ -37,9 +37,9 @@ test('linkName：去控制字符、合并空白、最多 24 字（按字符不�
   assert.equal(S.linkName(''), '');
 });
 
-test('不再分角色：没有 roleOf，源码不读 data-sgx-role', () => {
+test('不再分角色：没有 roleOf，源码不读旧等级标记', () => {
   assert.equal(S.roleOf, undefined);
-  assert.doesNotMatch(readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/share-button.js'), 'utf8'), /data-sgx-role/);
+  assert.doesNotMatch(readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/share-button.js'), 'utf8'), /data-sgx-role/); // old-name guard
 });
 
 function fakeFetch(status, body) {
@@ -107,7 +107,7 @@ test('shareOrCopy：系统分享成功不 toast；AbortError 不复制；NotAllo
   }
 });
 
-function fakeDom(role) {
+function fakeDom() {
   const attrs = {};
   const cls = new Set();
   let onClick = null;
@@ -116,12 +116,12 @@ function fakeDom(role) {
     setAttribute: (k, v) => { attrs[k] = v; }, removeAttribute: (k) => { delete attrs[k]; },
     addEventListener: (_t, fn) => { onClick = fn; },
   };
-  const doc = { title: '文章 · 博客', documentElement: { lang: 'zh-CN', getAttribute: () => role }, querySelector: () => btn, createElement: () => { throw new Error('no dom'); }, body: {} };
+  const doc = { title: '文章 · 博客', documentElement: { lang: 'zh-CN', getAttribute: () => null }, querySelector: () => btn, createElement: () => { throw new Error('no dom'); }, body: {} };
   return { btn, doc, attrs, cls, click: () => onClick({ preventDefault() {} }) };
 }
 
 test('mountShare：生成中 aria-busy + is-busy，再点不理（只发一次请求）；完了恢复；分享的是短链', async () => {
-  const d = fakeDom('admin');
+  const d = fakeDom();
   let release;
   const calls = [];
   const f = (url, init) => {
@@ -147,7 +147,7 @@ test('mountShare：生成中 aria-busy + is-busy，再点不理（只发一次�
 });
 
 test('mountShare：接口失败 → 只 toast 原因，不分享也不复制原地址；同一个按钮只绑一次', async () => {
-  const d = fakeDom('');
+  const d = fakeDom();
   const { nav, log } = fakeNav({ share: 'ok' });
   const toasts = [];
   const { f, calls } = fakeFetch(401, { ok: false, error: 'session' });
@@ -162,7 +162,7 @@ test('mountShare：接口失败 → 只 toast 原因，不分享也不复制原�
 });
 
 test('mountShare：401 reauth → 先走锁侧复验，通过后自动重试一次，分享的是短链；取消 → 什么也不分享、不 toast', async () => {
-  const d = fakeDom('');
+  const d = fakeDom();
   const { nav, log } = fakeNav({ share: 'ok' });
   const bodies = [];
   let n = 0;
@@ -182,7 +182,7 @@ test('mountShare：401 reauth → 先走锁侧复验，通过后自动重试一�
   assert.equal(bodies[1].reuse, true);
   assert.deepEqual(log, [['share', { title: '文章 · 博客', url: 'https://styrigx.com/s/' + CODE }]]);
 
-  const c = fakeDom('');
+  const c = fakeDom();
   const cn = fakeNav({ share: 'ok' });
   const toasts = [];
   const cf = fakeFetch(401, { ok: false, error: 'reauth' });

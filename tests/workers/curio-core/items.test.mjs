@@ -137,13 +137,13 @@ test('读：没登录账号看不到私密条目，指向私密设备的关联�
   const v = await get(e, 'lock');
   assert.equal(v.canWrite, false);
   assert.equal(v.showPrivate, false);
-  assert.equal('admin' in v, false);
+  assert.equal('admin' in v, false); // old-name guard
   assert.deepEqual(v.devices.map((d) => [d.name, d.replaced_by]), [['公开机', 0]]);
   assert.deepEqual(v.games.map((g) => [g.title, g.device_id]), [['公开游戏', 0]]);
   const o = await get(e, 'owner');
   assert.equal(o.canWrite, true);
   assert.equal(o.showPrivate, true);
-  assert.equal('admin' in o, false);
+  assert.equal('admin' in o, false); // old-name guard
   assert.equal(o.devices.length, 2);
   assert.equal(o.games.length, 2);
   assert.equal(o.games[0].device_id, b);

@@ -215,7 +215,7 @@ test('立即锁定 → 刷新仍锁定；子站也锁定', async ({ page, contex
 test('R4 临时钥匙进门的人点「锁屏凭证」→ 进锁屏凭证页，页面自己的门要复验（不出全局锁屏、没有升级层）', async ({ page, context }) => {
   await setSession(context, 'tempkey');
   await page.goto(MAIN + '/settings/security/');
-  expect(await page.locator('html').getAttribute('data-sgx-role')).toBe(null);
+  expect(await page.locator('html').getAttribute('data-sgx-role')).toBe(null); // old-name guard
   await page.click('#sec-lock-cred');
   await page.waitForURL(MAIN + '/settings/security/lock/', { timeout: 15000 });
   await expect(page.locator('#lock-reauth')).toBeVisible({ timeout: 10000 });

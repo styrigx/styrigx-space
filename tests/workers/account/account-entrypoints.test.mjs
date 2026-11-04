@@ -85,7 +85,7 @@ test('路由表：AccountService = /api/account + 三个账号数据接口（rou
 
 /* ---------------- AccountService ---------------- */
 
-test('AccountService：admin 身份头 → GET /api/account 200（X-SGX-Runtime: account、no-store），不回调网关', async () => {
+test('AccountService：进门身份头 → GET /api/account 200（X-SGX-Runtime: account、no-store），不回调网关', async () => {
   const { env, calls } = makeEnv();
   const r = await service(env).fetch(req('/api/account', { headers: idHeaders() }));
   assert.equal(r.status, 200);
@@ -127,7 +127,7 @@ test('AccountService：没有 X-Styrigx-Lock-Session: 1 一律当作没进门 �
   }
 });
 
-test('AccountService：P2-2 起不看 X-Styrigx-Lock-Level——进门（Session: 1）+ Role: visitor 也照常走到账号判断（/api/prefs 没账号会话 401 account、/api/account 读状态 200）', async () => {
+test('AccountService：不看外来的 X-Styrigx-Lock-Level——进门（Session: 1）+ 任意 Level 也照常走到账号判断（/api/prefs 没账号会话 401 account、/api/account 读状态 200）', async () => {
   const { env } = makeEnv();
   const h = idHeaders({ role: 'tempkey', by: 'tempkey', tempkeyId: 'tk1' });
   let r = await service(env).fetch(req('/api/prefs', { headers: h }));
@@ -136,7 +136,7 @@ test('AccountService：P2-2 起不看 X-Styrigx-Lock-Level——进门（Session
   r = await service(env).fetch(req('/api/account', { headers: h }));
   assert.equal(r.status, 200);
   assert.equal((await r.json()).session, null);
-  /* 账号会话有效就放行，不管 Role 头写的是什么（网关 P2-3 前对访客的 /api/prefs 仍有 403 role 门，那是网关的事） */
+  /* 账号会话有效就放行，不管外来的 Level 头写的是什么 */
   r = await service(env).fetch(req('/api/prefs', { headers: { ...h, Cookie: await accCookie() } }));
   assert.equal(r.status, 200);
 });
@@ -174,7 +174,7 @@ test('AccountService：处理中抛错 → 500 internal（仍打 X-SGX-Runtime�
 
 /* ---------------- 默认 fetch：一律 404（第二道保险） ---------------- */
 
-test('默认 fetch：任何路径一律 404，伪造的 x-styrigx-* admin 头 + 有效锁屏 cookie 也碰不到接口', async () => {
+test('默认 fetch：任何路径一律 404，伪造的 x-styrigx-* 进门头 + 有效锁屏 cookie 也碰不到接口', async () => {
   const { env } = makeEnv();
   const ck = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'password'));
   for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/wellbeing'], ['GET', '/api/prefs'], ['GET', '/avatar/32.webp']]) {

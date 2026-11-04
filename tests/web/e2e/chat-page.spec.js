@@ -237,7 +237,7 @@ test.describe('聊天页（手机 412×915）', () => {
     await expect(page.locator('#chat-gate .st-msg-title')).toHaveText('登录账号后可用');
     expect(await page.locator('#chat-list').evaluate((el) => el.innerHTML)).not.toContain('PREV-SECRET');
     expect(await page.evaluate(() => sessionStorage.getItem('sgx-chat-convo'))).toBeNull();
-    expect(await page.locator('html').getAttribute('data-sgx-role')).toBe(null);
+    expect(await page.locator('html').getAttribute('data-sgx-role')).toBe(null); // old-name guard
   });
 
   test('429 / SSE rate_limited →「今天的免费额度用完了，明天再来」，没有重试', async ({ page }) => {

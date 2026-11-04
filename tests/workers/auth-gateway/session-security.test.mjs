@@ -558,7 +558,7 @@ test('middleware：无有效会话访问内页 → 302 到首页锁屏（return 
  * /api/lock-session-check（2.4.1 防循环）
  * ================================================================ */
 
-/* lock-session-check 的 200 / 401 契约（管理员、访客、无会话、旧三段式坏票）2026-10-26 并进
+/* lock-session-check 的 200 / 401 契约（锁屏密码进门、临时钥匙进门、无会话、旧三段式坏票）2026-10-26 并进
  * auth-flow-2026-10-21.test.mjs 的 B 段（经真实网关入口，断言逐条保留），这里不再重复。 */
 
 /* ================================================================
@@ -573,7 +573,7 @@ function assertSessionCookieAttrs(sc, maxAge) {
   assert.match(sc, /HttpOnly/);
   assert.match(sc, /SameSite=Lax/);
   assert.match(sc, /Domain=\.styrigx\.com/);
-  /* 2.8.0：admin 43200，visitor 3600 */
+  /* 2.8.0：锁屏密码 / 通行密钥进门 43200，临时钥匙进门按钥匙剩余时间 */
   const expected = maxAge || '43200';
   assert.match(sc, new RegExp('Max-Age=' + expected));
 }
@@ -1053,7 +1053,7 @@ async function tempkeyCookie(epoch = 0) {
   return await testLockSession(TEST_PRIV_PEM, epoch, 'tempkey');
 }
 
-test('进门二值：临时钥匙进门的人可以访问桌面（/）、设置（/settings/）、文件（/files/）、安全总览和锁屏凭证页（中英），页面上没有 data-sgx-role', async () => {
+test('进门二值：临时钥匙进门的人可以访问桌面（/）、设置（/settings/）、文件（/files/）、安全总览和锁屏凭证页（中英），页面上没有等级标记', async () => {
   const vCookie = await tempkeyCookie(0);
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
     status: 200,
@@ -1067,7 +1067,7 @@ test('进门二值：临时钥匙进门的人可以访问桌面（/）、设置�
   assert.equal(r0.status, 200);
   const html = await r0.text();
   assert.ok(html.includes('data-sgx-lock-session="valid"'));
-  assert.ok(!/data-sgx-role|data-sgx-upgrade/.test(html), '不再注入等级 / 升级标记');
+  assert.ok(!/data-sgx-role|data-sgx-upgrade/.test(html), '不再注入等级 / 升级标记'); // old-name guard
   for (const p of ['/settings/', '/files/', '/settings/display/', '/en/settings/', '/settings/security/', '/en/settings/security/', '/settings/security/lock/', '/en/settings/security/lock/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
     assert.equal(r.status, 200, '临时钥匙进门访问 ' + p + ' 应 200');
@@ -1142,7 +1142,7 @@ test('进门二值：关口不再按角色拦锁屏凭证接口——临时钥�
   }
 });
 
-test('2.9.3：无会话调非白名单管理员 API 是 401', async () => {
+test('2.9.3：无会话调非白名单 API 是 401', async () => {
   // /api/lock-password 和 /api/lock-passkey 在白名单里（升级验证用），无会话时放行到 handler
   // /api/lock-all-devices 和 /api/stepup 不在白名单，无会话 → 401
   for (const api of ['/api/lock-all-devices', '/api/stepup']) {
@@ -1160,7 +1160,7 @@ test('2.9.3：无会话调非白名单管理员 API 是 401', async () => {
   }
 });
 
-test('2.9.3：middleware 放行 visitor 的 POST /api/lock-now（调 next）', async () => {
+test('2.9.3：middleware 放行临时钥匙进门的 POST /api/lock-now（调 next）', async () => {
   const vCookie = await tempkeyCookie(0);
   let nextCalled = false;
   const ctx = {
@@ -1175,7 +1175,7 @@ test('2.9.3：middleware 放行 visitor 的 POST /api/lock-now（调 next）', a
     env: PROD_ENV(),
   };
   const r = await mw(ctx);
-  assert.ok(nextCalled, 'visitor 调 /api/lock-now 应调用 next()');
+  assert.ok(nextCalled, '临时钥匙进门调 /api/lock-now 应调用 next()');
   assert.equal(await r.text(), 'PASSED-TO-HANDLER', '应返回 handler 的响应');
 });
 

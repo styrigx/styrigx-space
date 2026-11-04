@@ -342,8 +342,8 @@ test.describe('会话安全 e2e（预览站）', () => {
     expect(sc).toContain('Secure');
     expect(sc).toContain('SameSite=Lax');
     expect(sc).toContain('Max-Age=43200');
-    /* LockSessionTicket：by.role.epoch.exp.tempkeyId.sig（admin 的 tempkeyId 为空） */
-    expect(h.cookieValue(sc).split('.').length).toBe(6);
+    /* LockSessionTicket v2：by.epoch.exp.tempkeyId.sig（锁屏密码 / 通行密钥进门 tempkeyId 为空） */
+    expect(h.cookieValue(sc).split('.').length).toBe(5);
   });
 
   test('退出所有设备：纪元 +1，旧会话 cookie 失效', async ({ page, request }) => {

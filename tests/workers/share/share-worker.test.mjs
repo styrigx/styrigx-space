@@ -8,10 +8,10 @@
  *
  * - 规则：码 128 位、目标只收站内相对路径（防开放重定向）、有效期 / 会话档位和网关一致、会话不超过有效期
  * - 生成：带会话 → 网关签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；网关再验一次锁屏进门会话（不问账号会话）
- * - 点开：带会话 → 临时钥匙进门的会话（by=tempkey，票里带 tempkeyId）（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；管理员不降级；
+ * - 点开：带会话 → 临时钥匙进门的会话（by=tempkey，票里带 tempkeyId）（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；已进门的人点开不降级；
  *   预取 / HEAD 不发会话；不存在 / 过期 / 作废 / 格式不对 → 同一个响应；限速
  * - 作废：带会话的连钥匙一起作废，已发出的临时会话下一个请求就进不来
- * - 权限：只认锁屏进门会话（不问账号会话）；访客 403、没会话 401、跨源 403
+ * - 权限：只认锁屏进门会话（不问账号会话）；生成 / 作废另要锁侧复验（401 reauth）、没会话 401、跨源 403
  * - 路由：/s/*、/api/share* 归短链 Worker，网关的接口和页面一条没被抢
  */
 import { test } from 'node:test';
@@ -220,7 +220,7 @@ for (const K of KINDS) {
   const T = (title, fn) => test('[' + K.name + '] ' + title, fn);
   const mk = () => setup({ memory: !!K.memory });
 
-  T('带会话：生成 → 网关签 link 钥匙（不在临时钥匙列表）→ 访客点开拿到会话、302 到干净目标（不带码）', async () => {
+  T('带会话：生成 → 网关签 link 钥匙（不在临时钥匙列表）→ 别人点开拿到会话、302 到干净目标（不带码）', async () => {
     const { env, db, authDb, gwEnv, calls } = mk();
     const r = await api(env, { action: 'create', name: '小明', hours: 24, to: '/blog/?a=1#x', session: 3 * 3600 });
     assert.equal(r.s, 200, JSON.stringify(r.j));
@@ -560,7 +560,7 @@ for (const K of KINDS) {
     assert.ok(!JSON.stringify(list).includes('key_id') && !JSON.stringify(list).includes('"code"'));
   });
 
-  T('子站目标：生成（绝对地址规范化）→ 访客点开带会话的短链 302 到子站地址，cookie 是 Domain=styrigx.com', async () => {
+  T('子站目标：生成（绝对地址规范化）→ 别人点开带会话的短链 302 到子站地址，cookie 是 Domain=styrigx.com', async () => {
     const { env } = mk();
     const r = await api(env, { action: 'create', hours: 24, to: 'https://atlas.styrigx.com/blog/post/x/?lock=1&q=1', session: 43200 });
     assert.equal(r.s, 200, JSON.stringify(r.j));

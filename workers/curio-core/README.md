@@ -46,7 +46,7 @@ src/photo-sweep.js   R2 photos/ 清扫
 | `POST /api/import` | 是 | 是 | `curio.write` | 是 |
 
 - 错误码：没进门 `401 unauthorized`；没账号会话 `401 account`；没作用域 `403 scope`（带 `scope` 字段）；要复验没复验 `401 reauth`；非同源 `403 origin`。
-- 读接口回 `canWrite`（有 `curio.write`）、`showPrivate`（账号会话有效）两个布尔，代替以前的 `admin`。
+- 读接口回 `canWrite`（有 `curio.write`）、`showPrivate`（账号会话有效）两个布尔，代替以前的等级字段（P2-2）。
 - 网关绑定缺失 / 出错 → 500（不回 401，免得前端当成锁定去刷新）。
 
 ## 钥匙
