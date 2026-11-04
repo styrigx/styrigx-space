@@ -528,9 +528,9 @@ async function deleteAllPasskeys(page) {
   }
 }
 
-/** 锁屏会话 cookie 值里的纪元（by.role.epoch.exp.tempkeyId.sig） */
+/** 锁屏会话 cookie 值里的纪元（LockSessionTicket v2：by.epoch.exp.tempkeyId.sig，纪元是第 2 段） */
 function cookieEpoch(line) {
-  return parseInt(cookieValue(line).split('.')[2], 10);
+  return parseInt(cookieValue(line).split('.')[1], 10);
 }
 
 module.exports = {
