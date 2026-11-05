@@ -1,5 +1,5 @@
 /**
- * @fileoverview 流式回答里去掉模型的思考段 <think>…</think>（Qwen3 等会输出；提示词里已带 /no_think，这里兜底）。
+ * @fileoverview 流式回答里去掉模型的思考段 <think>…</think>（带思考模式的模型可能把思考段混进正文，这里兜底；P4-2 起模型见 core/models.js）。
  * 有状态：标签可能被切在两段 delta 中间，所以把可能是标签开头的尾巴留到下一段再判断。
  */
 

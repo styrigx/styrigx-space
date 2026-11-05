@@ -1,7 +1,8 @@
 /**
- * styrigx-ai（P4-1，方案 5.2 / 5.4）：站内召回两档、/ask 上下文过滤、输入上限、历史截断、SSE 事件顺序、
- * 浏览器断开时取消上游、思考段过滤、/healthz、没有 /search 路由。
- * 不调真实 Workers AI：env.AI 是替身，记下收到的 messages，回一个可控的 SSE 流。
+ * styrigx-ai（P4-1，方案 5.2 / 5.4；P4-2 并入外部模型、模型登记走 KV）：站内召回两档、/ask 上下文过滤、输入上限、历史截断、
+ * SSE 事件顺序、浏览器断开时取消上游、思考段过滤、/healthz、/models、没有 /search 路由；模型登记与切换（只有账号会话能切）、
+ * 外部模型（Gemini，替身 fetch）。
+ * 不调真实 Workers AI / Gemini：env.AI 是替身，记下收到的 messages，回一个可控的 SSE 流；Gemini 用替换的 globalThis.fetch。
  * 运行：node --test tests/workers/ai/ai.test.mjs
  */
 import { test, beforeEach } from 'node:test';
@@ -14,6 +15,8 @@ const R = await import(W + 'core/recall.js');
 const P = await import(W + 'core/prompt.js');
 const T = await import(W + 'core/think.js');
 const ASK = await import(W + 'api/ask.js');
+const M = await import(W + 'core/models.js');
+const G = await import(W + 'core/gemini.js');
 
 const IX = {
   space: { items: [
@@ -76,7 +79,7 @@ async function events(res) {
   });
 }
 
-beforeEach(() => R._resetCache());
+beforeEach(() => { R._resetCache(); M._resetModelsCache(); });
 
 /* ---------- 召回 ---------- */
 
@@ -100,6 +103,39 @@ test('rank.js 拷自 search-index：逻辑一致（只改了文件头）', () =>
   const strip = (s) => s.replace(/^\/\*\*[\s\S]*?\*\/\n/, '');
   assert.equal(strip(readFileSync(new URL(W + 'core/rank.js', import.meta.url), 'utf8')),
     strip(readFileSync(new URL('../../../workers/search-index/src/rank.js', import.meta.url), 'utf8')));
+});
+
+/* rank.js 的分词和打分（同 tests/workers/search-index/search.test.mjs；search-index 退役后这里接着测） */
+const K = await import(W + 'core/rank.js');
+const RIX = [
+  { site: 'space', items: [
+    { id: 'a', type: 'setting', lang: 'zh', title: '壁纸和主题', subtitle: '', url: 'https://styrigx.com/settings/theme/' },
+    { id: 'b', type: 'setting', lang: 'zh', title: '主题模式', subtitle: '显示', text: '跟随系统 浅色 深色', url: 'https://styrigx.com/settings/display/' },
+    { id: 'c', type: 'setting', lang: 'zh', title: '账号信息', subtitle: '账号', url: 'https://styrigx.com/account/profile/', private: true },
+    { id: 'd', type: 'setting', lang: 'en', title: 'Theme mode', subtitle: 'Display', url: 'https://styrigx.com/en/settings/display/' },
+  ] },
+  { site: 'blog', items: [{ id: 'p', type: 'post', lang: 'zh', title: 'AI 代理协作开发规范白皮书', subtitle: '', url: 'https://styrigx.com/blog/post/x/' }] },
+];
+
+test('rank.js：分词（中文二元组、英文按词、去重、大小写）', () => {
+  assert.deepEqual(K.tokenize('主题模式'), ['主题', '题模', '模式']);
+  assert.deepEqual(K.tokenize('深'), ['深']);
+  assert.deepEqual(K.tokenize('Theme  MODE theme'), ['theme', 'mode']);
+  assert.deepEqual(K.tokenize('AI 白皮书'), ['ai', '白皮', '皮书']);
+  assert.deepEqual(K.tokenize('  ，。 '), []);
+});
+
+test('rank.js：打分与排序、语言过滤、私密只给 showPrivate、跨站与 site 过滤', () => {
+  const toks = K.tokenize('主题');
+  assert.ok(K.score({ title: '主题模式' }, toks, '主题') > K.score({ title: '壁纸', subtitle: '主题' }, toks, '主题'));
+  assert.equal(K.score({ title: '壁纸' }, toks, '主题'), 0);
+  assert.deepEqual(K.search(RIX, { q: '主题', lang: 'zh' }).map((h) => h.title), ['主题模式', '壁纸和主题']);
+  assert.deepEqual(K.search(RIX, { q: 'theme', lang: 'en' }).map((h) => h.title), ['Theme mode']);
+  assert.deepEqual(K.search(RIX, { q: '深色', lang: 'zh' }).map((h) => h.title), ['主题模式']);
+  assert.equal(K.search(RIX, { q: '账号', lang: 'zh' }).length, 0);
+  assert.equal(K.search(RIX, { q: '账号', lang: 'zh', showPrivate: true }).length, 1);
+  assert.equal(K.search(RIX, { q: '白皮书' })[0].site, 'blog');
+  assert.equal(K.search(RIX, { q: '白皮书', site: 'space' }).length, 0);
 });
 
 /* ---------- /ask ---------- */
@@ -138,7 +174,7 @@ test('/ask：有账号会话 → 私密条目进来源和上下文；scope priva
 
 test('/ask：SSE 顺序 hits → delta… → done；模型参数；上下文只有召回到的条目', async () => {
   const ai = fakeAI([sse({ response: '主题' }), sse({ response: '在设置里。' }), sse({ choices: [{ delta: { content: '!' } }] }), 'data: [DONE]\n\n']);
-  const res = await ask({ q: '主题', lang: 'zh' }, {}, { AI: ai, AI_MODEL: '@cf/test/m', AI_MAX_TOKENS: '300', AI_CONTEXT_HITS: '1' });
+  const res = await ask({ q: '主题', lang: 'zh' }, {}, { AI: ai, AI_MODELS: JSON.stringify({ default: '@cf/test/m', models: [{ id: '@cf/test/m' }] }), AI_MAX_TOKENS: '300', AI_CONTEXT_HITS: '1' });
   assert.equal(res.headers.get('Content-Type'), 'text/event-stream; charset=utf-8');
   assert.match(res.headers.get('Cache-Control'), /no-store/);
   const ev = await events(res);
@@ -152,7 +188,8 @@ test('/ask：SSE 顺序 hits → delta… → done；模型参数；上下文只
   assert.match(input.messages[0].content, /\[1\] 主题模式/);
   assert.doesNotMatch(input.messages[0].content, /\[2\]/);
   assert.equal(input.messages.at(-1).role, 'user');
-  assert.match(input.messages.at(-1).content, /^主题/);
+  assert.equal(input.messages.at(-1).content, '主题');
+  assert.equal(res.headers.get('X-Styrigx-AI-Model'), '@cf/test/m');
 });
 
 test('/ask：上游出错 → 已发 hits 后 event: error，不发 done', async () => {
@@ -255,9 +292,9 @@ test('/healthz：有 AI 且有索引 200；缺 AI / 一个索引都没有 503；
   assert.equal(r.status, 503);
 });
 
-test('路由：只有 POST /ask、GET /healthz；没有 /search；方法不对 405', async () => {
+test('路由：只有 POST /ask、GET /models、GET /healthz；没有 /search；方法不对 405', async () => {
   const { ROUTES } = await import(W + 'router.js');
-  assert.deepEqual([...ROUTES.keys()].sort(), ['/ask', '/healthz']);
+  assert.deepEqual([...ROUTES.keys()].sort(), ['/ask', '/healthz', '/models']);
   for (const p of ['/search', '/', '/api/ai', '/ask/x']) {
     const r = await app.fetch(new Request('https://styrigx-ai' + p), { AI: fakeAI([]), KV_SEARCH_INDEX: KV });
     assert.equal(r.status, 404, p);
@@ -266,16 +303,22 @@ test('路由：只有 POST /ask、GET /healthz；没有 /search；方法不对 4
   assert.equal((await app.fetch(new Request('https://styrigx-ai/healthz', { method: 'POST' }), {})).status, 405);
 });
 
-test('wrangler.toml：没有公开地址、绑定 AI 和只读索引、三个变量；入口只再导出', () => {
+test('wrangler.toml：没有公开地址、绑定 AI、只读索引、外部模型钥匙（复用 SGX_CHAT_API_KEY）、三个变量；没有千问；入口只再导出', () => {
   const toml = readFileSync(new URL('../../../workers/ai/wrangler.toml', import.meta.url), 'utf8').replace(/^#.*$/gm, '');
   assert.match(toml, /^name = "styrigx-ai"$/m);
   assert.match(toml, /^main = "src\/index\.js"$/m);
   assert.match(toml, /^workers_dev = false$/m);
   assert.match(toml, /^preview_urls = false$/m);
-  assert.doesNotMatch(toml, /\[\[routes\]\]|^route\s*=|d1_databases|r2_buckets|secrets_store/m);
+  assert.doesNotMatch(toml, /\[\[routes\]\]|^route\s*=|d1_databases|r2_buckets/m);
+  assert.match(toml, /\[\[secrets_store_secrets\]\]\s*\nbinding = "SGX_CHAT_API_KEY"\s*\nstore_id = "a5a984f365424401bad5ad6ddcd44479"\s*\nsecret_name = "SGX_CHAT_API_KEY"/);
+  assert.equal((toml.match(/\[\[secrets_store_secrets\]\]/g) || []).length, 1);
+  assert.doesNotMatch(toml, /qwen/i);
+  const reg = M.parseModels(/^AI_MODELS = '(.+)'$/m.exec(toml)[1]);
+  assert.equal(reg.def, '@cf/google/gemma-4-26b-a4b-it');
+  assert.deepEqual(reg.models.map((m) => [m.id, m.provider]), [['@cf/google/gemma-4-26b-a4b-it', 'workers-ai'], ['@cf/openai/gpt-oss-20b', 'workers-ai'], ['gemini-2.5-flash', 'gemini']]);
   assert.match(toml, /\[ai\]\s*\nbinding = "AI"/);
   assert.match(toml, /binding = "KV_SEARCH_INDEX"\s*\nid = "bd1babcc3fe74d58994e254c74d34ced"/);
-  for (const v of ['AI_MODEL', 'AI_MAX_TOKENS = "512"', 'AI_CONTEXT_HITS = "5"']) assert.ok(toml.includes(v), v);
+  for (const v of ['AI_MODELS', 'AI_MAX_TOKENS = "512"', 'AI_CONTEXT_HITS = "5"']) assert.ok(toml.includes(v), v);
   const idx = readFileSync(new URL(W + 'index.js', import.meta.url), 'utf8');
   assert.match(idx, /export \{ default \} from '\.\/app\.js';/);
 });
@@ -288,4 +331,118 @@ test('check-worker-routes：styrigx-ai 登记为没有公开地址的 Worker，�
   const bad = toml + '\n[[routes]]\npattern = "styrigx.com/api/ai"\nzone_name = "styrigx.com"\n';
   assert.equal(checkNoRoutes([{ name: 'styrigx-ai', toml: bad }]).length, 1);
   assert.equal(checkNoRoutes([{ name: 'styrigx-ai', toml: toml.replace('workers_dev = false', 'workers_dev = true') }]).length, 1);
+});
+
+/* ---------- P4-2：模型登记、切换、外部模型 ---------- */
+
+const REG = { default: '@cf/a/one', models: [{ id: '@cf/a/one', label: 'One' }, { id: '@cf/b/two', label: 'Two', provider: 'workers-ai' }, { id: 'gemini-x', label: 'G', provider: 'gemini' }] };
+
+test('模型登记：KV ai:models 优先，坏的退 vars，再退内置（Gemma 4 默认 + GPT-OSS 20B）；坏条目跳过', async () => {
+  let reg = await M.loadModels({ KV_SEARCH_INDEX: kvOf({ 'ai:models': JSON.stringify(REG) }), AI_MODELS: JSON.stringify({ models: [{ id: '@cf/v/v' }] }) });
+  assert.equal(reg.def, '@cf/a/one');
+  assert.deepEqual(reg.models.map((m) => m.provider), ['workers-ai', 'workers-ai', 'gemini']);
+  M._resetModelsCache();
+  reg = await M.loadModels({ KV_SEARCH_INDEX: kvOf({ 'ai:models': '{' }), AI_MODELS: JSON.stringify({ models: [{ id: '@cf/v/v' }] }) });
+  assert.deepEqual([reg.def, reg.models.length], ['@cf/v/v', 1]);
+  M._resetModelsCache();
+  reg = await M.loadModels({ KV_SEARCH_INDEX: { async get() { throw new Error('kv'); } } });
+  assert.equal(reg.def, '@cf/google/gemma-4-26b-a4b-it');
+  assert.deepEqual(reg.models.map((m) => m.id), ['@cf/google/gemma-4-26b-a4b-it', '@cf/openai/gpt-oss-20b']);
+  /* 坏条目：非 @cf/ 的 workers-ai、未知 provider、非法字符、重复；default 不在列表 → 第一条 */
+  const p = M.parseModels({ default: 'nope', models: [{ id: 'plain', provider: 'workers-ai' }, { id: '@cf/x', provider: 'other' }, { id: 'a b' }, { id: '@cf/ok' }, { id: '@cf/ok' }] });
+  assert.deepEqual([p.def, p.models.map((m) => m.id)], ['@cf/ok', ['@cf/ok']]);
+  assert.equal(M.parseModels({ models: [] }), null);
+});
+
+test('切模型：只有账号会话的 model 生效；进站一律默认；不在登记里 → 400 bad_model', async () => {
+  const env = (ai) => ({ AI: ai, KV_SEARCH_INDEX: kvOf({ 'site:space': JSON.stringify(IX.space), 'ai:models': JSON.stringify(REG) }) });
+  let ai = fakeAI([sse({ response: 'x' })]);
+  let r = await ask({ q: '主题', model: '@cf/b/two' }, {}, env(ai));
+  await r.text();
+  assert.equal(ai.calls[0].model, '@cf/a/one');
+  M._resetModelsCache();
+  ai = fakeAI([sse({ response: 'x' })]);
+  r = await ask({ q: '主题', model: '@cf/b/two' }, { 'X-Styrigx-Account-Session': '1' }, env(ai));
+  await r.text();
+  assert.equal(ai.calls[0].model, '@cf/b/two');
+  assert.equal(r.headers.get('X-Styrigx-AI-Model'), '@cf/b/two');
+  M._resetModelsCache();
+  ai = fakeAI([]);
+  for (const bad of ['@cf/evil', 3]) {
+    r = await ask({ q: '主题', model: bad }, { 'X-Styrigx-Account-Session': '1' }, env(ai));
+    assert.equal(r.status, 400);
+    assert.equal((await r.json()).error, 'bad_model');
+  }
+  /* 进站带了坏 model：忽略，不报错 */
+  r = await ask({ q: '主题', model: '@cf/evil' }, {}, env(fakeAI([sse({ response: 'x' })])));
+  assert.equal(r.status, 200);
+  await r.text();
+  assert.equal(ai.calls.length, 0);
+});
+
+test('/models：列表 + 默认 + canChoose 跟账号结论头；不调模型、不读钥匙', async () => {
+  const key = { get() { throw new Error('不该读钥匙'); } };
+  const env = { KV_SEARCH_INDEX: kvOf({ 'ai:models': JSON.stringify(REG) }), SGX_CHAT_API_KEY: key, AI: fakeAI([]) };
+  let r = await app.fetch(new Request('https://styrigx-ai/models'), env);
+  let b = await r.json();
+  assert.equal(r.status, 200);
+  assert.deepEqual([b.default, b.models.map((m) => m.id), b.canChoose], ['@cf/a/one', ['@cf/a/one', '@cf/b/two', 'gemini-x'], false]);
+  r = await app.fetch(new Request('https://styrigx-ai/models', { headers: { 'X-Styrigx-Account-Session': '1' } }), env);
+  b = await r.json();
+  assert.equal(b.canChoose, true);
+  assert.equal(env.AI.calls.length, 0);
+  assert.equal(JSON.stringify(b).includes('key'), false);
+});
+
+function withFetch(impl, fn) {
+  const orig = globalThis.fetch;
+  globalThis.fetch = impl;
+  return fn().finally(() => { globalThis.fetch = orig; });
+}
+const gEnv = (o = {}) => ({ KV_SEARCH_INDEX: kvOf({ 'site:space': JSON.stringify(IX.space), 'ai:models': JSON.stringify({ default: 'gemini-x', models: [{ id: 'gemini-x', provider: 'gemini' }] }) }), ...o });
+
+test('外部模型（Gemini）：钥匙走头不进 URL；系统提示 + 上下文进 systemInstruction；thought 跳过；SSE 同格式', async () => {
+  const seen = [];
+  await withFetch(async (url, init) => {
+    seen.push({ url: String(url), init });
+    const body = sse({ candidates: [{ content: { parts: [{ text: '想', thought: true }, { text: '主题' }] } }] }) + sse({ candidates: [{ content: { parts: [{ text: '在设置里' }] } }] });
+    return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+  }, async () => {
+    const res = await ask({ q: '主题', history: [{ role: 'user', text: '早' }, { role: 'assistant', text: '好' }] }, {}, gEnv({ SGX_CHAT_API_KEY: { async get() { return ' K123 '; } } }));
+    const ev = await events(res);
+    assert.deepEqual(ev.map((e) => e.event), ['hits', 'delta', 'delta', 'done']);
+    assert.equal(ev.slice(1, 3).map((e) => e.data.text).join(''), '主题在设置里');
+  });
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-x:streamGenerateContent?alt=sse');
+  assert.equal(seen[0].init.headers['x-goog-api-key'], 'K123');
+  assert.doesNotMatch(seen[0].url, /K123/);
+  const body = JSON.parse(seen[0].init.body);
+  assert.match(body.systemInstruction.parts[0].text, /站内内容：[\s\S]*\[1\] 主题模式/);
+  assert.deepEqual(body.contents.map((c) => c.role), ['user', 'model', 'user']);
+  assert.equal(body.contents.at(-1).parts[0].text, '主题');
+  assert.equal(body.tools, undefined);
+  assert.equal(body.generationConfig.maxOutputTokens, 512);
+});
+
+test('外部模型：钥匙没绑 / 读不到 → 503 no_key（不调上游）；上游 404 → error model_unavailable，429 → rate_limited', async () => {
+  let calls = 0;
+  await withFetch(async () => { calls++; return new Response('{}', { status: 200 }); }, async () => {
+    let r = await ask({ q: '主题' }, {}, gEnv());
+    assert.deepEqual([r.status, (await r.json()).error], [503, 'no_key']);
+    M._resetModelsCache();
+    r = await ask({ q: '主题' }, {}, gEnv({ SGX_CHAT_API_KEY: { async get() { throw new Error('x'); } } }));
+    assert.deepEqual([r.status, (await r.json()).error], [503, 'no_key']);
+  });
+  assert.equal(calls, 0);
+  for (const [status, code] of [[404, 'model_unavailable'], [429, 'rate_limited'], [500, 'upstream']]) {
+    M._resetModelsCache();
+    await withFetch(async () => new Response('{"error":{}}', { status }), async () => {
+      const ev = await events(await ask({ q: '主题' }, {}, gEnv({ SGX_CHAT_API_KEY: 'k' })));
+      assert.deepEqual(ev.map((e) => e.event), ['hits', 'error']);
+      assert.equal(ev[1].data.code, code);
+    });
+  }
+  assert.equal(G.classifyUpstream(400, 'model not found'), 'model_unavailable');
+  assert.deepEqual(G.geminiChunk({ error: { status: 'RESOURCE_EXHAUSTED' } }), { text: '', error: 'rate_limited' });
 });
