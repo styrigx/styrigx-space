@@ -11,7 +11,8 @@
  *   event: done   data: {}
  *   出错时（已经开始流以后）：event: error data: { code: 'upstream' }，然后关流（不再发 done）。
  *   响应头 X-Styrigx-AI-Scope: private | public（这次召回用了哪一档；前端只用来显示，方案 5.5）。
- *   召回为空 → 不调模型，hits 空 + 一段固定 delta（站内没有找到相关内容）+ done。
+ *   召回为空也调模型：hits 空，上下文写明没有相关条目，由模型回应（打招呼照常答，站内问题说没找到）。
+ *   2026-11-05 前召回为空直接回固定句不调模型，连「你好」都答不了，已去掉。
  *   外部模型出错时 code 也可能是 rate_limited / model_unavailable（Gemini 429 / 404 等）。
  * 错误（还没开始流）：405 method · 400 bad_request / too-long / bad_model · 413 too-large ·
  *   503 config（选中自营模型但没绑 AI）/ no_key（选中外部模型但钥匙没绑 / 读不到）/ index（索引读不了）。
@@ -20,7 +21,7 @@
  * 不存对话、不写 KV。
  */
 import { loadIndexes, recall, publicHits } from '../core/recall.js';
-import { buildMessages, Q_MAX, NOTHING_FOUND } from '../core/prompt.js';
+import { buildMessages, Q_MAX } from '../core/prompt.js';
 import { thinkFilter } from '../core/think.js';
 import { loadModels, pickModel } from '../core/models.js';
 import { readKey, hasKeyBinding, geminiRequest, geminiChunk, classifyUpstream, errText, UPSTREAM_TIMEOUT_MS } from '../core/gemini.js';
@@ -123,11 +124,6 @@ export async function onRequestPost(request, env) {
       const send = (/** @type {string} */ ev, /** @type {any} */ data) => { if (!closed) controller.enqueue(sseEvent(ev, data)); };
       try {
         send('hits', { hits: publicHits(hits) });
-        if (!hits.length) {
-          send('delta', { text: NOTHING_FOUND[a.lang] });
-          send('done', {});
-          return;
-        }
         const messages = buildMessages({ q: a.q, lang: a.lang, history: a.history, hits });
         const filter = thinkFilter();
         if (model.provider === 'gemini') {

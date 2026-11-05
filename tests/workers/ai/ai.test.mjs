@@ -102,6 +102,35 @@ test('召回两档：没账号会话不出私密条目；有账号会话才出�
   assert.deepEqual(Object.keys(R.publicHits(priv)[0]).sort(), ['site', 'subtitle', 'title', 'type', 'url']);
 });
 
+test('recall：自然语言问句——不要求每个词都中、问法词不算、问句语言没有就放开语言', () => {
+  const ix = [
+    { site: 'space', items: [
+      { type: 'setting', lang: 'zh', title: '锁屏凭证', subtitle: '安全', url: '/settings/security/lock/', text: '解锁密码 通行密钥' },
+      { type: 'setting', lang: 'en', title: 'Lock screen credentials', subtitle: 'Security', url: '/en/settings/security/lock/' },
+    ] },
+    { site: 'blog', items: [
+      { type: 'page', lang: 'zh', title: '博客', url: '/blog/' },
+      { type: 'post', lang: 'zh', title: '博客迁移复盘', url: '/blog/post/m/', text: '这篇文章讲迁移' },
+      { type: 'post', lang: 'zh', title: '怎么写什么都行', url: '/blog/post/noise/' },
+    ] },
+  ];
+  /* 2026-11-05 冒烟：这三句旧逻辑（全词命中）一条都召不回 */
+  assert.deepEqual(R.recall(ix, { q: '博客有什么文章', lang: 'zh' }).map((h) => h.url), ['/blog/', '/blog/post/m/']);
+  assert.equal(R.recall(ix, { q: '锁屏怎么开', lang: 'zh' })[0].url, '/settings/security/lock/');
+  assert.deepEqual(R.recall(ix, { q: '你好，请用一句话介绍你自己', lang: 'zh' }), [], '只有问法词 → 空');
+  assert.deepEqual(R.recall(ix, { q: '怎么', lang: 'zh' }), [], '问法词不召回「怎么写什么都行」');
+  /* 英文页面问中文：en 条目里没有 → 放开语言 */
+  assert.equal(R.recall(ix, { q: '锁屏怎么开', lang: 'en' })[0].url, '/settings/security/lock/');
+  assert.equal(R.recall(ix, { q: 'how do I turn on the lock screen', lang: 'en' })[0].url, '/en/settings/security/lock/');
+});
+
+test('prompt：召回为空时上下文写明没有相关条目，允许正常回应打招呼', () => {
+  const zh = P.buildMessages({ q: '你好', lang: 'zh', hits: [] })[0].content;
+  assert.match(zh, /没有找到相关条目/);
+  assert.match(zh, /打招呼/);
+  assert.match(P.buildMessages({ q: 'hi', lang: 'en', hits: [] })[0].content, /No matching site content/);
+});
+
 test('rank.js 拷自 search-index：逻辑一致（只改了文件头）', () => {
   const strip = (s) => s.replace(/^\/\*\*[\s\S]*?\*\/\n/, '');
   assert.equal(strip(readFileSync(new URL(W + 'core/rank.js', import.meta.url), 'utf8')),
@@ -150,10 +179,11 @@ test('/ask：没账号会话 → 私密条目不进来源、不进上下文；sc
   assert.equal(res.headers.get('X-Styrigx-AI-Scope'), 'public');
   const ev = await events(res);
   assert.deepEqual(ev[0], { event: 'hits', data: { hits: [] } });
-  assert.equal(ai.calls.length, 0, '召回为空不调模型');
+  assert.equal(ai.calls.length, 1, '召回为空也调模型');
+  assert.match(ai.calls[0].input.messages[0].content, /没有找到相关条目/);
   assert.deepEqual(ev.map((e) => e.event), ['hits', 'delta', 'done']);
-  assert.equal(ev[1].data.text, P.NOTHING_FOUND.zh);
   assert.ok(!JSON.stringify(ev).includes('保险箱'));
+  assert.ok(!ai.calls[0].input.messages[0].content.includes('保险箱'), '私密正文不进上下文');
 });
 
 test('/ask：浏览器伪造别的值的账号头不算；只有网关写的 1 才进私密', async () => {
