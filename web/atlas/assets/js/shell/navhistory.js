@@ -1,29 +1,18 @@
 /**
- * @fileoverview 全站搜索快捷键（Ctrl+K → 原地搜索层）+ 返回历史逻辑（旧 sgx-base-a.js 上半）。
+ * @fileoverview 返回历史逻辑（旧 sgx-base-a.js 上半；P4-2 起 Ctrl+K 原地搜索层随搜索层删除）。
  * 2026-10-20：顶栏 ‹ 返回按钮已删除（网站始终跑在浏览器里，用浏览器 / 系统返回），
  * 只为 ‹ 服务的上一级表（parentOf）、一级 App 回主页、头像来源页回跳（#142）随之删除；
  * 保留系统返回需要的「直接打开子页插入一条主页历史」和 healRoot()（桌面版 / 移动版切换修复）。
  */
 import { on } from '../lib/events.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
-import { openSearch } from './search-host.js';
 
 /**
- * 初始化：Cmd/Ctrl+K 打开原地搜索层；系统返回的历史管理。
+ * 初始化：系统返回的历史管理。
  */
 export function initNavHistory() {
   const en = document.documentElement.lang === 'en';
   const home = en ? '/en/' : '/';
-
-  /* Cmd/Ctrl+K → 原地搜索层（按键也是用户手势，可同步聚焦） */
-  on(document, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-      const t = /** @type {HTMLElement|null} */ (e.target);
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      e.preventDefault();
-      openSearch({});
-    }
-  });
 
   /* 直接打开 App 页：最多插入一次主页历史，保证系统返回一次回到主页。 */
   (function () {

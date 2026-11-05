@@ -8125,150 +8125,6 @@
     background-color: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
   .st-btn:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
   .st-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-  .chat-empty-ic { width: 56px; height: 56px; margin-bottom: 6px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center;
-    background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
-  /* ===== 聊天页（/chat/，2026-10-22；layouts/_default/chat.html + apps/chat.js + lib/chat-view.js）=====
-     空状态卡（同状态页 .st-msg）→ 消息列表（用户 = 右侧主色容器气泡；回答 = 左侧内容卡片材质，安全 Markdown + 来源 chip）→
-     底部悬浮输入栏（毛玻璃胶囊，z 41 = 底部胶囊层：盖住正文和底部渐隐带，低于搜索层 44 / 快捷面板 45 / 顶栏 50）。
-     正文底部给输入栏留位（2026-10-22 起聊天页没有页脚），滚到底不被压住。 */
-  .chat-wrap { display: flex; flex-direction: column; gap: 12px; padding-bottom: 16px; }
-  .chat-wrap [hidden], .chat-composer [hidden] { display: none; }
-  body:has(#chat-composer) main { padding-bottom: calc(24px + 84px + env(safe-area-inset-bottom, 0px)); }
-  .chat-examples { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; max-width: 340px; margin-top: 12px; }
-  .chat-ex { min-height: 40px; padding: 8px 16px; border: 1px solid var(--m-outline); border-radius: 999px; background-color: transparent;
-    color: var(--sgx-text-primary); font-size: 14px; line-height: 1.4; cursor: pointer; overflow-wrap: anywhere; }
-  .chat-ex:active { background-color: var(--sgx-state-pressed-bg); }
-  @media (hover: hover) and (pointer: fine) { .chat-ex:hover { background-color: var(--sgx-surface-container-high); } }
-  .chat-ex:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-  .chat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
-  .chat-list:empty { display: none; }
-  .chat-msg { min-width: 0; }
-  .chat-msg[data-role="user"] { align-self: flex-end; max-width: 85%; }
-  .chat-bubble { padding: 10px 14px; border-radius: 20px 20px 6px 20px; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere;
-    background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
-  .chat-msg[data-role="model"] { align-self: stretch; padding: 12px 16px 14px; border: 1px solid var(--m-outline); border-radius: 20px 20px 20px 6px;
-    background-color: var(--sgx-mat); color: var(--sgx-text-primary); }
-  .chat-md { font-size: 15px; line-height: 1.65; overflow-wrap: anywhere; }
-  .chat-md > * + * { margin-top: .6em; }
-  .chat-md p, .chat-md ul, .chat-md ol, .chat-md pre, .chat-md blockquote { margin-bottom: 0; }
-  .chat-md .chat-h { font-weight: 700; }
-  .chat-md ul, .chat-md ol { padding-left: 1.35em; }
-  .chat-md ul { list-style: disc; }
-  .chat-md ol { list-style: decimal; }
-  .chat-md li + li { margin-top: .25em; }
-  .chat-md strong { font-weight: 700; }
-  .chat-md a { color: var(--sgx-primary); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
-  .chat-md code { padding: 1px 5px; border-radius: 6px; font-size: .88em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    background-color: var(--sgx-surface-container-high); }
-  .chat-md pre { padding: 10px 12px; border-radius: 12px; overflow-x: auto; font-size: 13px; line-height: 1.5; background-color: var(--sgx-surface-container-high); }
-  .chat-md pre code { padding: 0; border-radius: 0; font-size: inherit; background: none; white-space: pre; }
-  .chat-md blockquote { padding-left: 10px; border-left: 3px solid var(--sgx-divider); color: var(--sgx-text-secondary); }
-  .chat-md hr { border: 0; border-top: 1px solid var(--sgx-divider); }
-  .chat-typing { display: inline-flex; gap: 5px; padding: 6px 0; }
-  .chat-typing span { width: 7px; height: 7px; border-radius: 999px; background-color: var(--sgx-text-tertiary); animation: chat-dot 1s ease-in-out infinite alternate; }
-  .chat-typing span:nth-child(2) { animation-delay: .2s; }
-  .chat-typing span:nth-child(3) { animation-delay: .4s; }
-  @keyframes chat-dot { from { opacity: .3; transform: translateY(1px); } to { opacity: 1; transform: translateY(-2px); } }
-  .reduced-motion .chat-typing span { animation: none; }
-  @media (prefers-reduced-motion: reduce) { .chat-typing span { animation: none; } }
-  .chat-note { margin: 6px 0 0; font-size: 12px; color: var(--sgx-text-tertiary); }
-  .chat-srcs { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; padding: 0; }
-  .chat-srcs li { max-width: 100%; min-width: 0; }
-  .chat-src { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 10px; border-radius: 999px; box-sizing: border-box;
-    font-size: 12px; line-height: 1; text-decoration: none; white-space: nowrap; background-color: var(--sgx-surface-container-high); color: var(--sgx-text-secondary); }
-  .chat-src-host { flex-shrink: 0; font-weight: 600; color: var(--sgx-text-primary); }
-  .chat-src-title { min-width: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
-  @media (hover: hover) and (pointer: fine) { .chat-src:hover { background-color: var(--sgx-surface-container-highest); } }
-  .chat-src:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-  .chat-err { align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 10px 16px; border-radius: 16px;
-    font-size: 14px; line-height: 1.45; background-color: var(--sgx-danger-container); color: var(--sgx-on-danger-container); }
-  .chat-err[data-code="rate_limited"] { background-color: var(--m-warm-container); color: var(--m-on-warm-container); }
-  .chat-err[data-code="no_key"], .chat-err[data-code="bad_request"] { background-color: var(--sgx-surface-container-high); color: var(--sgx-text-primary); }
-  .chat-err-txt { margin: 0; min-width: 0; }
-  .chat-err-btn { flex-shrink: 0; height: 32px; padding: 0 14px; border: 0; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer;
-    background-color: var(--sgx-danger); color: var(--sgx-on-danger); }
-  .chat-err-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-  /* 底部输入栏 */
-  .chat-composer { position: fixed; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 41;
-    width: min(760px, var(--sgx-shell-w)); margin: 0 auto; transition: transform .2s ease; }
-  .reduced-motion .chat-composer { transition: none; }
-  /* 材质 = 顶栏 / 底部搜索栏同一套（--sgx-mat + 毛玻璃；不支持 backdrop-filter 退回不透明 --sgx-mat-solid） */
-  .chat-bar { display: flex; align-items: flex-end; gap: 4px; padding: 5px; border-radius: 27px; box-sizing: border-box;
-    background: var(--sgx-mat); border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow);
-    -webkit-backdrop-filter: var(--sgx-mat-filter); backdrop-filter: var(--sgx-mat-filter); }
-  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .chat-bar { background: var(--sgx-mat-solid); } }
-  .chat-input { flex: 1 1 auto; min-width: 0; height: 44px; min-height: 44px; max-height: 160px; margin: 0; padding: 11px 4px; border: 0; outline: 0; resize: none;
-    background: transparent; color: var(--sgx-text-primary); font: inherit; font-size: 16px; line-height: 22px; overflow-y: auto; box-sizing: border-box; }
-  .chat-input::placeholder { color: var(--sgx-text-tertiary); }
-  .chat-input:disabled { opacity: .6; }
-  .chat-ib { flex-shrink: 0; width: 44px; height: 44px; border: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
-    background-color: transparent; color: var(--sgx-text-secondary); -webkit-tap-highlight-color: transparent; }
-  .chat-ib:disabled { opacity: .38; cursor: default; }
-  .chat-ib:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-  @media (hover: hover) and (pointer: fine) { .chat-ib:not(.chat-send):not(:disabled):hover { background-color: var(--sgx-surface-container-high); } }
-  .chat-send { background-color: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
-  .chat-send:disabled { opacity: 1; background-color: var(--sgx-surface-container-high); color: var(--sgx-text-tertiary); }
-  .chat-send:not(:disabled):active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
-  .chat-send .chat-ic-stop, .chat-send[data-mode="stop"] .chat-ic-send { display: none; }
-  .chat-send[data-mode="stop"] .chat-ic-stop { display: block; }
-  /* 模型切换（2026-10-22）：输入栏上方左边的小药丸（材质同输入栏）+ 模型面板 #chat-ms。
-     面板 = 模态 <dialog>（顶层，盖住顶栏和输入栏），::backdrop = --sgx-scrim；开合 is-open 由 shell/modal-sheet.js 加（240ms）。
-     手机（layout-mobile）：底部面板，上圆角 28px、底部留安全区，最宽 640px 居中；宽屏：360px 浮层贴在药丸上方（--chat-ms-left / --chat-ms-bottom 由 JS 量），遮罩透明。
-     行：四角星 · 名字 17px · 紧跟的小药丸（联网 = primary-container，不联网 = 描边灰）· 最右对勾；行高 60px。 */
-  body:has(#chat-model:not([hidden])) main { padding-bottom: calc(24px + 124px + env(safe-area-inset-bottom, 0px)); }
-  .chat-tools { display: flex; align-items: center; min-width: 0; }
-  .chat-model-btn { display: inline-flex; align-items: center; gap: 6px; max-width: 75%; height: 32px; margin: 0 0 8px; padding: 0 10px 0 9px; box-sizing: border-box;
-    border-radius: 999px; font: inherit; font-size: 13px; font-weight: 600; line-height: 1; cursor: pointer; color: var(--sgx-text-primary);
-    background: var(--sgx-mat); border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow);
-    -webkit-backdrop-filter: var(--sgx-mat-filter); backdrop-filter: var(--sgx-mat-filter); -webkit-tap-highlight-color: transparent; }
-  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .chat-model-btn { background: var(--sgx-mat-solid); } }
-  .chat-model-btn:disabled { opacity: .6; cursor: default; }
-  .chat-model-btn:not(:disabled):active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
-  @media (hover: hover) and (pointer: fine) { .chat-model-btn:not(:disabled):hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); } }
-  .chat-model-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-  .chat-model-ic { display: inline-flex; flex-shrink: 0; color: var(--sgx-primary); }
-  .chat-model-lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chat-model-chev { flex-shrink: 0; color: var(--sgx-text-secondary); transition: transform .2s ease; }
-  .chat-model-btn[aria-expanded="true"] .chat-model-chev { transform: rotate(180deg); }
-  .chat-ms { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0;
-    background: transparent; overflow: hidden; color: var(--sgx-text-primary); }
-  .chat-ms::backdrop { background: transparent; transition: background-color .24s ease; }
-  .chat-ms.is-open::backdrop { background: var(--sgx-scrim); }
-  .chat-ms-sheet { position: absolute; left: 0; right: 0; bottom: 0; max-width: 640px; margin: 0 auto; box-sizing: border-box;
-    max-height: calc(100% - 56px - env(safe-area-inset-top, 0px)); overflow-y: auto; overscroll-behavior: contain;
-    padding: 8px 8px calc(12px + env(safe-area-inset-bottom, 0px)); border-radius: 28px 28px 0 0;
-    background: var(--sgx-sheet); box-shadow: var(--sgx-qp-shadow);
-    transform: translateY(calc(100% + 24px)); transition: transform .24s cubic-bezier(.2,0,0,1); }
-  .chat-ms.is-open .chat-ms-sheet { transform: none; }
-  html:not(.layout-mobile) .chat-ms.is-open::backdrop { background: transparent; }
-  html:not(.layout-mobile) .chat-ms-sheet { left: var(--chat-ms-left, 16px); right: auto; bottom: var(--chat-ms-bottom, 96px); width: 360px; max-width: calc(100vw - 16px);
-    max-height: calc(100% - var(--chat-ms-bottom, 96px) - 16px); margin: 0; padding: 6px 6px 8px; border-radius: 24px; border: 1px solid var(--sgx-mat-line);
-    opacity: 0; transform: translateY(8px) scale(.98); transform-origin: bottom left; transition: transform .24s cubic-bezier(.2,0,0,1), opacity .2s ease; }
-  html:not(.layout-mobile) .chat-ms.is-open .chat-ms-sheet { opacity: 1; transform: none; }
-  .reduced-motion .chat-ms-sheet, .reduced-motion .chat-ms::backdrop, .reduced-motion .chat-model-chev { transition: none; }
-  @media (prefers-reduced-motion: reduce) { .chat-ms-sheet, .chat-ms::backdrop, .chat-model-chev { transition: none; } }
-  .chat-ms-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 0 2px 4px 16px; }
-  .chat-ms-title { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; }
-  .chat-ms-x { flex-shrink: 0; width: 44px; height: 44px; border: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
-    background: transparent; color: var(--sgx-text-secondary); -webkit-tap-highlight-color: transparent; }
-  @media (hover: hover) and (pointer: fine) { .chat-ms-x:hover { background-color: var(--sgx-surface-container-high); } }
-  .chat-ms-x:active { background-color: var(--sgx-state-pressed-bg); }
-  .chat-ms-x:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-  .chat-ms-list { list-style: none; margin: 0; padding: 0; }
-  .chat-ms-opt { display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 8px 12px 8px 16px; border-radius: 18px; box-sizing: border-box; cursor: pointer;
-    outline: none; -webkit-tap-highlight-color: transparent; }
-  @media (hover: hover) and (pointer: fine) { .chat-ms-opt:hover { background-color: var(--sgx-surface-container-high); } }
-  .chat-ms-opt:active { background-color: var(--sgx-state-pressed-bg); }
-  .chat-ms-opt:focus-visible { box-shadow: inset 0 0 0 2px var(--sgx-focus-ring); }
-  .chat-ms-ic { display: inline-flex; flex-shrink: 0; width: 24px; justify-content: center; color: var(--sgx-primary); }
-  .chat-ms-name { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; }
-  .chat-ms-lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 500; line-height: 1.3; }
-  .chat-ms-badge { flex-shrink: 0; display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; box-sizing: border-box;
-    font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; }
-  .chat-ms-badge[data-web="1"] { background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
-  .chat-ms-badge[data-web="0"] { border: 1px solid var(--sgx-outline-variant); color: var(--sgx-text-tertiary); font-weight: 500; }
-  .chat-ms-check { display: inline-flex; flex-shrink: 0; width: 24px; justify-content: center; color: var(--sgx-primary); }
-  .chat-foot { margin: 10px 0 0; font-size: 12px; line-height: 1.4; color: var(--sgx-text-tertiary); }
   /* 近期故障 */
   .st-inc-wrap { margin-top: 12px; }
   .st-inc-card { overflow: hidden; border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
@@ -8556,11 +8412,9 @@
    放在分层外、用 html.layout-* 选择器：压过共享外壳 :root 的默认 1068。 */
 html.layout-mobile { --sgx-content-max: 640px; }
 html.layout-dex { --sgx-content-max: 1440px; }
-.home-wrap, .set-layout, .acct-layout, .chat-wrap, .sgx-404 { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
+.home-wrap, .set-layout, .acct-layout, .sgx-404 { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
 .set-layout:not(:has(.set-dex-cols)) > *, .acct-layout > * { max-width: 720px; margin-left: auto; margin-right: auto; }
-/* 聊天的外框是竖排 flex：子项横向 auto 外边距会让它缩成内容宽，所以同时给 width:100%（sr-only 标题除外） */
-.chat-wrap > :not(.sr-only) { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; }
-/* 底部搜索栏高度（原地搜索层 --sgx-srch-h 同值；main 底部留白也用） */
+/* 底部停靠栏高度（main 底部留白用；原地搜索层已在 P4-2 删除） */
 :root { --sgx-bottom-dock-h: 56px; }
 /* @shell:begin panel（共享外壳：scripts/gen-shell.mjs 原样抽到 web/shared/shell/shell.css，子站 scripts/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 快捷面板 + AI 窗口（2026-11-04 P5-1，四个站同一套；标记在共享外壳 topbar.html，主站 shell/quick-panel.js、子站共享外壳 topbar.js 开关）：
@@ -8700,83 +8554,6 @@ html.layout-dex { --sgx-content-max: 1440px; }
 .sgx-ai-send:disabled { opacity: .45; cursor: default; }
 .sgx-ai-scope { margin: 0; padding: 0 4px; font-size: 12px; line-height: 1.3; color: var(--sgx-text-secondary); text-align: center; }
 /* @shell:end panel */
-/* @shell:begin search（共享外壳：scripts/gen-shell.mjs 原样抽到 web/shared/shell/shell.css，子站 scripts/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
-/* 原地搜索层（2026-10-22，取代全网搜索页 /search/；JS = shell/search-layer.js → web/shared/shell/search.js，DOM 由它自己建）：
-   点导航抽屉底栏的搜索框 → 抽屉复制件 .sgx-srch-ghost 盖着顶栏原地淡出（顶栏本身不动、不重绘），
-   那条搜索框原地变形成屏幕底部的搜索栏 .sgx-srch-bar（长条药丸「搜索」+ 右边单独的 ✕ 圆，和原 /search/ 页底栏同一套尺寸 / 材质），
-   贴着键盘（--sgx-srch-kb 由 JS 按 VirtualKeyboard / visualViewport 写）；上面是盖住当前页的磨砂结果层 .sgx-srch（顶栏在它上面，正常可点）。
-   z-index：结果层 / 底栏 --sgx-srch-z（44：盖住正文，低于快捷面板 45 和顶栏）；变形那 180ms 底栏压在抽屉复制件（60）上面。
-   < 840px：底栏左右缘对齐外壳框（--sgx-shell-w，手机 = 16px 页边距）；宽屏（≥ 840px）：底栏 560px 居中，结果列最宽 640px 居中。 */
-:root { --sgx-srch-h: 56px; --sgx-srch-z: 44; --sgx-srch-top: calc(var(--sgx-tb-inset) + var(--sgx-tb-btn) + 16px + env(safe-area-inset-top, 0px)); }
-.sgx-srch { position: fixed; inset: 0; z-index: var(--sgx-srch-z); background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter);
-  color: var(--sgx-text-primary); font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; letter-spacing: normal; }
-.sgx-srch-pill, .sgx-srch-close { background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter); border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); }
-@supports (backdrop-filter: blur(1px)) {
-  .sgx-srch, .sgx-srch-pill, .sgx-srch-close { backdrop-filter: var(--sgx-mat-filter); }
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .sgx-srch, .sgx-srch-pill, .sgx-srch-close { background: var(--sgx-mat-solid); }
-}
-.sgx-srch[hidden], .sgx-srch-bar[hidden] { display: none; }
-.sgx-srch-scroll { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-/* min-height 多 1px：内容很短时也能自己滚，滑动不会带动后面的页面 */
-.sgx-srch-page { box-sizing: border-box; min-height: calc(100% + 1px); max-width: 672px; margin: 0 auto;
-  padding: var(--sgx-srch-top) 16px calc(var(--sgx-srch-kb, 0px) + var(--sgx-srch-h) + 28px + env(safe-area-inset-bottom, 0px)); }
-.sgx-srch-bar { position: fixed; left: calc((100% - var(--sgx-shell-w)) / 2); right: calc((100% - var(--sgx-shell-w)) / 2); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); height: var(--sgx-srch-h);
-  z-index: var(--sgx-srch-z); transform: translateY(calc(-1 * var(--sgx-srch-kb, 0px))); font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; }
-.sgx-srch-bar.is-morph { z-index: 61; }
-@media (min-width: 840px) {
-  :root { --sgx-srch-bar-w: min(560px, calc(100vw - 32px)); }
-  .sgx-srch-bar { left: 50%; right: auto; width: var(--sgx-srch-bar-w); margin-left: calc(var(--sgx-srch-bar-w) / -2); }
-}
-.sgx-srch-bar-in { display: flex; align-items: center; gap: 8px; width: 100%; height: 100%; }
-.sgx-srch-pill { flex: 1 1 auto; min-width: 0; height: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px;
-  padding: 0 8px 0 20px; border-radius: 999px; color: var(--sgx-text-primary); }
-.sgx-srch-ic { width: 22px; height: 22px; flex-shrink: 0; color: var(--sgx-text-secondary); }
-.sgx-srch-pill input { flex: 1; min-width: 0; height: 100%; margin: 0; padding: 0; border: 0; outline: none; background: transparent; box-shadow: none;
-  -webkit-appearance: none; appearance: none; font: inherit; font-size: 17px; color: var(--sgx-text-primary); }
-.sgx-srch-pill input::placeholder { color: var(--sgx-text-secondary); opacity: 1; }
-.sgx-srch-pill input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
-.sgx-srch-clear { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border: 0; border-radius: 999px;
-  padding: 0; background: none; color: var(--sgx-text-secondary); cursor: pointer; opacity: .6; }
-.sgx-srch-clear svg { width: 20px; height: 20px; display: block; }
-.sgx-srch-clear[hidden] { display: none; }
-.sgx-srch-close { flex: 0 0 auto; width: var(--sgx-srch-h); height: var(--sgx-srch-h); box-sizing: border-box; padding: 0; display: inline-flex; align-items: center;
-  justify-content: center; border-radius: 999px; cursor: pointer; color: var(--sgx-text-secondary); }
-.sgx-srch-close svg { width: 22px; height: 22px; display: block; }
-.sgx-srch-close:active, .sgx-srch-clear:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
-.sgx-srch-close:focus-visible, .sgx-srch-clear:focus-visible, .sgx-srch-item:focus-visible {
-  outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-/* 结果卡（亮色 72% 的 lowest、暗色 surface-bright，和抽屉里的搜索框同一档：在材质层上亮一档） */
-.sgx-srch-card { margin: 0 0 12px; border-radius: 20px; overflow: hidden; background: color-mix(in srgb, var(--sgx-surface-container-lowest) 72%, transparent);
-  border: 1px solid var(--sgx-mat-line); }
-.dark .sgx-srch-card { background: var(--sgx-surface-bright); }
-.sgx-srch-card-head { font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--sgx-text-secondary); }
-.sgx-srch-card-head { padding: 14px 16px 6px; }
-.sgx-srch-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; box-sizing: border-box; padding: 10px 16px; margin: 0; border: 0;
-  background: none; color: var(--sgx-text-primary); font: inherit; text-align: left; cursor: pointer; }
-@media (hover: hover) and (pointer: fine) {
-  .sgx-srch-item:hover { background: var(--sgx-state-hover-bg); }
-}
-.sgx-srch-item:active, .sgx-srch-item.is-active { background: var(--sgx-state-pressed-bg); }
-.sgx-srch-item > svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--sgx-text-secondary); }
-.sgx-srch-item-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.sgx-srch-item-t { font-size: 15px; font-weight: 500; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sgx-srch-item-d { font-size: 12px; line-height: 1.4; color: var(--sgx-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sgx-srch-hl { color: var(--sgx-primary); background: none; }
-/* 空输入背景（2026-10-22，三星信息搜索页那样）：和底栏同一个放大镜放大 + 「聚合搜索」，始终在内容区（顶栏下沿到底栏上沿，底栏跟着键盘）正中，键盘弹起时逐帧跟着 --sgx-srch-kb 走，不加过渡；纯装饰、不挡点击 */
-.sgx-srch-empty { position: absolute; left: 0; right: 0; top: var(--sgx-srch-top);
-  bottom: calc(var(--sgx-srch-kb, 0px) + var(--sgx-srch-h) + 12px + env(safe-area-inset-bottom, 0px));
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; pointer-events: none;
-  color: var(--sgx-text-secondary); }
-.sgx-srch-empty[hidden] { display: none; }
-.sgx-srch-empty-ic { width: 56px; height: 56px; }
-.sgx-srch-empty-tx { font-size: 17px; font-weight: 500; line-height: 1.4; }
-/* 关：淡出（JS 在 160ms 后把两块 hidden 掉；减弱动效不加 is-closing，直接收） */
-.sgx-srch.is-closing, .sgx-srch-bar.is-closing { opacity: 0; pointer-events: none; transition: opacity .16s ease; }
-/* 抽屉复制件：盖住顶栏，带遮罩，从抽屉当时的样子淡到透明（JS 用 Web Animations 做淡出，完了就删） */
-.sgx-drawer.sgx-srch-ghost { z-index: 60; pointer-events: none; background: var(--sgx-scrim); }
-/* @shell:end search */
 /* 快捷面板「布局」分段（只在主站：tiles.layout，子站不输出；不进共享外壳）：底 = 容器色，选中 = 填充档（前景 1 本色 + 自动 on 色） */
 .sgx-qp-seg { background: var(--sgx-surface-container); }
 .sgx-qp-seg button { font-size: 13px; color: var(--sgx-text-secondary); }
@@ -8836,10 +8613,6 @@ html.layout-dex { --sgx-content-max: 1440px; }
 /* 输入方式（2026-10-23 PR-D；放在文件最后，压过前面同特异性的顶栏标签 / 搜索层 / 快捷面板规则）：悬停样式都放在 @media (hover: hover) and (pointer: fine)（鼠标 / 触控板），触屏不会点完留着悬停色；
    粗指针（pointer: coarse，触屏）下小于 48px 的控件把点击区扩到 ≥ 48px —— 只扩命中区（透明伪元素 / 透明边框），不改布局尺寸和外观。 */
 @media (pointer: coarse) {
-  .sgx-srch-clear, .chat-ib, .chat-ms-x, .chat-model-btn, .chat-err-btn, .chat-ex { position: relative; }
-  .sgx-srch-clear::before, .chat-ib::before, .chat-ms-x::before, .chat-model-btn::before, .chat-err-btn::before, .chat-ex::before {
-    content: ""; position: absolute; top: min(0px, (100% - 48px) / 2); bottom: min(0px, (100% - 48px) / 2);
-    left: min(0px, (100% - 48px) / 2); right: min(0px, (100% - 48px) / 2); }
   /* 顶栏标签：看上去仍是 40px 高的药丸（上下 4px 透明边框 + 底色只铺内边距盒），点击区 48px */
   .sgx-tb-tabs { height: 48px; }
   .sgx-tb-tab { height: 48px; border-top: 4px solid transparent; border-bottom: 4px solid transparent; background-clip: padding-box; }

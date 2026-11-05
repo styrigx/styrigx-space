@@ -82,8 +82,8 @@ test('账号 Worker 正式 / 预览：D1_SETTINGS_SYNC = D1_WELLBEING = D1_ACCOU
   assert.notEqual(pm.D1_WELLBEING, m.D1_WELLBEING);
 });
 
-test('搜索 / 监测：KV_SEARCH_INDEX、D1_UPTIME_MONITOR + D1_CLOUDFLARE_USAGE、SGX_CF_USAGE_TOKEN', () => {
-  const s = read('workers/search-index/wrangler.toml');
+test('搜索 / 监测：KV_SEARCH_INDEX（P4-2b 起只在 ai）、D1_UPTIME_MONITOR + D1_CLOUDFLARE_USAGE、SGX_CF_USAGE_TOKEN', () => {
+  const s = read('workers/ai/wrangler.toml');
   assert.doesNotMatch(s, OLD);
   assert.ok(bindings(s).KV_SEARCH_INDEX);
   const st = read('workers/status/wrangler.toml');

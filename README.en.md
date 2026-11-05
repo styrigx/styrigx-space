@@ -60,8 +60,7 @@ The interface is **Styrigx UI**, built in-house, with version numbers that track
 | App | Path | What it does |
 |---|---|---|
 | Home | `/en/` | Profile card, dual clocks, weather, Daymark's quote of the day, screen time. |
-| Search | Navigation drawer footer | In-place search layer (no page change): on-site results, or hand off to your chosen search engine. |
-| Chat | `/en/chat/` | Web-grounded Q&A (after unlocking, also needs an account sign-in): Gemini 2.5 Flash with Google Search grounding, streamed with sources; the conversation lives only in the current tab. |
+| AI assistant | Top-bar AI button | On-site assistant: recalls from the site-wide index, then a model (self-hosted Gemma 4 / GPT-OSS 20B, or external Gemini) streams the answer with on-site source cards; the conversation stays local. |
 | Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally and synced once you sign in. Also service status (uptime and incidents for the main site, Atlas and Proxy rules) and temporary keys (including share links; creating or revoking one asks for a lock re-verification). |
 | Account | `/en/account/` | Opened from the avatar in the drawer head: account sign-in, cloud sync, devices, account security. |
 
@@ -77,8 +76,7 @@ flowchart LR
     DC[styrigx-daymark-core<br/>/daymark/api/*]
     GW --> P1[(Pages<br/>styrigx-space<br/>main site + /blog/ /curio/ /daymark/)]
     GW -. service binding .-> AC[styrigx-account]
-    GW -. service binding .-> CH[styrigx-chat]
-    GW -. service binding .-> SE[styrigx-search-index]
+    GW -. service binding .-> AI[styrigx-ai]
     GW -. service binding .-> ST[styrigx-status]
     PR[styrigx-proxy-rules<br/>proxy-rules.styrigx.com]
   end
@@ -93,8 +91,7 @@ flowchart LR
 | `styrigx-auth-gateway` | Issues and verifies lock sessions, lock credentials and temporary-key APIs; checks the session on every page (including the `/blog/`, `/curio/`, `/daymark/` sub-sites) before serving it from Pages; the old atlas.styrigx.com domain only 301-redirects | `styrigx.com/*`, `atlas.styrigx.com/*` |
 | `styrigx-account` | Account system: password, passkeys, devices, account root key, avatar, cloud sync, digital wellbeing | Gateway service binding only, no public route |
 | `styrigx-share` | Share short links and their management API | `styrigx.com/s/*`, `styrigx.com/api/share*` |
-| `styrigx-chat` | Chat backend; forwards to the model, stores nothing | Gateway service binding only |
-| `styrigx-search-index` | Site-wide search (KV index) | Gateway service binding only |
+| `styrigx-ai` | On-site assistant: KV index recall + model answer (Workers AI / Gemini); stores nothing | Gateway service binding only |
 | `styrigx-status` | Checks every minute, reads usage hourly (D1) | Gateway service binding only |
 | `styrigx-proxy-rules` | Accelerating proxy for rule sets, allow-listed upstream only | `proxy-rules.styrigx.com` (bypasses the gateway) |
 | `styrigx-curio-core` | Curio API (D1 + R2) | `styrigx.com/curio/api/*` (more specific than the gateway; the old `atlas.styrigx.com/curio/api/*` route stays for a transition release) |

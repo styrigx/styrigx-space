@@ -39,11 +39,6 @@
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/avatar/192.webp">
-<link rel="search" type="application/opensearchdescription+xml" title="Styrigx" href="/opensearch.xml">
-{{/* 原地搜索层（共享外壳组件 shell/search-layer.js）单独打包、不进页面入口：shell/search-host.js 在 Ctrl+K / 首页 ?q= 时才 import() 这个地址
-   （2026-11-04 P5-1 抽屉删了，只剩这两个隐藏入口；整套在 P4-2 删除） */}}
-{{ $searchJs := resources.Get "js/shell/search-layer.js" | js.Build (dict "minify" true "target" "es2020" "format" "esm") | fingerprint }}
-<meta name="sgx-search-src" content="{{ $searchJs.RelPermalink }}">
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | fingerprint).RelPermalink }}">
 {{/* 注意：main.css 已由 scripts/build-css.cjs 压缩，不再走 Hugo minify（tdewolff 不认 @view-transition） */}}
 <script>
@@ -227,8 +222,6 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 ) }}
 
 
-<!-- 搜索 = 原地搜索层（DOM 由 shell/search-layer.js 建，没有独立页面） -->
-
 <!-- 通用 bottom sheet / 居中弹窗（2.4.0 D：<dialog>，原生 ::backdrop + 焦点管理） -->
 <dialog id="sheet-wrap" class="sgx-sheet" aria-labelledby="sheet-title">
   <div id="sheet-panel" class="overflow-hidden">
@@ -319,7 +312,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    顶栏三栏各自一个入口（entry-tab-*.js）：当前栏的模块随入口静态加载，另两栏按需 import()。
    modulepreload 让入口静态依赖的 chunk 和入口并行下载（不等入口解析完再发现）；放在入口 <script> 前，预加载扫描器同时看到。
    主题 / 锁屏判定 / 防闪的首帧脚本仍在 <head> 内联同步执行，跟这里无关。 */}}
-{{ $sgxJs := partialCached "sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-tab-home" "entry-chat" "entry-tab-settings" "entry-settings" "entry-account" "entry-account-devices" "entry-account-reset" "entry-account-security" "entry-account-sync" "entry-security" "entry-security-lock" "entry-security-tempkeys" "entry-settings-status")) "sgx-js" }}
+{{ $sgxJs := partialCached "sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-tab-home" "entry-tab-settings" "entry-settings" "entry-account" "entry-account-devices" "entry-account-reset" "entry-account-security" "entry-account-sync" "entry-security" "entry-security-lock" "entry-security-tempkeys" "entry-settings-status")) "sgx-js" }}
 {{ $js := index $sgxJs (strings.TrimSuffix ".js" $entryName) }}
 {{ range $js.preload }}<link rel="modulepreload" href="{{ . }}">
 {{ end }}

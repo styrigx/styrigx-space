@@ -207,7 +207,7 @@ test('check-worker-routes：/s/*、/api/share* 归短链 Worker；网关接口�
   const pages = ['/', '/account/', '/settings/security/tempkeys/', '/settings/', '/search/', '/en/settings/'];
   assert.deepEqual(checkWorkers(gw, acct, share, apis, pages), []);
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/s*'), apis, pages).some((e) => e.includes('/settings/') || e.includes('/search/')));
-  assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/api/s*'), apis, pages).some((e) => e.includes('/api/search')));
+  assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/api/s*'), apis, pages).some((e) => e.includes('/api/status')));
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/api/avatar*'), apis, pages).some((e) => e.includes('/api/avatar')), '抢网关转发表的账号路径也报错');
   assert.ok(checkWorkers(gw, acct, share.filter((r) => !r.includes('/s/')), apis, pages).some((e) => e.includes('/s/')));
 });

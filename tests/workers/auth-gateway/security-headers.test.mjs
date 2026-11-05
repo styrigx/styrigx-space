@@ -4,7 +4,7 @@
  * - 网关：锁屏首页、内页 302、www / 别的域名 301、pages.dev 301、门内页、?return= 302、/api/* 401 / 403、500 都带全套头
  *   子站经网关的响应只有 HSTS（不套主站 CSP）；原样回源的静态资源不改
  * - Pages：_worker.js 的 301 带和 security-headers.js 一致的头；_headers 解析后每个路径最多一条 Cache-Control、安全头恰好一份且和模块一致
- * - 模板：会执行的内联脚本只剩 baseof 的 5 段 + alias + search-redirect，且后两者正文是常量（每页一个哈希）；没有 on*="…" 属性
+ * - 模板：会执行的内联脚本只剩 baseof 的 5 段 + alias，且 alias 正文是常量（每页一个哈希）；没有 on*="…" 属性（P4-2b 删了 search-redirect）
  *
  * 运行：node --test tests/workers/auth-gateway/security-headers.test.mjs
  */
@@ -377,7 +377,6 @@ test('_headers：每个路径最多一条 Cache-Control（不再逗号拼接）�
     '/favicon.svg': 'public, max-age=300',
     '/og.png': 'public, max-age=300',
     '/robots.txt': 'public, max-age=300',
-    '/opensearch.xml': 'public, max-age=300',
     '/sitemap.xml': 'public, max-age=300',
     /* 页面和要先解锁的数据：不写 Cache-Control（Pages 默认 max-age=0, must-revalidate；页面网关再改成 private, no-store） */
     '/': undefined,
@@ -432,7 +431,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-test('模板：会执行的内联脚本只在 baseof（5 段）、alias、search-redirect；settings / setcat-advanced 已搬进模块；没有 on*= 属性', () => {
+test('模板：会执行的内联脚本只在 baseof（5 段）、alias（P4-2b 删了 search-redirect）；settings / setcat-advanced 已搬进模块；没有 on*= 属性', () => {
   const where = {};
   for (const f of walk(REPO + '/web/atlas/layouts')) {
     const src = readFileSync(f, 'utf8').replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
@@ -440,9 +439,9 @@ test('模板：会执行的内联脚本只在 baseof（5 段）、alias、search
     if (n) where[path.relative(REPO + '/web/atlas/layouts', f)] = n;
     assert.deepEqual(gen.unhashable(src.replace(/\{\{[\s\S]*?\}\}/g, '')), [], f);
   }
-  assert.deepEqual(where, { '_default/baseof.html': 5, '_default/search-redirect.html': 1, 'alias.html': 1 });
-  /* alias / search-redirect：脚本正文里不插模板值（每页一字不差 → 一个哈希），目标地址在 <html data-sgx-*> */
-  for (const f of ['alias.html', '_default/search-redirect.html']) {
+  assert.deepEqual(where, { '_default/baseof.html': 5, 'alias.html': 1 });
+  /* alias：脚本正文里不插模板值（每页一字不差 → 一个哈希），目标地址在 <html data-sgx-*> */
+  for (const f of ['alias.html']) {
     const [body] = gen.inlineScripts(readFileSync(REPO + '/web/atlas/layouts/' + f, 'utf8'));
     assert.doesNotMatch(body, /\{\{/, f);
   }

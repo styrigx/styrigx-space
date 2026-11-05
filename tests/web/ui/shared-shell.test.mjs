@@ -49,7 +49,7 @@ test('快捷面板（P5-1，替代抽屉）：非模态窗口在顶栏下面、�
   assert.match(s, /\.sgx-qp-pages \{ display: flex; overflow-x: auto;[^}]*scroll-snap-type: x mandatory;/);
   assert.match(s, /\.sgx-qp-page \{ flex: 0 0 100%;[^}]*scroll-snap-align: start;/);
   assert.match(s, /\.sgx-qp-nav-item\[aria-current="page"\][^{]*\{ background: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\)/);
-  assert.doesNotMatch(s, /\.sgx-drawer-(item|sheet|head|brand|body|foot|search|me|sep)\b|--sgx-drawer-/, '抽屉样式全删（search 段的 .sgx-drawer.sgx-srch-ghost 留给 P4-2）');
+  assert.doesNotMatch(s, /\.sgx-drawer-(item|sheet|head|brand|body|foot|search|me|sep)\b|--sgx-drawer-/, '抽屉样式全删');
   assert.doesNotMatch(s, /is-fading|is-curtain|--sgx-curtain/);
 });
 
@@ -63,8 +63,9 @@ test('nav.json：主站 / 奇趣 / 日刻 / 博客，没有设置；顶栏 / 磁
   assert.ok(!JSON.stringify(nav).includes('atlas.styrigx.com'));
   assert.deepEqual(nav.footer, []);
   assert.ok(![...nav.items, ...nav.footer].some((i) => i.id === 'settings'));
-  // search 段留给 P4-2（搜索层代码还在，入口随抽屉删除）
-  assert.equal(nav.search.path, '/search/');
+  // P4-2b：搜索层删了，nav.json 没有 search 段，也没有它的 ai-search 图标
+  assert.equal(nav.search, undefined);
+  assert.equal(nav.icons['ai-search'], undefined);
   // 顶栏头像（子站链到主站账号页）
   assert.deepEqual(nav.me, { zh: '账号', en: 'Account', href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp' });
   assert.deepEqual(nav.items.map((i) => i.zh), ['主站', '奇趣', '日刻', '博客']);
@@ -112,14 +113,13 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
 });
 
 test('顶栏 P5-1（2026-11-04）：一整条胶囊 [logo][中间][快捷面板 · AI · 头像]，同一份标记 topbar.html 四站共用；九宫格 / 右圆 / 抽屉头删除', () => {
-  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'search']);
+  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel']);
   const s = files['shell.css'];
   assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*width: var\(--sgx-shell-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
   assert.match(s, /\.sgx-tb-btn \{ width: var\(--sgx-tb-ic\); height: var\(--sgx-tb-ic\);[^}]*border-radius: 999px;/);
   assert.match(s, /\.sgx-tb-title \{[^}]*text-align: center;[^}]*text-overflow: ellipsis;/);
   assert.match(s, /@media \(min-width: 600px\) \{\s*\.sgx-topbar \{ display: grid; grid-template-columns: 1fr auto 1fr; \}/, '宽屏中间居中');
-  /* search 段（搜索层，P4-2 处理）里还有一条 .sgx-drawer.sgx-srch-ghost，不算 */
-  assert.doesNotMatch(s.slice(0, s.indexOf('/* ---- search ---- */')), /\.sgx-tb-nav\b|\.sgx-tb-end\b|\.sgx-tb-gbtn\b|\.sgx-drawer/);
+  assert.doesNotMatch(s, /\.sgx-tb-nav\b|\.sgx-tb-end\b|\.sgx-tb-gbtn\b|\.sgx-drawer/);
   // 标记：topbar.html = 主站 partials/shell-topbar.html 原样
   const src = readFileSync(path.join(REPO, 'web/atlas/layouts/partials/shell-topbar.html'), 'utf8');
   assert.equal(files['topbar.html'], src);
@@ -138,20 +138,9 @@ test('顶栏 P5-1（2026-11-04）：一整条胶囊 [logo][中间][快捷面板 
   assert.ok(!existsSync(path.join(REPO, 'web/atlas/layouts/partials/topbar-end.html')), 'topbar-end.html 已删');
 });
 
-test('搜索层：search.js 原样复制 shell/search-layer.js、不 import 任何东西；shell.css 有 search 段；引擎表和 engines.js 一致', async () => {
-  const src = readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/search-layer.js'), 'utf8');
-  assert.equal(files['search.js'], src);
-  assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /^\s*import\s|\bimport\s*\(/m);
-  assert.match(files['shell.css'], /\/\* ---- search ---- \*\/[\s\S]*\.sgx-srch \{ position: fixed; inset: 0;/);
-  assert.match(files['shell.css'], /\.sgx-drawer\.sgx-srch-ghost \{ z-index: 60;/);
-  const engSrc = readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/engines.js'), 'utf8');
-  const { ENGINES, looksLikeUrl } = await import('../../../web/atlas/assets/js/shell/search-layer.js');
-  for (const [id, e] of Object.entries(ENGINES)) {
-    assert.ok(engSrc.includes(`${id}: { n: '${e.n}', u: '${e.u}'`), id);
-  }
-  assert.equal(looksLikeUrl('example.com'), true);
-  assert.equal(looksLikeUrl('github.com/styrigx'), true);
-  assert.equal(looksLikeUrl('猫.com'), false);
-  assert.equal(looksLikeUrl('hello world'), false);
-  assert.equal(looksLikeUrl('a.b'), false);
+test('P4-2b：搜索层整套删除——没有 search.js、shell.css 没有 search 段、主站没有 search-layer / search-host', () => {
+  assert.equal(files['search.js'], undefined);
+  assert.doesNotMatch(files['shell.css'], /---- search ----|\.sgx-srch/);
+  for (const f of ['web/atlas/assets/js/shell/search-layer.js', 'web/atlas/assets/js/shell/search-host.js', 'web/atlas/shared/shell/search.js', 'web/atlas/static/opensearch.xml'])
+    assert.ok(!existsSync(path.join(REPO, f)), f);
 });

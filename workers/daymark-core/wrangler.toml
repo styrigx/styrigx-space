@@ -42,7 +42,7 @@ binding = "AUTH"
 service = "styrigx-auth-gateway"
 entrypoint = "AuthVerifier"
 
-# 全站搜索索引：KV styrigx-search-index（主站 workers/search-index 读它），本 Worker 只写 site:daymark 这一条。
+# 全站搜索索引：KV styrigx-search-index（主站 styrigx-ai 读它，P4-2b 前是 search-index），本 Worker 只写 site:daymark 这一条。
 # 写接口成功后重建（src/search-index.js），下面的 Cron 每小时兜底；KV 里只有句子的标题、署名、链接，不是钥匙。
 [[kv_namespaces]]
 binding = "KV_SEARCH_INDEX"

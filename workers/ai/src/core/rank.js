@@ -1,6 +1,6 @@
 /**
  * @fileoverview 站内召回的分词和打分（纯函数，单测直接测）。
- * 拷自 workers/search-index/src/rank.js（P4-1，2026-11-04；Worker 之间不许 import，规则 14），逻辑不改；
+ * 拷自原 workers/search-index/src/rank.js（P4-1，2026-11-04；Worker 之间不许 import，规则 14），逻辑不改；
  * P4-2 删 search-index 后这里是唯一一份。
  *
  * 索引条目（KV site:<站名> 的值是 { site, generated, items: Item[] }）：

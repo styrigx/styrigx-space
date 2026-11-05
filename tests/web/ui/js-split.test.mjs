@@ -4,7 +4,7 @@
  * 覆盖：
  * - entries/entry-*.js 全部登记进 baseof 的批量构建列表；各页模板 sgx-entry 指向的入口都在列表里
  * - 顶栏两栏（主页 / 设置；2026-11-04 P5-1 去掉聊天）各一个入口：当前栏静态 mount，另一栏 load: import('./lazy-*.js')，两个入口 keep / top 参数一致
- * - lazy-*.js 存在并导出对应挂载函数；/chat/ 是普通页（entry-chat.js），没有 entry-tab-chat.js / lazy-chat.js
+ * - lazy-*.js 存在并导出对应挂载函数；/chat/ 页 P4-2b 已删（entry-chat.js、apps/chat.js 都不在），没有 entry-tab-chat.js / lazy-chat.js
  * - baseof：modulepreload、data-sgx-js 签名、入口加载失败只自动刷新一次（sgx-js-retry）
  * - inpage-tabs.js：用构建签名比对取回来的页面；模块取不到整页导航（同一地址只一次）；core 成功后清标记
  */
@@ -45,16 +45,16 @@ test('各页模板 sgx-entry 指向的入口都在列表里', () => {
   }
   assert.ok(n >= 12, '模板里应有各页入口');
   assert.ok(rd('web/atlas/layouts/index.html').includes('"sgx-entry" "entry-tab-home.js"'));
-  assert.ok(rd('web/atlas/layouts/_default/chat.html').includes('"sgx-entry" "entry-chat.js"'), 'P5-1：/chat/ 普通页入口');
+  assert.ok(!existsSync(join(root, 'web/atlas/layouts/_default/chat.html')), 'P4-2b：/chat/ 页已删');
   assert.ok(rd('web/atlas/layouts/_default/settings.html').includes('"sgx-entry" "entry-tab-settings.js"'));
 });
 
 test('两栏入口：当前栏静态挂、另一栏 import(lazy-*.js)，keep / top 一致；聊天不再是标签', () => {
   const TABS = { home: ['index.js', 'mountHome'], settings: ['settings.js', 'mountSettings'] };
-  assert.ok(!existsSync(join(root, ENTRY_DIR, 'entry-tab-chat.js')), 'entry-tab-chat.js 已改名 entry-chat.js');
+  assert.ok(!existsSync(join(root, ENTRY_DIR, 'entry-tab-chat.js')), '没有 entry-tab-chat.js');
   assert.ok(!existsSync(join(root, ENTRY_DIR, 'lazy-chat.js')), 'lazy-chat.js 已删');
-  const chatEntry = rd(`${ENTRY_DIR}/entry-chat.js`);
-  assert.ok(chatEntry.includes("import { mountChat } from '../apps/chat.js'") && !chatEntry.includes('registerTab'), 'entry-chat.js：普通页，不登记页内切换');
+  assert.ok(!existsSync(join(root, ENTRY_DIR, 'entry-chat.js')), 'P4-2b：entry-chat.js 随 /chat/ 页删除');
+  assert.ok(!existsSync(join(root, 'web/atlas/assets/js/apps/chat.js')), 'P4-2b：apps/chat.js 已删');
   /** @type {Record<string, string>} */
   const flags = {};
   for (const cur of Object.keys(TABS)) {

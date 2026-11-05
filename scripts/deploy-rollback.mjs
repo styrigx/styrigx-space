@@ -204,7 +204,7 @@ export function workerSnapshot(deps = {}) {
 }
 
 /**
- * 部署后核对（没有公开地址、冒烟打不到的 Worker 用：search / status / chat）：
+ * 部署后核对（没有公开地址、冒烟打不到的 Worker 用：ai / status / 账号等）：
  * 线上是一个版本吃 100% 流量；记过部署前版本的话，现在的必须不是它（确实换上了新版本）。
  * @param {{previous?: string, run?: typeof runWrangler}} opts
  */

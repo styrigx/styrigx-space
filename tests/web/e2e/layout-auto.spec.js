@@ -101,7 +101,7 @@ test('顶栏长条 412×915：手机照旧拉满（logo 和按钮组之间只隔
 });
 
 /* ----- 宽竖屏 Mobile：外框最宽 640 居中，左右边线 = 顶栏两侧圆外缘（2026-10-23 PR-D） ----- */
-const WRAPS = [['/', '.home-wrap'], ['/settings/', '.set-layout'], ['/settings/display/', '.set-layout'], ['/chat/', '.chat-wrap'], ['/account/', '.acct-layout'], ['/settings/status/', '.acct-layout'], ['/404.html', '.sgx-404']];
+const WRAPS = [['/', '.home-wrap'], ['/settings/', '.set-layout'], ['/settings/display/', '.set-layout'], ['/account/', '.acct-layout'], ['/settings/status/', '.acct-layout'], ['/404.html', '.sgx-404']];
 async function frame(page, sel) {
   return page.evaluate((s) => {
     const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
@@ -144,7 +144,7 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
     expect(Math.abs(cols.w - Math.min(1024, bar)), `两栏宽 ${cols.w}`).toBeLessThanOrEqual(1);
     expect(Math.abs(cols.c), '两栏居中').toBeLessThanOrEqual(1);
     expect(Math.abs(left - 280), `左栏 ${left}`).toBeLessThanOrEqual(1);
-    for (const [path, s, want] of [['/settings/display/', '.set-layout > .set-main', 720], ['/settings/status/', '#st-foot', 720], ['/chat/', '#chat-empty', 760]]) {
+    for (const [path, s, want] of [['/settings/display/', '.set-layout > .set-main', 720], ['/settings/status/', '#st-foot', 720]]) {
       const [c] = await col(path, s);
       expect(Math.abs(c.w - Math.min(want, bar)), `${path} ${s} 宽 ${c.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(c.c), `${path} 居中`).toBeLessThanOrEqual(1);
@@ -272,14 +272,5 @@ test.describe('粗指针（触屏）', () => {
     expect(t.h).toBeGreaterThanOrEqual(48);
     expect(Math.abs(t.vis - 40)).toBeLessThanOrEqual(0.5);
     expect(t.hitTop).toBe(true);
-  });
-  test('聊天输入栏 44px 按钮：点击区 ≥ 48（外沿 2px 处仍点得中），看上去仍 44', async ({ page }) => {
-    await go(page, { width: 412, height: 915 }, '/chat/');
-    const r = await page.evaluate(() => {
-      const e = document.querySelector('#chat-new'); const b = e.getBoundingClientRect();
-      return { w: b.width, hit: document.elementFromPoint(b.left + b.width / 2, b.top - 2)?.closest('#chat-new') === e };
-    });
-    expect(Math.round(r.w)).toBe(44);
-    expect(r.hit).toBe(true);
   });
 });

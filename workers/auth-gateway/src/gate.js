@@ -354,7 +354,7 @@ async function handleRequest(context) {
  *   - 会话无效：页面 302 到主站锁屏（?lock=1&why=…&return=原地址），/<站>/api/*（正常归接口 Worker，漏到网关时）回 401 JSON
  *   - 静态资源后缀（js/css/字体/图片）直接回源，不验会话，与原子站白名单一致；/curio/、/daymark/ 下像图片的回答由 Pages 的 _worker.js 404
  *   - xml / json 不在静态后缀里：博客全文 RSS、站点地图、各站 index.json 一律要会话（合并 PR2 时 _worker.js 的过渡 404 规则随之删掉）
- * 子站前端问的 /api/lock-session-check、/api/search 在主域名根上，由主站关口 + 路由表回答（同源；有效 200 {ok:true}、失效 401 {ok:false}：
+ * 子站前端问的 /api/lock-session-check 在主域名根上，由主站关口 + 路由表回答（同源；有效 200 {ok:true}、失效 401 {ok:false}：
  * blog 只对 401 跳锁屏、其余状态不动，curio / daymark 只认 401，见 tests/workers/auth-gateway/subsites.test.mjs）。
  *
  * 旧域名 atlas.styrigx.com（2026-11-02 起三站的正式入口）：任意路径 301 到 https://styrigx.com 同路径 + 查询串（atlasRedirect），

@@ -131,13 +131,7 @@ test('prompt：召回为空时上下文写明没有相关条目，允许正常�
   assert.match(P.buildMessages({ q: 'hi', lang: 'en', hits: [] })[0].content, /No matching site content/);
 });
 
-test('rank.js 拷自 search-index：逻辑一致（只改了文件头）', () => {
-  const strip = (s) => s.replace(/^\/\*\*[\s\S]*?\*\/\n/, '');
-  assert.equal(strip(readFileSync(new URL(W + 'core/rank.js', import.meta.url), 'utf8')),
-    strip(readFileSync(new URL('../../../workers/search-index/src/rank.js', import.meta.url), 'utf8')));
-});
-
-/* rank.js 的分词和打分（同 tests/workers/search-index/search.test.mjs；search-index 退役后这里接着测） */
+/* rank.js 的分词和打分（搬自已删的 tests/workers/search-index/search.test.mjs；P4-2b 起这里是唯一一份） */
 const K = await import(W + 'core/rank.js');
 const RIX = [
   { site: 'space', items: [

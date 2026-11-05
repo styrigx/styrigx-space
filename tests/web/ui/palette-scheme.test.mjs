@@ -292,7 +292,8 @@ test('滑块 / 进度 / 开关 = 填充档（primary-fill）；焦点环 / 滑�
 test('按钮 / 开关 / 进度在 CSS 里读填充档：--sgx-btn-primary-* = primary-fill；不再有「primary 当底 + on-primary 字」的组件', () => {
   assert.match(CSS, /--sgx-btn-primary-bg: var\(--sgx-primary-fill\);/);
   assert.match(CSS, /--sgx-btn-primary-fg: var\(--sgx-on-primary-fill\);/);
-  assert.match(CSS, /\.chat-send \{ background-color: var\(--sgx-primary-fill\); color: var\(--sgx-on-primary-fill\); \}/);
+  /* P4-2b 删 /chat/ 页后，发送按钮看 AI 窗口的 .sgx-ai-send */
+  assert.match(CSS, /\.sgx-ai-send \{[^}]*background: var\(--sgx-primary-fill\); color: var\(--sgx-on-primary-fill\); \}/);
   assert.match(CSS, /background: var\(--m-primary-fill\); border-color: var\(--m-primary-fill\);/);
   assert.doesNotMatch(CSS.slice(CSS.indexOf('/* @gen-palettes:end */')), /background(?:-color)?: var\(--(?:sgx|m)-primary\); color: var\(--(?:sgx|m)-on-primary\)/);
 });

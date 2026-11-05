@@ -47,7 +47,6 @@ export const ERROR_CODES = Object.freeze({
   origin: [403],
   purpose: [400],
   bad_request: [400],
-  'too-long': [400],
   /* 会话 / 票 */
   session: [401, 400], /* 400：分享 Worker 的 session（有效天数）参数不对 */
   unauthorized: [401],
@@ -85,7 +84,6 @@ export const ERROR_CODES = Object.freeze({
   epoch: [503],
   internal: [500],
   upstream: [502, 503],
-  no_key: [503],
   'sign-failed': [500],
   'session-sign-failed': [500],
   'invalid-by': [500],

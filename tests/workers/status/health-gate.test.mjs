@@ -18,7 +18,9 @@ const yaml = require('js-yaml');
 let sqlite = null;
 try { sqlite = await import('node:sqlite'); } catch {}
 
+/* judge 的多站逻辑用两个假站名测（P4-2b 起线上只有 ai 一项，见下面的 LIVE_SITES） */
 const SITES = ['search', 'chat'];
+const LIVE_SITES = ['ai'];
 const row = (site, at, ok, err = null) => ({ site, at, ok: ok ? 1 : 0, code: ok ? 200 : (err === 'status' ? 503 : 0), err: ok ? null : err });
 
 /* ---------- judge ---------- */
@@ -205,10 +207,11 @@ test('parseArgs：默认值；基线取最小、空值跳过；坏站名 / 缺�
   assert.equal(isSafeSite('proxy-rules'), true);
 });
 
-test('闸门把关的 search / chat 都是 status 经服务绑定在巡检的', () => {
-  assert.deepEqual(unknownSites(SITES), []);
+test('闸门把关的 ai 是 status 经服务绑定在巡检的；search / chat 已不在监测里（P4-2b）', () => {
+  assert.deepEqual(unknownSites(LIVE_SITES), []);
   assert.deepEqual(unknownSites(['nope']), ['nope']);
-  for (const s of SITES) assert.ok(TARGETS.find((t) => t.site === s).binding, s + ' 走服务绑定');
+  assert.deepEqual(unknownSites(['search', 'chat']), ['search', 'chat']);
+  for (const s of LIVE_SITES) assert.ok(TARGETS.find((t) => t.site === s).binding, s + ' 走服务绑定');
 });
 
 /* ---------- deploy.yml 接线 ---------- */
@@ -223,18 +226,18 @@ test('deploy.yml：status 部署核对后跑闸门（在最后的回滚步骤之
   assert.ok(vi >= 0 && gi === vi + 1, '闸门紧跟 worker-verify');
   assert.equal(gi, steps.length - 2, '闸门之后只有回滚一步（失败时 status 自己回滚）');
   const g = steps[gi];
-  assert.match(g.run, /^node scripts\/health-gate\.mjs --sites search,chat --baseline-until "\$BASELINE_UNTIL"$/);
+  assert.match(g.run, /^node scripts\/health-gate\.mjs --sites ai --baseline-until "\$BASELINE_UNTIL"$/);
   assert.equal(g.env.CLOUDFLARE_API_TOKEN, '${{ secrets.STYRIGX_STATUS_DEPLOY }}');
   assert.equal(g.env.CLOUDFLARE_ACCOUNT_ID, '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}');
   assert.equal(g['continue-on-error'], undefined, '闸门失败要让 job 红');
-  assert.equal(g.env.BASELINE_UNTIL, '${{ needs.deploy-search-worker.outputs.started_at }},${{ needs.deploy-chat-worker.outputs.started_at }}');
+  assert.equal(g.env.BASELINE_UNTIL, '${{ needs.deploy-ai-worker.outputs.started_at }}');
   assert.deepEqual(job.outputs, { health_verdict: '${{ steps.health.outputs.verdict }}', health_failed: '${{ steps.health.outputs.failed }}' });
   /* 网关等 status：闸门红了网关 / Pages / 账号 / 分享都不部署 */
   assert.ok(wf.jobs['deploy-auth-worker'].needs.includes('deploy-status-worker'));
 });
 
-test('deploy.yml：search / chat 导出部署前版本和开始部署的时刻（在部署之前记）', () => {
-  for (const name of ['deploy-search-worker', 'deploy-chat-worker']) {
+test('deploy.yml：ai 导出部署前版本和开始部署的时刻（在部署之前记）', () => {
+  for (const name of ['deploy-ai-worker']) {
     const job = wf.jobs[name];
     assert.deepEqual(job.outputs, { previous: '${{ steps.live.outputs.version }}', started_at: '${{ steps.t0.outputs.at }}' }, name);
     const t0 = job.steps.findIndex((s) => s.id === 't0');
@@ -246,9 +249,10 @@ test('deploy.yml：search / chat 导出部署前版本和开始部署的时刻�
 
 test('deploy.yml：闸门判 fail 才回滚对应 Worker，在它自己的环境里用原有 token', () => {
   const cfg = {
-    'rollback-search-worker': { deploy: 'deploy-search-worker', site: 'search', env: 'STYRIGX_SEARCH_INDEX_DEPLOY', dir: 'workers/search-index' },
-    'rollback-chat-worker': { deploy: 'deploy-chat-worker', site: 'chat', env: 'STYRIGX_CHAT_DEPLOY', dir: 'workers/chat' },
+    'rollback-ai-worker': { deploy: 'deploy-ai-worker', site: 'ai', env: 'STYRIGX_AI_DEPLOY', dir: 'workers/ai' },
   };
+  assert.equal(wf.jobs['rollback-search-worker'], undefined);
+  assert.equal(wf.jobs['rollback-chat-worker'], undefined);
   for (const [name, c] of Object.entries(cfg)) {
     const job = wf.jobs[name];
     assert.deepEqual(job.needs, [c.deploy, 'deploy-status-worker'], name);

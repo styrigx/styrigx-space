@@ -1,7 +1,7 @@
 /**
  * @fileoverview 全站搜索索引：日刻自己把句子写进 KV styrigx-search-index 的 site:daymark。
  *
- * 值的格式（与 styrigx-space 仓库 workers/search-index/src/rank.js 一致）：
+ * 值的格式（与 styrigx-space 仓库 workers/ai/src/core/rank.js 一致）：
  *   { site: 'daymark', generated: ISO 时间, items: Item[] }
  *   Item = { id, type: 'quote', lang: 'zh'|'en', title, subtitle?, text?, url, private?: true }
  *

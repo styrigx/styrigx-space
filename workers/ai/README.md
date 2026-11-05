@@ -41,4 +41,4 @@
 
 ## 数据与迁移
 
-没有 D1、R2，没有 `migrations/`。索引由各站 CI 写（本仓库 `deploy-search-worker` 写 `site:space`；P4-2 搬到这里的部署 job）。部署 job `deploy-ai-worker` 复用 GitHub 环境 `STYRIGX_SEARCH_INDEX_DEPLOY` 的 token，排在网关之前（网关的服务绑定 `AI_SERVICE` 指向它）；首次部署若报 Workers AI 权限错，由 Gray 给 token 加权限后重跑。测试：`tests/workers/ai/`、`tests/workers/auth-gateway/ai-api.test.mjs`（网关的门、限流和转发）。
+没有 D1、R2，没有 `migrations/`。索引由各站 CI 写（本仓库 `deploy-search-worker` 写 `site:space`；P4-2 搬到这里的部署 job）。部署 job `deploy-ai-worker` 用 GitHub 环境 `STYRIGX_AI_DEPLOY` 的 token（Cloudflare 上 styrigx-ai-deploy，含 Secrets Store 编辑），排在网关之前（网关的服务绑定 `AI_SERVICE` 指向它）；首次部署若报 Workers AI 权限错，由 Gray 给 token 加权限后重跑。测试：`tests/workers/ai/`、`tests/workers/auth-gateway/ai-api.test.mjs`（网关的门、限流和转发）。

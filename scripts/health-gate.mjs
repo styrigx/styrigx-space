@@ -3,7 +3,7 @@
  * @fileoverview 部署后健康闸门第二阶段（2026-10-28）：读 styrigx-status 每分钟巡检写进 D1 的结果，
  * 只认「部署之后」跑的巡检，有失败就让 job 红（触发回滚）。
  *
- * 为什么要它：search（styrigx-search-index）和 chat（styrigx-chat）没有公开地址，第一阶段只能核对
+ * 为什么要它：ai（styrigx-ai；P4-2 前是 search / chat）没有公开地址，第一阶段只能核对
  * 「线上换成了新版本」（deploy-rollback.mjs worker-verify），测不到新代码能不能用。styrigx-status 每分钟经服务绑定
  * 测它们的 GET /healthz，结果进 D1 styrigx-status 的 checks 表（workers/status/src/monitor.js persist）。
  * 本脚本在 deploy.yml 的 deploy-status-worker 里、status 部署并核对之后跑，等新一轮巡检，按结果判定。
@@ -15,22 +15,22 @@
  *   - 最近一次成功 → pass
  *   - 末尾连续失败 >= confirm 次（默认 2，躲开单次网络抖动）→ fail；失败原因全是 err = 'binding'（status 自己没配好绑定）→ binding
  *   - 末尾失败但还没到 confirm 次 → pending（等下一轮确认）
- *   部署前就在失败（--baseline-until 之前最近一次巡检是失败，比如 chat 没配钥匙、/healthz 一直 503）→ 新巡检失败也只打 warning，
+ *   部署前就在失败（--baseline-until 之前最近一次巡检是失败，比如 /healthz 一直 503）→ 新巡检失败也只打 warning，
  *   不算这次部署弄坏的，不回滚它（preexisting）。
  * 结果（$GITHUB_OUTPUT）：
  *   verdict = pass     全部通过 → 退出码 0
  *           = fail     有站确认失败（failed = 站名，逗号分隔）→ 退出码 1；deploy.yml 据此回滚对应 Worker
- *           = binding  失败全是 status 自己的绑定问题 → 退出码 1；只回滚 status（job 自己的回滚步骤），不动 search / chat
+ *           = binding  失败全是 status 自己的绑定问题 → 退出码 1；只回滚 status（job 自己的回滚步骤），不动 ai
  *           = timeout  等到超时还有站没出结论（巡检没跑 / 查不到）→ 退出码 1；同上只回滚 status（巡检不跑说明 status 自己有问题）
  *           = error    D1 REST 鉴权失败（401 / 403）等不会自己好的错误 → 退出码 1，不等
  *
  * 用法（仓库根目录）：
- *   node scripts/health-gate.mjs --sites search,chat [--since <毫秒>] [--settle 15] [--timeout 300] [--interval 15]
+ *   node scripts/health-gate.mjs --sites ai [--since <毫秒>] [--settle 15] [--timeout 300] [--interval 15]
  *                                [--confirm 2] [--baseline-until <毫秒>[,<毫秒>...]]
  *   --since 不给 = 现在 + settle 秒（给刚部署的版本留传播时间）；--baseline-until 给多个取最小（最早开始部署的那个 job）。
  * 环境变量：CLOUDFLARE_API_TOKEN、CLOUDFLARE_ACCOUNT_ID（同 status 部署那一步）；CF_API_BASE（默认 https://api.cloudflare.com/client/v4，测试用）。
  * 库 id 从 workers/status/wrangler.toml 的 D1_UPTIME_MONITOR 读，不在这里重复写。本脚本不打印 token。
- * D1 读取量：每次轮询只按 checks_at 索引读部署之后的几行（每轮 7 行），5 分钟内最多二十来次。
+ * D1 读取量：每次轮询只按 checks_at 索引读部署之后的几行（每轮 4 行），5 分钟内最多二十来次。
  */
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

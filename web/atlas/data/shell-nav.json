@@ -8,6 +8,5 @@
     { "id": "blog", "icon": "nav-blog", "zh": "博客", "en": "Blog", "origin": "https://styrigx.com", "path": "/blog/" }
   ],
   "footer": [],
-  "me": { "zh": "账号", "en": "Account", "href": "https://styrigx.com/account/", "avatar": "https://styrigx.com/avatar/192.webp" },
-  "search": { "icon": "ai-search", "zh": "搜索", "en": "Search", "origin": "https://styrigx.com", "path": "/search/", "layer": "search.js" }
+  "me": { "zh": "账号", "en": "Account", "href": "https://styrigx.com/account/", "avatar": "https://styrigx.com/avatar/192.webp" }
 }

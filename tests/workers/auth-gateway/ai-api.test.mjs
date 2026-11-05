@@ -271,13 +271,12 @@ test('浏览器断开：转进去的请求带着浏览器请求的 signal', asyn
   assert.equal(sig.aborted, true);
 });
 
-test('wrangler.toml：AI_SERVICE → styrigx-ai、AI_LIMITER 2802（6 次 / 60 秒）；没有 AI_GLOBAL_LIMITER；SEARCH / CHAT 保留到 P4-2', () => {
+test('wrangler.toml：AI_SERVICE → styrigx-ai、AI_LIMITER 2802（6 次 / 60 秒）；没有 AI_GLOBAL_LIMITER；SEARCH / CHAT 在 P4-2b 删除', () => {
   const toml = readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8').replace(/^#.*$/gm, '');
   assert.match(toml, /\[\[services\]\]\s*\nbinding = "AI_SERVICE"\s*\nservice = "styrigx-ai"/);
   assert.match(toml, /\[\[ratelimits\]\]\s*\nname = "AI_LIMITER"\s*\nnamespace_id = "2802"\s*\nsimple = \{ limit = 6, period = 60 \}/);
   assert.doesNotMatch(toml, /AI_GLOBAL_LIMITER|2803/);
-  assert.match(toml, /binding = "SEARCH"/);
-  assert.match(toml, /binding = "CHAT"/);
+  assert.doesNotMatch(toml, /binding = "(SEARCH|CHAT)"|styrigx-search-index|styrigx-chat/);
   assert.equal(L.AI_GLOBAL_LIMIT, 60);
   assert.equal(L.AI_IP_PERIOD, 60);
 });

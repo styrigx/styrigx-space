@@ -135,17 +135,21 @@ test('回滚下限：workerNameFromToml 只认顶层 name', () => {
   assert.equal(workerNameFromToml(''), '');
 });
 
-test('回滚下限：floor 文件里网关和账号 Worker 都要求 D1 绑定，且名字和 wrangler.toml 对得上', () => {
+test('回滚下限：floor 文件里网关、账号、status 的绑定名和 wrangler.toml 对得上（P4-2b：网关、status 要 AI_SERVICE）', () => {
   const gwToml = readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8');
   const acToml = readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8');
+  const stToml = readFileSync(path.join(REPO, 'workers/status/wrangler.toml'), 'utf8');
   const gw = floorFor(workerNameFromToml(gwToml));
   const ac = floorFor(workerNameFromToml(acToml));
+  const st = floorFor(workerNameFromToml(stToml));
   /* 账号拆分 PR3：网关要有转发绑定 ACCOUNT，账号要有账号库 D1_ACCOUNT_AUTH（自动回滚不退过拆分点）。
      P2-3 放宽：不再要求进站凭证的绑定名（P2-3 之前的版本绑的是旧名，P2-3 部署失败时要能回到它） */
-  assert.deepEqual(gw && gw.requireBindings, ['D1_LOCK_AUTH', 'ACCOUNT', 'SGX_LOCK_SPACE_KEY']);
+  assert.deepEqual(gw && gw.requireBindings, ['D1_LOCK_AUTH', 'ACCOUNT', 'SGX_LOCK_SPACE_KEY', 'AI_SERVICE']);
   assert.deepEqual(ac && ac.requireBindings, ['D1_ACCOUNT_AUTH', 'D1_SETTINGS_SYNC']);
+  assert.deepEqual(st && st.requireBindings, ['AI_SERVICE']);
+  assert.equal(gw.notBefore, undefined, 'notBefore 等 Gray 删旧 Worker 后由下一个 PR 加');
   // 要求的绑定当前 wrangler.toml 里确实有（否则每次部署都记不到目标）
-  for (const [toml, f] of [[gwToml, gw], [acToml, ac]]) {
+  for (const [toml, f] of [[gwToml, gw], [acToml, ac], [stToml, st]]) {
     for (const n of /** @type {any} */ (f).requireBindings) assert.match(toml, new RegExp('^binding = "' + n + '"$', 'm'));
   }
   assert.equal(floorFor('styrigx-chat'), null);
@@ -155,12 +159,14 @@ test('回滚下限：floor 文件里网关和账号 Worker 都要求 D1 绑定�
 test('回滚下限：bindings 里的服务绑定 / Secrets Store 绑定也按名字认（拆分前的网关版本没有 ACCOUNT、P2-3 之前绑的是旧名 → 不满足）', () => {
   const gw = floorFor('styrigx-auth-gateway');
   const v = (list) => JSON.stringify({ id: V1, metadata: { created_on: 'Fri 2026-10-30 8:00 AM CST (UTC+08:00)' }, resources: { bindings: list } });
-  const after = [{ type: 'd1', name: 'D1_LOCK_AUTH' }, { type: 'service', name: 'ACCOUNT' }, { type: 'service', name: 'ACCOUNT_VERIFIER' }, { type: 'secrets_store_secret', name: 'SGX_LOCK_SPACE_KEY' }];
+  const after = [{ type: 'd1', name: 'D1_LOCK_AUTH' }, { type: 'service', name: 'ACCOUNT' }, { type: 'service', name: 'ACCOUNT_VERIFIER' }, { type: 'secrets_store_secret', name: 'SGX_LOCK_SPACE_KEY' }, { type: 'service', name: 'AI_SERVICE' }];
   assert.equal(checkFloor(v(after), gw).ok, true);
+  /* P4-2b：P4-1 之前（没有 AI_SERVICE）的网关版本不再是合格的回滚目标 */
+  assert.match(checkFloor(v(after.filter((b) => b.name !== 'AI_SERVICE')), gw).reason, /missing binding\(s\) AI_SERVICE$/);
   const before = [{ type: 'd1', name: 'D1_LOCK_AUTH' }, { type: 'd1', name: 'D1_ACCOUNT_AUTH' }, { type: 'd1', name: 'D1_ROOT_AUTH' }, { type: 'secrets_store_secret', name: 'SGX_ROOT_KEY' }];
-  assert.match(checkFloor(v(before), gw).reason, /missing binding\(s\) ACCOUNT, SGX_LOCK_SPACE_KEY$/);
+  assert.match(checkFloor(v(before), gw).reason, /missing binding\(s\) ACCOUNT, SGX_LOCK_SPACE_KEY, AI_SERVICE$/);
   /* P4-1 起：P2-3 之前的版本（进站凭证绑的是旧名，旧名 secret 已由 Gray 删除）不再是合格的回滚目标 */
-  const preP23 = [{ type: 'd1', name: 'D1_LOCK_AUTH' }, { type: 'service', name: 'ACCOUNT' }, { type: 'secrets_store_secret', name: 'SGX_OLD_LOCK_KEY_NAME' }];
+  const preP23 = [{ type: 'd1', name: 'D1_LOCK_AUTH' }, { type: 'service', name: 'ACCOUNT' }, { type: 'secrets_store_secret', name: 'SGX_OLD_LOCK_KEY_NAME' }, { type: 'service', name: 'AI_SERVICE' }];
   assert.match(checkFloor(v(preP23), gw).reason, /missing binding\(s\) SGX_LOCK_SPACE_KEY$/);
 });
 
@@ -265,9 +271,9 @@ test('GITHUB_OUTPUT：worker-snapshot 写 version=<id>', async () => {
 
 const wf = yaml.load(readFileSync(path.join(REPO, '.github/workflows/deploy.yml'), 'utf8'));
 const WORKER_JOBS = {
-  'deploy-search-worker': { dir: 'workers/search-index', secret: 'STYRIGX_SEARCH_INDEX_DEPLOY', internal: true },
+  /* P4-2b：search-index、chat 退役，ai 接过索引上传（2026-11-05 起环境 / token 为 STYRIGX_AI_DEPLOY） */
+  'deploy-ai-worker': { dir: 'workers/ai', secret: 'STYRIGX_AI_DEPLOY', internal: true },
   'deploy-status-worker': { dir: 'workers/status', secret: 'STYRIGX_STATUS_DEPLOY', internal: true },
-  'deploy-chat-worker': { dir: 'workers/chat', secret: 'STYRIGX_CHAT_DEPLOY', internal: true },
   'deploy-proxy-rules-worker': { dir: 'workers/proxy-rules', secret: 'STYRIGX_PROXY_RULES_DEPLOY', internal: false },
   'deploy-auth-worker': { dir: 'workers/auth-gateway', secret: 'STYRIGX_AUTH_GATEWAY_DEPLOY', internal: false },
   'deploy-account-worker': { dir: 'workers/account', secret: 'STYRIGX_ACCOUNT_DEPLOY', internal: false },
@@ -278,7 +284,7 @@ const WORKER_JOBS = {
 };
 const isDeploy = (/** @type {any} */ st) => st.uses && String(st.uses).startsWith('cloudflare/wrangler-action') && /^deploy\b/.test(String(st.with && st.with.command));
 
-test('deploy.yml：9 个 Worker job 都是「记线上版本 → 部署 → (核对) → 失败回滚」，token 同部署那一步', () => {
+test('deploy.yml：8 个 Worker job 都是「记线上版本 → 部署 → (核对) → 失败回滚」，token 同部署那一步', () => {
   for (const [name, cfg] of Object.entries(WORKER_JOBS)) {
     const steps = wf.jobs[name].steps;
     const snap = steps.findIndex((s) => s.id === 'live');
@@ -333,7 +339,8 @@ test('deploy.yml：回滚不加新 secret（只用各 job 原有的部署 token 
 test('deploy.yml：部署顺序 账号、短链（可并行）→ 网关 → Pages（短链不再绑账号 Worker）', () => {
   const needs = (/** @type {string} */ j) => [].concat(wf.jobs[j].needs || []);
   /* 账号最先：和网关一样等 status 的健康闸门，但不等网关 */
-  for (const n of ['deploy-search-worker', 'deploy-status-worker', 'deploy-chat-worker']) assert.ok(needs('deploy-account-worker').includes(n), n);
+  for (const n of ['deploy-ai-worker', 'deploy-status-worker']) assert.ok(needs('deploy-account-worker').includes(n), n);
+  for (const j of Object.keys(wf.jobs)) assert.ok(!/search-worker|chat-worker/.test(j) && !needs(j).some((n) => /search-worker|chat-worker/.test(n)), j + '：P4-2b 起没有 search / chat 的 job');
   assert.ok(!needs('deploy-account-worker').includes('deploy-auth-worker'));
   /* 短链：不再绑 ACCOUNT_VERIFIER，不等账号；网关之前 */
   assert.ok(!needs('deploy-share-worker').includes('deploy-account-worker'));
