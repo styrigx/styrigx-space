@@ -13,6 +13,10 @@
  * 请求体最多 BODY_MAX 字节（超了 413 too-large；styrigx-ai 自己再校验 q / history）。
  * 网关这边的错误：403 origin · 401 unauthorized · 429 cooldown / busy · 413 too-large · 400 bad_request（读不出请求体）·
  *   503 upstream（没绑 AI_SERVICE）· 502 upstream（调 styrigx-ai 抛错）。
+ *
+ * GET /api/ai（P4-2）：可选模型列表 → styrigx-ai GET /models，JSON 原样回（{ ok, default, models, canChoose }）。
+ *   要进门（否则 401）；不计 AI 限流（只读 KV，不调模型）；同样写账号结论头（canChoose 跟它走：只有账号会话能切模型）。
+ *   POST 的 body.model 由 styrigx-ai 只在有账号结论头时采纳（进站一律默认模型）。
  */
 import { lockSessionOf } from '../core/lock-session.js';
 import { askAuthorizeFor } from '../core/account-rpc.js';
@@ -52,6 +56,27 @@ export async function onRequestPost(context) {
     res = await svc.fetch(new Request(AI_BASE + '/ask', { method: 'POST', headers, body, signal: request.signal }));
   } catch (e) {
     console.error('[ai] service failed', e && /** @type {any} */ (e).name);
+    return apiError(502, 'upstream');
+  }
+  const out = new Headers(res.headers);
+  out.set('Cache-Control', NO_STORE);
+  return new Response(res.body, { status: res.status, headers: out });
+}
+
+/** @param {{request: Request, env: any, data?: any}} context */
+export async function onRequestGet(context) {
+  const { request, env } = context;
+  const sess = await lockSessionOf(context);
+  if (!sess.ok) return apiError(401, 'unauthorized');
+  const svc = env && env.AI_SERVICE;
+  if (!svc || typeof svc.fetch !== 'function') return apiError(503, 'upstream');
+  const account = await askAuthorizeFor(request, env);
+  const headers = writeAccountConclusion(new Headers(), account);
+  let res;
+  try {
+    res = await svc.fetch(new Request(AI_BASE + '/models', { method: 'GET', headers }));
+  } catch (e) {
+    console.error('[ai] models failed', e && /** @type {any} */ (e).name);
     return apiError(502, 'upstream');
   }
   const out = new Headers(res.headers);

@@ -68,8 +68,8 @@ export function buildMessages(o) {
   return [
     { role: 'system', content: SYSTEM[lang] + '\n\n' + contextBlock(o.hits, lang) },
     ...normalizeHistory(o.history),
-    /* Qwen3 的「不思考」开关：回答直接出正文（思考段另有 api/ask.js 的过滤兜底） */
-    { role: 'user', content: o.q + ' /no_think' },
+    /* 模型若输出思考段，由 core/think.js 的过滤去掉 */
+    { role: 'user', content: o.q },
   ];
 }
 

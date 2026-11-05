@@ -73,9 +73,39 @@ const rows = (e) => e.D1_LOCK_AUTH.raw
   ? e.D1_LOCK_AUTH.raw.prepare("SELECT realm, kind, bucket, count FROM attempt_limit WHERE realm = 'ai'").all()
   : null;
 
-test('路由：/api/ai 在 API_ROUTES，指向 api/ai.js；只有 POST', () => {
+test('路由：/api/ai 在 API_ROUTES，指向 api/ai.js；POST 问、GET 取模型列表（P4-2）', () => {
   assert.equal(API_ROUTES.get('/api/ai'), aiApi);
-  assert.deepEqual(Object.keys(aiApi).filter((k) => k.startsWith('onRequest')), ['onRequestPost']);
+  assert.deepEqual(Object.keys(aiApi).filter((k) => k.startsWith('onRequest')).sort(), ['onRequestGet', 'onRequestPost']);
+});
+
+test('GET /api/ai（P4-2）：进门才转 GET /models；写账号结论头、不转 cookie；不计 AI 限流；绑定缺失 503 / 抛错 502', async () => {
+  const get = ({ cookie = PW_SESS, acc } = {}) => {
+    const c = [];
+    if (cookie) c.push('sgx-lock-session=' + cookie);
+    if (acc) c.push('sgx-account-session=' + acc);
+    return new Request('https://styrigx.com/api/ai', { headers: c.length ? { Cookie: c.join('; '), 'CF-Connecting-IP': '203.0.113.7' } : {} });
+  };
+  const models = (r) => new Response(JSON.stringify({ ok: true, default: 'm', models: [], canChoose: r.headers.get('X-Styrigx-Account-Session') === '1' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const lim = limiter(0);
+  let log = [];
+  let e = env({ AI_SERVICE: aiSvc(log, models), AI_LIMITER: lim });
+  let r = await aiApi.onRequestGet({ request: get({ cookie: null }), env: e, data: {} });
+  assert.equal(r.status, 401);
+  assert.equal(log.length, 0);
+  r = await aiApi.onRequestGet({ request: get(), env: e, data: {} });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).canChoose, false);
+  assert.deepEqual([log[0].url, log[0].method], ['https://styrigx-ai/models', 'GET']);
+  assert.equal(log[0].headers.cookie, undefined);
+  r = await aiApi.onRequestGet({ request: get({ acc: 'ok' }), env: e, data: {} });
+  assert.equal((await r.json()).canChoose, true);
+  assert.match(r.headers.get('Cache-Control'), /no-store/);
+  assert.equal(lim.calls.size, 0, '不计限流');
+  assert.deepEqual(rows(e) || [], [], '不计全站总闸');
+  r = await aiApi.onRequestGet({ request: get(), env: env({ AI_SERVICE: undefined }), data: {} });
+  assert.equal(r.status, 503);
+  r = await aiApi.onRequestGet({ request: get(), env: env({ AI_SERVICE: { fetch() { throw new Error('x'); } } }), data: {} });
+  assert.equal(r.status, 502);
 });
 
 test('门：跨源 403 origin；没进门 401 unauthorized；都不转发、不计数', async () => {

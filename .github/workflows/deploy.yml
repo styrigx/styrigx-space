@@ -1453,7 +1453,8 @@ jobs:
 
   deploy-ai-worker:
     # 站内对话助手 styrigx-ai（workers/ai，P4-1）：先于网关部署（网关的服务绑定 AI_SERVICE 指向它，它不在就部署不了）。
-    # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/ai 进。只读 KV styrigx-search-index，不写索引。
+    # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/ai 进。只读 KV styrigx-search-index（索引 + 模型登记 ai:models），不写。
+    # P4-2：外部模型钥匙 SGX_CHAT_API_KEY 的 Secrets Store 绑定（复用原 styrigx-chat 那把）；绑定失败退一步部署不带钥匙的版本（同原 deploy-chat-worker）。
     # token：复用 GitHub 环境 STYRIGX_SEARCH_INDEX_DEPLOY 和它的同名密钥（Cloudflare 上 styrigx-search-index-deploy，
     # 只有 Workers Scripts 编辑 + Workers KV Storage 编辑，范围整个账号；方案 5.7；2026-11-04 起去掉 Account Settings 读取，最小权限）。
     # Workers AI 绑定要不要额外权限文档没写清：先不加；首次部署若报权限错，Gray 给这把 token 加 Workers AI 权限后重跑（对线上无影响）。
@@ -1492,6 +1493,8 @@ jobs:
         run: echo "at=$(date +%s%3N)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy AI Worker (styrigx-ai)
+        id: deploy_ai
+        continue-on-error: true
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
@@ -1499,6 +1502,27 @@ jobs:
           workingDirectory: workers/ai
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
+
+      - name: Prepare keyless config (fallback)
+        # P4-2：外部模型钥匙 SGX_CHAT_API_KEY 的 Secrets Store 绑定（同原 styrigx-chat 的退路）：带钥匙绑定部署失败
+        # （密钥不在 / token 绑不了）→ 去掉钥匙绑定再部署一次；自营模型照常，选中外部模型回 503 no_key
+        if: steps.deploy_ai.outcome == 'failure'
+        working-directory: workers/ai
+        run: |
+          echo "::warning::styrigx-ai deploy failed (SGX_CHAT_API_KEY binding?); deploying without the key binding, external models will answer 503 no_key"
+          sed '/^\[\[secrets_store_secrets\]\]/,$d' wrangler.toml > wrangler.nokey.toml
+          if grep -q "secrets_store_secrets" wrangler.nokey.toml; then echo "::error::keyless config still has a Secrets Store binding"; exit 1; fi
+          grep -q '^name = "styrigx-ai"$' wrangler.nokey.toml
+
+      - name: Deploy AI Worker without key binding (fallback)
+        if: steps.deploy_ai.outcome == 'failure'
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_SEARCH_INDEX_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/ai
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: deploy --config wrangler.nokey.toml
 
       - name: Post-deploy check (no public address, so check the live version)
         # 没有公开地址、冒烟打不到（只能经网关 + 会话进）：核对线上确实换成了一个吃 100% 流量的新版本
