@@ -13,7 +13,13 @@
  *   另一组：云同步（副标题 = 开关状态 / 上次同步，进 /account/sync/ 看同步了哪些项、开关）；
  *   再一组（P4-2d）：「AI 模型」（副标题 = 当前模型名，点开单选列表；apps/account-ai.js，确认有账号会话后才读 GET /api/ai）。
  *   临时钥匙和服务状态已搬到设置（/settings/security/tempkeys/、/settings/status/），账号页不再有入口。
- * - ?return=/account/(security|devices|sync)/：子页没有账号会话时跳来，登录后回子页。
+ * - ?return=/account/(security|devices|sync|apps)/：子页没有账号会话时跳来，登录后回子页。
+ * - ?return=/curio/… | /daymark/…（P3-1 同意流程，Gray 2026-11-05 定）：应用内点登录跳来。登录（带 reauth:true，拿 3 分钟复验票：
+ *   刚完成的登录即视为已复验，Gray 2026-11-06 定 A）完成后做授权检查：grant-list（先跑幂等种子再回记录）→
+ *   该应用有授权 → 直接回原页面，不停在账号卡上；没有 → 同意卡片（#acct-consent：应用图标与名、请求的作用域说明、授权 / 拒绝）。
+ *   授权 → grant-add → 回原页面；拒绝 → 不写记录，回原页面（应用侧显示未获授权提示）。已经登录着跳来 → 直接回原页面。
+ *   回原页面按现有网关登录跳转实现（不新造跳转机制）：GET /api/lock-session-check?return= 回的 next 是网关 core/return.js
+ *   safeReturn 校验过的去处（同站路径 / *.styrigx.com 白名单，防开放重定向），照着跳；读不到 → 首页。
  * - 读不到状态（401 / 网络）：两个按钮都显示，服务端照常校验（统一显示「不正确 / 验证失败」）。
  * - 首帧（2026-10-21）：页面默认两块都隐藏；网关在 <html data-sgx-account-session="in|out"> 注入服务端验过的账号会话，
  *   这里同步按它显示总览或登录区。没有这个属性（中性态）就等 /api/account。
@@ -33,6 +39,8 @@ import { ACCOUNT_RETURN_RE, createT, signalAccountName, syncSubText } from './ac
 import { ACCOUNT_API, postJSON } from '../auth/account-api.js';
 import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
 import { initAiModelRow } from './account-ai.js';
+import { appReturn, appIcon, appName, scopeText, sensitiveText, appsUrl } from './account-grants.js';
+import { toast } from '../lib/toast.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -67,6 +75,18 @@ import { initAiModelRow } from './account-ai.js';
   const avBtn = $('acct-login-avatar');
   const noneEl = $('acct-login-none');
   const hint0 = document.documentElement.dataset.sgxAccountSession || '';
+  /* P3-1 同意流程：应用页跳来（?return=/curio/… | /daymark/…） */
+  let appRet = null;
+  try { appRet = appReturn(new URLSearchParams(window.location.search).get('return') || ''); } catch (e) { appRet = null; }
+  /**
+   * 回原页面：按现有网关登录跳转（GET /api/lock-session-check?return= 的 next = 网关 safeReturn 校验过的去处），读不到 → 首页。
+   * @param {{ret: string}} r
+   */
+  function goBack(r) {
+    fetch('/api/lock-session-check?return=' + encodeURIComponent(r.ret), { method: 'GET', credentials: 'same-origin', cache: 'no-store' })
+      .then(function (x) { return x.json(); })
+      .then(function (j) { sgxReplace((j && j.ok && typeof j.next === 'string' && j.next) || '/'); }, function () { sgxReplace('/'); });
+  }
   if (!loginEl && mainEl && hint0 === 'in') {
     /* 服务端说已登录，登录区没下发：只填总览；/api/account 明确说没有账号会话（刚过期 / 别处退出）
        → 重新取页面，由服务端画登录区。读不到（401 / 网络）→ 保持总览。 */
@@ -78,6 +98,11 @@ import { initAiModelRow } from './account-ai.js';
     } catch (e) {}
     if (ret0) {
       sgxReplace(ret0);
+      return;
+    }
+    /* 已经登录着从应用页跳来：直接回去（授权检查只在登录完成后做） */
+    if (appRet) {
+      goBack(appRet);
       return;
     }
     fetch(ACCOUNT_API, { method: 'GET', credentials: 'same-origin' })
@@ -121,15 +146,88 @@ import { initAiModelRow } from './account-ai.js';
   }
 
   /* ================= 登录区 ================= */
-  const submitters = accountSubmitters(t);
+  /* 同意流程的登录带 reauth:true：刚完成的登录即视为已复验（3 分钟票带到 grant-add），不另验 */
+  const submitters = accountSubmitters(t, appRet ? { reauth: true } : undefined);
 
-  /** 登录成功：子页跳来 → 回子页；否则显示账号页 */
+  /** 登录成功：子页跳来 → 回子页；应用页跳来 → 授权检查；否则显示账号页 */
   function afterLogin() {
     if (acctReturn) {
       sgxReplace(acctReturn);
       return;
     }
+    if (appRet) {
+      consentCheck(appRet);
+      return;
+    }
     loadStatus();
+  }
+
+  /* ================= 同意流程（P3-1） ================= */
+  const consentEl = $('acct-consent');
+  /** @param {string} id @param {string} text */
+  function setText(id, text) {
+    const el = $(id);
+    if (el) el.textContent = text;
+  }
+  /**
+   * 登录完成后的授权检查：grant-list（服务端先跑幂等种子，否则 grantedScopes 处于骨架模式会误判为已授权）→ 有记录回原页面，没有弹同意卡片。
+   * 读不到（网络 / 出错）→ 回原页面（服务端照常按记录拦，应用侧显示未获授权提示）。
+   * @param {{app: string, ret: string}} ret
+   */
+  function consentCheck(ret) {
+    postJSON(ACCOUNT_API, { action: 'grant-list' }).then(function (res) {
+      const list = res.j && res.j.ok && Array.isArray(res.j.grants) ? res.j.grants : null;
+      const g = list ? list.filter(function (x) { return x.app === ret.app; })[0] : null;
+      if (!g || g.granted) {
+        goBack(ret);
+        return;
+      }
+      showConsent(g, ret);
+    }, function () { goBack(ret); });
+  }
+  /** @param {any} g @param {{app: string, ret: string}} ret */
+  function showConsent(g, ret) {
+    if (!consentEl) { goBack(ret); return; }
+    const name = appName(g, en);
+    const ic = $('acct-consent-ic');
+    if (ic) { ic.textContent = ''; ic.appendChild(appIcon(g.app)); }
+    setText('acct-consent-title', t('gaConsentTitle').replace('{v}', name));
+    setText('acct-consent-sub', t('gaConsentSub').replace('{v}', name));
+    const ul = $('acct-consent-scopes');
+    if (ul) {
+      ul.textContent = '';
+      [scopeText(t, g), sensitiveText(t, g)].filter(Boolean).forEach(function (txt) {
+        const li = document.createElement('li');
+        li.textContent = txt;
+        ul.appendChild(li);
+      });
+    }
+    const allow = /** @type {HTMLButtonElement|null} */ ($('acct-consent-allow'));
+    const deny = /** @type {HTMLButtonElement|null} */ ($('acct-consent-deny'));
+    if (allow) allow.textContent = t('gaAllow');
+    if (deny) deny.textContent = t('gaDeny');
+    if (allow) on(allow, 'click', function () {
+      allow.disabled = true;
+      if (deny) deny.disabled = true;
+      postJSON(ACCOUNT_API, { action: 'grant-add', app: g.app }).then(function (res) {
+        if (res.j && res.j.ok) { goBack(ret); return; }
+        /* 复验票没了（登录到点授权超过 3 分钟）：去管理页重新授权（那边会再验一次） */
+        if (res.s === 401 && res.j && res.j.error === 'reauth') { sgxReplace(appsUrl(en)); return; }
+        allow.disabled = false;
+        if (deny) deny.disabled = false;
+        toast(t('errNetwork'));
+      }, function () {
+        allow.disabled = false;
+        if (deny) deny.disabled = false;
+        toast(t('errNetwork'));
+      });
+    });
+    if (deny) on(deny, 'click', function () { goBack(ret); });
+    loginEl.hidden = true;
+    mainEl.hidden = true;
+    document.body.classList.add('acct-consent-open');
+    consentEl.hidden = false;
+    setPageTitle('gaRow');
   }
 
   /** GET /api/account 的最近一次结果（读失败为 null） */
@@ -340,10 +438,11 @@ import { initAiModelRow } from './account-ai.js';
           showLogin(t('configNotice'), j);
           return;
         }
-        if (acctReturn) {
-          /* 安全与隐私子页跳来（没有账号会话）：已登录直接回去，否则登录后回去 */
+        if (acctReturn || appRet) {
+          /* 子页 / 应用页跳来：已登录直接回去，否则登录后回去（应用页先做授权检查） */
           if (j.session) {
-            sgxReplace(acctReturn);
+            if (acctReturn) sgxReplace(acctReturn);
+            else if (appRet) goBack(appRet);
             return;
           }
           showLogin('', j);
@@ -362,7 +461,7 @@ import { initAiModelRow } from './account-ai.js';
       });
   }
   /* 首帧：照服务端提示同步显示（总览的副标题等 /api/account 回来再填） */
-  if (hint === 'in' && !acctReturn) {
+  if (hint === 'in' && !acctReturn && !appRet) {
     setPageTitle('acctTitle');
     loginEl.hidden = true;
     mainEl.hidden = false;

@@ -411,7 +411,7 @@ test.describe('安全与隐私子页', () => {
 test.describe('账号总览', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('PR4：账号卡点了不跳页（没有「账号信息」子页）；两组：设备 / 账号安全，云同步（临时钥匙、服务状态已搬到设置，账号页没有入口）', async ({ page }) => {
+  test('PR4：账号卡点了不跳页（没有「账号信息」子页）；两组：设备 / 账号安全 / 应用授权（P3-1），云同步（临时钥匙、服务状态已搬到设置，账号页没有入口）', async ({ page }) => {
     await mockAccount(page, {
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }] },
@@ -427,7 +427,7 @@ test.describe('账号总览', () => {
     expect(new URL(page.url()).pathname).toBe('/account/');
     await expect(page.locator('a[href*="/account/profile/"]')).toHaveCount(0);
     const groups = await page.locator('#acct-main section').evaluateAll((els) => els.map((x) => Array.from(x.querySelectorAll('.acct-row')).map((r) => r.id)));
-    expect(groups).toEqual([['acct-dev-row', 'acct-sec-row'], ['acct-sync-row'], ['acct-ai-row']]);
+    expect(groups).toEqual([['acct-dev-row', 'acct-sec-row', 'acct-apps-row'], ['acct-sync-row'], ['acct-ai-row']]);
     await expect(page.locator('#acct-main a[href*="/tempkeys/"], #acct-main a[href*="/status/"]')).toHaveCount(0);
   });
 });
@@ -1302,7 +1302,7 @@ test.describe('账号页是独立页 /account/（2026-10-22 从 /settings/accoun
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }], 'device-list': [200, { ok: true, devices: [] }] },
     });
-    for (const p of ['/account/', '/account/security/', '/account/reset/', '/account/devices/', '/account/sync/']) {
+    for (const p of ['/account/', '/account/security/', '/account/reset/', '/account/devices/', '/account/sync/', '/account/apps/']) {
       await page.goto(p, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('main .acct-layout')).toHaveCount(1);
       await expect(page.locator('main .set-layout, main .set-row, main .set-ic, main .set-gh, main .sec-note')).toHaveCount(0);

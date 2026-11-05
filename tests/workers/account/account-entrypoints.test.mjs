@@ -8,6 +8,8 @@
  * - AccountVerifier.accountSession(cookieHeader, clientContext)：正反例，只验不签
  * - AccountVerifier.authorize(cookieHeader, clientContext, opts)（P2-1）：授权结论 { ok, reason, deviceId, scopes, reauth }；
  *   opts 只认 reauth === true；坏参数、缺钥匙、账号库出错都不抛
+ * - /api/account grant-list / grant-revoke / grant-add（P3-1）：grant-list 首次种满 5 行 + 标记、回 5 项；grant-revoke 删行回新列表、
+ *   不要复验，下一次授权结论立即不含；grant-add 没复验票 401 reauth、有则写入；都要进门 + 账号会话
  *
  * 运行：node --test tests/workers/account/account-entrypoints.test.mjs
  */
@@ -17,7 +19,7 @@ import assert from 'node:assert/strict';
 import { testLockSession } from '../auth-gateway/_tickets.mjs';
 import { genKeyPair, postReq } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
-import { K, keys, idHeaders, accSession, reauth, seedPassword, setEpoch, one, PEPPER, ROOT_KEY, TEST_DEVICE_ID, pickCookie } from './_identity.mjs';
+import { K, keys, idHeaders, accSession, reauth, reset, seedPassword, setEpoch, one, PEPPER, ROOT_KEY, TEST_DEVICE_ID, pickCookie } from './_identity.mjs';
 
 const SRC = '../../../workers/account/src/';
 const { WorkerEntrypoint } = await import('cloudflare:workers');
@@ -362,4 +364,147 @@ test('headerAuth：lockSession 只看进门；authorize 用 core/authz.js（同�
   r = await ep.scopeDenial(owner, 'nope.scope');
   assert.equal(r.status, 403);
   assert.deepEqual(await r.json(), { ok: false, error: 'scope', scope: 'nope.scope' });
+});
+
+/* ---------------- 应用授权：grant-list / grant-revoke / grant-add（P3-1） ---------------- */
+
+const APPS5 = ['curio', 'daymark', 'prefs', 'wellbeing', 'avatar'];
+const ALL5 = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'wellbeing.write'];
+/** POST /api/account 经 AccountService（进门身份头 + 给定 cookie） @param {any} env @param {any} body @param {string} [cookie] */
+const grantPost = (env, body, cookie) => service(env).fetch(postReq(ORIGIN + '/api/account', body, { ...idHeaders(), ...(cookie ? { Cookie: cookie } : {}) }));
+const reauthCookie = async () => 'sgx-account-reauth=' + (await reauth());
+/** 网关问的授权结论（AccountVerifier.authorize） @param {any} env @param {string} cookie */
+const scopesNow = async (env, cookie) => (await new ep.AccountVerifier(CTX, env).authorize(cookie, {}, {})).scopes;
+
+test('grant-list：首次调用种满 5 行 + 标记（同一批），回 5 项（作用域表顺序、名字、作用域、授权时间、授权时设备）', async () => {
+  const { env } = makeEnv();
+  const ck = await accCookie();
+  const r = await grantPost(env, { action: 'grant-list' }, ck);
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.ok, true);
+  assert.deepEqual(j.grants.map((g) => g.app), APPS5);
+  assert.deepEqual(j.grants.map((g) => g.name.zh), ['奇趣', '日刻', '设置同步', '数字健康', '头像']);
+  assert.deepEqual(j.grants.map((g) => g.scopes), [['curio.write'], ['daymark.write'], ['prefs.sync'], ['wellbeing.write'], ['avatar.write']]);
+  assert.deepEqual(j.grants[0].sensitive, ['POST /curio/api/import']);
+  for (const g of j.grants) {
+    assert.equal(g.granted, true, g.app);
+    assert.ok(g.grantedAt > 0, g.app);
+    assert.equal(g.by, 'password');
+    assert.ok(g.device && g.device.gone === false, '授权时的设备 = 打开页面的这台（已补记设备行）');
+  }
+  assert.equal(env.D1_ACCOUNT_AUTH.rows('app_grant').length, 5);
+  assert.equal(env.D1_ACCOUNT_AUTH.rows('data_migration').filter((m) => m.name === 'app-grant-seed-1').length, 1);
+  /* 再调一次：幂等，不改授权时间 */
+  const t0 = env.D1_ACCOUNT_AUTH.rows('app_grant').map((x) => x.granted_at);
+  await grantPost(env, { action: 'grant-list' }, ck);
+  assert.deepEqual(env.D1_ACCOUNT_AUTH.rows('app_grant').map((x) => x.granted_at), t0);
+});
+
+test('grant-*：要进门（401 session）+ 账号会话（401 account；只有 reset 票也不行）', async () => {
+  const { env } = makeEnv();
+  for (const action of ['grant-list', 'grant-revoke', 'grant-add']) {
+    let r = await service(env).fetch(postReq(ORIGIN + '/api/account', { action, app: 'curio' }, {}));
+    assert.equal(r.status, 401, action);
+    r = await grantPost(env, { action, app: 'curio' });
+    assert.equal(r.status, 401, action);
+    assert.equal((await r.json()).error, 'account', action);
+    r = await grantPost(env, { action, app: 'curio' }, 'sgx-account-reset=' + (await reset()));
+    assert.equal(r.status, 401, action + '：reset 票不算账号会话');
+  }
+  assert.equal(env.D1_ACCOUNT_AUTH.rows('app_grant').length, 0, '没会话不种');
+});
+
+test('grant-revoke：删行并回新列表，不要复验；下一次授权结论立即不含该作用域；未知应用 400 params', async () => {
+  const { env } = makeEnv();
+  const ck = await accCookie();
+  await grantPost(env, { action: 'grant-list' }, ck);
+  assert.deepEqual(await scopesNow(env, ck), ALL5);
+  const r = await grantPost(env, { action: 'grant-revoke', app: 'curio' }, ck);
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  const curio = j.grants.find((g) => g.app === 'curio');
+  assert.equal(curio.granted, false);
+  assert.equal(curio.device, null);
+  assert.deepEqual(await scopesNow(env, ck), ALL5.filter((s) => s !== 'curio.write'));
+  /* 重复取消：幂等 */
+  assert.equal((await grantPost(env, { action: 'grant-revoke', app: 'curio' }, ck)).status, 200);
+  for (const app of ['', 'book', 'CURIO', 'account', 3, null]) {
+    const b = await grantPost(env, { action: 'grant-revoke', app }, ck);
+    assert.equal(b.status, 400, String(app));
+    assert.equal((await b.json()).error, 'params');
+  }
+  /* 取消完 5 个 → 0 行，再 grant-list 也不会再种 */
+  for (const app of APPS5) await grantPost(env, { action: 'grant-revoke', app }, ck);
+  await grantPost(env, { action: 'grant-list' }, ck);
+  assert.equal(env.D1_ACCOUNT_AUTH.rows('app_grant').length, 0);
+  assert.deepEqual(await scopesNow(env, ck), []);
+});
+
+test('grant-revoke 在首次种子之前：先种再删，别的应用不掉', async () => {
+  const { env } = makeEnv();
+  const ck = await accCookie();
+  const j = await (await grantPost(env, { action: 'grant-revoke', app: 'avatar' }, ck)).json();
+  assert.deepEqual(j.grants.filter((g) => g.granted).map((g) => g.app), ['curio', 'daymark', 'prefs', 'wellbeing']);
+});
+
+test('grant-add：没有账号复验票 → 401 reauth、不写；有票 → 写回并回新列表，写接口恢复', async () => {
+  const { env } = makeEnv();
+  const ck = await accCookie();
+  await grantPost(env, { action: 'grant-list' }, ck);
+  await grantPost(env, { action: 'grant-revoke', app: 'curio' }, ck);
+  let r = await grantPost(env, { action: 'grant-add', app: 'curio' }, ck);
+  assert.equal(r.status, 401);
+  assert.equal((await r.json()).error, 'reauth');
+  assert.ok(!env.D1_ACCOUNT_AUTH.rows('app_grant').some((x) => x.app === 'curio'));
+  r = await grantPost(env, { action: 'grant-add', app: 'curio' }, 'sgx-account-reset=' + (await reset()) + '; ' + ck);
+  assert.equal(r.status, 401, 'reset 票不算复验');
+  r = await grantPost(env, { action: 'grant-add', app: 'curio' }, ck + '; ' + (await reauthCookie()));
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  const curio = j.grants.find((g) => g.app === 'curio');
+  assert.equal(curio.granted, true);
+  assert.equal(curio.by, 'password');
+  assert.deepEqual(await scopesNow(env, ck), ALL5);
+  const row = env.D1_ACCOUNT_AUTH.rows('app_grant').find((x) => x.app === 'curio');
+  assert.deepEqual(JSON.parse(row.record), { v: 1, scopes: ['curio.write'], deviceId: TEST_DEVICE_ID, by: 'password' });
+});
+
+test('grant-list：授权时的设备已退出 / 已删 → device.gone=true（前端显示「已退出的设备」）', async () => {
+  const { env } = makeEnv();
+  const other = 'otherdevice_0002';
+  await grantPost(env, { action: 'grant-list' }, await accCookie({ deviceId: other }));
+  const { revokeDevice } = await import(SRC + 'core/account-devices.js');
+  await revokeDevice({ D1_ACCOUNT_AUTH: env.D1_ACCOUNT_AUTH }, other);
+  const j = await (await grantPost(env, { action: 'grant-list' }, await accCookie())).json();
+  for (const g of j.grants) assert.deepEqual(g.device, { name: '', gone: true }, g.app);
+});
+
+test('grant-*：账号库出错 → 503 server（不抛）', async () => {
+  const { env } = makeEnv();
+  const ck = await accCookie();
+  await grantPost(env, { action: 'grant-list' }, ck); /* 补记设备、建表 */
+  env.D1_ACCOUNT_AUTH.raw.exec('DROP TABLE app_grant; CREATE VIEW app_grant AS SELECT 1 AS broken');
+  const r = await grantPost(env, { action: 'grant-revoke', app: 'curio' }, ck);
+  assert.equal(r.status, 503);
+  assert.equal((await r.json()).error, 'server');
+});
+
+test('取消授权后的写接口（经 AccountService，同一份 core/authz.js）：prefs.sync → GET /api/prefs 403 scope；avatar.write → PUT /api/avatar 403 scope；wellbeing.write → POST /api/wellbeing 204 丢弃；账号会话本身不受影响', async () => {
+  const { env } = makeEnv();
+  const ck = await accCookie();
+  await grantPost(env, { action: 'grant-list' }, ck);
+  for (const app of ['prefs', 'avatar', 'wellbeing']) await grantPost(env, { action: 'grant-revoke', app }, ck);
+  const h = { ...idHeaders(), Cookie: ck };
+  let r = await service(env).fetch(req('/api/prefs', { headers: h }));
+  assert.equal(r.status, 403);
+  assert.deepEqual(await r.json(), { ok: false, error: 'scope', scope: 'prefs.sync' });
+  r = await service(env).fetch(req('/api/avatar', { method: 'PUT', headers: h, body: new FormData() }));
+  assert.equal(r.status, 403);
+  assert.equal((await r.json()).scope, 'avatar.write');
+  r = await service(env).fetch(req('/api/wellbeing', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ d: '2026-11-06', a: 'home', s: 60 }) }));
+  assert.equal(r.status, 204);
+  assert.equal(env.D1_WELLBEING.rows('wb_daily').length, 0, '没记');
+  r = await service(env).fetch(req('/api/account', { headers: h }));
+  assert.ok((await r.json()).session, '账号会话照旧');
 });

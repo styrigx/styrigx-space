@@ -9,7 +9,7 @@
  *   取景框 = 卡片显示的比例（设备 .it-media 4:3、游戏 .it-media--cover 3:4），裁好的图卡片里正好铺满、详情里完整显示。
  *   完成 → 浏览器里裁成长边 ≤1200（不放大）、转 webp（不支持就 jpeg），保存时再传；保存前点缩略图可以重新调整。
  * 账号没登录：只读、只看公开的（showPrivate=false）；「登录账号后可编辑」那一行在 curio.js（#cu-signin）。
- * 写请求只有 401 unauthorized 才当锁定刷新（401 account / reauth 是账号的事，提示「登录账号后可编辑」）。
+ * 写请求只有 401 unauthorized 才当锁定刷新（401 account / reauth 是账号的事，提示「登录账号后可编辑」；403 scope 提示「奇趣未获账号授权」）。
  *
  * 数据：GET /api/items；写：POST /api/items {op}；照片：/api/photo?kind=device|game&id=（GET 图、POST 传、DELETE 删）。
  * 页签切换在 curio-tabs.js；确认框、提示条、弹层开关借 curio.js 的（window.SgxCurioUI）。
@@ -139,7 +139,7 @@ var T = isEn ? {
   status: { want: 'Want to play', playing: 'Playing', done: 'Finished', shelved: 'On hold' },
   addDevice: 'Add a device', editDevice: 'Edit device', addGame: 'Add a game', editGame: 'Edit game',
   emptyDevAdmin: 'No devices yet. Tap "Device" to add one.', emptyGameAdmin: 'No games yet. Tap "Game" to add one.', empty: 'Nothing here yet.', noMatch: 'Nothing in this filter.',
-  needName: 'Give it a name.', needAccount: 'Sign in to your account to edit.', badDate: 'Check the dates.', failed: 'Something went wrong. Please try again.', saved: 'Saved.', deleted: 'Deleted.',
+  needName: 'Give it a name.', needAccount: 'Sign in to your account to edit.', noScope: 'Curio doesn’t have account access.', badDate: 'Check the dates.', failed: 'Something went wrong. Please try again.', saved: 'Saved.', deleted: 'Deleted.',
   photoFail: 'Saved, but the photo didn\'t upload.', notImage: 'That isn\'t a photo we can use.', tooLarge: 'The photo is too large.',
   delDevice: 'Delete this device?', delGame: 'Delete this game?', del: 'Delete', none: 'None', priv: 'Only you can see this',
   used: 'In use for', usedFor: 'Used for', bought: 'Bought', retiredOn: 'Retired', os: 'System', specs: 'Specs', acc: 'Accessories', notes: 'How it\'s been',
@@ -151,7 +151,7 @@ var T = isEn ? {
   status: { want: '想玩', playing: '在玩', done: '通关', shelved: '搁置' },
   addDevice: '添加设备', editDevice: '编辑设备', addGame: '添加游戏', editGame: '编辑游戏',
   emptyDevAdmin: '还没有设备。点「设备」添加第一台。', emptyGameAdmin: '还没有游戏。点「游戏」添加。', empty: '这里还空着。', noMatch: '这个筛选下没有。',
-  needName: '起个名字。', needAccount: '登录账号后可编辑。', badDate: '日期不对，检查一下。', failed: '出了点问题，请再试一次。', saved: '已保存', deleted: '已删除',
+  needName: '起个名字。', needAccount: '登录账号后可编辑。', noScope: '奇趣未获账号授权。', badDate: '日期不对，检查一下。', failed: '出了点问题，请再试一次。', saved: '已保存', deleted: '已删除',
   photoFail: '已保存，但照片没传上去。', notImage: '这张图用不了。', tooLarge: '照片太大了。',
   delDevice: '确定删除这台设备吗？', delGame: '确定删除这个游戏吗？', del: '删除', none: '无', priv: '仅自己可见',
   used: '已经用了', usedFor: '用了', bought: '购买', retiredOn: '退役', os: '系统', specs: '参数', acc: '配件', notes: '体验',
@@ -212,7 +212,8 @@ function errText(e){
   if (/^bad-(bought|retired)-at$/.test(c)) return T.badDate;
   if (c === 'not-image') return T.notImage;
   if (c === 'too-large') return T.tooLarge;
-  if (c === 'account' || c === 'scope') return T.needAccount;
+  if (c === 'account') return T.needAccount;
+  if (c === 'scope') return T.noScope; /* P3-1：在 账号 › 应用授权 取消了奇趣的授权 */
   return T.failed;
 }
 function findDev(id){ return devices.filter(function(d){ return d.id === id; })[0] || null; }

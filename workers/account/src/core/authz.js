@@ -1,9 +1,12 @@
 /**
  * 授权判断（方案 2.3.3、2.4；P2-1 授权骨架）：作用域判断的唯一入口。
  *
- * - grantedScopes(env, accountSession)：当前授权。骨架阶段（P2-1 到第 3 件实现之前）= 账号会话有效就返回作用域表里的全部作用域，
- *   行为上和现行「账号会话能做一切」等价。第 3 件实现（另批）只把这里换成读授权记录，返回 已授权 ∩ 作用域表；
- *   函数签名、authorize 的结论形状都不变，下游不用再改。
+ * - grantedScopes(env, accountSession)：当前授权。P3-1（第 3 件）起读授权记录（app_grant，core/app-grant.js）：
+ *   - 账号会话无效 → []
+ *   - 还没有种子标记（上线到首次打开授权卡页 / 首次登录后授权检查之间）→ 保持骨架行为：作用域表里的全部作用域
+ *     （否则上线后全部写接口立即 403 scope；设计方案 4.7「用户感知不到变化」）
+ *   - 有种子标记 → 已授权 ∩ 作用域表（0 行 = []）
+ *   函数签名、authorize 的结论形状都不变（P2-1 定的），下游不用改。只读不写：种子不在这里写（走 grant-list，见 api/account.js）。
  * - authorize(env, request, opts)：验账号会话 → 取 deviceId → 算作用域 → opts.reauth 为真时再验 sgx-account-reauth。
  *   结论 { ok, reason, deviceId, scopes, reauth }；只读不签：不写 cookie、不签票、不推纪元
  *   （验证通过时照旧刷新设备 lastSeen，沿用 account-session.js 的节流）。永不抛错，出错 fail closed。
@@ -11,25 +14,31 @@
  * 调用方：rpc/account-verifier.js 的 AccountVerifier.authorize()（网关经 ACCOUNT_VERIFIER 问）。
  * P2-1 只新增，现有接口的判断一行不改；以后 /api/account、/api/prefs、/api/avatar、/api/wellbeing 也用这同一份（P2-2）。
  *
- * 只 import 本目录（account-session.js、realm.js、scopes.js）。
+ * 每次授权请求读一次 D1 主库（授权记录 + 种子标记；账号纪元和设备黑名单在 verifyAccountSession 里），不缓存：取消后下次请求即拦截。
+ *
+ * 只 import 本目录（account-session.js、realm.js、scopes.js、app-grant.js）。
  */
 import { verifyAccountSession, verifyTicket } from './account-session.js';
 import { ACCOUNT_REAUTH_TICKET } from './realm.js';
 import { SCOPE_IDS, knownScopes } from './scopes.js';
+import { readGrantState, scopesOfRows } from './app-grant.js';
 
 /**
  * @typedef {{ ok: boolean, reason: string, deviceId: string, scopes: string[], reauth: boolean }} Authorization
  */
 
 /**
- * 当前授权（骨架版）：账号会话有效 → 作用域表里的全部作用域；否则 []。
- * @param {Record<string, any>} env 预留给第 3 件读授权记录
+ * 当前授权：账号会话有效 → 有种子标记时 已授权 ∩ 作用域表，没有标记时作用域表全部（骨架行为）；否则 []。
+ * 读授权记录出错抛错（authorize 接住，fail closed）。
+ * @param {Record<string, any>} env
  * @param {{ ok?: boolean }|null|undefined} accountSession verifyAccountSession 的结论
  * @returns {Promise<string[]>}
  */
 export async function grantedScopes(env, accountSession) {
   if (!accountSession || accountSession.ok !== true) return [];
-  return SCOPE_IDS.slice();
+  const st = await readGrantState(env);
+  if (!st.seeded) return SCOPE_IDS.slice();
+  return scopesOfRows(st.rows);
 }
 
 /** @param {string} reason @returns {Authorization} */

@@ -1,0 +1,36 @@
+{{/* 账号 → 应用授权（/account/apps/，P3-1 第 3 件）：账号总览「设备」「账号安全」同卡新增的一行进入。
+   页头：一行说明（核查账号授权给各应用的权限）；下面搜索框（按名称搜索）+ 过滤条件「全部 / 已授权 / 已取消授权」（带数量）；
+   再下面应用列表，一卡一应用：应用图标 + 应用名、作用域说明（可以做什么；敏感操作另要验证账号）、授权时间、授权时的设备
+   （设备已删 →「已退出的设备」）、「取消授权」（不要复验）。
+   取消后卡片变灰，按钮换成「重新授权」（要账号复验：底部弹层验证账号通行密钥 / 密码，通过后 grant-add）。
+   只有 5 个应用：搜索、过滤都在前端按 grant-list 返回的列表做，不分页、不做服务端搜索。
+   搜索、过滤、带图标列表三个做法参考 Google 账号「关联的应用」页的思路，版式、文案、结构按本站账号页（三星账号式）来写。
+   没有账号会话 → 跳 /account/?return=<本页>，登录后回来。
+   数据：POST /api/account { action:'grant-list' } / { action:'grant-revoke', app } / { action:'grant-add', app }。
+   noindex（见 baseof）。脚本走 ES Module 入口 entry-account-apps.js。 */}}
+{{ define "main" }}
+{{ .Scratch.Set "sgx-entry" "entry-account-apps.js" }}
+{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+
+<div class="acct-layout pb-28">
+  <div id="acct-apps" hidden>
+    <p class="acct-note acct-apps-intro">{{ if $isEn }}Review what each app can do with your account.{{ else }}核查账号授权给各应用的权限。{{ end }}</p>
+    <div class="acct-apps-tools">
+      <label class="acct-apps-search">
+        <span class="acct-apps-search-ic" aria-hidden="true">{{ partial "icon.html" "search" }}</span>
+        <input type="search" id="acct-apps-q" autocomplete="off" enterkeyhint="search" placeholder="{{ if $isEn }}Search by name{{ else }}按名称搜索{{ end }}" aria-label="{{ if $isEn }}Search by name{{ else }}按名称搜索{{ end }}">
+      </label>
+      <div class="acct-apps-chips" role="group" aria-label="{{ if $isEn }}Filter{{ else }}过滤{{ end }}">
+        <button type="button" class="acct-apps-chip" data-ga-filter="all" aria-pressed="true"><span data-ga-label></span> <span class="acct-apps-n" data-ga-n></span></button>
+        <button type="button" class="acct-apps-chip" data-ga-filter="on" aria-pressed="false"><span data-ga-label></span> <span class="acct-apps-n" data-ga-n></span></button>
+        <button type="button" class="acct-apps-chip" data-ga-filter="off" aria-pressed="false"><span data-ga-label></span> <span class="acct-apps-n" data-ga-n></span></button>
+      </div>
+    </div>
+    <div id="acct-apps-list" class="acct-apps-list"></div>
+    <p class="acct-note acct-apps-empty" id="acct-apps-empty" hidden>{{ if $isEn }}No matching apps.{{ else }}没有符合条件的应用。{{ end }}</p>
+  </div>
+</div>
+
+{{ partial "account-app-icons.html" . }}
+{{ partial "account-i18n.html" . }}
+{{ end }}

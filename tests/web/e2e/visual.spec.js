@@ -27,7 +27,9 @@ const VIEWPORTS = {
    新增安全与隐私子页 /account/security/（已过门；倒计时数字在截图里遮罩），
    账号信息子页 /account/profile/ 2026-10-24 PR4 删除（登录方式 / 退出账号挪进设备页「此设备」卡），截图一并删除；
    PR4 新增的账号子页（云同步 / 设备）只拍手机，见文件末尾 account-sub-*；服务状态、临时钥匙搬到设置后也只拍手机，见文件末尾 settings-status-* / settings-tempkeys-* */
-const PAGES = ['/', '/settings/', '/settings/security/', '/settings/security/lock/', '/account/', '/account/security/', '/account/reset/'];
+/* P3-1：应用授权子页 /account/apps/ 按账号页惯例拍 5 视口 × 中英 × 深浅（20 张，Gray 2026-11-06 确认），5 张卡都已授权（含搜索框与过滤 chips） */
+const PAGES = ['/', '/settings/', '/settings/security/', '/settings/security/lock/', '/account/', '/account/security/', '/account/reset/', '/account/apps/'];
+const fxGrants = require('../../fixtures/app-grants.cjs');
 const LANGS = [
   { prefix: '', name: 'zh' },
   { prefix: '/en', name: 'en' },
@@ -85,6 +87,17 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
                 contentType: 'application/json',
                 body: JSON.stringify({ ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26 Ultra', provider: 'Samsung Pass', createdAt: 1760000000000, lastUsedAt: 1760000000000 }] }),
               });
+            });
+          }
+          /* 应用授权（P3-1）：已登录账号，grant-list 固定 5 个应用都已授权（fixtures/app-grants.cjs，授权时间固定） */
+          if (page === '/account/apps/') {
+            await pg.route('**/api/account', async (route) => {
+              if (route.request().method() === 'GET') {
+                await route.fulfill({ status: 200, contentType: 'application/json',
+                  body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'passkey', authAt: 1760000000000, expiresAt: 4102444800000 } }) });
+                return;
+              }
+              await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, grants: fxGrants.grants() }) });
             });
           }
           /* 账号总览「AI 模型」一行（P4-2d）：GET /api/ai 固定两条模型、能切、没选过（副标题 = 默认模型 Gemma 4） */
@@ -153,6 +166,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
             await expect(pg.locator('#acct-ai-sub')).toHaveText('Gemma 4');
           }
           if (page === '/account/reset/') await expect(pg.locator('#sgx-reset-root')).toBeVisible({ timeout: 10000 });
+          if (page === '/account/apps/') await expect(pg.locator('#acct-apps-list .acct-app-card')).toHaveCount(5, { timeout: 10000 });
           if (page === '/account/security/') {
             await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
             await expect(pg.locator('#sgx-credential-countdown')).toBeVisible();

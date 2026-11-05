@@ -7442,6 +7442,47 @@
   .acct-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
   /* 卡片下面紧跟的说明、后面还有下一组（2026-10-24 PR4：设备页「此设备」卡下的保持登录说明、云同步页总开关下的说明）：上 8 下 24，和组间距一致 */
   .acct-note.acct-note-gap { margin: 8px 0 24px; }
+  /* 2026-11-06 P3-1 账号 → 应用授权（/account/apps/）：一行说明 → 搜索框 + 过滤条件（全部 / 已授权 / 已取消授权，带数量）→ 一卡一应用。
+     取消授权后卡片变灰（内容半透明，「重新授权」按钮不变灰）。同意卡片（/account/ 登录后 #acct-consent）与授权卡同源 */
+  .acct-apps-intro { margin: 0 0 14px; font-size: 14px; }
+  .acct-apps-tools { display: flex; flex-direction: column; gap: 12px; margin: 0 0 16px; }
+  .acct-apps-search {
+    display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 16px; border-radius: 999px; cursor: text;
+    background: var(--m-container-lowest); border: 1px solid var(--m-outline); color: var(--sgx-text-secondary);
+    &:focus-within { outline: 2px solid var(--sgx-focus-ring); outline-offset: -1px; }
+    input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 15px; color: var(--sgx-text-primary); padding: 12px 0; outline: none; }
+    input::placeholder { color: var(--sgx-text-secondary); }
+    input::-webkit-search-cancel-button { cursor: pointer; }
+  }
+  .acct-apps-search-ic { display: inline-flex; width: 20px; height: 20px; flex-shrink: 0; }
+  .acct-apps-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .acct-apps-chip {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+    font-size: 14px; font-weight: 600; background: var(--sgx-chip-bg); color: var(--sgx-on-chip); border: 1px solid var(--m-outline);
+    &[aria-pressed="true"] { background: var(--sgx-chip-selected-bg); color: var(--sgx-on-chip-selected); border-color: transparent; }
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+  }
+  .acct-apps-n { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .acct-apps-list { display: flex; flex-direction: column; gap: 12px; }
+  .acct-apps-empty { margin: 8px 0 0; font-size: 14px; &[hidden] { display: none; } }
+  .acct-app-card { position: relative; }
+  .acct-app-body { transition: opacity .2s ease; }
+  .acct-app-card.is-off .acct-app-body { opacity: .55; }
+  .acct-app-info { display: flex; flex-direction: column; gap: 8px; padding: 0 20px 14px 74px; }
+  .acct-app-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .acct-app-meta-k { font-size: 12px; color: var(--sgx-text-secondary); }
+  .acct-app-meta-v { font-size: 14px; color: var(--sgx-text-primary); overflow-wrap: anywhere; }
+  .acct-app-regrant { border-top: 1px solid var(--m-outline-variant); }
+  .acct-app-verify { width: 100%; padding: 4px 0 8px; }
+  .acct-consent { padding-top: clamp(16px, 6vh, 56px); &[hidden] { display: none; } }
+  .acct-consent .acct-app-card { max-width: 480px; margin: 0 auto; }
+  .acct-consent .acct-app-body { display: flex; flex-direction: column; align-items: center; padding: 28px 24px 8px; text-align: center; }
+  .acct-consent-hero .acct-ic { width: 64px; height: 64px; svg { width: 30px; height: 30px; } }
+  .acct-consent-title { margin: 16px 0 6px; font-size: 20px; font-weight: 700; line-height: 1.35; color: var(--sgx-text-primary); }
+  .acct-consent-sub { margin: 0 0 8px; font-size: 14px; color: var(--sgx-text-secondary); }
+  .acct-consent-scopes { margin: 0 0 16px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 15px; color: var(--sgx-text-primary);
+    li { padding: 10px 14px; border-radius: 14px; background: var(--m-container-low); } }
+  .acct-consent-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px 16px; }
   /* 2026-10-23 临时钥匙（设置 → 安全与隐私 → 临时钥匙）：新建弹层（名字 + 有效期下拉）和签发后的临时码 */
   .tk-form, .tk-done { display: flex; flex-direction: column; align-items: stretch; gap: 12px; width: 100%; max-width: 320px; &[hidden] { display: none; } }
   .tk-form .sgx-pw-input { max-width: none; }

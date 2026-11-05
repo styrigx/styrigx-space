@@ -1,0 +1,12 @@
+{{/* 应用授权（P3-1）：授权卡 / 同意卡片用的应用图标，一个应用一个 <template id="acct-app-ic-<应用 id>">（apps/account-grants.js appIcon 克隆）。
+   沿用各站现有图标：奇趣 / 日刻 = 导航里的站图标（nav-curio / nav-daymark，与两站站内同一个）；设置同步 = 账号总览「云同步」的 cloud；
+   数字健康 = 设置里数字健康的 pulse；头像 = person。底色按应用固定（与账号总览各行同一组容器色）。
+   用法：{{ partial "account-app-icons.html" . }}（account-apps.html、account.html 各输出一次） */}}
+{{ $apps := slice
+  (dict "id" "curio" "icon" "nav-curio" "bg" "bg-m-primary-container text-m-on-primary-container")
+  (dict "id" "daymark" "icon" "nav-daymark" "bg" "bg-m-accent-container text-m-on-accent-container")
+  (dict "id" "prefs" "icon" "cloud" "bg" "bg-m-tertiary-container text-m-on-tertiary-container")
+  (dict "id" "wellbeing" "icon" "pulse" "bg" "bg-m-secondary-container text-m-on-secondary-container")
+  (dict "id" "avatar" "icon" "person" "bg" "bg-m-primary-container text-m-on-primary-container")
+}}
+{{ range $apps }}<template id="acct-app-ic-{{ .id }}"><span class="acct-ic {{ .bg }}">{{ partial "icon.html" .icon }}</span></template>{{ end }}

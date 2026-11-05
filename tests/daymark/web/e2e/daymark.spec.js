@@ -221,7 +221,7 @@ test('余响 · 账号未登录：再抽一句后没有设为今日；英文页�
   await expect(page.locator('#dm-set-today')).toBeHidden();
 });
 
-test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；页底「登录账号后可编辑」链到 /account/', async ({ page }) => {
+test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；页底「登录账号后可编辑」链到 /account/?return=本页', async ({ page }) => {
   await mock(page, false);
   await page.goto('/daymark/#trove');
   await expect(page.locator('#dm-list .dm-card')).toHaveCount(3);
@@ -229,7 +229,8 @@ test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；�
   await expect(page.locator('.dm-lock')).toHaveCount(0);
   await expect(page.locator('#dm-signin')).toBeVisible();
   await expect(page.locator('#dm-signin a')).toHaveText('登录账号后可编辑');
-  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/');
+  /* P3-1：带 ?return=本页（同意流程登录完回来） */
+  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/?return=%2Fdaymark%2F%23trove');
 });
 
 test('拾录 · 写接口回 401 account（账号会话刚过期）：不刷新页面，编辑弹层提示登录账号', async ({ page }) => {
@@ -419,4 +420,15 @@ test('主题跟主站 sgx-ui cookie：pal 换预设；accent 是自定义种子 
   await expect(page.locator('#sgx-accent-roles')).toHaveCount(1);
   await expect(page.locator('#sgx-accent-js')).toHaveCount(0);
   expect(await ind()).toBe(custom);
+});
+
+test('P3-1 账号已登录但日刻未获授权（canWrite=false、showPrivate=true）：页底「日刻未获账号授权」链到 /account/apps/', async ({ page }) => {
+  await mock(page, true);
+  await page.route('**/api/quotes**', (r) => (r.request().method() === 'GET'
+    ? r.fulfill({ json: { ok: true, canWrite: false, showPrivate: true, quotes: [] } })
+    : r.fulfill({ status: 403, json: { ok: false, error: 'scope', scope: 'daymark.write' } })));
+  await page.goto('/daymark/#trove');
+  await expect(page.locator('#dm-signin')).toBeVisible();
+  await expect(page.locator('#dm-signin a')).toHaveText('日刻未获账号授权');
+  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/apps/');
 });

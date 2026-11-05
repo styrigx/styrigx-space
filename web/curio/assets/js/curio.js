@@ -6,7 +6,9 @@
  *   点格子在新标签页打开网址。
  * - 能编辑（接口回 canWrite：账号已登录 + 作用域 curio.write）：右下角「收藏」新建；长按格子（或键盘 Enter 以外的 E 键）编辑；分类条右边「⋯」：管理分类 / 导入浏览器书签 / 导出书签。
  *   编辑弹层：网址（「自动填写」抓标题、简介、图标）、名字、英文名和英文简介、简介、分类（可就地新建）、自定义图标、仅自己可见、上移 / 下移、删除。
- * - 不能编辑（canWrite=false）：编辑入口换成一行「登录账号后可编辑」（#cu-signin，链到 /account/）。
+ * - 不能编辑（canWrite=false）：编辑入口换成页底一行（#cu-signin，signinHint）：
+ *   没登录账号 →「登录账号后可编辑」，链到 /account/?return=<本页>（P3-1 同意流程：登录完先判授权，没授权弹同意卡片，完了回本页）；
+ *   已登录但奇趣没有 curio.write（在 账号 › 应用授权 取消过）→「奇趣未获账号授权」，链到 /account/apps/。写接口回 403 scope 也提示这一句。
  *   写接口回 401 account / 403 scope 时也提示这一句；导入回 401 reauth（要账号复验）时提示去账号页验证一次再回来导入（P3-1 前的简版）。
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
  *
@@ -118,7 +120,8 @@ var T = isEn ? {
   importing: 'Importing…', notBookmarks: 'That isn\'t a bookmarks file.', emptyFile: 'No links in that file.', tooLarge: 'The file is too large.',
   limit: 'That would go over the limit.', backup: 'Couldn\'t back up the file, so nothing was imported.', count: function(n){ return n + (n === 1 ? ' link' : ' links'); },
   makePrivate: 'Only me', makePublic: 'Visible to visitors', up: 'Move up', down: 'Move down',
-  needAccount: 'Sign in to your account to edit.', needReauth: 'Verify your account again before importing: open Account › Security and privacy, then come back within 3 minutes.'
+  needAccount: 'Sign in to your account to edit.', needReauth: 'Verify your account again before importing: open Account › Security and privacy, then come back within 3 minutes.',
+  signin: 'Sign in to your account to edit', noScope: 'Curio doesn’t have account access'
 } : {
   all: '全部', add: '收藏', edit: '编辑', saved: '已保存', deleted: '已删除', failed: '出了点问题，请再试一次。',
   needUrl: '填一个有效的网址。', needName: '起个名字。', needCat: '选一个分类。', dup: '这个网址已经收藏过了。',
@@ -128,7 +131,8 @@ var T = isEn ? {
   importing: '正在导入…', notBookmarks: '这不是书签文件。', emptyFile: '文件里没有网址。', tooLarge: '文件太大了。',
   limit: '超出上限了。', backup: '备份原文件失败，所以没有导入。', count: function(n){ return n + ' 条'; },
   makePrivate: '仅自己可见', makePublic: '公开', up: '上移', down: '下移',
-  needAccount: '登录账号后可编辑。', needReauth: '导入前要再验证一次账号：打开 账号 › 安全与隐私 验证后，3 分钟内回来导入。'
+  needAccount: '登录账号后可编辑。', needReauth: '导入前要再验证一次账号：打开 账号 › 安全与隐私 验证后，3 分钟内回来导入。',
+  signin: '登录账号后可编辑', noScope: '奇趣未获账号授权'
 };
 
 var $ = function(s){ return doc.querySelector(s); };
@@ -178,7 +182,19 @@ function errText(e){
   var c = e && e.code;
   return c === 'duplicate' ? T.dup : c === 'not-empty' ? T.notEmpty : c === 'bad-url' ? T.needUrl : c === 'bad-name' ? T.needName
     : c === 'not-bookmarks' ? T.notBookmarks : c === 'empty' ? T.emptyFile : c === 'too-large' ? T.tooLarge : c === 'limit' ? T.limit : c === 'backup' ? T.backup
-    : c === 'account' || c === 'scope' ? T.needAccount : c === 'reauth' ? T.needReauth : T.failed;
+    : c === 'account' ? T.needAccount : c === 'scope' ? T.noScope + '。' : c === 'reauth' ? T.needReauth : T.failed;
+}
+
+/**
+ * 不能编辑时页底那一行（P3-1）：没登录账号 → 登录（带 ?return= 回本页，走同意流程）；已登录没授权 → 去 账号 › 应用授权。
+ * @param {boolean} loggedIn 接口回的 showPrivate（= 有账号会话）
+ * @returns {{text: string, href: string}}
+ */
+function signinHint(loggedIn){
+  var acct = 'https://styrigx.com' + (isEn ? '/en' : '') + '/account/';
+  if (loggedIn) return { text: T.noScope, href: acct + 'apps/' };
+  var here = G.location.pathname + G.location.search + G.location.hash;
+  return { text: T.signin, href: acct + '?return=' + encodeURIComponent(here) };
 }
 
 /** 长按（≈550ms，手指不挪）触发 fn；触发后吞掉随后的那次点击（不打开网址） */
@@ -493,7 +509,11 @@ function boot(){
     $('#cu-fab').classList.toggle('hidden', !canWrite);
     $('#cu-menu-btn').classList.toggle('hidden', !canWrite);
     var hint = $('#cu-signin');
-    if (hint) hint.classList.toggle('hidden', canWrite);
+    if (hint) {
+      hint.classList.toggle('hidden', canWrite);
+      var a = hint.querySelector('a');
+      if (a && !canWrite) { var h = signinHint(showPrivate); a.textContent = h.text; a.setAttribute('href', h.href); }
+    }
     $('#cu-loading').classList.add('hidden');
     render();
   }).catch(function(e){

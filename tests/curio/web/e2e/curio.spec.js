@@ -89,10 +89,10 @@ test('账号未登录：顶栏分段滑块（没有搜索栏）、快捷面板�
   await expect(page.locator('#cu-fab')).toBeHidden();
   await expect(page.locator('#cu-menu-btn')).toBeHidden();
   await expect(page.locator('.cu-lock')).toHaveCount(0);
-  /* 编辑入口换成「登录账号后可编辑」，链到主站账号页 */
+  /* 编辑入口换成「登录账号后可编辑」，链到主站账号页并带 ?return=本页（P3-1 同意流程：登录完回来） */
   await expect(page.locator('#cu-signin')).toBeVisible();
   await expect(page.locator('#cu-signin a')).toHaveText('登录账号后可编辑');
-  await expect(page.locator('#cu-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/');
+  await expect(page.locator('#cu-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/?return=%2Fcurio%2F');
   const gh = page.locator('.cu-tile[data-id="11"]');
   await expect(gh).toHaveAttribute('href', 'https://github.com/');
   await expect(gh).toHaveAttribute('target', '_blank');
@@ -479,4 +479,16 @@ test('账号已登录（可写）：游戏封面「移动和缩放」——框�
   await page.locator('#gm-list [data-game="8"]').click();
   await page.locator('#it-view-edit').click();
   await expect(page.locator('#gm-photo-prev')).toBeDisabled();
+});
+
+test('P3-1 账号已登录但奇趣未获授权（canWrite=false、showPrivate=true）：页底「奇趣未获账号授权」链到 /account/apps/；写接口 403 scope 提示同一句', async ({ page }) => {
+  await mock(page, true);
+  await page.route('**/api/links**', (r) => (r.request().method() === 'GET'
+    ? r.fulfill({ json: { ok: true, canWrite: false, showPrivate: true, cats: [] } })
+    : r.fulfill({ status: 403, json: { ok: false, error: 'scope', scope: 'curio.write' } })));
+  await page.goto('/curio/');
+  await expect(page.locator('#cu-signin')).toBeVisible();
+  await expect(page.locator('#cu-signin a')).toHaveText('奇趣未获账号授权');
+  await expect(page.locator('#cu-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/apps/');
+  await expect(page.locator('#cu-fab')).toBeHidden();
 });

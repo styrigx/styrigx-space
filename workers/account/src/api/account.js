@@ -22,6 +22,10 @@
  * - device-revoke-all：要账号会话 + AccountReauthTicket（只有 reset 票不行，403 reauth）。Account 纪元 +1、当前设备重签、
  *   其他设备的行全部删除（票随纪元失效）、短票按原到期时间重签。
  * - root-reauth / root-reset / audit-list：见 account-root.js。
+ * - grant-list / grant-revoke / grant-add（P3-1 应用授权，core/app-grant.js）：都要进门 + 账号会话（只有 reset 票不行，401 account）。
+ *   grant-list 先跑幂等种子（core/app-grant.js ensureSeed，首次切换），再回全部应用的授权状态 { ok, grants }；
+ *   grant-revoke { app } 删这一行（只降权，不要复验），回新列表；grant-add { app } 要 AccountReauthTicket（没有 → 401 reauth），
+ *   写回这一行，回新列表。授权卡页 /account/apps/ 和登录后的同意流程（apps/account.js）共用这三个。
  *
  * 与网关原行为的有意差别（方案第 2 节「两边不再互相影响」）：
  * - 首次配置账号凭证不再推 Lock 纪元、不再重签锁屏会话（删 markConfigured；这里读不到锁屏）。
@@ -90,6 +94,8 @@ import {
 } from '../core/account-session.js';
 import { listDevices, revokeDevice, pruneOtherDevices, deviceView, getDevice, isDeviceId } from '../core/account-devices.js';
 import { handleRootAction, handleAuditList, writeSecurityEvent, ROOT_ACTIONS } from '../core/account-root.js';
+import { SCOPES } from '../core/scopes.js';
+import { APP_IDS, isAppId, scopesOfApp, readGrantState, ensureSeed, addGrant, revokeGrant } from '../core/app-grant.js';
 
 const CH = REALM_ACCOUNT.challenge; /* challenge 表的 purpose：login / register */
 const CHALLENGE_TTL = CH.ttl; /* 5 分钟 */
@@ -108,6 +114,83 @@ export function hasLockSession(request) {
  */
 export function clientAddress(request) {
   return readClientContext(request && request.headers).address || 'unknown';
+}
+
+/* ---------------- 应用授权（P3-1） ---------------- */
+
+/** grant-* 三个 action */
+export const GRANT_ACTIONS = Object.freeze(['grant-list', 'grant-revoke', 'grant-add']);
+
+/**
+ * 授权卡页的列表：全部应用按作用域表顺序，一项一张卡。
+ * { app, name:{zh,en}, scopes:[作用域 id], sensitive:[敏感操作], granted, grantedAt, by, device:{ name, gone } | null }
+ * device：授权时的设备（record.deviceId 对应的 device 行；行不在了 → gone=true，前端显示「已退出的设备」）；没授权 = null。
+ * @param {any} env
+ */
+export async function grantListView(env) {
+  const st = await readGrantState(env);
+  /** @type {Record<string, any>} */
+  const byApp = {};
+  for (const r of st.rows) byApp[r.app] = r;
+  /** @type {Record<string, any>} */
+  const devCache = {};
+  const out = [];
+  for (const app of APP_IDS) {
+    const meta = SCOPES.filter((s) => s.app === app);
+    const r = byApp[app] || null;
+    let device = null;
+    if (r) {
+      const id = r.deviceId || '';
+      if (!(id in devCache)) {
+        let d = null;
+        try { d = id ? await getDevice(env, id) : null; } catch (e) { d = null; }
+        devCache[id] = d ? { name: deviceView(d, '').name, gone: false } : { name: '', gone: true };
+      }
+      device = devCache[id];
+    }
+    out.push({
+      app: app,
+      name: { zh: meta[0].name.zh, en: meta[0].name.en },
+      scopes: scopesOfApp(app),
+      sensitive: meta.reduce((a, s) => a.concat(s.sensitive), /** @type {string[]} */ ([])),
+      granted: !!r,
+      grantedAt: r ? r.grantedAt : 0,
+      by: r ? r.by : '',
+      device: device,
+    });
+  }
+  return out;
+}
+
+/**
+ * grant-list / grant-revoke / grant-add。调用前已确认进门；这里验账号会话（不认 reset 票）。
+ * @param {any} env @param {any} request @param {string} action @param {any} body
+ */
+async function handleGrantAction(env, request, action, body) {
+  const acc = await verifyAccountSession(request, env);
+  if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
+  const who = { deviceId: acc.deviceId || '', by: acc.by || '' };
+  if (action !== 'grant-list') {
+    const app = (body && body.app) || '';
+    if (!isAppId(app)) return apiError(400, 'params');
+    if (action === 'grant-add') {
+      const rv = await verifyTicket(request, env, ACCOUNT_REAUTH_TICKET);
+      if (!rv.ok) return apiError(401, 'reauth', { reason: rv.reason });
+    }
+    try {
+      /* 先种再改：首次切换前直接点了「取消 / 授权」（同意流程）也不会让别的应用掉成未授权 */
+      await ensureSeed(env, who);
+      if (action === 'grant-add') await addGrant(env, app, who);
+      else await revokeGrant(env, app);
+    } catch (e) {
+      return apiError(503, 'server');
+    }
+  } else {
+    try { await ensureSeed(env, who); } catch (e) { return apiError(503, 'server'); }
+  }
+  let grants;
+  try { grants = await grantListView(env); } catch (e) { return apiError(503, 'server'); }
+  return json(200, { ok: true, grants: grants });
 }
 
 /* ---------------- GET ---------------- */
@@ -206,6 +289,9 @@ async function handlePost(context) {
     return handleRootAction({ request, env, ip, action, body });
   }
   if (action === 'audit-list') return handleAuditList(env);
+
+  /* ============ 应用授权（P3-1） ============ */
+  if (GRANT_ACTIONS.indexOf(action) !== -1) return handleGrantAction(env, request, action, body);
 
   /* ============ login-password ============ */
   if (action === 'login-password') {

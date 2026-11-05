@@ -1,6 +1,6 @@
 /**
  * @fileoverview 账号页共用：账号总览（/account/，含登录区）和各子页
- * （设备 /account/devices/、安全与隐私 /account/security/、云同步 /account/sync/）。
+ * （设备 /account/devices/、安全与隐私 /account/security/、云同步 /account/sync/、应用授权 /account/apps/）。
  * 设置里的临时钥匙页（/settings/security/tempkeys/）也用这里的 createT（同一份 #sgx-i18n-account 文案），不问账号会话。
  * 2026-10-24 PR4：「账号信息」子页（/account/profile/）删除，登录方式和「退出账号」挪进设备页「此设备」卡。
  *
@@ -15,7 +15,7 @@
  */
 import { KEY_ACCOUNT } from '../lib/key-names.js';
 import { ACCOUNT_API } from '../auth/account-api.js';
-import { syncEnabled, LAST_KEY } from '../lib/cloud-sync.js';
+import { syncEnabled, scopeDenied, LAST_KEY } from '../lib/cloud-sync.js';
 import { get as sget } from '../lib/storage.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 
@@ -27,8 +27,8 @@ export function accountUrl(en) {
 export function securityUrl(en) {
   return en ? '/en/account/security/' : '/account/security/';
 }
-/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、云同步） */
-export const ACCOUNT_RETURN_RE = /^\/(en\/)?account\/(security|devices|sync)\/$/;
+/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、云同步、应用授权） */
+export const ACCOUNT_RETURN_RE = /^\/(en\/)?account\/(security|devices|sync|apps)\/$/;
 
 /** 回账号页登录，登录后回当前子页 @param {boolean} en */
 export function goAccountLogin(en) {
@@ -54,13 +54,15 @@ export function requireAccountSession(en) {
 }
 
 /**
- * 云同步副标题：关 → 「已关闭…」；开、没同步过 → 「已开启…」；开、同步过 → 「上次同步 [M月D日 ]hh:mm」。
+ * 云同步副标题：关 → 「已关闭…」；授权被取消 → 「设置同步未获账号授权，只存本机」；开、没同步过 → 「已开启…」；开、同步过 → 「上次同步 [M月D日 ]hh:mm」。
  * @param {function(string): string} t
  * @param {boolean} en
  * @param {number} [now]
  */
 export function syncSubText(t, en, now) {
   if (!syncEnabled()) return t('syncOff');
+  /* P3-1：设置同步的授权被取消（/api/prefs 403 scope）→ 只存本机 */
+  if (scopeDenied()) return t('syncNoScope');
   const last = parseInt(sget(LAST_KEY) || '0', 10) || 0;
   if (!last) return t('syncOn');
   const d = new Date(last);
