@@ -121,9 +121,9 @@ Report-Only 里的内联脚本 sha256 由 `scripts/gen-csp.mjs` 从生产构建�
 ```
 tests/
 ├─ config/
-├─ web/
-│  ├─ e2e/
-│  └─ ui/
+├─ space/
+│  ├─ e2e/<功能>/
+│  └─ ui/<功能>/
 ├─ blog/
 ├─ curio/
 ├─ daymark/
@@ -142,9 +142,9 @@ tests/
 | 位置 | 是什么 |
 |---|---|
 | `config/` | `playwright.config.js`、`pw-local.config.js`（本地挑几个 spec 跑，换端口）、`lighthouserc.json`、`stylelintrc.json` |
-| `web/e2e/` | 主站 Playwright 页面测试；`visual/` 下是截图基线 |
-| `web/ui/` | 主站前端单元测试（`node --test`） |
-| `blog/`、`curio/`、`daymark/` | 子站测试（从 styrigx-atlas 搬来）：blog 的单测在 `tests/blog/*.test.mjs`、e2e 和截图基线在 `tests/blog/e2e/`；curio / daymark 在 `tests/<站>/web/`（单测）、`web/e2e/`、`config/`、`fixtures/`。CI 的「Subsite builds + unit tests」一步跑单测；子站 Playwright 在 PR2 接 |
+| `space/e2e/` | 主站 Playwright 页面测试，按功能分子目录：`account/`、`passkey/`（预览站 / 测试服务器真后端）、`lock/`、`settings/`、`topbar/`、`layout/`、`edge/`、`visual/`（`visual.spec.js`、`lock.spec.js` 和各自的截图基线 `<spec>-snapshots/`）；`helpers/` 放非 spec 文件（`helpers.js`、`*.cjs`、预览组合入口 `preview-worker.js`）。Playwright 的 `testMatch` 按文件名匹配，换子目录不用改配置 |
+| `space/ui/` | 主站前端单元测试（`node --test`），按功能分子目录：`account/`、`passkey/`、`lock/`、`sync/`、`status/`、`settings/`、`topbar/`、`shell/`、`theme/`、`layout/`、`build/`、`home/` |
+| `blog/`、`curio/`、`daymark/` | 子站测试（从 styrigx-atlas 搬来），三站同一结构：单测在 `tests/<站>/*.test.mjs`、e2e 在 `tests/<站>/e2e/`（blog 的截图基线在 `e2e/blog-visual.spec.js-snapshots/`）、Playwright 配置在 `config/`。sgx-ui 契约夹具不放副本，直接读共享的 `tests/fixtures/ui-cookie-contract.json` |
 | `workers/curio-core/`、`workers/daymark-core/` | 子站接口 Worker 单元测试（node:sqlite 真跑 D1 的 SQL） |
 | `workers/_harness.mjs`、`_harness.cjs` | 测试台公共件：内存 KV（`makeKV`）、内存认证 D1（`makeAuthD1`，node:sqlite）、`derToPem`、`genKeyPair`、`postReq`；e2e 的 `edge-harness.cjs` / `cred-e2e-helpers.cjs` 也用 `_harness.cjs`，不再各写一份 |
 | `workers/auth-gateway/` | 鉴权单元测试（`node --test`） |
@@ -153,12 +153,12 @@ tests/
 | `workers/ai/` | 站内对话助手单元测试（召回两档、上下文过滤、输入上限、SSE 顺序、断开取消上游；网关那边的门和限流在 `workers/auth-gateway/ai-api.test.mjs`） |
 | `workers/status/` | 站点监测单元测试（检查、汇总、用量；有 `node:sqlite` 时跑真 SQL） |
 | `workers/proxy-rules/` | 规则集反代单元测试 |
-| `fixtures/` | 测试用固定数据 |
+| `fixtures/` | 测试用固定数据（四站共用；`ui-cookie-contract.json` 只此一份，`scripts/gen-ui-cookie-contract.mjs` 生成） |
 
 常用命令（都在仓库根目录执行）：
 
 ```bash
-node --test tests/workers/*/*.test.mjs tests/web/ui/*.test.mjs
+node --test tests/workers/*/*.test.mjs "tests/space/ui/**/*.test.mjs"
 # 四包构建 + 拼单树（主站 web/atlas/public + 三站 web/<站>/public → dist/site/）；只构建子站用 npm run build:sites
 npm run build
 npm run test:sites   # 子站单测（要先构建子站）

@@ -1,5 +1,5 @@
 /**
- * 2026-10-21 三站锁屏 / 回跳 / 复验 / 账号首帧 根因回归（与 tests/web/e2e/edge-flow.spec.js 对应）。
+ * 2026-10-21 三站锁屏 / 回跳 / 复验 / 账号首帧 根因回归（与 tests/space/e2e/edge/edge-flow.spec.js 对应）。
  *
  * 根因（每条都有一个测试，改前会红）：
  * A. 路由：Cloudflare 不带 * 的规则遇到查询串不命中 → styrigx.com/?lock=1&return=…（锁屏入口）、

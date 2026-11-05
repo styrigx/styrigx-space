@@ -50,9 +50,9 @@ const SITE = {
     /* 快捷面板导航项 + 图标（partials/topnav.html）、预设种子 + 引擎版本（partials/sgx-inherit.html） */
     { path: 'web/data/sgx-shell/nav.json', kind: 'json', parts: ['nav.json'] },
     { path: 'web/data/sgx-shell/palettes.json', kind: 'json', parts: ['palettes.json'] },
-    /* sgx-ui cookie 只读解析器（partials/sgx-inherit.html 原样内联进 <head>，首帧前落外观）+ 契约夹具（tests/sgx-inherit.test.mjs 逐条跑） */
+    /* sgx-ui cookie 只读解析器（partials/sgx-inherit.html 原样内联进 <head>，首帧前落外观）；契约夹具见下 */
     { path: 'web/assets/js/sgx/shell/ui-cookie-read.js', kind: 'file', parts: ['ui-cookie-read.js'] },
-    { path: 'tests/fixtures/ui-cookie-contract.json', kind: 'json', parts: ['ui-cookie-contract.json'] },
+    /* ui-cookie-contract.json（契约夹具）不再同步副本：2026-11-06 tests/ 结构统一起子站单测 / e2e 直接读仓库共享的 tests/fixtures/ui-cookie-contract.json（gen-ui-cookie-contract.mjs 生成，--check 守着）；外壳目录里那份仍在 lock 的 files 指纹里 */
   ],
 };
 /* ---- /__SITE_CONFIG__ ---- */

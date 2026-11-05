@@ -1,6 +1,6 @@
 /**
  * 测试台公共件（唯一一份实现）：Worker 单测（经 tests/workers/_harness.mjs）和 e2e 的 CJS 测试台
- * （tests/web/e2e/edge-harness.cjs、cred-e2e-helpers.cjs）都从这里取，不再各写一遍。
+ * （tests/space/e2e/helpers/edge-harness.cjs、cred-e2e-helpers.cjs）都从这里取，不再各写一遍。
  * 只放和被测代码无关的纯工具；要 import Worker 源码（ESM）的东西放 _harness.mjs。
  *
  * - derToPem(der, label)：DER → PEM（64 列折行，结尾带换行；Web Crypto importKey / 网关 pemToDer 都认）

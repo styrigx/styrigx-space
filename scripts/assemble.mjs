@@ -12,7 +12,7 @@
  *   - 404.html 各站自带：Pages 按最近一级的 404.html 回答（/blog/xxx → /blog/404.html，站外 → 根上主站的 404.html）。
  *
  * 用法：node scripts/assemble.mjs [--out <目录>]（--out 按当前目录解析；默认仓库根的 dist/site/。先构建四个包：node scripts/build-sites.mjs 会顺带拼树）
- * 单测：tests/web/ui/assemble.test.mjs
+ * 单测：tests/space/ui/build/assemble.test.mjs
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';

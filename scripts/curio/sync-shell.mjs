@@ -47,13 +47,12 @@ const SITE = {
     { path: 'web/assets/js/sgx/shell/modal-sheet.js', kind: 'file', parts: ['modal-sheet.js'] },
     { path: 'web/assets/js/sgx/shell/ai.js', kind: 'file', parts: ['ai.js'] },
     { path: 'web/assets/js/sgx/shell/prefs-write.js', kind: 'file', parts: ['prefs-write.js'] },
-    /* 快捷面板导航项 + 图标（baseof.html）、预设种子 + 引擎版本（tests/web/ui-inherit.test.mjs 核对读端预设表） */
+    /* 快捷面板导航项 + 图标（baseof.html）、预设种子 + 引擎版本（tests/curio/ui-inherit.test.mjs 核对读端预设表） */
     { path: 'web/assets/sgx-shell/nav.json', kind: 'json', parts: ['nav.json'] },
     { path: 'web/assets/sgx-shell/palettes.json', kind: 'json', parts: ['palettes.json'] },
     /* 外观 cookie（sgx-ui）读端：经典脚本 ES5，baseof.html 原样内联进 <head>（挂 window.SgxUI），ui-inherit-run.js 调 SgxUI.apply */
     { path: 'web/assets/js/sgx/shell/ui-cookie-read.js', kind: 'file', parts: ['ui-cookie-read.js'] },
-    /* 契约夹具（主站写端真实产出的 cookie + 读端期望）：tests/web/ui-cookie-contract.test.mjs 逐个跑 */
-    { path: 'tests/fixtures/ui-cookie-contract.json', kind: 'json', parts: ['ui-cookie-contract.json'] },
+    /* ui-cookie-contract.json（契约夹具）不再同步副本：2026-11-06 tests/ 结构统一起子站单测 / e2e 直接读仓库共享的 tests/fixtures/ui-cookie-contract.json（gen-ui-cookie-contract.mjs 生成，--check 守着）；外壳目录里那份仍在 lock 的 files 指纹里 */
   ],
 };
 /* ---- /__SITE_CONFIG__ ---- */

@@ -10,7 +10,7 @@ const { defineConfig } = require('@playwright/test');
 const PHONE = { deviceScaleFactor: 2.625, isMobile: true, hasTouch: true };
 
 module.exports = defineConfig({
-  testDir: '../web/e2e',
+  testDir: '../e2e',
   testMatch: ['*.spec.js'],
   projects: [
     {

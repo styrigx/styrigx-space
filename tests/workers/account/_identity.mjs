@@ -14,7 +14,7 @@ import { genKeyPair, postReq } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
 
 const require = createRequire(import.meta.url);
-export const { makeAttestationCredential } = require('../../web/e2e/cred-e2e-helpers.cjs');
+export const { makeAttestationCredential } = require('../../space/e2e/helpers/cred-e2e-helpers.cjs');
 
 const ID = '../../../workers/account/src/core/';
 export const account = await import('../../../workers/account/src/api/account.js');

@@ -42,10 +42,10 @@
  * 20. 每个 Worker 目录必须有 README.md
  * 21. 每个 Worker 的 package.json 必须有非空字符串 name
  *     （19–21 的 Worker 目录 = workers/ 下有 wrangler.toml 的子目录；workers/ 下每个子目录都得有 wrangler.toml，
- *     tests/web/ui/check-layers.test.mjs 核对。只管这四条，依赖方向不在这里查）
+ *     tests/space/ui/build/check-layers.test.mjs 核对。只管这四条，依赖方向不在这里查）
  *
  * 用法：node scripts/check-layers.mjs [--root <仓库根>]
- * 规则函数导出给 tests/web/ui/check-layers.test.mjs 用。
+ * 规则函数导出给 tests/space/ui/build/check-layers.test.mjs 用。
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative, dirname, resolve, sep } from 'node:path';
