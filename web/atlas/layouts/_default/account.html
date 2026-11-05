@@ -99,18 +99,12 @@
       </div>
     </section>
   </div>
-</div>
-
-{{/* 2026-10-23 全页光晕背景（共用组件 .sgx-glass-bg，锁屏同一套），只在登录区显示时出现。
-   放在 .acct-layout 外面：.acct-layout 有 contain: layout，会把 fixed 层框在栏宽里。纯装饰。
-   放在 .acct-layout 后面（不是 main 的第一个子元素）：正文首块顶对齐的检查看 main 的第一个子元素；层级靠 z-index。 */}}
-<div class="sgx-glass-bg acct-glass" aria-hidden="true"></div>
-
 {{/* P3-1 同意卡片：应用内点登录（/account/?return=/curio/… 或 /daymark/…）→ 登录完先判该应用有无授权；
    有 → 直接回原页面；没有 → 显示这张卡（应用图标与名、请求的作用域说明、「授权」「拒绝」），与授权卡页同一套样式。
    授权：grant-add（刚完成的登录即视为已复验，登录时带 reauth:true 拿 3 分钟票；Gray 2026-11-06 定 A）→ 回原页面；
-   拒绝：不写记录，回原页面（应用侧显示未获授权提示）。回原页面按现有网关登录跳转：GET /api/lock-session-check?return= 的 next。apps/account.js */}}
-<div id="acct-consent" class="acct-layout acct-consent" hidden>
+   拒绝：不写记录，回原页面（应用侧显示未获授权提示）。回原页面按现有网关登录跳转：GET /api/lock-session-check?return= 的 next。apps/account.js
+   放在 .acct-layout 里面（与 #acct-login / #acct-main 同级）：每页 main 里只有一个 .acct-layout。 */}}
+<div id="acct-consent" class="acct-consent" hidden>
   <section class="widget bg-m-container-lowest border border-m-outline overflow-hidden acct-app-card" aria-labelledby="acct-consent-title">
     <div class="acct-app-body">
       <div class="acct-consent-hero" id="acct-consent-ic"></div>
@@ -124,6 +118,12 @@
     </div>
   </section>
 </div>
+</div>
+
+{{/* 2026-10-23 全页光晕背景（共用组件 .sgx-glass-bg，锁屏同一套），只在登录区显示时出现。
+   放在 .acct-layout 外面：.acct-layout 有 contain: layout，会把 fixed 层框在栏宽里。纯装饰。
+   放在 .acct-layout 后面（不是 main 的第一个子元素）：正文首块顶对齐的检查看 main 的第一个子元素；层级靠 z-index。 */}}
+<div class="sgx-glass-bg acct-glass" aria-hidden="true"></div>
 
 {{ partial "account-app-icons.html" . }}
 {{ partial "account-i18n.html" . }}
