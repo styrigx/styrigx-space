@@ -8,7 +8,8 @@
  * - 拾录：全部句子，新的在前；没有搜索。能编辑：右下角「记一句」，点句子进编辑；私密句子带小锁（showPrivate：账号已登录）。
  * - 百味：先是自建专题（能编辑时多一张「＋ 新建」），再是按作者自动分组的「人物」；点进去是该组的句子（页内返回）。
  *   能编辑时在自建专题里可以上移 / 下移 / 移出句子、删专题。
- * - 不能编辑（canWrite=false）：编辑入口换成一行「登录账号后可编辑」（#dm-signin，链到 /account/）；写接口回 401 account / 403 scope 也提示这一句。
+ * - 不能编辑（canWrite=false）：编辑入口换成页底一行（#dm-signin，signinHint）：没登录账号 →「登录账号后可编辑」，链到 /account/?return=<本页>
+ *   （P3-1 同意流程）；已登录但日刻没有 daymark.write → 「日刻未获账号授权」，链到 /account/apps/。写接口回 401 account / 403 scope 分别提示这两句。
  * - 记一句（底部弹层）：顶部实时预览；句子；「＋ 加译文」；作者（自动补全 + 最近作者）；出处（类型 + 名字自动补全）；
  *   归入百味（多选 + 就地新建）；标签（回车 / 逗号成块，推荐已有标签）；随手一笔（只有账号已登录看得到）；公开开关。
  *
@@ -213,7 +214,7 @@ var T = isEn ? {
   delQuote: 'Delete this line? This cannot be undone.', delCol: 'Delete this collection? The lines in it stay in your Trove.',
   removed: 'Removed from this collection.', groupEmpty: 'Nothing in here yet.', edit2: 'Edit', done: 'Done', needName: 'Give it a name first.',
   previewPh: 'Your line will show here, just like in Echo.', up: 'Move up', down: 'Move down', remove: 'Remove from collection',
-  needAccount: 'Sign in to your account to edit.'
+  needAccount: 'Sign in to your account to edit.', signin: 'Sign in to your account to edit', noScope: 'Daymark doesn’t have account access'
 } : {
   add: '记一句', edit: '编辑这一句', kept: '已拾录', deleted: '已删除', failed: '出了点问题，请再试一次。',
   needText: '先写下这一句。', priv: '仅自己可见', emptyAdmin: '还没有句子。点「记一句」留下第一句。',
@@ -222,7 +223,7 @@ var T = isEn ? {
   delQuote: '确定删除这一句吗？删除后无法恢复。', delCol: '确定删除这个专题吗？里面的句子还留在拾录里。',
   removed: '已移出专题', groupEmpty: '这里还没有句子。', edit2: '编辑', done: '完成', needName: '先给专题起个名字。',
   previewPh: '写下的句子会像在余响里这样显示。', up: '上移', down: '下移', remove: '移出专题',
-  needAccount: '登录账号后可编辑。'
+  needAccount: '登录账号后可编辑。', signin: '登录账号后可编辑', noScope: '日刻未获账号授权'
 };
 
 var $ = function(s){ return doc.querySelector(s); };
@@ -268,7 +269,17 @@ function send(method, url, body){
   });
 }
 /** 写失败的提示：没登录账号 / 没授权 →「登录账号后可编辑」，其余通用 */
-function failText(e){ var c = e && e.code; return c === 'account' || c === 'scope' ? T.needAccount : T.failed; }
+function failText(e){ var c = e && e.code; return c === 'account' ? T.needAccount : c === 'scope' ? T.noScope + (isEn ? '.' : '。') : T.failed; }
+/**
+ * 不能编辑时页底那一行（P3-1）：没登录账号 → 登录（带 ?return= 回本页，走同意流程）；已登录没授权 → 去 账号 › 应用授权。
+ * @param {boolean} loggedIn 接口回的 showPrivate（= 有账号会话）
+ */
+function signinHint(loggedIn){
+  var acct = 'https://styrigx.com' + (isEn ? '/en' : '') + '/account/';
+  if (loggedIn) return { text: T.noScope, href: acct + 'apps/' };
+  var here = G.location.pathname + G.location.search + G.location.hash;
+  return { text: T.signin, href: acct + '?return=' + encodeURIComponent(here) };
+}
 function toast(msg){
   var el = $('#bk-toast');
   el.textContent = msg;
@@ -822,7 +833,11 @@ function boot(){
     loaded = true;
     doc.documentElement.classList.toggle('dm-can-write', canWrite);
     var hint = $('#dm-signin');
-    if (hint) hint.classList.toggle('hidden', canWrite);
+    if (hint) {
+      hint.classList.toggle('hidden', canWrite);
+      var a = hint.querySelector('a');
+      if (a && !canWrite) { var h = signinHint(showPrivate); a.textContent = h.text; a.setAttribute('href', h.href); }
+    }
     renderAll();
     setTab(tab, { initial: true });
   }).catch(function(e){

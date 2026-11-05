@@ -8,6 +8,8 @@
  * - 时机（2026-10-24 拉取节流）：只在锁屏已解锁的页面（<html data-sgx-lock-session="valid">）请求；不看锁屏进门方式，
  *   能不能同步直接按 /api/prefs 的结果：401 account（没登录账号）→ 记下来，之后不再请求，直到账号页重新登录；
  *   其他 401 / 403（锁屏会话过期、没有 prefs.sync 作用域）→ 这次不同步，不记 out。
+ *   403 scope（P3-1：在 账号 › 应用授权 取消了「设置同步」）→ 另记一个本页内的标记（scopeDenied()），设置照常只存本机；
+ *   账号页「云同步」一行和云同步页显示「设置同步未获账号授权，只存本机」。下一次拉取成功就清掉。
  *   - 普通拉取（每页加载 shell/core.js、页面回到前台）最多每 5 分钟一次：上次成功拉取 / 推送的时刻按账号记在
  *     localStorage sgx-sync-pull（{ <账号>: 毫秒 }），没过 5 分钟就不发 GET /api/prefs。
  *   - 强制拉取不受节流（force）：刚登录、打开总开关、进账号页 /account/ 和云同步页 /account/sync/。
@@ -36,6 +38,12 @@ export const AUTH_KEY = 'sgx-sync-auth';
 const OLD_RELOAD_FLAG = 'sgx-sync-reloaded';
 /** 上次成功拉取（或推送）的时刻，按账号：{ <账号>: 毫秒 }。普通拉取的节流依据 */
 export const PULL_KEY = 'sgx-sync-pull';
+/** 本页最近一次拉取是不是 403 scope（没有 prefs.sync：只存本机）。只在内存里，不进 localStorage（sgx- 键会被同步） */
+let noScope = false;
+/** 设置同步是不是被取消了授权（本页最近一次拉取回 403 scope） */
+export function scopeDenied() {
+  return noScope;
+}
 /** 普通拉取最短间隔 */
 export const PULL_INTERVAL = 5 * 60 * 1000;
 /** 推送防抖 */
@@ -250,7 +258,12 @@ function pull() {
       return 'out';
     }
     /* 别的 401 / 403（锁屏过期、没作用域）：这次不同步，也不标 out（之后有了作用域照常拉） */
+    if (res.s === 403 && res.j && res.j.error === 'scope') {
+      noScope = true;
+      return 'skip';
+    }
     if (res.s === 401 || res.s === 403) return 'skip';
+    noScope = false;
     if (!(res.j && res.j.ok)) return 'error';
     sset(AUTH_KEY, 'in');
     const now = Date.now();

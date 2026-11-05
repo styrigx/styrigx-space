@@ -12,7 +12,7 @@
    第二组（2026-10-24 PR4）：「云同步」→ 子页 /account/sync/（account-sync.html）：总开关 + 实际同步的每一项。
    第三组（P4-2d）：「AI 模型」→ 底部单选列表（不是子页），选项来自 GET /api/ai，选择存 localStorage sgx-ai-model（进云同步）。
    临时钥匙、服务状态已搬到设置（/settings/security/tempkeys/、/settings/status/），只认锁屏进门会话，账号页不再有入口。
-   ?return=/account/(security|devices|sync)/：子页没有账号会话时跳来，登录后回子页。
+   ?return=/account/(security|devices|sync|apps)/：子页没有账号会话时跳来，登录后回子页。
    进门的人都看到同一个界面（没账号密码登不上）。noindex、不进 sitemap（见 baseof/sitemap）。
    脚本走 ES Module 入口 entry-account.js。 */}}
 {{ define "main" }}
@@ -64,6 +64,14 @@
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}Account security{{ else }}账号安全{{ end }}</span>
           <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-sec-sub"></span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </a>
+      {{/* P3-1：应用授权 → 子页 /account/apps/（account-apps.html），与「设备」「账号安全」同卡 */}}
+      <a class="acct-row" id="acct-apps-row" href="{{ cond $isEn "/en/account/apps/" "/account/apps/" }}">
+        <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "apps-grid" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}App access{{ else }}应用授权{{ end }}</span>
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
