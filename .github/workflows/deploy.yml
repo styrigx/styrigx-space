@@ -37,7 +37,7 @@ env:
 # 读 D1 用 status 部署本来就有的 token（D1 编辑），不经网关、不开免会话口子、不加 Worker / 子域名 / secret。
 
 jobs:
-  # 质量闸门：拆成 6 个并行作业（unit、build、e2e-lock、e2e-sites、visual、lighthouse）+ 汇总作业 quality（必需检查名不变）。
+  # 质量闸门：拆成 6 个并行作业（unit、build、e2e-lock、e2e-sites（按子站 matrix 再分 3 个）、visual、lighthouse）+ 汇总作业 quality（必需检查名不变）。
   # PR 也跑，变绿再合入 main；只有 main 的 push（或 main 上手动触发）才部署。
   unit:
     # 单元测试（workers + ui）。不构建站点、不装浏览器，最先出结果；和其他检查并行，不当前置门（2026-11-04 定）。
@@ -375,11 +375,25 @@ jobs:
             playwright-report/
 
   e2e-sites:
-    # blog / curio / daymark 的 Playwright，对着 build 上传的单树 dist/site。前一步红了后面照跑。
+    # blog / curio / daymark 的 Playwright，对着 build 上传的单树 dist/site。
+    # 三个子站拆成 matrix 三个并行 job（之前是一个 job 里串行三步，约 3.5 分钟）；fail-fast 关掉，一站红了其余照跑。
+    # job 名仍是 e2e-sites（quality 的 needs 不变），GitHub 上显示为 e2e-sites (blog) / (curio) / (daymark)
     needs: build
     # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - site: blog
+            # 视觉基线 tests/blog/e2e/blog-visual.spec.js-snapshots 来自 styrigx-atlas（Playwright 1.64.1，Chromium 1248 与本仓 1.64.0 同一版本）；
+            # 有像素差就走 update-snapshots.yml（同 runner、同字体 action）重生成
+            config: tests/blog/config/playwright.config.js
+          - site: curio
+            config: tests/curio/config/playwright.e2e.config.js
+          - site: daymark
+            config: tests/daymark/config/playwright.e2e.config.js
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -399,35 +413,25 @@ jobs:
           cjk-fonts: 'true'
 
       - name: Download site-production
-        id: prod
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: site-production
           path: dist/site/
 
-      - name: Subsite Playwright - blog (behaviour + visual regression, against dist/site)
-        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
-        # 对着拼好的单树 dist/site（scripts/blog/serve-static.mjs 模拟 Pages 回静态文件），博客在 /blog/ 下。
-        # 视觉基线 tests/blog/e2e/blog-visual.spec.js-snapshots 来自 styrigx-atlas（Playwright 1.64.1，Chromium 1248 与本仓 1.64.0 同一版本）；
-        # 有像素差就走 update-snapshots.yml（同 runner、同字体 action）重生成
-        run: npx playwright test --config=tests/blog/config/playwright.config.js
-
-      - name: Subsite Playwright - curio (phone E2E, against dist/site)
-        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
-        run: npx playwright test --config=tests/curio/config/playwright.e2e.config.js
-
-      - name: Subsite Playwright - daymark (phone E2E, against dist/site)
-        if: ${{ !cancelled() && steps.prod.outcome == 'success' }}
-        run: npx playwright test --config=tests/daymark/config/playwright.e2e.config.js
+      - name: Subsite Playwright - ${{ matrix.site }} (against dist/site)
+        # 对着拼好的单树 dist/site（scripts/blog/serve-static.mjs 模拟 Pages 回静态文件），博客在 /blog/ 下
+        run: npx playwright test --config=${{ matrix.config }}
 
       - name: Upload subsite test artifacts on failure
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: subsite-test-results
+          # 每站一份，名字不能撞（同一 run 里 artifact 名唯一）
+          name: subsite-test-results-${{ matrix.site }}
           path: |
-            tests/blog/test-results/
-            tests/blog/playwright-report/
+            tests/${{ matrix.site }}/test-results/
+            tests/${{ matrix.site }}/playwright-report/
+            tests/${{ matrix.site }}/config/test-results/
             test-results/
           retention-days: 30
 
