@@ -1039,6 +1039,83 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     });
   }
 
+  /* P4-2d：模型在账号页选（localStorage sgx-ai-model），AI 窗口只负责带上；窗口里没有切换 */
+  const okSse = (route, model) => route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-Styrigx-AI-Scope': 'private', 'X-Styrigx-AI-Model': model },
+    body: sse([], ['好的。']) });
+
+  test('P4-2d：账号页选过模型（sgx-ai-model）→ 发问带上 body.model；窗口里没有模型切换', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-ai-model', '@cf/openai/gpt-oss-20b'); } catch (e) {} });
+    await go(page, '/settings/');
+    const bodies = [];
+    await page.route('**/api/ai', async (route) => {
+      const b = route.request().postDataJSON();
+      bodies.push(b);
+      await okSse(route, b.model || 'default');
+    });
+    await openAi(page);
+    await expect(ai(page).locator('select, [role="radiogroup"], [data-ai-model]')).toHaveCount(0);
+    await ai(page).locator('[data-ai-in]').fill('你好');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('好的。');
+    expect(bodies).toEqual([{ q: '你好', lang: 'zh', history: [], model: '@cf/openai/gpt-oss-20b' }]);
+    expect(await ls(page, 'sgx-ai-model')).toBe('@cf/openai/gpt-oss-20b');
+  });
+
+  test('P4-2d：选的模型被下架 → 400 bad_model：清掉本地选择、不带 model 自动重发一次，回答照常', async ({ page }) => {
+    await page.addInitScript(() => { try { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('sgx-ai-model', '@cf/gone/model'); } } catch (e) {} });
+    await go(page, '/settings/');
+    const bodies = [];
+    await page.route('**/api/ai', async (route) => {
+      const b = route.request().postDataJSON();
+      bodies.push(b);
+      if (b.model) await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'bad_model' }) });
+      else await okSse(route, '@cf/google/gemma-4-26b-a4b-it');
+    });
+    await openAi(page);
+    await page.evaluate(() => { window.__chg = 0; window.addEventListener('sgx-settings-changed', () => { window.__chg++; }); });
+    await ai(page).locator('[data-ai-in]').fill('你好');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    const ans = ai(page).locator('.sgx-ai-msg[data-role="assistant"]');
+    await expect(ans.locator('> span')).toHaveText('好的。');
+    await expect(ans).not.toHaveAttribute('data-state', 'error');
+    expect(bodies).toEqual([
+      { q: '你好', lang: 'zh', history: [], model: '@cf/gone/model' },
+      { q: '你好', lang: 'zh', history: [] },
+    ]);
+    expect(await ls(page, 'sgx-ai-model')).toBe(null);
+    expect(await page.evaluate(() => window.__chg)).toBeGreaterThan(0);
+    /* 下一问不再带 model，也不再多发 */
+    await ai(page).locator('[data-ai-in]').fill('再问');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    await expect(ans).toHaveCount(2);
+    await expect(ans.nth(1).locator('> span')).toHaveText('好的。');
+    expect(bodies.length).toBe(3);
+    expect(bodies[2].model).toBeUndefined();
+  });
+
+  test('P4-2d：只重发一次——重发仍出错就按普通错误显示，不再重试；没带 model 时的 400 bad_model 不重发', async ({ page }) => {
+    await page.addInitScript(() => { try { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('sgx-ai-model', '@cf/gone/model'); } } catch (e) {} });
+    await go(page, '/settings/');
+    const bodies = [];
+    await page.route('**/api/ai', async (route) => {
+      bodies.push(route.request().postDataJSON());
+      await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'bad_model' }) });
+    });
+    await openAi(page);
+    await ai(page).locator('[data-ai-in]').fill('你好');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    const ans = ai(page).locator('.sgx-ai-msg[data-role="assistant"]');
+    await expect(ans).toHaveAttribute('data-state', 'error');
+    await expect(ans).toHaveText('没能拿到回答，请稍后再试');
+    expect(bodies.map((b) => b.model)).toEqual(['@cf/gone/model', undefined]);
+    /* 本地已清掉：再问只发一次 */
+    await ai(page).locator('[data-ai-in]').fill('再问');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    await expect(ans).toHaveCount(2);
+    await expect(ans.nth(1)).toHaveAttribute('data-state', 'error');
+    expect(bodies.length).toBe(3);
+  });
+
   test('英文文案', async ({ page }) => {
     await go(page, '/en/settings/', 'en');
     await openAi(page);

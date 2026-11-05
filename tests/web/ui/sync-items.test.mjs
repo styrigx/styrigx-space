@@ -2,7 +2,8 @@
  * 账号 → 云同步页（/account/sync/，2026-10-24 PR4）：
  * - data/sync-items.yaml 列出的项 = lib/cloud-sync.js syncKeys() 实际同步的 key，一个不多一个不少、不重复；
  *   语言（sgx-lang）、布局（sgx-layout）不同步、不列；每项都有名字（features.yaml 的 name，或 extra 的 name）。
- * - lib/sync-items.js valueText：enum / bool（与 features.js 同一套存储语义）/ string / json / accent / city 的显示。
+ * - lib/sync-items.js valueText：enum / bool（与 features.js 同一套存储语义）/ string / json / accent / city / ai-model 的显示。
+ * - P4-2d：账号页选的 AI 模型 sgx-ai-model 进云同步（EXTRA + sync-items.yaml extra），AI 窗口历史 sgx-ai-history 仍不进。
  * - 模板 account-sync.html 按 yaml 渲染、有总开关；文案中英都有。
  * 运行：node --test tests/web/ui/sync-items.test.mjs
  */
@@ -105,7 +106,26 @@ test('P5-1：AI 窗口历史 sgx-ai-history 只存本地，不进云同步白名
   assert.ok(!syncKeys().includes(HISTORY_KEY), 'syncKeys() 不含 sgx-ai-history');
   assert.ok(!listed.includes(HISTORY_KEY), 'sync-items.yaml 不列 sgx-ai-history');
   assert.ok(!feats.some((f) => f.key === HISTORY_KEY), 'features.yaml 没有这个 key（不然会被 syncKeys 收进去）');
-  assert.doesNotMatch(rd('web/atlas/assets/js/lib/cloud-sync.js'), /sgx-ai-/, 'cloud-sync.js 的 EXTRA 不含 AI 历史');
+  assert.doesNotMatch(rd('web/atlas/assets/js/lib/cloud-sync.js'), /sgx-ai-history/, 'cloud-sync.js 的 EXTRA 不含 AI 历史');
   /* 共享外壳 ai.js（子站用的那份）存同一个 key、同样不走同步 */
   assert.match(rd('web/atlas/shared/shell/ai.js'), /export const HISTORY_KEY = 'sgx-ai-history';/);
+});
+
+test('P4-2d：AI 模型 sgx-ai-model 进云同步白名单（syncKeys + sync-items.yaml「其他」组 + extra 类型 ai-model），键名与 ai-panel.js MODEL_KEY 一致', async () => {
+  const { MODEL_KEY, HISTORY_KEY } = await import('../../../web/atlas/assets/js/shell/ai-panel.js');
+  assert.equal(MODEL_KEY, 'sgx-ai-model');
+  assert.ok(syncKeys().includes(MODEL_KEY), 'syncKeys() 含 sgx-ai-model');
+  assert.ok(si.groups.find((g) => g.id === 'more').keys.includes(MODEL_KEY), '列在「其他」组');
+  assert.equal(si.extra[MODEL_KEY].type, 'ai-model');
+  assert.deepEqual(si.extra[MODEL_KEY].name, { zh: 'AI 模型', en: 'AI model' });
+  assert.ok(!feats.some((f) => f.key === MODEL_KEY), '不在 features.yaml（走 EXTRA）');
+  assert.ok(!syncKeys().includes(HISTORY_KEY), '历史仍不同步');
+  /* 共享外壳 ai.js（子站用的那份）读同一个键 */
+  assert.match(rd('web/atlas/shared/shell/ai.js'), /export const MODEL_KEY = 'sgx-ai-model';/);
+});
+
+test('valueText：ai-model 没设 →「默认」，设了 → 原样显示模型 id', () => {
+  assert.equal(valueText({ type: 'ai-model' }, null, t), '默认');
+  assert.equal(valueText({ type: 'ai-model' }, '', t), '默认');
+  assert.equal(valueText({ type: 'ai-model' }, '@cf/openai/gpt-oss-20b', t), '@cf/openai/gpt-oss-20b');
 });
