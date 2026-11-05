@@ -2,15 +2,16 @@
  * 服务状态（设置 → 服务状态 /settings/status/）+ 主站顶栏三栏验收。/api/status 一律 mock（tests/fixtures/status-summary.cjs，形状 = workers/status/src/monitor.js summary）。
  * 2026-10-24 PR4：原顶栏「状态」页（/status/，status-page.spec.js）整页挪进账号页，顶栏第三栏换成「设置」；旧地址 404、不跳转。
  * 之后从账号页搬到设置（本文件也随之改名）：/settings/status/（+ /en/），旧地址删除、不跳转；只认锁屏进门会话，不问账号会话。
- * - 顶栏：主页 / 聊天 / 设置三页的长条里是三个标签（en：Home / Chat / Settings），当前页 aria-current="page"；点了切页；
- *   其他页（设置子页、服务状态）长条照旧只有页名；长条仍在屏幕正中，标签在长条里居中。
+ * - 顶栏：主页 / 设置两页的长条里是两个标签（en：Home / Settings；2026-11-04 P5-1 去掉「聊天」，/chat/ 成普通页、长条显示页名），
+ *   当前页 aria-current="page"；点了切页；其他页（设置子页、服务状态、/chat/）长条照旧只有页名；标签在长条里居中；
+ *   宽屏（≥ 600）长条在屏幕正中，手机上长条在 logo 和右边三个按钮之间伸缩（胶囊顶栏，方案 6.2）。
  * - 入口：设置首页分类列表「服务状态」一行（第 7 项，独立页面）→ /settings/status/；账号页没有入口。
  * - 服务状态页：横幅（全部正常 / 有 1 个故障）、每站一张卡（主站 / 博客 / 日刻 / 奇趣 / 规则集，正常 / 故障、延迟、90 格可用率条 + 百分比）、
  *   近期故障（北京时间）；加载中骨架、空状态、错误（503 重试 / 401 会话过期）；同源请求带 cookie；页面可见时每 60 秒刷新；点色块看当天说明。
  * - 用量（PR3）：站点卡下面「用量」卡（Workers / D1 / R2 / KV：值 / 上限 / 百分比 / 进度条，> 70% 琥珀、> 90% 红，「更新于 N 分钟前」）；
  *   usage = null → 「用量未配置」；加载中 / 出错 / 空状态不显示。
  * - 手机 412×915（三星）和桌面 1280×800 都跑；手机不横向溢出。
- * 聊天：切到聊天页能看到空状态「问点需要联网查的」（聊天本身见 chat-page.spec.js）。
+ * 聊天：/chat/ 能看到空状态「问点需要联网查的」（聊天本身见 chat-page.spec.js；P4-2 退役）。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -61,31 +62,37 @@ const VIEWPORTS = [
 ];
 
 for (const [label, viewport] of VIEWPORTS) {
-  test.describe(`${label}：顶栏三栏`, () => {
+  test.describe(`${label}：顶栏两栏`, () => {
     test.use({ viewport });
 
-    for (const [path, cur] of [['/', 'home'], ['/chat/', 'chat'], ['/settings/', 'settings']]) {
-      test(`${path}：长条里是 主页 / 聊天 / 设置，当前「${cur}」高亮，没有页名`, async ({ page }) => {
+    for (const [path, cur] of [['/', 'home'], ['/settings/', 'settings']]) {
+      test(`${path}：长条里是 主页 / 设置，当前「${cur}」高亮，没有页名`, async ({ page }) => {
         await go(page, path);
         const tabs = page.locator('.sgx-tb-pill .sgx-tb-tab');
-        await expect(tabs).toHaveText(['主页', '聊天', '设置']);
-        expect(await tabs.evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['/', '/chat/', '/settings/']);
+        await expect(tabs).toHaveText(['主页', '设置']);
+        expect(await tabs.evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['/', '/settings/']);
         await expect(page.locator('.sgx-tb-tab[aria-current="page"]')).toHaveCount(1);
         await expect(page.locator(`.sgx-tb-tab[data-tab="${cur}"]`)).toHaveAttribute('aria-current', 'page');
         await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveCount(0);
-        /* 顶栏结构不变：九宫格圆 | 长条 | 快捷面板圆；长条中心 = 屏幕中心；标签组在长条里居中、不超出长条 */
-        expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-nav', 'sgx-tb-pill', 'sgx-tb-end']);
+        /* 顶栏结构（2026-11-04 P5-1 胶囊）：logo | 长条 | 快捷面板 · AI · 头像；宽屏长条中心 = 屏幕中心；标签组在长条里居中、不超出长条 */
+        expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts']);
         const pill = await box(page, '.sgx-tb-pill');
         const grp = await box(page, '.sgx-tb-tabs');
-        expect(near(pill.x + pill.width / 2, viewport.width / 2), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
+        if (viewport.width >= 600) expect(near(pill.x + pill.width / 2, viewport.width / 2), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
+        else {
+          const logo = await box(page, '.sgx-tb-logo');
+          const acts = await box(page, '.sgx-tb-acts');
+          expect(pill.x >= logo.x + logo.width - 0.5 && pill.x + pill.width <= acts.x + 0.5, '长条在 logo 和按钮之间').toBe(true);
+        }
         expect(near(grp.x + grp.width / 2, pill.x + pill.width / 2), `标签组中心 ${grp.x + grp.width / 2}`).toBe(true);
         expect(grp.x >= pill.x && grp.x + grp.width <= pill.x + pill.width).toBe(true);
         expect(near(grp.height, 40) && near(grp.y + grp.height / 2, pill.y + pill.height / 2)).toBe(true);
-        /* 三个标签等宽、文字不截断 */
+        /* 两个标签等宽、文字不截断 */
         const ws = await tabs.evaluateAll((els) => els.map((e) => [e.getBoundingClientRect().width, e.scrollWidth <= e.clientWidth]));
-        expect(near(ws[0][0], ws[1][0]) && near(ws[1][0], ws[2][0]), JSON.stringify(ws)).toBe(true);
+        expect(ws.length).toBe(2);
+        expect(near(ws[0][0], ws[1][0]), JSON.stringify(ws)).toBe(true);
         expect(ws.every((w) => w[1])).toBe(true);
-        /* 当前页药丸 = 导航抽屉当前项同一套色 */
+        /* 当前页药丸 = 快捷面板导航页当前项（原导航抽屉当前项）同一套色 */
         const c = await page.evaluate(() => {
           const cs = getComputedStyle(document.querySelector('.sgx-tb-tab[aria-current="page"]'));
           const ref = document.createElement('div');
@@ -102,30 +109,30 @@ for (const [label, viewport] of VIEWPORTS) {
       });
     }
 
-    test('英文：Home / Chat / Settings，链接带 /en', async ({ page }) => {
+    test('英文：Home / Settings，链接带 /en', async ({ page }) => {
       await go(page, '/en/settings/');
-      await expect(page.locator('.sgx-tb-tab')).toHaveText(['Home', 'Chat', 'Settings']);
-      expect(await page.locator('.sgx-tb-tab').evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['/en/', '/en/chat/', '/en/settings/']);
+      await expect(page.locator('.sgx-tb-tab')).toHaveText(['Home', 'Settings']);
+      expect(await page.locator('.sgx-tb-tab').evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['/en/', '/en/settings/']);
       await expect(page.locator('.sgx-tb-tab[data-tab="settings"]')).toHaveAttribute('aria-current', 'page');
       await expect(page.locator('.sgx-tb-tab[data-tab="status"]')).toHaveCount(0);
     });
 
-    test('点标签切页：主页 → 设置 → 聊天 → 主页', async ({ page }) => {
+    test('点标签切页：主页 → 设置 → 主页', async ({ page }) => {
       await go(page, '/');
       await page.locator('.sgx-tb-tab[data-tab="settings"]').click();
       await page.waitForURL(/\/settings\/$/);
       await expect(page.locator('.set-layout')).toBeVisible();
       await expect(page.locator('.sgx-tb-tab[data-tab="settings"]')).toHaveAttribute('aria-current', 'page');
-      await page.locator('.sgx-tb-tab[data-tab="chat"]').click();
-      await page.waitForURL(/\/chat\/$/);
-      await expect(page.locator('#chat-empty .st-msg-title')).toHaveText('问点需要联网查的');
-      await expect(page.locator('.sgx-tb-tab[data-tab="chat"]')).toHaveAttribute('aria-current', 'page');
       await page.locator('.sgx-tb-tab[data-tab="home"]').click();
       await page.waitForURL((u) => new URL(u).pathname === '/');
       await expect(page.locator('.sgx-tb-tab[data-tab="home"]')).toHaveAttribute('aria-current', 'page');
     });
 
-    test('其他页（设置子页、服务状态）长条照旧只有页名，没有标签', async ({ page }) => {
+    test('其他页（设置子页、服务状态、/chat/）长条照旧只有页名，没有标签', async ({ page }) => {
+      /* 2026-11-04 P5-1：/chat/ 不再是标签页，长条显示页名（P4-2 删除这页） */
+      await go(page, '/chat/', { api: null });
+      await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
+      await expect(page.locator('.sgx-tb-title')).toHaveText('聊天');
       await go(page, '/settings/display/');
       await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-title')).toHaveText('显示');

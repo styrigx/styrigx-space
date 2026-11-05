@@ -715,11 +715,11 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     await expect(page.locator('#sgx-mopt-pw')).toBeVisible();
   });
 
-  test('锁定时抽屉 / 快捷面板按钮点不到（锁屏盖住整页，顶栏位置只有标题）', async ({ page }) => {
+  test('锁定时快捷面板 / AI / 头像按钮点不到（锁屏盖住整页，顶栏位置只有标题）', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     await expect(page.locator('#sgx-lock .sgx-lock-tb button, #sgx-lock .sgx-lock-tb a')).toHaveCount(0);
-    for (const sel of ['.sgx-tb-nav', '[aria-controls="sgx-qp"]']) {
+    for (const sel of ['[aria-controls="sgx-qp"]', '[aria-controls="sgx-ai"]', '.sgx-tb-me']) {
       const btn = page.locator(sel).first();
       expect(await btn.count()).toBeGreaterThan(0);
       const box = await btn.boundingBox();

@@ -39,7 +39,10 @@ test('web/blog/assets/css 里没有 --paper-* / --m-* / --glass-* 令牌（不�
   assert.deepEqual(hits, [], `还有旧令牌：\n${hits.join('\n')}`);
 });
 
-test('回到顶部按钮复用共享外壳的顶栏圆钮 .sgx-tb-nav', () => {
+test('回到顶部按钮用博客自己的 .scroll-top-button（2026-11-04 P5-1 共享外壳的顶栏圆钮 .sgx-tb-nav 删了，不再借用）', () => {
   const partial = readFileSync(path.join(REPO, 'web/blog/layouts/partials/scroll-top.html'), 'utf8');
-  assert.match(partial, /<button class="sgx-tb-nav scroll-top-button"/);
+  assert.match(partial, /<button class="scroll-top-button"/);
+  assert.doesNotMatch(partial, /class="[^"]*sgx-tb-nav/);
+  const css = readFileSync(path.join(REPO, 'web/blog/assets/css/blog/components.css'), 'utf8');
+  assert.match(css, /\.scroll-top-button \{[^}]*border-radius: 999px;/);
 });

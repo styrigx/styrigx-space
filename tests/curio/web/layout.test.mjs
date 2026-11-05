@@ -12,20 +12,31 @@ const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
 const base = read('web/curio/layouts/_default/baseof.html');
 const index = read('web/curio/layouts/index.html');
 
-test('顶栏：九宫格 · 长条（首页 = 分段滑块 发现 / 设备 / 游戏；其他页只有页名）· 右圆分享；没有搜索栏、快捷面板、头像', () => {
-  assert.match(base, /class="sgx-tb-nav"/);
-  assert.match(base, /<div class="sgx-seg" role="tablist"[^>]*data-cu-seg/);
-  assert.match(base, /\{\{ else \}\}\s*<span class="sgx-tb-title">\{\{ \$pageName \}\}<\/span>/);
-  assert.doesNotMatch(base, /sgx-seg--none/);
+test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 首页分段滑块 / 其他页页名；右边快捷面板 · AI · 头像；没有九宫格、抽屉、右圆分享', () => {
+  assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
+  assert.match(base, /"site" "curio"/);
   for (const [id, zh, en, hash] of [['finds', '发现', 'Finds', ''], ['devices', '设备', 'Devices', '#devices'], ['games', '游戏', 'Games', '#games']]) {
     assert.match(base, new RegExp('\\(dict "id" "' + id + '" "zh" "' + zh + '" "en" "' + en + '" "hash" "' + hash + '"\\)'), id);
   }
-  assert.match(base, /data-cu-tab="\{\{ \$t\.id \}\}"/);
-  /* 2026-10-24：留言板撤了，右边只剩分享圆（共享外壳 .sgx-tb-end 样式，同九宫格圆；share.js，图标 nav.json share） */
-  assert.match(base, /<\/div>\s*<button type="button" class="sgx-tb-end sgx-tb-share" data-sgx-share [^>]*>\{\{ index \(resources\.Get "sgx-shell\/nav\.json" \| transform\.Unmarshal\)\.icons "share" \| safeHTML \}\}<\/button>\s*<\/div>\s*<\/header>/);
-  assert.doesNotMatch(base, /sgx-tb-end-group|sgx-tb-gbtn|guestbook/);
-  assert.match(base, /resources\.Get "js\/sgx\/share-host\.js" \| js\.Build/);
-  assert.doesNotMatch(base, /cu-search|id="cu-q"|sgx-tb-quick|sgx-qp|sgx-tb-me|sgx-tb-avatar/);
+  /* 中间原样搬进来：首页分段滑块（role=tablist、页签 role=tab），其他页（404）只有页名 */
+  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$center = printf "<div class=\\"sgx-seg\\" role=\\"tablist\\"[^\n]*data-cu-seg/);
+  assert.match(base, /role=\\"tab\\" class=\\"sgx-seg-btn\\"[^\n]*data-cu-tab=/);
+  assert.match(base, /\{\{ else \}\}\n\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
+  assert.doesNotMatch(base, /sgx-seg--none/);
+  /* 九宫格、导航抽屉、右圆分享和它们的脚本都删了（标记在共享外壳，本站模板里不再手写顶栏） */
+  assert.doesNotMatch(base, /sgx-tb-nav|sgx-drawer|sgx-tb-end|sgx-tb-share|<header|apps-grid|sgx-tb-end-group|sgx-tb-gbtn|guestbook/);
+  const code = base.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''); /* 去掉模板注释（注释里会提到被取代的旧文件） */
+  assert.doesNotMatch(code, /share-host\.js|js\/topbar\.js|search-host\.js|shell-nav-href/);
+  assert.equal(existsSync(path.join(REPO, 'web/curio/assets/js/sgx/share-host.js')), false);
+  assert.equal(existsSync(path.join(REPO, 'web/curio/assets/js/topbar.js')), false);
+  assert.equal(existsSync(path.join(REPO, 'web/curio/layouts/partials/shell-nav-href.html')), false);
+  assert.match(base, /resources\.Get "js\/sgx\/topbar-host\.js" \| js\.Build/);
+  /* 本站页面原来都有分享按钮 → 快捷设置页都有「分享本页」磁贴；立即锁定、布局只在主站（定案第 4、5 条） */
+  assert.match(base, /"tiles" \(dict "theme" true "lang" true "palette" true "share" true\)/);
+  const host = read('web/curio/assets/js/sgx/topbar-host.js');
+  for (const m of ['./shell/topbar.js', './shell/modal-sheet.js', './shell/ai.js', './shell/prefs-write.js', './shell/share.js']) {
+    assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
+  }
 });
 
 test('没有版权页脚（© / Powered by），样式也删干净', () => {
@@ -44,16 +55,22 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
   assert.doesNotMatch(css.slice(css.indexOf('/* @sgx-shell:end */')), /cu-gb-|giscus|guestbook/);
 });
 
-test('抽屉：主站共享外壳的 nav.json，模板不写死项；奇趣是当前项；结构同主站', () => {
-  const drawer = base.slice(base.indexOf('<dialog id="sgx-drawer"'), base.indexOf('</dialog>'));
-  assert.match(drawer, /range \$shellNav\.items/);
-  assert.match(drawer, /with \$shellNav\.footer/);
-  /* 和主站同一结构（2026-10-22）：头部字标 + 头像（链主站账号页），导航项下一条分隔线，底栏搜索框 */
-  assert.match(drawer, /class="sgx-drawer-head"><span class="sgx-drawer-brand">\{\{ \$shellNav\.wordmark \| safeHTML \}\}/);
-  assert.match(drawer, /<a class="sgx-drawer-me" href="\{\{ \$me \}\}"/);
-  assert.match(drawer, /<hr class="sgx-drawer-sep" aria-hidden="true">/);
-  assert.match(drawer, /<div class="sgx-drawer-foot"><a class="sgx-drawer-search"/);
-  assert.match(drawer, /eq \.id "curio"/);
+test('导航：快捷面板第 1 页用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；奇趣是当前项；主站项走 https://styrigx.com', () => {
+  const nav = JSON.parse(readFileSync(path.join(REPO, 'web/curio/assets/sgx-shell/nav.json'), 'utf8'));
+  assert.deepEqual(nav.items.map((i) => i.zh), ['主站', '奇趣', '日刻', '博客']);
+  assert.deepEqual(nav.footer, []);
+  assert.equal(nav.me.href, 'https://styrigx.com/account/');
+  assert.match(base, /\{\{ \$shellNav := resources\.Get "sgx-shell\/nav\.json" \| transform\.Unmarshal \}\}/);
+  assert.match(base, /"nav" \$shellNav\n/);
+  assert.match(base, /"mainOrigin" "https:\/\/styrigx\.com"/);
+  /* 项、页脚、当前项高亮都在共享外壳 partial 里（range .nav.items / with .nav.footer / eq .id $.site） */
+  const tb = read('web/curio/layouts/partials/sgx-shell-topbar.html');
+  assert.match(tb, /range \.nav\.items/);
+  assert.match(tb, /with \.nav\.footer/);
+  assert.match(tb, /if eq \.id \$\.site \}\} aria-current="page"/);
+  /* 导航页不放搜索框（定案第 2 条） */
+  assert.doesNotMatch(tb, /type="search"|role="search"|sgx-drawer-search|nav\.search/);
+  assert.doesNotMatch(base, /主页|书库/);
 });
 
 test('首页部件：分类条、格子、收藏按钮、更多菜单（分类 / 导入 / 导出）、编辑弹层、确认', () => {
@@ -95,12 +112,18 @@ test('robots.txt 只在图志根（root/robots.txt，Disallow: /）：本站不�
 });
 
 test('head 内联脚本和自定义色引擎不打包整份 palettes.json（预设表在共享读端里，引擎版本用读端的 SCHEME_VER）', () => {
-  for (const f of ['web/curio/assets/js/sgx/ui-inherit-run.js', 'web/curio/assets/js/sgx/shell-accent.js']) {
+  for (const f of ['web/curio/assets/js/sgx/ui-inherit-run.js', 'web/curio/assets/js/sgx/shell-accent.js', 'web/curio/assets/js/sgx/topbar-host.js']) {
     const src = read(f);
     assert.doesNotMatch(src, /^import .*palettes\.json/m, f);
     assert.doesNotMatch(src, /@params/, f);
   }
-  assert.doesNotMatch(base, /sgx-shell\/palettes\.json/);
+  /* 2026-11-04 P5-1：快捷设置页的调色板色块在构建时从 palettes.json 算出 CSS 变量（只进 style 属性），
+     不进 <head>、不进任何 <script>，也不整份输出（不 jsonify） */
+  const head = base.slice(0, base.indexOf('</head>'));
+  assert.doesNotMatch(head, /palettes\.json/);
+  const uses = [...base.matchAll(/[^\n]*palettes\.json[^\n]*/g)].map((m) => m[0]).filter((l) => !/^\{\{\/\*/.test(l));
+  assert.deepEqual(uses, ['{{ range (resources.Get "sgx-shell/palettes.json" | transform.Unmarshal).presets }}']);
+  assert.doesNotMatch(base, /palettes\.json[^\n]*jsonify/);
   assert.match(base, /<script>\{\{ \(resources\.Get "js\/sgx\/shell\/ui-cookie-read\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
   assert.match(base, /js\/sgx\/ui-inherit-run\.js" \| js\.Build \(dict "format" "iife" "minify" true "target" "es2018"\)\)/);
 });

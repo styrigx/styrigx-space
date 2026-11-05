@@ -16,6 +16,8 @@ import { renderAll, READER_SRC } from '../../../scripts/gen-shell.mjs';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const READER = readFileSync(READER_SRC, 'utf8');
 const WRITER = readFileSync(path.join(REPO, 'web/atlas/assets/js/lib/ui-cookie.js'), 'utf8');
+/* 2026-11-04 P5-1：cookie 写法搬进外观写端 lib/prefs-write.js（共享外壳 prefs-write.js，四站一个写端）；ui-cookie.js 只先引读端再转导出 */
+const PREFS_WRITE = readFileSync(path.join(REPO, 'web/atlas/assets/js/lib/prefs-write.js'), 'utf8');
 const fx = JSON.parse(readFileSync(FIXTURE, 'utf8'));
 const palettes = JSON.parse(readFileSync(path.join(REPO, 'web/atlas/shared/shell/palettes.json'), 'utf8'));
 
@@ -134,12 +136,15 @@ test('写端 → 读端往返：写端写出的字段 = 读端字段表（不多
   }
 });
 
-test('写端和读端共用一份常量 / 编解码（import ui-cookie-read.js，不再自己 atob / 写死版本号）', () => {
+test('写端和读端共用一份常量 / 编解码（主站先 import ui-cookie-read.js；写端 prefs-write.js 用 window.SgxUI，不再自己 atob / 写死版本号）', () => {
   assert.match(WRITER, /import '\.\/ui-cookie-read\.js';/);
-  assert.match(WRITER, /v: U\.V,/);
-  assert.match(WRITER, /U\.encode\(payload\)/);
-  assert.match(WRITER, /U\.decode\(v\)/);
-  assert.doesNotMatch(WRITER, /atob|btoa|v: 2/);
+  assert.match(WRITER, /export \{ syncUiCookie \} from '\.\/prefs-write\.js';/);
+  assert.doesNotMatch(PREFS_WRITE.replace(/\/\*[\s\S]*?\*\//g, ''), /^\s*import\s/m, '写端不 import（子站原样复制）');
+  assert.match(PREFS_WRITE, /return \/\*\* @type \{any\} \*\/ \(window\)\.SgxUI \|\| null;/);
+  assert.match(PREFS_WRITE, /v: u\.V,/);
+  assert.match(PREFS_WRITE, /u\.encode\(payload\)/);
+  assert.match(PREFS_WRITE, /u\.decode\(readCookie\(\)\)/);
+  assert.doesNotMatch(WRITER + PREFS_WRITE, /atob|btoa|v: 2/);
   const s = sandbox();
   assert.equal(s.U.V, 2);
   assert.ok(s.U.VERSIONS.includes(s.U.V));
@@ -235,4 +240,15 @@ test('坏 cookie / 没有 DOM 能力也不抛：默认 dustyblue + 跟随系统'
   assert.equal(s.U.read(null), null);
   const a = s.U.apply(s.html);
   assert.deepEqual(plain(a), { mode: 'system', dark: false, pal: 'dustyblue', fs: 'standard', rm: false, seed: '' });
+});
+
+test('cookie 属性按主机名 / 协议：localhost / http 不带 Domain / Secure；styrigx.com 及子域 https 带（P5-1 跨站 e2e 修法）', async () => {
+  const { cookieAttrs } = await import('../../../web/atlas/assets/js/lib/prefs-write.js');
+  const prod = '; Domain=styrigx.com; Path=/; Max-Age=34560000; SameSite=Lax; Secure';
+  assert.equal(cookieAttrs({ hostname: 'styrigx.com', protocol: 'https:' }), prod);
+  assert.equal(cookieAttrs({ hostname: 'blog.styrigx.com', protocol: 'https:' }), prod);
+  assert.equal(cookieAttrs({ hostname: 'localhost', protocol: 'http:' }), '; Path=/; Max-Age=34560000; SameSite=Lax');
+  assert.equal(cookieAttrs({ hostname: '127.0.0.1', protocol: 'http:' }), '; Path=/; Max-Age=34560000; SameSite=Lax');
+  assert.equal(cookieAttrs({ hostname: 'evilstyrigx.com', protocol: 'https:' }), '; Path=/; Max-Age=34560000; SameSite=Lax; Secure');
+  assert.equal(cookieAttrs(null), '; Path=/; Max-Age=34560000; SameSite=Lax');
 });

@@ -7,6 +7,9 @@
  * - 空输入背景（放大镜 +「聚合搜索」，内容区居中、跟着键盘）、站内结果、「用 <引擎> 搜索」、回车规则、方向键。
  * - /search/?q=、/browser/?q=、/en/search/ → 首页打开搜索层并预填；opensearch 用 /?q=。
  * - 搜索层代码懒加载：页面入口里没有它，按下九宫格才去取。
+ * 2026-11-04 P5-1：九宫格和导航抽屉删了，快捷面板导航页不放搜索框（定案第 2 条）；搜索层只剩 Ctrl+K 和 /?q= 两个隐藏入口，
+ * 本文件在 P4-2 随搜索层整个删除。这里去掉依赖抽屉搜索框的用例（点抽屉搜索框同步聚焦、减弱动效不复制抽屉），
+ * 其余用例改从 Ctrl+K 打开。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, animationsDone, flushRequests, expect } = require('./helpers');
@@ -30,51 +33,21 @@ async function go(page, path, opts = {}) {
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
 }
-const drawer = (page) => page.locator('#sgx-drawer');
 const layer = (page) => page.locator('.sgx-srch');
 const bar = (page) => page.locator('.sgx-srch-bar');
 const input = (page) => page.locator('#sgx-srch-input');
 
-async function openDrawer(page) {
-  await page.locator('.sgx-tb-nav').click();
-  await expect(drawer(page)).toHaveAttribute('data-state', 'open');
-}
-async function openFromDrawer(page) {
-  await openDrawer(page);
-  /* 搜索层代码在打开抽屉时就开始取 */
-  await page.waitForFunction(() => !!document.querySelector('meta[name="sgx-search-src"]'));
-  await drawer(page).locator('a.sgx-drawer-search').click();
+/** Ctrl+K 打开搜索层（2026-11-04 P5-1 起唯一的页内入口） */
+async function openSearch(page) {
+  await page.evaluate(() => { if (document.activeElement) /** @type {HTMLElement} */ (document.activeElement).blur(); });
+  await page.keyboard.press('Control+k');
   await expect(input(page)).toBeFocused({ timeout: 5000 });
   await expect(layer(page)).toBeVisible();
 }
 
-test('点抽屉搜索框：原地打开（不跳页）、输入框同步聚焦、抽屉关上；顶栏原样、没有搜索图标', async ({ page }) => {
-  await go(page, '/settings/display/');
-  await page.evaluate(() => { window.__noReload = 1; });
-  await expect(page.locator('#sgx-tb-search, .sgx-tb-search')).toHaveCount(0);
-  const title0 = await page.locator('.sgx-tb-title').textContent();
-  await openDrawer(page);
-  /* 同步聚焦：click 处理函数返回时焦点已经在输入框上（安卓只在手势里同步 focus 才弹键盘） */
-  const sync = await page.evaluate(async () => {
-    await new Promise((r) => setTimeout(r, 50));
-    const a = document.querySelector('#sgx-drawer a.sgx-drawer-search');
-    a.click();
-    const el = document.activeElement;
-    return { id: el && el.id, dlgOpen: document.getElementById('sgx-drawer').open };
-  });
-  expect(sync).toEqual({ id: 'sgx-srch-input', dlgOpen: false });
-  expect(await page.evaluate(() => window.__noReload)).toBe(1);
-  expect(new URL(page.url()).pathname).toBe('/settings/display/');
-  await expect(layer(page)).toBeVisible();
-  await expect(page.locator('.sgx-tb-title')).toHaveText(title0 || '');
-  await expect(input(page)).toHaveAttribute('placeholder', '搜索');
-  /* 抽屉复制件淡完就删 */
-  await expect(page.locator('.sgx-srch-ghost')).toHaveCount(0, { timeout: 2000 });
-});
-
 test('底栏：长条药丸 + 单独的 ✕ 圆（同高 56、同材质、间距 8、左右 16），贴底；结果层在顶栏下面', async ({ page }) => {
   await go(page, '/');
-  await openFromDrawer(page);
+  await openSearch(page);
   /* C8：原来固定等 400ms；改成等搜索层 / 底栏的入场过渡结束再量 */
   await animationsDone(page);
   const m = await page.evaluate(() => {
@@ -100,7 +73,7 @@ test('底栏：长条药丸 + 单独的 ✕ 圆（同高 56、同材质、间距
 test('空输入：背景是放大镜 +「聚合搜索」，在内容区（顶栏下沿到底栏上沿）正中；没有最近搜索，旧键被清掉', async ({ page }) => {
   await page.addInitScript(() => { try { localStorage.setItem('sgx-browser-history', JSON.stringify(['a1'])); } catch (e) {} });
   await go(page, '/');
-  await openFromDrawer(page);
+  await openSearch(page);
   const empty = page.locator('.sgx-srch-empty');
   await expect(empty).toBeVisible();
   await expect(empty).toHaveText('聚合搜索');
@@ -130,7 +103,7 @@ test('空输入：背景是放大镜 +「聚合搜索」，在内容区（顶栏
 
 test('空输入背景跟着键盘：底栏上移多少，背景中心上移一半', async ({ page }) => {
   await go(page, '/');
-  await openFromDrawer(page);
+  await openSearch(page);
   const at = () => page.evaluate(() => { const r = document.querySelector('.sgx-srch-empty-ic').getBoundingClientRect(); return r.top; });
   const y0 = await at();
   await page.evaluate(() => { document.querySelector('.sgx-srch').style.setProperty('--sgx-srch-kb', '300px'); });
@@ -140,7 +113,7 @@ test('空输入背景跟着键盘：底栏上移多少，背景中心上移一�
 
 test('输入：站内结果 + 最后一行「用 <引擎> 搜索 “…”」（跟 设置 › 隐私 里选的引擎）；ⓧ 清空回到空背景', async ({ page }) => {
   await go(page, '/', { engine: 'bing' });
-  await openFromDrawer(page);
+  await openSearch(page);
   await input(page).fill('设置');
   await expect(page.locator('[data-srch-u]').first()).toBeVisible({ timeout: 5000 });
   await expect(page.locator('[data-srch-u]').first()).toContainText('设置');
@@ -156,7 +129,7 @@ test('输入：站内结果 + 最后一行「用 <引擎> 搜索 “…”」（
 
 test('回车：像网址 → 新标签 https://；否则用引擎搜（新标签）；不再记录搜索历史', async ({ page }) => {
   await go(page, '/');
-  await openFromDrawer(page);
+  await openSearch(page);
   await input(page).fill('example.com');
   await input(page).press('Enter');
   await input(page).focus();
@@ -175,7 +148,7 @@ test('回车：像网址 → 新标签 https://；否则用引擎搜（新标签
 test('回车：标题和输入完全一样的站内结果直接打开（先关层、退掉哨兵，再跳）', async ({ page }) => {
   await go(page, '/');
   const len0 = await page.evaluate(() => history.length);
-  await openFromDrawer(page);
+  await openSearch(page);
   await input(page).fill('设置');
   await expect(page.locator('[data-srch-u]').first()).toBeVisible({ timeout: 5000 });
   await input(page).press('Enter');
@@ -188,7 +161,7 @@ test('回车：标题和输入完全一样的站内结果直接打开（先关�
 
 test('方向键：↓ 选中行（aria-activedescendant），回车打开选中的引擎行', async ({ page }) => {
   await go(page, '/');
-  await openFromDrawer(page);
+  await openSearch(page);
   await input(page).fill('zzqx');
   const rows = page.locator('[data-srch-u], [data-srch-engine]');
   await expect(rows).toHaveCount(1);
@@ -202,27 +175,24 @@ test('方向键：↓ 选中行（aria-activedescendant），回车打开选中�
   expect(await page.evaluate(() => window.__opened)).toEqual(['https://www.google.com/search?q=zzqx']);
 });
 
-test('历史：抽屉的哨兵交给搜索层，✕ 关闭回到原页；反复开关 history.length 不涨', async ({ page }) => {
+test('历史：Ctrl+K 打开 push 一条搜索哨兵，✕ 关闭退掉、回到原页；反复开关 history.length 不涨', async ({ page }) => {
   await go(page, '/');
   await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible();
   const len0 = await page.evaluate(() => history.length);
-  await openDrawer(page);
-  expect(await page.evaluate(() => history.length)).toBe(len0 + 1);
-  await drawer(page).locator('a.sgx-drawer-search').click();
-  await expect(input(page)).toBeFocused({ timeout: 5000 });
+  await openSearch(page);
   expect(await page.evaluate(() => ({ n: history.length, s: !!(history.state && history.state.sgxSearch) }))).toEqual({ n: len0 + 1, s: true });
   await page.locator('[data-srch-close]').click();
   await expect(layer(page)).toBeHidden();
   await expect(bar(page)).toBeHidden();
-  /* C8：原来固定等 200ms；✕ 关闭会退掉哨兵（history.back，popstate 异步）——等当前条目不再是搜索哨兵 */
+  /* C8：✕ 关闭会退掉哨兵（history.back，popstate 异步）——等当前条目不再是搜索哨兵 */
   await page.waitForFunction(() => !(history.state && history.state.sgxSearch));
   expect(new URL(page.url()).pathname).toBe('/settings/');
-  expect(await page.evaluate(() => !!(history.state && history.state.sgxSearch))).toBe(false);
   for (let i = 0; i < 3; i++) {
-    await openFromDrawer(page);
+    await openSearch(page);
     await page.locator('[data-srch-close]').click();
     await expect(layer(page)).toBeHidden();
+    await page.waitForFunction(() => !(history.state && history.state.sgxSearch));
   }
   expect(await page.evaluate(() => history.length)).toBe(len0 + 1);
   /* 返回一次就离开设置页（没有残留的哨兵） */
@@ -234,16 +204,15 @@ test('系统返回：只关搜索层，停在本页；再返回才离开', async
   await go(page, '/');
   await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible();
-  await openFromDrawer(page);
+  await openSearch(page);
   await page.goBack();
   await expect(layer(page)).toBeHidden();
-  await expect(drawer(page)).toBeHidden();
   expect(new URL(page.url()).pathname).toBe('/settings/');
   await page.goBack();
   await expect(page).toHaveURL(/localhost:\d+\/$/);
 });
 
-test('Esc 关闭；Ctrl+K 不开抽屉直接打开（push 一条，✕ 退掉）', async ({ page }) => {
+test('Esc 关闭；Ctrl+K 直接打开（push 一条，Esc 退掉）', async ({ page }) => {
   await go(page, '/settings/');
   const len0 = await page.evaluate(() => history.length);
   await page.evaluate(() => { if (document.activeElement) document.activeElement.blur(); });
@@ -257,7 +226,11 @@ test('Esc 关闭；Ctrl+K 不开抽屉直接打开（push 一条，✕ 退掉）
 
 test('顶栏在打开过程中一直在、不动：不重绘（无 DOM 变化）、不透明度一直 1、位置不变、没有 view transition', async ({ page }) => {
   await go(page, '/');
-  await openDrawer(page);
+  /* 先把搜索层代码取到（Ctrl+K 开一次再关），下面量的是「已加载」时的打开过程 */
+  await openSearch(page);
+  await page.keyboard.press('Escape');
+  await expect(layer(page)).toBeHidden();
+  await page.waitForFunction(() => !(history.state && history.state.sgxSearch));
   const r = await page.evaluate(async () => {
     const nav = document.getElementById('site-nav');
     const tb = document.querySelector('.sgx-topbar');
@@ -269,7 +242,7 @@ test('顶栏在打开过程中一直在、不动：不重绘（无 DOM 变化）
     const svt = document.startViewTransition;
     if (svt) document.startViewTransition = function () { vt++; return svt.apply(document, arguments); };
     const samples = [];
-    document.querySelector('#sgx-drawer a.sgx-drawer-search').click();
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
     const t0 = performance.now();
     await new Promise((res) => {
       const f = () => {
@@ -281,24 +254,12 @@ test('顶栏在打开过程中一直在、不动：不重绘（无 DOM 变化）
     mo.disconnect();
     return { muts, vt, n: samples.length, allOpaque: samples.every((s) => s.o === 1 && s.vis === 'visible'), allSame: samples.every((s) => s.r === rect0) };
   });
-  /* aria-expanded 同步是抽屉按钮的属性变化（九宫格按钮 aria-expanded true → false），只允许这一种 */
-  expect(r.muts).toBeLessThanOrEqual(1);
+  /* 顶栏里不该有任何变化（原来允许九宫格按钮 aria-expanded 的那一次，2026-11-04 P5-1 起没有抽屉了） */
+  expect(r.muts).toBe(0);
   expect(r.vt).toBe(0);
   expect(r.n).toBeGreaterThan(5);
   expect(r.allOpaque).toBe(true);
   expect(r.allSame).toBe(true);
-});
-
-test('减弱动效：不复制抽屉、不做变形，直接打开并聚焦', async ({ page }) => {
-  await go(page, '/', { rm: true });
-  await openDrawer(page);
-  /* 等懒加载的搜索层把隐藏 DOM 建好再同步点击（没到时宿主走代理输入框兜底聚焦，那条路径下面不测动画；CI 慢机上曾因此 flaky） */
-  await page.waitForFunction(() => !!document.querySelector('.sgx-srch-pill'));
-  const n = await page.evaluate(() => {
-    document.querySelector('#sgx-drawer a.sgx-drawer-search').click();
-    return { ghosts: document.querySelectorAll('.sgx-srch-ghost').length, anims: document.querySelector('.sgx-srch-pill').getAnimations().length, focus: document.activeElement.id };
-  });
-  expect(n).toEqual({ ghosts: 0, anims: 0, focus: 'sgx-srch-input' });
 });
 
 test('旧入口：/search/?q=、/browser/?q=、/browser/search/?q= → 首页打开搜索层并预填（URL 去掉 q）', async ({ page }) => {
@@ -326,7 +287,7 @@ test('旧入口：/search/?q=、/browser/?q=、/browser/search/?q= → 首页打
   }
 });
 
-test('懒加载：页面入口里没有搜索层代码；按下九宫格才取', async ({ page }) => {
+test('懒加载：页面入口里没有搜索层代码；按 Ctrl+K 才取', async ({ page }) => {
   const reqs = [];
   page.on('request', (r) => { if (/search-layer\.[0-9a-f]+\.js/.test(r.url())) reqs.push(r.url()); });
   await go(page, '/');
@@ -337,8 +298,9 @@ test('懒加载：页面入口里没有搜索层代码；按下九宫格才取',
   const entry = await page.evaluate(() => document.querySelector('script[type="module"]').src);
   const code = await (await page.request.get(entry)).text();
   expect(code).not.toContain('sgx-srch-ghost');
-  await page.locator('.sgx-tb-nav').dispatchEvent('pointerdown');
+  await page.keyboard.press('Control+k');
   await expect.poll(() => reqs.length).toBe(1);
+  await expect(input(page)).toBeFocused({ timeout: 5000 });
 });
 
 /* 2026-10-23 PR-D：< 840 宽底栏左右缘对齐外壳框（= 顶栏两侧圆外缘）：手机 16px 页边距，宽竖屏 Mobile 跟 640 框 */
@@ -346,7 +308,7 @@ for (const [w, h] of [[412, 915], [768, 1024]]) {
   test(`${w}×${h}：底栏左右缘 = 顶栏左右缘`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h });
     await go(page, '/');
-    await openFromDrawer(page);
+    await openSearch(page);
     const m = await page.evaluate(() => {
       const b = document.querySelector('.sgx-srch-bar').getBoundingClientRect();
       const t = document.querySelector('.sgx-topbar').getBoundingClientRect();
@@ -360,7 +322,7 @@ for (const [w, h] of [[412, 915], [768, 1024]]) {
 test('桌面（1280）：底栏 560px 居中，结果列最宽 640 居中', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await go(page, '/');
-  await openFromDrawer(page);
+  await openSearch(page);
   /* 空输入没有结果卡（只有「聚合搜索」背景）：输入一个词，等站内结果卡出来再量 */
   await input(page).fill('设置');
   await expect(page.locator('.sgx-srch-card').first()).toBeVisible({ timeout: 5000 });

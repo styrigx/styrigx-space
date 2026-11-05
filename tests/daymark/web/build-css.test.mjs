@@ -42,7 +42,8 @@ test('main.css 里每个毛玻璃选择器都同时有 -webkit-backdrop-filter �
   const bad = [...map].filter(([, v]) => !(v.std && v.webkit)).map(([s, v]) => `${s} → ${v.std ? '只有标准' : '只有 -webkit-'}`);
   assert.deepEqual(bad, []);
   const sels = [...map.keys()];
-  for (const want of [/\.sgx-tb-pill/, /\.sgx-tb-nav/, /\.sgx-drawer-sheet/]) {
+  /* 2026-11-04 P5-1：毛玻璃在整条胶囊和快捷面板 / AI 窗口上（九宫格、抽屉删了） */
+  for (const want of [/\.sgx-topbar/, /\.sgx-qp-sheet/]) {
     assert.ok(sels.some((s) => want.test(s)), `${want} 的毛玻璃不在 main.css 里`);
   }
 });

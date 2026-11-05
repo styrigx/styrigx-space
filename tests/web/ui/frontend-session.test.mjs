@@ -75,7 +75,9 @@ test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；
   assert.ok(secHtml.includes('id="sec-locknow"'), '应有立即锁定入口');
   assert.ok(!secHtml.includes('id="sec-app-row"'), '不应有应用验证');
   const base = readFileSync('web/atlas/layouts/_default/baseof.html', 'utf8');
-  assert.ok(base.includes('<a class="sgx-drawer-me" href="{{ $acctUrl }}"'), '抽屉头的头像链到账号页');
+  assert.ok(base.includes('"acct" $acctUrl'), '顶栏头像（shell-topbar 的 .sgx-tb-me）链到账号页');
+  const tb = readFileSync('web/atlas/layouts/partials/shell-topbar.html', 'utf8');
+  assert.ok(tb.includes('<a class="sgx-tb-btn sgx-tb-me" href="{{ .acct }}"'), '顶栏右端头像圆用 acct 参数');
 });
 
 test('security.js：读锁屏凭证状态，不再走 stepup；无角色条件渲染', () => {

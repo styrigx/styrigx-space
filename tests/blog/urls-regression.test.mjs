@@ -168,52 +168,34 @@ describe('网址回归（图志 /blog/ 下）', () => {
     );
   });
 
-  it('导航抽屉：主站 / 奇趣 / 日刻 / 博客（主站共享外壳 nav.json 的项；三站和主站同在 styrigx.com，按 id 走相对地址 /<站>/）；头像去主站账号页，底栏搜索去主站搜索', async () => {
+  it('快捷面板导航页（2026-11-04 P5-1 替代抽屉）：主站 / 奇趣 / 日刻 / 博客（主站项绝对地址、三站之间相对 /<站>/），博客高亮；头像去主站账号页；没有搜索框', async () => {
     const html = await (await fetch(base + '/blog/')).text();
-    const hrefs = [...html.matchAll(/class="sgx-drawer-item"[^>]*href="([^"]+)"/g)].map(
-      (m) => m[1],
-    );
-    assert.deepEqual(hrefs, [
-      'https://styrigx.com/',
-      '/curio/',
-      '/daymark/',
-      '/blog/',
-    ]);
-    assert.match(html, /<a class="sgx-drawer-me" href="https:\/\/styrigx\.com\/account\/"/);
-    assert.match(html, /<a class="sgx-drawer-search" href="https:\/\/styrigx\.com\/search\/"/);
+    const hrefs = [...html.matchAll(/class="sgx-qp-nav-item" href="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(hrefs, ['https://styrigx.com/', '/curio/', '/daymark/', '/blog/']);
+    assert.match(html, /class="sgx-qp-nav-item" href="\/blog\/" data-nav="blog" aria-current="page"/);
+    assert.match(html, /<a class="sgx-tb-btn sgx-tb-me" href="https:\/\/styrigx\.com\/account\/"[^>]*><img src="https:\/\/styrigx\.com\/avatar\/192\.webp"/);
+    assert.doesNotMatch(html, /sgx-drawer|sgx-tb-nav\b/, '抽屉和九宫格删了');
     assert.doesNotMatch(html, /book\.styrigx\.com/, '书库已下线');
     assert.doesNotMatch(html, /atlas\.styrigx\.com/, '合并 PR3：不再有旧图志域名');
     const en = await (await fetch(base + '/blog/en/')).text();
-    const enHrefs = [...en.matchAll(/class="sgx-drawer-item"[^>]*href="([^"]+)"/g)].map(
-      (m) => m[1],
-    );
-    assert.deepEqual(enHrefs, [
-      'https://styrigx.com/en/',
-      '/curio/en/',
-      '/daymark/en/',
-      '/blog/en/',
-    ]);
-    assert.match(en, /<a class="sgx-drawer-me" href="https:\/\/styrigx\.com\/en\/account\/"/);
-    assert.match(en, /<a class="sgx-drawer-search" href="https:\/\/styrigx\.com\/en\/search\/"/);
+    const enHrefs = [...en.matchAll(/class="sgx-qp-nav-item" href="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(enHrefs, ['https://styrigx.com/en/', '/curio/en/', '/daymark/en/', '/blog/en/']);
+    assert.match(en, /<a class="sgx-tb-btn sgx-tb-me" href="https:\/\/styrigx\.com\/en\/account\/"/);
   });
 
-  it('文章页：长条只有页名（文章标题）+ 阅读进度细线，没有页签；右圆分享；正文里没有内联目录；目录在抽屉底部', async () => {
+  it('文章页：长条只有页名（文章标题）+ 阅读进度细线，没有页签；分享本页在快捷面板第 2 页；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
     const html = await (await fetch(base + '/blog/post/2026-10-07-muse-playbook/')).text();
     const pill = html.match(/<div class="sgx-tb-pill[\s\S]*?<\/div>/)[0];
     assert.doesNotMatch(pill, /sgx-seg/);
     const title = html.match(/<h1[^>]*>([^<]+)<\/h1>/)[1].trim();
     assert.match(pill, new RegExp('<span class="sgx-tb-title">' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '</span>'));
     assert.match(pill, /data-sgx-progress/);
-    assert.match(html, /<\/div>\s*<button type="button" class="sgx-tb-end sgx-tb-share" data-sgx-share aria-label="分享"><svg[^>]*>[\s\S]*?<\/svg><\/button>\s*<\/div>/, '右圆 = 分享（长条后面、顶栏最后一块）');
-    assert.doesNotMatch(html, /sgx-tb-end-group|sgx-tb-gbtn/, '没有右胶囊了');
-    assert.doesNotMatch(html, /sgx-tb-me|sgx-tb-avatar/);
+    const set = html.match(/<section class="sgx-qp-page" id="sgx-qp-page-set"[\s\S]*?<\/section>/)[0];
+    assert.match(set, /<button type="button" class="sgx-qp-tile" data-qp="share" data-sgx-share>[\s\S]*?分享本页/, '分享本页 = 快捷设置页磁贴');
+    assert.doesNotMatch(html, /sgx-tb-end|sgx-tb-share|sgx-tb-gbtn/, '没有右圆 / 右胶囊了');
     assert.doesNotMatch(html, /sgx-prog-title|sgx-toc-sheet|mobile-article-toc/);
-    const drawer = html.match(/<dialog id="sgx-drawer"[\s\S]*?<\/dialog>/)[0];
-    assert.match(drawer, /class="sgx-drawer-toc"/);
-    assert.match(drawer, /目录/);
-    assert.match(drawer, /data-toc-link/);
-    const home = await (await fetch(base + '/blog/')).text();
-    assert.doesNotMatch(home, /sgx-drawer-toc/, '列表页抽屉没有目录');
+    assert.doesNotMatch(html, /sgx-drawer-toc/, '抽屉删了，目录不进顶栏');
+    assert.match(html, /data-toc-root|sidebar-toc/, '宽屏目录卡照旧（toc-items / toc-tree 接口保留）');
   });
 
   it('404.html 存在且为 One UI 样式', async () => {

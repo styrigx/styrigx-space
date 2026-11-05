@@ -2,7 +2,9 @@
  * 2.4.0 E：视觉回归测试。
  * 5 视口 × 中英 × 深浅色 × 主要页面（/、/settings/ 等；2026-10-22 /search/ 页删除（改成原地搜索层，见 baseline-search-open）；B2-2 删除 /store/，2026-10-19 删除 /files/，
  * 2026-10-20 /browser/ 拆成 /bookmarks/ + /search/，2026-10-21 主站书签下线（迁到 奇趣 Curio），/bookmarks/ 截图删除）
- * + F 的基准（弹层打开）+ 导航抽屉打开（baseline-drawer-open）+ 快捷面板打开（baseline-quick-panel-open）。
+ * + F 的基准（弹层打开）+ 快捷面板打开（第 1 页导航 baseline-quick-panel-nav-open、第 2 页快捷设置 baseline-quick-panel-open）+ AI 窗口打开（baseline-ai-panel-open）。
+ * 2026-11-04 P5-1（顶栏全大椭圆，方案 6.6）：全部重拍；baseline-drawer-open（导航抽屉删了）换成 baseline-quick-panel-nav-open；
+ * baseline-search-open 删除、不重拍（导航页不放搜索框，搜索层在 P4-2 随页面退役，定案第 2 条）。
  * 首次运行：npx playwright test --update-snapshots 生成基准；
  * 后续运行自动对比，不一致即失败。
  *
@@ -175,8 +177,8 @@ test('baseline-sheet-open', async ({ page: pg }) => {
   await expect(pg).toHaveScreenshot('baseline-sheet-open.png', { animations: 'disabled' });
 });
 
-/* 导航抽屉打开（2026-10-20）：设置子页上点九宫格，抽屉滑入、设置项药丸高亮 */
-test('baseline-drawer-open', async ({ page: pg }) => {
+/** 快捷面板 / AI 窗口截图的共同准备：手机、减弱动效、中文、固定字体和时间，设置子页 /settings/display/ */
+async function shellShotPage(pg) {
   await pg.setViewportSize(VIEWPORTS.mobile);
   await blockExternalRequests(pg);
   await pg.emulateMedia({ reducedMotion: 'reduce' });
@@ -189,57 +191,47 @@ test('baseline-drawer-open', async ({ page: pg }) => {
   await freezeTime(pg);
   await pg.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
   await waitPageReady(pg);
-  await pg.click('.sgx-tb-nav');
-  await expect(pg.locator('#sgx-drawer.is-open')).toBeVisible({ timeout: 10000 });
-  /* 等抽屉稳定在打开状态再截图（不拍滑入中途） */
-  await expect(pg.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
-  await expect(pg).toHaveScreenshot('baseline-drawer-open.png', { animations: 'disabled' });
-});
-
-/* 原地搜索层打开（2026-10-22）：设置子页上开抽屉、点底栏搜索框；空输入背景「聚合搜索」；拍收起键盘后的样子（光标不稳定） */
-test('baseline-search-open', async ({ page: pg }) => {
-  await pg.setViewportSize(VIEWPORTS.mobile);
-  await blockExternalRequests(pg);
-  await pg.emulateMedia({ reducedMotion: 'reduce' });
-  await pg.addInitScript(() => {
-    try {
-      localStorage.setItem('sgx-lang', 'zh');
-    } catch (e) {}
-  });
-  await pg.addStyleTag({
-    content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
-  });
-  await freezeTime(pg);
-  await pg.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
-  await waitPageReady(pg);
-  await pg.click('.sgx-tb-nav');
-  await expect(pg.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
-  await pg.click('#sgx-drawer a.sgx-drawer-search');
-  await expect(pg.locator('#sgx-srch-input')).toBeFocused({ timeout: 10000 });
-  await expect(pg.locator('.sgx-srch-empty')).toBeVisible();
-  await pg.locator('#sgx-srch-input').blur();
-  await expect(pg).toHaveScreenshot('baseline-search-open.png', { animations: 'disabled' });
-});
-
-/* 快捷面板打开（2026-10-20）：设置子页上点顶栏右侧滑块圆，面板从顶部滑下（与 baseline-drawer-open 同一写法） */
-test('baseline-quick-panel-open', async ({ page: pg }) => {
-  await pg.setViewportSize(VIEWPORTS.mobile);
-  await blockExternalRequests(pg);
-  await pg.emulateMedia({ reducedMotion: 'reduce' });
-  await pg.addInitScript(() => {
-    try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
-  });
-  await pg.addStyleTag({
-    content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
-  });
-  await freezeTime(pg);
-  await pg.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
-  await waitPageReady(pg);
+}
+/** 点快捷面板图标，等面板稳定在打开状态（不拍滑下中途）；pg2 = 切到第 2 页「快捷设置」 */
+async function openQuickPanel(pg, pg2) {
   await pg.click('.sgx-tb-quick');
   await expect(pg.locator('#sgx-qp.is-open')).toBeVisible({ timeout: 10000 });
-  /* 等面板稳定在打开状态再截图（不拍滑下中途） */
   await expect(pg.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
+  if (pg2) {
+    await pg.click('#sgx-qp-tab-set');
+    await expect(pg.locator('#sgx-qp-page-nav')).toHaveAttribute('inert', '');
+    await expect.poll(() => pg.evaluate(() => {
+      const p = document.querySelector('#sgx-qp [data-qp-pages]');
+      return Math.abs(p.scrollLeft - p.clientWidth) <= 1;
+    })).toBe(true);
+  }
+}
+
+/* 快捷面板第 1 页「导航」（2026-11-04 P5-1，取代 baseline-drawer-open）：设置子页上点顶栏快捷面板图标，面板落下，默认第 1 页，主站当前项高亮 */
+test('baseline-quick-panel-nav-open', async ({ page: pg }) => {
+  await shellShotPage(pg);
+  await openQuickPanel(pg, false);
+  await expect(pg).toHaveScreenshot('baseline-quick-panel-nav-open.png', { animations: 'disabled' });
+});
+
+/* 快捷面板第 2 页「快捷设置」（2026-10-20 起的 baseline-quick-panel-open；P5-1 起要先切到第 2 页；主站页面，没有分享磁贴） */
+test('baseline-quick-panel-open', async ({ page: pg }) => {
+  await shellShotPage(pg);
+  await openQuickPanel(pg, true);
+  await expect(pg.locator('#sgx-qp [data-qp="share"]')).toHaveCount(0);
   await expect(pg).toHaveScreenshot('baseline-quick-panel-open.png', { animations: 'disabled' });
+});
+
+/* AI 窗口打开（2026-11-04 P5-1，方案 5.5）：空状态（没有历史），落在顶栏下方，和快捷面板同一种形式 */
+test('baseline-ai-panel-open', async ({ page: pg }) => {
+  await shellShotPage(pg);
+  await pg.click('.sgx-tb-ai');
+  await expect(pg.locator('#sgx-ai.is-open')).toBeVisible({ timeout: 10000 });
+  await expect(pg.locator('#sgx-ai')).toHaveAttribute('data-state', 'open');
+  await expect(pg.locator('#sgx-ai .sgx-ai-empty')).toBeVisible();
+  /* 焦点在窗口里（光标闪烁不稳定）：拍之前移走 */
+  await pg.evaluate(() => /** @type {HTMLElement} */ (document.activeElement).blur());
+  await expect(pg).toHaveScreenshot('baseline-ai-panel-open.png', { animations: 'disabled' });
 });
 
 /* ===== 两扇门验证弹层视觉基线（第七节验收） =====
