@@ -5,12 +5,17 @@
  * 生成 web/atlas/shared/shell/（勿手改，改源头后重跑本脚本）：
  *   tokens.css         22 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；web/atlas/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
  *                      + 调色板派生 token（tag / chart）+ 组件别名层
- *   shell.css          顶栏（九宫格圆 / 只有页名的长条 / 右圆）、导航抽屉（含抽屉头头像）、原地搜索层：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
+ *   shell.css          顶栏（全大椭圆）、快捷面板 + AI 窗口、原地搜索层：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *   palette-scheme.js  自定义 #rrggbb 种子 → 整套角色的引擎（web/atlas/assets/js/lib/palette-scheme.js 原样复制）
  *   search.js          原地搜索层（web/atlas/assets/js/shell/search-layer.js 原样复制；不 import 任何东西，样式在 shell.css 的 search 段）
- *   share.js           子站顶栏分享按钮（web/atlas/assets/js/shell/share-button.js 原样复制；不 import 任何东西，样式在 shell.css 的 topbar-frame 段）
- *   nav.json           导航抽屉的项（web/atlas/data/shell-nav.json）+ 用到的图标 SVG（web/atlas/layouts/partials/icon.html）
- *                      + 抽屉头字标 SVG wordmark（web/atlas/layouts/partials/shell-wordmark.html；brand 文字照旧保留）
+ *   share.js           子站快捷面板的「分享本页」磁贴（web/atlas/assets/js/shell/share-button.js 原样复制；不 import 任何东西）
+ *   topbar.html        顶栏 + 快捷面板 + AI 窗口的标记（web/atlas/layouts/partials/shell-topbar.html 原样复制；Hugo partial，只用参数，2026-11-04 P5-1）
+ *   topbar.js          顶栏两个窗口的开合 / 互斥 / 两页 / 磁贴（web/atlas/assets/js/shell/topbar-panel.js 原样复制；不 import，依赖由调用方传入）
+ *   modal-sheet.js     窗口开合状态机（web/atlas/assets/js/shell/modal-sheet.js 原样复制；不 import）
+ *   ai.js              AI 窗口内容（web/atlas/assets/js/shell/ai-panel.js 原样复制；不 import）
+ *   prefs-write.js     外观写端（web/atlas/assets/js/lib/prefs-write.js 原样复制；不 import；子站快捷设置用，定案第 5 条）
+ *   nav.json           快捷面板导航页的项（web/atlas/data/shell-nav.json）+ 用到的图标 SVG（web/atlas/layouts/partials/icon.html）
+ *                      + 字标 SVG wordmark（web/atlas/layouts/partials/shell-wordmark.html；brand 文字照旧保留）
  *   palettes.json      预设 id / 名字 / 分组 / 种子 / 背景色 / 6 前景 + 每套亮暗的 Shell + Semantic token 值（含 bg-1..7、chart-1..6）
  *                      + 默认值 + 子站自定义色缓存版本号（子站只消费，不自己定义主题色）
  *   ui-cookie-read.js  sgx-ui cookie 只读解析器（web/atlas/assets/js/lib/ui-cookie-read.js 原样复制；经典脚本 ES5，子站内联进 <head>）
@@ -41,6 +46,11 @@ const SRC = {
   wordmark: path.join(REPO, 'web/atlas/layouts/partials/shell-wordmark.html'),
   search: path.join(REPO, 'web/atlas/assets/js/shell/search-layer.js'),
   share: path.join(REPO, 'web/atlas/assets/js/shell/share-button.js'),
+  topbar: path.join(REPO, 'web/atlas/layouts/partials/shell-topbar.html'),
+  topbarJs: path.join(REPO, 'web/atlas/assets/js/shell/topbar-panel.js'),
+  modalSheet: path.join(REPO, 'web/atlas/assets/js/shell/modal-sheet.js'),
+  ai: path.join(REPO, 'web/atlas/assets/js/shell/ai-panel.js'),
+  prefsWrite: path.join(REPO, 'web/atlas/assets/js/lib/prefs-write.js'),
   reader: path.join(REPO, 'web/atlas/assets/js/lib/ui-cookie-read.js'),
   contract: path.join(REPO, 'tests/fixtures/ui-cookie-contract.json'),
   favicon: path.join(REPO, 'web/atlas/assets/js/shell/favicon.js'),
@@ -48,9 +58,10 @@ const SRC = {
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
-export const SHELL_REGIONS = ['topbar-frame', 'drawer', 'search'];
-/* 抽屉项以外外壳要用的图标：九宫格（顶栏左圆）、AI 搜索（抽屉底栏钉住的搜索框长条）、分享（子站顶栏右胶囊，2026-10-24） */
-const EXTRA_ICONS = ['apps-grid', 'ai-search', 'share'];
+export const SHELL_REGIONS = ['topbar-frame', 'panel', 'search'];
+/* 导航项以外外壳要用的图标（2026-11-04 P5-1）：顶栏（快捷面板滑块、AI 聊天）、快捷设置磁贴（深色 / 跟随系统 / 语言 / 锁定 / 恢复默认 / 分享）、AI 发送；
+   ai-search 留给 nav.json 的 search 项（搜索层 P4-2 删除时一起删）。都要是不含模板语法的完整内联 SVG */
+export const EXTRA_ICONS = ['tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send', 'ai-search'];
 const HEAD = (src) =>
   `/* 由 styrigx-space scripts/gen-shell.mjs 从 ${src} 生成，勿手改；子站用 scripts/sync-shell.mjs 同步。 */\n`;
 
@@ -167,6 +178,23 @@ export function renderShare() {
   return src;
 }
 
+/** 自成一体的 JS 组件：原样复制（不能 import；必须导出 exportName） @param {string} file @param {string} label @param {string} exportName */
+export function renderStandalone(file, label, exportName) {
+  const src = readFileSync(file, 'utf8');
+  if (/^\s*import\s/m.test(src) || /\bimport\s*\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, ''))) throw new Error(label + ' 不能 import 任何东西（子站原样复制）');
+  if (!new RegExp('^export (async )?function ' + exportName + '\\(', 'm').test(src)) throw new Error(label + ' 必须导出 ' + exportName);
+  return src;
+}
+
+/** 顶栏 partial：原样复制；只能用参数（子站没有主站的 partial 和 data），不许 partial / site.Data / resources */
+export function renderTopbar() {
+  const src = readFileSync(SRC.topbar, 'utf8');
+  const code = src.replace(/\{\{-?\s*\/\*[\s\S]*?\*\/\s*-?\}\}/g, '');
+  if (/\{\{-?\s*partial(Cached)?\s/.test(code) || /site\.Data|hugo\.Data|resources\.|\.Site\b|\$\.Page\b/.test(code)) throw new Error('shell-topbar.html 只能用传进来的参数（不能调 partial / 读 site.Data / resources）');
+  if (!/<header id="site-nav"/.test(src) || !/id="sgx-qp"/.test(src) || !/id="sgx-ai"/.test(src)) throw new Error('shell-topbar.html 缺 header#site-nav / #sgx-qp / #sgx-ai');
+  return src;
+}
+
 /** 调色板用法规则版本（填充 vs ink、大面积块中性化、固定状态色、图表 3:1 回退、合成底审计；docs/palette-usage.md） */
 export const RULES_VERSION = 'palette-rules-1';
 
@@ -234,7 +262,7 @@ function renderPalettes(data, schemeSrc) {
    三站副本要重新同步。2026-11-02 主站包搬进 web/atlas/ 时没动（合并 PR1 只搬不改），合并 PR2 改同步方式时一起改。 */
 const README = `# web/shared/shell（生成物，勿手改）
 
-主站（styrigx-space）和子站（styrigx-blog、styrigx-daymark、styrigx-curio）共用的外壳：色彩角色、顶栏材质、导航抽屉、原地搜索层、自定义主题色引擎、抽屉项、外观 cookie 读端、标签页图标。
+主站（styrigx-space）和子站（styrigx-blog、styrigx-daymark、styrigx-curio）共用的外壳：色彩角色、顶栏（全大椭圆）+ 快捷面板 + AI 窗口、原地搜索层、自定义主题色引擎、导航项、外观 cookie 读端与写端、标签页图标。
 
 - 源头：\`web/data/palette-roles.json\`、\`web/assets/css/input.css\` 的 \`@shell:begin/end\` 段、\`web/assets/js/lib/palette-scheme.js\`、
   \`web/data/shell-nav.json\`、\`web/layouts/partials/icon.html\`、\`web/layouts/partials/shell-wordmark.html\`（抽屉头字标，进 nav.json 的 \`wordmark\`）。改源头后跑 \`node scripts/gen-shell.mjs\`；CI 用 \`--check\` 核对。
@@ -247,7 +275,7 @@ const README = `# web/shared/shell（生成物，勿手改）
   \`palettes.json\` 每套带 \`tokens.light\` / \`tokens.dark\`（Shell：bg-1..7、表面 / 容器、玻璃、遮罩；Semantic：主 / 辅 / 第三色族、选中、链接、边线、文字；
   外加 fg-1..6（-tint / -ink）、chart-1..6、tag-bg / tag-fg），和 \`tokens.css\` 里同名 \`--sgx-*\` 变量一样。怎么用见主站 \`docs/palette-usage.md\`。
 
-## 子站读外观：ui-cookie-read.js（只读，永远不写 sgx-ui）
+## 子站读外观：ui-cookie-read.js（只读；写由 prefs-write.js 负责，见下）
 
 经典脚本、ES5、无依赖，挂 \`window.SgxUI\`。\`<head>\` 里、样式表之后、任何内容之前，**原样内联**，紧跟一行调用：
 
@@ -271,48 +299,55 @@ const README = `# web/shared/shell（生成物，勿手改）
   打包 \`favicon.js\`（ES 模块）后调 \`initFavicon()\`：色板 / 自定义色 / 深浅色变了就换成当前主题色。
 - 契约测试：\`ui-cookie-contract.json\` 是主站写端真实写出的 cookie + 期望；子站单测对每个 case 断言 \`SgxUI.read(\'sgx-ui=\' + c.cookie)\` 等于 \`c.read\`、
   \`SgxUI.resolve(c.read, 系统深色)\` 等于 \`c.light/c.dark.resolve\`（apply 后 \`<html>\` 等于 \`.root\`）。sync-shell 拉新版本后跑一遍。
-## 顶栏 + 抽屉头头像（2026-10-22 v8，三个站一样）
+## 顶栏 + 快捷面板 + AI 窗口（topbar.html / topbar.js / modal-sheet.js / ai.js + shell.css topbar-frame、panel 段；2026-11-04 P5-1，四个站一样）
+
+\`topbar.html\` 是 Hugo partial（主站 partials/shell-topbar.html 原样），子站同步成 \`layouts/partials/sgx-shell-topbar.html\`，只用参数、不调别的 partial：
 
 \`\`\`html
-<div class="sgx-topbar">
-  <button class="sgx-tb-nav" aria-controls="sgx-drawer">九宫格图标</button>
-  <div class="sgx-tb-pill"><span class="sgx-tb-title">页名</span></div>   <!-- 只有页名，不放图标 -->
-  <button class="sgx-tb-end …">本站自己的图标</button>                     <!-- 唯一按站点自定义的位置 -->
-</div>
+<header id="site-nav">
+  <div class="sgx-topbar">                                   <!-- 一整条胶囊，材质在它身上 -->
+    <a class="sgx-tb-logo" href="本站首页">字标 + 圆点简版</a>     <!-- < 400px 只显示圆点 -->
+    <div class="sgx-tb-pill">本站中间内容（页名 / 标签 / 分段）</div>
+    <div class="sgx-tb-acts">
+      <button class="sgx-tb-btn sgx-tb-quick" aria-controls="sgx-qp">滑块</button>
+      <button class="sgx-tb-btn sgx-tb-ai" aria-controls="sgx-ai">聊天</button>
+      <a class="sgx-tb-btn sgx-tb-me" href="/account/"><img class="sgx-tb-avatar" data-sgx-avatar="192"></a>
+    </div>
+  </div>
+</header>
+<dialog id="sgx-qp">两页：导航（nav.json items / footer，当前站高亮，没有搜索框）/ 快捷设置（磁贴）</dialog>
+<dialog id="sgx-ai">消息列表 · 输入框 · 清空 · 仅公开内容 / 包含私密内容</dialog>
 \`\`\`
-- 右圆 \`.sgx-tb-end\`：52px 圆、材质 / 悬停 / 按下 / 焦点框都在 shell.css；里面放一个 22px 图标。主站 = 快捷面板（\`.sgx-tb-end.sgx-tb-quick\`，主站 partials/topbar-end.html）；
-  子站换成自己的按钮或链接（\`<a class="sgx-tb-end" …>\` 也行），不要留空（两侧圆要对称）。
-- 头像不在顶栏了：抽屉头 = 字标 + 右边的头像圆（\`<a class="sgx-drawer-me" href="{nav.me.href}"><img src="{nav.me.avatar}" alt=""></a>\`，52px，垂直居中）。
-  主站链到账号页；子站用 nav.json 的 \`me.href\`（默认 https://styrigx.com/）和 \`me.avatar\`，aria-label 用 \`me.zh / me.en\`。
-- 旧的 \`.sgx-tb-me\`（顶栏头像圆）、\`.sgx-tb-ic\`（长条里的图标）样式已从共享外壳删掉，子站同步时一起换新结构。
-- 尺寸体系（2026-10-23）：\`--sgx-page-m\`（左右页边距：< 600 宽 16px，≥ 600 宽 clamp(16px, 5.333px + 2.2222vw, 48px)）、
-  \`--sgx-tb-btn\`（圆按钮 52 → 56）、\`--sgx-tb-gap\`（8 → 12）、\`--sgx-content-max\`（外壳框最宽，默认 1068，本站可改）、
-  \`--sgx-shell-w\` = min(100% − 2 × 页边距, 最宽)。顶栏 = 这个框（left / right 0 + margin auto + width，不用 transform），两侧圆外缘 = 框边；
-  子站自己的页面外框用 \`width: var(--sgx-shell-w); margin: 0 auto\` 就和顶栏对齐。< 840 宽的底部搜索栏也对齐这个框。
+- 参数（dict）：\`isEn\`、\`home\`、\`center\`（HTML）、\`pillClass\`、\`headerClass\`、\`headerAttrs\`、\`nav\`（nav.json）、\`site\`（当前站 id）、\`icons\`（nav.json 的 icons）、
+  \`wordmark\`、\`acct\`、\`avatar\`、\`tiles\`（theme / lang / lock / palette / layout / share）、\`langHref\`（另一种语言的同一页）、\`pal\`（[{id, zh, en, style}]，style = --pl-b1..7 / --pl-f1..6 / --pd-*）、\`layout\`。
+- 「分享本页」磁贴（\`tiles.share\`）只在子站内容页传 true；主站任何页面都不输出（定案第 4 条，模板层决定，不是 CSS 隐藏）。
+- JS：\`import { mountTopbar } from './topbar.js'\`，把依赖传进去（这几个文件都不 import 任何东西）：
+  \`mountTopbar({ modalSheet, prefs, ai: mountAiChat, share: mountShare })\`；prefs 用 \`prefs-write.js\` 的
+  \`isDark / themeMode / setThemeMode / toggleFollowSystem / palette / setPalette / DEFAULT_PALETTE / hasAccent\`，\`setLang: v => (setLangPref(v), '')\`（地址取磁贴的 data-href）。
+- 两个窗口是非模态 \`<dialog>\`，从顶栏下方落下、互斥；系统返回 / Esc / 点遮罩关闭；快捷面板每次打开在第 1 页，页签可点、左右键切，内容横向滑。
+- AI：POST /api/ai（同源）→ SSE hits / delta / done；历史只在本地 \`sgx-ai-history\`（最多 50 条，不进云同步）。
 
-## 子站顶栏分享按钮（share.js + shell.css topbar-frame 段，2026-10-24；主站不用）
+## 子站外观写端（prefs-write.js；改写原「主站写、子站只读」，定案第 5 条）
 
-右边的圆换成一个胶囊，装两个按钮（所有进门的人都一样）：
+四站共用一个写端：主站的 cookie 写法（syncUiCookie）就在这个文件里，子站快捷设置调它的 setter：写 localStorage（同源同一份）→ \`SgxUI.apply\` 重落 \`<html>\` → 写 \`sgx-ui\` cookie。
+子站写入的外观在本设备生效（回主站即同步）；跨设备以账号云同步为准，云同步覆盖这些设置之前不承诺跨设备。上面「子站读外观」一节的读端照旧。
 
-\`\`\`html
-<div class="sgx-tb-end-group">
-  <button type="button" class="sgx-tb-gbtn sgx-tb-share" data-sgx-share aria-label="分享">{nav.icons.share}</button>
-  <a class="sgx-tb-gbtn sgx-tb-guestbook" href="/guestbook/" aria-label="留言板">留言板图标</a>
-</div>
-\`\`\`
-- 胶囊 \`.sgx-tb-end-group\`：材质 / 高度 / 圆角同两侧圆，宽 = 2 × \`--sgx-tb-gbtn\`（40px）+ 2 × 2px + 边线 = 86px；里面的 \`.sgx-tb-gbtn\` 透明，悬停 / 按下 / 焦点框各管各的。
-- JS：\`import { mountShare } from './share.js'; mountShare();\`（每页一次，自己找 \`[data-sgx-share]\`）。
+## 分享本页（share.js，子站快捷面板磁贴；主站不用）
+
+- JS：\`mountShare({ button: 磁贴 })\`（topbar.js 会对 \`[data-qp="share"]\` 调传进来的 mountShare）。
   POST https://styrigx.com/api/share（credentials: include；进门二值，不分角色）
   \`{action:'create', reuse:true, name:页面标题(24 字), to:当前页(去 lock/why/return/share), hours:24, session:43200}\`
   → 带临时会话的短链（服务端同页同档位还剩 ≥ 12 小时就复用）→ \`navigator.share\`；没有 / 被拒（不是取消）→ 复制 + toast「已复制分享链接」。
-  生成中按钮 \`aria-busy\` + \`.is-busy\`，再点不理；失败只 toast，不会把原地址当短链分享。
+  生成中磁贴 \`aria-busy\` + \`.is-busy\`，再点不理；失败只 toast，不会把原地址当短链分享。
   服务端回 401 reauth（生成 / 复用短链要锁侧复验，P2-3）→ share.js 自带的最小复验步骤 \`lockReauthStep()\`（\`<dialog class="sgx-share-reauth">\`，
   只有锁屏通行密钥 / 解锁密码，设了哪个显示哪个；同源 POST /api/lock-reauth status、/api/lock-password、/api/lock-passkey）→ 通过后自动重试一次；取消 = 不分享。
   toast 是 \`.sgx-share-toast\`（share.js 自己建）；复验弹层样式 \`.sgx-share-reauth*\` 在 shell.css 的 topbar-frame 段。
-- 子站 sync-shell 的 SITE.targets 加 \`share.js\`（kind \`file\`），和 search.js 一样打包。
+- 尺寸体系（2026-10-23）：\`--sgx-page-m\`、\`--sgx-tb-btn\`（顶栏高 52 → 56）、\`--sgx-tb-gap\`、\`--sgx-content-max\`（外壳框最宽，默认 1068，本站可改）、
+  \`--sgx-shell-w\` = min(100% − 2 × 页边距, 最宽)。顶栏 = 这个框；子站自己的页面外框用 \`width: var(--sgx-shell-w); margin: 0 auto\` 就和顶栏对齐。
 
 ## 搜索层（search.js + shell.css 的 search 段）
 
+（2026-11-04 P5-1：导航抽屉删了，子站没有入口；主站只剩 Ctrl+K 和首页 ?q=。整套在 P4-2 删除。下面是原说明。）
 点导航抽屉底栏的搜索框 → 抽屉原地淡掉，搜索框变形成屏幕底部的搜索栏（药丸 + ✕ 圆，贴键盘），上面是盖住当前页的磨砂结果层
 （空输入时背景是放大镜 +「聚合搜索」；输入后是站内结果 / 「用 <引擎> 搜索」；不记搜索历史）。顶栏不动。✕ / 系统返回 / Esc 关闭。不跳页、最多占一条历史。
 
@@ -355,6 +390,11 @@ export function renderAll() {
     'palette-scheme.js': schemeSrc,
     'search.js': renderSearch(),
     'share.js': renderShare(),
+    'topbar.html': renderTopbar(),
+    'topbar.js': renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar'),
+    'modal-sheet.js': renderStandalone(SRC.modalSheet, 'modal-sheet.js', 'modalSheet'),
+    'ai.js': renderStandalone(SRC.ai, 'ai-panel.js', 'mountAiChat'),
+    'prefs-write.js': renderStandalone(SRC.prefsWrite, 'prefs-write.js', 'syncUiCookie'),
     'nav.json': renderNav(),
     'palettes.json': renderPalettes(data, schemeSrc),
     'ui-cookie-read.js': reader,
