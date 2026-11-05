@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:4e5d0b7b06eb web/atlas/shared/shell v9058f5c68575（scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:118f1cb2e78b web/atlas/shared/shell vd7097e40a477（scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- ui-cookie-read.js ---- */
 /**
  * @fileoverview sgx-ui cookie 只读解析器（2026-10-22）：子站（博客 / 日刻 / 奇趣）首帧前读主站写的外观，<html> 落到和主站一样的状态。

@@ -10,7 +10,8 @@
  *   点头像直接换头像，见 avatar-edit.js。2026-10-24 PR4 删掉「账号信息」子页，登录方式 / 退出账号挪进设备页「此设备」卡）、
  *   一组：设备 /「安全与隐私」（副标题：账号密码或通行密钥任一已设置 → 已保护）→ 子页
  *   /account/security/（apps/account-security.js，每次进都要验签，3 分钟reauth 票）；
- *   另一组：云同步（副标题 = 开关状态 / 上次同步，进 /account/sync/ 看同步了哪些项、开关）。
+ *   另一组：云同步（副标题 = 开关状态 / 上次同步，进 /account/sync/ 看同步了哪些项、开关）；
+ *   再一组（P4-2d）：「AI 模型」（副标题 = 当前模型名，点开单选列表；apps/account-ai.js，确认有账号会话后才读 GET /api/ai）。
  *   临时钥匙和服务状态已搬到设置（/settings/security/tempkeys/、/settings/status/），账号页不再有入口。
  * - ?return=/account/(security|devices|sync)/：子页没有账号会话时跳来，登录后回子页。
  * - 读不到状态（401 / 网络）：两个按钮都显示，服务端照常校验（统一显示「不正确 / 验证失败」）。
@@ -31,6 +32,7 @@ import { followKeyboard } from '../shell/vk.js';
 import { ACCOUNT_RETURN_RE, createT, signalAccountName, syncSubText } from './account-common.js';
 import { ACCOUNT_API, postJSON } from '../auth/account-api.js';
 import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
+import { initAiModelRow } from './account-ai.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -90,6 +92,7 @@ import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
         if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
         fillDevSub(j);
         startSync();
+        initAiModelRow({ t: t });
         const PKC = /** @type {any} */ (window).PublicKeyCredential;
         if (PKC && typeof PKC.signalCurrentUserDetails === 'function') {
           postJSON(ACCOUNT_API, { action: 'passkey-list' }).then(function (res) {
@@ -315,6 +318,7 @@ import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
     if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
     fillDevSub(j);
     startSync();
+    initAiModelRow({ t: t });
     loginEl.hidden = true;
     mainEl.hidden = false;
     maybeSignalName();

@@ -10,6 +10,7 @@
  * - json   null → 「默认」，有值 → 「已自定义」
  * - accent #rrggbb → 大写色值；没设 → 「未设置」（用调色板）
  * - city   {name} → 城市名；没设 / 坏了 → 「未设置」
+ * - ai-model 账号页选的 AI 模型 id（P4-2d）→ 原样显示；没设 → 「默认」（用服务端的默认模型；本页不请求模型列表，所以不翻成模型名）
  */
 
 /**
@@ -51,6 +52,8 @@ export function valueText(d, raw, t) {
       } catch (e) {}
       return t('syncValUnset');
     }
+    case 'ai-model':
+      return raw || t('syncValDefault');
     default:
       return raw || '';
   }

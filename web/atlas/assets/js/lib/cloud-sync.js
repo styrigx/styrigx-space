@@ -2,7 +2,7 @@
  * @fileoverview 账号云同步（设置 › 账号 › 云同步）：登录账号后，设置项跨设备同步。
  *
  * - 同步哪些：data/features.yaml 里有 localStorage key 的设置（外观 / Good Lock / 时区天气 / 搜索引擎 / 文件），
- *   加自定义主题色 sgx-accent 和天气城市；不同步语言（跟随各设备系统）、布局（每台屏幕不同）、
+ *   加自定义主题色 sgx-accent 和账号页选的 AI 模型 sgx-ai-model（P4-2d）；不同步语言（跟随各设备系统）、布局（每台屏幕不同）、
  *   精确定位、锁屏 / 凭证类（本来就不在 localStorage）。
  * - 每项记一个本机修改时间（localStorage sgx-sync-meta），和云端（/api/prefs）逐项比，新的赢。
  * - 时机（2026-10-24 拉取节流）：只在锁屏已解锁的页面（<html data-sgx-lock-session="valid">）请求；不看锁屏进门方式，
@@ -46,7 +46,9 @@ const FORCE_REUSE_MS = 3000;
 /** 不同步的 key（设备相关） */
 const EXCLUDE = new Set(['sgx-lang', 'sgx-layout']);
 /** features.yaml 之外也要同步的 key */
-const EXTRA = ['sgx-accent']; /* P4-2c：sgx-weather-loc / sgx-weather-city 随天气删除 */
+/* P4-2c：sgx-weather-loc / sgx-weather-city 随天气删除。
+   P4-2d：sgx-ai-model（账号页选的 AI 模型 id，shell/ai-panel.js MODEL_KEY）；AI 窗口的对话历史仍只存本地、不同步 */
+const EXTRA = ['sgx-accent', 'sgx-ai-model'];
 
 /** @returns {string[]} 要同步的 localStorage key */
 export function syncKeys() {

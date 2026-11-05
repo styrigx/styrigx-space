@@ -23,6 +23,7 @@ const VIEWPORTS = {
 };
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
 /* 账号页（独立页 /account/，2026-10-22 从 /settings/account/ 挪出）三星式总览：/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
+   P4-2d 起总览多一组「AI 模型」（/api/ai 打桩，副标题固定 Gemma 4），
    新增安全与隐私子页 /account/security/（已过门；倒计时数字在截图里遮罩），
    账号信息子页 /account/profile/ 2026-10-24 PR4 删除（登录方式 / 退出账号挪进设备页「此设备」卡），截图一并删除；
    PR4 新增的账号子页（云同步 / 设备）只拍手机，见文件末尾 account-sub-*；服务状态、临时钥匙搬到设置后也只拍手机，见文件末尾 settings-status-* / settings-tempkeys-* */
@@ -86,6 +87,19 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               });
             });
           }
+          /* 账号总览「AI 模型」一行（P4-2d）：GET /api/ai 固定两条模型、能切、没选过（副标题 = 默认模型 Gemma 4） */
+          if (page === '/account/') {
+            await pg.route('**/api/ai', async (route) => {
+              await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ ok: true, default: '@cf/google/gemma-4-26b-a4b-it', canChoose: true, models: [
+                  { id: '@cf/google/gemma-4-26b-a4b-it', label: 'Gemma 4', provider: 'workers-ai' },
+                  { id: '@cf/openai/gpt-oss-20b', label: 'GPT-OSS 20B', provider: 'workers-ai' },
+                ] }),
+              });
+            });
+          }
           if (page === '/settings/security/lock/') {
             await pg.route('**/api/lock-credentials', async (route) => {
               await route.fulfill({
@@ -134,7 +148,10 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await pg.goto(lang.prefix + page, { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
           /* 账号两页：等异步内容（总览 / 子页列表）落定再截图 */
-          if (page === '/account/') await expect(pg.locator('#acct-main')).toBeVisible({ timeout: 10000 });
+          if (page === '/account/') {
+            await expect(pg.locator('#acct-main')).toBeVisible({ timeout: 10000 });
+            await expect(pg.locator('#acct-ai-sub')).toHaveText('Gemma 4');
+          }
           if (page === '/account/reset/') await expect(pg.locator('#sgx-reset-root')).toBeVisible({ timeout: 10000 });
           if (page === '/account/security/') {
             await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });

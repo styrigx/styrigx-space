@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:4e5d0b7b06eb web/atlas/shared/shell v9058f5c68575（scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:118f1cb2e78b web/atlas/shared/shell vd7097e40a477（scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- prefs-write.js ---- */
 /**
  * @fileoverview 外观写端（2026-11-04 P5-1，定案第 5 条：四站共用一个写端）。

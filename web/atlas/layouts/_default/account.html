@@ -10,6 +10,7 @@
    「账号安全」→ 子页 /account/security/（account-security.html）管理账号密码和账号通行密钥，
    每次进都要再验一次账号凭证（3 分钟reauth 票，离开即作废）。
    第二组（2026-10-24 PR4）：「云同步」→ 子页 /account/sync/（account-sync.html）：总开关 + 实际同步的每一项。
+   第三组（P4-2d）：「AI 模型」→ 底部单选列表（不是子页），选项来自 GET /api/ai，选择存 localStorage sgx-ai-model（进云同步）。
    临时钥匙、服务状态已搬到设置（/settings/security/tempkeys/、/settings/status/），只认锁屏进门会话，账号页不再有入口。
    ?return=/account/(security|devices|sync)/：子页没有账号会话时跳来，登录后回子页。
    进门的人都看到同一个界面（没账号密码登不上）。noindex、不进 sitemap（见 baseof/sitemap）。
@@ -76,6 +77,17 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
+    </section>
+    {{/* P4-2d：AI 模型（AI 窗口用哪个模型；只有登了账号能换，所以只放在总览里）。副标题 = 当前模型名，点开单选列表；apps/account-ai.js */}}
+    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.2s" aria-label="AI">
+      <div class="acct-row" id="acct-ai-row" role="button" tabindex="0" aria-haspopup="dialog">
+        <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "sparkles" }}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-medium">{{ if $isEn }}AI model{{ else }}AI 模型{{ end }}</span>
+          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-ai-sub"></span>
+        </span>
+        {{ partial "icon.html" "chev-r" }}
+      </div>
     </section>
   </div>
 </div>

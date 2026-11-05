@@ -9,6 +9,10 @@
  * - 历史只存本地 localStorage sgx-ai-history（{v:1, msgs:[{role, text, hits?, ts}]}，最多 50 条）；四站同源所以同一台设备上是同一份（同源带来的，不是同步）；
  *   lib/cloud-sync.js 的白名单不收这个键，不跨设备。发给服务端的 history 只带最近 6 条 {role, text}（服务端再截 2000 字）。
  * - 清空：删本地历史。AI 窗口就是新的聊天入口；/chat/ 页不换后端，P4-2 退役。
+ * - 模型（P4-2d）：账号页「AI 模型」一行把选择存在 localStorage sgx-ai-model（进云同步，换设备跟着走）；这里发问时有就带上 body.model，
+ *   窗口里不做切换。服务端只在有账号会话时采纳（没登录带了也忽略，一律默认模型），不在登记里 → 400 bad_model：
+ *   清掉本地选择、不带 model 自动重发一次（只重发一次；再错按普通错误显示）。清掉时派发 sgx-settings-changed，主站的云同步把删除推上去。
+ *   响应头 X-Styrigx-AI-Model（这次用的模型 id）只用于排查，这里不显示。
  */
 
 export const AI_API = '/api/ai';
@@ -16,6 +20,8 @@ export const HISTORY_KEY = 'sgx-ai-history';
 export const HISTORY_MAX = 50;
 export const SEND_HISTORY = 6;
 export const Q_MAX = 200;
+/** 账号页选的模型 id（P4-2d；四站同源同一份；lib/cloud-sync.js 的 EXTRA 收这个键） */
+export const MODEL_KEY = 'sgx-ai-model';
 
 const STR = {
   zh: {
@@ -75,6 +81,25 @@ export function saveHistory(msgs, store) {
 /** 发给服务端的历史：最近 6 条 {role, text}（不带来源、不带出错的） @param {Msg[]} msgs */
 export function historyForServer(msgs) {
   return msgs.filter(function (m) { return !m.error && m.text; }).slice(-SEND_HISTORY).map(function (m) { return { role: m.role, text: m.text }; });
+}
+/** 读账号页选的模型（没有 / 读不到 / 不像 id = ''，不带 model） @param {Storage|null} [store] */
+export function loadModel(store) {
+  try {
+    const s = store || window.localStorage;
+    const v = s.getItem(MODEL_KEY) || '';
+    return v.length <= 128 ? v : '';
+  } catch (e) {
+    return '';
+  }
+}
+/** 清掉模型选择（服务端说 bad_model：被下架了），并告诉主站的云同步这是本机改动 @param {Storage|null} [store] */
+export function clearModel(store) {
+  try { (store || window.localStorage).removeItem(MODEL_KEY); } catch (e) {}
+  try { window.dispatchEvent(new Event('sgx-settings-changed')); } catch (e) {}
+}
+/** 400 bad_model：选中的模型不在登记里（P4-2d） @param {number} status @param {any} j */
+export function isBadModel(status, j) {
+  return status === 400 && !!j && j.error === 'bad_model';
 }
 /** 网关 / 服务端错误 → 文案键 @param {number} status @param {any} j */
 export function errKey(status, j) {
@@ -221,19 +246,32 @@ export function mountAiChat(dlg, opts) {
     if (liveText) liveText.textContent = t.thinking;
     ctl = typeof AbortController === 'function' ? new AbortController() : null;
     let failed = '';
+    /** @type {Record<string, any>} */
+    const payload = { q, lang: o.lang === 'en' ? 'en' : 'zh', history };
+    let model = loadModel(o.store);
     try {
-      const res = await doFetch(o.api || AI_API, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({ q, lang: o.lang === 'en' ? 'en' : 'zh', history }),
-        signal: ctl ? ctl.signal : undefined,
-      });
-      if (!res.ok || !res.body) {
+      let res;
+      for (let retried = false; ; retried = true) {
+        res = await doFetch(o.api || AI_API, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+          body: JSON.stringify(model ? Object.assign({}, payload, { model: model }) : payload),
+          signal: ctl ? ctl.signal : undefined,
+        });
+        if (res.ok && res.body) break;
         let j = null;
         try { j = await res.json(); } catch (e) {}
+        /* 选中的模型被下架：清掉本地选择，用默认模型重发一次（只一次） */
+        if (model && !retried && isBadModel(res.status, j)) {
+          clearModel(o.store);
+          model = '';
+          continue;
+        }
         failed = errKey(res.status, j);
-      } else {
+        break;
+      }
+      if (!failed) {
         setScope(res.headers.get('X-Styrigx-AI-Scope'));
         await readSse(res.body, function (ev, d) {
           if (ev === 'hits' && d && Array.isArray(d.hits)) ans.hits = d.hits;
