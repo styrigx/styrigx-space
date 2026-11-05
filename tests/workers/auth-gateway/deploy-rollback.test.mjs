@@ -324,7 +324,8 @@ test('deploy.yml：Pages 记 canonical deployment → 部署 → 冒烟（含首
 });
 
 test('deploy.yml：回滚不加新 secret（只用各 job 原有的部署 token 和 CLOUDFLARE_ACCOUNT_ID）', () => {
-  const allowed = new Set(['CLOUDFLARE_ACCOUNT_ID', 'STYRIGX_SPACE_PAGES_DEPLOY', ...Object.values(WORKER_JOBS).map((c) => c.secret)]);
+  /* STYRIGX_AI_DEPLOY：deploy-ai-worker 的部署 token（2026-11-05 由 STYRIGX_SEARCH_INDEX_DEPLOY 拆出改名，Cloudflare 上 styrigx-ai-deploy） */
+  const allowed = new Set(['CLOUDFLARE_ACCOUNT_ID', 'STYRIGX_SPACE_PAGES_DEPLOY', 'STYRIGX_AI_DEPLOY', ...Object.values(WORKER_JOBS).map((c) => c.secret)]);
   const used = new Set([...readFileSync(path.join(REPO, '.github/workflows/deploy.yml'), 'utf8').matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]));
   for (const s of used) assert.ok(allowed.has(s), 'unexpected secret ' + s);
 });
