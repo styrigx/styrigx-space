@@ -1,6 +1,6 @@
 name: styrigx · Setup Playwright (+ CJK fonts)
 description: >-
-  装 Playwright Chromium：浏览器按 lockfile 里 @playwright/test 的确切版本缓存，系统库每次照装（apt，不进缓存）。
+  装 Playwright Chromium：浏览器按 lockfile 里 @playwright/test 的确切版本缓存，系统库每次照装（apt 命令不变；apt 下载的 .deb 留在缓存目录里跨运行复用）。
   cjk-fonts=true 时再装 fonts-noto-cjk（视觉基线用），缓存的是 apt 候选版本的 .deb 本身，渲染与直接 apt-get install 相同。
   前提：已 checkout、已 npm ci（npx playwright 用的是仓库自己锁定的版本）。
 inputs:
@@ -21,6 +21,8 @@ runs:
         if [ -z "$v" ] || [ "$v" = undefined ]; then echo "::error::@playwright/test not found in package-lock.json"; exit 1; fi
         echo "version=$v" >> "$GITHUB_OUTPUT"
         echo "image=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
+        # apt 安装包缓存按 ISO 周换 key：每周第一轮重存一次，跟上 Ubuntu 的包更新（周内有包更新只是那几个包照常现下，不会装错）
+        echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
 
     - name: Cache Playwright browsers
       id: pw-cache
@@ -28,6 +30,28 @@ runs:
       with:
         path: ~/.cache/ms-playwright
         key: playwright-${{ runner.os }}-${{ steps.pw.outputs.image }}-${{ steps.pw.outputs.version }}
+
+    - name: Cache apt .debs (Playwright system deps)
+      # 2026-11-06 CI 提速：install-deps 每次从 azure.archive.ubuntu.com 现下 16-18 MB 字体包，实测 17-47 kB/s、6-15 分钟。
+      # 这里只缓存 apt 下载下来的 .deb；装什么、装哪个版本仍由下面原样的 install 命令和 apt 当场决定。
+      # 缓存里的 .deb 对不上签名索引里的 sha256（旧版本、坏文件、别处塞进来的）apt 一律不用、照常下载：缓存只省下载，不改装的东西。
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/pw-apt-debs
+        key: pw-apt-debs-${{ runner.os }}-${{ steps.pw.outputs.image }}-${{ steps.pw.outputs.version }}-${{ steps.pw.outputs.week }}
+        restore-keys: |
+          pw-apt-debs-${{ runner.os }}-${{ steps.pw.outputs.image }}-${{ steps.pw.outputs.version }}-
+
+    - name: Point apt's download dir at the cached dir
+      # 只改 apt 存放下载包的目录（Dir::Cache::Archives）并保留下载的包；下面两条 install 命令一个字不改。
+      # 目录不归 apt 的下载用户 _apt，apt 会提示「Download is performed unsandboxed as root」后照常下载，属正常。
+      # 装完下一步就删掉这份配置，后面的步骤看到的 apt 和以前一样。
+      shell: bash
+      run: |
+        d="$HOME/.cache/pw-apt-debs"
+        mkdir -p "$d/partial"
+        printf 'Dir::Cache::Archives "%s/";\nAPT::Keep-Downloaded-Packages "true";\nBinary::apt::APT::Keep-Downloaded-Packages "true";\n' "$d" | sudo tee /etc/apt/apt.conf.d/99sgx-deb-cache
+        echo "restored .debs: $(find "$d" -maxdepth 1 -name '*.deb' | wc -l)"
 
     - name: Install Playwright browser (cache miss)
       if: steps.pw-cache.outputs.cache-hit != 'true'
@@ -39,6 +63,16 @@ runs:
       if: steps.pw-cache.outputs.cache-hit == 'true'
       shell: bash
       run: npx playwright install-deps chromium
+
+    - name: Put apt's download dir back
+      # 删掉上面那份 apt 配置；把缓存目录交还 runner 用户（apt 以 root 下载），job 结束时 actions/cache 才存得进去
+      shell: bash
+      run: |
+        sudo rm -f /etc/apt/apt.conf.d/99sgx-deb-cache
+        d="$HOME/.cache/pw-apt-debs"
+        sudo rm -rf "$d/partial" "$d/lock"
+        sudo chown -R "$(id -u):$(id -g)" "$d"
+        echo "cached .debs: $(find "$d" -maxdepth 1 -name '*.deb' | wc -l)"
 
     - name: CJK font package version
       id: cjk
@@ -69,15 +103,26 @@ runs:
         cd ~/.cache/fonts-noto-cjk-deb
         apt-get download "fonts-noto-cjk=$CJK_VERSION"
 
+    - name: Show apt / dpkg lock holders (diagnostics only)
+      # 只打日志、不改行为：2026-11-05 一轮 e2e-lock 里下一步静默了 19 分钟（本地 .deb、无依赖、不用下载），推测在等 apt / dpkg 锁，未证实
+      if: inputs.cjk-fonts == 'true'
+      shell: bash
+      run: |
+        date -u +%H:%M:%S
+        sudo fuser -v /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>&1 || true
+        ps -eo pid,etime,args | grep -E '[a]pt|[d]pkg|[u]nattended' || true
+
     - name: Install CJK fonts (from the cached .deb)
       # 本地 .deb：依赖解析与 apt-get install fonts-noto-cjk 相同（该包没有 Depends / Recommends）；装完核对版本，
-      # fontconfig 触发器照常重建字体缓存。fc-list 先落到变量再 grep：composite 的 bash 带 pipefail，管道里 grep -q 提前退出会让 fc-list 吃 SIGPIPE
+      # fontconfig 触发器照常重建字体缓存。不加 -qq：等锁时 apt 会打「Waiting for cache lock」，静默就看不出卡在哪。fc-list 先落到变量再 grep：composite 的 bash 带 pipefail，管道里 grep -q 提前退出会让 fc-list 吃 SIGPIPE
       if: inputs.cjk-fonts == 'true'
       shell: bash
       env:
         CJK_VERSION: ${{ steps.cjk.outputs.version }}
       run: |
-        sudo apt-get install -y -qq ~/.cache/fonts-noto-cjk-deb/fonts-noto-cjk_*.deb
+        date -u +%H:%M:%S
+        sudo apt-get install -y ~/.cache/fonts-noto-cjk-deb/fonts-noto-cjk_*.deb
+        date -u +%H:%M:%S
         test "$(dpkg-query -W -f='${Version}' fonts-noto-cjk)" = "$CJK_VERSION"
         fonts="$(fc-list)"
         grep -q "Noto Sans CJK" <<< "$fonts" || { echo "::error::Noto Sans CJK not visible to fontconfig"; exit 1; }
