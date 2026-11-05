@@ -38,11 +38,11 @@ export function normalizeHistory(history) {
 
 const SYSTEM = {
   zh: '你是 Styrigx 的站内助手。只根据下面「站内内容」回答用户的问题，不要编造，也不要用站外知识补充。' +
-    '站内内容里找不到答案时，直接说站内没有找到相关内容。回答用简体中文，简洁。' +
-    '回答末尾另起一段列出用到的链接，每行一条，格式「- 标题：地址」，只列站内内容里给出的地址。',
+    '站内内容里找不到答案时，直接说站内没有找到相关内容。打招呼、问你是谁这类不涉及站内信息的话，简短地正常回应即可。回答用简体中文，简洁。' +
+    '用到了站内内容时，回答末尾另起一段列出用到的链接，每行一条，格式「- 标题：地址」，只列站内内容里给出的地址。',
   en: 'You are the on-site assistant for Styrigx. Answer only from the "Site content" below; do not make things up or add outside knowledge. ' +
-    'If the site content does not contain the answer, say plainly that nothing relevant was found on the site. Answer in English, concisely. ' +
-    'End with a separate list of the links you used, one per line as "- Title: URL", using only URLs given in the site content.',
+    'If the site content does not contain the answer, say plainly that nothing relevant was found on the site. Greetings or questions about who you are need no site content; reply briefly and normally. Answer in English, concisely. ' +
+    'If you used site content, end with a separate list of those links, one per line as "- Title: URL", using only URLs given in the site content.',
 };
 
 /**
@@ -51,6 +51,7 @@ const SYSTEM = {
  */
 export function contextBlock(hits, lang) {
   const head = lang === 'en' ? 'Site content:' : '站内内容：';
+  if (!hits.length) return head + '\n\n' + (lang === 'en' ? '(No matching site content was found.)' : '（没有找到相关条目。）');
   const parts = hits.map((h, i) => {
     const title = h.subtitle ? h.title + ' — ' + h.subtitle : h.title;
     const body = String(h.text || '').trim();
@@ -72,9 +73,3 @@ export function buildMessages(o) {
     { role: 'user', content: o.q },
   ];
 }
-
-/** 召回为空时的固定回答（不调模型，省额度） */
-export const NOTHING_FOUND = Object.freeze({
-  zh: '站内没有找到相关内容。',
-  en: 'Nothing relevant was found on the site.',
-});
