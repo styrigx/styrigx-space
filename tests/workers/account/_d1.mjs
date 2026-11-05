@@ -5,8 +5,10 @@
  *
  * 2026-10-29 PR2：同一个库还有账号鉴权表（D1_ACCOUNT_AUTH，migrations/0003_account_auth.sql，AUTH_TABLES）。
  *
- * makeAccountD1({ migrations })：migrations 默认 true = 先跑 workers/account/migrations/*.sql（含 0003 的 auth 表）；false = 空库（测 "no such table" 自愈）；
- *   'data' = 只跑数据表（0001 / 0002，不建 auth 表）。
+ * 2026-11-06 P3-1：应用授权记录 app_grant（migrations/0004_app_grant.sql，APP_GRANT_MIGRATION）。
+ *
+ * makeAccountD1({ migrations })：migrations 默认 true = 先跑 workers/account/migrations/*.sql（含 0003 的 auth 表、0004 的 app_grant）；false = 空库（测 "no such table" 自愈）；
+ *   'data' = 只跑数据表（0001 / 0002，不建 auth 表和 app_grant）。
  * withAccountAuthD1(env, db?)：把同一个库挂成 D1_ACCOUNT_AUTH（和线上一样，三个绑定名同一个库）。
  * 观测：raw（DatabaseSync）、rows(table)、statements（执行过的 SQL 列表）。
  */
@@ -19,6 +21,9 @@ const MIG = new URL('../../../workers/account/migrations/', import.meta.url).pat
 export const AUTH_MIGRATION = '0003_account_auth.sql';
 export const ACCOUNT_AUTH_SQL = readFileSync(MIG + AUTH_MIGRATION, 'utf8');
 export const AUTH_TABLES = Object.freeze(['epoch', 'password', 'passkey', 'user_handle', 'challenge', 'attempt_limit', 'device', 'audit', 'data_migration']);
+/** 应用授权记录的迁移文件（P3-1）和它建的表 */
+export const APP_GRANT_MIGRATION = '0004_app_grant.sql';
+export const APP_GRANT_SQL = readFileSync(MIG + APP_GRANT_MIGRATION, 'utf8');
 
 /** @param {any[]} p */
 const norm = (p) => p.map((x) => (x === undefined ? null : typeof x === 'boolean' ? (x ? 1 : 0) : x));
@@ -29,7 +34,7 @@ export function makeAccountD1(opts = {}) {
   const raw = new DatabaseSync(':memory:');
   if (opts.migrations !== false) {
     for (const f of readdirSync(MIG).filter((n) => n.endsWith('.sql')).sort()) {
-      if (opts.migrations === 'data' && f === AUTH_MIGRATION) continue;
+      if (opts.migrations === 'data' && (f === AUTH_MIGRATION || f === APP_GRANT_MIGRATION)) continue;
       raw.exec(readFileSync(MIG + f, 'utf8'));
     }
   }

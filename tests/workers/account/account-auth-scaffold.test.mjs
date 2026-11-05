@@ -61,7 +61,7 @@ test('0003：与本库已有的 wb_daily（0001）、settings_sync（0002）不�
   assert.deepEqual(data, ['settings_sync', 'wb_daily']);
   for (const t of AUTH_TABLES) assert.ok(!data.includes(t), t);
   const all = makeAccountD1();
-  assert.deepEqual(tablesOf(all.raw), data.concat(AUTH_TABLES).sort());
+  assert.deepEqual(tablesOf(all.raw), data.concat(AUTH_TABLES, ['app_grant']).sort(), '整套迁移 = 数据表 + 0003 九张 + 0004 app_grant（P3-1）');
   /* 迁移文件名编号不重 */
   const nums = readdirSync(REPO + 'workers/account/migrations').map((f) => f.slice(0, 4));
   assert.equal(new Set(nums).size, nums.length);
