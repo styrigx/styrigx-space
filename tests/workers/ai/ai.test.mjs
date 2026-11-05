@@ -7,7 +7,10 @@
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 const W = '../../../workers/ai/src/';
 const app = (await import(W + 'app.js')).default;
@@ -445,4 +448,30 @@ test('外部模型：钥匙没绑 / 读不到 → 503 no_key（不调上游）�
   }
   assert.equal(G.classifyUpstream(400, 'model not found'), 'model_unavailable');
   assert.deepEqual(G.geminiChunk({ error: { status: 'RESOURCE_EXHAUSTED' } }), { text: '', error: 'rate_limited' });
+});
+
+/* 2026-11-05 run 42007357284：退路「Prepare keyless config」的 guard 按全文 grep，wrangler.toml 注释里的
+   [[secrets_store_secrets]] 被当成残留绑定，退路没跑成。这里照原样跑 deploy.yml 里那段 run 脚本（去掉 echo 警告），
+   核对：能过 guard、删掉的只有钥匙段、注释保留也不误报。 */
+test('deploy.yml 退路：Prepare keyless config 的脚本对真 wrangler.toml 跑得通（注释里有表头字样也不误报）', () => {
+  const yml = readFileSync(new URL('../../../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+  const i = yml.indexOf('- name: Prepare keyless config (fallback)', yml.indexOf('deploy-ai-worker:'));
+  assert.ok(i > 0);
+  const step = yml.slice(i, yml.indexOf('\n      - name:', i + 10));
+  assert.match(step, /working-directory: workers\/ai/);
+  const run = step.slice(step.indexOf('run: |') + 6).split('\n').map((l) => l.replace(/^ {10}/, '')).filter((l) => l && !/^echo "::warning::/.test(l)).join('\n');
+  const dir = mkdtempSync(path.join(tmpdir(), 'ai-nokey-'));
+  const toml = readFileSync(new URL('../../../workers/ai/wrangler.toml', import.meta.url), 'utf8');
+  writeFileSync(path.join(dir, 'wrangler.toml'), toml);
+  execFileSync('bash', ['-eo', 'pipefail', '-c', run], { cwd: dir, stdio: 'pipe' });
+  const nokey = readFileSync(path.join(dir, 'wrangler.nokey.toml'), 'utf8');
+  assert.equal(nokey, toml.slice(0, toml.search(/^\[\[secrets_store_secrets\]\]/m)));
+  assert.doesNotMatch(nokey, /^\s*\[\[secrets_store_secrets\]\]/m);
+  assert.doesNotMatch(nokey, /SGX_CHAT_API_KEY"?\s*$/m);
+  assert.doesNotMatch(toml.slice(toml.search(/^\[\[secrets_store_secrets\]\]/m)), /^\[(?!\[secrets_store_secrets\]\])/m, '钥匙段后面不能再有别的表');
+  /* guard 本身还管用：真留下表头就报错 */
+  writeFileSync(path.join(dir, 'wrangler.toml'), toml + '\n[[secrets_store_secrets]]\nbinding = "X"\n');
+  const guard = run.split('\n').find((l) => /keyless config still has/.test(l));
+  writeFileSync(path.join(dir, 'wrangler.nokey.toml'), '[[secrets_store_secrets]]\n');
+  assert.throws(() => execFileSync('bash', ['-c', guard], { cwd: dir, stdio: 'pipe' }));
 });
