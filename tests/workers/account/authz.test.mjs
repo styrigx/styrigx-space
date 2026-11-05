@@ -2,7 +2,8 @@
  * 账号授权骨架（workers/account/src/core/scopes.js、core/authz.js；方案 2.3.3、2.4、4.2，P2-1）：
  * - 作用域表与方案 4.2 一致：5 项，id、所属应用、中英名；id 格式 <应用>.<动作>、只用 [a-z.]；冻结
  * - knownScopes：只留已知作用域、去重、按字母排序
- * - grantedScopes 骨架版：账号会话有效 → 全部作用域；否则 []
+ * - grantedScopes（P3-1 读授权记录 app_grant）：有种子标记时 已授权 ∩ 作用域表；无记录 + 有标记 → []；无标记 → 骨架行为（全部）；
+ *   账号会话无效 → []；取消后下一次立即不含；读授权记录不写库
  * - authorize：账号会话有效 / 过期 / 设备已退出 / 纪元变了 / 没 cookie / 格式错 / 别的钥匙签 / 账号库出错 的结论；
  *   reauth 只在 opts.reauth === true 时读 sgx-account-reauth；只读不签（不写 cookie、不推纪元）
  *
@@ -11,6 +12,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { K, keys, makeEnv, accSession, reauth, setEpoch, epochOf, TEST_DEVICE_ID, devices } from './_identity.mjs';
+import { makeAccountD1 } from './_d1.mjs';
 
 const CORE = '../../../workers/account/src/core/';
 const scopes = await import(CORE + 'scopes.js');
@@ -83,16 +85,75 @@ test('isScopeId / knownScopes：只认作用域表里的；去重、排序；非
   assert.deepEqual(scopes.knownScopes(null), []);
 });
 
-/* ---------------- grantedScopes（骨架版） ---------------- */
+/* ---------------- grantedScopes（P3-1：读授权记录） ---------------- */
 
-test('grantedScopes 骨架版：账号会话有效 → 全部作用域（每次新数组）；无效 / 缺 → []', async () => {
-  const a = await authz.grantedScopes({}, { ok: true });
+const grant = await import(CORE + 'app-grant.js');
+const SEED = 'app-grant-seed-1';
+/** 直接往库里写一行授权（绕过 app-grant.js，测读路径） @param {any} env @param {string} app @param {string[]} sc */
+const putRow = (env, app, sc) => env.D1_ACCOUNT_AUTH.raw.prepare('INSERT OR REPLACE INTO app_grant (app, record, granted_at) VALUES (?, ?, ?)')
+  .run(app, JSON.stringify({ v: 1, scopes: sc, deviceId: TEST_DEVICE_ID, by: 'passkey' }), 1);
+const mark = (env) => env.D1_ACCOUNT_AUTH.raw.prepare('INSERT OR IGNORE INTO data_migration (name, migrated_at) VALUES (?, 1)').run(SEED);
+const SESS = { ok: true, deviceId: TEST_DEVICE_ID, by: 'passkey' };
+
+test('grantedScopes：无种子标记 → 保持骨架行为（账号会话有效即全部作用域，每次新数组）；无效 / 缺 → []', async () => {
+  const env = makeEnv();
+  const a = await authz.grantedScopes(env, SESS);
   assert.deepEqual(a, ALL);
   a.push('x.y');
-  assert.deepEqual(await authz.grantedScopes({}, { ok: true }), ALL, '改返回值不影响下一次');
-  assert.deepEqual(await authz.grantedScopes({}, { ok: false }), []);
-  assert.deepEqual(await authz.grantedScopes({}, null), []);
-  assert.deepEqual(await authz.grantedScopes({}, { ok: 'true' }), []);
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ALL, '改返回值不影响下一次');
+  assert.deepEqual(await authz.grantedScopes(env, { ok: false }), []);
+  assert.deepEqual(await authz.grantedScopes(env, null), []);
+  assert.deepEqual(await authz.grantedScopes(env, { ok: 'true' }), []);
+  /* 无标记时即使表里已有零星行也按骨架（上线到种子写入之间不能 403） */
+  putRow(env, 'curio', ['curio.write']);
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ALL);
+});
+
+test('grantedScopes：有种子标记 → 已授权 ∩ 作用域表；无记录 + 有标记 → []', async () => {
+  const env = makeEnv();
+  mark(env);
+  assert.deepEqual(await authz.grantedScopes(env, SESS), [], '标记在、0 行（用户取消完）→ 空');
+  putRow(env, 'curio', ['curio.write']);
+  putRow(env, 'prefs', ['prefs.sync']);
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ['curio.write', 'prefs.sync']);
+  /* record 里不属于本应用 / 不在作用域表里的作用域不算 */
+  putRow(env, 'avatar', ['avatar.write', 'curio.read', 'daymark.write']);
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ['avatar.write', 'curio.write', 'prefs.sync']);
+  /* 不认识的应用行不算 */
+  env.D1_ACCOUNT_AUTH.raw.prepare("INSERT INTO app_grant (app, record, granted_at) VALUES ('book', ?, 1)").run(JSON.stringify({ v: 1, scopes: ['book.write'] }));
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ['avatar.write', 'curio.write', 'prefs.sync']);
+  /* record 坏了 = 这一行没有作用域 */
+  env.D1_ACCOUNT_AUTH.raw.prepare("INSERT OR REPLACE INTO app_grant (app, record, granted_at) VALUES ('prefs', 'not json', 1)").run();
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ['avatar.write', 'curio.write']);
+  assert.deepEqual(await authz.grantedScopes(env, { ok: false }), [], '会话无效时不看记录');
+});
+
+test('grantedScopes：种子之后按记录；取消后下一次立即不含该作用域，重新授权后恢复', async () => {
+  const env = makeEnv();
+  assert.equal(await grant.ensureSeed(env, SESS), true);
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ALL, '种满 5 行 = 全部');
+  await grant.revokeGrant(env, 'curio');
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ALL.filter((s) => s !== 'curio.write'));
+  await grant.addGrant(env, 'curio', SESS);
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ALL);
+});
+
+test('grantedScopes：读授权记录出错 → 抛（authorize 接住 fail closed）；空库（迁移没跑）按 0004 建表后照常', async () => {
+  const down = makeEnv({ D1_ACCOUNT_AUTH: { prepare() { throw new Error('down'); }, batch() { throw new Error('down'); } } });
+  await assert.rejects(() => authz.grantedScopes(down, SESS), /down/);
+  const fresh = makeEnv({ D1_ACCOUNT_AUTH: makeAccountD1({ migrations: false }) });
+  assert.deepEqual(await authz.grantedScopes(fresh, SESS), ALL, '没表 → 建表、无标记 → 骨架');
+});
+
+test('authorize：有种子标记、奇趣已取消 → ok 但 scopes 不含 curio.write；授权记录读失败（库只在授权表上坏）→ error', async () => {
+  const env = makeEnv();
+  await grant.ensureSeed(env, SESS);
+  await grant.revokeGrant(env, 'curio');
+  const r = await authz.authorize(env, reqWith({ 'sgx-account-session': await accSession() }));
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.scopes, ALL.filter((s) => s !== 'curio.write'));
+  env.D1_ACCOUNT_AUTH.raw.exec('DROP TABLE app_grant; CREATE VIEW app_grant AS SELECT 1 AS broken');
+  assert.deepEqual(await authz.authorize(env, reqWith({ 'sgx-account-session': await accSession() })), NO('error'));
 });
 
 /* ---------------- authorize ---------------- */
@@ -198,4 +259,6 @@ test('authorize：只读不签——不推纪元、不写授权相关的表；�
   /* 读纪元时补种 epoch 行（INSERT OR IGNORE … 0，readEpoch 既有行为）不算推进 */
   const writes = env.D1_ACCOUNT_AUTH.statements.filter((s) => /^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(s) && !/^\s*INSERT OR IGNORE INTO epoch\b/i.test(s));
   for (const s of writes) assert.match(s, /\bdevice\b/i, '只有设备记录会写：' + s);
+  assert.ok(!writes.some((s) => /\b(app_grant|data_migration)\b/i.test(s)), '授权查询不写授权记录、不种种子');
+  assert.equal(env.D1_ACCOUNT_AUTH.rows('app_grant').length, 0);
 });
