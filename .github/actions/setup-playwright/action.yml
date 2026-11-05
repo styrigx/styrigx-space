@@ -53,6 +53,21 @@ runs:
         printf 'Dir::Cache::Archives "%s/";\nAPT::Keep-Downloaded-Packages "true";\nBinary::apt::APT::Keep-Downloaded-Packages "true";\n' "$d" | sudo tee /etc/apt/apt.conf.d/99sgx-deb-cache
         echo "restored .debs: $(find "$d" -maxdepth 1 -name '*.deb' | wc -l)"
 
+    - name: Prefetch Playwright system deps (.deb, best effort)
+      # 只提速：缓存没有的包先用 curl 并行下到上面那个目录，慢镜像（< 200 kB/s 持续 15 秒）就换 archive.ubuntu.com 再试。
+      # 包清单 = install-deps 自己的 --dry-run（同一份 Playwright 包表，apt-get install -s 算出缺哪些）；URL / 哈希 = apt 的 --print-uris。
+      # 下面的 install 命令照常运行，apt 按签名索引核对目录里每个 .deb，对不上就自己重新下载：预取成败都不改装的东西。
+      # 这一步任何失败都不拦（脚本恒退出 0；拿不到清单就跳过）。
+      shell: bash
+      run: |
+        d="$HOME/.cache/pw-apt-debs"
+        sudo apt-get update -qq || { echo "::warning::apt-get update failed, skip prefetch"; exit 0; }
+        missing="$(npx playwright install-deps --dry-run chromium 2>/dev/null | awk '/^  [a-z0-9]/{print $1}' || true)"
+        if [ -z "$missing" ]; then echo "prefetch: nothing missing"; exit 0; fi
+        # shellcheck disable=SC2086
+        sudo apt-get install --print-uris -y --no-install-recommends $missing 2>/dev/null \
+          | bash "${{ github.action_path }}/prefetch-debs.sh" "$d" || true
+
     - name: Install Playwright browser (cache miss)
       if: steps.pw-cache.outputs.cache-hit != 'true'
       shell: bash
@@ -99,30 +114,32 @@ runs:
       env:
         CJK_VERSION: ${{ steps.cjk.outputs.version }}
       run: |
+        # 先用预取脚本（慢镜像快速换源，见 prefetch-debs.sh）；没拿到再退回 apt-get download。装之前「Install CJK fonts」核对 SHA256
         mkdir -p ~/.cache/fonts-noto-cjk-deb
-        cd ~/.cache/fonts-noto-cjk-deb
-        apt-get download "fonts-noto-cjk=$CJK_VERSION"
-
-    - name: Show apt / dpkg lock holders (diagnostics only)
-      # 只打日志、不改行为：2026-11-05 一轮 e2e-lock 里下一步静默了 19 分钟（本地 .deb、无依赖、不用下载），推测在等 apt / dpkg 锁，未证实
-      if: inputs.cjk-fonts == 'true'
-      shell: bash
-      run: |
-        date -u +%H:%M:%S
-        sudo fuser -v /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>&1 || true
-        ps -eo pid,etime,args | grep -E '[a]pt|[d]pkg|[u]nattended' || true
+        apt-get download --print-uris "fonts-noto-cjk=$CJK_VERSION" | bash "${{ github.action_path }}/prefetch-debs.sh" ~/.cache/fonts-noto-cjk-deb || true
+        if ! compgen -G "$HOME/.cache/fonts-noto-cjk-deb/fonts-noto-cjk_*.deb" > /dev/null; then
+          cd ~/.cache/fonts-noto-cjk-deb
+          apt-get download "fonts-noto-cjk=$CJK_VERSION"
+        fi
 
     - name: Install CJK fonts (from the cached .deb)
-      # 本地 .deb：依赖解析与 apt-get install fonts-noto-cjk 相同（该包没有 Depends / Recommends）；装完核对版本，
-      # fontconfig 触发器照常重建字体缓存。不加 -qq：等锁时 apt 会打「Waiting for cache lock」，静默就看不出卡在哪。fc-list 先落到变量再 grep：composite 的 bash 带 pipefail，管道里 grep -q 提前退出会让 fc-list 吃 SIGPIPE
+      # 用 dpkg -i 装本地 .deb，不经 apt、不联网（2026-11-06 PR #279：apt-get install 本地 .deb 时，仓库里有同版本，
+      # apt 照样去 azure.archive.ubuntu.com 下 61.2 MB，最慢一次 26 分 46 秒；锁诊断无进程占锁，不是等锁）。
+      # 该包没有 Depends / Recommends（packages.ubuntu.com/noble/fonts-noto-cjk），dpkg -i 装上的和 apt 装的是同一个包。
+      # 不经 apt 就没有 apt 的签名核对，所以先自己核：.deb 的 sha256 必须等于本机 apt 索引（Install system deps 那步 apt-get update 过）
+      # 里这个版本的 SHA256，不等就红。装完核对版本；fontconfig 触发器照常重建字体缓存。
+      # fc-list 先落到变量再 grep：composite 的 bash 带 pipefail，管道里 grep -q 提前退出会让 fc-list 吃 SIGPIPE
       if: inputs.cjk-fonts == 'true'
       shell: bash
       env:
         CJK_VERSION: ${{ steps.cjk.outputs.version }}
       run: |
-        date -u +%H:%M:%S
-        sudo apt-get install -y ~/.cache/fonts-noto-cjk-deb/fonts-noto-cjk_*.deb
-        date -u +%H:%M:%S
+        debs=(~/.cache/fonts-noto-cjk-deb/fonts-noto-cjk_*.deb)
+        [ "${#debs[@]}" = 1 ] && [ -f "${debs[0]}" ] || { echo "::error::expected exactly one cached fonts-noto-cjk .deb, got: ${debs[*]}"; exit 1; }
+        want="$(apt-cache show "fonts-noto-cjk=$CJK_VERSION" | awk '/^SHA256:/{print $2; exit}')"
+        got="$(sha256sum "${debs[0]}" | cut -d' ' -f1)"
+        [ -n "$want" ] && [ "$want" = "$got" ] || { echo "::error::fonts-noto-cjk .deb sha256 $got does not match apt index ($want)"; exit 1; }
+        sudo dpkg -i "${debs[0]}"
         test "$(dpkg-query -W -f='${Version}' fonts-noto-cjk)" = "$CJK_VERSION"
         fonts="$(fc-list)"
         grep -q "Noto Sans CJK" <<< "$fonts" || { echo "::error::Noto Sans CJK not visible to fontconfig"; exit 1; }
