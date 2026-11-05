@@ -7,6 +7,9 @@
  *   取消奇趣授权 → grant-revoke（不要复验）→ 卡片变灰、按钮换「重新授权」、「已取消授权」里能看到它；
  *   重新授权 → grant-add 回 401 reauth → 底部弹层验证账号（reauth:true）→ 再 grant-add → 恢复；
  *   没有账号会话（401 account）→ 回账号页登录，登录后回本页；账号总览「设备」「账号安全」同卡有「应用授权」一行
+ * - 同意流程（/account/?return=/curio/…）：未登录未授权 → 登录（带 reauth:true）→ 先 grant-list（种子）→ 同意卡片 → 授权（grant-add）→ 回原页面；
+ *   已授权 → 登录完直接回原页面，不停在账号卡上；拒绝 → 回原页面且不写记录；已经登录着跳来 → 直接回去；
+ *   回原页面按网关 /api/lock-session-check?return= 的 next
  * - 云同步：/api/prefs 403 scope → 账号总览「云同步」一行显示「设置同步未获账号授权，只存本机」
  *
  * 运行：npx playwright test --config=tests/config/playwright.config.js account-apps.spec.js
@@ -181,6 +184,79 @@ test.describe('授权卡页 /account/apps/', () => {
     await expect(chip(page, 'off')).toHaveText('Access removed 0');
     await expect(page.locator('.acct-app-card[data-app="curio"]')).toContainText('Nov 5, 2026');
     await expect(page.locator('.acct-app-card[data-app="avatar"]')).toContainText('Signed-out device');
+  });
+});
+
+test.describe('同意流程（/account/?return=/curio/…）', () => {
+  /** 登录区用密码登录 @param {import('@playwright/test').Page} page */
+  async function loginPw(page) {
+    await page.click('#acct-login-go');
+    await page.click('#acct-pw-btn');
+    await page.fill('#acct-pw-input', 'pw-123456');
+    await page.click('#acct-pw-go');
+  }
+
+  test('奇趣未授权：登录（reauth:true）→ 先 grant-list → 同意卡片（图标、名字、作用域说明、授权 / 拒绝）→ 授权 → 回奇趣原页面', async ({ page }) => {
+    const { calls } = await mockGrants(page, { session: false, off: { curio: true } });
+    const asked = await mockReturn(page);
+    await page.goto('/account/?return=' + encodeURIComponent('/curio/#devices'), { waitUntil: 'domcontentloaded' });
+    await loginPw(page);
+    const card = page.locator('#acct-consent');
+    await expect(card).toBeVisible();
+    await expect(page.locator('#acct-consent-title')).toHaveText('允许奇趣使用你的账号？');
+    await expect(page.locator('#acct-consent-scopes li')).toHaveText(['添加、修改、删除奇趣里的收藏、设备和游戏（含照片）', '批量导入书签另要验证账号']);
+    await expect(page.locator('#acct-consent-ic .acct-ic')).toHaveCount(1);
+    await expect(page.locator('#acct-consent-allow')).toHaveText('授权');
+    await expect(page.locator('#acct-consent-deny')).toHaveText('拒绝');
+    await expect(page.locator('#acct-main')).toBeHidden();
+    const actions = calls.map((c) => c.action);
+    expect(actions.indexOf('grant-list')).toBeGreaterThan(actions.indexOf('login-password'));
+    expect(calls.find((c) => c.action === 'login-password')).toMatchObject({ reauth: true });
+    await page.click('#acct-consent-allow');
+    await expect(page.locator('#app-page')).toBeVisible();
+    expect(new URL(page.url()).pathname + new URL(page.url()).hash).toBe('/curio/#devices');
+    expect(calls.filter((c) => c.action === 'grant-add')).toEqual([{ action: 'grant-add', app: 'curio' }]);
+    expect(asked).toEqual(['/curio/#devices']);
+  });
+
+  test('已授权：登录完直接回原页面，不停在账号卡上、不弹同意卡片', async ({ page }) => {
+    const { calls } = await mockGrants(page, { session: false });
+    await mockReturn(page);
+    await page.goto('/account/?return=' + encodeURIComponent('/daymark/'), { waitUntil: 'domcontentloaded' });
+    await loginPw(page);
+    await expect(page.locator('#app-page')).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/daymark/');
+    expect(calls.map((c) => c.action)).toEqual(['login-password', 'grant-list']);
+  });
+
+  test('拒绝：回原页面，不写授权记录', async ({ page }) => {
+    const { calls, st } = await mockGrants(page, { session: false, off: { curio: true } });
+    await mockReturn(page);
+    await page.goto('/account/?return=' + encodeURIComponent('/curio/'), { waitUntil: 'domcontentloaded' });
+    await loginPw(page);
+    await expect(page.locator('#acct-consent')).toBeVisible();
+    await page.click('#acct-consent-deny');
+    await expect(page.locator('#app-page')).toBeVisible();
+    expect(calls.some((c) => c.action === 'grant-add')).toBe(false);
+    expect(st.grants.find((g) => g.app === 'curio').granted).toBe(false);
+  });
+
+  test('已经登录着从应用页跳来：直接回去，不做授权检查', async ({ page }) => {
+    const { calls } = await mockGrants(page, { session: true, off: { curio: true } });
+    await mockReturn(page);
+    await page.goto('/account/?return=' + encodeURIComponent('/curio/'), { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#app-page')).toBeVisible();
+    expect(calls.some((c) => c.action === 'grant-list')).toBe(false);
+  });
+
+  test('?return= 不是应用页（别的站）→ 不走同意流程，登录后留在账号总览', async ({ page }) => {
+    const { calls } = await mockGrants(page, { session: false });
+    await page.route('**/api/ai', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, default: 'm', canChoose: true, models: [{ id: 'm', label: 'M' }] }) }));
+    await page.goto('/account/?return=' + encodeURIComponent('https://evil.example/curio/'), { waitUntil: 'domcontentloaded' });
+    await loginPw(page);
+    await expect(page.locator('#acct-main')).toBeVisible();
+    expect(calls.find((c) => c.action === 'login-password').reauth).toBeUndefined();
+    expect(calls.some((c) => c.action === 'grant-list')).toBe(false);
   });
 });
 
