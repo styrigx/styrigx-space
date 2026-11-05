@@ -63,7 +63,7 @@ binding = "AUTH"
 service = "styrigx-auth-gateway"
 entrypoint = "AuthVerifier"
 
-# 全站搜索索引：KV styrigx-search-index（主站 styrigx-search-index Worker 读）。本 Worker 只写自己那条 site:curio：
+# 全站搜索索引：KV styrigx-search-index（主站 styrigx-ai 读，P4-2b 前是 styrigx-search-index Worker）。本 Worker 只写自己那条 site:curio：
 # 改内容的写接口成功后重建（ctx.waitUntil），下面的 Cron 每小时兜底一次。格式见 src/search-index.js。
 [[kv_namespaces]]
 binding = "KV_SEARCH_INDEX"

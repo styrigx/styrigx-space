@@ -38,8 +38,6 @@ const SITE = {
     { path: 'web/assets/css/sgx-shell.css', kind: 'file', parts: ['tokens.css', 'shell.css'] },
     /* 自定义主题色引擎（sgx-inherit.ts 只在 cookie 是自定义色且没有缓存时按需 import） */
     { path: 'web/assets/js/sgx/shell/palette-scheme.js', kind: 'file', parts: ['palette-scheme.js'] },
-    /* 原地搜索层（2026-11-04 P5-1 抽屉删了，子站已没有入口，P4-2 随搜索层一起删；entries/search-host.ts 打包） */
-    { path: 'web/assets/js/sgx/shell/search.js', kind: 'file', parts: ['search.js'] },
     /* 快捷面板「分享本页」磁贴（2026-11-04 P5-1 起；进门的人都一样：锁侧复验后生成带临时会话的短链再系统分享；entries/topnav.ts 打包） */
     { path: 'web/assets/js/sgx/shell/share.js', kind: 'file', parts: ['share.js'] },
     /* 顶栏 + 快捷面板 + AI 窗口的标记（Hugo partial，原样，kind raw：不加注释头；2026-11-04 P5-1 四站同一个顶栏） */

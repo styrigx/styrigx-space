@@ -40,8 +40,6 @@
   Cache-Control: public, max-age=300
 /robots.txt
   Cache-Control: public, max-age=300
-/opensearch.xml
-  Cache-Control: public, max-age=300
 /sitemap.xml
   Cache-Control: public, max-age=300
 

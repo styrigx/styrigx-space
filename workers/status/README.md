@@ -24,8 +24,7 @@
 |---|---|---|
 | `D1_UPTIME_MONITOR` | D1 | `styrigx-status`（检查记录、故障、状态） |
 | `D1_CLOUDFLARE_USAGE` | D1 | 同一个库 `styrigx-status`（用量快照、额度缓存） |
-| `SEARCH` | 服务绑定 | `styrigx-search-index`，测它的 `/healthz` |
-| `CHAT` | 服务绑定 | `styrigx-chat`，测它的 `/healthz` |
+| `AI_SERVICE` | 服务绑定 | `styrigx-ai`，测它的 `/healthz`（P4-2 起取代 `SEARCH` / `CHAT`） |
 
 `wrangler.toml` 还开了 `compatibility_flags = ["global_fetch_strictly_public"]` 和 `placement.mode = "smart"`。
 

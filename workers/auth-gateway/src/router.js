@@ -28,7 +28,6 @@ import { apiError } from './lib/http.js';
 import { verifyLockSession } from './core/lock-session.js';
 import { forwardToService, clientContextOf } from './core/forward.js';
 import * as ai from './api/ai.js';
-import * as chat from './api/chat.js';
 import * as geo from './api/geo.js';
 import * as lockAllDevices from './api/lock-all-devices.js';
 import * as lockCredentials from './api/lock-credentials.js';
@@ -43,13 +42,11 @@ import * as lockTempkey from './api/lock-tempkey.js';
 import * as lockTempkeyUnlock from './api/lock-tempkey-unlock.js';
 import * as spaceAudit from './api/space-audit.js';
 import * as spaceAuth from './api/space-auth.js';
-import * as search from './api/search.js';
 import * as status from './api/status.js';
 
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([
   ['/api/ai', ai],
-  ['/api/chat', chat],
   ['/api/geo', geo],
   ['/api/lock-all-devices', lockAllDevices],
   ['/api/lock-credentials', lockCredentials],
@@ -64,7 +61,6 @@ export const API_ROUTES = new Map([
   ['/api/lock-tempkey-unlock', lockTempkeyUnlock],
   ['/api/space-audit', spaceAudit],
   ['/api/space-auth', spaceAuth],
-  ['/api/search', search],
   ['/api/status', status],
 ]);
 

@@ -3,8 +3,8 @@
  * workers/account/src/lib/lock-identity.js（readLockIdentity / readClientContext，同一份白名单）。
  *
  * 网关把锁屏身份、客户端上下文转给账号 Worker 时用的头名和写法：只用在 router.js 转发表里的路径
- * （router.js forward → core/forward.js forwardToService）。chat / search 不用这套头：api/search.js 新建内部请求、写账号结论头
- * （core/conclusion.js，P2-2）；api/chat.js 新建内部请求、不带身份头（门只在网关，P2-2）；api/status.js 不带任何身份头。
+ * （router.js forward → core/forward.js forwardToService）。ai 不用这套头：api/ai.js 新建内部请求、写账号结论头
+ * （core/conclusion.js）；api/status.js 不带任何身份头。（P4-2 起 /api/search、/api/chat 退役。）
  * 头名大小写不敏感（Headers 会统一小写）；剥离外来同名头时按 INTERNAL_HEADER_PREFIX（小写）匹配前缀。
  *
  * - stripInternalHeaders(headers)：删掉所有 x-styrigx-* 和旧前缀 x-sgx-*（网关 fetch 第一步剥浏览器带来的；writeLockIdentity 写之前再剥一次）

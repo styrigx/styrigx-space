@@ -60,7 +60,7 @@ const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?
 /* 别的域名 → 必须登记（归网关）的路径。旧图志 atlas.styrigx.com：网关任意路径 301 到主域名（接口 Worker 的旧路由除外） */
 const SUBSITE_HOSTS = {
   'atlas.styrigx.com': {
-    mustRoute: ['/', '/?x=1', '/robots.txt', '/api/lock-session-check', '/api/search?q=a',
+    mustRoute: ['/', '/?x=1', '/robots.txt', '/api/lock-session-check', '/api/ai',
       '/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/en/', '/blog/rss.xml', '/blog/rss.xml?a',
       '/curio/', '/curio/?x=1', '/curio/en/', '/curio/sitemap.xml', '/daymark/', '/daymark/?x=1', '/daymark/en/', '/daymark/sitemap.xml'],
   },

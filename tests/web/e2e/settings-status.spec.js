@@ -2,8 +2,8 @@
  * 服务状态（设置 → 服务状态 /settings/status/）+ 主站顶栏三栏验收。/api/status 一律 mock（tests/fixtures/status-summary.cjs，形状 = workers/status/src/monitor.js summary）。
  * 2026-10-24 PR4：原顶栏「状态」页（/status/，status-page.spec.js）整页挪进账号页，顶栏第三栏换成「设置」；旧地址 404、不跳转。
  * 之后从账号页搬到设置（本文件也随之改名）：/settings/status/（+ /en/），旧地址删除、不跳转；只认锁屏进门会话，不问账号会话。
- * - 顶栏：主页 / 设置两页的长条里是两个标签（en：Home / Settings；2026-11-04 P5-1 去掉「聊天」，/chat/ 成普通页、长条显示页名），
- *   当前页 aria-current="page"；点了切页；其他页（设置子页、服务状态、/chat/）长条照旧只有页名；标签在长条里居中；
+ * - 顶栏：主页 / 设置两页的长条里是两个标签（en：Home / Settings；2026-11-04 P5-1 去掉「聊天」，P4-2b 删了 /chat/ 页），
+ *   当前页 aria-current="page"；点了切页；其他页（设置子页、服务状态）长条照旧只有页名；标签在长条里居中；
  *   宽屏（≥ 600）长条在屏幕正中，手机上长条在 logo 和右边三个按钮之间伸缩（胶囊顶栏，方案 6.2）。
  * - 入口：设置首页分类列表「服务状态」一行（第 7 项，独立页面）→ /settings/status/；账号页没有入口。
  * - 服务状态页：横幅（全部正常 / 有 1 个故障）、每站一张卡（主站 / 博客 / 日刻 / 奇趣 / 规则集，正常 / 故障、延迟、90 格可用率条 + 百分比）、
@@ -11,7 +11,6 @@
  * - 用量（PR3）：站点卡下面「用量」卡（Workers / D1 / R2 / KV：值 / 上限 / 百分比 / 进度条，> 70% 琥珀、> 90% 红，「更新于 N 分钟前」）；
  *   usage = null → 「用量未配置」；加载中 / 出错 / 空状态不显示。
  * - 手机 412×915（三星）和桌面 1280×800 都跑；手机不横向溢出。
- * 聊天：/chat/ 能看到空状态「问点需要联网查的」（聊天本身见 chat-page.spec.js；P4-2 退役）。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -128,11 +127,7 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('.sgx-tb-tab[data-tab="home"]')).toHaveAttribute('aria-current', 'page');
     });
 
-    test('其他页（设置子页、服务状态、/chat/）长条照旧只有页名，没有标签', async ({ page }) => {
-      /* 2026-11-04 P5-1：/chat/ 不再是标签页，长条显示页名（P4-2 删除这页） */
-      await go(page, '/chat/', { api: null });
-      await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
-      await expect(page.locator('.sgx-tb-title')).toHaveText('聊天');
+    test('其他页（设置子页、服务状态）长条照旧只有页名，没有标签', async ({ page }) => {
       await go(page, '/settings/display/');
       await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-title')).toHaveText('显示');
@@ -503,17 +498,6 @@ test.describe('首帧缓存', () => {
     await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'error');
     await expect(page.locator('#st-error .st-msg-title')).toHaveText('会话已过期');
     expect(await readKey(page)).toBeNull();
-  });
-});
-
-test.describe('聊天页空状态', () => {
-  test.use({ viewport: { width: 412, height: 915 } });
-
-  test('/chat/ 和 /en/chat/：「问点需要联网查的」/「Ask something that needs the web」', async ({ page }) => {
-    await go(page, '/chat/', { api: null });
-    await expect(page.locator('#chat-empty .st-msg-title')).toHaveText('问点需要联网查的');
-    await go(page, '/en/chat/', { api: null });
-    await expect(page.locator('#chat-empty .st-msg-title')).toHaveText('Ask something that needs the web');
   });
 });
 

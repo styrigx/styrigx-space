@@ -7,8 +7,8 @@
  *   再剥一次头、按验过的锁屏会话写全套身份头 + 客户端上下文头（lib/lock-identity.js writeLockIdentity），交给服务绑定 svc.fetch。
  *   URL、方法、正文、Cookie、Origin 原样（账号侧 isSameOrigin 在转发后仍成立）。出错原样抛给调用方（router.js forward 映射成 503 upstream）。
  *
- * 用户：只有 router.js forward()（router.js 转发表 FORWARDING → 服务绑定 ACCOUNT）。chat / search / status 不经这里：
- * api/search.js 自己新建内部请求并写账号结论头（core/conclusion.js，P2-2）；api/chat.js 新建内部请求不带身份头（P2-2 起门只在网关）；api/status.js 不写身份头。
+ * 用户：只有 router.js forward()（router.js 转发表 FORWARDING → 服务绑定 ACCOUNT）。ai / status 不经这里：
+ * api/ai.js 自己新建内部请求并写账号结论头（core/conclusion.js）；api/status.js 不写身份头。（P4-2 起 /api/search、/api/chat 退役。）
  */
 import { clientIp } from '../lib/http.js';
 import { stripInternalHeaders, writeLockIdentity } from './lock-identity.js';

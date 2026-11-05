@@ -49,7 +49,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - 重置与临时钥匙：`lock-reset`（丢了锁屏凭证：先交进站凭证，再按重置开关或锁屏凭证（`needLock` / `lockProof`）签 LockResetTicket；不读账号的任何东西）、`lock-tempkey`（设置 → 安全与隐私 → 临时钥匙页的列表 / 新建 / 作废；只认锁屏进门会话，不问账号会话）。
 - 网关只有 4 个密钥：锁屏签名钥匙 `SGX_LOCK_PRIVATE` / `SGX_LOCK_PUBLIC`、进站凭证 `SGX_LOCK_SPACE_KEY`、密码 pepper `SGX_PW_PEPPER`（与账号 Worker 共用同一个密值）。账号签名钥匙 `SGX_ACCOUNT_*` 和 `SGX_ACCOUNT_ROOT_KEY` 只在账号 Worker（stepup、应用凭证已删除）。
 - 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，子站一起上锁）、`lock-all-devices`（Lock 纪元 +1，所有设备一起上锁；要 LockReauthTicket）。
-- 其他：`geo`（Cloudflare 给的城市 / 坐标 / 时区）；`chat`、`search`、`status` 只做门，验锁屏会话后经服务绑定转给 styrigx-chat / styrigx-search-index / styrigx-status。
+- 其他：`geo`（Cloudflare 给的城市 / 坐标 / 时区）；`status` 只做门，验锁屏会话后经服务绑定转给 styrigx-status（`chat`、`search` 在 P4-2b 退役，回 404）。
 - 站内对话助手（P4-1）：`ai`（`POST /api/ai`）验同源、进门（不要账号会话），过两档 AI 限流（`core/ai-limit.js`：每 IP 每分钟 6 次走 Rate Limiting 绑定 `AI_LIMITER`，超了 429 `cooldown`；全站每分钟 60 次走 D1 `attempt_limit`（`realm='ai'`、`kind='global'`、bucket = 当前分钟）单条 upsert，超了或 D1 出错 429 `busy`），再写账号结论头，经服务绑定 `AI_SERVICE` 转给 styrigx-ai，SSE 原样流回。
 - 前端改变会话只能通过这些接口。
 
@@ -138,7 +138,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
   （账号卡 + 头像编辑、已登录卡、「安全与隐私」一行）；账号密码和账号通行密钥在子页
   `/account/security/`（`apps/account-security.js`）。顶栏没有 ‹ 返回（2026-10-20 删除），
   返回走浏览器 / 系统返回。原锁屏凭证页（`security-owner`）已删除。
-- 发给 search-index 的请求写账号结论头（只认 `X-Styrigx-Account-Session: 1`），发给 chat 的请求不带身份头（门只在网关：进门 + 账号会话，P4-2 连同 /chat/ 页退役）。入站的旧前缀 `x-sgx-*` 头仍照剥。
+- 发给 styrigx-ai 的请求写账号结论头（只认 `X-Styrigx-Account-Session: 1`）。search-index、chat 在 P4-2b 退役。入站的旧前缀 `x-sgx-*` 头仍照剥。
 - 账号拆分已完成（PR4）：D1 `styrigx-auth-gateway` 不再存账号数据，只剩锁屏数据（`realm='lock'` 的行和恢复开关表 `lock_reset_switch`）；
   网关库里 `realm='account'` / `'root'` 的旧行和旧开关表 `recovery_switch` 已由 `scripts/migrate-account-auth.mjs --cleanup --confirm` 删除
   （预览库走网关 `migrations/0009_drop_recovery_switch.sql`）；Secrets Store 里的旧 `SGX_ROOT_KEY` 已删除。
@@ -161,7 +161,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 | `X-Styrigx-Account-Reauth` | `1` | 账号复验短票有效（本次请求需要时才问） | 同上 |
 | `X-Styrigx-Client-Address` / `-Country` / `-City` | — | 客户端上下文 | `core/lock-identity.js`（不变） |
 
-- `X-Styrigx-Account-*` 只写给两处：`styrigx-ai`（第 4 件）和 P4-2 之前过渡期的 `search-index`（`/api/search`）。账号 Worker 自己验账号会话和作用域，网关只给它写 `X-Styrigx-Lock-*` 和 `X-Styrigx-Client-*`。
+- `X-Styrigx-Account-*` 只写给 `styrigx-ai`（第 4 件；P4-2b 前还有过渡期的 `search-index`）。账号 Worker 自己验账号会话和作用域，网关只给它写 `X-Styrigx-Lock-*` 和 `X-Styrigx-Client-*`。
 - RPC 结论 `AuthVerifier.conclusion(cookieHeader, clientContext, opts)` → `{ lock: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }`；`lock.ok=false` 时不问账号；账号绑定没配、RPC 出错、回了看不懂的东西 → `account.ok=false`。子站接口 Worker（curio-core、daymark-core）P2-2 起用它。
 - 骨架阶段账号会话自动拥有全部作用域；第 3 件实现只换 `grantedScopes` 的数据源，函数签名、RPC 形状、结论头都不变。
 - 已删除：锁侧等级头在 P2-3 删（网关不再写，账号 Worker P2-2 起已不读）；旧前缀的等级头 P2-2 停写停读。

@@ -60,8 +60,7 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 | 应用 | 路径 | 说明 |
 |---|---|---|
 | 主页 | `/` | 名片、双时钟、天气、日刻「今日一句」、屏幕时间。 |
-| 搜索 | 导航抽屉底栏 | 原地搜索层（不跳页）：站内结果，或交给所选的搜索引擎。 |
-| 聊天 | `/chat/` | 联网检索问答（进门后还要登录账号）：Gemini 2.5 Flash，以 Google 搜索为依据，流式输出并附来源；对话只存在当前标签页。 |
+| AI 助手 | 顶栏 AI 按钮 | 站内对话助手：先在全站索引里召回，再交给模型（自营 Gemma 4 / GPT-OSS 20B，或外部 Gemini）流式回答，附站内来源卡片；对话只存在本地。 |
 | 设置 | `/settings/` | 显示、语言、布局等系统设置，存在本地，登录账号后可云同步。还有服务状态（主站、图志、规则集的可用率与故障）和临时钥匙（含分享短链；新建、作废前要锁侧复验）。 |
 | 账号 | `/account/` | 从导航抽屉头的头像进入：账号登录、云同步、设备、账号安全。 |
 
@@ -77,8 +76,7 @@ flowchart LR
     DC[styrigx-daymark-core<br/>/daymark/api/*]
     GW --> P1[(Pages<br/>styrigx-space<br/>主站 + /blog/ /curio/ /daymark/)]
     GW -. 服务绑定 .-> AC[styrigx-account]
-    GW -. 服务绑定 .-> CH[styrigx-chat]
-    GW -. 服务绑定 .-> SE[styrigx-search-index]
+    GW -. 服务绑定 .-> AI[styrigx-ai]
     GW -. 服务绑定 .-> ST[styrigx-status]
     PR[styrigx-proxy-rules<br/>proxy-rules.styrigx.com]
   end
@@ -93,8 +91,7 @@ flowchart LR
 | `styrigx-auth-gateway` | 锁屏会话的签发与校验、锁屏凭证与临时钥匙接口；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages；旧域名 atlas.styrigx.com 只做 301 | `styrigx.com/*`、`atlas.styrigx.com/*` |
 | `styrigx-account` | 账号系统：密码、通行密钥、设备、账号根密钥、头像、云同步、数字健康 | 只走网关服务绑定，无公开路由 |
 | `styrigx-share` | 分享短链与管理接口 | `styrigx.com/s/*`、`styrigx.com/api/share*` |
-| `styrigx-chat` | 聊天后端，转发给模型，不存对话 | 只走网关服务绑定 |
-| `styrigx-search-index` | 全站搜索（KV 索引） | 只走网关服务绑定 |
+| `styrigx-ai` | 站内对话助手：KV 索引召回 + 模型回答（Workers AI / Gemini），不存对话 | 只走网关服务绑定 |
 | `styrigx-status` | 每分钟监测，每小时读取用量（D1） | 只走网关服务绑定 |
 | `styrigx-proxy-rules` | 规则集加速反代，仅放行指定上游 | `proxy-rules.styrigx.com`（不经网关） |
 | `styrigx-curio-core` | 奇趣接口（D1 + R2） | `styrigx.com/curio/api/*`（比网关更具体；`atlas.styrigx.com/curio/api/*` 旧路由过渡期保留） |

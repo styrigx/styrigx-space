@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 生成主站的全站搜索索引 web/atlas/public/search-index.json（styrigx-search-index 的 KV site:space）。
+ * 生成主站的全站索引 web/atlas/public/search-index.json（KV styrigx-search-index 的 site:space，styrigx-ai 召回用；P4-2b 起由 deploy-ai-worker 写）。
  *
  * 来源（都在 hugo 构建后的 web/atlas/public/ 里）：
  *   - files-index.json：我的站点、应用（type site / app）。博客文章不在这里：博客自己写 KV site:blog，
@@ -8,7 +8,7 @@
  *   - settings/**、en/settings/**、account/**、en/account/** 每个页面：标题取 <title> 去掉「 | Styrigx」，类型 setting
  *     账号页（/account/…）和设置里的门内页（临时钥匙 /settings/security/tempkeys/、服务状态 /settings/status/）标 private（只给账号已登录的人搜到）；二级页副标题 = 上一级页名（两个「安全与隐私」分得清）
  *   - data/features.yaml 里用户能改的开关（user: true、build: true、有 section 页）：名字 + 选项名，跳到所在设置页
- * 格式见 workers/search-index/src/rank.js 顶部。deploy.yml 的 deploy-search-worker 把它写进 KV。
+ * 格式见 workers/ai/src/core/rank.js 顶部。deploy.yml 的 deploy-ai-worker 把它写进 KV。
  *
  * 用法：node scripts/build-search-index.mjs [--out <文件>]（默认 web/atlas/public/search-index.json）
  */

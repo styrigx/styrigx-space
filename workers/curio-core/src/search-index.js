@@ -1,7 +1,7 @@
 /**
  * @fileoverview 全站搜索索引：奇趣自己把收藏、设备、游戏写进 KV styrigx-search-index 的 site:curio。
  *
- * 值的格式（与 styrigx-space 仓库 workers/search-index/src/rank.js 一致）：
+ * 值的格式（与 styrigx-space 仓库 workers/ai/src/core/rank.js 一致）：
  *   { site: 'curio', generated: ISO 时间, items: Item[] }
  *   Item = { id, type: 'item', lang: 'zh'|'en', title, subtitle?, text?, url, private?: true }
  *

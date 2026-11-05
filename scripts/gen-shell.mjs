@@ -7,7 +7,6 @@
  *                      + 调色板派生 token（tag / chart）+ 组件别名层
  *   shell.css          顶栏（全大椭圆）、快捷面板 + AI 窗口、原地搜索层：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *   palette-scheme.js  自定义 #rrggbb 种子 → 整套角色的引擎（web/atlas/assets/js/lib/palette-scheme.js 原样复制）
- *   search.js          原地搜索层（web/atlas/assets/js/shell/search-layer.js 原样复制；不 import 任何东西，样式在 shell.css 的 search 段）
  *   share.js           子站快捷面板的「分享本页」磁贴（web/atlas/assets/js/shell/share-button.js 原样复制；不 import 任何东西）
  *   topbar.html        顶栏 + 快捷面板 + AI 窗口的标记（web/atlas/layouts/partials/shell-topbar.html 原样复制；Hugo partial，只用参数，2026-11-04 P5-1）
  *   topbar.js          顶栏两个窗口的开合 / 互斥 / 两页 / 磁贴（web/atlas/assets/js/shell/topbar-panel.js 原样复制；不 import，依赖由调用方传入）
@@ -44,7 +43,6 @@ const SRC = {
   nav: path.join(REPO, 'web/atlas/data/shell-nav.json'),
   icons: path.join(REPO, 'web/atlas/layouts/partials/icon.html'),
   wordmark: path.join(REPO, 'web/atlas/layouts/partials/shell-wordmark.html'),
-  search: path.join(REPO, 'web/atlas/assets/js/shell/search-layer.js'),
   share: path.join(REPO, 'web/atlas/assets/js/shell/share-button.js'),
   topbar: path.join(REPO, 'web/atlas/layouts/partials/shell-topbar.html'),
   topbarJs: path.join(REPO, 'web/atlas/assets/js/shell/topbar-panel.js'),
@@ -58,10 +56,10 @@ const SRC = {
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
-export const SHELL_REGIONS = ['topbar-frame', 'panel', 'search'];
-/* 导航项以外外壳要用的图标（2026-11-04 P5-1）：顶栏（快捷面板滑块、AI 聊天）、快捷设置磁贴（深色 / 跟随系统 / 语言 / 锁定 / 恢复默认 / 分享）、AI 发送；
-   ai-search 留给 nav.json 的 search 项（搜索层 P4-2 删除时一起删）。都要是不含模板语法的完整内联 SVG */
-export const EXTRA_ICONS = ['tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send', 'ai-search'];
+export const SHELL_REGIONS = ['topbar-frame', 'panel'];
+/* 导航项以外外壳要用的图标（2026-11-04 P5-1）：顶栏（快捷面板滑块、AI 聊天）、快捷设置磁贴（深色 / 跟随系统 / 语言 / 锁定 / 恢复默认 / 分享）、AI 发送。
+   都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
+export const EXTRA_ICONS = ['tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send'];
 const HEAD = (src) =>
   `/* 由 styrigx-space scripts/gen-shell.mjs 从 ${src} 生成，勿手改；子站用 scripts/sync-shell.mjs 同步。 */\n`;
 
@@ -162,15 +160,7 @@ function renderNav() {
   );
 }
 
-/** 原地搜索层：原样复制（必须自成一体：不能 import，子站直接当 ES module 用） */
-export function renderSearch() {
-  const src = readFileSync(SRC.search, 'utf8');
-  if (/^\s*import\s/m.test(src) || /\bimport\s*\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, ''))) throw new Error('search-layer.js 不能 import 任何东西（子站原样复制）');
-  if (!/^export function mountSearch\(/m.test(src)) throw new Error('search-layer.js 必须导出 mountSearch');
-  return src;
-}
-
-/** 子站顶栏分享按钮：原样复制（同 search.js：不能 import，必须导出 mountShare） */
+/** 子站顶栏分享按钮：原样复制（不能 import，必须导出 mountShare） */
 export function renderShare() {
   const src = readFileSync(SRC.share, 'utf8');
   if (/^\s*import\s/m.test(src) || /\bimport\s*\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, ''))) throw new Error('share-button.js 不能 import 任何东西（子站原样复制）');
@@ -345,34 +335,6 @@ const README = `# web/shared/shell（生成物，勿手改）
 - 尺寸体系（2026-10-23）：\`--sgx-page-m\`、\`--sgx-tb-btn\`（顶栏高 52 → 56）、\`--sgx-tb-gap\`、\`--sgx-content-max\`（外壳框最宽，默认 1068，本站可改）、
   \`--sgx-shell-w\` = min(100% − 2 × 页边距, 最宽)。顶栏 = 这个框；子站自己的页面外框用 \`width: var(--sgx-shell-w); margin: 0 auto\` 就和顶栏对齐。
 
-## 搜索层（search.js + shell.css 的 search 段）
-
-（2026-11-04 P5-1：导航抽屉删了，子站没有入口；主站只剩 Ctrl+K 和首页 ?q=。整套在 P4-2 删除。下面是原说明。）
-点导航抽屉底栏的搜索框 → 抽屉原地淡掉，搜索框变形成屏幕底部的搜索栏（药丸 + ✕ 圆，贴键盘），上面是盖住当前页的磨砂结果层
-（空输入时背景是放大镜 +「聚合搜索」；输入后是站内结果 / 「用 <引擎> 搜索」；不记搜索历史）。顶栏不动。✕ / 系统返回 / Esc 关闭。不跳页、最多占一条历史。
-
-子站接入（文件原样复制，不改）：
-1. \`node scripts/sync-shell.mjs\` 同步后，\`search.js\` 放进子站的 JS（建议单独打包、懒加载），\`shell.css\` 照旧整份引入（含 search 段）。
-2. 抽屉底栏的搜索框保持 \`<a class="sgx-drawer-search" href="https://styrigx.com/search/">\`（没 JS 时进主站搜索）。
-3. 打开抽屉时（或按下九宫格 / 搜索框的 pointerdown）\`import()\` search.js，拿到后 \`const s = mountSearch(cfg)\`（每页一次）。
-4. 搜索框 click 里 **同步** 调用（安卓只在用户手势里同步 focus 才弹键盘）：
-   \`e.preventDefault(); s.open({ from: a, ghost: drawerDialog, handoff: () => { 同步关掉抽屉 <dialog>（不要 history.back）; return 抽屉是否 push 过历史哨兵; } })\`
-   handoff 返回 true 时搜索层把那条哨兵改成自己的（replaceState），不再新增历史。
-5. 可选：页面带 \`?q=\` 时 \`s.open({ q, focus: true })\`（主站的 /search/?q= 和 opensearch 就是这样进来的）。
-
-\`mountSearch(cfg)\` 配置（都可省）：
-| 键 | 默认 | 说明 |
-|---|---|---|
-| lang | 按 \`<html lang>\` | 'zh' / 'en' 文案 |
-| index | null | 站内索引地址（files-index.json 格式 \`{items:[{type,lang,title,subtitle,url}]}\`）；null = 只有引擎搜索 |
-| types | [] | 要列出的索引类型和分组名，如 \`[{type:'post',zh:'博客',en:'Blog'}]\` |
-| engineKey / engine | sgx-search-engine / — | 引擎设置（google / bing / duckduckgo / yahoo / ecosia）；engine() 优先 |
-| navigate | location.href = url | 打开同源结果（先关层、退掉哨兵再调用）；跨源结果新标签打开 |
-| strings | — | 覆盖文案 |
-| root | document.body | 挂载点 |
-
-返回 \`{ open(opts), close(after?), isOpen(), input, layer, bar }\`。open(opts)：from（变形起点元素）、ghost（正在关的抽屉 <dialog>）、handoff、q、focus（默认 true）。
-回车：方向键选中的行 → 打开；标题和输入完全一样的站内结果 → 打开；像网址 → 新标签 https://；否则用引擎搜（新标签）。
 `;
 
 /** @returns {Record<string,string>} 文件名 → 内容 */
@@ -388,7 +350,6 @@ export function renderAll() {
     'tokens.css': renderTokens(data),
     'shell.css': renderShell(),
     'palette-scheme.js': schemeSrc,
-    'search.js': renderSearch(),
     'share.js': renderShare(),
     'topbar.html': renderTopbar(),
     'topbar.js': renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar'),

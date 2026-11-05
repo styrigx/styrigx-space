@@ -26,7 +26,6 @@ import { wbAreaOf } from '../lib/wb-area.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { engines } from './engines.js';
 import { initFavicon } from './favicon.js';
-import { initSearchHost } from './search-host.js';
 import { initTabSwipe } from './tab-swipe.js';
 
 let inited = false;
@@ -71,8 +70,6 @@ export function initCore() {
   engines.init();
   /* 标签页图标跟主题色（换色板 / 自定义色 / 深浅色时换 SVG 图标的底色） */
   initFavicon();
-  /* 带 ?q= 进来（旧 /search/?q=、opensearch）：打开原地搜索层并预填 */
-  initSearchHost();
   /* 主页 / 聊天 / 设置：内容里左右滑切上一栏 / 下一栏（同子站手感；有页内切换时走 shell/inpage-tabs.js） */
   initTabSwipe();
 
