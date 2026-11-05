@@ -21,7 +21,7 @@
 | `GET /healthz` | P4-2 起 `styrigx-status` 的服务绑定 `AI_SERVICE` | 有 AI 绑定且至少一个站的索引读得到 200 `{ ok, sites, missing }`；否则 503。不调模型 |
 | 其他 | | 404 `not-found`；方法不对 405 `method` |
 
-单次封顶（方案 5.6）：`AI_MAX_TOKENS`（默认 512）、上下文 `AI_CONTEXT_HITS` 条（默认 5）× 600 字、历史最多 6 条且总长 2000 字。浏览器断开时上游的流一起取消。
+单次封顶（方案 5.6）：`AI_MAX_TOKENS`（默认 1024，上限 2048；Gemma 4 关思考，见 api/ask.js 的 runExtras）、上下文 `AI_CONTEXT_HITS` 条（默认 5）× 600 字、历史最多 6 条且总长 2000 字。浏览器断开时上游的流一起取消。
 
 ## 绑定
 
@@ -31,7 +31,7 @@
 | `KV_SEARCH_INDEX` | KV（只读） | `styrigx-search-index`，键 `site:space`、`site:blog`、`site:daymark`、`site:curio`；模型登记 `ai:models` |
 | `SGX_CHAT_API_KEY` | Secrets Store | 外部模型（Gemini）钥匙，原 styrigx-chat 那把，复用，不新建 |
 
-`[vars]`：`AI_MODELS`（模型登记的退路，KV 没有 / 坏时用）、`AI_MAX_TOKENS = "512"`、`AI_CONTEXT_HITS = "5"`。
+`[vars]`：`AI_MODELS`（模型登记的退路，KV 没有 / 坏时用）、`AI_MAX_TOKENS = "1024"`、`AI_CONTEXT_HITS = "5"`。
 
 模型登记 `ai:models` 的值：`{ "default": "<id>", "models": [{ "id", "label", "provider": "workers-ai" | "gemini" }] }`（workers-ai 的 id 必须以 `@cf/` 开头；最多 8 条；坏条目跳过）。60 秒内存缓存。默认模型以站内真实内容的中文实测为准，Gray 实测后改 `default`。
 

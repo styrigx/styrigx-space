@@ -351,7 +351,7 @@ test('wrangler.toml：没有公开地址、绑定 AI、只读索引、外部模�
   assert.deepEqual(reg.models.map((m) => [m.id, m.provider]), [['@cf/google/gemma-4-26b-a4b-it', 'workers-ai'], ['@cf/openai/gpt-oss-20b', 'workers-ai'], ['gemini-2.5-flash', 'gemini']]);
   assert.match(toml, /\[ai\]\s*\nbinding = "AI"/);
   assert.match(toml, /binding = "KV_SEARCH_INDEX"\s*\nid = "bd1babcc3fe74d58994e254c74d34ced"/);
-  for (const v of ['AI_MODELS', 'AI_MAX_TOKENS = "512"', 'AI_CONTEXT_HITS = "5"']) assert.ok(toml.includes(v), v);
+  for (const v of ['AI_MODELS', 'AI_MAX_TOKENS = "1024"', 'AI_CONTEXT_HITS = "5"']) assert.ok(toml.includes(v), v);
   const idx = readFileSync(new URL(W + 'index.js', import.meta.url), 'utf8');
   assert.match(idx, /export \{ default \} from '\.\/app\.js';/);
 });
@@ -455,7 +455,7 @@ test('外部模型（Gemini）：钥匙走头不进 URL；系统提示 + 上下�
   assert.deepEqual(body.contents.map((c) => c.role), ['user', 'model', 'user']);
   assert.equal(body.contents.at(-1).parts[0].text, '主题');
   assert.equal(body.tools, undefined);
-  assert.equal(body.generationConfig.maxOutputTokens, 512);
+  assert.equal(body.generationConfig.maxOutputTokens, 1024);
 });
 
 test('外部模型：钥匙没绑 / 读不到 → 503 no_key（不调上游）；上游 404 → error model_unavailable，429 → rate_limited', async () => {
@@ -504,4 +504,28 @@ test('deploy.yml 退路：Prepare keyless config 的脚本对真 wrangler.toml �
   const guard = run.split('\n').find((l) => /keyless config still has/.test(l));
   writeFileSync(path.join(dir, 'wrangler.nokey.toml'), '[[secrets_store_secrets]]\n');
   assert.throws(() => execFileSync('bash', ['-c', guard], { cwd: dir, stdio: 'pipe' }));
+});
+
+/* 2026-11-05 #273 冒烟：Gemma 4 默认开思考，带上下文时思考把 max_tokens 用完、正文为空，前端只显示「没能拿到回答」 */
+test('/ask：Gemma 4 关思考；其他模型不带这个参数；默认额度 1024', async () => {
+  const M4 = JSON.stringify({ default: '@cf/google/gemma-4-26b-a4b-it', models: [{ id: '@cf/google/gemma-4-26b-a4b-it' }, { id: '@cf/openai/gpt-oss-20b' }] });
+  R._resetCache();
+  const ai = fakeAI([sse({ choices: [{ delta: { content: '在设置里。' } }] }), 'data: [DONE]\n\n']);
+  await events(await ask({ q: '主题' }, {}, { AI: ai, AI_MODELS: M4 }));
+  assert.deepEqual(ai.calls[0].input.chat_template_kwargs, { enable_thinking: false });
+  assert.equal(ai.calls[0].input.max_tokens, 1024);
+  assert.deepEqual(ASK.runExtras('@cf/openai/gpt-oss-20b'), {});
+});
+
+test('/ask：模型只吐思考段、没有正文 → error empty（不当成功 done）', async () => {
+  R._resetCache();
+  const ai = fakeAI([
+    sse({ choices: [{ delta: { reasoning_content: '让我想想……'.repeat(50) } }] }),
+    sse({ choices: [{ delta: {}, finish_reason: 'length' }] }),
+    'data: [DONE]\n\n',
+  ]);
+  const ev = await events(await ask({ q: '主题' }, {}, { AI: ai }));
+  assert.deepEqual(ev.map((e) => e.event), ['hits', 'error']);
+  assert.equal(ev[1].data.code, 'empty');
+  assert.equal(ASK.chunkReasoning({ choices: [{ delta: { reasoning_content: 'abc' } }] }), 3);
 });

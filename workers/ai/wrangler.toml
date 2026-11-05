@@ -30,7 +30,7 @@ id = "bd1babcc3fe74d58994e254c74d34ced"
 # 模型登记的退路（KV ai:models 没有 / 坏时用）：自营 Gemma 4（默认）+ GPT-OSS 20B，走 Workers AI；外部 Gemini 2.5 Flash 走 Gemini API。
 # 默认模型以真实站内内容的中文能力实测为准（Gray 实测后改 KV 的 default）。
 AI_MODELS = '{"default":"@cf/google/gemma-4-26b-a4b-it","models":[{"id":"@cf/google/gemma-4-26b-a4b-it","label":"Gemma 4","provider":"workers-ai"},{"id":"@cf/openai/gpt-oss-20b","label":"GPT-OSS 20B","provider":"workers-ai"},{"id":"gemini-2.5-flash","label":"Gemini 2.5 Flash","provider":"gemini"}]}'
-AI_MAX_TOKENS = "512"
+AI_MAX_TOKENS = "1024"
 AI_CONTEXT_HITS = "5"
 
 # ---- 密钥：Secrets Store（和鉴权网关同一个 store；store_id 是存储的编号，不是密值）----
