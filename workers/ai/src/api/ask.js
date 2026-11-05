@@ -14,6 +14,7 @@
  *   召回为空也调模型：hits 空，上下文写明没有相关条目，由模型回应（打招呼照常答，站内问题说没找到）。
  *   2026-11-05 前召回为空直接回固定句不调模型，连「你好」都答不了，已去掉。
  *   外部模型出错时 code 也可能是 rate_limited / model_unavailable（Gemini 429 / 404 等）。
+ *   模型正常结束但一个字正文都没有 → event: error { code: 'empty' }（日志 [ai] empty answer 带 finish_reason 和思考字数）。
  * 错误（还没开始流）：405 method · 400 bad_request / too-long / bad_model · 413 too-large ·
  *   503 config（选中自营模型但没绑 AI）/ no_key（选中外部模型但钥匙没绑 / 读不到）/ index（索引读不了）。
  *
@@ -42,9 +43,39 @@ function intVar(v, dflt, lo, hi) {
 /** @param {any} env */
 export function aiConfig(env) {
   return {
-    maxTokens: intVar(env && env.AI_MAX_TOKENS, 512, 64, 1024),
+    maxTokens: intVar(env && env.AI_MAX_TOKENS, 1024, 64, 2048),
     contextHits: intVar(env && env.AI_CONTEXT_HITS, 5, 1, 10),
   };
+}
+
+/**
+ * 各自营模型的额外参数。Gemma 4 在 Workers AI 上默认开思考（chat_template_kwargs.enable_thinking 默认 true），
+ * 思考段单独走 reasoning 字段、也吃 max_tokens：站内问答带上下文时思考就能把额度用完，正文一个字都没有
+ * （2026-11-05 #273 冒烟：有召回的问题全回「没能拿到回答」，只有几乎无召回的「你好」答得出）。这里关掉思考。
+ * GPT-OSS 的输入没有这个开关（传了会被校验拒），不加。
+ * @param {string} id
+ */
+export function runExtras(id) {
+  if (/gemma-4/.test(id)) return { chat_template_kwargs: { enable_thinking: false } };
+  return {};
+}
+
+/**
+ * 流里一段的思考字数（只计数用于排查，不回浏览器）。
+ * @param {any} chunk
+ */
+export function chunkReasoning(chunk) {
+  const c = chunk && Array.isArray(chunk.choices) ? chunk.choices[0] : null;
+  const d = c && c.delta;
+  if (!d) return 0;
+  const r = typeof d.reasoning_content === 'string' ? d.reasoning_content : typeof d.reasoning === 'string' ? d.reasoning : '';
+  return r.length;
+}
+
+/** @param {any} chunk */
+function finishReason(chunk) {
+  const c = chunk && Array.isArray(chunk.choices) ? chunk.choices[0] : null;
+  return c && typeof c.finish_reason === 'string' ? c.finish_reason : '';
 }
 
 /**
@@ -122,6 +153,9 @@ export async function onRequestPost(request, env) {
   const stream = new ReadableStream({
     async start(controller) {
       const send = (/** @type {string} */ ev, /** @type {any} */ data) => { if (!closed) controller.enqueue(sseEvent(ev, data)); };
+      let sentText = false;
+      let reasoningChars = 0;
+      let finish = '';
       try {
         send('hits', { hits: publicHits(hits) });
         const messages = buildMessages({ q: a.q, lang: a.lang, history: a.history, hits });
@@ -145,13 +179,13 @@ export async function onRequestPost(request, env) {
               const r = geminiChunk(chunk);
               if (r.error) { send('error', { code: r.error }); return; }
               const text = filter.push(r.text);
-              if (text) send('delta', { text });
+              if (text) { sentText = true; send('delta', { text }); }
             }
           } finally {
             clearTimeout(timer);
           }
         } else {
-          const up = await ai.run(model.id, { messages, stream: true, max_tokens: cfg.maxTokens });
+          const up = await ai.run(model.id, { messages, stream: true, max_tokens: cfg.maxTokens, ...runExtras(model.id) });
           if (!up || typeof up.getReader !== 'function') throw new Error('not-a-stream');
           upReader = up.getReader();
           if (closed) { try { await upReader.cancel(); } catch (e) {} return; }
@@ -160,16 +194,24 @@ export async function onRequestPost(request, env) {
             if (data.trim() === '[DONE]') break;
             let chunk;
             try { chunk = JSON.parse(data); } catch (e) { continue; }
+            reasoningChars += chunkReasoning(chunk);
+            finish = finishReason(chunk) || finish;
             const text = filter.push(chunkText(chunk));
-            if (text) send('delta', { text });
+            if (text) { sentText = true; send('delta', { text }); }
           }
         }
         if (closed) return;
         const tail = filter.flush();
-        if (tail) send('delta', { text: tail });
+        if (tail) { sentText = true; send('delta', { text: tail }); }
+        if (!sentText) {
+          /* 模型正常结束但没有正文（额度被思考段用完 / 只输出了思考）：记日志，回 error 让前端提示，不当成功 */
+          console.error('[ai] empty answer', JSON.stringify({ model: model.id, finish, reasoningChars, hits: hits.length }));
+          send('error', { code: 'empty' });
+          return;
+        }
         send('done', {});
       } catch (e) {
-        console.error('[ai] answer failed', e && /** @type {any} */ (e).name);
+        console.error('[ai] answer failed', e && /** @type {any} */ (e).name, e && String(/** @type {any} */ (e).message || '').slice(0, 300));
         try { send('error', { code: 'upstream' }); } catch (e2) {}
       } finally {
         try { controller.close(); } catch (e) {}
