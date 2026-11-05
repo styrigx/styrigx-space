@@ -6916,13 +6916,6 @@
   h1, h2, h3 { letter-spacing: -0.02em; }
   @keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
   .sgx-first-visit .animate-fade-up { animation: fade-up .7s cubic-bezier(.22,1,.36,1) both; }
-  /* 时钟数字：粗圆体风格 */
-  .clock-num {
-    font-variant-numeric: tabular-nums;
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    line-height: 1;
-  }
   /* 页面骨架：页脚沉底 */
   body { display: flex; flex-direction: column; min-height: 100dvh; }
   main {
@@ -6933,12 +6926,6 @@
   }
   footer { padding-bottom: calc(21px + env(safe-area-inset-bottom, 0px)); }
   html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
-  /* 数据卡片固定最小高度：数据到来前后尺寸不变 */
-  #dual-clock { min-height: 168px; }
-  #weather { min-height: 190px; }
-  #wx-temp { font-variant-numeric: tabular-nums; }
-  .wx-fade { transition: opacity .45s ease; }
-  .wx-fade.wx-out { opacity: 0; }
 }
 
 /* ===== components 层 ===== */
@@ -7033,17 +7020,6 @@
      改成普通卡片的中性玻璃（.widget.bg-m-container-lowest → --sgx-mat），只留头像环一处 primary-fill 小面积强调 ===== */
   #w-profile .prof-av { box-shadow: 0 0 0 3px var(--sgx-primary-fill), 0 0 0 6px color-mix(in srgb, var(--sgx-primary-fill) 22%, transparent); }
   #w-profile .prof-motto { color: var(--sgx-text-secondary); }
-
-  /* ===== 双时钟：昼夜配色 ===== */
-  .clock-half { transition: background-color .5s ease, color .5s ease; }
-  .clock-day { background: var(--sgx-mat); color: var(--m-on-surface); }
-  .clock-day .clock-sub { color: var(--m-on-surface-variant); }
-  /* 夜间半边（特殊功能卡的唯一一处局部撞色，2026-10-23 PR-G 修订）：不再是整块饱和深色（默认主题前景 1 芥末压深后整块发棕），
-     改成材质同样的 88% 不透明 + 第三色（前景 3）浅底 --sgx-night-card，字 = on-night-card（≥ 7:1）；城市前的月亮图标用 tertiary ink */
-  .clock-night { background: color-mix(in srgb, var(--sgx-night-card) 88%, transparent); color: var(--sgx-on-night-card); }
-  .clock-night .clock-sub { color: color-mix(in srgb, var(--sgx-on-night-card) 74%, transparent); }
-  .clock-night .clock-div { border-color: color-mix(in srgb, var(--sgx-on-night-card) 14%, transparent); }
-  .clock-night [id$="-icon"] { color: var(--sgx-tertiary); }
 
   /* ===== 应用页（body.subpage）main / footer 底部留白：24px / 21px + 安全区（DeX 另见 .layout-dex main） ===== */
   body.subpage main { padding-bottom: calc(24px + env(safe-area-inset-bottom,0px)); }
@@ -7284,10 +7260,6 @@
     > span:last-child { border-radius: 0 999px 999px 0; }
   }
 
-  /* ===== 指针时钟 ===== */
-  .analog-face { width: 5.5rem; height: 5.5rem; max-width: 100%; }
-  #clk-l-time.analog-on, #clk-r-time.analog-on { line-height: 0; }
-
   /* ===== 数字健康：15 分钟提示 ===== */
   #well-toast {
     position: fixed; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom,0px)); transform: translate(-50%,16px); z-index: 120;
@@ -7298,7 +7270,6 @@
   }
 
   /* ===== 快捷键 kbd ===== */
-  .kbd { display: inline-block; min-width: 1.6rem; text-align: center; background: var(--m-container); border: 1px solid var(--m-outline); border-radius: .4rem; padding: 2px 6px; font-size: 12px; font-family: inherit; }
 }
 
 @layer sgx-components {
@@ -7314,24 +7285,16 @@
   .layout-dex footer { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
 
   /* ----- 首页栅格（2026-10-23 PR-D）：外框 = 外壳框（--sgx-shell-w，DeX 最宽 1440，见文件末尾主站 layout 段），左右边缘对齐顶栏。
-     列数 N：< 1200 宽 2 列、≥ 1200 宽 3 列；每列最窄 320px：
+     列数 N（P4-2c 起固定 2 列，原 ≥ 1200 宽 3 列）；每列最窄 320px：
        repeat(auto-fit, minmax(max(320px, (100% − (N−1)·gap) / N), 1fr))
      → 框够宽时正好 N 列等分；框窄到放不下 N 个 320 就自动少一列，直到一列，绝不挤到 320 以下。
-     间距 gap 从 840 宽 16px 线性到 1920 宽 24px。名片、屏幕时间整行（1 / -1），时钟 / 天气 / 日刻按列排，dense 回填。 */
+     间距 gap 从 840 宽 16px 线性到 1920 宽 24px。
+     P4-2c（2026-11-05）：双时钟、天气删除 —— 固定 2 列：名片、日刻并排各一列，屏幕时间整行；日刻没数据（.hidden / 测试构建不输出）时名片整行。 */
   .layout-dex #home-widgets { --home-n: 2; --home-gap: clamp(16px, 9.778px + 0.7407vw, 24px); gap: var(--home-gap);
-    grid-template-columns: repeat(auto-fit, minmax(max(320px, (100% - (var(--home-n) - 1) * var(--home-gap)) / var(--home-n)), 1fr));
-    grid-auto-flow: dense; }
-  @media (min-width: 1200px) { .layout-dex #home-widgets { --home-n: 3; } }
-  /* 时钟那一行按实际可见的卡片数收列（2026-10-23 PR-D 小修）：天气 / 日刻没数据时是 .hidden（display:none）或根本不输出，
-     这时把 N 压到可见卡片数 —— 只剩时钟 → 1 列（时钟整行）；时钟 + 一张 → 2 列（两张平分整行）。
-     公式和 320 最小列宽 / auto-fit 退列不变，只是 N 变小；三张都在时不命中，布局和原来完全一样。
-     :has() 不支持的老浏览器（Samsung Internet < 20 / Safari < 15.4）退回原布局（右侧留空，不错位）。 */
-  .layout-dex #home-widgets:not(:has(> #weather:not(.hidden))):has(> #w-daymark:not(.hidden)),
-  .layout-dex #home-widgets:has(> #weather:not(.hidden)):not(:has(> #w-daymark:not(.hidden))) { --home-n: 2; }
-  .layout-dex #home-widgets:not(:has(> #weather:not(.hidden))):not(:has(> #w-daymark:not(.hidden))) { --home-n: 1; }
+    grid-template-columns: repeat(auto-fit, minmax(max(320px, (100% - (var(--home-n) - 1) * var(--home-gap)) / var(--home-n)), 1fr)); }
   .layout-dex #home-widgets > .widget { grid-column: auto; }
-  .layout-dex #home-widgets > #w-profile,
-  .layout-dex #home-widgets > #w-screen { grid-column: 1 / -1; }
+  .layout-dex #home-widgets > #w-screen,
+  .layout-dex #home-widgets:not(:has(> #w-daymark:not(.hidden))) > #w-profile { grid-column: 1 / -1; }
   /* ----- 手机模式（窄屏 + 宽竖屏 Mobile）：单列；宽竖屏时外框最宽 640（--sgx-content-max），和其他页同一条边 ----- */
   .layout-mobile #home-widgets { grid-template-columns: repeat(4,minmax(0,1fr)); }
   .layout-mobile #home-widgets > .widget { grid-column: span 4/span 4; }

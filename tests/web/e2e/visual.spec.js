@@ -143,8 +143,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await expect(pg).toHaveScreenshot(`${name}.png`, {
             fullPage: false,
             animations: 'disabled',
-            /* 遮罩动态区域：时钟、天气、门内倒计时数字 */
-            mask: [pg.locator('#dual-clock'), pg.locator('#weather'), pg.locator('#sgx-credential-countdown .sgx-credential-countdown-text')],
+            /* 遮罩动态区域：门内倒计时数字（P4-2c 起首页时钟、天气已删） */
+            mask: [pg.locator('#sgx-credential-countdown .sgx-credential-countdown-text')],
           });
         });
       }
@@ -152,30 +152,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
   }
 }
 
-/* F 基准 1：弹层打开（2.6.0 起日期时间行在子页；2026-10-23 PR-E 起在 /settings/advanced/） */
-test('baseline-sheet-open', async ({ page: pg }) => {
-  await pg.setViewportSize(VIEWPORTS.mobile);
-  await blockExternalRequests(pg);
-  await pg.emulateMedia({ reducedMotion: 'reduce' });
-  /* 2.8.0：钉住中文，避免语言跟随跳转到 /en/ 导致基线语言漂移 */
-  await pg.addInitScript(() => {
-    try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
-  });
-  /* 2.8.0：中文回退字体显式化（见主循环注释），保证跨环境一致 */
-  await pg.addStyleTag({
-    content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
-  });
-  await freezeTime(pg);
-  await pg.goto('/settings/advanced/', { waitUntil: 'domcontentloaded' });
-  await waitPageReady(pg);
-  /* 2.8.0：等目标行就绪（可能在折叠区下方） */
-  await pg.locator('#row-datetime').waitFor({ state: 'visible', timeout: 15000 });
-  await pg.locator('#row-datetime').scrollIntoViewIfNeeded();
-  await pg.click('#row-datetime');
-  /* 等原生 dialog 弹层打开 */
-  await expect(pg.locator('dialog[open]').first()).toBeVisible({ timeout: 10000 });
-  await expect(pg).toHaveScreenshot('baseline-sheet-open.png', { animations: 'disabled' });
-});
+/* F 基准 1（日期和时间弹层）P4-2c 随日期和时间设置一起删除 */
 
 /** 快捷面板 / AI 窗口截图的共同准备：手机、减弱动效、中文、固定字体和时间，设置子页 /settings/display/ */
 async function shellShotPage(pg) {

@@ -52,7 +52,8 @@ globalThis.window = {
 /** <html data-sgx-lock-session>（P2-2 起 cloud-sync 只看它，不看旧等级标记；下面的桩故意对旧标记回一个旧值） */
 let lockState = 'valid';
 globalThis.document = {
-  getElementById() { return null; },
+  /* P4-2c 起 EXTRA 只剩 sgx-accent：给 features 定义一个普通同步项，测「两项合并推送」和「拉下来就地应用」 */
+  getElementById: (id) => (id === 'sgx-features' ? { textContent: JSON.stringify([{ id: 'files-view', key: 'sgx-files-view', type: 'select', default: 'grid' }]) } : null),
   documentElement: { getAttribute: (n) => (n === 'data-sgx-lock-session' ? lockState : n === 'data-sgx-role' ? 'visitor' : null) }, // old-name guard
   cookie: '',
   visibilityState: 'visible',
@@ -251,13 +252,13 @@ test('本机修改：1.5 秒防抖合并推送（不受节流）；推送成功�
   LS.set('sgx-accent', '#111111');
   window.dispatchEvent({ type: 'sgx-settings-changed' });
   await tick(1000);
-  LS.set('sgx-weather-loc', 'city');
+  LS.set('sgx-files-view', 'list');
   window.dispatchEvent({ type: 'sgx-settings-changed' });
   await tick(400);
   assert.equal(posts().length, 0, '1.5 秒内不推');
   await tick(100);
   assert.equal(posts().length, 1, '第一次改动后 1.5 秒推一次，两项合并');
-  assert.deepEqual(Object.keys(posts()[0].body.changes).sort(), ['sgx-accent', 'sgx-weather-loc']);
+  assert.deepEqual(Object.keys(posts()[0].body.changes).sort(), ['sgx-accent', 'sgx-files-view']);
   assert.equal(lastPullAt(), clock);
   assert.ok(lastPullAt() > t0);
   assert.equal(LS.get(LAST_KEY), String(clock));
@@ -280,9 +281,9 @@ test('拉下来的值不同 → 就地应用，不刷新页面；派发 sgx-sett
   SS.set('sgx-sync-reloaded', '123');
   let changed = 0;
   window.addEventListener('sgx-settings-changed', () => { changed++; });
-  getReply = { s: 200, j: { ok: true, items: { 'sgx-weather-city': { v: 'Shanghai', t: clock - 10 } } } };
+  getReply = { s: 200, j: { ok: true, items: { 'sgx-files-view': { v: 'list', t: clock - 10 } } } };
   assert.equal(await initCloudSync(), 'ok');
-  assert.equal(LS.get('sgx-weather-city'), 'Shanghai');
+  assert.equal(LS.get('sgx-files-view'), 'list');
   assert.equal(reloads, 0, '不再刷新页面');
   assert.ok(changed >= 1, '派发了 sgx-settings-changed（页面就地重画）');
   assert.equal(SS.has('sgx-sync-reloaded'), false);

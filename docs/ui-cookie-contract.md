@@ -77,15 +77,6 @@ v2 内部的演进（加 `accent`、`fs` / `rm` 固定默认、`x<id>` 合并、
 
 | 字段 | 写端来源 | 读端接受 | 默认 |
 |---|---|---|---|
-| `tz1` | `sgx-tz1-auto` 为真（缺失或非 `"0"`）写 `auto`，否则 `sgx-tz1` | `auto` 或 `^[A-Za-z0-9_+\-/]{1,64}$` | `auto` |
-| `tz2` | `sgx-tz2` | 同上正则 | `''` |
-| `h12` | `sgx-hour12 === "12"` → `1` | 只有数字 `1` | `0` |
-| `clock` | `sgx-gl-clockstyle === "1"` → `analog` | `analog` \| `digital` | `digital` |
-| `wx` | `sgx-weather-show` 非 `"0"` → `1` | 只有数字 `0` 算关 | `1` |
-| `unit` | `sgx-temp-unit === "f"` → `f` | `f` \| `c` | `c` |
-| `loc` | `sgx-weather-loc`，缺省 `auto` | `^[a-z]{1,16}$` | `auto` |
-| `city` | 恒写 `null`（2026-10-28 #230 起；以前写 `sgx-weather-city`） | 普通对象 | `null` |
-| `precise` | 恒写 `null`（2026-10-28 #230 起；以前写 `sgx-weather-precise`） | 普通对象 | `null` |
 
 `sgx-weather`（天气数据缓存）不进 cookie。坐标（手动城市的经纬度、精确定位）2026-10-28 起也不进：cookie 随 `*.styrigx.com` 的每个请求发出去，主站天气读 localStorage；字段保留，读端契约不变。
 

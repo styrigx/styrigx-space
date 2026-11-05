@@ -4,7 +4,8 @@
 {{ $profile := site.Data.profile }}
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
 
-{{/* B2-5：首页只保留名片、双时钟、天气、数字健康（2026-10-20 加日刻今日一句）；便签、博客、数字花园、桌面图标、收藏全部删除 */}}
+{{/* B2-5：首页只保留名片、数字健康（2026-10-20 加日刻今日一句）；便签、博客、数字花园、桌面图标、收藏全部删除。
+   P4-2c（2026-11-05）：双时钟、天气删除；名片和日刻宽屏并排各占一半。 */}}
 
 {{/* 2.8.0 锁屏瘦身：SGX-DESKTOP markers 之间的内容在锁屏态由 L1 middleware 剥离，不下发。
    必须用 safeHTML 输出：Go 的 html/template 会删掉模板里的 HTML 注释，以前这两个标记根本没进页面，
@@ -16,7 +17,7 @@
   <div id="home-widgets" class="grid grid-cols-4 lg:grid-cols-8 gap-3">
 
     <!-- 名片 -->
-    <div id="w-profile" class="widget col-span-4 lg:col-span-5 bg-m-container-lowest text-m-on-surface border border-m-outline p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
+    <div id="w-profile" class="widget col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
       <img src="/avatar/192.webp" alt="Sloan Gray" width="96" height="96" fetchpriority="high" class="prof-av w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover shadow shrink-0" data-sgx-avatar="192">
       <div class="min-w-0">
         <h1 class="text-3xl sm:text-4xl font-extrabold">Sloan Gray</h1>
@@ -24,54 +25,10 @@
       </div>
     </div>
 
-    <!-- 双时钟 -->
-    <div class="widget col-span-4 lg:col-span-3 overflow-hidden animate-fade-up" style="animation-delay:.14s" id="dual-clock">
-      <div class="grid grid-cols-2 h-full">
-        <div id="clk-l" class="clock-half clock-day p-5 sm:p-6 flex flex-col justify-center">
-          <div class="flex items-center gap-1.5">
-            <span id="clk-l-icon" class="w-4 h-4 inline-flex"></span>
-            <span id="clk-l-city" class="text-sm font-semibold truncate">--</span>
-          </div>
-          <div id="clk-l-time" class="clock-num text-[2.6rem] sm:text-5xl mt-2">--:--</div>
-          <div id="clk-l-date" class="clock-sub mt-2 text-xs"></div>
-          <div class="clock-sub mt-1 text-[11px]">{{ if $isEn }}Primary timezone{{ else }}第一时区{{ end }}</div>
-        </div>
-        <div id="clk-r" class="clock-half clock-day p-5 sm:p-6 flex flex-col justify-center border-l clock-div border-m-outline">
-          <div class="flex items-center gap-1.5">
-            <span id="clk-r-icon" class="w-4 h-4 inline-flex"></span>
-            <span id="clk-r-city" class="text-sm font-semibold truncate">--</span>
-          </div>
-          <div id="clk-r-time" class="clock-num text-[2.6rem] sm:text-5xl mt-2">--:--</div>
-          <div id="clk-r-date" class="clock-sub mt-2 text-xs"></div>
-          <div id="clk-r-diff" class="clock-sub mt-1 text-[11px]"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 天气（2.4.0-G：weather-show build:false 时不输出） -->
-    {{ if partial "feature.html" "weather-show" }}
-    <div id="weather" class="widget col-span-4 lg:col-span-4 p-5 sm:p-6 text-white overflow-hidden relative animate-fade-up hidden" style="animation-delay:.23s;background:linear-gradient(135deg,#4a9fe3,#1e6fc4)">
-      <div id="wx-main" class="flex justify-between items-start gap-4">
-        <div class="min-w-0">
-          <div class="flex items-center gap-1.5 text-sm opacity-90">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-            <span id="wx-city" class="truncate font-medium">--</span>
-          </div>
-          <div id="wx-temp" class="text-[3.25rem] leading-none font-extrabold mt-2 tracking-tight">--°</div>
-        </div>
-        <div id="wx-icon" class="text-6xl shrink-0 leading-none select-none" aria-hidden="true"></div>
-      </div>
-      <div class="mt-3 flex items-center gap-3 text-sm">
-        <span id="wx-desc" class="font-medium"></span>
-        <span id="wx-hilo" class="opacity-80"></span>
-      </div>
-    </div>
-    {{ end }}{{/* /weather-show */}}
-
     <!-- 日刻 · 今日一句（2026-10-20）：读 /daymark/api/today（公开只读；合并 PR3 起同源），
-         整张卡点进日刻。没拿到数据前隐藏（同天气），当天没有公开句子时显示空状态 + 去记一句。
+         整张卡点进日刻。没拿到数据前隐藏，当天没有公开句子时显示空状态 + 去记一句。
          apps/index.js 填字；本地缓存 sgx-daymark-today 先画上次的，再静默刷新。
-         CI 测试构建（SGX_TEST_NO_WEATHER=1，同天气）不输出：本地静态服务没有日刻接口，请求失败会让 Lighthouse errors-in-console 误报。 -->
+         CI 测试构建（SGX_TEST_NO_WEATHER=1；名字沿用天气时代的开关，CI 命令不动）不输出：本地静态服务没有日刻接口，请求失败会让 Lighthouse errors-in-console 误报。 -->
     {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
     {{ $dmUrl := cond $isEn "/daymark/en/" "/daymark/" }}
     <a id="w-daymark" href="{{ $dmUrl }}" class="widget dm-w col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-5 sm:p-6 overflow-hidden relative animate-fade-up hidden" style="animation-delay:.32s" aria-label="{{ if $isEn }}Daymark · Line of the day{{ else }}日刻 · 今日一句{{ end }}">

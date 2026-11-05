@@ -1,13 +1,12 @@
-{{/* 安全与隐私（2.4.0 安全与隐私）：只读状态卡片 + 安全/隐私分组。
+{{/* 安全（2.4.0 安全与隐私；P4-2c 隐私组整组删除、标题改「安全」，地址不变）：只读状态卡片 + 安全分组。
    状态来自 GET /api/lock-credentials（需鉴权，只返回锁屏凭证是否已设置）；noindex、不进 sitemap（见 baseof/sitemap）。
-   安全分组三个入口：锁屏凭证（门在那一页，3 分钟reauth 票）/ 临时钥匙（含分享短链；列表只要进门，新建 / 作废要锁侧复验）/ 立即锁定；账号凭证在顶栏右圆头像（账号 → 安全与隐私）。
+   安全分组三个入口：锁屏凭证（门在那一页，3 分钟reauth 票）/ 临时钥匙（含分享短链；列表只要进门，新建 / 作废要锁侧复验）/ 立即锁定；账号凭证在账号页（账号 → 账号安全）。
    脚本走 ES Module 入口 entry-security.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $lockUrl := cond $isEn "/en/settings/security/lock/" "/settings/security/lock/" }}
 {{ $tkUrl := cond $isEn "/en/settings/security/tempkeys/" "/settings/security/tempkeys/" }}
-{{ $setUrl := cond $isEn "/en/settings/" "/settings/" }}
 
 <div class="set-layout pb-28">
 
@@ -51,32 +50,6 @@
     </div>
   </section>
 
-  <!-- 隐私分组 -->
-  <h2 class="set-gh"><span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "info" }}</span><span>{{ if $isEn }}Privacy{{ else }}隐私{{ end }}</span></h2>
-  <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
-    {{/* 2026-10-20：搜索引擎从浏览器页 ⋮ 搬来（原地搜索层用；localStorage sgx-search-engine）。2026-10-22：最近搜索删掉，「清除浏览记录」一行跟着删 */}}
-    <div class="set-row no-ic" id="sec-engine" role="button" tabindex="0">
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Search engine{{ else }}搜索引擎{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Used by Search{{ else }}搜索使用{{ end }}</span>
-      </span>
-      <span class="text-sm text-m-on-surface-variant" id="sec-engine-val">Google</span>
-    </div>
-    <div class="set-row no-ic">
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Search engine indexing{{ else }}搜索引擎收录{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Read-only{{ else }}只读{{ end }}</span>
-      </span>
-      <span class="text-sm text-m-on-surface-variant" id="sec-robots">{{ if $isEn }}Not set{{ else }}未设置{{ end }}</span>
-    </div>
-    <div class="set-row no-ic">
-      <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Local data{{ else }}本地数据{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Settings are stored only in this browser.{{ else }}设置仅保存在本浏览器本地。{{ end }}</span>
-      </span>
-      <a class="text-sm text-m-primary font-medium whitespace-nowrap" href="{{ $setUrl }}#about" id="sec-reset-link">{{ if $isEn }}Reset all settings{{ else }}重置所有设置{{ end }}</a>
-    </div>
-  </section>
   <p class="sec-note">{{ if $isEn }}Security status is read from this device only.{{ else }}安全状态仅从本设备读取。{{ end }}</p>
 </div>
 
@@ -90,7 +63,6 @@
   "lockSubPw" (dict "zh" "密码" "en" "Password")
   "lockSubPk" (dict "zh" "通行密钥" "en" "Passkeys")
   "lockSubNone" (dict "zh" "未设置" "en" "Not set")
-  "engineTitle" (dict "zh" "搜索引擎" "en" "Search engine")
 }}
 <script id="sgx-i18n-security" type="application/json">{{ $secI18n | jsonify | safeJS }}</script>
 {{ end }}

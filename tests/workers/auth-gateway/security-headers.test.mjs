@@ -431,7 +431,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-test('模板：会执行的内联脚本只在 baseof（5 段）、alias（P4-2b 删了 search-redirect）；settings / setcat-advanced 已搬进模块；没有 on*= 属性', () => {
+test('模板：会执行的内联脚本只在 baseof（5 段）、alias（P4-2b 删了 search-redirect）；settings 已搬进模块；没有 on*= 属性', () => {
   const where = {};
   for (const f of walk(REPO + '/web/atlas/layouts')) {
     const src = readFileSync(f, 'utf8').replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
@@ -447,8 +447,6 @@ test('模板：会执行的内联脚本只在 baseof（5 段）、alias（P4-2b 
   }
   const settingsJs = readFileSync(REPO + '/web/atlas/assets/js/apps/settings.js', 'utf8');
   assert.match(settingsJs, /export function legacyHashRedirect\(\)/);
-  assert.match(settingsJs, /'sg-goodlock': 'advanced'/);
-  assert.match(settingsJs, /querySelectorAll\('\.gl-row'\)/);
 });
 
 /* ---------------- 各 Worker 各自一份（2026-10-30 起没有共享目录）：值必须一致 ---------------- */

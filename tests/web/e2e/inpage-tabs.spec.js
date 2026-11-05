@@ -212,18 +212,18 @@ test('左右滑：同一文档里换栏，药丸和内容一起换', async ({ pa
   expect(await page.evaluate(() => /** @type {any} */ (window).__mismatch)).toBe(0);
 });
 
-test('切过去以后各栏功能可用：设置换调色板（主页跟着变）、主页时钟走；设置子页整页导航、返回正常', async ({ page }) => {
+test('切过去以后各栏功能可用：设置换调色板（主页跟着变）、主页名片在；设置子页整页导航、返回正常', async ({ page }) => {
   await setup(page);
   await page.goto('/');
   await settle(page);
   await mark(page);
-  await expect(page.locator('#clk-l-time')).toHaveText(/^\d\d:\d\d$/);
+  await expect(page.locator('#w-profile')).toBeVisible();
 
   await page.click('.sgx-tb-tab[data-tab="settings"]');
   await expect(page.locator('#set-panes')).toHaveCount(1);
   await page.click('.sgx-tb-tab[data-tab="home"]');
   await expect(page.locator('#home-widgets')).toBeVisible();
-  await expect(page.locator('#clk-l-time')).toHaveText(/^\d\d:\d\d$/);
+  await expect(page.locator('#w-profile')).toBeVisible();
 
   await page.click('.sgx-tb-tab[data-tab="settings"]');
   await expect(page.locator('#set-panes')).toHaveCount(1);
@@ -371,20 +371,21 @@ test('滚动位置按栏记', async ({ page }) => {
   await page.setViewportSize({ width: 412, height: 500 });
   await page.goto('/');
   await settle(page);
-  await page.evaluate(() => window.scrollTo(0, 200));
+  /* P4-2c 起首页少了双时钟和天气，412×500 下首页只能滚 40 多像素：首页记 30 */
+  await page.evaluate(() => window.scrollTo(0, 30));
   await page.click('.sgx-tb-tab[data-tab="settings"]');
   await expect(page.locator('#set-panes')).toHaveCount(1);
   expect(await page.evaluate(() => window.scrollY), '第一次进来从顶部开始').toBe(0);
   await page.evaluate(() => window.scrollTo(0, 150));
   await page.click('.sgx-tb-tab[data-tab="home"]');
   await expect(page.locator('#home-widgets')).toBeVisible();
-  expect(await page.evaluate(() => window.scrollY)).toBe(200);
+  expect(await page.evaluate(() => window.scrollY)).toBe(30);
   await page.click('.sgx-tb-tab[data-tab="settings"]');
   await expect(page.locator('#set-panes')).toHaveCount(1);
   expect(await page.evaluate(() => window.scrollY)).toBe(150);
   await page.goBack();
   await expect(page.locator('#home-widgets')).toBeVisible();
-  expect(await page.evaluate(() => window.scrollY)).toBe(200);
+  expect(await page.evaluate(() => window.scrollY)).toBe(30);
 });
 
 test('取不到能用的页面（服务器出错）→ 整页导航；连点只落在最后一栏', async ({ page }) => {

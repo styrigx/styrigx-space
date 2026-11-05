@@ -12,7 +12,7 @@
  * - 手机：左右对齐顶栏页边距 16px、最宽 480 居中；宽屏（≥ 980px）宽 400，右缘对齐顶栏右缘。
  * - 磁贴只放设置里已有的项，写的是和设置页同一个 localStorage key（同一套 setter，lib/prefs.js），即时生效、不刷新；设置页随之同步显示。
  *   主站：深色模式 | 跟随系统、语言 | 立即锁定，下面调色板（22 套）、布局；主站任何页面都没有「分享本页」磁贴（定案第 4 条，模板层不输出）。
- * - 390px 宽：长条页名放得下「安全与隐私」，英文长页名省略号，不压到两端图标。
+ * - 390px 宽：长条页名放得下「安全」，英文长页名省略号，不压到两端图标。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('./helpers');
@@ -199,18 +199,18 @@ test.describe('顶栏：一整条胶囊 [logo][中间][快捷面板 · AI · 头
     });
   }
 
-  test('390px：「安全与隐私」「Security and privacy」完整显示，更长的页名省略号，页名不出长条', async ({ page }) => {
+  test('390px：「安全」「Security」完整显示（P4-2c 改名），更长的页名省略号，页名不出长条', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await go(page, '/settings/security/');
     const t = page.locator('.sgx-tb-title');
-    await expect(t).toHaveText('安全与隐私');
+    await expect(t).toHaveText('安全');
     expect(await t.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     await page.evaluate(() => localStorage.setItem('sgx-lang', 'en'));
     await page.goto('/en/settings/security/', { waitUntil: 'domcontentloaded' });
-    await expect(t).toHaveText('Security and privacy');
+    await expect(t).toHaveText('Security');
     const st = await t.evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth, to: getComputedStyle(el).textOverflow }));
     expect(st.to).toBe('ellipsis');
-    /* 2026-10-22：长条里没有图标了，390 宽放得下「Security and privacy」；更长的照样省略号 */
+    /* 2026-10-22：长条里没有图标了，390 宽放得下页名；更长的照样省略号 */
     expect(st.sw).toBeLessThanOrEqual(st.cw);
     await t.evaluate((el) => { el.textContent = 'A very long English page name that cannot fit'; });
     expect(await t.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
@@ -306,7 +306,7 @@ test.describe('快捷面板：开合', () => {
     await openQp(page);
     const after = await page.locator('.sgx-tb-title').evaluate((el) => getComputedStyle(el, '::after').content);
     expect(['none', 'normal']).toContain(after);
-    await expect(page.locator('.sgx-tb-title')).toHaveText('安全与隐私');
+    await expect(page.locator('.sgx-tb-title')).toHaveText('安全');
   });
 
   /** 能 Tab 到的面板控件（不在 inert 页里、tabindex ≥ 0、看得见）+ 图标 */
@@ -1126,41 +1126,4 @@ test.describe('主站书签已下线', () => {
       expect(r.status(), p).not.toBe(200);
     }
   });
-});
-
-test.describe('安全与隐私 › 隐私：搜索引擎', () => {
-  test('搜索引擎行显示当前引擎，点开选 Bing → sgx-search-engine = bing', async ({ page }) => {
-    await go(page, '/settings/security/');
-    const row = page.locator('#sec-engine');
-    await expect(row).toContainText('搜索引擎');
-    await expect(page.locator('#sec-engine-val')).toHaveText('Google');
-    const sheet = page.locator('#sheet-body');
-    await expect(async () => {
-      await row.click();
-      await expect(sheet.getByText('Bing', { exact: true })).toBeVisible({ timeout: 1500 });
-    }).toPass({ timeout: 15000 });
-    await sheet.getByText('Bing', { exact: true }).click();
-    expect(await page.evaluate(() => localStorage.getItem('sgx-search-engine'))).toBe('bing');
-    await expect(page.locator('#sec-engine-val')).toHaveText('Bing');
-    /* 选回 Google：默认值不存 */
-    await expect(async () => {
-      await row.click();
-      await expect(sheet.getByText('Google', { exact: true })).toBeVisible({ timeout: 1500 });
-    }).toPass({ timeout: 15000 });
-    await sheet.getByText('Google', { exact: true }).click();
-    expect(await page.evaluate(() => localStorage.getItem('sgx-search-engine'))).toBeNull();
-  });
-
-  test('引擎行在隐私分组里', async ({ page }) => {
-    await go(page, '/settings/security/');
-    const inPrivacy = await page.evaluate(() => {
-      const row = document.getElementById('sec-engine');
-      const sec = row && row.closest('section');
-      const h = sec && sec.previousElementSibling;
-      return h ? h.textContent.trim() : '';
-    });
-    expect(inPrivacy).toBe('隐私');
-    await expect(page.locator('#sec-clearhist')).toHaveCount(0);
-  });
-
 });

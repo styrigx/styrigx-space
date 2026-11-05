@@ -4,15 +4,7 @@ declare const SGX_FEAT_THEME_MODE: boolean;
 declare const SGX_FEAT_PALETTE: boolean;
 declare const SGX_FEAT_LAYOUT: boolean;
 declare const SGX_FEAT_LANG: boolean;
-declare const SGX_FEAT_GL_CLOCKSTYLE: boolean;
-declare const SGX_FEAT_GL_KEYS: boolean;
-declare const SGX_FEAT_WEATHER_SHOW: boolean;
-declare const SGX_FEAT_TEMP_UNIT: boolean;
-declare const SGX_FEAT_TZ1_AUTO: boolean;
-declare const SGX_FEAT_TZ1: boolean;
-declare const SGX_FEAT_TZ2: boolean;
-declare const SGX_FEAT_HOUR12: boolean;
-declare const SGX_FEAT_SEARCH_ENGINE: boolean;
+/* P4-2c：时钟 / 日期和时间、天气、快捷键、搜索引擎的开关随功能删除 */
 declare const SGX_FEAT_ADDRBAR_POS: boolean;
 declare const SGX_FEAT_FILES_VIEW: boolean;
 declare const SGX_FEAT_FILES_HOME: boolean;

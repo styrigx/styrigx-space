@@ -15,9 +15,9 @@
  *   armNavProbe(page)         在当前文档上记 Navigation API 的 navigate 事件（链接 / location.* / pushState 都会同步触发），
  *                             返回读取函数；用来断言「点了不跳转」。文档已被换掉时读取函数返回 null。
  *
- * - setHomeCards(page, { weather, daymark })：模拟首页天气 / 日刻有没有数据（true = 显示，false = .hidden）。
- *   测试构建（SGX_TEST_NO_WEATHER=1）两张卡都不输出，缺的就在时钟后面补一张同 id 的占位卡（和真卡一样是 .widget，
- *   高度 160），再按参数切 .hidden —— 和 index.js / daymark-today.js 显隐真卡的方式一致。
+ * - setHomeCards(page, { daymark })：模拟首页日刻有没有数据（true = 显示，false = .hidden）。
+ *   测试构建（SGX_TEST_NO_WEATHER=1）不输出日刻卡，就在名片后面补一张同 id 的占位卡（和真卡一样是 .widget，
+ *   高度 160），再按参数切 .hidden —— 和 daymark-today.js 显隐真卡的方式一致。（P4-2c 起双时钟、天气已删）
  *
  * 注意：/api/* 的 mock 由各测试自己在测试体内注册（注册顺序靠后，
  * Playwright 按注册倒序匹配，mock 会优先于本 helper 的通配拦截生效）。
@@ -154,26 +154,21 @@ async function armNavProbe(page) {
   }).catch(() => null);
 }
 
-/** 首页天气 / 日刻卡显隐（见文件头） */
-async function setHomeCards(page, { weather, daymark }) {
-  await page.evaluate(([wx, dm]) => {
+/** 首页日刻卡显隐（见文件头） */
+async function setHomeCards(page, { daymark }) {
+  await page.evaluate((dm) => {
     const grid = document.querySelector('#home-widgets');
-    const clock = document.getElementById('dual-clock');
-    let after = clock;
-    for (const [id, tag, on] of [['weather', 'div', wx], ['w-daymark', 'a', dm]]) {
-      let el = document.getElementById(id);
-      if (!el) {
-        el = document.createElement(tag);
-        el.id = id;
-        el.className = 'widget hidden';
-        el.style.minHeight = '160px';
-        after.after(el);
-      }
-      el.classList.toggle('hidden', !on);
-      after = el;
+    let el = document.getElementById('w-daymark');
+    if (!el) {
+      el = document.createElement('a');
+      el.id = 'w-daymark';
+      el.className = 'widget hidden';
+      el.style.minHeight = '160px';
+      document.getElementById('w-profile').after(el);
     }
+    el.classList.toggle('hidden', !dm);
     void grid.offsetWidth;
-  }, [!!weather, !!daymark]);
+  }, !!daymark);
 }
 
 module.exports = { blockExternalRequests, freezeTime, setHomeCards, nextFrames, animationsDone, scrolledTo, flushRequests, armNavProbe, expect };

@@ -1,5 +1,5 @@
 ---
-title: '安全与隐私'
+title: '安全'
 layout: security
 url: /settings/security/
 ---

@@ -1,24 +1,14 @@
 /**
- * @fileoverview 全站生效的小模块（文件名沿用旧的 goodlock.js；设置里叫「高级功能」）：
- * 快捷键（设置 › 高级功能）、本机到访计时 + 15 分钟提醒（设置 › 数字健康，只存本地）。
+ * @fileoverview 全站生效的小模块（文件名沿用旧的 goodlock.js）：本机到访计时 + 15 分钟提醒（设置 › 数字健康，只存本地）。
+ * P4-2c（2026-11-05）：快捷键随高级功能分类删除。
  * 2026-10-23 PR-E：视差壁纸、点击音效、边缘光效删除；数字健康不再有总开关（计时一直开，提醒只看 well-tip）。
- * 开关经 features.js 统一读写；各模块另有 SGX_FEAT_* 编译期开关。
+ * 开关经 features.js 统一读写。
  */
 import { on } from '../lib/events.js';
 import { get, set } from '../lib/storage.js';
 import { get as featGet } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
-import { openSheet } from './sheet.js';
 import { visibleInterval } from '../lib/scheduler.js';
-import { sgxNavigate } from '../lib/diag-jumptrace.js';
-
-/**
- * 读模块开关（经 features.js，带编译期 build 默认）。
- * @param {string} id 功能 id（gl-*）
- */
-function modOn(id) {
-  return !!featGet(id);
-}
 
 /** @returns {string} YYYY-M-D */
 function dayStr(d) {
@@ -82,68 +72,11 @@ export function wellRetarget() {
 }
 
 /**
- * 初始化全站模块（快捷键、本机到访计时 / 15 分钟提醒）。
+ * 初始化全站模块（本机到访计时 / 15 分钟提醒）。
  */
 export function initGoodLock() {
   const T = loadI18n('sgx-i18n-core');
-  const en = document.documentElement.lang === 'en';
   sessArea = areaOf();
-
-  /* ---- 快捷键（桌面端；2.4.0-G：SGX_FEAT_GL_KEYS 编译期可移除） ---- */
-  if (SGX_FEAT_GL_KEYS) {
-  (function () {
-    let pending = false;
-    /** @type {number|null} */
-    let timer = null;
-    on(document, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (!modOn('gl-keys')) return;
-      const t = /** @type {HTMLElement|null} */ (e.target);
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const home = en ? '/en/' : '/',
-        links = en ? '/curio/en/' : '/curio/', /* g l：奇趣 Curio（主站书签已迁走；合并 PR3 起在主域名 /curio/） */
-        setUrl = en ? '/en/settings/' : '/settings/';
-      if (pending) {
-        pending = false;
-        if (timer) clearTimeout(timer);
-        const map = { h: home, l: links, b: en ? '/blog/en/' : '/blog/', s: setUrl };
-        const u = map[e.key];
-        if (u) {
-          e.preventDefault();
-          if (u.indexOf('http') === 0) window.open(u, '_blank');
-          else sgxNavigate(u);
-        }
-        return;
-      }
-      if (e.key === 'g') {
-        pending = true;
-        timer = window.setTimeout(function () {
-          pending = false;
-        }, 900);
-      } else if (e.key === '?') {
-        e.preventDefault();
-        openSheet({
-          title: T.t('kbdTitle'),
-          html:
-            '<div class="px-2 pb-2 text-sm space-y-2">' +
-            '<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">h</kbd></span><span class="text-m-on-surface-variant">' +
-            T.t('kbdHome') +
-            '</span></div>' +
-            '<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">l</kbd></span><span class="text-m-on-surface-variant">' +
-            T.t('kbdBrowser') +
-            '</span></div>' +
-            '<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">b</kbd></span><span class="text-m-on-surface-variant">' +
-            T.t('kbdBlog') +
-            '</span></div>' +
-            '<div class="flex justify-between"><span><kbd class="kbd">g</kbd> <kbd class="kbd">s</kbd></span><span class="text-m-on-surface-variant">' +
-            T.t('kbdSettings') +
-            '</span></div>' +
-            '</div>',
-        });
-      }
-    });
-  })();
-  } /* /SGX_FEAT_GL_KEYS */
 
   /* ---- 本机到访计时（只存本地；设置 › 数字健康 没登录时显示它） ---- */
   {

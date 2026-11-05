@@ -33,7 +33,7 @@ function parseApi(r) {
   });
 }
 
-/** @returns {string} 安全与隐私页地址（验证流程入口，语言跟随） */
+/** @returns {string} 安全页地址（验证流程入口，语言跟随） */
 function securityUrl() {
   return document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
 }
@@ -372,7 +372,7 @@ function tx(t, k, zh, en) {
 /**
  * 探针失败 → 留在门内页显示原因，不自动跳转（定稿 #1）。
  * 先移除遮罩，在页面上显示：哪个接口、HTTP 状态码、服务端 reason，
- * 再放一个「返回安全与隐私」按钮。不显示任何密钥或 Cookie 值。
+ * 再放一个「返回安全」按钮。不显示任何密钥或 Cookie 值。
  * @param {(k:string)=>string} t 文案函数
  * @param {{reason?:string, detail?:string, api?:string, status?:number}} info 探针结果
  */
@@ -388,7 +388,7 @@ function showProbeFailure(t, info) {
   const apiLabel = tx(t, 'probeFailApi', '接口', 'API');
   const statusLabel = tx(t, 'probeFailStatus', '状态码', 'Status');
   const reasonLabel = tx(t, 'probeFailReason', '原因', 'Reason');
-  const backLabel = tx(t, 'probeFailBack', '返回安全与隐私', 'Back to Security & Privacy');
+  const backLabel = tx(t, 'probeFailBack', '返回安全', 'Back to Security');
 
   /* 隐藏管理区内容，显示失败面板 */
   const layout = document.querySelector('.set-layout');

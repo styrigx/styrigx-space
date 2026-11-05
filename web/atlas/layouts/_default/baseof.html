@@ -57,7 +57,10 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     d.setAttribute('data-theme-mode',m||'system');
     d.setAttribute('data-dark',wantDark?'1':'0');
     /* 2026-10-23 PR-E：字体大小 / 减弱动效 / 点击音效 / 边缘光效 / 视差壁纸 / Good Lock 数字健康总开关已删除，旧值一次性清掉（不再有任何效果） */
-    try{['sgx-font-size','sgx-reduced-motion','sgx-gl-sound','sgx-gl-edgeglow','sgx-gl-parallax','sgx-gl-wellbeing'].forEach(function(k){localStorage.removeItem(k)})}catch(e){}
+    /* P4-2c（2026-11-05）：双时钟 / 日期和时间、天气、快捷键、搜索引擎删除，旧值同样清掉 */
+    try{['sgx-font-size','sgx-reduced-motion','sgx-gl-sound','sgx-gl-edgeglow','sgx-gl-parallax','sgx-gl-wellbeing',
+      'sgx-tz1-auto','sgx-tz1','sgx-tz2','sgx-hour12','sgx-gl-clockstyle','sgx-weather-show','sgx-temp-unit','sgx-weather-loc','sgx-weather-city','sgx-weather-precise','sgx-weather',
+      'sgx-gl-keys','sgx-search-engine'].forEach(function(k){localStorage.removeItem(k)})}catch(e){}
     /* 调色板（2026-10-23 PR-G 七色调色板）：旧撞色 x<id> 迁到 <id>；不认识的 id、等于默认（dustyblue）的值清掉（默认不写 key，同 features.set） */
     /* 存储读写各自 try：站点数据被禁用时 localStorage 会抛错，不能让它跳过后面的减弱动效 / 布局 / 语言 */
     var p=null,PK={{ $palIds := slice }}{{ range site.Data.palettes.palettes }}{{ $palIds = $palIds | append .id }}{{ end }}{{ $palIds | jsonify | safeJS }},PD='dustyblue';
@@ -159,14 +162,6 @@ function __applyLayout(){
   d.classList.add('layout-'+m);
 }
 __applyLayout();
-/* 时区设置（设置页"常规管理 > 日期和时间"）：第一时区默认跟随设备 */
-window.__firstTz=function(){
-  var a='1';try{a=localStorage.getItem('sgx-tz1-auto')}catch(e){}
-  if(a!=='0'){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}catch(e){return'UTC'}}
-  try{return localStorage.getItem('sgx-tz1')||'America/Los_Angeles'}catch(e){return'America/Los_Angeles'}
-};
-window.__secondTz=function(){try{return localStorage.getItem('sgx-tz2')||'America/Los_Angeles'}catch(e){return'America/Los_Angeles'}};
-window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}catch(e){return false}};
 </script>
 {{/* 2026-10-21：删掉 2.4.0 D 的 Speculation Rules（站内链接按下 / 悬停就 prerender）。
    预渲染是拿「按下那一刻」的 cookie 取页面并先跑脚本，点下去时直接启用这份快照：
@@ -259,13 +254,8 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 
 
 {{/* 2.4.0-C：全站文案（中英双语，JS 按 <html lang> 取用；同一份 JS 中英文共用缓存）。
-   键：快捷键帮助 / 临时钥匙提示 / 通行密钥 / 快捷面板（2026-10-21 语音搜索已删除） */}}
+   键：临时钥匙提示 / 通行密钥 / 快捷面板（2026-10-21 语音搜索已删除；P4-2c 快捷键帮助删除） */}}
 {{ $coreI18n := dict
-  "kbdTitle" (dict "zh" "快捷键" "en" "Keyboard shortcuts")
-  "kbdHome" (dict "zh" "首页" "en" "Home")
-  "kbdBrowser" (dict "zh" "书签" "en" "Bookmarks")
-  "kbdBlog" (dict "zh" "博客" "en" "Blog")
-  "kbdSettings" (dict "zh" "设置" "en" "Settings")
   "wellTip" (dict "zh" "已经看了 15 分钟，起来活动一下？" "en" "You've been here 15 minutes, time for a stretch?")
   "wellDismiss" (dict "zh" "关闭" "en" "Dismiss")
   "pkCancelled" (dict "zh" "已取消" "en" "Cancelled")
@@ -301,11 +291,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{/* Hark：CI 锁屏开关测试专用（CI 专用，生产构建绝不设置）。
    2.8.0：legacy-lock-screen 已彻底删除，只剩 lock-gate 开关 */}}
 {{ if eq (getenv "SGX_TEST_LOCK_GATE") "0" }}{{ $featDefines = merge $featDefines (dict "SGX_FEAT_LOCK_GATE" "false") }}{{ end }}
-{{/* Hark：CI 测试构建禁用天气组件（CI 专用，生产构建绝不设置）；
-   天气依赖外网（/api/geo + Open-Meteo），CI 里不稳定会导致
-   Lighthouse errors-in-console 误报 */}}
-{{ if eq (getenv "SGX_TEST_NO_WEATHER") "1" }}{{ $featDefines = merge $featDefines (dict "SGX_FEAT_WEATHER_SHOW" "false") }}{{ end }}
-{{/* B2-7：同一测试构建（静态 http-server，没有 /api）里不拉 / 不报数字健康，
+{{/* B2-7：测试构建（SGX_TEST_NO_WEATHER=1；名字沿用天气时代，P4-2c 天气删了，开关只管这里和首页日刻卡；静态 http-server，没有 /api）里不拉 / 不报数字健康，
    否则 GET /api/wellbeing 404 会触发 Lighthouse errors-in-console；生产构建为 false */}}
 {{ $featDefines = merge $featDefines (dict "SGX_TEST_NO_WB" (cond (eq (getenv "SGX_TEST_NO_WEATHER") "1") "true" "false")) }}
 {{/* 2026-10-24 JS 拆分：所有入口一次 js.Batch 构建，共享代码拆成可缓存的 chunk（见 partials/sgx-js-batch.html）。

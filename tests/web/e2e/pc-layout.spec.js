@@ -2,7 +2,7 @@
  * 2.5.0 PC 布局断言（Gray 2026-10-10 验收要求）；2026-10-23 PC 档删除，DeX 接手 PC 的尺寸。
  * - 1920x1080 / 2560x1440 下 html 为 layout-dex（自动）
  * - 首页栅格（2026-10-23 PR-D）：外框 = 顶栏框；每行左缘贴外框左缘，整行卡（名片 / 屏幕时间）右缘贴外框右缘；
- *   按列排的卡宽 = (框宽 − (N−1)·gap) / N（≥ 1200 宽 N = 3），且不小于 320（天气 + 日刻全有数据时）
+ *   按列排的卡宽 = (框宽 − gap) / 2（P4-2c 起固定 2 列：名片和日刻并排），且不小于 320（日刻有数据时）
  * - （2026-10-19 Dock 已删除，原「滚到底 Dock 不压卡片」用例一并删除）
  * - 宽屏 DeX 下桌面图标网格（#home-apps）彻底不渲染
  *
@@ -32,10 +32,10 @@ function boxesIntersect(a, b) {
 
 for (const vp of PCS) {
   test.describe(`dex-wide-layout ${vp.width}x${vp.height}`, () => {
-    test('栅格：行左缘 / 整行卡右缘贴外框，列宽 = 3 列等分（≥ 320）', async ({ page }) => {
+    test('栅格：行左缘 / 整行卡右缘贴外框，列宽 = 2 列等分（≥ 320）', async ({ page }) => {
       await gotoWide(page, vp);
-      /* 天气 + 日刻全有数据（缺卡时按可见卡数收列，见 layout-auto「时钟行」） */
-      await setHomeCards(page, { weather: true, daymark: true });
+      /* 日刻有数据（没数据时名片整行，见 layout-auto「首页栅格」） */
+      await setHomeCards(page, { daymark: true });
       const g = await page.evaluate(() => {
         const wrap = document.querySelector('.home-wrap').getBoundingClientRect();
         const bar = document.querySelector('.sgx-topbar').getBoundingClientRect();
@@ -46,15 +46,15 @@ for (const vp of PCS) {
           .map((e) => { const r = e.getBoundingClientRect(); return { id: e.id, x: r.left, r: r.right, w: r.width, y: r.top + scrollY }; });
         return { wrap: { l: wrap.left, r: wrap.right, w: wrap.width }, bar: { l: bar.left, r: bar.right }, gap, cols, cards };
       });
-      expect(g.cols).toBe(3);
+      expect(g.cols).toBe(2);
       expect(Math.abs(g.wrap.l - g.bar.l), '外框左缘 = 顶栏左缘').toBeLessThanOrEqual(1);
       expect(Math.abs(g.wrap.r - g.bar.r), '外框右缘 = 顶栏右缘').toBeLessThanOrEqual(1);
-      const colW = (g.wrap.w - 2 * g.gap) / 3;
+      const colW = (g.wrap.w - g.gap) / 2;
       expect(g.cards.length).toBeGreaterThan(2);
       for (const c of g.cards) {
         const rowStart = Math.min(...g.cards.filter((d) => Math.abs(d.y - c.y) < 8).map((d) => d.x));
         expect(Math.abs(rowStart - g.wrap.l), `${c.id} 所在行左缘`).toBeLessThanOrEqual(1);
-        if (c.id === 'w-profile' || c.id === 'w-screen') expect(Math.abs(c.r - g.wrap.r), `${c.id} 整行`).toBeLessThanOrEqual(1);
+        if (c.id === 'w-screen') expect(Math.abs(c.r - g.wrap.r), `${c.id} 整行`).toBeLessThanOrEqual(1);
         else { expect(Math.abs(c.w - colW), `${c.id} 列宽 ${c.w} ≠ ${colW}`).toBeLessThanOrEqual(1); expect(c.w).toBeGreaterThanOrEqual(320); }
       }
     });

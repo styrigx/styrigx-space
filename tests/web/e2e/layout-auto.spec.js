@@ -169,79 +169,56 @@ for (const w of [839, 840, 841]) {
   }
 }
 
-/* ----- 首页栅格退列：收窄容器，列数按 320 最小列宽一路退到 1 列，绝不挤到 320 以下 ----- */
-test('栅格退列：1920 宽 3 列，容器收窄到 1000 / 700 / 600 / 330 → 2 / 2 / 1 / 1 列；< 1200 宽 2 列', async ({ page }) => {
-  await go(page, { width: 1920, height: 950 }, '/');
-  await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
-  /* 天气 + 日刻全有数据（缺卡时会按可见卡数收列，见下一条） */
-  await setHomeCards(page, { weather: true, daymark: true });
-  const cols = (px) => page.evaluate((v) => {
-    const g = document.querySelector('#home-widgets');
-    /* 减弱动效下全局 transition-duration .01ms（transition-property 默认 all）：宽度变化会走一帧过渡，先关掉再量 */
-    g.style.transition = 'none';
-    g.style.width = v ? v + 'px' : '';
-    const t = getComputedStyle(g).gridTemplateColumns.split(' ').map(parseFloat);
-    return { n: t.length, min: Math.min(...t), raw: getComputedStyle(g).gridTemplateColumns };
-  }, px);
-  for (const [px, n] of [[0, 3], [1000, 2], [700, 2], [600, 1], [330, 1]]) {
-    const c = await cols(px);
-    expect(c.n, `容器 ${px || '原宽'} → ${c.raw}`).toBe(n);
-    expect(c.min).toBeGreaterThanOrEqual(320);
-  }
-  await page.setViewportSize({ width: 1180, height: 760 });
-  await expect.poll(() => page.evaluate(() => { const g = document.querySelector('#home-widgets'); g.style.width = ''; return getComputedStyle(g).gridTemplateColumns.split(' ').length; })).toBe(2);
-});
-
-/* ----- 时钟那一行：天气 / 日刻缺数据（.hidden）或没输出时，可见的卡铺满整行，右缘 = 容器右缘，不留空白 ----- */
-for (const [w, h, n] of [[1280, 760, 3], [841, 673, 2]]) {
-  for (const [wx, dm] of [[false, false], [true, false], [false, true], [true, true]]) {
-    const vis = 1 + Number(wx) + Number(dm);
-    test(`时钟行 ${w}×${h}（${n} 列）：可见 ${vis} 张（天气 ${wx ? '有' : '无'} / 日刻 ${dm ? '有' : '无'}）→ 无空白`, async ({ page }) => {
+/* ----- 首页栅格（P4-2c 起双时钟、天气删除）：DeX 固定 2 列，名片 + 日刻并排各一列，屏幕时间整行；
+   日刻没数据（.hidden）或没输出时名片整行；容器窄到放不下 2 个 320 就退成 1 列 ----- */
+for (const [w, h] of [[1920, 950], [1280, 760], [841, 673]]) {
+  for (const dm of [true, false]) {
+    test(`首页栅格 ${w}×${h}：日刻${dm ? '有' : '无'} → ${dm ? '名片和日刻并排' : '名片整行'}，屏幕时间整行，无空白`, async ({ page }) => {
       await go(page, { width: w, height: h }, '/');
       await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
       await expect(page.locator('#home-widgets')).toBeVisible();
-      await setHomeCards(page, { weather: wx, daymark: dm });
+      await setHomeCards(page, { daymark: dm });
       const m = await page.evaluate(() => {
         const g = document.querySelector('#home-widgets');
         const gr = g.getBoundingClientRect();
-        const gap = parseFloat(getComputedStyle(g).columnGap);
-        const cols = getComputedStyle(g).gridTemplateColumns.split(' ').length;
-        const box = (id) => { const e = document.getElementById(id); if (!e) return null; const r = e.getBoundingClientRect(); return { id, shown: getComputedStyle(e).display !== 'none', l: r.left, r: r.right, w: r.width, t: r.top, b: r.bottom }; };
-        return { g: { l: gr.left, r: gr.right, w: gr.width }, gap, cols, profile: box('w-profile'), cards: ['dual-clock', 'weather', 'w-daymark'].map(box).filter(Boolean) };
+        const box = (id) => { const e = document.getElementById(id); const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width, t: r.top }; };
+        return { g: { l: gr.left, r: gr.right, w: gr.width }, gap: parseFloat(getComputedStyle(g).columnGap), cols: getComputedStyle(g).gridTemplateColumns.split(' ').length,
+          profile: box('w-profile'), daymark: box('w-daymark'), screen: box('w-screen') };
       });
-      /* 隐藏的卡 display:none、不占格 */
-      for (const c of m.cards) if (c.id !== 'dual-clock') expect(c.shown, `${c.id} 显隐`).toBe(c.id === 'weather' ? wx : dm);
-      const shown = m.cards.filter((c) => c.shown);
-      expect(shown.length).toBe(vis);
-      /* 按行分组：每行左缘 = 容器左缘，最后一张右缘 = 容器右缘（最后一行在全数据 3 张 / 2 列时除外：那是原布局，单独断言不变） */
-      const rows = [];
-      for (const c of shown) { const r = rows.find((x) => Math.abs(x[0].t - c.t) < 2); if (r) r.push(c); else rows.push([c]); }
-      const full = wx && dm;
-      expect(m.cols, `列数`).toBe(full ? n : Math.min(n, vis));
-      rows.forEach((r, i) => {
-        r.sort((a, b) => a.l - b.l);
-        expect(Math.abs(r[0].l - m.g.l), `第 ${i + 1} 行左缘`).toBeLessThanOrEqual(1);
-        if (full && n === 2 && i === rows.length - 1) return;
-        expect(Math.abs(r[r.length - 1].r - m.g.r), `第 ${i + 1} 行右缘 ${r[r.length - 1].r} ≠ 容器 ${m.g.r}`).toBeLessThanOrEqual(1);
-        /* 同一行平分：卡宽相等，间距 = gap */
-        for (let k = 1; k < r.length; k++) {
-          expect(Math.abs(r[k].w - r[0].w), `第 ${i + 1} 行等宽`).toBeLessThanOrEqual(1);
-          expect(Math.abs(r[k].l - r[k - 1].r - m.gap), `第 ${i + 1} 行间距`).toBeLessThanOrEqual(1);
-        }
-      });
-      for (const c of shown) expect(c.w).toBeGreaterThanOrEqual(320);
-      /* 名片仍整行（边线和容器一致） */
+      expect(m.cols).toBe(2);
       expect(Math.abs(m.profile.l - m.g.l)).toBeLessThanOrEqual(1);
-      expect(Math.abs(m.profile.r - m.g.r)).toBeLessThanOrEqual(1);
-      /* 全数据：原布局 —— N 列等分，2 列时日刻在第二行第一列 */
-      if (full) {
-        const colW = (m.g.w - (n - 1) * m.gap) / n;
-        for (const c of shown) expect(Math.abs(c.w - colW), `${c.id} 列宽`).toBeLessThanOrEqual(1);
-        expect(rows.length).toBe(n === 3 ? 1 : 2);
+      expect(Math.abs(m.screen.l - m.g.l)).toBeLessThanOrEqual(1);
+      expect(Math.abs(m.screen.r - m.g.r), '屏幕时间整行').toBeLessThanOrEqual(1);
+      if (dm) {
+        const colW = (m.g.w - m.gap) / 2;
+        expect(Math.abs(m.profile.w - colW)).toBeLessThanOrEqual(1);
+        expect(Math.abs(m.daymark.w - colW)).toBeLessThanOrEqual(1);
+        expect(Math.abs(m.daymark.t - m.profile.t), '同一行').toBeLessThanOrEqual(1);
+        expect(Math.abs(m.daymark.r - m.g.r)).toBeLessThanOrEqual(1);
+        expect(m.profile.w).toBeGreaterThanOrEqual(320);
+      } else {
+        expect(Math.abs(m.profile.r - m.g.r), '名片整行').toBeLessThanOrEqual(1);
       }
     });
   }
 }
+
+test('栅格退列：容器收窄到 700 / 600 / 330 → 2 / 1 / 1 列，绝不挤到 320 以下', async ({ page }) => {
+  await go(page, { width: 1920, height: 950 }, '/');
+  await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
+  await setHomeCards(page, { daymark: true });
+  for (const [px, n] of [[0, 2], [700, 2], [600, 1], [330, 1]]) {
+    const c = await page.evaluate((v) => {
+      const g = document.querySelector('#home-widgets');
+      g.style.transition = 'none';
+      g.style.width = v ? v + 'px' : '';
+      const t = getComputedStyle(g).gridTemplateColumns.split(' ').map(parseFloat);
+      return { n: t.length, min: Math.min(...t), raw: getComputedStyle(g).gridTemplateColumns };
+    }, px);
+    expect(c.n, `容器 ${px || '原宽'} → ${c.raw}`).toBe(n);
+    expect(c.min).toBeGreaterThanOrEqual(320);
+  }
+});
 
 /* ----- Auto 跟随可用视口：分屏 900×600 → 820×600 实时切 Mobile（nav.js resize 180ms 去抖） ----- */
 test('分屏：900×600 是 DeX，拖窄到 820×600 实时切 Mobile，再拉回 900 回到 DeX', async ({ page }) => {

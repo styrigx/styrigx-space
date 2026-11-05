@@ -2,7 +2,8 @@
  * 2.6.0：设置二级页。真实断言（不 mock 自家逻辑）：
  * - Mobile /settings/ 只留 7 分类入口（账户卡已移到账号页 /account/），无选项组（B2-2 新增 Good Lock，B2-4 删除应用；
  *   2026-10-23 PR-E：Good Lock 改名高级功能，常规管理 / 辅助功能删除，分组卡片 [显示 风格] [安全与隐私] [高级功能 数字健康] [关于本站]；
- *   之后服务状态从账号页搬来，成为第 7 项「服务状态」，和安全与隐私一样是独立页面 /settings/status/）
+ *   之后服务状态从账号页搬来，成为第 7 项「服务状态」，和安全与隐私一样是独立页面 /settings/status/；
+ *   P4-2c：高级功能分类删除（日期和时间、天气、快捷键），「安全与隐私」改名「安全」，剩 6 项）
  * - DeX/PC /settings/ 左右双栏：左分类导航、右详情窗格（复用子页同一套 partial）
  * - 7 个子页可达、有对应选项组（2026-10-20 起顶栏没有返回键）
  * - 旧 hash 跳转到子页
@@ -15,8 +16,7 @@ const { blockExternalRequests, expect } = require('./helpers');
 const CATS = [
   { id: 'display', zh: '显示', en: 'Display' },
   { id: 'theme', zh: '风格', en: 'Style' },
-  { id: 'security', zh: '安全与隐私', en: 'Security and privacy' },
-  { id: 'advanced', zh: '高级功能', en: 'Advanced features' },
+  { id: 'security', zh: '安全', en: 'Security' },
   { id: 'wellbeing', zh: '数字健康', en: 'Digital wellbeing' },
   { id: 'status', zh: '服务状态', en: 'Service status' },
   { id: 'about', zh: '关于本站', en: 'About' },
@@ -40,7 +40,7 @@ async function pinLang(pg, lang) {
 /* Mobile（竖屏）：单列分类列表 */
 test.use({ viewport: { width: 412, height: 915 } });
 
-test('settings home (mobile): 7 category links, each in its own card, no account card, no option groups', async ({ page: pg }) => {
+test('settings home (mobile): 6 category links, each in its own card, no account card, no option groups', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/');
   // 账户卡已移到账号页（顶栏右圆头像进入），设置页不再有
@@ -60,7 +60,6 @@ test('settings home (mobile): 7 category links, each in its own card, no account
     ['/settings/display/'],
     ['/settings/theme/'],
     ['/settings/security/'],
-    ['/settings/advanced/'],
     ['/settings/wellbeing/'],
     ['/settings/status/'],
     ['/settings/about/'],
@@ -69,9 +68,9 @@ test('settings home (mobile): 7 category links, each in its own card, no account
   await expect(catList.locator('a[href="/settings/security/"]')).not.toContainText('锁屏、隐私');
   await expect(catList.locator('.set-row .text-xs')).toHaveCount(0);
   // 删掉的分类不再出现
-  for (const gone of ['manage', 'accessibility', 'goodlock']) await expect(pg.locator(`a[href="/settings/${gone}/"]`), gone).toHaveCount(0);
+  for (const gone of ['manage', 'accessibility', 'goodlock', 'advanced']) await expect(pg.locator(`a[href="/settings/${gone}/"]`), gone).toHaveCount(0);
   // 选项组与双栏导航在移动端不显示（DOM 存在但隐藏）
-  for (const gid of ['#sg-display', '#sg-theme', '#sg-advanced', '#sg-wellbeing', '#sg-about']) {
+  for (const gid of ['#sg-display', '#sg-theme', '#sg-wellbeing', '#sg-about']) {
     await expect(pg.locator(gid), gid).toBeHidden();
   }
   await expect(pg.locator('#set-cat-nav')).toBeHidden();
@@ -84,10 +83,10 @@ test.describe('settings home (dex): two-pane', () => {
   test('left nav switches right pane in place', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/settings/');
-    // 左栏导航可见、7 项
+    // 左栏导航可见、6 项
     const nav = pg.locator('#set-cat-nav');
     await expect(nav).toBeVisible();
-    await expect(nav.locator('.set-cat')).toHaveCount(7);
+    await expect(nav.locator('.set-cat')).toHaveCount(6);
     // 移动端列表隐藏
     await expect(pg.locator('.set-mobile-only')).toBeHidden();
     // 默认显示 display 窗格
@@ -102,13 +101,13 @@ test.describe('settings home (dex): two-pane', () => {
     // 服务状态也是独立页面：导航项直接链到 /settings/status/（点击不拦截，不在右窗格里）
     await expect(nav.locator('[data-cat="status"]')).toHaveAttribute('href', '/settings/status/');
     await expect(pg.locator('#sg-status')).toHaveCount(0);
-    // 点安全与隐私：跳独立页面
+    // 点安全：跳独立页面
     await nav.locator('[data-cat="security"]').click();
     await pg.waitForURL('**/settings/security/', { timeout: 10000 });
   });
 });
 
-test('settings home (en): 7 category links', async ({ page: pg }) => {
+test('settings home (en): 6 category links', async ({ page: pg }) => {
   await pinLang(pg, 'en');
   await gotoSettings(pg, '/en/settings/');
   for (const c of CATS) {
@@ -117,23 +116,19 @@ test('settings home (en): 7 category links', async ({ page: pg }) => {
     await expect(link, `${c.id} title`).toContainText(c.en);
   }
   // 2026-10-23：卡片只有名称，没有灰色副标题
-  await expect(pg.locator('.set-row[href="/en/settings/security/"]')).toHaveText(/^\s*Security and privacy\s*$/);
+  await expect(pg.locator('.set-row[href="/en/settings/security/"]')).toHaveText(/^\s*Security\s*$/);
   await expect(pg.locator('.set-main [aria-label="Categories"] .set-row .text-xs')).toHaveCount(0);
 });
 
 const SUBCHECKS = {
   display: ['#theme-previews', '#row-system', '#seg-layout', '#row-lang'],
   theme: ['#palette-dots'],
-  /* advanced：测试构建（SGX_TEST_NO_WEATHER=1，见 deploy.yml）编译期禁用天气组件，
-     #row-weather 只在生产构建输出，见 layouts/partials/feature.html */
-  advanced: ['#row-datetime', '#mod-keys'],
   wellbeing: ['#wb-card', '#row-welltip'],
   about: [],
 };
 /* 2026-10-23 PR-E：删掉的设置项 */
 const GONE = {
   display: ['#seg-font', '#row-font'],
-  advanced: ['#mod-wellbeing', '#mod-parallax', '#mod-clockstyle', '#mod-sound', '#mod-edgeglow', '#row-reset', '#row-motion', '.exp-tag'],
   wellbeing: ['#well-v-total'],
   about: ['#row-reset'],
 };
@@ -152,10 +147,6 @@ for (const c of CATS) {
     for (const sel of GONE[c.id] || []) {
       await expect(pg.locator(sel), `${sel} removed`).toHaveCount(0);
     }
-    if (c.id === 'advanced') {
-      // 测试构建禁用天气：天气行必须不存在（生产构建才有，见上）
-      await expect(pg.locator('#row-weather'), '#row-weather absent in test build').toHaveCount(0);
-    }
     // noindex
     const robots = await pg.locator('meta[name="robots"]').getAttribute('content');
     expect(robots).toContain('noindex');
@@ -172,7 +163,7 @@ test('legacy hash #display redirects to subpage', async ({ page: pg }) => {
 
 test('settings search removed: no bottom search bar on settings pages; /settings/search/ is gone', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  for (const path of ['/settings/', '/settings/display/', '/settings/advanced/']) {
+  for (const path of ['/settings/', '/settings/display/', '/settings/theme/']) {
     await gotoSettings(pg, path);
     await expect(pg.locator('.sgx-cap, #sgx-cap-settings, #sgx-cap-input-setsearch'), path).toHaveCount(0);
     await expect(pg.locator('#setso-page')).toHaveCount(0);
@@ -188,8 +179,8 @@ test('settings search removed: no bottom search bar on settings pages; /settings
 test('subpage: system back returns to settings home', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/settings/');
-  await pg.locator('.set-main [aria-label="分类"] a[href="/settings/advanced/"]').click();
-  await pg.waitForURL('**/settings/advanced/', { timeout: 10000 });
+  await pg.locator('.set-main [aria-label="分类"] a[href="/settings/theme/"]').click();
+  await pg.waitForURL('**/settings/theme/', { timeout: 10000 });
   await pg.goBack();
   await pg.waitForURL('**/settings/', { timeout: 10000 });
 });
@@ -392,50 +383,26 @@ test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   expect(await pg.evaluate(() => sessionStorage.getItem('sgx-last-jump'))).toBeNull();
 });
 
-/* 2026-10-23 PR-E：Good Lock 改名「高级功能」（/settings/advanced/），旧地址跳过去；常规管理 / 辅助功能删除，旧地址回设置首页 */
-test('PR-E Advanced features: renamed from Good Lock, no Good Lock branding or LAB badges', async ({ page: pg }) => {
+/* P4-2c（2026-11-05）：高级功能分类（原 Good Lock）整个删除：页面 404，没有 301；旧 hash 留在设置首页 */
+test('P4-2c Advanced features gone: /settings/advanced/ and /settings/goodlock/ are 404', async ({ page: pg }) => {
+  for (const p of ['/settings/advanced/', '/en/settings/advanced/', '/settings/goodlock/', '/en/settings/goodlock/']) {
+    const r = await pg.request.get(p, { maxRedirects: 0 });
+    expect(r.status(), p).toBe(404);
+  }
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/settings/advanced/');
-  await expect(pg.locator('.sgx-tb-title')).toHaveText('高级功能');
-  await expect(pg.locator('main')).not.toContainText(/Good Lock|实验/);
-  const rows = await pg.locator('#sg-advanced .set-row').evaluateAll((els) => els.map((e) => e.id));
-  expect(rows).toEqual(['row-datetime', 'mod-keys']); /* 测试构建没有天气行 */
-  /* 快捷键开关写同一个 key */
-  const row = pg.locator('#mod-keys');
-  const sw = row.locator('.gl-switch');
-  await expect(sw).toHaveAttribute('aria-checked', 'false');
-  await row.click();
-  await expect(sw).toHaveAttribute('aria-checked', 'true');
-  expect(await pg.evaluate(() => localStorage.getItem('sgx-gl-keys'))).toBe('1');
-  await row.click();
-  expect(await pg.evaluate(() => localStorage.getItem('sgx-gl-keys'))).toBeNull();
-  /* 时钟样式在日期和时间弹层里（key 仍是 sgx-gl-clockstyle） */
-  const sheet = pg.locator('#sheet-body');
-  await expect(async () => {
-    await pg.locator('#row-datetime').click();
-    await expect(sheet.locator('#dt-clock')).toBeVisible({ timeout: 1500 });
-  }).toPass({ timeout: 15000 });
-  await expect(sheet.locator('#dt-clock')).toContainText('时钟样式');
-  await expect(sheet.locator('#dt-clock-sw')).toHaveAttribute('aria-checked', 'false');
-  await sheet.locator('#dt-clock').click();
-  await expect(sheet.locator('#dt-clock-sw')).toHaveAttribute('aria-checked', 'true');
-  expect(await pg.evaluate(() => localStorage.getItem('sgx-gl-clockstyle'))).toBe('1');
-});
-
-test('PR-E Advanced features (en)', async ({ page: pg }) => {
-  await pinLang(pg, 'en');
-  await gotoSettings(pg, '/en/settings/advanced/');
-  await expect(pg.locator('.sgx-tb-title')).toHaveText('Advanced features');
-  await expect(pg.locator('main')).not.toContainText(/Good Lock|LAB/);
-  await expect(pg.locator('#mod-keys')).toContainText('Keyboard shortcuts');
+  await gotoSettings(pg, '/settings/#goodlock');
+  expect(new URL(pg.url()).pathname).toBe('/settings/');
+  await expect(pg.locator('#sg-advanced, #row-datetime, #mod-keys, #row-weather')).toHaveCount(0);
+  const fs = require('fs');
+  const path = require('path');
+  const rd = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'web', 'atlas', 'static', '_redirects'), 'utf8');
+  expect(rd).not.toMatch(/goodlock|settings\/advanced/);
 });
 
 test('PR-E old settings URLs redirect', async ({ page: pg }) => {
   await blockExternalRequests(pg);
   /* 每条用对应语言钉住（sgx-lang 和地址语言不一致会再跳一次） */
   for (const [from, to] of [
-    ['/settings/goodlock/', '/settings/advanced/'],
-    ['/en/settings/goodlock/', '/en/settings/advanced/'],
     ['/settings/manage/', '/settings/'],
     ['/settings/accessibility/', '/settings/'],
     ['/en/settings/manage/', '/en/settings/'],
@@ -445,16 +412,10 @@ test('PR-E old settings URLs redirect', async ({ page: pg }) => {
     await pg.goto(from, { waitUntil: 'domcontentloaded' });
     await pg.waitForURL((u) => u.pathname === to, { timeout: 10000 });
   }
-  await pinLang(pg, 'zh');
-  /* 旧 hash */
-  await pg.goto('/settings/#goodlock', { waitUntil: 'domcontentloaded' });
-  await pg.waitForURL('**/settings/advanced/', { timeout: 10000 });
   /* 线上 301（Pages _redirects） */
   const fs = require('fs');
   const path = require('path');
   const rd = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'web', 'atlas', 'static', '_redirects'), 'utf8');
-  expect(rd).toMatch(/^\/settings\/goodlock\/\s+\/settings\/advanced\/\s+301$/m);
-  expect(rd).toMatch(/^\/goodlock\/\s+\/settings\/advanced\/\s+301$/m);
   expect(rd).toMatch(/^\/settings\/manage\/\s+\/settings\/\s+301$/m);
   expect(rd).toMatch(/^\/settings\/accessibility\/\s+\/settings\/\s+301$/m);
 });
@@ -511,21 +472,16 @@ test('B2-4 settings has no Apps category; no reset-all-settings row anywhere', a
   await expect(pg.locator('body')).not.toContainText('重置所有设置');
 });
 
-test('No top-bar menu; search engine row lives in Security and privacy', async ({ page: pg }) => {
+test('No top-bar menu; Security has no privacy group or search engine row (P4-2c)', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await blockExternalRequests(pg);
   await pg.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   await expect(pg.locator('#brw-more, .sgx-tb-more')).toHaveCount(0);
   await gotoSettings(pg, '/settings/security/');
-  const row = pg.locator('#sec-engine');
-  const sheet = pg.locator('#sheet-body');
-  await expect(async () => {
-    await row.click();
-    await expect(sheet.getByText('Bing', { exact: true })).toBeVisible({ timeout: 1500 });
-  }).toPass({ timeout: 15000 });
-  await sheet.getByText('Bing', { exact: true }).click();
-  expect(await pg.evaluate(() => localStorage.getItem('sgx-search-engine'))).toBe('bing');
+  await expect(pg.locator('.sgx-tb-title')).toHaveText('安全');
+  await expect(pg.locator('#sec-engine')).toHaveCount(0);
+  await expect(pg.locator('main')).not.toContainText('搜索引擎');
 });
 
 /* 2026-10-24：显示页的行顺序 跟随系统 → 语言 → 布局；分隔线照旧（第一行没有，后面每行上方一条） */

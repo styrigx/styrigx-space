@@ -118,7 +118,7 @@ test.describe('390×844 行为', () => {
     /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
     ['/account/', '登录账号'],
     ['/account/reset/', '重置登录'],
-    ['/settings/security/', '安全与隐私'],
+    ['/settings/security/', '安全'],
     ['/settings/security/lock/', '锁屏凭证'],
     ['/settings/display/', '显示'],
     ['/en/settings/status/', 'Service status'],
@@ -175,7 +175,7 @@ test.describe('390×844 行为', () => {
     await scrolledTo(page, 400);
     await animationsDone(page);
     expect(await page.evaluate(() => document.body.classList.contains('sgx-stuck'))).toBe(false);
-    await expect(page.locator('.sgx-tb-title')).toHaveText('安全与隐私');
+    await expect(page.locator('.sgx-tb-title')).toHaveText('安全');
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-title')).opacity)).toBe('1');
     const after = await Promise.all(['.sgx-tb-pill', '.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-me'].map((s) => box(page, s)));
     for (let i = 0; i < 4; i++) {

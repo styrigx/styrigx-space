@@ -1,14 +1,13 @@
 /**
- * @fileoverview 设置页：显示（主题、布局、语言）、风格（调色板）、高级功能（日期和时间 / 时钟样式、天气）、
- * 数字健康、桌面双栏。（2026-10-23 PR-E：字体大小、减弱动效、重置所有设置删除）
+ * @fileoverview 设置页：显示（主题、布局、语言）、风格（调色板）、数字健康、桌面双栏。
+ * （2026-10-23 PR-E：字体大小、减弱动效、重置所有设置删除；P4-2c：日期和时间、天气、快捷键连同高级功能分类删除）
  * 文案来自页面内 sgx-i18n-settings JSON（中英双语），JS 与语言无关。
  * 2026-10-24 页内切换（shell/inpage-tabs.js）：不再在 import 时直接跑，改成 mountSettings()，返回 destroy()；
  * 设置首页每次切进来都是服务器那份 HTML 的新拷贝 + 重新挂（同整页打开一样），切走时 destroy 拆掉本次挂的全部监听 / 定时器 / 撤销条。
  * 设置子页（/settings/<cat>/）由 entry-settings.js 照旧在加载时挂一次。
  */
 import { on as evOn } from '../lib/events.js';
-import { esc } from '../lib/util.js';
-import { get, set, remove, getJSON, setJSON } from '../lib/storage.js';
+import { get } from '../lib/storage.js';
 import { get as featGet, set as featSet, on as featOnRaw } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { openSheet } from '../shell/sheet.js';
@@ -45,8 +44,6 @@ export function mountSettings() {
   function $(id) {
     return document.getElementById(id);
   }
-  const CHEVR =
-    '<svg width="18" height="18" class="w-[18px] h-[18px] text-m-on-surface-variant shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>';
   /** @param {string} id @param {boolean} on_ */
   function setSwitch(id, on_) {
     const el = $(id);
@@ -68,90 +65,6 @@ export function mountSettings() {
   /* 旧分类 hash（/settings/#display、#sg-theme、#goodlock 等）→ 对应子页。只在设置首页（中英）生效。
      2026-10-25 从 settings.html 的内联脚本搬进来（CSP：少一段要算 sha256 的内联脚本），逻辑不变。 */
   legacyHashRedirect();
-
-  /* 「高级功能」里的开关行（.gl-row / .gl-switch，data-key + data-def）：点一下翻转，等于默认值时删 key。
-     2026-10-25 从 setcat-advanced.html 的内联脚本搬进来（CSP），逻辑不变；
-     以前页内切换（inpage-tabs 会去掉取回页面里的 <script>）进来的设置栏这些开关不响应，现在随 mountSettings 绑定、destroy 拆掉。 */
-  document.querySelectorAll('.gl-row').forEach(function (row) {
-    const sw = row.querySelector('.gl-switch');
-    if (!sw) return;
-    /** @param {string|null} key @param {boolean} def */
-    const isOn = function (key, def) {
-      const v = get(String(key));
-      return def ? v !== '0' : v === '1';
-    };
-    const paint = function () {
-      sw.setAttribute('aria-checked', isOn(sw.getAttribute('data-key'), sw.getAttribute('data-def') === '1') ? 'true' : 'false');
-    };
-    paint();
-    const toggle = function () {
-      const key = String(sw.getAttribute('data-key'));
-      const def = sw.getAttribute('data-def') === '1';
-      const on_ = !isOn(key, def);
-      set(key, on_ === def ? null : on_ ? '1' : '0');
-      paint();
-      window.dispatchEvent(new Event('sgx-settings-changed'));
-    };
-    on(row, 'click', toggle);
-    on(row, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.target !== row) return;
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        toggle();
-      }
-    });
-  });
-
-  /* ---- 时区列表（两边共用） ---- */
-  const TZS = [
-    { id: 'Asia/Shanghai', zh: '北京', en: 'Beijing' },
-    { id: 'Asia/Taipei', zh: '台北', en: 'Taipei' },
-    { id: 'Asia/Hong_Kong', zh: '香港', en: 'Hong Kong' },
-    { id: 'Asia/Tokyo', zh: '东京', en: 'Tokyo' },
-    { id: 'Asia/Seoul', zh: '首尔', en: 'Seoul' },
-    { id: 'Asia/Singapore', zh: '新加坡', en: 'Singapore' },
-    { id: 'Asia/Bangkok', zh: '曼谷', en: 'Bangkok' },
-    { id: 'Asia/Dubai', zh: '迪拜', en: 'Dubai' },
-    { id: 'Asia/Kolkata', zh: '加尔各答', en: 'Kolkata' },
-    { id: 'Asia/Karachi', zh: '卡拉奇', en: 'Karachi' },
-    { id: 'Europe/Moscow', zh: '莫斯科', en: 'Moscow' },
-    { id: 'Europe/Berlin', zh: '柏林', en: 'Berlin' },
-    { id: 'Europe/Paris', zh: '巴黎', en: 'Paris' },
-    { id: 'Europe/London', zh: '伦敦', en: 'London' },
-    { id: 'America/New_York', zh: '纽约', en: 'New York' },
-    { id: 'America/Chicago', zh: '芝加哥', en: 'Chicago' },
-    { id: 'America/Denver', zh: '丹佛', en: 'Denver' },
-    { id: 'America/Los_Angeles', zh: '洛杉矶', en: 'Los Angeles' },
-    { id: 'America/Anchorage', zh: '安克雷奇', en: 'Anchorage' },
-    { id: 'Pacific/Honolulu', zh: '檀香山', en: 'Honolulu' },
-    { id: 'America/Toronto', zh: '多伦多', en: 'Toronto' },
-    { id: 'America/Vancouver', zh: '温哥华', en: 'Vancouver' },
-    { id: 'Australia/Sydney', zh: '悉尼', en: 'Sydney' },
-    { id: 'Pacific/Auckland', zh: '奥克兰', en: 'Auckland' },
-  ];
-  /** @param {string} id */
-  function tzLabel(id) {
-    for (let i = 0; i < TZS.length; i++) {
-      if (TZS[i].id === id) return en ? TZS[i].en : TZS[i].zh;
-    }
-    return String(id).split('/').pop().replace(/_/g, ' ');
-  }
-  function deviceTz() {
-    try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    } catch (e) {
-      return 'UTC';
-    }
-  }
-  function tz1auto() {
-    return !!featGet('tz1-auto');
-  }
-  function firstCity() {
-    return tz1auto() ? tzLabel(deviceTz()) : tzLabel(featGet('tz1'));
-  }
-  function secondCity() {
-    return tzLabel(featGet('tz2'));
-  }
 
   /* ---- 主题模式 ---- */
   function curMode() {
@@ -298,17 +211,13 @@ export function mountSettings() {
   paintLayout();
   featOn('layout', paintLayout);
 
-  /* ---- 语言（显示）/ 日期和时间、天气（高级功能）行：当前值 ---- */
+  /* ---- 语言（显示）行：当前值 ---- */
   function paintManage() {
     const lv = $('lang-val');
     if (lv) {
       const v = langVal();
       lv.textContent = v === 'system' ? T.t('langSystem') : v === 'en' ? 'English' : '中文';
     }
-    const dt = $('dt-val');
-    if (dt) dt.textContent = firstCity() + ' · ' + secondCity();
-    const wx = $('wx-val');
-    if (wx) wx.textContent = featGet('temp-unit') === 'f' ? '℉' : '℃';
   }
   paintManage();
 
@@ -334,251 +243,6 @@ export function mountSettings() {
       },
     });
   });
-
-  /* ---- 日期和时间 ---- */
-  function openDateTime() {
-    const auto = tz1auto();
-    const tz1cur = featGet('tz1');
-    const h12 = featGet('hour12') === '12';
-    const analog = !!featGet('gl-clockstyle');
-    const html =
-      '<div class="px-1 pb-2">' +
-      '<div class="set-row no-ic" id="dt-auto" role="button" tabindex="0">' +
-      '<span class="flex-1 min-w-0"><span class="block font-medium">' + T.t('dtAuto') + '</span>' +
-      '<span class="block text-xs text-m-on-surface-variant mt-0.5">' + T.t('dtAutoSub') + '</span></span>' +
-      '<span class="switch" id="dt-auto-sw" role="switch" aria-checked="' + (auto ? 'true' : 'false') + '" aria-label="' + T.t('dtUseLocal') + '"><span class="knob"></span></span></div>' +
-      '<div class="set-row no-ic' + (auto ? ' is-disabled' : '') + '" id="dt-tz1" role="button" tabindex="0">' +
-      '<span class="flex-1 font-medium">' + T.t('dtTz1') + '</span>' +
-      '<span class="text-sm text-m-on-surface-variant">' + esc(auto ? tzLabel(deviceTz()) : tzLabel(tz1cur)) + '</span>' + CHEVR + '</div>' +
-      '<div class="set-row no-ic" id="dt-tz2" role="button" tabindex="0">' +
-      '<span class="flex-1 font-medium">' + T.t('dtTz2') + '</span>' +
-      '<span class="text-sm text-m-on-surface-variant">' + esc(secondCity()) + '</span>' + CHEVR + '</div>' +
-      '<div class="px-5 py-4"><p class="text-sm font-medium mb-3">' + T.t('dtHour') + '</p>' +
-      '<div class="seg" id="dt-hour" role="group" aria-label="' + T.t('dtHour') + '">' +
-      '<button type="button" data-v="12" aria-pressed="' + (h12 ? 'true' : 'false') + '">' + T.t('dt12') + '</button>' +
-      '<button type="button" data-v="24" aria-pressed="' + (h12 ? 'false' : 'true') + '">' + T.t('dt24') + '</button>' +
-      '</div></div>' +
-      /* 2026-10-23 PR-E：时钟样式（原 Good Lock 模块）并进日期和时间；key 仍是 sgx-gl-clockstyle */
-      '<div class="set-row no-ic" id="dt-clock" role="button" tabindex="0">' +
-      '<span class="flex-1 min-w-0"><span class="block font-medium">' + T.t('dtClock') + '</span>' +
-      '<span class="block text-xs text-m-on-surface-variant mt-0.5">' + T.t('dtClockSub') + '</span></span>' +
-      '<span class="switch" id="dt-clock-sw" role="switch" aria-checked="' + (analog ? 'true' : 'false') + '" aria-label="' + T.t('dtClock') + '"><span class="knob"></span></span></div>' +
-      '<p class="px-5 pb-3 text-xs text-m-on-surface-variant">' + T.t('dtNote') + '</p>' +
-      '</div>';
-    openSheet({ title: T.t('dtTitle'), html: html });
-    const sheetRow = rowToggle;
-    (function rewire() {
-      sheetRow('dt-auto', function () {
-        const on_ = !tz1auto();
-        featSet('tz1-auto', on_);
-        paintManage();
-        window.dispatchEvent(new Event('sgx-settings-changed'));
-        openDateTime();
-      });
-      if (!tz1auto()) {
-        sheetRow('dt-tz1', function () {
-          openTzPicker('sgx-tz1', openDateTime);
-        });
-      }
-      document.querySelectorAll('#dt-hour button').forEach(function (b) {
-        on(b, 'click', function () {
-          featSet('hour12', b.getAttribute('data-v'));
-          document.querySelectorAll('#dt-hour button').forEach(function (x) {
-            x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
-          });
-          window.dispatchEvent(new Event('sgx-settings-changed'));
-        });
-      });
-      sheetRow('dt-tz2', function () {
-        openTzPicker('sgx-tz2', openDateTime);
-      });
-      sheetRow('dt-clock', function () {
-        const on_ = !featGet('gl-clockstyle');
-        featSet('gl-clockstyle', on_);
-        setSwitch('dt-clock-sw', on_);
-        window.dispatchEvent(new Event('sgx-settings-changed'));
-      });
-    })();
-  }
-  rowToggle('row-datetime', openDateTime);
-
-  /* ---- 时区选择器（顶部带搜索） ---- */
-  /** @param {string} key @param {() => void} back */
-  function openTzPicker(key, back) {
-    const cur = key === 'sgx-tz1' ? featGet('tz1') : featGet('tz2');
-    const html =
-      '<div class="px-1 pb-2">' +
-      '<div class="px-4 pb-2"><input id="tzp-q" type="search" autocomplete="off" placeholder="' + T.t('tzpPh') + '" aria-label="' + T.t('tzpAria') + '"' +
-      ' class="w-full rounded-full border border-m-outline bg-m-container px-5 py-2.5 text-sm outline-none placeholder:text-m-on-surface-variant focus:border-m-primary"></div>' +
-      '<div id="tzp-list"></div></div>';
-    openSheet({ title: T.t('tzpTitle'), html: html });
-    /** @param {string} q */
-    function renderList(q) {
-      q = (q || '').toLowerCase();
-      const list = TZS.filter(function (t) {
-        return !q || t.id.toLowerCase().indexOf(q) >= 0 || t.zh.indexOf(q) >= 0 || t.en.toLowerCase().indexOf(q) >= 0;
-      });
-      const box = $('tzp-list');
-      if (!box) return;
-      box.innerHTML = list.length
-        ? list
-            .map(function (t) {
-              const lb = en ? t.en : t.zh;
-              return (
-                '<button type="button" class="sheet-opt" data-tz="' + t.id + '">' +
-                '<span class="flex-1 min-w-0"><span class="block font-medium truncate">' + esc(lb) + '</span>' +
-                '<span class="block text-xs text-m-on-surface-variant truncate">' + t.id + '</span></span>' +
-                (t.id === cur ? '<span class="text-m-primary">✓</span>' : '') + '</button>'
-              );
-            })
-            .join('')
-        : '<p class="px-5 py-4 text-sm text-m-on-surface-variant text-center">' + T.t('tzpNo') + '</p>';
-      box.querySelectorAll('.sheet-opt').forEach(function (b) {
-        on(b, 'click', function () {
-          featSet(key === 'sgx-tz1' ? 'tz1' : 'tz2', b.getAttribute('data-tz'));
-          paintManage();
-          window.dispatchEvent(new Event('sgx-settings-changed'));
-          back();
-        });
-      });
-    }
-    renderList('');
-    const qi = /** @type {HTMLInputElement|null} */ ($('tzp-q'));
-    if (qi) on(qi, 'input', function () {
-      renderList(qi.value.trim());
-    });
-    window.setTimeout(function () {
-      if (qi) qi.focus();
-    }, 300);
-  }
-
-  /* ---- 天气 ---- */
-  function wxLocMode() {
-    return get('sgx-weather-loc') || 'auto';
-  }
-  function wxCityName() {
-    const c = getJSON('sgx-weather-city', null);
-    return (c && c.name) || '';
-  }
-  function openWeather() {
-    const show = !!featGet('weather-show');
-    const unit = featGet('temp-unit') === 'f' ? 'f' : 'c';
-    const locMode = wxLocMode();
-    const cityName = wxCityName();
-    const html =
-      '<div class="px-1 pb-2">' +
-      '<div class="set-row no-ic" id="wx-show" role="button" tabindex="0">' +
-      '<span class="flex-1 font-medium">' + T.t('wxShow') + '</span>' +
-      '<span class="switch" id="wx-show-sw" role="switch" aria-checked="' + (show ? 'true' : 'false') + '"><span class="knob"></span></span></div>' +
-      '<div class="px-5 py-4"><p class="text-sm font-medium mb-3">' + T.t('wxUnit') + '</p>' +
-      '<div class="seg" id="wx-unit" role="group" aria-label="' + T.t('wxUnit') + '">' +
-      '<button type="button" data-v="c" aria-pressed="' + (unit === 'c' ? 'true' : 'false') + '">℃</button>' +
-      '<button type="button" data-v="f" aria-pressed="' + (unit === 'f' ? 'true' : 'false') + '">℉</button>' +
-      '</div></div>' +
-      '<div class="px-5 py-4"><p class="text-sm font-medium mb-3">' + T.t('wxLoc') + '</p>' +
-      '<div class="seg" id="wx-loc" role="group" aria-label="' + T.t('wxLoc') + '">' +
-      '<button type="button" data-v="auto" aria-pressed="' + (locMode === 'auto' ? 'true' : 'false') + '">' + T.t('wxLocAuto') + '</button>' +
-      '<button type="button" data-v="manual" aria-pressed="' + (locMode === 'manual' ? 'true' : 'false') + '">' + T.t('wxLocManual') + '</button>' +
-      '</div>' +
-      '<div id="wx-city-wrap" class="mt-3" style="' + (locMode === 'manual' ? '' : 'display:none') + '">' +
-      '<input type="text" id="wx-city-input" class="w-full px-3 py-2 rounded-lg border border-m-outline bg-m-surface text-sm" placeholder="' + T.t('wxCityPh') + '" value="' + cityName.replace(/"/g, '&quot;') + '">' +
-      '</div>' +
-      '<button type="button" id="wx-precise" class="mt-3 w-full px-3 py-2 rounded-lg border border-m-outline text-sm font-medium">' +
-      T.t('wxLocPrecise') + '<span class="block text-xs opacity-60 font-normal">' + T.t('wxLocPreciseDesc') + '</span></button>' +
-      '</div></div>';
-    openSheet({ title: T.t('wxTitle'), html: html });
-    const sheetRow2 = rowToggle;
-    sheetRow2('wx-show', function () {
-      const on_ = !featGet('weather-show');
-      featSet('weather-show', on_);
-      setSwitch('wx-show-sw', on_);
-      paintManage();
-      window.dispatchEvent(new Event('sgx-settings-changed'));
-    });
-    document.querySelectorAll('#wx-unit button').forEach(function (b) {
-      on(b, 'click', function () {
-        featSet('temp-unit', b.getAttribute('data-v'));
-        document.querySelectorAll('#wx-unit button').forEach(function (x) {
-          x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
-        });
-        paintManage();
-        window.dispatchEvent(new Event('sgx-settings-changed'));
-      });
-    });
-    /* 位置模式切换 */
-    document.querySelectorAll('#wx-loc button').forEach(function (b) {
-      on(b, 'click', function () {
-        const v = b.getAttribute('data-v');
-        set('sgx-weather-loc', v);
-        document.querySelectorAll('#wx-loc button').forEach(function (x) {
-          x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
-        });
-        const wrap = document.getElementById('wx-city-wrap');
-        if (wrap) wrap.style.display = v === 'manual' ? '' : 'none';
-        /* 清除天气缓存，触发重新获取 */
-        remove('sgx-weather');
-        window.dispatchEvent(new Event('sgx-settings-changed'));
-      });
-    });
-    /* 手动城市输入 */
-    const cityInput = document.getElementById('wx-city-input');
-    if (cityInput) {
-      let cityTimer = null;
-      on(cityInput, 'input', function () {
-        if (cityTimer) clearTimeout(cityTimer);
-        cityTimer = setTimeout(function () {
-          const name = cityInput.value.trim();
-          if (!name) return;
-          /* 用 open-meteo geocoding API 解析城市名（免费，无需密钥） */
-          fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(name) + '&count=1&language=zh&format=json')
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-              if (j.results && j.results[0]) {
-                const g = j.results[0];
-                setJSON('sgx-weather-city', {
-                  name: g.name,
-                  lat: g.latitude,
-                  lon: g.longitude,
-                });
-                remove('sgx-weather');
-                window.dispatchEvent(new Event('sgx-settings-changed'));
-              }
-            })
-            .catch(function () {});
-        }, 800);
-      });
-    }
-    /* 精确定位（仅用户点击时触发，不自动弹权限） */
-    const preciseBtn = document.getElementById('wx-precise');
-    if (preciseBtn) {
-      on(preciseBtn, 'click', function () {
-        if (!navigator.geolocation) return;
-        const orig = preciseBtn.innerHTML;
-        preciseBtn.innerHTML = T.t('wxLocating');
-        preciseBtn.disabled = true;
-        navigator.geolocation.getCurrentPosition(
-          function (pos) {
-            setJSON('sgx-weather-precise', {
-              lat: pos.coords.latitude,
-              lon: pos.coords.longitude,
-              ts: Date.now(),
-            });
-            set('sgx-weather-loc', 'precise');
-            remove('sgx-weather');
-            window.dispatchEvent(new Event('sgx-settings-changed'));
-            preciseBtn.innerHTML = orig;
-            preciseBtn.disabled = false;
-          },
-          function () {
-            preciseBtn.innerHTML = orig;
-            preciseBtn.disabled = false;
-          },
-          { timeout: 10000, maximumAge: 600000 }
-        );
-      });
-    }
-  }
-  rowToggle('row-weather', openWeather);
 
   /* ---- 数字健康：时长提示 ---- */
   function paintWellTip() {
@@ -690,10 +354,11 @@ export function mountSettings() {
   };
 }
 
-/* 旧分类 hash → 设置子页（2.6.0 起设置是真实二级页）。manage / accessibility 已删除（回设置首页，不跳）；goodlock → advanced。 */
+/* 旧分类 hash → 设置子页（2.6.0 起设置是真实二级页）。manage / accessibility 已删除（回设置首页，不跳）；
+   P4-2c：高级功能分类（含原 goodlock）删除，同样回设置首页、不跳。 */
 const LEGACY_HASH = /** @type {Record<string, 1|string>} */ ({
-  display: 1, theme: 1, advanced: 1, wellbeing: 1, about: 1, security: 1, goodlock: 'advanced',
-  'sg-display': 'display', 'sg-theme': 'theme', 'sg-advanced': 'advanced', 'sg-goodlock': 'advanced',
+  display: 1, theme: 1, wellbeing: 1, about: 1, security: 1,
+  'sg-display': 'display', 'sg-theme': 'theme',
   'sg-wellbeing': 'wellbeing', 'sg-about': 'about', 'sg-security': 'security',
 });
 

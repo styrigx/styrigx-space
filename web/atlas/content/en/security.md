@@ -1,5 +1,5 @@
 ---
-title: 'Security and privacy'
+title: 'Security'
 layout: security
 url: /en/settings/security/
 ---

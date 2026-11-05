@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:0eb79ebb3681 web/atlas/shared/shell v68dfaee792b3（scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:4e5d0b7b06eb web/atlas/shared/shell v9058f5c68575（scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- prefs-write.js ---- */
 /**
  * @fileoverview 外观写端（2026-11-04 P5-1，定案第 5 条：四站共用一个写端）。
@@ -62,10 +62,6 @@ export function normPalette(v) {
 
 /* ---------------- sgx-ui cookie（原 lib/ui-cookie.js） ---------------- */
 
-/** bool 型 feature：storage on=null/off="0" 时，缺失或非 "0" 即为真。 @param {string} k */
-function boolOnNull(k) {
-  return ls(k) !== '0';
-}
 function readCookie() {
   var m = document.cookie.match(/(?:^|;\s*)sgx-ui=([^;]*)/);
   return m ? m[1] : '';
@@ -88,27 +84,16 @@ function langPref() {
 
 /**
  * 同步 UI 设置到共享 cookie sgx-ui（只含 UI 设置，不含任何凭证或会话信息）。值没变就不重写。
- * 字段→key：tz1←sgx-tz1（sgx-tz1-auto 为真写 "auto"）；tz2←sgx-tz2；h12←sgx-hour12；clock←sgx-gl-clockstyle；wx←sgx-weather-show；
- *   unit←sgx-temp-unit；loc←sgx-weather-loc；city / precise 恒为 null（坐标不进 cookie）；
- *   mode←sgx-theme-mode；pal←sgx-palette；accent：当前主题色种子；fs / rm 固定 'standard' / 0；
+ * P4-2c（2026-11-05）：日期和时间、天气设置删除，tz1 / tz2 / h12 / clock / wx / unit / loc / city / precise 不再写（读端忽略不认识的字段，旧 cookie 里的照样无害）。
+ * 字段→key：mode←sgx-theme-mode；pal←sgx-palette；accent：当前主题色种子；fs / rm 固定 'standard' / 0；
  *   mat：mode 最近一次变化的时间戳；lang←sgx-lang（明确选的 zh / en，跟随系统写 ''）。
  * cookie：sgx-ui=<base64url JSON>; Domain=styrigx.com; Path=/; Max-Age=34560000; SameSite=Lax; Secure（Domain / Secure 按主机名和协议，见 cookieAttrs；不加 HttpOnly：子站要用 JS 读）。
  */
 export function syncUiCookie() {
   var u = U();
   if (!u) return;
-  var tz1Auto = boolOnNull('sgx-tz1-auto');
   var payload = {
     v: u.V,
-    tz1: tz1Auto ? 'auto' : (ls('sgx-tz1') || ''),
-    tz2: ls('sgx-tz2') || '',
-    h12: ls('sgx-hour12') === '12' ? 1 : 0,
-    clock: ls('sgx-gl-clockstyle') === '1' ? 'analog' : 'digital',
-    wx: boolOnNull('sgx-weather-show') ? 1 : 0,
-    unit: ls('sgx-temp-unit') === 'f' ? 'f' : 'c',
-    loc: ls('sgx-weather-loc') || 'auto',
-    city: null,
-    precise: null,
     mode: u.MODES.indexOf(ls('sgx-theme-mode') || '') >= 0 ? ls('sgx-theme-mode') : 'system',
     pal: u.normPal(ls('sgx-palette')),
     accent: currentSeed(),
