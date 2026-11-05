@@ -26,7 +26,7 @@ const listed = si.groups.flatMap((g) => g.keys);
 
 test('同步项清单 = syncKeys()（实际同步的 key），不重复；不含 sgx-lang / sgx-layout', () => {
   const real = syncKeys();
-  assert.ok(real.length >= 10, '读到了 features 定义');
+  assert.ok(real.length >= 5, '读到了 features 定义');
   assert.equal(new Set(listed).size, listed.length, '有重复');
   assert.deepEqual([...listed].sort(), [...real].sort());
   for (const k of ['sgx-lang', 'sgx-layout']) {

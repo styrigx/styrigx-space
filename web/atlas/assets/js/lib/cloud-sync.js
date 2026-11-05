@@ -46,7 +46,7 @@ const FORCE_REUSE_MS = 3000;
 /** 不同步的 key（设备相关） */
 const EXCLUDE = new Set(['sgx-lang', 'sgx-layout']);
 /** features.yaml 之外也要同步的 key */
-const EXTRA = ['sgx-accent', 'sgx-weather-loc', 'sgx-weather-city'];
+const EXTRA = ['sgx-accent']; /* P4-2c：sgx-weather-loc / sgx-weather-city 随天气删除 */
 
 /** @returns {string[]} 要同步的 localStorage key */
 export function syncKeys() {

@@ -24,7 +24,6 @@ import { initWbTrack } from '../lib/wb-track.js';
 import { loadWb } from '../lib/wb-view.js';
 import { wbAreaOf } from '../lib/wb-area.js';
 import { openSheet, closeSheet } from './sheet.js';
-import { engines } from './engines.js';
 import { initFavicon } from './favicon.js';
 import { initTabSwipe } from './tab-swipe.js';
 
@@ -67,10 +66,9 @@ export function initCore() {
   initFeatSync();
   /* Hark：CI 测试构建禁用锁屏（构建期摇掉，线上无残留） */
   if (!SGX_TEST_NO_LOCK) initLock();
-  engines.init();
   /* 标签页图标跟主题色（换色板 / 自定义色 / 深浅色时换 SVG 图标的底色） */
   initFavicon();
-  /* 主页 / 聊天 / 设置：内容里左右滑切上一栏 / 下一栏（同子站手感；有页内切换时走 shell/inpage-tabs.js） */
+  /* 主页 / 设置：内容里左右滑切上一栏 / 下一栏（同子站手感；有页内切换时走 shell/inpage-tabs.js） */
   initTabSwipe();
 
   /* 5.2：写共享 UI cookie sgx-ui（老用户补写；设置变更时再写一次） */
@@ -97,7 +95,6 @@ export function initCore() {
     toast,
     openSheet,
     closeSheet,
-    engines,
     applyTheme,
     setThemeMode,
     scheduler: S,

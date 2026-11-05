@@ -1066,8 +1066,8 @@ test.describe('设置 → 安全与隐私 → 临时钥匙页 › 分享短链�
 
 test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/sync/）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
-  const SYNCED = ['sgx-theme-mode', 'sgx-palette', 'sgx-accent', 'sgx-tz1-auto', 'sgx-tz1', 'sgx-tz2', 'sgx-hour12', 'sgx-gl-clockstyle',
-    'sgx-weather-show', 'sgx-temp-unit', 'sgx-weather-loc', 'sgx-weather-city', 'sgx-search-engine', 'sgx-gl-keys', 'sgx-well-tip', 'sgx-files-view', 'sgx-files-home'];
+  /* P4-2c：日期和时间、天气、搜索引擎、快捷键随功能删除 */
+  const SYNCED = ['sgx-theme-mode', 'sgx-palette', 'sgx-accent', 'sgx-well-tip', 'sgx-files-view', 'sgx-files-home'];
 
   test('总览「云同步」一行是可进入的行（链接 + 箭头，不再是开关）；副标题照旧显示状态', async ({ page }) => {
     await mockAccount(page, {
@@ -1107,10 +1107,7 @@ test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/syn
       localStorage.setItem('sgx-theme-mode', 'dark');
       localStorage.setItem('sgx-palette', 'lake');
       localStorage.setItem('sgx-accent', '#3d7bd9');
-      localStorage.setItem('sgx-hour12', '12');
-      localStorage.setItem('sgx-weather-show', '0');
-      localStorage.setItem('sgx-weather-city', JSON.stringify({ name: 'Shanghai', lat: 31.2, lon: 121.5 }));
-      localStorage.setItem('sgx-gl-keys', '1');
+      localStorage.setItem('sgx-well-tip', '0');
     });
     await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }) });
     await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
@@ -1118,20 +1115,15 @@ test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/syn
     expect([...keys].sort()).toEqual([...SYNCED].sort());
     expect(keys).not.toContain('sgx-lang');
     expect(keys).not.toContain('sgx-layout');
-    await expect(page.locator('#acct-sync-items h3')).toHaveText(['外观', '日期和时间', '天气', '其他']);
-    await expect(page.locator('#acct-sync-items section')).toHaveCount(4);
+    await expect(page.locator('#acct-sync-items h3')).toHaveText(['外观', '其他']);
+    await expect(page.locator('#acct-sync-items section')).toHaveCount(2);
     const val = (k) => page.locator(`[data-sync-key="${k}"] [data-sync-val]`);
     await expect(page.locator('[data-sync-key="sgx-theme-mode"]')).toContainText('主题模式');
     await expect(val('sgx-theme-mode')).toHaveText('深色');
     await expect(val('sgx-palette')).toHaveText('湖蓝');
     await expect(val('sgx-accent')).toHaveText('#3D7BD9');
     await expect(page.locator('[data-sync-key="sgx-accent"] [data-sync-swatch]')).toBeVisible();
-    await expect(val('sgx-hour12')).toHaveText('12 小时制');
-    await expect(val('sgx-tz1-auto')).toHaveText('开');
-    await expect(val('sgx-weather-show')).toHaveText('关');
-    await expect(val('sgx-weather-city')).toHaveText('Shanghai');
-    await expect(val('sgx-weather-loc')).toHaveText('自动（IP 定位）');
-    await expect(val('sgx-gl-keys')).toHaveText('开');
+    await expect(val('sgx-well-tip')).toHaveText('关');
     await expect(val('sgx-files-view')).toHaveText('默认');
     await expect(page.locator('main')).toContainText('语言和布局跟随每台设备各自的设置，不同步。');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -1143,9 +1135,9 @@ test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/syn
     await page.goto('/en/account/sync/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-tb-title')).toHaveText('Cloud sync');
     await expect(page.locator('#acct-sync-sub')).toHaveText('Off. Settings stay on this device');
-    await expect(page.locator('#acct-sync-items h3')).toHaveText(['Appearance', 'Date & time', 'Weather', 'More']);
+    await expect(page.locator('#acct-sync-items h3')).toHaveText(['Appearance', 'More']);
     await expect(page.locator('[data-sync-key="sgx-theme-mode"] [data-sync-val]')).toHaveText('Follow system');
-    await expect(page.locator('[data-sync-key="sgx-weather-show"] [data-sync-val]')).toHaveText('On');
+    await expect(page.locator('[data-sync-key="sgx-well-tip"] [data-sync-val]')).toHaveText('On');
     await expect(page.locator('[data-sync-key="sgx-accent"] [data-sync-val]')).toHaveText('Not set');
   });
 

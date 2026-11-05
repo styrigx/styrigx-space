@@ -4,10 +4,6 @@
 /gh/*  https://github.com/styrigx/:splat               301
 /owner/  /settings/security/lock/  301
 /en/owner/  /en/settings/security/lock/  301
-/goodlock/  /settings/advanced/  301
-/en/goodlock/  /en/settings/advanced/  301
-/settings/goodlock/  /settings/advanced/  301
-/en/settings/goodlock/  /en/settings/advanced/  301
 /chat/  /  301
 /en/chat/  /en/  301
 /search/  /  301
