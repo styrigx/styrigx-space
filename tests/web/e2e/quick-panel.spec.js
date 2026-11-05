@@ -1009,6 +1009,11 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await ai(page).locator('.sgx-ai-send').click();
     await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"]')).toHaveCount(2);
     expect(body.history).toEqual([{ role: 'user', text: 'Muse 是什么？' }, { role: 'assistant', text: 'Muse 是协作代理。' }]);
+    /* 第二条回答流式结束后才写历史：等写满 4 条再换页，否则换页早于写入会只剩 3 条 */
+    await expect.poll(async () => {
+      const v = await ls(page, 'sgx-ai-history');
+      return v ? JSON.parse(v).msgs.length : 0;
+    }).toBe(4);
     /* 换页再开：同一份本地历史 */
     await page.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
     await openAi(page);
