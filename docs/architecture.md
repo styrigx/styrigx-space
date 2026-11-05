@@ -163,9 +163,26 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 
 - `X-Styrigx-Account-*` 只写给 `styrigx-ai`（第 4 件；P4-2b 前还有过渡期的 `search-index`）。账号 Worker 自己验账号会话和作用域，网关只给它写 `X-Styrigx-Lock-*` 和 `X-Styrigx-Client-*`。
 - RPC 结论 `AuthVerifier.conclusion(cookieHeader, clientContext, opts)` → `{ lock: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }`；`lock.ok=false` 时不问账号；账号绑定没配、RPC 出错、回了看不懂的东西 → `account.ok=false`。子站接口 Worker（curio-core、daymark-core）P2-2 起用它。
-- 骨架阶段账号会话自动拥有全部作用域；第 3 件实现只换 `grantedScopes` 的数据源，函数签名、RPC 形状、结论头都不变。
+- 骨架阶段账号会话自动拥有全部作用域；第 3 件实现（P3-1）只换 `grantedScopes` 的数据源，函数签名、RPC 形状、结论头都不变，见下一节。
 - 已删除：锁侧等级头在 P2-3 删（网关不再写，账号 Worker P2-2 起已不读）；旧前缀的等级头 P2-2 停写停读。
 - P2-1 只新增，没有调用方，线上行为不变。
+
+## 授权记录（第 3 件，P3-1）
+
+授权是权限管控，与设备 / 浏览器无关：账号级、一个应用一行，存在账号库 D1 `styrigx-account` 的 `app_grant`（`workers/account/migrations/0004_app_grant.sql`，设计方案 2.5）。取消就删掉这一行，所有设备上这个应用立即失去这项权限；账号会话本身不受影响。
+
+- 判断：`workers/account/src/core/authz.js grantedScopes` 读 `app_grant`（`core/app-grant.js`），返回 已授权 ∩ 作用域表；还没有种子标记时保持骨架行为（全部）。每次授权请求读一次 D1 主库（授权记录 + 账号纪元 + 设备黑名单），不缓存；`authorize` 只读不写。网关、下游和结论头都不变（取消后的写请求 403 scope、wellbeing 上报 204 丢弃，P2-2 已落地的写法）。
+- 首次切换：表空且 `data_migration` 没有 `app-grant-seed-1` 时同一个 batch 写满 5 个应用 + 标记；之后取消到 0 行不再种。
+- 管理：授权卡页 `/account/apps/`（账号总览「设备」「账号安全」同卡一行进入），`POST /api/account` `grant-list` / `grant-revoke`（不要复验）/ `grant-add`（要账号复验）。
+- 同意流程（OAuth 式，奇趣 / 日刻）：应用内点登录 → `/account/?return=<原页面>` → 登录完成后 `grant-list`（先种子再查记录）→ 有授权直接回原页面；没有 → 同意卡片 →「授权」`grant-add` /「拒绝」不写记录，都回原页面。刚完成的登录即视为已复验（登录带 reauth:true，Gray 2026-11-06 定 A）。回原页面走现有的网关回跳（`/api/lock-session-check?return=` 的 `next`，`workers/auth-gateway/src/core/return.js safeReturn`）。主站内功能（设置同步、数字健康、头像）只走管理页。
+
+| 作用域 | 应用（授权卡） | 取消后 |
+|---|---|---|
+| `curio.write` | 奇趣 | 奇趣写接口 403 scope，页底「奇趣未获账号授权」链到 `/account/apps/`；读不变 |
+| `daymark.write` | 日刻 | 同上（日刻） |
+| `prefs.sync` | 设置同步 | `/api/prefs` 403 scope，云同步只存本机 |
+| `wellbeing.write` | 数字健康 | `POST /api/wellbeing` 204 丢弃 |
+| `avatar.write` | 头像 | `PUT` / `DELETE /api/avatar` 403 scope |
 
 ## 锁定与过期
 
