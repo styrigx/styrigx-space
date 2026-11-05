@@ -12,6 +12,9 @@
  * 顶栏 v8（2026-10-22，三个站同一套）：九宫格圆 | 长条（只有页名）| 右圆（每站自定义；主站 = 快捷面板）；头像挪进导航抽屉头（字标右边）。
  * 主站顶栏三栏（2026-10-22 PR2，只在主站）：主页 / 聊天 / 设置（2026-10-24 PR4 第三栏由「状态」换成「设置」）这三页长条里是三个标签（.sgx-tb-tabs），
  * 不放页名；其他页照旧只有页名。三栏本身的验收见 settings-status.spec.js。
+ * 顶栏全大椭圆（2026-11-04 P5-1，四个站同一个）：一整条胶囊 .sgx-topbar = [logo][中间：主站标签 / 页名][快捷面板 · AI · 头像]；
+ * 九宫格圆、导航抽屉、右圆删除（导航进快捷面板第 1 页，见 quick-panel.spec.js）；主站标签只剩 主页 / 设置。材质（--sgx-mat + 毛玻璃）在整条胶囊上，
+ * 中间和按钮本身透明；胶囊高 = 原来圆按钮的高（52，≥ 600 宽按公式到 56），里面的按钮 40px；< 600 宽中间伸缩，≥ 600 宽中间按内容定宽、在屏幕正中。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, nextFrames, animationsDone, scrolledTo, armNavProbe, expect } = require('./helpers');
@@ -45,40 +48,53 @@ for (const dark of [false, true]) {
   test.describe(`390×844 ${dark ? '暗色' : '亮色'}`, () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    for (const path of ['/', '/settings/']) {
-      test(`${path}：九宫格圆、长条（只有页名，屏幕居中）、右圆（快捷面板），坐标、高度、底色一致；顶栏里没有头像`, async ({ page }) => {
+    for (const path of ['/', '/settings/', '/settings/security/']) {
+      test(`${path}：一整条胶囊（logo · 中间 · 快捷面板 · AI · 头像），坐标、高度一致；材质只在胶囊上`, async ({ page }) => {
+        await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
         await go(page, path, { dark });
-        const nav = await box(page, '.sgx-tb-nav');
-        const pill = await box(page, '.sgx-tb-pill');
-        const end = await box(page, '.sgx-tb-end');
-        expect(near(nav.x, 16) && near(nav.x + nav.width, 68), `导航圆 x ${nav.x}–${nav.x + nav.width}`).toBe(true);
-        expect(near(pill.x, 76) && near(pill.x + pill.width, 314), `长条 x ${pill.x}–${pill.x + pill.width}`).toBe(true);
-        /* 长条中心 = 屏幕中心 */
-        expect(near(pill.x + pill.width / 2, 195), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
-        expect(near(end.x, 322) && near(end.x + end.width, 374), `右圆 x ${end.x}–${end.x + end.width}`).toBe(true);
-        for (const b of [nav, pill, end]) {
-          expect(near(b.y, 16), `y ${b.y}`).toBe(true);
-          expect(near(b.height, 52), `高 ${b.height}`).toBe(true);
+        const [bar, logo, pill, q, ai, me] = await Promise.all(['.sgx-topbar', '.sgx-tb-logo', '.sgx-tb-pill', '.sgx-tb-quick', '.sgx-tb-ai', '.sgx-tb-me'].map((s) => box(page, s)));
+        /* 胶囊：左右贴页边距 16，y = 16，高 52 */
+        expect(near(bar.x, 16) && near(bar.x + bar.width, 374), `胶囊 x ${bar.x}–${bar.x + bar.width}`).toBe(true);
+        expect(near(bar.y, 16) && near(bar.height, 52), `胶囊 y ${bar.y} 高 ${bar.height}`).toBe(true);
+        /* 里面的按钮 40px、上下居中；logo 左缘 / 头像右缘离胶囊边 (52 − 40) / 2 = 6 */
+        for (const b of [logo, q, ai, me]) {
+          expect(near(b.height, 40), `高 ${b.height}`).toBe(true);
+          expect(near(b.y + b.height / 2, bar.y + bar.height / 2), `垂直居中 ${b.y}`).toBe(true);
         }
-        expect(near(end.width, 52)).toBe(true);
-        await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-me, .sgx-topbar .sgx-tb-avatar')).toHaveCount(0);
-        /* 顶栏 = 两个圆 + 一个长条；右圆就是快捷面板按钮；长条里只有页名（主页 / 设置首页 = 主页 / 聊天 / 设置三栏，见 settings-status.spec.js） */
+        for (const b of [q, ai, me]) expect(near(b.width, 40)).toBe(true);
+        expect(near(logo.x - bar.x, 6), `logo 左距 ${logo.x - bar.x}`).toBe(true);
+        expect(near(bar.x + bar.width - (me.x + me.width), 6), `头像右距 ${bar.x + bar.width - (me.x + me.width)}`).toBe(true);
+        /* 顺序：logo → 中间 → 快捷面板 → AI → 头像，互不重叠 */
+        expect(logo.x + logo.width).toBeLessThanOrEqual(pill.x + 0.5);
+        expect(pill.x + pill.width).toBeLessThanOrEqual(q.x + 0.5);
+        expect(q.x + q.width).toBeLessThanOrEqual(ai.x + 0.5);
+        expect(ai.x + ai.width).toBeLessThanOrEqual(me.x + 0.5);
+        /* 390 < 400：logo 是圆点简版（40px 圆） */
+        expect(near(logo.width, 40)).toBe(true);
+        await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-nav, .sgx-tb-end, #sgx-drawer')).toHaveCount(0);
         const home = path === '/' || path === '/settings/';
-        expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-nav', home ? 'sgx-tb-pill sgx-tb-pill-tabs' : 'sgx-tb-pill', 'sgx-tb-end sgx-tb-quick']);
+        expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-logo', home ? 'sgx-tb-pill sgx-tb-pill-tabs' : 'sgx-tb-pill', 'sgx-tb-acts']);
         expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className))).toEqual([home ? 'sgx-tb-tabs' : 'sgx-tb-title']);
         await expect(page.locator('.sgx-tb-pill svg, .sgx-tb-pill button')).toHaveCount(0);
-        await expect(page.locator('.sgx-tb-pill a')).toHaveCount(home ? 3 : 0);
-        await expect(page.locator('.sgx-tb-end svg')).toHaveCount(1);
-        /* 页名（主页：三栏标签组）在长条内水平垂直居中 */
+        await expect(page.locator('.sgx-tb-pill a')).toHaveCount(home ? 2 : 0);
+        for (const s of ['.sgx-tb-quick', '.sgx-tb-ai']) await expect(page.locator(s + ' svg')).toHaveCount(1);
+        await expect(page.locator('.sgx-tb-me img.sgx-tb-avatar')).toHaveCount(1);
+        /* 页名（主页：两栏标签组）在长条内水平垂直居中 */
         const tx = await box(page, home ? '.sgx-tb-tabs' : '.sgx-tb-title');
         expect(near(tx.x + tx.width / 2, pill.x + pill.width / 2), `页名水平居中 ${tx.x + tx.width / 2}`).toBe(true);
-        expect(near(tx.y + tx.height / 2, pill.y + pill.height / 2), `页名垂直居中 ${tx.y + tx.height / 2}`).toBe(true);
-        /* 三块同材质 */
-        const st = await page.evaluate(() =>
-          ['.sgx-tb-nav', '.sgx-tb-pill', '.sgx-tb-end'].map((s) => { const c = getComputedStyle(document.querySelector(s)); return [c.backgroundColor, c.borderTopColor, c.boxShadow].join('|'); })
-        );
-        expect(st[0]).toBe(st[1]);
-        expect(st[2]).toBe(st[1]);
+        expect(near(tx.y + tx.height / 2, bar.y + bar.height / 2), `页名垂直居中 ${tx.y + tx.height / 2}`).toBe(true);
+        /* 材质：胶囊 = 悬浮层磨砂（半透明 + 毛玻璃 + 发丝边）；中间、按钮区本身透明 */
+        const st = await page.evaluate(() => {
+          const c = (s) => getComputedStyle(document.querySelector(s));
+          const b = c('.sgx-topbar');
+          return { bar: b.backgroundColor, bf: b.backdropFilter || b.webkitBackdropFilter, bw: b.borderTopWidth, rad: b.borderTopLeftRadius,
+            pill: c('.sgx-tb-pill').backgroundColor, acts: c('.sgx-tb-acts').backgroundColor, q: c('.sgx-tb-quick').backgroundColor };
+        });
+        expect(st.bar).not.toBe('rgba(0, 0, 0, 0)');
+        expect(st.bf).toContain('blur');
+        expect(st.bw).toBe('1px');
+        expect(parseFloat(st.rad)).toBeGreaterThanOrEqual(26);
+        expect([st.pill, st.acts, st.q]).toEqual(['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)']);
       });
     }
   });
@@ -121,13 +137,13 @@ test.describe('390×844 行为', () => {
     });
   }
 
-  test('主页长条里没有设置按钮、没有搜索图标；长条只有 主页 / 聊天 / 设置 三栏（2026-10-22 起不放页名），长条本身不可点', async ({ page }) => {
+  test('主页长条里没有设置按钮、没有搜索图标；长条只有 主页 / 设置 两栏（2026-10-22 起不放页名；2026-11-04 P5-1 去掉聊天），长条本身不可点', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/');
     await expect(page.locator('.sgx-tb-set')).toHaveCount(0);
     await expect(page.locator('.sgx-tb-psearch')).toHaveCount(0);
     expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-tabs']);
-    await expect(page.locator('.sgx-tb-pill .sgx-tb-tab')).toHaveText(['主页', '聊天', '设置']);
+    await expect(page.locator('.sgx-tb-pill .sgx-tb-tab')).toHaveText(['主页', '设置']);
     await expect(page.locator('.sgx-tb-title')).toHaveCount(0);
     await expect(page.locator('#sgx-tb-cap')).toHaveCount(0);
     await expect(page.locator('.sgx-topbar .sgx-tb-search, #sgx-tb-search')).toHaveCount(0);
@@ -140,7 +156,7 @@ test.describe('390×844 行为', () => {
     test(`${path}：正文从顶栏下方 16px 开始（--sgx-content-top，全站同一个值）`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {
-        const bar = document.querySelector('.sgx-tb-pill').getBoundingClientRect();
+        const bar = document.querySelector('.sgx-topbar').getBoundingClientRect();
         const main = document.getElementById('sgx-main');
         const first = main.firstElementChild.getBoundingClientRect();
         return { barBottom: bar.bottom, firstTop: first.top, scrollY: window.scrollY };
@@ -153,7 +169,7 @@ test.describe('390×844 行为', () => {
   test('滚动时长条不变：页名一直显示，没有 sgx-stuck 切换，头像和按钮不动', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/settings/security/');
-    const before = await Promise.all(['.sgx-tb-pill', '.sgx-tb-end', '.sgx-tb-nav'].map((s) => box(page, s)));
+    const before = await Promise.all(['.sgx-tb-pill', '.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-me'].map((s) => box(page, s)));
     await page.evaluate(() => window.scrollTo(0, 400));
     /* C8：原来固定等 300ms；改成等滚动落地（scroll 监听跑完）+ 顶栏可能的过渡结束 */
     await scrolledTo(page, 400);
@@ -161,8 +177,8 @@ test.describe('390×844 行为', () => {
     expect(await page.evaluate(() => document.body.classList.contains('sgx-stuck'))).toBe(false);
     await expect(page.locator('.sgx-tb-title')).toHaveText('安全与隐私');
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-title')).opacity)).toBe('1');
-    const after = await Promise.all(['.sgx-tb-pill', '.sgx-tb-end', '.sgx-tb-nav'].map((s) => box(page, s)));
-    for (let i = 0; i < 3; i++) {
+    const after = await Promise.all(['.sgx-tb-pill', '.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-me'].map((s) => box(page, s)));
+    for (let i = 0; i < 4; i++) {
       expect(near(after[i].x, before[i].x) && near(after[i].y, before[i].y)).toBe(true);
     }
   });
@@ -187,33 +203,31 @@ test.describe('390×844 行为', () => {
     expect(names).toEqual({ bar: 'sgx-topbar', nav: 'none' });
   });
 
-  test('抽屉头的头像圆：点了进账号页（账号体系入口）', async ({ page }) => {
+  test('顶栏最右的头像：点了进账号页（账号体系入口）', async ({ page }) => {
     /* 固定中文：不设 sgx-lang 时语言跟随浏览器（en-US）会把 / 带到 /en/ */
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/');
-    await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/account/');
-    await page.locator('.sgx-tb-nav').click();
-    await expect(page.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
-    await page.locator('.sgx-drawer-me').click();
+    await expect(page.locator('.sgx-tb-me')).toHaveAttribute('href', '/account/');
+    await page.locator('.sgx-tb-me').click();
     await page.waitForURL(/\/account\/$/);
     await expect(page.locator('#acct-login')).toBeVisible();
   });
 
-  test('英文页抽屉头像链到英文账号页', async ({ page }) => {
+  test('英文页头像链到英文账号页', async ({ page }) => {
     await go(page, '/en/');
-    await expect(page.locator('.sgx-drawer-me')).toHaveAttribute('href', '/en/account/');
+    await expect(page.locator('.sgx-tb-me')).toHaveAttribute('href', '/en/account/');
   });
 
-  test('九宫格打开左侧导航抽屉，Esc 关闭', async ({ page }) => {
+  test('快捷面板图标打开快捷面板（第 1 页导航：四个站），Esc 关闭', async ({ page }) => {
     await go(page, '/');
-    await page.locator('.sgx-tb-nav').click();
-    const dr = page.locator('#sgx-drawer');
-    await expect(dr).toBeVisible();
-    await expect(dr.locator('.sgx-drawer-item')).toHaveCount(4);
+    await page.locator('.sgx-tb-quick').click();
+    const qp = page.locator('#sgx-qp');
+    await expect(qp).toBeVisible();
+    await expect(qp.locator('#sgx-qp-page-nav .sgx-qp-nav-item')).toHaveCount(4);
     await page.keyboard.press('Escape');
-    await expect(dr).toBeHidden();
-    await expect(dr).toHaveAttribute('data-state', 'closed');
-    await expect(dr).not.toHaveClass(/\bis-open\b/);
+    await expect(qp).toBeHidden();
+    await expect(qp).toHaveAttribute('data-state', 'closed');
+    await expect(qp).not.toHaveClass(/\bis-open\b/);
   });
 });
 
@@ -221,7 +235,8 @@ test.describe('1280×800', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
   /* 2026-10-23 PR-D：顶栏 = 外壳框 --sgx-shell-w = min(100% − 2 × 页边距, 最宽)，最宽 DeX 1440 / Mobile 640；
-     页边距 ≥ 600 宽 = clamp(16, 5.333 + 2.2222vw, 48)；圆按钮 clamp(52, 42 + 1.667vw, 56)（≥ 840 宽 56），间距 clamp(8, −2 + 1.667vw, 12） */
+     页边距 ≥ 600 宽 = clamp(16, 5.333 + 2.2222vw, 48)；顶栏高（原圆按钮）clamp(52, 42 + 1.667vw, 56)（≥ 840 宽 56）。
+     2026-11-04 P5-1 胶囊：里面的按钮 40px，logo 左缘 / 头像右缘离胶囊边 (高 − 40) / 2 */
   for (const [w, h] of [[600, 900], [840, 600], [1280, 800], [1920, 1080], [2560, 1440]]) {
     test(`${w}×${h}：外壳框宽 / 页边距 / 圆按钮按公式（±1px），居中`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
@@ -234,13 +249,14 @@ test.describe('1280×800', () => {
       const bar = await box(page, '.sgx-topbar');
       expect(near(bar.width, want), `宽 ${bar.width} ≠ ${want}`).toBe(true);
       expect(near(bar.x, (w - want) / 2), `x ${bar.x}`).toBe(true);
-      const me = await box(page, '.sgx-tb-end');
-      const nav = await box(page, '.sgx-tb-nav');
-      const pill = await box(page, '.sgx-tb-pill');
-      expect(near(me.width, btn) && near(nav.width, btn) && near(pill.height, btn), `圆 ${nav.width} / ${me.width}，长条高 ${pill.height}，应为 ${btn}`).toBe(true);
-      expect(near(nav.x, bar.x) && near(me.x + me.width, bar.x + bar.width), '两侧圆外缘 = 框边').toBe(true);
-      const g = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.sgx-topbar')).columnGap));
-      expect(Math.abs(g - gap), `间距 ${g} ≠ ${gap}`).toBeLessThanOrEqual(0.5);
+      const me = await box(page, '.sgx-tb-me');
+      const logo = await box(page, '.sgx-tb-logo');
+      const q = await box(page, '.sgx-tb-quick');
+      expect(near(bar.height, btn), `顶栏高 ${bar.height}，应为 ${btn}`).toBe(true);
+      expect(near(me.width, 40) && near(q.width, 40) && near(logo.height, 40), `按钮 ${me.width} / ${q.width} / logo 高 ${logo.height}，应为 40`).toBe(true);
+      const inset = (btn - 40) / 2;
+      expect(near(logo.x - bar.x, inset) && near(bar.x + bar.width - (me.x + me.width), inset), `logo / 头像离胶囊边应为 ${inset}`).toBe(true);
+      void gap;
     });
   }
 
@@ -248,14 +264,16 @@ test.describe('1280×800', () => {
     test(`${w}px：两侧圆同宽贴顶栏两端，长条只包住页名、中心 = 屏幕中心、页名中心 = 屏幕中心（±1px）`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
       await go(page, '/settings/security/');
-      const [bar, nav, pill, me] = await Promise.all(['.sgx-topbar', '.sgx-tb-nav', '.sgx-tb-pill', '.sgx-tb-end'].map((s) => box(page, s)));
+      const [bar, logo, pill, me] = await Promise.all(['.sgx-topbar', '.sgx-tb-logo', '.sgx-tb-pill', '.sgx-tb-me'].map((s) => box(page, s)));
       expect(near(pill.x + pill.width / 2, w / 2), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
-      expect(near(pill.x - nav.x, me.x + me.width - (pill.x + pill.width)), '两侧同宽').toBe(true);
-      /* 2026-10-23：宽屏长条按内容定宽（min 160 / max 480），不再拉满；两侧圆仍贴顶栏两端 */
-      expect(near(nav.x, bar.x) && near(me.x + me.width, bar.x + bar.width), '两侧圆贴顶栏两端').toBe(true);
+      /* ≥ 600 宽：胶囊里三列 1fr auto 1fr，中间两侧同宽 */
+      expect(near(pill.x - bar.x, bar.x + bar.width - (pill.x + pill.width)), '两侧同宽').toBe(true);
+      /* 宽屏长条按内容定宽（min 160 / max 480），不拉满；logo 贴左、头像贴右 */
+      expect(logo.x - bar.x).toBeLessThanOrEqual(9);
+      expect(bar.x + bar.width - (me.x + me.width)).toBeLessThanOrEqual(9);
       expect(pill.width, `长条宽 ${pill.width}`).toBeGreaterThanOrEqual(159);
       expect(pill.width, `长条宽 ${pill.width}`).toBeLessThanOrEqual(481);
-      expect(pill.x - (nav.x + nav.width), '长条和左圆之间留空').toBeGreaterThan(8);
+      expect(pill.x - (logo.x + logo.width), '长条和 logo 之间留空').toBeGreaterThan(8);
       const tx = await box(page, '.sgx-tb-title');
       expect(near(tx.x + tx.width / 2, w / 2), `页名中心 ${tx.x + tx.width / 2}`).toBe(true);
     });
@@ -265,7 +283,7 @@ test.describe('1280×800', () => {
     test(`${path}：宽屏正文同样从顶栏下方 16px 开始，没有大标题区`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {
-        const bar = document.querySelector('.sgx-tb-pill').getBoundingClientRect();
+        const bar = document.querySelector('.sgx-topbar').getBoundingClientRect();
         const first = document.getElementById('sgx-main').firstElementChild.getBoundingClientRect();
         return { barBottom: bar.bottom, firstTop: first.top };
       });

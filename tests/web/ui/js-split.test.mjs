@@ -3,8 +3,8 @@
  *
  * 覆盖：
  * - entries/entry-*.js 全部登记进 baseof 的批量构建列表；各页模板 sgx-entry 指向的入口都在列表里
- * - 顶栏三栏各一个入口：当前栏静态 mount，另两栏 load: import('./lazy-*.js')，三个入口 keep / top 参数一致
- * - lazy-*.js 存在并导出对应挂载函数
+ * - 顶栏两栏（主页 / 设置；2026-11-04 P5-1 去掉聊天）各一个入口：当前栏静态 mount，另一栏 load: import('./lazy-*.js')，两个入口 keep / top 参数一致
+ * - lazy-*.js 存在并导出对应挂载函数；/chat/ 是普通页（entry-chat.js），没有 entry-tab-chat.js / lazy-chat.js
  * - baseof：modulepreload、data-sgx-js 签名、入口加载失败只自动刷新一次（sgx-js-retry）
  * - inpage-tabs.js：用构建签名比对取回来的页面；模块取不到整页导航（同一地址只一次）；core 成功后清标记
  */
@@ -45,21 +45,26 @@ test('各页模板 sgx-entry 指向的入口都在列表里', () => {
   }
   assert.ok(n >= 12, '模板里应有各页入口');
   assert.ok(rd('web/atlas/layouts/index.html').includes('"sgx-entry" "entry-tab-home.js"'));
-  assert.ok(rd('web/atlas/layouts/_default/chat.html').includes('"sgx-entry" "entry-tab-chat.js"'));
+  assert.ok(rd('web/atlas/layouts/_default/chat.html').includes('"sgx-entry" "entry-chat.js"'), 'P5-1：/chat/ 普通页入口');
   assert.ok(rd('web/atlas/layouts/_default/settings.html').includes('"sgx-entry" "entry-tab-settings.js"'));
 });
 
-test('三栏入口：当前栏静态挂、另两栏 import(lazy-*.js)，keep / top 一致', () => {
-  const TABS = { home: ['index.js', 'mountHome'], chat: ['chat.js', 'mountChat'], settings: ['settings.js', 'mountSettings'] };
+test('两栏入口：当前栏静态挂、另一栏 import(lazy-*.js)，keep / top 一致；聊天不再是标签', () => {
+  const TABS = { home: ['index.js', 'mountHome'], settings: ['settings.js', 'mountSettings'] };
+  assert.ok(!existsSync(join(root, ENTRY_DIR, 'entry-tab-chat.js')), 'entry-tab-chat.js 已改名 entry-chat.js');
+  assert.ok(!existsSync(join(root, ENTRY_DIR, 'lazy-chat.js')), 'lazy-chat.js 已删');
+  const chatEntry = rd(`${ENTRY_DIR}/entry-chat.js`);
+  assert.ok(chatEntry.includes("import { mountChat } from '../apps/chat.js'") && !chatEntry.includes('registerTab'), 'entry-chat.js：普通页，不登记页内切换');
   /** @type {Record<string, string>} */
   const flags = {};
   for (const cur of Object.keys(TABS)) {
     const src = rd(`${ENTRY_DIR}/entry-tab-${cur}.js`);
     assert.ok(src.includes(`import { ${TABS[cur][1]} } from '../apps/${TABS[cur][0]}'`), `${cur}: 静态 import 自己那一栏`);
+    assert.ok(!src.includes("registerTab('chat'"), `${cur}: 不再登记聊天栏`);
     for (const id of Object.keys(TABS)) {
       const m = src.match(new RegExp(`registerTab\\('${id}', \\{ (keep: (?:true|false)(?:, top: true)?), (mount|load): ([^\\n]*)\\}\\);`));
       assert.ok(m, `${cur}: 应登记 ${id}`);
-      if (flags[id]) assert.equal(m[1], flags[id], `${id} 的 keep / top 三个入口必须一致`);
+      if (flags[id]) assert.equal(m[1], flags[id], `${id} 的 keep / top 两个入口必须一致`);
       flags[id] = m[1];
       if (id === cur) assert.equal(m[2], 'mount', `${cur}: 当前栏用 mount`);
       else {

@@ -72,31 +72,32 @@ test('设置 › 显示 › 布局：841×673 下 DeX 可选、没有提示；�
   await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
 });
 
-/* ----- 顶栏长条：宽屏只包住内容居中，手机照旧拉满 ----- */
+/* ----- 顶栏长条：宽屏只包住内容居中，手机照旧拉满（2026-11-04 P5-1 胶囊：两侧是 logo 和 快捷面板 · AI · 头像） ----- */
 async function bars(page) {
   return page.evaluate(() => {
     const r = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, w: b.width }; };
-    return { bar: r('.sgx-topbar'), nav: r('.sgx-tb-nav'), pill: r('.sgx-tb-pill'), end: r('.sgx-tb-end'), tabs: r('.sgx-tb-tabs'), vw: window.innerWidth };
+    return { bar: r('.sgx-topbar'), logo: r('.sgx-tb-logo'), pill: r('.sgx-tb-pill'), acts: r('.sgx-tb-acts'), tabs: r('.sgx-tb-tabs'), vw: window.innerWidth };
   });
 }
 for (const [width, height] of [[1280, 800], [1920, 1080], [1024, 700], [768, 1024]]) {
-  test(`顶栏长条 ${width}×${height}：主页标签胶囊按内容定宽、居中，两侧圆贴两端`, async ({ page }) => {
+  test(`顶栏长条 ${width}×${height}：主页标签按内容定宽、居中，logo / 按钮组贴胶囊两端`, async ({ page }) => {
     await go(page, { width, height }, '/');
     await expect(page.locator('.sgx-tb-tabs')).toBeVisible();
     const b = await bars(page);
     expect(Math.abs(b.pill.x + b.pill.w / 2 - b.vw / 2)).toBeLessThanOrEqual(1);
-    expect(Math.abs(b.nav.x - b.bar.x)).toBeLessThanOrEqual(1);
-    expect(Math.abs(b.end.x + b.end.w - (b.bar.x + b.bar.w))).toBeLessThanOrEqual(1);
+    /* logo 左缘 / 按钮组右缘离胶囊边 = (胶囊高 − 40) / 2（≤ 8） */
+    expect(b.logo.x - b.bar.x).toBeLessThanOrEqual(9);
+    expect(b.bar.x + b.bar.w - (b.acts.x + b.acts.w)).toBeLessThanOrEqual(9);
     expect(b.pill.w).toBeLessThanOrEqual(480);
     expect(b.pill.w).toBeGreaterThanOrEqual(160);
-    expect(b.pill.w).toBeLessThan(b.bar.w - 2 * b.nav.w - 16 - 40);
+    expect(b.pill.w).toBeLessThan(b.bar.w - 2 * b.acts.w - 16 - 40);
   });
 }
-test('顶栏长条 412×915：手机照旧拉满（左右圆之间只隔 8px）', async ({ page }) => {
+test('顶栏长条 412×915：手机照旧拉满（logo 和按钮组之间只隔胶囊间距 4px）', async ({ page }) => {
   await go(page, { width: 412, height: 915 }, '/settings/security/');
   const b = await bars(page);
-  expect(Math.abs(b.pill.x - (b.nav.x + b.nav.w) - 8)).toBeLessThanOrEqual(1);
-  expect(Math.abs(b.end.x - (b.pill.x + b.pill.w) - 8)).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.pill.x - (b.logo.x + b.logo.w) - 4)).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.acts.x - (b.pill.x + b.pill.w) - 4)).toBeLessThanOrEqual(1);
 });
 
 /* ----- 宽竖屏 Mobile：外框最宽 640 居中，左右边线 = 顶栏两侧圆外缘（2026-10-23 PR-D） ----- */
@@ -259,7 +260,8 @@ test('分屏：900×600 是 DeX，拖窄到 820×600 实时切 Mobile，再拉�
 test.describe('粗指针（触屏）', () => {
   test.use({ hasTouch: true });
   test('顶栏标签看上去仍 40 高、点击区 48', async ({ page }) => {
-    await go(page, { width: 1280, height: 800 }, '/chat/');
+    /* 2026-11-04 P5-1：/chat/ 不再是标签页，改在设置首页量 */
+    await go(page, { width: 1280, height: 800 }, '/settings/');
     expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
     const t = await page.evaluate(() => {
       const e = document.querySelector('.sgx-tb-tab[aria-current="page"]');

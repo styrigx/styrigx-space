@@ -25,7 +25,7 @@ function subsiteHtml() {
   import('${SUB}palette-scheme.js').then(function (m) { SgxUI.setRoles(seed, m.rolesCss(seed)); window.__sgxRoles = seed; });
 } });</script>
 <script>window.__pre = { cls: document.documentElement.className, style: document.documentElement.getAttribute('style') };</script>
-</head><body><div class="sgx-drawer-brand" style="--sgx-drawer-brand-size:26px">${nav.wordmark}</div>
+</head><body><a class="sgx-tb-logo" href="/">${nav.wordmark}</a>
 <script type="module">${shell('favicon.js')}\ninitFavicon();</script>
 </body></html>`;
 }
@@ -94,8 +94,8 @@ test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 u
       /* 语言：本页明确选了中文（sgx-lang=zh）→ 写端带 lang: 'zh'，子站据此跟随 */
       expect(Buffer.from(cookie.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')).toContain('"lang":"zh"');
       if (c.local['sgx-accent']) await expect.poll(() => page.evaluate(() => !!document.getElementById('sgx-accent-roles'))).toBe(true);
-      await page.locator('.sgx-tb-nav').click();
-      await expect(page.locator('#sgx-drawer')).toHaveAttribute('data-state', 'open');
+      /* 字标在顶栏 logo 里（2026-11-04 P5-1，原来在导航抽屉头，要先打开抽屉） */
+      await expect(page.locator('.sgx-tb-logo .sgx-wordmark')).toBeVisible();
       const main = await page.evaluate(measure);
       const mainIcon = await page.locator('link[rel="icon"][type="image/svg+xml"]').getAttribute('href');
 

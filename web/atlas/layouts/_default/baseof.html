@@ -40,8 +40,8 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/avatar/192.webp">
 <link rel="search" type="application/opensearchdescription+xml" title="Styrigx" href="/opensearch.xml">
-{{/* 原地搜索层（共享外壳组件 shell/search-layer.js，2026-10-22 取代 /search/ 页）单独打包、不进页面入口：
-   shell/search-host.js 在按下九宫格 / 打开抽屉 / Ctrl+K 时才 import() 这个地址 */}}
+{{/* 原地搜索层（共享外壳组件 shell/search-layer.js）单独打包、不进页面入口：shell/search-host.js 在 Ctrl+K / 首页 ?q= 时才 import() 这个地址
+   （2026-11-04 P5-1 抽屉删了，只剩这两个隐藏入口；整套在 P4-2 删除） */}}
 {{ $searchJs := resources.Get "js/shell/search-layer.js" | js.Build (dict "minify" true "target" "es2020" "format" "esm") | fingerprint }}
 <meta name="sgx-search-src" content="{{ $searchJs.RelPermalink }}">
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | fingerprint).RelPermalink }}">
@@ -183,118 +183,48 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
 {{ partial "sgx-icon-sprite.html" . }}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
-{{/* 抽屉搜索框的 href = 没 JS 时的去处（/search/ 只是个转到首页并打开搜索层的小跳转页）；有 JS 时原地打开搜索层 */}}
-{{ $searchUrl := "/search/" }}{{ if $isEn }}{{ $searchUrl = "/en/search/" }}{{ end }}
 {{ $acctUrl := "/account/" }}{{ if $isEn }}{{ $acctUrl = "/en/account/" }}{{ end }}
 
-{{/* 顶栏（通版，全站同一套，2026-10-22 v8）：两个圆 + 一个长条：
-   [九宫格圆（打开左侧导航抽屉）] — [长条：只有当前页名] — [右圆：每站自己的按钮（主站 = 快捷面板）]。
-   长条在屏幕上真正居中（两侧各一个同尺寸圆）；长条里只有页名（不可点，主页「首页」/ Home，其他页用页面标题），居中、太长时省略号，
-   三个站一模一样，不放任何图标（2026-10-22 起：搜索图标删了，搜索从抽屉底栏进原地搜索层；快捷面板图标挪到右圆）。
-   右圆 .sgx-tb-end 是唯一按站点自定义的位置：内容来自 partials/topbar-end.html（主站 = 快捷面板按钮 .sgx-tb-quick，
-   打开顶栏下方落下的面板 #sgx-qp，aria-expanded 同步）；子站在自己的同名 partial 里放别的（同一个 .sgx-tb-end 圆，样式在共享外壳 shell.css）。
-   头像从顶栏挪进导航抽屉头（字标右边，见下面抽屉）。
+{{/* 顶栏（2026-11-04 P5-1，全站同一个：方案 6.2–6.5）：一整条胶囊 [logo] [中间：现有导航内容] [快捷面板 · AI · 头像]，
+   连同快捷面板（两页：导航 / 快捷设置）和 AI 窗口，标记都在 partials/shell-topbar.html（共享外壳单一来源，gen-shell 生成 topbar.html 给三个子站）。
+   这里只准备参数：中间 = 主站标签（主页 / 设置，data/topbar-tabs.yaml）或页名；图标、调色板色块、功能开关按主站数据算好传进去。
+   九宫格和导航抽屉删除，站点切换在快捷面板第 1 页（不放搜索框，定案第 2 条）；主站不设分享（定案第 4 条，tiles.share 不传）。
    子页面没有大标题区：页名只在长条里，正文从顶栏下方 --sgx-content-top 开始（input.css，全站同一个值）。 */}}
 {{ $pageName := .Title }}
 {{ if .IsHome }}{{ $pageName = cond $isEn "Home" "首页" }}
 {{ else if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}
 {{ else if eq .Layout "settings-sub" }}{{ $cat := .Params.cat }}{{ range (index site.Data "settings-cats").cats }}{{ if eq .id $cat }}{{ $pageName = cond $isEn .en .zh }}{{ end }}{{ end }}
 {{ end }}
-<header id="site-nav" class="z-50">
-  <div class="sgx-topbar">
-    <button type="button" class="sgx-tb-nav" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}" aria-haspopup="dialog" aria-controls="sgx-drawer" aria-expanded="false">{{ partial "icon.html" "apps-grid" }}</button>
-    {{/* 主站顶栏三栏（2026-10-22；2026-10-24 PR4 第三栏换成设置）：主页 / 聊天 / 设置这三页长条里是三个标签（partials/topbar-tabs.html，data/topbar-tabs.yaml），不放页名；
-       其他页照旧只有页名。只在主站（子站顶栏、共享外壳不变）。 */}}
-    {{ $tabCur := "" }}
-    {{ if .IsHome }}{{ $tabCur = "home" }}{{ else }}{{ range (index site.Data "topbar-tabs").tabs }}{{ if eq .layout $.Layout }}{{ $tabCur = .id }}{{ end }}{{ end }}{{ end }}
-    <div class="sgx-tb-pill{{ if $tabCur }} sgx-tb-pill-tabs{{ end }}">{{ if $tabCur }}{{ partial "topbar-tabs.html" (dict "isEn" $isEn "cur" $tabCur) }}{{ else }}<span class="sgx-tb-title">{{ $pageName }}</span>{{ end }}</div>
-    {{ partial "topbar-end.html" (dict "isEn" $isEn "page" .) }}
-  </div>
-</header>
-
-{{/* 导航抽屉（Gmail Android 式左侧抽屉，head-buttons.js 开关）：九宫格打开；点遮罩 / 系统返回 / Esc 关闭。
-   当前页所在项用药丸高亮（aria-current="page"）。日刻、博客是子站（同一标签页打开）。
-   2026-10-21：抽屉里去掉了「设置」（入口在快捷面板顶栏的齿轮）。2026-10-21 v7（ChatGPT / Muse Android 抽屉式）：
-   抽屉头只有大号站名；中间 .sgx-drawer-body 放导航项（最后一项下面一条发丝分隔线），超出时只有它自己滚；底栏 .sgx-drawer-foot 钉在面板底部
-   （安全区内边距），放整宽搜索框长条（AI 搜索图标 + 「搜索」居中；<a> 没 JS 时进 /search/ 跳转页；
-   JS 接管：点击里同步打开原地搜索层，抽屉原地淡掉、搜索框变成底部搜索栏，见 head-buttons.js / search-host.js）。 */}}
-{{ $navCur := "" }}
-{{ if .IsHome }}{{ $navCur = "home" }}{{ end }}
-{{/* 抽屉项来自 web/atlas/data/shell-nav.json（共享外壳：scripts/gen-shell.mjs 把它连同图标生成 web/atlas/shared/shell/nav.json，子站同步同一份）。
-   合并 PR3 起全部用站内相对地址（partials/shell-nav-href.html）：主站项英文加 /en 前缀，子站项英文在站目录后加 en/。 */}}
+{{/* 主站顶栏两栏（2026-10-22 三栏；2026-11-04 P5-1 去掉「聊天」）：主页 / 设置这两页长条里是标签（partials/topbar-tabs.html），其他页照旧只有页名 */}}
+{{ $tabCur := "" }}
+{{ if .IsHome }}{{ $tabCur = "home" }}{{ else }}{{ range (index site.Data "topbar-tabs").tabs }}{{ if eq .layout $.Layout }}{{ $tabCur = .id }}{{ end }}{{ end }}{{ end }}
+{{ $center := "" }}
+{{ if $tabCur }}{{ $center = partial "topbar-tabs.html" (dict "isEn" $isEn "cur" $tabCur) }}{{ else }}{{ $center = printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}{{ end }}
 {{ $shellNav := index site.Data "shell-nav" }}
-<dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ cond $isEn $shellNav.label.en $shellNav.label.zh }}">
-  <nav class="sgx-drawer-sheet">
-    {{/* 站名 = 字标 SVG（partials/shell-wordmark.html，role="img" aria-label="Styrigx"）；shell-nav.json 的 brand 文字仍保留给子站 / 无 SVG 场合 */}}
-    {{/* 抽屉头 = 字标 + 右边的头像圆（2026-10-22 从顶栏右圆挪来；共享外壳，三个站都有）：主站链到账号页（所有进门的人都一样），
-       子站链到 shell-nav.json 的 me.href（主站）。img 仍是 .sgx-tb-avatar + data-sgx-avatar（换头像 / 锁屏头像读它） */}}
-    <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ partial "shell-wordmark.html" . }}</span><a class="sgx-drawer-me" href="{{ $acctUrl }}" aria-label="{{ cond $isEn $shellNav.me.en $shellNav.me.zh }}"><img src="/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar" data-sgx-avatar="192"></a></div>
-    <div class="sgx-drawer-body">
-    <ul class="sgx-drawer-list">
-      {{ range $shellNav.items }}
-      <li><a class="sgx-drawer-item" href="{{ partial "shell-nav-href.html" (dict "it" . "en" $isEn) }}" data-nav="{{ .id }}"{{ if eq .id $navCur }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" .icon }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
-      {{ end }}
-    </ul>
-    {{/* 导航项下的分隔线（主站专有，ChatGPT / X 抽屉式；CSS .sgx-drawer-sep 在共享外壳段外） */}}
-    <hr class="sgx-drawer-sep" aria-hidden="true">
-    {{ with $shellNav.footer }}
-    <hr class="sgx-drawer-div">
-    <ul class="sgx-drawer-list">
-      {{ range . }}
-      <li><a class="sgx-drawer-item" href="{{ partial "shell-nav-href.html" (dict "it" . "en" $isEn) }}" data-nav="{{ .id }}"{{ if eq .id $navCur }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ partial "icon.html" .icon }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
-      {{ end }}
-    </ul>
-    {{ end }}
-    </div>
-    <div class="sgx-drawer-foot"><a id="sgx-drawer-search" class="sgx-drawer-search" href="{{ $searchUrl }}" aria-label="{{ cond $isEn $shellNav.search.en $shellNav.search.zh }}"><span class="sgx-drawer-search-ic">{{ partial "icon.html" $shellNav.search.icon }}</span><span class="sgx-drawer-search-label" aria-hidden="true">{{ cond $isEn $shellNav.search.en $shellNav.search.zh }}</span></a></div>
-  </nav>
-</dialog>
-{{/* 快捷面板（2026-10-21 v6，One UI 快捷面板式，只放设置里已有的项；shell/quick-panel.js 开关）：
-   长条右端快捷面板图标打开，面板从顶栏底下钻出来、落在顶栏下方，盖住正文（正文不动）；顶栏留在最上面、不压暗，
-   再点图标 / 点遮罩 / 系统返回 / Esc / 点顶栏其他按钮（先关面板再执行）关闭（与导航抽屉同一个状态机 modal-sheet.js，非模态 show()）。
-   2026-10-24 PR4：顶部「快捷面板」标题和右边的齿轮（全部设置）删除，面板直接从磁贴开始；设置入口改成顶栏三栏的「设置」。
-   读屏名字照旧是「快捷面板」（dialog 的 aria-label）。
-   每个磁贴调用的 setter 与设置页相同（lib/prefs.js、auth/lock-now.js），两边写同一个 localStorage key，即时生效。
-   磁贴（两列）：深色模式 | 跟随系统，语言（切到另一种语言）| 立即锁定；
-   行：调色板、布局。各项随 features.yaml 的 build 开关显示 / 隐藏。
-   2026-10-21：减弱动效、字体大小只留在设置页（无障碍 / 显示），面板里不再放；
-   调色板行标题右端「恢复默认」小按钮（回到默认 dustyblue；已是默认时置灰 aria-disabled，不隐藏，免得跳版）。 */}}
+{{ $tbIcons := dict }}
+{{ range (slice "tb-sliders" "tb-chat" "tb-moon" "sun" "tb-globe" "lock" "tb-undo" "share" "tb-send") }}{{ $tbIcons = merge $tbIcons (dict . (partial "icon.html" .)) }}{{ end }}
+{{ range $shellNav.items }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "icon.html" .icon)) }}{{ end }}
+{{ range $shellNav.footer }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "icon.html" .icon)) }}{{ end }}
 {{ $qpFeat := dict }}
 {{ range site.Data.features.features }}{{ $qpFeat = merge $qpFeat (dict .id .) }}{{ end }}
-<dialog id="sgx-qp" class="sgx-qp" aria-label="{{ if $isEn }}Quick panel{{ else }}快捷面板{{ end }}">
-  <div class="sgx-qp-sheet" tabindex="-1" autofocus>
-    <div class="sgx-qp-grid">
-      {{ if partial "feature.html" "theme-mode" }}
-      <button type="button" class="sgx-qp-tile" data-qp="dark" aria-pressed="false"><span class="sgx-qp-ic">{{ partial "icon.html" "moon" }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ if $isEn }}Dark mode{{ else }}深色模式{{ end }}</span><span class="sgx-qp-state" data-qp-state></span></span></button>
-      <button type="button" class="sgx-qp-tile" data-qp="system" aria-pressed="false"><span class="sgx-qp-ic">{{ partial "icon.html" "sun" }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ if $isEn }}Follow system{{ else }}跟随系统{{ end }}</span><span class="sgx-qp-state" data-qp-state></span></span></button>
-      {{ end }}
-      {{ if partial "feature.html" "lang" }}
-      <button type="button" class="sgx-qp-tile" data-qp="lang"><span class="sgx-qp-ic">{{ partial "icon.html" "globe" }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ if $isEn }}Language{{ else }}语言{{ end }}</span><span class="sgx-qp-state">{{ if $isEn }}English{{ else }}中文{{ end }}</span></span></button>
-      {{ end }}
-      <button type="button" class="sgx-qp-tile" data-qp="lock"><span class="sgx-qp-ic">{{ partial "icon.html" "lock" }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ if $isEn }}Lock now{{ else }}立即锁定{{ end }}</span><span class="sgx-qp-state">{{ if $isEn }}Back to lock screen{{ else }}回到锁屏{{ end }}</span></span></button>
-    </div>
-    {{ if partial "feature.html" "palette" }}
-    <div class="sgx-qp-row">
-      <div class="sgx-qp-row-head">
-        <p class="sgx-qp-row-label">{{ if $isEn }}Color palette{{ else }}调色板{{ end }}</p>
-        <button type="button" class="palette-reset" data-qp-reset aria-disabled="true">{{ partial "icon.html" "undo" }}<span>{{ if $isEn }}Reset{{ else }}恢复默认{{ end }}</span></button>
-      </div>
-      {{/* 2026-10-23 PR-G：22 套七色调色板一个网格（不分单色 / 撞色），色块和设置页同一种光晕方块 + 6 个前景色点（.pal-tile，不显示名字） */}}
-      <div class="sgx-qp-sws" role="group" aria-label="{{ if $isEn }}Color palette{{ else }}调色板{{ end }}">
-        {{ range site.Data.palettes.palettes }}<button type="button" class="sgx-qp-sw pal-tile" data-qp-palette="{{ .id }}" style="{{ partial "palette-tile-vars.html" (dict "id" .id "full" false) | safeCSS }}" aria-pressed="false" aria-label="{{ cond $isEn .en .zh }}"><span class="pal-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg></span><span class="pal-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></button>{{ end }}
-      </div>
-    </div>
-    {{ end }}
-    {{ range slice "layout" }}{{ if partial "feature.html" . }}{{ $f := index $qpFeat . }}{{ $label := cond $isEn $f.name.en $f.name.zh }}
-    <div class="sgx-qp-row">
-      <p class="sgx-qp-row-label">{{ $label }}</p>
-      <div class="seg sgx-qp-seg" role="group" aria-label="{{ $label }}" data-qp-seg="{{ $f.id }}">
-        {{ range $f.options }}<button type="button" data-v="{{ .id }}" aria-pressed="false">{{ cond $isEn .en .zh }}</button>{{ end }}
-      </div>
-    </div>
-    {{ end }}{{ end }}
-  </div>
-</dialog>
+{{ $tbPal := slice }}
+{{ range site.Data.palettes.palettes }}{{ $tbPal = $tbPal | append (dict "id" .id "zh" .zh "en" .en "style" (partial "palette-tile-vars.html" (dict "id" .id "full" false))) }}{{ end }}
+{{ $tbTiles := dict "theme" (partial "feature.html" "theme-mode") "lang" (partial "feature.html" "lang") "lock" true "palette" (partial "feature.html" "palette") "layout" (partial "feature.html" "layout") }}
+{{ partial "shell-topbar.html" (dict
+  "isEn" $isEn
+  "home" (cond $isEn "/en/" "/")
+  "center" $center
+  "pillClass" (cond (ne $tabCur "") "sgx-tb-pill-tabs" "")
+  "nav" $shellNav
+  "site" "home"
+  "icons" $tbIcons
+  "wordmark" (partial "shell-wordmark.html" .)
+  "acct" $acctUrl
+  "avatar" "/avatar/192.webp"
+  "tiles" $tbTiles
+  "pal" $tbPal
+  "layout" (index $qpFeat "layout")
+) }}
 
 
 <!-- 搜索 = 原地搜索层（DOM 由 shell/search-layer.js 建，没有独立页面） -->
@@ -389,7 +319,7 @@ window.__hour12=function(){try{return localStorage.getItem('sgx-hour12')==='12'}
    顶栏三栏各自一个入口（entry-tab-*.js）：当前栏的模块随入口静态加载，另两栏按需 import()。
    modulepreload 让入口静态依赖的 chunk 和入口并行下载（不等入口解析完再发现）；放在入口 <script> 前，预加载扫描器同时看到。
    主题 / 锁屏判定 / 防闪的首帧脚本仍在 <head> 内联同步执行，跟这里无关。 */}}
-{{ $sgxJs := partialCached "sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-tab-home" "entry-tab-chat" "entry-tab-settings" "entry-settings" "entry-account" "entry-account-devices" "entry-account-reset" "entry-account-security" "entry-account-sync" "entry-security" "entry-security-lock" "entry-security-tempkeys" "entry-settings-status")) "sgx-js" }}
+{{ $sgxJs := partialCached "sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-tab-home" "entry-chat" "entry-tab-settings" "entry-settings" "entry-account" "entry-account-devices" "entry-account-reset" "entry-account-security" "entry-account-sync" "entry-security" "entry-security-lock" "entry-security-tempkeys" "entry-settings-status")) "sgx-js" }}
 {{ $js := index $sgxJs (strings.TrimSuffix ".js" $entryName) }}
 {{ range $js.preload }}<link rel="modulepreload" href="{{ . }}">
 {{ end }}

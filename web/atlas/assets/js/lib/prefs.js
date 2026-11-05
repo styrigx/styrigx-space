@@ -1,5 +1,6 @@
 /**
  * @fileoverview 外观 / 语言偏好的统一读写（设置页和顶栏快捷面板共用同一套 setter，两边永远同步）。
+ * 2026-11-04 P5-1：cookie 写法、默认色板和存值归一搬进共享外壳的外观写端 lib/prefs-write.js（子站快捷设置也用它）；这里的 setter 仍经 features.js（订阅 / 云同步要用），写的 key 和写端一样。
  * - 存储一律经 features.js（key 不变：sgx-theme-mode / sgx-palette / sgx-layout / sgx-lang），
  *   features.set 内派发 sgx-settings-changed + 订阅回调，
  *   别的页面部件（设置页的开关、快捷面板的磁贴）各自订阅 features.on 重绘。
@@ -11,6 +12,9 @@ import { get as featGet, set as featSet } from './features.js';
 import { set as sset, remove as sremove } from './storage.js';
 import { setThemeMode } from './theme.js';
 import { clearAccent } from './accent.js';
+import { DEFAULT_PALETTE, normPalette } from './prefs-write.js';
+
+export { DEFAULT_PALETTE, normPalette };
 
 /** @returns {'light'|'dark'|'system'} 主题模式偏好 */
 export function themeMode() {
@@ -37,15 +41,7 @@ export function toggleFollowSystem() {
   else setThemeMode('system');
 }
 
-/** 默认调色板（2026-10-23 PR-G 七色调色板：雾霾蓝；= features.yaml palette.default = palettes.json default） */
-export const DEFAULT_PALETTE = 'dustyblue';
-
-/** 存的调色板值 → 合法 id：旧撞色 x<id> 迁到 <id>（PR-G 合并单色 / 撞色），空值 → 默认。
- *  不认识的 id 原样返回（CSS 里没有对应规则，页面本来就渲染成默认；baseof 内联脚本按色板清单清掉）。 @param {any} v @returns {string} */
-export function normPalette(v) {
-  if (typeof v !== 'string' || !v) return DEFAULT_PALETTE;
-  return /^x[a-z]+$/.test(v) ? v.slice(1) : v;
-}
+/* 默认调色板 DEFAULT_PALETTE、存值归一 normPalette：2026-11-04 P5-1 起定义在外观写端 lib/prefs-write.js（四站共用，见上面的 import / export） */
 
 /** @returns {string} 调色板 id（默认 dustyblue） */
 export function palette() {

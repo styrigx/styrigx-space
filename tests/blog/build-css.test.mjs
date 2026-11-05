@@ -1,5 +1,5 @@
 /**
- * 构建产物检查：顶栏 / 抽屉的毛玻璃在最终压缩后的 CSS 里必须同时保留标准写法和 -webkit- 前缀。
+ * 构建产物检查：顶栏 / 快捷面板的毛玻璃在最终压缩后的 CSS 里必须同时保留标准写法和 -webkit- 前缀。
  * 背景：lightningcss（Tailwind 4 内置）会把两行合并成只剩 -webkit-backdrop-filter，Chromium（三星浏览器）就没有模糊了；
  * 所以 scripts/build-css.mjs 只让 Tailwind 处理 tw-input.css，博客 / 共享外壳的样式拼在后面交给 Hugo 压缩。
  * 这个测试读 web/public/css/main.min.*.css，必须先 npm run build。
@@ -37,7 +37,8 @@ const hasWebkit = (body) => /-webkit-backdrop-filter\s*:/.test(body);
 
 /* 两种写法可以在同一条规则里，也可以分开（主站共享外壳可能把标准写法放进 @supports (backdrop-filter: …) 防止被压缩器合并）；
    只要求最终 CSS 里两种都在、值都是 --sgx-mat-filter。降级块 @supports not (…) 里只有纯色背景，不影响判断。 */
-for (const selector of ['.sgx-tb-pill', '.sgx-tb-nav', '.sgx-drawer-sheet']) {
+/* 2026-11-04 P5-1：毛玻璃在整条胶囊 .sgx-topbar 和快捷面板 / AI 窗口的 .sgx-qp-sheet 上（九宫格、抽屉删了） */
+for (const selector of ['.sgx-topbar', '.sgx-qp-sheet']) {
   test(`${selector}：构建后的 CSS 同时有 backdrop-filter 和 -webkit-backdrop-filter`, () => {
     const { file, css } = builtCss();
     const glass = rulesFor(css, selector).filter((b) => hasStd(b) || hasWebkit(b));

@@ -34,15 +34,22 @@ import { fileURLToPath } from 'node:url';
 const SITE = {
   name: 'styrigx-daymark',
   targets: [
-    /* 色彩角色 + 顶栏材质 + 导航抽屉：写进 input.css 的 @sgx-shell:begin / end 两行之间（Tailwind 编进 main.css） */
+    /* 色彩角色 + 顶栏 + 快捷面板 / AI 窗口：写进 input.css 的 @sgx-shell:begin / end 两行之间（Tailwind 编进 main.css） */
     { path: 'web/assets/css/input.css', kind: 'splice', parts: ['tokens.css', 'shell.css'] },
     /* 自定义主题色引擎（js/sgx/shell-accent.js 打包，只在 cookie 是自定义色且没有缓存时才加载） */
     { path: 'web/assets/js/sgx/shell/palette-scheme.js', kind: 'file', parts: ['palette-scheme.js'] },
-    /* 原地搜索层（抽屉底栏搜索框原地变成贴键盘的底栏 + 结果层，不跳主站；js/sgx/search-host.js 打包） */
+    /* 原地搜索层（2026-11-04 P5-1 抽屉删了，子站已没有入口，P4-2 随搜索层一起删；js/sgx/search-host.js 打包） */
     { path: 'web/assets/js/sgx/shell/search.js', kind: 'file', parts: ['search.js'] },
-    /* 顶栏右胶囊的分享按钮（进门的人都一样：锁侧复验后生成带临时会话的短链再系统分享；js/sgx/share-host.js 打包） */
+    /* 快捷面板「分享本页」磁贴（2026-11-04 P5-1 起；进门的人都一样：锁侧复验后生成带临时会话的短链再系统分享；js/sgx/share-host.js 打包） */
     { path: 'web/assets/js/sgx/shell/share.js', kind: 'file', parts: ['share.js'] },
-    /* 导航抽屉项 + 图标（baseof.html）、预设种子 + 引擎版本（tests/web/ui-inherit.test.mjs 核对读端预设表） */
+    /* 顶栏 + 快捷面板 + AI 窗口的标记（Hugo partial，原样，kind raw：不加注释头；2026-11-04 P5-1 四站同一个顶栏） */
+    { path: 'web/layouts/partials/sgx-shell-topbar.html', kind: 'raw', parts: ['topbar.html'] },
+    /* 顶栏两个窗口的开合 / 互斥 / 两页 / 磁贴、状态机、AI 窗口内容、外观写端（入口脚本把后三个传给 topbar.js 的 mountTopbar） */
+    { path: 'web/assets/js/sgx/shell/topbar.js', kind: 'file', parts: ['topbar.js'] },
+    { path: 'web/assets/js/sgx/shell/modal-sheet.js', kind: 'file', parts: ['modal-sheet.js'] },
+    { path: 'web/assets/js/sgx/shell/ai.js', kind: 'file', parts: ['ai.js'] },
+    { path: 'web/assets/js/sgx/shell/prefs-write.js', kind: 'file', parts: ['prefs-write.js'] },
+    /* 快捷面板导航项 + 图标（baseof.html）、预设种子 + 引擎版本（tests/web/ui-inherit.test.mjs 核对读端预设表） */
     { path: 'web/assets/sgx-shell/nav.json', kind: 'json', parts: ['nav.json'] },
     { path: 'web/assets/sgx-shell/palettes.json', kind: 'json', parts: ['palettes.json'] },
     /* 外观 cookie（sgx-ui）读端：经典脚本 ES5，baseof.html 原样内联进 <head>（挂 window.SgxUI），ui-inherit-run.js 调 SgxUI.apply */
@@ -207,8 +214,9 @@ export function renderTargets(bundle, label, current = (p) => (existsSync(siteFi
   const out = {};
   const guard = {};
   for (const t of SITE.targets) {
-    const body = t.kind === 'json' ? files[t.parts[0]] : blockBody(t.parts, files);
-    if (t.kind === 'json') {
+    const raw = t.kind === 'json' || t.kind === 'raw';
+    const body = raw ? files[t.parts[0]] : blockBody(t.parts, files);
+    if (raw) {
       out[t.path] = body;
       guard[t.path] = body;
       continue;
@@ -281,7 +289,7 @@ async function main() {
     const bad = [];
     for (const t of SITE.targets) {
       const text = existsSync(siteFile(t.path)) ? readFileSync(siteFile(t.path), 'utf8') : '';
-      const body = t.kind === 'json' ? text : readBlock(text);
+      const body = t.kind === 'json' || t.kind === 'raw' ? text : readBlock(text);
       if (body === null || sha(body) !== lock.vendored[t.path]) bad.push(t.path);
     }
     if (bad.length) { console.error('共享外壳副本被手改或缺失：' + bad.join('、') + `；改主站后运行 ${SELF}`); process.exit(1); }

@@ -1,0 +1,234 @@
+/* @sgx-shell:begin styrigx/styrigx-space@tree:f867a9a63914 web/atlas/shared/shell v72959998daa4（scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* ---- modal-sheet.js ---- */
+/**
+ * @fileoverview 顶栏弹出层的开合状态机（快捷面板 #sgx-qp、AI 窗口 #sgx-ai 共用；2026-11-04 P5-1 导航抽屉删除）。
+ *
+ * 共享外壳组件：gen-shell 原样复制成 web/shared/shell/modal-sheet.js，子站的 topbar.js / ai.js 由调用方把 modalSheet 传进去用。
+ * 所以本文件不 import 任何东西（减弱动效判断自己写）。
+ *
+ * dlg.dataset.state：closed → opening → open → closing → closed。
+ * 开合只靠我们自己的计时器推进（不等 transitionend：减弱动效 / 后台标签页 / 过渡被打断时它可能永远不来），
+ * 每次开 / 关都换一代 gen，上一代没跑完的 rAF / 计时器一律作废——
+ * 以前「刚点开（is-open 还在等两帧 rAF）就按 Esc」时，迟到的 rAF 会把 is-open 加回去，
+ * 关闭计时器看到 is-open 就不关 <dialog>，弹出层卡在打开状态（CI 偶发）。
+ *
+ * 打开时 push 一条同 URL 的历史哨兵，系统返回只关弹出层不离开页面；
+ * Esc（模态：原生 cancel；非模态 modal:false：document keydown）走 close()，点遮罩由调用方接到 close()；close(after) 先退掉哨兵、等它出栈后再执行 after
+ * （跳转 / 再弹别的层），免得目标页的返回多一步。
+ */
+/** 减弱动效：<html class="reduced-motion">（主站 / 子站读端都会写）或系统 prefers-reduced-motion（同 lib/util.js reducedMotion） */
+function reducedMotion() {
+  return (
+    document.documentElement.classList.contains('reduced-motion') ||
+    !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  );
+}
+/**
+ * @typedef {Object} ModalSheet
+ * @property {() => void} open
+ * @property {(after?: () => void) => void} close 关闭（带滑出动画并退掉哨兵）；after 在哨兵出栈后执行
+ * @property {() => boolean} isOpen
+ * @property {() => boolean} isShown
+ * @property {() => boolean} handoff 同步关掉（不做滑出、不退哨兵），返回历史里是否留着本层的哨兵（交给接手的层，如原地搜索层用 replaceState 接过去）
+ */
+
+/**
+ * @param {HTMLDialogElement} dlg 弹出层 <dialog>（模态：铺满视口，::backdrop 是遮罩；非模态：调用方自己画遮罩）
+ * @param {HTMLElement} btn 打开它的顶栏按钮（同步 aria-expanded）
+ * @param {{ ms: number, stateKey: string, modal?: boolean, onOpen?: () => void, onClosed?: () => void }} opts
+ *   ms：滑入 / 滑出时长（与 CSS transition 一致）；stateKey：历史哨兵 state 里的键名；
+ *   modal：默认 true = showModal()；false = show()（不进顶层、不 inert 页面，快捷面板用：顶栏留在它上面可点）；
+ *   onOpen：打开之后调用（重绘内容）；onClosed：<dialog> 真正关上之后调用（非模态时还焦点用）
+ * @returns {ModalSheet}
+ */
+export function modalSheet(dlg, btn, opts) {
+  const MS = opts.ms;
+  /* 历史里是否有本层的哨兵；关闭时退掉它 */
+  let pushed = false;
+  /* 正在等哨兵出栈的 popstate：null = 不在等；否则出栈后执行它（noop = 只关闭） */
+  /** @type {null | (() => void)} */
+  let awaiting = null;
+  /* 开合代数：每次 open / hide 加一，旧代的回调看到代数变了就什么都不做 */
+  let gen = 0;
+  /** @type {number[]} */ let rafs = [];
+  /** @type {number|null} */ let timer = null;
+  const noop = function () {};
+
+  /** @param {string} st */
+  function setState(st) {
+    dlg.setAttribute('data-state', st);
+  }
+  function cancelPending() {
+    for (let i = 0; i < rafs.length; i++) cancelAnimationFrame(rafs[i]);
+    rafs = [];
+    if (timer) clearTimeout(timer);
+    timer = null;
+  }
+  /** 收尾成「已关」：同步 class / aria / 状态；<dialog> 还开着就关掉 */
+  function settleClosed() {
+    cancelPending();
+    dlg.classList.remove('is-open');
+    btn.setAttribute('aria-expanded', 'false');
+    setState('closed');
+    if (dlg.open) {
+      dlg.close();
+      if (opts.onClosed) {
+        try {
+          opts.onClosed();
+        } catch (e) {}
+      }
+    }
+  }
+  setState('closed');
+
+  function open() {
+    if (dlg.open) return;
+    cancelPending();
+    const my = ++gen;
+    dlg.classList.remove('is-open');
+    try {
+      if (opts.modal === false) dlg.show();
+      else dlg.showModal();
+    } catch (e) {
+      return;
+    }
+    btn.setAttribute('aria-expanded', 'true');
+    if (opts.onOpen) {
+      try {
+        opts.onOpen();
+      } catch (e) {}
+    }
+    const shown = function () {
+      if (my !== gen) return;
+      dlg.classList.add('is-open');
+      if (reducedMotion()) {
+        setState('open');
+        return;
+      }
+      timer = window.setTimeout(function () {
+        timer = null;
+        if (my === gen) setState('open');
+      }, MS);
+    };
+    setState('opening');
+    /* 下一帧再加 is-open，让滑入过渡生效；减弱动效直接到位 */
+    if (reducedMotion()) shown();
+    else rafs.push(requestAnimationFrame(function () { rafs.push(requestAnimationFrame(shown)); }));
+    try {
+      /** @type {Record<string, number>} */
+      const st = {};
+      st[opts.stateKey] = 1;
+      history.pushState(st, '', location.href);
+      pushed = true;
+    } catch (e) {
+      pushed = false;
+    }
+  }
+  /** 只收界面（滑出后关 <dialog>），不动历史 */
+  function hide() {
+    cancelPending();
+    const my = ++gen;
+    btn.setAttribute('aria-expanded', 'false');
+    /* 还没真正滑出来（opening 且 is-open 没加上）或减弱动效：没有可等的滑出，直接关 */
+    const slid = dlg.classList.contains('is-open');
+    dlg.classList.remove('is-open');
+    if (!dlg.open || !slid || reducedMotion()) {
+      settleClosed();
+      return;
+    }
+    setState('closing');
+    timer = window.setTimeout(function () {
+      timer = null;
+      if (my === gen) settleClosed();
+    }, MS);
+  }
+  /** @param {() => void} [after] */
+  function close(after) {
+    if (!dlg.open) {
+      if (after) after();
+      return;
+    }
+    hide();
+    if (pushed) {
+      pushed = false;
+      awaiting = after || noop;
+      history.back();
+    } else if (after) {
+      after();
+    }
+  }
+
+  /* Esc（原生 cancel）：自己关，带滑出动画并退掉哨兵 */
+  dlg.addEventListener('cancel', function (e) {
+    e.preventDefault();
+    close();
+  });
+  /* 非模态没有原生 cancel：自己接 Esc（只在开着、且没被别人处理时） */
+  if (opts.modal === false) {
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || e.defaultPrevented || !dlg.open) return;
+      const st = dlg.getAttribute('data-state');
+      if (st !== 'open' && st !== 'opening') return;
+      e.preventDefault();
+      close();
+    });
+  }
+  /* <dialog> 被我们以外的途径关掉（浏览器连按 Esc 时可能无视 preventDefault 强关）：同步状态并退掉哨兵 */
+  dlg.addEventListener('close', function () {
+    if (dlg.getAttribute('data-state') === 'closed') return;
+    gen++;
+    settleClosed();
+    if (pushed) {
+      pushed = false;
+      awaiting = noop;
+      history.back();
+    }
+  });
+  /* 系统返回：哨兵出栈 → 只关本层，停在本页 */
+  window.addEventListener('popstate', function () {
+    if (awaiting) {
+      const fn = awaiting;
+      awaiting = null;
+      fn();
+      return;
+    }
+    if (dlg.open) {
+      pushed = false;
+      hide();
+    }
+  });
+  /* bfcache 恢复：一律收起 */
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted && dlg.open) {
+      pushed = false;
+      awaiting = null;
+      gen++;
+      settleClosed();
+    }
+  });
+
+  /** 交接：立刻关上 <dialog>（模态关了页面才能聚焦），哨兵留在历史里给接手的层 */
+  function handoff() {
+    const had = pushed;
+    pushed = false;
+    awaiting = null;
+    gen++;
+    settleClosed();
+    return had;
+  }
+
+  return {
+    open,
+    close,
+    handoff,
+    isOpen: function () {
+      return dlg.open;
+    },
+    /** 开着或正在打开（正在滑出收起的不算） */
+    isShown: function () {
+      const st = dlg.getAttribute('data-state');
+      return dlg.open && (st === 'open' || st === 'opening');
+    },
+  };
+}
+/* @sgx-shell:end */

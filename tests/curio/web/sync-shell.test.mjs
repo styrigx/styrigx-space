@@ -14,7 +14,8 @@ const sha = (s) => createHash('sha256').update(s).digest('hex');
 test('副本和 lock 一致（改外壳请改主站，再跑 node scripts/sync-shell.mjs）', () => {
   for (const [p, h] of Object.entries(lock.vendored)) {
     const text = readFileSync(siteUrl(p), 'utf8');
-    const body = p.endsWith('.json') ? text : readBlock(text);
+    /* .json 和 Hugo partial（kind raw，2026-11-04 P5-1 顶栏标记）原样复制、不加标记 */
+    const body = p.endsWith('.json') || p.endsWith('.html') ? text : readBlock(text);
     assert.ok(body !== null, p + ' 缺少 @sgx-shell 标记');
     assert.equal(sha(body), h, p);
   }
@@ -31,10 +32,15 @@ test('JSON 副本就是主站文件原样（sha 同 manifest）', () => {
 test('renderTargets：标记段带来源和版本，内容按 manifest 拼接', () => {
   const files = {
     'tokens.css': ':root{--sgx-primary:#000}\n',
-    'shell.css': '.sgx-drawer{}\n',
+    'shell.css': '.sgx-topbar{}\n',
     'palette-scheme.js': 'export const x = 1;\n',
     'search.js': 'export function mountSearch() {}\n',
     'share.js': 'export function mountShare() {}\n',
+    'topbar.html': '<header id="site-nav"></header>\n',
+    'topbar.js': 'export function mountTopbar() {}\n',
+    'modal-sheet.js': 'export function createModalSheet() {}\n',
+    'ai.js': 'export function mountAi() {}\n',
+    'prefs-write.js': 'export function syncUiCookie() {}\n',
     'nav.json': '{"items":[]}\n',
     'palettes.json': '{"presets":[]}\n',
     'ui-cookie-read.js': '(function (g) { g.SgxUI = {}; })(this);\n',
@@ -43,6 +49,7 @@ test('renderTargets：标记段带来源和版本，内容按 manifest 拼接', 
   const { out } = renderTargets({ manifest: { version: 'abc', files: {} }, files }, 'main', () => `a\n${BEGIN} x */\nold\n${END}\nb\n`);
   for (const [p, text] of Object.entries(out)) {
     if (p.endsWith('.json')) continue;
+    if (p.endsWith('.html')) { assert.equal(text, files['topbar.html'], p + '：raw 原样'); continue; }
     assert.ok(text.includes(BEGIN + ' styrigx/styrigx-space@main web/shared/shell vabc'), p);
     assert.ok(text.includes(END), p);
     assert.doesNotMatch(text, /\nold\n/, p);

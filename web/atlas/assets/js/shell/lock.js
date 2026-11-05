@@ -39,17 +39,18 @@ export function showLockScreen() {
   const en = document.documentElement.lang === 'en';
   const isLocal = isLocalDev();
 
-  /* 头像：复用导航抽屉头的头像图片（2026-10-22 从顶栏挪进抽屉） */
+  /* 头像：复用顶栏右边的头像图片（2026-11-04 P5-1 回到顶栏） */
   const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('.sgx-tb-avatar'));
   /* 锁屏头像 72px：用 192 那张（顶栏是 96） */
   const avatarSrc = navImg ? navImg.src.replace(/\/avatar\/96\.webp/, '/avatar/192.webp') : '';
 
-  /* 顶栏保持全站三件套（用户 2026-10-23：顶栏保留设计）：左九宫格圆 + 页名长条 + 右快捷面板圆，图标取页面顶栏同一份。
-     锁屏上两侧圆只是外观（span、不可点、不进读屏），抽屉 / 快捷面板在锁定时打不开，不能绕过锁屏。 */
-  const tbNavEl = document.querySelector('#site-nav .sgx-tb-nav');
-  const tbEndEl = document.querySelector('#site-nav .sgx-tb-end');
-  const tbNavIc = tbNavEl ? tbNavEl.innerHTML : '';
-  const tbEndIc = tbEndEl ? tbEndEl.innerHTML : '';
+  /* 顶栏保持全站同一个（2026-11-04 P5-1 全大椭圆）：logo + 页名 + 右边三个按钮，外观取页面顶栏同一份。
+     锁屏上它们只是外观（span、不可点、不进读屏），快捷面板 / AI / 账号在锁定时打不开，不能绕过锁屏。 */
+  const tbLogoEl = document.querySelector('#site-nav .sgx-tb-logo');
+  const tbLogo = tbLogoEl ? tbLogoEl.innerHTML : '';
+  const tbActs = Array.from(document.querySelectorAll('#site-nav .sgx-tb-acts .sgx-tb-btn')).map(function (b) {
+    return '<span class="sgx-tb-btn">' + b.innerHTML + '</span>';
+  }).join('');
   const ov = document.createElement('div');
   ov.id = 'sgx-lock';
   ov.setAttribute('role', 'dialog');
@@ -67,12 +68,12 @@ export function showLockScreen() {
      时钟、日期天气、日刻不再放在锁屏上。解锁、凭证、会话逻辑不变：按钮只是转点头像。 */
   ov.innerHTML =
     '<div class="sgx-glass-bg" aria-hidden="true"></div>' +
-    '<div class="sgx-lock-tb">' +
-    '<span class="sgx-tb-nav" aria-hidden="true">' + tbNavIc + '</span>' +
+    '<div class="sgx-lock-tb"><div class="sgx-topbar">' +
+    '<span class="sgx-tb-logo" aria-hidden="true">' + tbLogo + '</span>' +
     /* 顶栏标题（2026-10-24）：静止时「锁定屏幕」，打开解锁方式 / 验证弹层时「解锁屏幕」（syncTitle） */
     '<div class="sgx-tb-pill"><span class="sgx-tb-title" id="sgx-lock-title" aria-live="polite">' + (en ? 'Lock screen' : '锁定屏幕') + '</span></div>' +
-    '<span class="sgx-tb-end" aria-hidden="true">' + tbEndIc + '</span>' +
-    '</div>' +
+    '<span class="sgx-tb-acts" aria-hidden="true">' + tbActs + '</span>' +
+    '</div></div>' +
     '<div class="sgx-lock-stage is-pending" id="sgx-lock-stage">' +
     '<div class="sgx-lock-user"><button type="button" id="sgx-lock-avatar" aria-label="' +
     (en ? 'Unlock, choose method' : '解锁，选择方式') +

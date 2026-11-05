@@ -1,11 +1,12 @@
 /**
- * 主站顶栏三栏页内切换（2026-10-24，shell/inpage-tabs.js + entries/entry-tab-*.js）验收。测试构建（锁屏禁用），手机 412×915。
+ * 主站顶栏两栏页内切换（2026-10-24 三栏，shell/inpage-tabs.js + entries/entry-tab-*.js；2026-11-04 P5-1 去掉「聊天」，只剩 主页 / 设置，
+ * /chat/ 成普通页、不参与页内切换，P4-2 删除）验收。测试构建（锁屏禁用），手机 412×915。
  * - 进来以后切栏不整页导航：同一个 document（window 上的标记还在、没有新的文档请求），地址 / 标题 / aria-current / <meta> / body 标记正确；
  * - 前进后退（popstate）换栏；直接打开每个地址（中英）、刷新都直出那一栏；左右滑也是同一文档；
- * - 切过去以后各栏功能可用（聊天发一条、设置换调色板、主页时钟走）；设置首页 → 设置子页照旧整页导航，返回正常；
+ * - 切过去以后各栏功能可用（设置换调色板、主页时钟走）；设置首页 → 设置子页照旧整页导航，返回正常；
  * - 反复切换：window / document 上的监听数不增长；云同步 GET 只发一次；滚动位置按栏记；
  * - 取不到能用的页面（服务器出错）→ 整页导航；连点只落在最后一栏；
- * - JS 拆分（js.Batch）：首屏只取当前栏的模块，另两栏空闲预取；部署竞态（旧 chunk 404）→ 整页导航到目标地址，
+ * - JS 拆分（js.Batch）：首屏只取当前栏的模块，另一栏空闲预取；部署竞态（旧 chunk 404）→ 整页导航到目标地址，
  *   入口模块图加载失败 → 自动刷新一次（同一地址只一次，不循环）；
  * - 视觉：页内切过去的那一栏和直接打开的同一栏逐像素一致。
  * 运行：npx playwright test --config=tests/config/playwright.config.js inpage-tabs.spec.js
@@ -36,8 +37,8 @@ async function setup(page, o = {}) {
   await page.addInitScript(() => { try { performance.setResourceTimingBufferSize(1000); } catch (e) {} });
   await page.route('**/api/**', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' }));
   if (o.entered) {
-    /* 网关给进门的人的页面在 <html> 上注入 data-sgx-lock-session="valid"：三栏的 HTML（整页和后台取的）都改 */
-    await page.route((u) => /^\/(en\/)?(chat\/|settings\/)?$/.test(u.pathname), async (route) => {
+    /* 网关给进门的人的页面在 <html> 上注入 data-sgx-lock-session="valid"：两栏的 HTML（整页和后台取的）都改 */
+    await page.route((u) => /^\/(en\/)?(settings\/)?$/.test(u.pathname), async (route) => {
       const res = await route.fetch();
       const html = (await res.text()).replace(/<html(\s|>)/i, '<html data-sgx-lock-session="valid"$1');
       await route.fulfill({ response: res, body: html });
@@ -49,7 +50,7 @@ async function setup(page, o = {}) {
 const mark = (page) => page.evaluate(() => { /** @type {any} */ (window).__sameDoc = 1; });
 const sameDoc = (page) => page.evaluate(() => /** @type {any} */ (window).__sameDoc === 1);
 /**
- * 等预取完（另外两栏都取回来了）。C8：原来等 networkidle；改成等具体的东西——
+ * 等预取完（另一栏取回来了）。C8：原来等 networkidle；改成等具体的东西——
  * 本文档的 Resource Timing 里，另外两栏的 HTML（inpage-tabs.js load()：fetch 栏地址）和它们的按需模块（/js/sgx/lazy-<id>-<hash>.js）都已收完。
  * 取失败（500 / 404）也算「取过了」，和原来 networkidle 的语义一致。
  */
@@ -75,46 +76,39 @@ async function expectTab(page, id, title, path) {
   expect(new URL(page.url()).pathname).toBe(path);
 }
 
-test('同一文档里切三栏：地址 / 标题 / aria-current / meta / body 标记都对，没有整页导航', async ({ page }) => {
+test('同一文档里切两栏：地址 / 标题 / aria-current / meta / body 标记都对，没有整页导航；没有聊天栏', async ({ page }) => {
   await setup(page);
   const docs = trackDocs(page);
   await page.goto('/');
   await settle(page);
   await mark(page);
   docs.length = 0;
+  /* 2026-11-04 P5-1：主站标签只剩 主页 / 设置 */
+  await expect(page.locator('.sgx-tb-tab')).toHaveText(['主页', '设置']);
+  await expect(page.locator('.sgx-tb-tab[data-tab="chat"], .sgx-tb-tabs a[href="/chat/"]')).toHaveCount(0);
 
-  await page.click('.sgx-tb-tab[data-tab="chat"]');
-  await expectTab(page, 'chat', '聊天 | Styrigx', '/chat/');
-  await expect(page.locator('#chat-root')).toBeVisible();
+  await page.click('.sgx-tb-tab[data-tab="settings"]');
+  await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
+  await expect(page.locator('[aria-label="分类"].set-cards')).toBeVisible();
   await expect(page.locator('#home-widgets')).toHaveCount(0);
   let s = await page.evaluate(() => ({
     sub: document.body.classList.contains('subpage'), dp: document.body.getAttribute('data-page'),
     robots: (document.querySelector('meta[name="robots"]') || {}).content || null,
     og: document.querySelector('meta[property="og:url"]').getAttribute('content'),
-    ogt: document.querySelector('meta[property="og:title"]').getAttribute('content'),
-    drawerHome: document.querySelector('#sgx-drawer [data-nav="home"]').getAttribute('aria-current'),
+    /* 快捷面板导航页高亮的是「当前站」（主站），不随栏变（2026-11-04 P5-1，方案 6.3） */
+    navHome: document.querySelector('#sgx-qp [data-nav="home"]').getAttribute('aria-current'),
   }));
-  expect(s).toEqual({ sub: true, dp: '', robots: 'noindex,nofollow', og: 'https://styrigx.com/chat/', ogt: '聊天', drawerHome: null });
-
-  await page.click('.sgx-tb-tab[data-tab="settings"]');
-  await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
-  await expect(page.locator('[aria-label="分类"].set-cards')).toBeVisible();
-  s = await page.evaluate(() => ({
-    sub: document.body.classList.contains('subpage'), dp: document.body.getAttribute('data-page'),
-    robots: (document.querySelector('meta[name="robots"]') || {}).content || null,
-    og: document.querySelector('meta[property="og:url"]').getAttribute('content'),
-  }));
-  expect(s).toEqual({ sub: true, dp: 'settings', robots: null, og: 'https://styrigx.com/settings/' });
+  expect(s).toEqual({ sub: true, dp: 'settings', robots: null, og: 'https://styrigx.com/settings/', navHome: 'page' });
 
   await page.click('.sgx-tb-tab[data-tab="home"]');
   await expectTab(page, 'home', 'Styrigx', '/');
   await expect(page.locator('#home-widgets')).toBeVisible();
   s = await page.evaluate(() => ({
     sub: document.body.classList.contains('subpage'), dp: document.body.getAttribute('data-page'),
-    drawerHome: document.querySelector('#sgx-drawer [data-nav="home"]').getAttribute('aria-current'),
+    navHome: document.querySelector('#sgx-qp [data-nav="home"]').getAttribute('aria-current'),
     ids: document.querySelectorAll('#sgx-main [id="chat-root"], #sgx-main [id="set-panes"]').length,
   }));
-  expect(s).toEqual({ sub: false, dp: '', drawerHome: 'page', ids: 0 });
+  expect(s).toEqual({ sub: false, dp: '', navHome: 'page', ids: 0 });
 
   expect(await sameDoc(page)).toBe(true);
   expect(docs, '切栏不请求文档').toEqual([]);
@@ -127,21 +121,21 @@ test('前进 / 后退：同一文档里换栏，内容和标题跟着地址', as
   await settle(page);
   await mark(page);
   docs.length = 0;
-  await page.click('.sgx-tb-tab[data-tab="chat"]');
-  await expectTab(page, 'chat', '聊天 | Styrigx', '/chat/');
   await page.click('.sgx-tb-tab[data-tab="settings"]');
   await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
+  await page.click('.sgx-tb-tab[data-tab="home"]');
+  await expectTab(page, 'home', 'Styrigx', '/');
   await page.goBack();
-  await expectTab(page, 'chat', '聊天 | Styrigx', '/chat/');
-  await expect(page.locator('#chat-root')).toBeVisible();
+  await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
+  await expect(page.locator('#set-panes')).toHaveCount(1);
   await page.goBack();
   await expectTab(page, 'home', 'Styrigx', '/');
   await expect(page.locator('#home-widgets')).toBeVisible();
   await page.goForward();
-  await expectTab(page, 'chat', '聊天 | Styrigx', '/chat/');
-  await page.goForward();
   await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
-  await expect(page.locator('#set-panes')).toHaveCount(1);
+  await page.goForward();
+  await expectTab(page, 'home', 'Styrigx', '/');
+  await expect(page.locator('#home-widgets')).toBeVisible();
   expect(await sameDoc(page)).toBe(true);
   expect(docs).toEqual([]);
 });
@@ -149,10 +143,10 @@ test('前进 / 后退：同一文档里换栏，内容和标题跟着地址', as
 for (const [lang, pre] of [['zh', ''], ['en', '/en']]) {
   test(`直接打开 / 刷新每个地址（${lang}）：服务器直出那一栏；进来后照样页内切换`, async ({ page }) => {
     await setup(page, { lang });
-    const T = lang === 'en' ? { home: 'Styrigx', chat: 'Chat | Styrigx', settings: 'Settings | Styrigx' } : { home: 'Styrigx', chat: '聊天 | Styrigx', settings: '设置 | Styrigx' };
-    const P = { home: pre + '/', chat: pre + '/chat/', settings: pre + '/settings/' };
-    const SEL = { home: '#home-widgets', chat: '#chat-root', settings: '#set-panes' };
-    for (const id of ['home', 'chat', 'settings']) {
+    const T = lang === 'en' ? { home: 'Styrigx', settings: 'Settings | Styrigx' } : { home: 'Styrigx', settings: '设置 | Styrigx' };
+    const P = { home: pre + '/', settings: pre + '/settings/' };
+    const SEL = { home: '#home-widgets', settings: '#set-panes' };
+    for (const id of ['home', 'settings']) {
       await page.goto(P[id]);
       await expectTab(page, id, T[id], P[id]);
       await expect(page.locator(SEL[id])).toHaveCount(1);
@@ -160,14 +154,14 @@ for (const [lang, pre] of [['zh', ''], ['en', '/en']]) {
       await expectTab(page, id, T[id], P[id]);
       await expect(page.locator(SEL[id])).toHaveCount(1);
       /* 链接 href 照旧是真地址（没 JS、新标签页打开都能用） */
-      expect(await page.locator('.sgx-tb-tab').evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual([P.home, P.chat, P.settings]);
+      expect(await page.locator('.sgx-tb-tab').evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual([P.home, P.settings]);
     }
     await settle(page);
     await mark(page);
     await page.click('.sgx-tb-tab[data-tab="home"]');
     await expectTab(page, 'home', T.home, P.home);
-    await page.click('.sgx-tb-tab[data-tab="chat"]');
-    await expectTab(page, 'chat', T.chat, P.chat);
+    await page.click('.sgx-tb-tab[data-tab="settings"]');
+    await expectTab(page, 'settings', T.settings, P.settings);
     expect(await page.evaluate(() => document.documentElement.lang)).toBe(lang);
     expect(await sameDoc(page)).toBe(true);
   });
@@ -200,50 +194,36 @@ test('左右滑：同一文档里换栏，药丸和内容一起换', async ({ pa
     new MutationObserver(() => {
       const cur = document.querySelector('.sgx-tb-tab[aria-current="page"]');
       const id = cur && cur.getAttribute('data-tab');
-      const has = id === 'chat' ? !!document.getElementById('chat-root') : id === 'settings' ? !!document.getElementById('set-panes') : !!document.getElementById('home-widgets');
+      const has = id === 'settings' ? !!document.getElementById('set-panes') : !!document.getElementById('home-widgets');
       if (!has) w.__mismatch++;
     }).observe(document.querySelector('.sgx-tb-tabs'), { attributes: true, subtree: true, attributeFilter: ['aria-current'] });
   });
   await swipe(page, 300, 500, 120, 510);
-  await expectTab(page, 'chat', '聊天 | Styrigx', '/chat/');
+  await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
+  /* 两栏：最右一栏再往左滑不动 */
   await swipe(page, 300, 300, 100, 300);
   await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
   await swipe(page, 120, 400, 320, 390);
-  await expectTab(page, 'chat', '聊天 | Styrigx', '/chat/');
+  await expectTab(page, 'home', 'Styrigx', '/');
+  /* 最左一栏再往右滑不动 */
   await swipe(page, 120, 300, 320, 290);
   await expectTab(page, 'home', 'Styrigx', '/');
   expect(await sameDoc(page)).toBe(true);
   expect(await page.evaluate(() => /** @type {any} */ (window).__mismatch)).toBe(0);
 });
 
-test('切过去以后各栏功能可用：聊天发一条、设置换调色板（主页跟着变）、主页时钟走；设置子页整页导航、返回正常', async ({ page }) => {
+test('切过去以后各栏功能可用：设置换调色板（主页跟着变）、主页时钟走；设置子页整页导航、返回正常', async ({ page }) => {
   await setup(page);
-  await page.route('**/api/chat', async (route) => {
-    if (route.request().method() === 'GET') return route.fulfill({ status: 404, contentType: 'application/json', body: '{"ok":false}' });
-    const body = ['Hugo 的最新版本是 **v0.168.0**。'].map((text) => 'data: ' + JSON.stringify({ t: 'delta', text }) + '\n\n').join('') + 'data: {"t":"done"}\n\n';
-    await route.fulfill({ status: 200, contentType: 'text/event-stream; charset=utf-8', body });
-  });
   await page.goto('/');
   await settle(page);
   await mark(page);
   await expect(page.locator('#clk-l-time')).toHaveText(/^\d\d:\d\d$/);
-
-  await page.click('.sgx-tb-tab[data-tab="chat"]');
-  await page.fill('#chat-input', 'Hugo 最新版本是多少？');
-  await page.click('#chat-send');
-  await expect(page.locator('.chat-msg[data-role="model"] .chat-md strong')).toHaveText('v0.168.0');
-  await expect(page.locator('.chat-msg[data-role="user"]')).toHaveCount(1);
 
   await page.click('.sgx-tb-tab[data-tab="settings"]');
   await expect(page.locator('#set-panes')).toHaveCount(1);
   await page.click('.sgx-tb-tab[data-tab="home"]');
   await expect(page.locator('#home-widgets')).toBeVisible();
   await expect(page.locator('#clk-l-time')).toHaveText(/^\d\d:\d\d$/);
-  await page.click('.sgx-tb-tab[data-tab="chat"]');
-  /* 聊天切走再回来：对话还在（同一块 DOM 留着） */
-  await expect(page.locator('.chat-msg[data-role="model"] .chat-md strong')).toHaveText('v0.168.0');
-  await page.fill('#chat-input', 'x');
-  await expect(page.locator('#chat-send')).toBeEnabled();
 
   await page.click('.sgx-tb-tab[data-tab="settings"]');
   await expect(page.locator('#set-panes')).toHaveCount(1);
@@ -288,7 +268,7 @@ test('设置首页每次切进来都重新挂、切走时拆干净：设置里�
     await page.click('#set-cat-nav [data-cat="display"]');
     await btn.click();
     await expect(page.locator('#sgx-layout-snackbar')).toHaveCount(1);
-    await page.click('.sgx-tb-tab[data-tab="chat"]');
+    await page.click('.sgx-tb-tab[data-tab="home"]');
     await expect(page.locator('#sgx-layout-snackbar')).toHaveCount(0);
   }
 });
@@ -338,7 +318,7 @@ test('反复切换不泄漏：window / document 监听数不涨，计时器不�
   await page.goto('/');
   await settle(page);
   const cycle = async () => {
-    for (const id of ['chat', 'settings', 'home']) {
+    for (const id of ['settings', 'home']) {
       await page.click(`.sgx-tb-tab[data-tab="${id}"]`);
       await expect(page.locator(`.sgx-tb-tab[data-tab="${id}"]`)).toHaveAttribute('aria-current', 'page');
     }
@@ -373,7 +353,7 @@ test('云同步：进门的人页内切换不重复 GET /api/prefs（core 只初
   await mark(page);
   docs.length = 0;
   for (let i = 0; i < 3; i++) {
-    for (const id of ['chat', 'settings', 'home']) {
+    for (const id of ['settings', 'home']) {
       await page.click(`.sgx-tb-tab[data-tab="${id}"]`);
       await expect(page.locator(`.sgx-tb-tab[data-tab="${id}"]`)).toHaveAttribute('aria-current', 'page');
     }
@@ -409,36 +389,36 @@ test('滚动位置按栏记', async ({ page }) => {
 
 test('取不到能用的页面（服务器出错）→ 整页导航；连点只落在最后一栏', async ({ page }) => {
   await setup(page);
-  /* 后台取 /chat/ 一律 500（整页导航的文档请求照常） */
-  await page.route((u) => u.pathname === '/chat/', (r) => (r.request().resourceType() === 'document' ? r.continue() : r.fulfill({ status: 500, body: 'x' })));
+  /* 后台取 /settings/ 一律 500（整页导航的文档请求照常） */
+  await page.route((u) => u.pathname === '/settings/', (r) => (r.request().resourceType() === 'document' ? r.continue() : r.fulfill({ status: 500, body: 'x' })));
   const docs = trackDocs(page);
   await page.goto('/');
   await settle(page);
   await mark(page);
   docs.length = 0;
-  /* 点聊天时它还没取到（预取那次 500）→ 当场再取一次；等这次取的结果回来，就能看它会不会在已经落到设置之后把页面带走 */
-  const chatRefetch = page.waitForResponse((r) => new URL(r.url()).pathname === '/chat/' && r.request().resourceType() === 'fetch');
-  /* 连点：聊天（取不到）→ 设置 → 主页 → 设置：最后落在设置，同一文档 */
+  /* 点设置时它还没取到（预取那次 500）→ 当场再取一次；等这次取的结果回来，就能看它会不会在已经落回主页之后把页面带走 */
+  const refetch = page.waitForResponse((r) => new URL(r.url()).pathname === '/settings/' && r.request().resourceType() === 'fetch');
+  /* 连点：设置（取不到）→ 主页：最后落在主页，同一文档 */
   await page.evaluate(() => {
     const t = (id) => /** @type {HTMLElement} */ (document.querySelector(`.sgx-tb-tab[data-tab="${id}"]`)).click();
-    t('chat'); t('settings'); t('home'); t('settings');
+    t('settings'); t('home');
   });
-  await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
-  /* C8：原来固定等 600ms；改成等聊天那次重取的响应收完，再等过渡结束 */
-  await (await chatRefetch).finished();
+  await expectTab(page, 'home', 'Styrigx', '/');
+  /* C8：等设置那次重取的响应收完，再等过渡结束 */
+  await (await refetch).finished();
   await animationsDone(page);
-  await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
+  await expectTab(page, 'home', 'Styrigx', '/');
   expect(await sameDoc(page)).toBe(true);
   expect(docs).toEqual([]);
-  /* 点聊天：取不到 → 整页导航到 /chat/ */
-  await page.click('.sgx-tb-tab[data-tab="chat"]');
-  await page.waitForURL('**/chat/');
-  await expect(page.locator('#chat-root')).toBeVisible();
-  expect(docs).toEqual(['/chat/']);
+  /* 点设置：取不到 → 整页导航到 /settings/ */
+  await page.click('.sgx-tb-tab[data-tab="settings"]');
+  await page.waitForURL('**/settings/');
+  await expect(page.locator('#set-panes')).toHaveCount(1);
+  expect(docs).toEqual(['/settings/']);
   expect(await sameDoc(page)).toBe(false);
 });
 
-/** 记 /js/sgx/ 下的脚本请求（文件名去掉哈希：entry-tab-home / chunk / lazy-chat …） */
+/** 记 /js/sgx/ 下的脚本请求（文件名去掉哈希：entry-tab-home / chunk / lazy-settings …） */
 function trackJs(page) {
   const js = [];
   page.on('request', (r) => {
@@ -448,7 +428,7 @@ function trackJs(page) {
   return js;
 }
 
-test('JS 拆分：首屏只取当前栏的模块（含 modulepreload），另两栏空闲预取，切过去不再取', async ({ page }) => {
+test('JS 拆分：首屏只取当前栏的模块（含 modulepreload），另一栏空闲预取，切过去不再取', async ({ page }) => {
   await setup(page);
   const js = trackJs(page);
   await page.goto('/');
@@ -466,17 +446,17 @@ test('JS 拆分：首屏只取当前栏的模块（含 modulepreload），另两
   const first = timing.filter((t) => t.before).map((t) => t.f);
   expect(first.filter((f) => f.startsWith('lazy-'))).toEqual([]);
   expect(new Set(first)).toEqual(new Set([entry, ...pre]));
-  /* 空闲预取：另两栏的 lazy 模块 */
+  /* 空闲预取：另一栏的 lazy 模块（没有 lazy-chat 了） */
   await settle(page);
-  await expect.poll(() => js.filter((f) => f.startsWith('lazy-')).map((f) => f.split('-')[1]).sort()).toEqual(['chat', 'settings']);
-  /* 另两栏自己的入口也预热（modulepreload，不执行）：整页打开它们时不用再等一个来回 */
-  await expect.poll(() => page.evaluate(() => Array.from(document.querySelectorAll('link[rel="modulepreload"]')).map((l) => (l.getAttribute('href') || '').replace(/^.*\/(entry-tab-[a-z]+)\..*$/, '$1')).filter((h) => h.startsWith('entry-tab-')).sort())).toEqual(['entry-tab-chat', 'entry-tab-settings']);
+  await expect.poll(() => js.filter((f) => f.startsWith('lazy-')).map((f) => f.split('-')[1]).sort()).toEqual(['settings']);
+  /* 另一栏自己的入口也预热（modulepreload，不执行）：整页打开它时不用再等一个来回 */
+  await expect.poll(() => page.evaluate(() => Array.from(document.querySelectorAll('link[rel="modulepreload"]')).map((l) => (l.getAttribute('href') || '').replace(/^.*\/(entry-tab-[a-z]+)\..*$/, '$1')).filter((h) => h.startsWith('entry-tab-')).sort())).toEqual(['entry-tab-settings']);
   const n = js.length;
   await mark(page);
-  await page.click('.sgx-tb-tab[data-tab="chat"]');
-  await expectTab(page, 'chat', '聊天 | Styrigx', '/chat/');
   await page.click('.sgx-tb-tab[data-tab="settings"]');
   await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
+  await page.click('.sgx-tb-tab[data-tab="home"]');
+  await expectTab(page, 'home', 'Styrigx', '/');
   expect(js.length).toBe(n);
   expect(await sameDoc(page)).toBe(true);
 });
@@ -484,26 +464,26 @@ test('JS 拆分：首屏只取当前栏的模块（含 modulepreload），另两
 for (const when of ['预取', '按下时']) {
   test(`部署竞态：另一栏的模块 404（${when}取）→ 整页导航到目标地址，那页正常、标记清掉`, async ({ page }) => {
     await setup(page);
-    /* 旧文档里取聊天栏的模块一律 404（模拟新部署后旧哈希的 chunk 没了）；整页打开 /chat/ 用的是它自己的入口，不经 lazy-chat */
-    await page.route(/\/js\/sgx\/lazy-chat-[^/]+\.js$/, (r) => r.fulfill({ status: 404, contentType: 'text/html', body: 'not found' }));
+    /* 旧文档里取设置栏的模块一律 404（模拟新部署后旧哈希的 chunk 没了）；整页打开 /settings/ 用的是它自己的入口，不经 lazy-settings */
+    await page.route(/\/js\/sgx\/lazy-settings-[^/]+\.js$/, (r) => r.fulfill({ status: 404, contentType: 'text/html', body: 'not found' }));
     const docs = trackDocs(page);
     await page.goto('/');
     if (when === '预取') await settle(page);
     else await page.waitForLoadState('domcontentloaded');
     await mark(page);
     docs.length = 0;
-    await page.click('.sgx-tb-tab[data-tab="chat"]');
-    await page.waitForURL('**/chat/');
-    await expect(page.locator('#chat-root')).toBeVisible();
-    await expect(page.locator('.sgx-tb-tab[data-tab="chat"]')).toHaveAttribute('aria-current', 'page');
-    expect(docs).toEqual(['/chat/']);
+    await page.click('.sgx-tb-tab[data-tab="settings"]');
+    await page.waitForURL('**/settings/');
+    await expect(page.locator('#set-panes')).toHaveCount(1);
+    await expect(page.locator('.sgx-tb-tab[data-tab="settings"]')).toHaveAttribute('aria-current', 'page');
+    expect(docs).toEqual(['/settings/']);
     expect(await sameDoc(page)).toBe(false);
     /* 新页面 core 初始化成功：同一地址只一次的标记清掉，之后照样页内切换 */
     await expect.poll(() => page.evaluate(() => sessionStorage.getItem('sgx-js-retry'))).toBe(null);
     await settle(page);
     await mark(page);
-    await page.click('.sgx-tb-tab[data-tab="settings"]');
-    await expectTab(page, 'settings', '设置 | Styrigx', '/settings/');
+    await page.click('.sgx-tb-tab[data-tab="home"]');
+    await expectTab(page, 'home', 'Styrigx', '/');
     expect(await sameDoc(page)).toBe(true);
   });
 }
@@ -555,7 +535,7 @@ test('视觉：页内切过去的栏和直接打开的同一栏逐像素一致�
   await page.addInitScript(() => { try { sessionStorage.setItem('sgx-entered', '1'); } catch (e) {} });
   const shot = () => page.screenshot({ animations: 'disabled', caret: 'hide' });
   const direct = {};
-  for (const [id, path] of [['chat', '/chat/'], ['settings', '/settings/'], ['home', '/']]) {
+  for (const [id, path] of [['settings', '/settings/'], ['home', '/']]) {
     await page.goto(path);
     await settle(page);
     /* C8：原来固定等 300ms；改成等字体就绪 + 动画结束 */
@@ -563,8 +543,8 @@ test('视觉：页内切过去的栏和直接打开的同一栏逐像素一致�
     await animationsDone(page);
     direct[id] = await shot();
   }
-  /* 从主页（刚直接打开的那份）切到聊天、设置，再切回主页 */
-  for (const id of ['chat', 'settings', 'home']) {
+  /* 从主页（刚直接打开的那份）切到设置，再切回主页 */
+  for (const id of ['settings', 'home']) {
     await page.click(`.sgx-tb-tab[data-tab="${id}"]`);
     await expect(page.locator(`.sgx-tb-tab[data-tab="${id}"]`)).toHaveAttribute('aria-current', 'page');
     await page.mouse.move(0, 0);

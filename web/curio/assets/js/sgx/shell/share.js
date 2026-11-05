@@ -1,10 +1,10 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:145e0eb5bbed web/atlas/shared/shell v6384a02ddc44（scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:f867a9a63914 web/atlas/shared/shell v72959998daa4（scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- share.js ---- */
 /**
- * @fileoverview 子站顶栏的分享按钮（共享外壳组件，2026-10-24；gen-shell 原样复制成 web/shared/shell/share.js，三个子站 sync-shell 同步）。
+ * @fileoverview 子站「分享本页」（共享外壳组件，2026-10-24；gen-shell 原样复制成 web/shared/shell/share.js，三个子站 sync-shell 同步）。
  * 主站不用它（用户：主站不设计入口）。
  *
- * 顶栏右边是一个胶囊 .sgx-tb-end-group，里面两个按钮：[分享 .sgx-tb-gbtn[data-sgx-share]] [本站自己的按钮（子站 = 留言板）]。
+ * 2026-11-04 P5-1 起它是子站快捷面板第 2 页的「分享本页」磁贴 [data-qp="share"][data-sgx-share]（顶栏右圆分享删除；主站不输出这块磁贴）。
  * 点分享（进门二值，P2-3：不分角色，所有进门的人都一样）：
  * - POST https://styrigx.com/api/share（credentials: include）
  *   { action:'create', reuse:true, name: 页面标题（截 24 字）, to: 当前页（origin + pathname + search，去掉 lock / why / return / share），

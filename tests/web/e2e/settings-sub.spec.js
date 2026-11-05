@@ -235,10 +235,10 @@ test.describe('unlock methods entry relocation', () => {
     await blockExternalRequests(pg);
     await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
-    /* 安全页三项（锁屏凭证/临时钥匙/立即锁定；临时钥匙从账号页搬来）；管理凭证已删除；账号在导航抽屉头的头像（2026-10-22 从顶栏右圆挪进去） */
+    /* 安全页三项（锁屏凭证/临时钥匙/立即锁定；临时钥匙从账号页搬来）；管理凭证已删除；账号在顶栏最右的头像（2026-10-22 从顶栏右圆挪进抽屉头，2026-11-04 P5-1 回到顶栏最右） */
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
     await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
-    await expect(pg.locator('.sgx-drawer-me')).toHaveAttribute('href', '/account/');
+    await expect(pg.locator('.sgx-tb-me')).toHaveAttribute('href', '/account/');
     await expect(pg.locator('#sec-mgmt-cred')).toHaveCount(0);
     const lockCred = pg.locator('#sec-lock-cred');
     await expect(lockCred).toHaveCount(1);

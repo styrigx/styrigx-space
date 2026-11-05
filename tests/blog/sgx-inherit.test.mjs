@@ -364,14 +364,16 @@ test('模块一半：自定义色没缓存时读 --sgx-seed，算好交给 SgxUI
   assert.doesNotMatch(inheritModule, /sgxSeed|data-sgx-seed/);
 });
 
-test('共享外壳副本含 22 套预设（亮 / 暗）和抽屉样式', () => {
+test('共享外壳副本含 22 套预设（亮 / 暗）和顶栏 / 快捷面板样式（2026-11-04 P5-1 抽屉删了）', () => {
   const shell = readFileSync(new URL('../../web/blog/assets/css/sgx-shell.css', import.meta.url), 'utf8');
   assert.equal(palettes.presets.length, 22);
   for (const { id } of palettes.presets) {
     assert.ok(shell.includes(`:root[data-palette="${id}"] {`), id + ' light');
     assert.ok(shell.includes(`:root.dark[data-palette="${id}"] {`), id + ' dark');
   }
-  assert.match(shell, /\.sgx-drawer-item\[aria-current="page"\]/);
+  assert.match(shell, /\.sgx-qp-nav-item\[aria-current="page"\]/);
+  assert.match(shell, /\.sgx-topbar \{ position: fixed;/);
+  assert.doesNotMatch(shell, /\.sgx-drawer-item/);
 });
 
 test('数字健康：文章页 post:<slug>，其他页 blog，上报主站', () => {

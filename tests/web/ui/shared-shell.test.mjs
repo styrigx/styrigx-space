@@ -1,10 +1,10 @@
 /**
  * 共享外壳 web/atlas/shared/shell（scripts/gen-shell.mjs 生成，子站 sync-shell.mjs 同步）：
- * 生成物必须和源头一致；外壳 CSS 只用色彩角色，不写死颜色；抽屉项 / 图标齐全。
+ * 生成物必须和源头一致；外壳 CSS 只用色彩角色，不写死颜色；导航项 / 图标齐全；顶栏标记 topbar.html 四站一份（2026-11-04 P5-1）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -33,53 +33,44 @@ test('外壳 CSS 段只用 --sgx-* 角色：没有十六进制颜色、没有旧
   }
 });
 
-test('抽屉：tonal 当前项、毛玻璃面板、手机宽度由顶栏 token 算', () => {
+test('快捷面板（P5-1，替代抽屉）：非模态窗口在顶栏下面、毛玻璃面板、两页 scroll-snap、导航页 tonal 当前项；抽屉样式全删', () => {
   const s = files['shell.css'];
-  assert.match(s, /\.sgx-drawer-item\[aria-current="page"\][^{]*\{ background: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\)/);
+  assert.match(s, /\.sgx-qp \{ position: fixed; top: var\(--sgx-qp-top\);[^}]*z-index: 45;/, '遮罩在顶栏（z 50+）下面');
   // 毛玻璃两行分开：基础规则只写 -webkit-，标准属性在 @supports 里单独一条（压缩器合并同值两行会丢掉其中一行）
-  assert.match(s, /\.sgx-drawer-sheet \{[^}]*background: var\(--sgx-mat\); -webkit-backdrop-filter: var\(--sgx-mat-filter\);/);
-  assert.match(s, /@supports \(backdrop-filter: blur\(1px\)\) \{\s*\.sgx-drawer-sheet \{ backdrop-filter: var\(--sgx-mat-filter\); \}/);
-  assert.match(s, /@supports \(backdrop-filter: blur\(1px\)\) \{\s*\.sgx-tb-pill, \.sgx-tb-nav, \.sgx-tb-end \{ backdrop-filter: var\(--sgx-mat-filter\); \}/);
-  // 2026-10-22：手机竖屏恢复 #163 之前的宽度（扣半个 --sgx-tb-ic，412 → 290，和子站一致）
-  assert.match(s, /\.sgx-drawer-sheet \{ width: calc\(100% - var\(--sgx-tb-inset\) - 1\.5 \* var\(--sgx-tb-btn\) - var\(--sgx-tb-gap\) - var\(--sgx-tb-ic\) \/ 2\); \}/);
-  // 阴影往右投、清楚可见，深色加深
-  assert.match(s, /--sgx-drawer-shadow: 4px 0 12px rgba\(0,0,0,\.10\), 16px 0 48px rgba\(0,0,0,\.24\)/);
-  assert.match(s, /\.dark \{ --sgx-drawer-shadow: 4px 0 12px rgba\(0,0,0,\.22\), 16px 0 48px rgba\(0,0,0,\.5\)/);
-  assert.match(s, /\.sgx-drawer-sheet \{[^}]*box-shadow: var\(--sgx-drawer-shadow\)/);
-  // 抽屉三段（v7）：面板竖排 flex，[头部：只有大号站名][导航列表：自己滚][底栏：钉住的整宽搜索框长条（52px，图标 + 文字一组居中）]
-  assert.match(s, /--sgx-drawer-brand-size: 32px; --sgx-drawer-brand-weight: 800; --sgx-drawer-head-gap: 32px; --sgx-drawer-search-h: 52px;/);
-  assert.match(s, /\.sgx-drawer-sheet \{[^}]*overflow: hidden;[^}]*display: flex; flex-direction: column;/);
-  assert.match(s, /\.sgx-drawer-head \{ flex: 0 0 auto; margin: 0 0 var\(--sgx-drawer-head-gap\);/);
-  assert.match(s, /\.sgx-drawer-brand \{[^}]*font-size: var\(--sgx-drawer-brand-size\);\s*font-weight: var\(--sgx-drawer-brand-weight\)/);
-  assert.match(s, /\.sgx-drawer-body \{ flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;/);
-  assert.match(s, /\.sgx-drawer-foot \{ flex: 0 0 auto;[^}]*env\(safe-area-inset-bottom/);
-  assert.match(s, /\.sgx-drawer-search \{ width: 100%; height: var\(--sgx-drawer-search-h\); border-radius: 999px; display: flex; align-items: center; justify-content: center;[^}]*background-color: color-mix\(in srgb, var\(--sgx-surface-container-lowest\) 72%, transparent\); border: 1px solid var\(--sgx-mat-line\);/);
-  assert.match(s, /\.dark \.sgx-drawer-search \{ background-color: var\(--sgx-surface-bright\); \}/);
-  assert.match(s, /\.sgx-drawer-search-label \{ flex: 0 1 auto;/);
-  // 主站专有的东西不进共享外壳：抽屉淡出、导航项下的分隔线；旧的窗帘 / 加宽已删
-  assert.doesNotMatch(s, /is-fading|sgx-drawer-sep|is-curtain|--sgx-curtain/);
+  assert.match(s, /\.sgx-qp-sheet \{[^}]*background: var\(--sgx-mat\); -webkit-backdrop-filter: var\(--sgx-mat-filter\);/);
+  assert.match(s, /@supports \(backdrop-filter: blur\(1px\)\) \{\s*\.sgx-qp-sheet \{ backdrop-filter: var\(--sgx-mat-filter\); \}/);
+  assert.match(s, /@supports \(backdrop-filter: blur\(1px\)\) \{\s*\.sgx-topbar \{ backdrop-filter: var\(--sgx-mat-filter\); \}/);
+  assert.match(s, /--sgx-qp-shadow: 0 4px 12px rgba\(0,0,0,\.10\), 0 16px 48px rgba\(0,0,0,\.24\)/);
+  assert.match(s, /\.dark \{ --sgx-qp-shadow: 0 4px 12px rgba\(0,0,0,\.22\), 0 16px 48px rgba\(0,0,0,\.5\)/);
+  // 宽屏 400px（AI 440px），右缘对齐外壳框
+  assert.match(s, /@media \(min-width: 980px\) \{\s*\.sgx-qp-sheet \{ left: auto; right: calc\(\(100% - var\(--sgx-shell-w\)\) \/ 2\); width: 400px; margin: 0; \}\s*\.sgx-ai \.sgx-qp-sheet \{ width: 440px; \}/);
+  // 两页：页签 + 横向 scroll-snap
+  assert.match(s, /\.sgx-qp-tab\[aria-selected="true"\] \{ background: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\);/);
+  assert.match(s, /\.sgx-qp-pages \{ display: flex; overflow-x: auto;[^}]*scroll-snap-type: x mandatory;/);
+  assert.match(s, /\.sgx-qp-page \{ flex: 0 0 100%;[^}]*scroll-snap-align: start;/);
+  assert.match(s, /\.sgx-qp-nav-item\[aria-current="page"\][^{]*\{ background: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\)/);
+  assert.doesNotMatch(s, /\.sgx-drawer-(item|sheet|head|brand|body|foot|search|me|sep)\b|--sgx-drawer-/, '抽屉样式全删（search 段的 .sgx-drawer.sgx-srch-ghost 留给 P4-2）');
+  assert.doesNotMatch(s, /is-fading|is-curtain|--sgx-curtain/);
 });
 
-test('nav.json：主站 / 奇趣 / 日刻 / 博客，没有设置；抽屉头搜索框；图标都在', () => {
+test('nav.json：主站 / 奇趣 / 日刻 / 博客，没有设置；顶栏 / 磁贴 / AI 图标都在，九宫格图标删了', () => {
   const nav = JSON.parse(files['nav.json']);
   assert.deepEqual(nav.items.map((i) => i.id), ['home', 'curio', 'daymark', 'blog']);
   // 2026-10-21：书签项换成子站 奇趣 Curio（主站书签功能下线）
   const curio = nav.items.find((i) => i.id === 'curio');
-  // 合并 PR3：三站和主站同在 styrigx.com（抽屉里是相对地址 /curio/，见 web/atlas/layouts/partials/shell-nav-href.html）
+  // 合并 PR3：三站和主站同在 styrigx.com（导航页里子站互相是相对地址 /curio/，见 partials/shell-topbar.html）
   assert.deepEqual([curio.icon, curio.origin, curio.path, curio.en], ['nav-curio', 'https://styrigx.com', '/curio/', 'Curio']);
   assert.ok(!JSON.stringify(nav).includes('atlas.styrigx.com'));
-  // 2026-10-21：设置从抽屉挪到主站快捷面板顶栏，外壳不再要求有设置项（子站之后同步）
   assert.deepEqual(nav.footer, []);
   assert.ok(![...nav.items, ...nav.footer].some((i) => i.id === 'settings'));
-  assert.equal(nav.search.icon, 'ai-search');
+  // search 段留给 P4-2（搜索层代码还在，入口随抽屉删除）
   assert.equal(nav.search.path, '/search/');
-  assert.equal(nav.search.layer, 'search.js');
-  // 2026-10-22：抽屉头头像（子站链到主站）
+  // 顶栏头像（子站链到主站账号页）
   assert.deepEqual(nav.me, { zh: '账号', en: 'Account', href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp' });
-  assert.match(nav.icons['ai-search'], /^<svg[\s\S]*M14\.9 9\.6A6 6 0 1 1 11\.6 7\.2[\s\S]*<\/svg>$/);
   assert.deepEqual(nav.items.map((i) => i.zh), ['主站', '奇趣', '日刻', '博客']);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
-  assert.ok(nav.icons['apps-grid']);
+  for (const k of ['tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send']) assert.match(nav.icons[k], /^<svg[\s\S]*<\/svg>$/, k);
+  assert.equal(nav.icons['apps-grid'], undefined, '九宫格删了');
 });
 
 test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 亮暗 Shell + Semantic token），种子和 tokens.css 的 --sgx-seed 一致', () => {
@@ -120,23 +111,31 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
   assert.match(files['tokens.css'], /--sgx-tag-bg: var\(--sgx-fg-4-tint\);/);
 });
 
-test('顶栏 v8（2026-10-22）：九宫格圆 | 只有页名的长条 | 右圆 .sgx-tb-end（每站自定义），三块同材质；头像在抽屉头 .sgx-drawer-me（52px）', () => {
-  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'drawer', 'search']);
+test('顶栏 P5-1（2026-11-04）：一整条胶囊 [logo][中间][快捷面板 · AI · 头像]，同一份标记 topbar.html 四站共用；九宫格 / 右圆 / 抽屉头删除', () => {
+  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'search']);
   const s = files['shell.css'];
-  assert.match(s, /\.sgx-tb-pill, \.sgx-tb-nav, \.sgx-tb-end \{\s*background: var\(--sgx-mat\);/);
-  assert.match(s, /\.sgx-tb-nav, \.sgx-tb-end \{ width: var\(--sgx-tb-btn\); height: var\(--sgx-tb-btn\); border-radius: 999px;/);
+  assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*width: var\(--sgx-shell-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
+  assert.match(s, /\.sgx-tb-btn \{ width: var\(--sgx-tb-ic\); height: var\(--sgx-tb-ic\);[^}]*border-radius: 999px;/);
   assert.match(s, /\.sgx-tb-title \{[^}]*text-align: center;[^}]*text-overflow: ellipsis;/);
-  assert.doesNotMatch(s, /\.sgx-tb-me\b|\.sgx-tb-ic\b/);
-  assert.match(s, /\.sgx-drawer-head \{[^}]*align-items: center;\s*justify-content: space-between;/);
-  assert.match(s, /:root \{ --sgx-drawer-me: var\(--sgx-tb-btn\); \}/);
-  assert.match(s, /\.sgx-drawer-me \{[^}]*width: var\(--sgx-drawer-me\); height: var\(--sgx-drawer-me\); border-radius: 999px;[^}]*box-shadow: var\(--sgx-mat-shadow\);/);
+  assert.match(s, /@media \(min-width: 600px\) \{\s*\.sgx-topbar \{ display: grid; grid-template-columns: 1fr auto 1fr; \}/, '宽屏中间居中');
+  /* search 段（搜索层，P4-2 处理）里还有一条 .sgx-drawer.sgx-srch-ghost，不算 */
+  assert.doesNotMatch(s.slice(0, s.indexOf('/* ---- search ---- */')), /\.sgx-tb-nav\b|\.sgx-tb-end\b|\.sgx-tb-gbtn\b|\.sgx-drawer/);
+  // 标记：topbar.html = 主站 partials/shell-topbar.html 原样
+  const src = readFileSync(path.join(REPO, 'web/atlas/layouts/partials/shell-topbar.html'), 'utf8');
+  assert.equal(files['topbar.html'], src);
+  assert.doesNotMatch(src.replace(/\{\{-? \/\*[\s\S]*?\*\/ -?\}\}/g, ''), /\bpartial |site\.Data|hugo\.Data|resources\.Get/, '只用参数，不调别的 partial / 数据');
+  const order = ['class="sgx-tb-logo"', 'class="sgx-tb-pill', 'sgx-tb-quick', 'sgx-tb-ai', 'sgx-tb-me'].map((k) => src.indexOf(k));
+  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), 'logo → 中间 → 快捷面板 → AI → 头像');
+  assert.match(src, /<dialog id="sgx-qp" class="sgx-qp"/);
+  assert.match(src, /<dialog id="sgx-ai" class="sgx-qp sgx-ai"/);
   const base = readFileSync(path.join(REPO, 'web/atlas/layouts/_default/baseof.html'), 'utf8');
-  /* 主站顶栏三栏（2026-10-22 PR2，只在主站）：主页 / 聊天 / 状态三页长条里是 partials/topbar-tabs.html，其他页仍只有页名 */
-  assert.match(base, /<div class="sgx-tb-pill\{\{ if \$tabCur \}\} sgx-tb-pill-tabs\{\{ end \}\}">\{\{ if \$tabCur \}\}\{\{ partial "topbar-tabs\.html" \(dict "isEn" \$isEn "cur" \$tabCur\) \}\}\{\{ else \}\}<span class="sgx-tb-title">\{\{ \$pageName \}\}<\/span>\{\{ end \}\}<\/div>\n\s*\{\{ partial "topbar-end\.html"/);
-  /* 三栏样式只在主站段，不进共享外壳 */
+  /* 主站中间：主页 / 设置两页是标签（partials/topbar-tabs.html，2026-11-04 去掉聊天），其他页只有页名 */
+  assert.match(base, /\{\{ if \$tabCur \}\}\{\{ \$center = partial "topbar-tabs\.html" \(dict "isEn" \$isEn "cur" \$tabCur\) \}\}\{\{ else \}\}\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}\{\{ end \}\}/);
+  assert.match(base, /\{\{ partial "shell-topbar\.html" \(dict/);
+  assert.doesNotMatch(base, /sgx-drawer|sgx-tb-nav|topbar-end\.html/);
+  /* 标签样式只在主站段，不进共享外壳 */
   assert.doesNotMatch(s, /sgx-tb-tab/);
-  const end = readFileSync(path.join(REPO, 'web/atlas/layouts/partials/topbar-end.html'), 'utf8');
-  assert.match(end, /<button type="button" class="sgx-tb-end sgx-tb-quick"/);
+  assert.ok(!existsSync(path.join(REPO, 'web/atlas/layouts/partials/topbar-end.html')), 'topbar-end.html 已删');
 });
 
 test('搜索层：search.js 原样复制 shell/search-layer.js、不 import 任何东西；shell.css 有 search 段；引擎表和 engines.js 一致', async () => {

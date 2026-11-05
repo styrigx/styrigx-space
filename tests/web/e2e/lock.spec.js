@@ -677,13 +677,16 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   });
 
-  test('版面：顶栏标题静止时「锁定屏幕」（打开解锁弹层时变「解锁屏幕」，见 lock-mobile.spec.js）；没有左上字标和标语；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮；没有底部站点清单、时钟和日刻', async ({ page }) => {
+  test('版面：顶栏标题静止时「锁定屏幕」（打开解锁弹层时变「解锁屏幕」，见 lock-mobile.spec.js）；顶栏左边是 logo（同页面顶栏，只是外观），顶栏之外没有字标和标语；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮；没有底部站点清单、时钟和日刻', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     const lock = page.locator('#sgx-lock');
     await expect(lock.locator('.sgx-glass-bg')).toHaveCount(1);
     await expect(page.locator('#sgx-lock-title')).toHaveText('锁定屏幕');
-    await expect(lock.locator('.sgx-lock-brand, .sgx-wordmark')).toHaveCount(0);
+    /* P5-1：锁屏顶栏跟页面顶栏同一个胶囊外观，左边是 logo（只是外观的 span，不可点）；顶栏之外仍然没有字标和标语 */
+    await expect(lock.locator('.sgx-lock-brand')).toHaveCount(0);
+    await expect(lock.locator('.sgx-lock-tb span.sgx-tb-logo')).toHaveCount(1);
+    await expect(lock.locator('.sgx-wordmark:not(.sgx-lock-tb .sgx-wordmark)')).toHaveCount(0);
     await expect(lock).not.toContainText('Personal');
     await expect(lock.locator('.sgx-lock-welcome')).toHaveText('欢迎回来');
     await expect(lock.locator('.sgx-lock-sub')).toHaveText('很高兴再次见到你');
@@ -715,11 +718,11 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     await expect(page.locator('#sgx-mopt-pw')).toBeVisible();
   });
 
-  test('锁定时抽屉 / 快捷面板按钮点不到（锁屏盖住整页，顶栏位置只有标题）', async ({ page }) => {
+  test('锁定时快捷面板 / AI / 头像按钮点不到（锁屏盖住整页，顶栏位置只有标题）', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     await expect(page.locator('#sgx-lock .sgx-lock-tb button, #sgx-lock .sgx-lock-tb a')).toHaveCount(0);
-    for (const sel of ['.sgx-tb-nav', '[aria-controls="sgx-qp"]']) {
+    for (const sel of ['[aria-controls="sgx-qp"]', '[aria-controls="sgx-ai"]', '.sgx-tb-me']) {
       const btn = page.locator(sel).first();
       expect(await btn.count()).toBeGreaterThan(0);
       const box = await btn.boundingBox();

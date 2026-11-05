@@ -42,14 +42,13 @@ __applyLayout();
 </head>
 <body class="text-m-on-surface font-sans antialiased">
 <div id="sgx-wallpaper" aria-hidden="true"></div>
-{{/* 顶栏（沉浸式 app，三个子站同主站 v8 一套，2026-10-22 定）：左圆九宫格（导航抽屉）· 中间长条 · 右圆分享。
-   长条：首页 = 分段滑块 余响 · 拾录 · 百味（Echo / Trove / Flavors，强调色滑块；同主站首页长条里放三个标签）；
-   其他页（404）= 只有页名（.sgx-tb-title，居中、太长省略号），不放图标。没有搜索、没有快捷面板；顶栏下面也没有大标题。
-   首页：页签是 role=tab 的按钮，daymark.js 切换面板（hash：无 / #trove / #flavors）。
-   右圆 .sgx-tb-end.sgx-tb-share（共享外壳 .sgx-tb-end 样式，52px 圆 + 22px 图标，同左边九宫格圆；2026-10-24 留言板撤了，只剩分享；所有进门的人都一样）：
-   共享外壳 share.js（js/sgx/share-host.js 挂上）：生成带临时会话的短链（先锁侧复验）再系统分享；没有系统分享就复制。
-   （余响卡片里自己的分享按钮 #dm-share 不变：分享句子文字。）
-   头像在导航抽屉头（链主站）。外观和语言跟主站（sgx-ui cookie，见 ui-inherit-run.js）。 */}}
+{{/* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/sgx-shell-topbar.html（主站 shell-topbar.html 原样，scripts/sync-shell.mjs 同步，勿手改），
+   这里只准备日刻自己的参数：
+   - 中间（原样搬进来）：首页 = 分段滑块（页签是 role=tab 的按钮，本站脚本切换面板）；其他页（404）= 只有页名（.sgx-tb-title）。
+   - 右边：快捷面板（两页：导航 / 快捷设置）· AI · 头像（主站账号页）。九宫格、导航抽屉、右圆分享删除：
+     站点切换在快捷面板第 1 页（日刻是当前项）；「分享本页」在快捷面板第 2 页（本站页面原来都有分享按钮，迁过去都有磁贴，定案第 4 条）。
+   - 快捷设置：深色 / 跟随系统 / 语言 / 调色板，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）；立即锁定、布局只在主站。
+   JS：js/sgx/topbar-host.js（共享外壳 topbar.js + modal-sheet.js + ai.js + prefs-write.js + share.js）。外观和语言跟主站（sgx-ui cookie，见 ui-inherit-run.js）。 */}}
 {{ $pageName := .Title }}
 {{ if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}{{ end }}
 {{ $tabs := slice
@@ -57,62 +56,47 @@ __applyLayout();
   (dict "id" "trove" "zh" "拾录" "en" "Trove" "hash" "#trove")
   (dict "id" "flavors" "zh" "百味" "en" "Flavors" "hash" "#flavors")
 }}
-<header id="site-nav">
-  <div class="sgx-topbar">
-    <button type="button" class="sgx-tb-nav" aria-label="{{ if $isEn }}Navigation{{ else }}导航{{ end }}" aria-haspopup="dialog" aria-controls="sgx-drawer" aria-expanded="false">{{ index (resources.Get "sgx-shell/nav.json" | transform.Unmarshal).icons "apps-grid" | safeHTML }}</button>
-    <div class="sgx-tb-pill">
-      {{ if .IsHome }}
-      <div class="sgx-seg" role="tablist" aria-label="{{ if $isEn }}Daymark sections{{ else }}日刻分区{{ end }}" data-dm-seg style="--seg-pos:0">
-        <span class="sgx-seg-ind" aria-hidden="true"></span>
-        {{ range $i, $t := $tabs }}
-        <button type="button" role="tab" class="sgx-seg-btn" id="dm-tab-{{ $t.id }}" aria-controls="dm-pane-{{ $t.id }}" aria-selected="{{ if eq $i 0 }}true{{ else }}false{{ end }}" tabindex="{{ if eq $i 0 }}0{{ else }}-1{{ end }}" data-dm-tab="{{ $t.id }}">{{ cond $isEn $t.en $t.zh }}</button>
-        {{ end }}
-      </div>
-      {{ else }}
-      <span class="sgx-tb-title">{{ $pageName }}</span>
-      {{ end }}
-    </div>
-    <button type="button" class="sgx-tb-end sgx-tb-share" data-sgx-share aria-label="{{ if $isEn }}Share{{ else }}分享{{ end }}">{{ index (resources.Get "sgx-shell/nav.json" | transform.Unmarshal).icons "share" | safeHTML }}</button>
-  </div>
-</header>
-
-{{/* 导航抽屉（主站共享外壳同一份，topbar.js 开关）：项和图标来自 assets/sgx-shell/nav.json，样式（宽度、毛玻璃、tonal 当前项、字体）
-   来自 input.css 的 @sgx-shell 段，都由 scripts/sync-shell.mjs 从主站同步，勿手改。主站 / 奇趣 / 日刻 / 博客；头部字标 + 头像，底栏搜索框，和主站同一结构。
-   日刻是当前项、站内相对地址，点它只关抽屉；其余跳主站 / 博客（同一标签页）。 */}}
 {{ $shellNav := resources.Get "sgx-shell/nav.json" | transform.Unmarshal }}
-<dialog id="sgx-drawer" class="sgx-drawer" aria-label="{{ cond $isEn $shellNav.label.en $shellNav.label.zh }}">
-  <nav class="sgx-drawer-sheet">
-    {{/* 抽屉头 = 字标（nav.json wordmark）+ 右边的头像圆（共享外壳 .sgx-drawer-me，52px，连外环）：点了去主站账号页（英文页去 /en/settings/account/） */}}
-    {{ $me := $shellNav.me.href }}{{ if $isEn }}{{ $me = replace $me "https://styrigx.com/" "https://styrigx.com/en/" }}{{ end }}
-    <div class="sgx-drawer-head"><span class="sgx-drawer-brand">{{ $shellNav.wordmark | safeHTML }}</span><a class="sgx-drawer-me" href="{{ $me }}" aria-label="{{ cond $isEn $shellNav.me.en $shellNav.me.zh }}"><img src="{{ $shellNav.me.avatar }}" alt="" width="52" height="52"></a></div>
-    <div class="sgx-drawer-body">
-    <ul class="sgx-drawer-list">
-      {{ range $shellNav.items }}
-      <li><a class="sgx-drawer-item" href="{{ partial "shell-nav-href.html" (dict "it" . "en" $isEn) }}" data-nav="{{ .id }}"{{ if eq .id "daymark" }} aria-current="page"{{ end }}><span class="sgx-drawer-ic">{{ index $shellNav.icons .icon | safeHTML }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
-      {{ end }}
-    </ul>
-    {{/* 导航项下的分隔线（同主站 .sgx-drawer-sep，CSS 在本站段里） */}}
-    <hr class="sgx-drawer-sep" aria-hidden="true">
-    {{ with $shellNav.footer }}
-    <hr class="sgx-drawer-div">
-    <ul class="sgx-drawer-list">
-      {{ range . }}
-      <li><a class="sgx-drawer-item" href="{{ partial "shell-nav-href.html" (dict "it" . "en" $isEn) }}" data-nav="{{ .id }}"><span class="sgx-drawer-ic">{{ index $shellNav.icons .icon | safeHTML }}</span><span class="sgx-drawer-label">{{ cond $isEn .en .zh }}</span></a></li>
-      {{ end }}
-    </ul>
-    {{ end }}
-    </div>
-    {{/* 底栏搜索框（同主站）：topbar.js 点击时原地打开搜索层（search-host.js），不跳站；href 只是没 JS 时的退路 */}}
-    {{ $sp := $shellNav.search.path }}{{ if $isEn }}{{ $sp = printf "/en%s" $sp }}{{ end }}
-    <div class="sgx-drawer-foot"><a class="sgx-drawer-search" href="{{ $shellNav.search.origin }}{{ $sp }}" aria-label="{{ cond $isEn $shellNav.search.en $shellNav.search.zh }}"><span class="sgx-drawer-search-ic">{{ index $shellNav.icons $shellNav.search.icon | safeHTML }}</span><span class="sgx-drawer-search-label" aria-hidden="true">{{ cond $isEn $shellNav.search.en $shellNav.search.zh }}</span></a></div>
-  </nav>
-</dialog>
+{{ $center := "" }}
+{{ if .IsHome }}
+{{ $center = printf "<div class=\"sgx-seg\" role=\"tablist\" aria-label=\"%s\" data-dm-seg style=\"--seg-pos:0\"><span class=\"sgx-seg-ind\" aria-hidden=\"true\"></span>" (cond $isEn "Daymark sections" "日刻分区") }}
+{{ range $i, $t := $tabs }}{{ $center = printf "%s<button type=\"button\" role=\"tab\" class=\"sgx-seg-btn\" id=\"dm-tab-%s\" aria-controls=\"dm-pane-%s\" aria-selected=\"%s\" tabindex=\"%s\" data-dm-tab=\"%s\">%s</button>" $center $t.id $t.id (cond (eq $i 0) "true" "false") (cond (eq $i 0) "0" "-1") $t.id (cond $isEn $t.en $t.zh) }}{{ end }}
+{{ $center = printf "%s</div>" $center }}
+{{ else }}
+{{ $center = printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
+{{ end }}
+{{/* 语言磁贴：去另一种语言的同一页（有翻译用翻译，没有就去那种语言的本站首页） */}}
+{{ $langHref := "" }}
+{{ range .Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}
+{{ if not $langHref }}{{ range site.Home.AllTranslations }}{{ if ne .Language.Lang $.Language.Lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end }}
+{{/* 调色板色块的变量（同主站 partials/palette-tile-vars.html 的 full=false：--pl-b1..7 / --pl-f1..6，深色 --pd-*），取自共享外壳 palettes.json */}}
+{{ $pal := slice }}
+{{ range (resources.Get "sgx-shell/palettes.json" | transform.Unmarshal).presets }}
+{{ $s := "" }}{{ $p := . }}
+{{ range $m := slice "light" "dark" }}{{ $k := cond (eq $m "light") "pl" "pd" }}{{ $tk := index $p.tokens $m }}
+{{ range $n := seq 7 }}{{ $s = printf "%s--%s-b%d:%s;" $s $k $n (index $tk (printf "bg-%d" $n)) }}{{ end }}
+{{ range $n := seq 6 }}{{ $s = printf "%s--%s-f%d:%s;" $s $k $n (index $tk (printf "fg-%d" $n)) }}{{ end }}
+{{ end }}
+{{ $pal = $pal | append (dict "id" $p.id "zh" $p.zh "en" $p.en "style" $s) }}
+{{ end }}
+{{ partial "sgx-shell-topbar.html" (dict
+  "isEn" $isEn
+  "home" site.Home.RelPermalink
+  "center" $center
+  "nav" $shellNav
+  "site" "daymark"
+  "icons" $shellNav.icons
+  "wordmark" $shellNav.wordmark
+  "mainOrigin" "https://styrigx.com"
+  "acct" (cond $isEn (replace $shellNav.me.href "https://styrigx.com/" "https://styrigx.com/en/") $shellNav.me.href)
+  "avatar" $shellNav.me.avatar
+  "tiles" (dict "theme" true "lang" true "palette" true "share" true)
+  "langHref" $langHref
+  "pal" $pal
+) }}
 {{ block "main" . }}{{ end }}
-{{/* 顶栏：导航抽屉 */}}
-{{/* 原地搜索层（共享外壳 search.js + 本站宿主），先于 topbar.js 建好 DOM */}}
-<script src="{{ (resources.Get "js/sgx/search-host.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint).RelPermalink }}"></script>
-<script src="{{ (resources.Get "js/topbar.js" | minify | fingerprint).RelPermalink }}"></script>
-<script src="{{ (resources.Get "js/sgx/share-host.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint).RelPermalink }}"></script>
+{{/* 顶栏：快捷面板 + AI 窗口（共享外壳 topbar.js 等，js/sgx/topbar-host.js 打包；2026-11-04 P5-1 取代 topbar.js（抽屉）、share-host.js（右圆分享）、search-host.js（抽屉底栏搜索）） */}}
+<script src="{{ (resources.Get "js/sgx/topbar-host.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint).RelPermalink }}"></script>
 {{/* SGX 锁屏同步：切回前台 / bfcache 恢复时向服务端确认会话（各页面 pagejs 之前加载） */}}
 <script src="{{ (resources.Get "js/sgx-lock-sync.js" | minify | fingerprint).RelPermalink }}"></script>
 

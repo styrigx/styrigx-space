@@ -658,7 +658,7 @@ test.describe('账号总览：signalCurrentUserDetails', () => {
   });
 });
 
-test.describe('抽屉头像', () => {
+test.describe('顶栏头像（2026-11-04 P5-1 起在顶栏最右，原在抽屉头）', () => {
   test('进门的人（含临时钥匙进门）：头像照常链到账号页（P2-3 起不再按角色去掉链接）', async ({ page }) => {
     await zh(page);
     await page.route(/^http:\/\/localhost:\d+\/$/, async (route) => {
@@ -667,7 +667,7 @@ test.describe('抽屉头像', () => {
       await route.fulfill({ response: res, body: body });
     });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const me = page.locator('.sgx-drawer-me');
+    const me = page.locator('.sgx-tb-me');
     await expect(me).toHaveAttribute('href', '/account/');
     expect(await me.getAttribute('aria-disabled')).toBe(null);
     expect(await me.evaluate((el) => getComputedStyle(el).pointerEvents)).not.toBe('none');

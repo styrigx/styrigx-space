@@ -1,7 +1,7 @@
 /**
- * 品牌资源（2026-10-21）：抽屉头字标、标签页图标、分享卡片。
+ * 品牌资源（2026-10-21；2026-11-04 P5-1 字标从抽屉头搬到顶栏左端 logo）：顶栏字标、标签页图标、分享卡片。
  * - 字标 partials/shell-wordmark.html：单行内联 SVG，role=img + aria-label=Styrigx，字母 / 圆点分两条路径，进共享外壳 nav.json
- * - 外壳 CSS：字母跟 --sgx-text-primary、圆点跟 --sgx-primary
+ * - 外壳 CSS：字母跟 --sgx-text-primary、圆点跟 --sgx-primary；顶栏 logo 里字标高 20px（宽高比 5924 / 2010），窄屏换主题色圆点
  * - favicon.svg / favicon.ico（16 / 32 / 48）/ og.png（1200×630）在 web/atlas/static；baseof.html 引用它们并写分享卡片 meta
  * - shell/favicon.js：换色只换两个 fill，认不出的 SVG 不动
  */
@@ -28,14 +28,17 @@ test('字标：单行 SVG、可访问名 Styrigx、字母 / 圆点两条路径�
   assert.equal(nav.brand, 'Styrigx');
   assert.equal(nav.wordmark, svg);
   const base = rd('web/atlas/layouts/_default/baseof.html').toString();
-  assert.match(base, /<span class="sgx-drawer-brand">\{\{ partial "shell-wordmark\.html" \. \}\}<\/span>/);
+  /* P5-1：字标进顶栏单一来源 shell-topbar 的 logo（主站传 partial 结果，子站传 nav.json 的 wordmark） */
+  assert.match(base, /"wordmark" \(partial "shell-wordmark\.html" \.\)/);
+  assert.match(rd('web/atlas/layouts/partials/shell-topbar.html').toString(), /<a class="sgx-tb-logo" href="\{\{ \.home \}\}"[^>]*>\{\{ \.wordmark \| safeHTML \}\}<span class="sgx-tb-dot" aria-hidden="true"><\/span><\/a>/);
 });
 
-test('外壳 CSS：字标高 = 站名字号 × 2010/2048，字母跟 text-primary，圆点跟 primary', () => {
+test('外壳 CSS：顶栏 logo 字标高 20px、宽高比 5924/2010，字母跟 text-primary，圆点跟 primary；窄屏换圆点简版', () => {
   const s = renderAll()['shell.css'];
-  assert.match(s, /\.sgx-wordmark \{ --wm-ink: var\(--sgx-text-primary\); --wm-accent: var\(--sgx-primary\);[^}]*height: calc\(var\(--sgx-drawer-brand-size\) \* 2010 \/ 2048\);/);
-  assert.match(s, /\.sgx-wordmark \.wm-letters \{ fill: var\(--wm-ink\); \}/);
-  assert.match(s, /\.sgx-wordmark \.wm-dot \{ fill: var\(--wm-accent\); \}/);
+  assert.match(s, /\.sgx-tb-logo \.sgx-wordmark \{ --wm-ink: var\(--sgx-text-primary\); --wm-accent: var\(--sgx-primary\);[^}]*height: 20px;[^}]*aspect-ratio: 5924 \/ 2010;/);
+  assert.match(s, /\.sgx-wordmark \.wm-letters \{ fill: var\(--wm-ink, var\(--sgx-text-primary\)\); \}/);
+  assert.match(s, /\.sgx-wordmark \.wm-dot \{ fill: var\(--wm-accent, var\(--sgx-primary\)\); \}/);
+  assert.match(s, /@media \(max-width: 399\.98px\) \{[^@]*\.sgx-tb-logo \.sgx-wordmark \{ display: none; \}/);
 });
 
 test('标签页图标 + 分享卡片：静态文件齐全、尺寸对', () => {

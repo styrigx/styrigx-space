@@ -98,3 +98,14 @@ test('模板：按 sync-items.yaml 渲染、有总开关；文案（account-i18n
   const i18n = rd('web/atlas/layouts/partials/account-i18n.html');
   for (const k of Object.keys(T)) assert.match(i18n, new RegExp('"' + k + '" \\(dict "zh" "[^"]+" "en" "[^"]+"\\)'), k);
 });
+
+test('P5-1：AI 窗口历史 sgx-ai-history 只存本地，不进云同步白名单（syncKeys / sync-items.yaml / features.yaml 都没有）', async () => {
+  const { HISTORY_KEY } = await import('../../../web/atlas/assets/js/shell/ai-panel.js');
+  assert.equal(HISTORY_KEY, 'sgx-ai-history');
+  assert.ok(!syncKeys().includes(HISTORY_KEY), 'syncKeys() 不含 sgx-ai-history');
+  assert.ok(!listed.includes(HISTORY_KEY), 'sync-items.yaml 不列 sgx-ai-history');
+  assert.ok(!feats.some((f) => f.key === HISTORY_KEY), 'features.yaml 没有这个 key（不然会被 syncKeys 收进去）');
+  assert.doesNotMatch(rd('web/atlas/assets/js/lib/cloud-sync.js'), /sgx-ai-/, 'cloud-sync.js 的 EXTRA 不含 AI 历史');
+  /* 共享外壳 ai.js（子站用的那份）存同一个 key、同样不走同步 */
+  assert.match(rd('web/atlas/shared/shell/ai.js'), /export const HISTORY_KEY = 'sgx-ai-history';/);
+});

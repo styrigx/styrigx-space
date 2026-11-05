@@ -1,4 +1,4 @@
-{{- /* 回到顶部：外观复用共享外壳的顶栏圆钮 .sgx-tb-nav（毛玻璃 52px 圆），.scroll-top-button 只管位置和出现 / 隐藏 */ -}}
+{{- /* 回到顶部：52px 毛玻璃圆，样式全在博客自己的 .scroll-top-button（2026-11-04 P5-1 共享外壳的顶栏圆钮 .sgx-tb-nav 删除，不再借用） */ -}}
 <span class="scroll-top-marker" data-scroll-top-marker aria-hidden="true"></span>
-<button class="sgx-tb-nav scroll-top-button" type="button" aria-label="{{ i18n "scrollTop" }}" title="{{ i18n "scrollTop" }}" data-scroll-top-button>{{ partial "icon.html" (dict "name" "arrow-up" "size" 22) }}</button>
+<button class="scroll-top-button" type="button" aria-label="{{ i18n "scrollTop" }}" title="{{ i18n "scrollTop" }}" data-scroll-top-button>{{ partial "icon.html" (dict "name" "arrow-up" "size" 22) }}</button>
 {{ partial "script.html" (dict "name" "scroll-top.ts") }}

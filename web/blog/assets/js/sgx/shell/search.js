@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:145e0eb5bbed web/atlas/shared/shell v6384a02ddc44（scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:f867a9a63914 web/atlas/shared/shell v72959998daa4（scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- search.js ---- */
 /**
  * @fileoverview 原地搜索层（共享外壳组件，2026-10-22；主站和三个子站同一份，子站原样复制）。

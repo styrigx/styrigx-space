@@ -86,41 +86,36 @@ test.describe('顶栏 v4 布局', () => {
     });
   });
 
-  test('三块：左圆九宫格 · 长条 · 右圆分享（手机 52px、间距 8；≥ 840 宽 56px、间距 12；贴两端）', async ({ page }) => {
-    /* 共享外壳尺寸体系（2026-10-23）：--sgx-tb-btn 52 → 56、--sgx-tb-gap 8 → 12（≥ 840 宽） */
+  test('胶囊（2026-11-04 P5-1，四站同一个）：logo · 长条 · 快捷面板 · AI · 头像（胶囊高手机 52、≥ 840 宽 56；里面按钮 40，logo / 头像离胶囊边 (高 − 40) / 2）', async ({ page }) => {
+    /* 共享外壳尺寸体系（2026-10-23）：--sgx-tb-btn 52 → 56（≥ 840 宽）；P5-1 起它是胶囊高，里面按钮 --sgx-tb-ic 40 */
     const wide = page.viewportSize().width >= 840;
     const B = wide ? 56 : 52;
-    const G = wide ? 12 : 8;
+    const inset = (B - 40) / 2;
     for (const path of ['/blog/', '/blog/post/2026-10-07-muse-playbook/']) {
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       const r = await page.evaluate(() => {
         const box = (el) => el.getBoundingClientRect();
-        const pill = box(document.querySelector('.sgx-tb-pill'));
-        const nav = box(document.querySelector('.sgx-topbar > .sgx-tb-nav'));
         const bar = box(document.querySelector('.sgx-topbar'));
-        const meEl = document.querySelector('.sgx-topbar > .sgx-tb-end');
-        const me = box(meEl);
+        const logo = box(document.querySelector('.sgx-topbar > .sgx-tb-logo'));
+        const pill = box(document.querySelector('.sgx-tb-pill'));
+        const me = box(document.querySelector('.sgx-tb-acts > .sgx-tb-me'));
+        const btns = [...document.querySelectorAll('.sgx-tb-acts > *')].map((e) => { const b = box(e); return [Math.round(b.width), Math.round(b.height)]; });
         return {
-          pillH: pill.height,
-          nav: [nav.width, nav.height],
-          me: [me.width, me.height],
-          gaps: [Math.round(pill.left - nav.right), Math.round(me.left - pill.right)],
-          sides: [Math.round(nav.left - bar.left), Math.round(bar.right - me.right)],
-          meShare: meEl.matches('button[data-sgx-share]'),
+          barH: Math.round(bar.height),
+          btns,
+          sides: [Math.round((logo.left - bar.left) * 2) / 2, Math.round((bar.right - me.right) * 2) / 2],
+          between: logo.right <= pill.left + 0.5 && pill.right <= box(document.querySelector('.sgx-tb-acts')).left + 0.5,
+          center: [pill.left + pill.width / 2 - bar.left, bar.right - (pill.left + pill.width / 2)],
+          share: !!document.querySelector('.sgx-topbar [data-sgx-share], .sgx-tb-end, .sgx-tb-nav'),
         };
       });
-      expect(r.pillH).toBe(B);
-      expect(r.nav).toEqual([B, B]);
-      /* 右圆分享：和左边九宫格圆一样大（2026-10-24 留言板撤了，不再是 86px 胶囊） */
-      expect(r.me).toEqual([B, B]);
-      /* 手机：长条拉满，两边各隔 8；≥ 600 宽：长条按内容定宽、居中在顶栏正中（共享外壳），两边间距相等且不小于 --sgx-tb-gap */
-      if (page.viewportSize().width < 600) expect(r.gaps).toEqual([G, G]);
-      else {
-        expect(r.gaps[0]).toBeGreaterThanOrEqual(G);
-        expect(Math.abs(r.gaps[0] - r.gaps[1])).toBeLessThanOrEqual(1);
-      }
-      expect(r.sides).toEqual([0, 0]);
-      expect(r.meShare, '右圆 = 分享按钮').toBe(true);
+      expect(r.barH).toBe(B);
+      expect(r.btns).toEqual([[40, 40], [40, 40], [40, 40]]);
+      expect(r.sides).toEqual([inset, inset]);
+      expect(r.between).toBe(true);
+      /* ≥ 600 宽：长条按内容定宽、居中在顶栏正中（共享外壳 1fr auto 1fr） */
+      if (page.viewportSize().width >= 600) expect(Math.abs(r.center[0] - r.center[1])).toBeLessThanOrEqual(1);
+      expect(r.share, '没有九宫格 / 右圆分享').toBe(false);
     }
   });
 

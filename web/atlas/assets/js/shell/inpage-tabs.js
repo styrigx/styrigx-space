@@ -303,11 +303,6 @@ export function initInpageTabs() {
       if (a.getAttribute('data-tab') === to.id) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     });
-    const homeItem = document.querySelector('#sgx-drawer [data-nav="home"]');
-    if (homeItem) {
-      if (to.id === 'home') homeItem.setAttribute('aria-current', 'page');
-      else homeItem.removeAttribute('aria-current');
-    }
     shown = to.id;
     if (push) {
       try {
