@@ -677,13 +677,16 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   });
 
-  test('版面：顶栏标题静止时「锁定屏幕」（打开解锁弹层时变「解锁屏幕」，见 lock-mobile.spec.js）；没有左上字标和标语；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮；没有底部站点清单、时钟和日刻', async ({ page }) => {
+  test('版面：顶栏标题静止时「锁定屏幕」（打开解锁弹层时变「解锁屏幕」，见 lock-mobile.spec.js）；顶栏左边是 logo（同页面顶栏，只是外观），顶栏之外没有字标和标语；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮；没有底部站点清单、时钟和日刻', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     const lock = page.locator('#sgx-lock');
     await expect(lock.locator('.sgx-glass-bg')).toHaveCount(1);
     await expect(page.locator('#sgx-lock-title')).toHaveText('锁定屏幕');
-    await expect(lock.locator('.sgx-lock-brand, .sgx-wordmark')).toHaveCount(0);
+    /* P5-1：锁屏顶栏跟页面顶栏同一个胶囊外观，左边是 logo（只是外观的 span，不可点）；顶栏之外仍然没有字标和标语 */
+    await expect(lock.locator('.sgx-lock-brand')).toHaveCount(0);
+    await expect(lock.locator('.sgx-lock-tb span.sgx-tb-logo')).toHaveCount(1);
+    await expect(lock.locator('.sgx-wordmark:not(.sgx-lock-tb .sgx-wordmark)')).toHaveCount(0);
     await expect(lock).not.toContainText('Personal');
     await expect(lock.locator('.sgx-lock-welcome')).toHaveText('欢迎回来');
     await expect(lock.locator('.sgx-lock-sub')).toHaveText('很高兴再次见到你');
