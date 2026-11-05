@@ -6,7 +6,7 @@ const NEEDS_STATIC = SUITE !== 'passkey' && SUITE !== 'credential';
 
 module.exports = defineConfig({
   /* 配置在 tests/config/，下面的相对路径都以本文件所在目录为基准 */
-  testDir: '../web/e2e',
+  testDir: '../space/e2e',
   outputDir: '../../test-results',
   /* 默认组（visual 等）用测试构建（锁屏禁用），lock / edge 用生产构建（锁屏启用）；CI 里分两次构建分别跑 */
   testMatch: process.env.SGX_TEST_SUITE === 'lock' ? ['lock.spec.js', 'lock-mobile.spec.js', 'lock-flags.spec.js', 'lock-reset-pk-busy.spec.js', 'b1-8-return-guard.spec.js'] : process.env.SGX_TEST_SUITE === 'passkey' ? ['passkey.spec.js', 'account-challenge.spec.js'] : process.env.SGX_TEST_SUITE === 'credential' ? ['api-credential.spec.js'] : process.env.SGX_TEST_SUITE === 'edge' ? ['edge-flow.spec.js'] : ['visual.spec.js', 'pc-layout.spec.js', 'settings-sub.spec.js', 'layout-292.spec.js', 'dialog-kb.spec.js', 'reauth-verify.spec.js', 'account.spec.js', 'account-apps.spec.js', 'reauth-return.spec.js', 'topbar-spec.spec.js', 'lang-follow.spec.js', 'lock-now.spec.js', 'b1-12-guard.spec.js', 'b1-10-footer.spec.js', 'avatar-edit.spec.js', 'site-search.spec.js', 'desktop-toggle-root.spec.js', 'quick-panel.spec.js', 'ui-cookie-reader.spec.js', 'settings-status.spec.js', 'chat-page.spec.js', 'chat-no-key.spec.js', 'layout-auto.spec.js', 'tab-swipe.spec.js', 'inpage-tabs.spec.js'],
@@ -14,7 +14,8 @@ module.exports = defineConfig({
   workers: SUITE === 'passkey' ? 1 : undefined,
   /* 视觉回归：只跑 Chromium，保证基准一致 */
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
-  snapshotDir: '../web/e2e/visual',
+  /* 截图基线跟着 spec 放：默认 snapshotDir = testDir，基线在 <spec 所在目录>/<spec 文件名>-snapshots/（visual/visual.spec.js → visual/visual.spec.js-snapshots/）。
+     2026-11-06 tests/ 结构统一前是 snapshotDir: '../web/e2e/visual'、spec 平铺在 e2e/，基线落点和现在逐字相同（只随 web → space 改名） */
   expect: {
     toHaveScreenshot: {
       /* 允许微小渲染差异（字体抗锯齿等）；CI 里视觉回归是阻塞的 */

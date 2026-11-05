@@ -3,7 +3,7 @@
  *
  * 只做两件事：删注释、把空白收成最少。不合并规则、不改写颜色 / 简写、不调顺序、不动引号里的字符串，
  * 所以压缩前后每条规则的选择器、每条声明的属性和值（按 token 看）完全一样——
- * tests/web/ui/css-min.test.mjs 用 postcss 逐条核对 input.css 压缩前后一致。
+ * tests/space/ui/build/css-min.test.mjs 用 postcss 逐条核对 input.css 压缩前后一致。
  * 为什么不用 lightningcss / Hugo minify：它们会合并、改写声明（tdewolff 还不认 @view-transition），
  * 要求的是画面逐像素不变，宁可少压一点。
  */

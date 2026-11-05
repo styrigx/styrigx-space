@@ -65,7 +65,7 @@ jobs:
           git checkout -- web/atlas/data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add tests/web/e2e/visual/visual.spec.js-snapshots tests/web/e2e/visual/lock.spec.js-snapshots tests/blog/e2e/blog-visual.spec.js-snapshots
+          git add tests/space/e2e/visual/visual.spec.js-snapshots tests/space/e2e/visual/lock.spec.js-snapshots tests/blog/e2e/blog-visual.spec.js-snapshots
           git diff --cached --quiet && echo "基线无变化" && exit 0
           git diff --cached --stat
           git commit -m "[UI] CI 更新视觉基线 (ubuntu-24.04)"

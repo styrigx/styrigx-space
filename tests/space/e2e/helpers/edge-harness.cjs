@@ -1,0 +1,344 @@
+/**
+ * 本地「边缘」测试台（edge-flow.spec.js 用）：把线上三站的请求链原样搭在本机。
+ *
+ * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com（含子站 /blog/ /curio/ /daymark/，合并 PR3）、https://atlas.styrigx.com（旧图志，网关 301）；
+ *   代理把 TLS 接到本机 HTTPS 服务（临时自签证书，
+ *   Chromium 用 --ignore-certificate-errors-spki-list 信任它，页面是正常安全上下文，WebAuthn 可用）。
+ * - 路由按 workers/auth-gateway/wrangler.toml、workers/account/wrangler.toml、workers/share/wrangler.toml 的 [[routes]]，用 scripts/lib/cf-routes.mjs
+ *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中；多条命中取最具体的）决定这次请求走网关、短链 Worker 还是直达 Pages。
+ *   账号 Worker 账号拆分 PR3 起没有路由（读到有就照样挂上，测试会因此红），只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
+ *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
+ * - 网关 = 仓库里真实的 workers/auth-gateway/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
+ *   （锁屏钥匙、SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
+ *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAccountSession，AccountService / AccountVerifier 里跑的同一份代码）。
+ *   账号 Worker 自己一对 Ed25519 钥匙、账号根密钥和自己的库（tests/workers/account/_d1.mjs：账号鉴权表 + 云同步），
+ *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
+ *   Pages = 单树：web/atlas/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
+ *   cloudflare:workers（rpc/*.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。
+ * - 临时钥匙用临时 LockKey：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
+ * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
+ * - 分享短链 Worker = workers/share/src/index.js（路由 workers/share/wrangler.toml：/s/*、/api/share*），D1 用 tests/fixtures/share-d1.mjs，
+ *   服务绑定 AUTH 接网关 verifier.js（只用 lockSession）、ISSUER 接网关 src/share-issuer.js（ShareIssuer RPC 里跑的同一份代码）；
+ *   不绑 ACCOUNT_VERIFIER（短链管理只认锁屏进门会话，生成 / 作废另要锁侧复验，不问账号会话；同正式 workers/share/wrangler.toml）。
+ */
+const https = require('node:https');
+const http = require('node:http');
+const net = require('node:net');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const nodeCrypto = require('node:crypto');
+const { execFileSync } = require('node:child_process');
+const { pathToFileURL } = require('node:url');
+/* 内存 KV、DER→PEM：和 Worker 单测同一份（tests/workers/_harness.cjs） */
+const { makeKV, makeAuthD1, derToPem } = require('../../../workers/_harness.cjs');
+
+const REPO = process.env.SGX_EDGE_REPO || path.join(__dirname, '..', '..', '..', '..');
+const PROXY_PORT = Number(process.env.SGX_EDGE_PROXY_PORT || 8941);
+const HOSTS = ['styrigx.com', 'atlas.styrigx.com'];
+/* 别的 Worker 的路由：日刻、奇趣的接口 Worker（workers/daymark-core、workers/curio-core 的 wrangler.toml；测试台里一律 404，只为让路由按线上取最具体的） */
+const OTHER_WORKER_TOMLS = ['workers/daymark-core/wrangler.toml', 'workers/curio-core/wrangler.toml'];
+
+/* ---------- 证书（模块加载时同步生成，spec 的 test.use 要用 SPKI） ---------- */
+const CERT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sgx-edge-'));
+execFileSync('openssl', [
+  'req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes',
+  '-keyout', path.join(CERT_DIR, 'k.pem'), '-out', path.join(CERT_DIR, 'c.pem'), '-days', '2',
+  '-subj', '/CN=styrigx.com', '-addext', 'subjectAltName=DNS:styrigx.com,DNS:*.styrigx.com',
+], { stdio: 'ignore' });
+const CERT = fs.readFileSync(path.join(CERT_DIR, 'c.pem'));
+const KEY = fs.readFileSync(path.join(CERT_DIR, 'k.pem'));
+const SPKI = nodeCrypto.createHash('sha256')
+  .update(new nodeCrypto.X509Certificate(CERT).publicKey.export({ type: 'spki', format: 'der' }))
+  .digest('base64');
+
+/** Playwright 启动参数：走本地代理 + 信任临时证书 */
+const LAUNCH = {
+  proxy: { server: 'http://127.0.0.1:' + PROXY_PORT },
+  args: ['--ignore-certificate-errors-spki-list=' + SPKI],
+};
+
+const dynImport = new Function('u', 'return ' + 'im' + 'port(u)');
+const mod = (rel) => dynImport(pathToFileURL(path.join(REPO, rel)).href);
+
+const MIME = {
+  html: 'text/html; charset=utf-8', css: 'text/css', js: 'text/javascript', json: 'application/json',
+  xml: 'application/xml', webp: 'image/webp', png: 'image/png', svg: 'image/svg+xml', ico: 'image/x-icon',
+  woff2: 'font/woff2', woff: 'font/woff', txt: 'text/plain',
+};
+
+/** 主站 Pages：web/atlas/public 静态文件（目录补尾斜杠 308、找不到 404.html），HTML 带 _headers 的 public, max-age=300 */
+function mainPages(req) {
+  const u = new URL(req.url);
+  const pub = path.join(REPO, 'web/atlas/public');
+  let p = decodeURIComponent(u.pathname);
+  let file = path.join(pub, p);
+  if (!file.startsWith(pub)) return new Response('bad', { status: 400 });
+  try {
+    if (fs.statSync(file).isDirectory()) {
+      if (!p.endsWith('/')) return new Response(null, { status: 308, headers: { Location: p + '/' + u.search } });
+      file = path.join(file, 'index.html');
+    }
+  } catch (e) {}
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    return new Response(fs.readFileSync(path.join(pub, '404.html')), {
+      status: 404, headers: { 'Content-Type': MIME.html, 'Cache-Control': 'public, max-age=300' },
+    });
+  }
+  const ext = path.extname(file).slice(1).toLowerCase();
+  const cc = /^\/(css|js|fav)\//.test(p) ? 'public, max-age=31536000, immutable' : 'public, max-age=300';
+  return new Response(fs.readFileSync(file), { status: 200, headers: { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cc } });
+}
+
+/** 单树里的子站：各站固定页面（正文带 SUBSITE-CONTENT 标记，测试据此判断「真的进了子站」） */
+function subPages(req) {
+  const u = new URL(req.url);
+  const m = /^\/(blog|curio|daymark)(\/.*)$/.exec(u.pathname);
+  const site = m ? m[1] : 'atlas';
+  const rest = m ? m[2] : u.pathname;
+  if (m && (rest === '/' || rest.startsWith('/post/') || rest === '/en/' || rest === '/zh/')) {
+    const html = '<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>' + site + '</title></head>' +
+      '<body><main id="sub-content">SUBSITE-CONTENT ' + site + ' ' + u.pathname + '</main></body></html>';
+    return new Response(html, { status: 200, headers: { 'Content-Type': MIME.html, 'Cache-Control': 'public, max-age=0, must-revalidate' } });
+  }
+  if (u.pathname === '/blog/manifest.json') return Response.json({ name: site });
+  return new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
+}
+
+/* 合并 PR3：一个 Pages（styrigx-space）一棵树，子站在 /blog/ /curio/ /daymark/ 下；atlas.styrigx.com 不会回源（网关 301） */
+function pagesFor(req) {
+  const u = new URL(req.url);
+  if (u.hostname !== 'styrigx.com') return new Response('no pages on ' + u.hostname, { status: 421, headers: { 'Content-Type': 'text/plain' } });
+  return /^\/(blog|curio|daymark)(\/|$)/.test(u.pathname) ? subPages(req) : mainPages(req);
+}
+
+/**
+ * 启动测试台。
+ * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedTempkey:()=>Promise<string>, mintCookie:(by:string)=>Promise<string>, mintReauth:()=>Promise<string>}>}
+ */
+async function startEdge() {
+  const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', '..', 'scripts/lib/cf-routes.mjs')).href);
+  const routes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
+  const accountRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
+  const shareRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));
+  const allRoutes = routes.concat(accountRoutes, shareRoutes);
+  const OTHER_WORKER_ROUTES = OTHER_WORKER_TOMLS.flatMap((f) => readRoutes(fs.readFileSync(path.join(REPO, f), 'utf8')));
+  const gateway = (await mod('workers/auth-gateway/src/app.js')).default;
+  await mod('tests/workers/account/_cf-workers.mjs'); /* cloudflare:workers 替身，要在 import rpc/*.js 之前 */
+  const accountEntry = { ...(await mod('workers/account/src/rpc/account-service.js')), ...(await mod('workers/account/src/rpc/account-verifier.js')) };
+  const account = (await mod('workers/account/src/app.js')).default; /* 默认 fetch：一律 404（只在 toml 里还有路由时用到） */
+  const verifier = await mod('workers/auth-gateway/src/core/lock-session.js');
+  const share = (await mod('workers/share/src/index.js')).default;
+  const issuer = await mod('workers/auth-gateway/src/core/link-keys.js');
+  const { shareD1 } = await mod('tests/fixtures/share-d1.mjs');
+  const sessMod = await mod('workers/auth-gateway/src/core/lock-session.js');
+  const tempMod = await mod('workers/auth-gateway/src/core/lock-tempkey.js');
+  const ticketMod = await mod('workers/auth-gateway/src/core/tickets.js');
+
+  const kv = makeKV();
+  const d1 = makeAuthD1(); /* 网关 D1（全部认证状态） */
+  const lkp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  const privPem = derToPem(await crypto.subtle.exportKey('pkcs8', lkp.privateKey), 'PRIVATE KEY');
+  const pubPem = derToPem(await crypto.subtle.exportKey('spki', lkp.publicKey), 'PUBLIC KEY');
+  const akp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  const acctPrivPem = derToPem(await crypto.subtle.exportKey('pkcs8', akp.privateKey), 'PRIVATE KEY');
+  const acctPubPem = derToPem(await crypto.subtle.exportKey('spki', akp.publicKey), 'PUBLIC KEY');
+  const assets = { fetch: (input, init) => pagesFor(input instanceof Request ? input : new Request(input, init)) };
+
+  /* 账号 Worker：自己的钥匙、根密钥和库（styrigx-account：D1_ACCOUNT_AUTH / D1_SETTINGS_SYNC 同一个库），不绑任何网关的东西 */
+  const accountKv = makeKV();
+  const { makeAccountD1 } = await mod('tests/workers/account/_d1.mjs');
+  const accountD1 = makeAccountD1(); /* 跑 workers/account/migrations/*.sql：账号鉴权表 + 设置同步 settings_sync */
+  const accountEnv = {
+    SGX_ENV: 'production', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
+    D1_ACCOUNT_AUTH: accountD1, D1_SETTINGS_SYNC: accountD1, KV_PROFILE: accountKv,
+    SGX_ACCOUNT_PRIVATE: acctPrivPem, SGX_ACCOUNT_PUBLIC: acctPubPem,
+    SGX_ACCOUNT_ROOT_KEY: 'edge-test-account-root-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
+    ASSETS: assets,
+  };
+  /* 账号 Worker 的两个命名入口，形状同服务绑定（只给网关；短链 Worker 不绑账号） */
+  const ACCOUNT = {
+    fetch: async (req) => {
+      const res = await accountEntry.serviceFetch(req, accountEnv, { waitUntil() {} });
+      log.push(['account', req.method, req.url, res.status]);
+      return res;
+    },
+  };
+  const ACCOUNT_VERIFIER = { accountSession: (c, m) => accountEntry.checkAccountSession(accountEnv, c, m) };
+
+  /* 网关：只绑正式网关 wrangler.toml 里有的（锁屏钥匙、进站凭证 SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER） */
+  const env = {
+    SGX_ENV: 'production', SGX_SITE: 'space', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
+    D1_LOCK_AUTH: d1, /* 网关只绑 D1（2026-10-27 起不绑 KV） */
+    SGX_LOCK_PRIVATE: privPem, SGX_LOCK_PUBLIC: pubPem,
+    SGX_LOCK_SPACE_KEY: 'edge-test-space-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
+    ACCOUNT, ACCOUNT_VERIFIER,
+    ASSETS: assets,
+  };
+
+  /* 分享短链 Worker：自己的 D1，会话和钥匙都问网关 */
+  const shareDb = shareD1();
+  const shareEnv = {
+    SGX_ENV: 'production',
+    D1_SHARE_LINK: shareDb,
+    AUTH: { lockSession: (c) => verifier.checkLockSession(c, env) },
+    ISSUER: {
+      createLinkKey: (c, p) => issuer.createLinkKey(c, p, env),
+      revokeLinkKey: (c, id, m) => issuer.revokeLinkKey(c, id, env, m),
+      openLinkSession: (id, s) => issuer.openLinkSession(id, s, env),
+      /* P2-3：生成 / 作废前 share Worker 先问「进门 + 锁侧复验」（同正式 ShareIssuer.checkReauth） */
+      checkReauth: (c) => issuer.checkLinkReauth(c, env),
+    },
+    ASSETS: env.ASSETS,
+  };
+
+  const realFetch = globalThis.fetch;
+
+  /** 每个请求：[走哪条路, 方法, URL, 状态] */
+  const log = [];
+  async function edge(request) {
+    const u = new URL(request.url);
+    const pq = u.pathname + u.search;
+    const other = pickRoute(OTHER_WORKER_ROUTES, u.hostname, pq);
+    const mine = pickRoute(allRoutes, u.hostname, pq);
+    if (other && (!mine || other.length > mine.length)) {
+      log.push(['other', request.method, request.url, 404]);
+      return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
+    }
+    if (mine && shareRoutes.includes(mine)) {
+      const res = await share.fetch(request, shareEnv, { waitUntil() {} });
+      log.push(['share', request.method, request.url, res.status]);
+      return res;
+    }
+    if (mine && accountRoutes.includes(mine)) {
+      const res = await account.fetch(request, accountEnv, { waitUntil() {} });
+      log.push(['account-route', request.method, request.url, res.status]);
+      return res;
+    }
+    if (mine) {
+      const res = await gateway.fetch(request, env, { waitUntil() {} });
+      log.push(['worker', request.method, request.url, res.status]);
+      return res;
+    }
+    const res = await pagesFor(request);
+    log.push(['pages', request.method, request.url, res.status]);
+    return res;
+  }
+
+  const tls = https.createServer({ cert: CERT, key: KEY }, async (req, res) => {
+    try {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const body = Buffer.concat(chunks);
+      const headers = new Headers();
+      for (const [k, v] of Object.entries(req.headers)) {
+        if (k.startsWith(':')) continue;
+        headers.set(k, Array.isArray(v) ? v.join(', ') : v);
+      }
+      const host = String(req.headers.host || '').split(':')[0];
+      const request = new Request('https://' + host + req.url, {
+        method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body, redirect: 'manual',
+      });
+      const r = await edge(request);
+      const out = {};
+      r.headers.forEach((v, k) => { if (k !== 'set-cookie' && k !== 'content-encoding' && k !== 'content-length') out[k] = v; });
+      const sc = r.headers.getSetCookie ? r.headers.getSetCookie() : [];
+      if (sc.length) out['set-cookie'] = sc;
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.writeHead(r.status, out);
+      res.end(req.method === 'HEAD' ? undefined : buf);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('edge harness error: ' + (e && e.stack));
+    }
+  });
+  await new Promise((r) => tls.listen(0, '127.0.0.1', r));
+  const tlsPort = tls.address().port;
+
+  const proxy = http.createServer((req, res) => { res.writeHead(502); res.end(); });
+  proxy.on('connect', (req, sock, head) => {
+    const host = String(req.url || '').split(':')[0];
+    if (!HOSTS.includes(host)) { sock.end('HTTP/1.1 403 Forbidden\r\n\r\n'); return; }
+    const up = net.connect(tlsPort, '127.0.0.1', () => {
+      sock.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+      up.write(head);
+      up.pipe(sock);
+      sock.pipe(up);
+    });
+    up.on('error', () => sock.destroy());
+    sock.on('error', () => up.destroy());
+  });
+  const socks = new Set();
+  proxy.on('connection', (s) => { socks.add(s); s.on('close', () => socks.delete(s)); });
+  tls.on('connection', (s) => { socks.add(s); s.on('close', () => socks.delete(s)); });
+  await new Promise((r) => proxy.listen(PROXY_PORT, '127.0.0.1', r));
+
+  async function seedPasskey() {
+    const pk = await mod('workers/auth-gateway/src/core/passkey-store.js');
+    const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
+    const jwk = kp.publicKey.export({ format: 'jwk' });
+    const credId = nodeCrypto.randomBytes(32);
+    const credIdB64url = credId.toString('base64url');
+    await pk.savePasskey(env, 'lock', {
+      name: 'edge-test', credId: credIdB64url, publicKey: { kty: 'EC', crv: 'P-256', x: jwk.x, y: jwk.y, alg: 'ES256', ext: true },
+      signCount: 0, uv: 1,
+    });
+    const uh = await pk.getUserHandle(env, 'lock'); /* 锁屏层「已配置」由这把钥匙本身推出（layers.js） */
+    return {
+      credentialId: credId.toString('base64'),
+      isResidentCredential: true,
+      rpId: 'styrigx.com',
+      privateKey: kp.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64'),
+      userHandle: Buffer.from(uh, 'base64url').toString('base64'),
+      signCount: 0,
+    };
+  }
+
+  /** 按当前 Lock 纪元签一个 v2 锁屏会话 cookie 值（by=password | passkey；by=tempkey 时先登记一把 1 小时临时钥匙，带它的 tempkeyId） */
+  async function mintCookie(by) {
+    const ep = await sessMod.getLockEpoch(env);
+    if (by === 'tempkey') {
+      const r = await tempMod.createTempkey(env, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+      return sessMod.signLockSessionTicket(privPem, { by: 'tempkey', epoch: ep, exp: Date.now() + 3600 * 1000, tempkeyId: r.key.id });
+    }
+    return sessMod.signLockSessionTicket(privPem, { by: by || 'password', epoch: ep, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
+  }
+
+  /** 锁侧复验短票 sgx-lock-reauth 的值（by=password，当前 Lock 纪元，3 分钟）：测试里直接塞 cookie，省掉每次走一遍复验界面 */
+  async function mintReauth() {
+    const ep = await sessMod.getLockEpoch(env);
+    return ticketMod.signLockReauthTicket(privPem, 'password', ep);
+  }
+
+  /** 签发一把 1 小时的临时 LockKey，返回临时码（XXXX-XXXX-XXXX） */
+  async function seedTempkey() {
+    const r = await tempMod.createTempkey(env, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+    return r.code;
+  }
+
+  /** 账号会话 cookie 值（sgx-account-session，by=passkey，账号 Worker 当前的 Account 纪元，账号钥匙签） */
+  async function mintAccount() {
+    const acc = await mod('workers/account/src/core/account-session.js');
+    const ep = await acc.getAccountEpoch(accountEnv);
+    return acc.signAccountSessionTicket(acctPrivPem, { by: 'passkey', epoch: ep, authAt: Date.now(), deviceId: 'edgedeviceedgede' });
+  }
+
+  /** 清掉 /s/* 的失败计数（D1 share_fail + isolate 内存），限速测试之间不互相影响 */
+  async function resetShareLimit() {
+    const open = await mod('workers/share/src/open.js');
+    open._resetMem();
+    if (shareDb.raw) shareDb.raw.exec('DELETE FROM share_fail');
+    else await shareDb.prepare('DELETE FROM share_fail WHERE window_start < ?1 AND locked_until < ?1').bind(Number.MAX_SAFE_INTEGER).run();
+  }
+
+  async function close() {
+    globalThis.fetch = realFetch;
+    for (const s of socks) s.destroy();
+    await new Promise((r) => tls.close(() => r()));
+    await new Promise((r) => proxy.close(() => r()));
+  }
+
+  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedTempkey, mintCookie, mintReauth, mintAccount };
+}
+
+module.exports = { startEdge, LAUNCH, PROXY_PORT, REPO };

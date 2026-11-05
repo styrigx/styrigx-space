@@ -354,7 +354,7 @@ test('头像 /avatar/<尺寸>.webp：未登录放行，转给账号 Worker（ACC
   });
 });
 
-test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面读 ASSETS 不发子请求；账号路径照样只转 ACCOUNT（组合预览入口 tests/web/e2e/preview-worker.js 接上）', async () => {
+test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面读 ASSETS 不发子请求；账号路径照样只转 ACCOUNT（组合预览入口 tests/space/e2e/helpers/preview-worker.js 接上）', async () => {
   _resetSecretCache();
   const seen = [];
   const acct = [];

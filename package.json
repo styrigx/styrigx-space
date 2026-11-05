@@ -17,7 +17,7 @@
     "build": "node scripts/build-sites.mjs",
     "build:sites": "node scripts/build-sites.mjs --sites",
     "assemble": "node scripts/assemble.mjs",
-    "test:sites": "node --test tests/blog/*.test.mjs tests/curio/web/*.test.mjs tests/daymark/web/*.test.mjs tests/workers/curio-core/*.test.mjs tests/workers/daymark-core/*.test.mjs"
+    "test:sites": "node --test tests/blog/*.test.mjs tests/curio/*.test.mjs tests/daymark/*.test.mjs tests/workers/curio-core/*.test.mjs tests/workers/daymark-core/*.test.mjs"
   },
   "version": "3.0.0",
   "devDependencies": {

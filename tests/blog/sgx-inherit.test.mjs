@@ -18,7 +18,7 @@ const inheritModule = readFileSync(new URL('../../web/blog/assets/js/entries/inh
 const palettes = JSON.parse(
   readFileSync(new URL('../../web/blog/data/sgx-shell/palettes.json', import.meta.url), 'utf8'),
 );
-const fx = JSON.parse(readFileSync(new URL('./fixtures/ui-cookie-contract.json', import.meta.url), 'utf8'));
+const fx = JSON.parse(readFileSync(new URL('../fixtures/ui-cookie-contract.json', import.meta.url), 'utf8'));
 const SEEDS = Object.fromEntries(palettes.presets.map((p) => [p.id, p.seed]));
 
 function enc(obj) {

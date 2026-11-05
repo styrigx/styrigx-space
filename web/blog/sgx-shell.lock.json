@@ -34,7 +34,6 @@
     "web/assets/js/sgx/shell/prefs-write.js": "586239175083ef3ab3efdb062858682bdd4c20b9f9f10a8ee37e7fcd05a05e91",
     "web/data/sgx-shell/nav.json": "b411514740d0778f42d0ae4dd798d35d010f034954a46416eae55fac213bfd22",
     "web/data/sgx-shell/palettes.json": "8acce76979dfeec50d305c8f84e59a83c56b7bbbfa4b45c2f85d631f90bc3c08",
-    "web/assets/js/sgx/shell/ui-cookie-read.js": "f6970b8fbac4c269a3b71875993191eee85658fdb5dd9597e878c8176c44c091",
-    "tests/fixtures/ui-cookie-contract.json": "d0b6046e8cacded499e83b64cee9ca2f3a7f759f2cdf2a57f0642e2783f83b25"
+    "web/assets/js/sgx/shell/ui-cookie-read.js": "f6970b8fbac4c269a3b71875993191eee85658fdb5dd9597e878c8176c44c091"
   }
 }

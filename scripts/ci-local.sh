@@ -6,7 +6,7 @@
 #   组：unit build e2e-lock e2e-sites visual lighthouse passkey；不写 = 除 lighthouse 外全部（lighthouse 要 Chrome，按需加）。
 #   VISUAL_SHARD=1 或 2（可选）：visual 组只跑 CI 的那一片（--shard=N/2），复现 visual (1) / visual (2)；不设 = 整组跑。
 # 前提：Node 22（node:sqlite）、已 npm ci、hugo 在 PATH 上（版本见 .github/actions/setup-hugo）。
-# 不碰 Cloudflare：passkey 组走本地模拟器（tests/web/e2e/preview-emulator.cjs），凭证每次现生成。
+# 不碰 Cloudflare：passkey 组走本地模拟器（tests/space/e2e/helpers/preview-emulator.cjs），凭证每次现生成。
 # 构建顺序和 CI 一致：build 组做主站生产构建 → 拼树；e2e-lock 用这份生产构建，gate 关的构建放最后；
 # visual / lighthouse 各自再做测试构建（SGX_TEST_NO_LOCK=1 SGX_TEST_NO_WEATHER=1）；passkey 做普通构建。
 set -uo pipefail
@@ -53,7 +53,7 @@ css() { node scripts/build-css.cjs --minify >/dev/null; }
 if want unit; then
   begin unit
   step unit "build-css" css
-  step unit "单测（workers + ui）" bash -c 'node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs 2>&1 | tee /tmp/ci-local-unit.log | grep -E "^# (tests|pass|fail|skipped)"; ! grep -qE "^# fail [1-9]" /tmp/ci-local-unit.log'
+  step unit "单测（workers + ui）" bash -c 'node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs" 2>&1 | tee /tmp/ci-local-unit.log | grep -E "^# (tests|pass|fail|skipped)"; ! grep -qE "^# fail [1-9]" /tmp/ci-local-unit.log'
 fi
 
 if want build; then
@@ -66,7 +66,7 @@ if want build; then
   step build "gen-csp --check" bash -c 'node scripts/gen-csp.mjs --check >/dev/null'
   step build "子站构建" bash -c 'npm run --silent build:sites >/dev/null'
   step build "test:sites" bash -c 'npm run --silent test:sites 2>&1 | grep -E "^# (tests|pass|fail|skipped)"; exit ${PIPESTATUS[0]}'
-  step build "拼树 + 拼树单测" bash -c 'node scripts/assemble.mjs >/dev/null && node --test tests/web/ui/assemble.test.mjs >/dev/null'
+  step build "拼树 + 拼树单测" bash -c 'node scripts/assemble.mjs >/dev/null && node --test tests/space/ui/build/assemble.test.mjs >/dev/null'
   step build "check-worker-routes" bash -c 'node scripts/check-worker-routes.mjs >/dev/null'
   step build "子站生成物同步" bash -c 'node scripts/curio/gen-seed-sql.mjs --check >/dev/null && node scripts/blog/gen-code-tokens.mjs --check >/dev/null && for s in blog curio daymark; do node "scripts/$s/sync-shell.mjs" --check >/dev/null || exit 1; done'
   step build "stylelint" npx stylelint --config tests/config/stylelintrc.json "web/atlas/assets/css/input.css"
@@ -115,7 +115,7 @@ if want passkey; then
   step passkey "build-css + 构建" bash -c 'node scripts/build-css.cjs --minify >/dev/null && hugo --minify -s web/atlas >/dev/null'
   SPACE_KEY="$(openssl rand -hex 32)"; ROOT_KEY="$(openssl rand -hex 32)"; PEPPER="$(openssl rand -hex 32)"
   LOG="$(mktemp)"
-  node tests/web/e2e/preview-emulator.cjs --port 8788 --space-key "$SPACE_KEY" --account-root-key "$ROOT_KEY" --pepper "$PEPPER" >"$LOG" 2>&1 &
+  node tests/space/e2e/helpers/preview-emulator.cjs --port 8788 --space-key "$SPACE_KEY" --account-root-key "$ROOT_KEY" --pepper "$PEPPER" >"$LOG" 2>&1 &
   EMU=$!
   trap 'kill $EMU 2>/dev/null' EXIT
   ready=0

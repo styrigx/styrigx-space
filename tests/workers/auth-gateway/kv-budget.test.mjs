@@ -2,7 +2,7 @@
  * passkey-e2e 的预览状态：scripts/kv-budget.mjs（清预览 D1 只清干扰本次运行的表、每次运行估算）和 deploy.yml 里的接线。
  *
  * 2026-10-27 起网关认证状态全部在 D1 styrigx-auth-gateway(-preview)，不再绑定 KV：清预览只碰 D1，估算里 KV 操作全为 0。
- * PR 运行走本地模拟器（tests/web/e2e/preview-emulator.cjs），真实预览只在 main 的 push / 手动运行上跑。
+ * PR 运行走本地模拟器（tests/space/e2e/helpers/preview-emulator.cjs），真实预览只在 main 的 push / 手动运行上跑。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -165,7 +165,7 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
   assert.ok(pos('Build site') < pos(EMU_START) && pos(EMU_START) < pos(EMU_RUN), '先建站、再起模拟器、再跑用例');
   assert.ok(pos('Generate preview test credentials') < pos(EMU_START));
   assert.match(start.run, /node -e "require\('node:sqlite'\)"/);
-  assert.match(start.run, /node tests\/web\/e2e\/preview-emulator\.cjs --port 8788 --space-key "\$PREVIEW_TEST_SPACE_KEY" --account-root-key "\$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "\$PREVIEW_TEST_PW_PEPPER" > "\$log" 2>&1 &/);
+  assert.match(start.run, /node tests\/space\/e2e\/helpers\/preview-emulator\.cjs --port 8788 --space-key "\$PREVIEW_TEST_SPACE_KEY" --account-root-key "\$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "\$PREVIEW_TEST_PW_PEPPER" > "\$log" 2>&1 &/);
   assert.match(start.run, /curl -fsS -o \/dev\/null http:\/\/127\.0\.0\.1:8788\/__kv\/stats/, '等它就绪');
   assert.match(start.run, /exit 1\s*$/, '超时就红');
   /* 用例变量按 preview-emulator.cjs 文件头；端口和起模拟器的一致 */
@@ -181,7 +181,7 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
     CI: '1',
   });
   assert.match(emu.run, /^npx playwright test --config=tests\/config\/playwright\.config\.js$/m);
-  const header = readFileSync(path.join(REPO, 'tests/web/e2e/preview-emulator.cjs'), 'utf8').slice(0, 3000);
+  const header = readFileSync(path.join(REPO, 'tests/space/e2e/helpers/preview-emulator.cjs'), 'utf8').slice(0, 3000);
   for (const v of ['SGX_TEST_BASE=http://localhost:8788', 'SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4', 'SGX_TEST_PREVIEW_D1_ID=local']) {
     assert.ok(header.includes(v), '模拟器文件头写的运行方式：' + v);
   }
@@ -224,8 +224,8 @@ test('deploy.yml：passkey-e2e 的路径过滤是 denylist，做在步骤层，�
 });
 
 test('测试 helper：不再删重置开关键；会话 / 进门票先用只读接口复用', () => {
-  const helpers = readFileSync(path.join(REPO, 'tests/web/e2e/preview-helpers.cjs'), 'utf8');
-  const spec = readFileSync(path.join(REPO, 'tests/web/e2e/passkey.spec.js'), 'utf8');
+  const helpers = readFileSync(path.join(REPO, 'tests/space/e2e/helpers/preview-helpers.cjs'), 'utf8');
+  const spec = readFileSync(path.join(REPO, 'tests/space/e2e/passkey/passkey.spec.js'), 'utf8');
   assert.doesNotMatch(helpers, /kvDel\('lock-reset-switch'\)/);
   assert.doesNotMatch(spec, /kvDel\('lock-reset-switch'\)/);
   assert.match(helpers, /\/api\/lock-session-check/);

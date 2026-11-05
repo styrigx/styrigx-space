@@ -47,7 +47,7 @@
  *   … --cleanup --confirm；任一模式加 --preview
  * 选项：--gateway-d1 <id>（默认 workers/auth-gateway/wrangler.toml 的 D1_LOCK_AUTH = styrigx-auth-gateway）、
  *   --account-d1 <id>（默认 workers/account/wrangler.toml 的 D1_ACCOUNT_AUTH = styrigx-account；预览同名绑定在 [env.preview]）。
- *   CF_API_BASE 可指向 tests/web/e2e/preview-emulator.cjs 本地跑。
+ *   CF_API_BASE 可指向 tests/space/e2e/helpers/preview-emulator.cjs 本地跑。
  * Token 权限：Account → D1: Edit（两个库都要；--dry-run / --verify 只发 SELECT）。
  */
 import { fileURLToPath } from 'node:url';

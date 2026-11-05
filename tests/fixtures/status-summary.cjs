@@ -1,8 +1,8 @@
 /**
  * 服务状态（/settings/status/）测试用的 /api/status 假数据（形状 = workers/status/src/monitor.js summary）。
- * tests/web/e2e/settings-status.spec.js（Playwright mock）和 tests/web/ui/status-view.test.mjs（单测）共用。
+ * tests/space/e2e/settings/settings-status.spec.js（Playwright mock）和 tests/space/ui/status/status-view.test.mjs（单测）共用。
  *
- * 时间对齐 tests/web/e2e/helpers.js freezeTime：2026-10-09 12:00 北京时间（04:00Z）。
+ * 时间对齐 tests/space/e2e/helpers/helpers.js freezeTime：2026-10-09 12:00 北京时间（04:00Z）。
  * 每站有 40 天数据（条的左边 50 格是「无数据」），今天是半天（720 次检查）。
  *   normal()  全部正常；两条已恢复的故障（博客 12 天前 25 分钟 HTTP 502、日刻 20 天前 2 小时超时）
  *   oneDown() 奇趣（curio）当前故障：连续 7 次超时，开着一条 7 分钟前开始的故障

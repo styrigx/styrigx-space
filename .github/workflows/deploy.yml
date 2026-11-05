@@ -59,11 +59,11 @@ jobs:
         run: node scripts/build-css.cjs --minify
 
       - name: Unit tests (workers + ui)
-        # tests/workers/** 与 tests/web/ui 的全部单元测试；新加的测试文件自动纳入，不用再改这里。
+        # tests/workers/** 与 tests/space/ui/**（按功能分子目录；引号里的 glob 由 node --test 自己展开，含子目录）的全部单元测试；新加的测试文件自动纳入，不用再改这里。
         # 先确认 node:sqlite 可用：没有它 D1 的真 SQL 测试会静默跳过
         run: |
           node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, D1 SQL tests would be skipped"; exit 1; }
-          node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs tests/web/ui/*.test.mjs
+          node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs"
 
   build:
     # 生产构建只做一次：打包 dry-run、生成物同步、分层 / 前端守卫、CSP、产物检查、搜索索引、子站构建与单测、拼树、路由检查、stylelint。
@@ -107,11 +107,11 @@ jobs:
         working-directory: workers/account
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-account-dist
 
-      - name: Preview combined entry bundle check (tests/web/e2e/preview-worker.js, dry-run)
+      - name: Preview combined entry bundle check (tests/space/e2e/helpers/preview-worker.js, dry-run)
         # passkey-e2e 真实预览的 _worker.js：网关 + 账号 Worker 两边的代码装进一个脚本（账号拆分 PR3）。PR 上走本地模拟器不打包，
         # 这里先打一次，import 断了 PR 就红，不等到 main 的真实预览才发现。只打包不部署。
         run: |
-          npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/web/e2e/preview-worker.js --dry-run --outdir /tmp/preview-worker-dist \
+          npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/space/e2e/helpers/preview-worker.js --dry-run --outdir /tmp/preview-worker-dist \
             --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' web/atlas/wrangler.toml)"
           grep -q "X-SGX-Runtime" /tmp/preview-worker-dist/preview-worker.js
           grep -q "X-Styrigx-Lock-Session" /tmp/preview-worker-dist/preview-worker.js
@@ -250,7 +250,7 @@ jobs:
           bad=$(grep -rlI 'atlas\.styrigx\.com' "$T" | grep -vx "$T/_worker.js" || true)
           [ -z "$bad" ] || fail "atlas.styrigx.com still hardcoded in the single tree: $bad"
           # 拼树单测的真实构建一组（Unit tests 那一步还没构建，跳过了；这里补跑）
-          node --test tests/web/ui/assemble.test.mjs
+          node --test tests/space/ui/build/assemble.test.mjs
           echo "OK: single tree $(find "$T" -type f | wc -l) files"
 
       - name: Blog search index builds (site:blog)
@@ -563,9 +563,9 @@ jobs:
           '
 
   passkey-e2e:
-    # WebAuthn 虚拟认证器 + 真实网关代码的 E2E（tests/web/e2e/passkey.spec.js、account-challenge.spec.js）。生产部署的所有 job 都等它通过。
+    # WebAuthn 虚拟认证器 + 真实网关代码的 E2E（tests/space/e2e/passkey/passkey.spec.js、account-challenge.spec.js）。生产部署的所有 job 都等它通过。
     # 按事件分两条路（job 名不变：passkey-e2e 是分支保护的必需检查，结论就是这个 job 的结论）：
-    # - pull_request：本地模拟器 tests/web/e2e/preview-emulator.cjs——同一个组合入口 tests/web/e2e/preview-worker.js
+    # - pull_request：本地模拟器 tests/space/e2e/helpers/preview-emulator.cjs——同一个组合入口 tests/space/e2e/helpers/preview-worker.js
     #   （网关 workers/auth-gateway/src/app.js + 账号 Worker 命名入口的实现，账号拆分 PR3；SGX_ENV=preview），
     #   D1 是 node:sqlite 内存库（网关 2026-10-27 起不绑 KV）、Cloudflare D1 / KV REST 也由它在本机模拟；env.ASSETS 读本步骤构建的 web/atlas/public。
     #   不用任何 Cloudflare secret、不部署预览、不清预览 D1 / 不跑 D1 迁移。
@@ -588,7 +588,7 @@ jobs:
       group: ${{ github.event_name == 'pull_request' && format('passkey-e2e-emulator-{0}', github.ref) || 'passkey-e2e-preview' }}
       cancel-in-progress: false
     # 配额：2026-10-27 起网关和这组用例都不再用 KV（免费计划 KV 写 / 删 / 列各 1000 次 / 天、全账号共用，以前一次运行要花 ~90 写 ~50 删）；
-    # D1 按行计、额度大得多（tests/web/e2e/preview-emulator.cjs 的 /__kv/stats d1 一栏可量）。仍然：
+    # D1 按行计、额度大得多（tests/space/e2e/helpers/preview-emulator.cjs 的 /__kv/stats d1 一栏可量）。仍然：
     # - PR 运行全部走本地模拟器，不碰 Cloudflare；
     # - 本次改动全部是文档 / 内容文字 / CSS / 视觉基线 / 图片，就不跑用例（也不部署预览），job 以成功结束（steps.scope）。
     steps:
@@ -766,7 +766,7 @@ jobs:
 
       - name: Start local preview emulator (pull_request only)
         if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
-        # tests/web/e2e/preview-emulator.cjs：仓库里的组合入口（不打包，直接 import tests/web/e2e/preview-worker.js：网关 + 账号 Worker）+
+        # tests/space/e2e/helpers/preview-emulator.cjs：仓库里的组合入口（不打包，直接 import tests/space/e2e/helpers/preview-worker.js：网关 + 账号 Worker）+
         # node:sqlite 的 D1 + 本机的 Cloudflare D1 / KV REST；env.ASSETS 读上面构建的 web/atlas/public。Ed25519 钥匙对由它自己现生成。
         # 根密钥 / pepper 用本次生成的 PREVIEW_TEST_SPACE_KEY / PREVIEW_TEST_ACCOUNT_ROOT_KEY / PREVIEW_TEST_PW_PEPPER（已打码）。固定端口 8788，和下一步的 SGX_TEST_BASE 一致。
         # 后台跑到 job 结束（runner 收尾时回收）；日志写 emulator-log/，失败时随测试结果一起上传。
@@ -774,7 +774,7 @@ jobs:
           node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, the emulator's D1 needs it"; exit 1; }
           mkdir -p emulator-log
           log=emulator-log/preview-emulator.log
-          nohup node tests/web/e2e/preview-emulator.cjs --port 8788 --space-key "$PREVIEW_TEST_SPACE_KEY" --account-root-key "$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "$PREVIEW_TEST_PW_PEPPER" > "$log" 2>&1 &
+          nohup node tests/space/e2e/helpers/preview-emulator.cjs --port 8788 --space-key "$PREVIEW_TEST_SPACE_KEY" --account-root-key "$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "$PREVIEW_TEST_PW_PEPPER" > "$log" 2>&1 &
           pid=$!
           for _ in $(seq 60); do
             if curl -fsS -o /dev/null http://127.0.0.1:8788/__kv/stats; then echo "preview emulator ready on http://localhost:8788 (pid $pid)"; exit 0; fi
@@ -804,14 +804,14 @@ jobs:
           echo "emulator KV / D1 operations this run (not billed):"
           curl -fsS http://127.0.0.1:8788/__kv/stats | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);for(const k of ['app','rest','d1'])console.log(k,JSON.stringify(Object.fromEntries(Object.entries(j[k]).filter(([n])=>n!=='byPrefix'))))})" || true
 
-      - name: Bundle preview _worker.js (combined entry tests/web/e2e/preview-worker.js)
+      - name: Bundle preview _worker.js (combined entry tests/space/e2e/helpers/preview-worker.js)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # Pages 上已经没有后端代码。预览把组合入口打包成 Pages 的 _worker.js（覆盖静态的那个），在 passkey-e2e.styrigx-space.pages.dev 上跑：
         # 网关和账号 Worker 两边仓库里的真实代码，网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器，env 按正式绑定拆给两半
         # （账号拆分 PR3；见 preview-worker.js 文件头）。页面和默认头像读 env.ASSETS，接口连预览的 D1（D1_LOCK_AUTH / D1_ACCOUNT_AUTH 同一个测试库）。
         # 只打包不部署 Worker，不需要 Worker 权限。
         run: |
-          npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/web/e2e/preview-worker.js --dry-run --outdir "$RUNNER_TEMP/preview-dist" \
+          npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/space/e2e/helpers/preview-worker.js --dry-run --outdir "$RUNNER_TEMP/preview-dist" \
             --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' web/atlas/wrangler.toml)"
           cp "$RUNNER_TEMP/preview-dist/preview-worker.js" web/atlas/public/_worker.js
           grep -q "X-SGX-Runtime" web/atlas/public/_worker.js
@@ -963,7 +963,7 @@ jobs:
         # 预览地址和预览 D1 id 从 web/atlas/wrangler.toml 读，不在这里重复写。
         # SGX_TEST_SPACE_KEY / SGX_TEST_ACCOUNT_ROOT_KEY 是本次生成、已写进预览 SGX_LOCK_SPACE_KEY / SGX_ACCOUNT_ROOT_KEY 的同一对值。
         # 测试进程写预览 D1（打开重置开关、清进站凭证限速计数）用 Pages 部署 token（和上面清 D1 同一个）。
-        # 测试 helper 尽量少写：缓存会话 / 进门票并用只读接口确认（tests/web/e2e/preview-helpers.cjs 文件头）。
+        # 测试 helper 尽量少写：缓存会话 / 进门票并用只读接口确认（tests/space/e2e/helpers/preview-helpers.cjs 文件头）。
         env:
           SGX_TEST_SUITE: passkey
           SGX_TEST_SPACE_KEY: ${{ env.PREVIEW_TEST_SPACE_KEY }}

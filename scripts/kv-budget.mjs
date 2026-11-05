@@ -6,7 +6,7 @@
  * 因为免费计划的 KV 写 / 删 / 列各 1000 次 / 天、全账号共用，2026-10-25 四次 passkey-e2e 用掉了约 84%）。
  * 文件名沿用（CI 和文档都按这个名字引用）。
  *
- * 用法（CI 的 passkey-e2e job；本地可配 CF_API_BASE 指向 tests/web/e2e/preview-emulator.cjs）：
+ * 用法（CI 的 passkey-e2e job；本地可配 CF_API_BASE 指向 tests/space/e2e/helpers/preview-emulator.cjs）：
  *   node scripts/kv-budget.mjs reset-preview   清预览 D1 的 RESET_D1_TABLES（库 id 从 web/atlas/wrangler.toml 读，见 previewD1Id）
  *   node scripts/kv-budget.mjs estimate        打印每次运行的估算
  * 环境变量：CF_ACCOUNT_ID、CF_API_TOKEN（要 D1 编辑）；CF_API_BASE（默认 https://api.cloudflare.com/client/v4）。
@@ -17,7 +17,7 @@ import { REALM_LOCK } from '../workers/auth-gateway/src/core/realms.js';
 
 /**
  * 一次 passkey-e2e 运行的用量估算（上限）。KV：网关和测试都不再碰 KV，全为 0。
- * D1：tests/web/e2e/preview-emulator.cjs 量（/__kv/stats 的 d1 一栏，按语句数），真实预览留余量。
+ * D1：tests/space/e2e/helpers/preview-emulator.cjs 量（/__kv/stats 的 d1 一栏，按语句数），真实预览留余量。
  */
 export const PER_RUN_ESTIMATE = Object.freeze({ read: 0, write: 0, delete: 0, list: 0, d1Statements: 2500 });
 

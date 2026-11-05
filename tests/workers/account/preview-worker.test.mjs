@@ -1,12 +1,12 @@
 /**
- * passkey-e2e 预览的组合入口 tests/web/e2e/preview-worker.js（账号拆分 PR3）：env 按正式绑定拆给网关 / 账号两半，
+ * passkey-e2e 预览的组合入口 tests/space/e2e/helpers/preview-worker.js（账号拆分 PR3）：env 按正式绑定拆给网关 / 账号两半，
  * 网关那一半看不到账号钥匙和账号库，只拿到 ACCOUNT / ACCOUNT_VERIFIER 两个进程内的「服务绑定」。
  */
 import './_cf-workers.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const pw = await import('../../web/e2e/preview-worker.js');
+const pw = await import('../../space/e2e/helpers/preview-worker.js');
 
 const FULL = {
   SGX_ENV: 'preview', SGX_SITE: 'space', SGX_RP_ID: 'x.pages.dev', SGX_ORIGIN: 'https://x.pages.dev',
