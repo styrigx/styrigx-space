@@ -1,8 +1,8 @@
 # 外壳 UI cookie 契约：`sgx-ui`（2026-10-26，C10）
 
-> 适用：主站 styrigx-space 写；子站 `styrigx.com/blog/`、`/curio/`、`/daymark/`（2026-11 从 styrigx-atlas 并入本仓库 `web/<站>/`）只读。
+> 适用：主站 styrigx-space 和子站 `styrigx.com/blog/`、`/curio/`、`/daymark/`（2026-11 从 styrigx-atlas 并入本仓库 `web/<站>/`）共用一个写端（2026-11-04 P5-1，定案第 5 条；以前是主站写、子站只读）；子站首帧读。
 > 本文只描述**现状**（主站 main 上的写端 / 读端 / 夹具），不改任何代码。
-> 真源头是代码：写端 `web/atlas/assets/js/lib/ui-cookie.js`，字段表 / 版本 / 编解码 `web/atlas/assets/js/lib/ui-cookie-read.js`，
+> 真源头是代码：写端 `web/atlas/assets/js/lib/prefs-write.js`（共享外壳 `prefs-write.js`；`lib/ui-cookie.js` 只转导出 `syncUiCookie`），字段表 / 版本 / 编解码 `web/atlas/assets/js/lib/ui-cookie-read.js`，
 > 夹具 `tests/fixtures/ui-cookie-contract.json`（`scripts/gen-ui-cookie-contract.mjs` 跑真写端生成）。本文和代码不一致时以代码为准，并顺手改本文。
 
 ## 一、它是什么
@@ -11,8 +11,10 @@
 所以主站把这些设置**镜像**到一个 `styrigx.com` 域的 cookie（合并 PR3 起子站和主站同源、atlas 只做 301，读端仍读这个 cookie，机制未改），子站在 `<head>` 里首帧前同步读它，让深浅色、色板、主题色和主站一致、不闪屏。
 
 - 只放 UI 设置，**不放任何凭证 / 会话信息**（会话 cookie 见 `docs/auth-state-machine.md`）。
-- 主站写，子站**只读、永远不写** `sgx-ui`。
-- 主站自己首帧不读这个 cookie（主站 baseof 内联脚本读 localStorage）；cookie 只是给子站的镜像。
+- 四站共用一个写端（2026-11-04 P5-1，定案第 5 条，改写原「主站写、子站只读」）：写法在 `lib/prefs-write.js`，共享外壳原样带给子站。
+  主站在设置变更时写（core.js 监听 `sgx-settings-changed`）；子站只在快捷面板改外观时写（深色 / 跟随系统 / 语言 / 调色板：先写同源 localStorage，再写 cookie）。
+  范围：账号同步上线前按设备生效——子站写入的外观只在本设备（本浏览器）生效，回到主站即同步（同源同一份 localStorage）；跨设备以账号云同步为准，云同步覆盖这些设置之前不承诺跨设备。
+- 主站自己首帧不读这个 cookie（主站 baseof 内联脚本读 localStorage）；cookie 是给子站首帧用的镜像。
 
 ## 二、cookie 本身
 
@@ -144,7 +146,7 @@ cookie 最长活 400 天，所以旧格式都要能读：
 
 | 站 | 读 `sgx-ui` 的文件 | 首帧前怎么跑 |
 |---|---|---|
-| 主站（自检） | `web/atlas/assets/js/lib/ui-cookie-read.js`（写端 `ui-cookie.js` import 它拿字段表） | 主站页面不读 cookie；`tests/web/ui/ui-cookie-contract.test.mjs`、`tests/web/e2e/ui-cookie-reader.spec.js` 用它验契约 |
+| 主站（自检） | `web/atlas/assets/js/lib/ui-cookie-read.js`（写端 `prefs-write.js` 运行时用它挂的 `window.SgxUI` 拿字段表；`ui-cookie.js` 先 import 它） | 主站页面不读 cookie；`tests/web/ui/ui-cookie-contract.test.mjs`、`tests/web/e2e/ui-cookie-reader.spec.js` 用它验契约 |
 | 子站各站 | 共享读端 `web/atlas/shared/shell/ui-cookie-read.js` 的同步副本，加各站自己的一小段 | 见各站 `web/<站>/` |
 
 改契约时先改共享读端，再跑各站的 `node scripts/<站>/sync-shell.mjs`，并逐站核对各站自己的那一小段。
@@ -155,7 +157,7 @@ cookie 最长活 400 天，所以旧格式都要能读：
 
 1. **读端** `web/atlas/assets/js/lib/ui-cookie-read.js`：在 `normalize()` 里加字段和它的默认值（不合法 → 默认，绝不抛错）；需要的话改 `resolve()` / `apply()`。
    保持 ES5 经典脚本、无依赖、从不写 cookie（单测会查）。
-2. **写端** `web/atlas/assets/js/lib/ui-cookie.js`：`syncUiCookie()` 的 payload 加字段，取值只来自主站 localStorage。
+2. **写端** `web/atlas/assets/js/lib/prefs-write.js`：`syncUiCookie()` 的 payload 加字段，取值只来自（同源的）localStorage；改完跑 `node scripts/gen-shell.mjs` 并同步三站。
 3. **夹具用例** `scripts/gen-ui-cookie-contract.mjs`：`WRITER_CASES` 加写端用例（真写端会跑出 cookie），`HANDMADE` 加写端写不出的旧值 / 坏值；
    期望值在这里**按契约手写**，不要拿读端算（读端改错了才会和夹具对不上）。新字段有默认值的，记得改 `BASE` / `V2`。
 4. 重新生成并核对：
