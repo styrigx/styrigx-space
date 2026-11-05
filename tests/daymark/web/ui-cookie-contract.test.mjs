@@ -29,11 +29,11 @@ function rootState(html) {
 }
 const plain = (o) => JSON.parse(JSON.stringify(o));
 
-test('夹具来自主站写端：38 个用例，覆盖默认 dustyblue、lake、旧撞色、自定义色、旧 v1 / v2、旧种子、theme 别名、大写 accent、lang、坐标不进 cookie、未知版本、乱码', () => {
+test('夹具来自主站写端：37 个用例，覆盖默认 dustyblue、lake、旧撞色、自定义色、旧 v1 / v2、旧种子、theme 别名、大写 accent、lang、未知版本、乱码', () => {
   assert.match(fx._generated, /styrigx-space scripts\/gen-ui-cookie-contract\.mjs/);
-  assert.equal(fx.cases.length, 38);
+  assert.equal(fx.cases.length, 37);
   const names = fx.cases.map((c) => c.name).join('|');
-  for (const k of ['默认 dustyblue 亮色', '湖蓝 lake', '旧撞色 xforest', '自定义主题色', '旧 v1', '旧 v2', '旧种子', 'theme 别名', 'accent 大写', 'lang en', 'lang zh', 'lang 空', 'lang 大写', '坐标不进 cookie', '未知版本 v3 带 lang', '未知版本', '版本是字符串', '没有 v', '乱码']) {
+  for (const k of ['默认 dustyblue 亮色', '湖蓝 lake', '旧撞色 xforest', '自定义主题色', '旧 v1', '旧 v2', '旧种子', 'theme 别名', 'accent 大写', 'lang en', 'lang zh', 'lang 空', 'lang 大写', '未知版本 v3 带 lang', '未知版本', '版本是字符串', '没有 v', '乱码']) {
     assert.match(names, new RegExp(k), k);
   }
 });
@@ -63,18 +63,17 @@ test('读端预设表 / 引擎版本 / 默认色板 = 共享外壳 palettes.json
   assert.deepEqual(plain(s.U.VERSIONS), [1, 2]);
 });
 
-test('夹具：每个能读的 cookie 都带 lang 字段（zh / en / 空）；写端产出的 cookie 不带坐标（city / precise 恒为 null）', () => {
+test('夹具：每个能读的 cookie 都带 lang 字段（zh / en / 空）；写端产出的 cookie 不带时钟 / 天气 / 坐标字段（P4-2c）', () => {
   for (const c of fx.cases) {
     if (!c.read) continue;
     assert.ok(['zh', 'en', ''].includes(c.read.lang), c.name + ' lang');
     if (c.source !== 'writer') continue;
     const raw = JSON.parse(Buffer.from(c.cookie, 'base64url').toString('utf8'));
-    assert.equal(raw.city, null, c.name + ' city');
-    assert.equal(raw.precise, null, c.name + ' precise');
-    assert.equal(c.read.city, null, c.name + ' read.city');
-    assert.equal(c.read.precise, null, c.name + ' read.precise');
+    for (const k of ['tz1', 'tz2', 'h12', 'clock', 'wx', 'unit', 'loc', 'city', 'precise']) {
+      assert.ok(!(k in raw), c.name + ' ' + k);
+      assert.ok(!(k in c.read), c.name + ' read.' + k);
+    }
   }
-  assert.ok(fx.cases.some((c) => c.source === 'writer' && c.read.loc === 'precise'), '精确定位用例：只留 loc');
 });
 
 const cookieOf = (name) => 'sgx-ui=' + fx.cases.find((c) => c.name.startsWith(name)).cookie;

@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:0eb79ebb3681 web/atlas/shared/shell v68dfaee792b3（scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:4e5d0b7b06eb web/atlas/shared/shell v9058f5c68575（scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- share.js ---- */
 /**
  * @fileoverview 子站「分享本页」（共享外壳组件，2026-10-24；gen-shell 原样复制成 web/shared/shell/share.js，三个子站 sync-shell 同步）。

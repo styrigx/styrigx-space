@@ -58,7 +58,7 @@ export function build() {
     for (const f of htmlFiles(path.join(PUB, base))) {
       const rel = '/' + path.relative(PUB, path.dirname(f)).split(path.sep).join('/') + '/';
       const html = readFileSync(f, 'utf8');
-      /* 搬走 / 删掉的设置页留下的跳转页（layouts/alias.html，如 /settings/goodlock/ → /settings/advanced/）不进索引 */
+      /* 搬走 / 删掉的设置页留下的跳转页（layouts/alias.html）不进索引 */
       if (/<meta http-equiv="?refresh/i.test(html)) continue;
       const title = pageTitle(html);
       if (!title || title === 'Styrigx') continue;

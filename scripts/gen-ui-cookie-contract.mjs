@@ -24,7 +24,7 @@ const ROLES = path.join(REPO, 'web/atlas/data/palette-roles.json');
 export const NOW = 1761062400000;
 
 /** 读端期望的默认值（没有 cookie / 字段不合法） */
-const BASE = { tz1: 'auto', tz2: '', h12: 0, clock: 'digital', wx: 1, unit: 'c', loc: 'auto', city: null, precise: null };
+const BASE = {}; /* P4-2c 起时钟 / 天气字段删除，读端不再输出 */
 const V2 = (o) => ({ v: 2, mode: 'system', pal: 'dustyblue', accent: '', fs: 'standard', rm: 0, mat: NOW, lang: '', ...BASE, ...o });
 /** 写端用例里的种子 = 当前 palette-roles.json 里该预设的种子（七色调色板 = 前景 1） */
 const SEEDS = Object.fromEntries(Object.entries(JSON.parse(readFileSync(ROLES, 'utf8')).presets).map(([id, p]) => [id, p.seed]));
@@ -46,22 +46,13 @@ const WRITER_CASES = [
   { name: '自定义主题色（旧撞色 xrose → rose，深色）', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'xrose', 'sgx-accent': '#d0a020' }, expect: { mode: 'dark', pal: 'rose', accent: '#d0a020' } },
   {
     /* 2026-10-23 PR-E：字体大小 / 减弱动效设置删除 —— 本地残留的旧值写端不再带出去，fs / rm 固定默认 */
-    name: '旧的大字号 + 减弱动效 key 不再生效 + 时钟 / 天气字段（手动城市：坐标不进 cookie）',
+    name: '旧的大字号 + 减弱动效 key、已删的时钟 / 天气 key 都不再带出去（P4-2c）',
     local: {
       'sgx-font-size': 'large', 'sgx-reduced-motion': '1', 'sgx-tz1-auto': '0', 'sgx-tz1': 'Asia/Shanghai', 'sgx-tz2': 'America/Los_Angeles',
       'sgx-hour12': '12', 'sgx-gl-clockstyle': '1', 'sgx-weather-show': '0', 'sgx-temp-unit': 'f', 'sgx-weather-loc': 'city',
       'sgx-weather-city': '{"name":"上海","lat":31.23,"lon":121.47}',
     },
-    expect: { accent: SEEDS.dustyblue, tz1: 'Asia/Shanghai', tz2: 'America/Los_Angeles', h12: 1, clock: 'analog', wx: 0, unit: 'f', loc: 'city', city: null, precise: null },
-  },
-  {
-    name: '精确定位：坐标不进 cookie（precise / city 恒为 null，只留 loc）',
-    local: {
-      'sgx-weather-loc': 'precise',
-      'sgx-weather-precise': '{"lat":34.05,"lon":-118.24,"t":1761062400000}',
-      'sgx-weather-city': '{"name":"上海","lat":31.23,"lon":121.47}',
-    },
-    expect: { accent: SEEDS.dustyblue, loc: 'precise', city: null, precise: null },
+    expect: { accent: SEEDS.dustyblue },
   },
   { name: '旧的小字号 key 不再生效', local: { 'sgx-font-size': 'small', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.dustyblue } },
   { name: '本地存了不认识的色板 id（写端写默认 dustyblue）', local: { 'sgx-palette': 'neon', 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.dustyblue } },
@@ -79,7 +70,7 @@ const HANDMADE = [
   {
     name: '旧 v1（只有时钟 / 天气，没有外观）',
     cookie: b64({ v: 1, tz1: 'auto', tz2: 'Europe/London', h12: 0, clock: 'digital', wx: 1, unit: 'c', loc: 'auto', city: null, precise: null }),
-    read: { ...V2({ tz2: 'Europe/London' }), v: 1, mat: 0, accent: '' },
+    read: { ...V2(), v: 1, mat: 0, accent: '' },
   },
   {
     name: '旧 v1 带 fs / rm',
@@ -94,7 +85,7 @@ const HANDMADE = [
   {
     name: '字段不合法 → 各自按默认',
     cookie: b64({ v: 2, mode: 'blue', pal: 'neon', accent: '#GGGGGG', fs: 'huge', rm: true, mat: -5, lang: 'fr', tz1: '../../etc', tz2: 5, h12: '1', clock: 'sundial', wx: 'no', unit: 'k', loc: 'SOME PLACE', city: [1, 2], precise: 'x' }),
-    read: { ...V2({ mat: 0 }), wx: 1 },
+    read: V2({ mat: 0 }),
   },
   { name: 'accent 大写 → 严格校验不认（写端永远写小写）', cookie: b64({ v: 2, pal: 'lake', accent: '#2F5F86', mode: 'light' }), read: V2({ mode: 'light', pal: 'lake', mat: 0 }) },
   /* 2026-10-23 PR-G：旧主站写的 cookie（撞色 x<id> / 旧种子）在子站照样认 */

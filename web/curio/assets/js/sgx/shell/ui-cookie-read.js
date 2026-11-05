@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:0eb79ebb3681 web/atlas/shared/shell v68dfaee792b3（scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:4e5d0b7b06eb web/atlas/shared/shell v9058f5c68575（scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- ui-cookie-read.js ---- */
 /**
  * @fileoverview sgx-ui cookie 只读解析器（2026-10-22）：子站（博客 / 日刻 / 奇趣）首帧前读主站写的外观，<html> 落到和主站一样的状态。
@@ -13,7 +13,7 @@
  *   data-palette（默认 dustyblue 不写）、自定义色时 --sgx-seed + <style id="sgx-accent-roles">、class reduced-motion、data-reduced-motion。
  *
  * API：
- *   SgxUI.read([cookieString])          → 校验后的对象 {v, mode, pal, accent, fs, rm, mat, lang, tz1, tz2, h12, clock, wx, unit, loc, city, precise} 或 null
+ *   SgxUI.read([cookieString])          → 校验后的对象 {v, mode, pal, accent, fs, rm, mat, lang} 或 null（旧 cookie 里的时钟 / 天气字段 P4-2c 起忽略）
  *       （lang：主站用户明确选的语言 'zh' | 'en'，跟随系统 / 没有 = ''；只给子站决定要不要跳语言，apply() 不管它）
  *   SgxUI.resolve(ui, prefersDark)      → {mode, dark, pal, fs, rm, seed}（seed：accent 是自定义色时为 #rrggbb，否则 ''）
  *   SgxUI.apply([root], [opts])         → 读 cookie + 落到 root（默认 <html>），返回 resolve 的结果；
@@ -40,7 +40,6 @@
   /* 2026-10-23 PR-G 七色调色板之前的预设种子（单色组；撞色 x<id> 和同名单色一样）：旧 cookie 里 accent = 旧种子时仍当预设，不当自定义色。不随引擎变，手写。 */
   var LEGACY_SEEDS = {"lake":"#2f5f86","forest":"#2f6b4f","terra":"#8a4b2d","violet":"#6750a4","rose":"#984061","cherry":"#ba1a20","tangerine":"#b02e00","amber":"#825500","matcha":"#3c6a00","teal":"#00696b","indigo":"#3d4fd3","orchid":"#a62092","dustyblue":"#78909c","mustard":"#d4a72c","sage":"#9caf88","dustyrose":"#d8a7a7","graphite":"#5e5e5e"};
   var HEX = /^#[0-9a-f]{6}$/;
-  var TZ = /^[A-Za-z0-9_+\-\/]{1,64}$/;
   var CACHE_KEY = 'sgx-shell-accent-css';
   var STYLE_ID = 'sgx-accent-roles';
   var MQ = '(prefers-color-scheme: dark)';
@@ -91,16 +90,7 @@
       fs: inList(FONT_SIZES, o.fs) ? o.fs : 'standard',
       rm: o.rm === 1 ? 1 : 0,
       mat: typeof o.mat === 'number' && isFinite(o.mat) && o.mat >= 0 ? o.mat : 0,
-      lang: o.lang === 'zh' || o.lang === 'en' ? o.lang : '',
-      tz1: o.tz1 === 'auto' ? 'auto' : str(o.tz1, TZ, 'auto'),
-      tz2: str(o.tz2, TZ, ''),
-      h12: o.h12 === 1 ? 1 : 0,
-      clock: o.clock === 'analog' ? 'analog' : 'digital',
-      wx: o.wx === 0 ? 0 : 1,
-      unit: o.unit === 'f' ? 'f' : 'c',
-      loc: str(o.loc, /^[a-z]{1,16}$/, 'auto'),
-      city: isObj(o.city) ? o.city : null,
-      precise: isObj(o.precise) ? o.precise : null
+      lang: o.lang === 'zh' || o.lang === 'en' ? o.lang : ''
     };
   }
 

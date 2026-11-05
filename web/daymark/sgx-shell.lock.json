@@ -2,9 +2,9 @@
   "_note": "scripts/daymark/sync-shell.mjs 写入，勿手改：tree 是本站共享外壳副本对应的主站外壳目录（dir）的 git tree 哈希；from 只作记录",
   "source": "styrigx/styrigx-space",
   "dir": "web/atlas/shared/shell",
-  "tree": "0eb79ebb3681fe9f17afb273b5061f70bc3d421b",
-  "from": "e01084f292ae592d1b9f1737d836ee1dafc45fe2",
-  "version": "68dfaee792b3",
+  "tree": "4e5d0b7b06eb5ccf926b68c9f9f6a15c29e90f56",
+  "from": "2ff897cbb32a47c8c61641bc1f9216392d59cc8a",
+  "version": "9058f5c68575",
   "files": {
     "tokens.css": "f56a0696035458455a1c210634bd9c3abdb3d6acb332e00f5e327f90e528fba8",
     "shell.css": "9edc4ce71f19ae4e1d76a375d68e773a4835c23298e998575debe77b87aae0c1",
@@ -14,14 +14,14 @@
     "topbar.js": "55dcd8a16c34c7b7951b3e04a1536de035d55b1fe9bab8d76723431bc624ebff",
     "modal-sheet.js": "0a57c3b398c2b7628bf370b7ec13c4cd8ca7a5fc73dbbbda9827b11c910b28f8",
     "ai.js": "1362dc6f0d411b2a7b81e8156ee61602a752c843882b50a55b8fe031a53ca4d5",
-    "prefs-write.js": "5b8dfabef01dcb3ce1fd8f2dab29b67562f2751c183a827080c961d45cb6f7e5",
+    "prefs-write.js": "b1e7f0bad9dc612bd36a8078fbf1c49299acfad2ad5c4ffb46a6df2cd68cf2c9",
     "nav.json": "b411514740d0778f42d0ae4dd798d35d010f034954a46416eae55fac213bfd22",
     "palettes.json": "8acce76979dfeec50d305c8f84e59a83c56b7bbbfa4b45c2f85d631f90bc3c08",
-    "ui-cookie-read.js": "d563535ee2f06b3bb064890f1cc16225e645b15e4f30ca6e4dc4824365ca7978",
-    "ui-cookie-contract.json": "3a532a97fe211aae8b238ad05140d2f44e6f162be4302ab613aef5c0fe1750d0",
+    "ui-cookie-read.js": "171a65d4bc59d28bbae3b464e0d1c252cbaed3be0f1d24cf48e7beb8c763a846",
+    "ui-cookie-contract.json": "d0b6046e8cacded499e83b64cee9ca2f3a7f759f2cdf2a57f0642e2783f83b25",
     "favicon.js": "4bb7f9fe412988861d682b8c2a88eb93f68fc39f9fb51bd5df38441755b5d433",
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
-    "README.md": "4ed732ef09d851ef9085abb8b57a5fd2e527bdfa82352a4b43ca0f369b2b7d5f"
+    "README.md": "c5ce2e58c74c99b650f6c2d802d7e85de0cf1c46f5a7f1f48fbe98194f16ec02"
   },
   "vendored": {
     "web/assets/css/input.css": "73ad68dc743a51a22e3663c5b20e16ec0d3346c89abe973f404614c970665e81",
@@ -31,10 +31,10 @@
     "web/assets/js/sgx/shell/topbar.js": "6ca7367442c4f5e58bb57ff5125264b683c4e001e7b92c55fe979cdedfb48c68",
     "web/assets/js/sgx/shell/modal-sheet.js": "380c8606f52026af93a61171ca44f27c2730e7d780971be6f6598f65d7da416b",
     "web/assets/js/sgx/shell/ai.js": "ab39680e968c3c21733e302aa35ea5340263a6fee7d65a35dafc6b8f247f773f",
-    "web/assets/js/sgx/shell/prefs-write.js": "da5876da00eeca9cd3cfeea20b1cf7d58f81c14973b6efee30ce68c9e467fb3f",
+    "web/assets/js/sgx/shell/prefs-write.js": "586239175083ef3ab3efdb062858682bdd4c20b9f9f10a8ee37e7fcd05a05e91",
     "web/assets/sgx-shell/nav.json": "b411514740d0778f42d0ae4dd798d35d010f034954a46416eae55fac213bfd22",
     "web/assets/sgx-shell/palettes.json": "8acce76979dfeec50d305c8f84e59a83c56b7bbbfa4b45c2f85d631f90bc3c08",
-    "web/assets/js/sgx/shell/ui-cookie-read.js": "d552358e6f672fba9cd9812d4f207d0e8f0776dab0dcd3c325ab9cb52ac3ced9",
-    "tests/fixtures/ui-cookie-contract.json": "3a532a97fe211aae8b238ad05140d2f44e6f162be4302ab613aef5c0fe1750d0"
+    "web/assets/js/sgx/shell/ui-cookie-read.js": "f6970b8fbac4c269a3b71875993191eee85658fdb5dd9597e878c8176c44c091",
+    "tests/fixtures/ui-cookie-contract.json": "d0b6046e8cacded499e83b64cee9ca2f3a7f759f2cdf2a57f0642e2783f83b25"
   }
 }
