@@ -1,5 +1,8 @@
 /**
- * @fileoverview 顶栏弹出层的开合状态机（导航抽屉 #sgx-drawer、快捷面板 #sgx-qp 共用）。
+ * @fileoverview 顶栏弹出层的开合状态机（快捷面板 #sgx-qp、AI 窗口 #sgx-ai 共用；2026-11-04 P5-1 导航抽屉删除）。
+ *
+ * 共享外壳组件：gen-shell 原样复制成 web/shared/shell/modal-sheet.js，子站的 topbar.js / ai.js 由调用方把 modalSheet 传进去用。
+ * 所以本文件不 import 任何东西（减弱动效判断自己写）。
  *
  * dlg.dataset.state：closed → opening → open → closing → closed。
  * 开合只靠我们自己的计时器推进（不等 transitionend：减弱动效 / 后台标签页 / 过渡被打断时它可能永远不来），
@@ -11,8 +14,13 @@
  * Esc（模态：原生 cancel；非模态 modal:false：document keydown）走 close()，点遮罩由调用方接到 close()；close(after) 先退掉哨兵、等它出栈后再执行 after
  * （跳转 / 再弹别的层），免得目标页的返回多一步。
  */
-import { reducedMotion } from '../lib/util.js';
-
+/** 减弱动效：<html class="reduced-motion">（主站 / 子站读端都会写）或系统 prefers-reduced-motion（同 lib/util.js reducedMotion） */
+function reducedMotion() {
+  return (
+    document.documentElement.classList.contains('reduced-motion') ||
+    !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  );
+}
 /**
  * @typedef {Object} ModalSheet
  * @property {() => void} open
