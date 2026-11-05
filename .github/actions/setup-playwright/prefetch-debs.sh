@@ -36,10 +36,24 @@ fetch_one() { # 'URL' 文件名 大小 哈希
   local url="${1//\'/}" name="$2" size="$3" h="$4" tmp start alt
   local out="$dest/$name"
   if hash_ok "$out" "$size" "$h"; then echo "have  $name"; return 0; fi
-  local urls=("$url")
+  local urls=() rel="" list base
   case "$url" in
-    */ubuntu/pool/*) for alt in "${MIRRORS[@]}"; do urls+=("$alt/pool/${url#*/ubuntu/pool/}"); done ;;
+    mirror+file:*)
+      # GitHub runner 的 apt 源是 mirror+file:/etc/apt/apt-mirrors.txt（2026-11-06 PR #279 实测）：--print-uris 给的是
+      # mirror+file:<镜像清单>/pool/...，curl 不认。按 apt 的 mirror 方法展开：清单每行第一列是一个镜像根，依次拼上 pool/ 之后的路径
+      list="${url#mirror+file:}"; list="${list%%/pool/*}"; rel="pool/${url#*/pool/}"
+      if [ -r "$list" ]; then
+        while read -r base _; do
+          case "$base" in ''|'#'*) continue ;; esac
+          urls+=("${base%/}/$rel")
+        done < "$list"
+      fi ;;
+    *)
+      urls=("$url")
+      case "$url" in */ubuntu/pool/*) rel="pool/${url#*/ubuntu/pool/}" ;; esac ;;
   esac
+  if [ -n "$rel" ]; then for alt in "${MIRRORS[@]}"; do urls+=("$alt/$rel"); done; fi
+  if [ "${#urls[@]}" -eq 0 ]; then echo "::warning::prefetch $name: unsupported URI ${url%%/pool/*}, apt will download it itself"; return 0; fi
   tmp="$out.part.$$"
   for u in "${urls[@]}"; do
     start=$SECONDS
