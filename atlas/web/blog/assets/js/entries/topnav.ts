@@ -3,6 +3,7 @@
 import { mountTopbar } from '../sgx/shell/topbar.js';
 import { modalSheet } from '../sgx/shell/modal-sheet.js';
 import { mountAiChat } from '../sgx/shell/ai.js';
+import { onKeyboardHeight } from '../sgx/shell/vk.js';
 import * as prefs from '../sgx/shell/prefs-write.js';
 import { mountShare } from '../sgx/shell/share.js';
 
@@ -54,6 +55,7 @@ function initTopbar() {
     },
     ai: mountAiChat,
     share: mountShare,
+    keyboard: onKeyboardHeight,
   });
 
   updateProgress();

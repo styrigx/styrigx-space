@@ -9,6 +9,7 @@
 import { mountTopbar } from './shell/topbar.js';
 import { modalSheet } from './shell/modal-sheet.js';
 import { mountAiChat } from './shell/ai.js';
+import { onKeyboardHeight } from './shell/vk.js';
 import * as prefs from './shell/prefs-write.js';
 import { mountShare } from './shell/share.js';
 
@@ -31,6 +32,7 @@ function boot() {
     },
     ai: mountAiChat,
     share: mountShare,
+    keyboard: onKeyboardHeight,
   });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

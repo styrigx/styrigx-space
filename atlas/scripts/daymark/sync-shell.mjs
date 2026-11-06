@@ -46,6 +46,8 @@ const SITE = {
     { path: 'web/assets/js/sgx/shell/topbar.js', kind: 'file', parts: ['topbar.js'] },
     { path: 'web/assets/js/sgx/shell/modal-sheet.js', kind: 'file', parts: ['modal-sheet.js'] },
     { path: 'web/assets/js/sgx/shell/ai.js', kind: 'file', parts: ['ai.js'] },
+    /* 键盘高度订阅（P4-3 PR-3）：入口把 onKeyboardHeight 传给 mountTopbar，AI 窗口输入框跟键盘 */
+    { path: 'web/assets/js/sgx/shell/vk.js', kind: 'file', parts: ['vk.js'] },
     { path: 'web/assets/js/sgx/shell/prefs-write.js', kind: 'file', parts: ['prefs-write.js'] },
     /* 快捷面板导航项 + 图标（baseof.html）、预设种子 + 引擎版本（tests/daymark/ui-inherit.test.mjs 核对读端预设表） */
     { path: 'web/assets/sgx-shell/nav.json', kind: 'json', parts: ['nav.json'] },

@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:4e21cea60b99 space/web/shared/shell v6c136768da4d（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:32a9f7169288 space/web/shared/shell va5bce8668afd（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- ai.js ---- */
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
@@ -15,6 +15,10 @@
  *   窗口里不做切换。服务端只在有账号会话时采纳（没登录带了也忽略，一律默认模型），不在登记里 → 400 bad_model：
  *   清掉本地选择、不带 model 自动重发一次（只重发一次；再错按普通错误显示）。清掉时派发 sgx-settings-changed，主站的云同步把删除推上去。
  *   响应头 X-Styrigx-AI-Model（这次用的模型 id）只用于排查，这里不显示。
+ * - 键盘（P4-3 PR-3）：输入框聚焦时订阅键盘高度（调用方传入 opts.keyboard = 共享外壳 vk.js 的 onKeyboardHeight），写到 #sgx-ai 的 --sgx-kb：
+ *   窗口下沿抬到键盘上沿，消息列表在窗口内压缩，标题栏和输入框都留在可视区；键盘高度从有到 0 而输入框仍聚焦（系统手势收键盘）→ 自动 blur()。
+ *   粗指针（触屏）打开窗口不自动聚焦、点发送后 blur() 收键盘；细指针（桌面）照旧打开即聚焦、发送后焦点留在输入框。
+ * - 停止：回答进行中发送按钮变停止按钮（data-stop，读屏名「停止」），点它接 abort()；已收到的部分保留，答完 / 停下后变回发送。
  */
 
 export const AI_API = '/api/ai';
@@ -38,6 +42,8 @@ const STR = {
     tooLong: '问题太长了，最多 200 字',
     quota: '今天的额度用完了，明天再来',
     fail: '没能拿到回答，请稍后再试',
+    send: '发送',
+    stop: '停止',
     site: { space: '主站', blog: '博客', curio: '奇趣', daymark: '日刻' },
   },
   en: {
@@ -52,6 +58,8 @@ const STR = {
     tooLong: 'That question is too long (200 characters max)',
     quota: 'Today’s quota is used up. Come back tomorrow',
     fail: 'Couldn’t get an answer. Please try again',
+    send: 'Send',
+    stop: 'Stop',
     site: { space: 'Space', blog: 'Blog', curio: 'Curio', daymark: 'Daymark' },
   },
 };
@@ -150,7 +158,9 @@ export async function readSse(body, on) {
 /**
  * 挂到 AI 窗口（#sgx-ai）上。topbar.js 第一次打开窗口时调用。
  * @param {HTMLDialogElement} dlg
- * @param {{ lang?: 'zh'|'en', close?: (after?: () => void) => void, navigate?: (url: string) => void, fetch?: typeof fetch, api?: string, store?: Storage }} [opts]
+ * @param {{ lang?: 'zh'|'en', close?: (after?: () => void) => void, navigate?: (url: string) => void, fetch?: typeof fetch, api?: string, store?: Storage,
+ *   keyboard?: (cb: (h: number) => void) => () => void, coarse?: () => boolean }} [opts]
+ *   keyboard：订阅键盘高度（px），返回退订函数（共享外壳 vk.js 的 onKeyboardHeight）；不传 = 不跟键盘。coarse：是否触屏（默认 matchMedia('(pointer: coarse)')）
  */
 export function mountAiChat(dlg, opts) {
   const o = opts || {};
@@ -169,6 +179,49 @@ export function mountAiChat(dlg, opts) {
   let busy = false;
   /** @type {AbortController|null} */
   let ctl = null;
+  const coarse = o.coarse || function () {
+    try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) { return false; }
+  };
+
+  /* ---- 键盘跟随（P4-3 PR-3） ---- */
+  /** @type {(() => void)|null} */
+  let stopKb = null;
+  let kbSeen = false;
+  /** @param {number} h */
+  function kbSet(h) {
+    const atEnd = list.scrollHeight - list.scrollTop - list.clientHeight < 4;
+    dlg.style.setProperty('--sgx-kb', (h > 0 ? Math.round(h) : 0) + 'px');
+    dlg.toggleAttribute('data-kb', h > 0);
+    if (atEnd) list.scrollTop = list.scrollHeight;
+  }
+  function kbStop() {
+    const s = stopKb;
+    stopKb = null;
+    kbSeen = false;
+    if (s) { try { s(); } catch (e) {} }
+    kbSet(0);
+  }
+  function kbStart() {
+    if (stopKb || !o.keyboard) return;
+    kbSeen = false;
+    try {
+      stopKb = o.keyboard(function (h) {
+        if (h > 0) { kbSeen = true; kbSet(h); return; }
+        /* 键盘升起过、现在收了而输入框还聚焦（系统返回 / 手势收键盘）→ 交出焦点，下次点输入框再弹 */
+        if (kbSeen && doc.activeElement === input) { input.blur(); return; }
+        kbSet(0);
+      }) || null;
+    } catch (e) {
+      stopKb = null;
+    }
+  }
+  input.addEventListener('focus', kbStart);
+  input.addEventListener('blur', function () {
+    /* 整个页面失焦（三星 Pass / 指纹窗口盖上来）不算离开输入框：跟着键盘高度走，焦点回来继续（同 vk.js followKeyboard） */
+    try { if (!doc.hasFocus()) return; } catch (e) {}
+    kbStop();
+  });
+  dlg.addEventListener('close', kbStop);
 
   /** @param {Msg} m */
   function bubble(m) {
@@ -218,7 +271,11 @@ export function mountAiChat(dlg, opts) {
   }
   function setBusy(/** @type {boolean} */ v) {
     busy = v;
-    if (send) send.disabled = v;
+    if (send) {
+      send.disabled = false;
+      send.toggleAttribute('data-stop', v);
+      send.setAttribute('aria-label', v ? t.stop : t.send);
+    }
     if (clear) clear.disabled = v || !msgs.length;
     dlg.toggleAttribute('aria-busy', v);
   }
@@ -302,14 +359,26 @@ export function mountAiChat(dlg, opts) {
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+    if (busy) return;
     const q = input.value;
     input.value = '';
+    /* 触屏：发出去就收键盘，看回答（桌面焦点留在输入框，接着问）；空的不算发 */
+    if (q.trim() && coarse()) { try { input.blur(); } catch (e2) {} }
     ask(q);
   });
-  /* 回车发送，Shift+回车换行（输入法组字中不算） */
+  /* 回答进行中，发送按钮是停止按钮：点它中断这次回答 */
+  if (send) {
+    send.addEventListener('click', function (e) {
+      if (!busy) return;
+      e.preventDefault();
+      if (ctl) ctl.abort();
+    });
+  }
+  /* 回车发送，Shift+回车换行（输入法组字中不算）；回答进行中回车不发、也不中断 */
   input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
+      if (busy) return;
       form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
     }
   });
@@ -338,7 +407,8 @@ export function mountAiChat(dlg, opts) {
   return {
     onOpen: function () {
       if (!busy) { msgs = loadHistory(o.store); render(); }
-      try { input.focus({ preventScroll: true }); } catch (e) {}
+      /* 触屏不自动聚焦（程序化聚焦会弹键盘盖住输入框）；桌面照旧 */
+      if (!coarse()) { try { input.focus({ preventScroll: true }); } catch (e) {} }
     },
     ask: ask,
     abort: function () { if (ctl) ctl.abort(); },

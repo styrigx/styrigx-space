@@ -1,10 +1,10 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:4e21cea60b99 space/web/shared/shell v6c136768da4d（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:32a9f7169288 space/web/shared/shell va5bce8668afd（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- topbar.js ---- */
 /**
  * @fileoverview 顶栏的两个弹出窗口：快捷面板 #sgx-qp（两页：导航 / 快捷设置）和 AI 窗口 #sgx-ai（2026-11-04 P5-1，方案 5.5 / 6.3–6.5）。
  * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/topbar.js，四个站共用（主站 shell/quick-panel.js 调它，子站入口脚本调它）。
  * 自成一体：不 import 任何东西；状态机（modal-sheet.js）、外观 setter（主站 lib/prefs.js / 子站 prefs-write.js）、AI 内容（ai.js）、
- * 分享（share.js）都由调用方传进来。
+ * 分享（share.js）、键盘高度订阅（vk.js 的 onKeyboardHeight，转给 AI 窗口；P4-3 PR-3）都由调用方传进来。
  *
  * - 两个窗口都是非模态 <dialog>（modalSheet modal:false → show()）：从顶栏下方落下，顶栏留在上面可点；开合 / 系统返回 / Esc / bfcache 走 modalSheet。
  * - 互斥：一个开着时点顶栏上别的东西（另一个窗口的图标、logo、头像、标签），先关这个（等哨兵出栈）再补点那一下。
@@ -43,7 +43,8 @@ const STR = {
  *   onLock?: () => void,
  *   navigate?: (url: string) => void,
  *   replace?: (url: string) => void,
- *   ai?: (dlg: HTMLDialogElement, o: { lang: 'zh'|'en', close: Function, navigate: Function }) => ({ onOpen?: () => void } | void),
+ *   ai?: (dlg: HTMLDialogElement, o: { lang: 'zh'|'en', close: Function, navigate: Function, keyboard?: Function }) => ({ onOpen?: () => void } | void),
+ *   keyboard?: (cb: (h: number) => void) => () => void,
  *   share?: (cfg: { button: Element }) => any,
  *   subscribe?: (repaint: () => void) => void,
  *   doc?: Document,
@@ -285,7 +286,7 @@ export function mountTopbar(o) {
     /** @type {any} */
     let chat = null;
     ai = wire(aiBtn, aiDlg, 'sgxAi', function () {
-      if (!chat && o.ai) chat = o.ai(aiDlg, { lang: en ? 'en' : 'zh', close: function (/** @type {any} */ after) { if (ai) ai.ms.close(after); }, navigate: navigate }) || {};
+      if (!chat && o.ai) chat = o.ai(aiDlg, { lang: en ? 'en' : 'zh', close: function (/** @type {any} */ after) { if (ai) ai.ms.close(after); }, navigate: navigate, keyboard: o.keyboard }) || {};
       if (chat && chat.onOpen) chat.onOpen();
     });
   }

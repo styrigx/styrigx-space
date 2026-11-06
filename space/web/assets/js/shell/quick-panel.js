@@ -6,7 +6,7 @@
  * - 语言：切到另一种语言（显式 zh / en），关面板后 replace 到对应语言的同一页（lib/prefs.js setLang 算地址，不留历史）；
  * - 立即锁定：关面板后弹出与安全页相同的「立即锁定？」确认层（auth/lock-now.js）；
  * - 布局行（auto / mobile / dex；不够 DeX 时 DeX 置灰）；
- * - AI 窗口内容 shell/ai-panel.js（共享外壳 ai.js）。主站不设分享（定案第 4 条：模板层不输出分享磁贴）。
+ * - AI 窗口内容 shell/ai-panel.js（共享外壳 ai.js），键盘高度订阅 shell/vk.js（共享外壳 vk.js，P4-3 PR-3）。主站不设分享（定案第 4 条：模板层不输出分享磁贴）。
  */
 import { on as featOn } from '../lib/features.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
@@ -28,6 +28,7 @@ import { accent } from '../lib/accent.js';
 import { modalSheet } from './modal-sheet.js';
 import { mountTopbar } from './topbar-panel.js';
 import { mountAiChat } from './ai-panel.js';
+import { onKeyboardHeight } from './vk.js';
 
 export function initQuickPanel() {
   mountTopbar({
@@ -50,6 +51,7 @@ export function initQuickPanel() {
     navigate: sgxNavigate,
     replace: sgxReplace,
     ai: mountAiChat,
+    keyboard: onKeyboardHeight,
     /* 设置页（或别的标签页）改了同一项：面板开着时即时重绘 */
     subscribe: function (repaint) {
       ['theme-mode', 'palette', 'layout'].forEach(function (id) {
