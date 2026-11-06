@@ -233,7 +233,7 @@ jobs:
           if grep -q "X-SGX-Runtime" "$T/_worker.js"; then fail "gateway bundle in production Pages build"; fi
           grep -q "Content-Security-Policy" "$T/_headers" || fail "_headers lost the security headers"
           for s in blog curio daymark; do
-            for f in index.html en/index.html 404.html; do test -s "$T/$s/$f" || fail "$T/$s/$f missing"; done
+            for f in index.html zh/index.html 404.html zh/404.html; do test -s "$T/$s/$f" || fail "$T/$s/$f missing"; done
             for f in _worker.js _headers _redirects robots.txt; do test ! -e "$T/$s/$f" || fail "$T/$s/$f must not exist (root-only file)"; done
             grep -q "^/$s/js/\*$" "$T/_headers" || fail "_headers has no /$s/js/* cache rule"
           done
@@ -1158,7 +1158,7 @@ jobs:
             done
             [ $pass = 0 ] || { echo "::error::styrigx.com/$s/$css not served directly from this deployment"; ok=1; }
           done
-          for p in /blog/rss.xml /blog/en/rss.xml /blog/sitemap-index.xml /curio/sitemap.xml /daymark/sitemap.xml; do locked "$p" || ok=1; done
+          for p in /blog/rss.xml /blog/zh/rss.xml /blog/sitemap-index.xml /curio/sitemap.xml /daymark/sitemap.xml; do locked "$p" || ok=1; done
           # 绕法：编码 / 大小写 / 多斜杠，网关归一后同样按子站验会话（302 的 return 是原样的请求路径，这里只断言 302 + worker + 不出 xml）
           for p in /%62log/rss.xml //blog/rss.xml /BLOG/rss.xml; do
             h=$(hdr "https://styrigx.com$p"); code=$(code_of "$h"); rt=$(field "$h" x-sgx-runtime); ct=$(field "$h" content-type)
@@ -1790,7 +1790,10 @@ jobs:
           check /api/no-such-endpoint 401 || ok=1
           # 页面：网关验会话后回源 Pages。首页未登录照常 200（锁屏），内页未登录 302 到锁屏
           check / 200 || ok=1
-          check /en/ 200 || ok=1
+          # P4-3 PR-4c：英文在根、中文 /zh/；锁屏凭证页两种语言都过网关（无会话 302 到锁屏）
+          check /zh/ 200 || ok=1
+          check /security/lock/ 302 || ok=1
+          check /zh/security/lock/ 302 || ok=1
           check /security/ 302 || ok=1
           # 旧搜索 / 聊天页（P4-2 起 _redirects 301 回首页）：没会话时网关先 302 到锁屏
           check /browser/search/ 302 || ok=1

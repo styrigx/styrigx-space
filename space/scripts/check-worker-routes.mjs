@@ -42,7 +42,7 @@ const EXEMPT = new Set(['/404.html']);
 /* 必须过网关的非页面路径（含锁屏入口本身，带查询串） */
 const MUST_ROUTE = ['/api/geo', '/api/lock-session-check',
   '/?lock=1', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2Fblog%2F', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
-  '/en/?lock=1', '/files-index.json'];
+  '/zh/?lock=1', '/files-index.json'];
 /* 账号路径：必须归网关、在转发表里转给 ACCOUNT（账号 Worker styrigx-account 没有路由） */
 const ACCOUNT_MUST = ['/api/account', '/api/account?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24',
   '/avatar/32.webp', '/avatar/96.webp', '/avatar/192.webp?v=abc', '/avatar/512.webp'];
@@ -54,9 +54,9 @@ const SHARE_MUST = ['/s/AAAAAAAAAAAAAAAAAAAAAA', '/s/AAAAAAAAAAAAAAAAAAAAAA/', '
 /* 子站（合并 PR3）：主域名下的前缀，三站产物都按 /<站>/ 登记 */
 export const SUBSITES = ['blog', 'curio', 'daymark'];
 /* 子站在主域名上必须归网关的路径（页面、RSS、站点地图都要会话，网关子站关口验） */
-const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?a', '/blog/tags/x/', '/blog/en/', '/blog/en/?a', '/blog/rss.xml', '/blog/rss.xml?a',
-  '/curio/', '/curio/?x=1', '/curio/en/', '/curio/zh/', '/curio/sitemap.xml', '/curio/sitemap.xml?a',
-  '/daymark/', '/daymark/?x=1', '/daymark/en/', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a'];
+const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?a', '/blog/tags/x/', '/blog/zh/', '/blog/zh/?a', '/blog/zh/post/x/', '/blog/rss.xml', '/blog/rss.xml?a',
+  '/curio/', '/curio/?x=1', '/curio/zh/', '/curio/sitemap.xml', '/curio/sitemap.xml?a',
+  '/daymark/', '/daymark/?x=1', '/daymark/zh/', '/daymark/sitemap.xml', '/daymark/sitemap.xml?a'];
 /* 两个子站接口 Worker：必须登记的路由和归它们的样例路径（主域名） */
 export const CORE_WORKERS = [
   { name: 'curio-core', label: '奇趣接口 Worker（styrigx-curio-core）', dir: 'workers/curio-core', site: 'curio',

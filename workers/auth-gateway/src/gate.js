@@ -93,7 +93,7 @@ export async function injectSessionState(res, state, account) {
  * L3 共享库：不含鉴权逻辑，只定义路径常量。
 
  */
-export const PUBLIC_PAGE_PATHS = ['/', '/en/'];
+export const PUBLIC_PAGE_PATHS = ['/', '/zh/'];
 
 /**
  * 判断路径是否为公开页（忽略末尾斜杠差异）。
@@ -101,7 +101,7 @@ export const PUBLIC_PAGE_PATHS = ['/', '/en/'];
  * @returns {boolean}
  */
 export function isPublicPage(pathname) {
-  const p = pathname === '/en' ? '/en/' : pathname;
+  const p = pathname === '/zh' ? '/zh/' : pathname;
   return PUBLIC_PAGE_PATHS.includes(p);
 }
 
@@ -121,7 +121,7 @@ export function isPublicPage(pathname) {
 /* 重置锁屏票（LockResetTicket，sgx-lock-reset）只开锁屏凭证页（重置锁屏流程），不开安全总览。 */
 const LOCK_RESET_PATHS = [
   '/security/lock/',
-  '/en/security/lock/',
+  '/zh/security/lock/',
 ];
 /* 重置锁屏票可开的路径（仅锁屏凭证管理页） */
 function isLockResetPath(pathname) {
@@ -150,8 +150,8 @@ const AVATAR_FILE_RE = /^\/avatar\/(32|96|192|512)\.webp$/;
 
 /* 2026-10-21：全站内容索引（博客标题、地址）不是静态资源，要先解锁。
    以前根目录文件不过网关（路由只登记了页面目录），后缀白名单里的 .json 也会把它放出去。 */
-const GATED_DATA = new Set(['/files-index.json', '/en/files-index.json']);
-/* Hugo 给首页、分类、标签各生成一份 RSS（/index.xml、/en/index.xml、/tags/index.xml ……），
+const GATED_DATA = new Set(['/files-index.json', '/zh/files-index.json']);
+/* Hugo 给首页、分类、标签各生成一份 RSS（/index.xml、/zh/index.xml、/tags/index.xml ……），
    里面是全站页面的标题和地址，和 files-index.json 一样要先解锁；后缀白名单里的 .xml 不能把它放出去。 */
 const RSS_FEED_RE = /(^|\/)index\.xml$/i;
 
@@ -169,14 +169,14 @@ function isWhitelisted(pathname) {
   return false;
 }
 
-/** 首页前缀（/ 或 /en/） */
+/** 首页前缀（P4-3 PR-4c：英文 / ，中文 /zh/；旧 /en/ 不再是语言前缀） */
 function homeOf(pathname) {
-  return pathname === '/en' || pathname.startsWith('/en/') ? '/en/' : '/';
+  return pathname === '/zh' || pathname.startsWith('/zh/') ? '/zh/' : '/';
 }
 
 /** 账号页（顶栏右圆头像进入）：注入账号会话提示，首帧不闪登录区 */
 function isAccountPage(pathname) {
-  return pathname === '/account/' || pathname === '/en/account/';
+  return pathname === '/account/' || pathname === '/zh/account/';
 }
 
 /* 跳过会话检查的环境名（本地开发 / 单测 / passkey-e2e 预览）。其余值和缺失都按生产 */
@@ -250,7 +250,7 @@ async function handleRequest(context) {
     return new Response('Server misconfigured', { status: 500 });
   }
   if (isProd && site === 'space') {
-    const isHomepage = pathname === '/' || pathname === '/en' || pathname === '/en/';
+    const isHomepage = pathname === '/' || pathname === '/zh' || pathname === '/zh/';
     const sess = await verifyLockSession(request, env);
     /* 验过的结论交给转发（router.js forward）：写身份头不再重验 */
     if (context.data) context.data.lockSession = sess;
@@ -280,7 +280,7 @@ async function handleRequest(context) {
     }
 
     /* 重置锁屏票可打开锁屏凭证页（重置锁屏流程），但仍进不了主页。
-       仅放行 /security/lock/ 及其英文版（安全总览不放行）；
+       仅放行 /security/lock/ 及其中文版 /zh/security/lock/（安全总览不放行）；
        主页仍需有效会话。
        注入专用状态 lock-reset（而非 locked），前端 initLock 跳过锁屏覆盖，
        落地页可操作；票据仍只能管理锁屏凭证。 */

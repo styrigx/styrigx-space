@@ -9,7 +9,7 @@
  *     （draft: true 跳过；private: true 标 private，只给账号已登录的人搜到——和 index.sitemap0.xml 的 .Params.private 是同一个开关）
  *   - hugo 构建后的 atlas/web/blog/public/[en/]post/<文件名>/index.html：正文（<section id="article-start"> 里，短代码 / Markdown 已渲染好），
  *     去掉代码块标题栏和行号、HTML 标签，压成纯文本，最多 2000 字。
- *     网址按 hugo.yaml 的 permalinks（/post/:contentbasename/，英文带 /en/）拼，并核对构建产物里确实有这一页——
+ *     网址按 hugo.yaml 的 permalinks（/post/:contentbasename/，P4-3 PR-4c 起中文带 /zh/、英文无前缀，前缀由主站 lib/lang-path.js 拼）拼，并核对构建产物里确实有这一页——
  *     没有就报错（网址规则改了 → 这里红，不会把错地址写进索引）。
  *
  * 用法：npm run build 之后 node atlas/scripts/blog/build-search-index.mjs [--out <文件>]（默认 atlas/web/blog/public 外的 search-index.blog.json）
@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { langPath } from '../../../space/web/assets/js/lib/lang-path.js';
 
 /* 2026-11-02 并进 styrigx-space：仓库根是 REPO，博客页面包在 atlas/web/blog/ */
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -135,7 +136,7 @@ export function build(opt = {}) {
       if (fm.draft === true) continue;
       if (fm.date && !Number.isNaN(Date.parse(fm.date)) && Date.parse(fm.date) > now.getTime()) continue; // hugo 默认不发未来文章
       const slug = name.replace(/\.md$/, '');
-      const rel = (lang === 'en' ? '/en' : '') + '/post/' + slug + '/';
+      const rel = langPath('/blog/post/' + slug + '/', lang).slice('/blog'.length);
       const file = path.join(publicDir, rel, 'index.html');
       if (!existsSync(file)) throw new Error('build-search-index: 构建产物里没有 ' + rel + '（' + lang + '/post/' + name + '）');
       const html = readFileSync(file, 'utf8');

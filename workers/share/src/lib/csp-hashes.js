@@ -6,8 +6,8 @@ export const INLINE_SCRIPT_HASHES = Object.freeze([
   'sha256-3cnYCRXIA6PvNuskoomZSRzThARfCNNwL5rAwESJLec=', // 404.html（30 页）: addEventListener('error',function(e){var t=e.target;if(!t||t
   'sha256-EMzMUxBPw3Pz8oH6TWNsdyAwUgZ5WVBXiXxvpwlxJLs=', // 404.html（30 页）: function __layoutMode(){ try{ if(new URLSearchParams(l
   'sha256-EXXy0XPvXTtUhwj3HaX4YeIspqPULX4vksSB4X+ltm4=', // 404.html（30 页）: document.documentElement.classList.add('no-module');
+  'sha256-FEweR2S8GQoFITD46Ym/ONW0WtcGzMDNUoDVH4fLS/o=', // 404.html（30 页）: (()=>{var p=["blog","curio","daymark"],L=new RegExp("^/("+p.
   'sha256-OJmjzPv5GPxJWCxz5XsqT+kxRohb5rwl7RHxVEolbkA=', // about/index.html（2 页）: document.getElementById('copy-year').textContent=new Date().
-  'sha256-TipVAKejOiCJJ5RZBpuk5yhfgL1UyEskgUhRND+AeBc=', // zh/index.html（1 页）: location.replace(document.documentElement.getAttribute('data
   'sha256-VajZvo+PZeKs6fu52IKLef5vJXN5sw2nr52wct/ekCE=', // 404.html（30 页）: function __sgxUaMobile(){try{var t=navigator,e=t.userAgentDa
-  'sha256-X5j2wfW/JrqQ5lXWDMQePzjEQG2w6jDpF69EN/3f//4=', // 404.html（30 页）: addEventListener('pagereveal',function(e){window.__sgxReveal
+  'sha256-bFkNzzXoq058B2Rkxeu4od1aSAG8M7Yo0LD7pTUzjDs=', // 404.html（30 页）: addEventListener('pagereveal',function(e){window.__sgxReveal
 ]);

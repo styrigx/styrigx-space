@@ -8,7 +8,7 @@
 
 Sloan Gray's personal portal — Space and Account — and the auth gateway that guards the whole site family.
 
-[styrigx.com](https://styrigx.com) · [Blog styrigx.com/blog/](https://styrigx.com/blog/en/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
+[styrigx.com](https://styrigx.com) · [Blog styrigx.com/blog/](https://styrigx.com/blog/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
@@ -62,9 +62,9 @@ The interface is **Styrigx UI**, built in-house, with version numbers that track
 
 | App | Path | What it does |
 |---|---|---|
-| Space | `/en/` | The main site's only top-level page (Home and Settings merged): profile card, Daymark's quote of the day, screen time, then every category laid out below — Style `/en/theme/`, Security `/en/security/` (lock credentials `/en/security/lock/`, temporary keys `/en/security/tempkeys/`), Digital wellbeing `/en/wellbeing/`, Service status `/en/status/`, About `/en/about/`. Settings are stored locally and synced once you sign in; service status shows uptime and incidents for the main site, Proxy rules and AI; temporary keys include share links, and creating or revoking one asks for a lock re-verification. |
+| Space | `/` (Chinese `/zh/`) | The main site's only top-level page (Home and Settings merged): profile card, Daymark's quote of the day, screen time, then every category laid out below — Style `/theme/`, Security `/security/` (lock credentials `/security/lock/`, temporary keys `/security/tempkeys/`), Digital wellbeing `/wellbeing/`, Service status `/status/`, About `/about/`. Settings are stored locally and synced once you sign in; service status shows uptime and incidents for the main site, Proxy rules and AI; temporary keys include share links, and creating or revoking one asks for a lock re-verification. |
 | AI assistant | Top-bar AI button | On-site assistant: recalls from the site-wide index, then a model (self-hosted Gemma 4 / GPT-OSS 20B, or external Gemini) streams the answer with on-site source cards; the conversation stays local. |
-| Account | `/en/account/` | Opened from the avatar in the drawer head: account sign-in, cloud sync, devices, account security. |
+| Account | `/account/` | Opened from the avatar in the drawer head: account sign-in, cloud sync, devices, account security. |
 
 ## Architecture
 
@@ -163,7 +163,7 @@ Full details in [STRUCTURE.md](STRUCTURE.md) (Chinese).
 
 | Repository | Address | What |
 |---|---|---|
-| **styrigx-space** (this repo) | [styrigx.com](https://styrigx.com) | Portal and auth gateway; sub-sites [Blog](https://styrigx.com/blog/en/), [Curio](https://styrigx.com/curio/en/), [Daymark](https://styrigx.com/daymark/en/) (merged in from styrigx-atlas, 2026-11) |
+| **styrigx-space** (this repo) | [styrigx.com](https://styrigx.com) | Portal and auth gateway; sub-sites [Blog](https://styrigx.com/blog/), [Curio](https://styrigx.com/curio/), [Daymark](https://styrigx.com/daymark/) (merged in from styrigx-atlas, 2026-11) |
 
 The old Atlas domain's 301 redirect was removed in 2026-11 (P4-3 PR-1); the domain is retired.
 
