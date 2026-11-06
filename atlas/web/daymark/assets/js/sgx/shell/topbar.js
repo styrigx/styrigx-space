@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:b7fec12cb5f7 space/web/shared/shell vc7f0af869e50（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:e1e85ab57925 space/web/shared/shell v82ce9ba8f55f（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- topbar.js ---- */
 /**
  * @fileoverview 顶栏的两个弹出窗口：快捷面板 #sgx-qp（两页：导航 / 快捷设置）和 AI 窗口 #sgx-ai（2026-11-04 P5-1，方案 5.5 / 6.3–6.5）。
@@ -89,7 +89,8 @@ export function mountTopbar(o) {
     });
     dlg.addEventListener('click', function (e) {
       const tg = /** @type {Element|null} */ (e.target);
-      if (tg && (!sheet || !sheet.contains(tg))) ms.close();
+      /* 点的东西在 click 处理里被重画掉了（AI 窗口的重试 / 历史条目会 render 掉自己）：已脱离文档，不算点在面板外 */
+      if (tg && tg.isConnected && (!sheet || !sheet.contains(tg))) ms.close();
     });
     /* Tab 圈在「图标 + 面板控件」里（非模态不会 inert 页面，自己圈住）；
        不在 Tab 顺序里的不算：inert 的那页、tabindex=-1 的（两页的页签是 roving tabindex，只有当前页签可 Tab 到） */

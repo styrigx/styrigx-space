@@ -105,7 +105,7 @@ function skeleton(html) {
     current: [...qp.matchAll(/data-nav=([a-z]+) aria-current=page/g)].map((x) => x[1]),
     tiles: [...qp.matchAll(/data-qp=([a-z]+)/g)].map((x) => x[1]),
     swatches: (qp.match(/class=sgx-qp-sw pal-tile/g) || []).length,
-    ai: ['data-ai-list', 'data-ai-form', 'data-ai-in', 'data-ai-scope', 'data-ai-clear'].every((k) => ai.includes(k)),
+    ai: ['data-ai-list', 'data-ai-form', 'data-ai-in', 'data-ai-scope', 'data-ai-clear', 'data-ai-history', 'data-ai-hist', 'data-ai-contact'].every((k) => ai.includes(k)),
     legacy: /sgx-drawer|sgx-tb-nav\b|sgx-tb-end\b|sgx-tb-share\b|apps-grid/.test(h.replace(/<script[\s\S]*?<\/script>/g, '')),
   };
 }

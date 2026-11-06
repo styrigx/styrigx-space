@@ -964,7 +964,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   const sse = (hits, deltas) => (hits && hits.length ? ['event: hits\ndata: ' + JSON.stringify({ hits }) + '\n\n'] : [])
     .concat(deltas.map((t) => 'event: delta\ndata: ' + JSON.stringify({ text: t }) + '\n\n'), ['event: done\ndata: {}\n\n']).join('');
 
-  test('从顶栏下方落下（非模态，和快捷面板同一种形式）：空状态、输入框、清空、范围小字', async ({ page }) => {
+  test('从顶栏下方落下（非模态，和快捷面板同一种形式）：标题 Gray AI、开场白、新对话 / 历史 / 联系、输入框、范围小字', async ({ page }) => {
     await go(page, '/settings/');
     await openAi(page);
     expect(await ai(page).evaluate((el) => el.open && !el.matches(':modal'))).toBe(true);
@@ -975,7 +975,30 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     });
     expect(Math.abs(g.top - g.tbBottom - 8)).toBeLessThanOrEqual(1);
     expect(Math.abs(g.left - 16)).toBeLessThanOrEqual(1);
-    await expect(ai(page).locator('.sgx-ai-empty')).toHaveText('问一句，回答来自站内内容。');
+    await expect(ai(page).locator('.sgx-ai-title')).toHaveText('Gray AI');
+    /* 空态 = 开场白（助手气泡样式、不带操作行），没有旧的空态文案 */
+    const greet = ai(page).locator('.sgx-ai-msg[data-greet]');
+    await expect(greet).toHaveText('你好，我是 Gray 的 AI 助手。想了解站里的内容，或者聊聊你手上的问题，都行。');
+    await expect(greet).toHaveAttribute('data-role', 'assistant');
+    await expect(ai(page).locator('.sgx-ai-ops')).toHaveCount(0);
+    await expect(ai(page)).not.toContainText('回答来自站内内容');
+    /* 第 2 行三个按钮，都在左边、同一行，在标题下面、消息列表上面 */
+    await expect(ai(page).locator('.sgx-ai-actions > *')).toHaveText(['新对话', '历史', '联系']);
+    await expect(ai(page).locator('.sgx-ai-head [data-ai-clear]')).toHaveCount(0);
+    const row = await page.evaluate(() => {
+      const r = (el) => el.getBoundingClientRect();
+      const q = (sel) => document.querySelector('#sgx-ai ' + sel);
+      const bs = [...document.querySelectorAll('#sgx-ai .sgx-ai-actions > *')].map(r);
+      return { tops: bs.map((b) => Math.round(b.top)), lefts: bs.map((b) => b.left), sheetL: r(q('.sgx-qp-sheet')).left, head: r(q('.sgx-ai-head')).bottom, list: r(q('.sgx-ai-list')).top, h: bs.map((b) => b.height) };
+    });
+    expect(new Set(row.tops).size).toBe(1);
+    expect(row.lefts[0]).toBeLessThan(row.sheetL + 30);
+    expect(row.lefts[0]).toBeLessThan(row.lefts[1]);
+    expect(row.lefts[1]).toBeLessThan(row.lefts[2]);
+    expect(row.tops[0]).toBeGreaterThanOrEqual(row.head - 1);
+    expect(row.tops[0] + row.h[0]).toBeLessThanOrEqual(row.list + 1);
+    expect(row.h).toEqual([32, 32, 32]);
+    await expect(ai(page).locator('[data-ai-contact]')).toHaveAttribute('href', 'mailto:ai@styrigx.com');
     await expect(ai(page).locator('[data-ai-in]')).toHaveAttribute('maxlength', '200');
     await expect(ai(page).locator('[data-ai-scope]')).toHaveText('仅公开内容');
     await expect(ai(page).locator('[data-ai-clear]')).toBeDisabled();
@@ -1002,8 +1025,11 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ans.locator('a')).toHaveCount(0);
     await expect(ai(page).locator('[data-ai-scope]')).toHaveText('包含私密内容');
     const h = JSON.parse(await ls(page, 'sgx-ai-history'));
-    expect(h.v).toBe(1);
-    expect(h.msgs.map((m) => [m.role, m.text])).toEqual([['user', 'Muse 是什么？'], ['assistant', 'Muse 是协作代理。']]);
+    expect(h.v).toBe(2);
+    expect(h.chats).toHaveLength(1);
+    expect(h.cur).toBe(h.chats[0].id);
+    expect(h.chats[0].title).toBe('Muse 是什么？');
+    expect(h.chats[0].msgs.map((m) => [m.role, m.text])).toEqual([['user', 'Muse 是什么？'], ['assistant', 'Muse 是协作代理。']]);
     /* 第二问带上历史 */
     await ai(page).locator('[data-ai-in]').fill('再说说');
     await ai(page).locator('.sgx-ai-send').click();
@@ -1012,16 +1038,20 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     /* 第二条回答流式结束后才写历史：等写满 4 条再换页，否则换页早于写入会只剩 3 条 */
     await expect.poll(async () => {
       const v = await ls(page, 'sgx-ai-history');
-      return v ? JSON.parse(v).msgs.length : 0;
+      return v ? JSON.parse(v).chats[0].msgs.length : 0;
     }).toBe(4);
     /* 换页再开：同一份本地历史 */
     await page.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
     await openAi(page);
     await expect(ai(page).locator('.sgx-ai-msg')).toHaveCount(4);
-    /* 清空 */
+    /* 新对话：当前对话留在历史里，窗口回到开场白 */
     await ai(page).locator('[data-ai-clear]').click();
-    await expect(ai(page).locator('.sgx-ai-msg')).toHaveCount(0);
-    await expect(ai(page).locator('.sgx-ai-empty')).toBeVisible();
+    await expect(ai(page).locator('.sgx-ai-msg')).toHaveCount(1);
+    await expect(ai(page).locator('.sgx-ai-msg[data-greet]')).toBeVisible();
+    const h2 = JSON.parse(await ls(page, 'sgx-ai-history'));
+    expect(h2.chats).toHaveLength(1);
+    expect(h2.chats[0].msgs).toHaveLength(4);
+    expect(h2.cur).not.toBe(h2.chats[0].id);
   });
 
   test('2026-11-06：旧历史里带 hits 的回答，点开也是 0 张来源卡片', async ({ page }) => {
@@ -1039,6 +1069,12 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('设置 → 安全 → 锁屏凭证。');
     await expect(ai(page).locator('.sgx-ai-hits')).toHaveCount(0);
     await expect(ai(page).locator('.sgx-ai-msg a')).toHaveCount(0);
+    /* v1 → v2 迁移：包成一份对话（标题 = 首问），hits 不再存 */
+    const h = JSON.parse(await ls(page, 'sgx-ai-history'));
+    expect(h.v).toBe(2);
+    expect(h.chats.map((c) => c.title)).toEqual(['锁屏怎么开']);
+    expect(h.cur).toBe(h.chats[0].id);
+    expect(JSON.stringify(h)).not.toContain('hits');
   });
 
   for (const [status, err, want] of [[429, 'cooldown', '问得太快了，请一分钟后再试'], [429, 'busy', '现在问的人太多，请稍后再试'], [401, 'session', '锁屏会话已失效，请重新解锁后再问'], [502, 'upstream', '没能拿到回答，请稍后再试']]) {
@@ -1051,8 +1087,8 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
       const ans = ai(page).locator('.sgx-ai-msg[data-role="assistant"]');
       await expect(ans).toHaveAttribute('data-state', 'error');
       await expect(ans).toHaveText(want);
-      const h = JSON.parse((await ls(page, 'sgx-ai-history')) || '{"msgs":[]}');
-      expect(h.msgs.filter((m) => m.role === 'assistant')).toEqual([]);
+      const h = JSON.parse((await ls(page, 'sgx-ai-history')) || '{"chats":[]}');
+      expect(h.chats.flatMap((c) => c.msgs).filter((m) => m.role === 'assistant')).toEqual([]);
     });
   }
 
@@ -1212,6 +1248,169 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     expect((await geo(page)).focused).toBe(true);
   });
 
+  test('P4-3 后续 §4：桌面鼠标点发送，焦点回输入框；回答中和答完直接打字都进输入框', async ({ page }) => {
+    await go(page, '/settings/');
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    await page.route('**/api/ai', async (r) => { await gate; await r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['巴黎。']) }); });
+    await openAi(page);
+    await ai(page).locator('[data-ai-in]').fill('法国首都是哪');
+    await ai(page).locator('.sgx-ai-send').click();
+    await expect(ai(page).locator('.sgx-ai-send')).toHaveAttribute('data-stop', '');
+    expect((await geo(page)).focused).toBe(true);
+    await page.keyboard.type('X');
+    await expect(ai(page).locator('[data-ai-in]')).toHaveValue('X');
+    release();
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('巴黎。');
+    await page.keyboard.type('Y');
+    await expect(ai(page).locator('[data-ai-in]')).toHaveValue('XY');
+  });
+
+  test('P4-3 后续 §5：触屏键盘弹着时点发送，一次就发出去；不让输入框先失焦把点击吃掉', async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true, colorScheme: 'light' });
+    const page = await ctx.newPage();
+    try {
+      await fakeKeyboard(page);
+      await fakeCoarse(page);
+      await go(page, '/settings/');
+      await page.route('**/api/ai', (r) => r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['我是 Gray 的 AI 助手。']) }));
+      await openAi(page);
+      await ai(page).locator('[data-ai-in]').tap();
+      await page.evaluate(() => window.__kb(320));
+      await expect(ai(page)).toHaveAttribute('data-kb', '');
+      await ai(page).locator('[data-ai-in]').fill('你是谁');
+      /* 输入框失焦就收键盘（模拟真机：键盘高度回 0，窗口下沿落回底部、发送按钮下移） */
+      await page.evaluate(() => document.querySelector('#sgx-ai [data-ai-in]').addEventListener('blur', () => window.__kb(0), { once: true }));
+      await ai(page).locator('.sgx-ai-send').tap();
+      await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText('你是谁');
+      await expect(ai(page).locator('[data-ai-in]')).toHaveValue('');
+      await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('我是 Gray 的 AI 助手。');
+      /* 发出去后照旧收键盘 */
+      expect((await geo(page)).focused).toBe(false);
+      await expect(ai(page)).not.toHaveAttribute('data-kb', '');
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('P4-3 后续 §3：新对话存进历史；历史是窗口内的列表（倒序、标题 + 时间），点一条载入，输入框里的字不丢', async ({ page }) => {
+    await go(page, '/settings/');
+    await page.route('**/api/ai', async (r) => {
+      const q = r.request().postDataJSON().q;
+      await r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['答：' + q]) });
+    });
+    await openAi(page);
+    const inp = ai(page).locator('[data-ai-in]');
+    const last = ai(page).locator('.sgx-ai-msg[data-role="assistant"]').last().locator('> span');
+    await inp.fill('第一份对话的问题，比二十个字还要长一点点再多几个字');
+    await inp.press('Enter');
+    await expect(last).toHaveText('答：第一份对话的问题，比二十个字还要长一点点再多几个字');
+    await ai(page).locator('[data-ai-clear]').click();
+    await inp.fill('第二份');
+    await inp.press('Enter');
+    await expect(last).toHaveText('答：第二份');
+    /* 打开历史：窗口内视图（不是 dialog / 底部弹出），替换消息列表；按时间倒序 */
+    await inp.fill('还没发的字');
+    const hb = ai(page).locator('[data-ai-history]');
+    await hb.click();
+    await expect(hb).toHaveAttribute('aria-expanded', 'true');
+    const items = ai(page).locator('[data-ai-hist] .sgx-ai-hist-item');
+    await expect(items).toHaveCount(2);
+    await expect(items.locator('.sgx-ai-hist-title')).toHaveText(['第二份', '第一份对话的问题，比二十个字还要长一点点']);
+    await expect(items.first().locator('.sgx-ai-hist-time')).toHaveText(/\d{2}:\d{2}/);
+    await expect(items.first()).toHaveAttribute('aria-current', 'true');
+    await expect(ai(page).locator('[data-ai-list]')).toBeHidden();
+    expect(await page.locator('dialog[open]').count()).toBe(1);
+    /* 点旧的一份载入 */
+    await items.nth(1).click();
+    await expect(ai(page).locator('[data-ai-hist]')).toBeHidden();
+    await expect(hb).toHaveAttribute('aria-expanded', 'false');
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText(['第一份对话的问题，比二十个字还要长一点点再多几个字']);
+    await expect(inp).toHaveValue('还没发的字');
+    /* 换页再开：停在刚载入的那份 */
+    await page.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
+    await openAi(page);
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText(['第一份对话的问题，比二十个字还要长一点点再多几个字']);
+  });
+
+  test('P4-3 后续 §3.3：历史最多 20 份，超了删最旧的；空历史显示提示', async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        if (sessionStorage.getItem('seeded')) return;
+        sessionStorage.setItem('seeded', '1');
+        const chats = [];
+        for (let i = 0; i < 20; i++) chats.push({ id: 'c' + i, title: '旧' + i, time: 1000 + i, msgs: [{ role: 'user', text: '旧' + i, ts: 1000 + i }, { role: 'assistant', text: '答', ts: 1000 + i }] });
+        localStorage.setItem('sgx-ai-history', JSON.stringify({ v: 2, cur: '', chats }));
+      } catch (e) {}
+    });
+    await go(page, '/settings/');
+    await page.route('**/api/ai', (r) => r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['好']) }));
+    await openAi(page);
+    await ai(page).locator('[data-ai-in]').fill('新的');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('好');
+    await expect.poll(async () => JSON.parse(await ls(page, 'sgx-ai-history')).chats.length).toBe(20);
+    const h = JSON.parse(await ls(page, 'sgx-ai-history'));
+    expect(h.chats[0].title).toBe('新的');
+    expect(h.chats.map((c) => c.id)).not.toContain('c0');
+    await page.evaluate(() => localStorage.removeItem('sgx-ai-history'));
+    await ai(page).locator('[data-ai-history]').click();
+    await expect(ai(page).locator('[data-ai-hist]')).toHaveText('还没有历史对话');
+  });
+
+  test('P4-3 后续 §3.4：助手回答下有复制 / 重试 / 👍 / 👎；用户提问下没有；重试替换这条回答；👍👎 只存本地、再点取消', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await go(page, '/settings/');
+    let n = 0;
+    const bodies = [];
+    await page.route('**/api/ai', async (r) => {
+      bodies.push(r.request().postDataJSON());
+      n += 1;
+      await r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['第 ' + n + ' 次回答']) });
+    });
+    await openAi(page);
+    const inp = ai(page).locator('[data-ai-in]');
+    await inp.fill('问一');
+    await inp.press('Enter');
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('第 1 次回答');
+    await inp.fill('问二');
+    await inp.press('Enter');
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText(['第 1 次回答', '第 2 次回答']);
+    const ops = ai(page).locator('.sgx-ai-ops');
+    await expect(ops).toHaveCount(2);
+    await expect(ops.first().locator('button')).toHaveText(['复制', '重试', '👍', '👎']);
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="user"] .sgx-ai-ops')).toHaveCount(0);
+    /* 复制 */
+    await ops.first().locator('[data-op="copy"]').click();
+    await expect(ops.first().locator('[data-op="copy"]')).toHaveText('已复制');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('第 1 次回答');
+    /* 重试第一条：重问「问一」，历史只带它前面的（空），替换这条回答，不追加 */
+    await ops.first().locator('[data-op="retry"]').click();
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText(['第 3 次回答', '第 2 次回答']);
+    expect(bodies[2]).toEqual({ q: '问一', lang: 'zh', history: [] });
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveCount(2);
+    /* 👍 / 👎：同一条只能选一个，再点取消；存在本地这条消息上 */
+    const up = ops.nth(1).locator('[data-op="up"]');
+    const dn = ops.nth(1).locator('[data-op="down"]');
+    await up.click();
+    await expect(up).toHaveAttribute('aria-pressed', 'true');
+    await dn.click();
+    await expect(up).toHaveAttribute('aria-pressed', 'false');
+    await expect(dn).toHaveAttribute('aria-pressed', 'true');
+    let h = JSON.parse(await ls(page, 'sgx-ai-history'));
+    expect(h.chats[0].msgs.map((m) => m.rate || '')).toEqual(['', '', '', 'down']);
+    await dn.click();
+    await expect(dn).toHaveAttribute('aria-pressed', 'false');
+    h = JSON.parse(await ls(page, 'sgx-ai-history'));
+    expect(h.chats[0].msgs.map((m) => m.rate || '')).toEqual(['', '', '', '']);
+    expect(n).toBe(3);
+    /* 换页再开：👍👎 随历史 */
+    await ops.nth(0).locator('[data-op="up"]').click();
+    await page.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
+    await openAi(page);
+    await expect(ai(page).locator('.sgx-ai-ops').first().locator('[data-op="up"]')).toHaveAttribute('aria-pressed', 'true');
+  });
+
   test('P4-3 PR-3：回答进行中发送按钮变停止，点它中断；回车不中断；停下后变回发送', async ({ page }) => {
     await go(page, '/settings/');
     let release;
@@ -1246,9 +1445,12 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await go(page, '/en/settings/', 'en');
     await openAi(page);
     await expect(ai(page)).toHaveAccessibleName('Ask AI');
-    await expect(ai(page).locator('.sgx-ai-title')).toHaveText('Ask about this space');
+    await expect(ai(page).locator('.sgx-ai-title')).toHaveText('Gray AI');
+    await expect(ai(page).locator('.sgx-ai-msg[data-greet]')).toHaveText("Hi, I'm Gray's AI assistant. Ask about this site, or talk through whatever you're working on.");
     await expect(ai(page).locator('[data-ai-scope]')).toHaveText('Public content only');
-    await expect(ai(page).locator('[data-ai-clear]')).toHaveText('Clear');
+    await expect(ai(page).locator('.sgx-ai-actions > *')).toHaveText(['New chat', 'History', 'Contact']);
+    await ai(page).locator('[data-ai-history]').click();
+    await expect(ai(page).locator('[data-ai-hist]')).toHaveText('No past chats yet');
   });
 });
 

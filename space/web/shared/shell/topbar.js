@@ -87,7 +87,8 @@ export function mountTopbar(o) {
     });
     dlg.addEventListener('click', function (e) {
       const tg = /** @type {Element|null} */ (e.target);
-      if (tg && (!sheet || !sheet.contains(tg))) ms.close();
+      /* 点的东西在 click 处理里被重画掉了（AI 窗口的重试 / 历史条目会 render 掉自己）：已脱离文档，不算点在面板外 */
+      if (tg && tg.isConnected && (!sheet || !sheet.contains(tg))) ms.close();
     });
     /* Tab 圈在「图标 + 面板控件」里（非模态不会 inert 页面，自己圈住）；
        不在 Tab 顺序里的不算：inert 的那页、tabindex=-1 的（两页的页签是 roving tabindex，只有当前页签可 Tab 到） */
