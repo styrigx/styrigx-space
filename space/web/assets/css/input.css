@@ -8292,9 +8292,13 @@
    [logo .sgx-tb-logo] [中间 .sgx-tb-pill：现有导航内容（主站标签 / 页名 / 子站分段）] [右边 .sgx-tb-acts：快捷面板 .sgx-tb-quick · AI .sgx-tb-ai · 头像 .sgx-tb-me]。
    胶囊本身是材质（--sgx-mat 毛玻璃 + 描边 + 阴影），里面的按钮都透明、40px 圆，悬停 / 按下 / 焦点框各管各的。
    宽屏（≥ 600px）三段用 1fr auto 1fr 网格，中间在顶栏正中；手机 flex：logo、按钮按内容，中间吃剩下的宽度。
-   窄屏（< 400px）logo 换成字标圆点简版 .sgx-tb-dot（方案 6.2，第 9 节 R-6）。 */
+   窄屏（< 400px）logo 换成图标版 .sgx-tb-mark（标签页图标 favicon.svg 同一个图形，20px，跟主题色；P4-3 PR-4a §6.1，原来是一个 16px 圆点，看着像 logo 没了）。
+   标签衬底（PR-4a §6.2）：主站标签、子站分段都用 --sgx-tb-tab-bg（导航选中色 45%）当常驻衬底，当前项实色 --sgx-nav-selected + 粗体。
+   宽屏中段定宽（PR-4a §6.3）：--sgx-tb-mid（400px），不随页名长短伸缩，长页名省略号。 */
 /* 顶栏尺寸 token：页边距、顶栏高（--sgx-tb-btn）、间距、胶囊里按钮直径（--sgx-tb-ic） */
-:root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; }
+:root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; --sgx-tb-mid: 400px; }
+/* 顶栏标签 / 子站分段的常驻衬底：导航选中色 45%（非当前项文字 text-primary，22 套预设深浅色对比度都 ≥ 4.5:1，tests/space/ui/topbar/topbar-tab-contrast.test.mjs） */
+:root { --sgx-tb-tab-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
 /* 尺寸体系（2026-10-23 PR-D）：间距 / 页边距按 8 的倍数，组件允许 4px 子网格；宽度之间用 clamp() 连续插值，断点只用来切换模式 / 列数。
    --sgx-page-m：左右页边距（手机 < 600px 固定 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px，两头封顶）。
    --sgx-tb-btn / --sgx-tb-gap：顶栏高 / 间距，600 宽 52 / 8 线性到 840 宽 56 / 12（< 600 仍是 52 / 8）。
@@ -8332,17 +8336,19 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sgx-topbar { background: var(--sgx-mat-solid); }
 }
-/* logo：完整字标（宽屏）/ 字标圆点简版（< 400px）；点了回本站首页 */
+/* logo：完整字标（宽屏）/ 图标版（< 400px）；点了回本站首页 */
 .sgx-tb-logo { flex: 0 0 auto; display: inline-flex; align-items: center; height: var(--sgx-tb-ic); padding: 0 10px; box-sizing: border-box; border-radius: 999px;
   color: var(--sgx-text-primary); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
 .sgx-tb-logo .sgx-wordmark { --wm-ink: var(--sgx-text-primary); --wm-accent: var(--sgx-primary); display: block; height: 20px; width: auto; aspect-ratio: 5924 / 2010; overflow: visible; }
 .sgx-wordmark .wm-letters { fill: var(--wm-ink, var(--sgx-text-primary)); }
 .sgx-wordmark .wm-dot { fill: var(--wm-accent, var(--sgx-primary)); }
-.sgx-tb-dot { display: none; width: 16px; height: 16px; border-radius: 999px; background: var(--sgx-primary); }
+.sgx-tb-mark { display: none; width: 20px; height: 20px; flex: 0 0 auto; }
+.sgx-tb-mark .mk-bg { fill: var(--sgx-primary); }
+.sgx-tb-mark .mk-fg { fill: var(--sgx-on-primary); }
 @media (max-width: 399.98px) {
   .sgx-tb-logo { width: var(--sgx-tb-ic); padding: 0; justify-content: center; }
   .sgx-tb-logo .sgx-wordmark { display: none; }
-  .sgx-tb-dot { display: block; }
+  .sgx-tb-mark { display: block; }
 }
 /* 中间：现有导航内容原样放进来（主站标签 / 页名 / 子站分段）；本身透明（材质在整条胶囊上） */
 .sgx-tb-pill { flex: 1 1 auto; height: 100%; min-width: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
@@ -8350,7 +8356,7 @@
 .sgx-tb-title { display: block; flex: 1; min-width: 0; text-align: center; padding: 0 8px;
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 16px; font-weight: 700; line-height: 1.25; letter-spacing: normal;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sgx-text-primary); }
-/* 窄屏（< 400px，logo 已是圆点简版）：页名左右内边距 8 → 4，390 宽仍放得下「Security and privacy」（2026-10-22 起的要求，quick-panel.spec.js） */
+/* 窄屏（< 400px，logo 已是图标版）：页名左右内边距 8 → 4，390 宽仍放得下「Security and privacy」（2026-10-22 起的要求，quick-panel.spec.js） */
 @media (max-width: 399.98px) { .sgx-tb-title { padding: 0 4px; } }
 /* 右边三个按钮：快捷面板（滑块）· AI（聊天）· 头像（最右，进账号页） */
 .sgx-tb-acts { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; }
@@ -8368,13 +8374,14 @@
 .sgx-tb-btn:focus-visible, .sgx-tb-logo:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .reduced-motion .sgx-tb-btn, .reduced-motion .sgx-tb-logo { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-btn, .sgx-tb-logo { transition: none; } }
-/* 宽屏：三段网格，中间在顶栏正中，按内容定宽（最小 160px，长页名省略号） */
+/* 宽屏：三段网格，中间在顶栏正中，定宽 --sgx-tb-mid（PR-4a §6.3：不随页名伸缩，各页一样长；长页名省略号）。
+   窗口窄到放不下时（600 宽附近）中段让位：两边各留够右边三个按钮的宽度 */
 @media (min-width: 600px) {
-  .sgx-topbar { display: grid; grid-template-columns: 1fr auto 1fr; }
+  .sgx-topbar { display: grid; grid-template-columns: 1fr min(var(--sgx-tb-mid), calc(100% - 2 * (3 * var(--sgx-tb-ic) + 16px))) 1fr; }
   .sgx-tb-logo { justify-self: start; }
   .sgx-tb-acts { justify-self: end; }
-  .sgx-tb-pill { min-width: 160px; max-width: 480px; }
-  .sgx-tb-title { flex: 0 1 auto; padding: 0 16px; }
+  .sgx-tb-pill { width: 100%; }
+  .sgx-tb-title { flex: 1 1 auto; padding: 0 16px; }
 }
 /* 分享磁贴生成短链时 aria-busy + .is-busy：图标呼吸，点了不理（share.js） */
 .is-busy[data-sgx-share] { cursor: progress; }
@@ -8588,16 +8595,16 @@ html.layout-dex { --sgx-content-max: 1440px; }
 /* 主站顶栏标签（2026-10-22 三栏，2026-11-04 P5-1 去掉「聊天」剩两栏；只在主站，不进共享外壳；子站中间照旧是各自的内容）：主页 / 设置这两页的长条里是标签 .sgx-tb-tab
    （partials/topbar-tabs.html，data/topbar-tabs.yaml），代替页名。标签高 = --sgx-tb-ic（40px），正好填满长条内边距里的高度；
    等分、宽屏最宽 400px 居中。当前页 aria-current="page" = 快捷面板导航页当前项同一套 tonal 药丸（--sgx-nav-selected / --sgx-on-nav-selected），
-   另一个是次要文字色，悬停 / 按下走状态层。只用 --sgx-* 角色，不写死颜色。 */
+   其余标签常驻浅一级衬底 --sgx-tb-tab-bg + 主文字色（PR-4a §6.2），悬停 / 按下走状态层（叠在衬底上）。只用 --sgx-* 角色，不写死颜色。 */
 .sgx-tb-tabs { flex: 1; min-width: 0; max-width: 400px; height: var(--sgx-tb-ic); margin: 0 auto; display: flex; align-items: center; gap: 4px; }
 .sgx-tb-tab { flex: 1 1 0; min-width: 0; height: 100%; box-sizing: border-box; padding: 0 6px; border-radius: 999px;
   display: inline-flex; align-items: center; justify-content: center;
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 600; line-height: 1.2; letter-spacing: normal;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sgx-text-secondary); text-decoration: none; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background-color: var(--sgx-tb-tab-bg); color: var(--sgx-text-primary); text-decoration: none; cursor: pointer;
   -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
 .sgx-tb-tab[aria-current="page"] { background-color: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); font-weight: 700; }
 @media (hover: hover) and (pointer: fine) {
-  .sgx-tb-tab:not([aria-current="page"]):hover { background-color: var(--sgx-state-hover-bg); color: var(--sgx-text-primary); }
+  .sgx-tb-tab:not([aria-current="page"]):hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
 }
 .sgx-tb-tab:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
 .sgx-tb-tab:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }

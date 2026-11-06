@@ -1,7 +1,7 @@
 /**
  * 顶栏 + 快捷面板 + AI 窗口（2026-11-04 P5-1，方案 6.2–6.5 / 5.5）验收。原 nav-drawer.spec.js（九宫格导航抽屉）删除，导航并进快捷面板第 1 页。
  * - 顶栏一整条胶囊 .sgx-topbar = [logo .sgx-tb-logo][中间 .sgx-tb-pill：主站标签 / 页名][右边 .sgx-tb-acts：快捷面板 .sgx-tb-quick · AI .sgx-tb-ai · 头像 .sgx-tb-me]；
- *   没有九宫格 .sgx-tb-nav、导航抽屉 #sgx-drawer、右圆 .sgx-tb-end；头像在最右，点了进账号页；窄屏（< 400px）logo 换成圆点简版。
+ *   没有九宫格 .sgx-tb-nav、导航抽屉 #sgx-drawer、右圆 .sgx-tb-end；头像在最右，点了进账号页；窄屏（< 400px）logo 换成图标版。
  * - 快捷面板 #sgx-qp（非模态 <dialog> show()，dialog 本身是遮罩，只盖顶栏下沿以下）；面板顶边在顶栏下沿下面，正文不动。
  *   两页：「导航」（站点列表，当前站高亮，没有搜索框）/「快捷设置」（磁贴 + 调色板 + 布局）；顶部两个页签（role=tablist，点 / 左右键切换），
  *   下面横向 scroll-snap 左右滑；不在当前页的那页 inert；每次打开默认在第 1 页「导航」。
@@ -107,7 +107,7 @@ test.describe('顶栏：一整条胶囊 [logo][中间][快捷面板 · AI · 头
       await expect(logo).toHaveAttribute('href', '/');
       await expect(logo).toHaveAttribute('aria-label', 'Styrigx 首页');
       await expect(logo.locator('svg.sgx-wordmark')).toBeVisible();
-      await expect(logo.locator('.sgx-tb-dot')).toBeHidden();
+      await expect(logo.locator('.sgx-tb-mark')).toBeHidden();
       const q = page.locator('.sgx-tb-quick');
       expect(await q.evaluate((el) => el.tagName)).toBe('BUTTON');
       await expect(q).toHaveAttribute('aria-label', '快捷面板');
@@ -171,13 +171,34 @@ test.describe('顶栏：一整条胶囊 [logo][中间][快捷面板 · AI · 头
     await expect(page.locator('.sgx-tb-tab')).toHaveText(['Home', 'Settings']);
   });
 
+  test('P4-3 PR-4a §6.2 / §6.3：宽屏顶栏中段各页一样宽（400px，不随页名伸缩）；所有标签都有衬底，当前项和其余项底色不同', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const widths = [];
+    for (const path of ['/', '/settings/', '/settings/security/', '/settings/display/', '/en/', '/en/settings/security/']) {
+      await go(page, path, path.startsWith('/en/') ? 'en' : 'zh');
+      widths.push(await page.locator('.sgx-tb-pill').evaluate((el) => Math.round(el.getBoundingClientRect().width)));
+      const tabs = page.locator('.sgx-tb-tab');
+      if (await tabs.count()) {
+        const bg = await tabs.evaluateAll((els) => els.map((el) => [el.getAttribute('aria-current') === 'page', getComputedStyle(el).backgroundColor]));
+        for (const [, c] of bg) expect(c).not.toMatch(/^rgba\(0, 0, 0, 0\)$|^transparent$/);
+        const cur = bg.filter(([a]) => a).map(([, c]) => c);
+        const rest = bg.filter(([a]) => !a).map(([, c]) => c);
+        expect(cur.length).toBe(1);
+        for (const c of rest) expect(c).not.toBe(cur[0]);
+      }
+    }
+    expect(new Set(widths).size).toBe(1);
+    expect(widths[0]).toBe(400);
+  });
+
   for (const w of [360, 390]) {
-    test(`窄屏 ${w}px：logo 换成圆点简版（< 400px），主页两栏和页名都不溢出、不折行`, async ({ page }) => {
+    test(`窄屏 ${w}px：logo 换成图标版（< 400px），主页两栏和页名都不溢出、不折行`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: 800 });
       for (const path of ['/', '/settings/security/', '/en/', '/en/settings/security/']) {
         await go(page, path, path.startsWith('/en/') ? 'en' : 'zh');
         await expect(page.locator('.sgx-tb-logo svg.sgx-wordmark')).toBeHidden();
-        await expect(page.locator('.sgx-tb-logo .sgx-tb-dot')).toBeVisible();
+        await expect(page.locator('.sgx-tb-logo .sgx-tb-mark')).toBeVisible();
+        expect(await page.locator('.sgx-tb-logo .sgx-tb-mark').evaluate((el) => { const b = el.getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height), el.querySelectorAll('path').length]; })).toEqual([20, 20, 2]);
         const g = await page.evaluate(() => {
           const r = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height, r: b.right }; };
           const pill = document.querySelector('.sgx-tb-pill');
