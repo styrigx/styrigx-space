@@ -4,14 +4,14 @@
 /* 顶栏（2026-11-04 P5-1 全大椭圆，四个站同一套，标记来自共享外壳 topbar.html）：一整条胶囊 .sgx-topbar =
    [logo .sgx-tb-logo] [中间 .sgx-tb-pill：现有导航内容（主站标签 / 页名 / 子站分段）] [右边 .sgx-tb-acts：快捷面板 .sgx-tb-quick · AI .sgx-tb-ai · 头像 .sgx-tb-me]。
    胶囊本身是材质（--sgx-mat 毛玻璃 + 描边 + 阴影），里面的按钮都透明、40px 圆，悬停 / 按下 / 焦点框各管各的。
-   宽屏（≥ 600px）三段用 1fr auto 1fr 网格，中间在顶栏正中；手机 flex：logo、按钮按内容，中间吃剩下的宽度。
+   宽屏（≥ 600px）三段网格，中间在顶栏正中、定宽（见下）；手机 flex：logo、按钮按内容，中间吃剩下的宽度。
    窄屏（< 400px）logo 换成图标版 .sgx-tb-mark（标签页图标 favicon.svg 同一个图形，20px，跟主题色；P4-3 PR-4a §6.1，原来是一个 16px 圆点，看着像 logo 没了）。
-   标签衬底（PR-4a §6.2）：主站标签、子站分段都用 --sgx-tb-tab-bg（导航选中色 45%）当常驻衬底，当前项实色 --sgx-nav-selected + 粗体。
+   标签衬底（PR-4a §6.2）：主站标签、子站分段都用 --sgx-tb-label-bg（导航选中色 45%）当常驻衬底，当前项实色 --sgx-nav-selected + 粗体。
    宽屏中段定宽（PR-4a §6.3）：--sgx-tb-mid（400px），不随页名长短伸缩，长页名省略号。 */
 /* 顶栏尺寸 token：页边距、顶栏高（--sgx-tb-btn）、间距、胶囊里按钮直径（--sgx-tb-ic） */
 :root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; --sgx-tb-mid: 400px; }
-/* 顶栏标签 / 子站分段的常驻衬底：导航选中色 45%（非当前项文字 text-primary，22 套预设深浅色对比度都 ≥ 4.5:1，tests/space/ui/topbar/topbar-tab-contrast.test.mjs） */
-:root { --sgx-tb-tab-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
+/* 顶栏标签 / 子站分段的常驻衬底：导航选中色 45%（非当前项文字 text-primary，22 套预设深浅色对比度都 ≥ 4.5:1，tests/space/ui/topbar/topbar-pr4a.test.mjs） */
+:root { --sgx-tb-label-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
 /* 尺寸体系（2026-10-23 PR-D）：间距 / 页边距按 8 的倍数，组件允许 4px 子网格；宽度之间用 clamp() 连续插值，断点只用来切换模式 / 列数。
    --sgx-page-m：左右页边距（手机 < 600px 固定 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px，两头封顶）。
    --sgx-tb-btn / --sgx-tb-gap：顶栏高 / 间距，600 宽 52 / 8 线性到 840 宽 56 / 12（< 600 仍是 52 / 8）。

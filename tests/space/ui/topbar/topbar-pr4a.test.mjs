@@ -7,13 +7,13 @@ const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'ut
 const shell = rd('space/web/shared/shell/shell.css');
 
 test('§6.2 衬底变量在共享外壳里：导航选中色 45%', () => {
-  assert.match(shell, /--sgx-tb-tab-bg: color-mix\(in oklab, var\(--sgx-nav-selected\) 45%, transparent\);/);
+  assert.match(shell, /--sgx-tb-label-bg: color-mix\(in oklab, var\(--sgx-nav-selected\) 45%, transparent\);/);
 });
 
 test('§6.2 主站标签：常驻衬底 + 主文字色；当前项实色 + 粗体；悬停叠状态层不换底色', () => {
   const css = rd('space/web/assets/css/input.css');
   const base = css.match(/\n\.sgx-tb-tab \{[^}]*\}/)[0];
-  assert.match(base, /background-color: var\(--sgx-tb-tab-bg\);/);
+  assert.match(base, /background-color: var\(--sgx-tb-label-bg\);/);
   assert.match(base, /color: var\(--sgx-text-primary\);/);
   assert.match(css, /\.sgx-tb-tab\[aria-current="page"\] \{ background-color: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\); font-weight: 700; \}/);
   assert.match(css, /\.sgx-tb-tab:not\(\[aria-current="page"\]\):hover \{ background-image: linear-gradient/);
@@ -23,7 +23,7 @@ for (const [site, file] of [['blog', 'atlas/web/blog/assets/css/blog/components.
   test(`§6.2 子站分段（${site}）：非当前项常驻衬底 + 主文字色；当前项不叠衬底（实色在滑动指示器上）`, () => {
     const css = rd(file);
     const base = css.match(/\n\.sgx-seg-btn \{[^}]*\}/)[0];
-    assert.match(base, /background: var\(--sgx-tb-tab-bg\);/);
+    assert.match(base, /background: var\(--sgx-tb-label-bg\);/);
     assert.match(base, /color: var\(--sgx-text-primary\);/);
     assert.match(css, /\.sgx-seg-btn\[aria-current=['"]page['"]\] \{\s*background: transparent;\s*color: var\(--sgx-on-nav-selected\);/);
     assert.match(css, /\.sgx-seg-ind \{[^}]*background(-color)?: var\(--sgx-nav-selected\);/);

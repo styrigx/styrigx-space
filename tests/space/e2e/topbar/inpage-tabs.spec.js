@@ -530,12 +530,37 @@ test('部署竞态：入口的共享 chunk 404（旧 HTML）→ 自动刷新一�
   await expect(page.locator('#sgx-main')).toBeVisible();
 });
 
-test('视觉：页内切过去的栏和直接打开的同一栏逐像素一致（412×915）', async ({ page }) => {
+/** 逐元素样式指纹（P4-3 PR-4a 诊断）：两张截图字节不一致时，列出两边计算样式不同的元素，不用落盘图片也能定位 */
+const fingerprint = (page) => page.evaluate(() => {
+  const props = ['backgroundColor', 'backgroundImage', 'color', 'opacity', 'transform', 'fontWeight', 'boxShadow', 'outlineStyle', 'visibility', 'display', 'width', 'height'];
+  const out = {};
+  document.querySelectorAll('body *').forEach((el, i) => {
+    if (el.closest('template, script, style')) return;
+    const r = el.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight || !r.width || !r.height) return;
+    const cs = getComputedStyle(el);
+    const key = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).join('.') : '') + (el.getAttribute('data-tab') ? '[' + el.getAttribute('data-tab') + ']' : '');
+    let k = key; let n = 1;
+    while (k in out) k = key + '#' + (++n);
+    out[k] = props.map((p) => cs[p]).join(' | ') + ` @${Math.round(r.x)},${Math.round(r.y)}`;
+  });
+  out['<html>'] = document.documentElement.className + ' scroll=' + scrollY;
+  return out;
+});
+const fpDiff = (a, b) => {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  const d = [];
+  for (const k of keys) if (a[k] !== b[k]) d.push(`${k}\n  直接打开: ${a[k] ?? '（无）'}\n  页内切换: ${b[k] ?? '（无）'}`);
+  return d.slice(0, 25).join('\n') || '（计算样式全同，差异在合成 / 绘制层）';
+};
+
+test('视觉：页内切过去的栏和直接打开的同一栏逐像素一致（412×915）', async ({ page }, testInfo) => {
   await setup(page);
   /* 入场动画只在会话第一次进站时播（动画元素单独合成层，圆角抗锯齿会差 1~2 个色阶）；页内切换从第一次切栏起就不播，直接打开这边也按「不是第一次」比 */
   await page.addInitScript(() => { try { sessionStorage.setItem('sgx-entered', '1'); } catch (e) {} });
   const shot = () => page.screenshot({ animations: 'disabled', caret: 'hide' });
   const direct = {};
+  const directFp = {};
   for (const [id, path] of [['settings', '/settings/'], ['home', '/']]) {
     await page.goto(path);
     await settle(page);
@@ -543,6 +568,7 @@ test('视觉：页内切过去的栏和直接打开的同一栏逐像素一致�
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
     await animationsDone(page);
     direct[id] = await shot();
+    directFp[id] = await fingerprint(page);
   }
   /* 从主页（刚直接打开的那份）切到设置，再切回主页 */
   for (const id of ['settings', 'home']) {
@@ -553,6 +579,11 @@ test('视觉：页内切过去的栏和直接打开的同一栏逐像素一致�
     /* C8：原来固定等 400ms；改成等切栏 view transition 和 hover / focus 过渡结束 */
     await animationsDone(page);
     const got = await shot();
+    if (!got.equals(direct[id])) {
+      await testInfo.attach(`${id}-direct.png`, { body: direct[id], contentType: 'image/png' });
+      await testInfo.attach(`${id}-inpage.png`, { body: got, contentType: 'image/png' });
+      expect.soft(fpDiff(directFp[id], await fingerprint(page)), id + '：计算样式差异').toBe('');
+    }
     expect(got.equals(direct[id]), id + '：页内切过去的和直接打开的应逐像素一致').toBe(true);
   }
 });

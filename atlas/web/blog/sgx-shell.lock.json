@@ -2,12 +2,12 @@
   "_note": "space/scripts/blog/sync-shell.mjs 写入，勿手改：tree 是本站共享外壳副本对应的主站外壳目录（dir）的 git tree 哈希；from 只作记录",
   "source": "styrigx/styrigx-space",
   "dir": "space/web/shared/shell",
-  "tree": "3822028fba77113eb754347959485e15de2917ea",
-  "from": "6c086e798134258a1d4c335d7a2807681a24fbc6",
-  "version": "805a6b85695e",
+  "tree": "7c803501abf1472e78e1993a48cc133d5231bab7",
+  "from": "worktree",
+  "version": "ad55af697cfd",
   "files": {
     "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
-    "shell.css": "e639c80fd6208bff186a23cc7502f09f593b9593ac5468e0d22a3850c9034066",
+    "shell.css": "b9e935bb74cb34c78d9fb5c00dceabfe32e39fa7956390b34ac51bf6826539cc",
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "fa58dcdfe0398f5504c6f70952f08e9947e59b95de7c246d28418a2413737564",
     "topbar.html": "02a36f8fa4838e35f94a69405b9080d435bc2c208a511e621bf7f8ade00b3f08",
@@ -25,7 +25,7 @@
     "README.md": "caa8078a5cfbfe8272c26031caf4b95c6cce51c59c3c4d07a1270279ad937f19"
   },
   "vendored": {
-    "web/assets/css/sgx-shell.css": "8ca3efb68882408eebcca2b2c85f2686bc1b2274cfd8b5b4a827dbf319ea0ee3",
+    "web/assets/css/sgx-shell.css": "57b515638efce5596b887a540fecfeb1b948b0cc53c3ded53e21e85b70abb7a5",
     "web/assets/js/sgx/shell/palette-scheme.js": "bc41ea048163ad6514f9e7cf7a44d8d3e6c134995ffe1bc062b2629589c2ec54",
     "web/assets/js/sgx/shell/share.js": "303c28fc9d30faeb385034423cb42288df143b3b932dd2bcdc3ca235e25762da",
     "web/layouts/partials/sgx-shell-topbar.html": "02a36f8fa4838e35f94a69405b9080d435bc2c208a511e621bf7f8ade00b3f08",

@@ -53,7 +53,7 @@
   padding: 0 6px;
   border: 0;
   border-radius: 999px;
-  background: var(--sgx-tb-tab-bg);
+  background: var(--sgx-tb-label-bg);
   color: var(--sgx-text-primary);
   font: inherit;
   font-family: Inter, 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
@@ -72,7 +72,7 @@
     color 0.15s ease;
 }
 
-/* 当前项的实色画在滑动指示器上，按钮本身不再叠衬底（PR-4a §6.2：其余项常驻 --sgx-tb-tab-bg） */
+/* 当前项的实色画在滑动指示器上，按钮本身不再叠衬底（PR-4a §6.2：其余项常驻 --sgx-tb-label-bg） */
 .sgx-seg-btn[aria-selected='true'],
 .sgx-seg-btn[aria-current='page'] {
   background: transparent;

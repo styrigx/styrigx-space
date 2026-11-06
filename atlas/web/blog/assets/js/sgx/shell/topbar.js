@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:3822028fba77 space/web/shared/shell v805a6b85695e（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:7c803501abf1 space/web/shared/shell vad55af697cfd（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- topbar.js ---- */
 /**
  * @fileoverview 顶栏的两个弹出窗口：快捷面板 #sgx-qp（两页：导航 / 快捷设置）和 AI 窗口 #sgx-ai（2026-11-04 P5-1，方案 5.5 / 6.3–6.5）。
