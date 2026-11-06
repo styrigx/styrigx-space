@@ -1,7 +1,7 @@
 /**
  * 页面清单：tests/url-map.json 里博客的每个地址，在 Hugo 构建（atlas/web/blog/public/，拼进主站单树的 /blog/ 下）里都在，
  * RSS / 站点地图地址和条目一致，文章里的标题锚点（目录、外链用的 #id）一个不少，没有多出清单外的页面。
- * 网址都在 https://styrigx.com/blog/ 下（canonical、站点地图、RSS；合并 PR2 起 baseURL 从 atlas.styrigx.com 改到主域名）。旧的 blog.styrigx.com 地址和 /about/、/archives/ 跳转页都删了，不留兼容。
+ * 网址都在 https://styrigx.com/blog/ 下（canonical、站点地图、RSS；合并 PR2 起 baseURL 从旧图志域名改到主域名）。旧的 blog.styrigx.com 地址和 /about/、/archives/ 跳转页都删了，不留兼容。
  * 跑法：npm run build 之后 node --test tests/urls.test.mjs
  */
 import { test } from 'node:test';

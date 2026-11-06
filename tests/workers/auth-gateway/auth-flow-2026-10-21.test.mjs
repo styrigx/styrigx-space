@@ -89,22 +89,15 @@ test('A 锁屏入口、带查询串的首页、所有页面都过网关（改前
     ['styrigx.com', '/blog/'], ['styrigx.com', '/blog/?utm=1'], ['styrigx.com', '/blog/rss.xml?a'], ['styrigx.com', '/blog/post/x/?a'],
     ['styrigx.com', '/daymark/'], ['styrigx.com', '/daymark/?x=1'], ['styrigx.com', '/daymark/sitemap.xml?a'],
     ['styrigx.com', '/curio/'], ['styrigx.com', '/curio/?x=1'], ['styrigx.com', '/curio/en/?a'],
-    /* 旧图志：网关接住才能 301 */
-    ['atlas.styrigx.com', '/'], ['atlas.styrigx.com', '/api/lock-session-check'], ['atlas.styrigx.com', '/api/search?q=a'],
-    ['atlas.styrigx.com', '/blog/'], ['atlas.styrigx.com', '/blog/?utm=1'], ['atlas.styrigx.com', '/blog/rss.xml?a'], ['atlas.styrigx.com', '/blog/post/x/?a'],
-    ['atlas.styrigx.com', '/daymark/'], ['atlas.styrigx.com', '/daymark/?x=1'], ['atlas.styrigx.com', '/daymark/sitemap.xml?a'],
-    ['atlas.styrigx.com', '/curio/'], ['atlas.styrigx.com', '/curio/?x=1'], ['atlas.styrigx.com', '/curio/en/?a'],
   ];
   for (const [h, p] of mustGateway) {
     const mine = pickRoute(ROUTES, h, p);
     const other = pickRoute(OTHER, h, p);
     assert.ok(mine && !(other && other.length > mine.length), 'not via gateway: ' + h + p);
   }
-  /* daymark 句子接口、curio 收藏接口归各自的接口 Worker（更具体的规则优先）：主域名和过渡期的旧图志都是 */
-  for (const h of ['styrigx.com', 'atlas.styrigx.com']) {
-    for (const p of ['/daymark/api/today', '/daymark/api/quotes', '/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export']) {
-      assert.equal(pickRoute(OTHER, h, p).length > pickRoute(ROUTES, h, p).length, true, h + p);
-    }
+  /* daymark 句子接口、curio 收藏接口归各自的接口 Worker（更具体的规则优先） */
+  for (const p of ['/daymark/api/today', '/daymark/api/quotes', '/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export']) {
+    assert.equal(pickRoute(OTHER, 'styrigx.com', p).length > pickRoute(ROUTES, 'styrigx.com', p).length, true, p);
   }
   /* 旧子域名不再登记：一条网关路由都不命中（不跳转） */
   for (const h of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) assert.equal(pickRoute(ROUTES, h, '/'), null, h);
@@ -126,10 +119,6 @@ test('A 静态资源进 Worker 后原样回源：不验会话、不 302', async 
   const pg = await worker.fetch(new Request('https://styrigx.com/blog/?utm=1'), env(), CTX);
   assert.equal(pg.status, 302);
   assert.equal(pg.headers.get('X-SGX-Runtime'), 'worker');
-  /* 旧图志的静态文件也只 301（不回源） */
-  const old = await worker.fetch(new Request('https://atlas.styrigx.com/blog/css/main.abc.css'), env(), CTX);
-  assert.equal(old.status, 301);
-  assert.equal(old.headers.get('Location'), 'https://styrigx.com/blog/css/main.abc.css');
 });
 
 test('A 无会话打开 /?lock=1：网关给锁屏态页面（no-store、带 data-sgx-lock-session），不是 Pages 原样', async () => {

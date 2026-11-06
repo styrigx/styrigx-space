@@ -24,10 +24,9 @@ test.use({ launchOptions: { args: LAUNCH.args }, proxy: LAUNCH.proxy, viewport: 
 
 
 const MAIN = 'https://styrigx.com';
-/* 合并 PR3：子站在主域名的 /blog/ /daymark/ 下；旧图志 atlas.styrigx.com 由网关 301 过来 */
+/* 合并 PR3：子站在主域名的 /blog/ /daymark/ 下（旧图志域名的 301 已于 P4-3 PR-1 删除） */
 const BLOG = 'https://styrigx.com/blog';
 const DAYMARK = 'https://styrigx.com/daymark';
-const ATLAS = 'https://atlas.styrigx.com';
 
 /** @type {Awaited<ReturnType<typeof startEdge>>} */
 let edge;
@@ -134,21 +133,6 @@ test('R1 子站首页带任意查询串也必须过网关（未登录 → 302 �
     await expect(page.locator('#sub-content')).toHaveCount(0);
     await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
   }
-});
-
-test('R9 旧书签 atlas.styrigx.com（合并 PR3）：任意路径 301 到主域名同路径 + 查询串；没会话再到锁屏，有会话直接进子站', async ({ page, context }) => {
-  await page.goto(ATLAS + '/blog/post/hello/?a=1');
-  expect(page.url()).toContain(MAIN + '/?lock=1');
-  expect(page.url()).toContain('return=' + encodeURIComponent(BLOG + '/post/hello/?a=1'));
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
-  await setSession(context, 'tempkey');
-  await page.goto(ATLAS + '/daymark/en/?x=1');
-  expect(page.url()).toBe(DAYMARK + '/en/?x=1');
-  await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark /daymark/en/');
-  /* 旧图志从不回源：301 都是网关回的 */
-  const hits = edge.log.filter((l) => String(l[2]).startsWith(ATLAS));
-  expect(hits.length).toBeGreaterThan(0);
-  for (const l of hits) expect(l[3], l.join(' ')).toBe(301);
 });
 
 test('R2 主站解锁（通行密钥）→ 刷新仍是解锁的', async ({ page }) => {

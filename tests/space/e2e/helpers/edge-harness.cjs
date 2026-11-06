@@ -1,7 +1,7 @@
 /**
  * 本地「边缘」测试台（edge-flow.spec.js 用）：把线上三站的请求链原样搭在本机。
  *
- * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com（含子站 /blog/ /curio/ /daymark/，合并 PR3）、https://atlas.styrigx.com（旧图志，网关 301）；
+ * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com（含子站 /blog/ /curio/ /daymark/，合并 PR3；旧图志域名的 301 已于 P4-3 PR-1 删除，不再接）；
  *   代理把 TLS 接到本机 HTTPS 服务（临时自签证书，
  *   Chromium 用 --ignore-certificate-errors-spki-list 信任它，页面是正常安全上下文，WebAuthn 可用）。
  * - 路由按 workers/auth-gateway/wrangler.toml、workers/account/wrangler.toml、workers/share/wrangler.toml 的 [[routes]]，用 space/scripts/lib/cf-routes.mjs
@@ -35,7 +35,7 @@ const { makeKV, makeAuthD1, derToPem } = require('../../../workers/_harness.cjs'
 
 const REPO = process.env.SGX_EDGE_REPO || path.join(__dirname, '..', '..', '..', '..');
 const PROXY_PORT = Number(process.env.SGX_EDGE_PROXY_PORT || 8941);
-const HOSTS = ['styrigx.com', 'atlas.styrigx.com'];
+const HOSTS = ['styrigx.com'];
 /* 别的 Worker 的路由：日刻、奇趣的接口 Worker（workers/daymark-core、workers/curio-core 的 wrangler.toml；测试台里一律 404，只为让路由按线上取最具体的） */
 const OTHER_WORKER_TOMLS = ['workers/daymark-core/wrangler.toml', 'workers/curio-core/wrangler.toml'];
 
@@ -105,7 +105,7 @@ function subPages(req) {
   return new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
 }
 
-/* 合并 PR3：一个 Pages（styrigx-space）一棵树，子站在 /blog/ /curio/ /daymark/ 下；atlas.styrigx.com 不会回源（网关 301） */
+/* 合并 PR3：一个 Pages（styrigx-space）一棵树，子站在 /blog/ /curio/ /daymark/ 下 */
 function pagesFor(req) {
   const u = new URL(req.url);
   if (u.hostname !== 'styrigx.com') return new Response('no pages on ' + u.hostname, { status: 421, headers: { 'Content-Type': 'text/plain' } });

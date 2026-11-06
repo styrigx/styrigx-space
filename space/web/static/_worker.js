@@ -4,8 +4,8 @@
  *   2. 奇趣、日刻（/curio/、/daymark/，合并 PR2 起拼在同一棵树里）一张图片都不出：路径后缀或回答的 Content-Type 像图片的，
  *      一律 404（no-store、不带图片字节）。Sloan 2026-10-29「一律都得过验证」：Pages 不验会话，网关对子站图片后缀
  *      不验会话直接回源（gate.js 的 STATIC_EXT），所以树里只要有一张图没会话也能拿到；奇趣、日刻的图片只从各自接口 Worker 的
- *      /<站>/api/*（先问网关会话）出。规则搬自 styrigx-atlas 的 root/_worker.js，只是 host 判断仍是 styrigx.com
- *      （不能沿用 atlas 版的 atlas.styrigx.com：网关回源 styrigx.com 会被它弹走）。主站（/images/、/avatar/、/og.png、收藏图标）
+ *      /<站>/api/*（先问网关会话）出。规则搬自 styrigx-atlas 的 root/_worker.js，只是 host 判断是 styrigx.com
+ *      （网关回源的就是 styrigx.com，换成别的主机会把回源请求弹走）。主站（/images/、/avatar/、/og.png、收藏图标）
  *      和博客（/blog/og.png 社交预览图）不受影响。跳转（3xx）不带正文，原样放行。
  *   （合并 PR2 的过渡规则「三站 .xml 一律 404」在 PR3 删掉：网关按子站前缀验会话，xml / json 不在子站的免会话后缀里，
  *    博客全文 RSS、站点地图没有会话一律 302 到锁屏，见 workers/auth-gateway/src/gate.js 子站关口。）

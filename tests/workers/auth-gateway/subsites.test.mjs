@@ -5,7 +5,6 @@
  * - 静态资源后缀不验会话（xml / json 不算）
  * - /<站>/api/*（未登录、漏到网关）回 401 JSON，不 302
  * - 根上的 /api/lock-session-check 由主站路由回答（有效 200 {ok:true}、无效 401 {ok:false}），子站前端的判断都对得上
- * - 旧图志 atlas.styrigx.com：任意路径 301 到主域名同路径 + 查询串，不验会话、不回源
  * - 主站请求不受影响；未登记的域名照旧 301 回主站
  *
  * 运行：node --test tests/workers/auth-gateway/subsites.test.mjs
@@ -55,11 +54,11 @@ function req(url, cookieHeader) {
   return new Request(url, { headers: cookieHeader ? { Cookie: cookieHeader } : {} });
 }
 
-test('子站判断：只认主域名 styrigx.com + 第一段 blog / curio / daymark；旧图志、旧子域名、书库都不算子站', () => {
+test('子站判断：只认主域名 styrigx.com + 第一段 blog / curio / daymark；旧子域名、书库、别的主机都不算子站', () => {
   for (const u of ['https://styrigx.com/blog/', 'https://styrigx.com/curio/x', 'https://styrigx.com/daymark', 'https://styrigx.com/%62log/rss.xml', 'https://styrigx.com//blog/rss.xml', 'https://styrigx.com/BLOG/']) {
     assert.ok(subsiteOf(new URL(u)), u);
   }
-  for (const u of ['https://atlas.styrigx.com/blog/', 'https://blog.styrigx.com/', 'https://curio.styrigx.com/curio/', 'https://book.styrigx.com/blog/',
+  for (const u of ['https://blog.styrigx.com/', 'https://curio.styrigx.com/curio/', 'https://book.styrigx.com/blog/',
     'https://evil.styrigx.com/blog/', 'https://styrigx.com/', 'https://styrigx.com/blogx/', 'https://styrigx.com/__proto__/', 'https://styrigx.com/en/blog/']) {
     assert.equal(subsiteOf(new URL(u)), null, u);
   }
@@ -212,43 +211,6 @@ test('主域名根上的 /api/lock-session-check（子站前端问的）：有�
   for (const s of ['curio', 'daymark']) {
     assert.match(readFileSync(REPO + '/atlas/web/' + s + '/assets/js/sgx-lock-sync.js', 'utf8'), /res\.status === 401/);
   }
-});
-
-test('旧图志 atlas.styrigx.com：任意路径 301 到 https://styrigx.com 同路径 + 查询串；不验会话、不回源、不解密钥', async () => {
-  const cases = [
-    ['/blog/', 'https://styrigx.com/blog/'],
-    ['/curio/?a=1', 'https://styrigx.com/curio/?a=1'],
-    ['/daymark/en/', 'https://styrigx.com/daymark/en/'],
-    ['/blog/post/hello/?utm=x&b=2', 'https://styrigx.com/blog/post/hello/?utm=x&b=2'],
-    ['/api/lock-session-check', 'https://styrigx.com/api/lock-session-check'],
-    ['/api/search?q=a', 'https://styrigx.com/api/search?q=a'],
-    ['/blog/rss.xml', 'https://styrigx.com/blog/rss.xml'],
-    ['/blog/css/a.css', 'https://styrigx.com/blog/css/a.css'],
-    ['/robots.txt', 'https://styrigx.com/robots.txt'],
-    ['/', 'https://styrigx.com/'],
-    ['/?lock=1', 'https://styrigx.com/?lock=1'],
-  ];
-  for (const [p, loc] of cases) {
-    for (const ck of [null, await cookie('password')]) {
-      const e = env();
-      /* 不解密钥：Secrets Store 绑定被读就抛错 */
-      e.SGX_LOCK_PUBLIC = { get() { throw new Error('secret read'); } };
-      const res = await worker.fetch(req('https://atlas.styrigx.com' + p, ck), e, CTX);
-      assert.equal(res.status, 301, p);
-      assert.equal(res.headers.get('Location'), loc, p);
-      assert.equal(res.headers.get('Cache-Control'), 'no-store');
-      assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
-      assert.equal(res.headers.get('Strict-Transport-Security'), 'max-age=31536000');
-      assert.equal(res.headers.get('X-Frame-Options'), 'DENY');
-      assert.deepEqual(e.seen, [], p);
-    }
-  }
-  /* POST 也 301（不回源、不进接口） */
-  const e = env();
-  const res = await worker.fetch(new Request('https://atlas.styrigx.com/api/lock-password', { method: 'POST', body: '{}' }), e, CTX);
-  assert.equal(res.status, 301);
-  assert.equal(res.headers.get('Location'), 'https://styrigx.com/api/lock-password');
-  assert.deepEqual(e.seen, []);
 });
 
 test('主站照旧；未登记的子域名照旧 301 回主站', async () => {

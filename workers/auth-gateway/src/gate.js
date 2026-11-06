@@ -4,7 +4,6 @@
  * gate.js（公开页清单）。
  *
  * 调用点（src/app.js）：
- * - 旧图志 atlas.styrigx.com：atlasRedirect(url)（任意路径 301 到主域名，合并 PR3）
  * - 子站 styrigx.com/blog/ /curio/ /daymark/：handleSubsite(request, env, origin)（合并 PR3 起按路径前缀）
  * - 主站 styrigx.com 其余路径：onRequest(context)（会话、白名单、no-store、锁屏瘦身），放行后 context.next() 交给 router.js
  * 只 import core/、lib/，不 import router / app / api。
@@ -357,18 +356,12 @@ async function handleRequest(context) {
  * 子站前端问的 /api/lock-session-check 在主域名根上，由主站关口 + 路由表回答（同源；有效 200 {ok:true}、失效 401 {ok:false}：
  * blog 只对 401 跳锁屏、其余状态不动，curio / daymark 只认 401，见 tests/workers/auth-gateway/subsites.test.mjs）。
  *
- * 旧域名 atlas.styrigx.com（2026-11-02 起三站的正式入口）：任意路径 301 到 https://styrigx.com 同路径 + 查询串（atlasRedirect），
- * 不验会话、不回源；接口 Worker 在 atlas.styrigx.com/<站>/api/* 的旧路由过渡期还在（更具体，不进网关）。
- *
  * 进门的人都能看子站页面；写操作和私密内容（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker
  * 问网关要结论（服务绑定 AuthVerifier.conclusion：进门 + 账号会话 + 作用域）。
  */
 const MAIN_ORIGIN = 'https://styrigx.com';
 /** 子站所在的主机（主域名） */
 const MAIN_HOST = 'styrigx.com';
-
-/** 旧图志主机：只剩 301 到主域名（app.js 第一步） */
-export const ATLAS_HOST = 'atlas.styrigx.com';
 
 /**
  * 主域名下的子站前缀：第一段路径 → 配置。新增子站加一项 + atlas/web/<站>/ 包（space/scripts/assemble.mjs 的 SITES 同步加）。
@@ -444,18 +437,6 @@ export function subsiteOf(url) {
   if (!url || url.hostname !== MAIN_HOST) return null;
   const site = siteOf(url.pathname);
   return site ? { site } : null;
-}
-
-/**
- * 旧域名 atlas.styrigx.com 任意路径 → 301 https://styrigx.com + 原路径 + 原查询串（不验会话、不回源；no-store：回滚时浏览器不会记住旧跳转）。
- * 安全头由 app.js 按主站那组补（同主站的其他 301 / 302）。
- * @param {URL} url
- */
-export function atlasRedirect(url) {
-  return new Response(null, {
-    status: 301,
-    headers: { 'Location': MAIN_ORIGIN + url.pathname + url.search, 'Cache-Control': 'no-store' },
-  });
 }
 
 /**

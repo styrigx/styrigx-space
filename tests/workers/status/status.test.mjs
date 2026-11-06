@@ -57,15 +57,12 @@ function fakeFetch(map) {
   });
 }
 
-test('地址：3 个公开（主站首页 + 图志 robots.txt + 规则集 healthz）+ 1 个服务绑定（P4-2 起 ai 的 /healthz，取代 search / chat），没有 book / muse-invite', () => {
-  assert.deepEqual(TARGETS.map((t) => t.site), ['space', 'atlas', 'proxy-rules', 'ai']);
+test('地址：2 个公开（主站首页 + 规则集 healthz）+ 1 个服务绑定（P4-2 起 ai 的 /healthz，取代 search / chat），没有 book / muse-invite；旧图志那项 P4-3 PR-1 删除', () => {
+  assert.deepEqual(TARGETS.map((t) => t.site), ['space', 'proxy-rules', 'ai']);
   assert.deepEqual(TARGETS.filter((t) => t.binding).map((t) => [t.site, t.binding, new URL(t.url).pathname]),
     [['ai', 'AI_SERVICE', '/healthz']]);
   /* 公开地址都是 styrigx.com 的；服务绑定的主机名不是公网域名（只给绑定用） */
   for (const t of TARGETS) assert.equal(/styrigx\.com$/.test(new URL(t.url).host), !t.binding, t.site);
-  assert.equal(TARGETS.find((t) => t.site === 'atlas').url, 'https://atlas.styrigx.com/robots.txt');
-  /* 合并 PR3：atlas.styrigx.com 由网关 301 到主域名；同一次部署里 status 先于网关上线，过渡期 301 / 200 都算正常 */
-  assert.deepEqual(TARGETS.find((t) => t.site === 'atlas').expect, [301, 200]);
   assert.ok(!TARGETS.some((t) => /book|muse-invite|blog\.|curio\.|daymark\./.test(t.url)));
   assert.equal(FAIL_THRESHOLD, 3);
   assert.equal(TIMEOUT_MS, 10000);
@@ -122,17 +119,17 @@ test('真 SQL：连续 3 分钟 502 开故障，第 4 分钟恢复关上；每�
   /* 先塞一条 8 天前的旧记录 */
   db.raw.prepare('INSERT INTO checks (site, at, ok, code, ms) VALUES (?, ?, 1, 200, 10)').run('space', t0 - 8 * 24 * 60 * M);
   await runOnce(env, t0, fakeFetch({}));
-  for (let i = 1; i <= 3; i++) await runOnce(env, t0 + i * M, fakeFetch({ 'https://atlas.styrigx.com/robots.txt': 502 }));
+  for (let i = 1; i <= 3; i++) await runOnce(env, t0 + i * M, fakeFetch({ 'https://proxy-rules.styrigx.com/healthz': 502 }));
   let inc = db.raw.prepare('SELECT * FROM incidents').all();
   assert.equal(inc.length, 1);
-  assert.deepEqual([inc[0].site, inc[0].started_at, inc[0].ended_at, inc[0].cause], ['atlas', t0 + M, null, 'HTTP 502']);
+  assert.deepEqual([inc[0].site, inc[0].started_at, inc[0].ended_at, inc[0].cause], ['proxy-rules', t0 + M, null, 'HTTP 502']);
   const prev = await loadPrev(db);
-  assert.equal(prev.get('atlas').fails, 3);
-  assert.equal(prev.get('atlas').open.id, inc[0].id);
+  assert.equal(prev.get('proxy-rules').fails, 3);
+  assert.equal(prev.get('proxy-rules').open.id, inc[0].id);
   await runOnce(env, t0 + 4 * M, fakeFetch({}));
   inc = db.raw.prepare('SELECT * FROM incidents').all();
   assert.equal(inc[0].ended_at, t0 + 4 * M);
-  const day = db.raw.prepare("SELECT * FROM daily WHERE site = 'atlas'").all();
+  const day = db.raw.prepare("SELECT * FROM daily WHERE site = 'proxy-rules'").all();
   assert.deepEqual([day[0].day, day[0].total, day[0].ok_count], ['2026-10-22', 5, 2]);
   /* 不是整点：旧记录还在；整点：清掉 */
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM checks WHERE at < ?').get(t0).n, 1);
@@ -145,13 +142,13 @@ test('真 SQL：汇总——当前状态、24 小时 / 30 天可用率、每日�
   const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 22, 4, 1);
-  for (let i = 0; i < 4; i++) await runOnce(env, t0 + i * M, fakeFetch(i < 3 ? { 'https://atlas.styrigx.com/robots.txt': 'network' } : {}));
+  for (let i = 0; i < 4; i++) await runOnce(env, t0 + i * M, fakeFetch(i < 3 ? { 'https://proxy-rules.styrigx.com/healthz': 'network' } : {}));
   const s = await summary(db, t0 + 4 * M);
   assert.equal(s.ok, true);
   assert.equal(s.today, '2026-10-22');
   assert.equal(s.all_up, true);
   assert.deepEqual(s.sites.map((x) => x.site), TARGETS.map((t) => t.site));
-  const curio = s.sites.find((x) => x.site === 'atlas');
+  const curio = s.sites.find((x) => x.site === 'proxy-rules');
   assert.equal(curio.up, true);
   assert.equal(curio.uptime.h24, 25);
   assert.equal(curio.uptime.d30, 25);
@@ -160,7 +157,7 @@ test('真 SQL：汇总——当前状态、24 小时 / 30 天可用率、每日�
   assert.deepEqual(curio.recent.map((x) => x[1]), [0]);
   assert.deepEqual(curio.days.map((d) => [d.day, d.total, d.ok]), [['2026-10-22', 4, 1]]);
   assert.equal(s.incidents.length, 1);
-  assert.deepEqual([s.incidents[0].site, s.incidents[0].cause, s.incidents[0].ended_at], ['atlas', 'network', t0 + 3 * M]);
+  assert.deepEqual([s.incidents[0].site, s.incidents[0].cause, s.incidents[0].ended_at], ['proxy-rules', 'network', t0 + 3 * M]);
   assert.equal(s.sites.find((x) => x.site === 'space').uptime.h24, 100);
 });
 
@@ -214,13 +211,13 @@ test('真 SQL：第一次失败时间存在 state 里，恢复清零', { skip: !
   const env = { D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db, ...SVC };
   const M = 60000;
   const t0 = Date.UTC(2026, 9, 23, 4, 1);
-  const bad = fakeFetch({ 'https://atlas.styrigx.com/robots.txt': 502 });
+  const bad = fakeFetch({ 'https://proxy-rules.styrigx.com/healthz': 502 });
   await runOnce(env, t0, bad);
   await runOnce(env, t0 + M, bad);
-  assert.equal((await loadPrev(db)).get('atlas').firstFailAt, t0);
+  assert.equal((await loadPrev(db)).get('proxy-rules').firstFailAt, t0);
   await runOnce(env, t0 + 2 * M, fakeFetch({}));
-  assert.equal((await loadPrev(db)).get('atlas').firstFailAt, 0);
-  const h = db.raw.prepare("SELECT * FROM hourly WHERE site = 'atlas'").all();
+  assert.equal((await loadPrev(db)).get('proxy-rules').firstFailAt, 0);
+  const h = db.raw.prepare("SELECT * FROM hourly WHERE site = 'proxy-rules'").all();
   assert.deepEqual([h.length, h[0].total, h[0].ok_count], [1, 3, 1]);
 });
 

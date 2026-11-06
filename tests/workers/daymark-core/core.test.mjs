@@ -8,7 +8,7 @@
 //   记下的那句被删 / 改私密就重挑；PUT /api/today 设为今日要账号会话 + daymark.write + 同源（没进门 401、没登录账号 401 account、私密 409）
 // - 三页签：出处类型、随手一笔（没登录账号和 /api/today 永不返回）、百味专题的增删改、归属与排序、没登录账号只见公开
 // - 迁移 0001 + 0002 依次跑在 SQLite 上，接口照常工作
-// - wrangler.toml：不开 workers.dev，只挂 styrigx.com/daymark/api/*（+ 过渡期 atlas.styrigx.com/daymark/api/*），服务绑定网关，不持钥匙
+// - wrangler.toml：不开 workers.dev，只挂 styrigx.com/daymark/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），服务绑定网关，不持钥匙
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。
 // 运行：node --test tests/workers/core.test.mjs
 import { test } from 'node:test';
@@ -332,7 +332,7 @@ test('wrangler.toml：不开 workers.dev，只挂 daymark 的 /api/*，D1 + 网�
   assert.match(t, /^name = "styrigx-daymark-core"$/m);
   assert.match(t, /^workers_dev = false$/m);
   /* 合并 PR3：主域名路由 + 过渡期的旧图志路由，只有这两条 */
-  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/daymark/api/*', 'atlas.styrigx.com/daymark/api/*']);
+  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/daymark/api/*']);
   assert.match(t, /^database_id = "[0-9a-f-]{36}"$/m);
   assert.match(t, /^service = "styrigx-auth-gateway"$/m);
   assert.match(t, /^entrypoint = "AuthVerifier"$/m);
@@ -656,7 +656,7 @@ test('设为今日：账号会话 + daymark.write + 同源；没进门 401、没
   assert.equal(na.status, 401);
   assert.equal((await na.json()).error, 'account');
   assert.equal((await setToday(db, target, { who: 'noscope' })).status, 403);
-  assert.equal((await setToday(db, target, { origin: 'https://atlas.styrigx.com' })).status, 403); /* 合并 PR3 起接口在主域名：旧图志源算跨源 */
+  assert.equal((await setToday(db, target, { origin: 'https://sub.styrigx.com' })).status, 403); /* 接口在主域名：别的子域名源算跨源 */
   assert.equal((await setToday(db, target, { origin: 'https://evil.com' })).status, 403);
   assert.equal((await setToday(db, target, { origin: null })).status, 403);
   assert.equal((await call('/daymark/api/today', { db, method: 'PUT', body: { id: target }, throws: true })).status, 500);

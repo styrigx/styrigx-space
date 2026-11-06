@@ -43,7 +43,7 @@ Sloan Gray's personal portal — Home, Chat, Settings and Account — and the au
 This is the source of styrigx.com and the "system" repository of the site family:
 
 - **Portal** — four apps (Home, Chat, Settings, Account), fully bilingual.
-- **Auth gateway** — every page and API on the main site and on the sub-sites (Blog, Curio, Daymark at `styrigx.com/<site>/`) goes through it first; the old Atlas domain atlas.styrigx.com 301-redirects any path to the same path on styrigx.com. The whole site is locked by design; sharing only happens through short links that carry a temporary key.
+- **Auth gateway** — every page and API on the main site and on the sub-sites (Blog, Curio, Daymark at `styrigx.com/<site>/`) goes through it first. The whole site is locked by design; sharing only happens through short links that carry a temporary key.
 - **Shared shell** — the top bar, navigation drawer and search layer are generated here; each sub-site keeps a synced copy pinned to a shell version (git tree hash).
 - **Shared CI** — Hugo, Node and Playwright setup are published as composite actions (`v*` tags) that Atlas references by tag.
 
@@ -64,7 +64,7 @@ The interface is **Styrigx UI**, built in-house, with version numbers that track
 |---|---|---|
 | Home | `/en/` | Profile card, dual clocks, weather, Daymark's quote of the day, screen time. |
 | AI assistant | Top-bar AI button | On-site assistant: recalls from the site-wide index, then a model (self-hosted Gemma 4 / GPT-OSS 20B, or external Gemini) streams the answer with on-site source cards; the conversation stays local. |
-| Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally and synced once you sign in. Also service status (uptime and incidents for the main site, Atlas and Proxy rules) and temporary keys (including share links; creating or revoking one asks for a lock re-verification). |
+| Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally and synced once you sign in. Also service status (uptime and incidents for the main site, Proxy rules and AI) and temporary keys (including share links; creating or revoking one asks for a lock re-verification). |
 | Account | `/en/account/` | Opened from the avatar in the drawer head: account sign-in, cloud sync, devices, account security. |
 
 ## Architecture
@@ -73,7 +73,7 @@ The interface is **Styrigx UI**, built in-house, with version numbers that track
 flowchart LR
   V([Browser]) --> GW
   subgraph CF[Cloudflare]
-    GW[styrigx-auth-gateway<br/>styrigx.com/*<br/>atlas.styrigx.com/* → 301]
+    GW[styrigx-auth-gateway<br/>styrigx.com/*]
     SH[styrigx-share<br/>/s/* · /api/share*]
     CC[styrigx-curio-core<br/>/curio/api/*]
     DC[styrigx-daymark-core<br/>/daymark/api/*]
@@ -91,13 +91,13 @@ flowchart LR
 
 | Worker | Responsibility | Entry |
 |---|---|---|
-| `styrigx-auth-gateway` | Issues and verifies lock sessions, lock credentials and temporary-key APIs; checks the session on every page (including the `/blog/`, `/curio/`, `/daymark/` sub-sites) before serving it from Pages; the old atlas.styrigx.com domain only 301-redirects | `styrigx.com/*`, `atlas.styrigx.com/*` |
+| `styrigx-auth-gateway` | Issues and verifies lock sessions, lock credentials and temporary-key APIs; checks the session on every page (including the `/blog/`, `/curio/`, `/daymark/` sub-sites) before serving it from Pages | `styrigx.com/*` |
 | `styrigx-account` | Account system: password, passkeys, devices, account root key, avatar, cloud sync, digital wellbeing | Gateway service binding only, no public route |
 | `styrigx-share` | Share short links and their management API | `styrigx.com/s/*`, `styrigx.com/api/share*` |
 | `styrigx-ai` | On-site assistant: KV index recall + model answer (Workers AI / Gemini); stores nothing | Gateway service binding only |
 | `styrigx-status` | Checks every minute, reads usage hourly (D1) | Gateway service binding only |
 | `styrigx-proxy-rules` | Accelerating proxy for rule sets, allow-listed upstream only | `proxy-rules.styrigx.com` (bypasses the gateway) |
-| `styrigx-curio-core` | Curio API (D1 + R2) | `styrigx.com/curio/api/*` (more specific than the gateway; the old `atlas.styrigx.com/curio/api/*` route stays for a transition release) |
+| `styrigx-curio-core` | Curio API (D1 + R2) | `styrigx.com/curio/api/*` (more specific than the gateway) |
 | `styrigx-daymark-core` | Daymark API (D1) | `styrigx.com/daymark/api/*` (same) |
 
 The sub-sites and the main site are one tree in a single Pages project (main site at the root, the three sites under `/blog/`, `/curio/`, `/daymark/`), deployed together.
@@ -166,7 +166,7 @@ Full details in [STRUCTURE.md](STRUCTURE.md) (Chinese).
 |---|---|---|
 | **styrigx-space** (this repo) | [styrigx.com](https://styrigx.com) | Portal and auth gateway; sub-sites [Blog](https://styrigx.com/blog/en/), [Curio](https://styrigx.com/curio/en/), [Daymark](https://styrigx.com/daymark/en/) (merged in from styrigx-atlas, 2026-11) |
 
-The old Atlas domain atlas.styrigx.com 301-redirects any path to the same path on styrigx.com (query string kept).
+The old Atlas domain's 301 redirect was removed in 2026-11 (P4-3 PR-1); the domain is retired.
 
 ## License
 

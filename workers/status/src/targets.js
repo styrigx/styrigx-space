@@ -2,11 +2,8 @@
  * @fileoverview 监测的地址（2026-10-22 定 5 个公开地址，book 已下线、muse-invite 已删；2026-10-28 加 search / chat 两个服务绑定；
  * P4-2 起 search / chat 退役，合成一项 ai，经服务绑定 AI_SERVICE 测 styrigx-ai）。
  *
- * 子站没会话时页面会 302 去主站锁屏，测不出站本身；所以图志测 /robots.txt（公开、走同一条网关 → Pages 链路；
- * 2026-11-02 博客 / 日刻 / 奇趣并成一个 Pages，三项合成一项）。
- * 合并 PR3（2026-11-03）起三站在 styrigx.com/<站>/，atlas.styrigx.com 任意路径由网关 301 到主域名：这一项改测这个 301
- * （旧书签 / 旧链接靠它）。301 和 200 都算正常：同一次部署里 status 先于网关上线，网关换新之前旧网关还回 200；
- * 清理 PR 删掉过渡期时改成只认 301。
+ * 子站（博客 / 奇趣 / 日刻）合并 PR3（2026-11-03）起和主站同一个 Pages、同一条网关链路，在 styrigx.com/<站>/ 下，不单独测；
+ * 旧图志域名那一项（测它的 301 过渡跳转）随跳转一起在 P4-3 PR-1 删除。
  * 主站首页本身就公开（锁屏页），直接测 /。
  * expect：正常的状态码。拿到别的码、超时或连不上都算这一次失败。
  *
@@ -16,7 +13,6 @@
  */
 export const TARGETS = [
   { site: 'space', zh: '主站', en: 'Home', url: 'https://styrigx.com/', expect: [200] },
-  { site: 'atlas', zh: '图志', en: 'Atlas', url: 'https://atlas.styrigx.com/robots.txt', expect: [301, 200] },
   { site: 'proxy-rules', zh: '规则集', en: 'Proxy rules', url: 'https://proxy-rules.styrigx.com/healthz', expect: [200] },
   { site: 'ai', zh: 'AI 助手', en: 'AI', url: 'https://styrigx-ai/healthz', binding: 'AI_SERVICE', expect: [200] },
 ];

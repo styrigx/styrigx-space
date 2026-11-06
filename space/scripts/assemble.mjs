@@ -8,7 +8,7 @@
  *   - 主站产物要先构建好（space/web/public/index.html 在）；主站产物里不许已有 blog/ curio/ daymark/（防撞名）。
  *   - 每站产物要先构建好（atlas/web/<站>/public/index.html 在）。
  *   - 子站产物里不许有 _worker.js / _headers / _redirects / robots.txt：Pages 只认域名根上的这几个文件，放在子目录里是死文件，
- *     而且子站版的 _worker.js 曾按 atlas.styrigx.com 判断 host（会把网关回源弹走）。根文件一律归主站（space/web/static/）。
+ *     而且子站版的 _worker.js 曾按旧图志域名判断 host（会把网关回源弹走）。根文件一律归主站（space/web/static/）。
  *   - 404.html 各站自带：Pages 按最近一级的 404.html 回答（/blog/xxx → /blog/404.html，站外 → 根上主站的 404.html）。
  *
  * 用法：node space/scripts/assemble.mjs [--out <目录>]（--out 按当前目录解析；默认仓库根的 dist/site/。先构建四个包：node space/scripts/build-sites.mjs 会顺带拼树）

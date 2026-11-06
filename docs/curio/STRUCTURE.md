@@ -2,7 +2,7 @@
 
 > 状态：现行 ｜ 最后更新：2026-11-06
 
-奇趣原在图志仓库（styrigx-atlas），2026-11-02 并入本仓库；线上在 `https://styrigx.com/curio/`（英文 `/curio/en/`），接口在 `styrigx.com/curio/api/*`；旧地址 `atlas.styrigx.com/curio/…` 301 到主域名同路径。
+奇趣原在图志仓库（styrigx-atlas），2026-11-02 并入本仓库；线上在 `https://styrigx.com/curio/`（英文 `/curio/en/`），接口在 `styrigx.com/curio/api/*`；旧图志域名的 301 已于 P4-3 PR-1 删除。
 下面的目录树是并入前的布局，现在的位置（`atlas/web/curio/`、`workers/curio-core/`、`tests/curio/`、`atlas/scripts/curio/`）见仓库根 `STRUCTURE.md`。
 仓库整体（三站合成一个 Pages、共用的 `root/`、CI）见仓库根 README。改页面只动 `atlas/web/curio/`，改接口只动 `workers/core/`。
 
@@ -38,7 +38,7 @@ sites/curio/
 
 | 位置 | 是什么 |
 |---|---|
-| `wrangler.toml` | 路由 `styrigx.com/curio/api/*`（`atlas.styrigx.com/curio/api/*` 旧路由过渡期保留）、D1 绑定 `D1_FINDS`（links、cats、imports）/ `D1_DEVICES`（devices）/ `D1_GAMES`（games）（同一个库 styrigx-curio-core）、R2 绑定 `R2_PHOTOS`、网关服务绑定 `AUTH`、全站搜索 KV `KV_SEARCH_INDEX`、每小时 Cron |
+| `wrangler.toml` | 路由 `styrigx.com/curio/api/*`、D1 绑定 `D1_FINDS`（links、cats、imports）/ `D1_DEVICES`（devices）/ `D1_GAMES`（games）（同一个库 styrigx-curio-core）、R2 绑定 `R2_PHOTOS`、网关服务绑定 `AUTH`、全站搜索 KV `KV_SEARCH_INDEX`、每小时 Cron |
 | `src/index.js` | 入口（公开地址 `/curio/api/*` 去掉 `/curio` 前缀后按路由表找）：全部 `/api/*` 先问网关会话（没有公开接口） |
 | `src/search-index.js` | 全站搜索索引：收藏 / 设备 / 游戏 → KV `site:curio`（改内容的写接口成功后重建 + Cron 每小时兜底，内容没变不写 KV；私密的标 `private`） |
 | `src/routes.js` | 路由表（与 `src/api/` 一一对应，测试核对） |

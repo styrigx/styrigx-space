@@ -6,7 +6,7 @@
 // - 导出：Netscape HTML，要账号会话 + 同源
 // - 图标：R2 缓存命中直接回；没缓存现抓并存；抓不到存「没有」标记；没登录账号拿不到私密收藏的图标；内网地址不抓
 // - 迁移 0001 + 0002 在 SQLite 上跑两次不报错，种子和 data/seed.json 一致；SCHEMA 与迁移一致
-// - wrangler.toml：不开 workers.dev，只挂 styrigx.com/curio/api/*（+ 过渡期 atlas.styrigx.com/curio/api/*），D1 + R2 + 网关服务绑定，不持钥匙
+// - wrangler.toml：不开 workers.dev，只挂 styrigx.com/curio/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），D1 + R2 + 网关服务绑定，不持钥匙
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。
 // 运行：node --test tests/workers/core.test.mjs
 import { test } from 'node:test';
@@ -629,7 +629,7 @@ test('图标：图片一律要过会话——private, no-cache + ETag，304 只�
 });
 
 test('图标：内网 / 本机 / 自家域名 / SVG / 太大都不要；跳转每一跳都查地址', async () => {
-  for (const u of ['http://127.0.0.1/x.png', 'https://10.0.0.1/x.png', 'https://atlas.styrigx.com/curio/x.png', 'http://localhost/x.png']) {
+  for (const u of ['http://127.0.0.1/x.png', 'https://10.0.0.1/x.png', 'https://sub.styrigx.com/curio/x.png', 'http://localhost/x.png']) {
     assert.equal(await I.fetchIcon(u, async () => { throw new Error('不该抓'); }), null, u);
   }
   const svg = await I.fetchIcon('https://a.example/i.svg', async () => new Response('<svg/>', { headers: { 'Content-Type': 'image/svg+xml' } }));
@@ -644,7 +644,7 @@ test('图标：内网 / 本机 / 自家域名 / SVG / 太大都不要；跳转�
 });
 
 test('预览：内网、本机、自家域名、怪端口不抓；HTML 取 og 标题、简介、图标', () => {
-  for (const u of ['http://localhost/', 'http://127.0.0.1/', 'http://10.0.0.1/', 'http://192.168.1.1/', 'http://169.254.169.254/', 'http://[::1]/', 'https://styrigx.com/', 'https://atlas.styrigx.com/curio/', 'https://example.com:8080/']) {
+  for (const u of ['http://localhost/', 'http://127.0.0.1/', 'http://10.0.0.1/', 'http://192.168.1.1/', 'http://169.254.169.254/', 'http://[::1]/', 'https://styrigx.com/', 'https://sub.styrigx.com/curio/', 'https://example.com:8080/']) {
     assert.equal(P.previewAllowed(u), false, u);
   }
   assert.equal(P.previewAllowed('https://github.com/'), true);
@@ -694,7 +694,7 @@ test('wrangler.toml：不开 workers.dev，只挂 curio 的 /api/*，D1 + R2 + �
   assert.match(t, /^workers_dev = false$/m);
   assert.match(t, /^preview_urls = false$/m);
   /* 合并 PR3：主域名路由 + 过渡期的旧图志路由，只有这两条 */
-  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/curio/api/*', 'atlas.styrigx.com/curio/api/*']);
+  assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/curio/api/*']);
   assert.match(t, /^database_id = "[0-9a-f-]{36}"$/m);
   assert.match(t, /^bucket_name = "styrigx-curio-core"$/m);
   assert.match(t, /^service = "styrigx-auth-gateway"$/m);

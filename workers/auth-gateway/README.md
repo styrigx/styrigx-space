@@ -19,7 +19,7 @@
 请求在 `src/` 里的走向：
 
 - `app.js` 第一步剥掉入站请求里所有 `x-styrigx-*` 和旧前缀 `x-sgx-*` 头（下游只认网关自己写的）；主站静态资源（`/css/ /js/ /fonts/ /fav/ /images/` 和根目录几张公开图）原样回源，不验会话、不打 `X-SGX-Runtime`。
-- `gate.js`：主站关口 `onRequest`（会话、角色、白名单、no-store、锁屏瘦身、HTML 会话标记）和子站关口 `handleSubsite`（`styrigx.com/blog/`、`/curio/`、`/daymark/` 按路径前缀；`atlasRedirect` 把 `atlas.styrigx.com` 301 到主域名）。
+- `gate.js`：主站关口 `onRequest`（会话、角色、白名单、no-store、锁屏瘦身、HTML 会话标记）和子站关口 `handleSubsite`（`styrigx.com/blog/`、`/curio/`、`/daymark/` 按路径前缀）。旧图志域名的 301（`atlasRedirect`）已于 P4-3 PR-1 删除。
 - `router.js`：主站关口放行后，转发表 `FORWARDING` → `/api/*` 路由表 `API_ROUTES`（`api/<名字>.js`）→ 回源。新增接口：加 `src/api/<名字>.js`，在 `API_ROUTES` 登记一行（单测核对两边一一对应）。
 - `core/` 业务（会话、票据、凭证、D1 状态、限流、转发帮手、问账号 Worker 的 `account-rpc.js`、组装结论的 `conclusion.js`），`lib/` 通用件，`secrets.js` 把 Secrets Store 绑定换成字符串。
 
@@ -47,12 +47,11 @@
 
 ## 路由
 
-`wrangler.toml` 的 `[[routes]]` 是唯一登记处（`space/scripts/check-worker-routes.mjs` 在 CI 核对）：
+`wrangler.toml` 的 `[[routes]]` 是唯一登记处（`space/scripts/check-worker-routes.mjs` 在 CI 核对；只登记 `styrigx.com`，旧图志域名的路由和 301 已于 P4-3 PR-1 删除）：
 
 | 路由 | 说明 |
 |---|---|
 | `styrigx.com/*` | 主站整站，含子站 `/blog/`、`/curio/`、`/daymark/`（同一个 Pages、一棵树；按路径前缀走子站关口 `handleSubsite`，子站页面用的 `/api/lock-session-check` 就是主站根上的同一个接口）。短链 Worker 的 `styrigx.com/s/*`、`styrigx.com/api/share*` 和接口 Worker 的 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*` 更具体，不进网关 |
-| `atlas.styrigx.com/*` | 旧图志域名（合并 PR3 起）：任意路径 301 到 `https://styrigx.com` 同路径 + 查询串（`src/gate.js` `atlasRedirect`，不验会话、不回源）。`atlas.styrigx.com/<站>/api/*` 的旧接口路由过渡期仍归两个接口 Worker |
 
 - 账号路径（转发表 `src/router.js` 的 `FORWARDING`）：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`。关口先验（`/api/account`、`/api/prefs*` 要进门；`/api/avatar*`、`/api/wellbeing*` 要有会话；`/avatar/*` 公开），放行后经 `ACCOUNT`（entrypoint `AccountService`）原样转给账号 Worker，按验过的锁屏会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`。没绑定或绑定出错 → 503 upstream，不落回网关路由表、不回源。转发回来的响应保留 `X-SGX-Runtime: account`。
 - 网关自己的接口：`src/router.js` 的 `API_ROUTES`（锁屏、锁屏凭证、进站凭证、临时钥匙、`geo`，以及只做门再转出去的 `ai`、`status`；`chat`、`search` 在 P4-2b 删除，回 404）。接口分工见 `docs/status-apis.md`。
@@ -101,6 +100,6 @@
 没有 0002。正式部署 job 不跑迁移：代码在第一次遇到「no such table」时按 `core/d1-state.js` 的 SCHEMA 建表（幂等，单测核对与迁移文件一致）。恢复开关：在 D1 控制台插一行即可开启（首次读到起 24 小时内有效，用一次作废）：
 `INSERT INTO lock_reset_switch (hash, first_seen, used) VALUES (lower(hex(randomblob(16))), 0, 0);`
 
-部署和回滚（`.github/workflows/deploy.yml`）：接口 Worker（搜索、AI、聊天 → 监测 → 账号 ∥ 短链 ∥ 奇趣接口 ∥ 日刻接口）→ **网关** → Pages。接口 Worker 先挂上 `styrigx.com/<站>/api/*`，网关再按路径分发子站、把 atlas 301 过来；网关冒烟通过后才部署 Pages。Pages 上已经没有后端代码，不能靠删路由回滚；main 部署冒烟失败时 CI 自动 `wrangler rollback` 到部署前的版本（`space/scripts/deploy-rollback.mjs`，只换代码版本，D1 数据和路由都不回滚；回滚下限见 `space/scripts/deploy-rollback-floor.json`）。预览（passkey-e2e）用组合入口 `tests/space/e2e/helpers/preview-worker.js`，预览资源只用一个 `styrigx-test-preview`。
+部署和回滚（`.github/workflows/deploy.yml`）：接口 Worker（搜索、AI、聊天 → 监测 → 账号 ∥ 短链 ∥ 奇趣接口 ∥ 日刻接口）→ **网关** → Pages。接口 Worker 先挂上 `styrigx.com/<站>/api/*`，网关再按路径分发子站；网关冒烟通过后才部署 Pages。Pages 上已经没有后端代码，不能靠删路由回滚；main 部署冒烟失败时 CI 自动 `wrangler rollback` 到部署前的版本（`space/scripts/deploy-rollback.mjs`，只换代码版本，D1 数据和路由都不回滚；回滚下限见 `space/scripts/deploy-rollback-floor.json`）。预览（passkey-e2e）用组合入口 `tests/space/e2e/helpers/preview-worker.js`，预览资源只用一个 `styrigx-test-preview`。
 
 下游的身份头：`src/api/ai.js` 改写账号结论头（`X-Styrigx-Account-*`，styrigx-ai 只认 `X-Styrigx-Account-Session: 1`）。`src/api/search.js`、`src/api/chat.js` 在 P4-2b 连同 /chat/ 页退役。入站的旧前缀 `x-sgx-*` 头仍照剥。
