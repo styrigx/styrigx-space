@@ -9,24 +9,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 {{ partial "sgx-inherit.html" (dict "alt" .alt) }}
-{{- /* 布局模式（同主站 baseof __layoutMode() 的自动规则：宽 ≥ 840、高 ≥ 500 且横屏 = DeX，否则 Mobile）→ layout-* 类（博客没有自己的布局开关）。
-   顶栏长度统一（P4-3）：外壳框最宽（Mobile 640 / DeX 1440，共享外壳 shell.css）按 data-sgx-layout 定，四站同一条布局规则（主站 baseof __layoutMode() 只读版：偏好 sgx-layout = mobile / dex / auto，同源同一份 localStorage；auto = 宽 ≥ 840、高 ≥ 500 且横屏才是 DeX），
-   和主站、奇趣、日刻同一个 __sgxShellLayout()，顶栏两侧圆四站同一位置。 */}}
-<script>(function(){var d=document.documentElement,w=window.innerWidth||1280,h=window.innerHeight||800;d.classList.add(w>=840&&h>=500&&w>h?'layout-dex':'layout-mobile')})();
-function __sgxShellLayout(){
-  var m=null;
-  try{
-    if(new URLSearchParams(location.search).get('layout')==='auto')m='auto';
-    else m=localStorage.getItem('sgx-layout');
-  }catch(e){}
-  if(m==='pc')m='dex';
-  var w=window.innerWidth||1280,h=window.innerHeight||800;
-  var big=w>=840&&h>=500;
-  if(m==='mobile')return 'mobile';
-  if(m==='dex')return big?'dex':'mobile';
-  return big&&w>h?'dex':'mobile';
+{{- /* 布局模式：共享外壳 layout-mode.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b）；
+   结果写 <html data-sgx-layout>（外壳按它定顶栏宽）和 layout-mobile / layout-dex 类（博客没有自己的布局开关，快捷面板布局行改了偏好就调 __applyLayout） */}}
+<script>{{ (resources.Get "js/sgx/shell/layout-mode.js" | minify).Content | safeJS }}</script>
+<script>
+function __layoutMode(){
+  return __sgxLayout()==='desktop'?'dex':'mobile';
 }
-document.documentElement.setAttribute('data-sgx-layout',__sgxShellLayout());</script>
+function __applyLayout(){
+  var d=document.documentElement,m=__layoutMode();
+  d.classList.remove('layout-mobile','layout-dex');
+  d.classList.add('layout-'+m);
+  d.setAttribute('data-sgx-layout',m==='dex'?'desktop':'phone');
+}
+__applyLayout();
+/* 拖窗口 / 分屏 / 转屏：不刷新，按同一条规则重算 */
+__sgxLayoutWatch(__applyLayout);
+</script>
 {{- /* 标签页图标、主屏图标都用主站头像（主站设置页可换），和奇趣、日刻一样直接指过去 */}}
 <link rel="icon" href="https://styrigx.com/avatar/32.webp">
 <link rel="apple-touch-icon" href="https://styrigx.com/avatar/192.webp">

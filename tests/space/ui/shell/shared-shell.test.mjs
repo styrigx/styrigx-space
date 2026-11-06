@@ -44,7 +44,7 @@ test('快捷面板（P5-1，替代抽屉；PR-4b 单页 + 导航面板）：非�
   assert.match(s, /\.dark \{ --sgx-qp-shadow: 0 4px 12px rgba\(0,0,0,\.22\), 0 16px 48px rgba\(0,0,0,\.5\)/);
   // 宽屏 400px（AI 440px），右缘对齐外壳框
   // （P4-3 顶栏长度统一：和顶栏一样按 --sgx-tb-w 对齐，100vw 算，不随滚动条变）
-  assert.match(s, /@media \(min-width: 980px\) \{\s*\.sgx-qp-sheet \{ left: auto; right: calc\(\(100% - var\(--sgx-tb-w\)\) \/ 2\); width: 400px; margin: 0; \}\s*\.sgx-ai \.sgx-qp-sheet \{ width: 440px; \}/);
+  assert.match(s, /:root\[data-sgx-layout="desktop"\] \.sgx-qp-sheet \{ left: auto; right: calc\(\(100% - var\(--sgx-tb-w\)\) \/ 2\); width: min\(400px, var\(--sgx-tb-w\)\); margin: 0; \}\s*:root\[data-sgx-layout="desktop"\] \.sgx-ai \.sgx-qp-sheet \{ width: min\(440px, var\(--sgx-tb-w\)\); \}/);
   // PR-4b：快捷面板只有一页（分段 / 双页滑动删除）；导航面板磁贴复用快捷面板磁贴，当前站 = 「开」态
   assert.doesNotMatch(s, /\.sgx-qp-(tab|tabs|pages|page|nav-item)\b|scroll-snap/, '两页页签 / 横向滑动 / 导航列表样式删了');
   assert.match(s, /\.sgx-qp-tile\[aria-pressed="true"\], \.sgx-qp-tile\[aria-current="page"\] \{ background: var\(--sgx-primary-container\); color: var\(--sgx-on-primary-container\);/);
@@ -115,7 +115,7 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
 test('顶栏（P5-1 起一整条胶囊；PR-4b 定稿）：[字标][页名胶囊][九宫格 · 快捷设置 · AI]，头像不在顶栏；同一份标记 topbar.html 四站共用', () => {
   assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel']);
   const s = files['shell.css'];
-  assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*left: 0; right: calc\(100% - 100vw\); margin: 0 auto; width: var\(--sgx-tb-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
+  assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*left: 0; right: 0; margin: 0 auto; width: var\(--sgx-tb-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
   // 右边图标紧凑：宽 --sgx-tb-icw（38px）、间距 2px，整体靠右
   assert.match(s, /--sgx-tb-icw: 38px;/);
   assert.match(s, /\.sgx-tb-btn \{ width: var\(--sgx-tb-icw\); height: var\(--sgx-tb-ic\);[^}]*border-radius: 999px;/);

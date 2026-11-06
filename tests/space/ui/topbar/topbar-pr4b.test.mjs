@@ -39,12 +39,13 @@ test('子站立即锁定：不传 onLock 时点两下确认（3 秒内），POST
   for (const s of ['curio', 'daymark']) assert.doesNotMatch(rd(`atlas/web/${s}/assets/js/sgx/topbar-host.js`), /onLock:/, s);
 });
 
-test('子站布局 / 语言写端（prefs-write.js）：四个入口都把 langPref / layoutPref / layoutNarrow / setLayout 传给 mountTopbar', () => {
+test('子站布局 / 语言写端（prefs-write.js）：四个入口都把 langPref / layoutPref / setLayout 传给 mountTopbar（layoutNarrow 不再传：桌面任何时候都能选）', () => {
   const pw = rd('space/web/assets/js/lib/prefs-write.js');
-  for (const f of ['langPref', 'layoutPref', 'layoutNarrow', 'setLayout']) assert.match(pw, new RegExp('export function ' + f + '\\('), f);
+  for (const f of ['langPref', 'layoutPref', 'setLayout']) assert.match(pw, new RegExp('export function ' + f + '\\('), f);
   assert.match(pw, /lsSet\('sgx-layout', n\);/);
   for (const f of ['atlas/web/curio/assets/js/sgx/topbar-host.js', 'atlas/web/daymark/assets/js/sgx/topbar-host.js', 'atlas/web/blog/assets/js/entries/topnav.ts']) {
     const s = rd(f);
-    for (const k of ['langPref', 'layoutPref', 'layoutNarrow', 'setLayout']) assert.match(s, new RegExp(k + ': prefs\\.' + k), f + ' ' + k);
+    for (const k of ['langPref', 'layoutPref', 'setLayout']) assert.match(s, new RegExp(k + ': prefs\\.' + k), f + ' ' + k);
+    assert.doesNotMatch(s, /layoutNarrow/, f);
   }
 });

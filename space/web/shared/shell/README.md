@@ -83,9 +83,11 @@
   只有锁屏通行密钥 / 解锁密码，设了哪个显示哪个；同源 POST /api/lock-reauth status、/api/lock-password、/api/lock-passkey）→ 通过后自动重试一次；取消 = 不分享。
   toast 是 `.sgx-share-toast`（share.js 自己建）；复验弹层样式 `.sgx-share-reauth*` 在 shell.css 的 topbar-frame 段。
 - 尺寸体系（2026-10-23）：`--sgx-page-m`、`--sgx-tb-btn`（顶栏高 52 → 56）、`--sgx-tb-gap`、`--sgx-content-max`（外壳框最宽）、
-  `--sgx-shell-w` = min(100% − 2 × 页边距, 最宽)。顶栏 = 这个框；子站自己的页面外框用 `width: var(--sgx-shell-w); margin: 0 auto` 就和顶栏对齐。
-- 顶栏长度统一（P4-3）：最宽只由 shell.css 按 `<html data-sgx-layout="mobile|dex">` 定（640 / 1440；没有属性退回 1068），**子站不许再自己改 `--sgx-content-max`**。
-  `data-sgx-layout` 由各站 `<head>` 内联脚本 `__sgxShellLayout()` 写：主站 baseof `__layoutMode()` 的只读版（偏好 `sgx-layout` = mobile / dex / auto，
-  auto = 宽 ≥ 840、高 ≥ 500 且横屏才是 DeX），四站一字不差（tests/space/ui/shell/topbar-length.test.mjs 逐站跑一遍对结果）。
+  `--sgx-shell-w` = min(100% − 2 × 页边距, 最宽)。子站自己的页面外框用 `width: var(--sgx-shell-w); margin: 0 auto`（顶栏不再定内容栏，P4-3 PR-4b）。
+- 布局模式（P4-3 PR-4b，Gray 2026-11-07）：只有手机 `phone` / 桌面 `desktop` 两种，不按像素断点定。唯一规则在 `layout-mode.js` 的 `__sgxLayout()`：
+  偏好 `sgx-layout` = phone / auto / desktop（旧值 mobile → phone、dex / pc → desktop），自动 = `navigator.userAgentData.mobile`（没有就看 UA 的 Mobi / Android…Mobile / iPhone）；
+  `?layout=auto` 逃生口。**四站 `<head>` 原样内联这一份**（Hugo：resources.Get … | minify，.Content | safeJS），结果写进 `<html data-sgx-layout="phone|desktop">`，
+  各站自己的 layout-* 类也按它（tests/space/ui/shell/topbar-length.test.mjs 核对四站内联的是同一份、结果一样）。**子站不许再自己改 `--sgx-content-max` / 顶栏宽。**
+- 顶栏宽 `--sgx-tb-w`（shell.css）：手机 = 100vw − 2 × 16px；桌面 = min(960px, 100vw − 2 × 24px)，居中。
   顶栏胶囊和快捷面板 / AI 窗口按 `--sgx-tb-w`（100vw 算，含经典滚动条）定宽、`right: calc(100% - 100vw)` 按整个窗口居中：会滚 / 不滚的页一样长，不因滚动条左右挪。
 

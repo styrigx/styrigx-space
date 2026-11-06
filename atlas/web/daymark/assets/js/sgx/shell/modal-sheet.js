@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:93c2a5d62c5d space/web/shared/shell vb0440bfedc2e（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:461b841cee6b space/web/shared/shell v010001cfedbf（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- modal-sheet.js ---- */
 /**
  * @fileoverview 顶栏弹出层的开合状态机（快捷面板 #sgx-qp、AI 窗口 #sgx-ai 共用；2026-11-04 P5-1 导航抽屉删除）。

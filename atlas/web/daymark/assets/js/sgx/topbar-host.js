@@ -32,7 +32,6 @@ function boot() {
       },
       langPref: prefs.langPref,
       layoutPref: prefs.layoutPref,
-      layoutNarrow: prefs.layoutNarrow,
       setLayout: prefs.setLayout,
     },
     ai: mountAiChat,

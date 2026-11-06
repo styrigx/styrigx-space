@@ -172,23 +172,25 @@ export function setLangPref(v) {
 }
 
 
-/* 布局偏好（P4-3 PR-4b：快捷面板四站同一套，子站也有布局行）：同主站 lib/prefs.js，localStorage sgx-layout = mobile / auto / dex（同源同一份）；
-   写完重算本页布局：有 window.__applyLayout（主站 / 奇趣 / 日刻 <head> 内联）就调它，没有（博客）就按 window.__sgxShellLayout 只改 data-sgx-layout。 */
-/** @returns {'mobile'|'auto'|'dex'} */
+/* 布局偏好（P4-3 PR-4b：快捷面板四站同一套，子站也有布局行；只有手机 / 自动 / 桌面）：同主站 lib/prefs.js，localStorage sgx-layout = phone / auto / desktop
+   （同源同一份；旧值 mobile → phone、dex / pc → desktop）。模式按共享外壳 layout-mode.js __sgxLayout() 算（四站 <head> 内联同一份）；
+   写完重算本页布局：各站 <head> 都有 window.__applyLayout，调它；万一没有就按 __sgxLayout 只改 data-sgx-layout。 */
+/** @returns {'phone'|'auto'|'desktop'} */
 export function layoutPref() {
   var v = ls('sgx-layout');
-  if (v === 'pc') v = 'dex';
-  return v === 'mobile' || v === 'dex' ? v : 'auto';
+  if (v === 'phone' || v === 'mobile') return 'phone';
+  if (v === 'desktop' || v === 'dex' || v === 'pc') return 'desktop';
+  return 'auto';
 }
-/** 不够 DeX 的「大屏」（宽 ≥ 840 且高 ≥ 500，同主站 lib/prefs.js layoutBig）时 DeX 置灰 @returns {boolean} */
+/** 旧接口：模式不再按视口定，桌面任何时候都能选（应用内浏览器没有「桌面版网站」开关，靠这里手动选） @returns {boolean} */
 export function layoutNarrow() {
-  return !((window.innerWidth || 1280) >= 840 && (window.innerHeight || 800) >= 500);
+  return false;
 }
 /** @param {string} v */
 export function setLayout(v) {
-  var n = v === 'mobile' || v === 'dex' ? v : 'auto';
+  var n = v === 'phone' || v === 'mobile' ? 'phone' : v === 'desktop' || v === 'dex' ? 'desktop' : 'auto';
   lsSet('sgx-layout', n);
   var w = /** @type {any} */ (window);
   if (typeof w.__applyLayout === 'function') w.__applyLayout();
-  else if (typeof w.__sgxShellLayout === 'function') document.documentElement.setAttribute('data-sgx-layout', w.__sgxShellLayout());
+  else if (typeof w.__sgxLayout === 'function') document.documentElement.setAttribute('data-sgx-layout', w.__sgxLayout());
 }

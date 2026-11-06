@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:93c2a5d62c5d space/web/shared/shell vb0440bfedc2e（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:461b841cee6b space/web/shared/shell v010001cfedbf（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- topbar.js ---- */
 /**
  * @fileoverview 顶栏的三个弹出窗口：导航面板 #sgx-nav（九宫格）、快捷面板 #sgx-qp（快捷设置）、AI 窗口 #sgx-ai（2026-11-04 P5-1；P4-3 PR-4b Gray 2026-11-07 定稿）。
@@ -12,15 +12,15 @@
  * - 导航面板：2×2 站点磁贴（当前站「开」态）；已在当前站首页时点它只关面板，其余（别的站、本站子页点本站）关完再跳（不留哨兵）。
  * - 快捷面板只有一页（PR-4b 去掉「导航 | 快捷设置」分段和双页滑动），四站完全相同：
  *   磁贴 深色 / 跟随系统 / 分享本页（share.js）/ 立即锁定；语言整行（点开行内展开单选 跟随系统 / 中文 / English，选中即保存，
- *   换了语言就去另一种语言的同一页）；调色板；布局（Mobile / Auto / DeX，不够 DeX 时 DeX 置灰）。
+ *   换了语言就去另一种语言的同一页）；调色板；布局（手机 / 自动 / 桌面，模式规则见共享外壳 layout-mode.js；三档任何时候都能选）。
  * - 立即锁定：调用方传 onLock（主站：确认层 auth/lock-now.js）；不传（子站）= 磁贴上点两下确认（第一下状态字变「再点一下锁定」，3 秒内再点），
  *   POST /api/lock-now（同源网关）后回到锁屏 /?lock=1。
  */
 
 const QP_MS = 240;
 const STR = {
-  zh: { on: '开', off: '关', largeOnly: '仅在大屏生效', sys: '跟随系统', lockArm: '再点一下锁定', lockBack: '回到锁屏', lockFail: '锁定失败，请检查网络后重试' },
-  en: { on: 'On', off: 'Off', largeOnly: 'Large screens only', sys: 'Follow system', lockArm: 'Tap again to lock', lockBack: 'Back to lock screen', lockFail: 'Couldn’t lock. Check your connection.' },
+  zh: { on: '开', off: '关', auto: '自动', phone: '手机', desktop: '桌面', sys: '跟随系统', lockArm: '再点一下锁定', lockBack: '回到锁屏', lockFail: '锁定失败，请检查网络后重试' },
+  en: { on: 'On', off: 'Off', auto: 'Auto', phone: 'Phone', desktop: 'Desktop', sys: 'Follow system', lockArm: 'Tap again to lock', lockBack: 'Back to lock screen', lockFail: 'Couldn’t lock. Check your connection.' },
 };
 /** 第二下确认的时限（子站立即锁定） */
 const LOCK_ARM_MS = 3000;
@@ -44,7 +44,6 @@ export function resolveLang(v, nav) {
  * @property {(v: 'system'|'zh'|'en') => string} setLang 写语言偏好，返回要去的地址；返回 '' 时按实际语言决定：和本页不同就去语言行的 data-href
  * @property {() => string} [langPref] 当前语言偏好 system / zh / en（不传按本页语言）
  * @property {() => string} [layoutPref]
- * @property {() => boolean} [layoutNarrow]
  * @property {(v: string) => void} [setLayout]
  */
 
@@ -208,14 +207,16 @@ export function mountTopbar(o) {
       });
       const rs = qpDlg.querySelector('[data-qp-reset]');
       if (rs) rs.setAttribute('aria-disabled', p === P.DEFAULT_PALETTE && !P.hasAccent() ? 'true' : 'false');
-      const v = P.layoutPref ? P.layoutPref() : 'auto';
-      const narrow = P.layoutNarrow ? P.layoutNarrow() : false;
+      /* 布局：手机 / 自动 / 桌面（P4-3 PR-4b）；旧偏好 mobile / dex 按 phone / desktop 亮。三档任何时候都能选（不再按视口置灰） */
+      const lp = P.layoutPref ? P.layoutPref() : 'auto';
+      const v = lp === 'mobile' ? 'phone' : lp === 'dex' ? 'desktop' : lp;
+      /* 「自动」上写出自动此刻会给什么：「自动 · 桌面」/「自动 · 手机」（共享外壳 layout-mode.js __sgxLayoutAuto；没有就看 <html data-sgx-layout>） */
+      const w = /** @type {any} */ (window);
+      const autoRes = typeof w.__sgxLayoutAuto === 'function' ? w.__sgxLayoutAuto() : doc.documentElement.getAttribute('data-sgx-layout');
       qpDlg.querySelectorAll('[data-qp-seg="layout"] button').forEach(function (b) {
         const bv = b.getAttribute('data-v');
         b.setAttribute('aria-pressed', bv === v ? 'true' : 'false');
-        /* 不够 DeX（宽 < 840 或高 < 500）时 DeX 置灰（偏好保留，回到大屏再生效） */
-        if (bv === 'dex' && narrow) { b.setAttribute('disabled', 'disabled'); b.setAttribute('title', t.largeOnly); }
-        else { b.removeAttribute('disabled'); b.removeAttribute('title'); }
+        if (bv === 'auto') b.textContent = t.auto + ' · ' + (autoRes === 'phone' ? t.phone : t.desktop);
       });
       const lv = langPref();
       if (langVal) langVal.textContent = lv === 'system' ? t.sys : lv === 'en' ? 'English' : '中文';
@@ -321,6 +322,8 @@ export function mountTopbar(o) {
       const repaint = function () { if (ms.isOpen()) paint(); };
       if (o.subscribe) o.subscribe(repaint);
       window.addEventListener('sgx-theme-changed', repaint);
+      /* 拖窗口 / 分屏 / 转屏后布局重算（layout-mode.js __sgxLayoutWatch 发 sgx-layout-change）：「自动 · …」跟着变 */
+      window.addEventListener('sgx-layout-change', repaint);
       try {
         const mq = window.matchMedia('(prefers-color-scheme: dark)');
         (mq.addEventListener || mq.addListener).call(mq, 'change', function () { window.setTimeout(repaint, 0); });

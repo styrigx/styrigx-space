@@ -112,7 +112,7 @@ html, body {
 @supports (overflow-x: clip) {
   html, body { overflow-x: clip; }
 }
-/* @sgx-shell:begin styrigx/styrigx-space@tree:93c2a5d62c5d space/web/shared/shell vb0440bfedc2e（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:461b841cee6b space/web/shared/shell v010001cfedbf（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space space/scripts/gen-shell.mjs 从 space/web/data/palette-roles.json 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -6763,19 +6763,21 @@ html, body {
 /* 尺寸体系（2026-10-23 PR-D）：间距 / 页边距按 8 的倍数，组件允许 4px 子网格；宽度之间用 clamp() 连续插值，断点只用来切换模式 / 列数。
    --sgx-page-m：左右页边距（手机 < 600px 固定 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px，两头封顶）。
    --sgx-tb-btn / --sgx-tb-gap：顶栏高 / 间距，600 宽 52 / 8 线性到 840 宽 56 / 12（< 600 仍是 52 / 8）。
-   --sgx-content-max：外壳框最宽，按 <html data-sgx-layout> 定：mobile 640、dex 1440（没有这个属性 = 没跑脚本，退回 1068）。
-   --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)；顶栏和各站页面外框都对齐它。
-   顶栏长度统一（P4-3 再修，Gray 2026-11-06 立规⑥）：整条胶囊的长度只由「视口宽 + 布局模式」决定，和是哪个站、哪一页无关。
-   布局模式四站同一条规则（主站 baseof __layoutMode()：偏好 mobile / dex / auto；auto = 宽 ≥ 840、高 ≥ 500 且横屏才是 DeX），
-   各站 <head> 内联脚本算好写进 data-sgx-layout；最宽只在这里按它定一次，各站不再自己按 layout-* 类改 --sgx-content-max
-   （原来奇趣按自己的 layout-phone / ≥ 980 宽规则算，宽竖屏 / 横屏 840–980 时和其他三站不一样长，tests/space/ui/shell/topbar-length.test.mjs 守着四站规则一致）。
-   --sgx-tb-w：顶栏胶囊（和快捷面板 / AI 窗口）用的外壳框宽，按 100vw（含滚动条）算；胶囊 right: calc(100% - 100vw) 把居中范围撑回整个窗口宽。
-   经典滚动条（Windows / Linux 桌面）下固定定位的包含块 = 视口减滚动条，按 100% 算的话会滚的页比不滚的页短 15px、左右挪 7.5px，换页就变长变短；按 100vw 算各页一样。
-   手机 / macOS 浮动滚动条和测试里（Chromium --hide-scrollbars）100vw = 100%、right 为 0，和原来逐像素一样（还是 margin auto 居中，不引入小数左缘）。 */
+   --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop 1440（没有这个属性 = 没跑脚本，退回 1068）。
+   --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)；各站页面外框对齐它（顶栏不再定内容栏，P4-3 PR-4b；内容通栏另起 PR）。
+   布局模式（P4-3 PR-4b，Gray 2026-11-07 定稿）只有两种：手机 phone / 桌面 desktop。规则只有一份：共享外壳 layout-mode.js __sgxLayout()，四站 <head> 原样内联、首帧前写好
+   data-sgx-layout（手动手机 / 桌面照办；自动 = 浏览器不是手机版网站模式就桌面，但视口 < 720 时手机；拖窗口 / 转屏按 matchMedia 重算，不刷新），
+   tests/space/ui/shell/topbar-length.test.mjs 守着四站同一份。
+   --sgx-tb-w：顶栏胶囊（和快捷面板 / AI 窗口）宽，只由「窗口宽 + 布局模式」定，和是哪个站、哪一页无关，居中：
+   手机 = min(100% − 两侧 16px（刘海屏取安全区和 16 的大者），640px)；桌面 = min(960px, 100% − 两侧 24px（同上取大者））。
+   按 100%（固定定位的包含块 = 不含滚动条的窗口宽）算，不用 100vw：经典滚动条下 100vw 比可用宽多出滚动条那一截，会横向溢出。 */
 :root { --sgx-page-m: 16px; --sgx-content-max: 1068px; --sgx-shell-w: min(100% - 2 * var(--sgx-page-m), var(--sgx-content-max));
-  --sgx-tb-w: min(100vw - 2 * var(--sgx-page-m), var(--sgx-content-max)); }
-:root[data-sgx-layout="mobile"] { --sgx-content-max: 640px; }
-:root[data-sgx-layout="dex"] { --sgx-content-max: 1440px; }
+  --sgx-tb-w: min(100% - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px)), 640px); }
+:root[data-sgx-layout="phone"] { --sgx-content-max: 640px; }
+:root[data-sgx-layout="desktop"] { --sgx-content-max: 1440px;
+  --sgx-tb-w: min(960px, 100% - max(24px, env(safe-area-inset-left, 0px)) - max(24px, env(safe-area-inset-right, 0px))); }
+/* 横向不许滚：任何一块超宽都裁掉，不出现横向滚动条（clip 不建滚动容器，position: sticky 照常） */
+:root { overflow-x: clip; }
 @media (min-width: 600px) {
   :root { --sgx-page-m: clamp(16px, 5.333px + 2.2222vw, 48px); --sgx-tb-btn: clamp(52px, 42px + 1.667vw, 56px); --sgx-tb-gap: clamp(8px, -2px + 1.667vw, 12px); }
 }
@@ -6794,8 +6796,8 @@ html, body {
 .dark {
   --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.35);
 }
-/* 顶栏 = 外壳框：left 0 / right calc(100% − 100vw) + margin auto + width --sgx-tb-w（按整个窗口宽居中，不随滚动条变；不用 transform 居中） */
-.sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: 0; right: calc(100% - 100vw); margin: 0 auto; width: var(--sgx-tb-w);
+/* 顶栏：left 0 / right 0 + margin auto + width --sgx-tb-w（在不含滚动条的窗口宽里居中；不用 transform 居中） */
+.sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: 0; right: 0; margin: 0 auto; width: var(--sgx-tb-w);
   height: var(--sgx-tb-btn); z-index: 55; display: flex; align-items: center; gap: 4px; box-sizing: border-box;
   padding: 0 calc((var(--sgx-tb-btn) - var(--sgx-tb-ic)) / 2 - 1px); border-radius: 999px;
   background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter);
@@ -6824,6 +6826,8 @@ html, body {
 @media (max-width: 399.98px) { .sgx-tb-title { padding: 0 12px; } }
 /* 右边三个按钮：九宫格（导航面板）· 快捷设置（滑块）· AI（聊天）；紧凑、整体靠右 */
 .sgx-tb-acts { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; margin-left: auto; }
+/* 窄到放不下：先是页名胶囊省略号（.sgx-tb-title / 标签 ellipsis），窗口 < 340 再整块藏掉页名胶囊；图标组从不压缩（flex: 0 0 auto） */
+@media (max-width: 339.98px) { .sgx-tb-pill { display: none; } }
 .sgx-tb-btn { width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); flex-shrink: 0; padding: 0; margin: 0; border: 0; border-radius: 999px; box-sizing: border-box;
   background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); cursor: pointer;
   text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
@@ -6877,10 +6881,10 @@ html, body {
    非模态 <dialog>（show()，不进顶层），fixed 铺满「顶栏下沿以下」的区域：dialog 本身就是遮罩（is-open 时 --sgx-scrim），
    z-index 45 = 盖住正文，但在顶栏 #site-nav（50）下面——顶栏不被遮罩压暗、图标照常可点（再点关闭）。两个窗口互斥。
    .sgx-qp-sheet 离顶栏下沿 8px；收起时整块移到 dialog 上沿之外，dialog overflow:hidden 把它裁掉（减弱动效直接到位）。
-   手机：左右对齐外壳框，最宽 480px 居中；宽屏（≥ 980px）宽 400px（AI 窗口 440px），右缘对齐外壳框右缘。
-   和顶栏一样按 --sgx-tb-w（100vw 算）对齐：窗口本身 right: calc(100% − 100vw) 撑满整个窗口宽，经典滚动条下也和顶栏两端对齐（P4-3 顶栏长度统一）。 */
+   手机模式：左右对齐顶栏，最宽 480px 居中；桌面模式宽 400px（AI 窗口 440px），右缘对齐顶栏右缘。
+   和顶栏一样按 --sgx-tb-w（100% 算）对齐：窗口本身 left 0 / right 0 铺满不含滚动条的窗口宽，和顶栏两端对齐。 */
 :root { --sgx-qp-top: calc(var(--sgx-tb-inset) + var(--sgx-tb-btn) + env(safe-area-inset-top, 0px)); --sgx-qp-gap: 8px; }
-.sgx-qp { position: fixed; top: var(--sgx-qp-top); left: 0; right: calc(100% - 100vw); bottom: 0; z-index: 45; width: auto; height: auto; max-width: none; max-height: none;
+.sgx-qp { position: fixed; top: var(--sgx-qp-top); left: 0; right: 0; bottom: 0; z-index: 45; width: auto; height: auto; max-width: none; max-height: none;
   margin: 0; padding: 0; border: 0; background-color: transparent; overflow: hidden; overscroll-behavior: contain; color: var(--sgx-text-primary);
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; letter-spacing: normal; transition: background-color .24s ease; }
 .sgx-qp.is-open { background-color: var(--sgx-scrim); }
@@ -6898,10 +6902,9 @@ html, body {
 :root { --sgx-qp-shadow: 0 4px 12px rgba(0,0,0,.10), 0 16px 48px rgba(0,0,0,.24); }
 .dark { --sgx-qp-shadow: 0 4px 12px rgba(0,0,0,.22), 0 16px 48px rgba(0,0,0,.5); }
 .sgx-qp.is-open .sgx-qp-sheet { transform: none; }
-@media (min-width: 980px) {
-  .sgx-qp-sheet { left: auto; right: calc((100% - var(--sgx-tb-w)) / 2); width: 400px; margin: 0; }
-  .sgx-ai .sgx-qp-sheet { width: 440px; }
-}
+/* 桌面模式（data-sgx-layout="desktop"，P4-3 PR-4b 起按模式、不按 980 像素断点）：宽 400（AI 440），右缘对齐顶栏右缘；窗口比这还窄（手机上手动选桌面）就和顶栏一样宽 */
+:root[data-sgx-layout="desktop"] .sgx-qp-sheet { left: auto; right: calc((100% - var(--sgx-tb-w)) / 2); width: min(400px, var(--sgx-tb-w)); margin: 0; }
+:root[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet { width: min(440px, var(--sgx-tb-w)); }
 .reduced-motion .sgx-qp-sheet, .reduced-motion .sgx-qp { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-qp-sheet, .sgx-qp { transition: none; } }
 :root { --sgx-qp-glass: color-mix(in srgb, var(--sgx-surface-container-lowest) 62%, transparent); --sgx-qp-edge: var(--sgx-outline-variant); }

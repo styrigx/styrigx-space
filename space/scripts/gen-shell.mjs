@@ -20,6 +20,7 @@
  *                      + 默认值 + 子站自定义色缓存版本号（子站只消费，不自己定义主题色）
  *   ui-cookie-read.js  sgx-ui cookie 只读解析器（space/web/assets/js/lib/ui-cookie-read.js 原样复制；经典脚本 ES5，子站内联进 <head>）
  *                      源文件里 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 重写
+ *   layout-mode.js     布局模式（手机 / 桌面）唯一规则 __sgxLayout()（space/web/assets/js/lib/layout-mode.js 原样复制；经典脚本 ES5，四站内联进 <head>，P4-3 PR-4b）
  *   ui-cookie-contract.json  写端真实产出的 cookie + 读端期望（tests/fixtures/ui-cookie-contract.json 原样复制，gen-ui-cookie-contract.mjs 生成）
  *   favicon.js / favicon.svg  标签页图标跟主题色（space/web/assets/js/shell/favicon.js、space/web/static/favicon.svg 原样复制）
  *   manifest.json      上面每个文件的 sha256（子站同步时逐个校验）
@@ -52,6 +53,7 @@ const SRC = {
   vk: path.join(REPO, 'space/web/assets/js/shell/vk.js'),
   prefsWrite: path.join(REPO, 'space/web/assets/js/lib/prefs-write.js'),
   reader: path.join(REPO, 'space/web/assets/js/lib/ui-cookie-read.js'),
+  layoutMode: path.join(REPO, 'space/web/assets/js/lib/layout-mode.js'),
   contract: path.join(REPO, 'tests/fixtures/ui-cookie-contract.json'),
   favicon: path.join(REPO, 'space/web/assets/js/shell/favicon.js'),
   faviconSvg: path.join(REPO, 'space/web/static/favicon.svg'),
@@ -336,11 +338,14 @@ const README = `# space/web/shared/shell（生成物，勿手改）
   只有锁屏通行密钥 / 解锁密码，设了哪个显示哪个；同源 POST /api/lock-reauth status、/api/lock-password、/api/lock-passkey）→ 通过后自动重试一次；取消 = 不分享。
   toast 是 \`.sgx-share-toast\`（share.js 自己建）；复验弹层样式 \`.sgx-share-reauth*\` 在 shell.css 的 topbar-frame 段。
 - 尺寸体系（2026-10-23）：\`--sgx-page-m\`、\`--sgx-tb-btn\`（顶栏高 52 → 56）、\`--sgx-tb-gap\`、\`--sgx-content-max\`（外壳框最宽）、
-  \`--sgx-shell-w\` = min(100% − 2 × 页边距, 最宽)。顶栏 = 这个框；子站自己的页面外框用 \`width: var(--sgx-shell-w); margin: 0 auto\` 就和顶栏对齐。
-- 顶栏长度统一（P4-3）：最宽只由 shell.css 按 \`<html data-sgx-layout="mobile|dex">\` 定（640 / 1440；没有属性退回 1068），**子站不许再自己改 \`--sgx-content-max\`**。
-  \`data-sgx-layout\` 由各站 \`<head>\` 内联脚本 \`__sgxShellLayout()\` 写：主站 baseof \`__layoutMode()\` 的只读版（偏好 \`sgx-layout\` = mobile / dex / auto，
-  auto = 宽 ≥ 840、高 ≥ 500 且横屏才是 DeX），四站一字不差（tests/space/ui/shell/topbar-length.test.mjs 逐站跑一遍对结果）。
-  顶栏胶囊和快捷面板 / AI 窗口按 \`--sgx-tb-w\`（100vw 算，含经典滚动条）定宽、\`right: calc(100% - 100vw)\` 按整个窗口居中：会滚 / 不滚的页一样长，不因滚动条左右挪。
+  \`--sgx-shell-w\` = min(100% − 2 × 页边距, 最宽)。子站自己的页面外框用 \`width: var(--sgx-shell-w); margin: 0 auto\`（顶栏不再定内容栏，P4-3 PR-4b）。
+- 布局模式（P4-3 PR-4b，Gray 2026-11-07）：只有手机 \`phone\` / 桌面 \`desktop\` 两种（自动里视口 < 720 CSS px 落手机，这是唯一的像素线）。唯一规则在 \`layout-mode.js\` 的 \`__sgxLayout()\`：
+  偏好 \`sgx-layout\` = phone / auto / desktop（旧值 mobile → phone、dex / pc → desktop），自动 = \`navigator.userAgentData.mobile\`（没有就看 UA 的 Mobi / Android…Mobile / iPhone）；
+  \`?layout=auto\` 逃生口。**四站 \`<head>\` 原样内联这一份**（Hugo：resources.Get … | minify，.Content | safeJS），结果写进 \`<html data-sgx-layout="phone|desktop">\`，
+  各站自己的 layout-* 类也按它（tests/space/ui/shell/topbar-length.test.mjs 核对四站内联的是同一份、结果一样）。**子站不许再自己改 \`--sgx-content-max\` / 顶栏宽。**
+- 顶栏宽 \`--sgx-tb-w\`（shell.css）：手机 = min(100% − 2 × 16px, 640px)；桌面 = min(960px, 100% − 2 × 24px)，居中（两侧取安全区和 16 / 24 的大者）。
+  按 100%（固定定位包含块 = 不含滚动条的窗口宽）算，不用 100vw；\`:root { overflow-x: clip }\` 横向不滚。窗口 < 380px 藏掉页名胶囊（唯一阈值）。
+  自动模式下算出桌面但视口 < 720 CSS px → 手机；matchMedia 听 720 线和横竖屏重算，不刷新。
 
 `;
 
@@ -367,6 +372,7 @@ export function renderAll() {
     'nav.json': renderNav(),
     'palettes.json': renderPalettes(data, schemeSrc),
     'ui-cookie-read.js': reader,
+    'layout-mode.js': readFileSync(SRC.layoutMode, 'utf8'),
     'ui-cookie-contract.json': readFileSync(SRC.contract, 'utf8'),
     'favicon.js': readFileSync(SRC.favicon, 'utf8'),
     'favicon.svg': readFileSync(SRC.faviconSvg, 'utf8'),

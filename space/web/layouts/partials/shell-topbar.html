@@ -74,7 +74,7 @@
     <div class="sgx-qp-row">
       <p class="sgx-qp-row-label">{{ if $en }}Layout{{ else }}布局{{ end }}</p>
       <div class="sgx-qp-seg" role="group" aria-label="{{ if $en }}Layout{{ else }}布局{{ end }}" data-qp-seg="layout">
-        {{- range slice (dict "v" "mobile" "t" "Mobile") (dict "v" "auto" "t" "Auto") (dict "v" "dex" "t" "DeX") }}<button type="button" data-v="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
+        {{- range slice (dict "v" "phone" "t" (cond $en "Phone" "手机")) (dict "v" "auto" "t" (cond $en "Auto" "自动")) (dict "v" "desktop" "t" (cond $en "Desktop" "桌面")) }}<button type="button" data-v="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
       </div>
     </div>
   </div>

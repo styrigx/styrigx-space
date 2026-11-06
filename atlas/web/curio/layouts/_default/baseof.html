@@ -25,37 +25,22 @@
 {{/* 共享外壳读端 ui-cookie-read.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，挂 window.SgxUI；紧跟 ui-inherit-run.js 调 SgxUI.apply */}}
 <script>{{ (resources.Get "js/sgx/shell/ui-cookie-read.js" | minify).Content | safeJS }}</script>
 <script>{{ (resources.Get "js/sgx/ui-inherit-run.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018")).Content | safeJS }}</script>
+{{/* 布局模式：共享外壳 layout-mode.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b） */}}
+<script>{{ (resources.Get "js/sgx/shell/layout-mode.js" | minify).Content | safeJS }}</script>
 <script>
-/* 布局模式：<980 手机 / ≥980 DeX（沿用主站断点） */
+/* __sgxLayout() → phone / desktop：写 <html data-sgx-layout>（外壳按它定顶栏宽），本站弹层样式类 layout-phone / layout-dex 也按它（不再按 980 像素） */
 function __layoutMode(){
-  var m=null;
-  try{m=localStorage.getItem('sgx-layout')}catch(e){}
-  if(m==='phone'||m==='dex')return m;
-  var w=window.innerWidth||1280;
-  return w<980?'phone':'dex';
-}
-/* 顶栏长度统一（P4-3）：外壳框最宽（共享外壳）按 data-sgx-layout 定，四站同一条布局规则（主站 baseof __layoutMode() 只读版：偏好 sgx-layout = mobile / dex / auto，同源同一份 localStorage；auto = 宽 ≥ 840、高 ≥ 500 且横屏才是 DeX）。
-   本站 layout-phone / layout-dex 类照旧按上面 980 的规则（只管弹层样式），不再决定顶栏长度：原来顶栏跟着它，宽竖屏（≥ 980）/ 横屏 840–980 时和其他三站不一样长 */
-function __sgxShellLayout(){
-  var m=null;
-  try{
-    if(new URLSearchParams(location.search).get('layout')==='auto')m='auto';
-    else m=localStorage.getItem('sgx-layout');
-  }catch(e){}
-  if(m==='pc')m='dex';
-  var w=window.innerWidth||1280,h=window.innerHeight||800;
-  var big=w>=840&&h>=500;
-  if(m==='mobile')return 'mobile';
-  if(m==='dex')return big?'dex':'mobile';
-  return big&&w>h?'dex':'mobile';
+  return __sgxLayout()==='desktop'?'dex':'phone';
 }
 function __applyLayout(){
   var d=document.documentElement,m=__layoutMode();
   d.classList.remove('layout-phone','layout-dex');
   d.classList.add('layout-'+m);
-  d.setAttribute('data-sgx-layout',__sgxShellLayout());
+  d.setAttribute('data-sgx-layout',m==='dex'?'desktop':'phone');
 }
 __applyLayout();
+/* 拖窗口 / 分屏 / 转屏：不刷新，按同一条规则重算 */
+__sgxLayoutWatch(__applyLayout);
 </script>
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | minify | fingerprint).RelPermalink }}">
 </head>

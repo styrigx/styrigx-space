@@ -86,7 +86,7 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     try{if(rmq){if(rmq.addEventListener)rmq.addEventListener('change',rmSet);else if(rmq.addListener)rmq.addListener(rmSet)}}catch(e){}
     /* 布局偏好（实际生效的布局由 __applyLayout 计算，这里只记偏好） */
     var lm=null;try{lm=localStorage.getItem('sgx-layout')}catch(e){}
-    if(lm==='pc')lm='dex';
+    lm=lm==='mobile'?'phone':lm==='dex'||lm==='pc'?'desktop':lm==='phone'||lm==='desktop'?lm:null;
     d.setAttribute('data-layout',lm||'auto');
     /* 语言偏好：sgx-lang (system/zh/en)。system 或无偏好时跟随浏览器语言；有明确偏好且与当前路径语言不一致时 replace 跳转，不产生历史 */
     try{
@@ -131,41 +131,33 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
 })();
 </script>
 {{/* 2.4.0-C：旧 __sgxGet/__sgxSet/__sgxFmtTz 已移入 ES Module（assets/js/lib/storage.js、util.js），此处不再定义 */}}
+{{/* 布局模式：共享外壳 layout-mode.js 的源头（四站同一条规则：手机 / 桌面，按 UA 是不是手机版网站 + 快捷面板手动偏好；P4-3 PR-4b Gray 2026-11-07）原样内联 */}}
+<script>{{ (resources.Get "js/lib/layout-mode.js" | minify).Content | safeJS }}</script>
 <script>
-/* 布局：auto / mobile / dex —— 只看可用视口（innerWidth w × innerHeight h），不嗅探 UA。
-   自动：w > h 且 w ≥ 840 且 h ≥ 500 → DeX，其余 → Mobile。
-   手动 DeX：w < 840 或 h < 500 时按 Mobile 渲染（偏好保留在 localStorage，回到大屏再生效）。
-   为什么是 840 × 500：手机横屏视口高 ≤ ~450（最大手机短边 448 CSS px，再减浏览器栏），
-   折叠屏内屏、平板、笔记本和显示器 ≥ ~600 高，500 落在中间；840 让 Z Fold 内屏横屏（841×673）仍是 DeX。
-   旧值 pc 迁到 dex（2026-10-23 删掉 PC 档，DeX 接手 PC 的尺寸）。?layout=auto 可重置偏好（逃生口）。
+/* 布局：__sgxLayout()（layout-mode.js）给出 phone / desktop → <html data-sgx-layout> + 主站版面类 layout-mobile / layout-dex（类名照旧，版面 CSS 不动）。
+   主站另做偏好迁移：存的旧值 mobile → phone、dex / pc → desktop，未知值 → auto；?layout=auto 把偏好改回 auto（逃生口）。
    与 assets/js/lib/prefs.js resolveLayout() 同一规则。 */
 function __layoutMode(){
-  var m=null;
   try{
-    /* 逃生口：?layout=auto 重置偏好 */
-    var q=new URLSearchParams(location.search).get('layout');
-    if(q==='auto'){localStorage.setItem('sgx-layout','auto');m='auto';}
+    if(new URLSearchParams(location.search).get('layout')==='auto')localStorage.setItem('sgx-layout','auto');
     else{
-      m=localStorage.getItem('sgx-layout');
-      if(m==='pc'){localStorage.setItem('sgx-layout','dex');m='dex'}
-      /* 旧值（tablet/phone 等）一律回落到自动 */
-      if(m!=='auto'&&m!=='mobile'&&m!=='dex'){localStorage.setItem('sgx-layout','auto');m='auto'}
+      var m=localStorage.getItem('sgx-layout'),n=m==='mobile'?'phone':m==='dex'||m==='pc'?'desktop':m;
+      if(n!=='auto'&&n!=='phone'&&n!=='desktop')n='auto';
+      if(n!==m)localStorage.setItem('sgx-layout',n);
     }
   }catch(e){}
-  var w=window.innerWidth||1280,h=window.innerHeight||800;
-  var big=w>=840&&h>=500;
-  if(m==='mobile')return 'mobile';
-  if(m==='dex')return big?'dex':'mobile';
-  return big&&w>h?'dex':'mobile';
+  return __sgxLayout();
 }
 function __applyLayout(){
   var d=document.documentElement,m=__layoutMode();
   d.classList.remove('layout-mobile','layout-dex');
-  d.classList.add('layout-'+m);
-  /* 顶栏长度统一（P4-3）：外壳框最宽（共享外壳 shell.css）按 data-sgx-layout 定；三个子站 __sgxShellLayout() 是本函数的只读版，结果必须一样 */
+  d.classList.add(m==='desktop'?'layout-dex':'layout-mobile');
+  /* 外壳（shell.css）按 data-sgx-layout 定顶栏宽：phone = min(100% − 32, 640)，desktop = min(960, 100% − 48)；三个子站用同一个 __sgxLayout() */
   d.setAttribute('data-sgx-layout',m);
 }
 __applyLayout();
+/* 拖窗口 / 分屏 / 转屏：不刷新，按同一条规则重算 */
+__sgxLayoutWatch(__applyLayout);
 </script>
 {{/* 2026-10-21：删掉 2.4.0 D 的 Speculation Rules（站内链接按下 / 悬停就 prerender）。
    预渲染是拿「按下那一刻」的 cookie 取页面并先跑脚本，点下去时直接启用这份快照：

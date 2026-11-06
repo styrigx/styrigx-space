@@ -5,7 +5,7 @@
  * - 状态机 modal-sheet.js；外观 setter 是设置页同一套（lib/prefs.js，经 features.js 写同一个 localStorage key，面板和设置页互相即时同步）；
  * - 语言行（跟随系统 / 中文 / English）：lib/prefs.js setLang 写偏好、算目标语言的同一页地址，和本页不同就关面板后 replace 过去（不留历史）；
  * - 立即锁定：关面板后弹出与安全页相同的「立即锁定？」确认层（auth/lock-now.js）；
- * - 布局行（auto / mobile / dex；不够 DeX 时 DeX 置灰）；
+ * - 布局行（手机 / 自动 / 桌面，P4-3 PR-4b；模式规则见 lib/layout-mode.js）；
  * - 分享本页 shell/share-button.js（共享外壳 share.js；PR-4b 起主站也有，四站快捷面板同一套）；
  * - AI 窗口内容 shell/ai-panel.js（共享外壳 ai.js），键盘高度订阅 shell/vk.js（共享外壳 vk.js，P4-3 PR-3）。
  */
@@ -21,7 +21,6 @@ import {
   setPalette,
   DEFAULT_PALETTE,
   layoutPref,
-  layoutNarrow,
   setLayout,
   setLang,
 } from '../lib/prefs.js';
@@ -54,7 +53,6 @@ export function initQuickPanel() {
       setLang: function (v) { return setLang(v); },
       langPref,
       layoutPref,
-      layoutNarrow,
       setLayout,
     },
     onLock: confirmLockNow,
