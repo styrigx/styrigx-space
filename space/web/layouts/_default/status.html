@@ -37,9 +37,9 @@
     <p class="st-msg-sub">{{ if $isEn }}Results show up after the first round of checks, in about a minute.{{ else }}第一轮检查完成后（约 1 分钟）这里会显示结果。{{ end }}</p>
   </section>
 
-  {{/* 每站一张卡：加载中先放 5 张骨架（同高），apps/space-status.js 拿到数据后整块替换 */}}
+  {{/* 每站一张卡：加载中先放 3 张骨架（= 监测目标数）（同高），apps/space-status.js 拿到数据后整块替换 */}}
   <div id="st-sites" class="st-sites">
-    {{ range seq 5 }}<div class="widget bg-m-container-lowest st-card st-skel" aria-hidden="true"><span class="st-skel-line st-skel-w40"></span><span class="st-skel-line st-skel-w60"></span><span class="st-skel-bar"></span></div>{{ end }}
+    {{ range seq 3 }}<div class="widget bg-m-container-lowest st-card st-skel" aria-hidden="true"><span class="st-skel-line st-skel-w40"></span><span class="st-skel-line st-skel-w60"></span><span class="st-skel-bar"></span></div>{{ end }}
   </div>
 
   {{/* 免费额度（2026-10-27）：今天的操作次数 / 免费计划上限（Workers + Pages Functions 请求、KV 读写删列、D1 读写行；R2 A/B 类按月），

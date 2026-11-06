@@ -16,7 +16,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { shareD1, HAS_SQLITE } from '../../fixtures/share-d1.mjs';
 import { testLockSession, testTicket } from '../auth-gateway/_tickets.mjs';
 import { makeAuthD1, genKeyPair } from '../_harness.mjs';
@@ -119,26 +119,26 @@ test('码：16 字节随机 → 22 位 base64url；50 个各不相同；id 16 �
   assert.ok(links.isId(links.newId()));
 });
 
-test('目标：站内相对路径或 styrigx.com / 三个子站的 https 地址，拒绝开放重定向', () => {
+test('目标：站内相对路径或 https://styrigx.com 的地址（一律存相对路径），拒绝开放重定向和已下线的 atlas.styrigx.com', () => {
   assert.equal(links.cleanTarget(undefined), '/');
   assert.equal(links.cleanTarget(''), '/');
   assert.equal(links.cleanTarget(' /blog/x/?a=1#b '), '/blog/x/?a=1#b');
   assert.equal(links.cleanTarget('/a/../b/'), '/b/');
   assert.equal(links.cleanTarget('/%2F%2Fevil.com'), '/%2F%2Fevil.com', '编码的斜杠留在路径里，仍是同源');
-  /* 子站：存完整地址；主站绝对地址存成相对路径；主机大小写不敏感 */
-  assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/post/hello/'), 'https://atlas.styrigx.com/blog/post/hello/');
-  assert.equal(links.cleanTarget('https://atlas.styrigx.com/daymark/'), 'https://atlas.styrigx.com/daymark/');
-  assert.equal(links.cleanTarget('https://atlas.styrigx.com'), 'https://atlas.styrigx.com/');
-  assert.equal(links.cleanTarget('https://Atlas.Styrigx.com/blog/en/post/a/?x=1#h'), 'https://atlas.styrigx.com/blog/en/post/a/?x=1#h');
+  /* 主站绝对地址存成相对路径；主机大小写不敏感 */
+  assert.deepEqual([...links.TARGET_HOSTS], ['styrigx.com']);
+  assert.equal(links.cleanTarget('https://styrigx.com/blog/post/hello/'), '/blog/post/hello/');
+  assert.equal(links.cleanTarget('https://styrigx.com'), '/');
+  assert.equal(links.cleanTarget('https://Styrigx.COM/blog/en/post/a/?x=1#h'), '/blog/en/post/a/?x=1#h');
   assert.equal(links.cleanTarget('https://styrigx.com/blog/?a=1'), '/blog/?a=1');
-  assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/post/%E4%BD%A0%E5%A5%BD/'), 'https://atlas.styrigx.com/blog/post/%E4%BD%A0%E5%A5%BD/');
-  assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/post/你好/'), 'https://atlas.styrigx.com/blog/post/%E4%BD%A0%E5%A5%BD/', '中文路径编码后存');
+  assert.equal(links.cleanTarget('https://styrigx.com/blog/post/%E4%BD%A0%E5%A5%BD/'), '/blog/post/%E4%BD%A0%E5%A5%BD/');
+  assert.equal(links.cleanTarget('https://styrigx.com/blog/post/你好/'), '/blog/post/%E4%BD%A0%E5%A5%BD/', '中文路径编码后存');
   /* 去掉锁屏 / 回跳 / 分享参数，其他参数保留 */
-  assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/p/?lock=1&why=x&return=https%3A%2F%2Fevil.com&share=1&q=a'), 'https://atlas.styrigx.com/blog/p/?q=a');
+  assert.equal(links.cleanTarget('https://styrigx.com/blog/p/?lock=1&why=x&return=https%3A%2F%2Fevil.com&share=1&q=a'), '/blog/p/?q=a');
   assert.equal(links.cleanTarget('/display/?lock=1'), '/display/');
-  /* 图志的 /s/ 不是短链，可以；任何站的 /api/（图志还有各站的 /<站>/api/）不行 */
-  assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/s/x/'), 'https://atlas.styrigx.com/blog/s/x/');
-  assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/apix/'), 'https://atlas.styrigx.com/blog/apix/');
+  /* 子站下的 /<站>/s/ 不是短链，可以；/api/ 和 /<站>/api/ 不行 */
+  assert.equal(links.cleanTarget('https://styrigx.com/blog/s/x/'), '/blog/s/x/');
+  assert.equal(links.cleanTarget('https://styrigx.com/blog/apix/'), '/blog/apix/');
   assert.equal(links.targetUrl('/blog/'), 'https://styrigx.com/blog/');
   /* 合并 PR3：子站在主域名 /blog/ /curio/ /daymark/ 下（存相对路径）；主域名上的 /<站>/api/ 同样不能当目标 */
   assert.equal(links.cleanTarget('https://styrigx.com/curio/en/?a=1'), '/curio/en/?a=1');
@@ -147,7 +147,9 @@ test('目标：站内相对路径或 styrigx.com / 三个子站的 https 地址�
     assert.equal(links.cleanTarget(bad), null, bad);
   }
   assert.equal(links.cleanTarget('/blog/apix/'), '/blog/apix/');
-  assert.equal(links.targetUrl('https://atlas.styrigx.com/blog/p/'), 'https://atlas.styrigx.com/blog/p/');
+  /* 存量里不是相对路径的（只可能是旧图志完整地址，migrations/0002 已删）不再照跳，退回主站首页 */
+  assert.equal(links.targetUrl('https://atlas.styrigx.com/blog/p/'), 'https://styrigx.com/');
+  assert.equal(links.targetUrl('//evil.com/'), 'https://styrigx.com/');
   for (const bad of ['//evil.com', '/\\evil.com', '\\\\evil.com', 'https://evil.com/', 'http://styrigx.com/', 'http://atlas.styrigx.com/', 'evil.com', 'javascript:alert(1)',
     'JavaScript:alert(1)', 'data:text/html,x', 'https:evil.com', 'https:/atlas.styrigx.com/', 'https:///atlas.styrigx.com/',
     'https://styrigx.com.evil.com/', 'https://evil.com/https://atlas.styrigx.com/', 'https://atlas.styrigx.com.evil.com/', 'https://evilstyrigx.com/',
@@ -156,6 +158,10 @@ test('目标：站内相对路径或 styrigx.com / 三个子站的 https 地址�
     'https://evil.com\\@atlas.styrigx.com/', 'https://atlas.styrigx.com/api/lock-session-check', 'https://atlas.styrigx.com/curio/api/links',
     'https://atlas.styrigx.com/daymark/api', 'https://styrigx.com/s/abc', 'https://styrigx.com/api/share',
     'https://blog.styrigx.com/', 'https://daymark.styrigx.com/', 'https://curio.styrigx.com/',
+    /* 旧图志域名下线：原先放行的地址现在一律拒 */
+    'https://atlas.styrigx.com/blog/post/hello/', 'https://atlas.styrigx.com/daymark/', 'https://atlas.styrigx.com', 'https://Atlas.Styrigx.com/blog/en/post/a/?x=1#h',
+    'https://atlas.styrigx.com/blog/post/你好/', 'https://atlas.styrigx.com/blog/s/x/', 'https://atlas.styrigx.com/blog/p/?q=a',
+    'https://styrigx.com:443/', 'https://user@styrigx.com/', 'https://styrigx.com@evil.com/', 'https://styrigx.com./', 'https://styrigx.com/blog/api/x',
     '/..//evil.com', '/\t/evil.com', '/\n/evil.com', '/ /x', '/a\\b', '/s/abc', '/s', '/api/lock-now', '/api/share', '/' + 'a'.repeat(links.TARGET_MAX),
     'https://atlas.styrigx.com/' + 'a'.repeat(links.TARGET_MAX), 'https://atlas.styrigx.com/' + '你'.repeat(100), 5, {}, ['/']]) {
     assert.equal(links.cleanTarget(bad), null, JSON.stringify(bad));
@@ -519,7 +525,7 @@ for (const K of KINDS) {
 
   T('门：别的域名 /api/* 403、页面 301；/s/* 谁都能开；X-SGX-Runtime: share；/api/* no-store', async () => {
     const { env } = mk();
-    const r1 = await worker.fetch(new Request('https://atlas.styrigx.com/api/share', { method: 'POST' }), env, ctx);
+    const r1 = await worker.fetch(new Request('https://www.styrigx.com/api/share', { method: 'POST' }), env, ctx);
     assert.equal(r1.status, 403);
     const r2 = await worker.fetch(new Request('https://www.styrigx.com/s/abc'), env, ctx);
     assert.equal(r2.status, 301);
@@ -560,49 +566,54 @@ for (const K of KINDS) {
     assert.ok(!JSON.stringify(list).includes('key_id') && !JSON.stringify(list).includes('"code"'));
   });
 
-  T('子站目标：生成（绝对地址规范化）→ 别人点开带会话的短链 302 到子站地址，cookie 是 Domain=styrigx.com', async () => {
+  T('完整地址目标：生成（规范化成相对路径）→ 别人点开带会话的短链 302 到主站地址，cookie 是 Domain=styrigx.com；atlas.styrigx.com 目标 400', async () => {
     const { env } = mk();
-    const r = await api(env, { action: 'create', hours: 24, to: 'https://atlas.styrigx.com/blog/post/x/?lock=1&q=1', session: 43200 });
+    const r = await api(env, { action: 'create', hours: 24, to: 'https://styrigx.com/blog/post/x/?lock=1&q=1', session: 43200 });
     assert.equal(r.s, 200, JSON.stringify(r.j));
-    assert.equal(r.j.link.to, 'https://atlas.styrigx.com/blog/post/x/?q=1');
+    assert.equal(r.j.link.to, '/blog/post/x/?q=1');
     const res = await open(env, r.j.link.path);
     assert.equal(res.status, 302);
-    assert.equal(res.headers.get('Location'), 'https://atlas.styrigx.com/blog/post/x/?q=1');
+    assert.equal(res.headers.get('Location'), 'https://styrigx.com/blog/post/x/?q=1');
     const sc = res.headers.getSetCookie().find((c) => c.startsWith('sgx-lock-session=') && !c.startsWith('sgx-lock-session=;'));
     assert.match(sc, /Domain=\.?styrigx\.com/i);
-    /* 存坏成别的主机：点开只走失败响应 */
-    const { db } = mk();
-    const e2 = Object.assign({}, env, { D1_SHARE_LINK: db });
-    const l2 = (await api(e2, { action: 'create', hours: 1, to: 'https://atlas.styrigx.com/curio/' })).j.link;
-    if (db.raw) db.raw.prepare("UPDATE share_link SET target = 'https://styrigx.com.evil.com/' WHERE id = ?").run(l2.id);
-    else db._links.get(l2.id).target = 'https://styrigx.com.evil.com/';
-    assert.deepEqual(await failShape(await open(e2, l2.path, { ip: '3.3.3.3' })), FAIL);
+    /* 旧图志地址不能再当目标 */
+    const bad = await api(env, { action: 'create', hours: 1, to: 'https://atlas.styrigx.com/curio/' });
+    assert.equal(bad.s, 400, JSON.stringify(bad.j));
+    /* 存坏成别的主机 / 存量的旧图志完整地址：点开只走失败响应 */
+    for (const t of ['https://styrigx.com.evil.com/', 'https://atlas.styrigx.com/curio/']) {
+      const { db } = mk();
+      const e2 = Object.assign({}, env, { D1_SHARE_LINK: db });
+      const l2 = (await api(e2, { action: 'create', hours: 1, to: '/curio/' })).j.link;
+      if (db.raw) db.raw.prepare('UPDATE share_link SET target = ? WHERE id = ?').run(t, l2.id);
+      else db._links.get(l2.id).target = t;
+      assert.deepEqual(await failShape(await open(e2, l2.path, { ip: '3.3.3.3' })), FAIL, t);
+    }
   });
 
   T('复用（reuse:true）：同目标 + 同档位 + 剩 ≥ 12 小时 → 返回同一条，不签新钥匙；目标 / 档位不同、剩不到 12 小时、作废了 → 新建', async () => {
     const { env, db, calls } = mk();
     const q = { action: 'create', reuse: true, name: '一篇很长很长很长很长很长很长很长很长很长很长的文章标题 · 博客', hours: 24, session: 43200,
-      to: 'https://atlas.styrigx.com/blog/post/a/' };
-    const a = await api(env, q, undefined, 'https://atlas.styrigx.com');
+      to: 'https://styrigx.com/blog/post/a/' };
+    const a = await api(env, q);
     assert.equal(a.s, 200, JSON.stringify(a.j));
     assert.equal(a.j.reused, false);
     assert.equal([...a.j.link.name].length, 24, '页面标题截到 24 字');
-    const b = await api(env, Object.assign({}, q, { to: 'https://atlas.styrigx.com/blog/post/a/?share=1' }), undefined, 'https://atlas.styrigx.com');
+    const b = await api(env, Object.assign({}, q, { to: '/blog/post/a/?share=1' }));
     assert.equal(b.j.reused, true);
     assert.equal(b.j.link.id, a.j.link.id);
     assert.equal(b.j.link.path, a.j.link.path);
     assert.deepEqual(calls, ['create'], '复用不签新钥匙');
     assert.equal(db.rows().length, 1);
     /* 没 reuse 标记 = 照旧每次新建 */
-    const c = await api(env, { action: 'create', hours: 24, session: 43200, to: 'https://atlas.styrigx.com/blog/post/a/' });
+    const c = await api(env, { action: 'create', hours: 24, session: 43200, to: '/blog/post/a/' });
     assert.notEqual(c.j.link.id, a.j.link.id);
     assert.equal(c.j.reused, undefined);
     /* 别的目标 / 别的会话档位 / 别的有效期 → 新建 */
-    const d = await api(env, Object.assign({}, q, { to: 'https://atlas.styrigx.com/blog/post/b/' }), undefined, 'https://atlas.styrigx.com');
+    const d = await api(env, Object.assign({}, q, { to: 'https://styrigx.com/blog/post/b/' }));
     assert.equal(d.j.reused, false);
-    const e = await api(env, Object.assign({}, q, { session: 3600 }), undefined, 'https://atlas.styrigx.com');
+    const e = await api(env, Object.assign({}, q, { session: 3600 }));
     assert.equal(e.j.reused, false);
-    const f = await api(env, Object.assign({}, q, { hours: 13 }), undefined, 'https://atlas.styrigx.com');
+    const f = await api(env, Object.assign({}, q, { hours: 13 }));
     assert.equal(f.j.reused, false);
     /* 剩不到 12 小时：不复用 */
     const left = Date.now() + 11 * H;
@@ -610,119 +621,114 @@ for (const K of KINDS) {
       if (db.raw) db.raw.prepare('UPDATE share_link SET expires_at = ?, created_at = ? WHERE id = ?').run(left, left - 24 * H, id);
       else Object.assign(db._links.get(id), { expires_at: left, created_at: left - 24 * H });
     }
-    const g = await api(env, q, undefined, 'https://atlas.styrigx.com');
+    const g = await api(env, q);
     assert.equal(g.j.reused, false);
     assert.notEqual(g.j.link.id, a.j.link.id);
-    assert.equal((await api(env, q, undefined, 'https://atlas.styrigx.com')).j.link.id, g.j.link.id, '新的那条接着复用');
+    assert.equal((await api(env, q)).j.link.id, g.j.link.id, '新的那条接着复用');
     /* 作废了：不复用 */
     await api(env, { action: 'revoke', id: g.j.link.id });
-    const h = await api(env, q, undefined, 'https://atlas.styrigx.com');
+    const h = await api(env, q);
     assert.equal(h.j.reused, false);
     assert.notEqual(h.j.link.id, g.j.link.id);
     /* 满 20 条时复用照样能拿到已有的 */
     for (let i = db.rows().filter((r) => !r.revoked_at && r.expires_at > Date.now()).length; i < 20; i++) await api(env, { action: 'create', hours: 1 });
     assert.equal((await api(env, { action: 'create', hours: 1 })).s, 409);
-    assert.equal((await api(env, q, undefined, 'https://atlas.styrigx.com')).j.link.id, h.j.link.id);
+    assert.equal((await api(env, q)).j.link.id, h.j.link.id);
   });
 
-  T('跨源：图志能 create + reuse（带 Allow-Origin / Allow-Credentials / Vary）；list / revoke / 不带 reuse 跨源 403；别的 Origin 403 且不给 Allow 头；没会话 401', async () => {
+  T('跨源：一律 403 origin（含已下线的 atlas.styrigx.com、不带 Origin），不回任何 CORS 头；没会话 401 也不带 Allow 头；主站同源照旧', async () => {
     const { env } = mk();
-    const q = { action: 'create', reuse: true, name: 'x', hours: 24, session: 43200, to: 'https://atlas.styrigx.com/daymark/' };
-    for (const o of ['https://atlas.styrigx.com']) {
-      const r = await api(env, q, undefined, o);
-      assert.equal(r.s, 200, o + ' ' + JSON.stringify(r.j));
-      assert.equal(r.res.headers.get('Access-Control-Allow-Origin'), o);
-      assert.equal(r.res.headers.get('Access-Control-Allow-Credentials'), 'true');
-      assert.match(r.res.headers.get('Vary'), /Origin/);
-      assert.equal(r.res.headers.get('Cache-Control'), 'private, no-store');
+    const q = { action: 'create', reuse: true, name: 'x', hours: 24, session: 43200, to: '/daymark/' };
+    for (const o of ['https://atlas.styrigx.com', 'https://evil.com', 'https://styrigx.com.evil.com', 'http://atlas.styrigx.com', 'https://styrigx.com:8443', 'https://www.styrigx.com', 'https://blog.styrigx.com', 'https://daymark.styrigx.com', 'https://curio.styrigx.com', 'null']) {
+      for (const body of [q, { action: 'list' }, { action: 'revoke', id: links.newId() }, { action: 'create', hours: 1 }]) {
+        const r = await api(env, body, undefined, o);
+        assert.equal(r.s, 403, o + ' ' + JSON.stringify(body));
+        assert.equal(r.j.error, 'origin');
+        assert.equal(r.res.headers.get('Access-Control-Allow-Origin'), null, o);
+        assert.equal(r.res.headers.get('Access-Control-Allow-Credentials'), null, o);
+        assert.equal(r.res.headers.get('Cache-Control'), 'private, no-store');
+      }
     }
-    for (const body of [{ action: 'list' }, { action: 'revoke', id: links.newId() }, { action: 'create', hours: 1 }, Object.assign({}, q, { reuse: 'true' })]) {
-      const r = await api(env, body, undefined, 'https://atlas.styrigx.com');
-      assert.equal(r.s, 403, JSON.stringify(body));
-      assert.equal(r.j.error, 'origin');
-      assert.equal(r.res.headers.get('Access-Control-Allow-Origin'), 'https://atlas.styrigx.com', '能读到 403');
-    }
-    for (const o of ['https://evil.com', 'https://styrigx.com.evil.com', 'http://atlas.styrigx.com', 'https://atlas.styrigx.com:8443', 'https://www.styrigx.com', 'https://blog.styrigx.com', 'https://daymark.styrigx.com', 'https://curio.styrigx.com', 'null']) {
-      const r = await api(env, q, undefined, o);
-      assert.equal(r.s, 403, o);
-      assert.equal(r.res.headers.get('Access-Control-Allow-Origin'), null, o);
-      assert.equal(r.res.headers.get('Access-Control-Allow-Credentials'), null, o);
-      assert.match(r.res.headers.get('Vary'), /Origin/);
-    }
-    /* 没会话：门 401，子站能读到 */
+    /* 不带 Origin（非浏览器）：同样 403 */
+    const noOrigin = await worker.fetch(new Request('https://styrigx.com/api/share', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: await adminCookie() }, body: JSON.stringify({ action: 'list' }),
+    }), env, ctx);
+    assert.equal(noOrigin.status, 403);
+    /* 没会话：门 401，不带 Allow 头 */
     const u = await api(env, q, '', 'https://atlas.styrigx.com');
     assert.equal(u.s, 401);
-    assert.equal(u.res.headers.get('Access-Control-Allow-Origin'), 'https://atlas.styrigx.com');
-    /* 主站同源照旧 */
+    assert.equal(u.res.headers.get('Access-Control-Allow-Origin'), null);
+    /* 主站同源照旧，也不回 CORS 头 */
+    const ok = await api(env, q);
+    assert.equal(ok.s, 200, JSON.stringify(ok.j));
+    assert.equal(ok.res.headers.get('Access-Control-Allow-Origin'), null);
     assert.equal((await api(env, { action: 'list' })).s, 200);
   });
 }
 
-test('预检 OPTIONS /api/share：图志 + POST + Content-Type → 204（Allow-Origin 逐字、Credentials、Methods、Headers、Max-Age、Vary）；其他一律 403 不给 Allow 头；不看会话', async () => {
+test('预检 OPTIONS /api/share：不再接受跨源（lib/cors.js 已删）→ 不论 Origin 一律 403、不给任何 Allow 头、不看会话；别的接口路径照常过门', async () => {
   const { env } = setup({ memory: true });
   const pre = (origin, method, headers, path) => worker.fetch(new Request('https://styrigx.com' + (path || '/api/share'), {
     method: 'OPTIONS',
-    headers: Object.assign({ Origin: origin, 'Access-Control-Request-Method': method }, headers === undefined ? { 'Access-Control-Request-Headers': 'content-type' } : headers),
+    headers: Object.assign(origin ? { Origin: origin } : {}, { 'Access-Control-Request-Method': method }, headers === undefined ? { 'Access-Control-Request-Headers': 'content-type' } : headers),
   }), env, ctx);
-  for (const o of ['https://atlas.styrigx.com']) {
-    for (const path of ['/api/share', '/api/share/']) {
-      const r = await pre(o, 'POST', undefined, path);
-      assert.equal(r.status, 204, o + path);
-      assert.equal(r.headers.get('Access-Control-Allow-Origin'), o);
-      assert.equal(r.headers.get('Access-Control-Allow-Credentials'), 'true');
-      assert.equal(r.headers.get('Access-Control-Allow-Methods'), 'POST');
-      assert.equal(r.headers.get('Access-Control-Allow-Headers'), 'Content-Type');
-      assert.equal(r.headers.get('Access-Control-Max-Age'), '600');
-      assert.equal(r.headers.get('Vary'), 'Origin');
-      assert.equal(r.headers.get('X-SGX-Runtime'), 'share');
-    }
-  }
-  assert.equal((await pre('https://atlas.styrigx.com', 'POST', {})).status, 204, '不带 Request-Headers 也行');
   for (const [o, m, h] of [
-    ['https://evil.com', 'POST'], ['https://styrigx.com.evil.com', 'POST'], ['http://atlas.styrigx.com', 'POST'], ['https://atlas.styrigx.com.', 'POST'], ['https://blog.styrigx.com', 'POST'], ['https://curio.styrigx.com', 'POST'],
-    ['https://atlas.styrigx.com', 'DELETE'], ['https://atlas.styrigx.com', 'GET'], ['https://atlas.styrigx.com', 'POST', { 'Access-Control-Request-Headers': 'content-type, x-evil' }],
+    ['https://atlas.styrigx.com', 'POST'], ['https://atlas.styrigx.com', 'POST', {}], ['https://styrigx.com', 'POST'],
+    ['https://evil.com', 'POST'], ['https://styrigx.com.evil.com', 'POST'], ['http://atlas.styrigx.com', 'POST'], ['https://blog.styrigx.com', 'POST'], ['https://curio.styrigx.com', 'POST'],
+    ['https://atlas.styrigx.com', 'DELETE'], ['https://atlas.styrigx.com', 'POST', { 'Access-Control-Request-Headers': 'content-type, x-evil' }],
     ['', 'POST'],
   ]) {
-    const r = await pre(o, m, h);
-    assert.equal(r.status, 403, [o, m, JSON.stringify(h)].join(' '));
-    assert.equal(r.headers.get('Access-Control-Allow-Origin'), null);
-    assert.equal(r.headers.get('Access-Control-Allow-Credentials'), null);
-    assert.equal(r.headers.get('Vary'), 'Origin');
+    for (const path of ['/api/share', '/api/share/']) {
+      const r = await pre(o, m, h, path);
+      assert.equal(r.status, 403, [o, m, JSON.stringify(h), path].join(' '));
+      for (const k of ['Allow-Origin', 'Allow-Credentials', 'Allow-Methods', 'Allow-Headers', 'Max-Age']) assert.equal(r.headers.get('Access-Control-' + k), null, k);
+      assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
+      assert.equal(r.headers.get('X-SGX-Runtime'), 'share');
+    }
   }
   /* 别的接口路径不归这里 */
   assert.equal((await pre('https://atlas.styrigx.com', 'POST', undefined, '/api/shared')).status, 401);
 });
 
-test('cors.js：只认图志 + 主站，逐字比较；Vary 追加不重复', async () => {
-  const c = await import(REPO + 'workers/share/src/lib/cors.js');
-  assert.deepEqual([...c.CORS_ORIGINS], ['https://atlas.styrigx.com']);
-  const req = (o) => new Request('https://styrigx.com/api/share', { headers: o ? { Origin: o } : {} });
-  assert.equal(c.corsOrigin(req('https://styrigx.com')), 'https://styrigx.com');
-  assert.equal(c.isSubsiteOrigin(req('https://styrigx.com')), false);
-  for (const o of ['https://BLOG.styrigx.com', 'https://atlas.styrigx.com/blog/', 'https://blog.styrigx.com:443', '']) assert.equal(c.corsOrigin(req(o)), '', o);
-  const r = c.withCors(new Response('x', { headers: { Vary: 'Accept-Encoding' } }), req('https://atlas.styrigx.com'));
-  assert.equal(r.headers.get('Vary'), 'Accept-Encoding, Origin');
-  assert.equal(c.withCors(r, req('https://atlas.styrigx.com')).headers.get('Vary'), 'Accept-Encoding, Origin');
+test('lib/cors.js 已删，src 里不再出现 Access-Control-* 和 atlas.styrigx.com', () => {
+  assert.equal(existsSync(REPO + 'workers/share/src/lib/cors.js'), false);
+  for (const f of ['index.js', 'gate.js', 'auth.js', 'open.js', 'api/share.js', 'lib/http.js']) {
+    const src = readFileSync(REPO + 'workers/share/src/' + f, 'utf8');
+    assert.doesNotMatch(src, /Access-Control-|cors\.js/, f);
+  }
+  assert.doesNotMatch(readFileSync(REPO + 'workers/share/src/lib/links.js', 'utf8'), /TARGET_HOSTS = Object\.freeze\(\[[^\]]*atlas/);
 });
 
 /* ---------------- 安全响应头（PR D，workers #3）：和网关主站同一套；/s/<码> 的 no-referrer 不被覆盖 ---------------- */
 const SECH = await import(REPO + 'workers/share/src/lib/security-headers.js');
 
-test('安全头：/s/<码> 失败跳转保留 Referrer-Policy: no-referrer，其余安全头齐全；/api/share 401 和预检带安全头且 CORS 不变', async () => {
+test('安全头：/s/<码> 失败跳转保留 Referrer-Policy: no-referrer，其余安全头齐全；/api/share 401 和预检带安全头且不带 CORS 头', async () => {
   const { env } = setup({ memory: true });
   const f = await open(env, '/s/' + links.newCode(), { ip: '5.5.5.5' });
   assert.deepEqual(await failShape(f), FAIL);
   for (const [k, v] of SECH.mainSiteHeaderList()) {
     assert.equal(f.headers.get(k), k === 'Referrer-Policy' ? 'no-referrer' : v, '/s/ ' + k);
   }
-  const a = await api(env, { action: 'list' }, '', 'https://atlas.styrigx.com');
+  const a = await api(env, { action: 'list' }, '');
   assert.equal(a.s, 401);
-  assert.equal(a.res.headers.get('Access-Control-Allow-Origin'), 'https://atlas.styrigx.com');
+  assert.equal(a.res.headers.get('Access-Control-Allow-Origin'), null);
   for (const [k, v] of SECH.mainSiteHeaderList()) assert.equal(a.res.headers.get(k), v, 'api ' + k);
   const pre = await worker.fetch(new Request('https://styrigx.com/api/share', {
-    method: 'OPTIONS', headers: { Origin: 'https://atlas.styrigx.com', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' },
+    method: 'OPTIONS', headers: { Origin: 'https://evil.com', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' },
   }), env, ctx);
-  assert.equal(pre.status, 204);
-  assert.equal(pre.headers.get('Access-Control-Allow-Origin'), 'https://atlas.styrigx.com');
+  assert.equal(pre.status, 403);
+  assert.equal(pre.headers.get('Access-Control-Allow-Origin'), null);
   assert.equal(pre.headers.get('Strict-Transport-Security'), SECH.HSTS);
+});
+
+test('migrations/0002：只删目标指向 atlas.styrigx.com 的存量短链，其余不动', { skip: !HAS_SQLITE }, async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  const mig = REPO + 'workers/share/migrations/';
+  db.exec(readFileSync(mig + '0001_share_links.sql', 'utf8'));
+  const ins = db.prepare('INSERT INTO share_link (id, code, target, created_at, expires_at) VALUES (?, ?, ?, 1, 2)');
+  const targets = ['/', '/blog/post/a/', 'https://atlas.styrigx.com/blog/post/x/', 'https://atlas.styrigx.com/', 'https://atlas.styrigx.com'];
+  targets.forEach((t, i) => ins.run('id' + i, 'code' + i, t));
+  db.exec(readFileSync(mig + '0002_drop_atlas_targets.sql', 'utf8'));
+  assert.deepEqual(db.prepare('SELECT target FROM share_link ORDER BY id').all().map((r) => r.target), ['/', '/blog/post/a/']);
 });

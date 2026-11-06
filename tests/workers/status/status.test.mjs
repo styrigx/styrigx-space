@@ -261,3 +261,25 @@ test('wrangler.toml：status 绑了 AI_SERVICE → styrigx-ai，没有 SEARCH / 
   const needs = job.match(/\n    needs: \[([^\]]*)\]/)[1].split(',').map((x) => x.trim());
   assert.ok(needs.includes('deploy-ai-worker') && !needs.some((n) => /search|chat/.test(n)), needs.join(','));
 });
+
+test('migrations/0005：删掉不在 TARGETS 里的站点（checks / daily / hourly / state / incidents），留下 space / proxy-rules / ai', { skip: !sqlite }, () => {
+  const dir = new URL('../../../workers/status/migrations/', import.meta.url);
+  const db = new sqlite.DatabaseSync(':memory:');
+  for (const f of ['0001_init.sql', '0002_usage.sql', '0003_cut_reads.sql', '0004_quota.sql']) db.exec(readFileSync(new URL(f, dir), 'utf8'));
+  const keep = TARGETS.map((t) => t.site);
+  assert.deepEqual(keep, ['space', 'proxy-rules', 'ai'], '迁移里写死的保留名单要和 TARGETS 一致');
+  const all = [...keep, 'blog', 'curio', 'daymark', 'atlas', 'book', 'muse-invite', 'search', 'chat'];
+  for (const s of all) {
+    db.prepare('INSERT INTO checks (site, at, ok, code, ms) VALUES (?, 1, 1, 200, 10)').run(s);
+    db.prepare("INSERT INTO daily (site, day) VALUES (?, '2026-11-01')").run(s);
+    db.prepare('INSERT INTO hourly (site, hour) VALUES (?, 0)').run(s);
+    db.prepare('INSERT INTO state (site) VALUES (?)').run(s);
+    db.prepare("INSERT INTO incidents (site, started_at, cause) VALUES (?, 1, 'timeout')").run(s);
+  }
+  db.prepare("INSERT INTO usage (id, fetched_at, data) VALUES (1, 1, '{}')").run();
+  db.exec(readFileSync(new URL('0005_retire_sites.sql', dir), 'utf8'));
+  for (const t of ['checks', 'daily', 'hourly', 'state', 'incidents']) {
+    assert.deepEqual(db.prepare('SELECT site FROM ' + t + ' ORDER BY site').all().map((r) => r.site), [...keep].sort(), t);
+  }
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM usage').get().n, 1, 'usage 快照不动');
+});

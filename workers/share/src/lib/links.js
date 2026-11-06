@@ -4,10 +4,10 @@
  * - 码：16 字节随机数 → 22 位 base64url（128 位），不可枚举。存 D1（临时钥匙页的列表里复制要用），只经 /api/share 的 list 给进门的人看。
  * - 有效期：1–24 小时任选，或 3 / 7 / 15 / 30 天（和网关临时钥匙同一张表；带会话的短链以网关签回的钥匙到期时间为准）。
  * - 会话时长：30 分钟、1 / 3 / 12 小时、1 / 3 / 7 天，且不超过有效期（网关 src/share-issuer.js 再验一次）。
- * - 目标（2026-10-24 起也收子站）：站内相对路径（/ 开头），或 https 绝对地址且主机正好是 styrigx.com / blog / daymark / curio 子站
- *   （不能带端口、用户名密码，不能 // 开头，不含控制字符 / 空白 / 反斜杠）。规范化：主站存成相对路径，子站存成完整地址；
- *   去掉锁屏 / 回跳 / 分享参数（lock、why、return、share）；不能指向主站 /s/（自己）和任何站的 /api/。默认 /。点开时再验一次（防开放重定向）。
- * - 复用：子站顶栏分享按钮（create + reuse:true）遇到同一目标、同样档位、还剩 ≥ 12 小时的有效短链，直接返回它，不再签新钥匙。
+ * - 目标：站内相对路径（/ 开头），或 https 绝对地址且主机正好是 styrigx.com（合并 PR3 起各站都在 styrigx.com/<站>/ 下）
+ *   （不能带端口、用户名密码，不能 // 开头，不含控制字符 / 空白 / 反斜杠）。规范化：一律存成相对路径；
+ *   去掉锁屏 / 回跳 / 分享参数（lock、why、return、share）；不能指向 /s/（自己）和任何 /api/、/<站>/api/。默认 /。点开时再验一次（防开放重定向）。
+ * - 复用：顶栏分享按钮（create + reuse:true）遇到同一目标、同样档位、还剩 ≥ 12 小时的有效短链，直接返回它，不再签新钥匙。
  * SQL 都在 SQL 里（单测用同一组语句跑 node:sqlite，Node 20 上换成内存替身）。
  */
 
@@ -15,7 +15,7 @@ export const ORIGIN = 'https://styrigx.com';
 /** 同时有效的短链上限 */
 export const SHARE_MAX = 20;
 export const NAME_MAX = 24;
-/** 目标最长（规范化前后都算；子站完整地址 + 中文 slug 编码后会比较长） */
+/** 目标最长（规范化前后都算；中文 slug 编码后会比较长） */
 export const TARGET_MAX = 512;
 /** 过期 / 作废后在列表里留几天 */
 export const KEEP_DEAD_MS = 7 * 86400e3;
@@ -78,18 +78,17 @@ export function sessionSeconds(sec, ms) {
   return sec;
 }
 
-/** 目标能指向的站（只认这几个主机，https、默认端口）。atlas.styrigx.com 是旧图志域名（网关的 301 已于 P4-3 PR-1 删除、域名待下线），这里仍保留：短链的白名单要不要跟着删另议 */
-export const TARGET_HOSTS = Object.freeze(['styrigx.com', 'atlas.styrigx.com']);
+/** 目标能指向的主机（https、默认端口）：只有 styrigx.com（旧图志 atlas.styrigx.com 已下线，2026-11 删出白名单，存量短链由 migrations/0002 删除） */
+export const TARGET_HOSTS = Object.freeze(['styrigx.com']);
 /** 存目标前去掉的查询参数（锁屏 / 回跳 / 分享自己的参数，带进去会把人送回锁屏或绕圈） */
 export const STRIP_PARAMS = Object.freeze(['lock', 'why', 'return', 'share']);
 const ABS_RE = /^https:\/\/([a-z0-9.-]+)(?=[/?#]|$)/i;
 
 /**
- * 目标：站内相对路径，或 styrigx.com 及旧图志 atlas.styrigx.com 的 https 地址。规范化后返回：主站 → pathname + search + hash（如 /blog/post/x/?a=1；
- * 合并 PR3 起三站在主域名 /blog/ /curio/ /daymark/ 下），旧图志 → 完整地址（如 https://atlas.styrigx.com/blog/post/x/；P4-3 PR-1 起网关不再把它 301 到主域名）。
- * 空 = '/'。不合法返回 null。
- * 拒绝：别的主机（含 styrigx.com.evil.com）、http:、// 开头、带端口（含 :443）、带用户名密码、javascript: 等别的协议、
- * 控制字符 / 空白 / 反斜杠、主站 /s/ 和任何站 /api/、各子站的 /<站>/api/（主域名和旧图志都拒）、超长。
+ * 目标：站内相对路径，或 https://styrigx.com 的地址。规范化后一律返回 pathname + search + hash（如 /blog/post/x/?a=1；
+ * 合并 PR3 起三站在主域名 /blog/ /curio/ /daymark/ 下）。空 = '/'。不合法返回 null。
+ * 拒绝：别的主机（含已下线的 atlas.styrigx.com、styrigx.com.evil.com）、http:、// 开头、带端口（含 :443）、带用户名密码、javascript: 等别的协议、
+ * 控制字符 / 空白 / 反斜杠、/s/、/api/ 和 /<站>/api/、超长。
  * @param {any} to
  * @returns {string|null}
  */
@@ -100,39 +99,39 @@ export function cleanTarget(to) {
   if (v === '') return '/';
   if (v.length > TARGET_MAX) return null;
   if (/[\u0000-\u0020\u007f\\]/.test(v)) return null;
-  let base = ORIGIN;
   if (v.charAt(0) === '/') {
     if (v.charAt(1) === '/') return null;
   } else {
     const m = ABS_RE.exec(v);
     if (!m) return null;
-    const host = m[1].toLowerCase();
-    if (!TARGET_HOSTS.includes(host)) return null;
-    base = 'https://' + host;
+    if (!TARGET_HOSTS.includes(m[1].toLowerCase())) return null;
   }
   let u;
   try {
-    u = new URL(v, base);
+    u = new URL(v, ORIGIN);
   } catch (e) {
     return null;
   }
-  if (u.origin !== base || u.username || u.password || u.port) return null;
+  if (u.origin !== ORIGIN || u.username || u.password || u.port) return null;
   const p = u.pathname;
   /* /..//evil.com 这类解析后 pathname 以 // 开头的，存成相对路径会变成协议相对地址 */
   if (p.startsWith('//')) return null;
   if (p === '/api' || p.startsWith('/api/')) return null;
   if (/^\/[^/]+\/api(\/|$)/.test(p)) return null;
-  if (base === ORIGIN && (p === '/s' || p.startsWith('/s/'))) return null;
+  if (p === '/s' || p.startsWith('/s/')) return null;
   for (const k of STRIP_PARAMS) u.searchParams.delete(k);
-  const rel = p + u.search + u.hash;
-  const out = base === ORIGIN ? rel : base + rel;
+  const out = p + u.search + u.hash;
   if (out.length > TARGET_MAX) return null;
   return out;
 }
 
-/** 规范化后的目标 → 302 去的完整地址（相对路径接主站） @param {string} t */
+/**
+ * 规范化后的目标 → 302 去的完整地址（相对路径接主站）。
+ * 存量里不是 / 开头的（只可能是旧图志的完整地址，migrations/0002 已删）不再认，退回主站首页。
+ * @param {string} t
+ */
 export function targetUrl(t) {
-  return t.charAt(0) === '/' ? ORIGIN + t : t;
+  return typeof t === 'string' && t.charAt(0) === '/' && t.charAt(1) !== '/' ? ORIGIN + t : ORIGIN + '/';
 }
 
 /** 复用的门槛：还剩至少这么久的有效短链才拿来复用 */

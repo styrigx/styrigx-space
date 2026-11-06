@@ -25,17 +25,12 @@ export const DOWN_RATIO = 0.95;
 /** 可用率条的天数 */
 export const BAR_DAYS = 90;
 
-/** 页面上的站名（2026-10-22 定：主站 / 博客 / 日刻 / 奇趣 / 规则集；2026-10-28 加站内搜索 / 聊天；P4-2b 两者退役、换成 AI 助手，
-    search / chat 只留给 30 天内的历史故障记录显示名字）；接口里的 zh / en 兜底 */
+/** 页面上的站名（= workers/status/src/targets.js 的 TARGETS：主站 / 规则集 / AI 助手）；接口里的 zh / en 兜底。
+    2026-11 博客 / 日刻 / 奇趣 / 站内搜索 / 聊天等退役站的名字删掉：它们的历史记录由 workers/status/migrations/0005 删除 */
 export const SITE_NAMES = {
   space: { zh: '主站', en: 'Space' },
-  blog: { zh: '博客', en: 'Blog' },
-  daymark: { zh: '日刻', en: 'Daymark' },
-  curio: { zh: '奇趣', en: 'Curio' },
   'proxy-rules': { zh: '规则集', en: 'Proxy rules' },
   ai: { zh: 'AI 助手', en: 'AI' },
-  search: { zh: '站内搜索', en: 'Search' },
-  chat: { zh: '聊天', en: 'Chat' },
 };
 
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

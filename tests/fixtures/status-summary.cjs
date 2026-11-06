@@ -4,9 +4,11 @@
  *
  * 时间对齐 tests/space/e2e/helpers/helpers.js freezeTime：2026-10-09 12:00 北京时间（04:00Z）。
  * 每站有 40 天数据（条的左边 50 格是「无数据」），今天是半天（720 次检查）。
- *   normal()  全部正常；两条已恢复的故障（博客 12 天前 25 分钟 HTTP 502、日刻 20 天前 2 小时超时）
- *   oneDown() 奇趣（curio）当前故障：连续 7 次超时，开着一条 7 分钟前开始的故障
- *   empty()   Worker 刚上线：5 个站都还没检查过
+ * 站点 = workers/status/src/targets.js 的 TARGETS（主站 / 规则集 / AI 助手；2026-11 子站和旧图志退役，fixture 跟着换）。
+ * AI 助手走服务绑定，url 是给绑定的请求地址 https://styrigx-ai/healthz，页面上域名显示成 Worker 名 styrigx-ai（同线上 summary）。
+ *   normal()  全部正常；两条已恢复的故障（规则集 12 天前 25 分钟 HTTP 502、AI 助手 20 天前 2 小时超时）
+ *   oneDown() AI 助手（ai）当前故障：连续 7 次超时，开着一条 7 分钟前开始的故障
+ *   empty()   Worker 刚上线：3 个站都还没检查过
  *   usage()   用量快照（PR3，形状 = workers/status/src/usage.js collectUsage）：18 分钟前收的；
  *             Workers 73,456 / 100,000（73.5% 琥珀）、D1 合计 483.4 MB / 5 GB（styrigx-status 468 MB / 500 MB = 93.6% 红）、
  *             R2 2.01 GB / 10 GB、KV 5.3 MB / 1 GB
@@ -24,10 +26,8 @@ const TODAY = '2026-10-09';
 
 const SITES = [
   { site: 'space', zh: '主站', en: 'Home', url: 'https://styrigx.com/', ms: 123 },
-  { site: 'blog', zh: '博客', en: 'Blog', url: 'https://blog.styrigx.com/robots.txt', ms: 88 },
-  { site: 'daymark', zh: '日刻', en: 'Daymark', url: 'https://daymark.styrigx.com/robots.txt', ms: 95 },
-  { site: 'curio', zh: '奇趣', en: 'Curio', url: 'https://curio.styrigx.com/robots.txt', ms: 140 },
   { site: 'proxy-rules', zh: '规则集', en: 'Proxy rules', url: 'https://proxy-rules.styrigx.com/healthz', ms: 61 },
+  { site: 'ai', zh: 'AI 助手', en: 'AI', url: 'https://styrigx-ai/healthz', ms: 140 },
 ];
 
 /** @param {string} day @param {number} n */
@@ -35,15 +35,15 @@ function addDays(day, n) {
   return new Date(Date.parse(day + 'T00:00:00Z') + n * DAY).toISOString().slice(0, 10);
 }
 
-/** 每站 40 天：大部分满分；博客 12 天前少 25 次（部分故障）、日刻 20 天前少 120 次（低于 95% = 故障日） */
+/** 每站 40 天：大部分满分；规则集 12 天前少 25 次（部分故障）、AI 助手 20 天前少 120 次（低于 95% = 故障日） */
 function days(site, ms, todayOk = 720) {
   const out = [];
   for (let i = 39; i >= 0; i--) {
     const day = addDays(TODAY, -i);
     const total = i === 0 ? 720 : 1440;
     let ok = total;
-    if (site === 'blog' && i === 12) ok = 1415;
-    if (site === 'daymark' && i === 20) ok = 1320;
+    if (site === 'proxy-rules' && i === 12) ok = 1415;
+    if (site === 'ai' && i === 20) ok = 1320;
     if (i === 0) ok = todayOk;
     out.push({ day, total, ok, avg_ms: ok ? ms + (i % 5) : null });
   }
@@ -52,6 +52,12 @@ function days(site, ms, todayOk = 720) {
 
 function pct(ok, total) {
   return total ? Math.round((ok / total) * 10000) / 100 : null;
+}
+
+/** @param {Array<{ok:number,total:number}>} d */
+function pctDays(d) {
+  const [ok, total] = d.reduce((a, x) => [a[0] + x.ok, a[1] + x.total], [0, 0]);
+  return pct(ok, total);
 }
 
 function site(t, over = {}) {
@@ -69,8 +75,8 @@ function site(t, over = {}) {
 }
 
 const INC_RESOLVED = [
-  { id: 2, site: 'blog', started_at: NOW - 12 * DAY - 3 * 3600 * 1000, ended_at: NOW - 12 * DAY - 3 * 3600 * 1000 + 25 * MIN, cause: 'HTTP 502' },
-  { id: 1, site: 'daymark', started_at: NOW - 20 * DAY + 2 * 3600 * 1000, ended_at: NOW - 20 * DAY + 4 * 3600 * 1000, cause: 'timeout' },
+  { id: 2, site: 'proxy-rules', started_at: NOW - 12 * DAY - 3 * 3600 * 1000, ended_at: NOW - 12 * DAY - 3 * 3600 * 1000 + 25 * MIN, cause: 'HTTP 502' },
+  { id: 1, site: 'ai', started_at: NOW - 20 * DAY + 2 * 3600 * 1000, ended_at: NOW - 20 * DAY + 4 * 3600 * 1000, cause: 'timeout' },
 ];
 
 function normal() {
@@ -78,17 +84,18 @@ function normal() {
 }
 
 function oneDown() {
-  const sites = SITES.map((t) => (t.site === 'curio'
+  const sites = SITES.map((t) => (t.site === 'ai'
     ? site(t, {
       up: false, fails: 7,
       last: { at: NOW - 40 * 1000, ok: false, code: 0, ms: 10000, err: 'timeout' },
-      uptime: { h24: 99.51, d30: 99.98, d90: 99.98 },
-      days: days('curio', t.ms, 713),
+      /* 30 / 90 天按 days 算（含 20 天前那个故障日和今天的 7 次失败） */
+      uptime: { h24: 99.51, d30: pctDays(days('ai', t.ms, 713).slice(-30)), d90: pctDays(days('ai', t.ms, 713)) },
+      days: days('ai', t.ms, 713),
     })
     : site(t)));
   return {
     ok: true, now: NOW, today: TODAY, all_up: false, sites,
-    incidents: [{ id: 3, site: 'curio', started_at: NOW - 7 * MIN, ended_at: null, cause: 'timeout' }, ...INC_RESOLVED],
+    incidents: [{ id: 3, site: 'ai', started_at: NOW - 7 * MIN, ended_at: null, cause: 'timeout' }, ...INC_RESOLVED],
   };
 }
 
