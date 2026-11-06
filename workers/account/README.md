@@ -47,12 +47,12 @@
 - 表：`app`（应用 id = 授权卡 id）、`record`（JSON `{"v":1,"scopes":[...],"deviceId","by"}`，`deviceId` / `by` 只作审计和展示）、`granted_at`（毫秒）。取消 = DELETE；没有过期，不归设备清扫（`sweepExpired`）管。
 - 首次切换的种子（`core/app-grant.js ensureSeed`）：表空且 `data_migration` 没有 `app-grant-seed-1` → 同一个 `db.batch` 写满全部应用 + 标记（条件写在 SQL 里，并发也只种一次）；之后取消到 0 行也不再种。触发点：授权卡页 `grant-list`、登录完成后的授权检查（同意流程也走 `grant-list`）；`grant-revoke` / `grant-add` 改之前也先跑一次（同一份幂等逻辑，防止直接调它们时别的应用掉成未授权）。以后加应用：`scopes.js` 加一行，按版本号补种（`app-grant-seed-2` 只种新增的应用）。
 - 接口（`/api/account`，进门 + 账号会话，不认 reset 票）：`grant-list` → `{ ok, grants:[{ app, name, scopes, sensitive, granted, grantedAt, by, device:{ name, gone }|null }] }`；`grant-revoke { app }`（不要复验）；`grant-add { app }`（要 `sgx-account-reauth`，没有 → 401 reauth）。后两个回新列表；未知应用 400 params。
-- 前端：授权卡页 `/account/apps/`（`web/atlas/assets/js/apps/account-apps.js`）；同意流程在账号页登录区（`apps/account.js`：应用内点登录 → `/account/?return=<原页面>` → 登录（带 reauth:true）→ `grant-list` → 有授权回原页面 / 没有弹同意卡片）。
+- 前端：授权卡页 `/account/apps/`（`space/web/assets/js/apps/account-apps.js`）；同意流程在账号页登录区（`apps/account.js`：应用内点登录 → `/account/?return=<原页面>` → 登录（带 reauth:true）→ `grant-list` → 有授权回原页面 / 没有弹同意卡片）。
 - 回滚：revert 后 `grantedScopes` 回到骨架版；表留着没人读；要不要 `DROP TABLE app_grant` 由 Gray 决定并在后台执行。
 
 ## 路由
 
-没有公开路由（第一道保险）：`wrangler.toml` 没有任何 `[[routes]]` / `route`（`[env.preview]` 只写 `routes = []`），`workers_dev = false`、`preview_urls = false`。`scripts/check-worker-routes.mjs` 核对 0 条路由，`scripts/check-layers.mjs` 规则 17 禁止这个 toml 出现非空的 routes。
+没有公开路由（第一道保险）：`wrangler.toml` 没有任何 `[[routes]]` / `route`（`[env.preview]` 只写 `routes = []`），`workers_dev = false`、`preview_urls = false`。`space/scripts/check-worker-routes.mjs` 核对 0 条路由，`space/scripts/check-layers.mjs` 规则 17 禁止这个 toml 出现非空的 routes。
 
 浏览器请求只能先进网关：网关验锁屏门、剥掉外来的 `x-styrigx-*` / `x-sgx-*` 头，再经 `ACCOUNT` 转进 `AccountService`。转发的路径登记在网关 `workers/auth-gateway/src/router.js` 的 `FORWARDING`，和这里一一对应：
 
@@ -88,7 +88,7 @@ Secrets Store（`src/secrets.js` 换成字符串，60 秒缓存）：
 
 D1 `styrigx-account`，迁移在 `migrations/`：`0001_wellbeing.sql`（数字健康 `wb_daily`）、`0002_settings_sync.sql`（设置云同步 `settings_sync`）、`0003_account_auth.sql`（账号鉴权各表）、`0004_app_grant.sql`（应用授权记录，P3-1）。部署 job `deploy-account-worker` 先跑 `d1 migrations apply styrigx-account --remote`，再部署，再冒烟（核对线上版本 + 伪造身份头碰不到接口）。
 
-- 部署顺序：搜索、聊天 → 监测 → **账号** ∥ 短链（两者并行）→ 网关 → Pages。账号要在网关之前（网关要转发给它的命名入口）。回滚下限：`scripts/deploy-rollback-floor.json` 要求目标版本带 `D1_ACCOUNT_AUTH`、`D1_SETTINGS_SYNC`。
-- 预览：不部署单独的预览 Worker。`[env.preview]` 只登记测试资源，KV / D1 都是所有 Worker 共用的 `styrigx-test-preview`（迁移记录表 `d1_migrations_account`）；预览里的账号代码由组合入口 `tests/web/e2e/preview-worker.js` 在进程内跑。
-- 历史：2026-10-28 云同步从 KV 搬到 D1，运行时不读 KV。账号鉴权数据 2026-10-30 由 `scripts/migrate-account-auth.mjs` 从网关库拷到本库；网关库里的旧行已在 PR4 删除。
+- 部署顺序：搜索、聊天 → 监测 → **账号** ∥ 短链（两者并行）→ 网关 → Pages。账号要在网关之前（网关要转发给它的命名入口）。回滚下限：`space/scripts/deploy-rollback-floor.json` 要求目标版本带 `D1_ACCOUNT_AUTH`、`D1_SETTINGS_SYNC`。
+- 预览：不部署单独的预览 Worker。`[env.preview]` 只登记测试资源，KV / D1 都是所有 Worker 共用的 `styrigx-test-preview`（迁移记录表 `d1_migrations_account`）；预览里的账号代码由组合入口 `tests/space/e2e/helpers/preview-worker.js` 在进程内跑。
+- 历史：2026-10-28 云同步从 KV 搬到 D1，运行时不读 KV。账号鉴权数据 2026-10-30 由 `space/scripts/migrate-account-auth.mjs` 从网关库拷到本库；网关库里的旧行已在 PR4 删除。
 - 测试：`tests/workers/account/`。

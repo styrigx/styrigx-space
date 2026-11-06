@@ -90,7 +90,7 @@ export async function injectSessionState(res, state, account) {
  * 公开页面路径（搜索收录）
  *
  * 未登录也能返回 200 的页面。sitemap 只收录这些。
- * 与 web/atlas/data/public-pages.yaml 保持同步（tests/workers/auth-gateway/sitemap.test.mjs 验证）。
+ * 与 space/web/data/public-pages.yaml 保持同步（tests/workers/auth-gateway/sitemap.test.mjs 验证）。
  * L3 共享库：不含鉴权逻辑，只定义路径常量。
 
  */
@@ -371,7 +371,7 @@ const MAIN_HOST = 'styrigx.com';
 export const ATLAS_HOST = 'atlas.styrigx.com';
 
 /**
- * 主域名下的子站前缀：第一段路径 → 配置。新增子站加一项 + web/<站>/ 包（scripts/assemble.mjs 的 SITES 同步加）。
+ * 主域名下的子站前缀：第一段路径 → 配置。新增子站加一项 + atlas/web/<站>/ 包（space/scripts/assemble.mjs 的 SITES 同步加）。
  */
 export const SUBSITES = Object.freeze({
   blog: { site: 'blog' },

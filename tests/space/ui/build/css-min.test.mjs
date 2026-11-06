@@ -1,5 +1,5 @@
 /**
- * scripts/lib/css-min.cjs（build-css --minify 压缩自定义分层 CSS，2026-10-24 PR3）：
+ * space/scripts/lib/css-min.cjs（build-css --minify 压缩自定义分层 CSS，2026-10-24 PR3）：
  * input.css 压缩前后，每条规则（含所在 @layer / @media / 嵌套链）的选择器、每条声明的属性 / 值 / !important、
  * 每个 @ 规则的参数，按 token 看完全一致、顺序一致；注释全部去掉；压缩结果再压一次不变。
  */
@@ -10,8 +10,8 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const postcss = require('postcss');
-const { minifyCss, squash, squashSelector } = require('../../../../scripts/lib/css-min.cjs');
-const SRC = readFileSync(new URL('../../../../web/atlas/assets/css/input.css', import.meta.url), 'utf8');
+const { minifyCss, squash, squashSelector } = require('../../../../space/scripts/lib/css-min.cjs');
+const SRC = readFileSync(new URL('../../../../space/web/assets/css/input.css', import.meta.url), 'utf8');
 
 /** 规整成「看 token」的形式：空白收成一个、逗号两边不留空格（引号外） */
 const tok = (s) => squashSelector(String(s));

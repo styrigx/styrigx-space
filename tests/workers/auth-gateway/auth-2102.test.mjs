@@ -188,7 +188,7 @@ test('9c：lock-passkey 缺 Origin → 403', async () => {
 /* ============ 1：管理密钥入口静态检查 ============ */
 
 test('1a：锁屏方法弹层按配置显示入口（PR3：进站凭证 / 重置锁屏两行合并成「无法登录？」）', () => {
-  const src = fs.readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/lock.js'), 'utf8');
+  const src = fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/lock.js'), 'utf8');
   /* 进站凭证不再是单独一行；都没设置（启动站）时「无法登录？」里的进站凭证走 space-auth 引导 */
   assert.ok(!src.includes("'sgx-mopt-mk'") && !src.includes('id="sgx-mopt-mk"'), '不应再有进站凭证一行');
   assert.ok(src.includes('sgx-mopt-cant'), '应有「无法登录？」');

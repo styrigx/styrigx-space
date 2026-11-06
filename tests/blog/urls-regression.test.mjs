@@ -1,8 +1,8 @@
 /**
- * 网址与 RSS 回归测试：起一个模拟图志 Pages 的服务（web/public/ 挂在 /blog/ 下，前缀外一律 404），
+ * 网址与 RSS 回归测试：起一个模拟图志 Pages 的服务（atlas/web/blog/public/ 挂在 /blog/ 下，前缀外一律 404），
  * 核对博客页面在 /blog/ 下都是 200、RSS 结构、页面部件、页内链接都带 /blog 前缀。
  *
- * 跑法：先 `npm run build`（Tailwind + hugo --minify -s web）生成 web/public/，
+ * 跑法：先 `npm run build`（Tailwind + hugo --minify -s atlas/web/blog）生成 atlas/web/blog/public/，
  * 再 `node --test tests/urls-regression.test.mjs`。
  */
 import { describe, it, before, after } from 'node:test';
@@ -12,7 +12,7 @@ import { readFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { existsSync } from 'node:fs';
 
-const DIST = new URL('../../web/blog/public/', import.meta.url).pathname.replace(/\/$/, '');
+const DIST = new URL('../../atlas/web/blog/public/', import.meta.url).pathname.replace(/\/$/, '');
 const MIME = {
   '.html': 'text/html',
   '.xml': 'application/rss+xml',
@@ -72,7 +72,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
   let base;
 
   before(async () => {
-    assert.ok(existsSync(DIST), 'web/blog/public/ 不存在：请先跑构建');
+    assert.ok(existsSync(DIST), 'atlas/web/blog/public/ 不存在：请先跑构建');
     server = serve();
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     base = `http://127.0.0.1:${server.address().port}`;

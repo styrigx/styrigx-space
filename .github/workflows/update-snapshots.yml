@@ -40,14 +40,14 @@ jobs:
         with:
           cjk-fonts: 'true'
       - name: Build CSS
-        run: node scripts/build-css.cjs --minify
+        run: node space/scripts/build-css.cjs --minify
       - name: Update lock screen baseline (生产构建，锁屏启用；同 deploy.yml 的锁屏截图步骤)
         run: |
-          hugo --minify -s web/atlas
+          hugo --minify -s space/web
           SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js --grep "baseline screenshot" --update-snapshots
       - name: Test build (same as deploy.yml visual step)
         run: |
-          hugo --minify -s web/atlas
+          hugo --minify -s space/web
         env:
           SGX_TEST_NO_LOCK: "1"
           SGX_TEST_NO_WEATHER: "1"
@@ -57,12 +57,12 @@ jobs:
         # 合并 PR2：博客视觉基线 tests/blog/e2e/blog-visual.spec.js-snapshots 对着拼好的树生成（主站用上一步的测试构建，只为拼树）
         run: |
           npm run build:sites
-          node scripts/assemble.mjs
+          node space/scripts/assemble.mjs
           npx playwright test --config=tests/blog/config/playwright.config.js blog-visual.spec.js --update-snapshots
       - name: Commit snapshots only
         id: commit
         run: |
-          git checkout -- web/atlas/data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
+          git checkout -- space/web/data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add tests/space/e2e/visual/visual.spec.js-snapshots tests/space/e2e/visual/lock.spec.js-snapshots tests/blog/e2e/blog-visual.spec.js-snapshots

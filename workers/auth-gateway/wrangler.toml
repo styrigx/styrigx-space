@@ -5,7 +5,7 @@
 # 账号拆分 PR3 起它没有任何公开路由，/api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/avatar/* 由本 Worker 验门后
 # 经服务绑定 ACCOUNT 转发（src/router.js 的转发表 FORWARDING）。
 # 分享短链（/s/*、/api/share*）在短链 Worker styrigx-share（workers/share，2026-10-24），同样挂更具体的路由；短链钥匙和临时会话由本 Worker 的 ShareIssuer RPC 签。
-# Pages 只放静态文件（配置见 web/atlas/wrangler.toml），网关验完会话回源取页面。
+# Pages 只放静态文件（配置见 space/web/wrangler.toml），网关验完会话回源取页面。
 #
 # 安全：
 # - workers_dev = false，不开 *.workers.dev 地址（它连的是正式 D1，不能有未鉴权的入口）。
@@ -25,7 +25,7 @@ preview_urls = false
 enabled = true
 head_sampling_rate = 1
 
-# 路由：本文件就是网关 Worker 路由的唯一登记处（scripts/check-worker-routes.mjs 在 CI 里核对）。
+# 路由：本文件就是网关 Worker 路由的唯一登记处（space/scripts/check-worker-routes.mjs 在 CI 里核对）。
 # 两个主机都是整站一条通配路由（host/*）：
 # - Cloudflare 的路由规则不带 * 时要求整条 URL（含查询串）完全相等，遇到 ?lock=1、?utm=… 就不命中 → 请求直达 Pages：
 #   锁屏入口 styrigx.com/?lock=1&return=… 没有会话标记；子站页面带任意查询串不验会话直出正文。
@@ -104,13 +104,13 @@ simple = { limit = 6, period = 60 }
 # 网关的认证状态全部在 D1 styrigx-auth-gateway（强一致），不绑定任何 KV（2026-10-27）。
 # 账号拆分 PR3（方案 10.1）：网关只经 D1_LOCK_AUTH 读写 realm='lock' 的行（纪元、锁屏密码 / 通行密钥、user handle、challenge、
 # 密码 / 临时码 / 进站凭证输错计数、临时钥匙、进站凭证审计）和恢复开关表 lock_reset_switch（方案 9.4 由 recovery_switch 改名）。
-# 原来的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH 两个绑定名删掉。账号数据已由 scripts/migrate-account-auth.mjs（Cloudflare D1 REST，不经绑定）
+# 原来的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH 两个绑定名删掉。账号数据已由 space/scripts/migrate-account-auth.mjs（Cloudflare D1 REST，不经绑定）
 # 拷到 D1 styrigx-account；网关库里 realm='account' / 'root' 的旧行和旧开关表 recovery_switch 已在 PR4 由 --cleanup --confirm 删除，
 # 本库只剩锁屏数据。
 # 表：migrations/0005_lock_account_state.sql、0006_auth_state.sql（0007 给 user_handle 加 legacy_handle 列）、0008_lock_reset_switch.sql
 # （0001_recovery_switch.sql 建的旧表由 0009_drop_recovery_switch.sql 删，只对走迁移的预览库生效；正式库已由 --cleanup 删）。
 # 本 Worker 的部署 job 不跑 D1 迁移：表由代码在第一次遇到「no such table」时按同一份语句建（src/core/d1-state.js SCHEMA，幂等）。
-# 恢复开关代码只读写 lock_reset_switch（正式库里由 scripts/migrate-account-auth.mjs --lock-reset-switch 建表并拷过旧表的行）。
+# 恢复开关代码只读写 lock_reset_switch（正式库里由 space/scripts/migrate-account-auth.mjs --lock-reset-switch 建表并拷过旧表的行）。
 # 安全读（纪元、吊销、challenge、计数、临时钥匙）只读主库：代码不开 read replication / withSession。
 [[d1_databases]]
 binding = "D1_LOCK_AUTH"

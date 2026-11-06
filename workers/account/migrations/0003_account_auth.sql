@@ -4,7 +4,7 @@
 -- 共享模块 workers/account/src/lib/ 的 d1-state / attempt-limit / passkey-verify / root-limit / root-audit 不改即可用。
 -- 与网关的不同只有两处（方案第 9.1 节）：
 --   user_handle 多一列 legacy_handle（默认 ''）：旧锁屏 handle，账号 Passkey 登录继续认它；
---   导入标记表叫 data_migration（scripts/migrate-account-auth.mjs 写），不叫 kv_migration；不建 tempkey（临时钥匙留在网关）。
+--   导入标记表叫 data_migration（space/scripts/migrate-account-auth.mjs 写），不叫 kv_migration；不建 tempkey（临时钥匙留在网关）。
 -- 与本库已有的 wb_daily（0001）、settings_sync（0002）不重名。全部 IF NOT EXISTS，重复跑不出错。
 -- 正式库由账号部署 job 的 `d1 migrations apply styrigx-account --remote` 自动跑；预览由 CI「Apply D1 migrations to preview」跑（记录表 d1_migrations_account）。
 
@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS audit (
 );
 CREATE INDEX IF NOT EXISTS audit_ts ON audit (realm, ts);
 
--- 迁移脚本幂等标记（scripts/migrate-account-auth.mjs 写，运行时不读）：有这一行 = 该项已拷过，再跑跳过。
+-- 迁移脚本幂等标记（space/scripts/migrate-account-auth.mjs 写，运行时不读）：有这一行 = 该项已拷过，再跑跳过。
 CREATE TABLE IF NOT EXISTS data_migration (
   name TEXT PRIMARY KEY,
   migrated_at INTEGER NOT NULL

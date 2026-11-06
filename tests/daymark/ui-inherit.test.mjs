@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { cookieLang, langTarget } from '../../web/daymark/assets/js/sgx/lib/ui-inherit.js';
+import { cookieLang, langTarget } from '../../atlas/web/daymark/assets/js/sgx/lib/ui-inherit.js';
 import { sandbox } from './ui-cookie-sandbox.mjs';
 
 const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
@@ -65,15 +65,15 @@ test('langTarget：只在不同的时候跳，保留查询串和 #页签；地�
 });
 
 test('页面接线：baseof 先原样内联共享读端，再内联 ui-inherit-run.js（都在样式前）；外观只走 SgxUI.apply，不再自己解析 cookie', () => {
-  const base = read('web/daymark/layouts/_default/baseof.html');
+  const base = read('atlas/web/daymark/layouts/_default/baseof.html');
   const iReader = base.indexOf('resources.Get "js/sgx/shell/ui-cookie-read.js" | minify');
   const iRun = base.indexOf('resources.Get "js/sgx/ui-inherit-run.js"');
   assert.ok(iReader > 0 && iReader < iRun && iRun < base.indexOf('css/main.css'));
-  const run = read('web/daymark/assets/js/sgx/ui-inherit-run.js');
+  const run = read('atlas/web/daymark/assets/js/sgx/ui-inherit-run.js');
   assert.match(run, /U\.apply\(document\.documentElement, \{ onMiss: loadEngine \}\)/);
-  const lib = read('web/daymark/assets/js/sgx/lib/ui-inherit.js');
-  for (const [f, src] of [['ui-inherit-run.js', run], ['ui-inherit.js', lib], ['shell-accent.js', read('web/daymark/assets/js/sgx/shell-accent.js')]]) {
+  const lib = read('atlas/web/daymark/assets/js/sgx/lib/ui-inherit.js');
+  for (const [f, src] of [['ui-inherit-run.js', run], ['ui-inherit.js', lib], ['shell-accent.js', read('atlas/web/daymark/assets/js/sgx/shell-accent.js')]]) {
     assert.doesNotMatch(src, /atob|data-sgx-seed|'lake'|ui\.theme/, f);
   }
-  assert.match(read('web/daymark/assets/js/sgx/shell-accent.js'), /U\.setRoles\(seed, rolesCss\(seed\)\)/);
+  assert.match(read('atlas/web/daymark/assets/js/sgx/shell-accent.js'), /U\.setRoles\(seed, rolesCss\(seed\)\)/);
 });

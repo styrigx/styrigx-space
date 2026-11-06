@@ -349,7 +349,7 @@ test('/api/root-session 已删除：路由和文件都不在', async () => {
   const { API_ROUTES } = await import(GW + 'src/router.js');
   assert.ok(!API_ROUTES.has('/api/root-session'));
   assert.ok(!existsSync(API + 'root-session.js'));
-  assert.ok(!existsSync(REPO + '/web/atlas/assets/js/lib/root-session.js'));
+  assert.ok(!existsSync(REPO + '/space/web/assets/js/lib/root-session.js'));
 });
 
 test('从零设置：锁屏未配置时进站凭证无会话只能签 LockResetTicket（purpose=lock-reset）；lock-reauth 无会话 → 假入口 401；已配置时 lock-reset → 401', async () => {
@@ -408,7 +408,7 @@ test('删除：/api/stepup、/api/app-token 路由与文件都不在；源码不
     }
   };
   walk(GW + 'src');
-  walk(REPO + '/web/atlas/assets/js');
+  walk(REPO + '/space/web/assets/js');
   for (const f of files) {
     const src = readFileSync(f, 'utf8');
     assert.ok(!/SGX_STEPUP_|SGX_APP_|\/api\/stepup|\/api\/app-token|sgx-stepup/.test(src), path.relative(REPO, f) + ' 不应再引用 stepup / app 凭证');

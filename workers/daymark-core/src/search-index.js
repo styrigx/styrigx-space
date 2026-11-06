@@ -37,7 +37,7 @@ export function clip(s, n) {
   return chars.length > n ? chars.slice(0, n - 1).join('') + '…' : flat;
 }
 
-/** 署名，同 web/assets/js/daymark.js 的 attribution()：中文给诗词 / 书 / 电影 / 歌的出处加书名号 */
+/** 署名，同 atlas/web/daymark/assets/js/daymark.js 的 attribution()：中文给诗词 / 书 / 电影 / 歌的出处加书名号 */
 export function attribution(q, isEn) {
   const a = String((q && q.author) || '').trim();
   let s = String((q && q.source) || '').trim();

@@ -5,7 +5,7 @@
  *   临时钥匙（lock-tempkey.js）这些按域参数化的模块经这里访问自己的表。
  * - 记录读写（纪元、通行密钥、密码、user handle）：只认网关自己的锁屏域 REALM_LOCK（realmOf；也认它的 id 'lock'），
  *   账号拆分 PR3 起传 'account' / 'root' 或别的域一律抛 'd1-state: bad realm'。网关库里也已经没有 realm='account' / 'root' 的行
- *   （账号拆分 PR4 由 scripts/migrate-account-auth.mjs --cleanup 删除）。
+ *   （账号拆分 PR4 由 space/scripts/migrate-account-auth.mjs --cleanup 删除）。
  * （2026-11-02 Worker 骨架统一：原 _kernel/d1-state.js 的锁屏域入口和 _kernel/lib/d1-state.js 的实现合成这一份。）
  *
  * 为什么搬：Workers KV 最终一致，边缘读最长约 60 秒才看到新值。认证状态几乎都是「写完马上要读到」的：
@@ -23,7 +23,7 @@
  * 绑定按域：realm.d1Binding（网关只有 lock → D1_LOCK_AUTH）。
  * 恢复开关表 lock_reset_switch 也经 D1_LOCK_AUTH（lock-reset-switch.js，迁移 migrations/0008_lock_reset_switch.sql）。
  *
- * 上线前的 KV 旧值：scripts/migrate-kv-to-d1.mjs 在部署前跑一次写进 D1（运行时不读 KV，没有回落）。
+ * 上线前的 KV 旧值：space/scripts/migrate-kv-to-d1.mjs 在部署前跑一次写进 D1（运行时不读 KV，没有回落）。
  *
  * 出错一律抛（D1 未绑定、查询失败）；调用方按 fail closed 处理（签发 503、验票无效）。
  * 表不存在（正式网关的部署 job 不跑迁移）：建表后整次操作重试一次。

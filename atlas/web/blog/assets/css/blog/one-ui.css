@@ -1,0 +1,481 @@
+/* ============================================================
+ * 博客 One UI 外观（设计稿第二版）
+ * 颜色只用主站共享外壳的色彩角色（--sgx-*，sgx-shell.css，atlas/scripts/blog/sync-shell.mjs 同步）：
+ * 22 套预设 × 亮 / 暗 + 自定义种子；深色 / 调色板 / 自定义色 / 减弱动效跟主站 sgx-ui cookie
+ * （sgx-inherit.html 首帧前设 <html class="dark" data-theme data-palette>）。不要在组件里写颜色值。
+ * 三层规则同主站 docs/palette-usage.md（2026-10-23 PR-G）：Shell（光晕、顶栏、抽屉、内容底板、玻璃）中性、所有主题一样；
+ * Semantic：primary（前景 1）为主——文字 / 链接 / 图标用 ink 档 --sgx-primary，按钮 / 进度 / 选中填充用 --sgx-primary-fill；
+ * secondary 次之，tertiary / tag 零星；前景 5–6 不进组件。顶栏、抽屉、底板不各自绑主题色。
+ * ============================================================ */
+
+:root,
+:root[data-theme] {
+  color-scheme: light dark;
+  /* 强调色填充（阅读进度、选中专题、系列位置以外的实心强调）= 主站填充档 primary-fill（前景 1 本色）+ 自动挑的 on 色；
+     文字 / 图标用 --sgx-primary（ink）。分段滑块指示器不是它，是抽屉当前项同一套 tonal（--sgx-nav-selected，见 components.css） */
+  --sgx-accent: var(--sgx-primary-fill);
+  --sgx-on-accent: var(--sgx-on-primary-fill);
+
+  /* One UI 布局常量（非颜色，取自设计稿） */
+  /* 内容底板圆角 = 主站 .widget（1.75rem） */
+  --oui-radius-card: 28px;
+  --oui-radius-pill: 14px;
+  --oui-radius-tag: 9px;
+  --oui-radius-paper: 28px;
+  /* 内容底板阴影 = 主站 .widget 的 One UI 实体阴影（0.5px 内高光 + 接触影 + 环境影） */
+  --oui-shadow-card: inset 0 0.5px 0 rgba(255, 255, 255, 0.65), 0 1px 2px rgba(16, 24, 40, 0.08), 0 12px 32px -12px rgba(16, 24, 40, 0.22);
+  --oui-topbar-h: 64px;
+  /* 悬浮顶栏是 position:fixed，不占文档流；内容区顶部 = 主站 --sgx-content-top：
+   * 顶栏下沿（上边距 --sgx-tb-inset + 顶栏高 --sgx-tb-btn）+ 16px + safe-area（手机 84px，≥ 840 宽 88px）。 */
+  --oui-nav-clear: calc(var(--sgx-tb-inset) + var(--sgx-tb-btn) + 16px + env(safe-area-inset-top, 0px));
+}
+
+:root[data-theme='dark'],
+:root.dark {
+  --oui-shadow-card: inset 0 0.5px 0 rgba(255, 255, 255, 0.09), 0 1px 2px rgba(0, 0, 0, 0.45), 0 16px 40px -12px rgba(0, 0, 0, 0.55);
+}
+
+/* ---------- 外壳框（主站一比一）：布局模式（head.html 内联脚本，规则同主站 __layoutMode：宽 ≥ 840、高 ≥ 500 且横屏 = DeX）
+   决定外壳框最宽 Mobile 640 / DeX 1440，顶栏两侧圆和主站同一位置 ---------- */
+html.layout-mobile {
+  --sgx-content-max: 640px;
+}
+
+html.layout-dex {
+  --sgx-content-max: 1440px;
+}
+
+/* ---------- 页面底 + 全页光晕（主站一比一：sgx-base 层 #sgx-wallpaper / --sgx-halo，2026-10-23 底板定稿）----------
+   页面底 = 背景色第 1 档 --sgx-bg-1；七团光只用背景色 7 档 --sgx-bg-1..7；顶栏区域保持干净（--sgx-halo-mask 从顶栏下沿淡入）。
+   独立 fixed 层（不用 body 的 background-attachment:fixed——手机浏览器会忽略它）。 */
+:root {
+  --sgx-halo-a: 0.9;
+  --sgx-halo:
+    radial-gradient(64% 38% at 104% 22%, oklch(from var(--sgx-bg-7) l c h / var(--sgx-halo-a)) 0%, transparent 72%),
+    radial-gradient(68% 40% at -8% 50%, oklch(from var(--sgx-bg-6) l c h / var(--sgx-halo-a)) 0%, transparent 72%),
+    radial-gradient(60% 32% at 96% 100%, oklch(from var(--sgx-bg-5) l c h / var(--sgx-halo-a)) 0%, transparent 70%),
+    radial-gradient(56% 30% at 6% 104%, oklch(from var(--sgx-bg-4) l c h / var(--sgx-halo-a)) 0%, transparent 70%),
+    radial-gradient(46% 26% at 62% 54%, oklch(from var(--sgx-bg-3) l c h / var(--sgx-halo-a)) 0%, transparent 70%),
+    radial-gradient(52% 26% at 28% -6%, oklch(from var(--sgx-bg-2) l c h / var(--sgx-halo-a)) 0%, transparent 70%),
+    radial-gradient(42% 24% at 104% 66%, oklch(from var(--sgx-bg-5) l c h / calc(var(--sgx-halo-a) * 0.6)) 0%, transparent 70%);
+  --sgx-halo-mask: linear-gradient(to bottom, transparent 0, rgb(0 0 0) calc(var(--sgx-tb-inset) + var(--sgx-tb-btn) + 140px));
+}
+
+:root.dark {
+  --sgx-halo-a: 0.85;
+}
+
+html {
+  background: var(--sgx-bg-1);
+}
+
+body {
+  background: transparent;
+  color: var(--sgx-text-primary);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: -30px;
+  z-index: -1;
+  pointer-events: none;
+  transform: translateZ(0);
+  background: var(--sgx-halo);
+  -webkit-mask: var(--sgx-halo-mask);
+  mask: var(--sgx-halo-mask);
+}
+
+::selection {
+  background: var(--sgx-primary-container);
+  color: var(--sgx-on-primary-container);
+}
+
+a {
+  color: var(--sgx-primary);
+}
+
+/* ---------- 文章页 ---------- */
+.oui-article-wrap {
+  width: min(1110px, 100%);
+  margin: 0 auto;
+  padding: var(--oui-nav-clear) 18px 64px;
+}
+
+.oui-article-layout {
+  display: block;
+}
+
+.oui-article-paper.article-card {
+  padding: 24px 22px 38px;
+  border: 1px solid var(--sgx-outline-variant);
+  border-radius: var(--oui-radius-paper);
+  background: var(--sgx-mat);
+  box-shadow: var(--oui-shadow-card);
+}
+
+/* 文章正文排版（覆盖 blog-article.css 的基础值） */
+.oui-article-paper .article-content {
+  font-size: 16px;
+  line-height: 1.95;
+  color: var(--sgx-text-primary);
+}
+
+.oui-article-paper .article-content h2,
+.oui-article-paper .article-content h3 {
+  margin: 36px 0 12px;
+  font-size: 23px;
+  letter-spacing: -0.025em;
+  color: var(--sgx-text-primary);
+}
+
+.oui-article-paper .article-content p {
+  margin: 0 0 20px;
+}
+
+.oui-article-paper .article-content a {
+  color: var(--sgx-primary);
+}
+
+.oui-article-paper .article-content blockquote {
+  margin: 28px 0;
+  padding: 20px 22px;
+  border: 0;
+  border-radius: 8px 22px 22px 8px;
+  /* 大块中性化（主站 PR-G）：中性浅底 + 一条 primary 竖线，不铺主题色容器 */
+  background: var(--sgx-surface-container-low);
+  box-shadow: inset 3px 0 0 var(--sgx-primary);
+  color: var(--sgx-text-primary);
+  font-weight: 600;
+  line-height: 1.65;
+}
+
+.oui-article-paper .article-content figure {
+  margin: 28px 0;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--sgx-surface-container-low);
+}
+
+.oui-article-paper .article-content figcaption {
+  padding: 10px 14px 13px;
+  color: var(--sgx-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.oui-article-paper .article-content img {
+  border-radius: 16px;
+  max-width: 100%;
+}
+
+.oui-toc-card {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .oui-article-wrap {
+    padding: var(--oui-nav-clear) 46px 72px;
+  }
+
+  .oui-article-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 720px) 250px;
+    gap: 34px;
+    align-items: start;
+  }
+
+  .oui-article-paper {
+    padding: 46px 56px 58px;
+  }
+
+  .oui-article-paper .article-content {
+    font-size: 18px;
+  }
+
+  .oui-toc-card {
+    display: block;
+    position: sticky;
+    top: calc(var(--oui-topbar-h) + 32px);
+    padding: 22px;
+    border-radius: 22px;
+    border: 1px solid var(--sgx-outline-variant);
+    background: var(--sgx-mat);
+    box-shadow: var(--oui-shadow-card);
+  }
+
+  .oui-toc-card h2 {
+    margin: 0 0 14px;
+    font-size: 13px;
+    color: var(--sgx-text-primary);
+  }
+
+  .oui-toc-card a {
+    display: block;
+    padding: 8px 0;
+    color: var(--sgx-text-secondary);
+    text-decoration: none;
+    font-size: 12px;
+  }
+
+  .oui-toc-card a:hover,
+  .oui-toc-card a.active {
+    color: var(--sgx-primary);
+    font-weight: 700;
+  }
+}
+
+/* ---------- 标签 / 归档 ---------- */
+.oui-archive-wrap {
+  width: min(1110px, 100%);
+  margin: 0 auto;
+  padding: var(--oui-nav-clear) 18px 64px;
+}
+
+@media (min-width: 900px) {
+  .oui-archive-wrap {
+    padding: var(--oui-nav-clear) 46px 72px;
+  }
+}
+
+/* 文中高亮 = 选中态浅底（同 ::selection） */
+mark {
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: var(--sgx-primary-container);
+  color: var(--sgx-on-primary-container);
+}
+
+/* ---------- 404 ---------- */
+.oui-notfound {
+  min-height: 68vh;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: var(--oui-nav-clear) 20px 40px;
+}
+
+.oui-notfound .num {
+  margin: 0;
+  font-size: 112px;
+  line-height: 0.9;
+  letter-spacing: -0.08em;
+  color: var(--sgx-primary);
+  font-weight: 800;
+}
+
+.oui-notfound h1 {
+  margin: 24px 0 10px;
+  font-size: 26px;
+  color: var(--sgx-text-primary);
+}
+
+.oui-notfound p {
+  margin: 0 auto 26px;
+  max-width: 330px;
+  color: var(--sgx-text-secondary);
+  line-height: 1.65;
+  font-size: 13px;
+}
+
+.oui-action-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.oui-btn-primary {
+  min-height: 46px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 16px;
+  font-weight: 750;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 主按钮 = 主站主按钮：primary-fill 实色 + on-primary-fill 字（≥4.5:1） */
+.oui-btn-primary {
+  background: var(--sgx-primary-fill);
+  color: var(--sgx-on-primary-fill);
+}
+
+.oui-btn-primary:focus-visible {
+  outline: 2px solid var(--sgx-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ---------- 减弱动效 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .oui-btn-primary {
+    transition: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .oui-btn-primary {
+    transition:
+      background-color 0.2s ease,
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .oui-btn-primary:active {
+    transform: scale(0.98);
+  }
+}
+
+/* ---------- 文章页：现有组件适配 ---------- */
+/* blog-layout 本身是两栏 grid（blog-article.css）；文章页的双栏由 .oui-article-layout 接管，这里改回单栏块（原来没重置 display，宽屏下正文被挤成 420px） */
+.oui-article-main.blog-layout {
+  display: block;
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+
+.oui-article-main .article-column {
+  min-width: 0;
+}
+
+/* 文章头改成设计稿的大标题区 */
+.oui-article-paper .article-header {
+  margin-bottom: 8px;
+}
+
+.oui-article-paper .article-header h1 {
+  font-size: 38px;
+  line-height: 1.1;
+  letter-spacing: -0.045em;
+  color: var(--sgx-text-primary);
+  margin: 14px 0 8px;
+}
+
+.oui-article-paper .article-header p {
+  color: var(--sgx-text-secondary);
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+/* 宽屏目录卡：nav.toc-card.blog-card 外面包一层统一样式 */
+.oui-toc-card .toc-card.blog-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.oui-toc-card .toc-card.blog-card h2 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--sgx-text-primary);
+}
+
+.oui-toc-card .toc-list-wrap a {
+  display: block;
+  padding: 8px 0;
+  color: var(--sgx-text-secondary);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.oui-toc-card .toc-list-wrap a:hover {
+  color: var(--sgx-primary);
+}
+
+/* 分享按钮与相关文章 */
+.oui-article-wrap .share-buttons,
+.oui-article-wrap .article-after-related {
+  margin-top: 16px;
+}
+
+/* ---------- 列表页（专题筛选结果）适配 ---------- */
+
+.oui-archive-wrap .note-entry {
+  border-bottom-color: var(--sgx-outline-variant);
+}
+
+.oui-archive-wrap .note-body a {
+  color: var(--sgx-text-primary);
+}
+
+.oui-archive-wrap .note-num {
+  color: var(--sgx-text-secondary);
+}
+
+/* ---------- 标签页文章列表适配 ---------- */
+.oui-archive-wrap .post-stack {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+}
+
+.oui-archive-wrap .post-item {
+  padding: 20px;
+  border: 1px solid var(--sgx-outline-variant);
+  border-radius: var(--oui-radius-card);
+  background: var(--sgx-mat);
+  box-shadow: var(--oui-shadow-card);
+}
+
+.oui-archive-wrap .post-item .title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  letter-spacing: -0.025em;
+}
+
+.oui-archive-wrap .post-item .title-link {
+  color: var(--sgx-text-primary);
+  text-decoration: none;
+}
+
+.oui-archive-wrap .post-item .date,
+.oui-archive-wrap .post-item .post-excerpt {
+  color: var(--sgx-text-secondary);
+  font-size: 12px;
+}
+
+.oui-archive-wrap .post-item .post-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: var(--oui-radius-tag);
+  background: var(--sgx-surface-container-low);
+  color: var(--sgx-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* 标签已经是小胶囊了，不要再在胶囊之间插「·」分隔符（列表页的纯文字标签才需要） */
+.oui-archive-wrap .post-item .post-tag + .post-tag::before {
+  content: none;
+}
+
+.oui-archive-wrap .post-item .post-tags {
+  gap: 4px;
+}
+
+/* ---------- 字体：One UI 用无衬线界面字体 ---------- */
+body {
+  font-family: var(--font-ui);
+}
+
+.oui-notfound h1,
+.oui-notfound .num {
+  font-family: var(--font-ui);
+}

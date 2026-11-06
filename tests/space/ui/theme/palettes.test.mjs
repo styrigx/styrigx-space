@@ -7,9 +7,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const yaml = readFileSync(new URL('../../../../web/atlas/data/palettes.yaml', import.meta.url), 'utf8');
-const feats = readFileSync(new URL('../../../../web/atlas/data/features.yaml', import.meta.url), 'utf8');
-const css = readFileSync(new URL('../../../../web/atlas/assets/css/input.css', import.meta.url), 'utf8');
+const yaml = readFileSync(new URL('../../../../space/web/data/palettes.yaml', import.meta.url), 'utf8');
+const feats = readFileSync(new URL('../../../../space/web/data/features.yaml', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../../../../space/web/assets/css/input.css', import.meta.url), 'utf8');
 
 const ids = [...yaml.matchAll(/^\s*- id: ([a-z]+)$/gm)].map((m) => m[1]);
 const custom = ids.filter((id) => id !== 'dustyblue');
@@ -56,7 +56,7 @@ test('旧 --m-* 色板块已收口：input.css 不再按色板手写 --m-*，色
 });
 
 test('每个色板都有 --sgx-* 角色（gen-palettes 生成的浅色 + 深色两段），色块 c = 角色 JSON 的背景色', () => {
-  const roles = JSON.parse(readFileSync(new URL('../../../../web/atlas/data/palette-roles.json', import.meta.url), 'utf8')).presets;
+  const roles = JSON.parse(readFileSync(new URL('../../../../space/web/data/palette-roles.json', import.meta.url), 'utf8')).presets;
   for (const id of custom) {
     assert.ok(css.includes(`:root[data-palette="${id}"] {`), id);
     assert.ok(css.includes(`:root.dark[data-palette="${id}"] {`), id + ' dark');

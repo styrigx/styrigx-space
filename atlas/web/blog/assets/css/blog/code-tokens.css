@@ -1,0 +1,31 @@
+/* 由 atlas/scripts/blog/gen-code-tokens.mjs 生成，勿手改。代码高亮配色 = 主站色彩角色往 text-primary 混一点，
+   比例按 13 套预设 × 亮 / 暗 + 随机自定义种子都 ≥ 4.6:1 算出（行号 ≥ 3:1），背景含代码面和高亮行。 */
+:root {
+  --blog-code-hl: color-mix(in srgb, var(--sgx-primary) 14%, var(--blog-code-surface));
+  /* 关键字：primary 80%（最低 4.86:1 @ #d055a9/light） */
+  --blog-code-kw: color-mix(in srgb, var(--sgx-primary) 80%, var(--sgx-text-primary));
+  /* 函数 / 类型 / 属性：secondary 80%（最低 4.73:1 @ #ff1e31/light） */
+  --blog-code-fn: color-mix(in srgb, var(--sgx-secondary) 80%, var(--sgx-text-primary));
+  /* 字符串：tertiary 75%（最低 4.71:1 @ #1202d9/light） */
+  --blog-code-str: color-mix(in srgb, var(--sgx-tertiary) 75%, var(--sgx-text-primary));
+  /* 数字 / 常量 / 转义 / 正则：danger 75%（最低 4.76:1 @ #1202d9/light） */
+  --blog-code-num: color-mix(in srgb, var(--sgx-danger) 75%, var(--sgx-text-primary));
+  /* 注释：text-secondary 100%（最低 5.35:1 @ #1202d9/light） */
+  --blog-code-cm: var(--sgx-text-secondary);
+  /* 运算符 / 标点 / 提示符 / 输出：text-secondary 100%（最低 5.35:1 @ #1202d9/light） */
+  --blog-code-op: var(--sgx-text-secondary);
+  /* 标题：primary 80%（最低 4.86:1 @ #d055a9/light） */
+  --blog-code-hd: color-mix(in srgb, var(--sgx-primary) 80%, var(--sgx-text-primary));
+  /* 行号：text-tertiary 100%（最低 3.41:1 @ #1202d9/light） */
+  --blog-code-ln: var(--sgx-text-tertiary);
+}
+.chroma .k, .chroma .kc, .chroma .kd, .chroma .kn, .chroma .kp, .chroma .kr, .chroma .kt, .chroma .ow, .chroma .nt { color: var(--blog-code-kw); font-weight: 600; }
+.chroma .nf, .chroma .fm, .chroma .nc, .chroma .nn, .chroma .nd, .chroma .ne, .chroma .nb, .chroma .bp, .chroma .na, .chroma .py { color: var(--blog-code-fn); }
+.chroma .s, .chroma .s1, .chroma .s2, .chroma .sa, .chroma .sb, .chroma .sc, .chroma .dl, .chroma .sd, .chroma .sh, .chroma .si, .chroma .sx, .chroma .gi { color: var(--blog-code-str); }
+.chroma .m, .chroma .mb, .chroma .mf, .chroma .mh, .chroma .mi, .chroma .il, .chroma .mo, .chroma .l, .chroma .ld, .chroma .se, .chroma .sr, .chroma .ss, .chroma .no, .chroma .vc, .chroma .gd, .chroma .gr, .chroma .gt, .chroma .err { color: var(--blog-code-num); }
+.chroma .c, .chroma .ch, .chroma .cm, .chroma .c1, .chroma .cs, .chroma .cp, .chroma .cpf { color: var(--blog-code-cm); font-style: italic; }
+.chroma .o, .chroma .p, .chroma .gp, .chroma .go { color: var(--blog-code-op); }
+.chroma .gh, .chroma .gu { color: var(--blog-code-hd); font-weight: 700; }
+.chroma .ge { font-style: italic; }
+.chroma .gs { font-weight: 700; }
+.chroma .gl { text-decoration: underline; }

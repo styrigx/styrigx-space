@@ -17,8 +17,8 @@ globalThis.window = globalThis.window || {};
 globalThis.window.dispatchEvent = (e) => { events.push(e.type); return true; };
 globalThis.Event = globalThis.Event || class { constructor(type) { this.type = type; } };
 
-const AP = await import('../../../../web/atlas/assets/js/shell/ai-panel.js');
-const AA = await import('../../../../web/atlas/assets/js/apps/account-ai.js');
+const AP = await import('../../../../space/web/assets/js/shell/ai-panel.js');
+const AA = await import('../../../../space/web/assets/js/apps/account-ai.js');
 const { pickModel } = await import('../../../../workers/ai/src/core/models.js');
 
 function memStore(init) {
@@ -88,7 +88,7 @@ test('modelName：label，没有就 id', () => {
 });
 
 test('模板：「AI 模型」一行在 #acct-main（登录后的总览）里，不在登录区；文案中英都有', () => {
-  const tpl = rd('web/atlas/layouts/_default/account.html');
+  const tpl = rd('space/web/layouts/_default/account.html');
   const main = tpl.indexOf('<div id="acct-main" hidden>');
   const row = tpl.indexOf('id="acct-ai-row"');
   const loginEnd = tpl.indexOf('SGX-ACCT-LOGIN-END');
@@ -96,15 +96,15 @@ test('模板：「AI 模型」一行在 #acct-main（登录后的总览）里，
   assert.match(tpl, /id="acct-ai-row" role="button" tabindex="0" aria-haspopup="dialog"/);
   assert.match(tpl, /\{\{ if \$isEn \}\}AI model\{\{ else \}\}AI 模型\{\{ end \}\}/);
   assert.match(tpl, /id="acct-ai-sub"/);
-  const i18n = rd('web/atlas/layouts/partials/account-i18n.html');
+  const i18n = rd('space/web/layouts/partials/account-i18n.html');
   for (const k of ['aiModelTitle', 'aiModelDefault', 'aiModelSelf', 'aiModelExternal', 'aiModelErr', 'aiModelLocked']) {
     assert.match(i18n, new RegExp('"' + k + '" \\(dict "zh" "[^"]+" "en" "[^"]+"\\)'), k);
   }
 });
 
 test('AI 窗口不做切换：ai-panel.js 里没有模型列表请求、没有选择控件（切换口子只在账号页）', () => {
-  const src = rd('web/atlas/assets/js/shell/ai-panel.js');
+  const src = rd('space/web/assets/js/shell/ai-panel.js');
   assert.doesNotMatch(src, /method: 'GET'/);
   assert.doesNotMatch(src, /setItem\(MODEL_KEY/);
-  assert.doesNotMatch(rd('web/atlas/layouts/partials/shell-topbar.html'), /model/i);
+  assert.doesNotMatch(rd('space/web/layouts/partials/shell-topbar.html'), /model/i);
 });

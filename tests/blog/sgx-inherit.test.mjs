@@ -6,17 +6,17 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-/* 首帧前的内联脚本：web/layouts/partials/sgx-inherit.html 两个 <script>：① 共享读端（模板内联 ui-cookie-read.js 压缩版）② 博客胶水 */
-const partial = readFileSync(new URL('../../web/blog/layouts/partials/sgx-inherit.html', import.meta.url), 'utf8');
+/* 首帧前的内联脚本：atlas/web/blog/layouts/partials/sgx-inherit.html 两个 <script>：① 共享读端（模板内联 ui-cookie-read.js 压缩版）② 博客胶水 */
+const partial = readFileSync(new URL('../../atlas/web/blog/layouts/partials/sgx-inherit.html', import.meta.url), 'utf8');
 const scripts = [...partial.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 assert.equal(scripts.length, 2, 'sgx-inherit.html 应有两个 <script>');
 assert.match(scripts[0], /resources\.Get "js\/sgx\/shell\/ui-cookie-read\.js"|\$reader\.Content/, '第一个 <script> 内联共享读端');
 const glue = scripts[1];
-const READER = readFileSync(new URL('../../web/blog/assets/js/sgx/shell/ui-cookie-read.js', import.meta.url), 'utf8');
-/* 模块那一半（数字健康、自定义色引擎按需加载）：web/assets/js/entries/inherit.ts */
-const inheritModule = readFileSync(new URL('../../web/blog/assets/js/entries/inherit.ts', import.meta.url), 'utf8');
+const READER = readFileSync(new URL('../../atlas/web/blog/assets/js/sgx/shell/ui-cookie-read.js', import.meta.url), 'utf8');
+/* 模块那一半（数字健康、自定义色引擎按需加载）：atlas/web/blog/assets/js/entries/inherit.ts */
+const inheritModule = readFileSync(new URL('../../atlas/web/blog/assets/js/entries/inherit.ts', import.meta.url), 'utf8');
 const palettes = JSON.parse(
-  readFileSync(new URL('../../web/blog/data/sgx-shell/palettes.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../atlas/web/blog/data/sgx-shell/palettes.json', import.meta.url), 'utf8'),
 );
 const fx = JSON.parse(readFileSync(new URL('../fixtures/ui-cookie-contract.json', import.meta.url), 'utf8'));
 const SEEDS = Object.fromEntries(palettes.presets.map((p) => [p.id, p.seed]));
@@ -177,7 +177,7 @@ test('内联读端 = 共享外壳 ui-cookie-read.js 原样，和本仓库色板�
   assert.doesNotMatch(partial, /data-sgx-seed|dataset\.sgxSeed|ui\.theme/);
 });
 
-test('契约夹具不能是空的（sync-shell 同步自主站 web/shared/shell/ui-cookie-contract.json）', () => {
+test('契约夹具不能是空的（sync-shell 同步自主站 space/web/shared/shell/ui-cookie-contract.json）', () => {
   assert.ok(fx.cases.length >= 20, String(fx.cases.length));
   const names = fx.cases.map((c) => c.name).join('|');
   for (const k of ['未知版本', 'theme 别名', 'accent 大写', '旧种子', '自定义主题色']) assert.match(names, new RegExp(k), k);
@@ -365,7 +365,7 @@ test('模块一半：自定义色没缓存时读 --sgx-seed，算好交给 SgxUI
 });
 
 test('共享外壳副本含 22 套预设（亮 / 暗）和顶栏 / 快捷面板样式（2026-11-04 P5-1 抽屉删了）', () => {
-  const shell = readFileSync(new URL('../../web/blog/assets/css/sgx-shell.css', import.meta.url), 'utf8');
+  const shell = readFileSync(new URL('../../atlas/web/blog/assets/css/sgx-shell.css', import.meta.url), 'utf8');
   assert.equal(palettes.presets.length, 22);
   for (const { id } of palettes.presets) {
     assert.ok(shell.includes(`:root[data-palette="${id}"] {`), id + ' light');

@@ -12,18 +12,18 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderAll } from '../../../../scripts/gen-shell.mjs';
+import { renderAll } from '../../../../space/scripts/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
-const SRC = rd('web/atlas/layouts/partials/shell-topbar.html');
+const SRC = rd('space/web/layouts/partials/shell-topbar.html');
 const SUBS = ['blog', 'curio', 'daymark'];
 /** 每站调用 shell-topbar 的模板 */
 const CALLERS = {
-  atlas: 'web/atlas/layouts/_default/baseof.html',
-  blog: 'web/blog/layouts/partials/topnav.html',
-  curio: 'web/curio/layouts/_default/baseof.html',
-  daymark: 'web/daymark/layouts/_default/baseof.html',
+  atlas: 'space/web/layouts/_default/baseof.html',
+  blog: 'atlas/web/blog/layouts/partials/topnav.html',
+  curio: 'atlas/web/curio/layouts/_default/baseof.html',
+  daymark: 'atlas/web/daymark/layouts/_default/baseof.html',
 };
 const REQUIRED = ['isEn', 'home', 'center', 'nav', 'site', 'icons', 'wordmark', 'acct', 'avatar', 'tiles', 'pal'];
 
@@ -38,13 +38,13 @@ function callArgs(site) {
 
 test('标记单一来源：共享外壳 topbar.html = 主站 shell-topbar.html = 三个子站 sgx-shell-topbar.html（原样，不加注释头）', () => {
   assert.equal(renderAll()['topbar.html'], SRC);
-  assert.equal(rd('web/atlas/shared/shell/topbar.html'), SRC);
-  for (const s of SUBS) assert.equal(rd(`web/${s}/layouts/partials/sgx-shell-topbar.html`), SRC, s);
+  assert.equal(rd('space/web/shared/shell/topbar.html'), SRC);
+  for (const s of SUBS) assert.equal(rd(`atlas/web/${s}/layouts/partials/sgx-shell-topbar.html`), SRC, s);
   /* 三站的顶栏 JS 也一份：topbar.js = 主站 shell/topbar-panel.js（sync-shell 前后各加一行标记 + 一行段名，比对去掉之后的正文） */
-  const body = rd('web/atlas/shared/shell/topbar.js');
-  assert.equal(body, rd('web/atlas/assets/js/shell/topbar-panel.js'));
+  const body = rd('space/web/shared/shell/topbar.js');
+  assert.equal(body, rd('space/web/assets/js/shell/topbar-panel.js'));
   for (const s of SUBS) {
-    const sub = rd(`web/${s}/assets/js/sgx/shell/topbar.js`).split('\n');
+    const sub = rd(`atlas/web/${s}/assets/js/sgx/shell/topbar.js`).split('\n');
     assert.match(sub[0], /^\/\* @sgx-shell:begin /, s);
     assert.equal(sub.slice(2, -2).join('\n') + '\n', body, s + ' topbar.js');
   }
@@ -83,7 +83,7 @@ test('子站地址：主站项 / 账号 / 头像走 https://styrigx.com，英文
 
 /* ---------------- 真实构建 ---------------- */
 
-const PUB = { atlas: 'web/atlas/public', blog: 'web/blog/public', curio: 'web/curio/public', daymark: 'web/daymark/public' };
+const PUB = { atlas: 'space/web/public', blog: 'atlas/web/blog/public', curio: 'atlas/web/curio/public', daymark: 'atlas/web/daymark/public' };
 const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'index.html')));
 
 /** 顶栏骨架：去掉中间内容，只留结构上的 class / id / data-qp，按出现顺序 */

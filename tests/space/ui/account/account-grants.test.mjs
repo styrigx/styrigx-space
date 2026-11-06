@@ -1,5 +1,5 @@
 /**
- * 应用授权前端纯函数（web/atlas/assets/js/apps/account-grants.js，P3-1）：
+ * 应用授权前端纯函数（space/web/assets/js/apps/account-grants.js，P3-1）：
  * - appReturn：?return= 指向奇趣 / 日刻 → { app, ret }（回跳地址本身交给网关 safeReturn 校验）；别的一律 null（不走同意流程）
  * - filterGrants / countGrants：授权卡页的页内搜索（中英名）与过滤（全部 / 已授权 / 已取消授权）
  * - fmtGrantDate / deviceText / sensitiveText
@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
-const g = await import('../../../../web/atlas/assets/js/apps/account-grants.js');
+const g = await import('../../../../space/web/assets/js/apps/account-grants.js');
 const fx = createRequire(import.meta.url)('../../../fixtures/app-grants.cjs');
 
 test('appReturn：只认奇趣 / 日刻的页面（站内路径或 https://styrigx.com/ 下），原样交出 ret', () => {

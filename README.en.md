@@ -12,8 +12,11 @@ Sloan Gray's personal portal — Home, Chat, Settings and Account — and the au
 
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
-![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
-![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
+![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
+![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
+![Blog](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/blog/hugo.yaml&query=%24.params.version&label=Blog&style=flat-square&color=2563eb)
+![Curio](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/curio/hugo.yaml&query=%24.params.version&label=Curio&style=flat-square&color=2563eb)
+![Daymark](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/daymark/hugo.yaml&query=%24.params.version&label=Daymark&style=flat-square&color=2563eb)
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?branch=main&style=flat-square&label=Deploy&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
@@ -127,10 +130,10 @@ git clone https://github.com/styrigx/styrigx-space.git
 cd styrigx-space
 npm ci
 npm run build:css
-hugo server -s web/atlas          # http://localhost:1313
+hugo server -s space/web          # http://localhost:1313
 ```
 
-Production build: `hugo --minify -s web/atlas`, output in `web/atlas/public/`. Each Worker's README explains how to run it locally.
+Production build: `hugo --minify -s space/web`, output in `space/web/public/`. Each Worker's README explains how to run it locally.
 
 ## Testing and CI
 
@@ -147,11 +150,11 @@ Pull requests must pass `quality` and `passkey-e2e` (squash-only, linear history
 
 ```
 styrigx-space/
-├─ web/        site packages: atlas/ is the main site (Hugo, published by Cloudflare Pages); blog/ curio/ daymark/ are the subsites
+├─ space/      main site + infrastructure: web/ is the main site (Hugo, published by Cloudflare Pages); scripts/ holds build, generators and static checks
+├─ atlas/      subsites: web/blog/ web/curio/ web/daymark/; scripts/<site>/ holds each subsite's own scripts
 ├─ workers/    all Workers, one directory each
 ├─ tests/      tests, grouped by what they test
-├─ scripts/    build, generators and static checks
-├─ docs/       design docs and screenshots
+├─ docs/       design docs, task specs and screenshots (index: docs/README.md)
 └─ .github/    CI workflows and shared composite actions
 ```
 

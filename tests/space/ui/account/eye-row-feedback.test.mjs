@@ -22,7 +22,7 @@ import {
   tapFeedback,
   setRowBusy,
   setRowSelected,
-} from '../../../../web/atlas/assets/js/lib/dialog-behavior.js';
+} from '../../../../space/web/assets/js/lib/dialog-behavior.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -118,7 +118,7 @@ test('眼睛：文案可由 data-eye-show / data-eye-hide 传入；旧 function 
 test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-off 条目且路径一致', () => {
   assert.ok(EYE_OFF_SVG.includes('<line'), 'EYE_OFF_SVG 应含斜线');
   assert.ok(!EYE_SVG.includes('<line'), 'EYE_SVG 不应含斜线');
-  const icon = read('web/atlas/layouts/partials/icon.html');
+  const icon = read('space/web/layouts/partials/icon.html');
   assert.ok(icon.includes('eq $name "eye"'), 'icon.html 应有 eye 条目');
   assert.ok(icon.includes('eq $name "eye-off"'), 'icon.html 应有 eye-off 条目');
   assert.ok(icon.includes('M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z'), 'icon.html eye 应为现有睁眼路径');
@@ -126,30 +126,30 @@ test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-of
 
 test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案为显示密码/隐藏密码', () => {
   for (const f of [
-    'web/atlas/assets/js/apps/account.js',
-    'web/atlas/assets/js/apps/account-security.js',
-    'web/atlas/assets/js/apps/security-lock.js',
-    'web/atlas/assets/js/apps/security.js',
-    'web/atlas/assets/js/shell/lock.js',
+    'space/web/assets/js/apps/account.js',
+    'space/web/assets/js/apps/account-security.js',
+    'space/web/assets/js/apps/security-lock.js',
+    'space/web/assets/js/apps/security.js',
+    'space/web/assets/js/shell/lock.js',
   ]) {
     const src = read(f);
     assert.ok(!src.includes("classList.toggle('off'"), f + ' 不应再 toggle .off');
     assert.ok(!src.includes('M2 12s3.5-7'), f + ' 不应再内联眼睛 SVG（统一走 bindEyeButton）');
   }
-  assert.ok(!read('web/atlas/assets/js/apps/security.js').includes('const EYE ='), 'security.js 的 EYE 常量应删除');
-  for (const t of ['web/atlas/layouts/partials/account-i18n.html', 'web/atlas/layouts/_default/security-lock.html']) {
+  assert.ok(!read('space/web/assets/js/apps/security.js').includes('const EYE ='), 'security.js 的 EYE 常量应删除');
+  for (const t of ['space/web/layouts/partials/account-i18n.html', 'space/web/layouts/_default/security-lock.html']) {
     const src = read(t);
     assert.ok(src.includes('"eyeShow" (dict "zh" "显示密码" "en" "Show password")'), t + ' eyeShow 应为显示密码');
     assert.ok(src.includes('"eyeHide" (dict "zh" "隐藏密码" "en" "Hide password")'), t + ' eyeHide 应为隐藏密码');
   }
   /* 补眼睛按钮的三个位置都在 */
   /* PR3：重置登录（锁屏弹层与账号页同一个界面 auth/reset-flow.js）的进站凭证框与第二步密码框都走 cred-rows 的 bindPwEye */
-  const rows = read('web/atlas/assets/js/auth/cred-rows.js');
+  const rows = read('space/web/assets/js/auth/cred-rows.js');
   assert.ok(/export function createKeyField[\s\S]*?bindPwEye\(eye, input, o\.en\)/.test(rows), '进站凭证框（重置第一步）应有眼睛按钮');
   assert.ok(/eye\.className = 'sgx-pw-eye';\s*bindPwEye\(eye, input, en\)/.test(rows), '第二步展开的账号密码框应有眼睛按钮');
-  assert.ok(read('web/atlas/assets/js/shell/lock.js').includes('mountResetFlow'), '锁屏弹层用 auth/reset-flow.js');
+  assert.ok(read('space/web/assets/js/shell/lock.js').includes('mountResetFlow'), '锁屏弹层用 auth/reset-flow.js');
   /* P2-3：升级验证层（shell/upgrade.js）已删除 */
-  assert.ok(!existsSync(join(ROOT, 'web/atlas/assets/js/shell/upgrade.js')), 'shell/upgrade.js 已删除');
+  assert.ok(!existsSync(join(ROOT, 'space/web/assets/js/shell/upgrade.js')), 'shell/upgrade.js 已删除');
 });
 
 test('行反馈：tapFeedback 有 vibrate 时以 10ms 调用，不支持时不报错', () => {
@@ -193,7 +193,7 @@ test('行反馈：busy / 选中 helper 按约定 class 增删', () => {
 });
 
 test('行反馈：CSS 有按下/选中/箭头旋转规则', () => {
-  const css = read('web/atlas/assets/css/input.css');
+  const css = read('space/web/assets/css/input.css');
   assert.ok(css.includes('.sgx-credential-row'), '应有 .sgx-credential-row 规则');
   assert.ok(css.includes('&:active { background: var(--m-container-high); }'), '按下态应有背景变色');
   assert.ok(css.includes('&.sgx-row-selected'), '应有选中态规则');

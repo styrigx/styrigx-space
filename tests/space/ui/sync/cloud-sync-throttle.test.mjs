@@ -71,7 +71,7 @@ globalThis.fetch = (url, init) => {
   return Promise.resolve({ status: r.s, json: () => Promise.resolve(r.j) });
 };
 
-const CS = await import('../../../../web/atlas/assets/js/lib/cloud-sync.js');
+const CS = await import('../../../../space/web/assets/js/lib/cloud-sync.js');
 const { initCloudSync, clearPullStamp, lastPullAt, pullDue, PULL_KEY, PULL_INTERVAL, PUSH_DEBOUNCE, AUTH_KEY, LAST_KEY, _resetForTest } = CS;
 
 async function settle() {
@@ -356,10 +356,10 @@ test('锁屏没解锁 / 开关关：不请求', async () => {
 });
 
 test('强制入口：账号页、云同步页（进页 + 打开开关）都用 force；登出清时刻', () => {
-  const acct = readFileSync(path.join(ROOT, 'web/atlas/assets/js/apps/account.js'), 'utf8');
-  const sync = readFileSync(path.join(ROOT, 'web/atlas/assets/js/apps/account-sync.js'), 'utf8');
-  const dev = readFileSync(path.join(ROOT, 'web/atlas/assets/js/apps/account-devices.js'), 'utf8');
-  const core = readFileSync(path.join(ROOT, 'web/atlas/assets/js/shell/core.js'), 'utf8');
+  const acct = readFileSync(path.join(ROOT, 'space/web/assets/js/apps/account.js'), 'utf8');
+  const sync = readFileSync(path.join(ROOT, 'space/web/assets/js/apps/account-sync.js'), 'utf8');
+  const dev = readFileSync(path.join(ROOT, 'space/web/assets/js/apps/account-devices.js'), 'utf8');
+  const core = readFileSync(path.join(ROOT, 'space/web/assets/js/shell/core.js'), 'utf8');
   assert.match(acct, /initCloudSync\(\{ force: true \}\)/);
   assert.equal((sync.match(/initCloudSync\(\{ force: true \}\)/g) || []).length, 2);
   assert.match(dev, /clearPullStamp\(\)/);

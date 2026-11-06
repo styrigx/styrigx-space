@@ -5,7 +5,7 @@
  * - IPv6 同一 /64 共用计数
  * - 记失败是一条原子 UPSERT：并发 N 次输错正好计 N 次；过期行读时不认、下一次从头计
  * 存储：D1 attempt_limit 表，realm = 'lock'（D1_LOCK_AUTH），kind = 'password'；按域参数化（第二个域用测试对象）；
- * 单 IP 行 count / strikes / locked_until / expires_at，全局窗口 bucket = '*'（旧格式 KV 计数不导入，见 scripts/migrate-kv-to-d1.mjs）。
+ * 单 IP 行 count / strikes / locked_until / expires_at，全局窗口 bucket = '*'（旧格式 KV 计数不导入，见 space/scripts/migrate-kv-to-d1.mjs）。
  * 运行：node --test tests/workers/auth-gateway/password-limit.test.mjs
  */
 import { test } from 'node:test';

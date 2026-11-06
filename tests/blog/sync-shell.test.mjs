@@ -1,17 +1,17 @@
-// 主站共享外壳副本（scripts/blog/sync-shell.mjs 写入）：没被手改，sgx-shell.lock.json 的指纹对得上；渲染逻辑稳定。
+// 主站共享外壳副本（atlas/scripts/blog/sync-shell.mjs 写入）：没被手改，sgx-shell.lock.json 的指纹对得上；渲染逻辑稳定。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { readBlock, renderTargets, BEGIN, END } from '../../scripts/blog/sync-shell.mjs';
+import { readBlock, renderTargets, BEGIN, END } from '../../atlas/scripts/blog/sync-shell.mjs';
 
-/* 2026-11-02 并进 styrigx-space：lock 在 web/blog/，副本路径（站内相对）映到 web/blog/…、tests/blog/… */
+/* 2026-11-02 并进 styrigx-space：lock 在 atlas/web/blog/，副本路径（站内相对）映到 atlas/web/blog/…、tests/blog/… */
 const repo = new URL('../../', import.meta.url);
-const siteUrl = (p) => new URL(p.replace(/^web\//, 'web/blog/').replace(/^tests\//, 'tests/blog/'), repo);
+const siteUrl = (p) => new URL(p.replace(/^web\//, 'atlas/web/blog/').replace(/^tests\//, 'tests/blog/'), repo);
 const lock = JSON.parse(readFileSync(siteUrl('web/sgx-shell.lock.json'), 'utf8'));
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 
-test('副本和 lock 一致（改外壳请改主站，再跑 node scripts/sync-shell.mjs）', () => {
+test('副本和 lock 一致（改外壳请改主站，再跑 node atlas/scripts/blog/sync-shell.mjs）', () => {
   for (const [p, h] of Object.entries(lock.vendored)) {
     const text = readFileSync(siteUrl(p), 'utf8');
     /* .json 和 Hugo partial（kind raw，2026-11-04 P5-1 顶栏标记）原样复制、不加标记 */
@@ -57,6 +57,6 @@ test('renderTargets：标记段带来源和版本，内容按 manifest 拼接', 
 });
 
 test('lock 锁定主站外壳目录的 git tree 哈希（squash 合并后提交没了，tree 仍在；--check 只和这个 tree 比，不跟主站 main 走）', () => {
-  assert.match(lock.tree, /^[0-9a-f]{40}$/, 'sgx-shell.lock.json 的 tree 要是 40 位 git tree 哈希：运行 node scripts/blog/sync-shell.mjs --migrate-lock（旧格式）或重新同步');
+  assert.match(lock.tree, /^[0-9a-f]{40}$/, 'sgx-shell.lock.json 的 tree 要是 40 位 git tree 哈希：运行 node atlas/scripts/blog/sync-shell.mjs --migrate-lock（旧格式）或重新同步');
   assert.equal(lock.ref, undefined, '新格式 lock 不再有 ref（from 只作记录）');
 });

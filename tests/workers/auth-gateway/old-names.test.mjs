@@ -1,5 +1,5 @@
 /**
- * CI 守门（鉴权命名改造第 4 / 5 / 6 层之后）：workers/ 与 web/atlas/ 的源码里不许再出现旧名字——
+ * CI 守门（鉴权命名改造第 4 / 5 / 6 层之后）：workers/ 与 space/web/ 的源码里不许再出现旧名字——
  * 旧 cookie、旧票格式标识、旧角色值、旧接口路径、旧 RPC 名、旧 data 属性、旧 KV 键名。
  * 出现就失败，并列出「文件:行号 命中的旧名」。
  *
@@ -7,8 +7,8 @@
  * - 以前的 Cloudflare 绑定名：KV_LOCK_DOOR、KV_ACCOUNT_LOGIN、D1_LOCK_RESET（2026-10-27 起网关已不绑，binding-names.test.mjs 核对；
  *   测试替身和导入脚本里仍会出现这些名字）
  * - Secrets Store 密钥名：SGX_*（如 SGX_PW_PEPPER、SGX_ROOT_KEY，不改名）
- * - 历史文档不在 workers/ web/atlas/ 下（docs/2.4.1-*、docs/styrigx-3.0-task.md），本测试不扫
- * 生成物与第三方目录不扫：web/atlas/public、web/atlas/resources、node_modules、visual 基线图。
+ * - 历史文档不在 workers/ space/web/ 下（docs/2.4.1-*、docs/styrigx-3.0-task.md），本测试不扫
+ * 生成物与第三方目录不扫：space/web/public、space/web/resources、node_modules、visual 基线图。
  *
  * 运行：node --test tests/workers/auth-gateway/old-names.test.mjs
  */
@@ -19,7 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const ROOTS = ['workers', 'web/atlas'];
+const ROOTS = ['workers', 'space/web'];
 const SKIP_DIRS = new Set(['node_modules', 'public', 'resources', 'visual', '.wrangler', '.git']);
 const EXTS = new Set(['.js', '.mjs', '.cjs', '.ts', '.html', '.css', '.toml', '.json', '.md', '.sql', '.yaml', '.yml', '.txt']);
 
@@ -69,7 +69,7 @@ function walk(dir, out) {
   return out;
 }
 
-test('workers/ 与 web/atlas/ 源码里没有旧名字（cookie / 票 / 角色 / 接口 / RPC / data 属性 / KV 键名）', () => {
+test('workers/ 与 space/web/ 源码里没有旧名字（cookie / 票 / 角色 / 接口 / RPC / data 属性 / KV 键名）', () => {
   const hits = [];
   let files = 0;
   for (const r of ROOTS) {

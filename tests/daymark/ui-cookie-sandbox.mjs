@@ -1,12 +1,12 @@
 /**
- * 测试辅助：在 vm 里跑本站内联的共享读端（web/assets/js/sgx/shell/ui-cookie-read.js），配最小 DOM 桩
+ * 测试辅助：在 vm 里跑本站内联的共享读端（atlas/web/daymark/assets/js/sgx/shell/ui-cookie-read.js），配最小 DOM 桩
  * （<html> 的 class / attribute / style、<head> 里的 <style>、localStorage、matchMedia）。
  * 同 styrigx-space tests/space/ui/shell/ui-cookie-contract.test.mjs 的桩。
  */
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const READER = readFileSync(new URL('../../web/daymark/assets/js/sgx/shell/ui-cookie-read.js', import.meta.url), 'utf8');
+const READER = readFileSync(new URL('../../atlas/web/daymark/assets/js/sgx/shell/ui-cookie-read.js', import.meta.url), 'utf8');
 
 function makeEl(tag) {
   const attrs = new Map();

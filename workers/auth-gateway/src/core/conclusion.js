@@ -13,7 +13,7 @@
  * P2-1 只新增，没有调用方：P2-2 起子站接口 Worker 经 AuthVerifier.conclusion() 用 RPC 结论；结论头只写给 styrigx-ai（第 4 件；
  * P4-2 起 search-index 退役，方案 2.3.1）。锁侧的 X-Styrigx-Lock-* 仍由 core/lock-identity.js 写。
  *
- * 网关里不出现账号票名（scripts/check-layers.mjs 规则 16）：复验结论只叫 account.reauth / X-Styrigx-Account-Reauth。
+ * 网关里不出现账号票名（space/scripts/check-layers.mjs 规则 16）：复验结论只叫 account.reauth / X-Styrigx-Account-Reauth。
  * 作用域只认字符串格式（<应用>.<动作>，[a-z.]），不 import 账号 Worker 的作用域表（规则 14）。
  */
 import { MAX_COOKIE_HEADER } from '../lib/cookies.js';

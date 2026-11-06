@@ -46,4 +46,4 @@ D1 `styrigx-status`，迁移在 `migrations/`，部署 job `deploy-status-worker
 | `0003_cut_reads.sql` | 降低 D1 读取量：`state` 记下这一串失败的第一次时间，加 `hourly` 表 |
 | `0004_quota.sql` | 免费额度缓存表 `quota`（一行） |
 
-部署排在搜索、聊天之后、网关之前；部署后的健康闸门见 `scripts/health-gate.mjs`。测试：`tests/workers/status/`。
+部署排在搜索、聊天之后、网关之前；部署后的健康闸门见 `space/scripts/health-gate.mjs`。测试：`tests/workers/status/`。

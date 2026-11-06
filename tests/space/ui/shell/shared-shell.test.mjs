@@ -1,5 +1,5 @@
 /**
- * 共享外壳 web/atlas/shared/shell（scripts/gen-shell.mjs 生成，子站 sync-shell.mjs 同步）：
+ * 共享外壳 space/web/shared/shell（space/scripts/gen-shell.mjs 生成，子站 sync-shell.mjs 同步）：
  * 生成物必须和源头一致；外壳 CSS 只用色彩角色，不写死颜色；导航项 / 图标齐全；顶栏标记 topbar.html 四站一份（2026-11-04 P5-1）。
  */
 import { test } from 'node:test';
@@ -8,13 +8,13 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { renderAll, OUT_DIR, SHELL_REGIONS, extractRegion } from '../../../../scripts/gen-shell.mjs';
+import { renderAll, OUT_DIR, SHELL_REGIONS, extractRegion } from '../../../../space/scripts/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const files = renderAll();
-const ROLES = JSON.parse(readFileSync(path.join(REPO, 'web/atlas/data/palette-roles.json'), 'utf8'));
+const ROLES = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/palette-roles.json'), 'utf8'));
 
-test('web/atlas/shared/shell 和源头一致（改了源头要重跑 node scripts/gen-shell.mjs）', () => {
+test('space/web/shared/shell 和源头一致（改了源头要重跑 node space/scripts/gen-shell.mjs）', () => {
   for (const [k, v] of Object.entries(files)) assert.equal(readFileSync(path.join(OUT_DIR, k), 'utf8'), v, k);
 });
 
@@ -24,7 +24,7 @@ test('manifest 的 sha256 对得上每个文件', () => {
 });
 
 test('外壳 CSS 段只用 --sgx-* 角色：没有十六进制颜色、没有旧 --m-* 令牌', () => {
-  const css = readFileSync(path.join(REPO, 'web/atlas/assets/css/input.css'), 'utf8');
+  const css = readFileSync(path.join(REPO, 'space/web/assets/css/input.css'), 'utf8');
   for (const n of SHELL_REGIONS) {
     const r = extractRegion(css, n).replace(/\/\*[\s\S]*?\*\//g, '');
     assert.doesNotMatch(r, /#[0-9a-fA-F]{3,8}\b/, n);
@@ -121,26 +121,26 @@ test('顶栏 P5-1（2026-11-04）：一整条胶囊 [logo][中间][快捷面板 
   assert.match(s, /@media \(min-width: 600px\) \{\s*\.sgx-topbar \{ display: grid; grid-template-columns: 1fr auto 1fr; \}/, '宽屏中间居中');
   assert.doesNotMatch(s, /\.sgx-tb-nav\b|\.sgx-tb-end\b|\.sgx-tb-gbtn\b|\.sgx-drawer/);
   // 标记：topbar.html = 主站 partials/shell-topbar.html 原样
-  const src = readFileSync(path.join(REPO, 'web/atlas/layouts/partials/shell-topbar.html'), 'utf8');
+  const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');
   assert.equal(files['topbar.html'], src);
   assert.doesNotMatch(src.replace(/\{\{-? \/\*[\s\S]*?\*\/ -?\}\}/g, ''), /\bpartial |site\.Data|hugo\.Data|resources\.Get/, '只用参数，不调别的 partial / 数据');
   const order = ['class="sgx-tb-logo"', 'class="sgx-tb-pill', 'sgx-tb-quick', 'sgx-tb-ai', 'sgx-tb-me'].map((k) => src.indexOf(k));
   assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), 'logo → 中间 → 快捷面板 → AI → 头像');
   assert.match(src, /<dialog id="sgx-qp" class="sgx-qp"/);
   assert.match(src, /<dialog id="sgx-ai" class="sgx-qp sgx-ai"/);
-  const base = readFileSync(path.join(REPO, 'web/atlas/layouts/_default/baseof.html'), 'utf8');
+  const base = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.html'), 'utf8');
   /* 主站中间：主页 / 设置两页是标签（partials/topbar-tabs.html，2026-11-04 去掉聊天），其他页只有页名 */
   assert.match(base, /\{\{ if \$tabCur \}\}\{\{ \$center = partial "topbar-tabs\.html" \(dict "isEn" \$isEn "cur" \$tabCur\) \}\}\{\{ else \}\}\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}\{\{ end \}\}/);
   assert.match(base, /\{\{ partial "shell-topbar\.html" \(dict/);
   assert.doesNotMatch(base, /sgx-drawer|sgx-tb-nav|topbar-end\.html/);
   /* 标签样式只在主站段，不进共享外壳 */
   assert.doesNotMatch(s, /sgx-tb-tab/);
-  assert.ok(!existsSync(path.join(REPO, 'web/atlas/layouts/partials/topbar-end.html')), 'topbar-end.html 已删');
+  assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/topbar-end.html')), 'topbar-end.html 已删');
 });
 
 test('P4-2b：搜索层整套删除——没有 search.js、shell.css 没有 search 段、主站没有 search-layer / search-host', () => {
   assert.equal(files['search.js'], undefined);
   assert.doesNotMatch(files['shell.css'], /---- search ----|\.sgx-srch/);
-  for (const f of ['web/atlas/assets/js/shell/search-layer.js', 'web/atlas/assets/js/shell/search-host.js', 'web/atlas/shared/shell/search.js', 'web/atlas/static/opensearch.xml'])
+  for (const f of ['space/web/assets/js/shell/search-layer.js', 'space/web/assets/js/shell/search-host.js', 'space/web/shared/shell/search.js', 'space/web/static/opensearch.xml'])
     assert.ok(!existsSync(path.join(REPO, f)), f);
 });

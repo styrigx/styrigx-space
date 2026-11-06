@@ -6,15 +6,15 @@
  *    （.github/workflows/deploy.yml「Start local preview emulator」，固定 --port 8788、--space-key / --account-root-key / --pepper 每次现生成；
  *    main 的 push / 手动运行仍打真实预览站）；
  * 2. 统计一次运行到底花了多少 KV 操作（读 / 写 / 删 / 列），按「谁发的」（网关 = 预览站上的应用代码；
- *    rest = 测试进程和 CI 步骤经 Cloudflare REST 发的）和键前缀分开。scripts/kv-budget.mjs 里的
+ *    rest = 测试进程和 CI 步骤经 Cloudflare REST 发的）和键前缀分开。space/scripts/kv-budget.mjs 里的
  *    每次运行估算就按这里量出来的数定。
  *
  * 模拟的东西：
  * - 网关 + 账号 Worker：组合入口 tests/space/e2e/helpers/preview-worker.js（和 CI 打成预览 _worker.js 的是同一个文件：网关
  *   workers/auth-gateway/src/app.js + 账号 workers/account/src/rpc/ 的 AccountService / AccountVerifier 实现，
- *   网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器），SGX_ENV=preview，env.ASSETS 读 web/atlas/public（先 hugo 构建生产版）。
+ *   网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器），SGX_ENV=preview，env.ASSETS 读 space/web/public（先 hugo 构建生产版）。
  *   cloudflare:workers 用 tests/workers/account/_cf-workers.mjs 的替身。
- * - KV：网关不再绑定 KV（2026-10-27 起认证状态全在 D1）。内存 KV 只留给 Cloudflare KV REST（scripts/migrate-kv-to-d1.mjs
+ * - KV：网关不再绑定 KV（2026-10-27 起认证状态全在 D1）。内存 KV 只留给 Cloudflare KV REST（space/scripts/migrate-kv-to-d1.mjs
  *   本地对着它跑），支持 expirationTtl / expiration，列表结果带 expiration（和 Cloudflare REST 一样）。
  * - 「读到旧值」（--stale-ms N [--stale-keys 前缀,前缀]）：以前用来复现 KV 写后读不到；网关已经不读 KV，这个选项只对
  *   appKV（现在没人用）生效，保留是为了和以前的运行方式一致（staleReads 应为 0）。D1 强一致，不模拟旧值。
@@ -25,8 +25,8 @@
  *   /__kv/stats 的 d1 一栏按语句类型（select / insert / update / delete / other）记数。
  * - Cloudflare KV REST：/client/v4/accounts/<a>/storage/kv/namespaces/<id>/values/<key>（GET/PUT/DELETE）、/keys（列表，
  *   prefix / cursor / limit）、/bulk/delete（POST，按 Cloudflare 的计费口径每个键算一次删除）；D1 REST 只有
- *   /client/v4/accounts/<a>/d1/database/<id>/query（POST { sql, params }：scripts/kv-budget.mjs 清预览 D1、
- *   scripts/migrate-kv-to-d1.mjs 导入、e2e helper 打开重置开关 / 清进站凭证限速用）。测试进程用
+ *   /client/v4/accounts/<a>/d1/database/<id>/query（POST { sql, params }：space/scripts/kv-budget.mjs 清预览 D1、
+ *   space/scripts/migrate-kv-to-d1.mjs 导入、e2e helper 打开重置开关 / 清进站凭证限速用）。测试进程用
  *   SGX_TEST_CF_API=http://127.0.0.1:<port>/client/v4 指过来。
  * - /__kv/stats（GET）：当前计数；/__kv/stats/reset（POST）清零计数（不清数据）；/__kv/dump（GET）：全部键和过期时间。
  *
@@ -151,7 +151,7 @@ const appKV = {
 /* ---------- D1（node:sqlite） ---------- */
 const { DatabaseSync } = require('node:sqlite');
 const db = new DatabaseSync(':memory:');
-/* 同 CI「Apply D1 migrations to preview」的顺序：网关（web/atlas/wrangler.toml）→ 账号（workers/account/wrangler.toml [env.preview]） */
+/* 同 CI「Apply D1 migrations to preview」的顺序：网关（space/web/wrangler.toml）→ 账号（workers/account/wrangler.toml [env.preview]） */
 const MIGRATIONS = [path.join(REPO, 'workers/auth-gateway/migrations'), path.join(REPO, 'workers/account/migrations')];
 function applyMigrations() {
   for (const dir of MIGRATIONS) {
@@ -240,7 +240,7 @@ const MIME = {
   html: 'text/html; charset=utf-8', css: 'text/css', js: 'text/javascript', json: 'application/json', xml: 'application/xml',
   webp: 'image/webp', png: 'image/png', svg: 'image/svg+xml', ico: 'image/x-icon', woff2: 'font/woff2', txt: 'text/plain',
 };
-const PUB = path.join(REPO, 'web/atlas/public');
+const PUB = path.join(REPO, 'space/web/public');
 function assets(req) {
   const u = new URL(req.url);
   const p = decodeURIComponent(u.pathname);
@@ -265,7 +265,7 @@ function cfJson(result, extra) {
 }
 async function cfRest(req) {
   const u = new URL(req.url);
-  /* D1 REST（scripts/kv-budget.mjs reset-preview 清 passkey / password 表）：POST .../d1/database/<id>/query { sql, params? } */
+  /* D1 REST（space/scripts/kv-budget.mjs reset-preview 清 passkey / password 表）：POST .../d1/database/<id>/query { sql, params? } */
   if (/^\/client\/v4\/accounts\/[^/]+\/d1\/database\/[^/]+\/query$/.test(u.pathname) && req.method === 'POST') {
     const q = await req.json();
     try {

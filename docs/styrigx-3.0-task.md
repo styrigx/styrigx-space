@@ -1,5 +1,7 @@
 # Styrigx 3.0 任务书
 
+> 状态：历史 ｜ 最后更新：2026-11-06（只随仓库分包更新路径，正文不变；不再更新，不代表现状）
+
 > **历史记录（2026-10-29 注）：整篇（含下面的「全局标准」和「验收标准」）是 2026-10-10 当时的规则，正文保持原样，不再是现行规则。**
 > 其中的 UI 8.5、`sgx-verified`、L6 blog/book 公钥验签、`/api/session-check`、`owner-status`、book `/read/` 等都已过时。
 > 现行分层和鉴权规则以 `docs/architecture.md`、`docs/auth-state-machine.md` 为准。
@@ -7,7 +9,7 @@
 ## 全局标准（Gray 2026-10-10 定，每个 PR 都按此验收）
 
 1. **命名**：Styrigx = Styrigx UI（界面+发行版）+ SGX（内核）。不用"OS"命名；文字一律写 Styrigx，不写 StyrigX。
-2. **版本**：UI 版本对齐 One UI，当前 8.5；内核沿开发版本线，队列里的 2.6.0/2.7.0/2.8.0/3.0.0 都是 SGX 版本。对外显示为「Styrigx UI 8.5 · SGX x.y」。版本只从 `data/version.yaml` 读，禁止硬编码；`hugo.yaml` 里旧的版本字段和 README 徽章都改为从这里取。（2026-10-27 注：2026-10-18 根目录分层 873a21f 起该文件在 `web/atlas/data/version.yaml`；当前为 ui "9.0" / sgx "3.0.0"，由 B2-7 PR #113（merge 7f02a6a，2026-10-17）改定，不是本队列的 3.0.0 项。）
+2. **版本**：UI 版本对齐 One UI，当前 8.5；内核沿开发版本线，队列里的 2.6.0/2.7.0/2.8.0/3.0.0 都是 SGX 版本。对外显示为「Styrigx UI 8.5 · SGX x.y」。版本只从 `data/version.yaml` 读，禁止硬编码；`hugo.yaml` 里旧的版本字段和 README 徽章都改为从这里取。（2026-10-27 注：2026-10-18 根目录分层 873a21f 起该文件在 `space/web/data/version.yaml`；当前为 ui "9.0" / sgx "3.0.0"，由 B2-7 PR #113（merge 7f02a6a，2026-10-17）改定，不是本队列的 3.0.0 项。）
 3. **锁屏**：唯一状态源是服务端 sgx-verified（Domain=.styrigx.com; Path=/）。禁止用 sessionStorage、localStorage、BroadcastChannel、前端内存或标签页状态另做鉴权。
 4. **分层**（docs/architecture.md）：L0 凭证与签名 → L1 middleware（唯一鉴权判断，含 return 校验）→ L2 api → L3 共享库（不含鉴权）→ L4 shell/锁屏（只显示和提交）→ L5 页面应用 → L6 blog/book（只用公钥验签，book 的 D1/绑定保留）。上层只能调用下层，不能跨层，也不能重复实现下层职责。
 5. **规则**：只走 PR；不直推 main；不 force push；只用 PUT /pulls/{n}/merge，禁止手造 merge commit；每个分支从最新 main 开；不删测试、不跳过测试；不删或清空生产 KV/D1；不动 Cloudflare 后台和密钥；不留兼容层。同一问题修两轮仍失败就停下不合，报告 Gray。
@@ -30,7 +32,7 @@ CI 全绿 → PUT merge → 生产部署 run 全绿 → curl 冒烟测试（首�
 - [x] 2.4.1 blog workflow（styrigx-blog，已合并）：PR #5（commit 2bdf21cf），CI run 38026813159 全绿，merge ccad181b。✓ 2026-10-10
 - [x] 2.4.1 收尾（已合并）：space #27（`fix/2.4.1-frontend-session`，merge 19799d0，部署 run 38054846123 全绿；分层规范 L0-L6、data/version.yaml、data-sgx-session 注入、POST /api/lock 全域锁定）；space #28（`fix/2.4.1-lock-return`，merge aae2372，部署 run 38058893265 全绿；3 个锁屏 bug：头像裂图放行、?return= 302 加 no-store、解锁后回跳）；blog #4（`feat/2.4.1-blog-lock`，merge 27d68ab，部署 run 38059530196 全绿；文章 302 到锁屏）；book #2（`feat/2.4.1-book-lock`，merge 2baa787，部署 run 38059746693 全绿；/read/ 302 到锁屏）；styrigx-blog-preview 和 styrigx-book-preview 两个预览项目已删除。✓ 2026-10-10
 - [x] README 动态徽章（styrigx-space，已合并）：PR #13 已合并（merge 7d109944）；main 部署 run 38026341722 全绿。deploy.yml 顶层 env.HUGO_VERSION 单源；tailwindcss/@tailwindcss/cli 统一 ^4.3.3，删 postcss；README 中英三徽章动态化，实测 Hugo 0.167.0 / Tailwind 4.3.3 / Styrigx UI 2.4.2。✓ 2026-10-10
-- [x] 仓库分层重组（styrigx-space，已合并）：只移动文件、改 import，不改行为。顶层 functions/、assets/、layouts/ 不动。functions/_lib → functions/_kernel（L0）；_middleware.js 保持原位（L1）；functions/api（L2）；assets/js/sgx 拆成 assets/js/lib（L3）、assets/js/shell（L4，含 lock.js）、assets/js/apps（L5，page-*.js 和 entries）；tests 拆成 tests/kernel、tests/ui、tests/e2e。新增 scripts/check-layers.mjs 并接入 CI：下层 import 上层、跨层 import、L3 以上出现鉴权逻辑或 storage 鉴权，都算失败。PR #30（`refactor/layered-layout`，merge e204423；PR CI quality + passkey-e2e 全绿；main 部署 run 38063469297 全绿；线上冒烟：首页 200、owner-status password:true/passkey:true、session-check 401、内页 302 到 `/?lock=1&return=`、锁屏 bundle 200。✓ 2026-10-10
+- [x] 仓库分层重组（styrigx-space，已合并）：只移动文件、改 import，不改行为。顶层 functions/、assets/、layouts/ 不动。functions/_lib → functions/_kernel（L0）；_middleware.js 保持原位（L1）；functions/api（L2）；assets/js/sgx 拆成 assets/js/lib（L3）、assets/js/shell（L4，含 lock.js）、assets/js/apps（L5，page-*.js 和 entries）；tests 拆成 tests/kernel、tests/ui、tests/e2e。新增 space/scripts/check-layers.mjs 并接入 CI：下层 import 上层、跨层 import、L3 以上出现鉴权逻辑或 storage 鉴权，都算失败。PR #30（`refactor/layered-layout`，merge e204423；PR CI quality + passkey-e2e 全绿；main 部署 run 38063469297 全绿；线上冒烟：首页 200、owner-status password:true/passkey:true、session-check 401、内页 302 到 `/?lock=1&return=`、锁屏 bundle 200。✓ 2026-10-10
 - [x] 2.6.0 设置二级页 + 关于（styrigx-space，已合并）：PR #20 关闭未合，改由 PR #31（`feat/2.6.0-settings-v2`，merge c120f443，main 部署 run 38065676001 全绿）在新目录结构上重做；后续 fix #34（`fix/unlock-entry-move`，merge 904d1537，部署 run 38069096652 全绿：解锁方式入口从账户卡移到安全与隐私第一行、去掉版本硬编码兜底）。data/version.yaml：ui 8.5 / sgx 2.6.0；线上冒烟：首页 200、owner-status password:true/passkey:true、session-check 401。✓ 2026-10-11
 - [x] 三站 pages.dev 301 到正式域名（各仓库独立 PR，已合并）：space PR #33（merge 4534272c，部署 run 38067150017 全绿）、blog PR #7（部署 run 38066740389 全绿）、book PR #3（部署 run 38066771478 全绿）。线上核验：styrigx-space.pages.dev → 301 https://styrigx.com/（/settings/?x=1 保留 path+query）、styrigx-blog.pages.dev → 301 https://blog.styrigx.com/、styrigx-book.pages.dev → 301 https://book.styrigx.com/；三站首页正常（space 200 + owner-status 双 true；blog/book 未带 cookie 302 到锁屏，符合预期）。✓ 2026-10-11
 - [x] 2.7.0 语言 / G / 天气（styrigx-space，已合并）：语言三档切换（跟随系统/中文/English）；G 按 `build:false` 清单整理（legacy-lock-screen）；天气定位顺序手动城市 > 精确定位（不自动弹权限）> IP 兜底。PR #35（`feat/2.7.0-i18n-weather`，merge 03ac860f，PR CI quality + passkey-e2e 全绿）；main 部署 run 38071456997 全绿；线上冒烟：首页 200、owner-status password:true/passkey:true、session-check 401、blog/book 未带 cookie 302 到锁屏。✓ 2026-10-11

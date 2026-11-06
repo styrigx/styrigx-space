@@ -5,7 +5,7 @@
  * （sgx-account-reauth），不再多拆作用域。应用 id 就是以后的授权卡 id（第 3 件，另批）。
  *
  * 作用域 id 规则：<应用>.<动作>，全小写，只用 [a-z.]（SCOPE_ID_RE）。以后加应用只在 SCOPES 里加一行。
- * 网关和下游 Worker 只认字符串，不 import 本文件（scripts/check-layers.mjs 规则 14）。
+ * 网关和下游 Worker 只认字符串，不 import 本文件（space/scripts/check-layers.mjs 规则 14）。
  *
  * 每一项：
  * - id：作用域 id

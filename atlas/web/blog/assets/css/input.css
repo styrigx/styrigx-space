@@ -1,0 +1,12 @@
+/* 博客样式入口：atlas/scripts/blog/build-css.mjs 按顺序展开这里的 @import，拼在 Tailwind 4 产物（tw-input.css）后面，输出 atlas/web/blog/assets/css/main.css（不进仓库）。
+   博客的样式都是自己写的 class（没有 Tailwind 重置）；Hugo 负责压缩。颜色只用共享外壳的 --sgx-* 角色。
+   顺序：共享外壳 → 基础排版 → One UI 外观 → 列表 / 文章版式 → 组件 → 代码块。 */
+@import './sgx-shell.css';
+@import './blog/base.css';
+@import './blog/one-ui.css';
+@import './blog/blog-post-list.css';
+@import './blog/blog-article.css';
+@import './blog/blog-related-posts.css';
+@import './blog/components.css';
+@import './blog/code.css';
+@import './blog/code-tokens.css';

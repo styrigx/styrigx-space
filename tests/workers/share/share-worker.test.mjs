@@ -199,7 +199,7 @@ test('短链 Worker 不带签名逻辑：src 里不出现私钥 / pepper / 签�
 });
 
 test('check-worker-routes：/s/*、/api/share* 归短链 Worker；网关接口和页面、账号 Worker 的路径一条没被抢；写宽了就报错', async () => {
-  const { readRoutes, readApiRoutes, checkWorkers } = await import(REPO + 'scripts/check-worker-routes.mjs');
+  const { readRoutes, readApiRoutes, checkWorkers } = await import(REPO + 'space/scripts/check-worker-routes.mjs');
   const gw = readRoutes(readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8'));
   const acct = readRoutes(readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8'));
   const share = readRoutes(readFileSync(REPO + 'workers/share/wrangler.toml', 'utf8'));

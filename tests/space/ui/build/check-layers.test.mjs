@@ -1,5 +1,5 @@
 /**
- * 分层检查器（scripts/check-layers.mjs）和前端规范检查器（scripts/check-frontend.mjs）的单测。
+ * 分层检查器（space/scripts/check-layers.mjs）和前端规范检查器（space/scripts/check-frontend.mjs）的单测。
  *
  * - 本仓库现在两者都通过
  * - 解析不到文件的相对 import 报错（以前记成 unknown 放行）
@@ -18,8 +18,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const layers = await import(join(REPO, 'scripts/check-layers.mjs'));
-const frontend = await import(join(REPO, 'scripts/check-frontend.mjs'));
+const layers = await import(join(REPO, 'space/scripts/check-layers.mjs'));
+const frontend = await import(join(REPO, 'space/scripts/check-frontend.mjs'));
 
 /** 在临时目录造一个最小仓库：files = { 相对路径: 源码 } */
 function fixture(files) {
@@ -36,7 +36,7 @@ const GW = 'workers/auth-gateway/';
 
 /** 规则 19–21 要的骨架文件（README.md、带 name 的 package.json）：fixture 里的 Worker 目录有 wrangler.toml 时补上，免得干扰别的规则 @param {string} dir 如 'workers/account/' */
 const skeletonFiles = (dir) => ({ [dir + 'README.md']: '# x\n', [dir + 'package.json']: '{"name":"x","private":true,"type":"module"}' });
-const FE = 'web/atlas/assets/js/';
+const FE = 'space/web/assets/js/';
 
 test('check-layers：本仓库通过', () => {
   const { files, errors } = layers.checkRepo(REPO);
@@ -44,7 +44,7 @@ test('check-layers：本仓库通过', () => {
   assert.ok(files > 130, '扫描了各 Worker 的 src/ 和前端：' + files);
 });
 
-test('check-frontend：本仓库通过（含 web/atlas/shared/shell）', () => {
+test('check-frontend：本仓库通过（含 space/web/shared/shell）', () => {
   const { files, errors } = frontend.checkRepo(REPO);
   assert.deepEqual(errors, []);
   assert.ok(files > 90, String(files));
@@ -170,14 +170,14 @@ test('check-layers：前端层方向', () => {
   try {
     const { errors } = layers.checkRepo(root);
     const want = [
-      'web/atlas/assets/js/lib/a.js: lib/ 禁止 import shell/',
-      'web/atlas/assets/js/lib/a.js: lib/ 禁止 import auth/',
-      'web/atlas/assets/js/lib/a.js: lib/ 禁止 import apps/',
-      'web/atlas/assets/js/auth/x.js: auth/ 禁止 import shell/',
-      'web/atlas/assets/js/auth/x.js: auth/ 禁止 import apps/',
-      'web/atlas/assets/js/shell/s.js: shell/ 禁止 import apps/',
-      'web/atlas/assets/js/apps/p.js: apps/ 禁止 import entries/',
-      'web/atlas/assets/js/entries/e.js: 前端禁止 import web/atlas/assets/js/ 以外的文件',
+      'space/web/assets/js/lib/a.js: lib/ 禁止 import shell/',
+      'space/web/assets/js/lib/a.js: lib/ 禁止 import auth/',
+      'space/web/assets/js/lib/a.js: lib/ 禁止 import apps/',
+      'space/web/assets/js/auth/x.js: auth/ 禁止 import shell/',
+      'space/web/assets/js/auth/x.js: auth/ 禁止 import apps/',
+      'space/web/assets/js/shell/s.js: shell/ 禁止 import apps/',
+      'space/web/assets/js/apps/p.js: apps/ 禁止 import entries/',
+      'space/web/assets/js/entries/e.js: 前端禁止 import space/web/assets/js/ 以外的文件',
     ];
     for (const w of want) assert.ok(errors.some((e) => e.startsWith(w)), '缺：' + w + '\n' + errors.join('\n'));
     assert.equal(errors.length, want.length, errors.join('\n'));
@@ -223,7 +223,7 @@ test('check-frontend：原生弹窗的各种写法', () => {
     "const u = 'https://styrigx.com/'; alert(u);",
   ];
   for (const code of bad) {
-    const errs = frontend.checkSource('web/atlas/assets/js/apps/x.js', code);
+    const errs = frontend.checkSource('space/web/assets/js/apps/x.js', code);
     assert.equal(errs.length, 1, code + ' → ' + JSON.stringify(errs));
     assert.match(errs[0], /禁止原生弹窗/);
   }
@@ -233,22 +233,22 @@ test('check-frontend：原生弹窗的各种写法', () => {
     "confirmLockNow();",
     "const u = 'https://a/'; // alert(u)",
   ]) {
-    assert.deepEqual(frontend.checkSource('web/atlas/assets/js/apps/x.js', code), [], code);
+    assert.deepEqual(frontend.checkSource('space/web/assets/js/apps/x.js', code), [], code);
   }
 });
 
 test('check-frontend：行号按原文（多行块注释之后）', () => {
-  const errs = frontend.checkSource('web/atlas/assets/js/apps/x.js', "/* a\n b\n c */\nconst s = 'http://x';\nalert(s);");
+  const errs = frontend.checkSource('space/web/assets/js/apps/x.js', "/* a\n b\n c */\nconst s = 'http://x';\nalert(s);");
   assert.equal(errs.length, 1);
-  assert.match(errs[0], /^web\/atlas\/assets\/js\/apps\/x\.js:5:/);
+  assert.match(errs[0], /^space\/web\/assets\/js\/apps\/x\.js:5:/);
 });
 
 test('check-frontend：独立 token 变量', () => {
   for (const code of ['let token = 1;', 'token = x;', 'function f(token) {}', '(token) => token', 'post({ token: t })', 'post({ a, token })']) {
-    assert.equal(frontend.checkSource('web/atlas/assets/js/apps/x.js', code).length, 1, code);
+    assert.equal(frontend.checkSource('space/web/assets/js/apps/x.js', code).length, 1, code);
   }
   for (const code of ['const csrfToken = 1;', 'submitToken(token2);', "// let token = 1"]) {
-    assert.deepEqual(frontend.checkSource('web/atlas/assets/js/apps/x.js', code), [], code);
+    assert.deepEqual(frontend.checkSource('space/web/assets/js/apps/x.js', code), [], code);
   }
 });
 

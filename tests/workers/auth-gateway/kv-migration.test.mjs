@@ -1,7 +1,7 @@
 /**
  * 两个一次性迁移脚本，都不访问网络（REST 调用只在 main / cfApi 里；这里用内存替身）：
- * - scripts/migrate-kv-names.mjs（第 5 层 KV 键名）：planMigration / verifyPlan / splitExisting / resolveBackupDir
- * - scripts/migrate-kv-to-d1.mjs（2026-10-27 KV → D1，网关上线前跑一次）：planAuthImport / runPlan / readKv / wantedKey / d1IdOf。
+ * - space/scripts/migrate-kv-names.mjs（第 5 层 KV 键名）：planMigration / verifyPlan / splitExisting / resolveBackupDir
+ * - space/scripts/migrate-kv-to-d1.mjs（2026-10-27 KV → D1，网关上线前跑一次）：planAuthImport / runPlan / readKv / wantedKey / d1IdOf。
  *   --dry-run 一行不写；apply 导入；再跑一次幂等（不重复、不把 D1 里删掉的写回来）；--verify 通过；中途失败再跑补齐。
  *
  * 运行：node --test tests/workers/auth-gateway/kv-migration.test.mjs
@@ -10,10 +10,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
-import { planMigration, verifyPlan, splitExisting, resolveBackupDir } from '../../../scripts/migrate-kv-names.mjs';
+import { planMigration, verifyPlan, splitExisting, resolveBackupDir } from '../../../space/scripts/migrate-kv-names.mjs';
 import {
   planAuthImport, runPlan, readKv, wantedKey, d1IdOf, AUTH_KV_NAMESPACE,
-} from '../../../scripts/migrate-kv-to-d1.mjs';
+} from '../../../space/scripts/migrate-kv-to-d1.mjs';
 import { makeAuthD1 } from '../_harness.mjs';
 
 const NOW = 1_800_000_000;
@@ -169,7 +169,7 @@ test('resolveBackupDir：默认在 home 下；仓库内（含仓库根）拒绝�
 });
 
 /* ================================================================
- * scripts/migrate-kv-to-d1.mjs：KV → D1 一次性导入
+ * space/scripts/migrate-kv-to-d1.mjs：KV → D1 一次性导入
  * ================================================================ */
 
 const T0 = 1_800_000_000_000; /* 毫秒 */
@@ -380,14 +380,14 @@ test('migrate-kv-to-d1 readKv：只为计划要的键取值，带上 KV 的过�
   assert.deepEqual(got.sort(), ['account-device:D1', 'lock-password'], '计数 / 标记不取值');
   assert.equal(m.get('account-device:D1').expiration, 123);
   /* 脚本源码不写 KV */
-  const src = readFileSync(new URL('../../../scripts/migrate-kv-to-d1.mjs', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../../../space/scripts/migrate-kv-to-d1.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /method:\s*'(PUT|DELETE)'/);
   assert.doesNotMatch(src, /\/bulk/);
 });
 
-test('migrate-kv-to-d1 d1IdOf：默认库 = 网关 wrangler.toml 的 D1_LOCK_AUTH（styrigx-auth-gateway）；--preview 读 web/atlas/wrangler.toml，两者不同', () => {
+test('migrate-kv-to-d1 d1IdOf：默认库 = 网关 wrangler.toml 的 D1_LOCK_AUTH（styrigx-auth-gateway）；--preview 读 space/web/wrangler.toml，两者不同', () => {
   const prod = readFileSync(new URL('../../../workers/auth-gateway/wrangler.toml', import.meta.url), 'utf8');
-  const pv = readFileSync(new URL('../../../web/atlas/wrangler.toml', import.meta.url), 'utf8');
+  const pv = readFileSync(new URL('../../../space/web/wrangler.toml', import.meta.url), 'utf8');
   assert.equal(d1IdOf(prod, 'D1_LOCK_AUTH'), '6931d1da-3502-480d-b0bd-de1bc4829d1d');
   assert.ok(d1IdOf(pv, 'D1_LOCK_AUTH'));
   assert.notEqual(d1IdOf(pv, 'D1_LOCK_AUTH'), d1IdOf(prod, 'D1_LOCK_AUTH'));

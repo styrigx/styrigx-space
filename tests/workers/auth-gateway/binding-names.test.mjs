@@ -22,7 +22,7 @@ function bindings(toml) {
    账号拆分 PR3：网关只剩锁屏域 D1_LOCK_AUTH（D1_ACCOUNT_AUTH / D1_ROOT_AUTH 删掉，库里的账号旧行 PR4 已删）。
    Pages 预览跑的是组合入口（tests/space/e2e/helpers/preview-worker.js：网关 + 账号 Worker 代码），所以预览另绑 D1_ACCOUNT_AUTH 给账号那一半，
    同一个测试库 styrigx-test-preview。 */
-const AUTH = { 'workers/auth-gateway/wrangler.toml': ['D1_LOCK_AUTH'], 'web/atlas/wrangler.toml': ['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH'] };
+const AUTH = { 'workers/auth-gateway/wrangler.toml': ['D1_LOCK_AUTH'], 'space/web/wrangler.toml': ['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH'] };
 /* 以前的认证 KV / 重置开关 D1 绑定名：网关和 Pages 预览都不能再出现 */
 const AUTH_GONE = ['KV_LOCK_DOOR', 'KV_ACCOUNT_LOGIN', 'D1_LOCK_RESET', 'D1_LOCK_DOOR', 'D1_ACCOUNT_LOGIN'];
 /* 2026-10-24 起在账号 Worker styrigx-account（workers/account），网关和 Pages 预览都不再绑定 */
@@ -32,7 +32,7 @@ const OLD = /\b(OWNER_KV|ACCOUNT_KV|SGX_D1|SEARCH_KV|STATUS_DB)\b|"CF_USAGE_TOKE
 const code = (toml) => toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
 
 test('鉴权网关正式只绑 D1_LOCK_AUTH；Pages 预览（组合入口）另绑 D1_ACCOUNT_AUTH，同一个库；没有任何 KV；不绑 D1_ROOT_AUTH / 账号资料库', () => {
-  for (const p of ['workers/auth-gateway/wrangler.toml', 'web/atlas/wrangler.toml']) {
+  for (const p of ['workers/auth-gateway/wrangler.toml', 'space/web/wrangler.toml']) {
     const toml = read(p);
     const src = code(toml);
     assert.doesNotMatch(toml, OLD, p);
@@ -42,7 +42,7 @@ test('鉴权网关正式只绑 D1_LOCK_AUTH；Pages 预览（组合入口）另�
     for (const n of AUTH[p]) assert.equal(m[n], m.D1_LOCK_AUTH, p + '：' + n + ' 与 D1_LOCK_AUTH 同一个库');
     assert.equal(m.D1_ROOT_AUTH, undefined, p + '：D1_ROOT_AUTH 已删（根域并入锁屏域）');
     /* 正式 = styrigx-auth-gateway；Pages 预览 = 所有 Worker 预览共用的测试库 styrigx-test-preview（2026-10-29） */
-    const dbName = p === 'web/atlas/wrangler.toml' ? 'styrigx-test-preview' : 'styrigx-auth-gateway';
+    const dbName = p === 'space/web/wrangler.toml' ? 'styrigx-test-preview' : 'styrigx-auth-gateway';
     assert.match(src, new RegExp('^database_name = "' + dbName + '"$', 'm'), p);
     for (const db of src.match(/^database_name = ".*"$/gm) || []) assert.equal(db, 'database_name = "' + dbName + '"', p + ' ' + db);
     /* 没有 KV：不绑 kv_namespaces，也没有任何 KV_* 绑定名 */
@@ -96,7 +96,7 @@ test('搜索 / 监测：KV_SEARCH_INDEX（P4-2b 起只在 ai）、D1_UPTIME_MONI
 
 test('预览统一用测试资源（2026-10-29）：网关 / 账号 / 短链的预览 D1 都是 styrigx-test-preview，迁移记录表各不相同，CI 三套迁移都跑', () => {
   const TEST_D1 = '1339bb0b-f9f8-4e3d-b413-ff07ca28ce69';
-  const files = { 'web/atlas/wrangler.toml': 'workers/auth-gateway/wrangler.toml', 'workers/account/wrangler.toml': null, 'workers/share/wrangler.toml': null };
+  const files = { 'space/web/wrangler.toml': 'workers/auth-gateway/wrangler.toml', 'workers/account/wrangler.toml': null, 'workers/share/wrangler.toml': null };
   const tables = new Set();
   for (const [p, prodPath] of Object.entries(files)) {
     const src = code(read(p));
@@ -124,10 +124,10 @@ test('预览统一用测试资源（2026-10-29）：网关 / 账号 / 短链的�
   for (const p of Object.keys(files).concat(['.github/workflows/deploy.yml'])) {
     assert.doesNotMatch(read(p), /styrigx-auth-gateway-preview|d417e421-75bb-4425-bdc8-54856b88578f|03e1f9f4-dd7e-47cc-abe7-79dc5afe3e81|a5ee2a75f00d4308959b2bea55247ff6|5084ea8ef2444156ba48203220b93df6/, p);
   }
-  /* CI：部署预览前对测试库跑三套迁移（网关在 web/atlas/，账号 / 短链在各自目录，都 --env preview） */
+  /* CI：部署预览前对测试库跑三套迁移（网关在 space/web/，账号 / 短链在各自目录，都 --env preview） */
   const wf = read('.github/workflows/deploy.yml');
   const step = wf.slice(wf.indexOf('- name: Apply D1 migrations to preview'), wf.indexOf('- name: Deploy to preview'));
-  assert.match(step, /working-directory: web\/atlas\n/);
+  assert.match(step, /working-directory: space\/web\n/);
   assert.match(step, /\n {10}npx --yes "wrangler@\$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview\n/);
   for (const d of ['account', 'share']) {
     assert.ok(step.includes('(cd ../../workers/' + d + ' && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)'), d);

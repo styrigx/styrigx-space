@@ -8,7 +8,7 @@
  * 绑定没配 / RPC 抛错 / 回了看不懂的东西 → 按「无账号会话」处理（fail closed，account.ok=false），reason 只是原因代号。
  * askAuthorize 只管传话和「ok 是不是 true」；deviceId、作用域的白名单校验在 core/conclusion.js。
  *
- * 不 import 任何账号代码（账号与网关互相不许 import，scripts/check-layers.mjs 规则 14）。
+ * 不 import 任何账号代码（账号与网关互相不许 import，space/scripts/check-layers.mjs 规则 14）。
  */
 
 const MAX_COOKIE_HEADER = 8192;

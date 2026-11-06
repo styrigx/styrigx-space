@@ -12,7 +12,7 @@
  *  另外：立即锁定之后刷新、去子站都必须仍是锁着的；锁定后已打开的已解锁页面切回来要上锁。
  *
  * 运行：SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
- * （需要先 hugo --minify -s web/atlas 生产构建；需要 openssl）
+ * （需要先 hugo --minify -s space/web 生产构建；需要 openssl）
  */
 const { test, expect } = require('@playwright/test');
 const { startEdge, LAUNCH } = require('../helpers/edge-harness.cjs');

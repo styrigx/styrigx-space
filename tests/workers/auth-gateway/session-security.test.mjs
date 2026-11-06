@@ -43,7 +43,7 @@ import { makeKV, genKeyPair, postReq, authD1For, forbiddenKV } from '../_harness
 /* ---------- mock KV ---------- */
 
 /**
- * 网关存储：kv 只当作「上线前的 KV」（authD1For(kv) 模拟部署前跑过 scripts/migrate-kv-to-d1.mjs），
+ * 网关存储：kv 只当作「上线前的 KV」（authD1For(kv) 模拟部署前跑过 space/scripts/migrate-kv-to-d1.mjs），
  * env 里只有三个 D1 绑定（同一个库），没有 KV。
  */
 function stores(kv = makeKV()) {

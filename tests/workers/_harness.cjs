@@ -6,7 +6,7 @@
  * - derToPem(der, label)：DER → PEM（64 列折行，结尾带换行；Web Crypto importKey / 网关 pemToDer 都认）
  * - makeKV(seed?, opts?)：内存 KV，实现 handler 用到的 get / put / delete / list 子集，外加测试用的观测与故障注入
  * - makeAuthD1(opts?)：网关 D1（styrigx-auth-gateway）的 node:sqlite 替身，表结构就是 workers/auth-gateway/migrations/*.sql；
- *   可带一份「上线前的 KV」模拟部署前跑过 scripts/migrate-kv-to-d1.mjs
+ *   可带一份「上线前的 KV」模拟部署前跑过 space/scripts/migrate-kv-to-d1.mjs
  */
 'use strict';
 
@@ -93,7 +93,7 @@ function makeKV(seed, opts) {
 
 const AUTH_MIGRATIONS = path.join(__dirname, '..', '..', 'workers/auth-gateway/migrations');
 
-/** 每张表属于导入计划的哪一类（scripts/migrate-kv-to-d1.mjs planAuthImport 的 family 名去掉 realm 前缀） */
+/** 每张表属于导入计划的哪一类（space/scripts/migrate-kv-to-d1.mjs planAuthImport 的 family 名去掉 realm 前缀） */
 const IMPORT_FAMILY_OF_TABLE = { epoch: 'epoch', password: 'password', passkey: 'passkey', user_handle: 'user-handle', device: 'device', tempkey: 'tempkey' };
 
 /**
@@ -101,7 +101,7 @@ const IMPORT_FAMILY_OF_TABLE = { epoch: 'epoch', password: 'password', passkey: 
  * 实现 prepare().bind().first() / all() / run() 和 batch()（一个事务，任何一条失败整批回滚，同 D1）。
  * - opts.migrations === false：不跑迁移（模拟正式网关：表由 d1-state.js 遇到 no such table 时自建）
  * - opts.epochs：{ lock: 3, account: 1 }（也认 'lock-epoch' 这种旧名）直接写进 epoch 表
- * - opts.legacyKv：一份「上线前的 KV」（makeKV）。模拟「部署前跑过 scripts/migrate-kv-to-d1.mjs」：某张表第一次被网关读写之前，
+ * - opts.legacyKv：一份「上线前的 KV」（makeKV）。模拟「部署前跑过 space/scripts/migrate-kv-to-d1.mjs」：某张表第一次被网关读写之前，
  *   用导入脚本的同一个 planAuthImport 把这份 KV 里对应的那一类导进来（每类只导一次，同脚本的 kv_migration 标记）。
  *   只是测试替身：网关代码本身不读 KV（kv-binding-split.test.mjs 用碰一下就抛错的 KV 核对）。
  *   纪元：KV 里有才导（值 + 1）；没有就不写，网关按 0 起步（单测里大量按纪元 0 签票）。
@@ -133,7 +133,7 @@ function makeAuthD1(opts) {
     for (const m of String(sql).matchAll(/\b(?:FROM|INTO|UPDATE|JOIN)\s+([a-z_]+)/gi)) tables.add(m[1].toLowerCase());
     const want = [...tables].map((t) => IMPORT_FAMILY_OF_TABLE[t]).filter((f) => f && !imported.has(f));
     if (!want.length) return;
-    const { planAuthImport } = require('../../scripts/migrate-kv-to-d1.mjs');
+    const { planAuthImport } = require('../../space/scripts/migrate-kv-to-d1.mjs');
     const kvMap = new Map();
     for (const [k, v] of (legacyKv._map instanceof Map ? legacyKv._map : new Map())) {
       if (v === null || v === undefined) continue;

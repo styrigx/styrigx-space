@@ -13,15 +13,15 @@ import { readFileSync } from 'node:fs';
 import yaml from 'js-yaml';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-const feats = /** @type {any} */ (yaml.load(rd('web/atlas/data/features.yaml'))).features;
-const si = /** @type {any} */ (yaml.load(rd('web/atlas/data/sync-items.yaml')));
+const feats = /** @type {any} */ (yaml.load(rd('space/web/data/features.yaml'))).features;
+const si = /** @type {any} */ (yaml.load(rd('space/web/data/sync-items.yaml')));
 
 /* features.js 从页面里的 #sgx-features 读定义（baseof 由 features.yaml 生成：id / key / type / default / storage） */
 const featDefs = feats.map((f) => Object.assign({ id: f.id, key: f.key, type: f.type, default: f.default }, f.storage ? { storage: f.storage } : {}));
 globalThis.window = globalThis.window || { addEventListener() {}, dispatchEvent() {} };
 globalThis.document = { getElementById: (id) => (id === 'sgx-features' ? { textContent: JSON.stringify(featDefs) } : null), documentElement: { getAttribute() { return null; } }, cookie: '' };
-const { syncKeys } = await import('../../../../web/atlas/assets/js/lib/cloud-sync.js');
-const { valueText, defOf } = await import('../../../../web/atlas/assets/js/lib/sync-items.js');
+const { syncKeys } = await import('../../../../space/web/assets/js/lib/cloud-sync.js');
+const { valueText, defOf } = await import('../../../../space/web/assets/js/lib/sync-items.js');
 
 const listed = si.groups.flatMap((g) => g.keys);
 
@@ -92,27 +92,27 @@ test('defOf：从行的 data-* 读定义', () => {
 });
 
 test('模板：按 sync-items.yaml 渲染、有总开关；文案（account-i18n）中英都有', () => {
-  const tpl = rd('web/atlas/layouts/_default/account-sync.html');
+  const tpl = rd('space/web/layouts/_default/account-sync.html');
   assert.match(tpl, /index site\.Data "sync-items"/);
   assert.match(tpl, /id="acct-sync-sw" role="switch"/);
   assert.match(tpl, /data-sync-key="\{\{ \$k \}\}"/);
-  const i18n = rd('web/atlas/layouts/partials/account-i18n.html');
+  const i18n = rd('space/web/layouts/partials/account-i18n.html');
   for (const k of Object.keys(T)) assert.match(i18n, new RegExp('"' + k + '" \\(dict "zh" "[^"]+" "en" "[^"]+"\\)'), k);
 });
 
 test('P5-1：AI 窗口历史 sgx-ai-history 只存本地，不进云同步白名单（syncKeys / sync-items.yaml / features.yaml 都没有）', async () => {
-  const { HISTORY_KEY } = await import('../../../../web/atlas/assets/js/shell/ai-panel.js');
+  const { HISTORY_KEY } = await import('../../../../space/web/assets/js/shell/ai-panel.js');
   assert.equal(HISTORY_KEY, 'sgx-ai-history');
   assert.ok(!syncKeys().includes(HISTORY_KEY), 'syncKeys() 不含 sgx-ai-history');
   assert.ok(!listed.includes(HISTORY_KEY), 'sync-items.yaml 不列 sgx-ai-history');
   assert.ok(!feats.some((f) => f.key === HISTORY_KEY), 'features.yaml 没有这个 key（不然会被 syncKeys 收进去）');
-  assert.doesNotMatch(rd('web/atlas/assets/js/lib/cloud-sync.js'), /sgx-ai-history/, 'cloud-sync.js 的 EXTRA 不含 AI 历史');
+  assert.doesNotMatch(rd('space/web/assets/js/lib/cloud-sync.js'), /sgx-ai-history/, 'cloud-sync.js 的 EXTRA 不含 AI 历史');
   /* 共享外壳 ai.js（子站用的那份）存同一个 key、同样不走同步 */
-  assert.match(rd('web/atlas/shared/shell/ai.js'), /export const HISTORY_KEY = 'sgx-ai-history';/);
+  assert.match(rd('space/web/shared/shell/ai.js'), /export const HISTORY_KEY = 'sgx-ai-history';/);
 });
 
 test('P4-2d：AI 模型 sgx-ai-model 进云同步白名单（syncKeys + sync-items.yaml「其他」组 + extra 类型 ai-model），键名与 ai-panel.js MODEL_KEY 一致', async () => {
-  const { MODEL_KEY, HISTORY_KEY } = await import('../../../../web/atlas/assets/js/shell/ai-panel.js');
+  const { MODEL_KEY, HISTORY_KEY } = await import('../../../../space/web/assets/js/shell/ai-panel.js');
   assert.equal(MODEL_KEY, 'sgx-ai-model');
   assert.ok(syncKeys().includes(MODEL_KEY), 'syncKeys() 含 sgx-ai-model');
   assert.ok(si.groups.find((g) => g.id === 'more').keys.includes(MODEL_KEY), '列在「其他」组');
@@ -121,7 +121,7 @@ test('P4-2d：AI 模型 sgx-ai-model 进云同步白名单（syncKeys + sync-ite
   assert.ok(!feats.some((f) => f.key === MODEL_KEY), '不在 features.yaml（走 EXTRA）');
   assert.ok(!syncKeys().includes(HISTORY_KEY), '历史仍不同步');
   /* 共享外壳 ai.js（子站用的那份）读同一个键 */
-  assert.match(rd('web/atlas/shared/shell/ai.js'), /export const MODEL_KEY = 'sgx-ai-model';/);
+  assert.match(rd('space/web/shared/shell/ai.js'), /export const MODEL_KEY = 'sgx-ai-model';/);
 });
 
 test('valueText：ai-model 没设 →「默认」，设了 → 原样显示模型 id', () => {

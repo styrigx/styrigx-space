@@ -2,9 +2,9 @@
 
 ## 职责
 
-主站鉴权网关：锁屏会话和锁屏凭证的全部后端代码在这里。承接 `styrigx.com` 整站请求（含子站 `/blog/`、`/curio/`、`/daymark/`，按路径前缀走子站关口）：先验锁屏会话，页面验完回源 Pages 取静态文件，接口在本 Worker 回答或经服务绑定转给内部 Worker。Pages 本身只放静态文件（配置见 `web/atlas/wrangler.toml`）。
+主站鉴权网关：锁屏会话和锁屏凭证的全部后端代码在这里。承接 `styrigx.com` 整站请求（含子站 `/blog/`、`/curio/`、`/daymark/`，按路径前缀走子站关口）：先验锁屏会话，页面验完回源 Pages 取静态文件，接口在本 Worker 回答或经服务绑定转给内部 Worker。Pages 本身只放静态文件（配置见 `space/web/wrangler.toml`）。
 
-**账号不在这里**（账号拆分 PR3 起）：账号密码 / 账号通行密钥 / 已登录设备 / 账号会话 / 账号根密钥、头像、设置云同步、数字健康都在账号 Worker `styrigx-account`（`workers/account/`）。浏览器的账号请求一律先进网关，网关验门后经服务绑定 `ACCOUNT` 转发。网关源码里没有任何账号鉴权代码、账号绑定或账号钥匙（`scripts/check-layers.mjs` 规则 16 核对）。
+**账号不在这里**（账号拆分 PR3 起）：账号密码 / 账号通行密钥 / 已登录设备 / 账号会话 / 账号根密钥、头像、设置云同步、数字健康都在账号 Worker `styrigx-account`（`workers/account/`）。浏览器的账号请求一律先进网关，网关验门后经服务绑定 `ACCOUNT` 转发。网关源码里没有任何账号鉴权代码、账号绑定或账号钥匙（`space/scripts/check-layers.mjs` 规则 16 核对）。
 
 ## 入口
 
@@ -41,13 +41,13 @@
   - 下游写法（P2-2 起）：要作用域 = `account.ok && account.scopes.includes('<站>.write')`；读私密 = `account.ok`；敏感 = 再加 `account.reauth`。
 - **HTTP 结论头**：`core/conclusion.js` `writeAccountConclusion(headers, account)` 先剥掉所有 `X-Styrigx-Account-*`，再只写白名单值，某一项没有就不写（不写 `0`）。表见 `docs/architecture.md`「网关结论」。浏览器带来的同名头在 `app.js` 第一步（剥所有 `x-styrigx-*`）就没了。
 - **锁侧转发头**：`core/lock-identity.js` 转发给账号 Worker 时，有锁屏身份就写 `X-Styrigx-Lock-Session: 1`（和进门方式 `X-Styrigx-Lock-By`）；P2-3 起没有等级头。
-- 命名：网关代码里只用 `account.reauth` / `X-Styrigx-Account-Reauth` 这类字段名，不出现账号票名（`scripts/check-layers.mjs` 规则 16）。
+- 命名：网关代码里只用 `account.reauth` / `X-Styrigx-Account-Reauth` 这类字段名，不出现账号票名（`space/scripts/check-layers.mjs` 规则 16）。
 - 现状（P2-1）：只新增，没有调用方，现有判断一行没改。P2-2 起子站接口 Worker 改调 `conclusion()`；结论头只写给 `styrigx-ai`（第 4 件；P4-2b 起 search-index 退役）。
 - 测试：`tests/workers/auth-gateway/conclusion.test.mjs`、`verifier.test.mjs`、`lock-identity.test.mjs`。
 
 ## 路由
 
-`wrangler.toml` 的 `[[routes]]` 是唯一登记处（`scripts/check-worker-routes.mjs` 在 CI 核对）：
+`wrangler.toml` 的 `[[routes]]` 是唯一登记处（`space/scripts/check-worker-routes.mjs` 在 CI 核对）：
 
 | 路由 | 说明 |
 |---|---|
@@ -101,6 +101,6 @@
 没有 0002。正式部署 job 不跑迁移：代码在第一次遇到「no such table」时按 `core/d1-state.js` 的 SCHEMA 建表（幂等，单测核对与迁移文件一致）。恢复开关：在 D1 控制台插一行即可开启（首次读到起 24 小时内有效，用一次作废）：
 `INSERT INTO lock_reset_switch (hash, first_seen, used) VALUES (lower(hex(randomblob(16))), 0, 0);`
 
-部署和回滚（`.github/workflows/deploy.yml`）：接口 Worker（搜索、AI、聊天 → 监测 → 账号 ∥ 短链 ∥ 奇趣接口 ∥ 日刻接口）→ **网关** → Pages。接口 Worker 先挂上 `styrigx.com/<站>/api/*`，网关再按路径分发子站、把 atlas 301 过来；网关冒烟通过后才部署 Pages。Pages 上已经没有后端代码，不能靠删路由回滚；main 部署冒烟失败时 CI 自动 `wrangler rollback` 到部署前的版本（`scripts/deploy-rollback.mjs`，只换代码版本，D1 数据和路由都不回滚；回滚下限见 `scripts/deploy-rollback-floor.json`）。预览（passkey-e2e）用组合入口 `tests/web/e2e/preview-worker.js`，预览资源只用一个 `styrigx-test-preview`。
+部署和回滚（`.github/workflows/deploy.yml`）：接口 Worker（搜索、AI、聊天 → 监测 → 账号 ∥ 短链 ∥ 奇趣接口 ∥ 日刻接口）→ **网关** → Pages。接口 Worker 先挂上 `styrigx.com/<站>/api/*`，网关再按路径分发子站、把 atlas 301 过来；网关冒烟通过后才部署 Pages。Pages 上已经没有后端代码，不能靠删路由回滚；main 部署冒烟失败时 CI 自动 `wrangler rollback` 到部署前的版本（`space/scripts/deploy-rollback.mjs`，只换代码版本，D1 数据和路由都不回滚；回滚下限见 `space/scripts/deploy-rollback-floor.json`）。预览（passkey-e2e）用组合入口 `tests/space/e2e/helpers/preview-worker.js`，预览资源只用一个 `styrigx-test-preview`。
 
 下游的身份头：`src/api/ai.js` 改写账号结论头（`X-Styrigx-Account-*`，styrigx-ai 只认 `X-Styrigx-Account-Session: 1`）。`src/api/search.js`、`src/api/chat.js` 在 P4-2b 连同 /chat/ 页退役。入站的旧前缀 `x-sgx-*` 头仍照剥。

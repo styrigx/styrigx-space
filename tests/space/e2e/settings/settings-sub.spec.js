@@ -192,7 +192,7 @@ test('about page: version rows (2.6.0 spec)', async ({ page: pg }) => {
      版本推进时测试自动跟随 */
   const fs = require('fs');
   const path = require('path');
-  const vy = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'web', 'atlas', 'data', 'version.yaml'), 'utf8');
+  const vy = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'version.yaml'), 'utf8');
   const ui = (vy.match(/^ui:\s*"([^"]+)"/m) || [])[1];
   const sgx = (vy.match(/^sgx:\s*"([^"]+)"/m) || [])[1];
   const body = pg.locator('#sg-about');
@@ -268,7 +268,7 @@ test('palette 8-color test state', async ({ page: pg }) => {
   await expect(grid).toBeVisible();
   const fs = require('fs');
   const path = require('path');
-  const yml = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'web', 'atlas', 'data', 'palettes.yaml'), 'utf8');
+  const yml = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'palettes.yaml'), 'utf8');
   const items = [...yml.matchAll(/^\s*- id: ([a-z]+)\n(?:\s+\w+: .*\n)*?\s+group: ([a-z]+)$/gm)].map((m) => [m[1], m[2]]);
   expect(items.length).toBe(22);
   /* 没有单色 / 撞色分页，没有撞色胶囊 */
@@ -395,7 +395,7 @@ test('P4-2c Advanced features gone: /settings/advanced/ and /settings/goodlock/ 
   await expect(pg.locator('#sg-advanced, #row-datetime, #mod-keys, #row-weather')).toHaveCount(0);
   const fs = require('fs');
   const path = require('path');
-  const rd = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'web', 'atlas', 'static', '_redirects'), 'utf8');
+  const rd = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'static', '_redirects'), 'utf8');
   expect(rd).not.toMatch(/goodlock|settings\/advanced/);
 });
 
@@ -415,7 +415,7 @@ test('PR-E old settings URLs redirect', async ({ page: pg }) => {
   /* 线上 301（Pages _redirects） */
   const fs = require('fs');
   const path = require('path');
-  const rd = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'web', 'atlas', 'static', '_redirects'), 'utf8');
+  const rd = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'static', '_redirects'), 'utf8');
   expect(rd).toMatch(/^\/settings\/manage\/\s+\/settings\/\s+301$/m);
   expect(rd).toMatch(/^\/settings\/accessibility\/\s+\/settings\/\s+301$/m);
 });

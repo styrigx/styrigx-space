@@ -5,7 +5,7 @@
  * - 每份 wrangler.toml 的 [env.preview]：D1 只许 styrigx-test-preview（1339bb0b-f9f8-4e3d-b413-ff07ca28ce69），
  *   KV 只许 193b4d68b8ac4c6f8c0ba16b5ea78b14，R2 只许 bucket styrigx-test-preview
  * - 正式块（非 [env.preview]）绝不引用测试资源的 id / 名字
- * - deploy.yml、scripts/：wrangler d1 命令只对 styrigx-test-preview 加 --env preview；不出现别的 *-preview 资源名
+ * - deploy.yml、space/scripts/、atlas/scripts/：wrangler d1 命令只对 styrigx-test-preview 加 --env preview；不出现别的 *-preview 资源名
  *
  * 运行：node --test tests/workers/auth-gateway/preview-resources.test.mjs
  */
@@ -20,9 +20,9 @@ export const TEST_PREVIEW_NAME = 'styrigx-test-preview';
 export const TEST_PREVIEW_D1_ID = '1339bb0b-f9f8-4e3d-b413-ff07ca28ce69';
 export const TEST_PREVIEW_KV_ID = '193b4d68b8ac4c6f8c0ba16b5ea78b14';
 
-/** 仓库里所有 wrangler.toml：web/atlas/ 和 workers/<名字>/ */
+/** 仓库里所有 wrangler.toml：space/web/ 和 workers/<名字>/ */
 function wranglerFiles() {
-  const out = ['web/atlas/wrangler.toml'];
+  const out = ['space/web/wrangler.toml'];
   for (const d of readdirSync(REPO + 'workers', { withFileTypes: true })) {
     if (d.isDirectory() && existsSync(REPO + 'workers/' + d.name + '/wrangler.toml')) out.push('workers/' + d.name + '/wrangler.toml');
   }
@@ -89,7 +89,7 @@ test('wrangler.toml：配置里（注释除外）只有 styrigx-test-preview 这
 });
 
 test('deploy.yml / scripts：对预览跑的 wrangler d1 命令只碰 styrigx-test-preview，不出现别的 *-preview 库名', () => {
-  const files = ['.github/workflows/deploy.yml', ...readdirSync(REPO + 'scripts').filter((f) => /\.(mjs|cjs|js)$/.test(f)).map((f) => 'scripts/' + f)];
+  const files = ['.github/workflows/deploy.yml', ...readdirSync(REPO + 'space/scripts').filter((f) => /\.(mjs|cjs|js)$/.test(f)).map((f) => 'space/scripts/' + f)];
   let previewCmds = 0;
   for (const p of files) {
     const s = read(p);

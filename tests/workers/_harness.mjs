@@ -26,7 +26,7 @@ const d1ByKv = new WeakMap();
 /**
  * 给网关 env 补上 D1 绑定（D1_LOCK_AUTH / D1_ACCOUNT_AUTH / D1_ROOT_AUTH，正式与预览都绑同一个库），返回同一个 env。
  * db 不给：按 env.KV_LOCK_DOOR（测试里那份「上线前的 KV」）取：第一次新建一个跑过迁移的库，并把这份 KV 当作导入脚本的来源
- * （makeAuthD1 legacyKv：模拟部署前跑过 scripts/migrate-kv-to-d1.mjs）；同一份 kv 拿到同一个库。网关代码本身不读 env 里的 KV。
+ * （makeAuthD1 legacyKv：模拟部署前跑过 space/scripts/migrate-kv-to-d1.mjs）；同一份 kv 拿到同一个库。网关代码本身不读 env 里的 KV。
  * @param {any} env @param {any} [db]
  */
 export function withAuthD1(env, db) {

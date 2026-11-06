@@ -33,7 +33,7 @@ const TEXT_MAX = 2000;
 /* KV 单值上限 25 MiB；留余量，超了就去掉 text（标题、副标题还能搜） */
 const VALUE_MAX = 24 * 1024 * 1024;
 
-/* 页签名、设备类型、游戏状态：和页面上一样（web/assets/js/curio-items.js 的 T） */
+/* 页签名、设备类型、游戏状态：和页面上一样（atlas/web/curio/assets/js/curio-items.js 的 T） */
 const L = {
   zh: {
     finds: '发现', devices: '设备', games: '游戏',

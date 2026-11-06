@@ -10,7 +10,7 @@
  * - LockKey：「安全与隐私 → 锁屏凭证」里存放的钥匙（解锁密码、锁屏通行密钥）
  *
  * 存储：D1 styrigx-auth-gateway，只经 D1_LOCK_AUTH 读写 realm='lock' 的行和恢复开关表 lock_reset_switch
- * （方案 9.4 由 recovery_switch 改名；旧表已在 PR4 由 scripts/migrate-account-auth.mjs --cleanup --confirm DROP，预览库走 migrations/0009）。
+ * （方案 9.4 由 recovery_switch 改名；旧表已在 PR4 由 space/scripts/migrate-account-auth.mjs --cleanup --confirm DROP，预览库走 migrations/0009）。
  * 表见 migrations/0005_lock_account_state.sql、0006_auth_state.sql、0008_lock_reset_switch.sql（读写入口 d1-state.js 与各 core/ 模块）。
  * 进站凭证的限速（attempt_limit kind='spacekey'）和审计（audit）也是 realm='lock' 的行。
  * 网关库里没有 realm='account' / realm='root' 的行（账号数据在账号 Worker 的 D1 styrigx-account；网关库的旧行 PR4 已由 --cleanup 删除）。

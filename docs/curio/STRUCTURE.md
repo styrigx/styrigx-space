@@ -1,34 +1,36 @@
 # 奇趣（sites/curio/）结构
 
+> 状态：现行 ｜ 最后更新：2026-11-06
+
 奇趣原在图志仓库（styrigx-atlas），2026-11-02 并入本仓库；线上在 `https://styrigx.com/curio/`（英文 `/curio/en/`），接口在 `styrigx.com/curio/api/*`；旧地址 `atlas.styrigx.com/curio/…` 301 到主域名同路径。
-下面的目录树是并入前的布局，现在的位置（`web/curio/`、`workers/curio-core/`、`tests/curio/`、`scripts/curio/`）见仓库根 `STRUCTURE.md`。
-仓库整体（三站合成一个 Pages、共用的 `root/`、CI）见仓库根 README。改页面只动 `web/`，改接口只动 `workers/core/`。
+下面的目录树是并入前的布局，现在的位置（`atlas/web/curio/`、`workers/curio-core/`、`tests/curio/`、`atlas/scripts/curio/`）见仓库根 `STRUCTURE.md`。
+仓库整体（三站合成一个 Pages、共用的 `root/`、CI）见仓库根 README。改页面只动 `atlas/web/curio/`，改接口只动 `workers/core/`。
 
 ```
 sites/curio/
-├─ web/          网站本体（Hugo，baseURL https://styrigx.com/curio/），产物由仓库根 scripts/assemble.mjs 合进 public/curio/
+├─ atlas/web/curio/          网站本体（Hugo，baseURL https://styrigx.com/curio/），产物由仓库根 space/scripts/assemble.mjs 合进 public/curio/
 ├─ workers/
 │  └─ core/      Worker styrigx-curio-core：收藏的存、读、导入导出、图标缓存
 ├─ data/         初始收藏 seed.json（迁自主站书签）
-├─ scripts/      生成脚本（种子迁移 SQL）、主站共享外壳同步
+├─ atlas/scripts/curio/      生成脚本（种子迁移 SQL）、主站共享外壳同步
 ├─ tests/        全部测试，按测试对象分目录（e2e 对着仓库根合成的 public/）
 ├─ package.json  workspace 脚本（依赖在仓库根）
 └─ STRUCTURE.md
 ```
 
-## web/
+## atlas/web/curio/
 
 | 位置 | 是什么 |
 |---|---|
 | `hugo.yaml` | Hugo 配置（`params.version` 是版本号，README 徽章读它） |
 | `layouts/_default/baseof.html` | 沉浸式 app 顶栏（九宫格 · 首页 发现 / 设备 / 游戏 分段滑块、其他页页名 · 右圆分享）、导航抽屉（主站共享外壳 `assets/sgx-shell/nav.json`）；没有页脚 |
 | `layouts/index.html` | 首页三个面板：发现（分类条、格子、收藏 / 编辑弹层、管理分类、导入、确认框）、设备、游戏（列表、详情、编辑弹层） |
-| `assets/js/curio.js` | 「发现」页签；纯函数导出给 `tests/web/curio.test.mjs`；确认框 / 提示条 / 弹层开关给另两个页签用（`SgxCurioUI`） |
+| `assets/js/curio.js` | 「发现」页签；纯函数导出给 `tests/curio/curio.test.mjs`；确认框 / 提示条 / 弹层开关给另两个页签用（`SgxCurioUI`） |
 | `assets/js/curio-items.js` | 「设备」「游戏」页签（列表、详情、编辑、照片缩图上传）；纯函数同上 |
 | `assets/js/curio-tabs.js` | 三个页签的切换（hash、滑块、左右滑、右下角按钮） |
 | `assets/js/topbar.js` | 导航抽屉开关 |
 | `assets/js/sgx/` | 外观和语言继承主站（`sgx-ui` cookie）；`shell/ui-cookie-read.js` 是主站共享外壳的 cookie 读端（baseof 内联），`shell/palette-scheme.js` 是自定义主题色引擎 |
-| `assets/sgx-shell/` | 主站共享外壳的抽屉项 + 图标、预设种子，`scripts/sync-shell.mjs` 同步，勿手改 |
+| `assets/sgx-shell/` | 主站共享外壳的抽屉项 + 图标、预设种子，`atlas/scripts/curio/sync-shell.mjs` 同步，勿手改 |
 | `assets/css/input.css` | 样式；`@sgx-shell:begin … end` 之间是主站共享外壳（勿手改），本站自己的在文件末尾（`cu-` 前缀；`bk-` 是沿用的共用弹层组件） |
 | `assets/js/sgx-lock-sync.js` | 切回前台复查会话，401 → 刷新去主站锁屏 |
 
@@ -53,7 +55,7 @@ sites/curio/
 | `src/api/_preview.js` | 抓网页 + 地址安全检查（不抓内网 / 本机 / 自家域名） |
 | `src/api/_auth.js` `_lib.js` `_write.js` | 问网关、JSON 响应、同源 / 同站检查、读 body |
 | `src/api/_image.js` | 图片响应共用：`private, no-cache` + ETag + `Vary: Cookie`，浏览器每次用前回来验会话，304 排在会话和可见性检查之后 |
-| `migrations/` | D1 迁移：`0001_init`（cats、links、imports）、`0002_seed`（初始收藏，由 `scripts/gen-seed-sql.mjs` 生成）、`0003_devices_games`（devices、games） |
+| `migrations/` | D1 迁移：`0001_init`（cats、links、imports）、`0002_seed`（初始收藏，由 `atlas/scripts/curio/gen-seed-sql.mjs` 生成）、`0003_devices_games`（devices、games） |
 
 ## 部署
 

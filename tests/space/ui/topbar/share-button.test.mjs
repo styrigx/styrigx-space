@@ -1,5 +1,5 @@
 /**
- * 子站「分享本页」（web/atlas/assets/js/shell/share-button.js → 共享外壳 share.js，2026-10-24；2026-11-04 P5-1 起是子站快捷面板第 2 页的磁贴，顶栏右圆删除）。
+ * 子站「分享本页」（space/web/assets/js/shell/share-button.js → 共享外壳 share.js，2026-10-24；2026-11-04 P5-1 起是子站快捷面板第 2 页的磁贴，顶栏右圆删除）。
  * 进门二值（P2-3）：不分角色，都 POST https://styrigx.com/api/share（credentials include、reuse、24 小时 / 12 小时会话、页面标题当名字）
  * → 系统分享 / 复制兜底；401 reauth → 最小锁侧复验步骤，通过后自动重试一次、取消什么也不分享；生成中再点不理；失败只 toast，不拿原地址冒充短链。
  */
@@ -8,15 +8,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderAll } from '../../../../scripts/gen-shell.mjs';
+import { renderAll } from '../../../../space/scripts/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const S = await import(path.join(REPO, 'web/atlas/assets/js/shell/share-button.js'));
+const S = await import(path.join(REPO, 'space/web/assets/js/shell/share-button.js'));
 const CODE = 'AbCdEfGhIjKlMnOpQrStUv';
 
 test('共享外壳 share.js = shell/share-button.js 原样；不 import；nav.json 带 share 图标；shell.css 有磁贴忙碌 / toast 样式，没有右圆 / 胶囊', () => {
   const files = renderAll();
-  assert.equal(files['share.js'], readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/share-button.js'), 'utf8'));
+  assert.equal(files['share.js'], readFileSync(path.join(REPO, 'space/web/assets/js/shell/share-button.js'), 'utf8'));
   assert.doesNotMatch(files['share.js'], /^\s*import\s/m);
   assert.match(JSON.parse(files['nav.json']).icons.share, /^<svg[\s\S]*<\/svg>$/);
   for (const sel of ['.is-busy[data-sgx-share] {', '.is-busy[data-sgx-share] svg {', '.sgx-share-toast {', '.sgx-share-toast.show']) {
@@ -42,7 +42,7 @@ test('linkName：去控制字符、合并空白、最多 24 字（按字符不�
 
 test('不再分角色：没有 roleOf，源码不读旧等级标记', () => {
   assert.equal(S.roleOf, undefined);
-  assert.doesNotMatch(readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/share-button.js'), 'utf8'), /data-sgx-role/); // old-name guard
+  assert.doesNotMatch(readFileSync(path.join(REPO, 'space/web/assets/js/shell/share-button.js'), 'utf8'), /data-sgx-role/); // old-name guard
 });
 
 function fakeFetch(status, body) {
