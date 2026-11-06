@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 /* 浏览器全局的最小桩：模块加载时 features.js 会挂 storage 监听 */
 globalThis.window = globalThis.window || { addEventListener() {}, dispatchEvent() {} };
 globalThis.document = globalThis.document || { getElementById() { return null; }, documentElement: { getAttribute() { return null; } }, cookie: '' };
-const { plan } = await import('../../../../web/atlas/assets/js/lib/cloud-sync.js');
+const { plan } = await import('../../../../space/web/assets/js/lib/cloud-sync.js');
 const K = ['sgx-theme-mode', 'sgx-palette', 'sgx-accent'];
 
 test('云端更新 → 应用到本机，本机时间跟上', () => {

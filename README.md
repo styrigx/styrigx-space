@@ -12,8 +12,11 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
-![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
-![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
+![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
+![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
+![博客](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/blog/hugo.yaml&query=%24.params.version&label=%E5%8D%9A%E5%AE%A2&style=flat-square&color=2563eb)
+![奇趣](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/curio/hugo.yaml&query=%24.params.version&label=%E5%A5%87%E8%B6%A3&style=flat-square&color=2563eb)
+![日刻](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/daymark/hugo.yaml&query=%24.params.version&label=%E6%97%A5%E5%88%BB&style=flat-square&color=2563eb)
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?branch=main&style=flat-square&label=Deploy&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
@@ -127,10 +130,10 @@ git clone https://github.com/styrigx/styrigx-space.git
 cd styrigx-space
 npm ci
 npm run build:css
-hugo server -s web/atlas          # http://localhost:1313
+hugo server -s space/web          # http://localhost:1313
 ```
 
-生产构建：`hugo --minify -s web/atlas`，产物在 `web/atlas/public/`。各 Worker 的本地运行方式见各自目录下的 README。
+生产构建：`hugo --minify -s space/web`，产物在 `space/web/public/`。各 Worker 的本地运行方式见各自目录下的 README。
 
 ## 测试与 CI
 
@@ -147,11 +150,11 @@ PR 必须通过 `quality` 和 `passkey-e2e` 才能合并（只允许 squash，�
 
 ```
 styrigx-space/
-├─ web/        网站包：atlas/ 主站（Hugo，由 Cloudflare Pages 发布），blog/ curio/ daymark/ 子站
+├─ space/      主站 + 基建包：web/ 主站（Hugo，由 Cloudflare Pages 发布），scripts/ 构建、生成、静态检查脚本
+├─ atlas/      子站包：web/blog/ web/curio/ web/daymark/ 三个子站，scripts/<站>/ 子站自己的脚本
 ├─ workers/    全部 Worker，一个目录一个
 ├─ tests/      测试，按对象分目录
-├─ scripts/    构建、生成、静态检查脚本
-├─ docs/       设计文档与截图
+├─ docs/       设计文档、任务书与截图（入口索引 docs/README.md）
 └─ .github/    CI 工作流与共享 composite action
 ```
 

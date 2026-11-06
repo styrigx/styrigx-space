@@ -21,7 +21,7 @@
  * /api/prefsX 这类不转发，落到网关路由表 → 404）；/avatar/ = 前缀。
  * 转发时用浏览器的原请求构造（URL 仍是 styrigx.com、Origin / Cookie 原样，账号侧 isSameOrigin 成立），见 core/forward.js forwardToService。
  * 表里的路径只转发：没绑定 ACCOUNT 或绑定出错 → 503 upstream（router.js forward），不落回网关路由表、不回源静态文件。
- * scripts/check-worker-routes.mjs 和单测都读这张表。
+ * space/scripts/check-worker-routes.mjs 和单测都读这张表。
 
  */
 import { apiError } from './lib/http.js';

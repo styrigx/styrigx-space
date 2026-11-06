@@ -19,8 +19,8 @@ preview_urls = false
 enabled = true
 head_sampling_rate = 1
 
-# 路由：比网关的 styrigx.com/* 更具体，所以先命中这里。都用结尾 *（Cloudflare 不带 * 的规则遇到查询串不命中，见 scripts/lib/cf-routes.mjs）。
-# scripts/check-worker-routes.mjs 在 CI 里核对：这两条路径归本 Worker，网关的接口一条都没被抢走，页面仍归网关。
+# 路由：比网关的 styrigx.com/* 更具体，所以先命中这里。都用结尾 *（Cloudflare 不带 * 的规则遇到查询串不命中，见 space/scripts/lib/cf-routes.mjs）。
+# space/scripts/check-worker-routes.mjs 在 CI 里核对：这两条路径归本 Worker，网关的接口一条都没被抢走，页面仍归网关。
 # 注意：删掉这里的路由 = /s/* 回到网关（网关没有短链：页面 404 / 锁屏），不能靠删路由回滚。
 [[routes]]
 pattern = "styrigx.com/s/*"

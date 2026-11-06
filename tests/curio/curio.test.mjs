@@ -1,4 +1,4 @@
-// 首页逻辑的纯函数（web/assets/js/curio.js）：双语取值、首字母、hash、筛选、挪位置、网址补全、导入结果的话。
+// 首页逻辑的纯函数（atlas/web/curio/assets/js/curio.js）：双语取值、首字母、hash、筛选、挪位置、网址补全、导入结果的话。
 // 运行：node --test tests/curio/curio.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
-const C = require('../../web/curio/assets/js/curio.js');
+const C = require('../../atlas/web/curio/assets/js/curio.js');
 
 const CATS = [
   { id: 1, name: { zh: '开发', en: 'Dev' }, private: false, links: [
@@ -84,8 +84,8 @@ test('isLockedReply：写请求只有 401 unauthorized（或没码的 401）才�
   assert.equal(C.isLockedReply(200, ''), false);
 });
 
-const IT = require('../../web/curio/assets/js/curio-items.js');
-const TB = require('../../web/curio/assets/js/curio-tabs.js');
+const IT = require('../../atlas/web/curio/assets/js/curio-items.js');
+const TB = require('../../atlas/web/curio/assets/js/curio-tabs.js');
 
 test('usedDays：购买当天算第 1 天，退役了算到退役日；没填 / 倒了返回 null；daysText 满一年带年数', () => {
   assert.equal(IT.usedDays('2026-10-22', '', '2026-10-22'), 1);
@@ -119,7 +119,7 @@ test('筛选、换代历史、平台联想、缩图尺寸', () => {
 });
 
 test('裁剪几何：取景框按卡片比例、照片始终盖满、框住的原图区域、重新调整摆回原位', () => {
-  const css = readFileSync(new URL('../../web/curio/assets/css/input.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../atlas/web/curio/assets/css/input.css', import.meta.url), 'utf8');
   /* 比例跟卡片的 CSS 一致：设备 .it-media 4/3，游戏 .it-media--cover 3/4 */
   assert.match(css, /\.it-media \{[^}]*aspect-ratio: 4\/3;/);
   assert.match(css, /\.it-media--cover \{ aspect-ratio: 3\/4; \}/);

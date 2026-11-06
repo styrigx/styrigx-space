@@ -4,7 +4,7 @@
  * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com（含子站 /blog/ /curio/ /daymark/，合并 PR3）、https://atlas.styrigx.com（旧图志，网关 301）；
  *   代理把 TLS 接到本机 HTTPS 服务（临时自签证书，
  *   Chromium 用 --ignore-certificate-errors-spki-list 信任它，页面是正常安全上下文，WebAuthn 可用）。
- * - 路由按 workers/auth-gateway/wrangler.toml、workers/account/wrangler.toml、workers/share/wrangler.toml 的 [[routes]]，用 scripts/lib/cf-routes.mjs
+ * - 路由按 workers/auth-gateway/wrangler.toml、workers/account/wrangler.toml、workers/share/wrangler.toml 的 [[routes]]，用 space/scripts/lib/cf-routes.mjs
  *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中；多条命中取最具体的）决定这次请求走网关、短链 Worker 还是直达 Pages。
  *   账号 Worker 账号拆分 PR3 起没有路由（读到有就照样挂上，测试会因此红），只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
@@ -13,7 +13,7 @@
  *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAccountSession，AccountService / AccountVerifier 里跑的同一份代码）。
  *   账号 Worker 自己一对 Ed25519 钥匙、账号根密钥和自己的库（tests/workers/account/_d1.mjs：账号鉴权表 + 云同步），
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
- *   Pages = 单树：web/atlas/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
+ *   Pages = 单树：space/web/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
  *   cloudflare:workers（rpc/*.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。
  * - 临时钥匙用临时 LockKey：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
@@ -67,10 +67,10 @@ const MIME = {
   woff2: 'font/woff2', woff: 'font/woff', txt: 'text/plain',
 };
 
-/** 主站 Pages：web/atlas/public 静态文件（目录补尾斜杠 308、找不到 404.html），HTML 带 _headers 的 public, max-age=300 */
+/** 主站 Pages：space/web/public 静态文件（目录补尾斜杠 308、找不到 404.html），HTML 带 _headers 的 public, max-age=300 */
 function mainPages(req) {
   const u = new URL(req.url);
-  const pub = path.join(REPO, 'web/atlas/public');
+  const pub = path.join(REPO, 'space/web/public');
   let p = decodeURIComponent(u.pathname);
   let file = path.join(pub, p);
   if (!file.startsWith(pub)) return new Response('bad', { status: 400 });
@@ -117,7 +117,7 @@ function pagesFor(req) {
  * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedTempkey:()=>Promise<string>, mintCookie:(by:string)=>Promise<string>, mintReauth:()=>Promise<string>}>}
  */
 async function startEdge() {
-  const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', '..', 'scripts/lib/cf-routes.mjs')).href);
+  const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', '..', 'space/scripts/lib/cf-routes.mjs')).href);
   const routes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
   const accountRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
   const shareRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));

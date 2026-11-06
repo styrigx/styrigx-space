@@ -1,5 +1,5 @@
 /**
- * 页面清单：tests/url-map.json 里博客的每个地址，在 Hugo 构建（web/blog/public/，拼进主站单树的 /blog/ 下）里都在，
+ * 页面清单：tests/url-map.json 里博客的每个地址，在 Hugo 构建（atlas/web/blog/public/，拼进主站单树的 /blog/ 下）里都在，
  * RSS / 站点地图地址和条目一致，文章里的标题锚点（目录、外链用的 #id）一个不少，没有多出清单外的页面。
  * 网址都在 https://styrigx.com/blog/ 下（canonical、站点地图、RSS；合并 PR2 起 baseURL 从 atlas.styrigx.com 改到主域名）。旧的 blog.styrigx.com 地址和 /about/、/archives/ 跳转页都删了，不留兼容。
  * 跑法：npm run build 之后 node --test tests/urls.test.mjs
@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const PUB = path.join(ROOT, 'web/blog/public');
+const PUB = path.join(ROOT, 'atlas/web/blog/public');
 const map = JSON.parse(readFileSync(path.join(ROOT, 'tests/blog/url-map.json'), 'utf8'));
 const SITE = 'https://styrigx.com/blog';
 
@@ -20,7 +20,7 @@ const read = (url) => readFileSync(fileFor(url), 'utf8');
 const isAlias = (html) => /http-equiv="refresh"/.test(html);
 
 test('构建产物存在', () => {
-  assert.ok(existsSync(PUB), 'web/blog/public/ 不存在：先跑 npm run build');
+  assert.ok(existsSync(PUB), 'atlas/web/blog/public/ 不存在：先跑 npm run build');
 });
 
 test('留言板撤了（2026-10-24）：/guestbook/、/en/guestbook/ 不再构建，旧地址走 404', () => {

@@ -2,7 +2,7 @@
  * sgx-ui cookie 契约：主站写端（styrigx-space lib/ui-cookie.js）↔ 本站读端（共享外壳 ui-cookie-read.js，sync-shell 原样同步，baseof.html 内联）。
  * 夹具 tests/fixtures/ui-cookie-contract.json = 主站写端真实写出的 cookie + 读端期望（sync-shell 原样同步，勿手改）；
  * 这里对每个用例断言：本站内联的读端 read / resolve / apply 得到夹具里的期望（系统浅色、深色各一遍），且读端从不写 cookie。
- * 主站改了契约 → 跑 node scripts/sync-shell.mjs 同步读端和夹具，再跑本测试。
+ * 主站改了契约 → 跑 node atlas/scripts/curio/sync-shell.mjs 同步读端和夹具，再跑本测试。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +11,7 @@ import { sandbox } from './ui-cookie-sandbox.mjs';
 
 const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
 const fx = JSON.parse(read('tests/fixtures/ui-cookie-contract.json'));
-const palettes = JSON.parse(read('web/curio/assets/sgx-shell/palettes.json'));
+const palettes = JSON.parse(read('atlas/web/curio/assets/sgx-shell/palettes.json'));
 
 /** <html> 状态，和夹具 root 同形 */
 function rootState(html) {
@@ -30,7 +30,7 @@ function rootState(html) {
 const plain = (o) => JSON.parse(JSON.stringify(o));
 
 test('夹具来自主站写端：37 个用例，覆盖默认 dustyblue、lake、旧撞色、自定义色、旧 v1 / v2、旧种子、theme 别名、大写 accent、lang、未知版本、乱码', () => {
-  assert.match(fx._generated, /styrigx-space scripts\/gen-ui-cookie-contract\.mjs/);
+  assert.match(fx._generated, /styrigx-space space\/scripts\/gen-ui-cookie-contract\.mjs/);
   assert.equal(fx.cases.length, 37);
   const names = fx.cases.map((c) => c.name).join('|');
   for (const k of ['默认 dustyblue 亮色', '湖蓝 lake', '旧撞色 xforest', '自定义主题色', '旧 v1', '旧 v2', '旧种子', 'theme 别名', 'accent 大写', 'lang en', 'lang zh', 'lang 空', 'lang 大写', '未知版本 v3 带 lang', '未知版本', '版本是字符串', '没有 v', '乱码']) {

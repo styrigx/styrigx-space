@@ -1,0 +1,108 @@
+# 博客（styrigx.com/blog/）：Hugo，和主站 styrigx-space 同栈（atlas/web/blog/ = 网站本体，hugo --minify -s atlas/web/blog → atlas/web/blog/public/）。
+# 中文是默认语言（不带前缀），英文在 /en/。所有旧地址（Astro 时期）原样保留，见 tests/blog/url-map.json。
+title: 'Styrigx'
+# 主站单树（styrigx.com）下的子路径：页面、资源都在 /blog/ 下（中文 /blog/，英文 /blog/en/）。
+# 2026-11 合并 PR2 起产物由 space/scripts/assemble.mjs 拼进主站 Pages（dist/site/blog/）；合并 PR3 起线上入口就是 styrigx.com/blog/（旧 atlas.styrigx.com/blog/ 由网关 301 过来）
+baseURL: 'https://styrigx.com/blog/'
+defaultContentLanguage: zh
+defaultContentLanguageInSubdir: false
+hasCJKLanguage: true
+# 不要 /zh/ 跳转页（旧站没有这个地址，网关也没登记）
+disableDefaultLanguageRedirect: true
+# 旧站是 Astro 的 trailingSlash: always：/post/<slug>/、/tags/<slug>/
+uglyURLs: false
+# 文章日期按 UTC 读（Astro 把 2026-10-11 读成 UTC 零点，RSS pubDate 也是 GMT）
+timeZone: UTC
+enableRobotsTXT: false
+enableGitInfo: false
+# 只要这些页面：首页、文章、标签页、404、RSS、站点地图（自己的 sitemap-index.xml / sitemap-0.xml）。
+# /post/ 与 /tags/ 列表页旧站没有，不生成（否则会多出网关没登记过的页面）。
+disableKinds:
+  - section
+  - taxonomy
+  - sitemap
+
+languages:
+  zh:
+    locale: zh-CN
+    label: 中文
+    weight: 1
+    contentDir: content/zh
+    params:
+      locale: zh-CN
+      rssTitle: 'Styrigx'
+  en:
+    locale: en
+    label: English
+    weight: 2
+    contentDir: content/en
+    params:
+      locale: en
+      rssTitle: 'Styrigx (English)'
+
+taxonomies:
+  tag: tags
+
+permalinks:
+  page:
+    post: /post/:contentbasename/
+  term:
+    tags: /tags/:slug/
+
+outputFormats:
+  RSS:
+    baseName: rss
+  SitemapIndex:
+    mediaType: application/xml
+    baseName: sitemap-index
+    isPlainText: true
+    notAlternative: true
+    root: true
+  Sitemap0:
+    mediaType: application/xml
+    baseName: sitemap-0
+    isPlainText: true
+    notAlternative: true
+    root: true
+
+outputs:
+  home: [HTML, RSS, SitemapIndex, Sitemap0]
+  page: [HTML]
+  term: [HTML]
+
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+    parser:
+      autoHeadingIDType: github
+  highlight:
+    # 代码块：Chroma 输出 class（配色由 atlas/web/blog/assets/css/blog/code-tokens.css 从色彩角色生成，不用固定主题）
+    noClasses: false
+    lineNos: true
+    lineNumbersInTable: false
+    anchorLineNos: false
+    guessSyntax: false
+    codeFences: true
+    tabWidth: 2
+  tableOfContents:
+    startLevel: 2
+    endLevel: 3
+    ordered: false
+
+params:
+  description: 'Sloan Gray 的个人博客：AI 工具实战、开源项目复盘与个人基础设施笔记。中英双语。'
+  pageDescription: 'Sloan Gray（Styrigx）的个人博客：AI 应用、开源项目与基础设施笔记，中英双语更新。'
+  author: 'Sloan Gray'
+  version: '1.0.0'
+
+# 构建时可读的环境变量（CI 用）
+security:
+  funcs:
+    getenv:
+      - '^HUGO_'
+      - '^CI$'
+
+minify:
+  # 和主站一样：不压 HTML（tdewolff 与内联脚本里的 < 冲突）；CSS 由 Tailwind CLI 压缩
+  disableHTML: true

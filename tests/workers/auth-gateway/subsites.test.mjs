@@ -206,11 +206,11 @@ test('主域名根上的 /api/lock-session-check（子站前端问的）：有�
   assert.deepEqual(await res.json(), { ok: false });
   assert.match(res.headers.get('Cache-Control'), /no-store/);
   /* 前端判断：blog sgx-lock-check.js 只在 204 时「什么都不做」、401 时跳锁屏、其他状态不动；curio / daymark sgx-lock-sync.js 只认 401 */
-  const blog = readFileSync(REPO + '/web/blog/assets/js/blog/sgx-lock-check.js', 'utf8');
+  const blog = readFileSync(REPO + '/atlas/web/blog/assets/js/blog/sgx-lock-check.js', 'utf8');
   assert.match(blog, /if \(r\.status === 401\)/);
   assert.match(blog, /其他状态码：不跳转/);
   for (const s of ['curio', 'daymark']) {
-    assert.match(readFileSync(REPO + '/web/' + s + '/assets/js/sgx-lock-sync.js', 'utf8'), /res\.status === 401/);
+    assert.match(readFileSync(REPO + '/atlas/web/' + s + '/assets/js/sgx-lock-sync.js', 'utf8'), /res\.status === 401/);
   }
 });
 

@@ -16,7 +16,7 @@
  * audit（root-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。
  * 绑定按域：realm.d1Binding（本 Worker 只有 account → D1_ACCOUNT_AUTH）。
  *
- * 上线前的 KV 旧值：scripts/migrate-kv-to-d1.mjs 在部署前跑一次写进 D1（运行时不读 KV，没有回落）。
+ * 上线前的 KV 旧值：space/scripts/migrate-kv-to-d1.mjs 在部署前跑一次写进 D1（运行时不读 KV，没有回落）。
  *
  * 出错一律抛（D1 未绑定、查询失败）；调用方按 fail closed 处理（签发 503、验票无效）。
  * 表不存在（迁移没跑的库）：建表后整次操作重试一次。

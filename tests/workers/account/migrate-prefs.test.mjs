@@ -1,5 +1,5 @@
 /**
- * 一次性导入 scripts/migrate-prefs-kv-to-d1.mjs（2026-10-28）：KV account-prefs → D1 styrigx-account 的 settings_sync。
+ * 一次性导入 space/scripts/migrate-prefs-kv-to-d1.mjs（2026-10-28）：KV account-prefs → D1 styrigx-account 的 settings_sync。
  * - planPrefsImport：清洗规则同接口（不合法的项跳过）
  * - runPrefsPlan：--dry-run 不写、apply 建表 + 写入、重复跑幂等、不盖掉 D1 里更新的值、--verify
  * - 导入后接口 GET /api/prefs 读到的就是 KV 里的那份
@@ -13,8 +13,8 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { makeAccountD1 } from './_d1.mjs';
-import { planPrefsImport, runPrefsPlan, ACCOUNT_KV_NAMESPACE, LEGACY_PREFS_KEY } from '../../../scripts/migrate-prefs-kv-to-d1.mjs';
-import { d1IdOf } from '../../../scripts/migrate-kv-to-d1.mjs';
+import { planPrefsImport, runPrefsPlan, ACCOUNT_KV_NAMESPACE, LEGACY_PREFS_KEY } from '../../../space/scripts/migrate-prefs-kv-to-d1.mjs';
+import { d1IdOf } from '../../../space/scripts/migrate-kv-to-d1.mjs';
 import { rowsToPrefs } from '../../../workers/account/src/api/prefs.js';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
@@ -170,7 +170,7 @@ async function fakeCf(st) {
 
 function runCli(args, base) {
   return new Promise((resolve) => {
-    const p = spawn(process.execPath, [REPO + 'scripts/migrate-prefs-kv-to-d1.mjs', ...args], {
+    const p = spawn(process.execPath, [REPO + 'space/scripts/migrate-prefs-kv-to-d1.mjs', ...args], {
       env: { ...process.env, CF_API_TOKEN: 'tok', CF_ACCOUNT_ID: 'acc', CF_API_BASE: base },
     });
     let out = '';

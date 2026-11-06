@@ -1,11 +1,11 @@
 /**
  * 四包拼一棵树（合并 PR2；移植自 styrigx-atlas tests/pages.test.mjs，按单树改写）：
- * - scripts/assemble.mjs：主站产物整份在根上（域名根文件 _worker.js / _headers / _redirects / robots.txt / 404.html 都归主站），
+ * - space/scripts/assemble.mjs：主站产物整份在根上（域名根文件 _worker.js / _headers / _redirects / robots.txt / 404.html 都归主站），
  *   三站产物在 /blog/ /curio/ /daymark/ 下、各带自己的 404.html；子站产物带根文件、主站产物里已有子站目录、哪个包没构建 → 失败，且不出半棵树
- * - web/atlas/static/_worker.js：非 styrigx.com 一律 301（host 判断不变）；/curio/ /daymark/ 下像图片的回答一律 404 no-store，
+ * - space/web/static/_worker.js：非 styrigx.com 一律 301（host 判断不变）；/curio/ /daymark/ 下像图片的回答一律 404 no-store，
  *   主站（/images/ /avatar/ /og.png 收藏图标）和 /blog/（og.png）照旧；PR2 的过渡规则「三站 .xml 一律 404」在合并 PR3 删掉（网关按子站前缀验会话）
- * - web/atlas/static/_headers：子站缓存规则在 @gen-security-headers 段外（gen-csp 不管）
- * - 三站 baseURL 都是 https://styrigx.com/<站>/；子站包不带自己的 Pages 根文件；奇趣、日刻的 web/ 里没有图片文件
+ * - space/web/static/_headers：子站缓存规则在 @gen-security-headers 段外（gen-csp 不管）
+ * - 三站 baseURL 都是 https://styrigx.com/<站>/；子站包不带自己的 Pages 根文件；奇趣、日刻的 atlas/web/<站>/ 里没有图片文件
  * - 最后一组对真实构建拼树（先 npm run build 或 CI 的 Build site + Build subsites；没构建就跳过）
  * 运行：node --test tests/space/ui/build/assemble.test.mjs
  */
@@ -18,8 +18,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
-const { assemble, SITES, ROOT_ONLY } = await import(pathToFileURL(path.join(REPO, 'scripts/assemble.mjs')).href);
-const pagesWorker = (await import(pathToFileURL(path.join(REPO, 'web/atlas/static/_worker.js')).href)).default;
+const { assemble, SITES, ROOT_ONLY } = await import(pathToFileURL(path.join(REPO, 'space/scripts/assemble.mjs')).href);
+const pagesWorker = (await import(pathToFileURL(path.join(REPO, 'space/web/static/_worker.js')).href)).default;
 
 const IMG = /\.(png|apng|jpe?g|jfif|pjpeg|pjp|gif|webp|avif|svgz?|ico|cur|bmp|tiff?|heic|heif|jxl)$/i;
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -105,7 +105,7 @@ test('assemble：输出目录不能和主站产物重叠', () => {
   assert.throws(() => assemble({ ...f, out: path.join(f.main, 'x') }), /重叠/);
 });
 
-/* ---------------- web/atlas/static/_worker.js ---------------- */
+/* ---------------- space/web/static/_worker.js ---------------- */
 
 /** 假的 ASSETS：按路径回不同的静态回答，记下收到的请求 */
 function assetsWith(map, seen = []) {
@@ -204,13 +204,13 @@ test('_worker.js：合并 PR3 删掉 PR2 的过渡规则——三站 .xml 原样
   for (const p of ['/blog/rss.xml', '/blog/en/rss.xml', '/curio/sitemap.xml', '/sitemap.xml', '/blog/manifest.json', '/blog/']) {
     assert.equal((await pagesWorker.fetch(new Request(HOST + p), { ASSETS: assets })).status, 200, p);
   }
-  assert.doesNotMatch(read('web/atlas/static/_worker.js'), /NO_XML_PREFIXES/);
+  assert.doesNotMatch(read('space/web/static/_worker.js'), /NO_XML_PREFIXES/);
 });
 
 /* ---------------- 根文件归属 / 包内容 ---------------- */
 
 test('_headers：子站缓存规则在 @gen-security-headers 段外，/js/ /css/ 一年 immutable、博客字体一周', () => {
-  const h = read('web/atlas/static/_headers');
+  const h = read('space/web/static/_headers');
   const end = h.indexOf('# @gen-security-headers end');
   assert.ok(end > 0);
   const generated = h.slice(0, end);
@@ -227,20 +227,20 @@ test('_headers：子站缓存规则在 @gen-security-headers 段外，/js/ /css/
 
 test('三站 baseURL 都是 https://styrigx.com/<站>/（产物放在主站单树里）', () => {
   for (const site of SITES) {
-    assert.match(read(`web/${site}/hugo.yaml`), new RegExp(`^baseURL: 'https://styrigx\\.com/${site}/'$`, 'm'), site);
+    assert.match(read(`atlas/web/${site}/hugo.yaml`), new RegExp(`^baseURL: 'https://styrigx\\.com/${site}/'$`, 'm'), site);
   }
 });
 
 test('子站包不带自己的 Pages 配置和根文件，也没有 Pages Functions', () => {
   for (const site of SITES) {
     for (const f of ['wrangler.toml', 'functions', 'static/_worker.js', 'static/_headers', 'static/_redirects', 'static/robots.txt']) {
-      assert.equal(existsSync(path.join(REPO, 'web', site, f)), false, `web/${site}/${f}`);
+      assert.equal(existsSync(path.join(REPO, 'atlas', 'web', site, f)), false, `atlas/web/${site}/${f}`);
     }
   }
-  assert.equal(read('web/atlas/static/robots.txt'), 'User-agent: *\nDisallow: /\n');
+  assert.equal(read('space/web/static/robots.txt'), 'User-agent: *\nDisallow: /\n');
 });
 
-test('奇趣、日刻的 web/ 里没有图片文件（图片只能走接口 Worker 的 /<站>/api/*，先验会话）', () => {
+test('奇趣、日刻的 atlas/web/<站>/ 里没有图片文件（图片只能走接口 Worker 的 /<站>/api/*，先验会话）', () => {
   const skip = new Set(['public', 'resources', 'node_modules']);
   const bad = [];
   const walk = (dir, rel) => {
@@ -249,21 +249,21 @@ test('奇趣、日刻的 web/ 里没有图片文件（图片只能走接口 Work
       else if (IMG.test(e.name)) bad.push(rel + e.name);
     }
   };
-  for (const site of ['curio', 'daymark']) walk(path.join(REPO, 'web', site), `web/${site}/`);
+  for (const site of ['curio', 'daymark']) walk(path.join(REPO, 'atlas', 'web', site), `atlas/web/${site}/`);
   assert.deepEqual(bad, []);
 });
 
 /* ---------------- 真实构建拼树 ---------------- */
 
 test('真实构建：拼好的树根文件归主站、三站各在前缀下、站内地址都带本站前缀、/curio/ /daymark/ 没有图片', (t) => {
-  const built = ['atlas', ...SITES].every((s) => existsSync(path.join(REPO, 'web', s, 'public/index.html')));
+  const built = [path.join(REPO, 'space', 'web'), ...SITES.map((s) => path.join(REPO, 'atlas', 'web', s))].every((d) => existsSync(path.join(d, 'public/index.html')));
   if (!built) { t.skip('还没构建（先 npm run build）'); return; }
   const out = path.join(mkdtempSync(path.join(tmpdir(), 'sgx-site-')), 'site');
   assemble({ out });
   for (const f of ['_worker.js', '_headers', '_redirects', 'robots.txt', '404.html', 'index.html']) {
-    assert.ok(readFileSync(path.join(out, f)).equals(readFileSync(path.join(REPO, 'web/atlas/public', f))), f + ' 来自主站');
+    assert.ok(readFileSync(path.join(out, f)).equals(readFileSync(path.join(REPO, 'space/web/public', f))), f + ' 来自主站');
   }
-  assert.equal(readFileSync(path.join(out, '_worker.js'), 'utf8'), read('web/atlas/static/_worker.js'));
+  assert.equal(readFileSync(path.join(out, '_worker.js'), 'utf8'), read('space/web/static/_worker.js'));
   for (const s of SITES) {
     for (const f of ['index.html', 'en/index.html', '404.html']) assert.ok(existsSync(path.join(out, s, f)), s + '/' + f);
     for (const n of ROOT_ONLY) assert.equal(existsSync(path.join(out, s, n)), false, s + '/' + n);

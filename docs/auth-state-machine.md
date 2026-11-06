@@ -1,5 +1,7 @@
 # 四站锁屏 / 解锁 / 回跳 / 复验 / 账号页：状态机（2026-10-21）
 
+> 状态：现行 ｜ 最后更新：2026-11-06
+
 唯一状态源是服务端（网关 `styrigx-auth-gateway`）验签过的 cookie。前端只「反映服务端的回答」：
 页面里的 `<html data-sgx-lock-session / data-sgx-account-session>`（网关注入；进门二值，P2-3 起没有等级标记）和
 `GET /api/lock-session-check[?return=]` 的 JSON。前端不在 localStorage / sessionStorage / 内存里另存「已解锁 / 已锁定」。
@@ -35,7 +37,7 @@ SpaceKey 不拥有会话，两把各管各的：进站凭证 `SGX_LOCK_SPACE_KEY
 账号路径（`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`）同样归网关的 `styrigx.com/*`：网关验门后经服务绑定 `ACCOUNT` 转给账号 Worker
 （转发表 `workers/auth-gateway/src/router.js` 的 `FORWARDING`）。账号 Worker 没有任何路由（账号拆分 PR3）。
 
-Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）完全相等；带查询串就不命中（2026-10-21 线上实测，`scripts/lib/cf-routes.mjs`）。
+Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）完全相等；带查询串就不命中（2026-10-21 线上实测，`space/scripts/lib/cf-routes.mjs`）。
 
 ## 3. 网关的判定（页面）
 
@@ -56,7 +58,7 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 `resolveReturn(return)`（唯一实现，首页 302 和 session-check 共用）：站内路径（不许 `//`、`/\`、`/lock/`）或 `https://*.styrigx.com`
 （无用户名密码、无反斜杠、不含已下线子站），否则回首页。只做地址白名单，不看进门方式（P2-3）：门内页要的锁侧复验由页面自己要。
 
-## 4. 前端状态机（`web/atlas/assets/js/shell/lock-guard.js` 判定 + `shell/lock.js` 锁屏界面，按需加载）
+## 4. 前端状态机（`space/web/assets/js/shell/lock-guard.js` 判定 + `shell/lock.js` 锁屏界面，按需加载）
 
 页面状态 `pageState()` = `data-sgx-lock-session`：`valid` / `locked` / `lock-reset` / `unknown`（没有属性 = 页面没经过网关）。
 
@@ -93,6 +95,6 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 ## 5. 测试
 
 - 单测：`tests/workers/auth-gateway/auth-flow-2026-10-21.test.mjs`
-- 端到端：`SGX_TEST_SUITE=edge`（`tests/web/e2e/edge-flow.spec.js` + `edge-harness.cjs`）：真实网关代码 + 账号 Worker 代码（两边绑定和钥匙按正式环境拆开）+ wrangler.toml 路由 + 线上匹配规则 +
+- 端到端：`SGX_TEST_SUITE=edge`（`tests/space/e2e/edge/edge-flow.spec.js` + `edge-harness.cjs`）：真实网关代码 + 账号 Worker 代码（两边绑定和钥匙按正式环境拆开）+ wrangler.toml 路由 + 线上匹配规则 +
   真实域名（本地 HTTPS 代理）+ CDP 虚拟认证器 + 假 Turnstile
 - 锁屏套件：`SGX_TEST_SUITE=lock`（http-server + mock，覆盖界面细节）

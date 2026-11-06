@@ -1,5 +1,5 @@
 /**
- * 部署后健康闸门第二阶段：scripts/health-gate.mjs（读 styrigx-status 的 checks 判定）和 deploy.yml 里的接线。
+ * 部署后健康闸门第二阶段：space/scripts/health-gate.mjs（读 styrigx-status 的 checks 判定）和 deploy.yml 里的接线。
  * 运行：node --test tests/workers/status/health-gate.test.mjs
  *
  * 真 SQL 用 node:sqlite 跑（Node 22+；没有就跳过那一条，纯逻辑照测）。
@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import {
   judge, failingBefore, checksQuery, d1Query, waitForHealth, parseArgs, unknownSites, isSafeSite, BASELINE_WINDOW_MS,
-} from '../../../scripts/health-gate.mjs';
+} from '../../../space/scripts/health-gate.mjs';
 import { TARGETS } from '../../../workers/status/src/targets.js';
 
 const require = createRequire(import.meta.url);
@@ -226,7 +226,7 @@ test('deploy.yml：status 部署核对后跑闸门（在最后的回滚步骤之
   assert.ok(vi >= 0 && gi === vi + 1, '闸门紧跟 worker-verify');
   assert.equal(gi, steps.length - 2, '闸门之后只有回滚一步（失败时 status 自己回滚）');
   const g = steps[gi];
-  assert.match(g.run, /^node scripts\/health-gate\.mjs --sites ai --baseline-until "\$BASELINE_UNTIL"$/);
+  assert.match(g.run, /^node space\/scripts\/health-gate\.mjs --sites ai --baseline-until "\$BASELINE_UNTIL"$/);
   assert.equal(g.env.CLOUDFLARE_API_TOKEN, '${{ secrets.STYRIGX_STATUS_DEPLOY }}');
   assert.equal(g.env.CLOUDFLARE_ACCOUNT_ID, '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}');
   assert.equal(g['continue-on-error'], undefined, '闸门失败要让 job 红');

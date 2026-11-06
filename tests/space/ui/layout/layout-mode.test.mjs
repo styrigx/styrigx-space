@@ -8,10 +8,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveLayout, normLayout, layoutBig } from '../../../../web/atlas/assets/js/lib/prefs.js';
+import { resolveLayout, normLayout, layoutBig } from '../../../../space/web/assets/js/lib/prefs.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const baseof = readFileSync(path.join(REPO, 'web/atlas/layouts/_default/baseof.html'), 'utf8');
+const baseof = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.html'), 'utf8');
 const src = baseof.match(/function __layoutMode\(\)\{[\s\S]*?\n\}/)[0];
 
 /** 跑 baseof 的内联函数：stub window / localStorage / location */

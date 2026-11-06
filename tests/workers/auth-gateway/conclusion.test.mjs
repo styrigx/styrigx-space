@@ -22,7 +22,7 @@ const {
   ACCOUNT_CONCLUSION_HEADERS, ACCOUNT_CONCLUSION_PREFIX, conclusionFor, writeAccountConclusion, stripAccountConclusion,
   normalizeAccountConclusion, normalizeLockConclusion, normalizeScopes,
 } = mod;
-const layers = await import('../../../scripts/check-layers.mjs');
+const layers = await import('../../../space/scripts/check-layers.mjs');
 
 const LOCK = await genKeyPair();
 const OTHER = await genKeyPair();

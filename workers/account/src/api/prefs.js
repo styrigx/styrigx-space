@@ -5,7 +5,7 @@
  * 没进门 401 session；没登录账号 401 account；没作用域 403 scope。前端（lib/cloud-sync.js）遇到 401 / 403 停在「只存本机」。
  *
  * 存储：D1 styrigx-account 的 settings_sync 表（绑定 D1_SETTINGS_SYNC，migrations/0002_settings_sync.sql），一项设置一行
- *   (k, v, t, updated_at)。2026-10-28 之前在 KV account-prefs，旧值由 scripts/migrate-prefs-kv-to-d1.mjs 一次性导入；运行时不读 KV、没有回落。
+ *   (k, v, t, updated_at)。2026-10-28 之前在 KV account-prefs，旧值由 space/scripts/migrate-prefs-kv-to-d1.mjs 一次性导入；运行时不读 KV、没有回落。
  * - 逐项「新的赢」：t 更大的覆盖（相等不动），在 SQL 里原子完成（UPSERT ... WHERE excluded.t > settings_sync.t），
  *   两台设备同时写、或旧设备拿着旧值来写，都不会把更新的值盖掉；v=null 表示这一项被恢复默认（本地删了 key）
  * - 只收 sgx- 开头的 key（前端 lib/cloud-sync.js 的白名单决定同步哪些，锁屏 / 凭证类从来不在里面）
@@ -27,7 +27,7 @@ export const MAX_TOTAL = MAX_ITEMS * 2;
 const MAX_VALUE = 600;
 const SKEW_MS = 60 * 1000;
 
-/** 表结构（同 migrations/0002_settings_sync.sql）；导入脚本 scripts/migrate-prefs-kv-to-d1.mjs 也用这一条 */
+/** 表结构（同 migrations/0002_settings_sync.sql）；导入脚本 space/scripts/migrate-prefs-kv-to-d1.mjs 也用这一条 */
 export const SCHEMA =
   'CREATE TABLE IF NOT EXISTS settings_sync (k TEXT NOT NULL PRIMARY KEY, v TEXT, t INTEGER NOT NULL, updated_at INTEGER NOT NULL)';
 

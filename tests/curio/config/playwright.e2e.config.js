@@ -2,7 +2,7 @@
  * 设备：Chromium，412×915 / 360×800，
  * deviceScaleFactor 2.625，isMobile + hasTouch。
  *
- * 2026-11-02 从 styrigx-atlas 搬来；styrigx-space 合并 PR2 接进 CI：先构建各包并用 scripts/assemble.mjs 拼成 dist/site/，这里起模拟 Pages 的静态服务器（scripts/blog/serve-static.mjs），
+ * 2026-11-02 从 styrigx-atlas 搬来；styrigx-space 合并 PR2 接进 CI：先构建各包并用 space/scripts/assemble.mjs 拼成 dist/site/，这里起模拟 Pages 的静态服务器（atlas/scripts/blog/serve-static.mjs），
  * 本站在 /curio/ 下（测试里的地址都带 /curio 前缀）。CI 见仓库根 .github/workflows/deploy.yml。
  */
 const { defineConfig } = require('@playwright/test');
@@ -23,7 +23,7 @@ module.exports = defineConfig({
     },
   ],
   webServer: {
-    command: 'node ../../../scripts/blog/serve-static.mjs ../../../dist/site 8932',
+    command: 'node ../../../atlas/scripts/blog/serve-static.mjs ../../../dist/site 8932',
     port: 8932,
     reuseExistingServer: true,
   },

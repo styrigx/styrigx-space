@@ -23,7 +23,7 @@
  * - reauth / reset 票本来就只发主机（不带 Domain），照样写一遍，无副作用。
  *
  * 预览站用同一个 D1。CI 每次开跑前清掉预览 D1 里的密码、通行密钥和输错计数
- * （scripts/kv-budget.mjs reset-preview；根密钥、pepper 每次都换，旧的密码哈希没用了），
+ * （space/scripts/kv-budget.mjs reset-preview；根密钥、pepper 每次都换，旧的密码哈希没用了），
  * 本地跑也不一定清，所以 helper 仍不假设起始状态：
  * - adminSession：先用本次运行设过的锁屏密码解锁；不行就拿 LockResetTicket（锁屏未设置时 space-auth
  *   purpose:lock-reset；已设置时在 D1 插一行新的重置开关，轮询 /api/lock-reset），设一个新密码再解锁。

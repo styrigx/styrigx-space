@@ -1,4 +1,4 @@
--- 由 scripts/gen-seed-sql.mjs 从 data/seed.json 生成，不要手改。
+-- 由 atlas/scripts/curio/gen-seed-sql.mjs 从 data/seed.json 生成，不要手改。
 -- 初始收藏：迁自 styrigx-space 主站书签（2026-10-21）。只在空库里写（分类 id 已存在就跳过整条）。
 INSERT OR IGNORE INTO cats (id, name_zh, name_en, private, pos, created_at) VALUES (1, '我的主页', 'My profiles', 0, 0, 1792512000000);
 INSERT OR IGNORE INTO cats (id, name_zh, name_en, private, pos, created_at) VALUES (2, '我的项目', 'My projects', 0, 1, 1792512000000);

@@ -23,7 +23,7 @@ module.exports = defineConfig({
     },
   },
   webServer: NEEDS_STATIC ? {
-    command: 'npx http-server ../../web/atlas/public -p 8931 -s',
+    command: 'npx http-server ../../space/web/public -p 8931 -s',
     port: 8931,
     reuseExistingServer: true,
   } : undefined,

@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { wbFits } from '../../../../web/atlas/assets/js/lib/wb-view.js';
+import { wbFits } from '../../../../space/web/assets/js/lib/wb-view.js';
 
 const el = (attrs) => ({ hasAttribute: (n) => attrs.includes(n) });
 
@@ -22,8 +22,8 @@ test('wbFits：根卡（data-wb-detail）只在 detail:true 时画；首页小�
 });
 
 test('模板和脚本：根卡带 data-wb-detail；settings.js 不再按旧等级标记去掉 data-wb-root', () => {
-  const tpl = readFileSync(new URL('../../../../web/atlas/layouts/partials/setcat-wellbeing.html', import.meta.url), 'utf8');
+  const tpl = readFileSync(new URL('../../../../space/web/layouts/partials/setcat-wellbeing.html', import.meta.url), 'utf8');
   assert.match(tpl, /id="wb-card" data-wb-root data-wb-detail/);
-  const js = readFileSync(new URL('../../../../web/atlas/assets/js/apps/settings.js', import.meta.url), 'utf8');
+  const js = readFileSync(new URL('../../../../space/web/assets/js/apps/settings.js', import.meta.url), 'utf8');
   assert.doesNotMatch(js, /getAttribute\('data-sgx-role'\)/); // old-name guard
 });

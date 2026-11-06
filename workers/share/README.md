@@ -22,4 +22,4 @@ migrations/         D1 styrigx-share 的表结构（0001_share_links.sql：share
   token `styrigx-share-deploy`（GitHub 环境 `STYRIGX_SHARE_DEPLOY`，只允许 main）。
 - 子站顶栏分享按钮（2026-10-24，共享外壳 share.js）：进门的人点它（P2-3 起不分角色；先锁侧复验）→ POST `/api/share` `{action:'create', reuse:true, to:当前页, hours:24, session:43200}`（合并 PR3 起三站在 styrigx.com/<站>/ 下，与主站同源，不再跨源）；
   同一页、同档位、还剩 ≥ 12 小时的有效短链直接复用（不签新钥匙，临时钥匙列表不变长）。
-- 测试：`tests/workers/share/`；边缘测试台 `tests/web/e2e/edge-flow.spec.js` 的 R9。
+- 测试：`tests/workers/share/`；边缘测试台 `tests/space/e2e/edge/edge-flow.spec.js` 的 R9。

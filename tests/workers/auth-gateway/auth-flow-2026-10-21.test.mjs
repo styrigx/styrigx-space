@@ -25,7 +25,7 @@ import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
 const worker = (await import(REPO + '/workers/auth-gateway/src/app.js')).default;
-const { readRoutes, pickRoute, routeMatches } = await import(REPO + '/scripts/lib/cf-routes.mjs');
+const { readRoutes, pickRoute, routeMatches } = await import(REPO + '/space/scripts/lib/cf-routes.mjs');
 const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
@@ -211,7 +211,7 @@ test('C 临时钥匙进门的人直接打开锁屏凭证页（中英）→ 200 �
 
 /* ---------------- D. 锁屏瘦身 ---------------- */
 test('D 首页模板用 safeHTML 输出瘦身标记（Go 模板会删 HTML 注释）；锁屏态剥掉桌面、valid 保留', async () => {
-  const tpl = fs.readFileSync(path.join(REPO, 'web/atlas/layouts/index.html'), 'utf8');
+  const tpl = fs.readFileSync(path.join(REPO, 'space/web/layouts/index.html'), 'utf8');
   assert.match(tpl, /\{\{ "<!-- SGX-DESKTOP-START -->" \| safeHTML \}\}/);
   assert.match(tpl, /\{\{ "<!-- SGX-DESKTOP-END -->" \| safeHTML \}\}/);
   assert.doesNotMatch(await (await get('https://styrigx.com/?lock=1')).text(), /DESK/);
@@ -257,7 +257,7 @@ test('E 账号页（进门）：ACCOUNT_VERIFIER 没绑 / RPC 出错 → 不给�
   }
 });
 test('E 账号页模板：登录区默认 hidden，并被 SGX-ACCT-LOGIN 标记包住（safeHTML）', () => {
-  const tpl = fs.readFileSync(path.join(REPO, 'web/atlas/layouts/_default/account.html'), 'utf8');
+  const tpl = fs.readFileSync(path.join(REPO, 'space/web/layouts/_default/account.html'), 'utf8');
   assert.match(tpl, /\{\{ "<!-- SGX-ACCT-LOGIN-START -->" \| safeHTML \}\}\n\s*<div id="acct-login" class="acct-login" hidden>/);
   assert.match(tpl, /\{\{ "<!-- SGX-ACCT-LOGIN-END -->" \| safeHTML \}\}/);
   assert.match(tpl, /<div id="acct-main" hidden>/);
@@ -280,6 +280,6 @@ test('F RSS（Hugo 生成的 */index.xml，列着全站页面标题和地址）�
 
 /* ---------------- G. 不预渲染 ---------------- */
 test('G 页面不带 Speculation Rules（预渲染会启用旧会话状态的页面）', () => {
-  const base = fs.readFileSync(path.join(REPO, 'web/atlas/layouts/_default/baseof.html'), 'utf8');
+  const base = fs.readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.html'), 'utf8');
   assert.doesNotMatch(base, /speculationrules/);
 });

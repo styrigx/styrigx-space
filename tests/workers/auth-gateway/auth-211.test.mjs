@@ -557,12 +557,12 @@ test('2.11 补充四：lock-reset 假入口（space-auth，锁屏已设置）响
 
 test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）', async () => {
   const fs = await import('node:fs');
-  const src = fs.readFileSync(REPO + 'web/atlas/assets/js/shell/lock.js', 'utf8');
+  const src = fs.readFileSync(REPO + 'space/web/assets/js/shell/lock.js', 'utf8');
   /* C2：底部恢复提示改成新文案，不出现 lock-reset-switch 键名 */
   assert.ok(!src.includes('lock-reset-switch'), 'lock.js 不应再出现 lock-reset-switch 键名');
   assert.ok(!src.includes('sgx-reset-switch-hint'), '旧提示元素已删除');
   /* PR3：重置界面在 auth/reset-flow.js（锁屏与账号页共用），不出现旧角色名；账号拆分 PR3 起第二步是锁屏凭证，恢复提示只在第二步 */
-  const rf = fs.readFileSync(REPO + 'web/atlas/assets/js/auth/reset-flow.js', 'utf8');
+  const rf = fs.readFileSync(REPO + 'space/web/assets/js/auth/reset-flow.js', 'utf8');
   assert.ok(!src.includes('管理员') && !rf.includes('管理员'), '不再出现「管理员」字样'); // old-name guard
   assert.ok(!rf.includes('lock-reset-switch'), 'reset-flow.js 不应出现开关键名');
   assert.ok(rf.includes('锁屏凭证也无法使用？'), '恢复提示说的是锁屏凭证');

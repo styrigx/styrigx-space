@@ -1,23 +1,23 @@
 node_modules
 .DS_Store
 
-# 网站构建产物（Hugo 在 web/atlas/ 里生成）
-web/atlas/public/
-web/atlas/resources/
-web/atlas/.hugo_build.lock
-web/atlas/hugo_stats.json
-web/atlas/assets/css/main.css
-web/atlas/data/tailwind.json
+# 网站构建产物（Hugo 在 space/web/ 里生成）
+space/web/public/
+space/web/resources/
+space/web/.hugo_build.lock
+space/web/hugo_stats.json
+space/web/assets/css/main.css
+space/web/data/tailwind.json
 
-# 子站包（web/blog、web/curio、web/daymark）的构建产物：各站 Hugo + Tailwind CLI
-web/*/public/
-web/*/resources/
-web/*/.hugo_build.lock
-web/*/hugo_stats.json
-web/blog/assets/css/main.css
-web/blog/assets/css/.tw-out.css
-web/curio/assets/css/main.css
-web/daymark/assets/css/main.css
+# 子站包（atlas/web/blog、atlas/web/curio、atlas/web/daymark）的构建产物：各站 Hugo + Tailwind CLI
+atlas/web/*/public/
+atlas/web/*/resources/
+atlas/web/*/.hugo_build.lock
+atlas/web/*/hugo_stats.json
+atlas/web/blog/assets/css/main.css
+atlas/web/blog/assets/css/.tw-out.css
+atlas/web/curio/assets/css/main.css
+atlas/web/daymark/assets/css/main.css
 
 # 博客搜索索引（含私密文章，从不随页面发布）
 search-index.*.json
@@ -31,5 +31,5 @@ emulator-log/
 # KV 迁移备份（明文；脚本默认写到仓库外，这里兜底）
 kv-backup-*.json
 
-# 拼好的单树（scripts/assemble.mjs，合并 PR2）
+# 拼好的单树（space/scripts/assemble.mjs，合并 PR2）
 dist/

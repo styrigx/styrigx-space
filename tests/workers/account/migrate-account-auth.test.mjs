@@ -1,5 +1,5 @@
 /**
- * scripts/migrate-account-auth.mjs（账号拆分 PR2：账号认证数据 styrigx-auth-gateway → styrigx-account，恢复开关表改名）。
+ * space/scripts/migrate-account-auth.mjs（账号拆分 PR2：账号认证数据 styrigx-auth-gateway → styrigx-account，恢复开关表改名）。
  * 不访问网络：两个库都是 node:sqlite 内存库，套一层 D1 REST query 的替身（同 kv-migration.test.mjs 的 restD1）；
  * main() 用本地 HTTP 替身（CF_API_BASE）跑子进程，核对 --preview 的库 id 和退出码。
  *
@@ -18,11 +18,11 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   run, mergeRow, FAMILIES, MARKERS, splitSql, readAccountSchema, d1IdIn, resolveDbIds, modeOf,
   ACCOUNT_SCHEMA_FILE, SWITCH_CREATE, SWITCH_COPY,
-} from '../../../scripts/migrate-account-auth.mjs';
+} from '../../../space/scripts/migrate-account-auth.mjs';
 import { SCHEMA as GATEWAY_SCHEMA } from '../../../workers/account/src/lib/d1-state.js';
 
 const ROOT = new URL('../../../', import.meta.url).pathname;
-const SCRIPT = ROOT + 'scripts/migrate-account-auth.mjs';
+const SCRIPT = ROOT + 'space/scripts/migrate-account-auth.mjs';
 const GW_MIG = ROOT + 'workers/auth-gateway/migrations/';
 const AC_MIG = ROOT + 'workers/account/migrations/';
 const NOW = 1_800_000_000_000;

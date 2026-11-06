@@ -1,4 +1,4 @@
-// 页面模板（web/layouts）：沉浸式 app 顶栏（长条是 发现 / 设备 / 游戏 分段滑块，没有搜索栏）、抽屉同主站、首页部件都在、不被搜索引擎收录。
+// 页面模板（atlas/web/curio/layouts）：沉浸式 app 顶栏（长条是 发现 / 设备 / 游戏 分段滑块，没有搜索栏）、抽屉同主站、首页部件都在、不被搜索引擎收录。
 // 只读模板源码，不用构建；构建后的行为在手机 E2E（tests/curio/e2e）。
 // 运行：node --test tests/curio/layout.test.mjs
 import { test } from 'node:test';
@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
-const base = read('web/curio/layouts/_default/baseof.html');
-const index = read('web/curio/layouts/index.html');
+const base = read('atlas/web/curio/layouts/_default/baseof.html');
+const index = read('atlas/web/curio/layouts/index.html');
 
 test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 首页分段滑块 / 其他页页名；右边快捷面板 · AI · 头像；没有九宫格、抽屉、右圆分享', () => {
   assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
@@ -27,36 +27,36 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-top
   assert.doesNotMatch(base, /sgx-tb-nav|sgx-drawer|sgx-tb-end|sgx-tb-share|<header|apps-grid|sgx-tb-end-group|sgx-tb-gbtn|guestbook/);
   const code = base.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''); /* 去掉模板注释（注释里会提到被取代的旧文件） */
   assert.doesNotMatch(code, /share-host\.js|js\/topbar\.js|search-host\.js|shell-nav-href/);
-  assert.equal(existsSync(path.join(REPO, 'web/curio/assets/js/sgx/share-host.js')), false);
-  assert.equal(existsSync(path.join(REPO, 'web/curio/assets/js/topbar.js')), false);
-  assert.equal(existsSync(path.join(REPO, 'web/curio/layouts/partials/shell-nav-href.html')), false);
+  assert.equal(existsSync(path.join(REPO, 'atlas/web/curio/assets/js/sgx/share-host.js')), false);
+  assert.equal(existsSync(path.join(REPO, 'atlas/web/curio/assets/js/topbar.js')), false);
+  assert.equal(existsSync(path.join(REPO, 'atlas/web/curio/layouts/partials/shell-nav-href.html')), false);
   assert.match(base, /resources\.Get "js\/sgx\/topbar-host\.js" \| js\.Build/);
   /* 本站页面原来都有分享按钮 → 快捷设置页都有「分享本页」磁贴；立即锁定、布局只在主站（定案第 4、5 条） */
   assert.match(base, /"tiles" \(dict "theme" true "lang" true "palette" true "share" true\)/);
-  const host = read('web/curio/assets/js/sgx/topbar-host.js');
+  const host = read('atlas/web/curio/assets/js/sgx/topbar-host.js');
   for (const m of ['./shell/topbar.js', './shell/modal-sheet.js', './shell/ai.js', './shell/prefs-write.js', './shell/share.js']) {
     assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
   }
 });
 
 test('没有版权页脚（© / Powered by），样式也删干净', () => {
-  const css = read('web/curio/assets/css/input.css');
+  const css = read('atlas/web/curio/assets/css/input.css');
   assert.doesNotMatch(base, /<footer|©|Powered by/);
   assert.doesNotMatch(css.slice(css.indexOf('/* @sgx-shell:end */')), /(^|[\s,}])footer\b|sgx-powered|sgx-tb-me/);
 });
 
 test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚本、Giscus 配置和样式', async () => {
   const { existsSync } = await import('node:fs');
-  for (const f of ['web/curio/layouts/_default/guestbook.html', 'web/curio/content/guestbook.md', 'web/curio/content/en/guestbook.md', 'web/curio/assets/js/guestbook.js']) {
+  for (const f of ['atlas/web/curio/layouts/_default/guestbook.html', 'atlas/web/curio/content/guestbook.md', 'atlas/web/curio/content/en/guestbook.md', 'atlas/web/curio/assets/js/guestbook.js']) {
     assert.equal(existsSync(new URL('../../' + f, import.meta.url)), false, f);
   }
-  assert.doesNotMatch(read('web/curio/hugo.yaml'), /guestbook|giscus/i);
-  const css = read('web/curio/assets/css/input.css');
+  assert.doesNotMatch(read('atlas/web/curio/hugo.yaml'), /guestbook|giscus/i);
+  const css = read('atlas/web/curio/assets/css/input.css');
   assert.doesNotMatch(css.slice(css.indexOf('/* @sgx-shell:end */')), /cu-gb-|giscus|guestbook/);
 });
 
 test('导航：快捷面板第 1 页用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；奇趣是当前项；主站项走 https://styrigx.com', () => {
-  const nav = JSON.parse(readFileSync(path.join(REPO, 'web/curio/assets/sgx-shell/nav.json'), 'utf8'));
+  const nav = JSON.parse(readFileSync(path.join(REPO, 'atlas/web/curio/assets/sgx-shell/nav.json'), 'utf8'));
   assert.deepEqual(nav.items.map((i) => i.zh), ['主站', '奇趣', '日刻', '博客']);
   assert.deepEqual(nav.footer, []);
   assert.equal(nav.me.href, 'https://styrigx.com/account/');
@@ -64,7 +64,7 @@ test('导航：快捷面板第 1 页用主站共享外壳的 nav.json（主站 /
   assert.match(base, /"nav" \$shellNav\n/);
   assert.match(base, /"mainOrigin" "https:\/\/styrigx\.com"/);
   /* 项、页脚、当前项高亮都在共享外壳 partial 里（range .nav.items / with .nav.footer / eq .id $.site） */
-  const tb = read('web/curio/layouts/partials/sgx-shell-topbar.html');
+  const tb = read('atlas/web/curio/layouts/partials/sgx-shell-topbar.html');
   assert.match(tb, /range \.nav\.items/);
   assert.match(tb, /with \.nav\.footer/);
   assert.match(tb, /if eq \.id \$\.site \}\} aria-current="page"/);
@@ -105,14 +105,14 @@ test('不被收录、外观和语言跟主站（ui-inherit-run 在样式前）',
   assert.doesNotMatch(base + index, /daymark|日刻分区|dm-/);
 });
 
-test('robots.txt 只在图志根（root/robots.txt，Disallow: /）：本站不生成（Hugo 内置 robots 模板关掉），web/static 里也不放', () => {
-  assert.match(read('web/curio/hugo.yaml'), /^enableRobotsTXT: false$/m);
-  assert.equal(existsSync(path.join(REPO, 'web/curio/static/robots.txt')), false);
-  assert.match(read('web/atlas/static/robots.txt'), /^User-agent: \*\nDisallow: \/$/m);
+test('robots.txt 只在图志根（root/robots.txt，Disallow: /）：本站不生成（Hugo 内置 robots 模板关掉），atlas/web/curio/static 里也不放', () => {
+  assert.match(read('atlas/web/curio/hugo.yaml'), /^enableRobotsTXT: false$/m);
+  assert.equal(existsSync(path.join(REPO, 'atlas/web/curio/static/robots.txt')), false);
+  assert.match(read('space/web/static/robots.txt'), /^User-agent: \*\nDisallow: \/$/m);
 });
 
 test('head 内联脚本和自定义色引擎不打包整份 palettes.json（预设表在共享读端里，引擎版本用读端的 SCHEME_VER）', () => {
-  for (const f of ['web/curio/assets/js/sgx/ui-inherit-run.js', 'web/curio/assets/js/sgx/shell-accent.js', 'web/curio/assets/js/sgx/topbar-host.js']) {
+  for (const f of ['atlas/web/curio/assets/js/sgx/ui-inherit-run.js', 'atlas/web/curio/assets/js/sgx/shell-accent.js', 'atlas/web/curio/assets/js/sgx/topbar-host.js']) {
     const src = read(f);
     assert.doesNotMatch(src, /^import .*palettes\.json/m, f);
     assert.doesNotMatch(src, /@params/, f);

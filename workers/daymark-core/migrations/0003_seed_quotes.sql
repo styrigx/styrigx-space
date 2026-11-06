@@ -1,4 +1,4 @@
--- 种子句子（scripts/gen-seed-sql.mjs 生成，勿手改）：63 句 + 自建专题 尼采 / 了不起的盖茨比。
+-- 种子句子（atlas/scripts/daymark/gen-seed-sql.mjs 生成，勿手改）：63 句 + 自建专题 尼采 / 了不起的盖茨比。
 -- 只增不删：正文已存在的句子跳过、同名专题不重建、已在专题里的不重复加；没有 DELETE / UPDATE。重复执行结果不变。
 
 INSERT INTO quotes (id, text, trans, author, source, source_type, tags, visibility, note, created_at, updated_at) SELECT 'bd16d4df3136', '我向你们教授超人。人是一种应当被超越的东西。为了超越人，你们做过什么？', 'I teach you the Superman. Man is something that is to be surpassed. What have ye done to surpass man?', '尼采', '《查拉图斯特拉如是说》·序言 3', 'book', '["超越","自我"]', 'public', '', 1792512063000, 1792512063000 WHERE NOT EXISTS (SELECT 1 FROM quotes WHERE text = '我向你们教授超人。人是一种应当被超越的东西。为了超越人，你们做过什么？' OR id = 'bd16d4df3136');

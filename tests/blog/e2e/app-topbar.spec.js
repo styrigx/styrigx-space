@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test';
 
 /* 预设种子从共享外壳的 palettes.json 读（主站改种子时不用改测试） */
 const SEEDS = Object.fromEntries(
-  JSON.parse(readFileSync(new URL('../../../web/blog/data/sgx-shell/palettes.json', import.meta.url), 'utf8')).presets.map((p) => [p.id, p.seed]),
+  JSON.parse(readFileSync(new URL('../../../atlas/web/blog/data/sgx-shell/palettes.json', import.meta.url), 'utf8')).presets.map((p) => [p.id, p.seed]),
 );
 
 test.use({ viewport: { width: 412, height: 915 } });

@@ -24,7 +24,7 @@ workers/<name>/
    └─ lib/            按需。和业务无关的通用工具：http、cookies、crypto、security-headers、csp-hashes……
 ```
 
-- 同一个 Worker 里，一个概念只有一个文件。不同 Worker 里同名的 `lib/*.js` 必须同名同义（安全头、CSP 由 `scripts/gen-csp.mjs` 生成或单测做同值核对）。
+- 同一个 Worker 里，一个概念只有一个文件。不同 Worker 里同名的 `lib/*.js` 必须同名同义（安全头、CSP 由 `space/scripts/gen-csp.mjs` 生成或单测做同值核对）。
 - 单测在 `tests/workers/<name>/`。按骨架对齐的 Worker（网关、账号），单测 import `app.js`、`router.js`、`gate.js` 和 `api/ rpc/ core/ lib/` 里的文件，不 import `src/index.js`（入口只核对源码里的再导出，例如 `tests/workers/auth-gateway/verifier.test.mjs`）；还没对齐的小 Worker 逻辑在 `index.js` 里，单测直接 import 它。`rpc/` 里的类 import 了 `cloudflare:workers`，单测先装替身 `tests/workers/account/_cf-workers.mjs`。
 
 ## 2. 依赖链
@@ -39,7 +39,7 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 - 服务绑定：`api/` 可以经 `core/` 调，也可以直接用 `env` 上的绑定。现状：网关 `api/ai.js`、`api/status.js` 直接调 `AI_SERVICE` / `STATUS`（P4-2b 删了 `chat`、`search`）；`ACCOUNT_VERIFIER` 经 `core/account-rpc.js`；`ACCOUNT` 由 `router.js` 经 `core/forward.js` 转发。
 - `gate.js` 是粗粒度的门（有没有会话、哪些路径公开）；handler 里可以再验，例如网关 `api/lock-tempkey.js` 自己再要求一次锁屏进门会话。
 - 同层的横向 import：现在没有（P2-3 起账号 `api/avatar.js`、`api/prefs.js`、`api/wellbeing.js` 不再从 `api/account.js` 取等级常量；网关 `gate.js` 只 import `core/`、`lib/`）。
-- 依赖方向不进 CI（`scripts/check-layers.mjs` 不查 Worker 内部的方向），靠评审守住。
+- 依赖方向不进 CI（`space/scripts/check-layers.mjs` 不查 Worker 内部的方向），靠评审守住。
 
 ## 3. 对齐现状（2026-11-02）
 
@@ -53,7 +53,7 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 
 小 Worker 什么时候再对齐：要给它加第二个接口或第二个入口、要加关口或 RPC 类、单个文件大到要拆、或者要给它加 `migrations/` 的时候，顺手按上面的骨架搬一次（同一个提交里只搬结构，不改行为）。在那之前不为对齐而搬。
 
-## 4. 防回退规则（`scripts/check-layers.mjs`，CI 必过）
+## 4. 防回退规则（`space/scripts/check-layers.mjs`，CI 必过）
 
 | 规则 | 管什么 |
 |---|---|
@@ -66,12 +66,12 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 | 20 | 每个 Worker 目录必须有 `README.md` |
 | 21 | 每个 Worker 的 `package.json` 必须有 `name` |
 
-规则 19–21 认的 Worker 目录 = `workers/` 下有 `wrangler.toml` 的子目录；`tests/web/ui/check-layers.test.mjs` 另外核对 `workers/` 下每个子目录都有 `wrangler.toml`。规则 10–13（网关旧目录之间的方向）随 `functions/` 一起退役，编号不复用。
+规则 19–21 认的 Worker 目录 = `workers/` 下有 `wrangler.toml` 的子目录；`tests/space/ui/build/check-layers.test.mjs` 另外核对 `workers/` 下每个子目录都有 `wrangler.toml`。规则 10–13（网关旧目录之间的方向）随 `functions/` 一起退役，编号不复用。
 
 ## 5. 新增 Worker
 
 1. 建 `workers/<name>/`：`wrangler.toml`（`name = "styrigx-<name>"`、`main = "src/index.js"`、`workers_dev` / `preview_urls` 按需关）、`package.json`（上面三个键）、`README.md`（六个小节）、`src/index.js`。其余文件按需加。
-2. 有路由就写进它自己 `wrangler.toml` 的 `[[routes]]`，再在 `scripts/check-worker-routes.mjs` 里登记它的路径，确认不抢网关的路由；没有公开地址的 Worker 经网关的服务绑定进来，在网关 `wrangler.toml` 加 `[[services]]`。
+2. 有路由就写进它自己 `wrangler.toml` 的 `[[routes]]`，再在 `space/scripts/check-worker-routes.mjs` 里登记它的路径，确认不抢网关的路由；没有公开地址的 Worker 经网关的服务绑定进来，在网关 `wrangler.toml` 加 `[[services]]`。
 3. 绑 D1 就加 `migrations/0001_<名字>.sql`；预览 / 测试资源只用共用的 `styrigx-test-preview`（`tests/workers/auth-gateway/preview-resources.test.mjs` 守卫）。
 4. 单测放 `tests/workers/<name>/*.test.mjs`；在 `.github/workflows/deploy.yml` 的 Unit tests 步骤加上这个目录，加一步 `wrangler deploy --dry-run` 打包检查和部署 job。
-5. 本地跑 `node scripts/check-layers.mjs`、`node scripts/check-worker-routes.mjs` 和单测。
+5. 本地跑 `node space/scripts/check-layers.mjs`、`node space/scripts/check-worker-routes.mjs` 和单测。

@@ -1,5 +1,7 @@
 # Styrigx Space 架构：分层规范
 
+> 状态：现行 ｜ 最后更新：2026-11-06
+
 > 2026-10-10 定稿（Gray 确认）。3.0 起长期生效。
 > 参照 Linux：上层只能调用下层，不能跨层，也不能自己重新实现下层的职责。
 
@@ -25,7 +27,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - `lib/`：与业务无关的通用件（`crypto.js`、`cookies.js`、`http.js`、`security-headers.js`、`csp-hashes.js`）。
 - 账号拆分 PR3 起这里没有账号的东西：账号会话、账号短票、`REALM_ACCOUNT` 都在账号 Worker（`workers/account/src/core/`）；网关要知道账号会话是否有效时只经 `core/account-rpc.js` 调账号 Worker 的 `AccountVerifier.accountSession()`。
 - 不改写页面：HTML 会话标记、公开页清单在 L1 的 `src/gate.js`。
-- 2026-10-30 起没有跨 Worker 的共享目录：账号、分享、chat、search-index 各自一份需要的通用件；每个 Worker 只能 import 自己目录下的文件，账号和网关互相不许 import（`scripts/check-layers.mjs` 规则 14、15，见下面「Worker 边界」）。
+- 2026-10-30 起没有跨 Worker 的共享目录：账号、分享、chat、search-index 各自一份需要的通用件；每个 Worker 只能 import 自己目录下的文件，账号和网关互相不许 import（`space/scripts/check-layers.mjs` 规则 14、15，见下面「Worker 边界」）。
 
 ### L1 内核·权限：`workers/auth-gateway/src/gate.js`
 - **页面和 `/api/*` 进门时决定是否已解锁的只有这一个文件**（2026-11-02 由原 `functions/_middleware.js` 和 `src/subsites.js` 合成），两个调用点（都在 `src/app.js`）：
@@ -64,12 +66,12 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
   `passkey-register`（通行密钥注册 + 命名弹层，锁屏凭证页与账号安全页共用）、`lock-now`（立即锁定）。
 - 只能 import `lib/` 和 `auth/`；`shell/`（lock.js、upgrade.js、quick-panel.js）和 `apps/` 用它。
 
-### 依赖方向（`scripts/check-layers.mjs`，CI 必过）
-- 前端：`lib` ← `auth` ← `shell` ← `apps` ← `entries`，只能向左 import；前端不 import `web/atlas/assets/js/` 以外的文件。
+### 依赖方向（`space/scripts/check-layers.mjs`，CI 必过）
+- 前端：`lib` ← `auth` ← `shell` ← `apps` ← `entries`，只能向左 import；前端不 import `space/web/assets/js/` 以外的文件。
 - Worker：骨架和依赖链见 [`workers/README.md`](../workers/README.md)（脚本不查 Worker 内部的依赖方向，只查下面的边界和骨架防回退）。
 - 相对 import 解析不到文件也算失败。
 
-### Worker 边界（`scripts/check-layers.mjs` 规则 14-21，CI 必过）
+### Worker 边界（`space/scripts/check-layers.mjs` 规则 14-21，CI 必过）
 - 14：每个 Worker 只能相对 import 自己目录 `workers/<名字>/` 下的文件，Worker 之间（账号 ↔ 网关、短链、chat 等）一律不许 import；非相对 import 只认 `cloudflare:workers`。
 - 15：不许出现 `workers/shared` 目录（2026-10-30 删除；通用件每个 Worker 各自一份）。
 - 16：网关源码（`workers/auth-gateway/` 下的 `.js` / `.mjs` / `.cjs` 和 `wrangler.toml`，注释除外）不许出现账号鉴权标识：`SGX_ACCOUNT_*`、`SGX_ROOT_KEY`、`D1_ACCOUNT_AUTH`、`D1_ROOT_AUTH`、`REALM_ACCOUNT`、`REALM_ROOT`、`checkAccountSession`、`verifyAccountSession`、`Account*Ticket` / `ACCOUNT_*_TICKET` 等（完整列表在脚本的 `GATEWAY_ACCOUNT_AUTH_RE`）。网关只经 `ACCOUNT_VERIFIER.accountSession()` / `authorize()` 拿账号结论（字段名用 `account.reauth` 这类，不写账号票名）。
@@ -89,12 +91,12 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - 一个页面一个入口，不自己实现鉴权，只调 `auth/`。
 - 打包（2026-10-24）：所有入口在 `layouts/partials/sgx-js-batch.html` 里一次 `js.Batch`（esbuild ESM + 代码分割），
   共享代码（core 及其依赖）拆成一个内容哈希命名的 chunk，各页共用、换页走缓存；入口 fingerprint，静态依赖的 chunk 由 baseof 输出 `modulepreload`。
-  新加入口要登记进 baseof 的入口列表（`tests/web/ui/js-split.test.mjs` 检查）。
+  新加入口要登记进 baseof 的入口列表（`tests/space/ui/build/js-split.test.mjs` 检查）。
   顶栏三栏各一个入口 `entry-tab-<id>.js`：当前栏静态带上，另两栏 `import('./lazy-<id>.js')` 按需取。
   首帧前必须跑的（主题、语言、布局、防闪）仍是 `<head>` 里的同步内联脚本，不进模块。
 
 ### L6 外部 App：子站 styrigx.com/blog/、/curio/、/daymark/
-- 合并 PR3 起三站和主站是同一个 Pages 项目 `styrigx-space` 里的一棵树，各占一个路径 `/blog/`、`/curio/`、`/daymark/`，代码在本仓库 `web/<站>/`。
+- 合并 PR3 起三站和主站是同一个 Pages 项目 `styrigx-space` 里的一棵树，各占一个路径 `/blog/`、`/curio/`、`/daymark/`，代码在本仓库 `atlas/web/<站>/`。
   旧图志域名 `atlas.styrigx.com` 任意路径 301 到 `https://styrigx.com` 同路径（保留查询串）。
 - 子站页面由网关（`workers/auth-gateway/src/gate.js` 的 `handleSubsite`，按路径前缀）验同一份锁屏会话，Pages 不持任何钥匙。
 - 未解锁时 302 到 space 锁屏并带完整 return。
@@ -140,7 +142,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
   返回走浏览器 / 系统返回。原锁屏凭证页（`security-owner`）已删除。
 - 发给 styrigx-ai 的请求写账号结论头（只认 `X-Styrigx-Account-Session: 1`）。search-index、chat 在 P4-2b 退役。入站的旧前缀 `x-sgx-*` 头仍照剥。
 - 账号拆分已完成（PR4）：D1 `styrigx-auth-gateway` 不再存账号数据，只剩锁屏数据（`realm='lock'` 的行和恢复开关表 `lock_reset_switch`）；
-  网关库里 `realm='account'` / `'root'` 的旧行和旧开关表 `recovery_switch` 已由 `scripts/migrate-account-auth.mjs --cleanup --confirm` 删除
+  网关库里 `realm='account'` / `'root'` 的旧行和旧开关表 `recovery_switch` 已由 `space/scripts/migrate-account-auth.mjs --cleanup --confirm` 删除
   （预览库走网关 `migrations/0009_drop_recovery_switch.sql`）；Secrets Store 里的旧 `SGX_ROOT_KEY` 已删除。
 - 恢复开关表（账号拆分方案 9.4）：叫 `lock_reset_switch`（网关 `migrations/0008_lock_reset_switch.sql`），后台开开关插行用 `INSERT INTO lock_reset_switch …`。
 

@@ -351,7 +351,7 @@ test('wrangler.toml：没有公开地址、绑定 AI、只读索引、外部模�
 });
 
 test('check-worker-routes：styrigx-ai 登记为没有公开地址的 Worker，当前配置 0 条路由；加路由会报错', async () => {
-  const { NO_ROUTE_WORKERS, checkNoRoutes } = await import('../../../scripts/check-worker-routes.mjs');
+  const { NO_ROUTE_WORKERS, checkNoRoutes } = await import('../../../space/scripts/check-worker-routes.mjs');
   assert.ok(NO_ROUTE_WORKERS.some((w) => w.name === 'styrigx-ai' && w.dir === 'workers/ai'));
   const toml = readFileSync(new URL('../../../workers/ai/wrangler.toml', import.meta.url), 'utf8');
   assert.deepEqual(checkNoRoutes([{ name: 'styrigx-ai', toml }]), []);

@@ -4,7 +4,7 @@
 
 ## 职责
 
-- `/curio/api/*` 的全部数据接口；页面是静态文件（`web/curio/`），会话检查在主站鉴权网关。
+- `/curio/api/*` 的全部数据接口；页面是静态文件（`atlas/web/curio/`），会话检查在主站鉴权网关。
 - 写接口成功后重建全站搜索索引里本站那一条（KV `site:curio`），Cron 每小时兜底；每天一轮清扫 R2 里没人引用的照片。
 
 ## 入口
@@ -21,7 +21,7 @@ src/photo-sweep.js   R2 photos/ 清扫
 
 ## 路由
 
-`styrigx.com/curio/api/*`（`wrangler.toml`，合并 PR3 起）。比网关的 `styrigx.com/*` 更具体，接口请求直接落到本 Worker；`scripts/check-worker-routes.mjs` 核对它登记了、且不抢网关的页面。
+`styrigx.com/curio/api/*`（`wrangler.toml`，合并 PR3 起）。比网关的 `styrigx.com/*` 更具体，接口请求直接落到本 Worker；`space/scripts/check-worker-routes.mjs` 核对它登记了、且不抢网关的页面。
 旧路由 `atlas.styrigx.com/curio/api/*` 保留一个版本（同样比网关的 `atlas.styrigx.com/*` 更具体，老页面的接口请求还能落到这里），以后的清理 PR 删。
 部署：本仓库 `.github/workflows/deploy.yml` 的 `deploy-curio-core`（D1 迁移 + 部署），在网关之前。
 
@@ -55,4 +55,4 @@ src/photo-sweep.js   R2 photos/ 清扫
 
 ## 数据与迁移
 
-`migrations/`（D1 `styrigx-curio-core`）。`0002_seed.sql` 由 `scripts/curio/gen-seed-sql.mjs` 从 `scripts/curio/data/seed.json` 生成（`--check` 核对）。已上线的迁移不改名、不重新编号。单测在 `tests/workers/curio-core/`。PR3 之前线上部署仍由 styrigx-atlas 仓库负责。
+`migrations/`（D1 `styrigx-curio-core`）。`0002_seed.sql` 由 `atlas/scripts/curio/gen-seed-sql.mjs` 从 `atlas/scripts/curio/data/seed.json` 生成（`--check` 核对）。已上线的迁移不改名、不重新编号。单测在 `tests/workers/curio-core/`。PR3 之前线上部署仍由 styrigx-atlas 仓库负责。

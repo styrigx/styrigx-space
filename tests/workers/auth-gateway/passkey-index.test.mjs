@@ -4,7 +4,7 @@
  * 以前的 KV 索引是「读-改-写」：60 秒内连续注册两把，第二次读到旧索引就把第一把挤出去（不自愈）；删除同理。
  * 现在每把一行 D1（强一致），没有索引可丢。这里核对：
  * - 连续 / 并发注册、删除：谁也不挤掉谁
- * - 上线前 KV 里的钥匙由 scripts/migrate-kv-to-d1.mjs 部署前导入（按索引保序，索引不存在按前缀）；运行时不读 KV、没有回落：
+ * - 上线前 KV 里的钥匙由 space/scripts/migrate-kv-to-d1.mjs 部署前导入（按索引保序，索引不存在按前缀）；运行时不读 KV、没有回落：
  *   删光了不会从 KV 读回来，env 里放一个碰一下就抛错的 KV 也照常工作
  * - 更新（signCount / 改名）不会把刚删掉的钥匙写回来
  *
@@ -74,7 +74,7 @@ for (const domain of [PASSKEY_LOCK]) {
 
   test(domain + '：上线前 KV 里的钥匙（导入脚本按索引导进 D1，保序）：之后只认 D1，删光了不会从 KV 读回来', async () => {
     const kv = makeKV({ [IDX[domain]]: JSON.stringify([B, A]), [kvKey(domain, A)]: rec(A), [kvKey(domain, B)]: rec(B) });
-    const db = authD1For(kv); /* = 部署前跑过 scripts/migrate-kv-to-d1.mjs */
+    const db = authD1For(kv); /* = 部署前跑过 space/scripts/migrate-kv-to-d1.mjs */
     const env = noKvEnv(db);
     assert.deepEqual(ids(await getPasskeys(env, domain)), [B, A], '按 KV 索引的顺序');
     await deletePasskey(env, domain, A);

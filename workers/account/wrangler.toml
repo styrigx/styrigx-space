@@ -26,7 +26,7 @@ enabled = true
 head_sampling_rate = 1
 
 # 路由：没有（账号拆分 PR3 删掉原来的 4 条 styrigx.com/api/avatar*、/api/prefs*、/api/wellbeing*、/avatar/*；方案第 4 节）。
-# 这几条路径归网关的 styrigx.com/*，在网关转发表 workers/auth-gateway/src/router.js FORWARDING 里；scripts/check-worker-routes.mjs 核对本 Worker 没有任何路由。
+# 这几条路径归网关的 styrigx.com/*，在网关转发表 workers/auth-gateway/src/router.js FORWARDING 里；space/scripts/check-worker-routes.mjs 核对本 Worker 没有任何路由。
 # 部署后要在 Cloudflare 后台核对 styrigx.com 的 Workers Routes 里已经没有指向 styrigx-account 的路由（残留就手删；残留期间默认 fetch 也只回 404）。
 
 [vars]
@@ -52,7 +52,7 @@ database_id = "03f60d23-9c2f-4f3d-a692-764ccaac6f5d"
 migrations_dir = "migrations"
 
 # D1_SETTINGS_SYNC = settings_sync 云同步（migrations/0002_settings_sync.sql；src/api/prefs.js，逐项新的赢在 SQL 里原子完成）。
-# 2026-10-28 上线前用 scripts/migrate-prefs-kv-to-d1.mjs 把 KV 里的 account-prefs 导入过（旧键 2026-10-29 已删，脚本只剩历史意义）。
+# 2026-10-28 上线前用 space/scripts/migrate-prefs-kv-to-d1.mjs 把 KV 里的 account-prefs 导入过（旧键 2026-10-29 已删，脚本只剩历史意义）。
 [[d1_databases]]
 binding = "D1_SETTINGS_SYNC"
 database_name = "styrigx-account"
@@ -96,7 +96,7 @@ secret_name = "SGX_PW_PEPPER"
 
 # ---- preview 环境：只用来登记测试资源（所有预览资源都是同一个 styrigx-test-preview：KV / D1，2026-10-30 Sloan 定），----
 # CI 的 passkey-e2e 据此给测试库跑账号迁移。不部署成单独的预览 Worker（不写预览 name）；预览里的账号代码由组合入口
-# tests/web/e2e/preview-worker.js 在进程内跑，连的就是这里登记的测试资源。
+# tests/space/e2e/helpers/preview-worker.js 在进程内跑，连的就是这里登记的测试资源。
 # 绝不指向正式库。routes = [] 照写：万一有人对它 deploy，也不会继承顶层路由去抢正式流量。
 [env.preview]
 workers_dev = false

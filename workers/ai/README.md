@@ -12,7 +12,7 @@
 
 ## 路由
 
-没有公开地址（`workers_dev = false`、`preview_urls = false`、没有路由；`scripts/check-worker-routes.mjs` 断言 0 条）。只经服务绑定进来：
+没有公开地址（`workers_dev = false`、`preview_urls = false`、没有路由；`space/scripts/check-worker-routes.mjs` 断言 0 条）。只经服务绑定进来：
 
 | 路径 | 谁调 | 结果 |
 |---|---|---|

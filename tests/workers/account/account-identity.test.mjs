@@ -787,7 +787,7 @@ test('短票：缺账号钥匙时 issueTicket 503 config；verifyTicket 纪元�
 /* ================= 存储：账号库自己的表 ================= */
 
 test('ACCOUNT_AUTH_SCHEMA 与 migrations/0003_account_auth.sql 逐条一致；ACCOUNT_DB_REALM = REALM_ACCOUNT + schema', async () => {
-  const { readAccountSchema } = await import('../../../scripts/migrate-account-auth.mjs');
+  const { readAccountSchema } = await import('../../../space/scripts/migrate-account-auth.mjs');
   assert.deepEqual([...store.ACCOUNT_AUTH_SCHEMA], readAccountSchema(REPO));
   const { schema, ...rest } = store.ACCOUNT_DB_REALM;
   assert.deepEqual(rest, { ...realm.REALM_ACCOUNT });

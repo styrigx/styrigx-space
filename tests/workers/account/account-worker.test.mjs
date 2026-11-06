@@ -283,7 +283,7 @@ test('AccountVerifier.accountSession()（checkAccountSession）：账号 Worker 
 });
 
 test('check-worker-routes：现在通过；账号 Worker 只要登记任何一条路由就报错', async () => {
-  const { readRoutes, readApiRoutes, checkAccount } = await import(REPO + 'scripts/check-worker-routes.mjs');
+  const { readRoutes, readApiRoutes, checkAccount } = await import(REPO + 'space/scripts/check-worker-routes.mjs');
   const gw = readRoutes(readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8'));
   const acct = readRoutes(readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8'));
   const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/router.js', 'utf8'));

@@ -1,6 +1,6 @@
 /**
  * sgx-ui cookie 契约（2026-10-22）：主站写端 lib/ui-cookie.js ↔ 子站读端 lib/ui-cookie-read.js（共享外壳原样分发）。
- * 夹具 tests/fixtures/ui-cookie-contract.json 由 scripts/gen-ui-cookie-contract.mjs 跑真写端生成；
+ * 夹具 tests/fixtures/ui-cookie-contract.json 由 space/scripts/gen-ui-cookie-contract.mjs 跑真写端生成；
  * 这里断言：夹具没过期、每个 cookie 经读端 read / resolve / apply 得到夹具里的期望、写端字段表 = 读端字段表、
  * 读端是 ES5 经典脚本且从不写 cookie。（过去主站改了 sgx-verified 格式、子站死循环——契约不许悄悄漂移。）
  */
@@ -10,16 +10,16 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import { renderContract, FIXTURE } from '../../../../scripts/gen-ui-cookie-contract.mjs';
-import { renderAll, READER_SRC } from '../../../../scripts/gen-shell.mjs';
+import { renderContract, FIXTURE } from '../../../../space/scripts/gen-ui-cookie-contract.mjs';
+import { renderAll, READER_SRC } from '../../../../space/scripts/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const READER = readFileSync(READER_SRC, 'utf8');
-const WRITER = readFileSync(path.join(REPO, 'web/atlas/assets/js/lib/ui-cookie.js'), 'utf8');
+const WRITER = readFileSync(path.join(REPO, 'space/web/assets/js/lib/ui-cookie.js'), 'utf8');
 /* 2026-11-04 P5-1：cookie 写法搬进外观写端 lib/prefs-write.js（共享外壳 prefs-write.js，四站一个写端）；ui-cookie.js 只先引读端再转导出 */
-const PREFS_WRITE = readFileSync(path.join(REPO, 'web/atlas/assets/js/lib/prefs-write.js'), 'utf8');
+const PREFS_WRITE = readFileSync(path.join(REPO, 'space/web/assets/js/lib/prefs-write.js'), 'utf8');
 const fx = JSON.parse(readFileSync(FIXTURE, 'utf8'));
-const palettes = JSON.parse(readFileSync(path.join(REPO, 'web/atlas/shared/shell/palettes.json'), 'utf8'));
+const palettes = JSON.parse(readFileSync(path.join(REPO, 'space/web/shared/shell/palettes.json'), 'utf8'));
 
 /** 最小 DOM 桩：<html> 的 class / attribute / style，<head> 里的 <style>，localStorage，matchMedia */
 function makeEl(tag) {
@@ -172,8 +172,8 @@ test('共享外壳原样带上读端 / 夹具 / 图标', () => {
   const files = renderAll();
   assert.equal(files['ui-cookie-read.js'], READER);
   assert.equal(files['ui-cookie-contract.json'], readFileSync(FIXTURE, 'utf8'));
-  assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'web/atlas/assets/js/shell/favicon.js'), 'utf8'));
-  assert.equal(files['favicon.svg'], readFileSync(path.join(REPO, 'web/atlas/static/favicon.svg'), 'utf8'));
+  assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'space/web/assets/js/shell/favicon.js'), 'utf8'));
+  assert.equal(files['favicon.svg'], readFileSync(path.join(REPO, 'space/web/static/favicon.svg'), 'utf8'));
   const m = JSON.parse(files['manifest.json']);
   for (const k of ['ui-cookie-read.js', 'ui-cookie-contract.json', 'favicon.js', 'favicon.svg']) assert.ok(m.files[k], k);
   assert.match(files['README.md'], /SgxUI\.apply\(document\.documentElement/);
@@ -243,7 +243,7 @@ test('坏 cookie / 没有 DOM 能力也不抛：默认 dustyblue + 跟随系统'
 });
 
 test('cookie 属性按主机名 / 协议：localhost / http 不带 Domain / Secure；styrigx.com 及子域 https 带（P5-1 跨站 e2e 修法）', async () => {
-  const { cookieAttrs } = await import('../../../../web/atlas/assets/js/lib/prefs-write.js');
+  const { cookieAttrs } = await import('../../../../space/web/assets/js/lib/prefs-write.js');
   const prod = '; Domain=styrigx.com; Path=/; Max-Age=34560000; SameSite=Lax; Secure';
   assert.equal(cookieAttrs({ hostname: 'styrigx.com', protocol: 'https:' }), prod);
   assert.equal(cookieAttrs({ hostname: 'blog.styrigx.com', protocol: 'https:' }), prod);

@@ -6,7 +6,7 @@
  *
  * 存储（2026-10-27 起）：D1 styrigx-auth-gateway 的 passkey 表（d1-state.js；只经 D1_LOCK_AUTH 读写 realm='lock' 的行），
  * 每把一行 (realm, credential_id, record)，record 字段顺序固定、不写 class。D1 强一致：注册 / 删除后下一个请求就能读到，
- * 不再有 KV 索引的「读-改-写丢钥匙」和「刚注册锁屏找不到」。上线前 KV 里的记录由 scripts/migrate-kv-to-d1.mjs 导入。
+ * 不再有 KV 索引的「读-改-写丢钥匙」和「刚注册锁屏找不到」。上线前 KV 里的记录由 space/scripts/migrate-kv-to-d1.mjs 导入。
  * 用户 handle 在 D1 user_handle 表（每个 realm 一行，第一次注册时生成；以前的 KV lock-user-id / account-user-id 由导入脚本搬来）。
  * 每个函数第一个业务参数是域：只有 PASSKEY_LOCK（LockKey；账号通行密钥 2026-10-30 起只在账号 Worker）。
  *

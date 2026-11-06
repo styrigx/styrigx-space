@@ -1,5 +1,5 @@
 /**
- * 服务状态「免费额度」区块（2026-10-27，web/atlas/assets/js/lib/status-view.js quotaItems / renderQuota）：
+ * 服务状态「免费额度」区块（2026-10-27，space/web/assets/js/lib/status-view.js quotaItems / renderQuota）：
  * 条目顺序、值 / 上限 / 百分比、等级（≥ 80% 琥珀、≥ 95% 红）、某项拿不到、Pages 拿不到、quota = null 的提示、
  * 「更新于 N 分钟前」+ stale、中英文案齐全且一致、用量卡 skipWorkers、转义。假数据：tests/fixtures/status-summary.cjs quota()。
  * 运行：node --test tests/space/ui/status/status-quota-view.test.mjs
@@ -9,10 +9,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   quotaItems, quotaLevel, renderQuota, renderUsage, usageItems, QUOTA_WARN, QUOTA_CRIT,
-} from '../../../../web/atlas/assets/js/lib/status-view.js';
+} from '../../../../space/web/assets/js/lib/status-view.js';
 import fx from '../../../fixtures/status-summary.cjs';
 
-const SRC = readFileSync(new URL('../../../../web/atlas/layouts/partials/status-i18n.html', import.meta.url), 'utf8');
+const SRC = readFileSync(new URL('../../../../space/web/layouts/partials/status-i18n.html', import.meta.url), 'utf8');
 const DICT = {};
 for (const m of SRC.matchAll(/"(\w+)" \(dict "zh" "([^"]*)" "en" "([^"]*)"\)/g)) DICT[m[1]] = { zh: m[2], en: m[3] };
 

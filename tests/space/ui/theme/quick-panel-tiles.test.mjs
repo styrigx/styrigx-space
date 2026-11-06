@@ -13,15 +13,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-const base = rd('web/atlas/layouts/_default/baseof.html');
-const tb = rd('web/atlas/layouts/partials/shell-topbar.html');
+const base = rd('space/web/layouts/_default/baseof.html');
+const tb = rd('space/web/layouts/partials/shell-topbar.html');
 const qpHtml = tb.slice(tb.indexOf('<dialog id="sgx-qp"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-qp"')));
-const tbJs = rd('web/atlas/assets/js/shell/topbar-panel.js');
-const theme = rd('web/atlas/layouts/partials/setcat-theme.html');
-const qpJs = rd('web/atlas/assets/js/shell/quick-panel.js');
-const setJs = rd('web/atlas/assets/js/apps/settings.js');
-const css = rd('web/atlas/assets/css/input.css');
-const feats = rd('web/atlas/data/features.yaml');
+const tbJs = rd('space/web/assets/js/shell/topbar-panel.js');
+const theme = rd('space/web/layouts/partials/setcat-theme.html');
+const qpJs = rd('space/web/assets/js/shell/quick-panel.js');
+const setJs = rd('space/web/assets/js/apps/settings.js');
+const css = rd('space/web/assets/css/input.css');
+const feats = rd('space/web/data/features.yaml');
 
 test('快捷面板磁贴：dark / system / lang / lock / share（share 只给子站），没有减弱动效和字体大小；主站不传 share', () => {
   const tiles = [...qpHtml.matchAll(/data-qp="([a-z]+)"/g)].map((m) => m[1]);

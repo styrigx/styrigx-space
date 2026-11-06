@@ -1,0 +1,91 @@
+{{- /* 博客跟随主站设置（博客没有自己的语言 / 深浅色开关，设置全在主站 styrigx.com/settings/）。
+外观 + 语言（内联脚本，渲染前同步执行）：读主站写的 sgx-ui cookie。契约以主站为准（styrigx-space docs/ui-cookie-contract.md），
+博客这边的补充见 docs/sgx-ui-cookie.md。
+- 第一个 <script>：主站共享外壳的只读解析器 ui-cookie-read.js 原样内联（atlas/web/blog/assets/js/sgx/shell/ui-cookie-read.js，
+  atlas/scripts/blog/sync-shell.mjs 同步、勿手改），挂 window.SgxUI。校验 v（只认 1 / 2）、mode、pal（旧撞色 x<id> → <id>，不认识 → dustyblue）、
+  accent（只认小写 #rrggbb；等于预设当前种子或 LEGACY_SEEDS 旧种子 = 预设色板）、fs、rm；不认 theme 别名。
+  SgxUI.apply 落到 <html>：class dark、data-theme-mode、data-dark、font-size、data-font-size、data-palette（默认 dustyblue 不写）、
+  自定义色时内联 --sgx-seed + <style id="sgx-accent-roles">（有缓存首帧直接插；没缓存先按预设，entries/inherit.ts 按需 import 引擎算好再插）、
+  class reduced-motion、data-reduced-motion。
+- 第二个 <script>：博客自己的部分
+  - data-theme（light | dark）和 color-scheme：博客 one-ui.css 的样式钩子，按 SgxUI.apply 的返回值补；跟随系统时系统一变就重落一遍。
+  - lang（博客扩展字段，主站写端目前不写）：cookie 版本合法且 lang 是 zh | en，和当前页语言不同、且本页有对应语言版本
+    （<meta name="sgx-alt-zh|en">）时 location.replace 过去（带 #hash，爬虫不跳）。
+    没有 cookie 的 lang 时沿用旧行为：只有中文首页按旧的 styrigx-blog-lang / 浏览器语言跳 /en/。
+  - 博客原来的主题开关已删除：旧的 navfolio-theme / sgx-theme-at 本地键清掉，避免盖过主站设置。
+参数：.alt = dict "zh" "/..." "en" "/..."（只在真的有对应版本时给） */ -}}
+{{- $reader := resources.Get "js/sgx/shell/ui-cookie-read.js" | minify -}}
+{{- with .alt }}{{ with .zh }}<meta name="sgx-alt-zh" content="{{ . }}">{{ end }}{{ with .en }}<meta name="sgx-alt-en" content="{{ . }}">{{ end }}{{ end }}
+<script>{{ $reader.Content | safeJS }}</script>
+<script>
+(function () {
+  const UI = window.SgxUI;
+  const root = document.documentElement;
+  const lang = () => {
+    const l = (root.getAttribute('lang') || '').toLowerCase();
+    return l.startsWith('en') ? 'en' : 'zh';
+  };
+  const isBot = () =>
+    /bot|crawl|spider|slurp|mediapartners|baidu|bingpreview|facebookexternalhit|twitterbot|linkedinbot|embedly|quora|pinterest|slackbot|discordbot|telegrambot|whatsapp|applebot|duckduckbot|yandex|sogou|exabot|semrush|ahrefs/i.test(
+      navigator.userAgent || '',
+    );
+  /* cookie 里的 lang：SgxUI.read() 不返回扩展字段，版本校验通过后再从原始值里取 */
+  const cookieLang = () => {
+    if (!UI || !UI.read()) return '';
+    const m = String(document.cookie || '').match(/(?:^|;\s*)sgx-ui=([^;]*)/);
+    const o = m ? UI.decode(m[1]) : null;
+    return o && (o.lang === 'zh' || o.lang === 'en') ? o.lang : '';
+  };
+  /* 语言：返回要跳去的地址，不跳返回 '' */
+  const langTarget = () => {
+    let want = cookieLang();
+    const path = location.pathname;
+    if (!want) {
+      /* 没有 cookie：只在中文首页（/blog/）按本地记忆 / 浏览器语言跳英文 */
+      if (path !== '/blog/') return '';
+      let stored = null;
+      try {
+        stored = localStorage.getItem('styrigx-blog-lang');
+      } catch {}
+      if (stored === 'zh') return '';
+      const nav = (navigator.language || '').toLowerCase();
+      if (stored === 'en' || nav === 'en' || nav.startsWith('en-')) want = 'en';
+      else return '';
+    }
+    if (want === lang()) return '';
+    const meta = document.querySelector('meta[name="sgx-alt-' + want + '"]');
+    const href = meta && meta.getAttribute('content');
+    if (!href || href === path) return '';
+    return href + location.hash;
+  };
+  /* 外观：共享读端落契约里的状态，博客只补 data-theme / color-scheme；系统深浅色监听由下面统一挂（watch: false） */
+  const apply = () => {
+    try {
+      const a = UI.apply(root, { watch: false });
+      root.setAttribute('data-theme', a.dark ? 'dark' : 'light');
+      root.style.colorScheme = a.dark ? 'dark' : 'light';
+    } catch {}
+  };
+  try {
+    localStorage.removeItem('navfolio-theme');
+    localStorage.removeItem('sgx-theme-at');
+  } catch {}
+  try {
+    if (!isBot()) {
+      const go = langTarget();
+      if (go) {
+        location.replace(go);
+        return;
+      }
+    }
+  } catch {}
+  apply();
+  if (!window.__sgxInheritInit) {
+    window.__sgxInheritInit = true;
+    /* 跟系统：系统深浅色变了再应用一次（cookie 指定了 light/dark 时 apply 会保持原样） */
+    try {
+      window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', apply);
+    } catch {}
+  }
+})();
+</script>

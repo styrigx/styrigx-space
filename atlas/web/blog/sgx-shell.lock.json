@@ -1,0 +1,39 @@
+{
+  "_note": "space/scripts/blog/sync-shell.mjs 写入，勿手改：tree 是本站共享外壳副本对应的主站外壳目录（dir）的 git tree 哈希；from 只作记录",
+  "source": "styrigx/styrigx-space",
+  "dir": "space/web/shared/shell",
+  "tree": "4e21cea60b99089a47283876964303fef545dd68",
+  "from": "95533ac56bcbd27b56d89b9cd9ddd5480a4c66ad",
+  "version": "6c136768da4d",
+  "files": {
+    "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
+    "shell.css": "c225408a04e0f90763c3aa06305a518c17dc89568a291027b46cb9f071d0b70f",
+    "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
+    "share.js": "fa58dcdfe0398f5504c6f70952f08e9947e59b95de7c246d28418a2413737564",
+    "topbar.html": "d25f031e132aa8f904ea114bf1564a1d9ac69077b325fe02c39704a50adcfda7",
+    "topbar.js": "2c1f09cc1ef206bd10a7490490750475d54bbd74714eb91f4dfc17655151cc1d",
+    "modal-sheet.js": "c409104c3553e63351ee05abadb2e8999aa82692b7bbae021f3ea19f2352071b",
+    "ai.js": "f62c14cd33e7fd535cd53a26a4d073f23402abd6231b4787dc0d0861c1ff0878",
+    "prefs-write.js": "03fd506b111f123cc7e5d64e92dfcafe679e5c2310ee331df70a4d54090556e6",
+    "nav.json": "9aaba576502a8aaaffccdef089b148b38ca5ccfdd480ed4b571e85dc10a529e3",
+    "palettes.json": "f3779c13ef0033910d9a4afa0f44bdb81daaf9649c875e451656980240fd3a10",
+    "ui-cookie-read.js": "41e0daf8b5966c3f48010fb6c60ef5cf608ca4c5ca20698a6020a5320e5f6b59",
+    "ui-cookie-contract.json": "e207b5aefd00d59daa35f4d78bf3982e5c7ba95aa7b967b4e2ee6006469a9878",
+    "favicon.js": "4bb7f9fe412988861d682b8c2a88eb93f68fc39f9fb51bd5df38441755b5d433",
+    "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
+    "README.md": "9727e861825c6b5604d5eeb2f4ba8a36f2c320ecde5179eb79cf9290f0f70b05"
+  },
+  "vendored": {
+    "web/assets/css/sgx-shell.css": "b8585417030730447ffe694efa7342ffbf90c839fe6f35dfbeeceeb1b8a3a90b",
+    "web/assets/js/sgx/shell/palette-scheme.js": "bc41ea048163ad6514f9e7cf7a44d8d3e6c134995ffe1bc062b2629589c2ec54",
+    "web/assets/js/sgx/shell/share.js": "303c28fc9d30faeb385034423cb42288df143b3b932dd2bcdc3ca235e25762da",
+    "web/layouts/partials/sgx-shell-topbar.html": "d25f031e132aa8f904ea114bf1564a1d9ac69077b325fe02c39704a50adcfda7",
+    "web/assets/js/sgx/shell/topbar.js": "70fb881e9c5ce74b0623ae32a256c82a8b54a662bdd95849fa2175774cd26303",
+    "web/assets/js/sgx/shell/modal-sheet.js": "f987c9ed3979bd67b549390904bd63d59434e81b2f97b34ace604fc4d7bb5a7b",
+    "web/assets/js/sgx/shell/ai.js": "4f95e639a4a857400a8067f2fdb75893b4605b1f14db8beeeafb7a19cc723aba",
+    "web/assets/js/sgx/shell/prefs-write.js": "9d4d034217cbc645a8574fbd0d647e3f235c0bf442c542d94dbbf54fe3e57559",
+    "web/data/sgx-shell/nav.json": "9aaba576502a8aaaffccdef089b148b38ca5ccfdd480ed4b571e85dc10a529e3",
+    "web/data/sgx-shell/palettes.json": "f3779c13ef0033910d9a4afa0f44bdb81daaf9649c875e451656980240fd3a10",
+    "web/assets/js/sgx/shell/ui-cookie-read.js": "86f0de1f52e82f68bf387665cb0e6f97456ab2df5a41a44483e8df77c353e9f0"
+  }
+}
