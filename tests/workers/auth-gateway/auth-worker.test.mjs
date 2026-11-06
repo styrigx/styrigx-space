@@ -386,13 +386,13 @@ test('预览显式设 SGX_ENV=preview（网关缺 SGX_ENV 按生产处理，不�
   assert.match(wf, /pv = tomllib\.load\(open\("space\/web\/wrangler\.toml", "rb"\)\)\["env"\]\["preview"\]\["vars"\]/);
 });
 
-test('路由：账号 → 安全与隐私子页（/account/security/ 与 /en/）过网关', async () => {
+test('路由：账号 → 安全与隐私子页（/account/security/ 与 /zh/）过网关', async () => {
   const { readRoutes, routeMatches } = await import(REPO + '/space/scripts/check-worker-routes.mjs');
   const routes = readRoutes(readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
-  for (const p of ['/account/', '/account/security/', '/en/account/security/']) {
+  for (const p of ['/account/', '/account/security/', '/zh/account/security/']) {
     assert.ok(routes.some((r) => routeMatches(r, 'styrigx.com', p)), p + ' 应被路由覆盖');
   }
-  for (const f of ['space/web/content/account-security.md', 'space/web/content/en/account-security.md']) {
+  for (const f of ['space/web/content/account-security.md', 'space/web/content/zh/account-security.md']) {
     assert.ok(existsSync(path.join(REPO, f)), f + ' 应存在');
   }
 });

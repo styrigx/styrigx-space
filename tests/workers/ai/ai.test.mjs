@@ -194,7 +194,7 @@ test('rank.js：打分与排序、语言过滤、私密只给 showPrivate、跨�
 
 test('/ask：没账号会话 → 私密条目不进上下文；scope public', async () => {
   const ai = fakeAI([sse({ response: '没有。' }), 'data: [DONE]\n\n']);
-  const res = await ask({ q: '账号 安全' }, {}, { AI: ai });
+  const res = await ask({ q: '账号 安全', lang: 'zh' }, {}, { AI: ai });
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('X-Styrigx-AI-Scope'), 'public');
   const ev = await events(res);
@@ -203,6 +203,17 @@ test('/ask：没账号会话 → 私密条目不进上下文；scope public', as
   assert.deepEqual(ev.map((e) => e.event), ['delta', 'done']);
   assert.ok(!JSON.stringify(ev).includes('保险箱'));
   assert.ok(!ai.calls[0].input.messages[0].content.includes('保险箱'), '私密正文不进上下文');
+});
+
+test('/ask：没带语言（或不认识的语言）按英文提示（P4-3 PR-4c：四站默认英文）', async () => {
+  for (const body of [{ q: 'theme' }, { q: 'theme', lang: 'fr' }]) {
+    R._resetCache();
+    const ai = fakeAI([sse({ response: 'x' }), 'data: [DONE]\n\n']);
+    await events(await ask(body, {}, { AI: ai }));
+    assert.match(ai.calls[0].input.messages[0].content, /Site content:/, JSON.stringify(body));
+  }
+  assert.match(P.buildMessages({ q: 'x', hits: [] })[0].content, /Site content:/);
+  assert.match(P.buildMessages({ q: 'x', lang: 'zh', hits: [] })[0].content, /站内内容：/);
 });
 
 test('/ask：浏览器伪造别的值的账号头不算；只有网关写的 1 才进私密', async () => {
@@ -459,7 +470,7 @@ test('外部模型（Gemini）：钥匙走头不进 URL；系统提示 + 上下�
     const body = sse({ candidates: [{ content: { parts: [{ text: '想', thought: true }, { text: '主题' }] } }] }) + sse({ candidates: [{ content: { parts: [{ text: '在设置里' }] } }] });
     return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
   }, async () => {
-    const res = await ask({ q: '主题', history: [{ role: 'user', text: '早' }, { role: 'assistant', text: '好' }] }, {}, gEnv({ SGX_CHAT_API_KEY: { async get() { return ' K123 '; } } }));
+    const res = await ask({ q: '主题', lang: 'zh', history: [{ role: 'user', text: '早' }, { role: 'assistant', text: '好' }] }, {}, gEnv({ SGX_CHAT_API_KEY: { async get() { return ' K123 '; } } }));
     const ev = await events(res);
     assert.deepEqual(ev.map((e) => e.event), ['delta', 'delta', 'done']);
     assert.equal(ev.slice(0, 2).map((e) => e.data.text).join(''), '主题在设置里');

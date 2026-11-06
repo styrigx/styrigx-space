@@ -10,8 +10,8 @@ const { blockExternalRequests, freezeTime, setHomeCards, expect } = require('../
 
 async function go(page, vp, url, pref) {
   await page.setViewportSize(vp);
-  /* 固定语言，免得跟随浏览器语言跳到另一种 */
-  await page.addInitScript((ln) => { try { localStorage.setItem('sgx-lang', ln); } catch (e) {} }, url.startsWith('/en/') ? 'en' : 'zh');
+  /* 固定语言，免得跟随浏览器语言跳到另一种（P4-3 PR-4c：英文无前缀、中文 /zh/；地址不带 /zh/ 的按中文钉住，首帧 replace 到 /zh/） */
+  await page.addInitScript((ln) => { try { localStorage.setItem('sgx-lang', ln); } catch (e) {} }, 'zh');
   await blockExternalRequests(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await freezeTime(page);

@@ -49,19 +49,19 @@ test('cookieLang × 主站契约夹具：每个用例跟随的语言 = 夹具 re
   assert.equal(by['未知版本 v3 带 lang → 当没有 cookie（不跳语言）'], '');
 });
 
-test('langTarget：只在不同的时候跳，保留查询串和 #页签；地址都在 /daymark/ 下', () => {
-  assert.equal(langTarget('en', { pathname: '/daymark/', hash: '#trove' }, 'zh'), '/daymark/en/#trove');
-  assert.equal(langTarget('zh', { pathname: '/daymark/en/', hash: '#flavors' }, 'en'), '/daymark/#flavors');
-  assert.equal(langTarget('zh', { pathname: '/daymark/en' }, 'en'), '/daymark/');
-  assert.equal(langTarget('zh', { pathname: '/daymark/en/404.html' }, 'en'), '/daymark/404.html');
-  assert.equal(langTarget('en', { pathname: '/daymark/404.html' }, 'zh'), '/daymark/en/404.html');
-  assert.equal(langTarget('en', { pathname: '/daymark', search: '?a=1' }, 'zh'), '/daymark/en/?a=1');
-  assert.equal(langTarget('en', { pathname: '/daymark/', search: '?a=1' }, 'zh'), '/daymark/en/?a=1');
-  assert.equal(langTarget('zh', { pathname: '/daymark/' }, 'zh'), '');
-  assert.equal(langTarget('', { pathname: '/daymark/' }, 'zh'), '');
+test('langTarget：只在不同的时候跳，保留查询串和 #页签；地址都在 /daymark/ 下（P4-3 PR-4c：英文 /daymark/、中文 /daymark/zh/）', () => {
+  assert.equal(langTarget('zh', { pathname: '/daymark/', hash: '#trove' }, 'en'), '/daymark/zh/#trove');
+  assert.equal(langTarget('en', { pathname: '/daymark/zh/', hash: '#flavors' }, 'zh'), '/daymark/#flavors');
+  assert.equal(langTarget('en', { pathname: '/daymark/zh' }, 'zh'), '/daymark/');
+  assert.equal(langTarget('en', { pathname: '/daymark/zh/404.html' }, 'zh'), '/daymark/404.html');
+  assert.equal(langTarget('zh', { pathname: '/daymark/404.html' }, 'en'), '/daymark/zh/404.html');
+  assert.equal(langTarget('zh', { pathname: '/daymark', search: '?a=1' }, 'en'), '/daymark/zh/?a=1');
+  assert.equal(langTarget('zh', { pathname: '/daymark/', search: '?a=1' }, 'en'), '/daymark/zh/?a=1');
+  assert.equal(langTarget('en', { pathname: '/daymark/' }, 'en'), '');
+  assert.equal(langTarget('', { pathname: '/daymark/' }, 'en'), '');
   /* 不在本站前缀下（图志根、别的站）不跳 */
-  assert.equal(langTarget('en', { pathname: '/' }, 'zh'), '');
-  assert.equal(langTarget('en', { pathname: '/blog/' }, 'zh'), '');
+  assert.equal(langTarget('zh', { pathname: '/' }, 'en'), '');
+  assert.equal(langTarget('zh', { pathname: '/blog/' }, 'en'), '');
 });
 
 test('页面接线：baseof 先原样内联共享读端，再内联 ui-inherit-run.js（都在样式前）；外观只走 SgxUI.apply，不再自己解析 cookie', () => {

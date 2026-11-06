@@ -80,7 +80,7 @@ async function mock(page, signedIn) {
 
 test('账号未登录：首页分区入口（顶栏没有分段滑块、没有搜索栏）、快捷面板导航页同主站；没有收藏按钮和菜单；只看公开；图标取不到显示首字母', async ({ page }) => {
   await mock(page, false);
-  await page.goto('/curio/');
+  await page.goto('/curio/zh/');
   /* P4-3 PR-4b：顶栏不再有分区页签，首页正文的分区入口就是目录；页名胶囊在首页显示站名 */
   await expect(page.locator('#cu-entries .sgx-ent-name')).toHaveText(['发现', '设备', '游戏']);
   await expect(page.locator('#cu-entries')).toBeVisible();
@@ -96,7 +96,7 @@ test('账号未登录：首页分区入口（顶栏没有分段滑块、没有�
   /* 编辑入口换成「登录账号后可编辑」，链到主站账号页并带 ?return=本页（P3-1 同意流程：登录完回来） */
   await expect(page.locator('#cu-signin')).toBeVisible();
   await expect(page.locator('#cu-signin a')).toHaveText('登录账号后可编辑');
-  await expect(page.locator('#cu-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/?return=%2Fcurio%2F');
+  await expect(page.locator('#cu-signin a')).toHaveAttribute('href', 'https://styrigx.com/zh/account/?return=%2Fcurio%2Fzh%2F');
   const gh = page.locator('.cu-tile[data-id="11"]');
   await expect(gh).toHaveAttribute('href', 'https://github.com/');
   await expect(gh).toHaveAttribute('target', '_blank');
@@ -105,13 +105,13 @@ test('账号未登录：首页分区入口（顶栏没有分段滑块、没有�
   await expect(page.locator('.cu-tile[data-id="21"] .cu-ic-letter')).toHaveText('I');
   /* 2026-11-04 P5-1 顶栏全大椭圆（四站同一个）；抽屉、右圆分享删除；没有版权页脚 */
   expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts']);
-  await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/curio/');
+  await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/curio/zh/');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-quick')).toHaveAttribute('aria-controls', 'sgx-qp');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-ai')).toHaveAttribute('aria-controls', 'sgx-ai');
   /* P4-3 PR-4b：字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI；头像在 AI 窗口头部，去主站账号页（子站单独起服务时也能到主站：绝对地址） */
   expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-grid', 'sgx-tb-quick', 'sgx-tb-ai']);
   await expect(page.locator('.sgx-tb-acts .sgx-tb-grid')).toHaveAttribute('aria-controls', 'sgx-nav');
-  await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', 'https://styrigx.com/account/');
+  await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', 'https://styrigx.com/zh/account/');
   await expect(page.locator('#sgx-ai .sgx-ai-me img')).toHaveAttribute('src', 'https://styrigx.com/avatar/192.webp');
   await expect(page.locator('#site-nav .sgx-tb-me')).toHaveCount(0);
   await expect(page.locator('.sgx-tb-nav, #sgx-drawer, .sgx-tb-end, .sgx-tb-share, .sgx-topbar [data-sgx-share], .sgx-tb-end-group, .sgx-tb-guestbook, a[href*="guestbook"]')).toHaveCount(0);
@@ -121,10 +121,10 @@ test('账号未登录：首页分区入口（顶栏没有分段滑块、没有�
   await page.locator('.sgx-tb-grid').click();
   await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
   await expect(page.locator('#sgx-nav .sgx-nav-tile .sgx-qp-label')).toHaveText(['旷野', '奇趣', '日刻', '博客']);
-  await expect(page.locator('#sgx-nav [data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
-  await expect(page.locator('#sgx-nav [data-nav="curio"]')).toHaveAttribute('href', '/curio/');
-  await expect(page.locator('#sgx-nav [data-nav="daymark"]')).toHaveAttribute('href', '/daymark/');
-  await expect(page.locator('#sgx-nav [data-nav="blog"]')).toHaveAttribute('href', '/blog/');
+  await expect(page.locator('#sgx-nav [data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
+  await expect(page.locator('#sgx-nav [data-nav="curio"]')).toHaveAttribute('href', '/curio/zh/');
+  await expect(page.locator('#sgx-nav [data-nav="daymark"]')).toHaveAttribute('href', '/daymark/zh/');
+  await expect(page.locator('#sgx-nav [data-nav="blog"]')).toHaveAttribute('href', '/blog/zh/');
   /* 奇趣图标 = 书签 + 星（同主站 #180） */
   await expect(page.locator('#sgx-nav [data-nav="curio"] path').first()).toHaveAttribute('d', /^M6 4\.5A1\.5/);
   await expect(page.locator('#sgx-nav [aria-current="page"]')).toHaveCount(1);
@@ -151,7 +151,7 @@ test('账号未登录：首页分区入口（顶栏没有分段滑块、没有�
 
 test('分类条筛选并写 hash，刷新还在', async ({ page }) => {
   await mock(page, false);
-  await page.goto('/curio/');
+  await page.goto('/curio/zh/');
   await expect(page.locator('#cu-chips .cu-chip')).toHaveText(['全部', '开发与云', '网络检测']);
   await page.locator('.cu-chip[data-cat="2"]').click();
   await expect(page).toHaveURL(/#c\/2$/);
@@ -164,7 +164,7 @@ test('分类条筛选并写 hash，刷新还在', async ({ page }) => {
 
 test('账号已登录（可写）：私密带锁、空分类也在；收藏 → 自动填写 → 保存发 link.add', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/curio/');
+  await page.goto('/curio/zh/');
   await expect(page.locator('#cu-fab')).toBeVisible();
   await expect(page.locator('#cu-signin')).toBeHidden();
   await expect(page.locator('.cu-tile[data-id="12"] .cu-lock')).toHaveCount(1);
@@ -187,7 +187,7 @@ test('账号已登录（可写）：私密带锁、空分类也在；收藏 → 
 
 test('账号已登录（可写）：长按格子编辑，删除要确认', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/curio/');
+  await page.goto('/curio/zh/');
   const tile = page.locator('.cu-tile[data-id="21"]');
   const box = await tile.boundingBox();
   await page.mouse.move(box.x + 20, box.y + 20);
@@ -206,7 +206,7 @@ test('账号已登录（可写）：长按格子编辑，删除要确认', async
 
 test('账号已登录（可写）：管理分类新建；导入把文件原文发给 /api/import（默认私密）并显示结果', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/curio/');
+  await page.goto('/curio/zh/');
   await page.locator('#cu-menu-btn').click();
   await page.locator('#menu-cats').click();
   await expect(page.locator('#cats-list .cu-catrow')).toHaveCount(3);
@@ -241,7 +241,7 @@ test('写接口回 401 account（账号会话刚过期）不刷新页面、提�
   await page.route('**/api/import**', (r) => r.fulfill({ status: 401, json: { ok: false, error: 'reauth' } }));
   let reloads = 0;
   page.on('framenavigated', (f) => { if (f === page.mainFrame()) reloads++; });
-  await page.goto('/curio/');
+  await page.goto('/curio/zh/');
   await expect(page.locator('#cu-fab')).toBeVisible();
   const before = reloads;
   await page.locator('#cu-fab').click();
@@ -260,14 +260,14 @@ test('写接口回 401 account（账号会话刚过期）不刷新页面、提�
   await page.locator('#imp-file').setInputFiles({ name: 'bookmarks.html', mimeType: 'text/html', buffer: Buffer.from(html) });
   await page.locator('#imp-go').click();
   await expect(page.locator('#imp-msg')).toContainText('导入前要再验证一次账号');
-  await expect(page.locator('#imp-msg a')).toHaveAttribute('href', '/account/security/');
+  await expect(page.locator('#imp-msg a')).toHaveAttribute('href', '/zh/account/security/');
   await expect(page.locator('#imp-go')).toBeEnabled();
   expect(reloads).toBe(before);
 });
 
 test('英文页：页签、分类名用英文（英文空时退回中文）', async ({ page }) => {
   await mock(page, true);
-  await page.goto('/curio/en/');
+  await page.goto('/curio/');
   await expect(page.locator('#cu-entries .sgx-ent-name')).toHaveText(['Finds', 'Devices', 'Games']);
   await expect(page.locator('.sgx-tb-title')).toHaveText('Curio');
   await expect(page.locator('#cu-chips .cu-chip')).toHaveText(['All', 'Dev & Cloud', 'Network Tests', '私房']);
@@ -280,7 +280,7 @@ test('英文页：页签、分类名用英文（英文空时退回中文）', as
 
 test('分区：点首页入口「设备」切面板写 #devices、胶囊换分区名、入口收起、换右下角按钮；刷新停在设备；左右滑切到游戏；hash 回「发现」', async ({ page }) => {
   await mock(page, true);
-  await page.goto('/curio/#c/2');
+  await page.goto('/curio/zh/#c/2');
   await expect(page.locator('#cu-fab')).toBeVisible();
   await page.locator('#cu-entries [data-entry="devices"]').click();
   await expect(page).toHaveURL(/#devices$/);
@@ -314,7 +314,7 @@ test('分区：点首页入口「设备」切面板写 #devices、胶囊换分�
 
 test('账号未登录：设备 / 游戏只读（没有新建按钮、详情没有编辑）；看不到私密设备；退役的标出来；使用天数算到退役日', async ({ page }) => {
   await mock(page, false);
-  await page.goto('/curio/#devices');
+  await page.goto('/curio/zh/#devices');
   await expect(page.locator('#dv-list .it-name')).toHaveText(['Galaxy S23', 'Galaxy S25 Ultra']);
   await expect(page.locator('#dv-fab')).toBeHidden();
   const s23 = page.locator('#dv-list [data-dev="1"]');
@@ -344,7 +344,7 @@ test('账号未登录：设备 / 游戏只读（没有新建按钮、详情没�
 
 test('账号已登录（可写）：添加设备（类型、日期、照片缩图转 webp 上传），详情里编辑成退役并选换成的那台；删除要确认', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/curio/#devices');
+  await page.goto('/curio/zh/#devices');
   await expect(page.locator('#dv-list .it-card')).toHaveCount(3);
   await expect(page.locator('#dv-list [data-dev="3"] .cu-lock-inline')).toHaveCount(1);
   await page.locator('#dv-fab').click();
@@ -408,7 +408,7 @@ test('账号已登录（可写）：添加设备（类型、日期、照片缩�
 
 test('账号已登录（可写）：添加游戏（状态、评分、平台联想、关联设备）', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/curio/#games');
+  await page.goto('/curio/zh/#games');
   await page.locator('#gm-fab').click();
   await expect(page.locator('#gm-edit-title')).toHaveText('添加游戏');
   await expect(page.locator('#gm-status [aria-checked="true"]')).toHaveText('想玩');
@@ -441,7 +441,7 @@ const frameBox = (page) => page.locator('.cu-crop-frame').boundingBox();
 
 test('账号已登录（可写）：游戏封面「移动和缩放」——框是卡片的 3:4；拖动换位置；取消不改；点缩略图重新调整；Esc 只关裁剪', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/curio/#games');
+  await page.goto('/curio/zh/#games');
   await page.locator('#gm-list [data-game="8"]').click();
   await page.locator('#it-view-edit').click();
   await expect(page.locator('#gm-photo-prev')).toBeDisabled();
@@ -507,9 +507,9 @@ test('P3-1 账号已登录但奇趣未获授权（canWrite=false、showPrivate=t
   await page.route('**/api/links**', (r) => (r.request().method() === 'GET'
     ? r.fulfill({ json: { ok: true, canWrite: false, showPrivate: true, cats: [] } })
     : r.fulfill({ status: 403, json: { ok: false, error: 'scope', scope: 'curio.write' } })));
-  await page.goto('/curio/');
+  await page.goto('/curio/zh/');
   await expect(page.locator('#cu-signin')).toBeVisible();
   await expect(page.locator('#cu-signin a')).toHaveText('奇趣未获账号授权');
-  await expect(page.locator('#cu-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/apps/');
+  await expect(page.locator('#cu-signin a')).toHaveAttribute('href', 'https://styrigx.com/zh/account/apps/');
   await expect(page.locator('#cu-fab')).toBeHidden();
 });

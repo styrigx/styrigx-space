@@ -42,12 +42,12 @@ test('safeReturn：复现用例全部判为不合法（null）', () => {
 test('safeReturn：合法站内路径与白名单子站照常，返回规范化值', () => {
   assert.equal(safeReturn('/display/'), '/display/');
   assert.equal(safeReturn('/browser/?x=1#a'), '/browser/?x=1#a');
-  assert.equal(safeReturn('/en/'), '/en/');
+  assert.equal(safeReturn('/zh/'), '/zh/');
   assert.equal(safeReturn('/a/../b/'), '/b/');
   assert.equal(safeReturn('/search/?q=a%2Fb'), '/search/?q=a%2Fb');
   /* 合并 PR3：子站在主域名 /blog/ /curio/ /daymark/ 下（同源，完整地址原样返回）；旧图志 atlas.styrigx.com 的 301 已删、域名下线，仍在回跳黑名单里 */
   assert.equal(safeReturn('https://styrigx.com/blog/post/x/'), 'https://styrigx.com/blog/post/x/');
-  assert.equal(safeReturn('/curio/en/?a=1'), '/curio/en/?a=1');
+  assert.equal(safeReturn('/curio/zh/?a=1'), '/curio/zh/?a=1');
   for (const h of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com', 'atlas.styrigx.com']) assert.equal(safeReturn('https://' + h + '/blog/post/x/'), null, h + ' 已下线');
   assert.equal(safeReturn('https://styrigx.com'), 'https://styrigx.com/');
   assert.equal(safeReturn('/lock/'), null, '/lock/ 解锁后无页面');
@@ -83,7 +83,7 @@ test('/api/lock-session-check：复现用例 next 一律 /', async () => {
 
 test('resolveReturn(ret)：只做地址白名单，不看进门方式；门内页也原样回去（不再有升级验证）', () => {
   assert.equal(resolveReturn('/security/lock/'), '/security/lock/');
-  assert.equal(resolveReturn('/en/status/?x=1'), '/en/status/?x=1');
+  assert.equal(resolveReturn('/zh/status/?x=1'), '/zh/status/?x=1');
   assert.equal(resolveReturn('https://styrigx.com/curio/a/'), 'https://styrigx.com/curio/a/');
   assert.equal(resolveReturn('/%09/evil.com'), '/');
   assert.equal(resolveReturn(''), '/');

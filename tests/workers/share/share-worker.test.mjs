@@ -129,7 +129,7 @@ test('目标：站内相对路径或 https://styrigx.com 的地址（一律存�
   assert.deepEqual([...links.TARGET_HOSTS], ['styrigx.com']);
   assert.equal(links.cleanTarget('https://styrigx.com/blog/post/hello/'), '/blog/post/hello/');
   assert.equal(links.cleanTarget('https://styrigx.com'), '/');
-  assert.equal(links.cleanTarget('https://Styrigx.COM/blog/en/post/a/?x=1#h'), '/blog/en/post/a/?x=1#h');
+  assert.equal(links.cleanTarget('https://Styrigx.COM/blog/zh/post/a/?x=1#h'), '/blog/zh/post/a/?x=1#h');
   assert.equal(links.cleanTarget('https://styrigx.com/blog/?a=1'), '/blog/?a=1');
   assert.equal(links.cleanTarget('https://styrigx.com/blog/post/%E4%BD%A0%E5%A5%BD/'), '/blog/post/%E4%BD%A0%E5%A5%BD/');
   assert.equal(links.cleanTarget('https://styrigx.com/blog/post/你好/'), '/blog/post/%E4%BD%A0%E5%A5%BD/', '中文路径编码后存');
@@ -141,7 +141,7 @@ test('目标：站内相对路径或 https://styrigx.com 的地址（一律存�
   assert.equal(links.cleanTarget('https://styrigx.com/blog/apix/'), '/blog/apix/');
   assert.equal(links.targetUrl('/blog/'), 'https://styrigx.com/blog/');
   /* 合并 PR3：子站在主域名 /blog/ /curio/ /daymark/ 下（存相对路径）；主域名上的 /<站>/api/ 同样不能当目标 */
-  assert.equal(links.cleanTarget('https://styrigx.com/curio/en/?a=1'), '/curio/en/?a=1');
+  assert.equal(links.cleanTarget('https://styrigx.com/curio/zh/?a=1'), '/curio/zh/?a=1');
   assert.equal(links.cleanTarget('/daymark/#trove'), '/daymark/#trove');
   for (const bad of ['/curio/api/links', '/daymark/api', '/daymark/api/today?x=1', 'https://styrigx.com/curio/api/export', '/blog/api/x']) {
     assert.equal(links.cleanTarget(bad), null, bad);
@@ -210,7 +210,7 @@ test('check-worker-routes：/s/*、/api/share* 归短链 Worker；网关接口�
   const acct = readRoutes(readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8'));
   const share = readRoutes(readFileSync(REPO + 'workers/share/wrangler.toml', 'utf8'));
   const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/router.js', 'utf8'));
-  const pages = ['/', '/account/', '/security/tempkeys/', '/display/', '/search/', '/en/display/'];
+  const pages = ['/', '/account/', '/security/tempkeys/', '/display/', '/search/', '/zh/display/'];
   assert.deepEqual(checkWorkers(gw, acct, share, apis, pages), []);
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/s*'), apis, pages).some((e) => e.includes('/display/') || e.includes('/search/')));
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/api/s*'), apis, pages).some((e) => e.includes('/api/status')));

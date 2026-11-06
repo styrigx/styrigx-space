@@ -170,10 +170,10 @@ test('子站安全头：强制 CSP 只有三条非脚本指令；子站已有的
 
 /* ---------------- 网关：主站 ---------------- */
 
-test('网关·锁屏首页（未登录 /、/en/）：200 锁屏态 + 全套安全头 + private, no-store', async () => {
+test('网关·锁屏首页（未登录 /、/zh/）：200 锁屏态 + 全套安全头 + private, no-store', async () => {
   _resetSecretCache();
   await withOrigin(PAGE, async () => {
-    for (const p of ['/', '/en/', '/?lock=1&return=%2Fdisplay%2F']) {
+    for (const p of ['/', '/zh/', '/?lock=1&return=%2Fdisplay%2F']) {
       const res = await worker.fetch(new Request('https://styrigx.com' + p), baseEnv(), CTX);
       assert.equal(res.status, 200, p);
       assert.match(await res.text(), /data-sgx-lock-session="locked"/);
@@ -383,7 +383,7 @@ test('_headers：每个路径最多一条 Cache-Control（不再逗号拼接）�
     '/display/': undefined,
     '/files-index.json': undefined,
     '/index.xml': undefined,
-    '/en/index.xml': undefined,
+    '/zh/index.xml': undefined,
   };
   for (const [p, cc] of Object.entries(expectCC)) {
     const { headers, counts } = headersFor(RULES, p);
@@ -431,7 +431,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-test('模板：会执行的内联脚本只在 baseof（6 段）、alias（P4-2b 删了 search-redirect）；旷野页没有内联脚本；没有 on*= 属性', () => {
+test('模板：会执行的内联脚本只在 baseof（7 段，P4-3 PR-4c 加了语言路径 lang-path）、alias（P4-2b 删了 search-redirect）；旷野页没有内联脚本；没有 on*= 属性', () => {
   const where = {};
   for (const f of walk(REPO + '/space/web/layouts')) {
     const src = readFileSync(f, 'utf8').replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
@@ -439,7 +439,7 @@ test('模板：会执行的内联脚本只在 baseof（6 段）、alias（P4-2b 
     if (n) where[path.relative(REPO + '/space/web/layouts', f)] = n;
     assert.deepEqual(gen.unhashable(src.replace(/\{\{[\s\S]*?\}\}/g, '')), [], f);
   }
-  assert.deepEqual(where, { '_default/baseof.html': 6, 'alias.html': 1 });
+  assert.deepEqual(where, { '_default/baseof.html': 7, 'alias.html': 1 });
   /* alias：脚本正文里不插模板值（每页一字不差 → 一个哈希），目标地址在 <html data-sgx-*> */
   for (const f of ['alias.html']) {
     const [body] = gen.inlineScripts(readFileSync(REPO + '/space/web/layouts/' + f, 'utf8'));

@@ -52,36 +52,40 @@ test('build(pub)：副标题 = 完整面包屑（旷野页自己没有；子页�
     writeFileSync(path.join(pub, rel, 'index.html'), html);
   };
   writeFileSync(path.join(pub, 'files-index.json'), JSON.stringify({ items: [] }));
-  put('', page('旷野', row('安全', '', '/security/')));
-  put('security', page('安全', '<h2 class="set-gh"><span>安全</span></h2>' + row('锁屏凭证', '解锁密码、通行密钥、会话', '/security/lock/')));
-  put('security/lock', page('锁屏凭证', '<h2 class="set-gh"><span>通行密钥</span></h2><div class="set-row"><span class="block font-medium">解锁密码</span><span class="block text-xs">正在读取…</span></div>' +
+  /* P4-3 PR-4c：英文在根（无前缀），中文在 zh/ */
+  put('zh', page('旷野', row('安全', '', '/zh/security/')));
+  put('zh/security', page('安全', '<h2 class="set-gh"><span>安全</span></h2>' + row('锁屏凭证', '解锁密码、通行密钥、会话', '/zh/security/lock/')));
+  put('zh/security/lock', page('锁屏凭证', '<h2 class="set-gh"><span>通行密钥</span></h2><div class="set-row"><span class="block font-medium">解锁密码</span><span class="block text-xs">正在读取…</span></div>' +
     '<div class="set-row"><span class="block font-medium">长</span><span class="block text-xs">' + '字'.repeat(400) + '</span></div>'));
-  put('security/tempkeys', page('临时钥匙', ''));
-  put('security/old', '<html><head><meta http-equiv="refresh" content="0; url=/security/"><title>旧页</title></head></html>');
-  put('en', page('Space', ''));
-  put('en/security', page('Security', row('Lock screen credentials', 'Password, passkeys, sessions', '/en/security/lock/')));
-  put('en/security/lock', page('Lock screen credentials', ''));
-  put('account', page('账号', ''));
-  put('account/security', page('账号安全', ''));
+  put('zh/security/tempkeys', page('临时钥匙', ''));
+  put('zh/security/old', '<html><head><meta http-equiv="refresh" content="0; url=/zh/security/"><title>旧页</title></head></html>');
+  put('', page('Space', ''));
+  put('security', page('Security', row('Lock screen credentials', 'Password, passkeys, sessions', '/security/lock/')));
+  put('security/lock', page('Lock screen credentials', ''));
+  put('zh/account', page('账号', ''));
+  put('zh/account/security', page('账号安全', ''));
   const ix = S.build(pub);
   const get = (/** @type {string} */ u) => ix.items.find((x) => x.url === 'https://styrigx.com' + u);
-  const lock = get('/security/lock/');
+  const lock = get('/zh/security/lock/');
+  assert.equal(lock.lang, 'zh');
   assert.equal(lock.subtitle, '旷野' + S.CRUMB + '安全');
   assert.ok(lock.text.startsWith('解锁密码、通行密钥、会话 通行密钥 解锁密码 长 字'), lock.text);
   assert.equal(lock.text.length, S.TEXT_MAX);
   assert.doesNotMatch(lock.text, /正在读取/);
-  assert.equal(get('/security/').subtitle, '旷野');
-  assert.equal(get('/').subtitle, '');
-  assert.equal(get('/').title, '旷野');
-  assert.equal(get('/security/old/'), undefined, '跳转页不进索引');
-  assert.equal(get('/en/security/lock/').subtitle, 'Space › Security');
-  assert.equal(get('/en/security/lock/').text, 'Password, passkeys, sessions');
-  assert.equal(get('/security/tempkeys/').text, undefined, '没有文字就不带 text');
-  assert.equal(get('/security/tempkeys/').private, true);
-  assert.equal(get('/account/security/').subtitle, '账号', '账号页独立，不挂在旷野下');
-  assert.equal(get('/account/').subtitle, '');
-  assert.equal(get('/account/security/').private, true);
+  assert.equal(get('/zh/security/').subtitle, '旷野');
+  assert.equal(get('/zh/').subtitle, '');
+  assert.equal(get('/zh/').title, '旷野');
+  assert.equal(get('/zh/security/old/'), undefined, '跳转页不进索引');
+  assert.equal(get('/security/lock/').lang, 'en');
+  assert.equal(get('/security/lock/').subtitle, 'Space › Security');
+  assert.equal(get('/security/lock/').text, 'Password, passkeys, sessions');
+  assert.equal(get('/zh/security/tempkeys/').text, undefined, '没有文字就不带 text');
+  assert.equal(get('/zh/security/tempkeys/').private, true);
+  assert.equal(get('/zh/account/security/').subtitle, '账号', '账号页独立，不挂在旷野下');
+  assert.equal(get('/zh/account/').subtitle, '');
+  assert.equal(get('/zh/account/security/').private, true);
   assert.equal(lock.private, undefined);
+  assert.ok(!ix.items.some((x) => /\/en\//.test(x.url)), '索引里没有 /en/ 地址（P4-3 PR-4c）');
   assert.ok(!ix.items.some((x) => /\/settings\//.test(x.url)), '索引里没有 settings 一层的地址');
 });
 
@@ -90,25 +94,26 @@ const BUILT = existsSync(path.join(REPO, 'space/web/public/security/lock/index.h
 test('真实构建：锁屏凭证的副标题是完整面包屑，text 带上级行说明和本页内容；功能开关副标题带面包屑', { skip: !BUILT && '没构建 space/web/public（CI 单测这一步不构建；上面的假产物用例覆盖逻辑）' }, () => {
   const ix = S.build();
   const get = (/** @type {string} */ u) => ix.items.find((x) => x.url === 'https://styrigx.com' + u && x.id.startsWith('setting:'));
-  const lock = get('/security/lock/');
+  const lock = get('/zh/security/lock/');
   assert.equal(lock.title, '锁屏凭证');
   assert.equal(lock.subtitle, '旷野 › 安全');
   assert.match(lock.text, /通行密钥/);
   assert.match(lock.text, /解锁密码、通行密钥、会话/, '上级页「安全」里指向本页那一行的说明');
   assert.doesNotMatch(lock.text, /正在读取/);
-  const en = get('/en/security/lock/');
+  const en = get('/security/lock/');
   assert.equal(en.subtitle, 'Space › Security');
   assert.match(en.text, /passkeys/i);
-  assert.equal(get('/theme/').subtitle, '旷野');
+  assert.equal(get('/zh/theme/').subtitle, '旷野');
   /* P4-3 PR-4b：显示页删除，索引里没有 /display/；旷野页平铺入口的副标题进了子页的 text */
   assert.ok(!ix.items.some((x) => /\/display\//.test(x.url)), '索引里没有 /display/');
-  assert.match(get('/theme/').text, /调色板与主题色/, '旷野页入口副标题进子页 text');
-  assert.match(get('/en/wellbeing/').text, /Screen time and habits/);
-  assert.equal(get('/').subtitle, '', '旷野页自己没有面包屑');
-  assert.equal(get('/en/').title, 'Space');
-  assert.equal(get('/account/security/').subtitle, '账号');
+  assert.ok(!ix.items.some((x) => /^https:\/\/styrigx\.com\/en\//.test(x.url)), '索引里没有 /en/（P4-3 PR-4c）');
+  assert.match(get('/zh/theme/').text, /调色板与主题色/, '旷野页入口副标题进子页 text');
+  assert.match(get('/wellbeing/').text, /Screen time and habits/);
+  assert.equal(get('/zh/').subtitle, '', '旷野页自己没有面包屑');
+  assert.equal(get('/').title, 'Space');
+  assert.equal(get('/zh/account/security/').subtitle, '账号');
   for (const x of ix.items) if (x.text) assert.ok(x.text.length <= S.TEXT_MAX || x.id.startsWith('feature:'), x.id + ' text 超长');
-  const feat = ix.items.find((x) => x.id.startsWith('feature:') && x.lang === 'zh' && x.url === 'https://styrigx.com/theme/');
+  const feat = ix.items.find((x) => x.id.startsWith('feature:') && x.lang === 'zh' && x.url === 'https://styrigx.com/zh/theme/');
   assert.ok(feat && feat.subtitle === '旷野' + S.CRUMB + '壁纸和主题', '功能开关副标题 = 面包屑 + 页名');
   /* 显示页删除：主题模式 / 布局 / 语言只在快捷面板，不进索引 */
   for (const id of ['theme-mode', 'layout', 'lang']) assert.ok(!ix.items.some((x) => x.id.startsWith('feature:' + id + ':')), id + ' 不进索引');

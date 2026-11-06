@@ -13,12 +13,12 @@ async function imagesReady(page) {
 }
 
 const PAGES = [
-  { name: 'home', path: '/blog/' },
-  { name: 'home-en', path: '/blog/en/' },
-  { name: 'article', path: '/blog/post/2026-10-07-muse-playbook/' },
-  { name: 'article-en', path: '/blog/en/post/2026-10-07-muse-playbook/' },
-  { name: 'tag', path: '/blog/tags/ai' },
-  { name: 'not-found', path: '/blog/404.html' },
+  { name: 'home', path: '/blog/zh/' },
+  { name: 'home-en', path: '/blog/' },
+  { name: 'article', path: '/blog/zh/post/2026-10-07-muse-playbook/' },
+  { name: 'article-en', path: '/blog/post/2026-10-07-muse-playbook/' },
+  { name: 'tag', path: '/blog/zh/tags/ai' },
+  { name: 'not-found', path: '/blog/zh/404.html' },
 ];
 
 for (const { name, path } of PAGES) {
@@ -54,7 +54,7 @@ test('悬浮顶栏不遮挡首个标题（布局断言）', async ({ page }) => 
     } catch {}
   });
   // 首页 + 文章页：页面顶部时，首个可见标题（首页是「最新」分区标题，h1 只给读屏）的 top 必须 ≥ 顶栏 bottom
-  for (const path of ['/blog/', '/blog/post/2026-10-07-muse-playbook/']) {
+  for (const path of ['/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/']) {
     await page.goto(path, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => document.fonts.ready);
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -81,7 +81,7 @@ test.describe('顶栏 v4 布局', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       try {
-        localStorage.setItem('styrigx-blog-lang', 'zh');
+        localStorage.setItem('styrigx-blog-lang', 'en'); // P4-3 PR-4c：英文首页 /blog/ 不按浏览器语言跳 /blog/zh/
       } catch {}
     });
   });
@@ -91,7 +91,7 @@ test.describe('顶栏 v4 布局', () => {
     const wide = page.viewportSize().width >= 840;
     const B = wide ? 56 : 52;
     const inset = (B - 40) / 2;
-    for (const path of ['/blog/', '/blog/post/2026-10-07-muse-playbook/']) {
+    for (const path of ['/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/']) {
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       const r = await page.evaluate(() => {
         const box = (el) => el.getBoundingClientRect();
@@ -120,8 +120,8 @@ test.describe('顶栏 v4 布局', () => {
     }
   });
 
-  test('英文浏览器（没有 cookie）：/ 跳 /en/ 一次后停住，不循环', async ({ browser }) => {
-    const ctx = await browser.newContext({ locale: 'en-US' });
+  test('中文浏览器（没有 cookie）：英文首页 /blog/ 跳 /blog/zh/ 一次后停住，不循环（P4-3 PR-4c 起英文默认）', async ({ browser }) => {
+    const ctx = await browser.newContext({ locale: 'zh-CN' });
     const page = await ctx.newPage();
     let navs = 0;
     page.on('framenavigated', (f) => {
@@ -131,8 +131,8 @@ test.describe('顶栏 v4 布局', () => {
     await page.waitForTimeout(800);
     const settled = navs;
     await page.waitForTimeout(1500);
-    expect(new URL(page.url()).pathname).toBe('/blog/en/');
-    expect(navs, '停在 /en/ 后不再导航').toBe(settled);
+    expect(new URL(page.url()).pathname).toBe('/blog/zh/');
+    expect(navs, '停在 /blog/zh/ 后不再导航').toBe(settled);
     await ctx.close();
   });
 });

@@ -289,7 +289,7 @@ test('check-worker-routes：现在通过；账号 Worker 只要登记任何一�
   const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/router.js', 'utf8'));
   assert.deepEqual(acct, []);
   assert.ok(!apis.includes('/api/account') && apis.includes('/api/geo') && !apis.includes('/api/prefs'));
-  const pages = ['/', '/account/', '/wellbeing/', '/en/display/'];
+  const pages = ['/', '/account/', '/wellbeing/', '/zh/display/'];
   assert.deepEqual(checkAccount(gw, acct, apis, pages), []);
   for (const extra of ['styrigx.com/api/avatar*', 'styrigx.com/avatar/*', 'styrigx.com/display/*']) {
     assert.ok(checkAccount(gw, [extra], apis, pages).some((e) => e.includes(extra)), extra);

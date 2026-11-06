@@ -122,7 +122,7 @@ test.describe('账号登录', () => {
     await expect(page.locator('#acct-pk-btn .sgx-method-name')).toHaveText('通行密钥');
     await expect(page.locator('#acct-pw-btn .sgx-method-name')).toHaveText('密码');
     await expect(page.locator('#acct-cant')).toHaveText('无法登录？');
-    await expect(page.locator('#acct-cant')).toHaveAttribute('href', '/account/reset/');
+    await expect(page.locator('#acct-cant')).toHaveAttribute('href', '/zh/account/reset/');
     /* 点头像也是同一个入口 */
     await page.keyboard.press('Escape');
     await expect(page.locator('#sgx-method-sheet')).toHaveCount(0);
@@ -149,14 +149,14 @@ test.describe('账号登录', () => {
   test('英文页：Sign in / Welcome back / Passkey · Password / Can’t sign in?（读不到状态也显示两个）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, { status: { ok: false, error: 'session' } });
-    await page.goto('/en/account/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-tb-title')).toHaveText('Sign in');
     await expect(page.locator('.acct-login-welcome')).toHaveText('Welcome back');
     await expect(page.locator('#acct-login-go')).toHaveText('Sign in');
     await openSheet(page);
     await expect(page.locator('#acct-pk-btn .sgx-method-name')).toHaveText('Passkey');
     await expect(page.locator('#acct-pw-btn .sgx-method-name')).toHaveText('Password');
-    await expect(page.locator('#acct-cant')).toHaveAttribute('href', '/en/account/reset/');
+    await expect(page.locator('#acct-cant')).toHaveAttribute('href', '/account/reset/');
   });
 
   test('密码登录：与锁屏同一个密码弹层；空密码行内提示；错误行内提示并清空；改对后进账号页，顶栏页名回到「账号」', async ({ page }) => {
@@ -276,7 +276,7 @@ test.describe('重置登录（/account/reset/）', () => {
   test('英文：Reset sign-in', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, { status: { ok: false, error: 'session' } });
-    await page.goto('/en/account/reset/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/account/reset/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-tb-title')).toHaveText('Reset sign-in');
     await expect(page.locator('#sgx-reset-go')).toHaveText('Continue');
   });
@@ -348,7 +348,7 @@ test.describe('安全与隐私子页', () => {
     await expect(page.locator('#acct-reauth')).toBeVisible();
     await expect(page.locator('#acct-sec')).toBeHidden();
     await expect(page.locator('#acct-reauth-methods .sgx-credential-row .sgx-credential-rowtitle')).toHaveText(['账号密码']);
-    await expect(page.locator('#acct-reauth-cant')).toHaveAttribute('href', '/account/reset/');
+    await expect(page.locator('#acct-reauth-cant')).toHaveAttribute('href', '/zh/account/reset/');
     await page.locator('#acct-reauth-methods .sgx-credential-row').filter({ hasText: '账号密码' }).click();
     await page.locator('#acct-reauth-methods .sgx-credential-expand input[type="password"]').fill('pw-123456');
     await expect(page.locator('#acct-reauth-methods .sgx-credential-btn-primary')).toHaveText('验证');
@@ -424,7 +424,7 @@ test.describe('账号总览', () => {
     /* 点击处理是同步的：要跳转的话 navigate 事件此时已派发；再等两帧让 rAF 里的反应也落地 */
     await nextFrames(page);
     expect(await navs(), '点账号卡不触发任何导航').toEqual([]);
-    expect(new URL(page.url()).pathname).toBe('/account/');
+    expect(new URL(page.url()).pathname).toBe('/zh/account/');
     await expect(page.locator('a[href*="/account/profile/"]')).toHaveCount(0);
     const groups = await page.locator('#acct-main section').evaluateAll((els) => els.map((x) => Array.from(x.querySelectorAll('.acct-row')).map((r) => r.id)));
     expect(groups).toEqual([['acct-dev-row', 'acct-sec-row', 'acct-apps-row'], ['acct-sync-row'], ['acct-ai-row']]);
@@ -590,7 +590,7 @@ test.describe('账号总览：AI 模型（P4-2d）', () => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
     await mockAiList(page, AI_LIST());
-    await page.goto('/en/account/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(row(page)).toContainText('AI model');
     await expect(sub(page)).toHaveText('Gemma 4');
     await row(page).click();
@@ -633,7 +633,7 @@ test.describe('安全与隐私子页：进入与回跳', () => {
       },
     });
     await page.goto(SEC, { waitUntil: 'domcontentloaded' });
-    await page.waitForURL(/\/account\/\?return=%2Faccount%2Fsecurity%2F$/);
+    await page.waitForURL(/\/account\/\?return=%2Fzh%2Faccount%2Fsecurity%2F$/);
     await expect(page.locator('#acct-login')).toBeVisible();
     await expect(page.locator('#acct-login-notice')).toBeHidden();
     await page.click('#acct-login-go');
@@ -652,11 +652,11 @@ test.describe('安全与隐私子页：进入与回跳', () => {
       status: { ok: true, password: false, passkey: true, ready: true, session: RECENT(), reauth: REAUTH() },
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }] },
     });
-    await page.goto('/en/account/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#acct-sec-row')).toHaveAttribute('href', '/en/account/security/');
+    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-sec-row')).toHaveAttribute('href', '/account/security/');
     await expect(page.locator('#acct-sec-sub')).toHaveText('Protected');
     await page.locator('#acct-sec-row').click();
-    await page.waitForURL(/\/en\/account\/security\/$/);
+    await page.waitForURL(/:\d+\/account\/security\/$/);
     await expect(page.locator('.sgx-tb-title')).toHaveText('Account security');
     await expect(page.locator('#lockmgr-pwsub')).toHaveText('Not set');
   });
@@ -841,7 +841,7 @@ test.describe('头像（2026-11-04 P5-1 起在顶栏最右；P4-3 PR-4b 起在 A
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     /* P4-3 PR-4b：头像不在顶栏，搬进 AI 窗口头部（.sgx-ai-me） */
     const me = page.locator('.sgx-ai-me');
-    await expect(me).toHaveAttribute('href', '/account/');
+    await expect(me).toHaveAttribute('href', '/zh/account/');
     expect(await me.getAttribute('aria-disabled')).toBe(null);
     expect(await me.evaluate((el) => getComputedStyle(el).pointerEvents)).not.toBe('none');
   });
@@ -965,7 +965,7 @@ test.describe('设备子页（2026-10-22）', () => {
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { 'device-list': [200, { ok: true, devices: [{ deviceId: 'aaaaaaaaaaaaaaaa', current: true, name: 'Windows', platform: 'Windows', browser: 'Chrome', by: 'root', lastSeen: Date.now() }] }] },
     });
-    await page.goto('/en/account/devices/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/account/devices/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-dev-by-row')).toContainText('Sign-in method');
     await expect(page.locator('#acct-by')).toHaveText('Signed in with root credential');
     await expect(page.locator('#acct-logout')).toHaveText('Sign out');
@@ -978,7 +978,7 @@ test.describe('设备子页（2026-10-22）', () => {
       handlers: { 'device-list': [401, { ok: false, error: 'account' }] },
     });
     await page.goto('/account/devices/', { waitUntil: 'domcontentloaded' });
-    await page.waitForURL(/\/account\/\?return=%2Faccount%2Fdevices%2F$/);
+    await page.waitForURL(/\/account\/\?return=%2Fzh%2Faccount%2Fdevices%2F$/);
     await expect(page.locator('#acct-login')).toBeVisible();
   });
 });
@@ -1083,7 +1083,7 @@ test.describe('设置 → 安全与隐私 → 临时钥匙（2026-10-23，取代
     await page.route('**/api/share', unauth);
     await page.goto(TK, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-toast')).toContainText('会话已失效，请回到锁屏重新解锁');
-    expect(new URL(page.url()).pathname).toBe(TK);
+    expect(new URL(page.url()).pathname).toBe('/zh' + TK);
   });
 
 });
@@ -1249,7 +1249,7 @@ test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/syn
     });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     const row = page.locator('#acct-sync-row');
-    await expect(row).toHaveAttribute('href', '/account/sync/');
+    await expect(row).toHaveAttribute('href', '/zh/account/sync/');
     await expect(row.locator('.switch')).toHaveCount(0);
     await expect(page.locator('#acct-sync-sub')).toHaveText('已开启，设置在登录的设备间同步');
     await row.click();
@@ -1308,7 +1308,7 @@ test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/syn
   test('英文子页：Cloud sync / Appearance … / On · Off', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); localStorage.setItem('sgx-cloud-sync', '0'); } catch (e) {} });
     await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }) });
-    await page.goto('/en/account/sync/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-tb-title')).toHaveText('Cloud sync');
     await expect(page.locator('#acct-sync-sub')).toHaveText('Off. Settings stay on this device');
     await expect(page.locator('#acct-sync-items h3')).toHaveText(['Appearance', 'More']);
@@ -1320,7 +1320,7 @@ test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/syn
   test('子页：没有账号会话 → 跳账号页 ?return=子页', async ({ page }) => {
     await mockAccount(page, { status: { ok: true, password: true, passkey: false, ready: true, session: null } });
     await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
-    await page.waitForURL(/\/account\/\?return=%2Faccount%2Fsync%2F$/);
+    await page.waitForURL(/\/account\/\?return=%2Fzh%2Faccount%2Fsync%2F$/);
     await expect(page.locator('#acct-login')).toBeVisible();
   });
 });
@@ -1329,7 +1329,7 @@ test.describe('账号页是独立页 /account/（2026-10-22 从设置层下挪�
   test('旧地址（设置层下的账号页）全部 404，不跳转', async ({ page }) => {
     const OLD = '/' + 'settings' + '/'; /* 拼出来：全仓 git grep 只许历史文档出现旧地址 */
     for (const p of [OLD + 'account/', OLD + 'account/profile/', OLD + 'account/security/', OLD + 'account/reset/', OLD + 'account/devices/',
-      '/en' + OLD + 'account/', '/en' + OLD + 'account/devices/']) {
+      '/zh' + OLD + 'account/', '/zh' + OLD + 'account/devices/', '/en/account/', '/en/account/devices/']) {
       const res = await page.request.get(p, { maxRedirects: 0 });
       expect(res.status(), p).toBe(404);
     }

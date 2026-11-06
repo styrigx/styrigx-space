@@ -1,5 +1,5 @@
 /**
- * 聊天 /chat/ 与服务状态 /status/（含 /en/）和其他主站内页一样过网关 gate.js：
+ * 聊天 /chat/ 与服务状态 /status/（含 /zh/）和其他主站内页一样过网关 gate.js：
  *   没会话 / 坏 cookie → 302 到首页锁屏（?lock=1&return=<原路径>，no-store）；进门会话（任何 by，含临时钥匙）放行（200）。
  *   进门二值（P2-3）：页面只分「要进门 / 公开」，没有按角色的 302。
  *   页面本身只认锁屏进门会话，不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也 200）。
@@ -31,7 +31,7 @@ function ctx(url, cookie) {
   };
 }
 
-const PAGES = ['/status/', '/en/status/', '/chat/', '/en/chat/'];
+const PAGES = ['/status/', '/zh/status/', '/chat/', '/zh/chat/'];
 
 test('没会话：/status/、/chat/（中英）302 到首页锁屏，return = 原路径，no-store', async () => {
   for (const p of PAGES) {

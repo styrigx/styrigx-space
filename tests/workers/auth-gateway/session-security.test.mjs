@@ -465,9 +465,9 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
   assert.equal(r.status, 302);
   assert.equal(r.headers.get('Location'), 'https://blog-preview.styrigx.com/post/abc/');
 
-  r = await tryReturn('https://styrigx.com/daymark/en/');
+  r = await tryReturn('https://styrigx.com/daymark/zh/');
   assert.equal(r.status, 302);
-  assert.equal(r.headers.get('Location'), 'https://styrigx.com/daymark/en/');
+  assert.equal(r.headers.get('Location'), 'https://styrigx.com/daymark/zh/');
 
   /* 已下线的旧子域名、旧图志（P4-3 PR-1 删掉 301、域名下线，仍在回跳黑名单里）→ 回首页 */
   for (const h of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com', 'atlas.styrigx.com']) {
@@ -1068,7 +1068,7 @@ test('进门二值：临时钥匙进门的人可以访问桌面（/）、设置�
   const html = await r0.text();
   assert.ok(html.includes('data-sgx-lock-session="valid"'));
   assert.ok(!/data-sgx-role|data-sgx-upgrade/.test(html), '不再注入等级 / 升级标记'); // old-name guard
-  for (const p of ['/display/', '/files/', '/display/', '/en/display/', '/security/', '/en/security/', '/security/lock/', '/en/security/lock/']) {
+  for (const p of ['/display/', '/files/', '/display/', '/zh/display/', '/security/', '/zh/security/', '/security/lock/', '/zh/security/lock/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
     assert.equal(r.status, 200, '临时钥匙进门访问 ' + p + ' 应 200');
   }

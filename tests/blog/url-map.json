@@ -3,129 +3,129 @@
   "pages": [
     "/",
     "/404.html",
-    "/en/",
-    "/en/post/2026-09-27-invite-board/",
-    "/en/post/2026-10-07-muse-playbook/",
-    "/en/post/2026-10-07-navfolio-migration/",
-    "/en/post/2026-10-11-agent-collaboration-whitepaper-v2/",
-    "/en/post/2026-10-11-agent-collaboration-whitepaper/",
-    "/en/post/2026-10-11-key-spec-whitepaper-v2/",
-    "/en/tags/ai-agents/",
-    "/en/tags/ai/",
-    "/en/tags/astro/",
-    "/en/tags/auth/",
-    "/en/tags/blog/",
-    "/en/tags/cloudflare/",
-    "/en/tags/engineering/",
-    "/en/tags/github/",
-    "/en/tags/muse/",
-    "/en/tags/open-source/",
-    "/en/tags/passkey/",
-    "/en/tags/security/",
-    "/en/tags/specification/",
-    "/en/tags/styrigx-ui/",
     "/post/2026-09-27-invite-board/",
     "/post/2026-10-07-muse-playbook/",
     "/post/2026-10-07-navfolio-migration/",
     "/post/2026-10-11-agent-collaboration-whitepaper-v2/",
     "/post/2026-10-11-agent-collaboration-whitepaper/",
     "/post/2026-10-11-key-spec-whitepaper-v2/",
-    "/post/2026-10-11-key-spec-whitepaper/",
-    "/tags/ai-代理/",
+    "/tags/ai-agents/",
     "/tags/ai/",
     "/tags/astro/",
+    "/tags/auth/",
+    "/tags/blog/",
     "/tags/cloudflare/",
-    "/tags/ed25519/",
+    "/tags/engineering/",
     "/tags/github/",
     "/tags/muse/",
+    "/tags/open-source/",
     "/tags/passkey/",
+    "/tags/security/",
+    "/tags/specification/",
     "/tags/styrigx-ui/",
-    "/tags/博客/",
-    "/tags/安全/",
-    "/tags/工程/",
-    "/tags/开源/",
-    "/tags/规范/",
-    "/tags/鉴权/"
+    "/zh/",
+    "/zh/post/2026-09-27-invite-board/",
+    "/zh/post/2026-10-07-muse-playbook/",
+    "/zh/post/2026-10-07-navfolio-migration/",
+    "/zh/post/2026-10-11-agent-collaboration-whitepaper-v2/",
+    "/zh/post/2026-10-11-agent-collaboration-whitepaper/",
+    "/zh/post/2026-10-11-key-spec-whitepaper-v2/",
+    "/zh/post/2026-10-11-key-spec-whitepaper/",
+    "/zh/tags/ai-agents/",
+    "/zh/tags/ai/",
+    "/zh/tags/astro/",
+    "/zh/tags/auth/",
+    "/zh/tags/blog/",
+    "/zh/tags/cloudflare/",
+    "/zh/tags/ed25519/",
+    "/zh/tags/engineering/",
+    "/zh/tags/github/",
+    "/zh/tags/muse/",
+    "/zh/tags/open-source/",
+    "/zh/tags/passkey/",
+    "/zh/tags/security/",
+    "/zh/tags/specification/",
+    "/zh/tags/styrigx-ui/"
   ],
   "feeds": [
-    "/en/rss.xml",
     "/rss.xml",
     "/sitemap-0.xml",
-    "/sitemap-index.xml"
+    "/sitemap-index.xml",
+    "/zh/rss.xml"
   ],
   "sitemap": [
     "https://styrigx.com/blog/",
-    "https://styrigx.com/blog/en/",
-    "https://styrigx.com/blog/en/post/2026-09-27-invite-board/",
-    "https://styrigx.com/blog/en/post/2026-10-07-muse-playbook/",
-    "https://styrigx.com/blog/en/post/2026-10-07-navfolio-migration/",
-    "https://styrigx.com/blog/en/post/2026-10-11-agent-collaboration-whitepaper-v2/",
-    "https://styrigx.com/blog/en/post/2026-10-11-agent-collaboration-whitepaper/",
-    "https://styrigx.com/blog/en/post/2026-10-11-key-spec-whitepaper-v2/",
-    "https://styrigx.com/blog/en/tags/ai-agents/",
-    "https://styrigx.com/blog/en/tags/ai/",
-    "https://styrigx.com/blog/en/tags/astro/",
-    "https://styrigx.com/blog/en/tags/auth/",
-    "https://styrigx.com/blog/en/tags/blog/",
-    "https://styrigx.com/blog/en/tags/cloudflare/",
-    "https://styrigx.com/blog/en/tags/engineering/",
-    "https://styrigx.com/blog/en/tags/github/",
-    "https://styrigx.com/blog/en/tags/muse/",
-    "https://styrigx.com/blog/en/tags/open-source/",
-    "https://styrigx.com/blog/en/tags/passkey/",
-    "https://styrigx.com/blog/en/tags/security/",
-    "https://styrigx.com/blog/en/tags/specification/",
-    "https://styrigx.com/blog/en/tags/styrigx-ui/",
     "https://styrigx.com/blog/post/2026-09-27-invite-board/",
     "https://styrigx.com/blog/post/2026-10-07-muse-playbook/",
     "https://styrigx.com/blog/post/2026-10-07-navfolio-migration/",
     "https://styrigx.com/blog/post/2026-10-11-agent-collaboration-whitepaper-v2/",
     "https://styrigx.com/blog/post/2026-10-11-agent-collaboration-whitepaper/",
     "https://styrigx.com/blog/post/2026-10-11-key-spec-whitepaper-v2/",
-    "https://styrigx.com/blog/post/2026-10-11-key-spec-whitepaper/",
-    "https://styrigx.com/blog/tags/%E5%8D%9A%E5%AE%A2/",
-    "https://styrigx.com/blog/tags/%E5%AE%89%E5%85%A8/",
-    "https://styrigx.com/blog/tags/%E5%B7%A5%E7%A8%8B/",
-    "https://styrigx.com/blog/tags/%E5%BC%80%E6%BA%90/",
-    "https://styrigx.com/blog/tags/%E8%A7%84%E8%8C%83/",
-    "https://styrigx.com/blog/tags/%E9%89%B4%E6%9D%83/",
-    "https://styrigx.com/blog/tags/ai-%E4%BB%A3%E7%90%86/",
+    "https://styrigx.com/blog/tags/ai-agents/",
     "https://styrigx.com/blog/tags/ai/",
     "https://styrigx.com/blog/tags/astro/",
+    "https://styrigx.com/blog/tags/auth/",
+    "https://styrigx.com/blog/tags/blog/",
     "https://styrigx.com/blog/tags/cloudflare/",
-    "https://styrigx.com/blog/tags/ed25519/",
+    "https://styrigx.com/blog/tags/engineering/",
     "https://styrigx.com/blog/tags/github/",
     "https://styrigx.com/blog/tags/muse/",
+    "https://styrigx.com/blog/tags/open-source/",
     "https://styrigx.com/blog/tags/passkey/",
-    "https://styrigx.com/blog/tags/styrigx-ui/"
+    "https://styrigx.com/blog/tags/security/",
+    "https://styrigx.com/blog/tags/specification/",
+    "https://styrigx.com/blog/tags/styrigx-ui/",
+    "https://styrigx.com/blog/zh/",
+    "https://styrigx.com/blog/zh/post/2026-09-27-invite-board/",
+    "https://styrigx.com/blog/zh/post/2026-10-07-muse-playbook/",
+    "https://styrigx.com/blog/zh/post/2026-10-07-navfolio-migration/",
+    "https://styrigx.com/blog/zh/post/2026-10-11-agent-collaboration-whitepaper-v2/",
+    "https://styrigx.com/blog/zh/post/2026-10-11-agent-collaboration-whitepaper/",
+    "https://styrigx.com/blog/zh/post/2026-10-11-key-spec-whitepaper-v2/",
+    "https://styrigx.com/blog/zh/post/2026-10-11-key-spec-whitepaper/",
+    "https://styrigx.com/blog/zh/tags/ai-agents/",
+    "https://styrigx.com/blog/zh/tags/ai/",
+    "https://styrigx.com/blog/zh/tags/astro/",
+    "https://styrigx.com/blog/zh/tags/auth/",
+    "https://styrigx.com/blog/zh/tags/blog/",
+    "https://styrigx.com/blog/zh/tags/cloudflare/",
+    "https://styrigx.com/blog/zh/tags/ed25519/",
+    "https://styrigx.com/blog/zh/tags/engineering/",
+    "https://styrigx.com/blog/zh/tags/github/",
+    "https://styrigx.com/blog/zh/tags/muse/",
+    "https://styrigx.com/blog/zh/tags/open-source/",
+    "https://styrigx.com/blog/zh/tags/passkey/",
+    "https://styrigx.com/blog/zh/tags/security/",
+    "https://styrigx.com/blog/zh/tags/specification/",
+    "https://styrigx.com/blog/zh/tags/styrigx-ui/"
   ],
   "rss": {
     "/rss.xml": [
       "https://styrigx.com/blog/post/2026-10-11-key-spec-whitepaper-v2/",
       "https://styrigx.com/blog/post/2026-10-11-agent-collaboration-whitepaper-v2/",
-      "https://styrigx.com/blog/post/2026-10-11-key-spec-whitepaper/",
       "https://styrigx.com/blog/post/2026-10-11-agent-collaboration-whitepaper/",
       "https://styrigx.com/blog/post/2026-10-07-navfolio-migration/",
       "https://styrigx.com/blog/post/2026-10-07-muse-playbook/",
       "https://styrigx.com/blog/post/2026-09-27-invite-board/"
     ],
-    "/en/rss.xml": [
-      "https://styrigx.com/blog/en/post/2026-10-11-key-spec-whitepaper-v2/",
-      "https://styrigx.com/blog/en/post/2026-10-11-agent-collaboration-whitepaper-v2/",
-      "https://styrigx.com/blog/en/post/2026-10-11-agent-collaboration-whitepaper/",
-      "https://styrigx.com/blog/en/post/2026-10-07-navfolio-migration/",
-      "https://styrigx.com/blog/en/post/2026-10-07-muse-playbook/",
-      "https://styrigx.com/blog/en/post/2026-09-27-invite-board/"
+    "/zh/rss.xml": [
+      "https://styrigx.com/blog/zh/post/2026-10-11-key-spec-whitepaper-v2/",
+      "https://styrigx.com/blog/zh/post/2026-10-11-agent-collaboration-whitepaper-v2/",
+      "https://styrigx.com/blog/zh/post/2026-10-11-key-spec-whitepaper/",
+      "https://styrigx.com/blog/zh/post/2026-10-11-agent-collaboration-whitepaper/",
+      "https://styrigx.com/blog/zh/post/2026-10-07-navfolio-migration/",
+      "https://styrigx.com/blog/zh/post/2026-10-07-muse-playbook/",
+      "https://styrigx.com/blog/zh/post/2026-09-27-invite-board/"
     ]
   },
   "anchors": {
-    "/en/post/2026-09-27-invite-board/": [
+    "/post/2026-09-27-invite-board/": [
       "core-mechanics",
       "architecture-and-data-flow",
       "anti-abuse-and-privacy",
       "entry"
     ],
-    "/en/post/2026-10-07-muse-playbook/": [
+    "/post/2026-10-07-muse-playbook/": [
       "motivation",
       "collection-methods-and-sources",
       "dedup-and-verification-standards",
@@ -133,7 +133,7 @@
       "a-note-on-credibility",
       "contributing"
     ],
-    "/en/post/2026-10-07-navfolio-migration/": [
+    "/post/2026-10-07-navfolio-migration/": [
       "background-and-goals",
       "constraint-keep-the-urls-keep-the-comments",
       "bilingual-setup",
@@ -142,7 +142,7 @@
       "lessons",
       "closing"
     ],
-    "/en/post/2026-10-11-agent-collaboration-whitepaper-v2/": [
+    "/post/2026-10-11-agent-collaboration-whitepaper-v2/": [
       "0-abstract",
       "1-scope-and-roles",
       "2-design-principles",
@@ -158,7 +158,7 @@
       "b-git-credential-configuration-example",
       "c-changelog"
     ],
-    "/en/post/2026-10-11-agent-collaboration-whitepaper/": [
+    "/post/2026-10-11-agent-collaboration-whitepaper/": [
       "0-abstract",
       "1-scope-and-roles",
       "2-design-principles",
@@ -174,7 +174,7 @@
       "b-git-credential-configuration-example",
       "c-changelog"
     ],
-    "/en/post/2026-10-11-key-spec-whitepaper-v2/": [
+    "/post/2026-10-11-key-spec-whitepaper-v2/": [
       "0-summary",
       "1-scope-and-roles",
       "2-threat-model",
@@ -210,13 +210,13 @@
       "b-api-reference-main-site",
       "c-changelog"
     ],
-    "/post/2026-09-27-invite-board/": [
+    "/zh/post/2026-09-27-invite-board/": [
       "核心机制",
       "架构与数据流",
       "防滥用与隐私",
       "入口"
     ],
-    "/post/2026-10-07-muse-playbook/": [
+    "/zh/post/2026-10-07-muse-playbook/": [
       "动机",
       "收集方法与来源",
       "去重与核验标准",
@@ -224,7 +224,7 @@
       "可信度说明",
       "如何贡献"
     ],
-    "/post/2026-10-07-navfolio-migration/": [
+    "/zh/post/2026-10-07-navfolio-migration/": [
       "背景与目标",
       "约束url-不变评论续接",
       "双语架构",
@@ -233,7 +233,7 @@
       "经验清单",
       "结语"
     ],
-    "/post/2026-10-11-agent-collaboration-whitepaper-v2/": [
+    "/zh/post/2026-10-11-agent-collaboration-whitepaper-v2/": [
       "0-摘要",
       "1-适用范围与角色",
       "2-设计原则",
@@ -249,7 +249,7 @@
       "b-git-credential-配置示例",
       "c-变更记录"
     ],
-    "/post/2026-10-11-agent-collaboration-whitepaper/": [
+    "/zh/post/2026-10-11-agent-collaboration-whitepaper/": [
       "0-摘要",
       "1-适用范围与角色",
       "2-设计原则",
@@ -265,7 +265,7 @@
       "b-git-credential-配置示例",
       "c-变更记录"
     ],
-    "/post/2026-10-11-key-spec-whitepaper-v2/": [
+    "/zh/post/2026-10-11-key-spec-whitepaper-v2/": [
       "0-摘要",
       "1-适用范围与角色",
       "2-威胁模型",
@@ -301,7 +301,7 @@
       "b-接口一览主站",
       "c-变更记录"
     ],
-    "/post/2026-10-11-key-spec-whitepaper/": [
+    "/zh/post/2026-10-11-key-spec-whitepaper/": [
       "0-摘要",
       "1-适用范围与角色",
       "2-威胁模型",

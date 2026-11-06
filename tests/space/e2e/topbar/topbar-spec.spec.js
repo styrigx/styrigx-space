@@ -148,8 +148,9 @@ for (const w of [360, 384, 412, 1280, 1920]) {
   test(`${w} 宽：顶栏不溢出，字标完整；${w < 720 ? '手机布局不显示页名胶囊' : '页名胶囊按整条顶栏居中、和字标 / 图标组都留 ≥ 12px'}`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: w > 1000 ? 900 : 860 });
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    for (const path of ['/', '/wellbeing/', '/security/tempkeys/', '/en/status/']) {
-      if (path.startsWith('/en/')) await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
+    /* P4-3 PR-4c：中文 /zh/…，英文无前缀 */
+    for (const path of ['/zh/', '/zh/wellbeing/', '/zh/security/tempkeys/', '/status/']) {
+      if (!path.startsWith('/zh/')) await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
       await go(page, path);
       const m = await page.evaluate(() => {
         const r = (s) => document.querySelector(s).getBoundingClientRect();
@@ -176,7 +177,7 @@ for (const w of [360, 384, 412, 1280, 1920]) {
 test('桌面布局放不下的长页名：退到字标后面（12px）、省略号截断，不挤图标', async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 800 });
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); localStorage.setItem('sgx-layout', 'desktop'); } catch (e) {} });
-  await go(page, '/en/security/tempkeys/');
+  await go(page, '/security/tempkeys/');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop');
   await page.evaluate(() => { document.querySelector('.sgx-tb-title').textContent = 'A very long page name that cannot possibly fit here'; });
   const m = await page.evaluate(() => {
@@ -201,23 +202,24 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('[data-tb-more]')).toHaveCount(0);
   });
 
-  /* 旷野页（/、/en/）长条里是单个「旷野」标签、没有页名（space-status.spec.js）；旷野子页照旧显示页名 */
+  /* 旷野页（/、/zh/）长条里是单个「旷野」标签、没有页名（space-status.spec.js）；旷野子页照旧显示页名 */
   const NAMES = [
-    ['/status/', '服务状态'],
-    ['/account/sync/', '云同步'],
+    /* P4-3 PR-4c：英文无前缀、中文 /zh/ */
+    ['/zh/status/', '服务状态'],
+    ['/zh/account/sync/', '云同步'],
     /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
-    ['/account/', '登录账号'],
-    ['/account/reset/', '重置登录'],
-    ['/security/', '安全'],
-    ['/security/lock/', '锁屏凭证'],
-    ['/theme/', '风格'],
-    ['/en/status/', 'Service status'],
-    ['/en/account/', 'Sign in'],
-    ['/en/account/reset/', 'Reset sign-in'],
+    ['/zh/account/', '登录账号'],
+    ['/zh/account/reset/', '重置登录'],
+    ['/zh/security/', '安全'],
+    ['/zh/security/lock/', '锁屏凭证'],
+    ['/zh/theme/', '风格'],
+    ['/status/', 'Service status'],
+    ['/account/', 'Sign in'],
+    ['/account/reset/', 'Reset sign-in'],
   ];
   for (const [path, name] of NAMES) {
     test(`${path}：长条显示当前页名「${name}」（不是 Styrigx），没有大标题区`, async ({ page }) => {
-      await page.addInitScript((en) => { try { localStorage.setItem('sgx-lang', en ? 'en' : 'zh'); } catch (e) {} }, path.startsWith('/en/'));
+      await page.addInitScript((en) => { try { localStorage.setItem('sgx-lang', en ? 'en' : 'zh'); } catch (e) {} }, !path.startsWith('/zh/'));
       await go(page, path);
       await expect(page.locator('.sgx-tb-title')).toHaveText(name);
       await expect(page.locator('.sgx-tb-pill')).not.toContainText('Styrigx');
@@ -229,7 +231,7 @@ test.describe('390×844 行为', () => {
 
   test('旷野页：顶栏没有设置按钮、没有搜索图标、没有标签；页名胶囊就是「旷野」（PR-4b 定稿：只显示页名），本身不可点', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/');
+    await go(page, '/zh/');
     await expect(page.locator('.sgx-tb-set')).toHaveCount(0);
     await expect(page.locator('.sgx-tb-psearch')).toHaveCount(0);
     expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-title']);
@@ -258,7 +260,7 @@ test.describe('390×844 行为', () => {
 
   test('滚动时长条不变：页名一直显示，没有 sgx-stuck 切换，按钮不动', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/security/');
+    await go(page, '/zh/security/');
     const before = await Promise.all(['.sgx-tb-pill', '.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-ai'].map((s) => box(page, s)));
     await page.evaluate(() => window.scrollTo(0, 400));
     /* C8：原来固定等 300ms；改成等滚动落地（scroll 监听跑完）+ 顶栏可能的过渡结束 */
@@ -276,13 +278,13 @@ test.describe('390×844 行为', () => {
   test('点长条（页名）不跳转（桌面布局才显示页名胶囊）', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/account/');
+    await go(page, '/zh/account/');
     const navs = await armNavProbe(page);
     await page.locator('.sgx-tb-title').click();
     /* C8：原来固定等 400ms；点击处理同步，要跳的话 navigate 事件此时已派发 */
     await nextFrames(page);
     expect(await navs(), '点页名不触发任何导航').toEqual([]);
-    expect(new URL(page.url()).pathname).toBe('/account/');
+    expect(new URL(page.url()).pathname).toBe('/zh/account/');
   });
 
   test('顶栏切页过渡名挂在有尺寸的 .sgx-topbar 上', async ({ page }) => {
@@ -295,9 +297,9 @@ test.describe('390×844 行为', () => {
   });
 
   test('头像在 AI 窗口头部（PR-4b）：Gray AI · 新对话 · 历史 · 头像（主题色环），点头像进账号页', async ({ page }) => {
-    /* 固定中文：不设 sgx-lang 时语言跟随浏览器（en-US）会把 / 带到 /en/ */
+    /* 固定中文：不设 sgx-lang 时语言跟随浏览器（en-US）会停在英文 /（P4-3 PR-4c：中文在 /zh/） */
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/');
+    await go(page, '/zh/');
     await page.locator('.sgx-tb-ai').click();
     const dlg = page.locator('#sgx-ai');
     await expect(dlg).toBeVisible();
@@ -326,15 +328,15 @@ test.describe('390×844 行为', () => {
     /* 底部：仅公开内容 · 联系我（mailto:styrigx@gmail.com） */
     await expect(dlg.locator('.sgx-ai-foot')).toHaveText('仅公开内容·联系我');
     await expect(dlg.locator('[data-ai-contact]')).toHaveAttribute('href', 'mailto:styrigx@gmail.com');
-    await expect(dlg.locator('.sgx-ai-me')).toHaveAttribute('href', '/account/');
+    await expect(dlg.locator('.sgx-ai-me')).toHaveAttribute('href', '/zh/account/');
     await dlg.locator('.sgx-ai-me').click();
-    await page.waitForURL(/\/account\/$/);
+    await page.waitForURL(/\/zh\/account\/$/);
     await expect(page.locator('#acct-login')).toBeVisible();
   });
 
   test('英文页：AI 窗口头像链到英文账号页，底部 Public content only · Contact me', async ({ page }) => {
-    await go(page, '/en/');
-    await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', '/en/account/');
+    await go(page, '/');
+    await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', '/account/');
     await expect(page.locator('#sgx-ai [data-ai-contact]')).toHaveText('Contact me');
     await expect(page.locator('#sgx-ai [data-ai-contact]')).toHaveAttribute('href', 'mailto:styrigx@gmail.com');
     await expect(page.locator('#sgx-ai [data-ai-clear]')).toHaveAttribute('aria-label', 'New chat');
@@ -342,7 +344,7 @@ test.describe('390×844 行为', () => {
 
   test('九宫格打开导航面板（2×2 站点磁贴，当前站「开」态），Esc 关闭、焦点回到九宫格；快捷面板只有一页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/');
+    await go(page, '/zh/');
     await page.locator('.sgx-tb-grid').click();
     const nav = page.locator('#sgx-nav');
     await expect(nav).toBeVisible();
@@ -377,16 +379,16 @@ test.describe('390×844 行为', () => {
 
   test('导航面板：点别的站 / 本站子页点本站关面板后跳过去；已在本站首页点本站只关面板', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/security/');
+    await go(page, '/zh/security/');
     await page.locator('.sgx-tb-grid').click();
     await page.locator('#sgx-nav .sgx-nav-tile[data-nav="home"]').click();
-    await page.waitForURL((u) => new URL(u).pathname === '/', { waitUntil: 'commit' });
-    await go(page, '/security/');
+    await page.waitForURL((u) => new URL(u).pathname === '/zh/', { waitUntil: 'commit' });
+    await go(page, '/zh/security/');
     await page.locator('.sgx-tb-grid').click();
     await page.route('**/curio/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>curio</title>' }));
     await page.locator('#sgx-nav .sgx-nav-tile[data-nav="curio"]').click();
-    await page.waitForURL((u) => new URL(u).pathname === '/curio/', { waitUntil: 'commit' });
-    await go(page, '/');
+    await page.waitForURL((u) => new URL(u).pathname === '/curio/zh/', { waitUntil: 'commit' });
+    await go(page, '/zh/');
     await page.locator('.sgx-tb-grid').click();
     const navs = await armNavProbe(page);
     await page.locator('#sgx-nav .sgx-nav-tile[data-nav="home"]').click();

@@ -14,7 +14,7 @@ test('根目录公开文件原样回源（整站路由后 robots.txt 不能带 w
 });
 
 test('列出页面地址的文件和页面仍走网关', () => {
-  for (const p of ['/og.png/x', '/x/og.png', '/sitemap.xml', '/files-index.json', '/en/files-index.json', '/', '/display/', '/robots.txt/x', '/x/robots.txt']) {
+  for (const p of ['/og.png/x', '/x/og.png', '/sitemap.xml', '/files-index.json', '/zh/files-index.json', '/', '/display/', '/robots.txt/x', '/x/robots.txt']) {
     assert.equal(isMainStaticPassthrough(u(p)), false, p);
   }
   assert.equal(isMainStaticPassthrough(u('/robots.txt', 'other.example')), false);

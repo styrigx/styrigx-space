@@ -6,7 +6,7 @@
 const { test, expect } = require('@playwright/test');
 const fx = require('../../fixtures/ui-cookie-contract.json');
 
-const PAGE = '/curio/404.html';
+const PAGE = '/curio/zh/404.html';
 const enc = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 async function setup(page) {
@@ -69,12 +69,12 @@ test('自定义主题色：没缓存 → 加载 shell-accent.js 算角色，写 
 test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（保留 #页签）；版本不认识 / 没有 lang 不跳', async ({ page, context }) => {
   await setup(page);
   await setCookie(context, enc({ v: 2, mode: 'light', pal: 'dustyblue', lang: 'en' }));
-  await page.goto('/curio/#devices');
-  await expect(page).toHaveURL(/\/en\/#devices$/);
+  await page.goto('/curio/zh/#devices');
+  await expect(page).toHaveURL(/:\d+\/curio\/#devices$/);
   await setCookie(context, enc({ v: 3, mode: 'light', lang: 'en' }));
-  await page.goto('/curio/');
-  await expect(page).toHaveURL(/:8932\/curio\/$/);
+  await page.goto('/curio/zh/');
+  await expect(page).toHaveURL(/:\d+\/curio\/zh\/$/);
   await setCookie(context, fx.cases[0].cookie);
-  await page.goto('/curio/en/');
-  await expect(page).toHaveURL(/\/curio\/en\/$/);
+  await page.goto('/curio/');
+  await expect(page).toHaveURL(/\/curio\/$/);
 });

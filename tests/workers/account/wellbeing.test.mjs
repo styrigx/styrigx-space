@@ -113,12 +113,12 @@ test('localDay：本机日期补零', () => {
 test('wbAreaOf：主站页面映射', () => {
   /* P4-3 PR-4b：旷野页、旷野子页、账号页都记 space（只写新键） */
   assert.equal(wbAreaOf('/'), 'space');
-  assert.equal(wbAreaOf('/en/'), 'space');
+  assert.equal(wbAreaOf('/zh/'), 'space');
   assert.equal(wbAreaOf('/files/'), 'files');
-  assert.equal(wbAreaOf('/en/browser/'), 'browser');
+  assert.equal(wbAreaOf('/zh/browser/'), 'browser');
   assert.equal(wbAreaOf('/bookmarks/'), null); /* 2026-10-21 主站书签下线 */
-  assert.equal(wbAreaOf('/en/search/'), 'browser');
-  for (const p of ['/theme/', '/wellbeing/', '/about/', '/status/', '/security/', '/security/lock/', '/en/security/tempkeys/', '/account/', '/en/account/devices/']) {
+  assert.equal(wbAreaOf('/zh/search/'), 'browser');
+  for (const p of ['/theme/', '/wellbeing/', '/about/', '/status/', '/security/', '/security/lock/', '/zh/security/tempkeys/', '/account/', '/zh/account/devices/']) {
     assert.equal(wbAreaOf(p), 'space', p);
   }
   assert.equal(wbAreaOf('/blog/'), null, '子站不归主站区域');

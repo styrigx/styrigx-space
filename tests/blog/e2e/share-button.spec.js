@@ -9,8 +9,8 @@ import { test, expect } from '@playwright/test';
 
 const CODE = 'AbCdEfGhIjKlMnOpQrStUv';
 const SHORT = 'https://styrigx.com/s/' + CODE;
-const PAGE = '/blog/post/2026-10-07-muse-playbook/';
-const HOMES = ['/blog/', '/blog/en/'];
+const PAGE = '/blog/zh/post/2026-10-07-muse-playbook/';
+const HOMES = ['/blog/zh/', '/blog/'];
 
 test.use({ viewport: { width: 412, height: 915 } });
 

@@ -9,8 +9,8 @@ import { test, expect } from '@playwright/test';
 
 const CODE = 'AbCdEfGhIjKlMnOpQrStUv';
 const SHORT = 'https://styrigx.com/s/' + CODE;
-const PAGE = '/daymark/404.html';
-const HOMES = ['/daymark/', '/daymark/en/'];
+const PAGE = '/daymark/zh/404.html';
+const HOMES = ['/daymark/zh/', '/daymark/'];
 
 test.use({ viewport: { width: 412, height: 915 } });
 

@@ -162,7 +162,7 @@ test.describe('授权卡页 /account/apps/', () => {
   test('没有账号会话 → 回账号页登录（?return=/account/apps/）', async ({ page }) => {
     await mockGrants(page, { session: false });
     await page.goto('/account/apps/', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(/\/account\/\?return=%2Faccount%2Fapps%2F$/);
+    await expect(page).toHaveURL(/\/zh\/account\/\?return=%2Fzh%2Faccount%2Fapps%2F$/);
   });
 
   test('账号总览：「设备」「账号安全」同卡有「应用授权」一行，进 /account/apps/', async ({ page }) => {
@@ -172,7 +172,7 @@ test.describe('授权卡页 /account/apps/', () => {
     await expect(page.locator('#acct-main')).toBeVisible();
     const row = page.locator('#acct-apps-row');
     await expect(row).toHaveText(/应用授权/);
-    await expect(row).toHaveAttribute('href', '/account/apps/');
+    await expect(row).toHaveAttribute('href', '/zh/account/apps/');
     await expect(page.locator('#acct-dev-row').locator('xpath=..')).toContainText('应用授权');
     /* 图标两处修正 §2：图标是三点连线（3 个点 + 两条线），不是九宫格；和同卡「设备」图标同为 20px */
     await expect(row.locator('.acct-ic svg circle')).toHaveCount(3);
@@ -183,7 +183,7 @@ test.describe('授权卡页 /account/apps/', () => {
   test('英文：5 张卡、过滤条件、日期', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockGrants(page);
-    await page.goto('/en/account/apps/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/account/apps/', { waitUntil: 'domcontentloaded' });
     await expect(cards(page).locator('.acct-app-name')).toHaveText(['Curio', 'Daymark', 'Settings sync', 'Digital wellbeing', 'Avatar']);
     await expect(chip(page, 'off')).toHaveText('Access removed 0');
     await expect(page.locator('.acct-app-card[data-app="curio"]')).toContainText('Nov 5, 2026');

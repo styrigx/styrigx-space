@@ -31,8 +31,9 @@ const VIEWPORTS = {
 const PAGES = ['/', '/security/', '/security/lock/', '/account/', '/account/security/', '/account/reset/', '/account/apps/'];
 const fxGrants = require('../../../fixtures/app-grants.cjs');
 const LANGS = [
-  { prefix: '', name: 'zh' },
-  { prefix: '/en', name: 'en' },
+  /* P4-3 PR-4c：英文无前缀、中文 /zh/（截图名不变） */
+  { prefix: '/zh', name: 'zh' },
+  { prefix: '', name: 'en' },
 ];
 const THEMES = [
   { name: 'light', setup: null },
@@ -144,7 +145,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
             }
           }, theme.setup);
-          /* 2.8.0：语言跟随系统（2.7.0 起）会按浏览器 locale 跳转 /en/，
+          /* 2.8.0：语言跟随系统（2.7.0 起）会按浏览器 locale 跳到另一种语言（P4-3 PR-4c 起英文 /、中文 /zh/），
              Playwright 默认 en-US 会导致中文截图拍到英文页。
              按测试语言显式钉住 sgx-lang，保证截图语言确定、基线可复现；
              跟随行为本身由 lang-follow.spec.js 单独覆盖。 */
@@ -197,7 +198,7 @@ async function shellShotPage(pg) {
     content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
   });
   await freezeTime(pg);
-  await pg.goto('/theme/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/zh/theme/', { waitUntil: 'domcontentloaded' }); /* P4-3 PR-4c：中文 /zh/ */
   await waitPageReady(pg);
 }
 /** 点快捷面板图标，等面板稳定在打开状态（不拍滑下中途）。2026-11-07 PR-4b 2/2：快捷面板只有一页（没有导航 / 快捷设置两页），导航搬到九宫格面板 */
@@ -248,8 +249,9 @@ test('baseline-ai-panel-open', async ({ page: pg }) => {
  */
 const DOOR_VP = { width: 412, height: 915 };
 const DOOR_LANGS = [
-  { prefix: '', name: 'zh' },
-  { prefix: '/en', name: 'en' },
+  /* P4-3 PR-4c：英文无前缀、中文 /zh/（截图名不变） */
+  { prefix: '/zh', name: 'zh' },
+  { prefix: '', name: 'en' },
 ];
 const DOOR_THEMES = [
   { name: 'light', setup: null },

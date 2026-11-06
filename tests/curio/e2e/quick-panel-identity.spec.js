@@ -6,8 +6,9 @@
 const { test, expect } = require('@playwright/test');
 
 const SETS = {
-  zh: ['/', '/curio/', '/daymark/', '/blog/', '/blog/post/2026-10-07-muse-playbook/', '/account/'],
-  en: ['/en/', '/curio/en/', '/daymark/en/', '/blog/en/'],
+  /* P4-3 PR-4c：英文无前缀，中文 /zh/ */
+  zh: ['/zh/', '/curio/zh/', '/daymark/zh/', '/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/', '/zh/account/'],
+  en: ['/', '/curio/', '/daymark/', '/blog/'],
 };
 
 test.beforeEach(async ({ page }) => {

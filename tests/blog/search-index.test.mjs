@@ -26,7 +26,7 @@ function fixture() {
     mkdirSync(path.join(content, lang, 'post'), { recursive: true });
     writeFileSync(path.join(content, lang, 'post', name + '.md'), `---\n${fm}\n---\n\nbody\n`);
     if (html == null) return;
-    const out = path.join(pub, lang === 'en' ? 'en' : '', 'post', name);
+    const out = path.join(pub, lang === 'zh' ? 'zh' : '', 'post', name); // P4-3 PR-4c：英文无前缀、中文 /zh/
     mkdirSync(out, { recursive: true });
     writeFileSync(path.join(out, 'index.html'), html);
   };
@@ -72,9 +72,9 @@ test('索引：跳过草稿，标 private，网址按语言拼，副标题取描
       title: '你好世界',
       subtitle: '第一篇：测试 & 描述',
       text: '小节 & 标题 正文加粗，链接这里。 echo hi',
-      url: 'https://styrigx.com/blog/post/2026-01-01-hello/',
+      url: 'https://styrigx.com/blog/zh/post/2026-01-01-hello/',
     });
-    assert.equal(byId['post-2026-01-01-hello-en'].url, 'https://styrigx.com/blog/en/post/2026-01-01-hello/');
+    assert.equal(byId['post-2026-01-01-hello-en'].url, 'https://styrigx.com/blog/post/2026-01-01-hello/');
     assert.equal(byId['post-2026-01-01-hello-en'].lang, 'en');
     assert.equal(byId['post-2026-01-01-hello-en'].subtitle, 'Tag');
     assert.equal(byId['post-2026-01-01-hello-en'].text, 'don\u2019t \u2014 stop');
@@ -91,8 +91,8 @@ test('索引：跳过草稿，标 private，网址按语言拼，副标题取描
 test('构建产物里缺文章页 → 报错（网址规则变了不许写错地址）；未来日期的文章跳过', () => {
   const { dir, content, pub } = fixture();
   try {
-    rmSync(path.join(pub, 'en'), { recursive: true });
-    assert.throws(() => build({ contentDir: content, publicDir: pub }), /构建产物里没有 \/en\/post\/2026-01-01-hello\//);
+    rmSync(path.join(pub, 'zh'), { recursive: true });
+    assert.throws(() => build({ contentDir: content, publicDir: pub }), /构建产物里没有 \/zh\/post\/2026-01-01-hello\//);
     const ix = build({ contentDir: content, publicDir: pub, now: new Date('2025-12-31T00:00:00Z') });
     assert.equal(ix.items.length, 0);
     assert.throws(() => build({ contentDir: content, publicDir: path.join(dir, 'nope') }), /先跑 npm run build/);
@@ -115,11 +115,11 @@ test('真实构建：每篇非草稿文章都在索引里，网址和站点地�
   assert.equal(posts.length, expected);
   const sitemap = new Set([...readFileSync(path.join(ROOT, 'atlas/web/blog/public/sitemap-0.xml'), 'utf8').matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => decodeURI(m[1])));
   for (const p of posts) {
-    assert.match(p.url, /^https:\/\/styrigx\.com\/blog\/(en\/)?post\/[^/]+\/$/);
+    assert.match(p.url, /^https:\/\/styrigx\.com\/blog\/(zh\/)?post\/[^/]+\/$/);
     if (!p.private) assert.ok(sitemap.has(p.url), p.url + ' 不在站点地图里');
     assert.ok(p.title && p.text.length > 100, p.url + ' 缺标题或正文');
     assert.ok([...p.text].length <= TEXT_MAX);
-    assert.equal(p.lang, p.url.includes('/en/') ? 'en' : 'zh');
+    assert.equal(p.lang, p.url.includes('/blog/zh/') ? 'zh' : 'en');
   }
   assert.equal(new Set(posts.map((p) => p.id)).size, posts.length, 'id 重复');
 });
