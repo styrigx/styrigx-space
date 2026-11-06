@@ -1,7 +1,7 @@
 ---
 title: 'Digital wellbeing'
-layout: settings-sub
-url: /en/settings/wellbeing/
+layout: sub
+url: /en/wellbeing/
 params:
   cat: wellbeing
 ---

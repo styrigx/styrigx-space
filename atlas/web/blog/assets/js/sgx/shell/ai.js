@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:7c803501abf1 space/web/shared/shell vad55af697cfd（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:9c4ad417c51d space/web/shared/shell vaf20c15030a1（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- ai.js ---- */
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。

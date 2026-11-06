@@ -1,7 +1,7 @@
 ---
 title: '壁纸和主题'
-layout: settings-sub
-url: /settings/theme/
+layout: sub
+url: /theme/
 params:
   cat: theme
 ---

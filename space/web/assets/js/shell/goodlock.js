@@ -9,6 +9,7 @@ import { get, set } from '../lib/storage.js';
 import { get as featGet } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { visibleInterval } from '../lib/scheduler.js';
+import { SPACE_SUB_RE } from '../lib/wb-area.js';
 
 /** @returns {string} YYYY-M-D */
 function dayStr(d) {
@@ -40,8 +41,8 @@ let sessArea = '';
 
 function areaOf() {
   const p = location.pathname;
-  /* 设置首页和各设置子页都算「设置」（旧数据里的 'goodlock' 区域在数字健康卡里并进设置） */
-  if (/^(\/en)?\/settings\//.test(p)) return 'settings';
+  /* 旷野子页（P4-3 PR-4b 起在根下：/display/、/security/… 等，lib/wb-area.js SPACE_SUB_RE）都算「设置」区域（旧数据里的 'goodlock' 区域在数字健康卡里并进设置） */
+  if (SPACE_SUB_RE.test(p)) return 'settings';
   /* 区域键沿用 'browser'（历史数据不丢）：2026-10-21 主站书签下线后只剩 /search/ */
   if (p === '/search/' || p === '/en/search/') return 'browser';
   return 'home';
@@ -59,16 +60,6 @@ export function wellFlush() {
   sessStart = Date.now();
   wellSave(v);
   return v;
-}
-
-/**
- * 页内切换顶栏三栏后（地址已经换了）：把上一段时长结算到旧区域，之后算到新区域。
- */
-export function wellRetarget() {
-  try {
-    wellFlush();
-  } catch (e) {}
-  sessArea = areaOf();
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * @fileoverview 设置 → 服务状态（/settings/status/）：取 GET /api/status、渲染横幅 / 站点卡 / 近期故障，页面可见时每 60 秒刷新。
+ * @fileoverview 设置 → 服务状态（/status/）：取 GET /api/status、渲染横幅 / 站点卡 / 近期故障，页面可见时每 60 秒刷新。
  * 2026-10-24 PR4：原来是顶栏三栏的「状态」页（/status/，apps/status.js），整页挪进账号页成为子页；之后从账号页搬到设置，旧地址删除；数据和行为不变。
  *
  * - 门内页：页面只认锁屏进门会话；进站凭证使用记录（/api/space-audit）另要账号会话。

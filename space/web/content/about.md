@@ -1,7 +1,7 @@
 ---
 title: '关于本站'
-layout: settings-sub
-url: /settings/about/
+layout: sub
+url: /about/
 params:
   cat: about
 ---

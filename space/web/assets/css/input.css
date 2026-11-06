@@ -7187,7 +7187,6 @@
   .set-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   /* 设置首页分组卡片（2026-10-23 PR-E，One UI 式）：每组一张圆角卡，卡与卡之间留缝；DeX 左栏导航在组与组之间多留一点 */
   .set-cards { display: flex; flex-direction: column; gap: 16px; margin-bottom: 1.75rem; }
-  .set-cat-gap { margin-top: 10px; }
 
   /* ===== 主题预览卡 ===== */
   .theme-prev {
@@ -7301,58 +7300,6 @@
 }
 
 @layer sgx-components {
-  /* ===== 设置页：DeX 双栏（2.3.14.8，参考 One UI 8.5 平板设置）=====
-     左栏 280px：分类菜单（2026-10-20 起没有大标题，页名在顶栏长条里）；
-     右栏最宽 720px：顶部选中项名称 ＋ 详情卡片（2026-10-23 PR-D 起两栏整体 1024 居中，见下）。
-     两栏各自独立滚动。在 .layout-dex（横屏宽屏）生效。 */
-  /* 2.6.0：双栏结构只在 DeX 显示；移动端只显示分类列表。
-     DeX 标题区在两栏上方（.set-dex-head），
-     两栏（.set-dex-cols）在按钮行下方，G=8。 */
-  .set-dex-cols { display: none; }
-  .set-col-l, .set-col-r { display: none; }
-  .set-side { display: none; }
-  .set-right-title { display: none; }
-  .layout-dex {
-    .set-mobile-only { display: none; }
-    /* 设置首页（2026-10-23 PR-D）：外框 = 外壳框（--sgx-shell-w，和顶栏同宽），不加横向内边距；
-       两栏 280 + 24 + 720 = 1024 整体封顶、在框里居中（1920 宽也不挤到左边、不拉开）；框比 1024 窄时右栏收窄。
-       .set-dex-head 现在只装手机分类列表（DeX 下隐藏），不再有自己的宽度 / 内边距。 */
-    .set-dex-head { display: block; }
-    .set-dex-cols {
-      max-width: 1024px; margin-left: auto; margin-right: auto;
-      display: grid;
-      grid-template-columns: 280px minmax(0,720px); gap: 24px; align-items: start;
-      margin-top: 0;
-      position: relative;
-    }
-    /* 左栏：账户卡＋菜单（标题已移到 .set-dex-head）；菜单列表过长时独立滚动 */
-    .set-col-l {
-      display: flex; flex-direction: column; min-width: 0; min-height: 0;
-      max-height: calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
-      max-height: calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
-    }
-    .set-side {
-      display: flex; flex-direction: column; min-width: 0; min-height: 0; max-height: none;
-      position: static; overflow-y: auto; padding-bottom: 8px;
-    }
-    /* 右栏：独立滚动；内容最大 720px 左对齐 */
-    .set-col-r {
-      display: block;
-      min-width: 0; min-height: 0; overflow-y: auto; padding-bottom: 8px;
-      max-height: calc(100vh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
-      max-height: calc(100dvh - var(--nav-h,64px) - 16px - env(safe-area-inset-top,0px) - 92px - env(safe-area-inset-bottom,0px));
-      .set-main { max-width: 720px; }
-    }
-    .set-right-title {
-      display: block; max-width: 720px;
-      font-size: 20px; font-weight: 800; color: var(--m-on-surface); letter-spacing: -0.01em;
-      padding: 2px 4px 12px;
-    }
-    /* 单分类模式：右栏只显示当前分类；隐藏分类内重复的组标题（右栏顶部已有选中项名称） */
-    .set-layout.single-cat .set-group { display: none; }
-    .set-layout.single-cat .set-group.active { display: block; }
-    .set-layout.single-cat .set-group.active > .set-gh { display: none; }
-  }
   /* ===== 账号卡：左 Sloan Gray / Styrigx，右圆形头像（账号已登录可换头像） =====
      只在账号页 /account/（登录后总览）顶部显示。 */
   .sgx-account-card {
@@ -7390,13 +7337,6 @@
       background: var(--m-primary-fill); color: var(--m-on-primary-fill); border: 2px solid var(--m-container-lowest);
     }
     .sgx-ac-av:not(:disabled) .sgx-ac-pen { display: flex; }
-  }
-  .set-cat {
-    display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px; border-radius: 1rem;
-    font-size: 14px; font-weight: 600; color: var(--m-on-surface-variant); min-height: 52px; text-align: left; flex-shrink: 0;
-    @media (hover: hover) and (pointer: fine) { &:hover { background: var(--m-container); } }
-    &:active { transform: scale(.98); }
-    &.active { background: var(--m-primary-container); color: var(--m-on-primary-container); }
   }
   /* ===== 设置页组标题：三星设置风格（彩色实心圆形图标 + 标题） ===== */
   .set-gh { display: flex; align-items: center; gap: 12px; padding: 0 4px; margin: 0 0 10px; font-size: 17px; font-weight: 700; color: var(--m-on-surface); letter-spacing: -0.01em; }
@@ -8061,8 +8001,8 @@
 
 /* ===== components 层（续）：服务状态 ===== */
 @layer sgx-components {
-  /* ===== 服务状态（设置 → 服务状态 /settings/status/；2026-10-22 PR2 起是顶栏「状态」页，2026-10-24 PR4 挪进账号页，之后搬到设置；
-     layouts/_default/settings-status.html + apps/settings-status.js）。外框是账号页的 .acct-layout（内容列 720），.st-wrap 只是里面的竖排列 =====
+  /* ===== 服务状态（设置 → 服务状态 /status/；2026-10-22 PR2 起是顶栏「状态」页，2026-10-24 PR4 挪进账号页，之后搬到设置；
+     layouts/_default/status.html + apps/space-status.js）。外框是账号页的 .acct-layout（内容列 720），.st-wrap 只是里面的竖排列 =====
      横幅（全部正常 = 第三色容器 / 有故障 = danger 容器）→ 每站一张卡（站名 + 域名、状态 chip、最近一次检查、90 格可用率条）→ 近期故障。
      色块：ok = --sgx-success（固定成功绿，不随主题变；卡片上 ≥4.5:1）、minor 部分故障 = --m-warm、down = --sgx-danger、没数据 = 最高层容器。手机格间距 1px。 */
   .st-wrap { display: flex; flex-direction: column; gap: 12px; }
@@ -8139,7 +8079,7 @@
   .st-inc-site { font-size: 15px; font-weight: 700; }
   .st-inc-cause { margin: 4px 0 0; font-size: 13px; }
   .st-inc-time { display: flex; flex-wrap: wrap; gap: 0 6px; margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
-  /* 进站凭证使用记录（设置 → 服务状态页底）：<details> 折叠卡，展开才加载（apps/settings-status.js） */
+  /* 进站凭证使用记录（设置 → 服务状态页底）：<details> 折叠卡，展开才加载（apps/space-status.js） */
   .st-audit-wrap { margin-top: 12px; }
   .st-audit-card { overflow: hidden; border: 1px solid var(--m-outline); color: var(--sgx-text-primary); }
   .st-audit-sum { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 12px 18px;
@@ -8424,7 +8364,7 @@
 html.layout-mobile { --sgx-content-max: 640px; }
 html.layout-dex { --sgx-content-max: 1440px; }
 .home-wrap, .set-layout, .acct-layout, .sgx-404 { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
-.set-layout:not(:has(.set-dex-cols)) > *, .acct-layout > * { max-width: 720px; margin-left: auto; margin-right: auto; }
+.set-layout > *, .acct-layout > * { max-width: 720px; margin-left: auto; margin-right: auto; }
 /* 底部停靠栏高度（main 底部留白用；原地搜索层已在 P4-2 删除） */
 :root { --sgx-bottom-dock-h: 56px; }
 /* @shell:begin panel（共享外壳：space/scripts/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */

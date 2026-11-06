@@ -582,9 +582,9 @@ export function showLockScreen() {
      与账号页 /account/reset/ 同一个界面，提交不同：
      - 锁屏凭证已设置（或读不到配置，按已设置处理）：进站凭证 → POST /api/lock-reset verify；
        恢复开关有效直接拿到重置锁屏票（sgx-lock-reset）；否则服务端回 needLock → 再验锁屏凭证（锁屏通行密钥 / 解锁密码，
-       账号拆分 PR3 起网关不读账号凭证）→ 重置锁屏票 → 去 /settings/security/lock/ 重设解锁方式。
+       账号拆分 PR3 起网关不读账号凭证）→ 重置锁屏票 → 去 /security/lock/ 重设解锁方式。
      - 锁屏凭证都没设置（启动站）：视为从零重置——进站凭证 → POST /api/space-auth { purpose:'lock-reset' }
-       （重置锁屏票 by=root）→ 同样去 /settings/security/lock/ 设第一把锁屏凭证，再正常解锁进站。
+       （重置锁屏票 by=root）→ 同样去 /security/lock/ 设第一把锁屏凭证，再正常解锁进站。
        进站凭证不拥有会话，也不是单独的解锁入口。
      进站凭证只存在 reset-flow 的闭包里。 */
   /**
@@ -684,7 +684,7 @@ export function showLockScreen() {
         if (kbStop) { try { kbStop(); } catch (e) {} kbStop = null; }
         closeMethodSheet(true);
         /* 跳转到锁屏凭证管理页（重置锁屏票可开此页，仍进不了主页；启动站同样在这里设第一把锁屏凭证） */
-        sgxNavigate(en ? '/en/settings/security/lock/' : '/settings/security/lock/');
+        sgxNavigate(en ? '/en/security/lock/' : '/security/lock/');
       },
     });
   }

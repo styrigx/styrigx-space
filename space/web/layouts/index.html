@@ -1,8 +1,13 @@
 {{ define "main" }}
-{{ .Scratch.Set "sgx-entry" "entry-tab-home.js" }}
+{{ .Scratch.Set "sgx-entry" "entry-space.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
 {{ $profile := site.Data.profile }}
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
+
+{{/* P4-3 PR-4b（§6.5，2026-11-07）：主页和设置合成一个主站页「旷野 / Space」，就在根路径（中文 / ，英文 /en/）。
+   一页平铺：名片、日刻今日一句、我的屏幕时间，下面是各分类入口卡（data/space-cats.yaml；点进 /display/ 等子页，子页布局 _default/sub.html）。
+   主站顶级页只此一个；原设置首页和它的 DeX 双栏窗格删除（旧地址 404，不跳转）。 */}}
+{{ $cats := (index site.Data "space-cats").cats }}
 
 {{/* B2-5：首页只保留名片、数字健康（2026-10-20 加日刻今日一句）；便签、博客、数字花园、桌面图标、收藏全部删除。
    P4-2c（2026-11-05）：双时钟、天气删除；名片和日刻宽屏并排各占一半。 */}}
@@ -73,9 +78,29 @@
     </div>
   </div>
 
+  {{/* 分类入口（原设置首页的分类列表）：每个分类单独一张圆角卡（data 里 group 各不相同），外层 aria-label="分类" 只有一个
+       （测试和读屏都按它找分类列表）。地址去掉 settings 这一层：/<id>/（英文 /en/<id>/）。锁屏态同首页小组件一起被剥离。 */}}
+  {{ $groups := slice }}
+  {{ range $cats }}{{ if not (in $groups .group) }}{{ $groups = $groups | append .group }}{{ end }}{{ end }}
+  <div class="set-cards space-cats mt-3" role="group" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
+  {{ range $gi, $g := $groups }}
+  <section class="widget set-card bg-m-container-lowest border border-m-outline overflow-hidden animate-fade-up" style="animation-delay:{{ add 0.5 (mul $gi 0.04) }}s" data-set-group="{{ $g }}">
+    {{ range where $cats "group" $g }}
+    {{ $href := cond $isEn (printf "/en/%s/" .id) (printf "/%s/" .id) }}
+    <a class="set-row" href="{{ $href }}" data-cat="{{ .id }}">
+      <span class="set-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
+      <span class="flex-1 min-w-0 block font-medium">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
+      {{ partial "icon.html" "chev-r" }}
+    </a>
+    {{ end }}
+  </section>
+  {{ end }}
+  </div>
+
 </div>
 
 
 {{ "<!-- SGX-DESKTOP-END -->" | safeHTML }}
-{{/* 2.4.0-C：首页脚本走 ES Module 入口 entry-tab-home.js（顶栏三栏各一个入口，含锁屏）；旧 sgx-page-index.js / sgx-lock.html 已移除 */}}
+{{/* 脚本入口 entry-space.js（首页小组件 + 旷野页模块；PR-4b 起不再有页内切换） */}}
+{{ partial "space-i18n.html" (dict "isEn" $isEn) }}
 {{ end }}

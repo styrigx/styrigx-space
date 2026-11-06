@@ -1,7 +1,6 @@
-{{/* 主站顶栏标签（2026-10-22 三栏；2026-11-04 P5-1 去掉聊天）：主页 / 设置（en：Home / Settings），数据 data/topbar-tabs.yaml。
-   2026-10-24：有 JS 时点标签在同一文档里切换（shell/inpage-tabs.js 接管点击，href 仍是真地址）。
+{{/* 主站顶栏标签（P4-3 PR-4b §6.4：顶栏只留顶级标签）：只剩「旷野 / Space」一项（根路径），数据 data/topbar-tabs.yaml。
    放在长条 .sgx-tb-pill 里、代替页名；当前页 aria-current="page"（药丸高亮，--sgx-nav-selected，同导航抽屉当前项）。
-   只有这三页用（baseof 按 $tabCur 判断），其他页长条照旧是页名。英文加 /en 前缀。参数：isEn、cur（当前栏 id）。 */}}
+   只有顶级页用（baseof 按 $tabCur 判断），其他页长条照旧是页名。英文加 /en 前缀。参数：isEn、cur（当前栏 id）。 */}}
 <nav class="sgx-tb-tabs" aria-label="{{ if .isEn }}Main{{ else }}主站{{ end }}">
   {{ range (index site.Data "topbar-tabs").tabs }}
   {{ $href := .path }}{{ if $.isEn }}{{ $href = cond (eq .path "/") "/en/" (print "/en" .path) }}{{ end }}

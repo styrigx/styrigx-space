@@ -1,8 +1,8 @@
 /**
  * @fileoverview 安全页（P4-2c 起标题「安全」，隐私组删除）。
  * - 三个入口（所有进门的人看到完全一样）：锁屏凭证、临时钥匙、立即锁定。
- * - 锁屏凭证 → /settings/security/lock/（门在那一页：锁屏凭证或进站凭证验一次，3 分钟 reauth 票）。点了就进页，进页照旧先复验。
- * - 临时钥匙 → /settings/security/tempkeys/（含分享短链）：列表只要进门；新建 / 作废前在那一页复验（apps/security-tempkeys.js）。
+ * - 锁屏凭证 → /security/lock/（门在那一页：锁屏凭证或进站凭证验一次，3 分钟 reauth 票）。点了就进页，进页照旧先复验。
+ * - 临时钥匙 → /security/tempkeys/（含分享短链）：列表只要进门；新建 / 作废前在那一页复验（apps/security-tempkeys.js）。
  * - 立即锁定：调服务端 /api/lock-now 清除会话 cookie 后重载，回到锁屏。
  * - 从 GET /api/lock-credentials（进门即可）读取锁屏凭证是否已设置，渲染状态卡片与锁屏凭证行副标题。
  * - 隐私分组（搜索引擎、收录、本地数据）P4-2c 整组删除，engines.js 随搜索层一起删。

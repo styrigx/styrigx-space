@@ -11,7 +11,7 @@
    每次进都要再验一次账号凭证（3 分钟reauth 票，离开即作废）。
    第二组（2026-10-24 PR4）：「云同步」→ 子页 /account/sync/（account-sync.html）：总开关 + 实际同步的每一项。
    第三组（P4-2d）：「AI 模型」→ 底部单选列表（不是子页），选项来自 GET /api/ai，选择存 localStorage sgx-ai-model（进云同步）。
-   临时钥匙、服务状态已搬到设置（/settings/security/tempkeys/、/settings/status/），只认锁屏进门会话，账号页不再有入口。
+   临时钥匙、服务状态已搬到设置（/security/tempkeys/、/status/），只认锁屏进门会话，账号页不再有入口。
    ?return=/account/(security|devices|sync|apps)/：子页没有账号会话时跳来，登录后回子页。
    ?return=/curio/… | /daymark/…（P3-1 同意流程）：应用内点登录跳来，登录完先判授权，没有就显示同意卡片 #acct-consent，完了回原页面。
    进门的人都看到同一个界面（没账号密码登不上）。noindex、不进 sitemap（见 baseof/sitemap）。

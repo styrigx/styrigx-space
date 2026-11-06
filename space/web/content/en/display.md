@@ -1,7 +1,7 @@
 ---
 title: 'Display'
-layout: settings-sub
-url: /en/settings/display/
+layout: sub
+url: /en/display/
 params:
   cat: display
 ---

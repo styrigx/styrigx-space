@@ -1,5 +1,5 @@
 /**
- * @fileoverview 设置 → 安全与隐私 → 临时钥匙（/settings/security/tempkeys/）：发给别人的临时 LockKey。
+ * @fileoverview 设置 → 安全与隐私 → 临时钥匙（/security/tempkeys/）：发给别人的临时 LockKey。
  *
  * - 只认锁屏进门会话（不问账号会话）。进页 POST /api/lock-tempkey { action:'list' }（只要进门）：
  *   lock 会话失效（401 session）→ 提示回锁屏

@@ -149,8 +149,8 @@ tests/
 | 位置 | 是什么 |
 |---|---|
 | `config/` | `playwright.config.js`、`pw-local.config.js`（本地挑几个 spec 跑，换端口）、`lighthouserc.json`、`stylelintrc.json` |
-| `space/e2e/` | 主站 Playwright 页面测试，按功能分子目录：`account/`、`passkey/`（预览站 / 测试服务器真后端）、`lock/`、`settings/`、`topbar/`、`layout/`、`edge/`、`visual/`（`visual.spec.js`、`lock.spec.js` 和各自的截图基线 `<spec>-snapshots/`）；`helpers/` 放非 spec 文件（`helpers.js`、`*.cjs`、预览组合入口 `preview-worker.js`）。Playwright 的 `testMatch` 按文件名匹配，换子目录不用改配置 |
-| `space/ui/` | 主站前端单元测试（`node --test`），按功能分子目录：`account/`、`passkey/`、`lock/`、`sync/`、`status/`、`settings/`、`topbar/`、`shell/`、`theme/`、`layout/`、`build/`、`home/` |
+| `space/e2e/` | 主站 Playwright 页面测试，按功能分子目录：`account/`、`passkey/`（预览站 / 测试服务器真后端）、`lock/`、`space/`、`topbar/`、`layout/`、`edge/`、`visual/`（`visual.spec.js`、`lock.spec.js` 和各自的截图基线 `<spec>-snapshots/`）；`helpers/` 放非 spec 文件（`helpers.js`、`*.cjs`、预览组合入口 `preview-worker.js`）。Playwright 的 `testMatch` 按文件名匹配，换子目录不用改配置 |
+| `space/ui/` | 主站前端单元测试（`node --test`），按功能分子目录：`account/`、`passkey/`、`lock/`、`sync/`、`status/`、`space/`、`topbar/`、`shell/`、`theme/`、`layout/`、`build/`、`home/` |
 | `blog/`、`curio/`、`daymark/` | 子站测试（从 styrigx-atlas 搬来），三站同一结构：单测在 `tests/<站>/*.test.mjs`、e2e 在 `tests/<站>/e2e/`（blog 的截图基线在 `e2e/blog-visual.spec.js-snapshots/`）、Playwright 配置在 `config/`。sgx-ui 契约夹具不放副本，直接读共享的 `tests/fixtures/ui-cookie-contract.json` |
 | `workers/curio-core/`、`workers/daymark-core/` | 子站接口 Worker 单元测试（node:sqlite 真跑 D1 的 SQL） |
 | `workers/_harness.mjs`、`_harness.cjs` | 测试台公共件：内存 KV（`makeKV`）、内存认证 D1（`makeAuthD1`，node:sqlite）、`derToPem`、`genKeyPair`、`postReq`；e2e 的 `edge-harness.cjs` / `cred-e2e-helpers.cjs` 也用 `_harness.cjs`，不再各写一份 |

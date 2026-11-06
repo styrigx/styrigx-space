@@ -1,4 +1,4 @@
-{{/* 2.6.0：设置子页「display」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。 */}}
+{{/* 2.6.0：旷野子页「display」分类组（2.6.0 自原设置首页模板抽取，set-gh 标题由子页大标题替代）。 */}}
 {{ $isEn := .isEn }}{{ $featMap := .featMap }}{{ $palettes := .palettes }}
 <div class="set-group scroll-mt-24" id="sg-display">
 <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
@@ -47,6 +47,6 @@
       </div>
       {{ end }}
       {{/* 2.4.0-G：布局由 features.yaml 生成（外观与手写版一致）。2026-10-23 PR-E：字体大小删除（浏览器缩放就够了） */}}
-      {{ if partial "feature.html" "layout" }}{{ partial "settings-row.html" (dict "f" (index $featMap "layout") "isEn" $isEn) }}{{ end }}
+      {{ if partial "feature.html" "layout" }}{{ partial "space-row.html" (dict "f" (index $featMap "layout") "isEn" $isEn) }}{{ end }}
     </section>
 </div>

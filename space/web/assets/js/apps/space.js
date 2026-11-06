@@ -1,10 +1,9 @@
 /**
- * @fileoverview 设置页：显示（主题、布局、语言）、风格（调色板）、数字健康、桌面双栏。
+ * @fileoverview 旷野页（/）与子页（/display/、/theme/、/wellbeing/、/about/）：显示（主题、布局、语言）、风格（调色板）、数字健康。
+ * P4-3 PR-4b（2026-11-07）：由 apps/settings.js 改名；主页和设置合成「旷野 / Space」一页，页内切换、DeX 双栏、旧 hash 跳转删除。
  * （2026-10-23 PR-E：字体大小、减弱动效、重置所有设置删除；P4-2c：日期和时间、天气、快捷键连同高级功能分类删除）
- * 文案来自页面内 sgx-i18n-settings JSON（中英双语），JS 与语言无关。
- * 2026-10-24 页内切换（shell/inpage-tabs.js）：不再在 import 时直接跑，改成 mountSettings()，返回 destroy()；
- * 设置首页每次切进来都是服务器那份 HTML 的新拷贝 + 重新挂（同整页打开一样），切走时 destroy 拆掉本次挂的全部监听 / 定时器 / 撤销条。
- * 设置子页（/settings/<cat>/）由 entry-settings.js 照旧在加载时挂一次。
+ * 文案来自页面内 sgx-i18n-space JSON（中英双语），JS 与语言无关。
+ * mountSpace() 在加载时挂一次（入口 entry-space.js / entry-space-sub.js），返回 destroy()：拆掉本次挂的全部监听 / 定时器 / 撤销条。
  */
 import { on as evOn } from '../lib/events.js';
 import { get } from '../lib/storage.js';
@@ -19,10 +18,10 @@ import { fmtDur } from '../lib/wb-view.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 
 /**
- * 挂设置页（设置首页 / 设置子页）。返回 destroy()：移除这次挂上的所有监听（含 features 订阅）、定时器、布局撤销条。
+ * 挂旷野页 / 旷野子页。返回 destroy()：移除这次挂上的所有监听（含 features 订阅）、定时器、布局撤销条。
  * @returns {() => void}
  */
-export function mountSettings() {
+export function mountSpace() {
   /** @type {Array<() => void>} */
   const offs = [];
   /** 同 lib/events.js on()，但记下清理函数，destroy 时统一拆 @type {typeof evOn} */
@@ -38,7 +37,7 @@ export function mountSettings() {
     return off;
   };
   const en = document.documentElement.lang === 'en';
-  const T = loadI18n('sgx-i18n-settings');
+  const T = loadI18n('sgx-i18n-space');
 
   /** @param {string} id */
   function $(id) {
@@ -61,10 +60,6 @@ export function mountSettings() {
       }
     });
   }
-
-  /* 旧分类 hash（/settings/#display、#sg-theme、#goodlock 等）→ 对应子页。只在设置首页（中英）生效。
-     2026-10-25 从 settings.html 的内联脚本搬进来（CSP：少一段要算 sha256 的内联脚本），逻辑不变。 */
-  legacyHashRedirect();
 
   /* ---- 主题模式 ---- */
   function curMode() {
@@ -283,7 +278,7 @@ export function mountSettings() {
     const AREAS = [
       { id: 'home', label: T.t('areaHome'), color: 'var(--m-primary-fill, var(--m-primary))' },
       { id: 'links', label: T.t('areaLinks'), color: 'var(--m-accent)' },
-      { id: 'settings', label: T.t('areaSettings'), color: 'var(--sgx-secondary-fill, var(--m-secondary))' },
+      { id: 'settings', label: T.t('areaSpace'), color: 'var(--sgx-secondary-fill, var(--m-secondary))' },
     ];
     if (total < 1) {
       bar.innerHTML = '<span style="width:100%;background:var(--m-container-highest)"></span>';
@@ -302,43 +297,6 @@ export function mountSettings() {
       }).join('');
   })();
 
-  /* 2.6.0：设置改为真实二级页（/settings/<cat>/）；旧 hash 由设置首页内联脚本跳转到子页；
-     子页用浏览器 / 系统返回。DeX 双栏在首页内切换（下）。 */
-  /* ---- 2.6.0 DeX 双栏：左导航切换右窗格（复用子页同一套 partial；无 JS 时导航照常跳子页） ---- */
-  (function () {
-    var nav = document.getElementById('set-cat-nav');
-    var layout = document.querySelector('.set-layout');
-    if (!nav || !layout) return;
-    var panes = document.getElementById('set-panes');
-    if (!panes) return;
-    var isWide = document.documentElement.classList.contains('layout-dex');
-    function showPane(id, title) {
-      var groups = panes.querySelectorAll('.set-group');
-      groups.forEach(function (g) {
-        g.classList.toggle('active', g.id === 'sg-' + id);
-      });
-      nav.querySelectorAll('.set-cat').forEach(function (b) {
-        var on_ = b.getAttribute('data-cat') === id;
-        b.classList.toggle('active', on_);
-        if (on_) b.setAttribute('aria-current', 'true');
-        else b.removeAttribute('aria-current');
-      });
-      var rt = document.getElementById('set-right-title');
-      if (rt && title) rt.textContent = title;
-      layout.classList.add('single-cat');
-    }
-    on(nav, 'click', function (/** @type {any} */ e) {
-      var b = e.target && e.target.closest ? e.target.closest('.set-cat') : null;
-      if (!b) return;
-      var id = b.getAttribute('data-cat') || '';
-      if (id === 'security' || id === 'status') return; /* 独立页面，不拦截 */
-      if (!isWide) return; /* 移动端没有双栏（导航隐藏），照常跳转 */
-      e.preventDefault();
-      showPane(id, b.getAttribute('data-title') || '');
-    });
-    if (isWide) showPane('display', (nav.querySelector('[data-cat="display"]') || {}).getAttribute ? nav.querySelector('[data-cat="display"]').getAttribute('data-title') : '');
-  })();
-
   return function destroy() {
     offs.splice(0).forEach(function (f) {
       try {
@@ -352,25 +310,4 @@ export function mountSettings() {
     const bar = document.getElementById('sgx-layout-snackbar');
     if (bar) bar.remove();
   };
-}
-
-/* 旧分类 hash → 设置子页（2.6.0 起设置是真实二级页）。manage / accessibility 已删除（回设置首页，不跳）；
-   P4-2c：高级功能分类（含原 goodlock）删除，同样回设置首页、不跳。 */
-const LEGACY_HASH = /** @type {Record<string, 1|string>} */ ({
-  display: 1, theme: 1, wellbeing: 1, about: 1, security: 1,
-  'sg-display': 'display', 'sg-theme': 'theme',
-  'sg-wellbeing': 'wellbeing', 'sg-about': 'about', 'sg-security': 'security',
-});
-
-/** 设置首页（/settings/、/en/settings/）带旧分类 hash 时 replace 到子页（不留历史） */
-export function legacyHashRedirect() {
-  try {
-    const p = location.pathname;
-    if (p !== '/settings/' && p !== '/en/settings/') return;
-    const h = (location.hash || '').replace(/^#/, '');
-    const cat = Object.prototype.hasOwnProperty.call(LEGACY_HASH, h) ? LEGACY_HASH[h] : null;
-    if (!cat) return;
-    const base = p.indexOf('/en/') === 0 ? '/en/settings/' : '/settings/';
-    sgxReplace(base + (cat === 1 ? h : cat) + '/');
-  } catch (e) {}
 }

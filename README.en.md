@@ -6,7 +6,7 @@
 
 **To understand the world, take it apart; to believe in it, put it back together.**
 
-Sloan Gray's personal portal — Home, Chat, Settings and Account — and the auth gateway that guards the whole site family.
+Sloan Gray's personal portal — Space and Account — and the auth gateway that guards the whole site family.
 
 [styrigx.com](https://styrigx.com) · [Blog styrigx.com/blog/](https://styrigx.com/blog/en/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
@@ -42,7 +42,7 @@ Sloan Gray's personal portal — Home, Chat, Settings and Account — and the au
 
 This is the source of styrigx.com and the "system" repository of the site family:
 
-- **Portal** — four apps (Home, Chat, Settings, Account), fully bilingual.
+- **Portal** — Space (the single top-level page) and Account, fully bilingual.
 - **Auth gateway** — every page and API on the main site and on the sub-sites (Blog, Curio, Daymark at `styrigx.com/<site>/`) goes through it first. The whole site is locked by design; sharing only happens through short links that carry a temporary key.
 - **Shared shell** — the top bar, navigation drawer and search layer are generated here; each sub-site keeps a synced copy pinned to a shell version (git tree hash).
 - **Shared CI** — Hugo, Node and Playwright setup are published as composite actions (`v*` tags) that Atlas references by tag.
@@ -53,7 +53,7 @@ The interface is **Styrigx UI**, built in-house, with version numbers that track
 
 | ![Home](docs/screenshots/en-home-mobile.jpg) | ![Settings](docs/screenshots/en-settings-mobile.jpg) |
 |:---:|:---:|
-| Home | Settings |
+| Space (top) | Space category entries |
 
 ![DeX](docs/screenshots/en-home-dex.jpg)
 <p align="center">DeX</p>
@@ -62,9 +62,8 @@ The interface is **Styrigx UI**, built in-house, with version numbers that track
 
 | App | Path | What it does |
 |---|---|---|
-| Home | `/en/` | Profile card, dual clocks, weather, Daymark's quote of the day, screen time. |
+| Space | `/en/` | The main site's only top-level page (Home and Settings merged): profile card, Daymark's quote of the day, screen time, then every category laid out below — Display `/en/display/`, Style `/en/theme/`, Security `/en/security/` (lock credentials `/en/security/lock/`, temporary keys `/en/security/tempkeys/`), Digital wellbeing `/en/wellbeing/`, Service status `/en/status/`, About `/en/about/`. Settings are stored locally and synced once you sign in; service status shows uptime and incidents for the main site, Proxy rules and AI; temporary keys include share links, and creating or revoking one asks for a lock re-verification. |
 | AI assistant | Top-bar AI button | On-site assistant: recalls from the site-wide index, then a model (self-hosted Gemma 4 / GPT-OSS 20B, or external Gemini) streams the answer with on-site source cards; the conversation stays local. |
-| Settings | `/en/settings/` | Display, language, layout and other system settings, stored locally and synced once you sign in. Also service status (uptime and incidents for the main site, Proxy rules and AI) and temporary keys (including share links; creating or revoking one asks for a lock re-verification). |
 | Account | `/en/account/` | Opened from the avatar in the drawer head: account sign-in, cloud sync, devices, account security. |
 
 ## Architecture
@@ -118,7 +117,7 @@ Design details: [docs/architecture.md](docs/architecture.md), [docs/auth-state-m
 - Three layouts, Mobile · Auto · DeX: on Auto, landscape viewports at least 840 wide and 500 tall get DeX, everything else gets Mobile (viewport only, no device sniffing).
 - Sizes scale smoothly on wide screens: margins and top-bar buttons grow with the width; the top bar and the page share one frame (up to 1440 on DeX, 640 for Mobile on wide portrait screens); Home cards use 2–3 columns, never narrower than 320.
 - Light / dark follows the system by default.
-- One top bar everywhere: nine-dot drawer button, a capsule showing only the current page name, the quick panel; on Home / Chat / Settings the capsule becomes their tabs.
+- One top bar everywhere: nine-dot drawer button, a capsule showing only the current page name, the quick panel; on Space the capsule shows its single top-level tab.
 - Two complete versions: 中文 / English.
 
 ## Local development
