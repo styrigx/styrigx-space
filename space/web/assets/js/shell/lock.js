@@ -48,8 +48,10 @@ export function showLockScreen() {
      锁屏上它们只是外观（span、不可点、不进读屏），快捷面板 / AI / 账号在锁定时打不开，不能绕过锁屏。 */
   const tbLogoEl = document.querySelector('#site-nav .sgx-tb-logo');
   const tbLogo = tbLogoEl ? tbLogoEl.innerHTML : '';
+  /* 类名照抄（sgx-tb-btn sgx-tb-quick / sgx-tb-ai / sgx-tb-me）：只写 sgx-tb-btn 时 .sgx-tb-me img 的圆角、object-fit 不生效，
+     锁屏顶栏头像成了方的（图标两处修正 §1，2026-11-07） */
   const tbActs = Array.from(document.querySelectorAll('#site-nav .sgx-tb-acts .sgx-tb-btn')).map(function (b) {
-    return '<span class="sgx-tb-btn">' + b.innerHTML + '</span>';
+    return '<span class="' + b.className + '">' + b.innerHTML + '</span>';
   }).join('');
   const ov = document.createElement('div');
   ov.id = 'sgx-lock';

@@ -144,3 +144,15 @@ test('P4-2b：搜索层整套删除——没有 search.js、shell.css 没有 sea
   for (const f of ['space/web/assets/js/shell/search-layer.js', 'space/web/assets/js/shell/search-host.js', 'space/web/shared/shell/search.js', 'space/web/static/opensearch.xml'])
     assert.ok(!existsSync(path.join(REPO, f)), f);
 });
+
+test('顶栏头像是圆的：shell.css 按 .sgx-tb-avatar 自己挂圆角 + object-fit: cover；锁屏抄顶栏按钮时类名照抄（图标两处修正 §1）', () => {
+  const css = files['shell.css'].replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = css.match(/(^|\})\s*([^{}]*\.sgx-tb-avatar[^{}]*)\{([^}]*)\}/m);
+  assert.ok(rule, 'shell.css 里要有选中 .sgx-tb-avatar 的规则');
+  assert.ok(rule[2].split(',').map((s) => s.trim()).includes('.sgx-tb-avatar'), '选择器里单独有 .sgx-tb-avatar（不依赖外层 .sgx-tb-me）');
+  assert.match(rule[3], /border-radius:\s*999px/);
+  assert.match(rule[3], /object-fit:\s*cover/);
+  const lock = readFileSync(path.join(REPO, 'space/web/assets/js/shell/lock.js'), 'utf8');
+  assert.match(lock, /'<span class="' \+ b\.className \+ '">'/, 'lock.js 抄顶栏按钮要带原类名（含 sgx-tb-me）');
+  assert.doesNotMatch(lock, /'<span class="sgx-tb-btn">'/);
+});

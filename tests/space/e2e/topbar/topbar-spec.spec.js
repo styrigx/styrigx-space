@@ -80,6 +80,13 @@ for (const dark of [false, true]) {
         await expect(page.locator('.sgx-tb-pill a')).toHaveCount(home ? 1 : 0);
         for (const s of ['.sgx-tb-quick', '.sgx-tb-ai']) await expect(page.locator(s + ' svg')).toHaveCount(1);
         await expect(page.locator('.sgx-tb-me img.sgx-tb-avatar')).toHaveCount(1);
+        /* 顶栏头像是圆的、照片不变形（图标两处修正 §1） */
+        const av = await page.locator('.sgx-tb-me img.sgx-tb-avatar').evaluate((el) => {
+          const c = getComputedStyle(el);
+          return { br: c.borderTopLeftRadius, of: c.objectFit };
+        });
+        expect(parseFloat(av.br), `头像圆角 ${av.br}`).toBeGreaterThanOrEqual(16);
+        expect(av.of).toBe('cover');
         /* 页名（旷野页：单个「旷野」标签）在长条内水平垂直居中 */
         const tx = await box(page, home ? '.sgx-tb-tabs' : '.sgx-tb-title');
         expect(near(tx.x + tx.width / 2, pill.x + pill.width / 2), `页名水平居中 ${tx.x + tx.width / 2}`).toBe(true);

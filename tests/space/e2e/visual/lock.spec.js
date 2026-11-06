@@ -735,6 +735,24 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     }
   });
 
+  test('锁屏顶栏右边头像是圆的（图标两处修正 §1：锁屏抄顶栏按钮时类名要带上 sgx-tb-me）', async ({ page }) => {
+    await page.setViewportSize({ width: 412, height: 915 });
+    await gotoLock(page);
+    const av = page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts img.sgx-tb-avatar');
+    await expect(av).toHaveCount(1);
+    expect(await page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.tagName + '.' + e.className)))
+      .toEqual(['SPAN.sgx-tb-btn sgx-tb-quick', 'SPAN.sgx-tb-btn sgx-tb-ai', 'SPAN.sgx-tb-btn sgx-tb-me']);
+    const st = await av.evaluate((el) => {
+      const c = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return { br: c.borderTopLeftRadius, br2: c.borderBottomRightRadius, of: c.objectFit, w: r.width, h: r.height };
+    });
+    expect(parseFloat(st.br)).toBeGreaterThanOrEqual(16);
+    expect(parseFloat(st.br2)).toBeGreaterThanOrEqual(16);
+    expect(st.of).toBe('cover');
+    expect([st.w, st.h]).toEqual([32, 32]);
+  });
+
   for (const theme of ['light', 'dark']) {
     test(`lock screen glass baseline screenshot (${theme})`, async ({ page }) => {
       await freezeTime(page);

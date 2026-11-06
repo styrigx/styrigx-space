@@ -112,7 +112,7 @@ html, body {
 @supports (overflow-x: clip) {
   html, body { overflow-x: clip; }
 }
-/* @sgx-shell:begin styrigx/styrigx-space@tree:9c4ad417c51d space/web/shared/shell vaf20c15030a1（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:a4df232dd35d space/web/shared/shell vc5d9123a43cc（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space space/scripts/gen-shell.mjs 从 space/web/data/palette-roles.json 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -6826,7 +6826,9 @@ html, body {
   background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); cursor: pointer;
   text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
 .sgx-tb-btn svg { width: 22px; height: 22px; }
-.sgx-tb-me img { width: 32px; height: 32px; display: block; border-radius: 999px; object-fit: cover; box-shadow: 0 0 0 1px var(--sgx-mat-line); }
+/* 顶栏头像一律是圆（Gray 2026-11-06 立规⑤）：按头像自己的类 .sgx-tb-avatar 挂样式，不依赖外层是 .sgx-tb-me ——
+   锁屏（lock.js）把顶栏按钮抄成 <span> 外观时曾丢了 sgx-tb-me，头像就成了方的、照片还被拉伸（图标两处修正 §1） */
+.sgx-tb-me img, .sgx-tb-avatar { width: 32px; height: 32px; display: block; border-radius: 999px; object-fit: cover; box-shadow: 0 0 0 1px var(--sgx-mat-line); }
 /* 面板 / 窗口开着：对应图标保持按下态（再点关闭） */
 .sgx-tb-btn[aria-expanded="true"] { background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
 @media (hover: hover) and (pointer: fine) {

@@ -8293,7 +8293,9 @@
   background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); cursor: pointer;
   text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
 .sgx-tb-btn svg { width: 22px; height: 22px; }
-.sgx-tb-me img { width: 32px; height: 32px; display: block; border-radius: 999px; object-fit: cover; box-shadow: 0 0 0 1px var(--sgx-mat-line); }
+/* 顶栏头像一律是圆（Gray 2026-11-06 立规⑤）：按头像自己的类 .sgx-tb-avatar 挂样式，不依赖外层是 .sgx-tb-me ——
+   锁屏（lock.js）把顶栏按钮抄成 <span> 外观时曾丢了 sgx-tb-me，头像就成了方的、照片还被拉伸（图标两处修正 §1） */
+.sgx-tb-me img, .sgx-tb-avatar { width: 32px; height: 32px; display: block; border-radius: 999px; object-fit: cover; box-shadow: 0 0 0 1px var(--sgx-mat-line); }
 /* 面板 / 窗口开着：对应图标保持按下态（再点关闭） */
 .sgx-tb-btn[aria-expanded="true"] { background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
 @media (hover: hover) and (pointer: fine) {
