@@ -6,13 +6,14 @@
  */
 import { on } from '../lib/events.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
+import { langPath } from '../lib/lang-path.js';
 
 /**
  * 初始化：系统返回的历史管理。
  */
 export function initNavHistory() {
   const en = document.documentElement.lang === 'en';
-  const home = en ? '/en/' : '/';
+  const home = langPath('/', en ? 'en' : 'zh');
 
   /* 直接打开 App 页：最多插入一次主页历史，保证系统返回一次回到主页。 */
   (function () {

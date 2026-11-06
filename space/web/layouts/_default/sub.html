@@ -2,7 +2,7 @@
    用法：content/theme.md 等 frontmatter 设 layout: sub、params.cat: theme。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-sub.js" }}
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 {{ $cat := .Params.cat }}
 {{/* 分类标题走 data/space-cats.yaml（单数据源，与旷野页入口卡共用） */}}
 {{ $t := dict "zh" $cat "en" $cat }}

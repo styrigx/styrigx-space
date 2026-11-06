@@ -11,7 +11,11 @@
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
 <title>{{ if .IsHome }}{{ if $isEn }}Daymark{{ else }}日刻{{ end }}{{ else }}{{ .Title }} | {{ if $isEn }}Daymark{{ else }}日刻{{ end }}{{ end }}</title>
 <meta name="description" content="{{ if $isEn }}Sloan Gray's Daymark: lines worth keeping, one a day{{ else }}{{ .Site.Params.description }}{{ end }}">
-{{/* 标签页图标、主屏图标都用主站头像 */}}
+{{/* P4-3 PR-4c：canonical + hreflang（英文默认、不带前缀 = x-default；中文 /daymark/zh/），地址来自 Hugo 的语言版本 */}}
+{{ if ne .Kind "404" }}<link rel="canonical" href="{{ .Permalink }}">
+{{ range .AllTranslations }}<link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ .Permalink }}">
+{{ if eq .Language.Lang "en" }}<link rel="alternate" hreflang="x-default" href="{{ .Permalink }}">
+{{ end }}{{ end }}{{ end }}{{/* 标签页图标、主屏图标都用主站头像 */}}
 <link rel="icon" href="https://styrigx.com/avatar/32.webp">
 <link rel="apple-touch-icon" href="https://styrigx.com/avatar/192.webp">
 <link rel="preload" href="{{ "fonts/inter-latin.woff2" | relURL }}" as="font" type="font/woff2" crossorigin>
@@ -86,7 +90,7 @@ __sgxLayoutWatch(__applyLayout);
   "icons" $shellNav.icons
   "wordmark" $shellNav.wordmark
   "mainOrigin" "https://styrigx.com"
-  "acct" (cond $isEn (replace $shellNav.me.href "https://styrigx.com/" "https://styrigx.com/en/") $shellNav.me.href)
+  "acct" (partial "sgx-lang-path.html" (dict "path" $shellNav.me.href "lang" (cond $isEn "en" "zh")))
   "avatar" $shellNav.me.avatar
   "langHref" $langHref
   "pal" $pal

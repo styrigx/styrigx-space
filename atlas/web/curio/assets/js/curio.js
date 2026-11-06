@@ -185,13 +185,18 @@ function errText(e){
     : c === 'account' ? T.needAccount : c === 'scope' ? T.noScope + '。' : c === 'reauth' ? T.needReauth : T.failed;
 }
 
+/** P4-3 PR-4c：语言路径由模板（sgx-lang-path.html）算好放在 #cu-signin 的 data-*，本文件是经典脚本，不手写语言前缀 @param {string} attr @param {string} fallback */
+function pagePath(attr, fallback){
+  var el = doc && doc.getElementById('cu-signin');
+  return (el && el.getAttribute(attr)) || fallback;
+}
 /**
  * 不能编辑时页底那一行（P3-1）：没登录账号 → 登录（带 ?return= 回本页，走同意流程）；已登录没授权 → 去 账号 › 应用授权。
  * @param {boolean} loggedIn 接口回的 showPrivate（= 有账号会话）
  * @returns {{text: string, href: string}}
  */
 function signinHint(loggedIn){
-  var acct = 'https://styrigx.com' + (isEn ? '/en' : '') + '/account/';
+  var acct = pagePath('data-acct', 'https://styrigx.com/account/');
   if (loggedIn) return { text: T.noScope, href: acct + 'apps/' };
   var here = G.location.pathname + G.location.search + G.location.hash;
   return { text: T.signin, href: acct + '?return=' + encodeURIComponent(here) };
@@ -464,7 +469,7 @@ function impMsg(text, bad, link){
   el.classList.toggle('hidden', !text); el.classList.toggle('text-m-error', !!bad);
 }
 /** 账号页「安全与隐私」（每次进都要验证账号，验过 3 分钟内导入不再要求复验） */
-var REAUTH_LINK = { href: isEn ? '/en/account/security/' : '/account/security/', label: isEn ? 'Verify now' : '去验证' };
+function reauthLink(){ return { href: pagePath('data-acct-sec', '/account/security/'), label: isEn ? 'Verify now' : '去验证' }; }
 function resetImport(){
   impFile = null;
   $('#imp-file').value = '';
@@ -494,7 +499,7 @@ $('#imp-go').addEventListener('click', function(){
     render();
     impMsg(importSummary(j, isEn));
     impFile = null;
-  }).catch(function(e){ if (!e.sgxLocked) { impMsg(errText(e), true, e.code === 'reauth' ? REAUTH_LINK : null); btn.disabled = false; } });
+  }).catch(function(e){ if (!e.sgxLocked) { impMsg(errText(e), true, e.code === 'reauth' ? reauthLink() : null); btn.disabled = false; } });
 });
 
 /* ---------- 启动 ---------- */

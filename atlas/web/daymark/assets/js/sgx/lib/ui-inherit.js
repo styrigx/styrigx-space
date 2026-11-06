@@ -10,6 +10,8 @@
  * 版本 v 不认识 / 乱码 / 没有 cookie = 不跳，大写、en-US 之类读端判为 '' 也不跳。不再自己解 cookie 的原始 JSON。
  */
 
+import { langPath } from '../shell/lang-path.js';
+
 /**
  * cookie 里的语言。
  * @param {any} U 共享读端（window.SgxUI）
@@ -22,12 +24,12 @@ export function cookieLang(U, cookieHeader) {
   return lang === 'zh' || lang === 'en' ? lang : '';
 }
 
-/** 本站在主域名（styrigx.com）下的前缀：中文 /daymark/xxx，英文 /daymark/en/xxx */
+/** 本站在主域名（styrigx.com）下的前缀：英文 /daymark/xxx，中文 /daymark/zh/xxx（P4-3 PR-4c 起英文默认；旧 /daymark/en/ 删除不 301） */
 export const BASE = '/daymark/';
 
 /**
  * 语言跟主站：want 和本页语言不同时，返回另一种语言的同一页（保留查询串和 #页签）；不用跳返回 ''。
- * 日刻每页都有中英两版：{base}xxx ↔ {base}en/xxx。不在 base 下的地址不跳。
+ * 日刻每页都有中英两版：{base}xxx ↔ {base}zh/xxx，地址由共享外壳 lang-path.js 的 langPath 拼（四站同一条规则）。不在 base 下的地址不跳。
  * @param {'zh'|'en'|''} want cookieLang() 的结果
  * @param {{pathname: string, search?: string, hash?: string}} loc
  * @param {'zh'|'en'} pageLang
@@ -37,7 +39,5 @@ export function langTarget(want, loc, pageLang, base = BASE) {
   if ((want !== 'zh' && want !== 'en') || want === pageLang) return '';
   const p = loc.pathname || base;
   if (!p.startsWith(base) && p + '/' !== base) return '';
-  const rest = p.slice(base.length);
-  const to = want === 'en' ? base + 'en/' + rest : base + rest.replace(/^en(\/|$)/, '');
-  return to + (loc.search || '') + (loc.hash || '');
+  return langPath(p, want) + (loc.search || '') + (loc.hash || '');
 }

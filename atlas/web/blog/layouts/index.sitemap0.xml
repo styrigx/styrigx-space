@@ -1,5 +1,5 @@
 {{- /* /sitemap-0.xml：两种语言的全部页面（首页、文章、标签页），和旧站同样不含 404 与跳转页 */ -}}
-{{- if eq site.Language.Lang "zh" -}}
+{{- if eq site.Language.Lang "en" -}}
 {{- $urls := slice -}}
 {{- range hugo.Sites -}}
   {{- range .Pages -}}

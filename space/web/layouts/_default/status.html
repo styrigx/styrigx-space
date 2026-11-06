@@ -10,7 +10,7 @@
    noindex（见 baseof）。渲染：lib/status-view.js（纯函数，tests/space/ui/status/status-view.test.mjs）；DOM / 请求：apps/space-status.js；入口 entry-space-status.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-status.js" }}
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 
 <div class="acct-layout pb-28">
 <div class="st-wrap" id="st-root" data-state="loading" aria-busy="true">

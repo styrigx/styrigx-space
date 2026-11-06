@@ -11,7 +11,7 @@
    noindex（见 baseof）。脚本走 ES Module 入口 entry-security-tempkeys.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security-tempkeys.js" }}
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 
 <div class="acct-layout pb-28">
   <div id="acct-tk" hidden>

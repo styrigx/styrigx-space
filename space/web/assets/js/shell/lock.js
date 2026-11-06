@@ -28,6 +28,7 @@ import { mountResetFlow, resetT } from '../auth/reset-flow.js';
 
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { isLocalDev, pageState, askServer, proceed, bindAutoLock } from './lock-guard.js';
+import { langPath } from '../lib/lang-path.js';
 
 const UNLOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/></svg>';
@@ -685,7 +686,7 @@ export function showLockScreen() {
         if (kbStop) { try { kbStop(); } catch (e) {} kbStop = null; }
         closeMethodSheet(true);
         /* 跳转到锁屏凭证管理页（重置锁屏票可开此页，仍进不了主页；启动站同样在这里设第一把锁屏凭证） */
-        sgxNavigate(en ? '/en/security/lock/' : '/security/lock/');
+        sgxNavigate(langPath('/security/lock/', en ? 'en' : 'zh'));
       },
     });
   }

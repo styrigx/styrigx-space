@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="{{ if or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}en{{ else }}zh{{ end }}" data-sgx-build="{{ partial "sgx-build-sha.html" . }}">
+<html lang="{{ if eq (partial "sgx-page-lang.html" .) "en" }}en{{ else }}zh{{ end }}" data-sgx-build="{{ partial "sgx-build-sha.html" . }}">
 <head>
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {{/* 切页时等 <main> 解析完再出第一帧，避免过渡里露出还没排好版的新页面（标准写法，Chromium 124+；不支持的浏览器忽略） */}}
@@ -20,6 +20,13 @@
 <meta property="og:title" content="{{ $docTitle }}">
 <meta property="og:description" content="{{ $desc }}">
 <meta property="og:url" content="{{ .Permalink }}">
+{{/* P4-3 PR-4c：canonical + hreflang（英文无前缀是 x-default，中文 /zh/；地址由 sgx-lang-path.html 拼）。404 不给 */}}
+{{ if ne .Kind "404" }}{{ $origin := strings.TrimSuffix "/" site.BaseURL }}
+<link rel="canonical" href="{{ $origin }}{{ .RelPermalink }}">
+<link rel="alternate" hreflang="en" href="{{ $origin }}{{ partial "sgx-lang-path.html" (dict "path" .RelPermalink "lang" "en") }}">
+<link rel="alternate" hreflang="zh" href="{{ $origin }}{{ partial "sgx-lang-path.html" (dict "path" .RelPermalink "lang" "zh") }}">
+<link rel="alternate" hreflang="x-default" href="{{ $origin }}{{ partial "sgx-lang-path.html" (dict "path" .RelPermalink "lang" "en") }}">
+{{ end }}
 <meta property="og:locale" content="{{ cond $isEn "en_US" "zh_CN" }}">
 <meta property="og:image" content="https://styrigx.com/og.png">
 <meta property="og:image:type" content="image/png">
@@ -43,6 +50,8 @@
 <link rel="apple-touch-icon" href="/avatar/192.webp">
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | fingerprint).RelPermalink }}">
 {{/* 注意：main.css 已由 space/scripts/build-css.cjs 压缩，不再走 Hugo minify（tdewolff 不认 @view-transition） */}}
+{{/* 语言路径（P4-3 PR-4c）：lib/lang-path.js 打成 IIFE 内联，挂 window.SgxLang，下面的首帧语言跳转用 */}}
+<script>{{ (resources.Get "js/lib/lang-path-global.js" | js.Build (dict "format" "iife" "minify" true "target" "es2017")).Content | safeJS }}</script>
 <script>
 /* 记下这次切页的 view transition（页面脚本可等它结束再做大动作，如浏览器页带 #focus 进来时打开搜索层） */
 addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition||null;window.__sgxRevealed=1;},{once:true});
@@ -88,28 +97,15 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     var lm=null;try{lm=localStorage.getItem('sgx-layout')}catch(e){}
     lm=lm==='mobile'?'phone':lm==='dex'||lm==='pc'?'desktop':lm==='phone'||lm==='desktop'?lm:null;
     d.setAttribute('data-layout',lm||'auto');
-    /* 语言偏好：sgx-lang (system/zh/en)。system 或无偏好时跟随浏览器语言；有明确偏好且与当前路径语言不一致时 replace 跳转，不产生历史 */
+    /* 语言偏好：sgx-lang (system/zh/en)。system 或无偏好时跟随浏览器语言；有明确偏好且与当前路径语言不一致时 replace 跳转，不产生历史。
+       P4-3 PR-4c：英文无前缀、中文 /zh/；地址由上面内联的 window.SgxLang（lib/lang-path.js）算，不在这里手写前缀 */
     try{
       var _lg=null;try{_lg=localStorage.getItem('sgx-lang')}catch(e){}
-      var _want=null;
-      if(_lg==='zh'||_lg==='en'){_want=_lg;}
-      else{
-        /* system 或未设置：跟随浏览器 */
-        try{
-          var _bl=(navigator.language||navigator.userLanguage||'zh').toLowerCase();
-          _want=_bl.indexOf('zh')===0?'zh':'en';
-        }catch(e){_want='zh';}
-      }
-      if(_want){
-        var _p=location.pathname;
-        var _isEn=_p==='/en'||_p.indexOf('/en/')===0;
-        var _cur=_isEn?'en':'zh';
-        if(_want!==_cur){
-          var _np;
-          if(_want==='en'){_np=_p==='/'?'/en/':'/en'+_p;}
-          else{_np=_p.replace(/^\/en(\/|$)/,'/');if(_np===''||_np.charAt(0)!=='/')_np='/';}
-          location.replace(_np+location.search+location.hash);
-        }
+      var L=window.SgxLang;
+      if(L){
+        var _want=_lg==='zh'||_lg==='en'?_lg:L.systemLang();
+        var _go=L.langSwitch(_want,location);
+        if(_go)location.replace(_go);
       }
     }catch(e){}
     /* 入场动画：只在本次会话第一次进入时播放，刷新/站内跳转不播 */
@@ -168,7 +164,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ partial "sgx-icon-sprite.html" . }}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
-{{ $acctUrl := "/account/" }}{{ if $isEn }}{{ $acctUrl = "/en/account/" }}{{ end }}
+{{ $acctUrl := (partial "sgx-lang-path.html" (dict "path" "/account/" "lang" (cond $isEn "en" "zh"))) }}
 
 {{/* 顶栏（2026-11-04 P5-1，全站同一个：方案 6.2–6.5；P4-3 PR-4b Gray 2026-11-07 定稿）：一整条胶囊 [字标] [页名胶囊] [九宫格 · 快捷设置 · AI]，
    连同导航面板、快捷面板、AI 窗口，标记都在 partials/shell-topbar.html（共享外壳单一来源，gen-shell 生成 topbar.html 给三个子站）。
@@ -192,7 +188,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ range site.Data.palettes.palettes }}{{ $tbPal = $tbPal | append (dict "id" .id "zh" .zh "en" .en "style" (partial "palette-tile-vars.html" (dict "id" .id "full" false))) }}{{ end }}
 {{ partial "shell-topbar.html" (dict
   "isEn" $isEn
-  "home" (cond $isEn "/en/" "/")
+  "home" (partial "sgx-lang-path.html" (dict "path" "/" "lang" (cond $isEn "en" "zh")))
   "center" $center
   "nav" $shellNav
   "site" "home"

@@ -10,7 +10,7 @@
    noindex（见 baseof）。脚本走 ES Module 入口 entry-account-apps.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-apps.js" }}
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 
 <div class="acct-layout pb-28">
   <div id="acct-apps" hidden>

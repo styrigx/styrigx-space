@@ -1,10 +1,10 @@
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space.js" }}
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 {{ $profile := site.Data.profile }}
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
 
-{{/* P4-3 PR-4b（§6.5，2026-11-07）：主页和设置合成一个主站页「旷野 / Space」，就在根路径（中文 / ，英文 /en/）。
+{{/* P4-3 PR-4b（§6.5，2026-11-07）：主页和设置合成一个主站页「旷野 / Space」，就在根路径（英文 / ，中文 /zh/；P4-3 PR-4c）。
    一页平铺：名片、日刻今日一句、我的屏幕时间，下面是标题带 + 各分类平铺入口（data/space-cats.yaml；点进各子页，子页布局 _default/sub.html）。
    主站顶级页只此一个；原设置首页和它的 DeX 双栏窗格删除（旧地址 404，不跳转）。 */}}
 {{ $space := index site.Data "space-cats" }}
@@ -35,7 +35,7 @@
          apps/index.js 填字；本地缓存 sgx-daymark-today 先画上次的，再静默刷新。
          CI 测试构建（SGX_TEST_NO_WEATHER=1；名字沿用天气时代的开关，CI 命令不动）不输出：本地静态服务没有日刻接口，请求失败会让 Lighthouse errors-in-console 误报。 -->
     {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
-    {{ $dmUrl := cond $isEn "/daymark/en/" "/daymark/" }}
+    {{ $dmUrl := (partial "sgx-lang-path.html" (dict "path" "/daymark/" "lang" (cond $isEn "en" "zh"))) }}
     <a id="w-daymark" href="{{ $dmUrl }}" class="widget dm-w col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-5 sm:p-6 overflow-hidden relative animate-fade-up hidden" style="animation-delay:.32s" aria-label="{{ if $isEn }}Daymark · Line of the day{{ else }}日刻 · 今日一句{{ end }}">
       <span class="dm-w-mark" aria-hidden="true">&ldquo;</span>
       <div class="relative flex items-center justify-between gap-3">
@@ -80,13 +80,13 @@
 
   {{/* 分类入口（P4-3 PR-4b §11，Gray 2026-11-07）：平铺入口共享组件 partials/sgx-entries.html（奇趣分类入口以后共用），数据 data/space-cats.yaml。
        上面标题带（小字 SPACE + 大标题 旷野 + 一句话），下面每行一个入口（编号、圆底图标、名字 + 副标题、细分隔线、淡色 ›），≥ 760 两栏、≥ 1100 三栏。
-       列表 aria-label="分类"（测试和读屏按它找）。地址 /<id>/（英文 /en/<id>/）。锁屏态同首页小组件一起被剥离。 */}}
+       列表 aria-label="分类"（测试和读屏按它找）。地址 /<id>/（中文 /zh/<id>/）。锁屏态同首页小组件一起被剥离。 */}}
   {{ $entIcons := dict }}{{ range $space.cats }}{{ $entIcons = merge $entIcons (dict .icon (partial "icon.html" .icon | string)) }}{{ end }}
   {{ partial "sgx-entries.html" (dict
     "items" $space.cats
     "icons" $entIcons
     "isEn" $isEn
-    "base" (cond $isEn "/en/" "/")
+    "base" (partial "sgx-lang-path.html" (dict "path" "/" "lang" (cond $isEn "en" "zh")))
     "band" $space.band
     "id" "space-entries"
     "label" (cond $isEn "Categories" "分类")

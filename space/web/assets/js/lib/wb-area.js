@@ -1,12 +1,13 @@
 /**
  * @fileoverview B2-7 主站页面 → 数字健康区域键。
  */
+import { stripLang } from './lang-path.js';
 
 /**
- * 旷野子页（P4-3 PR-4b：原设置子页去掉 settings 一层，直接挂在根下；英文 /en/ 前缀）。
+ * 旷野子页（P4-3 PR-4b：原设置子页去掉 settings 一层，直接挂在根下；P4-3 PR-4c 起英文无前缀、中文 /zh/ 前缀）。
  * 新增 data/space-cats.yaml 分类时这里同步加一项（tests/space/ui/build/space-merge.test.mjs 对照检查）。
  */
-export const SPACE_SUB_RE = /^(?:\/en)?\/(?:theme|wellbeing|about|status|security)\//;
+export const SPACE_SUB_RE = /^(?:\/zh)?\/(?:theme|wellbeing|about|status|security)\//;
 
 /**
  * B2-7：当前页面属于哪个数字健康区域（主站：旷野 / 我的文件 / 浏览器）。
@@ -17,7 +18,7 @@ export const SPACE_SUB_RE = /^(?:\/en)?\/(?:theme|wellbeing|about|status|securit
  * @returns {string|null}
  */
 export function wbAreaOf(path) {
-  const p = path.replace(/^\/en(?=\/)/, '');
+  const p = stripLang(path);
   if (p === '/' || p === '') return 'space';
   if (p.startsWith('/files/')) return 'files';
   /* 区域键沿用 'browser'：2026-10-20 浏览器页拆成 书签 + 全网搜索 /search/；2026-10-21 主站书签下线（迁到 奇趣 Curio），只剩搜索 */

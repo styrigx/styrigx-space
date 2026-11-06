@@ -9,10 +9,11 @@
  *
  * 只 import lib/ 和本目录。
  */
+import { langPath } from '../lib/lang-path.js';
 
 /** 授权卡页地址 @param {boolean} en */
 export function appsUrl(en) {
-  return en ? '/en/account/apps/' : '/account/apps/';
+  return langPath('/account/apps/', en ? 'en' : 'zh');
 }
 
 /* 应用站的路径前缀（站内路径或 https://styrigx.com/ 下）：只用来认出是哪个应用。回跳地址本身不在这里校验，

@@ -42,7 +42,8 @@
   </section>
  </div>
  {{/* 不能编辑（接口回 canWrite=false：账号没登录）：编辑入口换成这一行（curio.js 按 canWrite 显隐），链到主站账号页 */}}
- <p id="cu-signin" class="hidden text-center pt-2 pb-8 text-sm text-m-on-surface-variant"><a href="https://styrigx.com{{ if $isEn }}/en{{ end }}/account/" class="underline underline-offset-4">{{ if $isEn }}Sign in to your account to edit{{ else }}登录账号后可编辑{{ end }}</a></p>
+ {{/* data-acct / data-acct-sec：curio.js（经典脚本）用的主站账号地址，由 sgx-lang-path.html 按本页语言算好（P4-3 PR-4c，不在 JS 里手写前缀） */}}
+ <p id="cu-signin" data-acct="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" (cond $isEn "en" "zh")) }}" data-acct-sec="{{ partial "sgx-lang-path.html" (dict "path" "/account/security/" "lang" (cond $isEn "en" "zh")) }}" class="hidden text-center pt-2 pb-8 text-sm text-m-on-surface-variant"><a href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" (cond $isEn "en" "zh")) }}" class="underline underline-offset-4">{{ if $isEn }}Sign in to your account to edit{{ else }}登录账号后可编辑{{ end }}</a></p>
 </main>
 
 {{/* ===== 设备 / 游戏（canWrite，右下角浮动按钮，跟着页签换） ===== */}}

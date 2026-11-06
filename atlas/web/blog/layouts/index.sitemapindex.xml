@@ -1,5 +1,5 @@
-{{- /* 站点地图索引：和旧站（@astrojs/sitemap）一样是 /blog/sitemap-index.xml → /blog/sitemap-0.xml。只在中文（默认语言）生成一份 */ -}}
-{{- if eq site.Language.Lang "zh" -}}
+{{- /* 站点地图索引：和旧站（@astrojs/sitemap）一样是 /blog/sitemap-index.xml → /blog/sitemap-0.xml。只在英文（默认语言，P4-3 PR-4c 起）生成一份 */ -}}
+{{- if eq site.Language.Lang "en" -}}
 {{- printf `<?xml version="1.0" encoding="UTF-8"?>` | safeHTML -}}
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>{{ "sitemap-0.xml" | absURL }}</loc></sitemap></sitemapindex>
 {{- end -}}

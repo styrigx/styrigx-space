@@ -8,7 +8,7 @@
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "398d0e67cf9111a78275cb8448fabb632ffa5f76a283b2b3741b14736e15562c",
     "topbar.html": "54bf9f2626a08f79f2a3804f83419985f453f06f55c132e559628dbac573287e",
-    "entries.html": "cc81d556aeb32251465de378f1f6d5863badd701579fb4fe23f2236372f968da",
+    "entries.html": "3a18698a258293c27fed8084a7d9fced024cba1ee285937843a6551722eaa8b6",
     "topbar.js": "06c51192976de3d4d411168795291e6507ffddc08a5ff30c9d8dfc622ddad515",
     "modal-sheet.js": "c409104c3553e63351ee05abadb2e8999aa82692b7bbae021f3ea19f2352071b",
     "ai.js": "3c3c09830d3e106768a5ed6828342d61a44b6af45c0d570866912e1f48dad686",
@@ -25,6 +25,6 @@
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "10b716489592651b348a583b442e1efa2b1a753d3ffbb31ceedc6353b0c8a5b8"
   },
-  "version": "60d35f26850b",
+  "version": "2a618509f36f",
   "rulesVersion": "palette-rules-1"
 }

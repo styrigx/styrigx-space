@@ -18,6 +18,7 @@ import { releaseLockScreen } from '../shell/lock-guard.js';
 import { sgxNavigate, sgxReload } from '../lib/diag-jumptrace.js';
 import { showCenterDialog } from '../lib/dialog-behavior.js';
 import { lockReauthFetch } from '../auth/auth-flow.js';
+import { langPath } from '../lib/lang-path.js';
 
 /**
  * 统一解析 API 响应：{ status, json }，区分网络错误/业务错误。
@@ -35,7 +36,7 @@ function parseApi(r) {
 
 /** @returns {string} 安全页地址（验证流程入口，语言跟随） */
 function securityUrl() {
-  return document.documentElement.lang === 'en' ? '/en/security/' : '/security/';
+  return langPath('/security/', document.documentElement.lang === 'en' ? 'en' : 'zh');
 }
 
 
