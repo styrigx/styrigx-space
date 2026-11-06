@@ -33,7 +33,7 @@ function aiSvc(log, fn) {
     async fetch(r) {
       log.push({ url: r.url, method: r.method, headers: Object.fromEntries(r.headers), body: await r.clone().text(), signal: r.signal });
       if (fn) return fn(r);
-      return new Response('event: hits\ndata: {"hits":[]}\n\nevent: done\ndata: {}\n\n', {
+      return new Response('event: delta\ndata: {"text":"ok"}\n\nevent: done\ndata: {}\n\n', {
         status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-Styrigx-AI-Scope': r.headers.get('X-Styrigx-Account-Session') === '1' ? 'private' : 'public' },
       });
     },
@@ -133,7 +133,7 @@ test('进门就行、不要账号会话：锁屏密码 / 临时钥匙进门都�
     assert.equal(r.headers.get('Content-Type'), 'text/event-stream; charset=utf-8');
     assert.equal(r.headers.get('X-Styrigx-AI-Scope'), 'public');
     assert.match(r.headers.get('Cache-Control'), /no-store/);
-    assert.match(await r.text(), /^event: hits\n/);
+    assert.match(await r.text(), /^event: delta\n/);
     const f = e.log[0];
     assert.equal(f.url, 'https://styrigx-ai/ask');
     assert.equal(f.method, 'POST');

@@ -1,14 +1,14 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:32a9f7169288 space/web/shared/shell va5bce8668afd（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:b7fec12cb5f7 space/web/shared/shell vc7f0af869e50（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- ai.js ---- */
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
  * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/ai.js；窗口的开合 / 互斥由 topbar.js（主站 shell/topbar-panel.js）管，这里只管窗口里面。
  * 自成一体：不 import 任何东西。
  *
- * - 问：POST /api/ai（同源，credentials: same-origin）{ q, lang, history } → text/event-stream：event hits（来源列表）→ delta…（回答分段）→ done；
+ * - 问：POST /api/ai（同源，credentials: same-origin）{ q, lang, history } → text/event-stream：event delta…（回答分段）→ done（2026-11-06 起不再有 event hits，不显示来源卡片：链接只出现在模型写的正文里）；
  *   出错时 event error。响应头 X-Styrigx-AI-Scope: private | public 只用来在底部小字说明「包含私密内容 / 仅公开内容」。
  *   网关的错误码（P4-1）：401 unauthorized（锁屏会话失效）· 429 cooldown / busy · 400 too-long · 413 too-large · 502 / 503 upstream。
- * - 历史只存本地 localStorage sgx-ai-history（{v:1, msgs:[{role, text, hits?, ts}]}，最多 50 条）；四站同源所以同一台设备上是同一份（同源带来的，不是同步）；
+ * - 历史只存本地 localStorage sgx-ai-history（{v:1, msgs:[{role, text, ts}]}，最多 50 条；旧记录里可能还带 hits，读出来不再渲染）；四站同源所以同一台设备上是同一份（同源带来的，不是同步）；
  *   lib/cloud-sync.js 的白名单不收这个键，不跨设备。发给服务端的 history 只带最近 6 条 {role, text}（服务端再截 2000 字）。
  * - 清空：删本地历史。AI 窗口就是新的聊天入口；/chat/ 页不换后端，P4-2 退役。
  * - 模型（P4-2d）：账号页「AI 模型」一行把选择存在 localStorage sgx-ai-model（进云同步，换设备跟着走）；这里发问时有就带上 body.model，
@@ -31,11 +31,10 @@ export const MODEL_KEY = 'sgx-ai-model';
 
 const STR = {
   zh: {
-    empty: '问一句，回答来自站内内容，并附上来源。',
+    empty: '问一句，回答来自站内内容。',
     thinking: '正在查站内内容…',
     scopePublic: '仅公开内容',
     scopePrivate: '包含私密内容',
-    sources: '来源',
     unauthorized: '锁屏会话已失效，请重新解锁后再问',
     cooldown: '问得太快了，请一分钟后再试',
     busy: '现在问的人太多，请稍后再试',
@@ -44,14 +43,12 @@ const STR = {
     fail: '没能拿到回答，请稍后再试',
     send: '发送',
     stop: '停止',
-    site: { space: '主站', blog: '博客', curio: '奇趣', daymark: '日刻' },
   },
   en: {
-    empty: 'Ask a question. Answers come from this site, with sources.',
+    empty: 'Ask a question. Answers come from this site.',
     thinking: 'Searching this site…',
     scopePublic: 'Public content only',
     scopePrivate: 'Includes private content',
-    sources: 'Sources',
     unauthorized: 'Your session has expired. Unlock again to ask',
     cooldown: 'Too many questions. Try again in a minute',
     busy: 'Lots of people are asking right now. Try again shortly',
@@ -60,11 +57,10 @@ const STR = {
     fail: 'Couldn’t get an answer. Please try again',
     send: 'Send',
     stop: 'Stop',
-    site: { space: 'Space', blog: 'Blog', curio: 'Curio', daymark: 'Daymark' },
   },
 };
 
-/** @typedef {{role: 'user'|'assistant', text: string, hits?: Array<{site?: string, title: string, subtitle?: string, url: string}>, ts: number, error?: boolean}} Msg */
+/** @typedef {{role: 'user'|'assistant', text: string, ts: number, error?: boolean}} Msg */
 
 /** 读本地历史（坏了 / 版本不对 = 空） @param {Storage|null} [store] @returns {Msg[]} */
 export function loadHistory(store) {
@@ -88,7 +84,7 @@ export function saveHistory(msgs, store) {
     else s.setItem(HISTORY_KEY, JSON.stringify({ v: 1, msgs: keep }));
   } catch (e) {}
 }
-/** 发给服务端的历史：最近 6 条 {role, text}（不带来源、不带出错的） @param {Msg[]} msgs */
+/** 发给服务端的历史：最近 6 条 {role, text}（不带出错的） @param {Msg[]} msgs */
 export function historyForServer(msgs) {
   return msgs.filter(function (m) { return !m.error && m.text; }).slice(-SEND_HISTORY).map(function (m) { return { role: m.role, text: m.text }; });
 }
@@ -232,28 +228,6 @@ export function mountAiChat(dlg, opts) {
     const tx = doc.createElement('span');
     tx.textContent = m.text;
     el.appendChild(tx);
-    if (m.hits && m.hits.length) {
-      const ul = doc.createElement('ul');
-      ul.className = 'sgx-ai-hits';
-      ul.setAttribute('aria-label', t.sources);
-      for (const h of m.hits) {
-        if (!h || typeof h.url !== 'string' || !/^(\/|https:\/\/styrigx\.com\/)/.test(h.url)) continue;
-        const li = doc.createElement('li');
-        const a = doc.createElement('a');
-        a.className = 'sgx-ai-hit';
-        a.href = h.url;
-        const b = doc.createElement('span');
-        b.textContent = h.title || h.url;
-        const s = doc.createElement('small');
-        const siteName = h.site && /** @type {any} */ (t.site)[h.site];
-        s.textContent = [siteName, h.subtitle].filter(Boolean).join(' · ');
-        a.appendChild(b);
-        if (s.textContent) a.appendChild(s);
-        li.appendChild(a);
-        ul.appendChild(li);
-      }
-      if (ul.children.length) el.appendChild(ul);
-    }
     return el;
   }
   function render() {
@@ -333,8 +307,7 @@ export function mountAiChat(dlg, opts) {
       if (!failed) {
         setScope(res.headers.get('X-Styrigx-AI-Scope'));
         await readSse(res.body, function (ev, d) {
-          if (ev === 'hits' && d && Array.isArray(d.hits)) ans.hits = d.hits;
-          else if (ev === 'delta' && d && typeof d.text === 'string') {
+          if (ev === 'delta' && d && typeof d.text === 'string') {
             ans.text += d.text;
             if (liveText) liveText.textContent = ans.text;
             list.scrollTop = list.scrollHeight;
@@ -391,16 +364,6 @@ export function mountAiChat(dlg, opts) {
       try { input.focus(); } catch (e) {}
     });
   }
-  /* 来源链接：先关窗口（退掉哨兵）再跳 */
-  list.addEventListener('click', function (e) {
-    const a = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target).closest('a.sgx-ai-hit'));
-    if (!a || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    e.preventDefault();
-    const href = a.href;
-    const go = function () { if (o.navigate) o.navigate(href); else location.href = href; };
-    if (o.close) o.close(go);
-    else go();
-  });
   /* 别的标签页 / 子站改了历史（同源同一份）：下次打开时重读 */
   render();
   setScope(null);

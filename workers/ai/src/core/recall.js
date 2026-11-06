@@ -137,11 +137,3 @@ export function recall(indexes, opt) {
   }
   return out;
 }
-
-/**
- * 给浏览器的来源列表：不带正文和内部字段（同 search-index 的约定）。
- * @param {RecallHit[]} hits
- */
-export function publicHits(hits) {
-  return hits.map((h) => ({ site: h.site, type: h.type, title: h.title, subtitle: h.subtitle, url: h.url }));
-}

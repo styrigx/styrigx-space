@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:32a9f7169288 space/web/shared/shell va5bce8668afd（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:b7fec12cb5f7 space/web/shared/shell vc7f0af869e50（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space space/scripts/gen-shell.mjs 从 space/web/data/palette-roles.json 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -6865,7 +6865,7 @@
 .palette-reset:focus-visible { outline: 2px solid var(--sgx-primary); outline-offset: 2px; }
 .palette-reset[aria-disabled="true"] { opacity: .38; cursor: default; box-shadow: none; }
 .sgx-qp-row .palette-reset { background: var(--sgx-surface-container-lowest); color: var(--sgx-primary); }
-/* AI 窗口（#sgx-ai，第 4 件）：同快捷面板的落下方式；消息列表（回答 + 来源卡片）→ 输入框 + 发送 → 清空 → 底部一行小字（仅公开内容 / 包含私密内容） */
+/* AI 窗口（#sgx-ai，第 4 件）：同快捷面板的落下方式；消息列表（只有回答正文，2026-11-06 起不显示来源卡片）→ 输入框 + 发送 → 清空 → 底部一行小字（仅公开内容 / 包含私密内容） */
 .sgx-ai .sgx-qp-sheet { display: flex; flex-direction: column; gap: 10px; height: min(560px, calc(100% - 2 * var(--sgx-qp-gap) - env(safe-area-inset-bottom, 0px))); overflow: hidden; }
 /* 键盘跟随（P4-3 PR-3）：ai.js 把键盘高度写进 --sgx-kb（输入框聚焦时才有），窗口下沿抬到键盘上沿；面板高度跟着压缩（消息列表让位），
    标题栏在上、输入框贴着键盘；键盘在时底部安全区由键盘占着，不再扣 */
@@ -6883,12 +6883,6 @@
 .sgx-ai-msg[data-role="user"] { align-self: flex-end; background: var(--sgx-primary-container); color: var(--sgx-on-primary-container); border-bottom-right-radius: 6px; }
 .sgx-ai-msg[data-role="assistant"] { align-self: flex-start; background: var(--sgx-qp-glass); box-shadow: inset 0 0 0 1px var(--sgx-qp-edge); color: var(--sgx-text-primary); border-bottom-left-radius: 6px; }
 .sgx-ai-msg[data-state="error"] { color: var(--sgx-danger); }
-.sgx-ai-hits { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; white-space: normal; }
-.sgx-ai-hit { display: inline-flex; flex-direction: column; max-width: 100%; padding: 6px 10px; border-radius: 12px; text-decoration: none;
-  background: var(--sgx-surface-container-high); color: var(--sgx-text-primary); font-size: 12px; line-height: 1.35; }
-.sgx-ai-hit span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sgx-ai-hit small { color: var(--sgx-text-secondary); font-size: 11px; }
-.sgx-ai-hit:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 .sgx-ai-form { display: flex; align-items: flex-end; gap: 8px; }
 .sgx-ai-in { flex: 1 1 auto; min-width: 0; min-height: 44px; max-height: 120px; resize: none; box-sizing: border-box; padding: 11px 14px; border-radius: 22px; font: inherit; font-size: 15px; line-height: 1.4;
   border: 1px solid var(--sgx-outline-variant); background: var(--sgx-surface-container-lowest); color: var(--sgx-text-primary); }

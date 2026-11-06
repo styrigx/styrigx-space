@@ -16,7 +16,7 @@
 
 | 路径 | 谁调 | 结果 |
 |---|---|---|
-| `POST /ask` `{ q, lang, history, model? }`（`model` 只在有账号结论头时生效，不在登记里 400 `bad_model`） | 网关 `styrigx-auth-gateway` 的服务绑定 `AI_SERVICE`（浏览器请求 `POST /api/ai`，网关验同源、进门、过两档 AI 限流、写账号结论头后转进来） | 200 `text/event-stream`：`event: hits` → `event: delta`（0 到多次）→ `event: done`；已开始流后出错发 `event: error`。响应头 `X-Styrigx-AI-Scope: private\|public`。召回为空不调模型。400 `bad_request` / `too-long`（`q` 超 200 字）、413 `too-large`、503 `config`（选中自营模型但没绑 AI）/ `no_key`（选中外部模型但钥匙读不到）/ `index`。外部模型流中出错 `event: error` 的 code 可能是 `rate_limited` / `model_unavailable` / `upstream`。响应头 `X-Styrigx-AI-Model` 是这次用的模型 id |
+| `POST /ask` `{ q, lang, history, model? }`（`model` 只在有账号结论头时生效，不在登记里 400 `bad_model`） | 网关 `styrigx-auth-gateway` 的服务绑定 `AI_SERVICE`（浏览器请求 `POST /api/ai`，网关验同源、进门、过两档 AI 限流、写账号结论头后转进来） | 200 `text/event-stream`：`event: delta`（0 到多次，2026-11-06 起不再发 `event: hits`）→ `event: done`；已开始流后出错发 `event: error`。响应头 `X-Styrigx-AI-Scope: private\|public`。召回为空不调模型。400 `bad_request` / `too-long`（`q` 超 200 字）、413 `too-large`、503 `config`（选中自营模型但没绑 AI）/ `no_key`（选中外部模型但钥匙读不到）/ `index`。外部模型流中出错 `event: error` 的 code 可能是 `rate_limited` / `model_unavailable` / `upstream`。响应头 `X-Styrigx-AI-Model` 是这次用的模型 id |
 | `GET /models` | 网关 `GET /api/ai`（进门即可，不计限流） | 200 `{ ok, default, models: [{ id, label, provider }], canChoose }`；`canChoose` = 有账号结论头 |
 | `GET /healthz` | P4-2 起 `styrigx-status` 的服务绑定 `AI_SERVICE` | 有 AI 绑定且至少一个站的索引读得到 200 `{ ok, sites, missing }`；否则 503。不调模型 |
 | 其他 | | 404 `not-found`；方法不对 405 `method` |

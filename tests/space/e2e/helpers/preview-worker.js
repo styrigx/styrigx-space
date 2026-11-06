@@ -37,14 +37,10 @@ export function isAccountOnlyKey(k) {
 }
 
 /** 预览桩的固定来源（公开一条；有账号会话再加私密一条） */
-export const PREVIEW_AI_HITS = Object.freeze({
-  public: Object.freeze([{ site: 'space', type: 'setting', title: '主题模式', subtitle: '外观', url: '/settings/' }]),
-  private: Object.freeze([{ site: 'space', type: 'setting', title: '账号', subtitle: '', url: '/account/' }]),
-});
 export const PREVIEW_AI_ANSWER = Object.freeze(['这是预览环境的固定回答。', '\n\n- 主题模式：/settings/']);
 
 /**
- * styrigx-ai 的预览桩（同服务绑定的形状：只有 fetch）。事件顺序同正式：hits → delta… → done。
+ * styrigx-ai 的预览桩（同服务绑定的形状：只有 fetch）。事件顺序同正式：delta… → done（2026-11-06 起不发 hits）。
  * @param {Request} req
  */
 export async function previewAiService(req) {
@@ -59,8 +55,7 @@ export async function previewAiService(req) {
   if (!body || typeof body.q !== 'string' || !body.q.trim()) return Response.json({ ok: false, error: 'bad_request' }, { status: 400 });
   if ([...body.q.trim()].length > 200) return Response.json({ ok: false, error: 'too-long' }, { status: 400 });
   const priv = req.headers.get('X-Styrigx-Account-Session') === '1';
-  const hits = priv ? PREVIEW_AI_HITS.public.concat(PREVIEW_AI_HITS.private) : PREVIEW_AI_HITS.public.slice();
-  const text = ev('hits', { hits }) + PREVIEW_AI_ANSWER.map((t) => ev('delta', { text: t })).join('') + ev('done', {});
+  const text = PREVIEW_AI_ANSWER.map((t) => ev('delta', { text: t })).join('') + ev('done', {});
   return new Response(enc.encode(text), {
     status: 200,
     headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'private, no-store', 'X-Styrigx-AI-Scope': priv ? 'private' : 'public' },

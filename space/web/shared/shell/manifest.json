@@ -4,13 +4,13 @@
   "dir": "space/web/shared/shell",
   "files": {
     "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
-    "shell.css": "2caed0b2e0f76843d1d1e61340bae22384e88330c62fa5e5c8f557e5a08fd972",
+    "shell.css": "e9d968c61d72e9d73118e9209afe433aa205bf7826a538523ee3325636331b51",
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "fa58dcdfe0398f5504c6f70952f08e9947e59b95de7c246d28418a2413737564",
     "topbar.html": "d25f031e132aa8f904ea114bf1564a1d9ac69077b325fe02c39704a50adcfda7",
     "topbar.js": "09ea142f103f7c45f5bc12d833a5110e63c99ea2ed1f4e948a55d92a56b9c692",
     "modal-sheet.js": "c409104c3553e63351ee05abadb2e8999aa82692b7bbae021f3ea19f2352071b",
-    "ai.js": "badc88514c24aeaa3a002dcf47ffb956e9c0d37f35974f1c2e4be0e5dbb313f7",
+    "ai.js": "67aea46a6977a4576512e076c19ffa23eedbd6c4fd693d7f8d67727a502ab555",
     "vk.js": "3bc7000ba510e8a7cbc1dd420e85cffdc23e0c5bd8184f4421d5e57f22ad7633",
     "prefs-write.js": "03fd506b111f123cc7e5d64e92dfcafe679e5c2310ee331df70a4d54090556e6",
     "nav.json": "9aaba576502a8aaaffccdef089b148b38ca5ccfdd480ed4b571e85dc10a529e3",
@@ -21,6 +21,6 @@
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "caa8078a5cfbfe8272c26031caf4b95c6cce51c59c3c4d07a1270279ad937f19"
   },
-  "version": "a5bce8668afd",
+  "version": "c7f0af869e50",
   "rulesVersion": "palette-rules-1"
 }
