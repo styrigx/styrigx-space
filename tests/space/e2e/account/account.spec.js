@@ -458,9 +458,11 @@ test.describe('账号总览：AI 模型（P4-2d）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
   const row = (page) => page.locator('#acct-ai-row');
   const sub = (page) => page.locator('#acct-ai-sub');
-  const opts = (page) => page.locator('#sheet-body .sheet-opt');
+  /* P4-3 §6.7（Gray 立规不做底部弹出窗口）：点行在行下方展开单选列表 #acct-ai-list，不再开 #sheet-wrap */
+  const list = (page) => page.locator('#acct-ai-list');
+  const opts = (page) => page.locator('#acct-ai-list .acct-ai-opt');
 
-  test('登录后可见：副标题 = 当前模型名（没选 = 服务端默认）；点开单选列表，默认那项打勾，选项来自 GET /api/ai', async ({ page }) => {
+  test('登录后可见：副标题 = 当前模型名（没选 = 服务端默认）；点行在行下方展开单选列表（不弹底部窗口），默认那项打勾，选项来自 GET /api/ai', async ({ page }) => {
     await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
     const seen = await mockAiList(page, AI_LIST());
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
@@ -468,21 +470,37 @@ test.describe('账号总览：AI 模型（P4-2d）', () => {
     await expect(row(page)).toContainText('AI 模型');
     await expect(sub(page)).toHaveText('Gemma 4');
     expect(seen.gets).toBe(1);
+    await expect(row(page)).toHaveAttribute('aria-expanded', 'false');
+    await expect(row(page)).not.toHaveAttribute('aria-haspopup', /.*/);
+    await expect(list(page)).toBeHidden();
     await row(page).click();
-    await expect(page.locator('#sheet-wrap')).toBeVisible();
-    await expect(page.locator('#sheet-title')).toHaveText('AI 模型');
+    await expect(row(page)).toHaveAttribute('aria-expanded', 'true');
+    await expect(row(page)).toHaveAttribute('aria-controls', 'acct-ai-list');
+    await expect(list(page)).toBeVisible();
+    await expect(list(page)).toHaveAttribute('role', 'radiogroup');
+    await expect(page.locator('#sheet-wrap[open]')).toHaveCount(0);
+    /* 列表紧跟在行下方、同一张卡里 */
+    const [rb, lb] = await Promise.all([row(page).boundingBox(), list(page).boundingBox()]);
+    expect(Math.abs(lb.y - (rb.y + rb.height))).toBeLessThanOrEqual(1);
     await expect(opts(page)).toHaveCount(3);
     await expect(opts(page).nth(0)).toContainText('Gemma 4');
     await expect(opts(page).nth(0)).toContainText('默认 · 自营');
     await expect(opts(page).nth(0)).toContainText('✓');
+    await expect(opts(page).nth(0)).toHaveAttribute('aria-checked', 'true');
     await expect(opts(page).nth(1)).not.toContainText('✓');
+    await expect(opts(page).nth(1)).toHaveAttribute('aria-checked', 'false');
     /* 模型名来自 KV：按文字显示，不当 HTML */
     await expect(opts(page).nth(2)).toContainText('Gemini <b>2.5</b> Flash');
     await expect(opts(page).nth(2)).toContainText('外部');
     expect(await ls(page, 'sgx-ai-model')).toBe(null);
+    /* 再点一下行：收起，什么都不存 */
+    await row(page).click();
+    await expect(list(page)).toBeHidden();
+    await expect(row(page)).toHaveAttribute('aria-expanded', 'false');
+    expect(await ls(page, 'sgx-ai-model')).toBe(null);
   });
 
-  test('切换：写 localStorage sgx-ai-model、派发 sgx-settings-changed（云同步跟着推），副标题跟着变；再开列表打勾在新选项上', async ({ page }) => {
+  test('切换：选中即保存并收起（焦点回到行上）；写 localStorage sgx-ai-model、派发 sgx-settings-changed（云同步跟着推），副标题跟着变；再开列表打勾在新选项上', async ({ page }) => {
     await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
     await mockAiList(page, AI_LIST());
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
@@ -490,13 +508,28 @@ test.describe('账号总览：AI 模型（P4-2d）', () => {
     await page.evaluate(() => { window.__chg = 0; window.addEventListener('sgx-settings-changed', () => { window.__chg++; }); });
     await row(page).click();
     await opts(page).nth(1).click();
-    await expect(page.locator('#sheet-wrap[open]')).toHaveCount(0);
+    await expect(list(page)).toBeHidden();
+    await expect(row(page)).toHaveAttribute('aria-expanded', 'false');
+    await expect(row(page)).toBeFocused();
     expect(await ls(page, 'sgx-ai-model')).toBe('@cf/openai/gpt-oss-20b');
     await expect(sub(page)).toHaveText('GPT-OSS 20B');
     expect(await page.evaluate(() => window.__chg)).toBeGreaterThan(0);
     await row(page).press('Enter');
     await expect(opts(page).nth(1)).toContainText('✓');
     await expect(opts(page).nth(0)).not.toContainText('✓');
+    /* 键盘：下键在选项间移焦点，Enter 选中；Esc 收起回到行上 */
+    await opts(page).nth(1).focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(opts(page).nth(2)).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(list(page)).toBeHidden();
+    expect(await ls(page, 'sgx-ai-model')).toBe('gemini-2.5-flash');
+    await row(page).press('Enter');
+    await expect(list(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(list(page)).toBeHidden();
+    await expect(row(page)).toBeFocused();
+    expect(await ls(page, 'sgx-ai-model')).toBe('gemini-2.5-flash');
   });
 
   test('本地选的模型已不在列表里（被下架）：按默认显示，不删本地值（真正清掉在 AI 窗口收到 bad_model 时）', async ({ page }) => {
@@ -518,10 +551,12 @@ test.describe('账号总览：AI 模型（P4-2d）', () => {
     await row(page).click({ force: true });
     await expect(page.locator('.sgx-toast')).toContainText('登录账号后才能切换模型');
     await expect(page.locator('#sheet-wrap[open]')).toHaveCount(0);
+    await expect(list(page)).toBeHidden();
+    await expect(row(page)).toHaveAttribute('aria-expanded', 'false');
     expect(await ls(page, 'sgx-ai-model')).toBe(null);
   });
 
-  test('读不到列表（502）：副标题「暂时读不到模型列表」；点一下重读，读到了直接弹列表', async ({ page }) => {
+  test('读不到列表（502）：副标题「暂时读不到模型列表」；点一下重读，读到了直接展开列表', async ({ page }) => {
     await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
     let fail = true;
     let gets = 0;
@@ -559,7 +594,9 @@ test.describe('账号总览：AI 模型（P4-2d）', () => {
     await expect(row(page)).toContainText('AI model');
     await expect(sub(page)).toHaveText('Gemma 4');
     await row(page).click();
-    await expect(page.locator('#sheet-title')).toHaveText('AI model');
+    await expect(list(page)).toBeVisible();
+    await expect(page.locator('#acct-ai-title')).toHaveText('AI model');
+    await expect(list(page)).toHaveAttribute('aria-labelledby', 'acct-ai-title');
     await expect(opts(page).nth(0)).toContainText('Default · Self-hosted');
     await expect(opts(page).nth(2)).toContainText('External');
   });

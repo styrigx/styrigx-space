@@ -5,8 +5,10 @@
  * - 进总览（apps/account.js 确认有账号会话后）调 initAiModelRow：GET /api/ai → { ok, default, models: [{ id, label, provider }], canChoose }
  *   （网关转 styrigx-ai GET /models；canChoose 跟账号结论头走：只有账号会话能切）。
  *   副标题 = 当前生效的模型名：canChoose 且本地选的 id 在列表里 → 它；否则服务端默认模型。
- * - 点这一行 → 通用底部单选列表（shell/sheet.js openSheet，当前项打勾）；canChoose=false → 不弹列表，只提示登录账号后才能切换；
- *   读不到列表 → 副标题「暂时读不到模型列表」，点了再试一次。
+ * - 点这一行 → 行下方展开单选列表 #acct-ai-list（P4-3 §6.7：Gray 立规不做底部弹出窗口；行 aria-expanded，选项 role=radio，当前项打勾），
+ *   再点一下收起，Esc 收起回到行上；canChoose=false → 不展开，只提示登录账号后才能切换；
+ *   读不到列表 → 副标题「暂时读不到模型列表」，点了再试一次（读到了直接展开）。
+ * - 选中即保存并收起，焦点回到行上。
  * - 选中写 localStorage sgx-ai-model（shell/ai-panel.js MODEL_KEY，AI 窗口发问时带上 body.model）并派发 sgx-settings-changed，
  *   lib/cloud-sync.js（EXTRA 收这个键）记修改时间推上云端，换设备跟着走。选的就是默认模型也照样存（以后默认换了，选过的人不跟着换）。
  * - 本地选的模型被下架：这里只按默认显示，不删本地值（KV 一时读不到落到内置列表时不误删）；真正清掉的是 AI 窗口收到 400 bad_model 时。
@@ -14,7 +16,6 @@
  * 模型名来自 KV（Gray 写），进 innerHTML 前转义。
  */
 import { MODEL_KEY } from '../shell/ai-panel.js';
-import { openSheet } from '../shell/sheet.js';
 import { get as sget, set as sset } from '../lib/storage.js';
 import { on } from '../lib/events.js';
 import { esc } from '../lib/util.js';
@@ -73,11 +74,44 @@ export function initAiModelRow(opts) {
   const doFetch = opts.fetch || window.fetch.bind(window);
   const row = document.getElementById('acct-ai-row');
   const sub = document.getElementById('acct-ai-sub');
-  if (!row || !sub) return;
+  const box = document.getElementById('acct-ai-list');
+  if (!row || !sub || !box) return;
   /** @type {AiModelList|null} */
   let list = null;
   let loading = false;
   let failed = false;
+
+  /** @returns {boolean} */
+  function isOpen() {
+    return !!box && !box.hidden;
+  }
+
+  /** 收起列表；refocus = 焦点回到行上（选中 / Esc 时） @param {boolean} [refocus] */
+  function collapse(refocus) {
+    if (!row || !box) return;
+    box.hidden = true;
+    box.innerHTML = '';
+    row.setAttribute('aria-expanded', 'false');
+    if (refocus) row.focus();
+  }
+
+  /** 按当前列表画选项（当前项 aria-checked=true、打勾；只有它进 Tab 顺序） */
+  function renderOptions() {
+    if (!box || !list) return;
+    const l = list;
+    const cur = currentModel(l, sget(MODEL_KEY, null));
+    box.innerHTML = l.models.map(function (m) {
+      const tags = [];
+      if (m.id === l.default) tags.push(t('aiModelDefault'));
+      if (m.provider === 'workers-ai') tags.push(t('aiModelSelf'));
+      else if (m.provider === 'gemini') tags.push(t('aiModelExternal'));
+      const on = !!cur && m.id === cur.id;
+      return '<button type="button" class="acct-ai-opt" role="radio" aria-checked="' + on + '" tabindex="' + (on ? '0' : '-1') + '" data-model="' + esc(m.id) + '">' +
+        '<span class="flex-1 min-w-0"><span class="acct-ai-opt-t block font-medium truncate">' + esc(modelName(m)) + '</span>' +
+        (tags.length ? '<span class="block text-xs text-m-on-surface-variant truncate">' + esc(tags.join(' · ')) + '</span>' : '') +
+        '</span><span class="acct-ai-opt-ck" aria-hidden="true">' + (on ? '✓' : '') + '</span></button>';
+    }).join('');
+  }
 
   function paint() {
     if (!row || !sub) return;
@@ -85,12 +119,18 @@ export function initAiModelRow(opts) {
       /* 读不到：行照样能点（点了再读一次），不标 aria-disabled */
       sub.textContent = failed ? t('aiModelErr') : '';
       row.removeAttribute('aria-disabled');
+      if (isOpen()) collapse(false);
       return;
     }
     const cur = currentModel(list, sget(MODEL_KEY, null));
     sub.textContent = cur ? modelName(cur) : '';
     if (list.canChoose) row.removeAttribute('aria-disabled');
     else row.setAttribute('aria-disabled', 'true');
+    /* 开着时（别的标签页 / 云同步改了）勾跟着走；不能切了就收起 */
+    if (isOpen()) {
+      if (list.canChoose) renderOptions();
+      else collapse(false);
+    }
   }
 
   function load() {
@@ -111,45 +151,63 @@ export function initAiModelRow(opts) {
       });
   }
 
-  /** @param {string} id */
+  /** 选中即保存并收起（选的就是当前项也照样存，同原来） @param {string} id */
   function pick(id) {
     if (!list || !list.models.some(function (m) { return m.id === id; })) return;
     sset(MODEL_KEY, id);
     try { window.dispatchEvent(new Event('sgx-settings-changed')); } catch (e) {}
+    collapse(true);
     paint();
   }
 
-  function openPicker() {
+  /** 点行：开着 → 收起；关着 → 展开（读不到先重读，不能切只提示） */
+  function togglePicker() {
     if (loading) return;
+    if (isOpen()) {
+      collapse(false);
+      return;
+    }
     if (!list) {
-      /* 上次读不到：再试一次，读到了就直接弹列表 */
-      load().then(function () { if (list) openPicker(); else toast(t('aiModelErr')); });
+      /* 上次读不到：再试一次，读到了就直接展开 */
+      load().then(function () { if (list) togglePicker(); else toast(t('aiModelErr')); });
       return;
     }
     if (!list.canChoose) {
       toast(t('aiModelLocked'));
       return;
     }
-    const l = list;
-    const cur = currentModel(l, sget(MODEL_KEY, null));
-    openSheet({
-      title: t('aiModelTitle'),
-      options: l.models.map(function (m) {
-        const tags = [];
-        if (m.id === l.default) tags.push(t('aiModelDefault'));
-        if (m.provider === 'workers-ai') tags.push(t('aiModelSelf'));
-        else if (m.provider === 'gemini') tags.push(t('aiModelExternal'));
-        return { label: esc(modelName(m)), sub: esc(tags.join(' · ')), value: m.id, checked: !!cur && m.id === cur.id };
-      }),
-      onPick: pick,
-    });
+    if (!row || !box) return;
+    renderOptions();
+    box.hidden = false;
+    row.setAttribute('aria-expanded', 'true');
   }
 
   reload = load;
-  on(row, 'click', openPicker);
+  on(row, 'click', togglePicker);
   on(row, 'keydown', function (e) {
     const ev = /** @type {KeyboardEvent} */ (e);
-    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openPicker(); }
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); togglePicker(); }
+    else if (ev.key === 'Escape' && isOpen()) { ev.preventDefault(); collapse(true); }
+  });
+  on(box, 'click', function (e) {
+    const b = /** @type {HTMLElement|null} */ (e.target instanceof Element ? e.target.closest('.acct-ai-opt') : null);
+    if (b) pick(b.getAttribute('data-model') || '');
+  });
+  /* 单选组键盘：上下（左右）键在选项间移动焦点，Home / End 到头尾，Esc 收起回到行上；Enter / 空格由按钮自己触发 click */
+  on(box, 'keydown', function (e) {
+    const ev = /** @type {KeyboardEvent} */ (e);
+    if (!box) return;
+    const opts = /** @type {HTMLElement[]} */ (Array.from(box.querySelectorAll('.acct-ai-opt')));
+    const i = opts.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+    let n = -1;
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowRight') n = (i + 1) % opts.length;
+    else if (ev.key === 'ArrowUp' || ev.key === 'ArrowLeft') n = (i - 1 + opts.length) % opts.length;
+    else if (ev.key === 'Home') n = 0;
+    else if (ev.key === 'End') n = opts.length - 1;
+    else if (ev.key === 'Escape') { ev.preventDefault(); collapse(true); return; }
+    if (n < 0 || !opts[n]) return;
+    ev.preventDefault();
+    opts[n].focus();
   });
   window.addEventListener('sgx-settings-changed', paint);
   window.addEventListener('storage', function (e) {

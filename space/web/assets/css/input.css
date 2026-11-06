@@ -7356,6 +7356,23 @@
   /* 账号 → 云同步（2026-10-24 PR4）：同步项列表；总开关关着时整组变淡（仍可看）。自定义主题色那一行右端一个色点 */
   .acct-sync-items { transition: opacity .2s ease; }
   .acct-sync-items.is-off { opacity: .5; }
+  /* 账号总览「AI 模型」（P4-3 §6.7，Gray 立规不做底部弹出窗口）：点行 → 行下方展开单选列表，选中即保存并收起（apps/account-ai.js）。
+     选项文字和行文字左缘对齐（68 = 行内边距 20 + 圆底 40 + 间距 14 − 6），分隔线同 .acct-row；展开时右箭头转向下 */
+  #acct-ai-row > svg:last-child { transition: transform .2s ease; }
+  #acct-ai-row[aria-expanded="true"] > svg:last-child { transform: rotate(90deg); }
+  .reduced-motion #acct-ai-row > svg:last-child { transition: none; }
+  @media (prefers-reduced-motion: reduce) { #acct-ai-row > svg:last-child { transition: none; } }
+  .acct-ai-list { padding: 0 0 6px; }
+  .acct-ai-list[hidden] { display: none; }
+  .acct-ai-opt {
+    position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 12px 20px 12px 74px; min-height: 52px; text-align: left; color: var(--m-on-surface);
+    &::before { content: ''; position: absolute; top: 0; left: 68px; right: 0; border-top: 1px solid color-mix(in srgb, var(--m-outline) 55%, transparent); }
+    &:active { background: var(--m-container); }
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+    &[aria-checked="true"] .acct-ai-opt-t { color: var(--m-primary); }
+  }
+  .acct-ai-opt-ck { width: 20px; flex-shrink: 0; text-align: center; color: var(--m-primary); font-weight: 700; }
   .acct-sync-swatch { width: 24px; height: 24px; border-radius: 999px; flex-shrink: 0; box-shadow: inset 0 0 0 1px var(--m-outline); }
   .acct-sync-swatch[hidden] { display: none; }
   .acct-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
