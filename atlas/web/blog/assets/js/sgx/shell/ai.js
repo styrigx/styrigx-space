@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:98cfd2c768e0 space/web/shared/shell v3768410ae19b（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:cb66f28c7c78 space/web/shared/shell v5c121be61931（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- ai.js ---- */
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
@@ -459,7 +459,8 @@ export function mountAiChat(dlg, opts) {
       hist.appendChild(p);
       return;
     }
-    for (const c of data.chats) {
+    /* 倒序：最新的在前（内存里的列表是追加顺序，只有存盘那份排过序） */
+    for (const c of data.chats.slice().sort(function (a, b) { return b.time - a.time; })) {
       const b = doc.createElement('button');
       b.type = 'button';
       b.className = 'sgx-ai-hist-item';

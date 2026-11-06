@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:98cfd2c768e0 space/web/shared/shell v3768410ae19b（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:cb66f28c7c78 space/web/shared/shell v5c121be61931（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- prefs-write.js ---- */
 /**
  * @fileoverview 外观写端（2026-11-04 P5-1，定案第 5 条：四站共用一个写端）。

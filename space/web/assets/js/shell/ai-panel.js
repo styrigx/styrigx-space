@@ -457,7 +457,8 @@ export function mountAiChat(dlg, opts) {
       hist.appendChild(p);
       return;
     }
-    for (const c of data.chats) {
+    /* 倒序：最新的在前（内存里的列表是追加顺序，只有存盘那份排过序） */
+    for (const c of data.chats.slice().sort(function (a, b) { return b.time - a.time; })) {
       const b = doc.createElement('button');
       b.type = 'button';
       b.className = 'sgx-ai-hist-item';
