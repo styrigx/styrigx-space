@@ -1,7 +1,7 @@
 /**
  * @fileoverview 打开短链：GET / HEAD https://styrigx.com/s/<码>。
  *
- * - 目标可以是主站路径或三个子站的地址（lib/links.js cleanTarget；点开时再验一次，存坏了也只走失败响应）。
+ * - 目标是 styrigx.com 的站内路径（lib/links.js cleanTarget；点开时再验一次，存坏了 / 指向已下线的旧图志也只走失败响应）。
  * - 普通短链：302 到目标，不签钥匙、不发会话；没解锁的人到了目标页由网关照常送去锁屏。
  * - 带临时会话：已有有效进门会话（任何进门方式）→ 只 302，不重签；否则请网关（服务绑定 ISSUER → ShareIssuer.openLinkSession）
  *   用这条短链的钥匙签锁屏进门会话（by=tempkey），Set-Cookie 原样放进这次 302。点开的人不用在锁屏输入任何东西。

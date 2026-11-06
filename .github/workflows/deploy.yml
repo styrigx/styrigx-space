@@ -1978,7 +1978,7 @@ jobs:
     # 新网关的 ShareIssuer 只验锁屏进门会话。
     # 和网关一样等 status 的健康闸门。
     # 步骤：迁移 D1 styrigx-share（migrations/；失败要让 job 红，不 continue-on-error）
-    # → 查 d1_migrations 和表，确认 0001_share_links.sql 真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
+    # → 查 d1_migrations 和表，确认 0001_share_links.sql、0002_drop_atlas_targets.sql 真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
     # token：Cloudflare 上 styrigx-share-deploy = GitHub 环境 STYRIGX_SHARE_DEPLOY 里的同名环境密钥 STYRIGX_SHARE_DEPLOY，
     # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
@@ -2015,7 +2015,7 @@ jobs:
           out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-share --remote --json --command "SELECT name FROM d1_migrations UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table'")
           echo "$out"
           ok=0
-          for need in '"0001_share_links.sql"' '"table:share_link"' '"table:share_fail"'; do
+          for need in '"0001_share_links.sql"' '"0002_drop_atlas_targets.sql"' '"table:share_link"' '"table:share_fail"'; do
             if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-share 里没有 $need"; ok=1; fi
           done
           exit $ok

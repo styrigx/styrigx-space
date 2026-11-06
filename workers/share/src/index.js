@@ -3,7 +3,7 @@
  *
  * - GET / HEAD /s/<码>（谁都能开）：open.js —— 普通短链只 302；带临时会话的请网关签临时会话后 302（去掉码）
  * - POST /api/share（进门；生成 / 作废另要锁侧复验，由网关 ShareIssuer 验）：api/share.js —— 列表 / 生成 / 作废
- *   三个子站顶栏的分享按钮跨源调它：OPTIONS 预检在门之前回（预检不带 cookie），每个 /api/* 响应补 CORS 头（lib/cors.js）
+ *   只收同源请求（合并 PR3 起各站都在 styrigx.com 下）：不回任何 CORS 头；OPTIONS 预检在门之前一律 403（不查会话）
  * 数据：D1 styrigx-share（绑定 D1_SHARE_LINK，migrations/）。不持任何钥匙、不绑认证库：
  * - 会话判断问网关 AuthVerifier（服务绑定 AUTH，和账号 Worker 同一份 auth.js）
  * - 签 / 作废短链钥匙、换临时会话问网关 ShareIssuer（服务绑定 ISSUER）；临时钥匙和会话的逻辑只在网关里一份
@@ -16,7 +16,6 @@ import { withNoStore, apiError } from './lib/http.js';
 import { applyMainSiteHeaders } from './lib/security-headers.js';
 import { SHARE_PATH_RE } from './lib/links.js';
 import { openShare, failResponse } from './open.js';
-import { preflight, withCors } from './lib/cors.js';
 import * as share from './api/share.js';
 
 export const RUNTIME = 'share';
@@ -46,6 +45,15 @@ export function pickHandler(mod, method) {
 export function fromOrigin(req, env) {
   if (env && env.ASSETS && typeof env.ASSETS.fetch === 'function') return env.ASSETS.fetch(req);
   return fetch(new Request(req, { redirect: 'manual' }));
+}
+
+/**
+ * OPTIONS /api/share：不接受跨源（旧图志 atlas.styrigx.com 下线后没有别的源要调），预检一律 403、不带任何 Allow 头。
+ * 在门之前回：预检不带 cookie，不必问会话。
+ * @returns {Response}
+ */
+export function preflightDenied() {
+  return new Response(null, { status: 403, headers: { 'Cache-Control': 'private, no-store' } });
 }
 
 /** @param {Response} res */
@@ -86,16 +94,16 @@ export default {
       isOpen = SHARE_PATH_RE.test(new URL(request.url).pathname);
       const pathname = new URL(request.url).pathname;
       isApi = pathname.startsWith('/api/');
-      if (isApi && request.method === 'OPTIONS' && routeKey(pathname) === '/api/share') return tagRuntime(preflight(request));
+      if (isApi && request.method === 'OPTIONS' && routeKey(pathname) === '/api/share') return tagRuntime(preflightDenied());
       const auth = authFor(request, env);
       const denied = await gate(request, env, auth);
       const res = denied || (await route(request, env, ctx, auth));
-      return tagRuntime(isApi ? withCors(withNoStore(res), request) : res);
+      return tagRuntime(isApi ? withNoStore(res) : res);
     } catch (e) {
       console.error('[sgx-share] unhandled: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
       /* /s/<码> 出错也只回统一的失败响应，不露 500 */
       if (isOpen) return tagRuntime(failResponse());
-      return tagRuntime(isApi ? withCors(apiError(500, 'internal'), request) : apiError(500, 'internal'));
+      return tagRuntime(apiError(500, 'internal'));
     }
   },
 };

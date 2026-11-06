@@ -1,22 +1,21 @@
 /**
- * @fileoverview 分享短链管理：POST /api/share { action }（同源；子站只许 create + reuse）。
+ * @fileoverview 分享短链管理：POST /api/share { action }（只收同源）。
  * 鉴权（方案 3.4 R13、3.6）：list = 进门；create（含 reuse:true）/ revoke = 进门 + 锁侧复验——先问网关 ShareIssuer.checkReauth，
  * 没有有效 sgx-lock-reauth → 原样回 401 reauth（前端先走锁侧复验，通过后自动重试）。生成短链就是发放一张入门凭证，与发临时钥匙同级。
  *
  * - list → { links: [view] }（新到旧；含已过期 / 已作废的，留 7 天后删；字段见 lib/links.js view）
  * - create { name?, hours? | days?, to?, session? } → { link: view }
- *     有效期：hours 1–24 或 days 3 / 7 / 15 / 30；to 站内相对路径或 styrigx.com / 三个子站的 https 地址（默认 /，lib/links.js cleanTarget）；
+ *     有效期：hours 1–24 或 days 3 / 7 / 15 / 30；to 站内相对路径或 https://styrigx.com 的地址（默认 /，lib/links.js cleanTarget）；
  *     session = 短链进门会话秒数（0 / 不传 = 普通短链，不签钥匙、不发会话），只收 1800 / 3600 / 10800 / 43200 / 86400 / 259200 / 604800，
  *     且不超过有效期；同时有效最多 20 条（409 full）。
  *     带会话：请网关（ISSUER → ShareIssuer.createLinkKey）签一把新的短链钥匙，网关再验一次进门 + 锁侧复验；
  *     短链到期时间 = 钥匙到期时间。写 D1 失败 → 把刚签的钥匙作废，不留孤儿。
- * - create 加 reuse:true（子站顶栏分享按钮用）：已有同一目标（规范化后）、同一会话档位、同一有效期、没作废、还剩 ≥ 12 小时的短链
+ * - create 加 reuse:true（顶栏分享按钮用）：已有同一目标（规范化后）、同一会话档位、同一有效期、没作废、还剩 ≥ 12 小时的短链
  *     → 直接返回它（{ link, reused:true }），不签新钥匙、不占名额，临时钥匙列表不会越点越长；名字超过 24 字截断（按钮拿页面标题当名字）。
- * - 跨源：只认三个子站的 Origin（lib/cors.js），而且只许 create + reuse:true；list / revoke 只能在主站同源调。
+ * - 只收同源（Origin 必须是 styrigx.com 本身）：跨源或不带 Origin 一律 403 origin；合并 PR3 起各站都在主域名下，旧图志的跨源已删。
  * - revoke { id } → 作废（带会话的先请网关作废钥匙：拿它进门的人下一个请求就进不来；网关失败 → 503，D1 不改，可以重试）
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
-import { isSubsiteOrigin } from '../lib/cors.js';
 import { cookieOf } from '../auth.js';
 import {
   SQL, SHARE_MAX, NAME_MAX, KEEP_DEAD_MS, REUSE_MIN_LEFT_MS, REUSE_SLACK_MS, durationMs, cleanName, cleanTarget, sessionSeconds,
@@ -49,8 +48,7 @@ function issuerError(e) {
 /** @param {any} context */
 async function handle(context) {
   const { request, env, auth } = context;
-  const cross = !isSameOrigin(request);
-  if (cross && !isSubsiteOrigin(request)) return originDenied();
+  if (!isSameOrigin(request)) return originDenied();
   const sess = await auth.lockSession();
   if (!sess.ok) return apiError(401, 'session');
   const db = env && env.D1_SHARE_LINK;
@@ -63,7 +61,6 @@ async function handle(context) {
   }
   const action = (body && body.action) || '';
   const reuse = !!(body && body.reuse === true);
-  if (cross && !(action === 'create' && reuse)) return originDenied();
   const now = Date.now();
 
   /* 生成 / 作废：进门 + 锁侧复验，统一先问网关（不管带不带会话、reuse 命不命中） */
