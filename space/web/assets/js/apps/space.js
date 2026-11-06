@@ -267,18 +267,17 @@ export function mountSpace() {
       v = wellFlush();
     } catch (e) {}
     const ar = v.areas || {};
-    /* 旧数据：'goodlock' 区域（原 Good Lock 页）并进设置；搜索页的区域键是 'browser'（更早是 'links'） */
+    /* 读旧写新（P4-3 PR-4b）：旧区域键 'home'（主页）、'settings'（设置）和更早的 'goodlock'（原 Good Lock 页）并进旷野 'space'；
+       搜索页的区域键是 'browser'（更早是 'links'） */
     const mins = {
-      home: ar.home || 0,
+      space: (ar.space || 0) + (ar.home || 0) + (ar.settings || 0) + (ar.goodlock || 0),
       links: (ar.browser || 0) + (ar.links || 0),
-      settings: (ar.settings || 0) + (ar.goodlock || 0),
     };
     const total = Math.max(0, v.min || 0);
     totalEl.textContent = fmtDur(total * 60, en, true);
     const AREAS = [
-      { id: 'home', label: T.t('areaHome'), color: 'var(--m-primary-fill, var(--m-primary))' },
+      { id: 'space', label: T.t('areaSpace'), color: 'var(--m-primary-fill, var(--m-primary))' },
       { id: 'links', label: T.t('areaLinks'), color: 'var(--m-accent)' },
-      { id: 'settings', label: T.t('areaSpace'), color: 'var(--sgx-secondary-fill, var(--m-secondary))' },
     ];
     if (total < 1) {
       bar.innerHTML = '<span style="width:100%;background:var(--m-container-highest)"></span>';

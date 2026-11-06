@@ -9,7 +9,6 @@ import { get, set } from '../lib/storage.js';
 import { get as featGet } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
 import { visibleInterval } from '../lib/scheduler.js';
-import { SPACE_SUB_RE } from '../lib/wb-area.js';
 
 /** @returns {string} YYYY-M-D */
 function dayStr(d) {
@@ -41,11 +40,11 @@ let sessArea = '';
 
 function areaOf() {
   const p = location.pathname;
-  /* 旷野子页（P4-3 PR-4b 起在根下：/display/、/security/… 等，lib/wb-area.js SPACE_SUB_RE）都算「设置」区域（旧数据里的 'goodlock' 区域在数字健康卡里并进设置） */
-  if (SPACE_SUB_RE.test(p)) return 'settings';
   /* 区域键沿用 'browser'（历史数据不丢）：2026-10-21 主站书签下线后只剩 /search/ */
   if (p === '/search/' || p === '/en/search/') return 'browser';
-  return 'home';
+  /* P4-3 PR-4b：旷野页和旷野子页（lib/wb-area.js SPACE_SUB_RE）都记 'space'（只写新键）。
+     今天的本机记录里旧键 'home' / 'settings'（更早的 'goodlock'）照旧留着，数字健康卡读的时候并进旷野（apps/space.js） */
+  return 'space';
 }
 
 /**
