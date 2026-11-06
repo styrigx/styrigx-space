@@ -103,10 +103,15 @@
 <dialog id="sgx-ai" class="sgx-qp sgx-ai" aria-label="{{ if $en }}Ask AI{{ else }}AI 助手{{ end }}">
   <div class="sgx-qp-sheet" tabindex="-1">
     <div class="sgx-ai-head">
-      <p class="sgx-ai-title">{{ if $en }}Ask about this space{{ else }}问问站内{{ end }}</p>
-      <button type="button" class="sgx-ai-clear" data-ai-clear>{{ if $en }}Clear{{ else }}清空{{ end }}</button>
+      <p class="sgx-ai-title">Gray AI</p>
     </div>
-    <div class="sgx-ai-list" data-ai-list aria-live="polite"><p class="sgx-ai-empty" data-ai-empty>{{ if $en }}Ask a question. Answers come from this site, with sources.{{ else }}问一句，回答来自站内内容，并附上来源。{{ end }}</p></div>
+    <div class="sgx-ai-actions">
+      <button type="button" class="sgx-ai-pill" data-ai-clear>{{ if $en }}New chat{{ else }}新对话{{ end }}</button>
+      <button type="button" class="sgx-ai-pill" data-ai-history aria-expanded="false">{{ if $en }}History{{ else }}历史{{ end }}</button>
+      <a class="sgx-ai-pill" data-ai-contact href="mailto:ai@styrigx.com">{{ if $en }}Contact{{ else }}联系{{ end }}</a>
+    </div>
+    <div class="sgx-ai-hist" data-ai-hist hidden></div>
+    <div class="sgx-ai-list" data-ai-list aria-live="polite"></div>
     <form class="sgx-ai-form" data-ai-form>
       <textarea class="sgx-ai-in" data-ai-in rows="1" maxlength="200" enterkeyhint="send" aria-label="{{ if $en }}Your question{{ else }}你的问题{{ end }}" placeholder="{{ if $en }}Ask something…{{ else }}想问点什么…{{ end }}"></textarea>
       <button type="submit" class="sgx-ai-send" aria-label="{{ if $en }}Send{{ else }}发送{{ end }}">{{ index $i "tb-send" | safeHTML }}</button>

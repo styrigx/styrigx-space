@@ -236,7 +236,7 @@ test('baseline-ai-panel-open', async ({ page: pg }) => {
   await pg.click('.sgx-tb-ai');
   await expect(pg.locator('#sgx-ai.is-open')).toBeVisible({ timeout: 10000 });
   await expect(pg.locator('#sgx-ai')).toHaveAttribute('data-state', 'open');
-  await expect(pg.locator('#sgx-ai .sgx-ai-empty')).toBeVisible();
+  await expect(pg.locator('#sgx-ai .sgx-ai-msg[data-greet]')).toBeVisible();
   /* 焦点在窗口里（光标闪烁不稳定）：拍之前移走 */
   await pg.evaluate(() => /** @type {HTMLElement} */ (document.activeElement).blur());
   await expect(pg).toHaveScreenshot('baseline-ai-panel-open.png', { animations: 'disabled' });

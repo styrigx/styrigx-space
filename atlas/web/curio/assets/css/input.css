@@ -112,7 +112,7 @@ html, body {
 @supports (overflow-x: clip) {
   html, body { overflow-x: clip; }
 }
-/* @sgx-shell:begin styrigx/styrigx-space@tree:b7fec12cb5f7 space/web/shared/shell vc7f0af869e50（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:6059aaa32c3a space/web/shared/shell vf8ad5ca26750（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space space/scripts/gen-shell.mjs 从 space/web/data/palette-roles.json 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -6979,24 +6979,45 @@ html, body {
 .palette-reset:focus-visible { outline: 2px solid var(--sgx-primary); outline-offset: 2px; }
 .palette-reset[aria-disabled="true"] { opacity: .38; cursor: default; box-shadow: none; }
 .sgx-qp-row .palette-reset { background: var(--sgx-surface-container-lowest); color: var(--sgx-primary); }
-/* AI 窗口（#sgx-ai，第 4 件）：同快捷面板的落下方式；消息列表（只有回答正文，2026-11-06 起不显示来源卡片）→ 输入框 + 发送 → 清空 → 底部一行小字（仅公开内容 / 包含私密内容） */
+/* AI 窗口（#sgx-ai，第 4 件）：同快捷面板的落下方式；标题 Gray AI → 新对话 / 历史 / 联系 → 消息列表（空态是开场白；助手回答下有复制 / 重试 / 👍 / 👎；2026-11-06 起不显示来源卡片）或历史列表 → 输入框 + 发送 → 底部一行小字（仅公开内容 / 包含私密内容） */
 .sgx-ai .sgx-qp-sheet { display: flex; flex-direction: column; gap: 10px; height: min(560px, calc(100% - 2 * var(--sgx-qp-gap) - env(safe-area-inset-bottom, 0px))); overflow: hidden; }
 /* 键盘跟随（P4-3 PR-3）：ai.js 把键盘高度写进 --sgx-kb（输入框聚焦时才有），窗口下沿抬到键盘上沿；面板高度跟着压缩（消息列表让位），
    标题栏在上、输入框贴着键盘；键盘在时底部安全区由键盘占着，不再扣 */
 .sgx-ai { bottom: var(--sgx-kb, 0px); }
 .sgx-ai[data-kb] .sgx-qp-sheet { height: min(560px, calc(100% - 2 * var(--sgx-qp-gap))); max-height: calc(100% - 2 * var(--sgx-qp-gap)); }
-.sgx-ai-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sgx-ai-head { display: flex; align-items: center; gap: 8px; }
 .sgx-ai-title { margin: 0; padding: 0 4px; font-size: 16px; font-weight: 700; }
-.sgx-ai-clear { height: 32px; padding: 0 12px; border: 0; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+/* 第 2 行：新对话 / 历史 / 联系，三个 pill 靠左（P4-3 后续 §3.2） */
+.sgx-ai-actions { display: flex; align-items: center; gap: 8px; }
+.sgx-ai-pill { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 0; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap;
   background: var(--sgx-qp-glass); box-shadow: inset 0 0 0 1px var(--sgx-qp-edge); color: var(--sgx-primary); }
-.sgx-ai-clear:disabled { opacity: .38; cursor: default; }
-.sgx-ai-clear:focus-visible, .sgx-ai-send:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+.sgx-ai-pill:disabled { opacity: .38; cursor: default; }
+.sgx-ai-pill[aria-expanded="true"] { background: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
+.sgx-ai-pill:focus-visible, .sgx-ai-send:focus-visible, .sgx-ai-op:focus-visible, .sgx-ai-hist-item:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+/* 历史列表：窗口内的视图（不是底部弹出窗口），打开时替换消息列表 */
+.sgx-ai-hist { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 2px; }
+.sgx-ai-hist[hidden] { display: none; }
+.sgx-ai-hist[hidden] ~ .sgx-ai-list { display: flex; }
+.sgx-ai-hist:not([hidden]) ~ .sgx-ai-list { display: none; }
+.sgx-ai-hist-item { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 14px; border: 0; border-radius: 14px; font: inherit; text-align: left; cursor: pointer;
+  background: var(--sgx-qp-glass); box-shadow: inset 0 0 0 1px var(--sgx-qp-edge); color: var(--sgx-text-primary); }
+.sgx-ai-hist-item[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--sgx-primary); }
+.sgx-ai-hist-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.sgx-ai-hist-time { flex: 0 0 auto; font-size: 12px; color: var(--sgx-text-secondary); }
+.sgx-ai-hist-empty { margin: auto; padding: 24px 8px; text-align: center; font-size: 14px; color: var(--sgx-text-secondary); }
 .sgx-ai-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding: 2px; }
-.sgx-ai-empty { margin: auto; padding: 24px 8px; text-align: center; font-size: 14px; color: var(--sgx-text-secondary); }
 .sgx-ai-msg { max-width: 88%; padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .sgx-ai-msg[data-role="user"] { align-self: flex-end; background: var(--sgx-primary-container); color: var(--sgx-on-primary-container); border-bottom-right-radius: 6px; }
 .sgx-ai-msg[data-role="assistant"] { align-self: flex-start; background: var(--sgx-qp-glass); box-shadow: inset 0 0 0 1px var(--sgx-qp-edge); color: var(--sgx-text-primary); border-bottom-left-radius: 6px; }
 .sgx-ai-msg[data-state="error"] { color: var(--sgx-danger); }
+/* 每条助手回答下的操作：复制 / 重试 / 👍 / 👎（P4-3 后续 §3.4；用户提问和开场白下面不加） */
+.sgx-ai-turn { align-self: flex-start; max-width: 88%; display: flex; flex-direction: column; gap: 4px; }
+.sgx-ai-turn > .sgx-ai-msg { max-width: 100%; }
+.sgx-ai-ops { display: flex; gap: 4px; padding-left: 4px; }
+.sgx-ai-op { height: 28px; min-width: 28px; padding: 0 8px; border: 0; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: var(--sgx-text-secondary); }
+.sgx-ai-op:hover { background: var(--sgx-qp-glass); }
+.sgx-ai-op:disabled { opacity: .38; cursor: default; }
+.sgx-ai-op[aria-pressed="true"] { background: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
 .sgx-ai-form { display: flex; align-items: flex-end; gap: 8px; }
 .sgx-ai-in { flex: 1 1 auto; min-width: 0; min-height: 44px; max-height: 120px; resize: none; box-sizing: border-box; padding: 11px 14px; border-radius: 22px; font: inherit; font-size: 15px; line-height: 1.4;
   border: 1px solid var(--sgx-outline-variant); background: var(--sgx-surface-container-lowest); color: var(--sgx-text-primary); }

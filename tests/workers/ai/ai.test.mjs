@@ -126,13 +126,15 @@ test('prompt：召回为空时上下文写明站内没有相关内容；允许�
   const zh = P.buildMessages({ q: '法国首都是哪', lang: 'zh', hits: [] })[0].content;
   assert.match(zh, /（站内没有相关内容。）/);
   assert.match(zh, /用通用知识直接回答/);
-  assert.match(zh, /站内没有相关内容，以下是通用回答：/);
+  assert.match(zh, /直接给答案/);
+  assert.doesNotMatch(zh, /以下是通用回答/, '不再要求前缀句（P4-3 后续 §1）');
   assert.match(zh, /打招呼/);
   assert.doesNotMatch(zh, /不要用站外知识/, '旧的「只认站内」规则已去掉');
   const en = P.buildMessages({ q: 'capital of France', lang: 'en', hits: [] })[0].content;
   assert.match(en, /\(No relevant site content\.\)/);
   assert.match(en, /general knowledge/);
-  assert.match(en, /Nothing on the site covers this; here is a general answer:/);
+  assert.match(en, /giving the answer straight away/);
+  assert.doesNotMatch(en, /here is a general answer/, 'no prefix sentence (P4-3 follow-up §1)');
 });
 
 test('prompt：有召回时仍要求只按站内答、列站内链接；本站功能只按站内答、不猜路径；条目带站内位置（P4-3 PR-2）', () => {
