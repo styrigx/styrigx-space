@@ -30,12 +30,10 @@ for (const [site, file] of [['blog', 'atlas/web/blog/assets/css/blog/components.
   });
 }
 
-test('§6.3 宽屏中段定宽 --sgx-tb-mid（400px），不按内容伸缩；长页名省略号', () => {
-  assert.match(shell, /--sgx-tb-mid: 400px;/);
-  assert.match(shell, /@media \(min-width: 600px\) \{\s*\.sgx-topbar \{ display: grid; grid-template-columns: 1fr min\(var\(--sgx-tb-mid\), calc\(100% - 2 \* \(3 \* var\(--sgx-tb-ic\) \+ 16px\)\)\) 1fr; \}/);
-  assert.match(shell, /\.sgx-tb-pill \{ width: 100%; \}/);
-  assert.doesNotMatch(shell, /\.sgx-tb-pill \{ min-width: 160px; max-width: 480px; \}/);
-  assert.match(shell, /\.sgx-tb-title \{[^}]*white-space: nowrap; overflow: hidden; text-overflow: ellipsis;/);
+test('§6.3（PR-4b 改）：宽屏不再三段网格定宽中段；页名胶囊在字标与图标组之间的空余区居中、按字定宽，长页名省略号', () => {
+  assert.doesNotMatch(shell, /--sgx-tb-mid|grid-template-columns: 1fr min\(/);
+  assert.match(shell, /\.sgx-tb-pill \{ flex: 1 1 auto;[^}]*justify-content: center;/);
+  assert.match(shell, /\.sgx-tb-title \{ display: block; flex: 0 1 auto; min-width: 0; max-width: 100%;[^}]*white-space: nowrap; overflow: hidden; text-overflow: ellipsis;/);
 });
 
 /* 对比度：非当前项文字 text-primary 对衬底（导航选中色 45% 叠在顶栏玻璃 + 页面底色上）≥ 4.5:1；当前项 on-nav-selected 对 nav-selected ≥ 4.5:1 */

@@ -830,7 +830,7 @@ test.describe('账号总览：signalCurrentUserDetails', () => {
   });
 });
 
-test.describe('顶栏头像（2026-11-04 P5-1 起在顶栏最右，原在抽屉头）', () => {
+test.describe('头像（2026-11-04 P5-1 起在顶栏最右；P4-3 PR-4b 起在 AI 窗口头部）', () => {
   test('进门的人（含临时钥匙进门）：头像照常链到账号页（P2-3 起不再按角色去掉链接）', async ({ page }) => {
     await zh(page);
     await page.route(/^http:\/\/localhost:\d+\/$/, async (route) => {
@@ -839,7 +839,8 @@ test.describe('顶栏头像（2026-11-04 P5-1 起在顶栏最右，原在抽屉�
       await route.fulfill({ response: res, body: body });
     });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const me = page.locator('.sgx-tb-me');
+    /* P4-3 PR-4b：头像不在顶栏，搬进 AI 窗口头部（.sgx-ai-me） */
+    const me = page.locator('.sgx-ai-me');
     await expect(me).toHaveAttribute('href', '/account/');
     expect(await me.getAttribute('aria-disabled')).toBe(null);
     expect(await me.evaluate((el) => getComputedStyle(el).pointerEvents)).not.toBe('none');

@@ -33,7 +33,7 @@ test('外壳 CSS 段只用 --sgx-* 角色：没有十六进制颜色、没有旧
   }
 });
 
-test('快捷面板（P5-1，替代抽屉）：非模态窗口在顶栏下面、毛玻璃面板、两页 scroll-snap、导航页 tonal 当前项；抽屉样式全删', () => {
+test('快捷面板（P5-1，替代抽屉；PR-4b 单页 + 导航面板）：非模态窗口在顶栏下面、毛玻璃面板、导航磁贴当前站「开」态；两页 / 抽屉样式全删', () => {
   const s = files['shell.css'];
   assert.match(s, /\.sgx-qp \{ position: fixed; top: var\(--sgx-qp-top\);[^}]*z-index: 45;/, '遮罩在顶栏（z 50+）下面');
   // 毛玻璃两行分开：基础规则只写 -webkit-，标准属性在 @supports 里单独一条（压缩器合并同值两行会丢掉其中一行）
@@ -45,16 +45,14 @@ test('快捷面板（P5-1，替代抽屉）：非模态窗口在顶栏下面、�
   // 宽屏 400px（AI 440px），右缘对齐外壳框
   // （P4-3 顶栏长度统一：和顶栏一样按 --sgx-tb-w 对齐，100vw 算，不随滚动条变）
   assert.match(s, /@media \(min-width: 980px\) \{\s*\.sgx-qp-sheet \{ left: auto; right: calc\(\(100% - var\(--sgx-tb-w\)\) \/ 2\); width: 400px; margin: 0; \}\s*\.sgx-ai \.sgx-qp-sheet \{ width: 440px; \}/);
-  // 两页：页签 + 横向 scroll-snap
-  assert.match(s, /\.sgx-qp-tab\[aria-selected="true"\] \{ background: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\);/);
-  assert.match(s, /\.sgx-qp-pages \{ display: flex; overflow-x: auto;[^}]*scroll-snap-type: x mandatory;/);
-  assert.match(s, /\.sgx-qp-page \{ flex: 0 0 100%;[^}]*scroll-snap-align: start;/);
-  assert.match(s, /\.sgx-qp-nav-item\[aria-current="page"\][^{]*\{ background: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\)/);
+  // PR-4b：快捷面板只有一页（分段 / 双页滑动删除）；导航面板磁贴复用快捷面板磁贴，当前站 = 「开」态
+  assert.doesNotMatch(s, /\.sgx-qp-(tab|tabs|pages|page|nav-item)\b|scroll-snap/, '两页页签 / 横向滑动 / 导航列表样式删了');
+  assert.match(s, /\.sgx-qp-tile\[aria-pressed="true"\], \.sgx-qp-tile\[aria-current="page"\] \{ background: var\(--sgx-primary-container\); color: var\(--sgx-on-primary-container\);/);
   assert.doesNotMatch(s, /\.sgx-drawer-(item|sheet|head|brand|body|foot|search|me|sep)\b|--sgx-drawer-/, '抽屉样式全删');
   assert.doesNotMatch(s, /is-fading|is-curtain|--sgx-curtain/);
 });
 
-test('nav.json：旷野 / 奇趣 / 日刻 / 博客（PR-4b：主站一项改名旷野），没有设置；顶栏 / 磁贴 / AI 图标都在，九宫格图标删了', () => {
+test('nav.json：旷野 / 奇趣 / 日刻 / 博客（PR-4b：主站一项改名旷野，各带一行副标题），没有设置；顶栏 / 磁贴 / AI 图标都在', () => {
   const nav = JSON.parse(files['nav.json']);
   assert.deepEqual(nav.items.map((i) => i.id), ['home', 'curio', 'daymark', 'blog']);
   // 2026-10-21：书签项换成子站 奇趣 Curio（主站书签功能下线）
@@ -70,9 +68,10 @@ test('nav.json：旷野 / 奇趣 / 日刻 / 博客（PR-4b：主站一项改名�
   // 顶栏头像（子站链到主站账号页）
   assert.deepEqual(nav.me, { zh: '账号', en: 'Account', href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp' });
   assert.deepEqual(nav.items.map((i) => i.zh), ['旷野', '奇趣', '日刻', '博客']);
+  for (const i of nav.items) { assert.ok(i.subzh && i.suben, i.id + ' 副标题'); }
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
-  for (const k of ['tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send']) assert.match(nav.icons[k], /^<svg[\s\S]*<\/svg>$/, k);
-  assert.equal(nav.icons['apps-grid'], undefined, '九宫格删了');
+  for (const k of ['tb-grid', 'tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history']) assert.match(nav.icons[k], /^<svg[\s\S]*<\/svg>$/, k);
+  assert.equal(nav.icons['apps-grid'], undefined, '旧九宫格（九个点）不用；PR-4b 的九宫格是 tb-grid');
 });
 
 test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 亮暗 Shell + Semantic token），种子和 tokens.css 的 --sgx-seed 一致', () => {
@@ -113,20 +112,29 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
   assert.match(files['tokens.css'], /--sgx-tag-bg: var\(--sgx-fg-4-tint\);/);
 });
 
-test('顶栏 P5-1（2026-11-04）：一整条胶囊 [logo][中间][快捷面板 · AI · 头像]，同一份标记 topbar.html 四站共用；九宫格 / 右圆 / 抽屉头删除', () => {
+test('顶栏（P5-1 起一整条胶囊；PR-4b 定稿）：[字标][页名胶囊][九宫格 · 快捷设置 · AI]，头像不在顶栏；同一份标记 topbar.html 四站共用', () => {
   assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel']);
   const s = files['shell.css'];
   assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*left: 0; right: calc\(100% - 100vw\); margin: 0 auto; width: var\(--sgx-tb-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
-  assert.match(s, /\.sgx-tb-btn \{ width: var\(--sgx-tb-ic\); height: var\(--sgx-tb-ic\);[^}]*border-radius: 999px;/);
-  assert.match(s, /\.sgx-tb-title \{[^}]*text-align: center;[^}]*text-overflow: ellipsis;/);
-  assert.match(s, /@media \(min-width: 600px\) \{\s*\.sgx-topbar \{ display: grid; grid-template-columns: 1fr min\(var\(--sgx-tb-mid\), [^;]+\) 1fr; \}/, '宽屏中间居中、定宽（P4-3 PR-4a §6.3）');
-  assert.doesNotMatch(s, /\.sgx-tb-nav\b|\.sgx-tb-end\b|\.sgx-tb-gbtn\b|\.sgx-drawer/);
+  // 右边图标紧凑：宽 --sgx-tb-icw（38px）、间距 2px，整体靠右
+  assert.match(s, /--sgx-tb-icw: 38px;/);
+  assert.match(s, /\.sgx-tb-btn \{ width: var\(--sgx-tb-icw\); height: var\(--sgx-tb-ic\);[^}]*border-radius: 999px;/);
+  assert.match(s, /\.sgx-tb-acts \{ flex: 0 0 auto; display: flex; align-items: center; gap: 2px; margin-left: auto; \}/);
+  // 页名胶囊：在空余区（.sgx-tb-pill flex 1）居中，主题色椭圆衬底，长页名省略号
+  assert.match(s, /\.sgx-tb-pill \{ flex: 1 1 auto;[^}]*justify-content: center;/);
+  assert.match(s, /\.sgx-tb-title \{[^}]*max-width: 100%;[^}]*border-radius: 999px;[^}]*text-overflow: ellipsis; background-color: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\);/);
+  assert.doesNotMatch(s, /grid-template-columns: 1fr min\(var\(--sgx-tb-mid\)|--sgx-tb-mid/, 'PR-4a 宽屏三段网格定宽中段删了');
+  assert.doesNotMatch(s, /\.sgx-tb-nav\b|\.sgx-tb-end\b|\.sgx-tb-gbtn\b|\.sgx-drawer|\.sgx-tb-me\b|\.sgx-tb-avatar\b|\.sgx-tb-mark\b/);
   // 标记：topbar.html = 主站 partials/shell-topbar.html 原样
   const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');
   assert.equal(files['topbar.html'], src);
   assert.doesNotMatch(src.replace(/\{\{-? \/\*[\s\S]*?\*\/ -?\}\}/g, ''), /\bpartial |site\.Data|hugo\.Data|resources\.Get/, '只用参数，不调别的 partial / 数据');
-  const order = ['class="sgx-tb-logo"', 'class="sgx-tb-pill', 'sgx-tb-quick', 'sgx-tb-ai', 'sgx-tb-me'].map((k) => src.indexOf(k));
-  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), 'logo → 中间 → 快捷面板 → AI → 头像');
+  const order = ['class="sgx-tb-logo"', 'class="sgx-tb-pill', 'sgx-tb-grid', 'sgx-tb-quick', 'sgx-tb-ai"'].map((k) => src.indexOf(k));
+  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '字标 → 页名 → 九宫格 → 快捷设置 → AI');
+  const header = src.slice(src.indexOf('<header'), src.indexOf('</header>'));
+  assert.doesNotMatch(header, /sgx-tb-me|<img/, '顶栏没有头像');
+  assert.doesNotMatch(header, /sgx-tb-mark/, '没有窄屏图标版 logo');
+  assert.match(src, /<dialog id="sgx-nav" class="sgx-qp sgx-nav"/);
   assert.match(src, /<dialog id="sgx-qp" class="sgx-qp"/);
   assert.match(src, /<dialog id="sgx-ai" class="sgx-qp sgx-ai"/);
   const base = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.html'), 'utf8');
@@ -146,14 +154,25 @@ test('P4-2b：搜索层整套删除——没有 search.js、shell.css 没有 sea
     assert.ok(!existsSync(path.join(REPO, f)), f);
 });
 
-test('顶栏头像是圆的：shell.css 按 .sgx-tb-avatar 自己挂圆角 + object-fit: cover；锁屏抄顶栏按钮时类名照抄（图标两处修正 §1）', () => {
+test('头像在 AI 窗口头部（PR-4b）：圆形 + 主题色环（同主页名片头像环，不是白圈）；锁屏顶栏抄按钮时类名照抄、没有头像', () => {
   const css = files['shell.css'].replace(/\/\*[\s\S]*?\*\//g, '');
-  const rule = css.match(/(^|\})\s*([^{}]*\.sgx-tb-avatar[^{}]*)\{([^}]*)\}/m);
-  assert.ok(rule, 'shell.css 里要有选中 .sgx-tb-avatar 的规则');
-  assert.ok(rule[2].split(',').map((s) => s.trim()).includes('.sgx-tb-avatar'), '选择器里单独有 .sgx-tb-avatar（不依赖外层 .sgx-tb-me）');
-  assert.match(rule[3], /border-radius:\s*999px/);
-  assert.match(rule[3], /object-fit:\s*cover/);
+  const rule = css.match(/(^|\})\s*\.sgx-ai-avatar \{([^}]*)\}/m);
+  assert.ok(rule, 'shell.css 里要有 .sgx-ai-avatar 规则');
+  assert.match(rule[2], /border-radius:\s*999px/);
+  assert.match(rule[2], /object-fit:\s*cover/);
+  assert.match(rule[2], /box-shadow: 0 0 0 2px var\(--sgx-primary-fill\), 0 0 0 5px color-mix\(in srgb, var\(--sgx-primary-fill\) 22%, transparent\)/);
+  assert.doesNotMatch(rule[2], /#fff|white/);
+  const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');
+  const head = src.slice(src.indexOf('<div class="sgx-ai-head">'), src.indexOf('<div class="sgx-ai-hist"'));
+  const order = ['sgx-ai-title', 'data-ai-clear', 'data-ai-history', 'class="sgx-ai-me" href="{{ .acct }}"'].map((k) => head.indexOf(k));
+  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), 'Gray AI → 新对话 → 历史 → 头像');
+  assert.match(head, /<img src="\{\{ \.avatar \}\}" alt="" width="36" height="36" class="sgx-ai-avatar" data-sgx-avatar="192">/);
+  assert.doesNotMatch(src, /sgx-ai-actions|sgx-ai-pill/, '新对话 / 历史 / 联系按钮行删了');
+  assert.match(src, /<a class="sgx-ai-contact" data-ai-contact href="mailto:styrigx@gmail\.com">\{\{ if \$en \}\}Contact me\{\{ else \}\}联系我\{\{ end \}\}<\/a>/);
+  assert.doesNotMatch(src, /ai@styrigx\.com/);
   const lock = readFileSync(path.join(REPO, 'space/web/assets/js/shell/lock.js'), 'utf8');
-  assert.match(lock, /'<span class="' \+ b\.className \+ '">'/, 'lock.js 抄顶栏按钮要带原类名（含 sgx-tb-me）');
-  assert.doesNotMatch(lock, /'<span class="sgx-tb-btn">'/);
+  assert.match(lock, /'<span class="' \+ b\.className \+ '">'/, 'lock.js 抄顶栏按钮要带原类名');
+  assert.match(lock, /querySelectorAll\('#site-nav \.sgx-tb-acts \.sgx-tb-btn'\)/);
+  assert.match(lock, /document\.querySelector\('\.sgx-ai-avatar'\)/, '锁屏头像取 AI 窗口头部那张');
+  assert.doesNotMatch(lock, /sgx-tb-me|sgx-tb-avatar/);
 });

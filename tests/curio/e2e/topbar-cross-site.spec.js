@@ -1,6 +1,6 @@
 /* 四站同一个顶栏（2026-11-04 P5-1，方案 6.4 / 6.5，任务书 P5-1「测试」两条 e2e）。
  * 跑在拼好的整站（dist/site：主站在 /，奇趣 /curio/、日刻 /daymark/、博客 /blog/，同源），和线上 PR3 后的四站同源一样：
- * - 主站任何页面（含首页、设置、账号）快捷面板里都没有「分享本页」磁贴（模板层不输出，定案第 4 条）；子站内容页有。
+ * - P4-3 PR-4b 起四站快捷面板同一套：主站页面也有「分享本页」磁贴（原定案第 4 条「主站不输出」作废）；面板只有一页（四站 DOM 同一份见 quick-panel-identity.spec.js）。
  * - 子站快捷设置改外观（深色 / 调色板）→ 回主站同步生效：四站共用一个写端（共享外壳 prefs-write.js），写同一个 sgx-ui cookie / localStorage（定案第 5 条）。
  * 主站在 dist/site 里是生产构建（锁屏启用、没有网关）：这里只看顶栏 / 快捷面板的 DOM 和首帧外观，不过锁屏。 */
 const { test, expect } = require('@playwright/test');
@@ -23,24 +23,20 @@ test.beforeEach(async ({ page }) => {
 async function openSet(page) {
   await page.locator('.sgx-tb-quick').click();
   await expect(page.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
-  await page.locator('#sgx-qp-tab-set').click();
-  await expect(page.locator('#sgx-qp-page-set')).not.toHaveAttribute('inert', '');
 }
 
-test('主站页面没有分享磁贴（模板层不输出），子站内容页有', async ({ page }) => {
+test('四站页面都有分享磁贴（PR-4b 起主站也有，构建产物里就有）；子站点开就看得到', async ({ page }) => {
   for (const p of MAIN) {
     await page.goto(p, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-qp')).toHaveCount(1);
-    await expect(page.locator('[data-qp="share"], [data-sgx-share]'), p).toHaveCount(0);
-    /* 构建产物里就没有（不是 CSS 藏起来） */
+    await expect(page.locator('#sgx-qp [data-qp="share"][data-sgx-share]'), p).toHaveCount(1);
     const html = await (await page.request.get(p)).text();
-    expect(html, p).not.toContain('data-qp="share"');
-    expect(html, p).not.toMatch(/data-qp=share\b/);
+    expect(html, p).toMatch(/data-qp="?share\b/);
   }
   for (const p of SUB) {
     await page.goto(p, { waitUntil: 'domcontentloaded' });
     await openSet(page);
-    await expect(page.locator('#sgx-qp-page-set [data-qp="share"][data-sgx-share]'), p).toBeVisible();
+    await expect(page.locator('#sgx-qp [data-qp="share"][data-sgx-share]'), p).toBeVisible();
   }
 });
 

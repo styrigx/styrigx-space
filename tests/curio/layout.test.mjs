@@ -12,7 +12,7 @@ const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
 const base = read('atlas/web/curio/layouts/_default/baseof.html');
 const index = read('atlas/web/curio/layouts/index.html');
 
-test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 首页分段滑块 / 其他页页名；右边快捷面板 · AI · 头像；没有九宫格、抽屉、右圆分享', () => {
+test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 首页分段滑块 / 其他页页名；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
   assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "curio"/);
   for (const [id, zh, en, hash] of [['finds', '发现', 'Finds', ''], ['devices', '设备', 'Devices', '#devices'], ['games', '游戏', 'Games', '#games']]) {
@@ -31,8 +31,8 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-top
   assert.equal(existsSync(path.join(REPO, 'atlas/web/curio/assets/js/topbar.js')), false);
   assert.equal(existsSync(path.join(REPO, 'atlas/web/curio/layouts/partials/shell-nav-href.html')), false);
   assert.match(base, /resources\.Get "js\/sgx\/topbar-host\.js" \| js\.Build/);
-  /* 本站页面原来都有分享按钮 → 快捷设置页都有「分享本页」磁贴；立即锁定、布局只在主站（定案第 4、5 条） */
-  assert.match(base, /"tiles" \(dict "theme" true "lang" true "palette" true "share" true\)/);
+  /* P4-3 PR-4b：快捷面板四站同一套（分享本页、立即锁定、布局都有），不再按站传 tiles */
+  assert.doesNotMatch(base, /"tiles" /);
   const host = read('atlas/web/curio/assets/js/sgx/topbar-host.js');
   for (const m of ['./shell/topbar.js', './shell/modal-sheet.js', './shell/ai.js', './shell/vk.js', './shell/prefs-write.js', './shell/share.js']) {
     assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
@@ -55,7 +55,7 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
   assert.doesNotMatch(css.slice(css.indexOf('/* @sgx-shell:end */')), /cu-gb-|giscus|guestbook/);
 });
 
-test('导航：快捷面板第 1 页用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；奇趣是当前项；主站项走 https://styrigx.com', () => {
+test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；奇趣是当前项；主站项走 https://styrigx.com', () => {
   const nav = JSON.parse(readFileSync(path.join(REPO, 'atlas/web/curio/assets/sgx-shell/nav.json'), 'utf8'));
   assert.deepEqual(nav.items.map((i) => i.zh), ['旷野', '奇趣', '日刻', '博客']);
   assert.deepEqual(nav.footer, []);
@@ -66,7 +66,6 @@ test('导航：快捷面板第 1 页用主站共享外壳的 nav.json（主站 /
   /* 项、页脚、当前项高亮都在共享外壳 partial 里（range .nav.items / with .nav.footer / eq .id $.site） */
   const tb = read('atlas/web/curio/layouts/partials/sgx-shell-topbar.html');
   assert.match(tb, /range \.nav\.items/);
-  assert.match(tb, /with \.nav\.footer/);
   assert.match(tb, /if eq \.id \$\.site \}\} aria-current="page"/);
   /* 导航页不放搜索框（定案第 2 条） */
   assert.doesNotMatch(tb, /type="search"|role="search"|sgx-drawer-search|nav\.search/);

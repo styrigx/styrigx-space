@@ -73,19 +73,17 @@ for (const [label, viewport] of VIEWPORTS) {
         await expect(page.locator('.sgx-tb-tab[aria-current="page"]')).toHaveCount(1);
         await expect(page.locator(`.sgx-tb-tab[data-tab="${cur}"]`)).toHaveAttribute('aria-current', 'page');
         await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveCount(0);
-        /* 顶栏结构（2026-11-04 P5-1 胶囊）：logo | 长条 | 快捷面板 · AI · 头像；宽屏长条中心 = 屏幕中心；标签组在长条里居中、不超出长条 */
+        /* 顶栏结构（P4-3 PR-4b 定稿）：字标 | 页名胶囊 | 九宫格 · 快捷设置 · AI；页名胶囊在字标与图标组之间的空余区居中（各宽度同一条）；标签组在长条里居中、不超出长条 */
         expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts']);
         const pill = await box(page, '.sgx-tb-pill');
         const grp = await box(page, '.sgx-tb-tabs');
-        if (viewport.width >= 600) expect(near(pill.x + pill.width / 2, viewport.width / 2), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
-        else {
-          const logo = await box(page, '.sgx-tb-logo');
-          const acts = await box(page, '.sgx-tb-acts');
-          expect(pill.x >= logo.x + logo.width - 0.5 && pill.x + pill.width <= acts.x + 0.5, '长条在 logo 和按钮之间').toBe(true);
-        }
+        const logo = await box(page, '.sgx-tb-logo');
+        const acts = await box(page, '.sgx-tb-acts');
+        expect(pill.x >= logo.x + logo.width - 0.5 && pill.x + pill.width <= acts.x + 0.5, '长条在字标和按钮之间').toBe(true);
+        expect(near(pill.x + pill.width / 2, (logo.x + logo.width + acts.x) / 2, 1.5), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
         expect(near(grp.x + grp.width / 2, pill.x + pill.width / 2), `标签组中心 ${grp.x + grp.width / 2}`).toBe(true);
         expect(grp.x >= pill.x && grp.x + grp.width <= pill.x + pill.width).toBe(true);
-        expect(near(grp.height, 40) && near(grp.y + grp.height / 2, pill.y + pill.height / 2)).toBe(true);
+        expect(grp.height <= pill.height + 0.5 && near(grp.y + grp.height / 2, pill.y + pill.height / 2)).toBe(true);
         /* 一个标签，文字不截断 */
         const ws = await tabs.evaluateAll((els) => els.map((e) => [e.getBoundingClientRect().width, e.scrollWidth <= e.clientWidth]));
         expect(ws.length).toBe(1);

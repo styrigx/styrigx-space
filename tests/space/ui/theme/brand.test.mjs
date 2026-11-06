@@ -30,15 +30,16 @@ test('字标：单行 SVG、可访问名 Styrigx、字母 / 圆点两条路径�
   const base = rd('space/web/layouts/_default/baseof.html').toString();
   /* P5-1：字标进顶栏单一来源 shell-topbar 的 logo（主站传 partial 结果，子站传 nav.json 的 wordmark） */
   assert.match(base, /"wordmark" \(partial "shell-wordmark\.html" \.\)/);
-  assert.match(rd('space/web/layouts/partials/shell-topbar.html').toString(), /<a class="sgx-tb-logo" href="\{\{ \.home \}\}"[^>]*>\{\{ \.wordmark \| safeHTML \}\}<svg class="sgx-tb-mark" viewBox="0 0 1000 1000" aria-hidden="true" focusable="false"><path class="mk-bg" d="[^"]+"\/><path class="mk-fg" d="[^"]+"\/><\/svg><\/a>/);
+  /* P4-3 PR-4b：logo 里只有字标（真 SVG），手机也完整显示；PR-4a 的窄屏图标版 .sgx-tb-mark 删除 */
+  assert.match(rd('space/web/layouts/partials/shell-topbar.html').toString(), /<a class="sgx-tb-logo" href="\{\{ \.home \}\}"[^>]*>\{\{ \.wordmark \| safeHTML \}\}<\/a>/);
 });
 
-test('外壳 CSS：顶栏 logo 字标高 20px、宽高比 5924/2010，字母跟 text-primary，圆点跟 primary；窄屏换图标版', () => {
+test('外壳 CSS：顶栏 logo 字标高 20px、宽高比 5924/2010，字母跟 text-primary，圆点跟 primary；窄屏也是完整字标（PR-4b）', () => {
   const s = renderAll()['shell.css'];
   assert.match(s, /\.sgx-tb-logo \.sgx-wordmark \{ --wm-ink: var\(--sgx-text-primary\); --wm-accent: var\(--sgx-primary\);[^}]*height: 20px;[^}]*aspect-ratio: 5924 \/ 2010;/);
   assert.match(s, /\.sgx-wordmark \.wm-letters \{ fill: var\(--wm-ink, var\(--sgx-text-primary\)\); \}/);
   assert.match(s, /\.sgx-wordmark \.wm-dot \{ fill: var\(--wm-accent, var\(--sgx-primary\)\); \}/);
-  assert.match(s, /@media \(max-width: 399\.98px\) \{[^@]*\.sgx-tb-logo \.sgx-wordmark \{ display: none; \}/);
+  assert.doesNotMatch(s, /\.sgx-wordmark \{ display: none; \}|\.sgx-tb-mark/, '没有窄屏藏字标 / 换图标版');
 });
 
 test('标签页图标 + 分享卡片：静态文件齐全、尺寸对', () => {
@@ -87,16 +88,8 @@ test('favicon.js：颜色转十六进制；只换默认两色，认不出的 SVG
   assert.equal(recolor('<svg><path fill="red"/></svg>', '#000000', '#ffffff'), '');
 });
 
-test('PR-4a §6.1：窄屏图标版 logo 和标签页图标同一个图形（favicon.svg 两条路径），20px，方块跟 primary、字母跟 on-primary', () => {
-  const fav = rd('space/web/static/favicon.svg').toString();
-  const d = [...fav.matchAll(/<path fill="[^"]+" d="([^"]+)"\/>/g)].map((m) => m[1]);
-  assert.equal(d.length, 2);
+test('PR-4b：PR-4a §6.1 的窄屏图标版 logo 删除（顶栏只用字标；标签页图标 favicon.svg 不受影响）', () => {
   const tb = rd('space/web/layouts/partials/shell-topbar.html').toString();
-  assert.ok(tb.includes(`<path class="mk-bg" d="${d[0]}"/><path class="mk-fg" d="${d[1]}"/>`), 'shell-topbar 里的图标路径和 favicon.svg 一致');
-  const s = renderAll()['shell.css'];
-  assert.match(s, /\.sgx-tb-mark \{ display: none; width: 20px; height: 20px;/);
-  assert.match(s, /\.sgx-tb-mark \.mk-bg \{ fill: var\(--sgx-primary\); \}/);
-  assert.match(s, /\.sgx-tb-mark \.mk-fg \{ fill: var\(--sgx-on-primary\); \}/);
-  assert.match(s, /@media \(max-width: 399\.98px\) \{[^@]*\.sgx-tb-mark \{ display: block; \}/);
-  assert.doesNotMatch(s, /sgx-tb-dot/);
+  assert.doesNotMatch(tb, /sgx-tb-mark|mk-bg|mk-fg/);
+  assert.doesNotMatch(renderAll()['shell.css'], /\.sgx-tb-mark/);
 });

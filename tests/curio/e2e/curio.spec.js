@@ -99,40 +99,48 @@ test('账号未登录：顶栏分段滑块（没有搜索栏）、快捷面板�
   await expect(gh.locator('img')).toHaveCount(1);
   await expect(page.locator('.cu-tile[data-id="21"] img')).toHaveCount(0);
   await expect(page.locator('.cu-tile[data-id="21"] .cu-ic-letter')).toHaveText('I');
-  /* 2026-11-04 P5-1 顶栏全大椭圆（四站同一个）：logo · 长条 · 快捷面板 · AI · 头像；九宫格、抽屉、右圆分享删除；没有版权页脚 */
+  /* 2026-11-04 P5-1 顶栏全大椭圆（四站同一个）；抽屉、右圆分享删除；没有版权页脚 */
   expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts']);
   await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/curio/');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-quick')).toHaveAttribute('aria-controls', 'sgx-qp');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-ai')).toHaveAttribute('aria-controls', 'sgx-ai');
-  /* 头像最右，去主站账号页（子站单独起服务时也能到主站：绝对地址） */
-  await expect(page.locator('.sgx-tb-acts > .sgx-tb-me')).toHaveAttribute('href', 'https://styrigx.com/account/');
-  await expect(page.locator('.sgx-tb-me img')).toHaveAttribute('src', 'https://styrigx.com/avatar/192.webp');
+  /* P4-3 PR-4b：字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI；头像在 AI 窗口头部，去主站账号页（子站单独起服务时也能到主站：绝对地址） */
+  expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-grid', 'sgx-tb-quick', 'sgx-tb-ai']);
+  await expect(page.locator('.sgx-tb-acts .sgx-tb-grid')).toHaveAttribute('aria-controls', 'sgx-nav');
+  await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', 'https://styrigx.com/account/');
+  await expect(page.locator('#sgx-ai .sgx-ai-me img')).toHaveAttribute('src', 'https://styrigx.com/avatar/192.webp');
+  await expect(page.locator('#site-nav .sgx-tb-me')).toHaveCount(0);
   await expect(page.locator('.sgx-tb-nav, #sgx-drawer, .sgx-tb-end, .sgx-tb-share, .sgx-topbar [data-sgx-share], .sgx-tb-end-group, .sgx-tb-guestbook, a[href*="guestbook"]')).toHaveCount(0);
   await expect(page.locator('footer')).toHaveCount(0);
   await expect(page.getByText('Powered by')).toHaveCount(0);
-  /* 快捷面板第 1 页「导航」= 原抽屉的站点列表（主站共享外壳 nav.json）：奇趣是当前项；主站项绝对地址，子站之间同源相对；没有搜索框 */
+  /* 九宫格导航面板 #sgx-nav（P4-3 PR-4b，主站共享外壳 nav.json）：2×2 站点磁贴，奇趣是当前项；主站项绝对地址，子站之间同源相对；没有搜索框 */
+  await page.locator('.sgx-tb-grid').click();
+  await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
+  await expect(page.locator('#sgx-nav .sgx-nav-tile .sgx-qp-label')).toHaveText(['旷野', '奇趣', '日刻', '博客']);
+  await expect(page.locator('#sgx-nav [data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
+  await expect(page.locator('#sgx-nav [data-nav="curio"]')).toHaveAttribute('href', '/curio/');
+  await expect(page.locator('#sgx-nav [data-nav="daymark"]')).toHaveAttribute('href', '/daymark/');
+  await expect(page.locator('#sgx-nav [data-nav="blog"]')).toHaveAttribute('href', '/blog/');
+  /* 奇趣图标 = 书签 + 星（同主站 #180） */
+  await expect(page.locator('#sgx-nav [data-nav="curio"] path').first()).toHaveAttribute('d', /^M6 4\.5A1\.5/);
+  await expect(page.locator('#sgx-nav [aria-current="page"]')).toHaveCount(1);
+  await expect(page.locator('#sgx-nav [data-nav="curio"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#sgx-nav input, #sgx-nav [type="search"], #sgx-nav [role="search"], #sgx-nav a[href*="/search/"]')).toHaveCount(0);
+  /* 主站同款：毛玻璃面板、当前站「开」态（和别的站底色不同） */
+  const st = await page.evaluate(() => {
+    const cur = getComputedStyle(document.querySelector('#sgx-nav [aria-current="page"]'));
+    const other = getComputedStyle(document.querySelector('#sgx-nav .sgx-nav-tile:not([aria-current])'));
+    const sh = document.querySelector('#sgx-nav .sgx-qp-sheet');
+    return { bg: cur.backgroundColor, other: other.backgroundColor, filter: getComputedStyle(sh).backdropFilter };
+  });
+  expect(st.bg).not.toBe(st.other);
+  expect(st.filter).toContain('blur');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#sgx-nav')).toBeHidden();
+  /* 快捷面板只有一页：没有页签、导航列表 */
   await page.locator('.sgx-tb-quick').click();
   await expect(page.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
-  await expect(page.locator('#sgx-qp-tab-nav')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#sgx-qp .sgx-qp-nav-label')).toHaveText(['旷野', '奇趣', '日刻', '博客']);
-  await expect(page.locator('#sgx-qp [data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
-  await expect(page.locator('#sgx-qp [data-nav="curio"]')).toHaveAttribute('href', '/curio/');
-  await expect(page.locator('#sgx-qp [data-nav="daymark"]')).toHaveAttribute('href', '/daymark/');
-  await expect(page.locator('#sgx-qp [data-nav="blog"]')).toHaveAttribute('href', '/blog/');
-  /* 奇趣图标 = 书签 + 星（同主站 #180） */
-  await expect(page.locator('#sgx-qp [data-nav="curio"] path').first()).toHaveAttribute('d', /^M6 4\.5A1\.5/);
-  await expect(page.locator('#sgx-qp [aria-current="page"]')).toHaveCount(1);
-  await expect(page.locator('#sgx-qp [data-nav="curio"]')).toHaveAttribute('aria-current', 'page');
-  await expect(page.locator('#sgx-qp input, #sgx-qp [type="search"], #sgx-qp [role="search"], #sgx-qp a[href*="/search/"]')).toHaveCount(0);
-  /* 主站同款：毛玻璃面板、tonal 当前项 */
-  const st = await page.evaluate(() => {
-    const probe = (v) => { const i = document.createElement('i'); i.style.color = `var(${v})`; document.body.appendChild(i); const c = getComputedStyle(i).color; i.remove(); return c; };
-    const cur = getComputedStyle(document.querySelector('#sgx-qp [aria-current="page"]'));
-    const sh = document.querySelector('#sgx-qp .sgx-qp-sheet');
-    return { bg: cur.backgroundColor, tonal: probe('--sgx-nav-selected'), filter: getComputedStyle(sh).backdropFilter };
-  });
-  expect(st.bg).toBe(st.tonal);
-  expect(st.filter).toContain('blur');
+  await expect(page.locator('#sgx-qp [role="tab"], #sgx-qp [data-nav]')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(page.locator('#sgx-qp')).toBeHidden();
 });

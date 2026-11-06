@@ -718,11 +718,11 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     await expect(page.locator('#sgx-mopt-pw')).toBeVisible();
   });
 
-  test('锁定时快捷面板 / AI / 头像按钮点不到（锁屏盖住整页，顶栏位置只有标题）', async ({ page }) => {
+  test('锁定时九宫格 / 快捷设置 / AI 按钮点不到（锁屏盖住整页，顶栏位置只有标题）', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     await expect(page.locator('#sgx-lock .sgx-lock-tb button, #sgx-lock .sgx-lock-tb a')).toHaveCount(0);
-    for (const sel of ['[aria-controls="sgx-qp"]', '[aria-controls="sgx-ai"]', '.sgx-tb-me']) {
+    for (const sel of ['[aria-controls="sgx-nav"]', '[aria-controls="sgx-qp"]', '[aria-controls="sgx-ai"]']) {
       const btn = page.locator(sel).first();
       expect(await btn.count()).toBeGreaterThan(0);
       const box = await btn.boundingBox();
@@ -735,22 +735,14 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     }
   });
 
-  test('锁屏顶栏右边头像是圆的（图标两处修正 §1：锁屏抄顶栏按钮时类名要带上 sgx-tb-me）', async ({ page }) => {
+  test('锁屏顶栏照抄顶栏按钮（P4-3 PR-4b：九宫格 · 快捷设置 · AI，头像不在顶栏、只在 AI 窗口头部），尺寸和顶栏一样', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
-    const av = page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts img.sgx-tb-avatar');
-    await expect(av).toHaveCount(1);
+    await expect(page.locator('#sgx-lock .sgx-lock-tb img, #sgx-lock .sgx-lock-tb .sgx-tb-me')).toHaveCount(0);
     expect(await page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.tagName + '.' + e.className)))
-      .toEqual(['SPAN.sgx-tb-btn sgx-tb-quick', 'SPAN.sgx-tb-btn sgx-tb-ai', 'SPAN.sgx-tb-btn sgx-tb-me']);
-    const st = await av.evaluate((el) => {
-      const c = getComputedStyle(el);
-      const r = el.getBoundingClientRect();
-      return { br: c.borderTopLeftRadius, br2: c.borderBottomRightRadius, of: c.objectFit, w: r.width, h: r.height };
-    });
-    expect(parseFloat(st.br)).toBeGreaterThanOrEqual(16);
-    expect(parseFloat(st.br2)).toBeGreaterThanOrEqual(16);
-    expect(st.of).toBe('cover');
-    expect([st.w, st.h]).toEqual([32, 32]);
+      .toEqual(['SPAN.sgx-tb-btn sgx-tb-grid', 'SPAN.sgx-tb-btn sgx-tb-quick', 'SPAN.sgx-tb-btn sgx-tb-ai']);
+    const sz = await page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts > *').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
+    expect(sz).toEqual([[38, 40], [38, 40], [38, 40]]);
   });
 
   for (const theme of ['light', 'dark']) {

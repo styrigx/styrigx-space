@@ -1,10 +1,10 @@
-// 「分享本页」（共享外壳 share.js，2026-10-24 起是顶栏右圆；2026-11-04 P5-1 起是快捷面板第 2 页「快捷设置」里的磁贴 [data-qp="share"]，
-// 子站页面都有，主站任何页面都没有，定案第 4 条；右圆分享删除）：
+// 「分享本页」（共享外壳 share.js，2026-10-24 起是顶栏右圆；2026-11-04 P5-1 起是快捷面板里的磁贴 [data-qp="share"]，右圆分享删除；
+// P4-3 PR-4b 起快捷面板只有一页、四站同一套，主站也有）：
 // - 进门二值（P2-3）：不分角色，都 POST https://styrigx.com/api/share（同源带 cookie）
 //   { action:'create', reuse:true, name:页面标题, to:当前页（去 lock / why / return / share）, hours:24, session:43200 } → navigator.share 短链；
 //   系统分享被拒 / 没有 → 复制 + toast「已复制分享链接」；用户取消不复制；生成中再点不理；接口失败只 toast，不分享原地址。
 // - 服务端回 401 reauth → share.js 自带的最小锁侧复验步骤（dialog.sgx-share-reauth：锁屏通行密钥 / 解锁密码）→ 通过后自动重试一次；取消 = 不分享。
-// - 360 / 412 宽：顶栏胶囊（logo · 长条 · 快捷面板 · AI · 头像）不溢出，没有右圆分享，页面不横向滚动。
+// - 360 / 412 宽：顶栏胶囊（字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI）不溢出，没有右圆分享，页面不横向滚动。
 import { test, expect } from '@playwright/test';
 
 const CODE = 'AbCdEfGhIjKlMnOpQrStUv';
@@ -46,7 +46,7 @@ async function setup(page, { share = 'ok', api } = {}) {
   return calls;
 }
 
-/** 打开页面 → 快捷面板 → 第 2 页「快捷设置」，等「分享本页」磁贴可点 */
+/** 打开页面 → 快捷面板（PR-4b 起只有一页），等「分享本页」磁贴可点 */
 async function go(page, path) {
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await openShareTile(page);
@@ -54,9 +54,6 @@ async function go(page, path) {
 async function openShareTile(page) {
   await page.locator('.sgx-tb-quick').click();
   await expect(page.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
-  await page.locator('#sgx-qp-tab-set').click();
-  await expect(page.locator('#sgx-qp-page-set')).not.toHaveAttribute('inert', '');
-  await expect(page.locator('#sgx-qp-page-nav')).toHaveAttribute('inert', '');
   await expect(page.locator('#sgx-qp [data-qp="share"][data-sgx-share]')).toBeVisible();
 }
 const log = (page) => page.evaluate(() => window.__shareLog);
@@ -162,23 +159,23 @@ test.describe('快捷面板「分享本页」磁贴', () => {
     expect(calls).toHaveLength(1);
   });
 
-  test('磁贴：在快捷设置页（第 2 页），文案「分享本页」「短链，24 小时」；顶栏上没有右圆分享', async ({ page }) => {
+  test('磁贴：在快捷面板里（单页，四站同一套），文案「分享本页」「短链，24 小时」；顶栏上没有右圆分享', async ({ page }) => {
     await setup(page);
     await go(page, PAGE);
-    const tile = page.locator('#sgx-qp-page-set [data-qp="share"]');
+    const tile = page.locator('#sgx-qp [data-qp="share"]');
     await expect(tile).toHaveCount(1);
     await expect(tile.locator('.sgx-qp-label')).toHaveText('分享本页');
     await expect(tile.locator('.sgx-qp-state')).toHaveText('短链，24 小时');
     await expect(page.locator('[data-sgx-share]')).toHaveCount(1);
     await expect(page.locator('.sgx-topbar [data-sgx-share], .sgx-tb-end, .sgx-tb-share')).toHaveCount(0);
-    /* 子站快捷设置：深色 / 跟随系统 / 语言 / 分享本页 + 调色板；没有立即锁定、布局（只在主站） */
-    await expect(page.locator('#sgx-qp-page-set [data-qp]')).toHaveCount(4);
-    expect(await page.locator('#sgx-qp-page-set [data-qp]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp')))).toEqual(['dark', 'system', 'lang', 'share']);
-    await expect(page.locator('#sgx-qp [data-qp-seg]')).toHaveCount(0);
+    /* P4-3 PR-4b：四站快捷面板同一套——磁贴 深色 / 跟随系统 / 分享本页 / 立即锁定，语言整行，调色板，布局 */
+    expect(await page.locator('#sgx-qp [data-qp]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp')))).toEqual(['dark', 'system', 'share', 'lock', 'lang']);
+    await expect(page.locator('#sgx-qp [data-qp-seg="layout"]')).toHaveCount(1);
+    await expect(page.locator('#sgx-qp [role="tab"], #sgx-qp [data-nav]')).toHaveCount(0);
   });
 
   for (const w of [360, 412]) {
-    test(`${w} 宽：顶栏胶囊（logo · 长条 · 快捷面板 · AI · 头像）贴页边距，长条在中间不溢出、字不截断，页面不横向滚动（所有进门的人一样）`, async ({ page }) => {
+    test(`${w} 宽：顶栏胶囊（字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI）贴页边距，长条在中间不溢出、字不截断，页面不横向滚动（所有进门的人一样）`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: 800 });
       for (const home of HOMES) {
         await page.goto(home, { waitUntil: 'domcontentloaded' });
@@ -194,7 +191,8 @@ test.describe('快捷面板「分享本页」磁贴', () => {
             overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 };
         });
         expect(r.bar).toEqual([16, w - 16, 52]);
-        expect(r.btns).toEqual([[40, 40], [40, 40], [40, 40]]);
+        /* PR-4b：右边按钮 38 宽 40 高（九宫格 · 快捷设置 · AI） */
+        expect(r.btns).toEqual([[38, 40], [38, 40], [38, 40]]);
         expect(r.between, home + ' 长条在 logo 和按钮之间').toBe(true);
         expect(r.clipped, home + ' 长条里的字没被截断').toBe(false);
         expect(r.overflow).toBe(false);
