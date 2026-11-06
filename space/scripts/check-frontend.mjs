@@ -11,6 +11,9 @@
  *     如 `let token`、`token = null`、`token:` 传参等；后端改用 cookie 鉴权后
  *     该机制已删除，残留即 bug）。只匹配独立的 token 标识符，不误伤
  *     csrfToken、__token 等合法命名（词边界匹配）。
+ *  3. 底部弹出窗口白名单（P4-3 §6.7，Gray 2026-11-06 立规「不做底部弹出窗口」）：
+ *     `openSheet(`（含 `openSheet as 别名` 的改名 import）只许出现在 SHEET_ALLOW 里的文件；新文件调用一律报错。
+ *     选项类改行内展开单选（如账号页 AI 模型，apps/account-ai.js）。白名单里的弹层以后逐步换掉，只减不增。
  *
  * 扫描范围：space/web/assets/js/ 和 space/web/shared/shell/（同步给子站的外壳脚本）。
  * 去注释按词法走（字符串里的 // 不当注释），以前用正则去注释，'https://…' 之后同一行的代码会被当注释吞掉，
@@ -84,6 +87,20 @@ export function stripComments(src) {
   return out;
 }
 
+/**
+ * 规则 3 白名单：现在还在用 openSheet 的文件（2026-11-07 按 git grep "openSheet(" 列出；account-ai.js 已改行内列表、不在内；PR-4b 语言选择改行内后 apps/settings.js 删除、移出白名单）。
+ * - shell/sheet.js：openSheet 本身的定义
+ * - apps/account.js：账号页自己的登录方式弹层（同名局部函数 openSheet）
+ * - apps/account-apps.js：应用授权「重新授权」前的验证弹层
+ * - apps/avatar-edit.js：头像编辑弹层
+ */
+export const SHEET_ALLOW = new Set([
+  'space/web/assets/js/shell/sheet.js',
+  'space/web/assets/js/apps/account.js',
+  'space/web/assets/js/apps/account-apps.js',
+  'space/web/assets/js/apps/avatar-edit.js',
+]);
+
 /* 规则 2 的匹配模式（作用于去注释后的代码，逐行检查，报错带行号） */
 const TOKEN_PATTERNS = [
   { re: /\b(?:let|var|const)\s+token\b/, desc: '声明了独立的 token 变量' },
@@ -124,6 +141,15 @@ export function checkSource(r, src) {
         errors.push(`${r}:${i + 1}: ${pat.desc}（废弃的内存鉴权 token 机制已删除）: ${(origLines[i] || '').trim().slice(0, 100)}`);
         break;
       }
+    }
+  }
+
+  // 规则 3：openSheet( 只许出现在白名单文件（底部弹出窗口只减不增）
+  if (!SHEET_ALLOW.has(r)) {
+    const sheetRe = /\bopenSheet\s*\(|\bopenSheet\s+as\s+[\w$]+/g;
+    while ((m = sheetRe.exec(code))) {
+      const lineNo = code.slice(0, m.index).split('\n').length;
+      errors.push(`${r}:${lineNo}: 规则 3：不做底部弹出窗口，openSheet 只许出现在白名单文件（选项改行内展开单选；见 check-frontend.mjs SHEET_ALLOW）`);
     }
   }
   return errors;

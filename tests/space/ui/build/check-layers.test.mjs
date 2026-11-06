@@ -9,6 +9,7 @@
  * - Worker 边界（账号拆分 PR3e）：规则 15 不许有 workers/shared；规则 16 网关源码（含 wrangler.toml，注释除外）不许出现账号鉴权标识；
  *   规则 17 账号 Worker 的 wrangler.toml 不许有路由。每条都故意违反一次，检查必须报错
  * - check-frontend：'https://…' 之后同一行的 alert( 查得到；window['alert'] / globalThis.confirm 查得到；注释里的不算
+ * - check-frontend 规则 3：openSheet( 只许白名单文件（P4-3 §6.7 不做底部弹出窗口）
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -250,6 +251,33 @@ test('check-frontend：独立 token 变量', () => {
   for (const code of ['const csrfToken = 1;', 'submitToken(token2);', "// let token = 1"]) {
     assert.deepEqual(frontend.checkSource('space/web/assets/js/apps/x.js', code), [], code);
   }
+});
+
+test('check-frontend 规则 3：openSheet( 只许白名单文件（P4-3 §6.7 不做底部弹出窗口）', () => {
+  /* 白名单外：调用、改名 import 都拦；报错带行号和规则号 */
+  for (const code of ["openSheet({ title: 'x' });", "import { openSheet } from '../shell/sheet.js';\nopenSheet({});", "import { openSheet as os } from '../shell/sheet.js';", 'const u = 1;\nopenSheet ({})']) {
+    const errs = frontend.checkSource('space/web/assets/js/apps/new-app.js', code);
+    assert.equal(errs.length, 1, code + ' → ' + JSON.stringify(errs));
+    assert.match(errs[0], /规则 3/);
+  }
+  assert.match(frontend.checkSource('space/web/assets/js/apps/x.js', 'const u = 1;\nopenSheet({});')[0], /^space\/web\/assets\/js\/apps\/x\.js:2:/);
+  /* 只 import 不调用、注释里、别的名字不算 */
+  for (const code of ["import { closeSheet } from '../shell/sheet.js';", '// openSheet({})', '/* openSheet({}) */', 'openSheetLater();', 'reopenSheet();']) {
+    assert.deepEqual(frontend.checkSource('space/web/assets/js/apps/new-app.js', code), [], code);
+  }
+  /* 账号页 AI 模型已改行内展开：account-ai.js 不在白名单，再调就拦 */
+  assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/js/apps/account-ai.js'), false);
+  assert.equal(frontend.checkSource('space/web/assets/js/apps/account-ai.js', 'openSheet({});').length, 1);
+  /* 白名单里照常放行；PR-4b 语言选择改行内后 settings.js 已删、移出白名单，旷野页 space.js 不在白名单 */
+  assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/js/apps/settings.js'), false);
+  assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/js/apps/space.js'), false);
+  for (const f of ['space/web/assets/js/shell/sheet.js', 'space/web/assets/js/apps/account.js', 'space/web/assets/js/apps/account-apps.js', 'space/web/assets/js/apps/avatar-edit.js']) {
+    assert.ok(frontend.SHEET_ALLOW.has(f), f);
+    assert.deepEqual(frontend.checkSource(f, 'openSheet({});'), [], f);
+  }
+  assert.equal(frontend.SHEET_ALLOW.size, 4, '白名单只减不增');
+  /* 共享外壳（子站用）也在扫描范围里 */
+  assert.equal(frontend.checkSource('space/web/shared/shell/topbar.js', 'openSheet({});').length, 1);
 });
 
 /* ---------------- Worker 边界（规则 15-17，账号拆分 PR3e） ---------------- */
