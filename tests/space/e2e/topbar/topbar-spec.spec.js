@@ -11,7 +11,8 @@
  * 两个图标各 40px 圆形点击区、对称内缩（图标中心距长条外缘 26 = 圆半径），页名在长条正中，长条在屏幕正中。
  * 顶栏 v8（2026-10-22，三个站同一套）：九宫格圆 | 长条（只有页名）| 右圆（每站自定义；主站 = 快捷面板）；头像挪进导航抽屉头（字标右边）。
  * 主站顶栏三栏（2026-10-22 PR2，只在主站）：主页 / 聊天 / 设置（2026-10-24 PR4 第三栏由「状态」换成「设置」）这三页长条里是三个标签（.sgx-tb-tabs），
- * 不放页名；其他页照旧只有页名。三栏本身的验收见 settings-status.spec.js。
+ * 不放页名；其他页照旧只有页名。三栏本身的验收见 space-status.spec.js。
+ * P4-3 PR-4b（2026-11-07）：主页和设置合成「旷野 / Space」（根路径 /），顶栏标签只剩一个「旷野」；原设置子页去掉 settings 一层挂到根下（/display/ 等）。
  * 顶栏全大椭圆（2026-11-04 P5-1，四个站同一个）：一整条胶囊 .sgx-topbar = [logo][中间：主站标签 / 页名][快捷面板 · AI · 头像]；
  * 九宫格圆、导航抽屉、右圆删除（导航进快捷面板第 1 页，见 quick-panel.spec.js）；主站标签只剩 主页 / 设置。材质（--sgx-mat + 毛玻璃）在整条胶囊上，
  * 中间和按钮本身透明；胶囊高 = 原来圆按钮的高（52，≥ 600 宽按公式到 56），里面的按钮 40px；< 600 宽中间伸缩，≥ 600 宽中间按内容定宽、在屏幕正中。
@@ -48,7 +49,7 @@ for (const dark of [false, true]) {
   test.describe(`390×844 ${dark ? '暗色' : '亮色'}`, () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    for (const path of ['/', '/settings/', '/settings/security/']) {
+    for (const path of ['/', '/display/', '/security/']) {
       test(`${path}：一整条胶囊（logo · 中间 · 快捷面板 · AI · 头像），坐标、高度一致；材质只在胶囊上`, async ({ page }) => {
         await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
         await go(page, path, { dark });
@@ -72,14 +73,14 @@ for (const dark of [false, true]) {
         /* 390 < 400：logo 是图标版（40px 按钮里 20px 图标） */
         expect(near(logo.width, 40)).toBe(true);
         await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-nav, .sgx-tb-end, #sgx-drawer')).toHaveCount(0);
-        const home = path === '/' || path === '/settings/';
+        const home = path === '/';
         expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-logo', home ? 'sgx-tb-pill sgx-tb-pill-tabs' : 'sgx-tb-pill', 'sgx-tb-acts']);
         expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className))).toEqual([home ? 'sgx-tb-tabs' : 'sgx-tb-title']);
         await expect(page.locator('.sgx-tb-pill svg, .sgx-tb-pill button')).toHaveCount(0);
-        await expect(page.locator('.sgx-tb-pill a')).toHaveCount(home ? 2 : 0);
+        await expect(page.locator('.sgx-tb-pill a')).toHaveCount(home ? 1 : 0);
         for (const s of ['.sgx-tb-quick', '.sgx-tb-ai']) await expect(page.locator(s + ' svg')).toHaveCount(1);
         await expect(page.locator('.sgx-tb-me img.sgx-tb-avatar')).toHaveCount(1);
-        /* 页名（主页：两栏标签组）在长条内水平垂直居中 */
+        /* 页名（旷野页：单个「旷野」标签）在长条内水平垂直居中 */
         const tx = await box(page, home ? '.sgx-tb-tabs' : '.sgx-tb-title');
         expect(near(tx.x + tx.width / 2, pill.x + pill.width / 2), `页名水平居中 ${tx.x + tx.width / 2}`).toBe(true);
         expect(near(tx.y + tx.height / 2, bar.y + bar.height / 2), `页名垂直居中 ${tx.y + tx.height / 2}`).toBe(true);
@@ -104,24 +105,24 @@ test.describe('390×844 行为', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test('旧顶栏元素、标题区旧按钮、大标题区、Styrigx 品牌字都已删除', async ({ page }) => {
-    await go(page, '/settings/');
+    await go(page, '/display/');
     for (const sel of ['#nav-time-center', '#nav-wx', '#nav-music-note', '.nav-inner', '.subpage-back', '#nav-brand', '.sgx-tb-text', '.subpage-mini-title']) {
       await expect(page.locator(sel), sel).toHaveCount(0);
     }
     await expect(page.locator('[data-tb-more]')).toHaveCount(0);
   });
 
-  /* 主页（/、/en/）、设置首页（/settings/、/en/settings/）长条里是三栏标签、没有页名（settings-status.spec.js） */
+  /* 旷野页（/、/en/）长条里是单个「旷野」标签、没有页名（space-status.spec.js）；旷野子页照旧显示页名 */
   const NAMES = [
-    ['/settings/status/', '服务状态'],
+    ['/status/', '服务状态'],
     ['/account/sync/', '云同步'],
     /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
     ['/account/', '登录账号'],
     ['/account/reset/', '重置登录'],
-    ['/settings/security/', '安全'],
-    ['/settings/security/lock/', '锁屏凭证'],
-    ['/settings/display/', '显示'],
-    ['/en/settings/status/', 'Service status'],
+    ['/security/', '安全'],
+    ['/security/lock/', '锁屏凭证'],
+    ['/display/', '显示'],
+    ['/en/status/', 'Service status'],
     ['/en/account/', 'Sign in'],
     ['/en/account/reset/', 'Reset sign-in'],
   ];
@@ -137,22 +138,24 @@ test.describe('390×844 行为', () => {
     });
   }
 
-  test('主页长条里没有设置按钮、没有搜索图标；长条只有 主页 / 设置 两栏（2026-10-22 起不放页名；2026-11-04 P5-1 去掉聊天），长条本身不可点', async ({ page }) => {
+  test('旷野页长条里没有设置按钮、没有搜索图标；长条只有一个「旷野」标签（2026-10-22 起不放页名；P4-3 PR-4b 主页 / 设置合并），长条本身不可点', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/');
     await expect(page.locator('.sgx-tb-set')).toHaveCount(0);
     await expect(page.locator('.sgx-tb-psearch')).toHaveCount(0);
     expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-tabs']);
-    await expect(page.locator('.sgx-tb-pill .sgx-tb-tab')).toHaveText(['主页', '设置']);
+    await expect(page.locator('.sgx-tb-pill .sgx-tb-tab')).toHaveText(['旷野']);
+    await expect(page.locator('.sgx-tb-pill .sgx-tb-tab')).toHaveAttribute('href', '/');
+    await expect(page.locator('.sgx-tb-pill .sgx-tb-tab')).toHaveAttribute('aria-current', 'page');
     await expect(page.locator('.sgx-tb-title')).toHaveCount(0);
     await expect(page.locator('#sgx-tb-cap')).toHaveCount(0);
     await expect(page.locator('.sgx-topbar .sgx-tb-search, #sgx-tb-search')).toHaveCount(0);
     expect(await page.locator('.sgx-tb-pill').evaluate((el) => getComputedStyle(el).cursor)).toBe('default');
-    /* 设置入口只有三栏里的「设置」标签（PR4），没有别的设置按钮 */
-    await expect(page.locator('.sgx-topbar a[href$="/settings/"]:not(.sgx-tb-tab)')).toHaveCount(0);
+    /* 顶栏里没有任何指向旧设置层的链接（旧地址运行时拼，免得 git grep 命中） */
+    await expect(page.locator('.sgx-topbar a[href$="' + '/' + 'settings' + '/' + '"]')).toHaveCount(0);
   });
 
-  for (const path of ['/settings/', '/account/', '/settings/display/']) {
+  for (const path of ['/', '/account/', '/display/']) {
     test(`${path}：正文从顶栏下方 16px 开始（--sgx-content-top，全站同一个值）`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {
@@ -168,7 +171,7 @@ test.describe('390×844 行为', () => {
 
   test('滚动时长条不变：页名一直显示，没有 sgx-stuck 切换，头像和按钮不动', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/settings/security/');
+    await go(page, '/security/');
     const before = await Promise.all(['.sgx-tb-pill', '.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-me'].map((s) => box(page, s)));
     await page.evaluate(() => window.scrollTo(0, 400));
     /* C8：原来固定等 300ms；改成等滚动落地（scroll 监听跑完）+ 顶栏可能的过渡结束 */
@@ -195,7 +198,7 @@ test.describe('390×844 行为', () => {
   });
 
   test('顶栏切页过渡名挂在有尺寸的 .sgx-topbar 上', async ({ page }) => {
-    await go(page, '/settings/');
+    await go(page, '/display/');
     const names = await page.evaluate(() => ({
       bar: getComputedStyle(document.querySelector('.sgx-topbar')).viewTransitionName,
       nav: getComputedStyle(document.getElementById('site-nav')).viewTransitionName,
@@ -240,7 +243,7 @@ test.describe('1280×800', () => {
   for (const [w, h] of [[600, 900], [840, 600], [1280, 800], [1920, 1080], [2560, 1440]]) {
     test(`${w}×${h}：外壳框宽 / 页边距 / 圆按钮按公式（±1px），居中`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
-      await go(page, '/settings/');
+      await go(page, '/display/');
       const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
       const max = w >= 840 && h >= 500 && w > h ? 1440 : 640;
       const want = Math.min(w - 2 * m, max);
@@ -263,7 +266,7 @@ test.describe('1280×800', () => {
   for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     test(`${w}px：两侧圆同宽贴顶栏两端，长条只包住页名、中心 = 屏幕中心、页名中心 = 屏幕中心（±1px）`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
-      await go(page, '/settings/security/');
+      await go(page, '/security/');
       const [bar, logo, pill, me] = await Promise.all(['.sgx-topbar', '.sgx-tb-logo', '.sgx-tb-pill', '.sgx-tb-me'].map((s) => box(page, s)));
       expect(near(pill.x + pill.width / 2, w / 2), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
       /* ≥ 600 宽：胶囊里三列 1fr auto 1fr，中间两侧同宽 */
@@ -279,7 +282,7 @@ test.describe('1280×800', () => {
     });
   }
 
-  for (const path of ['/', '/settings/']) {
+  for (const path of ['/', '/display/']) {
     test(`${path}：宽屏正文同样从顶栏下方 16px 开始，没有大标题区`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {

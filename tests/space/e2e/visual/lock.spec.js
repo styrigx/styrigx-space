@@ -269,15 +269,15 @@ test.describe('lock screen', () => {
     await page.route('**/api/lock-session-check*', async (route) => {
       checks.push(route.request().url());
       if (!unlocked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/settings/' }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/display/' }) });
     });
-    await page.goto('/?lock=1&return=' + encodeURIComponent('/settings/') + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await page.goto('/?lock=1&return=' + encodeURIComponent('/display/') + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     await choosePassword(page);
     await page.fill('#sgx-pw-input', 'correctpassword');
     await page.click('#sgx-pw-go');
-    await page.waitForURL(/\/settings\/$/, { timeout: 10000 });
-    expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/settings/')))).toBe(true);
+    await page.waitForURL(/\/display\/$/, { timeout: 10000 });
+    expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/display/')))).toBe(true);
   });
 
   /* 2.4.1 回跳修复：另一个标签页解锁后，切回来自动检测并回跳。
@@ -297,7 +297,7 @@ test.describe('lock screen', () => {
         body: JSON.stringify({ ok: false }),
       });
     });
-    const ret = encodeURIComponent('/settings/');
+    const ret = encodeURIComponent('/display/');
     await page.goto('/?lock=1&return=' + ret + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     /* dispatch focus → recheckSession → fetch → 401 → 锁屏保持 */
@@ -591,7 +591,7 @@ test.describe('A-2 锁屏凭证清空态 / 启动站（PR3：只剩「无法登�
       calls.push(JSON.parse(route.request().postData() || '{}'));
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     });
-    await page.route('**/settings/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
+    await page.route('**/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
     await gotoLock(page);
     await openMethodSheet(page);
     await expect(page.locator('#sgx-mopt-mk')).toHaveCount(0);
@@ -613,7 +613,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
   });
 
   /* 账号拆分 PR3：第 2 步是锁屏凭证（lockProof；网关不读账号凭证），服务端回 needLock */
-  test('进站凭证 → needLock → 锁屏凭证行（锁屏通行密钥 / 解锁密码，不出现旧角色名和「账号」字样）→ 解锁密码通过 → /settings/security/lock/', async ({ page }) => {
+  test('进站凭证 → needLock → 锁屏凭证行（锁屏通行密钥 / 解锁密码，不出现旧角色名和「账号」字样）→ 解锁密码通过 → /security/lock/', async ({ page }) => {
     const bodies = [];
     await page.route('**/api/lock-reset', async (route) => {
       const b = JSON.parse(route.request().postData() || '{}');
@@ -624,7 +624,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
       }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, needLock: true, passkey: true, password: true }) });
     });
-    await page.route('**/settings/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
+    await page.route('**/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
     await gotoLock(page);
     await openMethodSheet(page);
     await page.click('#sgx-mopt-cant');
@@ -657,7 +657,7 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
       }
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     });
-    await page.route('**/settings/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
+    await page.route('**/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
     await gotoLock(page);
     await openMethodSheet(page);
     await page.click('#sgx-mopt-cant');

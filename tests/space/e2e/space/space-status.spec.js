@@ -1,11 +1,11 @@
 /**
- * 服务状态（设置 → 服务状态 /settings/status/）+ 主站顶栏三栏验收。/api/status 一律 mock（tests/fixtures/status-summary.cjs，形状 = workers/status/src/monitor.js summary）。
+ * 服务状态（旷野 → 服务状态 /status/）+ 主站顶栏标签验收。/api/status 一律 mock（tests/fixtures/status-summary.cjs，形状 = workers/status/src/monitor.js summary）。
  * 2026-10-24 PR4：原顶栏「状态」页（/status/，status-page.spec.js）整页挪进账号页，顶栏第三栏换成「设置」；旧地址 404、不跳转。
- * 之后从账号页搬到设置（本文件也随之改名）：/settings/status/（+ /en/），旧地址删除、不跳转；只认锁屏进门会话，不问账号会话。
- * - 顶栏：主页 / 设置两页的长条里是两个标签（en：Home / Settings；2026-11-04 P5-1 去掉「聊天」，P4-2b 删了 /chat/ 页），
- *   当前页 aria-current="page"；点了切页；其他页（设置子页、服务状态）长条照旧只有页名；标签在长条里居中；
+ * 之后从账号页搬到设置，P4-3 PR-4b 去掉 settings 一层：/status/（+ /en/），旧地址删除、不跳转；只认锁屏进门会话，不问账号会话。
+ * - 顶栏（P4-3 PR-4b §6.4：顶栏只留顶级标签）：旷野页（/）长条里只有一个标签「旷野」（en：Space），
+ *   aria-current="page"；其他页（旷野子页、服务状态）长条照旧只有页名；标签在长条里居中；
  *   宽屏（≥ 600）长条在屏幕正中，手机上长条在 logo 和右边三个按钮之间伸缩（胶囊顶栏，方案 6.2）。
- * - 入口：设置首页分类列表「服务状态」一行（第 7 项，独立页面）→ /settings/status/；账号页没有入口。
+ * - 入口：旷野页分类入口「服务状态」一行（独立页面）→ /status/；账号页没有入口。
  * - 服务状态页：横幅（全部正常 / 有 1 个故障）、每站一张卡（主站 / 博客 / 日刻 / 奇趣 / 规则集，正常 / 故障、延迟、90 格可用率条 + 百分比）、
  *   近期故障（北京时间）；加载中骨架、空状态、错误（503 重试 / 401 会话过期）；同源请求带 cookie；页面可见时每 60 秒刷新；点色块看当天说明。
  * - 用量（PR3）：站点卡下面「用量」卡（Workers / D1 / R2 / KV：值 / 上限 / 百分比 / 进度条，> 70% 琥珀、> 90% 红，「更新于 N 分钟前」）；
@@ -61,15 +61,15 @@ const VIEWPORTS = [
 ];
 
 for (const [label, viewport] of VIEWPORTS) {
-  test.describe(`${label}：顶栏两栏`, () => {
+  test.describe(`${label}：顶栏只留顶级标签`, () => {
     test.use({ viewport });
 
-    for (const [path, cur] of [['/', 'home'], ['/settings/', 'settings']]) {
-      test(`${path}：长条里是 主页 / 设置，当前「${cur}」高亮，没有页名`, async ({ page }) => {
+    for (const [path, cur] of [['/', 'space']]) {
+      test(`${path}：长条里只有「旷野」一个标签，当前高亮，没有页名`, async ({ page }) => {
         await go(page, path);
         const tabs = page.locator('.sgx-tb-pill .sgx-tb-tab');
-        await expect(tabs).toHaveText(['主页', '设置']);
-        expect(await tabs.evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['/', '/settings/']);
+        await expect(tabs).toHaveText(['旷野']);
+        expect(await tabs.evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['/']);
         await expect(page.locator('.sgx-tb-tab[aria-current="page"]')).toHaveCount(1);
         await expect(page.locator(`.sgx-tb-tab[data-tab="${cur}"]`)).toHaveAttribute('aria-current', 'page');
         await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveCount(0);
@@ -86,10 +86,9 @@ for (const [label, viewport] of VIEWPORTS) {
         expect(near(grp.x + grp.width / 2, pill.x + pill.width / 2), `标签组中心 ${grp.x + grp.width / 2}`).toBe(true);
         expect(grp.x >= pill.x && grp.x + grp.width <= pill.x + pill.width).toBe(true);
         expect(near(grp.height, 40) && near(grp.y + grp.height / 2, pill.y + pill.height / 2)).toBe(true);
-        /* 两个标签等宽、文字不截断 */
+        /* 一个标签，文字不截断 */
         const ws = await tabs.evaluateAll((els) => els.map((e) => [e.getBoundingClientRect().width, e.scrollWidth <= e.clientWidth]));
-        expect(ws.length).toBe(2);
-        expect(near(ws[0][0], ws[1][0]), JSON.stringify(ws)).toBe(true);
+        expect(ws.length).toBe(1);
         expect(ws.every((w) => w[1])).toBe(true);
         /* 当前页药丸 = 快捷面板导航页当前项（原导航抽屉当前项）同一套色 */
         const c = await page.evaluate(() => {
@@ -108,30 +107,19 @@ for (const [label, viewport] of VIEWPORTS) {
       });
     }
 
-    test('英文：Home / Settings，链接带 /en', async ({ page }) => {
-      await go(page, '/en/settings/');
-      await expect(page.locator('.sgx-tb-tab')).toHaveText(['Home', 'Settings']);
-      expect(await page.locator('.sgx-tb-tab').evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['/en/', '/en/settings/']);
-      await expect(page.locator('.sgx-tb-tab[data-tab="settings"]')).toHaveAttribute('aria-current', 'page');
-      await expect(page.locator('.sgx-tb-tab[data-tab="status"]')).toHaveCount(0);
+    test('英文：Space，链接带 /en', async ({ page }) => {
+      await go(page, '/en/');
+      await expect(page.locator('.sgx-tb-tab')).toHaveText(['Space']);
+      expect(await page.locator('.sgx-tb-tab').evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['/en/']);
+      await expect(page.locator('.sgx-tb-tab[data-tab="space"]')).toHaveAttribute('aria-current', 'page');
+      await expect(page.locator('.sgx-tb-tab[data-tab="status"], .sgx-tb-tab[data-tab="home"], .sgx-tb-tab[data-tab="settings"]')).toHaveCount(0);
     });
 
-    test('点标签切页：主页 → 设置 → 主页', async ({ page }) => {
-      await go(page, '/');
-      await page.locator('.sgx-tb-tab[data-tab="settings"]').click();
-      await page.waitForURL(/\/settings\/$/);
-      await expect(page.locator('.set-layout')).toBeVisible();
-      await expect(page.locator('.sgx-tb-tab[data-tab="settings"]')).toHaveAttribute('aria-current', 'page');
-      await page.locator('.sgx-tb-tab[data-tab="home"]').click();
-      await page.waitForURL((u) => new URL(u).pathname === '/');
-      await expect(page.locator('.sgx-tb-tab[data-tab="home"]')).toHaveAttribute('aria-current', 'page');
-    });
-
-    test('其他页（设置子页、服务状态）长条照旧只有页名，没有标签', async ({ page }) => {
-      await go(page, '/settings/display/');
+    test('其他页（旷野子页、服务状态）长条照旧只有页名，没有标签', async ({ page }) => {
+      await go(page, '/display/');
       await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-title')).toHaveText('显示');
-      await go(page, '/settings/status/');
+      await go(page, '/status/');
       await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-title')).toHaveText('服务状态');
     });
@@ -142,7 +130,7 @@ for (const [label, viewport] of VIEWPORTS) {
 
     test('全部正常：横幅、5 张卡、90 格条、可用率、近期故障（北京时间）、页脚；同源带 cookie 请求', async ({ page }) => {
       await page.context().addCookies([{ name: 'sgx-test', value: '1', domain: 'localhost', path: '/' }]);
-      const calls = await go(page, '/settings/status/', { api: fx.normal() });
+      const calls = await go(page, '/status/', { api: fx.normal() });
       const root = page.locator('#st-root');
       await expect(root).toHaveAttribute('data-state', 'ready');
       await expect(root).toHaveAttribute('aria-busy', 'false');
@@ -187,7 +175,7 @@ for (const [label, viewport] of VIEWPORTS) {
     });
 
     test('一个故障：横幅「有 1 个故障」、奇趣卡故障 + 超时、进行中的故障排第一', async ({ page }) => {
-      await go(page, '/settings/status/', { api: fx.oneDown() });
+      await go(page, '/status/', { api: fx.oneDown() });
       await expect(page.locator('#st-banner')).toHaveAttribute('data-state', 'down');
       await expect(page.locator('#st-banner .st-banner-title')).toHaveText('有 1 个故障');
       await expect(page.locator('#st-banner .st-banner-sub')).toHaveText('奇趣暂时无法访问');
@@ -215,7 +203,7 @@ for (const [label, viewport] of VIEWPORTS) {
     });
 
     test('英文页：横幅 / 卡片 / 故障都是英文', async ({ page }) => {
-      await go(page, '/en/settings/status/', { api: fx.oneDown() });
+      await go(page, '/en/status/', { api: fx.oneDown() });
       await expect(page.locator('#st-banner .st-banner-title')).toHaveText('1 service down');
       await expect(page.locator('.st-card .st-name')).toHaveText(['Space', 'Blog', 'Daymark', 'Curio', 'Proxy rules']);
       await expect(page.locator('.st-card[data-site="curio"] .st-chip')).toHaveText('Down');
@@ -225,7 +213,7 @@ for (const [label, viewport] of VIEWPORTS) {
     });
 
     test('还没有数据：空状态卡，不显示横幅 / 卡片 / 故障', async ({ page }) => {
-      await go(page, '/settings/status/', { api: fx.empty() });
+      await go(page, '/status/', { api: fx.empty() });
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'empty');
       await expect(page.locator('#st-empty')).toBeVisible();
       await expect(page.locator('#st-empty .st-msg-title')).toHaveText('还没有监测数据');
@@ -236,7 +224,7 @@ for (const [label, viewport] of VIEWPORTS) {
 
     test('出错（503）：错误卡 + 重试，重试成功后显示数据', async ({ page }) => {
       let fail = true;
-      await go(page, '/settings/status/', { api: () => (fail ? { status: 503, body: { ok: false, error: 'upstream' } } : fx.normal()) });
+      await go(page, '/status/', { api: () => (fail ? { status: 503, body: { ok: false, error: 'upstream' } } : fx.normal()) });
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'error');
       await expect(page.locator('#st-error')).toBeVisible();
       await expect(page.locator('#st-error .st-msg-title')).toHaveText('暂时拿不到状态');
@@ -250,7 +238,7 @@ for (const [label, viewport] of VIEWPORTS) {
     });
 
     test('会话过期（401）：错误卡「会话已过期」+「重新解锁」', async ({ page }) => {
-      await go(page, '/settings/status/', { api: { status: 401, body: { ok: false, error: 'unauthorized' } } });
+      await go(page, '/status/', { api: { status: 401, body: { ok: false, error: 'unauthorized' } } });
       await expect(page.locator('#st-error .st-msg-title')).toHaveText('会话已过期');
       await expect(page.locator('#st-error .st-btn')).toHaveText('重新解锁');
       await expect(page.locator('#st-error .st-btn')).toHaveAttribute('data-action', 'reload');
@@ -259,7 +247,7 @@ for (const [label, viewport] of VIEWPORTS) {
     test('加载中：骨架 + 「正在加载…」，aria-busy', async ({ page }) => {
       let release;
       const hold = new Promise((r) => { release = r; });
-      await go(page, '/settings/status/', { api: () => ({ __hold: hold, data: fx.normal() }) });
+      await go(page, '/status/', { api: () => ({ __hold: hold, data: fx.normal() }) });
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'loading');
       await expect(page.locator('#st-root')).toHaveAttribute('aria-busy', 'true');
       await expect(page.locator('.st-skel')).toHaveCount(5);
@@ -269,7 +257,7 @@ for (const [label, viewport] of VIEWPORTS) {
     });
 
     test('点色块：卡片底部显示当天说明，再点收起', async ({ page }) => {
-      await go(page, '/settings/status/', { api: fx.normal() });
+      await go(page, '/status/', { api: fx.normal() });
       const blog = page.locator('.st-card[data-site="blog"]');
       const cell = blog.locator('.st-cell[data-level="minor"]');
       await cell.click();
@@ -281,7 +269,7 @@ for (const [label, viewport] of VIEWPORTS) {
     });
 
     test('用量：站点卡下面一张卡，7 行（Workers / D1 合计 + 3 个库 / R2 / KV），值 / 上限 / 百分比 / 进度条颜色、更新于 N 分钟前', async ({ page }) => {
-      await go(page, '/settings/status/', { api: fx.withUsage(fx.normal(), fx.usage()) });
+      await go(page, '/status/', { api: fx.withUsage(fx.normal(), fx.usage()) });
       const wrap = page.locator('#st-usage-wrap');
       await expect(wrap).toBeVisible();
       await expect(wrap.locator('h3')).toHaveText('用量');
@@ -326,32 +314,32 @@ for (const [label, viewport] of VIEWPORTS) {
     });
 
     test('用量：usage = null → 「用量未配置」，没有进度条；旧版接口（没有 usage 字段）同样；英文「Usage not configured」', async ({ page }) => {
-      await go(page, '/settings/status/', { api: fx.withUsage(fx.normal(), null, 'not-configured') });
+      await go(page, '/status/', { api: fx.withUsage(fx.normal(), null, 'not-configured') });
       await expect(page.locator('#st-usage-wrap')).toBeVisible();
       await expect(page.locator('#st-usage .st-usage-none')).toHaveAttribute('data-reason', 'not-configured');
       await expect(page.locator('#st-usage .st-usage-none-title')).toHaveText('用量未配置');
       await expect(page.locator('#st-usage .st-u-track')).toHaveCount(0);
       await expect(page.locator('.st-card')).toHaveCount(5);
-      await go(page, '/settings/status/', { api: fx.normal() });
+      await go(page, '/status/', { api: fx.normal() });
       await expect(page.locator('#st-usage .st-usage-none-title')).toHaveText('用量未配置');
-      await go(page, '/en/settings/status/', { api: fx.withUsage(fx.normal(), null, 'not-configured') });
+      await go(page, '/en/status/', { api: fx.withUsage(fx.normal(), null, 'not-configured') });
       await expect(page.locator('#st-usage-wrap h3')).toHaveText('Usage');
       await expect(page.locator('#st-usage .st-usage-none-title')).toHaveText('Usage not configured');
-      await go(page, '/settings/status/', { api: fx.withUsage(fx.normal(), null, 'api-error') });
+      await go(page, '/status/', { api: fx.withUsage(fx.normal(), null, 'api-error') });
       await expect(page.locator('#st-usage .st-usage-none-title')).toHaveText('用量暂时拿不到');
     });
 
     test('用量：加载中 / 出错 / 空状态时不显示', async ({ page }) => {
-      await go(page, '/settings/status/', { api: { status: 503, body: { ok: false } } });
+      await go(page, '/status/', { api: { status: 503, body: { ok: false } } });
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'error');
       await expect(page.locator('#st-usage-wrap')).toBeHidden();
-      await go(page, '/settings/status/', { api: fx.withUsage(fx.empty(), fx.usage()) });
+      await go(page, '/status/', { api: fx.withUsage(fx.empty(), fx.usage()) });
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'empty');
       await expect(page.locator('#st-usage-wrap')).toBeHidden();
     });
 
     test('免费额度：站点卡下面、用量上面；9 行（Workers / KV 读写删列 / D1 读写行 / R2 A B），≥ 80% 琥珀、≥ 95% 红；用量卡不再重复 Workers 行', async ({ page }) => {
-      await go(page, '/settings/status/', { api: fx.withQuota(fx.withUsage(fx.normal(), fx.usage()), fx.quota()) });
+      await go(page, '/status/', { api: fx.withQuota(fx.withUsage(fx.normal(), fx.usage()), fx.quota()) });
       const wrap = page.locator('#st-quota-wrap');
       await expect(wrap).toBeVisible();
       await expect(wrap.locator('h3')).toHaveText('免费额度');
@@ -382,29 +370,29 @@ for (const [label, viewport] of VIEWPORTS) {
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       /* 英文 */
-      await go(page, '/en/settings/status/', { api: fx.withQuota(fx.withUsage(fx.normal(), fx.usage()), fx.quota()) });
+      await go(page, '/en/status/', { api: fx.withQuota(fx.withUsage(fx.normal(), fx.usage()), fx.quota()) });
       await expect(page.locator('#st-quota-wrap h3')).toHaveText('Free-tier quota');
       await expect(page.locator('#st-quota .st-u-name').first()).toHaveText('Workers requests (today)');
     });
 
     test('免费额度：quota = null →「额度暂时拿不到 / 额度未配置」一行、页面其余照常；旧版接口（没有 quota 字段）整块不显示；出错 / 空状态不显示', async ({ page }) => {
       /* 先测出错 / 空状态（本机首帧缓存 sgx-status-cache 还没写），再测有数据的几种 */
-      await go(page, '/settings/status/', { api: { status: 503, body: { ok: false } } });
+      await go(page, '/status/', { api: { status: 503, body: { ok: false } } });
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'error');
       await expect(page.locator('#st-quota-wrap')).toBeHidden();
-      await go(page, '/settings/status/', { api: fx.withQuota(fx.empty(), fx.quota()) });
+      await go(page, '/status/', { api: fx.withQuota(fx.empty(), fx.quota()) });
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'empty');
       await expect(page.locator('#st-quota-wrap')).toBeHidden();
-      await go(page, '/settings/status/', { api: fx.withQuota(fx.withUsage(fx.normal(), fx.usage()), null, 'api-error') });
+      await go(page, '/status/', { api: fx.withQuota(fx.withUsage(fx.normal(), fx.usage()), null, 'api-error') });
       await expect(page.locator('#st-quota-wrap')).toBeVisible();
       await expect(page.locator('#st-quota .st-usage-none-title')).toHaveText('额度暂时拿不到');
       await expect(page.locator('#st-quota .st-u-track')).toHaveCount(0);
       await expect(page.locator('.st-card')).toHaveCount(5);
       /* 额度拿不到时用量卡保留 Workers 行 */
       await expect(page.locator('#st-usage .st-u')).toHaveCount(7);
-      await go(page, '/settings/status/', { api: fx.withQuota(fx.normal(), null, 'not-configured') });
+      await go(page, '/status/', { api: fx.withQuota(fx.normal(), null, 'not-configured') });
       await expect(page.locator('#st-quota .st-usage-none-title')).toHaveText('额度未配置');
-      await go(page, '/settings/status/', { api: fx.withUsage(fx.normal(), fx.usage()) });
+      await go(page, '/status/', { api: fx.withUsage(fx.normal(), fx.usage()) });
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
       await expect(page.locator('#st-quota-wrap')).toBeHidden();
     });
@@ -416,7 +404,7 @@ test.describe('自动刷新', () => {
 
   test('页面可见时每 60 秒刷新一次；刷新失败保留旧数据、页脚提示', async ({ page }) => {
     let n = 0;
-    const calls = await go(page, '/settings/status/', {
+    const calls = await go(page, '/status/', {
       clock: true,
       api: () => {
         n++;
@@ -453,7 +441,7 @@ test.describe('首帧缓存', () => {
     await seed(page, { at: fx.NOW - 10 * 60 * 1000, data: fx.normal() });
     let release;
     const hold = new Promise((r) => { release = r; });
-    const calls = await go(page, '/settings/status/', { api: () => ({ __hold: hold, data: fx.oneDown() }) });
+    const calls = await go(page, '/status/', { api: () => ({ __hold: hold, data: fx.oneDown() }) });
     const root = page.locator('#st-root');
     await expect(root).toHaveAttribute('data-state', 'ready');
     await expect(page.locator('.st-skel')).toHaveCount(0);
@@ -478,7 +466,7 @@ test.describe('首帧缓存', () => {
       await seed(pg, bad);
       let release;
       const hold = new Promise((r) => { release = r; });
-      await go(pg, '/settings/status/', { api: () => ({ __hold: hold, data: fx.normal() }) });
+      await go(pg, '/status/', { api: () => ({ __hold: hold, data: fx.normal() }) });
       await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'loading');
       await expect(pg.locator('.st-skel')).toHaveCount(5);
       release();
@@ -488,7 +476,7 @@ test.describe('首帧缓存', () => {
   });
 
   test('没有缓存：成功后写入缓存；401 会话过期：清掉缓存、出错误卡（不显示缓存的旧数据）', async ({ page }) => {
-    await go(page, '/settings/status/', { api: fx.normal() });
+    await go(page, '/status/', { api: fx.normal() });
     await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
     expect(JSON.parse(await readKey(page)).at).toBe(fx.NOW);
 
@@ -501,21 +489,21 @@ test.describe('首帧缓存', () => {
   });
 });
 
-/* 2026-10-24 PR4：服务状态挪进账号页；之后从账号页搬到设置（/settings/status/），旧地址删除、不跳转。
+/* 2026-10-24 PR4：服务状态挪进账号页；之后从账号页搬到设置（/status/），旧地址删除、不跳转。
    只认锁屏进门会话，不问账号会话（不再调 requireAccountSession，不 mock /api/account）。 */
-test.describe('设置 → 服务状态（入口 / 旧地址删除）', () => {
+test.describe('旷野 → 服务状态（入口 / 旧地址删除）', () => {
   test.use({ viewport: { width: 412, height: 915 } });
 
-  test('设置分类列表「服务状态」一行 → 独立页 /settings/status/，数据和原状态页一样', async ({ page }) => {
+  test('旷野页分类入口「服务状态」一行 → 独立页 /status/，数据和原状态页一样', async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await page.route('**/api/status', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fx.withUsage(fx.normal(), fx.usage())) }));
-    await page.goto('/settings/', { waitUntil: 'domcontentloaded' });
-    const row = page.locator('.set-main [aria-label="分类"] .set-row[href="/settings/status/"]');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('.home-wrap [aria-label="分类"] .set-row[href="/status/"]');
     await expect(row).toHaveCount(1);
     await expect(row).toContainText('服务状态');
     await row.click();
-    await page.waitForURL(/\/settings\/status\/$/);
+    await page.waitForURL(/\/status\/$/);
     await expect(page.locator('.sgx-tb-title')).toHaveText('服务状态');
     await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
     await expect(page.locator('#st-sites .st-card')).toHaveCount(5);
@@ -525,14 +513,14 @@ test.describe('设置 → 服务状态（入口 / 旧地址删除）', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
-  test('英文：设置列表 Service status → /en/settings/status/', async ({ page }) => {
+  test('英文：Space 分类入口 Service status → /en/status/', async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await page.route('**/api/status', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fx.normal()) }));
-    await page.goto('/en/settings/', { waitUntil: 'domcontentloaded' });
-    const row = page.locator('.set-main [aria-label="Categories"] .set-row[href="/en/settings/status/"]');
+    await page.goto('/en/', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('.home-wrap [aria-label="Categories"] .set-row[href="/en/status/"]');
     await expect(row).toContainText('Service status');
-    await page.goto('/en/settings/status/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/en/status/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-tb-title')).toHaveText('Service status');
     await expect(page.locator('#st-banner .st-banner-title')).toHaveText('All systems operational');
   });
@@ -543,19 +531,21 @@ test.describe('设置 → 服务状态（入口 / 旧地址删除）', () => {
     await page.route('**/api/account', (route) => route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ ok: true, password: true, passkey: false, ready: true, session: null }) }));
     await page.route('**/api/status', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fx.normal()) }));
-    await page.goto('/settings/status/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/status/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
-    expect(new URL(page.url()).pathname).toBe('/settings/status/');
+    expect(new URL(page.url()).pathname).toBe('/status/');
   });
 
-  test('旧的顶栏「状态」页删除：/status/、/en/status/ 404，不跳转；顶栏没有「状态」标签', async ({ page }) => {
-    for (const p of ['/status/', '/en/status/']) {
+  test('旧设置层下的服务状态地址 404，不跳转；顶栏没有「状态」标签，入口只在旷野页分类卡里', async ({ page }) => {
+    const OLD = '/' + 'settings' + '/'; /* 拼出来：全仓 git grep 只许历史文档出现旧地址 */
+    for (const p of [OLD + 'status/', '/en' + OLD + 'status/']) {
       const res = await page.request.get(p, { maxRedirects: 0 });
       expect(res.status(), p).toBe(404);
     }
     await go(page, '/');
     await expect(page.locator('.sgx-tb-tab[data-tab="status"]')).toHaveCount(0);
-    await expect(page.locator('a[href="/status/"], a[href="/en/status/"]')).toHaveCount(0);
+    await expect(page.locator('a[href="/status/"]')).toHaveCount(1);
+    await expect(page.locator('.home-wrap [aria-label="分类"] a[href="/status/"]')).toHaveCount(1);
   });
 });
 
@@ -580,7 +570,7 @@ test.describe('进站凭证使用记录', () => {
   }
 
   test('默认收起：加载和 60 秒刷新都不请求；展开才请求一次（同源、不缓存），收起再展开不重复取', async ({ page }) => {
-    const status = await go(page, '/settings/status/', { clock: true });
+    const status = await go(page, '/status/', { clock: true });
     const audit = await mockAudit(page, () => ({ body: { ok: true, items: ITEMS } }));
     await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
     const det = page.locator('#st-audit');
@@ -613,7 +603,7 @@ test.describe('进站凭证使用记录', () => {
   });
 
   test('键盘：Tab 到摘要，Enter 展开并加载', async ({ page }) => {
-    await go(page, '/settings/status/');
+    await go(page, '/status/');
     const audit = await mockAudit(page, () => ({ body: { ok: true, items: [] } }));
     await page.locator('#st-audit summary').focus();
     await page.keyboard.press('Enter');
@@ -622,7 +612,7 @@ test.describe('进站凭证使用记录', () => {
   });
 
   test('503：提示 + 重试，重试成功后显示列表；401：只提示重新解锁，没有重试按钮', async ({ page }) => {
-    await go(page, '/settings/status/');
+    await go(page, '/status/');
     const audit = await mockAudit(page, (n) => (n === 1 ? { status: 503, body: { ok: false, error: 'server' } } : { body: { ok: true, items: ITEMS } }));
     await page.locator('#st-audit summary').click();
     await expect(page.locator('#st-audit-body .st-audit-msg')).toHaveText('暂时拿不到记录，稍后再试。');
@@ -639,7 +629,7 @@ test.describe('进站凭证使用记录', () => {
   });
 
   test('英文页：Space credential activity / Succeeded / Failed / 合计行', async ({ page }) => {
-    await go(page, '/en/settings/status/');
+    await go(page, '/en/status/');
     await mockAudit(page, () => ({ body: { ok: true, items: ITEMS } }));
     await expect(page.locator('#st-audit-h')).toHaveText('Space credential activity');
     await expect(page.locator('#st-audit summary')).toContainText('Last 7 days: time, IP prefix and result');

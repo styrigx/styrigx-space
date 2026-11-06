@@ -54,7 +54,7 @@ test('旧值 pc 在 1366×768 → DeX，并迁成 dex', async ({ page }) => {
 
 for (const [lang, hint] of [['zh', 'DeX 仅在大屏生效（当前不满足）'], ['en', 'DeX only works on large screens (not met here)']]) {
   test(`设置 › 显示 › 布局（${lang}）：Mobile / Auto / DeX，默认 Auto；915×412 下 DeX 置灰 + 提示`, async ({ page }) => {
-    await go(page, { width: 915, height: 412 }, (lang === 'en' ? '/en' : '') + '/settings/display/');
+    await go(page, { width: 915, height: 412 }, (lang === 'en' ? '/en' : '') + '/display/');
     const seg = page.locator('#seg-layout button');
     await expect(seg).toHaveText(['Mobile', 'Auto', 'DeX']);
     await expect(page.locator('#seg-layout [data-v="auto"]')).toHaveAttribute('aria-pressed', 'true');
@@ -64,7 +64,7 @@ for (const [lang, hint] of [['zh', 'DeX 仅在大屏生效（当前不满足）'
 }
 
 test('设置 › 显示 › 布局：841×673 下 DeX 可选、没有提示；选 DeX 后是 DeX', async ({ page }) => {
-  await go(page, { width: 841, height: 673 }, '/settings/display/');
+  await go(page, { width: 841, height: 673 }, '/display/');
   await expect(page.locator('#seg-layout [data-v="dex"]')).toBeEnabled();
   await expect(page.locator('#seg-layout-narrow-hint')).toHaveCount(0);
   await page.locator('#seg-layout [data-v="dex"]').click();
@@ -102,14 +102,14 @@ for (const [width, height] of [[1280, 800], [1920, 1080], [1024, 700], [768, 102
   });
 }
 test('顶栏长条 412×915：手机照旧拉满（logo 和按钮组之间只隔胶囊间距 4px）', async ({ page }) => {
-  await go(page, { width: 412, height: 915 }, '/settings/security/');
+  await go(page, { width: 412, height: 915 }, '/security/');
   const b = await bars(page);
   expect(Math.abs(b.pill.x - (b.logo.x + b.logo.w) - 4)).toBeLessThanOrEqual(1);
   expect(Math.abs(b.acts.x - (b.pill.x + b.pill.w) - 4)).toBeLessThanOrEqual(1);
 });
 
 /* ----- 宽竖屏 Mobile：外框最宽 640 居中，左右边线 = 顶栏两侧圆外缘（2026-10-23 PR-D） ----- */
-const WRAPS = [['/', '.home-wrap'], ['/settings/', '.set-layout'], ['/settings/display/', '.set-layout'], ['/account/', '.acct-layout'], ['/settings/status/', '.acct-layout'], ['/404.html', '.sgx-404']];
+const WRAPS = [['/', '.home-wrap'], ['/display/', '.set-layout'], ['/account/', '.acct-layout'], ['/status/', '.acct-layout'], ['/404.html', '.sgx-404']];
 async function frame(page, sel) {
   return page.evaluate((s) => {
     const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
@@ -139,20 +139,17 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
       expect(Math.abs(f.wrap.l - f.bar.l) + Math.abs(f.wrap.r - f.bar.r), `${sel} ${f.wrap.l}–${f.wrap.r} / 顶栏 ${f.bar.l}–${f.bar.r}`).toBeLessThanOrEqual(1);
     });
   }
-  test(`DeX ${w}×${h}：内部列 —— 设置两栏 280 + 24 + ≤720 整体居中，子页 / 服务状态 720，聊天 760`, async ({ page }) => {
+  test(`DeX ${w}×${h}：内部列 —— 旷野子页 / 服务状态 720 居中（P4-3 PR-4b 起设置首页的两栏删除）`, async ({ page }) => {
     const col = async (path, s) => {
       await go(page, { width: w, height: h }, path);
       await expect(page.locator(s).first()).toBeAttached();
       await page.waitForLoadState('load');
       return page.evaluate((q) => { const vw = innerWidth; return [...document.querySelectorAll(q)].filter((e) => e.offsetParent !== null).map((e) => { const b = e.getBoundingClientRect(); return { l: b.left, w: b.width, c: b.left + b.width / 2 - vw / 2 }; }); }, s);
     };
-    const [cols] = await col('/settings/', '.set-dex-cols');
-    const left = await page.evaluate(() => document.querySelector('.set-col-l').getBoundingClientRect().width);
+    await go(page, { width: w, height: h }, '/');
+    await expect(page.locator('.set-dex-cols, .set-col-l')).toHaveCount(0);
     const bar = await page.evaluate(() => document.querySelector('.sgx-topbar').getBoundingClientRect().width);
-    expect(Math.abs(cols.w - Math.min(1024, bar)), `两栏宽 ${cols.w}`).toBeLessThanOrEqual(1);
-    expect(Math.abs(cols.c), '两栏居中').toBeLessThanOrEqual(1);
-    expect(Math.abs(left - 280), `左栏 ${left}`).toBeLessThanOrEqual(1);
-    for (const [path, s, want] of [['/settings/display/', '.set-layout > .set-main', 720], ['/settings/status/', '#st-foot', 720]]) {
+    for (const [path, s, want] of [['/display/', '.set-layout > .set-main', 720], ['/status/', '#st-foot', 720]]) {
       const [c] = await col(path, s);
       expect(Math.abs(c.w - Math.min(want, bar)), `${path} ${s} 宽 ${c.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(c.c), `${path} 居中`).toBeLessThanOrEqual(1);
@@ -245,8 +242,8 @@ test('分屏：900×600 是 DeX，拖窄到 820×600 实时切 Mobile，再拉�
 test.describe('粗指针（触屏）', () => {
   test.use({ hasTouch: true });
   test('顶栏标签看上去仍 40 高、点击区 48', async ({ page }) => {
-    /* 2026-11-04 P5-1：/chat/ 不再是标签页，改在设置首页量 */
-    await go(page, { width: 1280, height: 800 }, '/settings/');
+    /* 2026-11-04 P5-1：/chat/ 不再是标签页；P4-3 PR-4b 起唯一的标签在旷野页 */
+    await go(page, { width: 1280, height: 800 }, '/');
     expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
     const t = await page.evaluate(() => {
       const e = document.querySelector('.sgx-tb-tab[aria-current="page"]');

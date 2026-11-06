@@ -173,7 +173,7 @@ test('子站安全头：强制 CSP 只有三条非脚本指令；子站已有的
 test('网关·锁屏首页（未登录 /、/en/）：200 锁屏态 + 全套安全头 + private, no-store', async () => {
   _resetSecretCache();
   await withOrigin(PAGE, async () => {
-    for (const p of ['/', '/en/', '/?lock=1&return=%2Fsettings%2F']) {
+    for (const p of ['/', '/en/', '/?lock=1&return=%2Fdisplay%2F']) {
       const res = await worker.fetch(new Request('https://styrigx.com' + p), baseEnv(), CTX);
       assert.equal(res.status, 200, p);
       assert.match(await res.text(), /data-sgx-lock-session="locked"/);
@@ -198,10 +198,10 @@ test('网关·未登录内页 → 302 锁屏，带全套安全头', async () => 
 test('网关·域名跳转：www 301、别的域名 301 / 403、styrigx-space.pages.dev 301，都带安全头', async () => {
   _resetSecretCache();
   const cases = [
-    ['https://www.styrigx.com/settings/', 301],
-    ['https://evil.example/settings/', 301],
+    ['https://www.styrigx.com/display/', 301],
+    ['https://evil.example/display/', 301],
     ['https://evil.example/api/lock-entry', 403],
-    ['https://styrigx-space.pages.dev/settings/', 301],
+    ['https://styrigx-space.pages.dev/display/', 301],
   ];
   for (const [u, st] of cases) {
     const res = await worker.fetch(new Request(u), baseEnv(), CTX);
@@ -216,12 +216,12 @@ test('网关·进门的人打开门内页 / 账号区 200、?return= 302，都�
   const tk = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'tempkey'));
   await withOrigin(PAGE, async () => {
     const cases = [
-      ['/settings/security/lock/', pw, 200],
+      ['/security/lock/', pw, 200],
       ['/chat/', pw, 200],
-      ['/settings/security/lock/', tk, 200],
+      ['/security/lock/', tk, 200],
       ['/account/', tk, 200],
       ['/?return=%2Fchat%2F', pw, 302],
-      ['/?return=%2Fsettings%2Fsecurity%2Flock%2F', tk, 302],
+      ['/?return=%2Fsecurity%2Flock%2F', tk, 302],
     ];
     for (const [p, cookie, st] of cases) {
       const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: cookie } }), baseEnv(), CTX);
@@ -235,11 +235,11 @@ test('网关·Pages 自己的跳转（补尾斜杠 308）经网关交回时也�
   _resetSecretCache();
   const pw = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
   await withOrigin('', async () => {
-    const res = await worker.fetch(new Request('https://styrigx.com/settings', { headers: { Cookie: pw } }), baseEnv(), CTX);
+    const res = await worker.fetch(new Request('https://styrigx.com/display', { headers: { Cookie: pw } }), baseEnv(), CTX);
     assert.equal(res.status, 308);
-    assert.equal(res.headers.get('Location'), '/settings/');
+    assert.equal(res.headers.get('Location'), '/display/');
     assertMainHeaders(res, '308');
-  }, { status: 308, headers: { Location: '/settings/' } });
+  }, { status: 308, headers: { Location: '/display/' } });
 });
 
 test('网关·/api/*：401、进门但没账号会话的 401 account、404 都带安全头，Cache-Control 不被安全头改掉', async () => {
@@ -380,7 +380,7 @@ test('_headers：每个路径最多一条 Cache-Control（不再逗号拼接）�
     '/sitemap.xml': 'public, max-age=300',
     /* 页面和要先解锁的数据：不写 Cache-Control（Pages 默认 max-age=0, must-revalidate；页面网关再改成 private, no-store） */
     '/': undefined,
-    '/settings/': undefined,
+    '/display/': undefined,
     '/files-index.json': undefined,
     '/index.xml': undefined,
     '/en/index.xml': undefined,
@@ -431,7 +431,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-test('模板：会执行的内联脚本只在 baseof（5 段）、alias（P4-2b 删了 search-redirect）；settings 已搬进模块；没有 on*= 属性', () => {
+test('模板：会执行的内联脚本只在 baseof（5 段）、alias（P4-2b 删了 search-redirect）；旷野页没有内联脚本；没有 on*= 属性', () => {
   const where = {};
   for (const f of walk(REPO + '/space/web/layouts')) {
     const src = readFileSync(f, 'utf8').replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
@@ -445,8 +445,9 @@ test('模板：会执行的内联脚本只在 baseof（5 段）、alias（P4-2b 
     const [body] = gen.inlineScripts(readFileSync(REPO + '/space/web/layouts/' + f, 'utf8'));
     assert.doesNotMatch(body, /\{\{/, f);
   }
-  const settingsJs = readFileSync(REPO + '/space/web/assets/js/apps/settings.js', 'utf8');
-  assert.match(settingsJs, /export function legacyHashRedirect\(\)/);
+  /* PR-4b：设置首页删了，旧分类 hash 跳转（legacyHashRedirect）随之删除 */
+  const spaceJs = readFileSync(REPO + '/space/web/assets/js/apps/space.js', 'utf8');
+  assert.doesNotMatch(spaceJs, /legacyHashRedirect/);
 });
 
 /* ---------------- 各 Worker 各自一份（2026-10-30 起没有共享目录）：值必须一致 ---------------- */

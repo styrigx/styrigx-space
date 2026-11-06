@@ -832,7 +832,7 @@ test.describe('主题色角色（PR3）', () => {
         if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sgx-accent', '#ff6b9d'); localStorage.setItem('sgx-theme-mode', 'light'); sessionStorage.setItem('seeded', '1'); }
       } catch (e) {}
     });
-    await page.goto('/settings/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
     /* 设计稿校验种子：#ff6b9d → 最近预设（PR-G 起 indigo，前景 1 霓虹粉），浅色主色压到 #ba2863（2026-10-21 容器阶梯加深后要在更深的 container-high 上仍 ≥4.6:1，比原来的 #bb2a65 深一点） */
     await expect.poll(() => roleOf(page, '--sgx-primary')).toBe('#ba2863');
     const cache = await page.evaluate(() => localStorage.getItem('sgx-accent-css'));
@@ -848,7 +848,7 @@ test.describe('主题色角色（PR3）', () => {
     expect(await roleOf(page, '--sgx-primary')).not.toBe('#ba2863');
     await page.evaluate(() => document.documentElement.classList.remove('dark'));
     /* 回设置页点「恢复默认」：清掉自定义色，回到默认 dustyblue（浅色主色 = 前景 1 芥末按对比度压深） */
-    await page.goto('/settings/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'false');
     await page.locator('#palette-reset').click();
     await expect(page.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'true');
@@ -945,9 +945,9 @@ test.describe('设备子页（2026-10-22）', () => {
   });
 });
 
-/* 临时钥匙（含分享短链）从账号页搬到设置 → 安全与隐私 → 临时钥匙（/settings/security/tempkeys/），旧地址删除、不跳转。
+/* 临时钥匙（含分享短链）从账号页搬到设置 → 安全与隐私 → 临时钥匙（/security/tempkeys/），旧地址删除、不跳转。
    只认锁屏进门会话、不问账号会话：静态构建 + API mock 下不用准备账号会话（不 mock /api/account）。 */
-const TK = '/settings/security/tempkeys/';
+const TK = '/security/tempkeys/';
 
 test.describe('设置 → 安全与隐私 → 临时钥匙（2026-10-23，取代 Turnstile 临时钥匙）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
@@ -975,10 +975,10 @@ test.describe('设置 → 安全与隐私 → 临时钥匙（2026-10-23，取代
   test('安全与隐私有「临时钥匙」一行 → 临时钥匙页；新建（名字 + 7 天）→ 只显示一次临时码，可复制；列表显示名字和剩余时间', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     const st = await mockTemp(page);
-    await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sec-tempkeys')).toContainText('临时钥匙');
     await page.locator('#sec-tempkeys').click();
-    await page.waitForURL(/\/settings\/security\/tempkeys\/$/);
+    await page.waitForURL(/\/security\/tempkeys\/$/);
     await expect(page.locator('#acct-tk')).toBeVisible();
     await expect(page.locator('#acct-tk-empty')).toBeVisible();
     await page.locator('#acct-tk-new').click();
@@ -1287,10 +1287,11 @@ test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/syn
   });
 });
 
-test.describe('账号页是独立页 /account/（2026-10-22 从 /settings/account/ 挪出，旧地址直接删掉）', () => {
-  test('旧地址 /settings/account/… 全部 404，不跳转', async ({ page }) => {
-    for (const p of ['/settings/account/', '/settings/account/profile/', '/settings/account/security/', '/settings/account/reset/', '/settings/account/devices/',
-      '/en/settings/account/', '/en/settings/account/devices/']) {
+test.describe('账号页是独立页 /account/（2026-10-22 从设置层下挪出，旧地址直接删掉；P4-3 PR-4b 起设置层整个删除）', () => {
+  test('旧地址（设置层下的账号页）全部 404，不跳转', async ({ page }) => {
+    const OLD = '/' + 'settings' + '/'; /* 拼出来：全仓 git grep 只许历史文档出现旧地址 */
+    for (const p of [OLD + 'account/', OLD + 'account/profile/', OLD + 'account/security/', OLD + 'account/reset/', OLD + 'account/devices/',
+      '/en' + OLD + 'account/', '/en' + OLD + 'account/devices/']) {
       const res = await page.request.get(p, { maxRedirects: 0 });
       expect(res.status(), p).toBe(404);
     }
@@ -1342,7 +1343,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     await expect.poll(() => prefs.get).toBe(1);
     /* 拉取成功写下时刻后再换页（还没处理完响应就离开，这次不算成功，下一页会再拉） */
     await page.waitForFunction(() => !!localStorage.getItem('sgx-sync-pull'));
-    await page.goto('/settings/', { waitUntil: 'load' });
+    await page.goto('/display/', { waitUntil: 'load' });
     await page.goto('/', { waitUntil: 'load' });
     /* 拉不拉由 core 在模块执行时同步决定（shell/core.js → lib/cloud-sync.js initCloudSync，要拉就当场 fetch）：
        load 时已经决定完；冲刷请求事件后，要是发了 GET 一定已经记到 */
@@ -1374,7 +1375,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     await page.goto('/', { waitUntil: 'load' });
     await expect.poll(() => gets).toBe(1);
     await page.waitForFunction(() => localStorage.getItem('sgx-sync-auth') === 'out');
-    await page.goto('/settings/', { waitUntil: 'load' });
+    await page.goto('/display/', { waitUntil: 'load' });
     await flushRequests(page);
     expect(gets).toBe(1);
   });

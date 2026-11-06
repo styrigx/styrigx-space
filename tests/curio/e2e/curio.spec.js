@@ -114,7 +114,7 @@ test('账号未登录：顶栏分段滑块（没有搜索栏）、快捷面板�
   await page.locator('.sgx-tb-quick').click();
   await expect(page.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
   await expect(page.locator('#sgx-qp-tab-nav')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('#sgx-qp .sgx-qp-nav-label')).toHaveText(['主站', '奇趣', '日刻', '博客']);
+  await expect(page.locator('#sgx-qp .sgx-qp-nav-label')).toHaveText(['旷野', '奇趣', '日刻', '博客']);
   await expect(page.locator('#sgx-qp [data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
   await expect(page.locator('#sgx-qp [data-nav="curio"]')).toHaveAttribute('href', '/curio/');
   await expect(page.locator('#sgx-qp [data-nav="daymark"]')).toHaveAttribute('href', '/daymark/');

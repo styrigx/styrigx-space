@@ -19,7 +19,7 @@ const qpHtml = tb.slice(tb.indexOf('<dialog id="sgx-qp"'), tb.indexOf('</dialog>
 const tbJs = rd('space/web/assets/js/shell/topbar-panel.js');
 const theme = rd('space/web/layouts/partials/setcat-theme.html');
 const qpJs = rd('space/web/assets/js/shell/quick-panel.js');
-const setJs = rd('space/web/assets/js/apps/settings.js');
+const setJs = rd('space/web/assets/js/apps/space.js');
 const css = rd('space/web/assets/css/input.css');
 const feats = rd('space/web/data/features.yaml');
 

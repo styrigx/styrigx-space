@@ -78,11 +78,11 @@
     </div>
   </div>
 
-  {{/* 分类入口（原设置首页的分类列表）：每个分类单独一张圆角卡（data 里 group 各不相同），外层 aria-label="分类" 只有一个
+  {{/* 分类入口（原设置首页的分类列表）：每个分类单独一张圆角卡（data 里 group 各不相同），平铺成网格（手机一列，≥ 640 两列，≥ 1024 三列），外层 aria-label="分类" 只有一个
        （测试和读屏都按它找分类列表）。地址去掉 settings 这一层：/<id>/（英文 /en/<id>/）。锁屏态同首页小组件一起被剥离。 */}}
   {{ $groups := slice }}
   {{ range $cats }}{{ if not (in $groups .group) }}{{ $groups = $groups | append .group }}{{ end }}{{ end }}
-  <div class="set-cards space-cats mt-3" role="group" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
+  <div class="set-cards space-cats grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mt-3" role="group" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
   {{ range $gi, $g := $groups }}
   <section class="widget set-card bg-m-container-lowest border border-m-outline overflow-hidden animate-fade-up" style="animation-delay:{{ add 0.5 (mul $gi 0.04) }}s" data-set-group="{{ $g }}">
     {{ range where $cats "group" $g }}

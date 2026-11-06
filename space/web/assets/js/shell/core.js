@@ -76,7 +76,7 @@ export function initCore() {
   initCloudSync().catch(function () {});
 
   /* B2-7：网站数字健康——本页计时上报；页面上有数字健康卡片就拉今天的数据。
-     区域键每次现取（P4-3 PR-4b 起主站没有页内切换，sgx-tab-leave / sgx-tab-enter 监听随之删除） */
+     区域键每次现取（P4-3 PR-4b 起主站只有旷野一页，没有页内切换） */
   const wbArea0 = wbAreaOf(location.pathname);
   if (!SGX_TEST_NO_WB && wbArea0) initWbTrack({ key: function () { return wbAreaOf(location.pathname); } });
   if (!SGX_TEST_NO_WB) loadWb();

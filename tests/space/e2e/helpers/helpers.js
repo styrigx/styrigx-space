@@ -63,7 +63,7 @@ const FROZEN_AT = '2026-10-09T12:00:00+08:00';
  * 冻结时间：2026-10-09 12:00:00+08:00（只换 window.Date：Date.now / new Date() 恒为该时刻，计时器照常走）。
  * 不用 page.clock.setFixedTime：Playwright 的假时钟连 performance 一起换掉，getEntriesByType() 恒为空——
  * inpage-tabs 的 settle()（读 Resource Timing）、导航类型 / loadEventStart 断言全部拿不到东西（PR #228 CI，2026-10-28）。
- * 需要推进时间的用例直接用 page.clock，且不要和本函数同用（见 settings-status / lock-reset-pk-busy）。
+ * 需要推进时间的用例直接用 page.clock，且不要和本函数同用（见 space-status / lock-reset-pk-busy）。
  */
 async function freezeTime(page) {
   await page.addInitScript((at) => {

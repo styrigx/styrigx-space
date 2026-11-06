@@ -251,6 +251,8 @@ jobs:
           [ -z "$bad" ] || fail "atlas.styrigx.com still hardcoded in the single tree: $bad"
           # 拼树单测的真实构建一组（Unit tests 那一步还没构建，跳过了；这里补跑）
           node --test tests/space/ui/build/assemble.test.mjs
+          # P4-3 PR-4b：旷野合并的产物断言（没有 settings/ 目录、HTML 无旧设置层 href、新地址都在、git grep 只剩历史文档），同样要拼树之后才跑得全
+          node --test tests/space/ui/build/space-merge.test.mjs
           echo "OK: single tree $(find "$T" -type f | wc -l) files"
 
       - name: Blog search index builds (site:blog)

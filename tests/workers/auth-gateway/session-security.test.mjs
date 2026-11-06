@@ -279,7 +279,7 @@ const PROD_ENV = () => ({
   SGX_LOCK_PUBLIC: TEST_PUB_PEM,
   ...stores(),
 });
-const PROD_URL = 'https://styrigx.com/settings/';
+const PROD_URL = 'https://styrigx.com/display/';
 
 async function validCookie(epoch = 0, role = 'password') {
   return await testLockSession(TEST_PRIV_PEM, epoch, role);
@@ -291,7 +291,7 @@ test('middleware：生产环境缺 SGX_LOCK_PUBLIC → fail closed（非白名�
   assert.equal(r.status, 302);
   const loc = r.headers.get('Location');
   assert.ok(loc.startsWith('https://styrigx.com/?lock=1&return='));
-  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), '/settings/');
+  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), '/display/');
   assert.equal(r.headers.get('Cache-Control'), 'no-store');
   /* 白名单路径放行 */
   const r2 = await mw(mwCtx('https://styrigx.com/api/lock-credentials', { env }));
@@ -387,16 +387,16 @@ test('middleware：lockout 后旧 epoch cookie 失效', async () => {
 
 test('middleware：SGX_ENV 显式写成非生产值才不锁', async () => {
   for (const name of ['development', 'test', 'preview']) {
-    const r = await mw(mwCtx('http://localhost:8931/settings/', { env: { SGX_ENV: name } }));
+    const r = await mw(mwCtx('http://localhost:8931/display/', { env: { SGX_ENV: name } }));
     assert.equal(await r.text(), 'NEXT-BY-APP', name);
   }
 });
 
 test('middleware：缺 SGX_ENV 或写错 → 按生产处理（fail closed），任何 host 都不放行', async () => {
   for (const env of [{}, { SGX_ENV: '' }, { SGX_ENV: 'prod' }, { SGX_ENV: 'Preview' }]) {
-    const local = await mw(mwCtx('http://localhost:8931/settings/', { env }));
+    const local = await mw(mwCtx('http://localhost:8931/display/', { env }));
     assert.equal(local.status, 301, JSON.stringify(env));
-    assert.equal(local.headers.get('Location'), 'https://styrigx.com/settings/');
+    assert.equal(local.headers.get('Location'), 'https://styrigx.com/display/');
     const api = await mw(mwCtx('https://passkey-e2e.styrigx-space.pages.dev/api/lock-credentials', { env }));
     assert.equal(api.status, 403, JSON.stringify(env));
   }
@@ -446,9 +446,9 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
   }
 
   /* 合法站内路径 → 302 到该路径，带 no-store（2.4.1 锁屏原则） */
-  let r = await tryReturn('/settings/');
+  let r = await tryReturn('/display/');
   assert.equal(r.status, 302);
-  assert.equal(r.headers.get('Location'), '/settings/');
+  assert.equal(r.headers.get('Location'), '/display/');
   assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
 
   r = await tryReturn('/browser/?x=1');
@@ -457,9 +457,9 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
   assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
 
   /* 白名单跨站 URL（https://*.styrigx.com）→ 302 到该 URL */
-  r = await tryReturn('https://styrigx.com/settings/');
+  r = await tryReturn('https://styrigx.com/display/');
   assert.equal(r.status, 302);
-  assert.equal(r.headers.get('Location'), 'https://styrigx.com/settings/');
+  assert.equal(r.headers.get('Location'), 'https://styrigx.com/display/');
 
   r = await tryReturn('https://blog-preview.styrigx.com/post/abc/');
   assert.equal(r.status, 302);
@@ -515,7 +515,7 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
 
   /* 无会话时不跳转（走正常锁流程，'/' 白名单放行） */
   r = await mw(mwCtx(
-    'https://styrigx.com/?lock=1&return=' + encodeURIComponent('/settings/'),
+    'https://styrigx.com/?lock=1&return=' + encodeURIComponent('/display/'),
     { env }
   ));
   assert.equal(r.headers.get('Location'), null);
@@ -544,13 +544,13 @@ test('middleware：首页 ?return=子站（无 why）+ 有效会话 → 302 回�
 
 test('middleware：无有效会话访问内页 → 302 到首页锁屏（return 为站内路径）', async () => {
   const env = PROD_ENV();
-  const original = 'https://styrigx.com/settings/?x=1';
+  const original = 'https://styrigx.com/display/?x=1';
   const r = await mw(mwCtx(original, { env }));
   assert.equal(r.status, 302);
   const loc = r.headers.get('Location');
   assert.ok(loc.startsWith('https://styrigx.com/?lock=1&return='));
   /* return 解码后是站内路径 */
-  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), '/settings/?x=1');
+  assert.equal(decodeURIComponent(loc.slice(loc.indexOf('return=') + 7)), '/display/?x=1');
   assert.equal(r.headers.get('Cache-Control'), 'no-store');
 });
 
@@ -941,7 +941,7 @@ test('dedup: /api/diag/session 已删除 → 404（不是 302 到锁屏）', asy
 
 test('middleware：有效会话的 HTML 页面 → Cache-Control: private, no-store', async () => {
   const ctx = {
-    request: new Request('https://styrigx.com/settings/', {
+    request: new Request('https://styrigx.com/display/', {
       headers: { 'Cookie': 'sgx-lock-session=' + await validCookie(0) },
     }),
     next: async () => new Response('<html></html>', {
@@ -1053,7 +1053,7 @@ async function tempkeyCookie(epoch = 0) {
   return await testLockSession(TEST_PRIV_PEM, epoch, 'tempkey');
 }
 
-test('进门二值：临时钥匙进门的人可以访问桌面（/）、设置（/settings/）、文件（/files/）、安全总览和锁屏凭证页（中英），页面上没有等级标记', async () => {
+test('进门二值：临时钥匙进门的人可以访问桌面（/）、设置（/display/）、文件（/files/）、安全总览和锁屏凭证页（中英），页面上没有等级标记', async () => {
   const vCookie = await tempkeyCookie(0);
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
     status: 200,
@@ -1068,13 +1068,13 @@ test('进门二值：临时钥匙进门的人可以访问桌面（/）、设置�
   const html = await r0.text();
   assert.ok(html.includes('data-sgx-lock-session="valid"'));
   assert.ok(!/data-sgx-role|data-sgx-upgrade/.test(html), '不再注入等级 / 升级标记'); // old-name guard
-  for (const p of ['/settings/', '/files/', '/settings/display/', '/en/settings/', '/settings/security/', '/en/settings/security/', '/settings/security/lock/', '/en/settings/security/lock/']) {
+  for (const p of ['/display/', '/files/', '/display/', '/en/display/', '/security/', '/en/security/', '/security/lock/', '/en/security/lock/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
     assert.equal(r.status, 200, '临时钥匙进门访问 ' + p + ' 应 200');
   }
 });
 
-test('LockResetTicket 只放行 /settings/security/lock/，不开总览；LockReauthTicket 不能代替', async () => {
+test('LockResetTicket 只放行 /security/lock/，不开总览；LockReauthTicket 不能代替', async () => {
   await genTestKeys();
   const { signLockResetTicket, signLockReauthTicket } = await import('../../../workers/auth-gateway/src/core/tickets.js');
   const ticket = 'sgx-lock-reset=' + (await signLockResetTicket(TEST_PRIV_PEM, 'password', 0));
@@ -1094,17 +1094,17 @@ test('LockResetTicket 只放行 /settings/security/lock/，不开总览；LockRe
     env,
   });
   /* 锁屏凭证管理页：放行，注入 lock-reset 状态 */
-  let r = await mw(ctx('https://styrigx.com/settings/security/lock/'));
+  let r = await mw(ctx('https://styrigx.com/security/lock/'));
   assert.equal(r.status, 200);
   assert.ok((await r.text()).includes('data-sgx-lock-session="lock-reset"'), '应注入 lock-reset 状态');
   /* 安全总览：不放行，302 到锁屏 */
-  for (const p of ['/settings/security/', '/settings/']) {
+  for (const p of ['/security/', '/display/']) {
     r = await mw(ctx('https://styrigx.com' + p));
     assert.equal(r.status, 302, 'reset 票访问 ' + p + ' 应 302 到锁屏');
     assert.ok(r.headers.get('Location').includes('?lock=1'), p + ' 应跳到锁屏');
   }
   /* 没有会话时，LockReauthTicket 不能开锁屏凭证页 */
-  r = await mw(ctx('https://styrigx.com/settings/security/lock/', lockTicket));
+  r = await mw(ctx('https://styrigx.com/security/lock/', lockTicket));
   assert.equal(r.status, 302);
 });
 test('进门二值：临时钥匙进门的人首页带 return=锁屏凭证页 → 直接 302 回原页（不再有升级验证层）', async () => {
@@ -1114,12 +1114,12 @@ test('进门二值：临时钥匙进门的人首页带 return=锁屏凭证页 �
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
   const r = await mw({
-    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/settings/security/lock/'), { headers: { 'Cookie': 'sgx-lock-session=' + vCookie } }),
+    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/security/lock/'), { headers: { 'Cookie': 'sgx-lock-session=' + vCookie } }),
     next: htmlNext,
     env: PROD_ENV(),
   });
   assert.equal(r.status, 302);
-  assert.equal(r.headers.get('Location'), '/settings/security/lock/');
+  assert.equal(r.headers.get('Location'), '/security/lock/');
 });
 
 test('进门二值：关口不再按角色拦锁屏凭证接口——临时钥匙进门的 POST 都交给接口（调 next），由接口自己要复验', async () => {
@@ -1224,7 +1224,7 @@ test('进门二值：解锁后 return 指向锁屏凭证页 → 回原页（reso
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
   const ctx = {
-    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/settings/security/lock/'), {
+    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/security/lock/'), {
       headers: { 'Cookie': 'sgx-lock-session=' + oCookie },
     }),
     next: htmlNext,
@@ -1232,7 +1232,7 @@ test('进门二值：解锁后 return 指向锁屏凭证页 → 回原页（reso
   };
   const r = await mw(ctx);
   assert.equal(r.status, 302, '应 302');
-  assert.equal(r.headers.get('Location'), '/settings/security/lock/');
+  assert.equal(r.headers.get('Location'), '/security/lock/');
 });
 
 test('解锁后 return 指向普通页 → 正常回跳', async () => {
@@ -1242,7 +1242,7 @@ test('解锁后 return 指向普通页 → 正常回跳', async () => {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
   const ctx = {
-    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/settings/'), {
+    request: new Request('https://styrigx.com/?return=' + encodeURIComponent('/display/'), {
       headers: { 'Cookie': 'sgx-lock-session=' + oCookie },
     }),
     next: htmlNext,
@@ -1250,5 +1250,5 @@ test('解锁后 return 指向普通页 → 正常回跳', async () => {
   };
   const r = await mw(ctx);
   assert.equal(r.status, 302, '应 302');
-  assert.equal(r.headers.get('Location'), '/settings/', '普通页 return 应正常回跳');
+  assert.equal(r.headers.get('Location'), '/display/', '普通页 return 应正常回跳');
 });

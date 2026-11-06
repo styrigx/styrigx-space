@@ -135,7 +135,7 @@ test.describe('security status card wording (批次 A 验收修复 #8)', () => {
     await blockExternalRequests(pg);
     /* PR2：安全页卡片数据源是 GET /api/lock-credentials（锁屏凭证）；账号凭证在账号页 */
     await mockJson(pg, '**/api/lock-credentials', 200, { ok: true, password: false, passkey: true });
-    await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await pg.goto('/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('#sec-status-title')).toContainText('建议操作', { timeout: 15000 });
     await expect(pg.locator('#sec-status-sub')).toHaveText('未设置解锁密码');
   });
@@ -144,7 +144,7 @@ test.describe('security status card wording (批次 A 验收修复 #8)', () => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
     await mockJson(pg, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: false });
-    await pg.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await pg.goto('/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('#sec-status-title')).toContainText('建议操作', { timeout: 15000 });
     await expect(pg.locator('#sec-status-sub')).toHaveText('未注册锁屏通行密钥');
   });

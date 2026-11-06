@@ -23,9 +23,9 @@ const G = await import(W + 'core/gemini.js');
 
 const IX = {
   space: { items: [
-    { id: 's1', type: 'setting', lang: 'zh', title: '主题模式', subtitle: '外观', text: '深色和浅色主题切换。', url: '/settings/theme/' },
+    { id: 's1', type: 'setting', lang: 'zh', title: '主题模式', subtitle: '外观', text: '深色和浅色主题切换。', url: '/theme/' },
     { id: 's2', type: 'setting', lang: 'zh', title: '账号安全', text: '私密页正文：保险箱密码在抽屉里。', url: '/account/secret/', private: true },
-    { id: 's3', type: 'setting', lang: 'en', title: 'Theme mode', text: 'Dark and light.', url: '/en/settings/theme/' },
+    { id: 's3', type: 'setting', lang: 'en', title: 'Theme mode', text: 'Dark and light.', url: '/en/theme/' },
   ] },
   blog: { items: [
     { id: 'b1', type: 'post', lang: 'zh', title: '主题模式的设计', text: 'x'.repeat(2000), url: '/blog/post/theme/' },
@@ -94,17 +94,17 @@ test('召回两档：没账号会话不出私密条目；有账号会话才出�
   assert.equal(priv.length, 1);
   assert.equal(priv[0].private, true);
   const theme = R.recall(ix, { q: '主题', lang: 'zh' });
-  assert.deepEqual(theme.map((h) => h.url), ['/settings/theme/', '/blog/post/theme/']);
+  assert.deepEqual(theme.map((h) => h.url), ['/theme/', '/blog/post/theme/']);
   assert.equal(theme[1].text.length, R.CONTEXT_CHARS);
-  assert.deepEqual(R.recall(ix, { q: 'theme', lang: 'en' }).map((h) => h.url), ['/en/settings/theme/']);
+  assert.deepEqual(R.recall(ix, { q: 'theme', lang: 'en' }).map((h) => h.url), ['/en/theme/']);
   assert.equal(R.recall(ix, { q: '主题', lang: 'zh', limit: 1 }).length, 1);
 });
 
 test('recall：自然语言问句——不要求每个词都中、问法词不算、问句语言没有就放开语言', () => {
   const ix = [
     { site: 'space', items: [
-      { type: 'setting', lang: 'zh', title: '锁屏凭证', subtitle: '安全', url: '/settings/security/lock/', text: '解锁密码 通行密钥' },
-      { type: 'setting', lang: 'en', title: 'Lock screen credentials', subtitle: 'Security', url: '/en/settings/security/lock/' },
+      { type: 'setting', lang: 'zh', title: '锁屏凭证', subtitle: '安全', url: '/security/lock/', text: '解锁密码 通行密钥' },
+      { type: 'setting', lang: 'en', title: 'Lock screen credentials', subtitle: 'Security', url: '/en/security/lock/' },
     ] },
     { site: 'blog', items: [
       { type: 'page', lang: 'zh', title: '博客', url: '/blog/' },
@@ -114,12 +114,12 @@ test('recall：自然语言问句——不要求每个词都中、问法词不�
   ];
   /* 2026-11-05 冒烟：这三句旧逻辑（全词命中）一条都召不回 */
   assert.deepEqual(R.recall(ix, { q: '博客有什么文章', lang: 'zh' }).map((h) => h.url), ['/blog/', '/blog/post/m/']);
-  assert.equal(R.recall(ix, { q: '锁屏怎么开', lang: 'zh' })[0].url, '/settings/security/lock/');
+  assert.equal(R.recall(ix, { q: '锁屏怎么开', lang: 'zh' })[0].url, '/security/lock/');
   assert.deepEqual(R.recall(ix, { q: '你好，请用一句话介绍你自己', lang: 'zh' }), [], '只有问法词 → 空');
   assert.deepEqual(R.recall(ix, { q: '怎么', lang: 'zh' }), [], '问法词不召回「怎么写什么都行」');
   /* 英文页面问中文：en 条目里没有 → 放开语言 */
-  assert.equal(R.recall(ix, { q: '锁屏怎么开', lang: 'en' })[0].url, '/settings/security/lock/');
-  assert.equal(R.recall(ix, { q: 'how do I turn on the lock screen', lang: 'en' })[0].url, '/en/settings/security/lock/');
+  assert.equal(R.recall(ix, { q: '锁屏怎么开', lang: 'en' })[0].url, '/security/lock/');
+  assert.equal(R.recall(ix, { q: 'how do I turn on the lock screen', lang: 'en' })[0].url, '/en/security/lock/');
 });
 
 test('prompt：召回为空时上下文写明站内没有相关内容；允许用通用知识回答并标明，打招呼正常回应（P4-3 PR-2）', () => {
@@ -138,7 +138,7 @@ test('prompt：召回为空时上下文写明站内没有相关内容；允许�
 });
 
 test('prompt：有召回时仍要求只按站内答、列站内链接；本站功能只按站内答、不猜路径；条目带站内位置（P4-3 PR-2）', () => {
-  const hits = [{ title: '锁屏凭证', subtitle: '设置 › 安全', url: 'https://styrigx.com/settings/security/lock/', text: '解锁密码、通行密钥、会话' }];
+  const hits = [{ title: '锁屏凭证', subtitle: '旷野 › 安全', url: 'https://styrigx.com/security/lock/', text: '解锁密码、通行密钥、会话' }];
   const zh = P.buildMessages({ q: '锁屏怎么开', lang: 'zh', hits })[0].content;
   assert.match(zh, /能回答就只按站内内容回答/);
   assert.match(zh, /格式「- 标题：地址」，只列站内内容里给出的地址/);
@@ -147,7 +147,7 @@ test('prompt：有召回时仍要求只按站内答、列站内链接；本站�
   assert.match(zh, /按这个位置逐级说出路径/);
   assert.match(zh, /即使说法不同.*也算站内有，按它回答并给出路径/, '说法不同也算站内有（P4-3 英文锁屏）');
   assert.match(zh, /列了站内链接，就不准说站内没有相关内容/);
-  assert.match(zh, /\[1\] 锁屏凭证 — 设置 › 安全\n地址：https:\/\/styrigx\.com\/settings\/security\/lock\/\n正文：解锁密码、通行密钥、会话/);
+  assert.match(zh, /\[1\] 锁屏凭证 — 旷野 › 安全\n地址：https:\/\/styrigx\.com\/security\/lock\/\n正文：解锁密码、通行密钥、会话/);
   const en = P.buildMessages({ q: 'how to set up the lock screen', lang: 'en', hits })[0].content;
   assert.match(en, /answer only from it/);
   assert.match(en, /features, settings or account work must be answered only from the site content/);
@@ -161,10 +161,10 @@ test('prompt：有召回时仍要求只按站内答、列站内链接；本站�
 const K = await import(W + 'core/rank.js');
 const RIX = [
   { site: 'space', items: [
-    { id: 'a', type: 'setting', lang: 'zh', title: '壁纸和主题', subtitle: '', url: 'https://styrigx.com/settings/theme/' },
-    { id: 'b', type: 'setting', lang: 'zh', title: '主题模式', subtitle: '显示', text: '跟随系统 浅色 深色', url: 'https://styrigx.com/settings/display/' },
+    { id: 'a', type: 'setting', lang: 'zh', title: '壁纸和主题', subtitle: '', url: 'https://styrigx.com/theme/' },
+    { id: 'b', type: 'setting', lang: 'zh', title: '主题模式', subtitle: '显示', text: '跟随系统 浅色 深色', url: 'https://styrigx.com/display/' },
     { id: 'c', type: 'setting', lang: 'zh', title: '账号信息', subtitle: '账号', url: 'https://styrigx.com/account/profile/', private: true },
-    { id: 'd', type: 'setting', lang: 'en', title: 'Theme mode', subtitle: 'Display', url: 'https://styrigx.com/en/settings/display/' },
+    { id: 'd', type: 'setting', lang: 'en', title: 'Theme mode', subtitle: 'Display', url: 'https://styrigx.com/en/display/' },
   ] },
   { site: 'blog', items: [{ id: 'p', type: 'post', lang: 'zh', title: 'AI 代理协作开发规范白皮书', subtitle: '', url: 'https://styrigx.com/blog/post/x/' }] },
 ];

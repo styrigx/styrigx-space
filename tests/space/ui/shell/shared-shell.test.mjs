@@ -53,7 +53,7 @@ test('快捷面板（P5-1，替代抽屉）：非模态窗口在顶栏下面、�
   assert.doesNotMatch(s, /is-fading|is-curtain|--sgx-curtain/);
 });
 
-test('nav.json：主站 / 奇趣 / 日刻 / 博客，没有设置；顶栏 / 磁贴 / AI 图标都在，九宫格图标删了', () => {
+test('nav.json：旷野 / 奇趣 / 日刻 / 博客（PR-4b：主站一项改名旷野），没有设置；顶栏 / 磁贴 / AI 图标都在，九宫格图标删了', () => {
   const nav = JSON.parse(files['nav.json']);
   assert.deepEqual(nav.items.map((i) => i.id), ['home', 'curio', 'daymark', 'blog']);
   // 2026-10-21：书签项换成子站 奇趣 Curio（主站书签功能下线）
@@ -68,7 +68,7 @@ test('nav.json：主站 / 奇趣 / 日刻 / 博客，没有设置；顶栏 / 磁
   assert.equal(nav.icons['ai-search'], undefined);
   // 顶栏头像（子站链到主站账号页）
   assert.deepEqual(nav.me, { zh: '账号', en: 'Account', href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp' });
-  assert.deepEqual(nav.items.map((i) => i.zh), ['主站', '奇趣', '日刻', '博客']);
+  assert.deepEqual(nav.items.map((i) => i.zh), ['旷野', '奇趣', '日刻', '博客']);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
   for (const k of ['tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send']) assert.match(nav.icons[k], /^<svg[\s\S]*<\/svg>$/, k);
   assert.equal(nav.icons['apps-grid'], undefined, '九宫格删了');

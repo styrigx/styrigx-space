@@ -57,7 +57,7 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
 
 test('导航：快捷面板第 1 页用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；奇趣是当前项；主站项走 https://styrigx.com', () => {
   const nav = JSON.parse(readFileSync(path.join(REPO, 'atlas/web/curio/assets/sgx-shell/nav.json'), 'utf8'));
-  assert.deepEqual(nav.items.map((i) => i.zh), ['主站', '奇趣', '日刻', '博客']);
+  assert.deepEqual(nav.items.map((i) => i.zh), ['旷野', '奇趣', '日刻', '博客']);
   assert.deepEqual(nav.footer, []);
   assert.equal(nav.me.href, 'https://styrigx.com/account/');
   assert.match(base, /\{\{ \$shellNav := resources\.Get "sgx-shell\/nav\.json" \| transform\.Unmarshal \}\}/);
