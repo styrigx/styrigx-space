@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import {
   parseDeploymentStatus, pagesCanonicalId, isSafeId, parseArgs,
-  workerSnapshot, workerVerify, workerRollback, pagesSnapshot, pagesRollback,
+  workerSnapshot, workerVerify, workerRollback, pollLive, pagesSnapshot, pagesRollback,
   workerNameFromToml, floorFor, checkFloor, versionAboveFloor,
 } from '../../../space/scripts/deploy-rollback.mjs';
 
@@ -21,6 +21,8 @@ const yaml = require('js-yaml');
 
 const V1 = '11111111-aaaa-4bbb-8ccc-000000000001';
 const V2 = '22222222-aaaa-4bbb-8ccc-000000000002';
+/** 测试里轮询不真等 */
+const W = { attempts: 4, intervalMs: 0, sleep: () => {} };
 const status = (/** @type {Array<[string, number]>} */ vs) => JSON.stringify({ id: 'dep', versions: vs.map(([version_id, percentage]) => ({ version_id, percentage })) });
 
 /** 安静地跑（脚本往 stdout 打 ::notice:: 等），收集输出 */
@@ -91,22 +93,22 @@ test('worker-snapshot：有线上版本 → 记下；第一次部署（还没有
 
 test('worker-rollback：线上还是记下的版本（上传就失败）→ 不回滚', () => {
   const f = fakeWrangler([V1]);
-  assert.equal(quiet(() => workerRollback({ to: V1, run: f.run })).r, 0);
+  assert.equal(quiet(() => workerRollback({ to: V1, run: f.run, wait: W })).r, 0);
   assert.ok(!f.calls.some((c) => c[0] === 'rollback'));
 });
 
 test('worker-rollback：线上是新版本 → wrangler rollback <id> --message … --yes，再核对', () => {
   const f = fakeWrangler([V2, V1]);
-  assert.equal(quiet(() => workerRollback({ to: V1, run: f.run, message: 'auto-rollback: test' })).r, 0);
+  assert.equal(quiet(() => workerRollback({ to: V1, run: f.run, message: 'auto-rollback: test', wait: W })).r, 0);
   const rb = f.calls.find((c) => c[0] === 'rollback');
   assert.deepEqual(rb, ['rollback', V1, '--message', 'auto-rollback: test', '--yes']);
 });
 
 test('worker-rollback：rollback 失败 / 回滚后线上不是目标 → 退出码 1；目标不是 id → 1，不调 wrangler', () => {
-  assert.equal(quiet(() => workerRollback({ to: V1, run: fakeWrangler([V2], 1).run })).r, 1);
-  assert.equal(quiet(() => workerRollback({ to: V1, run: fakeWrangler([V2, V2]).run })).r, 1);
+  assert.equal(quiet(() => workerRollback({ to: V1, run: fakeWrangler([V2], 1).run, wait: W })).r, 1);
+  assert.equal(quiet(() => workerRollback({ to: V1, run: fakeWrangler([V2, V2]).run, wait: W })).r, 1);
   const f = fakeWrangler([V2]);
-  assert.equal(quiet(() => workerRollback({ to: '--force', run: f.run })).r, 1);
+  assert.equal(quiet(() => workerRollback({ to: '--force', run: f.run, wait: W })).r, 1);
   assert.equal(f.calls.length, 0);
 });
 
@@ -198,20 +200,20 @@ test('worker-snapshot：线上版本低于下限（KV 时代）→ 记成空 + w
 
 test('worker-rollback：目标低于下限 → 退出码 1，不调 wrangler rollback', () => {
   const f = fakeWranglerWithView([V2], { [V1]: details(['KV_LOCK_DOOR']) });
-  const { r, out } = quiet(() => workerRollback({ to: V1, run: f.run, name: 'gw', floors: FLOORS }));
+  const { r, out } = quiet(() => workerRollback({ to: V1, run: f.run, name: 'gw', floors: FLOORS, wait: W }));
   assert.equal(r, 1);
   assert.match(out, /::error::not rolling back to/);
   assert.ok(!f.calls.some((c) => c[0] === 'rollback'));
   const g = fakeWranglerWithView([V2, V1], { [V1]: details(['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH']) });
-  assert.equal(quiet(() => workerRollback({ to: V1, run: g.run, name: 'gw', floors: FLOORS })).r, 0);
+  assert.equal(quiet(() => workerRollback({ to: V1, run: g.run, name: 'gw', floors: FLOORS, wait: W })).r, 0);
   assert.ok(g.calls.some((c) => c[0] === 'rollback'));
 });
 
 test('worker-verify：新版本 100% → 0；还是旧版本 / 拿不到 → 1；第一次部署（没有 previous）只要有版本就行', () => {
-  assert.equal(quiet(() => workerVerify({ previous: V1, run: fakeWrangler([V2]).run })).r, 0);
-  assert.equal(quiet(() => workerVerify({ previous: V1, run: fakeWrangler([V1]).run })).r, 1);
-  assert.equal(quiet(() => workerVerify({ previous: '', run: fakeWrangler([null]).run })).r, 1);
-  assert.equal(quiet(() => workerVerify({ previous: '', run: fakeWrangler([V2]).run })).r, 0);
+  assert.equal(quiet(() => workerVerify({ previous: V1, run: fakeWrangler([V2]).run, wait: W })).r, 0);
+  assert.equal(quiet(() => workerVerify({ previous: V1, run: fakeWrangler([V1]).run, wait: W })).r, 1);
+  assert.equal(quiet(() => workerVerify({ previous: '', run: fakeWrangler([null]).run, wait: W })).r, 1);
+  assert.equal(quiet(() => workerVerify({ previous: '', run: fakeWrangler([V2]).run, wait: W })).r, 0);
 });
 
 /** 假 Cloudflare API：GET 项目回 canonical 序列，POST rollback 记下 */
@@ -373,4 +375,28 @@ test('deploy.yml：部署顺序 账号、短链（可并行）→ 网关 → Pag
   assert.match(smoke, /forged \/api\/account/);
   assert.match(smoke, /\/avatar\/96\.webp/);
   assert.match(smoke, /"\$rt" = "account"/);
+});
+
+test('worker-verify：部署后读数滞后（先读到旧版本，再读到新版本）→ 轮询后 0；一直是旧版本 → 读满次数后 1', () => {
+  const f = fakeWrangler([V1, V1, V2]);
+  assert.equal(quiet(() => workerVerify({ previous: V1, run: f.run, wait: W })).r, 0);
+  assert.equal(f.calls.filter((c) => c[0] === 'deployments').length, 3);
+  const g = fakeWrangler([V1]);
+  const { r, out } = quiet(() => workerVerify({ previous: V1, run: g.run, wait: W }));
+  assert.equal(r, 1);
+  assert.equal(g.calls.filter((c) => c[0] === 'deployments').length, W.attempts);
+  assert.match(out, /still the pre-deploy one/);
+});
+
+test('worker-rollback：回滚后读数滞后（先读到新版本，再读到目标）→ 0', () => {
+  const f = fakeWrangler([V2, V2, V2, V1]);
+  assert.equal(quiet(() => workerRollback({ to: V1, run: f.run, wait: W })).r, 0);
+});
+
+test('pollLive：每两次读之间按间隔 sleep，满足即停', () => {
+  const slept = [];
+  const f = fakeWrangler([V1, V2, V2]);
+  const l = pollLive(f.run, (x) => x.versionId === V2, { attempts: 5, intervalMs: 7, sleep: (ms) => { slept.push(ms); } });
+  assert.equal(l.versionId, V2);
+  assert.deepEqual(slept, [7]);
 });
