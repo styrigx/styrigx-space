@@ -18,7 +18,7 @@ features:
       - {id: dark, zh: 深色, en: Dark}
     default: system
     key: sgx-theme-mode
-    section: display
+    section: ""  # P4-3 PR-4b：显示页（/display/）删除，开关只在快捷面板，不进搜索索引
     requires: []
 
   - id: palette
@@ -69,7 +69,7 @@ features:
       - {id: dex, zh: DeX, en: DeX}
     default: auto
     key: sgx-layout
-    section: display
+    section: ""  # P4-3 PR-4b：显示页（/display/）删除，开关只在快捷面板，不进搜索索引
     requires: []
 
   - id: lang
@@ -83,7 +83,7 @@ features:
       - {id: en, zh: 英文, en: English}
     default: system
     key: sgx-lang
-    section: display
+    section: ""  # P4-3 PR-4b：显示页（/display/）删除，开关只在快捷面板，不进搜索索引
     requires: []
 
   - id: files-view

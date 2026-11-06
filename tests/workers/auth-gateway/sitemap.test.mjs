@@ -40,8 +40,8 @@ test('isPublicPage 识别公开页（/en 无斜杠也认）', () => {
   assert.equal(isPublicPage('/en/'), true);
   assert.equal(isPublicPage('/en'), true);
   assert.equal(isPublicPage('/store/'), false);
-  assert.equal(isPublicPage('/settings/'), false);
-  assert.equal(isPublicPage('/settings/security/lock/'), false);
+  assert.equal(isPublicPage('/display/'), false);
+  assert.equal(isPublicPage('/security/lock/'), false);
   assert.equal(isPublicPage('/browser/'), false);
   assert.equal(isPublicPage('/files/'), false);
 });

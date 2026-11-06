@@ -251,6 +251,8 @@ jobs:
           [ -z "$bad" ] || fail "atlas.styrigx.com still hardcoded in the single tree: $bad"
           # 拼树单测的真实构建一组（Unit tests 那一步还没构建，跳过了；这里补跑）
           node --test tests/space/ui/build/assemble.test.mjs
+          # P4-3 PR-4b：旷野合并的产物断言（没有 settings/ 目录、HTML 无旧设置层 href、新地址都在、git grep 只剩历史文档），同样要拼树之后才跑得全
+          node --test tests/space/ui/build/space-merge.test.mjs
           echo "OK: single tree $(find "$T" -type f | wc -l) files"
 
       - name: Blog search index builds (site:blog)
@@ -1088,11 +1090,11 @@ jobs:
           set -u
           ok=1
           for i in 1 2 3 4 5 6; do
-            hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' https://styrigx-space.pages.dev/settings/ | tr -d '\r' || true)
+            hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' https://styrigx-space.pages.dev/security/ | tr -d '\r' || true)
             code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
             loc=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="location"{print $2}')
-            echo "pages.dev /settings/ -> $code $loc (try $i)"
-            if [ "$code" = "301" ] && [ "$loc" = "https://styrigx.com/settings/" ]; then ok=0; break; fi
+            echo "pages.dev /security/ -> $code $loc (try $i)"
+            if [ "$code" = "301" ] && [ "$loc" = "https://styrigx.com/security/" ]; then ok=0; break; fi
             # pages.dev 前面挂了 Cloudflare Access 时，请求先被 Access 302 到登录页，同样到不了页面，也算通过。
             case "$loc" in
               https://styrigx.cloudflareaccess.com/cdn-cgi/access/login/styrigx-space.pages.dev\?*)
@@ -1101,11 +1103,11 @@ jobs:
             sleep 5
           done
           [ $ok = 0 ] || { echo "::error::pages.dev neither redirected to styrigx.com nor sat behind Access"; exit 1; }
-          hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' https://styrigx.com/settings/ | tr -d '\r')
+          hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' https://styrigx.com/security/ | tr -d '\r')
           code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
           rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
-          echo "styrigx.com /settings/ -> $code runtime=${rt:-none}"
-          if [ "$code" != "302" ] || [ "$rt" != "worker" ]; then echo "::error::/settings/ not locked by the gateway"; exit 1; fi
+          echo "styrigx.com /security/ -> $code runtime=${rt:-none}"
+          if [ "$code" != "302" ] || [ "$rt" != "worker" ]; then echo "::error::/security/ not locked by the gateway"; exit 1; fi
           # 关键页：首页（未登录照常 200 锁屏，网关回源 Pages）带的是这次构建的短 SHA（<html data-sgx-build>，HTML 是 max-age=0）
           short="${GITHUB_SHA:0:7}"
           for i in $(seq 1 12); do
@@ -1123,7 +1125,7 @@ jobs:
         # - 三站指纹 CSS：200 text/css，没有 X-SGX-Runtime（子站静态后缀直通回源 → 也证明这次部署的树里真的有 /<站>/）
         # - /curio/、/daymark/ 图片路径：不得拿到图片（网关直通回源 → _worker.js 404）
         # - 三站 .xml（博客全文 RSS、站点地图）和编码 / 大小写 / 多斜杠绕法：302 到锁屏、worker，绝不出 xml（PR2 的 _worker.js 过渡 404 规则已删）
-        # - styrigx-space.pages.dev/blog/：301 到 https://styrigx.com/blog/（或同 /settings/ 一样被 Access 拦在登录页）
+        # - styrigx-space.pages.dev/blog/：301 到 https://styrigx.com/blog/（或同 /security/ 一样被 Access 拦在登录页）
         run: |
           set -u
           ok=0
@@ -1789,7 +1791,7 @@ jobs:
           # 页面：网关验会话后回源 Pages。首页未登录照常 200（锁屏），内页未登录 302 到锁屏
           check / 200 || ok=1
           check /en/ 200 || ok=1
-          check /settings/ 302 || ok=1
+          check /security/ 302 || ok=1
           # 旧搜索 / 聊天页（P4-2 起 _redirects 301 回首页）：没会话时网关先 302 到锁屏
           check /browser/search/ 302 || ok=1
           check /chat/ 302 || ok=1
@@ -2061,8 +2063,8 @@ jobs:
           check /api/share 401 share || ok=1
           # 网关的接口和页面没被抢走（这时网关可能还是旧版本：这几条新旧网关回答相同）
           check /api/lock-session-check 401 worker || ok=1
-          check /settings/ 302 worker || ok=1
-          check /settings/security/tempkeys/ 302 worker || ok=1
+          check /security/ 302 worker || ok=1
+          check /security/tempkeys/ 302 worker || ok=1
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)

@@ -6,19 +6,17 @@
 import { localDay } from './wb-track.js';
 
 const NAMES = {
-  home: ['主页', 'Home'],
+  space: ['旷野', 'Space'],
   files: ['我的文件', 'My Files'],
   browser: ['浏览器', 'Internet'],
-  settings: ['设置', 'Settings'],
   book: ['书籍', 'Books'],
   blog: ['博客', 'Blog'],
 };
 // 分段 / 图例圆点是不带字的填充：辅色 / 第三色用 *-fill（本色中间调，不用压深到 4.5:1 的文字色，免得发泥；2026-10-21）
 const COLORS = {
-  home: 'var(--m-primary-fill, var(--m-primary))',
+  space: 'var(--m-primary-fill, var(--m-primary))',
   files: 'var(--m-warm)',
   browser: 'var(--sgx-tertiary-fill, var(--m-tertiary))',
-  settings: 'var(--sgx-secondary-fill, var(--m-secondary))',
   book: 'var(--m-rose)',
   blog: 'var(--m-on-surface-variant)',
 };
@@ -55,6 +53,25 @@ function nameOf(k, en) {
   return n ? n[en ? 1 : 0] : k;
 }
 
+/** 旧区域键（P4-3 PR-4b 前：主页 home、设置 settings）→ 新键 space；读旧写新，旧 Worker / 旧缓存里的分组在这里并起来 */
+const LEGACY_SECTION = /** @type {Record<string, string>} */ ({ home: 'space', settings: 'space' });
+
+/**
+ * 分组按新区域键合并（同键相加，按时长从多到少）。
+ * @param {{k:string,sec:number}[]} sections
+ * @returns {{k:string,sec:number}[]}
+ */
+export function foldSections(sections) {
+  /** @type {Map<string, number>} */
+  const m = new Map();
+  for (const s of sections || []) {
+    if (!s || typeof s.k !== 'string') continue;
+    const k = LEGACY_SECTION[s.k] || s.k;
+    m.set(k, (m.get(k) || 0) + (Number(s.sec) || 0));
+  }
+  return [...m].map(([k, sec]) => ({ k, sec })).sort((a, b) => b.sec - a.sec);
+}
+
 /**
  * 把接口数据画进容器。
  * @param {HTMLElement} root 含 [data-wb=rows|total|bar|legend|scope] 的容器
@@ -64,7 +81,7 @@ function nameOf(k, en) {
 export function renderWb(root, data, en) {
   const q = (/** @type {string} */ n) => /** @type {HTMLElement|null} */ (root.querySelector('[data-wb="' + n + '"]'));
   const total = data.total || 0;
-  const secs = (data.sections || []).filter((s) => s.sec >= 60);
+  const secs = foldSections(data.sections || []).filter((s) => s.sec >= 60);
   const items = data.items || [];
   const rows = q('rows');
   if (rows) {

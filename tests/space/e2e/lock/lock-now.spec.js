@@ -11,7 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { nextFrames, flushRequests } from '../helpers/helpers';
 
-const SECURITY_URL = '/settings/security/';
+const SECURITY_URL = '/security/';
 
 /* 拦截 /api/lock-now，记录是否被调用 */
 async function trackLockApi(page) {

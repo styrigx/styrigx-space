@@ -45,7 +45,7 @@ test.describe('bindSubmitButton 去重修复：锁屏页设置密码弹层', () 
         body: JSON.stringify({ ok: true }),
       });
     });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
     await page.locator('#lockmgr-pwrow').click();
     await expect(page.locator('#lockpw-dlg')).toBeVisible({ timeout: 5000 });
@@ -99,7 +99,7 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
         body: JSON.stringify({ ok: true }),
       });
     });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
     /* 密码已设 → 删除按钮可见（回归：旧代码切不存在的 lockmgr-pwdel-wrap，按钮永不显示） */
     await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 5000 });
@@ -139,7 +139,7 @@ test.describe('批次 A 验收修复 P1：双向相同密码错误文案', () =>
         body: JSON.stringify({ ok: false, error: 'same-as-account' }),
       });
     });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
     await page.locator('#lockmgr-pwrow').click();
     await expect(page.locator('#lockpw-dlg')).toBeVisible({ timeout: 5000 });
@@ -167,7 +167,7 @@ test.describe('锁屏凭证页进门探针（/api/lock-reauth status）失败', 
 
   test('探针 session 失败 → 无 JS 错误，弹会话失效框，不点不跳；点「去锁屏」才重载', async ({ page }) => {
     await mockJson(page, '**/api/lock-reauth', 401, { ok: false, error: 'session' });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     /* A-1：不再 toast + 自动跳，改弹 One UI 单按钮框 */
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 5000 });
@@ -176,7 +176,7 @@ test.describe('锁屏凭证页进门探针（/api/lock-reauth status）失败', 
     /* v1.1 §二.2：弹框出现时倒计时胶囊隐藏 */
     await expect(page.locator('#sgx-credential-countdown')).toHaveCount(0);
     /* 不点不跳 */
-    await expect(page).toHaveURL(/\/settings\/security\/lock\//);
+    await expect(page).toHaveURL(/\/security\/lock\//);
     expect(pageErrors).toEqual([]);
     /* 点按钮 → 重载（静态构建无中间件：探针仍失败，弹框再次出现，证明点了才动作） */
     await dlg.locator('button.sgx-verify-skip').click();
@@ -186,11 +186,11 @@ test.describe('锁屏凭证页进门探针（/api/lock-reauth status）失败', 
 
   test('探针网络失败 → 无 JS 错误，toast 网络提示，不自动跳，不弹过期框', async ({ page }) => {
     await page.route('**/api/lock-reauth', (route) => route.abort('failed'));
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     /* A 现有提示：gateNetErr「网络错误」，不报会话过期 */
     await expect(page.locator('.sgx-toast')).toContainText('网络错误', { timeout: 5000 });
     /* 不自动跳，不弹过期框 */
-    await expect(page).toHaveURL(/\/settings\/security\/lock\//);
+    await expect(page).toHaveURL(/\/security\/lock\//);
     await expect(page.locator('dialog.sgx-center-dlg')).toHaveCount(0);
     expect(pageErrors).toEqual([]);
   });
@@ -232,7 +232,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
 
   test('进门后胶囊在正文最前面（顶栏下方）、左对齐，文案「验证剩余 2:5x」；顶栏内无倒计时', async ({ page }) => {
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-credential-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
     await expect(capsule).toHaveText(/验证剩余 2:5\d/);
@@ -252,7 +252,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
 
   test('胶囊字号不小于正文；浅色对比度 ≥ 4.5:1', async ({ page }) => {
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-credential-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
     const metrics = await capsule.evaluate((el) => {
@@ -273,7 +273,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
       try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
     });
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-credential-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
     const colors = await capsule.evaluate((el) => {
@@ -290,7 +290,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
   test('剩余 ≤ 30 秒只变警示色、不改文案；到 0 停在「已过期」，URL 不变，不弹框', async ({ page }) => {
     /* 先给 25 秒：应为警示色，文案仍是「验证剩余 0:2x」 */
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, expiresAt: Date.now() + 25000 });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-credential-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
     await expect(capsule).toHaveClass(/sgx-countdown-warn/);
@@ -298,14 +298,14 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await expect(capsule).not.toHaveText(/即将过期/);
     /* 到 0：停在「已过期」，URL 不变，不弹框 */
     await expect(capsule).toHaveText('已过期', { timeout: 30000 });
-    await expect(page).toHaveURL(/\/settings\/security\/lock\//);
+    await expect(page).toHaveURL(/\/security\/lock\//);
     await expect(page.locator('dialog.sgx-center-dlg')).toHaveCount(0);
     expect(pageErrors).toEqual([]);
   });
 
   test('v1.1 §二.1 补充：胶囊出现时卡片已不透明、帮助文字不与卡片重叠', async ({ page }) => {
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, expiresAt: Date.now() + 175000 });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     const capsule = page.locator('#sgx-credential-countdown');
     await expect(capsule).toBeVisible({ timeout: 15000 });
     /* 胶囊出现时，卡片入场动画已结束（不透明度=1），不是半透明淡入中 */
@@ -355,7 +355,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
         body: JSON.stringify({ ok: false, error: 'reauth', reason: 'expired' }),
       });
     });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-credential-countdown')).toBeVisible({ timeout: 15000 });
     /* 两步确认删除：第 1 点武装，第 2 点真正调接口 → 403 → 弹框 */
     await page.locator('#lockmgr-pwdel').click();
@@ -367,13 +367,13 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     /* v1.1 §二.2：弹框出现时倒计时胶囊隐藏 */
     await expect(page.locator('#sgx-credential-countdown')).toHaveCount(0);
     /* 不点不跳 */
-    await expect(page).toHaveURL(/\/settings\/security\/lock\//);
+    await expect(page).toHaveURL(/\/security\/lock\//);
     /* reauth 票失效后不发起任何 WebAuthn challenge */
     expect(challengeCalls).toBe(0);
     /* 「重新验证」→ 清票 → 回到本页，门口出现（锁屏通行密钥 / 解锁密码 / 进站凭证） */
     await dlg.locator('button.sgx-verify-skip').click();
     await expect(page.locator('#lock-reauth')).toBeVisible({ timeout: 10000 });
-    await expect(page).toHaveURL(/\/settings\/security\/lock\/$/);
+    await expect(page).toHaveURL(/\/security\/lock\/$/);
     await expect(page.locator('#lock-reauth-methods .sgx-credential-row')).toHaveCount(3);
     expect(clears).toBeGreaterThan(0);
     expect(pageErrors).toEqual([]);
@@ -388,7 +388,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
         body: JSON.stringify({ ok: false, error: 'session' }),
       });
     });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-credential-countdown')).toBeVisible({ timeout: 15000 });
     await page.locator('#lockmgr-pwdel').click();
     await page.locator('#lockmgr-pwdel').click();
@@ -399,7 +399,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
     await expect(dlg.locator('button.sgx-verify-skip')).toHaveText('去锁屏');
     /* v1.1 §二.2：弹框出现时倒计时胶囊隐藏 */
     await expect(page.locator('#sgx-credential-countdown')).toHaveCount(0);
-    await expect(page).toHaveURL(/\/settings\/security\/lock\//);
+    await expect(page).toHaveURL(/\/security\/lock\//);
     /* 点按钮 → 重载（静态构建无中间件：探针仍通过，弹框消失、倒计时重启） */
     await dlg.locator('button.sgx-verify-skip').click();
     await expect(page.locator('dialog.sgx-center-dlg')).toHaveCount(0, { timeout: 10000 });
@@ -418,7 +418,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
         body: JSON.stringify({ ok: false, error: 'reauth', reason: 'expired' }),
       });
     });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     const dlg = page.locator('dialog.sgx-center-dlg');
     await expect(dlg).toBeVisible({ timeout: 15000 });
     await expect(page.locator('dialog.sgx-center-dlg')).toHaveCount(1);
@@ -443,7 +443,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
         body: JSON.stringify({ ok: false, error: 'session' }),
       });
     });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-credential-countdown')).toBeVisible({ timeout: 15000 });
     await page.locator('#lockmgr-pwdel').click();
     await page.locator('#lockmgr-pwdel').click();
@@ -473,7 +473,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
         body: JSON.stringify({ ok: false, error: 'reauth', reason: 'expired' }),
       });
     });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-credential-countdown')).toBeVisible({ timeout: 15000 });
     await page.locator('#lockmgr-pwdel').click();
     await page.locator('#lockmgr-pwdel').click();
@@ -498,7 +498,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
         body: JSON.stringify({ ok: true, password: true, passkey: true }),
       });
     });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     /* 门已开（管理区可见），但首次数据还没回来 → 胶囊不应出现 */
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#sgx-credential-countdown')).toHaveCount(0);
@@ -548,7 +548,7 @@ test.describe('A-2 最后一把锁屏钥匙与 AccountKey 联动', () => {
       if (body.action === 'remove') removeCalls++;
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
     });
-    await page.goto('/settings/security/lock/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/lock/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
     return { getDeleteCalls: () => deleteCalls, getRemoveCalls: () => removeCalls };
   }

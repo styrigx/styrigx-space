@@ -92,14 +92,14 @@ async function setup(page) {
   await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [] });
 }
 
-const LOCK_URL = '/settings/security/lock/';
+const LOCK_URL = '/security/lock/';
 
 test.describe('安全与隐私：只剩锁屏凭证入口', () => {
   test.beforeEach(async ({ page }) => { await setup(page); });
 
   test('锁屏凭证行链到锁屏凭证页；没有管理凭证 / 应用', async ({ page }) => {
     await mockLockDoor(page);
-    await page.goto('/settings/security/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/security/', { waitUntil: 'domcontentloaded' });
     const row = page.locator('#sec-lock-cred');
     await expect(row).toBeVisible({ timeout: 15000 });
     await expect(row).toContainText('锁屏凭证');

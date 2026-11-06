@@ -37,7 +37,7 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     const va = await h.addVirtualAuth(page, { uv: true });
     const name = 'E2E-UI-' + Date.now();
     try {
-      await page.goto(BASE + '/settings/security/lock/');
+      await page.goto(BASE + '/security/lock/');
       await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
       await expect(page.locator('#lockmgr-pkadd')).toBeVisible({ timeout: 15000 });
       await page.click('#lockmgr-pkadd');

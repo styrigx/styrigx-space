@@ -304,13 +304,13 @@ test.describe('快捷面板第 1 页「导航」（原导航抽屉，2026-11-04 
     await expect(page.locator('#sgx-qp-tab-nav')).toHaveAttribute('aria-selected', 'true');
   }
 
-  test('主站 / 奇趣 / 日刻 / 博客（同主站）；博客是 tonal 当前项；毛玻璃面板；没有搜索框', async ({ page }) => {
+  test('旷野 / 奇趣 / 日刻 / 博客（同主站）；博客是 tonal 当前项；毛玻璃面板；没有搜索框', async ({ page }) => {
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar .sgx-tb-quick')).toHaveAttribute('aria-expanded', 'false');
     await openNav(page);
     await expect(page.locator('.sgx-topbar .sgx-tb-quick')).toHaveAttribute('aria-expanded', 'true');
     const nav = page.locator('#sgx-qp-page-nav');
-    await expect(nav.locator('.sgx-qp-nav-label')).toHaveText(['主站', '奇趣', '日刻', '博客']);
+    await expect(nav.locator('.sgx-qp-nav-label')).toHaveText(['旷野', '奇趣', '日刻', '博客']);
     await expect(nav.locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
     await expect(nav.locator('[data-nav="daymark"]')).toHaveAttribute('href', '/daymark/');
     await expect(nav.locator('[data-nav="book"]')).toHaveCount(0);

@@ -1,3 +1,3 @@
 ---
-title: 'Styrigx'
+title: '旷野'
 ---

@@ -214,9 +214,9 @@ test('主域名根上的 /api/lock-session-check（子站前端问的）：有�
 });
 
 test('主站照旧；未登记的子域名照旧 301 回主站', async () => {
-  let res = await worker.fetch(req('https://styrigx.com/settings/'), env(), CTX);
+  let res = await worker.fetch(req('https://styrigx.com/display/'), env(), CTX);
   assert.equal(res.status, 302);
-  assert.match(res.headers.get('Location'), /^https:\/\/styrigx\.com\/\?lock=1&return=%2Fsettings%2F/);
+  assert.match(res.headers.get('Location'), /^https:\/\/styrigx\.com\/\?lock=1&return=%2Fdisplay%2F/);
   res = await worker.fetch(req('https://evil.styrigx.com/'), env(), CTX);
   assert.equal(res.status, 301);
   assert.equal(res.headers.get('Location'), 'https://styrigx.com/');

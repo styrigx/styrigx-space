@@ -171,7 +171,7 @@ test('R3 已解锁页面：别的标签页立即锁定后，切回来要上锁�
   expect(await lockShownWithin(page, 800)).toBe(false);
   /* 另一个标签页立即锁定 */
   const other = await context.newPage();
-  await other.goto(MAIN + '/settings/security/');
+  await other.goto(MAIN + '/security/');
   await other.evaluate(() => fetch('/api/lock-now', { method: 'POST' }));
   await other.close();
   // TODO(C8): 等的是 lock-guard.js checkSessionForAutoLock 的 5 秒节流（按页面 Date.now() 算）过去。这个用例连真实网关，
@@ -184,7 +184,7 @@ test('R3 已解锁页面：别的标签页立即锁定后，切回来要上锁�
 
 test('立即锁定 → 刷新仍锁定；子站也锁定', async ({ page, context }) => {
   await setSession(context, 'password');
-  await page.goto(MAIN + '/settings/security/');
+  await page.goto(MAIN + '/security/');
   await page.click('#sec-locknow');
   await page.click('#sec-locknow-confirm [data-act="ok"]');
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 10000 });
@@ -198,10 +198,10 @@ test('立即锁定 → 刷新仍锁定；子站也锁定', async ({ page, contex
 
 test('R4 临时钥匙进门的人点「锁屏凭证」→ 进锁屏凭证页，页面自己的门要复验（不出全局锁屏、没有升级层）', async ({ page, context }) => {
   await setSession(context, 'tempkey');
-  await page.goto(MAIN + '/settings/security/');
+  await page.goto(MAIN + '/security/');
   expect(await page.locator('html').getAttribute('data-sgx-role')).toBe(null); // old-name guard
   await page.click('#sec-lock-cred');
-  await page.waitForURL(MAIN + '/settings/security/lock/', { timeout: 15000 });
+  await page.waitForURL(MAIN + '/security/lock/', { timeout: 15000 });
   await expect(page.locator('#lock-reauth')).toBeVisible({ timeout: 10000 });
   await expect(page.locator('#lockmgr')).toBeHidden();
   expect(await lockShownWithin(page, 300)).toBe(false);
@@ -218,7 +218,7 @@ test('R5 临时钥匙进门的人打开账号页：看到登录页（data-sgx-ac
   await expect(page.locator('#acct-main')).toBeHidden();
 });
 
-test('P2-3 带 v1 cookie 打开 /settings/ 和子站内页 → 302 锁屏（带 return）、不循环 → 通行密钥解锁后回到原页，过程中不清 cookie', async ({ page, context }) => {
+test('P2-3 带 v1 cookie 打开旷野子页 /theme/ 和子站内页 → 302 锁屏（带 return）、不循环 → 通行密钥解锁后回到原页，过程中不清 cookie', async ({ page, context }) => {
   await addAuthenticator(page);
   /* v1 票（6 段 by.role.epoch.exp.tempkeyId.sig）：v2 只认 5 段 → bad-format，和没 cookie 一样 */
   const v1 = 'password.admin.0.' + (Date.now() + 3600e3) + '..AAAA'; // v1 fixture
@@ -226,7 +226,7 @@ test('P2-3 带 v1 cookie 打开 /settings/ 和子站内页 → 302 锁屏（带 
   await putV1();
   const clears = [];
   page.on('response', (r) => { if (/sgx-lock-session=;/.test(r.headers()['set-cookie'] || '')) clears.push(r.url()); });
-  for (const [target, ret] of [[MAIN + '/settings/', '/settings/'], [BLOG + '/post/hello/', BLOG + '/post/hello/']]) {
+  for (const [target, ret] of [[MAIN + '/theme/', '/theme/'], [BLOG + '/post/hello/', BLOG + '/post/hello/']]) {
     const navs = [];
     const h = (f) => { if (f === page.mainFrame()) navs.push(f.url()); };
     page.on('framenavigated', h);
@@ -251,7 +251,7 @@ test('P2-3 带 v1 cookie 打开 /settings/ 和子站内页 → 302 锁屏（带 
 test('P2-3 临时钥匙页新建 → 没有锁侧复验时弹复验层 → 通行密钥通过后自动拿到临时码', async ({ page, context }) => {
   await addAuthenticator(page);
   await setSession(context, 'password');
-  await page.goto(MAIN + '/settings/security/tempkeys/');
+  await page.goto(MAIN + '/security/tempkeys/');
   await expect(page.locator('#acct-tk')).toBeVisible({ timeout: 10000 });
   await page.click('#acct-tk-new');
   await page.fill('#tk-name', 'e2e');
@@ -333,7 +333,7 @@ test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / �
   expect(forged).toEqual([401, 'worker']);
   /* 进门：数字健康可读，云同步没登账号 → 401 account；接口地址不变 */
   await setSession(context, 'password');
-  await page.goto(MAIN + '/settings/wellbeing/');
+  await page.goto(MAIN + '/wellbeing/');
   const wb = await page.evaluate(() => fetch('/api/wellbeing?d=2026-10-24', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.ok, r.headers.get('x-sgx-runtime')])));
   expect(wb).toEqual([200, true, 'account']);
   const pr = await page.evaluate(() => fetch('/api/prefs', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.error])));
@@ -342,57 +342,14 @@ test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / �
   /* 浏览器的请求都进网关（路由 styrigx.com/*）；账号的接口再经服务绑定转一跳（log 'account'）；没有一条走账号 Worker 自己的路由 */
   expect(new Set(by(/^\/(avatar\/|api\/(wellbeing|prefs|avatar))/))).toEqual(new Set(['worker', 'account']));
   expect(by(/^\/(avatar\/|api\/(wellbeing|prefs|avatar))/).filter((x) => x === 'account').length).toBeGreaterThanOrEqual(3);
-  expect(new Set(by(/^\/(settings\/wellbeing\/|api\/session-check)$/))).toEqual(new Set(['worker']));
+  expect(new Set(by(/^\/(wellbeing\/|api\/session-check)$/))).toEqual(new Set(['worker']));
 });
 
-/* R8 顶栏标签页内切换（2026-10-24 三栏，shell/inpage-tabs.js；2026-11-04 P5-1 去掉聊天，只剩 主页 / 设置）：真实网关下，有效会话时另一栏在同一文档里切换；
-   取回来的不是这一栏（会话过期 → 302 锁屏）就不用它，整页导航交给网关；锁屏态根本不接管（照旧整页导航）。 */
-test('R8 有效会话：主页 → 设置 → 主页 同一文档切换，网关照常验会话；取页时会话没了 → 整页导航到锁屏', async ({ page, context }) => {
-  await setSession(context, 'password');
-  await page.goto(MAIN + '/');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
-  await page.evaluate(() => { window.__sameDoc = 1; });
-  await page.click('.sgx-tb-tab[data-tab="settings"]');
-  await expect(page.locator('.sgx-tb-tab[data-tab="settings"]')).toHaveAttribute('aria-current', 'page');
-  await expect(page.locator('#set-panes')).toHaveCount(1);
-  expect(await page.evaluate(() => [window.__sameDoc, location.pathname, document.title])).toEqual([1, '/settings/', '设置 | Styrigx']);
-  await page.click('.sgx-tb-tab[data-tab="home"]');
-  await expect(page.locator('.sgx-tb-tab[data-tab="home"]')).toHaveAttribute('aria-current', 'page');
-  expect(await page.evaluate(() => [window.__sameDoc, location.pathname])).toEqual([1, '/']);
-  /* 预取的 HTML 也是经网关拿的（带会话、验过的） */
-  expect(edge.log.some((l) => l[0] === 'worker' && new URL(l[2]).pathname === '/settings/')).toBe(true);
-
-  /* 新开一页（省流量模式：不预取，点了才取）：会话在点之前没了 → 取 /settings/ 时网关 302 锁屏 → 不用它 → 整页导航 → 锁屏（带 return） */
-  const p2 = await context.newPage();
-  await p2.addInitScript(() => {
-    Object.defineProperty(Navigator.prototype, 'connection', { configurable: true, get: () => ({ saveData: true }) });
-  });
-  await p2.goto(MAIN + '/');
-  await expect(p2.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
-  await p2.evaluate(() => { window.__sameDoc = 1; });
-  // TODO(C8): 等的是「省流量模式下空闲预取本该发生的时刻已过而确实没预取」（inpage-tabs.js：load 后 requestIdleCallback，超时 2.5s / 退化 800ms），
-  // 「决定不预取」不留任何可观察痕迹；要确定性需在生产代码加标记。保留原等待。
-  await p2.waitForTimeout(1200);
-  await context.clearCookies();
-  await p2.click('.sgx-tb-tab[data-tab="settings"]');
-  await p2.waitForURL((u) => u.pathname === '/' && u.searchParams.get('return') === '/settings/', { timeout: 15000 });
-  await expect(p2.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-  expect(await p2.evaluate(() => window.__sameDoc)).toBeUndefined();
-  await p2.close();
-});
-
-test('R8 锁屏态不接管顶栏标签：点标签照旧整页导航（网关 302 锁屏，带 return）', async ({ page }) => {
-  await page.goto(MAIN + '/');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
-  await page.evaluate(() => { window.__sameDoc = 1; });
-  await page.evaluate(() => /** @type {HTMLAnchorElement} */ (document.querySelector('.sgx-tb-tab[data-tab="settings"]')).click());
-  await page.waitForURL((u) => u.searchParams.get('return') === '/settings/', { timeout: 15000 });
-  expect(await page.evaluate(() => window.__sameDoc)).toBeUndefined();
-});
+/* R8（顶栏标签页内切换）随 P4-3 PR-4b 删除：主站只剩旷野一个顶级页，shell/inpage-tabs.js 删了，没有页内切换可测。 */
 
 /* ---------------- R9 分享短链（2026-10-24，styrigx-share）：/s/* 经线上路由规则进短链 Worker，钥匙和会话由网关签 ---------------- */
 
-/** 短链管理（设置 → 安全与隐私 → 临时钥匙 /settings/security/tempkeys/）：列表只要锁屏进门会话，生成 / 作废另要锁侧复验；不要账号会话 */
+/** 短链管理（设置 → 安全与隐私 → 临时钥匙 /security/tempkeys/）：列表只要锁屏进门会话，生成 / 作废另要锁侧复验；不要账号会话 */
 async function setManager(context) {
   await setSession(context, 'password');
   await setReauth(context);
@@ -407,7 +364,7 @@ async function shareApi(page, body) {
 /** 进门 + 复验后建一条短链，然后清掉所有 cookie（变成没进门的陌生人） */
 async function makeLink(page, context, body) {
   await setManager(context);
-  await page.goto(MAIN + '/settings/security/tempkeys/');
+  await page.goto(MAIN + '/security/tempkeys/');
   const r = await shareApi(page, Object.assign({ action: 'create' }, body));
   expect(r.s, JSON.stringify(r.j)).toBe(200);
   await context.clearCookies();
@@ -419,12 +376,12 @@ test.describe('R9 分享短链', () => {
 
   test('R9 在临时钥匙页生成带会话短链 → 陌生人点开：直接以临时会话进到目标页，不出锁屏；地址栏 / Referer 里没有码', async ({ page, context }) => {
     await setManager(context);
-    await page.goto(MAIN + '/settings/security/tempkeys/');
+    await page.goto(MAIN + '/security/tempkeys/');
     await page.click('#acct-sl-new');
     await expect(page.locator('#sl-dlg')).toBeVisible();
     await page.fill('#sl-name', '小明');
     await page.selectOption('#sl-dur', 'h6');
-    await page.fill('#sl-to', '/settings/');
+    await page.fill('#sl-to', '/theme/');
     await page.selectOption('#sl-sess', '3600');
     await page.click('#sl-go');
     await expect(page.locator('#sl-done')).toBeVisible();
@@ -439,9 +396,9 @@ test.describe('R9 分享短链', () => {
     page.on('request', (r) => { if (r.isNavigationRequest()) refs.push([r.url(), r.headers()['referer'] || '']); });
     await page.goto(url);
     /* C8：networkidle → 等落到目标地址 + load */
-    await page.waitForURL(MAIN + '/settings/', { timeout: 15000 });
+    await page.waitForURL(MAIN + '/theme/', { timeout: 15000 });
     await page.waitForLoadState('load');
-    expect(page.url()).toBe(MAIN + '/settings/');
+    expect(page.url()).toBe(MAIN + '/theme/');
     expect(await lockShownWithin(page, 600)).toBe(false);
     expect(await sessionBy(page)).toBe('tempkey');
     expect(edge.log.find((l) => l[2].includes('/s/'))[0]).toBe('share');
@@ -452,8 +409,8 @@ test.describe('R9 分享短链', () => {
     }
     expect(await page.evaluate(() => location.href + document.referrer)).not.toContain(code);
     /* 短链进门的人：能打开临时钥匙页、能看列表（只要进门）；生成 / 作废没有锁侧复验 → 401 reauth */
-    await page.goto(MAIN + '/settings/security/tempkeys/');
-    expect(new URL(page.url()).pathname).toBe('/settings/security/tempkeys/');
+    await page.goto(MAIN + '/security/tempkeys/');
+    expect(new URL(page.url()).pathname).toBe('/security/tempkeys/');
     expect((await shareApi(page, { action: 'list' })).s).toBe(200);
     const cr = await shareApi(page, { action: 'create', hours: 1 });
     expect(cr.s).toBe(401);
@@ -461,12 +418,12 @@ test.describe('R9 分享短链', () => {
   });
 
   test('R9 普通短链 → 没解锁的人到目标页照常出锁屏（return 是目标页）', async ({ page, context }) => {
-    const link = await makeLink(page, context, { hours: 2, to: '/settings/' });
+    const link = await makeLink(page, context, { hours: 2, to: '/theme/' });
     await page.goto(MAIN + link.path);
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     const u = new URL(page.url());
     expect(u.pathname).toBe('/');
-    expect(u.searchParams.get('return')).toBe('/settings/');
+    expect(u.searchParams.get('return')).toBe('/theme/');
     expect(page.url()).not.toContain(link.path.slice(3));
     expect(await sessionBy(page)).toBe(null);
   });
@@ -479,14 +436,14 @@ test.describe('R9 分享短链', () => {
     const mgrCtx = await context.browser().newContext({ proxy: LAUNCH.proxy, ignoreHTTPSErrors: false });
     const op = await mgrCtx.newPage();
     await setManager(mgrCtx);
-    await op.goto(MAIN + '/settings/security/tempkeys/');
+    await op.goto(MAIN + '/security/tempkeys/');
     expect((await shareApi(op, { action: 'revoke', id: live.id })).s).toBe(200);
     const expired = (await shareApi(op, { action: 'create', hours: 1 })).j.link;
     if (edge.shareDb.raw) edge.shareDb.raw.prepare('UPDATE share_link SET expires_at = ? WHERE id = ?').run(Date.now() - 1, expired.id);
     else edge.shareDb._links.get(expired.id).expires_at = Date.now() - 1;
     await mgrCtx.close();
 
-    await page.goto(MAIN + '/settings/');
+    await page.goto(MAIN + '/theme/');
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     expect(await sessionBy(page)).toBe(null);
 
@@ -506,7 +463,7 @@ test.describe('R9 分享短链', () => {
 
   test('R9 开放重定向被拒：目标只能是站内相对路径', async ({ page, context }) => {
     await setManager(context);
-    await page.goto(MAIN + '/settings/security/tempkeys/');
+    await page.goto(MAIN + '/security/tempkeys/');
     for (const to of ['//evil.example', 'https://evil.example/', '/\\evil.example', 'evil.example', 'javascript:alert(1)']) {
       const r = await shareApi(page, { action: 'create', hours: 1, to });
       expect(r.s, to).toBe(400);

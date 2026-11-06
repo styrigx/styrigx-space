@@ -1,4 +1,4 @@
-{{/* 2.6.0：设置子页「theme」分类组（自 settings.html 抽取，set-gh 标题由子页大标题替代）。
+{{/* 2.6.0：旷野子页「theme」分类组（2.6.0 自原设置首页模板抽取，set-gh 标题由子页大标题替代）。
    v1.3 #40：调色板用 CSS grid 自适应列（.palette-grid），不再 flex-wrap。
    v1.3 #42：色板数据走 data/palettes.yaml（单数组配置），加颜色只改配置。
    2026-10-23 PR-G 七色调色板：单色 / 撞色分页删掉，22 套一个列表、按 group 分组（冷调 / 自然 / 暖调 / 花色 / 中性）。
@@ -10,13 +10,13 @@
 <div class="set-group scroll-mt-24" id="sg-theme">
 <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       <div class="p-5">
-        {{/* 标题右端「恢复默认」小按钮（#palette-reset，settings.js；已是默认时 aria-disabled 置灰，不隐藏） */}}
+        {{/* 标题右端「恢复默认」小按钮（#palette-reset，apps/space.js；已是默认时 aria-disabled 置灰，不隐藏） */}}
         <div class="flex items-center justify-between gap-3">
           <p class="text-sm font-medium">{{ if $isEn }}Color palette{{ else }}调色板{{ end }}</p>
           <button type="button" class="palette-reset" id="palette-reset" aria-disabled="true">{{ partial "icon.html" "undo" }}<span>{{ if $isEn }}Reset{{ else }}恢复默认{{ end }}</span></button>
         </div>
         <p class="text-xs text-m-on-surface-variant mt-1 mb-3">{{ if $isEn }}The background glow, buttons, titles and icons change together.{{ else }}背景光晕和按钮、标题、图标一起换色。{{ end }}</p>
-        {{/* 预览卡：没有 JS 时显示默认色板；settings.js 选中色块后把色块上的变量（style）和名字拷过来 */}}
+        {{/* 预览卡：没有 JS 时显示默认色板；apps/space.js 选中色块后把色块上的变量（style）和名字拷过来 */}}
         <div class="pal-preview" id="pal-preview" style="{{ partial "palette-tile-vars.html" (dict "id" $defId "full" true) | safeCSS }}">
           <div class="pal-pv-head"><b id="pal-preview-name">{{ if $isEn }}{{ $defPal.en }}{{ else }}{{ $defPal.zh }}{{ end }}</b><span>{{ if $isEn }}Current palette{{ else }}当前调色板{{ end }}</span></div>
           <div class="pal-pv-row" aria-hidden="true">

@@ -5,7 +5,8 @@
  *   body（text/plain 或 application/json，sendBeacon 发 text/plain 免预检）：
  *     {"d":"2026-10-17","s":[{"k":"home","sec":42},{"k":"book:abc123","t":"三体","sec":300}]}
  *   - d：上报设备的本地日期；只接受服务器 UTC 日期前后 1 天内（覆盖所有时区）
- *   - k：区域键。主站 home/files/browser/settings；书站 book 或 book:<id>；博客 blog 或 post:<slug>
+ *   - k：区域键。主站 space/files/browser（P4-3 PR-4b 起旷野页和子页都记 space；旧客户端还会报 home / settings，照收，汇总时并进 space）；
+ *     书站 book 或 book:<id>；博客 blog 或 post:<slug>
  *   - t：可选标题（书名 / 文章名），最长 60 字
  *   - sec：本次累计秒数，1–900（客户端最多 5 分钟一报，留余量）
  *   - 只记账号会话 + 作用域 wellbeing.write（方案 3.4 R12）：没登录账号 / 没作用域直接 204 丢弃，不进主人的数字健康；没进门 401
@@ -13,14 +14,14 @@
  * GET /api/wellbeing?d=YYYY-MM-DD  读取某天汇总（默认服务器 UTC 今天）
  *   - 进门就能读（首页小组件没登录账号也能看到区域合计，和原来的静态数据一致）
  *   - 明细（书名 / 文章名）只给账号会话；没登录账号只拿到区域合计（items 为空）
- *   - 返回 {ok, d, detail, total, sections:[{k,sec}], items:[{k,t,sec}]}；detail = 这次有没有给明细（前端设置页的数字健康卡按它显示）
+ *   - 返回 {ok, d, detail, total, sections:[{k,sec}], items:[{k,t,sec}]}；detail = 这次有没有给明细（前端旷野 › 数字健康卡按它显示）
  *
  * 不涉及任何密钥 / 会话签发；未绑定 D1_WELLBEING（本地）时 POST 204、GET 返回空。
  * 2026-10-24 起在账号 Worker styrigx-account（D1 styrigx-account，迁移在 workers/account/migrations/）。
  */
 import { json } from '../lib/http.js';
 
-const KEY_RE = /^(home|files|browser|settings|book|blog)$|^(book|post):[A-Za-z0-9_\-./%]{1,80}$/;
+const KEY_RE = /^(space|home|files|browser|settings|book|blog)$|^(book|post):[A-Za-z0-9_\-./%]{1,80}$/;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_BODY = 4096;
 const MAX_ENTRIES = 12;
@@ -30,8 +31,9 @@ const KEEP_DAYS = 35;
 const SCHEMA =
   'CREATE TABLE IF NOT EXISTS wb_daily (day TEXT NOT NULL, k TEXT NOT NULL, t TEXT NOT NULL DEFAULT \'\', sec INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, k))';
 
-/** 区域键 → 汇总分组（book:xxx → book，post:xxx → blog） */
+/** 区域键 → 汇总分组（book:xxx → book，post:xxx → blog；旧键 home / settings → space：主页和设置合成旷野页，P4-3 PR-4b，读旧写新） */
 export function sectionOf(k) {
+  if (k === 'home' || k === 'settings') return 'space';
   if (k.startsWith('book:')) return 'book';
   if (k.startsWith('post:')) return 'blog';
   return k;

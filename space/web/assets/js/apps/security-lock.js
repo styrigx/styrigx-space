@@ -1,5 +1,5 @@
 /**
- * @fileoverview 安全与隐私 → 锁屏凭证（/settings/security/lock/）。
+ * @fileoverview 安全与隐私 → 锁屏凭证（/security/lock/）。
  * - 门（安全操作）：进页 POST /api/lock-reauth status —— 没有有效reauth 票 → 显示验证行：
  *   锁屏通行密钥 / 解锁密码（设了哪个显示哪个）+ 进站凭证（一直在，防止忘了凭证网站就死了）；
  *   通过后签 3 分钟LockReauthTicket（SGX_LOCK_* 签，HttpOnly cookie），页内倒计时按服务端 expiresAt；

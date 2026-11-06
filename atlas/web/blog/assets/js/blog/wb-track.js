@@ -72,7 +72,7 @@ export function buildBody(p) {
 /**
  * 启动计时（每页调用一次）。
  * @param {{key: string|null, title?: string|(() => string), endpoint?: string, idleMs?: number}} opt
- *   key：区域键（home/files/browser/settings/book/book:<id>/blog/post:<slug>），null 不计时
+ *   key：区域键（主站 space/files/browser，P4-3 PR-4b 前是 home / settings，读的时候并进 space；book/book:<id>/blog/post:<slug>），null 不计时
  *   title：书名 / 文章名，可传函数（阅读器加载完才知道书名时用 () => document.title）
  *   idleMs：多久没操作停表；阅读页建议 300000（看一页书可能几分钟不碰屏幕）
  *   endpoint：主站用相对地址 /api/wellbeing，子站用 https://styrigx.com/api/wellbeing

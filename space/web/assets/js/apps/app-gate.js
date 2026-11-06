@@ -35,7 +35,7 @@ function parseApi(r) {
 
 /** @returns {string} 安全页地址（验证流程入口，语言跟随） */
 function securityUrl() {
-  return document.documentElement.lang === 'en' ? '/en/settings/security/' : '/settings/security/';
+  return document.documentElement.lang === 'en' ? '/en/security/' : '/security/';
 }
 
 

@@ -120,8 +120,8 @@ export function isPublicPage(pathname) {
  */
 /* 重置锁屏票（LockResetTicket，sgx-lock-reset）只开锁屏凭证页（重置锁屏流程），不开安全总览。 */
 const LOCK_RESET_PATHS = [
-  '/settings/security/lock/',
-  '/en/settings/security/lock/',
+  '/security/lock/',
+  '/en/security/lock/',
 ];
 /* 重置锁屏票可开的路径（仅锁屏凭证管理页） */
 function isLockResetPath(pathname) {
@@ -280,7 +280,7 @@ async function handleRequest(context) {
     }
 
     /* 重置锁屏票可打开锁屏凭证页（重置锁屏流程），但仍进不了主页。
-       仅放行 /settings/security/lock/ 及其英文版（安全总览不放行）；
+       仅放行 /security/lock/ 及其英文版（安全总览不放行）；
        主页仍需有效会话。
        注入专用状态 lock-reset（而非 locked），前端 initLock 跳过锁屏覆盖，
        落地页可操作；票据仍只能管理锁屏凭证。 */

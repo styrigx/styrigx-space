@@ -13,7 +13,7 @@ const onRequestPost = wrap(rawPost);
 const onRequestGet = wrap(rawGet);
 import { buildBody, localDay } from '../../../space/web/assets/js/lib/wb-track.js';
 import { wbAreaOf } from '../../../space/web/assets/js/lib/wb-area.js';
-import { fmtDur } from '../../../space/web/assets/js/lib/wb-view.js';
+import { fmtDur, foldSections } from '../../../space/web/assets/js/lib/wb-view.js';
 
 const NOW = Date.parse('2026-10-17T09:00:00Z');
 
@@ -62,12 +62,24 @@ test('summarize：按区域合计；书名只给 detail（账号会话）', () =
   ];
   const o = summarize(rows, true);
   assert.equal(o.total, 1110);
-  assert.deepEqual(o.sections, [{ k: 'book', sec: 900 }, { k: 'home', sec: 120 }, { k: 'blog', sec: 90 }]);
+  /* P4-3 PR-4b：旧键 home 并进 space */
+  assert.deepEqual(o.sections, [{ k: 'book', sec: 900 }, { k: 'space', sec: 120 }, { k: 'blog', sec: 90 }]);
   assert.equal(o.items[0].t, '三体');
   const v = summarize(rows, false);
   assert.deepEqual(v.items, []);
   assert.equal(v.total, 1110);
   assert.equal(sectionOf('post:x'), 'blog');
+});
+
+test('PR-4b 读旧写新：新键 space 能上报；旧键 home / settings 照收，汇总并进 space', () => {
+  assert.equal(sectionOf('space'), 'space');
+  assert.equal(sectionOf('home'), 'space');
+  assert.equal(sectionOf('settings'), 'space');
+  const d = new Date().toISOString().slice(0, 10);
+  for (const k of ['space', 'home', 'settings']) assert.ok(parseReport({ d, s: [{ k, sec: 30 }] }), k + ' 应能上报');
+  const o = summarize([{ k: 'home', t: '', sec: 60 }, { k: 'settings', t: '', sec: 30 }, { k: 'space', t: '', sec: 10 }, { k: 'files', t: '', sec: 5 }], false);
+  assert.deepEqual(o.sections, [{ k: 'space', sec: 100 }, { k: 'files', sec: 5 }]);
+  assert.equal(o.total, 105);
 });
 
 test('POST / GET：无会话 401，不碰数据库', async () => {
@@ -99,17 +111,29 @@ test('localDay：本机日期补零', () => {
 });
 
 test('wbAreaOf：主站页面映射', () => {
-  assert.equal(wbAreaOf('/'), 'home');
-  assert.equal(wbAreaOf('/en/'), 'home');
+  /* P4-3 PR-4b：旷野页、旷野子页、账号页都记 space（只写新键） */
+  assert.equal(wbAreaOf('/'), 'space');
+  assert.equal(wbAreaOf('/en/'), 'space');
   assert.equal(wbAreaOf('/files/'), 'files');
   assert.equal(wbAreaOf('/en/browser/'), 'browser');
   assert.equal(wbAreaOf('/bookmarks/'), null); /* 2026-10-21 主站书签下线 */
   assert.equal(wbAreaOf('/en/search/'), 'browser');
-  assert.equal(wbAreaOf('/settings/theme/'), 'settings');
-  assert.equal(wbAreaOf('/account/'), 'settings'); /* 账号页挪到 /account/，时长仍记在设置 */
-  assert.equal(wbAreaOf('/en/account/devices/'), 'settings');
+  for (const p of ['/theme/', '/wellbeing/', '/about/', '/status/', '/security/', '/security/lock/', '/en/security/tempkeys/', '/account/', '/en/account/devices/']) {
+    assert.equal(wbAreaOf(p), 'space', p);
+  }
+  assert.equal(wbAreaOf('/blog/'), null, '子站不归主站区域');
+  assert.equal(wbAreaOf('/themes/'), null, '只认整段');
   assert.equal(wbAreaOf('/app-verify/'), null);
   assert.equal(wbAreaOf('/404.html'), null);
+  assert.equal(wbAreaOf('/display/'), null, 'P4-3 PR-4b：显示页已删除');
+});
+
+test('foldSections（前端读旧）：home / settings 并进 space，同键相加、按时长排序', () => {
+  assert.deepEqual(foldSections([{ k: 'home', sec: 100 }, { k: 'blog', sec: 120 }, { k: 'settings', sec: 50 }, { k: 'space', sec: 10 }]), [
+    { k: 'space', sec: 160 },
+    { k: 'blog', sec: 120 },
+  ]);
+  assert.deepEqual(foldSections([]), []);
 });
 
 test('fmtDur：中英文时长', () => {

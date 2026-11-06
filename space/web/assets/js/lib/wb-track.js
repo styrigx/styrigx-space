@@ -73,7 +73,7 @@ export function buildBody(p) {
 /**
  * 启动计时（每页调用一次）。
  * @param {{key: string|null|(() => string|null), title?: string|(() => string), endpoint?: string, idleMs?: number}} opt
- *   key：区域键（home/files/browser/settings/book/book:<id>/blog/post:<slug>），null 不计时；
+ *   key：区域键（space/files/browser/book/book:<id>/blog/post:<slug>；P4-3 PR-4b 前主站是 home / settings，读的时候并进 space），null 不计时；
  *     也可传函数（每次记时现取，主站页内切换顶栏三栏时区域跟着变；返回 null 的那段不计）
  *   title：书名 / 文章名，可传函数（阅读器加载完才知道书名时用 () => document.title）
  *   idleMs：多久没操作停表；阅读页建议 300000（看一页书可能几分钟不碰屏幕）

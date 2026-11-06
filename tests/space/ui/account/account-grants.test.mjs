@@ -20,7 +20,7 @@ test('appReturn：只认奇趣 / 日刻的页面（站内路径或 https://styri
   assert.deepEqual(g.appReturn('/daymark'), { app: 'daymark', ret: '/daymark' });
   assert.deepEqual(g.appReturn('https://styrigx.com/daymark/#trove'), { app: 'daymark', ret: 'https://styrigx.com/daymark/#trove' });
   for (const bad of ['', '/', '/account/security/', '/curiosity/', '//evil.example/curio/', 'https://evil.example/curio/', 'https://styrigx.com.evil/curio/',
-    'javascript:/curio/', '/settings/', null, undefined, 3, '/curio/' + 'x'.repeat(3000)]) {
+    'javascript:/curio/', '/display/', null, undefined, 3, '/curio/' + 'x'.repeat(3000)]) {
     assert.equal(g.appReturn(bad), null, String(bad).slice(0, 40));
   }
 });

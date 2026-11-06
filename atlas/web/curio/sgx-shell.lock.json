@@ -2,9 +2,9 @@
   "_note": "space/scripts/curio/sync-shell.mjs 写入，勿手改：tree 是本站共享外壳副本对应的主站外壳目录（dir）的 git tree 哈希；from 只作记录",
   "source": "styrigx/styrigx-space",
   "dir": "space/web/shared/shell",
-  "tree": "7c803501abf1472e78e1993a48cc133d5231bab7",
-  "from": "worktree",
-  "version": "ad55af697cfd",
+  "tree": "9c4ad417c51d236a82f4d6ae0fc6bd766d142e9e",
+  "from": "main（本地 pr4b-b）",
+  "version": "af20c15030a1",
   "files": {
     "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
     "shell.css": "b9e935bb74cb34c78d9fb5c00dceabfe32e39fa7956390b34ac51bf6826539cc",
@@ -16,7 +16,7 @@
     "ai.js": "5524171a002fefc8996e03638d9bce2309fd52608141f87a57a28451fea04285",
     "vk.js": "3bc7000ba510e8a7cbc1dd420e85cffdc23e0c5bd8184f4421d5e57f22ad7633",
     "prefs-write.js": "03fd506b111f123cc7e5d64e92dfcafe679e5c2310ee331df70a4d54090556e6",
-    "nav.json": "9aaba576502a8aaaffccdef089b148b38ca5ccfdd480ed4b571e85dc10a529e3",
+    "nav.json": "2e19f9d13120f0dabe246a0a5c5d08044fa680fb077361a5296d0aebb078cf8f",
     "palettes.json": "f3779c13ef0033910d9a4afa0f44bdb81daaf9649c875e451656980240fd3a10",
     "ui-cookie-read.js": "41e0daf8b5966c3f48010fb6c60ef5cf608ca4c5ca20698a6020a5320e5f6b59",
     "ui-cookie-contract.json": "e207b5aefd00d59daa35f4d78bf3982e5c7ba95aa7b967b4e2ee6006469a9878",
@@ -34,7 +34,7 @@
     "web/assets/js/sgx/shell/ai.js": "535523375ab2183a718632f59939e439f978a5ba5a5948abd58dab9dd63da69b",
     "web/assets/js/sgx/shell/vk.js": "cf95841ca5e1ed8a78581ea45e39b9473be9403d5b57d94ce9dfda63dd50328b",
     "web/assets/js/sgx/shell/prefs-write.js": "9d4d034217cbc645a8574fbd0d647e3f235c0bf442c542d94dbbf54fe3e57559",
-    "web/assets/sgx-shell/nav.json": "9aaba576502a8aaaffccdef089b148b38ca5ccfdd480ed4b571e85dc10a529e3",
+    "web/assets/sgx-shell/nav.json": "2e19f9d13120f0dabe246a0a5c5d08044fa680fb077361a5296d0aebb078cf8f",
     "web/assets/sgx-shell/palettes.json": "f3779c13ef0033910d9a4afa0f44bdb81daaf9649c875e451656980240fd3a10",
     "web/assets/js/sgx/shell/ui-cookie-read.js": "86f0de1f52e82f68bf387665cb0e6f97456ab2df5a41a44483e8df77c353e9f0"
   }

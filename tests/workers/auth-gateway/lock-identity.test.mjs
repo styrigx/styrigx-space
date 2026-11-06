@@ -190,7 +190,7 @@ test('静态直通和页面回源也先剥头：回源请求里没有外来的 x
   try {
     await worker.fetch(new Request('https://styrigx.com/css/main.css', { headers: FORGED }), env(), CTX);
     const ck = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
-    await worker.fetch(new Request('https://styrigx.com/settings/', { headers: { ...FORGED, Cookie: ck } }), env(), CTX);
+    await worker.fetch(new Request('https://styrigx.com/display/', { headers: { ...FORGED, Cookie: ck } }), env(), CTX);
   } finally { globalThis.fetch = orig; }
   assert.equal(seen.length, 2);
   for (const h of seen) {

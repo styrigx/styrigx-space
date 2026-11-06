@@ -134,7 +134,7 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-sto
   assert.equal(av.status, 200);
   const bad = await call(new Request('https://styrigx.com/avatar/100.webp?x=1'), env);
   assert.equal(bad.status, 404, '不认识的尺寸由头像处理函数回 404（302 锁屏是网关的门，见 forwarding.test）');
-  const page = await call(new Request('https://styrigx.com/settings/'), env);
+  const page = await call(new Request('https://styrigx.com/display/'), env);
   assert.equal(page.status, 404, '网关只转发表里的路径；别的路径不在这里出页面');
 });
 
@@ -289,9 +289,9 @@ test('check-worker-routes：现在通过；账号 Worker 只要登记任何一�
   const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/router.js', 'utf8'));
   assert.deepEqual(acct, []);
   assert.ok(!apis.includes('/api/account') && apis.includes('/api/geo') && !apis.includes('/api/prefs'));
-  const pages = ['/', '/account/', '/settings/wellbeing/', '/en/settings/'];
+  const pages = ['/', '/account/', '/wellbeing/', '/en/display/'];
   assert.deepEqual(checkAccount(gw, acct, apis, pages), []);
-  for (const extra of ['styrigx.com/api/avatar*', 'styrigx.com/avatar/*', 'styrigx.com/settings/*']) {
+  for (const extra of ['styrigx.com/api/avatar*', 'styrigx.com/avatar/*', 'styrigx.com/display/*']) {
     assert.ok(checkAccount(gw, [extra], apis, pages).some((e) => e.includes(extra)), extra);
   }
 });

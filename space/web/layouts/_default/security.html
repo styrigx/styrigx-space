@@ -5,8 +5,8 @@
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
-{{ $lockUrl := cond $isEn "/en/settings/security/lock/" "/settings/security/lock/" }}
-{{ $tkUrl := cond $isEn "/en/settings/security/tempkeys/" "/settings/security/tempkeys/" }}
+{{ $lockUrl := cond $isEn "/en/security/lock/" "/security/lock/" }}
+{{ $tkUrl := cond $isEn "/en/security/tempkeys/" "/security/tempkeys/" }}
 
 <div class="set-layout pb-28">
 

@@ -40,7 +40,7 @@ test('safeReturn：复现用例全部判为不合法（null）', () => {
 });
 
 test('safeReturn：合法站内路径与白名单子站照常，返回规范化值', () => {
-  assert.equal(safeReturn('/settings/'), '/settings/');
+  assert.equal(safeReturn('/display/'), '/display/');
   assert.equal(safeReturn('/browser/?x=1#a'), '/browser/?x=1#a');
   assert.equal(safeReturn('/en/'), '/en/');
   assert.equal(safeReturn('/a/../b/'), '/b/');
@@ -82,8 +82,8 @@ test('/api/lock-session-check：复现用例 next 一律 /', async () => {
 });
 
 test('resolveReturn(ret)：只做地址白名单，不看进门方式；门内页也原样回去（不再有升级验证）', () => {
-  assert.equal(resolveReturn('/settings/security/lock/'), '/settings/security/lock/');
-  assert.equal(resolveReturn('/en/settings/status/?x=1'), '/en/settings/status/?x=1');
+  assert.equal(resolveReturn('/security/lock/'), '/security/lock/');
+  assert.equal(resolveReturn('/en/status/?x=1'), '/en/status/?x=1');
   assert.equal(resolveReturn('https://styrigx.com/curio/a/'), 'https://styrigx.com/curio/a/');
   assert.equal(resolveReturn('/%09/evil.com'), '/');
   assert.equal(resolveReturn(''), '/');

@@ -134,9 +134,9 @@ const PAGE = '<!DOCTYPE html><html lang="zh"><body><!-- SGX-DESKTOP-START -->des
 test('页面：未登录访问内页 → 302 到锁屏，不回源', async () => {
   _resetSecretCache();
   await withOrigin(PAGE, async (calls) => {
-    const res = await worker.fetch(new Request('https://styrigx.com/settings/'), baseEnv(), CTX);
+    const res = await worker.fetch(new Request('https://styrigx.com/display/'), baseEnv(), CTX);
     assert.equal(res.status, 302);
-    assert.equal(res.headers.get('Location'), 'https://styrigx.com/?lock=1&return=%2Fsettings%2F');
+    assert.equal(res.headers.get('Location'), 'https://styrigx.com/?lock=1&return=%2Fdisplay%2F');
     assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
     assert.equal(calls.length, 0);
   });
@@ -165,7 +165,7 @@ test('页面：进门的人（锁屏密码 / 临时钥匙进门都一样）访�
     _resetSecretCache();
     const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, by));
     await withOrigin(PAGE, async (calls) => {
-      const res = await worker.fetch(new Request('https://styrigx.com/settings/security/lock/', { headers: { Cookie: cookie } }), baseEnv(), CTX);
+      const res = await worker.fetch(new Request('https://styrigx.com/security/lock/', { headers: { Cookie: cookie } }), baseEnv(), CTX);
       assert.equal(res.status, 200, by);
       assert.equal(calls.length, 1);
       assert.equal(calls[0].headers.get('Cookie'), cookie);
@@ -181,10 +181,10 @@ test('页面：Pages 的跳转（补尾斜杠）原样交回', async () => {
   _resetSecretCache();
   const cookie = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'password'));
   await withOrigin('', async () => {
-    const res = await worker.fetch(new Request('https://styrigx.com/settings', { headers: { Cookie: cookie } }), baseEnv(), CTX);
+    const res = await worker.fetch(new Request('https://styrigx.com/display', { headers: { Cookie: cookie } }), baseEnv(), CTX);
     assert.equal(res.status, 308);
-    assert.equal(res.headers.get('Location'), '/settings/');
-  }, { status: 308, headers: { Location: '/settings/' } });
+    assert.equal(res.headers.get('Location'), '/display/');
+  }, { status: 308, headers: { Location: '/display/' } });
 });
 
 test('stripSessionAttrs：只清 <html> 上的会话标记（body 等别的标签不动）', () => {
@@ -226,7 +226,7 @@ test('锁着也公开：标签页图标 / 分享卡片图（Pages 中间件放�
   }
   /* 对照：未登录的内页仍跳锁屏 */
   const res = await pagesMw.onRequest({
-    request: new Request('https://styrigx.com/settings/'), env: baseEnv(), params: {}, data: {}, waitUntil() {},
+    request: new Request('https://styrigx.com/display/'), env: baseEnv(), params: {}, data: {}, waitUntil() {},
     next: async () => new Response('page'),
   });
   assert.equal(res.status, 302);
@@ -323,9 +323,9 @@ test('Pages 静态 _worker.js：pages.dev 地址 301 到 styrigx.com，styrigx.c
   const seen = [];
   const env = { ASSETS: { fetch: async (req) => { seen.push(req.url); return new Response('static'); } } };
   for (const h of ['styrigx-space.pages.dev', 'abc123.styrigx-space.pages.dev', 'passkey-e2e.styrigx-space.pages.dev']) {
-    const res = await pagesWorker.fetch(new Request('https://' + h + '/settings/?a=1'), env);
+    const res = await pagesWorker.fetch(new Request('https://' + h + '/display/?a=1'), env);
     assert.equal(res.status, 301);
-    assert.equal(res.headers.get('Location'), 'https://styrigx.com/settings/?a=1');
+    assert.equal(res.headers.get('Location'), 'https://styrigx.com/display/?a=1');
   }
   assert.equal(seen.length, 0);
   const ok = await pagesWorker.fetch(new Request('https://styrigx.com/css/main.css'), env);
@@ -365,12 +365,12 @@ test('预览（作为 Pages 的 _worker.js 运行，有 env.ASSETS）：页面�
     ACCOUNT: { fetch: async (req) => { acct.push(new URL(req.url).pathname); return new Response('IMG', { headers: { 'X-SGX-Runtime': 'account' } }); } },
   };
   await withOrigin('X', async (calls) => {
-    const page = await worker.fetch(new Request('https://passkey-e2e.styrigx-space.pages.dev/settings/'), env, CTX);
+    const page = await worker.fetch(new Request('https://passkey-e2e.styrigx-space.pages.dev/display/'), env, CTX);
     assert.equal(page.status, 200);
     const av = await worker.fetch(new Request('https://passkey-e2e.styrigx-space.pages.dev/avatar/32.webp'), env, CTX);
     assert.equal(av.status, 200);
     assert.equal(av.headers.get('X-SGX-Runtime'), 'account');
-    assert.deepEqual(seen, ['/settings/']);
+    assert.deepEqual(seen, ['/display/']);
     assert.deepEqual(acct, ['/avatar/32.webp']);
     assert.equal(calls.length, 0);
   });

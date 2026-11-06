@@ -113,9 +113,9 @@ test('账号未登录（已进门）：头像按钮不可点，没有铅笔', as
   await expect(btn.locator('.sgx-ac-pen')).toBeHidden();
 });
 
-test('设置页不再有账号卡（已移到账号页）', async ({ page }) => {
+test('旷野页和子页没有账号卡（在账号页）', async ({ page }) => {
   await asSession(page);
-  await page.goto('/settings/');
+  await page.goto('/');
   await expect(page.locator('main')).toBeVisible();
   await expect(page.locator('.sgx-account-card')).toHaveCount(0);
   await expect(page.locator('[data-avatar-edit]')).toHaveCount(0);

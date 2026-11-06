@@ -1,7 +1,6 @@
 /**
- * @fileoverview 首页：日刻今日一句（P4-2c：双时钟、天气小组件删除）。
- * 2026-10-24 页内切换（shell/inpage-tabs.js）：不再在 import 时直接跑，改成 mountHome()——
- * 首页这块 DOM 只挂一次（切走时连 DOM 一起留着，回来不重画）；activate / deactivate 留着给页内切换调，现在没有要停的东西。
+ * @fileoverview 旷野页（/）上方的小组件：日刻今日一句（P4-2c：双时钟、天气小组件删除）。
+ * mountHome() 由 entries/entry-space.js 在加载时调一次（P4-3 PR-4b 起没有页内切换）；activate / deactivate 保留，现在没有要停的东西。
  */
 import { mountDaymarkToday } from '../lib/daymark-today.js';
 

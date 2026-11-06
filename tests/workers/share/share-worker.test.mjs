@@ -135,7 +135,7 @@ test('目标：站内相对路径或 styrigx.com / 三个子站的 https 地址�
   assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/post/你好/'), 'https://atlas.styrigx.com/blog/post/%E4%BD%A0%E5%A5%BD/', '中文路径编码后存');
   /* 去掉锁屏 / 回跳 / 分享参数，其他参数保留 */
   assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/p/?lock=1&why=x&return=https%3A%2F%2Fevil.com&share=1&q=a'), 'https://atlas.styrigx.com/blog/p/?q=a');
-  assert.equal(links.cleanTarget('/settings/?lock=1'), '/settings/');
+  assert.equal(links.cleanTarget('/display/?lock=1'), '/display/');
   /* 图志的 /s/ 不是短链，可以；任何站的 /api/（图志还有各站的 /<站>/api/）不行 */
   assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/s/x/'), 'https://atlas.styrigx.com/blog/s/x/');
   assert.equal(links.cleanTarget('https://atlas.styrigx.com/blog/apix/'), 'https://atlas.styrigx.com/blog/apix/');
@@ -204,9 +204,9 @@ test('check-worker-routes：/s/*、/api/share* 归短链 Worker；网关接口�
   const acct = readRoutes(readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8'));
   const share = readRoutes(readFileSync(REPO + 'workers/share/wrangler.toml', 'utf8'));
   const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/router.js', 'utf8'));
-  const pages = ['/', '/account/', '/settings/security/tempkeys/', '/settings/', '/search/', '/en/settings/'];
+  const pages = ['/', '/account/', '/security/tempkeys/', '/display/', '/search/', '/en/display/'];
   assert.deepEqual(checkWorkers(gw, acct, share, apis, pages), []);
-  assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/s*'), apis, pages).some((e) => e.includes('/settings/') || e.includes('/search/')));
+  assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/s*'), apis, pages).some((e) => e.includes('/display/') || e.includes('/search/')));
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/api/s*'), apis, pages).some((e) => e.includes('/api/status')));
   assert.ok(checkWorkers(gw, acct, share.concat('styrigx.com/api/avatar*'), apis, pages).some((e) => e.includes('/api/avatar')), '抢网关转发表的账号路径也报错');
   assert.ok(checkWorkers(gw, acct, share.filter((r) => !r.includes('/s/')), apis, pages).some((e) => e.includes('/s/')));
@@ -281,14 +281,14 @@ for (const K of KINDS) {
 
   T('普通短链：不签钥匙、不发会话，302 到目标（没解锁的人由网关照常送去锁屏）', async () => {
     const { env, calls, authDb } = mk();
-    const r = await api(env, { action: 'create', days: 3, to: '/settings/' });
+    const r = await api(env, { action: 'create', days: 3, to: '/display/' });
     assert.equal(r.s, 200);
     assert.equal(r.j.link.session, 0);
     assert.deepEqual(calls, []);
     assert.equal(authDb.rows('tempkey').length, 0, '网关一把钥匙都没签');
     const res = await open(env, r.j.link.path + '/');
     assert.equal(res.status, 302);
-    assert.equal(res.headers.get('Location'), 'https://styrigx.com/settings/');
+    assert.equal(res.headers.get('Location'), 'https://styrigx.com/display/');
     assert.equal(res.headers.getSetCookie().length, 0);
     assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
   });

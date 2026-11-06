@@ -2,7 +2,7 @@
   "brand": "Styrigx",
   "label": { "zh": "导航", "en": "Navigation" },
   "items": [
-    { "id": "home", "icon": "nav-home", "zh": "主站", "en": "Space", "origin": "https://styrigx.com", "path": "/" },
+    { "id": "home", "icon": "nav-home", "zh": "旷野", "en": "Space", "origin": "https://styrigx.com", "path": "/" },
     { "id": "curio", "icon": "nav-curio", "zh": "奇趣", "en": "Curio", "origin": "https://styrigx.com", "path": "/curio/" },
     { "id": "daymark", "icon": "nav-daymark", "zh": "日刻", "en": "Daymark", "origin": "https://styrigx.com", "path": "/daymark/" },
     { "id": "blog", "icon": "nav-blog", "zh": "博客", "en": "Blog", "origin": "https://styrigx.com", "path": "/blog/" }

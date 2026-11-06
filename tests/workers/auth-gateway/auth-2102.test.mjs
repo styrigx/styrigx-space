@@ -81,7 +81,7 @@ before(async () => {
 
 test('5：SGX_SITE=blog 时主站 middleware 拒绝（500）', async () => {
   const { onRequest } = await import('../../../workers/auth-gateway/src/gate.js');
-  const req = new Request('https://styrigx.com/settings/', { method: 'GET' });
+  const req = new Request('https://styrigx.com/display/', { method: 'GET' });
   const res = await onRequest({
     request: req,
     env: { SGX_SITE: 'blog', SGX_ENV: 'production' },

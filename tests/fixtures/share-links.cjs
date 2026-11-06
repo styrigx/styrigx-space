@@ -13,7 +13,7 @@ const LINKS = [
     revokedAt: 0, status: 'active', opens: 2, lastOpenAt: NOW - 50 * 60e3, openFor: 3 * 3600, sessionLeft: 7800, path: '/s/Xq3vN8tKp2LmR7wYc5HdJa' },
   { id: 's000000000000002', name: '', to: '/', session: 0, createdAt: NOW - 3 * H, expiresAt: NOW + 3 * 24 * H - 3 * H,
     revokedAt: 0, status: 'active', opens: 0, lastOpenAt: 0, openFor: 0, sessionLeft: 0, path: '/s/Bv9TzQe4Wk1sNf6uYh2PrM' },
-  { id: 's000000000000003', name: '旧链接', to: '/settings/', session: 86400, createdAt: NOW - 30 * H, expiresAt: NOW + 6 * 24 * H,
+  { id: 's000000000000003', name: '旧链接', to: '/display/', session: 86400, createdAt: NOW - 30 * H, expiresAt: NOW + 6 * 24 * H,
     revokedAt: NOW - 5 * H, status: 'revoked', opens: 1, lastOpenAt: NOW - 20 * H, openFor: 0, sessionLeft: 0 },
 ];
 module.exports = { NOW, KEYS, LINKS };

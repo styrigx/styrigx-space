@@ -1,5 +1,5 @@
 /**
- * @fileoverview 页面入口：设置 → 安全与隐私 → 临时钥匙（/settings/security/tempkeys/；发给别人的临时 LockKey：签发 / 列表 / 作废；分享短链）
+ * @fileoverview 页面入口：设置 → 安全与隐私 → 临时钥匙（/security/tempkeys/；发给别人的临时 LockKey：签发 / 列表 / 作废；分享短链）
  * = 公共 core + 子页模块。
  */
 import { initCore } from '../shell/core.js';

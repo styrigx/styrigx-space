@@ -5,7 +5,7 @@
  * 主站在 dist/site 里是生产构建（锁屏启用、没有网关）：这里只看顶栏 / 快捷面板的 DOM 和首帧外观，不过锁屏。 */
 const { test, expect } = require('@playwright/test');
 
-const MAIN = ['/', '/settings/', '/account/', '/en/'];
+const MAIN = ['/', '/theme/', '/account/', '/en/'];
 const SUB = ['/curio/', '/daymark/', '/blog/', '/blog/post/2026-10-07-muse-playbook/'];
 
 test.beforeEach(async ({ page }) => {
@@ -60,7 +60,7 @@ test('子站快捷设置改外观（深色、调色板）→ 回主站同步生�
   expect(cookie, '写了 sgx-ui cookie').toBeTruthy();
 
   /* 主站：同源同一份 cookie / localStorage，首帧就是深色 + forest */
-  for (const p of ['/', '/settings/']) {
+  for (const p of ['/', '/theme/']) {
     await page.goto(p, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('html'), p).toHaveClass(/\bdark\b/);
     await expect(page.locator('html'), p).toHaveAttribute('data-palette', 'forest');

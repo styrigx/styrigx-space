@@ -8,7 +8,7 @@
  *   连点两次只发 1 次 /api/lock-reset challenge。
  * - 取消（NotAllowedError）：副标题/箭头恢复原样，行内显示「已取消验证，可重新选择」，
  *   留在本页（标题仍为 (2/2)，URL 未变），不报「验证失败」。
- * - 成功：进入 /settings/security/lock/。
+ * - 成功：进入 /security/lock/。
  * - 英文：副标题 'Opening passkey…'。
  *
  * 运行（生产构建，锁屏启用；静态构建 + API mock，无需真实后端）：
@@ -216,7 +216,7 @@ test.describe('reset (2/2) passkey busy', () => {
     await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
   });
 
-  test('通行密钥验证成功：进入 /settings/security/lock/', async ({ page }) => {
+  test('通行密钥验证成功：进入 /security/lock/', async ({ page }) => {
     const counters = { challenge: 0 };
     await mockLockreset(page, counters);
     await gotoResetStep2(page);
@@ -239,7 +239,7 @@ test.describe('reset (2/2) passkey busy', () => {
         },
       });
     });
-    await page.waitForURL('**/settings/security/lock/**', { timeout: 10000 });
+    await page.waitForURL('**/security/lock/**', { timeout: 10000 });
   });
 
   test('其他失败：显示现有中文文案，留在本页', async ({ page }) => {
