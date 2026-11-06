@@ -1,7 +1,7 @@
-/* assets/js/curio-tabs.js —— 奇趣首页三个页签：发现 / 设备 / 游戏（顶栏分段滑块，同日刻的写法）。
+/* assets/js/curio-tabs.js —— 奇趣首页三个页签：发现 / 设备 / 游戏（P4-3 PR-4b 起顶栏没有分段滑块，首页正文的分区入口 + hash 切换，同日刻的写法）。
  *
  * - hash：发现 = 无或 #c/<分类 id>（curio.js 管），#devices，#games。只用 replaceState，切页签不加历史。
- * - 切页签：面板 hidden + inert；滑块 --seg-pos；<html data-cu-tab>（CSS 据此只露当前页签的「收藏 / 设备 / 游戏」按钮）。
+ * - 切页签：面板 hidden + inert；顶栏页名胶囊换成分区名（P4-3 PR-4b：顶栏不再有分段滑块，入口在首页正文）；<html data-cu-tab>（CSS 据此只露当前页签的「收藏 / 设备 / 游戏」按钮）。
  *   每个页签记住自己的滚动位置；点当前页签回顶部。键盘 ← → Home End。左右滑（横向 ≥ 70px、明显比竖向多）也能切。
  * - 右下角按钮：发现 = #cu-fab（curio.js 按接口的 canWrite 显示），设备 = #dv-fab，游戏 = #gm-fab（curio-items.js 按 canWrite 标 data-can-write）。
  */
@@ -27,8 +27,16 @@ var pure = { TABS: TABS, tabOf: tabOf, hashFor: hashFor };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 
 var doc = G.document;
-var seg = doc.querySelector('[data-cu-seg]');
-if (!seg) return;
+if (!doc.getElementById('cu-panes')) return;
+/* 页名胶囊 + 首页分区入口（P4-3 PR-4b：顶栏不再有分区页签）：切到第 i 个分区时胶囊显示 data-sgx-titles[i]（第 0 个 = 站名），
+   分区入口（[data-sgx-entries]，首页正文的目录）只在第 0 个分区（首页本身）显示 */
+function syncTitle(i){
+  var t = doc.querySelector('.sgx-tb-title[data-sgx-titles]');
+  if (t) { try { var names = JSON.parse(t.getAttribute('data-sgx-titles')); if (names[i]) t.textContent = names[i]; } catch (e) {} }
+  var ents = doc.querySelector('[data-sgx-entries]');
+  if (ents) ents.hidden = i !== 0;
+}
+
 var btns = TABS.map(function(id){ return doc.querySelector('[data-cu-tab="' + id + '"]'); });
 var tab = '';
 var scrolls = {};
@@ -51,7 +59,7 @@ function setTab(next, opts){
     if (!p) return;
     if (id === next) { p.hidden = false; p.removeAttribute('inert'); } else { p.hidden = true; p.setAttribute('inert', ''); }
   });
-  seg.style.setProperty('--seg-pos', String(i));
+  syncTitle(i);
   doc.documentElement.setAttribute('data-cu-tab', next);
   fabs();
   var h = hashFor(next, G.location.hash);
@@ -66,13 +74,6 @@ btns.forEach(function(b, i){
     if (TABS[i] === tab) { G.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' }); return; }
     setTab(TABS[i]);
   });
-});
-seg.addEventListener('keydown', function(e){
-  var i = TABS.indexOf(tab), n = -1;
-  if (e.key === 'ArrowRight') n = (i + 1) % 3; else if (e.key === 'ArrowLeft') n = (i + 2) % 3;
-  else if (e.key === 'Home') n = 0; else if (e.key === 'End') n = 2;
-  if (n < 0) return;
-  e.preventDefault(); setTab(TABS[n], { focus: true });
 });
 G.addEventListener('hashchange', function(){ var t = tabOf(G.location.hash); if (t !== tab) setTab(t); });
 /* 左右滑切页签（竖着滑照常滚动；分类条自己横向滚，不算） */

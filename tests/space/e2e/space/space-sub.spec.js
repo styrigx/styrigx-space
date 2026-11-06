@@ -40,8 +40,9 @@ test('space home (mobile): widgets on top, then title band + flat entries from d
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/');
   await expect(pg).toHaveTitle('旷野 | Styrigx');
-  await expect(pg.locator('.sgx-tb-tab')).toHaveText(['旷野']);
-  await expect(pg.locator('.sgx-tb-tab')).toHaveAttribute('aria-current', 'page');
+  /* 顶栏没有标签，页名胶囊就是「旷野」（PR-4b 定稿；手机布局不显示） */
+  await expect(pg.locator('.sgx-tb-tab')).toHaveCount(0);
+  await expect(pg.locator('.sgx-tb-title')).toHaveText('旷野');
   // 账户卡在账号页，旷野页没有；名片、屏幕时间卡保留
   await expect(pg.locator('.sgx-account-card')).toHaveCount(0);
   await expect(pg.locator('#w-profile')).toBeVisible();
@@ -129,7 +130,8 @@ test('space home (en): title band + entries from data', async ({ page: pg }) => 
   await pinLang(pg, 'en');
   await gotoSettings(pg, '/en/');
   await expect(pg).toHaveTitle('Space | Styrigx');
-  await expect(pg.locator('.sgx-tb-tab')).toHaveText(['Space']);
+  await expect(pg.locator('.sgx-tb-tab')).toHaveCount(0);
+  await expect(pg.locator('.sgx-tb-title')).toHaveText('Space');
   await expect(pg.locator('#space-entries .sgx-ent-label')).toHaveText('SPACE');
   await expect(pg.locator('#space-entries .sgx-ent-title')).toHaveText('Space');
   await expect(pg.locator('#space-entries .sgx-ent-lede')).toHaveText(SPACE.band.sub_en);

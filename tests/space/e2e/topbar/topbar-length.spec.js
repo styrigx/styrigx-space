@@ -1,29 +1,34 @@
 /**
- * 顶栏长度统一（P4-3 再修，Gray 2026-11-06 立规⑥：顶栏一会长一会短是设计问题）——主站这一侧。测试构建（锁屏禁用）。
- * 同一视口下旷野页、旷野子页（安全 / 风格）、账号页的顶栏胶囊左右边距一样，等于公式（页边距 m、最宽 DeX 1440 / Mobile 640，见 topbar-spec.spec.js 1280×800 那组）；
- * 整页打开、切布局偏好，边距都不变（PR-4b 主页与设置合成旷野，页内切栏已删）。
- * 四站整树（博客 / 奇趣 / 日刻 / 锁屏）在 tests/curio/e2e/topbar-length.spec.js 量；四站布局规则一致的单测在 tests/space/ui/shell/topbar-length.test.mjs。
+ * 顶栏长度 + 页名胶囊（P4-3 PR-4b，Gray 2026-11-07 定稿）——主站这一侧。测试构建（锁屏禁用）。
+ * 布局只有手机 phone / 桌面 desktop：手动选了就照办；自动 = navigator.userAgentData.mobile（没有就看 UA），
+ * 算出桌面但视口 < 720 CSS px → 手机。顶栏宽：手机 min(100% − 32, 640)，桌面 min(960, 100% − 48)，居中。
+ * 页名胶囊只做一件事：显示当前页名字；手机布局不显示，桌面布局按整条顶栏居中。
+ * 无头 Chromium 的 userAgentData.mobile 是 false，所以手机用例用 UA + userAgentData 桩模拟。
+ * 四站整树在 tests/curio/e2e/topbar-length.spec.js 量；四站规则一致的单测在 tests/space/ui/shell/topbar-length.test.mjs。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, animationsDone, expect } = require('../helpers/helpers');
 
-const PAGES = ['/', '/security/', '/theme/', '/account/', '/en/', '/en/security/'];
-const VIEWPORTS = [[412, 915], [1280, 800], [1920, 1080], [982, 2104]];
+const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
+/* 语言偏好固定 zh（/en/ 会按偏好跳回中文），英文页名见 topbar-spec */
+const PAGES = [['/', '旷野'], ['/security/', '安全'], ['/theme/', '风格'], ['/account/', null]];
 
-/** 主站 __layoutMode() 的规则 → 期望的左右边距 */
-function expected(w, h, pref = 'auto') {
-  const m = w < 600 ? 16 : Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
-  const big = w >= 840 && h >= 500;
-  const mode = pref === 'mobile' ? 'mobile' : pref === 'dex' ? (big ? 'dex' : 'mobile') : big && w > h ? 'dex' : 'mobile';
-  const width = Math.min(w - 2 * m, mode === 'dex' ? 1440 : 640);
-  return { mode, inset: (w - width) / 2 };
-}
-
-async function setup(page) {
+/**
+ * 新开一个上下文：mobile = 手机 UA + userAgentData.mobile = true；pref = localStorage sgx-layout
+ * @param {import('@playwright/test').Browser} browser
+ */
+async function ctxPage(browser, w, h, mobile, pref) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, userAgent: mobile ? PHONE_UA : undefined, isMobile: false });
+  await ctx.addInitScript((m) => {
+    Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => ({ mobile: m, platform: m ? 'Android' : 'Linux', brands: [] }), configurable: true });
+    try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+  }, mobile);
+  if (pref) await ctx.addInitScript((p) => { try { localStorage.setItem('sgx-layout', p); } catch (e) {} }, pref);
+  const page = await ctx.newPage();
   await blockExternalRequests(page);
   await freezeTime(page);
-  await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   await page.route('**/api/**', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' }));
+  return { ctx, page };
 }
 
 async function open(page, p) {
@@ -33,48 +38,82 @@ async function open(page, p) {
   await animationsDone(page);
 }
 
-/** 胶囊左右边距（右边距按视口宽算） */
-const insets = (page) => page.evaluate(() => {
-  const r = document.querySelector('.sgx-topbar').getBoundingClientRect();
-  return { left: r.left, right: window.innerWidth - r.right };
+const measure = (page) => page.evaluate(() => {
+  const bar = document.querySelector('.sgx-topbar').getBoundingClientRect();
+  const t = document.querySelector('.sgx-tb-title');
+  const tr = t ? t.getBoundingClientRect() : null;
+  const root = document.documentElement;
+  return {
+    layout: root.getAttribute('data-sgx-layout'),
+    width: bar.width, left: bar.left, right: window.innerWidth - bar.right, center: bar.left + bar.width / 2,
+    title: t ? t.textContent : null, titleShown: !!tr && tr.width > 0 && getComputedStyle(t).display !== 'none',
+    titleCenter: tr ? tr.left + tr.width / 2 : 0,
+    noHScroll: root.scrollWidth <= root.clientWidth,
+  };
 });
 
-function check(b, want, label) {
-  expect(Math.abs(b.left - want.inset), `${label} 左边距 ${b.left}，应为 ${want.inset}`).toBeLessThanOrEqual(1);
-  expect(Math.abs(b.right - want.inset), `${label} 右边距 ${b.right}，应为 ${want.inset}`).toBeLessThanOrEqual(1);
-}
+/* [宽, 高, 手机 UA, 布局偏好, 期望布局, 期望顶栏宽] */
+const CASES = [
+  [412, 915, true, null, 'phone', 380],
+  [915, 412, true, null, 'phone', 640],
+  [760, 360, true, null, 'phone', 640],
+  [360, 800, true, null, 'phone', 328],
+  [384, 800, true, null, 'phone', 352],
+  [1280, 800, false, null, 'desktop', 960],
+  [1920, 1080, false, null, 'desktop', 960],
+  [700, 900, false, null, 'phone', 640],
+  [980, 2104, true, 'desktop', 'desktop', 932],
+];
 
-for (const [w, h] of VIEWPORTS) {
-  test(`${w}×${h}：主站各页顶栏胶囊左右边距一样，等于公式；data-sgx-layout = 布局模式`, async ({ page }) => {
-    await page.setViewportSize({ width: w, height: h });
-    await setup(page);
-    const want = expected(w, h);
-    const seen = new Set();
-    for (const p of PAGES) {
+for (const [w, h, mobile, pref, mode, width] of CASES) {
+  test(`${w}×${h} ${mobile ? '手机 UA' : '桌面 UA'}${pref ? ' 手动' + pref : ' 自动'}：布局 ${mode}、顶栏宽 ${width}、居中、不横向滚；页名胶囊${mode === 'desktop' ? '居中显示页名' : '不显示'}`, async ({ browser }) => {
+    const { ctx, page } = await ctxPage(browser, w, h, mobile, pref);
+    for (const [p, name] of PAGES) {
       await open(page, p);
-      await expect(page.locator('html'), p).toHaveAttribute('data-sgx-layout', want.mode);
-      await expect(page.locator('html'), p).toHaveClass(new RegExp('\\blayout-' + want.mode + '\\b'));
-      const b = await insets(page);
-      check(b, want, `${w}×${h} ${p}`);
-      seen.add(`${b.left.toFixed(2)}|${b.right.toFixed(2)}`);
+      const m = await measure(page);
+      expect(m.layout, p).toBe(mode);
+      expect(Math.abs(m.width - width), `${p} 顶栏宽 ${m.width}，应为 ${width}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(m.left - m.right), `${p} 左右边距 ${m.left} / ${m.right}`).toBeLessThanOrEqual(1);
+      expect(m.noHScroll, `${p} 横向不滚`).toBe(true);
+      if (mode === 'phone') {
+        expect(m.titleShown, `${p} 手机布局不显示页名胶囊`).toBe(false);
+      } else {
+        expect(m.titleShown, `${p} 桌面布局显示页名胶囊`).toBe(true);
+        if (name) expect(m.title, p).toBe(name);
+        expect(Math.abs(m.titleCenter - m.center), `${p} 页名胶囊中心 ${m.titleCenter}，顶栏中心 ${m.center}`).toBeLessThanOrEqual(2);
+      }
     }
-    expect(seen.size, `各页边距 ${[...seen].join(' / ')}`).toBe(1);
+    await ctx.close();
   });
 }
 
-test('切布局偏好（快捷设置 / 设置页写 sgx-layout 后 __applyLayout）：data-sgx-layout 跟着变，顶栏长度和整页打开一样', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await setup(page);
-  await open(page, '/security/');
-  check(await insets(page), expected(1280, 800), 'auto');
-  for (const pref of ['mobile', 'dex', 'auto']) {
-    await page.evaluate((v) => { localStorage.setItem('sgx-layout', v); /** @type {any} */ (window).__applyLayout(); }, pref);
-    await animationsDone(page);
-    const want = expected(1280, 800, pref);
-    await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', want.mode);
-    check(await insets(page), want, `偏好 ${pref}（当页切）`);
-    await open(page, '/');
-    check(await insets(page), want, `偏好 ${pref}（整页打开）`);
-    await open(page, '/security/');
+test('手机上手动选「桌面」：跨页保持（同源 localStorage），切回「自动」又是手机', async ({ browser }) => {
+  const { ctx, page } = await ctxPage(browser, 412, 915, true, null);
+  await open(page, '/theme/');
+  expect((await measure(page)).layout).toBe('phone');
+  await page.evaluate(() => { localStorage.setItem('sgx-layout', 'desktop'); /** @type {any} */ (window).__applyLayout(); });
+  await animationsDone(page);
+  expect((await measure(page)).layout).toBe('desktop');
+  for (const p of ['/', '/security/', '/account/']) {
+    await open(page, p);
+    const m = await measure(page);
+    expect(m.layout, p).toBe('desktop');
+    expect(Math.abs(m.width - 364), `${p} 桌面布局 412 宽：min(960, 412 − 48) = 364`).toBeLessThanOrEqual(1);
+    expect(m.noHScroll, p).toBe(true);
   }
+  await page.evaluate(() => { localStorage.setItem('sgx-layout', 'auto'); /** @type {any} */ (window).__applyLayout(); });
+  await animationsDone(page);
+  expect((await measure(page)).layout).toBe('phone');
+  await ctx.close();
+});
+
+test('桌面窗口拖窄到 720 以下（自动）：不刷新就落到手机布局，拖回来又是桌面（matchMedia 重算）', async ({ browser }) => {
+  const { ctx, page } = await ctxPage(browser, 1280, 800, false, null);
+  await open(page, '/');
+  expect((await measure(page)).layout).toBe('desktop');
+  await page.setViewportSize({ width: 700, height: 800 });
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'phone');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop');
+  await ctx.close();
 });

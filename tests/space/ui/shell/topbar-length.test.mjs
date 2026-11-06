@@ -115,19 +115,20 @@ test('Gray 定稿的几台：手机竖 / 横、桌面、窄窗口、手机手动
   }
 });
 
-test('外壳 CSS：顶栏宽 手机 min(100% − 32, 640)、桌面 min(960, 100% − 48)（含安全区），按 100% 不用 100vw；横向不滚；< 380 收页名胶囊（唯一阈值）', () => {
+test('外壳 CSS：顶栏宽 手机 min(100% − 32, 640)、桌面 min(960, 100% − 48)（含安全区），按 100% 不用 100vw；横向不滚；手机布局不显示页名胶囊（不按像素）', () => {
   const shell = read('space/web/shared/shell/shell.css');
   const code = shell.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(code, /--sgx-tb-w: min\(100% - max\(16px, env\(safe-area-inset-left, 0px\)\) - max\(16px, env\(safe-area-inset-right, 0px\)\), 640px\);/);
   assert.match(code, /:root\[data-sgx-layout="desktop"\] \{[^}]*--sgx-tb-w: min\(960px, 100% - max\(24px, env\(safe-area-inset-left, 0px\)\) - max\(24px, env\(safe-area-inset-right, 0px\)\)\);/);
   assert.match(code, /:root\[data-sgx-layout="phone"\] \{ --sgx-content-max: 640px; \}/);
   assert.match(code, /:root \{ overflow-x: clip; \}/);
-  assert.match(code, /@media \(max-width: 379\.98px\) \{ \.sgx-tb-pill \{ display: none; \} \}/);
+  assert.doesNotMatch(code, /@media \(max-width: 3[0-9]{2}\.98px\) \{ \.sgx-tb-pill/, '340 / 380 像素阈值删了');
+  assert.match(code, /:root:not\(\[data-sgx-layout="desktop"\]\) \.sgx-tb-pill > :not\(\.sgx-tb-progress\) \{ display: none; \}/);
   assert.doesNotMatch(code, /100vw/, '外壳里不许再用 100vw（经典滚动条下会横向溢出）');
   assert.doesNotMatch(code, /data-sgx-layout="(?:mobile|dex)"/);
   assert.match(code, /\.sgx-topbar \{ position: fixed;[^}]*left: 0; right: 0; margin: 0 auto; width: var\(--sgx-tb-w\);/);
   assert.match(code, /\.sgx-qp \{ position: fixed;[^}]*left: 0; right: 0;/);
-  assert.match(code, /\.sgx-tb-acts \{ flex: 0 0 auto;/, '图标组从不压缩');
+  assert.match(code, /\.sgx-tb-acts \{ justify-self: end;/, '图标组靠右');
   /* 快捷面板 / AI 窗口桌面样式按模式，不按 980 断点 */
   assert.match(code, /:root\[data-sgx-layout="desktop"\] \.sgx-qp-sheet \{/);
   assert.doesNotMatch(code, /min-width: 980px/);

@@ -1,7 +1,7 @@
 /**
  * 列表页（/ 和 /en/）的三个页签：首页 · 文章 · 专题。
- * - 顶栏分段滑块（[data-sgx-seg]，role=tablist）和页面面板（[data-sgx-panes]）是一组：点页签、左右滑动面板、
- *   键盘方向键（← → Home End）都能切换；滑动时指示器跟手（--seg-pos 是小数）。
+ * - 页面面板（[data-sgx-panes]）：左右滑动面板、首页正文的分区入口（链接 #posts / #topics）、页内链接都能切换。
+ *   P4-3 PR-4b 起顶栏没有分段滑块：顶栏页名胶囊显示当前分区名（首页 = 站名），分区入口只在首页分区显示。
  * - 地址 hash 反映当前页签，刷新 / 返回都停在原页签：首页 = 无 hash，#posts，#topics，
  *   专题筛选 #topics/tag/<slug>、#topics/category/<slug>、#topics/series/<slug>（系列：滚到并高亮系列卡）。
  *   只用 history.replaceState（保留已有的 history.state），切页签不新增历史记录。
@@ -27,12 +27,25 @@ function reducedMotion() {
 
 export function initAppTabs() {
   const panes = document.querySelector<HTMLElement>('[data-sgx-panes]');
-  const seg = document.querySelector<HTMLElement>('[data-sgx-seg]');
-  if (!panes || !seg || panes.dataset.ready === 'true') return;
+  if (!panes || panes.dataset.ready === 'true') return;
   panes.dataset.ready = 'true';
 
   const track = panes.querySelector<HTMLElement>('[data-sgx-track]')!;
-  const tabs = TABS.map((id) => seg.querySelector<HTMLButtonElement>(`[data-sgx-tab="${id}"]`)!);
+  /* P4-3 PR-4b：顶栏不再有分段滑块——页名胶囊显示当前分区名（data-sgx-titles，第 0 个 = 站名「博客」），
+     分区入口（[data-sgx-entries]，首页正文的目录）只在首页分区显示 */
+  const title = document.querySelector<HTMLElement>('.sgx-tb-title[data-sgx-titles]');
+  const entries = document.querySelector<HTMLElement>('[data-sgx-entries]');
+  const syncTitle = (i: number) => {
+    if (title) {
+      try {
+        const names = JSON.parse(title.dataset.sgxTitles || '[]') as string[];
+        if (names[i]) title.textContent = names[i];
+      } catch {
+        /* 坏数据就保持站名 */
+      }
+    }
+    if (entries) entries.hidden = i !== 0;
+  };
   const paneEls = TABS.map((id) => panes.querySelector<HTMLElement>(`[data-pane="${id}"]`)!);
   const scrolls: number[] = TABS.map(() => 0);
   let index = 0;
@@ -41,8 +54,6 @@ export function initAppTabs() {
   let suppressClick = false;
 
   const setPos = (pos: number) => {
-    const clamped = Math.min(TABS.length - 1, Math.max(0, pos));
-    seg.style.setProperty('--seg-pos', clamped.toFixed(4));
     track.style.setProperty('--pane-pos', pos.toFixed(4));
   };
 
@@ -63,17 +74,13 @@ export function initAppTabs() {
 
   function setTab(
     next: number,
-    opts: { initial?: boolean; focus?: boolean; keepHash?: boolean } = {},
+    opts: { initial?: boolean; keepHash?: boolean } = {},
   ) {
     next = Math.min(TABS.length - 1, Math.max(0, next));
     const prev = index;
     if (!opts.initial) scrolls[prev] = window.scrollY;
     index = next;
-    tabs.forEach((t, i) => {
-      const on = i === next;
-      t.setAttribute('aria-selected', on ? 'true' : 'false');
-      t.tabIndex = on ? 0 : -1;
-    });
+    syncTitle(next);
     paneEls.forEach((p, i) => {
       const on = i === next;
       p.classList.toggle('is-active', on);
@@ -81,14 +88,12 @@ export function initAppTabs() {
       else p.setAttribute('inert', '');
     });
     panes.dataset.tab = TABS[next];
-    if (opts.focus) tabs[next].focus();
     if (!opts.initial && prev !== next && !reducedMotion()) {
       moving(true);
       moveTimer = window.setTimeout(() => moving(false), MOVE_MS);
     } else {
       moving(false);
     }
-    seg.classList.remove('is-dragging');
     panes.classList.remove('is-dragging');
     setPos(next);
     if (!opts.keepHash) writeHash();
@@ -156,28 +161,6 @@ export function initAppTabs() {
     /* 刷新 / 返回直接带筛选：等布局稳定再滚过去 */
     if (opts.initial && route.filter) requestAnimationFrame(() => applyFilter(route.filter));
   }
-
-  tabs.forEach((t, i) =>
-    t.addEventListener('click', () => {
-      if (i === index) {
-        window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
-        return;
-      }
-      setTab(i);
-    }),
-  );
-
-  seg.addEventListener('keydown', (e) => {
-    const k = e.key;
-    let next = -1;
-    if (k === 'ArrowRight' || k === 'ArrowDown') next = (index + 1) % TABS.length;
-    else if (k === 'ArrowLeft' || k === 'ArrowUp') next = (index - 1 + TABS.length) % TABS.length;
-    else if (k === 'Home') next = 0;
-    else if (k === 'End') next = TABS.length - 1;
-    if (next < 0) return;
-    e.preventDefault();
-    setTab(next, { focus: true });
-  });
 
   topics.addEventListener('click', (e) => {
     const t = e.target as Element;
@@ -249,7 +232,6 @@ export function initAppTabs() {
           panes.setPointerCapture(pid);
         } catch {}
         moving(true);
-        seg.classList.add('is-dragging');
         panes.classList.add('is-dragging');
       } else if (Math.abs(my) > 10) {
         lock = 'y';
@@ -280,7 +262,6 @@ export function initAppTabs() {
     else if (dx > w * 0.2 || v > 0.4) next = index - 1;
     next = Math.min(TABS.length - 1, Math.max(0, next));
     if (next === index) {
-      seg.classList.remove('is-dragging');
       panes.classList.remove('is-dragging');
       setPos(index);
       moveTimer = window.setTimeout(() => moving(false), MOVE_MS);

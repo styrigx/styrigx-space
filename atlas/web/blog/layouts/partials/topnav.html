@@ -1,7 +1,7 @@
 {{- /* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/sgx-shell-topbar.html（主站 shell-topbar.html 原样，atlas/scripts/blog/sync-shell.mjs 同步，勿手改），
    这里只准备博客自己的参数：
 - 中间（.sgx-tb-pill，原样搬进来）：
-  tabs    列表页（首页）：分段滑块 首页 · 文章 · 专题，强调色指示器滑到当前页签；面板切换见 assets/js/blog/app-tabs.ts。
+  tabs    列表页（首页）：页名胶囊 = 站名「博客」，页内切到 文章 / 专题 时换成分区名（P4-3 PR-4b：顶栏不再有分区页签，分区入口在首页正文）；面板切换见 assets/js/blog/app-tabs.ts。
   links   标签页 / 404 等子页：只有页名（.title，不给就用页面标题）。
   article 文章页：只有页名（文章标题）；长条底边一条强调色细线是阅读进度。
 - 右边：九宫格（导航面板，博客是「开」态）· 快捷设置 · AI（头像在 AI 窗口头部）；原抽屉里的「目录」不再放顶栏（文章页正文旁的目录卡 toc-card 照旧）。
@@ -11,15 +11,12 @@
 {{- $isEn := eq $lang "en" -}}
 {{- $mode := .mode | default "links" -}}
 {{- $nav := index hugo.Data "sgx-shell" "nav" -}}
-{{- $tabs := slice (dict "id" "home" "label" (i18n "tabHome")) (dict "id" "posts" "label" (i18n "tabPosts")) (dict "id" "topics" "label" (i18n "tabTopics")) -}}
 {{- $title := .title | default .page.Title -}}
 {{- $center := "" -}}
 {{- if eq $mode "tabs" -}}
-{{- $center = printf "<div class=\"sgx-seg\" role=\"tablist\" aria-label=\"%s\" data-sgx-seg style=\"--seg-pos:0\"><span class=\"sgx-seg-ind\" aria-hidden=\"true\"></span>" (i18n "tabs" | htmlEscape) -}}
-{{- range $i, $t := $tabs -}}
-{{- $center = printf "%s<button type=\"button\" role=\"tab\" class=\"sgx-seg-btn\" id=\"sgx-tab-%s\" aria-controls=\"sgx-pane-%s\" aria-selected=\"%s\" tabindex=\"%s\" data-sgx-tab=\"%s\">%s</button>" $center $t.id $t.id (cond (eq $i 0) "true" "false") (cond (eq $i 0) "0" "-1") $t.id ($t.label | htmlEscape) -}}
-{{- end -}}
-{{- $center = printf "%s</div>" $center -}}
+{{- /* 首页：页名胶囊 = 站名，切到页内分区（#posts / #topics）时 app-tabs.ts 换成分区名（data-sgx-titles 顺序同 TABS；首页分区就是首页本身） */ -}}
+{{- $titles := slice (cond $isEn "Blog" "博客") (i18n "tabPosts") (i18n "tabTopics") -}}
+{{- $center = printf "<span class=\"sgx-tb-title\" data-sgx-titles=\"%s\">%s</span>" ($titles | jsonify | htmlEscape) (index $titles 0 | htmlEscape) -}}
 {{- else -}}
 {{- $center = printf "<span class=\"sgx-tb-title\">%s</span>" ($title | htmlEscape) -}}
 {{- end -}}

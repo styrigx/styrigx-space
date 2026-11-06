@@ -1,6 +1,6 @@
 // 日刻首页（手机）：接口用 page.route 假数据，不碰线上。
-// - 顶栏：九宫格 · 余响/拾录/百味 分段滑块 · 右圆分享（2026-10-24 留言板撤了）；没有搜索栏、快捷面板、页脚；抽屉只有四个应用（主站 / 奇趣（书签+星）/ 日刻 / 博客）
-// - 页签：默认余响，#trove / #flavors 直达，点页签改 hash；英文页 Echo / Trove / Flavors
+// - 顶栏：字标 · 页名胶囊（首页 = 日刻，切分区换分区名）· 九宫格 · 快捷 · AI；P4-3 PR-4b 起顶栏没有分段滑块，首页正文的分区入口（#dm-entries）余响 / 拾录 / 百味就是目录；没有搜索栏、页脚
+// - 分区：默认余响，#trove / #flavors 直达，点首页入口改 hash；英文页 Echo / Trove / Flavors
 // - 余响：今日一句；再抽一句 → 回到今日；长按复制；账号已登录（可写）抽到公开句子 → 设为今日（PUT /api/today）→ 回到今日状态 + toast；账号未登录没有设为今日
 // - 拾录：全部句子新的在前；账号没登录没有「记一句」、页底「登录账号后可编辑」；能编辑时有，私密句子带锁；写接口 401 account 不刷新、提示登录
 // - 百味：自建专题在前（可写时有「＋ 新建」），再是人物（每位作者一组）；点进分组、页内返回；可写时上移 / 移出
@@ -57,11 +57,15 @@ async function mock(page, signedIn) {
   return calls;
 }
 
-test('账号未登录：顶栏三页签、没有搜索栏；快捷面板导航页同主站（四个站）；余响今日一句', async ({ page }) => {
+test('账号未登录：首页三个分区入口（顶栏没有页签）、没有搜索栏；快捷面板导航页同主站（四个站）；余响今日一句', async ({ page }) => {
   await mock(page, false);
   await page.goto('/daymark/');
-  await expect(page.locator('[data-dm-tab]')).toHaveText(['余响', '拾录', '百味']);
-  await expect(page.locator('#dm-tab-echo')).toHaveAttribute('aria-selected', 'true');
+  /* P4-3 PR-4b：顶栏不再有分区页签，首页正文的分区入口就是目录；页名胶囊在首页显示站名 */
+  await expect(page.locator('#dm-entries .sgx-ent-name')).toHaveText(['余响', '拾录', '百味']);
+  await expect(page.locator('#dm-entries')).toBeVisible();
+  await expect(page.locator('.sgx-tb-pill .sgx-seg, .sgx-tb-pill [role="tab"]')).toHaveCount(0);
+  await expect(page.locator('.sgx-tb-title')).toHaveText('日刻');
+  await expect(page.locator('#dm-pane-echo')).toBeVisible();
   /* 没有搜索栏（2026-11-04 P5-1 起有快捷面板 + AI 窗口，共享外壳顶栏，下面单独验） */
   await expect(page.locator('#bk-cap, .sgx-tb-search, input[type="search"]:visible, [role="search"]:visible')).toHaveCount(0);
   await expect(page.locator('#dm-echo-day')).toHaveText('10月20日 星期二');
@@ -113,23 +117,29 @@ test('账号未登录：顶栏三页签、没有搜索栏；快捷面板导航�
   await expect(page.locator('#sgx-qp')).toBeHidden();
 });
 
-test('页签：点了改 hash，#trove / #flavors 直达；英文页 Echo / Trove / Flavors', async ({ page }) => {
+test('分区：点首页入口改 hash、胶囊换分区名、入口收起；hash 回余响；#trove / #flavors 直达；英文页 Echo / Trove / Flavors', async ({ page }) => {
   await mock(page, false);
   await page.goto('/daymark/');
-  await page.locator('#dm-tab-trove').click();
+  await page.locator('#dm-entries [data-entry="trove"]').click();
   await expect(page).toHaveURL(/#trove$/);
   await expect(page.locator('#dm-pane-trove')).toBeVisible();
   await expect(page.locator('#dm-pane-echo')).toBeHidden();
-  await page.locator('#dm-tab-flavors').click();
+  await expect(page.locator('.sgx-tb-title')).toHaveText('拾录');
+  await expect(page.locator('#dm-entries')).toBeHidden();
+  await page.evaluate(() => { location.hash = '#flavors'; });
   await expect(page).toHaveURL(/#flavors$/);
-  await page.locator('#dm-tab-echo').click();
-  await expect(page).toHaveURL(/\/daymark\/$/);
+  await expect(page.locator('.sgx-tb-title')).toHaveText('百味');
+  await page.evaluate(() => { location.hash = '#echo'; });
+  await expect(page.locator('#dm-pane-echo')).toBeVisible();
+  await expect(page.locator('.sgx-tb-title')).toHaveText('日刻');
+  await expect(page.locator('#dm-entries')).toBeVisible();
   await page.goto('/daymark/#flavors');
-  await expect(page.locator('#dm-tab-flavors')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#dm-pane-flavors')).toBeVisible();
+  await expect(page.locator('.sgx-tb-title')).toHaveText('百味');
   await page.goto('/daymark/en/#trove');
-  await expect(page.locator('[data-dm-tab]')).toHaveText(['Echo', 'Trove', 'Flavors']);
-  await expect(page.locator('#dm-tab-trove')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#dm-entries .sgx-ent-name')).toHaveText(['Echo', 'Trove', 'Flavors']);
+  await expect(page.locator('#dm-pane-trove')).toBeVisible();
+  await expect(page.locator('.sgx-tb-title')).toHaveText('Trove');
 });
 
 test('余响：再抽一句 → 出现回到今日；回到今日恢复今日一句；长按复制', async ({ page, context }) => {
@@ -172,7 +182,7 @@ test('余响 · 账号已登录（可写）：再抽一句 → 设为今日 → 
   await page.addInitScript(() => { Math.random = () => 0.99; });
   await page.goto('/daymark/');
   await expect(page.locator('#dm-echo-body')).toContainText('世上本没有路');
-  await expect(page.locator('#dm-tab-trove')).toBeVisible();
+  await expect(page.locator('#dm-entries [data-entry="trove"]')).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dm-can-write'))).toBe(true);
   await expect(page.locator('#dm-set-today')).toBeHidden();
   await page.locator('#dm-draw').click();
@@ -265,9 +275,11 @@ test('拾录 · 账号已登录（可写）：新的在前、私密带锁、右�
   await expect(page.locator('#dm-list .dm-card').first()).toContainText('世上本没有路');
   await expect(page.locator('#dm-list .dm-lock')).toHaveCount(1);
   await expect(page.locator('#dm-fab')).toBeVisible();
-  await page.locator('#dm-tab-echo').click();
+  await page.evaluate(() => { location.hash = '#echo'; });
+  await expect(page.locator('#dm-pane-echo')).toBeVisible();
   await expect(page.locator('#dm-fab')).toBeHidden();
-  await page.locator('#dm-tab-trove').click();
+  await page.locator('#dm-entries [data-entry="trove"]').click();
+  await expect(page.locator('#dm-pane-trove')).toBeVisible();
   await page.locator('#dm-list .dm-card').first().click();
   await expect(page.locator('#edit-title')).toHaveText('编辑这一句');
   await expect(page.locator('#f-text')).toHaveValue(QUOTES[0].text);
@@ -405,7 +417,7 @@ test('主题跟主站 sgx-ui cookie：pal 换预设；accent 是自定义种子 
   await mock(page, false);
   const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const set = (ui) => context.addCookies([{ name: 'sgx-ui', value: enc(ui), url: baseURL }]);
-  const ind = () => page.evaluate(() => getComputedStyle(document.querySelector('.sgx-seg-ind')).backgroundColor);
+  const ind = () => page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-ai')).backgroundColor);
   await page.goto('/daymark/');
   const base = await ind(); /* 没有 cookie：默认 dustyblue */
   const matchaSeed = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', '..', 'atlas/web/daymark/assets/sgx-shell/palettes.json'), 'utf8')).presets.find((p) => p.id === 'matcha').seed;

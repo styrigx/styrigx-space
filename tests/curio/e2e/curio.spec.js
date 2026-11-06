@@ -1,7 +1,7 @@
 // 奇趣首页（手机）：接口用 page.route 假数据，不碰线上。
-// - 顶栏：九宫格 · 分段滑块 发现 / 设备 / 游戏 · 右圆分享（2026-10-24 留言板撤了；没有搜索栏、没有页脚）；抽屉同主站（字标 + 头像、主站 / 奇趣（书签+星）/ 日刻 / 博客、分隔线、底栏搜索框），奇趣是当前项
+// - 顶栏：字标 · 页名胶囊（首页 = 奇趣，切分区换分区名）· 九宫格 · 快捷 · AI；P4-3 PR-4b 起顶栏没有分段滑块，首页正文的分区入口（#cu-entries）发现 / 设备 / 游戏就是目录（没有搜索栏、没有页脚）
 // - 账号没登录（canWrite=false）：没有「收藏」和「⋯」，页底「登录账号后可编辑」链到 /account/；格子点开新标签页；图标取不到显示首字母
-// - 分类条筛选 + hash；页签切换 + hash + 左右滑
+// - 分类条筛选 + hash；分区切换（首页入口 / hash）+ 左右滑
 // - 设备 / 游戏：账号没登录只读；能编辑时新建（照片缩图后上传）、详情、编辑、删除；使用天数
 // - 能编辑（canWrite + showPrivate）：私密带锁；没有「登录账号后可编辑」；写接口回 401 account 不刷新页面、提示登录；收藏 → 填网址自动补全 → 保存发 link.add；长按格子编辑、删除要确认；管理分类；导入发原文
 // - 英文页
@@ -78,11 +78,15 @@ async function mock(page, signedIn) {
   return calls;
 }
 
-test('账号未登录：顶栏分段滑块（没有搜索栏）、快捷面板导航页同主站；没有收藏按钮和菜单；只看公开；图标取不到显示首字母', async ({ page }) => {
+test('账号未登录：首页分区入口（顶栏没有分段滑块、没有搜索栏）、快捷面板导航页同主站；没有收藏按钮和菜单；只看公开；图标取不到显示首字母', async ({ page }) => {
   await mock(page, false);
   await page.goto('/curio/');
-  await expect(page.locator('[data-cu-seg] .sgx-seg-btn')).toHaveText(['发现', '设备', '游戏']);
-  await expect(page.locator('#cu-tab-finds')).toHaveAttribute('aria-selected', 'true');
+  /* P4-3 PR-4b：顶栏不再有分区页签，首页正文的分区入口就是目录；页名胶囊在首页显示站名 */
+  await expect(page.locator('#cu-entries .sgx-ent-name')).toHaveText(['发现', '设备', '游戏']);
+  await expect(page.locator('#cu-entries')).toBeVisible();
+  await expect(page.locator('.sgx-tb-pill .sgx-seg, .sgx-tb-pill [role="tab"]')).toHaveCount(0);
+  await expect(page.locator('.sgx-tb-title')).toHaveText('奇趣');
+  await expect(page.locator('#cu-pane-finds')).toBeVisible();
   await expect(page.locator('#cu-q')).toHaveCount(0);
   await expect(page.locator('.cu-sec-h > span:first-child')).toHaveText(['开发与云', '网络检测']);
   await expect(page.locator('.cu-tile')).toHaveCount(2);
@@ -264,7 +268,8 @@ test('写接口回 401 account（账号会话刚过期）不刷新页面、提�
 test('英文页：页签、分类名用英文（英文空时退回中文）', async ({ page }) => {
   await mock(page, true);
   await page.goto('/curio/en/');
-  await expect(page.locator('[data-cu-seg] .sgx-seg-btn')).toHaveText(['Finds', 'Devices', 'Games']);
+  await expect(page.locator('#cu-entries .sgx-ent-name')).toHaveText(['Finds', 'Devices', 'Games']);
+  await expect(page.locator('.sgx-tb-title')).toHaveText('Curio');
   await expect(page.locator('#cu-chips .cu-chip')).toHaveText(['All', 'Dev & Cloud', 'Network Tests', '私房']);
   await expect(page.locator('.cu-tile[data-id="11"]')).toHaveAttribute('title', /^Code hosting · /);
   await expect(page.locator('.cu-tile .cu-desc')).toHaveCount(0);
@@ -273,31 +278,38 @@ test('英文页：页签、分类名用英文（英文空时退回中文）', as
 
 /* ================= 三个页签：设备 / 游戏 ================= */
 
-test('页签：点「设备」切面板写 #devices、换右下角按钮；刷新停在设备；左右滑切到游戏；点「发现」回来保留分类', async ({ page }) => {
+test('分区：点首页入口「设备」切面板写 #devices、胶囊换分区名、入口收起、换右下角按钮；刷新停在设备；左右滑切到游戏；hash 回「发现」', async ({ page }) => {
   await mock(page, true);
   await page.goto('/curio/#c/2');
   await expect(page.locator('#cu-fab')).toBeVisible();
-  await page.locator('#cu-tab-devices').click();
+  await page.locator('#cu-entries [data-entry="devices"]').click();
   await expect(page).toHaveURL(/#devices$/);
   await expect(page.locator('#cu-pane-devices')).toBeVisible();
+  await expect(page.locator('.sgx-tb-title')).toHaveText('设备');
+  await expect(page.locator('#cu-entries')).toBeHidden();
   await expect(page.locator('#cu-pane-finds')).toBeHidden();
   await expect(page.locator('#cu-fab')).toBeHidden();
   await expect(page.locator('#dv-fab')).toBeVisible();
   await expect(page.locator('#gm-fab')).toBeHidden();
   await page.reload();
-  await expect(page.locator('#cu-tab-devices')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#cu-pane-devices')).toBeVisible();
+  await expect(page.locator('.sgx-tb-title')).toHaveText('设备');
   await expect(page.locator('#dv-list .it-card')).toHaveCount(3);
   /* 左滑 → 游戏 */
   const box = await page.locator('#cu-panes').boundingBox();
   const y = box.y + 120;
   await page.locator('#cu-panes').dispatchEvent('touchstart', { touches: [{ identifier: 1, clientX: 300, clientY: y }], changedTouches: [{ identifier: 1, clientX: 300, clientY: y }] });
   await page.locator('#cu-panes').dispatchEvent('touchend', { touches: [], changedTouches: [{ identifier: 1, clientX: 120, clientY: y + 5 }] });
-  await expect(page.locator('#cu-tab-games')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#cu-pane-games')).toBeVisible();
+  await expect(page.locator('.sgx-tb-title')).toHaveText('游戏');
   await expect(page).toHaveURL(/#games$/);
   await expect(page.locator('#gm-fab')).toBeVisible();
-  await page.locator('#cu-tab-finds').click();
-  await expect(page).toHaveURL(/\/curio\/$/);
+  /* 回「发现」：分区入口只在发现（首页本身）显示，在别的分区用 hash 回去 */
+  await page.evaluate(() => { location.hash = '#c/2'; });
   await expect(page.locator('#cu-pane-finds')).toBeVisible();
+  await expect(page.locator('.sgx-tb-title')).toHaveText('奇趣');
+  await expect(page.locator('#cu-entries')).toBeVisible();
+  await expect(page).toHaveURL(/#c\/2$/);
 });
 
 test('账号未登录：设备 / 游戏只读（没有新建按钮、详情没有编辑）；看不到私密设备；退役的标出来；使用天数算到退役日', async ({ page }) => {
@@ -321,7 +333,8 @@ test('账号未登录：设备 / 游戏只读（没有新建按钮、详情没�
   await expect(page.locator('#it-view-title')).toHaveText('Galaxy S25 Ultra');
   await expect(page.locator('#it-view-body .it-link[data-dev="1"]')).toHaveText('Galaxy S23');
   await page.locator('#it-view-wrap button[data-close="it-view"]').click();
-  await page.locator('#cu-tab-games').click();
+  await page.evaluate(() => { location.hash = '#games'; });
+  await expect(page.locator('.sgx-tb-title')).toHaveText('游戏');
   await expect(page.locator('#gm-list .it-name')).toHaveText(['塞尔达传说 王国之泪', 'Hades II']);
   await expect(page.locator('#gm-list [data-game="7"] .it-star.on')).toHaveCount(5);
   await page.locator('#gm-chips [data-f="playing"]').click();

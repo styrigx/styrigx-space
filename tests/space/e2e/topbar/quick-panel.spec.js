@@ -175,8 +175,8 @@ test.describe('快捷面板：开合', () => {
       return document.getElementById('sgx-qp').contains(a) || a === document.querySelector('.sgx-tb-quick');
     });
     let sawIcon = false;
-    /* 一圈 = 图标 + 4 磁贴（深色 / 跟随系统 / 分享 / 锁定）+ 语言行（选项收着）+ 恢复默认 + 七色调色板 22 + 布局可用 2（412 宽 DeX 置灰）= 31 下 */
-    const LOOP = 31;
+    /* 一圈 = 图标 + 4 磁贴（深色 / 跟随系统 / 分享 / 锁定）+ 语言行（选项收着）+ 恢复默认 + 七色调色板 22 + 布局 3（手机 / 自动 / 桌面，任何时候都能选）= 32 下 */
+    const LOOP = 32;
     expect(await tabbables(page)).toBe(LOOP);
     for (let i = 0; i < LOOP + 10; i++) {
       await page.keyboard.press('Tab');
@@ -357,7 +357,8 @@ test.describe('快捷面板：内容', () => {
     await expect(page.locator('#sgx-qp [data-qp-palette^="x"]')).toHaveCount(0);
     await expect(page.locator('#sgx-qp .swatch-clash')).toHaveCount(0);
     await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveText('恢复默认');
-    await expect(page.locator('#sgx-qp [data-qp-seg="layout"] button')).toHaveText(['Mobile', 'Auto', 'DeX']);
+    /* 布局三档（PR-4b）：手机 / 自动 / 桌面；自动那格带上当前算出来的布局（412 宽桌面 UA，视口 < 720 → 手机） */
+    await expect(page.locator('#sgx-qp [data-qp-seg="layout"] button')).toHaveText(['手机', '自动 · 手机', '桌面']);
     /* 没有标题和齿轮（全部设置），面板第一项就是磁贴网格；读屏名字是「快捷设置」（aria-label） */
     await expect(page.locator('#sgx-qp .sgx-qp-head, #sgx-qp .sgx-qp-title, #sgx-qp .sgx-qp-set, #sgx-qp .sgx-qp-all')).toHaveCount(0);
     await expect(page.locator('#sgx-qp a')).toHaveCount(0);
@@ -615,39 +616,45 @@ test.describe('快捷面板：设置即时生效（和设置同一个 key）', (
     await expect(rs).toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('布局：窄屏 DeX 置灰；写 sgx-layout，即时套用', async ({ page }) => {
+  test('布局：手机 / 自动 / 桌面三档都能选；写 sgx-layout（phone / auto / desktop），即时套用', async ({ page }) => {
     await go(page, '/theme/');
     await openQp(page);
     const seg = page.locator('#sgx-qp [data-qp-seg="layout"]');
-    await expect(seg.locator('[data-v="dex"]')).toBeDisabled();
-    await expect(seg.locator('[data-v="pc"]')).toHaveCount(0);
-    await seg.locator('[data-v="mobile"]').click();
-    expect(await ls(page, 'sgx-layout')).toBe('mobile');
-    await expect(seg.locator('[data-v="mobile"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(seg.locator('button')).toHaveCount(3);
+    for (const v of ['phone', 'auto', 'desktop']) await expect(seg.locator(`[data-v="${v}"]`)).toBeEnabled();
+    await expect(seg.locator('[data-v="dex"], [data-v="mobile"], [data-v="pc"]')).toHaveCount(0);
+    await seg.locator('[data-v="desktop"]').click();
+    expect(await ls(page, 'sgx-layout')).toBe('desktop');
+    await expect(seg.locator('[data-v="desktop"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop');
+    await seg.locator('[data-v="phone"]').click();
+    expect(await ls(page, 'sgx-layout')).toBe('phone');
+    await expect(seg.locator('[data-v="phone"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(seg.locator('[data-v="auto"]')).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.locator('html')).not.toHaveClass(/\blayout-dex\b/);
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'phone');
     await seg.locator('[data-v="auto"]').click();
-    /* 自动 = 默认值；baseof.html __layoutMode 会把空值补写成 auto */
     expect(['auto', null]).toContain(await ls(page, 'sgx-layout'));
     await expect(seg.locator('[data-v="auto"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(seg.locator('[data-v="auto"]')).toHaveText('自动 · 手机');
     await expect(qp(page)).toHaveAttribute('data-state', 'open');
   });
 
-  test('布局（宽屏）：选 DeX 立即换成 DeX 布局', async ({ page }) => {
+  test('布局（宽屏）：桌面布局下快捷面板宽 400 靠右；选手机立即换成手机布局，回自动 = 桌面', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await go(page, '/theme/');
     await openQp(page);
-    /* 宽屏（≥ 980px）：宽 400，右缘对齐顶栏右缘 */
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop');
     const sb = await page.locator('#sgx-qp .sgx-qp-sheet').boundingBox();
     const tb = await page.locator('.sgx-topbar').boundingBox();
     expect(Math.abs(sb.width - 400)).toBeLessThanOrEqual(1);
     expect(Math.abs(sb.x + sb.width - (tb.x + tb.width))).toBeLessThanOrEqual(1);
-    await page.locator('#sgx-qp [data-qp-seg="layout"] [data-v="dex"]').click();
-    expect(await ls(page, 'sgx-layout')).toBe('dex');
-    await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
+    await expect(page.locator('#sgx-qp [data-qp-seg="layout"] [data-v="auto"]')).toHaveText('自动 · 桌面');
+    await page.locator('#sgx-qp [data-qp-seg="layout"] [data-v="phone"]').click();
+    expect(await ls(page, 'sgx-layout')).toBe('phone');
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'phone');
     await page.locator('#sgx-qp [data-qp-seg="layout"] [data-v="auto"]').click();
     expect(['auto', null]).toContain(await ls(page, 'sgx-layout'));
-    await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/); /* 1366×768 横屏、宽 ≥ 840、高 ≥ 500 → 自动 = DeX */
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop'); /* 桌面 UA、宽 ≥ 720 → 自动 = 桌面 */
   });
 
   test('语言：行内展开单选（不弹底部窗口）；选 English 写 sgx-lang=en，关面板后去英文同一页，不在历史里多留一步', async ({ page }) => {
@@ -750,8 +757,8 @@ test.describe('快捷面板：设置即时生效（和设置同一个 key）', (
     await expect(page.locator('#sgx-qp [data-nav="settings"]')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expectClosed(page);
-    await expect(page.locator('.sgx-tb-tab')).toHaveCount(1);
-    await expect(page.locator('.sgx-tb-tab[data-tab="settings"], .sgx-tb-tab[data-tab="home"]')).toHaveCount(0);
+    /* 顶栏没有标签（页名胶囊只显示页名，PR-4b 定稿） */
+    await expect(page.locator('.sgx-tb-tab, .sgx-tb-tabs')).toHaveCount(0);
     await page.locator('.home-wrap [aria-label="分类"] a[href="/theme/"]').click();
     await expect(page).toHaveURL(/\/theme\/$/);
     await page.goBack();

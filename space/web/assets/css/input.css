@@ -8163,7 +8163,8 @@
 }
 
 @layer sgx-components {
-/* @entries:begin 平铺入口（P4-3 PR-4b §11；组件 partials/sgx-entries.html）。奇趣分类入口以后共用（另起 PR）。
+/* @shell:begin entries（平铺入口，P4-3 PR-4b §11；组件 partials/sgx-entries.html，共享外壳：gen-shell 抽到 shell.css，子站首页的分区入口共用） */
+/* 平铺入口：旷野页分类入口 + 子站首页分区入口。
    只用共享外壳 --sgx-* 角色（跟调色板、深浅色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。 */
 .sgx-ents { --sgx-ent-line: var(--sgx-divider); margin-top: 8px; color: var(--sgx-on-surface); }
 .sgx-ent-band { padding: 36px 6px 20px; border-bottom: 1px solid var(--sgx-ent-line); }
@@ -8193,15 +8194,15 @@
   .sgx-ent-li:nth-child(odd) .sgx-ent { padding-right: 24px; }
   .sgx-ent-li:nth-child(even) .sgx-ent { padding-left: 24px; }
 }
-/* ≥ 1100 三栏：每栏右侧细竖线（每行最后一栏没有）；手动 Mobile 布局（内容栏最宽 640）最多两栏 */
+/* ≥ 1100 三栏：每栏右侧细竖线（每行最后一栏没有）；手机布局（内容栏最宽 640）最多两栏 */
 @media (min-width: 1100px) {
-  html:not(.layout-mobile) .sgx-ent-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  html:not(.layout-mobile) .sgx-ent-li { border-right: 1px solid var(--sgx-ent-line); }
-  html:not(.layout-mobile) .sgx-ent-li:nth-child(3n) { border-right: 0; }
-  html:not(.layout-mobile) .sgx-ent-li .sgx-ent { padding: 26px 24px; }
+  html:not([data-sgx-layout="phone"]) .sgx-ent-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  html:not([data-sgx-layout="phone"]) .sgx-ent-li { border-right: 1px solid var(--sgx-ent-line); }
+  html:not([data-sgx-layout="phone"]) .sgx-ent-li:nth-child(3n) { border-right: 0; }
+  html:not([data-sgx-layout="phone"]) .sgx-ent-li .sgx-ent { padding: 26px 24px; }
   .sgx-ent-title { font-size: 60px; }
 }
-/* @entries:end */
+/* @shell:end entries */
 }
 
 /* ===== overrides 层（续）：设置 / 账号页底部留白、关于页页脚 =====
@@ -8235,13 +8236,15 @@
   -webkit-mask-image: none; mask-image: none; contain: none; isolation: auto; }
 /* @shell:begin topbar-frame（共享外壳：space/scripts/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 顶栏（2026-11-04 P5-1 全大椭圆，四个站同一套，标记来自共享外壳 topbar.html；P4-3 PR-4b Gray 2026-11-07 定稿）：一整条胶囊 .sgx-topbar =
-   [字标 .sgx-tb-logo] [中间 .sgx-tb-pill：页名胶囊（主站标签 / 页名 / 子站分段）] [右边 .sgx-tb-acts：九宫格 .sgx-tb-grid · 快捷设置 .sgx-tb-quick · AI .sgx-tb-ai]。
-   头像不在顶栏（搬进 AI 窗口头部）。胶囊本身是材质（--sgx-mat 毛玻璃 + 描边 + 阴影），里面的按钮都透明，悬停 / 按下 / 焦点框各管各的。
-   各宽度一律 flex：字标、按钮按内容，中间 .sgx-tb-pill 吃剩下的宽度，页名胶囊在这块空余区里居中（不贴左不贴右）；窄屏保最小间距，长页名省略号。
-   字标手机上也完整显示（真 SVG shell-wordmark.html；PR-4a 的 < 400px 换图标版删除）。右边图标紧凑、整体靠右：按钮宽 --sgx-tb-icw（38px）、间距 2px，图标线条粗细不变。
+   [字标 .sgx-tb-logo] [中间 .sgx-tb-pill：页名胶囊（当前页 / 分区名）] [右边 .sgx-tb-acts：九宫格 .sgx-tb-grid · 快捷设置 .sgx-tb-quick · AI .sgx-tb-ai]。
+   头像不在顶栏（搬进 AI 窗口头部）。胶囊本身是材质（--sgx-mat 毛玻璃 + 描边 + 阴影）。
+   三列网格（字标 | 中间 | 图标组）：中间内容按整条顶栏居中；放不下时退到字标后面（间距 12px）、长页名省略号。
+   中间整块只在桌面布局显示（<html data-sgx-layout="desktop">）；手机布局顶栏 = 完整字标 | 图标组。
    标签衬底（PR-4a §6.2）：主站标签、子站分段都用 --sgx-tb-label-bg（导航选中色 45%）当常驻衬底，当前项 / 页名实色 --sgx-nav-selected + 粗体。 */
 /* 顶栏尺寸 token：页边距、顶栏高（--sgx-tb-btn）、间距、胶囊里按钮高（--sgx-tb-ic）/ 宽（--sgx-tb-icw） */
-:root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; --sgx-tb-icw: 38px; }
+:root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; --sgx-tb-icw: 40px;
+  /* 字标块宽（20px 高的字标按比例 + 左右 10px）和图标组宽（3 × 40 + 2 × 6 间距 = 132px）：中间内容按整条顶栏居中要用它俩的差 */
+  --sgx-tb-logo-w: calc(20px * 5924 / 2010 + 20px); --sgx-tb-acts-w: calc(3 * var(--sgx-tb-icw) + 2 * 6px); }
 /* 顶栏标签 / 子站分段的常驻衬底：导航选中色 45%（非当前项文字 text-primary，22 套预设深浅色对比度都 ≥ 4.5:1，tests/space/ui/topbar/topbar-pr4a.test.mjs） */
 :root { --sgx-tb-label-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
 /* 尺寸体系（2026-10-23 PR-D）：间距 / 页边距按 8 的倍数，组件允许 4px 子网格；宽度之间用 clamp() 连续插值，断点只用来切换模式 / 列数。
@@ -8282,7 +8285,7 @@
 }
 /* 顶栏：left 0 / right 0 + margin auto + width --sgx-tb-w（在不含滚动条的窗口宽里居中；不用 transform 居中） */
 .sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: 0; right: 0; margin: 0 auto; width: var(--sgx-tb-w);
-  height: var(--sgx-tb-btn); z-index: 55; display: flex; align-items: center; gap: 4px; box-sizing: border-box;
+  height: var(--sgx-tb-btn); z-index: 55; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 0; box-sizing: border-box;
   padding: 0 calc((var(--sgx-tb-btn) - var(--sgx-tb-ic)) / 2 - 1px); border-radius: 999px;
   background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter);
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; color: var(--sgx-text-primary); }
@@ -8294,30 +8297,39 @@
   .sgx-topbar { background: var(--sgx-mat-solid); }
 }
 /* logo：完整字标（各宽度都是；点了回本站首页） */
-.sgx-tb-logo { flex: 0 0 auto; display: inline-flex; align-items: center; height: var(--sgx-tb-ic); padding: 0 10px; box-sizing: border-box; border-radius: 999px;
+.sgx-tb-logo { justify-self: start; display: inline-flex; align-items: center; height: var(--sgx-tb-ic); padding: 0 10px; box-sizing: border-box; border-radius: 999px;
   color: var(--sgx-text-primary); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
 .sgx-tb-logo .sgx-wordmark { --wm-ink: var(--sgx-text-primary); --wm-accent: var(--sgx-primary); display: block; height: 20px; width: auto; aspect-ratio: 5924 / 2010; overflow: visible; }
 .sgx-wordmark .wm-letters { fill: var(--wm-ink, var(--sgx-text-primary)); }
 .sgx-wordmark .wm-dot { fill: var(--wm-accent, var(--sgx-primary)); }
-/* 中间：字标和图标组之间的空余区（flex 吃剩下的宽度），里面的页名胶囊 / 标签 / 子站分段在这块区域里居中；本身透明（材质在整条胶囊上）。
-   左右各留 4px 最小间距（窄屏页名胶囊不贴字标、不贴图标） */
-.sgx-tb-pill { flex: 1 1 auto; height: 100%; min-width: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
-  padding: 0 4px; color: var(--sgx-text-primary); cursor: default; position: relative; }
-/* 页名胶囊：主题色椭圆衬底（同当前标签：--sgx-nav-selected 实色 + 粗体），按字定宽、最宽不超过空余区，长页名省略号 */
-.sgx-tb-title { display: block; flex: 0 1 auto; min-width: 0; max-width: 100%; box-sizing: border-box; height: 36px; padding: 0 16px; border-radius: 999px; text-align: center;
+/* 中间：字标和图标组之间那一格（网格中列 minmax(0, 1fr)），左右各留 12px。里面是 flex：前后两个伪元素当弹簧，
+   前一个先垫上「图标组宽 − 字标块宽」（字标更宽时换后一个垫），两边再平分剩下的——内容中心 = 整条顶栏中心（不是左右邻居之间的中心）。
+   放不下时：垫的那截先收（flex-shrink 很大），前弹簧 0 → 内容贴着字标（12px），再不够才轮到内容自己省略号。不量 JS。
+   本身 position: static：文章页阅读进度细线（.sgx-tb-progress，博客）按整条顶栏定位，手机布局也在顶栏底边。 */
+.sgx-tb-pill { height: 100%; min-width: 0; box-sizing: border-box; display: flex; align-items: center; padding: 0 12px;
+  color: var(--sgx-text-primary); cursor: default; }
+.sgx-tb-pill::before, .sgx-tb-pill::after { content: ""; flex: 1 9999 0px; min-width: 0; }
+.sgx-tb-pill::before { flex-basis: max(0px, var(--sgx-tb-acts-w) - var(--sgx-tb-logo-w)); }
+.sgx-tb-pill::after { flex-basis: max(0px, var(--sgx-tb-logo-w) - var(--sgx-tb-acts-w)); }
+.sgx-tb-pill > * { flex: 0 1 auto; min-width: 0; }
+/* 页名胶囊：主题色椭圆衬底（同当前标签：--sgx-nav-selected 实色 + 粗体），按字定宽、最宽不超过中间那格，长页名省略号 */
+.sgx-tb-title { display: block; min-width: 0; max-width: 100%; box-sizing: border-box; height: 36px; padding: 0 20px; border-radius: 999px; text-align: center;
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 700; line-height: 36px; letter-spacing: normal;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background-color: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); }
-@media (max-width: 399.98px) { .sgx-tb-title { padding: 0 12px; } }
-/* 右边三个按钮：九宫格（导航面板）· 快捷设置（滑块）· AI（聊天）；紧凑、整体靠右 */
-.sgx-tb-acts { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; margin-left: auto; }
-/* 窄到放不下：先是页名胶囊省略号（.sgx-tb-title / 标签 ellipsis），窗口 < 380 再整块藏掉页名胶囊（唯一阈值，四站同一条；360 宽英文页名放不下分享按钮）；图标组从不压缩（flex: 0 0 auto） */
-@media (max-width: 379.98px) { .sgx-tb-pill { display: none; } }
+/* 手机布局（<html data-sgx-layout> 不是 desktop：任何宽度、横竖屏、自动落到手机都一样）：中间整块不显示——页名胶囊藏起来
+   （jojo.best 那样：顶栏 = 完整字标 | 图标组；当前站看九宫格里的实色磁贴，子站分区走首页的平铺入口）。只留阅读进度细线。不按像素断点。 */
+:root:not([data-sgx-layout="desktop"]) .sgx-tb-pill > :not(.sgx-tb-progress) { display: none; }
+/* 右边三个按钮：九宫格（导航面板）· 快捷设置（滑块）· AI（聊天）。各自一颗圆形按钮（40 × 40、图标 20px，线条不变），间距 6px，没有公共底。
+   颜色（Gray 2026-11-07）：九宫格 / 快捷 平时透明 + on-surface-variant 图标，打开 = 浅一档主题色（primary-container）；
+   AI 平时就是浅一档（primary-container + on-primary-container），打开 = 深一档（primary-fill + on-primary-fill，调色板规则：实色底读填充档）。悬停 / 按下 / 焦点只叠状态层。
+   右缘贴顶栏内边距；整组 3 × 40 + 2 × 6 = 132px，360 宽也不横向溢出。 */
+.sgx-tb-acts { justify-self: end; display: flex; align-items: center; gap: 6px; }
 .sgx-tb-btn { width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); flex-shrink: 0; padding: 0; margin: 0; border: 0; border-radius: 999px; box-sizing: border-box;
-  background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); cursor: pointer;
-  text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
-.sgx-tb-btn svg { width: 22px; height: 22px; }
-/* 面板 / 窗口开着：对应图标保持按下态（再点关闭） */
-.sgx-tb-btn[aria-expanded="true"] { background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
+  background-color: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-on-surface-variant); cursor: pointer;
+  text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
+.sgx-tb-btn svg { width: 20px; height: 20px; }
+.sgx-tb-btn[aria-expanded="true"], .sgx-tb-ai { background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
+.sgx-tb-ai[aria-expanded="true"] { background-color: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
 @media (hover: hover) and (pointer: fine) {
   .sgx-tb-btn:hover, .sgx-tb-logo:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
 }
@@ -8325,8 +8337,6 @@
 .sgx-tb-btn:focus-visible, .sgx-tb-logo:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .reduced-motion .sgx-tb-btn, .reduced-motion .sgx-tb-logo { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-btn, .sgx-tb-logo { transition: none; } }
-/* 宽屏：页名胶囊左右内边距大一点（PR-4b 起宽屏也是 flex，不再三段网格定宽中段） */
-@media (min-width: 600px) { .sgx-tb-title { padding: 0 20px; } }
 /* 分享磁贴生成短链时 aria-busy + .is-busy：图标呼吸，点了不理（share.js） */
 .is-busy[data-sgx-share] { cursor: progress; }
 .is-busy[data-sgx-share] svg { animation: sgx-share-busy .9s ease-in-out infinite alternate; }
@@ -8453,7 +8463,7 @@
 .sgx-qp-opt-dot { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 999px; box-sizing: border-box; border: 2px solid var(--sgx-outline); }
 .sgx-qp-opt[aria-checked="true"] { font-weight: 600; }
 .sgx-qp-opt[aria-checked="true"] .sgx-qp-opt-dot { border: 5px solid var(--sgx-primary); }
-/* 布局分段（Mobile / Auto / DeX；四站都有）：底 = 容器色，选中 = 填充档；不够 DeX 时 DeX 置灰 */
+/* 布局分段（手机 / 自动 / 桌面；四站都有）：底 = 容器色，选中 = 填充档 */
 .sgx-qp-seg { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--sgx-surface-container); }
 .sgx-qp-seg button { flex: 1 1 0; min-width: 0; height: 36px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 13px; font-weight: 600;
   color: var(--sgx-text-secondary); cursor: pointer; }
@@ -8551,28 +8561,6 @@
 .sgx-ai-dot { margin: 0 6px; }
 .sgx-ai-contact { color: var(--sgx-primary); text-decoration: underline; text-underline-offset: 3px; border-radius: 4px; }
 /* @shell:end panel */
-/* 主站顶栏标签（2026-10-22 三栏，2026-11-04 P5-1 去掉「聊天」剩两栏；只在主站，不进共享外壳；子站中间照旧是各自的内容）：主页 / 设置这两页的长条里是标签 .sgx-tb-tab
-   （partials/topbar-tabs.html，data/topbar-tabs.yaml），代替页名。标签高 36px、按字定宽，同页名胶囊（PR-4b：页名胶囊在字标与图标组之间的空余区居中）。当前页 aria-current="page" = 快捷面板导航页当前项同一套 tonal 药丸（--sgx-nav-selected / --sgx-on-nav-selected），
-   其余标签常驻浅一级衬底 --sgx-tb-label-bg + 主文字色（PR-4a §6.2），悬停 / 按下走状态层（叠在衬底上）。只用 --sgx-* 角色，不写死颜色。 */
-.sgx-tb-tabs { flex: 0 1 auto; min-width: 0; max-width: 100%; height: 36px; margin: 0 auto; display: flex; align-items: center; gap: 4px; }
-.sgx-tb-tab { flex: 0 1 auto; min-width: 0; height: 100%; box-sizing: border-box; padding: 0 16px; border-radius: 999px;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 600; line-height: 1.2; letter-spacing: normal;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background-color: var(--sgx-tb-label-bg); color: var(--sgx-text-primary); text-decoration: none; cursor: pointer;
-  -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
-.sgx-tb-tab[aria-current="page"] { background-color: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); font-weight: 700; }
-@media (hover: hover) and (pointer: fine) {
-  .sgx-tb-tab:not([aria-current="page"]):hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
-}
-.sgx-tb-tab:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
-.sgx-tb-tab:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
-.reduced-motion .sgx-tb-tab { transition: none; }
-@media (prefers-reduced-motion: reduce) { .sgx-tb-tab { transition: none; } }
-/* 宽屏（≥ 600px）长条按内容定宽：标签各自按字定宽（最小 88px，看起来等宽），不再等分 400px */
-@media (min-width: 600px) {
-  .sgx-tb-tabs { flex: 0 0 auto; max-width: none; }
-  .sgx-tb-tab { flex: 0 0 auto; min-width: 88px; padding: 0 16px; }
-}
 /* topbar v2.0 end */
 
 /* ===== 头像裁剪（assets/js/apps/avatar-edit.js）=====
@@ -8600,12 +8588,4 @@
   }
   .sgx-avc-btn.primary { background: rgb(255,255,255); color: rgb(17,17,17); }
   .sgx-avc-btn:disabled { opacity: .5; }
-}
-/* 输入方式（2026-10-23 PR-D；放在文件最后，压过前面同特异性的顶栏标签 / 搜索层 / 快捷面板规则）：悬停样式都放在 @media (hover: hover) and (pointer: fine)（鼠标 / 触控板），触屏不会点完留着悬停色；
-   粗指针（pointer: coarse，触屏）下小于 48px 的控件把点击区扩到 ≥ 48px —— 只扩命中区（透明伪元素 / 透明边框），不改布局尺寸和外观。 */
-@media (pointer: coarse) {
-  /* 顶栏标签：看上去仍是 36px 高的药丸（上下 6px 透明边框 + 底色只铺内边距盒，同页名胶囊），点击区 48px */
-  .sgx-tb-tabs { height: 48px; }
-  .sgx-tb-tab { height: 48px; border-top: 6px solid transparent; border-bottom: 6px solid transparent; background-clip: padding-box; }
-  .sgx-tb-tab:focus-visible { outline-offset: -8px; }
 }

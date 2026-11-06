@@ -3,127 +3,12 @@
 /* ===== 顶栏（partials/topnav.html） ===== */
 /* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个，标记是共享外壳 partials/sgx-shell-topbar.html）：胶囊、logo、右边三个按钮、快捷面板 / AI 窗口、
    「分享本页」磁贴的生成中样式都在主站共享外壳 atlas/web/blog/assets/css/sgx-shell.css（atlas/scripts/blog/sync-shell.mjs 同步）。这里只有博客自己的：
-   长条里的分段滑块（首页）、阅读进度细线（文章页）。其他页长条里只有页名（共享外壳 .sgx-tb-title）。颜色只用 --sgx-* 角色。 */
+   阅读进度细线（文章页，按整条顶栏底边）。长条里只有页名胶囊（共享外壳 .sgx-tb-title；首页 = 站名 / 当前分区名，P4-3 PR-4b 起没有分段滑块）。颜色只用 --sgx-* 角色。 */
 .sgx-topbar {
   view-transition-name: sgx-topbar;
 }
 
-/* ===== 分段滑块（首页 · 文章 · 专题）= 主站顶栏三栏 .sgx-tb-tabs / .sgx-tb-tab 一比一 =====
-   标签高 --sgx-tb-ic（40px）、15px / 600、间距 4px；当前项 = 抽屉当前项同一套 tonal 药丸（--sgx-nav-selected / --sgx-on-nav-selected），
-   其他是次要文字色，悬停 / 按下走状态层；≥ 600 宽每格最小 88px、左右 16px（长条按内容定宽）。
-   博客多一个跟手滑动的指示器：按 --seg-pos（0..2，可为小数）平移，三格等宽。 */
-.sgx-seg {
-  --seg-gap: 4px;
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--seg-gap);
-  flex: 1;
-  min-width: 0;
-  max-width: 400px;
-  height: var(--sgx-tb-ic);
-  margin: 0 auto;
-}
-
-.sgx-seg-ind {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: calc((100% - 2 * var(--seg-gap)) / 3);
-  height: 100%;
-  border-radius: 999px;
-  background: var(--sgx-nav-selected);
-  transform: translateX(calc(var(--seg-pos, 0) * (100% + var(--seg-gap))));
-  transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1);
-  pointer-events: none;
-}
-
-.sgx-seg.is-dragging .sgx-seg-ind {
-  transition: none;
-}
-
-.sgx-seg-btn {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  height: 100%;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--sgx-tb-label-bg);
-  color: var(--sgx-text-primary);
-  font: inherit;
-  font-family: Inter, 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: normal;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-decoration: none;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-
-/* 当前项的实色画在滑动指示器上，按钮本身不再叠衬底（PR-4a §6.2：其余项常驻 --sgx-tb-label-bg） */
-.sgx-seg-btn[aria-selected='true'],
-.sgx-seg-btn[aria-current='page'] {
-  background: transparent;
-  color: var(--sgx-on-nav-selected);
-  font-weight: 700;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .sgx-seg-btn:not([aria-selected='true']):hover {
-    background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg));
-  }
-}
-
-.sgx-seg-btn:not([aria-selected='true']):active {
-  background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg));
-}
-
-.sgx-seg-btn:focus-visible {
-  outline: 2px solid var(--sgx-focus-ring);
-  outline-offset: -2px;
-}
-
-/* 手机（≤ 440px，360 / 390 / 412 宽）：P5-1 胶囊顶栏里留给长条的只有 140–160px，三格放不下 15px 的英文页签（Topics）：
-   间距 2px、左右不留内边距（格子本身居中）、13px（同奇趣 / 日刻），字不截断 */
-@media (max-width: 440px) {
-  .sgx-seg {
-    --seg-gap: 2px;
-  }
-
-  .sgx-seg-btn {
-    padding: 0;
-    font-size: 13px;
-  }
-}
-
-/* 宽屏（≥ 600px）长条按内容定宽（同主站 .sgx-tb-tab）：每格最小 88px、左右 16px，三格等宽 */
-@media (min-width: 600px) {
-  .sgx-seg {
-    flex: 0 0 auto;
-    max-width: none;
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .sgx-seg-btn {
-    min-width: 88px;
-    padding: 0 16px;
-  }
-}
-
-
-/* ===== 文章页：长条底边一条强调色细线 = 阅读进度（长条 overflow 不裁，细线自己按圆角收进去）===== */
+/* ===== 文章页：顶栏底边一条强调色细线 = 阅读进度（按整条顶栏定位——中间那格 position: static；手机布局藏了页名也在）===== */
 .sgx-tb-progress {
   position: absolute;
   left: 22px;
@@ -145,19 +30,6 @@
   background: var(--sgx-accent);
   transform: scaleX(var(--p, 0));
   transform-origin: left center;
-}
-
-
-.reduced-motion .sgx-seg-ind,
-.reduced-motion .sgx-seg-btn {
-  transition: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sgx-seg-ind,
-  .sgx-seg-btn {
-    transition: none;
-  }
 }
 
 
@@ -202,6 +74,16 @@
   .sgx-panes-track {
     transition: none;
   }
+}
+
+/* 首页分区入口（共享外壳平铺入口，P4-3 PR-4b）：在面板上方，顶部让开顶栏；入口显示时首页面板不再重复留顶栏那段 */
+.page-home .sgx-ents {
+  margin-top: 0;
+  padding: var(--oui-nav-clear) var(--sgx-page-m, 16px) 0;
+}
+
+.page-home .sgx-ents:not([hidden]) + .sgx-panes .sgx-pane {
+  padding-top: 8px;
 }
 
 .sgx-pane {

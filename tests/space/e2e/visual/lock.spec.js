@@ -735,14 +735,15 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     }
   });
 
-  test('锁屏顶栏照抄顶栏按钮（P4-3 PR-4b：九宫格 · 快捷设置 · AI，头像不在顶栏、只在 AI 窗口头部），尺寸和顶栏一样', async ({ page }) => {
+  test('锁屏顶栏照抄顶栏按钮（P4-3 PR-4b：九宫格 · 快捷设置 · AI，头像不在顶栏、只在 AI 窗口头部），尺寸和顶栏一样（40 × 40 圆）', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     await expect(page.locator('#sgx-lock .sgx-lock-tb img, #sgx-lock .sgx-lock-tb .sgx-tb-me')).toHaveCount(0);
     expect(await page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.tagName + '.' + e.className)))
       .toEqual(['SPAN.sgx-tb-btn sgx-tb-grid', 'SPAN.sgx-tb-btn sgx-tb-quick', 'SPAN.sgx-tb-btn sgx-tb-ai']);
     const sz = await page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts > *').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
-    expect(sz).toEqual([[38, 40], [38, 40], [38, 40]]);
+    /* PR-4b 定稿：三颗 40 × 40 圆按钮，同顶栏 */
+    expect(sz).toEqual([[40, 40], [40, 40], [40, 40]]);
   });
 
   for (const theme of ['light', 'dark']) {

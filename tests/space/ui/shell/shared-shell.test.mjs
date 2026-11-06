@@ -113,16 +113,27 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
 });
 
 test('顶栏（P5-1 起一整条胶囊；PR-4b 定稿）：[字标][页名胶囊][九宫格 · 快捷设置 · AI]，头像不在顶栏；同一份标记 topbar.html 四站共用', () => {
-  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel']);
+  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'entries']);
   const s = files['shell.css'];
   assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*left: 0; right: 0; margin: 0 auto; width: var\(--sgx-tb-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
-  // 右边图标紧凑：宽 --sgx-tb-icw（38px）、间距 2px，整体靠右
-  assert.match(s, /--sgx-tb-icw: 38px;/);
-  assert.match(s, /\.sgx-tb-btn \{ width: var\(--sgx-tb-icw\); height: var\(--sgx-tb-ic\);[^}]*border-radius: 999px;/);
-  assert.match(s, /\.sgx-tb-acts \{ flex: 0 0 auto; display: flex; align-items: center; gap: 2px; margin-left: auto; \}/);
-  // 页名胶囊：在空余区（.sgx-tb-pill flex 1）居中，主题色椭圆衬底，长页名省略号
-  assert.match(s, /\.sgx-tb-pill \{ flex: 1 1 auto;[^}]*justify-content: center;/);
+  // 三列网格：字标 | 中间 | 图标组（PR-4b 定稿）
+  assert.match(s, /\.sgx-topbar \{[^}]*display: grid; grid-template-columns: auto minmax\(0, 1fr\) auto;/);
+  // 右边三颗圆按钮：40 × 40、图标 20px、间距 6px、没有公共底；整组 132px
+  assert.match(s, /--sgx-tb-icw: 40px;/);
+  assert.match(s, /--sgx-tb-acts-w: calc\(3 \* var\(--sgx-tb-icw\) \+ 2 \* 6px\);/);
+  assert.match(s, /\.sgx-tb-btn \{ width: var\(--sgx-tb-icw\); height: var\(--sgx-tb-ic\);[^}]*border-radius: 999px;[^}]*background-color: transparent;[^}]*color: var\(--sgx-on-surface-variant\);/);
+  assert.match(s, /\.sgx-tb-acts \{ justify-self: end; display: flex; align-items: center; gap: 6px; \}/);
+  assert.match(s, /\.sgx-tb-btn svg \{ width: 20px; height: 20px; \}/);
+  // 颜色：九宫格 / 快捷 打开 = 浅一档；AI 平时浅一档、打开深一档（填充档）
+  assert.match(s, /\.sgx-tb-btn\[aria-expanded="true"\], \.sgx-tb-ai \{ background-color: var\(--sgx-primary-container\); color: var\(--sgx-on-primary-container\); \}/);
+  assert.match(s, /\.sgx-tb-ai\[aria-expanded="true"\] \{ background-color: var\(--sgx-primary-fill\); color: var\(--sgx-on-primary-fill\); \}/);
+  // 中间：前后弹簧，内容按整条顶栏居中；放不下贴字标
+  assert.match(s, /\.sgx-tb-pill::before \{ flex-basis: max\(0px, var\(--sgx-tb-acts-w\) - var\(--sgx-tb-logo-w\)\); \}/);
+  assert.match(s, /\.sgx-tb-pill::after \{ flex-basis: max\(0px, var\(--sgx-tb-logo-w\) - var\(--sgx-tb-acts-w\)\); \}/);
   assert.match(s, /\.sgx-tb-title \{[^}]*max-width: 100%;[^}]*border-radius: 999px;[^}]*text-overflow: ellipsis; background-color: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\);/);
+  // 手机布局：中间整块不显示（只留阅读进度细线），不按像素
+  assert.match(s, /:root:not\(\[data-sgx-layout="desktop"\]\) \.sgx-tb-pill > :not\(\.sgx-tb-progress\) \{ display: none; \}/);
+  assert.doesNotMatch(s.replace(/\/\*[\s\S]*?\*\//g, ''), /\.sgx-tb-pill \{ display: none; \}/, '不再按像素藏页名胶囊');
   assert.doesNotMatch(s, /grid-template-columns: 1fr min\(var\(--sgx-tb-mid\)|--sgx-tb-mid/, 'PR-4a 宽屏三段网格定宽中段删了');
   assert.doesNotMatch(s, /\.sgx-tb-nav\b|\.sgx-tb-end\b|\.sgx-tb-gbtn\b|\.sgx-drawer|\.sgx-tb-me\b|\.sgx-tb-avatar\b|\.sgx-tb-mark\b/);
   // 标记：topbar.html = 主站 partials/shell-topbar.html 原样
@@ -138,11 +149,11 @@ test('顶栏（P5-1 起一整条胶囊；PR-4b 定稿）：[字标][页名胶囊
   assert.match(src, /<dialog id="sgx-qp" class="sgx-qp"/);
   assert.match(src, /<dialog id="sgx-ai" class="sgx-qp sgx-ai"/);
   const base = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.html'), 'utf8');
-  /* 主站中间：主页 / 设置两页是标签（partials/topbar-tabs.html，2026-11-04 去掉聊天），其他页只有页名 */
-  assert.match(base, /\{\{ if \$tabCur \}\}\{\{ \$center = partial "topbar-tabs\.html" \(dict "isEn" \$isEn "cur" \$tabCur\) \}\}\{\{ else \}\}\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}\{\{ end \}\}/);
+  /* 主站中间：只有页名（旷野页是「旷野」），没有标签（PR-4b 定稿：页名胶囊只做一件事） */
+  assert.match(base, /\{\{ \$center := printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
+  assert.doesNotMatch(base.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''), /topbar-tabs|\$tabCur/);
   assert.match(base, /\{\{ partial "shell-topbar\.html" \(dict/);
   assert.doesNotMatch(base, /sgx-drawer|sgx-tb-nav|topbar-end\.html/);
-  /* 标签样式只在主站段，不进共享外壳 */
   assert.doesNotMatch(s, /sgx-tb-tab/);
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/topbar-end.html')), 'topbar-end.html 已删');
 });

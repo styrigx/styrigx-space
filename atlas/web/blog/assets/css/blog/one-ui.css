@@ -12,7 +12,7 @@
 :root[data-theme] {
   color-scheme: light dark;
   /* 强调色填充（阅读进度、选中专题、系列位置以外的实心强调）= 主站填充档 primary-fill（前景 1 本色）+ 自动挑的 on 色；
-     文字 / 图标用 --sgx-primary（ink）。分段滑块指示器不是它，是抽屉当前项同一套 tonal（--sgx-nav-selected，见 components.css） */
+     文字 / 图标用 --sgx-primary（ink）。页名胶囊不是它，是 tonal（--sgx-nav-selected，见共享外壳 .sgx-tb-title） */
   --sgx-accent: var(--sgx-primary-fill);
   --sgx-on-accent: var(--sgx-on-primary-fill);
 

@@ -1,4 +1,4 @@
-/* P4-3 PR-4a（顶栏视觉小修）：§6.2 标签常驻衬底（主站标签 + 三个子站分段，同一个变量），§6.3 宽屏中段定宽，22 套预设对比度 */
+/* P4-3 PR-4a（顶栏视觉小修）：§6.2 标签常驻衬底变量、22 套预设对比度；PR-4b 起顶栏没有标签 / 分段，§6.3 页名胶囊居中 */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,30 +10,27 @@ test('§6.2 衬底变量在共享外壳里：导航选中色 45%', () => {
   assert.match(shell, /--sgx-tb-label-bg: color-mix\(in oklab, var\(--sgx-nav-selected\) 45%, transparent\);/);
 });
 
-test('§6.2 主站标签：常驻衬底 + 主文字色；当前项实色 + 粗体；悬停叠状态层不换底色', () => {
+test('PR-4b 定稿：页名胶囊只显示页名——主站没有顶栏标签，三个子站顶栏没有分段滑块（分区入口在首页正文）', () => {
   const css = rd('space/web/assets/css/input.css');
-  const base = css.match(/\n\.sgx-tb-tab \{[^}]*\}/)[0];
-  assert.match(base, /background-color: var\(--sgx-tb-label-bg\);/);
-  assert.match(base, /color: var\(--sgx-text-primary\);/);
-  assert.match(css, /\.sgx-tb-tab\[aria-current="page"\] \{ background-color: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\); font-weight: 700; \}/);
-  assert.match(css, /\.sgx-tb-tab:not\(\[aria-current="page"\]\):hover \{ background-image: linear-gradient/);
+  assert.doesNotMatch(css, /\.sgx-tb-tabs? \{/);
+  for (const f of ['atlas/web/blog/assets/css/blog/components.css', 'atlas/web/curio/assets/css/input.css', 'atlas/web/daymark/assets/css/input.css', 'space/web/shared/shell/shell.css']) {
+    assert.doesNotMatch(rd(f).replace(/\/\*[\s\S]*?\*\//g, ''), /\.sgx-seg(?:-btn|-ind)?\b/, f);
+  }
+  for (const [f, attr] of [['atlas/web/blog/layouts/partials/topnav.html', 'data-sgx-seg'], ['atlas/web/curio/layouts/_default/baseof.html', 'data-cu-seg'], ['atlas/web/daymark/layouts/_default/baseof.html', 'data-dm-seg']]) {
+    const src = rd(f);
+    assert.doesNotMatch(src, new RegExp(attr), f);
+    assert.match(src, /class=\\"sgx-tb-title\\" data-sgx-titles=/, f + '：首页胶囊 = 站名，分区名由脚本换');
+  }
+  for (const f of ['atlas/web/blog/layouts/index.html', 'atlas/web/curio/layouts/index.html', 'atlas/web/daymark/layouts/index.html']) {
+    assert.match(rd(f), /partial "sgx-shell-entries\.html"/, f + '：首页有分区入口');
+  }
 });
 
-for (const [site, file] of [['blog', 'atlas/web/blog/assets/css/blog/components.css'], ['curio', 'atlas/web/curio/assets/css/input.css'], ['daymark', 'atlas/web/daymark/assets/css/input.css']]) {
-  test(`§6.2 子站分段（${site}）：非当前项常驻衬底 + 主文字色；当前项不叠衬底（实色在滑动指示器上）`, () => {
-    const css = rd(file);
-    const base = css.match(/\n\.sgx-seg-btn \{[^}]*\}/)[0];
-    assert.match(base, /background: var\(--sgx-tb-label-bg\);/);
-    assert.match(base, /color: var\(--sgx-text-primary\);/);
-    assert.match(css, /\.sgx-seg-btn\[aria-current=['"]page['"]\] \{\s*background: transparent;\s*color: var\(--sgx-on-nav-selected\);/);
-    assert.match(css, /\.sgx-seg-ind \{[^}]*background(-color)?: var\(--sgx-nav-selected\);/);
-  });
-}
-
-test('§6.3（PR-4b 改）：宽屏不再三段网格定宽中段；页名胶囊在字标与图标组之间的空余区居中、按字定宽，长页名省略号', () => {
+test('§6.3（PR-4b 改）：宽屏不再三段网格定宽中段；页名胶囊按整条顶栏居中（中列前后弹簧）、按字定宽，长页名省略号', () => {
   assert.doesNotMatch(shell, /--sgx-tb-mid|grid-template-columns: 1fr min\(/);
-  assert.match(shell, /\.sgx-tb-pill \{ flex: 1 1 auto;[^}]*justify-content: center;/);
-  assert.match(shell, /\.sgx-tb-title \{ display: block; flex: 0 1 auto; min-width: 0; max-width: 100%;[^}]*white-space: nowrap; overflow: hidden; text-overflow: ellipsis;/);
+  assert.match(shell, /\.sgx-tb-pill \{ height: 100%; min-width: 0;[^}]*display: flex; align-items: center; padding: 0 12px;/);
+  assert.match(shell, /\.sgx-tb-pill::before, \.sgx-tb-pill::after \{ content: ""; flex: 1 9999 0px; min-width: 0; \}/);
+  assert.match(shell, /\.sgx-tb-title \{ display: block; min-width: 0; max-width: 100%;[^}]*white-space: nowrap; overflow: hidden; text-overflow: ellipsis;/);
 });
 
 /* 对比度：非当前项文字 text-primary 对衬底（导航选中色 45% 叠在顶栏玻璃 + 页面底色上）≥ 4.5:1；当前项 on-nav-selected 对 nav-selected ≥ 4.5:1 */

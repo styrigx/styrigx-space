@@ -112,7 +112,7 @@ html, body {
 @supports (overflow-x: clip) {
   html, body { overflow-x: clip; }
 }
-/* @sgx-shell:begin styrigx/styrigx-space@tree:461b841cee6b space/web/shared/shell v010001cfedbf（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:95eed89a0bff space/web/shared/shell vb9e9ac897d32（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space space/scripts/gen-shell.mjs 从 space/web/data/palette-roles.json 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -6751,13 +6751,15 @@ html, body {
 /* 依赖 tokens.css 的 --sgx-* 角色；不进任何 @layer。 */
 /* ---- topbar-frame ---- */
 /* 顶栏（2026-11-04 P5-1 全大椭圆，四个站同一套，标记来自共享外壳 topbar.html；P4-3 PR-4b Gray 2026-11-07 定稿）：一整条胶囊 .sgx-topbar =
-   [字标 .sgx-tb-logo] [中间 .sgx-tb-pill：页名胶囊（主站标签 / 页名 / 子站分段）] [右边 .sgx-tb-acts：九宫格 .sgx-tb-grid · 快捷设置 .sgx-tb-quick · AI .sgx-tb-ai]。
-   头像不在顶栏（搬进 AI 窗口头部）。胶囊本身是材质（--sgx-mat 毛玻璃 + 描边 + 阴影），里面的按钮都透明，悬停 / 按下 / 焦点框各管各的。
-   各宽度一律 flex：字标、按钮按内容，中间 .sgx-tb-pill 吃剩下的宽度，页名胶囊在这块空余区里居中（不贴左不贴右）；窄屏保最小间距，长页名省略号。
-   字标手机上也完整显示（真 SVG shell-wordmark.html；PR-4a 的 < 400px 换图标版删除）。右边图标紧凑、整体靠右：按钮宽 --sgx-tb-icw（38px）、间距 2px，图标线条粗细不变。
+   [字标 .sgx-tb-logo] [中间 .sgx-tb-pill：页名胶囊（当前页 / 分区名）] [右边 .sgx-tb-acts：九宫格 .sgx-tb-grid · 快捷设置 .sgx-tb-quick · AI .sgx-tb-ai]。
+   头像不在顶栏（搬进 AI 窗口头部）。胶囊本身是材质（--sgx-mat 毛玻璃 + 描边 + 阴影）。
+   三列网格（字标 | 中间 | 图标组）：中间内容按整条顶栏居中；放不下时退到字标后面（间距 12px）、长页名省略号。
+   中间整块只在桌面布局显示（<html data-sgx-layout="desktop">）；手机布局顶栏 = 完整字标 | 图标组。
    标签衬底（PR-4a §6.2）：主站标签、子站分段都用 --sgx-tb-label-bg（导航选中色 45%）当常驻衬底，当前项 / 页名实色 --sgx-nav-selected + 粗体。 */
 /* 顶栏尺寸 token：页边距、顶栏高（--sgx-tb-btn）、间距、胶囊里按钮高（--sgx-tb-ic）/ 宽（--sgx-tb-icw） */
-:root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; --sgx-tb-icw: 38px; }
+:root { --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; --sgx-tb-icw: 40px;
+  /* 字标块宽（20px 高的字标按比例 + 左右 10px）和图标组宽（3 × 40 + 2 × 6 间距 = 132px）：中间内容按整条顶栏居中要用它俩的差 */
+  --sgx-tb-logo-w: calc(20px * 5924 / 2010 + 20px); --sgx-tb-acts-w: calc(3 * var(--sgx-tb-icw) + 2 * 6px); }
 /* 顶栏标签 / 子站分段的常驻衬底：导航选中色 45%（非当前项文字 text-primary，22 套预设深浅色对比度都 ≥ 4.5:1，tests/space/ui/topbar/topbar-pr4a.test.mjs） */
 :root { --sgx-tb-label-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
 /* 尺寸体系（2026-10-23 PR-D）：间距 / 页边距按 8 的倍数，组件允许 4px 子网格；宽度之间用 clamp() 连续插值，断点只用来切换模式 / 列数。
@@ -6798,7 +6800,7 @@ html, body {
 }
 /* 顶栏：left 0 / right 0 + margin auto + width --sgx-tb-w（在不含滚动条的窗口宽里居中；不用 transform 居中） */
 .sgx-topbar { position: fixed; top: calc(var(--sgx-tb-inset) + env(safe-area-inset-top, 0px)); left: 0; right: 0; margin: 0 auto; width: var(--sgx-tb-w);
-  height: var(--sgx-tb-btn); z-index: 55; display: flex; align-items: center; gap: 4px; box-sizing: border-box;
+  height: var(--sgx-tb-btn); z-index: 55; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 0; box-sizing: border-box;
   padding: 0 calc((var(--sgx-tb-btn) - var(--sgx-tb-ic)) / 2 - 1px); border-radius: 999px;
   background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter);
   border: 1px solid var(--sgx-mat-line); box-shadow: var(--sgx-mat-shadow); pointer-events: auto; color: var(--sgx-text-primary); }
@@ -6810,30 +6812,39 @@ html, body {
   .sgx-topbar { background: var(--sgx-mat-solid); }
 }
 /* logo：完整字标（各宽度都是；点了回本站首页） */
-.sgx-tb-logo { flex: 0 0 auto; display: inline-flex; align-items: center; height: var(--sgx-tb-ic); padding: 0 10px; box-sizing: border-box; border-radius: 999px;
+.sgx-tb-logo { justify-self: start; display: inline-flex; align-items: center; height: var(--sgx-tb-ic); padding: 0 10px; box-sizing: border-box; border-radius: 999px;
   color: var(--sgx-text-primary); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
 .sgx-tb-logo .sgx-wordmark { --wm-ink: var(--sgx-text-primary); --wm-accent: var(--sgx-primary); display: block; height: 20px; width: auto; aspect-ratio: 5924 / 2010; overflow: visible; }
 .sgx-wordmark .wm-letters { fill: var(--wm-ink, var(--sgx-text-primary)); }
 .sgx-wordmark .wm-dot { fill: var(--wm-accent, var(--sgx-primary)); }
-/* 中间：字标和图标组之间的空余区（flex 吃剩下的宽度），里面的页名胶囊 / 标签 / 子站分段在这块区域里居中；本身透明（材质在整条胶囊上）。
-   左右各留 4px 最小间距（窄屏页名胶囊不贴字标、不贴图标） */
-.sgx-tb-pill { flex: 1 1 auto; height: 100%; min-width: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
-  padding: 0 4px; color: var(--sgx-text-primary); cursor: default; position: relative; }
-/* 页名胶囊：主题色椭圆衬底（同当前标签：--sgx-nav-selected 实色 + 粗体），按字定宽、最宽不超过空余区，长页名省略号 */
-.sgx-tb-title { display: block; flex: 0 1 auto; min-width: 0; max-width: 100%; box-sizing: border-box; height: 36px; padding: 0 16px; border-radius: 999px; text-align: center;
+/* 中间：字标和图标组之间那一格（网格中列 minmax(0, 1fr)），左右各留 12px。里面是 flex：前后两个伪元素当弹簧，
+   前一个先垫上「图标组宽 − 字标块宽」（字标更宽时换后一个垫），两边再平分剩下的——内容中心 = 整条顶栏中心（不是左右邻居之间的中心）。
+   放不下时：垫的那截先收（flex-shrink 很大），前弹簧 0 → 内容贴着字标（12px），再不够才轮到内容自己省略号。不量 JS。
+   本身 position: static：文章页阅读进度细线（.sgx-tb-progress，博客）按整条顶栏定位，手机布局也在顶栏底边。 */
+.sgx-tb-pill { height: 100%; min-width: 0; box-sizing: border-box; display: flex; align-items: center; padding: 0 12px;
+  color: var(--sgx-text-primary); cursor: default; }
+.sgx-tb-pill::before, .sgx-tb-pill::after { content: ""; flex: 1 9999 0px; min-width: 0; }
+.sgx-tb-pill::before { flex-basis: max(0px, var(--sgx-tb-acts-w) - var(--sgx-tb-logo-w)); }
+.sgx-tb-pill::after { flex-basis: max(0px, var(--sgx-tb-logo-w) - var(--sgx-tb-acts-w)); }
+.sgx-tb-pill > * { flex: 0 1 auto; min-width: 0; }
+/* 页名胶囊：主题色椭圆衬底（同当前标签：--sgx-nav-selected 实色 + 粗体），按字定宽、最宽不超过中间那格，长页名省略号 */
+.sgx-tb-title { display: block; min-width: 0; max-width: 100%; box-sizing: border-box; height: 36px; padding: 0 20px; border-radius: 999px; text-align: center;
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 700; line-height: 36px; letter-spacing: normal;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background-color: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); }
-@media (max-width: 399.98px) { .sgx-tb-title { padding: 0 12px; } }
-/* 右边三个按钮：九宫格（导航面板）· 快捷设置（滑块）· AI（聊天）；紧凑、整体靠右 */
-.sgx-tb-acts { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; margin-left: auto; }
-/* 窄到放不下：先是页名胶囊省略号（.sgx-tb-title / 标签 ellipsis），窗口 < 340 再整块藏掉页名胶囊；图标组从不压缩（flex: 0 0 auto） */
-@media (max-width: 339.98px) { .sgx-tb-pill { display: none; } }
+/* 手机布局（<html data-sgx-layout> 不是 desktop：任何宽度、横竖屏、自动落到手机都一样）：中间整块不显示——页名胶囊藏起来
+   （jojo.best 那样：顶栏 = 完整字标 | 图标组；当前站看九宫格里的实色磁贴，子站分区走首页的平铺入口）。只留阅读进度细线。不按像素断点。 */
+:root:not([data-sgx-layout="desktop"]) .sgx-tb-pill > :not(.sgx-tb-progress) { display: none; }
+/* 右边三个按钮：九宫格（导航面板）· 快捷设置（滑块）· AI（聊天）。各自一颗圆形按钮（40 × 40、图标 20px，线条不变），间距 6px，没有公共底。
+   颜色（Gray 2026-11-07）：九宫格 / 快捷 平时透明 + on-surface-variant 图标，打开 = 浅一档主题色（primary-container）；
+   AI 平时就是浅一档（primary-container + on-primary-container），打开 = 深一档（primary-fill + on-primary-fill，调色板规则：实色底读填充档）。悬停 / 按下 / 焦点只叠状态层。
+   右缘贴顶栏内边距；整组 3 × 40 + 2 × 6 = 132px，360 宽也不横向溢出。 */
+.sgx-tb-acts { justify-self: end; display: flex; align-items: center; gap: 6px; }
 .sgx-tb-btn { width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); flex-shrink: 0; padding: 0; margin: 0; border: 0; border-radius: 999px; box-sizing: border-box;
-  background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-primary); cursor: pointer;
-  text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
-.sgx-tb-btn svg { width: 22px; height: 22px; }
-/* 面板 / 窗口开着：对应图标保持按下态（再点关闭） */
-.sgx-tb-btn[aria-expanded="true"] { background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
+  background-color: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-on-surface-variant); cursor: pointer;
+  text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
+.sgx-tb-btn svg { width: 20px; height: 20px; }
+.sgx-tb-btn[aria-expanded="true"], .sgx-tb-ai { background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
+.sgx-tb-ai[aria-expanded="true"] { background-color: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
 @media (hover: hover) and (pointer: fine) {
   .sgx-tb-btn:hover, .sgx-tb-logo:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
 }
@@ -6841,8 +6852,6 @@ html, body {
 .sgx-tb-btn:focus-visible, .sgx-tb-logo:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .reduced-motion .sgx-tb-btn, .reduced-motion .sgx-tb-logo { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-btn, .sgx-tb-logo { transition: none; } }
-/* 宽屏：页名胶囊左右内边距大一点（PR-4b 起宽屏也是 flex，不再三段网格定宽中段） */
-@media (min-width: 600px) { .sgx-tb-title { padding: 0 20px; } }
 /* 分享磁贴生成短链时 aria-busy + .is-busy：图标呼吸，点了不理（share.js） */
 .is-busy[data-sgx-share] { cursor: progress; }
 .is-busy[data-sgx-share] svg { animation: sgx-share-busy .9s ease-in-out infinite alternate; }
@@ -6960,7 +6969,7 @@ html, body {
 .sgx-qp-opt-dot { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 999px; box-sizing: border-box; border: 2px solid var(--sgx-outline); }
 .sgx-qp-opt[aria-checked="true"] { font-weight: 600; }
 .sgx-qp-opt[aria-checked="true"] .sgx-qp-opt-dot { border: 5px solid var(--sgx-primary); }
-/* 布局分段（Mobile / Auto / DeX；四站都有）：底 = 容器色，选中 = 填充档；不够 DeX 时 DeX 置灰 */
+/* 布局分段（手机 / 自动 / 桌面；四站都有）：底 = 容器色，选中 = 填充档 */
 .sgx-qp-seg { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--sgx-surface-container); }
 .sgx-qp-seg button { flex: 1 1 0; min-width: 0; height: 36px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 13px; font-weight: 600;
   color: var(--sgx-text-secondary); cursor: pointer; }
@@ -7057,6 +7066,45 @@ html, body {
 .sgx-ai-foot { margin: 0; padding: 0 4px; font-size: 12px; line-height: 1.3; color: var(--sgx-text-secondary); text-align: center; }
 .sgx-ai-dot { margin: 0 6px; }
 .sgx-ai-contact { color: var(--sgx-primary); text-decoration: underline; text-underline-offset: 3px; border-radius: 4px; }
+/* ---- entries ---- */
+/* 平铺入口：旷野页分类入口 + 子站首页分区入口。
+   只用共享外壳 --sgx-* 角色（跟调色板、深浅色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。 */
+.sgx-ents { --sgx-ent-line: var(--sgx-divider); margin-top: 8px; color: var(--sgx-on-surface); }
+.sgx-ent-band { padding: 36px 6px 20px; border-bottom: 1px solid var(--sgx-ent-line); }
+.sgx-ent-label { margin: 0; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--sgx-on-surface-variant); }
+.sgx-ent-title { margin: 6px 0 8px; font-size: 44px; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; }
+.sgx-ent-lede { margin: 0; font-size: 15px; line-height: 1.5; color: var(--sgx-on-surface-variant); }
+.sgx-ent-list { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
+.sgx-ent-li { min-width: 0; border-bottom: 1px solid var(--sgx-ent-line); }
+.sgx-ent { display: flex; align-items: center; gap: 14px; min-height: 88px; padding: 20px 6px; color: inherit; text-decoration: none; border-radius: 4px; transition: background-color .15s; }
+.sgx-ent:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) { .sgx-ent:hover { background: var(--sgx-state-hover); } }
+.sgx-ent-no { flex: none; width: 20px; font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--sgx-on-surface-variant); }
+.sgx-ent-ic { flex: none; width: 48px; height: 48px; border-radius: 999px; display: grid; place-items: center; }
+.sgx-ent-ic svg { width: 22px; height: 22px; }
+.sgx-ent-ic--primary { background: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
+.sgx-ent-ic--secondary { background: var(--sgx-secondary-container); color: var(--sgx-on-secondary-container); }
+.sgx-ent-ic--tertiary { background: var(--sgx-tertiary-container); color: var(--sgx-on-tertiary-container); }
+.sgx-ent-ic--info { background: var(--sgx-info-container); color: var(--sgx-on-info-container); }
+.sgx-ent-tx { flex: 1; min-width: 0; }
+.sgx-ent-name { display: block; font-size: 18px; line-height: 1.35; font-weight: 600; }
+.sgx-ent-sub { display: block; margin-top: 2px; font-size: 13px; line-height: 1.45; color: var(--sgx-on-surface-variant); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sgx-ent-ch { flex: none; font-size: 20px; line-height: 1; color: var(--sgx-on-surface-variant); opacity: .6; }
+/* ≥ 760 两栏：左栏右侧细竖线 */
+@media (min-width: 760px) {
+  .sgx-ent-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sgx-ent-li:nth-child(odd) { border-right: 1px solid var(--sgx-ent-line); }
+  .sgx-ent-li:nth-child(odd) .sgx-ent { padding-right: 24px; }
+  .sgx-ent-li:nth-child(even) .sgx-ent { padding-left: 24px; }
+}
+/* ≥ 1100 三栏：每栏右侧细竖线（每行最后一栏没有）；手机布局（内容栏最宽 640）最多两栏 */
+@media (min-width: 1100px) {
+  html:not([data-sgx-layout="phone"]) .sgx-ent-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  html:not([data-sgx-layout="phone"]) .sgx-ent-li { border-right: 1px solid var(--sgx-ent-line); }
+  html:not([data-sgx-layout="phone"]) .sgx-ent-li:nth-child(3n) { border-right: 0; }
+  html:not([data-sgx-layout="phone"]) .sgx-ent-li .sgx-ent { padding: 26px 24px; }
+  .sgx-ent-title { font-size: 60px; }
+}
 /* @sgx-shell:end */
 /* ===== 本站自己的样式（cu- 前缀；bk- 是沿用的共用弹层组件）=====
    2026-10-24 跟进主站 PR-G 主题：三层 token —— Shell（光晕 / 顶栏 / 抽屉 / 内容底板 / 玻璃材质，中性，全主题一样）、
@@ -7149,52 +7197,6 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 #site-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 50; pointer-events: none;
   background: transparent; border: 0; box-shadow: none; padding: 0; }
 .sgx-topbar { view-transition-name: sgx-topbar; }
-/* 长条里的分段滑块 发现 / 设备 / 游戏：外观照主站顶栏三栏 .sgx-tb-tab（高 = --sgx-tb-ic 40px、间距 4px、手机三等分最宽 400 居中、
-   ≥ 600 宽按字定宽最小 88px；当前项 = 导航抽屉当前项同一套 tonal 药丸 --sgx-nav-selected / --sgx-on-nav-selected，其他两项次要文字色，
-   悬停 / 按下走状态层）。本站多一个可滑动的指示器（左右滑切页签），所以当前项的底色画在 .sgx-seg-ind 上，按 --seg-pos（0..2）平移。 */
-.sgx-seg { --seg-gap: 4px; position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--seg-gap);
-  width: 100%; max-width: 400px; height: var(--sgx-tb-ic); margin: 0 auto; }
-.sgx-seg-ind { position: absolute; top: 0; left: 0; width: calc((100% - 2 * var(--seg-gap)) / 3); height: var(--sgx-tb-ic); border-radius: 999px;
-  background-color: var(--sgx-nav-selected);
-  transform: translateX(calc(var(--seg-pos, 0) * (100% + var(--seg-gap)))); transition: transform .28s cubic-bezier(.2,0,0,1); pointer-events: none; }
-.sgx-seg.is-dragging .sgx-seg-ind { transition: none; }
-.sgx-seg-btn { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; min-width: 0; height: var(--sgx-tb-ic);
-  box-sizing: border-box; padding: 0 6px; border: 0; border-radius: 999px; background: var(--sgx-tb-label-bg);
-  font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 600; line-height: 1.2; letter-spacing: normal;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sgx-text-primary); text-decoration: none; cursor: pointer;
-  -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
-/* 当前项的实色画在滑动指示器上，按钮本身不再叠衬底（PR-4a §6.2：其余项常驻 --sgx-tb-label-bg） */
-.sgx-seg-btn[aria-selected="true"], .sgx-seg-btn[aria-current="page"] { background: transparent; color: var(--sgx-on-nav-selected); font-weight: 700; }
-@media (hover: hover) and (pointer: fine) {
-  .sgx-seg-btn:not([aria-selected="true"]):hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
-}
-.sgx-seg-btn:not([aria-selected="true"]):active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
-.sgx-seg-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
-.reduced-motion .sgx-seg-ind, .reduced-motion .sgx-seg-btn { transition: none; }
-@media (prefers-reduced-motion: reduce) { .sgx-seg-ind, .sgx-seg-btn { transition: none; } }
-@media (min-width: 600px) {
-  .sgx-seg { width: auto; max-width: none; grid-template-columns: repeat(3, minmax(88px, 1fr)); }
-  .sgx-seg-btn { padding: 0 16px; }
-}
-/* 手机（≤ 440px，360 / 390 / 412 宽）：P5-1 胶囊顶栏里留给长条的只有 140–160px，英文「Devices」放不下：
-   格子间距 4 → 2px、左右内边距 6 → 0、字号 15 → 13px（高度、指示器、三格等宽不变），字不截断 */
-@media (max-width: 440px) {
-  .sgx-seg { --seg-gap: 2px; }
-  .sgx-seg-btn { padding: 0; font-size: 13px; }
-}
-/* 更窄（< 380px，如 360 宽）：13px 的「Devices」仍差 2px，格子间距去掉、字号 12.5px */
-@media (max-width: 379.98px) {
-  .sgx-seg { --seg-gap: 0px; }
-  .sgx-seg-btn { font-size: 12.5px; }
-}
-/* 粗指针（触屏）：看上去仍是 40px 高的药丸，点击区 48px（同主站 .sgx-tb-tab） */
-@media (pointer: coarse) {
-  .sgx-seg { height: 48px; }
-  .sgx-seg-ind { top: 4px; }
-  .sgx-seg-btn { height: 48px; border-top: 4px solid transparent; border-bottom: 4px solid transparent; background-clip: padding-box; }
-  .sgx-seg-btn:focus-visible { outline-offset: -6px; }
-}
-
 /* ===== 内容卡片材质（同主站 .widget.bg-m-container-lowest）：中性玻璃 --sgx-mat + outline-variant 细边 +
    0.5px 内高光 / 接触影 / 环境影；卡片后面只有固定的光晕，不加 backdrop-filter（几十张卡同时模糊会拖慢滚动） ===== */
 .cu-tile, .it-card {

@@ -48,23 +48,19 @@ __sgxLayoutWatch(__applyLayout);
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/sgx-shell-topbar.html（主站 shell-topbar.html 原样，atlas/scripts/curio/sync-shell.mjs 同步，勿手改），
    这里只准备奇趣自己的参数：
-   - 中间（原样搬进来）：首页 = 分段滑块（页签是 role=tab 的按钮，本站脚本切换面板）；其他页（404）= 只有页名（.sgx-tb-title）。
+   - 中间（原样搬进来）：页名胶囊 .sgx-tb-title（首页 = 站名，页内分区时换成分区名；其他页 = 页名）。
    - 右边：九宫格（导航面板，本站是「开」态）· 快捷设置 · AI（头像在 AI 窗口头部）；P4-3 PR-4b 起快捷面板四站同一套，没有按站的 tiles 参数：
      深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）。
    JS：js/sgx/topbar-host.js（共享外壳 topbar.js + modal-sheet.js + ai.js + prefs-write.js + share.js）。外观和语言跟主站（sgx-ui cookie，见 ui-inherit-run.js）。 */}}
 {{ $pageName := .Title }}
 {{ if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}{{ end }}
-{{ $tabs := slice
-  (dict "id" "finds" "zh" "发现" "en" "Finds" "hash" "")
-  (dict "id" "devices" "zh" "设备" "en" "Devices" "hash" "#devices")
-  (dict "id" "games" "zh" "游戏" "en" "Games" "hash" "#games")
-}}
 {{ $shellNav := resources.Get "sgx-shell/nav.json" | transform.Unmarshal }}
 {{ $center := "" }}
+{{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿；顶栏不再有分区页签）。首页 = 站名，切到页内分区（hash）时脚本把胶囊换成分区名
+   （data-sgx-titles：[站名, 第二个分区, 第三个分区]，顺序同页签；第一个分区就是首页本身）。分区入口在首页正文（共享外壳平铺入口）。 */}}
 {{ if .IsHome }}
-{{ $center = printf "<div class=\"sgx-seg\" role=\"tablist\" aria-label=\"%s\" data-cu-seg style=\"--seg-pos:0\"><span class=\"sgx-seg-ind\" aria-hidden=\"true\"></span>" (cond $isEn "Curio sections" "奇趣分区") }}
-{{ range $i, $t := $tabs }}{{ $center = printf "%s<button type=\"button\" role=\"tab\" class=\"sgx-seg-btn\" id=\"cu-tab-%s\" aria-controls=\"cu-pane-%s\" aria-selected=\"%s\" tabindex=\"%s\" data-cu-tab=\"%s\">%s</button>" $center $t.id $t.id (cond (eq $i 0) "true" "false") (cond (eq $i 0) "0" "-1") $t.id (cond $isEn $t.en $t.zh) }}{{ end }}
-{{ $center = printf "%s</div>" $center }}
+{{ $titles := slice (cond $isEn "Curio" "奇趣") (cond $isEn "Devices" "设备") (cond $isEn "Games" "游戏") }}
+{{ $center = printf "<span class=\"sgx-tb-title\" data-sgx-titles=\"%s\">%s</span>" ($titles | jsonify | htmlEscape) (index $titles 0 | htmlEscape) }}
 {{ else }}
 {{ $center = printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
 {{ end }}

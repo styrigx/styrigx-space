@@ -12,17 +12,14 @@ const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
 const base = read('atlas/web/curio/layouts/_default/baseof.html');
 const index = read('atlas/web/curio/layouts/index.html');
 
-test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 首页分段滑块 / 其他页页名；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
+test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 页名胶囊（首页 = 站名）；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
   assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "curio"/);
-  for (const [id, zh, en, hash] of [['finds', '发现', 'Finds', ''], ['devices', '设备', 'Devices', '#devices'], ['games', '游戏', 'Games', '#games']]) {
-    assert.match(base, new RegExp('\\(dict "id" "' + id + '" "zh" "' + zh + '" "en" "' + en + '" "hash" "' + hash + '"\\)'), id);
-  }
-  /* 中间原样搬进来：首页分段滑块（role=tablist、页签 role=tab），其他页（404）只有页名 */
-  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$center = printf "<div class=\\"sgx-seg\\" role=\\"tablist\\"[^\n]*data-cu-seg/);
-  assert.match(base, /role=\\"tab\\" class=\\"sgx-seg-btn\\"[^\n]*data-cu-tab=/);
+  /* P4-3 PR-4b 定稿：页名胶囊只显示页名——首页 = 站名（data-sgx-titles = [站名, 后两个分区名]，脚本按 hash 换），其他页（404）= 页名；顶栏没有分段滑块 */
+  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$titles := slice \(cond \$isEn "Curio" "奇趣"\) \(cond \$isEn "Devices" "设备"\) \(cond \$isEn "Games" "游戏"\) \}\}/);
+  assert.match(base, /<span class=\\"sgx-tb-title\\" data-sgx-titles=\\"%s\\">%s<\/span>/);
   assert.match(base, /\{\{ else \}\}\n\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
-  assert.doesNotMatch(base, /sgx-seg--none/);
+  assert.doesNotMatch(base, /sgx-seg|data-cu-seg|role=\\"tab/);
   /* 九宫格、导航抽屉、右圆分享和它们的脚本都删了（标记在共享外壳，本站模板里不再手写顶栏） */
   assert.doesNotMatch(base, /sgx-tb-nav|sgx-drawer|sgx-tb-end|sgx-tb-share|<header|apps-grid|sgx-tb-end-group|sgx-tb-gbtn|guestbook/);
   const code = base.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''); /* 去掉模板注释（注释里会提到被取代的旧文件） */
@@ -83,7 +80,8 @@ test('首页部件：分类条、格子、收藏按钮、更多菜单（分类 /
 });
 
 test('三个面板 + 设备 / 游戏的部件：筛选条、列表、新建按钮、详情、编辑弹层（照片、日期、退役、关联设备、状态、评分）', () => {
-  assert.match(index, /<section id="cu-pane-finds" class="cu-pane" role="tabpanel" aria-labelledby="cu-tab-finds">/);
+  assert.match(index, /<section id="cu-pane-finds" class="cu-pane" aria-label="\{\{ if \$isEn \}\}Finds\{\{ else \}\}发现\{\{ end \}\}">/);
+  assert.match(index, /partial "sgx-shell-entries\.html"/, '首页分区入口');
   assert.match(index, /<section id="cu-pane-devices"[^>]*hidden inert>/);
   assert.match(index, /<section id="cu-pane-games"[^>]*hidden inert>/);
   for (const id of ['dv-chips', 'dv-list', 'dv-empty', 'dv-fab', 'gm-chips', 'gm-list', 'gm-empty', 'gm-fab',

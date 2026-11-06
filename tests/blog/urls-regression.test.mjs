@@ -127,7 +127,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     }
   });
 
-  it('列表页：首页 · 文章 · 专题 三个面板，没有归档', async () => {
+  it('列表页：首页 · 文章 · 专题 三个面板 + 首页分区入口，没有归档', async () => {
     const res = await fetch(base + '/blog/');
     const html = await res.text();
     assert.match(html, /<h1 class="sgx-visually-hidden"[^>]*>博客</, '首页 h1「博客」只给读屏 / 搜索引擎');
@@ -135,8 +135,11 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /note-entry/, '应有文章列表');
     for (const id of ['home', 'posts', 'topics']) {
       assert.match(html, new RegExp(`id="sgx-pane-${id}"`), `面板 ${id}`);
-      assert.match(html, new RegExp(`data-sgx-tab="${id}"`), `页签 ${id}`);
+      assert.match(html, new RegExp(`data-entry="${id}"`), `分区入口 ${id}`);
     }
+    /* P4-3 PR-4b：顶栏没有分段滑块，页名胶囊 = 站名「博客」（切分区时脚本换成分区名） */
+    assert.doesNotMatch(html, /data-sgx-seg|data-sgx-tab=/);
+    assert.match(html, /class="?sgx-tb-title"? data-sgx-titles=[^>]*>博客</);
     assert.doesNotMatch(html, /sgx-pane-archive|data-sgx-tab="archive"/, '没有归档页签');
     assert.doesNotMatch(html, /oui-hero/, '旧首页 hero 已删除');
     assert.doesNotMatch(

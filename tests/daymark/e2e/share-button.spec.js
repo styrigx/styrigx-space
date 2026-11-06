@@ -175,7 +175,7 @@ test.describe('快捷面板「分享本页」磁贴', () => {
   });
 
   for (const w of [360, 412]) {
-    test(`${w} 宽：顶栏胶囊（字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI）贴页边距，长条在中间不溢出、字不截断，页面不横向滚动（所有进门的人一样）`, async ({ page }) => {
+    test(`${w} 宽：顶栏胶囊（字标 · 九宫格 · 快捷设置 · AI；手机布局不显示页名胶囊）贴页边距，三颗圆按钮 40 × 40，页面不横向滚动（所有进门的人一样）`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: 800 });
       for (const home of HOMES) {
         await page.goto(home, { waitUntil: 'domcontentloaded' });
@@ -183,18 +183,19 @@ test.describe('快捷面板「分享本页」磁贴', () => {
         const r = await page.evaluate(() => {
           const b = (s) => document.querySelector(s).getBoundingClientRect();
           const bar = b('.sgx-topbar'), logo = b('.sgx-tb-logo'), pill = b('.sgx-tb-pill'), acts = b('.sgx-tb-acts');
-          const pillEl = document.querySelector('.sgx-tb-pill');
-          const clipped = [...pillEl.querySelectorAll('button, .sgx-tb-title')].some((e) => e.scrollWidth > e.clientWidth + 1);
+          /* P4-3 PR-4b 定稿：手机布局中间整块不显示（页名胶囊只显示页名，子站分区走首页入口） */
+          const shown = [...document.querySelectorAll('.sgx-tb-pill > *')].filter((e) => !e.classList.contains('sgx-tb-progress') && e.getBoundingClientRect().width > 0).length;
           return { bar: [Math.round(bar.left), Math.round(bar.right), Math.round(bar.height)],
             btns: [...document.querySelectorAll('.sgx-tb-acts > *')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }),
-            between: logo.right <= pill.left + 0.5 && pill.right <= acts.left + 0.5, clipped,
+            between: logo.right <= acts.left + 0.5, shown, gap: [...document.querySelectorAll('.sgx-tb-acts > *')].map((e) => e.getBoundingClientRect().left),
             overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 };
         });
         expect(r.bar).toEqual([16, w - 16, 52]);
-        /* PR-4b：右边按钮 38 宽 40 高（九宫格 · 快捷设置 · AI） */
-        expect(r.btns).toEqual([[38, 40], [38, 40], [38, 40]]);
-        expect(r.between, home + ' 长条在 logo 和按钮之间').toBe(true);
-        expect(r.clipped, home + ' 长条里的字没被截断').toBe(false);
+        /* PR-4b 定稿：右边三颗圆按钮 40 × 40、间距 6（九宫格 · 快捷设置 · AI） */
+        expect(r.btns).toEqual([[40, 40], [40, 40], [40, 40]]);
+        expect(Math.round(r.gap[1] - r.gap[0]), home + ' 按钮步距 46').toBe(46);
+        expect(r.between, home + ' 字标在按钮组左边、不重叠').toBe(true);
+        expect(r.shown, home + ' 手机布局不显示页名胶囊 / 分区页签').toBe(0);
         expect(r.overflow).toBe(false);
       }
     });

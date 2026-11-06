@@ -61,56 +61,42 @@ const VIEWPORTS = [
 ];
 
 for (const [label, viewport] of VIEWPORTS) {
-  test.describe(`${label}：顶栏只留顶级标签`, () => {
+  test.describe(`${label}：顶栏页名胶囊只显示页名`, () => {
     test.use({ viewport });
 
-    for (const [path, cur] of [['/', 'space']]) {
-      test(`${path}：长条里只有「旷野」一个标签，当前高亮，没有页名`, async ({ page }) => {
-        await go(page, path);
-        const tabs = page.locator('.sgx-tb-pill .sgx-tb-tab');
-        await expect(tabs).toHaveText(['旷野']);
-        expect(await tabs.evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['/']);
-        await expect(page.locator('.sgx-tb-tab[aria-current="page"]')).toHaveCount(1);
-        await expect(page.locator(`.sgx-tb-tab[data-tab="${cur}"]`)).toHaveAttribute('aria-current', 'page');
-        await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveCount(0);
-        /* 顶栏结构（P4-3 PR-4b 定稿）：字标 | 页名胶囊 | 九宫格 · 快捷设置 · AI；页名胶囊在字标与图标组之间的空余区居中（各宽度同一条）；标签组在长条里居中、不超出长条 */
-        expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts']);
-        const pill = await box(page, '.sgx-tb-pill');
-        const grp = await box(page, '.sgx-tb-tabs');
-        const logo = await box(page, '.sgx-tb-logo');
-        const acts = await box(page, '.sgx-tb-acts');
-        expect(pill.x >= logo.x + logo.width - 0.5 && pill.x + pill.width <= acts.x + 0.5, '长条在字标和按钮之间').toBe(true);
-        expect(near(pill.x + pill.width / 2, (logo.x + logo.width + acts.x) / 2, 1.5), `长条中心 ${pill.x + pill.width / 2}`).toBe(true);
-        expect(near(grp.x + grp.width / 2, pill.x + pill.width / 2), `标签组中心 ${grp.x + grp.width / 2}`).toBe(true);
-        expect(grp.x >= pill.x && grp.x + grp.width <= pill.x + pill.width).toBe(true);
-        expect(grp.height <= pill.height + 0.5 && near(grp.y + grp.height / 2, pill.y + pill.height / 2)).toBe(true);
-        /* 一个标签，文字不截断 */
-        const ws = await tabs.evaluateAll((els) => els.map((e) => [e.getBoundingClientRect().width, e.scrollWidth <= e.clientWidth]));
-        expect(ws.length).toBe(1);
-        expect(ws.every((w) => w[1])).toBe(true);
-        /* 当前页药丸 = 快捷面板导航页当前项（原导航抽屉当前项）同一套色 */
-        const c = await page.evaluate(() => {
-          const cs = getComputedStyle(document.querySelector('.sgx-tb-tab[aria-current="page"]'));
-          const ref = document.createElement('div');
-          ref.style.background = 'var(--sgx-nav-selected)';
-          ref.style.color = 'var(--sgx-on-nav-selected)';
-          document.body.appendChild(ref);
-          const r = getComputedStyle(ref);
-          const out = { bg: cs.backgroundColor, fg: cs.color, refBg: r.backgroundColor, refFg: r.color };
-          ref.remove();
-          return out;
-        });
-        expect(c.bg).toBe(c.refBg);
-        expect(c.fg).toBe(c.refFg);
+    test('/：顶栏没有标签，页名胶囊就是「旷野」（PR-4b 定稿：页名胶囊只显示页名）；桌面布局按整条顶栏居中，手机布局不显示', async ({ page }) => {
+      await go(page, '/');
+      await expect(page.locator('.sgx-tb-tab, .sgx-tb-tabs')).toHaveCount(0);
+      expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts']);
+      await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveText('旷野');
+      if (viewport.width < 720) {
+        await expect(page.locator('.sgx-tb-title')).toBeHidden();
+        return;
+      }
+      const t = await box(page, '.sgx-tb-title');
+      const bar = await box(page, '.sgx-topbar');
+      expect(near(t.x + t.width / 2, bar.x + bar.width / 2, 2), `页名中心 ${t.x + t.width / 2}，顶栏中心 ${bar.x + bar.width / 2}`).toBe(true);
+      expect(near(t.y + t.height / 2, bar.y + bar.height / 2)).toBe(true);
+      /* 页名胶囊衬底 = 导航选中色（同九宫格面板当前站磁贴） */
+      const c = await page.evaluate(() => {
+        const cs = getComputedStyle(document.querySelector('.sgx-tb-title'));
+        const ref = document.createElement('div');
+        ref.style.background = 'var(--sgx-nav-selected)';
+        ref.style.color = 'var(--sgx-on-nav-selected)';
+        document.body.appendChild(ref);
+        const r = getComputedStyle(ref);
+        const out = { bg: cs.backgroundColor, fg: cs.color, refBg: r.backgroundColor, refFg: r.color };
+        ref.remove();
+        return out;
       });
-    }
+      expect(c.bg).toBe(c.refBg);
+      expect(c.fg).toBe(c.refFg);
+    });
 
-    test('英文：Space，链接带 /en', async ({ page }) => {
+    test('英文：页名胶囊 Space，没有标签', async ({ page }) => {
       await go(page, '/en/');
-      await expect(page.locator('.sgx-tb-tab')).toHaveText(['Space']);
-      expect(await page.locator('.sgx-tb-tab').evaluateAll((els) => els.map((e) => e.getAttribute('href')))).toEqual(['/en/']);
-      await expect(page.locator('.sgx-tb-tab[data-tab="space"]')).toHaveAttribute('aria-current', 'page');
-      await expect(page.locator('.sgx-tb-tab[data-tab="status"], .sgx-tb-tab[data-tab="home"], .sgx-tb-tab[data-tab="settings"]')).toHaveCount(0);
+      await expect(page.locator('.sgx-tb-title')).toHaveText('Space');
+      await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
     });
 
     test('其他页（旷野子页、服务状态）长条照旧只有页名，没有标签', async ({ page }) => {

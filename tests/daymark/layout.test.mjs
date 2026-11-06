@@ -13,17 +13,14 @@ const base = read('atlas/web/daymark/layouts/_default/baseof.html');
 const index = read('atlas/web/daymark/layouts/index.html');
 const css = read('atlas/web/daymark/assets/css/input.css');
 
-test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 首页分段滑块 / 其他页页名；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
+test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 页名胶囊（首页 = 站名）；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
   assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "daymark"/);
-  for (const [id, zh, en, hash] of [['echo', '余响', 'Echo', ''], ['trove', '拾录', 'Trove', '#trove'], ['flavors', '百味', 'Flavors', '#flavors']]) {
-    assert.match(base, new RegExp('\\(dict "id" "' + id + '" "zh" "' + zh + '" "en" "' + en + '" "hash" "' + hash + '"\\)'), id);
-  }
-  /* 中间原样搬进来：首页分段滑块（role=tablist、页签 role=tab），其他页（404）只有页名 */
-  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$center = printf "<div class=\\"sgx-seg\\" role=\\"tablist\\"[^\n]*data-dm-seg/);
-  assert.match(base, /role=\\"tab\\" class=\\"sgx-seg-btn\\"[^\n]*data-dm-tab=/);
+  /* P4-3 PR-4b 定稿：页名胶囊只显示页名——首页 = 站名（data-sgx-titles = [站名, 后两个分区名]，脚本按 hash 换），其他页（404）= 页名；顶栏没有分段滑块 */
+  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$titles := slice \(cond \$isEn "Daymark" "日刻"\) \(cond \$isEn "Trove" "拾录"\) \(cond \$isEn "Flavors" "百味"\) \}\}/);
+  assert.match(base, /<span class=\\"sgx-tb-title\\" data-sgx-titles=\\"%s\\">%s<\/span>/);
   assert.match(base, /\{\{ else \}\}\n\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
-  assert.doesNotMatch(base, /sgx-seg--none/);
+  assert.doesNotMatch(base, /sgx-seg|data-dm-seg|role=\\"tab/);
   /* 九宫格、导航抽屉、右圆分享和它们的脚本都删了（标记在共享外壳，本站模板里不再手写顶栏） */
   assert.doesNotMatch(base, /sgx-tb-nav|sgx-drawer|sgx-tb-end|sgx-tb-share|<header|apps-grid|sgx-tb-end-group|sgx-tb-gbtn|guestbook/);
   const code = base.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''); /* 去掉模板注释（注释里会提到被取代的旧文件） */
@@ -49,8 +46,7 @@ test('没有搜索；快捷面板只来自共享外壳（本站不自己写）�
   assert.doesNotMatch(code, /sgx-qp|sgx-tb-quick/);
   assert.doesNotMatch(index, /sgx-qp|sgx-tb-quick/);
   assert.doesNotMatch(index, /sgx-tb-title/);
-  /* 页名只在 if .IsHome（分段滑块）的 else 分支里 */
-  assert.ok(base.lastIndexOf('class=\\"sgx-tb-title\\"') > base.indexOf('data-dm-seg'));
+  assert.match(index, /partial "sgx-shell-entries\.html"/, '首页分区入口');
   assert.doesNotMatch(index, /id="dm-tags"/);
   assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/layouts/partials/sgx-qp.html')), false);
   assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/assets/js/sgx/shell/capsule-kb.js')), false);

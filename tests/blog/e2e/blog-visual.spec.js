@@ -86,7 +86,7 @@ test.describe('顶栏 v4 布局', () => {
     });
   });
 
-  test('胶囊（2026-11-04 P5-1，四站同一个）：logo · 长条 · 快捷面板 · AI · 头像（胶囊高手机 52、≥ 840 宽 56；里面按钮 40，logo / 头像离胶囊边 (高 − 40) / 2）', async ({ page }) => {
+  test('胶囊（2026-11-04 P5-1，四站同一个；P4-3 PR-4b 定稿）：字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI（胶囊高手机 52、≥ 840 宽 56；里面按钮 40，字标 / AI 离胶囊边 (高 − 40) / 2）', async ({ page }) => {
     /* 共享外壳尺寸体系（2026-10-23）：--sgx-tb-btn 52 → 56（≥ 840 宽）；P5-1 起它是胶囊高，里面按钮 --sgx-tb-ic 40 */
     const wide = page.viewportSize().width >= 840;
     const B = wide ? 56 : 52;
@@ -97,14 +97,15 @@ test.describe('顶栏 v4 布局', () => {
         const box = (el) => el.getBoundingClientRect();
         const bar = box(document.querySelector('.sgx-topbar'));
         const logo = box(document.querySelector('.sgx-topbar > .sgx-tb-logo'));
-        const pill = box(document.querySelector('.sgx-tb-pill'));
-        const me = box(document.querySelector('.sgx-tb-acts > .sgx-tb-me'));
+        /* PR-4b：头像搬进 AI 窗口头部，最右是 AI 按钮；页名胶囊量 .sgx-tb-title（中间那格是弹簧网格，格子本身不居中） */
+        const pill = box(document.querySelector('.sgx-tb-title'));
+        const me = box(document.querySelector('.sgx-tb-acts > .sgx-tb-ai'));
         const btns = [...document.querySelectorAll('.sgx-tb-acts > *')].map((e) => { const b = box(e); return [Math.round(b.width), Math.round(b.height)]; });
         return {
           barH: Math.round(bar.height),
           btns,
           sides: [Math.round((logo.left - bar.left) * 2) / 2, Math.round((bar.right - me.right) * 2) / 2],
-          between: logo.right <= pill.left + 0.5 && pill.right <= box(document.querySelector('.sgx-tb-acts')).left + 0.5,
+          between: pill.width === 0 ? logo.right <= box(document.querySelector('.sgx-tb-acts')).left + 0.5 : logo.right <= pill.left + 0.5 && pill.right <= box(document.querySelector('.sgx-tb-acts')).left + 0.5,
           center: [pill.left + pill.width / 2 - bar.left, bar.right - (pill.left + pill.width / 2)],
           share: !!document.querySelector('.sgx-topbar [data-sgx-share], .sgx-tb-end, .sgx-tb-nav'),
         };

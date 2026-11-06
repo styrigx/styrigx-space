@@ -9,6 +9,7 @@
  *   palette-scheme.js  自定义 #rrggbb 种子 → 整套角色的引擎（space/web/assets/js/lib/palette-scheme.js 原样复制）
  *   share.js           子站快捷面板的「分享本页」磁贴（space/web/assets/js/shell/share-button.js 原样复制；不 import 任何东西）
  *   topbar.html        顶栏 + 快捷面板 + AI 窗口的标记（space/web/layouts/partials/shell-topbar.html 原样复制；Hugo partial，只用参数，2026-11-04 P5-1）
+ *   entries.html       平铺入口组件（space/web/layouts/partials/sgx-entries.html 原样复制；旷野页分类入口 + 子站首页分区入口，P4-3 PR-4b）
  *   topbar.js          顶栏两个窗口的开合 / 互斥 / 两页 / 磁贴（space/web/assets/js/shell/topbar-panel.js 原样复制；不 import，依赖由调用方传入）
  *   modal-sheet.js     窗口开合状态机（space/web/assets/js/shell/modal-sheet.js 原样复制；不 import）
  *   ai.js              AI 窗口内容（space/web/assets/js/shell/ai-panel.js 原样复制；不 import）
@@ -47,6 +48,7 @@ const SRC = {
   wordmark: path.join(REPO, 'space/web/layouts/partials/shell-wordmark.html'),
   share: path.join(REPO, 'space/web/assets/js/shell/share-button.js'),
   topbar: path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'),
+  entries: path.join(REPO, 'space/web/layouts/partials/sgx-entries.html'),
   topbarJs: path.join(REPO, 'space/web/assets/js/shell/topbar-panel.js'),
   modalSheet: path.join(REPO, 'space/web/assets/js/shell/modal-sheet.js'),
   ai: path.join(REPO, 'space/web/assets/js/shell/ai-panel.js'),
@@ -60,7 +62,7 @@ const SRC = {
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
-export const SHELL_REGIONS = ['topbar-frame', 'panel'];
+export const SHELL_REGIONS = ['topbar-frame', 'panel', 'entries'];
 /* 导航项以外外壳要用的图标（2026-11-04 P5-1）：顶栏（快捷面板滑块、AI 聊天）、快捷设置磁贴（深色 / 跟随系统 / 语言 / 锁定 / 恢复默认 / 分享）、AI 发送。
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
 export const EXTRA_ICONS = ['tb-grid', 'tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history'];
@@ -189,6 +191,15 @@ export function renderTopbar() {
   return src;
 }
 
+/** 平铺入口组件（P4-3 PR-4b）：原样复制；和顶栏一样只能用传进来的参数 */
+export function renderEntries() {
+  const src = readFileSync(SRC.entries, 'utf8');
+  const code = src.replace(/\{\{-?\s*\/\*[\s\S]*?\*\/\s*-?\}\}/g, '');
+  if (/\{\{-?\s*partial(Cached)?\s/.test(code) || /site\.Data|hugo\.Data|resources\.|\.Site\b|\$\.Page\b/.test(code)) throw new Error('sgx-entries.html 只能用传进来的参数（不能调 partial / 读 site.Data / resources）');
+  if (!/class="sgx-ents/.test(src)) throw new Error('sgx-entries.html 缺 .sgx-ents');
+  return src;
+}
+
 /** 调色板用法规则版本（填充 vs ink、大面积块中性化、固定状态色、图表 3:1 回退、合成底审计；docs/palette-usage.md） */
 export const RULES_VERSION = 'palette-rules-1';
 
@@ -292,6 +303,11 @@ const README = `# space/web/shared/shell（生成物，勿手改）
   打包 \`favicon.js\`（ES 模块）后调 \`initFavicon()\`：色板 / 自定义色 / 深浅色变了就换成当前主题色。
 - 契约测试：\`ui-cookie-contract.json\` 是主站写端真实写出的 cookie + 期望；子站单测对每个 case 断言 \`SgxUI.read(\'sgx-ui=\' + c.cookie)\` 等于 \`c.read\`、
   \`SgxUI.resolve(c.read, 系统深色)\` 等于 \`c.light/c.dark.resolve\`（apply 后 \`<html>\` 等于 \`.root\`）。sync-shell 拉新版本后跑一遍。
+## 平铺入口（entries.html + shell.css entries 段；P4-3 PR-4b）
+
+\`entries.html\` 是 Hugo partial（主站 partials/sgx-entries.html 原样），子站同步成 \`layouts/partials/sgx-shell-entries.html\`，只用参数（图标 SVG 由 \`icons\` 传入）。
+子站首页用它放分区入口（各布局都放；顶栏没有分区页签，页名胶囊只显示当前页 / 分区名）。
+
 ## 顶栏 + 导航面板 + 快捷面板 + AI 窗口（topbar.html / topbar.js / modal-sheet.js / ai.js / vk.js + shell.css topbar-frame、panel 段；2026-11-04 P5-1，P4-3 PR-4b 定稿，四个站一样）
 
 \`topbar.html\` 是 Hugo partial（主站 partials/shell-topbar.html 原样），子站同步成 \`layouts/partials/sgx-shell-topbar.html\`，只用参数、不调别的 partial：
@@ -364,6 +380,7 @@ export function renderAll() {
     'palette-scheme.js': schemeSrc,
     'share.js': renderShare(),
     'topbar.html': renderTopbar(),
+    'entries.html': renderEntries(),
     'topbar.js': renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar'),
     'modal-sheet.js': renderStandalone(SRC.modalSheet, 'modal-sheet.js', 'modalSheet'),
     'ai.js': renderStandalone(SRC.ai, 'ai-panel.js', 'mountAiChat'),
