@@ -1,7 +1,7 @@
 /**
  * 临时 LockKey（2026-10-23，取代 Turnstile 入口）。
  *
- * 定位：lock 是保护 account 的一道屏障；临时 LockKey 是进门的人在 /settings/security/tempkeys/ 复验锁屏凭证后签发给别人的一把临时进门钥匙。
+ * 定位：lock 是保护 account 的一道屏障；临时 LockKey 是进门的人在 /security/tempkeys/ 复验锁屏凭证后签发给别人的一把临时进门钥匙。
  * 不是另一套认证体系：
  * - 在锁屏输入临时码 → 签发的仍是锁屏会话 LockSessionTicket v2（by=tempkey，tempkeyId=<钥匙 id>；进门二值，不分等级），
  *   用 lock 私钥（SGX_LOCK_PRIVATE）签名、lock 公钥验签（lock-session.js）。

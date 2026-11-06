@@ -1,5 +1,5 @@
 /**
- * 进站凭证（SGX_LOCK_SPACE_KEY）使用审计列表：设置 → 服务状态页底部的「进站凭证使用记录」折叠区展开时才请求（apps/settings-status.js；
+ * 进站凭证（SGX_LOCK_SPACE_KEY）使用审计列表：旷野 → 服务状态页（/status/）底部的「进站凭证使用记录」折叠区展开时才请求（apps/space-status.js；
  * 前端同时请求账号 Worker 的 audit-list，合成一张表并标注「锁屏 / 账号」，方案 5.2）。
  *
  * GET /api/space-audit
