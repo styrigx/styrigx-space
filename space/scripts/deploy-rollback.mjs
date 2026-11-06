@@ -206,21 +206,57 @@ export function workerSnapshot(deps = {}) {
 /**
  * 部署后核对（没有公开地址、冒烟打不到的 Worker 用：ai / status / 账号等）：
  * 线上是一个版本吃 100% 流量；记过部署前版本的话，现在的必须不是它（确实换上了新版本）。
- * @param {{previous?: string, run?: typeof runWrangler}} opts
+ * @param {{previous?: string, run?: typeof runWrangler, wait?: {attempts?: number, intervalMs?: number, sleep?: (ms: number) => void}}} opts
  */
 export function workerVerify(opts) {
-  const live = liveWorkerVersion(opts.run || runWrangler);
+  const run = opts.run || runWrangler;
+  // 部署刚返回时 deployments status 可能还读到旧版本（版本传播有延迟，run 42167689683 在 1.5 s 后读到旧的）：
+  // 轮询到换上新版本为止，超时才算失败
+  const live = pollLive(run, (l) => !!l.versionId && !(opts.previous && l.versionId === opts.previous), opts.wait);
   if (!live.versionId) { annotate('error', 'post-deploy check: ' + live.reason); return 1; }
   if (opts.previous && live.versionId === opts.previous) {
-    annotate('error', 'post-deploy check: live version is still the pre-deploy one (' + live.versionId + ')');
+    annotate('error', 'post-deploy check: live version is still the pre-deploy one (' + live.versionId + ') after ' + waitDesc(opts.wait));
     return 1;
   }
   annotate('notice', 'post-deploy check: live version ' + live.versionId + ' at 100%');
   return 0;
 }
 
+/** 轮询默认：最多 12 次、间隔 5 s（约 1 分钟） */
+export const POLL_DEFAULT = { attempts: 12, intervalMs: 5000 };
+
+/** 同步等待（脚本整体是同步的 spawnSync） */
+function sleepSync(/** @type {number} */ ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** @param {{attempts?: number, intervalMs?: number}} [w] */
+function waitDesc(w) {
+  const a = (w && w.attempts) || POLL_DEFAULT.attempts;
+  const i = (w && w.intervalMs != null ? w.intervalMs : POLL_DEFAULT.intervalMs);
+  return a + ' reads over ~' + Math.round(((a - 1) * i) / 1000) + ' s';
+}
+
 /**
- * @param {{to: string, run?: typeof runWrangler, message?: string, name?: string, floors?: any}} opts
+ * 读线上版本直到 done(live) 为真或次数用完；返回最后一次读数。
+ * @param {typeof runWrangler} run
+ * @param {(l: {versionId: string|null, reason: string}) => boolean} done
+ * @param {{attempts?: number, intervalMs?: number, sleep?: (ms: number) => void}} [w]
+ */
+export function pollLive(run, done, w) {
+  const attempts = Math.max(1, (w && w.attempts) || POLL_DEFAULT.attempts);
+  const intervalMs = w && w.intervalMs != null ? w.intervalMs : POLL_DEFAULT.intervalMs;
+  const sleep = (w && w.sleep) || sleepSync;
+  let live = liveWorkerVersion(run);
+  for (let i = 1; i < attempts && !done(live); i++) {
+    sleep(intervalMs);
+    live = liveWorkerVersion(run);
+  }
+  return live;
+}
+
+/**
+ * @param {{to: string, run?: typeof runWrangler, message?: string, name?: string, floors?: any, wait?: {attempts?: number, intervalMs?: number, sleep?: (ms: number) => void}}} opts
  * @returns {number} exit code
  */
 export function workerRollback(opts) {
@@ -245,9 +281,10 @@ export function workerRollback(opts) {
     annotate('error', 'wrangler rollback failed; production may still run the new version. Roll back by hand: wrangler rollback ' + opts.to);
     return 1;
   }
-  const after = liveWorkerVersion(run);
+  // 同上：回滚后读数也可能滞后，轮询到读到目标版本为止
+  const after = pollLive(run, (l) => l.versionId === opts.to, opts.wait);
   if (after.versionId !== opts.to) {
-    annotate('error', 'after rollback the live version is ' + (after.versionId || after.reason) + ', expected ' + opts.to);
+    annotate('error', 'after rollback the live version is ' + (after.versionId || after.reason) + ', expected ' + opts.to + ' (' + waitDesc(opts.wait) + ')');
     return 1;
   }
   annotate('warning', 'rolled back: live version is ' + opts.to + ' again');
