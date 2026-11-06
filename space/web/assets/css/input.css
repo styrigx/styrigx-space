@@ -7183,52 +7183,8 @@
     &.set-col { flex-direction: column; align-items: stretch; gap: 0; }
   }
   .set-row-head { display: flex; align-items: center; gap: 14px; width: 100%; }
-  /* 行内展开单选（P4-3 PR-4b §6.7：语言选择不再用底部弹出窗口）：行尾箭头展开时转向下；
-     选项列表紧跟在行下方，左缘与标题文字对齐（68 = 20 行内边距 + 40 图标 + 8），当前项右侧实心圆点 */
-  .set-row-chev { display: inline-flex; transition: transform .2s; }
-  .set-row-x[aria-expanded="true"] .set-row-chev { transform: rotate(90deg); }
-  .set-opts {
-    display: flex; flex-direction: column; padding: 0 20px 10px 68px;
-    &[hidden] { display: none; }
-  }
-  /* 选项列表（收起时 hidden 仍在 DOM 里）夹在两行之间，`.set-row + .set-row` 接不上：下一行照样画分隔线 */
-  .set-opts + .set-row::before {
-    content: ''; position: absolute; top: 0; left: 68px; right: 0;
-    border-top: 1px solid color-mix(in srgb, var(--m-outline) 55%, transparent);
-  }
-  .set-opt {
-    display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 8px 12px;
-    border-radius: 0.875rem; text-align: left; font-size: 14px; color: var(--m-on-surface);
-    @media (hover: hover) and (pointer: fine) { &:hover { background: var(--m-container); } }
-    &[aria-checked="true"] { background: var(--m-primary-container); color: var(--m-on-primary-container); font-weight: 600; }
-  }
-  .set-opt-dot {
-    width: 18px; height: 18px; border-radius: 999px; flex-shrink: 0; border: 2px solid var(--m-outline);
-    .set-opt[aria-checked="true"] & { border-color: var(--m-primary); background: radial-gradient(circle, var(--m-primary) 0 4px, transparent 5px); }
-  }
   .set-row-sub { padding: 12px 0 2px 54px; } /* 54=40图标+14间距：控件左缘与标题文字对齐，右缘与行内边距(20px)齐平 */
   .set-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  /* 设置首页分组卡片（2026-10-23 PR-E，One UI 式）：每组一张圆角卡，卡与卡之间留缝；DeX 左栏导航在组与组之间多留一点 */
-  .set-cards { display: flex; flex-direction: column; gap: 16px; margin-bottom: 1.75rem; }
-  /* 旷野页分类入口（P4-3 PR-4b）：模板上的 grid / grid-cols-* 在 tw 层，压不过本层的 display: flex，这里同层补回 grid（列数仍由 grid-cols-* 给） */
-  .set-cards.grid { display: grid; }
-
-  /* ===== 主题预览卡 ===== */
-  .theme-prev {
-    border-radius: 1.25rem; border: 2px solid transparent; overflow: hidden;
-    transition: border-color .2s, transform .15s, box-shadow .2s; background: var(--m-container-low);
-    background-image: var(--card-noise);
-    box-shadow: inset 0 0.5px 0 rgba(255,255,255,.65),
-      0 1px 2px rgba(16,24,40,.08),
-      0 8px 24px -12px rgba(16,24,40,.18);
-    .dark & {
-      box-shadow: inset 0 0.5px 0 rgba(255,255,255,.09),
-        0 1px 2px rgba(0,0,0,.45),
-        0 8px 24px -12px rgba(0,0,0,.55);
-    }
-    &:active { transform: scale(.97); }
-    &[aria-pressed="true"] { border-color: var(--m-primary); }
-  }
 
   /* ===== Bottom sheet（手机）/ 居中弹窗（桌面）·2.4.0 D：<dialog> =====
      showModal() 原生提供顶层显示、Esc、焦点陷阱；::backdrop 做遮罩。
@@ -8189,43 +8145,51 @@
   }
 }
 
-/* ===== overrides 层（续）：布局切换 snackbar、设置 / 账号页底部留白、关于页页脚 =====
+@layer sgx-components {
+/* @entries:begin 平铺入口（P4-3 PR-4b §11；组件 partials/sgx-entries.html）。奇趣分类入口以后共用（另起 PR）。
+   只用共享外壳 --sgx-* 角色（跟调色板、深浅色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。 */
+.sgx-ents { --sgx-ent-line: var(--sgx-divider); margin-top: 8px; color: var(--sgx-on-surface); }
+.sgx-ent-band { padding: 36px 6px 20px; border-bottom: 1px solid var(--sgx-ent-line); }
+.sgx-ent-label { margin: 0; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--sgx-on-surface-variant); }
+.sgx-ent-title { margin: 6px 0 8px; font-size: 44px; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; }
+.sgx-ent-lede { margin: 0; font-size: 15px; line-height: 1.5; color: var(--sgx-on-surface-variant); }
+.sgx-ent-list { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; }
+.sgx-ent-li { min-width: 0; border-bottom: 1px solid var(--sgx-ent-line); }
+.sgx-ent { display: flex; align-items: center; gap: 14px; min-height: 88px; padding: 20px 6px; color: inherit; text-decoration: none; border-radius: 4px; transition: background-color .15s; }
+.sgx-ent:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) { .sgx-ent:hover { background: var(--sgx-state-hover); } }
+.sgx-ent-no { flex: none; width: 20px; font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--sgx-on-surface-variant); }
+.sgx-ent-ic { flex: none; width: 48px; height: 48px; border-radius: 999px; display: grid; place-items: center; }
+.sgx-ent-ic svg { width: 22px; height: 22px; }
+.sgx-ent-ic--primary { background: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
+.sgx-ent-ic--secondary { background: var(--sgx-secondary-container); color: var(--sgx-on-secondary-container); }
+.sgx-ent-ic--tertiary { background: var(--sgx-tertiary-container); color: var(--sgx-on-tertiary-container); }
+.sgx-ent-ic--info { background: var(--sgx-info-container); color: var(--sgx-on-info-container); }
+.sgx-ent-tx { flex: 1; min-width: 0; }
+.sgx-ent-name { display: block; font-size: 18px; line-height: 1.35; font-weight: 600; }
+.sgx-ent-sub { display: block; margin-top: 2px; font-size: 13px; line-height: 1.45; color: var(--sgx-on-surface-variant); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sgx-ent-ch { flex: none; font-size: 20px; line-height: 1; color: var(--sgx-on-surface-variant); opacity: .6; }
+/* ≥ 760 两栏：左栏右侧细竖线 */
+@media (min-width: 760px) {
+  .sgx-ent-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sgx-ent-li:nth-child(odd) { border-right: 1px solid var(--sgx-ent-line); }
+  .sgx-ent-li:nth-child(odd) .sgx-ent { padding-right: 24px; }
+  .sgx-ent-li:nth-child(even) .sgx-ent { padding-left: 24px; }
+}
+/* ≥ 1100 三栏：每栏右侧细竖线（每行最后一栏没有）；手动 Mobile 布局（内容栏最宽 640）最多两栏 */
+@media (min-width: 1100px) {
+  html:not(.layout-mobile) .sgx-ent-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  html:not(.layout-mobile) .sgx-ent-li { border-right: 1px solid var(--sgx-ent-line); }
+  html:not(.layout-mobile) .sgx-ent-li:nth-child(3n) { border-right: 0; }
+  html:not(.layout-mobile) .sgx-ent-li .sgx-ent { padding: 26px 24px; }
+  .sgx-ent-title { font-size: 60px; }
+}
+/* @entries:end */
+}
+
+/* ===== overrides 层（续）：设置 / 账号页底部留白、关于页页脚 =====
    以前放在所有层之外；这一段不和后面不分层的共享外壳规则抢同一属性，放进 overrides 后结果不变。 */
 @layer overrides {
-  /* 布局切换 snackbar：正常大小，底部居中 */
-  #sgx-layout-snackbar {
-    position: fixed;
-    left: 50%;
-    bottom: 96px;
-    transform: translateX(-50%);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 20px;
-    border-radius: 12px;
-    background: var(--m-inverse-surface);
-    color: var(--m-inverse-on-surface);
-    font-size: 14px;
-    line-height: 1.4;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    white-space: nowrap;
-    animation: sgx-snackbar-in 0.25s ease-out;
-  }
-  #sgx-layout-snackbar button {
-    background: none;
-    border: none;
-    color: var(--m-inverse-primary);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 4px 8px;
-  }
-  @keyframes sgx-snackbar-in {
-    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
-    to { opacity: 1; transform: translateX(-50%) translateY(0); }
-  }
-
   /* 布局切换时内容不卸载：只换 class 做重排 */
   .layout-mobile .set-layout,
   .layout-dex .set-layout,

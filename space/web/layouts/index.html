@@ -5,9 +5,9 @@
 {{ $motto := $profile.motto_zh }}{{ if $isEn }}{{ $motto = $profile.motto_en }}{{ end }}
 
 {{/* P4-3 PR-4b（§6.5，2026-11-07）：主页和设置合成一个主站页「旷野 / Space」，就在根路径（中文 / ，英文 /en/）。
-   一页平铺：名片、日刻今日一句、我的屏幕时间，下面是各分类入口卡（data/space-cats.yaml；点进 /display/ 等子页，子页布局 _default/sub.html）。
+   一页平铺：名片、日刻今日一句、我的屏幕时间，下面是标题带 + 各分类平铺入口（data/space-cats.yaml；点进各子页，子页布局 _default/sub.html）。
    主站顶级页只此一个；原设置首页和它的 DeX 双栏窗格删除（旧地址 404，不跳转）。 */}}
-{{ $cats := (index site.Data "space-cats").cats }}
+{{ $space := index site.Data "space-cats" }}
 
 {{/* B2-5：首页只保留名片、数字健康（2026-10-20 加日刻今日一句）；便签、博客、数字花园、桌面图标、收藏全部删除。
    P4-2c（2026-11-05）：双时钟、天气删除；名片和日刻宽屏并排各占一半。 */}}
@@ -78,24 +78,17 @@
     </div>
   </div>
 
-  {{/* 分类入口（原设置首页的分类列表）：每个分类单独一张圆角卡（data 里 group 各不相同），平铺成网格（手机一列，≥ 640 两列，≥ 1024 三列），外层 aria-label="分类" 只有一个
-       （测试和读屏都按它找分类列表）。地址去掉 settings 这一层：/<id>/（英文 /en/<id>/）。锁屏态同首页小组件一起被剥离。 */}}
-  {{ $groups := slice }}
-  {{ range $cats }}{{ if not (in $groups .group) }}{{ $groups = $groups | append .group }}{{ end }}{{ end }}
-  <div class="set-cards space-cats grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mt-3" role="group" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}">
-  {{ range $gi, $g := $groups }}
-  <section class="widget set-card bg-m-container-lowest border border-m-outline overflow-hidden animate-fade-up" style="animation-delay:{{ add 0.5 (mul $gi 0.04) }}s" data-set-group="{{ $g }}">
-    {{ range where $cats "group" $g }}
-    {{ $href := cond $isEn (printf "/en/%s/" .id) (printf "/%s/" .id) }}
-    <a class="set-row" href="{{ $href }}" data-cat="{{ .id }}">
-      <span class="set-ic {{ .bg }} {{ .fg }}">{{ partial "icon.html" .icon }}</span>
-      <span class="flex-1 min-w-0 block font-medium">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span>
-      {{ partial "icon.html" "chev-r" }}
-    </a>
-    {{ end }}
-  </section>
-  {{ end }}
-  </div>
+  {{/* 分类入口（P4-3 PR-4b §11，Gray 2026-11-07）：平铺入口共享组件 partials/sgx-entries.html（奇趣分类入口以后共用），数据 data/space-cats.yaml。
+       上面标题带（小字 SPACE + 大标题 旷野 + 一句话），下面每行一个入口（编号、圆底图标、名字 + 副标题、细分隔线、淡色 ›），≥ 760 两栏、≥ 1100 三栏。
+       列表 aria-label="分类"（测试和读屏按它找）。地址 /<id>/（英文 /en/<id>/）。锁屏态同首页小组件一起被剥离。 */}}
+  {{ partial "sgx-entries.html" (dict
+    "items" $space.cats
+    "isEn" $isEn
+    "base" (cond $isEn "/en/" "/")
+    "band" $space.band
+    "id" "space-entries"
+    "label" (cond $isEn "Categories" "分类")
+  ) }}
 
 </div>
 

@@ -5,7 +5,7 @@
  * 来源（都在 hugo 构建后的 space/web/public/ 里）：
  *   - files-index.json：我的站点、应用（type site / app）。博客文章不在这里：博客自己写 KV site:blog，
  *     主站不再顺带
- *   - 旷野页（/、en/）、旷野子页（data/space-cats.yaml 的每个分类：display/**、security/** …，英文加 en/；P4-3 PR-4b 起去掉 settings 一层）、
+ *   - 旷野页（/、en/）、旷野子页（data/space-cats.yaml 的每个分类：theme/**、security/** …，英文加 en/；P4-3 PR-4b 起去掉 settings 一层）、
  *     account/**、en/account/** 每个页面：标题取 <title> 去掉「 | Styrigx」，类型 setting
  *     账号页（/account/…）和旷野里的门内页（临时钥匙 /security/tempkeys/、服务状态 /status/）标 private（只给账号已登录的人搜到）
  *     副标题 = 完整面包屑：从地址逐级取上级页名，用「 › 」连起来，旷野子页最上一级是旷野页（锁屏凭证 → 「旷野 › 安全」；P4-3 PR-2 / PR-4b），
@@ -57,7 +57,7 @@ export function pageTitle(html) {
 }
 
 /**
- * 页面 <main> 里的文字：分组标题（.set-gh）、设置行（font-medium 标题 + 紧跟的 text-xs 说明），行在 <a href> 里时带上地址。
+ * 页面 <main> 里的文字：分组标题（.set-gh）、设置行（font-medium 标题 + 紧跟的 text-xs 说明）、平铺入口（.sgx-ent-name + .sgx-ent-sub，P4-3 PR-4b），行在 <a href> 里时带上地址。
  * 「正在读取…」这类运行时才填的占位说明不要。
  * @param {string} html
  * @returns {{heads: string[], rows: Array<{title: string, sub: string, href: string}>}}
@@ -70,15 +70,15 @@ export function pageText(html) {
   /** @type {Array<{title: string, sub: string, href: string}>} */
   const rows = [];
   const clean = (/** @type {string} */ x) => unesc(x).replace(/\s+/g, ' ').trim();
-  const re = /<a\b[^>]*\bhref="([^"]*)"[^>]*>|<\/a>|class="set-gh"[^>]*>[\s\S]*?<span>([^<]*)<\/span><\/h2>|class="block font-medium"[^>]*>([^<]*)<\/span>\s*(?:<span class="block text-xs[^"]*"[^>]*>([^<]*)<\/span>)?/g;
+  const re = /<a\b[^>]*\bhref="([^"]*)"[^>]*>|<\/a>|class="set-gh"[^>]*>[\s\S]*?<span>([^<]*)<\/span><\/h2>|class="block font-medium"[^>]*>([^<]*)<\/span>\s*(?:<span class="block text-xs[^"]*"[^>]*>([^<]*)<\/span>)?|class="sgx-ent-name">([^<]*)<\/span>(?:<span class="sgx-ent-sub">([^<]*)<\/span>)?/g;
   let href = '';
   for (let r; (r = re.exec(main));) {
     if (r[1] !== undefined) href = r[1];
     else if (r[0] === '</a>') href = '';
     else if (r[2] !== undefined) { const t = clean(r[2]); if (t) heads.push(t); }
     else {
-      const title = clean(r[3] || '');
-      const sub = clean(r[4] || '');
+      const title = clean(r[3] || r[5] || '');
+      const sub = clean(r[4] || r[6] || '');
       if (title) rows.push({ title, sub: /…$|\.\.\.$/.test(sub) ? '' : sub, href });
     }
   }

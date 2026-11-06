@@ -1,22 +1,20 @@
 /**
  * 旷野（P4-3 PR-4b：主页和设置合成一个主站页「旷野 / Space」，就在根路径；2.6.0 起的设置二级页去掉 settings 一层挂到根下）。真实断言（不 mock 自家逻辑）：
- * - 旷野页 /（英文 /en/）：上面名片 / 日刻 / 屏幕时间，下面 6 个分类入口卡（data/space-cats.yaml），每项单独一张卡；没有账号卡、没有选项组、没有 DeX 双栏
- *   （分类沿革：2026-10-23 PR-E 常规管理 / 辅助功能删除；服务状态从账号页搬来；P4-2c 高级功能删除，「安全与隐私」改名「安全」）
- * - 子页 /display/ /theme/ /wellbeing/ /about/ 可达、有对应选项组（顶栏没有返回键），/security/ /status/ 是独立页面
+ * - 旷野页 /（英文 /en/）：上面名片 / 日刻 / 屏幕时间，下面标题带 + 5 个平铺入口（共享组件 partials/sgx-entries.html，数据 data/space-cats.yaml）：
+ *   编号 01–05、圆底图标、名字 + 一行副标题、行间细线、无卡片底；≥ 760 两栏、≥ 1100 三栏（栏间细竖线）；没有账号卡、没有选项组、没有 DeX 双栏
+ *   （分类沿革：2026-10-23 PR-E 常规管理 / 辅助功能删除；服务状态从账号页搬来；P4-2c 高级功能删除，「安全与隐私」改名「安全」；
+ *    P4-3 PR-4b（Gray 2026-11-07）显示页 /display/ 整页删除，404，不做 301——功能都在快捷面板）
+ * - 子页 /theme/ /wellbeing/ /about/ 可达、有对应选项组（顶栏没有返回键），/security/ /status/ 是独立页面
  * - 旧设置层（原设置首页和全部子页）一律 404，不跳转
  * - 中英双语
  */
 const { test } = require('@playwright/test');
-const { blockExternalRequests, animationsDone, expect } = require('../helpers/helpers');
+const { blockExternalRequests, expect } = require('../helpers/helpers');
 
-const CATS = [
-  { id: 'display', zh: '显示', en: 'Display' },
-  { id: 'theme', zh: '风格', en: 'Style' },
-  { id: 'security', zh: '安全', en: 'Security' },
-  { id: 'wellbeing', zh: '数字健康', en: 'Digital wellbeing' },
-  { id: 'status', zh: '服务状态', en: 'Service status' },
-  { id: 'about', zh: '关于本站', en: 'About' },
-];
+/* 入口按数据文件渲染：顺序、名字、副标题都从 data/space-cats.yaml 读（加入口只加一行数据，测试跟着走） */
+const yaml = require('js-yaml');
+const SPACE = yaml.load(require('fs').readFileSync(require('path').join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'space-cats.yaml'), 'utf8'));
+const CATS = SPACE.cats;
 /* 旧设置层（拼出来，不写成字面量：全仓 git grep 只许历史文档出现旧地址，tests/space/ui/build/space-merge.test.mjs） */
 const OLD = '/' + 'settings' + '/';
 
@@ -38,43 +36,84 @@ async function pinLang(pg, lang) {
 /* Mobile（竖屏）：单列 */
 test.use({ viewport: { width: 412, height: 915 } });
 
-test('space home (mobile): widgets on top, then 6 category links each in its own card; no account card, no option groups', async ({ page: pg }) => {
+test('space home (mobile): widgets on top, then title band + flat entries from data (01–05, icon, name + subtitle, thin dividers, no card); no account card, no option groups', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/');
   await expect(pg).toHaveTitle('旷野 | Styrigx');
   await expect(pg.locator('.sgx-tb-tab')).toHaveText(['旷野']);
   await expect(pg.locator('.sgx-tb-tab')).toHaveAttribute('aria-current', 'page');
-  // 账户卡在账号页（顶栏右圆头像进入），旷野页没有
+  // 账户卡在账号页，旷野页没有；名片、屏幕时间卡保留
   await expect(pg.locator('.sgx-account-card')).toHaveCount(0);
-  // 名片在分类入口上面
+  await expect(pg.locator('#w-profile')).toBeVisible();
+  await expect(pg.locator('#w-screen')).toBeVisible();
+  // 名片在入口上面；标题带在入口列表上面
   const catList = pg.locator('.home-wrap [aria-label="分类"]');
   await expect(catList).toHaveCount(1);
+  const band = pg.locator('#space-entries .sgx-ent-band');
+  await expect(band.locator('.sgx-ent-label')).toHaveText('SPACE');
+  await expect(band.locator('.sgx-ent-title')).toHaveText('旷野');
+  await expect(band.locator('.sgx-ent-lede')).toHaveText(SPACE.band.sub_zh);
   const yProfile = (await pg.locator('#w-profile').boundingBox()).y;
+  const yBand = (await band.boundingBox()).y;
   const yCats = (await catList.boundingBox()).y;
-  expect(yCats).toBeGreaterThan(yProfile);
-  for (const c of CATS) {
-    const link = catList.locator(`.set-row[href="/${c.id}/"]`);
-    await expect(link, `${c.id} link`).toHaveCount(1);
-    await expect(link, `${c.id} title`).toContainText(c.zh);
-    await expect(link, `${c.id} visible`).toBeVisible();
-  }
-  await expect(catList.locator('.set-row')).toHaveCount(CATS.length);
-  // 分组卡片：每组一张 .set-card
-  const groups = await catList.locator('.set-card').evaluateAll((els) => els.map((el) => [...el.querySelectorAll('.set-row')].map((a) => a.getAttribute('href'))));
-  expect(groups).toEqual([['/display/'], ['/theme/'], ['/security/'], ['/wellbeing/'], ['/status/'], ['/about/']]);
-  // 卡片只有名称，没有灰色副标题
-  await expect(catList.locator('.set-row .text-xs')).toHaveCount(0);
-  // 删掉的分类不再出现；页面上没有任何指向旧设置层的链接
-  for (const gone of ['manage', 'accessibility', 'goodlock', 'advanced', 'apps']) await expect(pg.locator(`a[href="/${gone}/"]`), gone).toHaveCount(0);
+  expect(yBand).toBeGreaterThan(yProfile);
+  expect(yCats).toBeGreaterThan(yBand);
+  // 数量、顺序、地址、编号、名字、副标题全按数据
+  const rows = catList.locator('a.sgx-ent');
+  await expect(rows).toHaveCount(CATS.length);
+  expect(await rows.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(CATS.map((c) => `/${c.id}/`));
+  await expect(rows.locator('.sgx-ent-no')).toHaveText(CATS.map((_, i) => String(i + 1).padStart(2, '0')));
+  await expect(rows.locator('.sgx-ent-name')).toHaveText(CATS.map((c) => c.zh));
+  await expect(rows.locator('.sgx-ent-sub')).toHaveText(CATS.map((c) => c.sub_zh));
+  await expect(rows.locator('.sgx-ent-ic svg')).toHaveCount(CATS.length);
+  await expect(rows.locator('.sgx-ent-ch')).toHaveText(CATS.map(() => '›'));
+  // 平铺：无卡片底（透明背景、无边框圆角卡），行间细线（每行下边框 1px）；手机一栏
+  const st = await rows.first().evaluate((a) => {
+    const li = a.parentElement;
+    const cs = getComputedStyle(a);
+    const ls = getComputedStyle(li);
+    const ic = getComputedStyle(a.querySelector('.sgx-ent-ic'));
+    return { bg: cs.backgroundColor, liBg: ls.backgroundColor, bb: ls.borderBottomWidth, br: ls.borderRightWidth, icR: ic.borderRadius, icW: ic.width, cols: getComputedStyle(li.parentElement).gridTemplateColumns.split(' ').length };
+  });
+  expect(st.bg).toBe('rgba(0, 0, 0, 0)');
+  expect(st.liBg).toBe('rgba(0, 0, 0, 0)');
+  expect(st.bb).toBe('1px');
+  expect(st.br).toBe('0px');
+  expect(st.icW).toBe('48px');
+  expect(st.icR).toBe('999px');
+  expect(st.cols).toBe(1);
+  await expect(catList.locator('.set-card, .widget')).toHaveCount(0);
+  // 删掉的分类（含显示页）不再出现；页面上没有任何指向旧设置层的链接
+  for (const gone of ['display', 'manage', 'accessibility', 'goodlock', 'advanced', 'apps']) await expect(pg.locator(`a[href="/${gone}/"]`), gone).toHaveCount(0);
   await expect(pg.locator(`a[href^="${OLD}"], a[href^="/en${OLD}"]`)).toHaveCount(0);
   // 选项组与 DeX 双栏都不在旷野页
   await expect(pg.locator('#sg-display, #sg-theme, #sg-wellbeing, #sg-about, #set-cat-nav, .set-col-r')).toHaveCount(0);
 });
 
+/* 栏数：< 760 一栏，≥ 760 两栏（左栏右侧细竖线），≥ 1100 三栏（每行最后一栏没有竖线）；同一行的入口顶边对齐 */
+for (const [w, h, cols] of [[759, 900, 1], [760, 900, 2], [1099, 900, 2], [1100, 900, 3], [1366, 768, 3]]) {
+  test(`space entries: ${w}px wide → ${cols} column(s), vertical dividers between columns`, async ({ page: pg }) => {
+    await pg.setViewportSize({ width: w, height: h });
+    await pinLang(pg, 'zh');
+    await gotoSettings(pg, '/');
+    const list = pg.locator('#space-entries .sgx-ent-list');
+    await expect(list.locator('.sgx-ent-li')).toHaveCount(CATS.length);
+    const info = await list.evaluate((ul) => ({
+      cols: getComputedStyle(ul).gridTemplateColumns.split(' ').length,
+      tops: [...ul.children].map((li) => Math.round(li.getBoundingClientRect().top)),
+      br: [...ul.children].map((li) => getComputedStyle(li).borderRightWidth),
+    }));
+    expect(info.cols).toBe(cols);
+    expect(new Set(info.tops.slice(0, cols)).size, '第一行同一高度').toBe(1);
+    const want = info.br.map((_, i) => (cols === 1 ? '0px' : cols === 2 ? (i % 2 === 0 ? '1px' : '0px') : (i % 3 === 2 ? '0px' : '1px')));
+    expect(info.br).toEqual(want);
+  });
+}
+
 test.describe('space home (dex)', () => {
   test.use({ viewport: { width: 1366, height: 768 } });
 
-  test('single page: category cards are plain links, no two-pane', async ({ page: pg }) => {
+  test('single page: entries are plain links, no two-pane', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/');
     const catList = pg.locator('.home-wrap [aria-label="分类"]');
@@ -86,22 +125,33 @@ test.describe('space home (dex)', () => {
   });
 });
 
-test('space home (en): 6 category links', async ({ page: pg }) => {
+test('space home (en): title band + entries from data', async ({ page: pg }) => {
   await pinLang(pg, 'en');
   await gotoSettings(pg, '/en/');
   await expect(pg).toHaveTitle('Space | Styrigx');
   await expect(pg.locator('.sgx-tb-tab')).toHaveText(['Space']);
-  for (const c of CATS) {
-    const link = pg.locator(`.set-row[href="/en/${c.id}/"]`);
-    await expect(link, `${c.id} link`).toHaveCount(1);
-    await expect(link, `${c.id} title`).toContainText(c.en);
+  await expect(pg.locator('#space-entries .sgx-ent-label')).toHaveText('SPACE');
+  await expect(pg.locator('#space-entries .sgx-ent-title')).toHaveText('Space');
+  await expect(pg.locator('#space-entries .sgx-ent-lede')).toHaveText(SPACE.band.sub_en);
+  const rows = pg.locator('.home-wrap [aria-label="Categories"] a.sgx-ent');
+  expect(await rows.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(CATS.map((c) => `/en/${c.id}/`));
+  await expect(rows.locator('.sgx-ent-name')).toHaveText(CATS.map((c) => c.en));
+  await expect(rows.locator('.sgx-ent-sub')).toHaveText(CATS.map((c) => c.sub_en));
+  await expect(pg.locator('a[href="/en/display/"]')).toHaveCount(0);
+});
+
+/* P4-3 PR-4b（Gray 2026-11-07）：显示页整页删除，不做 301；功能都在快捷面板 */
+test('display page is gone: /display/ and /en/display/ 404 without redirect', async ({ page: pg }) => {
+  for (const p of ['/display/', '/en/display/']) {
+    const r = await pg.request.get(p, { maxRedirects: 0 });
+    expect(r.status(), p).toBe(404);
   }
-  await expect(pg.locator('.set-row[href="/en/security/"]')).toHaveText(/^\s*Security\s*$/);
-  await expect(pg.locator('.home-wrap [aria-label="Categories"] .set-row .text-xs')).toHaveCount(0);
+  const sm = await (await pg.request.get('/sitemap.xml')).text();
+  expect(sm).not.toContain('/display/');
 });
 
 test('old settings layer is gone: home and every subpage 404, no redirect', async ({ page: pg }) => {
-  const subs = ['', 'display/', 'theme/', 'wellbeing/', 'about/', 'status/', 'security/', 'security/lock/', 'security/tempkeys/', 'manage/', 'accessibility/', 'apps/', 'search/', 'advanced/', 'goodlock/', 'account/'];
+  const subs = ['', 'theme/', 'wellbeing/', 'about/', 'status/', 'security/', 'security/lock/', 'security/tempkeys/', 'manage/', 'accessibility/', 'apps/', 'search/', 'advanced/', 'goodlock/', 'account/'];
   for (const pre of ['', '/en']) {
     for (const s of subs) {
       const p = pre + OLD + s;
@@ -117,14 +167,13 @@ test('old settings layer is gone: home and every subpage 404, no redirect', asyn
 });
 
 const SUBCHECKS = {
-  display: ['#theme-previews', '#row-system', '#seg-layout', '#row-lang'],
   theme: ['#palette-dots'],
   wellbeing: ['#wb-card', '#row-welltip'],
   about: [],
 };
 /* 2026-10-23 PR-E：删掉的设置项 */
 const GONE = {
-  display: ['#seg-font', '#row-font'],
+  theme: ['#theme-previews', '#row-system', '#seg-layout', '#row-lang'],
   wellbeing: ['#well-v-total'],
   about: ['#row-reset'],
 };
@@ -151,7 +200,7 @@ for (const c of CATS) {
 
 test('space search removed: no bottom search bar on space pages; old settings search page is gone', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  for (const path of ['/', '/display/', '/theme/']) {
+  for (const path of ['/', '/theme/', '/wellbeing/']) {
     await gotoSettings(pg, path);
     await expect(pg.locator('.sgx-cap, #sgx-cap-settings, #sgx-cap-input-setsearch'), path).toHaveCount(0);
     await expect(pg.locator('#setso-page')).toHaveCount(0);
@@ -353,7 +402,7 @@ test('旧撞色 id 迁移：xforest → forest；不认识的 id → 默认 dust
    站内跳转不再写留痕 */
 test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/display/');
+  await gotoSettings(pg, '/theme/');
   await pg.evaluate(() => {
     sessionStorage.setItem('sgx-last-jump', JSON.stringify([{ who: 'navhistory.js:59', reason: 'goback-primary;to=/', at: Date.now(), desktop: false, visibility: 'visible' }]));
     sessionStorage.setItem('sgx-credential-beacon', JSON.stringify({ path: '/security/owner/', at: Date.now() }));
@@ -367,7 +416,7 @@ test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   /* 站内返回（系统返回）：不再写新的留痕 */
   await pg.evaluate(() => sessionStorage.removeItem('sgx-last-jump'));
   await pg.goBack();
-  await pg.waitForURL(/\/display\/$/, { timeout: 15000 });
+  await pg.waitForURL(/\/theme\/$/, { timeout: 15000 });
   expect(await pg.evaluate(() => sessionStorage.getItem('sgx-last-jump'))).toBeNull();
 });
 
@@ -432,7 +481,7 @@ test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async
 test('B2-4 space has no Apps category; no reset-all-settings row anywhere', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/');
-  const hrefs = await pg.locator('.home-wrap [aria-label="分类"] .set-row').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+  const hrefs = await pg.locator('.home-wrap [aria-label="分类"] a.sgx-ent').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
   expect(hrefs).not.toContain('/apps/');
   await expect(pg.locator('#sg-apps, #row-app-files, #row-app-browser')).toHaveCount(0);
   await expect(pg.locator('#row-reset')).toHaveCount(0);
@@ -449,64 +498,4 @@ test('No top-bar menu; Security has no privacy group or search engine row (P4-2c
   await expect(pg.locator('.sgx-tb-title')).toHaveText('安全');
   await expect(pg.locator('#sec-engine')).toHaveCount(0);
   await expect(pg.locator('main')).not.toContainText('搜索引擎');
-});
-
-/* 2026-10-24：显示页的行顺序 跟随系统 → 语言 → 布局；分隔线照旧（第一行没有，后面每行上方一条） */
-test('display subpage: row order 跟随系统 → 语言 → 布局, dividers intact', async ({ page: pg }) => {
-  await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/display/');
-  const order = await pg.evaluate(() => {
-    const ids = ['row-system', 'row-lang', 'seg-layout'];
-    const els = ids.map((id) => document.getElementById(id));
-    const rows = els.map((el) => el && el.closest('.set-row'));
-    const all = Array.from(document.querySelectorAll('#sg-display .set-row'));
-    return {
-      idx: rows.map((r) => all.indexOf(r)),
-      dividers: all.map((r) => getComputedStyle(r, '::before').content !== 'none' && getComputedStyle(r, '::before').content !== 'normal'),
-    };
-  });
-  expect(order.idx).toEqual([0, 1, 2]);
-  expect(order.dividers).toEqual([false, true, true]);
-});
-
-/* P4-3 PR-4b §6.7（Gray 立规：不做底部弹出窗口）：语言选择是行内展开的单选列表，选中即保存并收起 */
-test('display: language picker expands inline (no bottom sheet), picking saves and collapses', async ({ page: pg }) => {
-  /* 只在第一次加载钉中文（pinLang 每次导航都写，会把选好的 English 又改回去） */
-  await pg.addInitScript(() => { try { if (!sessionStorage.getItem('pin-once')) { localStorage.setItem('sgx-lang', 'zh'); sessionStorage.setItem('pin-once', '1'); } } catch (e) {} });
-  await gotoSettings(pg, '/display/');
-  const row = pg.locator('#row-lang');
-  const opts = pg.locator('#lang-opts');
-  await expect(row).toHaveAttribute('aria-expanded', 'false');
-  await expect(row).toHaveAttribute('aria-controls', 'lang-opts');
-  await expect(opts).toBeHidden();
-  await row.click();
-  await expect(row).toHaveAttribute('aria-expanded', 'true');
-  await expect(opts).toBeVisible();
-  await expect(pg.locator('#sheet-wrap[open], dialog[open]')).toHaveCount(0);
-  await expect(opts).toHaveAttribute('role', 'radiogroup');
-  await expect(opts.locator('[role="radio"]')).toHaveText(['跟随系统', '中文', 'English']);
-  await expect(opts.locator('[role="radio"][aria-checked="true"]')).toHaveAttribute('data-v', 'zh');
-  /* 列表紧跟在行下方（先等卡片入场动画 animate-fade-up 结束，不然行和列表在动画的不同帧上量，差 1px） */
-  await animationsDone(pg);
-  const rb = await row.boundingBox();
-  const ob = await opts.boundingBox();
-  expect(ob.y).toBeGreaterThanOrEqual(rb.y + rb.height - 1);
-  /* 选当前值：只收起，不跳转 */
-  await opts.locator('[data-v="zh"]').click();
-  await expect(row).toHaveAttribute('aria-expanded', 'false');
-  await expect(opts).toBeHidden();
-  expect(new URL(pg.url()).pathname).toBe('/display/');
-  /* Esc 收起，焦点回到行上 */
-  await row.click();
-  await opts.locator('[data-v="en"]').focus();
-  await pg.keyboard.press('Escape');
-  await expect(opts).toBeHidden();
-  await expect(row).toBeFocused();
-  /* 选 English：保存并收起，跳到英文版同一页 */
-  await row.click();
-  await opts.locator('[data-v="en"]').click();
-  await pg.waitForURL((u) => u.pathname === '/en/display/', { timeout: 10000 });
-  expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('en');
-  await expect(pg.locator('#lang-opts')).toBeHidden();
-  await expect(pg.locator('#lang-val')).toHaveText('English');
 });

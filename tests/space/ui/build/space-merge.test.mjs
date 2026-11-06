@@ -60,7 +60,7 @@ export function reservedSegments() {
 }
 
 test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 一层', async () => {
-  assert.deepEqual([...cats].sort(), ['about', 'display', 'security', 'status', 'theme', 'wellbeing']);
+  assert.deepEqual([...cats].sort(), ['about', 'security', 'status', 'theme', 'wellbeing']);
   const { SPACE_SUB_RE, wbAreaOf } = await import(pathToFileURL(path.join(REPO, 'space/web/assets/js/lib/wb-area.js')).href);
   for (const p of NEW_PATHS) {
     assert.ok(SPACE_SUB_RE.test(p) && SPACE_SUB_RE.test('/en' + p), p + ' 应算旷野子页');

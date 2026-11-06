@@ -116,9 +116,9 @@ for (const [label, viewport] of VIEWPORTS) {
     });
 
     test('其他页（旷野子页、服务状态）长条照旧只有页名，没有标签', async ({ page }) => {
-      await go(page, '/display/');
+      await go(page, '/theme/');
       await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
-      await expect(page.locator('.sgx-tb-title')).toHaveText('显示');
+      await expect(page.locator('.sgx-tb-title')).toHaveText('风格');
       await go(page, '/status/');
       await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-title')).toHaveText('服务状态');
@@ -499,7 +499,7 @@ test.describe('旷野 → 服务状态（入口 / 旧地址删除）', () => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await page.route('**/api/status', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fx.withUsage(fx.normal(), fx.usage())) }));
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const row = page.locator('.home-wrap [aria-label="分类"] .set-row[href="/status/"]');
+    const row = page.locator('.home-wrap [aria-label="分类"] a.sgx-ent[href="/status/"]');
     await expect(row).toHaveCount(1);
     await expect(row).toContainText('服务状态');
     await row.click();
@@ -518,7 +518,7 @@ test.describe('旷野 → 服务状态（入口 / 旧地址删除）', () => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await page.route('**/api/status', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fx.normal()) }));
     await page.goto('/en/', { waitUntil: 'domcontentloaded' });
-    const row = page.locator('.home-wrap [aria-label="Categories"] .set-row[href="/en/status/"]');
+    const row = page.locator('.home-wrap [aria-label="Categories"] a.sgx-ent[href="/en/status/"]');
     await expect(row).toContainText('Service status');
     await page.goto('/en/status/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-tb-title')).toHaveText('Service status');

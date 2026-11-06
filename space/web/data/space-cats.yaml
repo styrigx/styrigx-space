@@ -1,53 +1,50 @@
-# 旷野页（/）分类入口定义（单数据源；P4-3 PR-4b 由 settings-cats.yaml 改名）。旷野页入口卡和各子页（/<id>/，layouts/_default/sub.html）共用；
-# 新增入口只加一行（id 即地址：/<id>/，英文 /en/<id>/；security、status 是独立布局）。
-# 2.6.0：设置分类定义（单数据源）。设置首页、二级页、双栏导航共用（PR-4b 起双栏删除）。
-# 2026-10-23 PR-E 设置瘦身：只留 6 项，每项单独一张圆角卡片（group 各不相同，卡与卡之间留缝）。
-#   常规管理（语言并入显示，日期和时间 / 天气并入高级功能）、辅助功能（减弱动效跟系统 prefers-reduced-motion）已删除。
-# 2026-10-23：卡片只显示名称，不再有灰色副标题（subzh / suben 字段删除）。
-# P4-2c：「安全与隐私」改名「安全」（PR-4b 起地址 /security/），高级功能分类删除（日期和时间、天气、快捷键都删了）。
-# 服务状态（status）：从账号页搬来，和安全一样是独立页面（/status/，layouts/_default/status.html），
-#   没有 setcat-status.html 窗格；门内页（进门即可打开）。
-# 图标：bg / fg 是图标圆底色和前景色，各项同一种样式（浅色容器圆底 + 深色图形）。
+# 旷野页（/）分类入口（单数据源）。旷野页平铺入口（共享组件 partials/sgx-entries.html）、各子页标题（layouts/_default/sub.html、baseof 页名）、
+# 搜索索引（space/scripts/build-search-index.mjs）共用。新增入口只加一行：id 即地址（/<id>/，英文 /en/<id>/；security、status 是独立布局），
+# 同时在 content/ 与 content/en/ 加页面、lib/wb-area.js SPACE_SUB_RE 加一项（tests/space/ui/build/space-merge.test.mjs 对照检查）。
+# 字段：icon = partials/icon.html 的图标名；tone = 圆底配色（primary / secondary / tertiary / info，走共享外壳色彩角色，跟调色板）；
+#   zh / en = 名字；sub_zh / sub_en = 一行副标题。编号 01… 按行序自动生成。
+# P4-3 PR-4b（Gray 2026-11-07）：显示页（/display/）整页删除（深色 / 跟随系统 / 语言 / 布局都在快捷面板），不做 301；
+#   入口改成平铺（无卡片底、编号、圆底图标、名字 + 副标题、细分隔线），原 group / bg / fg 字段删除。
+# 副标题与标题带那句话是占位文案（Gray 定稿后替换）。
+band:
+  label: SPACE
+  zh: 旷野
+  en: Space
+  sub_zh: 这个站自己的样子、钥匙和作息，都在这里。
+  sub_en: How this site looks, its keys and its rhythm — all in one place.
 cats:
-  - id: display
-    group: 1
-    icon: moon
-    bg: bg-m-secondary-container
-    fg: text-m-on-secondary-container
-    zh: 显示
-    en: Display
   - id: theme
-    group: 2
     icon: palette
-    bg: bg-m-primary-container
-    fg: text-m-on-primary-container
+    tone: primary
     zh: 风格
     en: Style
+    sub_zh: 调色板与主题色
+    sub_en: Palettes and accent colour
   - id: security
-    group: 3
     icon: shield
-    bg: bg-m-accent-container
-    fg: text-m-on-accent-container
+    tone: secondary
     zh: 安全
     en: Security
+    sub_zh: 通行密钥、锁屏与临时钥匙
+    sub_en: Passkeys, lock screen and temporary keys
   - id: wellbeing
-    group: 5
     icon: heart-ring
-    bg: bg-m-tertiary-container
-    fg: text-m-on-tertiary-container
+    tone: tertiary
     zh: 数字健康
     en: Digital wellbeing
+    sub_zh: 屏幕时间与作息
+    sub_en: Screen time and habits
   - id: status
-    group: 6
     icon: pulse
-    bg: bg-m-secondary-container
-    fg: text-m-on-secondary-container
+    tone: info
     zh: 服务状态
     en: Service status
+    sub_zh: 四站与接口是否在线
+    sub_en: Whether the sites and APIs are up
   - id: about
-    group: 7
     icon: info
-    bg: bg-m-primary-container
-    fg: text-m-on-primary-container
+    tone: primary
     zh: 关于本站
     en: About
+    sub_zh: 版本、致谢与开源
+    sub_en: Version, credits and open source
