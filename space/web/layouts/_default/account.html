@@ -70,7 +70,7 @@
       </a>
       {{/* P3-1：应用授权 → 子页 /account/apps/（account-apps.html），与「设备」「账号安全」同卡 */}}
       <a class="acct-row" id="acct-apps-row" href="{{ cond $isEn "/en/account/apps/" "/account/apps/" }}">
-        <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "apps-grid" }}</span>
+        <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "apps-linked" }}</span>
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}App access{{ else }}应用授权{{ end }}</span>
         </span>

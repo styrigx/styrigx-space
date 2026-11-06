@@ -174,6 +174,10 @@ test.describe('授权卡页 /account/apps/', () => {
     await expect(row).toHaveText(/应用授权/);
     await expect(row).toHaveAttribute('href', '/account/apps/');
     await expect(page.locator('#acct-dev-row').locator('xpath=..')).toContainText('应用授权');
+    /* 图标两处修正 §2：图标是三点连线（3 个点 + 两条线），不是九宫格；和同卡「设备」图标同为 20px */
+    await expect(row.locator('.acct-ic svg circle')).toHaveCount(3);
+    const [ab, db] = await Promise.all([row.locator('.acct-ic svg').boundingBox(), page.locator('#acct-dev-row .acct-ic svg').boundingBox()]);
+    expect([ab.width, ab.height]).toEqual([db.width, db.height]);
   });
 
   test('英文：5 张卡、过滤条件、日期', async ({ page }) => {

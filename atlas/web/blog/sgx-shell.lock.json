@@ -3,7 +3,7 @@
   "source": "styrigx/styrigx-space",
   "dir": "space/web/shared/shell",
   "tree": "a4df232dd35d1a844c47e51c7c5ded9324735288",
-  "from": "worktree",
+  "from": "7a2c8e1463b4d0bcce844541f5665dc6b7fac8dc",
   "version": "c5d9123a43cc",
   "files": {
     "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
