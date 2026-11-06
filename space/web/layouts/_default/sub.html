@@ -1,5 +1,5 @@
-{{/* 旷野子页共享布局（2.6.0 设置二级页；P4-3 PR-4b 改名 sub.html，地址去掉 settings 一层：/display/ 等）。content 的 params.cat 决定渲染哪个分类 partial。
-   用法：content/display.md 等 frontmatter 设 layout: sub、params.cat: display。 */}}
+{{/* 旷野子页共享布局（2.6.0 设置二级页；P4-3 PR-4b 改名 sub.html，地址去掉 settings 一层：/theme/ 等）。content 的 params.cat 决定渲染哪个分类 partial。
+   用法：content/theme.md 等 frontmatter 设 layout: sub、params.cat: theme。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-sub.js" }}
 {{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}

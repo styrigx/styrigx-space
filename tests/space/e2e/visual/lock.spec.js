@@ -269,15 +269,15 @@ test.describe('lock screen', () => {
     await page.route('**/api/lock-session-check*', async (route) => {
       checks.push(route.request().url());
       if (!unlocked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/display/' }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/theme/' }) });
     });
-    await page.goto('/?lock=1&return=' + encodeURIComponent('/display/') + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await page.goto('/?lock=1&return=' + encodeURIComponent('/theme/') + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     await choosePassword(page);
     await page.fill('#sgx-pw-input', 'correctpassword');
     await page.click('#sgx-pw-go');
-    await page.waitForURL(/\/display\/$/, { timeout: 10000 });
-    expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/display/')))).toBe(true);
+    await page.waitForURL(/\/theme\/$/, { timeout: 10000 });
+    expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/theme/')))).toBe(true);
   });
 
   /* 2.4.1 回跳修复：另一个标签页解锁后，切回来自动检测并回跳。
@@ -297,7 +297,7 @@ test.describe('lock screen', () => {
         body: JSON.stringify({ ok: false }),
       });
     });
-    const ret = encodeURIComponent('/display/');
+    const ret = encodeURIComponent('/theme/');
     await page.goto('/?lock=1&return=' + ret + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     /* dispatch focus → recheckSession → fetch → 401 → 锁屏保持 */

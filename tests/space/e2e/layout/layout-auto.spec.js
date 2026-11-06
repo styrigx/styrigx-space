@@ -52,25 +52,8 @@ test('旧值 pc 在 1366×768 → DeX，并迁成 dex', async ({ page }) => {
   expect(await page.evaluate(() => localStorage.getItem('sgx-layout'))).toBe('dex');
 });
 
-for (const [lang, hint] of [['zh', 'DeX 仅在大屏生效（当前不满足）'], ['en', 'DeX only works on large screens (not met here)']]) {
-  test(`设置 › 显示 › 布局（${lang}）：Mobile / Auto / DeX，默认 Auto；915×412 下 DeX 置灰 + 提示`, async ({ page }) => {
-    await go(page, { width: 915, height: 412 }, (lang === 'en' ? '/en' : '') + '/display/');
-    const seg = page.locator('#seg-layout button');
-    await expect(seg).toHaveText(['Mobile', 'Auto', 'DeX']);
-    await expect(page.locator('#seg-layout [data-v="auto"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('#seg-layout [data-v="dex"]')).toBeDisabled();
-    await expect(page.locator('#seg-layout-narrow-hint')).toHaveText(hint);
-  });
-}
-
-test('设置 › 显示 › 布局：841×673 下 DeX 可选、没有提示；选 DeX 后是 DeX', async ({ page }) => {
-  await go(page, { width: 841, height: 673 }, '/display/');
-  await expect(page.locator('#seg-layout [data-v="dex"]')).toBeEnabled();
-  await expect(page.locator('#seg-layout-narrow-hint')).toHaveCount(0);
-  await page.locator('#seg-layout [data-v="dex"]').click();
-  expect(await page.evaluate(() => localStorage.getItem('sgx-layout'))).toBe('dex');
-  await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
-});
+/* P4-3 PR-4b（Gray 2026-11-07）：显示页（/display/）删除，布局（Mobile / Auto / DeX、窄屏 DeX 置灰、选 DeX 立即生效）只在快捷面板，
+   见 tests/space/e2e/topbar/quick-panel.spec.js「布局：窄屏 DeX 置灰」「布局（宽屏）：选 DeX 立即换成 DeX 布局」 */
 
 /* ----- 顶栏长条：宽屏定宽 400px 居中（P4-3 PR-4a §6.3，原来按内容定宽），手机照旧拉满（2026-11-04 P5-1 胶囊：两侧是 logo 和 快捷面板 · AI · 头像） ----- */
 async function bars(page) {
@@ -109,7 +92,7 @@ test('顶栏长条 412×915：手机照旧拉满（logo 和按钮组之间只隔
 });
 
 /* ----- 宽竖屏 Mobile：外框最宽 640 居中，左右边线 = 顶栏两侧圆外缘（2026-10-23 PR-D） ----- */
-const WRAPS = [['/', '.home-wrap'], ['/display/', '.set-layout'], ['/account/', '.acct-layout'], ['/status/', '.acct-layout'], ['/404.html', '.sgx-404']];
+const WRAPS = [['/', '.home-wrap'], ['/theme/', '.set-layout'], ['/account/', '.acct-layout'], ['/status/', '.acct-layout'], ['/404.html', '.sgx-404']];
 async function frame(page, sel) {
   return page.evaluate((s) => {
     const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
@@ -149,7 +132,7 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
     await go(page, { width: w, height: h }, '/');
     await expect(page.locator('.set-dex-cols, .set-col-l')).toHaveCount(0);
     const bar = await page.evaluate(() => document.querySelector('.sgx-topbar').getBoundingClientRect().width);
-    for (const [path, s, want] of [['/display/', '.set-layout > .set-main', 720], ['/status/', '#st-foot', 720]]) {
+    for (const [path, s, want] of [['/theme/', '.set-layout > .set-main', 720], ['/status/', '#st-foot', 720]]) {
       const [c] = await col(path, s);
       expect(Math.abs(c.w - Math.min(want, bar)), `${path} ${s} 宽 ${c.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(c.c), `${path} 居中`).toBeLessThanOrEqual(1);

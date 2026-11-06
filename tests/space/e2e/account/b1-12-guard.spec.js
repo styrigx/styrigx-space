@@ -219,7 +219,7 @@ test.describe('B1-12 守护：页面切换唯一性', () => {
 
   test('顶栏、大标题同一时刻都只有 1 个，没有 ←', async ({ page }) => {
     /* 旷野页（/）长条里是标签（P4-3 PR-4b 起只剩「旷野」一个），没有页名；所以用子页 */
-    const pages = ['/about/', '/security/', '/display/'];
+    const pages = ['/about/', '/security/', '/theme/'];
     for (const url of pages) {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       /* 等页面稳定：顶栏可见 */

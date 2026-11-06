@@ -4,9 +4,9 @@
 
 /**
  * 旷野子页（P4-3 PR-4b：原设置子页去掉 settings 一层，直接挂在根下；英文 /en/ 前缀）。
- * 新增 data/space-cats.yaml 分类时这里同步加一项（tests/space/ui/space/space-cats.test.mjs 对照检查）。
+ * 新增 data/space-cats.yaml 分类时这里同步加一项（tests/space/ui/build/space-merge.test.mjs 对照检查）。
  */
-export const SPACE_SUB_RE = /^(?:\/en)?\/(?:display|theme|wellbeing|about|status|security)\//;
+export const SPACE_SUB_RE = /^(?:\/en)?\/(?:theme|wellbeing|about|status|security)\//;
 
 /**
  * B2-7：当前页面属于哪个数字健康区域（主站：旷野 / 我的文件 / 浏览器）。

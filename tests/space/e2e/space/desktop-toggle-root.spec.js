@@ -4,7 +4,7 @@
  * 根因：直接打开 App 页（外部 / 无 referrer）时，navhistory.js 用
  * history.replaceState 把子页自己的那条历史改成主页地址，再 pushState 回子页，
  * 好让系统返回一次回到主页。replaceState 只改 URL，不改这条历史的
- * 「原始请求地址」——在 Chromium 里它仍是当初请求的子页（如 /display/）。
+ * 「原始请求地址」——在 Chromium 里它仍是当初请求的子页（如 /theme/）。
  * 之后只要这条历史被跨文档加载成主页（离开设置后再连续系统返回、刷新、会话恢复；2026-10-20 起顶栏没有 ‹），
  * 页面显示的是 /，但「请求桌面版/移动版网站」按原始请求地址重载
  * （NavigationControllerImpl::LoadOriginalRequestURL），于是跳回那个子页。
@@ -74,7 +74,7 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     await blockExternalRequests(page);
     const docs = trackDocs(page);
     /* 无 referrer 直接打开设置：插入一条主页历史 */
-    await page.goto('/display/');
+    await page.goto('/theme/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
 
     /* 从快捷面板导航页点「主站」离开设置（2026-11-04 P5-1 原导航抽屉并进快捷面板；主站是当前站，点它只关面板不跳，
@@ -85,7 +85,7 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     const lenAfterOpen = await page.evaluate(() => history.length);
     /* 系统返回：回到设置（重新加载文档） */
     await page.goBack();
-    await page.waitForURL((u) => u.pathname === '/display/');
+    await page.waitForURL((u) => u.pathname === '/theme/');
     await page.waitForLoadState('load');
 
     docs.length = 0;
@@ -109,7 +109,7 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
   test('直接打开设置 → 系统返回一次回到主页（原有行为），主页是真正的主页请求', async ({ page }) => {
     await blockExternalRequests(page);
     const docs = trackDocs(page);
-    await page.goto('/display/');
+    await page.goto('/theme/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
     docs.length = 0;
 
@@ -128,7 +128,7 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
   test('修好的主页历史以后再退回到，不会再重载', async ({ page }) => {
     await blockExternalRequests(page);
     const docs = trackDocs(page);
-    await page.goto('/display/');
+    await page.goto('/theme/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
     await page.goBack();
     await page.waitForURL((u) => u.pathname === '/');
@@ -136,8 +136,8 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
 
     /* 站内从旷野页的分类卡进子页（P4-3 PR-4b 起没有页内切换，是一次普通的跨文档导航），再系统返回：回到旷野页；
        这条历史是真正请求过 / 的，不带 sgxRoot，不会再 location.replace 出第二份文档 */
-    await page.locator('.home-wrap [aria-label="分类"] a[href="/display/"]').click();
-    await page.waitForURL((u) => u.pathname === '/display/');
+    await page.locator('.home-wrap [aria-label="分类"] a[href="/theme/"]').click();
+    await page.waitForURL((u) => u.pathname === '/theme/');
     await page.waitForLoadState('load');
     docs.length = 0;
     await page.goBack();

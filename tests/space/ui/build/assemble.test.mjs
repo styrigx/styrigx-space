@@ -133,7 +133,7 @@ test('_worker.js：非 styrigx.com 一律 301 回 styrigx.com（含子站路径�
 });
 
 test('_worker.js：styrigx.com 的页面交给静态文件（主站和三站）', async () => {
-  for (const p of ['/', '/display/', '/blog/', '/curio/en/', '/daymark/']) {
+  for (const p of ['/', '/theme/', '/blog/', '/curio/en/', '/daymark/']) {
     const res = await pagesWorker.fetch(new Request(HOST + p), { ASSETS: assetsWith({}) });
     assert.equal(res.status, 200, p);
     assert.equal(await res.text(), 'static:' + p);

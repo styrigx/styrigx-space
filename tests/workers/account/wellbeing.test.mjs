@@ -118,13 +118,14 @@ test('wbAreaOf：主站页面映射', () => {
   assert.equal(wbAreaOf('/en/browser/'), 'browser');
   assert.equal(wbAreaOf('/bookmarks/'), null); /* 2026-10-21 主站书签下线 */
   assert.equal(wbAreaOf('/en/search/'), 'browser');
-  for (const p of ['/theme/', '/display/', '/wellbeing/', '/about/', '/status/', '/security/', '/security/lock/', '/en/security/tempkeys/', '/account/', '/en/account/devices/']) {
+  for (const p of ['/theme/', '/wellbeing/', '/about/', '/status/', '/security/', '/security/lock/', '/en/security/tempkeys/', '/account/', '/en/account/devices/']) {
     assert.equal(wbAreaOf(p), 'space', p);
   }
   assert.equal(wbAreaOf('/blog/'), null, '子站不归主站区域');
   assert.equal(wbAreaOf('/themes/'), null, '只认整段');
   assert.equal(wbAreaOf('/app-verify/'), null);
   assert.equal(wbAreaOf('/404.html'), null);
+  assert.equal(wbAreaOf('/display/'), null, 'P4-3 PR-4b：显示页已删除');
 });
 
 test('foldSections（前端读旧）：home / settings 并进 space，同键相加、按时长排序', () => {

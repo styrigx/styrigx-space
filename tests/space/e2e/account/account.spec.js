@@ -1343,7 +1343,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     await expect.poll(() => prefs.get).toBe(1);
     /* 拉取成功写下时刻后再换页（还没处理完响应就离开，这次不算成功，下一页会再拉） */
     await page.waitForFunction(() => !!localStorage.getItem('sgx-sync-pull'));
-    await page.goto('/display/', { waitUntil: 'load' });
+    await page.goto('/theme/', { waitUntil: 'load' });
     await page.goto('/', { waitUntil: 'load' });
     /* 拉不拉由 core 在模块执行时同步决定（shell/core.js → lib/cloud-sync.js initCloudSync，要拉就当场 fetch）：
        load 时已经决定完；冲刷请求事件后，要是发了 GET 一定已经记到 */
@@ -1375,7 +1375,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     await page.goto('/', { waitUntil: 'load' });
     await expect.poll(() => gets).toBe(1);
     await page.waitForFunction(() => localStorage.getItem('sgx-sync-auth') === 'out');
-    await page.goto('/display/', { waitUntil: 'load' });
+    await page.goto('/theme/', { waitUntil: 'load' });
     await flushRequests(page);
     expect(gets).toBe(1);
   });

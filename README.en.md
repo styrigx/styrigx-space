@@ -62,7 +62,7 @@ The interface is **Styrigx UI**, built in-house, with version numbers that track
 
 | App | Path | What it does |
 |---|---|---|
-| Space | `/en/` | The main site's only top-level page (Home and Settings merged): profile card, Daymark's quote of the day, screen time, then every category laid out below — Display `/en/display/`, Style `/en/theme/`, Security `/en/security/` (lock credentials `/en/security/lock/`, temporary keys `/en/security/tempkeys/`), Digital wellbeing `/en/wellbeing/`, Service status `/en/status/`, About `/en/about/`. Settings are stored locally and synced once you sign in; service status shows uptime and incidents for the main site, Proxy rules and AI; temporary keys include share links, and creating or revoking one asks for a lock re-verification. |
+| Space | `/en/` | The main site's only top-level page (Home and Settings merged): profile card, Daymark's quote of the day, screen time, then every category laid out below — Style `/en/theme/`, Security `/en/security/` (lock credentials `/en/security/lock/`, temporary keys `/en/security/tempkeys/`), Digital wellbeing `/en/wellbeing/`, Service status `/en/status/`, About `/en/about/`. Settings are stored locally and synced once you sign in; service status shows uptime and incidents for the main site, Proxy rules and AI; temporary keys include share links, and creating or revoking one asks for a lock re-verification. |
 | AI assistant | Top-bar AI button | On-site assistant: recalls from the site-wide index, then a model (self-hosted Gemma 4 / GPT-OSS 20B, or external Gemini) streams the answer with on-site source cards; the conversation stays local. |
 | Account | `/en/account/` | Opened from the avatar in the drawer head: account sign-in, cloud sync, devices, account security. |
 

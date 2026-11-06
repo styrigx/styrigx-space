@@ -185,7 +185,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
 
 /* F 基准 1（日期和时间弹层）P4-2c 随日期和时间设置一起删除 */
 
-/** 快捷面板 / AI 窗口截图的共同准备：手机、减弱动效、中文、固定字体和时间，旷野子页 /display/ */
+/** 快捷面板 / AI 窗口截图的共同准备：手机、减弱动效、中文、固定字体和时间，旷野子页 /theme/（P4-3 PR-4b 前是 /display/，显示页已删除） */
 async function shellShotPage(pg) {
   await pg.setViewportSize(VIEWPORTS.mobile);
   await blockExternalRequests(pg);
@@ -197,7 +197,7 @@ async function shellShotPage(pg) {
     content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
   });
   await freezeTime(pg);
-  await pg.goto('/display/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/theme/', { waitUntil: 'domcontentloaded' });
   await waitPageReady(pg);
 }
 /** 点快捷面板图标，等面板稳定在打开状态（不拍滑下中途）；pg2 = 切到第 2 页「快捷设置」 */

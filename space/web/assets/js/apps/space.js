@@ -1,23 +1,22 @@
 /**
- * @fileoverview 旷野页（/）与子页（/display/、/theme/、/wellbeing/、/about/）：显示（主题、布局、语言）、风格（调色板）、数字健康。
+ * @fileoverview 旷野页（/）与子页（/theme/、/wellbeing/、/about/）：风格（调色板）、数字健康。
+ * P4-3 PR-4b（2026-11-07，Gray）：显示页（/display/）整页删除——深色 / 跟随系统 / 语言 / 布局都在快捷面板（共享外壳），这里不再有主题模式、布局、语言三段。
  * P4-3 PR-4b（2026-11-07）：由 apps/settings.js 改名；主页和设置合成「旷野 / Space」一页，页内切换、DeX 双栏、旧 hash 跳转删除。
  * （2026-10-23 PR-E：字体大小、减弱动效、重置所有设置删除；P4-2c：日期和时间、天气、快捷键连同高级功能分类删除）
  * 文案来自页面内 sgx-i18n-space JSON（中英双语），JS 与语言无关。
- * mountSpace() 在加载时挂一次（入口 entry-space.js / entry-space-sub.js），返回 destroy()：拆掉本次挂的全部监听 / 定时器 / 撤销条。
+ * mountSpace() 在加载时挂一次（入口 entry-space.js / entry-space-sub.js），返回 destroy()：拆掉本次挂的全部监听。
  */
 import { on as evOn } from '../lib/events.js';
-import { get } from '../lib/storage.js';
 import { get as featGet, set as featSet, on as featOnRaw } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
-import { setTheme, toggleFollowSystem, setPalette, palette, DEFAULT_PALETTE, setLayout, setLang, normLayout, layoutNarrow } from '../lib/prefs.js';
+import { setPalette, palette, DEFAULT_PALETTE } from '../lib/prefs.js';
 import { syncAccent } from '../lib/accent-roles.js';
 import { accent } from '../lib/accent.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { fmtDur } from '../lib/wb-view.js';
-import { sgxReplace } from '../lib/diag-jumptrace.js';
 
 /**
- * 挂旷野页 / 旷野子页。返回 destroy()：移除这次挂上的所有监听（含 features 订阅）、定时器、布局撤销条。
+ * 挂旷野页 / 旷野子页。返回 destroy()：移除这次挂上的所有监听（含 features 订阅）。
  * @returns {() => void}
  */
 export function mountSpace() {
@@ -59,31 +58,6 @@ export function mountSpace() {
       }
     });
   }
-
-  /* ---- 主题模式 ---- */
-  function curMode() {
-    return featGet('theme-mode');
-  }
-  function paintTheme() {
-    const m = curMode();
-    document.querySelectorAll('#theme-previews .theme-prev').forEach(function (b) {
-      b.setAttribute('aria-pressed', b.getAttribute('data-mode') === m ? 'true' : 'false');
-    });
-    setSwitch('sw-system', m === 'system');
-  }
-  document.querySelectorAll('#theme-previews .theme-prev').forEach(function (b) {
-    on(b, 'click', function () {
-      setTheme(/** @type {any} */ (b.getAttribute('data-mode')));
-      paintTheme();
-    });
-  });
-  rowToggle('row-system', function () {
-    toggleFollowSystem();
-    paintTheme();
-  });
-  on(window, 'sgx-theme-changed', paintTheme);
-  paintTheme();
-  featOn('theme-mode', paintTheme);
 
   /* ---- 调色板（2026-10-23 PR-G 七色调色板：22 套一个列表、按组分组；默认 dustyblue） ---- */
   /* 色块 .pal-tile（#palette-dots 下，按 group 分组的网格）；上面的预览卡 #pal-preview 显示当前色板：
@@ -127,146 +101,6 @@ export function mountSpace() {
   syncAccent();
   paintPalette();
   featOn('palette', paintPalette);
-
-  /* ---- 布局：Mobile / Auto / DeX ---- */
-  function paintLayout() {
-    let v = featGet('layout');
-    /* 旧值 pc → dex；其他旧值（tablet/phone 等）一律回落到自动 */
-    if (v !== 'auto' && v !== 'mobile' && v !== 'dex') {
-      v = normLayout(v);
-      featSet('layout', v);
-    }
-    /* 不够 DeX（宽 < 840 或高 < 500）：DeX 置灰，偏好保留，回到大屏再生效 */
-    const isNarrow = layoutNarrow();
-    const en = document.documentElement.lang === 'en';
-    document.querySelectorAll('#seg-layout button').forEach(function (b) {
-      const bv = b.getAttribute('data-v');
-      b.setAttribute('aria-pressed', bv === v ? 'true' : 'false');
-      if (bv === 'dex' && isNarrow) {
-        b.setAttribute('disabled', 'disabled');
-        b.setAttribute('title', en ? 'Large screens only' : '仅在大屏生效');
-      } else {
-        b.removeAttribute('disabled');
-        b.removeAttribute('title');
-      }
-    });
-    // 不够 DeX 的提示
-    let hint = document.getElementById('seg-layout-narrow-hint');
-    if (isNarrow) {
-      if (!hint) {
-        hint = document.createElement('p');
-        hint.id = 'seg-layout-narrow-hint';
-        hint.className = 'text-[12px] opacity-60 mt-1';
-        hint.textContent = en ? 'DeX only works on large screens (not met here)' : 'DeX 仅在大屏生效（当前不满足）';
-        const seg = document.getElementById('seg-layout');
-        if (seg && seg.parentNode) seg.parentNode.appendChild(hint);
-      }
-    } else if (hint) {
-      hint.remove();
-    }
-  }
-  /* 2.9.2：布局切换 snackbar（含 10 秒撤销） */
-  let layoutUndoTimer = null;
-  function showLayoutSnackbar(newV, oldV) {
-    // 清掉旧的
-    const old = document.getElementById('sgx-layout-snackbar');
-    if (old) old.remove();
-    if (layoutUndoTimer) { clearTimeout(layoutUndoTimer); layoutUndoTimer = null; }
-    const names = { auto: 'Auto', mobile: 'Mobile', dex: 'DeX' };
-    const bar = document.createElement('div');
-    bar.id = 'sgx-layout-snackbar';
-    bar.setAttribute('role', 'status');
-    bar.innerHTML = '<span>已切换为 ' + (names[newV] || newV) + ' 布局</span>' +
-      '<button type="button" id="sgx-layout-undo">撤销</button>';
-    document.body.appendChild(bar);
-    // 10 秒后自动消失
-    layoutUndoTimer = setTimeout(function () {
-      bar.remove();
-      layoutUndoTimer = null;
-    }, 10000);
-    on(/** @type {HTMLElement} */ (document.getElementById('sgx-layout-undo')), 'click', function () {
-      setLayout(oldV);
-      paintLayout();
-      bar.remove();
-      if (layoutUndoTimer) { clearTimeout(layoutUndoTimer); layoutUndoTimer = null; }
-    });
-  }
-
-  document.querySelectorAll('#seg-layout button').forEach(function (b) {
-    on(b, 'click', function () {
-      const v = b.getAttribute('data-v') || 'auto';
-      const oldV = featGet('layout') || 'auto';
-      if (v === oldV) return;
-      setLayout(v);
-      paintLayout();
-      showLayoutSnackbar(v, oldV);
-    });
-  });
-  paintLayout();
-  featOn('layout', paintLayout);
-
-  /* ---- 语言（显示）行：当前值 ---- */
-  function paintManage() {
-    const lv = $('lang-val');
-    if (lv) {
-      const v = langVal();
-      lv.textContent = v === 'system' ? T.t('langSystem') : v === 'en' ? 'English' : '中文';
-    }
-  }
-  paintManage();
-
-  /* ---- 语言 ---- */
-  function langVal() {
-    const v = get('sgx-lang');
-    if (v === 'zh') return 'zh';
-    if (v === 'en') return 'en';
-    return 'system';
-  }
-  /* P4-3 PR-4b §6.7：行内展开单选（不做底部弹出窗口）。点行展开 / 收起 #lang-opts；选中即保存并收起，
-     写偏好并跳到对应语言版本（保留查询参数与 hash），replace 不产生历史；选的就是当前值只收起。 */
-  const langRow = $('row-lang');
-  const langOpts = $('lang-opts');
-  /** @param {boolean} open */
-  function setLangOpen(open) {
-    if (!langRow || !langOpts) return;
-    langRow.setAttribute('aria-expanded', open ? 'true' : 'false');
-    langOpts.hidden = !open;
-  }
-  function paintLangOpts() {
-    if (!langOpts) return;
-    const cur = langVal();
-    langOpts.querySelectorAll('.set-opt').forEach(function (b) {
-      b.setAttribute('aria-checked', b.getAttribute('data-v') === cur ? 'true' : 'false');
-    });
-  }
-  rowToggle('row-lang', function () {
-    if (!langOpts) return;
-    paintLangOpts();
-    setLangOpen(langOpts.hidden);
-  });
-  if (langOpts) {
-    langOpts.querySelectorAll('.set-opt').forEach(function (b) {
-      on(b, 'click', function () {
-        const v = b.getAttribute('data-v') || 'system';
-        const changed = v !== langVal();
-        setLangOpen(false);
-        if (!changed) return;
-        /* 先就地标上选中项和行尾当前值（跳转前这一帧不闪旧值） */
-        const url = setLang(/** @type {any} */ (v));
-        paintLangOpts();
-        paintManage();
-        sgxReplace(url);
-      });
-    });
-    /* Esc 收起，焦点回到行上 */
-    on(langOpts, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      setLangOpen(false);
-      if (langRow) langRow.focus();
-    });
-    paintLangOpts();
-  }
 
   /* ---- 数字健康：时长提示 ---- */
   function paintWellTip() {
@@ -331,11 +165,5 @@ export function mountSpace() {
         f();
       } catch (e) {}
     });
-    if (layoutUndoTimer) {
-      clearTimeout(layoutUndoTimer);
-      layoutUndoTimer = null;
-    }
-    const bar = document.getElementById('sgx-layout-snackbar');
-    if (bar) bar.remove();
   };
 }
