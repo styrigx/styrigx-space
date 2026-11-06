@@ -4,7 +4,7 @@
  * 谁在用：
  * - 网关（src/app.js）：主站 styrigx.com 经过网关的每个响应（页面、锁屏首页、302、/api/*）→ applyMainSiteHeaders
  *   子站（styrigx.com/blog/、/curio/、/daymark/，合并 PR3 起按路径前缀）经过网关的响应 → applySubsiteHeaders（低风险的一组，见下）
- *   子站静态资源直通回源 → applySubsiteStaticHeaders（只补 HSTS、nosniff）；旧域名 atlas.styrigx.com 的 301 → applyMainSiteHeaders
+ *   子站静态资源直通回源 → applySubsiteStaticHeaders（只补 HSTS、nosniff）
  * - 账号 Worker、分享短链 Worker（styrigx.com 上更具体的路由）→ applyMainSiteHeaders
  * - Pages 静态文件：space/web/static/_headers 里 @gen-security-headers 那一段由 space/scripts/gen-csp.mjs 按本文件生成（--check 防漂移）
  * - Pages 的 space/web/static/_worker.js（*.pages.dev → 301）不能 import，自己抄了一份常量，单测核对和这里一致

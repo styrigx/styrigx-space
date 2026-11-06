@@ -121,7 +121,7 @@ function assetsWith(map, seen = []) {
 
 test('_worker.js：非 styrigx.com 一律 301 回 styrigx.com（含子站路径），保留路径和查询串，不碰静态文件', async () => {
   const seen = [];
-  for (const host of ['styrigx-space.pages.dev', 'abc123.styrigx-space.pages.dev', 'atlas.styrigx.com']) {
+  for (const host of ['styrigx-space.pages.dev', 'abc123.styrigx-space.pages.dev', 'www.styrigx.com']) {
     for (const p of ['/blog/', '/curio/en/?x=1', '/daymark/a.png']) {
       const res = await pagesWorker.fetch(new Request('https://' + host + p), { ASSETS: assetsWith({}, seen) });
       assert.equal(res.status, 301, host + p);

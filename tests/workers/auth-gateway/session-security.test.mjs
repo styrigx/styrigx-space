@@ -469,7 +469,7 @@ test('middleware：?return= 只接受站内路径，非法一律回首页 /', as
   assert.equal(r.status, 302);
   assert.equal(r.headers.get('Location'), 'https://styrigx.com/daymark/en/');
 
-  /* 已下线的旧子域名、旧图志（合并 PR3 起只剩 301）→ 回首页 */
+  /* 已下线的旧子域名、旧图志（P4-3 PR-1 删掉 301、域名下线，仍在回跳黑名单里）→ 回首页 */
   for (const h of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com', 'atlas.styrigx.com']) {
     r = await tryReturn('https://' + h + '/');
     assert.equal(r.headers.get('Location'), '/', h);

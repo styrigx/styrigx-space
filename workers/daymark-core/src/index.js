@@ -1,5 +1,5 @@
 /**
- * @fileoverview styrigx-daymark-core：日刻接口 Worker（路由 styrigx.com/daymark/api/*，过渡期兼 atlas.styrigx.com/daymark/api/*，见 wrangler.toml）。
+ * @fileoverview styrigx-daymark-core：日刻接口 Worker（路由 styrigx.com/daymark/api/*，见 wrangler.toml）。
  *
  * 数据接口都在这里，D1（D1_QUOTES）只绑在本 Worker 上；Pages 只放静态文件。
  * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 AUTH，见 src/api/_auth.js）。
@@ -88,7 +88,7 @@ function tag(res) {
   return out;
 }
 
-/** 本站在主域名（styrigx.com；旧图志 atlas.styrigx.com 同一前缀）下的前缀：接口公开地址是 {BASE}/api/*，路由表按去掉前缀后的 /api/* 登记 */
+/** 本站在主域名 styrigx.com 下的前缀：接口公开地址是 {BASE}/api/*，路由表按去掉前缀后的 /api/* 登记 */
 export const BASE = '/daymark';
 
 /** 公开地址 → 路由表里的路径（/daymark/api/x → /api/x）；不是本站接口返回 '' */

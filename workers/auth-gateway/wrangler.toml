@@ -1,4 +1,4 @@
-# styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com 整站请求：会话检查 + 接口；静态资源原样回源；atlas.styrigx.com 只做 301）
+# styrigx-auth-gateway：鉴权网关（CI 部署；承接 styrigx.com 整站请求：会话检查 + 接口；静态资源原样回源）
 #
 # 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥；骨架见 workers/README.md）+ migrations/（D1）。
 # 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步、数字健康）在账号 Worker styrigx-account（workers/account）：
@@ -26,7 +26,7 @@ enabled = true
 head_sampling_rate = 1
 
 # 路由：本文件就是网关 Worker 路由的唯一登记处（space/scripts/check-worker-routes.mjs 在 CI 里核对）。
-# 两个主机都是整站一条通配路由（host/*）：
+# 只有一个主机，整站一条通配路由（styrigx.com/*）：
 # - Cloudflare 的路由规则不带 * 时要求整条 URL（含查询串）完全相等，遇到 ?lock=1、?utm=… 就不命中 → 请求直达 Pages：
 #   锁屏入口 styrigx.com/?lock=1&return=… 没有会话标记；子站页面带任意查询串不验会话直出正文。
 # - 通配后新增页面目录不会漏登记（fail closed）。静态资源（/css/ /js/ /fonts/ /fav/ /images/）也进 Worker，
@@ -34,18 +34,10 @@ head_sampling_rate = 1
 # - 子站（合并 PR3，2026-11-03）：博客 / 奇趣 / 日刻和主站拼成一棵树，在 styrigx.com 的 /blog/ /curio/ /daymark/ 下，
 #   由本 Worker 按路径前缀验会话（src/gate.js 子站关口 handleSubsite）；更具体的 styrigx.com/curio/api/*、styrigx.com/daymark/api/*
 #   归两个接口 Worker（workers/curio-core、workers/daymark-core 的 wrangler.toml 登记），网关这里不登记比它们更具体的规则。
-# - 旧图志 atlas.styrigx.com：路由保留，只做 301 → https://styrigx.com 同路径 + 查询串（不验会话、不回源，src/app.js 第一步）。
-#   接口 Worker 在 atlas.styrigx.com/<站>/api/* 的旧路由过渡期还在（更具体，不进网关），以后的清理 PR 删。
-#   这条路由能截住请求的前提：atlas.styrigx.com 在 Cloudflare 里仍是一条「已代理」的 DNS 记录（现在是 Pages 项目 styrigx-atlas 的自定义域名）。
-#   旧的 blog / daymark / curio 子域名不再登记（不跳转）。
+# - 旧图志域名的过渡期跳转（合并 PR3 起的 301）已于 P4-3 PR-1 删除，路由不再登记；旧的 blog / daymark / curio 子域名同样不登记（不跳转）。
 # 注意：Pages 上已经没有后端代码，删掉路由 = 页面不验会话，不能靠删路由回滚；出问题时 revert 对应提交重新部署。
 [[routes]]
 pattern = "styrigx.com/*"
-zone_name = "styrigx.com"
-
-# ---- 旧图志域名：只做 301 到 styrigx.com（src/gate.js atlasRedirect）----
-[[routes]]
-pattern = "atlas.styrigx.com/*"
 zone_name = "styrigx.com"
 
 # ---- 明文变量（公钥在 Secrets Store）----

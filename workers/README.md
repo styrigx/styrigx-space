@@ -49,7 +49,7 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 | `account` | 全量对齐入口和身份：`worker.js` → `index.js`，原 `index.js` 拆成 `app.js` + `router.js`，`entrypoints.js` 拆成 `rpc/account-service.js`、`rpc/account-verifier.js`、`gate.js`，`identity/account.js` → `api/account.js`，`identity/` 其余 → `core/`。`lib/` 原样保留：里面还有 d1-state、password*、root-*、tickets、lock-identity、avatar 这类业务文件 |
 | `ai` | P4-1 新建，按骨架起步：`index.js`（只再导出）/ `app.js` / `router.js` + `api/` `core/` `lib/`；没有关口（只经网关服务绑定进来） |
 | `share`、`status`、`proxy-rules`（`chat`、`search-index` 已在 P4-2b 删除） | `main` 本来就是 `src/index.js`，这次只补齐 README，不搬家、不改 import。share 已有 `gate.js`、`api/`、`lib/`，另有两个文件在 `src/` 顶层（`auth.js` 会话判断、`open.js` 打开短链）；status 的 `monitor.js` / `quota.js` / `targets.js` / `usage.js` 也在顶层；status 读 Secrets Store 不经 `secrets.js` |
-| `curio-core`、`daymark-core` | 2026-11-02 从 styrigx-atlas 搬来（`sites/<站>/workers/core/` → `workers/<站>-core/`，合并 PR1），代码不动；`main` 本来就是 `src/index.js`，只补 `README.md`、`package.json`（规则 20、21）。路由表在 `src/routes.js`、接口在 `src/api/`（`_` 开头的是接口共用模块）、索引和清扫在 `src/` 顶层。合并 PR3 起由本仓库 `.github/workflows/deploy.yml` 部署（`deploy-curio-core` / `deploy-daymark-core`，在网关之前），路由 `styrigx.com/<站>/api/*`（`atlas.styrigx.com/<站>/api/*` 旧路由保留一个版本） |
+| `curio-core`、`daymark-core` | 2026-11-02 从 styrigx-atlas 搬来（`sites/<站>/workers/core/` → `workers/<站>-core/`，合并 PR1），代码不动；`main` 本来就是 `src/index.js`，只补 `README.md`、`package.json`（规则 20、21）。路由表在 `src/routes.js`、接口在 `src/api/`（`_` 开头的是接口共用模块）、索引和清扫在 `src/` 顶层。合并 PR3 起由本仓库 `.github/workflows/deploy.yml` 部署（`deploy-curio-core` / `deploy-daymark-core`，在网关之前），路由 `styrigx.com/<站>/api/*`（旧图志域名下的过渡期旧路由已于 P4-3 PR-1 删除） |
 
 小 Worker 什么时候再对齐：要给它加第二个接口或第二个入口、要加关口或 RPC 类、单个文件大到要拆、或者要给它加 `migrations/` 的时候，顺手按上面的骨架搬一次（同一个提交里只搬结构，不改行为）。在那之前不为对齐而搬。
 

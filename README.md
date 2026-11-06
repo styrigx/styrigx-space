@@ -43,7 +43,7 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 这是 styrigx.com 的源码仓库，也是整个站点家族的「系统仓库」：
 
 - **门户**：主页、聊天、设置、账号四个应用，中英双语。
-- **鉴权网关**：主站和子站（博客、奇趣、日刻，在 `styrigx.com/<站>/`）的每个页面、每个接口都先经过它；旧图志域名 atlas.styrigx.com 任意路径 301 到 styrigx.com 同路径。全站上锁是设计本身，对外分享只用带临时钥匙的短链。
+- **鉴权网关**：主站和子站（博客、奇趣、日刻，在 `styrigx.com/<站>/`）的每个页面、每个接口都先经过它。全站上锁是设计本身，对外分享只用带临时钥匙的短链。
 - **共享外壳**：顶栏、导航抽屉、搜索层由这里生成，子站按锁定的外壳版本（git tree 哈希）同步一份副本。
 - **共享 CI**：Hugo、Node、Playwright 的安装步骤以 composite action 形式发布（`v*` tag），图志按 tag 引用。
 
@@ -64,7 +64,7 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 |---|---|---|
 | 主页 | `/` | 名片、双时钟、天气、日刻「今日一句」、屏幕时间。 |
 | AI 助手 | 顶栏 AI 按钮 | 站内对话助手：先在全站索引里召回，再交给模型（自营 Gemma 4 / GPT-OSS 20B，或外部 Gemini）流式回答，附站内来源卡片；对话只存在本地。 |
-| 设置 | `/settings/` | 显示、语言、布局等系统设置，存在本地，登录账号后可云同步。还有服务状态（主站、图志、规则集的可用率与故障）和临时钥匙（含分享短链；新建、作废前要锁侧复验）。 |
+| 设置 | `/settings/` | 显示、语言、布局等系统设置，存在本地，登录账号后可云同步。还有服务状态（主站、规则集、AI 的可用率与故障）和临时钥匙（含分享短链；新建、作废前要锁侧复验）。 |
 | 账号 | `/account/` | 从导航抽屉头的头像进入：账号登录、云同步、设备、账号安全。 |
 
 ## 架构
@@ -73,7 +73,7 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 flowchart LR
   V([浏览器]) --> GW
   subgraph CF[Cloudflare]
-    GW[styrigx-auth-gateway<br/>styrigx.com/*<br/>atlas.styrigx.com/* → 301]
+    GW[styrigx-auth-gateway<br/>styrigx.com/*]
     SH[styrigx-share<br/>/s/* · /api/share*]
     CC[styrigx-curio-core<br/>/curio/api/*]
     DC[styrigx-daymark-core<br/>/daymark/api/*]
@@ -91,13 +91,13 @@ flowchart LR
 
 | Worker | 职责 | 入口 |
 |---|---|---|
-| `styrigx-auth-gateway` | 锁屏会话的签发与校验、锁屏凭证与临时钥匙接口；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages；旧域名 atlas.styrigx.com 只做 301 | `styrigx.com/*`、`atlas.styrigx.com/*` |
+| `styrigx-auth-gateway` | 锁屏会话的签发与校验、锁屏凭证与临时钥匙接口；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages | `styrigx.com/*` |
 | `styrigx-account` | 账号系统：密码、通行密钥、设备、账号根密钥、头像、云同步、数字健康 | 只走网关服务绑定，无公开路由 |
 | `styrigx-share` | 分享短链与管理接口 | `styrigx.com/s/*`、`styrigx.com/api/share*` |
 | `styrigx-ai` | 站内对话助手：KV 索引召回 + 模型回答（Workers AI / Gemini），不存对话 | 只走网关服务绑定 |
 | `styrigx-status` | 每分钟监测，每小时读取用量（D1） | 只走网关服务绑定 |
 | `styrigx-proxy-rules` | 规则集加速反代，仅放行指定上游 | `proxy-rules.styrigx.com`（不经网关） |
-| `styrigx-curio-core` | 奇趣接口（D1 + R2） | `styrigx.com/curio/api/*`（比网关更具体；`atlas.styrigx.com/curio/api/*` 旧路由过渡期保留） |
+| `styrigx-curio-core` | 奇趣接口（D1 + R2） | `styrigx.com/curio/api/*`（比网关更具体） |
 | `styrigx-daymark-core` | 日刻接口（D1） | `styrigx.com/daymark/api/*`（同上） |
 
 子站和主站是同一个 Pages 项目里的一棵树（主站在根上，三站在 `/blog/`、`/curio/`、`/daymark/`），一次部署。
@@ -166,7 +166,7 @@ styrigx-space/
 |---|---|---|
 | **styrigx-space**（本仓库） | [styrigx.com](https://styrigx.com) | 门户与鉴权网关；子站 [博客](https://styrigx.com/blog/)、[奇趣](https://styrigx.com/curio/)、[日刻](https://styrigx.com/daymark/)（2026-11 从 styrigx-atlas 并入） |
 
-旧图志域名 atlas.styrigx.com 的任意路径 301 到 styrigx.com 同路径（保留查询串）。
+旧图志域名的 301 跳转已于 2026-11（P4-3 PR-1）删除，该域名下线。
 
 ## 许可
 

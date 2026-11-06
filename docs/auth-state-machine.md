@@ -28,9 +28,9 @@ SpaceKey 不拥有会话，两把各管各的：进站凭证 `SGX_LOCK_SPACE_KEY
 
 ## 2. 路由（谁处理请求）
 
-网关只登记两条路由：`styrigx.com/*`（主站和三个子站同一个 Pages、一棵树，三站各占 `/blog/`、`/curio/`、`/daymark/`，按路径前缀走子站关口）、
-`atlas.styrigx.com/*`（合并 PR3 起只做 301 到 `https://styrigx.com` 同路径 + 查询串，不验会话、不回源）。
-`styrigx.com/daymark/api/*` 归 `styrigx-daymark-core`、`styrigx.com/curio/api/*` 归 `styrigx-curio-core`（更具体，本仓库 `workers/<站>-core`；atlas 上的旧接口路由过渡期保留）；
+网关只登记一条路由：`styrigx.com/*`（主站和三个子站同一个 Pages、一棵树，三站各占 `/blog/`、`/curio/`、`/daymark/`，按路径前缀走子站关口）。
+旧图志域名那条（合并 PR3 起只做 301）已于 P4-3 PR-1 删除。
+`styrigx.com/daymark/api/*` 归 `styrigx-daymark-core`、`styrigx.com/curio/api/*` 归 `styrigx-curio-core`（更具体，本仓库 `workers/<站>-core`；旧图志域名上的旧接口路由 P4-3 PR-1 删除）；
 子站页面用的 `/api/lock-session-check` 就是主站根上的同一个接口，归网关。旧子域名 blog / daymark / curio.styrigx.com 已停用，不再登记。
 静态资源（主站 `/css/ /js/ /fonts/ /fav/ /images/`，子站前缀下的静态后缀，如 `/blog/manifest.json`）第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
 

@@ -5,8 +5,8 @@
  */
 
 const MAIN_ORIGIN = 'https://styrigx.com';
-/* 已下线的子站：不再作为回跳目标（blog / curio / daymark 2026-11-02 并入图志 atlas.styrigx.com；合并 PR3 起三站在 styrigx.com/<站>/，
-   atlas.styrigx.com 只剩 301，同样不认） */
+/* 已下线的子站：不再作为回跳目标（blog / curio / daymark 2026-11-02 并入图志 atlas.styrigx.com；合并 PR3 起三站在 styrigx.com/<站>/。
+   atlas.styrigx.com 的 301 过渡跳转已于 P4-3 PR-1 删除、域名下线；它留在这里当回跳黑名单，同样不认） */
 const RETIRED_RETURN_HOSTS = new Set(['book.styrigx.com', 'book-preview.styrigx.com', 'blog.styrigx.com', 'curio.styrigx.com', 'daymark.styrigx.com', 'atlas.styrigx.com']);
 const UNSAFE_RETURN_RE = /[\u0000-\u001f\u007f\\]/;
 

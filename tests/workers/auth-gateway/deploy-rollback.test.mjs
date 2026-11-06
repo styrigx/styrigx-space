@@ -352,7 +352,7 @@ test('deploy.yml：部署顺序 账号、短链（可并行）→ 网关 → Pag
   assert.ok(needs('deploy-auth-worker').includes('deploy-account-worker'));
   assert.ok(needs('deploy-auth-worker').includes('deploy-share-worker'));
   assert.ok(needs('build-and-deploy').includes('deploy-auth-worker'));
-  /* 合并 PR3：两个子站接口 Worker 等 status 的健康闸门、排在网关之前（网关切子站前缀分发 / atlas 301 时主域名接口已在），不等网关 */
+  /* 合并 PR3：两个子站接口 Worker 等 status 的健康闸门、排在网关之前（网关按子站前缀分发时主域名接口已在），不等网关 */
   for (const c of ['deploy-curio-core', 'deploy-daymark-core']) {
     assert.ok(needs(c).includes('deploy-status-worker'), c);
     assert.ok(!needs(c).includes('deploy-auth-worker'), c);
@@ -363,11 +363,11 @@ test('deploy.yml：部署顺序 账号、短链（可并行）→ 网关 → Pag
     assert.ok(mig >= 0 && mig < steps.findIndex(isDeploy), c + ': D1 migrations before deploy');
     const smoke = steps.find((st) => /^Smoke test/.test(st.name)).run;
     assert.match(smoke, new RegExp('https://styrigx\\.com/' + c.replace('deploy-', '').replace('-core', '') + '/api/'), c + ': smoke hits the main-domain route');
-    assert.match(smoke, new RegExp('https://atlas\\.styrigx\\.com/' + c.replace('deploy-', '').replace('-core', '') + '/api/'), c + ': old atlas route still answers');
+    assert.doesNotMatch(smoke, /atlas\.styrigx\.com/, c + ': P4-3 PR-1 起旧图志域名的过渡期路由已删，冒烟不再测它');
   }
-  /* 网关冒烟：子站前缀 302（子站格式）+ 旧图志 301 带 Location */
+  /* 网关冒烟：子站前缀 302（子站格式）；旧图志域名的 301 已于 P4-3 PR-1 删除，不再测 */
   const gw = wf.jobs['deploy-auth-worker'].steps.find((st) => /^Smoke test/.test(st.name)).run;
-  assert.match(gw, /redir 'https:\/\/atlas\.styrigx\.com\/curio\/\?a=1' 301 'https:\/\/styrigx\.com\/curio\/\?a=1'/);
+  assert.doesNotMatch(gw, /atlas\.styrigx\.com/);
   assert.match(gw, /why=no-cookie&return=https%3A%2F%2Fstyrigx\.com%2F\$s%2F/);
   /* 网关冒烟：伪造身份头必须 401（或旧路由残留时账号默认 fetch 404），头像带账号运行时标记 */
   const smoke = wf.jobs['deploy-auth-worker'].steps.find((s) => /^Smoke test/.test(s.name)).run;

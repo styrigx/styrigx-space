@@ -32,7 +32,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 ### L1 内核·权限：`workers/auth-gateway/src/gate.js`
 - **页面和 `/api/*` 进门时决定是否已解锁的只有这一个文件**（2026-11-02 由原 `functions/_middleware.js` 和 `src/subsites.js` 合成），两个调用点（都在 `src/app.js`）：
   主站路径走 `onRequest`（原 `_middleware`），子站路径前缀 `styrigx.com/blog/`、`/curio/`、`/daymark/` 走 `handleSubsite`（原 `subsites`）；
-  旧域名 `atlas.styrigx.com` 在进门之前就 301 到主域名同路径（`atlasRedirect`，不验会话）；
+  （旧图志域名进门前的 301 `atlasRedirect` 已于 P4-3 PR-1 删除。）
   两处都用 L0 同一个 `verifyLockSession`，没有第二套判断。每个页面请求都在这里判断会话。
 - 这是粗粒度的门（有没有会话、什么角色、哪些路径公开）；L2 的处理函数可以按角色再验一次（例如 `api/lock-tempkey.js` 再要求锁屏进门会话），
   用的也是 L0 同一份 `lock-session.js`，不另写判断。
@@ -97,7 +97,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 
 ### L6 外部 App：子站 styrigx.com/blog/、/curio/、/daymark/
 - 合并 PR3 起三站和主站是同一个 Pages 项目 `styrigx-space` 里的一棵树，各占一个路径 `/blog/`、`/curio/`、`/daymark/`，代码在本仓库 `atlas/web/<站>/`。
-  旧图志域名 `atlas.styrigx.com` 任意路径 301 到 `https://styrigx.com` 同路径（保留查询串）。
+  旧图志域名的 301 跳转已于 P4-3 PR-1 删除，该域名下线。
 - 子站页面由网关（`workers/auth-gateway/src/gate.js` 的 `handleSubsite`，按路径前缀）验同一份锁屏会话，Pages 不持任何钥匙。
 - 未解锁时 302 到 space 锁屏并带完整 return。
 - 子站的接口 `styrigx.com/daymark/api/*`、`/curio/api/*` 归本仓库的两个接口 Worker `styrigx-daymark-core`、`styrigx-curio-core`（`workers/daymark-core`、`workers/curio-core`；atlas 上的旧接口路由过渡期保留）；门内操作（daymark 记句子、curio 改收藏）由它们经服务绑定 `AuthVerifier` 再问网关。

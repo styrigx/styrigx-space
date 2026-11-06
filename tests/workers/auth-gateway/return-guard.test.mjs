@@ -45,7 +45,7 @@ test('safeReturn：合法站内路径与白名单子站照常，返回规范化�
   assert.equal(safeReturn('/en/'), '/en/');
   assert.equal(safeReturn('/a/../b/'), '/b/');
   assert.equal(safeReturn('/search/?q=a%2Fb'), '/search/?q=a%2Fb');
-  /* 合并 PR3：子站在主域名 /blog/ /curio/ /daymark/ 下（同源，完整地址原样返回）；旧图志 atlas.styrigx.com 只剩 301，不再作为回跳目标 */
+  /* 合并 PR3：子站在主域名 /blog/ /curio/ /daymark/ 下（同源，完整地址原样返回）；旧图志 atlas.styrigx.com 的 301 已删、域名下线，仍在回跳黑名单里 */
   assert.equal(safeReturn('https://styrigx.com/blog/post/x/'), 'https://styrigx.com/blog/post/x/');
   assert.equal(safeReturn('/curio/en/?a=1'), '/curio/en/?a=1');
   for (const h of ['blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com', 'atlas.styrigx.com']) assert.equal(safeReturn('https://' + h + '/blog/post/x/'), null, h + ' 已下线');
