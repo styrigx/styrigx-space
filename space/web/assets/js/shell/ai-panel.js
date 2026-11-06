@@ -273,7 +273,9 @@ export function mountAiChat(dlg, opts) {
     const keep = msgs.filter(function (m) { return !m.error; });
     let c = data.chats.find(function (x) { return x.id === cur; });
     if (keep.length) {
-      if (!c) { c = { id: cur, title: '', time: 0, msgs: [] }; data.chats.push(c); }
+      /* 新对话、或这份多了消息：挪到最前（最新的在前）。不能只靠 time 排：同一毫秒 / 时间被冻结时 time 相同，排序保持原顺序 */
+      if (!c) { c = { id: cur, title: '', time: 0, msgs: [] }; data.chats.unshift(c); }
+      else if (keep.length > c.msgs.length) { data.chats.splice(data.chats.indexOf(c), 1); data.chats.unshift(c); }
       c.msgs = keep;
       if (!c.title) c.title = chatTitle(keep);
       c.time = Math.max(c.time, keep[keep.length - 1].ts || Date.now());
@@ -457,7 +459,7 @@ export function mountAiChat(dlg, opts) {
       hist.appendChild(p);
       return;
     }
-    /* 倒序：最新的在前（内存里的列表是追加顺序，只有存盘那份排过序） */
+    /* 倒序：最新的在前（persist 把有新消息的那份挪到最前；time 相同时稳定排序保持这个顺序） */
     for (const c of data.chats.slice().sort(function (a, b) { return b.time - a.time; })) {
       const b = doc.createElement('button');
       b.type = 'button';

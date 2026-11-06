@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:cb66f28c7c78 space/web/shared/shell v5c121be61931（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:e1e85ab57925 space/web/shared/shell v82ce9ba8f55f（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- ui-cookie-read.js ---- */
 /**
  * @fileoverview sgx-ui cookie 只读解析器（2026-10-22）：子站（博客 / 日刻 / 奇趣）首帧前读主站写的外观，<html> 落到和主站一样的状态。
