@@ -5,7 +5,7 @@ description: >-
   另把 HUGO_VERSION 写进 $GITHUB_ENV，后面的步骤（缓存 key、日志）可直接读；它覆盖调用方 workflow / job 级同名 env。
 outputs:
   version:
-    description: 装好的 Hugo 版本（如 0.168.0）
+    description: 装好的 Hugo 版本（如 0.169.0）
     value: ${{ steps.pick.outputs.version }}
   extended:
     description: 是否 extended（true / false）
@@ -19,7 +19,7 @@ runs:
       env:
         # 唯一的 Hugo 版本定义。Renovate（.github/renovate-preset.json 的 regex manager）只改下面这一行；
         # extended：四个仓库统一用 extended（2026-10-26 决定）。Hugo 将来取消 extended 包时在这里一起改。
-        HUGO_VERSION: '0.168.0'
+        HUGO_VERSION: '0.169.0'
         HUGO_EXTENDED: 'true'
       run: |
         echo "version=$HUGO_VERSION" >> "$GITHUB_OUTPUT"
