@@ -22,6 +22,8 @@
  *   ui-cookie-read.js  sgx-ui cookie 只读解析器（space/web/assets/js/lib/ui-cookie-read.js 原样复制；经典脚本 ES5，子站内联进 <head>）
  *                      源文件里 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 重写
  *   layout-mode.js     布局模式（手机 / 桌面）唯一规则 __sgxLayout()（space/web/assets/js/lib/layout-mode.js 原样复制；经典脚本 ES5，四站内联进 <head>，P4-3 PR-4b）
+ *   lang-path.js       语言路径唯一函数 langPath / pathLang / stripLang / langSwitch（space/web/assets/js/lib/lang-path.js 原样复制；不 import；P4-3 PR-4c 英文默认、中文 /zh/）
+ *   lang-path.html     同一规则的 Hugo partial（space/web/layouts/partials/sgx-lang-path.html 原样复制；子站链接主站 / 自己的中文地址都用它）
  *   ui-cookie-contract.json  写端真实产出的 cookie + 读端期望（tests/fixtures/ui-cookie-contract.json 原样复制，gen-ui-cookie-contract.mjs 生成）
  *   favicon.js / favicon.svg  标签页图标跟主题色（space/web/assets/js/shell/favicon.js、space/web/static/favicon.svg 原样复制）
  *   manifest.json      上面每个文件的 sha256（子站同步时逐个校验）
@@ -56,6 +58,8 @@ const SRC = {
   prefsWrite: path.join(REPO, 'space/web/assets/js/lib/prefs-write.js'),
   reader: path.join(REPO, 'space/web/assets/js/lib/ui-cookie-read.js'),
   layoutMode: path.join(REPO, 'space/web/assets/js/lib/layout-mode.js'),
+  langPath: path.join(REPO, 'space/web/assets/js/lib/lang-path.js'),
+  langPathTpl: path.join(REPO, 'space/web/layouts/partials/sgx-lang-path.html'),
   contract: path.join(REPO, 'tests/fixtures/ui-cookie-contract.json'),
   favicon: path.join(REPO, 'space/web/assets/js/shell/favicon.js'),
   faviconSvg: path.join(REPO, 'space/web/static/favicon.svg'),
@@ -390,6 +394,8 @@ export function renderAll() {
     'palettes.json': renderPalettes(data, schemeSrc),
     'ui-cookie-read.js': reader,
     'layout-mode.js': readFileSync(SRC.layoutMode, 'utf8'),
+    'lang-path.js': renderStandalone(SRC.langPath, 'lang-path.js', 'langPath'),
+    'lang-path.html': readFileSync(SRC.langPathTpl, 'utf8'),
     'ui-cookie-contract.json': readFileSync(SRC.contract, 'utf8'),
     'favicon.js': readFileSync(SRC.favicon, 'utf8'),
     'favicon.svg': readFileSync(SRC.faviconSvg, 'utf8'),
