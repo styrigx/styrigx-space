@@ -6,8 +6,12 @@
  *   - files-index.json：我的站点、应用（type site / app）。博客文章不在这里：博客自己写 KV site:blog，
  *     主站不再顺带
  *   - settings/**、en/settings/**、account/**、en/account/** 每个页面：标题取 <title> 去掉「 | Styrigx」，类型 setting
- *     账号页（/account/…）和设置里的门内页（临时钥匙 /settings/security/tempkeys/、服务状态 /settings/status/）标 private（只给账号已登录的人搜到）；二级页副标题 = 上一级页名（两个「安全与隐私」分得清）
+ *     账号页（/account/…）和设置里的门内页（临时钥匙 /settings/security/tempkeys/、服务状态 /settings/status/）标 private（只给账号已登录的人搜到）
+ *     副标题 = 完整面包屑：从地址逐级取上级页名，用「 › 」连起来（锁屏凭证 → 「设置 › 安全」；P4-3 PR-2），AI 才说得出路径
+ *     text = 页面 <main> 里的分组标题、设置行标题和说明，加上上级页里指向本页那一行的说明（锁屏凭证 → 「解锁密码、通行密钥、会话 …」），
+ *     截到 TEXT_MAX 字；只给 AI 读（召回里正文权重最低，rank.js / recall.js 不改）
  *   - data/features.yaml 里用户能改的开关（user: true、build: true、有 section 页）：名字 + 选项名，跳到所在设置页
+ *   - 功能开关的副标题 = 所在设置页的面包屑 + 页名（「设置 › 显示」）
  * 格式见 workers/ai/src/core/rank.js 顶部。deploy.yml 的 deploy-ai-worker 把它写进 KV。
  *
  * 用法：node space/scripts/build-search-index.mjs [--out <文件>]（默认 space/web/public/search-index.json）
@@ -20,6 +24,10 @@ import yaml from 'js-yaml';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PUB = path.join(REPO, 'space/web/public');
 const ORIGIN = 'https://styrigx.com';
+/** 面包屑分隔 */
+export const CRUMB = ' › ';
+/** 每条 text 最多多少字 */
+export const TEXT_MAX = 200;
 
 /** @param {string} s */
 function unesc(s) {
@@ -46,22 +54,63 @@ export function pageTitle(html) {
   return unesc(m[1]).replace(/\s*\|\s*Styrigx\s*$/, '').trim();
 }
 
-export function build() {
+/**
+ * 页面 <main> 里的文字：分组标题（.set-gh）、设置行（font-medium 标题 + 紧跟的 text-xs 说明），行在 <a href> 里时带上地址。
+ * 「正在读取…」这类运行时才填的占位说明不要。
+ * @param {string} html
+ * @returns {{heads: string[], rows: Array<{title: string, sub: string, href: string}>}}
+ */
+export function pageText(html) {
+  const m = html.match(/<main\b[\s\S]*?<\/main>/);
+  const main = (m ? m[0] : '').replace(/<(script|svg|style|template)\b[\s\S]*?<\/\1>/g, '');
+  /** @type {string[]} */
+  const heads = [];
+  /** @type {Array<{title: string, sub: string, href: string}>} */
+  const rows = [];
+  const clean = (/** @type {string} */ x) => unesc(x).replace(/\s+/g, ' ').trim();
+  const re = /<a\b[^>]*\bhref="([^"]*)"[^>]*>|<\/a>|class="set-gh"[^>]*>[\s\S]*?<span>([^<]*)<\/span><\/h2>|class="block font-medium"[^>]*>([^<]*)<\/span>\s*(?:<span class="block text-xs[^"]*"[^>]*>([^<]*)<\/span>)?/g;
+  let href = '';
+  for (let r; (r = re.exec(main));) {
+    if (r[1] !== undefined) href = r[1];
+    else if (r[0] === '</a>') href = '';
+    else if (r[2] !== undefined) { const t = clean(r[2]); if (t) heads.push(t); }
+    else {
+      const title = clean(r[3] || '');
+      const sub = clean(r[4] || '');
+      if (title) rows.push({ title, sub: /…$|\.\.\.$/.test(sub) ? '' : sub, href });
+    }
+  }
+  return { heads, rows };
+}
+
+/** @param {string[]} parts */
+function joinText(parts) {
+  /** @type {string[]} */
+  const out = [];
+  for (const p of parts) if (p && out.indexOf(p) === -1) out.push(p);
+  return out.join(' ').slice(0, TEXT_MAX);
+}
+
+/** @param {string} [pub] hugo 产物目录（默认 space/web/public；单测传临时目录） */
+export function build(pub = PUB) {
   /** @type {any[]} */
   const items = [];
-  const fi = JSON.parse(readFileSync(path.join(PUB, 'files-index.json'), 'utf8'));
+  const fi = JSON.parse(readFileSync(path.join(pub, 'files-index.json'), 'utf8'));
   for (const x of fi.items || []) {
     if (!x || !x.title || !x.url) continue;
     items.push({ id: x.id, type: x.type, lang: x.lang || 'zh', title: x.title, subtitle: x.subtitle || '', url: x.url.startsWith('/') ? ORIGIN + x.url : x.url });
   }
+  /** @type {Map<string, {heads: string[], rows: Array<{title: string, sub: string, href: string}>}>} */
+  const pages = new Map();
   for (const [lang, base] of [['zh', 'settings'], ['en', 'en/settings'], ['zh', 'account'], ['en', 'en/account']]) {
-    for (const f of htmlFiles(path.join(PUB, base))) {
-      const rel = '/' + path.relative(PUB, path.dirname(f)).split(path.sep).join('/') + '/';
+    for (const f of htmlFiles(path.join(pub, base))) {
+      const rel = '/' + path.relative(pub, path.dirname(f)).split(path.sep).join('/') + '/';
       const html = readFileSync(f, 'utf8');
       /* 搬走 / 删掉的设置页留下的跳转页（layouts/alias.html）不进索引 */
       if (/<meta http-equiv="?refresh/i.test(html)) continue;
       const title = pageTitle(html);
       if (!title || title === 'Styrigx') continue;
+      pages.set(ORIGIN + rel, pageText(html));
       items.push({
         id: 'setting:' + rel,
         type: 'setting',
@@ -73,12 +122,22 @@ export function build() {
       });
     }
   }
-  /* 二级页副标题 = 上一级页名 */
+  /* 副标题 = 完整面包屑（上级页名从高到低）；text = 上级页里指向本页那一行的说明 + 本页的分组标题和设置行 */
   const byUrl = new Map(items.filter((x) => x.type === 'setting').map((x) => [x.url, x]));
+  /** @type {Map<string, string>} 页面地址 → 上级页里指向它的那一行的说明 */
+  const rowSub = new Map();
+  for (const pg of pages.values()) for (const r of pg.rows) if (r.href && r.sub) rowSub.set(ORIGIN + r.href, r.sub);
   for (const x of byUrl.values()) {
-    const parent = x.url.replace(/[^/]+\/$/, '');
-    const p = byUrl.get(parent);
-    if (p && !/\/settings\/$/.test(parent)) x.subtitle = p.title;
+    /** @type {string[]} */
+    const crumbs = [];
+    for (let u = x.url.replace(/[^/]+\/$/, ''); u.length > ORIGIN.length + 1; u = u.replace(/[^/]+\/$/, '')) {
+      const p = byUrl.get(u);
+      if (p) crumbs.unshift(p.title);
+    }
+    x.subtitle = crumbs.join(CRUMB);
+    const pg = pages.get(x.url);
+    const text = joinText([rowSub.get(x.url) || '', ...(pg ? pg.heads : []), ...(pg ? pg.rows.flatMap((r) => [r.title, r.sub]) : [])]);
+    if (text) x.text = text;
   }
   /* 功能开关 */
   const feats = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/features.yaml'), 'utf8'))).features || [];
@@ -93,7 +152,7 @@ export function build() {
         type: 'setting',
         lang,
         title: f.name[lang],
-        subtitle: page.title,
+        subtitle: page.subtitle ? page.subtitle + CRUMB + page.title : page.title,
         text: (f.options || []).map((/** @type {any} */ o) => o[lang] || '').join(' '),
         url,
       });

@@ -3,7 +3,9 @@
  *
  * 封顶（方案 5.6 单次封顶）：问题 q 最长 Q_MAX 字（超了由 api/ask.js 回 400）；历史最多 HISTORY_MAX 条、
  * 总长 HISTORY_CHARS 字（从最近的往回取，取满为止）；上下文条数和每条长度在 core/recall.js。
- * 系统提示要求只根据给出的站内内容回答、找不到就直说、回答末尾列出用到的链接。
+ * 系统提示（P4-3 PR-2，改法 1）：站内内容能答就只按站内答、末尾列用到的链接；本站功能 / 设置 / 账号的问题只按站内答，
+ * 站内没有就直说、不凭通用知识猜路径；其他问题站内答不了（含召回为空）用通用知识直接答，开头标明「站内没有相关内容，以下是通用回答：」，
+ * 不列链接、不编站内地址。条目标题后「 — 」之后是站内位置（索引副标题 = 面包屑），用来说出页面路径。
  */
 
 export const Q_MAX = 200;
@@ -37,11 +39,17 @@ export function normalizeHistory(history) {
 }
 
 const SYSTEM = {
-  zh: '你是 Styrigx 的站内助手。只根据下面「站内内容」回答用户的问题，不要编造，也不要用站外知识补充。' +
-    '站内内容里找不到答案时，直接说站内没有找到相关内容。打招呼、问你是谁这类不涉及站内信息的话，简短地正常回应即可。回答用简体中文，简洁。' +
+  zh: '你是 Styrigx 的站内助手。先看下面的「站内内容」：能回答就只按站内内容回答，不要编造。' +
+    '问的是本站的功能、设置、账号怎么用时，只能按站内内容回答；站内内容里没有，就直说站内没有找到相关内容，不要凭通用知识猜页面、设置的位置或地址。' +
+    '其他问题站内内容答不了（包括站内没有相关内容）时，用通用知识直接回答，开头先写一句「站内没有相关内容，以下是通用回答：」，不列链接，也不要编造站内地址。' +
+    '打招呼、问你是谁这类话，简短地正常回应即可。回答用简体中文，简洁。' +
+    '站内条目标题后「 — 」之后是它在站内的位置（如「设置 › 安全」）；说怎么找到某个页面时，按这个位置逐级说出路径，再到这一页。' +
     '用到了站内内容时，回答末尾另起一段列出用到的链接，每行一条，格式「- 标题：地址」，只列站内内容里给出的地址。',
-  en: 'You are the on-site assistant for Styrigx. Answer only from the "Site content" below; do not make things up or add outside knowledge. ' +
-    'If the site content does not contain the answer, say plainly that nothing relevant was found on the site. Greetings or questions about who you are need no site content; reply briefly and normally. Answer in English, concisely. ' +
+  en: 'You are the on-site assistant for Styrigx. Check the "Site content" below first: if it answers the question, answer only from it and do not make things up. ' +
+    'Questions about how this site\'s features, settings or account work must be answered only from the site content; if it is not there, say plainly that nothing relevant was found on the site, and do not guess pages, setting locations or URLs from general knowledge. ' +
+    'For other questions the site content cannot answer (including when there is no relevant site content), answer directly from general knowledge, starting with the sentence "Nothing on the site covers this; here is a general answer:", with no links and no made-up site URLs. ' +
+    'Greetings or questions about who you are: reply briefly and normally. Answer in English, concisely. ' +
+    'After " — " in a site entry\'s title comes its location on the site (e.g. "Settings › Security"); when explaining how to find a page, give that path step by step, then the page itself. ' +
     'If you used site content, end with a separate list of those links, one per line as "- Title: URL", using only URLs given in the site content.',
 };
 
@@ -51,7 +59,7 @@ const SYSTEM = {
  */
 export function contextBlock(hits, lang) {
   const head = lang === 'en' ? 'Site content:' : '站内内容：';
-  if (!hits.length) return head + '\n\n' + (lang === 'en' ? '(No matching site content was found.)' : '（没有找到相关条目。）');
+  if (!hits.length) return head + '\n\n' + (lang === 'en' ? '(No relevant site content.)' : '（站内没有相关内容。）');
   const parts = hits.map((h, i) => {
     const title = h.subtitle ? h.title + ' — ' + h.subtitle : h.title;
     const body = String(h.text || '').trim();
