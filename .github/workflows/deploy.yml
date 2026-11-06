@@ -1240,7 +1240,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy status Worker (styrigx-status)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -1259,7 +1259,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Post-deploy health gate (status checks of ai after this deploy)
         # 健康闸门第二阶段（space/scripts/health-gate.mjs）：等新部署的 status 每分钟巡检（经服务绑定测 ai 的 /healthz）写进 D1 checks，
@@ -1283,7 +1283,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-ai-worker:
     # 站内对话助手 styrigx-ai（workers/ai，P4-1）：先于网关部署（网关的服务绑定 AI_SERVICE 指向它，它不在就部署不了）。
@@ -1340,7 +1340,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Record deploy start
         # 毫秒时间戳（UTC）：status 的健康闸门（监测项 ai）把这之前的最近一次巡检当「部署前」
@@ -1387,7 +1387,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Upload search index to KV (site:space)
         # P4-2：原在 deploy-search-worker，search-index 退役后并到这里（同一把 token、同一个 KV styrigx-search-index）
@@ -1419,7 +1419,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   rollback-ai-worker:
     # 健康闸门（deploy-status-worker 的 Post-deploy health gate）确认 ai 在部署后失败 → 退回 deploy-ai-worker 记下的部署前版本。
@@ -1446,7 +1446,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ needs.deploy-ai-worker.outputs.previous }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-proxy-rules-worker:
     # 规则集反代 styrigx-proxy-rules（workers/proxy-rules）：独立部署，不等也不挡网关和 Pages。
@@ -1477,7 +1477,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy proxy rules Worker (styrigx-proxy-rules)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -1519,7 +1519,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-curio-core:
     # 奇趣接口 Worker styrigx-curio-core（workers/curio-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
@@ -1562,7 +1562,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy 奇趣 core Worker (styrigx-curio-core)
         # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：主域名路由在这一步挂上，atlas 旧路由保留
@@ -1580,7 +1580,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Smoke test production (styrigx.com/curio/api/* and the old atlas route both land on this Worker)
         # 只发不带 cookie 的只读请求。这时网关可能还是旧版本：接口路由比网关的通配更具体，新旧网关下回答相同。
@@ -1613,7 +1613,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_CURIO_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-daymark-core:
     # 日刻接口 Worker styrigx-daymark-core（workers/daymark-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
@@ -1656,7 +1656,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy 日刻 core Worker (styrigx-daymark-core)
         # wrangler deploy 按 wrangler.toml 的 [[routes]] 整体覆盖线上路由：主域名路由在这一步挂上，atlas 旧路由保留
@@ -1674,7 +1674,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Smoke test production (styrigx.com/daymark/api/* and the old atlas route both land on this Worker)
         # 只发不带 cookie 的只读请求。这时网关可能还是旧版本：接口路由比网关的通配更具体，新旧网关下回答相同。
@@ -1707,7 +1707,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_DAYMARK_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-auth-worker:
     # 鉴权网关 styrigx-auth-gateway：main 上真部署。先于 Pages 部署（Pages 只放静态文件，靠网关验会话）。
@@ -1749,7 +1749,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy auth Worker (styrigx-auth-gateway)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -1863,7 +1863,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-account-worker:
     # 账号 Worker styrigx-account（workers/account）：完整的账号系统（账号拆分 PR3）——账号密码 / 通行密钥 / 设备 / 账号会话 / 账号根密钥 /
@@ -1914,7 +1914,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy account Worker (styrigx-account)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -1932,7 +1932,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Smoke test production (forged identity headers never reach the account APIs)
         # 只发不带 cookie 的只读请求。这时网关可能还是旧版本、账号的 4 条旧路由可能还在（见上），所以每条只断言「碰不到接口」：
@@ -1973,7 +1973,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_ACCOUNT_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-share-worker:
     # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
@@ -2036,7 +2036,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-snapshot
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
 
       - name: Deploy share Worker (styrigx-share)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -2083,4 +2083,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
+        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
