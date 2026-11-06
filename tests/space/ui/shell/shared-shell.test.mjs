@@ -118,7 +118,7 @@ test('顶栏 P5-1（2026-11-04）：一整条胶囊 [logo][中间][快捷面板 
   assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*width: var\(--sgx-shell-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
   assert.match(s, /\.sgx-tb-btn \{ width: var\(--sgx-tb-ic\); height: var\(--sgx-tb-ic\);[^}]*border-radius: 999px;/);
   assert.match(s, /\.sgx-tb-title \{[^}]*text-align: center;[^}]*text-overflow: ellipsis;/);
-  assert.match(s, /@media \(min-width: 600px\) \{\s*\.sgx-topbar \{ display: grid; grid-template-columns: 1fr auto 1fr; \}/, '宽屏中间居中');
+  assert.match(s, /@media \(min-width: 600px\) \{\s*\.sgx-topbar \{ display: grid; grid-template-columns: 1fr min\(var\(--sgx-tb-mid\), [^;]+\) 1fr; \}/, '宽屏中间居中、定宽（P4-3 PR-4a §6.3）');
   assert.doesNotMatch(s, /\.sgx-tb-nav\b|\.sgx-tb-end\b|\.sgx-tb-gbtn\b|\.sgx-drawer/);
   // 标记：topbar.html = 主站 partials/shell-topbar.html 原样
   const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');

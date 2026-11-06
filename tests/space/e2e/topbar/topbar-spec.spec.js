@@ -69,7 +69,7 @@ for (const dark of [false, true]) {
         expect(pill.x + pill.width).toBeLessThanOrEqual(q.x + 0.5);
         expect(q.x + q.width).toBeLessThanOrEqual(ai.x + 0.5);
         expect(ai.x + ai.width).toBeLessThanOrEqual(me.x + 0.5);
-        /* 390 < 400：logo 是圆点简版（40px 圆） */
+        /* 390 < 400：logo 是图标版（40px 按钮里 20px 图标） */
         expect(near(logo.width, 40)).toBe(true);
         await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-nav, .sgx-tb-end, #sgx-drawer')).toHaveCount(0);
         const home = path === '/' || path === '/settings/';

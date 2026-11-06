@@ -90,10 +90,10 @@ const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'ind
 function skeleton(html) {
   const h = html.replace(/"/g, '');
   const hdr = h.slice(h.indexOf('<header id=site-nav'), h.indexOf('</header>'));
-  const tb = ['sgx-topbar', 'sgx-tb-logo', 'sgx-wordmark', 'sgx-tb-dot', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-quick', 'sgx-tb-ai', 'sgx-tb-me', 'sgx-tb-avatar']
+  const tb = ['sgx-topbar', 'sgx-tb-logo', 'sgx-wordmark', 'sgx-tb-mark', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-quick', 'sgx-tb-ai', 'sgx-tb-me', 'sgx-tb-avatar']
     .map((c) => [c, hdr.search(new RegExp(`class=[^>]*\\b${c}\\b`))]);
   for (const [c, i] of tb) assert.ok(i >= 0, '顶栏有 ' + c);
-  const order = tb.map(([c]) => c).filter((c) => !['sgx-wordmark', 'sgx-tb-dot', 'sgx-tb-avatar'].includes(c));
+  const order = tb.map(([c]) => c).filter((c) => !['sgx-wordmark', 'sgx-tb-mark', 'sgx-tb-avatar'].includes(c));
   const pos = order.map((c) => tb.find((x) => x[0] === c)[1]);
   const qp = h.slice(h.indexOf('<dialog id=sgx-qp'), h.indexOf('</dialog>', h.indexOf('<dialog id=sgx-qp')));
   const ai = h.slice(h.indexOf('<dialog id=sgx-ai'), h.indexOf('</dialog>', h.indexOf('<dialog id=sgx-ai')));

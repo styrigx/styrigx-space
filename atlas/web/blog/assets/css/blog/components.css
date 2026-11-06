@@ -53,8 +53,8 @@
   padding: 0 6px;
   border: 0;
   border-radius: 999px;
-  background: transparent;
-  color: var(--sgx-text-secondary);
+  background: var(--sgx-tb-label-bg);
+  color: var(--sgx-text-primary);
   font: inherit;
   font-family: Inter, 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
   font-size: 15px;
@@ -72,16 +72,17 @@
     color 0.15s ease;
 }
 
+/* 当前项的实色画在滑动指示器上，按钮本身不再叠衬底（PR-4a §6.2：其余项常驻 --sgx-tb-label-bg） */
 .sgx-seg-btn[aria-selected='true'],
 .sgx-seg-btn[aria-current='page'] {
+  background: transparent;
   color: var(--sgx-on-nav-selected);
   font-weight: 700;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sgx-seg-btn:not([aria-selected='true']):hover {
-    background-color: var(--sgx-state-hover-bg);
-    color: var(--sgx-text-primary);
+    background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg));
   }
 }
 

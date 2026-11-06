@@ -72,15 +72,18 @@ test('设置 › 显示 › 布局：841×673 下 DeX 可选、没有提示；�
   await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
 });
 
-/* ----- 顶栏长条：宽屏只包住内容居中，手机照旧拉满（2026-11-04 P5-1 胶囊：两侧是 logo 和 快捷面板 · AI · 头像） ----- */
+/* ----- 顶栏长条：宽屏定宽 400px 居中（P4-3 PR-4a §6.3，原来按内容定宽），手机照旧拉满（2026-11-04 P5-1 胶囊：两侧是 logo 和 快捷面板 · AI · 头像） ----- */
 async function bars(page) {
   return page.evaluate(() => {
     const r = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, w: b.width }; };
-    return { bar: r('.sgx-topbar'), logo: r('.sgx-tb-logo'), pill: r('.sgx-tb-pill'), acts: r('.sgx-tb-acts'), tabs: r('.sgx-tb-tabs'), vw: window.innerWidth };
+    const t = document.querySelector('.sgx-topbar'); const cs = t ? getComputedStyle(t) : null;
+    /* 顶栏网格内容宽（中段让位公式里的 100%） */
+    const inner = t && cs ? t.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) : 0;
+    return { bar: r('.sgx-topbar'), logo: r('.sgx-tb-logo'), pill: r('.sgx-tb-pill'), acts: r('.sgx-tb-acts'), tabs: r('.sgx-tb-tabs'), vw: window.innerWidth, inner };
   });
 }
 for (const [width, height] of [[1280, 800], [1920, 1080], [1024, 700], [768, 1024]]) {
-  test(`顶栏长条 ${width}×${height}：主页标签按内容定宽、居中，logo / 按钮组贴胶囊两端`, async ({ page }) => {
+  test(`顶栏长条 ${width}×${height}：中段定宽 400px（窄窗让位）居中、标签在中段里居中，logo / 按钮组贴胶囊两端、互不重叠`, async ({ page }) => {
     await go(page, { width, height }, '/');
     await expect(page.locator('.sgx-tb-tabs')).toBeVisible();
     const b = await bars(page);
@@ -88,9 +91,14 @@ for (const [width, height] of [[1280, 800], [1920, 1080], [1024, 700], [768, 102
     /* logo 左缘 / 按钮组右缘离胶囊边 = (胶囊高 − 40) / 2（≤ 8） */
     expect(b.logo.x - b.bar.x).toBeLessThanOrEqual(9);
     expect(b.bar.x + b.bar.w - (b.acts.x + b.acts.w)).toBeLessThanOrEqual(9);
-    expect(b.pill.w).toBeLessThanOrEqual(480);
-    expect(b.pill.w).toBeGreaterThanOrEqual(160);
-    expect(b.pill.w).toBeLessThan(b.bar.w - 2 * b.acts.w - 16 - 40);
+    /* §6.3：中段 400px；窗口窄到放不下时让位，两边各留够三个按钮（3 × 40 + 16），即 min(400, 内容宽 − 272)。≥ 1024 宽一定是满 400 */
+    const mid = Math.min(400, b.inner - 2 * (3 * 40 + 16));
+    expect(Math.abs(b.pill.w - mid)).toBeLessThanOrEqual(1);
+    if (width >= 1024) expect(Math.round(b.pill.w)).toBe(400);
+    if (width === 768) expect(b.pill.w).toBeLessThan(400);
+    expect(b.pill.x).toBeGreaterThanOrEqual(b.logo.x + b.logo.w);
+    expect(b.pill.x + b.pill.w).toBeLessThanOrEqual(b.acts.x);
+    expect(Math.abs(b.tabs.x + b.tabs.w / 2 - b.vw / 2)).toBeLessThanOrEqual(1);
   });
 }
 test('顶栏长条 412×915：手机照旧拉满（logo 和按钮组之间只隔胶囊间距 4px）', async ({ page }) => {
