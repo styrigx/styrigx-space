@@ -124,11 +124,33 @@ test('recall：自然语言问句——不要求每个词都中、问法词不�
   assert.equal(R.recall(ix, { q: 'how do I turn on the lock screen', lang: 'en' })[0].url, '/en/settings/security/lock/');
 });
 
-test('prompt：召回为空时上下文写明没有相关条目，允许正常回应打招呼', () => {
-  const zh = P.buildMessages({ q: '你好', lang: 'zh', hits: [] })[0].content;
-  assert.match(zh, /没有找到相关条目/);
+test('prompt：召回为空时上下文写明站内没有相关内容；允许用通用知识回答并标明，打招呼正常回应（P4-3 PR-2）', () => {
+  const zh = P.buildMessages({ q: '法国首都是哪', lang: 'zh', hits: [] })[0].content;
+  assert.match(zh, /（站内没有相关内容。）/);
+  assert.match(zh, /用通用知识直接回答/);
+  assert.match(zh, /站内没有相关内容，以下是通用回答：/);
   assert.match(zh, /打招呼/);
-  assert.match(P.buildMessages({ q: 'hi', lang: 'en', hits: [] })[0].content, /No matching site content/);
+  assert.doesNotMatch(zh, /不要用站外知识/, '旧的「只认站内」规则已去掉');
+  const en = P.buildMessages({ q: 'capital of France', lang: 'en', hits: [] })[0].content;
+  assert.match(en, /\(No relevant site content\.\)/);
+  assert.match(en, /general knowledge/);
+  assert.match(en, /Nothing on the site covers this; here is a general answer:/);
+});
+
+test('prompt：有召回时仍要求只按站内答、列站内链接；本站功能只按站内答、不猜路径；条目带站内位置（P4-3 PR-2）', () => {
+  const hits = [{ title: '锁屏凭证', subtitle: '设置 › 安全', url: 'https://styrigx.com/settings/security/lock/', text: '解锁密码、通行密钥、会话' }];
+  const zh = P.buildMessages({ q: '锁屏怎么开', lang: 'zh', hits })[0].content;
+  assert.match(zh, /能回答就只按站内内容回答/);
+  assert.match(zh, /格式「- 标题：地址」，只列站内内容里给出的地址/);
+  assert.match(zh, /本站的功能、设置、账号.*只能按站内内容回答/);
+  assert.match(zh, /不要凭通用知识猜页面、设置的位置或地址/);
+  assert.match(zh, /按这个位置逐级说出路径/);
+  assert.match(zh, /\[1\] 锁屏凭证 — 设置 › 安全\n地址：https:\/\/styrigx\.com\/settings\/security\/lock\/\n正文：解锁密码、通行密钥、会话/);
+  const en = P.buildMessages({ q: 'how to set up the lock screen', lang: 'en', hits })[0].content;
+  assert.match(en, /answer only from it/);
+  assert.match(en, /features, settings or account work must be answered only from the site content/);
+  assert.match(en, /do not guess pages, setting locations or URLs/);
+  assert.match(en, /"- Title: URL", using only URLs given in the site content/);
 });
 
 /* rank.js 的分词和打分（搬自已删的 tests/workers/search-index/search.test.mjs；P4-2b 起这里是唯一一份） */
@@ -174,7 +196,7 @@ test('/ask：没账号会话 → 私密条目不进来源、不进上下文；sc
   const ev = await events(res);
   assert.deepEqual(ev[0], { event: 'hits', data: { hits: [] } });
   assert.equal(ai.calls.length, 1, '召回为空也调模型');
-  assert.match(ai.calls[0].input.messages[0].content, /没有找到相关条目/);
+  assert.match(ai.calls[0].input.messages[0].content, /站内没有相关内容。/);
   assert.deepEqual(ev.map((e) => e.event), ['hits', 'delta', 'done']);
   assert.ok(!JSON.stringify(ev).includes('保险箱'));
   assert.ok(!ai.calls[0].input.messages[0].content.includes('保险箱'), '私密正文不进上下文');
