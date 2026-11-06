@@ -37,7 +37,7 @@
   打包 `favicon.js`（ES 模块）后调 `initFavicon()`：色板 / 自定义色 / 深浅色变了就换成当前主题色。
 - 契约测试：`ui-cookie-contract.json` 是主站写端真实写出的 cookie + 期望；子站单测对每个 case 断言 `SgxUI.read('sgx-ui=' + c.cookie)` 等于 `c.read`、
   `SgxUI.resolve(c.read, 系统深色)` 等于 `c.light/c.dark.resolve`（apply 后 `<html>` 等于 `.root`）。sync-shell 拉新版本后跑一遍。
-## 顶栏 + 快捷面板 + AI 窗口（topbar.html / topbar.js / modal-sheet.js / ai.js + shell.css topbar-frame、panel 段；2026-11-04 P5-1，四个站一样）
+## 顶栏 + 快捷面板 + AI 窗口（topbar.html / topbar.js / modal-sheet.js / ai.js / vk.js + shell.css topbar-frame、panel 段；2026-11-04 P5-1，四个站一样）
 
 `topbar.html` 是 Hugo partial（主站 partials/shell-topbar.html 原样），子站同步成 `layouts/partials/sgx-shell-topbar.html`，只用参数、不调别的 partial：
 
@@ -60,7 +60,7 @@
   `wordmark`、`acct`、`avatar`、`tiles`（theme / lang / lock / palette / layout / share）、`langHref`（另一种语言的同一页）、`pal`（[{id, zh, en, style}]，style = --pl-b1..7 / --pl-f1..6 / --pd-*）、`layout`。
 - 「分享本页」磁贴（`tiles.share`）只在子站内容页传 true；主站任何页面都不输出（定案第 4 条，模板层决定，不是 CSS 隐藏）。
 - JS：`import { mountTopbar } from './topbar.js'`，把依赖传进去（这几个文件都不 import 任何东西）：
-  `mountTopbar({ modalSheet, prefs, ai: mountAiChat, share: mountShare })`；prefs 用 `prefs-write.js` 的
+  `mountTopbar({ modalSheet, prefs, ai: mountAiChat, share: mountShare, keyboard: onKeyboardHeight })`（`onKeyboardHeight` 来自 `vk.js`：AI 窗口输入框聚焦时跟键盘，P4-3 PR-3）；prefs 用 `prefs-write.js` 的
   `isDark / themeMode / setThemeMode / toggleFollowSystem / palette / setPalette / DEFAULT_PALETTE / hasAccent`，`setLang: v => (setLangPref(v), '')`（地址取磁贴的 data-href）。
 - 两个窗口是非模态 `<dialog>`，从顶栏下方落下、互斥；系统返回 / Esc / 点遮罩关闭；快捷面板每次打开在第 1 页，页签可点、左右键切，内容横向滑。
 - AI：POST /api/ai（同源）→ SSE hits / delta / done；历史只在本地 `sgx-ai-history`（最多 50 条，不进云同步）。

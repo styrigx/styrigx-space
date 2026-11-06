@@ -35,7 +35,7 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-top
   /* 本站页面原来都有分享按钮 → 快捷设置页都有「分享本页」磁贴；立即锁定、布局只在主站（定案第 4、5 条） */
   assert.match(base, /"tiles" \(dict "theme" true "lang" true "palette" true "share" true\)/);
   const host = read('atlas/web/daymark/assets/js/sgx/topbar-host.js');
-  for (const m of ['./shell/topbar.js', './shell/modal-sheet.js', './shell/ai.js', './shell/prefs-write.js', './shell/share.js']) {
+  for (const m of ['./shell/topbar.js', './shell/modal-sheet.js', './shell/ai.js', './shell/vk.js', './shell/prefs-write.js', './shell/share.js']) {
     assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
   }
 });

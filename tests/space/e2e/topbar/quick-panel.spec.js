@@ -1116,6 +1116,115 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     expect(bodies.length).toBe(3);
   });
 
+  /* P4-3 PR-3：键盘跟随。用假的 VirtualKeyboard API（vk.js 优先用它）驱动键盘高度；触屏用假的 matchMedia('(pointer: coarse)') */
+  async function fakeKeyboard(page) {
+    await page.addInitScript(() => {
+      const vk = new EventTarget();
+      vk.overlaysContent = false;
+      vk.boundingRect = { height: 0 };
+      Object.defineProperty(navigator, 'virtualKeyboard', { value: vk, configurable: true });
+      window.__kb = (h) => { vk.boundingRect = { height: h }; vk.dispatchEvent(new Event('geometrychange')); };
+    });
+  }
+  async function fakeCoarse(page) {
+    await page.addInitScript(() => {
+      const mm = window.matchMedia.bind(window);
+      const noop = () => {};
+      window.matchMedia = (q) => (/pointer:\s*coarse/.test(q) ? { matches: true, media: q, onchange: null, addEventListener: noop, removeEventListener: noop, addListener: noop, removeListener: noop } : mm(q));
+    });
+  }
+  const geo = (page) => page.evaluate(() => {
+    const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+    return { vh: window.innerHeight, tb: r('.sgx-topbar').bottom, title: r('#sgx-ai .sgx-ai-title').top, sheet: r('#sgx-ai .sgx-qp-sheet').bottom,
+      input: r('#sgx-ai [data-ai-in]').bottom, focused: document.activeElement === document.querySelector('#sgx-ai [data-ai-in]') };
+  });
+
+  test('P4-3 PR-3：输入框聚焦后跟键盘——窗口下沿抬到键盘上沿，标题栏和输入框都在可视区；键盘收了自动失焦', async ({ page }) => {
+    await fakeKeyboard(page);
+    await go(page, '/settings/');
+    await openAi(page);
+    await ai(page).locator('[data-ai-in]').click();
+    await page.evaluate(() => window.__kb(320));
+    await expect(ai(page)).toHaveAttribute('data-kb', '');
+    expect(await page.evaluate(() => document.documentElement.classList.contains('sgx-vk') && navigator.virtualKeyboard.overlaysContent)).toBe(true);
+    await page.waitForFunction(() => document.getElementById('sgx-ai').getAnimations({ subtree: true }).every((a) => a.playState !== 'running'));
+    const g = await geo(page);
+    expect(g.focused).toBe(true);
+    expect(g.sheet).toBeLessThanOrEqual(g.vh - 320 + 1);
+    expect(g.input).toBeLessThanOrEqual(g.vh - 320 + 1);
+    expect(g.title).toBeGreaterThanOrEqual(g.tb);
+    /* 键盘高度变化（换输入法 / 候选栏）跟着走 */
+    await page.evaluate(() => window.__kb(400));
+    expect((await geo(page)).input).toBeLessThanOrEqual((await geo(page)).vh - 400 + 1);
+    /* 系统手势收键盘：高度回 0 → 输入框失焦，窗口回原位 */
+    await page.evaluate(() => window.__kb(0));
+    await expect(ai(page)).not.toHaveAttribute('data-kb', '');
+    expect((await geo(page)).focused).toBe(false);
+    expect(await ai(page).evaluate((el) => el.style.getPropertyValue('--sgx-kb'))).toBe('0px');
+    expect(await page.evaluate(() => document.documentElement.classList.contains('sgx-vk'))).toBe(false);
+    /* 再点输入框又跟上 */
+    await ai(page).locator('[data-ai-in]').click();
+    await page.evaluate(() => window.__kb(300));
+    await expect(ai(page)).toHaveAttribute('data-kb', '');
+    /* 关窗口 = 复位 */
+    await page.keyboard.press('Escape');
+    await expect(ai(page)).not.toHaveAttribute('data-kb', '');
+  });
+
+  test('P4-3 PR-3：触屏打开不自动聚焦（不弹键盘）；发送后收键盘', async ({ page }) => {
+    await fakeCoarse(page);
+    await go(page, '/settings/');
+    await page.route('**/api/ai', (r) => r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['好的。']) }));
+    await openAi(page);
+    expect((await geo(page)).focused).toBe(false);
+    expect(await page.evaluate(() => document.getElementById('sgx-ai').contains(document.activeElement))).toBe(true);
+    await ai(page).locator('[data-ai-in]').fill('你好');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('好的。');
+    expect((await geo(page)).focused).toBe(false);
+  });
+
+  test('P4-3 PR-3：桌面（细指针）照旧——打开即聚焦，发送后焦点留在输入框', async ({ page }) => {
+    await go(page, '/settings/');
+    await page.route('**/api/ai', (r) => r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['好的。']) }));
+    await openAi(page);
+    expect((await geo(page)).focused).toBe(true);
+    await ai(page).locator('[data-ai-in]').fill('你好');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('好的。');
+    expect((await geo(page)).focused).toBe(true);
+  });
+
+  test('P4-3 PR-3：回答进行中发送按钮变停止，点它中断；回车不中断；停下后变回发送', async ({ page }) => {
+    await go(page, '/settings/');
+    let release;
+    const hold = new Promise((r) => { release = r; });
+    await page.route('**/api/ai', async (r) => {
+      await hold;
+      try { await r.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body: sse([], ['迟到的回答。']) }); } catch (e) {}
+    });
+    await openAi(page);
+    const send = ai(page).locator('.sgx-ai-send');
+    await expect(send).toHaveAttribute('aria-label', '发送');
+    await ai(page).locator('[data-ai-in]').fill('你好');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    await expect(send).toHaveAttribute('data-stop', '');
+    await expect(send).toHaveAttribute('aria-label', '停止');
+    await expect(send).toBeEnabled();
+    /* 回答中回车：不发、不中断，输入留着 */
+    await ai(page).locator('[data-ai-in]').fill('再问');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    await expect(send).toHaveAttribute('data-stop', '');
+    await expect(ai(page).locator('[data-ai-in]')).toHaveValue('再问');
+    await send.click();
+    await expect(send).not.toHaveAttribute('data-stop', '');
+    await expect(send).toHaveAttribute('aria-label', '发送');
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText('你好');
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"]')).toHaveCount(0);
+    release();
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"]')).toHaveCount(0);
+  });
+
   test('英文文案', async ({ page }) => {
     await go(page, '/en/settings/', 'en');
     await openAi(page);

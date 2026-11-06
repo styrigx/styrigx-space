@@ -232,6 +232,10 @@
 .sgx-qp-row .palette-reset { background: var(--sgx-surface-container-lowest); color: var(--sgx-primary); }
 /* AI 窗口（#sgx-ai，第 4 件）：同快捷面板的落下方式；消息列表（回答 + 来源卡片）→ 输入框 + 发送 → 清空 → 底部一行小字（仅公开内容 / 包含私密内容） */
 .sgx-ai .sgx-qp-sheet { display: flex; flex-direction: column; gap: 10px; height: min(560px, calc(100% - 2 * var(--sgx-qp-gap) - env(safe-area-inset-bottom, 0px))); overflow: hidden; }
+/* 键盘跟随（P4-3 PR-3）：ai.js 把键盘高度写进 --sgx-kb（输入框聚焦时才有），窗口下沿抬到键盘上沿；面板高度跟着压缩（消息列表让位），
+   标题栏在上、输入框贴着键盘；键盘在时底部安全区由键盘占着，不再扣 */
+.sgx-ai { bottom: var(--sgx-kb, 0px); }
+.sgx-ai[data-kb] .sgx-qp-sheet { height: min(560px, calc(100% - 2 * var(--sgx-qp-gap))); max-height: calc(100% - 2 * var(--sgx-qp-gap)); }
 .sgx-ai-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .sgx-ai-title { margin: 0; padding: 0 4px; font-size: 16px; font-weight: 700; }
 .sgx-ai-clear { height: 32px; padding: 0 12px; border: 0; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
@@ -258,4 +262,7 @@
   background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
 .sgx-ai-send svg { width: 20px; height: 20px; }
 .sgx-ai-send:disabled { opacity: .45; cursor: default; }
+/* 回答进行中 = 停止按钮（data-stop）：藏起发送图标，画一个圆角方块 */
+.sgx-ai-send[data-stop] svg { display: none; }
+.sgx-ai-send[data-stop]::before { content: ""; width: 14px; height: 14px; border-radius: 3px; background: currentColor; }
 .sgx-ai-scope { margin: 0; padding: 0 4px; font-size: 12px; line-height: 1.3; color: var(--sgx-text-secondary); text-align: center; }
