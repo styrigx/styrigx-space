@@ -1302,9 +1302,9 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await openAi(page);
     const inp = ai(page).locator('[data-ai-in]');
     const last = ai(page).locator('.sgx-ai-msg[data-role="assistant"]').last().locator('> span');
-    await inp.fill('第一份对话的问题，比二十个字还要长一点点');
+    await inp.fill('第一份对话的问题，比二十个字还要长一点点再多几个字');
     await inp.press('Enter');
-    await expect(last).toHaveText('答：第一份对话的问题，比二十个字还要长一点点');
+    await expect(last).toHaveText('答：第一份对话的问题，比二十个字还要长一点点再多几个字');
     await ai(page).locator('[data-ai-clear]').click();
     await inp.fill('第二份');
     await inp.press('Enter');
@@ -1316,7 +1316,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(hb).toHaveAttribute('aria-expanded', 'true');
     const items = ai(page).locator('[data-ai-hist] .sgx-ai-hist-item');
     await expect(items).toHaveCount(2);
-    await expect(items.locator('.sgx-ai-hist-title')).toHaveText(['第二份', '第一份对话的问题，比二十个字还要长一']);
+    await expect(items.locator('.sgx-ai-hist-title')).toHaveText(['第二份', '第一份对话的问题，比二十个字还要长一点点']);
     await expect(items.first().locator('.sgx-ai-hist-time')).toHaveText(/\d{2}:\d{2}/);
     await expect(items.first()).toHaveAttribute('aria-current', 'true');
     await expect(ai(page).locator('[data-ai-list]')).toBeHidden();
@@ -1325,12 +1325,12 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await items.nth(1).click();
     await expect(ai(page).locator('[data-ai-hist]')).toBeHidden();
     await expect(hb).toHaveAttribute('aria-expanded', 'false');
-    await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText(['第一份对话的问题，比二十个字还要长一点点']);
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText(['第一份对话的问题，比二十个字还要长一点点再多几个字']);
     await expect(inp).toHaveValue('还没发的字');
     /* 换页再开：停在刚载入的那份 */
     await page.goto('/settings/display/', { waitUntil: 'domcontentloaded' });
     await openAi(page);
-    await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText(['第一份对话的问题，比二十个字还要长一点点']);
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText(['第一份对话的问题，比二十个字还要长一点点再多几个字']);
   });
 
   test('P4-3 后续 §3.3：历史最多 20 份，超了删最旧的；空历史显示提示', async ({ page }) => {

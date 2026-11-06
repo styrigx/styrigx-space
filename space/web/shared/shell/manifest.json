@@ -8,7 +8,7 @@
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "fa58dcdfe0398f5504c6f70952f08e9947e59b95de7c246d28418a2413737564",
     "topbar.html": "3493cca88ee7cd522de8081af41be62da703e1c951a1124bd6d501fbaf1e0884",
-    "topbar.js": "09ea142f103f7c45f5bc12d833a5110e63c99ea2ed1f4e948a55d92a56b9c692",
+    "topbar.js": "cb9062b22d5630f94f17fe0d4f0bf4a76d8d4029493c6bbf1a7b21bc55743af2",
     "modal-sheet.js": "c409104c3553e63351ee05abadb2e8999aa82692b7bbae021f3ea19f2352071b",
     "ai.js": "a4cf17cb096b4d1f9a5a77c08e87cbcac7b255a00499d9101585e8a0862e2e13",
     "vk.js": "3bc7000ba510e8a7cbc1dd420e85cffdc23e0c5bd8184f4421d5e57f22ad7633",
@@ -21,6 +21,6 @@
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "caa8078a5cfbfe8272c26031caf4b95c6cce51c59c3c4d07a1270279ad937f19"
   },
-  "version": "f8ad5ca26750",
+  "version": "3768410ae19b",
   "rulesVersion": "palette-rules-1"
 }
