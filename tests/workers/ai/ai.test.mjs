@@ -143,11 +143,15 @@ test('prompt：有召回时仍要求只按站内答、列站内链接；本站�
   assert.match(zh, /本站的功能、设置、账号.*只能按站内内容回答/);
   assert.match(zh, /不要凭通用知识猜页面、设置的位置或地址/);
   assert.match(zh, /按这个位置逐级说出路径/);
+  assert.match(zh, /即使说法不同.*也算站内有，按它回答并给出路径/, '说法不同也算站内有（P4-3 英文锁屏）');
+  assert.match(zh, /列了站内链接，就不准说站内没有相关内容/);
   assert.match(zh, /\[1\] 锁屏凭证 — 设置 › 安全\n地址：https:\/\/styrigx\.com\/settings\/security\/lock\/\n正文：解锁密码、通行密钥、会话/);
   const en = P.buildMessages({ q: 'how to set up the lock screen', lang: 'en', hits })[0].content;
   assert.match(en, /answer only from it/);
   assert.match(en, /features, settings or account work must be answered only from the site content/);
   assert.match(en, /do not guess pages, setting locations or URLs/);
+  assert.match(en, /even in different words .*it counts as covered: answer from it and give the path/, 'different wording still counts (P4-3 English lock screen)');
+  assert.match(en, /If your answer lists site links, never say nothing on the site covers it/);
   assert.match(en, /"- Title: URL", using only URLs given in the site content/);
 });
 
