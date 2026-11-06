@@ -1,5 +1,5 @@
 ---
-title: '锁屏凭证'
+title: 'Lock screen credentials'
 layout: security-lock
 url: /security/lock/
 ---

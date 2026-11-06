@@ -1,3 +1,3 @@
 ---
-title: 奇趣
+title: Curio
 ---

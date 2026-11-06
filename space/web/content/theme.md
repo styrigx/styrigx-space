@@ -1,5 +1,5 @@
 ---
-title: '壁纸和主题'
+title: 'Wallpaper & theme'
 layout: sub
 url: /theme/
 params:

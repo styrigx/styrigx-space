@@ -1,5 +1,5 @@
 ---
-title: '云同步'
+title: 'Cloud sync'
 layout: account-sync
 url: /account/sync/
 ---

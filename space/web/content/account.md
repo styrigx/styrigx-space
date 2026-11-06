@@ -1,5 +1,5 @@
 ---
-title: '账号'
+title: 'Account'
 layout: account
 url: /account/
 ---

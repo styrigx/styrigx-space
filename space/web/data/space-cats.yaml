@@ -1,6 +1,6 @@
 # 旷野页（/）分类入口（单数据源）。旷野页平铺入口（共享组件 partials/sgx-entries.html）、各子页标题（layouts/_default/sub.html、baseof 页名）、
-# 搜索索引（space/scripts/build-search-index.mjs）共用。新增入口只加一行：id 即地址（/<id>/，英文 /en/<id>/；security、status 是独立布局），
-# 同时在 content/ 与 content/en/ 加页面、lib/wb-area.js SPACE_SUB_RE 加一项（tests/space/ui/build/space-merge.test.mjs 对照检查）。
+# 搜索索引（space/scripts/build-search-index.mjs）共用。新增入口只加一行：id 即地址（/<id>/，中文 /zh/<id>/；security、status 是独立布局），
+# 同时在 content/（英文）与 content/zh/（中文）加页面、lib/wb-area.js SPACE_SUB_RE 加一项（tests/space/ui/build/space-merge.test.mjs 对照检查）。
 # 字段：icon = partials/icon.html 的图标名；tone = 圆底配色（primary / secondary / tertiary / info，走共享外壳色彩角色，跟调色板）；
 #   zh / en = 名字；sub_zh / sub_en = 一行副标题。编号 01… 按行序自动生成。
 # P4-3 PR-4b（Gray 2026-11-07）：显示页（/display/）整页删除（深色 / 跟随系统 / 语言 / 布局都在快捷面板），不做 301；

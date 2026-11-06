@@ -1,5 +1,5 @@
 ---
-title: '临时钥匙'
+title: 'Temporary keys'
 layout: security-tempkeys
 url: /security/tempkeys/
 ---

@@ -1,14 +1,17 @@
 title: 'Styrigx'
 baseURL: 'https://styrigx.com/'
-defaultContentLanguage: zh
+# P4-3 PR-4c（§6.8）：英文是默认语言、不带前缀；中文在 /zh/。中英两版内容都在 content/（英文）和 content/zh/（中文，url 带 /zh/），
+# 页面一律在 front matter 固定英文 url，路径段中英相同。旧的 /en/… 删除不 301；不要 Hugo 生成 /en/ → / 的跳转页。
+defaultContentLanguage: en
 defaultContentLanguageInSubdir: false
+disableDefaultLanguageRedirect: true
 hasCJKLanguage: true
 languages:
-  zh:
-    languageName: 中文
-    weight: 1
   en:
     languageName: English
+    weight: 1
+  zh:
+    languageName: 中文
     weight: 2
 theme: []
 
@@ -17,17 +20,28 @@ build:
 enableRobotsTXT: true
 enableEmoji: true
 
+# P4-3 PR-4c：站点地图只要根上一份 /sitemap.xml（公开页清单，中英两版地址都在里面）。
+# Hugo 自带的多语言站点地图会出 /sitemap.xml 索引 + /en/sitemap.xml、/zh/sitemap.xml，/en/… 已经不该存在，所以关掉，改用 sitemappublic（root: true）。
+disableKinds:
+  - sitemap
 outputFormats:
   filesindex:
     mediaType: application/json
     baseName: files-index
     isPlainText: true
     notAlternative: true
+  sitemappublic:
+    mediaType: application/xml
+    baseName: sitemap
+    isPlainText: true
+    notAlternative: true
+    root: true
 outputs:
   home:
     - HTML
     - RSS
     - filesindex
+    - sitemappublic
 
 markup:
   goldmark:

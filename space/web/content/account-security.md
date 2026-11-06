@@ -1,5 +1,5 @@
 ---
-title: '账号安全'
+title: 'Account security'
 layout: account-security
 url: /account/security/
 ---
