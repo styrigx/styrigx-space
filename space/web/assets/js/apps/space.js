@@ -9,7 +9,6 @@ import { on as evOn } from '../lib/events.js';
 import { get } from '../lib/storage.js';
 import { get as featGet, set as featSet, on as featOnRaw } from '../lib/features.js';
 import { loadI18n } from '../lib/i18n.js';
-import { openSheet } from '../shell/sheet.js';
 import { setTheme, toggleFollowSystem, setPalette, palette, DEFAULT_PALETTE, setLayout, setLang, normLayout, layoutNarrow } from '../lib/prefs.js';
 import { syncAccent } from '../lib/accent-roles.js';
 import { accent } from '../lib/accent.js';
@@ -223,21 +222,51 @@ export function mountSpace() {
     if (v === 'en') return 'en';
     return 'system';
   }
-  rowToggle('row-lang', function () {
+  /* P4-3 PR-4b §6.7：行内展开单选（不做底部弹出窗口）。点行展开 / 收起 #lang-opts；选中即保存并收起，
+     写偏好并跳到对应语言版本（保留查询参数与 hash），replace 不产生历史；选的就是当前值只收起。 */
+  const langRow = $('row-lang');
+  const langOpts = $('lang-opts');
+  /** @param {boolean} open */
+  function setLangOpen(open) {
+    if (!langRow || !langOpts) return;
+    langRow.setAttribute('aria-expanded', open ? 'true' : 'false');
+    langOpts.hidden = !open;
+  }
+  function paintLangOpts() {
+    if (!langOpts) return;
     const cur = langVal();
-    openSheet({
-      title: T.t('langTitle'),
-      options: [
-        { label: T.t('langSystem'), value: 'system', checked: cur === 'system' },
-        { label: '中文', value: 'zh', checked: cur === 'zh' },
-        { label: 'English', value: 'en', checked: cur === 'en' },
-      ],
-      onPick: function (v) {
-        /* 写偏好并跳到对应语言版本（保留查询参数与 hash），replace 不产生历史 */
-        sgxReplace(setLang(/** @type {any} */ (v)));
-      },
+    langOpts.querySelectorAll('.set-opt').forEach(function (b) {
+      b.setAttribute('aria-checked', b.getAttribute('data-v') === cur ? 'true' : 'false');
     });
+  }
+  rowToggle('row-lang', function () {
+    if (!langOpts) return;
+    paintLangOpts();
+    setLangOpen(langOpts.hidden);
   });
+  if (langOpts) {
+    langOpts.querySelectorAll('.set-opt').forEach(function (b) {
+      on(b, 'click', function () {
+        const v = b.getAttribute('data-v') || 'system';
+        const changed = v !== langVal();
+        setLangOpen(false);
+        if (!changed) return;
+        /* 先就地标上选中项和行尾当前值（跳转前这一帧不闪旧值） */
+        const url = setLang(/** @type {any} */ (v));
+        paintLangOpts();
+        paintManage();
+        sgxReplace(url);
+      });
+    });
+    /* Esc 收起，焦点回到行上 */
+    on(langOpts, 'keydown', function (/** @type {KeyboardEvent} */ e) {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      setLangOpen(false);
+      if (langRow) langRow.focus();
+    });
+    paintLangOpts();
+  }
 
   /* ---- 数字健康：时长提示 ---- */
   function paintWellTip() {

@@ -7183,6 +7183,24 @@
     &.set-col { flex-direction: column; align-items: stretch; gap: 0; }
   }
   .set-row-head { display: flex; align-items: center; gap: 14px; width: 100%; }
+  /* 行内展开单选（P4-3 PR-4b §6.7：语言选择不再用底部弹出窗口）：行尾箭头展开时转向下；
+     选项列表紧跟在行下方，左缘与标题文字对齐（68 = 20 行内边距 + 40 图标 + 8），当前项右侧实心圆点 */
+  .set-row-chev { display: inline-flex; transition: transform .2s; }
+  .set-row-x[aria-expanded="true"] .set-row-chev { transform: rotate(90deg); }
+  .set-opts {
+    display: flex; flex-direction: column; padding: 0 20px 10px 68px;
+    &[hidden] { display: none; }
+  }
+  .set-opt {
+    display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 8px 12px;
+    border-radius: 0.875rem; text-align: left; font-size: 14px; color: var(--m-on-surface);
+    @media (hover: hover) and (pointer: fine) { &:hover { background: var(--m-container); } }
+    &[aria-checked="true"] { background: var(--m-primary-container); color: var(--m-on-primary-container); font-weight: 600; }
+  }
+  .set-opt-dot {
+    width: 18px; height: 18px; border-radius: 999px; flex-shrink: 0; border: 2px solid var(--m-outline);
+    .set-opt[aria-checked="true"] & { border-color: var(--m-primary); background: radial-gradient(circle, var(--m-primary) 0 4px, transparent 5px); }
+  }
   .set-row-sub { padding: 12px 0 2px 54px; } /* 54=40图标+14间距：控件左缘与标题文字对齐，右缘与行内边距(20px)齐平 */
   .set-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   /* 设置首页分组卡片（2026-10-23 PR-E，One UI 式）：每组一张圆角卡，卡与卡之间留缝；DeX 左栏导航在组与组之间多留一点 */

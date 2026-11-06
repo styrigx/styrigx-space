@@ -39,11 +39,18 @@
       {{ end }}{{/* /theme-mode */}}
       {{/* 2026-10-23 PR-E：语言自「常规管理」移入（常规管理已删除）；2026-10-24 挪到「布局」上面：跟随系统 → 语言 → 布局 */}}
       {{ if partial "feature.html" "lang" }}
-      <div class="set-row" id="row-lang" role="button" tabindex="0">
+      {{/* P4-3 PR-4b §6.7（Gray 立规：不做底部弹出窗口）：语言选择是行内展开的单选列表——点行在行下方展开选项（aria-expanded），
+           选中即保存并收起（apps/space.js）。没有 JS 时列表保持收起，行只显示当前语言。 */}}
+      <div class="set-row set-row-x" id="row-lang" role="button" tabindex="0" aria-expanded="false" aria-controls="lang-opts">
         <span class="set-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "globe" }}</span>
         <span class="flex-1 font-medium">{{ if $isEn }}Language{{ else }}语言{{ end }}</span>
         <span id="lang-val" class="text-sm text-m-on-surface-variant">{{ if $isEn }}English{{ else }}中文{{ end }}</span>
-        {{ partial "icon.html" "chev-r" }}
+        <span class="set-row-chev" aria-hidden="true">{{ partial "icon.html" "chev-r" }}</span>
+      </div>
+      <div class="set-opts" id="lang-opts" role="radiogroup" aria-label="{{ if $isEn }}Language{{ else }}语言{{ end }}" hidden>
+        {{ range slice (dict "v" "system" "zh" "跟随系统" "en" "Follow system") (dict "v" "zh" "zh" "中文" "en" "中文") (dict "v" "en" "zh" "English" "en" "English") }}
+        <button type="button" class="set-opt" role="radio" data-v="{{ .v }}" aria-checked="false"><span class="flex-1 min-w-0">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</span><span class="set-opt-dot" aria-hidden="true"></span></button>
+        {{ end }}
       </div>
       {{ end }}
       {{/* 2.4.0-G：布局由 features.yaml 生成（外观与手写版一致）。2026-10-23 PR-E：字体大小删除（浏览器缩放就够了） */}}
