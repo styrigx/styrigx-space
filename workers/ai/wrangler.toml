@@ -1,5 +1,5 @@
 # styrigx-ai：站内对话助手（P4-1，方案 5.2；P4-2 并入原 styrigx-chat 的外部模型）。站内召回 + 模型流式回答。
-# 三套接口：搜索索引（KV，跳转卡片来自 event: hits，不经模型）、自营模型（Workers AI，不走网关）、外部模型（Gemini API）。
+# 三套接口：搜索索引（KV，召回只作模型上下文，2026-11-06 起不再发 event: hits）、自营模型（Workers AI，不走网关）、外部模型（Gemini API）。
 #
 # 没有公开地址：不开 workers.dev、不挂路由、不挂域名。唯一入口是鉴权网关 styrigx-auth-gateway 的服务绑定 AI_SERVICE：
 #   POST /api/ai 由网关验进门、过两档 AI 限流、写账号结论头（X-Styrigx-Account-Session）后转进来（POST /ask）。

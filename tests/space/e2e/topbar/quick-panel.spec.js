@@ -960,7 +960,8 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ai(page)).toHaveAttribute('data-state', 'open');
     await page.waitForFunction(() => document.getElementById('sgx-ai').getAnimations({ subtree: true }).every((a) => a.playState !== 'running'));
   }
-  const sse = (hits, deltas) => ['event: hits\ndata: ' + JSON.stringify({ hits }) + '\n\n']
+  /* 2026-11-06 起服务端不再发 event: hits；hits 非空时照旧版服务端那样先发一条，用来验证前端不渲染来源卡片 */
+  const sse = (hits, deltas) => (hits && hits.length ? ['event: hits\ndata: ' + JSON.stringify({ hits }) + '\n\n'] : [])
     .concat(deltas.map((t) => 'event: delta\ndata: ' + JSON.stringify({ text: t }) + '\n\n'), ['event: done\ndata: {}\n\n']).join('');
 
   test('从顶栏下方落下（非模态，和快捷面板同一种形式）：空状态、输入框、清空、范围小字', async ({ page }) => {
@@ -974,14 +975,14 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     });
     expect(Math.abs(g.top - g.tbBottom - 8)).toBeLessThanOrEqual(1);
     expect(Math.abs(g.left - 16)).toBeLessThanOrEqual(1);
-    await expect(ai(page).locator('.sgx-ai-empty')).toHaveText('问一句，回答来自站内内容，并附上来源。');
+    await expect(ai(page).locator('.sgx-ai-empty')).toHaveText('问一句，回答来自站内内容。');
     await expect(ai(page).locator('[data-ai-in]')).toHaveAttribute('maxlength', '200');
     await expect(ai(page).locator('[data-ai-scope]')).toHaveText('仅公开内容');
     await expect(ai(page).locator('[data-ai-clear]')).toBeDisabled();
     expect(await page.evaluate(() => document.getElementById('sgx-ai').contains(document.activeElement))).toBe(true);
   });
 
-  test('问一句：POST /api/ai（问题 + 语言 + 历史），流式回答 + 来源卡片；范围按响应头；历史只存本地 sgx-ai-history', async ({ page }) => {
+  test('问一句：POST /api/ai（问题 + 语言 + 历史），流式回答（不显示来源卡片，旧服务端发了 hits 也不显示）；范围按响应头；历史只存本地 sgx-ai-history', async ({ page }) => {
     await go(page, '/settings/');
     let body = null;
     await page.route('**/api/ai', async (route) => {
@@ -996,10 +997,9 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ans.locator('> span')).toHaveText('Muse 是协作代理。');
     expect(body).toEqual({ q: 'Muse 是什么？', lang: 'zh', history: [] });
     await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText('Muse 是什么？');
-    /* 来源只收站内地址（外站的被丢掉） */
-    await expect(ans.locator('a.sgx-ai-hit')).toHaveCount(1);
-    await expect(ans.locator('a.sgx-ai-hit')).toHaveAttribute('href', '/blog/post/2026-10-07-muse-playbook/');
-    await expect(ans.locator('a.sgx-ai-hit small')).toHaveText('博客');
+    /* 2026-11-06：只显示模型正文，0 张来源卡片、0 个卡片链接 */
+    await expect(ai(page).locator('.sgx-ai-hits')).toHaveCount(0);
+    await expect(ans.locator('a')).toHaveCount(0);
     await expect(ai(page).locator('[data-ai-scope]')).toHaveText('包含私密内容');
     const h = JSON.parse(await ls(page, 'sgx-ai-history'));
     expect(h.v).toBe(1);
@@ -1022,6 +1022,23 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await ai(page).locator('[data-ai-clear]').click();
     await expect(ai(page).locator('.sgx-ai-msg')).toHaveCount(0);
     await expect(ai(page).locator('.sgx-ai-empty')).toBeVisible();
+  });
+
+  test('2026-11-06：旧历史里带 hits 的回答，点开也是 0 张来源卡片', async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('sgx-ai-history', JSON.stringify({ v: 1, msgs: [
+          { role: 'user', text: '锁屏怎么开', ts: 1 },
+          { role: 'assistant', text: '设置 → 安全 → 锁屏凭证。', hits: [{ site: 'space', title: '锁屏凭证', subtitle: '安全', url: '/settings/security/lock/' }], ts: 2 },
+        ] }));
+      } catch (e) {}
+    });
+    await go(page, '/settings/');
+    await openAi(page);
+    await expect(ai(page).locator('.sgx-ai-msg')).toHaveCount(2);
+    await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('设置 → 安全 → 锁屏凭证。');
+    await expect(ai(page).locator('.sgx-ai-hits')).toHaveCount(0);
+    await expect(ai(page).locator('.sgx-ai-msg a')).toHaveCount(0);
   });
 
   for (const [status, err, want] of [[429, 'cooldown', '问得太快了，请一分钟后再试'], [429, 'busy', '现在问的人太多，请稍后再试'], [401, 'session', '锁屏会话已失效，请重新解锁后再问'], [502, 'upstream', '没能拿到回答，请稍后再试']]) {

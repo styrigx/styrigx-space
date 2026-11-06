@@ -5,9 +5,8 @@
  * 请求：POST { q, lang?: 'zh'|'en', history?: [{ role:'user'|'assistant', text }], model?: '<id>' }，JSON，最多 BODY_MAX 字节。
  *   头 X-Styrigx-Account-Session: 1（网关写的账号结论头）→ 私密条目进召回，且 model 生效（只认登记里的 id，见 core/models.js）；
  *   没有 / 别的值 → 只召回公开条目，model 忽略，一律默认模型（切模型只能登账号）。
- * 回答：200 text/event-stream，事件顺序固定：
- *   event: hits   data: { hits: [{ site, type, title, subtitle, url }] }   （来源列表，不带正文）
- *   event: delta  data: { text }                                         （0 到多次）
+ * 回答：200 text/event-stream，事件顺序固定（2026-11-06 起不再发 event: hits：召回只作模型上下文，不给浏览器来源列表）：
+ * *   event: delta  data: { text }                                         （0 到多次）
  *   event: done   data: {}
  *   出错时（已经开始流以后）：event: error data: { code: 'upstream' }，然后关流（不再发 done）。
  *   响应头 X-Styrigx-AI-Scope: private | public（这次召回用了哪一档；前端只用来显示，方案 5.5）。
@@ -21,7 +20,7 @@
  * 浏览器断开：网关把浏览器请求的 signal 带进服务绑定请求；这里 request.signal abort 或流被取消时，取消上游的流。
  * 不存对话、不写 KV。
  */
-import { loadIndexes, recall, publicHits } from '../core/recall.js';
+import { loadIndexes, recall } from '../core/recall.js';
 import { buildMessages, Q_MAX } from '../core/prompt.js';
 import { thinkFilter } from '../core/think.js';
 import { loadModels, pickModel } from '../core/models.js';
@@ -157,7 +156,6 @@ export async function onRequestPost(request, env) {
       let reasoningChars = 0;
       let finish = '';
       try {
-        send('hits', { hits: publicHits(hits) });
         const messages = buildMessages({ q: a.q, lang: a.lang, history: a.history, hits });
         const filter = thinkFilter();
         if (model.provider === 'gemini') {

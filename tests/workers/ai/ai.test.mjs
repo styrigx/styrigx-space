@@ -98,8 +98,6 @@ test('召回两档：没账号会话不出私密条目；有账号会话才出�
   assert.equal(theme[1].text.length, R.CONTEXT_CHARS);
   assert.deepEqual(R.recall(ix, { q: 'theme', lang: 'en' }).map((h) => h.url), ['/en/settings/theme/']);
   assert.equal(R.recall(ix, { q: '主题', lang: 'zh', limit: 1 }).length, 1);
-  /* 给浏览器的来源不带正文和私密标记 */
-  assert.deepEqual(Object.keys(R.publicHits(priv)[0]).sort(), ['site', 'subtitle', 'title', 'type', 'url']);
 });
 
 test('recall：自然语言问句——不要求每个词都中、问法词不算、问句语言没有就放开语言', () => {
@@ -188,16 +186,15 @@ test('rank.js：打分与排序、语言过滤、私密只给 showPrivate、跨�
 
 /* ---------- /ask ---------- */
 
-test('/ask：没账号会话 → 私密条目不进来源、不进上下文；scope public', async () => {
+test('/ask：没账号会话 → 私密条目不进上下文；scope public', async () => {
   const ai = fakeAI([sse({ response: '没有。' }), 'data: [DONE]\n\n']);
   const res = await ask({ q: '账号 安全' }, {}, { AI: ai });
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('X-Styrigx-AI-Scope'), 'public');
   const ev = await events(res);
-  assert.deepEqual(ev[0], { event: 'hits', data: { hits: [] } });
   assert.equal(ai.calls.length, 1, '召回为空也调模型');
   assert.match(ai.calls[0].input.messages[0].content, /站内没有相关内容。/);
-  assert.deepEqual(ev.map((e) => e.event), ['hits', 'delta', 'done']);
+  assert.deepEqual(ev.map((e) => e.event), ['delta', 'done']);
   assert.ok(!JSON.stringify(ev).includes('保险箱'));
   assert.ok(!ai.calls[0].input.messages[0].content.includes('保险箱'), '私密正文不进上下文');
 });
@@ -211,29 +208,28 @@ test('/ask：浏览器伪造别的值的账号头不算；只有网关写的 1 �
   }
 });
 
-test('/ask：有账号会话 → 私密条目进来源和上下文；scope private', async () => {
+test('/ask：有账号会话 → 私密条目进上下文；不发来源；scope private', async () => {
   const ai = fakeAI([sse({ response: '在抽屉里。' }), 'data: [DONE]\n\n']);
   const res = await ask({ q: '账号' }, { 'X-Styrigx-Account-Session': '1' }, { AI: ai });
   assert.equal(res.headers.get('X-Styrigx-AI-Scope'), 'private');
   const ev = await events(res);
-  assert.equal(ev[0].data.hits[0].url, '/account/secret/');
-  assert.equal(ev[0].data.hits[0].text, undefined, '正文不回浏览器');
+  assert.ok(ev.every((e) => e.event !== 'hits'), '不发 event: hits（2026-11-06 去掉来源卡片）');
+  assert.ok(!JSON.stringify(ev).includes('/account/secret/'), '召回条目不回浏览器');
   assert.match(ai.calls[0].input.messages[0].content, /保险箱/);
 });
 
-test('/ask：SSE 顺序 hits → delta… → done；模型参数；上下文只有召回到的条目', async () => {
+test('/ask：SSE 顺序 delta… → done；模型参数；上下文只有召回到的条目', async () => {
   const ai = fakeAI([sse({ response: '主题' }), sse({ response: '在设置里。' }), sse({ choices: [{ delta: { content: '!' } }] }), 'data: [DONE]\n\n']);
   const res = await ask({ q: '主题', lang: 'zh' }, {}, { AI: ai, AI_MODELS: JSON.stringify({ default: '@cf/test/m', models: [{ id: '@cf/test/m' }] }), AI_MAX_TOKENS: '300', AI_CONTEXT_HITS: '1' });
   assert.equal(res.headers.get('Content-Type'), 'text/event-stream; charset=utf-8');
   assert.match(res.headers.get('Cache-Control'), /no-store/);
   const ev = await events(res);
-  assert.deepEqual(ev.map((e) => e.event), ['hits', 'delta', 'delta', 'delta', 'done']);
-  assert.equal(ev.slice(1, 4).map((e) => e.data.text).join(''), '主题在设置里。!');
+  assert.deepEqual(ev.map((e) => e.event), ['delta', 'delta', 'delta', 'done']);
+  assert.equal(ev.slice(0, 3).map((e) => e.data.text).join(''), '主题在设置里。!');
   const { model, input } = ai.calls[0];
   assert.equal(model, '@cf/test/m');
   assert.equal(input.stream, true);
   assert.equal(input.max_tokens, 300);
-  assert.equal(ev[0].data.hits.length, 1);
   assert.match(input.messages[0].content, /\[1\] 主题模式/);
   assert.doesNotMatch(input.messages[0].content, /\[2\]/);
   assert.equal(input.messages.at(-1).role, 'user');
@@ -241,11 +237,11 @@ test('/ask：SSE 顺序 hits → delta… → done；模型参数；上下文只
   assert.equal(res.headers.get('X-Styrigx-AI-Model'), '@cf/test/m');
 });
 
-test('/ask：上游出错 → 已发 hits 后 event: error，不发 done', async () => {
+test('/ask：上游出错 → event: error，不发 done', async () => {
   const res = await ask({ q: '主题' }, {}, { AI: fakeAI([], { throws: true }) });
   const ev = await events(res);
-  assert.deepEqual(ev.map((e) => e.event), ['hits', 'error']);
-  assert.deepEqual(ev[1].data, { code: 'upstream' });
+  assert.deepEqual(ev.map((e) => e.event), ['error']);
+  assert.deepEqual(ev[0].data, { code: 'upstream' });
 });
 
 test('/ask：输入上限与坏请求', async () => {
@@ -277,9 +273,9 @@ test('/ask：浏览器断开（流被取消）→ 上游 Workers AI 的流一起
   const ai = fakeAI([sse({ response: '第一段' })], { hang: true });
   const res = await ask({ q: '主题' }, {}, { AI: ai });
   const reader = res.body.getReader();
+  /* 2026-11-06 起没有 event: hits，第一块就是第一段 delta */
   await reader.read();
   for (let i = 0; i < 20 && !ai.up; i++) await new Promise((r) => setTimeout(r, 5));
-  await reader.read();
   await reader.cancel();
   for (let i = 0; i < 40 && !ai.up.cancelled; i++) await new Promise((r) => setTimeout(r, 5));
   assert.equal(ai.up.cancelled, true);
@@ -459,8 +455,8 @@ test('外部模型（Gemini）：钥匙走头不进 URL；系统提示 + 上下�
   }, async () => {
     const res = await ask({ q: '主题', history: [{ role: 'user', text: '早' }, { role: 'assistant', text: '好' }] }, {}, gEnv({ SGX_CHAT_API_KEY: { async get() { return ' K123 '; } } }));
     const ev = await events(res);
-    assert.deepEqual(ev.map((e) => e.event), ['hits', 'delta', 'delta', 'done']);
-    assert.equal(ev.slice(1, 3).map((e) => e.data.text).join(''), '主题在设置里');
+    assert.deepEqual(ev.map((e) => e.event), ['delta', 'delta', 'done']);
+    assert.equal(ev.slice(0, 2).map((e) => e.data.text).join(''), '主题在设置里');
   });
   assert.equal(seen.length, 1);
   assert.equal(seen[0].url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-x:streamGenerateContent?alt=sse');
@@ -488,8 +484,8 @@ test('外部模型：钥匙没绑 / 读不到 → 503 no_key（不调上游）�
     M._resetModelsCache();
     await withFetch(async () => new Response('{"error":{}}', { status }), async () => {
       const ev = await events(await ask({ q: '主题' }, {}, gEnv({ SGX_CHAT_API_KEY: 'k' })));
-      assert.deepEqual(ev.map((e) => e.event), ['hits', 'error']);
-      assert.equal(ev[1].data.code, code);
+      assert.deepEqual(ev.map((e) => e.event), ['error']);
+      assert.equal(ev[0].data.code, code);
     });
   }
   assert.equal(G.classifyUpstream(400, 'model not found'), 'model_unavailable');
@@ -541,7 +537,7 @@ test('/ask：模型只吐思考段、没有正文 → error empty（不当成功
     'data: [DONE]\n\n',
   ]);
   const ev = await events(await ask({ q: '主题' }, {}, { AI: ai }));
-  assert.deepEqual(ev.map((e) => e.event), ['hits', 'error']);
-  assert.equal(ev[1].data.code, 'empty');
+  assert.deepEqual(ev.map((e) => e.event), ['error']);
+  assert.equal(ev[0].data.code, 'empty');
   assert.equal(ASK.chunkReasoning({ choices: [{ delta: { reasoning_content: 'abc' } }] }), 3);
 });

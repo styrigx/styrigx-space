@@ -54,11 +54,11 @@ test('preview-worker：AI_SERVICE 是桩（P4-1，不调真实 Workers AI）：�
   assert.equal(r.status, 200);
   assert.equal(r.headers.get('X-Styrigx-AI-Scope'), 'public');
   const txt = await r.text();
-  assert.deepEqual([...txt.matchAll(/^event: (\w+)$/gm)].map((m) => m[1]), ['hits', 'delta', 'delta', 'done']);
+  assert.deepEqual([...txt.matchAll(/^event: (\w+)$/gm)].map((m) => m[1]), ['delta', 'delta', 'done']);
   assert.ok(!txt.includes('/account/'));
   r = await ask({ 'X-Styrigx-Account-Session': '1' });
   assert.equal(r.headers.get('X-Styrigx-AI-Scope'), 'private');
-  assert.ok((await r.text()).includes('/account/'));
+  assert.ok(!(await r.text()).includes('event: hits'));
   assert.equal((await g.AI_SERVICE.fetch(new Request('https://styrigx-ai/healthz'))).status, 200);
   assert.equal((await g.AI_SERVICE.fetch(new Request('https://styrigx-ai/search?q=x'))).status, 404);
 });
