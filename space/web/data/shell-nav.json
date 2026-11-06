@@ -1,11 +1,11 @@
 {
   "brand": "Styrigx",
-  "label": { "zh": "导航", "en": "Navigation" },
+  "label": { "zh": "站点", "en": "Sites" },
   "items": [
-    { "id": "home", "icon": "nav-home", "zh": "旷野", "en": "Space", "origin": "https://styrigx.com", "path": "/" },
-    { "id": "curio", "icon": "nav-curio", "zh": "奇趣", "en": "Curio", "origin": "https://styrigx.com", "path": "/curio/" },
-    { "id": "daymark", "icon": "nav-daymark", "zh": "日刻", "en": "Daymark", "origin": "https://styrigx.com", "path": "/daymark/" },
-    { "id": "blog", "icon": "nav-blog", "zh": "博客", "en": "Blog", "origin": "https://styrigx.com", "path": "/blog/" }
+    { "id": "home", "icon": "nav-home", "zh": "旷野", "en": "Space", "subzh": "风格、安全与作息", "suben": "Style and security", "origin": "https://styrigx.com", "path": "/" },
+    { "id": "curio", "icon": "nav-curio", "zh": "奇趣", "en": "Curio", "subzh": "收藏、设备与游戏", "suben": "Finds, devices, games", "origin": "https://styrigx.com", "path": "/curio/" },
+    { "id": "daymark", "icon": "nav-daymark", "zh": "日刻", "en": "Daymark", "subzh": "每天刻下一句", "suben": "A line a day", "origin": "https://styrigx.com", "path": "/daymark/" },
+    { "id": "blog", "icon": "nav-blog", "zh": "博客", "en": "Blog", "subzh": "文章与专题", "suben": "Posts and topics", "origin": "https://styrigx.com", "path": "/blog/" }
   ],
   "footer": [],
   "me": { "zh": "账号", "en": "Account", "href": "https://styrigx.com/account/", "avatar": "https://styrigx.com/avatar/192.webp" }

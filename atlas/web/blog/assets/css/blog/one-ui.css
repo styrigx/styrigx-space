@@ -35,15 +35,8 @@
   --oui-shadow-card: inset 0 0.5px 0 rgba(255, 255, 255, 0.09), 0 1px 2px rgba(0, 0, 0, 0.45), 0 16px 40px -12px rgba(0, 0, 0, 0.55);
 }
 
-/* ---------- 外壳框（主站一比一）：布局模式（head.html 内联脚本，规则同主站 __layoutMode：宽 ≥ 840、高 ≥ 500 且横屏 = DeX）
-   决定外壳框最宽 Mobile 640 / DeX 1440，顶栏两侧圆和主站同一位置 ---------- */
-html.layout-mobile {
-  --sgx-content-max: 640px;
-}
-
-html.layout-dex {
-  --sgx-content-max: 1440px;
-}
+/* ---------- 外壳框（主站一比一）：最宽 Mobile 640 / DeX 1440 由共享外壳按 <html data-sgx-layout> 定（四站同一条布局规则，head.html 内联脚本），
+   本站不再按 layout-* 类改 --sgx-content-max（P4-3 顶栏长度统一）---------- */
 
 /* ---------- 页面底 + 全页光晕（主站一比一：sgx-base 层 #sgx-wallpaper / --sgx-halo，2026-10-23 底板定稿）----------
    页面底 = 背景色第 1 档 --sgx-bg-1；七团光只用背景色 7 档 --sgx-bg-1..7；顶栏区域保持干净（--sgx-halo-mask 从顶栏下沿淡入）。

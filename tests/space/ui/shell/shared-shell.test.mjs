@@ -43,7 +43,8 @@ test('快捷面板（P5-1，替代抽屉）：非模态窗口在顶栏下面、�
   assert.match(s, /--sgx-qp-shadow: 0 4px 12px rgba\(0,0,0,\.10\), 0 16px 48px rgba\(0,0,0,\.24\)/);
   assert.match(s, /\.dark \{ --sgx-qp-shadow: 0 4px 12px rgba\(0,0,0,\.22\), 0 16px 48px rgba\(0,0,0,\.5\)/);
   // 宽屏 400px（AI 440px），右缘对齐外壳框
-  assert.match(s, /@media \(min-width: 980px\) \{\s*\.sgx-qp-sheet \{ left: auto; right: calc\(\(100% - var\(--sgx-shell-w\)\) \/ 2\); width: 400px; margin: 0; \}\s*\.sgx-ai \.sgx-qp-sheet \{ width: 440px; \}/);
+  // （P4-3 顶栏长度统一：和顶栏一样按 --sgx-tb-w 对齐，100vw 算，不随滚动条变）
+  assert.match(s, /@media \(min-width: 980px\) \{\s*\.sgx-qp-sheet \{ left: auto; right: calc\(\(100% - var\(--sgx-tb-w\)\) \/ 2\); width: 400px; margin: 0; \}\s*\.sgx-ai \.sgx-qp-sheet \{ width: 440px; \}/);
   // 两页：页签 + 横向 scroll-snap
   assert.match(s, /\.sgx-qp-tab\[aria-selected="true"\] \{ background: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\);/);
   assert.match(s, /\.sgx-qp-pages \{ display: flex; overflow-x: auto;[^}]*scroll-snap-type: x mandatory;/);
@@ -115,7 +116,7 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
 test('顶栏 P5-1（2026-11-04）：一整条胶囊 [logo][中间][快捷面板 · AI · 头像]，同一份标记 topbar.html 四站共用；九宫格 / 右圆 / 抽屉头删除', () => {
   assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel']);
   const s = files['shell.css'];
-  assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*width: var\(--sgx-shell-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
+  assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*left: 0; right: calc\(100% - 100vw\); margin: 0 auto; width: var\(--sgx-tb-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
   assert.match(s, /\.sgx-tb-btn \{ width: var\(--sgx-tb-ic\); height: var\(--sgx-tb-ic\);[^}]*border-radius: 999px;/);
   assert.match(s, /\.sgx-tb-title \{[^}]*text-align: center;[^}]*text-overflow: ellipsis;/);
   assert.match(s, /@media \(min-width: 600px\) \{\s*\.sgx-topbar \{ display: grid; grid-template-columns: 1fr min\(var\(--sgx-tb-mid\), [^;]+\) 1fr; \}/, '宽屏中间居中、定宽（P4-3 PR-4a §6.3）');

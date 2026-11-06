@@ -2,8 +2,8 @@
   "_generated": "styrigx-space space/scripts/gen-shell.mjs ← space/web/data/shell-nav.json + icon.html + shell-wordmark.html；勿手改",
   "brand": "Styrigx",
   "label": {
-    "zh": "导航",
-    "en": "Navigation"
+    "zh": "站点",
+    "en": "Sites"
   },
   "items": [
     {
@@ -11,6 +11,8 @@
       "icon": "nav-home",
       "zh": "旷野",
       "en": "Space",
+      "subzh": "风格、安全与作息",
+      "suben": "Style and security",
       "origin": "https://styrigx.com",
       "path": "/"
     },
@@ -19,6 +21,8 @@
       "icon": "nav-curio",
       "zh": "奇趣",
       "en": "Curio",
+      "subzh": "收藏、设备与游戏",
+      "suben": "Finds, devices, games",
       "origin": "https://styrigx.com",
       "path": "/curio/"
     },
@@ -27,6 +31,8 @@
       "icon": "nav-daymark",
       "zh": "日刻",
       "en": "Daymark",
+      "subzh": "每天刻下一句",
+      "suben": "A line a day",
       "origin": "https://styrigx.com",
       "path": "/daymark/"
     },
@@ -35,6 +41,8 @@
       "icon": "nav-blog",
       "zh": "博客",
       "en": "Blog",
+      "subzh": "文章与专题",
+      "suben": "Posts and topics",
       "origin": "https://styrigx.com",
       "path": "/blog/"
     }
@@ -52,6 +60,7 @@
     "nav-curio": "<svg width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4z\"/><path d=\"M12 7.2l1 2.1 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3z\" stroke-width=\"1.4\"/></svg>",
     "nav-daymark": "<svg width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"4\" y=\"5\" width=\"16\" height=\"15.5\" rx=\"2.5\"/><path d=\"M8.5 3v4M15.5 3v4\"/><path d=\"M10.5 11.2c-1.3.5-2 1.6-2 3.3v1.3\"/><path d=\"M8.5 15.8h1.8v-1.9H8.6\"/><path d=\"M15.5 11.2c-1.3.5-2 1.6-2 3.3v1.3\"/><path d=\"M13.5 15.8h1.8v-1.9h-1.7\"/></svg>",
     "nav-blog": "<svg width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 20h4.2L19.4 8.8a2 2 0 0 0 0-2.8l-1.4-1.4a2 2 0 0 0-2.8 0L4 15.8z\"/><path d=\"M13.5 6.5l4 4\"/></svg>",
+    "tb-grid": "<svg width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3.75\" y=\"3.75\" width=\"6.5\" height=\"6.5\" rx=\"1.75\"/><rect x=\"13.75\" y=\"3.75\" width=\"6.5\" height=\"6.5\" rx=\"1.75\"/><rect x=\"3.75\" y=\"13.75\" width=\"6.5\" height=\"6.5\" rx=\"1.75\"/><rect x=\"13.75\" y=\"13.75\" width=\"6.5\" height=\"6.5\" rx=\"1.75\"/></svg>",
     "tb-sliders": "<svg width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75\"/></svg>",
     "tb-chat": "<svg width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4.5 5.5h15a1.5 1.5 0 011.5 1.5v9a1.5 1.5 0 01-1.5 1.5H10l-4.5 3.5V17.5h-1A1.5 1.5 0 013 16V7a1.5 1.5 0 011.5-1.5z\"/><path d=\"M8 10.5h8M8 13.5h5\"/></svg>",
     "tb-moon": "<svg width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0012 21.75a9.753 9.753 0 009.752-6.748z\"/></svg>",
@@ -60,6 +69,8 @@
     "lock": "<svg width=\"20\" height=\"20\" class=\"w-5 h-5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" viewBox=\"0 0 24 24\"><rect x=\"4\" y=\"11\" width=\"16\" height=\"10\" rx=\"2\"/><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M8 11V7a4 4 0 0 1 8 0v4\"/></svg>",
     "tb-undo": "<svg width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3\"/></svg>",
     "share": "<svg width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"18\" cy=\"5\" r=\"3\"/><circle cx=\"6\" cy=\"12\" r=\"3\"/><circle cx=\"18\" cy=\"19\" r=\"3\"/><path d=\"M8.6 13.5l6.8 4\"/><path d=\"M15.4 6.5l-6.8 4\"/></svg>",
-    "tb-send": "<svg width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 19V5M5.5 11.5L12 5l6.5 6.5\"/></svg>"
+    "tb-send": "<svg width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 19V5M5.5 11.5L12 5l6.5 6.5\"/></svg>",
+    "tb-newchat": "<svg width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M11.5 20H5a1 1 0 01-1-1v-3.6L14.6 4.8a1.6 1.6 0 012.3 0l1.3 1.3a1.6 1.6 0 010 2.3l-2.7 2.7\"/><path d=\"M18 14v6M15 17h6\"/></svg>",
+    "tb-history": "<svg width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3.5 12a8.5 8.5 0 102.6-6.1L3.5 8.5\"/><path d=\"M3.5 3.5v5h5M12 7.5V12l3 2\"/></svg>"
   }
 }

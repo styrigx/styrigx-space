@@ -34,10 +34,26 @@ function __layoutMode(){
   var w=window.innerWidth||1280;
   return w<980?'phone':'dex';
 }
+/* 顶栏长度统一（P4-3）：外壳框最宽（共享外壳）按 data-sgx-layout 定，四站同一条布局规则（主站 baseof __layoutMode() 只读版：偏好 sgx-layout = mobile / dex / auto，同源同一份 localStorage；auto = 宽 ≥ 840、高 ≥ 500 且横屏才是 DeX）。
+   本站 layout-phone / layout-dex 类照旧按上面 980 的规则（只管弹层样式），不再决定顶栏长度：原来顶栏跟着它，宽竖屏（≥ 980）/ 横屏 840–980 时和其他三站不一样长 */
+function __sgxShellLayout(){
+  var m=null;
+  try{
+    if(new URLSearchParams(location.search).get('layout')==='auto')m='auto';
+    else m=localStorage.getItem('sgx-layout');
+  }catch(e){}
+  if(m==='pc')m='dex';
+  var w=window.innerWidth||1280,h=window.innerHeight||800;
+  var big=w>=840&&h>=500;
+  if(m==='mobile')return 'mobile';
+  if(m==='dex')return big?'dex':'mobile';
+  return big&&w>h?'dex':'mobile';
+}
 function __applyLayout(){
   var d=document.documentElement,m=__layoutMode();
   d.classList.remove('layout-phone','layout-dex');
   d.classList.add('layout-'+m);
+  d.setAttribute('data-sgx-layout',__sgxShellLayout());
 }
 __applyLayout();
 </script>
@@ -48,9 +64,8 @@ __applyLayout();
 {{/* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/sgx-shell-topbar.html（主站 shell-topbar.html 原样，atlas/scripts/curio/sync-shell.mjs 同步，勿手改），
    这里只准备奇趣自己的参数：
    - 中间（原样搬进来）：首页 = 分段滑块（页签是 role=tab 的按钮，本站脚本切换面板）；其他页（404）= 只有页名（.sgx-tb-title）。
-   - 右边：快捷面板（两页：导航 / 快捷设置）· AI · 头像（主站账号页）。九宫格、导航抽屉、右圆分享删除：
-     站点切换在快捷面板第 1 页（奇趣是当前项）；「分享本页」在快捷面板第 2 页（本站页面原来都有分享按钮，迁过去都有磁贴，定案第 4 条）。
-   - 快捷设置：深色 / 跟随系统 / 语言 / 调色板，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）；立即锁定、布局只在主站。
+   - 右边：九宫格（导航面板，本站是「开」态）· 快捷设置 · AI（头像在 AI 窗口头部）；P4-3 PR-4b 起快捷面板四站同一套，没有按站的 tiles 参数：
+     深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）。
    JS：js/sgx/topbar-host.js（共享外壳 topbar.js + modal-sheet.js + ai.js + prefs-write.js + share.js）。外观和语言跟主站（sgx-ui cookie，见 ui-inherit-run.js）。 */}}
 {{ $pageName := .Title }}
 {{ if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}{{ end }}
@@ -93,7 +108,6 @@ __applyLayout();
   "mainOrigin" "https://styrigx.com"
   "acct" (cond $isEn (replace $shellNav.me.href "https://styrigx.com/" "https://styrigx.com/en/") $shellNav.me.href)
   "avatar" $shellNav.me.avatar
-  "tiles" (dict "theme" true "lang" true "palette" true "share" true)
   "langHref" $langHref
   "pal" $pal
 ) }}

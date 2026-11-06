@@ -74,8 +74,8 @@ function currentSeed() {
   } catch (e) {}
   return '';
 }
-/** 明确的语言偏好：'zh' / 'en' 原样返回；跟随系统返回 '' */
-function langPref() {
+/** 明确的语言偏好：'zh' / 'en' 原样返回；跟随系统返回 ''（P4-3 PR-4b 起导出给快捷面板语言行） */
+export function langPref() {
   var l = ls('sgx-lang');
   return l === 'zh' || l === 'en' ? l : '';
 }
@@ -169,4 +169,26 @@ export function setPalette(p) {
 export function setLangPref(v) {
   lsSet('sgx-lang', v === 'zh' || v === 'en' ? v : null);
   syncUiCookie();
+}
+
+
+/* 布局偏好（P4-3 PR-4b：快捷面板四站同一套，子站也有布局行）：同主站 lib/prefs.js，localStorage sgx-layout = mobile / auto / dex（同源同一份）；
+   写完重算本页布局：有 window.__applyLayout（主站 / 奇趣 / 日刻 <head> 内联）就调它，没有（博客）就按 window.__sgxShellLayout 只改 data-sgx-layout。 */
+/** @returns {'mobile'|'auto'|'dex'} */
+export function layoutPref() {
+  var v = ls('sgx-layout');
+  if (v === 'pc') v = 'dex';
+  return v === 'mobile' || v === 'dex' ? v : 'auto';
+}
+/** 不够 DeX 的「大屏」（宽 ≥ 840 且高 ≥ 500，同主站 lib/prefs.js layoutBig）时 DeX 置灰 @returns {boolean} */
+export function layoutNarrow() {
+  return !((window.innerWidth || 1280) >= 840 && (window.innerHeight || 800) >= 500);
+}
+/** @param {string} v */
+export function setLayout(v) {
+  var n = v === 'mobile' || v === 'dex' ? v : 'auto';
+  lsSet('sgx-layout', n);
+  var w = /** @type {any} */ (window);
+  if (typeof w.__applyLayout === 'function') w.__applyLayout();
+  else if (typeof w.__sgxShellLayout === 'function') document.documentElement.setAttribute('data-sgx-layout', w.__sgxShellLayout());
 }

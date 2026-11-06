@@ -61,7 +61,7 @@ export const READER_SRC = SRC.reader;
 export const SHELL_REGIONS = ['topbar-frame', 'panel'];
 /* 导航项以外外壳要用的图标（2026-11-04 P5-1）：顶栏（快捷面板滑块、AI 聊天）、快捷设置磁贴（深色 / 跟随系统 / 语言 / 锁定 / 恢复默认 / 分享）、AI 发送。
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
-export const EXTRA_ICONS = ['tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send'];
+export const EXTRA_ICONS = ['tb-grid', 'tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history'];
 const HEAD = (src) =>
   `/* 由 styrigx-space space/scripts/gen-shell.mjs 从 ${src} 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */\n`;
 
@@ -183,7 +183,7 @@ export function renderTopbar() {
   const src = readFileSync(SRC.topbar, 'utf8');
   const code = src.replace(/\{\{-?\s*\/\*[\s\S]*?\*\/\s*-?\}\}/g, '');
   if (/\{\{-?\s*partial(Cached)?\s/.test(code) || /site\.Data|hugo\.Data|resources\.|\.Site\b|\$\.Page\b/.test(code)) throw new Error('shell-topbar.html 只能用传进来的参数（不能调 partial / 读 site.Data / resources）');
-  if (!/<header id="site-nav"/.test(src) || !/id="sgx-qp"/.test(src) || !/id="sgx-ai"/.test(src)) throw new Error('shell-topbar.html 缺 header#site-nav / #sgx-qp / #sgx-ai');
+  if (!/<header id="site-nav"/.test(src) || !/id="sgx-nav"/.test(src) || !/id="sgx-qp"/.test(src) || !/id="sgx-ai"/.test(src)) throw new Error('shell-topbar.html 缺 header#site-nav / #sgx-nav / #sgx-qp / #sgx-ai');
   return src;
 }
 
@@ -290,32 +290,34 @@ const README = `# space/web/shared/shell（生成物，勿手改）
   打包 \`favicon.js\`（ES 模块）后调 \`initFavicon()\`：色板 / 自定义色 / 深浅色变了就换成当前主题色。
 - 契约测试：\`ui-cookie-contract.json\` 是主站写端真实写出的 cookie + 期望；子站单测对每个 case 断言 \`SgxUI.read(\'sgx-ui=\' + c.cookie)\` 等于 \`c.read\`、
   \`SgxUI.resolve(c.read, 系统深色)\` 等于 \`c.light/c.dark.resolve\`（apply 后 \`<html>\` 等于 \`.root\`）。sync-shell 拉新版本后跑一遍。
-## 顶栏 + 快捷面板 + AI 窗口（topbar.html / topbar.js / modal-sheet.js / ai.js / vk.js + shell.css topbar-frame、panel 段；2026-11-04 P5-1，四个站一样）
+## 顶栏 + 导航面板 + 快捷面板 + AI 窗口（topbar.html / topbar.js / modal-sheet.js / ai.js / vk.js + shell.css topbar-frame、panel 段；2026-11-04 P5-1，P4-3 PR-4b 定稿，四个站一样）
 
 \`topbar.html\` 是 Hugo partial（主站 partials/shell-topbar.html 原样），子站同步成 \`layouts/partials/sgx-shell-topbar.html\`，只用参数、不调别的 partial：
 
 \`\`\`html
 <header id="site-nav">
   <div class="sgx-topbar">                                   <!-- 一整条胶囊，材质在它身上 -->
-    <a class="sgx-tb-logo" href="本站首页">字标 + 圆点简版</a>     <!-- < 400px 只显示圆点 -->
-    <div class="sgx-tb-pill">本站中间内容（页名 / 标签 / 分段）</div>
-    <div class="sgx-tb-acts">
+    <a class="sgx-tb-logo" href="本站首页">字标（真 SVG，各宽度都完整）</a>
+    <div class="sgx-tb-pill">页名胶囊 / 标签 / 分段（在空余区居中）</div>
+    <div class="sgx-tb-acts">                                <!-- 紧凑、靠右；头像不在顶栏 -->
+      <button class="sgx-tb-btn sgx-tb-grid" aria-controls="sgx-nav">九宫格</button>
       <button class="sgx-tb-btn sgx-tb-quick" aria-controls="sgx-qp">滑块</button>
       <button class="sgx-tb-btn sgx-tb-ai" aria-controls="sgx-ai">聊天</button>
-      <a class="sgx-tb-btn sgx-tb-me" href="/account/"><img class="sgx-tb-avatar" data-sgx-avatar="192"></a>
     </div>
   </div>
 </header>
-<dialog id="sgx-qp">两页：导航（nav.json items / footer，当前站高亮，没有搜索框）/ 快捷设置（磁贴）</dialog>
-<dialog id="sgx-ai">消息列表 · 输入框 · 清空 · 仅公开内容 / 包含私密内容</dialog>
+<dialog id="sgx-nav">2×2 站点磁贴（nav.json items：图标 + 站名 + 副标题，当前站「开」态）</dialog>
+<dialog id="sgx-qp">只有快捷设置一页：深色 / 跟随系统 / 分享本页 / 立即锁定 · 语言（行内展开单选）· 调色板 · 布局</dialog>
+<dialog id="sgx-ai">头部 Gray AI · 新对话 · 历史 · 头像（账号页，主题色环）· 消息列表 · 输入框 · 「仅公开内容 · 联系我」</dialog>
 \`\`\`
 - 参数（dict）：\`isEn\`、\`home\`、\`center\`（HTML）、\`pillClass\`、\`headerClass\`、\`headerAttrs\`、\`nav\`（nav.json）、\`site\`（当前站 id）、\`icons\`（nav.json 的 icons）、
-  \`wordmark\`、\`acct\`、\`avatar\`、\`tiles\`（theme / lang / lock / palette / layout / share）、\`langHref\`（另一种语言的同一页）、\`pal\`（[{id, zh, en, style}]，style = --pl-b1..7 / --pl-f1..6 / --pd-*）、\`layout\`。
-- 「分享本页」磁贴（\`tiles.share\`）只在子站内容页传 true；主站任何页面都不输出（定案第 4 条，模板层决定，不是 CSS 隐藏）。
+  \`wordmark\`、\`acct\`、\`avatar\`、\`langHref\`（另一种语言的同一页）、\`pal\`（[{id, zh, en, style}]，style = --pl-b1..7 / --pl-f1..6 / --pd-*）。
+  快捷面板四站完全相同，没有按站开关的磁贴（PR-4b 起删了 \`tiles\` / \`layout\` 参数）。
 - JS：\`import { mountTopbar } from './topbar.js'\`，把依赖传进去（这几个文件都不 import 任何东西）：
   \`mountTopbar({ modalSheet, prefs, ai: mountAiChat, share: mountShare, keyboard: onKeyboardHeight })\`（\`onKeyboardHeight\` 来自 \`vk.js\`：AI 窗口输入框聚焦时跟键盘，P4-3 PR-3）；prefs 用 \`prefs-write.js\` 的
-  \`isDark / themeMode / setThemeMode / toggleFollowSystem / palette / setPalette / DEFAULT_PALETTE / hasAccent\`，\`setLang: v => (setLangPref(v), '')\`（地址取磁贴的 data-href）。
-- 两个窗口是非模态 \`<dialog>\`，从顶栏下方落下、互斥；系统返回 / Esc / 点遮罩关闭；快捷面板每次打开在第 1 页，页签可点、左右键切，内容横向滑。
+  \`isDark / themeMode / setThemeMode / toggleFollowSystem / palette / setPalette / DEFAULT_PALETTE / hasAccent / langPref / layoutPref / layoutNarrow / setLayout\`，
+  \`setLang: v => (setLangPref(v), '')\`（实际语言变了就去语言行的 data-href）。不传 \`onLock\` 时「立即锁定」点两下确认后 POST /api/lock-now 回锁屏。
+- 三个窗口是非模态 \`<dialog>\`，从顶栏下方落下、互斥；系统返回 / Esc / 点遮罩关闭，焦点回到图标。
 - AI：POST /api/ai（同源）→ SSE hits / delta / done；历史只在本地 \`sgx-ai-history\`（最多 50 条，不进云同步）。
 
 ## 子站外观写端（prefs-write.js；改写原「主站写、子站只读」，定案第 5 条）
@@ -323,7 +325,7 @@ const README = `# space/web/shared/shell（生成物，勿手改）
 四站共用一个写端：主站的 cookie 写法（syncUiCookie）就在这个文件里，子站快捷设置调它的 setter：写 localStorage（同源同一份）→ \`SgxUI.apply\` 重落 \`<html>\` → 写 \`sgx-ui\` cookie。
 子站写入的外观在本设备生效（回主站即同步）；跨设备以账号云同步为准，云同步覆盖这些设置之前不承诺跨设备。上面「子站读外观」一节的读端照旧。
 
-## 分享本页（share.js，子站快捷面板磁贴；主站不用）
+## 分享本页（share.js，快捷面板磁贴；PR-4b 起四站都有）
 
 - JS：\`mountShare({ button: 磁贴 })\`（topbar.js 会对 \`[data-qp="share"]\` 调传进来的 mountShare）。
   POST https://styrigx.com/api/share（credentials: include；进门二值，不分角色）
@@ -333,8 +335,12 @@ const README = `# space/web/shared/shell（生成物，勿手改）
   服务端回 401 reauth（生成 / 复用短链要锁侧复验，P2-3）→ share.js 自带的最小复验步骤 \`lockReauthStep()\`（\`<dialog class="sgx-share-reauth">\`，
   只有锁屏通行密钥 / 解锁密码，设了哪个显示哪个；同源 POST /api/lock-reauth status、/api/lock-password、/api/lock-passkey）→ 通过后自动重试一次；取消 = 不分享。
   toast 是 \`.sgx-share-toast\`（share.js 自己建）；复验弹层样式 \`.sgx-share-reauth*\` 在 shell.css 的 topbar-frame 段。
-- 尺寸体系（2026-10-23）：\`--sgx-page-m\`、\`--sgx-tb-btn\`（顶栏高 52 → 56）、\`--sgx-tb-gap\`、\`--sgx-content-max\`（外壳框最宽，默认 1068，本站可改）、
+- 尺寸体系（2026-10-23）：\`--sgx-page-m\`、\`--sgx-tb-btn\`（顶栏高 52 → 56）、\`--sgx-tb-gap\`、\`--sgx-content-max\`（外壳框最宽）、
   \`--sgx-shell-w\` = min(100% − 2 × 页边距, 最宽)。顶栏 = 这个框；子站自己的页面外框用 \`width: var(--sgx-shell-w); margin: 0 auto\` 就和顶栏对齐。
+- 顶栏长度统一（P4-3）：最宽只由 shell.css 按 \`<html data-sgx-layout="mobile|dex">\` 定（640 / 1440；没有属性退回 1068），**子站不许再自己改 \`--sgx-content-max\`**。
+  \`data-sgx-layout\` 由各站 \`<head>\` 内联脚本 \`__sgxShellLayout()\` 写：主站 baseof \`__layoutMode()\` 的只读版（偏好 \`sgx-layout\` = mobile / dex / auto，
+  auto = 宽 ≥ 840、高 ≥ 500 且横屏才是 DeX），四站一字不差（tests/space/ui/shell/topbar-length.test.mjs 逐站跑一遍对结果）。
+  顶栏胶囊和快捷面板 / AI 窗口按 \`--sgx-tb-w\`（100vw 算，含经典滚动条）定宽、\`right: calc(100% - 100vw)\` 按整个窗口居中：会滚 / 不滚的页一样长，不因滚动条左右挪。
 
 `;
 

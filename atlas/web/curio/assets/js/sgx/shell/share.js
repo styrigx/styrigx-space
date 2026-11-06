@@ -1,10 +1,10 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:a4df232dd35d space/web/shared/shell vc5d9123a43cc（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:93c2a5d62c5d space/web/shared/shell vb0440bfedc2e（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- share.js ---- */
 /**
- * @fileoverview 子站「分享本页」（共享外壳组件，2026-10-24；gen-shell 原样复制成 space/web/shared/shell/share.js，三个子站 sync-shell 同步）。
- * 主站不用它（用户：主站不设计入口）。
+ * @fileoverview 「分享本页」（共享外壳组件，2026-10-24；gen-shell 原样复制成 space/web/shared/shell/share.js，三个子站 sync-shell 同步）。
  *
- * 2026-11-04 P5-1 起它是子站快捷面板第 2 页的「分享本页」磁贴 [data-qp="share"][data-sgx-share]（顶栏右圆分享删除；主站不输出这块磁贴）。
+ * 2026-11-04 P5-1 起它是快捷面板的「分享本页」磁贴 [data-qp="share"][data-sgx-share]（顶栏右圆分享删除）；
+ * P4-3 PR-4b（Gray 2026-11-07）起四站快捷面板同一套，主站也有这块磁贴（shell/quick-panel.js 传 mountShare）。
  * 点分享（进门二值，P2-3：不分角色，所有进门的人都一样）：
  * - POST https://styrigx.com/api/share（credentials: include）
  *   { action:'create', reuse:true, name: 页面标题（截 24 字）, to: 当前页（origin + pathname + search，去掉 lock / why / return / share），

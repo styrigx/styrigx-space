@@ -130,6 +130,13 @@
 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
 {{ else if eq $name "tb-send" }}
 <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/></svg>
+{{/* P4-3 PR-4b（Gray 2026-11-07）：顶栏九宫格（站点切换 = 导航面板）、AI 窗口头部的新对话 / 历史；线宽同 tb-sliders / tb-chat（1.8） */}}
+{{ else if eq $name "tb-grid" }}
+<svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.75" y="3.75" width="6.5" height="6.5" rx="1.75"/><rect x="13.75" y="3.75" width="6.5" height="6.5" rx="1.75"/><rect x="3.75" y="13.75" width="6.5" height="6.5" rx="1.75"/><rect x="13.75" y="13.75" width="6.5" height="6.5" rx="1.75"/></svg>
+{{ else if eq $name "tb-newchat" }}
+<svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M11.5 20H5a1 1 0 01-1-1v-3.6L14.6 4.8a1.6 1.6 0 012.3 0l1.3 1.3a1.6 1.6 0 010 2.3l-2.7 2.7"/><path d="M18 14v6M15 17h6"/></svg>
+{{ else if eq $name "tb-history" }}
+<svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 102.6-6.1L3.5 8.5"/><path d="M3.5 3.5v5h5M12 7.5V12l3 2"/></svg>
 {{ else }}
 <svg width="20" height="20" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/></svg>
 {{ end }}
