@@ -106,16 +106,20 @@ test('buildSlots：固定 90 格，旧 → 新，最后一格是今天，缺的�
 test('siteState：等待检查 / 故障 / 波动（失败但没到阈值）/ 正常', () => {
   assert.equal(siteState(fx.empty().sites[0]), 'pending');
   assert.equal(siteState(fx.normal().sites[0]), 'up');
-  assert.equal(siteState(fx.oneDown().sites[3]), 'down');
+  assert.equal(siteState(fx.oneDown().sites[2]), 'down');
   const flaky = Object.assign({}, fx.normal().sites[1], { fails: 1, last: { at: 1, ok: false, code: 502, ms: 30, err: 'status' } });
   assert.equal(siteState(flaky), 'flaky');
   assert.equal(siteState(null), 'pending');
 });
 
 test('站名 / 域名 / 原因 / 最近一次检查', () => {
-  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, false)), ['主站', '博客', '日刻', '奇趣', '规则集']);
-  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, true)), ['Space', 'Blog', 'Daymark', 'Curio', 'Proxy rules']);
+  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, false)), ['主站', '规则集', 'AI 助手']);
+  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, true)), ['Space', 'Proxy rules', 'AI']);
   assert.equal(siteName({ site: 'new', zh: '新站', en: 'New' }, true), 'New');
+  /* 退役站不再有固定站名，只按接口给的 zh / en / site 兜底 */
+  assert.equal(siteName({ site: 'blog' }, false), 'blog');
+  /* AI 助手走服务绑定：域名显示成 Worker 名 */
+  assert.equal(hostOf('https://styrigx-ai/healthz'), 'styrigx-ai');
   assert.equal(hostOf('https://styrigx.com/robots.txt'), 'styrigx.com');
   assert.equal(hostOf('https://proxy-rules.styrigx.com/healthz'), 'proxy-rules.styrigx.com');
   assert.equal(hostOf('not a url'), '');
@@ -137,17 +141,17 @@ test('isEmptySummary：没有站 / 全都没检查过 = 空', () => {
 });
 
 test('横幅：全部正常 / 有 1 个故障（列出站名）/ 英文单复数', () => {
-  assert.deepEqual(bannerInfo(fx.normal(), ZH), { state: 'up', title: '全部正常', sub: '5 个服务运行正常', down: 0 });
+  assert.deepEqual(bannerInfo(fx.normal(), ZH), { state: 'up', title: '全部正常', sub: '3 个服务运行正常', down: 0 });
   const d = bannerInfo(fx.oneDown(), ZH);
   assert.equal(d.state, 'down');
   assert.equal(d.title, '有 1 个故障');
-  assert.equal(d.sub, '奇趣暂时无法访问');
+  assert.equal(d.sub, 'AI 助手暂时无法访问');
   assert.equal(bannerInfo(fx.oneDown(), EN).title, '1 service down');
   const two = fx.oneDown();
   two.sites[1].up = false;
   assert.equal(bannerInfo(two, EN).title, '2 services down');
-  assert.equal(bannerInfo(two, EN).sub, 'Blog, Curio unreachable right now');
-  assert.equal(bannerInfo(two, ZH).sub, '博客、奇趣暂时无法访问');
+  assert.equal(bannerInfo(two, EN).sub, 'Proxy rules, AI unreachable right now');
+  assert.equal(bannerInfo(two, ZH).sub, '规则集、AI 助手暂时无法访问');
 });
 
 test('故障排序：进行中在前，再按开始时间新 → 旧', () => {
@@ -182,15 +186,15 @@ test('renderSite：正常的卡（站名、域名、正常、延迟、90 格、�
   assert.equal((h.match(/data-level="none"/g) || []).length, 50);
   assert.match(h, /可用率 100%/);
   assert.match(h, /aria-label="主站近 90 天可用率 100%"/);
-  const blog = renderSite(fx.normal().sites[1], EN);
-  assert.match(blog, /data-level="minor"/);
-  assert.match(blog, /99\.96% uptime/);
-  assert.match(blog, /checked just now/);
+  const rules = renderSite(fx.normal().sites[1], EN);
+  assert.match(rules, /data-level="minor"/);
+  assert.match(rules, /99\.96% uptime/);
+  assert.match(rules, /checked just now/);
 });
 
 test('renderSite：故障的卡（故障 chip、超时标红）/ 没检查过的卡', () => {
-  const h = renderSite(fx.oneDown().sites[3], ZH);
-  assert.match(h, /data-site="curio" data-state="down"/);
+  const h = renderSite(fx.oneDown().sites[2], ZH);
+  assert.match(h, /data-site="ai" data-state="down"/);
   assert.match(h, /<span class="st-chip" data-state="down">.*故障<\/span>/);
   assert.match(h, /<span class="st-meta-last" data-ok="0">超时<\/span>/);
   const p = renderSite(fx.empty().sites[0], ZH);
@@ -213,13 +217,13 @@ test('renderIncidents：进行中 / 已恢复，北京时间、同一天恢复�
   const h = renderIncidents(fx.oneDown().incidents, ZH);
   const items = h.split('<li ').slice(1);
   assert.equal(items.length, 3);
-  assert.match(items[0], /data-open="1" data-site="curio"/);
+  assert.match(items[0], /data-open="1" data-site="ai"/);
   assert.match(items[0], /进行中/);
   assert.match(items[0], /超时/);
   assert.match(items[0], /开始 10月9日 11:53/);
   assert.match(items[0], /已持续 7 分钟/);
-  /* 博客：9 月 27 日 09:00 开始，09:25 恢复（同一天，只写时分），持续 25 分钟 */
-  assert.match(items[1], /data-site="blog"/);
+  /* 规则集：9 月 27 日 09:00 开始，09:25 恢复（同一天，只写时分），持续 25 分钟 */
+  assert.match(items[1], /data-site="proxy-rules"/);
   assert.match(items[1], /已恢复/);
   assert.match(items[1], /HTTP 502/);
   assert.match(items[1], /开始 9月27日 09:00/);

@@ -1,9 +1,9 @@
 /**
- * @fileoverview 监测的地址（2026-10-22 定 5 个公开地址，book 已下线、muse-invite 已删；2026-10-28 加 search / chat 两个服务绑定；
- * P4-2 起 search / chat 退役，合成一项 ai，经服务绑定 AI_SERVICE 测 styrigx-ai）。
+ * @fileoverview 监测的地址：主站、规则集、AI 助手（P4-2 起经服务绑定 AI_SERVICE 测 styrigx-ai）。
  *
- * 子站（博客 / 奇趣 / 日刻）合并 PR3（2026-11-03）起和主站同一个 Pages、同一条网关链路，在 styrigx.com/<站>/ 下，不单独测；
- * 旧图志域名那一项（测它的 301 过渡跳转）随跳转一起在 P4-3 PR-1 删除。
+ * 子站（博客 / 奇趣 / 日刻）合并 PR3（2026-11-03）起和主站同一个 Pages、同一条网关链路，在 styrigx.com/<站>/ 下，不单独测。
+ * 退役的 blog / curio / daymark / atlas / book / muse-invite / search / chat 的历史数据由 migrations/0005_retire_sites.sql 删除；
+ * 改这里的站点列表时同步那条迁移的思路（新退役的站另写一条迁移清数据）。
  * 主站首页本身就公开（锁屏页），直接测 /。
  * expect：正常的状态码。拿到别的码、超时或连不上都算这一次失败。
  *

@@ -2,7 +2,7 @@
 
 ## 职责
 
-站点监测：每分钟检查一轮主站、规则集、AI（`src/targets.js`；旧图志那项 P4-3 PR-1 删除），连续 3 次失败开故障；每小时读一次 Cloudflare 用量；按需查当天免费额度的操作次数。结果给设置 → 服务状态页。
+站点监测：每分钟检查一轮主站、规则集、AI（`src/targets.js`；退役站点的历史数据由迁移 0005 删除），连续 3 次失败开故障；每小时读一次 Cloudflare 用量；按需查当天免费额度的操作次数。结果给设置 → 服务状态页。
 
 ## 入口
 
@@ -45,5 +45,6 @@ D1 `styrigx-status`，迁移在 `migrations/`，部署 job `deploy-status-worker
 | `0002_usage.sql` | 用量快照表 `usage`（一行） |
 | `0003_cut_reads.sql` | 降低 D1 读取量：`state` 记下这一串失败的第一次时间，加 `hourly` 表 |
 | `0004_quota.sql` | 免费额度缓存表 `quota`（一行） |
+| `0005_retire_sites.sql` | 删除不在 `space` / `proxy-rules` / `ai` 里的站点（blog / curio / daymark / atlas / book / muse-invite / search / chat）在 `checks`、`daily`、`hourly`、`state`、`incidents` 里的历史 |
 
-部署排在搜索、聊天之后、网关之前；部署后的健康闸门见 `space/scripts/health-gate.mjs`。测试：`tests/workers/status/`。
+部署排在 AI Worker（`deploy-ai-worker`）之后、网关之前；部署后的健康闸门见 `space/scripts/health-gate.mjs`。测试：`tests/workers/status/`。
