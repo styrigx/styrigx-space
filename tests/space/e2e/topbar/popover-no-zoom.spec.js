@@ -98,13 +98,19 @@ test('桌面版网站（手机屏 + 桌面布局）：面板打开过程中没�
 
 test.describe('电脑', () => {
   test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false, colorScheme: 'light' });
-  test('不是手机屏：面板照旧毛玻璃 + 滑入', async ({ page }) => {
+  test('不是手机屏：面板照旧滑入；AI 窗口毛玻璃，外观 / NAVIGATE 是实色（2026-11 PR-1 终端风）', async ({ page }) => {
     await blockExternalRequests(page);
     await freezeTime(page);
     await page.goto('/zh/', { waitUntil: 'load' });
     await expect(page.locator('html')).toHaveAttribute('data-sgx-device', 'desktop');
-    const closed = await page.$eval('#sgx-qp .sgx-qp-sheet', (el) => ({ bf: getComputedStyle(el).backdropFilter, tp: getComputedStyle(el).transitionProperty }));
-    expect(closed.bf).toContain('blur');
-    expect(closed.tp).toContain('transform');
+    const st = (sel) => page.$eval(sel, (el) => ({ bf: getComputedStyle(el).backdropFilter, tp: getComputedStyle(el).transitionProperty }));
+    const ai = await st('#sgx-ai .sgx-qp-sheet');
+    expect(ai.bf).toContain('blur');
+    expect(ai.tp).toContain('transform');
+    for (const sel of ['#sgx-qp .sgx-qp-sheet', '#sgx-nav .sgx-qp-sheet']) {
+      const c = await st(sel);
+      expect(c.bf, sel).toBe('none');
+      expect(c.tp, sel).toContain('transform');
+    }
   });
 });

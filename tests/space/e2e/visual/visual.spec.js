@@ -226,11 +226,13 @@ test('baseline-quick-panel-nav-open', async ({ page: pg }) => {
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-nav-open.png', { animations: 'disabled' });
 });
 
-/* 快捷面板（2026-11-07 PR-4b 2/2 起只有一页，四站同一套：深色、跟随系统、分享、立即锁定四格，主站也有分享） */
+/* 外观面板（2026-11 PR-1：MODE + PALETTE；分享 / 立即锁定搬进 NAVIGATE，四站同一套，主站也有分享） */
 test('baseline-quick-panel-open', async ({ page: pg }) => {
   await shellShotPage(pg);
   await openQuickPanel(pg);
-  await expect(pg.locator('#sgx-qp [data-qp="share"]')).toHaveCount(1);
+  await expect(pg.locator('#sgx-qp [data-qp-seg="mode"]')).toHaveCount(1);
+  await expect(pg.locator('#sgx-qp [data-qp-palette]').first()).toBeVisible();
+  await expect(pg.locator('#sgx-nav [data-qp="share"]')).toHaveCount(1);
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-open.png', { animations: 'disabled' });
 });
 

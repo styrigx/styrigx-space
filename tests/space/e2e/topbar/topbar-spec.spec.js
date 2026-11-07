@@ -259,7 +259,7 @@ test.describe('390×844 行为', () => {
 
   test('滚动时顶栏不动（没有 sgx-stuck 切换）；底边进度条跟着滚动变长：顶上不显示、到底整宽', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/security/');
+    await go(page, '/zh/theme/'); /* 风格页够长（色板列表），手机上能滚 */
     const prog = page.locator('#site-nav .sgx-tb-prog');
     await expect(prog).toHaveAttribute('data-empty', '');
     const before = await Promise.all(['.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-grid', '.sgx-tb-ai'].map((s) => box(page, s)));
