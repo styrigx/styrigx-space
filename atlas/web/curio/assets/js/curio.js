@@ -1,6 +1,7 @@
-/* assets/js/curio.js —— 奇趣首页逻辑（浏览器 IIFE；node 测试时导出纯函数）。
+/* assets/js/curio.js —— 奇趣「发现」子页逻辑 + 各子页共用的确认框 / 提示条 / 弹层开关 / 页底一行（浏览器 IIFE；node 测试时导出纯函数）。
  *
- * - 「发现」页签（首页分区入口 / hash 切换，在 curio-tabs.js）：分类筛选条（全部 + 每个分类，hash #c/<分类 id>，只用 replaceState）。
+ * - P4-3 奇趣拆页起「发现」是独立子页 /curio/finds/（中文 /curio/zh/finds/）：分类筛选条（全部 + 每个分类，hash #c/<分类 id>，只用 replaceState）。
+ *   设备 / 游戏 / 电影子页也加载本文件，只用 window.SgxCurioUI（没有 #cu-list 时后面「发现」的部件不启动）。
  *   顶栏没有搜索栏（2026-10-22 起）；filterCats 仍支持搜索词，留给以后。
  * - 按分类分组的格子：图标（/api/icon?id=，R2 缓存；取不到显示首字母方块）、名字、简介；私密的带小锁（只有账号已登录看得到私密的）。
  *   点格子在新标签页打开网址。
@@ -241,7 +242,17 @@ function ask(msg, okLabel, fn){
 $('#confirm-cancel').addEventListener('click', function(){ confirmFn = null; closeOverlay('confirm-wrap'); });
 $('#confirm-ok').addEventListener('click', function(){ var f = confirmFn; confirmFn = null; closeOverlay('confirm-wrap'); if (f) f(); });
 /* 设备 / 游戏页签（curio-items.js）共用确认框、提示条、弹层开关 */
-G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, openOverlay: openOverlay, closeOverlay: closeOverlay };
+/** 页底那一行（#cu-signin）：能编辑就藏起来；不能编辑时按有没有账号会话换字和链接（各子页共用，curio-items.js / curio-movies.js 也调） */
+function applySignin(can, loggedIn){
+  var hint = $('#cu-signin');
+  if (!hint) return;
+  hint.classList.toggle('hidden', !!can);
+  var a = hint.querySelector('a');
+  if (a && !can) { var h = signinHint(loggedIn); a.textContent = h.text; a.setAttribute('href', h.href); }
+}
+G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, openOverlay: openOverlay, closeOverlay: closeOverlay, signin: applySignin };
+/* P4-3 奇趣拆页：下面是「发现」子页（/curio/finds/）自己的部件；别的子页只用上面的确认框 / 提示条 / 弹层开关 / 页底一行 */
+if (!doc.getElementById('cu-list')) return;
 
 /* ---------- 画 ---------- */
 var LOCK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
@@ -513,12 +524,7 @@ function boot(){
     doc.documentElement.classList.toggle('cu-can-write', canWrite);
     $('#cu-fab').classList.toggle('hidden', !canWrite);
     $('#cu-menu-btn').classList.toggle('hidden', !canWrite);
-    var hint = $('#cu-signin');
-    if (hint) {
-      hint.classList.toggle('hidden', canWrite);
-      var a = hint.querySelector('a');
-      if (a && !canWrite) { var h = signinHint(showPrivate); a.textContent = h.text; a.setAttribute('href', h.href); }
-    }
+    applySignin(canWrite, showPrivate);
     $('#cu-loading').classList.add('hidden');
     render();
   }).catch(function(e){

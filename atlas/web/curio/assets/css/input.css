@@ -7333,8 +7333,7 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 @keyframes cu-in { from { opacity: 0; } to { opacity: 1; } }
 .reduced-motion .cu-pane { animation: none; }
 @media (prefers-reduced-motion: reduce) { .cu-pane { animation: none; } }
-html[data-cu-tab="devices"] #cu-fab, html[data-cu-tab="games"] #cu-fab { display: none; }
-#cu-pane-devices, #cu-pane-games { padding-bottom: 88px; }
+#cu-pane-devices, #cu-pane-games, #cu-pane-movies { padding-bottom: 88px; }
 /* 卡片：手机 2 栏、平板 3、桌面 4；卡片 = 内容卡片材质（上面） */
 .it-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 @media (min-width: 600px) { .it-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
@@ -7414,3 +7413,75 @@ html[data-cu-tab="devices"] #cu-fab, html[data-cu-tab="games"] #cu-fab { display
 .cu-crop-btn:focus-visible { outline: 2px solid rgb(255 255 255); outline-offset: 2px; }
 .reduced-motion .it-card { transition: none; }
 
+/* ===== P4-3 奇趣拆页：首页入口、电影、私人音乐 ===== */
+/* 音乐仅本人可见：首页入口默认不显示，curio-home.js 问过 /curio/api/access 有权限才给 <html> 加 .cu-music-ok */
+html:not(.cu-music-ok) #cu-entries .sgx-ent-li:has(> [data-entry="music"]) { display: none; }
+
+/* 电影：海报 2:3（同 curio-items.js 的 CROP_RATIO.movie） */
+.it-media--poster { aspect-ratio: 2/3; }
+.it-photo-prev--poster { width: 60px; height: 90px; }
+.it-hero--poster { aspect-ratio: auto; max-height: 52vh; }
+.it-hero--poster img { width: auto; max-width: 100%; max-height: 52vh; object-fit: contain; }
+
+/* 音乐 */
+.mu-wrap { padding-bottom: 24px; }
+html.mu-playing .mu-wrap { padding-bottom: 236px; }
+.mu-top { display: flex; justify-content: flex-end; padding: 4px 0 8px; }
+.mu-upload-btn { font-weight: 700; }
+.mu-covers { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 6px calc(50% - min(31vw, 130px)) 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.mu-covers::-webkit-scrollbar { display: none; }
+.mu-cover { position: relative; flex: 0 0 min(62vw, 260px); aspect-ratio: 1/1; border: 0; padding: 0; border-radius: 1.25rem; overflow: hidden; scroll-snap-align: center;
+  background: var(--sgx-surface-container); color: var(--sgx-text-secondary); cursor: pointer; transform: scale(.9); opacity: .6; transition: transform .25s ease, opacity .25s ease; box-shadow: 0 6px 22px rgb(0 0 0 / 12%); }
+.mu-cover.on { transform: none; opacity: 1; }
+.mu-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+.mu-cover-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.mu-cover:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 3px; }
+.mu-dots { display: flex; justify-content: center; gap: 6px; min-height: 6px; margin: 2px 0 10px; }
+.mu-dots i { width: 6px; height: 6px; border-radius: 999px; background: var(--sgx-outline-variant); }
+.mu-dots i.on { width: 16px; background: var(--sgx-primary); }
+.mu-head { display: flex; align-items: center; gap: 12px; margin: 4px 2px 8px; }
+.mu-head-tx { flex: 1; min-width: 0; }
+.mu-album-title { margin: 0; font-size: 20px; font-weight: 800; overflow-wrap: anywhere; }
+.mu-album-sub { margin: 2px 0 0; font-size: 13px; color: var(--sgx-text-secondary); overflow-wrap: anywhere; }
+.mu-play-all { flex-shrink: 0; width: 48px; height: 48px; border: 0; border-radius: 999px; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.mu-play-all:disabled { opacity: .45; cursor: default; }
+.mu-tracks { list-style: none; margin: 0; padding: 0; border-radius: 1.25rem; overflow: hidden; background: var(--sgx-surface-container-low, var(--sgx-surface-container)); }
+.mu-track { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 8px 16px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.mu-tracks li + li .mu-track { border-top: 1px solid var(--sgx-divider); }
+.mu-track-no { flex: 0 0 22px; font-size: 13px; color: var(--sgx-text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
+.mu-track-title { flex: 1; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-track-dur { flex-shrink: 0; font-size: 13px; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
+.mu-track.on { color: var(--sgx-primary); font-weight: 700; }
+.mu-track:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+.mu-album-acts { display: flex; justify-content: center; padding: 14px 0 4px; }
+.mu-del-btn { color: var(--sgx-danger); }
+.mu-denied { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 64px 16px; text-align: center; color: var(--sgx-text-secondary); }
+.mu-denied.hidden { display: none; }
+.mu-denied-title { margin: 6px 0 0; font-size: 18px; font-weight: 800; color: var(--sgx-text-primary, inherit); }
+.mu-denied-text { margin: 0; max-width: 28em; font-size: 14px; line-height: 1.6; }
+.mu-denied-link { margin-top: 8px; text-decoration: underline; text-underline-offset: 4px; font-size: 14px; }
+.mu-player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; padding: 0 0 env(safe-area-inset-bottom, 0px); pointer-events: none; }
+.mu-player.hidden { display: none; }
+.mu-player-in { box-sizing: border-box; width: var(--sgx-shell-w); margin: 0 auto 12px; padding: 12px 16px 10px; border-radius: 1.5rem; pointer-events: auto;
+  background: color-mix(in srgb, var(--sgx-surface-container) 88%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 10px 30px rgb(0 0 0 / 18%); }
+.mu-now { display: flex; flex-direction: column; min-width: 0; }
+.mu-now-title { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-now-sub { font-size: 12px; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-lyrics { position: relative; height: 4.6em; margin: 6px 0 2px; overflow: hidden; font-size: 14px; line-height: 1.5; text-align: center;
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+.mu-lyrics.hidden { display: none; }
+.mu-lyrics-in { transition: transform .35s ease; }
+.mu-lyrics-in p { margin: 0; padding: 0 4px; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color .2s ease; }
+.mu-lyrics-in p.on { color: var(--sgx-primary); font-weight: 700; }
+.reduced-motion .mu-lyrics-in, .reduced-motion .mu-cover { transition: none; }
+@media (prefers-reduced-motion: reduce) { .mu-lyrics-in, .mu-cover { transition: none; } }
+.mu-seek-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.mu-time { flex: 0 0 auto; min-width: 2.6em; font-size: 12px; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; text-align: center; }
+.mu-seek { flex: 1; min-width: 0; height: 24px; accent-color: var(--sgx-primary); }
+.mu-ctrl { display: grid; grid-template-columns: 1fr auto auto auto 1fr; align-items: center; gap: 10px; margin-top: 2px; }
+.mu-speed { justify-self: start; min-width: 52px; height: 36px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--sgx-surface-container-high, var(--sgx-surface-container)); color: inherit; font: inherit; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
+.mu-cbtn { width: 48px; height: 48px; border: 0; border-radius: 999px; background: transparent; color: inherit; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.mu-toggle { width: 56px; height: 56px; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
+.mu-toggle .mu-ic-pause, .mu-toggle.is-playing .mu-ic-play { display: none; }
+.mu-toggle.is-playing .mu-ic-pause { display: block; }
+.mu-cbtn:focus-visible, .mu-speed:focus-visible, .mu-play-all:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }

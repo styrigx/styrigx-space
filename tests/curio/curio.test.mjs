@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const C = require('../../atlas/web/curio/assets/js/curio.js');
@@ -74,7 +74,7 @@ test('importSummary：中英文', () => {
   assert.equal(C.importSummary({ added: 1, cats_added: 0, skipped: 0 }, true), 'Added 1 link.');
 });
 
-/* ===== 设备 / 游戏（curio-items.js）、页签（curio-tabs.js） ===== */
+/* ===== 设备 / 游戏（curio-items.js）、首页（curio-home.js）、电影（curio-movies.js）、音乐（curio-music.js） ===== */
 test('isLockedReply：写请求只有 401 unauthorized（或没码的 401）才当锁定；401 account / reauth 不刷新（P2-2）', () => {
   assert.equal(C.isLockedReply(401, 'unauthorized'), true);
   assert.equal(C.isLockedReply(401, undefined), true);
@@ -85,7 +85,9 @@ test('isLockedReply：写请求只有 401 unauthorized（或没码的 401）才�
 });
 
 const IT = require('../../atlas/web/curio/assets/js/curio-items.js');
-const TB = require('../../atlas/web/curio/assets/js/curio-tabs.js');
+const HM = require('../../atlas/web/curio/assets/js/curio-home.js');
+const MV = require('../../atlas/web/curio/assets/js/curio-movies.js');
+const MU = require('../../atlas/web/curio/assets/js/curio-music.js');
 
 test('usedDays：购买当天算第 1 天，退役了算到退役日；没填 / 倒了返回 null；daysText 满一年带年数', () => {
   assert.equal(IT.usedDays('2026-10-22', '', '2026-10-22'), 1);
@@ -160,12 +162,48 @@ test('裁剪几何：取景框按卡片比例、照片始终盖满、框住的�
   assert.deepEqual(IT.cropOut(300, 400, 3 / 4, 1200), { w: 300, h: 400 });
 });
 
-test('页签 hash：#devices / #games，其余都是发现；切回发现保留 #c/<id>', () => {
-  assert.equal(TB.tabOf('#devices'), 'devices');
-  assert.equal(TB.tabOf('#games'), 'games');
-  assert.equal(TB.tabOf('#c/3'), 'finds');
-  assert.equal(TB.tabOf(''), 'finds');
-  assert.equal(TB.hashFor('finds', '#c/3'), '#c/3');
-  assert.equal(TB.hashFor('finds', '#games'), '');
-  assert.equal(TB.hashFor('games', '#c/3'), '#games');
+test('首页旧 hash（P4-3 奇趣拆页，客户端兼容）：#devices / #games → 子页，#c/<id> → 发现子页带 hash，其余不跳；curio-tabs.js 已删', () => {
+  assert.deepEqual(HM.legacyTarget('#devices'), { entry: 'devices', hash: '' });
+  assert.deepEqual(HM.legacyTarget('#games'), { entry: 'games', hash: '' });
+  assert.deepEqual(HM.legacyTarget('#games/x'), { entry: 'games', hash: '' });
+  assert.deepEqual(HM.legacyTarget('#c/3'), { entry: 'finds', hash: '#c/3' });
+  for (const h of ['', '#', '#c/x', '#trove', '#music']) assert.equal(HM.legacyTarget(h), null, h);
+  assert.equal(existsSync(new URL('../../atlas/web/curio/assets/js/curio-tabs.js', import.meta.url)), false);
+});
+
+test('电影：副标题 = 年份 · 导演；年份空 = 0、不合格 null；海报裁剪 2:3、长边 1600', () => {
+  assert.equal(MV.movieSub({ year: 2000, director: '王家卫' }), '2000 · 王家卫');
+  assert.equal(MV.movieSub({ year: 0, director: '' }), '');
+  assert.equal(MV.parseYear(''), 0);
+  assert.equal(MV.parseYear(' 2001 '), 2001);
+  assert.equal(MV.parseYear('1700'), null);
+  assert.equal(MV.parseYear('20.5'), null);
+  assert.equal(IT.CROP_RATIO.movie, 2 / 3);
+  assert.deepEqual(IT.cropOut(3000, 4500, 2 / 3, 1600), { w: 1067, h: 1600 });
+});
+
+test('音乐：倍速循环、时间格式、LRC 解析与当前行、文件名 → 曲序 / 曲名、自然排序、音频类型、歌词配对', () => {
+  assert.deepEqual(MU.SPEEDS, [0.75, 1, 1.25, 1.5, 2]);
+  assert.deepEqual([1, 1.25, 1.5, 2, 0.75].map(MU.nextSpeed), [1.25, 1.5, 2, 0.75, 1]);
+  assert.equal(MU.nextSpeed(3), 0.75);
+  assert.equal(MU.fmtTime(0), '0:00');
+  assert.equal(MU.fmtTime(212.7), '3:32');
+  assert.equal(MU.fmtTime(3725), '1:02:05');
+  const L = MU.parseLrc('[ar:Joni]\n[00:01.50][00:10.00]hi\n\n[00:05]yo\nplain');
+  assert.deepEqual(L, [{ t: 1.5, text: 'hi' }, { t: 5, text: 'yo' }, { t: 10, text: 'hi' }]);
+  assert.equal(MU.lrcIndex(L, 0), -1);
+  assert.equal(MU.lrcIndex(L, 1.5), 0);
+  assert.equal(MU.lrcIndex(L, 7), 1);
+  assert.equal(MU.lrcIndex(L, 99), 2);
+  assert.equal(MU.lrcIndex([], 3), -1);
+  assert.deepEqual(MU.trackFromName('01 - All I Want.mp3', 9), { no: 1, title: 'All I Want' });
+  assert.deepEqual(MU.trackFromName('10.My Old Man.m4a', 1), { no: 10, title: 'My Old Man' });
+  assert.deepEqual(MU.trackFromName('Blue.flac', 3), { no: 3, title: 'Blue' });
+  assert.deepEqual(MU.sortByName([{ name: '10 b' }, { name: '2 a' }, { name: '01 c' }]).map((f) => f.name), ['01 c', '2 a', '10 b']);
+  assert.equal(MU.audioType({ type: 'audio/flac', name: 'x' }), 'audio/flac');
+  assert.equal(MU.audioType({ type: 'audio/x-m4a', name: 'x' }), 'audio/mp4');
+  assert.equal(MU.audioType({ type: '', name: 'a.MP3' }), 'audio/mpeg');
+  assert.equal(MU.audioType({ type: '', name: 'a.txt' }), '');
+  assert.equal(MU.lrcKey('01 - Help Me.lrc'), MU.lrcKey('01 - Help Me.wav'));
+  assert.equal(MU.TRACK_MAX, 95 * 1024 * 1024);
 });

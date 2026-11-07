@@ -26,10 +26,12 @@ head_sampling_rate = 1
 pattern = "styrigx.com/curio/api/*"
 zone_name = "styrigx.com"
 
-# D1 styrigx-curio-core：一个库里三套独立数据，各绑一个名字（value 相同）：
+# D1 styrigx-curio-core：一个库里五套独立数据，各绑一个名字（value 相同）：
 #   D1_FINDS   发现：links、cats、imports
 #   D1_DEVICES 设备：devices
 #   D1_GAMES   游戏：games
+#   D1_MOVIES  电影：movies（奇趣拆页 P4-3 新增；Gray 在面板按名字加绑定）
+#   D1_MUSIC   私人音乐：music_albums、music_tracks、music_tokens（同上）
 # 跨两套数据的单条 SQL / batch（如搜索索引、照片清扫、设备 + 游戏一起读）用主表那套的绑定，代码里有注释。
 # migrations_dir 只配在第一条上：`wrangler d1 migrations apply styrigx-curio-core` 按 database_name 找到的就是它。
 [[d1_databases]]
@@ -48,9 +50,24 @@ binding = "D1_GAMES"
 database_name = "styrigx-curio-core"
 database_id = "26ae9cd2-43c9-4bc0-b558-b35560ed9d7c"
 
-# R2：icons/（网站小图标缓存）、imports/（每次导入的浏览器书签原文，备份，不自动删）、photos/（设备照片 / 游戏封面；每天清扫没人引用的）
+[[d1_databases]]
+binding = "D1_MOVIES"
+database_name = "styrigx-curio-core"
+database_id = "26ae9cd2-43c9-4bc0-b558-b35560ed9d7c"
+
+[[d1_databases]]
+binding = "D1_MUSIC"
+database_name = "styrigx-curio-core"
+database_id = "26ae9cd2-43c9-4bc0-b558-b35560ed9d7c"
+
+# R2：icons/（网站小图标缓存）、imports/（每次导入的浏览器书签原文，备份，不自动删）、photos/（设备照片 / 游戏封面 / 电影海报；每天清扫没人引用的）
 [[r2_buckets]]
 binding = "R2_PHOTOS"
+bucket_name = "styrigx-curio-core"
+
+# 同一个桶，私人音乐另绑一个名字（奇趣拆页 P4-3 新增）：music/<专辑>/…（音频、专辑封面；不清扫，删专辑 / 曲目时当场删）
+[[r2_buckets]]
+binding = "R2_MUSIC"
 bucket_name = "styrigx-curio-core"
 
 # 鉴权：主站鉴权网关的 RPC 入口 AuthVerifier（conclusion：网关验门、问账号 Worker，回结论；见 src/api/_auth.js）。

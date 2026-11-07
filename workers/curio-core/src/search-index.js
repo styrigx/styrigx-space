@@ -7,9 +7,10 @@
  *
  * 每条出两条：中文条目（lang zh，链到 /curio/zh/）和英文条目（lang en，链到 /curio/）。
  *   - 发现（links）：title = 名字（缺这种语言就用另一种）；subtitle =「发现 · 分类名」/ "Finds · <cat>"；
- *     text = 简介（两种语言）+ 网址；url = 所在分类 #c/<分类 id>（本站没有单条收藏的深链）
- *   - 设备（devices）：title = 名字；subtitle =「设备 · 类型 · 系统」；text = 系统、参数、配件、体验；url = #devices
- *   - 游戏（games）：title = 名字；subtitle =「游戏 · 平台 · 状态」；text = 版本、评价；url = #games
+ *     text = 简介（两种语言）+ 网址；url = 发现子页 finds/ + 所在分类 #c/<分类 id>（本站没有单条收藏的深链）
+ *   - 设备（devices）：title = 名字；subtitle =「设备 · 类型 · 系统」；text = 系统、参数、配件、体验；url = 设备子页 devices/
+ *   - 游戏（games）：title = 名字；subtitle =「游戏 · 平台 · 状态」；text = 版本、评价；url = 游戏子页 games/
+ *   - 电影（movies）、私人音乐（music_*）不进索引（P4-3 奇趣拆页：只能进站看 / 仅本人可见，不进搜索与 AI 召回）
  *   - text 最多 2000 字，只参与匹配，搜索 Worker 不回给前端
  *   - private：账号未登录看不到的标 private:true，只给账号已登录的人搜到。规则同 _store.js 的 listAll、_items.js 的 listItems：
  *     收藏是「分类或收藏任一私密」，设备 / 游戏看自己的 private
@@ -61,9 +62,13 @@ function pick(zh, en, lang) {
   return a || String((lang === 'en' ? zh : en) || '').trim();
 }
 
-/** 首页（P4-3 PR-4c：英文 /curio/，中文 /curio/zh/；同主站 lib/lang-path.js 的规则，Worker 不能 import 前端文件）+ hash */
-export function pageUrl(lang, hash) {
-  return SITE_URL + (lang === 'zh' ? '/zh/' : '/') + (hash || '');
+/**
+ * 子页地址（P4-3 奇趣拆页：发现 / 设备 / 游戏各是一页 /curio/<分区>/；PR-4c：英文无前缀，中文 /curio/zh/<分区>/；
+ * 同主站 lib/lang-path.js 的规则，Worker 不能 import 前端文件）+ hash
+ * @param {'zh'|'en'} lang @param {string} section finds / devices / games（空 = 首页） @param {string} [hash]
+ */
+export function pageUrl(lang, section, hash) {
+  return SITE_URL + (lang === 'zh' ? '/zh/' : '/') + (section ? section + '/' : '') + (hash || '');
 }
 
 /** @param {Record<string, any>} it @param {string} subtitle @param {string[]} parts @param {boolean} priv */
@@ -86,7 +91,7 @@ export function linkItems(r, cat) {
     const title = clip(pick(r.name_zh, r.name_en, lang), TITLE_MAX);
     if (!title) continue;
     const catName = cat ? pick(cat.name_zh, cat.name_en, lang) : '';
-    const it = { id: 'link:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, cat ? '#c/' + cat.id : '') };
+    const it = { id: 'link:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, 'finds', cat ? '#c/' + cat.id : '') };
     const descMain = pick(r.desc_zh, r.desc_en, lang);
     const descOther = lang === 'en' ? r.desc_zh : r.desc_en;
     out.push(finish(it, [L[lang].finds, catName].filter(Boolean).join(' · '), [descMain, descOther !== descMain ? descOther : '', r.url], priv));
@@ -101,7 +106,7 @@ export function deviceItems(r) {
     const title = clip(r.name, TITLE_MAX);
     if (!title) continue;
     const T = L[lang];
-    const it = { id: 'device:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, '#devices') };
+    const it = { id: 'device:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, 'devices') };
     const sub = [T.devices, T.kinds[r.kind] || T.kinds.other, r.os].filter(Boolean).join(' · ');
     out.push(finish(it, sub, [r.os, r.specs, r.accessories, r.notes], !!r.private));
   }
@@ -115,7 +120,7 @@ export function gameItems(r) {
     const title = clip(r.title, TITLE_MAX);
     if (!title) continue;
     const T = L[lang];
-    const it = { id: 'game:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, '#games') };
+    const it = { id: 'game:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, 'games') };
     const sub = [T.games, r.platform, T.status[r.status] || ''].filter(Boolean).join(' · ');
     out.push(finish(it, sub, [r.platform, r.edition, r.review], !!r.private));
   }

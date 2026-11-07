@@ -69,8 +69,9 @@ test('自定义主题色：没缓存 → 加载 shell-accent.js 算角色，写 
 test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（保留 #页签）；版本不认识 / 没有 lang 不跳', async ({ page, context }) => {
   await setup(page);
   await setCookie(context, enc({ v: 2, mode: 'light', pal: 'dustyblue', lang: 'en' }));
-  await page.goto('/curio/zh/#devices');
-  await expect(page).toHaveURL(/:\d+\/curio\/#devices$/);
+  /* P4-3 奇趣拆页：分区是子页，hash 只剩发现的 #c/<分类> */
+  await page.goto('/curio/zh/finds/#c/2');
+  await expect(page).toHaveURL(/:\d+\/curio\/finds\/#c\/2$/);
   await setCookie(context, enc({ v: 3, mode: 'light', lang: 'en' }));
   await page.goto('/curio/zh/');
   await expect(page).toHaveURL(/:\d+\/curio\/zh\/$/);

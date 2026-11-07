@@ -1,0 +1,4 @@
+{{- /* 不能编辑（接口回 canWrite=false）时页底这一行（curio.js 的 SgxCurioUI.signin 按 canWrite / showPrivate 显隐、换字、换链接），各子页共用。
+   data-acct / data-acct-sec：经典脚本用的主站账号地址，由 sgx-lang-path.html 按本页语言算好（P4-3 PR-4c，不在 JS 里手写前缀）。参数：isEn */ -}}
+{{- $isEn := .isEn }}
+<p id="cu-signin" data-acct="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" (cond $isEn "en" "zh")) }}" data-acct-sec="{{ partial "sgx-lang-path.html" (dict "path" "/account/security/" "lang" (cond $isEn "en" "zh")) }}" class="hidden text-center pt-2 pb-8 text-sm text-m-on-surface-variant"><a href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" (cond $isEn "en" "zh")) }}" class="underline underline-offset-4">{{ if $isEn }}Sign in to your account to edit{{ else }}登录账号后可编辑{{ end }}</a></p>
