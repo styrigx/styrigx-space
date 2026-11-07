@@ -1,4 +1,4 @@
-/* assets/js/curio-items.js —— 奇趣「设备」「游戏」两个页签（浏览器 IIFE；node 测试时导出纯函数）。
+/* assets/js/curio-items.js —— 奇趣「设备」「游戏」两个子页（P4-3 奇趣拆页：/curio/devices/、/curio/games/；浏览器 IIFE；node 测试时导出纯函数）。
  *
  * 设备：卡片（照片 / 类型图标、名字、类型 · 系统版本、用了多少天），筛选条 全部 / 在用 / 已退役。
  *   点卡片 → 详情（参数、配件、体验、购买 / 退役日期、使用天数、换代历史：从哪台换来、后来换成哪台）。
@@ -7,12 +7,14 @@
  * 能编辑（接口回 canWrite：账号已登录 + curio.write）：右下角「设备」「游戏」新建；详情左上角编辑；编辑弹层里删除（要确认）。
  * 照片：选图 → 全屏「移动和缩放」（同主站头像裁剪：单指拖、双指 / 滚轮缩放，照片始终盖满取景框）。
  *   取景框 = 卡片显示的比例（设备 .it-media 4:3、游戏 .it-media--cover 3:4），裁好的图卡片里正好铺满、详情里完整显示。
- *   完成 → 浏览器里裁成长边 ≤1200（不放大）、转 webp（不支持就 jpeg），保存时再传；保存前点缩略图可以重新调整。
+ *   完成 → 浏览器里裁成长边 ≤1200（电影海报 ≤1600；不放大）、转 webp（不支持就 jpeg），保存时再传；保存前点缩略图可以重新调整。
+ *   电影子页（curio-movies.js）借用同一套裁剪和照片状态：window.SgxCurioPhoto.box(前缀, 'movie')（海报 2:3）。
  * 账号没登录：只读、只看公开的（showPrivate=false）；「登录账号后可编辑」那一行在 curio.js（#cu-signin）。
  * 写请求只有 401 unauthorized 才当锁定刷新（401 account / reauth 是账号的事，提示「登录账号后可编辑」；403 scope 提示「奇趣未获账号授权」）。
  *
  * 数据：GET /api/items；写：POST /api/items {op}；照片：/api/photo?kind=device|game&id=（GET 图、POST 传、DELETE 删）。
- * 页签切换在 curio-tabs.js；确认框、提示条、弹层开关借 curio.js 的（window.SgxCurioUI）。
+ * 每个子页只有自己的面板和编辑弹层（设备页没有游戏的，反之亦然）：$() 找不到的元素给一个不挂在页面上的空 div，事件、画列表都落空，不用到处判断。
+ * 确认框、提示条、弹层开关、页底一行借 curio.js 的（window.SgxCurioUI）。
  */
 (function(){
 "use strict";
@@ -81,7 +83,7 @@ function fitSize(w, h, max){
 
 /* ---- 裁剪的几何（照片在舞台上：左上角 (tx,ty)、缩放 k；取景框 f = {l,t,w,h}，舞台坐标） ---- */
 /** 卡片显示的比例（宽 / 高），和 CSS 里 .it-media（4/3）、.it-media--cover（3/4）一致 */
-var CROP_RATIO = { device: 4 / 3, game: 3 / 4 };
+var CROP_RATIO = { device: 4 / 3, game: 3 / 4, movie: 2 / 3 };
 /** 取景框尺寸：按比例放进舞台，左右留 24、上下给标题和按钮留 220，宽不超过 520 */
 function cropFrame(stageW, stageH, ratio){
   var w = Math.max(1, Math.min(stageW - 48, 520)), h = w / ratio, mh = Math.max(1, stageH - 220);
@@ -128,10 +130,12 @@ G.SgxCurioItems = pure;
 
 /* ================= 页面 ================= */
 var doc = G.document;
-if (!doc.getElementById('cu-pane-devices')) return;
+var hasItems = !!(doc.getElementById('cu-pane-devices') || doc.getElementById('cu-pane-games'));
+if (!hasItems && !doc.getElementById('mv-list')) return;
 var isEn = doc.documentElement.lang === 'en';
 var UI = G.SgxCurioUI;
-var $ = function(s){ return doc.querySelector(s); };
+/* 本子页没有的部件（设备页的游戏弹层等）：给一个不挂在页面上的空 div，后面的事件绑定和 innerHTML 都落空 */
+var $ = function(s){ return doc.querySelector(s) || doc.createElement('div'); };
 
 var T = isEn ? {
   all: 'All', active: 'In use', retired: 'Retired',
@@ -318,6 +322,9 @@ $('#gm-list').addEventListener('click', function(e){ var b = e.target.closest('[
 
 /* ---------- 照片：选图 → 移动和缩放 → 裁成长边 ≤1200 → webp（不支持就 jpeg） ---------- */
 var CROP_OUT = 1200, ZOOM_MAX = 8;
+/** 成品长边上限：电影海报 1600（P4-3 电影页），其余 1200 */
+var CROP_OUT_BY = { movie: 1600 };
+var cropKind = '';
 function encode(c){
   return new Promise(function(resolve, reject){
     c.toBlob(function(b){
@@ -398,7 +405,7 @@ var crop = (function(){
   function done(){
     if (busy || !nw) return;
     busy = true; doneBtn.disabled = true;
-    var s = cropSource(v, nw, nh, f), o = cropOut(s.sw, s.sh, ratio, CROP_OUT);
+    var s = cropSource(v, nw, nh, f), o = cropOut(s.sw, s.sh, ratio, CROP_OUT_BY[cropKind] || CROP_OUT);
     var c = doc.createElement('canvas'); c.width = o.w; c.height = o.h;
     var g = c.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
     g.drawImage(pic, s.sx, s.sy, s.sw, s.sh, 0, 0, o.w, o.h);
@@ -409,7 +416,7 @@ var crop = (function(){
   function openCrop(file, kind, src, onDone){
     if (!dlg) build();
     if (url) URL.revokeObjectURL(url);
-    ratio = CROP_RATIO[kind] || 1; cb = onDone; busy = false; nw = nh = 0; pts = {}; nPts = 0;
+    ratio = CROP_RATIO[kind] || 1; cropKind = kind; cb = onDone; busy = false; nw = nh = 0; pts = {}; nPts = 0;
     doneBtn.disabled = true;
     url = URL.createObjectURL(file);
     pic.onload = function(){
@@ -474,6 +481,10 @@ function photoBox(prefix, kind){
     }
   };
 }
+
+/* 电影子页（curio-movies.js）借用裁剪 + 照片状态；下面是设备 / 游戏自己的部分 */
+G.SgxCurioPhoto = { box: photoBox, photoUrl: photoUrl, send: send, errText: errText };
+if (!hasItems) return;
 
 /* ---------- 设备：编辑 ---------- */
 var dvEditing = null, dvKind = 'phone';
@@ -597,11 +608,11 @@ $('#gm-del').addEventListener('click', function(){
 /* ---------- 启动 ---------- */
 getJSON('/curio/api/items').then(function(j){
   canWrite = !!j.canWrite; showPrivate = !!j.showPrivate; devices = j.devices || []; games = j.games || []; loaded = true;
-  $('#dv-fab').dataset.canWrite = canWrite ? '1' : '';
-  $('#gm-fab').dataset.canWrite = canWrite ? '1' : '';
+  $('#dv-fab').classList.toggle('hidden', !canWrite);
+  $('#gm-fab').classList.toggle('hidden', !canWrite);
+  if (UI && UI.signin) UI.signin(canWrite, showPrivate);
   doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); });
   render();
-  if (G.SgxCurioTabs) G.SgxCurioTabs.refresh();
 }).catch(function(e){
   if (e && e.sgxLocked) return;
   doc.querySelectorAll('.it-loading').forEach(function(el){ el.textContent = T.failed; });

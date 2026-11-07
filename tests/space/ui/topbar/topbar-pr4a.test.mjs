@@ -19,7 +19,9 @@ test('PR-4b 定稿：页名胶囊只显示页名——主站没有顶栏标签�
   for (const [f, attr] of [['atlas/web/blog/layouts/partials/topnav.html', 'data-sgx-seg'], ['atlas/web/curio/layouts/_default/baseof.html', 'data-cu-seg'], ['atlas/web/daymark/layouts/_default/baseof.html', 'data-dm-seg']]) {
     const src = rd(f);
     assert.doesNotMatch(src, new RegExp(attr), f);
-    assert.match(src, /class=\\"sgx-tb-title\\" data-sgx-titles=/, f + '：首页胶囊 = 站名，分区名由脚本换');
+    /* P4-3 奇趣拆页：奇趣的分区是独立子页，胶囊 = 页名（首页站名、子页子页名），不再由脚本换；博客 / 日刻仍是页内分区 */
+    if (f.includes('/curio/')) assert.match(src, /\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/, f + '：胶囊 = 页名');
+    else assert.match(src, /class=\\"sgx-tb-title\\" data-sgx-titles=/, f + '：首页胶囊 = 站名，分区名由脚本换');
   }
   for (const f of ['atlas/web/blog/layouts/index.html', 'atlas/web/curio/layouts/index.html', 'atlas/web/daymark/layouts/index.html']) {
     assert.match(rd(f), /partial "sgx-shell-entries\.html"/, f + '：首页有分区入口');

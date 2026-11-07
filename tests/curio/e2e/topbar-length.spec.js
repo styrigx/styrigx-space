@@ -100,13 +100,14 @@ for (const [w, h] of VIEWPORTS) {
 
 /* 名字按页面语言（博客跟主站 sgx-ui cookie / 浏览器语言，可能是英文） */
 const SECTIONS = [
-  ['/curio/', ['奇趣', 'Curio'], [['devices', ['设备', 'Devices']], ['games', ['游戏', 'Games']], ['finds', ['奇趣', 'Curio']]]],
+  /* 奇趣（P4-3 奇趣拆页）：入口是子页链接，点了到子页，胶囊 = 子页名 */
+  ['/curio/', ['奇趣', 'Curio'], [['devices', ['设备', 'Devices']], ['games', ['游戏', 'Games']], ['finds', ['发现', 'Finds']], ['movies', ['电影', 'Movies']]]],
   ['/daymark/', ['日刻', 'Daymark'], [['trove', ['拾录', 'Trove']], ['flavors', ['百味', 'Flavors']], ['echo', ['日刻', 'Daymark']]]],
   ['/blog/', ['博客', 'Blog'], [['posts', ['文章', 'Posts']], ['topics', ['专题', 'Topics']], ['home', ['博客', 'Blog']]]],
 ];
 const pick = async (page, pair) => ((await page.evaluate(() => document.documentElement.lang)).startsWith('en') ? pair[1] : pair[0]);
 
-test('子站首页：顶栏没有分区页签；分区入口（首页正文）切页内分区，顶栏边距不变，桌面布局页名胶囊 = 站名 → 分区名、按整条顶栏居中', async ({ page }, info) => {
+test('子站首页：顶栏没有分区页签；分区入口（首页正文）切页内分区（奇趣：去子页），顶栏边距不变，桌面布局页名胶囊 = 站名 → 分区名、按整条顶栏居中', async ({ page }, info) => {
   test.skip(info.project.name !== 'phone-412');
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   for (const [w, h] of [[412, 915], [1280, 800]]) {
@@ -119,7 +120,8 @@ test('子站首页：顶栏没有分区页签；分区入口（首页正文）�
       if (want.mode === 'phone') await expect(page.locator('.sgx-tb-title')).toBeHidden();
       for (const [id, name] of secs) {
         /* 回到首页分区时入口重新出现；先确保入口在 */
-        if (await page.locator('[data-sgx-entries]').isHidden()) await page.evaluate(() => { location.hash = ''; });
+        if (!(await page.locator('[data-sgx-entries]').count())) await open(page, p); /* 奇趣：上一个入口去了子页，回首页 */
+        else if (await page.locator('[data-sgx-entries]').isHidden()) await page.evaluate(() => { location.hash = ''; });
         await page.locator(`[data-sgx-entries] [data-entry="${id}"]`).click();
         await settled(page);
         check(await insets(page), want, `${w}×${h} ${p} ${id}`);

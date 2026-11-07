@@ -54,7 +54,7 @@ __sgxLayoutWatch(__applyLayout);
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/sgx-shell-topbar.html（主站 shell-topbar.html 原样，atlas/scripts/curio/sync-shell.mjs 同步，勿手改），
    这里只准备奇趣自己的参数：
-   - 中间（原样搬进来）：页名胶囊 .sgx-tb-title（首页 = 站名，页内分区时换成分区名；其他页 = 页名）。
+   - 中间（原样搬进来）：页名胶囊 .sgx-tb-title（首页 = 站名；子页 = 子页名）。
    - 右边：九宫格（导航面板，本站是「开」态）· 快捷设置 · AI（头像在 AI 窗口头部）；P4-3 PR-4b 起快捷面板四站同一套，没有按站的 tiles 参数：
      深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）。
    JS：js/sgx/topbar-host.js（共享外壳 topbar.js + modal-sheet.js + ai.js + prefs-write.js + share.js）。外观和语言跟主站（sgx-ui cookie，见 ui-inherit-run.js）。 */}}
@@ -62,14 +62,11 @@ __sgxLayoutWatch(__applyLayout);
 {{ if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}{{ end }}
 {{ $shellNav := resources.Get "sgx-shell/nav.json" | transform.Unmarshal }}
 {{ $center := "" }}
-{{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿；顶栏不再有分区页签）。首页 = 站名，切到页内分区（hash）时脚本把胶囊换成分区名
-   （data-sgx-titles：[站名, 第二个分区, 第三个分区]，顺序同页签；第一个分区就是首页本身）。分区入口在首页正文（共享外壳平铺入口）。 */}}
-{{ if .IsHome }}
-{{ $titles := slice (cond $isEn "Curio" "奇趣") (cond $isEn "Devices" "设备") (cond $isEn "Games" "游戏") }}
-{{ $center = printf "<span class=\"sgx-tb-title\" data-sgx-titles=\"%s\">%s</span>" ($titles | jsonify | htmlEscape) (index $titles 0 | htmlEscape) }}
-{{ else }}
+{{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿；顶栏不再有分区页签）。P4-3 奇趣拆页起每个分区是独立子页：
+   首页 = 站名，子页（发现 / 设备 / 游戏 / 电影 / 音乐）= 子页名（内容文件的 title）；桌面布局显示、手机布局不显示（共享外壳 PR-4b 机制）。
+   分区入口在首页正文（共享外壳平铺入口）。 */}}
+{{ if .IsHome }}{{ $pageName = cond $isEn "Curio" "奇趣" }}{{ end }}
 {{ $center = printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
-{{ end }}
 {{/* 语言磁贴：去另一种语言的同一页（有翻译用翻译，没有就去那种语言的本站首页） */}}
 {{ $langHref := "" }}
 {{ range .Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}
