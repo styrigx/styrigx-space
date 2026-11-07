@@ -11,9 +11,14 @@ languages:
   en:
     label: English
     weight: 1
+    params:
+      # 快捷面板语言选项的顺序（小的在前；没写按 weight）。weight 管默认语言 / 翻译排序，选择器顺序单独定：跟随系统 / 中文 / English
+      pickerWeight: 2
   zh:
     label: 中文
     weight: 2
+    params:
+      pickerWeight: 1
 theme: []
 
 # robots.txt 只有主域名根上的一份 space/web/static/robots.txt（Disallow: /，整个 styrigx.com 共用）。设 true 时 Hugo 内置模板会生成本站子目录里的 robots.txt（爬虫不读，白生成）

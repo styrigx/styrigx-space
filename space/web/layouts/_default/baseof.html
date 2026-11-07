@@ -183,7 +183,8 @@ __sgxLayoutWatch(__applyLayout);
 {{ range site.Data.palettes.palettes }}{{ $tbPal = $tbPal | append (dict "id" .id "style" (partial "palette-tile-vars.html" (dict "id" .id "full" false))) }}{{ end }}
 {{/* 字符串表（语言包化）：当前页面语言叠在英文上；语言选择器选项来自 hugo.yaml languages（label = 语言自己的名字） */}}
 {{ $pageLang := partial "sgx-page-lang.html" . }}
-{{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label) }}{{ end }}
+{{/* 选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight）：快捷面板沿用「跟随系统 / 中文 / English」，和 features.yaml lang 选项同序；hugo.Sites 总是默认语言（英文）在前，不能直接用 */}}
+{{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end }}{{ $tbLangs = sort $tbLangs "w" }}
 {{ partial "shell-topbar.html" (dict
   "lang" $pageLang
   "tr" (partialCached "sgx-tr.html" $pageLang $pageLang).shell

@@ -28,7 +28,9 @@
 {{- range .page.Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end -}}
 {{- if not $langHref }}{{ range site.Home.AllTranslations }}{{ if ne .Language.Lang $lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end -}}
 {{- /* 调色板色块的变量（同主站 partials/palette-tile-vars.html 的 full=false：--pl-b1..7 / --pl-f1..6，深色 --pd-*），取自共享外壳 palettes.json */ -}}
-{{- $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append (dict "code" .Language.Lang "name" .Language.Label) }}{{ end -}}
+{{- /* 快捷面板语言选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight），四站同序（跟随系统 / 中文 / English） */ -}}
+{{- $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append (dict "code" .Language.Lang "name" .Language.Label "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end -}}
+{{- $langs = sort $langs "w" -}}
 {{- $pal := slice -}}
 {{- range (index hugo.Data "sgx-shell" "palettes").presets -}}
 {{- $s := "" -}}
