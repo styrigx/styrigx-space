@@ -8590,7 +8590,7 @@
 .sgx-ai-op:disabled { opacity: .38; cursor: default; }
 .sgx-ai-op[aria-pressed="true"] { background: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
 .sgx-ai-form { display: flex; align-items: flex-end; gap: 8px; }
-.sgx-ai-in { flex: 1 1 auto; min-width: 0; min-height: 44px; max-height: 120px; resize: none; box-sizing: border-box; padding: 11px 14px; border-radius: 22px; font: inherit; font-size: 15px; line-height: 1.4;
+.sgx-ai-in { flex: 1 1 auto; min-width: 0; min-height: 44px; max-height: 120px; resize: none; box-sizing: border-box; padding: 11px 14px; border-radius: 22px; font: inherit; font-size: 16px; line-height: 1.4;
   border: 1px solid var(--sgx-outline-variant); background: var(--sgx-surface-container-lowest); color: var(--sgx-text-primary); }
 .sgx-ai-in:focus { outline: 2px solid var(--sgx-focus-ring); outline-offset: 0; }
 .sgx-ai-send { flex: 0 0 auto; width: 44px; height: 44px; border: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
