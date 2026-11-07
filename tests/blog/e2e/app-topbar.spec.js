@@ -19,6 +19,12 @@ const SEEDS = Object.fromEntries(
 
 test.use({ viewport: { width: 412, height: 915 } });
 
+/* 语言清理（2026-11-07）起博客也「跟随系统」每页都跳（四站同一份首帧跳转 lang-boot.js），Playwright 默认 en-US 会把 /blog/zh/… 换到英文页。
+   本文件的中文用例按中文浏览器跑（同奇趣 / 日刻）；要看英文页的地方先明确选英文（同源 localStorage sgx-lang=en），见 preferLang。 */
+test.use({ locale: 'zh-CN' });
+/** 页面打开前就明确选语言（之后每次导航首帧前写 localStorage sgx-lang）。 @param {import('@playwright/test').Page} page @param {string} l */
+const preferLang = (page, l) => page.addInitScript((v) => { try { localStorage.setItem('sgx-lang', v); } catch (e) {} }, l);
+
 const enc = (o) =>
   Buffer.from(JSON.stringify(o))
     .toString('base64')
@@ -75,6 +81,7 @@ async function expectTab(page, id) {
 test.describe('顶栏', () => {
   for (const path of ['/blog/zh/', '/blog/', ARTICLE, '/blog/zh/tags/ai/', '/blog/zh/404.html']) {
     test(`${path}：胶囊 字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI（头像在 AI 窗口头部），没有右圆 / ‹ / ⋮，没有页脚`, async ({ page }) => {
+      if (!/\/zh\//.test(path)) await preferLang(page, 'en');
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts']);
       expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-grid', 'sgx-tb-quick', 'sgx-tb-ai']);
@@ -251,6 +258,7 @@ test.describe('列表页分区', () => {
   });
 
   test('英文：Home · Posts · Topics', async ({ page }) => {
+    await preferLang(page, 'en');
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
     await ready(page);
     await expect(page.locator('#blog-entries .sgx-ent-name')).toHaveText(['Home', 'Posts', 'Topics']);
@@ -364,6 +372,7 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
   });
 
   test('英文：Space / Curio / Daymark / Blog；AI 窗口头像去主站英文账号页', async ({ page }) => {
+    await preferLang(page, 'en');
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
     await openNav(page);
     await expect(nav(page).locator('.sgx-qp-label')).toHaveText(['Space', 'Curio', 'Daymark', 'Blog']);

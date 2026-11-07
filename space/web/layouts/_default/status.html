@@ -10,16 +10,16 @@
    noindex（见 baseof）。渲染：lib/status-view.js（纯函数，tests/space/ui/status/status-view.test.mjs）；DOM / 请求：apps/space-status.js；入口 entry-space-status.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-status.js" }}
-{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
+{{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 
 <div class="acct-layout pb-28">
 <div class="st-wrap" id="st-root" data-state="loading" aria-busy="true">
-  <h1 class="sr-only">{{ if $isEn }}Service status{{ else }}服务状态{{ end }}</h1>
+  <h1 class="sr-only">{{ $tr.status.serviceStatus }}</h1>
 
   <section id="st-banner" class="widget st-banner animate-fade-up" data-state="loading" role="status" aria-live="polite" style="animation-delay:.04s">
     <span class="st-banner-ic" aria-hidden="true"></span>
     <div class="st-banner-txt">
-      <p class="st-banner-title" data-st="title">{{ if $isEn }}Loading…{{ else }}正在加载…{{ end }}</p>
+      <p class="st-banner-title" data-st="title">{{ $tr.status.loading }}</p>
       <p class="st-banner-sub" data-st="sub"></p>
     </div>
   </section>
@@ -33,8 +33,8 @@
 
   {{/* 接口通了但还没有任何检查结果（Worker 刚上线） */}}
   <section id="st-empty" class="widget bg-m-container-lowest st-msg" hidden>
-    <p class="st-msg-title">{{ if $isEn }}No data yet{{ else }}还没有监测数据{{ end }}</p>
-    <p class="st-msg-sub">{{ if $isEn }}Results show up after the first round of checks, in about a minute.{{ else }}第一轮检查完成后（约 1 分钟）这里会显示结果。{{ end }}</p>
+    <p class="st-msg-title">{{ $tr.status.noDataYet }}</p>
+    <p class="st-msg-sub">{{ $tr.status.resultsShowUpAfter }}</p>
   </section>
 
   {{/* 每站一张卡：加载中先放 3 张骨架（= 监测目标数）（同高），apps/space-status.js 拿到数据后整块替换 */}}
@@ -46,19 +46,19 @@
      监测 Worker 在 /summary 被请求时按需查 Cloudflare GraphQL、缓存 5 分钟；数据在 /api/status 的 quota / quota_reason，
      渲染 lib/status-view.js renderQuota。旧版 Worker（没有 quota 字段）整块不显示；拿不到 → 一行「额度暂时拿不到」。 */}}
   <section id="st-quota-wrap" class="st-usage-wrap" aria-labelledby="st-quota-h" hidden>
-    <h3 class="acct-dev-h" id="st-quota-h">{{ if $isEn }}Free-tier quota{{ else }}免费额度{{ end }}</h3>
+    <h3 class="acct-dev-h" id="st-quota-h">{{ $tr.status.freeTierQuota }}</h3>
     <div id="st-quota" class="widget bg-m-container-lowest st-usage-card"></div>
   </section>
 
   {{/* 用量（PR3）：Cloudflare 免费额度用量（Workers 今天的请求数、D1 / R2 / KV 存储），监测 Worker 每小时 41 分收一次；
      数据在 /api/status 的 usage / usage_reason，渲染 lib/status-view.js renderUsage。没配 token → 一行「用量未配置」。 */}}
   <section id="st-usage-wrap" class="st-usage-wrap" aria-labelledby="st-usage-h" hidden>
-    <h3 class="acct-dev-h" id="st-usage-h">{{ if $isEn }}Usage{{ else }}用量{{ end }}</h3>
+    <h3 class="acct-dev-h" id="st-usage-h">{{ $tr.status.usage }}</h3>
     <div id="st-usage" class="widget bg-m-container-lowest st-usage-card"></div>
   </section>
 
   <section id="st-inc-wrap" class="st-inc-wrap" hidden>
-    <h3 class="acct-dev-h">{{ if $isEn }}Recent incidents{{ else }}近期故障{{ end }}</h3>
+    <h3 class="acct-dev-h">{{ $tr.status.recentIncidents }}</h3>
     <div id="st-inc" class="widget bg-m-container-lowest st-inc-card"></div>
   </section>
 
@@ -66,10 +66,10 @@
      进门二值：页面不做角色判断；接口由服务端判断（space-audit 要进门 + 账号会话）。
      记录保留 7 天、最多显示最近 50 条（workers/auth-gateway/src/api/space-audit.js）。 */}}
   <section class="st-audit-wrap" aria-labelledby="st-audit-h">
-    <h3 class="acct-dev-h" id="st-audit-h">{{ if $isEn }}Space credential activity{{ else }}进站凭证使用记录{{ end }}</h3>
+    <h3 class="acct-dev-h" id="st-audit-h">{{ $tr.status.spaceCredentialActivity }}</h3>
     <details id="st-audit" class="widget bg-m-container-lowest st-audit-card">
       <summary class="st-audit-sum">
-        <span class="st-audit-sum-txt">{{ if $isEn }}Last 7 days: time, IP prefix and result{{ else }}最近 7 天：时间、IP 前缀和结果{{ end }}</span>
+        <span class="st-audit-sum-txt">{{ $tr.status.last7DaysTime }}</span>
         <span class="st-audit-chev" aria-hidden="true"></span>
       </summary>
       <div id="st-audit-body" class="st-audit-body" aria-live="polite" aria-busy="false"></div>

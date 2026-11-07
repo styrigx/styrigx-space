@@ -11,9 +11,14 @@ languages:
   en:
     label: English
     weight: 1
+    params:
+      # 快捷面板语言选项的顺序（小的在前；没写按 weight）。weight 管默认语言 / 翻译排序，选择器顺序单独定：跟随系统 / 中文 / English
+      pickerWeight: 2
   zh:
     label: 中文
     weight: 2
+    params:
+      pickerWeight: 1
 theme: []
 
 # robots.txt 只有主域名根上的一份 space/web/static/robots.txt（Disallow: /，整个 styrigx.com 共用）。设 true 时 Hugo 内置模板会生成本站子目录里的 robots.txt（爬虫不读，白生成）
@@ -26,7 +31,7 @@ markup:
       unsafe: true
 
 params:
-  description: 'Sloan Gray 的日刻：每天刻下一句值得记住的话'
+  # 站点描述在字符串表 data/i18n/<语言>.yaml 的 site.description（语言包化 2026-11-07）
   version: '1.1.0'
 
 # P4-3 PR-4c：Hugo 自带的多语言站点地图会出 /daymark/en/sitemap.xml（/en/… 已经不该存在），关掉，改成根上一份 /daymark/sitemap.xml（sitemaproot，root: true，中英两版都在里面）

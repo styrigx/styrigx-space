@@ -142,5 +142,5 @@ export function rpConfig(env) {
 
 /** SGX_RP_ID / SGX_ORIGIN 缺失时的统一响应（503 config，同网关） */
 export function rpConfigMissing() {
-  return apiError(503, 'config', { message: 'SGX_RP_ID / SGX_ORIGIN 未配置' });
+  return apiError(503, 'config', { message: 'SGX_RP_ID / SGX_ORIGIN not configured' });
 }

@@ -37,7 +37,7 @@ test('palettes.yaml 分组：group 按设计稿（冷调 / 自然 / 暖调 / 花
 
 test('features.yaml palette 选项与 palettes.yaml 一致', () => {
   const block = feats.split('- id: palette')[1].split('default:')[0];
-  const opts = [...block.matchAll(/\{id: ([a-z]+),/g)].map((m) => m[1]);
+  const opts = [...block.matchAll(/\{id: ([a-z]+)\}/g)].map((m) => m[1]);
   assert.deepEqual(opts, ids);
 });
 

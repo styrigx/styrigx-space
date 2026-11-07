@@ -1,5 +1,5 @@
 {{ define "main" }}
-{{ $isEn := eq .Lang "en" }}
+{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" $lang $lang }}
 {{/* 日刻首页：三个页签面板（余响 · 拾录 · 百味），首页正文分区入口 / hash 切换（daymark.js；顶栏页名胶囊显示分区名）。
    能编辑（接口回 canWrite：账号已登录 + daymark.write）：拾录右下角「记一句」，点句子打开编辑弹层；百味能建专题、排序。
    账号没登录：只读、只看公开句子，页底一行「登录账号后可编辑」（#dm-signin）。
@@ -8,18 +8,18 @@
 {{/* 分区入口（P4-3 PR-4b，Gray 2026-11-07）：顶栏不再有分区页签，首页正文的这组入口就是目录（共享外壳平铺入口组件）；切到别的分区时页签脚本把它藏起来。
    链接就是页签的 hash（页签脚本听 hashchange 切面板）。副标题是占位文案；奇趣拆页另起 PR。 */}}
 {{ $entItems := slice
-  (dict "id" "echo" "icon" "speaker" "tone" "primary" "zh" "余响" "en" "Echo" "sub_zh" "整屏一句" "sub_en" "One line, full screen" "href" "#")
-  (dict "id" "trove" "icon" "book" "tone" "secondary" "zh" "拾录" "en" "Trove" "sub_zh" "记下的句子" "sub_en" "Lines worth keeping" "href" "#trove")
-  (dict "id" "flavors" "icon" "garden" "tone" "tertiary" "zh" "百味" "en" "Flavors" "sub_zh" "按专题和作者看" "sub_en" "By topic and author" "href" "#flavors")
+  (dict "id" "echo" "icon" "speaker" "tone" "primary" "title" (index $tr.entries "echo").title "sub" (index $tr.entries "echo").sub "href" "#")
+  (dict "id" "trove" "icon" "book" "tone" "secondary" "title" (index $tr.entries "trove").title "sub" (index $tr.entries "trove").sub "href" "#trove")
+  (dict "id" "flavors" "icon" "garden" "tone" "tertiary" "title" (index $tr.entries "flavors").title "sub" (index $tr.entries "flavors").sub "href" "#flavors")
 }}
 {{ $entIcons := dict }}{{ range $entItems }}{{ $entIcons = merge $entIcons (dict .icon (partial "icon.html" .icon | string)) }}{{ end }}
-{{ partial "sgx-shell-entries.html" (dict "items" $entItems "icons" $entIcons "isEn" $isEn "id" "dm-entries" "label" (cond $isEn "Sections" "分区")) }}
+{{ partial "sgx-shell-entries.html" (dict "items" $entItems "icons" $entIcons "id" "dm-entries" "label" ($tr.index.sections)) }}
   <div id="dm-panes">
 
   {{/* ===== 余响 Echo：整屏一句 ===== */}}
-  <section id="dm-pane-echo" class="dm-pane dm-pane-echo" aria-label="{{ if $isEn }}Echo{{ else }}余响{{ end }}">
+  <section id="dm-pane-echo" class="dm-pane dm-pane-echo" aria-label="{{ $tr.index.echo }}">
     <article id="dm-echo" class="dm-echo" aria-live="polite">
-      <button id="dm-share" type="button" class="dm-share hidden" aria-label="{{ if $isEn }}Share{{ else }}分享{{ end }}">
+      <button id="dm-share" type="button" class="dm-share hidden" aria-label="{{ $tr.index.share }}">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M5 12.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5"/></svg>
       </button>
       <p id="dm-echo-day" class="dm-echo-day"></p>
@@ -27,39 +27,39 @@
     </article>
     <div class="dm-echo-actions">
       <button id="dm-draw" type="button" class="dm-btn dm-btn-tonal">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>{{ if $isEn }}Draw another{{ else }}再抽一句{{ end }}
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>{{ $tr.index.drawAnother }}
       </button>
       {{/* 设为今日：只在 canWrite、只在抽到一句公开的（不是今日那句）之后出现（daymark.js canSetToday）；点了改写今天那句（PUT /api/today） */}}
-      <button id="dm-set-today" type="button" class="dm-btn dm-btn-outline hidden">{{ if $isEn }}Set as today{{ else }}设为今日{{ end }}</button>
-      <button id="dm-back-today" type="button" class="dm-btn dm-btn-outline hidden">{{ if $isEn }}Back to today{{ else }}回到今日{{ end }}</button>
+      <button id="dm-set-today" type="button" class="dm-btn dm-btn-outline hidden">{{ $tr.index.setAsToday }}</button>
+      <button id="dm-back-today" type="button" class="dm-btn dm-btn-outline hidden">{{ $tr.index.backToToday }}</button>
     </div>
   </section>
 
   {{/* ===== 拾录 Trove：全部句子，新的在前 ===== */}}
-  <section id="dm-pane-trove" class="dm-pane dm-pane-trove" aria-label="{{ if $isEn }}Trove{{ else }}拾录{{ end }}" hidden>
+  <section id="dm-pane-trove" class="dm-pane dm-pane-trove" aria-label="{{ $tr.index.trove }}" hidden>
     <div id="dm-list" class="flex flex-col gap-3"></div>
     <p id="dm-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
-    <p id="dm-loading" class="text-center py-16 text-sm text-m-on-surface-variant">{{ if $isEn }}Loading…{{ else }}加载中…{{ end }}</p>
+    <p id="dm-loading" class="text-center py-16 text-sm text-m-on-surface-variant">{{ $tr.index.loading }}</p>
   </section>
 
   {{/* ===== 百味 Flavors：自建专题在前，再是按作者的「人物」；点进去是该组句子（页内返回） ===== */}}
-  <section id="dm-pane-flavors" class="dm-pane dm-pane-flavors" aria-label="{{ if $isEn }}Flavors{{ else }}百味{{ end }}" hidden>
+  <section id="dm-pane-flavors" class="dm-pane dm-pane-flavors" aria-label="{{ $tr.index.flavors }}" hidden>
     <div id="dm-fl-home">
       <section id="dm-cols-sec" class="hidden mb-6" aria-labelledby="dm-cols-h">
-        <h2 id="dm-cols-h" class="dm-sec">{{ if $isEn }}Collections{{ else }}自建专题{{ end }}</h2>
+        <h2 id="dm-cols-h" class="dm-sec">{{ $tr.index.collections }}</h2>
         <div id="dm-cols" class="dm-fgrid"></div>
       </section>
       <section id="dm-authors-sec" class="hidden" aria-labelledby="dm-authors-h">
-        <h2 id="dm-authors-h" class="dm-sec">{{ if $isEn }}People{{ else }}人物{{ end }}</h2>
+        <h2 id="dm-authors-h" class="dm-sec">{{ $tr.index.people }}</h2>
         <div id="dm-authors" class="dm-fgrid"></div>
       </section>
       <p id="dm-fl-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
     </div>
     <div id="dm-fl-group" class="hidden">
       <div class="dm-g-bar">
-        <button id="dm-fl-back" type="button" class="dm-back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>{{ if $isEn }}Flavors{{ else }}百味{{ end }}</button>
+        <button id="dm-fl-back" type="button" class="dm-back"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>{{ $tr.index.flavors }}</button>
         <div id="dm-g-tools" class="hidden dm-g-tools">
-          <button id="dm-g-del" type="button" class="dm-btn-text dm-btn-danger hidden">{{ if $isEn }}Delete{{ else }}删除专题{{ end }}</button>
+          <button id="dm-g-del" type="button" class="dm-btn-text dm-btn-danger hidden">{{ $tr.index.delete }}</button>
           <button id="dm-g-edit" type="button" class="dm-btn-text" aria-pressed="false"></button>
         </div>
       </div>
@@ -76,12 +76,12 @@
   </div>
   {{/* 不能编辑（接口回 canWrite=false：账号没登录）：编辑入口换成这一行（daymark.js 按 canWrite 显隐），链到主站账号页 */}}
   {{/* data-acct / data-home：daymark.js（经典脚本）用的主站账号地址和本站首页，由 sgx-lang-path.html 按本页语言算好（P4-3 PR-4c，不在 JS 里手写前缀） */}}
-  <p id="dm-signin" data-acct="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" (cond $isEn "en" "zh")) }}" data-home="{{ partial "sgx-lang-path.html" (dict "path" "/daymark/" "lang" (cond $isEn "en" "zh")) }}" class="hidden text-center pt-2 pb-8 text-sm text-m-on-surface-variant"><a href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" (cond $isEn "en" "zh")) }}" class="underline underline-offset-4">{{ if $isEn }}Sign in to your account to edit{{ else }}登录账号后可编辑{{ end }}</a></p>
+  <p id="dm-signin" data-acct="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}" data-home="{{ partial "sgx-lang-path.html" (dict "path" "/daymark/" "lang" ($lang)) }}" class="hidden text-center pt-2 pb-8 text-sm text-m-on-surface-variant"><a href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}" class="underline underline-offset-4">{{ $tr.index.signInToYour }}</a></p>
 </main>
 
 {{/* ===== 拾录：记一句（canWrite，右下角浮动按钮） ===== */}}
 <button id="dm-fab" type="button" class="dm-fab hidden">
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>{{ if $isEn }}Save a line{{ else }}记一句{{ end }}
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>{{ $tr.index.saveALine }}
 </button>
 
 {{/* ===== 记一句 / 编辑弹层（canWrite） ===== */}}
@@ -92,54 +92,54 @@
     <div class="bk-titlebar">
       <div class="bk-titlebar-side" aria-hidden="true"></div>
       <div class="bk-titlebar-mid"><h2 id="edit-title" class="text-lg font-extrabold"></h2></div>
-      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="edit" aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "edit-x") }}</button></div>
+      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="edit" aria-label="{{ $tr.index.close }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "edit-x") }}</button></div>
     </div>
     <form id="edit-form" class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pb-4 flex flex-col gap-4" novalidate>
       {{/* 实时预览：和余响里一样的样子 */}}
-      <div id="ed-preview" class="dm-preview" aria-label="{{ if $isEn }}Preview{{ else }}预览{{ end }}">
-        <p class="dm-preview-label">{{ if $isEn }}Preview · Echo{{ else }}预览 · 余响{{ end }}</p>
+      <div id="ed-preview" class="dm-preview" aria-label="{{ $tr.index.preview }}">
+        <p class="dm-preview-label">{{ $tr.index.previewEcho }}</p>
         <div id="ed-preview-body" class="dm-echo-body"></div>
       </div>
-      <label class="dm-field"><span>{{ if $isEn }}The line{{ else }}句子{{ end }}</span>
-        <textarea id="f-text" class="dm-serif-input" rows="4" maxlength="500" required placeholder="{{ if $isEn }}What's worth keeping today?{{ else }}今天想留下哪一句？{{ end }}"></textarea></label>
-      <button id="f-trans-toggle" type="button" class="dm-addlink">＋ {{ if $isEn }}Add translation{{ else }}加译文{{ end }}</button>
-      <label id="f-trans-wrap" class="dm-field hidden"><span>{{ if $isEn }}Translation{{ else }}译文{{ end }}</span>
+      <label class="dm-field"><span>{{ $tr.index.theLine }}</span>
+        <textarea id="f-text" class="dm-serif-input" rows="4" maxlength="500" required placeholder="{{ $tr.index.whatsWorthKeepingToday }}"></textarea></label>
+      <button id="f-trans-toggle" type="button" class="dm-addlink">{{ $tr.index.addTranslation }}</button>
+      <label id="f-trans-wrap" class="dm-field hidden"><span>{{ $tr.index.translation }}</span>
         <textarea id="f-trans" rows="2" maxlength="500"></textarea></label>
       <div class="dm-field">
-        <label for="f-author">{{ if $isEn }}Author{{ else }}作者{{ end }}</label>
-        <div class="dm-ac"><input id="f-author" type="text" maxlength="60" autocomplete="off" placeholder="{{ if $isEn }}Who said it{{ else }}谁说的{{ end }}"><div id="f-author-ac" class="dm-ac-list hidden" role="listbox"></div></div>
-        <div id="f-author-recent" class="dm-chips hidden" aria-label="{{ if $isEn }}Recent authors{{ else }}最近的作者{{ end }}"></div>
+        <label for="f-author">{{ $tr.index.author }}</label>
+        <div class="dm-ac"><input id="f-author" type="text" maxlength="60" autocomplete="off" placeholder="{{ $tr.index.whoSaidIt }}"><div id="f-author-ac" class="dm-ac-list hidden" role="listbox"></div></div>
+        <div id="f-author-recent" class="dm-chips hidden" aria-label="{{ $tr.index.recentAuthors }}"></div>
       </div>
       <div class="dm-field">
-        <label for="f-source">{{ if $isEn }}Source{{ else }}出处{{ end }}</label>
-        <div id="f-stype" class="dm-chips" role="group" aria-label="{{ if $isEn }}Source type{{ else }}出处类型{{ end }}"></div>
-        <div class="dm-ac"><input id="f-source" type="text" maxlength="120" autocomplete="off" placeholder="{{ if $isEn }}Title{{ else }}名字，比如书名、片名{{ end }}"><div id="f-source-ac" class="dm-ac-list hidden" role="listbox"></div></div>
+        <label for="f-source">{{ $tr.index.source }}</label>
+        <div id="f-stype" class="dm-chips" role="group" aria-label="{{ $tr.index.sourceType }}"></div>
+        <div class="dm-ac"><input id="f-source" type="text" maxlength="120" autocomplete="off" placeholder="{{ $tr.index.title }}"><div id="f-source-ac" class="dm-ac-list hidden" role="listbox"></div></div>
       </div>
       <div class="dm-field">
-        <span>{{ if $isEn }}Add to Flavors{{ else }}归入百味{{ end }}</span>
-        <div id="f-cols" class="dm-chips" role="group" aria-label="{{ if $isEn }}Collections{{ else }}自建专题{{ end }}"></div>
+        <span>{{ $tr.index.addToFlavors }}</span>
+        <div id="f-cols" class="dm-chips" role="group" aria-label="{{ $tr.index.collections }}"></div>
         <div id="f-col-new-row" class="dm-inline hidden">
-          <input id="f-col-name" type="text" maxlength="30" autocomplete="off" placeholder="{{ if $isEn }}Collection name{{ else }}专题名{{ end }}">
-          <button id="f-col-add" type="button" class="dm-btn-text">{{ if $isEn }}Add{{ else }}添加{{ end }}</button>
+          <input id="f-col-name" type="text" maxlength="30" autocomplete="off" placeholder="{{ $tr.index.collectionName }}">
+          <button id="f-col-add" type="button" class="dm-btn-text">{{ $tr.index.add }}</button>
         </div>
       </div>
       <div class="dm-field">
-        <label for="f-tag-input">{{ if $isEn }}Tags{{ else }}标签{{ end }}</label>
-        <div id="f-tagbox" class="dm-tagbox"><span id="f-tagchips" class="contents"></span><input id="f-tag-input" type="text" maxlength="40" autocomplete="off" enterkeyhint="done" placeholder="{{ if $isEn }}Type, then Enter{{ else }}输入后回车或逗号{{ end }}"></div>
-        <div id="f-tag-sugg" class="dm-chips hidden" aria-label="{{ if $isEn }}Existing tags{{ else }}已有标签{{ end }}"></div>
+        <label for="f-tag-input">{{ $tr.index.tags }}</label>
+        <div id="f-tagbox" class="dm-tagbox"><span id="f-tagchips" class="contents"></span><input id="f-tag-input" type="text" maxlength="40" autocomplete="off" enterkeyhint="done" placeholder="{{ $tr.index.typeThenEnter }}"></div>
+        <div id="f-tag-sugg" class="dm-chips hidden" aria-label="{{ $tr.index.existingTags }}"></div>
       </div>
-      <label class="dm-field"><span>{{ if $isEn }}A quick note{{ else }}随手一笔{{ end }} <em class="dm-hint">{{ if $isEn }}only you can see this{{ else }}只有你看得到{{ end }}</em></span>
-        <textarea id="f-note" rows="2" maxlength="500" placeholder="{{ if $isEn }}Where you met it, why it stayed{{ else }}在哪读到的、为什么记下{{ end }}"></textarea></label>
+      <label class="dm-field"><span>{{ $tr.index.aQuickNote }} <em class="dm-hint">{{ $tr.index.onlyYouCanSee }}</em></span>
+        <textarea id="f-note" rows="2" maxlength="500" placeholder="{{ $tr.index.whereYouMetIt }}"></textarea></label>
       <label class="flex items-center gap-3 cursor-pointer">
-        <span class="flex-1 text-[15px]">{{ if $isEn }}Public{{ else }}公开{{ end }}</span>
+        <span class="flex-1 text-[15px]">{{ $tr.index.public }}</span>
         <input id="f-public" type="checkbox" class="peer sr-only" checked>
         <span class="shrink-0 w-12 h-7 rounded-full bg-[var(--sgx-switch-track-off)] peer-checked:bg-[var(--sgx-switch-track-on)] relative transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:w-5 after:h-5 after:rounded-full after:bg-[var(--sgx-switch-thumb-off)] peer-checked:after:bg-[var(--sgx-switch-thumb-on)] after:shadow-sm after:transition-transform peer-checked:after:translate-x-5"></span>
       </label>
       <p id="edit-err" class="hidden text-sm text-m-error"></p>
     </form>
     <div class="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-[var(--sgx-divider)] flex gap-3">
-      <button id="edit-del" type="button" class="hidden flex-1 h-12 rounded-full bg-m-container text-m-error text-[15px] font-bold">{{ if $isEn }}Delete{{ else }}删除{{ end }}</button>
-      <button id="edit-save" type="button" class="flex-1 h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+      <button id="edit-del" type="button" class="hidden flex-1 h-12 rounded-full bg-m-container text-m-error text-[15px] font-bold">{{ $tr.index.delete2 }}</button>
+      <button id="edit-save" type="button" class="flex-1 h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold">{{ $tr.index.save }}</button>
     </div>
   </div>
 </div>
@@ -151,14 +151,14 @@
     <div class="sheet-handle"></div>
     <div class="bk-titlebar">
       <div class="bk-titlebar-side" aria-hidden="true"></div>
-      <div class="bk-titlebar-mid"><h2 id="col-title" class="text-lg font-extrabold">{{ if $isEn }}New collection{{ else }}新建专题{{ end }}</h2></div>
-      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="col" aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "col-x") }}</button></div>
+      <div class="bk-titlebar-mid"><h2 id="col-title" class="text-lg font-extrabold">{{ $tr.index.newCollection }}</h2></div>
+      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="col" aria-label="{{ $tr.index.close }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "col-x") }}</button></div>
     </div>
     <div class="px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col gap-4">
-      <label class="dm-field"><span>{{ if $isEn }}Name{{ else }}名字{{ end }}</span><input id="c-name" type="text" maxlength="30" autocomplete="off"></label>
-      <label class="dm-field"><span>{{ if $isEn }}One-line intro{{ else }}一句话简介{{ end }}</span><input id="c-intro" type="text" maxlength="80" autocomplete="off"></label>
+      <label class="dm-field"><span>{{ $tr.index.name }}</span><input id="c-name" type="text" maxlength="30" autocomplete="off"></label>
+      <label class="dm-field"><span>{{ $tr.index.oneLineIntro }}</span><input id="c-intro" type="text" maxlength="80" autocomplete="off"></label>
       <p id="col-err" class="hidden text-sm text-m-error"></p>
-      <button id="col-save" type="button" class="h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold">{{ if $isEn }}Create{{ else }}建好了{{ end }}</button>
+      <button id="col-save" type="button" class="h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold">{{ $tr.index.create }}</button>
     </div>
   </div>
 </div>
@@ -170,7 +170,7 @@
     <div class="px-6 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
       <p id="confirm-msg" class="text-[15px] leading-relaxed text-center"></p>
       <div class="flex gap-3 mt-5">
-        <button id="confirm-cancel" type="button" class="flex-1 h-12 rounded-full bg-m-container text-m-on-surface text-[15px] font-bold">{{ if $isEn }}Cancel{{ else }}取消{{ end }}</button>
+        <button id="confirm-cancel" type="button" class="flex-1 h-12 rounded-full bg-m-container text-m-on-surface text-[15px] font-bold">{{ $tr.index.cancel }}</button>
         <button id="confirm-ok" type="button" class="flex-1 h-12 rounded-full bg-m-error text-m-on-error text-[15px] font-bold"></button>
       </div>
     </div>

@@ -168,7 +168,7 @@ test.describe('账号登录', () => {
           if (b.password === 'right-password') { loggedIn = true; return [200, { ok: true }]; }
           return [403, { ok: false, error: 'wrong' }];
         },
-        'passkey-list': [200, { ok: true, by: 'password', keys: [{ credId: 'k1', name: 'Galaxy S26', provider: 'Samsung Pass', createdAt: 1760000000000, lastUsedAt: 0 }] }],
+        'passkey-list': [200, { ok: true, by: 'password', keys: [{ credId: 'k1', name: 'Galaxy S26', provider: 'samsung-pass' /* 服务端存 provider id（语言清理 2026-11-07），显示名走字符串表 */, createdAt: 1760000000000, lastUsedAt: 0 }] }],
       },
     });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
@@ -673,7 +673,7 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
       handlers: {
         'passkey-list': () => [200, { ok: true, keys: keys, userHandle: 'acct-h', userName: 'AccountKey', displayName: 'Sloan Gray' }],
         'passkey-register-challenge': [200, { ok: true, cid: 'c1', challenge: 'dGVzdC1jaGFsbGVuZ2U', rpId: 'localhost', rp: { name: 'Styrigx' }, user: { id: 'YWNjdC1o', name: 'AccountKey', displayName: 'Sloan Gray' }, excludeCredentials: [] }],
-        'passkey-register': (b) => { keys = [{ credId: 'new-cred-id', name: b.name, provider: 'Samsung Pass', createdAt: 1760000000000, lastUsedAt: 0 }]; return [200, { ok: true, credId: 'new-cred-id' }]; },
+        'passkey-register': (b) => { keys = [{ credId: 'new-cred-id', name: b.name, provider: 'samsung-pass' /* 服务端存 provider id（语言清理 2026-11-07），显示名走字符串表 */, createdAt: 1760000000000, lastUsedAt: 0 }]; return [200, { ok: true, credId: 'new-cred-id' }]; },
         'passkey-rename': (b) => { keys = keys.map((k) => (k.credId === b.credId ? Object.assign({}, k, { name: b.name }) : k)); return [200, { ok: true, name: b.name }]; },
       },
     });
@@ -734,7 +734,7 @@ test.describe('安全与隐私子页：账号通行密钥命名', () => {
   });
 
   test('列表内点名字重命名：回车保存调 rename；清空 → 恢复原名不调接口', async ({ page }) => {
-    const keys0 = [{ credId: 'k1', name: 'Galaxy S26', provider: 'Samsung Pass', createdAt: 1760000000000, lastUsedAt: 0 }];
+    const keys0 = [{ credId: 'k1', name: 'Galaxy S26', provider: 'samsung-pass' /* 服务端存 provider id（语言清理 2026-11-07），显示名走字符串表 */, createdAt: 1760000000000, lastUsedAt: 0 }];
     let keys = keys0;
     const calls = await mockAccount(page, {
       status: { ok: true, password: true, passkey: true, ready: true, session: RECENT(), reauth: REAUTH() },

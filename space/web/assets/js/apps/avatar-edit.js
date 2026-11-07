@@ -13,18 +13,16 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { openSheet } from '../shell/sheet.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上，缺键回退英文） */
+const ct = i18nTable('core');
 
 const SIZES = [512, 192, 96, 32];
 const ZOOM_MAX = 8; /* 最大放大到「刚好盖满」的 8 倍 */
 
 const en = document.documentElement.lang === 'en';
-const TXT = en
-  ? { title: 'Profile photo', pick: 'Choose photo…', remove: 'Remove photo', crop: 'Move and scale', cancel: 'Cancel', done: 'Done',
-      saved: 'Photo updated', removed: 'Photo removed', failed: 'Couldn’t save the photo. Try again.', badFile: 'This file can’t be opened as an image.',
-      noScope: 'Avatar doesn’t have account access' }
-  : { title: '头像', pick: '选择照片…', remove: '移除照片', crop: '移动和缩放', cancel: '取消', done: '完成',
-      saved: '头像已更新', removed: '已移除头像', failed: '头像没保存上，请重试', badFile: '这个文件打不开',
-      noScope: '头像未获账号授权' };
+/** 文案在字符串表 js.core.av*（语言包化 2026-11-07） */
+const TXT = new Proxy(/** @type {Record<string,string>} */ ({}), { get: function (_o, k) { return typeof k === 'string' ? ct('av' + k.charAt(0).toUpperCase() + k.slice(1)) : undefined; } });
 
 /** 当前是不是自定义头像（看 ETag） */
 /** 有没有自定义头像：进页面时查一次，换 / 删之后直接改 */

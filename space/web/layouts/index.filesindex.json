@@ -1,28 +1,30 @@
 {{/* 全站内容索引：/files-index.json —— 主站的站点 + 应用，space/scripts/build-search-index.mjs 读它写进搜索索引 site:space（博客文章由博客自己写 site:blog） */}}
 {{ $items := slice }}
-{{ $langs := slice "zh" "en" }}
-{{ $homeOf := dict "zh" (partial "sgx-lang-path.html" (dict "path" "/" "lang" "zh")) "en" (partial "sgx-lang-path.html" (dict "path" "/" "lang" "en")) }}
+{{/* 语言列表来自 hugo.yaml languages（语言包化 2026-11-07：不写死 zh / en） */}}
+{{ $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append .Language.Lang }}{{ end }}
 
-{{/* ---------- 站点（data/sites.yaml、data/en/sites.yaml） ---------- */}}
+{{/* ---------- 站点（data/sites.yaml；名字 / 副标题在字符串表 sites.<id>，按语言取，缺键回退英文） ---------- */}}
 {{ range $l := $langs }}
-  {{ $sites := cond (eq $l "en") site.Data.en.sites site.Data.sites }}
-  {{ range $s := $sites }}
+  {{ $tr := partialCached "sgx-tr.html" $l $l }}
+  {{ range $s := site.Data.sites }}
     {{ $id := printf "site-%s" $s.id }}
     {{ if eq $l "en" }}{{ $id = printf "site-%s-en" $s.id }}{{ end }}
-    {{ $items = $items | append (dict "id" $id "type" "site" "lang" $l "title" $s.title "subtitle" ($s.subtitle | default "") "url" $s.url "cover" "" "addedAt" "") }}
+    {{ $st := index $tr.sites $s.id }}
+    {{ $items = $items | append (dict "id" $id "type" "site" "lang" $l "title" $st.title "subtitle" ($st.sub | default "") "url" (printf "https://styrigx.com%s" (partial "sgx-lang-path.html" (dict "path" $s.path "lang" $l))) "cover" "" "addedAt" "") }}
   {{ end }}
 {{ end }}
 
 {{/* ---------- 应用 ---------- */}}
 {{/* 系统 App（设置）直接链接；书签在子站 奇趣 /curio/ */}}
-{{ $apps := slice
-  (dict "key" "settings" "zh" "设置"     "en" "Settings"  "zhsub" "主题、语言、壁纸" "ensub" "Theme, language, wallpaper" "path" "settings/")
-}}
+{{/* 名字 / 副标题在字符串表 filesIndex.app.<key> */}}
+{{ $apps := slice (dict "key" "settings" "path" "settings/") }}
 {{ range $l := $langs }}
+  {{ $tr := partialCached "sgx-tr.html" $l $l }}
   {{ range $a := $apps }}
     {{ $id := printf "app-%s" $a.key }}
     {{ if eq $l "en" }}{{ $id = printf "app-%s-en" $a.key }}{{ end }}
-    {{ $items = $items | append (dict "id" $id "type" "app" "lang" $l "title" (index $a $l) "subtitle" (index $a (print $l "sub")) "url" (print (index $homeOf $l) $a.path) "cover" "" "addedAt" "") }}
+    {{ $at := index $tr.filesIndex.app $a.key }}
+    {{ $items = $items | append (dict "id" $id "type" "app" "lang" $l "title" $at.title "subtitle" $at.sub "url" (print (partial "sgx-lang-path.html" (dict "path" "/" "lang" $l)) $a.path) "cover" "" "addedAt" "") }}
   {{ end }}
 {{ end }}
 

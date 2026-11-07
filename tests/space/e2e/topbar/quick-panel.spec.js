@@ -715,12 +715,12 @@ test.describe('快捷面板：设置即时生效（和设置同一个 key）', (
     await expect(opts).toBeHidden();
     await expect(lang).toBeFocused();
     await expect(qp(page)).toHaveAttribute('data-state', 'open');
-    /* 跟随系统：删掉 sgx-lang，按浏览器语言去对应语言的同一页 */
+    /* 跟随系统：sgx-lang 明确存 system（语言清理 2026-11-07，不再删 key），按浏览器语言去对应语言的同一页 */
     const navLang = await page.evaluate(() => navigator.language);
     await lang.click();
     await opts.locator('[data-qp-lang="system"]').click();
     await expect(page).toHaveURL(/^zh/i.test(navLang) ? /\/zh\/theme\/$/ : /localhost:\d+\/theme\/$/);
-    expect(await ls(page, 'sgx-lang')).toBeNull();
+    expect(await ls(page, 'sgx-lang')).toBe('system');
   });
 
   test('立即锁定：关面板后弹出与安全页相同的确认层，确认后调 /api/lock-now', async ({ page }) => {

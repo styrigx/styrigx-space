@@ -565,7 +565,10 @@ test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）',
   const rf = fs.readFileSync(REPO + 'space/web/assets/js/auth/reset-flow.js', 'utf8');
   assert.ok(!src.includes('管理员') && !rf.includes('管理员'), '不再出现「管理员」字样'); // old-name guard
   assert.ok(!rf.includes('lock-reset-switch'), 'reset-flow.js 不应出现开关键名');
-  assert.ok(rf.includes('锁屏凭证也无法使用？'), '恢复提示说的是锁屏凭证');
+  /* 语言包化 2026-11-07：文案在字符串表 js.core.rf*（reset-flow.js 只留键） */
+  const zhYaml = fs.readFileSync(REPO + 'space/web/data/i18n/zh.yaml', 'utf8');
+  assert.ok(/rfRecover: .*锁屏凭证也无法使用？/.test(zhYaml), '恢复提示说的是锁屏凭证');
+  assert.ok(!zhYaml.includes('管理员'), '字符串表里也不再出现「管理员」');
   assert.ok(!/needAccount|accountProof/.test(rf + src), '前端不再有 needAccount / accountProof');
   const step2Idx = rf.indexOf('function step2');
   const step1Idx = rf.indexOf('function step1');

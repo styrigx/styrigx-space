@@ -8,11 +8,18 @@ disableDefaultLanguageRedirect: true
 hasCJKLanguage: true
 languages:
   en:
-    languageName: English
+    label: English
     weight: 1
+    params:
+      ogLocale: en_US
+      # 快捷面板语言选项的顺序（小的在前；没写按 weight）。weight 管默认语言 / 翻译排序，选择器顺序单独定：跟随系统 / 中文 / English
+      pickerWeight: 2
   zh:
-    languageName: 中文
+    label: 中文
     weight: 2
+    params:
+      ogLocale: zh_CN
+      pickerWeight: 1
 theme: []
 
 build:
@@ -49,7 +56,7 @@ markup:
       unsafe: true
 
 params:
-  description: 'Sloan Gray 的个人门户'
+  # 站点描述在字符串表 data/i18n/<语言>.yaml 的 site.description（语言包化 2026-11-07）
   since: 2020
   # 版本号唯一来源：data/version.yaml（ui + sgx），此处不硬编码
 

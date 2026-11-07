@@ -174,6 +174,66 @@ function homeOf(pathname) {
   return pathname === '/zh' || pathname.startsWith('/zh/') ? '/zh/' : '/';
 }
 
+/* 旧 /en/ 前缀：四站同一条规则（语言规则四站通用：英文是根路径上的源，中文 /zh/ 是翻译层，/en/ 不是任何东西）。
+   主站 /en、/en/…；子站 /<站>/en、/<站>/en/…（站名取 SUBSITES，和子站关口同一张表）。
+   按 normPath 归一后逐段比：/EN/、/%65n/、//en/、/BLOG/En/、//blog//en/ 都算；/enx/、/english/、/blog/english-post/、
+   /zh/en/、/blog/zh/en/、/daymark/api/en/（第二段是 api，不是 en）都不算。 */
+
+/**
+ * 旧英文前缀命中时返回所在站的前缀（主站 ''，子站 '/blog'、'/curio'、'/daymark'），没命中返回 null。
+ * @param {string} pathname
+ * @returns {string|null}
+ */
+export function retiredEnSitePrefix(pathname) {
+  const segs = normPath(pathname).split('/');
+  if (segs[1] === 'en') return '';
+  if (segs[2] === 'en' && Object.prototype.hasOwnProperty.call(SUBSITES, segs[1])) return '/' + SUBSITES[segs[1]].site;
+  return null;
+}
+
+/**
+ * 是不是已删除的旧英文前缀（四站：/en…、/blog/en…、/curio/en…、/daymark/en…；P4-3 PR-4c 起 /en/ 不该有任何产物或路由）。
+ * @param {string} pathname
+ * @returns {boolean}
+ */
+export function isRetiredEnPath(pathname) {
+  return retiredEnSitePrefix(pathname) !== null;
+}
+
+/** 回源取 404 页用的地址（站内）：产物里必然没有（Pages 对不存在的路径回最近的 404.html，状态 404）。子站在前面加站前缀，取的是该站自己的 404 */
+export const NOT_FOUND_PROBE_PATH = '/__sgx-not-found__/';
+
+/**
+ * 旧 /en/… 的回答（四站共用）：回源取「站前缀 + NOT_FOUND_PROBE_PATH」拿该站自己的 404 页，状态码一律 404、private no-store，绝不带 Location。
+ * 回源拿到的不是 HTML（或是跳转、或回源失败）→ 纯文本 404。
+ * @param {Request} request
+ * @param {(input?: Request) => Promise<Response>} next 回源函数
+ * @param {string} prefix 站前缀（主站 ''，子站 '/blog' 这类）
+ * @param {(res: Response) => Promise<Response>} finish 处理 404 页 HTML（主站注入会话状态；子站清掉会话标记）
+ * @returns {Promise<Response>}
+ */
+async function retiredEnNotFound(request, next, prefix, finish) {
+  const plain = () => new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'private, no-store' } });
+  let res;
+  try {
+    const probe = new URL(prefix + NOT_FOUND_PROBE_PATH, request.url);
+    res = await next(new Request(probe.toString(), { method: 'GET', headers: request.headers }));
+  } catch (e) {
+    return plain();
+  }
+  const ct = (res && res.headers.get('Content-Type')) || '';
+  if (!res || (res.status >= 300 && res.status < 400) || !ct.includes('text/html')) {
+    if (res && res.body) res.body.cancel().catch(() => {});
+    return plain();
+  }
+  const out = await finish(res);
+  const headers = new Headers(out.headers);
+  headers.delete('Location');
+  headers.delete('Content-Length');
+  headers.set('Cache-Control', 'private, no-store');
+  return new Response(out.body, { status: 404, headers });
+}
+
 /** 账号页（顶栏右圆头像进入）：注入账号会话提示，首帧不闪登录区 */
 function isAccountPage(pathname) {
   return pathname === '/account/' || pathname === '/zh/account/';
@@ -249,6 +309,16 @@ async function handleRequest(context) {
     }
     return new Response('Server misconfigured', { status: 500 });
   }
+  /* 旧 /en/…（P4-3 PR-4c 起英文是根路径上的源、中文 /zh/ 是翻译层，/en/ 不是任何东西）：网关自己判 404，不回源取 /en/ 地址、不 301。
+     线上曾出现解锁会话访问 /en/ 拿到 PR-4b（77ce4d6）时代的旧英文首页（回源链路上的旧副本），所以不能只靠产物里没有 en/：
+     这里一律换成回源取一个必然不存在的地址（Pages 回最近的 404.html），状态码强制 404、no-store。
+     有没有会话都 404（这条路径什么都没有，不泄露信息；部署冒烟不带会话也能查）；会话只决定注入的状态，免得有效会话的人看到锁屏层。 */
+  const enPrefix = site === 'space' ? retiredEnSitePrefix(pathname) : null;
+  if (enPrefix !== null) {
+    const sess = isProd ? await verifyLockSession(request, env) : { ok: true };
+    return retiredEnNotFound(request, next, enPrefix, (res) => injectSessionState(res, sess.ok ? 'valid' : 'locked'));
+  }
+
   if (isProd && site === 'space') {
     const isHomepage = pathname === '/' || pathname === '/zh' || pathname === '/zh/';
     const sess = await verifyLockSession(request, env);
@@ -475,6 +545,14 @@ export async function handleSubsite(request, env, origin) {
   const conf = subsiteOf(url);
   if (!conf) return apiError(404, 'not-found');
   const path = normPath(url.pathname);
+
+  /* 旧 /<站>/en/…：和主站 /en/… 同一条规则（retiredEnSitePrefix），网关直接 404，不回源取 /en/ 地址、不 301、不看会话
+     （静态后缀也算：/blog/en/x.js 不直通回源）。404 页取该站自己的（回源 /<站>/__sgx-not-found__/），子站页面照旧清掉会话标记 */
+  const enPrefix = retiredEnSitePrefix(url.pathname);
+  if (enPrefix !== null) {
+    return retiredEnNotFound(request, origin, enPrefix, async (res) =>
+      new Response(stripSessionAttrs(await res.text()), { status: res.status, headers: res.headers }));
+  }
 
   if (isStaticAsset(url.pathname)) return origin(request);
 

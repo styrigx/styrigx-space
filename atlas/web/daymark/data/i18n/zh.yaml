@@ -1,0 +1,67 @@
+# 本站字符串表 · 中文（汉化层）：键和 en.yaml 一一对应；缺的键显示英文。
+site:
+  name: 日刻
+  description: Sloan Gray 的日刻：每天刻下一句值得记住的话
+entries:
+  echo:
+    title: 余响
+    sub: 整屏一句
+  trove:
+    title: 拾录
+    sub: 记下的句子
+  flavors:
+    title: 百味
+    sub: 按专题和作者看
+notFound:
+  pageNotFound: 页面不存在
+  thePageYoureLooking: 你要找的页面不存在或已被移动。
+  backToDaymark: 返回日刻
+index:
+  echo: 余响
+  share: 分享
+  drawAnother: 再抽一句
+  setAsToday: 设为今日
+  backToToday: 回到今日
+  trove: 拾录
+  loading: 加载中…
+  flavors: 百味
+  collections: 自建专题
+  people: 人物
+  delete: 删除专题
+  signInToYour: 登录账号后可编辑
+  saveALine: 记一句
+  close: 关闭
+  preview: 预览
+  previewEcho: 预览 · 余响
+  theLine: 句子
+  whatsWorthKeepingToday: 今天想留下哪一句？
+  addTranslation: ＋ 加译文
+  translation: 译文
+  author: 作者
+  whoSaidIt: 谁说的
+  recentAuthors: 最近的作者
+  source: 出处
+  sourceType: 出处类型
+  title: 名字，比如书名、片名
+  addToFlavors: 归入百味
+  collectionName: 专题名
+  add: 添加
+  tags: 标签
+  typeThenEnter: 输入后回车或逗号
+  existingTags: 已有标签
+  aQuickNote: 随手一笔
+  onlyYouCanSee: 只有你看得到
+  whereYouMetIt: 在哪读到的、为什么记下
+  public: 公开
+  delete2: 删除
+  save: 保存
+  newCollection: 新建专题
+  name: 名字
+  oneLineIntro: 一句话简介
+  create: 建好了
+  cancel: 取消
+  sections: 分区
+baseof:
+  pageNotFound: 页面不存在
+  trove: 拾录
+  flavors: 百味

@@ -14,6 +14,7 @@ const onRequestGet = wrap(rawGet);
 import { buildBody, localDay } from '../../../space/web/assets/js/lib/wb-track.js';
 import { wbAreaOf } from '../../../space/web/assets/js/lib/wb-area.js';
 import { fmtDur, foldSections } from '../../../space/web/assets/js/lib/wb-view.js';
+import { setI18nLang } from '../../fixtures/i18n-dom.mjs';
 
 const NOW = Date.parse('2026-10-17T09:00:00Z');
 
@@ -137,9 +138,12 @@ test('foldSections（前端读旧）：home / settings 并进 space，同键相�
 });
 
 test('fmtDur：中英文时长', () => {
+  /* 语言包化 2026-11-07：文案来自页面字符串表 #sgx-i18n-space（这里用 strings.mjs 的同一份表） */
+  setI18nLang('zh');
   assert.equal(fmtDur(30, false), '不到 1 分钟');
   assert.equal(fmtDur(65 * 60, false), '1 小时 5 分钟');
   assert.equal(fmtDur(120 * 60, false), '2 小时');
+  setI18nLang('en');
   assert.equal(fmtDur(5 * 60, true), '5 min');
   assert.equal(fmtDur(150 * 60, true, true), '2 hrs 30 min');
 });

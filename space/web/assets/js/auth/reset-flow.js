@@ -19,29 +19,16 @@ import { onEnter, focusNoScroll } from './auth-flow.js';
 import { bindSubmitButton } from '../lib/dialog-behavior.js';
 import { renderCredRows, createKeyField, CRED_ICONS } from './cred-rows.js';
 import { KEY_LOCK } from '../lib/key-names.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上，缺键回退英文） */
+const ct = i18nTable('core');
 
-const TXT = {
-  title: { zh: '重置登录', en: 'Reset sign-in' },
-  next: { zh: '下一步', en: 'Continue' },
-  step2: { zh: '再验证一次锁屏凭证', en: 'Now verify your lock credential' },
-  noLock: { zh: '锁屏还没有设置凭证，无法用锁屏凭证验证。', en: 'No lock credential is set, so it can’t be used to verify.' },
-  recover: { zh: '锁屏凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效', en: 'Lock credential unavailable too? Enable one-time recovery in the site dashboard, valid for 24 hours.' },
-  mPasskey: { zh: '锁屏通行密钥', en: 'Lock passkey' },
-  mPasskeySub: { zh: '使用指纹或设备锁屏', en: 'Use fingerprint or device screen lock' },
-  mPassword: { zh: '解锁密码', en: 'Unlock password' },
-  mPasswordSub: { zh: '输入解锁密码', en: 'Enter unlock password' },
-  verifyBtn: { zh: '验证', en: 'Verify' },
-  enterCred: { zh: '请输入凭证', en: 'Enter credential' },
-  passkeyBusy: { zh: '正在唤起通行密钥…', en: 'Opening passkey…' },
-  errVerify: { zh: '验证失败，请重试', en: 'Verification failed, please retry' },
-  sessionLost: { zh: '会话过期，请重新开始', en: 'Session expired, restart' },
-};
+/** 文案在字符串表 js.core.rf*（语言包化 2026-11-07） */
 
 /** @param {boolean} en */
 export function resetT(en) {
   return function (/** @type {string} */ k) {
-    const v = TXT[k];
-    return v ? (en ? v.en : v.zh) : k;
+    return ct('rf' + k.charAt(0).toUpperCase() + k.slice(1)) || k;
   };
 }
 
@@ -191,5 +178,5 @@ export function mountResetFlow(o) {
 
 /** 供 HTML 属性用（外部有时要拿标题） */
 export function resetTitle(en) {
-  return en ? TXT.title.en : TXT.title.zh;
+  return ct('rfTitle');
 }

@@ -8,21 +8,21 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { jsDict, strings } from '../../../fixtures/strings.mjs';
 import { readFileSync } from 'node:fs';
 import { renderAudit, AUDIT_MAX } from '../../../../space/web/assets/js/lib/status-view.js';
 import { AUDIT_SHOW } from '../../../../workers/auth-gateway/src/api/space-audit.js';
 
 const read = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-const I18N = read('space/web/layouts/partials/status-i18n.html');
-const DICT = {};
-for (const m of I18N.matchAll(/"(\w+)" \(dict "zh" "([^"]*)" "en" "([^"]*)"\)/g)) DICT[m[1]] = { zh: m[2], en: m[3] };
+/* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/status-i18n.html 输出 $tr.js.status），和页面上一致 */
+const DICT = jsDict('status');
 
 /* 2026-10-09 12:00 北京时间 */
 const NOW = Date.UTC(2026, 9, 9, 4, 0, 0);
 
 function mk(en) {
   const t = (k) => {
-    assert.ok(DICT[k], 'status-i18n.html 缺文案：' + k);
+    assert.ok(DICT[k], '字符串表 js.status 缺文案：' + k);
     return en ? DICT[k].en : DICT[k].zh;
   };
   const fmt = (k, v) => {
@@ -84,8 +84,12 @@ test('模板：默认收起的 <details id="st-audit">，标题 / 摘要中英�
   assert.ok(m, '有 <details id="st-audit">');
   assert.ok(!/\bopen\b/.test(m[0]), '默认收起');
   assert.match(tpl, /<div id="st-audit-body" class="st-audit-body" aria-live="polite"/);
-  assert.match(tpl, /Space credential activity\{\{ else \}\}进站凭证使用记录/);
-  assert.match(tpl, /Last 7 days: time, IP prefix and result\{\{ else \}\}最近 7 天：时间、IP 前缀和结果/);
+  /* 语言包化（2026-11-07）：文案在主站字符串表 status.* */
+  assert.match(tpl, /\{\{ \$tr\.status\.spaceCredentialActivity \}\}/);
+  assert.match(tpl, /\{\{ \$tr\.status\.last7DaysTime \}\}/);
+  const en = strings('space', 'en').status; const zh = strings('space', 'zh').status;
+  assert.deepEqual([en.spaceCredentialActivity, zh.spaceCredentialActivity], ['Space credential activity', '进站凭证使用记录']);
+  assert.deepEqual([en.last7DaysTime, zh.last7DaysTime], ['Last 7 days: time, IP prefix and result', '最近 7 天：时间、IP 前缀和结果']);
   assert.ok(!/<script(?![^>]*type="application\/json")/.test(tpl), '模板里没有可执行的内联脚本（CSP）');
   assert.ok(!/sgx-role|data-sgx-role|visitor|admin/i.test(tpl.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '')), '页面不做角色判断'); // old-name guard
 });

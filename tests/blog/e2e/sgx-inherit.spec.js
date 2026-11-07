@@ -1,6 +1,10 @@
 // B2-7：博客继承主站外观（sgx-ui cookie）。不截图，只断言属性和计算色。
 import { test, expect } from '@playwright/test';
 
+/* 语言清理（2026-11-07）起博客也「跟随系统」每页都跳（四站同一份首帧跳转 lang-boot.js），Playwright 默认 en-US 会把 /blog/zh/… 换到英文页。
+   本文件都是中文用例，按中文浏览器跑（同奇趣 / 日刻）。 */
+test.use({ locale: 'zh-CN' });
+
 const enc = (o) =>
   Buffer.from(JSON.stringify(o))
     .toString('base64')

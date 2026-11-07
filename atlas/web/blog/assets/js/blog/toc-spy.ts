@@ -50,7 +50,11 @@ const setBranchExpanded = (item: HTMLElement, expanded: boolean): void => {
   }
 
   toggle.setAttribute('aria-expanded', String(expanded));
-  toggle.setAttribute('aria-label', expanded ? 'Collapse section' : 'Expand section');
+  /* 文案来自 toc-tree.html 按页面语言渲染的 data-label-*（i18n tocSectionExpand / tocSectionCollapse），这里不写死任何语言 */
+  const label = expanded ? toggle.dataset.labelCollapse : toggle.dataset.labelExpand;
+  if (label) {
+    toggle.setAttribute('aria-label', label);
+  }
 };
 
 const expandLinkAncestors = (link: TocLink): void => {

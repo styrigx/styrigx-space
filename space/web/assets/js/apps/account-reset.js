@@ -11,6 +11,9 @@ import { mountResetFlow } from '../auth/reset-flow.js';
 import { createT, securityUrl } from './account-common.js';
 import { accountSubmitters } from '../auth/account-methods.js';
 import { KEY_ROOT } from '../lib/key-names.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07） */
+const ct = i18nTable('core');
 
 (function () {
   const el = document.getElementById('acct-reset');
@@ -24,9 +27,7 @@ import { KEY_ROOT } from '../lib/key-names.js';
     /* 账号侧：账号根凭证（root-reset），文案与原来一致 */
     keyKind: 'root',
     pmUser: KEY_ROOT,
-    keyText: en
-      ? { lead: 'First, verify with your root credential', ph: 'Root credential', empty: 'Enter root credential' }
-      : { lead: '先用根凭证验证身份', ph: '根凭证', empty: '请输入根凭证' },
+    keyText: { lead: ct('rfRootLead'), ph: ct('rfRootPh'), empty: ct('rfRootEmpty') },
     submitKey: function (key) { return sub.root(key); },
     onDone: function () { sgxReplace(securityUrl(en)); },
   });

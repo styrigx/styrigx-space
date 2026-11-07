@@ -9,7 +9,7 @@
       "local": {
         "sgx-theme-mode": "light"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJkdXN0eWJsdWUiLCJhY2NlbnQiOiIjZDRhNzJjIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoiIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJkdXN0eWJsdWUiLCJhY2NlbnQiOiIjZDRhNzJjIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "light",
@@ -18,7 +18,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -69,7 +69,7 @@
       "local": {
         "sgx-theme-mode": "dark"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiIiLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
       "read": {
         "v": 2,
         "mode": "dark",
@@ -78,7 +78,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -127,7 +127,7 @@
       "name": "跟随系统（空 localStorage）",
       "source": "writer",
       "local": {},
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6IiIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "system",
@@ -136,7 +136,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -188,7 +188,7 @@
         "sgx-theme-mode": "light",
         "sgx-palette": "lake"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJsYWtlIiwiYWNjZW50IjoiI2YxN2Y3MiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6IiIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJsYWtlIiwiYWNjZW50IjoiI2YxN2Y3MiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "light",
@@ -197,7 +197,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -249,7 +249,7 @@
         "sgx-theme-mode": "dark",
         "sgx-palette": "xforest"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImZvcmVzdCIsImFjY2VudCI6IiNmMDhhM2MiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiIiLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImZvcmVzdCIsImFjY2VudCI6IiNmMDhhM2MiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
       "read": {
         "v": 2,
         "mode": "dark",
@@ -258,7 +258,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -310,7 +310,7 @@
         "sgx-theme-mode": "system",
         "sgx-palette": "violet"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidmlvbGV0IiwiYWNjZW50IjoiI2Q0NjI4ZiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6IiIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidmlvbGV0IiwiYWNjZW50IjoiI2Q0NjI4ZiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "system",
@@ -319,7 +319,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -371,7 +371,7 @@
         "sgx-theme-mode": "light",
         "sgx-palette": "glacier"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJnbGFjaWVyIiwiYWNjZW50IjoiI2YxN2Y3MiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6IiIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJnbGFjaWVyIiwiYWNjZW50IjoiI2YxN2Y3MiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "light",
@@ -380,7 +380,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -431,7 +431,7 @@
       "local": {
         "sgx-accent": "#1F8A70"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiIzFmOGE3MCIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6IiIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiIzFmOGE3MCIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "system",
@@ -440,7 +440,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -493,7 +493,7 @@
         "sgx-palette": "xrose",
         "sgx-accent": "#d0a020"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6InJvc2UiLCJhY2NlbnQiOiIjZDBhMDIwIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoiIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6InJvc2UiLCJhY2NlbnQiOiIjZDBhMDIwIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "dark",
@@ -502,7 +502,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -563,7 +563,7 @@
         "sgx-weather-loc": "city",
         "sgx-weather-city": "{\"name\":\"上海\",\"lat\":31.23,\"lon\":121.47}"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6IiIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "system",
@@ -572,7 +572,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -624,7 +624,7 @@
         "sgx-font-size": "small",
         "sgx-theme-mode": "light"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJkdXN0eWJsdWUiLCJhY2NlbnQiOiIjZDRhNzJjIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoiIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJkdXN0eWJsdWUiLCJhY2NlbnQiOiIjZDRhNzJjIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "light",
@@ -633,7 +633,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -685,7 +685,7 @@
         "sgx-palette": "neon",
         "sgx-theme-mode": "dark"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiIiLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
       "read": {
         "v": 2,
         "mode": "dark",
@@ -694,7 +694,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -861,13 +861,13 @@
       }
     },
     {
-      "name": "语言：跟随系统 / 存了不认识的值 → lang 空",
+      "name": "语言：跟随系统 → lang system",
       "source": "writer",
       "local": {
         "sgx-lang": "system",
         "sgx-theme-mode": "dark"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiIiLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
       "read": {
         "v": 2,
         "mode": "dark",
@@ -876,7 +876,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -911,6 +911,66 @@
         "root": {
           "dark": true,
           "data-theme-mode": "dark",
+          "data-dark": "1",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": null,
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "语言：旧版没存 / 存了不认识的值 → lang system",
+      "source": "writer",
+      "local": {
+        "sgx-lang": "klingon"
+      },
+      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "read": {
+        "v": 2,
+        "mode": "system",
+        "pal": "dustyblue",
+        "accent": "#d4a72c",
+        "fs": "standard",
+        "rm": 0,
+        "mat": 1761062400000,
+        "lang": "system"
+      },
+      "light": {
+        "resolve": {
+          "mode": "system",
+          "dark": false,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": false,
+          "data-theme-mode": "system",
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": null,
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "mode": "system",
+          "dark": true,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": true,
+          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
@@ -981,7 +1041,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 0,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1038,7 +1098,7 @@
         "fs": "large",
         "rm": 1,
         "mat": 0,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1095,7 +1155,7 @@
         "fs": "small",
         "rm": 0,
         "mat": 1750000000000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1143,7 +1203,7 @@
     {
       "name": "字段不合法 → 各自按默认",
       "source": "handmade",
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiYmx1ZSIsInBhbCI6Im5lb24iLCJhY2NlbnQiOiIjR0dHR0dHIiwiZnMiOiJodWdlIiwicm0iOnRydWUsIm1hdCI6LTUsImxhbmciOiJmciIsInR6MSI6Ii4uLy4uL2V0YyIsInR6MiI6NSwiaDEyIjoiMSIsImNsb2NrIjoic3VuZGlhbCIsInd4Ijoibm8iLCJ1bml0IjoiayIsImxvYyI6IlNPTUUgUExBQ0UiLCJjaXR5IjpbMSwyXSwicHJlY2lzZSI6IngifQ",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiYmx1ZSIsInBhbCI6Im5lb24iLCJhY2NlbnQiOiIjR0dHR0dHIiwiZnMiOiJodWdlIiwicm0iOnRydWUsIm1hdCI6LTUsImxhbmciOiJmMSIsInR6MSI6Ii4uLy4uL2V0YyIsInR6MiI6NSwiaDEyIjoiMSIsImNsb2NrIjoic3VuZGlhbCIsInd4Ijoibm8iLCJ1bml0IjoiayIsImxvYyI6IlNPTUUgUExBQ0UiLCJjaXR5IjpbMSwyXSwicHJlY2lzZSI6IngifQ",
       "read": {
         "v": 2,
         "mode": "system",
@@ -1152,7 +1212,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 0,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1209,7 +1269,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 0,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1266,7 +1326,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1750000000000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1323,7 +1383,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1750000000000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1380,7 +1440,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 1750000000000,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1437,7 +1497,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 0,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1494,7 +1554,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 0,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1551,7 +1611,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 0,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1597,7 +1657,7 @@
       }
     },
     {
-      "name": "lang 大写 EN → 不认（写端只写 zh / en）",
+      "name": "lang 大写 EN → 不认，按跟随系统（写端只写小写语言代码 / system）",
       "source": "handmade",
       "cookie": "eyJ2IjoyLCJsYW5nIjoiRU4iLCJtb2RlIjoibGlnaHQifQ",
       "read": {
@@ -1608,7 +1668,7 @@
         "fs": "standard",
         "rm": 0,
         "mat": 0,
-        "lang": ""
+        "lang": "system"
       },
       "light": {
         "resolve": {
@@ -1644,6 +1704,120 @@
           "dark": false,
           "data-theme-mode": "light",
           "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": null,
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "旧版跟随系统写的空 lang → system",
+      "source": "handmade",
+      "cookie": "eyJ2IjoyLCJsYW5nIjoiIiwibW9kZSI6ImxpZ2h0In0",
+      "read": {
+        "v": 2,
+        "mode": "light",
+        "pal": "dustyblue",
+        "accent": "",
+        "fs": "standard",
+        "rm": 0,
+        "mat": 0,
+        "lang": "system"
+      },
+      "light": {
+        "resolve": {
+          "mode": "light",
+          "dark": false,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": false,
+          "data-theme-mode": "light",
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": null,
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "mode": "light",
+          "dark": false,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": false,
+          "data-theme-mode": "light",
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": null,
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "以后加的语言（小写语言代码）读端照样带出来，是否配置由首帧 lang-boot 判断",
+      "source": "handmade",
+      "cookie": "eyJ2IjoyLCJsYW5nIjoiamEifQ",
+      "read": {
+        "v": 2,
+        "mode": "system",
+        "pal": "dustyblue",
+        "accent": "",
+        "fs": "standard",
+        "rm": 0,
+        "mat": 0,
+        "lang": "ja"
+      },
+      "light": {
+        "resolve": {
+          "mode": "system",
+          "dark": false,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": false,
+          "data-theme-mode": "system",
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": null,
+          "--sgx-seed": "",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "mode": "system",
+          "dark": true,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false,
+          "seed": ""
+        },
+        "root": {
+          "dark": true,
+          "data-theme-mode": "system",
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,

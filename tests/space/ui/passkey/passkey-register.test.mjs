@@ -128,7 +128,9 @@ test('两页都只经 passkey-register.js 注册：不再手写 credentials.crea
     assert.ok(src.includes('registerPasskey({') && src.includes('createPkNameDialog({'), f);
     assert.ok(!src.includes('navigator.credentials.create'), f + ' 不手写注册');
     assert.ok(!/function (openPkNameDlg|closePkNameDlg|genPkPrefillName)\b/.test(src), f + ' 不再各留一份命名弹层');
-    assert.ok(src.includes("genPkPrefillName(t('pkUnnamed'))"), f + ' 预填名兜底走 i18n（锁屏页以前写死「通行密钥」）');
+    /* 语言清理（2026-11-07）：预填名不再用任何语言的界面文案兜底（只填设备平台，拿不到就空），免得把某种语言的默认名存成「用户自起的名字」 */
+    assert.ok(src.includes("genPkPrefillName('')"), f + ' 预填名不拿界面文案兜底');
+    assert.ok(!src.includes("genPkPrefillName(t("), f);
   }
   /* 全站只有这一处 credentials.create */
   const lib = rd('space/web/assets/js/auth/passkey-register.js');

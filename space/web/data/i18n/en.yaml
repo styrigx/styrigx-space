@@ -1,0 +1,799 @@
+# 本站字符串表（语言包化 2026-11-07）：英文是源文本；其他语言的表缺键时回退英文（partials/sgx-tr.html）。
+# 键按模板分组（<模板名>.<键>）；js.<表> 是页面 JS 读的文案表（<script id="sgx-i18n-<表>">）。
+# 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（partials/sgx-personal.html）、语言自己的名字（hugo.yaml label）。
+notFound:
+  pageNotFound: Page not found
+  theLinkYouFollowed: The link you followed may be broken, or the page has moved.
+  backHome: Back home
+  curio: Curio
+index:
+  daymarkLineOfThe: Daymark · Line of the day
+  daymark: DAYMARK
+  noLineForToday: No line for today yet
+  tapToKeepOne: Tap to keep one in Daymark
+  myScreenTime: My screen time
+  todayAllDevices: Today · all devices
+  timeOnThisSite: Time on this site
+  timeBreakdown: Time breakdown
+  categories: Categories
+accountApps:
+  reviewWhatEachApp: Review what each app can do with your account.
+  searchByName: Search by name
+  filter: Filter
+  noMatchingApps: No matching apps.
+accountDevices:
+  thisDevice: This device
+  signInMethod: Sign-in method
+  signOut: Sign out
+  youStaySignedIn: You stay signed in on this browser until you sign out.
+  otherDevices: Other devices
+  noOtherSignedIn: No other signed-in devices.
+  signingOutADevice: Signing out a device ends its account session right away; it has to sign in again.
+accountSecurity:
+  verifyItsYou: Verify it's you
+  changingAccountKeysIs: Changing account keys is a security action. Verify again to continue; it lasts 3 minutes and ends as soon as you leave this page.
+  cantSignIn: Can’t sign in?
+  accountPassword: Account password
+  loading: Loading…
+  usedToSignIn: Used to sign in to your account. Minimum 8 characters.
+  accountPasskeys: Account passkeys
+  noPasskeysYet: No passkeys yet.
+  plus: +
+  addPasskey: Add passkey
+  signInToYour: Sign in to your account with fingerprint, face, or device passcode. Tap a device name to rename it.
+  close: Close
+  nameThisPasskey: Name this passkey
+  giveItAName: Give it a name so you can tell your passkeys apart.
+  skip: Skip
+  save: Save
+  setAccountPassword: Set account password
+  newPassword: New password
+  newPasswordMin8: New password (min 8)
+  showPassword: Show password
+  confirmPassword: Confirm password
+accountSync:
+  cloudSync: Cloud sync
+  whenOnTheSettings: When on, the settings below sync across devices signed in to this account. The latest change to each one wins.
+  languageAndLayoutFollow: Language and layout follow each device and are not synced.
+account:
+  signInChooseMethod: Sign in, choose method
+  welcomeBack: Welcome back
+  recordCollectExploreEnjoy: Record · Collect · Explore · Enjoy
+  signIn: Sign in
+  noSignInMethod: No sign-in method is set for this account yet. Tap Sign in → “Can’t sign in?” to set one with your root credential.
+  accountSettings: Account settings
+  devices: Devices
+  accountSecurity: Account security
+  appAccess: App access
+  sync: Sync
+  cloudSync: Cloud sync
+  aiModel: AI model
+js:
+  core:
+    wellTip: You've been here 15 minutes, time for a stretch?
+    wellDismiss: Dismiss
+    pkCancelled: Cancelled
+    pkTimeout: Timed out, please retry
+    pkNoKey: No matching key on this device
+    pkFailed: Passkey verification failed
+    qpOn: 'On'
+    qpOff: 'Off'
+    qpLangTo: 'Language: English. Tap to switch to 中文'
+    qpLargeOnly: Large screens only
+    lockLockScreen: Lock screen
+    lockLockScreen2: Lock screen
+    lockUnlockChooseMethod: Unlock, choose method
+    lockWelcomeBack: Welcome back
+    lockGoodToSeeYou: Good to see you again
+    lockUnlock: Unlock
+    lockSessionNotActive: Session not active
+    lockUnlockScreen: Unlock screen
+    lockTemporaryKey: Temporary key
+    lockEnterTheTemporaryKey: Enter the temporary key you received
+    lockEnterWithATemporary: Enter with a temporary key
+    lockPasskey: Passkey
+    lockUnlockWithFingerprintOr: Unlock with fingerprint or device PIN
+    lockUsePasskey: Use passkey
+    lockPassword: Password
+    lockEnterYourUnlockPassword: Enter your unlock password
+    lockUsePassword: Use password
+    lockChooseUnlockMethod: Choose unlock method
+    lockCantSignIn: Can’t sign in?
+    lockEnterTemporaryKey: Enter temporary key
+    lockFormatXxxxXxxxXxxx: Format XXXX-XXXX-XXXX, case doesn’t matter
+    lockEnter: Enter
+    lockEnterTheTemporaryKey2: Enter the temporary key
+    lockServerError: Server error
+    lockTooManyAttempts: Too many attempts
+    lockInvalidOrExpiredKey: Invalid or expired key
+    lockNetworkError: Network error
+    lockEnterPassword: Enter password
+    lockUnlock2: Unlock
+    lockEnterPassword2: Enter password
+    lockNoPasswordSetYet: No password set yet
+    lockWrongPassword: Wrong password
+    lockVerificationFailed: Verification failed
+    lockWrongSpaceCredential: Wrong space credential
+    lockFailedToStart: Failed to start
+    lockCancelledYouCanSelect: Cancelled, you can select again
+    lockPasskeyFailed: Passkey failed
+    lockVerifying: Verifying
+    lockVerifyingPasskey: Verifying passkey…
+    lockRetry: Retry
+    lockCannotReturnToThe: Cannot return to the subsite, please try again
+    lockBackToMainSite: Back to main site
+    lockReload: Reload
+    lockCouldntLockThisDevice: Couldn’t lock this device. Check your connection and try again.
+    lockLockNow: Lock now?
+    lockThisDeviceWillReturn: This device will return to the lock screen.
+    lockCancel: Cancel
+    lockLock: Lock
+    authShowPassword: Show password
+    authHidePassword: Hide password
+    rfTitle: "Reset sign-in"
+    rfNext: "Continue"
+    rfStep2: "Now verify your lock credential"
+    rfNoLock: "No lock credential is set, so it can’t be used to verify."
+    rfRecover: "Lock credential unavailable too? Enable one-time recovery in the site dashboard, valid for 24 hours."
+    rfMPasskey: "Lock passkey"
+    rfMPasskeySub: "Use fingerprint or device screen lock"
+    rfMPassword: "Unlock password"
+    rfMPasswordSub: "Enter unlock password"
+    rfVerifyBtn: "Verify"
+    rfEnterCred: "Enter credential"
+    rfPasskeyBusy: "Opening passkey…"
+    rfErrVerify: "Verification failed, please retry"
+    rfSessionLost: "Session expired, restart"
+    lrTitle: "Verify lock screen credential"
+    lrMPasskey: "Lock screen passkey"
+    lrMPasskeySub: "Use fingerprint or device screen lock"
+    lrMPassword: "Unlock password"
+    lrMPasswordSub: "Enter unlock password"
+    lrMSpace: "Space credential"
+    lrMSpaceSub: "Paste or enter space credential"
+    lrVerifyBtn: "Verify"
+    lrEnterCred: "Enter credential"
+    lrPasskeyBusy: "Opening passkey…"
+    lrErrWrongPw: "Wrong password"
+    lrErrWrongSpace: "Incorrect space credential"
+    lrErrWrongRoot: "Incorrect space credential"
+    lrErrLocked: "Too many attempts, please try again later"
+    lrErrConfig: "Server misconfigured"
+    lrErrVerify: "Verification failed"
+    lrErrNetwork: "Network connection failed, please retry"
+    lrPkNoSupport: "Not supported on this device"
+    lrErrSession: "Session expired. Unlock again from the lock screen"
+    avTitle: "Profile photo"
+    avPick: "Choose photo…"
+    avRemove: "Remove photo"
+    avCrop: "Move and scale"
+    avCancel: "Cancel"
+    avDone: "Done"
+    avSaved: "Photo updated"
+    avRemoved: "Photo removed"
+    avFailed: "Couldn’t save the photo. Try again."
+    avBadFile: "This file can’t be opened as an image."
+    avNoScope: "Avatar doesn’t have account access"
+    gateErrAccountConfigured: "Account credentials are set; please sign in to your account first"
+    gateExpiredSessionTitle: "Session expired"
+    gateExpiredReauthTitle: "Verification expired"
+    gateExpiredSessionDesc: "Please go back to the lock screen to unlock again."
+    gateExpiredReauthDesc: "Verify again to continue on this page."
+    gateExpiredSessionBtn: "Go to lock screen"
+    gateExpiredReauthBtn: "Verify again"
+    gateReauthCountdownExpired: "Expired"
+    gateReauthCountdown: "Verification remaining {m}"
+    gateProbeFailTitle: "Cannot enter"
+    gateProbeFailApi: "API"
+    gateProbeFailStatus: "Status"
+    gateProbeFailReason: "Reason"
+    gateProbeFailBack: "Back to Security"
+    rfRootLead: "First, verify with your root credential"
+    rfRootPh: "Root credential"
+    rfRootEmpty: "Enter root credential"
+    sheetClose: "Close"
+  security:
+    okTitle: All good
+    okSub: Unlock password and passkeys are set
+    warnTitle: Action suggested
+    missPw: Unlock password not set
+    missPk: No lock screen passkeys registered
+    lockSubBoth: Password, passkeys
+    lockSubPw: Password
+    lockSubPk: Passkeys
+    lockSubNone: Not set
+    securiSomethingWentWrongPlease: Something went wrong, please retry
+  space:
+    wellNoRec: No visits recorded yet today
+    areaLinks: Search
+    areaSpace: Space
+    wb1Min: <1 min
+    wbTodayAllDevices: Today · all devices
+    wbNothingRecordedYetToday: Nothing recorded yet today
+    dmSourceWrap: '{s}'
+    daymarDaymark: DAYMARK
+    daymarNoLineForToday: No line for today yet
+    daymarTapToKeepOne: Tap to keep one in Daymark
+    wbDurHr: "{n} hr"
+    wbDurHrs: "{n} hrs"
+    wbDurMin: "{n} min"
+  status:
+    loading: Loading…
+    allUp: All systems operational
+    allUpSub: '{n} services are up'
+    someDown1: '{n} service down'
+    someDown: '{n} services down'
+    someDownSub: '{names} unreachable right now'
+    stUp: Up
+    stDown: Down
+    stFlaky: Unstable
+    stPending: Pending
+    latency: '{ms} ms'
+    checkedAgo: checked {ago}
+    notChecked: Not checked yet
+    justNow: just now
+    minAgo: '{n} min ago'
+    hourAgo: '{n} h ago'
+    dayAgo: '{n} d ago'
+    causeTimeout: Timed out
+    causeNetwork: Connection failed
+    causeBinding: Monitor isn't bound to this service
+    causeUnknown: Unknown cause
+    daysAgo90: 90 days ago
+    today: Today
+    uptime: '{pct} uptime'
+    barLabel: '{name}: {pct} uptime over the last 90 days'
+    dayNoData: '{day} · No data'
+    dayDetail: '{day} · {pct} uptime · {total} checks'
+    dayAvg: ' · avg {ms} ms'
+    incOngoing: Ongoing
+    incResolved: Resolved
+    incStart: Started {time}
+    incEnd: Resolved {time}
+    incDur: Lasted {dur}
+    incDurOngoing: Ongoing for {dur}
+    incNone: No incidents recorded
+    durLt1: under 1 min
+    durMin: '{n} min'
+    durH: '{h} h'
+    durHM: '{h} h {m} min'
+    durD: '{d} d'
+    durDH: '{d} d {h} h'
+    updated: Updated {time} (Beijing time), refreshes every minute
+    stale: Couldn't refresh; showing data from {time}
+    errTitle: Status unavailable
+    errSub: The monitor didn't respond. Try again shortly.
+    errAuth: Session expired
+    errAuthSub: Unlock again to see the status.
+    retry: Retry
+    unlock: Unlock
+    uWorkers: Workers requests (today)
+    uWorkersSub: Resets at 00:00 UTC (08:00 Beijing time)
+    uD1: D1 databases (total)
+    uD1Sub: '{n} databases, {per} max each'
+    uR2: R2 storage
+    uR2Sub: '{buckets} buckets · {objects} objects'
+    uKV: KV storage
+    uKVSub: '{n} namespaces · {keys} keys'
+    uKVSubNoBytes: '{n} namespaces (size unavailable)'
+    uUnavailable: Unavailable right now
+    uOf: '{value} / {limit}'
+    uBarLabel: '{name}: {pct} of the free tier used'
+    uUpdated: Updated {ago} ({time} Beijing time), hourly
+    uStale: ; last refresh failed
+    uNotConfigured: Usage not configured
+    uNotConfiguredSub: Add a read-only Cloudflare API token to the monitor to see free-tier usage here, updated hourly.
+    uNotCollected: No usage data yet
+    uNotCollectedSub: Collected at :41 every hour; it shows up after the next run.
+    uError: Usage unavailable
+    qWorkers: Workers requests (today)
+    qWorkersSub: Workers {w} · Pages Functions {p}, counted together
+    qWorkersSubNoPages: Workers {w} (Pages Functions unavailable, not included)
+    qKv: KV operations (today)
+    qKvRead: KV reads (today)
+    qKvWrite: KV writes (today)
+    qKvDelete: KV deletes (today)
+    qKvList: KV lists (today)
+    qD1: D1 rows (today)
+    qD1Read: D1 rows read (today)
+    qD1Write: D1 rows written (today)
+    qR2: R2 operations (this month)
+    qR2A: R2 Class A operations (this month)
+    qR2ASub: Writes, lists, etc.; monthly (estimated by UTC calendar month)
+    qR2B: R2 Class B operations (this month)
+    qR2BSub: Reads, HEADs, etc.; monthly (estimated by UTC calendar month)
+    qUpdated: Updated {ago} ({time} Beijing time), at most every 5 min; daily limits reset at 00:00 UTC (08:00 Beijing time)
+    qNotConfigured: Quota not configured
+    qNotConfiguredSub: Add a read-only Cloudflare API token with Account Analytics Read to the monitor to see today's free-tier usage here.
+    qError: Quota unavailable
+    qErrorSub: Couldn't read Cloudflare analytics; it retries in 5 minutes.
+    auditLoading: Loading…
+    auditNone: No activity in the last 7 days
+    auditCount: '{n} records, {fail} failed (Beijing time)'
+    auditCap: ; showing the latest 50
+    auditOk: Succeeded
+    auditFail: Failed
+    auditIpUnknown: Unknown IP
+    auditErr: Couldn't load the records. Try again shortly.
+    auditErrAuth: Session expired. Unlock again to see the records.
+    uErrorSub: Couldn't read Cloudflare usage; it retries at :41 next hour.
+  lockmgr:
+    eyeShow: Show password
+    eyeHide: Hide password
+    pwSet: Set
+    pwUnset: Not set
+    pwMin8: Minimum 8 characters
+    pwMismatch: Passwords do not match
+    pwSaved: Saved
+    pwChanged: Changed
+    pwDeleted: Password deleted
+    pwDelAsk: Tap again to delete password
+    pwDelWarnLock: After deletion the lock screen can only be set up again via Reset lock screen. Tap again to confirm
+    lastKeyConfirmTitle: Delete the last unlock key
+    lastKeyConfirmDesc: After deletion, the lock screen can only be set up again via Reset lock screen.
+    lastKeyConfirmCancel: Cancel
+    lastKeyConfirmDelete: Delete
+    pkRegistered: Registered
+    pkDeleted: Deleted
+    pkDelManual: Please delete this passkey manually in Samsung Pass
+    pkRenamed: Renamed
+    pkUnnamed: Passkey
+    pkDel: Delete
+    pkDelAsk: Tap again to delete
+    pkRetryLater: Please try again later
+    pkNeverUsed: Not used yet
+    created: 'Created '
+    lastUsed: 'Last used '
+    pkProv_samsung_pass: Samsung Pass
+    pkProv_google_password_manager: Google Password Manager
+    pkProv_apple_passwords: Apple Passwords
+    pkProv_icloud_keychain: iCloud Keychain
+    pkProv_microsoft_password_manager: Microsoft Password Manager
+    pkProv_windows_hello: Windows Hello
+    pkProv_1password: 1Password
+    pkProv_bitwarden: Bitwarden
+    pkNameEmpty: Name cannot be empty
+    pkRenameResetNo: Naming is not available during reset; you can rename it after unlocking
+    pkAlready: Already registered on this device
+    pkNoSupport: Not supported on this device
+    pkFailed: Registration failed
+    mPasskey: Lock screen passkey
+    mPasskeySub: Use fingerprint or device screen lock
+    mPassword: Unlock password
+    mPasswordSub: Enter unlock password
+    mSpace: Space credential
+    mSpaceSub: Paste or enter space credential
+    verifyBtn: Verify
+    enterCred: Enter credential
+    passkeyBusy: Opening passkey…
+    errWrongSpace: Incorrect space credential
+    outAllTitle: Sign out of all devices?
+    outAllDesc: Every device, this one included, returns to the lock screen and must unlock again.
+    outAllBtn: Sign out
+    setTitle: Set unlock password
+    changeTitle: Change unlock password
+    sessExp: Session expired, verify again
+    errReauthExpired: Verification expired, please verify again
+    errNetwork: Network connection failed, please retry
+    errParse: Bad server response, please retry
+    gateNetErr: Network error
+    pkListFail: Couldn’t load passkeys. Refresh to try again
+    errParams: Bad request
+    errNotFound: Key not found
+    errLastKey: This is the last unlock key; set an unlock password first
+    errRetry: Please try again later
+    errServer: Service temporarily unavailable
+    errChallenge: Verification setup failed
+    errVerify: Verification failed
+    errUvRequired: Device unlock required
+    errWrongPw: Wrong password
+    errShort: Minimum 8 characters
+    gateSrvErr: Server misconfigured
+    gateCancelled: Cancelled
+    errExists: Already set
+    errNotSet: Not set
+    errLocked: Too many attempts, please try again later
+    errConfig: Server misconfigured
+    errCancelled: Cancelled
+    errUnknown: Unknown error, please try again later
+    errSameAsLock: Can't be the same as the unlock password
+    errSameAsAccount: Can't be the same as the account password
+    reauthCountdown: Verification remaining {m}
+    reauthCountdownExpired: Expired
+    expiredReauthTitle: Verification expired
+    expiredReauthDesc: Verify again to continue on this page.
+    expiredReauthBtn: Verify again
+    expiredSessionTitle: Session expired
+    expiredSessionDesc: Please go back to the lock screen to unlock again.
+    expiredSessionBtn: Go to lock screen
+    securiSomethingWentWrongPlease: Something went wrong, please retry
+    securiSetupComplete: Setup complete
+    securiSetupDoneDesc: "Unlock method is set. Please go back to the lock screen to unlock."
+    securiExpiredStartOver: "Please go back to the lock screen to start over."
+  account:
+    eyeShow: Show password
+    eyeHide: Hide password
+    mPasskey: Account passkey
+    mPasskeySub: Use fingerprint or device screen lock
+    mPassword: Account password
+    mPasswordSub: Enter account password
+    verifyBtn: Sign in
+    loginTitle: Sign in
+    acctTitle: Account
+    enterCred: Enter credential
+    enterPw: Enter your account password
+    passkeyBusy: Opening passkey…
+    byPasskey: Signed in with account passkey
+    byPassword: Signed in with account password
+    byRoot: Signed in with root credential
+    reauthNotice: Sign in to your account to enter credential management
+    configNotice: 'Account sign-in is unavailable: the server is missing the account key configuration'
+    loggedOut: Signed out
+    pwSet: Set
+    pwUnset: Not set
+    pwMin8: Minimum 8 characters
+    pwMismatch: Passwords do not match
+    pwSaved: Saved
+    pwChanged: Changed
+    setTitle: Set account password
+    changeTitle: Change account password
+    resetTitle: Reset account password
+    pkRegistered: Registered
+    pkDeleted: Deleted
+    pkDelManual: Please delete this passkey manually in Samsung Pass
+    pkUnnamed: Account passkey
+    pkDel: Delete
+    pkDelAsk: Tap again to delete
+    pkNeverUsed: Not used yet
+    pkAlready: Already registered on this device
+    pkNoSupport: Not supported on this device
+    pkFailed: Registration failed
+    errCancelled: Cancelled
+    errWrongPw: Incorrect password
+    errWrongRoot: Incorrect root credential
+    errNotSet: Not set
+    errVerify: Verification failed, please retry
+    errUvRequired: Device unlock required
+    errLocked: Too many attempts, please try again in 15 minutes
+    errConfig: Server misconfigured
+    errServer: Service temporarily unavailable
+    errShort: Minimum 8 characters
+    errSameAsLock: Can't be the same as the unlock password
+    errNotFound: Key not found
+    errNetwork: Network connection failed, please retry
+    errUnknown: Unknown error, please try again later
+    devThis: This device
+    syncOn: On. Settings sync across signed-in devices
+    syncOff: Off. Settings stay on this device
+    syncLast: 'Last synced '
+    aiModelTitle: AI model
+    aiModelDefault: Default
+    aiModelSelf: Self-hosted
+    aiModelExternal: External
+    aiModelErr: Couldn’t load the model list
+    aiModelLocked: Sign in to your account to switch models
+    syncValOn: 'On'
+    syncValOff: 'Off'
+    syncValDefault: Default
+    syncValCustom: Customized
+    syncValUnset: Not set
+    devUnknown: Unknown device
+    devCurrent: Use “Sign out” to sign out of this device
+    devSignOut: Sign out
+    devSignOutAsk: Tap again
+    devSignedOut: Signed out of that device
+    devActiveNow: Active now
+    devJustNow: Active just now
+    devMinAgo: Active {n} min ago
+    devHourAgo: Active {n} h ago
+    devDayAgo: Active {n} d ago
+    secProtected: Protected
+    secUnprotected: No sign-in method set
+    pkRenamed: Renamed
+    pkNameEmpty: Name cannot be empty
+    pkRetryLater: Please try again later
+    pkNameAria: Passkey name
+    created: 'Created '
+    lastUsed: 'Last used '
+    pkProv_samsung_pass: Samsung Pass
+    pkProv_google_password_manager: Google Password Manager
+    pkProv_apple_passwords: Apple Passwords
+    pkProv_icloud_keychain: iCloud Keychain
+    pkProv_microsoft_password_manager: Microsoft Password Manager
+    pkProv_windows_hello: Windows Hello
+    pkProv_1password: 1Password
+    pkProv_bitwarden: Bitwarden
+    reauthVerifyBtn: Verify
+    reauthExpired: Verification expired, please verify again
+    reauthCountdown: Verification remaining {m}
+    reauthCountdownExpired: Expired
+    tkUnnamed: Untitled
+    tkLeftDay: '{d} d {h} h left'
+    tkLeftHour: '{h} h {m} min left'
+    tkLeftMin: '{m} min left'
+    tkRevoke: Revoke
+    tkRevokeAsk: Tap again
+    tkRevoked: Revoked
+    tkCopied: Copied
+    tkCopyFail: Couldn’t copy. Press and hold to select it
+    tkFull: Up to 20 at a time. Revoke some first
+    tkNameLong: Name can be up to 24 characters
+    tkValidFor: Valid for {v}, then it expires
+    slSess: Session
+    slPlain: Plain
+    slSessFor: '{v} session'
+    slSessOn: Opens straight past the lock screen, no key needed
+    slSessOff: 'Plain link: anyone not unlocked still sees the lock screen'
+    slDoneSess: With temporary session · {s} per visit · link valid for {v}
+    slDonePlain: Plain link · valid for {v}
+    slWarnSess: Anyone with this link gets past the lock screen. Only send it to people you trust.
+    slWarnPlain: You can copy or revoke it from the list any time.
+    slCopy: Copy
+    slTarget: Only links on styrigx.com and its subsites
+    slSessLong: The session can’t be longer than the link is valid
+    slFull: Up to 20 at a time. Revoke some first
+    slNew: New share link
+    slTitle: Share link
+    slHome: Home
+    slTo: Opens {v}
+    slExpAt: Expires {t}
+    slExpiredAt: Expired {t}
+    slRevokedAt: Revoked {t}
+    slStExpired: Expired
+    slStRevoked: Revoked
+    slOpenFor: '{v} per visit'
+    slNotOpened: not opened yet
+    slLastLeft: 'latest session: {v}'
+    slLastEnded: latest session ended
+    slMinutes: '{n} minutes'
+    slHour: '{n} hour'
+    slHours: '{n} hours'
+    slDay: '{n} day'
+    slDays: '{n} days'
+    slWhen: '{d}, {t}'
+    sessExp: Session expired, please unlock again from the lock screen
+    gaRow: App access
+    gaSearch: Search by name
+    gaAll: All
+    gaOn: Allowed
+    gaOff: Access removed
+    gaNone: No matching apps.
+    gaScopeLabel: Scope
+    gaAtLabel: Allowed on
+    gaDevLabel: Allowed from
+    gaDevGone: Signed-out device
+    gaDevUnknown: Unknown device
+    gaSensitive: '{v} also needs account verification'
+    gaRevoke: Remove access
+    gaRevoked: Removed access for {v}
+    gaRegrant: Allow again
+    gaRegranted: '{v} has access again'
+    gaVerifyTitle: Verify to allow again
+    gaDesc-curio: Add, edit and delete Curio links, devices and games (with photos)
+    gaDesc-daymark: Add, edit and delete Daymark quotes and collections, and set today’s pick
+    gaDesc-prefs: Sync your settings to the account and restore them on other devices
+    gaDesc-wellbeing: Record Digital wellbeing screen time
+    gaDesc-avatar: Change or remove the account photo
+    gaSens-curio: Importing bookmarks
+    gaNoScope: '{v} doesn’t have account access'
+    gaConsentTitle: Allow {v} to use your account?
+    gaConsentSub: 'With access, {v} can:'
+    gaAllow: Allow
+    gaDeny: Deny
+    syncNoScope: Settings sync doesn’t have account access; saved on this device only
+    accounPasskey: Passkey
+    accounSignInWithPasskey: Sign in with passkey
+    accounPassword: Password
+    accounSignInWithPassword: Sign in with password
+    accounChooseSignInMethod: Choose sign-in method
+    accounCantSignIn: Can’t sign in?
+    accounEnterPassword: Enter password
+    accounUsePasskey: Use passkey
+    accounRetry: Retry
+    accounUsePassword: Use password
+    accounSomethingWentWrongPlease: Something went wrong, please retry
+    gaSensSep: '. '
+    securiNewTemporaryKey: New temporary key
+    securiTemporaryKey: Temporary key
+filesIndex:
+  app:
+    settings:
+      title: Settings
+      sub: Theme, language, wallpaper
+site:
+  name: Styrigx
+  description: Sloan Gray’s personal space
+baseof:
+  close: Close
+  space: Space
+  pageNotFound: Page not found
+securityLock:
+  verifyItsYou: Verify it's you
+  changingLockScreenCredentials: Changing lock screen credentials is a security action. Verify to continue; it lasts 3 minutes and ends as soon as you leave this page.
+  unlockPassword: Unlock password
+  loading: Loading…
+  deletePassword: Delete password
+  usedToUnlockFrom: Used to unlock from the lock screen. Minimum 8 characters.
+  passkeys: Passkeys
+  loadingPasskeys: Loading passkeys…
+  noPasskeysYet: No passkeys yet.
+  plus: +
+  addPasskey: Add passkey
+  unlockWithFingerprintFace: Unlock with fingerprint, face, or device passcode. Tap a device name to rename it.
+  sessions: Sessions
+  signOutOfAll: Sign out of all devices
+  everyDeviceThisOne: Every device, this one included, goes back to the lock screen
+  close: Close
+  nameThisPasskey: Name this passkey
+  giveItAName: Give it a name so you can tell your passkeys apart.
+  skip: Skip
+  save: Save
+  setUnlockPassword: Set unlock password
+  newPassword: New password
+  newPasswordMin8: New password (min 8)
+  showPassword: Show password
+  confirmPassword: Confirm password
+securityTempkeys:
+  hourOne: hour
+  hourMany: hours
+  newTemporaryKey: New temporary key
+  forSomeoneElseTo: For someone else to get past the lock screen
+  newShareLink: New share link
+  aLinkToSend: A link to send, session optional
+  activeKeys: Active keys
+  noTemporaryKeysYet: No temporary keys yet.
+  enterTheKeyAt: Enter the key at “Temporary key” on the lock screen. It gets you past the lock screen; the account still needs its own sign-in. Revoking a key locks out everyone who came in with it right away.
+  shareLinks: Share links
+  noShareLinksYet: No share links yet.
+  aLinkWithA: A link with a temporary session lets whoever opens it past the lock screen for the session length you chose, no key needed. A plain link just opens the page, so anyone not unlocked still sees the lock screen. Revoking a link ends its sessions right away.
+  close: Close
+  nameOnlyYouCan: Name (only you can see it)
+  nameOptionalOnlyYou: Name (optional, only you see it)
+  validFor: Valid for
+  hours: Hours
+  days: Days
+  days2: days
+  create: Create
+  thisKeyIsShown: This key is shown only once. Copy it and send it to the person you’re letting in.
+  copy: Copy
+  linkValidFor: Link valid for
+  opens: Opens
+  homePageOrBlog: Home page (or /blog/, or a subsite link)
+  withTemporarySession: With temporary session
+  sessionLength: Session length
+  n30Minutes: 30 minutes
+  n1Hour: 1 hour
+  n3Hours: 3 hours
+  n12Hours: 12 hours
+  n1Day: 1 day
+  n3Days: 3 days
+  n7Days: 7 days
+  copyLink: Copy link
+security:
+  security: Security
+  lockScreenCredentials: Lock screen credentials
+  passwordPasskeysSessions: Password, passkeys, sessions
+  temporaryKeys: Temporary keys
+  letOthersPastThe: Let others past the lock screen, share links
+  lockNow: Lock now
+  clearThisSessionAnd: Clear this session and return to the lock screen
+  securityStatusIsRead: Security status is read from this device only.
+status:
+  serviceStatus: Service status
+  loading: Loading…
+  noDataYet: No data yet
+  resultsShowUpAfter: Results show up after the first round of checks, in about a minute.
+  freeTierQuota: Free-tier quota
+  usage: Usage
+  recentIncidents: Recent incidents
+  spaceCredentialActivity: Space credential activity
+  last7DaysTime: 'Last 7 days: time, IP prefix and result'
+setcatAbout:
+  version: Version
+  kernel: Kernel
+  build: Build
+  builtAt: Built at
+setcatTheme:
+  colorPalette: Color palette
+  reset: Reset
+  theBackgroundGlowButtons: The background glow, buttons, titles and icons change together.
+  currentPalette: Current palette
+  light: Light
+  dark: Dark
+  default: ' (default)'
+  default2: Default
+setcatWellbeing:
+  myScreenTime: My screen time
+  todayThisDevice: Today · this device
+  timeBreakdown: Time breakdown
+sgxAccountCard:
+  signedIn: Signed in
+  changePhoto: Change photo
+features:
+  theme-mode:
+    name: Theme mode
+    opt:
+      system: Follow system
+      light: Light
+      dark: Dark
+  palette:
+    name: Color palette
+    opt:
+      dustyblue: Dusty Blue
+      lake: Lake
+      glacier: Glacier
+      indigo: Indigo
+      teal: Teal
+      violet: Violet
+      forest: Forest
+      matcha: Matcha
+      sage: Sage
+      cherry: Cherry
+      tangerine: Tangerine
+      coral: Coral
+      terra: Terracotta
+      amber: Amber
+      mustard: Mustard
+      champagne: Champagne
+      rose: Rose
+      berry: Berry
+      orchid: Orchid
+      dustyrose: Dusty Rose
+      graphite: Graphite
+      cream: Cream
+  layout:
+    name: Layout
+    desc: Manual choice overrides the automatic viewport detection.
+    opt:
+      mobile: Mobile
+      auto: Auto
+      dex: DeX
+  lang:
+    name: Language
+    opt:
+      system: Follow system
+      zh: Chinese
+      en: English
+  files-view:
+    name: Files default view
+  files-home:
+    name: Files home sections
+  well-tip:
+    name: 15-minute reminder
+    desc: A gentle nudge after 15 minutes here
+  lock-gate:
+    name: Lock gate
+spaceCats:
+  band:
+    label: SPACE
+    title: Space
+    sub: How this site looks, its keys and its rhythm — all in one place.
+  theme:
+    title: Style
+    sub: Palettes and accent colour
+  security:
+    title: Security
+    sub: Passkeys, lock screen and temporary keys
+  wellbeing:
+    title: Digital wellbeing
+    sub: Screen time and habits
+  status:
+    title: Service status
+    sub: Whether the sites and APIs are up
+  about:
+    title: About
+    sub: Version, credits and open source
+sites:
+  space:
+    title: Home
+    sub: Personal homepage
+  blog:
+    title: Blog
+    sub: Personal blog
+syncItems:
+  group:
+    look: Appearance
+    more: More
+  extra:
+    sgx-accent: Custom theme color
+    sgx-ai-model: AI model

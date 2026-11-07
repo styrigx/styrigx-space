@@ -12,7 +12,8 @@
  *
  * API：
  *   SgxUI.read([cookieString])          → 校验后的对象 {v, mode, pal, accent, fs, rm, mat, lang} 或 null（旧 cookie 里的时钟 / 天气字段 P4-2c 起忽略）
- *       （lang：主站用户明确选的语言 'zh' | 'en'，跟随系统 / 没有 = ''；只给子站决定要不要跳语言，apply() 不管它）
+ *       （lang：主站用户明确选的语言代码（en / zh …，小写）；跟随系统 / 旧版的空 / 没有 / 不合法 = 'system'；
+         首帧语言跳转（lang-boot.js）用，apply() 不管它）
  *   SgxUI.resolve(ui, prefersDark)      → {mode, dark, pal, fs, rm, seed}（seed：accent 是自定义色时为 #rrggbb，否则 ''）
  *   SgxUI.apply([root], [opts])         → 读 cookie + 落到 root（默认 <html>），返回 resolve 的结果；
  *       opts.rolesCss(seed)  同步可用的引擎（palette-scheme.js 的 rolesCss），缓存缺失时直接算；
@@ -88,7 +89,7 @@
       fs: inList(FONT_SIZES, o.fs) ? o.fs : 'standard',
       rm: o.rm === 1 ? 1 : 0,
       mat: typeof o.mat === 'number' && isFinite(o.mat) && o.mat >= 0 ? o.mat : 0,
-      lang: o.lang === 'zh' || o.lang === 'en' ? o.lang : ''
+      lang: typeof o.lang === 'string' && /^[a-z]{2,3}$/.test(o.lang) ? o.lang : 'system'
     };
   }
 

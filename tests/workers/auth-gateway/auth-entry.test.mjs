@@ -77,7 +77,11 @@ test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口（PR3�
   assert.ok(src.includes('sgx-mopt-pw'), '应有密码');
   /* 「重置锁屏」「进站凭证」两行合并为「无法登录？」→ 弹层原地切到重置登录 */
   assert.ok(src.includes('sgx-mopt-cant'), '应有「无法登录？」');
-  assert.ok(src.includes('无法登录？') && src.includes('Can’t sign in?'), '中英文案');
+  /* 语言包化 2026-11-07：文案在字符串表 js.core（lock.js 只留键） */
+  assert.ok(src.includes("tx('lockCantSignIn')"), '「无法登录？」走字符串表');
+  const yEn = fs.readFileSync(path.join(REPO, 'space/web/data/i18n/en.yaml'), 'utf8');
+  const yZh = fs.readFileSync(path.join(REPO, 'space/web/data/i18n/zh.yaml'), 'utf8');
+  assert.ok(yZh.includes('lockCantSignIn: 无法登录？') && yEn.includes('lockCantSignIn: Can’t sign in?'), '中英文案');
   assert.ok(!src.includes('sgx-mopt-reset') && !src.includes('function openMk'), '旧的两行已删除');
   /* 启动站（锁屏凭证都没设）：视为从零重置——进站凭证 → /api/space-auth purpose=lock-reset（不再换 root-session） */
   assert.ok(/bootstrap[\s\S]*?'\/api\/space-auth', \{ key: key, purpose: 'lock-reset' \}/.test(src), '启动站进站凭证走 lock-reset');

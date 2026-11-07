@@ -70,7 +70,7 @@ export function accountKeysReady(env) {
 
 /** 缺账号钥匙时的统一响应（503；前端显示「服务器配置有误」，其余页面不受影响） */
 export function accountConfigMissing() {
-  return apiError(503, 'config', { message: 'SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC 未配置' });
+  return apiError(503, 'config', { message: 'SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC not configured' });
 }
 
 /**

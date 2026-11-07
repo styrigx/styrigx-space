@@ -6,6 +6,7 @@ import { err, methodNotAllowed, isSameSite } from './_lib.js';
 import { requireAccount } from './_auth.js';
 import { ensureSchema } from './_store.js';
 import { renderBookmarks } from './_netscape.js';
+import { LANGS, DEFAULT_LANG } from '../search-index.js';
 
 export async function onRequestGet(context) {
   const { request, env } = context;
@@ -30,7 +31,9 @@ export async function onRequestGet(context) {
     const c = byId.get(r.cat_id);
     if (c) c.links.push({ url: r.url, name: { zh: r.name_zh, en: r.name_en }, desc: { zh: r.desc_zh, en: r.desc_en }, created_at: r.created_at });
   }
-  const lang = new URL(request.url).searchParams.get('lang') === 'en' ? 'en' : 'zh';
+  /* 默认英文（四站默认语言；2026-11-07 前默认中文）；前端导出链接总带 ?lang=<页面语言>，只认本站语言列表里的 */
+  const want = new URL(request.url).searchParams.get('lang') || '';
+  const lang = LANGS.includes(want) ? want : DEFAULT_LANG;
   const now = Date.now();
   const day = new Date(now + 8 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '');
   return new Response(renderBookmarks(out, lang, now), {

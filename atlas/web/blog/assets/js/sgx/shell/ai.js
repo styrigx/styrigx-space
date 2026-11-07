@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:3cd80b385c27 space/web/shared/shell v30d425ac5d63（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:ac554cfd0c49 space/web/shared/shell v78e250b5b44e（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- ai.js ---- */
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
@@ -38,50 +38,39 @@ export const Q_MAX = 200;
 /** 账号页选的模型 id（P4-2d；四站同源同一份；lib/cloud-sync.js 的 EXTRA 收这个键） */
 export const MODEL_KEY = 'sgx-ai-model';
 
-const STR = {
-  zh: {
-    greet: '你好，我是 Gray 的 AI 助手。想了解站里的内容，或者聊聊你手上的问题，都行。',
-    histEmpty: '还没有历史对话',
-    untitled: '（无标题）',
-    copy: '复制',
-    copied: '已复制',
-    retry: '重试',
-    up: '有用',
-    down: '没用',
-    thinking: '正在查站内内容…',
-    scopePublic: '仅公开内容',
-    scopePrivate: '包含私密内容',
-    unauthorized: '锁屏会话已失效，请重新解锁后再问',
-    cooldown: '问得太快了，请一分钟后再试',
-    busy: '现在问的人太多，请稍后再试',
-    tooLong: '问题太长了，最多 200 字',
-    quota: '今天的额度用完了，明天再来',
-    fail: '没能拿到回答，请稍后再试',
-    send: '发送',
-    stop: '停止',
-  },
-  en: {
-    greet: "Hi, I'm Gray's AI assistant. Ask about this site, or talk through whatever you're working on.",
-    histEmpty: 'No past chats yet',
-    untitled: '(Untitled)',
-    copy: 'Copy',
-    copied: 'Copied',
-    retry: 'Retry',
-    up: 'Helpful',
-    down: 'Not helpful',
-    thinking: 'Searching this site…',
-    scopePublic: 'Public content only',
-    scopePrivate: 'Includes private content',
-    unauthorized: 'Your session has expired. Unlock again to ask',
-    cooldown: 'Too many questions. Try again in a minute',
-    busy: 'Lots of people are asking right now. Try again shortly',
-    tooLong: 'That question is too long (200 characters max)',
-    quota: 'Today’s quota is used up. Come back tomorrow',
-    fail: 'Couldn’t get an answer. Please try again',
-    send: 'Send',
-    stop: 'Stop',
-  },
+/** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-shell 的 ai 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
+const STR_EN = {
+  greet: "Hi, I'm Gray's AI assistant. Ask about this site, or talk through whatever you're working on.",
+  histEmpty: "No past chats yet",
+  untitled: "(Untitled)",
+  copy: "Copy",
+  copied: "Copied",
+  retry: "Retry",
+  up: "Helpful",
+  down: "Not helpful",
+  thinking: "Searching this site…",
+  scopePublic: "Public content only",
+  scopePrivate: "Includes private content",
+  unauthorized: "Your session has expired. Unlock again to ask",
+  cooldown: "Too many questions. Try again in a minute",
+  busy: "Lots of people are asking right now. Try again shortly",
+  tooLong: "That question is too long (200 characters max)",
+  quota: "Today’s quota is used up. Come back tomorrow",
+  fail: "Couldn’t get an answer. Please try again",
+  send: "Send",
+  stop: "Stop"
 };
+/** @param {Document} doc @returns {Record<string, string>} */
+function shellStr(doc) {
+  /** @type {Record<string, string>} */
+  let page = {};
+  try {
+    const el = doc && doc.getElementById ? doc.getElementById('sgx-i18n-shell') : null;
+    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
+    if (o && o.ai && typeof o.ai === 'object') page = o.ai;
+  } catch (e) {}
+  return Object.assign({}, STR_EN, page);
+}
 
 /** @typedef {{role: 'user'|'assistant', text: string, ts: number, error?: boolean, rate?: 'up'|'down'}} Msg */
 /** @typedef {{id: string, title: string, time: number, msgs: Msg[]}} Chat */
@@ -238,7 +227,7 @@ export async function readSse(body, on) {
 export function mountAiChat(dlg, opts) {
   const o = opts || {};
   const doc = dlg.ownerDocument;
-  const t = o.lang === 'en' ? STR.en : STR.zh;
+  const t = shellStr(doc);
   const list = /** @type {HTMLElement} */ (dlg.querySelector('[data-ai-list]'));
   const form = /** @type {HTMLFormElement} */ (dlg.querySelector('[data-ai-form]'));
   const input = /** @type {HTMLTextAreaElement} */ (dlg.querySelector('[data-ai-in]'));
@@ -443,7 +432,7 @@ export function mountAiChat(dlg, opts) {
       const d = new Date(ts);
       const now = new Date();
       const sameDay = d.toDateString() === now.toDateString();
-      const loc = o.lang === 'en' ? 'en-US' : 'zh-CN';
+      const loc = doc.documentElement.lang || 'en'; /* 按页面语言交给 Intl（语言包化 2026-11-07） */
       return sameDay
         ? d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit', hour12: false })
         : d.toLocaleString(loc, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -554,7 +543,7 @@ export function mountAiChat(dlg, opts) {
     ctl = typeof AbortController === 'function' ? new AbortController() : null;
     let failed = '';
     /** @type {Record<string, any>} */
-    const payload = { q, lang: o.lang === 'en' ? 'en' : 'zh', history };
+    const payload = { q, lang: o.lang || doc.documentElement.lang || 'en', history };
     let model = loadModel(o.store);
     try {
       let res;

@@ -11,6 +11,9 @@
 import { on } from '../lib/events.js';
 import { reducedMotion } from '../lib/util.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07） */
+const ct = i18nTable('core');
 
 /** 方式行图标（28px，与锁屏原来的内联 SVG 相同） */
 export const METHOD_ICONS = {
@@ -152,7 +155,7 @@ export function createVerifyDialog(o) {
     d.setAttribute('aria-labelledby', 'sgx-verify-title');
     d.innerHTML =
       '<div class="sgx-verify-card">' +
-      '<button type="button" class="sgx-dlg-close" data-dlg-close aria-label="' + (o.en ? 'Close' : '关闭') + '">×</button>' +
+      '<button type="button" class="sgx-dlg-close" data-dlg-close aria-label="' + ct('sheetClose') + '">×</button>' +
       '<div class="sheet-handle" data-dclose aria-hidden="true"></div>' +
       '<h2 id="sgx-verify-title" class="sgx-verify-title"></h2>' +
       '<div id="sgx-verify-body" class="sgx-verify-body"></div>' +

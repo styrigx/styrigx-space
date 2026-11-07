@@ -14,6 +14,9 @@
  */
 import { on } from '../lib/events.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } from '../lib/dialog-behavior.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('core');
 
 /* ---------------------------------------------------------------------------
  * 密码框
@@ -25,8 +28,8 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindEyeButton } fr
  */
 export function eyeLabels(en) {
   return {
-    showLabel: en ? 'Show password' : '显示密码',
-    hideLabel: en ? 'Hide password' : '隐藏密码',
+    showLabel: tx('authShowPassword'),
+    hideLabel: tx('authHidePassword'),
   };
 }
 
@@ -68,7 +71,7 @@ export function pwFieldHtml(o) {
   return '<div class="sgx-pw-field">' + (o.pmUser ? pmUserHtml(o.pmUser) : '') + '<input type="password" id="' + o.id + '" class="sgx-pw-input" autocomplete="' + o.autocomplete + '" ' +
     (o.ariaLabel !== undefined ? 'aria-label="' + o.ariaLabel + '" ' : '') +
     'placeholder="' + o.placeholder + '">' +
-    '<button type="button" class="sgx-pw-eye" id="' + o.eyeId + '" aria-label="' + (o.en ? 'Show password' : '显示密码') + '"></button></div>';
+    '<button type="button" class="sgx-pw-eye" id="' + o.eyeId + '" aria-label="' + tx('authShowPassword') + '"></button></div>';
 }
 
 /**

@@ -1,10 +1,12 @@
 {{/* 2.4.0-G：由 data/features.yaml 驱动生成设置行。
    只处理简单类型（bool 开关 / enum 分段选择）；复杂行（主题预览、色板、面板入口）保留手写。
    输出的 id/class 与手写版完全一致，保证外观、JS 接线、搜索索引不变。
-   用法：{{ partial "space-row.html" (dict "f" $f "isEn" $isEn) }}，外层用 feature.html 判断 build。 */}}
-{{ $f := .f }}{{ $isEn := .isEn }}
-{{ $label := cond $isEn $f.name.en $f.name.zh }}
-{{ $desc := cond $isEn $f.desc.en $f.desc.zh }}
+   用法：{{ partial "space-row.html" (dict "f" $f "tr" $tr) }}，外层用 feature.html 判断 build。 */}}
+{{ $f := .f }}{{ $tr := .tr }}
+{{/* 名字 / 说明 / 选项文字在字符串表 features.<id>（语言包化 2026-11-07；缺键回退英文） */}}
+{{ $ft := index $tr.features $f.id }}
+{{ $label := $ft.name }}
+{{ $desc := $ft.desc }}
 {{ $hasIcon := and $f.icon (ne $f.icon "") }}
 {{ if eq $f.type "bool" }}
       <div class="set-row{{ if not $hasIcon }} no-ic{{ end }}" id="row-{{ $f.row }}" role="button" tabindex="0" data-feature="{{ $f.id }}">
@@ -23,7 +25,7 @@
         </div>
         <div class="set-row-sub">
           <div class="seg" id="seg-{{ $f.row }}" role="group" aria-label="{{ $label }}">
-            {{ range $f.options }}<button type="button" data-v="{{ .id }}" aria-pressed="false">{{ cond $isEn .en .zh }}</button>{{ end }}
+            {{ range $f.options }}<button type="button" data-v="{{ .id }}" aria-pressed="false">{{ index $ft.opt (printf "%v" .id) }}</button>{{ end }}
           </div>
           {{ if $desc }}<p class="text-xs text-m-on-surface-variant mt-2">{{ $desc }}</p>{{ end }}
         </div>

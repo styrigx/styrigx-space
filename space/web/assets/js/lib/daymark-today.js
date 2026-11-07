@@ -10,6 +10,9 @@
  * 本文件在 lib/ 层：不 import shell/ 或 apps/。
  */
 import { getJSON, setJSON } from './storage.js';
+import { i18nTable, pageLang } from './i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-space（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('space');
 
 export const DAYMARK_API = '/daymark/api/today';
 export const DAYMARK_CACHE = 'sgx-daymark-today';
@@ -25,23 +28,33 @@ export function todayShanghai() {
   }
 }
 
-/** @param {string} day @param {boolean} en */
+/**
+ * 日期「Oct 21」/「10月21日」：按页面语言交给 Intl（参数 en 保留兼容，不再用来二选一）
+ * @param {string} day @param {boolean} [en]
+ */
 export function fmtDaymarkDay(day, en) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
   if (!m) return '';
-  const mo = Number(m[2]), d = Number(m[3]);
-  if (!en) return mo + '月' + d + '日';
-  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][mo - 1] + ' ' + d;
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12));
+  try {
+    return new Intl.DateTimeFormat(pageLang(), { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(dt);
+  } catch (e) {
+    return m[2] + '-' + m[3];
+  }
 }
 
 /**
- * 「— 作者《出处》」/「— Author, Source」
- * @param {{author?:string, source?:string}} quote @param {boolean} en
+ * 「— 作者《出处》」/「— Author, Source」：出处外框走字符串表 dmSourceWrap（en「{s}」，zh「《{s}》」），
+ * 作者与出处的连接交给 Intl.ListFormat（en「, 」，zh 直接相连）。
+ * @param {{author?:string, source?:string}} quote @param {boolean} [en]
  */
 export function daymarkByline(quote, en) {
   if (!quote) return '';
-  const src = quote.source ? (en ? quote.source : '《' + String(quote.source).replace(/^《|》$/g, '') + '》') : '';
-  const by = [quote.author || '', src].filter(Boolean).join(en ? ', ' : '');
+  const raw = quote.source ? String(quote.source).replace(/^《|》$/g, '') : '';
+  const src = raw ? (tx('dmSourceWrap', { s: raw }) || raw) : '';
+  const parts = [quote.author || '', src].filter(Boolean);
+  let by = '';
+  try { by = new Intl.ListFormat(pageLang(), { type: 'unit', style: 'short' }).format(parts); } catch (e) { by = parts.join(' '); }
   return by ? '— ' + by : '';
 }
 
@@ -55,15 +68,15 @@ export function daymarkCardHtml(en, opts) {
   return '<span class="dm-w-mark" aria-hidden="true">\u201C</span>' +
     '<div class="relative flex items-center justify-between gap-3">' +
     '<p class="flex items-center gap-1.5 text-xs font-semibold tracking-widest text-m-primary">' +
-    '<span class="dm-w-ic">' + DM_ICON + '</span><span>' + (en ? 'DAYMARK' : '日刻') + '</span></p>' +
+    '<span class="dm-w-ic">' + DM_ICON + '</span><span>' + (tx('daymarDaymark')) + '</span></p>' +
     '<p class="text-[11px] text-m-on-surface-variant" data-dm="day"></p></div>' +
     '<div class="relative" data-dm="body">' +
     '<p class="dm-w-text mt-4 font-bold leading-snug" data-dm="text"></p>' +
     '<p class="dm-w-trans mt-2 text-sm text-m-on-surface-variant leading-relaxed hidden" data-dm="trans"></p>' +
     '<p class="mt-3 text-sm text-m-on-surface-variant text-right truncate" data-dm="by"></p></div>' +
     '<div class="relative hidden" data-dm="empty">' +
-    '<p class="mt-4 text-lg font-bold">' + (en ? 'No line for today yet' : '今天还没有句子') + '</p>' +
-    (emptyHint ? '<p class="mt-1.5 text-sm text-m-on-surface-variant">' + (en ? 'Tap to keep one in Daymark' : '点开日刻，记下一句') + '</p>' : '') +
+    '<p class="mt-4 text-lg font-bold">' + (tx('daymarNoLineForToday')) + '</p>' +
+    (emptyHint ? '<p class="mt-1.5 text-sm text-m-on-surface-variant">' + (tx('daymarTapToKeepOne')) + '</p>' : '') +
     '</div>';
 }
 

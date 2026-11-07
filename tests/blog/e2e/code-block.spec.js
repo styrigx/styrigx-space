@@ -8,6 +8,10 @@ import { test, expect } from '@playwright/test';
 
 test.use({ viewport: { width: 412, height: 915 } });
 
+/* 语言清理（2026-11-07）起博客也「跟随系统」每页都跳（四站同一份首帧跳转 lang-boot.js），Playwright 默认 en-US 会把 /blog/zh/… 换到英文页。
+   本文件都是中文用例，按中文浏览器跑（同奇趣 / 日刻）。 */
+test.use({ locale: 'zh-CN' });
+
 const POST = '/blog/zh/post/2026-10-11-key-spec-whitepaper-v2/';
 
 test.beforeEach(async ({ page }) => {

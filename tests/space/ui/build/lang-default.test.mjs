@@ -75,8 +75,10 @@ test('共享外壳：lang-path.js / lang-path.html 原样进外壳，三个子�
 test('外壳顶栏的导航前缀和 langPath 同一规则（外壳 partial 不能调别的 partial，只能展开）', () => {
   const tpl = rd('space/web/layouts/partials/shell-topbar.html');
   assert.doesNotMatch(tpl, /printf "\/en%s"|printf "%sen\/"/, '顶栏不许再拼 /en');
-  assert.match(tpl, /printf "%szh\/" \.path/);
-  assert.match(tpl, /printf "\/zh%s" \.path/);
+  // 语言包化（2026-11-07）：前缀不写死 zh，按页面语言代码展开（英文无前缀，其他语言 /<语言>/…、子站 /<站>/<语言>/）
+  assert.match(tpl, /if ne \$lang "en"/);
+  assert.match(tpl, /printf "%s%s\/" \.path \$lang/);
+  assert.match(tpl, /printf "\/%s%s" \$lang \.path/);
 });
 
 test('四站 Hugo 配置：默认英文、不生成默认语言跳转页', () => {

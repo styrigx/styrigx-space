@@ -15,6 +15,11 @@ const { blockExternalRequests, expect } = require('../helpers/helpers');
 const yaml = require('js-yaml');
 const SPACE = yaml.load(require('fs').readFileSync(require('path').join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'space-cats.yaml'), 'utf8'));
 const CATS = SPACE.cats;
+/* 名字 / 副标题 / 标题带文字在字符串表 data/i18n/<语言>.yaml 的 spaceCats（语言包化 2026-11-07；英文为底，缺键回退英文） */
+const I18N_DIR = require('path').join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'i18n');
+const STR = Object.fromEntries(['en', 'zh'].map((l) => [l, yaml.load(require('fs').readFileSync(require('path').join(I18N_DIR, `${l}.yaml`), 'utf8')).spaceCats]));
+/** @param {'en'|'zh'} lang @param {string} id 分类 id 或 'band' @param {string} field title / sub / label */
+const sc = (lang, id, field) => ((STR[lang][id] || {})[field] != null ? STR[lang][id][field] : STR.en[id][field]);
 /* 旧设置层（拼出来，不写成字面量：全仓 git grep 只许历史文档出现旧地址，tests/space/ui/build/space-merge.test.mjs） */
 const OLD = '/' + 'settings' + '/';
 
@@ -51,9 +56,11 @@ test('space home (mobile): widgets on top, then title band + flat entries from d
   const catList = pg.locator('.home-wrap [aria-label="分类"]');
   await expect(catList).toHaveCount(1);
   const band = pg.locator('#space-entries .sgx-ent-band');
-  await expect(band.locator('.sgx-ent-label')).toHaveText('SPACE');
+  /* 中文标题带小标签是「空间」（Gray 2026-11-07 定，语言清理 PR） */
+  await expect(band.locator('.sgx-ent-label')).toHaveText('空间');
+  expect(sc('zh', 'band', 'label')).toBe('空间');
   await expect(band.locator('.sgx-ent-title')).toHaveText('旷野');
-  await expect(band.locator('.sgx-ent-lede')).toHaveText(SPACE.band.sub_zh);
+  await expect(band.locator('.sgx-ent-lede')).toHaveText(sc('zh', 'band', 'sub'));
   const yProfile = (await pg.locator('#w-profile').boundingBox()).y;
   const yBand = (await band.boundingBox()).y;
   const yCats = (await catList.boundingBox()).y;
@@ -64,8 +71,8 @@ test('space home (mobile): widgets on top, then title band + flat entries from d
   await expect(rows).toHaveCount(CATS.length);
   expect(await rows.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(CATS.map((c) => `/zh/${c.id}/`));
   await expect(rows.locator('.sgx-ent-no')).toHaveText(CATS.map((_, i) => String(i + 1).padStart(2, '0')));
-  await expect(rows.locator('.sgx-ent-name')).toHaveText(CATS.map((c) => c.zh));
-  await expect(rows.locator('.sgx-ent-sub')).toHaveText(CATS.map((c) => c.sub_zh));
+  await expect(rows.locator('.sgx-ent-name')).toHaveText(CATS.map((c) => sc('zh', c.id, 'title')));
+  await expect(rows.locator('.sgx-ent-sub')).toHaveText(CATS.map((c) => sc('zh', c.id, 'sub')));
   await expect(rows.locator('.sgx-ent-ic svg')).toHaveCount(CATS.length);
   await expect(rows.locator('.sgx-ent-ch')).toHaveText(CATS.map(() => '›'));
   // 平铺：无卡片底（透明背景、无边框圆角卡），行间细线（每行下边框 1px）；手机一栏
@@ -134,11 +141,11 @@ test('space home (en): title band + entries from data', async ({ page: pg }) => 
   await expect(pg.locator('.sgx-tb-title')).toHaveText('Space');
   await expect(pg.locator('#space-entries .sgx-ent-label')).toHaveText('SPACE');
   await expect(pg.locator('#space-entries .sgx-ent-title')).toHaveText('Space');
-  await expect(pg.locator('#space-entries .sgx-ent-lede')).toHaveText(SPACE.band.sub_en);
+  await expect(pg.locator('#space-entries .sgx-ent-lede')).toHaveText(sc('en', 'band', 'sub'));
   const rows = pg.locator('.home-wrap [aria-label="Categories"] a.sgx-ent');
   expect(await rows.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(CATS.map((c) => `/${c.id}/`));
-  await expect(rows.locator('.sgx-ent-name')).toHaveText(CATS.map((c) => c.en));
-  await expect(rows.locator('.sgx-ent-sub')).toHaveText(CATS.map((c) => c.sub_en));
+  await expect(rows.locator('.sgx-ent-name')).toHaveText(CATS.map((c) => sc('en', c.id, 'title')));
+  await expect(rows.locator('.sgx-ent-sub')).toHaveText(CATS.map((c) => sc('en', c.id, 'sub')));
   await expect(pg.locator('a[href="/display/"]')).toHaveCount(0);
 });
 
@@ -186,7 +193,7 @@ for (const c of CATS) {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, `/zh/${c.id}/`);
     await expect(pg.locator('[data-go-back]'), 'no back button').toHaveCount(0);
-    await expect(pg.locator('.sgx-tb-title'), 'capsule title').toHaveText(c.zh);
+    await expect(pg.locator('.sgx-tb-title'), 'capsule title').toHaveText(sc('zh', c.id, 'title'));
     await expect(pg.locator('.subpage-title, [data-subpage-head]'), 'no big title').toHaveCount(0);
     for (const sel of SUBCHECKS[c.id]) {
       await expect(pg.locator(sel), sel).toHaveCount(1);

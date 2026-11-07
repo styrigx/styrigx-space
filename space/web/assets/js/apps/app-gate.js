@@ -19,6 +19,9 @@ import { sgxNavigate, sgxReload } from '../lib/diag-jumptrace.js';
 import { showCenterDialog } from '../lib/dialog-behavior.js';
 import { lockReauthFetch } from '../auth/auth-flow.js';
 import { langPath } from '../lib/lang-path.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上，缺键回退英文） */
+const ct = i18nTable('core');
 
 /**
  * 统一解析 API 响应：{ status, json }，区分网络错误/业务错误。
@@ -58,7 +61,7 @@ let countdownExpiresAt = 0;
 function verifyMessage(t, reason, detail) {
   /* 批次 A 验收修复 P0：代管中途锁屏凭证被配置 → 明确提示，不无提示踢回安全页 */
   if (reason === 'account-configured' || detail === 'account-configured') {
-    return tx(t, 'errAccountConfigured', '账号凭证已设置，请先登录账号再进入', 'Account credentials are set; please sign in to your account first');
+    return tx(t, 'errAccountConfigured');
   }
   let msg;
   switch (reason) {
@@ -122,19 +125,19 @@ function showExpiredDialog(t, kind, detail) {
   const isSession = kind === 'session';
   const isAccountConfigured = detail === 'account-configured';
   const title = isSession
-    ? tx(t, 'expiredSessionTitle', '会话已失效', 'Session expired')
-    : tx(t, 'expiredReauthTitle', '验证已过期', 'Verification expired');
+    ? tx(t, 'expiredSessionTitle')
+    : tx(t, 'expiredReauthTitle');
   let desc;
   if (isAccountConfigured) {
-    desc = tx(t, 'errAccountConfigured', '账号凭证已设置，请先登录账号再进入', 'Account credentials are set; please sign in to your account first');
+    desc = tx(t, 'errAccountConfigured');
   } else if (isSession) {
-    desc = tx(t, 'expiredSessionDesc', '请回到锁屏重新解锁', 'Please go back to the lock screen to unlock again.');
+    desc = tx(t, 'expiredSessionDesc');
   } else {
-    desc = tx(t, 'expiredReauthDesc', '验证后回到这一页继续', 'Verify again to continue on this page.');
+    desc = tx(t, 'expiredReauthDesc');
   }
   const btnLabel = isSession
-    ? tx(t, 'expiredSessionBtn', '去锁屏', 'Go to lock screen')
-    : tx(t, 'expiredReauthBtn', '重新验证', 'Verify again');
+    ? tx(t, 'expiredSessionBtn')
+    : tx(t, 'expiredReauthBtn');
   /* C4：弹框打开时拦住返回手势。移动端返回手势走 history（非 dialog cancel 事件），
      仅 preventDefault(cancel) 拦不住。用 pushState 占一位，popstate 时等同于
      点按钮（不直接关框），避免退回已过期的门内页。 */
@@ -202,11 +205,11 @@ function renderReauthCountdown(t) {
   if (left <= 0) {
     stopReauthCountdown();
     countdownEl.classList.add('sgx-countdown-warn');
-    if (text) text.textContent = tx(t, 'reauthCountdownExpired', '已过期', 'Expired');
+    if (text) text.textContent = tx(t, 'reauthCountdownExpired');
     return;
   }
   countdownEl.classList.toggle('sgx-countdown-warn', left <= 30000);
-  if (text) text.textContent = tx(t, 'reauthCountdown', '验证剩余 {m}', 'Verification remaining {m}').replace('{m}', fmtReauthCountdown(left));
+  if (text) text.textContent = tx(t, 'reauthCountdown').replace('{m}', fmtReauthCountdown(left));
 }
 
 /**
@@ -359,15 +362,14 @@ function isMissingTranslation(v, k) {
  * 带回退的文案：页面没定义该 key 时用中英默认值。
  * @param {(k:string)=>string} t 文案函数
  * @param {string} k key
- * @param {string} zh 中文默认
- * @param {string} en 英文默认
+ * 页面表没有这个键时用字符串表 js.core.gate<Key>（语言包化 2026-11-07，原来内联的中英默认值）
  */
-function tx(t, k, zh, en) {
+function tx(t, k) {
   try {
     const v = t(k);
     if (!isMissingTranslation(v, k)) return v;
   } catch (e) {}
-  return document.documentElement.lang === 'en' ? en : zh;
+  return ct('gate' + k.charAt(0).toUpperCase() + k.slice(1));
 }
 
 /**
@@ -384,12 +386,12 @@ function showProbeFailure(t, info) {
   const api = (info && info.api) || '';
   const status = info && typeof info.status === 'number' ? info.status : null;
 
-  const title = tx(t, 'probeFailTitle', '无法进入', 'Cannot enter');
+  const title = tx(t, 'probeFailTitle');
   const msg = verifyMessage(t, reason, detail);
-  const apiLabel = tx(t, 'probeFailApi', '接口', 'API');
-  const statusLabel = tx(t, 'probeFailStatus', '状态码', 'Status');
-  const reasonLabel = tx(t, 'probeFailReason', '原因', 'Reason');
-  const backLabel = tx(t, 'probeFailBack', '返回安全', 'Back to Security');
+  const apiLabel = tx(t, 'probeFailApi');
+  const statusLabel = tx(t, 'probeFailStatus');
+  const reasonLabel = tx(t, 'probeFailReason');
+  const backLabel = tx(t, 'probeFailBack');
 
   /* 隐藏管理区内容，显示失败面板 */
   const layout = document.querySelector('.set-layout');

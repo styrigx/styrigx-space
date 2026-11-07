@@ -279,6 +279,10 @@ test.describe('B1-8 路径A：会话有效时被踢回', () => {
   test('英文版失败卡', async ({ page }) => {
     /* 设置标志，让 beforeEach 注入的 <html lang> 用英文 */
     page.__forceLang = 'en';
+    /* 语言包化 2026-11-07：失败卡文案来自页面字符串表（#sgx-i18n-core），只改 <html lang> 不够——偏好设英文，停在英文页（后注册的初始化脚本后执行，盖过上面的 zh） */
+    await page.addInitScript(() => {
+      try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {}
+    });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await clearJumpState(page);
 

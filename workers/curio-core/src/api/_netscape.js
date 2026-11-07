@@ -104,12 +104,12 @@ const escHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<':
 /**
  * 生成书签文件（浏览器都能导入）。分类 → 一层文件夹；名字优先用 lang 那种，另一种兜底。
  * @param {{name:{zh:string,en:string}, links:{url:string,name:{zh:string,en:string},desc?:{zh:string,en:string},created_at?:number}[]}[]} cats
- * @param {'zh'|'en'} [lang]
+ * @param {string} [lang] 没给按英文（四站默认语言；前端导出链接总带 ?lang=）
  * @param {number} [now]
  */
-export function renderBookmarks(cats, lang = 'zh', now = Date.now()) {
-  const other = lang === 'zh' ? 'en' : 'zh';
-  const pick = (p) => (p && (p[lang] || p[other])) || '';
+export function renderBookmarks(cats, lang = 'en', now = Date.now()) {
+  /* 名字先用 lang 那种，空着回退英文，再回退任一有值的语言 */
+  const pick = (p) => (p && (p[lang] || p.en || Object.values(p).find(Boolean))) || '';
   const sec = (ms) => Math.floor((ms || now) / 1000);
   const lines = [
     '<!DOCTYPE NETSCAPE-Bookmark-file-1>',

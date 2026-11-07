@@ -8,14 +8,14 @@
 - 快捷设置（P4-3 PR-4b 起四站同一套，没有按站的 tiles 参数）：深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条）。
 参数：.page .mode .title（.toc 2026-11-04 起不用，调用方照旧传也无妨） */ -}}
 {{- $lang := .page.Language.Lang -}}
-{{- $isEn := eq $lang "en" -}}
+
 {{- $mode := .mode | default "links" -}}
 {{- $nav := index hugo.Data "sgx-shell" "nav" -}}
 {{- $title := .title | default .page.Title -}}
 {{- $center := "" -}}
 {{- if eq $mode "tabs" -}}
 {{- /* 首页：页名胶囊 = 站名，切到页内分区（#posts / #topics）时 app-tabs.ts 换成分区名（data-sgx-titles 顺序同 TABS；首页分区就是首页本身） */ -}}
-{{- $titles := slice (cond $isEn "Blog" "博客") (i18n "tabPosts") (i18n "tabTopics") -}}
+{{- $titles := slice (i18n "blogTitle") (i18n "tabPosts") (i18n "tabTopics") -}}
 {{- $center = printf "<span class=\"sgx-tb-title\" data-sgx-titles=\"%s\">%s</span>" ($titles | jsonify | htmlEscape) (index $titles 0 | htmlEscape) -}}
 {{- else -}}
 {{- $center = printf "<span class=\"sgx-tb-title\">%s</span>" ($title | htmlEscape) -}}
@@ -28,6 +28,9 @@
 {{- range .page.Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end -}}
 {{- if not $langHref }}{{ range site.Home.AllTranslations }}{{ if ne .Language.Lang $lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end -}}
 {{- /* 调色板色块的变量（同主站 partials/palette-tile-vars.html 的 full=false：--pl-b1..7 / --pl-f1..6，深色 --pd-*），取自共享外壳 palettes.json */ -}}
+{{- /* 快捷面板语言选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight），四站同序（跟随系统 / 中文 / English） */ -}}
+{{- $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append (dict "code" .Language.Lang "name" .Language.Label "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end -}}
+{{- $langs = sort $langs "w" -}}
 {{- $pal := slice -}}
 {{- range (index hugo.Data "sgx-shell" "palettes").presets -}}
 {{- $s := "" -}}
@@ -37,10 +40,12 @@
 {{- range $n := seq 7 }}{{ $s = printf "%s--%s-b%d:%s;" $s $k $n (index $tk (printf "bg-%d" $n)) }}{{ end -}}
 {{- range $n := seq 6 }}{{ $s = printf "%s--%s-f%d:%s;" $s $k $n (index $tk (printf "fg-%d" $n)) }}{{ end -}}
 {{- end -}}
-{{- $pal = $pal | append (dict "id" $p.id "zh" $p.zh "en" $p.en "style" $s) -}}
+{{- $pal = $pal | append (dict "id" $p.id "style" $s) -}}
 {{- end -}}
 {{- partial "sgx-shell-topbar.html" (dict
-  "isEn" $isEn
+  "lang" $lang
+  "tr" (partialCached "sgx-tr.html" $lang $lang).shell
+  "langs" $langs
   "home" site.Home.RelPermalink
   "center" $center
   "pillClass" (printf "sgx-tb-pill--%s" $mode)
@@ -51,7 +56,7 @@
   "icons" $nav.icons
   "wordmark" $nav.wordmark
   "mainOrigin" "https://styrigx.com"
-  "acct" (partial "sgx-lang-path.html" (dict "path" $nav.me.href "lang" (cond $isEn "en" "zh")))
+  "acct" (partial "sgx-lang-path.html" (dict "path" $nav.me.href "lang" $lang))
   "avatar" $nav.me.avatar
   "langHref" $langHref
   "pal" $pal

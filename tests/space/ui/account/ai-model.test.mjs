@@ -7,6 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { strings, jsDict } from '../../../fixtures/strings.mjs';
 import { readFileSync } from 'node:fs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
@@ -97,11 +98,12 @@ test('模板：「AI 模型」一行在 #acct-main（登录后的总览）里，
   assert.match(tpl, /id="acct-ai-row" role="button" tabindex="0" aria-expanded="false" aria-controls="acct-ai-list"/);
   assert.match(tpl, /<div class="acct-ai-list" id="acct-ai-list" role="radiogroup" aria-labelledby="acct-ai-title" hidden><\/div>/);
   assert.ok(tpl.indexOf('id="acct-ai-list"') > row, '列表在行后面（行下方展开）');
-  assert.match(tpl, /\{\{ if \$isEn \}\}AI model\{\{ else \}\}AI 模型\{\{ end \}\}/);
+  assert.match(tpl, /\{\{ \$tr\.account\.aiModel \}\}/);
+  assert.deepEqual([strings('space', 'en').account.aiModel, strings('space', 'zh').account.aiModel], ['AI model', 'AI 模型']);
   assert.match(tpl, /id="acct-ai-sub"/);
-  const i18n = rd('space/web/layouts/partials/account-i18n.html');
+  const acc = jsDict('account');
   for (const k of ['aiModelTitle', 'aiModelDefault', 'aiModelSelf', 'aiModelExternal', 'aiModelErr', 'aiModelLocked']) {
-    assert.match(i18n, new RegExp('"' + k + '" \\(dict "zh" "[^"]+" "en" "[^"]+"\\)'), k);
+    assert.ok(acc[k] && acc[k].zh && acc[k].en && acc[k].zh !== acc[k].en, k);
   }
 });
 

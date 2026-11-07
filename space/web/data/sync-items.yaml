@@ -1,20 +1,14 @@
 # 账号 → 云同步（/account/sync/，2026-10-24 PR4）里列出的「同步了哪些项」，按组显示（三星账号分组卡片式）。
 # 必须与 lib/cloud-sync.js syncKeys() 实际同步的 key 一一对应：data/features.yaml 里带 sgx- key 的设置，去掉 sgx-lang / sgx-layout（跟随设备，不同步），
 # 再加 EXTRA（sgx-accent、sgx-ai-model；P4-2c 起天气两项随天气删除，P4-2d 加 AI 模型）。tests/space/ui/sync/sync-items.test.mjs 核对两边完全一致，改了同步范围要同时改这里。
-# 名字：features.yaml 里有的用它的 name；不在 features.yaml 的（EXTRA）用下面 extra 的 name。值的显示见 lib/sync-items.js valueText。
+# 名字（语言包化 2026-11-07）：组名在字符串表 syncItems.group.<组 id>；项名 features.yaml 里有的用字符串表 features.<id>.name，不在的（EXTRA）用 syncItems.extra.<key>。值的显示见 lib/sync-items.js valueText。
 groups:
   - id: look
-    zh: 外观
-    en: Appearance
     keys: [sgx-theme-mode, sgx-palette, sgx-accent]
   - id: more
-    zh: 其他
-    en: More
     keys: [sgx-well-tip, sgx-files-view, sgx-files-home, sgx-ai-model]
 extra:
   sgx-accent:
     type: accent
-    name: {zh: 自定义主题色, en: Custom theme color}
   sgx-ai-model:
     type: ai-model
-    name: {zh: AI 模型, en: AI model}

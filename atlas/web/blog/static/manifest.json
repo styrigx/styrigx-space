@@ -1,7 +1,7 @@
 {
   "name": "Styrigx",
   "short_name": "Styrigx",
-  "description": "Sloan Gray 的个人博客",
+  "description": "Sloan Gray's blog",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",

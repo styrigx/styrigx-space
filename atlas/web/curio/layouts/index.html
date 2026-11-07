@@ -1,6 +1,5 @@
 {{ define "main" }}
-{{ $isEn := eq .Lang "en" }}
-{{ $lang := cond $isEn "en" "zh" }}
+{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" $lang $lang }}
 {{/* 奇趣首页（P4-3 奇趣拆页，Gray 2026-11-07）：只放平铺入口（共享外壳 sgx-shell-entries.html，同旷野分类入口），每个分区是独立子页：
    发现 /finds/、设备 /devices/、游戏 /games/、电影 /movies/、音乐 /music/（中文在 /curio/zh/ 下，地址一律走 sgx-lang-path.html）。
    音乐仅本人可见：入口默认藏起（CSS：html 没有 .cu-music-ok 时不显示 data-entry="music" 那一行），curio-home.js 问 /curio/api/access 有权限才露出来；
@@ -8,14 +7,14 @@
    顶栏页名胶囊在首页显示站名、子页显示子页名（baseof.html；桌面显示、手机布局不显示，PR-4b 机制）。 */}}
 <main id="cu-main" class="cu-wrap" data-cu-page="home">
 {{ $entItems := slice
-  (dict "id" "finds" "icon" "compass" "tone" "primary" "zh" "发现" "en" "Finds" "sub_zh" "分类收藏的好东西" "sub_en" "Bookmarked finds by category" "href" (partial "sgx-lang-path.html" (dict "path" "/curio/finds/" "lang" $lang)))
-  (dict "id" "devices" "icon" "keyboard" "tone" "secondary" "zh" "设备" "en" "Devices" "sub_zh" "在用和用过的设备" "sub_en" "Devices in use and retired" "href" (partial "sgx-lang-path.html" (dict "path" "/curio/devices/" "lang" $lang)))
-  (dict "id" "games" "icon" "sparkles" "tone" "tertiary" "zh" "游戏" "en" "Games" "sub_zh" "玩过、在玩、想玩" "sub_en" "Played, playing, want to play" "href" (partial "sgx-lang-path.html" (dict "path" "/curio/games/" "lang" $lang)))
-  (dict "id" "movies" "icon" "film" "tone" "info" "zh" "电影" "en" "Movies" "sub_zh" "喜欢的电影和短评" "sub_en" "Films I love, with a line or two" "href" (partial "sgx-lang-path.html" (dict "path" "/curio/movies/" "lang" $lang)))
-  (dict "id" "music" "icon" "music-note" "tone" "primary" "zh" "音乐" "en" "Music" "sub_zh" "私人专辑，仅自己可见" "sub_en" "Private albums, only me" "href" (partial "sgx-lang-path.html" (dict "path" "/curio/music/" "lang" $lang)))
+  (dict "id" "finds" "icon" "compass" "tone" "primary" "title" (index $tr.entries "finds").title "sub" (index $tr.entries "finds").sub "href" (partial "sgx-lang-path.html" (dict "path" "/curio/finds/" "lang" $lang)))
+  (dict "id" "devices" "icon" "keyboard" "tone" "secondary" "title" (index $tr.entries "devices").title "sub" (index $tr.entries "devices").sub "href" (partial "sgx-lang-path.html" (dict "path" "/curio/devices/" "lang" $lang)))
+  (dict "id" "games" "icon" "sparkles" "tone" "tertiary" "title" (index $tr.entries "games").title "sub" (index $tr.entries "games").sub "href" (partial "sgx-lang-path.html" (dict "path" "/curio/games/" "lang" $lang)))
+  (dict "id" "movies" "icon" "film" "tone" "info" "title" (index $tr.entries "movies").title "sub" (index $tr.entries "movies").sub "href" (partial "sgx-lang-path.html" (dict "path" "/curio/movies/" "lang" $lang)))
+  (dict "id" "music" "icon" "music-note" "tone" "primary" "title" (index $tr.entries "music").title "sub" (index $tr.entries "music").sub "href" (partial "sgx-lang-path.html" (dict "path" "/curio/music/" "lang" $lang)))
 }}
 {{ $entIcons := dict }}{{ range $entItems }}{{ $entIcons = merge $entIcons (dict .icon (partial "icon.html" .icon | string)) }}{{ end }}
-{{ partial "sgx-shell-entries.html" (dict "items" $entItems "icons" $entIcons "isEn" $isEn "id" "cu-entries" "label" (cond $isEn "Sections" "分区")) }}
+{{ partial "sgx-shell-entries.html" (dict "items" $entItems "icons" $entIcons "id" "cu-entries" "label" ($tr.index.sections)) }}
 </main>
 {{ end }}
 

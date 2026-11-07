@@ -8,6 +8,12 @@
 // - 英文页
 const { test, expect } = require('@playwright/test');
 
+/* 语言清理（2026-11-07）起奇趣 / 日刻也「跟随系统」每页都跳（四站同一份首帧跳转 lang-boot.js），Playwright 默认 en-US 会把 /<站>/zh/… 换到英文页。
+   本文件的中文用例按中文浏览器跑（同 ui-cookie.spec.js）；要看英文页的地方先明确选英文（同源 localStorage sgx-lang=en），见 chooseLang。 */
+test.use({ locale: 'zh-CN' });
+/** 明确选语言（同源 localStorage sgx-lang；'system' = 回到跟随系统）。页面已在本站时用。 @param {import('@playwright/test').Page} page @param {string} l */
+const chooseLang = (page, l) => page.evaluate((v) => { localStorage.setItem('sgx-lang', v); }, l);
+
 const CATS = [
   { id: 1, name: { zh: '开发与云', en: 'Dev & Cloud' }, private: false, links: [
     { id: 11, url: 'https://github.com/', name: { zh: 'GitHub', en: '' }, desc: { zh: '代码托管', en: 'Code hosting' }, icon: '', private: false },
@@ -281,6 +287,7 @@ test('写接口回 401 account（账号会话刚过期）不刷新页面、提�
 
 test('英文页：入口、分类名用英文（英文空时退回中文）', async ({ page }) => {
   await mock(page, true);
+  await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
   await page.goto('/curio/');
   await expect(page.locator('#cu-entries .sgx-ent-name')).toHaveText(['Finds', 'Devices', 'Games', 'Movies', 'Music']);
   await expect(page.locator('.sgx-tb-title')).toHaveText('Curio');
@@ -314,9 +321,11 @@ test('旧 hash 地址在首页转到子页（客户端兼容，不是 301）：#
   await page.goto('/curio/zh/#c/2');
   await expect(page).toHaveURL(/\/curio\/zh\/finds\/#c\/2$/);
   await expect(page.locator('.cu-chip[data-cat="2"]')).toHaveAttribute('aria-selected', 'true');
+  await chooseLang(page, 'en');
   await page.goto('/curio/#games');
   await expect(page).toHaveURL(/\/curio\/games\/$/);
   await expect(page.locator('.sgx-tb-title')).toHaveText('Games');
+  await chooseLang(page, 'system');
   /* 没有 hash / 不认识的 hash：留在首页 */
   await page.goto('/curio/zh/#nope');
   await expect(page).toHaveURL(/\/curio\/zh\/#nope$/);

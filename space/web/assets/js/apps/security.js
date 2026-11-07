@@ -9,6 +9,9 @@
  */
 import { on } from '../lib/events.js';
 import { confirmLockNow } from '../auth/lock-now.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-security（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('security');
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -24,7 +27,7 @@ import { confirmLockNow } from '../auth/lock-now.js';
     if (v) return v;
     /* 批次 A 收尾 #36：兜底不显示内部键名；键名只记诊断 */
     if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
-    return en ? 'Something went wrong, please retry' : '出错了，请重试';
+    return tx('securiSomethingWentWrongPlease');
   }
 
   const card = document.getElementById('sec-status');

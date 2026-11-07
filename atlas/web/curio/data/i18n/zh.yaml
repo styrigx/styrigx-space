@@ -1,0 +1,162 @@
+# 本站字符串表 · 中文（汉化层）：键和 en.yaml 一一对应；缺的键显示英文。
+site:
+  name: 奇趣
+  description: Sloan Gray 的奇趣：在网上偶然遇到、想留下的好东西
+entries:
+  finds:
+    title: 发现
+    sub: 分类收藏的好东西
+  devices:
+    title: 设备
+    sub: 在用和用过的设备
+  games:
+    title: 游戏
+    sub: 玩过、在玩、想玩
+  movies:
+    title: 电影
+    sub: 喜欢的电影和短评
+  music:
+    title: 音乐
+    sub: 私人专辑，仅自己可见
+notFound:
+  pageNotFound: 页面不存在
+  thePageYoureLooking: 你要找的页面不存在或已被移动。
+  backToCurio: 返回奇趣
+index:
+  sections: 分区
+baseof:
+  pageNotFound: 页面不存在
+devices:
+  devices: 设备
+  filter: 筛选
+  loading: 加载中…
+  device: 设备
+  close: 关闭
+  choosePhoto: 选照片
+  removePhoto: 去掉照片
+  name: 名字
+  eGGalaxyS25: 比如 Galaxy S25 Ultra
+  type: 类型
+  boughtOn: 购买日期
+  systemVersion: 系统版本
+  eGOneUi: 比如 One UI 8
+  specs: 参数
+  chipMemoryStorageColour: 芯片、内存、存储、颜色……
+  accessories: 配件
+  caseChargerEarbuds: 手机壳、充电器、耳机……
+  howItsBeen: 体验
+  retired: 已退役
+  retiredOn: 退役日期
+  replacedBy: 换成了
+  onlyMe: 仅自己可见
+  delete: 删除
+  save: 保存
+finds:
+  finds: 发现
+  categories: 分类
+  more: 更多
+  loading: 加载中…
+  keep: 收藏
+  manageCategories: 管理分类
+  importBrowserBookmarks: 导入浏览器书签
+  exportAsBookmarksFile: 导出为书签文件
+  close: 关闭
+  url: 网址
+  autoFill: 自动填写
+  name: 名字
+  chineseNameAndNote: ＋ 英文名和英文简介
+  nameChinese: 英文名
+  noteChinese: 英文简介
+  note: 简介
+  whatItIsIn: 一句话说它是什么
+  category: 分类
+  newCategory: 新分类
+  add: 添加
+  customIcon: ＋ 自定义图标
+  iconUrlHttps: 图标网址（https）
+  onlyMe: 仅自己可见
+  position: 位置
+  moveUp: 上移
+  moveDown: 下移
+  delete: 删除
+  save: 保存
+  categories2: 管理分类
+  aCategoryCanBe: 分类清空后才能删除。私密分类连同里面的收藏只在账号已登录时显示。
+  importBookmarks: 导入浏览器书签
+  exportBookmarksFromSamsung: 在三星浏览器、Chrome 等浏览器里把书签导出成 .html 文件，再在这里选它。文件夹会变成分类，已经收藏过的网址自动跳过，原文件会另存一份备份。
+  chooseFile: 选择文件
+  importAsOnlyMe: 导入为仅自己可见
+  import: 导入
+games:
+  games: 游戏
+  filter: 筛选
+  loading: 加载中…
+  game: 游戏
+  close: 关闭
+  chooseCover: 选封面
+  removeCover: 去掉封面
+  title: 名字
+  status: 状态
+  platform: 平台
+  eGSwitchPc: 比如 Switch、PC
+  playedOn: 在哪台设备上
+  version: 版本
+  eGPhysicalDeluxe: 比如 实体版、豪华版、1.2
+  rating: 评分
+  thoughts: 评价
+  onlyMe: 仅自己可见
+  delete: 删除
+  save: 保存
+movies:
+  movies: 电影
+  loading: 加载中…
+  movie: 电影
+  close: 关闭
+  choosePoster: 选海报
+  removePoster: 去掉海报
+  title: 片名
+  originalTitle: 原名
+  eG: 比如 In the Mood for Love
+  year: 年份
+  director: 导演
+  watchedOn: 观看日期
+  myRating: 我的评分
+  aLineOrTwo: 短评
+  delete: 删除
+  save: 保存
+music:
+  music: 音乐
+  onlyMe: 仅本人可见
+  thisPageIsPrivate: 这一页是私人的。登录账号、并给奇趣授权后才能打开。
+  account: 去账号
+  uploadAlbum: ＋ 上传专辑
+  albums: 专辑
+  playAlbum: 播放整张
+  tracks: 曲目
+  deleteAlbum: 删除专辑
+  noAlbumsYetTap: 还没有专辑。点「上传专辑」添加第一张。
+  loading: 加载中…
+  player: 播放器
+  position: 进度
+  playbackSpeed: 倍速
+  previous: 上一首
+  play: 播放
+  pause: 暂停
+  next: 下一首
+  uploadAlbum2: 上传专辑
+  close: 关闭
+  album: 专辑名
+  artist: 艺术家
+  year: 年份
+  chooseTracks: 选音频（可多选）
+  coverOptional: 封面（可选）
+  lyricsLrcOptionalMatched: 歌词 .lrc（可选，按文件名对上曲目）
+  trackOrderFollowsThe: 曲序按文件名开头的数字（01、02……）。单个音频文件不超过 95 MB，支持 mp3、m4a、aac、flac、ogg、opus、wav。封面会缩到 1600 像素。
+  upload: 上传
+curioCommon:
+  cancel: 取消
+curioItemView:
+  edit: 编辑
+  close: 关闭
+curioSignin:
+  signInToYour: 登录账号后可编辑

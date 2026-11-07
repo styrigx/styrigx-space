@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:3cd80b385c27 space/web/shared/shell v30d425ac5d63（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:ac554cfd0c49 space/web/shared/shell v78e250b5b44e（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- prefs-write.js ---- */
 /**
  * @fileoverview 外观写端（2026-11-04 P5-1，定案第 5 条：四站共用一个写端）。
@@ -7,7 +7,7 @@
  *
  * 写什么：
  * - localStorage（PR3 起四站同源，同一份）：sgx-theme-mode（跟随系统 = 删 key，同 features.yaml 默认）、sgx-palette（默认 dustyblue = 删 key）、
- *   sgx-lang（'zh' / 'en'；跟随系统 = 删 key）；选预设色板时清掉自定义主题色 sgx-accent / sgx-accent-css。
+ *   sgx-lang（配置里的语言 en / zh …；跟随系统 = 'system'，语言清理 2026-11-07 起明确存值，旧的空 / 没有也按跟随系统）；选预设色板时清掉自定义主题色 sgx-accent / sgx-accent-css。
  * - sgx-ui cookie（syncUiCookie，原 lib/ui-cookie.js 的写法原样搬来）：子站首帧前读它；主站读 localStorage。
  * 主站：lib/prefs.js 的 setter 仍经 features.js 写同一批 key（features 的订阅 / 云同步要用），cookie 由 core.js 在 sgx-settings-changed 时调本文件的 syncUiCookie；
  *   DEFAULT_PALETTE / normPalette 也从这里取。
@@ -76,17 +76,33 @@ function currentSeed() {
   } catch (e) {}
   return '';
 }
-/** 明确的语言偏好：'zh' / 'en' 原样返回；跟随系统返回 ''（P4-3 PR-4b 起导出给快捷面板语言行） */
+/**
+ * 配置里的语言（<html data-sgx-langs="en zh">，来自各站 hugo.yaml languages；读不到按 en / zh）。
+ * 本文件自成一体不能 import lang-path.js，这里只读同一个属性。
+ * @returns {string[]}
+ */
+export function configuredLangs() {
+  try {
+    var a = document.documentElement.getAttribute('data-sgx-langs');
+    if (a) return a.split(/[\s,]+/).filter(function (x) { return /^[a-z]{2,3}$/.test(x); });
+  } catch (e) {}
+  return ['en', 'zh'];
+}
+/**
+ * 语言偏好（P4-3 PR-4b 起导出给快捷面板语言行）：配置里的语言原样返回；跟随系统返回 'system'
+ * （语言清理 2026-11-07：偏好明确存 'system'；旧版存的空 / 没有也当 'system'）。
+ * @returns {string}
+ */
 export function langPref() {
   var l = ls('sgx-lang');
-  return l === 'zh' || l === 'en' ? l : '';
+  return l && configuredLangs().indexOf(l) >= 0 ? l : 'system';
 }
 
 /**
  * 同步 UI 设置到共享 cookie sgx-ui（只含 UI 设置，不含任何凭证或会话信息）。值没变就不重写。
  * P4-2c（2026-11-05）：日期和时间、天气设置删除，tz1 / tz2 / h12 / clock / wx / unit / loc / city / precise 不再写（读端忽略不认识的字段，旧 cookie 里的照样无害）。
  * 字段→key：mode←sgx-theme-mode；pal←sgx-palette；accent：当前主题色种子；fs / rm 固定 'standard' / 0；
- *   mat：mode 最近一次变化的时间戳；lang←sgx-lang（明确选的 zh / en，跟随系统写 ''）。
+ *   mat：mode 最近一次变化的时间戳；lang←sgx-lang（明确选的语言；跟随系统写 'system'）。
  * cookie：sgx-ui=<base64url JSON>; Domain=styrigx.com; Path=/; Max-Age=34560000; SameSite=Lax; Secure（Domain / Secure 按主机名和协议，见 cookieAttrs；不加 HttpOnly：子站要用 JS 读）。
  */
 export function syncUiCookie() {
@@ -167,9 +183,9 @@ export function setPalette(p) {
   syncUiCookie();
   reapply();
 }
-/** 写语言偏好（'zh' / 'en'；'system' = 删 key）；跳到哪种语言的页面由调用方决定。 @param {'system'|'zh'|'en'} v */
+/** 写语言偏好（配置里的语言；其余一律存 'system' = 跟随系统，明确存值、不再删 key）；跳到哪种语言的页面由调用方决定。 @param {string} v */
 export function setLangPref(v) {
-  lsSet('sgx-lang', v === 'zh' || v === 'en' ? v : null);
+  lsSet('sgx-lang', configuredLangs().indexOf(v) >= 0 ? v : 'system');
   syncUiCookie();
 }
 

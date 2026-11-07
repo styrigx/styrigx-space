@@ -77,6 +77,8 @@ import {
   peekUserHandle,
   peekLegacyHandle,
   providerOf,
+  normalizeProvider,
+  normalizePasskeyName,
   PASSKEY_DISPLAY_NAME,
 } from '../core/account-store.js';
 import {
@@ -498,8 +500,8 @@ async function handlePost(context) {
       keys: keys.map(function (k) {
         return {
           credId: k.credId,
-          name: k.name || '',
-          provider: k.provider || '',
+          name: normalizePasskeyName(k.name),
+          provider: normalizeProvider(k.provider),
           createdAt: k.createdAt || 0,
           lastUsedAt: k.lastUsedAt || 0,
         };
@@ -613,7 +615,8 @@ async function handlePost(context) {
       const provider = providerOf(aaguid);
       const name = String((body && body.name) || '').replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 40);
       item = {
-        name: name || provider || '通行密钥',
+        /* 用户没起名就存空（不存显示文案），前端按页面语言显示默认名 */
+        name: name,
         provider: provider,
         aaguid: aaguid,
         createdAt: Date.now(),

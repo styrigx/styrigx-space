@@ -86,7 +86,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
-                body: JSON.stringify({ ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26 Ultra', provider: 'Samsung Pass', createdAt: 1760000000000, lastUsedAt: 1760000000000 }] }),
+                body: JSON.stringify({ ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26 Ultra', provider: 'samsung-pass' /* 服务端存 provider id（语言清理 2026-11-07），显示名走字符串表 */, createdAt: 1760000000000, lastUsedAt: 1760000000000 }] }),
               });
             });
           }

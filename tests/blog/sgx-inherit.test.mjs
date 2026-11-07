@@ -5,13 +5,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { bootLang } from '../../atlas/web/blog/assets/js/sgx/shell/lang-boot.js';
 
-/* 首帧前的内联脚本：atlas/web/blog/layouts/partials/sgx-inherit.html 两个 <script>：① 共享读端（模板内联 ui-cookie-read.js 压缩版）② 博客胶水 */
+/* 首帧前的内联脚本：atlas/web/blog/layouts/partials/sgx-inherit.html 三个 <script>：
+   ① 首帧语言跳转（共享外壳 lang-boot.js，四站同一份，语言清理 2026-11-07）② 共享读端（ui-cookie-read.js 压缩版）③ 博客胶水（只管外观） */
 const partial = readFileSync(new URL('../../atlas/web/blog/layouts/partials/sgx-inherit.html', import.meta.url), 'utf8');
 const scripts = [...partial.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-assert.equal(scripts.length, 2, 'sgx-inherit.html 应有两个 <script>');
-assert.match(scripts[0], /resources\.Get "js\/sgx\/shell\/ui-cookie-read\.js"|\$reader\.Content/, '第一个 <script> 内联共享读端');
-const glue = scripts[1];
+assert.equal(scripts.length, 3, 'sgx-inherit.html 应有三个 <script>');
+assert.match(scripts[0], /resources\.Get "js\/sgx\/shell\/lang-boot\.js" \| js\.Build/, '第一个 <script> 内联首帧语言跳转');
+assert.match(scripts[1], /resources\.Get "js\/sgx\/shell\/ui-cookie-read\.js"|\$reader\.Content/, '第二个 <script> 内联共享读端');
+const glue = scripts[2];
 const READER = readFileSync(new URL('../../atlas/web/blog/assets/js/sgx/shell/ui-cookie-read.js', import.meta.url), 'utf8');
 /* 模块那一半（数字健康、自定义色引擎按需加载）：atlas/web/blog/assets/js/entries/inherit.ts */
 const inheritModule = readFileSync(new URL('../../atlas/web/blog/assets/js/entries/inherit.ts', import.meta.url), 'utf8');
@@ -299,57 +302,62 @@ test('accent：预设种子 / 旧种子 → 预设；不同 → 内联 --sgx-see
   }
 });
 
-test('lang：和页面不同且有对应版本 → 跳过去（带 hash）；P4-3 PR-4c 起英文 /blog/、中文 /blog/zh/', () => {
+/* 语言（语言清理 2026-11-07）：四站同一份 lang-boot.js；博客每页都跳（不只首页），只去本页 <meta name="sgx-alt-<语言>"> 声明过的地址 */
+function boot({ local = {}, cookie = '', path = '/blog/', hash = '', alt = null, ua = 'Mozilla/5.0', navLang = 'zh-CN' } = {}) {
+  const replaced = [];
+  const metas = alt ? Object.entries(alt).map(([l, u]) => ({ name: 'sgx-alt-' + l, content: u })) : [{ name: 'sgx-alt-none', content: '' }];
+  const session = {};
+  const w = {
+    localStorage: { getItem: (k) => (k in local ? local[k] : null) },
+    sessionStorage: { setItem: (k, v) => (session[k] = v) },
+    navigator: { userAgent: ua, language: navLang, languages: [navLang] },
+    location: { pathname: path, hash, search: '', replace: (u) => replaced.push(u) },
+    document: {
+      cookie,
+      referrer: '',
+      querySelectorAll: () => metas,
+      querySelector: (sel) => {
+        const m = sel.match(/sgx-alt-([a-z]+)/);
+        const hit = m && metas.find((x) => x.name === 'sgx-alt-' + m[1]);
+        return hit ? { getAttribute: () => hit.content } : null;
+      },
+    },
+  };
+  bootLang(w);
+  return { replaced, session, w };
+}
+
+test('lang：偏好和页面不同且有对应版本 → 跳过去（带 hash）；英文 /blog/、中文 /blog/zh/', () => {
   const ck = 'sgx-ui=' + enc({ v: 2, lang: 'zh' });
-  assert.deepEqual(
-    run({ cookie: ck, lang: 'en', path: '/blog/', hash: '#topics', alt: { zh: '/blog/zh/', en: '/blog/' } }).replaced,
-    ['/blog/zh/#topics'],
-  );
-  /* 没有中文版本：留在英文页 */
-  assert.deepEqual(run({ cookie: ck, lang: 'en', path: '/blog/post/x/' }).replaced, []);
+  assert.deepEqual(boot({ cookie: ck, navLang: 'en-US', path: '/blog/', hash: '#topics', alt: { zh: '/blog/zh/', en: '/blog/' } }).replaced, ['/blog/zh/#topics']);
+  assert.deepEqual(boot({ local: { 'sgx-lang': 'zh' }, navLang: 'en-US', path: '/blog/post/x/', alt: { zh: '/blog/zh/post/x/', en: '/blog/post/x/' } }).replaced, ['/blog/zh/post/x/']);
+  /* 没有中文版本（文章只有英文 / 标签页 / 404）：留在原页 */
+  assert.deepEqual(boot({ cookie: ck, path: '/blog/post/x/', alt: { en: '/blog/post/x/' } }).replaced, []);
+  assert.deepEqual(boot({ cookie: ck, path: '/blog/tags/ai/' }).replaced, []);
   /* 已是中文页 */
-  assert.deepEqual(
-    run({ cookie: ck, path: '/blog/zh/', alt: { zh: '/blog/zh/', en: '/blog/' } }).replaced,
-    [],
-  );
+  assert.deepEqual(boot({ cookie: ck, path: '/blog/zh/', alt: { zh: '/blog/zh/', en: '/blog/' } }).replaced, []);
   /* zh → en */
-  assert.deepEqual(
-    run({
-      cookie: 'sgx-ui=' + enc({ v: 2, lang: 'en' }),
-      path: '/blog/zh/post/a/',
-      alt: { zh: '/blog/zh/post/a/', en: '/blog/post/a/' },
-    }).replaced,
-    ['/blog/post/a/'],
-  );
+  assert.deepEqual(boot({ local: { 'sgx-lang': 'en' }, path: '/blog/zh/post/a/', alt: { zh: '/blog/zh/post/a/', en: '/blog/post/a/' } }).replaced, ['/blog/post/a/']);
   /* 爬虫不跳 */
-  assert.deepEqual(
-    run({ cookie: ck, lang: 'en', path: '/blog/', alt: { zh: '/blog/zh/' }, ua: 'Googlebot' }).replaced,
-    [],
-  );
-  /* cookie 版本不合法：lang 也不认（navigator 是英文 → 不跳） */
-  assert.deepEqual(
-    run({ cookie: 'sgx-ui=' + enc({ lang: 'zh' }), lang: 'en', navLang: 'en-US', path: '/blog/post/a/', alt: { zh: '/blog/zh/post/a/' } }).replaced,
-    [],
-  );
+  assert.deepEqual(boot({ cookie: ck, path: '/blog/', alt: { zh: '/blog/zh/', en: '/blog/' }, ua: 'Googlebot' }).replaced, []);
+  /* cookie 版本不合法：lang 不认 → 跟随系统（浏览器英文 → 不跳） */
+  assert.deepEqual(boot({ cookie: 'sgx-ui=' + enc({ lang: 'zh' }), navLang: 'en-US', path: '/blog/post/a/', alt: { zh: '/blog/zh/post/a/', en: '/blog/post/a/' } }).replaced, []);
 });
 
-test('lang：没 cookie 时只在英文首页（/blog/，默认语言）按旧记忆 / 浏览器语言跳中文 /blog/zh/', () => {
-  assert.deepEqual(run({ lang: 'en', path: '/blog/', alt: { zh: '/blog/zh/' }, navLang: 'zh-CN' }).replaced, ['/blog/zh/']);
-  assert.deepEqual(run({ lang: 'en', path: '/blog/', alt: { zh: '/blog/zh/' }, navLang: 'en-US' }).replaced, []);
-  assert.deepEqual(
-    run({ lang: 'en', path: '/blog/', alt: { zh: '/blog/zh/' }, navLang: 'zh-CN', local: { 'styrigx-blog-lang': 'en' } })
-      .replaced,
-    [],
-  );
-  assert.deepEqual(
-    run({ lang: 'en', path: '/blog/', alt: { zh: '/blog/zh/' }, navLang: 'en-US', local: { 'styrigx-blog-lang': 'zh' } })
-      .replaced,
-    ['/blog/zh/'],
-  );
-  assert.deepEqual(
-    run({ lang: 'en', path: '/blog/post/a/', alt: { zh: '/blog/zh/post/a/' }, navLang: 'zh-CN' }).replaced,
-    [],
-  );
+test('lang：跟随系统（明确存 system，或旧版的空 / 没有）每页都按浏览器语言跳，不只首页；跳前记 sgx-lang-hop', () => {
+  const both = (p) => ({ zh: '/blog/zh' + p.slice(5), en: p });
+  for (const local of [{}, { 'sgx-lang': 'system' }, { 'sgx-lang': '' }]) {
+    assert.deepEqual(boot({ local, path: '/blog/', alt: both('/blog/') }).replaced, ['/blog/zh/'], JSON.stringify(local));
+    const r = boot({ local, path: '/blog/post/a/', alt: both('/blog/post/a/') });
+    assert.deepEqual(r.replaced, ['/blog/zh/post/a/'], '文章页也跳');
+    assert.deepEqual(JSON.parse(r.session['sgx-lang-hop']), { go: '/blog/zh/post/a/', ref: '' });
+    assert.equal(r.w.__sgxLangGo, 1);
+  }
+  assert.deepEqual(boot({ path: '/blog/', alt: both('/blog/'), navLang: 'en-US' }).replaced, []);
+  /* 明确选了英文：中文浏览器也不跳 */
+  assert.deepEqual(boot({ local: { 'sgx-lang': 'en' }, path: '/blog/', alt: both('/blog/') }).replaced, []);
+  /* 旧的博客本地键不再读 */
+  assert.deepEqual(boot({ local: { 'styrigx-blog-lang': 'en' }, path: '/blog/', alt: both('/blog/') }).replaced, ['/blog/zh/']);
 });
 
 test('坏 cookie / 非法或未知调色板不抛错，回到主站默认 dustyblue（不写 data-palette）；lake 是普通色板；旧撞色 xlake → lake', () => {
