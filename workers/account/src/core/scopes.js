@@ -21,13 +21,15 @@
 /** 作用域 id 格式：<应用>.<动作>，全小写，只用 [a-z.] */
 export const SCOPE_ID_RE = /^[a-z]+\.[a-z]+$/;
 
-/** 作用域表（方案 4.2，5 项；顺序即授权卡顺序） */
+/** 作用域表（方案 4.2 的 5 项 + 2026-11-07 个人资料 profile.write；顺序即授权卡顺序） */
 export const SCOPES = Object.freeze([
   Object.freeze({ id: 'curio.write', app: 'curio', name: 'Curio', sensitive: Object.freeze(['POST /curio/api/import']) }),
   Object.freeze({ id: 'daymark.write', app: 'daymark', name: 'Daymark', sensitive: Object.freeze([]) }),
   Object.freeze({ id: 'prefs.sync', app: 'prefs', name: 'Settings sync', sensitive: Object.freeze([]) }),
   Object.freeze({ id: 'wellbeing.write', app: 'wellbeing', name: 'Digital wellbeing', sensitive: Object.freeze([]) }),
   Object.freeze({ id: 'avatar.write', app: 'avatar', name: 'Avatar', sensitive: Object.freeze([]) }),
+  /* 2026-11-07 个人资料（姓名、昵称、签名、联系邮箱；PUT /api/profile）。已种过授权的库按 core/app-grant.js SEED_SUPPLEMENTS 补种 */
+  Object.freeze({ id: 'profile.write', app: 'profile', name: 'Profile', sensitive: Object.freeze([]) }),
 ]);
 
 /** 全部已知作用域 id，按字母排序（结论里的 scopes 一律按字母排序） */

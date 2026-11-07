@@ -7197,6 +7197,8 @@
     max-width: none; max-height: none;
     &::backdrop { background: rgba(0, 0, 0, .4); opacity: 0; transition: opacity .25s; }
     &.sgx-open::backdrop { opacity: 1; }
+    /* 2026-11-07：关着的弹层永远不显示（下面宽屏版面的 display:flex 不能盖过 dialog 关着时的 display:none） */
+    &:not([open]) { display: none; }
   }
   /* 手机：底部弹层 */
   .layout-mobile dialog#sheet-wrap {
@@ -7216,7 +7218,8 @@
   .layout-dex {
     dialog#sheet-wrap {
       margin: auto; width: 100%; max-width: 22rem;
-      &.sgx-open, &.sgx-closing { display: flex; align-items: center; justify-content: center; }
+      /* 只在真开着时（[open]）：类名留着、dialog 已关的那一刻也不能把它画出来（2026-11-07 修） */
+      &[open].sgx-open, &[open].sgx-closing { display: flex; align-items: center; justify-content: center; }
     }
     #sheet-panel {
       position: relative; width: 100%; border-radius: 1.75rem; background: var(--glass-tint);
@@ -7379,6 +7382,38 @@
   .acct-sync-swatch { width: 24px; height: 24px; border-radius: 999px; flex-shrink: 0; box-shadow: inset 0 0 0 1px var(--m-outline); }
   .acct-sync-swatch[hidden] { display: none; }
   .acct-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  /* 2026-11-07 账号 → 个人资料（/account/profile/，参考 Google「个人信息」页）：一行一项，灰色线框图标（不带彩色圆底）+ 标签 + 当前值；
+     头像行右边是 48px 圆形头像。点行在行下方展开编辑框（输入框 + 红字 / 字数 + 取消 / 保存），展开时右箭头转向下（同「AI 模型」行）。 */
+  .acct-pf-ic { color: var(--m-on-surface-variant); }
+  .acct-pf-av { width: 48px; height: 48px; border-radius: 999px; object-fit: cover; flex-shrink: 0; }
+  .acct-pf-val { overflow-wrap: anywhere; word-break: break-word; }
+  .acct-pf-val.is-empty { opacity: .7; }
+  .acct-pf-item + .acct-pf-item > .acct-pf-row::before {
+    content: ''; position: absolute; top: 0; left: 68px; right: 0;
+    border-top: 1px solid color-mix(in srgb, var(--m-outline) 55%, transparent);
+  }
+  .acct-pf-row { cursor: pointer; }
+  .acct-pf-row:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+  .acct-pf-row > svg:last-child { flex-shrink: 0; transition: transform .2s ease; }
+  .acct-pf-row[aria-expanded="true"] > svg:last-child { transform: rotate(90deg); }
+  .reduced-motion .acct-pf-row > svg:last-child { transition: none; }
+  @media (prefers-reduced-motion: reduce) { .acct-pf-row > svg:last-child { transition: none; } }
+  .acct-pf-ed { display: flex; flex-direction: column; gap: 8px; padding: 0 20px 16px 74px; }
+  .acct-pf-ed[hidden] { display: none; }
+  .acct-pf-ed .acct-pf-in { max-width: none; }
+  textarea.acct-pf-in { resize: none; line-height: 1.45; min-height: 5.2em; }
+  .acct-pf-meta { display: flex; align-items: flex-start; gap: 12px; min-height: 18px; }
+  .acct-pf-err { flex: 1; min-width: 0; margin: 0; font-size: 13px; color: var(--sgx-danger); line-height: 1.45; &[hidden] { display: block; visibility: hidden; } }
+  .acct-pf-count { margin-left: auto; flex-shrink: 0; font-size: 12px; color: var(--sgx-text-secondary); font-variant-numeric: tabular-nums; }
+  .acct-pf-acts { display: flex; justify-content: flex-end; gap: 8px; }
+  .acct-pf-opts { display: flex; flex-direction: column; }
+  .acct-pf-opt {
+    display: flex; align-items: center; width: 100%; min-height: 48px; padding: 0 4px; text-align: left; font-size: 15px; color: var(--m-on-surface);
+    & + .acct-pf-opt { border-top: 1px solid color-mix(in srgb, var(--m-outline) 55%, transparent); }
+    &:active { background: var(--m-container); }
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+    &[hidden] { display: none; }
+  }
   .acct-gh { display: flex; align-items: center; gap: 12px; padding: 0 4px; margin: 0 0 10px; font-size: 17px; font-weight: 700; color: var(--m-on-surface); letter-spacing: -0.01em; }
   .acct-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
   /* 卡片下面紧跟的说明、后面还有下一组（2026-10-24 PR4：设备页「此设备」卡下的保持登录说明、云同步页总开关下的说明）：上 8 下 24，和组间距一致 */

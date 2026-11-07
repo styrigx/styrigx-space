@@ -5,7 +5,7 @@
  *   - 账号会话无效 → []
  *   - 还没有种子标记（上线到首次打开授权卡页 / 首次登录后授权检查之间）→ 保持骨架行为：作用域表里的全部作用域
  *     （否则上线后全部写接口立即 403 scope；设计方案 4.7「用户感知不到变化」）
- *   - 有种子标记 → 已授权 ∩ 作用域表（0 行 = []）
+ *   - 有种子标记 → 已授权 ∩ 作用域表（0 行 = []）；首次切换之后新增、还没补种的应用（app-grant.js SEED_SUPPLEMENTS）按已授权算
  *   函数签名、authorize 的结论形状都不变（P2-1 定的），下游不用改。只读不写：种子不在这里写（走 grant-list，见 api/account.js）。
  * - authorize(env, request, opts)：验账号会话 → 取 deviceId → 算作用域 → opts.reauth 为真时再验 sgx-account-reauth。
  *   结论 { ok, reason, deviceId, scopes, reauth }；只读不签：不写 cookie、不签票、不推纪元
@@ -21,7 +21,7 @@
 import { verifyAccountSession, verifyTicket } from './account-session.js';
 import { ACCOUNT_REAUTH_TICKET } from './realm.js';
 import { SCOPE_IDS, knownScopes } from './scopes.js';
-import { readGrantState, scopesOfRows } from './app-grant.js';
+import { readGrantState, scopesOfRows, scopesOfApp } from './app-grant.js';
 
 /**
  * @typedef {{ ok: boolean, reason: string, deviceId: string, scopes: string[], reauth: boolean }} Authorization
@@ -38,7 +38,10 @@ export async function grantedScopes(env, accountSession) {
   if (!accountSession || accountSession.ok !== true) return [];
   const st = await readGrantState(env);
   if (!st.seeded) return SCOPE_IDS.slice();
-  return scopesOfRows(st.rows);
+  /* 已切换、新应用还没补种（SEED_SUPPLEMENTS 标记没写）：那批应用按已授权算（同骨架行为） */
+  const pend = [];
+  for (const app of st.pending || []) for (const s of scopesOfApp(app)) pend.push(s);
+  return knownScopes(scopesOfRows(st.rows).concat(pend));
 }
 
 /** @param {string} reason @returns {Authorization} */

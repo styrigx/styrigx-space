@@ -17,7 +17,7 @@
  *   → 锁屏进门会话（by=tempkey；进门二值，和别的进门方式一样，只是锁侧复验时不算数；账号照样要账号密码登录）。
  */
 import { on } from '../lib/events.js';
-import { reducedMotion } from '../lib/util.js';
+import { reducedMotion, esc } from '../lib/util.js';
 import { followKeyboard } from './vk.js';
 import { tapFeedback } from '../lib/dialog-behavior.js';
 import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../auth/auth-sheet.js';
@@ -25,6 +25,16 @@ import { getPasskeyAssertion, passkeyErrorText, assertionOptions, assertionToJSO
 import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../auth/auth-flow.js';
 import { KEY_LOCK, KEY_SPACE } from '../lib/key-names.js';
 import { mountResetFlow, resetT } from '../auth/reset-flow.js';
+import { profileDefaults, readCache, effectiveProfile } from '../lib/profile.js';
+
+/**
+ * 锁屏头像的替代文字 = 个人资料的姓名（2026-11-07）：构建期默认值（data/profile.yaml）← 本机缓存里改过的（上次进门时 GET /api/profile 写的）。
+ * 锁屏前不问接口；这只是显示用的文字，和会话判断无关（上面「唯一状态源是服务端会话」说的是解锁状态）。
+ */
+function lockName() {
+  return effectiveProfile(readCache(), profileDefaults()).name;
+}
+
 
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { isLocalDev, pageState, askServer, proceed, bindAutoLock } from './lock-guard.js';
@@ -85,7 +95,7 @@ export function showLockScreen() {
     '" aria-haspopup="dialog">' +
     '<span class="sgx-lock-halo" aria-hidden="true"></span>' +
     (avatarSrc
-      ? '<img src="' + avatarSrc + '" alt="Styrigx" width="120" height="120">'
+      ? '<img src="' + avatarSrc + '" alt="' + esc(lockName()) + '" translate="no" data-sgx-personal width="120" height="120">'
       : '<span class="sgx-lock-fb" aria-hidden="true">S</span>') +
     '</button>' +
     '<p class="sgx-lock-welcome">' + (tx('lockWelcomeBack')) + '</p>' +

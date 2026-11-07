@@ -44,7 +44,7 @@ const MUST_ROUTE = ['/api/geo', '/api/lock-session-check',
   '/?lock=1', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2Fblog%2F', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
   '/zh/?lock=1', '/files-index.json'];
 /* 账号路径：必须归网关、在转发表里转给 ACCOUNT（账号 Worker styrigx-account 没有路由） */
-const ACCOUNT_MUST = ['/api/account', '/api/account?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24',
+const ACCOUNT_MUST = ['/api/account', '/api/account?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24', '/api/profile', '/api/profile/',
   '/avatar/32.webp', '/avatar/96.webp', '/avatar/192.webp?v=abc', '/avatar/512.webp'];
 /* 转发表允许的绑定、门 */
 const FORWARD_BINDINGS = new Set(['ACCOUNT']);

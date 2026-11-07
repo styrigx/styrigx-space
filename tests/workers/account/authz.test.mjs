@@ -26,20 +26,21 @@ const reqWith = (ck) => {
   const c = Object.entries(ck).filter(([, v]) => v).map(([k, v]) => k + '=' + v).join('; ');
   return new Request(URL_, { headers: c ? { Cookie: c } : {} });
 };
-const ALL = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'wellbeing.write'];
+const ALL = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'profile.write', 'wellbeing.write'];
 const NO = (reason) => ({ ok: false, reason, deviceId: '', scopes: [], reauth: false });
 /** 账号库执行过的读纪元语句条数 @param {any} env */
 const epochReads = (env) => env.D1_ACCOUNT_AUTH.statements.filter((s) => /^\s*SELECT\b[\s\S]*\bFROM\s+epoch\b/i.test(s)).length;
 
 /* ---------------- 作用域表 ---------------- */
 
-test('作用域表：方案 4.2 的 5 项（id、所属应用、英文名——中文在主站字符串表 js.account.app_<应用>），顺序固定', () => {
+test('作用域表：方案 4.2 的 5 项 + 个人资料（2026-11-07）（id、所属应用、英文名——中文在主站字符串表 js.account.app_<应用>），顺序固定', () => {
   assert.deepEqual(scopes.SCOPES.map((s) => ({ id: s.id, app: s.app, name: s.name })), [
     { id: 'curio.write', app: 'curio', name: 'Curio' },
     { id: 'daymark.write', app: 'daymark', name: 'Daymark' },
     { id: 'prefs.sync', app: 'prefs', name: 'Settings sync' },
     { id: 'wellbeing.write', app: 'wellbeing', name: 'Digital wellbeing' },
     { id: 'avatar.write', app: 'avatar', name: 'Avatar' },
+    { id: 'profile.write', app: 'profile', name: 'Profile' },
   ]);
 });
 
@@ -51,6 +52,7 @@ test('作用域表：只有奇趣有另要账号复验的敏感操作（批量�
     'prefs.sync': [],
     'wellbeing.write': [],
     'avatar.write': [],
+    'profile.write': [],
   });
 });
 
@@ -92,7 +94,11 @@ const SEED = 'app-grant-seed-1';
 /** 直接往库里写一行授权（绕过 app-grant.js，测读路径） @param {any} env @param {string} app @param {string[]} sc */
 const putRow = (env, app, sc) => env.D1_ACCOUNT_AUTH.raw.prepare('INSERT OR REPLACE INTO app_grant (app, record, granted_at) VALUES (?, ?, ?)')
   .run(app, JSON.stringify({ v: 1, scopes: sc, deviceId: TEST_DEVICE_ID, by: 'passkey' }), 1);
-const mark = (env) => env.D1_ACCOUNT_AUTH.raw.prepare('INSERT OR IGNORE INTO data_migration (name, migrated_at) VALUES (?, 1)').run(SEED);
+/** 种子标记；sup 为真时连补种标记一起写（= 已补种的库） */
+const mark = (env, sup = true) => {
+  env.D1_ACCOUNT_AUTH.raw.prepare('INSERT OR IGNORE INTO data_migration (name, migrated_at) VALUES (?, 1)').run(SEED);
+  if (sup) for (const x of grant.SEED_SUPPLEMENTS) env.D1_ACCOUNT_AUTH.raw.prepare('INSERT OR IGNORE INTO data_migration (name, migrated_at) VALUES (?, 1)').run(x.mark);
+};
 const SESS = { ok: true, deviceId: TEST_DEVICE_ID, by: 'passkey' };
 
 test('grantedScopes：无种子标记 → 保持骨架行为（账号会话有效即全部作用域，每次新数组）；无效 / 缺 → []', async () => {
@@ -128,10 +134,21 @@ test('grantedScopes：有种子标记 → 已授权 ∩ 作用域表；无记录
   assert.deepEqual(await authz.grantedScopes(env, { ok: false }), [], '会话无效时不看记录');
 });
 
+test('grantedScopes：已切换、个人资料还没补种（只有 seed-1 标记）→ 记录 + profile.write（新应用按已授权算）；补种后按记录', async () => {
+  const env = makeEnv();
+  mark(env, false);
+  putRow(env, 'curio', ['curio.write']);
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ['curio.write', 'profile.write']);
+  await grant.ensureSeed(env, SESS);
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ['curio.write', 'profile.write'], '补种写了 profile 一行');
+  await grant.revokeGrant(env, 'profile');
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ['curio.write'], '补种后取消 → 立即不含');
+});
+
 test('grantedScopes：种子之后按记录；取消后下一次立即不含该作用域，重新授权后恢复', async () => {
   const env = makeEnv();
   assert.equal(await grant.ensureSeed(env, SESS), true);
-  assert.deepEqual(await authz.grantedScopes(env, SESS), ALL, '种满 5 行 = 全部');
+  assert.deepEqual(await authz.grantedScopes(env, SESS), ALL, '种满 6 行 = 全部');
   await grant.revokeGrant(env, 'curio');
   assert.deepEqual(await authz.grantedScopes(env, SESS), ALL.filter((s) => s !== 'curio.write'));
   await grant.addGrant(env, 'curio', SESS);

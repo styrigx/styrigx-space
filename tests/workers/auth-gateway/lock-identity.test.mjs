@@ -73,8 +73,10 @@ test('writeLockIdentity：先剥再写；进门（by 只作审计，tempkeyId �
   assert.deepEqual(w(null, { address: 'evil; x', country: 'JAPAN', city: 'a\u0007b' }), {});
 });
 
-test('转发表：五条都转给 ACCOUNT；/api/* 只认路径本身或子路径（/api/prefsX 不转）；页面不转', () => {
-  assert.deepEqual(FORWARDING.map((r) => r.path), ['/api/account', '/api/prefs', '/api/avatar', '/api/wellbeing', '/avatar/']);
+test('转发表：六条（2026-11-07 加个人资料 /api/profile）都转给 ACCOUNT；/api/* 只认路径本身或子路径（/api/prefsX 不转）；页面不转', () => {
+  assert.deepEqual(FORWARDING.map((r) => r.path), ['/api/account', '/api/prefs', '/api/avatar', '/api/wellbeing', '/api/profile', '/avatar/']);
+  assert.equal(matchForwarding('/api/profile').gate, 'session', '个人资料要进门（锁屏前不开放）');
+  assert.equal(matchForwarding('/account/profile/'), null, '个人资料页面不转发');
   for (const r of FORWARDING) assert.equal(r.binding, 'ACCOUNT');
   assert.equal(matchForwarding('/api/prefs/x').path, '/api/prefs');
   assert.equal(matchForwarding('/avatar/96.webp').path, '/avatar/');

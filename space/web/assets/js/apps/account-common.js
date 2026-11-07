@@ -1,8 +1,8 @@
 /**
  * @fileoverview 账号页共用：账号总览（/account/，含登录区）和各子页
- * （设备 /account/devices/、安全与隐私 /account/security/、云同步 /account/sync/、应用授权 /account/apps/）。
+ * （设备 /account/devices/、安全与隐私 /account/security/、云同步 /account/sync/、应用授权 /account/apps/、个人资料 /account/profile/）。
  * 设置里的临时钥匙页（/security/tempkeys/）也用这里的 createT（同一份 #sgx-i18n-account 文案），不问账号会话。
- * 2026-10-24 PR4：「账号信息」子页（/account/profile/）删除，登录方式和「退出账号」挪进设备页「此设备」卡。
+ * 2026-10-24 PR4：「账号信息」子页删除，登录方式和「退出账号」挪进设备页「此设备」卡；2026-11-07 同一地址 /account/profile/ 改作「个人资料」子页（内容是新的）。
  *
  * - i18n：各页模板都输出同一份 #sgx-i18n-account（partials/account-i18n.html）
  * - requireAccountSession：子页进页查一次账号会话，明确没有 → 回账号页登录，登录后回子页
@@ -31,8 +31,8 @@ export function accountUrl(en) {
 export function securityUrl(en) {
   return langPath('/account/security/', pageLang());
 }
-/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、云同步、应用授权） */
-export const ACCOUNT_RETURN_RE = /^\/(zh\/)?account\/(security|devices|sync|apps)\/$/;
+/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、云同步、应用授权、个人资料） */
+export const ACCOUNT_RETURN_RE = /^\/(zh\/)?account\/(security|devices|sync|apps|profile)\/$/;
 
 /** 回账号页登录，登录后回当前子页 @param {boolean} en */
 export function goAccountLogin(en) {

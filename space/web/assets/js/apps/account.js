@@ -13,7 +13,7 @@
  *   另一组：云同步（副标题 = 开关状态 / 上次同步，进 /account/sync/ 看同步了哪些项、开关）；
  *   再一组（P4-2d）：「AI 模型」（副标题 = 当前模型名，点开单选列表；apps/account-ai.js，确认有账号会话后才读 GET /api/ai）。
  *   临时钥匙和服务状态已搬到设置（/security/tempkeys/、/status/），账号页不再有入口。
- * - ?return=/account/(security|devices|sync|apps)/：子页没有账号会话时跳来，登录后回子页。
+ * - ?return=/account/(security|devices|sync|apps|profile)/：子页没有账号会话时跳来，登录后回子页。
  * - ?return=/curio/… | /daymark/…（P3-1 同意流程，Gray 2026-11-05 定）：应用内点登录跳来。登录（带 reauth:true，拿 3 分钟复验票：
  *   刚完成的登录即视为已复验，Gray 2026-11-06 定 A）完成后做授权检查：grant-list（先跑幂等种子再回记录）→
  *   该应用有授权 → 直接回原页面，不停在账号卡上；没有 → 同意卡片（#acct-consent：应用图标与名、请求的作用域说明、授权 / 拒绝）。

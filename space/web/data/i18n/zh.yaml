@@ -53,6 +53,14 @@ accountSync:
   cloudSync: 云同步
   whenOnTheSettings: 开启后，下面这些设置在登录这个账号的设备之间同步，每一项以最后一次修改为准。
   languageAndLayoutFollow: 语言和布局跟随每台设备各自的设置，不同步。
+accountProfile:
+  basicInfo: 基本信息
+  photo: 头像
+  name: 姓名
+  nickname: 昵称
+  motto: 签名
+  email: 邮箱
+  whereShown: 这些资料显示在首页名片、账号卡和 AI 窗口的「联系我」里；邮箱只用于「联系我」。进门后可见，不需要登录账号。
 account:
   signInChooseMethod: 登录，选择方式
   welcomeBack: 欢迎回来
@@ -66,6 +74,8 @@ account:
   sync: 同步
   cloudSync: 云同步
   aiModel: AI 模型
+  profile: 个人资料
+  profileSub: 头像、姓名、昵称、签名、邮箱
 js:
   core:
     wellTip: 已经看了 15 分钟，起来活动一下？
@@ -423,6 +433,18 @@ js:
     securiSetupDoneDesc: "解锁方式已设置，请回锁屏解锁"
     securiExpiredStartOver: "验证已过期，请回锁屏重新开始"
   account:
+    pfEdit: 修改
+    pfSave: 保存
+    pfCancel: 取消
+    pfSaved: 已保存
+    pfNotSet: 未设置
+    pfEmpty: 不能为空
+    pfTooLong: 最多 {n} 个字
+    pfFormat: 不能包含换行或控制字符
+    pfEmailFormat: 请输入有效的邮箱地址
+    pfFailed: 没保存上，请重试
+    pfNoScope: 个人资料未获账号授权
+    pfCount: "{n}/{max}"
     eyeShow: 显示密码
     eyeHide: 隐藏密码
     mPasskey: 账号通行密钥
@@ -582,6 +604,7 @@ js:
     gaDesc-prefs: 把设置同步到账号，在其他设备上取回
     gaDesc-wellbeing: 记录数字健康的使用时长
     gaDesc-avatar: 更换或移除账号头像
+    gaDesc-profile: 修改姓名、昵称、签名和联系邮箱
     gaSens-curio: 批量导入书签
     gaNoScope: '{v}未获账号授权'
     gaConsentTitle: 允许{v}使用你的账号？
@@ -608,6 +631,7 @@ js:
     app_prefs: "设置同步"
     app_wellbeing: "数字健康"
     app_avatar: "头像"
+    app_profile: "个人资料"
 filesIndex:
   app:
     settings:

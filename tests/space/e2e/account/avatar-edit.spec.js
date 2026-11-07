@@ -155,9 +155,9 @@ test('英文账号卡：Signed in', async ({ page }) => {
   await expect(page.locator('#acct-main [data-acct-card] .sgx-ac-state')).toHaveText('Signed in');
 });
 
-test('「账号信息」子页删除：/account/profile/、/zh/account/profile/ 404，不跳转', async ({ page }) => {
+test('/account/profile/ 地址复用为「个人资料」子页（2026-11-07）：中英都 200，不跳转（内容见 account-profile.spec.js）', async ({ page }) => {
   for (const p of ['/account/profile/', '/zh/account/profile/']) {
     const res = await page.request.get(p, { maxRedirects: 0 });
-    expect(res.status(), p).toBe(404);
+    expect(res.status(), p).toBe(200);
   }
 });

@@ -8,7 +8,7 @@
  * - AccountVerifier.accountSession(cookieHeader, clientContext)：正反例，只验不签
  * - AccountVerifier.authorize(cookieHeader, clientContext, opts)（P2-1）：授权结论 { ok, reason, deviceId, scopes, reauth }；
  *   opts 只认 reauth === true；坏参数、缺钥匙、账号库出错都不抛
- * - /api/account grant-list / grant-revoke / grant-add（P3-1）：grant-list 首次种满 5 行 + 标记、回 5 项；grant-revoke 删行回新列表、
+ * - /api/account grant-list / grant-revoke / grant-add（P3-1）：grant-list 首次种满 6 行（含 2026-11-07 的个人资料）+ 标记、回 6 项；grant-revoke 删行回新列表、
  *   不要复验，下一次授权结论立即不含；grant-add 没复验票 401 reauth、有则写入；都要进门 + 账号会话
  *
  * 运行：node --test tests/workers/account/account-entrypoints.test.mjs
@@ -80,8 +80,8 @@ test('index.js：默认导出就是 app.js 的 default；AccountService / Accoun
   assert.equal(ep.AccountVerifier.prototype.fetch, undefined);
 });
 
-test('路由表：AccountService = /api/account + 三个账号数据接口（router.js API_ROUTES 同一张表）', () => {
-  assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']);
+test('路由表：AccountService = /api/account + 四个账号数据接口（含 /api/profile；router.js API_ROUTES 同一张表）', () => {
+  assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account', '/api/avatar', '/api/prefs', '/api/profile', '/api/wellbeing']);
   assert.equal(ep.SERVICE_API_ROUTES, index.API_ROUTES);
 });
 
@@ -248,7 +248,7 @@ test('AccountVerifier：缺钥匙 → no-pubkey；账号库出错 → d1-error�
 
 /* ---------------- AccountVerifier.authorize（P2-1） ---------------- */
 
-const ALL_SCOPES = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'wellbeing.write'];
+const ALL_SCOPES = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'profile.write', 'wellbeing.write'];
 const DENY = (reason) => ({ ok: false, reason, deviceId: '', scopes: [], reauth: false });
 
 test('AccountVerifier.authorize：有效账号会话 → ok、deviceId、全部作用域（骨架阶段）、reauth=false；不签发、纪元不变', async () => {
@@ -359,7 +359,7 @@ test('headerAuth：lockSession 只看进门；authorize 用 core/authz.js（同�
   assert.notEqual(owner.authorize({ reauth: true }), a1, '要复验的另算一次');
   const a = await a1;
   assert.equal(a.ok, true);
-  assert.deepEqual(a.scopes, ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'wellbeing.write']);
+  assert.deepEqual(a.scopes, ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'profile.write', 'wellbeing.write']);
   assert.equal(await ep.scopeDenial(owner, 'prefs.sync'), null);
   r = await ep.scopeDenial(owner, 'nope.scope');
   assert.equal(r.status, 403);
@@ -368,15 +368,15 @@ test('headerAuth：lockSession 只看进门；authorize 用 core/authz.js（同�
 
 /* ---------------- 应用授权：grant-list / grant-revoke / grant-add（P3-1） ---------------- */
 
-const APPS5 = ['curio', 'daymark', 'prefs', 'wellbeing', 'avatar'];
-const ALL5 = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'wellbeing.write'];
+const APPS5 = ['curio', 'daymark', 'prefs', 'wellbeing', 'avatar', 'profile'];
+const ALL5 = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'profile.write', 'wellbeing.write'];
 /** POST /api/account 经 AccountService（进门身份头 + 给定 cookie） @param {any} env @param {any} body @param {string} [cookie] */
 const grantPost = (env, body, cookie) => service(env).fetch(postReq(ORIGIN + '/api/account', body, { ...idHeaders(), ...(cookie ? { Cookie: cookie } : {}) }));
 const reauthCookie = async () => 'sgx-account-reauth=' + (await reauth());
 /** 网关问的授权结论（AccountVerifier.authorize） @param {any} env @param {string} cookie */
 const scopesNow = async (env, cookie) => (await new ep.AccountVerifier(CTX, env).authorize(cookie, {}, {})).scopes;
 
-test('grant-list：首次调用种满 5 行 + 标记（同一批），回 5 项（作用域表顺序、名字、作用域、授权时间、授权时设备）', async () => {
+test('grant-list：首次调用种满 6 行 + 标记（同一批；补种标记 app-grant-seed-2 同时写上），回 6 项（作用域表顺序、名字、作用域、授权时间、授权时设备）', async () => {
   const { env } = makeEnv();
   const ck = await accCookie();
   const r = await grantPost(env, { action: 'grant-list' }, ck);
@@ -384,8 +384,8 @@ test('grant-list：首次调用种满 5 行 + 标记（同一批），回 5 项�
   const j = await r.json();
   assert.equal(j.ok, true);
   assert.deepEqual(j.grants.map((g) => g.app), APPS5);
-  assert.deepEqual(j.grants.map((g) => g.name), ['Curio', 'Daymark', 'Settings sync', 'Digital wellbeing', 'Avatar']);
-  assert.deepEqual(j.grants.map((g) => g.scopes), [['curio.write'], ['daymark.write'], ['prefs.sync'], ['wellbeing.write'], ['avatar.write']]);
+  assert.deepEqual(j.grants.map((g) => g.name), ['Curio', 'Daymark', 'Settings sync', 'Digital wellbeing', 'Avatar', 'Profile']);
+  assert.deepEqual(j.grants.map((g) => g.scopes), [['curio.write'], ['daymark.write'], ['prefs.sync'], ['wellbeing.write'], ['avatar.write'], ['profile.write']]);
   assert.deepEqual(j.grants[0].sensitive, ['POST /curio/api/import']);
   for (const g of j.grants) {
     assert.equal(g.granted, true, g.app);
@@ -393,8 +393,9 @@ test('grant-list：首次调用种满 5 行 + 标记（同一批），回 5 项�
     assert.equal(g.by, 'password');
     assert.ok(g.device && g.device.gone === false, '授权时的设备 = 打开页面的这台（已补记设备行）');
   }
-  assert.equal(env.D1_ACCOUNT_AUTH.rows('app_grant').length, 5);
+  assert.equal(env.D1_ACCOUNT_AUTH.rows('app_grant').length, 6);
   assert.equal(env.D1_ACCOUNT_AUTH.rows('data_migration').filter((m) => m.name === 'app-grant-seed-1').length, 1);
+  assert.equal(env.D1_ACCOUNT_AUTH.rows('data_migration').filter((m) => m.name === 'app-grant-seed-2').length, 1);
   /* 再调一次：幂等，不改授权时间 */
   const t0 = env.D1_ACCOUNT_AUTH.rows('app_grant').map((x) => x.granted_at);
   await grantPost(env, { action: 'grant-list' }, ck);
@@ -434,7 +435,7 @@ test('grant-revoke：删行并回新列表，不要复验；下一次授权结�
     assert.equal(b.status, 400, String(app));
     assert.equal((await b.json()).error, 'params');
   }
-  /* 取消完 5 个 → 0 行，再 grant-list 也不会再种 */
+  /* 取消完 6 个 → 0 行，再 grant-list 也不会再种 */
   for (const app of APPS5) await grantPost(env, { action: 'grant-revoke', app }, ck);
   await grantPost(env, { action: 'grant-list' }, ck);
   assert.equal(env.D1_ACCOUNT_AUTH.rows('app_grant').length, 0);
@@ -445,7 +446,7 @@ test('grant-revoke 在首次种子之前：先种再删，别的应用不掉', a
   const { env } = makeEnv();
   const ck = await accCookie();
   const j = await (await grantPost(env, { action: 'grant-revoke', app: 'avatar' }, ck)).json();
-  assert.deepEqual(j.grants.filter((g) => g.granted).map((g) => g.app), ['curio', 'daymark', 'prefs', 'wellbeing']);
+  assert.deepEqual(j.grants.filter((g) => g.granted).map((g) => g.app), ['curio', 'daymark', 'prefs', 'wellbeing', 'profile']);
 });
 
 test('grant-add：没有账号复验票 → 401 reauth、不写；有票 → 写回并回新列表，写接口恢复', async () => {
@@ -488,6 +489,29 @@ test('grant-*：账号库出错 → 503 server（不抛）', async () => {
   const r = await grantPost(env, { action: 'grant-revoke', app: 'curio' }, ck);
   assert.equal(r.status, 503);
   assert.equal((await r.json()).error, 'server');
+});
+
+test('个人资料（2026-11-07，经 AccountService）：GET /api/profile 进门即可（没账号会话也 200）；PUT 要 profile.write，取消后 403 scope、GET 照旧', async () => {
+  const kvm = new Map();
+  const kv = { get: async (k) => (kvm.has(k) ? kvm.get(k) : null), getWithMetadata: async () => ({ value: null, metadata: null }), put: async (k, v) => { kvm.set(k, v); }, delete: async (k) => { kvm.delete(k); } };
+  const { env } = makeEnv({ KV_PROFILE: kv });
+  let r = await service(env).fetch(req('/api/profile', { headers: idHeaders() }));
+  assert.equal(r.status, 200);
+  assert.deepEqual((await r.json()).profile, { name: null, nickname: null, motto: null, email: null });
+  const ck = await accCookie();
+  const h = { ...idHeaders(), Cookie: ck, 'Content-Type': 'application/json' };
+  r = await service(env).fetch(req('/api/profile', { method: 'PUT', headers: h, body: JSON.stringify({ nickname: 'Gray' }) }));
+  assert.equal(r.status, 200, '还没切换授权（骨架）→ 有 profile.write');
+  assert.equal((await r.json()).profile.nickname, 'Gray');
+  await grantPost(env, { action: 'grant-list' }, ck);
+  await grantPost(env, { action: 'grant-revoke', app: 'profile' }, ck);
+  r = await service(env).fetch(req('/api/profile', { method: 'PUT', headers: h, body: JSON.stringify({ nickname: 'X' }) }));
+  assert.equal(r.status, 403);
+  assert.deepEqual(await r.json(), { ok: false, error: 'scope', scope: 'profile.write' });
+  r = await service(env).fetch(req('/api/profile', { headers: idHeaders() }));
+  assert.equal((await r.json()).profile.nickname, 'Gray', '没写进去，GET 照旧');
+  r = await service(env).fetch(req('/api/profile', {}));
+  assert.equal(r.status, 401, '没进门 → 401（最小门）');
 });
 
 test('取消授权后的写接口（经 AccountService，同一份 core/authz.js）：prefs.sync → GET /api/prefs 403 scope；avatar.write → PUT /api/avatar 403 scope；wellbeing.write → POST /api/wellbeing 204 丢弃；账号会话本身不受影响', async () => {

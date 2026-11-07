@@ -27,7 +27,7 @@ const layers = await import('../../../space/scripts/check-layers.mjs');
 const LOCK = await genKeyPair();
 const OTHER = await genKeyPair();
 const DEV = 'devtestdevtest01';
-const ALL = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'wellbeing.write'];
+const ALL = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'profile.write', 'wellbeing.write'];
 const ACC_COOKIE = 'sgx-account-session=whatever';
 
 /** ACCOUNT_VERIFIER 替身：记下每次调用；reply 是函数（拿到参数后回什么）或固定值 */

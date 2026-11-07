@@ -25,6 +25,7 @@ import { loadWb } from '../lib/wb-view.js';
 import { wbAreaOf } from '../lib/wb-area.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { initFavicon } from './favicon.js';
+import { initProfile } from '../lib/profile.js';
 
 let inited = false;
 
@@ -67,6 +68,8 @@ export function initCore() {
   if (!SGX_TEST_NO_LOCK) initLock();
   /* 标签页图标跟主题色（换色板 / 自定义色 / 深浅色时换 SVG 图标的底色） */
   initFavicon();
+  /* 2026-11-07 个人资料：页面上有 [data-sgx-profile]（首页名片、账号卡、关于页页脚）才动：先画本机缓存，已进门再问 /api/profile（lib/profile.js） */
+  initProfile();
 
   /* 5.2：写共享 UI cookie sgx-ui（老用户补写；设置变更时再写一次） */
   syncUiCookie();

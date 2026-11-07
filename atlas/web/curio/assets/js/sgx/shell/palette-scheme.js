@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:ac554cfd0c49 space/web/shared/shell v78e250b5b44e（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:948f47e9d9f6 space/web/shared/shell v57dad80a21d7（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- palette-scheme.js ---- */
 /**
  * @fileoverview 主题色引擎（PR3 色彩角色 token 的运行时一半）：自定义 #rrggbb 种子 → 整套亮 / 暗色彩角色。

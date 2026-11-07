@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号页账号卡（/account/ 登录后总览顶部）：换头像 / 移除头像（账号已登录才可用：<html data-sgx-account-session="in">，
+ * @fileoverview 换头像 / 移除头像（账号页账号卡 /account/ 登录后总览顶部，和 2026-11-07 起 账号 › 个人资料页的「头像」一行共用）：换头像 / 移除头像（账号已登录才可用：<html data-sgx-account-session="in">，
  * 服务端 /api/avatar 另要账号会话 + avatar.write）。
  *
  * 点头像 → 底部弹层「选择照片… / 移除照片」（没有自定义头像时只有第一项）。
@@ -9,6 +9,9 @@
  * 移除 → DELETE /api/avatar，回到默认头像。
  *
  * 有没有自定义头像：看 /avatar/32.webp 的 ETag，默认图是 "d-32"。
+ *
+ * 个人资料页（apps/account-profile.js）不用底部弹层：行内展开「选择照片… / 移除照片」，直接调这里导出的 chooseAvatarPhoto / removeAvatar /
+ * avatarIsCustom；换完 / 删完在 window 上派发 sgx-avatar-changed（detail: { custom, ver }）。
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
@@ -295,13 +298,23 @@ async function save() {
     custom = true;
     closeCrop();
     toast(TXT.saved);
+    announce(j.ver || '');
   } catch (e) {
     doneBtn.disabled = false;
     toast(failText(e));
   }
 }
 
-async function removeAvatar() {
+/** 换完 / 删完告诉页面（资料页那一行要跟着显示 / 藏「移除照片」） @param {string} ver */
+function announce(ver) {
+  try { window.dispatchEvent(new CustomEvent('sgx-avatar-changed', { detail: { custom: custom, ver: ver } })); } catch (e) {}
+}
+
+/**
+ * 移除头像（DELETE /api/avatar），回默认头像。成功 true。
+ * @returns {Promise<boolean>}
+ */
+export async function removeAvatar() {
   try {
     const r = await fetch('/api/avatar', { method: 'DELETE', credentials: 'same-origin' });
     const j = await r.json().catch(function () {
@@ -311,8 +324,11 @@ async function removeAvatar() {
     await refreshAvatars('d' + Date.now());
     custom = false;
     toast(TXT.removed);
+    announce('');
+    return true;
   } catch (e) {
     toast(failText(e));
+    return false;
   }
 }
 
@@ -328,10 +344,10 @@ function signedIn() {
   return document.documentElement.getAttribute('data-sgx-account-session') === 'in';
 }
 
-/** 绑定账户卡头像按钮（账号页可能有手机、宽屏两个账户卡）。账号已登录才启用（P2-2）；登录状态在本页变了跟着变。 */
-export function initAvatarEdit() {
-  const btns = document.querySelectorAll('[data-avatar-edit]');
-  if (!btns.length) return;
+/** @type {HTMLInputElement|null} */ let fileInput = null;
+/** 选照片用的隐藏 <input type=file>（整页一个） */
+function ensureInput() {
+  if (fileInput) return fileInput;
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
@@ -342,15 +358,35 @@ export function initAvatarEdit() {
     input.value = '';
     if (f) openCrop(f);
   });
+  fileInput = input;
+  return input;
+}
+
+/** 打开系统选照片 → 裁剪 → 上传（资料页「选择照片…」） */
+export function chooseAvatarPhoto() {
+  ensureInput().click();
+}
+
+/** 有没有自定义头像（第一次问时查 ETag，之后跟着换 / 删走） @type {Promise<boolean>|null} */
+let customP = null;
+/** @returns {Promise<boolean>} */
+export function avatarIsCustom() {
+  if (!customP) customP = hasCustom().then(function (v) { custom = v; return v; });
+  return customP.then(function () { return custom; });
+}
+
+/** 绑定账户卡头像按钮（账号页可能有手机、宽屏两个账户卡）。账号已登录才启用（P2-2）；登录状态在本页变了跟着变。 */
+export function initAvatarEdit() {
+  const btns = document.querySelectorAll('[data-avatar-edit]');
+  if (!btns.length) return;
+  const input = ensureInput();
   let checked = false;
   const sync = function () {
     const ok = signedIn();
     btns.forEach(function (b) { /** @type {HTMLButtonElement} */ (b).disabled = !ok; });
     if (ok && !checked) {
       checked = true;
-      hasCustom().then(function (v) {
-        custom = v;
-      });
+      avatarIsCustom();
     }
   };
   sync();

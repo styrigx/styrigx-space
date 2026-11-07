@@ -23,10 +23,11 @@
 
     <!-- 名片 -->
     <div id="w-profile" class="widget col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
-      <img src="/avatar/192.webp" alt="Sloan Gray" translate="no" data-sgx-personal width="96" height="96" fetchpriority="high" class="prof-av w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover shadow shrink-0" data-sgx-avatar="192">
+      {{/* 2026-11-07 个人资料：名字、签名、头像替代文字先画 data/profile.yaml 的默认值，lib/profile.js 用 /api/profile（账号 › 个人资料改的值）覆盖（data-sgx-profile） */}}
+      <img src="/avatar/192.webp" alt="{{ $profile.name }}" translate="no" data-sgx-personal data-sgx-profile="name" data-sgx-profile-attr="alt" width="96" height="96" fetchpriority="high" class="prof-av w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover shadow shrink-0" data-sgx-avatar="192">
       <div class="min-w-0">
-        <h1 class="text-3xl sm:text-4xl font-extrabold" translate="no" data-sgx-personal>Sloan Gray</h1>
-        <p class="prof-motto mt-1.5 text-sm leading-relaxed" translate="no" data-sgx-personal>{{ $profile.motto }}</p>
+        <h1 class="text-3xl sm:text-4xl font-extrabold" translate="no" data-sgx-personal data-sgx-profile="name">{{ $profile.name }}</h1>
+        <p class="prof-motto mt-1.5 text-sm leading-relaxed" translate="no" data-sgx-personal data-sgx-profile="motto">{{ $profile.motto }}</p>
       </div>
     </div>
 
