@@ -8379,7 +8379,7 @@
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 700; line-height: 36px; letter-spacing: normal;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background-color: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); }
 /* 右边：外观 · 盾牌 · 分隔 · >_ · 头像。图标按钮 40 × 40、圆角 10、图标 20px；平时次要色，打开（aria-expanded）= 浅主题衬底 + 主题色。头像 30px 圆，最右 */
-.sgx-tb-acts { justify-self: end; display: flex; align-items: center; gap: 2px; }
+.sgx-tb-acts { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 2px; }
 .sgx-tb-btn { width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); flex-shrink: 0; padding: 0; margin: 0; border: 0; border-radius: 10px; box-sizing: border-box;
   background-color: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-secondary); cursor: pointer;
   text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
