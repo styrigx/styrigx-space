@@ -122,18 +122,19 @@ export function deviceSub(t, d, en) {
     const ic = document.createElement('span');
     ic.className = 'acct-ic bg-m-primary-container text-m-on-primary-container';
     ic.innerHTML = ICONS[deviceKind(d || {})];
-    const tx = document.createElement('span');
-    tx.className = 'flex-1 min-w-0';
+    /* 别叫 tx：模块级 tx 是字符串表取文案函数 */
+    const txt = document.createElement('span');
+    txt.className = 'flex-1 min-w-0';
     const nm = document.createElement('span');
     nm.className = 'block font-medium truncate';
     nm.textContent = (d && d.name) || t('devThis');
     const sub = document.createElement('span');
     sub.className = 'block text-xs text-m-on-surface-variant mt-0.5 truncate';
     sub.textContent = d ? deviceSub(t, d, en) : t('devActiveNow');
-    tx.appendChild(nm);
-    tx.appendChild(sub);
+    txt.appendChild(nm);
+    txt.appendChild(sub);
     thisRow.appendChild(ic);
-    thisRow.appendChild(tx);
+    thisRow.appendChild(txt);
   }
 
   /** @param {any} d */

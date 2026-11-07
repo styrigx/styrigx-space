@@ -545,6 +545,12 @@ js:
     slNotOpened: not opened yet
     slLastLeft: 'latest session: {v}'
     slLastEnded: latest session ended
+    slMinutes: '{n} minutes'
+    slHour: '{n} hour'
+    slHours: '{n} hours'
+    slDay: '{n} day'
+    slDays: '{n} days'
+    slWhen: '{d}, {t}'
     sessExp: Session expired, please unlock again from the lock screen
     gaRow: App access
     gaSearch: Search by name

@@ -535,6 +535,12 @@ js:
     slNotOpened: 还没人点开
     slLastLeft: 最近一次发出的会话{v}
     slLastEnded: 最近一次发出的会话已结束
+    slMinutes: '{n} 分钟'
+    slHour: '{n} 小时'
+    slHours: '{n} 小时'
+    slDay: '{n} 天'
+    slDays: '{n} 天'
+    slWhen: '{d} {t}'
     sessExp: 会话已失效，请回到锁屏重新解锁
     gaRow: 应用授权
     gaSearch: 按名称搜索
