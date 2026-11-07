@@ -1,0 +1,9 @@
+{{- /* 合站守卫：中文页必须在 /blog/zh/ 下（Hugo 的语言前缀会给成 /zh/blog/…；中文内容文件要在 front matter 写 url，标签页见 content/tags/<标签>/_index.zh.md） */ -}}
+{{- if and (eq .Lang "zh") (not (hasPrefix .RelPermalink "/blog/zh/")) }}{{ errorf "合站：中文页 %s 的地址 %s 不在 /blog/zh/ 下，在它的 front matter 写 url: /blog/zh/…" .File.Path .RelPermalink }}{{ end -}}
+<!doctype html>
+<html lang="{{ site.Language.Params.locale }}" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}">
+<head>
+{{ block "head" . }}{{ end }}
+</head>
+{{ block "body" . }}{{ end }}
+</html>

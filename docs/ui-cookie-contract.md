@@ -1,8 +1,8 @@
 # 外壳 UI cookie 契约：`sgx-ui`（2026-10-26，C10）
 
-> 状态：现行 ｜ 最后更新：2026-11-06
+> 状态：现行 ｜ 最后更新：2026-11-08
 
-> 适用：主站 styrigx-space 和子站 `styrigx.com/blog/`、`/curio/`、`/daymark/`（2026-11 从 styrigx-atlas 并入本仓库 `atlas/web/<站>/`）共用一个写端（2026-11-04 P5-1，定案第 5 条；以前是主站写、子站只读）；子站首帧读。
+> 适用：主站 styrigx-space 和子站 `styrigx.com/blog/`、`/curio/`、`/daymark/`（2026-11 从 styrigx-atlas 并入本仓库，合站后和主站是同一个 Hugo 站 `space/web/`）共用一个写端（2026-11-04 P5-1，定案第 5 条；以前是主站写、子站只读）；子站首帧读。
 > 本文只描述**现状**（主站 main 上的写端 / 读端 / 夹具），不改任何代码。
 > 真源头是代码：写端 `space/web/assets/js/lib/prefs-write.js`（共享外壳 `prefs-write.js`；`lib/ui-cookie.js` 只转导出 `syncUiCookie`），字段表 / 版本 / 编解码 `space/web/assets/js/lib/ui-cookie-read.js`，
 > 夹具 `tests/fixtures/ui-cookie-contract.json`（`space/scripts/gen-ui-cookie-contract.mjs` 跑真写端生成）。本文和代码不一致时以代码为准，并顺手改本文。
@@ -132,17 +132,15 @@ cookie 最长活 400 天，所以旧格式都要能读：
 
 ## 七、谁在读、在哪读（2026-10-26 现状）
 
-共享外壳分发的读端是 `space/web/shared/shell/ui-cookie-read.js`（= `space/web/assets/js/lib/ui-cookie-read.js` 原样），契约夹具是 `space/web/shared/shell/ui-cookie-contract.json`
-（= `tests/fixtures/ui-cookie-contract.json` 原样），接入说明见 `space/web/shared/shell/README.md`。
-子站（`styrigx.com/blog/`、`/curio/`、`/daymark/`）用各站的 `atlas/scripts/<站>/sync-shell.mjs` 同步共享外壳（`atlas/web/<站>/sgx-shell.lock.json` 锁外壳目录的 git tree 哈希）；
-各站怎样内联读端、在读端后面加了什么，以各站 `atlas/web/<站>/` 和 sync-shell 的 `__SITE_CONFIG__` 段为准，本文不逐站登记。
+2026-11 合站起没有分发副本：四站是同一个 Hugo 站，子站模板直接内联主站的读端 `space/web/assets/js/lib/ui-cookie-read.js`（`resources.Get "js/lib/ui-cookie-read.js" | minify`），
+契约夹具只有 `tests/fixtures/ui-cookie-contract.json` 一份。各站在读端后面加的那一小段在 `space/web/assets/<站>/js/`（博客 `layouts/partials/blog/sgx-inherit.html`，奇趣 / 日刻 `assets/<站>/js/sgx/ui-inherit-run.js`），本文不逐站登记。
 
 | 站 | 读 `sgx-ui` 的文件 | 首帧前怎么跑 |
 |---|---|---|
 | 主站（自检） | `space/web/assets/js/lib/ui-cookie-read.js`（写端 `prefs-write.js` 运行时用它挂的 `window.SgxUI` 拿字段表；`ui-cookie.js` 先 import 它） | 主站页面不读 cookie；`tests/space/ui/shell/ui-cookie-contract.test.mjs`、`tests/space/e2e/topbar/ui-cookie-reader.spec.js` 用它验契约 |
-| 子站各站 | 共享读端 `space/web/shared/shell/ui-cookie-read.js` 的同步副本，加各站自己的一小段 | 见各站 `atlas/web/<站>/` |
+| 子站各站 | 主站读端 `space/web/assets/js/lib/ui-cookie-read.js` 原样内联，加各站自己的一小段 | 见各站 `space/web/layouts/<站>/baseof.html` |
 
-改契约时先改共享读端，再跑各站的 `node atlas/scripts/<站>/sync-shell.mjs`，并逐站核对各站自己的那一小段。
+改契约时改主站读端（四站同一份，不用同步），并逐站核对各站自己的那一小段。
 
 ## 八、怎么安全地改格式
 
@@ -150,31 +148,30 @@ cookie 最长活 400 天，所以旧格式都要能读：
 
 1. **读端** `space/web/assets/js/lib/ui-cookie-read.js`：在 `normalize()` 里加字段和它的默认值（不合法 → 默认，绝不抛错）；需要的话改 `resolve()` / `apply()`。
    保持 ES5 经典脚本、无依赖、从不写 cookie（单测会查）。
-2. **写端** `space/web/assets/js/lib/prefs-write.js`：`syncUiCookie()` 的 payload 加字段，取值只来自（同源的）localStorage；改完跑 `node space/scripts/gen-shell.mjs` 并同步三站。
+2. **写端** `space/web/assets/js/lib/prefs-write.js`：`syncUiCookie()` 的 payload 加字段，取值只来自（同源的）localStorage；改完跑 `node space/scripts/gen-shell.mjs`（`@ui-cookie-presets` 段；子站直接用同一份，不用同步）。
 3. **夹具用例** `space/scripts/gen-ui-cookie-contract.mjs`：`WRITER_CASES` 加写端用例（真写端会跑出 cookie），`HANDMADE` 加写端写不出的旧值 / 坏值；
    期望值在这里**按契约手写**，不要拿读端算（读端改错了才会和夹具对不上）。新字段有默认值的，记得改 `BASE` / `V2`。
 4. 重新生成并核对：
    ```bash
    node space/scripts/gen-ui-cookie-contract.mjs          # 重写 tests/fixtures/ui-cookie-contract.json
-   node space/scripts/gen-shell.mjs                       # 把读端 + 夹具原样复制进 space/web/shared/shell/，更新 manifest.json
+   node space/scripts/gen-shell.mjs                       # 重写读端的 @ui-cookie-presets 段和外壳派生文件
    node space/scripts/gen-ui-cookie-contract.mjs --check  # CI 也跑：写端产出变了 / 夹具被手改 → exit 1
    node space/scripts/gen-shell.mjs --check
    node --test tests/space/ui/shell/ui-cookie-contract.test.mjs
    ```
    端到端：`tests/space/e2e/topbar/ui-cookie-reader.spec.js`（Playwright，需要先 `hugo --minify -s space/web`）。
-5. 主站合并后，**图志仓库的每个站**：`node space/scripts/sync-shell.mjs` 拉新外壳（`sgx-shell.lock.json` 跟着变），再逐站核对各自那一小段和单测 / e2e。
-   子站读端要能在主站上线新写端之前、之后都正常（新字段缺失 = 默认）。
+5. 逐站核对各自那一小段和单测 / e2e（`npm run test:sites`、子站 Playwright）。四站同一次构建、同一次部署，读端和写端一起上线；旧 cookie 照样要能读（新字段缺失 = 默认）。
 
 ### 不兼容的改动（改字段含义、删字段、换编码）—— 升 `v`
 
 - `ui-cookie-read.js` 里 `V` 加一，`VERSIONS` 加上新版本，**旧版本继续留在 `VERSIONS` 里至少 400 天**（cookie 寿命），`normalize()` 按 `v` 分支迁移旧值。
-- 先让所有读端（共享读端 + 图志各站跟在读端后面的那一小段）认识新版本，再上线写端；否则旧读端会把新 cookie 当「没有」（共享读端）或按错的字段解释。
+- 所有读端（共享读端 + 各子站跟在读端后面的那一小段）和写端同一次部署，都要认识新版本；否则旧读端会把新 cookie 当「没有」（共享读端）或按错的字段解释。
 - 夹具里补「新版本」「旧版本」两类用例；「未知版本 v3」那条用例要换成下一个未用的版本号。
-- 其余步骤同上（重生成夹具 → `gen-shell.mjs` → 两个 `--check` → 子站同步并改读端）。
+- 其余步骤同上（重生成夹具 → `gen-shell.mjs` → 两个 `--check` → 改子站那一小段）。
 
 ### 不要做的
 
-- 不要手改 `tests/fixtures/ui-cookie-contract.json`、`space/web/shared/shell/` 下的任何文件、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段——都是生成物，`--check` 会红。
+- 不要手改 `tests/fixtures/ui-cookie-contract.json`、`space/web/data/shell/` 和 `space/web/assets/css/shell/` 下的生成物、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段——都是生成物，`--check` 会红。
 - 不要让子站写 `sgx-ui`，也不要把凭证 / 会话信息放进来。
 - 不要改 `LEGACY_SEEDS`。
 - 不要把色板改名当成兼容改动：旧 id 要在 `normPal()` 里迁移（参照 `x<id>` → `<id>`），并补夹具用例。
@@ -183,4 +180,4 @@ cookie 最长活 400 天，所以旧格式都要能读：
 
 - `docs/palette-usage.md`：色板 / token 怎么用（「七、子站怎么接」）。
 - `docs/auth-state-machine.md`：会话类 cookie（和 `sgx-ui` 无关）。
-- `space/web/shared/shell/README.md`：子站接共享读端的写法。
+- `STRUCTURE.md`：合站后的目录（子站模板怎样直接用主站的共享外壳）。

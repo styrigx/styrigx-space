@@ -27,7 +27,8 @@ test('语音搜索删干净：没有 voice.js / voice-sheet.js、SpeechRecogniti
     const s = rd(f);
     assert.doesNotMatch(s, /SpeechRecognition|voiceSheet|voiceInput|data-mic|#voice/, f);
   }
-  for (const f of walk('space/web/layouts')) assert.doesNotMatch(rd(f), /data-mic|sgx-cap-mic|"vsAria"|"noSr"|eq \$name "mic"/, f);
+  /* 主站模板（2026-11 合站后子站模板也在 space/web/layouts/ 的 <站>/ 和 partials/<站>/ 下，不归这里管：奇趣自己的图标表里有 mic） */
+  for (const f of walk('space/web/layouts').filter((x) => !/^space\/web\/layouts\/(partials\/)?(blog|curio|daymark)\//.test(x))) assert.doesNotMatch(rd(f), /data-mic|sgx-cap-mic|"vsAria"|"noSr"|eq \$name "mic"/, f);
   const css = rd('space/web/assets/css/input.css');
   assert.doesNotMatch(css, /sgx-cap-mic|sgx-vs-|sgx-mic-pulse/);
   assert.doesNotMatch(rd('space/web/data/features.yaml'), /voice|speech|mic/i);

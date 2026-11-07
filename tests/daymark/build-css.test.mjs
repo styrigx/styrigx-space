@@ -1,12 +1,12 @@
 // 构建产物守卫：毛玻璃的 -webkit-backdrop-filter 和标准 backdrop-filter 两行都要活过 Tailwind --minify。
 // 压缩器会把同一规则里同值（var()）的两行合并成一行，Chromium（含三星浏览器）或旧 Safari 就没了毛玻璃；
-// 共享外壳把标准属性单独放进 @supports。atlas/web/daymark/assets/css/main.css 是提交进仓库的构建产物，CI 先 npm run build:css 再跑本测试。
+// 共享外壳把标准属性单独放进 @supports。space/web/assets/daymark/css/main.css 是提交进仓库的构建产物，CI 先 npm run build:css 再跑本测试。
 // Tailwind 4（Lightning CSS 压缩）不再像 3 那样把选择器列表排序合并，所以按逗号拆成单个选择器再对（:is() / :where() 里的逗号不拆）。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const css = readFileSync(new URL('../../atlas/web/daymark/assets/css/main.css', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../../space/web/assets/daymark/css/main.css', import.meta.url), 'utf8');
 
 /** 选择器列表按顶层逗号拆开（括号里的不拆） */
 function splitSelectors(list) {

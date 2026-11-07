@@ -1,5 +1,5 @@
 // 锁屏同步测试（#8 恢复 + #5 权限规则）
-// 覆盖：atlas/web/daymark/assets/js/sgx-lock-sync.js — 401 处理规则（isLockSignal / checkSession / apiFetch），
+// 覆盖：space/web/assets/daymark/js/sgx-lock-sync.js — 401 处理规则（isLockSignal / checkSession / apiFetch），
 //      网络错误不 reload（fail open）
 // 服务端（/api/lock-session-check、页面 no-store、302 锁屏）在主站鉴权网关，测试在 styrigx-space 仓库；
 // 接口鉴权见 tests/workers/worker.test.mjs。
@@ -9,10 +9,10 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
 
-/* atlas/web/daymark/assets/js/sgx-lock-sync.js 是浏览器 IIFE（module.exports 分支只在 CJS 下生效）。
+/* space/web/assets/daymark/js/sgx-lock-sync.js 是浏览器 IIFE（module.exports 分支只在 CJS 下生效）。
    package.json 为 "type": "module"，createRequire 会把它当 ESM 加载导致导出丢失，
    这里用 vm 在 CJS 沙箱里执行，保证测到的是 #8 的真实导出。 */
-const sgxSrc = readFileSync(new URL('../../atlas/web/daymark/assets/js/sgx-lock-sync.js', import.meta.url), 'utf8');
+const sgxSrc = readFileSync(new URL('../../space/web/assets/daymark/js/sgx-lock-sync.js', import.meta.url), 'utf8');
 const sgxSandbox = { module: { exports: {} }, console };
 vm.createContext(sgxSandbox);
 vm.runInContext(sgxSrc, sgxSandbox);

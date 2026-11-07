@@ -20,18 +20,18 @@ const LIB = read('space/web/assets/js/lib/layout-mode.js');
 
 const TPL = {
   main: read('space/web/layouts/_default/baseof.html'),
-  curio: read('atlas/web/curio/layouts/_default/baseof.html'),
-  daymark: read('atlas/web/daymark/layouts/_default/baseof.html'),
-  blog: read('atlas/web/blog/layouts/partials/head.html'),
+  curio: read('space/web/layouts/curio/baseof.html'),
+  daymark: read('space/web/layouts/daymark/baseof.html'),
+  blog: read('space/web/layouts/partials/blog/head.html'),
 };
 /** 各站内联的布局脚本（__layoutMode 起到 __sgxLayoutWatch(__applyLayout); 止） */
 const SCRIPTS = Object.fromEntries(Object.entries(TPL).map(([k, t]) => [k, t.match(/function __layoutMode\(\)\{[\s\S]*?\n__sgxLayoutWatch\(__applyLayout\);/)[0]]));
 /** 各站同步来的 layout-mode.js（子站带 @sgx-shell 头注释） */
 const COPIES = {
   main: LIB,
-  curio: read('atlas/web/curio/assets/js/sgx/shell/layout-mode.js'),
-  daymark: read('atlas/web/daymark/assets/js/sgx/shell/layout-mode.js'),
-  blog: read('atlas/web/blog/assets/js/sgx/shell/layout-mode.js'),
+  curio: read('space/web/assets/js/lib/layout-mode.js'),
+  daymark: read('space/web/assets/js/lib/layout-mode.js'),
+  blog: read('space/web/assets/js/lib/layout-mode.js'),
 };
 const body = (s) => s.slice(s.indexOf('function __sgxUaMobile')).replace(/\/\* @sgx-shell:end \*\/\n?$/, '');
 
@@ -63,7 +63,7 @@ function run(site, { w, ua = DESK_UA, uad, pref = null, search = '', screen, coa
 test('四站 <head> 原样内联同一份 layout-mode.js（共享外壳，sync-shell 同步）、用 __sgxLayout() 写 data-sgx-layout、按 matchMedia 重算', () => {
   for (const site of ['curio', 'daymark', 'blog']) {
     assert.equal(body(COPIES[site]), body(LIB), `${site} 的 layout-mode.js 和主站源头不同`);
-    assert.match(TPL[site], /<script>\{\{ \(resources\.Get "js\/sgx\/shell\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/, site);
+    assert.match(TPL[site], /<script>\{\{ \(resources\.Get "js\/lib\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/, site);
   }
   assert.match(TPL.main, /<script>\{\{ \(resources\.Get "js\/lib\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
   for (const [site, s] of Object.entries(SCRIPTS)) {
@@ -137,7 +137,7 @@ test('手机开「桌面版网站」（2026-11-07 录屏：S23 Ultra 视口 980�
 });
 
 test('外壳 CSS：顶栏宽 手机 min(100% − 32, 640)、桌面 手机设备 min(720, 100% − 48) / 电脑 min(clamp(720, 60vw, 960), 100% − 48)（含安全区），上限按 100% 不用 100vw；横向不滚；手机布局不显示页名胶囊（不按像素）', () => {
-  const shell = read('space/web/shared/shell/shell.css');
+  const shell = read('space/web/assets/css/shell/shell.css');
   const code = shell.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(code, /--sgx-tb-w: min\(100% - max\(16px, env\(safe-area-inset-left, 0px\)\) - max\(16px, env\(safe-area-inset-right, 0px\)\), 640px\);/);
   assert.match(code, /:root\[data-sgx-layout="desktop"\] \{[^}]*--sgx-tb-w: min\(clamp\(720px, 60vw, 960px\), 100% - max\(24px, env\(safe-area-inset-left, 0px\)\) - max\(24px, env\(safe-area-inset-right, 0px\)\)\);/);
@@ -161,11 +161,11 @@ test('外壳 CSS：顶栏宽 手机 min(100% − 32, 640)、桌面 手机设备 
 test('各站自己的样式不再按 layout-* 类改 --sgx-content-max / 顶栏宽（只有外壳一处）', () => {
   const files = [
     'space/web/assets/css/input.css',
-    'atlas/web/curio/assets/css/input.css',
-    'atlas/web/daymark/assets/css/input.css',
-    'atlas/web/blog/assets/css/blog/one-ui.css',
-    'atlas/web/blog/assets/css/blog/components.css',
-    'atlas/web/blog/assets/css/blog/base.css',
+    'space/web/assets/curio/css/input.css',
+    'space/web/assets/daymark/css/input.css',
+    'space/web/assets/blog/css/blog/one-ui.css',
+    'space/web/assets/blog/css/blog/components.css',
+    'space/web/assets/blog/css/blog/base.css',
   ];
   for (const f of files) {
     const raw = read(f);

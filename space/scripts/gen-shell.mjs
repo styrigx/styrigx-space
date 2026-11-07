@@ -1,39 +1,21 @@
 #!/usr/bin/env node
 /**
- * 共享外壳（shared shell）：主站是唯一来源，子站（blog / curio / daymark）用 atlas/scripts/<站>/sync-shell.mjs 一条命令同步。
+ * 共享外壳（shared shell）：主站是唯一来源。2026-11 合站起主站和三个子站（blog / curio / daymark）是同一个 Hugo 站（space/web/），
+ * 子站直接用主站的 partial（shell-topbar.html、sgx-entries.html、sgx-page-hero.html、sgx-segtabs.html、sgx-tr.html、sgx-lang-path.html）
+ * 和 JS（assets/js/shell/*、assets/js/lib/*），没有副本、没有同步脚本、没有 lock。
  *
- * 生成 space/web/shared/shell/（勿手改，改源头后重跑本脚本）：
- *   tokens.css         22 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
- *                      + 调色板派生 token（tag / chart）+ 组件别名层
- *   shell.css          顶栏（全大椭圆）、快捷面板 + AI 窗口、原地搜索层：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
- *   palette-scheme.js  自定义 #rrggbb 种子 → 整套角色的引擎（space/web/assets/js/lib/palette-scheme.js 原样复制）
- *   share.js           子站快捷面板的「分享本页」磁贴（space/web/assets/js/shell/share-button.js 原样复制；不 import 任何东西）
- *   topbar.html        顶栏 + 快捷面板 + AI 窗口的标记（space/web/layouts/partials/shell-topbar.html 原样复制；Hugo partial，只用参数，2026-11-04 P5-1）
- *   entries.html       平铺入口组件（space/web/layouts/partials/sgx-entries.html 原样复制；旷野页分类入口 + 子站首页分区入口，P4-3 PR-4b）
- *   page-hero.html     内容页标题带（space/web/layouts/partials/sgx-page-hero.html 原样复制；P4-3 §6.6 段式标签 PR）
- *   segtabs.html       段式标签：页内二级切换（space/web/layouts/partials/sgx-segtabs.html 原样复制；原顶栏分段滑块搬进内容页，P4-3 §6.6）
- *   topbar.js          顶栏两个窗口的开合 / 互斥 / 两页 / 磁贴（space/web/assets/js/shell/topbar-panel.js 原样复制；不 import，依赖由调用方传入）
- *   modal-sheet.js     窗口开合状态机（space/web/assets/js/shell/modal-sheet.js 原样复制；不 import）
- *   ai.js              AI 窗口内容（space/web/assets/js/shell/ai-panel.js 原样复制；不 import）
- *   vk.js              键盘高度订阅（space/web/assets/js/shell/vk.js 原样复制；不 import；入口把 onKeyboardHeight 传给 mountTopbar，转给 AI 窗口跟键盘，P4-3 PR-3）
- *   prefs-write.js     外观写端（space/web/assets/js/lib/prefs-write.js 原样复制；不 import；子站快捷设置用，定案第 5 条）
- *   nav.json           快捷面板导航页的项（space/web/data/shell-nav.json）+ 用到的图标 SVG（space/web/layouts/partials/icon.html）
- *                      + me.email：对外联系邮箱（space/web/data/profile.yaml 的 email，2026-11-07 个人资料；子站 AI 窗口「联系我」的默认值）
- *                      + 字标 SVG wordmark（space/web/layouts/partials/shell-wordmark.html；brand 文字照旧保留）
- *   palettes.json      预设 id / 名字 / 分组 / 种子 / 背景色 / 6 前景 + 每套亮暗的 Shell + Semantic token 值（含 bg-1..7、chart-1..6）
- *                      + 默认值 + 子站自定义色缓存版本号（子站只消费，不自己定义主题色）
- *   ui-cookie-read.js  sgx-ui cookie 只读解析器（space/web/assets/js/lib/ui-cookie-read.js 原样复制；经典脚本 ES5，子站内联进 <head>）
- *                      源文件里 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 重写
- *   layout-mode.js     布局模式（手机 / 桌面）唯一规则 __sgxLayout()（space/web/assets/js/lib/layout-mode.js 原样复制；经典脚本 ES5，四站内联进 <head>，P4-3 PR-4b）
- *   lang-path.js       语言路径唯一函数 langPath / pathLang / stripLang / langSwitch（space/web/assets/js/lib/lang-path.js 原样复制；不 import；P4-3 PR-4c 英文默认、中文 /zh/）
- *   tr.html            字符串表取值 partial（space/web/layouts/partials/sgx-tr.html 原样复制；子站 partials/sgx-tr.html）
- *   i18n-<语言>.yaml   外壳字符串表（space/web/data/sgx-shell-i18n/<语言>.yaml 原样；子站 data/sgx-shell-i18n/<语言>.yaml）
- *   lang-boot.js       首帧语言跳转（space/web/assets/js/lib/lang-boot.js 原样复制；只 import ./lang-path.js；四站 <head> 用 js.Build iife 内联，语言清理 2026-11-07）
- *   lang-path.html     同一规则的 Hugo partial（space/web/layouts/partials/sgx-lang-path.html 原样复制；子站链接主站 / 自己的中文地址都用它）
- *   ui-cookie-contract.json  写端真实产出的 cookie + 读端期望（tests/fixtures/ui-cookie-contract.json 原样复制，gen-ui-cookie-contract.mjs 生成）
- *   favicon.js / favicon.svg  标签页图标跟主题色（space/web/assets/js/shell/favicon.js、space/web/static/favicon.svg 原样复制）
- *   manifest.json      上面每个文件的 sha256（子站同步时逐个校验）
- *   README.md          说明
+ * 只剩四个由源头算出来、没法直接引用的派生文件由本脚本生成（勿手改，改源头后重跑本脚本）：
+ *   space/web/assets/css/shell/tokens.css  22 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
+ *                                          + 调色板派生 token（tag / chart）+ 组件别名层
+ *   space/web/assets/css/shell/shell.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、平铺入口、标题带 / 段式标签、宽屏平铺：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
+ *                                          （子站样式表 @import 这两份：assets/blog/css/input.css、assets/curio/css/input.css、assets/daymark/css/input.css）
+ *   space/web/data/shell/nav.json          快捷面板导航页的项（space/web/data/shell-nav.json）+ 用到的图标 SVG（space/web/layouts/partials/icon.html）
+ *                                          + me.email：对外联系邮箱（space/web/data/profile.yaml 的 email；子站 AI 窗口「联系我」的默认值）
+ *                                          + 字标 SVG wordmark（space/web/layouts/partials/shell-wordmark.html）；子站模板读 site.Data.shell.nav
+ *   space/web/data/shell/palettes.json     预设 id / 名字 / 分组 / 种子 / 背景色 / 6 前景 + 每套亮暗的 Shell + Semantic token 值（含 bg-1..7、chart-1..6）
+ *                                          + 默认值 + 子站自定义色缓存版本号；子站模板读 site.Data.shell.palettes
+ * 另外：space/web/assets/js/lib/ui-cookie-read.js 的 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 就地重写。
+ * 子站直接用的那几个 partial / JS 仍按原来的约束核对（只用参数、不 import 等），违反就失败。
  *
  * 用法：node space/scripts/gen-shell.mjs          重新生成
  *       node space/scripts/gen-shell.mjs --check  只核对（不一致 exit 1，单测 / CI 用）
@@ -47,7 +29,13 @@ import { renderBlock } from './gen-palettes.mjs';
 import { DEFAULT_ID, GROUPS } from '../web/assets/js/lib/palette-scheme.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-export const OUT_DIR = path.join(REPO, 'space/web/shared/shell');
+/** 派生文件 → 仓库里的位置（同一个 Hugo 站里，子站直接引用） */
+export const OUT = Object.freeze({
+  'tokens.css': 'space/web/assets/css/shell/tokens.css',
+  'shell.css': 'space/web/assets/css/shell/shell.css',
+  'nav.json': 'space/web/data/shell/nav.json',
+  'palettes.json': 'space/web/data/shell/palettes.json',
+});
 const SRC = {
   roles: path.join(REPO, 'space/web/data/palette-roles.json'),
   css: path.join(REPO, 'space/web/assets/css/input.css'),
@@ -70,12 +58,7 @@ const SRC = {
   layoutMode: path.join(REPO, 'space/web/assets/js/lib/layout-mode.js'),
   langPath: path.join(REPO, 'space/web/assets/js/lib/lang-path.js'),
   langBoot: path.join(REPO, 'space/web/assets/js/lib/lang-boot.js'),
-  tr: path.join(REPO, 'space/web/layouts/partials/sgx-tr.html'),
   shellI18n: path.join(REPO, 'space/web/data/sgx-shell-i18n'),
-  langPathTpl: path.join(REPO, 'space/web/layouts/partials/sgx-lang-path.html'),
-  contract: path.join(REPO, 'tests/fixtures/ui-cookie-contract.json'),
-  favicon: path.join(REPO, 'space/web/assets/js/shell/favicon.js'),
-  faviconSvg: path.join(REPO, 'space/web/static/favicon.svg'),
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
@@ -84,7 +67,7 @@ export const SHELL_REGIONS = ['topbar-frame', 'panel', 'entries', 'inpage', 'wid
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
 export const EXTRA_ICONS = ['tb-grid', 'tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history'];
 const HEAD = (src) =>
-  `/* 由 styrigx-space space/scripts/gen-shell.mjs 从 ${src} 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */\n`;
+  `/* 由 space/scripts/gen-shell.mjs 从 ${src} 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */\n`;
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 
@@ -312,194 +295,94 @@ function renderPalettes(data, schemeSrc) {
   );
 }
 
-/* 生成物里写的来源路径（下面 README、HEAD()、_generated、manifest 的 dir）按仓库根写全路径（space/web/…、space/scripts/…）。2026-11-06 分包时改成现路径，外壳版本号随之更新、三站副本重新同步。 */
-const README = `# space/web/shared/shell（生成物，勿手改）
-
-主站（styrigx-space）和子站（styrigx-blog、styrigx-daymark、styrigx-curio）共用的外壳：色彩角色、顶栏（全大椭圆）+ 快捷面板 + AI 窗口、原地搜索层、自定义主题色引擎、导航项、外观 cookie 读端与写端、标签页图标。
-
-- 源头：\`space/web/data/palette-roles.json\`、\`space/web/assets/css/input.css\` 的 \`@shell:begin/end\` 段、\`space/web/assets/js/lib/palette-scheme.js\`、
-  \`space/web/data/shell-nav.json\`、\`space/web/layouts/partials/icon.html\`、\`space/web/layouts/partials/shell-wordmark.html\`（抽屉头字标，进 nav.json 的 \`wordmark\`）。改源头后跑 \`node space/scripts/gen-shell.mjs\`；CI 用 \`--check\` 核对。
-- 子站同步：在子站仓库跑 \`node space/scripts/sync-shell.mjs\`（默认 ref=main，可 \`--ref <分支或提交>\`），
-  它按 \`manifest.json\` 从 raw.githubusercontent.com 拉这些文件、逐个校验 sha256，写进子站的标记段 / 供应商目录。
-- 主题跨站：主站把外观写进 \`sgx-ui\` cookie（Domain=styrigx.com）：\`pal\` = 预设 id，\`accent\` = 当前种子 #rrggbb。
-  子站：\`accent\` 等于该预设种子 → 只设 \`data-palette\`；不等 → 自定义色，用 \`palette-scheme.js\` 的 \`rolesCss(seed)\` 算整套角色。
-  旧撞色 id \`x<id>\`（2026-10-23 PR-G 前）读端自动迁到 \`<id>\`，cookie 里旧版本的种子也认作预设。
-- 调色板（2026-10-23 PR-G 七色）：22 套 = 1 背景色 + 6 前景撞色。子站只消费主站给的 token，不自己定义主题色；当前色板由主站决定。
-  \`palettes.json\` 每套带 \`tokens.light\` / \`tokens.dark\`（Shell：bg-1..7、表面 / 容器、玻璃、遮罩；Semantic：主 / 辅 / 第三色族、选中、链接、边线、文字；
-  外加 fg-1..6（-tint / -ink）、chart-1..6、tag-bg / tag-fg），和 \`tokens.css\` 里同名 \`--sgx-*\` 变量一样。怎么用见主站 \`docs/palette-usage.md\`。
-
-## 子站读外观：ui-cookie-read.js（只读；写由 prefs-write.js 负责，见下）
-
-经典脚本、ES5、无依赖，挂 \`window.SgxUI\`。\`<head>\` 里、样式表之后、任何内容之前，**原样内联**，紧跟一行调用：
-
-\`\`\`html
-<script>/* ui-cookie-read.js 原文（Hugo：resources.Get … | minify，.Content | safeJS） */</script>
-<script>SgxUI.apply(document.documentElement, { onMiss: function (seed) { /* 异步加载 palette-scheme.js，算好 SgxUI.setRoles(seed, rolesCss(seed)) */ } });</script>
-\`\`\`
-
-- \`SgxUI.read()\` → 校验过的 \`{v, mode, pal, accent, fs, rm, mat, lang}\`；没有 / 乱码 / 版本不认识 → \`null\`。
-- 语言跟随：\`read().lang\` 是主站用户明确选的 \`'zh'\` / \`'en'\`（跟随系统 = \`''\`）；非空且和当前页语言不同时，子站自己跳到另一种语言的同一页（\`apply()\` 不管语言）。
-- \`SgxUI.apply(root, opts)\` → \`<html>\` 落成和主站一样：\`class="dark"\`、\`data-theme-mode\`、\`data-dark\`、\`font-size\` + \`data-font-size\`、
-  \`data-palette\`（默认 dustyblue 不写）、自定义色时内联 \`--sgx-seed\` + \`<style id="sgx-accent-roles">\`（本站 localStorage \`sgx-shell-accent-css\` 缓存，首行「SCHEME_VER|#种子」）、
-  \`class="reduced-motion"\` + \`data-reduced-motion\`。跟随系统时自动监听 \`prefers-color-scheme\`。cookie 坏了 = 默认 dustyblue + 跟随系统，不抛错、不跳转。
-  \`opts.rolesCss\`：同步可用的引擎；\`opts.onMiss(seed)\`：没缓存时回调；\`opts.watch: false\`：不监听。
-- 子站要的 CSS：\`tokens.css\`（22 套七色调色板 + tag / chart 派生 token + 别名层）+ \`shell.css\`（含字标 \`.wm-dot\` = \`--sgx-primary\`）。抽屉头用 \`nav.json\` 的 \`wordmark\` SVG。
-- 读端不认 \`theme\` 别名和大写 accent（写端从不写）；自定义色的种子在内联 \`--sgx-seed\`（不再用 \`data-sgx-seed\`）。
-  站点自己的样式钩子（如博客的 \`data-theme\` / \`color-scheme\`）用 \`apply()\` 的返回值 \`{mode, dark, pal, fs, rm, seed}\` 自己补。
-- sync-shell 的 SITE.targets 加：\`ui-cookie-read.js\`（kind \`file\`）、\`ui-cookie-contract.json\`（kind \`json\`，原样）、
-  \`favicon.js\`（kind \`file\`）、\`favicon.svg\`（要原样写进 \`space/web/static/\`：kind \`file\` 会在顶上加 /* */ 注释，SVG 不认，用 \`json\` 或加一个 raw 类型）。
-- 标签页图标：\`favicon.svg\` 放站点根 \`/favicon.svg\`（\`<link rel="icon" type="image/svg+xml" href="/favicon.svg">\`），
-  打包 \`favicon.js\`（ES 模块）后调 \`initFavicon()\`：色板 / 自定义色 / 深浅色变了就换成当前主题色。
-- 契约测试：\`ui-cookie-contract.json\` 是主站写端真实写出的 cookie + 期望；子站单测对每个 case 断言 \`SgxUI.read(\'sgx-ui=\' + c.cookie)\` 等于 \`c.read\`、
-  \`SgxUI.resolve(c.read, 系统深色)\` 等于 \`c.light/c.dark.resolve\`（apply 后 \`<html>\` 等于 \`.root\`）。sync-shell 拉新版本后跑一遍。
-## 平铺入口（entries.html + shell.css entries 段；P4-3 PR-4b）
-
-\`entries.html\` 是 Hugo partial（主站 partials/sgx-entries.html 原样），子站同步成 \`layouts/partials/sgx-shell-entries.html\`，只用参数（图标 SVG 由 \`icons\` 传入）。
-子站首页用它放分区入口（各布局都放；顶栏没有分区页签，页名胶囊只显示当前页 / 分区名）。
-
-## 内容页标题带 + 段式标签（page-hero.html、segtabs.html + shell.css inpage 段；P4-3 §6.6）
-
-\`page-hero.html\`、\`segtabs.html\` 是 Hugo partial（主站 partials/sgx-page-hero.html、partials/sgx-segtabs.html 原样），子站同步成
-\`layouts/partials/sgx-shell-page-hero.html\`、\`layouts/partials/sgx-shell-segtabs.html\`，只用参数。
-- 标题带：内容页顶栏下方大标题 + 一句话说明（title / desc；缺 desc 只显示标题，构建时 warnf 警告）。
-- 段式标签：原顶栏分段滑块搬进内容页的页内二级切换（items / current / label / hidden）；非当前项导航选中色 45% 衬底、当前项 --sgx-nav-selected 实色加粗。
-  入口页（首页 / 首页分区）只放平铺入口、不放段式标签；页内分区（hash）的站每个分区面板各放一条，当前项服务端写好。
-
-## 宽屏平铺（shell.css wide 段；Gray 2026-11-07）
-
-只在桌面布局（\`<html data-sgx-layout="desktop">\`）：内容区通栏（\`--sgx-content-max\` = 100%，外壳框 = 窗口宽 − 两侧页边距，不对齐顶栏），内容页去卡片、文字铺在背景上，多栏 + 细分隔线。手机布局不变。
-- 公共件：\`.sgx-flat\`（去卡片）、\`.sgx-wide-cols\`（多栏，每栏 ≥ \`--sgx-wide-col\`，栏间 / 行间细线 \`--sgx-wide-line\`）、\`.sgx-wide-h\`（栏组标题）；\`--sgx-wide-pad\` 是栏内左右留白。
-- 可交互模块保留卡片：屏幕时间、风格页（调色板）、快捷面板 / AI 窗口、表单、锁屏、音乐播放器。各站 JS 画的卡片在自己的 CSS 里按同样的值去卡片。
-
-## 顶栏 + 导航面板 + 快捷面板 + AI 窗口（topbar.html / topbar.js / modal-sheet.js / ai.js / vk.js + shell.css topbar-frame、panel 段；2026-11-04 P5-1，P4-3 PR-4b 定稿，四个站一样）
-
-\`topbar.html\` 是 Hugo partial（主站 partials/shell-topbar.html 原样），子站同步成 \`layouts/partials/sgx-shell-topbar.html\`，只用参数、不调别的 partial：
-
-\`\`\`html
-<header id="site-nav">
-  <div class="sgx-topbar">                                   <!-- 一整条胶囊，材质在它身上 -->
-    <a class="sgx-tb-logo" href="本站首页">字标（真 SVG，各宽度都完整）</a>
-    <div class="sgx-tb-pill">页名胶囊 / 标签 / 分段（在空余区居中）</div>
-    <div class="sgx-tb-acts">                                <!-- 紧凑、靠右；头像不在顶栏 -->
-      <button class="sgx-tb-btn sgx-tb-grid" aria-controls="sgx-nav">九宫格</button>
-      <button class="sgx-tb-btn sgx-tb-quick" aria-controls="sgx-qp">滑块</button>
-      <button class="sgx-tb-btn sgx-tb-ai" aria-controls="sgx-ai">聊天</button>
-    </div>
-  </div>
-</header>
-<dialog id="sgx-nav">2×2 站点磁贴（nav.json items：图标 + 站名 + 副标题，当前站「开」态）</dialog>
-<dialog id="sgx-qp">只有快捷设置一页：深色 / 跟随系统 / 分享本页 / 立即锁定 · 语言（行内展开单选）· 调色板 · 布局</dialog>
-<dialog id="sgx-ai">头部 Gray AI · 新对话 · 历史 · 头像（账号页，主题色环）· 消息列表 · 输入框 · 「仅公开内容 · 联系我」</dialog>
-\`\`\`
-- 参数（dict）：\`isEn\`、\`home\`、\`center\`（HTML）、\`pillClass\`、\`headerClass\`、\`headerAttrs\`、\`nav\`（nav.json）、\`site\`（当前站 id）、\`icons\`（nav.json 的 icons）、
-  \`wordmark\`、\`acct\`、\`avatar\`、\`langHref\`（另一种语言的同一页）、\`pal\`（[{id, zh, en, style}]，style = --pl-b1..7 / --pl-f1..6 / --pd-*）。
-  快捷面板四站完全相同，没有按站开关的磁贴（PR-4b 起删了 \`tiles\` / \`layout\` 参数）。
-- JS：\`import { mountTopbar } from './topbar.js'\`，把依赖传进去（这几个文件都不 import 任何东西）：
-  \`mountTopbar({ modalSheet, prefs, ai: mountAiChat, share: mountShare, keyboard: onKeyboardHeight })\`（\`onKeyboardHeight\` 来自 \`vk.js\`：AI 窗口输入框聚焦时跟键盘，P4-3 PR-3）；prefs 用 \`prefs-write.js\` 的
-  \`isDark / themeMode / setThemeMode / toggleFollowSystem / palette / setPalette / DEFAULT_PALETTE / hasAccent / langPref / layoutPref / layoutNarrow / setLayout\`，
-  \`setLang: v => (setLangPref(v), '')\`（实际语言变了就去语言行的 data-href）。不传 \`onLock\` 时「立即锁定」点两下确认后 POST /api/lock-now 回锁屏。
-- 三个窗口是非模态 \`<dialog>\`，从顶栏下方落下、互斥；系统返回 / Esc / 点遮罩关闭，焦点回到图标。
-- AI：POST /api/ai（同源）→ SSE hits / delta / done；历史只在本地 \`sgx-ai-history\`（最多 50 条，不进云同步）。
-
-## 子站外观写端（prefs-write.js；改写原「主站写、子站只读」，定案第 5 条）
-
-四站共用一个写端：主站的 cookie 写法（syncUiCookie）就在这个文件里，子站快捷设置调它的 setter：写 localStorage（同源同一份）→ \`SgxUI.apply\` 重落 \`<html>\` → 写 \`sgx-ui\` cookie。
-子站写入的外观在本设备生效（回主站即同步）；跨设备以账号云同步为准，云同步覆盖这些设置之前不承诺跨设备。上面「子站读外观」一节的读端照旧。
-
-## 分享本页（share.js，快捷面板磁贴；PR-4b 起四站都有）
-
-- JS：\`mountShare({ button: 磁贴 })\`（topbar.js 会对 \`[data-qp="share"]\` 调传进来的 mountShare）。
-  POST https://styrigx.com/api/share（credentials: include；进门二值，不分角色）
-  \`{action:'create', reuse:true, name:页面标题(24 字), to:当前页(去 lock/why/return/share), hours:24, session:43200}\`
-  → 带临时会话的短链（服务端同页同档位还剩 ≥ 12 小时就复用）→ \`navigator.share\`；没有 / 被拒（不是取消）→ 复制 + toast「已复制分享链接」。
-  生成中磁贴 \`aria-busy\` + \`.is-busy\`，再点不理；失败只 toast，不会把原地址当短链分享。
-  服务端回 401 reauth（生成 / 复用短链要锁侧复验，P2-3）→ share.js 自带的最小复验步骤 \`lockReauthStep()\`（\`<dialog class="sgx-share-reauth">\`，
-  只有锁屏通行密钥 / 解锁密码，设了哪个显示哪个；同源 POST /api/lock-reauth status、/api/lock-password、/api/lock-passkey）→ 通过后自动重试一次；取消 = 不分享。
-  toast 是 \`.sgx-share-toast\`（share.js 自己建）；复验弹层样式 \`.sgx-share-reauth*\` 在 shell.css 的 topbar-frame 段。
-- 尺寸体系（2026-10-23）：\`--sgx-page-m\`、\`--sgx-tb-btn\`（顶栏高 52 → 56）、\`--sgx-tb-gap\`、\`--sgx-content-max\`（外壳框最宽）、
-  \`--sgx-shell-w\` = min(100% − 2 × 页边距, 最宽)。子站自己的页面外框用 \`width: var(--sgx-shell-w); margin: 0 auto\`（顶栏不再定内容栏，P4-3 PR-4b）。
-- 布局模式（P4-3 PR-4b，Gray 2026-11-07）：只有手机 \`phone\` / 桌面 \`desktop\` 两种（自动里视口 < 720 CSS px 落手机，这是唯一的像素线）。唯一规则在 \`layout-mode.js\` 的 \`__sgxLayout()\`：
-  偏好 \`sgx-layout\` = phone / auto / desktop（旧值 mobile → phone、dex / pc → desktop），自动 = \`navigator.userAgentData.mobile\`（没有就看 UA 的 Mobi / Android…Mobile / iPhone）；
-  UA 报手机但浏览器在用桌面版网站的虚拟视口（布局视口 > 屏幕宽 × 1.25，\`__sgxDesktopSite()\`）也算桌面；
-  设备档 \`__sgxDevice()\` = UA 报手机或「粗指针 + 屏幕短边 < 600」→ phone，其余 desktop（只给桌面顶栏宽分档），写 \`<html data-sgx-device="phone|desktop">\`。
-  \`?layout=auto\` 逃生口。**四站 \`<head>\` 原样内联这一份**（Hugo：resources.Get … | minify，.Content | safeJS），结果写进 \`<html data-sgx-layout="phone|desktop">\`，
-  各站自己的 layout-* 类也按它（tests/space/ui/shell/topbar-length.test.mjs 核对四站内联的是同一份、结果一样）。**子站不许再自己改 \`--sgx-content-max\` / 顶栏宽。**
-- 顶栏宽 \`--sgx-tb-w\`（shell.css）：手机布局 = min(100% − 2 × 16px, 640px)；桌面布局 + 手机设备 = min(720px, 100% − 2 × 24px)；
-  桌面布局 + 电脑 / 平板 = min(clamp(720px, 60vw, 960px), 100% − 2 × 24px)，居中（两侧取安全区和 16 / 24 的大者；Gray 2026-11-07：桌面顶栏固定居中、不接近铺满）。
-  上限按 100%（固定定位包含块 = 不含滚动条的窗口宽）收，vw 只在 clamp 中间项；\`:root { overflow-x: clip }\` 横向不滚。窗口 < 380px 藏掉页名胶囊（唯一阈值）。
-  自动模式下算出桌面但视口 < 720 CSS px → 手机；matchMedia 听 720 线和横竖屏重算，不刷新。
-
-`;
-
-/** @returns {Record<string,string>} 文件名 → 内容 */
+/** @returns {{files: Record<string,string>, reader: string}} 派生文件名 → 内容；reader = ui-cookie-read.js 应有的全文 */
 export function renderAll() {
   const data = JSON.parse(readFileSync(SRC.roles, 'utf8'));
   const schemeSrc = readFileSync(SRC.scheme, 'utf8');
   const reader = renderReader(data, schemeSrc);
-  /* 契约文件缺了不能静默写成空串：--check 会拿空串和空串比，假通过 */
-  if (!existsSync(SRC.contract)) {
-    throw new Error('gen-shell: missing ' + path.relative(REPO, SRC.contract) + ' (run space/scripts/gen-ui-cookie-contract.mjs first)');
-  }
-  const files = {
-    'tokens.css': renderTokens(data),
-    'shell.css': renderShell(),
-    'palette-scheme.js': schemeSrc,
-    'share.js': renderShare(),
-    'topbar.html': renderTopbar(),
-    'entries.html': renderEntries(),
-    'page-hero.html': renderPageHero(),
-    'segtabs.html': renderSegtabs(),
-    'topbar.js': renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar'),
-    'modal-sheet.js': renderStandalone(SRC.modalSheet, 'modal-sheet.js', 'modalSheet'),
-    'ai.js': renderStandalone(SRC.ai, 'ai-panel.js', 'mountAiChat'),
-    'vk.js': renderStandalone(SRC.vk, 'vk.js', 'onKeyboardHeight'),
-    'prefs-write.js': renderStandalone(SRC.prefsWrite, 'prefs-write.js', 'syncUiCookie'),
-    'nav.json': renderNav(),
-    'palettes.json': renderPalettes(data, schemeSrc),
-    'ui-cookie-read.js': reader,
-    'layout-mode.js': readFileSync(SRC.layoutMode, 'utf8'),
-    'lang-path.js': renderStandalone(SRC.langPath, 'lang-path.js', 'langPath'),
-    'lang-path.html': readFileSync(SRC.langPathTpl, 'utf8'),
-    'lang-boot.js': renderLangBoot(),
-    'tr.html': readFileSync(SRC.tr, 'utf8'),
-    ...renderShellI18n(),
-    'ui-cookie-contract.json': readFileSync(SRC.contract, 'utf8'),
-    'favicon.js': readFileSync(SRC.favicon, 'utf8'),
-    'favicon.svg': readFileSync(SRC.faviconSvg, 'utf8'),
-    'README.md': README,
+  /* 子站直接引用的 partial / JS：只核对约束（结果不落盘） */
+  renderShare();
+  renderTopbar();
+  renderEntries();
+  renderPageHero();
+  renderSegtabs();
+  renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar');
+  renderStandalone(SRC.modalSheet, 'modal-sheet.js', 'modalSheet');
+  renderStandalone(SRC.ai, 'ai-panel.js', 'mountAiChat');
+  renderStandalone(SRC.vk, 'vk.js', 'onKeyboardHeight');
+  renderStandalone(SRC.prefsWrite, 'prefs-write.js', 'syncUiCookie');
+  renderStandalone(SRC.langPath, 'lang-path.js', 'langPath');
+  renderLangBoot();
+  renderShellI18n();
+  return {
+    files: {
+      'tokens.css': renderTokens(data),
+      'shell.css': renderShell(),
+      'nav.json': renderNav(),
+      'palettes.json': renderPalettes(data, schemeSrc),
+    },
+    reader,
   };
-  const manifest = {
-    _generated: 'styrigx-space space/scripts/gen-shell.mjs；勿手改',
-    source: 'styrigx/styrigx-space',
-    dir: 'space/web/shared/shell',
-    files: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, sha(v)])),
-  };
-  manifest.version = sha(JSON.stringify(manifest.files)).slice(0, 12);
-  manifest.rulesVersion = RULES_VERSION;
-  files['manifest.json'] = JSON.stringify(manifest, null, 2) + '\n';
-  return files;
+}
+
+/**
+ * 共享外壳的全部文件（合站前 shared/shell 里那一套的名字）→ 仓库里的位置：四个派生文件 + 子站直接用的主站源文件。
+ * 只是索引（测试和文档按名字找文件用），没有副本。
+ */
+export const SHELL_FILES = Object.freeze({
+  ...OUT,
+  'palette-scheme.js': 'space/web/assets/js/lib/palette-scheme.js',
+  'share.js': 'space/web/assets/js/shell/share-button.js',
+  'topbar.html': 'space/web/layouts/partials/shell-topbar.html',
+  'entries.html': 'space/web/layouts/partials/sgx-entries.html',
+  'page-hero.html': 'space/web/layouts/partials/sgx-page-hero.html',
+  'segtabs.html': 'space/web/layouts/partials/sgx-segtabs.html',
+  'topbar.js': 'space/web/assets/js/shell/topbar-panel.js',
+  'modal-sheet.js': 'space/web/assets/js/shell/modal-sheet.js',
+  'ai.js': 'space/web/assets/js/shell/ai-panel.js',
+  'vk.js': 'space/web/assets/js/shell/vk.js',
+  'prefs-write.js': 'space/web/assets/js/lib/prefs-write.js',
+  'ui-cookie-read.js': 'space/web/assets/js/lib/ui-cookie-read.js',
+  'layout-mode.js': 'space/web/assets/js/lib/layout-mode.js',
+  'lang-path.js': 'space/web/assets/js/lib/lang-path.js',
+  'lang-boot.js': 'space/web/assets/js/lib/lang-boot.js',
+  'lang-path.html': 'space/web/layouts/partials/sgx-lang-path.html',
+  'tr.html': 'space/web/layouts/partials/sgx-tr.html',
+  'i18n-en.yaml': 'space/web/data/sgx-shell-i18n/en.yaml',
+  'i18n-zh.yaml': 'space/web/data/sgx-shell-i18n/zh.yaml',
+  'favicon.js': 'space/web/assets/js/shell/favicon.js',
+  'favicon.svg': 'space/web/static/favicon.svg',
+});
+
+/** @returns {Record<string,string>} 共享外壳文件名 → 内容（派生文件按源头现算，其余读源文件） */
+export function shellFiles() {
+  const { files } = renderAll();
+  const out = {};
+  for (const [k, p] of Object.entries(SHELL_FILES)) out[k] = k in files ? files[k] : readFileSync(path.join(REPO, p), 'utf8');
+  return out;
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const files = renderAll();
+  const { files, reader } = renderAll();
   if (process.argv.includes('--check')) {
     const bad = [];
     for (const [k, v] of Object.entries(files)) {
-      const p = path.join(OUT_DIR, k);
-      if (!existsSync(p) || readFileSync(p, 'utf8') !== v) bad.push(k);
+      const p = path.join(REPO, OUT[k]);
+      if (!existsSync(p) || readFileSync(p, 'utf8') !== v) bad.push(OUT[k]);
     }
-    if (readFileSync(SRC.reader, 'utf8') !== files['ui-cookie-read.js']) bad.push('space/web/assets/js/lib/ui-cookie-read.js 的 @ui-cookie-presets 段');
-    const extra = existsSync(OUT_DIR) ? readdirSync(OUT_DIR).filter((f) => !(f in files)) : [];
-    if (bad.length || extra.length) {
-      console.error('space/web/shared/shell 和源头不一致：' + [...bad, ...extra.map((f) => f + '（多余）')].join('、') + '；运行 node space/scripts/gen-shell.mjs');
+    if (readFileSync(SRC.reader, 'utf8') !== reader) bad.push('space/web/assets/js/lib/ui-cookie-read.js 的 @ui-cookie-presets 段');
+    if (bad.length) {
+      console.error('共享外壳派生文件和源头不一致：' + bad.join('、') + '；运行 node space/scripts/gen-shell.mjs');
       process.exit(1);
     }
-    console.log('shared shell in sync:', JSON.parse(files['manifest.json']).version);
+    console.log('shared shell in sync:', Object.values(OUT).join(', '));
   } else {
-    mkdirSync(OUT_DIR, { recursive: true });
-    if (readFileSync(SRC.reader, 'utf8') !== files['ui-cookie-read.js']) writeFileSync(SRC.reader, files['ui-cookie-read.js']);
-    for (const [k, v] of Object.entries(files)) writeFileSync(path.join(OUT_DIR, k), v);
-    console.log('space/web/shared/shell regenerated:', Object.keys(files).join(', '), JSON.parse(files['manifest.json']).version);
+    if (readFileSync(SRC.reader, 'utf8') !== reader) writeFileSync(SRC.reader, reader);
+    for (const [k, v] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(REPO, OUT[k])), { recursive: true });
+      writeFileSync(path.join(REPO, OUT[k]), v);
+    }
+    console.log('shared shell regenerated:', Object.values(OUT).join(', '));
   }
 }

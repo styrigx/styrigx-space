@@ -1,9 +1,9 @@
-/* 顶栏长度统一 + 页名胶囊（P4-3 PR-4b，Gray 2026-11-07 定稿），跑在拼好的整站（dist/site：主站 /、奇趣 /curio/、日刻 /daymark/、博客 /blog/，同源）。
+/* 顶栏长度统一 + 页名胶囊（P4-3 PR-4b，Gray 2026-11-07 定稿），跑在拼好的整站（space/web/public：主站 /、奇趣 /curio/、日刻 /daymark/、博客 /blog/，同源）。
  * 布局只有手机 / 桌面，四站同一条规则（共享外壳 layout-mode.js）：手动照办；自动 = userAgentData.mobile（没有就看 UA），算出桌面但视口 < 720 → 手机。
  * 顶栏宽：手机布局 min(100% − 32, 640)；桌面布局按设备档（<html data-sgx-device>）——手机设备 min(720, 100% − 48)，电脑 / 平板 min(clamp(720, 60vw, 960), 100% − 48)，
  * 居中——同一视口四站每页都一样长。
  * 页名胶囊只显示当前页名：手机布局不显示；子站首页 = 站名，切到页内分区（入口链接 hash）换成分区名。
- * 主站在 dist/site 里是生产构建（锁屏启用）：主站页面量的是最上层看得见的那条（锁屏的顶栏）。主站自己的顶栏见 tests/space/e2e/topbar/topbar-length.spec.js。 */
+ * 主站在 space/web/public 里是生产构建（锁屏启用）：主站页面量的是最上层看得见的那条（锁屏的顶栏）。主站自己的顶栏见 tests/space/e2e/topbar/topbar-length.spec.js。 */
 const { test, expect } = require('@playwright/test');
 
 const PAGES = ['/', '/security/', '/theme/', '/account/', '/?lock=1', '/blog/', '/blog/post/2026-10-07-muse-playbook/', '/curio/', '/daymark/'];

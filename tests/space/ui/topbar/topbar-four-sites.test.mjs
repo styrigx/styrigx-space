@@ -1,6 +1,6 @@
 /**
  * 四站顶栏一致（2026-11-04 P5-1，方案 6.2–6.5）：主站 / 博客 / 奇趣 / 日刻同一个顶栏。
- * - 标记单一来源：主站 partials/shell-topbar.html → 共享外壳 topbar.html → 三个子站 layouts/partials/sgx-shell-topbar.html，一字不差；
+ * - 标记单一来源：主站 partials/shell-topbar.html → 共享外壳 topbar.html → 三个子站 layouts/partials/shell-topbar.html，一字不差；
  * - 四个调用点都传齐必需参数；磁贴按定案：主站 dark / system / lang / lock + 调色板 + 布局、没有分享；子站 dark / system / lang / 调色板 + 分享，没有立即锁定和布局；
  * - 子站的主站项 / 账号 / 头像用 https://styrigx.com 绝对地址（子站单独起服务时也能到主站），子站之间同源相对；
  * - 真实构建（有 public/ 时）：四站首页（中英）的顶栏骨架一样 —— P4-3 PR-4b 定稿胶囊 [字标][页名胶囊][九宫格 · 快捷设置 · AI]，头像在 AI 窗口头部；
@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderAll } from '../../../../space/scripts/gen-shell.mjs';
+import { shellFiles } from '../../../../space/scripts/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -21,33 +21,30 @@ const SUBS = ['blog', 'curio', 'daymark'];
 /** 每站调用 shell-topbar 的模板 */
 const CALLERS = {
   atlas: 'space/web/layouts/_default/baseof.html',
-  blog: 'atlas/web/blog/layouts/partials/topnav.html',
-  curio: 'atlas/web/curio/layouts/_default/baseof.html',
-  daymark: 'atlas/web/daymark/layouts/_default/baseof.html',
+  blog: 'space/web/layouts/partials/blog/topnav.html',
+  curio: 'space/web/layouts/curio/baseof.html',
+  daymark: 'space/web/layouts/daymark/baseof.html',
 };
 const REQUIRED = ['lang', 'tr', 'langs', 'home', 'center', 'nav', 'site', 'icons', 'wordmark', 'acct', 'avatar', 'pal'];
 
 /** 取 `partial "...topbar.html" (dict ... )` 的参数段 */
 function callArgs(site) {
   const t = rd(CALLERS[site]);
-  const name = site === 'atlas' ? 'shell-topbar.html' : 'sgx-shell-topbar.html';
+  const name = 'shell-topbar.html'; // 2026-11 合站：四站都调主站这一份
   const i = t.indexOf(`partial "${name}" (dict`);
   assert.ok(i >= 0, `${site}: 调 ${name}`);
   return t.slice(i, t.indexOf('\n)', i) + 2);
 }
 
-test('标记单一来源：共享外壳 topbar.html = 主站 shell-topbar.html = 三个子站 sgx-shell-topbar.html（原样，不加注释头）', () => {
-  assert.equal(renderAll()['topbar.html'], SRC);
-  assert.equal(rd('space/web/shared/shell/topbar.html'), SRC);
-  for (const s of SUBS) assert.equal(rd(`atlas/web/${s}/layouts/partials/sgx-shell-topbar.html`), SRC, s);
-  /* 三站的顶栏 JS 也一份：topbar.js = 主站 shell/topbar-panel.js（sync-shell 前后各加一行标记 + 一行段名，比对去掉之后的正文） */
-  const body = rd('space/web/shared/shell/topbar.js');
-  assert.equal(body, rd('space/web/assets/js/shell/topbar-panel.js'));
+test('标记单一来源：四站都用主站 shell-topbar.html 和 shell/topbar-panel.js（2026-11 合站后没有子站副本）', () => {
+  assert.equal(shellFiles()['topbar.html'], SRC);
   for (const s of SUBS) {
-    const sub = rd(`atlas/web/${s}/assets/js/sgx/shell/topbar.js`).split('\n');
-    assert.match(sub[0], /^\/\* @sgx-shell:begin /, s);
-    assert.equal(sub.slice(2, -2).join('\n') + '\n', body, s + ' topbar.js');
+    assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials', s, 'shell-topbar.html')), s + ' 没有顶栏标记副本');
+    assert.ok(!existsSync(path.join(REPO, 'space/web/assets', s, 'js/sgx/shell/topbar.js')), s + ' 没有顶栏 JS 副本');
   }
+  /* 子站顶栏入口直接 import 主站的 topbar-panel.js */
+  assert.match(rd('space/web/assets/blog/js/entries/topnav.ts'), /from '\.\.\/\.\.\/\.\.\/js\/shell\/topbar-panel\.js'/);
+  for (const s of ['curio', 'daymark']) assert.match(rd(`space/web/assets/${s}/js/sgx/topbar-host.js`), /from '\.\.\/\.\.\/\.\.\/js\/shell\/topbar-panel\.js'/, s);
 });
 
 test('四个调用点：必需参数都传；site 是本站；PR-4b 起快捷面板四站同一套，谁都不传 tiles / layout', () => {
@@ -75,7 +72,7 @@ test('子站地址：主站项 / 账号 / 头像走 https://styrigx.com，中文
 
 /* ---------------- 真实构建 ---------------- */
 
-const PUB = { atlas: 'space/web/public', blog: 'atlas/web/blog/public', curio: 'atlas/web/curio/public', daymark: 'atlas/web/daymark/public' };
+const PUB = { atlas: 'space/web/public', blog: 'space/web/public/blog', curio: 'space/web/public/curio', daymark: 'space/web/public/daymark' };
 const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'index.html')));
 
 /** 顶栏骨架：去掉中间内容，只留结构上的 class / id / data-qp，按出现顺序 */

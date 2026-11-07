@@ -1,4 +1,4 @@
-// 首页逻辑的纯函数（atlas/web/curio/assets/js/curio.js）：双语取值、首字母、hash、筛选、挪位置、网址补全、导入结果的话。
+// 首页逻辑的纯函数（space/web/assets/curio/js/curio.js）：双语取值、首字母、hash、筛选、挪位置、网址补全、导入结果的话。
 // 运行：node --test tests/curio/curio.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { strings } from '../fixtures/strings.mjs';
 
 const require = createRequire(import.meta.url);
-const C = require('../../atlas/web/curio/assets/js/curio.js');
+const C = require('../../space/web/assets/curio/js/curio.js');
 
 const CATS = [
   { id: 1, name: { zh: '开发', en: 'Dev' }, private: false, links: [
@@ -52,7 +52,7 @@ test('makeTr：占位替换、复数按 Intl.PluralRules（键_one 只英文有�
 
 test('makeTr：页面把带数字的键改挂成函数（T.tracks = function(n){ return tr(\'tracks\', …) }）后，tr 仍读原始文案（四个脚本同一份）', () => {
   for (const f of ['curio.js', 'curio-items.js', 'curio-movies.js', 'curio-music.js']) {
-    const M = require('../../atlas/web/curio/assets/js/' + f);
+    const M = require('../../space/web/assets/curio/js/' + f);
     const T = { tracks: '{n} 首', chosen: '已选 {n} 个' };
     const tr = M.makeTr(T, 'zh');
     T.tracks = function (n) { return tr('tracks', { n: n }); };
@@ -120,10 +120,10 @@ test('isLockedReply：写请求只有 401 unauthorized（或没码的 401）才�
   assert.equal(C.isLockedReply(200, ''), false);
 });
 
-const IT = require('../../atlas/web/curio/assets/js/curio-items.js');
-const HM = require('../../atlas/web/curio/assets/js/curio-home.js');
-const MV = require('../../atlas/web/curio/assets/js/curio-movies.js');
-const MU = require('../../atlas/web/curio/assets/js/curio-music.js');
+const IT = require('../../space/web/assets/curio/js/curio-items.js');
+const HM = require('../../space/web/assets/curio/js/curio-home.js');
+const MV = require('../../space/web/assets/curio/js/curio-movies.js');
+const MU = require('../../space/web/assets/curio/js/curio-music.js');
 
 test('usedDays：购买当天算第 1 天，退役了算到退役日；没填 / 倒了返回 null；daysText 满一年带年数', () => {
   assert.equal(IT.usedDays('2026-10-22', '', '2026-10-22'), 1);
@@ -159,7 +159,7 @@ test('筛选、换代历史、平台联想、缩图尺寸', () => {
 });
 
 test('裁剪几何：取景框按卡片比例、照片始终盖满、框住的原图区域、重新调整摆回原位', () => {
-  const css = readFileSync(new URL('../../atlas/web/curio/assets/css/input.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../space/web/assets/curio/css/input.css', import.meta.url), 'utf8');
   /* 比例跟卡片的 CSS 一致：设备 .it-media 4/3，游戏 .it-media--cover 3/4 */
   assert.match(css, /\.it-media \{[^}]*aspect-ratio: 4\/3;/);
   assert.match(css, /\.it-media--cover \{ aspect-ratio: 3\/4; \}/);
@@ -206,7 +206,7 @@ test('首页旧 hash（P4-3 奇趣拆页，客户端兼容）：#devices / #game
   assert.deepEqual(HM.legacyTarget('#games/x'), { entry: 'games', hash: '' });
   assert.deepEqual(HM.legacyTarget('#c/3'), { entry: 'finds', hash: '#c/3' });
   for (const h of ['', '#', '#c/x', '#trove', '#music']) assert.equal(HM.legacyTarget(h), null, h);
-  assert.equal(existsSync(new URL('../../atlas/web/curio/assets/js/curio-tabs.js', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../../space/web/assets/curio/js/curio-tabs.js', import.meta.url)), false);
 });
 
 test('电影：副标题 = 年份 · 导演；年份空 = 0、不合格 null；海报裁剪 2:3、长边 1600', () => {

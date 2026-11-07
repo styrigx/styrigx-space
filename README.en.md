@@ -14,9 +14,9 @@ Sloan Gray's personal portal — Space and Account — and the auth gateway that
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
 ![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
 ![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
-![Blog](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/blog/hugo.yaml&query=%24.params.version&label=Blog&style=flat-square&color=2563eb)
-![Curio](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/curio/hugo.yaml&query=%24.params.version&label=Curio&style=flat-square&color=2563eb)
-![Daymark](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/daymark/hugo.yaml&query=%24.params.version&label=Daymark&style=flat-square&color=2563eb)
+![Blog](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.blog.version&label=Blog&style=flat-square&color=2563eb)
+![Curio](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.curio.version&label=Curio&style=flat-square&color=2563eb)
+![Daymark](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.daymark.version&label=Daymark&style=flat-square&color=2563eb)
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?branch=main&style=flat-square&label=Deploy&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
@@ -44,7 +44,7 @@ This is the source of styrigx.com and the "system" repository of the site family
 
 - **Portal** — Space (the single top-level page) and Account, fully bilingual.
 - **Auth gateway** — every page and API on the main site and on the sub-sites (Blog, Curio, Daymark at `styrigx.com/<site>/`) goes through it first. The whole site is locked by design; sharing only happens through short links that carry a temporary key.
-- **Shared shell** — the top bar, navigation drawer and search layer are generated here; each sub-site keeps a synced copy pinned to a shell version (git tree hash).
+- **Shared shell** — the top bar, quick panel and AI window are shared by all four sites; the sub-sites live in the same Hugo site as the main site and use the very same templates and scripts, with no copies.
 - **Shared CI** — Hugo, Node and Playwright setup are published as composite actions (`v*` tags) that Atlas references by tag.
 
 The interface is **Styrigx UI**, built in-house, with version numbers that track One UI; the **SGX** kernel handles sign-in and sessions. It works on phone, tablet and DeX, and feels much like a Samsung phone.
@@ -99,7 +99,7 @@ flowchart LR
 | `styrigx-curio-core` | Curio API (D1 + R2) | `styrigx.com/curio/api/*` (more specific than the gateway) |
 | `styrigx-daymark-core` | Daymark API (D1) | `styrigx.com/daymark/api/*` (same) |
 
-The sub-sites and the main site are one tree in a single Pages project (main site at the root, the three sites under `/blog/`, `/curio/`, `/daymark/`), deployed together.
+The sub-sites and the main site are one Hugo site (`space/web/`, built once); the output is one tree (main site at the root, the three sites under `/blog/`, `/curio/`, `/daymark/`) in a single Pages project, deployed together.
 
 ## Security model
 
@@ -149,8 +149,7 @@ Pull requests must pass `quality` and `passkey-e2e` (squash-only, linear history
 
 ```
 styrigx-space/
-├─ space/      main site + infrastructure: web/ is the main site (Hugo, published by Cloudflare Pages); scripts/ holds build, generators and static checks
-├─ atlas/      subsites: web/blog/ web/curio/ web/daymark/; scripts/<site>/ holds each subsite's own scripts
+├─ space/      site + infrastructure: web/ is one Hugo site (main site + Blog / Curio / Daymark, sub-sites kept apart as <dir>/<site>/, published by Cloudflare Pages); scripts/ holds build, generators and static checks (sub-site scripts in scripts/<site>/)
 ├─ workers/    all Workers, one directory each
 ├─ tests/      tests, grouped by what they test
 ├─ docs/       design docs, task specs and screenshots (index: docs/README.md)

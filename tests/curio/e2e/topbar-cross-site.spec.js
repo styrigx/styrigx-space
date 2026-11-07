@@ -1,8 +1,8 @@
 /* 四站同一个顶栏（2026-11-04 P5-1，方案 6.4 / 6.5，任务书 P5-1「测试」两条 e2e）。
- * 跑在拼好的整站（dist/site：主站在 /，奇趣 /curio/、日刻 /daymark/、博客 /blog/，同源），和线上 PR3 后的四站同源一样：
+ * 跑在拼好的整站（space/web/public：主站在 /，奇趣 /curio/、日刻 /daymark/、博客 /blog/，同源），和线上 PR3 后的四站同源一样：
  * - P4-3 PR-4b 起四站快捷面板同一套：主站页面也有「分享本页」磁贴（原定案第 4 条「主站不输出」作废）；面板只有一页（四站 DOM 同一份见 quick-panel-identity.spec.js）。
  * - 子站快捷设置改外观（深色 / 调色板）→ 回主站同步生效：四站共用一个写端（共享外壳 prefs-write.js），写同一个 sgx-ui cookie / localStorage（定案第 5 条）。
- * 主站在 dist/site 里是生产构建（锁屏启用、没有网关）：这里只看顶栏 / 快捷面板的 DOM 和首帧外观，不过锁屏。 */
+ * 主站在 space/web/public 里是生产构建（锁屏启用、没有网关）：这里只看顶栏 / 快捷面板的 DOM 和首帧外观，不过锁屏。 */
 const { test, expect } = require('@playwright/test');
 
 const MAIN = ['/', '/theme/', '/account/', '/zh/', '/zh/account/'];

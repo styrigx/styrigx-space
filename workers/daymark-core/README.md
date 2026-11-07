@@ -4,7 +4,7 @@
 
 ## 职责
 
-- `/daymark/api/*` 的全部数据接口；页面是静态文件（`atlas/web/daymark/`），会话检查在主站鉴权网关。
+- `/daymark/api/*` 的全部数据接口；页面是静态文件（`space/web/` 下的 `<目录>/daymark/`，和主站同一个 Hugo 站），会话检查在主站鉴权网关。
 - `/daymark/api/today` 公开（主站首页小组件和锁屏读，CORS 只放 `https://styrigx.com`）；其余接口要进门，写操作要账号会话 + 作用域 `daymark.write`（见「鉴权」）。
 - 写接口成功后重建全站搜索索引里本站那一条（KV `site:daymark`），Cron 每小时兜底。
 
@@ -52,4 +52,4 @@ src/search-index.js  KV site:daymark 的索引
 
 ## 数据与迁移
 
-`migrations/`（D1 `styrigx-daymark-core`）。`0003_seed_quotes.sql` 由 `atlas/scripts/daymark/gen-seed-sql.mjs` 生成（种子原文不进仓库）。已上线的迁移不改名、不重新编号。单测在 `tests/workers/daymark-core/`。PR3 之前线上部署仍由 styrigx-atlas 仓库负责。
+`migrations/`（D1 `styrigx-daymark-core`）。`0003_seed_quotes.sql` 由 `space/scripts/daymark/gen-seed-sql.mjs` 生成（种子原文不进仓库）。已上线的迁移不改名、不重新编号。单测在 `tests/workers/daymark-core/`。PR3 之前线上部署仍由 styrigx-atlas 仓库负责。

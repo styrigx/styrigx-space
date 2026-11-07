@@ -1,5 +1,6 @@
 /**
- * 共享外壳 space/web/shared/shell（space/scripts/gen-shell.mjs 生成，子站 sync-shell.mjs 同步）：
+ * 共享外壳（2026-11 合站后主站和三个子站同一个 Hugo 站，子站直接用主站的 partial / JS；space/scripts/gen-shell.mjs 只生成
+ *   space/web/assets/css/shell/{tokens,shell}.css 和 space/web/data/shell/{nav,palettes}.json 四个派生文件）：
  * 生成物必须和源头一致；外壳 CSS 只用色彩角色，不写死颜色；导航项 / 图标齐全；顶栏标记 topbar.html 四站一份（2026-11-04 P5-1）。
  */
 import { test } from 'node:test';
@@ -8,15 +9,24 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { renderAll, OUT_DIR, SHELL_REGIONS, extractRegion } from '../../../../space/scripts/gen-shell.mjs';
+import { renderAll, OUT, SHELL_REGIONS, extractRegion } from '../../../../space/scripts/gen-shell.mjs';
 import yaml from 'js-yaml';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const files = renderAll();
+const { files: generated } = renderAll();
+/* 派生文件 + 子站直接用的源文件（合站前这些都在 shared/shell 里有一份副本） */
+const files = {
+  ...generated,
+  'topbar.html': readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8'),
+  'i18n-en.yaml': readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/en.yaml'), 'utf8'),
+  'i18n-zh.yaml': readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/zh.yaml'), 'utf8'),
+};
 const ROLES = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/palette-roles.json'), 'utf8'));
 
-test('space/web/shared/shell 和源头一致（改了源头要重跑 node space/scripts/gen-shell.mjs）', () => {
-  for (const [k, v] of Object.entries(files)) assert.equal(readFileSync(path.join(OUT_DIR, k), 'utf8'), v, k);
+test('共享外壳的四个派生文件和源头一致（改了源头要重跑 node space/scripts/gen-shell.mjs）；没有 shared/shell 副本目录', () => {
+  for (const [k, v] of Object.entries(generated)) assert.equal(readFileSync(path.join(REPO, OUT[k]), 'utf8'), v, OUT[k]);
+  assert.deepEqual(Object.keys(OUT).sort(), ['nav.json', 'palettes.json', 'shell.css', 'tokens.css']);
+  assert.equal(existsSync(path.join(REPO, 'space/web/shared')), false);
 });
 
 test('宽屏平铺（Gray 2026-11-07）：只在桌面布局——内容区通栏、去卡片公共件 .sgx-flat / .sgx-wide-cols；手机布局不变；交互模块不挂', () => {
@@ -41,11 +51,6 @@ test('宽屏平铺（Gray 2026-11-07）：只在桌面布局——内容区通�
   assert.match(home, /id="w-profile" class="widget sgx-flat /);
   assert.match(home, /id="w-daymark" [^>]*class="widget sgx-flat /);
   assert.doesNotMatch(home, /id="w-screen"[^>]*sgx-flat/);
-});
-
-test('manifest 的 sha256 对得上每个文件', () => {
-  const m = JSON.parse(files['manifest.json']);
-  for (const [k, h] of Object.entries(m.files)) assert.equal(createHash('sha256').update(files[k]).digest('hex'), h, k);
 });
 
 test('外壳 CSS 段只用 --sgx-* 角色：没有十六进制颜色、没有旧 --m-* 令牌', () => {
@@ -131,7 +136,7 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
   }
   assert.equal(p.default, 'dustyblue');
   assert.equal(p.rulesVersion, 'palette-rules-1');
-  assert.equal(JSON.parse(files['manifest.json']).rulesVersion, 'palette-rules-1');
+  assert.equal(JSON.parse(files['palettes.json']).rulesVersion, 'palette-rules-1');
   assert.equal(p.presets[0].id, 'dustyblue');
   for (const { id, seed } of p.presets) {
     const sel = id === 'dustyblue' ? ':root,\n:root[data-palette="dustyblue"] {' : `:root[data-palette="${id}"] {`;

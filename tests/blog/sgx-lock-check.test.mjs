@@ -1,10 +1,10 @@
-// 切回标签页的锁定检查：atlas/web/blog/assets/js/blog/sgx-lock-check.js（问网关 /api/lock-session-check，401 跳主站锁屏）。
+// 切回标签页的锁定检查：space/web/assets/blog/js/blog/sgx-lock-check.js（问网关 /api/lock-session-check，401 跳主站锁屏）。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const src = readFileSync(new URL('../../atlas/web/blog/assets/js/blog/sgx-lock-check.js', import.meta.url), 'utf8');
+const src = readFileSync(new URL('../../space/web/assets/blog/js/blog/sgx-lock-check.js', import.meta.url), 'utf8');
 
 /**
  * 在假的 window / document 里跑脚本，返回触发器和记录。

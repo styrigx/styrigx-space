@@ -1,0 +1,49 @@
+{{- /* 博客跟随主站设置（博客没有自己的语言 / 深浅色开关，设置在共享快捷面板和主站旷野页 styrigx.com/ 的风格子页 styrigx.com/theme/）。
+外观 + 语言（内联脚本，渲染前同步执行）：读主站写的 sgx-ui cookie。契约以主站为准（styrigx-space docs/ui-cookie-contract.md），
+博客这边的补充见 docs/sgx-ui-cookie.md。
+- 第一个 <script>：主站共享外壳的只读解析器 ui-cookie-read.js 原样内联（atlas/web/blog/assets/js/sgx/shell/ui-cookie-read.js，
+  atlas/scripts/blog/sync-shell.mjs 同步、勿手改），挂 window.SgxUI。校验 v（只认 1 / 2）、mode、pal（旧撞色 x<id> → <id>，不认识 → dustyblue）、
+  accent（只认小写 #rrggbb；等于预设当前种子或 LEGACY_SEEDS 旧种子 = 预设色板）、fs、rm；不认 theme 别名。
+  SgxUI.apply 落到 <html>：class dark、data-theme-mode、data-dark、font-size、data-font-size、data-palette（默认 dustyblue 不写）、
+  自定义色时内联 --sgx-seed + <style id="sgx-accent-roles">（有缓存首帧直接插；没缓存先按预设，entries/inherit.ts 按需 import 引擎算好再插）、
+  class reduced-motion、data-reduced-motion。
+- 第二个 <script>：博客自己的部分
+  - data-theme（light | dark）和 color-scheme：博客 one-ui.css 的样式钩子，按 SgxUI.apply 的返回值补；跟随系统时系统一变就重落一遍。
+  - 语言不在这里：首帧语言跳转是四站同一份共享外壳 lang-boot.js（下面第一个 <script>；语言清理 2026-11-07）。
+    偏好 sgx-lang 明确语言 → 那种语言；跟随系统 / 旧版的空 → 浏览器语言；每页都跳（不只首页）。博客文章有的只有一种语言：
+    本页用 <meta name="sgx-alt-<语言>"> 声明有哪些版本，lang-boot 只去声明过的地址，没有就不跳。旧的 styrigx-blog-lang 本地键不再读。
+  - 博客原来的主题开关已删除：旧的 navfolio-theme / sgx-theme-at 本地键清掉，避免盖过主站设置。
+参数：.alt = dict "zh" "/..." "en" "/..."（只在真的有对应版本时给） */ -}}
+{{- $reader := resources.Get "js/lib/ui-cookie-read.js" | minify -}}
+{{- /* 本页有哪些语言版本（lang-boot 只去这里声明过的地址）；没传 .alt 的页面（标签页、404）声明「没有别的版本」，不跳 */ -}}
+{{- with .alt }}{{ range $l, $u := . }}<meta name="sgx-alt-{{ $l }}" content="{{ $u }}">{{ end }}{{ else }}<meta name="sgx-alt-none" content="">{{ end }}
+<script>{{ (resources.Get "js/lib/lang-boot.js" | js.Build (dict "format" "iife" "minify" true "target" "es2017")).Content | safeJS }}</script>
+<script>{{ $reader.Content | safeJS }}</script>
+<script>
+(function () {
+  const UI = window.SgxUI;
+  const root = document.documentElement;
+  /* 外观：共享读端落契约里的状态，博客只补 data-theme / color-scheme；系统深浅色监听由下面统一挂（watch: false） */
+  const apply = () => {
+    try {
+      const a = UI.apply(root, { watch: false });
+      root.setAttribute('data-theme', a.dark ? 'dark' : 'light');
+      root.style.colorScheme = a.dark ? 'dark' : 'light';
+    } catch {}
+  };
+  try {
+    localStorage.removeItem('navfolio-theme');
+    localStorage.removeItem('sgx-theme-at');
+  } catch {}
+  /* lang-boot 已经决定要跳就不再落外观（页面马上换掉） */
+  if (window.__sgxLangGo) return;
+  apply();
+  if (!window.__sgxInheritInit) {
+    window.__sgxInheritInit = true;
+    /* 跟系统：系统深浅色变了再应用一次（cookie 指定了 light/dark 时 apply 会保持原样） */
+    try {
+      window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', apply);
+    } catch {}
+  }
+})();
+</script>

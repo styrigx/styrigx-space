@@ -1,0 +1,25 @@
+{{- /* 标签页（原 src/pages/tags/[tag].astro + BlogArchiveHeader + BlogPostList）：/tags/<slug>/（英文）、/zh/tags/<slug>/（中文） */ -}}
+{{ define "head" }}
+{{- $n := len .Pages -}}
+{{ partial "blog/head.html" (dict "page" . "title" (i18n "tagPageTitle" (dict "Name" .Title)) "description" (i18n "tagNote" (dict "Count" $n))) }}
+{{ end }}
+{{ define "body" }}
+{{- $posts := partial "blog/posts-sorted.html" (dict "pages" .Pages "mode" "archive") -}}
+<body class="page-tag">
+{{ partial "blog/topnav.html" (dict "page" . "mode" "links") }}
+<main class="oui-archive-wrap">
+  <div class="tag-body">
+    <header class="archive-hero archive-header-shared page-header-spacing">
+      <div class="archive-header-main">
+        <p class="archive-kicker">{{ i18n "tagCloudKicker" }}</p>
+        <h1 class="archive-title">#{{ .Title }}</h1>
+      </div>
+      <div class="archive-copy">
+        <p class="archive-subtitle">{{ i18n "tagNote" (dict "Count" (len $posts)) }}</p>
+      </div>
+    </header>
+    {{ partial "blog/post-list.html" (dict "posts" $posts) }}
+  </div>
+</main>
+</body>
+{{ end }}

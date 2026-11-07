@@ -62,13 +62,12 @@ test('systemLang：zh 开头 = 中文，其余（含取不到）= 英文', () =>
   assert.equal(systemLang({}), 'en');
 });
 
-test('共享外壳：lang-path.js / lang-path.html 原样进外壳，三个子站的副本和主站一致', () => {
-  const man = JSON.parse(rd('space/web/shared/shell/manifest.json'));
-  assert.ok(man.files['lang-path.js'] && man.files['lang-path.html'], 'manifest 缺 lang-path');
-  assert.equal(rd('space/web/shared/shell/lang-path.html'), rd('space/web/layouts/partials/sgx-lang-path.html'));
+test('共享外壳：lang-path.js / lang-path.html 只有主站一份（2026-11 合站后子站直接用，没有副本）', () => {
+  assert.match(rd('space/web/assets/js/lib/lang-path.js'), /export function langPath\(/);
+  assert.ok(existsSync(path.join(REPO, 'space/web/layouts/partials/sgx-lang-path.html')));
   for (const s of SITES) {
-    assert.equal(rd(`atlas/web/${s}/layouts/partials/sgx-lang-path.html`), rd('space/web/layouts/partials/sgx-lang-path.html'), s);
-    assert.match(rd(`atlas/web/${s}/assets/js/sgx/shell/lang-path.js`), /export function langPath\(/, s);
+    assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials', s, 'sgx-lang-path.html')), s + ' 没有 sgx-lang-path.html 副本');
+    assert.ok(!existsSync(path.join(REPO, 'space/web/assets', s, 'js/lib/lang-path.js')), s + ' 没有 lang-path.js 副本');
   }
 });
 
@@ -81,8 +80,8 @@ test('外壳顶栏的导航前缀和 langPath 同一规则（外壳 partial 不�
   assert.match(tpl, /printf "\/%s%s" \$lang \.path/);
 });
 
-test('四站 Hugo 配置：默认英文、不生成默认语言跳转页', () => {
-  for (const f of ['space/web/hugo.yaml', ...SITES.map((s) => `atlas/web/${s}/hugo.yaml`)]) {
+test('四站 Hugo 配置（2026-11 合站后只有一份）：默认英文、不生成默认语言跳转页', () => {
+  for (const f of ['space/web/hugo.yaml']) {
     const c = /** @type {any} */ (yaml.load(rd(f)));
     assert.equal(c.defaultContentLanguage, 'en', f);
     assert.equal(c.defaultContentLanguageInSubdir, false, f);
@@ -123,8 +122,8 @@ function walk(root) {
 
 const OUTS = [
   ['space/web/public', ''],
-  ...SITES.map((s) => [`atlas/web/${s}/public`, '/' + s]),
-  ['dist/site', ''],
+  ...SITES.map((s) => [`space/web/public/${s}`, '/' + s]),
+  ['space/web/public', ''],
 ].filter(([d]) => existsSync(path.join(REPO, d, 'index.html')));
 
 test('构建产物：路径只有 ASCII（中文页只多 /zh/，路径段全英文），没有 en/ 目录', { skip: !OUTS.length && '没有构建产物' }, () => {
@@ -133,7 +132,7 @@ test('构建产物：路径只有 ASCII（中文页只多 /zh/，路径段全英
     const bad = files.filter((f) => /[^\x20-\x7e]/.test(f));
     assert.deepEqual(bad, [], d + ' 有非 ASCII 路径');
     assert.ok(!existsSync(path.join(REPO, d, 'en')), d + '/en/ 不该存在（旧 /en/… 删除不 301）');
-    if (d === 'dist/site') for (const s of SITES) assert.ok(!existsSync(path.join(REPO, d, s, 'en')), `dist/site/${s}/en/ 不该存在`);
+    if (d === 'space/web/public') for (const s of SITES) assert.ok(!existsSync(path.join(REPO, d, s, 'en')), `space/web/public/${s}/en/ 不该存在`);
   }
 });
 
@@ -141,7 +140,8 @@ const MAIN = path.join(REPO, 'space/web/public');
 const hasMain = existsSync(path.join(MAIN, 'zh', 'index.html'));
 
 test('主站产物：中文页 lang=zh、英文页 lang=en；hreflang = langPath()；只有根上一份 sitemap', { skip: !hasMain && '没有主站构建' }, () => {
-  for (const f of walk(MAIN).filter((x) => x.endsWith('index.html'))) {
+  /* 合站：子站页面在同一棵 public/ 的 /<站>/ 下，主站这组不查它们（子站在下面那组） */
+  for (const f of walk(MAIN).filter((x) => x.endsWith('index.html') && !SITES.some((s) => x.startsWith(s + '/')))) {
     const rel = '/' + f.replace(/index\.html$/, '');
     const html = readFileSync(path.join(MAIN, f), 'utf8');
     if (/http-equiv="?refresh/i.test(html)) continue;
@@ -170,9 +170,9 @@ test('主站产物：快捷面板导航 / 账号入口在中文页都带 /zh/（
   }
 });
 
-test('子站产物：中文首页在 /<站>/zh/，sitemap 只在站根', { skip: !SITES.every((s) => existsSync(path.join(REPO, `atlas/web/${s}/public/zh/index.html`))) && '没有子站构建' }, () => {
+test('子站产物：中文首页在 /<站>/zh/，sitemap 只在站根', { skip: !SITES.every((s) => existsSync(path.join(REPO, `space/web/public/${s}/zh/index.html`))) && '没有子站构建' }, () => {
   for (const s of SITES) {
-    const pub = path.join(REPO, `atlas/web/${s}/public`);
+    const pub = path.join(REPO, `space/web/public/${s}`);
     assert.match(readFileSync(path.join(pub, 'zh', 'index.html'), 'utf8'), /<html[^>]* lang="?zh/, s);
     assert.match(readFileSync(path.join(pub, 'index.html'), 'utf8'), /<html[^>]* lang="?en/, s);
     assert.ok(!existsSync(path.join(pub, 'zh', 'sitemap.xml')), s + ' /zh/sitemap.xml');

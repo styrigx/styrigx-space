@@ -10,8 +10,17 @@ const { blockExternalRequests, freezeTime, expect } = require('../helpers/helper
 
 test.use({ viewport: { width: 412, height: 915 } });
 
-const SHELL = path.join(__dirname, '../../../../space/web/shared/shell');
-const shell = (f) => fs.readFileSync(path.join(SHELL, f), 'utf8');
+/* 2026-11 合站：没有 shared/shell 副本目录了，按外壳文件名读仓库里的原位置（同 space/scripts/gen-shell.mjs 的 SHELL_FILES） */
+const REPO = path.join(__dirname, '../../../..');
+const SHELL_FILES = {
+  'nav.json': 'space/web/data/shell/nav.json',
+  'tokens.css': 'space/web/assets/css/shell/tokens.css',
+  'shell.css': 'space/web/assets/css/shell/shell.css',
+  'ui-cookie-read.js': 'space/web/assets/js/lib/ui-cookie-read.js',
+  'favicon.js': 'space/web/assets/js/shell/favicon.js',
+  'palette-scheme.js': 'space/web/assets/js/lib/palette-scheme.js',
+};
+const shell = (f) => fs.readFileSync(path.join(REPO, SHELL_FILES[f]), 'utf8');
 const SUB = '/__ui-cookie-subsite/';
 
 /** 子站页：<head> 里样式 → 读端原文 → 一行 apply（没缓存时异步加载外壳引擎算自定义色）→ 记下首帧前的状态 */

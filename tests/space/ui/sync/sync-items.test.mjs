@@ -113,7 +113,7 @@ test('P5-1：AI 窗口历史 sgx-ai-history 只存本地，不进云同步白名
   assert.ok(!feats.some((f) => f.key === HISTORY_KEY), 'features.yaml 没有这个 key（不然会被 syncKeys 收进去）');
   assert.doesNotMatch(rd('space/web/assets/js/lib/cloud-sync.js'), /sgx-ai-history/, 'cloud-sync.js 的 EXTRA 不含 AI 历史');
   /* 共享外壳 ai.js（子站用的那份）存同一个 key、同样不走同步 */
-  assert.match(rd('space/web/shared/shell/ai.js'), /export const HISTORY_KEY = 'sgx-ai-history';/);
+  assert.match(rd('space/web/assets/js/shell/ai-panel.js'), /export const HISTORY_KEY = 'sgx-ai-history';/);
 });
 
 test('P4-2d：AI 模型 sgx-ai-model 进云同步白名单（syncKeys + sync-items.yaml「其他」组 + extra 类型 ai-model），键名与 ai-panel.js MODEL_KEY 一致', async () => {
@@ -126,7 +126,7 @@ test('P4-2d：AI 模型 sgx-ai-model 进云同步白名单（syncKeys + sync-ite
   assert.ok(!feats.some((f) => f.key === MODEL_KEY), '不在 features.yaml（走 EXTRA）');
   assert.ok(!syncKeys().includes(HISTORY_KEY), '历史仍不同步');
   /* 共享外壳 ai.js（子站用的那份）读同一个键 */
-  assert.match(rd('space/web/shared/shell/ai.js'), /export const MODEL_KEY = 'sgx-ai-model';/);
+  assert.match(rd('space/web/assets/js/shell/ai-panel.js'), /export const MODEL_KEY = 'sgx-ai-model';/);
 });
 
 test('valueText：ai-model 没设 →「默认」，设了 → 原样显示模型 id', () => {

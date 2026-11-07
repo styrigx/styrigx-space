@@ -5,7 +5,7 @@
 //   都跟 sgx-ui cookie 的 pal / 自定义种子 accent 变；抽屉当前项 / 目录当前节是 tonal。
 // - 九宫格 → 左侧导航抽屉（主站共享外壳同一份：主站 / 奇趣 / 日刻 / 博客，字标 + 头像、底栏搜索框，毛玻璃、tonal 当前项）；文章页抽屉最下面是目录。
 // - 只有列表页（首页）长条是 首页 · 文章 · 专题；其他页（文章、标签、404）长条只有页名；文章页长条底边一条强调色细线是阅读进度。
-// - 2026-11-04 P5-1 顶栏全大椭圆（四站同一个，共享外壳 partials/sgx-shell-topbar.html）：一整条胶囊 logo · 长条 · 快捷面板 · AI · 头像；
+// - 2026-11-04 P5-1 顶栏全大椭圆（四站同一个，共享外壳 partials/shell-topbar.html）：一整条胶囊 logo · 长条 · 快捷面板 · AI · 头像；
 //   九宫格、导航抽屉、右圆分享删除。站点列表在快捷面板第 1 页「导航」（博客是 tonal 当前项，没有搜索框），「分享本页」在第 2 页。
 // - P4-3 PR-4b 定稿：字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI；头像搬进 AI 窗口头部；九宫格开导航面板 #sgx-nav（2×2 站点磁贴，博客「开」态）；
 //   快捷面板只有一页（四站同一套，「分享本页」磁贴在里面）。
@@ -14,7 +14,7 @@ import { test, expect } from '@playwright/test';
 
 /* 预设种子从共享外壳的 palettes.json 读（主站改种子时不用改测试） */
 const SEEDS = Object.fromEntries(
-  JSON.parse(readFileSync(new URL('../../../atlas/web/blog/data/sgx-shell/palettes.json', import.meta.url), 'utf8')).presets.map((p) => [p.id, p.seed]),
+  JSON.parse(readFileSync(new URL('../../../space/web/data/shell/palettes.json', import.meta.url), 'utf8')).presets.map((p) => [p.id, p.seed]),
 );
 
 test.use({ viewport: { width: 412, height: 915 } });

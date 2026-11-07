@@ -1,8 +1,8 @@
 /**
  * 构建产物检查：顶栏 / 快捷面板的毛玻璃在最终压缩后的 CSS 里必须同时保留标准写法和 -webkit- 前缀。
  * 背景：lightningcss（Tailwind 4 内置）会把两行合并成只剩 -webkit-backdrop-filter，Chromium（三星浏览器）就没有模糊了；
- * 所以 atlas/scripts/blog/build-css.mjs 只让 Tailwind 处理 tw-input.css，博客 / 共享外壳的样式拼在后面交给 Hugo 压缩。
- * 这个测试读 atlas/web/blog/public/css/main.min.*.css，必须先 npm run build。
+ * 所以 space/scripts/blog/build-css.mjs 只让 Tailwind 处理 tw-input.css，博客 / 共享外壳的样式拼在后面交给 Hugo 压缩。
+ * 这个测试读 space/web/public/blog/css/main.min.*.css，必须先 npm run build。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,12 +11,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const CSS_DIR = path.join(REPO, 'atlas/web/blog/public/css');
+const CSS_DIR = path.join(REPO, 'space/web/public/blog/css');
 
 function builtCss() {
-  assert.ok(existsSync(CSS_DIR), 'atlas/web/blog/public/css 不存在：先 npm run build');
+  assert.ok(existsSync(CSS_DIR), 'space/web/public/blog/css 不存在：先 npm run build');
   const files = readdirSync(CSS_DIR).filter((f) => /^main\.min\..+\.css$/.test(f));
-  assert.equal(files.length, 1, `atlas/web/blog/public/css 里应该正好一个 main.min.*.css，实际：${files.join(', ') || '无'}`);
+  assert.equal(files.length, 1, `space/web/public/blog/css 里应该正好一个 main.min.*.css，实际：${files.join(', ') || '无'}`);
   return { file: files[0], css: readFileSync(path.join(CSS_DIR, files[0]), 'utf8') };
 }
 

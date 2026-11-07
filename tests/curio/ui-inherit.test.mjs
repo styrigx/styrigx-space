@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { langBootTarget, readLangPref, cookieLangRaw } from '../../atlas/web/curio/assets/js/sgx/shell/lang-boot.js';
+import { langBootTarget, readLangPref, cookieLangRaw } from '../../space/web/assets/js/lib/lang-boot.js';
 
 const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
 const enc = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -44,17 +44,17 @@ test('本站每一页都跳（不只首页）：跟随系统 + 中文浏览器 �
 });
 
 test('页面接线：<html data-sgx-langs> 来自 hugo.yaml；baseof 先内联 lang-boot，再内联共享读端和 ui-inherit-run.js（都在样式前）', () => {
-  const base = read('atlas/web/curio/layouts/_default/baseof.html');
+  const base = read('space/web/layouts/curio/baseof.html');
   assert.ok(base.includes('data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}"'), '语言列表来自 hugo.yaml');
-  const iBoot = base.indexOf('resources.Get "js/sgx/shell/lang-boot.js" | js.Build');
-  const iReader = base.indexOf('resources.Get "js/sgx/shell/ui-cookie-read.js" | minify');
-  const iRun = base.indexOf('resources.Get "js/sgx/ui-inherit-run.js"');
+  const iBoot = base.indexOf('resources.Get "js/lib/lang-boot.js" | js.Build');
+  const iReader = base.indexOf('resources.Get "js/lib/ui-cookie-read.js" | minify');
+  const iRun = base.indexOf('resources.Get "curio/js/sgx/ui-inherit-run.js"');
   assert.ok(iBoot > 0 && iBoot < iReader && iReader < iRun && iRun < base.indexOf('css/main.css'));
-  const run = read('atlas/web/curio/assets/js/sgx/ui-inherit-run.js');
+  const run = read('space/web/assets/curio/js/sgx/ui-inherit-run.js');
   assert.match(run, /U\.apply\(document\.documentElement, \{ onMiss: loadEngine \}\)/);
   assert.doesNotMatch(run, /location\.replace|langTarget|cookieLang/, '语言跳转只在 lang-boot.js');
-  for (const [f, src] of [['ui-inherit-run.js', run], ['shell-accent.js', read('atlas/web/curio/assets/js/sgx/shell-accent.js')]]) {
+  for (const [f, src] of [['ui-inherit-run.js', run], ['shell-accent.js', read('space/web/assets/curio/js/sgx/shell-accent.js')]]) {
     assert.doesNotMatch(src, /atob|data-sgx-seed|'lake'|ui\.theme/, f);
   }
-  assert.match(read('atlas/web/curio/assets/js/sgx/shell-accent.js'), /U\.setRoles\(seed, rolesCss\(seed\)\)/);
+  assert.match(read('space/web/assets/curio/js/sgx/shell-accent.js'), /U\.setRoles\(seed, rolesCss\(seed\)\)/);
 });

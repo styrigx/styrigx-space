@@ -436,7 +436,9 @@ test('模板：会执行的内联脚本只在 baseof（7 段，P4-3 PR-4c 加了
   for (const f of walk(REPO + '/space/web/layouts')) {
     const src = readFileSync(f, 'utf8').replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
     const n = gen.inlineScripts(src).length;
-    if (n) where[path.relative(REPO + '/space/web/layouts', f)] = n;
+    const rel = path.relative(REPO + '/space/web/layouts', f).split(path.sep).join('/');
+    /* 2026-11 合站：子站模板（layouts/<站>/、layouts/partials/<站>/）也在这里，子站页面不发主站 CSP（gen-csp 的 SUBSITE_DIRS），不计 */
+    if (n && !/^(partials\/)?(blog|curio|daymark)\//.test(rel)) where[rel] = n;
     assert.deepEqual(gen.unhashable(src.replace(/\{\{[\s\S]*?\}\}/g, '')), [], f);
   }
   assert.deepEqual(where, { '_default/baseof.html': 7, 'alias.html': 1 });

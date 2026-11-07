@@ -11,7 +11,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { renderContract, FIXTURE } from '../../../../space/scripts/gen-ui-cookie-contract.mjs';
-import { renderAll, READER_SRC } from '../../../../space/scripts/gen-shell.mjs';
+import { shellFiles, READER_SRC } from '../../../../space/scripts/gen-shell.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const READER = readFileSync(READER_SRC, 'utf8');
@@ -19,7 +19,7 @@ const WRITER = readFileSync(path.join(REPO, 'space/web/assets/js/lib/ui-cookie.j
 /* 2026-11-04 P5-1：cookie 写法搬进外观写端 lib/prefs-write.js（共享外壳 prefs-write.js，四站一个写端）；ui-cookie.js 只先引读端再转导出 */
 const PREFS_WRITE = readFileSync(path.join(REPO, 'space/web/assets/js/lib/prefs-write.js'), 'utf8');
 const fx = JSON.parse(readFileSync(FIXTURE, 'utf8'));
-const palettes = JSON.parse(readFileSync(path.join(REPO, 'space/web/shared/shell/palettes.json'), 'utf8'));
+const palettes = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/palettes.json'), 'utf8'));
 
 /** 最小 DOM 桩：<html> 的 class / attribute / style，<head> 里的 <style>，localStorage，matchMedia */
 function makeEl(tag) {
@@ -169,15 +169,12 @@ test('读端是 ES5 经典脚本：没有箭头函数 / let / const / 模板串 
   assert.ok(Buffer.byteLength(code.replace(/\s+/g, ' ')) < 6500, String(Buffer.byteLength(code)));
 });
 
-test('共享外壳原样带上读端 / 夹具 / 图标', () => {
-  const files = renderAll();
+test('共享外壳带上读端 / 图标（2026-11 合站后子站直接用主站源文件；契约夹具只有 tests/fixtures 一份）', () => {
+  const files = shellFiles();
   assert.equal(files['ui-cookie-read.js'], READER);
-  assert.equal(files['ui-cookie-contract.json'], readFileSync(FIXTURE, 'utf8'));
   assert.equal(files['favicon.js'], readFileSync(path.join(REPO, 'space/web/assets/js/shell/favicon.js'), 'utf8'));
   assert.equal(files['favicon.svg'], readFileSync(path.join(REPO, 'space/web/static/favicon.svg'), 'utf8'));
-  const m = JSON.parse(files['manifest.json']);
-  for (const k of ['ui-cookie-read.js', 'ui-cookie-contract.json', 'favicon.js', 'favicon.svg']) assert.ok(m.files[k], k);
-  assert.match(files['README.md'], /SgxUI\.apply\(document\.documentElement/);
+  assert.ok(readFileSync(FIXTURE, 'utf8').length > 100, '契约夹具');
 });
 
 const cookieOf = (name) => 'sgx-ui=' + fx.cases.find((c) => c.name === name).cookie;

@@ -2,7 +2,7 @@
 
 > 状态：现行 ｜ 最后更新：2026-11-06
 
-本目录放设计文档、任务书、子站文档和截图。仓库整体结构见根目录 [`STRUCTURE.md`](../STRUCTURE.md)（含 2026-11-06 起 `space/`（主站 + 基建）/ `atlas/`（子站）分包和「atlas 改名换义」说明）。
+本目录放设计文档、任务书、子站文档和截图。仓库整体结构见根目录 [`STRUCTURE.md`](../STRUCTURE.md)（2026-11 合站起主站和三个子站是 `space/web/` 一个 Hugo 站；含旧布局 `atlas/`、`dist/site/` 的换算说明）。
 
 状态说明：**现行** = 和现在的代码一致，改代码时顺手改文档；**历史** = 当时的记录，正文保持原样、不再更新、不代表现状，只留作查来龙去脉。每份文档开头都有「状态 ｜ 最后更新」一行。
 
@@ -15,11 +15,11 @@
 | [`status-apis.md`](status-apis.md) | 六个只读状态接口的分工表：谁回答、鉴权要求、返回口径、调用方 |
 | [`ui-cookie-contract.md`](ui-cookie-contract.md) | 外观 cookie `sgx-ui` 契约：主站写、三个子站只读，字段 / 版本 / 夹具 / 改格式的步骤 |
 | [`palette-usage.md`](palette-usage.md) | 七色调色板怎么用：色彩角色 token、数据源、生成与校验 |
-| [`repo-split-task.md`](repo-split-task.md) | 仓库分包任务书（2026-11-06）：根目录分 `space/`（主站）/ `atlas/`（子站）两包、docs 整理、版本徽章 |
+| [`repo-split-task.md`](repo-split-task.md) | 仓库分包任务书（2026-11-06，历史）：根目录分 `space/`（主站）/ `atlas/`（子站）两包、docs 整理、版本徽章；2026-11 合站后 `atlas/` 已并进 `space/web/` |
 | [`blog/content-series.md`](blog/content-series.md) | 博客：文章系列（series）的 frontmatter 写法 |
 | [`blog/sgx-ui-cookie.md`](blog/sgx-ui-cookie.md) | 博客：`sgx-ui` cookie 读端（博客这一侧，契约以主站为准） |
-| [`curio/STRUCTURE.md`](curio/STRUCTURE.md) | 奇趣子站结构（站内相对路径：`web/…` 指 `atlas/web/curio/…`） |
-| [`daymark/STRUCTURE.md`](daymark/STRUCTURE.md) | 日刻子站结构（站内相对路径：`web/…` 指 `atlas/web/daymark/…`） |
+| [`curio/STRUCTURE.md`](curio/STRUCTURE.md) | 奇趣子站结构（合站前的站内相对路径：`web/…` 现在在 `space/web/` 的 `<目录>/curio/` 下） |
+| [`daymark/STRUCTURE.md`](daymark/STRUCTURE.md) | 日刻子站结构（合站前的站内相对路径：`web/…` 现在在 `space/web/` 的 `<目录>/daymark/` 下） |
 | [`screenshots/`](screenshots/) | 根 README 用的截图（中英各三张：首页手机 / 首页 DeX / 设置手机） |
 
 ## 历史

@@ -43,8 +43,8 @@
 /sitemap.xml
   Cache-Control: public, max-age=300
 
-# 子站（合并 PR2 起拼在同一棵树里：space/scripts/assemble.mjs → /blog/、/curio/、/daymark/）。规则搬自 styrigx-atlas 的 root/_headers。
-# /js/ /css/ 下由 Hugo Pipes 生成的文件名都带内容哈希（CI「Check single tree」核对子站产物里没有未指纹化的 /js/ 引用），长期缓存；
+# 子站（2026-11 合站起和主站是同一个 Hugo 站，产物在同一棵 public/ 的 /blog/、/curio/、/daymark/ 下）。规则搬自 styrigx-atlas 的 root/_headers。
+# /js/ /css/ 下由 Hugo Pipes 生成的文件名都带内容哈希（CI「Check site tree」核对子站产物里没有未指纹化的 /js/ 引用），长期缓存；
 # 博客字体文件名不带指纹，缓存一周。页面 HTML 不写 Cache-Control（Pages 默认 max-age=0；经网关时改成 private, no-store）。
 # 注意：上面 /* 的安全头（含 Report-Only CSP）也会合到子站静态响应上（代码方案风险 R6，待定 P4）。
 /blog/css/*

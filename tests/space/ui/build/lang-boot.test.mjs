@@ -1,6 +1,6 @@
 /**
  * 语言清理（2026-11-07）：「跟随系统」四站一致。
- * - 四站 <head> 内联同一份首帧跳转 lib/lang-boot.js（共享外壳 lang-boot.js，sync-shell 同步）；主站 baseof 不再另写一段跳转
+ * - 四站 <head> 内联同一份首帧跳转 lib/lang-boot.js（2026-11 合站后子站直接用主站这份，没有副本）；主站 baseof 不再另写一段跳转
  * - 偏好明确存 'system'（prefs.js setLang / prefs-write.js setLangPref），旧版存的空 / 没有也按跟随系统
  * - 每一页都跳（不只首页）；保留 sgx-lang-hop（返回一次回主页）
  * - 语言列表来自 hugo.yaml languages（<html data-sgx-langs>），不写死
@@ -8,7 +8,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLangPref, langBootTarget, bootLang, cookieLangRaw } from '../../../../space/web/assets/js/lib/lang-boot.js';
@@ -19,22 +19,17 @@ const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8')
 const SITES = ['blog', 'curio', 'daymark'];
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-test('四站内联同一份 lang-boot.js（共享外壳原样同步），主站 baseof 不再另写语言跳转', () => {
-  const src = rd('space/web/assets/js/lib/lang-boot.js');
-  const shell = rd('space/web/shared/shell/lang-boot.js');
-  assert.equal(shell, src, '共享外壳 = 主站源');
-  for (const s of SITES) {
-    const copy = rd(`atlas/web/${s}/assets/js/sgx/shell/lang-boot.js`);
-    assert.ok(copy.includes(src.trim().split('\n').slice(0, 40).join('\n')), s + ' 副本来自主站源');
-  }
+test('四站内联同一份 lang-boot.js（合站后子站直接用主站源文件），主站 baseof 不再另写语言跳转', () => {
+  assert.equal(existsSync(path.join(REPO, 'space/web/shared/shell')), false, '没有外壳副本目录');
+  for (const s of SITES) assert.equal(existsSync(path.join(REPO, 'space/web/assets', s, 'js/sgx/shell')), false, s + ' 没有外壳 JS 副本');
   const base = rd('space/web/layouts/_default/baseof.html');
   assert.match(base, /resources\.Get "js\/lib\/lang-boot\.js" \| js\.Build/);
   assert.doesNotMatch(base, /localStorage\.getItem\('sgx-lang'\)/, '主站不再自己读 sgx-lang 跳转');
-  assert.match(rd('atlas/web/blog/layouts/partials/sgx-inherit.html'), /resources\.Get "js\/sgx\/shell\/lang-boot\.js" \| js\.Build/);
-  for (const s of ['curio', 'daymark']) assert.match(rd(`atlas/web/${s}/layouts/_default/baseof.html`), /resources\.Get "js\/sgx\/shell\/lang-boot\.js" \| js\.Build/, s);
+  assert.match(rd('space/web/layouts/partials/blog/sgx-inherit.html'), /resources\.Get "js\/lib\/lang-boot\.js" \| js\.Build/);
+  for (const s of ['curio', 'daymark']) assert.match(rd(`space/web/layouts/${s}/baseof.html`), /resources\.Get "js\/lib\/lang-boot\.js" \| js\.Build/, s);
   /* 四站 <html> 都带语言列表（来自 hugo.yaml languages） */
   const LANGS_ATTR = 'data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}"';
-  for (const f of ['space/web/layouts/_default/baseof.html', 'atlas/web/blog/layouts/_default/baseof.html', 'atlas/web/curio/layouts/_default/baseof.html', 'atlas/web/daymark/layouts/_default/baseof.html']) {
+  for (const f of ['space/web/layouts/_default/baseof.html', 'space/web/layouts/blog/baseof.html', 'space/web/layouts/curio/baseof.html', 'space/web/layouts/daymark/baseof.html']) {
     assert.ok(rd(f).includes(LANGS_ATTR), f);
   }
 });

@@ -1,7 +1,7 @@
 /**
  * 样式只用共享外壳的色彩角色（--sgx-*）：博客自己的样式里不能再出现旧主题的别名令牌
- * --paper-* / --m-* / --glass-*（别名层已删除）。sgx-shell.css 是主站共享外壳的供应商副本（atlas/scripts/blog/sync-shell.mjs 写入），不在这里管；
- * main.css 是 atlas/scripts/blog/build-css.mjs 的生成物（不进仓库，里面拼了外壳副本），也跳过。
+ * --paper-* / --m-* / --glass-*（别名层已删除）。共享外壳样式（2026-11 合站后直接 @import 主站的 assets/css/shell/tokens.css、shell.css）不在这里管；
+ * main.css 是 space/scripts/blog/build-css.mjs 的生成物（不进仓库，里面拼了外壳副本），也跳过。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const CSS_ROOT = path.join(REPO, 'atlas/web/blog/assets/css');
+const CSS_ROOT = path.join(REPO, 'space/web/assets/blog/css');
 const SKIP = new Set(['sgx-shell.css', 'main.css']);
 const LEGACY = /--(paper|m|glass)-[a-z0-9-]*/g;
 
@@ -24,9 +24,9 @@ function cssFiles(dir) {
   return out;
 }
 
-test('atlas/web/blog/assets/css 里没有 --paper-* / --m-* / --glass-* 令牌（不含共享外壳副本）', () => {
+test('space/web/assets/blog/css 里没有 --paper-* / --m-* / --glass-* 令牌（不含共享外壳副本）', () => {
   const files = cssFiles(CSS_ROOT);
-  assert.ok(files.length > 0, '没找到 atlas/web/blog/assets/css 下的样式文件');
+  assert.ok(files.length > 0, '没找到 space/web/assets/blog/css 下的样式文件');
   const hits = [];
   for (const f of files) {
     readFileSync(f, 'utf8')
@@ -40,9 +40,9 @@ test('atlas/web/blog/assets/css 里没有 --paper-* / --m-* / --glass-* 令牌�
 });
 
 test('回到顶部按钮用博客自己的 .scroll-top-button（2026-11-04 P5-1 共享外壳的顶栏圆钮 .sgx-tb-nav 删了，不再借用）', () => {
-  const partial = readFileSync(path.join(REPO, 'atlas/web/blog/layouts/partials/scroll-top.html'), 'utf8');
+  const partial = readFileSync(path.join(REPO, 'space/web/layouts/partials/blog/scroll-top.html'), 'utf8');
   assert.match(partial, /<button class="scroll-top-button"/);
   assert.doesNotMatch(partial, /class="[^"]*sgx-tb-nav/);
-  const css = readFileSync(path.join(REPO, 'atlas/web/blog/assets/css/blog/components.css'), 'utf8');
+  const css = readFileSync(path.join(REPO, 'space/web/assets/blog/css/blog/components.css'), 'utf8');
   assert.match(css, /\.scroll-top-button \{[^}]*border-radius: 999px;/);
 });

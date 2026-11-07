@@ -1,0 +1,74 @@
+{{- /* <head>：原 Navfolio 主题 BaseHead + 博客 BaseHead（元信息、图标、RSS、站点地图、跟随主站设置、字体、样式）。
+参数：.page（当前页）、.title、.description、.alt（中 / 英版本地址，有才给） */ -}}
+{{- $p := .page -}}
+{{- $title := .title -}}
+{{- $desc := .description | default (i18n "siteDescription") -}}
+{{- $canonical := $p.Permalink -}}
+{{- $og := "blog/og.png" | absURL -}}
+{{- /* 合站：本语言博客首页（/blog/、/blog/zh/）下的 rss.xml */ -}}
+{{- $rss := printf "%srss.xml" (site.GetPage "/blog").Permalink -}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+{{ partial "blog/sgx-inherit.html" (dict "alt" .alt) }}
+{{- /* 布局模式：共享外壳 layout-mode.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b）；
+   结果写 <html data-sgx-layout>（外壳按它定顶栏宽）和 layout-mobile / layout-dex 类（博客没有自己的布局开关，快捷面板布局行改了偏好就调 __applyLayout） */}}
+<script>{{ (resources.Get "js/lib/layout-mode.js" | minify).Content | safeJS }}</script>
+<script>
+function __layoutMode(){
+  return __sgxLayout()==='desktop'?'dex':'mobile';
+}
+function __applyLayout(){
+  var d=document.documentElement,m=__layoutMode();
+  d.classList.remove('layout-mobile','layout-dex');
+  d.classList.add('layout-'+m);
+  d.setAttribute('data-sgx-layout',m==='dex'?'desktop':'phone');
+  d.setAttribute('data-sgx-device',__sgxDevice());
+}
+__applyLayout();
+/* 拖窗口 / 分屏 / 转屏：不刷新，按同一条规则重算 */
+__sgxLayoutWatch(__applyLayout);
+</script>
+{{- /* 标签页图标、主屏图标都用主站头像（主站设置页可换），和奇趣、日刻一样直接指过去 */}}
+<link rel="icon" href="https://styrigx.com/avatar/32.webp">
+<link rel="apple-touch-icon" href="https://styrigx.com/avatar/192.webp">
+<link rel="manifest" href="{{ "blog/manifest.json" | relURL }}">
+<meta name="theme-color" content="#fdfdf9">
+<link rel="sitemap" href="{{ "blog/sitemap-index.xml" | relURL }}">
+<link rel="alternate" type="application/rss+xml" title="{{ site.Title }}" href="{{ $rss }}">
+{{ hugo.Generator }}
+<link rel="canonical" href="{{ $canonical }}">
+{{- /* P4-3 PR-4c：hreflang（英文默认 = x-default，中文 /blog/zh/；.alt 只在真有对应版本时给） */}}
+{{- with .alt }}{{ with .en }}
+<link rel="alternate" hreflang="en" href="{{ . | absURL }}">
+<link rel="alternate" hreflang="x-default" href="{{ . | absURL }}">{{ end }}{{ with .zh }}
+<link rel="alternate" hreflang="zh" href="{{ . | absURL }}">{{ end }}{{ end }}
+{{- /* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，站名 = 字符串表 blogTitle（博客 / Blog）；页名就是站名（首页）时只显示站名。调用方 .title 只传页名 */ -}}
+<title>{{ if eq $title (i18n "blogTitle") }}{{ $title }}{{ else }}{{ $title }} | {{ i18n "blogTitle" }}{{ end }}</title>
+<meta name="title" content="{{ $title }}">
+<meta name="description" content="{{ $desc }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ $canonical }}">
+<meta property="og:title" content="{{ $title }}">
+<meta property="og:description" content="{{ $desc }}">
+<meta property="og:image" content="{{ $og }}">
+<meta property="twitter:card" content="summary_large_image">
+<meta property="twitter:url" content="{{ $canonical }}">
+<meta property="twitter:title" content="{{ $title }}">
+<meta property="twitter:description" content="{{ $desc }}">
+<meta property="twitter:image" content="{{ $og }}">
+{{- /* 界面字体和主站一样（Inter，只含拉丁字符；中文落到系统字体）；代码用 Maple Mono（只给代码用） */}}
+<link rel="preload" href="{{ "blog/fonts/inter-latin.woff2" | relURL }}" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:'Inter';font-style:normal;font-weight:400 800;font-display:optional;src:url('{{ "blog/fonts/inter-latin.woff2" | relURL }}') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family:'Inter Fallback';src:local('Arial');size-adjust:107%;ascent-override:90%;descent-override:23%;line-gap-override:0%;}
+@font-face{font-family:'Maple Mono';font-style:normal;font-weight:400;font-display:swap;src:url('{{ "blog/fonts/maple-mono-latin-400.woff2" | relURL }}') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family:'Maple Mono';font-style:normal;font-weight:700;font-display:swap;src:url('{{ "blog/fonts/maple-mono-latin-700.woff2" | relURL }}') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+</style>
+{{- $css := resources.Get "blog/css/main.css" -}}
+{{- if not $css }}{{ errorf "space/web/assets/blog/css/main.css 不存在：先跑 node space/scripts/build-css.cjs（顺带构建博客样式，Tailwind 4 CLI）" }}{{ end }}
+<link rel="stylesheet" href="{{ ($css | minify | fingerprint).RelPermalink }}">
+{{- /* 锁屏同步：主站「立即锁定」后，切回博客标签页时问一次 /api/lock-session-check（图志根上的网关路由），失效就跳主站锁屏 */}}
+{{- $lock := resources.Get "blog/js/blog/sgx-lock-check.js" | minify | fingerprint }}
+<script src="{{ $lock.RelPermalink }}" defer></script>
+{{- $scheme := resources.Get "js/lib/palette-scheme.js" | js.Build (dict "minify" hugo.IsProduction "target" "es2020" "format" "esm" "targetPath" "blog/js/palette-scheme.js") | fingerprint -}}
+{{ partial "blog/script.html" (dict "name" "inherit.ts" "params" (dict "schemeUrl" $scheme.RelPermalink)) }}

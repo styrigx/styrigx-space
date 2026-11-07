@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderAll } from '../../../../space/scripts/gen-shell.mjs';
+import { shellFiles } from '../../../../space/scripts/gen-shell.mjs';
 import { strings } from '../../../fixtures/strings.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -16,7 +16,7 @@ const S = await import(path.join(REPO, 'space/web/assets/js/shell/share-button.j
 const CODE = 'AbCdEfGhIjKlMnOpQrStUv';
 
 test('共享外壳 share.js = shell/share-button.js 原样；不 import；nav.json 带 share 图标；shell.css 有磁贴忙碌 / toast 样式，没有右圆 / 胶囊', () => {
-  const files = renderAll();
+  const files = shellFiles();
   assert.equal(files['share.js'], readFileSync(path.join(REPO, 'space/web/assets/js/shell/share-button.js'), 'utf8'));
   assert.doesNotMatch(files['share.js'], /^\s*import\s/m);
   assert.match(JSON.parse(files['nav.json']).icons.share, /^<svg[\s\S]*<\/svg>$/);

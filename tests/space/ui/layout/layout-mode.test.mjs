@@ -208,7 +208,7 @@ test('首帧底色：本站深色（系统浅色）→ color-scheme / theme-colo
 });
 
 test('默认调色板的首帧底色 = palettes.json 雾霾蓝 bg-1（换了默认调色板要跟着改）', () => {
-  const pal = JSON.parse(readFileSync(path.join(REPO, 'space/web/shared/shell/palettes.json'), 'utf8'));
+  const pal = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/palettes.json'), 'utf8'));
   const def = pal.presets.find((p) => p.id === pal.default);
   assert.match(lib, new RegExp("bg=dk\\?'" + def.tokens.dark['bg-1'] + "':'" + def.tokens.light['bg-1'] + "'"));
 });

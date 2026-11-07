@@ -1,0 +1,125 @@
+{{- /* 合站守卫：中文页必须在 /curio/zh/ 下（Hugo 的语言前缀会给成 /zh/curio/…；中文内容文件要在 front matter 写 url，标签页见 content/tags/<标签>/_index.zh.md） */ -}}
+{{- if and (eq .Lang "zh") (not (hasPrefix .RelPermalink "/curio/zh/")) }}{{ errorf "合站：中文页 %s 的地址 %s 不在 /curio/zh/ 下，在它的 front matter 写 url: /curio/zh/…" .File.Path .RelPermalink }}{{ end -}}
+<!DOCTYPE html>
+{{/* 合站：本站首页是 content/curio/ 分区页（不是 Hugo 首页），404 是 layout notfound 的普通页（不是 Hugo 的 404 页） */}}
+{{ $isHome := and (eq .Kind "section") (eq .Section "curio") }}{{ $is404 := eq .Layout "notfound" }}
+{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{/* 自定义主题色引擎（共享外壳 palette-scheme.js）：只在 cookie 是自定义色且本站还没缓存时，由共享读端 SgxUI.apply 的 onMiss 按需加载 */}}
+{{ $shellAccent := resources.Get "curio/js/sgx/shell-accent.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint }}
+<html lang="{{ $lang }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f5f8fa">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
+{{/* 404 的 .Title 是 Hugo 内置英文「404 Page not found」，不随语言：改用字符串表的页名 */}}
+{{/* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，站名走字符串表 site.name；页名就是站名（首页）时只显示站名 */}}
+{{ $docTitle := .Title }}{{ if $isHome }}{{ $docTitle = $tr.site.name }}{{ else if $is404 }}{{ $docTitle = $tr.baseof.pageNotFound }}{{ end }}
+<title>{{ if eq $docTitle $tr.site.name }}{{ $docTitle }}{{ else }}{{ $docTitle }} | {{ $tr.site.name }}{{ end }}</title>
+<meta name="description" content="{{ $tr.site.description }}">
+{{/* P4-3 PR-4c：canonical + hreflang（英文默认、不带前缀 = x-default；中文 /curio/zh/），地址来自 Hugo 的语言版本 */}}
+{{ if not $is404 }}<link rel="canonical" href="{{ .Permalink }}">
+{{ range .AllTranslations }}<link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ .Permalink }}">
+{{ if eq .Language.Lang "en" }}<link rel="alternate" hreflang="x-default" href="{{ .Permalink }}">
+{{ end }}{{ end }}{{ end }}
+<meta name="robots" content="noindex">
+{{/* 标签页图标、主屏图标都用主站头像 */}}
+<link rel="icon" href="https://styrigx.com/avatar/32.webp">
+<link rel="apple-touch-icon" href="https://styrigx.com/avatar/192.webp">
+<link rel="preload" href="{{ "curio/fonts/inter-latin.woff2" | relURL }}" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:'Inter';font-style:normal;font-weight:400 800;font-display:optional;src:url('{{ "curio/fonts/inter-latin.woff2" | relURL }}') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}
+@font-face{font-family:'Inter Fallback';src:local('Arial');size-adjust:107%;ascent-override:90%;descent-override:23%;line-gap-override:0%;}
+</style>
+{{/* 外观 + 语言预读（渲染前）——继承主站 sgx-ui cookie 的深浅色、调色板、强调色、字体大小、减弱动效和语言；
+     没有 cookie 时跟系统（奇趣没有自己的开关） */}}
+{{/* 共享外壳读端 ui-cookie-read.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，挂 window.SgxUI；紧跟 ui-inherit-run.js 调 SgxUI.apply */}}
+{{/* 首帧语言跳转（语言清理 2026-11-07：四站同一份共享外壳 lang-boot.js，勿手改）：偏好明确语言 → 那种语言；跟随系统 / 旧版的空 → 浏览器语言；
+   和本页不同就 replace 到同一页的那种语言（每页都跳，不只首页） */}}
+<script>{{ (resources.Get "js/lib/lang-boot.js" | js.Build (dict "format" "iife" "minify" true "target" "es2017")).Content | safeJS }}</script>
+<script>{{ (resources.Get "js/lib/ui-cookie-read.js" | minify).Content | safeJS }}</script>
+<script>{{ (resources.Get "curio/js/sgx/ui-inherit-run.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018")).Content | safeJS }}</script>
+{{/* 布局模式：共享外壳 layout-mode.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b） */}}
+<script>{{ (resources.Get "js/lib/layout-mode.js" | minify).Content | safeJS }}</script>
+<script>
+/* __sgxLayout() → phone / desktop：写 <html data-sgx-layout>（外壳按它定顶栏宽），本站弹层样式类 layout-phone / layout-dex 也按它（不再按 980 像素） */
+function __layoutMode(){
+  return __sgxLayout()==='desktop'?'dex':'phone';
+}
+function __applyLayout(){
+  var d=document.documentElement,m=__layoutMode();
+  d.classList.remove('layout-phone','layout-dex');
+  d.classList.add('layout-'+m);
+  d.setAttribute('data-sgx-layout',m==='dex'?'desktop':'phone');
+  d.setAttribute('data-sgx-device',__sgxDevice());
+}
+__applyLayout();
+/* 拖窗口 / 分屏 / 转屏：不刷新，按同一条规则重算 */
+__sgxLayoutWatch(__applyLayout);
+</script>
+<link rel="stylesheet" href="{{ (resources.Get "curio/css/main.css" | minify | fingerprint).RelPermalink }}">
+{{/* 合站：Hugo 只给站点首页自动插 generator；本站首页现在是分区页，照合站前补上 */}}{{ if $isHome }}{{ hugo.Generator }}{{ end }}
+</head>
+<body class="text-m-on-surface font-sans antialiased">
+<div id="sgx-wallpaper" aria-hidden="true"></div>
+{{/* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/shell-topbar.html（合站后直接用主站这份），
+   这里只准备奇趣自己的参数：
+   - 中间（原样搬进来）：页名胶囊 .sgx-tb-title（首页 = 站名；子页 = 子页名）。
+   - 右边：九宫格（导航面板，本站是「开」态）· 快捷设置 · AI（头像在 AI 窗口头部）；P4-3 PR-4b 起快捷面板四站同一套，没有按站的 tiles 参数：
+     深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）。
+   JS：js/sgx/topbar-host.js（共享外壳 topbar.js + modal-sheet.js + ai.js + prefs-write.js + share.js）。外观和语言跟主站（sgx-ui cookie，见 ui-inherit-run.js）。 */}}
+{{ $pageName := .Title }}
+{{ if $is404 }}{{ $pageName = $tr.baseof.pageNotFound }}{{ end }}
+{{ $shellNav := site.Data.shell.nav }}
+{{ $center := "" }}
+{{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿；顶栏不再有分区页签）。P4-3 奇趣拆页起每个分区是独立子页：
+   首页 = 站名，子页（发现 / 设备 / 游戏 / 电影 / 音乐）= 子页名（内容文件的 title）；桌面布局显示、手机布局不显示（共享外壳 PR-4b 机制）。
+   分区入口在首页正文（共享外壳平铺入口）。 */}}
+{{ if $isHome }}{{ $pageName = $tr.site.name }}{{ end }}
+{{ $center = printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
+{{/* 语言磁贴：去另一种语言的同一页（有翻译用翻译，没有就去那种语言的本站首页） */}}
+{{ $langHref := "" }}
+{{ range .Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}
+{{ if not $langHref }}{{ range (site.GetPage "/curio").AllTranslations }}{{ if ne .Language.Lang $.Language.Lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end }}
+{{/* 调色板色块的变量（同主站 partials/palette-tile-vars.html 的 full=false：--pl-b1..7 / --pl-f1..6，深色 --pd-*），取自共享外壳 palettes.json */}}
+{{/* 选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight）：快捷面板沿用「跟随系统 / 中文 / English」，和 features.yaml lang 选项同序；hugo.Sites 总是默认语言（英文）在前，不能直接用 */}}
+{{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end }}{{ $tbLangs = sort $tbLangs "w" }}
+{{ $pal := slice }}
+{{ range site.Data.shell.palettes.presets }}
+{{ $s := "" }}{{ $p := . }}
+{{ range $m := slice "light" "dark" }}{{ $k := cond (eq $m "light") "pl" "pd" }}{{ $tk := index $p.tokens $m }}
+{{ range $n := seq 7 }}{{ $s = printf "%s--%s-b%d:%s;" $s $k $n (index $tk (printf "bg-%d" $n)) }}{{ end }}
+{{ range $n := seq 6 }}{{ $s = printf "%s--%s-f%d:%s;" $s $k $n (index $tk (printf "fg-%d" $n)) }}{{ end }}
+{{ end }}
+{{ $pal = $pal | append (dict "id" $p.id "style" $s) }}
+{{ end }}
+{{ partial "shell-topbar.html" (dict
+  "lang" .Lang
+  "tr" (partialCached "sgx-tr.html" (dict "lang" .Lang "ns" "curio") (printf "curio-%s" .Lang)).shell
+  "langs" $tbLangs
+  "home" (site.GetPage "/curio").RelPermalink
+  "center" $center
+  "nav" $shellNav
+  "site" "curio"
+  "icons" $shellNav.icons
+  "wordmark" $shellNav.wordmark
+  "mainOrigin" "https://styrigx.com"
+  "acct" (partial "sgx-lang-path.html" (dict "path" $shellNav.me.href "lang" .Lang))
+  "avatar" $shellNav.me.avatar
+  "email" $shellNav.me.email
+  "langHref" $langHref
+  "pal" $pal
+) }}
+{{/* 页面脚本的界面文案（语言包化第二部分 2026-11-07）：字符串表 js.<表> 已是「英文表 ← 页面语言表」的合并，每张表一个 #sgx-i18n-<表>；
+   脚本（assets/js/curio*.js readDict / makeTr）只读这里，不再按语言二选一 */}}
+{{ range $tbl, $dict := $tr.js }}<script id="sgx-i18n-{{ $tbl }}" type="application/json">{{ $dict | jsonify | safeJS }}</script>
+{{ end }}{{ block "main" . }}{{ end }}
+{{/* 顶栏：快捷面板 + AI 窗口（共享外壳 topbar.js 等，js/sgx/topbar-host.js 打包；2026-11-04 P5-1 取代 topbar.js（抽屉）、share-host.js（右圆分享）、search-host.js（抽屉底栏搜索）） */}}
+<script src="{{ (resources.Get "curio/js/sgx/topbar-host.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint).RelPermalink }}"></script>
+{{/* SGX 锁屏同步：切回前台 / bfcache 恢复时向服务端确认会话（各页面 pagejs 之前加载） */}}
+<script src="{{ (resources.Get "curio/js/sgx-lock-sync.js" | minify | fingerprint).RelPermalink }}"></script>
+
+{{ block "pagejs" . }}{{ end }}
+</body>
+</html>

@@ -15,7 +15,7 @@
  *     `openSheet(`（含 `openSheet as 别名` 的改名 import）只许出现在 SHEET_ALLOW 里的文件；新文件调用一律报错。
  *     选项类改行内展开单选（如账号页 AI 模型，apps/account-ai.js）。白名单里的弹层以后逐步换掉，只减不增。
  *
- * 扫描范围：space/web/assets/js/ 和 space/web/shared/shell/（同步给子站的外壳脚本）。
+ * 扫描范围：space/web/assets/js/（2026-11 合站后子站直接用这里的外壳脚本，没有 shared/shell 副本）。
  * 去注释按词法走（字符串里的 // 不当注释），以前用正则去注释，'https://…' 之后同一行的代码会被当注释吞掉，
  * 那一行的 alert( 就查不到。
  * 原生弹窗除了裸调用和 window.，也查 globalThis. / self. / top. 和 window['alert'] 这种写法。
@@ -161,7 +161,7 @@ export function checkSource(r, src) {
  * @returns {{files:number, errors:string[]}}
  */
 export function checkRepo(root) {
-  const files = walk(join(root, 'space/web/assets/js')).concat(walk(join(root, 'space/web/shared/shell')));
+  const files = walk(join(root, 'space/web/assets/js'));
   const errors = [];
   for (const f of files) {
     const r = relative(root, f).split(sep).join('/');

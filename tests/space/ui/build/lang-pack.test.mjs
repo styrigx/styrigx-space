@@ -11,7 +11,7 @@ import { REPO, rawTable, tableLangs, strings, flatKeys, deepMerge } from '../../
 
 const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
 const SITES = ['space', 'curio', 'daymark'];
-const PUB = { space: 'space/web/public', blog: 'atlas/web/blog/public', curio: 'atlas/web/curio/public', daymark: 'atlas/web/daymark/public' };
+const PUB = { space: 'space/web/public', blog: 'space/web/public/blog', curio: 'space/web/public/curio', daymark: 'space/web/public/daymark' };
 const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'index.html')));
 
 /* 只在英文表里、不需要译文的键（品牌 / 产品名，回退英文就是对的） */
@@ -38,12 +38,9 @@ test('各站字符串表：每种语言的键都是英文表的子集；英文�
   }
 });
 
-test('三站外壳字符串表是主站那份的原样副本（sync-shell）', () => {
-  for (const s of ['blog', 'curio', 'daymark']) {
-    for (const l of tableLangs('space', 'sgx-shell-i18n')) {
-      assert.equal(rd(`atlas/web/${s}/data/sgx-shell-i18n/${l}.yaml`), rd(`space/web/data/sgx-shell-i18n/${l}.yaml`), `${s} ${l}`);
-    }
-  }
+test('外壳字符串表只有主站一份（2026-11 合站后子站直接读 data/sgx-shell-i18n，没有副本）', () => {
+  for (const s of ['blog', 'curio', 'daymark']) assert.ok(!existsSync(path.join(REPO, 'space/web/data', s, 'sgx-shell-i18n')), s);
+  assert.ok(tableLangs('space', 'sgx-shell-i18n').includes('en'));
 });
 
 test('缺键回退英文：sgx-tr.html 是「英文表 ← 页面语言表」的合并，测试工具同一规则；不认识的语言整份回退英文', () => {
@@ -68,7 +65,7 @@ test('模板不再按语言二选一：主站 / 奇趣 / 日刻模板没有 $isE
     return statSync(p).isDirectory() ? walk(p) : p.endsWith('.html') || p.endsWith('.json') ? [p] : [];
   });
   const bad = [];
-  for (const d of ['space/web/layouts', 'atlas/web/curio/layouts', 'atlas/web/daymark/layouts', 'atlas/web/blog/layouts']) {
+  for (const d of ['space/web/layouts', 'space/web/layouts/curio', 'space/web/layouts/daymark', 'space/web/layouts/blog']) {
     for (const f of walk(path.join(REPO, d))) {
       const s = readFileSync(f, 'utf8').replace(/\{\{-? ?\/\*[\s\S]*?\*\/ ?-?\}\}/g, '');
       if (/\$isEn\b|\(dict "zh" "|"zh" "[^"]*" "en" "/.test(s)) bad.push(path.relative(REPO, f));
@@ -115,11 +112,13 @@ function pages(dir, keep) {
   return out;
 }
 const isZh = (/** @type {string} */ rel) => rel.startsWith('zh/');
+/* 2026-11 合站：子站页面和主站同在 space/web/public/，主站这一组跳过 /<站>/ 目录（子站各自一组） */
+const ownPage = (/** @type {string} */ site, /** @type {string} */ rel) => site !== 'space' || !/^(blog|curio|daymark)\//.test(rel);
 
 test('英文页没有中文：四站英文页的可见文字和读屏文字里没有 CJK（个人信息 / translate="no" 节点除外；博客文章正文是内容，不查）', { skip: !built && '没构建' }, () => {
   const bad = [];
   for (const [site, pub] of Object.entries(PUB)) {
-    for (const f of pages(path.join(REPO, pub), (r) => !isZh(r) && !(site === 'blog' && r.startsWith('post/')))) {
+    for (const f of pages(path.join(REPO, pub), (r) => ownPage(site, r) && !isZh(r) && !(site === 'blog' && r.startsWith('post/')))) {
       for (const t of visible(readFileSync(f, 'utf8'))) if (CJK.test(t)) bad.push(`${site}/${path.relative(path.join(REPO, pub), f)}: ${t.slice(0, 60)}`);
     }
   }
@@ -127,12 +126,13 @@ test('英文页没有中文：四站英文页的可见文字和读屏文字里�
 });
 
 /* 中文页上允许的纯英文：品牌 / 产品 / 技术名、版本号、博客标签（内容） */
-const ZH_ALLOW = /^(#?(AI|Astro|Cloudflare|Ed25519|GitHub|Muse|Passkey|Hugo|Tailwind CSS|Styrigx( UI( [0-9.]+)?)?|Gray AI)|SGX [0-9.]+|[0-9.:\- x]+)$/;
+/* https://：奇趣「发现」网址输入框的 placeholder（合站前奇趣的 HTML 被压缩成不带引号的属性，这里的提取没读到它） */
+const ZH_ALLOW = /^(#?(AI|Astro|Cloudflare|Ed25519|GitHub|Muse|Passkey|Hugo|Tailwind CSS|Styrigx( UI( [0-9.]+)?)?|Gray AI)|SGX [0-9.]+|[0-9.:\- x]+|https:\/\/)$/;
 
 test('中文页没有漏翻：四站中文页的可见文字里没有成句的英文（白名单：Gray AI、Styrigx、技术名、个人信息节点）', { skip: !built && '没构建' }, () => {
   const bad = [];
   for (const [site, pub] of Object.entries(PUB)) {
-    for (const f of pages(path.join(REPO, pub), (r) => isZh(r) && !(site === 'blog' && r.startsWith('zh/post/')))) {
+    for (const f of pages(path.join(REPO, pub), (r) => ownPage(site, r) && isZh(r) && !(site === 'blog' && r.startsWith('zh/post/')))) {
       for (const t of visible(readFileSync(f, 'utf8'))) {
         if (/[A-Za-z]{2,}/.test(t) && !CJK.test(t) && !ZH_ALLOW.test(t)) bad.push(`${site}/${path.relative(path.join(REPO, pub), f)}: ${t.slice(0, 60)}`);
       }
@@ -168,25 +168,25 @@ test('标签页标题（Gray 2026-11-07）：四站「页名 | 站名」，站�
   for (const s of ['curio', 'daymark']) {
     for (const l of ['en', 'zh']) {
       const t = strings(s, l);
-      const pre = `atlas/web/${s}/public/${l === 'en' ? '' : l + '/'}`;
+      const pre = `space/web/public/${s}/${l === 'en' ? '' : l + '/'}`;
       assert.equal(title(pre + 'index.html'), t.site.name, `${s} ${l} 首页`);
       assert.equal(title(pre + '404.html'), `${t.baseof.pageNotFound} | ${t.site.name}`, `${s} ${l} 404`);
     }
   }
-  assert.equal(title('atlas/web/curio/public/finds/index.html'), 'Finds | Curio');
-  assert.equal(title('atlas/web/curio/public/zh/finds/index.html'), '发现 | 奇趣');
+  assert.equal(title('space/web/public/curio/finds/index.html'), 'Finds | Curio');
+  assert.equal(title('space/web/public/curio/zh/finds/index.html'), '发现 | 奇趣');
   /* 博客：站名 = i18n blogTitle；首页只有站名；文章、标签页、404 都带「| 博客站名」 */
-  const blog = { en: /** @type {any} */ (rd('atlas/web/blog/i18n/en.yaml')).match(/^blogTitle: (.+)$/m)[1], zh: /** @type {any} */ (rd('atlas/web/blog/i18n/zh.yaml')).match(/^blogTitle: (.+)$/m)[1] };
-  assert.equal(title('atlas/web/blog/public/index.html'), blog.en);
-  assert.equal(title('atlas/web/blog/public/zh/index.html'), blog.zh);
-  for (const [l, dir] of [['en', 'atlas/web/blog/public/post'], ['zh', 'atlas/web/blog/public/zh/post']]) {
+  const blog = { en: /** @type {any} */ (rd('space/web/i18n/en.yaml')).match(/^blogTitle: (.+)$/m)[1], zh: /** @type {any} */ (rd('space/web/i18n/zh.yaml')).match(/^blogTitle: (.+)$/m)[1] };
+  assert.equal(title('space/web/public/blog/index.html'), blog.en);
+  assert.equal(title('space/web/public/blog/zh/index.html'), blog.zh);
+  for (const [l, dir] of [['en', 'space/web/public/blog/post'], ['zh', 'space/web/public/blog/zh/post']]) {
     const posts = readdirSync(path.join(REPO, dir));
     assert.ok(posts.length > 0, l + ' 有文章');
     for (const p of posts) assert.match(title(`${dir}/${p}/index.html`), new RegExp(` \\| ${blog[l]}$`), `${l} ${p}`);
   }
-  assert.match(title('atlas/web/blog/public/tags/ai/index.html'), new RegExp(` \\| ${blog.en}$`));
-  assert.match(title('atlas/web/blog/public/404.html'), new RegExp(` \\| ${blog.en}$`));
-  assert.match(title('atlas/web/blog/public/zh/404.html'), new RegExp(` \\| ${blog.zh}$`));
+  assert.match(title('space/web/public/blog/tags/ai/index.html'), new RegExp(` \\| ${blog.en}$`));
+  assert.match(title('space/web/public/blog/404.html'), new RegExp(` \\| ${blog.en}$`));
+  assert.match(title('space/web/public/blog/zh/404.html'), new RegExp(` \\| ${blog.zh}$`));
   /* 四站标题都不会出现「站名 | 站名」 */
   for (const pub of Object.values(PUB)) {
     for (const f of pages(path.join(REPO, pub), () => true)) {
@@ -226,11 +226,11 @@ test('JS 字符串表（语言包化 2026-11-07）：i18nTable(表) 的 tx(键) 
 
 test('奇趣 / 日刻页面脚本（语言包化第二部分）：文案只读 #sgx-i18n-<表>，T.键 / tr(键) 都在英文表 js.<表> 里；脚本不再按语言二选一', () => {
   const FILES = [
-    ['curio', 'atlas/web/curio/assets/js/curio.js', 'curio'],
-    ['curio', 'atlas/web/curio/assets/js/curio-items.js', 'curioItems'],
-    ['curio', 'atlas/web/curio/assets/js/curio-movies.js', 'curioMovies'],
-    ['curio', 'atlas/web/curio/assets/js/curio-music.js', 'curioMusic'],
-    ['daymark', 'atlas/web/daymark/assets/js/daymark.js', 'daymark'],
+    ['curio', 'space/web/assets/curio/js/curio.js', 'curio'],
+    ['curio', 'space/web/assets/curio/js/curio-items.js', 'curioItems'],
+    ['curio', 'space/web/assets/curio/js/curio-movies.js', 'curioMovies'],
+    ['curio', 'space/web/assets/curio/js/curio-music.js', 'curioMusic'],
+    ['daymark', 'space/web/assets/daymark/js/daymark.js', 'daymark'],
   ];
   const bad = [];
   for (const [site, file, table] of FILES) {
@@ -247,13 +247,13 @@ test('奇趣 / 日刻页面脚本（语言包化第二部分）：文案只读 #
   assert.deepEqual(bad, [], '缺键');
   /* 两站模板把整张 js 表按表名输出（页面脚本运行前） */
   for (const s of ['curio', 'daymark']) {
-    const tpl = rd(`atlas/web/${s}/layouts/_default/baseof.html`);
+    const tpl = rd(`space/web/layouts/${s}/baseof.html`);
     assert.ok(tpl.indexOf('<script id="sgx-i18n-{{ $tbl }}"') !== -1 && tpl.indexOf('sgx-i18n-{{ $tbl }}') < tpl.indexOf('{{ block "main" . }}'), s + ' baseof 在 main 前输出文案表');
   }
   /* 博客话题筛选标题：模板给 one / other 两种，脚本按 Intl.PluralRules 选 */
-  const tabs = rd('atlas/web/blog/assets/js/blog/app-tabs.ts');
+  const tabs = rd('space/web/assets/blog/js/blog/app-tabs.ts');
   assert.doesNotMatch(tabs, /\ben \?/);
-  assert.match(rd('atlas/web/blog/layouts/index.html'), /data-tpl-one="\{\{ i18n "topicResults" 1 \}\}"/);
+  assert.match(rd('space/web/layouts/blog/section.html'), /data-tpl-one="\{\{ i18n "topicResults" 1 \}\}"/);
 });
 
 test('构建产物：奇趣 / 日刻中文页的页面文案表是中文、英文页是英文（缺键回退英文）', { skip: !built && '没构建' }, () => {
@@ -262,7 +262,7 @@ test('构建产物：奇趣 / 日刻中文页的页面文案表是中文、英�
     const m = new RegExp('<script id="?sgx-i18n-' + id + '"? type="?application/json"?>(.*?)</script>').exec(html);
     return m ? JSON.parse(m[1]) : null;
   };
-  const cases = [['atlas/web/curio/public', 'finds/index.html', 'curio', 'count'], ['atlas/web/daymark/public', 'index.html', 'daymark', 'count']];
+  const cases = [['space/web/public/curio', 'finds/index.html', 'curio', 'count'], ['space/web/public/daymark', 'index.html', 'daymark', 'count']];
   for (const [pub, page, id, key] of cases) {
     const en = dict(read(`${pub}/${page}`), id), zh = dict(read(`${pub}/zh/${page}`), id);
     assert.ok(en && zh, pub + ' 有 #sgx-i18n-' + id);
@@ -305,7 +305,7 @@ test('全仓不再按语言二选一写文案（语言包化第二部分）：�
      - workers/ai/src/core/prompt.js：AI 的系统提示词按语言各一份（提示词是给模型的，不是界面）
      - space/web/assets/js/lib/palette-scheme.js：调色板名 / 情绪描述（调色板数据，与 gen-palettes 同一份，另行整理） */
   const ALLOW = /^(workers\/curio-core\/src\/api\/|workers\/daymark-core\/src\/search-index\.js$|workers\/ai\/src\/core\/prompt\.js$|space\/web\/assets\/js\/lib\/palette-scheme\.js$)/;
-  const SKIP = /^(tests\/|dist\/)|\/vendor\/|\/public\/|\/node_modules\/|^atlas\/web\/[a-z]+\/assets\/js\/sgx\/|^space\/web\/shared\/shell\//;
+  const SKIP = /^(tests\/|dist\/)|\/vendor\/|\/public\/|\/node_modules\//;
   const TERN = /(?<![\w.$])(?:en|isEn|isZh|zh|ctx\.en|opts\.en)\s*\?(?![.?])/;
   const ZHOBJ = /\{\s*zh\s*:/;
   /** @param {string} d @returns {string[]} */
@@ -315,7 +315,7 @@ test('全仓不再按语言二选一写文案（语言包化第二部分）：�
     return statSync(path.join(REPO, p)).isDirectory() ? walk(p) : (/\.(m?js|cjs|ts)$/.test(f) ? [p] : []);
   });
   const bad = [];
-  for (const f of ['space/web/assets/js', 'space/scripts', 'atlas/web/blog/assets/js', 'atlas/web/curio/assets/js', 'atlas/web/daymark/assets/js', 'workers'].flatMap(walk)) {
+  for (const f of ['space/web/assets/js', 'space/scripts', 'space/web/assets/blog/js', 'space/web/assets/curio/js', 'space/web/assets/daymark/js', 'workers'].flatMap(walk)) {
     if (ALLOW.test(f) || SKIP.test(f)) continue;
     const src = rd(f).replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/(^|[^:\\'"])\/\/.*$/gm, '$1');
     src.split('\n').forEach((line, i) => {
