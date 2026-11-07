@@ -16,8 +16,9 @@ import worker from '../../../workers/status/src/index.js';
 
 let sqlite = null;
 try { sqlite = await import('node:sqlite'); } catch {}
-const SCHEMA = ['0001_init.sql', '0002_usage.sql', '0003_cut_reads.sql']
-  .map((f) => readFileSync(new URL('../../../workers/status/migrations/' + f, import.meta.url), 'utf8')).join('\n');
+/* 表结构 = migrations/0001_baseline.sql（库 styrigx-space-gateway，表名带 status_）；without(...) = 基线里去掉这几张表（模拟表不在） */
+const SCHEMA = readFileSync(new URL('../../../workers/status/migrations/0001_baseline.sql', import.meta.url), 'utf8');
+const without = (...tables) => SCHEMA + '\n' + tables.map((t) => 'DROP TABLE ' + t + ';').join('\n');
 
 /** node:sqlite 模拟 D1（prepare / bind / first / run / batch） */
 function d1(schema = SCHEMA) {
@@ -222,7 +223,7 @@ test('读库：没配 → not-configured（不碰库）；表不存在 → db；
   assert.deepEqual(await readUsage(boom, {}), { usage: null, usage_reason: 'not-configured' });
   assert.deepEqual(await readUsage(boom, undefined), { usage: null, usage_reason: 'not-configured' });
   /* 迁移没跑：表不存在 */
-  const old = d1(readFileSync(new URL('../../../workers/status/migrations/0001_init.sql', import.meta.url), 'utf8'));
+  const old = d1(without('status_usage', 'status_hourly', 'status_quota'));
   assert.deepEqual(await readUsage(old, ENV), { usage: null, usage_reason: 'db' });
   const db = d1();
   assert.deepEqual(await readUsage(db, ENV), { usage: null, usage_reason: 'not-collected' });
@@ -233,7 +234,7 @@ test('读库：没配 → not-configured（不碰库）；表不存在 → db；
 test('写库：成功覆盖快照；之后失败 → 旧快照留着、stale + last_error；再成功清掉；not-configured 不写', { skip: !sqlite }, async () => {
   const db = d1();
   await persistUsage(db, { ok: false, reason: 'not-configured' }, NOW);
-  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM usage').get().n, 0);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_usage').get().n, 0);
   const { doFetch } = cfMock();
   const r1 = await runUsage({ ...ENV, D1_UPTIME_MONITOR: db, D1_CLOUDFLARE_USAGE: db }, NOW, doFetch);
   assert.equal(r1.ok, true);
@@ -251,7 +252,7 @@ test('写库：成功覆盖快照；之后失败 → 旧快照留着、stale + l
   u = await readUsage(db, ENV);
   assert.equal(u.usage.fetched_at, NOW + 7200e3);
   assert.equal(u.usage.stale, undefined);
-  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM usage').get().n, 1);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM status_usage').get().n, 1);
   /* token 撤了：就算库里有快照也不给 */
   assert.deepEqual(await readUsage(db, {}), { usage: null, usage_reason: 'not-configured' });
 });
@@ -268,8 +269,7 @@ test('/summary：带 usage + usage_reason；用量读挂了不影响站点数据
   assert.equal(s.usage.fetched_at, NOW);
   assert.equal(s.usage.d1.databases.length, 2);
   /* usage 迁移没跑：站点照常，usage = null / db */
-  const old = d1(['0001_init.sql', '0003_cut_reads.sql']
-    .map((f) => readFileSync(new URL('../../../workers/status/migrations/' + f, import.meta.url), 'utf8')).join('\n'));
+  const old = d1(without('status_usage', 'status_quota'));
   s = await summary(old, NOW, { ...ENV, D1_CLOUDFLARE_USAGE: old });
   assert.equal(s.ok, true);
   assert.equal(s.sites.length, TARGETS.length);

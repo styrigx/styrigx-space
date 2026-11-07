@@ -18,11 +18,12 @@ import worker from '../../../workers/status/src/index.js';
 
 let sqlite = null;
 try { sqlite = await import('node:sqlite'); } catch {}
-const MIGRATIONS = ['0001_init.sql', '0002_usage.sql', '0003_cut_reads.sql', '0004_quota.sql'];
-const schema = (files) => files.map((f) => readFileSync(new URL('../../../workers/status/migrations/' + f, import.meta.url), 'utf8')).join('\n');
+/* 表结构 = migrations/0001_baseline.sql（库 styrigx-space-gateway，表名带 status_）；without(...) = 基线里去掉这几张表（模拟表不在） */
+const BASELINE = readFileSync(new URL('../../../workers/status/migrations/0001_baseline.sql', import.meta.url), 'utf8');
+const without = (...tables) => BASELINE + '\n' + tables.map((t) => 'DROP TABLE ' + t + ';').join('\n');
 
 /** node:sqlite 模拟 D1（prepare / bind / first / run / batch） */
-function d1(sql = schema(MIGRATIONS)) {
+function d1(sql = BASELINE) {
   const db = new sqlite.DatabaseSync(':memory:');
   db.exec(sql);
   const mk = (q, args = []) => ({
@@ -195,7 +196,7 @@ test('没配 token / 账号 → not-configured，不碰库也不碰网络；Secr
 });
 
 test('表不存在（迁移没跑）→ db，并且不去查 Cloudflare（没地方缓存就不查）', { skip: !sqlite }, async () => {
-  const db = d1(schema(['0001_init.sql', '0002_usage.sql', '0003_cut_reads.sql']));
+  const db = d1(without('status_quota'));
   const m = cfMock();
   assert.deepEqual(await readQuota(db, ENV, NOW, m.doFetch), { quota: null, quota_reason: 'db' });
   assert.equal(m.calls.length, 0);
@@ -213,7 +214,7 @@ test('缓存：5 分钟内只查一次；满 5 分钟再查；写进 quota 表',
   assert.equal(m.calls.length, 5, '5 分钟内不再请求');
   assert.equal(b.quota.fetched_at, NOW);
   assert.equal(b.quota.stale, undefined);
-  const row = db.raw.prepare('SELECT fetched_at, last_attempt_at, last_error FROM quota WHERE id = 1').get();
+  const row = db.raw.prepare('SELECT fetched_at, last_attempt_at, last_error FROM status_quota WHERE id = 1').get();
   assert.deepEqual({ ...row }, { fetched_at: NOW, last_attempt_at: NOW, last_error: null });
   await readQuota(db, ENV, NOW + QUOTA_TTL_MS, m.doFetch);
   assert.equal(m.calls.length, 10, '满 5 分钟重查');

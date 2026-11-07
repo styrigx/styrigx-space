@@ -93,22 +93,26 @@ namespace_id = "2802"
 simple = { limit = 6, period = 60 }
 
 # ---- 数据绑定（正式 D1）----
-# 网关的认证状态全部在 D1 styrigx-auth-gateway（强一致），不绑定任何 KV（2026-10-27）。
+# 网关的认证状态全部在 D1 styrigx-space-gateway（强一致），不绑定任何 KV（2026-10-27）。
+# 2026-11 D1 合库：主站数据统一进 styrigx-space-gateway（D1 + KV 一套，Gray 2026-11-07）。网关、短链（workers/share）、监测（workers/status）
+# 三个 Worker 各自独立，只是共用这一个库；表名不重叠（网关原表名不变，短链 share_*，监测 status_*），迁移记录表各自一张：
+# 本 Worker d1_migrations_gateway、短链 d1_migrations_share、监测 d1_migrations_status。账号 styrigx-account 仍单独一个库。
+# 旧库 styrigx-auth-gateway（6931d1da-…）只读保留，数据由 .github/workflows/d1-cutover.yml 一次性搬来；稳定后删除，删前 Gray 确认。
 # 账号拆分 PR3（方案 10.1）：网关只经 D1_LOCK_AUTH 读写 realm='lock' 的行（纪元、锁屏密码 / 通行密钥、user handle、challenge、
 # 密码 / 临时码 / 进站凭证输错计数、临时钥匙、进站凭证审计）和恢复开关表 lock_reset_switch（方案 9.4 由 recovery_switch 改名）。
-# 原来的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH 两个绑定名删掉。账号数据已由 space/scripts/migrate-account-auth.mjs（Cloudflare D1 REST，不经绑定）
-# 拷到 D1 styrigx-account；网关库里 realm='account' / 'root' 的旧行和旧开关表 recovery_switch 已在 PR4 由 --cleanup --confirm 删除，
-# 本库只剩锁屏数据。
 # 表：migrations/0005_lock_account_state.sql、0006_auth_state.sql（0007 给 user_handle 加 legacy_handle 列）、0008_lock_reset_switch.sql
-# （0001_recovery_switch.sql 建的旧表由 0009_drop_recovery_switch.sql 删，只对走迁移的预览库生效；正式库已由 --cleanup 删）。
-# 本 Worker 的部署 job 不跑 D1 迁移：表由代码在第一次遇到「no such table」时按同一份语句建（src/core/d1-state.js SCHEMA，幂等）。
-# 恢复开关代码只读写 lock_reset_switch（正式库里由 space/scripts/migrate-account-auth.mjs --lock-reset-switch 建表并拷过旧表的行）。
+# （0001 / 0003 建的旧表由 0004 / 0009 删：在空的新库上按顺序重放，结果正好是最终表结构，不含任何数据）。
+# 迁移由 deploy.yml 的 deploy-share-worker 跑（本 Worker 的部署 token 没有 D1 权限；短链的 token 有 D1 编辑，同一个库）：
+#   cd workers/auth-gateway && wrangler d1 migrations apply styrigx-space-gateway --remote（记录表 d1_migrations_gateway）。
+# 代码兜底建表（src/core/d1-state.js SCHEMA，遇到「no such table」时按同一份语句建，幂等）保留；
+# 新库的表在搬数据时已由迁移建好，且 deploy-share-worker 部署前核对搬迁标记（d1_cutover），兜底不会在空库上悄悄建出空表。
 # 安全读（纪元、吊销、challenge、计数、临时钥匙）只读主库：代码不开 read replication / withSession。
 [[d1_databases]]
 binding = "D1_LOCK_AUTH"
-database_name = "styrigx-auth-gateway"
-database_id = "6931d1da-3502-480d-b0bd-de1bc4829d1d"
+database_name = "styrigx-space-gateway"
+database_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"
 migrations_dir = "migrations"
+migrations_table = "d1_migrations_gateway"
 
 # ---- 密钥：Secrets Store（方案 10.1：只剩 4 个）----
 # 外部模型钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-ai（P4-2 前在 styrigx-chat）；账号钥匙 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC / SGX_ACCOUNT_ROOT_KEY 只绑在 styrigx-account。

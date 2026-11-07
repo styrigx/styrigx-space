@@ -79,8 +79,8 @@ export function plan(prev, results, at) {
  */
 export async function loadPrev(db) {
   const [st, open] = await db.batch([
-    db.prepare('SELECT site, fails, first_fail_at FROM state'),
-    db.prepare('SELECT id, site FROM incidents WHERE ended_at IS NULL'),
+    db.prepare('SELECT site, fails, first_fail_at FROM status_state'),
+    db.prepare('SELECT id, site FROM status_incidents WHERE ended_at IS NULL'),
   ]);
   /** @type {Map<string, {fails:number, open:{id:number}|null, firstFailAt:number}>} */
   const m = new Map();
@@ -103,36 +103,36 @@ export async function loadPrev(db) {
 export async function persist(db, p, opt = {}) {
   const st = [];
   for (const c of p.checks) {
-    st.push(db.prepare('INSERT INTO checks (site, at, ok, code, ms, err) VALUES (?, ?, ?, ?, ?, ?)')
+    st.push(db.prepare('INSERT INTO status_checks (site, at, ok, code, ms, err) VALUES (?, ?, ?, ?, ?, ?)')
       .bind(c.site, c.at, c.ok, c.code, c.ms, c.err));
   }
   for (const d of p.daily) {
     st.push(db.prepare(
-      'INSERT INTO daily (site, day, total, ok_count, ms_sum) VALUES (?, ?, 1, ?, ?) ' +
+      'INSERT INTO status_daily (site, day, total, ok_count, ms_sum) VALUES (?, ?, 1, ?, ?) ' +
       'ON CONFLICT (site, day) DO UPDATE SET total = total + 1, ok_count = ok_count + excluded.ok_count, ms_sum = ms_sum + excluded.ms_sum',
     ).bind(d.site, d.day, d.ok, d.ms));
   }
   for (const h of p.hourly || []) {
     st.push(db.prepare(
-      'INSERT INTO hourly (site, hour, total, ok_count, ms_sum) VALUES (?, ?, 1, ?, ?) ' +
+      'INSERT INTO status_hourly (site, hour, total, ok_count, ms_sum) VALUES (?, ?, 1, ?, ?) ' +
       'ON CONFLICT (site, hour) DO UPDATE SET total = total + 1, ok_count = ok_count + excluded.ok_count, ms_sum = ms_sum + excluded.ms_sum',
     ).bind(h.site, h.hour, h.ok, h.ms));
   }
   for (const s of p.state) {
     st.push(db.prepare(
-      'INSERT INTO state (site, fails, first_fail_at, last_at, last_ok, last_code, last_ms, last_err) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ' +
+      'INSERT INTO status_state (site, fails, first_fail_at, last_at, last_ok, last_code, last_ms, last_err) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ' +
       'ON CONFLICT (site) DO UPDATE SET fails = excluded.fails, first_fail_at = excluded.first_fail_at, last_at = excluded.last_at, ' +
       'last_ok = excluded.last_ok, last_code = excluded.last_code, last_ms = excluded.last_ms, last_err = excluded.last_err',
     ).bind(s.site, s.fails, s.first_fail_at, s.at, s.ok, s.code, s.ms, s.err));
   }
   for (const o of p.open) {
-    st.push(db.prepare('INSERT INTO incidents (site, started_at, cause) VALUES (?, ?, ?)').bind(o.site, o.started_at, o.cause));
+    st.push(db.prepare('INSERT INTO status_incidents (site, started_at, cause) VALUES (?, ?, ?)').bind(o.site, o.started_at, o.cause));
   }
   for (const c of p.close) {
-    st.push(db.prepare('UPDATE incidents SET ended_at = ? WHERE id = ? AND ended_at IS NULL').bind(c.ended_at, c.id));
+    st.push(db.prepare('UPDATE status_incidents SET ended_at = ? WHERE id = ? AND ended_at IS NULL').bind(c.ended_at, c.id));
   }
-  if (opt.prune) st.push(db.prepare('DELETE FROM checks WHERE at < ?').bind(opt.prune));
-  if (opt.pruneHourly) st.push(db.prepare('DELETE FROM hourly WHERE hour < ?').bind(opt.pruneHourly));
+  if (opt.prune) st.push(db.prepare('DELETE FROM status_checks WHERE at < ?').bind(opt.prune));
+  if (opt.pruneHourly) st.push(db.prepare('DELETE FROM status_hourly WHERE hour < ?').bind(opt.pruneHourly));
   if (st.length) await db.batch(st);
 }
 
@@ -167,7 +167,7 @@ export async function runOnce(env, at, doFetch = fetch) {
  * 给监测页的汇总。
  *   sites：每站当前状态（up = 连续失败没到阈值）、近 24 小时 / 30 天 / 90 天可用率
  *   days：每站最近 90 天每日 { day, total, ok, avg_ms }（旧 → 新）
- *   recent：每站最近 24 小时每小时一格 [整点, 这小时全成功 ? 1 : 0, 成功的平均耗时]（来自 hourly 表，不读 checks）
+ *   recent：每站最近 24 小时每小时一格 [整点, 这小时全成功 ? 1 : 0, 成功的平均耗时]（来自 status_hourly 表，不读 status_checks）
  *   incidents：最近 20 条故障（新 → 旧，开着的 ended_at = null）
  *   usage / usage_reason：Cloudflare 用量快照（src/usage.js readUsage；读不到只是 usage = null + 原因，不影响其余部分）
  * @param {D1Database} db  D1_UPTIME_MONITOR（state / daily / hourly / incidents）
@@ -178,10 +178,10 @@ export async function summary(db, now, env) {
   const since24 = Math.floor((now - DAY_MS) / HOUR_MS) * HOUR_MS;
   const from90 = dayOf(now - 89 * DAY_MS);
   const [st, days, recent, inc] = await db.batch([
-    db.prepare('SELECT site, fails, last_at, last_ok, last_code, last_ms, last_err FROM state'),
-    db.prepare('SELECT site, day, total, ok_count, ms_sum FROM daily WHERE day >= ? ORDER BY day').bind(from90),
-    db.prepare('SELECT site, hour, total, ok_count, ms_sum FROM hourly WHERE hour >= ? ORDER BY hour').bind(since24),
-    db.prepare('SELECT id, site, started_at, ended_at, cause FROM incidents ORDER BY started_at DESC LIMIT 20'),
+    db.prepare('SELECT site, fails, last_at, last_ok, last_code, last_ms, last_err FROM status_state'),
+    db.prepare('SELECT site, day, total, ok_count, ms_sum FROM status_daily WHERE day >= ? ORDER BY day').bind(from90),
+    db.prepare('SELECT site, hour, total, ok_count, ms_sum FROM status_hourly WHERE hour >= ? ORDER BY hour').bind(since24),
+    db.prepare('SELECT id, site, started_at, ended_at, cause FROM status_incidents ORDER BY started_at DESC LIMIT 20'),
   ]);
   const by = (rows, site) => (rows.results || []).filter((r) => r.site === site);
   const pct = (ok, total) => (total ? Math.round((ok / total) * 10000) / 100 : null);
@@ -208,7 +208,7 @@ export async function summary(db, now, env) {
         Number(x.ok_count) ? Math.round(Number(x.ms_sum) / Number(x.ok_count)) : 0]),
     };
   });
-  const u = await readUsage(env && env.D1_CLOUDFLARE_USAGE, env); /* usage 表是另一套数据：单独一条查询，不进上面的 batch */
+  const u = await readUsage(env && env.D1_CLOUDFLARE_USAGE, env); /* status_usage 表是另一套数据：单独一条查询，不进上面的 batch */
   return {
     ok: true,
     now,

@@ -3,7 +3,7 @@
  *
  * 和 src/usage.js 的区别：usage.js 每小时 41 分收「存储量」快照（D1 / R2 / KV 占了多少字节）；
  * 这里是「操作次数」，免费计划按天卡（超了就报错：KV 写 429、D1 拒绝查询、Workers 1027），一小时一收太慢，
- * 所以改成按需：/summary 被请求时，缓存超过 QUOTA_TTL_MS（5 分钟）才去问 Cloudflare GraphQL，结果存 D1 表 quota（migrations/0004_quota.sql）。
+ * 所以改成按需：/summary 被请求时，缓存超过 QUOTA_TTL_MS（5 分钟）才去问 Cloudflare GraphQL，结果存 D1 表 status_quota（migrations/0001_baseline.sql；库 styrigx-space-gateway）。
  * 状态页开着时每 60 秒刷新一次 /api/status，最多每 5 分钟真正查一轮（5 个 GraphQL 请求）；没人看就一次都不查，不占 Cron。
  * 不用 Cache API：这个 Worker 没有自定义域名 / 路由（只从网关服务绑定进来），文档只保证挂在自定义域名上的 Worker 缓存可用
  * （https://developers.cloudflare.com/workers/runtime-apis/cache/）；D1 一行缓存每次只多读 1 行、每 5 分钟最多写 1 行。
@@ -201,7 +201,7 @@ export async function collectQuota(token, account, now, doFetch = fetch) {
  *   缓存 5 分钟内（按最近一次尝试算，成功失败都算）→ 直接给缓存
  *   否则查一轮：成功 → 写库、给新数据；失败 → 记 last_error，旧数据是今天（UTC）的就照给并标 stale，不是今天的 → quota:null、quota_reason:'api-error'
  *   旧数据不是今天（UTC 日已经换了）→ 不给（昨天的用量不能当今天的显示）
- * @param {D1Database|undefined} db  env.D1_CLOUDFLARE_USAGE（同库，表 quota）
+ * @param {D1Database|undefined} db  env.D1_CLOUDFLARE_USAGE（同库，表 status_quota）
  * @param {any} env
  * @param {number} now
  * @param {typeof fetch} [doFetch]
@@ -212,7 +212,7 @@ export async function readQuota(db, env, now, doFetch = fetch) {
   if (!db) return { quota: null, quota_reason: 'db' };
   let row;
   try {
-    row = await db.prepare('SELECT fetched_at, data, last_attempt_at, last_error FROM quota WHERE id = 1').first();
+    row = await db.prepare('SELECT fetched_at, data, last_attempt_at, last_error FROM status_quota WHERE id = 1').first();
   } catch (e) {
     console.error('[status] quota read failed', e && /** @type {any} */ (e).message);
     return { quota: null, quota_reason: 'db' };
@@ -241,12 +241,12 @@ export async function readQuota(db, env, now, doFetch = fetch) {
   try {
     if (r.ok) {
       await db.prepare(
-        'INSERT INTO quota (id, fetched_at, data, last_attempt_at, last_error) VALUES (1, ?, ?, ?, NULL) ' +
+        'INSERT INTO status_quota (id, fetched_at, data, last_attempt_at, last_error) VALUES (1, ?, ?, ?, NULL) ' +
         'ON CONFLICT (id) DO UPDATE SET fetched_at = excluded.fetched_at, data = excluded.data, last_attempt_at = excluded.last_attempt_at, last_error = NULL',
       ).bind(now, JSON.stringify(r.snapshot), now).run();
     } else {
       await db.prepare(
-        'INSERT INTO quota (id, fetched_at, data, last_attempt_at, last_error) VALUES (1, NULL, NULL, ?, ?) ' +
+        'INSERT INTO status_quota (id, fetched_at, data, last_attempt_at, last_error) VALUES (1, NULL, NULL, ?, ?) ' +
         'ON CONFLICT (id) DO UPDATE SET last_attempt_at = excluded.last_attempt_at, last_error = excluded.last_error',
       ).bind(now, r.reason).run();
     }

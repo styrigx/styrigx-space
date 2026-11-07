@@ -20,11 +20,12 @@ head_sampling_rate = 1
 [ai]
 binding = "AI"
 
-# 全站搜索索引（KV styrigx-search-index，各站 CI 写 site:<站名>）。只读：site:space / site:blog / site:curio / site:daymark，
+# 全站搜索索引（KV styrigx-space-gateway，2026-11 由 styrigx-search-index 换过来：主站数据 D1 + KV 一套；各站 CI / Cron 写 site:<站名>）。
+# ai:models 是手写的值，由 .github/workflows/d1-cutover.yml 从旧命名空间拷过来；site:* 会被 CI / Cron 重建。只读：site:space / site:blog / site:curio / site:daymark，
 # 以及模型登记 ai:models（P4-2，core/models.js；换模型改这个 KV 值即可，不用补丁部署）。
 [[kv_namespaces]]
 binding = "KV_SEARCH_INDEX"
-id = "bd1babcc3fe74d58994e254c74d34ced"
+id = "608cf3e27184481cbca2922950506d87"
 
 [vars]
 # 模型登记的退路（KV ai:models 没有 / 坏时用）：自营 Gemma 4（默认）+ GPT-OSS 20B，走 Workers AI；外部 Gemini 2.5 Flash 走 Gemini API。

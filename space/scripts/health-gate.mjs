@@ -5,7 +5,7 @@
  *
  * 为什么要它：ai（styrigx-ai；P4-2 前是 search / chat）没有公开地址，第一阶段只能核对
  * 「线上换成了新版本」（deploy-rollback.mjs worker-verify），测不到新代码能不能用。styrigx-status 每分钟经服务绑定
- * 测它们的 GET /healthz，结果进 D1 styrigx-status 的 checks 表（workers/status/src/monitor.js persist）。
+ * 测它们的 GET /healthz，结果进 D1 styrigx-space-gateway 的 status_checks 表（2026-11 合库前是 styrigx-status 的 checks）（workers/status/src/monitor.js persist）。
  * 本脚本在 deploy.yml 的 deploy-status-worker 里、status 部署并核对之后跑，等新一轮巡检，按结果判定。
  * 不经网关、不开免会话口子、不加 Worker / 子域名：直接用 D1 REST 查表，token 是 status 部署本来就有的那把
  * （STYRIGX_STATUS_DEPLOY，D1 编辑；同一把 token 部署时已经在跑 d1 migrations apply --remote，走的是同一个查询接口）。
@@ -30,7 +30,7 @@
  *   --since 不给 = 现在 + settle 秒（给刚部署的版本留传播时间）；--baseline-until 给多个取最小（最早开始部署的那个 job）。
  * 环境变量：CLOUDFLARE_API_TOKEN、CLOUDFLARE_ACCOUNT_ID（同 status 部署那一步）；CF_API_BASE（默认 https://api.cloudflare.com/client/v4，测试用）。
  * 库 id 从 workers/status/wrangler.toml 的 D1_UPTIME_MONITOR 读，不在这里重复写。本脚本不打印 token。
- * D1 读取量：每次轮询只按 checks_at 索引读部署之后的几行（每轮 4 行），5 分钟内最多二十来次。
+ * D1 读取量：每次轮询只按 status_checks_at 索引读部署之后的几行（每轮 4 行），5 分钟内最多二十来次。
  */
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -125,10 +125,10 @@ export async function d1Query(q, cfg) {
   return { ok: true, rows: (first && Array.isArray(first.results)) ? first.results : [], status: 200, fatal: false, reason: 'ok' };
 }
 
-/** checks 里这些站、at 在 (from, to] 的行（走 checks_at 索引）。to = null 表示不设上限。 @param {string[]} sites @param {number} from @param {number|null} to */
+/** status_checks 里这些站、at 在 (from, to] 的行（走 status_checks_at 索引）。to = null 表示不设上限。 @param {string[]} sites @param {number} from @param {number|null} to */
 export function checksQuery(sites, from, to) {
   const marks = sites.map(() => '?').join(', ');
-  const sql = 'SELECT site, at, ok, code, err FROM checks WHERE at > ?' + (to == null ? '' : ' AND at <= ?') +
+  const sql = 'SELECT site, at, ok, code, err FROM status_checks WHERE at > ?' + (to == null ? '' : ' AND at <= ?') +
     ' AND site IN (' + marks + ') ORDER BY at';
   return { sql, params: [from, ...(to == null ? [] : [to]), ...sites] };
 }
@@ -166,7 +166,7 @@ export async function waitForHealth(o) {
     } else {
       lastReason = r.reason;
       if (r.fatal) {
-        log('::error::health gate: D1 query failed (' + r.reason + '); the status deploy token needs D1 access to styrigx-status');
+        log('::error::health gate: D1 query failed (' + r.reason + '); the status deploy token needs D1 access to styrigx-space-gateway');
         return { verdict: 'error', failed: [], perSite: last.perSite };
       }
       log('::warning::health gate: D1 query failed, retrying (' + r.reason + ')');

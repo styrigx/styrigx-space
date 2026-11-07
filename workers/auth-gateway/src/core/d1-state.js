@@ -16,7 +16,7 @@
  * 输错计数、临时钥匙这些安全读只走绑定本身（= 主库）；内存和 KV 都不缓存，任何吊销判断都以这一次请求读到的 D1 为准。
  * （tests/workers/auth-gateway/d1-state.test.mjs 扫网关源码核对：任何地方出现 session API 调用就失败。）
  *
- * 表（migrations/0005_lock_account_state.sql、0006_auth_state.sql，库 styrigx-auth-gateway；SCHEMA 是同一份语句的代码兜底）：
+ * 表（migrations/0005_lock_account_state.sql、0006_auth_state.sql，库 styrigx-space-gateway；SCHEMA 是同一份语句的代码兜底）：
  * 都是小写 snake_case 名词、都有 realm 列（网关只读写 'lock'）。本文件管 epoch / passkey / password / user_handle；
  * challenge（passkey-verify.js）、attempt_limit（attempt-limit.js）、tempkey（lock-tempkey.js）、
  * audit（space-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。

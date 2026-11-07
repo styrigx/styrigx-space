@@ -79,7 +79,7 @@ test('failingBefore：每站只看部署前最近一次', () => {
 
 test('checksQuery：参数化（站名不拼进 SQL），有 / 没有上限两种', () => {
   const a = checksQuery(SITES, 100, null);
-  assert.equal(a.sql, 'SELECT site, at, ok, code, err FROM checks WHERE at > ? AND site IN (?, ?) ORDER BY at');
+  assert.equal(a.sql, 'SELECT site, at, ok, code, err FROM status_checks WHERE at > ? AND site IN (?, ?) ORDER BY at');
   assert.deepEqual(a.params, [100, 'search', 'chat']);
   const b = checksQuery(SITES, 100, 200);
   assert.match(b.sql, /WHERE at > \? AND at <= \? AND site IN/);
@@ -88,10 +88,8 @@ test('checksQuery：参数化（站名不拼进 SQL），有 / 没有上限两�
 
 test('checksQuery：在 status 迁移出的真表上能跑，只取部署之后、指定的站', { skip: !sqlite && 'node:sqlite unavailable' }, () => {
   const db = new sqlite.DatabaseSync(':memory:');
-  for (const f of ['0001_init.sql', '0002_usage.sql', '0003_cut_reads.sql', '0004_quota.sql']) {
-    db.exec(readFileSync(new URL('../../../workers/status/migrations/' + f, import.meta.url), 'utf8'));
-  }
-  const ins = db.prepare('INSERT INTO checks (site, at, ok, code, ms, err) VALUES (?, ?, ?, ?, ?, ?)');
+  db.exec(readFileSync(new URL('../../../workers/status/migrations/0001_baseline.sql', import.meta.url), 'utf8'));
+  const ins = db.prepare('INSERT INTO status_checks (site, at, ok, code, ms, err) VALUES (?, ?, ?, ?, ?, ?)');
   ins.run('search', 100, 0, 503, 5, 'status');
   ins.run('search', 200, 1, 200, 5, null);
   ins.run('chat', 200, 0, 0, 10000, 'timeout');
@@ -101,7 +99,7 @@ test('checksQuery：在 status 迁移出的真表上能跑，只取部署之后�
   assert.deepEqual(rows.map((r) => r.site + '@' + r.at).sort(), ['chat@200', 'search@200']);
   assert.equal(judge(rows, SITES, { confirm: 1 }).verdict, 'fail');
   const plan = db.prepare('EXPLAIN QUERY PLAN ' + q.sql).all(...q.params).map((r) => r.detail).join(' ');
-  assert.match(plan, /checks_at/, '走 checks_at 索引，不扫全表');
+  assert.match(plan, /status_checks_at/, '走 status_checks_at 索引，不扫全表');
 });
 
 test('d1Query：POST …/d1/database/<id>/query，带 Bearer 和参数；401 / 403 是 fatal；网络错不抛', async () => {

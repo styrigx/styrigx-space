@@ -1,7 +1,7 @@
 # styrigx-share：分享短链 Worker（CI 部署；2026-10-24 新建，照账号 Worker styrigx-account 的拆法）
 #
 # https://styrigx.com/s/<码>（中英文同一条）+ 管理接口 /api/share。
-# 代码：src/（入口 index.js、门 gate.js、会话 auth.js、打开 open.js、接口 api/、规则和存储 lib/）+ migrations/（D1 styrigx-share）。
+# 代码：src/（入口 index.js、门 gate.js、会话 auth.js、打开 open.js、接口 api/、规则和存储 lib/）+ migrations/（D1 styrigx-space-gateway 里的 share_* 表）。
 #
 # 安全：
 # - 不持任何钥匙、不绑认证库（styrigx-auth-gateway 的 KV/D1）。会话问网关 AuthVerifier（服务绑定 AUTH）；
@@ -48,15 +48,19 @@ service = "styrigx-auth-gateway"
 entrypoint = "ShareIssuer"
 
 # ---- 数据绑定（正式）----
-# D1 styrigx-share：D1_SHARE_LINK = share_link + share_fail（migrations/0001_share_links.sql）。
+# D1 styrigx-space-gateway（2026-11 D1 合库：主站数据统一进这一个库，网关 / 短链 / 监测三个 Worker 各自独立、共用一个库）：
+# D1_SHARE_LINK = share_link + share_fail（migrations/0001_baseline.sql）。表名 share_* 与网关表、监测 status_* 不重叠。
+# 迁移记录表 d1_migrations_share（网关 d1_migrations_gateway、监测 d1_migrations_status）：三套迁移进同一个库，各记各的。
+# 旧库 styrigx-share 的迁移历史在 migrations-archive/（只留史，不再跑）；数据由 .github/workflows/d1-cutover.yml 一次性搬来。
 [[d1_databases]]
 binding = "D1_SHARE_LINK"
-database_name = "styrigx-share"
-database_id = "59bddcea-17cb-466a-90c9-16606d5b4b7e"
+database_name = "styrigx-space-gateway"
+database_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"
 migrations_dir = "migrations"
+migrations_table = "d1_migrations_share"
 
 # ---- preview 环境（还没有部署它的 CI job；预览 D1 已登记，CI 的 passkey-e2e 会给它跑迁移，以后给预览测试用）----
-# 绝不指向正式库。routes = [] 必须写：routes 会从顶层继承，不写的话预览 Worker 会去抢正式路由。
+# 绝不指向正式库（styrigx-space-gateway）。routes = [] 必须写：routes 会从顶层继承，不写的话预览 Worker 会去抢正式路由。
 [env.preview]
 name = "styrigx-share-preview"
 workers_dev = false

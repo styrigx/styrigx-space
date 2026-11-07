@@ -1,6 +1,6 @@
 /**
  * @fileoverview Cloudflare 账号用量：每小时一次（Cron "41 * * * *"，见 wrangler.toml / src/index.js），
- * 用一把只读 API token 读 Cloudflare API，存一份最新快照进 D1（表 usage，migrations/0002_usage.sql），
+ * 用一把只读 API token 读 Cloudflare API，存一份最新快照进 D1（表 status_usage，migrations/0001_baseline.sql；库 styrigx-space-gateway），
  * /summary 带上它给状态页「用量」卡片。
  *
  * 钥匙（仓库里不写任何值）：
@@ -287,12 +287,12 @@ export async function persistUsage(db, r, now) {
   if (!r.ok && (r.reason === 'not-configured' || r.reason === 'secret-missing')) return;
   if (r.ok) {
     await db.prepare(
-      'INSERT INTO usage (id, fetched_at, data, last_attempt_at, last_error) VALUES (1, ?, ?, ?, NULL) ' +
+      'INSERT INTO status_usage (id, fetched_at, data, last_attempt_at, last_error) VALUES (1, ?, ?, ?, NULL) ' +
       'ON CONFLICT (id) DO UPDATE SET fetched_at = excluded.fetched_at, data = excluded.data, last_attempt_at = excluded.last_attempt_at, last_error = NULL',
     ).bind(r.snapshot.fetched_at, JSON.stringify(r.snapshot), now).run();
   } else {
     await db.prepare(
-      'INSERT INTO usage (id, fetched_at, data, last_attempt_at, last_error) VALUES (1, NULL, NULL, ?, ?) ' +
+      'INSERT INTO status_usage (id, fetched_at, data, last_attempt_at, last_error) VALUES (1, NULL, NULL, ?, ?) ' +
       'ON CONFLICT (id) DO UPDATE SET last_attempt_at = excluded.last_attempt_at, last_error = excluded.last_error',
     ).bind(now, r.reason).run();
   }
@@ -320,7 +320,7 @@ export async function readUsage(db, env) {
   const { reason } = await usageCreds(env);
   if (reason) return { usage: null, usage_reason: reason };
   try {
-    const row = await db.prepare('SELECT fetched_at, data, last_attempt_at, last_error FROM usage WHERE id = 1').first();
+    const row = await db.prepare('SELECT fetched_at, data, last_attempt_at, last_error FROM status_usage WHERE id = 1').first();
     if (!row || !row.data) return { usage: null, usage_reason: (row && row.last_error) || 'not-collected' };
     const data = JSON.parse(String(row.data));
     data.fetched_at = Number(row.fetched_at) || Number(data.fetched_at) || 0;

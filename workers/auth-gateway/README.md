@@ -64,7 +64,7 @@
 | 服务绑定 | `ACCOUNT`（AccountService）、`ACCOUNT_VERIFIER`（AccountVerifier） | 账号 Worker `styrigx-account`：转发 / 只读账号会话 RPC（只给账号页首帧提示 `data-sgx-account-session` 用，`core/account-rpc.js`） |
 | 服务绑定 | `STATUS`、`AI_SERVICE` | `styrigx-status`、`styrigx-ai`：都没有公开地址，网关先验会话再转（`/api/ai` 验同源 + 进门 + 两档限流，回答原样流回）；`SEARCH`、`CHAT` 已在 P4-2b 删除 |
 | 服务绑定 | `AI_SERVICE` | `styrigx-ai`（P4-1）：没有公开地址；`POST /api/ai`（`src/api/ai.js`）验同源、进门、两档 AI 限流、写账号结论头后转给它的 `POST /ask`，SSE 原样流回 |
-| D1 | `D1_LOCK_AUTH` | D1 `styrigx-auth-gateway`，只读写 `realm='lock'` 的行和恢复开关表 `lock_reset_switch` |
+| D1 | `D1_LOCK_AUTH` | D1 `styrigx-space-gateway`，只读写 `realm='lock'` 的行和恢复开关表 `lock_reset_switch` |
 | 限流 | `ANON_LIMITER` | 无会话写接口按 IP 每 60 秒 20 次（`core/anon-limit.js`，绑定缺失时放行） |
 | 限流 | `AI_LIMITER`（namespace 2802） | `/api/ai` 第一档：每 IP 每 60 秒 6 次，超了 429 `cooldown`（`core/ai-limit.js`，绑定缺失时放行）。第二档全站总闸每分钟 60 次不用绑定：`D1_LOCK_AUTH` 的 `attempt_limit` 里 `realm='ai'`、`kind='global'`、bucket = 当前分钟的一行，单条 upsert 判断 + 计数，超了或 D1 出错 429 `busy`（不改表结构、不加迁移） |
 
@@ -84,7 +84,7 @@
 
 ## 数据与迁移
 
-认证状态全部在 D1 `styrigx-auth-gateway`（强一致，不绑 KV），只有一个绑定名 `D1_LOCK_AUTH`（凭证域 `core/realms.js` 的 `REALM_LOCK`）：纪元、锁屏密码 / 通行密钥、user handle、challenge、密码 / 临时码 / 进站凭证输错计数、临时钥匙、进站凭证审计（都是 `realm='lock'`），另外恢复开关表 `lock_reset_switch`。
+认证状态全部在 D1 `styrigx-space-gateway`（强一致，不绑 KV），只有一个绑定名 `D1_LOCK_AUTH`（凭证域 `core/realms.js` 的 `REALM_LOCK`）：纪元、锁屏密码 / 通行密钥、user handle、challenge、密码 / 临时码 / 进站凭证输错计数、临时钥匙、进站凭证审计（都是 `realm='lock'`），另外恢复开关表 `lock_reset_switch`。
 
 | 迁移 | 内容 |
 |---|---|

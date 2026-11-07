@@ -1,5 +1,5 @@
 /**
- * @fileoverview 分享短链的规则和存储（D1 styrigx-share，绑定 D1_SHARE_LINK；表结构见 migrations/0001_share_links.sql）。
+ * @fileoverview 分享短链的规则和存储（D1 styrigx-space-gateway 的 share_* 表，绑定 D1_SHARE_LINK；表结构见 migrations/0001_baseline.sql）。
  *
  * - 码：16 字节随机数 → 22 位 base64url（128 位），不可枚举。存 D1（临时钥匙页的列表里复制要用），只经 /api/share 的 list 给进门的人看。
  * - 有效期：1–24 小时任选，或 3 / 7 / 15 / 30 天（和网关临时钥匙同一张表；带会话的短链以网关签回的钥匙到期时间为准）。
@@ -78,7 +78,7 @@ export function sessionSeconds(sec, ms) {
   return sec;
 }
 
-/** 目标能指向的主机（https、默认端口）：只有 styrigx.com（旧图志 atlas.styrigx.com 已下线，2026-11 删出白名单，存量短链由 migrations/0002 删除） */
+/** 目标能指向的主机（https、默认端口）：只有 styrigx.com（旧图志 atlas.styrigx.com 已下线，2026-11 删出白名单，存量短链由 migrations-archive/0002 删除） */
 export const TARGET_HOSTS = Object.freeze(['styrigx.com']);
 /** 存目标前去掉的查询参数（锁屏 / 回跳 / 分享自己的参数，带进去会把人送回锁屏或绕圈） */
 export const STRIP_PARAMS = Object.freeze(['lock', 'why', 'return', 'share']);
@@ -127,7 +127,7 @@ export function cleanTarget(to) {
 
 /**
  * 规范化后的目标 → 302 去的完整地址（相对路径接主站）。
- * 存量里不是 / 开头的（只可能是旧图志的完整地址，migrations/0002 已删）不再认，退回主站首页。
+ * 存量里不是 / 开头的（只可能是旧图志的完整地址，migrations-archive/0002 已删）不再认，退回主站首页。
  * @param {string} t
  */
 export function targetUrl(t) {

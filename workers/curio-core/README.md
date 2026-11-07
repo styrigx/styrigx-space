@@ -30,7 +30,7 @@ src/photo-sweep.js   R2 photos/ 清扫
 - D1 `styrigx-curio-core`：`D1_FINDS`（links、cats、imports）、`D1_DEVICES`（devices）、`D1_GAMES`（games），同一个库。
 - R2 `styrigx-curio-core`：`R2_PHOTOS`（icons/、imports/、photos/）。
 - 服务绑定 `AUTH` → `styrigx-auth-gateway` 的 `AuthVerifier`（`conclusion()`：网关验门，再问账号 Worker，回结论）。
-- KV `KV_SEARCH_INDEX`（`styrigx-search-index`，只写 `site:curio`）。
+- KV `KV_SEARCH_INDEX`（`styrigx-space-gateway`，2026-11 前是 `styrigx-search-index`；只写 `site:curio`）。
 - Cron `23 * * * *`。
 
 ## 鉴权（P2-2，方案 3.4 R14、4.6）
