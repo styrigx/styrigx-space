@@ -28,7 +28,7 @@
 | 绑定 | 类型 | 资源 |
 |---|---|---|
 | `AI` | Workers AI | 自营模型：`@cf/google/gemma-4-26b-a4b-it`（Gemma 4，默认）、`@cf/openai/gpt-oss-20b`（GPT-OSS 20B） |
-| `KV_SEARCH_INDEX` | KV（只读） | `styrigx-search-index`，键 `site:space`、`site:blog`、`site:daymark`、`site:curio`；模型登记 `ai:models` |
+| `KV_SEARCH_INDEX` | KV（只读） | `styrigx-space-gateway`（2026-11 前是 `styrigx-search-index`），键 `site:space`、`site:blog`、`site:daymark`、`site:curio`；模型登记 `ai:models` |
 | `SGX_CHAT_API_KEY` | Secrets Store | 外部模型（Gemini）钥匙，原 styrigx-chat 那把，复用，不新建 |
 
 `[vars]`：`AI_MODELS`（模型登记的退路，KV 没有 / 坏时用）、`AI_MAX_TOKENS = "1024"`、`AI_CONTEXT_HITS = "5"`。

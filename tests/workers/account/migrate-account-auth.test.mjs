@@ -485,7 +485,7 @@ test('mergeRow：每条规则只把目标边往更新 / 更严推，从不放宽
 
 test('库 id：正式 = 网关 wrangler 的 D1_LOCK_AUTH + 账号 wrangler 的 D1_ACCOUNT_AUTH（不再兜底 D1_SETTINGS_SYNC）；--preview 只读 [env.preview]（styrigx-test-preview）', async () => {
   const prod = resolveDbIds(ROOT, {});
-  assert.equal(prod.gateway, '6931d1da-3502-480d-b0bd-de1bc4829d1d');
+  assert.equal(prod.gateway, '39d037fe-6ab3-410d-a090-4d7ce8d48d83'); /* 2026-11 合库：网关库换成 styrigx-space-gateway */
   assert.equal(prod.account, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d');
   const pv = resolveDbIds(ROOT, { preview: true });
   assert.deepEqual(pv, { gateway: PREVIEW_DB, account: PREVIEW_DB });
@@ -552,7 +552,7 @@ test('main：--preview 只访问预览库 1339bb0b…；正式两个库各自的
   const G = gatewayDb();
   seed(G);
   const A = accountDb();
-  const cf = await fakeCf({ [PREVIEW_DB]: pv, '6931d1da-3502-480d-b0bd-de1bc4829d1d': G, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d': A });
+  const cf = await fakeCf({ [PREVIEW_DB]: pv, '39d037fe-6ab3-410d-a090-4d7ce8d48d83': G, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d': A });
   try {
     const dry = await runMain(['--preview', '--dry-run'], cf.base);
     assert.equal(dry.code, 0, dry.stderr);
@@ -566,7 +566,7 @@ test('main：--preview 只访问预览库 1339bb0b…；正式两个库各自的
     const bad = await runMain(['--verify'], cf.base);
     assert.equal(bad.code, 1, '正式库还没 apply：verify 失败');
     assert.match(bad.stderr, /mismatch: account-epoch \(marker missing/);
-    assert.deepEqual([...new Set(cf.seen)].sort(), ['03f60d23-9c2f-4f3d-a692-764ccaac6f5d', '6931d1da-3502-480d-b0bd-de1bc4829d1d']);
+    assert.deepEqual([...new Set(cf.seen)].sort(), ['03f60d23-9c2f-4f3d-a692-764ccaac6f5d', '39d037fe-6ab3-410d-a090-4d7ce8d48d83']);
     for (const v of ['ACCTHASH', 'PUBX', 'HANDLE']) assert.ok(!(bad.stdout + bad.stderr).includes(v), v);
     assert.equal((await runMain([], cf.base)).code, 0);
     assert.equal((await runMain(['--verify'], cf.base)).code, 0);

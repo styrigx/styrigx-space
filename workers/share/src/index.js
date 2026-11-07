@@ -4,7 +4,7 @@
  * - GET / HEAD /s/<码>（谁都能开）：open.js —— 普通短链只 302；带临时会话的请网关签临时会话后 302（去掉码）
  * - POST /api/share（进门；生成 / 作废另要锁侧复验，由网关 ShareIssuer 验）：api/share.js —— 列表 / 生成 / 作废
  *   只收同源请求（合并 PR3 起各站都在 styrigx.com 下）：不回任何 CORS 头；OPTIONS 预检在门之前一律 403（不查会话）
- * 数据：D1 styrigx-share（绑定 D1_SHARE_LINK，migrations/）。不持任何钥匙、不绑认证库：
+ * 数据：D1 styrigx-space-gateway 里的 share_* 表（绑定 D1_SHARE_LINK，migrations/；2026-11 合库前是独立库 styrigx-share）。不持任何钥匙、不绑认证库：
  * - 会话判断问网关 AuthVerifier（服务绑定 AUTH，和账号 Worker 同一份 auth.js）
  * - 签 / 作废短链钥匙、换临时会话问网关 ShareIssuer（服务绑定 ISSUER）；临时钥匙和会话的逻辑只在网关里一份
  * 路由（wrangler.toml）：styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体。

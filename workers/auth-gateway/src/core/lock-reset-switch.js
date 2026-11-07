@@ -2,7 +2,7 @@
  * 2.11 补充：恢复开关（D1 lock_reset_switch 表，绑定 D1_LOCK_AUTH；2026-10-27 起开关本身也在 D1，不再读 KV lock-reset-switch）。
  * 表名：账号拆分方案 9.4 起叫 lock_reset_switch（迁移 migrations/0008_lock_reset_switch.sql；以前叫 recovery_switch，本模块不再读写旧表）。
  *
- * - 打开开关：Sloan 在 Cloudflare 后台 D1 styrigx-auth-gateway 的控制台手动插一行「还没见过」的开关：
+ * - 打开开关：Sloan 在 Cloudflare 后台 D1 styrigx-space-gateway 的控制台手动插一行「还没见过」的开关：
  *     INSERT INTO lock_reset_switch (hash, first_seen, used) VALUES (lower(hex(randomblob(16))), 0, 0);
  *   hash 只是这一行的随机编号（以前是 KV 开关值的 SHA-256；旧行原样留着，都已用过或过期，不会再生效）。代码永不插入开关。
  * - 首次见到计时：服务端第一次读到 first_seen = 0 的行，原子写入首次时间（UPDATE ... WHERE first_seen = 0）；

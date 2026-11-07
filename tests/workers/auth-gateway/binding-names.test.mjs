@@ -41,8 +41,8 @@ test('鉴权网关正式只绑 D1_LOCK_AUTH；Pages 预览（组合入口）另�
     assert.deepEqual(d1.slice().sort(), AUTH[p].slice().sort(), p + '：D1 绑定恰好是这几个');
     for (const n of AUTH[p]) assert.equal(m[n], m.D1_LOCK_AUTH, p + '：' + n + ' 与 D1_LOCK_AUTH 同一个库');
     assert.equal(m.D1_ROOT_AUTH, undefined, p + '：D1_ROOT_AUTH 已删（根域并入锁屏域）');
-    /* 正式 = styrigx-auth-gateway；Pages 预览 = 所有 Worker 预览共用的测试库 styrigx-test-preview（2026-10-29） */
-    const dbName = p === 'space/web/wrangler.toml' ? 'styrigx-test-preview' : 'styrigx-auth-gateway';
+    /* 正式 = 主站共用库 styrigx-space-gateway（2026-11 合库，前身 styrigx-auth-gateway）；Pages 预览 = 所有 Worker 预览共用的测试库 styrigx-test-preview（2026-10-29） */
+    const dbName = p === 'space/web/wrangler.toml' ? 'styrigx-test-preview' : 'styrigx-space-gateway';
     assert.match(src, new RegExp('^database_name = "' + dbName + '"$', 'm'), p);
     for (const db of src.match(/^database_name = ".*"$/gm) || []) assert.equal(db, 'database_name = "' + dbName + '"', p + ' ' + db);
     /* 没有 KV：不绑 kv_namespaces，也没有任何 KV_* 绑定名 */
@@ -116,9 +116,12 @@ test('预览统一用测试资源（2026-10-29）：网关 / 账号 / 短链的�
     const t = [...tbl][0];
     assert.ok(!tables.has(t), p + '：迁移记录表 ' + t + ' 和别的 Worker 重了');
     tables.add(t);
-    /* 正式块不动：不出现测试库，也不改迁移记录表（改了会让正式库把迁移重跑一遍） */
-    assert.ok(!prod.split(/^\[env\.preview\]$/m)[0].includes(TEST_D1), p + '：正式不许指向测试库');
-    assert.doesNotMatch(prod.split(/^\[env\.preview\]$/m)[0], /^migrations_table = /m, p + '：正式不设 migrations_table');
+    /* 正式块：不出现测试库。迁移记录表：账号（独立库 styrigx-account）不设；网关 / 短链在主站共用库 styrigx-space-gateway 里各用各的（2026-11 合库） */
+    const prodTop = prod.split(/^\[env\.preview\]$/m)[0];
+    assert.ok(!prodTop.includes(TEST_D1), p + '：正式不许指向测试库');
+    const wantProdTable = { 'space/web/wrangler.toml': 'd1_migrations_gateway', 'workers/account/wrangler.toml': null, 'workers/share/wrangler.toml': 'd1_migrations_share' }[p];
+    if (wantProdTable) assert.match(prodTop, new RegExp('^migrations_table = "' + wantProdTable + '"$', 'm'), p);
+    else assert.doesNotMatch(prodTop, /^migrations_table = /m, p + '：正式不设 migrations_table');
   }
   /* 旧的预览资源一个都不许再出现（代码里，注释也不许） */
   for (const p of Object.keys(files).concat(['.github/workflows/deploy.yml'])) {
@@ -133,4 +136,41 @@ test('预览统一用测试资源（2026-10-29）：网关 / 账号 / 短链的�
     assert.ok(step.includes('(cd ../../workers/' + d + ' && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)'), d);
   }
   for (const t of tables) assert.ok(step.includes('FROM ' + t + ' '), 'CI 列出 ' + t);
+});
+
+test('主站数据一套 styrigx-space-gateway（2026-11 合库）：网关 / 短链 / 监测各自独立、D1 同一个库、迁移记录表各一张；搜索索引 KV 同名一套；账号 D1 / KV 不动', () => {
+  const SPACE_D1 = '39d037fe-6ab3-410d-a090-4d7ce8d48d83';
+  const SPACE_KV = '608cf3e27184481cbca2922950506d87';
+  const top = (p) => code(read(p)).split(/^\[env\.preview\]$/m)[0];
+  const want = { 'workers/auth-gateway/wrangler.toml': ['D1_LOCK_AUTH', 'd1_migrations_gateway'],
+    'workers/share/wrangler.toml': ['D1_SHARE_LINK', 'd1_migrations_share'],
+    'workers/status/wrangler.toml': ['D1_UPTIME_MONITOR', 'd1_migrations_status'] };
+  const tables = new Set();
+  for (const [p, [first, table]] of Object.entries(want)) {
+    const src = top(p);
+    for (const db of src.match(/^database_name = ".*"$/gm)) assert.equal(db, 'database_name = "styrigx-space-gateway"', p);
+    for (const id of src.match(/^database_id = ".*"$/gm)) assert.equal(id, 'database_id = "' + SPACE_D1 + '"', p);
+    const blk = src.split(/\n(?=\[\[)/).find((b) => new RegExp('^binding = "' + first + '"', 'm').test(b));
+    assert.match(blk, new RegExp('^migrations_dir = "migrations"\nmigrations_table = "' + table + '"$', 'm'), p);
+    assert.equal((src.match(/^migrations_table = /gm) || []).length, 1, p);
+    assert.ok(!tables.has(table)); tables.add(table);
+  }
+  /* 旧库 id 不再出现在任何绑定里 */
+  for (const p of Object.keys(want)) assert.doesNotMatch(code(read(p)), /6931d1da-3502-480d-b0bd-de1bc4829d1d|59bddcea-17cb-466a-90c9-16606d5b4b7e|31970da7-4b8f-4180-ad93-c170649188dc/, p);
+  /* 搜索索引 KV：读的 ai 和写的 curio-core / daymark-core 一起换到 styrigx-space-gateway（只换一边会读写两个命名空间） */
+  for (const p of ['workers/ai/wrangler.toml', 'workers/curio-core/wrangler.toml', 'workers/daymark-core/wrangler.toml']) {
+    assert.equal(bindings(code(read(p))).KV_SEARCH_INDEX, SPACE_KV, p);
+    assert.doesNotMatch(code(read(p)), /bd1babcc3fe74d58994e254c74d34ced/, p);
+  }
+  /* 账号独立：D1 styrigx-account、KV_PROFILE 不动 */
+  const acct = top('workers/account/wrangler.toml');
+  assert.doesNotMatch(acct, new RegExp(SPACE_D1 + '|' + SPACE_KV + '|styrigx-space-gateway'));
+  assert.equal(bindings(acct).D1_ACCOUNT_AUTH, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d');
+  assert.equal(bindings(acct).KV_PROFILE, 'b20701f5f48e498e897bc6f0bd81643f');
+  /* 同一个库里三套表不重名（网关原表名、share_*、status_*） */
+  const names = (dir) => [...readFileSync(new URL('../../../' + dir, import.meta.url), 'utf8').matchAll(/CREATE (?:UNIQUE )?(?:TABLE|INDEX) IF NOT EXISTS (\w+)/g)].map((m) => m[1]);
+  const share = names('workers/share/migrations/0001_baseline.sql');
+  const status = names('workers/status/migrations/0001_baseline.sql');
+  assert.ok(share.every((n) => n.startsWith('share_')), share.join(','));
+  assert.ok(status.every((n) => n.startsWith('status_')), status.join(','));
 });

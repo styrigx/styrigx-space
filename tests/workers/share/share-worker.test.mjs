@@ -16,7 +16,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { shareD1, HAS_SQLITE } from '../../fixtures/share-d1.mjs';
 import { testLockSession, testTicket } from '../auth-gateway/_tickets.mjs';
 import { makeAuthD1, genKeyPair } from '../_harness.mjs';
@@ -190,7 +190,9 @@ test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由�
   assert.match(t, /binding = "AUTH"\nservice = "styrigx-auth-gateway"\nentrypoint = "AuthVerifier"/);
   assert.match(t, /binding = "ISSUER"\nservice = "styrigx-auth-gateway"\nentrypoint = "ShareIssuer"/);
   assert.doesNotMatch(t, /ACCOUNT_VERIFIER|AccountVerifier|service = "styrigx-account"/, '短链只认锁屏进门会话，正式和 preview 都不绑账号 Worker');
-  assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-share"\n/);
+  /* 正式 D1 = 主站共用库 styrigx-space-gateway（2026-11 合库；网关 / 短链 / 监测各自的迁移记录表） */
+  assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-space-gateway"\ndatabase_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"\nmigrations_dir = "migrations"\nmigrations_table = "d1_migrations_share"\n/);
+  assert.doesNotMatch(t, /database_name = "styrigx-share"|59bddcea-17cb-466a-90c9-16606d5b4b7e/, '旧库 styrigx-share 不再绑定');
   assert.match(t, /\[env\.preview\]\nname = "styrigx-share-preview"\nworkers_dev = false\npreview_urls = false\nroutes = \[\]/);
   /* 预览 D1 = 所有 Worker 预览共用的测试库（2026-10-29）；共库所以迁移记录表单独用 d1_migrations_share */
   assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-test-preview"\ndatabase_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"\nmigrations_dir = "migrations"\nmigrations_table = "d1_migrations_share"\n/);
@@ -721,14 +723,22 @@ test('安全头：/s/<码> 失败跳转保留 Referrer-Policy: no-referrer，其
   assert.equal(pre.headers.get('Strict-Transport-Security'), SECH.HSTS);
 });
 
-test('migrations/0002：只删目标指向 atlas.styrigx.com 的存量短链，其余不动', { skip: !HAS_SQLITE }, async () => {
+test('migrations/0001_baseline：只建 share_link / share_fail 和索引，没有种子 / 删数据；旧迁移只在 migrations-archive/ 留史；src 不兜底建表', { skip: !HAS_SQLITE }, async () => {
   const { DatabaseSync } = await import('node:sqlite');
+  assert.deepEqual(readdirSync(REPO + 'workers/share/migrations').sort(), ['0001_baseline.sql']);
+  assert.deepEqual(readdirSync(REPO + 'workers/share/migrations-archive').sort(), ['0001_share_links.sql', '0002_drop_atlas_targets.sql']);
+  const sql = readFileSync(REPO + 'workers/share/migrations/0001_baseline.sql', 'utf8').replace(/--[^\n]*/g, '');
+  assert.doesNotMatch(sql, /\b(INSERT|DELETE|DROP|UPDATE|ALTER)\b/i);
   const db = new DatabaseSync(':memory:');
-  const mig = REPO + 'workers/share/migrations/';
-  db.exec(readFileSync(mig + '0001_share_links.sql', 'utf8'));
-  const ins = db.prepare('INSERT INTO share_link (id, code, target, created_at, expires_at) VALUES (?, ?, ?, 1, 2)');
-  const targets = ['/', '/blog/post/a/', 'https://atlas.styrigx.com/blog/post/x/', 'https://atlas.styrigx.com/', 'https://atlas.styrigx.com'];
-  targets.forEach((t, i) => ins.run('id' + i, 'code' + i, t));
-  db.exec(readFileSync(mig + '0002_drop_atlas_targets.sql', 'utf8'));
-  assert.deepEqual(db.prepare('SELECT target FROM share_link ORDER BY id').all().map((r) => r.target), ['/', '/blog/post/a/']);
+  db.exec(sql);
+  assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name),
+    ['share_fail', 'share_link', 'share_link_created']);
+  /* 基线 = 旧库跑完 0001–0002 的表结构（逐列一致：搬来的行原样插得进） */
+  const old = new DatabaseSync(':memory:');
+  for (const f of ['0001_share_links.sql', '0002_drop_atlas_targets.sql']) old.exec(readFileSync(REPO + 'workers/share/migrations-archive/' + f, 'utf8'));
+  const cols = (d, t) => d.prepare('PRAGMA table_info(' + t + ')').all().map((c) => [c.name, c.type, c.notnull, c.dflt_value, c.pk].join('|'));
+  for (const t of ['share_link', 'share_fail']) assert.deepEqual(cols(db, t), cols(old, t), t);
+  /* 表只由迁移建：代码不兜底（库是主站共用的 styrigx-space-gateway，悄悄建空表会掩盖没搬数据） */
+  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(d + e.name + '/') : [d + e.name]);
+  for (const f of walk(REPO + 'workers/share/src/')) assert.doesNotMatch(readFileSync(f, 'utf8'), /\b(CREATE|DROP)\s+(TABLE|INDEX)\b/i, f);
 });

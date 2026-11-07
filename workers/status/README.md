@@ -22,8 +22,8 @@
 
 | 绑定 | 类型 | 资源 |
 |---|---|---|
-| `D1_UPTIME_MONITOR` | D1 | `styrigx-status`（检查记录、故障、状态） |
-| `D1_CLOUDFLARE_USAGE` | D1 | 同一个库 `styrigx-status`（用量快照、额度缓存） |
+| `D1_UPTIME_MONITOR` | D1 | `styrigx-space-gateway` 的 `status_checks` / `status_state` / `status_hourly` / `status_daily` / `status_incidents`（检查记录、故障、状态） |
+| `D1_CLOUDFLARE_USAGE` | D1 | 同一个库的 `status_usage` / `status_quota`（用量快照、额度缓存） |
 | `AI_SERVICE` | 服务绑定 | `styrigx-ai`，测它的 `/healthz`（P4-2 起取代 `SEARCH` / `CHAT`） |
 
 `wrangler.toml` 还开了 `compatibility_flags = ["global_fetch_strictly_public"]` 和 `placement.mode = "smart"`。
@@ -37,14 +37,15 @@
 
 ## 数据与迁移
 
-D1 `styrigx-status`，迁移在 `migrations/`，部署 job `deploy-status-worker` 先跑 `d1 migrations apply styrigx-status --remote` 再部署：
+2026-11 D1 合库起，数据在主站共用的 D1 `styrigx-space-gateway`（网关、短链、监测三个 Worker 各自独立、共用一个库；账号 `styrigx-account` 仍单独）。
+本 Worker 的表一律带 `status_` 前缀，迁移记录表 `d1_migrations_status`。部署 job `deploy-status-worker` 先在 `workers/status` 跑
+`d1 migrations apply styrigx-space-gateway --remote`，再核对搬迁标记（`d1_cutover` 里有 `status`），再部署。
 
 | 迁移 | 内容 |
 |---|---|
-| `0001_init.sql` | 初始表：`checks`（每次检查一行，留 7 天）、`daily`、`state`、`incidents` |
-| `0002_usage.sql` | 用量快照表 `usage`（一行） |
-| `0003_cut_reads.sql` | 降低 D1 读取量：`state` 记下这一串失败的第一次时间，加 `hourly` 表 |
-| `0004_quota.sql` | 免费额度缓存表 `quota`（一行） |
-| `0005_retire_sites.sql` | 删除不在 `space` / `proxy-rules` / `ai` 里的站点（blog / curio / daymark / atlas / book / muse-invite / search / chat）在 `checks`、`daily`、`hourly`、`state`、`incidents` 里的历史 |
+| `migrations/0001_baseline.sql` | 基线：`status_checks`（每次检查一行，留 7 天）、`status_daily`、`status_hourly`、`status_state`、`status_incidents`、`status_usage`（一行）、`status_quota`（一行）及索引 `status_checks_at`、`status_incidents_site` |
+
+旧库 `styrigx-status` 的迁移历史（0001_init … 0005_retire_sites）移到 `migrations-archive/`，只留史、不再跑；存量数据由
+`.github/workflows/d1-cutover.yml` 一次性搬进新库（表名加 `status_`），旧库合并稳定后删除（删前 Gray 确认）。
 
 部署排在 AI Worker（`deploy-ai-worker`）之后、网关之前；部署后的健康闸门见 `space/scripts/health-gate.mjs`。测试：`tests/workers/status/`。

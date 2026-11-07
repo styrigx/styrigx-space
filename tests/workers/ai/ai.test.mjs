@@ -379,7 +379,7 @@ test('wrangler.toml：没有公开地址、绑定 AI、只读索引、外部模�
   assert.equal(reg.def, '@cf/google/gemma-4-26b-a4b-it');
   assert.deepEqual(reg.models.map((m) => [m.id, m.provider]), [['@cf/google/gemma-4-26b-a4b-it', 'workers-ai'], ['@cf/openai/gpt-oss-20b', 'workers-ai'], ['gemini-2.5-flash', 'gemini']]);
   assert.match(toml, /\[ai\]\s*\nbinding = "AI"/);
-  assert.match(toml, /binding = "KV_SEARCH_INDEX"\s*\nid = "bd1babcc3fe74d58994e254c74d34ced"/);
+  assert.match(toml, /binding = "KV_SEARCH_INDEX"\s*\nid = "608cf3e27184481cbca2922950506d87"/);
   for (const v of ['AI_MODELS', 'AI_MAX_TOKENS = "1024"', 'AI_CONTEXT_HITS = "5"']) assert.ok(toml.includes(v), v);
   const idx = readFileSync(new URL(W + 'index.js', import.meta.url), 'utf8');
   assert.match(idx, /export \{ default \} from '\.\/app\.js';/);

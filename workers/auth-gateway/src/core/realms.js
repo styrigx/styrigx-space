@@ -9,7 +9,7 @@
  * - SpaceKey：进站凭证（SGX_LOCK_SPACE_KEY）：只用来比对，验过后签 LockReauthTicket / LockResetTicket，不拥有会话
  * - LockKey：「安全与隐私 → 锁屏凭证」里存放的钥匙（解锁密码、锁屏通行密钥）
  *
- * 存储：D1 styrigx-auth-gateway，只经 D1_LOCK_AUTH 读写 realm='lock' 的行和恢复开关表 lock_reset_switch
+ * 存储：D1 styrigx-space-gateway，只经 D1_LOCK_AUTH 读写 realm='lock' 的行和恢复开关表 lock_reset_switch
  * （方案 9.4 由 recovery_switch 改名；旧表已在 PR4 由 space/scripts/migrate-account-auth.mjs --cleanup --confirm DROP，预览库走 migrations/0009）。
  * 表见 migrations/0005_lock_account_state.sql、0006_auth_state.sql、0008_lock_reset_switch.sql（读写入口 d1-state.js 与各 core/ 模块）。
  * 进站凭证的限速（attempt_limit kind='spacekey'）和审计（audit）也是 realm='lock' 的行。
