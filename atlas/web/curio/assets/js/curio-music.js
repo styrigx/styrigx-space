@@ -72,28 +72,57 @@ function audioType(file){
 /** 歌词文件对上曲目：同名（去扩展名、去曲序前缀后比，忽略大小写） */
 function lrcKey(name){ return trackFromName(name, 0).title.toLowerCase(); }
 
-var pure = { SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey };
+
+/* ---------- 文案表（语言包化第二部分 2026-11-07；curio / daymark 各脚本同一份小工具） ---------- */
+/** 页面里 #sgx-i18n-<表> 的扁平字典；没有 / 坏了返回 {} */
+function readDict(doc, table){
+  try {
+    var el = doc && doc.getElementById('sgx-i18n-' + table);
+    var o = el && el.textContent ? JSON.parse(el.textContent) : null;
+    return o && typeof o === 'object' ? o : {};
+  } catch (e) { return {}; }
+}
+/**
+ * 字典 → tr(键, 变量)：{名} 占位替换；变量里有数字 n 时先按 Intl.PluralRules(lang) 找「键_one」这类复数形式，没有就用键本身；缺键返回 ''。
+ * 语言自己的规则（英文 1 link / 2 links，中文不分）都在字符串表里，脚本不分语言。
+ */
+function makeTr(dict, lang){
+  /* 先拷一份原始文案：调用方会把带数字的键改挂成函数（T.count = function(n){ return tr('count', …) }），
+     tr 若直接读同一个字典，拿到的就是那个函数而不是「{n} 条」 */
+  var src = {};
+  for (var k0 in dict) if (Object.prototype.hasOwnProperty.call(dict, k0)) src[k0] = dict[k0];
+  var pr = null;
+  try { pr = new Intl.PluralRules(lang || 'en'); } catch (e) { pr = null; }
+  return function tr(key, vars){
+    var s = null;
+    if (vars && typeof vars.n === 'number' && pr) s = src[key + '_' + pr.select(vars.n)];
+    if (s == null) s = src[key];
+    s = s == null ? '' : String(s);
+    if (vars) for (var k in vars) s = s.split('{' + k + '}').join(String(vars[k]));
+    return s;
+  };
+}
+
+var pure = { readDict: readDict, makeTr: makeTr, SPEEDS: SPEEDS, TRACK_MAX: TRACK_MAX, nextSpeed: nextSpeed, fmtTime: fmtTime, parseLrc: parseLrc, lrcIndex: lrcIndex, trackFromName: trackFromName, sortByName: sortByName, audioType: audioType, lrcKey: lrcKey };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxCurioMusic = pure;
 
 var doc = G.document;
 if (!doc.getElementById('cu-pane-music')) return;
-var isEn = doc.documentElement.lang === 'en';
 var UI = G.SgxCurioUI;
 var $ = function(s){ return doc.querySelector(s); };
-var T = isEn ? {
-  tracks: function(n){ return n + (n === 1 ? ' track' : ' tracks'); }, failed: 'Something went wrong. Please try again.', saved: 'Uploaded.', deleted: 'Deleted.',
-  needName: 'Give the album a name.', needAudio: 'Choose at least one audio file.', tooBig: function(n){ return n + ' is over 95 MB.'; }, badType: function(n){ return n + ' isn\'t an audio file we take.'; },
-  up: function(i, n, name){ return 'Uploading ' + i + ' of ' + n + ': ' + name; }, cover: 'Uploading the cover…', lyrics: 'Adding lyrics…', partial: function(n){ return n + ' file(s) didn\'t upload.'; },
-  delAlbum: 'Delete this album and its files?', del: 'Delete', choose: 'Choose tracks', chosen: function(n){ return n + (n === 1 ? ' file' : ' files'); }, coverNone: 'Cover (optional)', lrcNone: 'Lyrics .lrc (optional, matched by file name)',
-  play: 'Play', pause: 'Pause', speed: function(s){ return 'Speed ' + s + '×'; }
-} : {
-  tracks: function(n){ return n + ' 首'; }, failed: '出了点问题，请再试一次。', saved: '已上传', deleted: '已删除',
-  needName: '填一下专辑名。', needAudio: '至少选一个音频文件。', tooBig: function(n){ return n + ' 超过 95 MB 了。'; }, badType: function(n){ return n + ' 不是能用的音频。'; },
-  up: function(i, n, name){ return '正在上传 ' + i + '/' + n + '：' + name; }, cover: '正在上传封面…', lyrics: '正在写入歌词…', partial: function(n){ return '有 ' + n + ' 个文件没传上去。'; },
-  delAlbum: '确定删除这张专辑（连同音频文件）吗？', del: '删除', choose: '选音频（可多选）', chosen: function(n){ return '已选 ' + n + ' 个'; }, coverNone: '封面（可选）', lrcNone: '歌词 .lrc（可选，按文件名对上曲目）',
-  play: '播放', pause: '暂停', speed: function(s){ return '倍速 ' + s + '×'; }
-};
+/* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-curioMusic，模板从字符串表 data/i18n/<语言>.yaml 的 js.curioMusic 输出，
+   已经是「英文表 ← 页面语言表」的合并（缺键回退英文）；本文件不再认识任何语言。带数字的文案走 tr（复数按 Intl.PluralRules）。 */
+var lang = doc.documentElement.lang || 'en';
+var T = readDict(doc, 'curioMusic');
+var tr = makeTr(T, lang);
+T.tracks = function(n){ return tr('tracks', { n: n }); };
+T.tooBig = function(name){ return tr('tooBig', { name: name }); };
+T.badType = function(name){ return tr('badType', { name: name }); };
+T.up = function(i, n, name){ return tr('up', { i: i, n: n, name: name }); };
+T.partial = function(n){ return tr('partial', { n: n }); };
+T.chosen = function(n){ return tr('chosen', { n: n }); };
+T.speed = function(s){ return tr('speed', { s: s }); };
 var NOTE = '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>';
 
 var albums = [], cur = 0, coverVer = 0;

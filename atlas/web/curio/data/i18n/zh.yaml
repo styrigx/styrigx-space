@@ -160,3 +160,153 @@ curioItemView:
   close: 关闭
 curioSignin:
   signInToYour: 登录账号后可编辑
+js:
+  curio:
+    all: 全部
+    add: 收藏
+    edit: 编辑
+    saved: 已保存
+    deleted: 已删除
+    failed: 出了点问题，请再试一次。
+    needUrl: 填一个有效的网址。
+    needName: 起个名字。
+    needCat: 选一个分类。
+    dup: 这个网址已经收藏过了。
+    priv: 仅自己可见
+    emptyAdmin: 还没有收藏。点「收藏」，或者导入浏览器书签。
+    emptyVisitor: 这里还空着。
+    noMatch: 没有找到。
+    filling: 正在读取…
+    fillFail: 读不到这个网页，手动填一下吧。
+    delLink: 确定删除这条收藏吗？
+    delCat: 确定删除这个分类吗？
+    notEmpty: 先把分类清空。
+    del: 删除
+    importing: 正在导入…
+    notBookmarks: 这不是书签文件。
+    emptyFile: 文件里没有网址。
+    tooLarge: 文件太大了。
+    limit: 超出上限了。
+    backup: 备份原文件失败，所以没有导入。
+    count: '{n} 条'
+    makePrivate: 仅自己可见
+    makePublic: 公开
+    up: 上移
+    down: 下移
+    needAccount: 登录账号后可编辑。
+    needReauth: 导入前要再验证一次账号：打开 账号 › 安全与隐私 验证后，3 分钟内回来导入。
+    signin: 登录账号后可编辑
+    noScope: 奇趣未获账号授权
+    noScopeErr: 奇趣未获账号授权。
+    verifyNow: 去验证
+    impAdded: 新增 {n} 条
+    impCats: 、{n} 个分类
+    impSkipped: ，{n} 条已经有了
+    impEnd: 。
+  curioItems:
+    all: 全部
+    active: 在用
+    retired: 已退役
+    kind_phone: 手机
+    kind_tablet: 平板
+    kind_laptop: 笔记本
+    kind_desktop: 台式机
+    kind_watch: 手表
+    kind_audio: 耳机音箱
+    kind_console: 游戏机
+    kind_camera: 相机
+    kind_other: 其他
+    status_want: 想玩
+    status_playing: 在玩
+    status_done: 通关
+    status_shelved: 搁置
+    addDevice: 添加设备
+    editDevice: 编辑设备
+    addGame: 添加游戏
+    editGame: 编辑游戏
+    emptyDevAdmin: 还没有设备。点「设备」添加第一台。
+    emptyGameAdmin: 还没有游戏。点「游戏」添加。
+    empty: 这里还空着。
+    noMatch: 这个筛选下没有。
+    needName: 起个名字。
+    needAccount: 登录账号后可编辑。
+    noScope: 奇趣未获账号授权。
+    badDate: 日期不对，检查一下。
+    failed: 出了点问题，请再试一次。
+    saved: 已保存
+    deleted: 已删除
+    photoFail: 已保存，但照片没传上去。
+    notImage: 这张图用不了。
+    tooLarge: 照片太大了。
+    delDevice: 确定删除这台设备吗？
+    delGame: 确定删除这个游戏吗？
+    del: 删除
+    none: 无
+    priv: 仅自己可见
+    used: 已经用了
+    usedFor: 用了
+    bought: 购买
+    retiredOn: 退役
+    os: 系统
+    specs: 参数
+    acc: 配件
+    notes: 体验
+    from: 换下了
+    to: 换成了
+    platform: 平台
+    'on': 在哪台上玩
+    edition: 版本
+    rating: 评分
+    review: 评价
+    stars: '{n} 星'
+    crop: 移动和缩放
+    cancel: 取消
+    done: 完成
+    adjust: 调整照片
+    games: 游戏
+    listSep: 、
+    days: '{n} 天'
+    aboutYears: ' · 约 {y} 年'
+  curioMovies:
+    add: 添加电影
+    edit: 编辑电影
+    empty: 这里还空着。
+    emptyAdmin: 还没有电影。点「电影」添加第一部。
+    needTitle: 填一下片名。
+    badYear: 年份不对，检查一下。
+    badDate: 日期不对，检查一下。
+    saved: 已保存
+    deleted: 已删除
+    failed: 出了点问题，请再试一次。
+    photoFail: 已保存，但海报没传上去。
+    del: 删除
+    delMovie: 确定删除这部电影吗？
+    original: 原名
+    year: 年份
+    director: 导演
+    watched: 观看日期
+    rating: 我的评分
+    review: 短评
+    stars: '{n} 星'
+  curioMusic:
+    tracks: '{n} 首'
+    failed: 出了点问题，请再试一次。
+    saved: 已上传
+    deleted: 已删除
+    needName: 填一下专辑名。
+    needAudio: 至少选一个音频文件。
+    tooBig: '{name} 超过 95 MB 了。'
+    badType: '{name} 不是能用的音频。'
+    up: 正在上传 {i}/{n}：{name}
+    cover: 正在上传封面…
+    lyrics: 正在写入歌词…
+    partial: 有 {n} 个文件没传上去。
+    delAlbum: 确定删除这张专辑（连同音频文件）吗？
+    del: 删除
+    choose: 选音频（可多选）
+    chosen: 已选 {n} 个
+    coverNone: 封面（可选）
+    lrcNone: 歌词 .lrc（可选，按文件名对上曲目）
+    play: 播放
+    pause: 暂停
+    speed: 倍速 {s}×

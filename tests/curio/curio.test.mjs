@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync } from 'node:fs';
+import { strings } from '../fixtures/strings.mjs';
 
 const require = createRequire(import.meta.url);
 const C = require('../../atlas/web/curio/assets/js/curio.js');
@@ -19,12 +20,46 @@ const CATS = [
   ] },
 ];
 
-test('pick：当前语言为空就用另一种', () => {
-  assert.equal(C.pick({ zh: '开发', en: 'Dev' }, false), '开发');
-  assert.equal(C.pick({ zh: '开发', en: 'Dev' }, true), 'Dev');
-  assert.equal(C.pick({ zh: '', en: 'Only EN' }, false), 'Only EN');
-  assert.equal(C.pick({ zh: '只有中文', en: '' }, true), '只有中文');
-  assert.equal(C.pick(null, false), '');
+/** 页面实际拿到的 js.<表>（英文表 ← 该语言表）配 makeTr，同页面里的 tr */
+const trOf = (table, lang) => C.makeTr(strings('curio', lang).js[table], lang);
+
+test('pick：内容（收藏名 / 简介）取页面语言那份，空就先英文、再随便哪份有字的', () => {
+  assert.equal(C.pick({ zh: '开发', en: 'Dev' }, 'zh'), '开发');
+  assert.equal(C.pick({ zh: '开发', en: 'Dev' }, 'en'), 'Dev');
+  assert.equal(C.pick({ zh: '', en: 'Only EN' }, 'zh'), 'Only EN');
+  assert.equal(C.pick({ zh: '只有中文', en: '' }, 'en'), '只有中文');
+  assert.equal(C.pick({ zh: '开发', en: 'Dev' }, 'fr'), 'Dev', '没有这一列的语言 = 英文');
+  assert.equal(C.pick(null, 'zh'), '');
+});
+
+test('contentLangs / contentPair：编辑弹层主输入框跟页面语言，没有那列的语言按英文', () => {
+  assert.deepEqual(C.contentLangs('zh'), ['zh', 'en']);
+  assert.deepEqual(C.contentLangs('en'), ['en', 'zh']);
+  assert.deepEqual(C.contentLangs('fr'), ['en', 'zh']);
+  assert.deepEqual(C.contentPair('zh', '甲', 'A'), { zh: '甲', en: 'A' });
+  assert.deepEqual(C.contentPair('en', 'A', '甲'), { en: 'A', zh: '甲' });
+});
+
+test('makeTr：占位替换、复数按 Intl.PluralRules（键_one 只英文有，中文回退键本身）、缺键返回空', () => {
+  const en = trOf('curio', 'en'), zh = trOf('curio', 'zh');
+  assert.equal(en('count', { n: 1 }), '1 link');
+  assert.equal(en('count', { n: 3 }), '3 links');
+  assert.equal(zh('count', { n: 1 }), '1 条');
+  assert.equal(en('nope'), '');
+  /* 没有语言包的语言整份回退英文 */
+  assert.equal(C.makeTr(strings('curio', 'fr').js.curio, 'fr')('count', { n: 2 }), '2 links');
+});
+
+test('makeTr：页面把带数字的键改挂成函数（T.tracks = function(n){ return tr(\'tracks\', …) }）后，tr 仍读原始文案（四个脚本同一份）', () => {
+  for (const f of ['curio.js', 'curio-items.js', 'curio-movies.js', 'curio-music.js']) {
+    const M = require('../../atlas/web/curio/assets/js/' + f);
+    const T = { tracks: '{n} 首', chosen: '已选 {n} 个' };
+    const tr = M.makeTr(T, 'zh');
+    T.tracks = function (n) { return tr('tracks', { n: n }); };
+    T.chosen = function (n) { return tr('chosen', { n: n }); };
+    assert.equal(T.tracks(2), '2 首', f);
+    assert.equal(T.chosen(3), '已选 3 个', f);
+  }
 });
 
 test('hostOf / initial：去 www、首字大写', () => {
@@ -69,9 +104,10 @@ test('normalizeUrl：没写协议补 https；只收 http(s)', () => {
   assert.equal(C.normalizeUrl(''), '');
 });
 
-test('importSummary：中英文', () => {
-  assert.equal(C.importSummary({ added: 12, cats_added: 2, skipped: 3 }, false), '新增 12 条、2 个分类，3 条已经有了。');
-  assert.equal(C.importSummary({ added: 1, cats_added: 0, skipped: 0 }, true), 'Added 1 link.');
+test('importSummary：文案走字符串表 js.curio.imp*，复数按语言', () => {
+  assert.equal(C.importSummary({ added: 12, cats_added: 2, skipped: 3 }, trOf('curio', 'zh')), '新增 12 条、2 个分类，3 条已经有了。');
+  assert.equal(C.importSummary({ added: 1, cats_added: 0, skipped: 0 }, trOf('curio', 'en')), 'Added 1 link.');
+  assert.equal(C.importSummary({ added: 2, cats_added: 1, skipped: 4 }, trOf('curio', 'en')), 'Added 2 links, 1 new category; 4 already here.');
 });
 
 /* ===== 设备 / 游戏（curio-items.js）、首页（curio-home.js）、电影（curio-movies.js）、音乐（curio-music.js） ===== */
@@ -95,10 +131,12 @@ test('usedDays：购买当天算第 1 天，退役了算到退役日；没填 / 
   assert.equal(IT.usedDays('2025-10-22', '', '2026-10-22'), 366);
   assert.equal(IT.usedDays('', '', '2026-10-22'), null);
   assert.equal(IT.usedDays('2026-10-23', '', '2026-10-22'), null);
-  assert.equal(IT.daysText(30, false), '30 天');
-  assert.equal(IT.daysText(731, false), '731 天 · 约 2 年');
-  assert.equal(IT.daysText(1, true), '1 day');
-  assert.equal(IT.daysText(400, true), '400 days · about 1.1 years');
+  const itZh = IT.makeTr(strings('curio', 'zh').js.curioItems, 'zh'), itEn = IT.makeTr(strings('curio', 'en').js.curioItems, 'en');
+  assert.equal(IT.daysText(30, itZh), '30 天');
+  assert.equal(IT.daysText(731, itZh), '731 天 · 约 2 年');
+  assert.equal(IT.daysText(1, itEn), '1 day');
+  assert.equal(IT.daysText(400, itEn), '400 days · about 1.1 years');
+  assert.equal(IT.daysText(370, itEn), '370 days · about 1 year');
   assert.match(IT.todayStr(Date.UTC(2026, 9, 22, 12)), /^2026-10-2[12]$/);
 });
 

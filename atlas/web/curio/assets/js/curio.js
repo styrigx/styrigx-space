@@ -22,10 +22,28 @@ var G = typeof globalThis !== 'undefined' ? globalThis : this;
 
 /* ================= 纯函数 ================= */
 
-/** 双语字段取当前语言，空就用另一种 */
-function pick(pair, en){
+/**
+ * 收藏的名字 / 简介是内容（库里 name_zh / name_en 两列，不是界面文案）：取页面语言那份，空就先用英文、再用随便哪份有字的。
+ * @param {Record<string,string>|null} pair @param {string} lang 页面语言代码
+ */
+function pick(pair, lang){
   if (!pair) return '';
-  return (en ? (pair.en || pair.zh) : (pair.zh || pair.en)) || '';
+  if (pair[lang]) return pair[lang];
+  if (pair.en) return pair.en;
+  for (var k in pair) if (pair[k]) return pair[k];
+  return '';
+}
+/** 内容的两列（CONTENT_LANGS = 库里的列）：页面语言是其中之一就它在前，否则英文在前（英文是源） @param {string} lang @returns {string[]} [主, 另一份] */
+var CONTENT_LANGS = ['en', 'zh'];
+function contentLangs(lang){
+  var a = CONTENT_LANGS.indexOf(lang) >= 0 ? lang : 'en';
+  return [a].concat(CONTENT_LANGS.filter(function(x){ return x !== a; }));
+}
+/** 按 contentLangs 的顺序把两个输入值放进内容对象 @param {string} lang @param {string} a 主语言那份 @param {string} b 另一份 */
+function contentPair(lang, a, b){
+  var ls = contentLangs(lang), o = {};
+  o[ls[0]] = a; o[ls[1]] = b;
+  return o;
 }
 
 /** 网址的域名（去 www.），坏网址返回原文 */
@@ -99,42 +117,54 @@ function isLockedReply(status, code){
   return status === 401 && code !== 'account' && code !== 'reauth';
 }
 
-/** 导入结果的一句话 */
-function importSummary(r, en){
-  if (en) return 'Added ' + r.added + (r.added === 1 ? ' link' : ' links') + (r.cats_added ? ', ' + r.cats_added + ' new ' + (r.cats_added === 1 ? 'category' : 'categories') : '') + (r.skipped ? '; ' + r.skipped + ' already here' : '') + '.';
-  return '新增 ' + r.added + ' 条' + (r.cats_added ? '、' + r.cats_added + ' 个分类' : '') + (r.skipped ? '，' + r.skipped + ' 条已经有了' : '') + '。';
+/** 导入结果的一句话（文案在字符串表 js.curio.imp*） @param {{added:number, cats_added:number, skipped:number}} r @param {(k:string, v?:object)=>string} tr */
+function importSummary(r, tr){
+  return tr('impAdded', { n: r.added }) + (r.cats_added ? tr('impCats', { n: r.cats_added }) : '') + (r.skipped ? tr('impSkipped', { n: r.skipped }) : '') + tr('impEnd');
 }
 
-var pure = { pick: pick, hostOf: hostOf, initial: initial, parseHash: parseHash, catHash: catHash, filterCats: filterCats, countLinks: countLinks, moveId: moveId, normalizeUrl: normalizeUrl, importSummary: importSummary, isLockedReply: isLockedReply };
+
+/* ---------- 文案表（语言包化第二部分 2026-11-07；curio / daymark 各脚本同一份小工具） ---------- */
+/** 页面里 #sgx-i18n-<表> 的扁平字典；没有 / 坏了返回 {} */
+function readDict(doc, table){
+  try {
+    var el = doc && doc.getElementById('sgx-i18n-' + table);
+    var o = el && el.textContent ? JSON.parse(el.textContent) : null;
+    return o && typeof o === 'object' ? o : {};
+  } catch (e) { return {}; }
+}
+/**
+ * 字典 → tr(键, 变量)：{名} 占位替换；变量里有数字 n 时先按 Intl.PluralRules(lang) 找「键_one」这类复数形式，没有就用键本身；缺键返回 ''。
+ * 语言自己的规则（英文 1 link / 2 links，中文不分）都在字符串表里，脚本不分语言。
+ */
+function makeTr(dict, lang){
+  /* 先拷一份原始文案：调用方会把带数字的键改挂成函数（T.count = function(n){ return tr('count', …) }），
+     tr 若直接读同一个字典，拿到的就是那个函数而不是「{n} 条」 */
+  var src = {};
+  for (var k0 in dict) if (Object.prototype.hasOwnProperty.call(dict, k0)) src[k0] = dict[k0];
+  var pr = null;
+  try { pr = new Intl.PluralRules(lang || 'en'); } catch (e) { pr = null; }
+  return function tr(key, vars){
+    var s = null;
+    if (vars && typeof vars.n === 'number' && pr) s = src[key + '_' + pr.select(vars.n)];
+    if (s == null) s = src[key];
+    s = s == null ? '' : String(s);
+    if (vars) for (var k in vars) s = s.split('{' + k + '}').join(String(vars[k]));
+    return s;
+  };
+}
+
+var pure = { readDict: readDict, makeTr: makeTr, pick: pick, hostOf: hostOf, initial: initial, parseHash: parseHash, catHash: catHash, filterCats: filterCats, countLinks: countLinks, moveId: moveId, normalizeUrl: normalizeUrl, importSummary: importSummary, contentLangs: contentLangs, contentPair: contentPair, isLockedReply: isLockedReply };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxCurio = pure;
 
 /* ================= 页面 ================= */
 var doc = G.document;
-var isEn = doc.documentElement.lang === 'en';
-var T = isEn ? {
-  all: 'All', add: 'Keep a link', edit: 'Edit', saved: 'Saved.', deleted: 'Deleted.', failed: 'Something went wrong. Please try again.',
-  needUrl: 'Enter a valid web address.', needName: 'Give it a name.', needCat: 'Pick a category.', dup: 'You already kept this one.',
-  priv: 'Only you can see this', emptyAdmin: 'Nothing kept yet. Tap "Keep" or import your browser bookmarks.', emptyVisitor: 'Nothing here yet.',
-  noMatch: 'Nothing matches.', filling: 'Fetching…', fillFail: 'Couldn\'t read that page. Fill it in yourself.',
-  delLink: 'Delete this link?', delCat: 'Delete this category?', notEmpty: 'Empty the category first.', del: 'Delete',
-  importing: 'Importing…', notBookmarks: 'That isn\'t a bookmarks file.', emptyFile: 'No links in that file.', tooLarge: 'The file is too large.',
-  limit: 'That would go over the limit.', backup: 'Couldn\'t back up the file, so nothing was imported.', count: function(n){ return n + (n === 1 ? ' link' : ' links'); },
-  makePrivate: 'Only me', makePublic: 'Visible to visitors', up: 'Move up', down: 'Move down',
-  needAccount: 'Sign in to your account to edit.', needReauth: 'Verify your account again before importing: open Account › Security and privacy, then come back within 3 minutes.',
-  signin: 'Sign in to your account to edit', noScope: 'Curio doesn’t have account access'
-} : {
-  all: '全部', add: '收藏', edit: '编辑', saved: '已保存', deleted: '已删除', failed: '出了点问题，请再试一次。',
-  needUrl: '填一个有效的网址。', needName: '起个名字。', needCat: '选一个分类。', dup: '这个网址已经收藏过了。',
-  priv: '仅自己可见', emptyAdmin: '还没有收藏。点「收藏」，或者导入浏览器书签。', emptyVisitor: '这里还空着。',
-  noMatch: '没有找到。', filling: '正在读取…', fillFail: '读不到这个网页，手动填一下吧。',
-  delLink: '确定删除这条收藏吗？', delCat: '确定删除这个分类吗？', notEmpty: '先把分类清空。', del: '删除',
-  importing: '正在导入…', notBookmarks: '这不是书签文件。', emptyFile: '文件里没有网址。', tooLarge: '文件太大了。',
-  limit: '超出上限了。', backup: '备份原文件失败，所以没有导入。', count: function(n){ return n + ' 条'; },
-  makePrivate: '仅自己可见', makePublic: '公开', up: '上移', down: '下移',
-  needAccount: '登录账号后可编辑。', needReauth: '导入前要再验证一次账号：打开 账号 › 安全与隐私 验证后，3 分钟内回来导入。',
-  signin: '登录账号后可编辑', noScope: '奇趣未获账号授权'
-};
+/* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-curio，模板从字符串表 data/i18n/<语言>.yaml 的 js.curio 输出，
+   已经是「英文表 ← 页面语言表」的合并（缺键回退英文）；本文件不再认识任何语言。带数字的文案走 tr（复数按 Intl.PluralRules）。 */
+var lang = doc.documentElement.lang || 'en';
+var T = readDict(doc, 'curio');
+var tr = makeTr(T, lang);
+T.count = function(n){ return tr('count', { n: n }); };
 
 var $ = function(s){ return doc.querySelector(s); };
 var cats = [];
@@ -183,7 +213,7 @@ function errText(e){
   var c = e && e.code;
   return c === 'duplicate' ? T.dup : c === 'not-empty' ? T.notEmpty : c === 'bad-url' ? T.needUrl : c === 'bad-name' ? T.needName
     : c === 'not-bookmarks' ? T.notBookmarks : c === 'empty' ? T.emptyFile : c === 'too-large' ? T.tooLarge : c === 'limit' ? T.limit : c === 'backup' ? T.backup
-    : c === 'account' ? T.needAccount : c === 'scope' ? T.noScope + '。' : c === 'reauth' ? T.needReauth : T.failed;
+    : c === 'account' ? T.needAccount : c === 'scope' ? T.noScopeErr : c === 'reauth' ? T.needReauth : T.failed;
 }
 
 /** P4-3 PR-4c：语言路径由模板（sgx-lang-path.html）算好放在 #cu-signin 的 data-*，本文件是经典脚本，不手写语言前缀 @param {string} attr @param {string} fallback */
@@ -261,8 +291,8 @@ function findLink(id){
   return null;
 }
 function tileHTML(l, c){
-  var name = pick(l.name, isEn) || hostOf(l.url);
-  var desc = pick(l.desc, isEn) || hostOf(l.url);
+  var name = pick(l.name, lang) || hostOf(l.url);
+  var desc = pick(l.desc, lang) || hostOf(l.url);
   var locked = showPrivate && (l.private || c.private);
   return '<a class="cu-tile" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer" data-id="' + l.id + '" title="' + esc(desc + ' · ' + l.url) + '">'
     + '<span class="cu-ic"><span class="cu-ic-letter" aria-hidden="true">' + esc(initial(name, l.url)) + '</span>'
@@ -276,7 +306,7 @@ function renderChips(){
   cats.forEach(function(c){
     if (!showPrivate && !c.links.length) return;
     html += '<button type="button" role="tab" class="cu-chip" aria-selected="' + (cat === c.id) + '" data-cat="' + c.id + '">'
-      + (showPrivate && c.private ? '<span class="cu-chip-lock">' + LOCK + '</span>' : '') + esc(pick(c.name, isEn)) + '</button>';
+      + (showPrivate && c.private ? '<span class="cu-chip-lock">' + LOCK + '</span>' : '') + esc(pick(c.name, lang)) + '</button>';
   });
   $('#cu-chips').innerHTML = html;
   var sel = $('#cu-chips [aria-selected="true"]');
@@ -288,7 +318,7 @@ function render(){
   var shown = filterCats(cats, query, cat);
   var list = $('#cu-list');
   list.innerHTML = shown.map(function(c){
-    return '<section class="cu-sec" data-cat="' + c.id + '"><h2 class="cu-sec-h"><span>' + esc(pick(c.name, isEn)) + '</span>'
+    return '<section class="cu-sec" data-cat="' + c.id + '"><h2 class="cu-sec-h"><span>' + esc(pick(c.name, lang)) + '</span>'
       + (showPrivate && c.private ? '<span class="cu-lock-inline" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '')
       + '<span class="cu-sec-n">' + esc(T.count(c.links.length)) + '</span></h2>'
       + '<div class="cu-grid">' + c.links.map(function(l){ return tileHTML(l, c); }).join('') + '</div></section>';
@@ -312,7 +342,7 @@ $('#cu-chips').addEventListener('click', function(e){
 function setErr(msg){ var el = $('#edit-err'); el.textContent = msg || ''; el.classList.toggle('hidden', !msg); }
 function renderCatPicker(){
   $('#f-cats').innerHTML = cats.map(function(c){
-    return '<button type="button" role="radio" class="cu-chip cu-chip-sm" aria-checked="' + (editCat === c.id) + '" data-cat="' + c.id + '">' + esc(pick(c.name, isEn)) + '</button>';
+    return '<button type="button" role="radio" class="cu-chip cu-chip-sm" aria-checked="' + (editCat === c.id) + '" data-cat="' + c.id + '">' + esc(pick(c.name, lang)) + '</button>';
   }).join('');
 }
 $('#f-cats').addEventListener('click', function(e){
@@ -323,7 +353,7 @@ $('#f-cats').addEventListener('click', function(e){
 });
 function openEdit(link, inCat){
   editing = link;
-  var en2 = isEn ? 'zh' : 'en', en1 = isEn ? 'en' : 'zh';
+  var cl = contentLangs(lang), en1 = cl[0], en2 = cl[1];
   $('#edit-title').textContent = link ? T.edit : T.add;
   $('#f-url').value = link ? link.url : '';
   $('#f-name').value = link ? (link.name[en1] || '') : '';
@@ -366,7 +396,7 @@ $('#f-cat-add').addEventListener('click', function(){
   var name = $('#f-cat-name').value.trim();
   if (!name) return;
   var before = cats.map(function(c){ return c.id; });
-  op({ op: 'cat.add', name: isEn ? { zh: '', en: name } : { zh: name, en: '' } }).then(function(){
+  op({ op: 'cat.add', name: contentPair(lang, name, '') }).then(function(){
     var nc = cats.filter(function(c){ return before.indexOf(c.id) < 0; })[0];
     if (nc) editCat = nc.id;
     $('#f-cat-name').value = '';
@@ -379,8 +409,8 @@ $('#edit-save').addEventListener('click', function(){
   var a = $('#f-name').value.trim(), b = $('#f-name2').value.trim();
   if (!a && !b) { setErr(T.needName); return; }
   if (!editCat) { setErr(T.needCat); return; }
-  var name = isEn ? { en: a, zh: b } : { zh: a, en: b };
-  var desc = isEn ? { en: $('#f-desc').value.trim(), zh: $('#f-desc2').value.trim() } : { zh: $('#f-desc').value.trim(), en: $('#f-desc2').value.trim() };
+  var name = contentPair(lang, a, b);
+  var desc = contentPair(lang, $('#f-desc').value.trim(), $('#f-desc2').value.trim());
   var body = { url: url, name: name, desc: desc, icon: $('#f-icon').value.trim() ? normalizeUrl($('#f-icon').value) : '', private: $('#f-private').checked };
   if (editing) { body.op = 'link.edit'; body.id = editing.id; body.cat = editCat; } else { body.op = 'link.add'; body.cat = editCat; }
   var btn = $('#edit-save');
@@ -429,7 +459,7 @@ function renderCatsSheet(){
   var ids = cats.map(function(c){ return c.id; });
   $('#cats-list').innerHTML = cats.map(function(c, i){
     return '<div class="cu-catrow" data-id="' + c.id + '">'
-      + '<input type="text" maxlength="80" value="' + esc(pick(c.name, isEn)) + '" aria-label="' + esc(pick(c.name, isEn)) + '">'
+      + '<input type="text" maxlength="80" value="' + esc(pick(c.name, lang)) + '" aria-label="' + esc(pick(c.name, lang)) + '">'
       + '<span class="cu-catrow-n">' + c.links.length + '</span>'
       + '<button type="button" class="cu-rbtn" data-act="priv" aria-pressed="' + !!c.private + '" title="' + esc(c.private ? T.makePublic : T.makePrivate) + '" aria-label="' + esc(T.makePrivate) + '">' + LOCK + '</button>'
       + '<button type="button" class="cu-rbtn" data-act="up" aria-label="' + esc(T.up) + '"' + (i === 0 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>'
@@ -456,15 +486,15 @@ $('#cats-list').addEventListener('change', function(e){
   var id = Number(input.closest('[data-id]').dataset.id);
   var c = cats.filter(function(x){ return x.id === id; })[0];
   var v = input.value.trim();
-  if (!c || !v || v === pick(c.name, isEn)) { if (c) input.value = pick(c.name, isEn); return; }
-  var name = { zh: c.name.zh, en: c.name.en };
-  if (isEn) name.en = v; else name.zh = v;
+  if (!c || !v || v === pick(c.name, lang)) { if (c) input.value = pick(c.name, lang); return; }
+  var name = Object.assign({}, c.name);
+  name[contentLangs(lang)[0]] = v;
   catOp({ op: 'cat.edit', id: id, name: name });
 });
 $('#cats-add').addEventListener('click', function(){
   var v = $('#cats-new').value.trim();
   if (!v) return;
-  catOp({ op: 'cat.add', name: isEn ? { zh: '', en: v } : { zh: v, en: '' } }).then(function(){ $('#cats-new').value = ''; });
+  catOp({ op: 'cat.add', name: contentPair(lang, v, '') }).then(function(){ $('#cats-new').value = ''; });
 });
 
 var impFile = null;
@@ -480,7 +510,7 @@ function impMsg(text, bad, link){
   el.classList.toggle('hidden', !text); el.classList.toggle('text-m-error', !!bad);
 }
 /** 账号页「安全与隐私」（每次进都要验证账号，验过 3 分钟内导入不再要求复验） */
-function reauthLink(){ return { href: pagePath('data-acct-sec', '/account/security/'), label: isEn ? 'Verify now' : '去验证' }; }
+function reauthLink(){ return { href: pagePath('data-acct-sec', '/account/security/'), label: T.verifyNow }; }
 function resetImport(){
   impFile = null;
   $('#imp-file').value = '';
@@ -508,7 +538,7 @@ $('#imp-go').addEventListener('click', function(){
   }).then(function(j){
     cats = j.cats || [];
     render();
-    impMsg(importSummary(j, isEn));
+    impMsg(importSummary(j, tr));
     impFile = null;
   }).catch(function(e){ if (!e.sgxLocked) { impMsg(errText(e), true, e.code === 'reauth' ? reauthLink() : null); btn.disabled = false; } });
 });

@@ -15,7 +15,8 @@ const PUB = { space: 'space/web/public', blog: 'atlas/web/blog/public', curio: '
 const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'index.html')));
 
 /* 只在英文表里、不需要译文的键（品牌 / 产品名，回退英文就是对的） */
-const EN_ONLY = /^(site\.name|js\.(account|lockmgr)\.pkProv_[a-z0-9_]+)$/;
+/* 复数形式（键_one / _two / _few / _many / _zero，按 Intl.PluralRules 选；没有就用键本身）：只有用得上的语言写，比如中文不分单复数 */
+const EN_ONLY = /^(site\.name|js\.(account|lockmgr)\.pkProv_[a-z0-9_]+|js\.[\w]+\.[\w]+_(zero|one|two|few|many))$/;
 
 /* ---------------- 字符串表本身 ---------------- */
 
@@ -220,5 +221,52 @@ test('JS 字符串表（语言包化 2026-11-07）：i18nTable(表) 的 tx(键) 
     for (const [k, v] of Object.entries(t || {})) {
       assert.ok(!/^(en|zh|zh-CN|en-US)$/.test(String(v)), 'js.' + table + '.' + k + ' 是语言代码（应改用 pageLang()）');
     }
+  }
+});
+
+test('奇趣 / 日刻页面脚本（语言包化第二部分）：文案只读 #sgx-i18n-<表>，T.键 / tr(键) 都在英文表 js.<表> 里；脚本不再按语言二选一', () => {
+  const FILES = [
+    ['curio', 'atlas/web/curio/assets/js/curio.js', 'curio'],
+    ['curio', 'atlas/web/curio/assets/js/curio-items.js', 'curioItems'],
+    ['curio', 'atlas/web/curio/assets/js/curio-movies.js', 'curioMovies'],
+    ['curio', 'atlas/web/curio/assets/js/curio-music.js', 'curioMusic'],
+    ['daymark', 'atlas/web/daymark/assets/js/daymark.js', 'daymark'],
+  ];
+  const bad = [];
+  for (const [site, file, table] of FILES) {
+    const src = rd(file);
+    assert.match(src, new RegExp("readDict\\(doc, '" + table + "'\\)"), file + ' 读 #sgx-i18n-' + table);
+    assert.doesNotMatch(src, /\bisEn\b|\ben \?/, file + ' 不按语言二选一');
+    const t = (strings(site, 'en').js || {})[table] || {};
+    /* T.kinds / T.status / ST_LABEL 由 sub('前缀') 从同一张表展开 */
+    const built = new Set([...src.matchAll(/T\.(\w+) = sub\(/g)].map((m) => m[1]));
+    for (const [, key] of src.matchAll(/\bT\.(\w+)/g)) if (!built.has(key) && t[key] == null) bad.push(file + ': T.' + key);
+    for (const [, key] of src.matchAll(/\btr\('(\w+)'/g)) if (t[key] == null) bad.push(file + ": tr('" + key + "')");
+    for (const [, pre] of src.matchAll(/sub\('(\w+)'\)/g)) if (!Object.keys(t).some((k) => k.startsWith(pre))) bad.push(file + ': sub ' + pre);
+  }
+  assert.deepEqual(bad, [], '缺键');
+  /* 两站模板把整张 js 表按表名输出（页面脚本运行前） */
+  for (const s of ['curio', 'daymark']) {
+    const tpl = rd(`atlas/web/${s}/layouts/_default/baseof.html`);
+    assert.ok(tpl.indexOf('<script id="sgx-i18n-{{ $tbl }}"') !== -1 && tpl.indexOf('sgx-i18n-{{ $tbl }}') < tpl.indexOf('{{ block "main" . }}'), s + ' baseof 在 main 前输出文案表');
+  }
+  /* 博客话题筛选标题：模板给 one / other 两种，脚本按 Intl.PluralRules 选 */
+  const tabs = rd('atlas/web/blog/assets/js/blog/app-tabs.ts');
+  assert.doesNotMatch(tabs, /\ben \?/);
+  assert.match(rd('atlas/web/blog/layouts/index.html'), /data-tpl-one="\{\{ i18n "topicResults" 1 \}\}"/);
+});
+
+test('构建产物：奇趣 / 日刻中文页的页面文案表是中文、英文页是英文（缺键回退英文）', { skip: !built && '没构建' }, () => {
+  const read = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
+  const dict = (/** @type {string} */ html, /** @type {string} */ id) => {
+    const m = new RegExp('<script id="?sgx-i18n-' + id + '"? type="?application/json"?>(.*?)</script>').exec(html);
+    return m ? JSON.parse(m[1]) : null;
+  };
+  const cases = [['atlas/web/curio/public', 'finds/index.html', 'curio', 'count'], ['atlas/web/daymark/public', 'index.html', 'daymark', 'count']];
+  for (const [pub, page, id, key] of cases) {
+    const en = dict(read(`${pub}/${page}`), id), zh = dict(read(`${pub}/zh/${page}`), id);
+    assert.ok(en && zh, pub + ' 有 #sgx-i18n-' + id);
+    assert.doesNotMatch(en[key], /[\u3400-\u9fff]/, pub + ' 英文页');
+    assert.match(zh[key], /[\u3400-\u9fff]/, pub + ' 中文页');
   }
 });

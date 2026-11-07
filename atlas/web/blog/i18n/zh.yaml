@@ -15,6 +15,7 @@ categories: 分类
 tags: 标签
 clear: 清除
 postCount: '{{ .Count }} 篇'
+topicResults: '{label} · {n} 篇'
 seriesPart: '第 {{ .Current }} / {{ .Total }} 篇'
 seriesPrev: ‹ 上一篇
 seriesNext: 下一篇 ›

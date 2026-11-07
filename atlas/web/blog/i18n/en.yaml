@@ -17,6 +17,10 @@ clear: Clear
 postCount:
   one: '{{ .Count }} post'
   other: '{{ .Count }} posts'
+# 首页话题筛选结果标题（assets/js/blog/app-tabs.ts 填 {label} {n}；模板把 one / other 两种放进 data-*，JS 按 Intl.PluralRules 选）
+topicResults:
+  one: '{label} · {n} post'
+  other: '{label} · {n} posts'
 seriesPart: 'Part {{ .Current }} of {{ .Total }}'
 seriesPrev: ‹ Previous
 seriesNext: Next ›

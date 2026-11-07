@@ -105,7 +105,10 @@ __sgxLayoutWatch(__applyLayout);
   "langHref" $langHref
   "pal" $pal
 ) }}
-{{ block "main" . }}{{ end }}
+{{/* 页面脚本的界面文案（语言包化第二部分 2026-11-07）：字符串表 js.<表> 已是「英文表 ← 页面语言表」的合并，每张表一个 #sgx-i18n-<表>；
+   脚本（assets/js/curio*.js readDict / makeTr）只读这里，不再按语言二选一 */}}
+{{ range $tbl, $dict := $tr.js }}<script id="sgx-i18n-{{ $tbl }}" type="application/json">{{ $dict | jsonify | safeJS }}</script>
+{{ end }}{{ block "main" . }}{{ end }}
 {{/* 顶栏：快捷面板 + AI 窗口（共享外壳 topbar.js 等，js/sgx/topbar-host.js 打包；2026-11-04 P5-1 取代 topbar.js（抽屉）、share-host.js（右圆分享）、search-host.js（抽屉底栏搜索）） */}}
 <script src="{{ (resources.Get "js/sgx/topbar-host.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint).RelPermalink }}"></script>
 {{/* SGX 锁屏同步：切回前台 / bfcache 恢复时向服务端确认会话（各页面 pagejs 之前加载） */}}

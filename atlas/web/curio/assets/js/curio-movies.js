@@ -22,25 +22,50 @@ function parseYear(v){
   var n = Number(s);
   return Number.isInteger(n) && n >= 1880 && n <= 2100 ? n : null;
 }
-var pure = { movieSub: movieSub, parseYear: parseYear };
+
+/* ---------- 文案表（语言包化第二部分 2026-11-07；curio / daymark 各脚本同一份小工具） ---------- */
+/** 页面里 #sgx-i18n-<表> 的扁平字典；没有 / 坏了返回 {} */
+function readDict(doc, table){
+  try {
+    var el = doc && doc.getElementById('sgx-i18n-' + table);
+    var o = el && el.textContent ? JSON.parse(el.textContent) : null;
+    return o && typeof o === 'object' ? o : {};
+  } catch (e) { return {}; }
+}
+/**
+ * 字典 → tr(键, 变量)：{名} 占位替换；变量里有数字 n 时先按 Intl.PluralRules(lang) 找「键_one」这类复数形式，没有就用键本身；缺键返回 ''。
+ * 语言自己的规则（英文 1 link / 2 links，中文不分）都在字符串表里，脚本不分语言。
+ */
+function makeTr(dict, lang){
+  /* 先拷一份原始文案：调用方会把带数字的键改挂成函数（T.count = function(n){ return tr('count', …) }），
+     tr 若直接读同一个字典，拿到的就是那个函数而不是「{n} 条」 */
+  var src = {};
+  for (var k0 in dict) if (Object.prototype.hasOwnProperty.call(dict, k0)) src[k0] = dict[k0];
+  var pr = null;
+  try { pr = new Intl.PluralRules(lang || 'en'); } catch (e) { pr = null; }
+  return function tr(key, vars){
+    var s = null;
+    if (vars && typeof vars.n === 'number' && pr) s = src[key + '_' + pr.select(vars.n)];
+    if (s == null) s = src[key];
+    s = s == null ? '' : String(s);
+    if (vars) for (var k in vars) s = s.split('{' + k + '}').join(String(vars[k]));
+    return s;
+  };
+}
+
+var pure = { readDict: readDict, makeTr: makeTr, movieSub: movieSub, parseYear: parseYear };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 
 var doc = G.document;
 if (!doc.getElementById('mv-list')) return;
-var isEn = doc.documentElement.lang === 'en';
 var UI = G.SgxCurioUI, PH = G.SgxCurioPhoto;
 var $ = function(s){ return doc.querySelector(s); };
-var T = isEn ? {
-  add: 'Add a movie', edit: 'Edit movie', empty: 'No movies yet.', emptyAdmin: 'No movies yet. Tap "Movie" to add one.',
-  needTitle: 'Give it a title.', badYear: 'Check the year.', badDate: 'Check the date.', saved: 'Saved.', deleted: 'Deleted.', failed: 'Something went wrong. Please try again.',
-  photoFail: 'Saved, but the poster didn\'t upload.', del: 'Delete', delMovie: 'Delete this movie?',
-  original: 'Original title', year: 'Year', director: 'Director', watched: 'Watched', rating: 'My rating', review: 'A line or two', stars: function(n){ return n + ' out of 5'; }
-} : {
-  add: '添加电影', edit: '编辑电影', empty: '这里还空着。', emptyAdmin: '还没有电影。点「电影」添加第一部。',
-  needTitle: '填一下片名。', badYear: '年份不对，检查一下。', badDate: '日期不对，检查一下。', saved: '已保存', deleted: '已删除', failed: '出了点问题，请再试一次。',
-  photoFail: '已保存，但海报没传上去。', del: '删除', delMovie: '确定删除这部电影吗？',
-  original: '原名', year: '年份', director: '导演', watched: '观看日期', rating: '我的评分', review: '短评', stars: function(n){ return n + ' 星'; }
-};
+/* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-curioMovies，模板从字符串表 data/i18n/<语言>.yaml 的 js.curioMovies 输出，
+   已经是「英文表 ← 页面语言表」的合并（缺键回退英文）；本文件不再认识任何语言。带数字的文案走 tr（复数按 Intl.PluralRules）。 */
+var lang = doc.documentElement.lang || 'en';
+var T = readDict(doc, 'curioMovies');
+var tr = makeTr(T, lang);
+T.stars = function(n){ return tr('stars', { n: n }); };
 var FILM = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M7.5 4.5v15M16.5 4.5v15M3.5 9h4M3.5 15h4M16.5 9h4M16.5 15h4"/></svg>';
 function starSvg(n){ return '<svg viewBox="0 0 24 24" width="' + n + '" height="' + n + '" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="currentColor"/></svg>'; }
 

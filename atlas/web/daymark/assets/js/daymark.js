@@ -158,43 +158,82 @@ function groupQuotes(quotes, collections, group){
 }
 
 /** 署名「作者 · 《出处》」：诗词 / 书 / 电影 / 歌加书名号（出处里已有书名号就原样用），访谈 / 自己 / 没选类型不加；英文 "Author · Source" */
-function attribution(q, isEn){
+/* 出处的书名格式按语言在字符串表 js.daymark.sourceTitle（英文「{s}」原样，中文「《{s}》」）；没给 = 原样 */
+function attribution(q, titleTpl){
   var a = String((q && q.author) || '').trim();
   var s = String((q && q.source) || '').trim();
-  if (s && !isEn) {
-    var bare = s.replace(/^《/, '').replace(/》$/, '');
+  var tpl = typeof titleTpl === 'string' && titleTpl.indexOf('{s}') >= 0 ? titleTpl : '{s}';
+  if (s && tpl !== '{s}') {
     var t = q.source_type || '';
     /* 自己已经带书名号的（如「《查拉图斯特拉如是说》·序言 3」）原样用 */
-    if (!/[《》]/.test(s) && (t === 'poetry' || t === 'book' || t === 'film' || t === 'song')) s = '《' + bare + '》';
+    if (!/[《》]/.test(s) && (t === 'poetry' || t === 'book' || t === 'film' || t === 'song')) s = tpl.split('{s}').join(s);
   }
   return [a, s].filter(Boolean).join(' · ');
 }
 
-/** 今日的日期行：YYYY-MM-DD → 「10月20日 星期二」/ "Tuesday, Oct 20" */
-function fmtDay(day, isEn){
+/** Intl 日期（坏语言代码退回英文） */
+function intlDate(d, lang, opts){
+  try { return new Intl.DateTimeFormat(lang || 'en', opts).format(d); } catch (e) { return new Intl.DateTimeFormat('en', opts).format(d); }
+}
+
+/** 今日的日期行：YYYY-MM-DD → 按页面语言交给 Intl（en "Tuesday, Oct 20"，zh「10月20日星期二」） @param {string} day @param {string} lang */
+function fmtDay(day, lang){
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
   if (!m) return '';
   var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-  if (isEn) return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
-  return (+m[2]) + '月' + (+m[3]) + '日 ' + ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'][d.getUTCDay()];
+  return intlDate(d, lang, { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
-/** 抽到的句子的日期行：记下它的那天（北京时间）→「拾于 2026年10月20日」/ "Kept Oct 20, 2026" */
-function fmtKept(ts, isEn){
-  if (!ts) return isEn ? 'From the trove' : '拾录里的一句';
+/**
+ * 抽到的句子的日期行：记下它的那天（北京时间）→ 字符串表 keptOn「Kept {d}」/「拾于 {d}」，日期按语言交给 Intl；没有时间 → fromTrove。
+ * @param {number} ts @param {string} lang @param {(k:string, v?:object)=>string} tr
+ */
+function fmtKept(ts, lang, tr){
+  if (!ts) return tr('fromTrove');
   var d = new Date(ts + 8 * 3600 * 1000);
-  if (isEn) return 'Kept ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-  return '拾于 ' + d.getUTCFullYear() + '年' + (d.getUTCMonth() + 1) + '月' + d.getUTCDate() + '日';
+  return tr('keptOn', { d: intlDate(d, lang, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) });
 }
 
-/** 复制 / 分享用的纯文本 */
-function shareText(q, isEn){
+/** 复制 / 分享用的纯文本 @param {any} q @param {string} [titleTpl] 出处书名格式（同 attribution） */
+function shareText(q, titleTpl){
   if (!q) return '';
-  var a = attribution(q, isEn);
+  var a = attribution(q, titleTpl);
   return [q.text, q.trans, a ? '—— ' + a : ''].filter(Boolean).join('\n');
 }
 
+
+/* ---------- 文案表（语言包化第二部分 2026-11-07；curio / daymark 各脚本同一份小工具） ---------- */
+/** 页面里 #sgx-i18n-<表> 的扁平字典；没有 / 坏了返回 {} */
+function readDict(doc, table){
+  try {
+    var el = doc && doc.getElementById('sgx-i18n-' + table);
+    var o = el && el.textContent ? JSON.parse(el.textContent) : null;
+    return o && typeof o === 'object' ? o : {};
+  } catch (e) { return {}; }
+}
+/**
+ * 字典 → tr(键, 变量)：{名} 占位替换；变量里有数字 n 时先按 Intl.PluralRules(lang) 找「键_one」这类复数形式，没有就用键本身；缺键返回 ''。
+ * 语言自己的规则（英文 1 link / 2 links，中文不分）都在字符串表里，脚本不分语言。
+ */
+function makeTr(dict, lang){
+  /* 先拷一份原始文案：调用方会把带数字的键改挂成函数（T.count = function(n){ return tr('count', …) }），
+     tr 若直接读同一个字典，拿到的就是那个函数而不是「{n} 条」 */
+  var src = {};
+  for (var k0 in dict) if (Object.prototype.hasOwnProperty.call(dict, k0)) src[k0] = dict[k0];
+  var pr = null;
+  try { pr = new Intl.PluralRules(lang || 'en'); } catch (e) { pr = null; }
+  return function tr(key, vars){
+    var s = null;
+    if (vars && typeof vars.n === 'number' && pr) s = src[key + '_' + pr.select(vars.n)];
+    if (s == null) s = src[key];
+    s = s == null ? '' : String(s);
+    if (vars) for (var k in vars) s = s.split('{' + k + '}').join(String(vars[k]));
+    return s;
+  };
+}
+
 var pure = {
+  readDict: readDict, makeTr: makeTr,
   TABS: TABS, SOURCE_TYPES: SOURCE_TYPES, parseHash: parseHash, routeHash: routeHash, parseTagInput: parseTagInput, addTags: addTags,
   allTags: allTags, authorGroups: authorGroups, recentAuthors: recentAuthors, knownSources: knownSources, suggest: suggest,
   pickRandom: pickRandom, canSetToday: canSetToday, isLockedReply: isLockedReply, moveItem: moveItem, groupQuotes: groupQuotes, attribution: attribution, fmtDay: fmtDay, fmtKept: fmtKept,
@@ -205,26 +244,13 @@ G.SgxDaymark = pure;
 
 /* ================= 页面 ================= */
 var doc = G.document;
-var isEn = doc.documentElement.lang === 'en';
-var T = isEn ? {
-  add: 'Save a line', edit: 'Edit line', kept: 'Kept.', deleted: 'Deleted.', failed: 'Something went wrong. Please try again.',
-  needText: 'Write the line first.', priv: 'Only you can see this', emptyAdmin: 'Nothing kept yet. Tap "Save a line" to keep your first one.',
-  emptyVisitor: 'Nothing here yet.', noToday: 'No line for today yet.', copied: 'Copied.', nothingToDraw: 'Nothing to draw from yet.', setToday: "Set as today's line.",
-  count: function(n){ return n + (n === 1 ? ' line' : ' lines'); }, newCol: 'New', plus: '+', colCreated: 'Collection created.',
-  delQuote: 'Delete this line? This cannot be undone.', delCol: 'Delete this collection? The lines in it stay in your Trove.',
-  removed: 'Removed from this collection.', groupEmpty: 'Nothing in here yet.', edit2: 'Edit', done: 'Done', needName: 'Give it a name first.',
-  previewPh: 'Your line will show here, just like in Echo.', up: 'Move up', down: 'Move down', remove: 'Remove from collection',
-  needAccount: 'Sign in to your account to edit.', signin: 'Sign in to your account to edit', noScope: 'Daymark doesn’t have account access'
-} : {
-  add: '记一句', edit: '编辑这一句', kept: '已拾录', deleted: '已删除', failed: '出了点问题，请再试一次。',
-  needText: '先写下这一句。', priv: '仅自己可见', emptyAdmin: '还没有句子。点「记一句」留下第一句。',
-  emptyVisitor: '这里还空着。', noToday: '今天还没有句子。', copied: '已复制', nothingToDraw: '还没有可以抽的句子。', setToday: '已设为今日',
-  count: function(n){ return n + ' 句'; }, newCol: '新建', plus: '＋', colCreated: '专题已建好',
-  delQuote: '确定删除这一句吗？删除后无法恢复。', delCol: '确定删除这个专题吗？里面的句子还留在拾录里。',
-  removed: '已移出专题', groupEmpty: '这里还没有句子。', edit2: '编辑', done: '完成', needName: '先给专题起个名字。',
-  previewPh: '写下的句子会像在余响里这样显示。', up: '上移', down: '下移', remove: '移出专题',
-  needAccount: '登录账号后可编辑。', signin: '登录账号后可编辑', noScope: '日刻未获账号授权'
-};
+/* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-daymark，模板从字符串表 data/i18n/<语言>.yaml 的 js.daymark 输出，
+   已经是「英文表 ← 页面语言表」的合并（缺键回退英文）；本文件不再认识任何语言。带数字的文案走 tr（复数按 Intl.PluralRules）。 */
+var lang = doc.documentElement.lang || 'en';
+var T = readDict(doc, 'daymark');
+var tr = makeTr(T, lang);
+function sub(p){ var o = {}; for (var k in T) if (k.indexOf(p) === 0) o[k.slice(p.length)] = T[k]; return o; }
+T.count = function(n){ return tr('count', { n: n }); };
 
 var $ = function(s){ return doc.querySelector(s); };
 var quotes = [];
@@ -269,7 +295,7 @@ function send(method, url, body){
   });
 }
 /** 写失败的提示：没登录账号 / 没授权 →「登录账号后可编辑」，其余通用 */
-function failText(e){ var c = e && e.code; return c === 'account' ? T.needAccount : c === 'scope' ? T.noScope + (isEn ? '.' : '。') : T.failed; }
+function failText(e){ var c = e && e.code; return c === 'account' ? T.needAccount : c === 'scope' ? T.noScopeErr : T.failed; }
 /** P4-3 PR-4c：语言路径由模板（sgx-lang-path.html）算好放在 #dm-signin 的 data-*，本文件是经典脚本，不手写语言前缀 @param {string} attr @param {string} fallback */
 function pagePath(attr, fallback){
   var el = doc && doc.getElementById('dm-signin');
@@ -305,7 +331,7 @@ function copyText(s){
   if (G.navigator && navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(s).catch(fallback);
   return fallback();
 }
-function copyQuote(q){ if (q) copyText(shareText(q, isEn)).then(function(){ haptic(); toast(T.copied); }, function(){ toast(T.failed); }); }
+function copyQuote(q){ if (q) copyText(shareText(q, T.sourceTitle)).then(function(){ haptic(); toast(T.copied); }, function(){ toast(T.failed); }); }
 
 /** 长按（≈550ms，手指不挪）触发 fn；触发后吞掉随后的那次点击 */
 function onLongPress(el, fn){
@@ -349,7 +375,7 @@ $('#confirm-ok').addEventListener('click', function(){ var f = confirmFn; confir
 /* ---------- 句子的几种画法 ---------- */
 var LOCK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 function bodyHTML(q){
-  var a = attribution(q, isEn);
+  var a = attribution(q, T.sourceTitle);
   return '<p class="dm-text">' + esc(q.text) + '</p>'
     + (q.trans ? '<p class="dm-trans">' + esc(q.trans) + '</p>' : '')
     + (a ? '<p class="dm-attr">' + esc(a) + '</p>' : '');
@@ -383,7 +409,7 @@ function bindCards(box){
 /* ---------- 余响 ---------- */
 function renderEcho(){
   var q = echoQuote;
-  $('#dm-echo-day').textContent = drawn ? fmtKept(q && q.created_at, isEn) : fmtDay(today.day, isEn);
+  $('#dm-echo-day').textContent = drawn ? fmtKept(q && q.created_at, lang, tr) : fmtDay(today.day, lang);
   $('#dm-echo-body').innerHTML = q ? bodyHTML(q) : '<p class="dm-trans">' + esc(loaded || today.day ? T.noToday : '') + '</p>';
   $('#dm-share').classList.toggle('hidden', !q);
   $('#dm-back-today').classList.toggle('hidden', !drawn);
@@ -408,7 +434,7 @@ $('#dm-set-today').addEventListener('click', function(){
 });
 $('#dm-share').addEventListener('click', function(){
   var q = echoQuote; if (!q) return;
-  var text = shareText(q, isEn);
+  var text = shareText(q, T.sourceTitle);
   if (G.navigator && typeof navigator.share === 'function') {
     navigator.share({ text: text, url: G.location.origin + pagePath('data-home', '/daymark/') }).catch(function(e){ if (!e || e.name !== 'AbortError') copyQuote(q); });
   } else copyQuote(q);
@@ -522,7 +548,7 @@ $('#dm-fl-back').addEventListener('click', function(){ go({ tab: 'flavors' }); }
 $('#dm-g-edit').addEventListener('click', function(){ groupEditing = !groupEditing; renderGroup(); });
 $('#dm-g-del').addEventListener('click', function(){
   var col = currentCollection(); if (!col) return;
-  ask(T.delCol, isEn ? 'Delete' : '删除', function(){
+  ask(T.delCol, T.del, function(){
     send('DELETE', '/daymark/api/collections?id=' + encodeURIComponent(col.id)).then(function(){
       collections = collections.filter(function(c){ return c.id !== col.id; });
       syncQuoteCollections(); groupEditing = false;
@@ -611,9 +637,8 @@ G.addEventListener('hashchange', function(){ var r = parseHash(G.location.hash);
 /* ---------- 记一句 / 编辑 ---------- */
 var editing = null;
 var ed = { tags: [], cols: [], stype: '' };
-var ST_LABEL = isEn
-  ? { poetry: 'Poetry', book: 'Book', film: 'Film', song: 'Song', interview: 'Interview', mine: 'Mine' }
-  : { poetry: '诗词', book: '书', film: '电影', song: '歌', interview: '访谈', mine: '自己' };
+/* 出处类型名：字符串表 js.daymark.st_<类型> */
+var ST_LABEL = sub('st_');
 
 function edQuote(){
   return { text: $('#f-text').value.trim(), trans: $('#f-trans').value.trim(), author: $('#f-author').value.trim(), source: $('#f-source').value.trim(), source_type: ed.stype };
@@ -672,7 +697,7 @@ $('#f-col-name').addEventListener('keydown', function(e){ if (e.key === 'Enter')
 function renderTags(){
   var box = $('#f-tagchips');
   box.innerHTML = ed.tags.map(function(t, i){
-    return '<span class="dm-tagchip">#' + esc(t) + '<button type="button" data-untag="' + i + '" aria-label="' + esc((isEn ? 'Remove ' : '删除 ') + t) + '">×</button></span>';
+    return '<span class="dm-tagchip">#' + esc(t) + '<button type="button" data-untag="' + i + '" aria-label="' + esc(tr('untag', { t: t })) + '">×</button></span>';
   }).join('');
   box.querySelectorAll('[data-untag]').forEach(function(b){
     b.addEventListener('click', function(){ ed.tags.splice(+b.dataset.untag, 1); renderTags(); $('#f-tag-input').focus(); });
@@ -789,7 +814,7 @@ $('#edit-save').addEventListener('click', function(){
 });
 $('#edit-del').addEventListener('click', function(){
   var q = editing; if (!q) return;
-  ask(T.delQuote, isEn ? 'Delete' : '删除', function(){
+  ask(T.delQuote, T.del, function(){
     send('DELETE', '/daymark/api/quotes?id=' + encodeURIComponent(q.id)).then(function(){
       quotes = quotes.filter(function(x){ return x.id !== q.id; });
       collections.forEach(function(c){ c.quote_ids = c.quote_ids.filter(function(id){ return id !== q.id; }); });

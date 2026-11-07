@@ -74,7 +74,7 @@ test('账号未登录：首页三个分区入口（顶栏没有页签）、没�
   await expect(page.locator('#dm-pane-echo')).toBeVisible();
   /* 没有搜索栏（2026-11-04 P5-1 起有快捷面板 + AI 窗口，共享外壳顶栏，下面单独验） */
   await expect(page.locator('#bk-cap, .sgx-tb-search, input[type="search"]:visible, [role="search"]:visible')).toHaveCount(0);
-  await expect(page.locator('#dm-echo-day')).toHaveText('10月20日 星期二');
+  await expect(page.locator('#dm-echo-day')).toHaveText('10月20日星期二'); /* 日期交给 Intl（语言包化第二部分）：zh-CN weekday+month+day 不加空格 */
   await expect(page.locator('#dm-echo-body')).toContainText('鲁迅 · 《故乡》');
   await expect(page.locator('#dm-share')).toBeVisible();
   /* 2026-11-04 P5-1 顶栏全大椭圆（四站同一个）；抽屉、右圆分享删除；没有版权页脚 */
@@ -207,7 +207,7 @@ test('余响 · 账号已登录（可写）：再抽一句 → 设为今日 → 
   await page.locator('#dm-set-today').click();
   await expect(page.locator('#bk-toast')).toHaveText('已设为今日');
   expect(puts).toEqual([{ id: 'aaaaaaaaaaa4' }]);
-  await expect(page.locator('#dm-echo-day')).toHaveText('10月20日 星期二');
+  await expect(page.locator('#dm-echo-day')).toHaveText('10月20日星期二'); /* 日期交给 Intl（语言包化第二部分）：zh-CN weekday+month+day 不加空格 */
   await expect(page.locator('#dm-echo-body')).toContainText('也无风雨也无晴');
   await expect(page.locator('#dm-set-today')).toBeHidden();
   await expect(page.locator('#dm-back-today')).toBeHidden();

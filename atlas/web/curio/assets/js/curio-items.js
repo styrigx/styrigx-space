@@ -43,12 +43,11 @@ function usedDays(bought, retired, today){
   if (isNaN(a) || isNaN(b) || b < a) return null;
   return Math.round((b - a) / DAY) + 1;
 }
-/** 天数说成话：不到一年说天，满一年加上「约 x.y 年」 */
-function daysText(n, en){
+/** 天数说成话：不到一年说天，满一年加上「约 x.y 年」（文案 js.curioItems.days / aboutYears，复数按语言） @param {number|null} n @param {(k:string, v?:object)=>string} tr */
+function daysText(n, tr){
   if (n == null) return '';
-  var y = n / 365.25;
-  if (en) return n + (n === 1 ? ' day' : ' days') + (y >= 1 ? ' · about ' + (Math.round(y * 10) / 10) + (y >= 1.05 ? ' years' : ' year') : '');
-  return n + ' 天' + (y >= 1 ? ' · 约 ' + (Math.round(y * 10) / 10) + ' 年' : '');
+  var y = Math.round(n / 365.25 * 10) / 10;
+  return tr('days', { n: n }) + (n / 365.25 >= 1 ? tr('aboutYears', { n: y, y: y }) : '');
 }
 /** 设备筛选：all / active（没退役）/ retired */
 function filterDevices(list, f){
@@ -123,7 +122,38 @@ function viewFromSource(s, f){
   return { tx: f.l - s.sx * k, ty: f.t - s.sy * k, k: k };
 }
 
-var pure = { KINDS: KINDS, STATUS: STATUS, dateMs: dateMs, todayStr: todayStr, usedDays: usedDays, daysText: daysText, filterDevices: filterDevices, filterGames: filterGames, lineage: lineage, platformsOf: platformsOf, fitSize: fitSize,
+
+/* ---------- 文案表（语言包化第二部分 2026-11-07；curio / daymark 各脚本同一份小工具） ---------- */
+/** 页面里 #sgx-i18n-<表> 的扁平字典；没有 / 坏了返回 {} */
+function readDict(doc, table){
+  try {
+    var el = doc && doc.getElementById('sgx-i18n-' + table);
+    var o = el && el.textContent ? JSON.parse(el.textContent) : null;
+    return o && typeof o === 'object' ? o : {};
+  } catch (e) { return {}; }
+}
+/**
+ * 字典 → tr(键, 变量)：{名} 占位替换；变量里有数字 n 时先按 Intl.PluralRules(lang) 找「键_one」这类复数形式，没有就用键本身；缺键返回 ''。
+ * 语言自己的规则（英文 1 link / 2 links，中文不分）都在字符串表里，脚本不分语言。
+ */
+function makeTr(dict, lang){
+  /* 先拷一份原始文案：调用方会把带数字的键改挂成函数（T.count = function(n){ return tr('count', …) }），
+     tr 若直接读同一个字典，拿到的就是那个函数而不是「{n} 条」 */
+  var src = {};
+  for (var k0 in dict) if (Object.prototype.hasOwnProperty.call(dict, k0)) src[k0] = dict[k0];
+  var pr = null;
+  try { pr = new Intl.PluralRules(lang || 'en'); } catch (e) { pr = null; }
+  return function tr(key, vars){
+    var s = null;
+    if (vars && typeof vars.n === 'number' && pr) s = src[key + '_' + pr.select(vars.n)];
+    if (s == null) s = src[key];
+    s = s == null ? '' : String(s);
+    if (vars) for (var k in vars) s = s.split('{' + k + '}').join(String(vars[k]));
+    return s;
+  };
+}
+
+var pure = { readDict: readDict, makeTr: makeTr, KINDS: KINDS, STATUS: STATUS, dateMs: dateMs, todayStr: todayStr, usedDays: usedDays, daysText: daysText, filterDevices: filterDevices, filterGames: filterGames, lineage: lineage, platformsOf: platformsOf, fitSize: fitSize,
   CROP_RATIO: CROP_RATIO, cropFrame: cropFrame, coverScale: coverScale, clampView: clampView, centerView: centerView, cropSource: cropSource, viewFromSource: viewFromSource, cropOut: cropOut };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxCurioItems = pure;
@@ -132,36 +162,19 @@ G.SgxCurioItems = pure;
 var doc = G.document;
 var hasItems = !!(doc.getElementById('cu-pane-devices') || doc.getElementById('cu-pane-games'));
 if (!hasItems && !doc.getElementById('mv-list')) return;
-var isEn = doc.documentElement.lang === 'en';
 var UI = G.SgxCurioUI;
 /* 本子页没有的部件（设备页的游戏弹层等）：给一个不挂在页面上的空 div，后面的事件绑定和 innerHTML 都落空 */
 var $ = function(s){ return doc.querySelector(s) || doc.createElement('div'); };
 
-var T = isEn ? {
-  all: 'All', active: 'In use', retired: 'Retired',
-  kinds: { phone: 'Phone', tablet: 'Tablet', laptop: 'Laptop', desktop: 'Desktop', watch: 'Watch', audio: 'Audio', console: 'Console', camera: 'Camera', other: 'Other' },
-  status: { want: 'Want to play', playing: 'Playing', done: 'Finished', shelved: 'On hold' },
-  addDevice: 'Add a device', editDevice: 'Edit device', addGame: 'Add a game', editGame: 'Edit game',
-  emptyDevAdmin: 'No devices yet. Tap "Device" to add one.', emptyGameAdmin: 'No games yet. Tap "Game" to add one.', empty: 'Nothing here yet.', noMatch: 'Nothing in this filter.',
-  needName: 'Give it a name.', needAccount: 'Sign in to your account to edit.', noScope: 'Curio doesn’t have account access.', badDate: 'Check the dates.', failed: 'Something went wrong. Please try again.', saved: 'Saved.', deleted: 'Deleted.',
-  photoFail: 'Saved, but the photo didn\'t upload.', notImage: 'That isn\'t a photo we can use.', tooLarge: 'The photo is too large.',
-  delDevice: 'Delete this device?', delGame: 'Delete this game?', del: 'Delete', none: 'None', priv: 'Only you can see this',
-  used: 'In use for', usedFor: 'Used for', bought: 'Bought', retiredOn: 'Retired', os: 'System', specs: 'Specs', acc: 'Accessories', notes: 'How it\'s been',
-  from: 'Replaced', to: 'Replaced by', platform: 'Platform', on: 'Played on', edition: 'Version', rating: 'Rating', review: 'Thoughts', stars: function(n){ return n + ' out of 5'; },
-  crop: 'Move and scale', cancel: 'Cancel', done: 'Done', adjust: 'Adjust photo'
-} : {
-  all: '全部', active: '在用', retired: '已退役',
-  kinds: { phone: '手机', tablet: '平板', laptop: '笔记本', desktop: '台式机', watch: '手表', audio: '耳机音箱', console: '游戏机', camera: '相机', other: '其他' },
-  status: { want: '想玩', playing: '在玩', done: '通关', shelved: '搁置' },
-  addDevice: '添加设备', editDevice: '编辑设备', addGame: '添加游戏', editGame: '编辑游戏',
-  emptyDevAdmin: '还没有设备。点「设备」添加第一台。', emptyGameAdmin: '还没有游戏。点「游戏」添加。', empty: '这里还空着。', noMatch: '这个筛选下没有。',
-  needName: '起个名字。', needAccount: '登录账号后可编辑。', noScope: '奇趣未获账号授权。', badDate: '日期不对，检查一下。', failed: '出了点问题，请再试一次。', saved: '已保存', deleted: '已删除',
-  photoFail: '已保存，但照片没传上去。', notImage: '这张图用不了。', tooLarge: '照片太大了。',
-  delDevice: '确定删除这台设备吗？', delGame: '确定删除这个游戏吗？', del: '删除', none: '无', priv: '仅自己可见',
-  used: '已经用了', usedFor: '用了', bought: '购买', retiredOn: '退役', os: '系统', specs: '参数', acc: '配件', notes: '体验',
-  from: '换下了', to: '换成了', platform: '平台', on: '在哪台上玩', edition: '版本', rating: '评分', review: '评价', stars: function(n){ return n + ' 星'; },
-  crop: '移动和缩放', cancel: '取消', done: '完成', adjust: '调整照片'
-};
+/* 界面文案（语言包化第二部分 2026-11-07）：页面里的 #sgx-i18n-curioItems，模板从字符串表 data/i18n/<语言>.yaml 的 js.curioItems 输出，
+   已经是「英文表 ← 页面语言表」的合并（缺键回退英文）；本文件不再认识任何语言。带数字的文案走 tr（复数按 Intl.PluralRules）。 */
+var lang = doc.documentElement.lang || 'en';
+var T = readDict(doc, 'curioItems');
+var tr = makeTr(T, lang);
+function sub(p){ var o = {}; for (var k in T) if (k.indexOf(p) === 0) o[k.slice(p.length)] = T[k]; return o; }
+T.kinds = sub('kind_');
+T.status = sub('status_');
+T.stars = function(n){ return tr('stars', { n: n }); };
 
 /* 类型图标（没有照片时显示） */
 var KIND_IC = {
@@ -234,7 +247,7 @@ function devCard(d){
     + '<span class="it-media">' + (d.photo ? '<img src="' + photoUrl('device', d.id) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '') + '<span class="it-media-ic">' + icon(d.kind) + '</span></span>'
     + '<span class="it-body"><span class="it-name">' + esc(d.name) + (showPrivate && d.private ? '<span class="cu-lock-inline" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '') + '</span>'
     + '<span class="it-sub">' + esc(sub) + '</span>'
-    + (days != null ? '<span class="it-meta">' + esc((d.retired_at ? T.usedFor : T.used) + ' ' + daysText(days, isEn)) + '</span>' : '')
+    + (days != null ? '<span class="it-meta">' + esc((d.retired_at ? T.usedFor : T.used) + ' ' + daysText(days, tr)) + '</span>' : '')
     + (d.retired_at ? '<span class="it-badge">' + esc(T.retired) + '</span>' : '')
     + '</span></button>';
 }
@@ -280,13 +293,13 @@ function viewDevice(d){
   var lin = lineage(devices, d.id);
   var html = '<div class="it-hero">' + (d.photo ? '<img src="' + photoUrl('device', d.id) + '" alt="">' : '<span class="it-media-ic">' + icon(d.kind, 48) + '</span>') + '</div>'
     + '<p class="it-hero-sub">' + esc([T.kinds[d.kind] || T.kinds.other, d.retired_at ? T.retired : T.active].join(' · ')) + '</p>'
-    + (days != null ? '<p class="it-days">' + esc((d.retired_at ? T.usedFor : T.used) + ' ' + daysText(days, isEn)) + '</p>' : '')
+    + (days != null ? '<p class="it-days">' + esc((d.retired_at ? T.usedFor : T.used) + ' ' + daysText(days, tr)) + '</p>' : '')
     + para(T.bought, d.bought_at) + para(T.retiredOn, d.retired_at) + para(T.os, d.os)
     + para(T.specs, d.specs) + para(T.acc, d.accessories) + para(T.notes, d.notes);
-  if (lin.before.length) html += '<div class="it-dl"><div class="it-dt">' + esc(T.from) + '</div><div class="it-dd">' + lin.before.map(devLink).join('、') + '</div></div>';
+  if (lin.before.length) html += '<div class="it-dl"><div class="it-dt">' + esc(T.from) + '</div><div class="it-dd">' + lin.before.map(devLink).join(T.listSep) + '</div></div>';
   if (lin.after) html += '<div class="it-dl"><div class="it-dt">' + esc(T.to) + '</div><div class="it-dd">' + devLink(lin.after) + '</div></div>';
   var played = games.filter(function(g){ return g.device_id === d.id; });
-  if (played.length) html += '<div class="it-dl"><div class="it-dt">' + esc(isEn ? 'Games' : '游戏') + '</div><div class="it-dd">' + played.map(function(g){ return '<button type="button" class="it-link" data-game="' + g.id + '">' + esc(g.title) + '</button>'; }).join('、') + '</div></div>';
+  if (played.length) html += '<div class="it-dl"><div class="it-dt">' + esc(T.games) + '</div><div class="it-dd">' + played.map(function(g){ return '<button type="button" class="it-link" data-game="' + g.id + '">' + esc(g.title) + '</button>'; }).join(T.listSep) + '</div></div>';
   showView(d.name, html);
 }
 function viewGame(g){

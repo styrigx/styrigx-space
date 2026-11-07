@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { strings } from '../fixtures/strings.mjs';
 
 const src = readFileSync(new URL('../../atlas/web/daymark/assets/js/daymark.js', import.meta.url), 'utf8');
 const box = { module: { exports: {} }, console };
@@ -103,26 +104,40 @@ test('moveItem：上移 / 下移，越界不动', () => {
   assert.deepEqual(plain(D.moveItem(['a', 'b', 'c'], 2, 1)), ['a', 'b', 'c']);
 });
 
-test('署名「作者 · 出处」：诗词书影歌加书名号且不重复，访谈不加，英文不加', () => {
-  assert.equal(D.attribution(QS[1], false), '鲁迅 · 《故乡》');
-  assert.equal(D.attribution({ author: '鲁迅', source: '《呐喊》' }, false), '鲁迅 · 《呐喊》');
-  assert.equal(D.attribution({ author: '乔布斯', source: '斯坦福演讲', source_type: 'interview' }, false), '乔布斯 · 斯坦福演讲');
-  assert.equal(D.attribution({ author: 'A', source: 'B', source_type: 'book' }, true), 'A · B');
-  assert.equal(D.attribution({ author: '', source: '定风波', source_type: 'poetry' }, false), '《定风波》');
-  assert.equal(D.attribution(QS[2], false), '');
-  assert.equal(D.attribution({ author: '尼采', source: '《查拉图斯特拉如是说》·序言 3', source_type: 'book' }, false), '尼采 · 《查拉图斯特拉如是说》·序言 3');
+const ZH = strings('daymark', 'zh').js.daymark, EN = strings('daymark', 'en').js.daymark;
+test('署名「作者 · 出处」：书名格式来自字符串表 sourceTitle——中文诗词书影歌加书名号且不重复，访谈不加，英文原样', () => {
+  assert.equal(D.attribution(QS[1], ZH.sourceTitle), '鲁迅 · 《故乡》');
+  assert.equal(D.attribution({ author: '鲁迅', source: '《呐喊》' }, ZH.sourceTitle), '鲁迅 · 《呐喊》');
+  assert.equal(D.attribution({ author: '乔布斯', source: '斯坦福演讲', source_type: 'interview' }, ZH.sourceTitle), '乔布斯 · 斯坦福演讲');
+  assert.equal(D.attribution({ author: 'A', source: 'B', source_type: 'book' }, EN.sourceTitle), 'A · B');
+  assert.equal(D.attribution({ author: '', source: '定风波', source_type: 'poetry' }, ZH.sourceTitle), '《定风波》');
+  assert.equal(D.attribution(QS[2], ZH.sourceTitle), '');
+  assert.equal(D.attribution({ author: '尼采', source: '《查拉图斯特拉如是说》·序言 3', source_type: 'book' }, ZH.sourceTitle), '尼采 · 《查拉图斯特拉如是说》·序言 3');
 });
 
 test('日期行：今日 / 抽到的那句记于哪天（北京时间）', () => {
-  assert.equal(D.fmtDay('2026-10-20', false), '10月20日 星期二');
-  assert.equal(D.fmtDay('2026-10-20', true), 'Tuesday, Oct 20');
-  assert.equal(D.fmtDay('bad', false), '');
+  /* 日期交给 Intl（语言包化第二部分）：中文「10月20日星期二」（Intl 不加空格） */
+  assert.equal(D.fmtDay('2026-10-20', 'zh'), '10月20日星期二');
+  assert.equal(D.fmtDay('2026-10-20', 'en'), 'Tuesday, Oct 20');
+  assert.equal(D.fmtDay('bad', 'zh'), '');
   /* 2026-10-20 16:30 UTC = 10-21 00:30 北京 */
-  assert.equal(D.fmtKept(Date.UTC(2026, 9, 20, 16, 30), false), '拾于 2026年10月21日');
-  assert.equal(D.fmtKept(Date.UTC(2026, 9, 20, 12), true), 'Kept Oct 20, 2026');
+  const zhTr = D.makeTr(ZH, 'zh'), enTr = D.makeTr(EN, 'en');
+  assert.equal(D.fmtKept(Date.UTC(2026, 9, 20, 16, 30), 'zh', zhTr), '拾于 2026年10月21日');
+  assert.equal(D.fmtKept(Date.UTC(2026, 9, 20, 12), 'en', enTr), 'Kept Oct 20, 2026');
+  assert.equal(D.fmtKept(0, 'en', enTr), 'From the trove');
+  assert.equal(D.fmtKept(0, 'zh', zhTr), '拾录里的一句');
+});
+
+test('makeTr：页面把带数字的键改挂成函数（T.count = function(n){ return tr(\'count\', …) }）后，tr 仍读原始文案', () => {
+  const T = { count: '{n} 句' };
+  const tr = D.makeTr(T, 'zh');
+  T.count = function (n) { return tr('count', { n: n }); };
+  assert.equal(T.count(4), '4 句');
 });
 
 test('分享文本：正文、译文、署名各一行', () => {
-  assert.equal(D.shareText(QS[0], false), 'Stay hungry\n求知若饥\n—— Steve Jobs');
-  assert.equal(D.shareText(QS[2], false), '无题');
+  assert.equal(D.shareText(QS[0], ZH.sourceTitle), 'Stay hungry\n求知若饥\n—— Steve Jobs');
+  assert.equal(D.shareText(QS[1], ZH.sourceTitle), '世上本没有路\n—— 鲁迅 · 《故乡》');
+  assert.equal(D.shareText(QS[1], EN.sourceTitle), '世上本没有路\n—— 鲁迅 · 故乡');
+  assert.equal(D.shareText(QS[2], ZH.sourceTitle), '无题');
 });
