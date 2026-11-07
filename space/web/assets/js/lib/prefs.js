@@ -88,14 +88,27 @@ export function uaMobile(nav) {
 
 /**
  * 偏好 + 浏览器 + 视口宽 → 实际布局（同 baseof.html / 共享外壳 layout-mode.js __sgxLayout）：
- * 手动手机 / 桌面照办；自动 = 手机版网站模式 → phone，否则 desktop，但视口宽 < 720 → phone（窄窗口 / 分屏的保险，只在自动里）。
- * @param {any} pref @param {boolean} mobile uaMobile() 的结果 @param {number} [w] 视口宽（innerWidth） @returns {'phone'|'desktop'}
+ * 手动手机 / 桌面照办；自动 = 视口宽 < 720 → phone（窄窗口 / 分屏 / 手机竖屏）；否则不是手机版网站模式 → desktop；
+ * UA 报手机但浏览器在用「桌面版网站」的虚拟视口（desktopSite，同 __sgxDesktopSite）→ desktop；其余 phone。
+ * @param {any} pref @param {boolean} mobile uaMobile() 的结果 @param {number} [w] 视口宽（innerWidth）
+ * @param {boolean} [desktopSite] 布局视口比屏幕宽 1.25 倍以上（浏览器不理 viewport meta） @returns {'phone'|'desktop'}
  */
-export function resolveLayout(pref, mobile, w) {
+export function resolveLayout(pref, mobile, w, desktopSite) {
   const p = normLayout(pref);
   if (p !== 'auto') return p;
+  if (typeof w === 'number' && w > 0 && w < 720) return 'phone';
+  return !mobile || desktopSite ? 'desktop' : 'phone';
+}
+
+/**
+ * 设备档（同共享外壳 layout-mode.js __sgxDevice）：UA 报手机，或粗指针 + 屏幕短边 < 600 → phone；其余 desktop。
+ * 只给桌面布局的顶栏宽分档（手机开桌面版网站 = 窄档），和布局模式无关。
+ * @param {boolean} mobile uaMobile() 的结果 @param {boolean} coarse (pointer: coarse) @param {number} [screenShort] 屏幕短边 CSS px
+ * @returns {'phone'|'desktop'}
+ */
+export function resolveDevice(mobile, coarse, screenShort) {
   if (mobile) return 'phone';
-  return typeof w === 'number' && w > 0 && w < 720 ? 'phone' : 'desktop';
+  return coarse && typeof screenShort === 'number' && screenShort > 0 && screenShort < 600 ? 'phone' : 'desktop';
 }
 
 /** 旧接口（P4-3 PR-4b 前「不够 DeX 时 DeX 置灰」）：模式不再按视口定，桌面任何时候都能选。 @returns {boolean} */

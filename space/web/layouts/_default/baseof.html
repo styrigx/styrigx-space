@@ -152,6 +152,7 @@ function __applyLayout(){
   d.classList.add(m==='desktop'?'layout-dex':'layout-mobile');
   /* 外壳（shell.css）按 data-sgx-layout 定顶栏宽：phone = min(100% − 32, 640)，desktop = min(960, 100% − 48)；三个子站用同一个 __sgxLayout() */
   d.setAttribute('data-sgx-layout',m);
+  d.setAttribute('data-sgx-device',__sgxDevice());
 }
 __applyLayout();
 /* 拖窗口 / 分屏 / 转屏：不刷新，按同一条规则重算 */

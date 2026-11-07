@@ -401,7 +401,7 @@ test.describe('390×844 行为', () => {
 test.describe('1280×800', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  /* P4-3 PR-4b 定稿：顶栏宽只看视口宽 + 布局模式——手机 min(100% − 32, 640)，桌面 min(960, 100% − 48)，居中；
+  /* P4-3 PR-4b 定稿：顶栏宽只看视口宽 + 布局模式 + 设备档——手机布局 min(100% − 32, 640)；桌面布局（这里是电脑：无触屏、屏幕 = 视口）min(clamp(720, 60vw, 960), 100% − 48)，居中；
      自动（桌面 UA）视口 < 720 → 手机。顶栏高 clamp(52, 42 + 1.667vw, 56)（≥ 840 宽 56）；按钮 40 × 40，字标左缘 / AI 右缘离胶囊边 (高 − 40) / 2。 */
   for (const [w, h] of [[600, 900], [840, 600], [1280, 800], [1920, 1080], [2560, 1440]]) {
     test(`${w}×${h}：顶栏宽 / 高 / 圆按钮按公式（±1px），居中`, async ({ page }) => {
@@ -409,7 +409,7 @@ test.describe('1280×800', () => {
       await go(page, '/theme/');
       const desktop = w >= 720;
       await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', desktop ? 'desktop' : 'phone');
-      const want = desktop ? Math.min(960, w - 48) : Math.min(w - 32, 640);
+      const want = desktop ? Math.min(Math.max(720, Math.min(0.6 * w, 960)), w - 48) : Math.min(w - 32, 640);
       const btn = w < 600 ? 52 : Math.min(56, Math.max(52, 42 + 0.01667 * w));
       const bar = await box(page, '.sgx-topbar');
       expect(near(bar.width, want), `宽 ${bar.width} ≠ ${want}`).toBe(true);

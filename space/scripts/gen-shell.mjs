@@ -361,10 +361,13 @@ const README = `# space/web/shared/shell（生成物，勿手改）
   \`--sgx-shell-w\` = min(100% − 2 × 页边距, 最宽)。子站自己的页面外框用 \`width: var(--sgx-shell-w); margin: 0 auto\`（顶栏不再定内容栏，P4-3 PR-4b）。
 - 布局模式（P4-3 PR-4b，Gray 2026-11-07）：只有手机 \`phone\` / 桌面 \`desktop\` 两种（自动里视口 < 720 CSS px 落手机，这是唯一的像素线）。唯一规则在 \`layout-mode.js\` 的 \`__sgxLayout()\`：
   偏好 \`sgx-layout\` = phone / auto / desktop（旧值 mobile → phone、dex / pc → desktop），自动 = \`navigator.userAgentData.mobile\`（没有就看 UA 的 Mobi / Android…Mobile / iPhone）；
+  UA 报手机但浏览器在用桌面版网站的虚拟视口（布局视口 > 屏幕宽 × 1.25，\`__sgxDesktopSite()\`）也算桌面；
+  设备档 \`__sgxDevice()\` = UA 报手机或「粗指针 + 屏幕短边 < 600」→ phone，其余 desktop（只给桌面顶栏宽分档），写 \`<html data-sgx-device="phone|desktop">\`。
   \`?layout=auto\` 逃生口。**四站 \`<head>\` 原样内联这一份**（Hugo：resources.Get … | minify，.Content | safeJS），结果写进 \`<html data-sgx-layout="phone|desktop">\`，
   各站自己的 layout-* 类也按它（tests/space/ui/shell/topbar-length.test.mjs 核对四站内联的是同一份、结果一样）。**子站不许再自己改 \`--sgx-content-max\` / 顶栏宽。**
-- 顶栏宽 \`--sgx-tb-w\`（shell.css）：手机 = min(100% − 2 × 16px, 640px)；桌面 = min(960px, 100% − 2 × 24px)，居中（两侧取安全区和 16 / 24 的大者）。
-  按 100%（固定定位包含块 = 不含滚动条的窗口宽）算，不用 100vw；\`:root { overflow-x: clip }\` 横向不滚。窗口 < 380px 藏掉页名胶囊（唯一阈值）。
+- 顶栏宽 \`--sgx-tb-w\`（shell.css）：手机布局 = min(100% − 2 × 16px, 640px)；桌面布局 + 手机设备 = min(720px, 100% − 2 × 24px)；
+  桌面布局 + 电脑 / 平板 = min(clamp(720px, 60vw, 960px), 100% − 2 × 24px)，居中（两侧取安全区和 16 / 24 的大者；Gray 2026-11-07：桌面顶栏固定居中、不接近铺满）。
+  上限按 100%（固定定位包含块 = 不含滚动条的窗口宽）收，vw 只在 clamp 中间项；\`:root { overflow-x: clip }\` 横向不滚。窗口 < 380px 藏掉页名胶囊（唯一阈值）。
   自动模式下算出桌面但视口 < 720 CSS px → 手机；matchMedia 听 720 线和横竖屏重算，不刷新。
 
 `;

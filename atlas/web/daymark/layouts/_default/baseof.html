@@ -40,6 +40,7 @@ function __applyLayout(){
   d.classList.remove('layout-mobile','layout-dex');
   d.classList.add('layout-'+m);
   d.setAttribute('data-sgx-layout',m==='dex'?'desktop':'phone');
+  d.setAttribute('data-sgx-device',__sgxDevice());
 }
 __applyLayout();
 /* 拖窗口 / 分屏 / 转屏：不刷新，按同一条规则重算 */

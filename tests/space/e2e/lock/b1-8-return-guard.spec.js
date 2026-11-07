@@ -453,3 +453,82 @@ test.describe('B1-8 路径B：会话无效、用临时钥匙解锁后被踢回',
     expect(rec.target).toBe(TARGET_BLOG);
   });
 });
+
+/* 2026-11-07 Gray 录屏（S23 Ultra 三星浏览器）：奇趣锁屏 → 通行密钥解锁 → 回跳 → 切「桌面版网站」→ 主站底部「无法回到子站，请重试」、奇趣一直「加载中…」。
+   三星浏览器（Chromium）切桌面版 / 手机版网站 = 换 UA 后按原始请求地址重载当前条目，锁屏地址 /?lock=1&why=…&return=子站 被原样再取一次；
+   20 秒内同一 target 第二次进来，以前一律当子站死循环出失败卡。重载 / 前进后退打开的不是被踢回（网关 302 的导航类型是 navigate），照常回跳。
+   这里模拟桌面版网站：桌面 UA（三星 X11 Linux）+ 980 视口 + 屏幕 384、触屏。
+   中英各跑一遍（PR-4c 起英文无前缀、中文 /zh/）：zh = sgx-lang=zh + zh-CN（首帧 replace 到 /zh/?lock=1…，重载的是 /zh/ 那条）；
+   en = 无偏好 + en-US（跟随系统，地址不动）。 */
+for (const LANG of [
+  { id: 'zh', locale: 'zh-CN', pref: 'zh', fail: '无法回到子站' },
+  { id: 'en', locale: 'en-US', pref: null, fail: 'Cannot return to the subsite' },
+]) test.describe(`B1-8 桌面版网站切换（重载锁屏地址）不算被踢回 [${LANG.id}]`, () => {
+  const TARGET = 'https://styrigx.com/curio/';
+  test.use({
+    locale: LANG.locale,
+    viewport: { width: 980, height: 2104 }, screen: { width: 384, height: 824 }, isMobile: true, hasTouch: true,
+    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/130.0.0.0 Safari/537.36',
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    if (LANG.pref) await page.addInitScript((v) => { try { localStorage.setItem('sgx-lang', v); } catch (e) {} }, LANG.pref);
+    page.__jumps = [];
+    page.on('request', (r) => {
+      try {
+        if (!r.isNavigationRequest() || r.frame() !== page.mainFrame()) return;
+        page.__navCount = (page.__navCount || 0) + 1;
+        if (/^https:\/\/styrigx\.com\/curio\//.test(r.url())) page.__jumps.push(r.url());
+      } catch (e) {}
+    });
+    await page.route(/^https:\/\/styrigx\.com\/curio\//, (r) => r.fulfill({ status: 204, body: '' }));
+    page.__locked = false;
+    await page.route('**/api/lock-session-check*', async (route) => {
+      if (page.__locked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
+      const ret = new URL(route.request().url()).searchParams.get('return');
+      await route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, by: 'passkey', exp: Date.now() + 3600e3, next: ret || null }) });
+    });
+    await page.route('**/api/lock-tempkey-unlock', async (route) => {
+      page.__locked = false;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
+  });
+
+  test('锁屏解锁回跳奇趣后，切桌面版网站（重载锁屏地址）→ 再次回跳，不出失败卡；之后真被踢回（navigate）仍出失败卡', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await clearJumpState(page);
+    /* 锁着进锁屏（子站踢回），临时钥匙解锁 → 回跳奇趣 */
+    page.__locked = true;
+    await page.goto('/?lock=1&test-no-local-bypass=1&why=no-cookie&return=' + encodeURIComponent(TARGET), { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+    await page.click('#sgx-lock-avatar');
+    await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
+    await page.click('#sgx-mopt-tempkey');
+    await page.fill('#sgx-temp-input', 'AAAA-BBBB-CCCC');
+    await page.click('#sgx-temp-go');
+    expect(await waitDecision(page, 8000)).toBe('jump');
+    expect(page.__jumps[0]).toBe(TARGET);
+    await settle(page);
+    const rec1 = await getJumpRecord(page);
+    expect(rec1 && rec1.target).toBe(TARGET);
+
+    /* 切桌面版网站 = 重载同一条目（锁屏地址原样再取）：几秒内第二次进来，但导航类型是 reload → 照常回跳 */
+    page.__jumps.length = 0;
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    expect(await page.evaluate(() => performance.getEntriesByType('navigation')[0].type)).toBe('reload');
+    expect(new URL(page.url()).pathname).toBe(LANG.id === 'zh' ? '/zh/' : '/');
+    expect(await waitDecision(page, 8000)).toBe('jump');
+    expect(await failureShown(page)).toBe(false);
+    /* 窗口起点不刷新：仍是第一次回跳的时间 */
+    expect((await getJumpRecord(page)).at).toBe(rec1.at);
+    await settle(page);
+
+    /* 对照：20 秒内真被网关踢回（新的导航，type = navigate）→ 失败卡照旧 */
+    page.__jumps.length = 0;
+    await page.goto('/?test-no-local-bypass&why=no-cookie&return=' + encodeURIComponent(TARGET), { waitUntil: 'domcontentloaded' });
+    expect(await waitDecision(page, 8000)).toBe('failure');
+    await expect(page.locator('#sgx-subsite-failure')).toContainText(LANG.fail);
+  });
+});
