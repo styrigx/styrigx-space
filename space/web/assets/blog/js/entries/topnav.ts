@@ -6,6 +6,7 @@ import { mountAiChat } from '../../../js/shell/ai-panel.js';
 import { onKeyboardHeight } from '../../../js/shell/vk.js';
 import * as prefs from '../../../js/lib/prefs-write.js';
 import { mountShare } from '../../../js/shell/share-button.js';
+import * as terminal from '../../../js/shell/terminal.js';
 
 /** 文章阅读进度：#article-start（正文）从顶栏下沿开始读，到正文底部离开视口底部为 100%；画在长条底边。 */
 let ticking = false;
@@ -58,6 +59,8 @@ function initTopbar() {
     },
     ai: mountAiChat,
     share: mountShare,
+    /* 全站终端（Ctrl / ⌘ K、NAVIGATE「$ terminal」；2026-11 PR-2） */
+    terminal,
     keyboard: onKeyboardHeight,
   });
 

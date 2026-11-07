@@ -346,9 +346,15 @@ test.describe('外观面板：内容', () => {
     /* 减弱动效、字体大小已删除（2026-10-23 PR-E） */
     await expect(page.locator('#sgx-qp [data-qp="motion"], #sgx-nav [data-qp="motion"]')).toHaveCount(0);
     await expect(page.locator('[data-qp-seg="font-size"]')).toHaveCount(0);
-    /* 22 套七色调色板一个列表（含默认 dustyblue 和普通色板 lake），每行两块色 + 名字 */
+    /* 22 套七色调色板一个列表（含默认 dustyblue 和普通色板 lake），每行 6 个前景色圆点（f1–f6，2026-11 PR-2 恢复）+ 名字 */
     await expect(page.locator('#sgx-qp [data-qp-palette]')).toHaveCount(22);
-    await expect(page.locator('#sgx-qp .sgx-th-pal .sgx-th-sw u')).toHaveCount(44);
+    await expect(page.locator('#sgx-qp .sgx-th-pal .sgx-th-sw u')).toHaveCount(132);
+    {
+      const sw = await page.locator('#sgx-qp [data-qp-palette="lake"] .sgx-th-sw u').evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
+      expect(sw).toHaveLength(6);
+      expect(new Set(sw).size, '6 个前景色各不相同').toBeGreaterThan(3);
+      for (const c of sw) expect(c).not.toBe('rgba(0, 0, 0, 0)');
+    }
     await expect(page.locator('#sgx-qp [data-qp-palette="lake"] .sgx-th-name')).toHaveText('湖蓝');
     await expect(page.locator('#sgx-qp [data-qp-palette^="x"]')).toHaveCount(0);
     await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveText('恢复默认');

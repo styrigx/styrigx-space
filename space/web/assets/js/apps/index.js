@@ -5,12 +5,12 @@
 import { mountDaymarkToday } from '../lib/daymark-today.js';
 
 /**
- * 挂首页（每块首页 DOM 只调一次）。返回 activate / deactivate（页内切换进出时调）；不在首页（没有 #home-widgets）返回 null。
+ * 挂首页（每块首页 DOM 只调一次）。返回 activate / deactivate（页内切换进出时调）；不在首页（没有 #home-hero；2026-11 PR-2 首屏终端起首页小组件网格 #home-widgets 拆成各分节）返回 null。
  * @param {{direct?: boolean}} [o] direct：这一栏就是直接打开 / 刷新的那页（照旧回到顶部）
  * @returns {{activate: () => void, deactivate: () => void}|null}
  */
 export function mountHome(o) {
-  if (!document.getElementById('home-widgets')) return null;
+  if (!document.getElementById('home-hero')) return null;
   /* 首页刷新回到顶部（只管直接打开 / 刷新；页内切回来按记住的位置） */
   if (o && o.direct) {
     if ('scrollRestoration' in history) {
