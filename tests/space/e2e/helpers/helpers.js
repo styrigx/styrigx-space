@@ -154,20 +154,20 @@ async function armNavProbe(page) {
   }).catch(() => null);
 }
 
-/** 首页日刻卡显隐（见文件头） */
+/** 首页日刻卡显隐（见文件头）。2026-11 PR-2 首屏终端起日刻卡在 [02] 日刻分节 #daymark 里（测试构建不输出卡片时补一张占位） */
 async function setHomeCards(page, { daymark }) {
   await page.evaluate((dm) => {
-    const grid = document.querySelector('#home-widgets');
+    const sec = document.getElementById('daymark');
     let el = document.getElementById('w-daymark');
     if (!el) {
       el = document.createElement('a');
       el.id = 'w-daymark';
       el.className = 'widget hidden';
       el.style.minHeight = '160px';
-      document.getElementById('w-profile').after(el);
+      sec.appendChild(el);
     }
     el.classList.toggle('hidden', !dm);
-    void grid.offsetWidth;
+    void sec.offsetWidth;
   }, !!daymark);
 }
 

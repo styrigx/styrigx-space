@@ -34,7 +34,7 @@ const AUTO = [
 for (const [width, height, want] of AUTO) {
   test(`自动（桌面 UA）${width}×${height} → ${want}`, async ({ page }) => {
     await go(page, { width, height }, '/');
-    await expect(page.locator('#home-widgets')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#home-hero')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('html')).toHaveClass(new RegExp('\\blayout-' + want + '\\b'));
     await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', want === 'dex' ? 'desktop' : 'phone');
     await expect(page.locator('html')).not.toHaveClass(/\blayout-pc\b/);
@@ -44,7 +44,7 @@ for (const [width, height, want] of AUTO) {
 for (const [pref, vp, want] of [['desktop', { width: 412, height: 915 }, 'dex'], ['dex', { width: 915, height: 412 }, 'dex'], ['pc', { width: 1366, height: 768 }, 'dex'], ['phone', { width: 1366, height: 768 }, 'mobile'], ['mobile', { width: 1920, height: 950 }, 'mobile']]) {
   test(`手动 ${pref} 在 ${vp.width}×${vp.height} → ${want}（手动照办，不看视口；旧值照认）`, async ({ page }) => {
     await go(page, vp, '/', pref);
-    await expect(page.locator('#home-widgets')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#home-hero')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('html')).toHaveClass(new RegExp('\\blayout-' + want + '\\b'));
   });
 }
@@ -79,7 +79,8 @@ test('顶栏 412×915（手机布局）：通栏，不显示页名，字标和�
 });
 
 /* ----- 手机布局：外框最宽 640 居中（顶栏 v3 是通栏，不再和外框同宽） ----- */
-const WRAPS = [['/', '.home-wrap'], ['/theme/', '.set-layout'], ['/account/', '.acct-layout'], ['/status/', '.acct-layout'], ['/404.html', '.sgx-404']];
+/* 首页（/）2026-11 PR-2 起内容栏对齐顶栏内容（1080），不跟外壳框，单独测（见下「首页内容栏」） */
+const WRAPS = [['/theme/', '.set-layout'], ['/account/', '.acct-layout'], ['/status/', '.acct-layout'], ['/404.html', '.sgx-404']];
 async function frame(page, sel) {
   return page.evaluate((s) => {
     const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
@@ -130,6 +131,23 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
   });
 }
 
+/* ----- 首页内容栏（2026-11 PR-2 首屏终端）：任何布局 = 顶栏内容栏 min(1080, 100% − 2 × 页边距) 居中，左缘 = 字标左缘 + 4、右缘 = 图标组右缘 ----- */
+for (const [w, h, pref] of [[834, 1194, 'phone'], [412, 915, ''], [1024, 700, ''], [1366, 650, ''], [1920, 950, '']]) {
+  test(`首页内容栏 ${w}×${h}${pref ? ' 手动手机' : ''}：对齐顶栏内容（1080）`, async ({ page }) => {
+    await go(page, { width: w, height: h }, '/', pref || undefined);
+    await expect(page.locator('#home-hero')).toBeVisible({ timeout: 15000 });
+    const f = await page.evaluate(() => {
+      const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
+      return { wrap: r('.home-wrap'), logo: r('#site-nav .sgx-tb-logo'), acts: r('#site-nav .sgx-tb-acts'), vw: innerWidth, sw: document.scrollingElement.scrollWidth };
+    });
+    const want = Math.min(1080, w - 2 * pageM(w));
+    expect(Math.abs(f.wrap.w - want), `外框宽 ${f.wrap.w} ≠ ${want}`).toBeLessThanOrEqual(1);
+    expect(Math.abs(f.wrap.l - (f.logo.l + 4))).toBeLessThanOrEqual(1);
+    expect(Math.abs(f.wrap.r - f.acts.r)).toBeLessThanOrEqual(1);
+    expect(f.sw).toBeLessThanOrEqual(f.vw);
+  });
+}
+
 /* ----- 临界：719 / 720 / 721 宽（自动，桌面 UA；高度不再参与） ----- */
 for (const w of [719, 720, 721]) {
   for (const h of [499, 800]) {
@@ -137,9 +155,10 @@ for (const w of [719, 720, 721]) {
       await go(page, { width: w, height: h }, '/');
       const want = w >= 720 ? 'dex' : 'mobile';
       await expect(page.locator('html')).toHaveClass(new RegExp('\\blayout-' + want + '\\b'));
-      await expect(page.locator('#home-widgets')).toBeVisible();
+      await expect(page.locator('#home-hero')).toBeVisible();
+      /* 2026-11 PR-2：首页各块（hero、终端、分节、屏幕时间卡）都铺满内容栏，不会窄到 320 以下 */
       const m = await page.evaluate(() => ({ sw: document.scrollingElement.scrollWidth, iw: innerWidth,
-        cards: [...document.querySelectorAll('#home-widgets > .widget')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]) }));
+        cards: [...document.querySelectorAll('#home-hero, #home-term, .home-sec, #w-screen')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]) }));
       expect(m.sw).toBeLessThanOrEqual(m.iw);
       expect(m.cards.length).toBeGreaterThan(0);
       for (const [id, cw] of m.cards) expect(cw, `${id} 宽 ${cw}`).toBeGreaterThanOrEqual(320);
@@ -147,54 +166,51 @@ for (const w of [719, 720, 721]) {
   }
 }
 
-/* ----- 首页栅格（P4-2c 起双时钟、天气删除）：DeX 固定 2 列，名片 + 日刻并排各一列，屏幕时间整行；
-   日刻没数据（.hidden）或没输出时名片整行；容器窄到放不下 2 个 320 就退成 1 列 ----- */
+/* ----- 首页（2026-11 PR-2 首屏终端；原「首页栅格」「栅格退列」用例随小组件网格删除）：日刻有 / 没数据都不留空白——
+   有数据卡片铺满 [02] 日刻分节；没数据（.hidden）分节只剩标题和命令行，下一节紧接着；屏幕时间卡铺满 [03] 分节 ----- */
 for (const [w, h] of [[1920, 950], [1280, 760], [841, 673]]) {
   for (const dm of [true, false]) {
-    test(`首页栅格 ${w}×${h}：日刻${dm ? '有' : '无'} → ${dm ? '名片和日刻并排' : '名片整行'}，屏幕时间整行，无空白`, async ({ page }) => {
+    test(`首页分节 ${w}×${h}：日刻${dm ? '有' : '无'}数据，卡片铺满分节、没有空白；屏幕时间整行`, async ({ page }) => {
       await go(page, { width: w, height: h }, '/');
       await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
-      await expect(page.locator('#home-widgets')).toBeVisible();
+      await expect(page.locator('#home-hero')).toBeVisible();
       await setHomeCards(page, { daymark: dm });
       const m = await page.evaluate(() => {
-        const g = document.querySelector('#home-widgets');
-        const gr = g.getBoundingClientRect();
-        const box = (id) => { const e = document.getElementById(id); const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width, t: r.top }; };
-        return { g: { l: gr.left, r: gr.right, w: gr.width }, gap: parseFloat(getComputedStyle(g).columnGap), cols: getComputedStyle(g).gridTemplateColumns.split(' ').length,
-          profile: box('w-profile'), daymark: box('w-daymark'), screen: box('w-screen') };
+        const box = (e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width, t: r.top, b: r.bottom }; };
+        const sec = document.getElementById('daymark');
+        const head = sec.querySelector('.home-sec-cmd');
+        return { sec: box(sec), head: box(head), dm: box(document.getElementById('w-daymark')), dmShown: !document.getElementById('w-daymark').classList.contains('hidden'),
+          st: box(document.getElementById('screen-time')), screen: box(document.getElementById('w-screen')) };
       });
-      expect(m.cols).toBe(2);
-      expect(Math.abs(m.profile.l - m.g.l)).toBeLessThanOrEqual(1);
-      expect(Math.abs(m.screen.l - m.g.l)).toBeLessThanOrEqual(1);
-      expect(Math.abs(m.screen.r - m.g.r), '屏幕时间整行').toBeLessThanOrEqual(1);
+      expect(Math.abs(m.screen.l - m.st.l)).toBeLessThanOrEqual(1);
+      expect(Math.abs(m.screen.r - m.st.r), '屏幕时间整行').toBeLessThanOrEqual(1);
       if (dm) {
-        const colW = (m.g.w - m.gap) / 2;
-        expect(Math.abs(m.profile.w - colW)).toBeLessThanOrEqual(1);
-        expect(Math.abs(m.daymark.w - colW)).toBeLessThanOrEqual(1);
-        expect(Math.abs(m.daymark.t - m.profile.t), '同一行').toBeLessThanOrEqual(1);
-        expect(Math.abs(m.daymark.r - m.g.r)).toBeLessThanOrEqual(1);
-        expect(m.profile.w).toBeGreaterThanOrEqual(320);
+        expect(m.dmShown).toBe(true);
+        expect(Math.abs(m.dm.l - m.sec.l)).toBeLessThanOrEqual(1);
+        expect(Math.abs(m.dm.r - m.sec.r), '日刻卡铺满').toBeLessThanOrEqual(1);
+        expect(m.dm.w).toBeGreaterThanOrEqual(320);
       } else {
-        expect(Math.abs(m.profile.r - m.g.r), '名片整行').toBeLessThanOrEqual(1);
+        expect(m.sec.b - m.head.b, '没数据时分节不留空白').toBeLessThanOrEqual(24);
       }
     });
   }
 }
 
-test('栅格退列：容器收窄到 700 / 600 / 330 → 2 / 1 / 1 列，绝不挤到 320 以下', async ({ page }) => {
+test('首页收窄：容器 700 / 600 / 330 → 各块跟着收、终端不超出、不出横向滚动', async ({ page }) => {
   await go(page, { width: 1920, height: 950 }, '/');
   await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
   await setHomeCards(page, { daymark: true });
-  for (const [px, n] of [[0, 2], [700, 2], [600, 1], [330, 1]]) {
+  for (const px of [700, 600, 330]) {
     const c = await page.evaluate((v) => {
-      const g = document.querySelector('#home-widgets');
-      g.style.transition = 'none';
-      g.style.width = v ? v + 'px' : '';
-      const t = getComputedStyle(g).gridTemplateColumns.split(' ').map(parseFloat);
-      return { n: t.length, min: Math.min(...t), raw: getComputedStyle(g).gridTemplateColumns };
+      const g = document.querySelector('.home-wrap');
+      g.style.width = v + 'px';
+      const gr = g.getBoundingClientRect();
+      const over = [...g.querySelectorAll('#home-term, .home-sec, #w-daymark, #w-screen')].filter((e) => e.offsetParent !== null)
+        .filter((e) => { const r = e.getBoundingClientRect(); return r.left < gr.left - 1 || r.right > gr.right + 1; }).map((e) => e.id);
+      return { over, sw: document.scrollingElement.scrollWidth, iw: innerWidth };
     }, px);
-    expect(c.n, `容器 ${px || '原宽'} → ${c.raw}`).toBe(n);
-    expect(c.min).toBeGreaterThanOrEqual(320);
+    expect(c.over, `容器 ${px}`).toEqual([]);
+    expect(c.sw).toBeLessThanOrEqual(c.iw);
   }
 });
 
@@ -205,7 +221,8 @@ test('分屏：900×600 是桌面，拖窄到 700×600 实时切手机，再拉�
   await page.waitForFunction(() => document.readyState === 'complete');
   await page.setViewportSize({ width: 700, height: 600 });
   await expect(page.locator('html')).toHaveClass(/\blayout-mobile\b/, { timeout: 3000 });
-  await expect.poll(async () => { const f = await frame(page, '.home-wrap'); return Math.abs(f.wrap.w - 640) <= 1 && Math.abs(f.wrap.l + f.wrap.w / 2 - f.vw / 2) <= 1; }, { timeout: 3000 }).toBe(true);
+  /* 首页内容栏对齐顶栏内容（2026-11 PR-2）：700 宽手机 = 700 − 2 × 页边距，居中 */
+  await expect.poll(async () => { const f = await frame(page, '.home-wrap'); return Math.abs(f.wrap.w - (700 - 2 * pageM(700))) <= 1 && Math.abs(f.wrap.l + f.wrap.w / 2 - f.vw / 2) <= 1; }, { timeout: 3000 }).toBe(true);
   await page.setViewportSize({ width: 900, height: 600 });
   await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/, { timeout: 3000 });
 });

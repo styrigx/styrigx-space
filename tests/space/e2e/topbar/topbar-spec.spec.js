@@ -92,10 +92,17 @@ for (const dark of [false, true]) {
         expect(near(av.x + av.width, 390 - 16), `头像右 ${av.x + av.width}`).toBe(true);
         expect(q.x < sh.x && sh.x < g.x && g.x < av.x, '外观 → 盾牌 → >_ → 头像').toBe(true);
         expect(logo.x + logo.width).toBeLessThanOrEqual(q.x + 0.5);
-        expect(logo.width, `字标宽 ${logo.width}`).toBeGreaterThan(100);
-        await expect(page.locator('.sgx-tb-logo')).toHaveText('❯styrigx:~$');
+        expect(logo.width, `字标宽 ${logo.width}`).toBeGreaterThan(80);
+        /* 2026-11 PR-2（Gray）：❯ + SVG 字标（手机 20px 高，和 ❯、光标上下居中）+ 光标；没有 :~$、窄屏不收 */
+        await expect(page.locator('.sgx-tb-logo .sgx-tb-name svg.sgx-wordmark')).toHaveCount(1);
         await expect(page.locator('.sgx-tb-logo .sgx-tb-cu')).toHaveCount(1);
-        await expect(page.locator('.sgx-tb-logo svg, .sgx-tb-mark, .sgx-tb-logo small')).toHaveCount(0);
+        await expect(page.locator('.sgx-tb-logo .sgx-tb-tl, .sgx-tb-mark, .sgx-tb-logo small')).toHaveCount(0);
+        {
+          const wm = await page.locator('.sgx-tb-logo .sgx-wordmark').boundingBox();
+          const ps = await page.locator('.sgx-tb-logo .sgx-tb-ps').boundingBox();
+          expect(near(wm.height, 20), `字标高 ${wm.height}`).toBe(true);
+          expect(Math.abs((wm.y + wm.height / 2) - (ps.y + ps.height / 2)), '字标和 ❯ 上下居中').toBeLessThanOrEqual(3);
+        }
         await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-nav, .sgx-tb-end, #sgx-drawer')).toHaveCount(0);
         expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-prog']);
         expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-btn sgx-tb-quick', 'sgx-tb-btn sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-btn sgx-tb-grid', 'sgx-tb-av']);

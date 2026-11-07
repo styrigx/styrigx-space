@@ -309,7 +309,7 @@ export function mountTopbar(o) {
         if (c) {
           const id = c.getAttribute('data-qp');
           if (id === 'share') return; /* share.js 自己接这一下 */
-          if (id === 'term') { ms.close(function () { openTerm(); }); return; }
+          if (id === 'term') { ms.close(function () { window.setTimeout(openTerm, 0); }); return; }
           if (id === 'lock') {
             if (o.onLock) { ms.close(o.onLock); return; }
             if (lockArmed) { disarm(); ms.close(lockNow); return; }
@@ -441,11 +441,12 @@ export function mountTopbar(o) {
   const reducedM = function () {
     try { return doc.documentElement.classList.contains('reduced-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
   };
-  /** 先关掉开着的顶栏窗口 / 抽屉，再做 f */
+  /** 先关掉开着的顶栏窗口 / 抽屉，再做 f（放到下一个任务里：哨兵出栈的 popstate 还要派给别的窗口，同一个事件里开新窗口会被当成「系统返回」关掉，同上面的互斥） */
   const closeAll = function (/** @type {() => void} */ f) {
-    if (termSheet && termSheet.isOpen()) { termSheet.close(f); return; }
+    const later = function () { window.setTimeout(f, 0); };
+    if (termSheet && termSheet.isOpen()) { termSheet.close(later); return; }
     const open = sheets.find(function (x) { return x.ms.isOpen(); });
-    if (open) { open.ms.close(f); return; }
+    if (open) { open.ms.close(later); return; }
     f();
   };
   /** 打开终端：主页聚焦首屏那个（滚到视野里），其他页开抽屉 */

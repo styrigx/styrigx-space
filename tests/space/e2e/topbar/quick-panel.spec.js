@@ -1249,8 +1249,9 @@ test.describe('顶栏 logo 字标 + 标签页图标跟主题色', () => {
       await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
       const logo = page.locator('.sgx-tb-logo');
       await expect(logo).toHaveAccessibleName('Styrigx 首页');
-      await expect(logo.locator('.sgx-tb-name')).toHaveText('styrigx');
-      await expect(logo).toHaveText('❯styrigx:~$');
+      /* 2026-11 PR-2（Gray）：字标 = ❯ + SVG 字标 + 光标；没有 :~$ */
+      await expect(logo.locator('.sgx-tb-name svg.sgx-wordmark')).toHaveCount(1);
+      await expect(logo.locator('.sgx-tb-tl')).toHaveCount(0);
       const m = await page.evaluate(() => {
         const q = (s) => document.querySelector('.sgx-tb-logo ' + s);
         const probe = document.createElement('i');
@@ -1259,6 +1260,7 @@ test.describe('顶栏 logo 字标 + 标签页图标跟主题色', () => {
         const cs = getComputedStyle(probe);
         const out = { ps: getComputedStyle(q('.sgx-tb-ps')).color, cu: getComputedStyle(q('.sgx-tb-cu')).backgroundColor, name: getComputedStyle(q('.sgx-tb-name')).color,
           anim: getComputedStyle(q('.sgx-tb-cu')).animationDuration, mono: getComputedStyle(q('.sgx-tb-name')).fontFamily,
+          dot: getComputedStyle(q('.sgx-tb-name .wm-dot')).fill, letters: getComputedStyle(q('.sgx-tb-name .wm-letters')).fill,
           primary: cs.color, text: cs.backgroundColor,
           pal: document.documentElement.getAttribute('data-palette'), dark: document.documentElement.classList.contains('dark') };
         probe.remove();
@@ -1269,6 +1271,9 @@ test.describe('顶栏 logo 字标 + 标签页图标跟主题色', () => {
       expect(m.ps).toBe(m.primary);
       expect(m.cu).toBe(m.primary);
       expect(m.name).toBe(m.text);
+      /* SVG 字标：字母 = 正文色（currentColor），i 上的圆点跟主题色 */
+      expect(m.letters).toBe(m.text);
+      expect(m.dot).toBe(m.primary);
       expect(m.anim).toBe('1.05s');
       expect(m.mono).toMatch(/monospace/);
       /* SVG 图标：默认 dustyblue 亮色用静态文件，其他换成主题色 data: 地址 */

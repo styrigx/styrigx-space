@@ -8905,7 +8905,7 @@
    hero 居中：状态胶囊 → 头像 → $ whoami → 名字 → $ 副标题 + 闪烁光标 → # 介绍 → 签名 → 嵌入终端；下面各分节「[0n] // 名字」+ 一行命令 + 内容。 */
 .home-wrap.home-term-wrap { width: min(var(--sgx-content-w), 100% - 2 * max(var(--sgx-page-m), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))); font-family: var(--sgx-font-mono); }
 .home-pr { color: var(--sgx-primary); }
-.home-hero { text-align: center; padding-top: 56px; scroll-margin-top: calc(var(--sgx-tb-h) + 16px); }
+.home-hero { text-align: center; padding-top: 56px; }
 :root:not([data-sgx-layout="desktop"]) .home-hero { padding-top: 28px; }
 .home-pill { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 6px 16px; border: 1px solid var(--sgx-term-line); border-radius: 999px;
   font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--sgx-text-secondary); }
@@ -8929,7 +8929,7 @@
 :root:not([data-sgx-layout="desktop"]) .sgx-term--home { margin-top: 28px; }
 :root:not([data-sgx-layout="desktop"]) .sgx-term--home .sgx-term-body { height: 300px; }
 /* 分节 */
-.home-sec { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--sgx-term-line); scroll-margin-top: calc(var(--sgx-tb-h) + 16px); }
+.home-sec { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--sgx-term-line); scroll-margin-top: 0; }
 .home-sec-h { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
 .home-sec-k { margin: 0; font-size: 12px; letter-spacing: 2px; color: var(--sgx-text-tertiary); }
 .home-sec-t { margin: 2px 0 0; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 20px; font-weight: 600; color: var(--sgx-text-primary); }
