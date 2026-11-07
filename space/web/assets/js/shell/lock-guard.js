@@ -9,6 +9,9 @@
  */
 import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
 import { lockState } from '../lib/lock-state.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('core');
 
 /**
  * 是否本地开发（无 Functions 后端）。
@@ -110,8 +113,8 @@ function showSubsiteFailure() {
   let el = document.getElementById('sgx-subsite-failure');
   if (!el) {
     const isEn = document.documentElement.lang === 'en';
-    const msg = isEn ? 'Cannot return to the subsite, please try again' : '无法回到子站，请重试';
-    const homeText = isEn ? 'Back to main site' : '回到主站';
+    const msg = tx('lockCannotReturnToThe');
+    const homeText = tx('lockBackToMainSite');
     el = document.createElement('div');
     el.id = 'sgx-subsite-failure';
     el.className = 'sgx-card';
@@ -283,7 +286,7 @@ function lockLoadFailed(cover) {
   const en = document.documentElement.lang === 'en';
   cover.removeAttribute('aria-busy');
   cover.innerHTML = '<button type="button" class="sgx-credential-btn-primary" id="sgx-lock-cover-retry">' +
-    (en ? 'Reload' : '重新加载') + '</button>';
+    (tx('lockReload')) + '</button>';
   const btn = document.getElementById('sgx-lock-cover-retry');
   if (btn) btn.addEventListener('click', function () { sgxReload(); });
 }

@@ -9,6 +9,9 @@
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, shouldIgnorePostDialogClick } from '../lib/dialog-behavior.js';
 import { toast } from '../lib/toast.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('core');
 
 /* 本标签页 sessionStorage 里的管理内容：锁定时清掉，免得同一标签页换人解锁后还能读到 */
 const ADMIN_SESSION_KEYS = ['sgx-chat-convo'];
@@ -21,7 +24,7 @@ function clearAdminSessionData() {
 
 function lockFailed() {
   const en = document.documentElement.lang === 'en';
-  toast(en ? 'Couldn’t lock this device. Check your connection and try again.' : '锁定失败，请检查网络后重试。');
+  toast(tx('lockCouldntLockThisDevice'));
 }
 
 /** 确认后执行锁定（确认层调用；单测直接调）。 */
@@ -53,11 +56,11 @@ export function confirmLockNow() {
     d.innerHTML =
       '<div class="sgx-verify-card">' +
         '<div class="sheet-handle"></div>' +
-        '<h2 class="sgx-verify-title">' + (en ? 'Lock now?' : '立即锁定？') + '</h2>' +
-        '<p class="sgx-verify-desc">' + (en ? 'This device will return to the lock screen.' : '当前设备会回到锁屏。') + '</p>' +
+        '<h2 class="sgx-verify-title">' + (tx('lockLockNow')) + '</h2>' +
+        '<p class="sgx-verify-desc">' + (tx('lockThisDeviceWillReturn')) + '</p>' +
         '<div class="sgx-credential-foot" style="gap:12px;width:100%;max-width:400px">' +
-          '<button type="button" class="sgx-credential-btn sgx-credential-btn-secondary" data-act="cancel">' + (en ? 'Cancel' : '取消') + '</button>' +
-          '<button type="button" class="sgx-credential-btn sgx-credential-btn-primary" data-act="ok">' + (en ? 'Lock' : '锁定') + '</button>' +
+          '<button type="button" class="sgx-credential-btn sgx-credential-btn-secondary" data-act="cancel">' + (tx('lockCancel')) + '</button>' +
+          '<button type="button" class="sgx-credential-btn sgx-credential-btn-primary" data-act="ok">' + (tx('lockLock')) + '</button>' +
         '</div>' +
       '</div>';
     document.body.appendChild(d);

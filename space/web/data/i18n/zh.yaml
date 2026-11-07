@@ -78,6 +78,56 @@ js:
     qpOff: 关
     qpLangTo: 语言：中文。点按切换为 English
     qpLargeOnly: 仅在大屏生效
+    lockLockScreen: 锁屏
+    lockLockScreen2: 锁定屏幕
+    lockUnlockChooseMethod: 解锁，选择方式
+    lockWelcomeBack: 欢迎回来
+    lockGoodToSeeYou: 很高兴再次见到你
+    lockUnlock: 解锁
+    lockSessionNotActive: 会话未生效
+    lockUnlockScreen: 解锁屏幕
+    lockTemporaryKey: 临时钥匙
+    lockEnterTheTemporaryKey: 输入收到的临时钥匙
+    lockEnterWithATemporary: 用临时钥匙进门
+    lockPasskey: 通行密钥
+    lockUnlockWithFingerprintOr: 用指纹或设备 PIN 解锁
+    lockUsePasskey: 使用通行密钥
+    lockPassword: 密码
+    lockEnterYourUnlockPassword: 输入解锁密码
+    lockUsePassword: 使用密码
+    lockChooseUnlockMethod: 选择解锁方式
+    lockCantSignIn: 无法登录？
+    lockEnterTemporaryKey: 输入临时钥匙
+    lockFormatXxxxXxxxXxxx: 格式 XXXX-XXXX-XXXX，不区分大小写
+    lockEnter: 确定
+    lockEnterTheTemporaryKey2: 请输入临时钥匙
+    lockServerError: 服务器错误
+    lockTooManyAttempts: 尝试次数过多
+    lockInvalidOrExpiredKey: 临时钥匙无效或已过期
+    lockNetworkError: 网络错误
+    lockEnterPassword: 输入密码
+    lockUnlock2: 确定
+    lockEnterPassword2: 请输入密码
+    lockNoPasswordSetYet: 尚未设置密码
+    lockWrongPassword: 密码错误
+    lockVerificationFailed: 验证失败
+    lockWrongSpaceCredential: 进站凭证错误
+    lockFailedToStart: 启动失败
+    lockCancelledYouCanSelect: 已取消验证，可重新选择
+    lockPasskeyFailed: 通行密钥验证失败
+    lockVerifying: 正在验证
+    lockVerifyingPasskey: 正在验证通行密钥…
+    lockRetry: 重试
+    lockCannotReturnToThe: 无法回到子站，请重试
+    lockBackToMainSite: 回到主站
+    lockReload: 重新加载
+    lockCouldntLockThisDevice: 锁定失败，请检查网络后重试。
+    lockLockNow: 立即锁定？
+    lockThisDeviceWillReturn: 当前设备会回到锁屏。
+    lockCancel: 取消
+    lockLock: 锁定
+    authShowPassword: 显示密码
+    authHidePassword: 隐藏密码
   security:
     okTitle: 一切正常
     okSub: 解锁密码、锁屏通行密钥均已设置
@@ -88,10 +138,18 @@ js:
     lockSubPw: 密码
     lockSubPk: 通行密钥
     lockSubNone: 未设置
+    securiSomethingWentWrongPlease: 出错了，请重试
   space:
     wellNoRec: 今天还没有到访记录
     areaLinks: 搜索
     areaSpace: 旷野
+    wb1Min: 不到 1 分钟
+    wbTodayAllDevices: 今天 · 所有设备
+    wbNothingRecordedYetToday: 今天还没有记录
+    dmSourceWrap: 《{s}》
+    daymarDaymark: 日刻
+    daymarNoLineForToday: 今天还没有句子
+    daymarTapToKeepOne: 点开日刻，记下一句
   status:
     loading: 正在加载…
     allUp: 全部正常
@@ -277,6 +335,8 @@ js:
     expiredSessionTitle: 会话已失效
     expiredSessionDesc: 请回到锁屏重新解锁
     expiredSessionBtn: 去锁屏
+    securiSomethingWentWrongPlease: 出错了，请重试
+    securiSetupComplete: 设置完成
   account:
     eyeShow: 显示密码
     eyeHide: 隐藏密码
@@ -438,6 +498,20 @@ js:
     gaAllow: 授权
     gaDeny: 拒绝
     syncNoScope: 设置同步未获账号授权，只存本机
+    accounPasskey: 通行密钥
+    accounSignInWithPasskey: 使用通行密钥登录
+    accounPassword: 密码
+    accounSignInWithPassword: 使用密码登录
+    accounChooseSignInMethod: 选择登录方式
+    accounCantSignIn: 无法登录？
+    accounEnterPassword: 输入密码
+    accounUsePasskey: 使用通行密钥
+    accounRetry: 重试
+    accounUsePassword: 使用密码
+    accounSomethingWentWrongPlease: 出错了，请重试
+    gaSensSep: ；
+    securiNewTemporaryKey: 新建临时钥匙
+    securiTemporaryKey: 临时钥匙
 filesIndex:
   app:
     settings:

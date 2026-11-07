@@ -16,6 +16,9 @@ import { postJSON, errText } from '../auth/account-api.js';
 import { withLockReauth, needsLockReauth } from '../auth/lock-reauth.js';
 import { createT } from './account-common.js';
 import { markPersonal } from '../lib/personal.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-account（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('account');
 
 export const TEMPKEY_API = '/api/lock-tempkey';
 
@@ -196,7 +199,7 @@ export function durationParam(v) {
     if (durIn) durIn.value = 'h24';
     if (go) go.disabled = false;
     const title = $('tk-title');
-    if (title) title.textContent = en ? 'New temporary key' : '新建临时钥匙';
+    if (title) title.textContent = tx('securiNewTemporaryKey');
     try { dlg.showModal(); } catch (e) {}
   }
 
@@ -229,7 +232,7 @@ export function durationParam(v) {
       if (codeEl) codeEl.textContent = res.j.code;
       if (doneSub) doneSub.textContent = (name ? name + ' · ' : '') + t('tkValidFor').replace('{v}', label.trim());
       const title = $('tk-title');
-      if (title) title.textContent = en ? 'Temporary key' : '临时钥匙';
+      if (title) title.textContent = tx('securiTemporaryKey');
       if (form) form.hidden = true;
       if (done) done.hidden = false;
       load();

@@ -196,3 +196,29 @@ test('标签页标题（Gray 2026-11-07）：四站「页名 | 站名」，站�
     }
   }
 });
+
+test('JS 字符串表（语言包化 2026-11-07）：i18nTable(表) 的 tx(键) 在英文表 js.<表> 里都有；键名不带语言代码、不靠表选语言（语言用 pageLang() / Intl）', () => {
+  const en = strings('space', 'en').js || {};
+  /** @param {string} d @returns {string[]} */
+  const walk = (d) => readdirSync(d).flatMap((f) => {
+    const p = path.join(d, f);
+    return statSync(p).isDirectory() ? walk(p) : (/\.js$/.test(f) ? [p] : []);
+  });
+  const bad = [];
+  for (const f of walk(path.join(REPO, 'space/web/assets/js'))) {
+    const src = readFileSync(f, 'utf8');
+    const m = /const (\w+) = i18nTable\('([\w-]+)'\)/.exec(src);
+    if (!m || f.endsWith(path.join('lib', 'i18n.js'))) continue;
+    const [, fn, table] = m;
+    const re = new RegExp('\\b' + fn + "\\('([\\w.-]+)'", 'g');
+    for (const [, key] of src.matchAll(re)) {
+      if (!en[table] || en[table][key] == null) bad.push(path.relative(REPO, f) + ': ' + table + '.' + key);
+    }
+  }
+  assert.deepEqual(bad, [], '缺键');
+  for (const [table, t] of Object.entries(en)) {
+    for (const [k, v] of Object.entries(t || {})) {
+      assert.ok(!/^(en|zh|zh-CN|en-US)$/.test(String(v)), 'js.' + table + '.' + k + ' 是语言代码（应改用 pageLang()）');
+    }
+  }
+});

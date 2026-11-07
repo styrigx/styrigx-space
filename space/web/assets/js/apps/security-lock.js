@@ -23,6 +23,9 @@ import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel
 import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockReauthFetch } from '../auth/auth-flow.js';
 import { renderAccountMethods } from '../auth/account-methods.js';
 import { KEY_LOCK } from '../lib/key-names.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-lockmgr（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('lockmgr');
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -46,7 +49,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
     if (v) return v;
     /* 批次 A 收尾 #36：兜底不显示内部键名；键名只记诊断 */
     if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
-    return en ? 'Something went wrong, please retry' : '出错了，请重试';
+    return tx('securiSomethingWentWrongPlease');
   }
   /** @param {string} id */
   function $(id) {
@@ -124,8 +127,8 @@ import { KEY_LOCK } from '../lib/key-names.js';
     var done = hasPw || hasPk;
     showCenterDialog({
       title: done
-        ? (en ? 'Setup complete' : '设置完成')
-        : (en ? 'Verification expired' : '验证已过期'),
+        ? (tx('securiSetupComplete'))
+        : (tx('expiredReauthTitle')),
       desc: done
         ? (en ? 'Unlock method is set. Please go back to the lock screen to unlock.'
               : '解锁方式已设置，请回锁屏解锁')
@@ -133,7 +136,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
               : '验证已过期，请回锁屏重新开始'),
       dismissible: false,
       buttons: [{
-        label: en ? 'Go to lock screen' : '去锁屏',
+        label: tx('expiredSessionBtn'),
         kind: 'primary',
         onClick: function () {
           try { sgxReplace('/?lock=1'); } catch (e) {}

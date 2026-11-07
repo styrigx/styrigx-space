@@ -12,6 +12,9 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { accountUrl, createT, goAccountLogin } from './account-common.js';
 import { ACCOUNT_API, postJSON, errText } from '../auth/account-api.js';
 import { clearPullStamp } from '../lib/cloud-sync.js';
+import { i18nTable, pageLang } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-account（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('account');
 
 const ICONS = {
   phone: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path stroke-linecap="round" d="M10.5 18.5h3"/></svg>',
@@ -61,7 +64,7 @@ export function deviceSub(t, d, en) {
   if (d.country) {
     place = d.country;
     try {
-      const dn = new Intl.DisplayNames([en ? 'en' : 'zh-CN'], { type: 'region' });
+      const dn = new Intl.DisplayNames([pageLang()], { type: 'region' });
       place = dn.of(d.country) || d.country;
     } catch (e) {}
   }

@@ -4,6 +4,9 @@
  * 模板先画好固定高度的骨架（3 行），这里只替换文字和宽度，不改变卡片高度。
  */
 import { localDay } from './wb-track.js';
+import { i18nTable } from './i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-space（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('space');
 
 const NAMES = {
   space: ['旷野', 'Space'],
@@ -29,7 +32,7 @@ const COLORS = {
  */
 export function fmtDur(sec, en, long) {
   const m = Math.floor(sec / 60);
-  if (m < 1) return en ? '<1 min' : '不到 1 分钟';
+  if (m < 1) return tx('wb1Min');
   const h = Math.floor(m / 60),
     mm = m % 60;
   if (en) {
@@ -106,7 +109,7 @@ export function renderWb(root, data, en) {
   if (t) t.textContent = fmtDur(total, en, true);
   /* 设置 › 数字健康的卡片先画本机记录，拉到所有设备的数据后把范围标签换掉（2026-10-23 PR-E） */
   const scope = q('scope');
-  if (scope) scope.textContent = en ? 'Today · all devices' : '今天 · 所有设备';
+  if (scope) scope.textContent = tx('wbTodayAllDevices');
   const bar = q('bar');
   const shown = secs.slice(0, 5);
   if (bar) {
@@ -120,7 +123,7 @@ export function renderWb(root, data, en) {
       ? shown
           .map((s) => '<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:' + /** @type {any} */ (COLORS)[s.k] + '"></span>' + esc(nameOf(s.k, en)) + '</span>')
           .join('')
-      : '<span>' + (en ? 'Nothing recorded yet today' : '今天还没有记录') + '</span>';
+      : '<span>' + (tx('wbNothingRecordedYetToday')) + '</span>';
   }
 }
 

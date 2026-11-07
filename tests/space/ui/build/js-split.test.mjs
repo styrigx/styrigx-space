@@ -96,7 +96,7 @@ test('锁屏按需加载（frontend-js #6）：core 只带守卫，界面和鉴�
   assert.ok(!/initUpgrade/.test(core), '升级层入口已删');
   const guard = rd('space/web/assets/js/shell/lock-guard.js');
   const staticImports = [...guard.matchAll(/^import [^\n]* from '([^']+)';$/gm)].map((m) => m[1]);
-  assert.deepEqual(staticImports, ['../lib/diag-jumptrace.js', '../lib/lock-state.js'], '守卫只静态依赖 lib/diag-jumptrace.js、lib/lock-state.js');
+  assert.deepEqual(staticImports, ['../lib/diag-jumptrace.js', '../lib/lock-state.js', '../lib/i18n.js'], '守卫只静态依赖 lib/diag-jumptrace.js、lib/lock-state.js、lib/i18n.js（字符串表读取，无依赖，语言包化 2026-11-07）');
   assert.ok(guard.includes("import('./lock.js')") && !guard.includes("import('./upgrade.js')"), '界面按需 import()；没有升级层');
   /* fail closed：先同步盖遮罩再 import，加载失败遮罩不撤 */
   const open = guard.slice(guard.indexOf('function openLockScreen()'));
