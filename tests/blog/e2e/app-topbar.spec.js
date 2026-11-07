@@ -9,6 +9,9 @@
 //   九宫格、导航抽屉、右圆分享删除。站点列表在快捷面板第 1 页「导航」（博客是 tonal 当前项，没有搜索框），「分享本页」在第 2 页。
 // - P4-3 PR-4b 定稿：字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI；头像搬进 AI 窗口头部；九宫格开导航面板 #sgx-nav（2×2 站点磁贴，博客「开」态）；
 //   快捷面板只有一页（四站同一套，「分享本页」磁贴在里面）。
+// - 2026-11 UI 重设计 PR-1 顶栏 v3：贴顶通栏 = 字标 ❯ styrigx :~$_ · 页名标记（不显示）· 外观 · 盾牌 · | · >_（NAVIGATE）· 头像，
+//   底边滑页进度条 .sgx-tb-prog；AI 浮钮右下角；NAVIGATE = 01 主页 … 05 旷野（博客「开」态）→ lang / layout → share / lock → STATUS；
+//   外观面板只有 MODE + PALETTE；每页底部 tmux 页脚（当前窗口 1:blog）。
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 
@@ -53,8 +56,6 @@ async function ready(page) {
   await expect(page.locator('[data-sgx-panes]')).toHaveAttribute('data-state', 'ready');
 }
 
-/** 计算 var(--sgx-accent) 的实际颜色 */
-const accentColor = (page) => roleColor(page, '--sgx-accent');
 /** 计算任一 --sgx-* 角色的实际颜色 */
 const roleColor = (page, v) =>
   page.evaluate((v) => {
@@ -80,17 +81,23 @@ async function expectTab(page, id) {
 
 test.describe('顶栏', () => {
   for (const path of ['/blog/zh/', '/blog/', ARTICLE, '/blog/zh/tags/ai/', '/blog/zh/404.html']) {
-    test(`${path}：胶囊 字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI（头像在 AI 窗口头部），没有右圆 / ‹ / ⋮，没有页脚`, async ({ page }) => {
+    test(`${path}：通栏 字标 · 外观 · 盾牌 · | · >_ · 头像（不显示页名）· AI 浮钮，没有右圆 / ‹ / ⋮；tmux 页脚当前窗口 blog`, async ({ page }) => {
       if (!/\/zh\//.test(path)) await preferLang(page, 'en');
       await page.goto(path, { waitUntil: 'domcontentloaded' });
-      expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts']);
-      expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-grid', 'sgx-tb-quick', 'sgx-tb-ai']);
+      expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-prog']);
+      expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'sgx-tb-av']);
+      await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
+      await expect(page.locator('#site-nav > .sgx-tb-ai')).toHaveCount(1);
       await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', path.startsWith('/blog/zh/') ? '/blog/zh/' : '/blog/');
-      await expect(page.locator('#site-nav .sgx-tb-me, .sgx-topbar img')).toHaveCount(0);
-      await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', path.startsWith('/blog/zh/') ? 'https://styrigx.com/zh/account/' : 'https://styrigx.com/account/');
+      const acct = path.startsWith('/blog/zh/') ? 'https://styrigx.com/zh/account/' : 'https://styrigx.com/account/';
+      await expect(page.locator('#site-nav .sgx-tb-me')).toHaveCount(0);
+      await expect(page.locator('.sgx-topbar .sgx-tb-av')).toHaveAttribute('href', acct);
+      await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', acct);
       await expect(page.locator('.sgx-tb-nav, #sgx-drawer, .sgx-tb-end, .sgx-tb-share, .sgx-topbar [data-sgx-share]')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-end-group, .sgx-tb-guestbook, a[href*="guestbook"]')).toHaveCount(0);
-      await expect(page.locator('footer, .oui-footer')).toHaveCount(0);
+      await expect(page.locator('.oui-footer')).toHaveCount(0);
+      await expect(page.locator('footer')).toHaveCount(1);
+      await expect(page.locator('footer.sgx-foot .sgx-foot-win a[aria-current="page"]')).toHaveAttribute('data-win', 'blog');
       await expect(
         page.locator('[data-sgx-back], .sgx-tb-back, [data-sgx-more], .sgx-tb-more'),
       ).toHaveCount(0);
@@ -294,46 +301,48 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await expect(nav(page)).toHaveAttribute('data-state', 'open');
   }
 
-  test('旷野 / 奇趣 / 日刻 / 博客（同主站）2×2 磁贴；博客是「开」态当前项；毛玻璃面板；没有搜索框；快捷面板只有一页', async ({ page }) => {
+  test('NAVIGATE：01 主页 · 02 博客 · 03 奇趣 · 04 日刻 · 05 旷野（同主站）；博客是「开」态当前项（02/05）；实色面板；没有搜索框；外观面板只有 MODE + PALETTE', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar .sgx-tb-grid')).toHaveAttribute('aria-expanded', 'false');
     await openNav(page);
     await expect(page.locator('.sgx-topbar .sgx-tb-grid')).toHaveAttribute('aria-expanded', 'true');
     const tiles = nav(page).locator('a.sgx-nav-tile');
-    await expect(tiles.locator('.sgx-qp-label')).toHaveText(['旷野', '奇趣', '日刻', '博客']);
+    await expect(tiles.locator('.sgx-nav-name')).toHaveText(['主页', '博客', '奇趣', '日刻', '旷野']);
+    await expect(tiles.locator('.sgx-nav-no')).toHaveText(['01', '02', '03', '04', '05']);
+    await expect(nav(page).locator('[data-nav-count]')).toHaveText('02/05');
     await expect(nav(page).locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
     await expect(nav(page).locator('[data-nav="daymark"]')).toHaveAttribute('href', '/daymark/zh/');
+    /* 05 旷野先链到主站首页（/wild/ 页面还没有） */
+    await expect(nav(page).locator('[data-nav="wild"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
     await expect(nav(page).locator('[data-nav="book"]')).toHaveCount(0);
     await expect(page.locator('#sgx-nav input, #sgx-nav [type="search"], #sgx-nav [role="search"], #sgx-nav a[href*="/search/"]')).toHaveCount(0);
-    for (let i = 0; i < 4; i++) await expect(tiles.nth(i).locator('.sgx-qp-ic svg')).toHaveCount(1);
     await expect(nav(page).locator('[aria-current="page"]')).toHaveCount(1);
-    await expect(nav(page).locator('[aria-current="page"] .sgx-qp-label')).toHaveText('博客');
+    await expect(nav(page).locator('[aria-current="page"] .sgx-nav-name')).toHaveText('博客');
     const st = await page.evaluate(() => {
       const cur = getComputedStyle(document.querySelector('#sgx-nav .sgx-nav-tile[aria-current]'));
       const other = getComputedStyle(document.querySelector('#sgx-nav .sgx-nav-tile[data-nav="curio"]'));
       const sheet = getComputedStyle(document.querySelector('#sgx-nav .sgx-qp-sheet'));
-      return { bg: cur.backgroundColor, other: other.backgroundColor, filter: sheet.backdropFilter || sheet.webkitBackdropFilter };
+      return { bg: cur.backgroundImage, other: other.backgroundImage, filter: sheet.backdropFilter || sheet.webkitBackdropFilter || 'none' };
     });
     expect(st.bg).not.toBe(st.other);
-    expect(st.filter).toContain('blur');
-    /* 2×2：两行两列 */
+    expect(st.filter).toBe('none');
+    /* 竖排列表：一项一行 */
     const b = await tiles.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; }));
-    expect(b[0][1]).toBe(b[1][1]);
-    expect(b[2][1]).toBe(b[3][1]);
-    expect(b[0][0]).toBe(b[2][0]);
-    expect(b[2][1]).toBeGreaterThan(b[0][1]);
-    /* 面板落在顶栏下方，左右对齐顶栏 */
+    for (let i = 1; i < b.length; i++) { expect(b[i][0]).toBe(b[0][0]); expect(b[i][1]).toBeGreaterThan(b[i - 1][1]); }
+    /* 面板落在顶栏下方 8px，左右对齐顶栏内容区（手机 412：页边距 16） */
     const sheet = await page.locator('#sgx-nav .sgx-qp-sheet').boundingBox();
     const bar = await page.locator('.sgx-topbar').boundingBox();
     expect(Math.abs(sheet.y - (bar.y + bar.height) - 8)).toBeLessThanOrEqual(1);
-    expect(Math.abs(sheet.x - bar.x)).toBeLessThanOrEqual(1);
-    /* 快捷面板只有一页：没有页签、导航列表，分享磁贴直接在里面 */
+    expect(Math.abs(sheet.x - 16)).toBeLessThanOrEqual(1);
+    expect(Math.abs(sheet.x + sheet.width - (412 - 16))).toBeLessThanOrEqual(1);
+    /* 分享 / 锁定在 NAVIGATE；外观面板没有页签、导航列表、分享 */
+    await expect(page.locator('#sgx-nav [data-qp="share"][data-sgx-share]')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(nav(page)).toBeHidden();
     await page.locator('.sgx-topbar .sgx-tb-quick').click();
     await expect(page.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
-    await expect(page.locator('#sgx-qp [role="tab"], #sgx-qp [role="tabpanel"], #sgx-qp [data-nav]')).toHaveCount(0);
-    await expect(page.locator('#sgx-qp [data-qp="share"][data-sgx-share]')).toBeVisible();
+    await expect(page.locator('#sgx-qp [role="tab"], #sgx-qp [role="tabpanel"], #sgx-qp [data-nav], #sgx-qp [data-qp]')).toHaveCount(0);
+    await expect(page.locator('#sgx-qp [data-qp-seg="mode"]')).toBeVisible();
   });
 
   test('Esc / 点遮罩关闭；文章页点本站 = 关面板后回博客首页', async ({ page }) => {
@@ -371,11 +380,11 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await openNav(page);
   });
 
-  test('英文：Space / Curio / Daymark / Blog；AI 窗口头像去主站英文账号页', async ({ page }) => {
+  test('英文：Home / Blog / Curio / Daymark / Wild；AI 窗口头像去主站英文账号页', async ({ page }) => {
     await preferLang(page, 'en');
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
     await openNav(page);
-    await expect(nav(page).locator('.sgx-qp-label')).toHaveText(['Space', 'Curio', 'Daymark', 'Blog']);
+    await expect(nav(page).locator('.sgx-nav-name')).toHaveText(['Home', 'Blog', 'Curio', 'Daymark', 'Wild']);
     await expect(nav(page).locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
     await expect(nav(page).locator('[data-nav="blog"]')).toHaveAttribute('href', '/blog/');
     await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', 'https://styrigx.com/account/');
@@ -404,16 +413,17 @@ test.describe('文章页：页名 + 进度细线 + 抽屉目录', () => {
     expect(t.one).toBe(true);
   });
 
-  test('进度细线在长条底边，随滚动填满（强调色）', async ({ page }) => {
+  test('阅读进度：顶栏 v3 底边滑页进度条（整个视口宽、3px）随滚动变长，到底整宽；页名里的进度标记照样记数', async ({ page }) => {
     await page.goto(ARTICLE, { waitUntil: 'domcontentloaded' });
     const bar = page.locator('[data-sgx-progress]');
     await expect(bar).toHaveAttribute('aria-valuenow', '0');
-    const box = await bar.boundingBox();
-    /* PR-4b：中间那格 position: static，细线按整条顶栏底边定位（手机 / 桌面布局都在） */
-    const pill = await page.locator('.sgx-topbar').boundingBox();
-    expect(box.height).toBeLessThanOrEqual(4);
-    expect(pill.y + pill.height - (box.y + box.height)).toBeLessThanOrEqual(6);
-    expect(Math.abs(box.width - pill.width)).toBeLessThanOrEqual(80);
+    const prog = page.locator('#site-nav .sgx-tb-prog');
+    const box = await prog.boundingBox();
+    const top = await page.locator('.sgx-topbar').boundingBox();
+    expect(Math.abs(box.height - 3)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(top.y + top.height - (box.y + box.height))).toBeLessThanOrEqual(1.5);
+    expect(Math.abs(box.x) + Math.abs(box.width - 412)).toBeLessThanOrEqual(1);
+    const fillW = () => page.evaluate(() => document.querySelector('#site-nav .sgx-tb-prog > i').getBoundingClientRect().width);
     await page.evaluate(() => {
       const el = document.querySelector('#article-start');
       const top = window.scrollY + el.getBoundingClientRect().top;
@@ -423,14 +433,15 @@ test.describe('文章页：页名 + 进度细线 + 抽屉目录', () => {
       .poll(async () => Number(await bar.getAttribute('aria-valuenow')))
       .toBeGreaterThan(20);
     expect(Number(await bar.getAttribute('aria-valuenow'))).toBeLessThan(80);
+    await expect.poll(fillW).toBeGreaterThan(20);
+    expect(await fillW()).toBeLessThan(412);
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await expect.poll(async () => Number(await bar.getAttribute('aria-valuenow'))).toBe(100);
-    const accent = await accentColor(page);
-    const fill = await page.evaluate(
-      () =>
-        getComputedStyle(document.querySelector('[data-sgx-progress]'), '::after').backgroundColor,
-    );
-    expect(fill).toBe(accent);
+    await expect.poll(fillW).toBeGreaterThan(408);
+    /* 段是主题色 */
+    const primary = await roleColor(page, '--sgx-primary');
+    const img = await page.evaluate(() => getComputedStyle(document.querySelector('#site-nav .sgx-tb-prog > i')).backgroundImage);
+    expect(img).toContain(primary);
   });
 
   test('非文章页：抽屉里没有目录、长条没有进度线；每页只有页名（首页 = 站名）', async ({ page }) => {

@@ -20,7 +20,11 @@
  * 页名胶囊只在桌面布局显示（手机布局 = 字标 | 图标组），放不下退到字标后面、省略号；顶栏没有标签 / 分段。
  * 右边三颗圆按钮 40 × 40、图标 20px、间距 6px，没有公共底：九宫格 / 快捷 平时透明、打开浅一档（primary-container）；
  * AI 平时浅一档、打开深一档（primary-fill）。360 / 384 / 412 / 1280 / 1920 都不溢出。
+ * 顶栏 v3（2026-11 UI 重设计 PR-1，Gray 定稿设计稿 tb4 / tb-v3 / prog-v1 / nav-v2）：贴顶通栏（高 64、底边 1px 线、毛玻璃），内容收在居中的 1080 里（--sgx-content-w）：
+ * [字标 ❯ styrigx :~$_（光标 1.05s 闪）] … [外观（调色盘）· 盾牌（安全页）· 分隔 · >_（NAVIGATE）· 头像（账号页）]；底边滑页进度条；右下角 AI 浮钮。
+ * 页名胶囊标记还在但顶栏不显示（锁屏顶栏照旧用它当标题）。NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻 05 旷野 + lang / layout + share / lock + STATUS。
  */
+
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, nextFrames, animationsDone, scrolledTo, armNavProbe, expect } = require('../helpers/helpers');
 
@@ -61,91 +65,98 @@ async function roleColor(page, v) {
   }, v);
 }
 const bg = (page, sel) => page.locator(sel).evaluate((el) => getComputedStyle(el).backgroundColor);
+/** 顶栏 / 页脚左右内边距（= CSS --sgx-tb-pad）：max(页边距, (宽 − 1080) / 2)；页边距 < 600 宽 16，≥ 600 宽 clamp(16, 5.333 + 2.2222vw, 48) */
+const pad = (w) => Math.max(w < 600 ? 16 : Math.min(48, Math.max(16, 5.333 + 0.022222 * w)), (w - 1080) / 2);
 
 for (const dark of [false, true]) {
   test.describe(`390×844 ${dark ? '暗色' : '亮色'}`, () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
     for (const path of ['/', '/theme/', '/security/']) {
-      test(`${path}：一整条胶囊（字标 · 九宫格 · 快捷设置 · AI；手机布局不显示页名胶囊），没有头像；三颗圆按钮 40 × 40、间距 6；按钮颜色按状态`, async ({ page }) => {
+      test(`${path}：贴顶通栏（字标 · 外观 · 盾牌 · | · >_ · 头像；不显示页名），按钮 40 × 40；AI 浮钮右下角；按钮颜色按状态`, async ({ page }) => {
         await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
         await go(page, path, { dark });
         /* 390 宽、桌面 UA、自动：视口 < 720 → 手机布局 */
         await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'phone');
-        const [bar, logo, g, q, ai] = await Promise.all(['.sgx-topbar', '.sgx-tb-logo', '.sgx-tb-grid', '.sgx-tb-quick', '.sgx-tb-ai'].map((s) => box(page, s)));
-        /* 胶囊：左右贴 16，y = 16，高 52 */
-        expect(near(bar.x, 16) && near(bar.x + bar.width, 374), `胶囊 x ${bar.x}–${bar.x + bar.width}`).toBe(true);
-        expect(near(bar.y, 16) && near(bar.height, 52), `胶囊 y ${bar.y} 高 ${bar.height}`).toBe(true);
-        /* 字标 40 高；三颗圆按钮 40 × 40、上下居中、间距 6；字标左缘 / AI 右缘离胶囊边 6 */
-        for (const b of [logo, g, q, ai]) {
+        const [bar, logo, q, sh, g, av, ai] = await Promise.all(['.sgx-topbar', '.sgx-tb-logo', '.sgx-tb-quick', '.sgx-tb-shield', '.sgx-tb-grid', '.sgx-tb-av', '.sgx-tb-ai'].map((s) => box(page, s)));
+        /* 通栏：贴顶、全宽、高 64 */
+        expect(near(bar.x, 0) && near(bar.width, 390), `顶栏 x ${bar.x} 宽 ${bar.width}`).toBe(true);
+        expect(near(bar.y, 0) && near(bar.height, 64), `顶栏 y ${bar.y} 高 ${bar.height}`).toBe(true);
+        /* 字标 / 按钮 40 高、上下居中；按钮 40 宽；字标左缘贴页边距（16 − 4 内缩）、头像右缘贴页边距 16 */
+        for (const b of [logo, q, sh, g, av]) {
           expect(near(b.height, 40), `高 ${b.height}`).toBe(true);
           expect(near(b.y + b.height / 2, bar.y + bar.height / 2), `垂直居中 ${b.y}`).toBe(true);
         }
-        for (const b of [g, q, ai]) expect(near(b.width, 40), `按钮宽 ${b.width}`).toBe(true);
-        expect(near(q.x - (g.x + g.width), 6) && near(ai.x - (q.x + q.width), 6), '按钮间距 6px').toBe(true);
-        expect(near(ai.x + ai.width - g.x, 132), `图标组宽 ${ai.x + ai.width - g.x}（≤ 132）`).toBe(true);
-        expect(near(logo.x - bar.x, 6), `logo 左距 ${logo.x - bar.x}`).toBe(true);
-        expect(near(bar.x + bar.width - (ai.x + ai.width), 6), `AI 右距 ${bar.x + bar.width - (ai.x + ai.width)}`).toBe(true);
-        expect(logo.x + logo.width).toBeLessThanOrEqual(g.x + 0.5);
-        expect(logo.width, `字标宽 ${logo.width}`).toBeGreaterThan(60);
-        await expect(page.locator('.sgx-tb-logo svg.sgx-wordmark')).toBeVisible();
-        await expect(page.locator('.sgx-tb-mark')).toHaveCount(0);
+        for (const b of [q, sh, g, av]) expect(near(b.width, 40), `按钮宽 ${b.width}`).toBe(true);
+        expect(near(logo.x, 12), `logo 左 ${logo.x}`).toBe(true);
+        expect(near(av.x + av.width, 390 - 16), `头像右 ${av.x + av.width}`).toBe(true);
+        expect(q.x < sh.x && sh.x < g.x && g.x < av.x, '外观 → 盾牌 → >_ → 头像').toBe(true);
+        expect(logo.x + logo.width).toBeLessThanOrEqual(q.x + 0.5);
+        expect(logo.width, `字标宽 ${logo.width}`).toBeGreaterThan(100);
+        await expect(page.locator('.sgx-tb-logo')).toHaveText('❯styrigx:~$');
+        await expect(page.locator('.sgx-tb-logo .sgx-tb-cu')).toHaveCount(1);
+        await expect(page.locator('.sgx-tb-logo svg, .sgx-tb-mark, .sgx-tb-logo small')).toHaveCount(0);
         await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-nav, .sgx-tb-end, #sgx-drawer')).toHaveCount(0);
-        await expect(page.locator('#site-nav .sgx-tb-me, #site-nav img')).toHaveCount(0);
-        expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts']);
-        expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-btn sgx-tb-grid', 'sgx-tb-btn sgx-tb-quick', 'sgx-tb-btn sgx-tb-ai']);
-        /* 页名胶囊只显示页名（没有标签 / 分段），手机布局不显示 */
-        expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-title']);
-        await expect(page.locator('.sgx-tb-title')).toBeHidden();
-        await expect(page.locator('.sgx-tb-pill svg, .sgx-tb-pill button, .sgx-tb-pill a')).toHaveCount(0);
-        for (const s of ['.sgx-tb-grid', '.sgx-tb-quick', '.sgx-tb-ai']) {
+        expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-prog']);
+        expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-btn sgx-tb-quick', 'sgx-tb-btn sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-btn sgx-tb-grid', 'sgx-tb-av']);
+        /* 页名胶囊：标记在、只放页名，顶栏不显示 */
+        expect(await page.locator('#site-nav .sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-title']);
+        await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
+        for (const s of ['.sgx-tb-quick', '.sgx-tb-shield', '.sgx-tb-grid']) {
           await expect(page.locator(s + ' svg')).toHaveCount(1);
           const sv = await box(page, s + ' svg');
           expect(near(sv.width, 20) && near(sv.height, 20), `${s} 图标 20px`).toBe(true);
         }
-        /* 颜色（Gray 2026-11-07）：九宫格 / 快捷 平时透明；AI 平时浅一档（primary-container）；
-           打开九宫格 / 快捷 = 浅一档；打开 AI = 深一档（primary-fill，调色板规则：实色底读填充档） */
-        const light = await roleColor(page, '--sgx-primary-container');
-        const deep = await roleColor(page, '--sgx-primary-fill');
-        expect(light).not.toBe(deep);
+        /* 头像 30px 圆；分隔线 1 × 22 */
+        const img = await box(page, '.sgx-tb-av img');
+        expect(near(img.width, 30) && near(img.height, 30), `头像 ${img.width}`).toBe(true);
+        const sep = await box(page, '.sgx-tb-sep');
+        expect(near(sep.width, 1) && near(sep.height, 22), `分隔 ${sep.width}×${sep.height}`).toBe(true);
+        /* AI 浮钮：右下角 56 × 56（手机边距 16），主题实色 */
+        expect(near(ai.width, 56) && near(ai.height, 56), `AI 浮钮 ${ai.width}`).toBe(true);
+        expect(near(ai.x + ai.width, 390 - 16) && near(ai.y + ai.height, 844 - 16), `AI 浮钮位置 ${ai.x},${ai.y}`).toBe(true);
+        /* 颜色：外观 / >_ 平时透明，打开 = 主题色衬底（--sgx-term-sel）；AI 浮钮平时实色（primary-fill），打开浅一档（primary-container） */
+        const sel = await roleColor(page, '--sgx-term-sel');
+        const fill = await roleColor(page, '--sgx-primary-fill');
+        const cont = await roleColor(page, '--sgx-primary-container');
         expect(await bg(page, '.sgx-tb-grid')).toBe('rgba(0, 0, 0, 0)');
         expect(await bg(page, '.sgx-tb-quick')).toBe('rgba(0, 0, 0, 0)');
-        expect(await bg(page, '.sgx-tb-ai')).toBe(light);
+        expect(await bg(page, '.sgx-tb-ai')).toBe(fill);
         await page.locator('.sgx-tb-quick').click();
         await expect(page.locator('.sgx-tb-quick')).toHaveAttribute('aria-expanded', 'true');
         await animationsDone(page);
-        expect(await bg(page, '.sgx-tb-quick'), '快捷面板打开：浅一档').toBe(light);
+        expect(await bg(page, '.sgx-tb-quick'), '外观面板打开').toBe(sel);
         await page.keyboard.press('Escape');
         await page.locator('.sgx-tb-grid').click();
         await expect(page.locator('.sgx-tb-grid')).toHaveAttribute('aria-expanded', 'true');
         await animationsDone(page);
-        expect(await bg(page, '.sgx-tb-grid'), '导航面板打开：浅一档').toBe(light);
+        expect(await bg(page, '.sgx-tb-grid'), 'NAVIGATE 打开').toBe(sel);
         await page.keyboard.press('Escape');
         await page.locator('.sgx-tb-ai').click();
         await expect(page.locator('.sgx-tb-ai')).toHaveAttribute('aria-expanded', 'true');
         await animationsDone(page);
-        expect(await bg(page, '.sgx-tb-ai'), 'AI 窗口打开：深一档').toBe(deep);
+        expect(await bg(page, '.sgx-tb-ai'), 'AI 窗口打开').toBe(cont);
         await page.keyboard.press('Escape');
-        /* 材质：胶囊 = 悬浮层磨砂；中间那格、图标组本身透明（没有公共底） */
+        /* 材质：通栏 = 悬浮层磨砂、底边 1px 线、没有圆角；图标组本身透明 */
         const st = await page.evaluate(() => {
           const c = (s) => getComputedStyle(document.querySelector(s));
           const b = c('.sgx-topbar');
-          return { bar: b.backgroundColor, bf: b.backdropFilter || b.webkitBackdropFilter, bw: b.borderTopWidth, rad: b.borderTopLeftRadius,
-            pill: c('.sgx-tb-pill').backgroundColor, acts: c('.sgx-tb-acts').backgroundColor };
+          return { bar: b.backgroundColor, bf: b.backdropFilter || b.webkitBackdropFilter, bb: b.borderBottomWidth, bt: b.borderTopWidth, rad: b.borderTopLeftRadius, acts: c('.sgx-tb-acts').backgroundColor };
         });
         expect(st.bar).not.toBe('rgba(0, 0, 0, 0)');
         expect(st.bf).toContain('blur');
-        expect(st.bw).toBe('1px');
-        expect(parseFloat(st.rad)).toBeGreaterThanOrEqual(26);
-        expect([st.pill, st.acts]).toEqual(['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)']);
+        expect(st.bb).toBe('1px');
+        expect(st.bt).toBe('0px');
+        expect(st.rad).toBe('0px');
+        expect(st.acts).toBe('rgba(0, 0, 0, 0)');
       });
     }
   });
 }
 
-/* PR-4b：窄屏到宽屏都不溢出；手机布局（< 720，自动）不显示页名胶囊，桌面布局页名胶囊按整条顶栏居中（±2px） */
+/* 窄屏到宽屏都不溢出；字标完整；内容收在居中的 1080 里（顶栏全宽） */
 for (const w of [360, 384, 412, 1280, 1920]) {
-  test(`${w} 宽：顶栏不溢出，字标完整；${w < 720 ? '手机布局不显示页名胶囊' : '页名胶囊按整条顶栏居中、和字标 / 图标组都留 ≥ 12px'}`, async ({ page }) => {
+  test(`${w} 宽：顶栏通栏不溢出，字标完整，内容区 = 居中的 min(宽 − 2 × 页边距, 1080)；页名不显示`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: w > 1000 ? 900 : 860 });
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     /* P4-3 PR-4c：中文 /zh/…，英文无前缀 */
@@ -154,42 +165,20 @@ for (const w of [360, 384, 412, 1280, 1920]) {
       await go(page, path);
       const m = await page.evaluate(() => {
         const r = (s) => document.querySelector(s).getBoundingClientRect();
-        const lab = document.querySelector('.sgx-tb-title');
-        const bar = r('.sgx-topbar'), logo = r('.sgx-tb-logo'), acts = r('.sgx-tb-acts'), t = lab.getBoundingClientRect();
-        return { bar: [bar.left, bar.right], logo: [logo.left, logo.right], acts: [acts.left, acts.right], t: [t.left, t.right], shown: t.width > 0, sw: document.documentElement.scrollWidth,
+        const bar = r('.sgx-topbar'), logo = r('.sgx-tb-logo'), acts = r('.sgx-tb-acts'), t = document.querySelector('#site-nav .sgx-tb-title').getBoundingClientRect();
+        return { bar: [bar.left, bar.right], logo: [logo.left, logo.right], acts: [acts.left, acts.right], shown: t.width > 0, sw: document.documentElement.scrollWidth,
           over: Array.from(document.querySelectorAll('.sgx-topbar *')).some((e) => { const b = e.getBoundingClientRect(); return b.width && (b.right > bar.right + 0.5 || b.left < bar.left - 0.5); }) };
       });
       expect(m.sw, `${path} 页面横向溢出`).toBeLessThanOrEqual(w);
-      expect(m.over, `${path} 顶栏里有东西超出胶囊`).toBe(false);
-      expect(m.logo[1] - m.logo[0], `${path} 字标完整`).toBeGreaterThan(60);
-      if (w < 720) {
-        expect(m.shown, `${path} 手机布局不显示页名胶囊`).toBe(false);
-      } else {
-        expect(m.shown, `${path} 桌面布局显示页名胶囊`).toBe(true);
-        expect(m.t[0] - m.logo[1], `${path} 页名离字标`).toBeGreaterThanOrEqual(12);
-        expect(m.acts[0] - m.t[1], `${path} 页名离图标组`).toBeGreaterThanOrEqual(12);
-        expect(Math.abs((m.t[0] + m.t[1]) / 2 - (m.bar[0] + m.bar[1]) / 2), `${path} 页名按整条顶栏居中`).toBeLessThanOrEqual(2);
-      }
+      expect(m.over, `${path} 顶栏里有东西超出`).toBe(false);
+      expect(near(m.bar[0], 0) && near(m.bar[1], w), `${path} 通栏`).toBe(true);
+      expect(m.logo[1] - m.logo[0], `${path} 字标完整`).toBeGreaterThan(100);
+      expect(m.shown, `${path} 页名不显示`).toBe(false);
+      expect(near(m.acts[1], w - pad(w)), `${path} 图标组右缘 ${m.acts[1]}，应为 ${w - pad(w)}`).toBe(true);
+      expect(near(m.logo[0], pad(w) - 4), `${path} 字标左缘 ${m.logo[0]}`).toBe(true);
     }
   });
 }
-
-test('桌面布局放不下的长页名：退到字标后面（12px）、省略号截断，不挤图标', async ({ page }) => {
-  await page.setViewportSize({ width: 600, height: 800 });
-  await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); localStorage.setItem('sgx-layout', 'desktop'); } catch (e) {} });
-  await go(page, '/security/tempkeys/');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop');
-  await page.evaluate(() => { document.querySelector('.sgx-tb-title').textContent = 'A very long page name that cannot possibly fit here'; });
-  const m = await page.evaluate(() => {
-    const t = document.querySelector('.sgx-tb-title');
-    const r = (e) => e.getBoundingClientRect();
-    return { clipped: t.scrollWidth > t.clientWidth, ov: getComputedStyle(t).textOverflow, gapL: r(t).left - r(document.querySelector('.sgx-tb-logo')).right, gapR: r(document.querySelector('.sgx-tb-acts')).left - r(t).right };
-  });
-  expect(m.clipped).toBe(true);
-  expect(m.ov).toBe('ellipsis');
-  expect(Math.abs(m.gapL - 12), `贴字标 12px（${m.gapL}）`).toBeLessThanOrEqual(1);
-  expect(m.gapR).toBeGreaterThanOrEqual(11.5);
-});
 
 test.describe('390×844 行为', () => {
   test.use({ viewport: { width: 390, height: 844 } });
@@ -202,7 +191,7 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('[data-tb-more]')).toHaveCount(0);
   });
 
-  /* 旷野页（/、/zh/）长条里是单个「旷野」标签、没有页名（space-status.spec.js）；旷野子页照旧显示页名 */
+  /* 页名胶囊标记（不显示）仍是当前页名：子站脚本和锁屏顶栏读它 */
   const NAMES = [
     /* P4-3 PR-4c：英文无前缀、中文 /zh/ */
     ['/zh/status/', '服务状态'],
@@ -218,30 +207,40 @@ test.describe('390×844 行为', () => {
     ['/account/reset/', 'Reset sign-in'],
   ];
   for (const [path, name] of NAMES) {
-    test(`${path}：长条显示当前页名「${name}」（不是 Styrigx），没有大标题区`, async ({ page }) => {
+    test(`${path}：页名标记是「${name}」（顶栏不显示），没有大标题区`, async ({ page }) => {
       await page.addInitScript((en) => { try { localStorage.setItem('sgx-lang', en ? 'en' : 'zh'); } catch (e) {} }, !path.startsWith('/zh/'));
       await go(page, path);
-      await expect(page.locator('.sgx-tb-title')).toHaveText(name);
-      await expect(page.locator('.sgx-tb-pill')).not.toContainText('Styrigx');
+      await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText(name);
+      await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
       await expect(page.locator('.subpage-title, .subpage-hero, [data-subpage-head]')).toHaveCount(0);
-      /* 长条里没有图标 */
       await expect(page.locator('.sgx-tb-pill svg')).toHaveCount(0);
     });
   }
 
-  test('旷野页：顶栏没有设置按钮、没有搜索图标、没有标签；页名胶囊就是「旷野」（PR-4b 定稿：只显示页名），本身不可点', async ({ page }) => {
+  test('旷野页：顶栏没有设置按钮、没有搜索图标、没有标签；页名标记是「旷野」', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/');
     await expect(page.locator('.sgx-tb-set')).toHaveCount(0);
     await expect(page.locator('.sgx-tb-psearch')).toHaveCount(0);
-    expect(await page.locator('.sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-title']);
-    await expect(page.locator('.sgx-tb-title')).toHaveText('旷野');
+    expect(await page.locator('#site-nav .sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-title']);
+    await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText('旷野');
     await expect(page.locator('.sgx-tb-tabs, .sgx-tb-tab, .sgx-tb-pill a')).toHaveCount(0);
     await expect(page.locator('#sgx-tb-cap')).toHaveCount(0);
     await expect(page.locator('.sgx-topbar .sgx-tb-search, #sgx-tb-search')).toHaveCount(0);
-    expect(await page.locator('.sgx-tb-pill').evaluate((el) => getComputedStyle(el).cursor)).toBe('default');
     /* 顶栏里没有任何指向旧设置层的链接（旧地址运行时拼，免得 git grep 命中） */
     await expect(page.locator('.sgx-topbar a[href$="' + '/' + 'settings' + '/' + '"]')).toHaveCount(0);
+  });
+
+  test('盾牌去当前语言的安全页、头像去当前语言的账号页、字标回首页', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+    await go(page, '/zh/theme/');
+    await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('href', '/zh/security/');
+    await expect(page.locator('.sgx-tb-shield')).toHaveAccessibleName('站点安全');
+    await expect(page.locator('.sgx-tb-av')).toHaveAttribute('href', '/zh/account/');
+    await expect(page.locator('.sgx-tb-av')).toHaveAccessibleName('账号');
+    await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/zh/');
+    await page.locator('.sgx-tb-shield').click();
+    await page.waitForURL(/\/zh\/security\/$/);
   });
 
   for (const path of ['/', '/account/', '/theme/']) {
@@ -258,33 +257,43 @@ test.describe('390×844 行为', () => {
     });
   }
 
-  test('滚动时长条不变：页名一直显示，没有 sgx-stuck 切换，按钮不动', async ({ page }) => {
+  test('滚动时顶栏不动（没有 sgx-stuck 切换）；底边进度条跟着滚动变长：顶上不显示、到底整宽', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/security/');
-    const before = await Promise.all(['.sgx-tb-pill', '.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-ai'].map((s) => box(page, s)));
-    await page.evaluate(() => window.scrollTo(0, 400));
-    /* C8：原来固定等 300ms；改成等滚动落地（scroll 监听跑完）+ 顶栏可能的过渡结束 */
-    await scrolledTo(page, 400);
+    await go(page, '/zh/theme/'); /* 风格页够长（色板列表），手机上能滚 */
+    const prog = page.locator('#site-nav .sgx-tb-prog');
+    await expect(prog).toHaveAttribute('data-empty', '');
+    const before = await Promise.all(['.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-grid', '.sgx-tb-ai'].map((s) => box(page, s)));
+    const max = await page.evaluate(() => document.scrollingElement.scrollHeight - innerHeight);
+    expect(max, '页面要能滚').toBeGreaterThan(200);
+    const y = Math.round(max / 2);
+    await page.evaluate((v) => window.scrollTo(0, v), y);
+    await scrolledTo(page, y);
     await animationsDone(page);
     expect(await page.evaluate(() => document.body.classList.contains('sgx-stuck'))).toBe(false);
-    await expect(page.locator('.sgx-tb-title')).toHaveText('安全');
-    expect(await page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-title')).opacity)).toBe('1');
-    const after = await Promise.all(['.sgx-tb-pill', '.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-ai'].map((s) => box(page, s)));
-    for (let i = 0; i < 4; i++) {
-      expect(near(after[i].x, before[i].x) && near(after[i].y, before[i].y)).toBe(true);
-    }
+    await expect(prog).not.toHaveAttribute('data-empty', '');
+    const half = await page.evaluate(() => { const i = document.querySelector('#site-nav .sgx-tb-prog > i'); return { w: i.getBoundingClientRect().width, bar: document.querySelector('.sgx-tb-prog').getBoundingClientRect() }; });
+    expect(near(half.w, 390 / 2, 4), `一半进度 ${half.w}`).toBe(true);
+    /* 进度条在顶栏底边、整个视口宽、3px */
+    const bar = await box(page, '.sgx-topbar');
+    expect(near(half.bar.left, 0) && near(half.bar.width, 390) && near(half.bar.height, 3)).toBe(true);
+    expect(near(half.bar.bottom, bar.y + bar.height, 1.5)).toBe(true);
+    const after = await Promise.all(['.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-grid', '.sgx-tb-ai'].map((s) => box(page, s)));
+    for (let i = 0; i < 4; i++) expect(near(after[i].x, before[i].x) && near(after[i].y, before[i].y)).toBe(true);
+    await page.evaluate(() => window.scrollTo(0, document.scrollingElement.scrollHeight));
+    await scrolledTo(page);
+    await expect.poll(() => page.evaluate(() => document.querySelector('#site-nav .sgx-tb-prog > i').getBoundingClientRect().width)).toBeGreaterThan(386);
+    /* 段在流动（有动画） */
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector('#site-nav .sgx-tb-prog > i')).animationName)).toBe('sgx-tb-flow');
   });
 
-  test('点长条（页名）不跳转（桌面布局才显示页名胶囊）', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/account/');
-    const navs = await armNavProbe(page);
-    await page.locator('.sgx-tb-title').click();
-    /* C8：原来固定等 400ms；点击处理同步，要跳的话 navigate 事件此时已派发 */
-    await nextFrames(page);
-    expect(await navs(), '点页名不触发任何导航').toEqual([]);
-    expect(new URL(page.url()).pathname).toBe('/zh/account/');
+  test('减弱动效：进度条静止（不流动），字标光标常亮', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await go(page, '/security/');
+    const st = await page.evaluate(() => ({
+      prog: getComputedStyle(document.querySelector('#site-nav .sgx-tb-prog > i')).animationName,
+      cu: getComputedStyle(document.querySelector('.sgx-tb-cu')).animationName,
+    }));
+    expect(st).toEqual({ prog: 'none', cu: 'none' });
   });
 
   test('顶栏切页过渡名挂在有尺寸的 .sgx-topbar 上', async ({ page }) => {
@@ -296,7 +305,7 @@ test.describe('390×844 行为', () => {
     expect(names).toEqual({ bar: 'sgx-topbar', nav: 'none' });
   });
 
-  test('头像在 AI 窗口头部（PR-4b）：Gray AI · 新对话 · 历史 · 头像（主题色环），点头像进账号页', async ({ page }) => {
+  test('AI 窗口（AI 浮钮打开）头部：Gray AI · 新对话 · 历史 · 头像（主题色环），点头像进账号页', async ({ page }) => {
     /* 固定中文：不设 sgx-lang 时语言跟随浏览器（en-US）会停在英文 /（P4-3 PR-4c：中文在 /zh/） */
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/');
@@ -323,9 +332,7 @@ test.describe('390×844 行为', () => {
     expect(av.of).toBe('cover');
     expect(av.sh.startsWith(av.accent), `头像环 = 主题色（${av.sh}）`).toBe(true);
     expect(av.sh).not.toContain('rgb(255, 255, 255)');
-    /* 头部下有一条细线 */
     expect(await dlg.locator('.sgx-ai-head').evaluate((el) => getComputedStyle(el).borderBottomWidth)).toBe('1px');
-    /* 底部：仅公开内容 · 联系我（mailto:styrigx@gmail.com） */
     await expect(dlg.locator('.sgx-ai-foot')).toHaveText('仅公开内容·联系我');
     await expect(dlg.locator('[data-ai-contact]')).toHaveAttribute('href', 'mailto:styrigx@gmail.com');
     await expect(dlg.locator('.sgx-ai-me')).toHaveAttribute('href', '/zh/account/');
@@ -342,42 +349,67 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('#sgx-ai [data-ai-clear]')).toHaveAttribute('aria-label', 'New chat');
   });
 
-  test('九宫格打开导航面板（2×2 站点磁贴，当前站「开」态），Esc 关闭、焦点回到九宫格；快捷面板只有一页', async ({ page }) => {
+  test('>_ 打开 NAVIGATE：$ NAVIGATE 01/05 · 五项（编号 · 名字 · 路径提示，当前项「开」态）· lang / layout · share / lock · STATUS · systemctl status / esc 关闭', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/');
     await page.locator('.sgx-tb-grid').click();
     const nav = page.locator('#sgx-nav');
     await expect(nav).toBeVisible();
     await expect(page.locator('.sgx-tb-grid')).toHaveAttribute('aria-expanded', 'true');
-    await expect(nav.locator('.sgx-nav-tile .sgx-qp-label')).toHaveText(['旷野', '奇趣', '日刻', '博客']);
+    await expect(page.locator('.sgx-tb-grid')).toHaveAccessibleName('导航');
+    await expect(nav.locator('.sgx-nav-h')).toHaveText('$ NAVIGATE01/05');
+    await expect(nav.locator('.sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '奇趣', '日刻', '旷野']);
+    await expect(nav.locator('.sgx-nav-tile .sgx-nav-no')).toHaveText(['01', '02', '03', '04', '05']);
+    await expect(nav.locator('.sgx-nav-tile .sgx-nav-hint')).toHaveText(['~', 'blog/', 'curio/', 'daymark/', 'wild/']);
     await expect(nav.locator('.sgx-nav-tile[aria-current="page"]')).toHaveAttribute('data-nav', 'home');
+    await expect(nav.locator('.sgx-nav-tile')).toHaveCount(5);
+    await expect(nav.locator('[data-nav="account"], [data-nav="settings"]')).toHaveCount(0);
     await animationsDone(page);
-    const t = await nav.locator('.sgx-nav-tile').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top)]; }));
-    expect(t[0][1]).toBe(t[1][1]);
-    expect(t[2][1]).toBe(t[3][1]);
-    expect(t[0][0]).toBe(t[2][0]);
-    expect(t[2][1]).toBeGreaterThan(t[0][1]);
-    const cur = await nav.locator('.sgx-nav-tile[aria-current="page"]').evaluate((el) => getComputedStyle(el).backgroundColor);
-    const other = await nav.locator('.sgx-nav-tile[data-nav="curio"]').evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(cur).not.toBe(other);
-    /* 面板高度按内容（不撑满） */
+    /* 五项竖排、整宽 */
+    const t = await nav.locator('.sgx-nav-tile').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.width)]; }));
+    for (let i = 1; i < 5; i++) { expect(t[i][0]).toBe(t[0][0]); expect(t[i][1]).toBeGreaterThan(t[i - 1][1]); expect(t[i][2]).toBe(t[0][2]); }
+    const cur = await nav.locator('.sgx-nav-tile[aria-current="page"]').evaluate((el) => ({ c: getComputedStyle(el).color, sh: getComputedStyle(el).boxShadow }));
+    const other = await nav.locator('.sgx-nav-tile[data-nav="curio"]').evaluate((el) => getComputedStyle(el).color);
+    expect(cur.c).not.toBe(other);
+    expect(cur.sh).toContain('inset');
+    /* 顺序：五项 → lang / layout → share / lock → STATUS → 底行 */
+    const order = await nav.locator('.sgx-qp-sheet > *').evaluateAll((els) => els.map((e) => e.className));
+    expect(order).toEqual(['sgx-nav-h', '', 'sgx-nav-pf', 'sgx-nav-act', 'sgx-nav-st', 'sgx-nav-f']);
+    await expect(nav.locator('.sgx-nav-pfk')).toHaveText(['lang', 'layout']);
+    await expect(nav.locator('.sgx-nav-act button')).toHaveText(['share', 'lock']);
+    await expect(nav.locator('[data-st]')).toHaveCount(6);
+    await expect(nav.locator('[data-st] span')).toHaveText(['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth']);
+    await expect(nav.locator('[data-st-ms]').first()).toHaveText('—');
+    await expect(nav.locator('.sgx-nav-st-h span')).toHaveText('STATUS');
+    await expect(nav.locator('.sgx-nav-flink')).toHaveAttribute('href', '/zh/status/');
+    await expect(nav.locator('.sgx-nav-flink')).toHaveText('systemctl status ›');
+    await expect(nav.locator('[data-nav-close]')).toHaveText('esc 关闭');
+    /* 手机：左右对齐顶栏内容区 */
     const sh = await box(page, '#sgx-nav .sgx-qp-sheet');
-    expect(sh.height).toBeLessThan(260);
+    expect(near(sh.x, 16) && near(sh.width, 390 - 32), `面板 ${sh.x} / ${sh.width}`).toBe(true);
     await page.keyboard.press('Escape');
     await expect(nav).toBeHidden();
     await expect(page.locator('.sgx-tb-grid')).toBeFocused();
     await expect(page.locator('.sgx-tb-grid')).toHaveAttribute('aria-expanded', 'false');
-    await page.locator('.sgx-tb-quick').click();
-    const qp = page.locator('#sgx-qp');
-    await expect(qp).toBeVisible();
-    await expect(qp.locator('[role="tab"], [role="tabpanel"], .sgx-qp-nav-item')).toHaveCount(0);
-    await page.keyboard.press('Escape');
-    await expect(qp).toBeHidden();
-    await expect(qp).toHaveAttribute('data-state', 'closed');
-    await expect(qp).not.toHaveClass(/\bis-open\b/);
+    /* 「esc 关闭」按钮也能关 */
+    await page.locator('.sgx-tb-grid').click();
+    await expect(nav).toHaveAttribute('data-state', 'open');
+    await nav.locator('[data-nav-close]').click();
+    await expect(nav).toBeHidden();
+    await expect(nav).toHaveAttribute('data-state', 'closed');
   });
 
-  test('导航面板：点别的站 / 本站子页点本站关面板后跳过去；已在本站首页点本站只关面板', async ({ page }) => {
+  test('NAVIGATE：旷野分类子页（关于）当前项是 05 旷野；账号页没有当前项（00/05）', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+    await go(page, '/zh/about/');
+    await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveAttribute('data-nav', 'wild');
+    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('05/05');
+    await go(page, '/zh/account/');
+    await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveCount(0);
+    await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('00/05');
+  });
+
+  test('NAVIGATE：点别的站 / 子页点本站关面板后跳过去；已在本站首页点本站只关面板', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/security/');
     await page.locator('.sgx-tb-grid').click();
@@ -401,44 +433,36 @@ test.describe('390×844 行为', () => {
 test.describe('1280×800', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  /* P4-3 PR-4b 定稿：顶栏宽只看视口宽 + 布局模式 + 设备档——手机布局 min(100% − 32, 640)；桌面布局（这里是电脑：无触屏、屏幕 = 视口）min(clamp(720, 60vw, 960), 100% − 48)，居中；
-     自动（桌面 UA）视口 < 720 → 手机。顶栏高 clamp(52, 42 + 1.667vw, 56)（≥ 840 宽 56）；按钮 40 × 40，字标左缘 / AI 右缘离胶囊边 (高 − 40) / 2。 */
+  /* 顶栏 v3：通栏、高 64；内容区 = 居中的 min(宽 − 2 × 页边距, 1080)；按钮 40 × 40；自动（桌面 UA）视口 < 720 → 手机 */
   for (const [w, h] of [[600, 900], [840, 600], [1280, 800], [1920, 1080], [2560, 1440]]) {
-    test(`${w}×${h}：顶栏宽 / 高 / 圆按钮按公式（±1px），居中`, async ({ page }) => {
+    test(`${w}×${h}：通栏高 64，内容区按公式（±1px），居中`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
       await go(page, '/theme/');
       const desktop = w >= 720;
       await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', desktop ? 'desktop' : 'phone');
-      const want = desktop ? Math.min(Math.max(720, Math.min(0.6 * w, 960)), w - 48) : Math.min(w - 32, 640);
-      const btn = w < 600 ? 52 : Math.min(56, Math.max(52, 42 + 0.01667 * w));
       const bar = await box(page, '.sgx-topbar');
-      expect(near(bar.width, want), `宽 ${bar.width} ≠ ${want}`).toBe(true);
-      expect(near(bar.x, (w - want) / 2), `x ${bar.x}`).toBe(true);
-      const me = await box(page, '.sgx-tb-ai');
-      const logo = await box(page, '.sgx-tb-logo');
-      const q = await box(page, '.sgx-tb-quick');
-      expect(near(bar.height, btn), `顶栏高 ${bar.height}，应为 ${btn}`).toBe(true);
-      expect(near(me.width, 40) && near(q.width, 40) && near(logo.height, 40) && near(me.height, 40), `按钮 ${me.width} / ${q.width} / logo 高 ${logo.height}`).toBe(true);
-      const inset = (btn - 40) / 2;
-      expect(near(logo.x - bar.x, inset) && near(bar.x + bar.width - (me.x + me.width), inset), `logo / AI 离胶囊边应为 ${inset}`).toBe(true);
+      expect(near(bar.x, 0) && near(bar.width, w), `通栏 ${bar.x} / ${bar.width}`).toBe(true);
+      expect(near(bar.height, 64), `顶栏高 ${bar.height}`).toBe(true);
+      const [logo, q, av, acts] = await Promise.all(['.sgx-tb-logo', '.sgx-tb-quick', '.sgx-tb-av', '.sgx-tb-acts'].map((s) => box(page, s)));
+      expect(near(q.width, 40) && near(av.width, 40) && near(logo.height, 40), `按钮 ${q.width} / ${av.width} / logo 高 ${logo.height}`).toBe(true);
+      const p = pad(w);
+      expect(near(acts.x + acts.width, w - p), `右缘 ${acts.x + acts.width} ≠ ${w - p}`).toBe(true);
+      expect(near(logo.x, p - 4), `左缘 ${logo.x} ≠ ${p - 4}`).toBe(true);
+      if (w >= 1080 + 2 * 48) expect(near(acts.x + acts.width - logo.x - 4, 1080), '宽屏内容区 1080').toBe(true);
     });
   }
 
-  for (const [w, h] of [[1280, 800], [1920, 1080]]) {
-    test(`${w}px：字标贴左、三颗圆按钮贴右，页名胶囊按字定宽、按整条顶栏居中（±2px），文字 = 当前页名`, async ({ page }) => {
-      await page.setViewportSize({ width: w, height: h });
-      await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-      await go(page, '/security/');
-      const [bar, logo, g, ai] = await Promise.all(['.sgx-topbar', '.sgx-tb-logo', '.sgx-tb-grid', '.sgx-tb-ai'].map((s) => box(page, s)));
-      expect(logo.x - bar.x).toBeLessThanOrEqual(9);
-      expect(bar.x + bar.width - (ai.x + ai.width)).toBeLessThanOrEqual(9);
-      expect(near(ai.x + ai.width - g.x, 132), '三颗圆按钮 3 × 40 + 2 × 6').toBe(true);
-      await expect(page.locator('.sgx-tb-title')).toHaveText('安全');
-      const tx = await box(page, '.sgx-tb-title');
-      expect(tx.width, `页名胶囊按字定宽 ${tx.width}`).toBeLessThan(200);
-      expect(near(tx.x + tx.width / 2, bar.x + bar.width / 2, 2), `页名中心 ${tx.x + tx.width / 2}，顶栏中心 ${bar.x + bar.width / 2}`).toBe(true);
-    });
-  }
+  test('1280：AI 浮钮右下角（桌面边距 32），NAVIGATE 宽 360 落在 >_ 下面', async ({ page }) => {
+    await go(page, '/theme/');
+    const ai = await box(page, '.sgx-tb-ai');
+    expect(near(ai.x + ai.width, 1280 - 32) && near(ai.y + ai.height, 800 - 32), `AI 浮钮 ${ai.x},${ai.y}`).toBe(true);
+    await page.locator('.sgx-tb-grid').click();
+    await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
+    await animationsDone(page);
+    const [sh, acts] = await Promise.all(['#sgx-nav .sgx-qp-sheet', '.sgx-tb-acts'].map((s) => box(page, s)));
+    expect(near(sh.width, 360)).toBe(true);
+    expect(near(sh.x + sh.width, acts.x + acts.width - 44), `右缘 ${sh.x + sh.width}`).toBe(true);
+  });
 
   for (const path of ['/', '/theme/']) {
     test(`${path}：宽屏正文同样从顶栏下方 16px 开始，没有大标题区`, async ({ page }) => {

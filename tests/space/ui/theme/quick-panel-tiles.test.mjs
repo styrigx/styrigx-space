@@ -9,6 +9,8 @@
  *   磁贴按 tiles 参数输出，主站 = dark / system / lang / lock（+ 调色板、布局两行），没有分享；样式进 @shell panel 段，只用 --sgx-* 角色。
  * - 2026-11-07 P4-3 PR-4b（Gray 定稿）：快捷面板只有一页、四站同一套（没有 tiles 参数）：磁贴 深色 / 跟随系统 / 分享本页 / 立即锁定（两行 2×2），
  *   语言整行（行内展开单选），调色板、布局；导航搬到九宫格面板 #sgx-nav。
+ * - 2026-11 UI 重设计 PR-1（顶栏 v3）：调色盘按钮打开外观面板 #sgx-qp = MODE（跟随系统 / 深 / 浅）+ PALETTE 列表 + 恢复默认；
+ *   语言 / 布局分段、分享 / 立即锁定搬进 NAVIGATE #sgx-nav（>_ 按钮）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,6 +20,7 @@ const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'ut
 const base = rd('space/web/layouts/_default/baseof.html');
 const tb = rd('space/web/layouts/partials/shell-topbar.html');
 const qpHtml = tb.slice(tb.indexOf('<dialog id="sgx-qp"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-qp"')));
+const navHtml = tb.slice(tb.indexOf('<dialog id="sgx-nav"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-nav"')));
 const tbJs = rd('space/web/assets/js/shell/topbar-panel.js');
 const theme = rd('space/web/layouts/partials/setcat-theme.html');
 const qpJs = rd('space/web/assets/js/shell/quick-panel.js');
@@ -25,30 +28,29 @@ const setJs = rd('space/web/assets/js/apps/space.js');
 const css = rd('space/web/assets/css/input.css');
 const feats = rd('space/web/data/features.yaml');
 
-test('快捷面板磁贴（PR-4b 四站同一套）：dark / system / share / lock 两行 2×2 + 语言整行；没有按站开关、没有减弱动效和字体大小', () => {
-  const tiles = [...qpHtml.matchAll(/data-qp="([a-z]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(tiles, ['dark', 'system', 'share', 'lock', 'lang']);
-  assert.doesNotMatch(qpHtml, /\.tiles\b|\$tiles|\{\{ with \.layout \}\}/, '磁贴不再按 tiles / layout 参数开关');
+test('顶栏 v3 控件（四站同一套）：外观面板 = MODE 三段 + PALETTE；NAVIGATE = lang / layout 分段 + share / lock；没有按站开关、没有减弱动效和字体大小', () => {
+  assert.deepEqual([...qpHtml.matchAll(/data-qp-mode="([a-z]+)"|data-qp-mode="\{\{ \.v \}\}"/g)].length, 1, '模式三段由一处 range 输出');
+  assert.match(qpHtml, /data-qp-seg="mode"/);
+  assert.deepEqual([...navHtml.matchAll(/data-qp="([a-z]+)"/g)].map((m) => m[1]), ['share', 'lock']);
+  assert.doesNotMatch(qpHtml + navHtml, /\.tiles\b|\$tiles|\{\{ with \.layout \}\}/, '不按 tiles / layout 参数开关');
   assert.doesNotMatch(base, /\$tbTiles|"tiles"|"layout" \(index/, '主站不再传 tiles / layout');
-  assert.match(qpHtml, /<button type="button" class="sgx-qp-line" data-qp="lang" aria-expanded="false" aria-controls="sgx-qp-lang-opts"/);
-  /* 语言包化（2026-11-07）：选项 = 跟随系统 + hugo.yaml languages 的每种语言（语言名用它自己的写法、translate="no"），不写死 zh / en */
-  assert.match(qpHtml, /<button type="button" class="sgx-qp-opt" role="radio" data-qp-lang="system" aria-checked="false"><span class="sgx-qp-opt-tx">\{\{ \$t\.topbar\.followSystem \}\}<\/span>/);
-  assert.match(qpHtml, /\{\{- range \.langs \}\}\s*<button type="button" class="sgx-qp-opt" role="radio" data-qp-lang="\{\{ \.code \}\}" lang="\{\{ \.code \}\}" aria-checked="false"><span class="sgx-qp-opt-tx" translate="no">\{\{ \.name \}\}<\/span>/);
-  assert.doesNotMatch(qpHtml, /"v" "(zh|en)"/);
-  assert.match(qpHtml, /<div class="sgx-qp-opts" id="sgx-qp-lang-opts" role="radiogroup"[^>]*hidden>/);
-  assert.match(qpHtml, /data-qp-seg="layout"/);
+  /* 语言包化（2026-11-07）：选项 = hugo.yaml languages 的每种语言（短名用它自己的写法、translate="no"），不写死 zh / en */
+  assert.match(navHtml, /\{\{- range sort \.langs "code" \}\}<button type="button" role="radio" data-qp-lang="\{\{ \.code \}\}" lang="\{\{ \.code \}\}"[^>]*translate="no">\{\{ \.short \| default \.name \}\}<\/button>/);
+  assert.doesNotMatch(navHtml, /"v" "(zh|en)"/);
+  assert.match(navHtml, /data-qp-seg="layout"/);
   assert.match(qpJs, /share: mountShare/, '主站也接分享本页');
-  assert.ok(!qpHtml.includes('reduced-motion'));
-  assert.ok(!qpHtml.includes('font-size'));
+  assert.ok(!(qpHtml + navHtml).includes('reduced-motion'));
+  assert.ok(!(qpHtml + navHtml).includes('font-size'));
   assert.ok(!/setReducedMotion|setFontSize|reducedMotionPref|fontSize\(/.test(qpJs + tbJs));
+  assert.match(tbJs, /P\.setTheme\(/, 'MODE 走 setTheme（system / dark / light）');
   /* 2026-10-23 PR-E：设置本身也删了 */
   assert.doesNotMatch(feats, /- id: reduced-motion/);
   assert.doesNotMatch(feats, /- id: font-size/);
   assert.doesNotMatch(setJs, /setReducedMotion|setFontSize|seg-font|row-motion/);
 });
 
-test('七色调色板（PR-G）：两处都是 22 个 .pal-tile、不分单色 / 撞色；都有「恢复默认」，初始 aria-disabled，点了 setPalette(DEFAULT_PALETTE = dustyblue)', () => {
-  assert.match(qpHtml, /\{\{- range \.pal \}\}<button type="button" class="sgx-qp-sw pal-tile" data-qp-palette="\{\{ \.id \}\}"/);
+test('七色调色板（PR-G）：外观面板 22 行色板 / 设置页 22 个 .pal-tile、不分单色 / 撞色；都有「恢复默认」，初始 aria-disabled，点了 setPalette(DEFAULT_PALETTE = dustyblue)', () => {
+  assert.match(qpHtml, /\{\{- range \.pal \}\}<button type="button" class="sgx-th-pal" data-qp-palette="\{\{ \.id \}\}"/);
   assert.match(base, /\{\{ range site\.Data\.palettes\.palettes \}\}\{\{ \$tbPal = \$tbPal \| append/, '主站色块来自 palettes.yaml（22 个）');
   assert.doesNotMatch(qpHtml, /swatch-clash|"group" "mono"|"group" "clash"/);
   assert.doesNotMatch(theme, /swatch-clash|data-pal-tab|palette-dots-clash/);
@@ -84,13 +86,13 @@ test('配色（2026-10-23 PR-G 修订；P5-1 改用 --sgx-* 角色）：磁贴 /
   assert.match(rule('.palette-reset[aria-disabled="true"]'), /opacity: \.38/);
 });
 
-test('PR4：快捷面板没有标题和齿轮（模板、样式、脚本都删干净）；读屏名字在 dialog 的 aria-label；PR-4b 起没有页签 / 两页', () => {
+test('PR4：外观面板没有齿轮 / 页签；读屏名字在 dialog 的 aria-label（顶栏 v3：外观）', () => {
   const open = tb.slice(tb.indexOf('<dialog id="sgx-qp"'), tb.indexOf('>', tb.indexOf('<dialog id="sgx-qp"')) + 1);
-  assert.match(open, /aria-label="\{\{ \$t\.topbar\.quick \}\}"/);
+  assert.match(open, /aria-label="\{\{ \$t\.topbar\.theme \}\}"/);
   assert.doesNotMatch(open, /aria-labelledby/);
   assert.doesNotMatch(qpHtml, /sgx-qp-head|sgx-qp-title|"gear"/);
   assert.doesNotMatch(qpHtml, /class="sgx-qp-set"/);
-  assert.match(qpHtml, /<div class="sgx-qp-sheet" tabindex="-1" autofocus>\s*<div class="sgx-qp-grid">/);
+  assert.match(qpHtml, /<div class="sgx-qp-sheet" tabindex="-1" autofocus>\s*<p class="sgx-th-h"/);
   assert.doesNotMatch(qpHtml, /role="tab"|role="tabpanel"|data-qp-tab|data-qp-page|sgx-qp-nav/);
   assert.doesNotMatch(tbJs, /data-qp-tab|data-qp-pages|scrollend/);
   assert.doesNotMatch(css, /\.sgx-qp-(head|title|set)\b/);

@@ -24,8 +24,8 @@ test('共享外壳 share.js = shell/share-button.js 原样；不 import；nav.js
     assert.ok(files['shell.css'].includes(sel), sel);
   }
   for (const sel of ['.sgx-tb-end', '.sgx-tb-gbtn', '.sgx-tb-share']) assert.ok(!files['shell.css'].includes(sel), '已删：' + sel);
-  /* 磁贴标记在共享顶栏里：data-qp="share" 同时带 data-sgx-share（share.js 按它找按钮） */
-  assert.match(files['topbar.html'], /<button type="button" class="sgx-qp-tile" data-qp="share" data-sgx-share>/);
+  /* 按钮标记在共享顶栏的 NAVIGATE 里（顶栏 v3）：data-qp="share" 同时带 data-sgx-share（share.js 按它找按钮） */
+  assert.match(files['topbar.html'], /<button type="button" class="sgx-nav-btn" data-qp="share" data-sgx-share aria-label="\{\{ \$t\.topbar\.share \}\}">/);
 });
 
 test('pageUrl：origin + pathname + search，去掉 lock / why / return / share，不带 #', () => {

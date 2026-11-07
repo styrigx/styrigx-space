@@ -1,7 +1,8 @@
 /* 四站同一个顶栏（2026-11-04 P5-1，方案 6.4 / 6.5，任务书 P5-1「测试」两条 e2e）。
  * 跑在拼好的整站（space/web/public：主站在 /，奇趣 /curio/、日刻 /daymark/、博客 /blog/，同源），和线上 PR3 后的四站同源一样：
- * - P4-3 PR-4b 起四站快捷面板同一套：主站页面也有「分享本页」磁贴（原定案第 4 条「主站不输出」作废）；面板只有一页（四站 DOM 同一份见 quick-panel-identity.spec.js）。
- * - 子站快捷设置改外观（深色 / 调色板）→ 回主站同步生效：四站共用一个写端（共享外壳 prefs-write.js），写同一个 sgx-ui cookie / localStorage（定案第 5 条）。
+ * - P4-3 PR-4b 起四站面板同一套：主站页面也有「分享本页」（原定案第 4 条「主站不输出」作废）；2026-11 PR-1 起它在 NAVIGATE（>_）面板里，
+ *   外观面板只有 MODE + PALETTE（四站 DOM 同一份见 quick-panel-identity.spec.js）。
+ * - 子站外观面板改外观（深色 / 调色板）→ 回主站同步生效：四站共用一个写端（共享外壳 prefs-write.js），写同一个 sgx-ui cookie / localStorage（定案第 5 条）。
  * 主站在 space/web/public 里是生产构建（锁屏启用、没有网关）：这里只看顶栏 / 快捷面板的 DOM 和首帧外观，不过锁屏。 */
 const { test, expect } = require('@playwright/test');
 
@@ -24,32 +25,37 @@ async function openSet(page) {
   await page.locator('.sgx-tb-quick').click();
   await expect(page.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
 }
+async function openNav(page) {
+  await page.locator('.sgx-tb-grid').click();
+  await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
+}
 
-test('四站页面都有分享磁贴（PR-4b 起主站也有，构建产物里就有）；子站点开就看得到', async ({ page }) => {
+test('四站页面都有「分享本页」（在 NAVIGATE 里；主站也有，构建产物里就有）；子站点开 NAVIGATE 就看得到', async ({ page }) => {
   for (const p of MAIN) {
     await page.goto(p, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-qp')).toHaveCount(1);
-    await expect(page.locator('#sgx-qp [data-qp="share"][data-sgx-share]'), p).toHaveCount(1);
+    await expect(page.locator('#sgx-nav')).toHaveCount(1);
+    await expect(page.locator('#sgx-nav [data-qp="share"][data-sgx-share]'), p).toHaveCount(1);
     const html = await (await page.request.get(p)).text();
     expect(html, p).toMatch(/data-qp="?share\b/);
   }
   for (const p of SUB) {
     await page.goto(p, { waitUntil: 'domcontentloaded' });
-    await openSet(page);
-    await expect(page.locator('#sgx-qp [data-qp="share"][data-sgx-share]'), p).toBeVisible();
+    await openNav(page);
+    await expect(page.locator('#sgx-nav [data-qp="share"][data-sgx-share]'), p).toBeVisible();
   }
 });
 
-test('子站快捷设置改外观（深色、调色板）→ 回主站同步生效；再在主站改回来，子站也跟着', async ({ page }) => {
+test('子站外观面板改外观（深色、调色板）→ 回主站同步生效；再在主站改回来，子站也跟着', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/curio/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
   await openSet(page);
-  /* 跟随系统默认开：点「深色模式」= 明确选深色，跟随系统关 */
-  await page.locator('#sgx-qp [data-qp="dark"]').click();
+  /* MODE 默认跟随系统：点「深」= 明确选深色 */
+  await expect(page.locator('#sgx-qp [data-qp-mode="system"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#sgx-qp [data-qp-mode="dark"]').click();
   await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-  await expect(page.locator('#sgx-qp [data-qp="dark"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#sgx-qp [data-qp="system"]')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#sgx-qp [data-qp-mode="dark"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#sgx-qp [data-qp-mode="system"]')).toHaveAttribute('aria-pressed', 'false');
   await page.locator('#sgx-qp [data-qp-palette="forest"]').click();
   await expect(page.locator('html')).toHaveAttribute('data-palette', 'forest');
   const cookie = (await page.context().cookies()).find((c) => c.name === 'sgx-ui');
@@ -70,10 +76,10 @@ test('子站快捷设置改外观（深色、调色板）→ 回主站同步生�
     await expect(page.locator('html'), p).toHaveAttribute('data-palette', 'forest');
   }
 
-  /* 反过来：日刻快捷设置改回浅色 + 默认色板 → 奇趣首帧浅色 */
+  /* 反过来：日刻外观面板改回浅色 + 默认色板 → 奇趣首帧浅色 */
   await page.goto('/daymark/', { waitUntil: 'domcontentloaded' });
   await openSet(page);
-  await page.locator('#sgx-qp [data-qp="dark"]').click();
+  await page.locator('#sgx-qp [data-qp-mode="light"]').click();
   await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
   await page.locator('#sgx-qp [data-qp-reset]').click();
   await expect(page.locator('html')).not.toHaveAttribute('data-palette', 'forest');

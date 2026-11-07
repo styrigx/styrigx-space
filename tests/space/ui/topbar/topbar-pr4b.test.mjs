@@ -19,15 +19,17 @@ test('语言偏好 → 实际语言：zh / en 原样；跟随系统看浏览器�
   assert.equal(resolveLang('', ''), 'en');
 });
 
-test('导航面板 #sgx-nav：九宫格按钮控制它；2×2 站点磁贴复用快捷面板磁贴（图标 + 站名 + 副标题），当前站 aria-current', () => {
-  assert.match(tb, /<button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="[^"]*" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">\{\{ index \$i "tb-grid" \| safeHTML \}\}<\/button>/);
+test('NAVIGATE #sgx-nav（顶栏 v3）：>_ 按钮（类名照旧 sgx-tb-grid）控制它；五项「编号 · 名字 · 路径提示」，当前项 aria-current；JS 接 lang / layout / share / lock / esc', () => {
+  assert.match(tb, /<button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="\{\{ \$t\.topbar\.sites \}\}" title="\{\{ \$t\.topbar\.sites \}\}" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">\{\{ index \$i "tb-term" \| safeHTML \}\}<\/button>/);
   const nav = tb.slice(tb.indexOf('<dialog id="sgx-nav"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-nav"')));
-  assert.match(nav, /<ul class="sgx-qp-grid sgx-nav-grid">/);
-  assert.match(nav, /<a class="sgx-qp-tile sgx-nav-tile" href="\{\{ \$p \}\}" data-nav="\{\{ \.id \}\}"\{\{ if eq \.id \$\.site \}\} aria-current="page"\{\{ end \}\}><span class="sgx-qp-ic">/);
-  assert.match(nav, /<span class="sgx-qp-label">\{\{ \(index \$t\.nav \.id\)\.title \}\}<\/span><span class="sgx-qp-state">\{\{ \(index \$t\.nav \.id\)\.sub \}\}<\/span>/);
+  assert.match(nav, /<ul class="sgx-nav-list">/);
+  assert.match(nav, /<a class="sgx-nav-tile" href="\{\{ \$p \}\}" data-nav="\{\{ \.id \}\}"\{\{ if eq \.id \$\.site \}\} aria-current="page"\{\{ end \}\}><em class="sgx-nav-no" aria-hidden="true">\{\{ printf "%02d" \(add \$k 1\) \}\}<\/em><span class="sgx-nav-name">\{\{ \(index \$t\.nav \.id\)\.title \}\}<\/span><span class="sgx-nav-hint" aria-hidden="true" translate="no">\{\{ \.hint \}\}<\/span><\/a>/);
   const js = rd('space/web/assets/js/shell/topbar-panel.js');
   assert.match(js, /wire\(navBtn, navDlg, 'sgxNav'/);
-  assert.match(js, /return \{ nav: nav && nav\.ms, qp: qp && qp\.ms, ai: ai && ai\.ms, paint: paint \};/);
+  assert.match(js, /tg\.closest\('\[data-nav-close\]'\)/);
+  assert.match(js, /tg\.closest\('\[data-qp-lang\]'\)/);
+  assert.match(js, /tg\.closest\('\[data-qp-seg="layout"\] button'\)/);
+  assert.match(js, /return \{ nav: nav && nav\.ms, qp: qp && qp\.ms, ai: ai && ai\.ms, paint: paint, paintNav: paintNav \};/);
 });
 
 test('子站立即锁定：不传 onLock 时点两下确认（3 秒内），POST /api/lock-now 成功后回锁屏 /?lock=1；主站传确认层', () => {

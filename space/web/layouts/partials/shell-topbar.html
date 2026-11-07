@@ -1,89 +1,100 @@
-{{- /* 顶栏单一来源（2026-11-04 P5-1，方案 6.2–6.5；P4-3 PR-4b Gray 2026-11-07 定稿）：四个站同一个顶栏 + 导航面板 + 快捷面板 + AI 窗口。
-   主站直接用（baseof.html）；space/scripts/gen-shell.mjs 把本文件原样复制成共享外壳 topbar.html，三个子站 sync-shell 同步成 layouts/partials/sgx-shell-topbar.html。
-   所以这里不能调用任何别的 partial、不能读 site.Data：要用的东西全由调用方传进来（站点自己的页名 / 标签、图标、色板都是参数）。
-   结构：<header id="site-nav"> 一整条胶囊 .sgx-topbar = [字标（真 SVG，手机也完整）] [中间 .sgx-tb-pill：页名胶囊，在空余区居中] [九宫格 · 快捷面板 · AI]；
-   头像不在顶栏（PR-4b：搬进 AI 窗口头部，主题色环）。三个窗口都是非模态 <dialog>、互斥：
-     #sgx-nav 导航面板（九宫格）：2×2 站点磁贴（同快捷面板磁贴，当前站「开」态）；
-     #sgx-qp  快捷面板：只有快捷设置一页，四站完全相同——磁贴 深色 / 跟随系统 / 分享本页 / 立即锁定，语言整行（行内展开单选），调色板，布局；
+{{- /* 顶栏单一来源（2026-11-04 P5-1；2026-11 UI 重设计 PR-1 顶栏 v3，设计稿 tb4.html / tb-v3 / prog-v1 / nav-v2）：四个站同一个顶栏 + NAVIGATE 面板 + 外观面板 + AI 窗口。
+   主站（baseof.html）和三个子站（blog/topnav.html、curio/daymark baseof.html）都直接调这一份；space/scripts/gen-shell.mjs 核对它只用参数：
+   不能调用任何别的 partial、不能读 site.Data，要用的东西全由调用方传进来（站点自己的页名 / 标签、图标、色板都是参数）。
+   结构：<header id="site-nav"> 通栏 .sgx-topbar（底边一条 1px 线，内容宽 = --sgx-content-w，1080）=
+     [字标 ❯ styrigx :~$_（光标 1.05s 闪）] [.sgx-tb-pill：页名（v3 不显示，标记留着给子站脚本 / 锁屏抄）] [外观 · 盾牌（安全页）· 分隔 · >_（NAVIGATE）· 头像（账号页）]；
+     底边 .sgx-tb-prog 滑页进度条（JS 写 --sgx-prog）；右下角 AI 浮钮 .sgx-tb-ai（打开 AI 窗口）。三个窗口都是非模态 <dialog>、互斥：
+     #sgx-nav NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻 05 旷野（当前站「开」态）→ lang / layout 分段 → share / lock → STATUS → systemctl status · esc 关闭；
+     #sgx-qp  外观：MODE（跟随系统 / 深 / 浅）+ PALETTE（色板列表 + 恢复默认）；
      #sgx-ai  AI 窗口：头部 Gray AI · 新对话 · 历史 · 头像（账号页），底部「仅公开内容 · 联系我」（邮箱 = 参数 email）。
    参数（dict）：
      lang        页面语言代码（en / zh …）
      tr          共享外壳字符串表（partials/sgx-tr.html 返回值的 .shell；当前语言叠在英文上，缺键回退英文）——外壳不写任何语言的文案
-     langs       语言选择器的选项：[{code name}]，来自 hugo.yaml languages（name = 该语言自己的名字，不翻译）
+     langs       语言分段的选项：[{code name short}]（hugo.yaml languages：name = 该语言自己的名字，short = 分段上的短名 EN / 中文，不翻译）
      home        logo 链接（本站首页）
-     center      中间的 HTML（页名 .sgx-tb-title / 子站分段，调用方渲染好）；pillClass 中间容器的额外 class
+     center      中间的 HTML（页名 .sgx-tb-title / 阅读进度，调用方渲染好；v3 顶栏不显示，见上）；pillClass 中间容器的额外 class
      headerClass / headerAttrs  <header> 的额外 class / 属性（博客：data-sgx-topbar-root data-mode）
-     nav         shell-nav.json（items：id icon origin path；名字 / 副标题在 tr.nav.<id>）；site 当前站的 nav id（导航面板「开」态）
+     nav         shell-nav.json（items：id icon origin path hint；名字在 tr.nav.<id>.title）；site 当前项的 nav id（NAVIGATE「开」态、计数 01/05）
      mainOrigin  主站项（origin 为 styrigx.com、不是子站的项）地址前缀：主站不传（同源相对 /）；子站传 https://styrigx.com
-     icons       图标 SVG（名字 → SVG 串）：tb-grid tb-sliders tb-chat tb-moon sun tb-globe lock tb-undo share tb-send tb-newchat tb-history + nav 项图标
-     wordmark    字标 SVG（partials/shell-wordmark.html / nav.json wordmark）
-     acct        头像链接（账号页）；avatar 头像图片地址（AI 窗口头部）
-     email       对外联系邮箱（AI 窗口底部「联系我」的 mailto；2026-11-07 个人资料：主站传 data/profile.yaml 的 email，子站传 nav.json 的 me.email；
+     icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term tb-chat lock tb-undo share tb-send tb-newchat tb-history
+     wordmark    旧字标 SVG（v3 起顶栏不用，调用方照传无妨）
+     security    盾牌（站点安全）链接：主站安全页（当前语言）
+     status      NAVIGATE 底部「systemctl status」链接：主站服务状态页（当前语言）
+     acct        头像链接（账号页）；avatar 头像图片地址（顶栏头像 + AI 窗口头部）
+     email       对外联系邮箱（AI 窗口底部「联系我」的 mailto；主站传 data/profile.yaml 的 email，子站传 nav.json 的 me.email；
                  运行时 ai.js 再用本机缓存 sgx-profile 里改过的邮箱覆盖）
-     langHref    另一种语言的同一页（语言行选了另一种语言时去这里；主站不传时由 shell/quick-panel.js 按路径算）
+     langHref    另一种语言的同一页（选了另一种语言时去这里；主站不传时由 shell/topbar-panel.js 按路径算）
      pal         调色板色块：[{id style}]（style = --pl-* / --pd-* 变量串；名字在 tr.palette.<id>） */ -}}
 {{- $lang := .lang | default "en" -}}
 {{- $t := .tr -}}
 {{- $i := .icons -}}
+{{- $n := 0 }}{{ $cur := 0 }}{{ range .nav.items }}{{ $n = add $n 1 }}{{ if eq .id $.site }}{{ $cur = $n }}{{ end }}{{ end -}}
 <header id="site-nav" class="z-50{{ with .headerClass }} {{ . }}{{ end }}"{{ with .headerAttrs }} {{ . | safeHTMLAttr }}{{ end }}>
   <div class="sgx-topbar">
-    <a class="sgx-tb-logo" href="{{ .home }}" aria-label="{{ $t.topbar.home }}">{{ .wordmark | safeHTML }}</a>
+    <a class="sgx-tb-logo" href="{{ .home }}" aria-label="{{ $t.topbar.home }}"><span class="sgx-tb-ps" aria-hidden="true">❯</span><span class="sgx-tb-name" translate="no">styrigx</span><span class="sgx-tb-tl" aria-hidden="true">:~$</span><span class="sgx-tb-cu" aria-hidden="true"></span></a>
     <div class="sgx-tb-pill{{ with .pillClass }} {{ . }}{{ end }}">{{ .center | safeHTML }}</div>
     <div class="sgx-tb-acts">
-      <button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="{{ $t.topbar.sites }}" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">{{ index $i "tb-grid" | safeHTML }}</button>
-      <button type="button" class="sgx-tb-btn sgx-tb-quick" aria-label="{{ $t.topbar.quick }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ index $i "tb-sliders" | safeHTML }}</button>
-      <button type="button" class="sgx-tb-btn sgx-tb-ai" aria-label="{{ $t.topbar.askAi }}" aria-haspopup="dialog" aria-controls="sgx-ai" aria-expanded="false">{{ index $i "tb-chat" | safeHTML }}</button>
+      <button type="button" class="sgx-tb-btn sgx-tb-quick" aria-label="{{ $t.topbar.theme }}" title="{{ $t.topbar.theme }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ index $i "tb-palette" | safeHTML }}</button>
+      <a class="sgx-tb-btn sgx-tb-shield" href="{{ .security }}" aria-label="{{ $t.topbar.security }}" title="{{ $t.topbar.security }}">{{ index $i "tb-shield" | safeHTML }}</a>
+      <span class="sgx-tb-sep" aria-hidden="true"></span>
+      <button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="{{ $t.topbar.sites }}" title="{{ $t.topbar.sites }}" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">{{ index $i "tb-term" | safeHTML }}</button>
+      <a class="sgx-tb-av" href="{{ .acct }}" aria-label="{{ $t.topbar.account }}" title="{{ $t.topbar.account }}"><img src="{{ .avatar }}" alt="" width="30" height="30" class="sgx-tb-avatar" data-sgx-avatar="192"></a>
     </div>
+    <div class="sgx-tb-prog" aria-hidden="true"><i></i></div>
   </div>
+  <button type="button" class="sgx-tb-btn sgx-tb-ai" aria-label="{{ $t.topbar.askAi }}" title="{{ $t.topbar.askAi }}" aria-haspopup="dialog" aria-controls="sgx-ai" aria-expanded="false">{{ index $i "tb-chat" | safeHTML }}</button>
 </header>
 <dialog id="sgx-nav" class="sgx-qp sgx-nav" aria-label="{{ $t.nav.label }}">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
+    <div class="sgx-nav-h"><span><b aria-hidden="true">$</b> {{ $t.nav.title }}</span><span class="sgx-nav-count" data-nav-count>{{ printf "%02d/%02d" $cur $n }}</span></div>
     <nav aria-label="{{ $t.nav.label }}">
-      <ul class="sgx-qp-grid sgx-nav-grid">
-        {{- range .nav.items }}
+      <ul class="sgx-nav-list">
+        {{- range $k, $it := .nav.items }}
         {{- $sub := in (slice "blog" "curio" "daymark") .id }}
         {{- /* 语言前缀同 sgx-lang-path.html / lib/lang-path.js（外壳只用参数、不调用别的模板，这里照同一规则展开；tests/space/ui/build/lang-default.test.mjs 对表）：英文无前缀，其他语言主站 /<语言>/…、子站 /<站>/<语言>/ */ -}}
         {{- $p := .path }}{{ if ne $lang "en" }}{{ if $sub }}{{ $p = printf "%s%s/" .path $lang }}{{ else }}{{ $p = printf "/%s%s" $lang .path }}{{ end }}{{ end }}
         {{- if not $sub }}{{ if ne .origin "https://styrigx.com" }}{{ $p = printf "%s%s" .origin $p }}{{ else }}{{ $p = printf "%s%s" ($.mainOrigin | default "") $p }}{{ end }}{{ end }}
-        <li><a class="sgx-qp-tile sgx-nav-tile" href="{{ $p }}" data-nav="{{ .id }}"{{ if eq .id $.site }} aria-current="page"{{ end }}><span class="sgx-qp-ic">{{ index $i .icon | safeHTML }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ (index $t.nav .id).title }}</span><span class="sgx-qp-state">{{ (index $t.nav .id).sub }}</span></span></a></li>
+        <li><a class="sgx-nav-tile" href="{{ $p }}" data-nav="{{ .id }}"{{ if eq .id $.site }} aria-current="page"{{ end }}><em class="sgx-nav-no" aria-hidden="true">{{ printf "%02d" (add $k 1) }}</em><span class="sgx-nav-name">{{ (index $t.nav .id).title }}</span><span class="sgx-nav-hint" aria-hidden="true" translate="no">{{ .hint }}</span></a></li>
         {{- end }}
       </ul>
     </nav>
+    <div class="sgx-nav-pf">
+      <span class="sgx-nav-pfk" id="sgx-nav-lang-k">{{ $t.topbar.langKey }}</span>
+      {{- /* 语言分段（配置里的每种语言；短名用它自己的写法，不翻译、translate="no"）：选中即保存，和本页不同就去另一种语言的同一页 */}}
+      <div class="sgx-nav-seg" role="radiogroup" aria-labelledby="sgx-nav-lang-k" data-qp-langs{{ with .langHref }} data-href="{{ . }}"{{ end }}>
+        {{- range sort .langs "code" }}<button type="button" role="radio" data-qp-lang="{{ .code }}" lang="{{ .code }}" aria-checked="{{ if eq .code $lang }}true{{ else }}false{{ end }}" aria-label="{{ .name }}" translate="no">{{ .short | default .name }}</button>{{ end }}
+      </div>
+      <span class="sgx-nav-pfk" id="sgx-nav-layout-k">{{ $t.topbar.layoutKey }}</span>
+      <div class="sgx-nav-seg sgx-qp-seg" role="group" aria-labelledby="sgx-nav-layout-k" data-qp-seg="layout">
+        {{- range slice (dict "v" "auto" "t" $t.topbar.auto) (dict "v" "phone" "t" $t.topbar.phone) (dict "v" "desktop" "t" $t.topbar.desktop) }}<button type="button" data-v="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
+      </div>
+    </div>
+    <div class="sgx-nav-act">
+      <button type="button" class="sgx-nav-btn" data-qp="share" data-sgx-share aria-label="{{ $t.topbar.share }}">{{ index $i "share" | safeHTML }}<span>{{ $t.topbar.shareKey }}</span></button>
+      <button type="button" class="sgx-nav-btn" data-qp="lock" aria-label="{{ $t.topbar.lock }}">{{ index $i "lock" | safeHTML }}<span data-qp-lock-state>{{ $t.topbar.lockKey }}</span></button>
+    </div>
+    {{- /* STATUS：六个单元的占位（PR-1 先放占位「—」：现有监测只覆盖主站 / AI，要登录态接口；接真数据另做） */}}
+    <div class="sgx-nav-st" data-nav-status>
+      <div class="sgx-nav-st-h"><span>{{ $t.nav.status }}</span><b data-st-sum>{{ $t.nav.statusPending }}</b></div>
+      <ul class="sgx-nav-st-gd">
+        {{- range slice "space" "blog" "curio" "daymark" "gray-ai" "auth" }}<li data-st="{{ . }}"><i aria-hidden="true"></i><span translate="no">{{ . }}</span><em data-st-ms>—</em></li>{{ end }}
+      </ul>
+    </div>
+    <div class="sgx-nav-f"><a href="{{ .status }}" class="sgx-nav-flink" translate="no">{{ $t.nav.statusLink }} ›</a><button type="button" class="sgx-nav-close" data-nav-close>{{ $t.nav.close }}</button></div>
   </div>
 </dialog>
-<dialog id="sgx-qp" class="sgx-qp" aria-label="{{ $t.topbar.quick }}">
+<dialog id="sgx-qp" class="sgx-qp sgx-theme" aria-label="{{ $t.topbar.theme }}">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
-    <div class="sgx-qp-grid">
-      <button type="button" class="sgx-qp-tile" data-qp="dark" aria-pressed="false"><span class="sgx-qp-ic">{{ index $i "tb-moon" | safeHTML }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ $t.topbar.dark }}</span><span class="sgx-qp-state" data-qp-state></span></span></button>
-      <button type="button" class="sgx-qp-tile" data-qp="system" aria-pressed="false"><span class="sgx-qp-ic">{{ index $i "sun" | safeHTML }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ $t.topbar.followSystem }}</span><span class="sgx-qp-state" data-qp-state></span></span></button>
-      <button type="button" class="sgx-qp-tile" data-qp="share" data-sgx-share><span class="sgx-qp-ic">{{ index $i "share" | safeHTML }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ $t.topbar.share }}</span><span class="sgx-qp-state">{{ $t.topbar.shareSub }}</span></span></button>
-      <button type="button" class="sgx-qp-tile" data-qp="lock"><span class="sgx-qp-ic">{{ index $i "lock" | safeHTML }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ $t.topbar.lock }}</span><span class="sgx-qp-state" data-qp-lock-state>{{ $t.topbar.lockBack }}</span></span></button>
+    <p class="sgx-th-h" id="sgx-th-mode">{{ $t.topbar.schemeKey }}</p>
+    <div class="sgx-th-seg" role="group" aria-labelledby="sgx-th-mode" data-qp-seg="mode">
+      {{- range slice (dict "v" "system" "t" $t.topbar.followSystem) (dict "v" "dark" "t" $t.topbar.schemeDark) (dict "v" "light" "t" $t.topbar.schemeLight) }}<button type="button" data-qp-mode="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
     </div>
-    {{- /* 语言：整行，点开在行下方展开单选（§6.4 / §6.7 不做底部弹出窗口；选中即保存并收起） */}}
-    <div class="sgx-qp-row sgx-qp-lang">
-      <button type="button" class="sgx-qp-line" data-qp="lang" aria-expanded="false" aria-controls="sgx-qp-lang-opts"{{ with .langHref }} data-href="{{ . }}"{{ end }}><span class="sgx-qp-ic">{{ index $i "tb-globe" | safeHTML }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ $t.topbar.language }}</span></span><span class="sgx-qp-val" data-qp-lang-val>{{ range .langs }}{{ if eq .code $lang }}{{ .name }}{{ end }}{{ end }}</span><span class="sgx-qp-chev" aria-hidden="true"></span></button>
-      <div class="sgx-qp-opts" id="sgx-qp-lang-opts" role="radiogroup" aria-label="{{ $t.topbar.language }}" hidden>
-        {{- /* 选项 = 跟随系统 + 配置里的每种语言（hugo.yaml languages；语言名用它自己的写法，不翻译、translate="no"） */}}
-        <button type="button" class="sgx-qp-opt" role="radio" data-qp-lang="system" aria-checked="false"><span class="sgx-qp-opt-tx">{{ $t.topbar.followSystem }}</span><span class="sgx-qp-opt-dot" aria-hidden="true"></span></button>
-        {{- range .langs }}
-        <button type="button" class="sgx-qp-opt" role="radio" data-qp-lang="{{ .code }}" lang="{{ .code }}" aria-checked="false"><span class="sgx-qp-opt-tx" translate="no">{{ .name }}</span><span class="sgx-qp-opt-dot" aria-hidden="true"></span></button>
-        {{- end }}
-      </div>
+    <div class="sgx-th-hrow">
+      <p class="sgx-th-h" id="sgx-th-pal">{{ $t.topbar.paletteKey }}</p>
+      <button type="button" class="palette-reset" data-qp-reset aria-disabled="true">{{ index $i "tb-undo" | safeHTML }}<span>{{ $t.topbar.reset }}</span></button>
     </div>
-    <div class="sgx-qp-row">
-      <div class="sgx-qp-row-head">
-        <p class="sgx-qp-row-label">{{ $t.topbar.palette }}</p>
-        <button type="button" class="palette-reset" data-qp-reset aria-disabled="true">{{ index $i "tb-undo" | safeHTML }}<span>{{ $t.topbar.reset }}</span></button>
-      </div>
-      <div class="sgx-qp-sws" role="group" aria-label="{{ $t.topbar.palette }}">
-        {{- range .pal }}<button type="button" class="sgx-qp-sw pal-tile" data-qp-palette="{{ .id }}" style="{{ .style | safeCSS }}" aria-pressed="false" aria-label="{{ index $t.palette .id }}"><span class="pal-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M9 16.2l-3.5-3.5-1.4 1.4L9 19 20.9 7.1l-1.4-1.4z" fill="currentColor"/></svg></span><span class="pal-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span></button>{{ end }}
-      </div>
-    </div>
-    <div class="sgx-qp-row">
-      <p class="sgx-qp-row-label">{{ $t.topbar.layout }}</p>
-      <div class="sgx-qp-seg" role="group" aria-label="{{ $t.topbar.layout }}" data-qp-seg="layout">
-        {{- range slice (dict "v" "phone" "t" $t.topbar.phone) (dict "v" "auto" "t" $t.topbar.auto) (dict "v" "desktop" "t" $t.topbar.desktop) }}<button type="button" data-v="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
-      </div>
+    <div class="sgx-th-pals" role="group" aria-labelledby="sgx-th-pal">
+      {{- range .pal }}<button type="button" class="sgx-th-pal" data-qp-palette="{{ .id }}" style="{{ .style | safeCSS }}" aria-pressed="false"><span class="sgx-th-sw" aria-hidden="true"><u></u><u></u></span><span class="sgx-th-name">{{ index $t.palette .id }}</span><em aria-hidden="true">✓</em></button>{{ end }}
     </div>
   </div>
 </dialog>

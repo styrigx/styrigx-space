@@ -52,14 +52,15 @@ test.describe('手机（412 宽，手机 UA）', () => {
     }
   });
 
-  test('快捷面板切「桌面」：原地改成 980 宽、不整页重载（不白闪），面板还开着；切回「自动」原地还原 viewport', async ({ page }) => {
+  test('NAVIGATE 面板切「桌面」：原地改成 980 宽、不整页重载（不白闪），面板还开着；切回「自动」原地还原 viewport', async ({ page }) => {
     await go(page);
     await page.evaluate(() => { /** @type {any} */ (window).__sgxNoReload = 1; });
     let loads = 0;
     page.on('load', () => { loads++; });
-    await page.locator('.sgx-tb-quick').click();
-    await expect(page.locator('#sgx-qp')).toBeVisible();
-    await page.locator('#sgx-qp [data-qp-seg="layout"] [data-v="desktop"]').click();
+    /* 顶栏 v3（2026-11 PR-1）：布局分段在 NAVIGATE（>_）面板里 */
+    await page.locator('.sgx-tb-grid').click();
+    await expect(page.locator('#sgx-nav')).toBeVisible();
+    await page.locator('#sgx-nav [data-qp-seg="layout"] [data-v="desktop"]').click();
     await expect.poll(async () => (await state(page)).layout).toBe('desktop');
     const s = await state(page);
     expect(s.meta).toBe('width=980');
@@ -68,10 +69,10 @@ test.describe('手机（412 宽，手机 UA）', () => {
     expect(await page.evaluate(() => localStorage.getItem('sgx-layout'))).toBe('desktop');
     /* 同一个文档（没重载）：标记还在，面板还开着、选中「桌面」 */
     expect(await page.evaluate(() => /** @type {any} */ (window).__sgxNoReload)).toBe(1);
-    await expect(page.locator('#sgx-qp')).toBeVisible();
-    await expect(page.locator('#sgx-qp [data-qp-seg="layout"] [data-v="desktop"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#sgx-nav')).toBeVisible();
+    await expect(page.locator('#sgx-nav [data-qp-seg="layout"] [data-v="desktop"]')).toHaveAttribute('aria-pressed', 'true');
     /* 切回自动：同样原地，viewport 还原、手机布局 */
-    await page.$eval('#sgx-qp [data-qp-seg="layout"] [data-v="auto"]', (b) => /** @type {HTMLElement} */ (b).click());
+    await page.$eval('#sgx-nav [data-qp-seg="layout"] [data-v="auto"]', (b) => /** @type {HTMLElement} */ (b).click());
     await expect.poll(async () => (await state(page)).meta).toBe(ORIG);
     await expect.poll(async () => (await state(page)).layout).toBe('phone');
     expect(await state(page)).toEqual({ meta: ORIG, w: 412, layout: 'phone', scale: 1 });

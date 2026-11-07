@@ -49,6 +49,7 @@ const SRC = {
   entries: path.join(REPO, 'space/web/layouts/partials/sgx-entries.html'),
   pageHero: path.join(REPO, 'space/web/layouts/partials/sgx-page-hero.html'),
   segtabs: path.join(REPO, 'space/web/layouts/partials/sgx-segtabs.html'),
+  footer: path.join(REPO, 'space/web/layouts/partials/sgx-footer.html'),
   topbarJs: path.join(REPO, 'space/web/assets/js/shell/topbar-panel.js'),
   modalSheet: path.join(REPO, 'space/web/assets/js/shell/modal-sheet.js'),
   ai: path.join(REPO, 'space/web/assets/js/shell/ai-panel.js'),
@@ -63,9 +64,9 @@ const SRC = {
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
 export const SHELL_REGIONS = ['topbar-frame', 'panel', 'entries', 'inpage', 'wide'];
-/* 导航项以外外壳要用的图标（2026-11-04 P5-1）：顶栏（快捷面板滑块、AI 聊天）、快捷设置磁贴（深色 / 跟随系统 / 语言 / 锁定 / 恢复默认 / 分享）、AI 发送。
+/* 导航项以外外壳要用的图标（2026-11-04 P5-1；2026-11 顶栏 v3）：顶栏（外观调色盘、盾牌、>_ NAVIGATE）、AI 浮钮、NAVIGATE 的 share / lock、外观面板恢复默认、AI 发送 / 新对话 / 历史。
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
-export const EXTRA_ICONS = ['tb-grid', 'tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history'];
+export const EXTRA_ICONS = ['tb-palette', 'tb-shield', 'tb-term', 'tb-chat', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history'];
 const HEAD = (src) =>
   `/* 由 space/scripts/gen-shell.mjs 从 ${src} 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */\n`;
 
@@ -231,6 +232,8 @@ function renderParamsOnly(file, name, mark) {
 }
 export const renderPageHero = () => renderParamsOnly(SRC.pageHero, 'sgx-page-hero.html', 'class="sgx-hero"');
 export const renderSegtabs = () => renderParamsOnly(SRC.segtabs, 'sgx-segtabs.html', 'class="sgx-segs"');
+/** tmux 页脚（2026-11 UI 重设计 PR-1）：四站同一个，同上只能用传进来的参数 */
+export const renderFooter = () => renderParamsOnly(SRC.footer, 'sgx-footer.html', 'class="sgx-foot"');
 
 /** 调色板用法规则版本（填充 vs ink、大面积块中性化、固定状态色、图表 3:1 回退、合成底审计；docs/palette-usage.md） */
 export const RULES_VERSION = 'palette-rules-1';
@@ -306,6 +309,7 @@ export function renderAll() {
   renderEntries();
   renderPageHero();
   renderSegtabs();
+  renderFooter();
   renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar');
   renderStandalone(SRC.modalSheet, 'modal-sheet.js', 'modalSheet');
   renderStandalone(SRC.ai, 'ai-panel.js', 'mountAiChat');
@@ -337,6 +341,7 @@ export const SHELL_FILES = Object.freeze({
   'entries.html': 'space/web/layouts/partials/sgx-entries.html',
   'page-hero.html': 'space/web/layouts/partials/sgx-page-hero.html',
   'segtabs.html': 'space/web/layouts/partials/sgx-segtabs.html',
+  'footer.html': 'space/web/layouts/partials/sgx-footer.html',
   'topbar.js': 'space/web/assets/js/shell/topbar-panel.js',
   'modal-sheet.js': 'space/web/assets/js/shell/modal-sheet.js',
   'ai.js': 'space/web/assets/js/shell/ai-panel.js',

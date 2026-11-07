@@ -25,7 +25,7 @@ const CALLERS = {
   curio: 'space/web/layouts/curio/baseof.html',
   daymark: 'space/web/layouts/daymark/baseof.html',
 };
-const REQUIRED = ['lang', 'tr', 'langs', 'home', 'center', 'nav', 'site', 'icons', 'wordmark', 'acct', 'avatar', 'pal'];
+const REQUIRED = ['lang', 'tr', 'langs', 'home', 'center', 'nav', 'site', 'icons', 'wordmark', 'acct', 'avatar', 'pal', 'security', 'status'];
 
 /** 取 `partial "...topbar.html" (dict ... )` 的参数段 */
 function callArgs(site) {
@@ -51,7 +51,9 @@ test('四个调用点：必需参数都传；site 是本站；PR-4b 起快捷面
   for (const site of Object.keys(CALLERS)) {
     const a = callArgs(site);
     for (const k of REQUIRED) assert.match(a, new RegExp(`\\n\\s*"${k}" `), `${site}: 传 ${k}`);
-    assert.match(a, new RegExp(`"site" "${site === 'atlas' ? 'home' : site}"`), `${site}: 当前站`);
+    /* 主站：首页 = home、旷野分类子页 = wild、其余没有当前项（$navSite，顶栏 v3） */
+    if (site === 'atlas') assert.match(a, /"site" \$navSite/, 'atlas: 当前项');
+    else assert.match(a, new RegExp(`"site" "${site}"`), `${site}: 当前站`);
     assert.doesNotMatch(a, /"tiles" |\n\s*"layout" /, `${site}: 不按站开关磁贴`);
   }
   assert.doesNotMatch(rd(CALLERS.atlas), /\$tbTiles/);
@@ -75,49 +77,59 @@ test('子站地址：主站项 / 账号 / 头像走 https://styrigx.com，中文
 const PUB = { atlas: 'space/web/public', blog: 'space/web/public/blog', curio: 'space/web/public/curio', daymark: 'space/web/public/daymark' };
 const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'index.html')));
 
-/** 顶栏骨架：去掉中间内容，只留结构上的 class / id / data-qp，按出现顺序 */
+/** 顶栏骨架（顶栏 v3）：去掉中间内容，只留结构上的 class / id / data-*，按出现顺序 */
 function skeleton(html) {
   const h = html.replace(/"/g, '');
   const hdr = h.slice(h.indexOf('<header id=site-nav'), h.indexOf('</header>'));
-  const tb = ['sgx-topbar', 'sgx-tb-logo', 'sgx-wordmark', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-grid', 'sgx-tb-quick', 'sgx-tb-ai']
-    .map((c) => [c, hdr.search(new RegExp(`class=[^>]*\\b${c}\\b`))]);
-  for (const [c, i] of tb) assert.ok(i >= 0, '顶栏有 ' + c);
-  const order = tb.map(([c]) => c).filter((c) => c !== 'sgx-wordmark');
-  const pos = order.map((c) => tb.find((x) => x[0] === c)[1]);
+  const order = ['sgx-topbar', 'sgx-tb-logo', 'sgx-tb-cu', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'sgx-tb-av', 'sgx-tb-prog', 'sgx-tb-ai'];
+  const pos = order.map((c) => hdr.search(new RegExp(`class=[^>]*\\b${c}\\b`)));
+  order.forEach((c, n) => assert.ok(pos[n] >= 0, '顶栏有 ' + c));
   const qp = h.slice(h.indexOf('<dialog id=sgx-qp'), h.indexOf('</dialog>', h.indexOf('<dialog id=sgx-qp')));
   const ai = h.slice(h.indexOf('<dialog id=sgx-ai'), h.indexOf('</dialog>', h.indexOf('<dialog id=sgx-ai')));
   const nav = h.slice(h.indexOf('<dialog id=sgx-nav'), h.indexOf('</dialog>', h.indexOf('<dialog id=sgx-nav')));
+  const foot = h.slice(h.indexOf('<footer class=sgx-foot'), h.indexOf('</footer>', h.indexOf('<footer class=sgx-foot')));
   return {
     sorted: pos.every((x, n) => n === 0 || x > pos[n - 1]),
-    tabs: [...qp.matchAll(/data-qp-tab=([a-z]+)/g)].map((x) => x[1]),
-    pages: [...qp.matchAll(/data-qp-page=([a-z]+)/g)].map((x) => x[1]),
     nav: [...nav.matchAll(/data-nav=([a-z]+)/g)].map((x) => x[1]),
     current: [...nav.matchAll(/data-nav=([a-z]+) aria-current=page/g)].map((x) => x[1]),
-    me: /sgx-tb-me|<img/.test(hdr) ? 'header' : /class=sgx-ai-me/.test(ai) ? 'ai' : 'none',
-    tiles: [...qp.matchAll(/data-qp=([a-z]+)/g)].map((x) => x[1]),
-    swatches: (qp.match(/class=sgx-qp-sw pal-tile/g) || []).length,
+    count: (nav.match(/data-nav-count>(\d\d\/\d\d)</) || [])[1],
+    langs: [...nav.matchAll(/data-qp-lang=([a-z]+)/g)].map((x) => x[1]),
+    layout: [...nav.matchAll(/<button type=button data-v=([a-z]+)/g)].map((x) => x[1]),
+    acts: [...nav.matchAll(/data-qp=([a-z]+)/g)].map((x) => x[1]),
+    status: [...nav.matchAll(/data-st=([a-z-]+)/g)].map((x) => x[1]),
+    modes: [...qp.matchAll(/data-qp-mode=([a-z]+)/g)].map((x) => x[1]),
+    swatches: (qp.match(/class=sgx-th-pal /g) || []).length,
+    me: /class=sgx-tb-av/.test(hdr) && /class=sgx-ai-me/.test(ai),
+    win: [...foot.matchAll(/data-win=([a-z]+)/g)].map((x) => x[1]),
+    winCur: [...foot.matchAll(/data-win=([a-z]+) aria-current=page/g)].map((x) => x[1]),
     ai: ['data-ai-list', 'data-ai-form', 'data-ai-in', 'data-ai-scope', 'data-ai-clear', 'data-ai-history', 'data-ai-hist', 'data-ai-contact'].every((k) => ai.includes(k)),
-    legacy: /sgx-drawer|sgx-tb-nav\b|sgx-tb-end\b|sgx-tb-share\b|apps-grid|sgx-tb-mark\b/.test(h.replace(/<script[\s\S]*?<\/script>/g, '')),
+    legacy: /sgx-drawer|sgx-tb-nav\b|sgx-tb-end\b|sgx-tb-share\b|apps-grid|sgx-tb-mark\b|sgx-wordmark|sgx-qp-tile/.test(h.replace(/<script[\s\S]*?<\/script>/g, '')),
   };
 }
 
-test('真实构建：四站首页（中英）顶栏骨架一致 —— 胶囊顺序、九宫格导航四项同序且当前站「开」态、快捷面板单页同一套磁贴、头像在 AI 窗口；没有抽屉 / 右圆', (t) => {
+test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字标 · 外观 · 盾牌 · | · >_ · 头像 · 进度条 · AI 浮钮；NAVIGATE 五项同序且当前项「开」态；外观面板同一套；tmux 页脚当前窗口', (t) => {
   if (!built) { t.skip('还没构建（先 npm run build）'); return; }
   const CUR = { atlas: 'home', blog: 'blog', curio: 'curio', daymark: 'daymark' };
+  const NO = { home: '01', blog: '02', curio: '03', daymark: '04' };
   for (const site of Object.keys(PUB)) {
     for (const f of ['index.html', 'zh/index.html']) {
       const sk = skeleton(readFileSync(path.join(REPO, PUB[site], f), 'utf8'));
       const at = `${site}/${f}`;
-      assert.ok(sk.sorted, at + '：字标 → 页名胶囊 → 九宫格 → 快捷设置 → AI');
-      assert.deepEqual(sk.tabs, [], at + '：快捷面板没有页签');
-      assert.deepEqual(sk.pages, [], at);
-      assert.equal(sk.me, 'ai', at + '：头像在 AI 窗口头部');
-      assert.deepEqual(sk.nav, ['home', 'curio', 'daymark', 'blog'], at);
-      assert.deepEqual(sk.current, [CUR[site]], at + '：当前站高亮');
-      assert.deepEqual(sk.tiles, ['dark', 'system', 'share', 'lock', 'lang'], at + '：磁贴（四站同一套）');
-      assert.equal(sk.swatches, 22, at + '：22 个色块');
+      assert.ok(sk.sorted, at + '：顶栏顺序');
+      assert.ok(sk.me, at + '：头像在顶栏最右（AI 窗口头部也有）');
+      assert.deepEqual(sk.nav, ['home', 'blog', 'curio', 'daymark', 'wild'], at);
+      assert.deepEqual(sk.current, [CUR[site]], at + '：当前项高亮');
+      assert.equal(sk.count, NO[CUR[site]] + '/05', at + '：计数');
+      assert.deepEqual(sk.langs, ['en', 'zh'], at + '：lang EN / 中文');
+      assert.deepEqual(sk.layout, ['auto', 'phone', 'desktop'], at + '：layout Auto / Mobile / DeX');
+      assert.deepEqual(sk.acts, ['share', 'lock'], at + '：share / lock');
+      assert.deepEqual(sk.status, ['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth'], at + '：STATUS 六个单元');
+      assert.deepEqual(sk.modes, ['system', 'dark', 'light'], at + '：MODE');
+      assert.equal(sk.swatches, 22, at + '：22 套色板');
+      assert.deepEqual(sk.win, ['home', 'blog', 'curio', 'daymark', 'wild'], at + '：页脚窗口');
+      assert.deepEqual(sk.winCur, [CUR[site]], at + '：页脚当前窗口');
       assert.ok(sk.ai, at + '：AI 窗口齐全');
-      assert.equal(sk.legacy, false, at + '：没有抽屉 / 右圆分享 / 图标版字标');
+      assert.equal(sk.legacy, false, at + '：没有抽屉 / 右圆分享 / SVG 字标 / 旧磁贴');
     }
   }
 });

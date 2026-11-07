@@ -431,7 +431,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-test('模板：会执行的内联脚本只在 baseof（7 段，P4-3 PR-4c 加了语言路径 lang-path）、alias（P4-2b 删了 search-redirect）；旷野页没有内联脚本；没有 on*= 属性', () => {
+test('模板：会执行的内联脚本只在 baseof（6 段：P4-3 PR-4c 加了语言路径 lang-path；2026-11 顶栏 v3 删了「关于本站」页脚的年份脚本）、alias（P4-2b 删了 search-redirect）；旷野页没有内联脚本；没有 on*= 属性', () => {
   const where = {};
   for (const f of walk(REPO + '/space/web/layouts')) {
     const src = readFileSync(f, 'utf8').replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, '');
@@ -441,7 +441,7 @@ test('模板：会执行的内联脚本只在 baseof（7 段，P4-3 PR-4c 加了
     if (n && !/^(partials\/)?(blog|curio|daymark)\//.test(rel)) where[rel] = n;
     assert.deepEqual(gen.unhashable(src.replace(/\{\{[\s\S]*?\}\}/g, '')), [], f);
   }
-  assert.deepEqual(where, { '_default/baseof.html': 7, 'alias.html': 1 });
+  assert.deepEqual(where, { '_default/baseof.html': 6, 'alias.html': 1 });
   /* alias：脚本正文里不插模板值（每页一字不差 → 一个哈希），目标地址在 <html data-sgx-*> */
   for (const f of ['alias.html']) {
     const [body] = gen.inlineScripts(readFileSync(REPO + '/space/web/layouts/' + f, 'utf8'));

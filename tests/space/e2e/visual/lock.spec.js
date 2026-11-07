@@ -10,6 +10,9 @@
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
+/* 2026-11 UI 重设计 PR-1：旧截图基线已删除（普通提交，不改历史），新精简基线在重设计最后一个 PR 重拍；
+   在那之前不比截图（SHOTS = false），同一用例里的布局 / 行为断言照跑。重拍时改回 true。 */
+const SHOTS = false;
 
 /* Hark：CI 里 networkidle 可能永远等不到（锁屏页请求外部资源：天气、Turnstile），
    改用 domcontentloaded + 等锁屏元素出现，不再依赖网络空闲 */
@@ -73,7 +76,7 @@ test.describe('lock screen', () => {
     await gotoLock(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     /* 2026-10-23：锁屏不再有时钟 / 日期，不用遮罩 */
-    await expect(page).toHaveScreenshot('lock-screen.png', { animations: 'disabled' });
+    if (SHOTS) await expect(page).toHaveScreenshot('lock-screen.png', { animations: 'disabled' });
   });
 
   test('avatar → method sheet → temporary key unlocks (local fallback)', async ({ page }) => {
@@ -718,7 +721,7 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
     await expect(page.locator('#sgx-mopt-pw')).toBeVisible();
   });
 
-  test('锁定时九宫格 / 快捷设置 / AI 按钮点不到（锁屏盖住整页，顶栏位置只有标题）', async ({ page }) => {
+  test('锁定时 NAVIGATE / 外观 / AI 按钮点不到（锁屏盖住整页；AI 浮钮被挤出视口也算点不到）', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     await expect(page.locator('#sgx-lock .sgx-lock-tb button, #sgx-lock .sgx-lock-tb a')).toHaveCount(0);
@@ -729,20 +732,21 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
       if (!box) continue;
       const hit = await page.evaluate(([x, y]) => {
         const el = document.elementFromPoint(x, y);
-        return !!(el && el.closest('#sgx-lock'));
+        /* 点在视口外（elementFromPoint 为 null）= 点不到 */
+        return !el || !!el.closest('#sgx-lock');
       }, [box.x + box.width / 2, box.y + box.height / 2]);
       expect(hit).toBe(true);
     }
   });
 
-  test('锁屏顶栏照抄顶栏按钮（P4-3 PR-4b：九宫格 · 快捷设置 · AI，头像不在顶栏、只在 AI 窗口头部），尺寸和顶栏一样（40 × 40 圆）', async ({ page }) => {
+  test('锁屏顶栏照抄顶栏按钮（2026-11 PR-1 顶栏 v3：外观 · 盾牌 · >_，头像和 AI 浮钮不抄），尺寸和顶栏一样（40 × 40）', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     await expect(page.locator('#sgx-lock .sgx-lock-tb img, #sgx-lock .sgx-lock-tb .sgx-tb-me')).toHaveCount(0);
     expect(await page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.tagName + '.' + e.className)))
-      .toEqual(['SPAN.sgx-tb-btn sgx-tb-grid', 'SPAN.sgx-tb-btn sgx-tb-quick', 'SPAN.sgx-tb-btn sgx-tb-ai']);
+      .toEqual(['SPAN.sgx-tb-btn sgx-tb-quick', 'SPAN.sgx-tb-btn sgx-tb-shield', 'SPAN.sgx-tb-btn sgx-tb-grid']);
     const sz = await page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts > *').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
-    /* PR-4b 定稿：三颗 40 × 40 圆按钮，同顶栏 */
+    /* 三颗 40 × 40 按钮，同顶栏 */
     expect(sz).toEqual([[40, 40], [40, 40], [40, 40]]);
   });
 
@@ -756,7 +760,7 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
       await gotoLock(page);
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await expect(page.locator('#sgx-lock-stage')).not.toHaveClass(/is-pending/);
-      await expect(page).toHaveScreenshot(`lock-screen-glass-${theme}.png`, { animations: 'disabled' });
+      if (SHOTS) await expect(page).toHaveScreenshot(`lock-screen-glass-${theme}.png`, { animations: 'disabled' });
     });
   }
 });

@@ -26,8 +26,8 @@
   --oui-shadow-card: inset 0 0.5px 0 rgba(255, 255, 255, 0.65), 0 1px 2px rgba(16, 24, 40, 0.08), 0 12px 32px -12px rgba(16, 24, 40, 0.22);
   --oui-topbar-h: 64px;
   /* 悬浮顶栏是 position:fixed，不占文档流；内容区顶部 = 主站 --sgx-content-top：
-   * 顶栏下沿（上边距 --sgx-tb-inset + 顶栏高 --sgx-tb-btn）+ 16px + safe-area（手机 84px，≥ 840 宽 88px）。 */
-  --oui-nav-clear: calc(var(--sgx-tb-inset) + var(--sgx-tb-btn) + 16px + env(safe-area-inset-top, 0px));
+   * 顶栏下沿（顶栏 v3 贴顶通栏，高 --sgx-tb-h 64）+ 16px + safe-area（80px）。 */
+  --oui-nav-clear: calc(var(--sgx-tb-h) + 16px + env(safe-area-inset-top, 0px));
 }
 
 :root[data-theme='dark'],
@@ -51,7 +51,7 @@
     radial-gradient(46% 26% at 62% 54%, oklch(from var(--sgx-bg-3) l c h / var(--sgx-halo-a)) 0%, transparent 70%),
     radial-gradient(52% 26% at 28% -6%, oklch(from var(--sgx-bg-2) l c h / var(--sgx-halo-a)) 0%, transparent 70%),
     radial-gradient(42% 24% at 104% 66%, oklch(from var(--sgx-bg-5) l c h / calc(var(--sgx-halo-a) * 0.6)) 0%, transparent 70%);
-  --sgx-halo-mask: linear-gradient(to bottom, transparent 0, rgb(0 0 0) calc(var(--sgx-tb-inset) + var(--sgx-tb-btn) + 140px));
+  --sgx-halo-mask: linear-gradient(to bottom, transparent 0, rgb(0 0 0) calc(var(--sgx-tb-h) + 140px));
 }
 
 :root.dark {

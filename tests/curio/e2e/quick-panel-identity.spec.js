@@ -1,4 +1,5 @@
-/* 四站快捷面板是同一份（P4-3 PR-4b 定稿：快捷面板只有一页，四站完全相同）。
+/* 四站外观面板是同一份（P4-3 PR-4b 定稿四站完全相同；2026-11 UI 重设计 PR-1 起 #sgx-qp = 外观面板：MODE + PALETTE，
+ * 分享 / 锁定 / 语言 / 布局搬进 NAVIGATE #sgx-nav——NAVIGATE 的当前项和地址各站不同，这里只核对它的按钮组一样）。
  * 跑在拼好的整站（space/web/public：主站 /，奇趣 /curio/、日刻 /daymark/、博客 /blog/，同源）。
  * 比的是构建产物里 #sgx-qp 的 DOM（DOMParser 解析，和 HTML 压缩写法无关）：元素、属性、文字逐个相同（图标 SVG 只比结构，压缩会改写路径数据），
  * 只允许各站自己的语言（中文页和中文页比、英文页和英文页比）。另外各站真点开一次：只有一页，磁贴顺序相同。
@@ -46,36 +47,49 @@ async function qpTree(page, path) {
 }
 
 for (const [lang, pages] of Object.entries(SETS)) {
-  test(`${lang}：四站构建产物里的快捷面板 #sgx-qp DOM 完全相同（${pages.join(' ')}）`, async ({ page }) => {
+  test(`${lang}：四站构建产物里的外观面板 #sgx-qp DOM 完全相同（${pages.join(' ')}）`, async ({ page }) => {
     /* 在空白页里解析（主站会跳锁屏 / 按浏览器语言跳页，执行上下文会被换掉）；产物用 page.request 取 */
     await page.goto('about:blank');
     const ref = await qpTree(page, pages[0]);
     expect(ref.count, pages[0]).toBe(1);
-    /* 参照本身是单页：磁贴 4 个（深色 / 跟随系统 / 分享 / 锁定），没有页签和导航列表 */
+    /* 参照本身：MODE（跟随系统 / 深 / 浅）+ PALETTE（色板 + 恢复默认）；没有页签、导航列表、分享 / 锁定 / 语言 / 布局 */
     const flat = JSON.stringify(ref.tree);
-    for (const id of ['dark', 'system', 'share', 'lock', 'lang']) expect(flat, id).toContain('"data-qp=' + id + '"');
-    for (const gone of ['role=tablist', 'role=tab', 'data-qp-pages', 'data-nav=']) expect(flat, gone).not.toContain(gone);
+    for (const id of ['system', 'dark', 'light']) expect(flat, id).toContain('"data-qp-mode=' + id + '"');
+    expect(flat).toContain('"data-qp-reset=');
+    expect(flat).toContain('"data-qp-palette=');
+    for (const gone of ['role=tablist', 'role=tab', 'data-qp-pages', 'data-nav=', '"data-qp=', 'data-qp-lang', 'data-qp-seg=layout']) expect(flat, gone).not.toContain(gone);
     for (const p of pages.slice(1)) {
       const got = await qpTree(page, p);
       expect(got.count, p).toBe(1);
-      expect(got.tree, `${p} 的快捷面板和 ${pages[0]} 不同`).toEqual(ref.tree);
+      expect(got.tree, `${p} 的外观面板和 ${pages[0]} 不同`).toEqual(ref.tree);
     }
   });
 }
 
-test('子站真点开：只有一页，磁贴 / 行顺序四站相同，没有页签', async ({ page }) => {
+test('子站真点开：外观面板 MODE / PALETTE 顺序四站相同、没有页签；NAVIGATE 里 语言 / 布局 / 分享 / 锁定 四站相同', async ({ page }) => {
   const seen = [];
+  const navSeen = [];
   for (const p of ['/curio/', '/daymark/', '/blog/']) {
     await page.goto(p, { waitUntil: 'domcontentloaded' });
     await page.locator('.sgx-tb-quick').click();
     const qp = page.locator('#sgx-qp');
     await expect(qp).toHaveAttribute('data-state', 'open');
-    await expect(qp.locator('[role="tab"], [role="tabpanel"], [data-qp-pages]')).toHaveCount(0);
-    await expect(qp.locator('[data-qp="share"]')).toBeVisible();
-    seen.push(await qp.locator('[data-qp], [data-qp-palette], [data-qp-seg] button').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp') || e.getAttribute('data-qp-palette') || 'seg:' + e.getAttribute('data-v'))));
+    await expect(qp.locator('[role="tab"], [role="tabpanel"], [data-qp-pages], [data-qp]')).toHaveCount(0);
+    await expect(qp.locator('[data-qp-mode="system"]')).toBeVisible();
+    seen.push(await qp.locator('[data-qp-mode], [data-qp-palette], [data-qp-reset]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp-mode') || e.getAttribute('data-qp-palette') || 'reset')));
     await page.keyboard.press('Escape');
     await expect(qp).toBeHidden();
+    await page.locator('.sgx-tb-grid').click();
+    const nav = page.locator('#sgx-nav');
+    await expect(nav).toHaveAttribute('data-state', 'open');
+    await expect(nav.locator('[data-qp="share"]')).toBeVisible();
+    navSeen.push(await nav.locator('[data-qp], [data-qp-lang], [data-qp-seg] button').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp') || (e.getAttribute('data-qp-lang') ? 'lang:' + e.getAttribute('data-qp-lang') : 'seg:' + e.getAttribute('data-v')))));
+    await page.keyboard.press('Escape');
+    await expect(nav).toBeHidden();
   }
   expect(seen[1]).toEqual(seen[0]);
   expect(seen[2]).toEqual(seen[0]);
+  expect(navSeen[0]).toEqual(['lang:en', 'lang:zh', 'seg:auto', 'seg:phone', 'seg:desktop', 'share', 'lock']);
+  expect(navSeen[1]).toEqual(navSeen[0]);
+  expect(navSeen[2]).toEqual(navSeen[0]);
 });

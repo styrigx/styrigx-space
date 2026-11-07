@@ -85,7 +85,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ if not $langHref }}{{ range (site.GetPage "/daymark").AllTranslations }}{{ if ne .Language.Lang $.Language.Lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end }}
 {{/* 调色板色块的变量（同主站 partials/palette-tile-vars.html 的 full=false：--pl-b1..7 / --pl-f1..6，深色 --pd-*），取自共享外壳 palettes.json */}}
 {{/* 选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight）：快捷面板沿用「跟随系统 / 中文 / English」，和 features.yaml lang 选项同序；hugo.Sites 总是默认语言（英文）在前，不能直接用 */}}
-{{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end }}{{ $tbLangs = sort $tbLangs "w" }}
+{{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label "short" .Language.Params.pickerShort "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end }}{{ $tbLangs = sort $tbLangs "w" }}
 {{ $pal := slice }}
 {{ range site.Data.shell.palettes.presets }}
 {{ $s := "" }}{{ $p := . }}
@@ -110,12 +110,29 @@ __sgxLayoutWatch(__applyLayout);
   "avatar" $shellNav.me.avatar
   "email" $shellNav.me.email
   "langHref" $langHref
+  "security" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/security/" "lang" .Lang))
+  "status" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/status/" "lang" .Lang))
   "pal" $pal
 ) }}
 {{/* 页面脚本的界面文案（语言包化第二部分 2026-11-07）：字符串表 js.<表> 已是「英文表 ← 页面语言表」的合并，每张表一个 #sgx-i18n-<表>；
    脚本（assets/js/daymark.js readDict / makeTr）只读这里，不再按语言二选一 */}}
 {{ range $tbl, $dict := $tr.js }}<script id="sgx-i18n-{{ $tbl }}" type="application/json">{{ $dict | jsonify | safeJS }}</script>
 {{ end }}{{ block "main" . }}{{ end }}
+{{/* tmux 页脚（2026-11 UI 重设计 PR-1，四站同一个 partials/sgx-footer.html；当前窗口 = daymark） */}}
+{{ partial "sgx-footer.html" (dict
+  "tr" (partialCached "sgx-tr.html" (dict "lang" .Lang "ns" "daymark") (printf "daymark-%s" .Lang)).shell
+  "lang" .Lang
+  "langs" $tbLangs
+  "here" .RelPermalink
+  "langHref" $langHref
+  "nav" $shellNav
+  "site" "daymark"
+  "mainOrigin" "https://styrigx.com"
+  "name" site.Data.profile.name
+  "year" now.Year
+  "email" $shellNav.me.email
+  "rss" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/blog/rss.xml" "lang" .Lang))
+) }}
 {{/* 顶栏：快捷面板 + AI 窗口（共享外壳 topbar.js 等，js/sgx/topbar-host.js 打包；2026-11-04 P5-1 取代 topbar.js（抽屉）、share-host.js（右圆分享）、search-host.js（抽屉底栏搜索）） */}}
 <script src="{{ (resources.Get "daymark/js/sgx/topbar-host.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint).RelPermalink }}"></script>
 {{/* SGX 锁屏同步：切回前台 / bfcache 恢复时向服务端确认会话（各页面 pagejs 之前加载） */}}

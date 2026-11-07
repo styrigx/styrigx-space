@@ -5,7 +5,7 @@
 topbar:
   sys: Follow system
   home: Styrigx home
-  sites: Sites
+  sites: Navigate
   quick: Quick settings
   askAi: Ask AI
   dark: Dark mode
@@ -18,9 +18,9 @@ topbar:
   palette: Color palette
   reset: Reset
   layout: Layout
-  phone: Phone
+  phone: Mobile
   auto: Auto
-  desktop: Desktop
+  desktop: DeX
   newChat: New chat
   history: History
   account: Account
@@ -33,6 +33,17 @@ topbar:
   "off": "Off"
   lockArm: Tap again to lock
   lockFail: Couldn’t lock. Check your connection.
+  # 顶栏 v3（2026-11 UI 重设计 PR-1）：外观 / 盾牌按钮名，NAVIGATE 面板里的终端风短标签（lang / layout / share / lock），外观面板 MODE / PALETTE
+  theme: Appearance
+  security: Site security
+  langKey: lang
+  layoutKey: layout
+  shareKey: share
+  lockKey: lock
+  schemeKey: MODE
+  schemeDark: Dark
+  schemeLight: Light
+  paletteKey: PALETTE
 ai:
   greet: "Hi, I'm Gray's AI assistant. Ask about this site, or talk through whatever you're working on."
   histEmpty: No past chats yet
@@ -77,7 +88,7 @@ share:
 nav:
   label: "Sites"
   home:
-    title: "Space"
+    title: "Home"
     sub: "Style and security"
   curio:
     title: "Curio"
@@ -88,6 +99,29 @@ nav:
   blog:
     title: "Blog"
     sub: "Posts and topics"
+  wild:
+    title: "Wild"
+    sub: "The space at a glance"
+  title: "NAVIGATE"
+  status: "STATUS"
+  statusPending: "not wired yet"
+  allUp: "all online"
+  statusLink: "systemctl status"
+  close: "esc close"
+# tmux 页脚（2026-11 UI 重设计 PR-1）：窗口名（同导航项 id 顺序）、联系
+foot:
+  label: "Site footer"
+  windows: "Sites"
+  win:
+    home: "home"
+    blog: "blog"
+    curio: "curio"
+    daymark: "daymark"
+    wild: "wild"
+  status: "Service status"
+  clock: "Beijing time"
+  langs: "Language"
+  contact: "contact"
 # 调色板名字和分组（快捷面板色块、风格页共用；颜色值只在 palette-scheme.js / palette-roles.json）
 palette:
   dustyblue: "Dusty Blue"

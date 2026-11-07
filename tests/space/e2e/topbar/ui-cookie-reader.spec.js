@@ -1,6 +1,6 @@
 /**
  * 2026-10-22 sgx-ui 读端端到端：主站真写端写出的 cookie → 一个最小「子站」页（只内联共享外壳的 ui-cookie-read.js + tokens.css + shell.css，
- * 抽屉头放 nav.json 的字标），首帧前 <html> 的状态、--sgx-primary、字标圆点颜色、SVG 标签页图标都要和主站一模一样。
+ * 放顶栏 v3 文字字标），首帧前 <html> 的状态、--sgx-primary、字标 ❯ / 名字颜色、SVG 标签页图标都要和主站一模一样。
  * 子站页由 page.route 现拼（同源 localhost，cookie 也设在 localhost；线上是 Domain=styrigx.com，这里只验读写两端的格式）。
  */
 const { test } = require('@playwright/test');
@@ -25,7 +25,6 @@ const SUB = '/__ui-cookie-subsite/';
 
 /** 子站页：<head> 里样式 → 读端原文 → 一行 apply（没缓存时异步加载外壳引擎算自定义色）→ 记下首帧前的状态 */
 function subsiteHtml() {
-  const nav = JSON.parse(shell('nav.json'));
   return `<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
 <link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>${shell('tokens.css')}\n${shell('shell.css')}</style>
@@ -34,7 +33,7 @@ function subsiteHtml() {
   import('${SUB}palette-scheme.js').then(function (m) { SgxUI.setRoles(seed, m.rolesCss(seed)); window.__sgxRoles = seed; });
 } });</script>
 <script>window.__pre = { cls: document.documentElement.className, style: document.documentElement.getAttribute('style') };</script>
-</head><body><a class="sgx-tb-logo" href="/">${nav.wordmark}</a>
+</head><body><a class="sgx-tb-logo" href="/"><span class="sgx-tb-ps">❯</span><span class="sgx-tb-name">styrigx</span><span class="sgx-tb-tl">:~$</span><span class="sgx-tb-cu"></span></a>
 <script type="module">${shell('favicon.js')}\ninitFavicon();</script>
 </body></html>`;
 }
@@ -46,7 +45,8 @@ const measure = () => {
   probe.style.cssText = 'position:absolute;color:var(--sgx-primary);background:var(--sgx-text-primary)';
   document.body.appendChild(probe);
   const cs = getComputedStyle(probe);
-  const dot = document.querySelector('.sgx-wordmark .wm-dot');
+  /* 顶栏 v3 字标（2026-11 PR-1）：❯ 主题色、styrigx 正文色（原来是 SVG 字标的圆点 / 字母） */
+  const dot = document.querySelector('.sgx-tb-logo .sgx-tb-ps');
   const out = {
     dark: d.classList.contains('dark'),
     reducedMotion: d.classList.contains('reduced-motion'),
@@ -57,8 +57,8 @@ const measure = () => {
     hasRoles: !!document.getElementById('sgx-accent-roles'),
     primary: cs.color,
     text: cs.backgroundColor,
-    dot: dot ? getComputedStyle(dot).fill : null,
-    ink: dot ? getComputedStyle(document.querySelector('.sgx-wordmark .wm-letters')).fill : null,
+    dot: dot ? getComputedStyle(dot).color : null,
+    ink: dot ? getComputedStyle(document.querySelector('.sgx-tb-logo .sgx-tb-name')).color : null,
   };
   probe.remove();
   return out;
@@ -103,8 +103,8 @@ test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 u
       /* 语言：本页明确选了中文（sgx-lang=zh）→ 写端带 lang: 'zh'，子站据此跟随 */
       expect(Buffer.from(cookie.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')).toContain('"lang":"zh"');
       if (c.local['sgx-accent']) await expect.poll(() => page.evaluate(() => !!document.getElementById('sgx-accent-roles'))).toBe(true);
-      /* 字标在顶栏 logo 里（2026-11-04 P5-1，原来在导航抽屉头，要先打开抽屉） */
-      await expect(page.locator('.sgx-tb-logo .sgx-wordmark')).toBeVisible();
+      /* 字标在顶栏 logo 里（2026-11 PR-1 起是文字字标 ❯ styrigx :~$_） */
+      await expect(page.locator('.sgx-tb-logo .sgx-tb-ps')).toBeVisible();
       const main = await page.evaluate(measure);
       const mainIcon = await page.locator('link[rel="icon"][type="image/svg+xml"]').getAttribute('href');
 
