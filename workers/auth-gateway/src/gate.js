@@ -174,6 +174,50 @@ function homeOf(pathname) {
   return pathname === '/zh' || pathname.startsWith('/zh/') ? '/zh/' : '/';
 }
 
+/* 旧 /en/ 前缀（按 normPath 归一：/EN/、/%65n/、//en/ 都算）。只管主站；子站 /<站>/en/ 在子站关口之前就分走了，由各站自己的 404 处理 */
+const RETIRED_EN_RE = /^\/en(?:\/|$)/;
+
+/**
+ * 是不是已删除的旧英文前缀 /en、/en/…（P4-3 PR-4c：英文在根路径，/en/ 不该有任何产物或路由）。
+ * @param {string} pathname
+ * @returns {boolean}
+ */
+export function isRetiredEnPath(pathname) {
+  return RETIRED_EN_RE.test(normPath(pathname));
+}
+
+/** 回源取 404 页用的地址：产物里必然没有（Pages 对不存在的路径回最近的 404.html，状态 404） */
+export const NOT_FOUND_PROBE_PATH = '/__sgx-not-found__/';
+
+/**
+ * 旧 /en/… 的回答：主站 404 页（回源取 NOT_FOUND_PROBE_PATH），状态码一律 404、private no-store，绝不带 Location。
+ * 回源拿到的不是 HTML（或回源失败）→ 纯文本 404。
+ * @param {Request} request
+ * @param {(input?: Request) => Promise<Response>} next
+ * @param {'valid'|'locked'} state
+ * @returns {Promise<Response>}
+ */
+async function retiredEnNotFound(request, next, state) {
+  const plain = () => new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'private, no-store' } });
+  let res;
+  try {
+    const probe = new URL(NOT_FOUND_PROBE_PATH, request.url);
+    res = await next(new Request(probe.toString(), { method: 'GET', headers: request.headers }));
+  } catch (e) {
+    return plain();
+  }
+  const ct = (res && res.headers.get('Content-Type')) || '';
+  if (!res || (res.status >= 300 && res.status < 400) || !ct.includes('text/html')) {
+    if (res && res.body) res.body.cancel().catch(() => {});
+    return plain();
+  }
+  const out = await injectSessionState(res, state);
+  const headers = new Headers(out.headers);
+  headers.delete('Location');
+  headers.set('Cache-Control', 'private, no-store');
+  return new Response(out.body, { status: 404, headers });
+}
+
 /** 账号页（顶栏右圆头像进入）：注入账号会话提示，首帧不闪登录区 */
 function isAccountPage(pathname) {
   return pathname === '/account/' || pathname === '/zh/account/';
@@ -249,6 +293,15 @@ async function handleRequest(context) {
     }
     return new Response('Server misconfigured', { status: 500 });
   }
+  /* 旧 /en/…（P4-3 PR-4c 起英文是根路径上的源、中文 /zh/ 是翻译层，/en/ 不是任何东西）：网关自己判 404，不回源取 /en/ 地址、不 301。
+     线上曾出现解锁会话访问 /en/ 拿到 PR-4b（77ce4d6）时代的旧英文首页（回源链路上的旧副本），所以不能只靠产物里没有 en/：
+     这里一律换成回源取一个必然不存在的地址（Pages 回最近的 404.html），状态码强制 404、no-store。
+     有没有会话都 404（这条路径什么都没有，不泄露信息；部署冒烟不带会话也能查）；会话只决定注入的状态，免得有效会话的人看到锁屏层。 */
+  if (site === 'space' && isRetiredEnPath(pathname)) {
+    const sess = isProd ? await verifyLockSession(request, env) : { ok: true };
+    return retiredEnNotFound(request, next, sess.ok ? 'valid' : 'locked');
+  }
+
   if (isProd && site === 'space') {
     const isHomepage = pathname === '/' || pathname === '/zh' || pathname === '/zh/';
     const sess = await verifyLockSession(request, env);
