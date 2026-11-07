@@ -14,12 +14,12 @@ const VIEWPORTS = [
   { width: 412, height: 915 },
 ];
 
-/* P4-3 PR-4c：英文无前缀、中文 /zh/ */
-const PAGES = ['/', '/theme/', '/status/', '/about/', '/zh/', '/zh/theme/', '/zh/about/'];
+/* P4-3 PR-4c：英文无前缀、中文 /zh/。当前窗口同 NAVIGATE 当前项：首页 = 0:home，旷野子页（风格、关于）= 4:wild，服务状态 / 账号页没有当前项 */
+const PAGES = [['/', 'home'], ['/theme/', 'wild'], ['/status/', null], ['/about/', 'wild'], ['/zh/', 'home'], ['/zh/theme/', 'wild'], ['/zh/about/', 'wild']];
 
 for (const vp of VIEWPORTS) {
-  for (const path of PAGES) {
-    test(`B1-10 ${vp.width} ${path}：只有一个 tmux 页脚（© 行、当前窗口带 *），手机布局只显示当前窗口、不显示语言`, async ({ page }) => {
+  for (const [path, win] of PAGES) {
+    test(`B1-10 ${vp.width} ${path}：只有一个 tmux 页脚（© 行、当前窗口 ${win || '无'}），手机布局只显示当前窗口、不显示语言`, async ({ page }) => {
       await page.setViewportSize(vp);
       await blockExternalRequests(page);
       await freezeTime(page);
@@ -30,11 +30,13 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('.sgx-powered')).toHaveCount(0);
       await expect(page.locator('.sgx-foot-2')).toContainText(/©\s*\d{4}\s+Sloan Gray/);
       await expect(page.locator('.sgx-foot-ses')).toHaveText('space');
-      /* 主站页面当前窗口 = 0:home（其他窗口在手机布局藏起来） */
+      /* 当前窗口（带 *）显示，其他窗口在手机布局藏起来 */
       const cur = page.locator('.sgx-foot-win a[aria-current="page"]');
-      await expect(cur).toHaveCount(1);
-      await expect(cur).toHaveAttribute('data-win', 'home');
-      await expect(cur).toBeVisible();
+      await expect(cur).toHaveCount(win ? 1 : 0);
+      if (win) {
+        await expect(cur).toHaveAttribute('data-win', win);
+        await expect(cur).toBeVisible();
+      }
       await expect(page.locator('.sgx-foot-win a:not([aria-current="page"])').first()).toBeHidden();
       await expect(page.locator('.sgx-foot-lang')).toBeHidden();
       await expect(page.locator('.sgx-foot-st')).toContainText('–/6');
@@ -64,6 +66,7 @@ for (const vp of VIEWPORTS) {
 
 test('B1-10 1280 桌面布局：页脚显示全部窗口（当前带 *）和语言 zh · en；内容宽同顶栏', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
+  await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   await blockExternalRequests(page);
   await freezeTime(page);
   await page.goto('/zh/');
