@@ -9,7 +9,7 @@
     "share.js": "da46a782fdf9f80c24fae06bbbd83e5e29894a5c1db87b9e754071637ae158ca",
     "topbar.html": "dc876f034b39001415d62e7c5db4bdd46ca2beb6abc1e74d88b232bdb9969359",
     "entries.html": "08aa5362ea90368c2a594485c275e94cac2ca74e7013378f0ad46979fb7708b8",
-    "topbar.js": "8497dd2ade848796371ded706c62d7211a9342f851be75f5d37ee3bc1faa3342",
+    "topbar.js": "b5109369fec156d0d728d869212c2deafc487ffc4bd94fe3565aa680deeb8b8c",
     "modal-sheet.js": "f31bcbff02bee8437ced385a2cf781c02ad15762b5f7df025fe01e6ba1b8c2ee",
     "ai.js": "5073e7d62ac1b77b4c3dd104e59e088ed7a0f023f1f8f0adbdfdcb0aae362585",
     "vk.js": "3bc7000ba510e8a7cbc1dd420e85cffdc23e0c5bd8184f4421d5e57f22ad7633",
@@ -17,7 +17,7 @@
     "nav.json": "0e3f8ec0011f543d27743a7745b7bc32a20113250cc7a635c91df41ca463a477",
     "palettes.json": "f3779c13ef0033910d9a4afa0f44bdb81daaf9649c875e451656980240fd3a10",
     "ui-cookie-read.js": "826b3a701c57fa9638bb009f61a1275ed10b68bc921546eeb301e3fea761af51",
-    "layout-mode.js": "53af0363f4ee10746acacf07f82d6a1ea5b755a32f69f84c166d6767b977062b",
+    "layout-mode.js": "13ca11162583d464fec31ff873202240d108bbbd4b10972b783152f2f8d6c29d",
     "lang-path.js": "26c90b39eaefc72a045b47ad968116f8649142d0e21a185cc50577f2ee4e666d",
     "lang-path.html": "cd08a62d609777847f5df10d171850a07a7072d8f3add12df4a0054da9ebfbd3",
     "lang-boot.js": "3cc8b195eade7b350cd91532edd3267e29ca9a41fe3cd473941134af492ec63e",
@@ -29,6 +29,6 @@
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "53484df4aa7ecfd3ea06f914531d754700a0c73c4e4a8a60a9440f5472fdde37"
   },
-  "version": "7cce785f2ada",
+  "version": "6bce976ea2c7",
   "rulesVersion": "palette-rules-1"
 }
