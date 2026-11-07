@@ -203,7 +203,10 @@ async function tableNames(cf, db) {
   return (await cf.query(db, "SELECT name FROM sqlite_master WHERE type = 'table'")).map((r) => r.name);
 }
 async function count(cf, db, t) { return Number((await cf.query(db, 'SELECT COUNT(*) AS n FROM ' + q(t)))[0].n); }
-async function hashOf(cf, db, t) { return rowsHash(await cf.query(db, 'SELECT * FROM ' + q(t))); }
+/** 旧表的列名（PRAGMA table_info）。旧库的表可能是代码兜底 SCHEMA 建的，比迁移少后加的列（如 user_handle.legacy_handle），指纹只比旧表有的列。 */
+async function colsOf(cf, db, t) { return (await cf.query(db, 'PRAGMA table_info(' + q(t) + ')')).map((r) => r.name); }
+const selectCols = (t, cols) => 'SELECT ' + cols.map(q).join(', ') + ' FROM ' + q(t);
+async function hashOf(cf, db, t, cols) { return rowsHash(await cf.query(db, selectCols(t, cols))); }
 
 /** 本机 node:sqlite：按三套迁移建出新库的表（dry-run 用） */
 async function localTarget() {
@@ -257,7 +260,10 @@ export async function runD1(o) {
     }
     /* 旧库此刻（导出前）的指纹 / 行数：凭证表在导出前后都要一致 */
     const before = {};
-    for (const t of tables) before[t] = { n: await count(cf, src.old.id, t), h: src.tables[t] === 'hash' ? await hashOf(cf, src.old.id, t) : null };
+    for (const t of tables) {
+      const cols = src.tables[t] === 'hash' ? await colsOf(cf, src.old.id, t) : null;
+      before[t] = { n: await count(cf, src.old.id, t), cols, h: cols ? await hashOf(cf, src.old.id, t, cols) : null };
+    }
 
     let fileCounts = null;
     if (o.mode !== 'verify' && !(o.mode === 'apply' && r.marker)) {
@@ -270,7 +276,7 @@ export async function runD1(o) {
           const nt = src.rename(t);
           const got = Number(local.prepare('SELECT COUNT(*) AS n FROM ' + q(nt)).get().n);
           if (got !== (fileCounts[nt] || 0)) errors.push(src.key + ': local import ' + nt + ' has ' + got + ' rows, export has ' + (fileCounts[nt] || 0));
-          if (src.tables[t] === 'hash' && rowsHash(local.prepare('SELECT * FROM ' + q(nt)).all().map((x) => ({ ...x }))) !== before[t].h) {
+          if (src.tables[t] === 'hash' && rowsHash(local.prepare(selectCols(nt, before[t].cols)).all().map((x) => ({ ...x }))) !== before[t].h) {
             errors.push(src.key + ': local import of ' + nt + ' differs from ' + src.old.name + ' (changed during export?)');
           }
           const remote = newTables.has(nt) ? await count(cf, TARGET.id, nt) : null;
@@ -296,9 +302,9 @@ export async function runD1(o) {
       const row = r.tables[nt] = { old: oldNow, export: fileCounts ? (fileCounts[nt] || 0) : null, target: n, level };
       if (fileCounts && o.mode === 'apply' && !r.marker && n !== row.export) { errors.push(src.key + ': ' + nt + ' has ' + n + ' rows, export had ' + row.export); bad = true; }
       if (level === 'hash') {
-        const h = await hashOf(cf, TARGET.id, nt);
+        const h = await hashOf(cf, TARGET.id, nt, before[t].cols);
         row.hash = h.slice(0, 12);
-        if (h !== await hashOf(cf, src.old.id, t) || h !== before[t].h) {
+        if (h !== await hashOf(cf, src.old.id, t, before[t].cols) || h !== before[t].h) {
           (o.mode === 'verify' ? warnings : errors).push(src.key + ': ' + nt + ' content differs between ' + src.old.name + ' and ' + TARGET.name +
             (o.mode === 'verify' ? '' : ' (credentials changed during the cutover? run it again)'));
           bad = true;

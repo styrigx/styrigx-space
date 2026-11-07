@@ -31,11 +31,18 @@ function exportOf(db, tables) {
 }
 
 /** 假 Cloudflare：每个库 id 一个 node:sqlite */
-function fakeWorld() {
+function fakeWorld({ codeSchemaGateway = false } = {}) {
   const dbs = {};
   const mk = (id) => (dbs[id] = new sqlite.DatabaseSync(':memory:'));
-  const oldG = mk(SOURCES[2].old.id); execDir(oldG, 'workers/auth-gateway/migrations');
-  oldG.exec('CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT)'); oldG.exec("INSERT INTO d1_migrations (name) VALUES ('x')");
+  const oldG = mk(SOURCES[2].old.id);
+  if (codeSchemaGateway) {
+    /* 线上旧网关库：从没跑过 migrations apply（没有 d1_migrations），表由代码兜底 SCHEMA 建，user_handle 没有 0007 的 legacy_handle 列 */
+    execDir(oldG, 'workers/auth-gateway/migrations');
+    oldG.exec('DROP TABLE user_handle'); oldG.exec('CREATE TABLE user_handle (realm TEXT PRIMARY KEY, handle TEXT NOT NULL)');
+  } else {
+    execDir(oldG, 'workers/auth-gateway/migrations');
+    oldG.exec('CREATE TABLE d1_migrations (id INTEGER PRIMARY KEY, name TEXT)'); oldG.exec("INSERT INTO d1_migrations (name) VALUES ('x')");
+  }
   const oldS = mk(SOURCES[1].old.id); execDir(oldS, 'workers/share/migrations-archive');
   const oldT = mk(SOURCES[0].old.id); execDir(oldT, 'workers/status/migrations-archive');
   const neu = mk(TARGET.id);
@@ -230,4 +237,23 @@ test('工作流 d1-cutover.yml：只手动触发、dry_run 默认 true；kv → 
     assert.match(body, /needs\.d1-cutover-gate\.outputs\.ready == 'true'/, job);
     assert.match(body, /\n    needs: \[[^\]]*d1-cutover-gate[^\]]*\]/, job);
   }
+});
+
+test('旧网关库由代码兜底 SCHEMA 建（user_handle 少 legacy_handle 列）：dry-run 与正式都只比旧表有的列，不误报', { skip: !sqlite }, async () => {
+  const w = fakeWorld({ codeSchemaGateway: true });
+  const d = await runD1({ cf: w.cf, wr: w.wr, mode: 'dry-run', log: () => {} });
+  assert.deepEqual(d.errors, []);
+  const r = await runD1({ cf: w.cf, wr: w.wr, mode: 'apply', kvKeys: 3, log: () => {} });
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual({ ...w.neu.prepare('SELECT realm, handle, legacy_handle FROM user_handle').get() }, { realm: 'lock', handle: 'HANDLE', legacy_handle: '' });
+  const v = await runD1({ cf: w.cf, wr: w.wr, mode: 'verify', log: () => {} });
+  assert.deepEqual(v.errors, []);
+  assert.deepEqual(v.warnings.filter((x) => /user_handle/.test(x)), []);
+});
+
+test('只比旧表有的列：旧表凭证内容一变，dry-run 照样报错', { skip: !sqlite }, async () => {
+  const w = fakeWorld({ codeSchemaGateway: true });
+  const wr = { ...w.wr, exportData(src, tables) { const sql = w.wr.exportData(src, tables); return src.key === 'gateway' ? sql.replace("'HANDLE'", "'OTHER'") : sql; } };
+  const d = await runD1({ cf: w.cf, wr, mode: 'dry-run', log: () => {} });
+  assert.match(d.errors.join(), /local import of user_handle differs/);
 });
