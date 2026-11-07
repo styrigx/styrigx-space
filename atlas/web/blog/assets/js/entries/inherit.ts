@@ -5,6 +5,7 @@
 // 引擎地址由模板经 js.Build params 传进来（引擎单独打包，只在需要时 import）。
 import * as params from '@params';
 import { initWbTrack } from '../blog/wb-track.js';
+import { stripLang } from '../sgx/shell/lang-path.js';
 
 const { schemeUrl } = params as unknown as { schemeUrl: string };
 
@@ -26,8 +27,8 @@ async function ensureSeedRoles() {
 const ENDPOINT = 'https://styrigx.com/api/wellbeing';
 
 function start() {
-  /* 文章地址：/blog/post/<slug>/、/blog/en/post/<slug>/（图志下的博客前缀 /blog） */
-  const p = location.pathname.replace(/^\/blog(?=\/)/, '').replace(/^\/en(?=\/)/, '');
+  /* 文章地址：/blog/post/<slug>/、/blog/zh/post/<slug>/（P4-3 PR-4c：英文默认；语言前缀由共享外壳 lang-path.js 去掉） */
+  const p = stripLang(location.pathname).replace(/^\/blog(?=\/)/, '');
   const m = p.match(/^\/post\/([A-Za-z0-9_\-.%]{1,80})\/?$/);
   if (m) {
     initWbTrack({

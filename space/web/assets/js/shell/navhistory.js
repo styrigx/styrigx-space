@@ -6,13 +6,37 @@
  */
 import { on } from '../lib/events.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
+import { langPath } from '../lib/lang-path.js';
+
+/**
+ * 首帧语言跳转（baseof.html）留下的原始来源：sessionStorage sgx-lang-hop = {go, ref}。
+ * 只在本文档就是那次跳转的目标时采用（go 等于当前地址），读到就删（用一次）；没有 / 对不上 → null。
+ * @returns {string|null}
+ */
+function langHopReferrer() {
+  let raw = null;
+  try {
+    raw = sessionStorage.getItem('sgx-lang-hop');
+    if (raw !== null) sessionStorage.removeItem('sgx-lang-hop');
+  } catch (e) {}
+  if (raw === null) return null;
+  try {
+    const hop = JSON.parse(raw);
+    const here = location.pathname + location.search + location.hash;
+    if (hop && hop.go === here && typeof hop.ref === 'string') return hop.ref;
+  } catch (e) {}
+  return null;
+}
 
 /**
  * 初始化：系统返回的历史管理。
  */
 export function initNavHistory() {
+  /* baseof 首帧语言跳转已发出（location.replace 到另一语言）：这份文档马上被换掉，不动历史，留给跳过去的那份 */
+  if (/** @type {any} */ (window).__sgxLangGo) return;
   const en = document.documentElement.lang === 'en';
-  const home = en ? '/en/' : '/';
+  const home = langPath('/', en ? 'en' : 'zh');
+  const hopRef = langHopReferrer();
 
   /* 直接打开 App 页：最多插入一次主页历史，保证系统返回一次回到主页。 */
   (function () {
@@ -21,6 +45,8 @@ export function initNavHistory() {
     try {
       ref = document.referrer || '';
     } catch (e) {}
+    /* 首帧语言跳转过来的（如中文浏览器直接打开 /theme/ → /zh/theme/）：referrer 是跳之前那份同源文档，按跳之前的来源算 */
+    if (hopRef !== null) ref = hopRef;
     let ext = true;
     try {
       ext = !ref || new URL(ref).origin !== location.origin;

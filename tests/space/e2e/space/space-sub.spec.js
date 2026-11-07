@@ -1,6 +1,6 @@
 /**
  * 旷野（P4-3 PR-4b：主页和设置合成一个主站页「旷野 / Space」，就在根路径；2.6.0 起的设置二级页去掉 settings 一层挂到根下）。真实断言（不 mock 自家逻辑）：
- * - 旷野页 /（英文 /en/）：上面名片 / 日刻 / 屏幕时间，下面标题带 + 5 个平铺入口（共享组件 partials/sgx-entries.html，数据 data/space-cats.yaml）：
+ * - 旷野页 /zh/（英文 /，P4-3 PR-4c 起英文默认）：上面名片 / 日刻 / 屏幕时间，下面标题带 + 5 个平铺入口（共享组件 partials/sgx-entries.html，数据 data/space-cats.yaml）：
  *   编号 01–05、圆底图标、名字 + 一行副标题、行间细线、无卡片底；≥ 760 两栏、≥ 1100 三栏（栏间细竖线）；没有账号卡、没有选项组、没有 DeX 双栏
  *   （分类沿革：2026-10-23 PR-E 常规管理 / 辅助功能删除；服务状态从账号页搬来；P4-2c 高级功能删除，「安全与隐私」改名「安全」；
  *    P4-3 PR-4b（Gray 2026-11-07）显示页 /display/ 整页删除，404，不做 301——功能都在快捷面板）
@@ -25,7 +25,7 @@ async function gotoSettings(pg, path) {
 }
 
 /* 2.8.0：2.7.0 起语言跟随浏览器（Playwright 默认 en-US），不钉住会导致
-   中文断言被跳转到 /en/ 后失败。按测试意图显式钉住 sgx-lang；
+   中文断言被跳到英文页后失败（P4-3 PR-4c 起英文在 /、中文在 /zh/）。按测试意图显式钉住 sgx-lang；
    跟随行为本身由 lang-follow.spec.js 单独覆盖。 */
 async function pinLang(pg, lang) {
   await pg.addInitScript((l) => {
@@ -38,7 +38,7 @@ test.use({ viewport: { width: 412, height: 915 } });
 
 test('space home (mobile): widgets on top, then title band + flat entries from data (01–05, icon, name + subtitle, thin dividers, no card); no account card, no option groups', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/');
+  await gotoSettings(pg, '/zh/');
   await expect(pg).toHaveTitle('旷野 | Styrigx');
   /* 顶栏没有标签，页名胶囊就是「旷野」（PR-4b 定稿；手机布局不显示） */
   await expect(pg.locator('.sgx-tb-tab')).toHaveCount(0);
@@ -62,7 +62,7 @@ test('space home (mobile): widgets on top, then title band + flat entries from d
   // 数量、顺序、地址、编号、名字、副标题全按数据
   const rows = catList.locator('a.sgx-ent');
   await expect(rows).toHaveCount(CATS.length);
-  expect(await rows.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(CATS.map((c) => `/${c.id}/`));
+  expect(await rows.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(CATS.map((c) => `/zh/${c.id}/`));
   await expect(rows.locator('.sgx-ent-no')).toHaveText(CATS.map((_, i) => String(i + 1).padStart(2, '0')));
   await expect(rows.locator('.sgx-ent-name')).toHaveText(CATS.map((c) => c.zh));
   await expect(rows.locator('.sgx-ent-sub')).toHaveText(CATS.map((c) => c.sub_zh));
@@ -85,8 +85,8 @@ test('space home (mobile): widgets on top, then title band + flat entries from d
   expect(st.cols).toBe(1);
   await expect(catList.locator('.set-card, .widget')).toHaveCount(0);
   // 删掉的分类（含显示页）不再出现；页面上没有任何指向旧设置层的链接
-  for (const gone of ['display', 'manage', 'accessibility', 'goodlock', 'advanced', 'apps']) await expect(pg.locator(`a[href="/${gone}/"]`), gone).toHaveCount(0);
-  await expect(pg.locator(`a[href^="${OLD}"], a[href^="/en${OLD}"]`)).toHaveCount(0);
+  for (const gone of ['display', 'manage', 'accessibility', 'goodlock', 'advanced', 'apps']) await expect(pg.locator(`a[href="/${gone}/"], a[href="/zh/${gone}/"]`), gone).toHaveCount(0);
+  await expect(pg.locator(`a[href^="${OLD}"], a[href^="/zh${OLD}"]`)).toHaveCount(0);
   // 选项组与 DeX 双栏都不在旷野页
   await expect(pg.locator('#sg-display, #sg-theme, #sg-wellbeing, #sg-about, #set-cat-nav, .set-col-r')).toHaveCount(0);
 });
@@ -96,7 +96,7 @@ for (const [w, h, cols] of [[759, 900, 1], [760, 900, 2], [1099, 900, 2], [1100,
   test(`space entries: ${w}px wide → ${cols} column(s), vertical dividers between columns`, async ({ page: pg }) => {
     await pg.setViewportSize({ width: w, height: h });
     await pinLang(pg, 'zh');
-    await gotoSettings(pg, '/');
+    await gotoSettings(pg, '/zh/');
     const list = pg.locator('#space-entries .sgx-ent-list');
     await expect(list.locator('.sgx-ent-li')).toHaveCount(CATS.length);
     const info = await list.evaluate((ul) => ({
@@ -116,11 +116,11 @@ test.describe('space home (dex)', () => {
 
   test('single page: entries are plain links, no two-pane', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
-    await gotoSettings(pg, '/');
+    await gotoSettings(pg, '/zh/');
     const catList = pg.locator('.home-wrap [aria-label="分类"]');
     await expect(catList).toBeVisible();
     await expect(pg.locator('#set-cat-nav, .set-dex-cols, #set-panes')).toHaveCount(0);
-    await catList.locator('a[href="/theme/"]').click();
+    await catList.locator('a[href="/zh/theme/"]').click();
     await pg.waitForURL('**/theme/', { timeout: 10000 });
     await expect(pg.locator('#palette-dots')).toBeVisible();
   });
@@ -128,7 +128,7 @@ test.describe('space home (dex)', () => {
 
 test('space home (en): title band + entries from data', async ({ page: pg }) => {
   await pinLang(pg, 'en');
-  await gotoSettings(pg, '/en/');
+  await gotoSettings(pg, '/');
   await expect(pg).toHaveTitle('Space | Styrigx');
   await expect(pg.locator('.sgx-tb-tab')).toHaveCount(0);
   await expect(pg.locator('.sgx-tb-title')).toHaveText('Space');
@@ -136,15 +136,15 @@ test('space home (en): title band + entries from data', async ({ page: pg }) => 
   await expect(pg.locator('#space-entries .sgx-ent-title')).toHaveText('Space');
   await expect(pg.locator('#space-entries .sgx-ent-lede')).toHaveText(SPACE.band.sub_en);
   const rows = pg.locator('.home-wrap [aria-label="Categories"] a.sgx-ent');
-  expect(await rows.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(CATS.map((c) => `/en/${c.id}/`));
+  expect(await rows.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(CATS.map((c) => `/${c.id}/`));
   await expect(rows.locator('.sgx-ent-name')).toHaveText(CATS.map((c) => c.en));
   await expect(rows.locator('.sgx-ent-sub')).toHaveText(CATS.map((c) => c.sub_en));
-  await expect(pg.locator('a[href="/en/display/"]')).toHaveCount(0);
+  await expect(pg.locator('a[href="/display/"]')).toHaveCount(0);
 });
 
 /* P4-3 PR-4b（Gray 2026-11-07）：显示页整页删除，不做 301；功能都在快捷面板 */
-test('display page is gone: /display/ and /en/display/ 404 without redirect', async ({ page: pg }) => {
-  for (const p of ['/display/', '/en/display/']) {
+test('display page is gone: /display/ and /zh/display/ 404 without redirect', async ({ page: pg }) => {
+  for (const p of ['/display/', '/zh/display/']) {
     const r = await pg.request.get(p, { maxRedirects: 0 });
     expect(r.status(), p).toBe(404);
   }
@@ -154,7 +154,7 @@ test('display page is gone: /display/ and /en/display/ 404 without redirect', as
 
 test('old settings layer is gone: home and every subpage 404, no redirect', async ({ page: pg }) => {
   const subs = ['', 'theme/', 'wellbeing/', 'about/', 'status/', 'security/', 'security/lock/', 'security/tempkeys/', 'manage/', 'accessibility/', 'apps/', 'search/', 'advanced/', 'goodlock/', 'account/'];
-  for (const pre of ['', '/en']) {
+  for (const pre of ['', '/zh']) {
     for (const s of subs) {
       const p = pre + OLD + s;
       const r = await pg.request.get(p, { maxRedirects: 0 });
@@ -184,7 +184,7 @@ for (const c of CATS) {
   if (c.id === 'security' || c.id === 'status') continue; // security、status 是独立页面，各有测试覆盖（status 见 space-status.spec.js）
   test(`subpage /${c.id}/: no back button + options`, async ({ page: pg }) => {
     await pinLang(pg, 'zh');
-    await gotoSettings(pg, `/${c.id}/`);
+    await gotoSettings(pg, `/zh/${c.id}/`);
     await expect(pg.locator('[data-go-back]'), 'no back button').toHaveCount(0);
     await expect(pg.locator('.sgx-tb-title'), 'capsule title').toHaveText(c.zh);
     await expect(pg.locator('.subpage-title, [data-subpage-head]'), 'no big title').toHaveCount(0);
@@ -202,14 +202,14 @@ for (const c of CATS) {
 
 test('space search removed: no bottom search bar on space pages; old settings search page is gone', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  for (const path of ['/', '/theme/', '/wellbeing/']) {
+  for (const path of ['/zh/', '/zh/theme/', '/zh/wellbeing/']) {
     await gotoSettings(pg, path);
     await expect(pg.locator('.sgx-cap, #sgx-cap-settings, #sgx-cap-input-setsearch'), path).toHaveCount(0);
     await expect(pg.locator('#setso-page')).toHaveCount(0);
     const i18n = await pg.evaluate(() => JSON.parse(document.getElementById('sgx-i18n-space').textContent));
     expect(i18n.setidx, 'setidx index removed').toBeUndefined();
   }
-  for (const p of [OLD + 'search/', '/en' + OLD + 'search/', '/search-settings/']) {
+  for (const p of [OLD + 'search/', '/zh' + OLD + 'search/', '/search-settings/']) {
     const res = await pg.request.get(p, { maxRedirects: 0 });
     expect(res.status(), p).toBe(404);
   }
@@ -217,16 +217,16 @@ test('space search removed: no bottom search bar on space pages; old settings se
 
 test('subpage: system back returns to the space page', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/');
-  await pg.locator('.home-wrap [aria-label="分类"] a[href="/theme/"]').click();
+  await gotoSettings(pg, '/zh/');
+  await pg.locator('.home-wrap [aria-label="分类"] a[href="/zh/theme/"]').click();
   await pg.waitForURL('**/theme/', { timeout: 10000 });
   await pg.goBack();
-  await pg.waitForURL((u) => u.pathname === '/', { timeout: 10000 });
+  await pg.waitForURL((u) => u.pathname === '/zh/', { timeout: 10000 });
 });
 
 test('about page: version rows (2.6.0 spec)', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/about/');
+  await gotoSettings(pg, '/zh/about/');
   /* 2.8.0：版本号从 data/version.yaml（唯一来源）读取，不再硬编码，
      版本推进时测试自动跟随 */
   const fs = require('fs');
@@ -252,32 +252,32 @@ test('about page: version rows (2.6.0 spec)', async ({ page: pg }) => {
 test.describe('unlock methods entry relocation', () => {
   test('space home has no orphan #sgx-unlock-link', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
-    await gotoSettings(pg, '/');
+    await gotoSettings(pg, '/zh/');
     await expect(pg.locator('#sgx-unlock-link')).toHaveCount(0);
     /* 切英文再查一遍：后加的 init script 会覆盖前一个的 sgx-lang */
     await pinLang(pg, 'en');
-    await gotoSettings(pg, '/en/');
+    await gotoSettings(pg, '/');
     await expect(pg.locator('#sgx-unlock-link')).toHaveCount(0);
   });
 
   test('security page: three entries (owner credential moved to account avatar), no unlock-methods', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await blockExternalRequests(pg);
-    await pg.goto('/security/', { waitUntil: 'domcontentloaded' });
+    await pg.goto('/zh/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
     /* 安全页三项（锁屏凭证/临时钥匙/立即锁定；临时钥匙从账号页搬来）；管理凭证已删除；账号在头像（2026-10-22 从顶栏右圆挪进抽屉头，2026-11-04 P5-1 回到顶栏最右，P4-3 PR-4b 搬进 AI 窗口头部） */
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
     await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
-    await expect(pg.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', '/account/');
+    await expect(pg.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', '/zh/account/');
     await expect(pg.locator('#sec-mgmt-cred')).toHaveCount(0);
     const lockCred = pg.locator('#sec-lock-cred');
     await expect(lockCred).toHaveCount(1);
     await expect(lockCred).toContainText('锁屏凭证');
-    await expect(lockCred).toHaveAttribute('href', '/security/lock/');
+    await expect(lockCred).toHaveAttribute('href', '/zh/security/lock/');
     const tk = pg.locator('#sec-tempkeys');
     await expect(tk).toHaveCount(1);
     await expect(tk).toContainText('临时钥匙');
-    await expect(tk).toHaveAttribute('href', '/security/tempkeys/');
+    await expect(tk).toHaveAttribute('href', '/zh/security/tempkeys/');
     const locknow = pg.locator('#sec-locknow');
     await expect(locknow).toHaveCount(1);
     await expect(locknow).toContainText('立即锁定');
@@ -286,13 +286,13 @@ test.describe('unlock methods entry relocation', () => {
   test('security page (en): three entries', async ({ page: pg }) => {
     await pinLang(pg, 'en');
     await blockExternalRequests(pg);
-    await pg.goto('/en/security/', { waitUntil: 'domcontentloaded' });
+    await pg.goto('/security/', { waitUntil: 'domcontentloaded' });
     await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
     await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
     await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
     await expect(pg.locator('#sec-lock-cred')).toContainText('Lock screen credentials');
     await expect(pg.locator('#sec-tempkeys')).toContainText('Temporary keys');
-    await expect(pg.locator('#sec-tempkeys')).toHaveAttribute('href', '/en/security/tempkeys/');
+    await expect(pg.locator('#sec-tempkeys')).toHaveAttribute('href', '/security/tempkeys/');
     await expect(pg.locator('#sec-locknow')).toContainText('Lock now');
   });
 });
@@ -302,7 +302,7 @@ test.describe('unlock methods entry relocation', () => {
    注：像素级视觉基线需在 CI 环境生成，本地环境字体渲染有差异，故此处只做 DOM 断言。 */
 test('palette 8-color test state', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/theme/');
+  await gotoSettings(pg, '/zh/theme/');
   const grid = pg.locator('#palette-dots');
   await expect(grid).toBeVisible();
   const fs = require('fs');
@@ -389,7 +389,7 @@ test('palette 8-color test state', async ({ page: pg }) => {
 test('旧撞色 id 迁移：xforest → forest；不认识的 id → 默认 dustyblue', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await pg.addInitScript(() => { try { if (!sessionStorage.getItem('mig')) { localStorage.setItem('sgx-palette', 'xforest'); sessionStorage.setItem('mig', '1'); } } catch (e) {} });
-  await gotoSettings(pg, '/theme/');
+  await gotoSettings(pg, '/zh/theme/');
   await expect(pg.locator('html')).toHaveAttribute('data-palette', 'forest');
   expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBe('forest');
   await expect(pg.locator('#palette-dots [data-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
@@ -404,12 +404,12 @@ test('旧撞色 id 迁移：xforest → forest；不认识的 id → 默认 dust
    站内跳转不再写留痕 */
 test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/theme/');
+  await gotoSettings(pg, '/zh/theme/');
   await pg.evaluate(() => {
     sessionStorage.setItem('sgx-last-jump', JSON.stringify([{ who: 'navhistory.js:59', reason: 'goback-primary;to=/', at: Date.now(), desktop: false, visibility: 'visible' }]));
     sessionStorage.setItem('sgx-credential-beacon', JSON.stringify({ path: '/security/owner/', at: Date.now() }));
   });
-  await pg.goto('/security/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/zh/security/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('main').first()).toBeVisible({ timeout: 15000 });
   /* C8：原来固定等 500ms；改成等 load（页面模块脚本都执行完，会渲染留痕卡的话此时已渲染） */
   await pg.waitForLoadState('load');
@@ -425,12 +425,12 @@ test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
 /* P4-2c（2026-11-05）：高级功能分类（原 Good Lock）整个删除：页面 404，没有 301（旧地址见上面「old settings layer is gone」）；
    PR-E 的常规管理 / 辅助功能 / 应用三条旧跳转随设置首页一起删了（PR-4b） */
 test('P4-2c Advanced features gone; no redirects to the old settings layer', async ({ page: pg }) => {
-  for (const p of ['/advanced/', '/en/advanced/', '/goodlock/', '/en/goodlock/']) {
+  for (const p of ['/advanced/', '/zh/advanced/', '/goodlock/', '/zh/goodlock/']) {
     const r = await pg.request.get(p, { maxRedirects: 0 });
     expect(r.status(), p).toBe(404);
   }
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/');
+  await gotoSettings(pg, '/zh/');
   await expect(pg.locator('#sg-advanced, #row-datetime, #mod-keys, #row-weather')).toHaveCount(0);
   const fs = require('fs');
   const path = require('path');
@@ -440,7 +440,7 @@ test('P4-2c Advanced features gone; no redirects to the old settings layer', asy
 
 test('PR-E Digital wellbeing: one screen-time card (this device when signed out) + 15-minute reminder', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/wellbeing/');
+  await gotoSettings(pg, '/zh/wellbeing/');
   const card = pg.locator('#wb-card');
   await expect(pg.locator('#sg-wellbeing .p-5')).toHaveCount(1);
   await expect(card).toContainText('我的屏幕时间');
@@ -459,7 +459,7 @@ test('PR-E Digital wellbeing: one screen-time card (this device when signed out)
 test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await blockExternalRequests(pg);
-  await pg.goto('/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/zh/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('#home-widgets')).toBeVisible({ timeout: 15000 });
   for (const sel of ['[data-dock="store"]', '[data-navpage="store"]', 'a[href="/store/"]', 'a[href="/ai/"]', 'a[href="/books/"]', 'a[href="/music/"]', 'a[href="/goodlock/"]', '#np-widget', '#books', '#music', '[data-appid]']) {
     await expect(pg.locator(sel), sel).toHaveCount(0);
@@ -482,7 +482,7 @@ test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async
 /* B2-4：设置里的「应用」整块删除（重置所有设置 2026-10-23 PR-E 随常规管理一起删除） */
 test('B2-4 space has no Apps category; no reset-all-settings row anywhere', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/');
+  await gotoSettings(pg, '/zh/');
   const hrefs = await pg.locator('.home-wrap [aria-label="分类"] a.sgx-ent').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
   expect(hrefs).not.toContain('/apps/');
   await expect(pg.locator('#sg-apps, #row-app-files, #row-app-browser')).toHaveCount(0);
@@ -493,10 +493,10 @@ test('B2-4 space has no Apps category; no reset-all-settings row anywhere', asyn
 test('No top-bar menu; Security has no privacy group or search engine row (P4-2c)', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await blockExternalRequests(pg);
-  await pg.goto('/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/zh/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   await expect(pg.locator('#brw-more, .sgx-tb-more')).toHaveCount(0);
-  await gotoSettings(pg, '/security/');
+  await gotoSettings(pg, '/zh/security/');
   await expect(pg.locator('.sgx-tb-title')).toHaveText('安全');
   await expect(pg.locator('#sec-engine')).toHaveCount(0);
   await expect(pg.locator('main')).not.toContainText('搜索引擎');

@@ -5,7 +5,7 @@
  * 主站在 dist/site 里是生产构建（锁屏启用、没有网关）：这里只看顶栏 / 快捷面板的 DOM 和首帧外观，不过锁屏。 */
 const { test, expect } = require('@playwright/test');
 
-const MAIN = ['/', '/theme/', '/account/', '/en/'];
+const MAIN = ['/', '/theme/', '/account/', '/zh/', '/zh/account/'];
 const SUB = ['/curio/', '/daymark/', '/blog/', '/blog/post/2026-10-07-muse-playbook/'];
 
 test.beforeEach(async ({ page }) => {

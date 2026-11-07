@@ -22,6 +22,7 @@ import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSy
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
+import { langPath, stripLang } from '../web/assets/js/lib/lang-path.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PUB = path.join(REPO, 'space/web/public');
@@ -100,7 +101,7 @@ export function build(pub = PUB) {
   const fi = JSON.parse(readFileSync(path.join(pub, 'files-index.json'), 'utf8'));
   for (const x of fi.items || []) {
     if (!x || !x.title || !x.url) continue;
-    items.push({ id: x.id, type: x.type, lang: x.lang || 'zh', title: x.title, subtitle: x.subtitle || '', url: x.url.startsWith('/') ? ORIGIN + x.url : x.url });
+    items.push({ id: x.id, type: x.type, lang: x.lang || 'en', title: x.title, subtitle: x.subtitle || '', url: x.url.startsWith('/') ? ORIGIN + x.url : x.url });
   }
   /** @type {Map<string, {heads: string[], rows: Array<{title: string, sub: string, href: string}>}>} */
   const pages = new Map();
@@ -108,7 +109,8 @@ export function build(pub = PUB) {
   const cats = (/** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/space-cats.yaml'), 'utf8'))).cats || []).map((/** @type {any} */ c) => String(c.id));
   /** @type {Array<[string, string[]]>} */
   const sources = [];
-  for (const [lang, pre] of [['zh', ''], ['en', 'en/']]) {
+  /* P4-3 PR-4c：英文在根（无前缀），中文在 zh/ */
+  for (const [lang, pre] of [['en', ''], ['zh', 'zh/']]) {
     const rootHtml = path.join(pub, pre, 'index.html');
     sources.push([lang, existsSync(rootHtml) ? [rootHtml] : []]);
     for (const base of [...cats, 'account']) sources.push([lang, htmlFiles(path.join(pub, pre + base))]);
@@ -129,7 +131,7 @@ export function build(pub = PUB) {
         title,
         subtitle: '',
         url: ORIGIN + rel,
-        private: /^\/(en\/)?(account\/|security\/tempkeys\/|status\/)/.test(rel) || undefined,
+        private: /^\/(account\/|security\/tempkeys\/|status\/)/.test(stripLang(rel)) || undefined,
       });
     }
   }
@@ -141,9 +143,9 @@ export function build(pub = PUB) {
   for (const x of byUrl.values()) {
     /** @type {string[]} */
     const crumbs = [];
-    /* 语言根（/ 或 /en/）= 旷野页：旷野子页的最上一级；旷野页自己和账号页（独立）不挂 */
-    const root = ORIGIN + (x.lang === 'en' ? '/en/' : '/');
-    const underSpace = x.url !== root && !/^\/(en\/)?account\//.test(x.url.slice(ORIGIN.length));
+    /* 语言根（英文 / 、中文 /zh/，lib/lang-path.js）= 旷野页：旷野子页的最上一级；旷野页自己和账号页（独立）不挂 */
+    const root = ORIGIN + langPath('/', x.lang);
+    const underSpace = x.url !== root && !/^\/account\//.test(stripLang(x.url.slice(ORIGIN.length)));
     for (let u = x.url.replace(/[^/]+\/$/, ''); u.length > root.length; u = u.replace(/[^/]+\/$/, '')) {
       const p = byUrl.get(u);
       if (p) crumbs.unshift(p.title);
@@ -159,7 +161,7 @@ export function build(pub = PUB) {
   for (const f of feats) {
     if (!f || !f.user || f.build === false || !f.section || !f.name) continue;
     for (const lang of ['zh', 'en']) {
-      const url = ORIGIN + (lang === 'en' ? '/en' : '') + '/' + f.section + '/';
+      const url = ORIGIN + langPath('/' + f.section + '/', lang);
       const page = byUrl.get(url);
       if (!page || !f.name[lang]) continue;
       items.push({

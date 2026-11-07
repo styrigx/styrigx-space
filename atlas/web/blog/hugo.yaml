@@ -1,13 +1,13 @@
 # 博客（styrigx.com/blog/）：Hugo，和主站 styrigx-space 同栈（atlas/web/blog/ = 网站本体，hugo --minify -s atlas/web/blog → atlas/web/blog/public/）。
-# 中文是默认语言（不带前缀），英文在 /en/。所有旧地址（Astro 时期）原样保留，见 tests/blog/url-map.json。
+# P4-3 PR-4c（§6.8）：英文是默认语言（不带前缀），中文在 /zh/；旧的 /en/… 删除不 301。地址对照见 tests/blog/url-map.json。
 title: 'Styrigx'
-# 主站单树（styrigx.com）下的子路径：页面、资源都在 /blog/ 下（中文 /blog/，英文 /blog/en/）。
+# 主站单树（styrigx.com）下的子路径：页面、资源都在 /blog/ 下（英文 /blog/，中文 /blog/zh/）。
 # 2026-11 合并 PR2 起产物由 space/scripts/assemble.mjs 拼进主站 Pages（dist/site/blog/）；合并 PR3 起线上入口就是 styrigx.com/blog/（旧图志域名的 301 已于 P4-3 PR-1 删除）
 baseURL: 'https://styrigx.com/blog/'
-defaultContentLanguage: zh
+defaultContentLanguage: en
 defaultContentLanguageInSubdir: false
 hasCJKLanguage: true
-# 不要 /zh/ 跳转页（旧站没有这个地址，网关也没登记）
+# 不要 /en/ → / 跳转页（/en/… 一律 404，不做 301）
 disableDefaultLanguageRedirect: true
 # 旧站是 Astro 的 trailingSlash: always：/post/<slug>/、/tags/<slug>/
 uglyURLs: false
@@ -23,22 +23,22 @@ disableKinds:
   - sitemap
 
 languages:
-  zh:
-    locale: zh-CN
-    label: 中文
-    weight: 1
-    contentDir: content/zh
-    params:
-      locale: zh-CN
-      rssTitle: 'Styrigx'
   en:
     locale: en
     label: English
-    weight: 2
+    weight: 1
     contentDir: content/en
     params:
       locale: en
       rssTitle: 'Styrigx (English)'
+  zh:
+    locale: zh-CN
+    label: 中文
+    weight: 2
+    contentDir: content/zh
+    params:
+      locale: zh-CN
+      rssTitle: 'Styrigx'
 
 taxonomies:
   tag: tags

@@ -22,6 +22,10 @@ const { blockExternalRequests, expect } = require('../helpers/helpers');
 
 test.use({ viewport: { width: 412, height: 915 }, locale: 'zh-CN' });
 
+/* P4-3 PR-4c：英文默认、中文 /zh/。本文件用中文浏览器（zh-CN）+ 中文文案，直接走中文地址；
+   中文浏览器打开英文地址（首帧语言跳转）的那条路在文件末尾单独测 */
+const ZH = '/zh';
+
 /** 记录主文档请求的路径 */
 function trackDocs(page) {
   const docs = [];
@@ -74,18 +78,18 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     await blockExternalRequests(page);
     const docs = trackDocs(page);
     /* 无 referrer 直接打开设置：插入一条主页历史 */
-    await page.goto('/theme/');
+    await page.goto(ZH + '/theme/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
 
     /* 从快捷面板导航页点「主站」离开设置（2026-11-04 P5-1 原导航抽屉并进快捷面板；主站是当前站，点它只关面板不跳，
        所以改点 logo：回本站首页、新文档）；插入的主页历史属于设置那份文档 */
     await page.click('.sgx-tb-logo');
-    await page.waitForURL((u) => u.pathname === '/');
+    await page.waitForURL((u) => u.pathname === ZH + '/');
     await page.waitForLoadState('load');
     const lenAfterOpen = await page.evaluate(() => history.length);
     /* 系统返回：回到设置（重新加载文档） */
     await page.goBack();
-    await page.waitForURL((u) => u.pathname === '/theme/');
+    await page.waitForURL((u) => u.pathname === ZH + '/theme/');
     await page.waitForLoadState('load');
 
     docs.length = 0;
@@ -96,12 +100,12 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     await expect.poll(() => homeState(page).then((s) => settledHome(s, 'navigate'))).toBe(true);
 
     const s = await homeState(page);
-    expect(s.path).toBe('/');
+    expect(s.path).toBe(ZH + '/');
     expect(s.state && s.state.sgxRoot).toBeFalsy();
     /* 跨文档：退回加载一次 + 换成真正主页请求一次；同文档 popstate：只换一次。都不多（无循环） */
     expect(docs.length).toBeGreaterThanOrEqual(1);
     expect(docs.length).toBeLessThanOrEqual(2);
-    expect(docs.every((d) => d === '/')).toBe(true);
+    expect(docs.every((d) => d === ZH + '/')).toBe(true);
     /* 是替换，不新增历史 */
     expect(s.len).toBe(lenAfterOpen);
   });
@@ -109,44 +113,66 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
   test('直接打开设置 → 系统返回一次回到主页（原有行为），主页是真正的主页请求', async ({ page }) => {
     await blockExternalRequests(page);
     const docs = trackDocs(page);
-    await page.goto('/theme/');
+    await page.goto(ZH + '/theme/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
     docs.length = 0;
 
     await page.goBack();
-    await page.waitForURL((u) => u.pathname === '/');
+    await page.waitForURL((u) => u.pathname === ZH + '/');
     await expect.poll(() => homeState(page).then((s) => s && s.home)).toBe(true);
     await expect.poll(() => homeState(page).then((s) => settledHome(s, 'navigate'))).toBe(true);
 
     const s = await homeState(page);
-    expect(s.path).toBe('/');
+    expect(s.path).toBe(ZH + '/');
     expect(s.navType).toBe('navigate');
     expect(s.state && s.state.sgxRoot).toBeFalsy();
-    expect(docs).toEqual(['/']);
+    expect(docs).toEqual([ZH + '/']);
   });
 
   test('修好的主页历史以后再退回到，不会再重载', async ({ page }) => {
     await blockExternalRequests(page);
     const docs = trackDocs(page);
-    await page.goto('/theme/');
+    await page.goto(ZH + '/theme/');
     await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
     await page.goBack();
-    await page.waitForURL((u) => u.pathname === '/');
+    await page.waitForURL((u) => u.pathname === ZH + '/');
     await expect.poll(() => homeState(page).then((s) => settledHome(s, 'navigate'))).toBe(true);
 
     /* 站内从旷野页的分类卡进子页（P4-3 PR-4b 起没有页内切换，是一次普通的跨文档导航），再系统返回：回到旷野页；
        这条历史是真正请求过 / 的，不带 sgxRoot，不会再 location.replace 出第二份文档 */
-    await page.locator('.home-wrap [aria-label="分类"] a[href="/theme/"]').click();
-    await page.waitForURL((u) => u.pathname === '/theme/');
+    await page.locator('.home-wrap [aria-label="分类"] a[href="/zh/theme/"]').click();
+    await page.waitForURL((u) => u.pathname === ZH + '/theme/');
     await page.waitForLoadState('load');
     docs.length = 0;
     await page.goBack();
-    await page.waitForURL((u) => u.pathname === '/');
+    await page.waitForURL((u) => u.pathname === ZH + '/');
     await expect.poll(() => homeState(page).then((s) => !!(s && s.home && s.complete))).toBe(true);
     const s = await homeState(page);
     expect(s.state && s.state.sgxRoot).toBeFalsy();
     /* 退回最多加载一次（bfcache 恢复时一次都不加载），没有第二次 replace */
     expect(docs.length).toBeLessThanOrEqual(1);
-    expect(docs.every((d) => d === '/')).toBe(true);
+    expect(docs.every((d) => d === ZH + '/')).toBe(true);
+  });
+});
+
+/* P4-3 PR-4c：中文浏览器直接打开英文地址，首帧语言跳转（baseof.html location.replace）到 /zh/…。
+   跳过去的那份文档 referrer 是跳之前的同源页，以前就因此认不出「直接打开」、不插主页历史，系统返回一次回不到主页；
+   baseof 跳之前把原始来源记进 sessionStorage sgx-lang-hop，navhistory.js 用一次就删 */
+test.describe('中文浏览器直接打开英文地址（首帧语言跳转）', () => {
+  test('/theme/ → /zh/theme/：照样插一条中文主页历史，系统返回一次回到真正的 /zh/ 请求', async ({ page }) => {
+    await blockExternalRequests(page);
+    const docs = trackDocs(page);
+    await page.goto('/theme/');
+    await page.waitForURL((u) => u.pathname === ZH + '/theme/');
+    await expect.poll(() => page.evaluate(() => history.state && history.state.sgxHere)).toBe(1);
+    expect(await page.evaluate(() => sessionStorage.getItem('sgx-lang-hop'))).toBe(null);
+    docs.length = 0;
+
+    await page.goBack();
+    await page.waitForURL((u) => u.pathname === ZH + '/');
+    await expect.poll(() => homeState(page).then((s) => settledHome(s, 'navigate'))).toBe(true);
+    const s = await homeState(page);
+    expect(s.state && s.state.sgxRoot).toBeFalsy();
+    expect(docs).toEqual([ZH + '/']);
   });
 });

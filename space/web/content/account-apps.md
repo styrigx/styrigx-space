@@ -1,5 +1,5 @@
 ---
-title: '应用授权'
+title: 'App access'
 layout: account-apps
 url: /account/apps/
 ---

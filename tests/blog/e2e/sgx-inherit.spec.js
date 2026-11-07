@@ -27,7 +27,7 @@ test('首帧应用调色板/深色/字号，换页后保持', async ({ page, con
     rm: 1,
     mat: Date.now(),
   });
-  await page.goto('/blog/');
+  await page.goto('/blog/zh/');
   const html = page.locator('html');
   await expect(html).toHaveAttribute('data-palette', 'matcha');
   await expect(html).toHaveAttribute('data-theme', 'dark');
@@ -46,12 +46,12 @@ test('首帧应用调色板/深色/字号，换页后保持', async ({ page, con
 });
 
 test('没有 cookie 时保持原行为', async ({ page }) => {
-  await page.goto('/blog/');
+  await page.goto('/blog/zh/');
   await expect(page.locator('html')).not.toHaveAttribute('data-palette', /.+/);
 });
 
 test('切换调色板会改变主色', async ({ page, context, baseURL }) => {
-  await page.goto('/blog/');
+  await page.goto('/blog/zh/');
   const base = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--sgx-primary').trim(),
   );
@@ -70,7 +70,7 @@ test('文章页隐藏时上报 post:<slug>', async ({ page }) => {
     body = r.request().postData();
     await r.fulfill({ status: 204 });
   });
-  await page.goto('/blog/post/2026-10-07-muse-playbook/');
+  await page.goto('/blog/zh/post/2026-10-07-muse-playbook/');
   await page.mouse.click(5, 300);
   await page.waitForTimeout(5600);
   await page.mouse.click(5, 300);

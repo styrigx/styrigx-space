@@ -1,8 +1,8 @@
 {{ define "main" }}
-{{ $isEn := eq .Lang "en" }}
-{{ $home := "/" }}{{ if $isEn }}{{ $home = "/en/" }}{{ end }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
+{{ $home := (partial "sgx-lang-path.html" (dict "path" "/" "lang" (cond $isEn "en" "zh"))) }}
 {{/* 第二个按钮去子站 奇趣 Curio（书签在那里） */}}
-{{ $curio := "/curio/" }}{{ if $isEn }}{{ $curio = "/curio/en/" }}{{ end }}
+{{ $curio := (partial "sgx-lang-path.html" (dict "path" "/curio/" "lang" (cond $isEn "en" "zh"))) }}
 
 <section class="sgx-404 py-24 sm:py-32 text-center">
   <p class="text-7xl sm:text-8xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight">404</p>

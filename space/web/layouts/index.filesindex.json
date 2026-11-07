@@ -1,7 +1,7 @@
 {{/* 全站内容索引：/files-index.json —— 主站的站点 + 应用，space/scripts/build-search-index.mjs 读它写进搜索索引 site:space（博客文章由博客自己写 site:blog） */}}
 {{ $items := slice }}
 {{ $langs := slice "zh" "en" }}
-{{ $homeOf := dict "zh" "/" "en" "/en/" }}
+{{ $homeOf := dict "zh" (partial "sgx-lang-path.html" (dict "path" "/" "lang" "zh")) "en" (partial "sgx-lang-path.html" (dict "path" "/" "lang" "en")) }}
 
 {{/* ---------- 站点（data/sites.yaml、data/en/sites.yaml） ---------- */}}
 {{ range $l := $langs }}

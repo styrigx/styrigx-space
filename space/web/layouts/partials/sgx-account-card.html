@@ -3,7 +3,7 @@
    2026-10-24 PR4：卡片只是展示（兼作个人资料卡），不能点、没有详情页（原「账号信息」子页删除）；
    头像读主站 /avatar/192.webp；账号已登录时头像右下角出现铅笔，点头像直接换照片 / 移除照片
    （assets/js/apps/avatar-edit.js，入口 entry-account.js，接口 /api/avatar），账号未登录只看不能点。 */}}
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 <div class="sgx-account-card" data-acct-card>
   <div class="sgx-ac-tx">
     <p class="sgx-ac-name">Sloan Gray</p>

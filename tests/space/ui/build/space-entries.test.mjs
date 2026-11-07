@@ -44,7 +44,7 @@ test('模板：旷野页用共享入口组件，入口不写死在模板里；�
   const part = rd('space/web/layouts/partials/sgx-entries.html');
   assert.match(part, /range \$i, \$e := \.items/, '组件按数据行渲染');
   assert.match(part, /printf "%02d" \(add \$i 1\)/, '编号 01… 按行序生成');
-  for (const f of ['space/web/content/display.md', 'space/web/content/en/display.md', 'space/web/layouts/partials/setcat-display.html']) {
+  for (const f of ['space/web/content/display.md', 'space/web/content/zh/display.md', 'space/web/layouts/partials/setcat-display.html']) {
     assert.ok(!existsSync(path.join(REPO, f)), f + ' 应已删除');
   }
   /* 不做 301：_redirects 里没有 /display/ */
@@ -82,7 +82,7 @@ function files(dir) {
 }
 
 test('构建产物：中英旷野页入口按数据渲染（数量、顺序、编号、名字、副标题、地址）+ 标题带', { skip: !BUILT && '没构建 space/web/public' }, () => {
-  for (const [lang, file, pre] of [['zh', 'index.html', '/'], ['en', 'en/index.html', '/en/']]) {
+  for (const [lang, file, pre] of [['en', 'index.html', '/'], ['zh', 'zh/index.html', '/zh/']]) {
     const html = readFileSync(path.join(REPO, 'space/web/public', file), 'utf8');
     const sec = (html.match(/<section class="?sgx-ents"?[\s\S]*?<\/section>/) || [''])[0];
     assert.ok(sec, lang + '：有入口区块');
@@ -110,7 +110,7 @@ test('构建产物：中英旷野页入口按数据渲染（数量、顺序、�
 
 test('构建产物：/display/ 不存在，任何产物里都没有 /display/ 链接', { skip: !BUILT && '没构建 space/web/public' }, () => {
   for (const pub of PUBS) {
-    for (const pre of ['', 'en/']) assert.ok(!existsSync(path.join(REPO, pub, pre + 'display')), `${pub}/${pre}display/ 不该存在`);
+    for (const pre of ['', 'zh/', 'en/']) assert.ok(!existsSync(path.join(REPO, pub, pre + 'display')), `${pub}/${pre}display/ 不该存在`);
   }
   /** @type {string[]} */
   const bad = [];

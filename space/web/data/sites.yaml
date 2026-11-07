@@ -2,14 +2,14 @@
 - id: space
   title: 主站
   subtitle: 个人主页
-  url: https://styrigx.com
+  url: https://styrigx.com/zh/
   icon: globe
   host: styrigx.com
   lock: local
 - id: blog
   title: 博客
   subtitle: 个人博客
-  url: https://styrigx.com/blog/
+  url: https://styrigx.com/blog/zh/
   icon: pen
   host: styrigx.com
   lock: redirect

@@ -104,7 +104,7 @@ async function readAsk(request) {
   const q = body.q.trim();
   if (!q) return { ok: false, res: apiError(400, 'bad_request') };
   if ([...q].length > Q_MAX) return { ok: false, res: apiError(400, 'too-long') };
-  return { ok: true, q, lang: body.lang === 'en' ? 'en' : 'zh', history: body.history, model: body.model };
+  return { ok: true, q, lang: body.lang === 'zh' ? 'zh' : 'en' /* P4-3 PR-4c：没带语言（或不认识）按英文，四站默认语言 */, history: body.history, model: body.model };
 }
 
 /**

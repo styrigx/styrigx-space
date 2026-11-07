@@ -6,7 +6,7 @@
    脚本走 ES Module 入口 entry-security-lock.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security-lock.js" }}
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 
 <div class="set-layout lock-page pb-28">
 

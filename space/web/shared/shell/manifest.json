@@ -7,8 +7,8 @@
     "shell.css": "af7564bf9b0486128c2fa5316673dcc1dfb5d1a63fa5b45334373f63fefe4385",
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "398d0e67cf9111a78275cb8448fabb632ffa5f76a283b2b3741b14736e15562c",
-    "topbar.html": "d838125bc26a7ae99a00f1291e60a228a81753fb1eb7399b10b6c6a5da607961",
-    "entries.html": "846b8a65fdb3ee5710c5bd6ecd7068afc6b4d972520a5727e53bfd7196fd149c",
+    "topbar.html": "54bf9f2626a08f79f2a3804f83419985f453f06f55c132e559628dbac573287e",
+    "entries.html": "3a18698a258293c27fed8084a7d9fced024cba1ee285937843a6551722eaa8b6",
     "topbar.js": "06c51192976de3d4d411168795291e6507ffddc08a5ff30c9d8dfc622ddad515",
     "modal-sheet.js": "c409104c3553e63351ee05abadb2e8999aa82692b7bbae021f3ea19f2352071b",
     "ai.js": "3c3c09830d3e106768a5ed6828342d61a44b6af45c0d570866912e1f48dad686",
@@ -18,11 +18,13 @@
     "palettes.json": "f3779c13ef0033910d9a4afa0f44bdb81daaf9649c875e451656980240fd3a10",
     "ui-cookie-read.js": "41e0daf8b5966c3f48010fb6c60ef5cf608ca4c5ca20698a6020a5320e5f6b59",
     "layout-mode.js": "32a59980f48bb81363b8b1c18eefd8158fbbd6b0ade166643ff7d3b88262f662",
+    "lang-path.js": "5172ad9dc55424c20d94b872fa70df1bb8f5a2ec82f198bb44346f64a50f293d",
+    "lang-path.html": "520154f383b12a999f6e5fd48a5eed26384180daec4bf795f0c3f98cc9964602",
     "ui-cookie-contract.json": "e207b5aefd00d59daa35f4d78bf3982e5c7ba95aa7b967b4e2ee6006469a9878",
     "favicon.js": "4bb7f9fe412988861d682b8c2a88eb93f68fc39f9fb51bd5df38441755b5d433",
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "10b716489592651b348a583b442e1efa2b1a753d3ffbb31ceedc6353b0c8a5b8"
   },
-  "version": "b9e9ac897d32",
+  "version": "2a618509f36f",
   "rulesVersion": "palette-rules-1"
 }

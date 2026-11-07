@@ -59,7 +59,7 @@ async function mock(page, signedIn) {
 
 test('账号未登录：首页三个分区入口（顶栏没有页签）、没有搜索栏；快捷面板导航页同主站（四个站）；余响今日一句', async ({ page }) => {
   await mock(page, false);
-  await page.goto('/daymark/');
+  await page.goto('/daymark/zh/');
   /* P4-3 PR-4b：顶栏不再有分区页签，首页正文的分区入口就是目录；页名胶囊在首页显示站名 */
   await expect(page.locator('#dm-entries .sgx-ent-name')).toHaveText(['余响', '拾录', '百味']);
   await expect(page.locator('#dm-entries')).toBeVisible();
@@ -73,13 +73,13 @@ test('账号未登录：首页三个分区入口（顶栏没有页签）、没�
   await expect(page.locator('#dm-share')).toBeVisible();
   /* 2026-11-04 P5-1 顶栏全大椭圆（四站同一个）；抽屉、右圆分享删除；没有版权页脚 */
   expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts']);
-  await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/daymark/');
+  await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/daymark/zh/');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-quick')).toHaveAttribute('aria-controls', 'sgx-qp');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-ai')).toHaveAttribute('aria-controls', 'sgx-ai');
   /* P4-3 PR-4b：字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI；头像在 AI 窗口头部，去主站账号页（子站单独起服务时也能到主站：绝对地址） */
   expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-grid', 'sgx-tb-quick', 'sgx-tb-ai']);
   await expect(page.locator('.sgx-tb-acts .sgx-tb-grid')).toHaveAttribute('aria-controls', 'sgx-nav');
-  await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', 'https://styrigx.com/account/');
+  await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', 'https://styrigx.com/zh/account/');
   await expect(page.locator('#sgx-ai .sgx-ai-me img')).toHaveAttribute('src', 'https://styrigx.com/avatar/192.webp');
   await expect(page.locator('#site-nav .sgx-tb-me')).toHaveCount(0);
   await expect(page.locator('.sgx-tb-nav, #sgx-drawer, .sgx-tb-end, .sgx-tb-share, .sgx-topbar [data-sgx-share], .sgx-tb-end-group, .sgx-tb-guestbook, a[href*="guestbook"]')).toHaveCount(0);
@@ -89,10 +89,10 @@ test('账号未登录：首页三个分区入口（顶栏没有页签）、没�
   await page.locator('.sgx-tb-grid').click();
   await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
   await expect(page.locator('#sgx-nav .sgx-nav-tile .sgx-qp-label')).toHaveText(['旷野', '奇趣', '日刻', '博客']);
-  await expect(page.locator('#sgx-nav [data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
-  await expect(page.locator('#sgx-nav [data-nav="curio"]')).toHaveAttribute('href', '/curio/');
-  await expect(page.locator('#sgx-nav [data-nav="daymark"]')).toHaveAttribute('href', '/daymark/');
-  await expect(page.locator('#sgx-nav [data-nav="blog"]')).toHaveAttribute('href', '/blog/');
+  await expect(page.locator('#sgx-nav [data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
+  await expect(page.locator('#sgx-nav [data-nav="curio"]')).toHaveAttribute('href', '/curio/zh/');
+  await expect(page.locator('#sgx-nav [data-nav="daymark"]')).toHaveAttribute('href', '/daymark/zh/');
+  await expect(page.locator('#sgx-nav [data-nav="blog"]')).toHaveAttribute('href', '/blog/zh/');
   /* 奇趣图标 = 书签 + 星（同主站 #180） */
   await expect(page.locator('#sgx-nav [data-nav="curio"] path').first()).toHaveAttribute('d', /^M6 4\.5A1\.5/);
   await expect(page.locator('#sgx-nav [aria-current="page"]')).toHaveCount(1);
@@ -119,7 +119,7 @@ test('账号未登录：首页三个分区入口（顶栏没有页签）、没�
 
 test('分区：点首页入口改 hash、胶囊换分区名、入口收起；hash 回余响；#trove / #flavors 直达；英文页 Echo / Trove / Flavors', async ({ page }) => {
   await mock(page, false);
-  await page.goto('/daymark/');
+  await page.goto('/daymark/zh/');
   await page.locator('#dm-entries [data-entry="trove"]').click();
   await expect(page).toHaveURL(/#trove$/);
   await expect(page.locator('#dm-pane-trove')).toBeVisible();
@@ -133,10 +133,10 @@ test('分区：点首页入口改 hash、胶囊换分区名、入口收起；has
   await expect(page.locator('#dm-pane-echo')).toBeVisible();
   await expect(page.locator('.sgx-tb-title')).toHaveText('日刻');
   await expect(page.locator('#dm-entries')).toBeVisible();
-  await page.goto('/daymark/#flavors');
+  await page.goto('/daymark/zh/#flavors');
   await expect(page.locator('#dm-pane-flavors')).toBeVisible();
   await expect(page.locator('.sgx-tb-title')).toHaveText('百味');
-  await page.goto('/daymark/en/#trove');
+  await page.goto('/daymark/#trove');
   await expect(page.locator('#dm-entries .sgx-ent-name')).toHaveText(['Echo', 'Trove', 'Flavors']);
   await expect(page.locator('#dm-pane-trove')).toBeVisible();
   await expect(page.locator('.sgx-tb-title')).toHaveText('Trove');
@@ -145,7 +145,7 @@ test('分区：点首页入口改 hash、胶囊换分区名、入口收起；has
 test('余响：再抽一句 → 出现回到今日；回到今日恢复今日一句；长按复制', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await mock(page, false);
-  await page.goto('/daymark/');
+  await page.goto('/daymark/zh/');
   await expect(page.locator('#dm-echo-body')).toContainText('世上本没有路');
   await expect(page.locator('#dm-back-today')).toBeHidden();
   await page.locator('#dm-draw').click();
@@ -180,7 +180,7 @@ test('余响 · 账号已登录（可写）：再抽一句 → 设为今日 → 
   });
   /* 抽签固定：账号已登录能抽的是另外三句（私密的 Jobs 排第一），random 0.99 → 最后一句（苏轼《定风波》，公开） */
   await page.addInitScript(() => { Math.random = () => 0.99; });
-  await page.goto('/daymark/');
+  await page.goto('/daymark/zh/');
   await expect(page.locator('#dm-echo-body')).toContainText('世上本没有路');
   await expect(page.locator('#dm-entries [data-entry="trove"]')).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dm-can-write'))).toBe(true);
@@ -217,7 +217,7 @@ test('余响 · 账号已登录（可写）：再抽一句 → 设为今日 → 
 test('余响 · 账号已登录（可写）：抽到私密句子没有设为今日', async ({ page }) => {
   await mock(page, true);
   await page.addInitScript(() => { Math.random = () => 0; });
-  await page.goto('/daymark/');
+  await page.goto('/daymark/zh/');
   await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dm-can-write'))).toBe(true);
   await page.locator('#dm-draw').click();
   await expect(page.locator('#dm-echo-body')).toContainText('Stay hungry');
@@ -227,28 +227,28 @@ test('余响 · 账号已登录（可写）：抽到私密句子没有设为今�
 
 test('余响 · 账号未登录：再抽一句后没有设为今日；英文页按钮文案 Set as today', async ({ page }) => {
   await mock(page, false);
-  await page.goto('/daymark/');
+  await page.goto('/daymark/zh/');
   await expect(page.locator('#dm-echo-body')).toContainText('世上本没有路');
   for (let i = 0; i < 3; i++) {
     await page.locator('#dm-draw').click();
     await expect(page.locator('#dm-back-today')).toBeVisible();
     await expect(page.locator('#dm-set-today')).toBeHidden();
   }
-  await page.goto('/daymark/en/');
+  await page.goto('/daymark/');
   await expect(page.locator('#dm-set-today')).toHaveText('Set as today');
   await expect(page.locator('#dm-set-today')).toBeHidden();
 });
 
 test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；页底「登录账号后可编辑」链到 /account/?return=本页', async ({ page }) => {
   await mock(page, false);
-  await page.goto('/daymark/#trove');
+  await page.goto('/daymark/zh/#trove');
   await expect(page.locator('#dm-list .dm-card')).toHaveCount(3);
   await expect(page.locator('#dm-fab')).toBeHidden();
   await expect(page.locator('.dm-lock')).toHaveCount(0);
   await expect(page.locator('#dm-signin')).toBeVisible();
   await expect(page.locator('#dm-signin a')).toHaveText('登录账号后可编辑');
   /* P3-1：带 ?return=本页（同意流程登录完回来） */
-  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/?return=%2Fdaymark%2F%23trove');
+  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', 'https://styrigx.com/zh/account/?return=%2Fdaymark%2Fzh%2F%23trove');
 });
 
 test('拾录 · 写接口回 401 account（账号会话刚过期）：不刷新页面，编辑弹层提示登录账号', async ({ page }) => {
@@ -258,7 +258,7 @@ test('拾录 · 写接口回 401 account（账号会话刚过期）：不刷新�
     : r.fallback()));
   let navs = 0;
   page.on('framenavigated', (f) => { if (f === page.mainFrame()) navs++; });
-  await page.goto('/daymark/#trove');
+  await page.goto('/daymark/zh/#trove');
   await expect(page.locator('#dm-signin')).toBeHidden();
   const before = navs;
   await page.locator('#dm-list .dm-card').first().click();
@@ -270,7 +270,7 @@ test('拾录 · 写接口回 401 account（账号会话刚过期）：不刷新�
 
 test('拾录 · 账号已登录（可写）：新的在前、私密带锁、右下角记一句；点句子进入编辑，删除要确认', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/daymark/#trove');
+  await page.goto('/daymark/zh/#trove');
   await expect(page.locator('#dm-list .dm-card')).toHaveCount(4);
   await expect(page.locator('#dm-list .dm-card').first()).toContainText('世上本没有路');
   await expect(page.locator('#dm-list .dm-lock')).toHaveCount(1);
@@ -299,7 +299,7 @@ test('拾录 · 账号已登录（可写）：新的在前、私密带锁、右�
 
 test('记一句：预览、加译文、作者补全 + 最近作者、出处类型、归入百味（含新建）、标签块、随手一笔 → 已拾录', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/daymark/#trove');
+  await page.goto('/daymark/zh/#trove');
   await page.locator('#dm-fab').click();
   await expect(page.locator('#edit-wrap')).toHaveClass(/open/);
   await expect(page.locator('#edit-title')).toHaveText('记一句');
@@ -360,7 +360,7 @@ test('记一句：预览、加译文、作者补全 + 最近作者、出处类�
 
 test('百味 · 账号已登录（可写）：专题在前带新建、人物每位作者一组；进分组页内返回；上移和移出走 PUT', async ({ page }) => {
   const calls = await mock(page, true);
-  await page.goto('/daymark/#flavors');
+  await page.goto('/daymark/zh/#flavors');
   await expect(page.locator('#dm-cols .dm-fcard')).toHaveCount(2);
   await expect(page.locator('#dm-cols .dm-fcard').first()).toContainText('晨读');
   await expect(page.locator('#dm-cols .dm-fcard').first()).toContainText('3 句');
@@ -405,7 +405,7 @@ test('百味 · 账号已登录（可写）：专题在前带新建、人物每�
 
 test('百味 · 账号未登录：没有新建；专题里只显示看得到的句子', async ({ page }) => {
   await mock(page, false);
-  await page.goto('/daymark/#flavors/c/cccccccccc01');
+  await page.goto('/daymark/zh/#flavors/c/cccccccccc01');
   await expect(page.locator('#dm-g-title')).toHaveText('晨读');
   await expect(page.locator('#dm-g-list .dm-card')).toHaveCount(2);
   await expect(page.locator('#dm-g-tools')).toBeHidden();
@@ -418,7 +418,7 @@ test('主题跟主站 sgx-ui cookie：pal 换预设；accent 是自定义种子 
   const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const set = (ui) => context.addCookies([{ name: 'sgx-ui', value: enc(ui), url: baseURL }]);
   const ind = () => page.evaluate(() => getComputedStyle(document.querySelector('.sgx-tb-ai')).backgroundColor);
-  await page.goto('/daymark/');
+  await page.goto('/daymark/zh/');
   const base = await ind(); /* 没有 cookie：默认 dustyblue */
   const matchaSeed = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', '..', 'atlas/web/daymark/assets/sgx-shell/palettes.json'), 'utf8')).presets.find((p) => p.id === 'matcha').seed;
   await set({ v: 2, mode: 'dark', pal: 'matcha', accent: matchaSeed });
@@ -447,8 +447,8 @@ test('P3-1 账号已登录但日刻未获授权（canWrite=false、showPrivate=t
   await page.route('**/api/quotes**', (r) => (r.request().method() === 'GET'
     ? r.fulfill({ json: { ok: true, canWrite: false, showPrivate: true, quotes: [] } })
     : r.fulfill({ status: 403, json: { ok: false, error: 'scope', scope: 'daymark.write' } })));
-  await page.goto('/daymark/#trove');
+  await page.goto('/daymark/zh/#trove');
   await expect(page.locator('#dm-signin')).toBeVisible();
   await expect(page.locator('#dm-signin a')).toHaveText('日刻未获账号授权');
-  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', 'https://styrigx.com/account/apps/');
+  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', 'https://styrigx.com/zh/account/apps/');
 });

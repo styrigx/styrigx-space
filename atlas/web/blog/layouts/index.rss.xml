@@ -1,4 +1,4 @@
-{{- /* RSS（原 src/pages/rss.xml.js、en/rss.xml.js，@astrojs/rss 同样的结构）：/blog/rss.xml（中文）、/blog/en/rss.xml（英文），全文输出 */ -}}
+{{- /* RSS（原 src/pages/rss.xml.js、en/rss.xml.js，@astrojs/rss 同样的结构）：/blog/rss.xml（英文）、/blog/zh/rss.xml（中文），全文输出 */ -}}
 {{- $posts := partial "posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "post")) -}}
 {{- printf `<?xml version="1.0" encoding="UTF-8"?>` | safeHTML -}}
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>{{ site.Language.Params.rssTitle }}</title><description>{{ site.Params.description }}</description><link>{{ site.Home.Permalink }}</link><language>{{ site.Language.Locale }}</language>

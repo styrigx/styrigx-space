@@ -51,7 +51,7 @@
   "icons" $nav.icons
   "wordmark" $nav.wordmark
   "mainOrigin" "https://styrigx.com"
-  "acct" (cond $isEn (replace $nav.me.href "https://styrigx.com/" "https://styrigx.com/en/") $nav.me.href)
+  "acct" (partial "sgx-lang-path.html" (dict "path" $nav.me.href "lang" (cond $isEn "en" "zh")))
   "avatar" $nav.me.avatar
   "langHref" $langHref
   "pal" $pal

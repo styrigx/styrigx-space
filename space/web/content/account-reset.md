@@ -1,5 +1,5 @@
 ---
-title: '重置登录'
+title: 'Reset sign-in'
 layout: account-reset
 url: /account/reset/
 ---

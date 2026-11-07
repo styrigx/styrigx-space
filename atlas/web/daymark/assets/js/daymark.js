@@ -270,12 +270,17 @@ function send(method, url, body){
 }
 /** 写失败的提示：没登录账号 / 没授权 →「登录账号后可编辑」，其余通用 */
 function failText(e){ var c = e && e.code; return c === 'account' ? T.needAccount : c === 'scope' ? T.noScope + (isEn ? '.' : '。') : T.failed; }
+/** P4-3 PR-4c：语言路径由模板（sgx-lang-path.html）算好放在 #dm-signin 的 data-*，本文件是经典脚本，不手写语言前缀 @param {string} attr @param {string} fallback */
+function pagePath(attr, fallback){
+  var el = doc && doc.getElementById('dm-signin');
+  return (el && el.getAttribute(attr)) || fallback;
+}
 /**
  * 不能编辑时页底那一行（P3-1）：没登录账号 → 登录（带 ?return= 回本页，走同意流程）；已登录没授权 → 去 账号 › 应用授权。
  * @param {boolean} loggedIn 接口回的 showPrivate（= 有账号会话）
  */
 function signinHint(loggedIn){
-  var acct = 'https://styrigx.com' + (isEn ? '/en' : '') + '/account/';
+  var acct = pagePath('data-acct', 'https://styrigx.com/account/');
   if (loggedIn) return { text: T.noScope, href: acct + 'apps/' };
   var here = G.location.pathname + G.location.search + G.location.hash;
   return { text: T.signin, href: acct + '?return=' + encodeURIComponent(here) };
@@ -405,7 +410,7 @@ $('#dm-share').addEventListener('click', function(){
   var q = echoQuote; if (!q) return;
   var text = shareText(q, isEn);
   if (G.navigator && typeof navigator.share === 'function') {
-    navigator.share({ text: text, url: G.location.origin + (isEn ? '/daymark/en/' : '/daymark/') }).catch(function(e){ if (!e || e.name !== 'AbortError') copyQuote(q); });
+    navigator.share({ text: text, url: G.location.origin + pagePath('data-home', '/daymark/') }).catch(function(e){ if (!e || e.name !== 'AbortError') copyQuote(q); });
   } else copyQuote(q);
 });
 onLongPress($('#dm-echo'), function(t){ if (t && t.closest && t.closest('#dm-share')) return; copyQuote(echoQuote); });

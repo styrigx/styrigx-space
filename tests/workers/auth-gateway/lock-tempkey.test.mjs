@@ -394,7 +394,7 @@ test('middleware：作废钥匙 → 拿它进来的人下一个请求就进不�
 test('middleware：临时钥匙进门的人能打开账号页（看到登录页）和临时钥匙页（页面自己要复验），临时钥匙管理接口 list 可达', async () => {
   const db = makeAuthD1();
   const { cookie } = await visitorFor(db);
-  for (const p of ['/account/', '/en/account/devices/', '/security/tempkeys/', '/en/security/tempkeys/', '/security/lock/', '/status/']) {
+  for (const p of ['/account/', '/zh/account/devices/', '/security/tempkeys/', '/zh/security/tempkeys/', '/security/lock/', '/status/']) {
     const res = await mw({ request: page(p, cookie), env: env(db), next });
     assert.equal(res.status, 200, p);
   }

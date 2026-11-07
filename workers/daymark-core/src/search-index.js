@@ -5,7 +5,7 @@
  *   { site: 'daymark', generated: ISO 时间, items: Item[] }
  *   Item = { id, type: 'quote', lang: 'zh'|'en', title, subtitle?, text?, url, private?: true }
  *
- * 每句出两条：中文条目（lang zh，链到 /daymark/）和英文条目（lang en，链到 /daymark/en/；有译文用译文当标题）。
+ * 每句出两条：中文条目（lang zh，链到 /daymark/zh/）和英文条目（lang en，链到 /daymark/；有译文用译文当标题）。
  *   - title：句子（约 80 字截断）；subtitle：署名，和页面上一样（「作者 · 《出处》」/ "Author · Source"）
  *   - text：全文 + 译文 + 标签（≤2000 字，只参与匹配，搜索 Worker 不回给前端）
  *   - url：本站没有单句的深链；有作者 → 百味里这位作者的分组 #flavors/a/<作者>，没作者 → 拾录 #trove
@@ -23,7 +23,7 @@ import { ensureSchema, QUOTE_COLS, rowToQuote } from './api/_quotes.js';
 
 export const SITE = 'daymark';
 export const KEY = 'site:' + SITE;
-/** 本站在图志下的地址（不带结尾斜杠）：条目链接 = SITE_URL + /（中文）或 /en/（英文）+ hash */
+/** 本站在图志下的地址（不带结尾斜杠）：条目链接 = SITE_URL + /（英文）或 /zh/（中文）+ hash */
 export const SITE_URL = 'https://styrigx.com/daymark';
 const TITLE_MAX = 80;
 const TEXT_MAX = 2000;
@@ -51,7 +51,8 @@ export function attribution(q, isEn) {
 
 /** 能打开这句的页面：有作者 → 百味里的作者分组；没有 → 拾录 */
 export function quoteUrl(q, isEn) {
-  const base = SITE_URL + (isEn ? '/en/' : '/');
+  /* P4-3 PR-4c：英文 /daymark/，中文 /daymark/zh/（同主站 lib/lang-path.js 的规则，Worker 不能 import 前端文件） */
+  const base = SITE_URL + (isEn ? '/' : '/zh/');
   const a = String((q && q.author) || '').trim();
   return a ? base + '#flavors/a/' + encodeURIComponent(a) : base + '#trove';
 }

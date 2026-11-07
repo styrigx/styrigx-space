@@ -18,17 +18,18 @@ import { ACCOUNT_API } from '../auth/account-api.js';
 import { syncEnabled, scopeDenied, LAST_KEY } from '../lib/cloud-sync.js';
 import { get as sget } from '../lib/storage.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
+import { langPath } from '../lib/lang-path.js';
 
 /** @param {boolean} en */
 export function accountUrl(en) {
-  return en ? '/en/account/' : '/account/';
+  return langPath('/account/', en ? 'en' : 'zh');
 }
 /** @param {boolean} en */
 export function securityUrl(en) {
-  return en ? '/en/account/security/' : '/account/security/';
+  return langPath('/account/security/', en ? 'en' : 'zh');
 }
 /** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、云同步、应用授权） */
-export const ACCOUNT_RETURN_RE = /^\/(en\/)?account\/(security|devices|sync|apps)\/$/;
+export const ACCOUNT_RETURN_RE = /^\/(zh\/)?account\/(security|devices|sync|apps)\/$/;
 
 /** 回账号页登录，登录后回当前子页 @param {boolean} en */
 export function goAccountLogin(en) {

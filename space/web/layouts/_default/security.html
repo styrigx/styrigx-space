@@ -4,9 +4,9 @@
    脚本走 ES Module 入口 entry-security.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security.js" }}
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
-{{ $lockUrl := cond $isEn "/en/security/lock/" "/security/lock/" }}
-{{ $tkUrl := cond $isEn "/en/security/tempkeys/" "/security/tempkeys/" }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
+{{ $lockUrl := (partial "sgx-lang-path.html" (dict "path" "/security/lock/" "lang" (cond $isEn "en" "zh"))) }}
+{{ $tkUrl := (partial "sgx-lang-path.html" (dict "path" "/security/tempkeys/" "lang" (cond $isEn "en" "zh"))) }}
 
 <div class="set-layout pb-28">
 

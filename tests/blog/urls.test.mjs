@@ -2,6 +2,7 @@
  * 页面清单：tests/url-map.json 里博客的每个地址，在 Hugo 构建（atlas/web/blog/public/，拼进主站单树的 /blog/ 下）里都在，
  * RSS / 站点地图地址和条目一致，文章里的标题锚点（目录、外链用的 #id）一个不少，没有多出清单外的页面。
  * 网址都在 https://styrigx.com/blog/ 下（canonical、站点地图、RSS；合并 PR2 起 baseURL 从旧图志域名改到主域名）。旧的 blog.styrigx.com 地址和 /about/、/archives/ 跳转页都删了，不留兼容。
+ * P4-3 PR-4c（§6.8）起英文是默认语言（无前缀），中文在 /zh/，旧 /en/… 不构建、不 301。
  * 跑法：npm run build 之后 node --test tests/urls.test.mjs
  */
 import { test } from 'node:test';
@@ -23,8 +24,8 @@ test('构建产物存在', () => {
   assert.ok(existsSync(PUB), 'atlas/web/blog/public/ 不存在：先跑 npm run build');
 });
 
-test('留言板撤了（2026-10-24）：/guestbook/、/en/guestbook/ 不再构建，旧地址走 404', () => {
-  for (const url of ['/guestbook/', '/en/guestbook/']) assert.equal(existsSync(fileFor(url)), false, url + ' 还在');
+test('留言板撤了（2026-10-24）：/guestbook/、/zh/guestbook/ 不再构建，旧地址走 404', () => {
+  for (const url of ['/guestbook/', '/zh/guestbook/', '/en/guestbook/']) assert.equal(existsSync(fileFor(url)), false, url + ' 还在');
 });
 
 test('清单里每个页面都在（不是跳转页）', () => {
@@ -37,7 +38,14 @@ test('清单里每个页面都在（不是跳转页）', () => {
 });
 
 test('没有跳转页（旧的 /about/、/archives/ 删了，不留兼容）', () => {
-  for (const url of ['/about/', '/archives/', '/en/about/', '/en/archives/']) assert.equal(existsSync(fileFor(url)), false, url + ' 还在');
+  for (const url of ['/about/', '/archives/', '/zh/about/', '/zh/archives/']) assert.equal(existsSync(fileFor(url)), false, url + ' 还在');
+});
+
+test('P4-3 PR-4c（§6.8）：英文在无前缀地址、中文在 /zh/；旧的 /en/… 整个不构建（删除不 301）', () => {
+  assert.equal(existsSync(path.join(PUB, 'en')), false, 'public/en/ 不该存在');
+  assert.match(read('/'), /<html lang="?en/, '/ 是英文');
+  assert.match(read('/zh/'), /<html lang="?zh/, '/zh/ 是中文');
+  assert.ok(map.pages.every((u) => !u.startsWith('/en/')), '清单里不该再有 /en/');
 });
 
 test('RSS 和站点地图都在', () => {
@@ -77,7 +85,7 @@ test('canonical 在 styrigx.com/blog/ 下', () => {
   }
 });
 
-test('没有多出清单外的页面（除了英文 404）', () => {
+test('没有多出清单外的页面（除了中文 404）', () => {
   const now = [];
   const walk = (d) => {
     for (const f of readdirSync(d)) {
@@ -87,6 +95,6 @@ test('没有多出清单外的页面（除了英文 404）', () => {
     }
   };
   walk(PUB);
-  const known = new Set([...map.pages, '/en/404.html']);
+  const known = new Set([...map.pages, '/zh/404.html']);
   assert.deepEqual(now.filter((p) => !known.has(p)).sort(), []);
 });

@@ -57,6 +57,9 @@ const SITE = {
     /* 外观 cookie（sgx-ui）读端：经典脚本 ES5，baseof.html 原样内联进 <head>（挂 window.SgxUI），ui-inherit-run.js 调 SgxUI.apply */
     { path: 'web/assets/js/sgx/shell/ui-cookie-read.js', kind: 'file', parts: ['ui-cookie-read.js'] },
     { path: 'web/assets/js/sgx/shell/layout-mode.js', kind: 'file', parts: ['layout-mode.js'] },
+    /* 语言路径（P4-3 PR-4c：英文默认、中文 /zh/）：JS 唯一函数 + 同一规则的 Hugo partial；本站链接中文地址、链主站都走它，不手写前缀 */
+    { path: 'web/assets/js/sgx/shell/lang-path.js', kind: 'file', parts: ['lang-path.js'] },
+    { path: 'web/layouts/partials/sgx-lang-path.html', kind: 'raw', parts: ['lang-path.html'] },
     /* ui-cookie-contract.json（契约夹具）不再同步副本：2026-11-06 tests/ 结构统一起子站单测 / e2e 直接读仓库共享的 tests/fixtures/ui-cookie-contract.json（gen-ui-cookie-contract.mjs 生成，--check 守着）；外壳目录里那份仍在 lock 的 files 指纹里 */
   ],
 };

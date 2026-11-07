@@ -3,16 +3,10 @@
 /gh    https://github.com/styrigx                     301
 /gh/*  https://github.com/styrigx/:splat               301
 /owner/  /security/lock/  301
-/en/owner/  /en/security/lock/  301
 /chat/  /  301
-/en/chat/  /en/  301
 /search/  /  301
-/en/search/  /en/  301
 /browser/  /  301
-/en/browser/  /en/  301
 /browser/search/  /  301
-/en/browser/search/  /en/  301
 /files/*  /  301
-/en/files/*  /en/  301
 /favicon-32x32.png  /avatar/32.webp  301
 /apple-touch-icon.png  /avatar/192.webp  301

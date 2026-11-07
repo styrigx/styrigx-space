@@ -13,6 +13,7 @@ import { set as sset, remove as sremove } from './storage.js';
 import { setThemeMode } from './theme.js';
 import { clearAccent } from './accent.js';
 import { DEFAULT_PALETTE, normPalette } from './prefs-write.js';
+import { langPath, systemLang } from './lang-path.js';
 
 export { DEFAULT_PALETTE, normPalette };
 
@@ -119,25 +120,7 @@ export function setLang(v) {
   if (v === 'system') sremove('sgx-lang');
   else sset('sgx-lang', v);
   featSet('lang', v === 'system' ? 'system' : v);
-  const p = location.pathname,
-    q = location.search,
-    h = location.hash;
-  let want = v;
-  if (v === 'system') {
-    try {
-      const nav = /** @type {any} */ (navigator);
-      const bl = (nav.language || nav.userLanguage || 'zh').toLowerCase();
-      want = bl.indexOf('zh') === 0 ? 'zh' : 'en';
-    } catch (e) {
-      want = 'zh';
-    }
-  }
-  let np;
-  if (want === 'en') {
-    np = p === '/' ? '/en/' : p === '/en' || p.indexOf('/en/') === 0 ? p : '/en' + p;
-  } else {
-    np = p.replace(/^\/en(\/|$)/, '/');
-    if (np === '' || np.charAt(0) !== '/') np = '/';
-  }
-  return np + q + h;
+  const want = v === 'system' ? systemLang() : v;
+  /* P4-3 PR-4c：英文无前缀、中文 /zh/，地址统一由 lib/lang-path.js 拼 */
+  return langPath(location.pathname, want) + location.search + location.hash;
 }

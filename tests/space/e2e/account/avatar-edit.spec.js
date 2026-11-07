@@ -139,24 +139,24 @@ test('账号卡：显示「已登录」；卡片本身不能点（不跳页、�
   /* 点击处理同步：要跳转 / 开弹层的话此时已经发生；再等两帧让 rAF 里的反应落地 */
   await nextFrames(page);
   expect(await navs(), '点账号卡不触发任何导航').toEqual([]);
-  expect(new URL(page.url()).pathname).toBe('/account/');
+  expect(new URL(page.url()).pathname).toBe('/zh/account/');
   await expect(page.locator('#sheet-wrap[open]')).toHaveCount(0);
   /* 点头像：直接是换头像的弹层（选择照片…），页面不动 */
   await card.locator('[data-avatar-edit]').click();
   await expect(page.locator('#sheet-title')).toHaveText('头像');
   await expect(page.locator('#sheet-body .sheet-opt').first()).toHaveText('选择照片…');
-  expect(new URL(page.url()).pathname).toBe('/account/');
+  expect(new URL(page.url()).pathname).toBe('/zh/account/');
 });
 
 test('英文账号卡：Signed in', async ({ page }) => {
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
   await asSession(page);
-  await page.goto('/en/account/');
+  await page.goto('/account/');
   await expect(page.locator('#acct-main [data-acct-card] .sgx-ac-state')).toHaveText('Signed in');
 });
 
-test('「账号信息」子页删除：/account/profile/、/en/account/profile/ 404，不跳转', async ({ page }) => {
-  for (const p of ['/account/profile/', '/en/account/profile/']) {
+test('「账号信息」子页删除：/account/profile/、/zh/account/profile/ 404，不跳转', async ({ page }) => {
+  for (const p of ['/account/profile/', '/zh/account/profile/']) {
     const res = await page.request.get(p, { maxRedirects: 0 });
     expect(res.status(), p).toBe(404);
   }

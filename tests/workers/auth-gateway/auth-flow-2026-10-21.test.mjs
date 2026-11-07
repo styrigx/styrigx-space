@@ -76,7 +76,7 @@ const OTHER = ['daymark-core', 'curio-core'].flatMap((d) => readRoutes(fs.readFi
 test('A 路由匹配规则照线上实测：不带 * 的规则遇到查询串不命中；* 规则连查询串前缀匹配', () => {
   assert.equal(routeMatches('styrigx.com/', 'styrigx.com', '/'), true);
   assert.equal(routeMatches('styrigx.com/', 'styrigx.com', '/?lock=1'), false);
-  assert.equal(routeMatches('styrigx.com/en/*', 'styrigx.com', '/en/?lock=1'), true);
+  assert.equal(routeMatches('styrigx.com/zh/*', 'styrigx.com', '/zh/?lock=1'), true);
   assert.equal(routeMatches('blog.styrigx.com/about*', 'blog.styrigx.com', '/about?a'), true);
 });
 
@@ -84,11 +84,11 @@ test('A 锁屏入口、带查询串的首页、所有页面都过网关（改前
   const mustGateway = [
     ['styrigx.com', '/'], ['styrigx.com', '/?lock=1'],
     ['styrigx.com', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2Fblog%2F'],
-    ['styrigx.com', '/?return=%2Fsecurity%2Flock%2F'], ['styrigx.com', '/en/?lock=1'],
+    ['styrigx.com', '/?return=%2Fsecurity%2Flock%2F'], ['styrigx.com', '/zh/?lock=1'],
     ['styrigx.com', '/security/lock/'], ['styrigx.com', '/files-index.json'], ['styrigx.com', '/brand-new-page/'],
     ['styrigx.com', '/blog/'], ['styrigx.com', '/blog/?utm=1'], ['styrigx.com', '/blog/rss.xml?a'], ['styrigx.com', '/blog/post/x/?a'],
     ['styrigx.com', '/daymark/'], ['styrigx.com', '/daymark/?x=1'], ['styrigx.com', '/daymark/sitemap.xml?a'],
-    ['styrigx.com', '/curio/'], ['styrigx.com', '/curio/?x=1'], ['styrigx.com', '/curio/en/?a'],
+    ['styrigx.com', '/curio/'], ['styrigx.com', '/curio/?x=1'], ['styrigx.com', '/curio/zh/?a'],
   ];
   for (const [h, p] of mustGateway) {
     const mine = pickRoute(ROUTES, h, p);
@@ -139,8 +139,8 @@ test('B session-check?return：服务端给校验过的 next（子站原地址�
   assert.equal(r.status, 200);
   assert.equal(r.cc, 'private, no-store');
   assert.deepEqual(body(r.j), { ok: true, by: 'password', next: 'https://styrigx.com/blog/post/x/' });
-  const rel = await check('?return=' + encodeURIComponent('/curio/en/?a=1'), await lockCookie('password'));
-  assert.equal(rel.j.next, '/curio/en/?a=1');
+  const rel = await check('?return=' + encodeURIComponent('/curio/zh/?a=1'), await lockCookie('password'));
+  assert.equal(rel.j.next, '/curio/zh/?a=1');
 });
 
 test('B session-check?return：不合法 return → 首页；退役子站 → 首页；无 return → next null', async () => {
@@ -185,7 +185,7 @@ test('B session-check：没有会话 / 坏会话 → 401 no-store', async () => 
 
 /* ---------------- C. 进门的人打开门内页 ---------------- */
 test('C 临时钥匙进门的人直接打开锁屏凭证页（中英）→ 200 回源、valid，没有升级 / 等级标记（复验由页面自己要）', async () => {
-  for (const p of ['/security/lock/', '/en/security/lock/']) {
+  for (const p of ['/security/lock/', '/zh/security/lock/']) {
     const res = await get('https://styrigx.com' + p, await lockCookie('tempkey'));
     assert.equal(res.status, 200, p);
     const html = await res.text();
@@ -209,13 +209,13 @@ test('D 首页模板用 safeHTML 输出瘦身标记（Go 模板会删 HTML 注�
 
 /* ---------------- E. 账号页首帧 ---------------- */
 test('E 账号页（临时钥匙进门）：进门的人都能打开 /account/ 及子页（中英），没账号会话 → 登录区（out），不再 302', async () => {
-  for (const p of ['/account/', '/account/devices/', '/account/sync/', '/account/security/', '/en/account/', '/en/account/profile/']) {
+  for (const p of ['/account/', '/account/devices/', '/account/sync/', '/account/security/', '/zh/account/', '/zh/account/profile/']) {
     const res = await get('https://styrigx.com' + p, await lockCookie('tempkey'));
     assert.equal(res.status, 200, p);
     const html = await res.text();
     assert.match(html, /data-sgx-lock-session="valid"/, p);
     /* 首帧账号提示只给账号首页（isAccountPage）；子页由前端问 /api/account */
-    if (p === '/account/' || p === '/en/account/') {
+    if (p === '/account/' || p === '/zh/account/') {
       assert.match(html, /data-sgx-account-session="out"/, p);
       assert.match(html, /<div id="acct-login" class="acct-login">/, p);
     }
@@ -258,11 +258,11 @@ test('F /files-index.json 要先解锁（无会话 302，有会话 200）', asyn
   assert.equal((await get('https://styrigx.com/files-index.json', await lockCookie('tempkey'))).status, 200);
 });
 test('F RSS（Hugo 生成的 */index.xml，列着全站页面标题和地址）要先解锁；sitemap.xml / opensearch.xml 照旧公开', async () => {
-  for (const p of ['/index.xml', '/en/index.xml', '/tags/index.xml', '/en/categories/index.xml', '/INDEX.XML']) {
+  for (const p of ['/index.xml', '/zh/index.xml', '/tags/index.xml', '/zh/categories/index.xml', '/INDEX.XML']) {
     assert.equal((await get('https://styrigx.com' + p)).status, 302, p + ' 无会话');
     assert.equal((await get('https://styrigx.com' + p, await lockCookie('tempkey'))).status, 200, p + ' 有会话');
   }
-  for (const p of ['/sitemap.xml', '/opensearch.xml', '/en/sitemap.xml']) {
+  for (const p of ['/sitemap.xml', '/opensearch.xml', '/zh/sitemap.xml']) {
     assert.equal((await get('https://styrigx.com' + p)).status, 200, p + ' 公开');
   }
 });

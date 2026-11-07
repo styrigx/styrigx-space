@@ -3,7 +3,7 @@
 首页：最新 3 篇 + 最新的系列卡（没有大标题区，h1 只给读屏 / 搜索引擎）。
 文章：全部文章列表。专题：系列 → 分类 → 标签，点分类 / 标签就地筛出文章。 */ -}}
 {{ define "head" }}
-{{- $alt := dict "zh" ("" | relURL) "en" ("en/" | relURL) -}}
+{{- $alt := dict "en" ("" | relURL) "zh" ("zh/" | relURL) -}}
 {{ partial "head.html" (dict "page" . "title" (printf "%s | %s" (i18n "blogTitle") site.Title) "description" site.Params.description "alt" $alt) }}
 {{ end }}
 {{ define "body" }}

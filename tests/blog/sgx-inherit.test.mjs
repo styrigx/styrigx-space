@@ -299,50 +299,55 @@ test('accent：预设种子 / 旧种子 → 预设；不同 → 内联 --sgx-see
   }
 });
 
-test('lang：和页面不同且有对应版本 → 跳过去（带 hash）', () => {
-  const ck = 'sgx-ui=' + enc({ v: 2, lang: 'en' });
+test('lang：和页面不同且有对应版本 → 跳过去（带 hash）；P4-3 PR-4c 起英文 /blog/、中文 /blog/zh/', () => {
+  const ck = 'sgx-ui=' + enc({ v: 2, lang: 'zh' });
   assert.deepEqual(
-    run({ cookie: ck, path: '/blog/', hash: '#topics', alt: { zh: '/blog/', en: '/blog/en/' } }).replaced,
-    ['/blog/en/#topics'],
+    run({ cookie: ck, lang: 'en', path: '/blog/', hash: '#topics', alt: { zh: '/blog/zh/', en: '/blog/' } }).replaced,
+    ['/blog/zh/#topics'],
   );
-  /* 没有英文版本：留在中文页 */
-  assert.deepEqual(run({ cookie: ck, path: '/blog/post/x/' }).replaced, []);
-  /* 已是英文页 */
+  /* 没有中文版本：留在英文页 */
+  assert.deepEqual(run({ cookie: ck, lang: 'en', path: '/blog/post/x/' }).replaced, []);
+  /* 已是中文页 */
   assert.deepEqual(
-    run({ cookie: ck, lang: 'en', path: '/blog/en/', alt: { zh: '/blog/', en: '/blog/en/' } }).replaced,
+    run({ cookie: ck, path: '/blog/zh/', alt: { zh: '/blog/zh/', en: '/blog/' } }).replaced,
     [],
   );
-  /* en → zh */
+  /* zh → en */
   assert.deepEqual(
     run({
-      cookie: 'sgx-ui=' + enc({ v: 2, lang: 'zh' }),
-      lang: 'en',
-      path: '/blog/en/post/a/',
-      alt: { zh: '/blog/post/a/', en: '/blog/en/post/a/' },
+      cookie: 'sgx-ui=' + enc({ v: 2, lang: 'en' }),
+      path: '/blog/zh/post/a/',
+      alt: { zh: '/blog/zh/post/a/', en: '/blog/post/a/' },
     }).replaced,
     ['/blog/post/a/'],
   );
   /* 爬虫不跳 */
   assert.deepEqual(
-    run({ cookie: ck, path: '/blog/', alt: { en: '/blog/en/' }, ua: 'Googlebot' }).replaced,
+    run({ cookie: ck, lang: 'en', path: '/blog/', alt: { zh: '/blog/zh/' }, ua: 'Googlebot' }).replaced,
     [],
   );
-  /* cookie 版本不合法：lang 也不认（navigator 是中文 → 不跳） */
+  /* cookie 版本不合法：lang 也不认（navigator 是英文 → 不跳） */
   assert.deepEqual(
-    run({ cookie: 'sgx-ui=' + enc({ lang: 'en' }), path: '/blog/post/a/', alt: { en: '/blog/en/post/a/' } }).replaced,
+    run({ cookie: 'sgx-ui=' + enc({ lang: 'zh' }), lang: 'en', navLang: 'en-US', path: '/blog/post/a/', alt: { zh: '/blog/zh/post/a/' } }).replaced,
     [],
   );
 });
 
-test('lang：没 cookie 时只在中文首页（/blog/）按旧记忆 / 浏览器语言跳', () => {
-  assert.deepEqual(run({ path: '/blog/', alt: { en: '/blog/en/' }, navLang: 'en-US' }).replaced, ['/blog/en/']);
+test('lang：没 cookie 时只在英文首页（/blog/，默认语言）按旧记忆 / 浏览器语言跳中文 /blog/zh/', () => {
+  assert.deepEqual(run({ lang: 'en', path: '/blog/', alt: { zh: '/blog/zh/' }, navLang: 'zh-CN' }).replaced, ['/blog/zh/']);
+  assert.deepEqual(run({ lang: 'en', path: '/blog/', alt: { zh: '/blog/zh/' }, navLang: 'en-US' }).replaced, []);
   assert.deepEqual(
-    run({ path: '/blog/', alt: { en: '/blog/en/' }, navLang: 'en-US', local: { 'styrigx-blog-lang': 'zh' } })
+    run({ lang: 'en', path: '/blog/', alt: { zh: '/blog/zh/' }, navLang: 'zh-CN', local: { 'styrigx-blog-lang': 'en' } })
       .replaced,
     [],
   );
   assert.deepEqual(
-    run({ path: '/blog/post/a/', alt: { en: '/blog/en/post/a/' }, navLang: 'en-US' }).replaced,
+    run({ lang: 'en', path: '/blog/', alt: { zh: '/blog/zh/' }, navLang: 'en-US', local: { 'styrigx-blog-lang': 'zh' } })
+      .replaced,
+    ['/blog/zh/'],
+  );
+  assert.deepEqual(
+    run({ lang: 'en', path: '/blog/post/a/', alt: { zh: '/blog/zh/post/a/' }, navLang: 'zh-CN' }).replaced,
     [],
   );
 });

@@ -1,5 +1,5 @@
 ---
-title: '安全'
+title: 'Security'
 layout: security
 url: /security/
 ---

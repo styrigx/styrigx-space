@@ -705,7 +705,7 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
 
   test('英文：Lock screen / Good to see you again / Unlock', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
-    await page.goto('/en/?lock=1', { waitUntil: 'domcontentloaded' });
+    await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock-title')).toHaveText('Lock screen');
     await expect(page.locator('#sgx-lock .sgx-lock-sub')).toHaveText('Good to see you again');
     await expect(page.locator('#sgx-lock-go')).toHaveText('Unlock');

@@ -49,19 +49,19 @@ test('cookieLang × 主站契约夹具：每个用例跟随的语言 = 夹具 re
   assert.equal(by['未知版本 v3 带 lang → 当没有 cookie（不跳语言）'], '');
 });
 
-test('langTarget：只在不同的时候跳，保留查询串和 #页签；地址都在 /curio/ 下', () => {
-  assert.equal(langTarget('en', { pathname: '/curio/', hash: '#trove' }, 'zh'), '/curio/en/#trove');
-  assert.equal(langTarget('zh', { pathname: '/curio/en/', hash: '#flavors' }, 'en'), '/curio/#flavors');
-  assert.equal(langTarget('zh', { pathname: '/curio/en' }, 'en'), '/curio/');
-  assert.equal(langTarget('zh', { pathname: '/curio/en/404.html' }, 'en'), '/curio/404.html');
-  assert.equal(langTarget('en', { pathname: '/curio/404.html' }, 'zh'), '/curio/en/404.html');
-  assert.equal(langTarget('en', { pathname: '/curio', search: '?a=1' }, 'zh'), '/curio/en/?a=1');
-  assert.equal(langTarget('en', { pathname: '/curio/', search: '?a=1' }, 'zh'), '/curio/en/?a=1');
-  assert.equal(langTarget('zh', { pathname: '/curio/' }, 'zh'), '');
-  assert.equal(langTarget('', { pathname: '/curio/' }, 'zh'), '');
+test('langTarget：只在不同的时候跳，保留查询串和 #页签；地址都在 /curio/ 下（P4-3 PR-4c：英文 /curio/、中文 /curio/zh/）', () => {
+  assert.equal(langTarget('zh', { pathname: '/curio/', hash: '#trove' }, 'en'), '/curio/zh/#trove');
+  assert.equal(langTarget('en', { pathname: '/curio/zh/', hash: '#flavors' }, 'zh'), '/curio/#flavors');
+  assert.equal(langTarget('en', { pathname: '/curio/zh' }, 'zh'), '/curio/');
+  assert.equal(langTarget('en', { pathname: '/curio/zh/404.html' }, 'zh'), '/curio/404.html');
+  assert.equal(langTarget('zh', { pathname: '/curio/404.html' }, 'en'), '/curio/zh/404.html');
+  assert.equal(langTarget('zh', { pathname: '/curio', search: '?a=1' }, 'en'), '/curio/zh/?a=1');
+  assert.equal(langTarget('zh', { pathname: '/curio/', search: '?a=1' }, 'en'), '/curio/zh/?a=1');
+  assert.equal(langTarget('en', { pathname: '/curio/' }, 'en'), '');
+  assert.equal(langTarget('', { pathname: '/curio/' }, 'en'), '');
   /* 不在本站前缀下（图志根、别的站）不跳 */
-  assert.equal(langTarget('en', { pathname: '/' }, 'zh'), '');
-  assert.equal(langTarget('en', { pathname: '/blog/' }, 'zh'), '');
+  assert.equal(langTarget('zh', { pathname: '/' }, 'en'), '');
+  assert.equal(langTarget('zh', { pathname: '/blog/' }, 'en'), '');
 });
 
 test('页面接线：baseof 先原样内联共享读端，再内联 ui-inherit-run.js（都在样式前）；外观只走 SgxUI.apply，不再自己解析 cookie', () => {

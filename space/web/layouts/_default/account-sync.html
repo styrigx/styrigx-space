@@ -7,7 +7,7 @@
    noindex（见 baseof）。脚本走 ES Module 入口 entry-account-sync.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-sync.js" }}
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 {{ $feats := dict }}
 {{ range site.Data.features.features }}{{ if .key }}{{ $feats = merge $feats (dict .key .) }}{{ end }}{{ end }}
 {{ $si := index site.Data "sync-items" }}

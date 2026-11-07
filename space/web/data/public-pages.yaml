@@ -4,4 +4,4 @@
 # tests/workers/auth-gateway/sitemap.test.mjs 验证两者同步。
 pages:
   - /
-  - /en/
+  - /zh/

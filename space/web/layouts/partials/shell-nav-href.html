@@ -1,7 +1,5 @@
 {{/* 导航抽屉项地址（space/web/data/shell-nav.json 一项 + 是否英文）：全部用站内相对地址（合并 PR3 起子站和主站同在 styrigx.com）；
-   英文：主站项加 /en 前缀，子站（blog / curio / daymark）在站目录后加 en/（/curio/ → /curio/en/）；不是 styrigx.com 的项才带 origin */}}
-{{ $sub := in (slice "blog" "curio" "daymark") .it.id }}
-{{ $p := .it.path }}
-{{ if .en }}{{ if $sub }}{{ $p = printf "%sen/" .it.path }}{{ else }}{{ $p = printf "/en%s" .it.path }}{{ end }}{{ end }}
+   中文（P4-3 PR-4c）：主站项加 /zh 前缀，子站在站目录后加 zh/（/curio/ → /curio/zh/），由 sgx-lang-path.html 统一拼；不是 styrigx.com 的项才带 origin */}}
+{{ $p := partial "sgx-lang-path.html" (dict "path" .it.path "lang" (cond .en "en" "zh")) }}
 {{ if ne .it.origin "https://styrigx.com" }}{{ $p = printf "%s%s" .it.origin $p }}{{ end }}
 {{ return $p }}

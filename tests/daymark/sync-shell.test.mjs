@@ -48,11 +48,13 @@ test('renderTargets：标记段带来源和版本，内容按 manifest 拼接', 
     'ui-cookie-read.js': '(function (g) { g.SgxUI = {}; })(this);\n',
     'layout-mode.js': 'function __sgxLayout(){return "phone"}\n',
     'ui-cookie-contract.json': '{"cases":[]}\n',
+    'lang-path.js': 'export function langPath() {}\n',
+    'lang-path.html': '{{- return . -}}\n',
   };
   const { out } = renderTargets({ manifest: { version: 'abc', files: {} }, files }, 'main', () => `a\n${BEGIN} x */\nold\n${END}\nb\n`);
   for (const [p, text] of Object.entries(out)) {
     if (p.endsWith('.json')) continue;
-    if (p.endsWith('.html')) { assert.equal(text, files[p.endsWith('-entries.html') ? 'entries.html' : 'topbar.html'], p + '：raw 原样'); continue; }
+    if (p.endsWith('.html')) { assert.equal(text, files[p.endsWith('-entries.html') ? 'entries.html' : p.endsWith('sgx-lang-path.html') ? 'lang-path.html' : 'topbar.html'], p + '：raw 原样'); continue; }
     assert.ok(text.includes(BEGIN + ' styrigx/styrigx-space@main web/shared/shell vabc'), p);
     assert.ok(text.includes(END), p);
     assert.doesNotMatch(text, /\nold\n/, p);

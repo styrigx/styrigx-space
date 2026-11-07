@@ -1,5 +1,5 @@
 ---
-title: '数字健康'
+title: 'Digital wellbeing'
 layout: sub
 url: /wellbeing/
 params:

@@ -8,13 +8,13 @@ import { test, expect } from '@playwright/test';
 
 test.use({ viewport: { width: 412, height: 915 } });
 
-const POST = '/blog/post/2026-10-11-key-spec-whitepaper-v2/';
+const POST = '/blog/zh/post/2026-10-11-key-spec-whitepaper-v2/';
 
 test.beforeEach(async ({ page }) => {
   await page.route('https://styrigx.com/**', (r) => r.fulfill({ status: 204 }));
   await page.addInitScript(() => {
     try {
-      localStorage.setItem('styrigx-blog-lang', 'zh');
+      localStorage.setItem('styrigx-blog-lang', 'en'); // P4-3 PR-4c：英文首页 /blog/ 不按浏览器语言跳 /blog/zh/
     } catch {}
   });
 });

@@ -13,8 +13,9 @@ const VIEWPORTS = [
   { width: 412, height: 915 },
 ];
 
-const NO_FOOTER = ['/', '/theme/', '/status/', '/en/', '/en/theme/'];
-const ABOUT = ['/about/', '/en/about/'];
+/* P4-3 PR-4c：英文无前缀、中文 /zh/ */
+const NO_FOOTER = ['/', '/theme/', '/status/', '/zh/', '/zh/theme/'];
+const ABOUT = ['/about/', '/zh/about/'];
 
 for (const vp of VIEWPORTS) {
   for (const path of NO_FOOTER) {

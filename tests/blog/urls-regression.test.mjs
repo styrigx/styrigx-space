@@ -56,14 +56,16 @@ function serve() {
   });
 }
 
+/* P4-3 PR-4c（§6.8）：英文在无前缀地址，中文在 /blog/zh/ */
 const URLS_200 = [
   '/blog/',
-  '/blog/en/',
+  '/blog/zh/',
   '/blog/tags/ai/',
+  '/blog/zh/tags/ai/',
   '/blog/post/2026-10-07-muse-playbook/',
-  '/blog/en/post/2026-10-07-muse-playbook/',
+  '/blog/zh/post/2026-10-07-muse-playbook/',
   '/blog/rss.xml',
-  '/blog/en/rss.xml',
+  '/blog/zh/rss.xml',
   '/blog/sitemap-index.xml',
 ];
 
@@ -88,7 +90,13 @@ describe('网址回归（图志 /blog/ 下）', () => {
   }
 
   it('前缀外的地址（旧的根路径、/about/、/archives/）一律 404，不留兼容', async () => {
-    for (const url of ['/', '/en/', '/post/2026-10-07-muse-playbook/', '/rss.xml', '/blog/about/', '/blog/archives/', '/blog/en/about/']) {
+    for (const url of ['/', '/zh/', '/post/2026-10-07-muse-playbook/', '/rss.xml', '/blog/about/', '/blog/archives/', '/blog/zh/about/']) {
+      assert.equal((await fetch(base + url)).status, 404, url);
+    }
+  });
+
+  it('旧的 /blog/en/… 一律 404（PR-4c 删除不 301）', async () => {
+    for (const url of ['/blog/en/', '/blog/en/post/2026-10-07-muse-playbook/', '/blog/en/rss.xml', '/blog/en/tags/ai/']) {
       assert.equal((await fetch(base + url)).status, 404, url);
     }
   });
@@ -102,8 +110,8 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(text, /muse-playbook/i, '应包含已知文章');
   });
 
-  it('/blog/en/rss.xml 是 RSS 且包含条目', async () => {
-    const res = await fetch(base + '/blog/en/rss.xml');
+  it('/blog/zh/rss.xml 是 RSS 且包含条目', async () => {
+    const res = await fetch(base + '/blog/zh/rss.xml');
     assert.equal(res.status, 200);
     const text = await res.text();
     assert.match(text, /<rss[^>]*>/);
@@ -120,17 +128,18 @@ describe('网址回归（图志 /blog/ 下）', () => {
   });
 
   it('留言板撤了（2026-10-24）：/guestbook/、/en/guestbook/ 是 404，页面里没有留言板入口和 Giscus', async () => {
-    for (const url of ['/blog/guestbook/', '/blog/en/guestbook/']) assert.equal((await fetch(base + url)).status, 404, url);
-    for (const url of ['/blog/', '/blog/en/', '/blog/post/2026-10-07-muse-playbook/']) {
+    for (const url of ['/blog/guestbook/', '/blog/zh/guestbook/']) assert.equal((await fetch(base + url)).status, 404, url);
+    for (const url of ['/blog/', '/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/']) {
       const html = await (await fetch(base + url)).text();
       assert.doesNotMatch(html, /guestbook|giscus|留言板/i, url);
     }
   });
 
   it('列表页：首页 · 文章 · 专题 三个面板 + 首页分区入口，没有归档', async () => {
-    const res = await fetch(base + '/blog/');
+    const res = await fetch(base + '/blog/zh/');
     const html = await res.text();
-    assert.match(html, /<h1 class="sgx-visually-hidden"[^>]*>博客</, '首页 h1「博客」只给读屏 / 搜索引擎');
+    assert.match(html, /<h1 class="sgx-visually-hidden"[^>]*>博客</, '中文首页 h1「博客」只给读屏 / 搜索引擎');
+    assert.match(await (await fetch(base + '/blog/')).text(), /<h1 class="sgx-visually-hidden"[^>]*>Blog</, '英文首页 h1「Blog」');
     assert.doesNotMatch(html, /sgx-subpage-head|sgx-subpage-title/, '没有居中大标题区');
     assert.match(html, /note-entry/, '应有文章列表');
     for (const id of ['home', 'posts', 'topics']) {
@@ -150,11 +159,11 @@ describe('网址回归（图志 /blog/ 下）', () => {
   });
 
   it('专题：鉴权规范系列（中文 2 篇，按 seriesOrder）', async () => {
-    const html = await (await fetch(base + '/blog/')).text();
+    const html = await (await fetch(base + '/blog/zh/')).text();
     const card = html.match(/data-series-card="[^"]+"[\s\S]*?<\/article>/);
     assert.ok(card, '应有系列卡');
     assert.match(card[0], /Styrigx UI 鉴权规范/);
-    const titles = [...card[0].matchAll(/<a href="\/blog\/post\/([^"]+)\/"/g)].map((m) => m[1]);
+    const titles = [...card[0].matchAll(/<a href="\/blog\/zh\/post\/([^"]+)\/"/g)].map((m) => m[1]);
     assert.deepEqual(titles, [
       '2026-10-11-key-spec-whitepaper',
       '2026-10-11-key-spec-whitepaper-v2',
@@ -162,12 +171,12 @@ describe('网址回归（图志 /blog/ 下）', () => {
   });
 
   it('系列文章页有系列小块（第 n / N 篇）', async () => {
-    const html = await (await fetch(base + '/blog/post/2026-10-11-key-spec-whitepaper-v2/')).text();
+    const html = await (await fetch(base + '/blog/zh/post/2026-10-11-key-spec-whitepaper-v2/')).text();
     assert.match(html, /sgx-series-block/);
     assert.match(html, /第 2 \/ 2 篇/);
     assert.match(
       html,
-      /rel="prev"[^>]*href="\/blog\/post\/2026-10-11-key-spec-whitepaper\/"|href="\/blog\/post\/2026-10-11-key-spec-whitepaper\/"[^>]*>\s*<small/,
+      /rel="prev"[^>]*href="\/blog\/zh\/post\/2026-10-11-key-spec-whitepaper\/"|href="\/blog\/zh\/post\/2026-10-11-key-spec-whitepaper\/"[^>]*>\s*<small/,
     );
   });
 
@@ -181,14 +190,14 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.doesNotMatch(html, /sgx-drawer|sgx-tb-nav\b/, '抽屉和九宫格删了');
     assert.doesNotMatch(html, /book\.styrigx\.com/, '书库已下线');
     assert.doesNotMatch(html, /atlas\.styrigx\.com/, '合并 PR3：不再有旧图志域名');
-    const en = await (await fetch(base + '/blog/en/')).text();
-    const enHrefs = [...en.matchAll(/class="sgx-qp-tile sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(enHrefs, ['https://styrigx.com/en/', '/curio/en/', '/daymark/en/', '/blog/en/']);
-    assert.match(en, /<a class="sgx-ai-me" href="https:\/\/styrigx\.com\/en\/account\/"/);
+    const zh = await (await fetch(base + '/blog/zh/')).text();
+    const zhHrefs = [...zh.matchAll(/class="sgx-qp-tile sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/curio/zh/', '/daymark/zh/', '/blog/zh/']);
+    assert.match(zh, /<a class="sgx-ai-me" href="https:\/\/styrigx\.com\/zh\/account\/"/);
   });
 
   it('文章页：长条只有页名（文章标题）+ 阅读进度细线，没有页签；分享本页是快捷面板磁贴；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
-    const html = await (await fetch(base + '/blog/post/2026-10-07-muse-playbook/')).text();
+    const html = await (await fetch(base + '/blog/zh/post/2026-10-07-muse-playbook/')).text();
     const pill = html.match(/<div class="sgx-tb-pill[\s\S]*?<\/div>/)[0];
     assert.doesNotMatch(pill, /sgx-seg/);
     const title = html.match(/<h1[^>]*>([^<]+)<\/h1>/)[1].trim();

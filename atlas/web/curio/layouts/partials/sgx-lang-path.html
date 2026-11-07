@@ -1,0 +1,12 @@
+{{- /* 语言路径（P4-3 PR-4c，§6.8）：assets/js/lib/lang-path.js langPath() 的模板版，同一条规则（tests/space/ui/build/lang-default.test.mjs 对表）。
+英文是默认语言、不带前缀；中文加 /zh/：主站 /account/ ↔ /zh/account/，子站加在站名后 /blog/post/x/ ↔ /blog/zh/post/x/。
+旧 /en/ 不是语言前缀（删除不 301）。参数：dict "path" "/account/" "lang" "zh"|"en"（可带 https://styrigx.com 这类 origin，原样保留）。
+四站共用：共享外壳原样复制成子站的 layouts/partials/sgx-lang-path.html。新页面链接一律走这里，不要手写前缀。 */ -}}
+{{- $p := .path | default "/" -}}
+{{- $origin := "" -}}
+{{- with findRESubmatch `^(https?://[^/]+)(.*)$` $p 1 }}{{ $origin = index (index . 0) 1 }}{{ $p = index (index . 0) 2 | default "/" }}{{ end -}}
+{{- $site := "" -}}
+{{- with findRESubmatch `^(/(?:blog|curio|daymark))(/.*)?$` $p 1 }}{{ $site = index (index . 0) 1 }}{{ $p = index (index . 0) 2 | default "/" }}{{ end -}}
+{{- $p = replaceRE `^/zh(/|$)` "/" $p -}}
+{{- if eq .lang "zh" }}{{ $p = printf "/zh%s" $p }}{{ end -}}
+{{- return printf "%s%s%s" $origin $site $p -}}

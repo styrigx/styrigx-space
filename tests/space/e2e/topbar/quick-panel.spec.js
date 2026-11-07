@@ -25,7 +25,8 @@ async function go(page, path, lang = 'zh', freeze = true) {
   await page.addInitScript((l) => {
     try { if (!localStorage.getItem('sgx-lang')) localStorage.setItem('sgx-lang', l); } catch (e) {}
   }, lang);
-  await page.goto(path, { waitUntil: 'domcontentloaded' });
+  /* P4-3 PR-4c：英文无前缀、中文 /zh/；中文用例传不带前缀的地址时直接去 /zh/ 那一页 */
+  await page.goto(lang === 'zh' && !/^\/zh(\/|$)/.test(path) ? '/zh' + path : path, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
 }
 
@@ -57,7 +58,7 @@ async function expectClosed(page) {
 }
 
 test.describe('快捷设置按钮', () => {
-  for (const [path, lang, name] of [['/', 'zh', '快捷设置'], ['/theme/', 'zh', '快捷设置'], ['/en/', 'en', 'Quick settings']]) {
+  for (const [path, lang, name] of [['/', 'zh', '快捷设置'], ['/theme/', 'zh', '快捷设置'], ['/', 'en', 'Quick settings']]) {
     test(`${path}：顶栏「${name}」按钮控制 #sgx-qp（对话框），默认收起；面板只有一页（没有页签、导航列表、横向翻页）`, async ({ page }) => {
       await go(page, path, lang);
       const q = page.locator('.sgx-tb-acts .sgx-tb-quick');
@@ -131,7 +132,7 @@ test.describe('快捷面板：开合', () => {
       /* 顶栏图标真点得到：再点关闭 */
       await page.locator('.sgx-tb-quick').click();
       await expectClosed(page);
-      await expect(page).toHaveURL(path === '/' ? /localhost:\d+\/$/ : /\/theme\/$/);
+      await expect(page).toHaveURL(path === '/' ? /localhost:\d+\/zh\/$/ : /\/zh\/theme\/$/);
       const back = await mainTop(page);
       expect(Math.abs(back.first - before.first)).toBeLessThanOrEqual(0.5);
     });
@@ -235,10 +236,10 @@ test.describe('快捷面板：开合', () => {
 
   test('面板开着点顶栏 logo：先关面板，再跳转（不留哨兵）', async ({ page }) => {
     await go(page, '/');
-    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/theme/', { waitUntil: 'domcontentloaded' });
     await openQp(page);
     await page.locator('.sgx-tb-logo').click();
-    await expect(page).toHaveURL(/localhost:\d+\/$/);
+    await expect(page).toHaveURL(/localhost:\d+\/zh\/$/);
     await page.goBack();
     await expect(page).toHaveURL(/\/theme\/$/);
     await expect(qp(page)).toBeHidden();
@@ -273,14 +274,14 @@ test.describe('快捷面板：开合', () => {
 
   test('系统返回只关面板，停在本页；再返回才离开', async ({ page }) => {
     await go(page, '/');
-    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/theme/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openQp(page);
     await page.goBack();
     await expectClosed(page);
     await expect(page).toHaveURL(/\/theme\/$/);
     await page.goBack();
-    await expect(page).toHaveURL(/localhost:\d+\/$/);
+    await expect(page).toHaveURL(/localhost:\d+\/zh\/$/);
   });
 
   test('刚点开（滑下还没开始）就 Esc / 连点两下：照样关上，之后还能正常打开', async ({ page }) => {
@@ -498,7 +499,7 @@ test.describe('快捷面板：内容', () => {
   }
 
   test('英文文案', async ({ page }) => {
-    await go(page, '/en/', 'en');
+    await go(page, '/', 'en');
     await expect(page.locator('.sgx-tb-quick')).toHaveAttribute('aria-label', 'Quick settings');
     await openQp(page);
     await expect(page.locator('#sgx-qp .sgx-qp-tile .sgx-qp-label')).toHaveText(['Dark mode', 'Follow system', 'Share this page', 'Lock now']);
@@ -526,7 +527,7 @@ test.describe('快捷面板：设置即时生效（和设置同一个 key）', (
     await expect(tile(page, 'dark').locator('[data-qp-state]')).toHaveText('开');
     await expect(tile(page, 'system')).toHaveAttribute('aria-pressed', 'false');
     await expect(qp(page)).toHaveAttribute('data-state', 'open'); /* 不关面板、不刷新 */
-    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/theme/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).toHaveClass(/\bdark\b/);
     await openQp(page);
     await expect(tile(page, 'dark')).toHaveAttribute('aria-pressed', 'true');
@@ -659,7 +660,7 @@ test.describe('快捷面板：设置即时生效（和设置同一个 key）', (
 
   test('语言：行内展开单选（不弹底部窗口）；选 English 写 sgx-lang=en，关面板后去英文同一页，不在历史里多留一步', async ({ page }) => {
     await go(page, '/');
-    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/theme/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openQp(page);
     const lang = tile(page, 'lang');
@@ -677,12 +678,12 @@ test.describe('快捷面板：设置即时生效（和设置同一个 key）', (
     await expect(opts).toBeHidden();
     await lang.click();
     await opts.locator('[data-qp-lang="en"]').click();
-    await expect(page).toHaveURL(/\/en\/theme\/$/);
+    await expect(page).toHaveURL(/localhost:\d+\/theme\/$/);
     expect(await ls(page, 'sgx-lang')).toBe('en');
     await expect(page.locator('.sgx-tb-title')).toHaveText('Style');
     await page.goBack();
-    /* 回到进子页之前的旷野页（语言偏好已是英文，旷野页 replace 到 /en/） */
-    await expect(page).toHaveURL(/localhost:\d+\/(en\/)?$/);
+    /* 回到进子页之前的旷野页（语言偏好已是英文，旷野页 /zh/ replace 到 /） */
+    await expect(page).toHaveURL(/localhost:\d+\/(zh\/)?$/);
   });
 
   test('语言：选和本页相同的语言 = 只保存、收起，不跳页；键盘 ↑↓ 在选项间移动，Esc 收起回到语言行；跟随系统按浏览器语言', async ({ page }) => {
@@ -690,7 +691,7 @@ test.describe('快捷面板：设置即时生效（和设置同一个 key）', (
     await page.addInitScript(() => { try { if (!sessionStorage.getItem('qp-lang-seeded')) { localStorage.setItem('sgx-lang', 'zh'); sessionStorage.setItem('qp-lang-seeded', '1'); } } catch (e) {} });
     await blockExternalRequests(page);
     await freezeTime(page);
-    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/theme/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
     await openQp(page);
     const lang = tile(page, 'lang');
@@ -718,7 +719,7 @@ test.describe('快捷面板：设置即时生效（和设置同一个 key）', (
     const navLang = await page.evaluate(() => navigator.language);
     await lang.click();
     await opts.locator('[data-qp-lang="system"]').click();
-    await expect(page).toHaveURL(/^zh/i.test(navLang) ? /localhost:\d+\/theme\/$/ : /\/en\/theme\/$/);
+    await expect(page).toHaveURL(/^zh/i.test(navLang) ? /\/zh\/theme\/$/ : /localhost:\d+\/theme\/$/);
     expect(await ls(page, 'sgx-lang')).toBeNull();
   });
 
@@ -759,10 +760,10 @@ test.describe('快捷面板：设置即时生效（和设置同一个 key）', (
     await expectClosed(page);
     /* 顶栏没有标签（页名胶囊只显示页名，PR-4b 定稿） */
     await expect(page.locator('.sgx-tb-tab, .sgx-tb-tabs')).toHaveCount(0);
-    await page.locator('.home-wrap [aria-label="分类"] a[href="/theme/"]').click();
+    await page.locator('.home-wrap [aria-label="分类"] a[href="/zh/theme/"]').click();
     await expect(page).toHaveURL(/\/theme\/$/);
     await page.goBack();
-    await expect(page).toHaveURL(/localhost:\d+\/$/);
+    await expect(page).toHaveURL(/localhost:\d+\/zh\/$/);
   });
 });
 
@@ -843,7 +844,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
       return v ? JSON.parse(v).chats[0].msgs.length : 0;
     }).toBe(4);
     /* 换页再开：同一份本地历史 */
-    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/theme/', { waitUntil: 'domcontentloaded' });
     await openAi(page);
     await expect(ai(page).locator('.sgx-ai-msg')).toHaveCount(4);
     /* 新对话：当前对话留在历史里，窗口回到开场白 */
@@ -1130,7 +1131,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText(['第一份对话的问题，比二十个字还要长一点点再多几个字']);
     await expect(inp).toHaveValue('还没发的字');
     /* 换页再开：停在刚载入的那份 */
-    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/theme/', { waitUntil: 'domcontentloaded' });
     await openAi(page);
     await expect(ai(page).locator('.sgx-ai-msg[data-role="user"]')).toHaveText(['第一份对话的问题，比二十个字还要长一点点再多几个字']);
   });
@@ -1208,7 +1209,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     expect(n).toBe(3);
     /* 换页再开：👍👎 随历史 */
     await ops.nth(0).locator('[data-op="up"]').click();
-    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/theme/', { waitUntil: 'domcontentloaded' });
     await openAi(page);
     await expect(ai(page).locator('.sgx-ai-ops').first().locator('[data-op="up"]')).toHaveAttribute('aria-pressed', 'true');
   });
@@ -1244,7 +1245,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   });
 
   test('英文文案', async ({ page }) => {
-    await go(page, '/en/theme/', 'en');
+    await go(page, '/theme/', 'en');
     await openAi(page);
     await expect(ai(page)).toHaveAccessibleName('Ask AI');
     await expect(ai(page).locator('.sgx-ai-title')).toHaveText('Gray AI');
@@ -1281,7 +1282,7 @@ test.describe('顶栏 logo 字标 + 标签页图标跟主题色', () => {
       await page.route('**/favicon.svg', (r) => r.continue());
       await freezeTime(page);
       await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await page.goto('/zh/', { waitUntil: 'domcontentloaded' });
       await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
       const wm = page.locator('.sgx-tb-logo svg.sgx-wordmark');
       await expect(wm).toHaveCount(1);
@@ -1330,7 +1331,7 @@ test.describe('顶栏 logo 字标 + 标签页图标跟主题色', () => {
 test.describe('主站书签已下线', () => {
   test('没有 /bookmarks/ 页面（/browser/ 的去向见 site-search.spec.js）', async ({ page }) => {
     await go(page, '/');
-    for (const p of ['/bookmarks/', '/en/bookmarks/']) {
+    for (const p of ['/bookmarks/', '/zh/bookmarks/']) {
       const r = await page.request.get(p);
       expect(r.status(), p).not.toBe(200);
     }

@@ -1,0 +1,4 @@
+{{- /* 本页语言（P4-3 PR-4c）：主站中英两版都放在默认语言（en）的内容树里，中文页的 url 带 /zh/ 前缀（content/zh/）；
+另有 Hugo 的 zh 语言首页 / 404 / sitemap（.Lang = zh）。返回 "zh" 或 "en"。模板里一律用它判断语言，不要再看 /en/。 */ -}}
+{{- $zh := or (eq .Lang "zh") (hasPrefix .RelPermalink "/zh/") (eq .RelPermalink "/zh") -}}
+{{- return (cond $zh "zh" "en") -}}

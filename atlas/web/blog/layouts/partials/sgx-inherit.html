@@ -11,7 +11,7 @@
   - data-theme（light | dark）和 color-scheme：博客 one-ui.css 的样式钩子，按 SgxUI.apply 的返回值补；跟随系统时系统一变就重落一遍。
   - lang（博客扩展字段，主站写端目前不写）：cookie 版本合法且 lang 是 zh | en，和当前页语言不同、且本页有对应语言版本
     （<meta name="sgx-alt-zh|en">）时 location.replace 过去（带 #hash，爬虫不跳）。
-    没有 cookie 的 lang 时沿用旧行为：只有中文首页按旧的 styrigx-blog-lang / 浏览器语言跳 /en/。
+    没有 cookie 的 lang 时：只有英文首页（/blog/，P4-3 PR-4c 起默认英文）按旧的 styrigx-blog-lang / 浏览器语言跳中文 /blog/zh/（同主站「跟随系统」）。
   - 博客原来的主题开关已删除：旧的 navfolio-theme / sgx-theme-at 本地键清掉，避免盖过主站设置。
 参数：.alt = dict "zh" "/..." "en" "/..."（只在真的有对应版本时给） */ -}}
 {{- $reader := resources.Get "js/sgx/shell/ui-cookie-read.js" | minify -}}
@@ -41,15 +41,15 @@
     let want = cookieLang();
     const path = location.pathname;
     if (!want) {
-      /* 没有 cookie：只在中文首页（/blog/）按本地记忆 / 浏览器语言跳英文 */
+      /* 没有 cookie：只在英文首页（/blog/，默认语言）按本地记忆 / 浏览器语言跳中文 */
       if (path !== '/blog/') return '';
       let stored = null;
       try {
         stored = localStorage.getItem('styrigx-blog-lang');
       } catch {}
-      if (stored === 'zh') return '';
+      if (stored === 'en') return '';
       const nav = (navigator.language || '').toLowerCase();
-      if (stored === 'en' || nav === 'en' || nav.startsWith('en-')) want = 'en';
+      if (stored === 'zh' || nav === 'zh' || nav.startsWith('zh-')) want = 'zh';
       else return '';
     }
     if (want === lang()) return '';

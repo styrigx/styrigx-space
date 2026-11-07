@@ -265,12 +265,13 @@ test('真实构建：拼好的树根文件归主站、三站各在前缀下、�
   }
   assert.equal(readFileSync(path.join(out, '_worker.js'), 'utf8'), read('space/web/static/_worker.js'));
   for (const s of SITES) {
-    for (const f of ['index.html', 'en/index.html', '404.html']) assert.ok(existsSync(path.join(out, s, f)), s + '/' + f);
+    for (const f of ['index.html', 'zh/index.html', '404.html', 'zh/404.html']) assert.ok(existsSync(path.join(out, s, f)), s + '/' + f);
+    assert.equal(existsSync(path.join(out, s, 'en')), false, s + '/en/ 不该存在（P4-3 PR-4c：旧 /en/ 删除不 301）');
     for (const n of ROOT_ONLY) assert.equal(existsSync(path.join(out, s, n)), false, s + '/' + n);
     const html = readFileSync(path.join(out, s, 'index.html'), 'utf8');
     const refs = [...html.matchAll(/(?:href|src)="?(\/[^"\s>]*)/g)].map((m) => m[1]);
     assert.ok(refs.length > 3, s);
-    /* 合并 PR3：导航（2026-11-04 P5-1 起在快捷面板导航页）里另两个子站是同源相对地址 /<站>/（英文 /<站>/en/），主站项 / 账号 / 头像是 https://styrigx.com 绝对地址，其余站内地址都带本站前缀 */
+    /* 合并 PR3：导航（2026-11-04 P5-1 起在快捷面板导航页）里另两个子站是同源相对地址 /<站>/（中文 /<站>/zh/，P4-3 PR-4c），主站项 / 账号 / 头像是 https://styrigx.com 绝对地址，其余站内地址都带本站前缀 */
     const others = SITES.filter((x) => x !== s).map((x) => '/' + x + '/');
     assert.deepEqual(refs.filter((r) => !r.startsWith('/' + s + '/') && !others.includes(r)), [], s + '：站内地址都带 /' + s + '/（另两站的导航项除外）');
     assert.deepEqual(others.filter((o) => !refs.includes(o)), [], s + '：导航页里另两站是相对地址');

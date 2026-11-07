@@ -75,7 +75,8 @@ export function contextBlock(hits, lang) {
  * @returns {Array<{role: 'system'|'user'|'assistant', content: string}>}
  */
 export function buildMessages(o) {
-  const lang = o.lang === 'en' ? 'en' : 'zh';
+  /* P4-3 PR-4c：默认英文（四站默认语言），只有明确 zh 才用中文提示 */
+  const lang = o.lang === 'zh' ? 'zh' : 'en';
   return [
     { role: 'system', content: SYSTEM[lang] + '\n\n' + contextBlock(o.hits, lang) },
     ...normalizeHistory(o.history),

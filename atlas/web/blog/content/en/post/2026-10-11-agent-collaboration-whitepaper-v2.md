@@ -13,7 +13,7 @@ v2.0 refines v1.0's two-plane credential model into an explicit division of labo
 
 Three design decisions carry the whole thing: use the credential that belongs to the repository you are writing to (each key opens exactly one lock, never interchangeable); the main branch is locked by repository-level protection rules and can only be entered via PR + green CI; short-lived credentials expire fast and die in one click when compromised. The spec binds to *roles* (repository owner / execution agent / observer), not to any particular tool or agent product — swapping agents never means swapping the spec.
 
-**This document supersedes v1.0; v1.0 is retained as a historical version.** The original v1.0 text is at [AI Agent Collaboration Whitepaper v1.0](/en/post/2026-10-11-agent-collaboration-whitepaper/).
+**This document supersedes v1.0; v1.0 is retained as a historical version.** The original v1.0 text is at [AI Agent Collaboration Whitepaper v1.0](/blog/post/2026-10-11-agent-collaboration-whitepaper/).
 
 ## 1. Scope and Roles
 

@@ -4,7 +4,7 @@
  * 2026-10-21 线上实测（curl，无凭证）：
  *   styrigx.com/            → 走网关（x-sgx-runtime: worker）
  *   styrigx.com/?x=1        → 不走网关，Pages 直出（public, max-age=300，没有 data-sgx-lock-session）
- *   styrigx.com/en/?lock=1  → 走网关（styrigx.com/en/* 是前缀规则）
+ *   styrigx.com/zh/?lock=1  → 走网关（styrigx.com/zh/* 是前缀规则）
  *   （当时的博客子域名）/about?a → 走网关（/about* 前缀规则连查询串一起比）
  * 所以：
  *   - 不带 * 的规则是「整条 URL（host + path + 查询串）完全相等」才命中，带查询串就不命中；
@@ -20,7 +20,7 @@ export function readRoutes(toml) {
 }
 
 /**
- * @param {string} pattern 例如 'styrigx.com/' 或 'styrigx.com/en/*'
+ * @param {string} pattern 例如 'styrigx.com/' 或 'styrigx.com/zh/*'
  * @param {string} host
  * @param {string} pathAndQuery 例如 '/?lock=1'
  */

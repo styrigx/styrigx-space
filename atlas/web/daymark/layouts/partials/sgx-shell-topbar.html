@@ -37,7 +37,8 @@
       <ul class="sgx-qp-grid sgx-nav-grid">
         {{- range .nav.items }}
         {{- $sub := in (slice "blog" "curio" "daymark") .id }}
-        {{- $p := .path }}{{ if $en }}{{ if $sub }}{{ $p = printf "%sen/" .path }}{{ else }}{{ $p = printf "/en%s" .path }}{{ end }}{{ end }}
+        {{- /* 语言前缀同 sgx-lang-path.html / lib/lang-path.js（外壳只用参数、不调用别的模板，这里照同一规则展开；tests/space/ui/build/lang-default.test.mjs 对表）：英文无前缀，中文主站 /zh/…、子站 /<站>/zh/ */ -}}
+        {{- $p := .path }}{{ if not $en }}{{ if $sub }}{{ $p = printf "%szh/" .path }}{{ else }}{{ $p = printf "/zh%s" .path }}{{ end }}{{ end }}
         {{- if not $sub }}{{ if ne .origin "https://styrigx.com" }}{{ $p = printf "%s%s" .origin $p }}{{ else }}{{ $p = printf "%s%s" ($.mainOrigin | default "") $p }}{{ end }}{{ end }}
         <li><a class="sgx-qp-tile sgx-nav-tile" href="{{ $p }}" data-nav="{{ .id }}"{{ if eq .id $.site }} aria-current="page"{{ end }}><span class="sgx-qp-ic">{{ index $i .icon | safeHTML }}</span><span class="sgx-qp-txt"><span class="sgx-qp-label">{{ cond $en .en .zh }}</span><span class="sgx-qp-state">{{ cond $en .suben .subzh }}</span></span></a></li>
         {{- end }}

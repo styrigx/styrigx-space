@@ -1,5 +1,5 @@
 ---
-title: '设备'
+title: 'Devices'
 layout: account-devices
 url: /account/devices/
 ---

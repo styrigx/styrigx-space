@@ -10,8 +10,8 @@ const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, animationsDone, expect } = require('../helpers/helpers');
 
 const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
-/* 语言偏好固定 zh（/en/ 会按偏好跳回中文），英文页名见 topbar-spec */
-const PAGES = [['/', '旷野'], ['/security/', '安全'], ['/theme/', '风格'], ['/account/', null]];
+/* 语言偏好固定 zh，直接走中文 /zh/…（P4-3 PR-4c：英文在根路径、无前缀），英文页名见 topbar-spec */
+const PAGES = [['/zh/', '旷野'], ['/zh/security/', '安全'], ['/zh/theme/', '风格'], ['/zh/account/', null]];
 
 /**
  * 新开一个上下文：mobile = 手机 UA + userAgentData.mobile = true；pref = localStorage sgx-layout
@@ -89,12 +89,12 @@ for (const [w, h, mobile, pref, mode, width] of CASES) {
 
 test('手机上手动选「桌面」：跨页保持（同源 localStorage），切回「自动」又是手机', async ({ browser }) => {
   const { ctx, page } = await ctxPage(browser, 412, 915, true, null);
-  await open(page, '/theme/');
+  await open(page, '/zh/theme/');
   expect((await measure(page)).layout).toBe('phone');
   await page.evaluate(() => { localStorage.setItem('sgx-layout', 'desktop'); /** @type {any} */ (window).__applyLayout(); });
   await animationsDone(page);
   expect((await measure(page)).layout).toBe('desktop');
-  for (const p of ['/', '/security/', '/account/']) {
+  for (const p of ['/zh/', '/zh/security/', '/zh/account/']) {
     await open(page, p);
     const m = await measure(page);
     expect(m.layout, p).toBe('desktop');
@@ -109,7 +109,7 @@ test('手机上手动选「桌面」：跨页保持（同源 localStorage），�
 
 test('桌面窗口拖窄到 720 以下（自动）：不刷新就落到手机布局，拖回来又是桌面（matchMedia 重算）', async ({ browser }) => {
   const { ctx, page } = await ctxPage(browser, 1280, 800, false, null);
-  await open(page, '/');
+  await open(page, '/zh/');
   expect((await measure(page)).layout).toBe('desktop');
   await page.setViewportSize({ width: 700, height: 800 });
   await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'phone');

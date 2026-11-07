@@ -1,5 +1,5 @@
 ---
-title: '服务状态'
+title: 'Service status'
 layout: status
 url: /status/
 ---

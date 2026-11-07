@@ -60,11 +60,11 @@ test('四个调用点：必需参数都传；site 是本站；PR-4b 起快捷面
   assert.doesNotMatch(rd(CALLERS.atlas), /\$tbTiles/);
 });
 
-test('子站地址：主站项 / 账号 / 头像走 https://styrigx.com，英文账号页 /en/account/；主站自己全是同源相对', () => {
+test('子站地址：主站项 / 账号 / 头像走 https://styrigx.com，中文账号页 /zh/account/（sgx-lang-path.html，P4-3 PR-4c）；主站自己全是同源相对', () => {
   for (const s of SUBS) {
     const a = callArgs(s);
     assert.match(a, /"mainOrigin" "https:\/\/styrigx\.com"/, s);
-    assert.match(a, /"acct" \(cond \$isEn \(replace \$\w+\.me\.href "https:\/\/styrigx\.com\/" "https:\/\/styrigx\.com\/en\/"\) \$\w+\.me\.href\)/, s);
+    assert.match(a, /"acct" \(partial "sgx-lang-path\.html" \(dict "path" \$\w+\.me\.href "lang" \(cond \$isEn "en" "zh"\)\)\)/, s);
     assert.match(a, /"avatar" \$\w+\.me\.avatar/, s);
     assert.match(a, /"langHref" \$langHref/, s + '：语言磁贴去另一种语言的同一页');
   }
@@ -108,7 +108,7 @@ test('真实构建：四站首页（中英）顶栏骨架一致 —— 胶囊顺
   if (!built) { t.skip('还没构建（先 npm run build）'); return; }
   const CUR = { atlas: 'home', blog: 'blog', curio: 'curio', daymark: 'daymark' };
   for (const site of Object.keys(PUB)) {
-    for (const f of ['index.html', 'en/index.html']) {
+    for (const f of ['index.html', 'zh/index.html']) {
       const sk = skeleton(readFileSync(path.join(REPO, PUB[site], f), 'utf8'));
       const at = `${site}/${f}`;
       assert.ok(sk.sorted, at + '：字标 → 页名胶囊 → 九宫格 → 快捷设置 → AI');

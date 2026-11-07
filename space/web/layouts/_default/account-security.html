@@ -8,7 +8,7 @@
    脚本走 ES Module 入口 entry-account-security.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-security.js" }}
-{{ $isEn := or (eq .Lang "en") (hasPrefix .RelPermalink "/en/") }}
+{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 
 <div class="acct-layout pb-28">
 
@@ -18,7 +18,7 @@
     <p class="acct-note mb-3">{{ if $isEn }}Changing account keys is a security action. Verify again to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改账号凭证属于安全操作，请再验证一次。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
     <p class="sgx-credential-err mb-3" id="acct-reauth-notice" hidden></p>
     <div class="sgx-credential-methods animate-fade-up" id="acct-reauth-methods" style="animation-delay:.1s"></div>
-    <a class="acct-cant" id="acct-reauth-cant" href="{{ cond $isEn "/en/account/reset/" "/account/reset/" }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
+    <a class="acct-cant" id="acct-reauth-cant" href="{{ (partial "sgx-lang-path.html" (dict "path" "/account/reset/" "lang" (cond $isEn "en" "zh"))) }}">{{ if $isEn }}Can’t sign in?{{ else }}无法登录？{{ end }}</a>
   </div>
 
   <!-- 门内：验证通过后才渲染（顶部倒计时胶囊由 JS 插入） -->

@@ -2,7 +2,7 @@
 {{/* 搬走的页面（content 里的 aliases，如 /browser/ → /search/）：带上查询串和 # 跳到新地址（location.replace，不留历史）；
    不支持脚本时 meta refresh 兜底。线上 space/web/static/_redirects 里同样有 301。
    目标地址写在 <html data-sgx-to>，内联脚本本身每页一字不差（CSP 只需要一个 sha256，见 space/scripts/gen-csp.mjs）。 */}}
-<html lang="{{ if hasPrefix .Page.RelPermalink "/en/" }}en{{ else }}zh{{ end }}" data-sgx-to="{{ .Page.RelPermalink }}">
+<html lang="{{ partial "sgx-page-lang.html" .Page }}" data-sgx-to="{{ .Page.RelPermalink }}">
 <head>
 <title>{{ .Permalink }}</title>
 <link rel="canonical" href="{{ .Permalink }}">

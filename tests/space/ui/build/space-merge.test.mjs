@@ -21,7 +21,7 @@ const OLD = 'settings';
 const OLD_PATH = '/' + OLD + '/';
 
 const cats = /** @type {any} */ (yaml.load(rd('space/web/data/space-cats.yaml'))).cats.map((/** @type {any} */ c) => String(c.id));
-/** 旷野页之下的新地址（中文；英文前加 /en） */
+/** 旷野页之下的新地址（英文；中文前加 /zh，P4-3 PR-4c） */
 const NEW_PATHS = [...cats.map((c) => '/' + c + '/'), '/security/lock/', '/security/tempkeys/'];
 
 /**
@@ -63,12 +63,12 @@ test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 
   assert.deepEqual([...cats].sort(), ['about', 'security', 'status', 'theme', 'wellbeing']);
   const { SPACE_SUB_RE, wbAreaOf } = await import(pathToFileURL(path.join(REPO, 'space/web/assets/js/lib/wb-area.js')).href);
   for (const p of NEW_PATHS) {
-    assert.ok(SPACE_SUB_RE.test(p) && SPACE_SUB_RE.test('/en' + p), p + ' 应算旷野子页');
+    assert.ok(SPACE_SUB_RE.test(p) && SPACE_SUB_RE.test('/zh' + p), p + ' 应算旷野子页');
     assert.equal(wbAreaOf(p), 'space', p);
   }
   /* content：中英两份，url 都是新地址 */
   const urls = [];
-  for (const dir of ['space/web/content', 'space/web/content/en']) {
+  for (const dir of ['space/web/content', 'space/web/content/zh']) {
     for (const f of readdirSync(path.join(REPO, dir))) {
       if (!f.endsWith('.md')) continue;
       assert.ok(!f.startsWith(OLD), `${dir}/${f}：内容文件不再有 settings 前缀`);
@@ -78,7 +78,7 @@ test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 
   }
   for (const p of NEW_PATHS) {
     assert.ok(urls.includes(p), 'content 里有 ' + p);
-    assert.ok(urls.includes('/en' + p), 'content 里有 /en' + p);
+    assert.ok(urls.includes('/zh' + p), 'content 里有 /zh' + p);
   }
   assert.ok(!urls.some((u) => u.includes(OLD_PATH)), 'content 里没有旧设置层地址');
   /* 顶栏没有标签了（页名胶囊只显示页名，Gray 2026-11-07）：topbar-tabs 数据 / 模板删除 */
@@ -87,7 +87,8 @@ test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 
   /* _redirects：/owner/ 指向新锁屏凭证页；没有任何一条跳到旧设置层 */
   const red = rd('space/web/static/_redirects');
   assert.match(red, /^\/owner\/\s+\/security\/lock\/\s+301$/m);
-  assert.match(red, /^\/en\/owner\/\s+\/en\/security\/lock\/\s+301$/m);
+  /* P4-3 PR-4c：/en/… 旧地址删除不 301，_redirects 里没有 /en/ 开头的规则 */
+  assert.doesNotMatch(red, /^\/en\//m);
   assert.ok(!red.includes(OLD_PATH), '_redirects 里没有旧设置层');
 });
 
@@ -116,14 +117,14 @@ function htmlFiles(dir) {
 
 test('构建产物：没有 settings/ 目录，任何 HTML 都没有 href 指向旧设置层；新地址都在', { skip: !BUILT && '没构建 space/web/public' }, () => {
   for (const pub of PUBS) {
-    for (const pre of ['', 'en/']) assert.ok(!existsSync(path.join(REPO, pub, pre + OLD)), `${pub}/${pre}${OLD}/ 不该存在`);
+    for (const pre of ['', 'zh/', 'en/']) assert.ok(!existsSync(path.join(REPO, pub, pre + OLD)), `${pub}/${pre}${OLD}/ 不该存在`);
   }
   for (const p of NEW_PATHS) {
-    for (const pre of ['', '/en']) assert.ok(existsSync(path.join(REPO, 'space/web/public', pre + p, 'index.html')), '缺 ' + pre + p);
+    for (const pre of ['', '/zh']) assert.ok(existsSync(path.join(REPO, 'space/web/public', pre + p, 'index.html')), '缺 ' + pre + p);
   }
   const bad = [];
   let n = 0;
-  const re = new RegExp('href="?/(en/)?' + OLD + '/');
+  const re = new RegExp('href="?/((en|zh)/)?' + OLD + '/');
   for (const pub of PUBS) {
     for (const f of htmlFiles(path.join(REPO, pub))) {
       n++;
@@ -133,14 +134,15 @@ test('构建产物：没有 settings/ 目录，任何 HTML 都没有 href 指向
   assert.ok(n > 20, '应扫到一批 HTML');
   assert.deepEqual(bad, [], '这些页面还有指向旧设置层的链接');
   /* 旷野页：页名、顶栏标签、分类入口 */
-  const home = readFileSync(path.join(REPO, 'space/web/public/index.html'), 'utf8');
+  /* P4-3 PR-4c：英文 Space 在根，中文旷野在 /zh/ */
+  const home = readFileSync(path.join(REPO, 'space/web/public/zh/index.html'), 'utf8');
   assert.match(home, /<title>旷野 \| Styrigx<\/title>/);
   assert.match(home, /<span class="?sgx-tb-title"?>旷野<\/span>/);
   assert.doesNotMatch(home, /sgx-tb-tab/);
-  for (const c of cats) assert.ok(home.includes(`href="/${c}/"`), '旷野页有 /' + c + '/ 入口');
-  const en = readFileSync(path.join(REPO, 'space/web/public/en/index.html'), 'utf8');
+  for (const c of cats) assert.ok(home.includes(`href="/zh/${c}/"`), '旷野页有 /zh/' + c + '/ 入口');
+  const en = readFileSync(path.join(REPO, 'space/web/public/index.html'), 'utf8');
   assert.match(en, /<title>Space \| Styrigx<\/title>/);
-  for (const c of cats) assert.ok(en.includes(`href="/en/${c}/"`), 'Space 页有 /en/' + c + '/ 入口');
+  for (const c of cats) assert.ok(en.includes(`href="/${c}/"`), 'Space 页有 /' + c + '/ 入口');
 });
 
 /* ---- 全仓：旧设置层地址只允许出现在历史文档 ---- */

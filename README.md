@@ -8,7 +8,7 @@
 
 Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整个站点家族的鉴权网关。
 
-[styrigx.com](https://styrigx.com) · [博客 styrigx.com/blog/](https://styrigx.com/blog/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
+[styrigx.com](https://styrigx.com) · [博客 styrigx.com/blog/zh/](https://styrigx.com/blog/zh/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
@@ -62,9 +62,9 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 
 | 应用 | 路径 | 说明 |
 |---|---|---|
-| 旷野 | `/` | 主站唯一的顶级页（主页和设置合一）：名片、日刻「今日一句」、屏幕时间，下面平铺各分类入口——风格 `/theme/`、安全 `/security/`（锁屏凭证 `/security/lock/`、临时钥匙 `/security/tempkeys/`）、数字健康 `/wellbeing/`、服务状态 `/status/`、关于本站 `/about/`。系统设置存在本地，登录账号后可云同步；服务状态显示主站、规则集、AI 的可用率与故障；临时钥匙含分享短链，新建、作废前要锁侧复验。 |
+| 旷野 | `/zh/`（英文 `/`，默认） | 主站唯一的顶级页（主页和设置合一）：名片、日刻「今日一句」、屏幕时间，下面平铺各分类入口——风格 `/zh/theme/`、安全 `/zh/security/`（锁屏凭证 `/zh/security/lock/`、临时钥匙 `/zh/security/tempkeys/`）、数字健康 `/zh/wellbeing/`、服务状态 `/zh/status/`、关于本站 `/zh/about/`（英文版去掉 `/zh` 前缀）。系统设置存在本地，登录账号后可云同步；服务状态显示主站、规则集、AI 的可用率与故障；临时钥匙含分享短链，新建、作废前要锁侧复验。 |
 | AI 助手 | 顶栏 AI 按钮 | 站内对话助手：先在全站索引里召回，再交给模型（自营 Gemma 4 / GPT-OSS 20B，或外部 Gemini）流式回答（召回只作模型上下文，不显示来源卡片，链接只出现在回答正文里）；对话只存在本地。 |
-| 账号 | `/account/` | 从导航抽屉头的头像进入：账号登录、云同步、设备、账号安全。 |
+| 账号 | `/zh/account/` | 从导航抽屉头的头像进入：账号登录、云同步、设备、账号安全。 |
 
 ## 架构
 
@@ -163,7 +163,7 @@ styrigx-space/
 
 | 仓库 | 地址 | 内容 |
 |---|---|---|
-| **styrigx-space**（本仓库） | [styrigx.com](https://styrigx.com) | 门户与鉴权网关；子站 [博客](https://styrigx.com/blog/)、[奇趣](https://styrigx.com/curio/)、[日刻](https://styrigx.com/daymark/)（2026-11 从 styrigx-atlas 并入） |
+| **styrigx-space**（本仓库） | [styrigx.com](https://styrigx.com) | 门户与鉴权网关；子站 [博客](https://styrigx.com/blog/zh/)、[奇趣](https://styrigx.com/curio/zh/)、[日刻](https://styrigx.com/daymark/zh/)（2026-11 从 styrigx-atlas 并入） |
 
 旧图志域名的 301 跳转已于 2026-11（P4-3 PR-1）删除，该域名下线。
 

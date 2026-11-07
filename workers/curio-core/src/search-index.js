@@ -5,7 +5,7 @@
  *   { site: 'curio', generated: ISO 时间, items: Item[] }
  *   Item = { id, type: 'item', lang: 'zh'|'en', title, subtitle?, text?, url, private?: true }
  *
- * 每条出两条：中文条目（lang zh，链到 /curio/）和英文条目（lang en，链到 /curio/en/）。
+ * 每条出两条：中文条目（lang zh，链到 /curio/zh/）和英文条目（lang en，链到 /curio/）。
  *   - 发现（links）：title = 名字（缺这种语言就用另一种）；subtitle =「发现 · 分类名」/ "Finds · <cat>"；
  *     text = 简介（两种语言）+ 网址；url = 所在分类 #c/<分类 id>（本站没有单条收藏的深链）
  *   - 设备（devices）：title = 名字；subtitle =「设备 · 类型 · 系统」；text = 系统、参数、配件、体验；url = #devices
@@ -26,7 +26,7 @@ import { ensureItemSchema } from './api/_items.js';
 
 export const SITE = 'curio';
 export const KEY = 'site:' + SITE;
-/** 本站在图志下的地址（不带结尾斜杠）：条目链接 = SITE_URL + /（中文）或 /en/（英文）+ hash */
+/** 本站在图志下的地址（不带结尾斜杠）：条目链接 = SITE_URL + /（英文）或 /zh/（中文）+ hash */
 export const SITE_URL = 'https://styrigx.com/curio';
 const TITLE_MAX = 80;
 const TEXT_MAX = 2000;
@@ -61,9 +61,9 @@ function pick(zh, en, lang) {
   return a || String((lang === 'en' ? zh : en) || '').trim();
 }
 
-/** 首页（中文 /，英文 /en/）+ hash */
+/** 首页（P4-3 PR-4c：英文 /curio/，中文 /curio/zh/；同主站 lib/lang-path.js 的规则，Worker 不能 import 前端文件）+ hash */
 export function pageUrl(lang, hash) {
-  return SITE_URL + (lang === 'en' ? '/en/' : '/') + (hash || '');
+  return SITE_URL + (lang === 'zh' ? '/zh/' : '/') + (hash || '');
 }
 
 /** @param {Record<string, any>} it @param {string} subtitle @param {string[]} parts @param {boolean} priv */

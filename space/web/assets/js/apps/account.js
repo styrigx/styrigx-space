@@ -41,6 +41,7 @@ import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
 import { initAiModelRow } from './account-ai.js';
 import { appReturn, appIcon, appName, scopeText, sensitiveText, appsUrl } from './account-grants.js';
 import { toast } from '../lib/toast.js';
+import { langPath } from '../lib/lang-path.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -280,7 +281,7 @@ import { toast } from '../lib/toast.js';
       ariaLabel: en ? 'Choose sign-in method' : '选择登录方式',
       title: en ? 'Sign in' : '登录',
       options: opts,
-      cant: { id: 'acct-cant', text: en ? 'Can’t sign in?' : '无法登录？', href: en ? '/en/account/reset/' : '/account/reset/' },
+      cant: { id: 'acct-cant', text: en ? 'Can’t sign in?' : '无法登录？', href: langPath('/account/reset/', en ? 'en' : 'zh') },
       onClose: function () { if (sheet === ms) sheet = null; },
       onClosed: function (navigating) {
         if (navigating || vd.isOpen()) return;

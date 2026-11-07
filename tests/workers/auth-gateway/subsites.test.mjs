@@ -59,7 +59,7 @@ test('子站判断：只认主域名 styrigx.com + 第一段 blog / curio / daym
     assert.ok(subsiteOf(new URL(u)), u);
   }
   for (const u of ['https://blog.styrigx.com/', 'https://curio.styrigx.com/curio/', 'https://book.styrigx.com/blog/',
-    'https://evil.styrigx.com/blog/', 'https://styrigx.com/', 'https://styrigx.com/blogx/', 'https://styrigx.com/__proto__/', 'https://styrigx.com/en/blog/']) {
+    'https://evil.styrigx.com/blog/', 'https://styrigx.com/', 'https://styrigx.com/blogx/', 'https://styrigx.com/__proto__/', 'https://styrigx.com/zh/blog/']) {
     assert.equal(subsiteOf(new URL(u)), null, u);
   }
 });
@@ -79,7 +79,7 @@ test('路径归一：解码一次、反斜杠、小写、多斜杠、. / .. 段'
 test('路径归哪个站：第一段是 blog / curio / daymark 才算', () => {
   assert.equal(siteOf('/blog/post/x/'), 'blog');
   assert.equal(siteOf('/curio/'), 'curio');
-  assert.equal(siteOf('/daymark/en/'), 'daymark');
+  assert.equal(siteOf('/daymark/zh/'), 'daymark');
   assert.equal(siteOf('/'), null);
   assert.equal(siteOf('/robots.txt'), null);
   assert.equal(siteOf('/__proto__/'), null);
@@ -93,7 +93,7 @@ test('静态资源后缀判断（xml / json / txt 都不算，只有博客 manif
   assert.equal(isStaticAsset('/blog/CSS/A.CSS'), true);
   assert.equal(isStaticAsset('/blog/pagefind/fragment/zh_1.pf_fragment'), false);
   assert.equal(isStaticAsset('/blog/rss.xml'), false);
-  assert.equal(isStaticAsset('/blog/en/rss.xml'), false);
+  assert.equal(isStaticAsset('/blog/zh/rss.xml'), false);
   assert.equal(isStaticAsset('/curio/sitemap.xml'), false);
   /* 带编码 / 多斜杠 / .. 的一律不当静态文件（回源时 Pages 自己解码，指向哪个文件说不准），交给会话检查 */
   for (const p of ['/blog/rss.xml%3F.css', '/blog/rss.xml%23.css', '/blog/%2e%2e/blog/a.css', '//blog/a.css', '/blog/x/../a.css', '/blog\\a.css', '/blog/./a.css']) {
@@ -169,7 +169,7 @@ for (const site of ['blog', 'daymark', 'curio']) {
   });
 
   test(site + '：xml / json（全文 RSS、站点地图、索引）没有会话 302 锁屏、不回源；有会话照常回源', async () => {
-    for (const p of ['/rss.xml', '/en/rss.xml', '/sitemap.xml', '/sitemap-index.xml', '/index.xml', '/index.json']) {
+    for (const p of ['/rss.xml', '/zh/rss.xml', '/sitemap.xml', '/sitemap-index.xml', '/index.xml', '/index.json']) {
       const e = env();
       const res = await worker.fetch(req(base + p), e, CTX);
       assert.equal(res.status, 302, p);
@@ -184,7 +184,7 @@ for (const site of ['blog', 'daymark', 'curio']) {
 
 test('绕法：编码 / 大小写 / 多斜杠 / .. / 反斜杠拼出来的子站路径，没有会话一律不回源（不会落到主站的公开后缀白名单）', async () => {
   for (const p of ['/%62log/rss.xml', '/blog%2Frss.xml', '//blog/rss.xml', '/BLOG/rss.xml', '/Blog/Rss.xml', '/css/..%2Fblog/rss.xml',
-    '/js/%2e%2e/blog/rss.xml', '/blog%5Crss.xml', '/%63urio/sitemap.xml', '//daymark//sitemap.xml', '/fonts/..%2F..%2Fblog/en/rss.xml',
+    '/js/%2e%2e/blog/rss.xml', '/blog%5Crss.xml', '/%63urio/sitemap.xml', '//daymark//sitemap.xml', '/fonts/..%2F..%2Fblog/zh/rss.xml',
     '/blog/rss.xml%3F.css', '/blog/rss.xml%23.js', '/css/..%2Fblog/rss.xml%3F.css']) {
     const e = env();
     const res = await worker.fetch(req('https://styrigx.com' + p), e, CTX);
