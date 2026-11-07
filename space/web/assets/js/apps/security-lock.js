@@ -23,7 +23,7 @@ import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel
 import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockReauthFetch } from '../auth/auth-flow.js';
 import { renderAccountMethods } from '../auth/account-methods.js';
 import { KEY_LOCK } from '../lib/key-names.js';
-import { i18nTable } from '../lib/i18n.js';
+import { i18nTable, fmtDate as fmtIntlDate } from '../lib/i18n.js';
 /** 界面文案：页面字符串表 #sgx-i18n-lockmgr（语言包化 2026-11-07；当前语言已叠在英文上） */
 const tx = i18nTable('lockmgr');
 
@@ -78,13 +78,8 @@ const tx = i18nTable('lockmgr');
   /** @param {number} ts */
   function fmtDate(ts) {
     try {
-      const d = new Date(ts);
-      const p = function (n) {
-        return String(n).padStart(2, '0');
-      };
-      return en
-        ? d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
-        : d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+      /* 按页面语言交给 Intl（en「Oct 22, 2026」，zh「2026年10月22日」；语言包化 2026-11-07） */
+      return fmtIntlDate(ts);
     } catch (e) {
       return '';
     }
@@ -130,10 +125,8 @@ const tx = i18nTable('lockmgr');
         ? (tx('securiSetupComplete'))
         : (tx('expiredReauthTitle')),
       desc: done
-        ? (en ? 'Unlock method is set. Please go back to the lock screen to unlock.'
-              : '解锁方式已设置，请回锁屏解锁')
-        : (en ? 'Please go back to the lock screen to start over.'
-              : '验证已过期，请回锁屏重新开始'),
+        ? tx('securiSetupDoneDesc')
+        : tx('securiExpiredStartOver'),
       dismissible: false,
       buttons: [{
         label: tx('expiredSessionBtn'),

@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:caf137b91ea5 space/web/shared/shell vb1cfa4a82b55（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:ac554cfd0c49 space/web/shared/shell v78e250b5b44e（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- topbar.js ---- */
 /**
  * @fileoverview 顶栏的三个弹出窗口：导航面板 #sgx-nav（九宫格）、快捷面板 #sgx-qp（快捷设置）、AI 窗口 #sgx-ai（2026-11-04 P5-1；P4-3 PR-4b Gray 2026-11-07 定稿）。
@@ -18,17 +18,42 @@
  */
 
 const QP_MS = 240;
-const STR = {
-  zh: { on: '开', off: '关', auto: '自动', phone: '手机', desktop: '桌面', sys: '跟随系统', lockArm: '再点一下锁定', lockBack: '回到锁屏', lockFail: '锁定失败，请检查网络后重试' },
-  en: { on: 'On', off: 'Off', auto: 'Auto', phone: 'Phone', desktop: 'Desktop', sys: 'Follow system', lockArm: 'Tap again to lock', lockBack: 'Back to lock screen', lockFail: 'Couldn’t lock. Check your connection.' },
+/** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-shell 的 topbar 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
+const STR_EN = {
+  on: "On",
+  off: "Off",
+  auto: "Auto",
+  phone: "Phone",
+  desktop: "Desktop",
+  sys: "Follow system",
+  lockArm: "Tap again to lock",
+  lockBack: "Back to lock screen",
+  lockFail: "Couldn’t lock. Check your connection."
 };
+/** @param {Document} doc @returns {Record<string, string>} */
+function shellStr(doc) {
+  /** @type {Record<string, string>} */
+  let page = {};
+  try {
+    const el = doc && doc.getElementById ? doc.getElementById('sgx-i18n-shell') : null;
+    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
+    if (o && o.topbar && typeof o.topbar === 'object') page = o.topbar;
+  } catch (e) {}
+  return Object.assign({}, STR_EN, page);
+}
 /** 第二下确认的时限（子站立即锁定） */
 const LOCK_ARM_MS = 3000;
 
-/** 语言偏好 → 实际语言（跟随系统看浏览器语言） @param {string} v @param {string} [nav] */
-export function resolveLang(v, nav) {
-  if (v === 'zh' || v === 'en') return v;
-  return /^zh\b/i.test(String(nav || '')) ? 'zh' : 'en';
+/**
+ * 语言偏好 → 实际语言（跟随系统看浏览器语言；语言列表第一项是默认语言 = 英文）
+ * @param {string} v @param {string} [nav] @param {string[]} [langs] 本站语言（默认 en、zh；页面上取快捷面板的语言选项）
+ */
+export function resolveLang(v, nav, langs) {
+  const L = langs && langs.length ? langs : ['en', 'zh'];
+  if (v && v !== 'system' && L.indexOf(v) >= 0) return v;
+  const n = String(nav || '').toLowerCase();
+  for (const c of L) if (n === c || n.indexOf(c + '-') === 0) return c;
+  return L[0];
 }
 
 /**
@@ -71,8 +96,7 @@ export function mountTopbar(o) {
   const qpDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-qp'));
   const aiBtn = /** @type {HTMLElement|null} */ (doc.querySelector('.sgx-tb-ai'));
   const aiDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-ai'));
-  const en = doc.documentElement.lang === 'en';
-  const t = en ? STR.en : STR.zh;
+  const t = shellStr(doc);
   const navigate = o.navigate || function (/** @type {string} */ u) { location.href = u; };
   const replace = o.replace || function (/** @type {string} */ u) { location.replace(u); };
   /** @type {any[]} */
@@ -165,7 +189,7 @@ export function mountTopbar(o) {
   let paint = function () {};
   if (qpBtn && qpDlg) {
     const P = o.prefs;
-    const pageLang = en ? 'en' : 'zh';
+    const pageLang = doc.documentElement.lang || 'en';
     /** @param {string} id */
     const tile = function (id) { return /** @type {HTMLElement|null} */ (qpDlg.querySelector('[data-qp="' + id + '"]')); };
     const langBtn = tile('lang');
@@ -179,10 +203,14 @@ export function mountTopbar(o) {
       if (lockTile) lockTile.removeAttribute('data-armed');
       if (lockState) lockState.textContent = t.lockBack;
     };
-    /** 语言偏好：zh / en；其他（'' / system / 没传 langPref 时的未知）= 跟随系统 */
+    /** 语言偏好：快捷面板里列出的某种语言（hugo.yaml languages）；其他（'' / system / 没传 langPref 时的未知）= 跟随系统 */
+    /** @param {string} v */
+    const langOpt = function (v) {
+      return v && v !== 'system' ? qpDlg.querySelector('[data-qp-lang="' + String(v).replace(/[^a-z-]/gi, '') + '"]') : null;
+    };
     const langPref = function () {
       const v = P.langPref ? P.langPref() : pageLang;
-      return v === 'zh' || v === 'en' ? v : 'system';
+      return langOpt(v) ? v : 'system';
     };
     /** @param {boolean} open */
     const setLangOpen = function (open) {
@@ -219,7 +247,9 @@ export function mountTopbar(o) {
         if (bv === 'auto') b.textContent = t.auto + ' · ' + (autoRes === 'phone' ? t.phone : t.desktop);
       });
       const lv = langPref();
-      if (langVal) langVal.textContent = lv === 'system' ? t.sys : lv === 'en' ? 'English' : '中文';
+      /* 语言名用选项上它自己的写法（模板来自 hugo.yaml languageName，不翻译） */
+      const lo = langOpt(lv);
+      if (langVal) langVal.textContent = lv === 'system' ? t.sys : (lo && lo.textContent ? lo.textContent.trim() : lv);
       qpDlg.querySelectorAll('[data-qp-lang]').forEach(function (b) {
         b.setAttribute('aria-checked', b.getAttribute('data-qp-lang') === lv ? 'true' : 'false');
         b.setAttribute('tabindex', b.getAttribute('data-qp-lang') === lv ? '0' : '-1');
@@ -250,7 +280,7 @@ export function mountTopbar(o) {
         const url = P.setLang(/** @type {any} */ (v)) || '';
         setLangOpen(false);
         paint();
-        const target = resolveLang(v, (typeof navigator !== 'undefined' && navigator.language) || '');
+        const target = resolveLang(v, (typeof navigator !== 'undefined' && navigator.language) || '', Array.prototype.map.call(qpDlg.querySelectorAll('[data-qp-lang]'), function (/** @type {Element} */ x) { return x.getAttribute('data-qp-lang') || ''; }).filter(function (/** @type {string} */ c) { return c && c !== 'system'; }));
         const here = location.pathname + location.search + location.hash;
         const go = url ? (url !== here ? url : '') : target !== pageLang ? (langBtn && langBtn.getAttribute('data-href')) || '' : '';
         if (go) ms.close(function () { replace(go); });
@@ -337,7 +367,7 @@ export function mountTopbar(o) {
     /** @type {any} */
     let chat = null;
     ai = wire(aiBtn, aiDlg, 'sgxAi', function () {
-      if (!chat && o.ai) chat = o.ai(aiDlg, { lang: en ? 'en' : 'zh', close: function (/** @type {any} */ after) { if (ai) ai.ms.close(after); }, navigate: navigate, keyboard: o.keyboard }) || {};
+      if (!chat && o.ai) chat = o.ai(aiDlg, { lang: doc.documentElement.lang || 'en', close: function (/** @type {any} */ after) { if (ai) ai.ms.close(after); }, navigate: navigate, keyboard: o.keyboard }) || {};
       if (chat && chat.onOpen) chat.onOpen();
     });
   }

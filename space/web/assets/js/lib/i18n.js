@@ -90,3 +90,30 @@ export function pageLang(doc) {
   const d = doc || (typeof document !== 'undefined' ? document : null);
   return (d && d.documentElement && d.documentElement.lang) || 'en';
 }
+
+/**
+ * 日期按页面语言交给 Intl（语言包化 2026-11-07，取代手拼「2026年10月22日」/ 写死英文月份）：
+ * en「Oct 22, 2026」，zh「2026年10月22日」；opts 覆盖默认的 { year: 'numeric', month: 'short', day: 'numeric' }。
+ * @param {Date|number|string} d @param {Intl.DateTimeFormatOptions} [opts] @param {string} [lang]
+ */
+export function fmtDate(d, opts, lang) {
+  const dt = d instanceof Date ? d : new Date(d);
+  if (isNaN(dt.getTime())) return '';
+  try {
+    return new Intl.DateTimeFormat(lang || pageLang(), opts || { year: 'numeric', month: 'short', day: 'numeric' }).format(dt);
+  } catch (e) {
+    return dt.toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * 时长按页面语言交给 Intl（unit 格式）：en「3 hours」，zh「3小时」。
+ * @param {number} n @param {'minute'|'hour'|'day'|'second'} unit @param {string} [lang]
+ */
+export function fmtUnit(n, unit, lang) {
+  try {
+    return new Intl.NumberFormat(lang || pageLang(), { style: 'unit', unit: unit, unitDisplay: 'long' }).format(n);
+  } catch (e) {
+    return n + ' ' + unit + (n === 1 ? '' : 's');
+  }
+}

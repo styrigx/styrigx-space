@@ -18,6 +18,7 @@ import { postJSON, errText } from '../auth/account-api.js';
 import { withLockReauth, needsLockReauth } from '../auth/lock-reauth.js';
 import { createT } from './account-common.js';
 import { leftText, durationParam } from './security-tempkeys.js';
+import { fmtDate, fmtUnit } from '../lib/i18n.js';
 
 /** 分享短链管理接口（styrigx-share） */
 export const SHARE_API = '/api/share';
@@ -59,13 +60,10 @@ export function targetParam(v) {
  * @param {number} sec
  */
 export function sessLabel(en, sec) {
-  if (sec < 3600) return en ? Math.round(sec / 60) + ' minutes' : Math.round(sec / 60) + ' 分钟';
-  if (sec < 86400) {
-    const h = Math.round(sec / 3600);
-    return en ? h + (h === 1 ? ' hour' : ' hours') : h + ' 小时';
-  }
-  const d = Math.round(sec / 86400);
-  return en ? d + (d === 1 ? ' day' : ' days') : d + ' 天';
+  /* 按页面语言交给 Intl（en「3 hours」，zh「3小时」；语言包化 2026-11-07，参数 en 保留兼容） */
+  if (sec < 3600) return fmtUnit(Math.round(sec / 60), 'minute');
+  if (sec < 86400) return fmtUnit(Math.round(sec / 3600), 'hour');
+  return fmtUnit(Math.round(sec / 86400), 'day');
 }
 
 /**
@@ -76,8 +74,8 @@ export function sessLabel(en, sec) {
 export function whenText(en, ms) {
   const d = new Date(ms);
   const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-  if (en) return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + ' ' + d.getDate() + ', ' + hm;
-  return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + hm;
+  /* 日期按页面语言交给 Intl（en「Oct 25 16:00」，zh「10月25日 16:00」） */
+  return fmtDate(d, { month: 'short', day: 'numeric' }) + ' ' + hm;
 }
 
 /**

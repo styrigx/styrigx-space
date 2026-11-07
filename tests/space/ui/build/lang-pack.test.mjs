@@ -210,7 +210,7 @@ test('JS 字符串表（语言包化 2026-11-07）：i18nTable(表) 的 tx(键) 
     const m = /const (\w+) = i18nTable\('([\w-]+)'\)/.exec(src);
     if (!m || f.endsWith(path.join('lib', 'i18n.js'))) continue;
     const [, fn, table] = m;
-    const re = new RegExp('\\b' + fn + "\\('([\\w.-]+)'", 'g');
+    const re = new RegExp('\\b' + fn + "\\('([\\w.-]+)'[,)]", 'g');
     for (const [, key] of src.matchAll(re)) {
       if (!en[table] || en[table][key] == null) bad.push(path.relative(REPO, f) + ': ' + table + '.' + key);
     }

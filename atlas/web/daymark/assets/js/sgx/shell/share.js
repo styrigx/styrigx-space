@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:caf137b91ea5 space/web/shared/shell vb1cfa4a82b55（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:ac554cfd0c49 space/web/shared/shell v78e250b5b44e（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- share.js ---- */
 /**
  * @fileoverview 「分享本页」（共享外壳组件，2026-10-24；gen-shell 原样复制成 space/web/shared/shell/share.js，三个子站 sync-shell 同步）。
@@ -29,46 +29,37 @@ export const QUICK = Object.freeze({ hours: 24, session: 12 * 3600 });
 export const STRIP_PARAMS = Object.freeze(['lock', 'why', 'return', 'share']);
 export const NAME_MAX = 24;
 
-const STR = {
-  zh: {
-    share: '分享',
-    copied: '已复制分享链接',
-    copyFail: '复制失败，请稍后再试',
-    busy: '正在生成分享链接…',
-    session: '锁屏会话已失效，请重新解锁后再分享',
-    full: '分享短链已满 20 条，先去主站作废几条',
-    fail: '生成分享链接失败，请稍后再试',
-    rTitle: '验证锁屏凭证',
-    rDesc: '生成分享链接前，先验证一次锁屏凭证',
-    rPasskey: '锁屏通行密钥',
-    rPassword: '解锁密码',
-    rVerify: '验证',
-    rCancel: '取消',
-    rWrong: '密码错误',
-    rLocked: '尝试次数过多，请稍后再试',
-    rFail: '验证失败',
-    rNone: '这台设备上没有可用的锁屏凭证',
-  },
-  en: {
-    share: 'Share',
-    copied: 'Share link copied',
-    copyFail: 'Couldn’t copy. Please try again',
-    busy: 'Creating share link…',
-    session: 'Your session has expired. Unlock again to share',
-    full: 'You already have 20 share links. Revoke some on styrigx.com first',
-    fail: 'Couldn’t create a share link. Please try again',
-    rTitle: 'Verify lock screen credential',
-    rDesc: 'Verify your lock screen credential before creating a share link',
-    rPasskey: 'Lock screen passkey',
-    rPassword: 'Unlock password',
-    rVerify: 'Verify',
-    rCancel: 'Cancel',
-    rWrong: 'Wrong password',
-    rLocked: 'Too many attempts, please try again later',
-    rFail: 'Verification failed',
-    rNone: 'No lock screen credential is available here',
-  },
+/** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-shell 的 share 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
+const STR_EN = {
+  share: "Share",
+  copied: "Share link copied",
+  copyFail: "Couldn’t copy. Please try again",
+  busy: "Creating share link…",
+  session: "Your session has expired. Unlock again to share",
+  full: "You already have 20 share links. Revoke some on styrigx.com first",
+  fail: "Couldn’t create a share link. Please try again",
+  rTitle: "Verify lock screen credential",
+  rDesc: "Verify your lock screen credential before creating a share link",
+  rPasskey: "Lock screen passkey",
+  rPassword: "Unlock password",
+  rVerify: "Verify",
+  rCancel: "Cancel",
+  rWrong: "Wrong password",
+  rLocked: "Too many attempts, please try again later",
+  rFail: "Verification failed",
+  rNone: "No lock screen credential is available here"
 };
+/** @param {Document} doc @returns {Record<string, string>} */
+function shellStr(doc) {
+  /** @type {Record<string, string>} */
+  let page = {};
+  try {
+    const el = doc && doc.getElementById ? doc.getElementById('sgx-i18n-shell') : null;
+    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
+    if (o && o.share && typeof o.share === 'object') page = o.share;
+  } catch (e) {}
+  return Object.assign({}, STR_EN, page);
+}
 
 /** 当前页 → 要分享的地址：origin + pathname + search（不带 #），去掉锁屏 / 回跳 / 分享参数 @param {{origin:string, pathname:string, search:string}} loc */
 export function pageUrl(loc) {
@@ -371,7 +362,7 @@ export function mountShare(cfg) {
   const btn = c.button || doc.querySelector('[data-sgx-share]');
   if (!btn || /** @type {any} */ (btn).__sgxShare) return null;
   const lang = c.lang || (/^en/i.test(doc.documentElement.lang || '') ? 'en' : 'zh');
-  const t = STR[lang] || STR.zh;
+  const t = shellStr(doc);
   const toast = c.toast || makeToast(doc);
   let busy = false;
 

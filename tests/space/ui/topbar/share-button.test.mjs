@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderAll } from '../../../../space/scripts/gen-shell.mjs';
+import { strings } from '../../../fixtures/strings.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const S = await import(path.join(REPO, 'space/web/assets/js/shell/share-button.js'));
@@ -119,7 +120,9 @@ function fakeDom() {
     setAttribute: (k, v) => { attrs[k] = v; }, removeAttribute: (k) => { delete attrs[k]; },
     addEventListener: (_t, fn) => { onClick = fn; },
   };
-  const doc = { title: '文章 · 博客', documentElement: { lang: 'zh-CN', getAttribute: () => null }, querySelector: () => btn, createElement: () => { throw new Error('no dom'); }, body: {} };
+  /* 页面上的外壳字符串表 #sgx-i18n-shell（语言包化 2026-11-07：share.js 从这里取文案，中文页 = 英文 ← 中文的合并） */
+  const shellTable = JSON.stringify(strings('space', 'zh').shell);
+  const doc = { title: '文章 · 博客', documentElement: { lang: 'zh-CN', getAttribute: () => null }, querySelector: () => btn, getElementById: (id) => (id === 'sgx-i18n-shell' ? { textContent: shellTable } : null), createElement: () => { throw new Error('no dom'); }, body: {} };
   return { btn, doc, attrs, cls, click: () => onClick({ preventDefault() {} }) };
 }
 

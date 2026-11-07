@@ -71,7 +71,7 @@ export function pwFieldHtml(o) {
   return '<div class="sgx-pw-field">' + (o.pmUser ? pmUserHtml(o.pmUser) : '') + '<input type="password" id="' + o.id + '" class="sgx-pw-input" autocomplete="' + o.autocomplete + '" ' +
     (o.ariaLabel !== undefined ? 'aria-label="' + o.ariaLabel + '" ' : '') +
     'placeholder="' + o.placeholder + '">' +
-    '<button type="button" class="sgx-pw-eye" id="' + o.eyeId + '" aria-label="' + (o.en ? 'Show password' : '显示密码') + '"></button></div>';
+    '<button type="button" class="sgx-pw-eye" id="' + o.eyeId + '" aria-label="' + tx('authShowPassword') + '"></button></div>';
 }
 
 /**

@@ -1,5 +1,6 @@
 # 共享外壳字符串表：中文翻译（源文本见 en.yaml；缺的键自动用英文）。
 topbar:
+  sys: 跟随系统
   home: Styrigx 首页
   sites: 站点
   quick: 快捷设置

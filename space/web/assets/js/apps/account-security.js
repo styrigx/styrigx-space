@@ -26,6 +26,7 @@ import { bindSubmitButton } from '../lib/dialog-behavior.js';
 import { accountUrl, createT, signalAccountName } from './account-common.js';
 import { ACCOUNT_API, postJSON, errText as errTextT } from '../auth/account-api.js';
 import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/account-methods.js';
+import { fmtDate as fmtIntlDate } from '../lib/i18n.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -156,11 +157,8 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
   /** @param {number} ts */
   function fmtDate(ts) {
     try {
-      const d = new Date(ts);
-      const p = function (n) { return String(n).padStart(2, '0'); };
-      return en
-        ? d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
-        : d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+      /* 按页面语言交给 Intl（en「Oct 22, 2026」，zh「2026年10月22日」；语言包化 2026-11-07） */
+      return fmtIntlDate(ts);
     } catch (e) {
       return '';
     }

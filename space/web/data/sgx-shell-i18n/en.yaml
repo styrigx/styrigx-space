@@ -3,6 +3,7 @@
 # 加一种语言：放一份 <语言>.yaml（缺的键自动用英文），各站 hugo.yaml languages 加一项。
 # 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（名字、邮箱、账号名……原样渲染，见 partials/sgx-personal.html）、语言自己的名字（用 hugo.yaml languageName / label）。
 topbar:
+  sys: Follow system
   home: Styrigx home
   sites: Sites
   quick: Quick settings
