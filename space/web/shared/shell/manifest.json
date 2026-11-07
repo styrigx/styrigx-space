@@ -7,14 +7,14 @@
     "shell.css": "406e27d7d21e8441095c44d395815bc5c7b6239362a2a85ba1084c0a8c90f406",
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "da46a782fdf9f80c24fae06bbbd83e5e29894a5c1db87b9e754071637ae158ca",
-    "topbar.html": "0fc9f0ef97ce96ea8a68caa53c77e8888e36ccc2fcf54f180f854c78ad4b4cb9",
+    "topbar.html": "dc876f034b39001415d62e7c5db4bdd46ca2beb6abc1e74d88b232bdb9969359",
     "entries.html": "08aa5362ea90368c2a594485c275e94cac2ca74e7013378f0ad46979fb7708b8",
     "topbar.js": "dc305852dfe065f65aa66fafdb3fd35938aa5b62d20521cd02a8399b8cd1204e",
     "modal-sheet.js": "c409104c3553e63351ee05abadb2e8999aa82692b7bbae021f3ea19f2352071b",
-    "ai.js": "8dd80a5a70d8a5d246c9cf3cc12d6f2c3eb80a4fda4766cf1d53c6e2c9699631",
+    "ai.js": "d7d1b9be55cf46dfb29b0c8a65ad62038adf7787c387ca9c6fca367fd657c484",
     "vk.js": "3bc7000ba510e8a7cbc1dd420e85cffdc23e0c5bd8184f4421d5e57f22ad7633",
     "prefs-write.js": "b28b056a311d48d2eee57742c4542eec13e58a03fbbfca39c28b8dbccd260364",
-    "nav.json": "fc5280b1311316bf52506bb4b5855abf9928d2697b0715f369f331a5d0d8e86b",
+    "nav.json": "0e3f8ec0011f543d27743a7745b7bc32a20113250cc7a635c91df41ca463a477",
     "palettes.json": "f3779c13ef0033910d9a4afa0f44bdb81daaf9649c875e451656980240fd3a10",
     "ui-cookie-read.js": "826b3a701c57fa9638bb009f61a1275ed10b68bc921546eeb301e3fea761af51",
     "layout-mode.js": "8bd693670ddb355e692d0af3ab6c05784f6fbfb067188fff58e6521799b883e8",
@@ -29,6 +29,6 @@
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "53484df4aa7ecfd3ea06f914531d754700a0c73c4e4a8a60a9440f5472fdde37"
   },
-  "version": "78e250b5b44e",
+  "version": "57dad80a21d7",
   "rulesVersion": "palette-rules-1"
 }

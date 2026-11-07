@@ -68,8 +68,10 @@ test('nav.json：旷野 / 奇趣 / 日刻 / 博客（PR-4b：主站一项改名�
   // P4-2b：搜索层删了，nav.json 没有 search 段，也没有它的 ai-search 图标
   assert.equal(nav.search, undefined);
   assert.equal(nav.icons['ai-search'], undefined);
-  // 顶栏头像（子站链到主站账号页）
-  assert.deepEqual(nav.me, { href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp' });
+  // 顶栏头像（子站链到主站账号页）；2026-11-07 个人资料：me.email = data/profile.yaml 的对外联系邮箱（gen-shell 注入，子站 AI 窗口「联系我」默认值）
+  const prof = yaml.load(readFileSync(path.join(REPO, 'space/web/data/profile.yaml'), 'utf8'));
+  assert.deepEqual(nav.me, { href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp', email: prof.email });
+  assert.equal(prof.email, 'styrigx@gmail.com');
   const tr = { en: yaml.load(files['i18n-en.yaml']), zh: yaml.load(files['i18n-zh.yaml']) };
   assert.deepEqual(nav.items.map((i) => tr.zh.nav[i.id].title), ['旷野', '奇趣', '日刻', '博客']);
   assert.deepEqual(nav.items.map((i) => tr.en.nav[i.id].title), ['Space', 'Curio', 'Daymark', 'Blog']);
@@ -184,7 +186,9 @@ test('头像在 AI 窗口头部（PR-4b）：圆形 + 主题色环（同主页�
   assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), 'Gray AI → 新对话 → 历史 → 头像');
   assert.match(head, /<img src="\{\{ \.avatar \}\}" alt="" width="36" height="36" class="sgx-ai-avatar" data-sgx-avatar="192">/);
   assert.doesNotMatch(src, /sgx-ai-actions|sgx-ai-pill/, '新对话 / 历史 / 联系按钮行删了');
-  assert.match(src, /<a class="sgx-ai-contact" data-ai-contact href="mailto:styrigx@gmail\.com">\{\{ \$t\.topbar\.contact \}\}<\/a>/);
+  /* 2026-11-07：邮箱由调用方传参 email（主站 profile.yaml、子站 nav.json me.email），外壳不写死 */
+  assert.match(src, /<a class="sgx-ai-contact" data-ai-contact\{\{ with \.email \}\} href="mailto:\{\{ \. \}\}"\{\{ end \}\}>\{\{ \$t\.topbar\.contact \}\}<\/a>/);
+  assert.doesNotMatch(src, /styrigx@gmail\.com/);
   assert.doesNotMatch(src, /ai@styrigx\.com/);
   const lock = readFileSync(path.join(REPO, 'space/web/assets/js/shell/lock.js'), 'utf8');
   assert.match(lock, /'<span class="' \+ b\.className \+ '">'/, 'lock.js 抄顶栏按钮要带原类名');

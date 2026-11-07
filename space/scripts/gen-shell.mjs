@@ -16,6 +16,7 @@
  *   vk.js              键盘高度订阅（space/web/assets/js/shell/vk.js 原样复制；不 import；入口把 onKeyboardHeight 传给 mountTopbar，转给 AI 窗口跟键盘，P4-3 PR-3）
  *   prefs-write.js     外观写端（space/web/assets/js/lib/prefs-write.js 原样复制；不 import；子站快捷设置用，定案第 5 条）
  *   nav.json           快捷面板导航页的项（space/web/data/shell-nav.json）+ 用到的图标 SVG（space/web/layouts/partials/icon.html）
+ *                      + me.email：对外联系邮箱（space/web/data/profile.yaml 的 email，2026-11-07 个人资料；子站 AI 窗口「联系我」的默认值）
  *                      + 字标 SVG wordmark（space/web/layouts/partials/shell-wordmark.html；brand 文字照旧保留）
  *   palettes.json      预设 id / 名字 / 分组 / 种子 / 背景色 / 6 前景 + 每套亮暗的 Shell + Semantic token 值（含 bg-1..7、chart-1..6）
  *                      + 默认值 + 子站自定义色缓存版本号（子站只消费，不自己定义主题色）
@@ -39,6 +40,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import yaml from 'js-yaml';
 import { renderBlock } from './gen-palettes.mjs';
 import { DEFAULT_ID, GROUPS } from '../web/assets/js/lib/palette-scheme.js';
 
@@ -49,6 +51,7 @@ const SRC = {
   css: path.join(REPO, 'space/web/assets/css/input.css'),
   scheme: path.join(REPO, 'space/web/assets/js/lib/palette-scheme.js'),
   nav: path.join(REPO, 'space/web/data/shell-nav.json'),
+  profile: path.join(REPO, 'space/web/data/profile.yaml'),
   icons: path.join(REPO, 'space/web/layouts/partials/icon.html'),
   wordmark: path.join(REPO, 'space/web/layouts/partials/shell-wordmark.html'),
   share: path.join(REPO, 'space/web/assets/js/shell/share-button.js'),
@@ -170,8 +173,12 @@ function renderNav() {
   const icons = {};
   for (const n of names) icons[n] = extractIcon(html, n);
   const wordmark = readWordmark();
+  /* 2026-11-07 个人资料：对外联系邮箱的默认值（profile.yaml 是唯一来源，子站从 me.email 传给顶栏） */
+  const prof = yaml.load(readFileSync(SRC.profile, 'utf8')) || {};
+  if (typeof prof.email !== 'string' || !prof.email) throw new Error('space/web/data/profile.yaml 缺 email');
+  nav.me = Object.assign({}, nav.me || {}, { email: prof.email });
   return (
-    JSON.stringify({ _generated: 'styrigx-space space/scripts/gen-shell.mjs ← space/web/data/shell-nav.json + icon.html + shell-wordmark.html；勿手改', ...nav, wordmark, icons }, null, 2) +
+    JSON.stringify({ _generated: 'styrigx-space space/scripts/gen-shell.mjs ← space/web/data/shell-nav.json + profile.yaml（me.email）+ icon.html + shell-wordmark.html；勿手改', ...nav, wordmark, icons }, null, 2) +
     '\n'
   );
 }

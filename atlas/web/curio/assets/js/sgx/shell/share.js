@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:ac554cfd0c49 space/web/shared/shell v78e250b5b44e（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:948f47e9d9f6 space/web/shared/shell v57dad80a21d7（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- share.js ---- */
 /**
  * @fileoverview 「分享本页」（共享外壳组件，2026-10-24；gen-shell 原样复制成 space/web/shared/shell/share.js，三个子站 sync-shell 同步）。

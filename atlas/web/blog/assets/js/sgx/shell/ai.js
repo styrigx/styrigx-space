@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:ac554cfd0c49 space/web/shared/shell v78e250b5b44e（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:948f47e9d9f6 space/web/shared/shell v57dad80a21d7（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- ai.js ---- */
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
@@ -13,7 +13,9 @@
  *   四站同源所以同一台设备上是同一份（同源带来的，不是同步）；
  *   lib/cloud-sync.js 的白名单不收这个键，不跨设备。发给服务端的 history 只带最近 6 条 {role, text}（服务端再截 2000 字）。
  * - 头部一行（P4-3 PR-4b，Gray 2026-11-07）：标题 Gray AI；右边新对话图标（data-ai-clear：当前对话已在历史里，开一份空的）/ 历史图标（data-ai-history：
- *   窗口内的列表视图，不是底部弹出窗口）/ 头像（账号页）。联系挪到底部那行「仅公开内容 · 联系我」（data-ai-contact：mailto:styrigx@gmail.com）。
+ *   窗口内的列表视图，不是底部弹出窗口）/ 头像（账号页）。联系挪到底部那行「仅公开内容 · 联系我」（data-ai-contact：mailto:<对外联系邮箱>）。
+ *   邮箱（2026-11-07 个人资料）：模板按各站传入的默认值（data/profile.yaml 的 email）画 href；挂载和每次打开时再读本机缓存
+ *   localStorage sgx-profile（主站 lib/profile.js 进门后从 GET /api/profile 写的；四站同源同一份），有改过的合法邮箱就换上。这里不发请求。
  *   底部小字的「仅公开内容 / 包含私密内容」在 data-ai-scope 上。空态显示开场白（助手气泡样式，不存历史）。
  * - 每条助手回答下（§3.4）：复制 / 重试（重问前面那条提问，替换这条回答）/ 👍 / 👎（只存本地，记在该条消息的 rate 上，再点取消）。
  * - 模型（P4-2d）：账号页「AI 模型」一行把选择存在 localStorage sgx-ai-model（进云同步，换设备跟着走）；这里发问时有就带上 body.model，
@@ -37,6 +39,10 @@ export const SEND_HISTORY = 6;
 export const Q_MAX = 200;
 /** 账号页选的模型 id（P4-2d；四站同源同一份；lib/cloud-sync.js 的 EXTRA 收这个键） */
 export const MODEL_KEY = 'sgx-ai-model';
+/** 个人资料本机缓存（主站 lib/profile.js PROFILE_CACHE_KEY 同一个键；{v:1, p:{email…}, t}） */
+export const PROFILE_KEY = 'sgx-profile';
+/** 邮箱格式（与主站 lib/profile.js EMAIL_RE 同一条） */
+const EMAIL_RE = /^[^\s@<>()",;:\\]+@[^\s@<>()",;:\\]+\.[^\s@<>()",;:\\.]{2,}$/;
 
 /** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-shell 的 ai 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
 const STR_EN = {
@@ -164,6 +170,16 @@ export function loadModel(store) {
     return '';
   }
 }
+/** 本机缓存里改过的对外联系邮箱（没有 / 坏了 / 不像邮箱 = ''，用模板默认值） @param {Storage|null} [store] */
+export function cachedEmail(store) {
+  try {
+    const j = JSON.parse((store || window.localStorage).getItem(PROFILE_KEY) || 'null');
+    const e = j && j.v === 1 && j.p && typeof j.p.email === 'string' ? j.p.email.trim() : '';
+    return e && e.length <= 254 && EMAIL_RE.test(e) ? e : '';
+  } catch (e) {
+    return '';
+  }
+}
 /** 清掉模型选择（服务端说 bad_model：被下架了），并告诉主站的云同步这是本机改动 @param {Storage|null} [store] */
 export function clearModel(store) {
   try { (store || window.localStorage).removeItem(MODEL_KEY); } catch (e) {}
@@ -236,7 +252,14 @@ export function mountAiChat(dlg, opts) {
   const histBtn = /** @type {HTMLButtonElement|null} */ (dlg.querySelector('[data-ai-history]'));
   const hist = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-hist]'));
   const scope = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-scope]'));
+  const contact = /** @type {HTMLAnchorElement|null} */ (dlg.querySelector('[data-ai-contact]'));
   if (!list || !form || !input) return {};
+  /** 「联系我」换成本机缓存里改过的邮箱（没有就保持模板默认值） */
+  function syncContact() {
+    const e = cachedEmail(o.store);
+    if (contact && e) contact.setAttribute('href', 'mailto:' + e);
+  }
+  syncContact();
   const doFetch = o.fetch || window.fetch.bind(window);
   /** @type {Chats} */
   let data = loadChats(o.store);
@@ -678,6 +701,7 @@ export function mountAiChat(dlg, opts) {
   setScope(null);
   return {
     onOpen: function () {
+      syncContact();
       if (!busy) {
         data = loadChats(o.store);
         pickCurrent();
