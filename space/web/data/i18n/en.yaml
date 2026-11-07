@@ -55,6 +55,14 @@ accountSync:
   cloudSync: Cloud sync
   whenOnTheSettings: When on, the settings below sync across devices signed in to this account. The latest change to each one wins.
   languageAndLayoutFollow: Language and layout follow each device and are not synced.
+accountProfile:
+  basicInfo: Basic info
+  photo: Photo
+  name: Name
+  nickname: Nickname
+  motto: Motto
+  email: Email
+  whereShown: This appears on the home profile card, the account card and the AI window's Contact link; the email is only used for Contact. Visible once someone is past the lock screen, no account sign-in needed.
 account:
   signInChooseMethod: Sign in, choose method
   welcomeBack: Welcome back
@@ -68,6 +76,8 @@ account:
   sync: Sync
   cloudSync: Cloud sync
   aiModel: AI model
+  profile: Profile
+  profileSub: Photo, name, nickname, motto, email
 js:
   core:
     wellTip: You've been here 15 minutes, time for a stretch?
@@ -429,6 +439,18 @@ js:
     securiSetupDoneDesc: "Unlock method is set. Please go back to the lock screen to unlock."
     securiExpiredStartOver: "Please go back to the lock screen to start over."
   account:
+    pfEdit: Edit
+    pfSave: Save
+    pfCancel: Cancel
+    pfSaved: Saved
+    pfNotSet: Not set
+    pfEmpty: Can't be empty
+    pfTooLong: Up to {n} characters
+    pfFormat: No line breaks or control characters
+    pfEmailFormat: Enter a valid email address
+    pfFailed: Couldn't save. Try again
+    pfNoScope: Profile isn't authorized for this account
+    pfCount: "{n}/{max}"
     eyeShow: Show password
     eyeHide: Hide password
     mPasskey: Account passkey
@@ -592,6 +614,7 @@ js:
     gaDesc-prefs: Sync your settings to the account and restore them on other devices
     gaDesc-wellbeing: Record Digital wellbeing screen time
     gaDesc-avatar: Change or remove the account photo
+    gaDesc-profile: Change your name, nickname, motto and contact email
     gaSens-curio: Importing bookmarks
     gaNoScope: '{v} doesn’t have account access'
     gaConsentTitle: Allow {v} to use your account?
@@ -618,6 +641,7 @@ js:
     app_prefs: "Settings sync"
     app_wellbeing: "Digital wellbeing"
     app_avatar: "Avatar"
+    app_profile: "Profile"
 filesIndex:
   app:
     settings:
