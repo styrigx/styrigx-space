@@ -291,12 +291,11 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .dm-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .dm-tag { font-size: 12px; color: var(--sgx-tag-fg); }
 /* 记一句 FAB = 主站 fab 角色（前景 1 浅底 + 深字） */
-.dm-fab { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: inline-flex; align-items: center; gap: 8px; height: 56px;
+/* 顶栏 v3（2026-11 PR-1）：右下角是 AI 浮钮（共享外壳 .sgx-tb-ai，56 高、边距 --sgx-ai-fab-m），记一句摞在它上面、右缘对齐 */
+.dm-fab { position: fixed; right: max(var(--sgx-ai-fab-m, 16px), env(safe-area-inset-right, 0px)); bottom: calc(max(var(--sgx-ai-fab-m, 16px), env(safe-area-inset-bottom, 0px)) + 56px + 12px); z-index: 40; display: inline-flex; align-items: center; gap: 8px; height: 56px;
   padding: 0 22px 0 18px; border-radius: 18px; border: 0; background-color: var(--sgx-fab); color: var(--sgx-on-fab); font-size: 15px; font-weight: 700;
   box-shadow: var(--sgx-mat-shadow); cursor: pointer; transition: transform .15s ease; }
 .dm-fab:active { transform: scale(.96); }
-/* 宽屏：FAB 右缘对齐外壳框右缘（= 顶栏右圆外缘） */
-.layout-dex .dm-fab { right: calc((100% - var(--sgx-shell-w)) / 2); }
 /* 百味 */
 .dm-sec { margin: 4px 4px 10px; font-size: 13px; font-weight: 700; letter-spacing: .04em; color: var(--sgx-text-secondary); }
 .dm-fgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

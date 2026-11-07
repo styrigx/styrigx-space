@@ -89,9 +89,9 @@ test('悬浮顶栏不遮挡首个标题（布局断言）', async ({ page }) => 
   }
 });
 
-// ===== 顶栏 v4（沉浸式 app）=====
-// 行为测试（页签 / 抽屉 / 阅读进度 / cookie）在 app-topbar.spec.js；这里只量三块布局。
-test.describe('顶栏 v4 布局', () => {
+// ===== 顶栏 v3（2026-11 UI 重设计 PR-1，四站同一个）=====
+// 行为测试（NAVIGATE / 阅读进度 / cookie）在 app-topbar.spec.js；这里只量布局。
+test.describe('顶栏 v3 布局', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       try {
@@ -100,37 +100,33 @@ test.describe('顶栏 v4 布局', () => {
     });
   });
 
-  test('胶囊（2026-11-04 P5-1，四站同一个；P4-3 PR-4b 定稿）：字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI（胶囊高手机 52、≥ 840 宽 56；里面按钮 40，字标 / AI 离胶囊边 (高 − 40) / 2）', async ({ page }) => {
-    /* 共享外壳尺寸体系（2026-10-23）：--sgx-tb-btn 52 → 56（≥ 840 宽）；P5-1 起它是胶囊高，里面按钮 --sgx-tb-ic 40 */
-    const wide = page.viewportSize().width >= 840;
-    const B = wide ? 56 : 52;
-    const inset = (B - 40) / 2;
+  test('通栏（贴顶、全宽、高 64）：字标 · 外观 · 盾牌 · | · >_ · 头像，按钮 40；内容收进居中的 max(页边距, (宽 − 1080) / 2)；不显示页名；没有右圆分享', async ({ page }) => {
+    const w = page.viewportSize().width;
+    const m = w < 600 ? 16 : Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
+    const pad = Math.max(m, (w - 1080) / 2);
     for (const path of ['/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/']) {
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       const r = await page.evaluate(() => {
         const box = (el) => el.getBoundingClientRect();
         const bar = box(document.querySelector('.sgx-topbar'));
         const logo = box(document.querySelector('.sgx-topbar > .sgx-tb-logo'));
-        /* PR-4b：头像搬进 AI 窗口头部，最右是 AI 按钮；页名胶囊量 .sgx-tb-title（中间那格是弹簧网格，格子本身不居中） */
-        const pill = box(document.querySelector('.sgx-tb-title'));
-        const me = box(document.querySelector('.sgx-tb-acts > .sgx-tb-ai'));
-        const btns = [...document.querySelectorAll('.sgx-tb-acts > *')].map((e) => { const b = box(e); return [Math.round(b.width), Math.round(b.height)]; });
+        const acts = box(document.querySelector('.sgx-tb-acts'));
+        const btns = [...document.querySelectorAll('.sgx-tb-acts > .sgx-tb-btn, .sgx-tb-acts > .sgx-tb-av')].map((e) => { const b = box(e); return [Math.round(b.width), Math.round(b.height)]; });
         return {
-          barH: Math.round(bar.height),
-          btns,
-          sides: [Math.round((logo.left - bar.left) * 2) / 2, Math.round((bar.right - me.right) * 2) / 2],
-          between: pill.width === 0 ? logo.right <= box(document.querySelector('.sgx-tb-acts')).left + 0.5 : logo.right <= pill.left + 0.5 && pill.right <= box(document.querySelector('.sgx-tb-acts')).left + 0.5,
-          center: [pill.left + pill.width / 2 - bar.left, bar.right - (pill.left + pill.width / 2)],
+          bar: [Math.round(bar.left), Math.round(bar.width), Math.round(bar.height)], vw: innerWidth,
+          btns, logoL: logo.left, actsR: acts.right,
+          between: logo.right <= acts.left + 0.5,
+          pill: box(document.querySelector('#site-nav .sgx-tb-pill')).width,
           share: !!document.querySelector('.sgx-topbar [data-sgx-share], .sgx-tb-end, .sgx-tb-nav'),
         };
       });
-      expect(r.barH).toBe(B);
-      expect(r.btns).toEqual([[40, 40], [40, 40], [40, 40]]);
-      expect(r.sides).toEqual([inset, inset]);
+      expect(r.bar).toEqual([0, r.vw, 64]);
+      expect(r.btns).toEqual([[40, 40], [40, 40], [40, 40], [40, 40]]);
+      expect(Math.abs(r.logoL - (pad - 4)), `${path} 字标左 ${r.logoL}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(r.actsR - (w - pad)), `${path} 图标组右 ${r.actsR}`).toBeLessThanOrEqual(1);
       expect(r.between).toBe(true);
-      /* ≥ 600 宽：长条按内容定宽、居中在顶栏正中（共享外壳 1fr auto 1fr） */
-      if (page.viewportSize().width >= 600) expect(Math.abs(r.center[0] - r.center[1])).toBeLessThanOrEqual(1);
-      expect(r.share, '没有九宫格 / 右圆分享').toBe(false);
+      expect(r.pill, '不显示页名').toBe(0);
+      expect(r.share, '顶栏没有分享').toBe(false);
     }
   });
 

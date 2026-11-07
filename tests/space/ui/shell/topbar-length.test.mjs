@@ -150,7 +150,7 @@ test('外壳 CSS（顶栏 v3，2026-11 UI 重设计 PR-1）：顶栏贴顶通栏
   assert.match(code, /\.sgx-topbar \{ position: fixed; top: 0; left: 0; right: 0;[^}]*padding: env\(safe-area-inset-top, 0px\) var\(--sgx-tb-pad\) 0;/);
   assert.match(code, /\.sgx-foot \{[^}]*padding: 0 var\(--sgx-tb-pad\)/, '页脚和顶栏同一内容宽');
   assert.match(code, /\.sgx-qp \{ position: fixed;[^}]*left: 0; right: 0;/);
-  assert.match(code, /\.sgx-tb-acts \{ justify-self: end;/, '图标组靠右');
+  assert.match(code, /\.sgx-tb-acts \{ grid-column: 3; justify-self: end;/, '图标组固定在第三列、靠右（页名格藏起来时也不会被挤进第二列）');
   /* 面板 / AI 窗口桌面样式按模式，不按 980 断点 */
   assert.match(code, /:root\[data-sgx-layout="desktop"\] \.sgx-qp-sheet \{/);
   assert.doesNotMatch(code, /min-width: 980px/);
