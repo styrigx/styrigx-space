@@ -125,7 +125,7 @@ export const GRANT_ACTIONS = Object.freeze(['grant-list', 'grant-revoke', 'grant
 
 /**
  * 授权卡页的列表：全部应用按作用域表顺序，一项一张卡。
- * { app, name:{zh,en}, scopes:[作用域 id], sensitive:[敏感操作], granted, grantedAt, by, device:{ name, gone } | null }
+ * { app, name（英文原文，界面按字符串表 js.account.app_<app> 翻译）, scopes:[作用域 id], sensitive:[敏感操作], granted, grantedAt, by, device:{ name, gone } | null }
  * device：授权时的设备（record.deviceId 对应的 device 行；行不在了 → gone=true，前端显示「已退出的设备」）；没授权 = null。
  * @param {any} env
  */
@@ -152,7 +152,7 @@ export async function grantListView(env) {
     }
     out.push({
       app: app,
-      name: { zh: meta[0].name.zh, en: meta[0].name.en },
+      name: meta[0].name,
       scopes: scopesOfApp(app),
       sensitive: meta.reduce((a, s) => a.concat(s.sensitive), /** @type {string[]} */ ([])),
       granted: !!r,

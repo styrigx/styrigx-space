@@ -613,6 +613,11 @@ js:
     gaSensSep: '. '
     securiNewTemporaryKey: New temporary key
     securiTemporaryKey: Temporary key
+    app_curio: "Curio"
+    app_daymark: "Daymark"
+    app_prefs: "Settings sync"
+    app_wellbeing: "Digital wellbeing"
+    app_avatar: "Avatar"
 filesIndex:
   app:
     settings:

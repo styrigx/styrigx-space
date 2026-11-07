@@ -192,7 +192,7 @@ const tx = i18nTable('account');
   /** @param {any} g @param {{app: string, ret: string}} ret */
   function showConsent(g, ret) {
     if (!consentEl) { goBack(ret); return; }
-    const name = appName(g, en);
+    const name = appName(g);
     const ic = $('acct-consent-ic');
     if (ic) { ic.textContent = ''; ic.appendChild(appIcon(g.app)); }
     setText('acct-consent-title', t('gaConsentTitle').replace('{v}', name));

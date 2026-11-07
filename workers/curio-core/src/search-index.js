@@ -34,19 +34,32 @@ const TEXT_MAX = 2000;
 /* KV 单值上限 25 MiB；留余量，超了就去掉 text（标题、副标题还能搜） */
 const VALUE_MAX = 24 * 1024 * 1024;
 
-/* 页签名、设备类型、游戏状态：和页面上一样（atlas/web/curio/assets/js/curio-items.js 的 T） */
-const L = {
+/* 页签名、设备类型、游戏状态：和页面上一样（字符串表 atlas/web/curio/data/i18n/<语言>.yaml 的 entries / js.curioItems）。
+   语言包化第二部分（2026-11-07）：英文是底（EN），其他语言是覆盖层（LAYERS），缺的键回退英文；加语言 = LAYERS 加一份 */
+const EN = {
+  finds: 'Finds', devices: 'Devices', games: 'Games',
+  kinds: { phone: 'Phone', tablet: 'Tablet', laptop: 'Laptop', desktop: 'Desktop', watch: 'Watch', audio: 'Audio', console: 'Console', camera: 'Camera', other: 'Other' },
+  status: { want: 'Want to play', playing: 'Playing', done: 'Finished', shelved: 'On hold' },
+};
+/** @type {Record<string, any>} */
+const LAYERS = {
   zh: {
     finds: '发现', devices: '设备', games: '游戏',
     kinds: { phone: '手机', tablet: '平板', laptop: '笔记本', desktop: '台式机', watch: '手表', audio: '耳机音箱', console: '游戏机', camera: '相机', other: '其他' },
     status: { want: '想玩', playing: '在玩', done: '通关', shelved: '搁置' },
   },
-  en: {
-    finds: 'Finds', devices: 'Devices', games: 'Games',
-    kinds: { phone: 'Phone', tablet: 'Tablet', laptop: 'Laptop', desktop: 'Desktop', watch: 'Watch', audio: 'Audio', console: 'Console', camera: 'Camera', other: 'Other' },
-    status: { want: 'Want to play', playing: 'Playing', done: 'Finished', shelved: 'On hold' },
-  },
 };
+/**
+ * 某种语言的标签：英文底 ← 该语言覆盖层（两层深合并，缺键回退英文）。
+ * @param {string} lang
+ */
+export function labels(lang) {
+  const o = LAYERS[lang] || {};
+  return {
+    finds: o.finds || EN.finds, devices: o.devices || EN.devices, games: o.games || EN.games,
+    kinds: Object.assign({}, EN.kinds, o.kinds), status: Object.assign({}, EN.status, o.status),
+  };
+}
 /** 本站语言（同 atlas/web/curio/hugo.yaml languages）；默认语言英文，不带前缀。加语言：这里加一项 + 字符串表（索引里的条目顺序沿用 zh、en） */
 export const LANGS = Object.freeze(['zh', 'en']);
 export const DEFAULT_LANG = 'en';
@@ -96,7 +109,7 @@ export function linkItems(r, cat) {
     const it = { id: 'link:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, 'finds', cat ? '#c/' + cat.id : '') };
     const descMain = pick(r.desc_zh, r.desc_en, lang);
     const descOther = lang === 'en' ? r.desc_zh : r.desc_en;
-    out.push(finish(it, [L[lang].finds, catName].filter(Boolean).join(' · '), [descMain, descOther !== descMain ? descOther : '', r.url], priv));
+    out.push(finish(it, [labels(lang).finds, catName].filter(Boolean).join(' · '), [descMain, descOther !== descMain ? descOther : '', r.url], priv));
   }
   return out;
 }
@@ -107,7 +120,7 @@ export function deviceItems(r) {
   for (const lang of LANGS) {
     const title = clip(r.name, TITLE_MAX);
     if (!title) continue;
-    const T = L[lang];
+    const T = labels(lang);
     const it = { id: 'device:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, 'devices') };
     const sub = [T.devices, T.kinds[r.kind] || T.kinds.other, r.os].filter(Boolean).join(' · ');
     out.push(finish(it, sub, [r.os, r.specs, r.accessories, r.notes], !!r.private));
@@ -121,7 +134,7 @@ export function gameItems(r) {
   for (const lang of LANGS) {
     const title = clip(r.title, TITLE_MAX);
     if (!title) continue;
-    const T = L[lang];
+    const T = labels(lang);
     const it = { id: 'game:' + r.id + (lang === 'en' ? ':en' : ''), type: 'item', lang, title, url: pageUrl(lang, 'games') };
     const sub = [T.games, r.platform, T.status[r.status] || ''].filter(Boolean).join(' · ');
     out.push(finish(it, sub, [r.platform, r.edition, r.review], !!r.private));

@@ -270,3 +270,57 @@ test('构建产物：奇趣 / 日刻中文页的页面文案表是中文、英�
     assert.match(zh[key], /[\u3400-\u9fff]/, pub + ' 中文页');
   }
 });
+
+test('Worker 名字（语言包化第二部分）：服务状态站名、授权应用名接口只回英文原文，中文层在主站字符串表；每个站 / 应用两种语言都有', async () => {
+  const { TARGETS } = await import('../../../../workers/status/src/targets.js');
+  const { SCOPES } = await import('../../../../workers/account/src/core/scopes.js');
+  const en = strings('space', 'en').js, zh = rawTable('space', 'zh').js;
+  for (const t of TARGETS) {
+    assert.equal(typeof t.name, 'string', 'targets.js ' + t.site + ' name 是英文字符串');
+    assert.doesNotMatch(t.name, /[\u3400-\u9fff]/, 'targets.js ' + t.site + ' 英文原文');
+    assert.ok(en.status['site_' + t.site] && zh.status['site_' + t.site], 'js.status.site_' + t.site + ' 两种语言都有');
+  }
+  for (const s of SCOPES) {
+    assert.equal(typeof s.name, 'string', 'scopes.js ' + s.id + ' name 是英文字符串');
+    assert.doesNotMatch(s.name, /[\u3400-\u9fff]/, 'scopes.js ' + s.id + ' 英文原文');
+    assert.equal(en.account['app_' + s.app], s.name, 'js.account.app_' + s.app + ' 英文 = 接口原文');
+    assert.ok(zh.account['app_' + s.app], 'js.account.app_' + s.app + ' 有中文');
+  }
+  /* 数字健康区域名（lib/wb-view.js COLORS 的键 = 区域） */
+  const wb = rd('space/web/assets/js/lib/wb-view.js');
+  const areas = [...(/const COLORS = \{([\s\S]*?)\};/.exec(wb) || ['', ''])[1].matchAll(/^\s*(\w+):/gm)].map((m) => m[1]);
+  assert.ok(areas.length >= 5);
+  for (const a of areas) assert.ok(en.space['wbArea_' + a] && zh.space['wbArea_' + a], 'js.space.wbArea_' + a);
+  /* 奇趣搜索索引的页签 / 类型标签：英文底 + 中文层，缺键回退英文 */
+  const { labels } = await import('../../../../workers/curio-core/src/search-index.js');
+  assert.equal(labels('zh').kinds.phone, '手机');
+  assert.equal(labels('en').status.done, 'Finished');
+  assert.deepEqual(labels('fr'), labels('en'), '没有语言层的语言整份英文');
+});
+
+test('全仓不再按语言二选一写文案（语言包化第二部分）：没有 en ? / isEn ? 三元、没有 {zh: …} 文案对象（内容数据与语言路由除外，见白名单）', () => {
+  /* 白名单（不是界面文案）：
+     - workers/curio-core/src/api：收藏的名字 / 简介是内容，库里本来就是 name_zh / name_en 两列（导入导出照列取；导入的「未归类」分类名两列都写）
+     - workers/daymark-core/src/search-index.js：按语言拼地址和索引 id（语言路由，不是文案）
+     - workers/ai/src/core/prompt.js：AI 的系统提示词按语言各一份（提示词是给模型的，不是界面）
+     - space/web/assets/js/lib/palette-scheme.js：调色板名 / 情绪描述（调色板数据，与 gen-palettes 同一份，另行整理） */
+  const ALLOW = /^(workers\/curio-core\/src\/api\/|workers\/daymark-core\/src\/search-index\.js$|workers\/ai\/src\/core\/prompt\.js$|space\/web\/assets\/js\/lib\/palette-scheme\.js$)/;
+  const SKIP = /^(tests\/|dist\/)|\/vendor\/|\/public\/|\/node_modules\/|^atlas\/web\/[a-z]+\/assets\/js\/sgx\/|^space\/web\/shared\/shell\//;
+  const TERN = /(?<![\w.$])(?:en|isEn|isZh|zh|ctx\.en|opts\.en)\s*\?(?![.?])/;
+  const ZHOBJ = /\{\s*zh\s*:/;
+  /** @param {string} d @returns {string[]} */
+  const walk = (d) => readdirSync(path.join(REPO, d)).flatMap((f) => {
+    const p = d + '/' + f;
+    if (SKIP.test(p + '/') || f === 'node_modules' || f === 'public') return [];
+    return statSync(path.join(REPO, p)).isDirectory() ? walk(p) : (/\.(m?js|cjs|ts)$/.test(f) ? [p] : []);
+  });
+  const bad = [];
+  for (const f of ['space/web/assets/js', 'space/scripts', 'atlas/web/blog/assets/js', 'atlas/web/curio/assets/js', 'atlas/web/daymark/assets/js', 'workers'].flatMap(walk)) {
+    if (ALLOW.test(f) || SKIP.test(f)) continue;
+    const src = rd(f).replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/(^|[^:\\'"])\/\/.*$/gm, '$1');
+    src.split('\n').forEach((line, i) => {
+      if (TERN.test(line) || ZHOBJ.test(line)) bad.push(f + ':' + (i + 1) + ': ' + line.trim().slice(0, 100));
+    });
+  }
+  assert.deepEqual(bad, [], '还有按语言二选一的文案');
+});

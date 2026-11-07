@@ -603,6 +603,11 @@ js:
     gaSensSep: ；
     securiNewTemporaryKey: 新建临时钥匙
     securiTemporaryKey: 临时钥匙
+    app_curio: "奇趣"
+    app_daymark: "日刻"
+    app_prefs: "设置同步"
+    app_wellbeing: "数字健康"
+    app_avatar: "头像"
 filesIndex:
   app:
     settings:

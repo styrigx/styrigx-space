@@ -25,9 +25,9 @@ const MIN = 60 * 1000;
 const TODAY = '2026-10-09';
 
 const SITES = [
-  { site: 'space', zh: '主站', en: 'Home', url: 'https://styrigx.com/', ms: 123 },
-  { site: 'proxy-rules', zh: '规则集', en: 'Proxy rules', url: 'https://proxy-rules.styrigx.com/healthz', ms: 61 },
-  { site: 'ai', zh: 'AI 助手', en: 'AI', url: 'https://styrigx-ai/healthz', ms: 140 },
+  { site: 'space', name: 'Home', url: 'https://styrigx.com/', ms: 123 },
+  { site: 'proxy-rules', name: 'Proxy rules', url: 'https://proxy-rules.styrigx.com/healthz', ms: 61 },
+  { site: 'ai', name: 'AI', url: 'https://styrigx-ai/healthz', ms: 140 },
 ];
 
 /** @param {string} day @param {number} n */
@@ -64,7 +64,7 @@ function site(t, over = {}) {
   const d = over.days || days(t.site, t.ms);
   const [ok90, tot90] = d.reduce((a, x) => [a[0] + x.ok, a[1] + x.total], [0, 0]);
   const base = {
-    site: t.site, zh: t.zh, en: t.en, url: t.url,
+    site: t.site, name: t.name, url: t.url,
     checked: true, up: true, fails: 0,
     last: { at: NOW - 40 * 1000, ok: true, code: 200, ms: t.ms, err: null },
     uptime: { h24: 100, d30: pct(ok90, tot90), d90: pct(ok90, tot90) },
@@ -102,7 +102,7 @@ function oneDown() {
 function empty() {
   return {
     ok: true, now: NOW, today: TODAY, all_up: true,
-    sites: SITES.map((t) => ({ site: t.site, zh: t.zh, en: t.en, url: t.url, checked: false, up: null, fails: 0, last: null, uptime: { h24: null, d30: null, d90: null }, days: [], recent: [] })),
+    sites: SITES.map((t) => ({ site: t.site, name: t.name, url: t.url, checked: false, up: null, fails: 0, last: null, uptime: { h24: null, d30: null, d90: null }, days: [], recent: [] })),
     incidents: [],
   };
 }

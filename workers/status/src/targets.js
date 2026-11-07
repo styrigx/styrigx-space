@@ -10,11 +10,14 @@
  * binding（2026-10-28 加）：没有公开地址的 Worker（P4-2 起只有 styrigx-ai）走服务绑定测它自己的 GET /healthz，
  * 不经网关、不开免会话口子；url 只是给绑定的请求地址（主机名随便，Worker 只看路径），页面上显示成 Worker 名。
  * 绑定没配（本地 / 老配置）→ 这一次记 err = 'binding'。
+ *
+ * name：站名的英文原文（语言包化第二部分 2026-11-07：英文是源，接口只回英文）。页面按字符串表 js.status.site_<site> 显示当前语言，
+ * 表里没有的站回退这里的英文名；加站时在 space/web/data/i18n/{en,zh}.yaml 的 js.status 补 site_<site>。
  */
 export const TARGETS = [
-  { site: 'space', zh: '主站', en: 'Home', url: 'https://styrigx.com/', expect: [200] },
-  { site: 'proxy-rules', zh: '规则集', en: 'Proxy rules', url: 'https://proxy-rules.styrigx.com/healthz', expect: [200] },
-  { site: 'ai', zh: 'AI 助手', en: 'AI', url: 'https://styrigx-ai/healthz', binding: 'AI_SERVICE', expect: [200] },
+  { site: 'space', name: 'Home', url: 'https://styrigx.com/', expect: [200] },
+  { site: 'proxy-rules', name: 'Proxy rules', url: 'https://proxy-rules.styrigx.com/healthz', expect: [200] },
+  { site: 'ai', name: 'AI', url: 'https://styrigx-ai/healthz', binding: 'AI_SERVICE', expect: [200] },
 ];
 
 /** 单次检查超时 */

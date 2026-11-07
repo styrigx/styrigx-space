@@ -5,7 +5,7 @@
  *
  * 数据形状 = /api/status（网关转 styrigx-status 的 /summary，见 workers/status/src/monitor.js summary）：
  *   { ok, now, today, all_up,
- *     sites: [{ site, zh, en, url, checked, up, fails, last:{at,ok,code,ms,err}|null,
+ *     sites: [{ site, name（英文原文；界面用字符串表 site_<site>）, url, checked, up, fails, last:{at,ok,code,ms,err}|null,
  *               uptime:{h24,d30,d90}, days:[{day,total,ok,avg_ms}], recent:[[at,ok,ms]] }],
  *     incidents: [{ id, site, started_at, ended_at|null, cause }] }
  * 日期（days[].day、today）是北京时间 YYYY-MM-DD；时间戳是毫秒。页面上的时间一律按北京时间显示（和监测的日期口径一致）。

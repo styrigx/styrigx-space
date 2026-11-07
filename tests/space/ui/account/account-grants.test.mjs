@@ -26,7 +26,18 @@ test('appReturn：只认奇趣 / 日刻的页面（站内路径或 https://styri
   }
 });
 
-test('filterGrants / countGrants：过滤 + 按名字搜（中英名、忽略大小写）', () => {
+test('appName：字符串表 js.account.app_<应用>（中文页中文、英文页英文）→ 接口英文原文 → 应用 id', () => {
+  setI18nLang('zh');
+  assert.deepEqual(fx.grants().map((x) => g.appName(x)), ['奇趣', '日刻', '设置同步', '数字健康', '头像']);
+  setI18nLang('en');
+  assert.deepEqual(fx.grants().map((x) => g.appName(x)), ['Curio', 'Daymark', 'Settings sync', 'Digital wellbeing', 'Avatar']);
+  setI18nLang('zh');
+  assert.equal(g.appName({ app: 'newapp', name: 'New app' }), 'New app', '表里没有的应用回退接口的英文名');
+  assert.equal(g.appName({ app: 'newapp' }), 'newapp');
+});
+
+test('filterGrants / countGrants：过滤 + 按名字搜（当前语言名 + 英文原文、忽略大小写）', () => {
+  setI18nLang('zh');
   const all = fx.grants({ curio: true });
   assert.deepEqual(g.countGrants(all), { all: 5, on: 4, off: 1 });
   assert.deepEqual(g.filterGrants(all, 'all', '').map((x) => x.app), ['curio', 'daymark', 'prefs', 'wellbeing', 'avatar']);
