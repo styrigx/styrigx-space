@@ -5,6 +5,7 @@
  */
 import { on, delegate } from '../lib/events.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
+import { showDialog } from './modal-sheet.js';
 
 /**
  * @typedef {Object} SheetOption
@@ -137,18 +138,13 @@ export function openSheet(opts) {
       be.appendChild(b);
     });
   }
-  if (!dlg.open) {
-    try {
-      dlg.showModal();
-    } catch (e) {
-      /* 已打开时 showModal 抛错，忽略 */
-    }
-  }
-  /* 触发进入动画 */
+  /* 打开时不让浏览器「滚到焦点」（桌面版网站下会平移 / 放大整页，见 modal-sheet.js showDialog）；已打开时什么都不做 */
+  if (!dlg.open) showDialog(dlg, true);
+  /* 触发进入动画。两帧后弹层可能已经被关掉（打开后立刻 close()，close 事件已清过类）：关着就不再加 sgx-open，免得关着的弹层留在页面上 */
   dlg.classList.remove('sgx-closing');
   requestAnimationFrame(function () {
     requestAnimationFrame(function () {
-      if (dlg) dlg.classList.add('sgx-open');
+      if (dlg && dlg.open) dlg.classList.add('sgx-open');
     });
   });
 }

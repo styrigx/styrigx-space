@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:948f47e9d9f6 space/web/shared/shell v57dad80a21d7（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:3c2683961acf space/web/shared/shell v06b776b1c2a1（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- ai.js ---- */
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
@@ -686,7 +686,8 @@ export function mountAiChat(dlg, opts) {
       saveChats(data, o.store);
       showHist(false);
       render();
-      try { input.focus(); } catch (e) {}
+      /* 同打开时：触屏不自动聚焦（程序化聚焦弹键盘；桌面版网站下浏览器还会放大到输入框），桌面回输入框且不滚动 */
+      if (!coarse()) { try { input.focus({ preventScroll: true }); } catch (e) {} }
     });
   }
   if (histBtn) {

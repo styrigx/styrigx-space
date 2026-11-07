@@ -684,7 +684,8 @@ export function mountAiChat(dlg, opts) {
       saveChats(data, o.store);
       showHist(false);
       render();
-      try { input.focus(); } catch (e) {}
+      /* 同打开时：触屏不自动聚焦（程序化聚焦弹键盘；桌面版网站下浏览器还会放大到输入框），桌面回输入框且不滚动 */
+      if (!coarse()) { try { input.focus({ preventScroll: true }); } catch (e) {} }
     });
   }
   if (histBtn) {

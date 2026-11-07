@@ -4,20 +4,20 @@
   "dir": "space/web/shared/shell",
   "files": {
     "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
-    "shell.css": "406e27d7d21e8441095c44d395815bc5c7b6239362a2a85ba1084c0a8c90f406",
+    "shell.css": "46e966a2b073ff8433af1f165ad9acfa528ecf332dd1896cc0b716131a423c0a",
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "da46a782fdf9f80c24fae06bbbd83e5e29894a5c1db87b9e754071637ae158ca",
     "topbar.html": "dc876f034b39001415d62e7c5db4bdd46ca2beb6abc1e74d88b232bdb9969359",
     "entries.html": "08aa5362ea90368c2a594485c275e94cac2ca74e7013378f0ad46979fb7708b8",
-    "topbar.js": "dc305852dfe065f65aa66fafdb3fd35938aa5b62d20521cd02a8399b8cd1204e",
-    "modal-sheet.js": "c409104c3553e63351ee05abadb2e8999aa82692b7bbae021f3ea19f2352071b",
-    "ai.js": "d7d1b9be55cf46dfb29b0c8a65ad62038adf7787c387ca9c6fca367fd657c484",
+    "topbar.js": "8497dd2ade848796371ded706c62d7211a9342f851be75f5d37ee3bc1faa3342",
+    "modal-sheet.js": "f31bcbff02bee8437ced385a2cf781c02ad15762b5f7df025fe01e6ba1b8c2ee",
+    "ai.js": "5073e7d62ac1b77b4c3dd104e59e088ed7a0f023f1f8f0adbdfdcb0aae362585",
     "vk.js": "3bc7000ba510e8a7cbc1dd420e85cffdc23e0c5bd8184f4421d5e57f22ad7633",
     "prefs-write.js": "b28b056a311d48d2eee57742c4542eec13e58a03fbbfca39c28b8dbccd260364",
     "nav.json": "0e3f8ec0011f543d27743a7745b7bc32a20113250cc7a635c91df41ca463a477",
     "palettes.json": "f3779c13ef0033910d9a4afa0f44bdb81daaf9649c875e451656980240fd3a10",
     "ui-cookie-read.js": "826b3a701c57fa9638bb009f61a1275ed10b68bc921546eeb301e3fea761af51",
-    "layout-mode.js": "8bd693670ddb355e692d0af3ab6c05784f6fbfb067188fff58e6521799b883e8",
+    "layout-mode.js": "53af0363f4ee10746acacf07f82d6a1ea5b755a32f69f84c166d6767b977062b",
     "lang-path.js": "26c90b39eaefc72a045b47ad968116f8649142d0e21a185cc50577f2ee4e666d",
     "lang-path.html": "cd08a62d609777847f5df10d171850a07a7072d8f3add12df4a0054da9ebfbd3",
     "lang-boot.js": "3cc8b195eade7b350cd91532edd3267e29ca9a41fe3cd473941134af492ec63e",
@@ -29,6 +29,6 @@
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "53484df4aa7ecfd3ea06f914531d754700a0c73c4e4a8a60a9440f5472fdde37"
   },
-  "version": "57dad80a21d7",
+  "version": "06b776b1c2a1",
   "rulesVersion": "palette-rules-1"
 }
