@@ -12,6 +12,7 @@ home:
   role: "writing the blog, collecting curios, keeping a daymark"
   intro: "A Personal Digital Space — one person’s corner of the web, browsable from the command line."
   blog: Blog
+  minutes: "{n} min"
   blogLabel: "[01] Blog · latest 3"
   daymark: Daymark
   daymarkLabel: "[02] Daymark · line of the day"

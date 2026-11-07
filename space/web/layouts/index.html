@@ -26,11 +26,11 @@
 <div class="home-wrap home-term-wrap">
 
   <section id="home-hero" class="home-hero" aria-labelledby="home-name">
-    <p class="home-pill"><i aria-hidden="true"></i><span class="home-pr" aria-hidden="true">$</span> <span data-home-status>{{ $h.status }}</span></p>
+    <p class="home-pill"><i aria-hidden="true"></i><span class="home-pr" aria-hidden="true">$</span> <span data-home-status translate="no">{{ $h.status }}</span></p>
     {{/* 名片（原 #w-profile）：头像、名字、签名；lib/profile.js 用 /api/profile 覆盖（data-sgx-profile） */}}
     <div id="w-profile" class="home-id">
       <img src="/avatar/192.webp" alt="{{ $profile.name }}" translate="no" data-sgx-personal data-sgx-profile="name" data-sgx-profile-attr="alt" width="96" height="96" fetchpriority="high" class="prof-av home-av" data-sgx-avatar="192">
-      <p class="home-who"><span class="home-pr" aria-hidden="true">$</span> whoami</p>
+      <p class="home-who" translate="no"><span class="home-pr" aria-hidden="true">$</span> whoami</p>
       <h1 id="home-name" class="home-name" translate="no" data-sgx-personal data-sgx-profile="name">{{ $profile.name }}</h1>
       <p class="home-role"><span class="home-pr" aria-hidden="true">$</span> {{ $h.role }}<span class="home-cur" aria-hidden="true"></span></p>
       <p class="home-intro"><span class="home-pr" aria-hidden="true">#</span> {{ $h.intro }}</p>
@@ -41,7 +41,7 @@
     <div id="home-term" class="sgx-term sgx-term--home" data-sgx-term="home">
       <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><b class="sgx-term-title" data-term-title translate="no">{{ $user }}: ~</b><em class="sgx-term-hint" aria-hidden="true"><span class="sgx-term-hint-l">{{ $tr.shell.term.hint }}</span><span class="sgx-term-hint-s">{{ $tr.shell.term.hintShort }}</span></em></div>
       <div class="sgx-term-body" data-term-body>
-        <div class="sgx-term-out" data-term-out role="log" aria-live="polite" aria-label="{{ $tr.shell.term.output }}"><div class="sgx-term-ln sgx-term-o">{{ replace (replace (htmlEscape $tr.shell.term.welcome) "{help}" `<span class="sgx-term-k">help</span>`) "{cd}" `<span class="sgx-term-k">cd blog</span>` | safeHTML }}</div></div>
+        <div class="sgx-term-out" data-term-out role="log" aria-live="polite" aria-label="{{ $tr.shell.term.output }}"><div class="sgx-term-ln sgx-term-o">{{ replace (replace (htmlEscape $tr.shell.term.welcome) "{help}" `<span class="sgx-term-k" translate="no">help</span>`) "{cd}" `<span class="sgx-term-k" translate="no">cd blog</span>` | safeHTML }}</div></div>
         <form class="sgx-term-line" data-term-form autocomplete="off">
           <label class="sgx-term-ps" for="home-term-in" data-term-ps translate="no">{{ $user }}:~$</label>
           <span class="sgx-term-field"><input id="home-term-in" class="sgx-term-in" data-term-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="{{ $tr.shell.term.input }}" aria-keyshortcuts="Control+K Meta+K"><span class="sgx-term-ghost" data-term-ghost aria-hidden="true" hidden></span></span>
@@ -54,11 +54,11 @@
   {{ $posts := partial "blog/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}
   {{ $blogUrl := partial "sgx-lang-path.html" (dict "path" "/blog/" "lang" $pageLang) }}
   <section class="home-sec" id="blog" data-term-dir="blog" data-term-label="{{ $h.blogLabel }}" aria-labelledby="home-blog-h">
-    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true">[01] // BLOG</p><h2 class="home-sec-t" id="home-blog-h">{{ $h.blog }}</h2></div><a class="home-sec-more" href="{{ $blogUrl }}" translate="no">ls blog/ --all →</a></div>
-    <p class="home-sec-cmd" aria-hidden="true"><span class="home-pr">$</span> ls -lt blog/ | head -3</p>
+    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[01] // BLOG</p><h2 class="home-sec-t" id="home-blog-h">{{ $h.blog }}</h2></div><a class="home-sec-more" href="{{ $blogUrl }}" translate="no">ls blog/ --all →</a></div>
+    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> ls -lt blog/ | head -3</p>
     <ul class="home-posts" role="list">
       {{- range first 3 $posts }}
-      <li><a class="home-post" href="{{ .RelPermalink }}"><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006-01-02" }}</time><b>{{ .Title }}</b><i>{{ .ReadingTime }} min</i></a></li>
+      <li><a class="home-post" href="{{ .RelPermalink }}"><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006-01-02" }}</time><b>{{ .Title }}</b><i>{{ replace $h.minutes "{n}" (string .ReadingTime) }}</i></a></li>
       {{- end }}
     </ul>
   </section>
@@ -66,8 +66,8 @@
   {{/* [02] 日刻 · 今日一句（原首页小组件，保留：卡片、数据、点进日刻都不变，只换分节外观） */}}
   {{ $dmHome := partial "sgx-lang-path.html" (dict "path" "/daymark/" "lang" $pageLang) }}
   <section class="home-sec" id="daymark" data-term-dir="daymark" data-term-label="{{ $h.daymarkLabel }}" aria-labelledby="home-dm-h">
-    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true">[02] // DAYMARK</p><h2 class="home-sec-t" id="home-dm-h">{{ $h.daymark }}</h2></div><a class="home-sec-more" href="{{ $dmHome }}" translate="no">cd daymark/ →</a></div>
-    <p class="home-sec-cmd" aria-hidden="true"><span class="home-pr">$</span> cat daymark/today</p>
+    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[02] // DAYMARK</p><h2 class="home-sec-t" id="home-dm-h">{{ $h.daymark }}</h2></div><a class="home-sec-more" href="{{ $dmHome }}" translate="no">cd daymark/ →</a></div>
+    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> cat daymark/today</p>
     {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
     {{ $dmUrl := (partial "sgx-lang-path.html" (dict "path" "/daymark/" "lang" $pageLang)) }}
     <a id="w-daymark" href="{{ $dmUrl }}" class="widget sgx-flat dm-w bg-m-container-lowest text-m-on-surface border border-m-outline p-5 sm:p-6 overflow-hidden relative animate-fade-up hidden" style="animation-delay:.32s" aria-label="{{ $tr.index.daymarkLineOfThe }}">
@@ -94,8 +94,8 @@
 
   {{/* [03] 我的屏幕时间（原首页小组件，保留：wb-view.js 拉 /api/wellbeing 填字，骨架 3 行不变） */}}
   <section class="home-sec" id="screen-time" data-term-dir="screen-time" data-term-label="{{ $h.screenLabel }}" aria-labelledby="home-st-h">
-    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true">[03] // SCREEN-TIME</p><h2 class="home-sec-t" id="home-st-h">{{ $h.screen }}</h2></div></div>
-    <p class="home-sec-cmd" aria-hidden="true"><span class="home-pr">$</span> screen-time --today</p>
+    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[03] // SCREEN-TIME</p><h2 class="home-sec-t" id="home-st-h">{{ $h.screen }}</h2></div></div>
+    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> screen-time --today</p>
     <!-- 数字健康 · 我的屏幕时间（B2-7：网站自己的数字健康，今天在各区域停留的时长，所有设备合计；
          骨架固定 3 行，wb-view.js 拉 /api/wellbeing 后只替换文字和宽度，不改高度） -->
     <div id="w-screen" data-wb-root class="widget wb-full bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.44s">
@@ -119,7 +119,7 @@
 
   {{/* [04] 旷野：分类入口（原样保留，含标题带） */}}
   <div class="home-sec home-sec--wild" id="wild" data-term-dir="wild" data-term-label="{{ $h.wildLabel }}">
-    <p class="home-sec-k" aria-hidden="true">[04] // WILD</p>
+    <p class="home-sec-k" aria-hidden="true" translate="no">[04] // WILD</p>
   {{/* 分类入口（P4-3 PR-4b §11，Gray 2026-11-07）：平铺入口共享组件 partials/sgx-entries.html（奇趣分类入口以后共用），数据 data/space-cats.yaml。
        上面标题带（小字 SPACE + 大标题 旷野 + 一句话），下面每行一个入口（编号、圆底图标、名字 + 副标题、细分隔线、淡色 ›），≥ 760 两栏、≥ 1100 三栏。
        列表 aria-label="分类"（测试和读屏按它找）。地址 /<id>/（中文 /zh/<id>/）。锁屏态同首页小组件一起被剥离。 */}}

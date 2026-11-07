@@ -100,10 +100,13 @@ function skeleton(html) {
     modes: [...qp.matchAll(/data-qp-mode=([a-z]+)/g)].map((x) => x[1]),
     swatches: (qp.match(/class=sgx-th-pal /g) || []).length,
     me: /class=sgx-tb-av/.test(hdr) && /class=sgx-ai-me/.test(ai),
+    /* 2026-11 PR-2：字标是 SVG（四站都传 wordmark）；终端抽屉四站都有 */
+    wordmark: /class=sgx-tb-name[^>]*><svg class=sgx-wordmark/.test(hdr),
+    term: /<dialog id=sgx-term /.test(h) && /data-sgx-term=drawer/.test(h),
     win: [...foot.matchAll(/data-win=([a-z]+)/g)].map((x) => x[1]),
     winCur: [...foot.matchAll(/data-win=([a-z]+) aria-current=page/g)].map((x) => x[1]),
     ai: ['data-ai-list', 'data-ai-form', 'data-ai-in', 'data-ai-scope', 'data-ai-clear', 'data-ai-history', 'data-ai-hist', 'data-ai-contact'].every((k) => ai.includes(k)),
-    legacy: /sgx-drawer|sgx-tb-nav\b|sgx-tb-end\b|sgx-tb-share\b|apps-grid|sgx-tb-mark\b|sgx-wordmark|sgx-qp-tile/.test(h.replace(/<script[\s\S]*?<\/script>/g, '')),
+    legacy: /sgx-drawer|sgx-tb-nav\b|sgx-tb-end\b|sgx-tb-share\b|apps-grid|sgx-tb-mark\b|sgx-tb-tl\b|sgx-qp-tile/.test(h.replace(/<script[\s\S]*?<\/script>/g, '')),
   };
 }
 
@@ -122,14 +125,16 @@ test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字�
       assert.equal(sk.count, NO[CUR[site]] + '/05', at + '：计数');
       assert.deepEqual(sk.langs, ['en', 'zh'], at + '：lang EN / 中文');
       assert.deepEqual(sk.layout, ['auto', 'phone', 'desktop'], at + '：layout Auto / Mobile / DeX');
-      assert.deepEqual(sk.acts, ['share', 'lock'], at + '：share / lock');
+      assert.deepEqual(sk.acts, ['share', 'lock', 'term'], at + '：share / lock / terminal（2026-11 PR-2）');
       assert.deepEqual(sk.status, ['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth'], at + '：STATUS 六个单元');
       assert.deepEqual(sk.modes, ['system', 'dark', 'light'], at + '：MODE');
       assert.equal(sk.swatches, 22, at + '：22 套色板');
       assert.deepEqual(sk.win, ['home', 'blog', 'curio', 'daymark', 'wild'], at + '：页脚窗口');
       assert.deepEqual(sk.winCur, [CUR[site]], at + '：页脚当前窗口');
       assert.ok(sk.ai, at + '：AI 窗口齐全');
-      assert.equal(sk.legacy, false, at + '：没有抽屉 / 右圆分享 / SVG 字标 / 旧磁贴');
+      assert.equal(sk.legacy, false, at + '：没有旧导航抽屉 / 右圆分享 / :~$ / 旧磁贴');
+      assert.ok(sk.wordmark, at + '：字标是 SVG（❯ Styrigx _）');
+      assert.ok(sk.term, at + '：全站终端抽屉 #sgx-term');
     }
   }
 });

@@ -49,7 +49,8 @@ test('宽屏平铺（Gray 2026-11-07）：只在桌面布局——内容区通�
     assert.doesNotMatch(readFileSync(path.join(web, f), 'utf8'), /sgx-flat/, f);
   }
   const home = readFileSync(path.join(web, 'index.html'), 'utf8');
-  assert.match(home, /id="w-profile" class="widget sgx-flat /);
+  /* 2026-11 PR-2 首屏终端：名片（#w-profile）并进居中 hero，不再是卡片；日刻仍挂 .sgx-flat；屏幕时间是交互模块，不挂 */
+  assert.match(home, /<div id="w-profile" class="home-id">/);
   assert.match(home, /id="w-daymark" [^>]*class="widget sgx-flat /);
   assert.doesNotMatch(home, /id="w-screen"[^>]*sgx-flat/);
 });
@@ -152,8 +153,8 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
   assert.match(files['tokens.css'], /--sgx-tag-bg: var\(--sgx-fg-4-tint\);/);
 });
 
-test('顶栏 v3（2026-11 UI 重设计 PR-1）：通栏 [字标 ❯ styrigx :~$_][页名（不显示）][外观 · 盾牌 · | · >_ · 头像] + 进度条 + AI 浮钮；同一份标记四站共用', () => {
-  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'entries', 'inpage', 'wide']);
+test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽屉）：通栏 [字标 ❯ Styrigx_][页名（不显示）][外观 · 盾牌 · | · >_ · 头像] + 进度条 + AI 浮钮；同一份标记四站共用', () => {
+  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'entries', 'inpage', 'wide', 'terminal']);
   const s = files['shell.css'];
   // 贴顶通栏：top 0、left 0 / right 0、底边 1px 线、毛玻璃材质；内容宽一个 token（1080）
   assert.match(s, /\.sgx-topbar \{ position: fixed; top: 0; left: 0; right: 0;[^}]*display: grid; grid-template-columns: auto minmax\(0, 1fr\) auto;[^}]*padding: env\(safe-area-inset-top, 0px\) var\(--sgx-tb-pad\) 0; border-bottom: 1px solid var\(--sgx-term-line\);[^}]*background: var\(--sgx-mat\);/);
@@ -181,10 +182,14 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1）：通栏 [字标 ❯ styrigx :~$_
   assert.equal(files['topbar.html'], src);
   assert.doesNotMatch(src.replace(/\{\{-? \/\*[\s\S]*?\*\/ -?\}\}/g, ''), /\bpartial |site\.Data|hugo\.Data|resources\.Get/, '只用参数，不调别的 partial / 数据');
   const header = src.slice(src.indexOf('<header id="site-nav" class='), src.indexOf('</header>'));
-  const order = ['class="sgx-tb-logo"', 'sgx-tb-ps', 'sgx-tb-name', 'sgx-tb-tl', 'sgx-tb-cu', 'class="sgx-tb-pill', 'sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'class="sgx-tb-av"', 'sgx-tb-prog', 'sgx-tb-ai'].map((k) => header.indexOf(k));
-  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '字标（❯ styrigx :~$ 光标）→ 页名 → 外观 → 盾牌 → 分隔 → >_ → 头像 → 进度条 → AI 浮钮');
-  assert.match(header, /<span class="sgx-tb-ps" aria-hidden="true">❯<\/span><span class="sgx-tb-name" translate="no">styrigx<\/span><span class="sgx-tb-tl" aria-hidden="true">:~\$<\/span>/);
-  assert.doesNotMatch(header, /\.wordmark|sgx-wordmark|<small/, '没有 SVG 字标、没有副标题');
+  const order = ['class="sgx-tb-logo"', 'sgx-tb-ps', 'sgx-tb-name', 'sgx-tb-cu', 'class="sgx-tb-pill', 'sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'class="sgx-tb-av"', 'sgx-tb-prog', 'sgx-tb-ai'].map((k) => header.indexOf(k));
+  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '字标（❯ SVG 字标 光标）→ 页名 → 外观 → 盾牌 → 分隔 → >_ → 头像 → 进度条 → AI 浮钮');
+  /* PR-2（Gray 2026-11-08）：等宽文字 styrigx :~$ 换成 ❯ + SVG 字标（参数 .wordmark）+ 光标；没有 :~$、没有副标题 */
+  assert.match(header, /<span class="sgx-tb-ps" aria-hidden="true">❯<\/span><span class="sgx-tb-name" aria-hidden="true" translate="no">\{\{ \.wordmark \| safeHTML \}\}<\/span><span class="sgx-tb-cu" aria-hidden="true"><\/span>/);
+  assert.doesNotMatch(header, /sgx-tb-tl|:~\$|<small/, '没有 :~$、没有副标题');
+  // 终端抽屉 + NAVIGATE「$ terminal」
+  assert.match(src, /<dialog id="sgx-term" class="sgx-term-dlg"/);
+  assert.match(src, /data-qp="term"/);
   assert.match(header, /<a class="sgx-tb-btn sgx-tb-shield" href="\{\{ \.security \}\}"/);
   assert.match(header, /<a class="sgx-tb-av" href="\{\{ \.acct \}\}"[^>]*><img src="\{\{ \.avatar \}\}"/);
   assert.match(src, /<dialog id="sgx-nav" class="sgx-qp sgx-nav"/);

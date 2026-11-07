@@ -9,6 +9,7 @@ home:
   role: "写博客，收集奇趣，记日刻"
   intro: "A Personal Digital Space — 一个人的数字空间，命令行也能逛。"
   blog: 博客
+  minutes: "{n} 分钟"
   blogLabel: "[01] 博客 · 最新 3 篇"
   daymark: 日刻
   daymarkLabel: "[02] 日刻 · 今日一句"
