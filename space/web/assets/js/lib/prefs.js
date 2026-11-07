@@ -9,11 +9,11 @@
  *   语言需要换到另一种语言的页面，setLang 只写偏好并返回要去的地址，由调用方决定怎么跳。
  */
 import { get as featGet, set as featSet } from './features.js';
-import { set as sset, remove as sremove } from './storage.js';
+import { set as sset } from './storage.js';
 import { setThemeMode } from './theme.js';
 import { clearAccent } from './accent.js';
 import { DEFAULT_PALETTE, normPalette } from './prefs-write.js';
-import { langPath, systemLang } from './lang-path.js';
+import { langPath, systemLang, isLang } from './lang-path.js';
 
 export { DEFAULT_PALETTE, normPalette };
 
@@ -130,10 +130,11 @@ export function setLayout(v) {
  * @returns {string}
  */
 export function setLang(v) {
-  if (v === 'system') sremove('sgx-lang');
-  else sset('sgx-lang', v);
-  featSet('lang', v === 'system' ? 'system' : v);
-  const want = v === 'system' ? systemLang() : v;
+  const pick = isLang(v) ? v : 'system';
+  featSet('lang', pick);
+  /* 语言清理（2026-11-07）：偏好明确存 'system'（features.set 遇到默认值会删 key，这里再写一次）；旧版存的空 / 没有也按跟随系统读 */
+  sset('sgx-lang', pick);
+  const want = pick === 'system' ? systemLang() : pick;
   /* P4-3 PR-4c：英文无前缀、中文 /zh/，地址统一由 lib/lang-path.js 拼 */
   return langPath(location.pathname, want) + location.search + location.hash;
 }

@@ -2,8 +2,12 @@
 // - 每个用例：带上 cookie、系统浅色 / 深色各加载一次，<html> 状态 = 夹具的 light.root / dark.root（共享读端 SgxUI.apply 内联在 <head>）
 // - 选湖蓝 lake 必须写 data-palette="lake"（不能当默认渲染成 dustyblue）
 // - 自定义主题色：没缓存时加载 shell-accent.js 算角色，写 <style id="sgx-accent-roles"> 和本站缓存
-// - 语言：cookie 带 lang（主站写端 2026-10-27 起写，zh / en）且版本合法才跳到另一种语言的同一页；版本不认识 / lang 空不跳
+// - 语言（语言清理 2026-11-07：四站同一份首帧跳转 lang-boot.js）：cookie 带明确语言且版本合法 → 跳到那种语言的同一页；
+//   版本不认识 / lang 是 system / 空 / 没有 cookie = 跟随系统 → 按浏览器语言（本文件浏览器用 zh-CN，和原来中文页的用例一致）
 const { test, expect } = require('@playwright/test');
+
+/* 浏览器语言中文：跟随系统时停在中文页（夹具外观用例都开在中文页） */
+test.use({ locale: 'zh-CN' });
 const fx = require('../../fixtures/ui-cookie-contract.json');
 
 const PAGE = '/daymark/zh/404.html';
@@ -15,7 +19,7 @@ async function setup(page) {
 }
 async function setCookie(context, value) {
   await context.clearCookies();
-  if (value) await context.addCookies([{ name: 'sgx-ui', value, url: 'http://localhost:8932' }]);
+  if (value) await context.addCookies([{ name: 'sgx-ui', value, url: test.info().project.use.baseURL || 'http://localhost:8932' }]);
 }
 const rootState = () => {
   const h = document.documentElement;
@@ -66,7 +70,7 @@ test('自定义主题色：没缓存 → 加载 shell-accent.js 算角色，写 
   expect(await page.evaluate(() => document.getElementById('sgx-accent-roles').textContent.length)).toBeGreaterThan(100);
 });
 
-test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（保留 #页签）；版本不认识 / 没有 lang 不跳', async ({ page, context }) => {
+test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（保留 #页签）；版本不认识 / 没有 cookie = 跟随系统（中文浏览器）', async ({ page, context }) => {
   await setup(page);
   await setCookie(context, enc({ v: 2, mode: 'light', pal: 'dustyblue', lang: 'en' }));
   await page.goto('/daymark/zh/#flavors');
@@ -74,7 +78,25 @@ test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（�
   await setCookie(context, enc({ v: 3, mode: 'light', lang: 'en' }));
   await page.goto('/daymark/zh/');
   await expect(page).toHaveURL(/:\d+\/daymark\/zh\/$/);
+  /* 跟随系统每页都跳（不只主站）：没有 cookie、中文浏览器打开英文页 → 中文同一页 */
   await setCookie(context, fx.cases[0].cookie);
   await page.goto('/daymark/');
-  await expect(page).toHaveURL(/\/daymark\/$/);
+  await expect(page).toHaveURL(/\/daymark\/zh\/$/);
+  /* 明确存了 system（新写法）同样跟随系统 */
+  await setCookie(context, enc({ v: 2, mode: 'light', lang: 'system' }));
+  await page.goto('/daymark/#flavors');
+  await expect(page).toHaveURL(/\/daymark\/zh\/#flavors$/);
+});
+
+test.describe('英文浏览器', () => {
+  test.use({ locale: 'en-US' });
+  test('跟随系统 + 英文浏览器：中文页回英文同一页；明确选了中文就留在中文', async ({ page, context }) => {
+    await setup(page);
+    await setCookie(context, enc({ v: 2, mode: 'light', lang: 'system' }));
+    await page.goto('/daymark/zh/');
+    await expect(page).toHaveURL(/:\d+\/daymark\/$/);
+    await setCookie(context, enc({ v: 2, mode: 'light', lang: 'zh' }));
+    await page.goto('/daymark/zh/');
+    await expect(page).toHaveURL(/:\d+\/daymark\/zh\/$/);
+  });
 });

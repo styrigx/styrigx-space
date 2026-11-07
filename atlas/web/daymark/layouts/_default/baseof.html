@@ -2,7 +2,7 @@
 {{ $isEn := eq .Lang "en" }}
 {{/* 自定义主题色引擎（共享外壳 palette-scheme.js）：只在 cookie 是自定义色且本站还没缓存时，由共享读端 SgxUI.apply 的 onMiss 按需加载 */}}
 {{ $shellAccent := resources.Get "js/sgx/shell-accent.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint }}
-<html lang="{{ if $isEn }}en{{ else }}zh{{ end }}" class="scroll-smooth" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}">
+<html lang="{{ if $isEn }}en{{ else }}zh{{ end }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $l := site.Languages }}{{ if $i }} {{ end }}{{ $l.Lang }}{{ end }}" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,6 +27,9 @@
 {{/* 外观 + 语言预读（渲染前）——继承主站 sgx-ui cookie 的深浅色、调色板、强调色、字体大小、减弱动效和语言；
      没有 cookie 时跟系统（日刻没有自己的开关） */}}
 {{/* 共享外壳读端 ui-cookie-read.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，挂 window.SgxUI；紧跟 ui-inherit-run.js 调 SgxUI.apply */}}
+{{/* 首帧语言跳转（语言清理 2026-11-07：四站同一份共享外壳 lang-boot.js，勿手改）：偏好明确语言 → 那种语言；跟随系统 / 旧版的空 → 浏览器语言；
+   和本页不同就 replace 到同一页的那种语言（每页都跳，不只首页） */}}
+<script>{{ (resources.Get "js/sgx/shell/lang-boot.js" | js.Build (dict "format" "iife" "minify" true "target" "es2017")).Content | safeJS }}</script>
 <script>{{ (resources.Get "js/sgx/shell/ui-cookie-read.js" | minify).Content | safeJS }}</script>
 <script>{{ (resources.Get "js/sgx/ui-inherit-run.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018")).Content | safeJS }}</script>
 {{/* 布局模式：共享外壳 layout-mode.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b） */}}

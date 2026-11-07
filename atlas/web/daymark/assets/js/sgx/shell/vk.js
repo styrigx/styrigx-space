@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:efcd3a526832 space/web/shared/shell v5a6ca6ffe158（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:1022d63b4426 space/web/shared/shell vc1a8f70dea43（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- vk.js ---- */
 /**
  * @fileoverview 2.4.0 D：VirtualKeyboard 统一封装（合并 capsule.js / page-browser.js 重复实现）。
