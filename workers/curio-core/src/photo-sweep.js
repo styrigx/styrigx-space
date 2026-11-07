@@ -1,11 +1,12 @@
 // workers/core/src/photo-sweep.js
-// 照片兜底清扫：R2 里 photos/ 下没有被 D1（devices.photo / games.cover）引用的对象删掉。
+// 照片兜底清扫：R2 里 photos/ 下没有被 D1（devices.photo / games.cover / movies.poster）引用的对象删掉。
 // 正常路径（换照片、删照片、删条目）已经当场删 R2；这里只兜「当场删失败」「写了 R2 但 D1 没改成」这类残余。
 // - 每天一次：挂在每小时的 Cron 上，只在 UTC 19 点（北京 03 点）那一轮跑。
 // - 只删上传超过 1 小时的：上传是「先写 R2、再改 D1」，刚写进去的可能还没登记。
 // - D1 读不到（表不在、库出错）就整轮不删：宁可留残余，不能误删。
 // - 只碰 photos/；icons/、imports/（导入备份）不动。
 import { ensureItemSchema, KINDS } from './api/_items.js';
+import { ensureMovieSchema, MOVIE_KIND } from './api/_movies.js';
 
 export const SWEEP_PREFIX = 'photos/';
 export const SWEEP_UTC_HOUR = 19;
@@ -26,10 +27,11 @@ export async function sweepPhotos(env, now = Date.now()) {
   /** @type {Set<string>} */
   const used = new Set();
   try {
-    /* 一条 UNION ALL 同时读 devices.photo 和 games.cover（跨两套数据，要同一快照才不会误删）：
-       用主表 devices 那套的绑定 D1_DEVICES 执行（与 D1_GAMES 是同一个库） */
+    /* 一条 UNION ALL 同时读 devices.photo、games.cover、movies.poster（跨三套数据，要同一快照才不会误删）：
+       用主表 devices 那套的绑定 D1_DEVICES 执行（与 D1_GAMES / D1_MOVIES 是同一个库）。电影表没建过也先建上，不然整轮 SQL 报错不删 */
     await ensureItemSchema(env.D1_DEVICES);
-    const sql = Object.values(KINDS)
+    await ensureMovieSchema(env.D1_DEVICES);
+    const sql = [...Object.values(KINDS), MOVIE_KIND]
       .map((K) => `SELECT ${K.photo} AS k FROM ${K.table} WHERE ${K.photo} <> ''`)
       .join(' UNION ALL ');
     const r = await env.D1_DEVICES.prepare(sql).all();

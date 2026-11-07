@@ -53,3 +53,12 @@ export function r2Etag(obj) {
   const t = obj && typeof obj.httpEtag === 'string' ? obj.httpEtag : '';
   return /^(W\/)?"[^"]*"$/.test(t) ? t : '';
 }
+
+/** 看头几个字节认图片类型：webp / jpeg / png，其它返回 '' */
+export function sniffImage(b) {
+  if (!b || b.length < 12) return '';
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  return '';
+}

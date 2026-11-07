@@ -110,7 +110,7 @@ test('buildIndex：收藏 / 设备 / 游戏各出 zh + en 两条，标题、副�
     assert.ok(!it.text || it.text.length <= 2000);
   }
   assert.deepEqual(m.get('link:10'), {
-    id: 'link:10', type: 'item', lang: 'zh', title: '好工具', url: SITE + '/zh/#c/1',
+    id: 'link:10', type: 'item', lang: 'zh', title: '好工具', url: SITE + '/zh/finds/#c/1',
     subtitle: '发现 · 工具', text: '一个好用的工具\nA handy tool\nhttps://a.example/',
   });
   // 英文名空着 → 用中文名；分类名、页签名用英文；链到 /（英文默认，P4-3 PR-4c）
@@ -118,20 +118,20 @@ test('buildIndex：收藏 / 设备 / 游戏各出 zh + en 两条，标题、副�
   assert.equal(en.lang, 'en');
   assert.equal(en.title, '好工具');
   assert.equal(en.subtitle, 'Finds · Tools');
-  assert.equal(en.url, SITE + '/#c/1');
+  assert.equal(en.url, SITE + '/finds/#c/1');
   assert.equal(m.get('link:11').title, 'Only English');
 
   assert.equal(m.get('device:1').subtitle, '设备 · 手机 · One UI 8');
   assert.equal(m.get('device:1:en').subtitle, 'Devices · Phone · One UI 8');
   assert.equal(m.get('device:1').text, 'One UI 8\n12GB\n壳\n很顺手');
-  assert.equal(m.get('device:1').url, SITE + '/zh/#devices');
-  assert.equal(m.get('device:1:en').url, SITE + '/#devices');
+  assert.equal(m.get('device:1').url, SITE + '/zh/devices/');
+  assert.equal(m.get('device:1:en').url, SITE + '/devices/');
 
   assert.equal(m.get('game:1').title, '塞尔达传说');
   assert.equal(m.get('game:1').subtitle, '游戏 · Switch · 通关');
   assert.equal(m.get('game:1:en').subtitle, 'Games · Switch · Finished');
   assert.equal(m.get('game:1').text, 'Switch\n王国之泪\n自由');
-  assert.equal(m.get('game:1').url, SITE + '/zh/#games');
+  assert.equal(m.get('game:1').url, SITE + '/zh/games/');
 });
 
 test('私密：分类或收藏任一私密 → private:true；私密设备 / 游戏同样；公开的不带 private', async () => {
@@ -140,10 +140,10 @@ test('私密：分类或收藏任一私密 → private:true；私密设备 / 游
     assert.equal(m.get(id).private, true, id);
   }
   for (const id of ['link:10', 'link:10:en', 'device:1', 'game:1:en']) assert.equal('private' in m.get(id), false, id);
-  // 分类不在了（孤儿收藏）也当私密，链到首页（中文条目 → 中文首页 /curio/zh/，P4-3 PR-4c）
+  // 分类不在了（孤儿收藏）也当私密，链到发现子页（中文条目 → /curio/zh/finds/，P4-3 PR-4c + 奇趣拆页）
   const orphan = SI.linkItems({ id: 9, cat_id: 99, url: 'https://x/', name_zh: '孤儿', name_en: '' }, undefined);
   assert.equal(orphan[0].private, true);
-  assert.equal(orphan[0].url, SITE + '/zh/');
+  assert.equal(orphan[0].url, SITE + '/zh/finds/');
   assert.equal(orphan[0].subtitle, '发现');
 });
 

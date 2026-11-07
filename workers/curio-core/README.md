@@ -44,14 +44,25 @@ src/photo-sweep.js   R2 photos/ 清扫
 | `GET /api/export`（含私密） | 是 | 是 | — | — |
 | `POST /api/links`、`POST /api/items`、`POST` / `DELETE /api/photo`、`GET /api/preview` | 是 | 是 | `curio.write` | — |
 | `POST /api/import` | 是 | 是 | `curio.write` | 是 |
+| `GET /api/access`（首页私人入口用，只回布尔）、`GET /api/movies` | 是 | 有则 `canWrite` | — | — |
+| `POST /api/movies`、`POST` / `DELETE /api/photo?kind=movie` | 是 | 是 | `curio.write` | — |
+| `GET` / `POST /api/music`、`POST /api/music-upload`、`POST /api/music-play`、`GET /api/music-cover`（私人音乐，仅本人） | 是 | 是 | `curio.write` | — |
+| `GET` / `HEAD /api/music-stream?t=&id=`（播放短链） | 是 | — | — | —（认 D1 `music_tokens` 里的随机令牌，10 分钟，支持 Range） |
 
 - 错误码：没进门 `401 unauthorized`；没账号会话 `401 account`；没作用域 `403 scope`（带 `scope` 字段）；要复验没复验 `401 reauth`；非同源 `403 origin`。
 - 读接口回 `canWrite`（有 `curio.write`）、`showPrivate`（账号会话有效）两个布尔，代替以前的等级字段（P2-2）。
 - 网关绑定缺失 / 出错 → 500（不回 401，免得前端当成锁定去刷新）。
 
+## 奇趣拆页（P4-3）：电影、私人音乐
+
+- 绑定（同库同桶，各绑一个名字）：`D1_MOVIES`、`D1_MUSIC` → D1 `styrigx-curio-core`；`R2_MUSIC` → R2 `styrigx-curio-core`（`music/<专辑>/…`）。迁移 `0004_movies_music.sql`（deploy.yml 的 `d1 migrations apply styrigx-curio-core --remote` 会跑）。
+- 电影：进门可读，写要 `curio.write`；海报走 `/api/photo?kind=movie`（`photos/movie/…`，参与照片清扫）。
+- 音乐：读写都要账号会话 + `curio.write`；音频单文件 ≤ 95 MB（浏览器直传，要 Content-Length）、封面 ≤ 3 MB；播放令牌 = `crypto.getRandomValues` 32 字节，存 D1，10 分钟，不用 HMAC、不要 secret。
+- 电影、音乐不进全站搜索索引 / AI 召回（`search-index.js` 不读这些表、写它们不触发重建），页面 noindex、不进 `/curio/sitemap.xml`。
+
 ## 钥匙
 
-不持任何钥匙；`workers_dev = false`、`preview_urls = false`。
+不持任何钥匙（音乐短链也不用）；`workers_dev = false`、`preview_urls = false`。
 
 ## 数据与迁移
 
