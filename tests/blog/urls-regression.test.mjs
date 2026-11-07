@@ -127,7 +127,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     }
   });
 
-  it('列表页：首页 · 文章 · 专题 三个面板，没有归档', async () => {
+  it('列表页：首页 · 文章 · 专题 三个面板 + 首页分区入口，没有归档', async () => {
     const res = await fetch(base + '/blog/');
     const html = await res.text();
     assert.match(html, /<h1 class="sgx-visually-hidden"[^>]*>博客</, '首页 h1「博客」只给读屏 / 搜索引擎');
@@ -135,8 +135,11 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /note-entry/, '应有文章列表');
     for (const id of ['home', 'posts', 'topics']) {
       assert.match(html, new RegExp(`id="sgx-pane-${id}"`), `面板 ${id}`);
-      assert.match(html, new RegExp(`data-sgx-tab="${id}"`), `页签 ${id}`);
+      assert.match(html, new RegExp(`data-entry="${id}"`), `分区入口 ${id}`);
     }
+    /* P4-3 PR-4b：顶栏没有分段滑块，页名胶囊 = 站名「博客」（切分区时脚本换成分区名） */
+    assert.doesNotMatch(html, /data-sgx-seg|data-sgx-tab=/);
+    assert.match(html, /class="?sgx-tb-title"? data-sgx-titles=[^>]*>博客</);
     assert.doesNotMatch(html, /sgx-pane-archive|data-sgx-tab="archive"/, '没有归档页签');
     assert.doesNotMatch(html, /oui-hero/, '旧首页 hero 已删除');
     assert.doesNotMatch(
@@ -168,30 +171,31 @@ describe('网址回归（图志 /blog/ 下）', () => {
     );
   });
 
-  it('快捷面板导航页（2026-11-04 P5-1 替代抽屉）：主站 / 奇趣 / 日刻 / 博客（主站项绝对地址、三站之间相对 /<站>/），博客高亮；头像去主站账号页；没有搜索框', async () => {
+  it('九宫格导航面板（P4-3 PR-4b；原快捷面板导航页）：主站 / 奇趣 / 日刻 / 博客（主站项绝对地址、三站之间相对 /<站>/），博客「开」态；头像在 AI 窗口头部去主站账号页；没有搜索框', async () => {
     const html = await (await fetch(base + '/blog/')).text();
-    const hrefs = [...html.matchAll(/class="sgx-qp-nav-item" href="([^"]+)"/g)].map((m) => m[1]);
+    const hrefs = [...html.matchAll(/class="sgx-qp-tile sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
     assert.deepEqual(hrefs, ['https://styrigx.com/', '/curio/', '/daymark/', '/blog/']);
-    assert.match(html, /class="sgx-qp-nav-item" href="\/blog\/" data-nav="blog" aria-current="page"/);
-    assert.match(html, /<a class="sgx-tb-btn sgx-tb-me" href="https:\/\/styrigx\.com\/account\/"[^>]*><img src="https:\/\/styrigx\.com\/avatar\/192\.webp"/);
+    assert.match(html, /class="sgx-qp-tile sgx-nav-tile" href="\/blog\/" data-nav="blog" aria-current="page"/);
+    assert.match(html, /<a class="sgx-ai-me" href="https:\/\/styrigx\.com\/account\/"[^>]*><img src="https:\/\/styrigx\.com\/avatar\/192\.webp"/);
+    assert.doesNotMatch(html, /sgx-tb-me/, '顶栏没有头像');
     assert.doesNotMatch(html, /sgx-drawer|sgx-tb-nav\b/, '抽屉和九宫格删了');
     assert.doesNotMatch(html, /book\.styrigx\.com/, '书库已下线');
     assert.doesNotMatch(html, /atlas\.styrigx\.com/, '合并 PR3：不再有旧图志域名');
     const en = await (await fetch(base + '/blog/en/')).text();
-    const enHrefs = [...en.matchAll(/class="sgx-qp-nav-item" href="([^"]+)"/g)].map((m) => m[1]);
+    const enHrefs = [...en.matchAll(/class="sgx-qp-tile sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
     assert.deepEqual(enHrefs, ['https://styrigx.com/en/', '/curio/en/', '/daymark/en/', '/blog/en/']);
-    assert.match(en, /<a class="sgx-tb-btn sgx-tb-me" href="https:\/\/styrigx\.com\/en\/account\/"/);
+    assert.match(en, /<a class="sgx-ai-me" href="https:\/\/styrigx\.com\/en\/account\/"/);
   });
 
-  it('文章页：长条只有页名（文章标题）+ 阅读进度细线，没有页签；分享本页在快捷面板第 2 页；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
+  it('文章页：长条只有页名（文章标题）+ 阅读进度细线，没有页签；分享本页是快捷面板磁贴；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
     const html = await (await fetch(base + '/blog/post/2026-10-07-muse-playbook/')).text();
     const pill = html.match(/<div class="sgx-tb-pill[\s\S]*?<\/div>/)[0];
     assert.doesNotMatch(pill, /sgx-seg/);
     const title = html.match(/<h1[^>]*>([^<]+)<\/h1>/)[1].trim();
     assert.match(pill, new RegExp('<span class="sgx-tb-title">' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '</span>'));
     assert.match(pill, /data-sgx-progress/);
-    const set = html.match(/<section class="sgx-qp-page" id="sgx-qp-page-set"[\s\S]*?<\/section>/)[0];
-    assert.match(set, /<button type="button" class="sgx-qp-tile" data-qp="share" data-sgx-share>[\s\S]*?分享本页/, '分享本页 = 快捷设置页磁贴');
+    const set = html.match(/<dialog id="sgx-qp"[\s\S]*?<\/dialog>/)[0];
+    assert.match(set, /<button type="button" class="sgx-qp-tile" data-qp="share" data-sgx-share>[\s\S]*?分享本页/, '分享本页 = 快捷面板磁贴');
     assert.doesNotMatch(html, /sgx-tb-end|sgx-tb-share|sgx-tb-gbtn/, '没有右圆 / 右胶囊了');
     assert.doesNotMatch(html, /sgx-prog-title|sgx-toc-sheet|mobile-article-toc/);
     assert.doesNotMatch(html, /sgx-drawer-toc/, '抽屉删了，目录不进顶栏');

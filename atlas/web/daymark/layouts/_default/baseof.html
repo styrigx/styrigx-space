@@ -24,19 +24,22 @@
 {{/* 共享外壳读端 ui-cookie-read.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，挂 window.SgxUI；紧跟 ui-inherit-run.js 调 SgxUI.apply */}}
 <script>{{ (resources.Get "js/sgx/shell/ui-cookie-read.js" | minify).Content | safeJS }}</script>
 <script>{{ (resources.Get "js/sgx/ui-inherit-run.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018")).Content | safeJS }}</script>
+{{/* 布局模式：共享外壳 layout-mode.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b） */}}
+<script>{{ (resources.Get "js/sgx/shell/layout-mode.js" | minify).Content | safeJS }}</script>
 <script>
-/* 布局模式：同主站 baseof __layoutMode() 的自动规则（宽 ≥ 840、高 ≥ 500 且横屏 = DeX，否则 Mobile），
-   外壳框最宽（Mobile 640 / DeX 1440，input.css）跟着它，顶栏两侧圆和主站同一位置。日刻没有自己的布局开关。 */
+/* __sgxLayout() → phone / desktop：写 <html data-sgx-layout>（外壳按它定顶栏宽），本站弹层样式类 layout-mobile / layout-dex 也按它 */
 function __layoutMode(){
-  var w=window.innerWidth||1280,h=window.innerHeight||800;
-  return w>=840&&h>=500&&w>h?'dex':'mobile';
+  return __sgxLayout()==='desktop'?'dex':'mobile';
 }
 function __applyLayout(){
   var d=document.documentElement,m=__layoutMode();
   d.classList.remove('layout-mobile','layout-dex');
   d.classList.add('layout-'+m);
+  d.setAttribute('data-sgx-layout',m==='dex'?'desktop':'phone');
 }
 __applyLayout();
+/* 拖窗口 / 分屏 / 转屏：不刷新，按同一条规则重算 */
+__sgxLayoutWatch(__applyLayout);
 </script>
 <link rel="stylesheet" href="{{ (resources.Get "css/main.css" | minify | fingerprint).RelPermalink }}">
 </head>
@@ -44,24 +47,19 @@ __applyLayout();
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/sgx-shell-topbar.html（主站 shell-topbar.html 原样，atlas/scripts/daymark/sync-shell.mjs 同步，勿手改），
    这里只准备日刻自己的参数：
-   - 中间（原样搬进来）：首页 = 分段滑块（页签是 role=tab 的按钮，本站脚本切换面板）；其他页（404）= 只有页名（.sgx-tb-title）。
-   - 右边：快捷面板（两页：导航 / 快捷设置）· AI · 头像（主站账号页）。九宫格、导航抽屉、右圆分享删除：
-     站点切换在快捷面板第 1 页（日刻是当前项）；「分享本页」在快捷面板第 2 页（本站页面原来都有分享按钮，迁过去都有磁贴，定案第 4 条）。
-   - 快捷设置：深色 / 跟随系统 / 语言 / 调色板，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）；立即锁定、布局只在主站。
+   - 中间（原样搬进来）：页名胶囊 .sgx-tb-title（首页 = 站名，页内分区时换成分区名；其他页 = 页名）。
+   - 右边：九宫格（导航面板，本站是「开」态）· 快捷设置 · AI（头像在 AI 窗口头部）；P4-3 PR-4b 起快捷面板四站同一套，没有按站的 tiles 参数：
+     深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）。
    JS：js/sgx/topbar-host.js（共享外壳 topbar.js + modal-sheet.js + ai.js + prefs-write.js + share.js）。外观和语言跟主站（sgx-ui cookie，见 ui-inherit-run.js）。 */}}
 {{ $pageName := .Title }}
 {{ if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}{{ end }}
-{{ $tabs := slice
-  (dict "id" "echo" "zh" "余响" "en" "Echo" "hash" "")
-  (dict "id" "trove" "zh" "拾录" "en" "Trove" "hash" "#trove")
-  (dict "id" "flavors" "zh" "百味" "en" "Flavors" "hash" "#flavors")
-}}
 {{ $shellNav := resources.Get "sgx-shell/nav.json" | transform.Unmarshal }}
 {{ $center := "" }}
+{{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿；顶栏不再有分区页签）。首页 = 站名，切到页内分区（hash）时脚本把胶囊换成分区名
+   （data-sgx-titles：[站名, 第二个分区, 第三个分区]，顺序同页签；第一个分区就是首页本身）。分区入口在首页正文（共享外壳平铺入口）。 */}}
 {{ if .IsHome }}
-{{ $center = printf "<div class=\"sgx-seg\" role=\"tablist\" aria-label=\"%s\" data-dm-seg style=\"--seg-pos:0\"><span class=\"sgx-seg-ind\" aria-hidden=\"true\"></span>" (cond $isEn "Daymark sections" "日刻分区") }}
-{{ range $i, $t := $tabs }}{{ $center = printf "%s<button type=\"button\" role=\"tab\" class=\"sgx-seg-btn\" id=\"dm-tab-%s\" aria-controls=\"dm-pane-%s\" aria-selected=\"%s\" tabindex=\"%s\" data-dm-tab=\"%s\">%s</button>" $center $t.id $t.id (cond (eq $i 0) "true" "false") (cond (eq $i 0) "0" "-1") $t.id (cond $isEn $t.en $t.zh) }}{{ end }}
-{{ $center = printf "%s</div>" $center }}
+{{ $titles := slice (cond $isEn "Daymark" "日刻") (cond $isEn "Trove" "拾录") (cond $isEn "Flavors" "百味") }}
+{{ $center = printf "<span class=\"sgx-tb-title\" data-sgx-titles=\"%s\">%s</span>" ($titles | jsonify | htmlEscape) (index $titles 0 | htmlEscape) }}
 {{ else }}
 {{ $center = printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
 {{ end }}
@@ -90,7 +88,6 @@ __applyLayout();
   "mainOrigin" "https://styrigx.com"
   "acct" (cond $isEn (replace $shellNav.me.href "https://styrigx.com/" "https://styrigx.com/en/") $shellNav.me.href)
   "avatar" $shellNav.me.avatar
-  "tiles" (dict "theme" true "lang" true "palette" true "share" true)
   "langHref" $langHref
   "pal" $pal
 ) }}

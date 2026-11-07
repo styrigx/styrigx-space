@@ -7,6 +7,8 @@
  * - 2026-10-24 PR4：顶部「快捷面板」标题和齿轮（全部设置）删除；dialog 用 aria-label 保留读屏名字。
  * - 2026-11-04 P5-1：快捷面板标记搬进顶栏单一来源 partials/shell-topbar.html（四站共用），分两页（导航 / 快捷设置）；
  *   磁贴按 tiles 参数输出，主站 = dark / system / lang / lock（+ 调色板、布局两行），没有分享；样式进 @shell panel 段，只用 --sgx-* 角色。
+ * - 2026-11-07 P4-3 PR-4b（Gray 定稿）：快捷面板只有一页、四站同一套（没有 tiles 参数）：磁贴 深色 / 跟随系统 / 分享本页 / 立即锁定（两行 2×2），
+ *   语言整行（行内展开单选），调色板、布局；导航搬到九宫格面板 #sgx-nav。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,13 +25,18 @@ const setJs = rd('space/web/assets/js/apps/space.js');
 const css = rd('space/web/assets/css/input.css');
 const feats = rd('space/web/data/features.yaml');
 
-test('快捷面板磁贴：dark / system / lang / lock / share（share 只给子站），没有减弱动效和字体大小；主站不传 share', () => {
+test('快捷面板磁贴（PR-4b 四站同一套）：dark / system / share / lock 两行 2×2 + 语言整行；没有按站开关、没有减弱动效和字体大小', () => {
   const tiles = [...qpHtml.matchAll(/data-qp="([a-z]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(tiles, ['dark', 'system', 'lang', 'lock', 'share']);
-  const mainTiles = base.match(/\{\{ \$tbTiles := dict ([^}]*)\}\}/);
-  assert.ok(mainTiles, '主站 baseof 算好 tiles 传给 shell-topbar');
-  assert.match(mainTiles[1], /"lock" true/);
-  assert.doesNotMatch(mainTiles[1], /share/, '主站模板层不输出分享磁贴（定案第 4 条）');
+  assert.deepEqual(tiles, ['dark', 'system', 'share', 'lock', 'lang']);
+  assert.doesNotMatch(qpHtml, /\$t\.|\.tiles|\{\{ with \.layout \}\}/, '磁贴不再按 tiles / layout 参数开关');
+  assert.doesNotMatch(base, /\$tbTiles|"tiles"|"layout" \(index/, '主站不再传 tiles / layout');
+  assert.match(qpHtml, /<button type="button" class="sgx-qp-line" data-qp="lang" aria-expanded="false" aria-controls="sgx-qp-lang-opts"/);
+  const langOpts = qpHtml.slice(qpHtml.indexOf('id="sgx-qp-lang-opts"'), qpHtml.indexOf('data-qp-lang="{{ .v }}"'));
+  assert.deepEqual([...langOpts.matchAll(/"v" "([a-z]+)"/g)].map((m) => m[1]), ['system', 'zh', 'en']);
+  assert.match(qpHtml, /<button type="button" class="sgx-qp-opt" role="radio" data-qp-lang="\{\{ \.v \}\}" aria-checked="false">/);
+  assert.match(qpHtml, /<div class="sgx-qp-opts" id="sgx-qp-lang-opts" role="radiogroup"[^>]*hidden>/);
+  assert.match(qpHtml, /data-qp-seg="layout"/);
+  assert.match(qpJs, /share: mountShare/, '主站也接分享本页');
   assert.ok(!qpHtml.includes('reduced-motion'));
   assert.ok(!qpHtml.includes('font-size'));
   assert.ok(!/setReducedMotion|setFontSize|reducedMotionPref|fontSize\(/.test(qpJs + tbJs));
@@ -69,21 +76,21 @@ test('配色（2026-10-23 PR-G 修订；P5-1 改用 --sgx-* 角色）：磁贴 /
   assert.match(rule('.sgx-qp-row'), /background: var\(--sgx-qp-glass\)/);
   assert.match(rule('.palette-reset'), /background: var\(--sgx-qp-glass\)/);
   for (const sel of ['.sgx-qp-tile', '.sgx-qp-row', '.palette-reset']) assert.doesNotMatch(rule(sel), /secondary-container/, sel);
-  assert.match(rule('.sgx-qp-tile[aria-pressed="true"]'), /background: var\(--sgx-primary-container\)/);
-  assert.match(rule('.sgx-qp-tile[aria-pressed="true"] .sgx-qp-ic'), /background: var\(--sgx-primary-fill\); color: var\(--sgx-on-primary-fill\)/);
-  assert.match(rule('.sgx-qp-seg button[aria-pressed="true"]'), /background: var\(--m-primary-fill\); color: var\(--m-on-primary-fill\)/);
+  assert.match(rule('.sgx-qp-tile[aria-pressed="true"], .sgx-qp-tile[aria-current="page"]'), /background: var\(--sgx-primary-container\)/);
+  assert.match(rule('.sgx-qp-tile[aria-pressed="true"] .sgx-qp-ic, .sgx-qp-tile[aria-current="page"] .sgx-qp-ic'), /background: var\(--sgx-primary-fill\); color: var\(--sgx-on-primary-fill\)/);
+  assert.match(rule('.sgx-qp-seg button[aria-pressed="true"]'), /background: var\(--sgx-primary-fill\); color: var\(--sgx-on-primary-fill\)/);
   assert.match(rule('.palette-reset[aria-disabled="true"]'), /opacity: \.38/);
 });
 
-test('PR4：快捷面板没有标题和齿轮（模板、样式、脚本都删干净）；读屏名字在 dialog 的 aria-label；P5-1 两页页签', () => {
+test('PR4：快捷面板没有标题和齿轮（模板、样式、脚本都删干净）；读屏名字在 dialog 的 aria-label；PR-4b 起没有页签 / 两页', () => {
   const open = tb.slice(tb.indexOf('<dialog id="sgx-qp"'), tb.indexOf('>', tb.indexOf('<dialog id="sgx-qp"')) + 1);
-  assert.match(open, /aria-label="\{\{ if \$en \}\}Quick panel\{\{ else \}\}快捷面板\{\{ end \}\}"/);
+  assert.match(open, /aria-label="\{\{ if \$en \}\}Quick settings\{\{ else \}\}快捷设置\{\{ end \}\}"/);
   assert.doesNotMatch(open, /aria-labelledby/);
   assert.doesNotMatch(qpHtml, /sgx-qp-head|sgx-qp-title|"gear"/);
   assert.doesNotMatch(qpHtml, /class="sgx-qp-set"/);
-  assert.match(qpHtml, /<div class="sgx-qp-sheet" tabindex="-1" autofocus>\s*<div class="sgx-qp-tabs" role="tablist"/);
-  assert.equal((qpHtml.match(/role="tab" /g) || []).length, 2, '两个页签：导航 / 快捷设置');
-  assert.equal((qpHtml.match(/role="tabpanel"/g) || []).length, 2);
+  assert.match(qpHtml, /<div class="sgx-qp-sheet" tabindex="-1" autofocus>\s*<div class="sgx-qp-grid">/);
+  assert.doesNotMatch(qpHtml, /role="tab"|role="tabpanel"|data-qp-tab|data-qp-page|sgx-qp-nav/);
+  assert.doesNotMatch(tbJs, /data-qp-tab|data-qp-pages|scrollend/);
   assert.doesNotMatch(css, /\.sgx-qp-(head|title|set)\b/);
   assert.doesNotMatch(qpJs + tbJs, /sgx-qp-set\b/);
 });

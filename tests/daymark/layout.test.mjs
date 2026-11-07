@@ -13,17 +13,14 @@ const base = read('atlas/web/daymark/layouts/_default/baseof.html');
 const index = read('atlas/web/daymark/layouts/index.html');
 const css = read('atlas/web/daymark/assets/css/input.css');
 
-test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 首页分段滑块 / 其他页页名；右边快捷面板 · AI · 头像；没有九宫格、抽屉、右圆分享', () => {
+test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 页名胶囊（首页 = 站名）；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
   assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "daymark"/);
-  for (const [id, zh, en, hash] of [['echo', '余响', 'Echo', ''], ['trove', '拾录', 'Trove', '#trove'], ['flavors', '百味', 'Flavors', '#flavors']]) {
-    assert.match(base, new RegExp('\\(dict "id" "' + id + '" "zh" "' + zh + '" "en" "' + en + '" "hash" "' + hash + '"\\)'), id);
-  }
-  /* 中间原样搬进来：首页分段滑块（role=tablist、页签 role=tab），其他页（404）只有页名 */
-  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$center = printf "<div class=\\"sgx-seg\\" role=\\"tablist\\"[^\n]*data-dm-seg/);
-  assert.match(base, /role=\\"tab\\" class=\\"sgx-seg-btn\\"[^\n]*data-dm-tab=/);
+  /* P4-3 PR-4b 定稿：页名胶囊只显示页名——首页 = 站名（data-sgx-titles = [站名, 后两个分区名]，脚本按 hash 换），其他页（404）= 页名；顶栏没有分段滑块 */
+  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$titles := slice \(cond \$isEn "Daymark" "日刻"\) \(cond \$isEn "Trove" "拾录"\) \(cond \$isEn "Flavors" "百味"\) \}\}/);
+  assert.match(base, /<span class=\\"sgx-tb-title\\" data-sgx-titles=\\"%s\\">%s<\/span>/);
   assert.match(base, /\{\{ else \}\}\n\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
-  assert.doesNotMatch(base, /sgx-seg--none/);
+  assert.doesNotMatch(base, /sgx-seg|data-dm-seg|role=\\"tab/);
   /* 九宫格、导航抽屉、右圆分享和它们的脚本都删了（标记在共享外壳，本站模板里不再手写顶栏） */
   assert.doesNotMatch(base, /sgx-tb-nav|sgx-drawer|sgx-tb-end|sgx-tb-share|<header|apps-grid|sgx-tb-end-group|sgx-tb-gbtn|guestbook/);
   const code = base.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''); /* 去掉模板注释（注释里会提到被取代的旧文件） */
@@ -32,8 +29,8 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-top
   assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/assets/js/topbar.js')), false);
   assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/layouts/partials/shell-nav-href.html')), false);
   assert.match(base, /resources\.Get "js\/sgx\/topbar-host\.js" \| js\.Build/);
-  /* 本站页面原来都有分享按钮 → 快捷设置页都有「分享本页」磁贴；立即锁定、布局只在主站（定案第 4、5 条） */
-  assert.match(base, /"tiles" \(dict "theme" true "lang" true "palette" true "share" true\)/);
+  /* P4-3 PR-4b：快捷面板四站同一套（分享本页、立即锁定、布局都有），不再按站传 tiles */
+  assert.doesNotMatch(base, /"tiles" /);
   const host = read('atlas/web/daymark/assets/js/sgx/topbar-host.js');
   for (const m of ['./shell/topbar.js', './shell/modal-sheet.js', './shell/ai.js', './shell/vk.js', './shell/prefs-write.js', './shell/share.js']) {
     assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
@@ -49,8 +46,7 @@ test('没有搜索；快捷面板只来自共享外壳（本站不自己写）�
   assert.doesNotMatch(code, /sgx-qp|sgx-tb-quick/);
   assert.doesNotMatch(index, /sgx-qp|sgx-tb-quick/);
   assert.doesNotMatch(index, /sgx-tb-title/);
-  /* 页名只在 if .IsHome（分段滑块）的 else 分支里 */
-  assert.ok(base.lastIndexOf('class=\\"sgx-tb-title\\"') > base.indexOf('data-dm-seg'));
+  assert.match(index, /partial "sgx-shell-entries\.html"/, '首页分区入口');
   assert.doesNotMatch(index, /id="dm-tags"/);
   assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/layouts/partials/sgx-qp.html')), false);
   assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/assets/js/sgx/shell/capsule-kb.js')), false);
@@ -75,7 +71,7 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
   assert.doesNotMatch(css.slice(css.indexOf('/* @sgx-shell:end */')), /dm-gb-|giscus|guestbook/);
 });
 
-test('导航：快捷面板第 1 页用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；日刻是当前项；主站项走 https://styrigx.com', () => {
+test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；日刻是当前项；主站项走 https://styrigx.com', () => {
   const nav = JSON.parse(readFileSync(path.join(REPO, 'atlas/web/daymark/assets/sgx-shell/nav.json'), 'utf8'));
   assert.deepEqual(nav.items.map((i) => i.zh), ['旷野', '奇趣', '日刻', '博客']);
   assert.deepEqual(nav.footer, []);
@@ -86,7 +82,6 @@ test('导航：快捷面板第 1 页用主站共享外壳的 nav.json（主站 /
   /* 项、页脚、当前项高亮都在共享外壳 partial 里（range .nav.items / with .nav.footer / eq .id $.site） */
   const tb = read('atlas/web/daymark/layouts/partials/sgx-shell-topbar.html');
   assert.match(tb, /range \.nav\.items/);
-  assert.match(tb, /with \.nav\.footer/);
   assert.match(tb, /if eq \.id \$\.site \}\} aria-current="page"/);
   /* 导航页不放搜索框（定案第 2 条） */
   assert.doesNotMatch(tb, /type="search"|role="search"|sgx-drawer-search|nav\.search/);

@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:9c4ad417c51d space/web/shared/shell vaf20c15030a1（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:95eed89a0bff space/web/shared/shell vb9e9ac897d32（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- ai.js ---- */
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
@@ -12,8 +12,9 @@
  *   最多 20 份、超了删最旧的；title = 首问前 20 字；cur = 当前对话 id。读到 v1 {v:1, msgs} 包成一份对话写回 v2；旧记录里可能还带 hits，读出来不渲染）；
  *   四站同源所以同一台设备上是同一份（同源带来的，不是同步）；
  *   lib/cloud-sync.js 的白名单不收这个键，不跨设备。发给服务端的 history 只带最近 6 条 {role, text}（服务端再截 2000 字）。
- * - 顶部两行（§3.2）：标题 Gray AI；下面一行新对话（data-ai-clear：当前对话已在历史里，开一份空的）/ 历史（data-ai-history：窗口内的列表视图，不是底部弹出窗口）/
- *   联系（data-ai-contact：mailto:ai@styrigx.com）。空态显示开场白（助手气泡样式，不存历史）。
+ * - 头部一行（P4-3 PR-4b，Gray 2026-11-07）：标题 Gray AI；右边新对话图标（data-ai-clear：当前对话已在历史里，开一份空的）/ 历史图标（data-ai-history：
+ *   窗口内的列表视图，不是底部弹出窗口）/ 头像（账号页）。联系挪到底部那行「仅公开内容 · 联系我」（data-ai-contact：mailto:styrigx@gmail.com）。
+ *   底部小字的「仅公开内容 / 包含私密内容」在 data-ai-scope 上。空态显示开场白（助手气泡样式，不存历史）。
  * - 每条助手回答下（§3.4）：复制 / 重试（重问前面那条提问，替换这条回答）/ 👍 / 👎（只存本地，记在该条消息的 rate 上，再点取消）。
  * - 模型（P4-2d）：账号页「AI 模型」一行把选择存在 localStorage sgx-ai-model（进云同步，换设备跟着走）；这里发问时有就带上 body.model，
  *   窗口里不做切换。服务端只在有账号会话时采纳（没登录带了也忽略，一律默认模型），不在登记里 → 400 bad_model：

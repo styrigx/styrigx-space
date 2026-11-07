@@ -58,41 +58,48 @@ export function setPalette(p) {
   else d.setAttribute('data-palette', v);
 }
 
-/** 存的布局值 → 合法偏好（旧值 pc 迁到 dex，其他未知值 → auto）。 @param {any} v @returns {'auto'|'mobile'|'dex'} */
+/**
+ * 存的布局值 → 合法偏好（P4-3 PR-4b：只有手机 / 自动 / 桌面）。旧值兼容：mobile → phone，dex / pc → desktop；其他未知值 → auto。
+ * @param {any} v @returns {'auto'|'phone'|'desktop'}
+ */
 export function normLayout(v) {
-  if (v === 'pc') return 'dex';
-  return v === 'mobile' || v === 'dex' ? v : 'auto';
+  if (v === 'phone' || v === 'mobile') return 'phone';
+  if (v === 'desktop' || v === 'dex' || v === 'pc') return 'desktop';
+  return 'auto';
 }
 
-/** @returns {'auto'|'mobile'|'dex'} 布局偏好 */
+/** @returns {'auto'|'phone'|'desktop'} 布局偏好 */
 export function layoutPref() {
   return normLayout(featGet('layout'));
 }
 
 /**
- * DeX 需要的「大屏」：可用视口 w ≥ 840 且 h ≥ 500（与 baseof.html __layoutMode 一致）。
- * 手机横屏视口高 ≤ ~450（最大手机短边 448 CSS px，再减浏览器栏），折叠屏内屏 / 平板 / 笔记本 / 显示器 ≥ ~600 高，
- * 500 落在中间；840 让 Z Fold 内屏横屏（841×673）仍是 DeX。
- * @param {number} w @param {number} h @returns {boolean}
+ * 浏览器是不是「手机版网站」模式（同共享外壳 layout-mode.js __sgxUaMobile）：有 userAgentData 就看 .mobile，
+ * 没有就看 UA 里的 Mobi / Android…Mobile / iPhone。不看视口像素。
+ * @param {{ userAgentData?: { mobile?: boolean }, userAgent?: string }} [nav] @returns {boolean}
  */
-export function layoutBig(w, h) {
-  return w >= 840 && h >= 500;
+export function uaMobile(nav) {
+  const n = nav || /** @type {any} */ (typeof navigator !== 'undefined' ? navigator : {});
+  const u = n.userAgentData;
+  if (u && typeof u.mobile === 'boolean') return u.mobile;
+  return /Mobi|Android.*Mobile|iPhone/.test(n.userAgent || '');
 }
 
 /**
- * 偏好 + 视口 → 实际布局。自动：横屏（w > h）且大屏 → dex，否则 mobile；手动 DeX 不是大屏时按 mobile。
- * @param {any} pref @param {number} w @param {number} h @returns {'mobile'|'dex'}
+ * 偏好 + 浏览器 + 视口宽 → 实际布局（同 baseof.html / 共享外壳 layout-mode.js __sgxLayout）：
+ * 手动手机 / 桌面照办；自动 = 手机版网站模式 → phone，否则 desktop，但视口宽 < 720 → phone（窄窗口 / 分屏的保险，只在自动里）。
+ * @param {any} pref @param {boolean} mobile uaMobile() 的结果 @param {number} [w] 视口宽（innerWidth） @returns {'phone'|'desktop'}
  */
-export function resolveLayout(pref, w, h) {
+export function resolveLayout(pref, mobile, w) {
   const p = normLayout(pref);
-  if (p === 'mobile') return 'mobile';
-  if (p === 'dex') return layoutBig(w, h) ? 'dex' : 'mobile';
-  return layoutBig(w, h) && w > h ? 'dex' : 'mobile';
+  if (p !== 'auto') return p;
+  if (mobile) return 'phone';
+  return typeof w === 'number' && w > 0 && w < 720 ? 'phone' : 'desktop';
 }
 
-/** 当前视口不够 DeX（w < 840 或 h < 500）：DeX 偏好不生效。 @returns {boolean} */
+/** 旧接口（P4-3 PR-4b 前「不够 DeX 时 DeX 置灰」）：模式不再按视口定，桌面任何时候都能选。 @returns {boolean} */
 export function layoutNarrow() {
-  return !layoutBig(window.innerWidth || 1280, window.innerHeight || 800);
+  return false;
 }
 
 /** 设置布局偏好并立即重算布局。 @param {string} v */

@@ -200,33 +200,32 @@ async function shellShotPage(pg) {
   await pg.goto('/theme/', { waitUntil: 'domcontentloaded' });
   await waitPageReady(pg);
 }
-/** 点快捷面板图标，等面板稳定在打开状态（不拍滑下中途）；pg2 = 切到第 2 页「快捷设置」 */
-async function openQuickPanel(pg, pg2) {
+/** 点快捷面板图标，等面板稳定在打开状态（不拍滑下中途）。2026-11-07 PR-4b 2/2：快捷面板只有一页（没有导航 / 快捷设置两页），导航搬到九宫格面板 */
+async function openQuickPanel(pg) {
   await pg.click('.sgx-tb-quick');
   await expect(pg.locator('#sgx-qp.is-open')).toBeVisible({ timeout: 10000 });
   await expect(pg.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
-  if (pg2) {
-    await pg.click('#sgx-qp-tab-set');
-    await expect(pg.locator('#sgx-qp-page-nav')).toHaveAttribute('inert', '');
-    await expect.poll(() => pg.evaluate(() => {
-      const p = document.querySelector('#sgx-qp [data-qp-pages]');
-      return Math.abs(p.scrollLeft - p.clientWidth) <= 1;
-    })).toBe(true);
-  }
+}
+/** 点九宫格图标，等导航面板稳定在打开状态 */
+async function openNavPanel(pg) {
+  await pg.click('.sgx-tb-grid');
+  await expect(pg.locator('.sgx-tb-grid')).toHaveAttribute('aria-expanded', 'true');
+  await expect(pg.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
+  await expect(pg.locator('#sgx-nav')).toBeVisible({ timeout: 10000 });
 }
 
-/* 快捷面板第 1 页「导航」（2026-11-04 P5-1，取代 baseline-drawer-open）：设置子页上点顶栏快捷面板图标，面板落下，默认第 1 页，主站当前项高亮 */
+/* 导航面板（2026-11-07 PR-4b 2/2 起是九宫格面板，不再是快捷面板第 1 页；文件名沿用）：设置子页上点顶栏九宫格，面板落下，主站当前项高亮 */
 test('baseline-quick-panel-nav-open', async ({ page: pg }) => {
   await shellShotPage(pg);
-  await openQuickPanel(pg, false);
+  await openNavPanel(pg);
   await expect(pg).toHaveScreenshot('baseline-quick-panel-nav-open.png', { animations: 'disabled' });
 });
 
-/* 快捷面板第 2 页「快捷设置」（2026-10-20 起的 baseline-quick-panel-open；P5-1 起要先切到第 2 页；主站页面，没有分享磁贴） */
+/* 快捷面板（2026-11-07 PR-4b 2/2 起只有一页，四站同一套：深色、跟随系统、分享、立即锁定四格，主站也有分享） */
 test('baseline-quick-panel-open', async ({ page: pg }) => {
   await shellShotPage(pg);
-  await openQuickPanel(pg, true);
-  await expect(pg.locator('#sgx-qp [data-qp="share"]')).toHaveCount(0);
+  await openQuickPanel(pg);
+  await expect(pg.locator('#sgx-qp [data-qp="share"]')).toHaveCount(1);
   await expect(pg).toHaveScreenshot('baseline-quick-panel-open.png', { animations: 'disabled' });
 });
 

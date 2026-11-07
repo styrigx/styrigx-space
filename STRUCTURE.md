@@ -71,7 +71,7 @@ space/web/
 | `content/` | 页面入口，中英双语（`content/en/` 是英文） |
 | `layouts/` | 模板；`_default/` 下是各 App 页面，`partials/` 是公共片段 |
 | `assets/css/` | `input.css`、`tw-input.css` 是源文件；`main.css` 由 `space/scripts/build-css.cjs` 生成 |
-| `assets/js/` | 前端脚本：`lib/` 公共库、`auth/` 鉴权与凭证流程、`shell/` 系统外壳、`apps/` 各 App、`entries/` 页面入口（依赖方向见 `docs/architecture.md`，`space/scripts/check-layers.mjs` 检查） |
+| `assets/js/` | 前端脚本：`lib/` 公共库、`auth/` 鉴权与凭证流程、`shell/` 系统外壳、`apps/` 各 App、`entries/` 页面入口（依赖方向见 `docs/architecture.md`，`space/scripts/check-layers.mjs` 检查）。前端规范 `space/scripts/check-frontend.mjs`（CI 必过）：规则 1 禁原生弹窗（alert / confirm / prompt）；规则 2 禁独立 `token` 变量；规则 3 不做底部弹出窗口——`openSheet(` 只许出现在白名单文件（`SHEET_ALLOW`：`shell/sheet.js`、`apps/account.js`、`apps/account-apps.js`、`apps/avatar-edit.js`，`apps/settings.js` 暂留待语言选择改行内），新调用一律拦下，选项改行内展开单选（P4-3 §6.7） |
 | `static/` | 原样复制：字体、默认头像、`_redirects`、`_headers`、`robots.txt`、`_worker.js`（只把 `*.pages.dev` 跳回 `styrigx.com`） |
 | `shared/shell/` | 共享外壳（顶栏、抽屉、搜索层的 CSS / JS / 导航数据）：`space/scripts/gen-shell.mjs` 从主站源头生成，子站用各自的 `atlas/scripts/<站>/sync-shell.mjs` 同步过去；CI 跑 `gen-shell.mjs --check`。外观 cookie `sgx-ui`（主站写、子站只读）的契约见 `docs/ui-cookie-contract.md` |
 | `data/` | 站点数据 yaml/json（`data/en/` 是英文版） |

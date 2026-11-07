@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:9c4ad417c51d space/web/shared/shell vaf20c15030a1（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:95eed89a0bff space/web/shared/shell vb9e9ac897d32（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- prefs-write.js ---- */
 /**
  * @fileoverview 外观写端（2026-11-04 P5-1，定案第 5 条：四站共用一个写端）。
@@ -76,8 +76,8 @@ function currentSeed() {
   } catch (e) {}
   return '';
 }
-/** 明确的语言偏好：'zh' / 'en' 原样返回；跟随系统返回 '' */
-function langPref() {
+/** 明确的语言偏好：'zh' / 'en' 原样返回；跟随系统返回 ''（P4-3 PR-4b 起导出给快捷面板语言行） */
+export function langPref() {
   var l = ls('sgx-lang');
   return l === 'zh' || l === 'en' ? l : '';
 }
@@ -171,5 +171,29 @@ export function setPalette(p) {
 export function setLangPref(v) {
   lsSet('sgx-lang', v === 'zh' || v === 'en' ? v : null);
   syncUiCookie();
+}
+
+
+/* 布局偏好（P4-3 PR-4b：快捷面板四站同一套，子站也有布局行；只有手机 / 自动 / 桌面）：同主站 lib/prefs.js，localStorage sgx-layout = phone / auto / desktop
+   （同源同一份；旧值 mobile → phone、dex / pc → desktop）。模式按共享外壳 layout-mode.js __sgxLayout() 算（四站 <head> 内联同一份）；
+   写完重算本页布局：各站 <head> 都有 window.__applyLayout，调它；万一没有就按 __sgxLayout 只改 data-sgx-layout。 */
+/** @returns {'phone'|'auto'|'desktop'} */
+export function layoutPref() {
+  var v = ls('sgx-layout');
+  if (v === 'phone' || v === 'mobile') return 'phone';
+  if (v === 'desktop' || v === 'dex' || v === 'pc') return 'desktop';
+  return 'auto';
+}
+/** 旧接口：模式不再按视口定，桌面任何时候都能选（应用内浏览器没有「桌面版网站」开关，靠这里手动选） @returns {boolean} */
+export function layoutNarrow() {
+  return false;
+}
+/** @param {string} v */
+export function setLayout(v) {
+  var n = v === 'phone' || v === 'mobile' ? 'phone' : v === 'desktop' || v === 'dex' ? 'desktop' : 'auto';
+  lsSet('sgx-layout', n);
+  var w = /** @type {any} */ (window);
+  if (typeof w.__applyLayout === 'function') w.__applyLayout();
+  else if (typeof w.__sgxLayout === 'function') document.documentElement.setAttribute('data-sgx-layout', w.__sgxLayout());
 }
 /* @sgx-shell:end */

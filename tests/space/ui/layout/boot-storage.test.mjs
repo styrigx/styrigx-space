@@ -64,7 +64,7 @@ test('存储正常：调色板、布局照旧生效；默认调色板的值被�
   let s = mk({ 'sgx-palette': 'forest', 'sgx-layout': 'pc' });
   let r = run(s);
   assert.equal(r.attrs['data-palette'], 'forest');
-  assert.equal(r.attrs['data-layout'], 'dex');
+  assert.equal(r.attrs['data-layout'], 'desktop', '旧值 pc → desktop（P4-3 PR-4b 手机 / 桌面）');
   s = mk({ 'sgx-palette': 'xlake' });
   r = run(s);
   assert.equal(r.attrs['data-palette'], 'lake', '旧撞色 x<id> 迁到 <id>');

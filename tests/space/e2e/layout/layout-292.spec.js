@@ -36,14 +36,12 @@ function boxesIntersect(a, b) {
          a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
-test('窄屏保护：旧值 sgx-layout=pc 迁到 dex，html 仍为 layout-mobile', async ({ page }) => {
+test('旧值 sgx-layout=pc = 手动桌面（P4-3 PR-4b：手动照办，窄屏也不改）：html 为 layout-dex，横向不溢出', async ({ page }) => {
   await gotoWithLayout(page, 'pc');
-  await expect(page.locator('html')).toHaveClass(/layout-mobile/);
-  // 偏好迁到 dex 并保留在 localStorage（回到宽屏时生效）
-  const saved = await page.evaluate(() => {
-    try { return localStorage.getItem('sgx-layout'); } catch (e) { return null; }
-  });
-  expect(saved).toBe('dex');
+  await expect(page.locator('html')).toHaveClass(/layout-dex/);
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop');
+  const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
+  expect(o.sw).toBeLessThanOrEqual(o.iw);
 });
 
 test('无横向溢出：scrollWidth <= innerWidth', async ({ page }) => {

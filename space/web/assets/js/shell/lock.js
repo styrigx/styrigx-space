@@ -39,17 +39,18 @@ export function showLockScreen() {
   const en = document.documentElement.lang === 'en';
   const isLocal = isLocalDev();
 
-  /* 头像：复用顶栏右边的头像图片（2026-11-04 P5-1 回到顶栏） */
-  const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('.sgx-tb-avatar'));
-  /* 锁屏头像 72px：用 192 那张（顶栏是 96） */
+  /* 头像：复用 AI 窗口头部的头像图片（P4-3 PR-4b 起头像不在顶栏，搬进 AI 窗口头部 .sgx-ai-avatar） */
+  const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('.sgx-ai-avatar'));
+  /* 锁屏头像 72px：用 192 那张 */
   const avatarSrc = navImg ? navImg.src.replace(/\/avatar\/96\.webp/, '/avatar/192.webp') : '';
 
-  /* 顶栏保持全站同一个（2026-11-04 P5-1 全大椭圆）：logo + 页名 + 右边三个按钮，外观取页面顶栏同一份。
-     锁屏上它们只是外观（span、不可点、不进读屏），快捷面板 / AI / 账号在锁定时打不开，不能绕过锁屏。 */
+  /* 顶栏保持全站同一个（2026-11-04 P5-1 全大椭圆）：字标 + 页名 + 右边三个按钮（九宫格 · 快捷设置 · AI），外观取页面顶栏同一份。
+     锁屏上它们只是外观（span、不可点、不进读屏），导航 / 快捷面板 / AI 在锁定时打不开，不能绕过锁屏。
+     账号入口（头像）锁屏态同样不在顶栏（PR-4b：头像只在 AI 窗口头部，顶栏只抄 .sgx-tb-btn）。类名照抄（sgx-tb-btn sgx-tb-grid / sgx-tb-quick / sgx-tb-ai）。 */
   const tbLogoEl = document.querySelector('#site-nav .sgx-tb-logo');
   const tbLogo = tbLogoEl ? tbLogoEl.innerHTML : '';
   const tbActs = Array.from(document.querySelectorAll('#site-nav .sgx-tb-acts .sgx-tb-btn')).map(function (b) {
-    return '<span class="sgx-tb-btn">' + b.innerHTML + '</span>';
+    return '<span class="' + b.className + '">' + b.innerHTML + '</span>';
   }).join('');
   const ov = document.createElement('div');
   ov.id = 'sgx-lock';

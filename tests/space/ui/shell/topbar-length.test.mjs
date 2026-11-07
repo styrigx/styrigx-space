@@ -1,0 +1,158 @@
+/**
+ * 顶栏长度统一（P4-3 再修，Gray 2026-11-06 立规⑥：顶栏一会长一会短是设计问题；P4-3 PR-4b Gray 2026-11-07 定稿布局只有手机 / 桌面）。
+ * 规则只有一份：共享外壳 layout-mode.js __sgxLayout()（源头 space/web/assets/js/lib/layout-mode.js），四站 <head> 原样内联，写 <html data-sgx-layout="phone|desktop">；
+ * 顶栏宽只在共享外壳 shell.css 按它定：手机 min(100% − 32, 640)，桌面 min(960, 100% − 48)，居中；按 100%（不含滚动条），不用 100vw。
+ * 本文件：① 四站 <head> 内联的是同一份 layout-mode.js、都调 __sgxLayout() 写属性、都按 matchMedia 重算；
+ * ② 四站内联脚本在一整张 视口 × UA × 偏好 × 查询串 表上给出和主站一样的 data-sgx-layout；
+ * ③ 外壳 CSS 的宽度公式、横向不滚、窄屏收页名胶囊；④ 各站不再按 layout-* 类改 --sgx-content-max / 顶栏宽。
+ * 浏览器里逐页量：tests/curio/e2e/topbar-length.spec.js（四站整树）、tests/space/e2e/topbar/topbar-length.spec.js（主站各页、切布局偏好）。
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
+const LIB = read('space/web/assets/js/lib/layout-mode.js');
+
+const TPL = {
+  main: read('space/web/layouts/_default/baseof.html'),
+  curio: read('atlas/web/curio/layouts/_default/baseof.html'),
+  daymark: read('atlas/web/daymark/layouts/_default/baseof.html'),
+  blog: read('atlas/web/blog/layouts/partials/head.html'),
+};
+/** 各站内联的布局脚本（__layoutMode 起到 __sgxLayoutWatch(__applyLayout); 止） */
+const SCRIPTS = Object.fromEntries(Object.entries(TPL).map(([k, t]) => [k, t.match(/function __layoutMode\(\)\{[\s\S]*?\n__sgxLayoutWatch\(__applyLayout\);/)[0]]));
+/** 各站同步来的 layout-mode.js（子站带 @sgx-shell 头注释） */
+const COPIES = {
+  main: LIB,
+  curio: read('atlas/web/curio/assets/js/sgx/shell/layout-mode.js'),
+  daymark: read('atlas/web/daymark/assets/js/sgx/shell/layout-mode.js'),
+  blog: read('atlas/web/blog/assets/js/sgx/shell/layout-mode.js'),
+};
+const body = (s) => s.slice(s.indexOf('function __sgxUaMobile')).replace(/\/\* @sgx-shell:end \*\/\n?$/, '');
+
+const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
+const DESK_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+
+/** 跑一站的布局脚本（先跑它自己那份 layout-mode.js）：stub window / localStorage / location / navigator / document，回 data-sgx-layout 和 layout-* 类 */
+function run(site, { w, ua = DESK_UA, uad, pref = null, search = '' }) {
+  const store = new Map(pref == null ? [] : [['sgx-layout', pref]]);
+  const localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
+  const attrs = new Map();
+  const classes = new Set();
+  const document = {
+    documentElement: {
+      classList: { add: (...c) => c.forEach((x) => classes.add(x)), remove: (...c) => c.forEach((x) => classes.delete(x)) },
+      setAttribute: (k, v) => attrs.set(k, String(v)),
+      getAttribute: (k) => (attrs.has(k) ? attrs.get(k) : null),
+    },
+  };
+  const listeners = [];
+  const window = { innerWidth: w, matchMedia: () => ({ addEventListener: (_t, f) => listeners.push(f) }), dispatchEvent() {} };
+  const location = { search };
+  const navigator = uad === undefined ? { userAgent: ua } : { userAgent: ua, userAgentData: uad };
+  new Function('window', 'localStorage', 'location', 'navigator', 'document', 'URLSearchParams', 'Event', COPIES[site] + '\n' + SCRIPTS[site])(
+    window, localStorage, location, navigator, document, URLSearchParams, class {});
+  return { attr: attrs.get('data-sgx-layout') ?? null, cls: [...classes].filter((c) => c.startsWith('layout-')), listeners: listeners.length };
+}
+
+test('四站 <head> 原样内联同一份 layout-mode.js（共享外壳，sync-shell 同步）、用 __sgxLayout() 写 data-sgx-layout、按 matchMedia 重算', () => {
+  for (const site of ['curio', 'daymark', 'blog']) {
+    assert.equal(body(COPIES[site]), body(LIB), `${site} 的 layout-mode.js 和主站源头不同`);
+    assert.match(TPL[site], /<script>\{\{ \(resources\.Get "js\/sgx\/shell\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/, site);
+  }
+  assert.match(TPL.main, /<script>\{\{ \(resources\.Get "js\/lib\/layout-mode\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
+  for (const [site, s] of Object.entries(SCRIPTS)) {
+    assert.match(s, /__sgxLayout\(\)/, site);
+    assert.match(s, /setAttribute\('data-sgx-layout',/, site);
+    /* 各站不许再自己写像素断点 / 横屏判断 */
+    assert.doesNotMatch(s.replace(/\/\*[\s\S]*?\*\//g, ''), /innerWidth|innerHeight|840|980/, site);
+    /* 同步内联脚本，在 <head> 里（body 首帧前就定好，不闪；不是 defer / module） */
+    const t = TPL[site];
+    const at = t.indexOf('function __layoutMode(){');
+    const head = t.indexOf('</head>');
+    if (head >= 0) assert.ok(at < head, `${site}：布局脚本要在 <head> 里`);
+    assert.doesNotMatch(t.slice(t.lastIndexOf('<script', at), at), /defer|async|type="module"/, site);
+  }
+});
+
+const WIDTHS = [320, 360, 384, 390, 412, 600, 700, 719, 720, 760, 900, 915, 980, 982, 1024, 1280, 1920, 2560];
+const UAS = [[PHONE_UA, undefined], [DESK_UA, undefined], [DESK_UA, { mobile: false }], [PHONE_UA, { mobile: true }], [PHONE_UA, { mobile: false }]];
+const PREFS = [null, 'auto', 'phone', 'desktop', 'mobile', 'dex', 'pc', 'tablet', ''];
+const SEARCH = ['', '?layout=auto'];
+
+test('四站内联脚本在每个视口 × UA × 偏好 × 查询串下写出和主站一样的 data-sgx-layout（phone / desktop），各站 layout-* 类跟着同一个模式', () => {
+  let n = 0;
+  const CLS = { main: { phone: 'layout-mobile', desktop: 'layout-dex' }, curio: { phone: 'layout-phone', desktop: 'layout-dex' },
+    daymark: { phone: 'layout-mobile', desktop: 'layout-dex' }, blog: { phone: 'layout-mobile', desktop: 'layout-dex' } };
+  for (const w of WIDTHS) for (const [ua, uad] of UAS) for (const pref of PREFS) for (const search of SEARCH) {
+    const want = run('main', { w, ua, uad, pref, search });
+    assert.ok(want.attr === 'phone' || want.attr === 'desktop', `主站 ${w} ${pref} → ${want.attr}`);
+    for (const site of ['main', 'curio', 'daymark', 'blog']) {
+      const got = run(site, { w, ua, uad, pref, search });
+      assert.equal(got.attr, want.attr, `${site} ${w} pref=${pref} ${search} → ${got.attr}，主站 ${want.attr}`);
+      assert.deepEqual(got.cls, [CLS[site][got.attr]], `${site} ${w} ${pref}`);
+      assert.ok(got.listeners >= 1, `${site} 没有按 matchMedia 重算`);
+      n++;
+    }
+  }
+  assert.ok(n > 6000);
+});
+
+test('Gray 定稿的几台：手机竖 / 横、桌面、窄窗口、手机手动桌面', () => {
+  for (const site of ['main', 'curio', 'daymark', 'blog']) {
+    assert.equal(run(site, { w: 412, ua: PHONE_UA }).attr, 'phone', site);
+    assert.equal(run(site, { w: 915, ua: PHONE_UA }).attr, 'phone', site); // 手机横屏（没开桌面版网站）
+    assert.equal(run(site, { w: 982, ua: DESK_UA, uad: { mobile: false } }).attr, 'desktop', site); // 三星浏览器「桌面版网站」
+    assert.equal(run(site, { w: 1280 }).attr, 'desktop', site);
+    assert.equal(run(site, { w: 700 }).attr, 'phone', site); // 自动：桌面 UA 但 < 720
+    assert.equal(run(site, { w: 700, pref: 'desktop' }).attr, 'desktop', site); // 手动桌面不看宽度
+    assert.equal(run(site, { w: 980, ua: PHONE_UA, uad: { mobile: true }, pref: 'desktop' }).attr, 'desktop', site); // 应用内浏览器手动桌面
+    assert.equal(run(site, { w: 1920, pref: 'phone' }).attr, 'phone', site);
+  }
+});
+
+test('外壳 CSS：顶栏宽 手机 min(100% − 32, 640)、桌面 min(960, 100% − 48)（含安全区），按 100% 不用 100vw；横向不滚；手机布局不显示页名胶囊（不按像素）', () => {
+  const shell = read('space/web/shared/shell/shell.css');
+  const code = shell.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(code, /--sgx-tb-w: min\(100% - max\(16px, env\(safe-area-inset-left, 0px\)\) - max\(16px, env\(safe-area-inset-right, 0px\)\), 640px\);/);
+  assert.match(code, /:root\[data-sgx-layout="desktop"\] \{[^}]*--sgx-tb-w: min\(960px, 100% - max\(24px, env\(safe-area-inset-left, 0px\)\) - max\(24px, env\(safe-area-inset-right, 0px\)\)\);/);
+  assert.match(code, /:root\[data-sgx-layout="phone"\] \{ --sgx-content-max: 640px; \}/);
+  assert.match(code, /:root \{ overflow-x: clip; \}/);
+  assert.doesNotMatch(code, /@media \(max-width: 3[0-9]{2}\.98px\) \{ \.sgx-tb-pill/, '340 / 380 像素阈值删了');
+  assert.match(code, /:root:not\(\[data-sgx-layout="desktop"\]\) \.sgx-tb-pill > :not\(\.sgx-tb-progress\) \{ display: none; \}/);
+  assert.doesNotMatch(code, /100vw/, '外壳里不许再用 100vw（经典滚动条下会横向溢出）');
+  assert.doesNotMatch(code, /data-sgx-layout="(?:mobile|dex)"/);
+  assert.match(code, /\.sgx-topbar \{ position: fixed;[^}]*left: 0; right: 0; margin: 0 auto; width: var\(--sgx-tb-w\);/);
+  assert.match(code, /\.sgx-qp \{ position: fixed;[^}]*left: 0; right: 0;/);
+  assert.match(code, /\.sgx-tb-acts \{ justify-self: end;/, '图标组靠右');
+  /* 快捷面板 / AI 窗口桌面样式按模式，不按 980 断点 */
+  assert.match(code, /:root\[data-sgx-layout="desktop"\] \.sgx-qp-sheet \{/);
+  assert.doesNotMatch(code, /min-width: 980px/);
+  const bar = code.match(/\.sgx-topbar \{ position: fixed;[^}]*\}/)[0];
+  assert.doesNotMatch(bar, /fit-content|max-content|min-content|width: auto/);
+});
+
+test('各站自己的样式不再按 layout-* 类改 --sgx-content-max / 顶栏宽（只有外壳一处）', () => {
+  const files = [
+    'space/web/assets/css/input.css',
+    'atlas/web/curio/assets/css/input.css',
+    'atlas/web/daymark/assets/css/input.css',
+    'atlas/web/blog/assets/css/blog/one-ui.css',
+    'atlas/web/blog/assets/css/blog/components.css',
+    'atlas/web/blog/assets/css/blog/base.css',
+  ];
+  for (const f of files) {
+    const raw = read(f);
+    const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.doesNotMatch(strip(raw), /layout-(?:mobile|phone|dex)[^{}]*\{[^}]*--sgx-content-max/, f);
+    /* 外壳以外不许再给 .sgx-topbar 定宽 / 定左右（外壳段：主站 @shell:begin/end，子站 @sgx-shell:begin/end） */
+    const outside = strip(raw.replace(/\/\* @(?:sgx-)?shell:begin[\s\S]*?@(?:sgx-)?shell:end[^*]*\*\//g, ''));
+    for (const m of outside.matchAll(/([^{}]*\.sgx-topbar[^{}]*)\{([^}]*)\}/g)) {
+      assert.doesNotMatch(m[2], /(?:^|[;\s])(?:width|left|right|max-width|min-width|margin)\s*:/, `${f}: ${m[1].trim()}`);
+    }
+  }
+});

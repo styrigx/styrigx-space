@@ -1,0 +1,39 @@
+{{- /* 平铺入口（P4-3 PR-4b §11，Gray 2026-11-07）：旷野页（/）的分类入口；子站首页（博客 / 奇趣 / 日刻）的分区入口（顶栏不再有分区页签，
+   首页正文的入口就是目录）。共享外壳组件：space/scripts/gen-shell.mjs 原样复制成外壳 entries.html，三个子站 sync-shell 同步成 layouts/partials/sgx-shell-entries.html。
+   所以这里不能调用任何别的 partial、不能读 site.Data：图标 SVG 由调用方用 icons 传进来。只用 --sgx-* 角色、不用 Tailwind 工具类。
+   数据驱动：加一个入口 = 数据文件加一行（旷野 data/space-cats.yaml），不改模板。
+   参数（dict）：
+     items  数据行列表：id、icon（icons 里的图标名）、tone（primary / secondary / tertiary / info，圆底配色走共享外壳角色）、
+            zh / en（名字）、sub_zh / sub_en（一行副标题）、href（可选；默认 base + id + "/"）
+     isEn   英文页
+     base   默认地址前缀（如 "/"、"/en/"、"/curio/"）
+     band   标题带（可选）：label（小字，如 SPACE；中英同）、zh / en（大标题）、sub_zh / sub_en（一句话）
+     id     区块 id（标题带标题 id = <id>-title）
+     label  入口列表的 aria-label（读屏 / 测试按它找）
+     icons  图标 SVG（图标名 → SVG 串，调用方用本站 icon.html 渲染好）
+   样式：每行无卡片底，小编号 01…、圆底图标、名字 + 一行副标题、行间细线、淡色 ›；≥ 760 两栏、≥ 1100 三栏，栏间细竖线（CSS 在 input.css 的 @entries 区块）。 */ -}}
+{{- $isEn := .isEn -}}
+{{- $base := .base | default "/" -}}
+{{- $id := .id | default "sgx-entries" -}}
+{{- $band := .band -}}
+<section class="sgx-ents" id="{{ $id }}"{{ if $band }} aria-labelledby="{{ $id }}-title"{{ end }} data-sgx-entries>
+  {{- with $band }}
+  <header class="sgx-ent-band">
+    {{- with .label }}<p class="sgx-ent-label">{{ . }}</p>{{ end }}
+    <h2 class="sgx-ent-title" id="{{ $id }}-title">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</h2>
+    {{- $lede := cond $isEn .sub_en .sub_zh }}{{ with $lede }}<p class="sgx-ent-lede">{{ . }}</p>{{ end }}
+  </header>
+  {{- end }}
+  <ul class="sgx-ent-list" role="list" aria-label="{{ .label }}">
+    {{- range $i, $e := .items }}
+    {{- $href := $e.href | default (printf "%s%s/" $base $e.id) }}
+    {{- $sub := cond $isEn $e.sub_en $e.sub_zh }}
+    <li class="sgx-ent-li"><a class="sgx-ent" href="{{ $href }}" data-entry="{{ $e.id }}">
+      <span class="sgx-ent-no" aria-hidden="true">{{ printf "%02d" (add $i 1) }}</span>
+      <span class="sgx-ent-ic sgx-ent-ic--{{ $e.tone | default "primary" }}" aria-hidden="true">{{ index $.icons $e.icon | safeHTML }}</span>
+      <span class="sgx-ent-tx"><span class="sgx-ent-name">{{ if $isEn }}{{ $e.en }}{{ else }}{{ $e.zh }}{{ end }}</span>{{ with $sub }}<span class="sgx-ent-sub">{{ . }}</span>{{ end }}</span>
+      <span class="sgx-ent-ch" aria-hidden="true">›</span>
+    </a></li>
+    {{- end }}
+  </ul>
+</section>

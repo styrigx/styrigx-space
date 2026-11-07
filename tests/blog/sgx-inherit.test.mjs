@@ -371,7 +371,7 @@ test('共享外壳副本含 22 套预设（亮 / 暗）和顶栏 / 快捷面板�
     assert.ok(shell.includes(`:root[data-palette="${id}"] {`), id + ' light');
     assert.ok(shell.includes(`:root.dark[data-palette="${id}"] {`), id + ' dark');
   }
-  assert.match(shell, /\.sgx-qp-nav-item\[aria-current="page"\]/);
+  assert.match(shell, /\.sgx-qp-tile\[aria-current="page"\]/); /* PR-4b：站点切换在九宫格导航面板（磁贴，当前站「开」态） */
   assert.match(shell, /\.sgx-topbar \{ position: fixed;/);
   assert.doesNotMatch(shell, /\.sgx-drawer-item/);
 });

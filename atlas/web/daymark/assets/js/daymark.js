@@ -1,6 +1,6 @@
 /* assets/js/daymark.js —— 日刻首页逻辑（浏览器 IIFE；node 测试时导出纯函数）。
  *
- * 三个页签（顶栏分段滑块，顺序固定）：余响 Echo（默认）· 拾录 Trove · 百味 Flavors。
+ * 三个页签（顺序固定；P4-3 PR-4b 起顶栏不再有分段滑块，入口在首页正文的平铺入口，顶栏页名胶囊显示当前分区名）：余响 Echo（默认）· 拾录 Trove · 百味 Flavors。
  *   hash：余响 = 无，#trove，#flavors；百味里的分组 #flavors/c/<专题 id>、#flavors/a/<作者>。只用 replaceState，切页签不加历史。
  * - 余响：整屏一句（今日一句 /api/today，当天锁定）；「再抽一句」从能看到的句子里随机抽（账号已登录：全部；没登录：公开），抽过后多一个「回到今日」；
  *   能编辑（接口回 canWrite：账号已登录 + daymark.write）时抽到公开句子还多一个「设为今日」（PUT /api/today 改写今天那句，回到今日状态，toast 已设为今日；主站首页和锁屏跟着变）。
@@ -549,8 +549,14 @@ $('#col-save').addEventListener('click', function(){
 });
 
 /* ---------- 页签 ---------- */
-var seg = doc.querySelector('[data-dm-seg]');
-var tabBtns = TABS.map(function(id){ return doc.querySelector('[data-dm-tab="' + id + '"]'); });
+/* 页名胶囊 + 首页分区入口（P4-3 PR-4b：顶栏不再有分区页签）：切到第 i 个分区时胶囊显示 data-sgx-titles[i]（第 0 个 = 站名），
+   分区入口（[data-sgx-entries]，首页正文的目录）只在第 0 个分区（余响 = 首页本身）显示 */
+function syncTitle(i){
+  var t = doc.querySelector('.sgx-tb-title[data-sgx-titles]');
+  if (t) { try { var names = JSON.parse(t.getAttribute('data-sgx-titles')); if (names[i]) t.textContent = names[i]; } catch (e) {} }
+  var ents = doc.querySelector('[data-sgx-entries]');
+  if (ents) ents.hidden = i !== 0;
+}
 function writeHash(){
   var h = routeHash({ tab: tab, group: tab === 'flavors' ? group : null });
   var url = G.location.pathname + G.location.search + h;
@@ -562,15 +568,13 @@ function setTab(next, opts){
   if (!opts.initial) scrolls[tab] = G.scrollY;
   var changed = next !== tab;
   tab = next;
-  tabBtns.forEach(function(b, j){ if (!b) return; b.setAttribute('aria-selected', j === i ? 'true' : 'false'); b.tabIndex = j === i ? 0 : -1; });
   TABS.forEach(function(id){
     var p = doc.getElementById('dm-pane-' + id);
     if (id === next) { p.hidden = false; p.removeAttribute('inert'); } else { p.hidden = true; p.setAttribute('inert', ''); }
   });
-  if (seg) seg.style.setProperty('--seg-pos', String(i));
+  syncTitle(i);
   doc.documentElement.setAttribute('data-dm-active', next);
   $('#dm-fab').classList.toggle('hidden', !(canWrite && next === 'trove'));
-  if (opts.focus && tabBtns[i]) tabBtns[i].focus();
   writeHash();
   if (changed && !opts.initial) G.scrollTo({ top: scrolls[next] || 0, behavior: 'auto' });
 }
@@ -582,23 +586,6 @@ function go(r, opts){
   setTab(r.tab, opts);
   if (groupChanged && !opts.initial) G.scrollTo({ top: 0, behavior: 'auto' });
 }
-tabBtns.forEach(function(b, i){
-  if (!b) return;
-  b.addEventListener('click', function(){
-    if (TABS[i] === tab) {
-      if (tab === 'flavors' && group) { go({ tab: 'flavors' }); return; }
-      G.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' }); return;
-    }
-    setTab(TABS[i]);
-  });
-});
-if (seg) seg.addEventListener('keydown', function(e){
-  var i = TABS.indexOf(tab), n = -1;
-  if (e.key === 'ArrowRight') n = (i + 1) % 3; else if (e.key === 'ArrowLeft') n = (i + 2) % 3;
-  else if (e.key === 'Home') n = 0; else if (e.key === 'End') n = 2;
-  if (n < 0) return;
-  e.preventDefault(); setTab(TABS[n], { focus: true });
-});
 G.addEventListener('hashchange', function(){ var r = parseHash(G.location.hash); if (r) go(r); });
 /* 左右滑切页签（竖着滑照常滚动；在弹层、按钮行里不算） */
 (function(){

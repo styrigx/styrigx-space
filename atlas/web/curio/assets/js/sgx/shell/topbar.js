@@ -1,24 +1,35 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:9c4ad417c51d space/web/shared/shell vaf20c15030a1（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:95eed89a0bff space/web/shared/shell vb9e9ac897d32（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- topbar.js ---- */
 /**
- * @fileoverview 顶栏的两个弹出窗口：快捷面板 #sgx-qp（两页：导航 / 快捷设置）和 AI 窗口 #sgx-ai（2026-11-04 P5-1，方案 5.5 / 6.3–6.5）。
+ * @fileoverview 顶栏的三个弹出窗口：导航面板 #sgx-nav（九宫格）、快捷面板 #sgx-qp（快捷设置）、AI 窗口 #sgx-ai（2026-11-04 P5-1；P4-3 PR-4b Gray 2026-11-07 定稿）。
  * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/topbar.js，四个站共用（主站 shell/quick-panel.js 调它，子站入口脚本调它）。
  * 自成一体：不 import 任何东西；状态机（modal-sheet.js）、外观 setter（主站 lib/prefs.js / 子站 prefs-write.js）、AI 内容（ai.js）、
  * 分享（share.js）、键盘高度订阅（vk.js 的 onKeyboardHeight，转给 AI 窗口；P4-3 PR-3）都由调用方传进来。
  *
- * - 两个窗口都是非模态 <dialog>（modalSheet modal:false → show()）：从顶栏下方落下，顶栏留在上面可点；开合 / 系统返回 / Esc / bfcache 走 modalSheet。
- * - 互斥：一个开着时点顶栏上别的东西（另一个窗口的图标、logo、头像、标签），先关这个（等哨兵出栈）再补点那一下。
+ * - 三个窗口都是非模态 <dialog>（modalSheet modal:false → show()）：从顶栏下方落下，顶栏留在上面可点；开合 / 系统返回 / Esc / bfcache 走 modalSheet。
+ * - 互斥：一个开着时点顶栏上别的东西（另一个窗口的图标、logo、页名），先关这个（等哨兵出栈）再补点那一下。
  * - 点遮罩（面板以外）关闭；焦点打开时进面板，关上时还给图标；Tab / Shift+Tab 圈在「图标 + 面板控件」里。
- * - 快捷面板两页：顶部两个页签（role=tablist，点 / 左右键 / Home / End 切），下面横向 scroll-snap 左右滑；不在当前页的那页 inert（不进 Tab、读屏）。
- *   每次打开默认在第 1 页「导航」（它取代九宫格）。导航项：当前站只关面板，别的站关完再跳（不留哨兵）。
- * - 快捷设置页磁贴：深色 / 跟随系统 / 语言 / 立即锁定（主站）/ 分享本页（子站内容页）+ 调色板 + 布局（主站）；哪些有由模板决定（tiles 参数）。
+ * - 导航面板：2×2 站点磁贴（当前站「开」态）；已在当前站首页时点它只关面板，其余（别的站、本站子页点本站）关完再跳（不留哨兵）。
+ * - 快捷面板只有一页（PR-4b 去掉「导航 | 快捷设置」分段和双页滑动），四站完全相同：
+ *   磁贴 深色 / 跟随系统 / 分享本页（share.js）/ 立即锁定；语言整行（点开行内展开单选 跟随系统 / 中文 / English，选中即保存，
+ *   换了语言就去另一种语言的同一页）；调色板；布局（手机 / 自动 / 桌面，模式规则见共享外壳 layout-mode.js；三档任何时候都能选）。
+ * - 立即锁定：调用方传 onLock（主站：确认层 auth/lock-now.js）；不传（子站）= 磁贴上点两下确认（第一下状态字变「再点一下锁定」，3 秒内再点），
+ *   POST /api/lock-now（同源网关）后回到锁屏 /?lock=1。
  */
 
 const QP_MS = 240;
 const STR = {
-  zh: { on: '开', off: '关', langTo: '语言：中文。点按切换为 English', largeOnly: '仅在大屏生效' },
-  en: { on: 'On', off: 'Off', langTo: 'Language: English. Tap to switch to 中文', largeOnly: 'Large screens only' },
+  zh: { on: '开', off: '关', auto: '自动', phone: '手机', desktop: '桌面', sys: '跟随系统', lockArm: '再点一下锁定', lockBack: '回到锁屏', lockFail: '锁定失败，请检查网络后重试' },
+  en: { on: 'On', off: 'Off', auto: 'Auto', phone: 'Phone', desktop: 'Desktop', sys: 'Follow system', lockArm: 'Tap again to lock', lockBack: 'Back to lock screen', lockFail: 'Couldn’t lock. Check your connection.' },
 };
+/** 第二下确认的时限（子站立即锁定） */
+const LOCK_ARM_MS = 3000;
+
+/** 语言偏好 → 实际语言（跟随系统看浏览器语言） @param {string} v @param {string} [nav] */
+export function resolveLang(v, nav) {
+  if (v === 'zh' || v === 'en') return v;
+  return /^zh\b/i.test(String(nav || '')) ? 'zh' : 'en';
+}
 
 /**
  * @typedef {Object} TopbarPrefs
@@ -30,9 +41,9 @@ const STR = {
  * @property {(p: string) => void} setPalette
  * @property {string} DEFAULT_PALETTE
  * @property {() => boolean} hasAccent
- * @property {(v: 'zh'|'en') => string} setLang 写语言偏好，返回要去的地址；返回 '' 时用磁贴 data-href
+ * @property {(v: 'system'|'zh'|'en') => string} setLang 写语言偏好，返回要去的地址；返回 '' 时按实际语言决定：和本页不同就去语言行的 data-href
+ * @property {() => string} [langPref] 当前语言偏好 system / zh / en（不传按本页语言）
  * @property {() => string} [layoutPref]
- * @property {() => boolean} [layoutNarrow]
  * @property {(v: string) => void} [setLayout]
  */
 
@@ -41,6 +52,7 @@ const STR = {
  *   modalSheet: Function,
  *   prefs: TopbarPrefs,
  *   onLock?: () => void,
+ *   fetch?: typeof fetch,
  *   navigate?: (url: string) => void,
  *   replace?: (url: string) => void,
  *   ai?: (dlg: HTMLDialogElement, o: { lang: 'zh'|'en', close: Function, navigate: Function, keyboard?: Function }) => ({ onOpen?: () => void } | void),
@@ -53,6 +65,8 @@ const STR = {
 export function mountTopbar(o) {
   const doc = o.doc || document;
   const topbar = doc.querySelector('#site-nav .sgx-topbar');
+  const navBtn = /** @type {HTMLElement|null} */ (doc.querySelector('.sgx-tb-grid'));
+  const navDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-nav'));
   const qpBtn = /** @type {HTMLElement|null} */ (doc.querySelector('.sgx-tb-quick'));
   const qpDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-qp'));
   const aiBtn = /** @type {HTMLElement|null} */ (doc.querySelector('.sgx-tb-ai'));
@@ -93,7 +107,7 @@ export function mountTopbar(o) {
       if (tg && tg.isConnected && (!sheet || !sheet.contains(tg))) ms.close();
     });
     /* Tab 圈在「图标 + 面板控件」里（非模态不会 inert 页面，自己圈住）；
-       不在 Tab 顺序里的不算：inert 的那页、tabindex=-1 的（两页的页签是 roving tabindex，只有当前页签可 Tab 到） */
+       不在 Tab 顺序里的不算：inert / 收起（hidden）的、tabindex=-1 的 */
     doc.addEventListener('keydown', function (e) {
       if (e.key !== 'Tab' || !ms.isShown()) return;
       const list = [btn].concat(Array.from(dlg.querySelectorAll('a[href], button:not([disabled]), textarea, input')).filter(function (el) {
@@ -124,70 +138,65 @@ export function mountTopbar(o) {
     }, true);
   }
 
+  /* ---------------- 导航面板（九宫格） ---------------- */
+  let nav = null;
+  if (navBtn && navDlg) {
+    nav = wire(navBtn, navDlg, 'sgxNav', function () {});
+    if (nav) {
+      const ms = nav.ms;
+      navDlg.addEventListener('click', function (e) {
+        const tg = /** @type {Element|null} */ (e.target);
+        const a = /** @type {HTMLAnchorElement|null} */ (tg && tg.closest('a.sgx-nav-tile'));
+        if (!a) return;
+        if (e.defaultPrevented || /** @type {MouseEvent} */ (e).button !== 0 || /** @type {MouseEvent} */ (e).metaKey || /** @type {MouseEvent} */ (e).ctrlKey || /** @type {MouseEvent} */ (e).shiftKey || /** @type {MouseEvent} */ (e).altKey) return;
+        e.preventDefault();
+        /* 已经在这个站的首页：只关面板；在本站子页点本站 = 回本站首页 */
+        if (a.getAttribute('aria-current') === 'page' && a.pathname === location.pathname) ms.close();
+        else {
+          const href = a.href;
+          ms.close(function () { navigate(href); });
+        }
+      });
+    }
+  }
+
   /* ---------------- 快捷面板 ---------------- */
   let qp = null;
   let paint = function () {};
   if (qpBtn && qpDlg) {
-    const tabs = /** @type {HTMLElement[]} */ (Array.from(qpDlg.querySelectorAll('[data-qp-tab]')));
-    const pages = /** @type {HTMLElement[]} */ (Array.from(qpDlg.querySelectorAll('[data-qp-page]')));
-    const pager = /** @type {HTMLElement|null} */ (qpDlg.querySelector('[data-qp-pages]'));
-    let cur = 0;
-    const reduce = function () {
-      return doc.documentElement.classList.contains('reduced-motion') || !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    };
-    /** @param {number} i @param {{scroll?: boolean, smooth?: boolean, focus?: boolean}} [opt] */
-    const select = function (i, opt) {
-      const op = opt || {};
-      cur = Math.max(0, Math.min(pages.length - 1, i));
-      tabs.forEach(function (b, k) {
-        b.setAttribute('aria-selected', k === cur ? 'true' : 'false');
-        b.setAttribute('tabindex', k === cur ? '0' : '-1');
-      });
-      pages.forEach(function (p, k) {
-        if (k === cur) p.removeAttribute('inert');
-        else p.setAttribute('inert', '');
-      });
-      if (op.scroll !== false && pager) {
-        const left = cur * pager.clientWidth;
-        try { pager.scrollTo({ left: left, behavior: op.smooth && !reduce() ? 'smooth' : 'auto' }); } catch (e) { pager.scrollLeft = left; }
-      }
-      if (op.focus && tabs[cur]) { try { tabs[cur].focus(); } catch (e) {} }
-    };
-    tabs.forEach(function (b, k) {
-      b.addEventListener('click', function () { select(k, { smooth: true }); });
-      b.addEventListener('keydown', function (e) {
-        let n = -1;
-        if (e.key === 'ArrowRight') n = (k + 1) % tabs.length;
-        else if (e.key === 'ArrowLeft') n = (k - 1 + tabs.length) % tabs.length;
-        else if (e.key === 'Home') n = 0;
-        else if (e.key === 'End') n = tabs.length - 1;
-        if (n < 0) return;
-        e.preventDefault();
-        select(n, { smooth: true, focus: true });
-      });
-    });
-    /* 手指滑：滑停后按位置定页（scrollend；不支持的浏览器用 scroll + 短延时） */
-    if (pager) {
-      let st = 0;
-      const settle = function () {
-        const w = pager.clientWidth || 1;
-        const i = Math.round(pager.scrollLeft / w);
-        if (i !== cur) select(i, { scroll: false });
-      };
-      pager.addEventListener('scroll', function () { clearTimeout(st); st = window.setTimeout(settle, 120); }, { passive: true });
-      pager.addEventListener('scrollend', settle);
-    }
-
     const P = o.prefs;
+    const pageLang = en ? 'en' : 'zh';
     /** @param {string} id */
     const tile = function (id) { return /** @type {HTMLElement|null} */ (qpDlg.querySelector('[data-qp="' + id + '"]')); };
+    const langBtn = tile('lang');
+    const langOpts = /** @type {HTMLElement|null} */ (qpDlg.querySelector('#sgx-qp-lang-opts'));
+    const langVal = /** @type {HTMLElement|null} */ (qpDlg.querySelector('[data-qp-lang-val]'));
+    const lockTile = tile('lock');
+    const lockState = /** @type {HTMLElement|null} */ (qpDlg.querySelector('[data-qp-lock-state]'));
+    let lockArmed = 0;
+    const disarm = function () {
+      if (lockArmed) { clearTimeout(lockArmed); lockArmed = 0; }
+      if (lockTile) lockTile.removeAttribute('data-armed');
+      if (lockState) lockState.textContent = t.lockBack;
+    };
+    /** 语言偏好：zh / en；其他（'' / system / 没传 langPref 时的未知）= 跟随系统 */
+    const langPref = function () {
+      const v = P.langPref ? P.langPref() : pageLang;
+      return v === 'zh' || v === 'en' ? v : 'system';
+    };
+    /** @param {boolean} open */
+    const setLangOpen = function (open) {
+      if (!langBtn || !langOpts) return;
+      langBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      langOpts.hidden = !open;
+    };
     /** @param {string} id @param {boolean} on */
     const paintToggle = function (id, on) {
       const el = tile(id);
       if (!el) return;
       el.setAttribute('aria-pressed', on ? 'true' : 'false');
-      const s = el.querySelector('[data-qp-state]');
-      if (s) s.textContent = on ? t.on : t.off;
+      const st = el.querySelector('[data-qp-state]');
+      if (st) st.textContent = on ? t.on : t.off;
     };
     paint = function () {
       paintToggle('dark', P.isDark());
@@ -198,60 +207,80 @@ export function mountTopbar(o) {
       });
       const rs = qpDlg.querySelector('[data-qp-reset]');
       if (rs) rs.setAttribute('aria-disabled', p === P.DEFAULT_PALETTE && !P.hasAccent() ? 'true' : 'false');
-      if (P.layoutPref) {
-        const v = P.layoutPref();
-        const narrow = P.layoutNarrow ? P.layoutNarrow() : false;
-        qpDlg.querySelectorAll('[data-qp-seg="layout"] button').forEach(function (b) {
-          const bv = b.getAttribute('data-v');
-          b.setAttribute('aria-pressed', bv === v ? 'true' : 'false');
-          /* 不够 DeX（宽 < 840 或高 < 500）时 DeX 置灰（与设置页一致，偏好保留，回到大屏再生效） */
-          if (bv === 'dex' && narrow) { b.setAttribute('disabled', 'disabled'); b.setAttribute('title', t.largeOnly); }
-          else { b.removeAttribute('disabled'); b.removeAttribute('title'); }
-        });
-      }
-      const lang = tile('lang');
-      if (lang) lang.setAttribute('aria-label', t.langTo);
+      /* 布局：手机 / 自动 / 桌面（P4-3 PR-4b）；旧偏好 mobile / dex 按 phone / desktop 亮。三档任何时候都能选（不再按视口置灰） */
+      const lp = P.layoutPref ? P.layoutPref() : 'auto';
+      const v = lp === 'mobile' ? 'phone' : lp === 'dex' ? 'desktop' : lp;
+      /* 「自动」上写出自动此刻会给什么：「自动 · 桌面」/「自动 · 手机」（共享外壳 layout-mode.js __sgxLayoutAuto；没有就看 <html data-sgx-layout>） */
+      const w = /** @type {any} */ (window);
+      const autoRes = typeof w.__sgxLayoutAuto === 'function' ? w.__sgxLayoutAuto() : doc.documentElement.getAttribute('data-sgx-layout');
+      qpDlg.querySelectorAll('[data-qp-seg="layout"] button').forEach(function (b) {
+        const bv = b.getAttribute('data-v');
+        b.setAttribute('aria-pressed', bv === v ? 'true' : 'false');
+        if (bv === 'auto') b.textContent = t.auto + ' · ' + (autoRes === 'phone' ? t.phone : t.desktop);
+      });
+      const lv = langPref();
+      if (langVal) langVal.textContent = lv === 'system' ? t.sys : lv === 'en' ? 'English' : '中文';
+      qpDlg.querySelectorAll('[data-qp-lang]').forEach(function (b) {
+        b.setAttribute('aria-checked', b.getAttribute('data-qp-lang') === lv ? 'true' : 'false');
+        b.setAttribute('tabindex', b.getAttribute('data-qp-lang') === lv ? '0' : '-1');
+      });
+    };
+
+    /** 子站默认的立即锁定：POST /api/lock-now（同源网关清会话）→ 锁屏 */
+    const lockNow = function () {
+      const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
+      if (!f) return;
+      f('/api/lock-now', { method: 'POST', credentials: 'include' }).then(function (r) {
+        if (r && r.ok) replace('/?lock=1');
+        else if (lockState) lockState.textContent = t.lockFail;
+      }, function () { if (lockState) lockState.textContent = t.lockFail; });
     };
 
     qp = wire(qpBtn, qpDlg, 'sgxQp', function () {
-      select(0, { scroll: true });
+      setLangOpen(false);
+      disarm();
       paint();
     });
     if (qp) {
       const ms = qp.ms;
       const shareTile = tile('share');
       if (shareTile && o.share) o.share({ button: shareTile });
+      /** 选了一种语言偏好：保存；实际语言和本页不同就关面板去另一种语言的同一页 @param {string} v */
+      const pickLang = function (v) {
+        const url = P.setLang(/** @type {any} */ (v)) || '';
+        setLangOpen(false);
+        paint();
+        const target = resolveLang(v, (typeof navigator !== 'undefined' && navigator.language) || '');
+        const here = location.pathname + location.search + location.hash;
+        const go = url ? (url !== here ? url : '') : target !== pageLang ? (langBtn && langBtn.getAttribute('data-href')) || '' : '';
+        if (go) ms.close(function () { replace(go); });
+        else if (langBtn) { try { langBtn.focus(); } catch (e) {} }
+      };
       qpDlg.addEventListener('click', function (e) {
         const tg = /** @type {Element|null} */ (e.target);
         if (!tg) return;
-        const nav = /** @type {HTMLAnchorElement|null} */ (tg.closest('a.sgx-qp-nav-item'));
-        if (nav) {
-          if (e.defaultPrevented || /** @type {MouseEvent} */ (e).button !== 0 || /** @type {MouseEvent} */ (e).metaKey || /** @type {MouseEvent} */ (e).ctrlKey || /** @type {MouseEvent} */ (e).shiftKey || /** @type {MouseEvent} */ (e).altKey) return;
-          e.preventDefault();
-          if (nav.getAttribute('aria-current') === 'page') ms.close();
-          else {
-            const href = nav.href;
-            ms.close(function () { navigate(href); });
-          }
-          return;
-        }
+        const opt = /** @type {HTMLElement|null} */ (tg.closest('[data-qp-lang]'));
+        if (opt) { pickLang(opt.getAttribute('data-qp-lang') || 'system'); return; }
         const tl = /** @type {HTMLElement|null} */ (tg.closest('[data-qp]'));
         if (tl) {
           const id = tl.getAttribute('data-qp');
           if (id === 'share') return; /* share.js 自己接这一下 */
+          if (id !== 'lock') disarm();
           if (id === 'dark') P.setTheme(P.isDark() ? 'light' : 'dark');
           else if (id === 'system') P.toggleFollowSystem();
-          else if (id === 'lang') {
-            const url = P.setLang(en ? 'zh' : 'en') || tl.getAttribute('data-href') || '';
-            ms.close(function () { if (url) replace(url); });
-            return;
-          } else if (id === 'lock') {
-            ms.close(o.onLock);
+          else if (id === 'lang') { setLangOpen(!!(langOpts && langOpts.hidden)); return; }
+          else if (id === 'lock') {
+            if (o.onLock) { ms.close(o.onLock); return; }
+            if (lockArmed) { disarm(); ms.close(lockNow); return; }
+            if (lockTile) lockTile.setAttribute('data-armed', '');
+            if (lockState) lockState.textContent = t.lockArm;
+            lockArmed = window.setTimeout(disarm, LOCK_ARM_MS);
             return;
           }
           paint();
           return;
         }
+        disarm();
         const rs = tg.closest('[data-qp-reset]');
         if (rs) {
           if (rs.getAttribute('aria-disabled') !== 'true') P.setPalette(P.DEFAULT_PALETTE);
@@ -266,14 +295,35 @@ export function mountTopbar(o) {
         }
         const sb = /** @type {HTMLButtonElement|null} */ (tg.closest('[data-qp-seg] button'));
         if (sb && !sb.disabled) {
-          const seg = sb.closest('[data-qp-seg]');
-          if (seg && seg.getAttribute('data-qp-seg') === 'layout' && P.setLayout) P.setLayout(sb.getAttribute('data-v') || '');
+          if (P.setLayout) P.setLayout(sb.getAttribute('data-v') || '');
           paint();
         }
       });
+      /* 语言单选：↑ ↓ ← → 在选项间移动（不立即保存），Esc 收起回到语言行 */
+      if (langOpts) {
+        langOpts.addEventListener('keydown', function (e) {
+          const opts = /** @type {HTMLElement[]} */ (Array.from(langOpts.querySelectorAll('[data-qp-lang]')));
+          const i = opts.indexOf(/** @type {HTMLElement} */ (doc.activeElement));
+          let n = -1;
+          if (e.key === 'ArrowDown' || e.key === 'ArrowRight') n = (i + 1) % opts.length;
+          else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') n = (i - 1 + opts.length) % opts.length;
+          else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            setLangOpen(false);
+            if (langBtn) langBtn.focus();
+            return;
+          }
+          if (n < 0) return;
+          e.preventDefault();
+          opts[n].focus();
+        });
+      }
       const repaint = function () { if (ms.isOpen()) paint(); };
       if (o.subscribe) o.subscribe(repaint);
       window.addEventListener('sgx-theme-changed', repaint);
+      /* 拖窗口 / 分屏 / 转屏后布局重算（layout-mode.js __sgxLayoutWatch 发 sgx-layout-change）：「自动 · …」跟着变 */
+      window.addEventListener('sgx-layout-change', repaint);
       try {
         const mq = window.matchMedia('(prefers-color-scheme: dark)');
         (mq.addEventListener || mq.addListener).call(mq, 'change', function () { window.setTimeout(repaint, 0); });
@@ -292,6 +342,6 @@ export function mountTopbar(o) {
     });
   }
 
-  return { qp: qp && qp.ms, ai: ai && ai.ms, paint: paint };
+  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, paint: paint };
 }
 /* @sgx-shell:end */

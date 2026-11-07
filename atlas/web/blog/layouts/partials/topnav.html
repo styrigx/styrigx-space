@@ -1,27 +1,22 @@
 {{- /* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/sgx-shell-topbar.html（主站 shell-topbar.html 原样，atlas/scripts/blog/sync-shell.mjs 同步，勿手改），
    这里只准备博客自己的参数：
 - 中间（.sgx-tb-pill，原样搬进来）：
-  tabs    列表页（首页）：分段滑块 首页 · 文章 · 专题，强调色指示器滑到当前页签；面板切换见 assets/js/blog/app-tabs.ts。
+  tabs    列表页（首页）：页名胶囊 = 站名「博客」，页内切到 文章 / 专题 时换成分区名（P4-3 PR-4b：顶栏不再有分区页签，分区入口在首页正文）；面板切换见 assets/js/blog/app-tabs.ts。
   links   标签页 / 404 等子页：只有页名（.title，不给就用页面标题）。
   article 文章页：只有页名（文章标题）；长条底边一条强调色细线是阅读进度。
-- 右边：快捷面板（两页：导航 / 快捷设置）· AI · 头像（主站账号页）。九宫格、导航抽屉、右圆分享删除：
-  站点切换在快捷面板第 1 页（博客是当前项）；「分享本页」在快捷面板第 2 页（博客的页面原来都有分享按钮，迁过去都有磁贴，定案第 4 条）；
-  原抽屉里的「目录」不再放顶栏（文章页正文旁的目录卡 toc-card 照旧）。
-- 快捷设置：深色 / 跟随系统 / 语言 / 调色板，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）；立即锁定、布局只在主站。
+- 右边：九宫格（导航面板，博客是「开」态）· 快捷设置 · AI（头像在 AI 窗口头部）；原抽屉里的「目录」不再放顶栏（文章页正文旁的目录卡 toc-card 照旧）。
+- 快捷设置（P4-3 PR-4b 起四站同一套，没有按站的 tiles 参数）：深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条）。
 参数：.page .mode .title（.toc 2026-11-04 起不用，调用方照旧传也无妨） */ -}}
 {{- $lang := .page.Language.Lang -}}
 {{- $isEn := eq $lang "en" -}}
 {{- $mode := .mode | default "links" -}}
 {{- $nav := index hugo.Data "sgx-shell" "nav" -}}
-{{- $tabs := slice (dict "id" "home" "label" (i18n "tabHome")) (dict "id" "posts" "label" (i18n "tabPosts")) (dict "id" "topics" "label" (i18n "tabTopics")) -}}
 {{- $title := .title | default .page.Title -}}
 {{- $center := "" -}}
 {{- if eq $mode "tabs" -}}
-{{- $center = printf "<div class=\"sgx-seg\" role=\"tablist\" aria-label=\"%s\" data-sgx-seg style=\"--seg-pos:0\"><span class=\"sgx-seg-ind\" aria-hidden=\"true\"></span>" (i18n "tabs" | htmlEscape) -}}
-{{- range $i, $t := $tabs -}}
-{{- $center = printf "%s<button type=\"button\" role=\"tab\" class=\"sgx-seg-btn\" id=\"sgx-tab-%s\" aria-controls=\"sgx-pane-%s\" aria-selected=\"%s\" tabindex=\"%s\" data-sgx-tab=\"%s\">%s</button>" $center $t.id $t.id (cond (eq $i 0) "true" "false") (cond (eq $i 0) "0" "-1") $t.id ($t.label | htmlEscape) -}}
-{{- end -}}
-{{- $center = printf "%s</div>" $center -}}
+{{- /* 首页：页名胶囊 = 站名，切到页内分区（#posts / #topics）时 app-tabs.ts 换成分区名（data-sgx-titles 顺序同 TABS；首页分区就是首页本身） */ -}}
+{{- $titles := slice (cond $isEn "Blog" "博客") (i18n "tabPosts") (i18n "tabTopics") -}}
+{{- $center = printf "<span class=\"sgx-tb-title\" data-sgx-titles=\"%s\">%s</span>" ($titles | jsonify | htmlEscape) (index $titles 0 | htmlEscape) -}}
 {{- else -}}
 {{- $center = printf "<span class=\"sgx-tb-title\">%s</span>" ($title | htmlEscape) -}}
 {{- end -}}
@@ -58,7 +53,6 @@
   "mainOrigin" "https://styrigx.com"
   "acct" (cond $isEn (replace $nav.me.href "https://styrigx.com/" "https://styrigx.com/en/") $nav.me.href)
   "avatar" $nav.me.avatar
-  "tiles" (dict "theme" true "lang" true "palette" true "share" true)
   "langHref" $langHref
   "pal" $pal
 ) -}}

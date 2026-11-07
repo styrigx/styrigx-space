@@ -93,7 +93,10 @@ test('模板：「AI 模型」一行在 #acct-main（登录后的总览）里，
   const row = tpl.indexOf('id="acct-ai-row"');
   const loginEnd = tpl.indexOf('SGX-ACCT-LOGIN-END');
   assert.ok(main > 0 && row > main && row > loginEnd, '在总览里');
-  assert.match(tpl, /id="acct-ai-row" role="button" tabindex="0" aria-haspopup="dialog"/);
+  /* P4-3 §6.7：不做底部弹出窗口 → 行下方展开单选列表（aria-expanded / aria-controls），不再 aria-haspopup="dialog" */
+  assert.match(tpl, /id="acct-ai-row" role="button" tabindex="0" aria-expanded="false" aria-controls="acct-ai-list"/);
+  assert.match(tpl, /<div class="acct-ai-list" id="acct-ai-list" role="radiogroup" aria-labelledby="acct-ai-title" hidden><\/div>/);
+  assert.ok(tpl.indexOf('id="acct-ai-list"') > row, '列表在行后面（行下方展开）');
   assert.match(tpl, /\{\{ if \$isEn \}\}AI model\{\{ else \}\}AI 模型\{\{ end \}\}/);
   assert.match(tpl, /id="acct-ai-sub"/);
   const i18n = rd('space/web/layouts/partials/account-i18n.html');
@@ -107,4 +110,15 @@ test('AI 窗口不做切换：ai-panel.js 里没有模型列表请求、没有�
   assert.doesNotMatch(src, /method: 'GET'/);
   assert.doesNotMatch(src, /setItem\(MODEL_KEY/);
   assert.doesNotMatch(rd('space/web/layouts/partials/shell-topbar.html'), /model/i);
+});
+
+test('AI 模型选择不用底部弹出窗口（P4-3 §6.7）：account-ai.js 不引 shell/sheet.js、不调 openSheet；选项是 role=radio、选中即保存并收起', () => {
+  const src = rd('space/web/assets/js/apps/account-ai.js');
+  assert.doesNotMatch(src, /shell\/sheet\.js/);
+  assert.doesNotMatch(src, /openSheet\s*\(/);
+  assert.match(src, /role="radio" aria-checked="/);
+  assert.match(src, /setAttribute\('aria-expanded', 'true'\)/);
+  /* pick：先存（sset MODEL_KEY）再收起 */
+  const pick = src.slice(src.indexOf('function pick('), src.indexOf('function togglePicker('));
+  assert.ok(pick.indexOf('sset(MODEL_KEY, id)') >= 0 && pick.indexOf('sset(MODEL_KEY, id)') < pick.indexOf('collapse(true)'));
 });

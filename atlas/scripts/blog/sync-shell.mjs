@@ -42,6 +42,8 @@ const SITE = {
     { path: 'web/assets/js/sgx/shell/share.js', kind: 'file', parts: ['share.js'] },
     /* 顶栏 + 快捷面板 + AI 窗口的标记（Hugo partial，原样，kind raw：不加注释头；2026-11-04 P5-1 四站同一个顶栏） */
     { path: 'web/layouts/partials/sgx-shell-topbar.html', kind: 'raw', parts: ['topbar.html'] },
+    /* 平铺入口组件（P4-3 PR-4b：首页分区入口，手机布局顶栏不显示分区页签；Hugo partial，原样） */
+    { path: 'web/layouts/partials/sgx-shell-entries.html', kind: 'raw', parts: ['entries.html'] },
     /* 顶栏两个窗口的开合 / 互斥 / 两页 / 磁贴、状态机、AI 窗口内容、外观写端（入口脚本把后三个传给 topbar.js 的 mountTopbar） */
     { path: 'web/assets/js/sgx/shell/topbar.js', kind: 'file', parts: ['topbar.js'] },
     { path: 'web/assets/js/sgx/shell/modal-sheet.js', kind: 'file', parts: ['modal-sheet.js'] },
@@ -54,6 +56,7 @@ const SITE = {
     { path: 'web/data/sgx-shell/palettes.json', kind: 'json', parts: ['palettes.json'] },
     /* sgx-ui cookie 只读解析器（partials/sgx-inherit.html 原样内联进 <head>，首帧前落外观）；契约夹具见下 */
     { path: 'web/assets/js/sgx/shell/ui-cookie-read.js', kind: 'file', parts: ['ui-cookie-read.js'] },
+    { path: 'web/assets/js/sgx/shell/layout-mode.js', kind: 'file', parts: ['layout-mode.js'] },
     /* ui-cookie-contract.json（契约夹具）不再同步副本：2026-11-06 tests/ 结构统一起子站单测 / e2e 直接读仓库共享的 tests/fixtures/ui-cookie-contract.json（gen-ui-cookie-contract.mjs 生成，--check 守着）；外壳目录里那份仍在 lock 的 files 指纹里 */
   ],
 };

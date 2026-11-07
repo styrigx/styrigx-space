@@ -1,7 +1,7 @@
 /**
  * 2.5.0 PC 布局断言（Gray 2026-10-10 验收要求）；2026-10-23 PC 档删除，DeX 接手 PC 的尺寸。
  * - 1920x1080 / 2560x1440 下 html 为 layout-dex（自动）
- * - 首页栅格（2026-10-23 PR-D）：外框 = 顶栏框；每行左缘贴外框左缘，整行卡（名片 / 屏幕时间）右缘贴外框右缘；
+ * - 首页栅格（2026-10-23 PR-D；P4-3 PR-4b 起外框 = min(100% − 2m, 1440)，顶栏不再定内容栏）：每行左缘贴外框左缘，整行卡（名片 / 屏幕时间）右缘贴外框右缘；
  *   按列排的卡宽 = (框宽 − gap) / 2（P4-2c 起固定 2 列：名片和日刻并排），且不小于 320（日刻有数据时）
  * - （2026-10-19 Dock 已删除，原「滚到底 Dock 不压卡片」用例一并删除）
  * - 宽屏 DeX 下桌面图标网格（#home-apps）彻底不渲染
@@ -47,8 +47,11 @@ for (const vp of PCS) {
         return { wrap: { l: wrap.left, r: wrap.right, w: wrap.width }, bar: { l: bar.left, r: bar.right }, gap, cols, cards };
       });
       expect(g.cols).toBe(2);
-      expect(Math.abs(g.wrap.l - g.bar.l), '外框左缘 = 顶栏左缘').toBeLessThanOrEqual(1);
-      expect(Math.abs(g.wrap.r - g.bar.r), '外框右缘 = 顶栏右缘').toBeLessThanOrEqual(1);
+      /* P4-3 PR-4b：顶栏不再定内容栏——外框 = min(100% − 2m, 1440) 居中，顶栏 min(960, 100% − 48) 居中，两者同一中线 */
+      const vw = await page.evaluate(() => innerWidth);
+      const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * vw));
+      expect(Math.abs(g.wrap.w - Math.min(vw - 2 * m, 1440)), `外框宽 ${g.wrap.w}`).toBeLessThanOrEqual(1);
+      expect(Math.abs((g.wrap.l + g.wrap.r) / 2 - (g.bar.l + g.bar.r) / 2), '外框和顶栏同一中线').toBeLessThanOrEqual(1);
       const colW = (g.wrap.w - g.gap) / 2;
       expect(g.cards.length).toBeGreaterThan(2);
       for (const c of g.cards) {

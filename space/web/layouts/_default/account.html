@@ -70,7 +70,7 @@
       </a>
       {{/* P3-1：应用授权 → 子页 /account/apps/（account-apps.html），与「设备」「账号安全」同卡 */}}
       <a class="acct-row" id="acct-apps-row" href="{{ cond $isEn "/en/account/apps/" "/account/apps/" }}">
-        <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "apps-grid" }}</span>
+        <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "apps-linked" }}</span>
         <span class="flex-1 min-w-0">
           <span class="block font-medium">{{ if $isEn }}App access{{ else }}应用授权{{ end }}</span>
         </span>
@@ -87,16 +87,18 @@
         {{ partial "icon.html" "chev-r" }}
       </a>
     </section>
-    {{/* P4-2d：AI 模型（AI 窗口用哪个模型；只有登了账号能换，所以只放在总览里）。副标题 = 当前模型名，点开单选列表；apps/account-ai.js */}}
+    {{/* P4-2d：AI 模型（AI 窗口用哪个模型；只有登了账号能换，所以只放在总览里）。副标题 = 当前模型名；apps/account-ai.js。
+       P4-3 §6.7（Gray 立规：不做底部弹出窗口）：点这一行在行下方展开单选列表（#acct-ai-list，aria-expanded），选中即保存并收起 */}}
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.2s" aria-label="AI">
-      <div class="acct-row" id="acct-ai-row" role="button" tabindex="0" aria-haspopup="dialog">
+      <div class="acct-row" id="acct-ai-row" role="button" tabindex="0" aria-expanded="false" aria-controls="acct-ai-list">
         <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "sparkles" }}</span>
         <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}AI model{{ else }}AI 模型{{ end }}</span>
+          <span class="block font-medium" id="acct-ai-title">{{ if $isEn }}AI model{{ else }}AI 模型{{ end }}</span>
           <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-ai-sub"></span>
         </span>
         {{ partial "icon.html" "chev-r" }}
       </div>
+      <div class="acct-ai-list" id="acct-ai-list" role="radiogroup" aria-labelledby="acct-ai-title" hidden></div>
     </section>
   </div>
 {{/* P3-1 同意卡片：应用内点登录（/account/?return=/curio/… 或 /daymark/…）→ 登录完先判该应用有无授权；

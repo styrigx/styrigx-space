@@ -1,14 +1,23 @@
 {{ define "main" }}
 {{ $isEn := eq .Lang "en" }}
-{{/* 日刻首页：三个页签面板（余响 · 拾录 · 百味），顶栏分段滑块切换（daymark.js）。
+{{/* 日刻首页：三个页签面板（余响 · 拾录 · 百味），首页正文分区入口 / hash 切换（daymark.js；顶栏页名胶囊显示分区名）。
    能编辑（接口回 canWrite：账号已登录 + daymark.write）：拾录右下角「记一句」，点句子打开编辑弹层；百味能建专题、排序。
    账号没登录：只读、只看公开句子，页底一行「登录账号后可编辑」（#dm-signin）。
    没有搜索栏、没有标签筛选条。数据全走 /daymark/api/*（接口 Worker，见 workers/daymark-core）。 */}}
 <main id="dm-main" class="w-full mx-auto" style="max-width:860px;padding-left:16px;padding-right:16px">
+{{/* 分区入口（P4-3 PR-4b，Gray 2026-11-07）：顶栏不再有分区页签，首页正文的这组入口就是目录（共享外壳平铺入口组件）；切到别的分区时页签脚本把它藏起来。
+   链接就是页签的 hash（页签脚本听 hashchange 切面板）。副标题是占位文案；奇趣拆页另起 PR。 */}}
+{{ $entItems := slice
+  (dict "id" "echo" "icon" "speaker" "tone" "primary" "zh" "余响" "en" "Echo" "sub_zh" "整屏一句" "sub_en" "One line, full screen" "href" "#")
+  (dict "id" "trove" "icon" "book" "tone" "secondary" "zh" "拾录" "en" "Trove" "sub_zh" "记下的句子" "sub_en" "Lines worth keeping" "href" "#trove")
+  (dict "id" "flavors" "icon" "garden" "tone" "tertiary" "zh" "百味" "en" "Flavors" "sub_zh" "按专题和作者看" "sub_en" "By topic and author" "href" "#flavors")
+}}
+{{ $entIcons := dict }}{{ range $entItems }}{{ $entIcons = merge $entIcons (dict .icon (partial "icon.html" .icon | string)) }}{{ end }}
+{{ partial "sgx-shell-entries.html" (dict "items" $entItems "icons" $entIcons "isEn" $isEn "id" "dm-entries" "label" (cond $isEn "Sections" "分区")) }}
   <div id="dm-panes">
 
   {{/* ===== 余响 Echo：整屏一句 ===== */}}
-  <section id="dm-pane-echo" class="dm-pane dm-pane-echo" role="tabpanel" aria-labelledby="dm-tab-echo">
+  <section id="dm-pane-echo" class="dm-pane dm-pane-echo" aria-label="{{ if $isEn }}Echo{{ else }}余响{{ end }}">
     <article id="dm-echo" class="dm-echo" aria-live="polite">
       <button id="dm-share" type="button" class="dm-share hidden" aria-label="{{ if $isEn }}Share{{ else }}分享{{ end }}">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M5 12.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5"/></svg>
@@ -27,14 +36,14 @@
   </section>
 
   {{/* ===== 拾录 Trove：全部句子，新的在前 ===== */}}
-  <section id="dm-pane-trove" class="dm-pane dm-pane-trove" role="tabpanel" aria-labelledby="dm-tab-trove" hidden>
+  <section id="dm-pane-trove" class="dm-pane dm-pane-trove" aria-label="{{ if $isEn }}Trove{{ else }}拾录{{ end }}" hidden>
     <div id="dm-list" class="flex flex-col gap-3"></div>
     <p id="dm-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
     <p id="dm-loading" class="text-center py-16 text-sm text-m-on-surface-variant">{{ if $isEn }}Loading…{{ else }}加载中…{{ end }}</p>
   </section>
 
   {{/* ===== 百味 Flavors：自建专题在前，再是按作者的「人物」；点进去是该组句子（页内返回） ===== */}}
-  <section id="dm-pane-flavors" class="dm-pane dm-pane-flavors" role="tabpanel" aria-labelledby="dm-tab-flavors" hidden>
+  <section id="dm-pane-flavors" class="dm-pane dm-pane-flavors" aria-label="{{ if $isEn }}Flavors{{ else }}百味{{ end }}" hidden>
     <div id="dm-fl-home">
       <section id="dm-cols-sec" class="hidden mb-6" aria-labelledby="dm-cols-h">
         <h2 id="dm-cols-h" class="dm-sec">{{ if $isEn }}Collections{{ else }}自建专题{{ end }}</h2>

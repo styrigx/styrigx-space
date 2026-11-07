@@ -81,8 +81,10 @@
   {{/* 分类入口（P4-3 PR-4b §11，Gray 2026-11-07）：平铺入口共享组件 partials/sgx-entries.html（奇趣分类入口以后共用），数据 data/space-cats.yaml。
        上面标题带（小字 SPACE + 大标题 旷野 + 一句话），下面每行一个入口（编号、圆底图标、名字 + 副标题、细分隔线、淡色 ›），≥ 760 两栏、≥ 1100 三栏。
        列表 aria-label="分类"（测试和读屏按它找）。地址 /<id>/（英文 /en/<id>/）。锁屏态同首页小组件一起被剥离。 */}}
+  {{ $entIcons := dict }}{{ range $space.cats }}{{ $entIcons = merge $entIcons (dict .icon (partial "icon.html" .icon | string)) }}{{ end }}
   {{ partial "sgx-entries.html" (dict
     "items" $space.cats
+    "icons" $entIcons
     "isEn" $isEn
     "base" (cond $isEn "/en/" "/")
     "band" $space.band

@@ -1,12 +1,21 @@
 {{ define "main" }}
 {{ $isEn := eq .Lang "en" }}
-{{/* 奇趣首页：三个页签（顶栏分段滑块，curio-tabs.js 切换；左右滑也能切）。
+{{/* 奇趣首页：三个分区（首页正文分区入口 / hash，curio-tabs.js 切换；左右滑也能切；顶栏页名胶囊显示分区名）。
    发现（cu-pane-finds，curio.js 画）：分类筛选条 + 按分类分组的收藏格子。能编辑（canWrite）：右下角「收藏」，长按格子编辑；「⋯」里有 管理分类 / 导入 / 导出。
    设备（cu-pane-devices）、游戏（cu-pane-games）：curio-items.js 画，卡片 + 状态筛选条；点卡片看详情，能编辑时在详情里编辑；右下角「设备」「游戏」新建。
    账号没登录：只读、只看公开的，页底一行「登录账号后可编辑」（#cu-signin）。数据全走 /curio/api/*（接口 Worker，见 workers/curio-core）。 */}}
 <main id="cu-main" class="cu-wrap">
+{{/* 分区入口（P4-3 PR-4b，Gray 2026-11-07）：顶栏不再有分区页签，首页正文的这组入口就是目录（共享外壳平铺入口组件）；切到别的分区时页签脚本把它藏起来。
+   链接就是页签的 hash（页签脚本听 hashchange 切面板）。副标题是占位文案；奇趣拆页另起 PR。 */}}
+{{ $entItems := slice
+  (dict "id" "finds" "icon" "compass" "tone" "primary" "zh" "发现" "en" "Finds" "sub_zh" "分类收藏的好东西" "sub_en" "Bookmarked finds by category" "href" "#")
+  (dict "id" "devices" "icon" "keyboard" "tone" "secondary" "zh" "设备" "en" "Devices" "sub_zh" "在用和用过的设备" "sub_en" "Devices in use and retired" "href" "#devices")
+  (dict "id" "games" "icon" "sparkles" "tone" "tertiary" "zh" "游戏" "en" "Games" "sub_zh" "玩过、在玩、想玩" "sub_en" "Played, playing, want to play" "href" "#games")
+}}
+{{ $entIcons := dict }}{{ range $entItems }}{{ $entIcons = merge $entIcons (dict .icon (partial "icon.html" .icon | string)) }}{{ end }}
+{{ partial "sgx-shell-entries.html" (dict "items" $entItems "icons" $entIcons "isEn" $isEn "id" "cu-entries" "label" (cond $isEn "Sections" "分区")) }}
  <div id="cu-panes">
-  <section id="cu-pane-finds" class="cu-pane" role="tabpanel" aria-labelledby="cu-tab-finds">
+  <section id="cu-pane-finds" class="cu-pane" aria-label="{{ if $isEn }}Finds{{ else }}发现{{ end }}">
   <div class="cu-bar">
     <div id="cu-chips" class="cu-chips" role="tablist" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}"></div>
     <button id="cu-menu-btn" type="button" class="cu-menu-btn hidden" aria-haspopup="dialog" aria-label="{{ if $isEn }}More{{ else }}更多{{ end }}">
@@ -18,14 +27,14 @@
   <p id="cu-loading" class="text-center py-16 text-sm text-m-on-surface-variant">{{ if $isEn }}Loading…{{ else }}加载中…{{ end }}</p>
   </section>
 
-  <section id="cu-pane-devices" class="cu-pane" role="tabpanel" aria-labelledby="cu-tab-devices" hidden inert>
+  <section id="cu-pane-devices" class="cu-pane" aria-label="{{ if $isEn }}Devices{{ else }}设备{{ end }}" hidden inert>
     <div class="cu-bar"><div id="dv-chips" class="cu-chips" role="tablist" aria-label="{{ if $isEn }}Filter{{ else }}筛选{{ end }}"></div></div>
     <div id="dv-list" class="it-grid"></div>
     <p id="dv-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
     <p class="it-loading text-center py-16 text-sm text-m-on-surface-variant">{{ if $isEn }}Loading…{{ else }}加载中…{{ end }}</p>
   </section>
 
-  <section id="cu-pane-games" class="cu-pane" role="tabpanel" aria-labelledby="cu-tab-games" hidden inert>
+  <section id="cu-pane-games" class="cu-pane" aria-label="{{ if $isEn }}Games{{ else }}游戏{{ end }}" hidden inert>
     <div class="cu-bar"><div id="gm-chips" class="cu-chips" role="tablist" aria-label="{{ if $isEn }}Filter{{ else }}筛选{{ end }}"></div></div>
     <div id="gm-list" class="it-grid"></div>
     <p id="gm-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>

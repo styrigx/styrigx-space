@@ -2,7 +2,7 @@
  * P4-3 PR-4b §9–11（Gray 2026-11-07）：显示页删除 + 旷野页平铺入口。
  * - 数据（data/space-cats.yaml）：标题带 + 5 个入口，顺序、字段齐全、图标存在、配色在白名单里
  * - 模板：旷野页只调用共享入口组件（partials/sgx-entries.html），入口名字不写死在模板里（加入口 = 加一行数据）
- * - CSS：@entries 区块只用 --sgx-* 角色；≥ 760 两栏、≥ 1100 三栏（栏间细竖线）
+ * - CSS：@shell entries 区块（共享外壳）只用 --sgx-* 角色；≥ 760 两栏、≥ 1100 三栏（栏间细竖线）
  * - 构建产物（有才跑）：中英旷野页的入口按数据渲染（数量、顺序、编号、名字、副标题、地址）、标题带；
  *   /display/ 页面不存在；任何产物（HTML / XML / JSON）里没有 /display/ 链接；搜索索引里没有 /display/
  * 运行：node --test tests/space/ui/build/space-entries.test.mjs
@@ -56,8 +56,8 @@ test('模板：旷野页用共享入口组件，入口不写死在模板里；�
 
 test('CSS：@entries 区块只用变量、≥ 760 两栏、≥ 1100 三栏', () => {
   const css = rd('space/web/assets/css/input.css');
-  const m = css.match(/\/\* @entries:begin[\s\S]*?\/\* @entries:end \*\//);
-  assert.ok(m, '@entries 区块');
+  const m = css.match(/\/\* @shell:begin entries[\s\S]*?\/\* @shell:end entries \*\//);
+  assert.ok(m, '@shell entries 区块（共享外壳）');
   const blk = m[0];
   assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(/i.test(blk.replace(/\/\*[\s\S]*?\*\//g, '')), '不写死颜色');
   assert.match(blk, /@media \(min-width: 760px\) \{[\s\S]*?grid-template-columns: repeat\(2,/);

@@ -81,9 +81,9 @@ test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 
     assert.ok(urls.includes('/en' + p), 'content 里有 /en' + p);
   }
   assert.ok(!urls.some((u) => u.includes(OLD_PATH)), 'content 里没有旧设置层地址');
-  /* 顶栏只剩一个顶级标签 */
-  const tabs = /** @type {any} */ (yaml.load(rd('space/web/data/topbar-tabs.yaml'))).tabs;
-  assert.deepEqual(tabs.map((/** @type {any} */ t) => [t.id, t.path, t.zh, t.en]), [['space', '/', '旷野', 'Space']]);
+  /* 顶栏没有标签了（页名胶囊只显示页名，Gray 2026-11-07）：topbar-tabs 数据 / 模板删除 */
+  assert.ok(!existsSync(path.join(REPO, 'space/web/data/topbar-tabs.yaml')), 'topbar-tabs.yaml 已删');
+  assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/topbar-tabs.html')), 'topbar-tabs.html 已删');
   /* _redirects：/owner/ 指向新锁屏凭证页；没有任何一条跳到旧设置层 */
   const red = rd('space/web/static/_redirects');
   assert.match(red, /^\/owner\/\s+\/security\/lock\/\s+301$/m);
@@ -135,7 +135,8 @@ test('构建产物：没有 settings/ 目录，任何 HTML 都没有 href 指向
   /* 旷野页：页名、顶栏标签、分类入口 */
   const home = readFileSync(path.join(REPO, 'space/web/public/index.html'), 'utf8');
   assert.match(home, /<title>旷野 \| Styrigx<\/title>/);
-  assert.match(home, /class="sgx-tb-tab" href="\/" data-tab="space" aria-current="page">旷野</);
+  assert.match(home, /<span class="?sgx-tb-title"?>旷野<\/span>/);
+  assert.doesNotMatch(home, /sgx-tb-tab/);
   for (const c of cats) assert.ok(home.includes(`href="/${c}/"`), '旷野页有 /' + c + '/ 入口');
   const en = readFileSync(path.join(REPO, 'space/web/public/en/index.html'), 'utf8');
   assert.match(en, /<title>Space \| Styrigx<\/title>/);
