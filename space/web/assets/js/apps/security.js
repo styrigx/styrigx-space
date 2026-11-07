@@ -14,7 +14,6 @@ import { i18nTable } from '../lib/i18n.js';
 const tx = i18nTable('security');
 
 (function () {
-  const en = document.documentElement.lang === 'en';
   /** @type {any} */
   let T = {};
   try {
@@ -23,7 +22,6 @@ const tx = i18nTable('security');
   /** @param {string} k */
   function t(k) {
     const v = T[k];
-    if (v && typeof v === 'object') return en ? v.en : v.zh;
     if (v) return v;
     /* 批次 A 收尾 #36：兜底不显示内部键名；键名只记诊断 */
     if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
@@ -57,7 +55,7 @@ const tx = i18nTable('security');
       const miss = [];
       if (!hasPw) miss.push(t('missPw'));
       if (!hasPk) miss.push(t('missPk'));
-      if (cardSub) cardSub.textContent = miss.join('，');
+      if (cardSub) cardSub.textContent = miss.join(t('listSep'));
     }
   }
 

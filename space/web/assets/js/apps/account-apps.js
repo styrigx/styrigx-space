@@ -22,7 +22,7 @@ const tx = i18nTable('account');
   const root = document.getElementById('acct-apps');
   if (!root) return;
   const en = document.documentElement.lang === 'en';
-  const t = createT(en);
+  const t = createT();
   const list = document.getElementById('acct-apps-list');
   const empty = document.getElementById('acct-apps-empty');
   const q = /** @type {HTMLInputElement|null} */ (document.getElementById('acct-apps-q'));

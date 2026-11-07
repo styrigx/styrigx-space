@@ -22,6 +22,8 @@ const NOW = Date.UTC(2026, 9, 9, 4, 0, 0);
 
 function mk(en) {
   const t = (k) => {
+    /* 站名 site_<站 id> 按站查，没有的站返回空（同页面 loadI18n 的 t），其余键必须在表里 */
+    if (/^site_/.test(k) && !DICT[k]) return '';
     assert.ok(DICT[k], '字符串表 js.status 缺文案：' + k);
     return en ? DICT[k].en : DICT[k].zh;
   };
@@ -30,7 +32,7 @@ function mk(en) {
     for (const x in v || {}) s = s.split('{' + x + '}').join(String(v[x]));
     return s;
   };
-  return { t, fmt, en, now: NOW };
+  return { t, fmt, lang: en ? 'en' : 'zh', now: NOW };
 }
 
 test('renderAudit：合计行 + 每条（结果、北京时间、IP 前缀）；今天只给时分，别的日子带日期', () => {

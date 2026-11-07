@@ -17,7 +17,7 @@ import { createT, requireAccountSession, syncSubText } from './account-common.js
   const root = document.getElementById('acct-sync');
   if (!root) return;
   const en = document.documentElement.lang === 'en';
-  const t = createT(en);
+  const t = createT();
   const row = document.getElementById('acct-sync-row');
   const sw = document.getElementById('acct-sync-sw');
   const sub = document.getElementById('acct-sync-sub');

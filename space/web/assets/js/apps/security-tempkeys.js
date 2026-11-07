@@ -53,7 +53,7 @@ export function durationParam(v) {
   const root = document.getElementById('acct-tk');
   if (!root) return;
   const en = document.documentElement.lang === 'en';
-  const t = createT(en);
+  const t = createT();
   const $ = function (/** @type {string} */ id) { return document.getElementById(id); };
   const list = $('acct-tk-list');
   const empty = $('acct-tk-empty');

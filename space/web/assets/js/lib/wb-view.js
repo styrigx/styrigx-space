@@ -8,13 +8,7 @@ import { i18nTable } from './i18n.js';
 /** 界面文案：页面字符串表 #sgx-i18n-space（语言包化 2026-11-07；当前语言已叠在英文上） */
 const tx = i18nTable('space');
 
-const NAMES = {
-  space: ['旷野', 'Space'],
-  files: ['我的文件', 'My Files'],
-  browser: ['浏览器', 'Internet'],
-  book: ['书籍', 'Books'],
-  blog: ['博客', 'Blog'],
-};
+/* 区域名：字符串表 js.space.wbArea_<区域>（语言包化第二部分 2026-11-07；英文为底、中文是汉化层）；表里没有的区域原样显示键 */
 // 分段 / 图例圆点是不带字的填充：辅色 / 第三色用 *-fill（本色中间调，不用压深到 4.5:1 的文字色，免得发泥；2026-10-21）
 const COLORS = {
   space: 'var(--m-primary-fill, var(--m-primary))',
@@ -45,13 +39,9 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c);
 }
 
-/**
- * @param {string} k
- * @param {boolean} en
- */
-function nameOf(k, en) {
-  const n = /** @type {any} */ (NAMES)[k];
-  return n ? n[en ? 1 : 0] : k;
+/** @param {string} k 区域键 */
+function nameOf(k) {
+  return tx('wbArea_' + k) || k;
 }
 
 /** 旧区域键（P4-3 PR-4b 前：主页 home、设置 settings）→ 新键 space；读旧写新，旧 Worker / 旧缓存里的分组在这里并起来 */
@@ -96,7 +86,7 @@ export function renderWb(root, data, en) {
       }
       row.style.visibility = '';
       const top = items.find((it) => (s.k === 'book' ? it.k.startsWith('book:') : s.k === 'blog' ? it.k.startsWith('post:') : false));
-      const label = nameOf(s.k, en) + (top && top.t ? ' · ' + top.t : '');
+      const label = nameOf(s.k) + (top && top.t ? ' · ' + top.t : '');
       row.innerHTML =
         '<span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:' + /** @type {any} */ (COLORS)[s.k] + '"></span>' +
         '<span class="font-medium truncate">' + esc(label) + '</span>' +
@@ -119,7 +109,7 @@ export function renderWb(root, data, en) {
   if (legend) {
     legend.innerHTML = shown.length
       ? shown
-          .map((s) => '<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:' + /** @type {any} */ (COLORS)[s.k] + '"></span>' + esc(nameOf(s.k, en)) + '</span>')
+          .map((s) => '<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:' + /** @type {any} */ (COLORS)[s.k] + '"></span>' + esc(nameOf(s.k)) + '</span>')
           .join('')
       : '<span>' + (tx('wbNothingRecordedYetToday')) + '</span>';
   }

@@ -192,6 +192,14 @@ js:
     rfRootPh: "Root credential"
     rfRootEmpty: "Enter root credential"
     sheetClose: "Close"
+    lockSessionNotRecognized: "The session was not recognized. Please try again."
+    lockRetryMin: "Try again in {n} min"
+    lockRetrySec: "Try again in {n}s"
+    rfSpaceLead: "First, verify with your space credential"
+    rfSpacePh: "Space credential"
+    rfSpaceEmpty: "Enter space credential"
+    codeWrap: " ({c})"
+    labelSep: ": "
   security:
     okTitle: All good
     okSub: Unlock password and passkeys are set
@@ -203,6 +211,7 @@ js:
     lockSubPk: Passkeys
     lockSubNone: Not set
     securiSomethingWentWrongPlease: Something went wrong, please retry
+    listSep: ", "
   space:
     wellNoRec: No visits recorded yet today
     areaLinks: Search
@@ -217,6 +226,11 @@ js:
     wbDurHr: "{n} hr"
     wbDurHrs: "{n} hrs"
     wbDurMin: "{n} min"
+    wbArea_space: "Space"
+    wbArea_files: "My Files"
+    wbArea_browser: "Internet"
+    wbArea_book: "Books"
+    wbArea_blog: "Blog"
   status:
     loading: Loading…
     allUp: All systems operational
@@ -317,6 +331,10 @@ js:
     auditErr: Couldn't load the records. Try again shortly.
     auditErrAuth: Session expired. Unlock again to see the records.
     uErrorSub: Couldn't read Cloudflare usage; it retries at :41 next hour.
+    site_space: "Space"
+    site_proxy-rules: "Proxy rules"
+    site_ai: "AI"
+    nameSep: ", "
   lockmgr:
     eyeShow: Show password
     eyeHide: Hide password

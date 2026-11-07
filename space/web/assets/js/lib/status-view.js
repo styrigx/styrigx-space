@@ -25,15 +25,19 @@ export const DOWN_RATIO = 0.95;
 /** 可用率条的天数 */
 export const BAR_DAYS = 90;
 
-/** 页面上的站名（= workers/status/src/targets.js 的 TARGETS：主站 / 规则集 / AI 助手）；接口里的 zh / en 兜底。
-    2026-11 博客 / 日刻 / 奇趣 / 站内搜索 / 聊天等退役站的名字删掉：它们的历史记录由 workers/status/migrations/0005 删除 */
-export const SITE_NAMES = {
-  space: { zh: '主站', en: 'Space' },
-  'proxy-rules': { zh: '规则集', en: 'Proxy rules' },
-  ai: { zh: 'AI 助手', en: 'AI' },
-};
+/* 页面上的站名（= workers/status/src/targets.js 的 TARGETS：主站 / 规则集 / AI 助手）在字符串表 js.status.site_<站 id>
+   （语言包化第二部分 2026-11-07：英文为底、中文是汉化层）；表里没有的站用接口回的英文名 name，再没有用站 id。
+   2026-11 博客 / 日刻 / 奇趣 / 站内搜索 / 聊天等退役站的名字删掉：它们的历史记录由 workers/status/migrations/0005 删除 */
 
-const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** 北京时间的 Intl 日期（坏语言代码退回英文） @param {number} ms @param {string} lang @param {Intl.DateTimeFormatOptions} opts */
+function bjFmt(ms, lang, opts) {
+  const o = Object.assign({ timeZone: 'Asia/Shanghai' }, opts);
+  try {
+    return new Intl.DateTimeFormat(lang || 'en', o).format(new Date(ms));
+  } catch (e) {
+    return new Intl.DateTimeFormat('en', o).format(new Date(ms));
+  }
+}
 
 /** @param {number} n */
 const p2 = (n) => (n < 10 ? '0' : '') + n;
@@ -49,25 +53,25 @@ export function addDays(day, n) {
   return new Date(t + n * DAY_MS).toISOString().slice(0, 10);
 }
 
-/** YYYY-MM-DD → 「10月22日」/「Oct 22」 @param {string} day @param {boolean} en */
-export function fmtDay(day, en) {
-  const m = Number(day.slice(5, 7));
-  const d = Number(day.slice(8, 10));
-  return en ? MONTHS_EN[m - 1] + ' ' + d : m + '月' + d + '日';
+/** YYYY-MM-DD → 按页面语言交给 Intl（en「Oct 22」，zh「10月22日」） @param {string} day @param {string} lang 页面语言代码 */
+export function fmtDay(day, lang) {
+  /* 日期本身就是北京时间的日子：按当天北京中午格式化，不受运行环境时区影响 */
+  return bjFmt(Date.parse(day + 'T12:00:00+08:00'), lang, { month: 'short', day: 'numeric' });
 }
 
 /**
  * 北京时间「10月22日 14:03」/「Oct 22, 14:03」；sameDayAs 是同一天（北京）就只给「14:03」。
  * @param {number} ms
- * @param {boolean} en
+ * @param {string} lang 页面语言代码
  * @param {string} [sameDayAs] YYYY-MM-DD
  */
-export function fmtBjTime(ms, en, sameDayAs) {
+export function fmtBjTime(ms, lang, sameDayAs) {
   const d = new Date(ms + BJ_OFFSET_MS);
   const hm = p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes());
   const day = d.toISOString().slice(0, 10);
   if (sameDayAs && day === sameDayAs) return hm;
-  return en ? fmtDay(day, true) + ', ' + hm : fmtDay(day, false) + ' ' + hm;
+  /* 日期和时间的拼法（英文「Oct 22, 14:03」、中文「10月22日 14:03」）交给 Intl */
+  return bjFmt(ms, lang, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
 /**
@@ -167,11 +171,13 @@ export function siteState(s) {
   return 'up';
 }
 
-/** 站名 @param {any} s 站点（或只有 site 字段的故障） @param {boolean} en */
-export function siteName(s, en) {
-  const n = SITE_NAMES[/** @type {keyof typeof SITE_NAMES} */ (s && s.site)];
-  if (n) return en ? n.en : n.zh;
-  return (s && (en ? s.en || s.zh : s.zh || s.en)) || (s && s.site) || '';
+/**
+ * 站名：字符串表 js.status.site_<站 id>（当前语言，缺键已回退英文）→ 接口回的英文名 name → 站 id。
+ * @param {any} s 站点（或只有 site 字段的故障） @param {(k:string)=>string} t
+ */
+export function siteName(s, t) {
+  const id = (s && s.site) || '';
+  return (id && t('site_' + id)) || (s && s.name) || id;
 }
 
 /** 地址的域名（如 proxy-rules.styrigx.com） @param {string} url */
@@ -217,7 +223,7 @@ export function isEmptySummary(data) {
 /**
  * 横幅：全部正常 / 有 N 个故障（N = 当前故障的站数）。
  * @param {any} data
- * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean}} ctx
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string}} ctx
  * @returns {{state:'up'|'down', title:string, sub:string, down:number}}
  */
 export function bannerInfo(data, ctx) {
@@ -228,11 +234,11 @@ export function bannerInfo(data, ctx) {
     const live = sites.filter((s) => siteState(s) !== 'pending').length;
     return { state: 'up', title: ctx.t('allUp'), sub: ctx.fmt('allUpSub', { n: live }), down: 0 };
   }
-  const sep = ctx.en ? ', ' : '、';
+  const sep = ctx.t('nameSep');
   return {
     state: 'down',
     title: ctx.fmt(n === 1 ? 'someDown1' : 'someDown', { n }),
-    sub: ctx.fmt('someDownSub', { names: downSites.map((s) => siteName(s, ctx.en)).join(sep) }),
+    sub: ctx.fmt('someDownSub', { names: downSites.map((s) => siteName(s, ctx.t)).join(sep) }),
     down: n,
   };
 }
@@ -250,10 +256,10 @@ export function sortIncidents(list) {
 /**
  * 某一格的说明（点色块时显示）：「10月21日 · 可用率 99.93% · 1440 次检查 · 平均 123 ms」，没数据 → 「10月21日 · 无数据」。
  * @param {{day:string,total:number,ok:number,avg_ms:number|null}} slot
- * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean}} ctx
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string}} ctx
  */
 export function slotText(slot, ctx) {
-  const day = fmtDay(slot.day, ctx.en);
+  const day = fmtDay(slot.day, ctx.lang);
   if (!slot.total) return ctx.fmt('dayNoData', { day });
   let s = ctx.fmt('dayDetail', { day, pct: fmtPct(pctOf(slot.ok, slot.total)), total: slot.total });
   if (slot.avg_ms != null) s += ctx.fmt('dayAvg', { ms: slot.avg_ms });
@@ -273,11 +279,11 @@ export function uptime90(s) {
 /**
  * 一张站点卡（article.st-card）。色块是 span，整条 role="img" 带可读的总结；点色块的说明由 apps/space-status.js 填进 .st-detail。
  * @param {any} s
- * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number, today:string}} ctx
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string, now:number, today:string}} ctx
  */
 export function renderSite(s, ctx) {
   const state = siteState(s);
-  const name = siteName(s, ctx.en);
+  const name = siteName(s, ctx.t);
   const chip = { up: 'stUp', flaky: 'stFlaky', down: 'stDown', pending: 'stPending' }[state];
   const meta = [];
   if (s.last) {
@@ -306,7 +312,7 @@ export function renderSite(s, ctx) {
 /**
  * 故障列表（ul.st-inc-list）；没有故障 → 一行空状态。
  * @param {any[]} incidents
- * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number, today:string}} ctx
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string, now:number, today:string}} ctx
  */
 export function renderIncidents(incidents, ctx) {
   const list = sortIncidents(incidents);
@@ -315,18 +321,18 @@ export function renderIncidents(incidents, ctx) {
     const open = x.ended_at == null;
     const start = Number(x.started_at);
     const startDay = bjDay(start);
-    const parts = [ctx.fmt('incStart', { time: fmtBjTime(start, ctx.en) })];
+    const parts = [ctx.fmt('incStart', { time: fmtBjTime(start, ctx.lang) })];
     if (open) {
       parts.push(ctx.fmt('incDurOngoing', { dur: fmtDur(ctx.now - start, ctx.fmt) }));
     } else {
       const end = Number(x.ended_at);
-      parts.push(ctx.fmt('incEnd', { time: fmtBjTime(end, ctx.en, startDay) }));
+      parts.push(ctx.fmt('incEnd', { time: fmtBjTime(end, ctx.lang, startDay) }));
       parts.push(ctx.fmt('incDur', { dur: fmtDur(end - start, ctx.fmt) }));
     }
     return (
       '<li class="st-inc" data-open="' + (open ? '1' : '0') + '" data-site="' + esc(x.site) + '">' +
         '<div class="st-inc-head">' +
-          '<span class="st-inc-site">' + esc(siteName(x, ctx.en)) + '</span>' +
+          '<span class="st-inc-site">' + esc(siteName(x, ctx.t)) + '</span>' +
           '<span class="st-chip" data-state="' + (open ? 'down' : 'resolved') + '"><span class="st-dot" aria-hidden="true"></span>' + esc(ctx.t(open ? 'incOngoing' : 'incResolved')) + '</span>' +
         '</div>' +
         '<p class="st-inc-cause">' + esc(causeText(x.cause, ctx.t)) + '</p>' +
@@ -347,7 +353,7 @@ export const AUDIT_MAX = 50;
  * 进站凭证使用记录：一行合计（共 N 条、失败 M 条；满 50 条时注明只显示最近 50 条）+ 每条一行（结果、北京时间、IP 前缀）；
  * 没有记录 → 一行「最近 7 天没有使用记录」。坏数据（没有时间戳）跳过。
  * @param {any} items
- * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number}} ctx
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string, now:number}} ctx
  */
 export function renderAudit(items, ctx) {
   const list = (Array.isArray(items) ? items : []).filter((x) => x && Number.isFinite(Number(x.ts)));
@@ -361,7 +367,7 @@ export function renderAudit(items, ctx) {
     return (
       '<li class="st-audit-item" data-ok="' + (ok ? '1' : '0') + '">' +
         '<span class="st-chip" data-state="' + (ok ? 'up' : 'down') + '"><span class="st-dot" aria-hidden="true"></span>' + esc(ctx.t(ok ? 'auditOk' : 'auditFail')) + '</span>' +
-        '<span class="st-audit-time">' + esc(fmtBjTime(Number(x.ts), ctx.en, today)) + '</span>' +
+        '<span class="st-audit-time">' + esc(fmtBjTime(Number(x.ts), ctx.lang, today)) + '</span>' +
         '<span class="st-audit-ip">' + esc(x.ipPrefix || ctx.t('auditIpUnknown')) + '</span>' +
       '</li>'
     );
@@ -435,7 +441,7 @@ export function usageLevel(p) {
  * 某一项拿不到（null）→ 一行「暂时拿不到」，没有进度条。
  * opts.skipWorkers：额度卡（renderQuota）已经有今天的 Workers + Pages Functions 请求数时，用量卡不再重复这一行。
  * @param {any} usage
- * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean}} ctx
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string}} ctx
  * @param {{skipWorkers?:boolean}} [opts]
  * @returns {Array<{key:string, label:string, value:string, limit:string, pct:number|null, level:string, sub:string, child:boolean}>}
  */
@@ -483,7 +489,7 @@ export function usageItems(usage, ctx, opts = {}) {
  *   usage = null → 一行提示（not-configured「用量未配置」；not-collected 还没收过；其他 暂时拿不到）
  * @param {any} usage
  * @param {string|null|undefined} reason
- * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number}} ctx
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string, now:number}} ctx
  * @param {{skipWorkers?:boolean}} [opts]  见 usageItems
  */
 export function renderUsage(usage, reason, ctx, opts = {}) {
@@ -500,7 +506,7 @@ export function renderUsage(usage, reason, ctx, opts = {}) {
   const rows = usageItems(usage, ctx, opts).map((x) => usageRow(x, ctx));
   const at = Number(usage.fetched_at) || 0;
   const foot = at
-    ? ctx.fmt('uUpdated', { ago: fmtAgo(at, ctx.now, ctx.fmt), time: fmtBjTime(at, ctx.en, bjDay(ctx.now)) }) + (usage.stale ? ctx.t('uStale') : '')
+    ? ctx.fmt('uUpdated', { ago: fmtAgo(at, ctx.now, ctx.fmt), time: fmtBjTime(at, ctx.lang, bjDay(ctx.now)) }) + (usage.stale ? ctx.t('uStale') : '')
     : '';
   return '<ul class="st-usage">' + rows.join('') + '</ul>' + (foot ? '<p class="st-usage-foot"' + (usage.stale ? ' data-stale="1"' : '') + '>' + esc(foot) + '</p>' : '');
 }
@@ -557,7 +563,7 @@ export function quotaLevel(p) {
  * 额度条目（渲染前的纯数据）。顺序：Workers 请求 → KV 读 / 写 / 删 / 列 → D1 读 / 写行 → R2 A / B 类（本月）。
  * 某一项拿不到（null）→ 一行「暂时拿不到」，没有进度条。
  * @param {any} quota
- * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean}} ctx
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string}} ctx
  * @returns {Array<{key:string, label:string, value:string, limit:string, pct:number|null, level:string, sub:string, child:boolean}>}
  */
 export function quotaItems(quota, ctx) {
@@ -609,7 +615,7 @@ export function quotaItems(quota, ctx) {
  *   quota = null → 一行提示（not-configured / secret-missing「额度未配置」；其他「额度暂时拿不到」）——永远不影响页面其余部分
  * @param {any} quota
  * @param {string|null|undefined} reason
- * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, en:boolean, now:number}} ctx
+ * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string, now:number}} ctx
  */
 export function renderQuota(quota, reason, ctx) {
   if (!quota) {
@@ -625,7 +631,7 @@ export function renderQuota(quota, reason, ctx) {
   const rows = quotaItems(quota, ctx).map((x) => usageRow(x, ctx));
   const at = Number(quota.fetched_at) || 0;
   const foot = at
-    ? ctx.fmt('qUpdated', { ago: fmtAgo(at, ctx.now, ctx.fmt), time: fmtBjTime(at, ctx.en, bjDay(ctx.now)) }) + (quota.stale ? ctx.t('uStale') : '')
+    ? ctx.fmt('qUpdated', { ago: fmtAgo(at, ctx.now, ctx.fmt), time: fmtBjTime(at, ctx.lang, bjDay(ctx.now)) }) + (quota.stale ? ctx.t('uStale') : '')
     : '';
   return '<ul class="st-usage" data-kind="quota">' + rows.join('') + '</ul>' + (foot ? '<p class="st-usage-foot"' + (quota.stale ? ' data-stale="1"' : '') + '>' + esc(foot) + '</p>' : '');
 }

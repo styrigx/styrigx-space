@@ -19,7 +19,7 @@ const ct = i18nTable('core');
   const el = document.getElementById('acct-reset');
   if (!el) return;
   const en = document.documentElement.lang === 'en';
-  const t = createT(en);
+  const t = createT();
   const sub = accountSubmitters(t);
   mountResetFlow({
     el: el,
