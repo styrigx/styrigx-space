@@ -85,8 +85,9 @@ test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（�
   await expect(page).toHaveURL(/\/curio\/zh\/$/);
   /* 明确存了 system（新写法）同样跟随系统 */
   await setCookie(context, enc({ v: 2, mode: 'light', lang: 'system' }));
+  /* 奇趣拆页（#298）起旧 #devices 在首页转到设备子页：跟随系统（中文）→ 中文设备子页 */
   await page.goto('/curio/#devices');
-  await expect(page).toHaveURL(/\/curio\/zh\/#devices$/);
+  await expect(page).toHaveURL(/\/curio\/zh\/devices\/$/);
 });
 
 test.describe('英文浏览器', () => {
