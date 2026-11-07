@@ -177,8 +177,9 @@ jobs:
       - name: 前端技术名词检查（生产构建的 HTML 里不许出现后端变量名）
         # 用户可见文案不得出现 OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY / SGX_LOCK_SPACE_KEY / SGX_ACCOUNT_ROOT_KEY / SGX_PW_PEPPER / TURNSTILE_SECRET；
         # 后端变量名只许出现在 workers/ 与注释里，不许进 space/web/public/ HTML。
+        # 2026-11 合站：只查主站页面（子站 /blog/ /curio/ /daymark/ 不在范围里，同合站前；博客白皮书正文会如实写这些名字）
         run: |
-          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_LOCK_SPACE_KEY\|SGX_ACCOUNT_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" space/web/public/ --include="*.html"; then
+          if grep -rl "OWNER_KEY\|SESSION_SECRET\|SGX_ROOT_KEY\|SGX_LOCK_SPACE_KEY\|SGX_ACCOUNT_ROOT_KEY\|SGX_PW_PEPPER\|TURNSTILE_SECRET" space/web/public/ --include="*.html" | grep -vE '^space/web/public/(blog|curio|daymark)/'; then
             echo "FAIL: 技术变量名出现在 HTML 产物中"
             exit 1
           fi
