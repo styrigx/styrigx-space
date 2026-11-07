@@ -8366,6 +8366,8 @@
   color: var(--sgx-text-primary); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease; }
 .sgx-tb-ps { color: var(--sgx-primary); margin-right: .6em; }
 .sgx-tb-tl { color: var(--sgx-text-tertiary); margin-left: .6em; }
+/* 窄屏（< 380，如 360 宽）：字标 + 图标组放不下（内容宽 328 < 163 + 12 + 173），收起「:~$」，字标剩 ❯ styrigx_，顶栏不溢出 */
+@media (max-width: 379.98px) { .sgx-tb-tl { display: none; } }
 .sgx-tb-cu { display: inline-block; width: .62em; height: 2px; margin-left: 3px; align-self: flex-end; margin-bottom: .45em; background: var(--sgx-primary);
   animation: sgx-tb-blink 1.05s steps(1) infinite; }
 @keyframes sgx-tb-blink { 50% { opacity: 0; } }
