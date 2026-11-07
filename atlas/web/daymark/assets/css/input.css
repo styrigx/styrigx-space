@@ -112,7 +112,7 @@ html, body {
 @supports (overflow-x: clip) {
   html, body { overflow-x: clip; }
 }
-/* @sgx-shell:begin styrigx/styrigx-space@tree:c1899a645460 space/web/shared/shell v2a618509f36f（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:3cd80b385c27 space/web/shared/shell v30d425ac5d63（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space space/scripts/gen-shell.mjs 从 space/web/data/palette-roles.json 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -6770,14 +6770,19 @@ html, body {
    布局模式（P4-3 PR-4b，Gray 2026-11-07 定稿）只有两种：手机 phone / 桌面 desktop。规则只有一份：共享外壳 layout-mode.js __sgxLayout()，四站 <head> 原样内联、首帧前写好
    data-sgx-layout（手动手机 / 桌面照办；自动 = 浏览器不是手机版网站模式就桌面，但视口 < 720 时手机；拖窗口 / 转屏按 matchMedia 重算，不刷新），
    tests/space/ui/shell/topbar-length.test.mjs 守着四站同一份。
-   --sgx-tb-w：顶栏胶囊（和快捷面板 / AI 窗口）宽，只由「窗口宽 + 布局模式」定，和是哪个站、哪一页无关，居中：
-   手机 = min(100% − 两侧 16px（刘海屏取安全区和 16 的大者），640px)；桌面 = min(960px, 100% − 两侧 24px（同上取大者））。
-   按 100%（固定定位的包含块 = 不含滚动条的窗口宽）算，不用 100vw：经典滚动条下 100vw 比可用宽多出滚动条那一截，会横向溢出。 */
+   --sgx-tb-w：顶栏胶囊（和快捷面板 / AI 窗口）宽，只由「窗口宽 + 布局模式 + 设备档」定，和是哪个站、哪一页无关，居中：
+   手机布局 = min(100% − 两侧 16px（刘海屏取安全区和 16 的大者），640px)；
+   桌面布局按 <html data-sgx-device>（layout-mode.js __sgxDevice）分两档（Gray 2026-11-07：桌面布局顶栏固定居中、不跟窗口拉长，不接近铺满）：
+     手机设备（手机开桌面版网站 / 手机上手动选桌面）= min(720px, 100% − 两侧 24px（同上取大者）)；
+     电脑 / 平板 = min(clamp(720px, 60vw, 960px), 100% − 两侧 24px)。
+   上限一律按 100%（固定定位的包含块 = 不含滚动条的窗口宽）收，vw 只出现在 clamp 中间项里：经典滚动条下 100vw 比可用宽多出滚动条那一截，单用会横向溢出。 */
 :root { --sgx-page-m: 16px; --sgx-content-max: 1068px; --sgx-shell-w: min(100% - 2 * var(--sgx-page-m), var(--sgx-content-max));
   --sgx-tb-w: min(100% - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px)), 640px); }
 :root[data-sgx-layout="phone"] { --sgx-content-max: 640px; }
 :root[data-sgx-layout="desktop"] { --sgx-content-max: 1440px;
-  --sgx-tb-w: min(960px, 100% - max(24px, env(safe-area-inset-left, 0px)) - max(24px, env(safe-area-inset-right, 0px))); }
+  --sgx-tb-w: min(clamp(720px, 60vw, 960px), 100% - max(24px, env(safe-area-inset-left, 0px)) - max(24px, env(safe-area-inset-right, 0px))); }
+:root[data-sgx-layout="desktop"][data-sgx-device="phone"] {
+  --sgx-tb-w: min(720px, 100% - max(24px, env(safe-area-inset-left, 0px)) - max(24px, env(safe-area-inset-right, 0px))); }
 /* 横向不许滚：任何一块超宽都裁掉，不出现横向滚动条（clip 不建滚动容器，position: sticky 照常） */
 :root { overflow-x: clip; }
 @media (min-width: 600px) {

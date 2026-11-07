@@ -1,7 +1,9 @@
 /**
  * 布局模式（P4-3 PR-4b，Gray 2026-11-07 定稿）：只有手机 phone / 桌面 desktop。
  * - 手动 手机 / 桌面：照办，什么都不看（应用内浏览器没有桌面版开关，靠手动选桌面）。
- * - 自动：浏览器是手机版网站模式（userAgentData.mobile，没有就看 UA）→ 手机；否则桌面，但视口 < 720 → 手机（窄窗口 / 分屏的保险，只在自动里）。
+ * - 自动：视口 < 720 → 手机（窄窗口 / 分屏 / 手机竖屏）；否则浏览器不是手机版网站模式（userAgentData.mobile，没有就看 UA）→ 桌面；
+ *   UA 报手机但浏览器在用桌面版网站的虚拟视口（布局视口 > 屏幕宽 × 1.25）→ 桌面（2026-11-07 录屏：奇趣 980 视口下还是手机）；其余手机。
+ * - 设备档 resolveDevice / __sgxDevice：UA 报手机，或粗指针 + 屏幕短边 < 600 → phone，其余 desktop（只给桌面顶栏宽分档）。
  * - 旧值 mobile → phone，dex / pc → desktop，未知值 → auto；?layout=auto 逃生口。
  * 同时核对 prefs.js resolveLayout()、共享外壳源头 lib/layout-mode.js __sgxLayout() 和 baseof.html __layoutMode()（含偏好迁移）给出同一结果。
  */
@@ -10,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveLayout, normLayout, uaMobile, layoutNarrow } from '../../../../space/web/assets/js/lib/prefs.js';
+import { resolveLayout, resolveDevice, normLayout, uaMobile, layoutNarrow } from '../../../../space/web/assets/js/lib/prefs.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const baseof = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.html'), 'utf8');
@@ -23,14 +25,14 @@ const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleW
 const TABLET_UA = 'Mozilla/5.0 (Linux; Android 14; SM-X910) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
 /** 跑 baseof 的内联函数（先内联 layout-mode.js）：stub window / localStorage / location / navigator；回 [结果, 存的偏好] */
-function inline(pref, { w = 1280, ua = DESK_UA, uad, search = '' } = {}) {
+function inline(pref, { w = 1280, ua = DESK_UA, uad, search = '', screen } = {}) {
   const store = new Map(pref == null ? [] : [['sgx-layout', pref]]);
   const localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
   const window = { innerWidth: w };
   const location = { search };
   const navigator = uad === undefined ? { userAgent: ua } : { userAgent: ua, userAgentData: uad };
-  const fn = new Function('window', 'localStorage', 'location', 'navigator', 'URLSearchParams', lib + '\n' + src + '\nreturn [__layoutMode(), localStorage.getItem("sgx-layout")];');
-  return fn(window, localStorage, location, navigator, URLSearchParams);
+  const fn = new Function('window', 'localStorage', 'location', 'navigator', 'URLSearchParams', 'screen', lib + '\n' + src + '\nreturn [__layoutMode(), localStorage.getItem("sgx-layout")];');
+  return fn(window, localStorage, location, navigator, URLSearchParams, screen);
 }
 
 const AUTO = [
@@ -92,9 +94,36 @@ test('layoutNarrow（旧接口）恒 false：桌面任何时候都能选', () =>
   assert.equal(layoutNarrow(), false);
 });
 
-test('layout-mode.js：没有像素断点以外的规则（不再有 840 / 980 / 横屏判断），只有自动里 720 那一条', () => {
+test('layout-mode.js：没有像素断点以外的规则（不再有 840 / 980 / 横屏判断），只有自动里 720 那一条（另有设备档屏幕短边 600、虚拟视口 1.25 倍两个比例）', () => {
   const code = lib.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.doesNotMatch(code, /840|980|innerHeight|orientation:\s*landscape/);
-  assert.match(code, /w<720\?'phone':'desktop'/);
+  assert.match(code, /w<720\)return 'phone'/);
+  assert.match(code, /w>s\[0\]\*1\.25/);
+  assert.match(code, /<600\?'phone':'desktop'/);
   assert.match(code, /matchMedia/);
+});
+
+/* 手机开「桌面版网站」：屏幕 384（S23 Ultra），布局视口 980 */
+const S23 = { width: 384, height: 824 };
+for (const [w, ua, uad, scr, want] of [
+  [980, PHONE_UA, { mobile: true }, S23, 'desktop'], // UA 还报手机，但虚拟视口 980 > 384 × 1.25 → 桌面版网站
+  [980, DESK_UA, { mobile: false }, S23, 'desktop'],
+  [412, PHONE_UA, { mobile: true }, { width: 412, height: 915 }, 'phone'], // 手机版网站：布局视口 = 屏幕宽
+  [915, PHONE_UA, { mobile: true }, { width: 915, height: 412 }, 'phone'], // 手机横屏
+  [1280, PHONE_UA, undefined, { width: 1280, height: 800 }, 'phone'], // 手机 UA、视口 = 屏幕：还是手机
+  [700, PHONE_UA, { mobile: true }, S23, 'phone'], // < 720 一律手机
+]) {
+  test(`自动 ${w} 宽 屏幕 ${scr.width} ${ua === PHONE_UA ? '手机 UA' : '桌面 UA'}${uad ? ' mobile=' + uad.mobile : ''} → ${want}`, () => {
+    const nav = uad === undefined ? { userAgent: ua } : { userAgent: ua, userAgentData: uad };
+    assert.equal(resolveLayout('auto', uaMobile(nav), w, w >= 720 && w > scr.width * 1.25), want);
+    assert.equal(inline('auto', { w, ua, uad, screen: scr })[0], want);
+  });
+}
+
+test('设备档 resolveDevice：手机 UA / 粗指针 + 短边 < 600 → phone；电脑、平板、触屏电脑 → desktop', () => {
+  assert.equal(resolveDevice(true, false, 1920), 'phone');
+  assert.equal(resolveDevice(false, true, 384), 'phone'); // 手机开桌面版网站（UA 报桌面）
+  assert.equal(resolveDevice(false, false, 384), 'desktop'); // 细指针（电脑窄窗口不算）
+  assert.equal(resolveDevice(false, true, 800), 'desktop'); // 平板 / 触屏电脑
+  assert.equal(resolveDevice(false, true, 600), 'desktop');
 });

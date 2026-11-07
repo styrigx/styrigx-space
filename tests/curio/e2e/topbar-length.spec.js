@@ -1,6 +1,7 @@
 /* 顶栏长度统一 + 页名胶囊（P4-3 PR-4b，Gray 2026-11-07 定稿），跑在拼好的整站（dist/site：主站 /、奇趣 /curio/、日刻 /daymark/、博客 /blog/，同源）。
  * 布局只有手机 / 桌面，四站同一条规则（共享外壳 layout-mode.js）：手动照办；自动 = userAgentData.mobile（没有就看 UA），算出桌面但视口 < 720 → 手机。
- * 顶栏宽：手机 min(100% − 32, 640)，桌面 min(960, 100% − 48)，居中——同一视口四站每页都一样长。
+ * 顶栏宽：手机布局 min(100% − 32, 640)；桌面布局按设备档（<html data-sgx-device>）——手机设备 min(720, 100% − 48)，电脑 / 平板 min(clamp(720, 60vw, 960), 100% − 48)，
+ * 居中——同一视口四站每页都一样长。
  * 页名胶囊只显示当前页名：手机布局不显示；子站首页 = 站名，切到页内分区（入口链接 hash）换成分区名。
  * 主站在 dist/site 里是生产构建（锁屏启用）：主站页面量的是最上层看得见的那条（锁屏的顶栏）。主站自己的顶栏见 tests/space/e2e/topbar/topbar-length.spec.js。 */
 const { test, expect } = require('@playwright/test');
@@ -20,11 +21,14 @@ test.beforeEach(async ({ page }) => {
   await page.route(/^https:\/\/(?!localhost)/, (r) => r.abort());
 });
 
-/** 共享外壳 __sgxLayout() 的规则（这里默认桌面 UA：无头 Chromium 的 userAgentData.mobile = false）→ 期望的布局和左右边距 */
+/** 共享外壳 __sgxLayout() / __sgxDevice() 的规则（这里默认桌面 UA：无头 Chromium 的 userAgentData.mobile = false；
+ *  两个 project 都是 isMobile + hasTouch = 粗指针，屏幕跟着 setViewportSize 走）→ 期望的布局、设备档和左右边距 */
 function expected(w, h, pref = 'auto', mobile = false) {
   const mode = pref === 'phone' ? 'phone' : pref === 'desktop' ? 'desktop' : mobile || w < 720 ? 'phone' : 'desktop';
-  const width = mode === 'desktop' ? Math.min(960, w - 48) : Math.min(w - 32, 640);
-  return { mode, inset: (w - width) / 2 };
+  const device = mobile || Math.min(w, h) < 600 ? 'phone' : 'desktop';
+  const desk = device === 'phone' ? Math.min(720, w - 48) : Math.min(Math.max(720, Math.min(0.6 * w, 960)), w - 48);
+  const width = mode === 'desktop' ? desk : Math.min(w - 32, 640);
+  return { mode, device, inset: (w - width) / 2 };
 }
 
 /** 用户看得见的顶栏胶囊（最上层那条：锁屏时是锁屏的顶栏，主站页面自己的顶栏被锁屏盖住、还跟着页面缩小，不算）的左右边距；
@@ -84,6 +88,7 @@ for (const [w, h] of VIEWPORTS) {
     for (const p of PAGES) {
       await open(page, p);
       await expect(page.locator('html'), p).toHaveAttribute('data-sgx-layout', want.mode);
+      await expect(page.locator('html'), p).toHaveAttribute('data-sgx-device', want.device);
       const got = await insets(page);
       check(got, want, `${w}×${h} ${p}`);
       expect(await noHScroll(page), `${w}×${h} ${p} 横向不滚`).toBe(true);
@@ -167,3 +172,33 @@ test('本 project 的手机视口（412 / 360）：四站各页顶栏一样长�
     for (const t of await page.locator('.sgx-tb-title').all()) await expect(t, p).toBeHidden();
   }
 });
+
+/* 手机开「桌面版网站」（2026-11-07 Gray 录屏：S23 Ultra 三星浏览器，视口约 980、屏幕 384 宽）：四站同一结果——桌面布局、设备 phone、顶栏 720。
+   UA 还报手机（userAgentData.mobile = true，切换后没重载 / 某次跳转没带上桌面 UA）时也按「布局视口 > 屏幕宽 × 1.25」认桌面版网站：
+   录屏里主站是桌面、奇趣还是手机（顶栏 640、没页名胶囊）就是这条没认。 */
+for (const uadMobile of [false, true]) {
+  test(`手机桌面版网站 980×2104（屏幕 384×824，userAgentData.mobile=${uadMobile}）：四站桌面布局、设备 phone、顶栏 720 居中`, async ({ browser, baseURL }, info) => {
+    test.skip(info.project.name !== 'phone-412');
+    const ctx = await browser.newContext({ viewport: { width: 980, height: 2104 }, screen: { width: 384, height: 824 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1.1,
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/130.0.0.0 Safari/537.36',
+      baseURL });
+    await ctx.addInitScript((m) => {
+      Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => ({ mobile: m, platform: m ? 'Android' : 'Linux', brands: [] }), configurable: true });
+      try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
+    }, uadMobile);
+    const page = await ctx.newPage();
+    await page.route('**/api/**', (r) => {
+      const sub = /^\/(curio|daymark|blog)\//.test(new URL(r.request().url()).pathname);
+      return r.fulfill(sub ? { status: 503, contentType: 'application/json', body: '{"ok":false}' } : { status: 401, contentType: 'application/json', body: '{"ok":false}' });
+    });
+    await page.route(/^https:\/\/(?!localhost)/, (r) => r.abort());
+    for (const p of ['/', '/curio/', '/daymark/', '/blog/']) {
+      await open(page, p);
+      await expect(page.locator('html'), p).toHaveAttribute('data-sgx-layout', 'desktop');
+      await expect(page.locator('html'), p).toHaveAttribute('data-sgx-device', 'phone');
+      check(await insets(page), { inset: (980 - 720) / 2 }, `980 桌面版网站 ${p}`);
+      expect(await noHScroll(page), p).toBe(true);
+    }
+    await ctx.close();
+  });
+}

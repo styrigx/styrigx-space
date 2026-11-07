@@ -74,9 +74,23 @@ export function askServer() {
     .catch(function () { return { ok: false }; });
 }
 
+/* 本页是不是浏览器「重载 / 前进后退」打开的（不是一次新的跳转）。
+   三星浏览器（Chromium）切「桌面版网站 / 手机版网站」= 换 UA 后按原始请求地址重载当前条目：锁屏地址 /?lock=1&why=…&return=子站
+   会被原样再取一次。这不是子站又把人踢回来了（子站踢回是网关 302，导航类型是 navigate），不能算进死循环。 */
+function isReloadNav() {
+  try {
+    const e = performance.getEntriesByType('navigation')[0];
+    return !!e && (e.type === 'reload' || e.type === 'back_forward');
+  } catch (e) {
+    return false;
+  }
+}
+
 /* B1-8：子站回跳死循环判定（20 秒窗口）。只在子站踢回（带 ?why=）时用：
    20 秒内同一 target 第二次被踢回 → 失败卡（One UI 样式，不显示原因码），不再跳。
-   记录 { target, at } 在真正跳之前写入。 */
+   记录 { target, at } 在真正跳之前写入。
+   例外（2026-11-07 Gray 录屏：奇趣锁屏 → 通行密钥解锁 → 切桌面版网站 → 主站「无法回到子站」）：本页是重载 / 前进后退打开的
+   （isReloadNav）→ 不算被踢回，照常回跳，也不刷新窗口起点（真被网关来回踢时仍按第一次的时间算）。 */
 function checkSubsiteLoop(target) {
   try {
     const raw = sessionStorage.getItem('sgx-subsite-jump');
@@ -84,6 +98,7 @@ function checkSubsiteLoop(target) {
     if (raw) {
       const rec = JSON.parse(raw);
       if (rec.target === target && (now - rec.at) < 20000) {
+        if (isReloadNav()) return false;
         return true; /* 死循环 */
       }
     }

@@ -2,7 +2,7 @@
  * 布局（P4-3 PR-4b，Gray 2026-11-07 定稿）：只有手机 phone / 桌面 desktop（主站版面类照旧 layout-mobile / layout-dex）。
  * - 手动（快捷面板 手机 / 自动 / 桌面，sgx-layout = phone / auto / desktop；旧值 mobile → phone、dex / pc → desktop）照办，任何视口都一样
  * - 自动：navigator.userAgentData.mobile（没有就看 UA）；算出桌面但视口 < 720 CSS px → 手机。这里是无头桌面 UA（mobile = false）
- * - 外壳框（各页外框）= min(100% − 2 × 页边距, 手机 640 / 桌面 1440)；顶栏不再定内容栏（手机顶栏 min(100% − 32, 640)，桌面 min(960, 100% − 48)）
+ * - 外壳框（各页外框）= min(100% − 2 × 页边距, 手机 640 / 桌面 1440)；顶栏不再定内容栏（手机顶栏 min(100% − 32, 640)；桌面：手机设备 min(720, 100% − 48)，电脑 / 平板 min(clamp(720, 60vw, 960), 100% − 48)）
  * 手机 UA 的用例见 tests/space/e2e/topbar/topbar-length.spec.js。
  */
 const { test } = require('@playwright/test');
@@ -49,15 +49,17 @@ for (const [pref, vp, want] of [['desktop', { width: 412, height: 915 }, 'dex'],
   });
 }
 
-/* ----- 顶栏：宽只看视口宽 + 布局；桌面布局页名胶囊按整条顶栏居中 ----- */
+/* ----- 顶栏：宽只看视口宽 + 布局 + 设备档；桌面布局页名胶囊按整条顶栏居中 ----- */
+/* 电脑 / 平板 + 桌面布局的顶栏宽：min(clamp(720, 60vw, 960), 100% − 48)（2026-11-07 Gray：固定居中、不接近铺满） */
+const deskBar = (w) => Math.min(Math.max(720, Math.min(0.6 * w, 960)), w - 48);
 for (const [width, height] of [[1280, 800], [1920, 1080], [1024, 700], [768, 1024]]) {
-  test(`顶栏 ${width}×${height}（桌面布局）：宽 min(960, 100% − 48) 居中，页名胶囊按整条顶栏居中，字标 / 图标组贴两端、互不重叠`, async ({ page }) => {
+  test(`顶栏 ${width}×${height}（桌面布局）：宽 min(clamp(720, 60vw, 960), 100% − 48) 居中，页名胶囊按整条顶栏居中，字标 / 图标组贴两端、互不重叠`, async ({ page }) => {
     await go(page, { width, height }, '/');
     const b = await page.evaluate(() => {
       const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { x: b.x, w: b.width }; };
       return { bar: r('.sgx-topbar'), logo: r('.sgx-tb-logo'), title: r('.sgx-tb-title'), acts: r('.sgx-tb-acts'), vw: window.innerWidth };
     });
-    expect(Math.abs(b.bar.w - Math.min(960, width - 48))).toBeLessThanOrEqual(1);
+    expect(Math.abs(b.bar.w - deskBar(width)), `顶栏宽 ${b.bar.w}`).toBeLessThanOrEqual(1);
     expect(Math.abs(b.bar.x + b.bar.w / 2 - b.vw / 2)).toBeLessThanOrEqual(1);
     expect(b.logo.x - b.bar.x).toBeLessThanOrEqual(9);
     expect(b.bar.x + b.bar.w - (b.acts.x + b.acts.w)).toBeLessThanOrEqual(9);
@@ -92,15 +94,15 @@ for (const [path, sel] of WRAPS) {
   });
 }
 
-/* ----- 桌面布局：外框 = min(100% − 2 × 页边距, 1440) 居中（顶栏不再定内容栏，桌面顶栏最宽 960），内部列在框里居中 ----- */
+/* ----- 桌面布局：外框 = min(100% − 2 × 页边距, 1440) 居中（顶栏不再定内容栏，电脑桌面顶栏 min(clamp(720, 60vw, 960), 100% − 48)），内部列在框里居中 ----- */
 for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
   for (const [path, sel] of WRAPS) {
-    test(`桌面 ${w}×${h}：${path} 外框 = min(100% − 2m, 1440) 居中；顶栏 = min(960, 100% − 48) 居中`, async ({ page }) => {
+    test(`桌面 ${w}×${h}：${path} 外框 = min(100% − 2m, 1440) 居中；顶栏 = min(clamp(720, 60vw, 960), 100% − 48) 居中`, async ({ page }) => {
       await go(page, { width: w, height: h }, path);
       await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
       const f = await frame(page, sel);
       const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
-      expect(Math.abs(f.bar.w - Math.min(960, w - 48)), `顶栏宽 ${f.bar.w}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(f.bar.w - deskBar(w)), `顶栏宽 ${f.bar.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(f.wrap.w - Math.min(w - 2 * m, 1440)), `${sel} 外框宽 ${f.wrap.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(f.wrap.l + f.wrap.w / 2 - f.vw / 2), `${sel} 居中`).toBeLessThanOrEqual(1);
     });

@@ -4,7 +4,7 @@
   "dir": "space/web/shared/shell",
   "files": {
     "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
-    "shell.css": "af7564bf9b0486128c2fa5316673dcc1dfb5d1a63fa5b45334373f63fefe4385",
+    "shell.css": "406e27d7d21e8441095c44d395815bc5c7b6239362a2a85ba1084c0a8c90f406",
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "398d0e67cf9111a78275cb8448fabb632ffa5f76a283b2b3741b14736e15562c",
     "topbar.html": "54bf9f2626a08f79f2a3804f83419985f453f06f55c132e559628dbac573287e",
@@ -17,14 +17,14 @@
     "nav.json": "f7401c26879ccac2a99151a4e51792ae0e7569a20f6926502cef9d70031f4db6",
     "palettes.json": "f3779c13ef0033910d9a4afa0f44bdb81daaf9649c875e451656980240fd3a10",
     "ui-cookie-read.js": "41e0daf8b5966c3f48010fb6c60ef5cf608ca4c5ca20698a6020a5320e5f6b59",
-    "layout-mode.js": "32a59980f48bb81363b8b1c18eefd8158fbbd6b0ade166643ff7d3b88262f662",
+    "layout-mode.js": "8bd693670ddb355e692d0af3ab6c05784f6fbfb067188fff58e6521799b883e8",
     "lang-path.js": "5172ad9dc55424c20d94b872fa70df1bb8f5a2ec82f198bb44346f64a50f293d",
     "lang-path.html": "520154f383b12a999f6e5fd48a5eed26384180daec4bf795f0c3f98cc9964602",
     "ui-cookie-contract.json": "e207b5aefd00d59daa35f4d78bf3982e5c7ba95aa7b967b4e2ee6006469a9878",
     "favicon.js": "4bb7f9fe412988861d682b8c2a88eb93f68fc39f9fb51bd5df38441755b5d433",
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
-    "README.md": "10b716489592651b348a583b442e1efa2b1a753d3ffbb31ceedc6353b0c8a5b8"
+    "README.md": "53484df4aa7ecfd3ea06f914531d754700a0c73c4e4a8a60a9440f5472fdde37"
   },
-  "version": "2a618509f36f",
+  "version": "30d425ac5d63",
   "rulesVersion": "palette-rules-1"
 }
