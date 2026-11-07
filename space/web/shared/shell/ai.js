@@ -602,7 +602,7 @@ export function mountAiChat(dlg, opts) {
     el.setAttribute('data-role', m.role);
     if (m.error) el.setAttribute('data-state', 'error');
     const md = m.role === 'assistant' && !m.error;
-    const tx = doc.createElement(md ? 'div' : 'span');
+    const tx = doc.createElement('span'); /* 仍是 span（e2e 按 .sgx-ai-msg > span 取正文）；Markdown 时 display:block */
     if (md) { tx.className = 'sgx-ai-md'; paintAnswer(tx, m.text); }
     else tx.textContent = m.text;
     el.appendChild(tx);

@@ -301,7 +301,7 @@
 .sgx-ai-msg[data-role="assistant"] { align-self: flex-start; background: var(--sgx-qp-glass); box-shadow: inset 0 0 0 1px var(--sgx-qp-edge); color: var(--sgx-text-primary); border-bottom-left-radius: 6px; }
 .sgx-ai-msg[data-state="error"] { color: var(--sgx-danger); }
 /* 助手回答的有限 Markdown（2026-11 AI 语义召回）：段落 / 列表 / 粗体 / 链接；链接文字虚下划线 + ↗（参照 ChatGPT 安卓） */
-.sgx-ai-md { white-space: normal; }
+.sgx-ai-md { display: block; white-space: normal; }
 .sgx-ai-md > p { margin: 0; }
 .sgx-ai-md > p + p, .sgx-ai-md > p + ul, .sgx-ai-md > p + ol, .sgx-ai-md > ul + p, .sgx-ai-md > ol + p, .sgx-ai-md > ul + ol, .sgx-ai-md > ol + ul { margin-top: 8px; }
 .sgx-ai-md > ul, .sgx-ai-md > ol { margin: 0; padding-left: 1.3em; }

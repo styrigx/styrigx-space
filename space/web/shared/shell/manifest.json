@@ -4,14 +4,14 @@
   "dir": "space/web/shared/shell",
   "files": {
     "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
-    "shell.css": "d6294f03544331532594f880a43e0ee92ec05be7dfabec88c1724205a78a9f83",
+    "shell.css": "de4f31e8ba95607f9a075ee7ae4ade3128a6b9fd77bb3790156d630fb72308e2",
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "da46a782fdf9f80c24fae06bbbd83e5e29894a5c1db87b9e754071637ae158ca",
     "topbar.html": "dc876f034b39001415d62e7c5db4bdd46ca2beb6abc1e74d88b232bdb9969359",
     "entries.html": "08aa5362ea90368c2a594485c275e94cac2ca74e7013378f0ad46979fb7708b8",
     "topbar.js": "8497dd2ade848796371ded706c62d7211a9342f851be75f5d37ee3bc1faa3342",
     "modal-sheet.js": "f31bcbff02bee8437ced385a2cf781c02ad15762b5f7df025fe01e6ba1b8c2ee",
-    "ai.js": "da7a3da8a133f5e4656cf14862d78a107077cc5e87f5f145a283e45baf529a15",
+    "ai.js": "0e3d72ab4dc075f021aab54a6d833f762a1d4dda518ccbaaeea635139a17c902",
     "vk.js": "3bc7000ba510e8a7cbc1dd420e85cffdc23e0c5bd8184f4421d5e57f22ad7633",
     "prefs-write.js": "b28b056a311d48d2eee57742c4542eec13e58a03fbbfca39c28b8dbccd260364",
     "nav.json": "0e3f8ec0011f543d27743a7745b7bc32a20113250cc7a635c91df41ca463a477",
@@ -29,6 +29,6 @@
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "53484df4aa7ecfd3ea06f914531d754700a0c73c4e4a8a60a9440f5472fdde37"
   },
-  "version": "433a1800115d",
+  "version": "1b2b2ca2e75a",
   "rulesVersion": "palette-rules-1"
 }

@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:352ce1a58d6d space/web/shared/shell v433a1800115d（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:3aa07bedb00f space/web/shared/shell v1b2b2ca2e75a（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- ai.js ---- */
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
@@ -604,7 +604,7 @@ export function mountAiChat(dlg, opts) {
     el.setAttribute('data-role', m.role);
     if (m.error) el.setAttribute('data-state', 'error');
     const md = m.role === 'assistant' && !m.error;
-    const tx = doc.createElement(md ? 'div' : 'span');
+    const tx = doc.createElement('span'); /* 仍是 span（e2e 按 .sgx-ai-msg > span 取正文）；Markdown 时 display:block */
     if (md) { tx.className = 'sgx-ai-md'; paintAnswer(tx, m.text); }
     else tx.textContent = m.text;
     el.appendChild(tx);
