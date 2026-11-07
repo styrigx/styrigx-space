@@ -11,7 +11,7 @@
  * - 安全与隐私子页（/account/security/）：修改密码（账号根凭证登录时标题为「重置账号密码」）、
  *   删除通行密钥（两步确认）、注册后命名弹层（A1/A2/A3）、列表内重命名、signalCurrentUserDetails；
  *   未登录 → 跳账号页 ?return= 登录后回来
- * - 账号总览（2026-10-24 PR4）：账号卡只展示（已登录，点头像换头像，见 avatar-edit.spec.js），「账号信息」子页删除；
+ * - 账号总览（2026-10-24 PR4）：账号卡只展示（已登录，点头像换头像，见 avatar-edit.spec.js）；账号卡下面「个人资料」卡进 /account/profile/（见 account-profile.spec.js）；
  *   登录方式 / 退出账号 / 保持登录说明在设备页「此设备」卡；云同步一行进 /account/sync/（总开关 + 同步项）
  * - 账号安全子页：没有 AccountReauthTicket → 验证行（设了哪个显示哪个），reauth:true 验证后进管理区 + 倒计时；
  *   管理操作返回 403 reauth → 回验证区并提示「验证已过期」
@@ -411,7 +411,7 @@ test.describe('安全与隐私子页', () => {
 test.describe('账号总览', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('PR4：账号卡点了不跳页（没有「账号信息」子页）；两组：设备 / 账号安全 / 应用授权（P3-1），云同步（临时钥匙、服务状态已搬到设置，账号页没有入口）', async ({ page }) => {
+  test('PR4：账号卡点了不跳页；账号卡下面「个人资料」一张卡（2026-11-07，进 /account/profile/），再是 设备 / 账号安全 / 应用授权（P3-1），云同步，AI 模型（临时钥匙、服务状态已搬到设置，账号页没有入口）', async ({ page }) => {
     await mockAccount(page, {
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }] },
@@ -425,9 +425,11 @@ test.describe('账号总览', () => {
     await nextFrames(page);
     expect(await navs(), '点账号卡不触发任何导航').toEqual([]);
     expect(new URL(page.url()).pathname).toBe('/zh/account/');
-    await expect(page.locator('a[href*="/account/profile/"]')).toHaveCount(0);
+    /* 「个人资料」只有总览这一行指过去（账号卡本身不链过去） */
+    await expect(page.locator('#acct-main a[href*="/account/profile/"]')).toHaveCount(1);
+    await expect(page.locator('#acct-main [data-acct-card] a[href*="/account/profile/"]')).toHaveCount(0);
     const groups = await page.locator('#acct-main section').evaluateAll((els) => els.map((x) => Array.from(x.querySelectorAll('.acct-row')).map((r) => r.id)));
-    expect(groups).toEqual([['acct-dev-row', 'acct-sec-row', 'acct-apps-row'], ['acct-sync-row'], ['acct-ai-row']]);
+    expect(groups).toEqual([['acct-profile-row'], ['acct-dev-row', 'acct-sec-row', 'acct-apps-row'], ['acct-sync-row'], ['acct-ai-row']]);
     await expect(page.locator('#acct-main a[href*="/tempkeys/"], #acct-main a[href*="/status/"]')).toHaveCount(0);
   });
 });

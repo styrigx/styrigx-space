@@ -26,6 +26,7 @@ const VIEWPORTS = {
    P4-2d 起总览多一组「AI 模型」（/api/ai 打桩，副标题固定 Gemma 4），
    新增安全与隐私子页 /account/security/（已过门；倒计时数字在截图里遮罩），
    账号信息子页 /account/profile/ 2026-10-24 PR4 删除（登录方式 / 退出账号挪进设备页「此设备」卡），截图一并删除；
+   2026-11-07 /account/profile/ 复用为「个人资料」子页（行内编辑，行为见 account/account-profile.spec.js），暂不拍基线；总览多一张「个人资料」卡（account 基线随之变化）；
    PR4 新增的账号子页（云同步 / 设备）只拍手机，见文件末尾 account-sub-*；服务状态、临时钥匙搬到设置后也只拍手机，见文件末尾 space-status-* / space-tempkeys-*（P4-3 PR-4b 从 settings-* 改名） */
 /* P3-1：应用授权子页 /account/apps/ 按账号页惯例拍 5 视口 × 中英 × 深浅（20 张，Gray 2026-11-06 确认），5 张卡都已授权（含搜索框与过滤 chips） */
 const PAGES = ['/', '/security/', '/security/lock/', '/account/', '/account/security/', '/account/reset/', '/account/apps/'];
