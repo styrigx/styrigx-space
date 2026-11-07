@@ -136,7 +136,10 @@ runs:
       run: |
         debs=(~/.cache/fonts-noto-cjk-deb/fonts-noto-cjk_*.deb)
         [ "${#debs[@]}" = 1 ] && [ -f "${debs[0]}" ] || { echo "::error::expected exactly one cached fonts-noto-cjk .deb, got: ${debs[*]}"; exit 1; }
-        want="$(apt-cache show "fonts-noto-cjk=$CJK_VERSION" | awk '/^SHA256:/{print $2; exit}')"
+        # apt-cache show 也先落到变量再 awk：awk 拿到第一条 SHA256 就 exit，apt-cache 还在写会吃 SIGPIPE
+        #（「E: Write error - write (32: Broken pipe)」退出 100，pipefail 下整步红；PR #299 e2e-sites (blog) 2026-11-07 撞上）
+        show="$(apt-cache show "fonts-noto-cjk=$CJK_VERSION")"
+        want="$(awk '/^SHA256:/{print $2; exit}' <<< "$show")"
         got="$(sha256sum "${debs[0]}" | cut -d' ' -f1)"
         [ -n "$want" ] && [ "$want" = "$got" ] || { echo "::error::fonts-noto-cjk .deb sha256 $got does not match apt index ($want)"; exit 1; }
         sudo dpkg -i "${debs[0]}"
