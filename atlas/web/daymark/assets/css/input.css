@@ -112,7 +112,7 @@ html, body {
 @supports (overflow-x: clip) {
   html, body { overflow-x: clip; }
 }
-/* @sgx-shell:begin styrigx/styrigx-space@tree:3aa07bedb00f space/web/shared/shell v1b2b2ca2e75a（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:797e721103d8 space/web/shared/shell ve5ece18d32a8（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space space/scripts/gen-shell.mjs 从 space/web/data/palette-roles.json 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -6921,6 +6921,15 @@ html, body {
 :root[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet { width: min(440px, var(--sgx-tb-w)); }
 .reduced-motion .sgx-qp-sheet, .reduced-motion .sgx-qp { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-qp-sheet, .sgx-qp { transition: none; } }
+/* 手机屏 + 桌面布局（三星「桌面版网站」/ 手动桌面 viewport 980：整页约 0.42 倍缩小显示）：面板不用毛玻璃、不做位移滑入，只淡入。
+   2026-11-07 Gray 真机（S23 Ultra 三星浏览器）：单点九宫格 / 快捷，遮罩变暗时面板方框里先画出放大约 2.5 倍的页面右上角（顶栏图标 + 日刻卡），
+   再是放大的面板内容，0.5–1 秒后才回到正常大小；框外正常。≈ 1 / 页面缩放（0.42）——面板这一层（backdrop-filter 要单独的合成面，
+   位移过渡期间由合成器驱动）在页面缩放下按 1 倍画了。headless 复现不了（软件合成），这里去掉两个诱因：backdrop-filter 换实色，transform 换 opacity。 */
+:root[data-sgx-layout="desktop"][data-sgx-device="phone"] .sgx-qp-sheet { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--sgx-mat-solid);
+  transform: none; opacity: 0; transition: opacity .2s ease; }
+:root[data-sgx-layout="desktop"][data-sgx-device="phone"] .sgx-qp.is-open .sgx-qp-sheet { opacity: 1; }
+.reduced-motion:root[data-sgx-layout="desktop"][data-sgx-device="phone"] .sgx-qp-sheet { transition: none; }
+@media (prefers-reduced-motion: reduce) { :root[data-sgx-layout="desktop"][data-sgx-device="phone"] .sgx-qp-sheet { transition: none; } }
 :root { --sgx-qp-glass: color-mix(in srgb, var(--sgx-surface-container-lowest) 62%, transparent); --sgx-qp-edge: var(--sgx-outline-variant); }
 .dark { --sgx-qp-glass: color-mix(in srgb, var(--sgx-surface-container-high) 70%, transparent); }
 /* 快捷面板（P4-3 PR-4b：只有一页，四站同一套）：磁贴两行 2×2（深色 / 跟随系统 / 分享本页 / 立即锁定）+ 语言整行（行内展开单选）+ 调色板行 + 布局行。

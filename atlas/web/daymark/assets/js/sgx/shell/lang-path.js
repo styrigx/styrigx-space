@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:3aa07bedb00f space/web/shared/shell v1b2b2ca2e75a（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:797e721103d8 space/web/shared/shell ve5ece18d32a8（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- lang-path.js ---- */
 /**
  * @fileoverview 语言路径（P4-3 PR-4c，§6.8；语言包化 2026-11-07）：四站英文是默认语言、不带前缀，其他语言统一加 /<语言>/（现在只有 /zh/）。

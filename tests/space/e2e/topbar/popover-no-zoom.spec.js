@@ -65,3 +65,46 @@ test('弹层里的输入框字号 ≥ 16px（AI 窗口输入框；小于 16px �
   /* 触屏打开 AI 窗口不自动聚焦输入框（程序化聚焦弹键盘；桌面版网站下浏览器还会放大到输入框） */
   expect(await page.evaluate(() => document.activeElement && document.activeElement.matches('textarea, input'))).toBe(false);
 });
+
+/* 2026-11-07 Gray 真机（S23 Ultra 三星浏览器「桌面版网站」）：单点九宫格 / 快捷，打开那 0.5–1 秒面板方框里画出放大约 2.5 倍（≈ 1 / 页面缩放 0.42）的页面右上角和面板内容。
+   headless 是软件合成，复现不了这个放大；这里锁住修法：手机屏 + 桌面布局时面板不用毛玻璃（backdrop-filter 要单独合成面）、不做位移滑入（合成器驱动的 transform），只淡入。 */
+test('桌面版网站（手机屏 + 桌面布局）：面板打开过程中没有 backdrop-filter / transform，只淡入到不透明', async ({ page }) => {
+  await blockExternalRequests(page);
+  await freezeTime(page);
+  await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+  await desktopSite(page);
+  await page.goto('/zh/', { waitUntil: 'load' });
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-device', 'phone');
+  for (const [btn, dlg] of [['.sgx-tb-grid', '#sgx-nav'], ['.sgx-tb-quick', '#sgx-qp'], ['.sgx-tb-ai', '#sgx-ai']]) {
+    /* 点下去之后连续取几帧的计算样式（打开动画期间） */
+    const samples = await page.evaluate(async ([b, d]) => {
+      const sheet = document.querySelector(d + ' .sgx-qp-sheet');
+      /** @type {HTMLElement} */ (document.querySelector(b)).click();
+      const out = [];
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => requestAnimationFrame(r));
+        const cs = getComputedStyle(sheet);
+        out.push({ bf: cs.backdropFilter || 'none', wbf: cs.webkitBackdropFilter || 'none', tf: cs.transform });
+      }
+      return out;
+    }, [btn, dlg]);
+    for (const s of samples) expect(s, `${dlg} 打开中`).toEqual({ bf: 'none', wbf: 'none', tf: 'none' });
+    await expect.poll(() => page.$eval(dlg + ' .sgx-qp-sheet', (el) => getComputedStyle(el).opacity)).toBe('1');
+    await page.keyboard.press('Escape');
+    await expect(page.locator(dlg)).toBeHidden();
+  }
+});
+
+test.describe('电脑', () => {
+  test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false, colorScheme: 'light' });
+  test('不是手机屏：面板照旧毛玻璃 + 滑入', async ({ page }) => {
+    await blockExternalRequests(page);
+    await freezeTime(page);
+    await page.goto('/zh/', { waitUntil: 'load' });
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-device', 'desktop');
+    const closed = await page.$eval('#sgx-qp .sgx-qp-sheet', (el) => ({ bf: getComputedStyle(el).backdropFilter, tp: getComputedStyle(el).transitionProperty }));
+    expect(closed.bf).toContain('blur');
+    expect(closed.tp).toContain('transform');
+  });
+});
