@@ -89,7 +89,7 @@ test('构建产物：中英旷野页入口按数据渲染（数量、顺序、�
     assert.ok(sec, lang + '：有入口区块');
     const label = lang === 'en' ? 'Categories' : '分类';
     assert.match(sec, new RegExp(`<ul class="?sgx-ent-list"? role="?list"? aria-label="?${label}"?>`));
-    assert.match(sec, /class="?sgx-ent-label"?>SPACE</);
+    assert.match(sec, new RegExp(`class="?sgx-ent-label"?>${lang === 'en' ? data.band.label_en : data.band.label_zh}<`));
     assert.match(sec, new RegExp(`class="?sgx-ent-title"? id="?space-entries-title"?>${lang === 'en' ? data.band.en : data.band.zh}<`));
     assert.ok(sec.includes(lang === 'en' ? data.band.sub_en : data.band.sub_zh), lang + '：标题带一句话');
     const items = [...sec.matchAll(/<a class="?sgx-ent"? href="?([^" >]+)"? data-entry="?([a-z-]+)"?>([\s\S]*?)<\/a>/g)];

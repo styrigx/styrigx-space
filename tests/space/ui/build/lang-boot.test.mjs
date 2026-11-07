@@ -33,7 +33,7 @@ test('四站内联同一份 lang-boot.js（共享外壳原样同步），主站 
   assert.match(rd('atlas/web/blog/layouts/partials/sgx-inherit.html'), /resources\.Get "js\/sgx\/shell\/lang-boot\.js" \| js\.Build/);
   for (const s of ['curio', 'daymark']) assert.match(rd(`atlas/web/${s}/layouts/_default/baseof.html`), /resources\.Get "js\/sgx\/shell\/lang-boot\.js" \| js\.Build/, s);
   /* 四站 <html> 都带语言列表（来自 hugo.yaml languages） */
-  const LANGS_ATTR = 'data-sgx-langs="{{ range $i, $l := site.Languages }}{{ if $i }} {{ end }}{{ $l.Lang }}{{ end }}"';
+  const LANGS_ATTR = 'data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}"';
   for (const f of ['space/web/layouts/_default/baseof.html', 'atlas/web/blog/layouts/_default/baseof.html', 'atlas/web/curio/layouts/_default/baseof.html', 'atlas/web/daymark/layouts/_default/baseof.html']) {
     assert.ok(rd(f).includes(LANGS_ATTR), f);
   }

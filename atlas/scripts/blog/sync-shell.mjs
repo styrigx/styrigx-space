@@ -61,6 +61,11 @@ const SITE = {
     { path: 'web/assets/js/sgx/shell/lang-path.js', kind: 'file', parts: ['lang-path.js'] },
     /* 首帧语言跳转（语言清理 2026-11-07：「跟随系统」四站同一份，主站 lib/lang-boot.js 原样）：<head> 用 js.Build iife 内联，import 同目录 lang-path.js */
     { path: 'web/assets/js/sgx/shell/lang-boot.js', kind: 'file', parts: ['lang-boot.js'] },
+    /* 外壳字符串表（语言包化 2026-11-07）：外壳目录里每个 i18n-<语言>.yaml → data/sgx-shell-i18n/<语言>.yaml（site.Data，partials/sgx-tr.html 读）。
+       按通配展开，主站加一种语言的外壳字符串文件，这里不用改 */
+    /* 字符串表取值 partial（语言包化 2026-11-07）：{{ $tr := partialCached "sgx-tr.html" .Lang .Lang }}，缺键回退英文 */
+    { path: 'web/layouts/partials/sgx-tr.html', kind: 'raw', parts: ['tr.html'] },
+    { path: 'web/data/sgx-shell-i18n/', kind: 'glob', match: '^i18n-([a-z]{2,3})\\.yaml$', rename: '$1.yaml' },
     { path: 'web/layouts/partials/sgx-lang-path.html', kind: 'raw', parts: ['lang-path.html'] },
     /* ui-cookie-contract.json（契约夹具）不再同步副本：2026-11-06 tests/ 结构统一起子站单测 / e2e 直接读仓库共享的 tests/fixtures/ui-cookie-contract.json（gen-ui-cookie-contract.mjs 生成，--check 守着）；外壳目录里那份仍在 lock 的 files 指纹里 */
   ],
@@ -214,13 +219,30 @@ function spliceBlock(text, block) {
   return text.slice(0, a) + block + text.slice(b + END.length);
 }
 
+/**
+ * 展开通配目标（kind: 'glob'）：外壳目录里文件名匹配 match 的每个文件 → 一个原样（raw）目标，路径 = 目录 + rename。
+ * names = 外壳 manifest 里的文件名（同步时是这次读到的，--check 时是 lock 记的）。
+ * @param {string[]} names
+ */
+export function expandTargets(names) {
+  const out = [];
+  for (const t of SITE.targets) {
+    if (t.kind !== 'glob') { out.push(t); continue; }
+    const re = new RegExp(t.match);
+    for (const n of [...names].sort()) {
+      if (re.test(n)) out.push({ path: t.path + n.replace(re, t.rename), kind: 'raw', parts: [n] });
+    }
+  }
+  return out;
+}
+
 /** 按 SITE 配置算出每个目标文件的新内容；返回 { 相对路径: 内容 } 和 { 相对路径: 校验内容 }（bundle.dir 缺省按旧目录写标记行） */
 export function renderTargets(bundle, label, current = (p) => (existsSync(siteFile(p)) ? readFileSync(siteFile(p), 'utf8') : '')) {
   const { manifest, files } = bundle;
   const dir = bundle.dir || LEGACY_DIR;
   const out = {};
   const guard = {};
-  for (const t of SITE.targets) {
+  for (const t of expandTargets(Object.keys(files))) {
     const raw = t.kind === 'json' || t.kind === 'raw';
     const body = raw ? files[t.parts[0]] : blockBody(t.parts, files);
     if (raw) {
@@ -294,7 +316,7 @@ async function main() {
     if (!existsSync(LOCK)) { console.error(`缺少 ${lockRel}：先运行 ${SELF}`); process.exit(1); }
     const lock = JSON.parse(readFileSync(LOCK, 'utf8'));
     const bad = [];
-    for (const t of SITE.targets) {
+    for (const t of expandTargets(Object.keys(lock.files || {}))) {
       const text = existsSync(siteFile(t.path)) ? readFileSync(siteFile(t.path), 'utf8') : '';
       const body = t.kind === 'json' || t.kind === 'raw' ? text : readBlock(text);
       if (body === null || sha(body) !== lock.vendored[t.path]) bad.push(t.path);

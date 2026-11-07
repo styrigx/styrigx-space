@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ if eq (partial "sgx-page-lang.html" .) "en" }}en{{ else }}zh{{ end }}" data-sgx-langs="{{ range $i, $l := site.Languages }}{{ if $i }} {{ end }}{{ $l.Lang }}{{ end }}" data-sgx-build="{{ partial "sgx-build-sha.html" . }}">
+<html lang="{{ if eq (partial "sgx-page-lang.html" .) "en" }}en{{ else }}zh{{ end }}" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-build="{{ partial "sgx-build-sha.html" . }}">
 <head>
 {{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
 <meta charset="utf-8">
@@ -178,9 +178,14 @@ __sgxLayoutWatch(__applyLayout);
 {{ range $shellNav.items }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "icon.html" .icon)) }}{{ end }}
 {{ range $shellNav.footer }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "icon.html" .icon)) }}{{ end }}
 {{ $tbPal := slice }}
-{{ range site.Data.palettes.palettes }}{{ $tbPal = $tbPal | append (dict "id" .id "zh" .zh "en" .en "style" (partial "palette-tile-vars.html" (dict "id" .id "full" false))) }}{{ end }}
+{{ range site.Data.palettes.palettes }}{{ $tbPal = $tbPal | append (dict "id" .id "style" (partial "palette-tile-vars.html" (dict "id" .id "full" false))) }}{{ end }}
+{{/* 字符串表（语言包化）：当前页面语言叠在英文上；语言选择器选项来自 hugo.yaml languages（label = 语言自己的名字） */}}
+{{ $pageLang := partial "sgx-page-lang.html" . }}
+{{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label) }}{{ end }}
 {{ partial "shell-topbar.html" (dict
-  "isEn" $isEn
+  "lang" $pageLang
+  "tr" (partialCached "sgx-tr.html" $pageLang $pageLang).shell
+  "langs" $tbLangs
   "home" (partial "sgx-lang-path.html" (dict "path" "/" "lang" (cond $isEn "en" "zh")))
   "center" $center
   "nav" $shellNav

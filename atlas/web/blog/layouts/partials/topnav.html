@@ -28,6 +28,7 @@
 {{- range .page.Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end -}}
 {{- if not $langHref }}{{ range site.Home.AllTranslations }}{{ if ne .Language.Lang $lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end -}}
 {{- /* 调色板色块的变量（同主站 partials/palette-tile-vars.html 的 full=false：--pl-b1..7 / --pl-f1..6，深色 --pd-*），取自共享外壳 palettes.json */ -}}
+{{- $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append (dict "code" .Language.Lang "name" .Language.Label) }}{{ end -}}
 {{- $pal := slice -}}
 {{- range (index hugo.Data "sgx-shell" "palettes").presets -}}
 {{- $s := "" -}}
@@ -37,10 +38,12 @@
 {{- range $n := seq 7 }}{{ $s = printf "%s--%s-b%d:%s;" $s $k $n (index $tk (printf "bg-%d" $n)) }}{{ end -}}
 {{- range $n := seq 6 }}{{ $s = printf "%s--%s-f%d:%s;" $s $k $n (index $tk (printf "fg-%d" $n)) }}{{ end -}}
 {{- end -}}
-{{- $pal = $pal | append (dict "id" $p.id "zh" $p.zh "en" $p.en "style" $s) -}}
+{{- $pal = $pal | append (dict "id" $p.id "style" $s) -}}
 {{- end -}}
 {{- partial "sgx-shell-topbar.html" (dict
-  "isEn" $isEn
+  "lang" $lang
+  "tr" (partialCached "sgx-tr.html" $lang $lang).shell
+  "langs" $langs
   "home" site.Home.RelPermalink
   "center" $center
   "pillClass" (printf "sgx-tb-pill--%s" $mode)
@@ -51,7 +54,7 @@
   "icons" $nav.icons
   "wordmark" $nav.wordmark
   "mainOrigin" "https://styrigx.com"
-  "acct" (partial "sgx-lang-path.html" (dict "path" $nav.me.href "lang" (cond $isEn "en" "zh")))
+  "acct" (partial "sgx-lang-path.html" (dict "path" $nav.me.href "lang" $lang))
   "avatar" $nav.me.avatar
   "langHref" $langHref
   "pal" $pal

@@ -8,7 +8,7 @@
 {{- $site := "" -}}
 {{- with findRESubmatch `^(/(?:blog|curio|daymark))(/.*)?$` $p 1 }}{{ $site = index (index . 0) 1 }}{{ $p = index (index . 0) 2 | default "/" }}{{ end -}}
 {{- /* 语言包化（2026-11-07）：带前缀的语言 = hugo.yaml languages 里英文以外的语言（不写死 zh；加语言只改配置） */ -}}
-{{- $codes := slice }}{{ range site.Languages }}{{ if ne .Lang "en" }}{{ $codes = $codes | append .Lang }}{{ end }}{{ end -}}
+{{- $codes := slice }}{{ range hugo.Sites }}{{ if ne .Language.Lang "en" }}{{ $codes = $codes | append .Language.Lang }}{{ end }}{{ end -}}
 {{- with $codes }}{{ $p = replaceRE (printf `^/(?:%s)(/|$)` (delimit . "|")) "/" $p }}{{ end -}}
 {{- if and (ne .lang "en") (in $codes .lang) }}{{ $p = printf "/%s%s" .lang $p }}{{ end -}}
 {{- return printf "%s%s%s" $origin $site $p -}}

@@ -45,7 +45,7 @@ test('本站每一页都跳（不只首页）：跟随系统 + 中文浏览器 �
 
 test('页面接线：<html data-sgx-langs> 来自 hugo.yaml；baseof 先内联 lang-boot，再内联共享读端和 ui-inherit-run.js（都在样式前）', () => {
   const base = read('atlas/web/curio/layouts/_default/baseof.html');
-  assert.ok(base.includes('data-sgx-langs="{{ range $i, $l := site.Languages }}{{ if $i }} {{ end }}{{ $l.Lang }}{{ end }}"'), '语言列表来自 hugo.yaml');
+  assert.ok(base.includes('data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}"'), '语言列表来自 hugo.yaml');
   const iBoot = base.indexOf('resources.Get "js/sgx/shell/lang-boot.js" | js.Build');
   const iReader = base.indexOf('resources.Get "js/sgx/shell/ui-cookie-read.js" | minify');
   const iRun = base.indexOf('resources.Get "js/sgx/ui-inherit-run.js"');

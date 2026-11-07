@@ -1,0 +1,117 @@
+# 共享外壳字符串表（语言包化 2026-11-07）：英文是源文本。四站顶栏 / 导航面板 / 快捷面板 / AI 窗口 / 分享本页共用。
+# 主站是唯一来源；gen-shell 复制成 space/web/shared/shell/i18n-<语言>.yaml，三站 sync-shell 同步到 data/sgx-shell-i18n/<语言>.yaml。
+# 加一种语言：放一份 <语言>.yaml（缺的键自动用英文），各站 hugo.yaml languages 加一项。
+# 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（名字、邮箱、账号名……原样渲染，见 partials/sgx-personal.html）、语言自己的名字（用 hugo.yaml languageName / label）。
+topbar:
+  home: Styrigx home
+  sites: Sites
+  quick: Quick settings
+  askAi: Ask AI
+  dark: Dark mode
+  followSystem: Follow system
+  share: Share this page
+  shareSub: Short link, 24 h
+  lock: Lock now
+  lockBack: Back to lock screen
+  language: Language
+  palette: Color palette
+  reset: Reset
+  layout: Layout
+  phone: Phone
+  auto: Auto
+  desktop: Desktop
+  newChat: New chat
+  history: History
+  account: Account
+  question: Your question
+  askPlaceholder: Ask something…
+  send: Send
+  publicOnly: Public content only
+  contact: Contact me
+  "on": "On"
+  "off": "Off"
+  lockArm: Tap again to lock
+  lockFail: Couldn’t lock. Check your connection.
+ai:
+  greet: "Hi, I'm Gray's AI assistant. Ask about this site, or talk through whatever you're working on."
+  histEmpty: No past chats yet
+  untitled: (Untitled)
+  copy: Copy
+  copied: Copied
+  retry: Retry
+  up: Helpful
+  down: Not helpful
+  thinking: Searching this site…
+  scopePublic: Public content only
+  scopePrivate: Includes private content
+  unauthorized: Your session has expired. Unlock again to ask
+  cooldown: Too many questions. Try again in a minute
+  busy: Lots of people are asking right now. Try again shortly
+  tooLong: That question is too long (200 characters max)
+  quota: Today’s quota is used up. Come back tomorrow
+  fail: Couldn’t get an answer. Please try again
+  send: Send
+  stop: Stop
+share:
+  share: Share
+  copied: Share link copied
+  copyFail: Couldn’t copy. Please try again
+  busy: Creating share link…
+  session: Your session has expired. Unlock again to share
+  full: You already have 20 share links. Revoke some on styrigx.com first
+  fail: Couldn’t create a share link. Please try again
+  rTitle: Verify lock screen credential
+  rDesc: Verify your lock screen credential before creating a share link
+  rPasskey: Lock screen passkey
+  rPassword: Unlock password
+  rVerify: Verify
+  rCancel: Cancel
+  rWrong: Wrong password
+  rLocked: Too many attempts, please try again later
+  rFail: Verification failed
+  rNone: No lock screen credential is available here
+# 导航面板（九宫格）：站点名 + 副标题（space/web/data/shell-nav.json 只留 id / 图标 / 地址）
+nav:
+  label: "Sites"
+  home:
+    title: "Space"
+    sub: "Style and security"
+  curio:
+    title: "Curio"
+    sub: "Finds, devices, games"
+  daymark:
+    title: "Daymark"
+    sub: "A line a day"
+  blog:
+    title: "Blog"
+    sub: "Posts and topics"
+# 调色板名字和分组（快捷面板色块、风格页共用；颜色值只在 palette-scheme.js / palette-roles.json）
+palette:
+  dustyblue: "Dusty Blue"
+  lake: "Lake"
+  glacier: "Glacier"
+  indigo: "Indigo"
+  teal: "Teal"
+  violet: "Violet"
+  forest: "Forest"
+  matcha: "Matcha"
+  sage: "Sage"
+  cherry: "Cherry"
+  tangerine: "Tangerine"
+  coral: "Coral"
+  terra: "Terracotta"
+  amber: "Amber"
+  mustard: "Mustard"
+  champagne: "Champagne"
+  rose: "Rose"
+  berry: "Berry"
+  orchid: "Orchid"
+  dustyrose: "Dusty Rose"
+  graphite: "Graphite"
+  cream: "Cream"
+paletteGroup:
+  cool: "Cool"
+  nature: "Nature"
+  warm: "Warm"
+  floral: "Floral"
+  neutral: "Neutral"

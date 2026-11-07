@@ -14,8 +14,8 @@ const sha = (s) => createHash('sha256').update(s).digest('hex');
 test('副本和 lock 一致（改外壳请改主站，再跑 node atlas/scripts/daymark/sync-shell.mjs）', () => {
   for (const [p, h] of Object.entries(lock.vendored)) {
     const text = readFileSync(siteUrl(p), 'utf8');
-    /* .json 和 Hugo partial（kind raw，2026-11-04 P5-1 顶栏标记）原样复制、不加标记 */
-    const body = p.endsWith('.json') || p.endsWith('.html') ? text : readBlock(text);
+    /* .json、外壳字符串表 .yaml（语言包化 2026-11-07）和 Hugo partial（kind raw，2026-11-04 P5-1 顶栏标记）原样复制、不加标记 */
+    const body = p.endsWith('.json') || p.endsWith('.html') || p.endsWith('.yaml') ? text : readBlock(text);
     assert.ok(body !== null, p + ' 缺少 @sgx-shell 标记');
     assert.equal(sha(body), h, p);
   }
@@ -50,11 +50,16 @@ test('renderTargets：标记段带来源和版本，内容按 manifest 拼接', 
     'ui-cookie-contract.json': '{"cases":[]}\n',
     'lang-path.js': 'export function langPath() {}\n',
     'lang-path.html': '{{- return . -}}\n',
+    'lang-boot.js': 'export function langBoot() {}\n',
+    'tr.html': '{{- return dict -}}\n',
+    'i18n-en.yaml': 'topbar: {}\n',
+    'i18n-zh.yaml': 'topbar: {}\n',
   };
   const { out } = renderTargets({ manifest: { version: 'abc', files: {} }, files }, 'main', () => `a\n${BEGIN} x */\nold\n${END}\nb\n`);
   for (const [p, text] of Object.entries(out)) {
     if (p.endsWith('.json')) continue;
-    if (p.endsWith('.html')) { assert.equal(text, files[p.endsWith('-entries.html') ? 'entries.html' : p.endsWith('sgx-lang-path.html') ? 'lang-path.html' : 'topbar.html'], p + '：raw 原样'); continue; }
+    if (p.endsWith('.yaml')) { assert.equal(text, files['i18n-' + p.split('/').pop()], p + '：外壳字符串表原样'); continue; }
+    if (p.endsWith('.html')) { assert.equal(text, files[p.endsWith('-entries.html') ? 'entries.html' : p.endsWith('sgx-lang-path.html') ? 'lang-path.html' : p.endsWith('sgx-tr.html') ? 'tr.html' : 'topbar.html'], p + '：raw 原样'); continue; }
     assert.ok(text.includes(BEGIN + ' styrigx/styrigx-space@main web/shared/shell vabc'), p);
     assert.ok(text.includes(END), p);
     assert.doesNotMatch(text, /\nold\n/, p);

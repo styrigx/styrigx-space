@@ -8,10 +8,10 @@ disableDefaultLanguageRedirect: true
 hasCJKLanguage: true
 languages:
   en:
-    languageName: English
+    label: English
     weight: 1
   zh:
-    languageName: 中文
+    label: 中文
     weight: 2
 theme: []
 

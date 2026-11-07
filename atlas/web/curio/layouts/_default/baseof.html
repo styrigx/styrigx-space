@@ -2,7 +2,7 @@
 {{ $isEn := eq .Lang "en" }}
 {{/* 自定义主题色引擎（共享外壳 palette-scheme.js）：只在 cookie 是自定义色且本站还没缓存时，由共享读端 SgxUI.apply 的 onMiss 按需加载 */}}
 {{ $shellAccent := resources.Get "js/sgx/shell-accent.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint }}
-<html lang="{{ if $isEn }}en{{ else }}zh{{ end }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $l := site.Languages }}{{ if $i }} {{ end }}{{ $l.Lang }}{{ end }}" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}">
+<html lang="{{ if $isEn }}en{{ else }}zh{{ end }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -76,6 +76,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ range .Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}
 {{ if not $langHref }}{{ range site.Home.AllTranslations }}{{ if ne .Language.Lang $.Language.Lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end }}
 {{/* 调色板色块的变量（同主站 partials/palette-tile-vars.html 的 full=false：--pl-b1..7 / --pl-f1..6，深色 --pd-*），取自共享外壳 palettes.json */}}
+{{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label) }}{{ end }}
 {{ $pal := slice }}
 {{ range (resources.Get "sgx-shell/palettes.json" | transform.Unmarshal).presets }}
 {{ $s := "" }}{{ $p := . }}
@@ -83,10 +84,12 @@ __sgxLayoutWatch(__applyLayout);
 {{ range $n := seq 7 }}{{ $s = printf "%s--%s-b%d:%s;" $s $k $n (index $tk (printf "bg-%d" $n)) }}{{ end }}
 {{ range $n := seq 6 }}{{ $s = printf "%s--%s-f%d:%s;" $s $k $n (index $tk (printf "fg-%d" $n)) }}{{ end }}
 {{ end }}
-{{ $pal = $pal | append (dict "id" $p.id "zh" $p.zh "en" $p.en "style" $s) }}
+{{ $pal = $pal | append (dict "id" $p.id "style" $s) }}
 {{ end }}
 {{ partial "sgx-shell-topbar.html" (dict
-  "isEn" $isEn
+  "lang" .Lang
+  "tr" (partialCached "sgx-tr.html" .Lang .Lang).shell
+  "langs" $tbLangs
   "home" site.Home.RelPermalink
   "center" $center
   "nav" $shellNav
@@ -94,7 +97,7 @@ __sgxLayoutWatch(__applyLayout);
   "icons" $shellNav.icons
   "wordmark" $shellNav.wordmark
   "mainOrigin" "https://styrigx.com"
-  "acct" (partial "sgx-lang-path.html" (dict "path" $shellNav.me.href "lang" (cond $isEn "en" "zh")))
+  "acct" (partial "sgx-lang-path.html" (dict "path" $shellNav.me.href "lang" .Lang))
   "avatar" $shellNav.me.avatar
   "langHref" $langHref
   "pal" $pal

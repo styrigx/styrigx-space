@@ -3,6 +3,7 @@
 // 运行：node --test tests/curio/layout.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import yaml from 'js-yaml';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,7 +58,9 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
 
 test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；奇趣是当前项；主站项走 https://styrigx.com', () => {
   const nav = JSON.parse(readFileSync(path.join(REPO, 'atlas/web/curio/assets/sgx-shell/nav.json'), 'utf8'));
-  assert.deepEqual(nav.items.map((i) => i.zh), ['旷野', '奇趣', '日刻', '博客']);
+  /* 语言包化（2026-11-07）：nav.json 只有 id / 图标 / 地址，站名在外壳字符串表（sync-shell 同步到 data/sgx-shell-i18n/<语言>.yaml） */
+  const trZh = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'atlas/web/curio/data/sgx-shell-i18n/zh.yaml'), 'utf8')));
+  assert.deepEqual(nav.items.map((i) => trZh.nav[i.id].title), ['旷野', '奇趣', '日刻', '博客']);
   assert.deepEqual(nav.footer, []);
   assert.equal(nav.me.href, 'https://styrigx.com/account/');
   assert.match(base, /\{\{ \$shellNav := resources\.Get "sgx-shell\/nav\.json" \| transform\.Unmarshal \}\}/);
