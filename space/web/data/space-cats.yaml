@@ -7,7 +7,9 @@
 #   入口改成平铺（无卡片底、编号、圆底图标、名字 + 副标题、细分隔线），原 group / bg / fg 字段删除。
 # 副标题与标题带那句话是占位文案（Gray 定稿后替换）。
 band:
-  label: SPACE
+  # 旷野上方的小标签：英文 SPACE，中文「空间」（Gray 2026-11-07；之前中英同为 SPACE）
+  label_en: SPACE
+  label_zh: 空间
   zh: 旷野
   en: Space
   sub_zh: 这个站自己的样子、钥匙和作息，都在这里。

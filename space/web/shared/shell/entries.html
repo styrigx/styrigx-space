@@ -19,7 +19,8 @@
 <section class="sgx-ents" id="{{ $id }}"{{ if $band }} aria-labelledby="{{ $id }}-title"{{ end }} data-sgx-entries>
   {{- with $band }}
   <header class="sgx-ent-band">
-    {{- with .label }}<p class="sgx-ent-label">{{ . }}</p>{{ end }}
+    {{- $lbl := .label }}{{ if and $isEn .label_en }}{{ $lbl = .label_en }}{{ else if and (not $isEn) .label_zh }}{{ $lbl = .label_zh }}{{ end }}
+    {{- with $lbl }}<p class="sgx-ent-label">{{ . }}</p>{{ end }}
     <h2 class="sgx-ent-title" id="{{ $id }}-title">{{ if $isEn }}{{ .en }}{{ else }}{{ .zh }}{{ end }}</h2>
     {{- $lede := cond $isEn .sub_en .sub_zh }}{{ with $lede }}<p class="sgx-ent-lede">{{ . }}</p>{{ end }}
   </header>

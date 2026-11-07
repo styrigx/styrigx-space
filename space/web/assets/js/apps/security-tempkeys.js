@@ -15,6 +15,7 @@ import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dial
 import { postJSON, errText } from '../auth/account-api.js';
 import { withLockReauth, needsLockReauth } from '../auth/lock-reauth.js';
 import { createT } from './account-common.js';
+import { markPersonal } from '../lib/personal.js';
 
 export const TEMPKEY_API = '/api/lock-tempkey';
 
@@ -86,6 +87,8 @@ export function durationParam(v) {
     const nm = document.createElement('span');
     nm.className = 'block font-medium truncate';
     nm.textContent = k.name || t('tkUnnamed');
+    /* 用户起的临时钥匙名 = 个人信息类（原样、不翻译）；没起名时的默认名是界面文案 */
+    if (k.name) markPersonal(nm);
     const meta = document.createElement('span');
     meta.className = 'block text-xs text-m-on-surface-variant mt-0.5 truncate tk-left';
     meta.textContent = leftText(t, k.expiresAt);

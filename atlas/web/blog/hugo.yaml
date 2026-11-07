@@ -90,9 +90,8 @@ markup:
     endLevel: 3
     ordered: false
 
+# 站点描述按语言走字符串表（i18n/<lang>.yaml 的 siteDescription，缺键回退英文），这里不放任何语言的显示文案
 params:
-  description: 'Sloan Gray 的个人博客：AI 工具实战、开源项目复盘与个人基础设施笔记。中英双语。'
-  pageDescription: 'Sloan Gray（Styrigx）的个人博客：AI 应用、开源项目与基础设施笔记，中英双语更新。'
   author: 'Sloan Gray'
   version: '1.0.0'
 

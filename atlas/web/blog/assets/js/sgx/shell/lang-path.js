@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:3cd80b385c27 space/web/shared/shell v30d425ac5d63（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:efcd3a526832 space/web/shared/shell v5a6ca6ffe158（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- lang-path.js ---- */
 /**
  * @fileoverview 语言路径（P4-3 PR-4c，§6.8）：四站英文是默认语言、不带前缀，中文统一加 /zh/。这是拼 / 拆语言前缀的唯一函数。

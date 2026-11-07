@@ -9,7 +9,8 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f5f8fa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
-<title>{{ if .IsHome }}{{ if $isEn }}Daymark{{ else }}日刻{{ end }}{{ else }}{{ .Title }} | {{ if $isEn }}Daymark{{ else }}日刻{{ end }}{{ end }}</title>
+{{/* 404 的 .Title 是 Hugo 内置英文「404 Page not found」，不随语言：改用字符串表的页名 */}}
+<title>{{ if .IsHome }}{{ if $isEn }}Daymark{{ else }}日刻{{ end }}{{ else }}{{ if eq .Kind "404" }}{{ if $isEn }}Page not found{{ else }}页面不存在{{ end }}{{ else }}{{ .Title }}{{ end }} | {{ if $isEn }}Daymark{{ else }}日刻{{ end }}{{ end }}</title>
 <meta name="description" content="{{ if $isEn }}Sloan Gray's Daymark: lines worth keeping, one a day{{ else }}{{ .Site.Params.description }}{{ end }}">
 {{/* P4-3 PR-4c：canonical + hreflang（英文默认、不带前缀 = x-default；中文 /daymark/zh/），地址来自 Hugo 的语言版本 */}}
 {{ if ne .Kind "404" }}<link rel="canonical" href="{{ .Permalink }}">

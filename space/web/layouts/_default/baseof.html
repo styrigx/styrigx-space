@@ -10,7 +10,8 @@
 <meta name="theme-color" content="#f5f8fa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
 {{/* P4-3 PR-4b：页面 title 一律「页名 | Styrigx」；旷野页（根路径）中文「旷野」、英文「Space」（取代原来首页只有 Styrigx） */}}
-{{ $docTitle := .Title }}{{ if .IsHome }}{{ $docTitle = cond $isEn "Space" "旷野" }}{{ end }}
+{{/* 404 的 .Title 是 Hugo 内置英文「404 Page not found」，不随语言：改用字符串表的页名（与页名胶囊同一个） */}}
+{{ $docTitle := .Title }}{{ if .IsHome }}{{ $docTitle = cond $isEn "Space" "旷野" }}{{ else if eq .Kind "404" }}{{ $docTitle = cond $isEn "Page not found" "页面不存在" }}{{ end }}
 <title>{{ $docTitle }} | Styrigx</title>
 {{ $desc := cond $isEn "Sloan Gray’s personal space" .Site.Params.description }}{{ with .Description }}{{ $desc = . }}{{ end }}
 <meta name="description" content="{{ $desc }}">

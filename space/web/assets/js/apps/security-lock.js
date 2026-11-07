@@ -17,6 +17,8 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
 import { api, apiErrorText, needVerify, startReauthCountdown, refreshReauthCountdown, guardReauthExpired } from './app-gate.js';
 import { registerPasskey, createPkNameDialog, genPkPrefillName } from '../auth/passkey-register.js';
+import { providerLabel, defaultPasskeyName } from '../lib/passkey-label.js';
+import { markPersonal } from '../lib/personal.js';
 import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from '../auth/passkey-assert.js';
 import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockReauthFetch } from '../auth/auth-flow.js';
 import { renderAccountMethods } from '../auth/account-methods.js';
@@ -376,7 +378,9 @@ import { KEY_LOCK } from '../lib/key-names.js';
           const nameInput = document.createElement('input');
           nameInput.type = 'text';
           nameInput.value = k.name || '';
-          nameInput.placeholder = t('pkUnnamed');
+          /* 用户自起的名字 = 个人信息类（原样、不翻译）；没起名时占位显示按语言的默认名（界面文案） */
+          nameInput.placeholder = defaultPasskeyName(k, t);
+          markPersonal(nameInput);
           nameInput.maxLength = 40;
           nameInput.setAttribute('aria-label', t('pkUnnamed'));
           let lastSaved = k.name || '';
@@ -412,16 +416,16 @@ import { KEY_LOCK } from '../lib/key-names.js';
           });
           const meta = document.createElement('span');
           meta.className = 'lockmgr-pkdate';
-          /* 副标题：provider + 创建于 + 最近使用（lastUsedAt 为 0 显示“尚未使用”） */
-          let metaText = '创建于 ' + fmtDate(k.createdAt);
+          /* 副标题：provider + 创建于 + 最近使用（lastUsedAt 为 0 显示“尚未使用”）；全部走字符串表，provider 是 id，按语言取显示名 */
+          let metaText = t('created') + fmtDate(k.createdAt);
           if (k.lastUsedAt) {
-            metaText += ' · 最近使用 ' + fmtDate(k.lastUsedAt);
+            metaText += ' · ' + t('lastUsed') + fmtDate(k.lastUsedAt);
           } else {
             metaText += ' · ' + t('pkNeverUsed');
           }
-          /* provider 显示（如果有） */
-          if (k.provider) {
-            metaText = k.provider + ' · ' + metaText;
+          const prov = providerLabel(k.provider || '', t);
+          if (prov) {
+            metaText = prov + ' · ' + metaText;
           }
           meta.textContent = metaText;
           nameWrap.appendChild(nameInput);
@@ -544,7 +548,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
           refreshPkList();
           refreshReauthCountdown(t);
         },
-        prefill: function () { return genPkPrefillName(t('pkUnnamed')); },
+        prefill: function () { return genPkPrefillName(''); },
         errText: srvErr,
         toast: toast,
         msg: { cancelled: t('gateCancelled'), already: t('pkAlready'), noSupport: t('pkNoSupport'), failed: t('pkFailed'), network: t('gateNetErr') },

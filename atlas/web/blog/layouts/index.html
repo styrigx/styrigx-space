@@ -4,7 +4,7 @@
 文章：全部文章列表。专题：系列 → 分类 → 标签，点分类 / 标签就地筛出文章。 */ -}}
 {{ define "head" }}
 {{- $alt := dict "en" ("" | relURL) "zh" ("zh/" | relURL) -}}
-{{ partial "head.html" (dict "page" . "title" (printf "%s | %s" (i18n "blogTitle") site.Title) "description" site.Params.description "alt" $alt) }}
+{{ partial "head.html" (dict "page" . "title" (printf "%s | %s" (i18n "blogTitle") site.Title) "description" (i18n "siteDescription") "alt" $alt) }}
 {{ end }}
 {{ define "body" }}
 {{- $isEn := eq .Language.Lang "en" -}}

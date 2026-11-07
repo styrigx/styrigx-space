@@ -57,7 +57,7 @@
         </div>
       </div>
       <label class="cu-field"><span>{{ if $isEn }}Name{{ else }}名字{{ end }}</span><input id="f-name" type="text" maxlength="80" autocomplete="off"></label>
-      <button id="f-en-toggle" type="button" class="cu-addlink">＋ {{ if $isEn }}Chinese name and note{{ else }}英文名和英文简介{{ end }}</button>
+      <button id="f-en-toggle" type="button" class="cu-addlink">{{ if $isEn }}+ Chinese name and note{{ else }}＋ 英文名和英文简介{{ end }}</button>
       <div id="f-en-wrap" class="hidden flex flex-col gap-4">
         <label class="cu-field"><span>{{ if $isEn }}Name (Chinese){{ else }}英文名{{ end }}</span><input id="f-name2" type="text" maxlength="80" autocomplete="off"></label>
         <label class="cu-field"><span>{{ if $isEn }}Note (Chinese){{ else }}英文简介{{ end }}</span><input id="f-desc2" type="text" maxlength="160" autocomplete="off"></label>
@@ -71,7 +71,7 @@
           <button id="f-cat-add" type="button" class="cu-btn-text">{{ if $isEn }}Add{{ else }}添加{{ end }}</button>
         </div>
       </div>
-      <button id="f-icon-toggle" type="button" class="cu-addlink">＋ {{ if $isEn }}Custom icon{{ else }}自定义图标{{ end }}</button>
+      <button id="f-icon-toggle" type="button" class="cu-addlink">{{ if $isEn }}+ Custom icon{{ else }}＋ 自定义图标{{ end }}</button>
       <label id="f-icon-wrap" class="cu-field hidden"><span>{{ if $isEn }}Icon URL (https){{ else }}图标网址（https）{{ end }}</span><input id="f-icon" type="url" inputmode="url" maxlength="2048" autocomplete="off" spellcheck="false"></label>
       <label class="flex items-center gap-3 cursor-pointer">
         <span class="flex-1 text-[15px]">{{ if $isEn }}Only me{{ else }}仅自己可见{{ end }}</span>

@@ -2,7 +2,7 @@
 参数：.page（当前页）、.title、.description、.alt（中 / 英版本地址，有才给） */ -}}
 {{- $p := .page -}}
 {{- $title := .title -}}
-{{- $desc := .description | default site.Params.description -}}
+{{- $desc := .description | default (i18n "siteDescription") -}}
 {{- $canonical := $p.Permalink -}}
 {{- $og := "og.png" | absURL -}}
 {{- $rss := "rss.xml" | absLangURL -}}

@@ -102,7 +102,7 @@
       </div>
       <label class="dm-field"><span>{{ if $isEn }}The line{{ else }}句子{{ end }}</span>
         <textarea id="f-text" class="dm-serif-input" rows="4" maxlength="500" required placeholder="{{ if $isEn }}What's worth keeping today?{{ else }}今天想留下哪一句？{{ end }}"></textarea></label>
-      <button id="f-trans-toggle" type="button" class="dm-addlink">＋ {{ if $isEn }}Add translation{{ else }}加译文{{ end }}</button>
+      <button id="f-trans-toggle" type="button" class="dm-addlink">{{ if $isEn }}+ Add translation{{ else }}＋ 加译文{{ end }}</button>
       <label id="f-trans-wrap" class="dm-field hidden"><span>{{ if $isEn }}Translation{{ else }}译文{{ end }}</span>
         <textarea id="f-trans" rows="2" maxlength="500"></textarea></label>
       <div class="dm-field">

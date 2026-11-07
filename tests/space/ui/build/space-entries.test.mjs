@@ -31,7 +31,8 @@ test('数据：旷野 5 个入口（风格、安全、数字健康、服务状�
     assert.ok(icons.includes(`eq $name "${c.icon}"`), `${c.id}：icon.html 里有图标 ${c.icon}`);
     assert.ok(!c.id.includes('/') && c.id !== 'display', c.id);
   }
-  assert.equal(data.band.label, 'SPACE');
+  assert.equal(data.band.label_en, 'SPACE');
+  assert.equal(data.band.label_zh, '空间', '中文版「空间」（Gray 2026-11-07）');
   assert.equal(data.band.zh, '旷野');
   assert.equal(data.band.en, 'Space');
   assert.ok(data.band.sub_zh && data.band.sub_en, '标题带一句话（中英）');

@@ -52,25 +52,62 @@ export function storeReady(env) {
 /* 通行密钥注册时 WebAuthn user.displayName（写死，同网关） */
 export const PASSKEY_DISPLAY_NAME = 'Sloan Gray';
 
-/* AAGUID → 密码管理器（只用于显示，同网关 passkey-store.js） */
+/* AAGUID → 密码管理器 id（只用于显示，不参与安全判断）。存中性 id，不存显示文案：显示名由前端按页面语言从字符串表取（pkProvider.<id>）。
+   取自 passkeydeveloper/passkey-authenticator-aaguids；iCloud 钥匙串通常回报全 0 AAGUID，显示为空。 */
 const AAGUID_PROVIDERS = {
-  '53414d53-554e-4700-0000-000000000000': 'Samsung Pass',
-  'ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4': 'Google 密码管理器',
-  'fbfc3007-154e-4ecc-8c0b-6e020557d7bd': 'Apple 密码',
-  'dd4ec289-e01d-41c9-bb89-70fa845d4bf2': 'iCloud 钥匙串',
-  'd3452668-01fd-4c12-926c-83a4204853aa': 'Microsoft 密码管理器',
-  '08987058-cadc-4b81-b6e1-30de50dcbe96': 'Windows Hello',
-  '9ddd1817-af5a-4672-a2b9-3e3dd95000a9': 'Windows Hello',
-  '6028b017-b1d4-4c02-b4b3-afcdafc96bb2': 'Windows Hello',
-  'bada5566-a7aa-401f-bd96-45619a55120d': '1Password',
-  'd548826e-79b4-db40-a3d8-11116f7e8349': 'Bitwarden',
+  '53414d53-554e-4700-0000-000000000000': 'samsung-pass',
+  'ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4': 'google-password-manager',
+  'fbfc3007-154e-4ecc-8c0b-6e020557d7bd': 'apple-passwords',
+  'dd4ec289-e01d-41c9-bb89-70fa845d4bf2': 'icloud-keychain',
+  'd3452668-01fd-4c12-926c-83a4204853aa': 'microsoft-password-manager',
+  '08987058-cadc-4b81-b6e1-30de50dcbe96': 'windows-hello',
+  '9ddd1817-af5a-4672-a2b9-3e3dd95000a9': 'windows-hello',
+  '6028b017-b1d4-4c02-b4b3-afcdafc96bb2': 'windows-hello',
+  'bada5566-a7aa-401f-bd96-45619a55120d': '1password',
+  'd548826e-79b4-db40-a3d8-11116f7e8349': 'bitwarden',
 };
 
-/** @param {string} aaguid */
+/* 旧库兼容（读时归一，不迁移）：之前 provider 存的是显示名（含中文），默认名存的是「通行密钥」或 provider 显示名。 */
+const LEGACY_PROVIDER_NAMES = {
+  'Samsung Pass': 'samsung-pass',
+  'Google 密码管理器': 'google-password-manager',
+  'Apple 密码': 'apple-passwords',
+  'iCloud 钥匙串': 'icloud-keychain',
+  'Microsoft 密码管理器': 'microsoft-password-manager',
+  'Windows Hello': 'windows-hello',
+  '1Password': '1password',
+  'Bitwarden': 'bitwarden',
+};
+const PROVIDER_IDS = new Set(Object.values(AAGUID_PROVIDERS));
+/** 旧版写进去的默认名（用户没起名时）：读出来当「没起名」，前端按语言显示默认名 */
+const LEGACY_DEFAULT_NAMES = new Set(['通行密钥'].concat(Object.keys(LEGACY_PROVIDER_NAMES)));
+
+/**
+ * AAGUID → 密码管理器 id（如 'google-password-manager'；不认识 → ''）。只用于显示。
+ * @param {string} aaguid
+ */
 export function providerOf(aaguid) {
   return (aaguid && AAGUID_PROVIDERS[String(aaguid).toLowerCase()]) || '';
 }
 
+/**
+ * 存储里的 provider（新：id；旧：显示名）→ id；认不出 → ''。
+ * @param {any} v
+ */
+export function normalizeProvider(v) {
+  const s = String(v || '');
+  if (PROVIDER_IDS.has(s)) return s;
+  return LEGACY_PROVIDER_NAMES[s] || '';
+}
+
+/**
+ * 存储里的名字 → 用户自起的名字；旧默认名（「通行密钥」、provider 显示名）和空 → ''（前端显示按语言的默认名）。
+ * @param {any} v
+ */
+export function normalizePasskeyName(v) {
+  const s = String(v || '');
+  return LEGACY_DEFAULT_NAMES.has(s) ? '' : s;
+}
 /** 账号通行密钥（按注册顺序）。读失败 → []（同网关 getPasskeys）。 @param {any} env */
 export async function getPasskeys(env) {
   try {
@@ -97,7 +134,7 @@ export async function getPasskey(env, credId) {
 /** 字段顺序固定（同网关 orderedRecord） @param {any} item */
 function orderedRecord(item) {
   return {
-    name: item.name || '通行密钥',
+    name: item.name || '',
     provider: item.provider || '',
     aaguid: item.aaguid || '',
     createdAt: item.createdAt || Date.now(),

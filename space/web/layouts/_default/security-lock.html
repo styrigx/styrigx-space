@@ -41,7 +41,7 @@
         <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No passkeys yet.{{ else }}还没有通行密钥。{{ end }}</p>
       </div>
       <button type="button" class="lockmgr-add" id="lockmgr-pkadd" hidden>
-        <span aria-hidden="true">＋</span> {{ if $isEn }}Add passkey{{ else }}添加通行密钥{{ end }}
+        <span aria-hidden="true">{{ if $isEn }}+{{ else }}＋{{ end }}</span> {{ if $isEn }}Add passkey{{ else }}添加通行密钥{{ end }}
       </button>
     </section>
     <p class="sec-note mb-7">{{ if $isEn }}Unlock with fingerprint, face, or device passcode. Tap a device name to rename it.{{ else }}用指纹、面容或设备密码解锁。点设备名可重命名。{{ end }}</p>
@@ -130,6 +130,16 @@
   "pkDelAsk" (dict "zh" "再点一次删除" "en" "Tap again to delete")
   "pkRetryLater" (dict "zh" "请稍后重试" "en" "Please try again later")
   "pkNeverUsed" (dict "zh" "尚未使用" "en" "Not used yet")
+  "created" (dict "zh" "创建于 " "en" "Created ")
+  "lastUsed" (dict "zh" "最近使用 " "en" "Last used ")
+  "pkProv_samsung_pass" (dict "en" "Samsung Pass")
+  "pkProv_google_password_manager" (dict "zh" "Google 密码管理器" "en" "Google Password Manager")
+  "pkProv_apple_passwords" (dict "zh" "Apple 密码" "en" "Apple Passwords")
+  "pkProv_icloud_keychain" (dict "zh" "iCloud 钥匙串" "en" "iCloud Keychain")
+  "pkProv_microsoft_password_manager" (dict "zh" "Microsoft 密码管理器" "en" "Microsoft Password Manager")
+  "pkProv_windows_hello" (dict "en" "Windows Hello")
+  "pkProv_1password" (dict "en" "1Password")
+  "pkProv_bitwarden" (dict "en" "Bitwarden")
   "pkNameEmpty" (dict "zh" "名字不能为空" "en" "Name cannot be empty")
   "pkRenameResetNo" (dict "zh" "重置时暂不支持命名，可解锁后修改" "en" "Naming is not available during reset; you can rename it after unlocking")
   "pkAlready" (dict "zh" "此设备已注册过" "en" "Already registered on this device")

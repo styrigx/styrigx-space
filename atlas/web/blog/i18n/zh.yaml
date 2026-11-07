@@ -47,3 +47,7 @@ notFoundBack: 返回首页
 notFoundDesc: 这页暂时没有找到，可能已经迁移或还没有写下。
 # 404 页长条里的页名
 notFoundPill: 页面不存在
+siteDescription: "Sloan Gray 的个人博客：AI 工具实战、开源项目复盘与个人基础设施笔记。中英双语。"
+shareOnX: 分享到 X
+tocSectionExpand: 展开小节
+tocSectionCollapse: 收起小节
