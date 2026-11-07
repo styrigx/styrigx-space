@@ -146,8 +146,15 @@ describe('网址回归（图志 /blog/ 下）', () => {
       assert.match(html, new RegExp(`id="sgx-pane-${id}"`), `面板 ${id}`);
       assert.match(html, new RegExp(`data-entry="${id}"`), `分区入口 ${id}`);
     }
-    /* P4-3 PR-4b：顶栏没有分段滑块，页名胶囊 = 站名「博客」（切分区时脚本换成分区名） */
-    assert.doesNotMatch(html, /data-sgx-seg|data-sgx-tab=/);
+    /* P4-3 PR-4b：顶栏没有分段滑块，页名胶囊 = 站名「博客」（切分区时脚本换成分区名）；
+       段式标签 PR（§6.6）：分段搬进页内——文章 / 专题面板各有标题带 + 一条段式标签（当前项服务端写好），首页分区是入口页不放 */
+    assert.doesNotMatch(html, /data-sgx-seg(?!s)|data-sgx-tab=/);
+    for (const cur of ['posts', 'topics']) {
+      assert.match(html, new RegExp(`id="?blog-segs-${cur}"?[^>]*data-sgx-segs`), `段式标签在 ${cur} 面板`);
+      assert.match(html, new RegExp(`href="?#${cur}"? data-seg="?${cur}"? aria-current="?page"?`), `${cur} 面板里 ${cur} 是当前项`);
+    }
+    assert.equal((html.match(/data-sgx-segs/g) || []).length, 2, '只有文章 / 专题两条');
+    assert.equal((html.match(/data-sgx-hero/g) || []).length, 2, '文章 / 专题两个面板各一个标题带');
     assert.match(html, /class="?sgx-tb-title"? data-sgx-titles=[^>]*>博客</);
     assert.doesNotMatch(html, /sgx-pane-archive|data-sgx-tab="archive"/, '没有归档页签');
     assert.doesNotMatch(html, /oui-hero/, '旧首页 hero 已删除');

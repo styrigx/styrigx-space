@@ -14,6 +14,8 @@
 {{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 
 <div class="acct-layout pb-28">
+{{/* 内容页标题带（P4-3 §6.6 / 设计 §6.3）：大标题 = 页名（同顶栏页名胶囊），一句话说明 = front matter description（共享外壳 sgx-page-hero.html） */}}
+{{ partial "sgx-page-hero.html" (dict "title" .Title "desc" .Description "path" .File.Path) }}
   <div id="acct-tk" hidden>
     <section class="widget bg-m-container-lowest border border-m-outline mb-6 overflow-hidden animate-fade-up" style="animation-delay:.08s">
       <div class="acct-row" id="acct-tk-new" role="button" tabindex="0">

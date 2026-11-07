@@ -6,6 +6,7 @@
    能编辑（接口回 canWrite：账号会话 + curio.write，同发现 / 设备 / 游戏）：右下角「电影」新建，详情里编辑 / 删除；
    海报沿用设备照片流程（「移动和缩放」→ 长边 ≤1600、webp → /curio/api/photo?kind=movie）。无权限只读，看不到添加按钮。 */}}
 <main id="cu-main" class="cu-wrap" data-cu-page="movies">
+{{ partial "curio/page-head.html" (dict "page" . "id" "movies" "tr" $tr "lang" $lang) }}
   <section id="cu-pane-movies" class="cu-pane" aria-label="{{ $tr.movies.movies }}">
     <div id="mv-list" class="it-grid mv-grid"></div>
     <p id="mv-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>

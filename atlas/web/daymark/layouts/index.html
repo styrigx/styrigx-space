@@ -14,6 +14,9 @@
 }}
 {{ $entIcons := dict }}{{ range $entItems }}{{ $entIcons = merge $entIcons (dict .icon (partial "icon.html" .icon | string)) }}{{ end }}
 {{ partial "sgx-shell-entries.html" (dict "items" $entItems "icons" $entIcons "id" "dm-entries" "label" ($tr.index.sections)) }}
+{{/* 段式标签（P4-3 §6.6 / 设计 §5.2、§6.2）：原顶栏分段滑块搬进页内，作分区之间的二级切换（共享外壳 sgx-shell-segtabs.html）。
+   首页分区（余响）是入口页（上面的平铺入口），不放；拾录 / 百味两个面板各放一条，紧跟标题带，当前分区实色（服务端写好 aria-current，不用脚本）。链接 = 分区 hash，同入口。 */}}
+{{ $segItems := slice }}{{ range $entItems }}{{ $segItems = $segItems | append (dict "id" .id "title" .title "href" .href) }}{{ end }}
   <div id="dm-panes">
 
   {{/* ===== 余响 Echo：整屏一句 ===== */}}
@@ -37,6 +40,9 @@
 
   {{/* ===== 拾录 Trove：全部句子，新的在前 ===== */}}
   <section id="dm-pane-trove" class="dm-pane dm-pane-trove" aria-label="{{ $tr.index.trove }}" hidden>
+    {{/* 分区标题带（P4-3 §6.6 / 设计 §6.3；共享外壳 sgx-shell-page-hero.html）：页内分区没有 front matter，标题 / 一句话取字符串表（同首页入口） */}}
+    {{ partial "sgx-shell-page-hero.html" (dict "title" (index $tr.entries "trove").title "desc" (index $tr.entries "trove").sub "path" "daymark#trove" "tag" "h2") }}
+    {{ partial "sgx-shell-segtabs.html" (dict "items" $segItems "current" "trove" "label" ($tr.index.sections) "id" "dm-segs-trove") }}
     <div id="dm-list" class="flex flex-col gap-3"></div>
     <p id="dm-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
     <p id="dm-loading" class="text-center py-16 text-sm text-m-on-surface-variant">{{ $tr.index.loading }}</p>
@@ -44,6 +50,9 @@
 
   {{/* ===== 百味 Flavors：自建专题在前，再是按作者的「人物」；点进去是该组句子（页内返回） ===== */}}
   <section id="dm-pane-flavors" class="dm-pane dm-pane-flavors" aria-label="{{ $tr.index.flavors }}" hidden>
+    {{/* 分区标题带（P4-3 §6.6 / 设计 §6.3；共享外壳 sgx-shell-page-hero.html）：页内分区没有 front matter，标题 / 一句话取字符串表（同首页入口） */}}
+    {{ partial "sgx-shell-page-hero.html" (dict "title" (index $tr.entries "flavors").title "desc" (index $tr.entries "flavors").sub "path" "daymark#flavors" "tag" "h2") }}
+    {{ partial "sgx-shell-segtabs.html" (dict "items" $segItems "current" "flavors" "label" ($tr.index.sections) "id" "dm-segs-flavors") }}
     <div id="dm-fl-home">
       <section id="dm-cols-sec" class="hidden mb-6" aria-labelledby="dm-cols-h">
         <h2 id="dm-cols-h" class="dm-sec">{{ $tr.index.collections }}</h2>

@@ -4,6 +4,7 @@
    分类筛选条（hash #c/<分类 id>）+ 按分类分组的收藏格子。能编辑（canWrite）：右下角「收藏」，长按格子编辑；「⋯」里有 管理分类 / 导入 / 导出。
    账号没登录：只读、只看公开的，页底一行「登录账号后可编辑」（#cu-signin）。数据走 /curio/api/links 等（接口 Worker workers/curio-core）。 */}}
 <main id="cu-main" class="cu-wrap" data-cu-page="finds">
+{{ partial "curio/page-head.html" (dict "page" . "id" "finds" "tr" $tr "lang" $lang) }}
   <section id="cu-pane-finds" class="cu-pane" aria-label="{{ $tr.finds.finds }}">
   <div class="cu-bar">
     <div id="cu-chips" class="cu-chips" role="tablist" aria-label="{{ $tr.finds.categories }}"></div>

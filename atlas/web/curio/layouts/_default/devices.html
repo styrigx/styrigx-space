@@ -2,6 +2,7 @@
 {{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" $lang $lang }}
 {{/* 奇趣 › 设备（/curio/devices/；P4-3 奇趣拆页，原首页 hash 分区 #devices）：curio-items.js 画，卡片 + 状态筛选条；点卡片看详情，能编辑时在详情里编辑；右下角「设备」新建。 */}}
 <main id="cu-main" class="cu-wrap" data-cu-page="devices">
+{{ partial "curio/page-head.html" (dict "page" . "id" "devices" "tr" $tr "lang" $lang) }}
   <section id="cu-pane-devices" class="cu-pane" aria-label="{{ $tr.devices.devices }}">
     <div class="cu-bar"><div id="dv-chips" class="cu-chips" role="tablist" aria-label="{{ $tr.devices.filter }}"></div></div>
     <div id="dv-list" class="it-grid"></div>
