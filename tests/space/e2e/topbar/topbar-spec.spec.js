@@ -383,7 +383,8 @@ test.describe('390×844 行为', () => {
     const order = await nav.locator('.sgx-qp-sheet > *').evaluateAll((els) => els.map((e) => e.className));
     expect(order).toEqual(['sgx-nav-h', '', 'sgx-nav-pf', 'sgx-nav-act', 'sgx-nav-st', 'sgx-nav-f']);
     await expect(nav.locator('.sgx-nav-pfk')).toHaveText(['lang', 'layout']);
-    await expect(nav.locator('.sgx-nav-act button')).toHaveText(['share', 'lock']);
+    /* 2026-11 PR-2：加「$ terminal」（打开全站终端抽屉） */
+    await expect(nav.locator('.sgx-nav-act button')).toHaveText(['share', 'lock', '$terminal']);
     await expect(nav.locator('[data-st]')).toHaveCount(6);
     await expect(nav.locator('[data-st] span')).toHaveText(['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth']);
     await expect(nav.locator('[data-st-ms]').first()).toHaveText('—');

@@ -8948,5 +8948,6 @@
 /* 日刻 / 屏幕时间：原小组件整块保留，换成终端风的细线框（不再是圆角卡片） */
 .home-sec .widget { border-radius: 12px; }
 :root[data-sgx-layout="desktop"] .home-sec #w-daymark { padding: 24px 28px; border: 1px solid var(--sgx-term-line); background: var(--sgx-surface-container-lowest); overflow: hidden; }
+.home-sec #w-daymark.hidden { display: none; }
 .home-sec--wild { padding-top: 22px; }
 .home-sec--wild > .sgx-ents { margin-top: 8px; }

@@ -162,7 +162,7 @@ async function setHomeCards(page, { daymark }) {
     if (!el) {
       el = document.createElement('a');
       el.id = 'w-daymark';
-      el.className = 'widget hidden';
+      el.className = 'widget dm-w hidden';
       el.style.minHeight = '160px';
       sec.appendChild(el);
     }
