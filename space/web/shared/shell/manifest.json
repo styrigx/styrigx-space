@@ -4,7 +4,7 @@
   "dir": "space/web/shared/shell",
   "files": {
     "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
-    "shell.css": "46e966a2b073ff8433af1f165ad9acfa528ecf332dd1896cc0b716131a423c0a",
+    "shell.css": "8efaf6b7d309e7a60fa87b2bcfeb7900ebe1e0036c00d298775473fdaed55181",
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "da46a782fdf9f80c24fae06bbbd83e5e29894a5c1db87b9e754071637ae158ca",
     "topbar.html": "dc876f034b39001415d62e7c5db4bdd46ca2beb6abc1e74d88b232bdb9969359",
@@ -29,6 +29,6 @@
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "53484df4aa7ecfd3ea06f914531d754700a0c73c4e4a8a60a9440f5472fdde37"
   },
-  "version": "06b776b1c2a1",
+  "version": "7cce785f2ada",
   "rulesVersion": "palette-rules-1"
 }
