@@ -8420,6 +8420,8 @@
    不加横向内边距，左右边线和顶栏两侧圆外缘对齐；页面里的内容列在框里居中：设置子页 / 账号（含服务状态）720，聊天 760，设置首页 DeX 两栏 1024（见 settings 段）。 */
 .home-wrap, .set-layout, .acct-layout, .sgx-404 { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
 .set-layout > *, .acct-layout > * { max-width: 720px; margin-left: auto; margin-right: auto; }
+/* 门内验证剩余时间胶囊（inline-flex，外框第一个子元素）：外框桌面通栏后仍停在原来的位置——原外框（最宽 1440）的左缘（宽屏平铺 PR：表单页不改样子） */
+.set-layout > .sgx-credential-countdown, .acct-layout > .sgx-credential-countdown { margin-left: max(0px, (100% - 1440px) / 2); }
 /* @shell:begin wide（宽屏平铺：桌面布局内容页去卡片、多栏 + 细分隔线；共享外壳：gen-shell 抽到 shell.css，子站同步；只用 --sgx-* 角色，不写死颜色） */
 /* 宽屏平铺（Gray 2026-11-07，参考 rzcthink.top）：只在桌面布局（<html data-sgx-layout="desktop">，浏览器桌面版 / 手动「桌面」；不按像素断点）。手机布局一律不变。
    - 内容区通栏：桌面 --sgx-content-max = 100%（topbar-frame 段），外壳框 --sgx-shell-w = 窗口宽 − 两侧页边距，不对齐顶栏（顶栏仍 --sgx-tb-w 居中）。
