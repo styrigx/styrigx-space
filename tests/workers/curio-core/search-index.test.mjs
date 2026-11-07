@@ -15,7 +15,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const W = REPO + '/workers/curio-core';
-const worker = (await import(W + '/src/index.js')).default;
+const worker = (await import(W + '/src/app.js')).default;
 const SI = await import(W + '/src/search-index.js');
 
 /** node:sqlite 包成 D1 的样子（batch 是一个事务；SELECT 回 results） */

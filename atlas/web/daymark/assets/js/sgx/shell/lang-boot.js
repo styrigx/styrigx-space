@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:e78eba36593a space/web/shared/shell v5fa9aed3e5b5（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:870234104d13 space/web/shared/shell v3d880d986a6c（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- lang-boot.js ---- */
 /**
  * @fileoverview 首帧语言跳转（语言清理 2026-11-07：「跟随系统」四站一致）。主站、/blog/、/curio/、/daymark/ 内联同一份：

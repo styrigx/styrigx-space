@@ -6,6 +6,8 @@
  * 系统提示（P4-3 PR-2，改法 1）：站内内容能答就只按站内答、末尾列用到的链接；本站功能 / 设置 / 账号的问题只按站内答，
  * 站内没有就直说、不凭通用知识猜路径；其他问题站内答不了（含召回为空）用通用知识直接答（不加前缀句，2026-11-06 起），
  * 不列链接、不编站内地址。条目标题后「 — 」之后是站内位置（索引副标题 = 面包屑），用来说出页面路径。
+ * 2026-11 AI 语义召回：回答可用有限 Markdown（粗体、列表、链接，前端安全渲染，其余转义）；链接写成 [标题](地址)、同一链接只给一次；
+ * gemini 带 Google 搜索时追加 WEB 一句（联网来源前端自动列出，正文不贴网址）。
  */
 
 export const Q_MAX = 200;
@@ -51,14 +53,24 @@ const SYSTEM = {
     '其他问题站内内容答不了（包括站内没有相关内容）时，用通用知识直接回答，直接给答案，不列链接，也不要编造站内地址。' +
     '打招呼、问你是谁这类话，简短地正常回应即可。回答用简体中文，简洁。' +
     '站内条目标题后「 — 」之后是它在站内的位置（如「设置 › 安全」）；说怎么找到某个页面时，按这个位置逐级说出路径，再到这一页。' +
-    '用到了站内内容时，回答末尾另起一段列出用到的链接，每行一条，格式「- 标题：地址」，只列站内内容里给出的地址。',
+    '用到了站内内容时，回答末尾另起一段列出用到的链接，每行一条，格式「- [标题](地址)」，只列站内内容里给出的地址。' +
+    '同一个链接只出现一次：正文里已经给过的链接，末尾不再重复。' +
+    '可以用简单的 Markdown：**粗体**、列表（- 或 1.）、链接 [文字](地址)；不要用标题、表格、代码块或 HTML。链接文字写页面标题，不要把长网址当链接文字。',
   en: 'You are the on-site assistant for Styrigx. Check the "Site content" below first: if it answers the question, answer only from it and do not make things up. ' +
     'If a site entry is about the thing being asked, even in different words (e.g. the question says "turn on the lock screen" and the entry is "Lock screen credentials"), it counts as covered: answer from it and give the path. If your answer lists site links, never say nothing on the site covers it. ' +
     'Questions about how this site\'s features, settings or account work must be answered only from the site content; if it is not there, say plainly that nothing relevant was found on the site, and do not guess pages, setting locations or URLs from general knowledge. ' +
     'For other questions the site content cannot answer (including when there is no relevant site content), answer directly from general knowledge, giving the answer straight away, with no links and no made-up site URLs. ' +
     'Greetings or questions about who you are: reply briefly and normally. Answer in English, concisely. ' +
     'After " — " in a site entry\'s title comes its location on the site (e.g. "Settings › Security"); when explaining how to find a page, give that path step by step, then the page itself. ' +
-    'If you used site content, end with a separate list of those links, one per line as "- Title: URL", using only URLs given in the site content.',
+    'If you used site content, end with a separate list of those links, one per line as "- [Title](URL)", using only URLs given in the site content. ' +
+    'Give each link only once: if a link already appears in your answer, do not repeat it in the list. ' +
+    'You may use simple Markdown: **bold**, lists (- or 1.), and links [text](URL); no headings, tables, code blocks or HTML. Use the page title as link text, never a long raw URL.',
+};
+
+/** 带 Google 搜索时（只有 gemini 模型）追加的一句：联网来源由前端自动列在回答下面 */
+const WEB = {
+  zh: '你可以用 Google 搜索查最新信息或站外事实；联网来源会自动附在回答下面，正文里不要再贴这些网址。站内内容优先于搜索结果。',
+  en: 'You can use Google Search for current information or facts beyond the site; web sources are listed under your answer automatically, so do not paste those URLs in the text. Site content takes priority over search results.',
 };
 
 /** AI 支持的回答语言（= SYSTEM 的键，英文是默认；ask.js 用它校验请求的 lang） */
@@ -81,14 +93,16 @@ export function contextBlock(hits, lang) {
 }
 
 /**
- * @param {{q: string, lang: 'zh'|'en', history?: any, hits: Array<{title: string, subtitle?: string, url: string, text?: string}>}} o
+ * @param {{q: string, lang: 'zh'|'en', history?: any, hits: Array<{title: string, subtitle?: string, url: string, text?: string}>, web?: boolean}} o
+ *   web：这次带 Google 搜索（只有 gemini 模型，api/ask.js 决定）
  * @returns {Array<{role: 'system'|'user'|'assistant', content: string}>}
  */
 export function buildMessages(o) {
   /* P4-3 PR-4c：默认英文（四站默认语言），只有明确 zh 才用中文提示 */
   const lang = AI_LANGS.includes(o.lang) ? o.lang : 'en';
+  const sys = SYSTEM[lang] + (o.web ? ' ' + /** @type {any} */ (WEB)[lang] : '');
   return [
-    { role: 'system', content: SYSTEM[lang] + '\n\n' + contextBlock(o.hits, lang) },
+    { role: 'system', content: sys + '\n\n' + contextBlock(o.hits, lang) },
     ...normalizeHistory(o.history),
     /* 模型若输出思考段，由 core/think.js 的过滤去掉 */
     { role: 'user', content: o.q },

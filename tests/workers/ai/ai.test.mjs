@@ -141,7 +141,11 @@ test('prompt：有召回时仍要求只按站内答、列站内链接；本站�
   const hits = [{ title: '锁屏凭证', subtitle: '旷野 › 安全', url: 'https://styrigx.com/security/lock/', text: '解锁密码、通行密钥、会话' }];
   const zh = P.buildMessages({ q: '锁屏怎么开', lang: 'zh', hits })[0].content;
   assert.match(zh, /能回答就只按站内内容回答/);
-  assert.match(zh, /格式「- 标题：地址」，只列站内内容里给出的地址/);
+  assert.match(zh, /格式「- \[标题\]\(地址\)」，只列站内内容里给出的地址/);
+  assert.match(zh, /同一个链接只出现一次/, '2026-11：不重复同一链接');
+  assert.match(zh, /\*\*粗体\*\*、列表.*链接 \[文字\]\(地址\)/, '2026-11：有限 Markdown');
+  assert.match(zh, /不要把长网址当链接文字/);
+  assert.doesNotMatch(zh, /Google 搜索/, '不带搜索时不提联网');
   assert.match(zh, /本站的功能、设置、账号.*只能按站内内容回答/);
   assert.match(zh, /不要凭通用知识猜页面、设置的位置或地址/);
   assert.match(zh, /按这个位置逐级说出路径/);
@@ -154,7 +158,11 @@ test('prompt：有召回时仍要求只按站内答、列站内链接；本站�
   assert.match(en, /do not guess pages, setting locations or URLs/);
   assert.match(en, /even in different words .*it counts as covered: answer from it and give the path/, 'different wording still counts (P4-3 English lock screen)');
   assert.match(en, /If your answer lists site links, never say nothing on the site covers it/);
-  assert.match(en, /"- Title: URL", using only URLs given in the site content/);
+  assert.match(en, /"- \[Title\]\(URL\)", using only URLs given in the site content/);
+  assert.match(en, /Give each link only once/);
+  assert.match(en, /simple Markdown: \*\*bold\*\*, lists/);
+  const web = P.buildMessages({ q: '今天天气', lang: 'zh', hits, web: true })[0].content;
+  assert.match(web, /Google 搜索.*联网来源会自动附在回答下面，正文里不要再贴这些网址/, 'gemini 带搜索时追加联网一句');
 });
 
 /* rank.js 的分词和打分（搬自已删的 tests/workers/search-index/search.test.mjs；P4-2b 起这里是唯一一份） */
@@ -365,7 +373,7 @@ test('路由：只有 POST /ask、GET /models、GET /healthz；没有 /search；
   assert.equal((await app.fetch(new Request('https://styrigx-ai/healthz', { method: 'POST' }), {})).status, 405);
 });
 
-test('wrangler.toml：没有公开地址、绑定 AI、只读索引、外部模型钥匙（复用 SGX_CHAT_API_KEY）、三个变量；没有千问；入口只再导出', () => {
+test('wrangler.toml：没有公开地址、绑定 AI、索引 KV、Vectorize、奇趣只读入口、美国区 placement、每小时 Cron、外部模型钥匙（复用 SGX_CHAT_API_KEY）、变量；没有千问；入口只再导出', () => {
   const toml = readFileSync(new URL('../../../workers/ai/wrangler.toml', import.meta.url), 'utf8').replace(/^#.*$/gm, '');
   assert.match(toml, /^name = "styrigx-ai"$/m);
   assert.match(toml, /^main = "src\/index\.js"$/m);
@@ -380,7 +388,16 @@ test('wrangler.toml：没有公开地址、绑定 AI、只读索引、外部模�
   assert.deepEqual(reg.models.map((m) => [m.id, m.provider]), [['@cf/google/gemma-4-26b-a4b-it', 'workers-ai'], ['@cf/openai/gpt-oss-20b', 'workers-ai'], ['gemini-2.5-flash', 'gemini']]);
   assert.match(toml, /\[ai\]\s*\nbinding = "AI"/);
   assert.match(toml, /binding = "KV_SEARCH_INDEX"\s*\nid = "608cf3e27184481cbca2922950506d87"/);
-  for (const v of ['AI_MODELS', 'AI_MAX_TOKENS = "1024"', 'AI_CONTEXT_HITS = "5"']) assert.ok(toml.includes(v), v);
+  for (const v of ['AI_MODELS', 'AI_MAX_TOKENS = "1024"', 'AI_CONTEXT_HITS = "6"', 'AI_RECALL_MIN_SCORE = "0.42"', 'AI_GEMINI_SEARCH = "1"']) assert.ok(toml.includes(v), v);
+  /* 2026-11 AI 语义召回 */
+  assert.match(toml, /\[\[vectorize\]\]\s*\nbinding = "VECTORIZE"\s*\nindex_name = "styrigx-ai-recall"/);
+  assert.match(toml, /\[\[services\]\]\s*\nbinding = "CURIO"\s*\nservice = "styrigx-curio-core"\s*\nentrypoint = "CurioReader"/);
+  assert.equal((toml.match(/\[\[services\]\]/g) || []).length, 1, '只绑奇趣的只读入口，不绑账号 / 网关');
+  assert.doesNotMatch(toml, /styrigx-account|AccountService|AccountVerifier/);
+  assert.match(toml, /\[placement\]\s*\nregion = "gcp:us-east4"/);
+  assert.doesNotMatch(toml, /^mode = "smart"/m, 'region 和 smart 互斥');
+  assert.match(toml, /\[triggers\]\s*\ncrons = \["41 \* \* \* \*"\]/);
+  assert.ok(toml.indexOf('[[secrets_store_secrets]]') > toml.indexOf('[[vectorize]]'), '钥匙段仍在文件最后（deploy.yml 退路整段删）');
   const idx = readFileSync(new URL(W + 'index.js', import.meta.url), 'utf8');
   assert.match(idx, /export \{ default \} from '\.\/app\.js';/);
 });
@@ -483,7 +500,8 @@ test('外部模型（Gemini）：钥匙走头不进 URL；系统提示 + 上下�
   assert.match(body.systemInstruction.parts[0].text, /站内内容：[\s\S]*\[1\] 主题模式/);
   assert.deepEqual(body.contents.map((c) => c.role), ['user', 'model', 'user']);
   assert.equal(body.contents.at(-1).parts[0].text, '主题');
-  assert.equal(body.tools, undefined);
+  assert.deepEqual(body.tools, [{ google_search: {} }], '2026-11：gemini 默认带 Google 搜索');
+  assert.match(body.systemInstruction.parts[0].text, /Google 搜索/);
   assert.equal(body.generationConfig.maxOutputTokens, 1024);
 });
 

@@ -19,7 +19,7 @@ import { conclusionAuth } from '../_conclusion.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const W = REPO + '/workers/curio-core';
-const worker = (await import(W + '/src/index.js')).default;
+const worker = (await import(W + '/src/app.js')).default;
 const { API_ROUTES } = await import(W + '/src/routes.js');
 const S = await import(W + '/src/api/_store.js');
 const N = await import(W + '/src/api/_netscape.js');

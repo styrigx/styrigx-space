@@ -17,7 +17,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const W = REPO + '/workers/curio-core';
-const worker = (await import(W + '/src/index.js')).default;
+const worker = (await import(W + '/src/app.js')).default;
 const IT = await import(W + '/src/api/_items.js');
 const PH = await import(W + '/src/api/photo.js');
 

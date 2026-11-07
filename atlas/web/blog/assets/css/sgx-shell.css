@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:e78eba36593a space/web/shared/shell v5fa9aed3e5b5（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:870234104d13 space/web/shared/shell v3d880d986a6c（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space space/scripts/gen-shell.mjs 从 space/web/data/palette-roles.json 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -6944,6 +6944,20 @@
 .sgx-ai-msg[data-role="user"] { align-self: flex-end; background: var(--sgx-primary-container); color: var(--sgx-on-primary-container); border-bottom-right-radius: 6px; }
 .sgx-ai-msg[data-role="assistant"] { align-self: flex-start; background: var(--sgx-qp-glass); box-shadow: inset 0 0 0 1px var(--sgx-qp-edge); color: var(--sgx-text-primary); border-bottom-left-radius: 6px; }
 .sgx-ai-msg[data-state="error"] { color: var(--sgx-danger); }
+/* 助手回答的有限 Markdown（2026-11 AI 语义召回）：段落 / 列表 / 粗体 / 链接；链接文字虚下划线 + ↗（参照 ChatGPT 安卓） */
+.sgx-ai-md { display: block; white-space: normal; }
+.sgx-ai-md > p { margin: 0; }
+.sgx-ai-md > p + p, .sgx-ai-md > p + ul, .sgx-ai-md > p + ol, .sgx-ai-md > ul + p, .sgx-ai-md > ol + p, .sgx-ai-md > ul + ol, .sgx-ai-md > ol + ul { margin-top: 8px; }
+.sgx-ai-md > ul, .sgx-ai-md > ol { margin: 0; padding-left: 1.3em; }
+.sgx-ai-md > ul { list-style: disc; }
+.sgx-ai-md > ol { list-style: decimal; }
+.sgx-ai-md li + li { margin-top: 2px; }
+.sgx-ai-md strong { font-weight: 700; }
+.sgx-ai-link { color: var(--sgx-link); text-decoration: none; }
+.sgx-ai-link-text { text-decoration: underline dotted; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.sgx-ai-link-icon { margin-left: 2px; font-size: .85em; }
+.sgx-ai-link:hover .sgx-ai-link-text { text-decoration-style: solid; }
+.sgx-ai-link:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; border-radius: 4px; }
 /* 每条助手回答下的操作：复制 / 重试 / 👍 / 👎（P4-3 后续 §3.4；用户提问和开场白下面不加） */
 .sgx-ai-turn { align-self: flex-start; max-width: 88%; display: flex; flex-direction: column; gap: 4px; }
 .sgx-ai-turn > .sgx-ai-msg { max-width: 100%; }

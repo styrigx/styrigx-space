@@ -6,8 +6,9 @@
  *   头 X-Styrigx-Account-Session: 1（网关写的账号结论头）→ 私密条目进召回，且 model 生效（只认登记里的 id，见 core/models.js）；
  *   没有 / 别的值 → 只召回公开条目，model 忽略，一律默认模型（切模型只能登账号）。
  * 回答：200 text/event-stream，事件顺序固定（2026-11-06 起不再发 event: hits：召回只作模型上下文，不给浏览器来源列表）：
- * *   event: delta  data: { text }                                         （0 到多次）
- *   event: done   data: {}
+ *   event: delta    data: { text }                                         （0 到多次）
+ *   event: sources  data: { items: [{ title, url }] }                      （只有 gemini 模型用了 Google 搜索时，0 或 1 次，在 done 之前；2026-11 AI 语义召回）
+ *   event: done     data: {}
  *   出错时（已经开始流以后）：event: error data: { code: 'upstream' }，然后关流（不再发 done）。
  *   响应头 X-Styrigx-AI-Scope: private | public（这次召回用了哪一档；前端只用来显示，方案 5.5）。
  *   召回为空也调模型：hits 空，上下文写明没有相关条目，由模型回应（打招呼照常答，站内问题说没找到）。
@@ -17,14 +18,20 @@
  * 错误（还没开始流）：405 method · 400 bad_request / too-long / bad_model · 413 too-large ·
  *   503 config（选中自营模型但没绑 AI）/ no_key（选中外部模型但钥匙没绑 / 读不到）/ index（索引读不了）。
  *
+ * 召回（2026-11 AI 语义召回）：三路并行，合成给模型的上下文——
+ *   固定查询（core/fixed.js，问句认出「最近 N 部电影」「某专辑曲目」等 → 奇趣的服务绑定 CURIO，只读、参数化）放最前；
+ *   语义召回（core/semantic.js，问句嵌入 → Vectorize topK）在前、关键词召回（core/recall.js，KV 索引）补后，去重后最多 AI_CONTEXT_HITS 条。
+ *   语义召回出错（没建索引、嵌入失败…）只打日志，退回关键词召回；KV 也读不了才 503 index。
  * 浏览器断开：网关把浏览器请求的 signal 带进服务绑定请求；这里 request.signal abort 或流被取消时，取消上游的流。
- * 不存对话、不写 KV。
+ * 不存对话。不写 KV（写只在 Cron 同步向量时，见 core/vector-sync.js）。
  */
 import { loadIndexes, recall } from '../core/recall.js';
+import { semanticRecall, mergeHits } from '../core/semantic.js';
+import { fixedHits } from '../core/fixed.js';
 import { buildMessages, Q_MAX, AI_LANGS } from '../core/prompt.js';
 import { thinkFilter } from '../core/think.js';
 import { loadModels, pickModel } from '../core/models.js';
-import { readKey, hasKeyBinding, geminiRequest, geminiChunk, classifyUpstream, errText, UPSTREAM_TIMEOUT_MS } from '../core/gemini.js';
+import { readKey, hasKeyBinding, geminiRequest, geminiChunk, geminiSources, describeUpstream, toolRejected, redact, errText, UPSTREAM_TIMEOUT_MS } from '../core/gemini.js';
 import { apiError, SSE_HEADERS, sseEvent, sseData } from '../lib/http.js';
 
 export const BODY_MAX = 16 * 1024;
@@ -41,10 +48,37 @@ function intVar(v, dflt, lo, hi) {
 
 /** @param {any} env */
 export function aiConfig(env) {
+  const ms = parseFloat(String((env && env.AI_RECALL_MIN_SCORE) || ''));
   return {
     maxTokens: intVar(env && env.AI_MAX_TOKENS, 1024, 64, 2048),
     contextHits: intVar(env && env.AI_CONTEXT_HITS, 5, 1, 10),
+    /** 语义召回的最低相似度（余弦，0–1）；没配 / 坏的用 core/semantic.js MIN_SCORE */
+    minScore: Number.isFinite(ms) && ms >= 0 && ms <= 1 ? ms : undefined,
+    /** gemini 模型带 Google 搜索（默认开；AI_GEMINI_SEARCH = "0" 关） */
+    geminiSearch: String((env && env.AI_GEMINI_SEARCH) == null ? '1' : env.AI_GEMINI_SEARCH) !== '0',
   };
+}
+
+/**
+ * 三路召回 → 上下文条目。KV 和 Vectorize 都用不了 → { ok:false }（调用方回 503 index）。
+ * @param {any} env @param {{q: string, lang: 'zh'|'en'}} a @param {boolean} showPrivate @param {ReturnType<typeof aiConfig>} cfg
+ */
+export async function gatherHits(env, a, showPrivate, cfg) {
+  let kwOk = true;
+  const kwP = loadIndexes(env).then(
+    (ix) => recall(ix, { q: a.q, lang: a.lang, showPrivate, limit: cfg.contextHits }),
+    (e) => { kwOk = false; console.error('[ai] index load failed', e && /** @type {any} */ (e).message); return []; },
+  );
+  let semOk = true;
+  const semP = semanticRecall(env, { q: a.q, lang: a.lang, showPrivate, limit: cfg.contextHits, minScore: cfg.minScore }).catch((e) => {
+    semOk = false;
+    const msg = String((e && /** @type {any} */ (e).message) || 'error');
+    if (msg !== 'no-vectorize') console.error('[ai] semantic recall failed', msg.slice(0, 200));
+    return [];
+  });
+  const [kw, sem, fixed] = await Promise.all([kwP, semP, fixedHits(env, a.q, a.lang)]);
+  if (!kwOk && !semOk) return { ok: false, hits: [] };
+  return { ok: true, hits: [...fixed, ...mergeHits(sem, kw, cfg.contextHits)] };
 }
 
 /**
@@ -129,14 +163,9 @@ export async function onRequestPost(request, env) {
   } else if (!ai || typeof ai.run !== 'function') {
     return apiError(503, 'config');
   }
-  let indexes;
-  try {
-    indexes = await loadIndexes(env);
-  } catch (e) {
-    console.error('[ai] index load failed', e && /** @type {any} */ (e).message);
-    return apiError(503, 'index');
-  }
-  const hits = recall(indexes, { q: a.q, lang: a.lang, showPrivate, limit: cfg.contextHits });
+  const gathered = await gatherHits(env, a, showPrivate, cfg);
+  if (!gathered.ok) return apiError(503, 'index');
+  const hits = gathered.hits;
 
   /** @type {ReadableStreamDefaultReader<Uint8Array>|null} */
   let upReader = null;
@@ -153,19 +182,33 @@ export async function onRequestPost(request, env) {
     async start(controller) {
       const send = (/** @type {string} */ ev, /** @type {any} */ data) => { if (!closed) controller.enqueue(sseEvent(ev, data)); };
       let sentText = false;
+      /** @type {Array<{title: string, url: string}>} Gemini 联网来源（去重） */
+      const sources = [];
       let reasoningChars = 0;
       let finish = '';
       try {
-        const messages = buildMessages({ q: a.q, lang: a.lang, history: a.history, hits });
+        const search = model.provider === 'gemini' && cfg.geminiSearch;
+        const messages = buildMessages({ q: a.q, lang: a.lang, history: a.history, hits, web: search });
         const filter = thinkFilter();
         if (model.provider === 'gemini') {
           const timer = setTimeout(() => ac.abort(), UPSTREAM_TIMEOUT_MS);
           try {
-            const up = await geminiRequest(env, key, model.id, messages, cfg.maxTokens, ac.signal);
+            let up = await geminiRequest(env, key, model.id, messages, cfg.maxTokens, ac.signal, { search });
+            if (!up.ok && search) {
+              const body = await errText(up);
+              if (toolRejected(up.status, body)) {
+                /* 搜索工具被拒（模型 / 账号不支持）：不带工具重试一次 */
+                console.error('[ai] gemini search tool rejected, retrying without it', JSON.stringify(describeUpstream(up.status, body)));
+                up = await geminiRequest(env, key, model.id, messages, cfg.maxTokens, ac.signal, { search: false });
+              } else {
+                up = new Response(body, { status: up.status });
+              }
+            }
             if (!up.ok || !up.body) {
-              const code = up.ok ? 'upstream' : classifyUpstream(up.status, await errText(up));
-              console.error('[ai] gemini upstream status', up.status);
-              send('error', { code });
+              const d = up.ok ? { status: up.status, code: 'upstream', reason: 'no-body', googleStatus: '', message: '' } : describeUpstream(up.status, await errText(up));
+              /* 脱敏日志（不含钥匙）：2026-10-28 起的故障靠这行定位（reason=location 即地区不支持） */
+              console.error('[ai] gemini upstream', JSON.stringify({ model: model.id, ...d }));
+              send('error', { code: d.code });
               return;
             }
             upReader = up.body.getReader();
@@ -175,7 +218,12 @@ export async function onRequestPost(request, env) {
               let chunk;
               try { chunk = JSON.parse(data); } catch (e) { continue; }
               const r = geminiChunk(chunk);
-              if (r.error) { send('error', { code: r.error }); return; }
+              if (r.error) {
+                console.error('[ai] gemini stream error', JSON.stringify({ model: model.id, code: r.error, detail: redact(JSON.stringify(chunk.error || chunk.promptFeedback || {}), 300) }));
+                send('error', { code: r.error });
+                return;
+              }
+              for (const s of geminiSources(chunk)) if (!sources.some((x) => x.url === s.url)) sources.push(s);
               const text = filter.push(r.text);
               if (text) { sentText = true; send('delta', { text }); }
             }
@@ -207,6 +255,7 @@ export async function onRequestPost(request, env) {
           send('error', { code: 'empty' });
           return;
         }
+        if (sources.length) send('sources', { items: sources.slice(0, 8) });
         send('done', {});
       } catch (e) {
         console.error('[ai] answer failed', e && /** @type {any} */ (e).name, e && String(/** @type {any} */ (e).message || '').slice(0, 300));

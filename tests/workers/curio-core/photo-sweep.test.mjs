@@ -12,7 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const W = REPO + '/workers/curio-core';
 const S = await import(W + '/src/photo-sweep.js');
-const worker = (await import(W + '/src/index.js')).default;
+const worker = (await import(W + '/src/app.js')).default;
 
 function makeD1() {
   const db = new DatabaseSync(':memory:');
