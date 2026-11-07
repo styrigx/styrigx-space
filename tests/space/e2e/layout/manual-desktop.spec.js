@@ -1,7 +1,7 @@
 /**
  * 手动桌面 + 手机屏（2026-11-07 Gray 真机：X 应用内浏览器没有「桌面版网站」开关，快捷面板选「桌面」只有顶栏出了页名胶囊，正文还是手机版）。
  * 共享外壳 layout-mode.js：偏好 = 桌面且屏幕短边 < 600 时 viewport 改成 width=980（同三星 / Chrome 桌面版网站的布局视口），
- * 首帧就是桌面宽、整页缩小显示；快捷面板里切进 / 切出「桌面」先关面板再整页重载。自动 / 手机偏好、电脑不动。
+ * 首帧就是桌面宽、整页缩小显示；快捷面板里切进 / 切出「桌面」原地改 viewport（不重载、不白闪），没生效才整页重载（重载前把页面底色交给下一页首帧）。自动 / 手机偏好、电脑不动。
  * 首帧底色（同一个文件 __sgxFirstPaint）：color-scheme / theme-color 跟本站深浅色，<head> 最前面一条最低层的 html 底色——
  * 样式表没到时就是本站底色（不是浏览器白底），样式表到了照常按调色板。
  * 应用内浏览器（Android WebView）认不认 meta 宽度取决于宿主 App，这里只能验 Chromium 手机模式。
@@ -52,25 +52,44 @@ test.describe('手机（412 宽，手机 UA）', () => {
     }
   });
 
-  test('快捷面板切「桌面」：关面板、整页重载成 980 宽；切回「自动」还原 viewport', async ({ page }) => {
+  test('快捷面板切「桌面」：原地改成 980 宽、不整页重载（不白闪），面板还开着；切回「自动」原地还原 viewport', async ({ page }) => {
     await go(page);
+    await page.evaluate(() => { /** @type {any} */ (window).__sgxNoReload = 1; });
+    let loads = 0;
+    page.on('load', () => { loads++; });
     await page.locator('.sgx-tb-quick').click();
     await expect(page.locator('#sgx-qp')).toBeVisible();
-    const histLen = await page.evaluate(() => history.length);
-    await Promise.all([page.waitForEvent('load'), page.locator('#sgx-qp [data-qp-seg="layout"] [data-v="desktop"]').click()]);
-    await expect.poll(async () => (await state(page)).meta).toBe('width=980');
-    expect((await state(page)).layout).toBe('desktop');
+    await page.locator('#sgx-qp [data-qp-seg="layout"] [data-v="desktop"]').click();
+    await expect.poll(async () => (await state(page)).layout).toBe('desktop');
+    const s = await state(page);
+    expect(s.meta).toBe('width=980');
+    expect(s.w).toBeGreaterThanOrEqual(980);
+    expect(s.scale).toBeLessThan(0.5);
     expect(await page.evaluate(() => localStorage.getItem('sgx-layout'))).toBe('desktop');
-    await expect(page.locator('#sgx-qp')).toBeHidden();
-    /* 关面板时退掉了历史哨兵：重载后不在哨兵那一条上（返回键不多一步） */
-    expect(await page.evaluate(() => history.state && history.state.sgxQp)).toBeFalsy();
-    expect(await page.evaluate(() => history.length)).toBe(histLen);
-    /* 切回自动：同样重载，viewport 还原 */
-    await page.$eval('.sgx-tb-quick', (b) => /** @type {HTMLElement} */ (b).click());
+    /* 同一个文档（没重载）：标记还在，面板还开着、选中「桌面」 */
+    expect(await page.evaluate(() => /** @type {any} */ (window).__sgxNoReload)).toBe(1);
     await expect(page.locator('#sgx-qp')).toBeVisible();
-    await Promise.all([page.waitForEvent('load'), page.$eval('#sgx-qp [data-qp-seg="layout"] [data-v="auto"]', (b) => /** @type {HTMLElement} */ (b).click())]);
+    await expect(page.locator('#sgx-qp [data-qp-seg="layout"] [data-v="desktop"]')).toHaveAttribute('aria-pressed', 'true');
+    /* 切回自动：同样原地，viewport 还原、手机布局 */
+    await page.$eval('#sgx-qp [data-qp-seg="layout"] [data-v="auto"]', (b) => /** @type {HTMLElement} */ (b).click());
     await expect.poll(async () => (await state(page)).meta).toBe(ORIG);
-    expect((await state(page)).layout).toBe('phone');
+    await expect.poll(async () => (await state(page)).layout).toBe('phone');
+    expect(await state(page)).toEqual({ meta: ORIG, w: 412, layout: 'phone', scale: 1 });
+    expect(await page.evaluate(() => /** @type {any} */ (window).__sgxNoReload)).toBe(1);
+    expect(loads).toBe(0);
+  });
+
+  test('重载兜底不白闪：sessionStorage sgx-fp-bg 里是重载前的页面底色，样式表没到时首帧就用它，用一次就删', async ({ page }) => {
+    await go(page);
+    await page.route(/\/css\/main\.[0-9a-f]+\.css$/, (r) => r.abort());
+    await page.evaluate(() => sessionStorage.setItem('sgx-fp-bg', 'rgb(240, 246, 252)'));
+    await page.reload({ waitUntil: 'load' });
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(240, 246, 252)');
+    expect(await page.evaluate(() => sessionStorage.getItem('sgx-fp-bg'))).toBeNull();
+    /* 不是 rgb() 的值不认（不往样式里拼任意字符串） */
+    await page.evaluate(() => sessionStorage.setItem('sgx-fp-bg', 'red}html{color:red'));
+    await page.reload({ waitUntil: 'load' });
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(242, 246, 247)');
   });
 
   test('首帧底色：本站深色、系统浅色，样式表没到 → color-scheme / theme-color 是深色，html 底色是深色（不是白底）', async ({ page }) => {

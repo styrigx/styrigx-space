@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:3c2683961acf space/web/shared/shell v06b776b1c2a1（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:1ea51934348e space/web/shared/shell v6bce976ea2c7（space/scripts/daymark/sync-shell.mjs 写入，勿手改） */
 /* ---- layout-mode.js ---- */
 /* 布局模式（P4-3 PR-4b，Gray 2026-11-07 定稿）：只有两种——手机 phone / 桌面 desktop，四个站同一条规则（共享外壳 layout-mode.js，各站原样内联进 <head>，首帧前定好，不闪）。
    - 手动（快捷面板 布局：手机 / 自动 / 桌面；localStorage sgx-layout = phone / auto / desktop，同源四站同一份）：手机 / 桌面直接照办，下面的都不看。
@@ -74,8 +74,8 @@ function __sgxLayoutWatch(fn){
    浏览器像桌面版网站那样整页缩小显示；1280 会把字缩到 0.3 倍，太小。
    只在「偏好 = 桌面」且「手机屏」（__sgxPhoneScreen：屏幕短边 < 600 CSS px，且是触屏或 UA 报手机——同 __sgxDevice 的手机线；电脑上的小窗口不算）时改；自动 / 手机偏好、平板、DeX、电脑一律不动；
    浏览器已经在桌面版网站（不理 meta）时改了也不起作用，结果不变。原 content 记在 data-sgx-vp，换回别的偏好时还原。
-   时机：本文件内联在四站 <head>、viewport meta 之后，加载时先跑一次（首帧就是桌面宽）；快捷面板切布局时 topbar.js 再调，变了就关面板整页重载
-   （缩放比例只在加载时按新视口重算，原地改 meta 会停在放大的比例上）。应用内浏览器（Android WebView）认不认 meta 宽度取决于宿主 App 的设置，没在真机上验过。 */
+   时机：本文件内联在四站 <head>、viewport meta 之后，加载时先跑一次（首帧就是桌面宽）；快捷面板切布局时 topbar.js 再调，变了先原地生效
+   （等两帧看布局视口宽 / 整页适配对不对，停在放大比例上就临时补 initial-scale = maximum-scale 压回去），还不行才关面板整页重载（2026-11-07：重载会白闪）。应用内浏览器（Android WebView）认不认 meta 宽度取决于宿主 App 的设置，没在真机上验过。 */
 var __SGX_DESKTOP_VW=980;
 function __sgxPhoneScreen(){
   var s=__sgxScreenW(),k=false;
@@ -107,7 +107,11 @@ function __sgxViewportSync(){
 function __sgxFirstPaint(){
   try{
     var d=document.documentElement,h=document.head,dk=d.getAttribute('data-dark')==='1'||d.classList.contains('dark'),i,l;
-    var cs=dk?'dark':'light',tc=dk?'#10151a':'#f5f8fa',bg=dk?'#0a0e10':'#f2f6f7';
+    var cs=dk?'dark':'light',tc=dk?'#10151a':'#f5f8fa',bg=dk?'#0a0e10':'#f2f6f7',sb=null;
+    /* 快捷面板切布局、原地改视口没生效只能整页重载时（topbar.js），重载前把当时页面的实际底色（当前调色板）存进 sessionStorage sgx-fp-bg：
+       这一帧就用它（只认不透明的 rgb()），用一次就删 */
+    try{sb=sessionStorage.getItem('sgx-fp-bg');if(sb!==null)sessionStorage.removeItem('sgx-fp-bg')}catch(e){}
+    if(sb&&/^rgb\(\d{1,3}, ?\d{1,3}, ?\d{1,3}\)$/.test(sb))bg=sb;
     l=document.querySelectorAll('meta[name="color-scheme"]');for(i=0;i<l.length;i++)l[i].setAttribute('content',cs);
     l=document.querySelectorAll('meta[name="theme-color"]');for(i=0;i<l.length;i++)l[i].setAttribute('content',tc);
     var st=document.getElementById('sgx-first-paint');
