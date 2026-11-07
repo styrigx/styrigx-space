@@ -10,6 +10,9 @@
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
+/* 2026-11 UI 重设计 PR-1：旧截图基线已删除（普通提交，不改历史），新精简基线在重设计最后一个 PR 重拍；
+   在那之前不比截图（SHOTS = false），同一用例里的布局 / 行为断言照跑。重拍时改回 true。 */
+const SHOTS = false;
 
 /* Hark：CI 里 networkidle 可能永远等不到（锁屏页请求外部资源：天气、Turnstile），
    改用 domcontentloaded + 等锁屏元素出现，不再依赖网络空闲 */
@@ -73,7 +76,7 @@ test.describe('lock screen', () => {
     await gotoLock(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     /* 2026-10-23：锁屏不再有时钟 / 日期，不用遮罩 */
-    await expect(page).toHaveScreenshot('lock-screen.png', { animations: 'disabled' });
+    if (SHOTS) await expect(page).toHaveScreenshot('lock-screen.png', { animations: 'disabled' });
   });
 
   test('avatar → method sheet → temporary key unlocks (local fallback)', async ({ page }) => {
@@ -756,7 +759,7 @@ test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻�
       await gotoLock(page);
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await expect(page.locator('#sgx-lock-stage')).not.toHaveClass(/is-pending/);
-      await expect(page).toHaveScreenshot(`lock-screen-glass-${theme}.png`, { animations: 'disabled' });
+      if (SHOTS) await expect(page).toHaveScreenshot(`lock-screen-glass-${theme}.png`, { animations: 'disabled' });
     });
   }
 });

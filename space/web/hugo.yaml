@@ -21,6 +21,8 @@ languages:
       rssTitle: 'Styrigx (English)'
       # 快捷面板语言选项的顺序（小的在前；没写按 weight）。weight 管默认语言 / 翻译排序，选择器顺序单独定：跟随系统 / 中文 / English
       pickerWeight: 2
+      # 顶栏 v3 NAVIGATE 语言分段上的短名（语言自己的写法，不翻译）
+      pickerShort: EN
   zh:
     label: 中文
     weight: 2
@@ -29,6 +31,7 @@ languages:
       locale: zh-CN
       rssTitle: 'Styrigx'
       pickerWeight: 1
+      pickerShort: 中文
 theme: []
 # 博客文章日期按 UTC 读（合站前博客单独设的；主站没有依赖本地时区的日期）
 timeZone: UTC

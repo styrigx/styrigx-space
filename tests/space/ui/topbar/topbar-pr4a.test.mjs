@@ -28,10 +28,9 @@ test('PR-4b 定稿：页名胶囊只显示页名——主站没有顶栏标签�
   }
 });
 
-test('§6.3（PR-4b 改）：宽屏不再三段网格定宽中段；页名胶囊按整条顶栏居中（中列前后弹簧）、按字定宽，长页名省略号', () => {
+test('§6.3（顶栏 v3 起）：宽屏不再三段网格定宽中段、页名不在顶栏显示（#site-nav 里藏）；页名样式留着（锁屏顶栏用），按字定宽、长页名省略号', () => {
   assert.doesNotMatch(shell, /--sgx-tb-mid|grid-template-columns: 1fr min\(/);
-  assert.match(shell, /\.sgx-tb-pill \{ height: 100%; min-width: 0;[^}]*display: flex; align-items: center; padding: 0 12px;/);
-  assert.match(shell, /\.sgx-tb-pill::before, \.sgx-tb-pill::after \{ content: ""; flex: 1 9999 0px; min-width: 0; \}/);
+  assert.match(shell, /#site-nav \.sgx-tb-pill \{ display: none; \}/);
   assert.match(shell, /\.sgx-tb-title \{ display: block; min-width: 0; max-width: 100%;[^}]*white-space: nowrap; overflow: hidden; text-overflow: ellipsis;/);
 });
 

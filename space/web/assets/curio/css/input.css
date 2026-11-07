@@ -150,7 +150,7 @@ html, body {
 
 /* ===== 布局变量（同主站 tokens 层）：顶栏下沿 = 上边距 + 顶栏圆（手机 52 → ≥ 840 宽 56），正文从顶栏下沿 + 16px 开始 ===== */
 :root {
-  --nav-h: calc(var(--sgx-tb-inset) + var(--sgx-tb-btn));
+  --nav-h: var(--sgx-tb-h);
   --sgx-content-gap: 16px;
   --sgx-content-top: calc(var(--nav-h) + var(--sgx-content-gap) + env(safe-area-inset-top, 0px));
 }

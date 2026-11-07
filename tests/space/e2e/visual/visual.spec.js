@@ -12,6 +12,9 @@
  * （CI 里外部请求会让 networkidle 永远等不到）；删掉全部 waitForTimeout。
  */
 const { test } = require('@playwright/test');
+/* 2026-11 UI 重设计 PR-1：旧截图基线已删除（普通提交，不改历史），新精简基线在重设计最后一个 PR 重拍；
+   在那之前不比截图（SHOTS = false），同一用例里的布局 / 行为断言照跑。重拍时改回 true。 */
+const SHOTS = false;
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
 
 const VIEWPORTS = {
@@ -173,7 +176,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
             await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
             await expect(pg.locator('#sgx-credential-countdown')).toBeVisible();
           }
-          await expect(pg).toHaveScreenshot(`${name}.png`, {
+          if (SHOTS) await expect(pg).toHaveScreenshot(`${name}.png`, {
             fullPage: false,
             animations: 'disabled',
             /* 遮罩动态区域：门内倒计时数字（P4-2c 起首页时钟、天气已删） */
@@ -220,7 +223,7 @@ async function openNavPanel(pg) {
 test('baseline-quick-panel-nav-open', async ({ page: pg }) => {
   await shellShotPage(pg);
   await openNavPanel(pg);
-  await expect(pg).toHaveScreenshot('baseline-quick-panel-nav-open.png', { animations: 'disabled' });
+  if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-nav-open.png', { animations: 'disabled' });
 });
 
 /* 快捷面板（2026-11-07 PR-4b 2/2 起只有一页，四站同一套：深色、跟随系统、分享、立即锁定四格，主站也有分享） */
@@ -228,7 +231,7 @@ test('baseline-quick-panel-open', async ({ page: pg }) => {
   await shellShotPage(pg);
   await openQuickPanel(pg);
   await expect(pg.locator('#sgx-qp [data-qp="share"]')).toHaveCount(1);
-  await expect(pg).toHaveScreenshot('baseline-quick-panel-open.png', { animations: 'disabled' });
+  if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-open.png', { animations: 'disabled' });
 });
 
 /* AI 窗口打开（2026-11-04 P5-1，方案 5.5）：空状态（没有历史），落在顶栏下方，和快捷面板同一种形式 */
@@ -240,7 +243,7 @@ test('baseline-ai-panel-open', async ({ page: pg }) => {
   await expect(pg.locator('#sgx-ai .sgx-ai-msg[data-greet]')).toBeVisible();
   /* 焦点在窗口里（光标闪烁不稳定）：拍之前移走 */
   await pg.evaluate(() => /** @type {HTMLElement} */ (document.activeElement).blur());
-  await expect(pg).toHaveScreenshot('baseline-ai-panel-open.png', { animations: 'disabled' });
+  if (SHOTS) await expect(pg).toHaveScreenshot('baseline-ai-panel-open.png', { animations: 'disabled' });
 });
 
 /* ===== 两扇门验证弹层视觉基线（第七节验收） =====
@@ -315,7 +318,7 @@ for (const lang of DOOR_LANGS) {
           return de.scrollWidth - de.clientWidth;
         });
         if (overflow > 1) throw new Error(`横向溢出 ${overflow}px on ${name}`);
-        await expect(pg).toHaveScreenshot(`account-login-${state}-${lang.name}-${theme.name}.png`, { animations: 'disabled', caret: 'hide' });
+        if (SHOTS) await expect(pg).toHaveScreenshot(`account-login-${state}-${lang.name}-${theme.name}.png`, { animations: 'disabled', caret: 'hide' });
       });
     }
   }
@@ -370,7 +373,7 @@ for (const lang of LANGS) {
         await pg.goto(lang.prefix + path, { waitUntil: 'domcontentloaded' });
         await waitPageReady(pg);
         await ready(pg);
-        await expect(pg).toHaveScreenshot(`${name}.png`, { fullPage: false, animations: 'disabled' });
+        if (SHOTS) await expect(pg).toHaveScreenshot(`${name}.png`, { fullPage: false, animations: 'disabled' });
       });
     }
   }
@@ -415,7 +418,7 @@ for (const lang of LANGS) {
       await pg.locator('#st-foot').scrollIntoViewIfNeeded();
       const overflow = await pg.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       if (overflow > 1) throw new Error(`横向溢出 ${overflow}px on ${name}`);
-      await expect(pg).toHaveScreenshot(`${name}.png`, { fullPage: false, animations: 'disabled' });
+      if (SHOTS) await expect(pg).toHaveScreenshot(`${name}.png`, { fullPage: false, animations: 'disabled' });
     });
   }
 }

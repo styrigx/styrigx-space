@@ -124,7 +124,11 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /oui-article-paper/, '应有 One UI 文章纸面');
     assert.doesNotMatch(html, /pagefind/, '站内搜索已删除');
     assert.doesNotMatch(html, /giscus|comment-section|data-comment/i, '文章页没有评论');
-    assert.doesNotMatch(html, /<footer|oui-footer|©|Powered by/, '没有版权页脚');
+    /* 2026-11 顶栏 v3：四站同一个 tmux 页脚（sgx-foot），博客自己的版权页脚 / Powered by 仍然没有 */
+    assert.equal((html.match(/<footer/g) || []).length, 1, '只有一个页脚');
+    assert.match(html, /<footer class="sgx-foot"/, '是共享 tmux 页脚');
+    assert.match(html, /data-win="blog" aria-current="page"/, '页脚当前窗口 1:blog');
+    assert.doesNotMatch(html, /oui-footer|Powered by/, '没有博客自己的版权页脚');
   });
 
   it('留言板撤了（2026-10-24）：/guestbook/、/en/guestbook/ 是 404，页面里没有留言板入口和 Giscus', async () => {
@@ -187,31 +191,31 @@ describe('网址回归（图志 /blog/ 下）', () => {
     );
   });
 
-  it('九宫格导航面板（P4-3 PR-4b；原快捷面板导航页）：主站 / 奇趣 / 日刻 / 博客（主站项绝对地址、三站之间相对 /<站>/），博客「开」态；头像在 AI 窗口头部去主站账号页；没有搜索框', async () => {
+  it('NAVIGATE（顶栏 v3）：主页 / 博客 / 奇趣 / 日刻 / 旷野（主站项绝对地址、三站之间相对 /<站>/），博客「开」态；头像在顶栏最右和 AI 窗口头部，都去主站账号页；没有搜索框', async () => {
     const html = await (await fetch(base + '/blog/')).text();
-    const hrefs = [...html.matchAll(/class="sgx-qp-tile sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(hrefs, ['https://styrigx.com/', '/curio/', '/daymark/', '/blog/']);
-    assert.match(html, /class="sgx-qp-tile sgx-nav-tile" href="\/blog\/" data-nav="blog" aria-current="page"/);
+    const hrefs = [...html.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(hrefs, ['https://styrigx.com/', '/blog/', '/curio/', '/daymark/', 'https://styrigx.com/']);
+    assert.match(html, /class="sgx-nav-tile" href="\/blog\/" data-nav="blog" aria-current="page"/);
     assert.match(html, /<a class="sgx-ai-me" href="https:\/\/styrigx\.com\/account\/"[^>]*><img src="https:\/\/styrigx\.com\/avatar\/192\.webp"/);
-    assert.doesNotMatch(html, /sgx-tb-me/, '顶栏没有头像');
+    assert.match(html, /<a class="sgx-tb-av" href="https:\/\/styrigx\.com\/account\/"/, '顶栏头像去主站账号页');
     assert.doesNotMatch(html, /sgx-drawer|sgx-tb-nav\b/, '抽屉和九宫格删了');
     assert.doesNotMatch(html, /book\.styrigx\.com/, '书库已下线');
     assert.doesNotMatch(html, /atlas\.styrigx\.com/, '合并 PR3：不再有旧图志域名');
     const zh = await (await fetch(base + '/blog/zh/')).text();
-    const zhHrefs = [...zh.matchAll(/class="sgx-qp-tile sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/curio/zh/', '/daymark/zh/', '/blog/zh/']);
+    const zhHrefs = [...zh.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/blog/zh/', '/curio/zh/', '/daymark/zh/', 'https://styrigx.com/zh/']);
     assert.match(zh, /<a class="sgx-ai-me" href="https:\/\/styrigx\.com\/zh\/account\/"/);
   });
 
-  it('文章页：长条只有页名（文章标题）+ 阅读进度细线，没有页签；分享本页是快捷面板磁贴；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
+  it('文章页：长条只有页名（文章标题）+ 阅读进度（顶栏 v3 起不显示，读屏照读），没有页签；分享本页在 NAVIGATE；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
     const html = await (await fetch(base + '/blog/zh/post/2026-10-07-muse-playbook/')).text();
     const pill = html.match(/<div class="sgx-tb-pill[\s\S]*?<\/div>/)[0];
     assert.doesNotMatch(pill, /sgx-seg/);
     const title = html.match(/<h1[^>]*>([^<]+)<\/h1>/)[1].trim();
     assert.match(pill, new RegExp('<span class="sgx-tb-title">' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '</span>'));
     assert.match(pill, /data-sgx-progress/);
-    const set = html.match(/<dialog id="sgx-qp"[\s\S]*?<\/dialog>/)[0];
-    assert.match(set, /<button type="button" class="sgx-qp-tile" data-qp="share" data-sgx-share>[\s\S]*?分享本页/, '分享本页 = 快捷面板磁贴');
+    const set = html.match(/<dialog id="sgx-nav"[\s\S]*?<\/dialog>/)[0];
+    assert.match(set, /<button type="button" class="sgx-nav-btn" data-qp="share" data-sgx-share aria-label="分享本页">/, '分享本页 = NAVIGATE 的 share 按钮');
     assert.doesNotMatch(html, /sgx-tb-end|sgx-tb-share|sgx-tb-gbtn/, '没有右圆 / 右胶囊了');
     assert.doesNotMatch(html, /sgx-prog-title|sgx-toc-sheet|mobile-article-toc/);
     assert.doesNotMatch(html, /sgx-drawer-toc/, '抽屉删了，目录不进顶栏');

@@ -8,30 +8,9 @@
   view-transition-name: sgx-topbar;
 }
 
-/* ===== 文章页：顶栏底边一条强调色细线 = 阅读进度（按整条顶栏定位——中间那格 position: static；手机布局藏了页名也在）===== */
-.sgx-tb-progress {
-  position: absolute;
-  left: 22px;
-  right: 22px;
-  bottom: 1px;
-  height: 2px;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--sgx-primary-fill) 24%, transparent);
-  overflow: hidden;
-  pointer-events: none;
-}
-
-/* 进度 = 填充档（主站：进度 / 已填的滑块段 = primary-fill） */
-.sgx-tb-progress::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--sgx-accent);
-  transform: scaleX(var(--p, 0));
-  transform-origin: left center;
-}
-
+/* ===== 文章页阅读进度（.sgx-tb-progress，在页名那格里）：顶栏 v3 起全站顶栏底边有滑页进度条（共享外壳 .sgx-tb-prog），这条细线不再显示；
+   标记和 aria-valuenow 照旧（article.js 写），读屏仍能读到阅读进度 ===== */
+.sgx-tb-progress { display: none; }
 
 /* ===== 列表页（index.html：页签面板、系列卡、专题筛选） ===== */
 .page-home main {
@@ -800,8 +779,9 @@
   color: var(--sgx-text-primary);
   cursor: pointer;
   position: fixed;
-  right: max(var(--sgx-tb-inset), env(safe-area-inset-right, 0px));
-  bottom: max(var(--sgx-tb-inset), env(safe-area-inset-bottom, 0px));
+  /* 顶栏 v3：右下角是 AI 浮钮（共享外壳 .sgx-tb-ai，56 高、边距 --sgx-ai-fab-m），回到顶部摞在它上面、右缘对齐 */
+  right: calc(max(var(--sgx-ai-fab-m, 16px), env(safe-area-inset-right, 0px)) + (56px - var(--sgx-tb-btn)) / 2);
+  bottom: calc(max(var(--sgx-ai-fab-m, 16px), env(safe-area-inset-bottom, 0px)) + 56px + 12px);
   z-index: 45;
   opacity: 0;
   pointer-events: none;

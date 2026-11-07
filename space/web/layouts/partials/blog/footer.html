@@ -1,0 +1,22 @@
+{{- /* 博客接 tmux 页脚（2026-11 UI 重设计 PR-1）：四站同一个 partials/sgx-footer.html，这里只准备博客的参数（当前窗口 = 1:blog）。参数：页面 */ -}}
+{{- $lang := .Language.Lang -}}
+{{- $nav := site.Data.shell.nav -}}
+{{- $langHref := "" -}}
+{{- range .Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end -}}
+{{- if not $langHref }}{{ range (site.GetPage "/blog").AllTranslations }}{{ if ne .Language.Lang $lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end -}}
+{{- $langs := slice }}{{ range hugo.Sites }}{{ $langs = $langs | append (dict "code" .Language.Lang "short" .Language.Params.pickerShort) }}{{ end -}}
+{{- $prof := site.Data.profile -}}
+{{- partial "sgx-footer.html" (dict
+  "tr" (partialCached "sgx-tr.html" $lang $lang).shell
+  "lang" $lang
+  "langs" $langs
+  "here" .RelPermalink
+  "langHref" $langHref
+  "nav" $nav
+  "site" "blog"
+  "mainOrigin" "https://styrigx.com"
+  "name" $prof.name
+  "year" now.Year
+  "email" $nav.me.email
+  "rss" (printf "%srss.xml" (site.GetPage "/blog").RelPermalink)
+) -}}

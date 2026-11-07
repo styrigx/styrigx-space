@@ -127,7 +127,9 @@ test('英文页没有中文：四站英文页的可见文字和读屏文字里�
 
 /* 中文页上允许的纯英文：品牌 / 产品 / 技术名、版本号、博客标签（内容） */
 /* https://：奇趣「发现」网址输入框的 placeholder（合站前奇趣的 HTML 被压缩成不带引号的属性，这里的提取没读到它） */
-const ZH_ALLOW = /^(#?(AI|Astro|Cloudflare|Ed25519|GitHub|Muse|Passkey|Hugo|Tailwind CSS|Styrigx( UI( [0-9.]+)?)?|Gray AI)|SGX [0-9.]+|[0-9.:\- x]+|https:\/\/)$/;
+/* 顶栏 v3（2026-11 UI 重设计 PR-1，Gray 定稿设计稿 nav-v2 / tb4）：终端风短标签中英都写英文（NAVIGATE / STATUS / MODE / PALETTE / lang / layout / share / lock / Auto / Mobile / DeX），
+   仍在字符串表里（zh.yaml 同值），这里放行 */
+const ZH_ALLOW = /^(#?(AI|Astro|Cloudflare|Ed25519|GitHub|Muse|Passkey|Hugo|Tailwind CSS|Styrigx( UI( [0-9.]+)?)?|Gray AI)|SGX [0-9.]+|[0-9.:\- x]+|https:\/\/|NAVIGATE|STATUS|MODE|PALETTE|lang|layout|share|lock|Auto|Mobile|DeX)$/;
 
 test('中文页没有漏翻：四站中文页的可见文字里没有成句的英文（白名单：Gray AI、Styrigx、技术名、个人信息节点）', { skip: !built && '没构建' }, () => {
   const bad = [];

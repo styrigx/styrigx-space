@@ -136,26 +136,26 @@ test('手机开「桌面版网站」（2026-11-07 录屏：S23 Ultra 视口 980�
   }
 });
 
-test('外壳 CSS：顶栏宽 手机 min(100% − 32, 640)、桌面 手机设备 min(720, 100% − 48) / 电脑 min(clamp(720, 60vw, 960), 100% − 48)（含安全区），上限按 100% 不用 100vw；横向不滚；手机布局不显示页名胶囊（不按像素）', () => {
+test('外壳 CSS（顶栏 v3，2026-11 UI 重设计 PR-1）：顶栏贴顶通栏，内容宽一个 token --sgx-content-w（1080），左右内边距 --sgx-tb-pad（页边距 / 安全区 / 居中余量取大），上限按 100% 不用 100vw；横向不滚；页名不在顶栏显示', () => {
   const shell = read('space/web/assets/css/shell/shell.css');
   const code = shell.replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.match(code, /--sgx-tb-w: min\(100% - max\(16px, env\(safe-area-inset-left, 0px\)\) - max\(16px, env\(safe-area-inset-right, 0px\)\), 640px\);/);
-  assert.match(code, /:root\[data-sgx-layout="desktop"\] \{[^}]*--sgx-tb-w: min\(clamp\(720px, 60vw, 960px\), 100% - max\(24px, env\(safe-area-inset-left, 0px\)\) - max\(24px, env\(safe-area-inset-right, 0px\)\)\);/);
-  assert.match(code, /:root\[data-sgx-layout="desktop"\]\[data-sgx-device="phone"\] \{\s*--sgx-tb-w: min\(720px, 100% - max\(24px, env\(safe-area-inset-left, 0px\)\) - max\(24px, env\(safe-area-inset-right, 0px\)\)\);/);
+  assert.match(code, /--sgx-content-w: 1080px;/);
+  assert.match(code, /--sgx-tb-pad: max\(var\(--sgx-page-m\), env\(safe-area-inset-left, 0px\), env\(safe-area-inset-right, 0px\), \(100% - var\(--sgx-content-w\)\) \/ 2\);/);
+  assert.match(code, /--sgx-tb-w: calc\(100% - 2 \* var\(--sgx-tb-pad\)\);/);
   assert.match(code, /:root\[data-sgx-layout="phone"\] \{ --sgx-content-max: 640px; \}/);
   assert.match(code, /:root \{ overflow-x: clip; \}/);
-  assert.doesNotMatch(code, /@media \(max-width: 3[0-9]{2}\.98px\) \{ \.sgx-tb-pill/, '340 / 380 像素阈值删了');
-  assert.match(code, /:root:not\(\[data-sgx-layout="desktop"\]\) \.sgx-tb-pill > :not\(\.sgx-tb-progress\) \{ display: none; \}/);
+  assert.match(code, /#site-nav \.sgx-tb-pill \{ display: none; \}/);
   assert.doesNotMatch(code, /100vw/, '外壳里不许再用 100vw（经典滚动条下会横向溢出）');
   assert.doesNotMatch(code, /data-sgx-layout="(?:mobile|dex)"/);
-  assert.match(code, /\.sgx-topbar \{ position: fixed;[^}]*left: 0; right: 0; margin: 0 auto; width: var\(--sgx-tb-w\);/);
+  assert.match(code, /\.sgx-topbar \{ position: fixed; top: 0; left: 0; right: 0;[^}]*padding: env\(safe-area-inset-top, 0px\) var\(--sgx-tb-pad\) 0;/);
+  assert.match(code, /\.sgx-foot \{[^}]*padding: 0 var\(--sgx-tb-pad\)/, '页脚和顶栏同一内容宽');
   assert.match(code, /\.sgx-qp \{ position: fixed;[^}]*left: 0; right: 0;/);
   assert.match(code, /\.sgx-tb-acts \{ justify-self: end;/, '图标组靠右');
-  /* 快捷面板 / AI 窗口桌面样式按模式，不按 980 断点 */
+  /* 面板 / AI 窗口桌面样式按模式，不按 980 断点 */
   assert.match(code, /:root\[data-sgx-layout="desktop"\] \.sgx-qp-sheet \{/);
   assert.doesNotMatch(code, /min-width: 980px/);
   const bar = code.match(/\.sgx-topbar \{ position: fixed;[^}]*\}/)[0];
-  assert.doesNotMatch(bar, /fit-content|max-content|min-content|width: auto/);
+  assert.doesNotMatch(bar, /fit-content|max-content|min-content|width: auto|margin: 0 auto/);
 });
 
 test('各站自己的样式不再按 layout-* 类改 --sgx-content-max / 顶栏宽（只有外壳一处）', () => {

@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+/* 2026-11 UI 重设计 PR-1：旧截图基线已删除（普通提交，不改历史），新精简基线在重设计最后一个 PR 重拍；
+   在那之前不比截图（SHOTS = false），同一用例里的布局 / 行为断言照跑。重拍时改回 true。 */
+const SHOTS = false;
 
 // One UI 视觉基线：每个页面 × 浅色/深色 × 手机 390×844 / 桌面 1200px。
 // 基线图在 tests/e2e/blog-visual.spec.js-snapshots/，只在 CI 生成（update-snapshots.yml），同版本 Chromium 对比。
@@ -54,7 +57,7 @@ for (const { name, path } of PAGES) {
     });
     expect(overflow, `${name} 有横向溢出`).toBe(false);
     await imagesReady(page);
-    await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: false });
+    if (SHOTS) await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: false });
   });
 }
 

@@ -1,17 +1,18 @@
 /**
- * @fileoverview 顶栏的三个弹出窗口：导航面板 #sgx-nav（九宫格）、快捷面板 #sgx-qp（快捷设置）、AI 窗口 #sgx-ai（2026-11-04 P5-1；P4-3 PR-4b Gray 2026-11-07 定稿）。
- * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/topbar.js，四个站共用（主站 shell/quick-panel.js 调它，子站入口脚本调它）。
+ * @fileoverview 顶栏的三个弹出窗口（2026-11-04 P5-1；2026-11 UI 重设计 PR-1 顶栏 v3）：NAVIGATE #sgx-nav（>_ 按钮）、外观 #sgx-qp（调色盘按钮）、AI 窗口 #sgx-ai（右下角浮钮），
+ * 外加顶栏底边的滑页进度条 .sgx-tb-prog 和 tmux 页脚的 CST 时钟。
+ * 共享外壳组件：四个站共用这一份（主站 shell/quick-panel.js 调它，子站入口脚本调它）。
  * 自成一体：不 import 任何东西；状态机（modal-sheet.js）、外观 setter（主站 lib/prefs.js / 子站 prefs-write.js）、AI 内容（ai.js）、
  * 分享（share.js）、键盘高度订阅（vk.js 的 onKeyboardHeight，转给 AI 窗口；P4-3 PR-3）都由调用方传进来。
  *
  * - 三个窗口都是非模态 <dialog>（modalSheet modal:false → show()）：从顶栏下方落下，顶栏留在上面可点；开合 / 系统返回 / Esc / bfcache 走 modalSheet。
- * - 互斥：一个开着时点顶栏上别的东西（另一个窗口的图标、logo、页名），先关这个（等哨兵出栈）再补点那一下。
- * - 点遮罩（面板以外）关闭；焦点打开时进面板，关上时还给图标；Tab / Shift+Tab 圈在「图标 + 面板控件」里。
- * - 导航面板：2×2 站点磁贴（当前站「开」态）；已在当前站首页时点它只关面板，其余（别的站、本站子页点本站）关完再跳（不留哨兵）。
- * - 快捷面板只有一页（PR-4b 去掉「导航 | 快捷设置」分段和双页滑动），四站完全相同：
- *   磁贴 深色 / 跟随系统 / 分享本页（share.js）/ 立即锁定；语言整行（点开行内展开单选 跟随系统 / 中文 / English，选中即保存，
- *   换了语言就去另一种语言的同一页）；调色板；布局（手机 / 自动 / 桌面，模式规则见共享外壳 layout-mode.js；三档任何时候都能选）。
- * - 立即锁定：调用方传 onLock（主站：确认层 auth/lock-now.js）；不传（子站）= 磁贴上点两下确认（第一下状态字变「再点一下锁定」，3 秒内再点），
+ * - 互斥：一个开着时点顶栏（含 AI 浮钮）上别的东西，先关这个（等哨兵出栈）再补点那一下。
+ * - 点遮罩（面板以外）关闭；焦点打开时进面板，关上时还给按钮；Tab / Shift+Tab 圈在「按钮 + 面板控件」里。
+ * - NAVIGATE：01 主页 … 05 旷野（当前项「开」态）；已在当前项那一页时点它只关面板，其余关完再跳（不留哨兵）。
+ *   lang 分段（配置里的每种语言，选中即保存，换了语言就去另一种语言的同一页）、layout 分段（Auto / Mobile / DeX，模式规则见共享外壳 layout-mode.js）、
+ *   share（share.js）/ lock（立即锁定）、STATUS（占位）、esc 关闭。
+ * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
+ * - 立即锁定：调用方传 onLock（主站：确认层 auth/lock-now.js）；不传（子站）= 按钮点两下确认（第一下字变「再点一下锁定」，3 秒内再点），
  *   POST /api/lock-now（同源网关）后回到锁屏 /?lock=1。
  */
 
@@ -21,8 +22,8 @@ const STR_EN = {
   on: "On",
   off: "Off",
   auto: "Auto",
-  phone: "Phone",
-  desktop: "Desktop",
+  phone: "Mobile",
+  desktop: "DeX",
   sys: "Follow system",
   lockArm: "Tap again to lock",
   lockBack: "Back to lock screen",
@@ -88,7 +89,8 @@ export function resolveLang(v, nav, langs) {
  */
 export function mountTopbar(o) {
   const doc = o.doc || document;
-  const topbar = doc.querySelector('#site-nav .sgx-topbar');
+  /* 互斥的捕获点：整个 #site-nav（顶栏 + AI 浮钮） */
+  const topbar = doc.getElementById('site-nav');
   const navBtn = /** @type {HTMLElement|null} */ (doc.querySelector('.sgx-tb-grid'));
   const navDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-nav'));
   const qpBtn = /** @type {HTMLElement|null} */ (doc.querySelector('.sgx-tb-quick'));
@@ -219,100 +221,46 @@ export function mountTopbar(o) {
     }, true);
   }
 
-  /* ---------------- 导航面板（九宫格） ---------------- */
-  let nav = null;
-  if (navBtn && navDlg) {
-    nav = wire(navBtn, navDlg, 'sgxNav', function () {});
-    if (nav) {
-      const ms = nav.ms;
-      navDlg.addEventListener('click', function (e) {
-        const tg = /** @type {Element|null} */ (e.target);
-        const a = /** @type {HTMLAnchorElement|null} */ (tg && tg.closest('a.sgx-nav-tile'));
-        if (!a) return;
-        if (e.defaultPrevented || /** @type {MouseEvent} */ (e).button !== 0 || /** @type {MouseEvent} */ (e).metaKey || /** @type {MouseEvent} */ (e).ctrlKey || /** @type {MouseEvent} */ (e).shiftKey || /** @type {MouseEvent} */ (e).altKey) return;
-        e.preventDefault();
-        /* 已经在这个站的首页：只关面板；在本站子页点本站 = 回本站首页 */
-        if (a.getAttribute('aria-current') === 'page' && a.pathname === location.pathname) ms.close();
-        else {
-          const href = a.href;
-          ms.close(function () { navigate(href); });
-        }
-      });
-    }
-  }
+  const P = o.prefs;
+  const pageLang = doc.documentElement.lang || 'en';
 
-  /* ---------------- 快捷面板 ---------------- */
-  let qp = null;
-  let paint = function () {};
-  if (qpBtn && qpDlg) {
-    const P = o.prefs;
-    const pageLang = doc.documentElement.lang || 'en';
+  /* ---------------- NAVIGATE ---------------- */
+  let nav = null;
+  let paintNav = function () {};
+  if (navBtn && navDlg) {
     /** @param {string} id */
-    const tile = function (id) { return /** @type {HTMLElement|null} */ (qpDlg.querySelector('[data-qp="' + id + '"]')); };
-    const langBtn = tile('lang');
-    const langOpts = /** @type {HTMLElement|null} */ (qpDlg.querySelector('#sgx-qp-lang-opts'));
-    const langVal = /** @type {HTMLElement|null} */ (qpDlg.querySelector('[data-qp-lang-val]'));
-    const lockTile = tile('lock');
-    const lockState = /** @type {HTMLElement|null} */ (qpDlg.querySelector('[data-qp-lock-state]'));
+    const ctl = function (id) { return /** @type {HTMLElement|null} */ (navDlg.querySelector('[data-qp="' + id + '"]')); };
+    const langSeg = /** @type {HTMLElement|null} */ (navDlg.querySelector('[data-qp-langs]'));
+    const lockBtn = ctl('lock');
+    const lockState = /** @type {HTMLElement|null} */ (navDlg.querySelector('[data-qp-lock-state]'));
+    const lockLabel = lockState ? lockState.textContent : '';
     let lockArmed = 0;
     const disarm = function () {
       if (lockArmed) { clearTimeout(lockArmed); lockArmed = 0; }
-      if (lockTile) lockTile.removeAttribute('data-armed');
-      if (lockState) lockState.textContent = t.lockBack;
+      if (lockBtn) lockBtn.removeAttribute('data-armed');
+      if (lockState) lockState.textContent = lockLabel;
     };
-    /** 语言偏好：快捷面板里列出的某种语言（hugo.yaml languages）；其他（'' / system / 没传 langPref 时的未知）= 跟随系统 */
-    /** @param {string} v */
-    const langOpt = function (v) {
-      return v && v !== 'system' ? qpDlg.querySelector('[data-qp-lang="' + String(v).replace(/[^a-z-]/gi, '') + '"]') : null;
+    /** 语言分段上列出的语言（hugo.yaml languages） @returns {string[]} */
+    const langCodes = function () {
+      return Array.prototype.map.call(navDlg.querySelectorAll('[data-qp-lang]'), function (/** @type {Element} */ x) { return x.getAttribute('data-qp-lang') || ''; }).filter(Boolean);
     };
-    const langPref = function () {
+    /** 当前语言偏好落到哪一段：明确的某种语言 = 那一段；跟随系统 / 没存 = 按浏览器语言算出的那种（resolveLang） */
+    const langShown = function () {
       const v = P.langPref ? P.langPref() : pageLang;
-      return langOpt(v) ? v : 'system';
+      return resolveLang(v, (typeof navigator !== 'undefined' && navigator.language) || '', langCodes());
     };
-    /** @param {boolean} open */
-    const setLangOpen = function (open) {
-      if (!langBtn || !langOpts) return;
-      langBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      langOpts.hidden = !open;
-    };
-    /** @param {string} id @param {boolean} on */
-    const paintToggle = function (id, on) {
-      const el = tile(id);
-      if (!el) return;
-      el.setAttribute('aria-pressed', on ? 'true' : 'false');
-      const st = el.querySelector('[data-qp-state]');
-      if (st) st.textContent = on ? t.on : t.off;
-    };
-    paint = function () {
-      paintToggle('dark', P.isDark());
-      paintToggle('system', P.themeMode() === 'system');
-      const p = P.palette();
-      qpDlg.querySelectorAll('[data-qp-palette]').forEach(function (b) {
-        b.setAttribute('aria-pressed', b.getAttribute('data-qp-palette') === p ? 'true' : 'false');
-      });
-      const rs = qpDlg.querySelector('[data-qp-reset]');
-      if (rs) rs.setAttribute('aria-disabled', p === P.DEFAULT_PALETTE && !P.hasAccent() ? 'true' : 'false');
-      /* 布局：手机 / 自动 / 桌面（P4-3 PR-4b）；旧偏好 mobile / dex 按 phone / desktop 亮。三档任何时候都能选（不再按视口置灰） */
+    paintNav = function () {
+      /* 布局：Auto / Mobile / DeX（值 auto / phone / desktop）；旧偏好 mobile / dex 按 phone / desktop 亮 */
       const lp = P.layoutPref ? P.layoutPref() : 'auto';
       const v = lp === 'mobile' ? 'phone' : lp === 'dex' ? 'desktop' : lp;
-      /* 「自动」上写出自动此刻会给什么：「自动 · 桌面」/「自动 · 手机」（共享外壳 layout-mode.js __sgxLayoutAuto；没有就看 <html data-sgx-layout>） */
-      const w = /** @type {any} */ (window);
-      const autoRes = typeof w.__sgxLayoutAuto === 'function' ? w.__sgxLayoutAuto() : doc.documentElement.getAttribute('data-sgx-layout');
-      qpDlg.querySelectorAll('[data-qp-seg="layout"] button').forEach(function (b) {
-        const bv = b.getAttribute('data-v');
-        b.setAttribute('aria-pressed', bv === v ? 'true' : 'false');
-        if (bv === 'auto') b.textContent = t.auto + ' · ' + (autoRes === 'phone' ? t.phone : t.desktop);
+      navDlg.querySelectorAll('[data-qp-seg="layout"] button').forEach(function (b) {
+        b.setAttribute('aria-pressed', b.getAttribute('data-v') === v ? 'true' : 'false');
       });
-      const lv = langPref();
-      /* 语言名用选项上它自己的写法（模板来自 hugo.yaml languageName，不翻译） */
-      const lo = langOpt(lv);
-      if (langVal) langVal.textContent = lv === 'system' ? t.sys : (lo && lo.textContent ? lo.textContent.trim() : lv);
-      qpDlg.querySelectorAll('[data-qp-lang]').forEach(function (b) {
+      const lv = langShown();
+      navDlg.querySelectorAll('[data-qp-lang]').forEach(function (b) {
         b.setAttribute('aria-checked', b.getAttribute('data-qp-lang') === lv ? 'true' : 'false');
-        b.setAttribute('tabindex', b.getAttribute('data-qp-lang') === lv ? '0' : '-1');
       });
     };
-
     /** 子站默认的立即锁定：POST /api/lock-now（同源网关清会话）→ 锁屏 */
     const lockNow = function () {
       const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
@@ -322,52 +270,120 @@ export function mountTopbar(o) {
         else if (lockState) lockState.textContent = t.lockFail;
       }, function () { if (lockState) lockState.textContent = t.lockFail; });
     };
-
-    qp = wire(qpBtn, qpDlg, 'sgxQp', function () {
-      setLangOpen(false);
-      disarm();
-      paint();
-    });
-    if (qp) {
-      const ms = qp.ms;
-      const shareTile = tile('share');
-      if (shareTile && o.share) o.share({ button: shareTile });
-      /** 选了一种语言偏好：保存；实际语言和本页不同就关面板去另一种语言的同一页 @param {string} v */
+    nav = wire(navBtn, navDlg, 'sgxNav', function () { disarm(); paintNav(); });
+    if (nav) {
+      const ms = nav.ms;
+      const shareBtn = ctl('share');
+      if (shareBtn && o.share) o.share({ button: shareBtn });
+      /** 选了一种语言：保存；实际语言和本页不同就关面板去另一种语言的同一页 @param {string} v */
       const pickLang = function (v) {
         const url = P.setLang(/** @type {any} */ (v)) || '';
-        setLangOpen(false);
-        paint();
-        const target = resolveLang(v, (typeof navigator !== 'undefined' && navigator.language) || '', Array.prototype.map.call(qpDlg.querySelectorAll('[data-qp-lang]'), function (/** @type {Element} */ x) { return x.getAttribute('data-qp-lang') || ''; }).filter(function (/** @type {string} */ c) { return c && c !== 'system'; }));
+        paintNav();
         const here = location.pathname + location.search + location.hash;
-        const go = url ? (url !== here ? url : '') : target !== pageLang ? (langBtn && langBtn.getAttribute('data-href')) || '' : '';
+        const go = url ? (url !== here ? url : '') : v !== pageLang ? (langSeg && langSeg.getAttribute('data-href')) || '' : '';
         if (go) ms.close(function () { replace(go); });
-        else if (langBtn) { try { langBtn.focus(); } catch (e) {} }
       };
+      navDlg.addEventListener('click', function (e) {
+        const tg = /** @type {Element|null} */ (e.target);
+        if (!tg) return;
+        const a = /** @type {HTMLAnchorElement|null} */ (tg.closest('a.sgx-nav-tile'));
+        if (a) {
+          if (e.defaultPrevented || /** @type {MouseEvent} */ (e).button !== 0 || /** @type {MouseEvent} */ (e).metaKey || /** @type {MouseEvent} */ (e).ctrlKey || /** @type {MouseEvent} */ (e).shiftKey || /** @type {MouseEvent} */ (e).altKey) return;
+          e.preventDefault();
+          /* 已经在这一项那一页：只关面板；其余关完再跳 */
+          if (a.getAttribute('aria-current') === 'page' && a.pathname === location.pathname) ms.close();
+          else {
+            const href = a.href;
+            ms.close(function () { navigate(href); });
+          }
+          return;
+        }
+        if (tg.closest('[data-nav-close]')) { ms.close(); return; }
+        const opt = /** @type {HTMLElement|null} */ (tg.closest('[data-qp-lang]'));
+        if (opt) { disarm(); pickLang(opt.getAttribute('data-qp-lang') || 'system'); return; }
+        const c = /** @type {HTMLElement|null} */ (tg.closest('[data-qp]'));
+        if (c) {
+          const id = c.getAttribute('data-qp');
+          if (id === 'share') return; /* share.js 自己接这一下 */
+          if (id === 'lock') {
+            if (o.onLock) { ms.close(o.onLock); return; }
+            if (lockArmed) { disarm(); ms.close(lockNow); return; }
+            if (lockBtn) lockBtn.setAttribute('data-armed', '');
+            if (lockState) lockState.textContent = t.lockArm;
+            lockArmed = window.setTimeout(disarm, LOCK_ARM_MS);
+          }
+          return;
+        }
+        const sb = /** @type {HTMLButtonElement|null} */ (tg.closest('[data-qp-seg="layout"] button'));
+        if (sb && !sb.disabled) {
+          disarm();
+          if (P.setLayout) P.setLayout(sb.getAttribute('data-v') || '');
+          /* 手机屏切进 / 切出「DeX」：共享外壳 layout-mode.js 把 viewport 换成 980 宽（或还原）。
+             2026-11-07 Gray 真机：以前一律整页重载，三星浏览器 / X 应用内浏览器都白闪一下。现在先原地生效（viewportInPlace），
+             新视口真的没生效（宽度没变 / 停在放大的比例上）才退回整页重载：先关面板（退掉历史哨兵，返回键不多一步），再重载 */
+          const vw = /** @type {any} */ (window).__sgxViewportSync;
+          if (typeof vw === 'function' && vw()) {
+            viewportInPlace(function (ok) {
+              if (ok) {
+                relayout();
+                paintNav();
+                return;
+              }
+              /* 重载兜底：把此刻页面底色交给下一页首帧（layout-mode.js __sgxFirstPaint 读 sessionStorage sgx-fp-bg），不露浏览器白底 */
+              try { sessionStorage.setItem('sgx-fp-bg', getComputedStyle(doc.documentElement).backgroundColor); } catch (e) {}
+              const go = o.reload || function () { location.reload(); };
+              if (nav && nav.ms.isOpen()) nav.ms.close(go);
+              else go();
+            });
+            return;
+          }
+          paintNav();
+        }
+      });
+      /* 语言分段：← → 在选项间移动焦点（不立即保存） */
+      if (langSeg) {
+        langSeg.addEventListener('keydown', function (e) {
+          const opts = /** @type {HTMLElement[]} */ (Array.from(langSeg.querySelectorAll('[data-qp-lang]')));
+          const i = opts.indexOf(/** @type {HTMLElement} */ (doc.activeElement));
+          let n = -1;
+          if (e.key === 'ArrowDown' || e.key === 'ArrowRight') n = (i + 1) % opts.length;
+          else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') n = (i - 1 + opts.length) % opts.length;
+          if (n < 0) return;
+          e.preventDefault();
+          opts[n].focus();
+        });
+      }
+    }
+  }
+
+  /* ---------------- 外观（MODE / PALETTE） ---------------- */
+  let qp = null;
+  let paint = function () {};
+  if (qpBtn && qpDlg) {
+    paint = function () {
+      const m = P.themeMode();
+      const mode = m === 'dark' || m === 'light' ? m : 'system';
+      qpDlg.querySelectorAll('[data-qp-mode]').forEach(function (b) {
+        b.setAttribute('aria-pressed', b.getAttribute('data-qp-mode') === mode ? 'true' : 'false');
+      });
+      const p = P.palette();
+      qpDlg.querySelectorAll('[data-qp-palette]').forEach(function (b) {
+        b.setAttribute('aria-pressed', b.getAttribute('data-qp-palette') === p ? 'true' : 'false');
+      });
+      const rs = qpDlg.querySelector('[data-qp-reset]');
+      if (rs) rs.setAttribute('aria-disabled', p === P.DEFAULT_PALETTE && !P.hasAccent() ? 'true' : 'false');
+    };
+    qp = wire(qpBtn, qpDlg, 'sgxQp', function () { paint(); });
+    if (qp) {
       qpDlg.addEventListener('click', function (e) {
         const tg = /** @type {Element|null} */ (e.target);
         if (!tg) return;
-        const opt = /** @type {HTMLElement|null} */ (tg.closest('[data-qp-lang]'));
-        if (opt) { pickLang(opt.getAttribute('data-qp-lang') || 'system'); return; }
-        const tl = /** @type {HTMLElement|null} */ (tg.closest('[data-qp]'));
-        if (tl) {
-          const id = tl.getAttribute('data-qp');
-          if (id === 'share') return; /* share.js 自己接这一下 */
-          if (id !== 'lock') disarm();
-          if (id === 'dark') P.setTheme(P.isDark() ? 'light' : 'dark');
-          else if (id === 'system') P.toggleFollowSystem();
-          else if (id === 'lang') { setLangOpen(!!(langOpts && langOpts.hidden)); return; }
-          else if (id === 'lock') {
-            if (o.onLock) { ms.close(o.onLock); return; }
-            if (lockArmed) { disarm(); ms.close(lockNow); return; }
-            if (lockTile) lockTile.setAttribute('data-armed', '');
-            if (lockState) lockState.textContent = t.lockArm;
-            lockArmed = window.setTimeout(disarm, LOCK_ARM_MS);
-            return;
-          }
+        const mb = tg.closest('[data-qp-mode]');
+        if (mb) {
+          P.setTheme(/** @type {any} */ (mb.getAttribute('data-qp-mode') || 'system'));
           paint();
           return;
         }
-        disarm();
         const rs = tg.closest('[data-qp-reset]');
         if (rs) {
           if (rs.getAttribute('aria-disabled') !== 'true') P.setPalette(P.DEFAULT_PALETTE);
@@ -378,64 +394,21 @@ export function mountTopbar(o) {
         if (sw) {
           P.setPalette(sw.getAttribute('data-qp-palette') || P.DEFAULT_PALETTE);
           paint();
-          return;
-        }
-        const sb = /** @type {HTMLButtonElement|null} */ (tg.closest('[data-qp-seg] button'));
-        if (sb && !sb.disabled) {
-          if (P.setLayout) P.setLayout(sb.getAttribute('data-v') || '');
-          /* 手机屏切进 / 切出「桌面」：共享外壳 layout-mode.js 把 viewport 换成 980 宽（或还原）。
-             2026-11-07 Gray 真机：以前一律整页重载，三星浏览器 / X 应用内浏览器都白闪一下。现在先原地生效（viewportInPlace），
-             新视口真的没生效（宽度没变 / 停在放大的比例上）才退回整页重载：先关面板（退掉历史哨兵，返回键不多一步），再重载 */
-          const vw = /** @type {any} */ (window).__sgxViewportSync;
-          if (typeof vw === 'function' && vw()) {
-            viewportInPlace(function (ok) {
-              if (ok) {
-                relayout();
-                paint();
-                return;
-              }
-              /* 重载兜底：把此刻页面底色交给下一页首帧（layout-mode.js __sgxFirstPaint 读 sessionStorage sgx-fp-bg），不露浏览器白底 */
-              try { sessionStorage.setItem('sgx-fp-bg', getComputedStyle(doc.documentElement).backgroundColor); } catch (e) {}
-              const go = o.reload || function () { location.reload(); };
-              if (qp && qp.ms.isOpen()) qp.ms.close(go);
-              else go();
-            });
-            return;
-          }
-          paint();
         }
       });
-      /* 语言单选：↑ ↓ ← → 在选项间移动（不立即保存），Esc 收起回到语言行 */
-      if (langOpts) {
-        langOpts.addEventListener('keydown', function (e) {
-          const opts = /** @type {HTMLElement[]} */ (Array.from(langOpts.querySelectorAll('[data-qp-lang]')));
-          const i = opts.indexOf(/** @type {HTMLElement} */ (doc.activeElement));
-          let n = -1;
-          if (e.key === 'ArrowDown' || e.key === 'ArrowRight') n = (i + 1) % opts.length;
-          else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') n = (i - 1 + opts.length) % opts.length;
-          else if (e.key === 'Escape') {
-            e.preventDefault();
-            e.stopPropagation();
-            setLangOpen(false);
-            if (langBtn) langBtn.focus();
-            return;
-          }
-          if (n < 0) return;
-          e.preventDefault();
-          opts[n].focus();
-        });
-      }
-      const repaint = function () { if (ms.isOpen()) paint(); };
-      if (o.subscribe) o.subscribe(repaint);
-      window.addEventListener('sgx-theme-changed', repaint);
-      /* 拖窗口 / 分屏 / 转屏后布局重算（layout-mode.js __sgxLayoutWatch 发 sgx-layout-change）：「自动 · …」跟着变 */
-      window.addEventListener('sgx-layout-change', repaint);
-      try {
-        const mq = window.matchMedia('(prefers-color-scheme: dark)');
-        (mq.addEventListener || mq.addListener).call(mq, 'change', function () { window.setTimeout(repaint, 0); });
-      } catch (e) {}
     }
   }
+  const repaint = function () {
+    if (qp && qp.ms.isOpen()) paint();
+    if (nav && nav.ms.isOpen()) paintNav();
+  };
+  if (o.subscribe) o.subscribe(repaint);
+  window.addEventListener('sgx-theme-changed', repaint);
+  window.addEventListener('sgx-layout-change', repaint);
+  try {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    (mq.addEventListener || mq.addListener).call(mq, 'change', function () { window.setTimeout(repaint, 0); });
+  } catch (e) {}
 
   /* ---------------- AI 窗口 ---------------- */
   let ai = null;
@@ -448,5 +421,65 @@ export function mountTopbar(o) {
     });
   }
 
-  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, paint: paint };
+  mountProgress(doc);
+  mountClock(doc);
+  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, paint: paint, paintNav: paintNav };
+}
+
+/**
+ * 滑页进度条（顶栏 v3 prog-v1）：已滚比例 → .sgx-tb-prog 的 --sgx-prog（0–100%）；页面不够长 / 在顶上 = data-empty（不显示）。
+ * 滚动 / 尺寸变化时按帧合并写一次；不支持的环境什么也不做。
+ * @param {Document} [d]
+ * @returns {(() => void) | null} 立刻重算一次（测试 / 内容变长后用）
+ */
+export function mountProgress(d) {
+  const doc = d || document;
+  const bar = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-prog'));
+  if (!bar) return null;
+  let queued = false;
+  const calc = function () {
+    queued = false;
+    const se = doc.scrollingElement || doc.documentElement;
+    const max = Math.max(0, se.scrollHeight - window.innerHeight);
+    const y = window.scrollY || se.scrollTop || 0;
+    const p = max > 0 ? Math.min(100, Math.max(0, (y / max) * 100)) : 0;
+    bar.style.setProperty('--sgx-prog', p.toFixed(2) + '%');
+    if (p > 0) bar.removeAttribute('data-empty');
+    else bar.setAttribute('data-empty', '');
+  };
+  const queue = function () {
+    if (queued) return;
+    queued = true;
+    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(calc);
+    else window.setTimeout(calc, 16);
+  };
+  window.addEventListener('scroll', queue, { passive: true });
+  window.addEventListener('resize', queue, { passive: true });
+  calc();
+  return calc;
+}
+
+/**
+ * tmux 页脚的 CST 时钟（[data-sgx-clock]）：北京时间 HH:MM，每 30 秒写一次；页面藏起来时不跑，回来立刻补一次。
+ * @param {Document} [d]
+ * @returns {(() => void) | null}
+ */
+export function mountClock(d) {
+  const doc = d || document;
+  const els = Array.from(doc.querySelectorAll('[data-sgx-clock]'));
+  if (!els.length) return null;
+  const tick = function () {
+    let s = '';
+    try {
+      s = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+    } catch (e) {
+      const t = new Date(Date.now() + 8 * 3600 * 1000);
+      s = ('0' + t.getUTCHours()).slice(-2) + ':' + ('0' + t.getUTCMinutes()).slice(-2);
+    }
+    els.forEach(function (el) { if (el.textContent !== s) el.textContent = s; });
+  };
+  tick();
+  window.setInterval(function () { if (!doc.hidden) tick(); }, 30000);
+  doc.addEventListener('visibilitychange', function () { if (!doc.hidden) tick(); });
+  return tick;
 }

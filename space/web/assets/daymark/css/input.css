@@ -132,7 +132,7 @@ html, body {
 
 /* ---- 主站一比一：正文顶部偏移（主站 tokens 层 --nav-h / --sgx-content-top：顶栏下沿 + 16px + 安全区；手机 84px，≥ 840 宽 88px） ---- */
 :root {
-  --nav-h: calc(var(--sgx-tb-inset) + var(--sgx-tb-btn));
+  --nav-h: var(--sgx-tb-h);
   --sgx-content-gap: 16px;
   --sgx-content-top: calc(var(--nav-h) + var(--sgx-content-gap) + env(safe-area-inset-top, 0px));
 }

@@ -176,7 +176,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ $center := printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
 {{ $shellNav := index site.Data "shell-nav" }}
 {{ $tbIcons := dict }}
-{{ range (slice "tb-grid" "tb-sliders" "tb-chat" "tb-moon" "sun" "tb-globe" "lock" "tb-undo" "share" "tb-send" "tb-newchat" "tb-history") }}{{ $tbIcons = merge $tbIcons (dict . (partial "icon.html" .)) }}{{ end }}
+{{ range (slice "tb-palette" "tb-shield" "tb-term" "tb-chat" "lock" "tb-undo" "share" "tb-send" "tb-newchat" "tb-history") }}{{ $tbIcons = merge $tbIcons (dict . (partial "icon.html" .)) }}{{ end }}
 {{ range $shellNav.items }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "icon.html" .icon)) }}{{ end }}
 {{ range $shellNav.footer }}{{ $tbIcons = merge $tbIcons (dict .icon (partial "icon.html" .icon)) }}{{ end }}
 {{ $tbPal := slice }}
@@ -184,7 +184,11 @@ __sgxLayoutWatch(__applyLayout);
 {{/* 字符串表（语言包化）：当前页面语言叠在英文上；语言选择器选项来自 hugo.yaml languages（label = 语言自己的名字） */}}
 {{ $pageLang := partial "sgx-page-lang.html" . }}
 {{/* 选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight）：快捷面板沿用「跟随系统 / 中文 / English」，和 features.yaml lang 选项同序；hugo.Sites 总是默认语言（英文）在前，不能直接用 */}}
-{{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end }}{{ $tbLangs = sort $tbLangs "w" }}
+{{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label "short" .Language.Params.pickerShort "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end }}{{ $tbLangs = sort $tbLangs "w" }}
+{{/* 顶栏 v3（2026-11 UI 重设计 PR-1）：NAVIGATE / 页脚的「当前」项：首页 = 01 主页；旷野分类子页（关于 / 风格 / 数字健康 / 服务状态）= 05 旷野；其余（账号、安全）没有当前项 */}}
+{{ $navSite := "" }}{{ if .IsHome }}{{ $navSite = "home" }}{{ else if eq .Layout "sub" }}{{ $navSite = "wild" }}{{ end }}
+{{ $otherLang := cond (eq $pageLang "en") "zh" "en" }}
+{{ $otherLangHref := partial "sgx-lang-path.html" (dict "path" .RelPermalink "lang" $otherLang) }}
 {{ partial "shell-topbar.html" (dict
   "lang" $pageLang
   "tr" (partialCached "sgx-tr.html" $pageLang $pageLang).shell
@@ -192,10 +196,13 @@ __sgxLayoutWatch(__applyLayout);
   "home" (partial "sgx-lang-path.html" (dict "path" "/" "lang" $pageLang))
   "center" $center
   "nav" $shellNav
-  "site" "home"
+  "site" $navSite
   "icons" $tbIcons
   "wordmark" (partial "shell-wordmark.html" .)
   "acct" $acctUrl
+  "security" (partial "sgx-lang-path.html" (dict "path" "/security/" "lang" $pageLang))
+  "status" (partial "sgx-lang-path.html" (dict "path" "/status/" "lang" $pageLang))
+  "langHref" $otherLangHref
   "avatar" "/avatar/192.webp"
   "email" site.Data.profile.email
   "pal" $tbPal
@@ -223,15 +230,20 @@ __sgxLayoutWatch(__applyLayout);
 
 <main id="sgx-main">
 {{ block "main" . }}{{ end }}</main>
-{{/* 2026-10-22：版权页脚只在「旷野 › 关于本站」显示，紧跟卡片；其他页不再显示 */}}
-{{ if eq .Params.cat "about" }}
-<footer class="relative z-10 mt-4 sgx-about-foot">
-  <div class="max-w-[1100px] mx-auto px-6 py-8 text-center">
-    <p class="text-xs text-m-on-surface-variant">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> <span translate="no" data-sgx-personal data-sgx-profile="name">{{ site.Data.profile.name }}</span></p>
-    <script>document.getElementById('copy-year').textContent=new Date().getFullYear();</script>
-  </div>
-</footer>
-{{ end }}
+{{/* tmux 页脚（2026-11 UI 重设计 PR-1，四站同一个 partials/sgx-footer.html；取代 2026-10-22 起只在「关于本站」显示的版权页脚） */}}
+{{ partial "sgx-footer.html" (dict
+  "tr" (partialCached "sgx-tr.html" $pageLang $pageLang).shell
+  "lang" $pageLang
+  "langs" $tbLangs
+  "here" .RelPermalink
+  "langHref" $otherLangHref
+  "nav" $shellNav
+  "site" $navSite
+  "name" site.Data.profile.name
+  "year" now.Year
+  "email" site.Data.profile.email
+  "rss" (partial "sgx-lang-path.html" (dict "path" "/blog/rss.xml" "lang" $pageLang))
+) }}
 
 <!-- 上下边缘柔和模糊渐隐 -->
 <div id="edge-top" aria-hidden="true"></div>
