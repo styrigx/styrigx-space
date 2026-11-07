@@ -115,15 +115,15 @@ test('迁移：wb_daily 在账号库；网关的迁移目录不再建它', async
   assert.equal(readdirSync(REPO + 'workers/auth-gateway/migrations').some((f) => /wellbeing/.test(f)), false);
 });
 
-test('路由表：/api/account + 三个账号数据接口（与网关转发表 /api/* 条目一一对应）', async () => {
-  assert.deepEqual([...API_ROUTES.keys()].sort(), ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']);
+test('路由表：/api/account + 四个账号数据接口（含个人资料 /api/profile，2026-11-07；与网关转发表 /api/* 条目一一对应）', async () => {
+  assert.deepEqual([...API_ROUTES.keys()].sort(), ['/api/account', '/api/avatar', '/api/prefs', '/api/profile', '/api/wellbeing']);
   const { FORWARDING } = await import(REPO + 'workers/auth-gateway/src/router.js');
   assert.deepEqual(FORWARDING.filter((r) => r.path.startsWith('/api/')).map((r) => r.path).sort(), [...API_ROUTES.keys()].sort());
 });
 
 test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-store；头像文件公开；不认识的头像尺寸 → 404', async () => {
   const { env } = setup();
-  for (const [m, p] of [['GET', '/api/wellbeing'], ['POST', '/api/wellbeing'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['DELETE', '/api/avatar'], ['GET', '/api/prefs/x']]) {
+  for (const [m, p] of [['GET', '/api/wellbeing'], ['POST', '/api/wellbeing'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['DELETE', '/api/avatar'], ['GET', '/api/prefs/x'], ['GET', '/api/profile'], ['PUT', '/api/profile']]) {
     const r = await call(new Request('https://styrigx.com' + p, { method: m, headers: { Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{}' }), env);
     assert.equal(r.status, 401, m + ' ' + p);
     assert.equal(r.headers.get('Cache-Control'), 'private, no-store');

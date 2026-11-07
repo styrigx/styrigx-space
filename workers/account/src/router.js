@@ -5,6 +5,7 @@
  * - 账号身份：POST / GET /api/account（api/account.js：账号密码、账号 Passkey、设备、账号会话 / reauth / reset、
  *   账号根密钥 SGX_ACCOUNT_ROOT_KEY、账号审计）
  * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（进门 + 账号会话 + avatar.write）→ KV_PROFILE
+ * - 个人资料（2026-11-07）：GET /api/profile（进门即可）、PUT /api/profile（进门 + 账号会话 + profile.write）→ KV_PROFILE 的 profile 键
  * - 设置云同步：GET / POST /api/prefs（进门 + 账号会话 + prefs.sync）→ D1_SETTINGS_SYNC
  * - 数字健康：POST /api/wellbeing（账号会话 + wellbeing.write 才记）/ GET（进门；明细只给账号会话）→ D1_WELLBEING
  *
@@ -18,6 +19,7 @@ import { apiError } from './lib/http.js';
 import * as avatar from './api/avatar.js';
 import * as avatarFile from './api/avatar-file.js';
 import * as prefs from './api/prefs.js';
+import * as profile from './api/profile.js';
 import * as wellbeing from './api/wellbeing.js';
 import * as account from './api/account.js';
 
@@ -27,6 +29,7 @@ export const API_ROUTES = new Map([
   ['/api/account', account],
   ['/api/avatar', avatar],
   ['/api/prefs', prefs],
+  ['/api/profile', profile],
   ['/api/wellbeing', wellbeing],
 ]);
 

@@ -13,7 +13,7 @@
  */
 
 /** 骨架阶段账号会话拥有的全部作用域（与 workers/account/src/core/scopes.js 一致，按字母排序） */
-export const ALL_SCOPES = Object.freeze(['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'wellbeing.write']);
+export const ALL_SCOPES = Object.freeze(['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'profile.write', 'wellbeing.write']);
 
 /**
  * @param {string|null|undefined} who

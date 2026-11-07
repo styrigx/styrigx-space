@@ -45,7 +45,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 ### L2 系统调用：`workers/auth-gateway/src/api/*`（路由表 `src/router.js`）
 - 解锁：`lock-password`、`lock-passkey`（进门会话）、`lock-tempkey-unlock`（临时码 → 临时钥匙进门的会话，by=tempkey）。
 - 查询：`lock-session-check`、`lock-credentials`、`lock-entry`（锁屏上显示哪些入口，无需会话）、`space-audit`（进站凭证使用记录）。`layer-status` 已删除（PR3，前端无调用方）。
-- 账号：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*` 不在这一层：网关 `src/gate.js` 验门后经服务绑定 `ACCOUNT` 转给账号 Worker（转发表 `src/router.js` 的 `FORWARDING`，见下面「账号会话」）。
+- 账号：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/api/profile*`、`/avatar/*` 不在这一层：网关 `src/gate.js` 验门后经服务绑定 `ACCOUNT` 转给账号 Worker（转发表 `src/router.js` 的 `FORWARDING`，见下面「账号会话」）。
 - 锁屏凭证页的再验证：`lock-reauth`（LockReauthTicket 状态 / 清票）；由 `lock-passkey`/`lock-password`（`reauth:true`）或 `space-auth`（`purpose:'lock-reauth'`）签 3 分钟 LockReauthTicket `sgx-lock-reauth`（SGX_LOCK_* 签）。
 - 进站凭证（`SGX_LOCK_SPACE_KEY`）：`space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`，各签一张 3 分钟锁屏短票（by=space），不签任何会话；`space-audit` 只读进站凭证使用记录。账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 在账号 Worker（`POST /api/account { action:'root-reauth' | 'root-reset' }`），两套互不相干、各自计数。
 - 重置与临时钥匙：`lock-reset`（丢了锁屏凭证：先交进站凭证，再按重置开关或锁屏凭证（`needLock` / `lockProof`）签 LockResetTicket；不读账号的任何东西）、`lock-tempkey`（旷野 → 安全 → 临时钥匙页 `/security/tempkeys/`的列表 / 新建 / 作废；只认锁屏进门会话，不问账号会话）。
@@ -174,7 +174,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 授权是权限管控，与设备 / 浏览器无关：账号级、一个应用一行，存在账号库 D1 `styrigx-account` 的 `app_grant`（`workers/account/migrations/0004_app_grant.sql`，设计方案 2.5）。取消就删掉这一行，所有设备上这个应用立即失去这项权限；账号会话本身不受影响。
 
 - 判断：`workers/account/src/core/authz.js grantedScopes` 读 `app_grant`（`core/app-grant.js`），返回 已授权 ∩ 作用域表；还没有种子标记时保持骨架行为（全部）。每次授权请求读一次 D1 主库（授权记录 + 账号纪元 + 设备黑名单），不缓存；`authorize` 只读不写。网关、下游和结论头都不变（取消后的写请求 403 scope、wellbeing 上报 204 丢弃，P2-2 已落地的写法）。
-- 首次切换：表空且 `data_migration` 没有 `app-grant-seed-1` 时同一个 batch 写满 5 个应用 + 标记；之后取消到 0 行不再种。
+- 首次切换：表空且 `data_migration` 没有 `app-grant-seed-1` 时同一个 batch 写满全部应用 + 标记；之后取消到 0 行不再种。首次切换之后新增的应用按版本号补种（`SEED_SUPPLEMENTS`：`app-grant-seed-2` 补「个人资料」，2026-11-07），补种前那批应用按已授权算。
 - 管理：授权卡页 `/account/apps/`（账号总览「设备」「账号安全」同卡一行进入），`POST /api/account` `grant-list` / `grant-revoke`（不要复验）/ `grant-add`（要账号复验）。
 - 同意流程（OAuth 式，奇趣 / 日刻）：应用内点登录 → `/account/?return=<原页面>` → 登录完成后 `grant-list`（先种子再查记录）→ 有授权直接回原页面；没有 → 同意卡片 →「授权」`grant-add` /「拒绝」不写记录，都回原页面。刚完成的登录即视为已复验（登录带 reauth:true，Gray 2026-11-06 定 A）。回原页面走现有的网关回跳（`/api/lock-session-check?return=` 的 `next`，`workers/auth-gateway/src/core/return.js safeReturn`）。主站内功能（设置同步、数字健康、头像）只走管理页。
 
@@ -185,6 +185,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 | `prefs.sync` | 设置同步 | `/api/prefs` 403 scope，云同步只存本机 |
 | `wellbeing.write` | 数字健康 | `POST /api/wellbeing` 204 丢弃 |
 | `avatar.write` | 头像 | `PUT` / `DELETE /api/avatar` 403 scope |
+| `profile.write` | 个人资料（2026-11-07） | `PUT /api/profile` 403 scope；首次切换之后新增，按 `app-grant-seed-2` 补种 |
 
 ## 锁定与过期
 

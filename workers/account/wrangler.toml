@@ -36,7 +36,7 @@ SGX_RP_ID = "styrigx.com"
 SGX_ORIGIN = "https://styrigx.com"
 
 # ---- 数据绑定（正式）----
-# 账号资料库 KV styrigx-account：KV_PROFILE 只放公开的头像 avatar:*。
+# 账号资料库 KV styrigx-account：KV_PROFILE 只放公开数据——头像 avatar:* 和个人资料 profile（JSON，2026-11-07）。
 # 2026-10-28 起云同步不在 KV 了（KV_SETTINGS_SYNC 绑定已删，见下面 D1_SETTINGS_SYNC）；旧键 account-prefs 已导入 D1，
 # 2026-10-29 从 KV 删除，库里只剩 avatar:*。
 [[kv_namespaces]]
@@ -106,7 +106,7 @@ routes = []
 [env.preview.vars]
 SGX_ENV = "preview"
 
-# 预览 KV = styrigx-test-preview（测试专用 namespace，所有 Worker 的预览共用）：KV_PROFILE 只放公开的头像 avatar:*（云同步不在 KV，见下面的预览 D1）。
+# 预览 KV = styrigx-test-preview（测试专用 namespace，所有 Worker 的预览共用）：KV_PROFILE 只放公开的头像 avatar:* 和个人资料 profile（云同步不在 KV，见下面的预览 D1）。
 [[env.preview.kv_namespaces]]
 binding = "KV_PROFILE"
 id = "193b4d68b8ac4c6f8c0ba16b5ea78b14"

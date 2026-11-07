@@ -32,6 +32,7 @@
   | `prefs.sync` | 设置同步 / Settings sync | — |
   | `wellbeing.write` | 数字健康 / Digital wellbeing | — |
   | `avatar.write` | 头像 / Avatar | — |
+  | `profile.write` | 个人资料 / Profile（2026-11-07） | — |
 
 - 授权判断 `src/core/authz.js`：
   - `grantedScopes(env, accountSession)`：P3-1（第 3 件）起读授权记录 `app_grant`（`src/core/app-grant.js`）：账号会话无效 → `[]`；还没有种子标记 → 保持骨架行为（全部作用域，上线到种子写入之间写接口不 403）；有标记 → 已授权 ∩ 作用域表。签名和结论形状不变（P2-1 定的）。每次授权读一次 D1 主库，不缓存（取消后下次请求即拦截）；只读不写。
@@ -45,7 +46,7 @@
 账号级、一个应用一行（设计方案 2.5、4.1）：D1 `styrigx-account` 的 `app_grant`（`migrations/0004_app_grant.sql`；Gray 2026-11-05 书面批准，长期约束「不新增数据迁移」的例外）。
 
 - 表：`app`（应用 id = 授权卡 id）、`record`（JSON `{"v":1,"scopes":[...],"deviceId","by"}`，`deviceId` / `by` 只作审计和展示）、`granted_at`（毫秒）。取消 = DELETE；没有过期，不归设备清扫（`sweepExpired`）管。
-- 首次切换的种子（`core/app-grant.js ensureSeed`）：表空且 `data_migration` 没有 `app-grant-seed-1` → 同一个 `db.batch` 写满全部应用 + 标记（条件写在 SQL 里，并发也只种一次）；之后取消到 0 行也不再种。触发点：授权卡页 `grant-list`、登录完成后的授权检查（同意流程也走 `grant-list`）；`grant-revoke` / `grant-add` 改之前也先跑一次（同一份幂等逻辑，防止直接调它们时别的应用掉成未授权）。以后加应用：`scopes.js` 加一行，按版本号补种（`app-grant-seed-2` 只种新增的应用）。
+- 首次切换的种子（`core/app-grant.js ensureSeed`）：表空且 `data_migration` 没有 `app-grant-seed-1` → 同一个 `db.batch` 写满全部应用 + 标记（条件写在 SQL 里，并发也只种一次）；之后取消到 0 行也不再种。触发点：授权卡页 `grant-list`、登录完成后的授权检查（同意流程也走 `grant-list`）；`grant-revoke` / `grant-add` 改之前也先跑一次（同一份幂等逻辑，防止直接调它们时别的应用掉成未授权）。以后加应用：`scopes.js` 加一行，在 `SEED_SUPPLEMENTS` 按版本号补种（只种新增的应用；`app-grant-seed-2` 补「个人资料」`profile`，2026-11-07）；补种标记还没写之前，那批新应用按已授权算（`readGrantState` 的 `pending`），上线后不会先 403。
 - 接口（`/api/account`，进门 + 账号会话，不认 reset 票）：`grant-list` → `{ ok, grants:[{ app, name, scopes, sensitive, granted, grantedAt, by, device:{ name, gone }|null }] }`；`grant-revoke { app }`（不要复验）；`grant-add { app }`（要 `sgx-account-reauth`，没有 → 401 reauth）。后两个回新列表；未知应用 400 params。
 - 前端：授权卡页 `/account/apps/`（`space/web/assets/js/apps/account-apps.js`）；同意流程在账号页登录区（`apps/account.js`：应用内点登录 → `/account/?return=<原页面>` → 登录（带 reauth:true）→ `grant-list` → 有授权回原页面 / 没有弹同意卡片）。
 - 回滚：revert 后 `grantedScopes` 回到骨架版；表留着没人读；要不要 `DROP TABLE app_grant` 由 Gray 决定并在后台执行。
@@ -61,6 +62,7 @@
 | `GET` / `POST /api/account` | `api/account.js` |
 | `PUT` / `DELETE /api/avatar` | `api/avatar.js`（要进门） |
 | `GET /avatar/<32\|96\|192\|512>.webp` | `api/avatar-file.js`（公开；没上传过回 Pages 上的默认头像） |
+| `GET` / `PUT /api/profile` | `api/profile.js`（个人资料：GET 进门即可，只回可公开的字段 + 头像版本号，没改过的字段 null；PUT 进门 + 账号会话 + `profile.write`，同源，校验长度 / 单行 / 邮箱格式，存 `KV_PROFILE` 的 `profile` 键） |
 | `GET` / `POST /api/prefs` | `api/prefs.js`（设置云同步，进门 + 账号会话 + `prefs.sync`） |
 | `POST` / `GET /api/wellbeing` | `api/wellbeing.js`（数字健康；没有 `wellbeing.write` 的上报 204 丢弃） |
 
@@ -70,7 +72,7 @@
 |---|---|---|
 | D1 `styrigx-account` | `D1_ACCOUNT_AUTH` | 账号鉴权状态：epoch、password、passkey、user_handle、challenge、attempt_limit、device、audit（`realm='account'`）；应用授权记录 app_grant（P3-1，没有 realm 列） |
 | D1 `styrigx-account` | `D1_SETTINGS_SYNC`、`D1_WELLBEING` | 设置云同步 `settings_sync`、数字健康 `wb_daily`（同一个库） |
-| KV | `KV_PROFILE` | 只放公开头像 `avatar:*` |
+| KV | `KV_PROFILE` | 只放公开数据：头像 `avatar:*` + 个人资料 `profile`（姓名、昵称、签名、联系邮箱，JSON，2026-11-07） |
 
 明文变量：`SGX_ENV = "production"`、`SGX_RP_ID`、`SGX_ORIGIN`；`placement.mode = "smart"`。
 
