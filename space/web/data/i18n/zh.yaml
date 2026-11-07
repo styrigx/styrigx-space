@@ -212,6 +212,9 @@ js:
     daymarDaymark: 日刻
     daymarNoLineForToday: 今天还没有句子
     daymarTapToKeepOne: 点开日刻，记下一句
+    wbDurHr: "{n} 小时"
+    wbDurHrs: "{n} 小时"
+    wbDurMin: "{n} 分钟"
   status:
     loading: 正在加载…
     allUp: 全部正常

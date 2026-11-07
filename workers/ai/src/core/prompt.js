@@ -38,6 +38,12 @@ export function normalizeHistory(history) {
   return picked.reverse();
 }
 
+/** 上下文块的标签（按语言；加语言 = 这里和 SYSTEM 各加一项，缺的语言回退英文） */
+const CONTEXT_LABELS = {
+  en: { head: 'Site content:', none: '(No relevant site content.)', url: 'URL: ', text: 'Text: ' },
+  zh: { head: '站内内容：', none: '（站内没有相关内容。）', url: '地址：', text: '正文：' },
+};
+
 const SYSTEM = {
   zh: '你是 Styrigx 的站内助手。先看下面的「站内内容」：能回答就只按站内内容回答，不要编造。' +
     '站内某条内容讲的就是问的东西时，即使说法不同（比如问「开启锁屏」、条目叫「锁屏凭证」），也算站内有，按它回答并给出路径；回答里列了站内链接，就不准说站内没有相关内容。' +
@@ -55,17 +61,21 @@ const SYSTEM = {
     'If you used site content, end with a separate list of those links, one per line as "- Title: URL", using only URLs given in the site content.',
 };
 
+/** AI 支持的回答语言（= SYSTEM 的键，英文是默认；ask.js 用它校验请求的 lang） */
+export const AI_LANGS = Object.freeze(Object.keys(SYSTEM));
+
 /**
  * @param {Array<{title: string, subtitle?: string, url: string, text?: string}>} hits
  * @param {'zh'|'en'} lang
  */
 export function contextBlock(hits, lang) {
-  const head = lang === 'en' ? 'Site content:' : '站内内容：';
-  if (!hits.length) return head + '\n\n' + (lang === 'en' ? '(No relevant site content.)' : '（站内没有相关内容。）');
+  const L = CONTEXT_LABELS[lang] || CONTEXT_LABELS.en;
+  const head = L.head;
+  if (!hits.length) return head + '\n\n' + L.none;
   const parts = hits.map((h, i) => {
     const title = h.subtitle ? h.title + ' — ' + h.subtitle : h.title;
     const body = String(h.text || '').trim();
-    return '[' + (i + 1) + '] ' + title + '\n' + (lang === 'en' ? 'URL: ' : '地址：') + h.url + (body ? '\n' + (lang === 'en' ? 'Text: ' : '正文：') + body : '');
+    return '[' + (i + 1) + '] ' + title + '\n' + L.url + h.url + (body ? '\n' + L.text + body : '');
   });
   return head + '\n\n' + parts.join('\n\n');
 }
@@ -76,7 +86,7 @@ export function contextBlock(hits, lang) {
  */
 export function buildMessages(o) {
   /* P4-3 PR-4c：默认英文（四站默认语言），只有明确 zh 才用中文提示 */
-  const lang = o.lang === 'zh' ? 'zh' : 'en';
+  const lang = AI_LANGS.includes(o.lang) ? o.lang : 'en';
   return [
     { role: 'system', content: SYSTEM[lang] + '\n\n' + contextBlock(o.hits, lang) },
     ...normalizeHistory(o.history),

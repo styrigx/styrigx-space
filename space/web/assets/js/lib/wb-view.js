@@ -35,11 +35,9 @@ export function fmtDur(sec, en, long) {
   if (m < 1) return tx('wb1Min');
   const h = Math.floor(m / 60),
     mm = m % 60;
-  if (en) {
-    const hs = long ? (h === 1 ? ' hr' : ' hrs') : ' hr';
-    return (h ? h + hs : '') + (h && mm ? ' ' : '') + (mm || !h ? mm + ' min' : '');
-  }
-  return (h ? h + ' 小时' : '') + (h && mm ? ' ' : '') + (mm || !h ? mm + ' 分钟' : '');
+  /* 单位走字符串表 wbDurHr / wbDurHrs（long 且不是 1 小时）/ wbDurMin（语言包化 2026-11-07；参数 en 保留兼容） */
+  const hk = long && h !== 1 ? 'wbDurHrs' : 'wbDurHr';
+  return (h ? tx(hk, { n: h }) : '') + (h && mm ? ' ' : '') + (mm || !h ? tx('wbDurMin', { n: mm }) : '');
 }
 
 /** @param {string} s */

@@ -214,6 +214,9 @@ js:
     daymarDaymark: DAYMARK
     daymarNoLineForToday: No line for today yet
     daymarTapToKeepOne: Tap to keep one in Daymark
+    wbDurHr: "{n} hr"
+    wbDurHrs: "{n} hrs"
+    wbDurMin: "{n} min"
   status:
     loading: Loading…
     allUp: All systems operational

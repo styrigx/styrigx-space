@@ -527,9 +527,12 @@ test('导出：账号会话 + 同源（直接点链接时认 Sec-Fetch-Site）�
   assert.equal(r.status, 200);
   assert.match(r.headers.get('Content-Disposition'), /^attachment; filename="curio-\d{8}\.html"$/);
   const parsed = N.parseBookmarks(await r.text());
-  assert.deepEqual(parsed.items.map((i) => [i.cat, i.url]), [['工具', 'https://a.example/']]);
-  const en = N.parseBookmarks(await (await call('/curio/api/export?lang=en', { who: 'owner', db })).text());
-  assert.equal(en.items[0].cat, 'Tools');
+  /* 2026-11-07：没带 lang 按英文（四站默认语言；前端导出链接总带 ?lang=） */
+  assert.deepEqual(parsed.items.map((i) => [i.cat, i.url]), [['Tools', 'https://a.example/']]);
+  const zh = N.parseBookmarks(await (await call('/curio/api/export?lang=zh', { who: 'owner', db })).text());
+  assert.equal(zh.items[0].cat, '工具');
+  const xx = N.parseBookmarks(await (await call('/curio/api/export?lang=xx', { who: 'owner', db })).text());
+  assert.equal(xx.items[0].cat, 'Tools', '不认识的语言回退英文');
   const na = await call('/curio/api/export', { who: 'lock', db });
   assert.equal(na.status, 401);
   assert.equal((await na.json()).error, 'account');
