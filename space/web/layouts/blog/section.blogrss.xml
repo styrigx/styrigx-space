@@ -1,0 +1,11 @@
+{{- /* 合站：输出格式 blogrss（Hugo 只对名为 rss 的格式自动把正文里的 /… 链接改成绝对地址，主站的 RSS 占着这个名字），正文链接在这里照样改成 https://styrigx.com/…。
+   RSS（原 src/pages/rss.xml.js、en/rss.xml.js，@astrojs/rss 同样的结构）：/blog/rss.xml（英文）、/blog/zh/rss.xml（中文），全文输出 */ -}}
+{{- $posts := partial "blog/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) -}}
+{{- printf `<?xml version="1.0" encoding="UTF-8"?>` | safeHTML -}}
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>{{ site.Language.Params.rssTitle }}</title><description>{{ i18n "siteDescription" }}</description><link>{{ (site.GetPage "/blog").Permalink }}</link><language>{{ site.Language.Params.locale }}</language>
+{{- range $posts -}}
+<item><title>{{ .Title }}</title><link>{{ .Permalink }}</link><guid isPermaLink="true">{{ .Permalink }}</guid><description>{{ .Description }}</description><pubDate>{{ .Date.UTC.Format "Mon, 02 Jan 2006 15:04:05 GMT" }}</pubDate><content:encoded>{{ .Content | replaceRE `(src|href)=(["'])/([^/])` (printf "${1}=${2}%s${3}" site.BaseURL) | html }}</content:encoded>
+{{- range .Params.tags | uniq }}<category>{{ . }}</category>{{ end -}}
+</item>
+{{- end -}}
+</channel></rss>

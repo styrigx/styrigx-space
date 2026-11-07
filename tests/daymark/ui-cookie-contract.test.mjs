@@ -2,7 +2,7 @@
  * sgx-ui cookie 契约：主站写端（styrigx-space lib/ui-cookie.js）↔ 本站读端（共享外壳 ui-cookie-read.js，sync-shell 原样同步，baseof.html 内联）。
  * 夹具 tests/fixtures/ui-cookie-contract.json = 主站写端真实写出的 cookie + 读端期望（sync-shell 原样同步，勿手改）；
  * 这里对每个用例断言：本站内联的读端 read / resolve / apply 得到夹具里的期望（系统浅色、深色各一遍），且读端从不写 cookie。
- * 主站改了契约 → 跑 node atlas/scripts/daymark/sync-shell.mjs 同步读端和夹具，再跑本测试。
+ * 主站改了契约 → 2026-11 合站后读端和夹具都只有主站一份（没有 sync-shell），直接再跑本测试。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +11,7 @@ import { sandbox } from './ui-cookie-sandbox.mjs';
 
 const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
 const fx = JSON.parse(read('tests/fixtures/ui-cookie-contract.json'));
-const palettes = JSON.parse(read('atlas/web/daymark/assets/sgx-shell/palettes.json'));
+const palettes = JSON.parse(read('space/web/data/shell/palettes.json'));
 
 /** <html> 状态，和夹具 root 同形 */
 function rootState(html) {

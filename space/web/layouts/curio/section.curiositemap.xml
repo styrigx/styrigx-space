@@ -1,0 +1,7 @@
+{{- /* /curio/sitemap.xml（P4-3 PR-4c）：根上只有一份，列首页的中英两版（英文默认、中文 /curio/zh/）并互标 hreflang。
+中英两种语言各渲染一次但内容完全相同，谁后写都一样。 */ -}}
+{{- printf `<?xml version="1.0" encoding="utf-8" standalone="yes"?>` | safeHTML -}}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+{{- $all := (site.GetPage "/curio").AllTranslations -}}
+{{- range $all }}<url><loc>{{ .Permalink }}</loc>{{ range $all }}<xhtml:link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ .Permalink }}"/>{{ end }}</url>{{ end -}}
+</urlset>

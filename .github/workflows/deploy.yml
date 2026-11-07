@@ -66,8 +66,8 @@ jobs:
           node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs"
 
   build:
-    # 生产构建只做一次：打包 dry-run、生成物同步、分层 / 前端守卫、CSP、产物检查、搜索索引、子站构建与单测、拼树、路由检查、stylelint。
-    # 上传主站生产构建（给 e2e-lock）和单树（给 e2e-sites 与 build-and-deploy），main 另传两份搜索索引。
+    # 生产构建只做一次（2026-11 合站：主站和三个子站同一个 Hugo 站，一次构建）：打包 dry-run、生成物同步、分层 / 前端守卫、CSP、产物检查、搜索索引、子站单测、站点树检查、路由检查、stylelint。
+    # 同一份 space/web/public 上传两次：site-atlas-production（给 e2e-lock）、site-production（给 e2e-sites 与 build-and-deploy），main 另传两份搜索索引。
     # 固定 ubuntu-24.04：ubuntu-latest 换大版本时字体渲染会变，视觉基线跟着漂
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -79,7 +79,7 @@ jobs:
         # 旧名字（SGX_ED25519_* → SGX_LOCK_*，SGX_STEPUP_KEY 已删，OWNER_KEY → SGX_ROOT_KEY）不许回到代码里。
         # 不扫 tests/：改名守卫测试里会故意写旧名字。
         run: |
-          if grep -rnE "SGX_ED25519_|SGX_STEPUP_KEY|OWNER_KEY" --include="*.js" --include="*.mjs" --include="*.cjs" --include="*.html" workers/ space/scripts/ atlas/scripts/ space/web/assets/ space/web/layouts/; then
+          if grep -rnE "SGX_ED25519_|SGX_STEPUP_KEY|OWNER_KEY" --include="*.js" --include="*.mjs" --include="*.cjs" --include="*.html" workers/ space/scripts/ space/web/assets/ space/web/layouts/; then
             echo "::error::legacy secret / variable name found (see above)"
             exit 1
           fi
@@ -141,8 +141,8 @@ jobs:
         working-directory: workers/daymark-core
         run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-daymark-core-dist
 
-      - name: Shared shell in sync (space/web/shared/shell ← palette-roles / input.css @shell / shell-nav)
-        # 子站（blog / daymark）用 space/scripts/sync-shell.mjs 从这里同步外壳；改了源头忘了重新生成 → 红
+      - name: Shared shell derived files in sync (palette-roles / input.css @shell / shell-nav)
+        # 2026-11 合站：子站直接用主站的外壳源文件（没有副本、没有 sync-shell）；gen-shell 只生成派生文件，改了源头忘了重新生成 → 红
         run: node space/scripts/gen-shell.mjs --check
 
       - name: Palettes in sync (input.css @gen-palettes ← palette 定义)
@@ -161,9 +161,10 @@ jobs:
         # assets/js/ 和 shared/shell/ 禁止 prompt/confirm/alert（裸调用、window./globalThis./self./top.、window['alert']），禁止独立 token 变量（已废弃的内存鉴权 token 机制）
         run: node space/scripts/check-frontend.mjs
 
-      - name: Build site (生产构建，锁屏启用)
+      - name: Build site (生产构建，锁屏启用；主站 + blog / curio / daymark 同一次构建)
         # 这一份就是要上线的 Pages 产物（main 上传 artifact 给 build-and-deploy / deploy-ai-worker 复用，不再各自重建），
-        # 所以和以前 Pages job 一样带构建 SHA
+        # 所以和以前 Pages job 一样带构建 SHA。2026-11 合站：一个 Hugo 站（space/web/hugo.yaml），子站在 /blog/ /curio/ /daymark/ 下，
+        # 产物就是 space/web/public/，不再各站单独构建、不再拼树（dist/site）
         id: prod
         run: hugo --minify -s space/web
         env:
@@ -207,28 +208,17 @@ jobs:
           node space/scripts/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-space.json"
           test -s "$RUNNER_TEMP/search-index/search-space.json"
 
-      - name: Build subsites (blog / curio / daymark → atlas/web/<站>/public/)
-        # 合并 PR2：三站各自构建（space/scripts/build-sites.mjs --sites：Tailwind CLI → hugo --minify --cleanDestinationDir -s atlas/web/<站>）。
-        # 各站 baseURL 是 https://styrigx.com/<站>/；主站已在上面单独构建（要带 SGX_BUILD_SHA），这里不重建主站
-        run: npm run build:sites
-
       - name: Subsite unit tests (blog / curio / daymark pages + curio-core / daymark-core)
         # 页面（网址、模板、锁屏同步、外观继承、共享外壳副本）+ 接口 Worker（node:sqlite 真跑 D1 的 SQL）+ 博客搜索索引
         run: npm run test:sites
 
-      - name: Assemble single tree (space/web/public + atlas/web/<站>/public → dist/site/)
-        # 用上面这份主站生产构建拼树（测试构建在 e2e-lock / visual / lighthouse 各自的作业里，不会碰到这里）。
-        # 子站产物带 _worker.js / _headers / _redirects / robots.txt、主站产物里已有 blog/ curio/ daymark/、哪个包没构建 → 失败
-        run: node space/scripts/assemble.mjs
-
-      - name: Check single tree (根文件归主站、三站都在、子站 /js/ 带指纹、/curio/ /daymark/ 和根上没有多余图片)
+      - name: Check site tree (根文件只在域名根、三站都在、子站 /js/ 带指纹、/curio/ /daymark/ 和根上没有多余图片)
+        # 2026-11 合站前这一步查拼好的 dist/site；合站后同样的断言直接查生产构建 space/web/public
         run: |
           set -u
-          T=dist/site
+          T=space/web/public
           fail() { echo "::error::$1"; exit 1; }
           for f in _worker.js _headers _redirects index.html 404.html robots.txt; do test -s "$T/$f" || fail "$T/$f missing"; done
-          # 域名根文件全部来自主站产物（space/web/static），子站目录里一个都没有
-          for f in _worker.js _headers _redirects robots.txt 404.html index.html; do cmp -s "space/web/public/$f" "$T/$f" || fail "$T/$f is not the main-site file"; done
           grep -q "'styrigx.com'" "$T/_worker.js" || fail "_worker.js host is not styrigx.com"
           if grep -q "X-SGX-Runtime" "$T/_worker.js"; then fail "gateway bundle in production Pages build"; fi
           grep -q "Content-Security-Policy" "$T/_headers" || fail "_headers lost the security headers"
@@ -248,26 +238,26 @@ jobs:
           # 合并 PR3：子站和主站同在 styrigx.com，产物里不许再有旧图志域名（跨站链接、接口地址都是相对路径）；
           # P4-3 PR-1 起该域名已下线（_worker.js 的注释也不再提它），一个文件都不许有
           bad=$(grep -rlI 'atlas\.styrigx\.com' "$T" || true)
-          [ -z "$bad" ] || fail "atlas.styrigx.com still hardcoded in the single tree: $bad"
-          # 拼树单测的真实构建一组（Unit tests 那一步还没构建，跳过了；这里补跑）
-          node --test tests/space/ui/build/assemble.test.mjs
-          # P4-3 PR-4b：旷野合并的产物断言（没有 settings/ 目录、HTML 无旧设置层 href、新地址都在、git grep 只剩历史文档），同样要拼树之后才跑得全
+          [ -z "$bad" ] || fail "atlas.styrigx.com still hardcoded in the site tree: $bad"
+          # 合站单测的真实构建一组（Unit tests 那一步还没构建，跳过了；这里补跑）
+          node --test tests/space/ui/build/one-site.test.mjs
+          # P4-3 PR-4b：旷野合并的产物断言（没有 settings/ 目录、HTML 无旧设置层 href、新地址都在、git grep 只剩历史文档），要构建之后才跑得全
           node --test tests/space/ui/build/space-merge.test.mjs
-          echo "OK: single tree $(find "$T" -type f | wc -l) files"
+          echo "OK: site tree $(find "$T" -type f | wc -l) files"
 
       - name: Blog search index builds (site:blog)
-        # 每个分支都跑：网址和构建产物对不上 / 0 篇文章 → 红。只写 RUNNER_TEMP，不进 dist/site（含 private 文章，不随 Pages 发出去）。
+        # 每个分支都跑：网址和构建产物对不上 / 0 篇文章 → 红。只写 RUNNER_TEMP，不进 space/web/public（含 private 文章，不随 Pages 发出去）。
         # 合并 PR3 起 main 上传，P4-2 起由 deploy-ai-worker 写进 KV site:blog（styrigx-atlas 仓库不再写）
         run: |
-          node atlas/scripts/blog/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-blog.json"
+          node space/scripts/blog/build-search-index.mjs --out "$RUNNER_TEMP/search-index/search-blog.json"
           test -s "$RUNNER_TEMP/search-index/search-blog.json"
 
       - name: Upload production site (for e2e-sites and build-and-deploy)
-        # 拼好的单树 dist/site：e2e-sites 测的、build-and-deploy 部署的是同一份（PR 也上传，给 e2e-sites）
+        # 生产构建 space/web/public（2026-11 合站后就是整棵树）：e2e-sites 测的、build-and-deploy 部署的是同一份（PR 也上传，给 e2e-sites）
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: site-production
-          path: dist/site/
+          path: space/web/public/
           if-no-files-found: error
           retention-days: 1
 
@@ -292,13 +282,12 @@ jobs:
       - name: Check worker routes (每个页面都过网关；账号 Worker 没有路由，账号路径在网关转发表里)
         run: node space/scripts/check-worker-routes.mjs
 
-      - name: Subsite generated files in sync (curio seed SQL, blog code tokens, shared shell copies)
-        # curio：workers/curio-core/migrations/0002_seed.sql ← atlas/scripts/curio/data/seed.json；blog：code-tokens.css ← 色彩角色；
-        # 三站的共享外壳副本和各自 atlas/web/<站>/sgx-shell.lock.json 锁定的主站外壳 tree 一致（本地 git 核对；浅克隆取不到旧 tree 只提示、不算失败）
+      - name: Subsite generated files in sync (curio seed SQL, blog code tokens)
+        # curio：workers/curio-core/migrations/0002_seed.sql ← space/scripts/curio/data/seed.json；blog：code-tokens.css ← 色彩角色。
+        # 2026-11 合站：子站直接用主站的外壳源文件，没有副本和 sgx-shell.lock.json，不再核对 sync-shell
         run: |
-          node atlas/scripts/curio/gen-seed-sql.mjs --check
-          node atlas/scripts/blog/gen-code-tokens.mjs --check
-          for s in blog curio daymark; do node "atlas/scripts/$s/sync-shell.mjs" --check; done
+          node space/scripts/curio/gen-seed-sql.mjs --check
+          node space/scripts/blog/gen-code-tokens.mjs --check
 
       - name: stylelint（禁止硬编码颜色）
         run: npx stylelint --config tests/config/stylelintrc.json "space/web/assets/css/input.css"
@@ -377,7 +366,7 @@ jobs:
             playwright-report/
 
   e2e-sites:
-    # blog / curio / daymark 的 Playwright，对着 build 上传的单树 dist/site。
+    # blog / curio / daymark 的 Playwright，对着 build 上传的生产构建（site-production = space/web/public，2026-11 合站后主站和三站同一棵树）。
     # 三个子站拆成 matrix 三个并行 job（之前是一个 job 里串行三步，约 3.5 分钟）；fail-fast 关掉，一站红了其余照跑。
     # job 名仍是 e2e-sites（quality 的 needs 不变），GitHub 上显示为 e2e-sites (blog) / (curio) / (daymark)
     needs: build
@@ -418,10 +407,10 @@ jobs:
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: site-production
-          path: dist/site/
+          path: space/web/public/
 
-      - name: Subsite Playwright - ${{ matrix.site }} (against dist/site)
-        # 对着拼好的单树 dist/site（atlas/scripts/blog/serve-static.mjs 模拟 Pages 回静态文件），博客在 /blog/ 下
+      - name: Subsite Playwright - ${{ matrix.site }} (against space/web/public)
+        # 对着生产构建 space/web/public（space/scripts/blog/serve-static.mjs 模拟 Pages 回静态文件），博客在 /blog/ 下
         run: npx playwright test --config=${{ matrix.config }}
 
       - name: Upload subsite test artifacts on failure
@@ -1054,11 +1043,11 @@ jobs:
 
       - name: Assert static-only Pages build
         # 生产部署只能带静态的 _worker.js（pages.dev → styrigx.com 跳转 + /curio/ /daymark/ 图片 404），不能带网关代码。
-        # 合并 PR2 起产物是拼好的单树：三站在 /blog/ /curio/ /daymark/ 下，子站目录里没有域名根文件
+        # 合并 PR2 起产物是单树、2026-11 合站后是同一个 Hugo 站：三站在 /blog/ /curio/ /daymark/ 下，子站目录里没有域名根文件
         run: |
           for f in _headers _redirects index.html; do test -s "space/web/public/$f" || { echo "::error::space/web/public/$f missing"; exit 1; }; done
           for s in blog curio daymark; do
-            test -s "space/web/public/$s/index.html" || { echo "::error::space/web/public/$s/index.html missing (single tree not assembled?)"; exit 1; }
+            test -s "space/web/public/$s/index.html" || { echo "::error::space/web/public/$s/index.html missing (subsites missing from the build?)"; exit 1; }
             for f in _worker.js _headers _redirects robots.txt; do test ! -e "space/web/public/$s/$f" || { echo "::error::space/web/public/$s/$f must not exist"; exit 1; }; done
           done
           grep -q "Content-Security-Policy" space/web/public/_headers
@@ -1437,7 +1426,7 @@ jobs:
           command: kv key put site:space --path=${{ runner.temp }}/search-space.json --binding=KV_SEARCH_INDEX --remote
 
       - name: Upload blog search index to KV (site:blog)
-        # 博客的条目链接是 https://styrigx.com/blog/…（atlas/scripts/blog/build-search-index.mjs 的 SITE_URL）；site:curio / site:daymark 由各自接口 Worker 自己写。
+        # 博客的条目链接是 https://styrigx.com/blog/…（space/scripts/blog/build-search-index.mjs 的 SITE_URL）；site:curio / site:daymark 由各自接口 Worker 自己写。
         # KV 写失败：AI 召回还是旧索引，job 红（照下面一步回滚代码）；数据不回滚
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:

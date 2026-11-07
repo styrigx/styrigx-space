@@ -1,7 +1,7 @@
 /**
  * space/scripts/build-search-index.mjs：博客写进全站搜索的索引（KV site:blog）。
  * 前几条用临时目录里的假文章测解析规则（draft 跳过、private 标记、正文去代码块标题栏 / 行号 / 标签、截断）；
- * 最后一条读真实构建（atlas/web/blog/public/）：每篇文章都在、网址和站点地图一致。
+ * 最后一条读真实构建（space/web/public/blog/）：每篇文章都在、网址和站点地图一致。
  * 跑法：npm run build 之后 node --test tests/search-index.test.mjs
  */
 import { test } from 'node:test';
@@ -10,7 +10,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, parseFrontMatter, articleText, TEXT_MAX } from '../../atlas/scripts/blog/build-search-index.mjs';
+import { build, parseFrontMatter, articleText, TEXT_MAX } from '../../space/scripts/blog/build-search-index.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -23,8 +23,8 @@ function fixture() {
   const content = path.join(dir, 'content');
   const pub = path.join(dir, 'public');
   const post = (lang, name, fm, html) => {
-    mkdirSync(path.join(content, lang, 'post'), { recursive: true });
-    writeFileSync(path.join(content, lang, 'post', name + '.md'), `---\n${fm}\n---\n\nbody\n`);
+    mkdirSync(path.join(content, 'post'), { recursive: true });
+    writeFileSync(path.join(content, 'post', name + (lang === 'en' ? '' : '.' + lang) + '.md'), `---\n${fm}\n---\n\nbody\n`);
     if (html == null) return;
     const out = path.join(pub, lang === 'zh' ? 'zh' : '', 'post', name); // P4-3 PR-4c：英文无前缀、中文 /zh/
     mkdirSync(out, { recursive: true });
@@ -106,14 +106,13 @@ test('真实构建：每篇非草稿文章都在索引里，网址和站点地�
   const posts = ix.items.filter((x) => x.type === 'post');
   assert.ok(posts.length > 0, '索引里没有文章');
   let expected = 0;
-  for (const lang of ['zh', 'en']) {
-    const dir = path.join(ROOT, 'atlas/web/blog/content', lang, 'post');
-    for (const n of readdirSync(dir).filter((x) => x.endsWith('.md'))) {
-      if (parseFrontMatter(readFileSync(path.join(dir, n), 'utf8')).draft !== true) expected++;
-    }
+  /* 合站后中英文章同在 content/blog/post/（中文 <名>.zh.md） */
+  const dir = path.join(ROOT, 'space/web/content/blog/post');
+  for (const n of readdirSync(dir).filter((x) => x.endsWith('.md'))) {
+    if (parseFrontMatter(readFileSync(path.join(dir, n), 'utf8')).draft !== true) expected++;
   }
   assert.equal(posts.length, expected);
-  const sitemap = new Set([...readFileSync(path.join(ROOT, 'atlas/web/blog/public/sitemap-0.xml'), 'utf8').matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => decodeURI(m[1])));
+  const sitemap = new Set([...readFileSync(path.join(ROOT, 'space/web/public/blog/sitemap-0.xml'), 'utf8').matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => decodeURI(m[1])));
   for (const p of posts) {
     assert.match(p.url, /^https:\/\/styrigx\.com\/blog\/(zh\/)?post\/[^/]+\/$/);
     if (!p.private) assert.ok(sitemap.has(p.url), p.url + ' 不在站点地图里');

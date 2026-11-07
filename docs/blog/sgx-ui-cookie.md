@@ -1,21 +1,21 @@
 # sgx-ui cookie：博客这一侧
 
-> 状态：现行 ｜ 最后更新：2026-11-02
+> 状态：现行 ｜ 最后更新：2026-11-08
 
 博客是沉浸式 app，没有自己的语言、深浅色、配色开关；这些都在主站旷野页的子页（`https://styrigx.com/theme/`）和快捷面板设置，
 主站把结果镜像到 `sgx-ui` cookie（`Domain=styrigx.com`），博客在 `<head>` 里**首帧前同步读取**，不闪屏。博客只读，永远不写 `sgx-ui`。
 
 **契约以主站为准**：cookie 的写法、属性、版本 `v`、每个字段的取值和默认值、旧数据迁移、读端落到 `<html>` 的状态、改格式的步骤，
 都见 styrigx-space 的 [docs/ui-cookie-contract.md](https://github.com/styrigx/styrigx-space/blob/main/docs/ui-cookie-contract.md)。
-真源头是主站代码：只读解析器 [space/web/shared/shell/ui-cookie-read.js](https://github.com/styrigx/styrigx-space/blob/main/space/web/shared/shell/ui-cookie-read.js)、
-契约夹具 [space/web/shared/shell/ui-cookie-contract.json](https://github.com/styrigx/styrigx-space/blob/main/space/web/shared/shell/ui-cookie-contract.json)。
+真源头是主站代码：只读解析器 [space/web/assets/js/lib/ui-cookie-read.js](https://github.com/styrigx/styrigx-space/blob/main/space/web/assets/js/lib/ui-cookie-read.js)、
+契约夹具 [tests/fixtures/ui-cookie-contract.json](https://github.com/styrigx/styrigx-space/blob/main/tests/fixtures/ui-cookie-contract.json)。
 本文件只记博客独有的部分，不再重复字段表。
 
 ## 博客在哪读
 
-- `atlas/web/blog/layouts/partials/sgx-inherit.html`：`<head>` 内联脚本，渲染前同步执行。
-- `atlas/web/blog/assets/js/entries/inherit.ts`：自定义主题色没有缓存时，按需 import 共享外壳的 `palette-scheme.js` 算整套角色，插进 `<style id="sgx-accent-roles">` 并缓存到本站 localStorage `sgx-shell-accent-css`。
-- 单测 `tests/sgx-inherit.test.mjs`，端到端 `tests/e2e/sgx-inherit.spec.js`、`tests/e2e/app-topbar.spec.js`。
+- `space/web/layouts/partials/blog/sgx-inherit.html`：`<head>` 内联脚本，渲染前同步执行。
+- `space/web/assets/blog/js/entries/inherit.ts`：自定义主题色没有缓存时，按需 import 共享外壳的 `palette-scheme.js` 算整套角色，插进 `<style id="sgx-accent-roles">` 并缓存到本站 localStorage `sgx-shell-accent-css`。
+- 单测 `tests/blog/sgx-inherit.test.mjs`，端到端 `tests/blog/e2e/sgx-inherit.spec.js`、`tests/blog/e2e/app-topbar.spec.js`。
 
 ## 博客自己加的
 
@@ -32,7 +32,7 @@
 
 ## 和主站契约一致
 
-`sgx-inherit.html` 的第一个 `<script>` 就是主站共享读端 `ui-cookie-read.js` 原样（压缩后内联；副本在 `atlas/web/blog/assets/js/sgx/shell/ui-cookie-read.js`，
-`npm run shell:sync` 同步、勿手改），外观全部由 `SgxUI.apply()` 落；博客脚本只补上面「博客自己加的」几项。
-`tests/sgx-inherit.test.mjs` 用主站契约夹具（副本 `tests/fixtures/ui-cookie-contract.json`，同样由 sync-shell 同步）逐条跑「共享读端 + 博客脚本」，
-每个用例在系统浅色 / 深色下 `<html>` 的状态都要和夹具一致。主站改了契约、本仓库跑一次 `npm run shell:sync`，单测就会按新夹具检查。
+`sgx-inherit.html` 的第一个 `<script>` 就是主站读端 `space/web/assets/js/lib/ui-cookie-read.js` 原样（压缩后内联；2026-11 合站后博客和主站同一个 Hugo 站，直接用同一份，没有副本），
+外观全部由 `SgxUI.apply()` 落；博客脚本只补上面「博客自己加的」几项。
+`tests/blog/sgx-inherit.test.mjs` 用主站契约夹具 `tests/fixtures/ui-cookie-contract.json` 逐条跑「共享读端 + 博客脚本」，
+每个用例在系统浅色 / 深色下 `<html>` 的状态都要和夹具一致。主站改了契约，单测就会按新夹具检查。

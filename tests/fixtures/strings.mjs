@@ -1,4 +1,4 @@
-// 字符串表测试工具（语言包化 2026-11-07）：读各站 data/i18n/<语言>.yaml（主站 / 奇趣 / 日刻）和共享外壳表，
+// 字符串表测试工具（语言包化 2026-11-07）：读各站 data/i18n/<语言>.yaml（主站；2026-11 合站后奇趣 / 日刻在 data/<站>/i18n/）和共享外壳表（data/sgx-shell-i18n/，四站同一份），
 // 和 partials/sgx-tr.html 同一规则：英文表打底，页面语言表覆盖（深合并），缺键回退英文。
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -6,19 +6,20 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const SITE_DIR = { space: 'space/web', curio: 'atlas/web/curio', daymark: 'atlas/web/daymark', blog: 'atlas/web/blog' };
+/** 2026-11 合站：一个 Hugo 站 space/web/；站内表 = data/i18n（主站）或 data/<站>/i18n（子站），外壳表只有 data/sgx-shell-i18n 一份 */
+const tableDir = (site, kind) => path.join(REPO, 'space/web/data', kind === 'i18n' && site !== 'space' ? site + '/i18n' : kind);
 
 /** @param {string} p */
 const load = (p) => (existsSync(p) ? /** @type {any} */ (yaml.load(readFileSync(p, 'utf8'))) || {} : {});
 
 /** 原始表（不合并）：site = space | curio | daymark；kind = 'i18n'（站内表）| 'sgx-shell-i18n'（外壳表） */
 export function rawTable(site, lang, kind = 'i18n') {
-  return load(path.join(REPO, SITE_DIR[site], 'data', kind, lang + '.yaml'));
+  return load(path.join(tableDir(site, kind), lang + '.yaml'));
 }
 
 /** 本站有哪些语言的表 */
 export function tableLangs(site, kind = 'i18n') {
-  const dir = path.join(REPO, SITE_DIR[site], 'data', kind);
+  const dir = tableDir(site, kind);
   return existsSync(dir) ? readdirSync(dir).filter((f) => /^[a-z]{2,3}\.yaml$/.test(f)).map((f) => f.slice(0, -5)).sort() : [];
 }
 

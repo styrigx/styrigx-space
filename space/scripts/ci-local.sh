@@ -7,7 +7,7 @@
 #   VISUAL_SHARD=1 或 2（可选）：visual 组只跑 CI 的那一片（--shard=N/2），复现 visual (1) / visual (2)；不设 = 整组跑。
 # 前提：Node 22（node:sqlite）、已 npm ci、hugo 在 PATH 上（版本见 .github/actions/setup-hugo）。
 # 不碰 Cloudflare：passkey 组走本地模拟器（tests/space/e2e/helpers/preview-emulator.cjs），凭证每次现生成。
-# 构建顺序和 CI 一致：build 组做主站生产构建 → 拼树；e2e-lock 用这份生产构建，gate 关的构建放最后；
+# 构建顺序和 CI 一致：build 组做一次生产构建（2026-11 合站：主站和三个子站同一个 Hugo 站，产物就是 space/web/public/）；e2e-lock 用这份生产构建，gate 关的构建放最后；
 # visual / lighthouse 各自再做测试构建（SGX_TEST_NO_LOCK=1 SGX_TEST_NO_WEATHER=1）；passkey 做普通构建。
 set -uo pipefail
 cd "$(dirname "$0")/../.."
@@ -62,13 +62,12 @@ if want build; then
   for c in "gen-shell.mjs --check" "gen-palettes.mjs --check" "gen-ui-cookie-contract.mjs --check" "check-layers.mjs" "check-frontend.mjs"; do
     step build "$c" bash -c "node space/scripts/$c >/dev/null"
   done
-  step build "主站生产构建" bash -c 'hugo --minify -s space/web >/dev/null'
+  step build "生产构建（主站 + 三个子站）" bash -c 'hugo --minify --cleanDestinationDir -s space/web >/dev/null'
   step build "gen-csp --check" bash -c 'node space/scripts/gen-csp.mjs --check >/dev/null'
-  step build "子站构建" bash -c 'npm run --silent build:sites >/dev/null'
   step build "test:sites" bash -c 'npm run --silent test:sites 2>&1 | grep -E "^# (tests|pass|fail|skipped)"; exit ${PIPESTATUS[0]}'
-  step build "拼树 + 拼树单测" bash -c 'node space/scripts/assemble.mjs >/dev/null && node --test tests/space/ui/build/assemble.test.mjs >/dev/null'
+  step build "合站单测" bash -c 'node --test tests/space/ui/build/one-site.test.mjs >/dev/null'
   step build "check-worker-routes" bash -c 'node space/scripts/check-worker-routes.mjs >/dev/null'
-  step build "子站生成物同步" bash -c 'node atlas/scripts/curio/gen-seed-sql.mjs --check >/dev/null && node atlas/scripts/blog/gen-code-tokens.mjs --check >/dev/null && for s in blog curio daymark; do node "atlas/scripts/$s/sync-shell.mjs" --check >/dev/null || exit 1; done'
+  step build "子站生成物同步" bash -c 'node space/scripts/curio/gen-seed-sql.mjs --check >/dev/null && node space/scripts/blog/gen-code-tokens.mjs --check >/dev/null'
   step build "stylelint" npx stylelint --config tests/config/stylelintrc.json "space/web/assets/css/input.css"
 fi
 
@@ -86,7 +85,7 @@ fi
 
 if want e2e-sites; then
   begin e2e-sites
-  [ -d dist/site ] || { echo "!! 没有 dist/site：先跑 build 组"; RESULT[e2e-sites]=fail; }
+  [ -f space/web/public/blog/index.html ] || { echo "!! 没有 space/web/public/blog/：先跑 build 组"; RESULT[e2e-sites]=fail; }
   if [ "${RESULT[e2e-sites]}" = pass ]; then
     step e2e-sites "blog" bash -c 'env -u BLOG_BASE_URL npx playwright test --config=tests/blog/config/playwright.config.js --reporter=line'
     step e2e-sites "curio" npx playwright test --config=tests/curio/config/playwright.e2e.config.js --reporter=line

@@ -26,7 +26,7 @@ const N = await import(W + '/src/api/_netscape.js');
 const P = await import(W + '/src/api/_preview.js');
 const I = await import(W + '/src/api/icon.js');
 const IMP = await import(W + '/src/api/import.js');
-const SEED = await import(REPO + '/atlas/scripts/curio/gen-seed-sql.mjs');
+const SEED = await import(REPO + '/space/scripts/curio/gen-seed-sql.mjs');
 
 /** node:sqlite 包成 D1 的样子（batch 是一个事务；SELECT 回 results） */
 function makeD1(db = new DatabaseSync(':memory:')) {

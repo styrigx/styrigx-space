@@ -1,8 +1,8 @@
-// 列表页页签 hash 协议（atlas/web/blog/assets/js/blog/app-tabs.ts）。
+// 列表页页签 hash 协议（space/web/assets/blog/js/blog/app-tabs.ts）。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseHash, routeHash } from '../../atlas/web/blog/assets/js/blog/app-tabs-route.js';
+import { parseHash, routeHash } from '../../space/web/assets/blog/js/blog/app-tabs-route.js';
 
 test('hash → 页签', () => {
   assert.deepEqual(parseHash(''), { tab: 'home' });

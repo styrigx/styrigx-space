@@ -21,6 +21,8 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const ROOTS = ['workers', 'space/web'];
 const SKIP_DIRS = new Set(['node_modules', 'public', 'resources', 'visual', '.wrangler', '.git']);
+/* 2026-11 合站：博客文章并进 space/web/content/blog/，文章正文（白皮书等）会如实写到旧名字，不是源码，不扫（合站前在 atlas/ 下，本来就不在扫描范围） */
+const SKIP_PATHS = new Set(['space/web/content/blog', 'space/web/hugo_stats.json']); /* hugo_stats.json 是构建产物（.gitignore），合站后含博客文章标题生成的 id */
 const EXTS = new Set(['.js', '.mjs', '.cjs', '.ts', '.html', '.css', '.toml', '.json', '.md', '.sql', '.yaml', '.yml', '.txt']);
 
 /* 旧名 → 正则（顺序即报告顺序） */
@@ -62,6 +64,7 @@ function walk(dir, out) {
   for (const name of readdirSync(dir)) {
     if (SKIP_DIRS.has(name)) continue;
     const p = path.join(dir, name);
+    if (SKIP_PATHS.has(path.relative(REPO, p).split(path.sep).join('/'))) continue;
     const st = statSync(p);
     if (st.isDirectory()) walk(p, out);
     else if (EXTS.has(path.extname(name))) out.push(p);

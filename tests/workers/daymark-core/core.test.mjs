@@ -576,7 +576,7 @@ test('种子迁移：只增不删，已有的同正文句子不重复、专题�
 test('种子迁移与生成脚本一致（设了 DAYMARK_SEED_JSON=<quotes.json> 时检查；种子原文不进仓库）', async (t) => {
   const SEED = process.env.DAYMARK_SEED_JSON;
   if (!SEED) return t.skip('没设 DAYMARK_SEED_JSON');
-  const { seedSql } = await import(REPO + '/atlas/scripts/daymark/gen-seed-sql.mjs');
+  const { seedSql } = await import(REPO + '/space/scripts/daymark/gen-seed-sql.mjs');
   assert.equal(seedSql(JSON.parse(readFileSync(SEED, 'utf8'))), readFileSync(W + '/migrations/0003_seed_quotes.sql', 'utf8'));
 });
 

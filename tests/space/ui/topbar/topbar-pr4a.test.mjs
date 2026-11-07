@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
-const shell = rd('space/web/shared/shell/shell.css');
+const shell = rd('space/web/assets/css/shell/shell.css');
 
 test('§6.2 衬底变量在共享外壳里：导航选中色 45%', () => {
   assert.match(shell, /--sgx-tb-label-bg: color-mix\(in oklab, var\(--sgx-nav-selected\) 45%, transparent\);/);
@@ -13,18 +13,18 @@ test('§6.2 衬底变量在共享外壳里：导航选中色 45%', () => {
 test('PR-4b 定稿：页名胶囊只显示页名——主站没有顶栏标签，三个子站顶栏没有分段滑块（分区入口在首页正文）', () => {
   const css = rd('space/web/assets/css/input.css');
   assert.doesNotMatch(css, /\.sgx-tb-tabs? \{/);
-  for (const f of ['atlas/web/blog/assets/css/blog/components.css', 'atlas/web/curio/assets/css/input.css', 'atlas/web/daymark/assets/css/input.css', 'space/web/shared/shell/shell.css']) {
+  for (const f of ['space/web/assets/blog/css/blog/components.css', 'space/web/assets/curio/css/input.css', 'space/web/assets/daymark/css/input.css', 'space/web/assets/css/shell/shell.css']) {
     assert.doesNotMatch(rd(f).replace(/\/\*[\s\S]*?\*\//g, ''), /\.sgx-seg(?:-btn|-ind)?\b/, f);
   }
-  for (const [f, attr] of [['atlas/web/blog/layouts/partials/topnav.html', 'data-sgx-seg'], ['atlas/web/curio/layouts/_default/baseof.html', 'data-cu-seg'], ['atlas/web/daymark/layouts/_default/baseof.html', 'data-dm-seg']]) {
+  for (const [f, attr] of [['space/web/layouts/partials/blog/topnav.html', 'data-sgx-seg'], ['space/web/layouts/curio/baseof.html', 'data-cu-seg'], ['space/web/layouts/daymark/baseof.html', 'data-dm-seg']]) {
     const src = rd(f);
     assert.doesNotMatch(src, new RegExp(attr), f);
     /* P4-3 奇趣拆页：奇趣的分区是独立子页，胶囊 = 页名（首页站名、子页子页名），不再由脚本换；博客 / 日刻仍是页内分区 */
     if (f.includes('/curio/')) assert.match(src, /\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/, f + '：胶囊 = 页名');
     else assert.match(src, /class=\\"sgx-tb-title\\" data-sgx-titles=/, f + '：首页胶囊 = 站名，分区名由脚本换');
   }
-  for (const f of ['atlas/web/blog/layouts/index.html', 'atlas/web/curio/layouts/index.html', 'atlas/web/daymark/layouts/index.html']) {
-    assert.match(rd(f), /partial "sgx-shell-entries\.html"/, f + '：首页有分区入口');
+  for (const f of ['space/web/layouts/blog/section.html', 'space/web/layouts/curio/section.html', 'space/web/layouts/daymark/section.html']) {
+    assert.match(rd(f), /partial "sgx-entries\.html"/, f + '：首页有分区入口');
   }
 });
 
@@ -47,7 +47,7 @@ const lum = (c) => { const v = c.slice(0, 3).map((x) => { x /= 255; return x <= 
 const cr = (a, b) => { const x = lum(a); const y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
 test('§6.2 对比度：22 套预设 × 深浅色，非当前项 / 当前项文字都 ≥ 4.5:1', () => {
-  const { presets } = JSON.parse(rd('space/web/shared/shell/palettes.json'));
+  const { presets } = JSON.parse(rd('space/web/data/shell/palettes.json'));
   assert.equal(presets.length, 22);
   for (const p of presets) for (const mode of ['light', 'dark']) {
     const t = p.tokens[mode];

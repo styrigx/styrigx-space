@@ -22,8 +22,8 @@
  *    只经网关的服务绑定进来
  * 静态资源现在也进网关（整站通配），由 src/app.js 原样回源（主站静态目录、子站静态后缀）；单测 auth-flow-2026-10-21 覆盖。
  *
- * 需要先构建网站（hugo --minify -s space/web）和三站（npm run build:sites），读 space/web/public/、atlas/web/<站>/public/ 下的 .html
- * （子站页面按 /<站>/ 前缀登记；没构建就报错）。
+ * 需要先构建网站（hugo --minify -s space/web；2026-11 合站后主站和三个子站同一次构建），读 space/web/public/ 下的 .html
+ * （子站页面在 public/<站>/ 下，地址本来就带 /<站>/ 前缀；没构建或缺哪个子站就报错）。
  * 用法：node space/scripts/check-worker-routes.mjs
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -274,24 +274,22 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const shareRoutes = readRoutes(readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));
   const gatewayApis = readApiRoutes(readFileSync(path.join(REPO, 'workers/auth-gateway/src/router.js'), 'utf8'));
   const cores = CORE_WORKERS.map((c) => ({ ...c, routes: readRoutes(readFileSync(path.join(REPO, c.dir, 'wrangler.toml'), 'utf8')) }));
-  let pages;
+  let all;
   try {
-    pages = walk(PUBLIC_DIR).map(htmlToPath);
+    all = walk(PUBLIC_DIR).map(htmlToPath);
   } catch (e) {
     console.error('check-worker-routes.mjs: 读不到 space/web/public，先运行 hugo --minify -s space/web');
     process.exit(1);
   }
-  /* 子站页面（合并 PR3）：atlas/web/<站>/public 下的 .html → /<站>/… */
-  let subPages = [];
+  /* 合站（2026-11）：子站页面就在同一棵 public/ 的 /<站>/ 下 */
+  const inSub = (p) => SUBSITES.some((s) => p.startsWith('/' + s + '/'));
+  const pages = all.filter((p) => !inSub(p));
+  const subPages = all.filter(inSub);
   for (const site of SUBSITES) {
-    const dir = path.join(REPO, 'atlas', 'web', site, 'public');
-    let list;
-    try { list = walk(dir); } catch (e) { list = []; }
-    if (!list.length) {
-      console.error(`check-worker-routes.mjs: atlas/web/${site}/public 里没有 HTML，先运行 npm run build:sites`);
+    if (!subPages.some((p) => p.startsWith('/' + site + '/'))) {
+      console.error(`check-worker-routes.mjs: space/web/public/${site}/ 里没有 HTML，先运行 hugo --minify -s space/web`);
       process.exit(1);
     }
-    subPages = subPages.concat(list.map((rel) => '/' + site + htmlToPath(rel)));
   }
   if (!pages.length) {
     console.error('check-worker-routes.mjs: space/web/public 里没有 HTML，先构建网站');

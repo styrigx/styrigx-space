@@ -14,9 +14,9 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 ![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
 ![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
 ![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
-![博客](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/blog/hugo.yaml&query=%24.params.version&label=%E5%8D%9A%E5%AE%A2&style=flat-square&color=2563eb)
-![奇趣](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/curio/hugo.yaml&query=%24.params.version&label=%E5%A5%87%E8%B6%A3&style=flat-square&color=2563eb)
-![日刻](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/atlas/web/daymark/hugo.yaml&query=%24.params.version&label=%E6%97%A5%E5%88%BB&style=flat-square&color=2563eb)
+![博客](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.blog.version&label=%E5%8D%9A%E5%AE%A2&style=flat-square&color=2563eb)
+![奇趣](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.curio.version&label=%E5%A5%87%E8%B6%A3&style=flat-square&color=2563eb)
+![日刻](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.daymark.version&label=%E6%97%A5%E5%88%BB&style=flat-square&color=2563eb)
 ![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?branch=main&style=flat-square&label=Deploy&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
@@ -44,7 +44,7 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 
 - **门户**：主页、聊天、设置、账号四个应用，中英双语。
 - **鉴权网关**：主站和子站（博客、奇趣、日刻，在 `styrigx.com/<站>/`）的每个页面、每个接口都先经过它。全站上锁是设计本身，对外分享只用带临时钥匙的短链。
-- **共享外壳**：顶栏、导航抽屉、搜索层由这里生成，子站按锁定的外壳版本（git tree 哈希）同步一份副本。
+- **共享外壳**：顶栏、快捷面板、AI 窗口等四站共用；子站和主站是同一个 Hugo 站，直接用同一份模板和脚本，没有副本。
 - **共享 CI**：Hugo、Node、Playwright 的安装步骤以 composite action 形式发布（`v*` tag），图志按 tag 引用。
 
 界面是自研的 **Styrigx UI**，版本号与 One UI 对齐；内核 **SGX** 管登录与会话。手机、平板和 DeX 都能用，体验接近一台三星手机。
@@ -99,7 +99,7 @@ flowchart LR
 | `styrigx-curio-core` | 奇趣接口（D1 + R2） | `styrigx.com/curio/api/*`（比网关更具体） |
 | `styrigx-daymark-core` | 日刻接口（D1） | `styrigx.com/daymark/api/*`（同上） |
 
-子站和主站是同一个 Pages 项目里的一棵树（主站在根上，三站在 `/blog/`、`/curio/`、`/daymark/`），一次部署。
+子站和主站是同一个 Hugo 站（`space/web/`，一次构建），产物是一棵树（主站在根上，三站在 `/blog/`、`/curio/`、`/daymark/`），同一个 Pages 项目一次部署。
 
 ## 安全模型
 
@@ -149,8 +149,7 @@ PR 必须通过 `quality` 和 `passkey-e2e` 才能合并（只允许 squash，�
 
 ```
 styrigx-space/
-├─ space/      主站 + 基建包：web/ 主站（Hugo，由 Cloudflare Pages 发布），scripts/ 构建、生成、静态检查脚本
-├─ atlas/      子站包：web/blog/ web/curio/ web/daymark/ 三个子站，scripts/<站>/ 子站自己的脚本
+├─ space/      网站 + 基建：web/ 一个 Hugo 站（主站 + 博客 / 奇趣 / 日刻，子站按 <目录>/<站>/ 分开，由 Cloudflare Pages 发布），scripts/ 构建、生成、静态检查脚本（子站自己的在 scripts/<站>/）
 ├─ workers/    全部 Worker，一个目录一个
 ├─ tests/      测试，按对象分目录
 ├─ docs/       设计文档、任务书与截图（入口索引 docs/README.md）

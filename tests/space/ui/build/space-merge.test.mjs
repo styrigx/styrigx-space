@@ -100,7 +100,7 @@ test('根下新路径不和子站、账号、Worker 路由、转发表、静态�
 });
 
 /* ---- 构建产物（npm run build / hugo 之后才有；CI 在拼树之后补跑这个文件） ---- */
-const PUBS = ['space/web/public', 'atlas/web/blog/public', 'atlas/web/curio/public', 'atlas/web/daymark/public', 'dist/site'].filter((p) => existsSync(path.join(REPO, p)));
+const PUBS = ['space/web/public', 'space/web/public/blog', 'space/web/public/curio', 'space/web/public/daymark', 'space/web/public'].filter((p) => existsSync(path.join(REPO, p)));
 const BUILT = existsSync(path.join(REPO, 'space/web/public/index.html'));
 
 /** @param {string} dir @returns {string[]} */

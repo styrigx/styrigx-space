@@ -1,4 +1,4 @@
-// 页面模板（atlas/web/daymark/layouts）：沉浸式 app 顶栏、三页签、没有搜索 / 快捷面板 / 标签筛选、抽屉只有四个应用。
+// 页面模板（space/web/layouts/daymark）：沉浸式 app 顶栏、三页签、没有搜索 / 快捷面板 / 标签筛选、抽屉只有四个应用。
 // 只读模板源码，不用构建；构建后的行为在手机 E2E（tests/daymark/e2e）。
 // 运行：node --test tests/daymark/layout.test.mjs
 import { test } from 'node:test';
@@ -11,15 +11,15 @@ import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
-const base = read('atlas/web/daymark/layouts/_default/baseof.html');
-const index = read('atlas/web/daymark/layouts/index.html');
-const css = read('atlas/web/daymark/assets/css/input.css');
+const base = read('space/web/layouts/daymark/baseof.html');
+const index = read('space/web/layouts/daymark/section.html');
+const css = read('space/web/assets/daymark/css/input.css');
 
-test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-topbar.html；中间 = 页名胶囊（首页 = 站名）；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
-  assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
+test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.html；中间 = 页名胶囊（首页 = 站名）；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
+  assert.match(base, /\{\{ partial "shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "daymark"/);
   /* P4-3 PR-4b 定稿：页名胶囊只显示页名——首页 = 站名（data-sgx-titles = [站名, 后两个分区名]，脚本按 hash 换），其他页（404）= 页名；顶栏没有分段滑块 */
-  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$titles := slice \(\$tr\.site\.name\) \(\$tr\.baseof\.trove\) \(\$tr\.baseof\.flavors\) \}\}/);
+  assert.match(base, /\{\{ if \$isHome \}\}\n\{\{ \$titles := slice \(\$tr\.site\.name\) \(\$tr\.baseof\.trove\) \(\$tr\.baseof\.flavors\) \}\}/);
   { const en = strings('daymark', 'en'); const zh = strings('daymark', 'zh');
     assert.deepEqual([en.site.name, en.baseof.trove, en.baseof.flavors], ['Daymark', 'Trove', 'Flavors']);
     assert.deepEqual([zh.site.name, zh.baseof.trove, zh.baseof.flavors], ['日刻', '拾录', '百味']); }
@@ -30,14 +30,15 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-top
   assert.doesNotMatch(base, /sgx-tb-nav|sgx-drawer|sgx-tb-end|sgx-tb-share|<header|apps-grid|sgx-tb-end-group|sgx-tb-gbtn|guestbook/);
   const code = base.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''); /* 去掉模板注释（注释里会提到被取代的旧文件） */
   assert.doesNotMatch(code, /share-host\.js|js\/topbar\.js|search-host\.js|shell-nav-href/);
-  assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/assets/js/sgx/share-host.js')), false);
-  assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/assets/js/topbar.js')), false);
-  assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/layouts/partials/shell-nav-href.html')), false);
-  assert.match(base, /resources\.Get "js\/sgx\/topbar-host\.js" \| js\.Build/);
+  assert.equal(existsSync(path.join(REPO, 'space/web/assets/daymark/js/sgx/share-host.js')), false);
+  assert.equal(existsSync(path.join(REPO, 'space/web/assets/daymark/js/topbar.js')), false);
+  assert.equal(existsSync(path.join(REPO, 'space/web/layouts/partials/daymark/shell-nav-href.html')), false);
+  assert.match(base, /resources\.Get "daymark\/js\/sgx\/topbar-host\.js" \| js\.Build/);
   /* P4-3 PR-4b：快捷面板四站同一套（分享本页、立即锁定、布局都有），不再按站传 tiles */
   assert.doesNotMatch(base, /"tiles" /);
-  const host = read('atlas/web/daymark/assets/js/sgx/topbar-host.js');
-  for (const m of ['./shell/topbar.js', './shell/modal-sheet.js', './shell/ai.js', './shell/vk.js', './shell/prefs-write.js', './shell/share.js']) {
+  const host = read('space/web/assets/daymark/js/sgx/topbar-host.js');
+  /* 合站：直接引主站的共享外壳源文件（没有 js/sgx/shell/ 副本） */
+  for (const m of ['../../../js/shell/topbar-panel.js', '../../../js/shell/modal-sheet.js', '../../../js/shell/ai-panel.js', '../../../js/shell/vk.js', '../../../js/lib/prefs-write.js', '../../../js/shell/share-button.js']) {
     assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
   }
 });
@@ -51,43 +52,43 @@ test('没有搜索；快捷面板只来自共享外壳（本站不自己写）�
   assert.doesNotMatch(code, /sgx-qp|sgx-tb-quick/);
   assert.doesNotMatch(index, /sgx-qp|sgx-tb-quick/);
   assert.doesNotMatch(index, /sgx-tb-title/);
-  assert.match(index, /partial "sgx-shell-entries\.html"/, '首页分区入口');
+  assert.match(index, /partial "sgx-entries\.html"/, '首页分区入口');
   assert.doesNotMatch(index, /id="dm-tags"/);
-  assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/layouts/partials/sgx-qp.html')), false);
-  assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/assets/js/sgx/shell/capsule-kb.js')), false);
+  assert.equal(existsSync(path.join(REPO, 'space/web/layouts/partials/daymark/sgx-qp.html')), false);
+  assert.equal(existsSync(path.join(REPO, 'space/web/assets/daymark/js/sgx/shell/capsule-kb.js')), false);
   /* 快捷面板样式只在 @sgx-shell 同步段里（共享外壳 shell.css），本站自己的段不写 */
-  const own = css.slice(css.indexOf('/* @sgx-shell:end */'));
-  assert.ok(css.indexOf('/* @sgx-shell:end */') > 0);
+  const own = css.slice(css.indexOf('@import "../../css/shell/shell.css";'));
+  assert.ok(css.indexOf('@import "../../css/shell/shell.css";') > 0);
   assert.doesNotMatch(css, /\.bk-cap/);
   assert.doesNotMatch(own, /\.sgx-qp/);
 });
 
 test('没有版权页脚（© / Powered by），样式也删干净', () => {
   assert.doesNotMatch(base, /<footer|©|Powered by/);
-  assert.doesNotMatch(css.slice(css.indexOf('/* @sgx-shell:end */')), /(^|[\s,}])footer\b|sgx-powered|sgx-tb-me/);
+  assert.doesNotMatch(css.slice(css.indexOf('@import "../../css/shell/shell.css";')), /(^|[\s,}])footer\b|sgx-powered|sgx-tb-me/);
 });
 
 test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚本、Giscus 配置和样式', async () => {
   const { existsSync } = await import('node:fs');
-  for (const f of ['atlas/web/daymark/layouts/_default/guestbook.html', 'atlas/web/daymark/content/guestbook.md', 'atlas/web/daymark/content/en/guestbook.md', 'atlas/web/daymark/assets/js/guestbook.js']) {
+  for (const f of ['space/web/layouts/daymark/guestbook.html', 'space/web/content/daymark/guestbook.md', 'space/web/content/daymark/en/guestbook.md', 'space/web/assets/daymark/js/guestbook.js']) {
     assert.equal(existsSync(new URL('../../' + f, import.meta.url)), false, f);
   }
-  assert.doesNotMatch(read('atlas/web/daymark/hugo.yaml'), /guestbook|giscus/i);
-  assert.doesNotMatch(css.slice(css.indexOf('/* @sgx-shell:end */')), /dm-gb-|giscus|guestbook/);
+  assert.doesNotMatch(read('space/web/hugo.yaml'), /guestbook|giscus/i);
+  assert.doesNotMatch(css.slice(css.indexOf('@import "../../css/shell/shell.css";')), /dm-gb-|giscus|guestbook/);
 });
 
 test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；日刻是当前项；主站项走 https://styrigx.com', () => {
-  const nav = JSON.parse(readFileSync(path.join(REPO, 'atlas/web/daymark/assets/sgx-shell/nav.json'), 'utf8'));
+  const nav = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/nav.json'), 'utf8'));
   /* 语言包化（2026-11-07）：nav.json 只有 id / 图标 / 地址，站名在外壳字符串表（sync-shell 同步到 data/sgx-shell-i18n/<语言>.yaml） */
-  const trZh = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'atlas/web/daymark/data/sgx-shell-i18n/zh.yaml'), 'utf8')));
+  const trZh = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/zh.yaml'), 'utf8')));
   assert.deepEqual(nav.items.map((i) => trZh.nav[i.id].title), ['旷野', '奇趣', '日刻', '博客']);
   assert.deepEqual(nav.footer, []);
   assert.equal(nav.me.href, 'https://styrigx.com/account/');
-  assert.match(base, /\{\{ \$shellNav := resources\.Get "sgx-shell\/nav\.json" \| transform\.Unmarshal \}\}/);
+  assert.match(base, /\{\{ \$shellNav := site\.Data\.shell\.nav \}\}/); /* 合站：直接读主站 data/shell/nav.json，没有副本 */
   assert.match(base, /"nav" \$shellNav\n/);
   assert.match(base, /"mainOrigin" "https:\/\/styrigx\.com"/);
   /* 项、页脚、当前项高亮都在共享外壳 partial 里（range .nav.items / with .nav.footer / eq .id $.site） */
-  const tb = read('atlas/web/daymark/layouts/partials/sgx-shell-topbar.html');
+  const tb = read('space/web/layouts/partials/shell-topbar.html');
   assert.match(tb, /range \.nav\.items/);
   assert.match(tb, /if eq \.id \$\.site \}\} aria-current="page"/);
   /* 导航页不放搜索框（定案第 2 条） */
@@ -109,14 +110,15 @@ test('外观和语言跟主站：baseof 在样式前内联 ui-inherit-run', () =
   assert.ok(base.indexOf('ui-inherit-run.js') < base.indexOf('css/main.css'));
 });
 
-test('robots.txt 只在图志根（root/robots.txt，Disallow: /）：本站不生成（Hugo 内置 robots 模板关掉），atlas/web/daymark/static 里也不放', () => {
-  assert.match(read('atlas/web/daymark/hugo.yaml'), /^enableRobotsTXT: false$/m);
-  assert.equal(existsSync(path.join(REPO, 'atlas/web/daymark/static/robots.txt')), false);
+test('robots.txt 只在图志根（root/robots.txt，Disallow: /）：本站不生成（Hugo 内置 robots 模板关掉），space/web/static/daymark 里也不放', () => {
+  /* 合站后只有一份 hugo.yaml（space/web/hugo.yaml），robots.txt 只出在根上：本站没有自己的 robots 模板 */
+  assert.equal(existsSync(path.join(REPO, 'space/web/layouts/daymark/robots.txt')), false);
+  assert.equal(existsSync(path.join(REPO, 'space/web/static/daymark/robots.txt')), false);
   assert.match(read('space/web/static/robots.txt'), /^User-agent: \*\nDisallow: \/$/m);
 });
 
 test('head 内联脚本和自定义色引擎不打包整份 palettes.json（预设表在共享读端里，引擎版本用读端的 SCHEME_VER）', () => {
-  for (const f of ['atlas/web/daymark/assets/js/sgx/ui-inherit-run.js', 'atlas/web/daymark/assets/js/sgx/shell-accent.js', 'atlas/web/daymark/assets/js/sgx/topbar-host.js']) {
+  for (const f of ['space/web/assets/daymark/js/sgx/ui-inherit-run.js', 'space/web/assets/daymark/js/sgx/shell-accent.js', 'space/web/assets/daymark/js/sgx/topbar-host.js']) {
     const src = read(f);
     assert.doesNotMatch(src, /^import .*palettes\.json/m, f);
     assert.doesNotMatch(src, /@params/, f);
@@ -126,8 +128,10 @@ test('head 内联脚本和自定义色引擎不打包整份 palettes.json（预�
   const head = base.slice(0, base.indexOf('</head>'));
   assert.doesNotMatch(head, /palettes\.json/);
   const uses = [...base.matchAll(/[^\n]*palettes\.json[^\n]*/g)].map((m) => m[0]).filter((l) => !/^\{\{\/\*/.test(l));
-  assert.deepEqual(uses, ['{{ range (resources.Get "sgx-shell/palettes.json" | transform.Unmarshal).presets }}']);
+  /* 合站：色块直接读主站 data/shell/palettes.json（site.Data），模板里不再 resources.Get 副本 */
+  assert.deepEqual(uses, []);
+  assert.deepEqual([...base.matchAll(/[^\n]*site\.Data\.shell\.palettes[^\n]*/g)].map((m) => m[0]), ['{{ range site.Data.shell.palettes.presets }}']);
   assert.doesNotMatch(base, /palettes\.json[^\n]*jsonify/);
-  assert.match(base, /<script>\{\{ \(resources\.Get "js\/sgx\/shell\/ui-cookie-read\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
+  assert.match(base, /<script>\{\{ \(resources\.Get "js\/lib\/ui-cookie-read\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
   assert.match(base, /js\/sgx\/ui-inherit-run\.js" \| js\.Build \(dict "format" "iife" "minify" true "target" "es2018"\)\)/);
 });

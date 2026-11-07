@@ -53,11 +53,9 @@ jobs:
           SGX_TEST_NO_WEATHER: "1"
       - name: Update snapshots
         run: npx playwright test --config=tests/config/playwright.config.js visual.spec.js --update-snapshots
-      - name: Update blog snapshots (子站：三站构建 → 拼单树 dist/site → 博客视觉回归；同 deploy.yml 的子站 Playwright)
-        # 合并 PR2：博客视觉基线 tests/blog/e2e/blog-visual.spec.js-snapshots 对着拼好的树生成（主站用上一步的测试构建，只为拼树）
+      - name: Update blog snapshots (子站博客视觉回归；同 deploy.yml 的子站 Playwright)
+        # 2026-11 合站：博客和主站同一个 Hugo 站，上一步的测试构建 space/web/public 里就有 /blog/（测试开关只影响主站模板），直接对着它生成
         run: |
-          npm run build:sites
-          node space/scripts/assemble.mjs
           npx playwright test --config=tests/blog/config/playwright.config.js blog-visual.spec.js --update-snapshots
       - name: Commit snapshots only
         id: commit

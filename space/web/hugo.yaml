@@ -1,5 +1,9 @@
 title: 'Styrigx'
 baseURL: 'https://styrigx.com/'
+# 一个 Hugo 站（2026-11 合站）：主站（/、/zh/）和三个子站（/blog/、/curio/、/daymark/，中文 /<站>/zh/）同一次构建、同一棵 public/。
+#   子站内容是 content/<站>/ 分区，模板在 layouts/<站>/（分区模板）+ layouts/partials/<站>/，资源在 assets/<站>/、static/<站>/（发布路径 = /<站>/…，
+#   和合站前各站 baseURL 为 https://styrigx.com/<站>/ 时一样），字符串表在 data/<站>/i18n/（博客用 i18n/）。共享外壳直接用主站的 partial 和 JS，没有副本。
+#   子站中文页的地址 /<站>/zh/… 不能由 Hugo 的语言前缀给（那会是 /zh/<站>/…），所以中文页一律在 front matter 写 url（模板里 errorf 守着）。
 # P4-3 PR-4c（§6.8）：英文是默认语言、不带前缀；中文在 /zh/。中英两版内容都在 content/（英文）和 content/zh/（中文，url 带 /zh/），
 # 页面一律在 front matter 固定英文 url，路径段中英相同。旧的 /en/… 删除不 301；不要 Hugo 生成 /en/ → / 的跳转页。
 defaultContentLanguage: en
@@ -12,6 +16,9 @@ languages:
     weight: 1
     params:
       ogLocale: en_US
+      # 博客用：<html lang>、RSS <language>（partials/blog/head.html、layouts/blog/section.blogrss.xml）和 RSS 标题
+      locale: en
+      rssTitle: 'Styrigx (English)'
       # 快捷面板语言选项的顺序（小的在前；没写按 weight）。weight 管默认语言 / 翻译排序，选择器顺序单独定：跟随系统 / 中文 / English
       pickerWeight: 2
   zh:
@@ -19,8 +26,29 @@ languages:
     weight: 2
     params:
       ogLocale: zh_CN
+      locale: zh-CN
+      rssTitle: 'Styrigx'
       pickerWeight: 1
 theme: []
+# 博客文章日期按 UTC 读（合站前博客单独设的；主站没有依赖本地时区的日期）
+timeZone: UTC
+
+taxonomies:
+  category: categories
+  tag: tags
+
+# 博客：文章 /blog/post/<文件名>/、标签页 /blog/tags/<slug>/（中文版的地址在各自 front matter 的 url 里）
+permalinks:
+  page:
+    blog: /blog/post/:contentbasename/
+  term:
+    tags: /blog/tags/:slug/
+
+# 标签页（只有博客用）走博客的模板：layouts/blog/term.html + layouts/blog/baseof.html
+cascade:
+  - type: blog
+    target:
+      kind: term
 
 build:
   writeStats: true
@@ -43,21 +71,73 @@ outputFormats:
     isPlainText: true
     notAlternative: true
     root: true
+  # 子站分区页（content/<站>/_index.md 的 outputs）的附带输出：/blog/rss.xml（中文 /blog/zh/rss.xml）、/blog/sitemap-index.xml、/blog/sitemap-0.xml、/curio/sitemap.xml、/daymark/sitemap.xml
+  blogrss:
+    mediaType: application/rss+xml
+    baseName: rss
+    rel: alternate
+    noUgly: true
+  blogsitemapindex:
+    mediaType: application/xml
+    baseName: sitemap-index
+    isPlainText: true
+    notAlternative: true
+  blogsitemap0:
+    mediaType: application/xml
+    baseName: sitemap-0
+    isPlainText: true
+    notAlternative: true
+  curiositemap:
+    mediaType: application/xml
+    baseName: sitemap
+    isPlainText: true
+    notAlternative: true
+  daymarksitemap:
+    mediaType: application/xml
+    baseName: sitemap
+    isPlainText: true
+    notAlternative: true
 outputs:
   home:
     - HTML
     - RSS
     - filesindex
     - sitemappublic
+  # 博客标签页只要 HTML
+  term:
+    - HTML
 
 markup:
   goldmark:
     renderer:
       unsafe: true
+    parser:
+      autoHeadingIDType: github
+  highlight:
+    # 博客代码块：Chroma 输出 class（配色由 assets/blog/css/blog/code-tokens.css 从色彩角色生成，不用固定主题）
+    noClasses: false
+    lineNos: true
+    lineNumbersInTable: false
+    anchorLineNos: false
+    guessSyntax: false
+    codeFences: true
+    tabWidth: 2
+  tableOfContents:
+    startLevel: 2
+    endLevel: 3
+    ordered: false
 
 params:
   # 站点描述在字符串表 data/i18n/<语言>.yaml 的 site.description（语言包化 2026-11-07）
   since: 2020
+  # 子站各自的版本号（合站前在各站 hugo.yaml 的 params）
+  blog:
+    author: 'Sloan Gray'
+    version: '1.0.0'
+  curio:
+    version: '0.2.0'
+  daymark:
+    version: '1.1.0'
   # 版本号唯一来源：data/version.yaml（ui + sgx），此处不硬编码
 
 # 2.3.12：tdewolff HTML 压缩器与内联 JS 中的 < 冲突，禁用 HTML 压缩（CSS 已由 Tailwind 压缩）

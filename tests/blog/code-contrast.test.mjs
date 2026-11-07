@@ -1,12 +1,12 @@
 // 代码块配色对比度（像主站的调色板对比度报告）：每类记号在 13 套预设 × 亮 / 暗、以及一批随机自定义种子下，
 // 对代码面（surface-container-high）和高亮行背景都 ≥ 4.5:1（生成时按 4.6 留余量）；行号 ≥ 3:1。
-// 配色由 atlas/scripts/blog/gen-code-tokens.mjs 从色彩角色生成，这里逐个调色板复算。
+// 配色由 space/scripts/blog/gen-code-tokens.mjs 从色彩角色生成，这里逐个调色板复算。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   GROUPS, GUTTER, OUT, allPalettes, contrast, hex, mix, paletteColors, render, solve,
-} from '../../atlas/scripts/blog/gen-code-tokens.mjs';
+} from '../../space/scripts/blog/gen-code-tokens.mjs';
 
 const { palettes, presets } = await allPalettes();
 const css = readFileSync(OUT, 'utf8');
@@ -16,7 +16,7 @@ const pct = (id) => {
   return m[1] ? +m[1] : m[2] === 'text-primary' ? 0 : 100;
 };
 
-test('code-tokens.css 是最新生成的（改了角色 / 分组请跑 node atlas/scripts/blog/gen-code-tokens.mjs）', () => {
+test('code-tokens.css 是最新生成的（改了角色 / 分组请跑 node space/scripts/blog/gen-code-tokens.mjs）', () => {
   assert.equal(css, render(solve(palettes)));
 });
 
@@ -60,7 +60,7 @@ test('行号（装饰）≥ 3:1', () => {
 });
 
 test('预设的角色值 = 共享外壳 tokens.css 里实际下发的值（测的就是页面上的颜色）', () => {
-  const shell = readFileSync(new URL('../../atlas/web/blog/assets/css/sgx-shell.css', import.meta.url), 'utf8');
+  const shell = (readFileSync(new URL('../../space/web/assets/css/shell/tokens.css', import.meta.url), 'utf8') + readFileSync(new URL('../../space/web/assets/css/shell/shell.css', import.meta.url), 'utf8'));
   const roles = ['surface-container-high', 'text-primary', ...new Set([...GROUPS, GUTTER].map((g) => g.role))];
   for (const pal of palettes.filter((p) => !p.custom)) {
     const [id, mode] = pal.name.split('/');

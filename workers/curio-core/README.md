@@ -4,7 +4,7 @@
 
 ## 职责
 
-- `/curio/api/*` 的全部数据接口；页面是静态文件（`atlas/web/curio/`），会话检查在主站鉴权网关。
+- `/curio/api/*` 的全部数据接口；页面是静态文件（`space/web/` 下的 `<目录>/curio/`，和主站同一个 Hugo 站），会话检查在主站鉴权网关。
 - 写接口成功后重建全站搜索索引里本站那一条（KV `site:curio`），Cron 每小时兜底；每天一轮清扫 R2 里没人引用的照片。
 
 ## 入口
@@ -68,4 +68,4 @@ src/photo-sweep.js   R2 photos/ 清扫
 
 ## 数据与迁移
 
-`migrations/`（D1 `styrigx-curio-core`）。`0002_seed.sql` 由 `atlas/scripts/curio/gen-seed-sql.mjs` 从 `atlas/scripts/curio/data/seed.json` 生成（`--check` 核对）。已上线的迁移不改名、不重新编号。单测在 `tests/workers/curio-core/`。PR3 之前线上部署仍由 styrigx-atlas 仓库负责。
+`migrations/`（D1 `styrigx-curio-core`）。`0002_seed.sql` 由 `space/scripts/curio/gen-seed-sql.mjs` 从 `space/scripts/curio/data/seed.json` 生成（`--check` 核对）。已上线的迁移不改名、不重新编号。单测在 `tests/workers/curio-core/`。PR3 之前线上部署仍由 styrigx-atlas 仓库负责。

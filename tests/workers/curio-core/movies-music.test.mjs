@@ -351,9 +351,9 @@ test('索引：电影、音乐元数据进 site:curio（不标 private，进门�
   assert.ok(ix.items.filter((it) => /^(movie|album):/.test(it.id)).every((it) => it.private === undefined), '没有私密列，不标 private');
   const all = JSON.stringify(ix);
   assert.doesNotMatch(all, /lyricszz|r2_key|music\/\d|\.mp3/, '歌词 / 音频 key 不进');
-  /* 站点地图：/curio/sitemap.xml 只列首页两种语言（模板里只有 site.Home）；子页一律 noindex */
-  const sm = readFileSync(REPO + '/atlas/web/curio/layouts/index.sitemaproot.xml', 'utf8');
-  assert.match(sm, /site\.Home\.AllTranslations/);
+  /* 站点地图：/curio/sitemap.xml 只列首页两种语言（合站后本站首页是分区页：模板里只有 (site.GetPage "/curio").AllTranslations）；子页一律 noindex */
+  const sm = readFileSync(REPO + '/space/web/layouts/curio/section.curiositemap.xml', 'utf8');
+  assert.match(sm, /\(site\.GetPage "\/curio"\)\.AllTranslations/);
   assert.doesNotMatch(sm, /music|movies|RegularPages|\.Pages/);
 });
 

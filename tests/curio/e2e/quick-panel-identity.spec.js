@@ -1,8 +1,8 @@
 /* 四站快捷面板是同一份（P4-3 PR-4b 定稿：快捷面板只有一页，四站完全相同）。
- * 跑在拼好的整站（dist/site：主站 /，奇趣 /curio/、日刻 /daymark/、博客 /blog/，同源）。
+ * 跑在拼好的整站（space/web/public：主站 /，奇趣 /curio/、日刻 /daymark/、博客 /blog/，同源）。
  * 比的是构建产物里 #sgx-qp 的 DOM（DOMParser 解析，和 HTML 压缩写法无关）：元素、属性、文字逐个相同（图标 SVG 只比结构，压缩会改写路径数据），
  * 只允许各站自己的语言（中文页和中文页比、英文页和英文页比）。另外各站真点开一次：只有一页，磁贴顺序相同。
- * 主站在 dist/site 里是生产构建（锁屏启用、没有网关）：主站只比 DOM，不点。 */
+ * 主站在 space/web/public 里是生产构建（锁屏启用、没有网关）：主站只比 DOM，不点。 */
 const { test, expect } = require('@playwright/test');
 
 const SETS = {

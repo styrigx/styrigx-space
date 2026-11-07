@@ -1,5 +1,5 @@
 /* P4-3 §6.6 / 设计 §5.2、§6.2、§6.3（段式标签 PR）：原顶栏分段滑块搬进内容页（页内二级切换），内容页顶栏下方标题带。
-   - 共享外壳：sgx-segtabs.html / sgx-page-hero.html（gen-shell 原样复制成 segtabs.html / page-hero.html，三站同步），CSS 在 input.css 的 @inpage 段
+   - 共享外壳：sgx-segtabs.html / sgx-page-hero.html（2026-11 合站后四站直接用主站这一份），CSS 在 input.css 的 @inpage 段（gen-shell 抽成 assets/css/shell/shell.css）
    - 段式标签：非当前项 = 导航选中色 45% 衬底 + text-primary，当前项 = nav-selected 实色 + 粗体 + on-nav-selected（同顶栏）
    - 对比度审计：22 套预设 × 深浅色 + 自定义色（色相扫一圈 × 5 档明度 + 极端值），段式标签放在页面底色 / 表面色上，非当前项文字 ≥ 4.5:1、当前项 ≥ 4.5:1 */
 import { test } from 'node:test';
@@ -10,7 +10,7 @@ import { SHELL_REGIONS } from '../../../../space/scripts/gen-shell.mjs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
 const has = (p) => existsSync(new URL('../../../../' + p, import.meta.url));
-const shell = rd('space/web/shared/shell/shell.css');
+const shell = rd('space/web/assets/css/shell/shell.css');
 
 test('共享外壳：inpage 段进 shell.css，段式标签用导航选中色 45% 衬底、当前项实色加粗', () => {
   assert.ok(SHELL_REGIONS.includes('inpage'));
@@ -28,9 +28,9 @@ test('标题带只在手机布局显示：桌面布局视觉隐藏（顶栏胶�
   assert.doesNotMatch(desk[1], /display: none/, '不用 display:none，读屏仍能读到 h1');
   assert.doesNotMatch(shell, /:root\[data-sgx-layout="desktop"\] \.sgx-hero-(title|desc) \{/, '桌面不再给标题 / 说明单独定字号');
   assert.doesNotMatch(shell, /\[data-sgx-layout="[a-z]+"\][^{]*\.sgx-segs[^{]*\{[^}]*display: none/, '段式标签不按布局隐藏');
+  /* 2026-11 合站：三个子站的样式表直接 @import 这份 shell.css（不再同步副本） */
   for (const site of ['blog', 'curio', 'daymark']) {
-    const css = rd(site === 'blog' ? 'atlas/web/blog/assets/css/sgx-shell.css' : `atlas/web/${site}/assets/css/input.css`);
-    assert.ok(css.includes(desk[0]), site + ' 同步了桌面隐藏规则');
+    assert.match(rd(`space/web/assets/${site}/css/input.css`), /@import ['"]\.\.\/\.\.\/css\/shell\/shell\.css['"];/, site + ' 引入共享外壳 shell.css');
   }
 });
 
@@ -41,12 +41,10 @@ test('inpage 段只用 --sgx-* 角色，不写死颜色', () => {
   assert.doesNotMatch(region, /#[0-9a-f]{3,8}\b|rgba?\(/i);
 });
 
-test('共享外壳：segtabs.html / page-hero.html 原样复制，三个子站同步成 sgx-shell-*.html', () => {
-  assert.equal(rd('space/web/shared/shell/segtabs.html'), rd('space/web/layouts/partials/sgx-segtabs.html'));
-  assert.equal(rd('space/web/shared/shell/page-hero.html'), rd('space/web/layouts/partials/sgx-page-hero.html'));
+test('共享外壳：sgx-segtabs.html / sgx-page-hero.html 只有主站一份（2026-11 合站后三个子站直接调用，没有副本）', () => {
   for (const site of ['blog', 'curio', 'daymark']) {
-    assert.equal(rd(`atlas/web/${site}/layouts/partials/sgx-shell-segtabs.html`), rd('space/web/shared/shell/segtabs.html'), site);
-    assert.equal(rd(`atlas/web/${site}/layouts/partials/sgx-shell-page-hero.html`), rd('space/web/shared/shell/page-hero.html'), site);
+    assert.ok(!has(`space/web/layouts/partials/${site}/sgx-shell-segtabs.html`), site);
+    assert.ok(!has(`space/web/layouts/partials/${site}/sgx-shell-page-hero.html`), site);
   }
   /* 标题带缺 description：只显示标题 + 构建警告 */
   assert.match(rd('space/web/layouts/partials/sgx-page-hero.html'), /if not \.desc \}\}\{\{ warnf "page-hero:/);
@@ -54,18 +52,18 @@ test('共享外壳：segtabs.html / page-hero.html 原样复制，三个子站�
 
 test('子站接入：奇趣子页页头（标题带 + 段式标签），日刻 / 博客页内分区（首页是入口页；另两个分区面板各一个标题带 + 段式标签）', () => {
   for (const id of ['finds', 'devices', 'games', 'movies', 'music']) {
-    assert.match(rd(`atlas/web/curio/layouts/_default/${id}.html`), new RegExp(`partial "curio/page-head\\.html" \\(dict "page" \\. "id" "${id}"`), id);
-    for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`atlas/web/curio/content/${f}`), /^description: '.+'$/m, f);
+    assert.match(rd(`space/web/layouts/curio/${id}.html`), new RegExp(`partial "curio/page-head\\.html" \\(dict "page" \\. "id" "${id}"`), id);
+    for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);
   }
-  const head = rd('atlas/web/curio/layouts/partials/curio/page-head.html');
-  assert.match(head, /partial "sgx-shell-page-hero\.html"/);
-  assert.match(head, /partial "sgx-shell-segtabs\.html" \(dict "items" \$segs "current" \.id/);
-  assert.match(rd('atlas/web/curio/assets/css/input.css'), /html:not\(\.cu-music-ok\) #cu-segs \.sgx-segs-tab\[data-seg="music"\]:not\(\[aria-current\]\) \{ display: none; \}/);
+  const head = rd('space/web/layouts/partials/curio/page-head.html');
+  assert.match(head, /partial "sgx-page-hero\.html"/);
+  assert.match(head, /partial "sgx-segtabs\.html" \(dict "items" \$segs "current" \.id/);
+  assert.match(rd('space/web/assets/curio/css/input.css'), /html:not\(\.cu-music-ok\) #cu-segs \.sgx-segs-tab\[data-seg="music"\]:not\(\[aria-current\]\) \{ display: none; \}/);
   for (const [site, panes] of [['daymark', ['trove', 'flavors']], ['blog', ['posts', 'topics']]]) {
-    const idx = rd(`atlas/web/${site}/layouts/index.html`);
+    const idx = rd(`space/web/layouts/${site}/section.html`);
     /* 首页分区是入口页（平铺入口），不放段式标签；另外两个分区面板各一个标题带 + 一条段式标签（服务端写好当前项，不用脚本） */
-    assert.equal((idx.match(/partial "sgx-shell-page-hero\.html"/g) || []).length, 2, site);
-    for (const id of panes) assert.match(idx, new RegExp(`partial "sgx-shell-page-hero\\.html" .*"tag" "h2"\\) \\}\\}\\n\\s*\\{\\{ partial "sgx-shell-segtabs\\.html" \\(dict "items" \\$segItems "current" "${id}"`), site + ' ' + id);
+    assert.equal((idx.match(/partial "sgx-page-hero\.html"/g) || []).length, 2, site);
+    for (const id of panes) assert.match(idx, new RegExp(`partial "sgx-page-hero\\.html" .*"tag" "h2"\\) \\}\\}\\n\\s*\\{\\{ partial "sgx-segtabs\\.html" \\(dict "items" \\$segItems "current" "${id}"`), site + ' ' + id);
   }
 });
 
@@ -98,7 +96,7 @@ const check = (t, label) => {
 };
 
 test('对比度：22 套预设 × 深浅色，段式标签非当前项 / 当前项文字 ≥ 4.5:1', () => {
-  const { presets } = JSON.parse(rd('space/web/shared/shell/palettes.json'));
+  const { presets } = JSON.parse(rd('space/web/data/shell/palettes.json'));
   assert.equal(presets.length, 22);
   for (const p of presets) for (const mode of ['light', 'dark']) check(p.tokens[mode], `${p.id} ${mode}`);
 });

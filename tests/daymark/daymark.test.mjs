@@ -1,4 +1,4 @@
-// 首页纯函数（atlas/web/daymark/assets/js/daymark.js）：页签路由、标签块、百味分组、自动补全、再抽一句、排序、署名、日期显示。
+// 首页纯函数（space/web/assets/daymark/js/daymark.js）：页签路由、标签块、百味分组、自动补全、再抽一句、排序、署名、日期显示。
 // 运行：node --test tests/daymark/daymark.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { strings } from '../fixtures/strings.mjs';
 
-const src = readFileSync(new URL('../../atlas/web/daymark/assets/js/daymark.js', import.meta.url), 'utf8');
+const src = readFileSync(new URL('../../space/web/assets/daymark/js/daymark.js', import.meta.url), 'utf8');
 const box = { module: { exports: {} }, console };
 vm.createContext(box);
 vm.runInContext(src, box);

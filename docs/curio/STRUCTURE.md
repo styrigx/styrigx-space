@@ -1,24 +1,24 @@
 # 奇趣（sites/curio/）结构
 
-> 状态：现行 ｜ 最后更新：2026-11-06
+> 状态：现行 ｜ 最后更新：2026-11-08
 
 奇趣原在图志仓库（styrigx-atlas），2026-11-02 并入本仓库；线上在 `https://styrigx.com/curio/`（英文 `/curio/en/`），接口在 `styrigx.com/curio/api/*`；旧图志域名的 301 已于 P4-3 PR-1 删除。
-下面的目录树是并入前的布局，现在的位置（`atlas/web/curio/`、`workers/curio-core/`、`tests/curio/`、`atlas/scripts/curio/`）见仓库根 `STRUCTURE.md`。
-仓库整体（三站合成一个 Pages、共用的 `root/`、CI）见仓库根 README。改页面只动 `atlas/web/curio/`，改接口只动 `workers/core/`。
+2026-11 合站起本站和主站是同一个 Hugo 站（`space/web/`）：页面在 `space/web/content/curio/`、模板在 `space/web/layouts/curio/` + `layouts/partials/curio/`、资源在 `space/web/assets/curio/`（发布路径仍是 `/curio/css/…`、`/curio/js/…`）、字符串表在 `space/web/data/curio/i18n/`；接口 `workers/curio-core/`，测试 `tests/curio/`，脚本 `space/scripts/curio/`。共享外壳（顶栏、导航数据 `site.Data.shell.nav`、调色板 `site.Data.shell.palettes`、cookie 读端、`lang-boot.js`）直接用主站的 partial 和 JS，没有副本、没有 `sync-shell.mjs` / `sgx-shell.lock.json`。
+下面的目录树和表是合站前的布局（站内相对路径），按上面换算；仓库整体见仓库根 `STRUCTURE.md`。改页面只动 `space/web/` 下的 `<目录>/curio/`，改接口只动 `workers/curio-core/`。
 
 ```
 sites/curio/
-├─ atlas/web/curio/          网站本体（Hugo，baseURL https://styrigx.com/curio/），产物由仓库根 space/scripts/assemble.mjs 合进 public/curio/
+├─ atlas/web/curio/          网站本体（Hugo，baseURL https://styrigx.com/curio/）（合站后并进 space/web/，同一次构建出 public/curio/）
 ├─ workers/
 │  └─ core/      Worker styrigx-curio-core：收藏的存、读、导入导出、图标缓存
 ├─ data/         初始收藏 seed.json（迁自主站书签）
-├─ atlas/scripts/curio/      生成脚本（种子迁移 SQL）、主站共享外壳同步
+├─ atlas/scripts/curio/      生成脚本（种子迁移 SQL；合站后在 space/scripts/curio/）
 ├─ tests/        全部测试，按测试对象分目录（e2e 对着仓库根合成的 public/）
 ├─ package.json  workspace 脚本（依赖在仓库根）
 └─ STRUCTURE.md
 ```
 
-## atlas/web/curio/
+## 页面（合站前 `atlas/web/curio/`，现在在 `space/web/` 的 `<目录>/curio/` 下）
 
 | 位置 | 是什么 |
 |---|---|
@@ -34,7 +34,7 @@ sites/curio/
 | `assets/js/curio-music.js` | 「音乐」私人子页：封面横滑、整张播放（短链）、歌词、倍速、上传专辑 |
 | `assets/js/topbar.js` | 导航抽屉开关 |
 | `assets/js/sgx/` | 外观和语言继承主站（`sgx-ui` cookie）；`shell/ui-cookie-read.js` 是主站共享外壳的 cookie 读端（baseof 内联），`shell/palette-scheme.js` 是自定义主题色引擎 |
-| `assets/sgx-shell/` | 主站共享外壳的抽屉项 + 图标、预设种子，`atlas/scripts/curio/sync-shell.mjs` 同步，勿手改 |
+| `assets/sgx-shell/` | 主站共享外壳的抽屉项 + 图标、预设种子，合站后已删，改读主站 `space/web/data/shell/` |
 | `assets/css/input.css` | 样式；`@sgx-shell:begin … end` 之间是主站共享外壳（勿手改），本站自己的在文件末尾（`cu-` 前缀；`bk-` 是沿用的共用弹层组件） |
 | `assets/js/sgx-lock-sync.js` | 切回前台复查会话，401 → 刷新去主站锁屏 |
 
@@ -63,7 +63,7 @@ sites/curio/
 | `src/api/_preview.js` | 抓网页 + 地址安全检查（不抓内网 / 本机 / 自家域名） |
 | `src/api/_auth.js` `_lib.js` `_write.js` | 问网关、JSON 响应、同源 / 同站检查、读 body |
 | `src/api/_image.js` | 图片响应共用：`private, no-cache` + ETag + `Vary: Cookie`，浏览器每次用前回来验会话，304 排在会话和可见性检查之后 |
-| `migrations/` | D1 迁移：`0001_init`（cats、links、imports）、`0002_seed`（初始收藏，由 `atlas/scripts/curio/gen-seed-sql.mjs` 生成）、`0003_devices_games`（devices、games）、`0004_movies_music`（movies、music_albums、music_tracks、music_tokens） |
+| `migrations/` | D1 迁移：`0001_init`（cats、links、imports）、`0002_seed`（初始收藏，由 `space/scripts/curio/gen-seed-sql.mjs` 生成）、`0003_devices_games`（devices、games）、`0004_movies_music`（movies、music_albums、music_tracks、music_tokens） |
 
 ## 部署
 

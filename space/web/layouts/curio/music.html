@@ -1,0 +1,94 @@
+{{ define "main" }}
+{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
+{{/* 奇趣 › 音乐（/curio/music/，中文 /curio/zh/music/；P4-3 奇趣拆页新增）：私人数字专辑，仅本人可见，curio-music.js 画。
+   权限：/curio/api/music* 都要 账号会话 + curio.write（同电影的写权限，不新造作用域）；没权限时这页只显示 #mu-denied（接口 401 account / 403 scope），
+   首页入口也藏着（curio-home.js）。noindex（baseof），不进站点地图 / 全站搜索 / AI 召回。
+   播放器交互借 jojo.best/music 的思路（只借交互）：封面横滑切专辑、整张按曲序播放、歌词跟着滚、倍速 0.75 / 1 / 1.25 / 1.5 / 2。
+   播放走短链：/curio/api/music-play 签一枚随机令牌（10 分钟），<audio> 的地址是 /curio/api/music-stream?t=…&id=…（支持 Range，拖进度）。
+   上传：「上传专辑」弹层，多个音频 + 可选封面 + 可选 .lrc 歌词，浏览器直传（单个音频 ≤ 95 MB）。 */}}
+<main id="cu-main" class="cu-wrap mu-wrap" data-cu-page="music">
+{{ partial "curio/page-head.html" (dict "page" . "id" "music" "tr" $tr "lang" $lang) }}
+  <section id="cu-pane-music" class="cu-pane" aria-label="{{ $tr.music.music }}">
+    <div id="mu-denied" class="mu-denied hidden">
+      <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      <p class="mu-denied-title">{{ $tr.music.onlyMe }}</p>
+      <p class="mu-denied-text">{{ $tr.music.thisPageIsPrivate }}</p>
+      <a id="mu-denied-link" class="mu-denied-link" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}">{{ $tr.music.account }}</a>
+    </div>
+    <div id="mu-app" class="hidden">
+      <div class="mu-top">
+        <button id="mu-upload" type="button" class="cu-btn-text mu-upload-btn">{{ $tr.music.uploadAlbum }}</button>
+      </div>
+      <div id="mu-covers" class="mu-covers" role="list" aria-label="{{ $tr.music.albums }}"></div>
+      <div id="mu-dots" class="mu-dots" aria-hidden="true"></div>
+      <div class="mu-head">
+        <div class="mu-head-tx">
+          <h2 id="mu-album-title" class="mu-album-title"></h2>
+          <p id="mu-album-sub" class="mu-album-sub"></p>
+        </div>
+        <button id="mu-play-all" type="button" class="mu-play-all" aria-label="{{ $tr.music.playAlbum }}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></button>
+      </div>
+      <ol id="mu-tracks" class="mu-tracks" aria-label="{{ $tr.music.tracks }}"></ol>
+      <div class="mu-album-acts"><button id="mu-album-del" type="button" class="cu-btn-text mu-del-btn">{{ $tr.music.deleteAlbum }}</button></div>
+      <p id="mu-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant">{{ $tr.music.noAlbumsYetTap }}</p>
+    </div>
+    <p class="it-loading text-center py-16 text-sm text-m-on-surface-variant">{{ $tr.music.loading }}</p>
+  </section>
+</main>
+
+{{/* ===== 播放条（固定在底部；播放时出现） ===== */}}
+<div id="mu-player" class="mu-player hidden" role="region" aria-label="{{ $tr.music.player }}">
+  <div class="mu-player-in">
+    <div class="mu-now"><span id="mu-now-title" class="mu-now-title"></span><span id="mu-now-sub" class="mu-now-sub"></span></div>
+    <div id="mu-lyrics" class="mu-lyrics" aria-hidden="true"><div id="mu-lyrics-in" class="mu-lyrics-in"></div></div>
+    <div class="mu-seek-row">
+      <span id="mu-time" class="mu-time">0:00</span>
+      <input id="mu-seek" class="mu-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="{{ $tr.music.position }}">
+      <span id="mu-dur" class="mu-time">0:00</span>
+    </div>
+    <div class="mu-ctrl">
+      <button id="mu-speed" type="button" class="mu-speed" aria-label="{{ $tr.music.playbackSpeed }}">1×</button>
+      <button id="mu-prev" type="button" class="mu-cbtn" aria-label="{{ $tr.music.previous }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M7 6v12M18 6.5v11L9.5 12z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+      <button id="mu-toggle" type="button" class="mu-cbtn mu-toggle" aria-label="{{ $tr.music.play }}" data-l-play="{{ $tr.music.play }}" data-l-pause="{{ $tr.music.pause }}"><svg class="mu-ic-play" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg><svg class="mu-ic-pause" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg></button>
+      <button id="mu-next" type="button" class="mu-cbtn" aria-label="{{ $tr.music.next }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M17 6v12M6 6.5v11l8.5-5.5z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+      <span class="mu-ctrl-pad" aria-hidden="true"></span>
+    </div>
+  </div>
+</div>
+<audio id="mu-audio" preload="metadata"></audio>
+
+{{/* ===== 上传专辑 ===== */}}
+<div id="mu-up-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="mu-up-title">
+  <div class="bk-overlay-backdrop absolute inset-0" data-close="mu-up"></div>
+  <div class="bk-panel text-m-on-surface shadow-2xl">
+    <div class="sheet-handle"></div>
+    <div class="bk-titlebar">
+      <div class="bk-titlebar-side" aria-hidden="true"></div>
+      <div class="bk-titlebar-mid"><h2 id="mu-up-title" class="text-lg font-extrabold">{{ $tr.music.uploadAlbum2 }}</h2></div>
+      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="mu-up" aria-label="{{ $tr.music.close }}">{{ partial "curio/icon.html" (dict "name" "x-mark" "uid" "muu-x") }}</button></div>
+    </div>
+    <form id="mu-up-form" class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pb-4 flex flex-col gap-4" novalidate>
+      <label class="cu-field"><span>{{ $tr.music.album }}</span><input id="mu-up-name" type="text" maxlength="120" autocomplete="off"></label>
+      <div class="it-two">
+        <label class="cu-field"><span>{{ $tr.music.artist }}</span><input id="mu-up-artist" type="text" maxlength="120" autocomplete="off"></label>
+        <label class="cu-field"><span>{{ $tr.music.year }}</span><input id="mu-up-year" type="number" inputmode="numeric" min="1900" max="2100" step="1"></label>
+      </div>
+      <label class="cu-file"><input id="mu-up-audio" type="file" accept="audio/*,.mp3,.m4a,.flac,.ogg,.opus,.wav,.aac" multiple class="sr-only"><span id="mu-up-audio-name">{{ $tr.music.chooseTracks }}</span></label>
+      <label class="cu-file"><input id="mu-up-cover" type="file" accept="image/*" class="sr-only"><span id="mu-up-cover-name">{{ $tr.music.coverOptional }}</span></label>
+      <label class="cu-file"><input id="mu-up-lrc" type="file" accept=".lrc,text/plain" multiple class="sr-only"><span id="mu-up-lrc-name">{{ $tr.music.lyricsLrcOptionalMatched }}</span></label>
+      <p class="text-xs text-m-on-surface-variant">{{ $tr.music.trackOrderFollowsThe }}</p>
+      <p id="mu-up-msg" class="hidden text-sm"></p>
+    </form>
+    <div class="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-[var(--sgx-divider)] flex gap-3">
+      <button id="mu-up-go" type="button" class="flex-1 h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold disabled:opacity-50">{{ $tr.music.upload }}</button>
+    </div>
+  </div>
+</div>
+
+{{ partial "curio/common.html" (dict "tr" $tr "lang" $lang) }}
+{{ end }}
+
+{{ define "pagejs" }}
+<script src="{{ (resources.Get "curio/js/curio.js" | minify | fingerprint).RelPermalink }}"></script>
+<script src="{{ (resources.Get "curio/js/curio-music.js" | minify | fingerprint).RelPermalink }}"></script>
+{{ end }}

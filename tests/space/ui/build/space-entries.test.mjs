@@ -73,7 +73,7 @@ test('CSS：@entries 区块只用变量、≥ 760 两栏、≥ 1100 三栏', () 
 
 /* ---- 构建产物（npm run build / hugo 之后才有） ---- */
 const BUILT = existsSync(path.join(REPO, 'space/web/public/index.html'));
-const PUBS = ['space/web/public', 'dist/site'].filter((p) => existsSync(path.join(REPO, p)));
+const PUBS = ['space/web/public', 'space/web/public'].filter((p) => existsSync(path.join(REPO, p)));
 
 /** @param {string} dir @returns {string[]} */
 function files(dir) {

@@ -96,7 +96,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
   首帧前必须跑的（主题、语言、布局、防闪）仍是 `<head>` 里的同步内联脚本，不进模块。
 
 ### L6 外部 App：子站 styrigx.com/blog/、/curio/、/daymark/
-- 合并 PR3 起三站和主站是同一个 Pages 项目 `styrigx-space` 里的一棵树，各占一个路径 `/blog/`、`/curio/`、`/daymark/`，代码在本仓库 `atlas/web/<站>/`。
+- 合并 PR3 起三站和主站是同一个 Pages 项目 `styrigx-space` 里的一棵树，各占一个路径 `/blog/`、`/curio/`、`/daymark/`，代码在本仓库；2026-11 合站起三站和主站是同一个 Hugo 站（`space/web/` 下的 `content|layouts|assets|static/<站>/`），一次构建。
   旧图志域名的 301 跳转已于 P4-3 PR-1 删除，该域名下线。
 - 子站页面由网关（`workers/auth-gateway/src/gate.js` 的 `handleSubsite`，按路径前缀）验同一份锁屏会话，Pages 不持任何钥匙。
 - 未解锁时 302 到 space 锁屏并带完整 return。
