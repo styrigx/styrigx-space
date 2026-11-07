@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:948f47e9d9f6 space/web/shared/shell v57dad80a21d7（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:3c2683961acf space/web/shared/shell v06b776b1c2a1（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- topbar.js ---- */
 /**
  * @fileoverview 顶栏的三个弹出窗口：导航面板 #sgx-nav（九宫格）、快捷面板 #sgx-qp（快捷设置）、AI 窗口 #sgx-ai（2026-11-04 P5-1；P4-3 PR-4b Gray 2026-11-07 定稿）。
@@ -84,6 +84,7 @@ export function resolveLang(v, nav, langs) {
  *   keyboard?: (cb: (h: number) => void) => () => void,
  *   share?: (cfg: { button: Element }) => any,
  *   subscribe?: (repaint: () => void) => void,
+ *   reload?: () => void,
  *   doc?: Document,
  * }} o
  */
@@ -326,6 +327,15 @@ export function mountTopbar(o) {
         const sb = /** @type {HTMLButtonElement|null} */ (tg.closest('[data-qp-seg] button'));
         if (sb && !sb.disabled) {
           if (P.setLayout) P.setLayout(sb.getAttribute('data-v') || '');
+          /* 手机屏切进 / 切出「桌面」：共享外壳 layout-mode.js 把 viewport 换成 980 宽（或还原）。缩放比例只在加载时按新视口重算，
+             原地改 meta 会停在放大的比例上——先关面板（退掉历史哨兵，返回键不多一步），再整页重载 */
+          const vw = /** @type {any} */ (window).__sgxViewportSync;
+          if (typeof vw === 'function' && vw()) {
+            const go = o.reload || function () { location.reload(); };
+            if (qp) qp.ms.close(go);
+            else go();
+            return;
+          }
           paint();
         }
       });

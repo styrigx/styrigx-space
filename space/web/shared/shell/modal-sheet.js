@@ -22,6 +22,48 @@ function reducedMotion() {
   );
 }
 /**
+ * 打开 <dialog>，但不让浏览器「滚到焦点」（2026-11-07 Gray 真机：S23 Ultra 三星浏览器开「桌面版网站」，点九宫格 / 快捷设置 / AI，
+ * 整页突然放大并左移、只看得见面板一角，关掉才恢复）。
+ * show() / showModal() 自带的「对话框聚焦」会聚焦 [autofocus]（没有就是第一个可聚焦元素）并把它滚进视野，这一步不能带 preventScroll。
+ * 桌面版网站下整页是缩小显示的（S23 Ultra 约 0.39 倍），用户再双指放大过、或浏览器给焦点元素做放大时，
+ * 这次「滚进视野」会平移甚至放大可视视口（e2e 可复现平移：可视视口 offsetLeft 0 → 445，见 tests/space/e2e/topbar/popover-no-zoom.spec.js）。
+ * 做法：开的那一下把弹层设成 inert（原生聚焦找不到目标，什么都不聚焦、不滚动），开完立刻还原，
+ * 再自己把焦点给 [autofocus]（没有就按文档顺序第一个可聚焦元素，含 tabindex=-1 的面板本身，同原生）并带 preventScroll。触屏上不把焦点直接给输入框（程序化聚焦会弹键盘、
+ * 桌面版网站下浏览器还会放大到输入框），改给弹层本身。不支持 inert 的旧浏览器照原样（多一次滚动，不影响开合）。
+ * @param {HTMLDialogElement} dlg
+ * @param {boolean} modal true = showModal()；false = show()
+ * @returns {boolean} 打开了没有（已经开着 / 浏览器抛错 → false）
+ */
+export function showDialog(dlg, modal) {
+  const was = dlg.inert;
+  dlg.inert = true;
+  try {
+    if (modal) dlg.showModal();
+    else dlg.show();
+  } catch (e) {
+    dlg.inert = was;
+    return false;
+  }
+  dlg.inert = was;
+  let el = /** @type {HTMLElement|null} */ (dlg.querySelector('[autofocus]'));
+  if (!el) el = /** @type {HTMLElement|null} */ (dlg.querySelector('[tabindex], button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select, textarea'));
+  let coarse = false;
+  try {
+    coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  } catch (e) {}
+  if (el && coarse && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
+    if (!dlg.hasAttribute('tabindex')) dlg.setAttribute('tabindex', '-1');
+    el = dlg;
+  }
+  if (el) {
+    try {
+      el.focus({ preventScroll: true });
+    } catch (e) {}
+  }
+  return true;
+}
+
+/**
  * @typedef {Object} ModalSheet
  * @property {() => void} open
  * @property {(after?: () => void) => void} close 关闭（带滑出动画并退掉哨兵）；after 在哨兵出栈后执行
@@ -84,12 +126,7 @@ export function modalSheet(dlg, btn, opts) {
     cancelPending();
     const my = ++gen;
     dlg.classList.remove('is-open');
-    try {
-      if (opts.modal === false) dlg.show();
-      else dlg.showModal();
-    } catch (e) {
-      return;
-    }
+    if (!showDialog(dlg, opts.modal !== false)) return;
     btn.setAttribute('aria-expanded', 'true');
     if (opts.onOpen) {
       try {

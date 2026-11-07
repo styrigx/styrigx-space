@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:948f47e9d9f6 space/web/shared/shell v57dad80a21d7（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:3c2683961acf space/web/shared/shell v06b776b1c2a1（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space space/scripts/gen-shell.mjs 从 space/web/data/palette-roles.json 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -6944,7 +6944,7 @@
 .sgx-ai-op:disabled { opacity: .38; cursor: default; }
 .sgx-ai-op[aria-pressed="true"] { background: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
 .sgx-ai-form { display: flex; align-items: flex-end; gap: 8px; }
-.sgx-ai-in { flex: 1 1 auto; min-width: 0; min-height: 44px; max-height: 120px; resize: none; box-sizing: border-box; padding: 11px 14px; border-radius: 22px; font: inherit; font-size: 15px; line-height: 1.4;
+.sgx-ai-in { flex: 1 1 auto; min-width: 0; min-height: 44px; max-height: 120px; resize: none; box-sizing: border-box; padding: 11px 14px; border-radius: 22px; font: inherit; font-size: 16px; line-height: 1.4;
   border: 1px solid var(--sgx-outline-variant); background: var(--sgx-surface-container-lowest); color: var(--sgx-text-primary); }
 .sgx-ai-in:focus { outline: 2px solid var(--sgx-focus-ring); outline-offset: 0; }
 .sgx-ai-send { flex: 0 0 auto; width: 44px; height: 44px; border: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
