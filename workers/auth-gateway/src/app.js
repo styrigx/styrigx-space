@@ -7,7 +7,7 @@
  * 静态资源目录（MAIN_STATIC_PREFIXES）和根目录几张公开图第一行就原样回源（isMainStaticPassthrough），不验会话、不改响应。
  * 顺序（合并 PR3，2026-11-03；P4-3 PR-1 删掉旧图志域名的 301 一步）：
  *   1. 主站静态直通（isMainStaticPassthrough）
- *   2. 子站前缀（styrigx.com/blog/ /curio/ /daymark/，gate.js subsiteOf）的静态后缀 → 原样回源（只补 HSTS、nosniff）
+ *   2. 子站前缀（styrigx.com/blog/ /curio/ /daymark/，gate.js subsiteOf）的静态后缀 → 原样回源（只补 HSTS、nosniff）；旧 /<站>/en/… 除外（交给子站关口判 404）
  * 主站的后端代码只在本 Worker，Pages 只放静态文件：
  *   3. Secrets Store 的私密值换成字符串（secrets.js）
  *   4. 子站前缀的页面：gate.js handleSubsite（子站关口），Pages 不持钥匙
@@ -25,7 +25,7 @@
  *   - 子站静态资源直通 → applySubsiteStaticHeaders（只补 HSTS、nosniff）
  *   - 原样回源的静态资源不改（不打 X-SGX-Runtime 也不加头），由 Pages 的 _headers 加同一套
  */
-import { onRequest as middleware, subsiteOf, handleSubsite, isStaticAsset as isSubsiteStaticAsset, normPath } from './gate.js';
+import { onRequest as middleware, subsiteOf, handleSubsite, isStaticAsset as isSubsiteStaticAsset, isRetiredEnPath, normPath } from './gate.js';
 import { route, fromOrigin, makeContext } from './router.js';
 import { resolveSecrets } from './secrets.js';
 import { applyMainSiteHeaders, applySubsiteHeaders, applySubsiteStaticHeaders } from './lib/security-headers.js';
@@ -78,7 +78,8 @@ export default {
     const sub = subsiteOf(url0);
     /* 主站静态资源：原样回源，不验会话、不打 X-SGX-Runtime（与以前不登记路由时一致；CI 冒烟据此确认静态资源不验会话） */
     if (!sub && isMainStaticPassthrough(url0)) return fromOrigin(request, rawEnv);
-    if (sub && isSubsiteStaticAsset(url0.pathname)) {
+    /* 旧 /<站>/en/… 的静态后缀也不直通：交给子站关口判 404（四站同一条规则，gate.js retiredEnSitePrefix） */
+    if (sub && isSubsiteStaticAsset(url0.pathname) && !isRetiredEnPath(url0.pathname)) {
       return applySubsiteStaticHeaders(await fromOrigin(request, rawEnv));
     }
     const env = await resolveSecrets(rawEnv);
