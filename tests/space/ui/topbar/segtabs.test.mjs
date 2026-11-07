@@ -18,6 +18,23 @@ test('共享外壳：inpage 段进 shell.css，段式标签用导航选中色 45
   assert.match(shell, /\.sgx-segs-tab\[aria-current="page"\] \{ background-color: var\(--sgx-nav-selected\); color: var\(--sgx-on-nav-selected\); font-weight: 700; \}/);
   assert.match(shell, /\.sgx-segs\[hidden\] \{ display: none; \}/);
   assert.match(shell, /\.sgx-hero-title \{/);
+});
+
+test('标题带只在手机布局显示：桌面布局视觉隐藏（顶栏胶囊已有页名），h1 留在 DOM；段式标签两种布局都显示', () => {
+  const desk = shell.match(/:root\[data-sgx-layout="desktop"\] \.sgx-hero \{([^}]*)\}/);
+  assert.ok(desk, '桌面布局有 .sgx-hero 规则');
+  assert.match(desk[1], /position: absolute; width: 1px; height: 1px;/);
+  assert.match(desk[1], /clip-path: inset\(50%\)/);
+  assert.doesNotMatch(desk[1], /display: none/, '不用 display:none，读屏仍能读到 h1');
+  assert.doesNotMatch(shell, /:root\[data-sgx-layout="desktop"\] \.sgx-hero-(title|desc) \{/, '桌面不再给标题 / 说明单独定字号');
+  assert.doesNotMatch(shell, /\[data-sgx-layout="[a-z]+"\][^{]*\.sgx-segs[^{]*\{[^}]*display: none/, '段式标签不按布局隐藏');
+  for (const site of ['blog', 'curio', 'daymark']) {
+    const css = rd(site === 'blog' ? 'atlas/web/blog/assets/css/sgx-shell.css' : `atlas/web/${site}/assets/css/input.css`);
+    assert.ok(css.includes(desk[0]), site + ' 同步了桌面隐藏规则');
+  }
+});
+
+test('inpage 段只用 --sgx-* 角色，不写死颜色', () => {
   /* 只用 --sgx-* 角色，不写死颜色 */
   const region = shell.slice(shell.indexOf('/* ---- inpage ---- */'), shell.indexOf('/* ---- wide ---- */'));
   assert.ok(region.length > 200);

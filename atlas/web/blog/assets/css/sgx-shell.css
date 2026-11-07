@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:28e1e1bef273 space/web/shared/shell v1401fa245dc9（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:b9f2d2854606 space/web/shared/shell v84f5013ce83d（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- tokens.css ---- */
 /* 由 styrigx-space space/scripts/gen-shell.mjs 从 space/web/data/palette-roles.json 生成，勿手改；子站用 atlas/scripts/<站>/sync-shell.mjs 同步。 */
 /* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */
@@ -7021,15 +7021,15 @@
 }
 /* ---- inpage ---- */
 /* 只用共享外壳 --sgx-* 角色（跟调色板、深浅色、自定义色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。
-   标题带 .sgx-hero：顶栏下方大标题 + 一句话说明（内容页；首页 / 入口页不放）。手机布局 30px，桌面布局 40px；跟内容列左对齐（放在各站内容外框里）。
+   标题带 .sgx-hero：顶栏下方大标题 + 一句话说明（内容页；首页 / 入口页不放）。只在手机布局显示（30px，跟内容列左对齐，放在各站内容外框里）；
+   桌面布局顶栏页名胶囊已显示页名，标题带视觉隐藏（Gray 2026-11-08 定）——留在 DOM 里给读屏 / 大纲（h1 不丢），不占位、不可见。段式标签两种布局都显示。
    段式标签 .sgx-segs：原顶栏分段滑块搬进内容页，作页内二级切换。椭圆衬底常驻：非当前项导航选中色 45% + text-primary（22 套预设 + 自定义色 ≥ 4.5:1，
    tests/space/ui/topbar/segtabs.test.mjs），当前项 --sgx-nav-selected 实色 + 粗体 + on-nav-selected（同顶栏页名胶囊）。一行放不下时横向滑动（不换行、不出滚动条）。 */
 .sgx-hero { box-sizing: border-box; padding: 8px 0 20px; color: var(--sgx-text-primary); }
 .sgx-hero-title { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .sgx-hero-desc { margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: var(--sgx-on-surface-variant); }
-:root[data-sgx-layout="desktop"] .sgx-hero { padding: 16px 0 28px; }
-:root[data-sgx-layout="desktop"] .sgx-hero-title { font-size: 40px; }
-:root[data-sgx-layout="desktop"] .sgx-hero-desc { font-size: 16px; }
+:root[data-sgx-layout="desktop"] .sgx-hero { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .sgx-segs { box-sizing: border-box; display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 0 0 20px; padding: 2px 0;
   overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .sgx-segs::-webkit-scrollbar { display: none; }
