@@ -206,7 +206,7 @@ test.describe('锁屏凭证的门', () => {
     await page.unroute('**/api/lock-passkey');
     await page.route('**/api/lock-passkey', async (route) => {
       await gate;
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, keys: [{ credId: 'c1', name: 'Galaxy S26', provider: 'Samsung Pass', class: 'lock', createdAt: 1760000000000, lastUsedAt: 0 }] }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, keys: [{ credId: 'c1', name: 'Galaxy S26', provider: 'samsung-pass' /* 服务端存 provider id（语言清理 2026-11-07），显示名走字符串表 */, class: 'lock', createdAt: 1760000000000, lastUsedAt: 0 }] }) });
     });
     await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
