@@ -217,6 +217,16 @@ test('KV：dry-run 只列键；正式整命名空间照搬（值逐字节、带 
   ns[KV.to.id].set('extra', { v: Buffer.from('x') });
   r = await runKv({ cf, mode: 'verify', log: () => {}, settleMs: 0 });
   assert.match(r.errors.join(), /key count styrigx-search-index=3 styrigx-space-gateway=4/);
+  /* 部署后核对：site:* 被部署 / Cron 重建 → 只 warning；手写键（ai:models）不同 → 仍失败 */
+  ns[KV.to.id].delete('extra');
+  ns[KV.to.id].set('site:space', { v: Buffer.from('{"a":2}') });
+  const lines = [];
+  r = await runKv({ cf, mode: 'verify', log: (s) => lines.push(s), settleMs: 0 });
+  assert.deepEqual(r.errors, []);
+  assert.match(lines.join('\n'), /::warning::kv: site:space differs/);
+  ns[KV.to.id].set('ai:models', { v: Buffer.from('{"default":"y"}'), metadata: { m: 1 } });
+  r = await runKv({ cf, mode: 'verify', log: () => {}, settleMs: 0 });
+  assert.match(r.errors.join(), /kv: ai:models differs/);
 });
 
 test('工作流 d1-cutover.yml：只手动触发、dry_run 默认 true；kv → d1 顺序；正式先跑三套迁移；不上传导出文件；deploy.yml 的部署 job 等 gate', () => {
