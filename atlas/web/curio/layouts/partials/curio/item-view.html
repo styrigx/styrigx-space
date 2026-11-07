@@ -1,13 +1,13 @@
-{{- /* 设备 / 游戏 / 电影共用的详情弹层（curio-items.js、curio-movies.js 填内容；canWrite 时有「编辑」）。参数：isEn */ -}}
-{{- $isEn := .isEn }}
+{{- /* 设备 / 游戏 / 电影共用的详情弹层（curio-items.js、curio-movies.js 填内容；canWrite 时有「编辑」）。参数：tr（字符串表）、lang（页面语言代码） */ -}}
+{{- $tr := .tr }}{{ $lang := .lang }}
 <div id="it-view-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="it-view-title">
   <div class="bk-overlay-backdrop absolute inset-0" data-close="it-view"></div>
   <div class="bk-panel text-m-on-surface shadow-2xl">
     <div class="sheet-handle"></div>
     <div class="bk-titlebar">
-      <div class="bk-titlebar-side"><button id="it-view-edit" type="button" class="bk-icbtn hidden" aria-label="{{ if $isEn }}Edit{{ else }}编辑{{ end }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button></div>
+      <div class="bk-titlebar-side"><button id="it-view-edit" type="button" class="bk-icbtn hidden" aria-label="{{ $tr.curioItemView.edit }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button></div>
       <div class="bk-titlebar-mid"><h2 id="it-view-title" class="text-lg font-extrabold"></h2></div>
-      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="it-view" aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "itv-x") }}</button></div>
+      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="it-view" aria-label="{{ $tr.curioItemView.close }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "itv-x") }}</button></div>
     </div>
     <div id="it-view-body" class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"></div>
   </div>

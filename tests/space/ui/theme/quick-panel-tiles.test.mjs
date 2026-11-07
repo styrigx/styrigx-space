@@ -57,7 +57,7 @@ test('七色调色板（PR-G）：两处都是 22 个 .pal-tile、不分单色 /
   assert.match(theme, /<button type="button" class="palette-reset" id="palette-reset" aria-disabled="true">/);
   assert.match(qpHtml, /<span>\{\{ \$t\.topbar\.reset \}\}<\/span>/);
   assert.match(rd('space/web/data/sgx-shell-i18n/zh.yaml'), /\n  reset: 恢复默认\n/);
-  assert.match(theme, /Reset/);
+  assert.match(theme, /\{\{ \$tr\.setcatTheme\.reset \}\}/);
   assert.match(setJs, /setPalette\(DEFAULT_PALETTE\)/);
   assert.match(setJs, /=== DEFAULT_PALETTE && !accent\(\)/);
   /* 快捷面板的逻辑在 topbar-panel.js（四站共用，依赖由 quick-panel.js 传入） */

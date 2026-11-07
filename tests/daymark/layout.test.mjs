@@ -3,6 +3,7 @@
 // 运行：node --test tests/daymark/layout.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { strings } from '../fixtures/strings.mjs';
 import yaml from 'js-yaml';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -18,7 +19,10 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-top
   assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "daymark"/);
   /* P4-3 PR-4b 定稿：页名胶囊只显示页名——首页 = 站名（data-sgx-titles = [站名, 后两个分区名]，脚本按 hash 换），其他页（404）= 页名；顶栏没有分段滑块 */
-  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$titles := slice \(cond \$isEn "Daymark" "日刻"\) \(cond \$isEn "Trove" "拾录"\) \(cond \$isEn "Flavors" "百味"\) \}\}/);
+  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$titles := slice \(\$tr\.site\.name\) \(\$tr\.baseof\.trove\) \(\$tr\.baseof\.flavors\) \}\}/);
+  { const en = strings('daymark', 'en'); const zh = strings('daymark', 'zh');
+    assert.deepEqual([en.site.name, en.baseof.trove, en.baseof.flavors], ['Daymark', 'Trove', 'Flavors']);
+    assert.deepEqual([zh.site.name, zh.baseof.trove, zh.baseof.flavors], ['日刻', '拾录', '百味']); }
   assert.match(base, /<span class=\\"sgx-tb-title\\" data-sgx-titles=\\"%s\\">%s<\/span>/);
   assert.match(base, /\{\{ else \}\}\n\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
   assert.doesNotMatch(base, /sgx-seg|data-dm-seg|role=\\"tab/);

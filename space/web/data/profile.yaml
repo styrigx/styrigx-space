@@ -1,5 +1,6 @@
-# 个人资料（首页名片读 name、motto_*）。头像不在这里：由账号 Worker 的 /avatar/* 提供（账号页上传）；avatar 字段目前没有读者
+# 个人资料（首页名片读 name、motto）。头像不在这里：由账号 Worker 的 /avatar/* 提供（账号页上传）；avatar 字段目前没有读者
 name: Styrigx
 avatar: ""
-motto_zh: 拆开世界是为了了解它，再把它装回去是为了相信它。
-motto_en: To understand the world, take it apart; to believe in it, put it back together.
+# 签名（motto）是个人资料（Gray 2026-11-07）：填什么显示什么，不走语言组、不进字符串表；中英页面输出同一个值（data-sgx-personal + translate="no"）。
+# 暂时种入原英文那句作初值，以后由账号页个人信息卡改。改签名只改这一行。
+motto: To understand the world, take it apart; to believe in it, put it back together.

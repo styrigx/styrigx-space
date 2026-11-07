@@ -55,3 +55,8 @@ siteDescription: "Sloan Gray's blog: hands-on notes on AI tools, open-source pro
 shareOnX: Share on X
 tocSectionExpand: Expand section
 tocSectionCollapse: Collapse section
+# 首页分区入口（共享外壳平铺入口）副标题与列表名（语言包化 2026-11-07）
+entHomeSub: Latest posts and series
+entPostsSub: Every post, newest first
+entTopicsSub: Series, categories and tags
+entSections: Sections

@@ -1,4 +1,5 @@
 # 2.4.0-G：功能开关统一配置（类似 One UI floating feature）。
+# - 语言包化（2026-11-07）：名字 / 说明 / 选项文字不在这里，在字符串表 data/i18n/<语言>.yaml 的 features.<id>.name / desc / opt.<选项 id>（英文为底，缺键回退英文）。
 # - build: false → 编译期移除（模板不输出 HTML；JS 用 js.Build define 摇掉代码；设置页不显示）。
 # - key 沿用现有 localStorage key，不改名，老用户设置不丢。
 # - 用户数据类 key 不在这里，统一走 core 的 storage 封装。
@@ -8,55 +9,51 @@
 #   快捷键（gl-keys）、隐私组的搜索引擎（search-engine）；旧 localStorage 值 baseof 首屏清掉，不再云同步。
 features:
   - id: theme-mode
-    name: {zh: 主题模式, en: Theme mode}
     build: true
     user: true
     type: enum
     options:
-      - {id: system, zh: 跟随系统, en: Follow system}
-      - {id: light, zh: 浅色, en: Light}
-      - {id: dark, zh: 深色, en: Dark}
+      - {id: system}
+      - {id: light}
+      - {id: dark}
     default: system
     key: sgx-theme-mode
     section: ""  # P4-3 PR-4b：显示页（/display/）删除，开关只在快捷面板，不进搜索索引
     requires: []
 
   - id: palette
-    name: {zh: 调色板, en: Color palette}
     build: true
     user: true
     type: enum
     options:
-      - {id: dustyblue, zh: 雾霾蓝, en: Dusty Blue}
-      - {id: lake, zh: 湖蓝, en: Lake}
-      - {id: glacier, zh: 冰川蓝, en: Glacier}
-      - {id: indigo, zh: 靛蓝, en: Indigo}
-      - {id: teal, zh: 青碧, en: Teal}
-      - {id: violet, zh: 紫, en: Violet}
-      - {id: forest, zh: 山绿, en: Forest}
-      - {id: matcha, zh: 抹茶, en: Matcha}
-      - {id: sage, zh: 鼠尾草绿, en: Sage}
-      - {id: cherry, zh: 樱桃, en: Cherry}
-      - {id: tangerine, zh: 橘子, en: Tangerine}
-      - {id: coral, zh: 珊瑚, en: Coral}
-      - {id: terra, zh: 陶土, en: Terracotta}
-      - {id: amber, zh: 琥珀, en: Amber}
-      - {id: mustard, zh: 芥末黄, en: Mustard}
-      - {id: champagne, zh: 香槟金, en: Champagne}
-      - {id: rose, zh: 蔷薇, en: Rose}
-      - {id: berry, zh: 莓果, en: Berry}
-      - {id: orchid, zh: 兰紫, en: Orchid}
-      - {id: dustyrose, zh: 干枯玫瑰, en: Dusty Rose}
-      - {id: graphite, zh: 石墨, en: Graphite}
-      - {id: cream, zh: 奶油白, en: Cream}
+      - {id: dustyblue}
+      - {id: lake}
+      - {id: glacier}
+      - {id: indigo}
+      - {id: teal}
+      - {id: violet}
+      - {id: forest}
+      - {id: matcha}
+      - {id: sage}
+      - {id: cherry}
+      - {id: tangerine}
+      - {id: coral}
+      - {id: terra}
+      - {id: amber}
+      - {id: mustard}
+      - {id: champagne}
+      - {id: rose}
+      - {id: berry}
+      - {id: orchid}
+      - {id: dustyrose}
+      - {id: graphite}
+      - {id: cream}
     default: dustyblue
     key: sgx-palette
     section: theme
     requires: []
 
   - id: layout
-    name: {zh: 布局, en: Layout}
-    desc: {zh: 手动选择会覆盖按视口的自动判断。, en: Manual choice overrides the automatic viewport detection.}
     icon: layout
     iclass: bg-m-primary-container text-m-on-primary-container
     row: layout
@@ -64,30 +61,28 @@ features:
     user: true
     type: enum
     options:
-      - {id: mobile, zh: Mobile, en: Mobile}
-      - {id: auto, zh: Auto, en: Auto}
-      - {id: dex, zh: DeX, en: DeX}
+      - {id: mobile}
+      - {id: auto}
+      - {id: dex}
     default: auto
     key: sgx-layout
     section: ""  # P4-3 PR-4b：显示页（/display/）删除，开关只在快捷面板，不进搜索索引
     requires: []
 
   - id: lang
-    name: {zh: 语言, en: Language}
     build: true
     user: true
     type: enum
     options:
-      - {id: system, zh: 跟随系统, en: Follow system}
-      - {id: zh, zh: 中文, en: Chinese}
-      - {id: en, zh: 英文, en: English}
+      - {id: system}
+      - {id: zh}
+      - {id: en}
     default: system
     key: sgx-lang
     section: ""  # P4-3 PR-4b：显示页（/display/）删除，开关只在快捷面板，不进搜索索引
     requires: []
 
   - id: files-view
-    name: {zh: 文件默认视图, en: Files default view}
     build: true
     user: true
     type: json
@@ -97,7 +92,6 @@ features:
     requires: []
 
   - id: files-home
-    name: {zh: 文件主页分组, en: Files home sections}
     build: true
     user: true
     type: json
@@ -107,8 +101,6 @@ features:
     requires: []
 
   - id: well-tip
-    name: {zh: 15 分钟提醒, en: 15-minute reminder}
-    desc: {zh: 停留 15 分钟后温和提醒一次, en: A gentle nudge after 15 minutes here}
     icon: ""
     iclass: ""
     row: welltip
@@ -122,7 +114,6 @@ features:
     requires: []
 
   - id: lock-gate
-    name: {zh: 锁屏门禁, en: Lock gate}
     build: true
     user: false
     type: bool

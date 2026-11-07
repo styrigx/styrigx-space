@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="{{ if eq (partial "sgx-page-lang.html" .) "en" }}en{{ else }}zh{{ end }}" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-build="{{ partial "sgx-build-sha.html" . }}">
+<html lang="{{ partial "sgx-page-lang.html" . }}" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-build="{{ partial "sgx-build-sha.html" . }}">
 <head>
-{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
+{{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {{/* 切页时等 <main> 解析完再出第一帧，避免过渡里露出还没排好版的新页面（标准写法，Chromium 124+；不支持的浏览器忽略） */}}
@@ -9,11 +9,12 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f5f8fa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
-{{/* P4-3 PR-4b：页面 title 一律「页名 | Styrigx」；旷野页（根路径）中文「旷野」、英文「Space」（取代原来首页只有 Styrigx） */}}
+{{/* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，站名走字符串表 site.name（主站 Styrigx，品牌名不翻，只在英文表、各语言回退）；
+   页名就是站名时只显示站名。旷野页（根路径）页名是「旷野 / Space」（spaceCats.band.title），所以是「旷野 | Styrigx」。 */}}
 {{/* 404 的 .Title 是 Hugo 内置英文「404 Page not found」，不随语言：改用字符串表的页名（与页名胶囊同一个） */}}
-{{ $docTitle := .Title }}{{ if .IsHome }}{{ $docTitle = cond $isEn "Space" "旷野" }}{{ else if eq .Kind "404" }}{{ $docTitle = cond $isEn "Page not found" "页面不存在" }}{{ end }}
-<title>{{ $docTitle }} | Styrigx</title>
-{{ $desc := cond $isEn "Sloan Gray’s personal space" .Site.Params.description }}{{ with .Description }}{{ $desc = . }}{{ end }}
+{{ $docTitle := .Title }}{{ if .IsHome }}{{ $docTitle = $tr.spaceCats.band.title }}{{ else if eq .Kind "404" }}{{ $docTitle = $tr.baseof.pageNotFound }}{{ end }}
+<title>{{ if eq $docTitle $tr.site.name }}{{ $docTitle }}{{ else }}{{ $docTitle }} | {{ $tr.site.name }}{{ end }}</title>
+{{ $desc := $tr.site.description }}{{ with .Description }}{{ $desc = . }}{{ end }}
 <meta name="description" content="{{ $desc }}">
 {{/* 分享卡片（2026-10-21）：og.png = 字标 + 站点描述（1200×630）；锁屏态的首页也照常下发 <head>，社交爬虫能读到 */}}
 <meta property="og:type" content="website">
@@ -28,7 +29,8 @@
 <link rel="alternate" hreflang="zh" href="{{ $origin }}{{ partial "sgx-lang-path.html" (dict "path" .RelPermalink "lang" "zh") }}">
 <link rel="alternate" hreflang="x-default" href="{{ $origin }}{{ partial "sgx-lang-path.html" (dict "path" .RelPermalink "lang" "en") }}">
 {{ end }}
-<meta property="og:locale" content="{{ cond $isEn "en_US" "zh_CN" }}">
+{{/* og:locale：hugo.yaml languages.<语言>.params.ogLocale（语言配置，不是文案） */}}
+<meta property="og:locale" content="{{ range hugo.Sites }}{{ if eq .Language.Lang $pageLang }}{{ .Language.Params.ogLocale }}{{ end }}{{ end }}">
 <meta property="og:image" content="https://styrigx.com/og.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
@@ -157,7 +159,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ partial "sgx-icon-sprite.html" . }}
 <div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
-{{ $acctUrl := (partial "sgx-lang-path.html" (dict "path" "/account/" "lang" (cond $isEn "en" "zh"))) }}
+{{ $acctUrl := (partial "sgx-lang-path.html" (dict "path" "/account/" "lang" $pageLang)) }}
 
 {{/* 顶栏（2026-11-04 P5-1，全站同一个：方案 6.2–6.5；P4-3 PR-4b Gray 2026-11-07 定稿）：一整条胶囊 [字标] [页名胶囊] [九宫格 · 快捷设置 · AI]，
    连同导航面板、快捷面板、AI 窗口，标记都在 partials/shell-topbar.html（共享外壳单一来源，gen-shell 生成 topbar.html 给三个子站）。
@@ -165,9 +167,9 @@ __sgxLayoutWatch(__applyLayout);
    快捷面板四站同一套（深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局），不再按站给 tiles；头像在 AI 窗口头部（acct / avatar）。
    子页面没有大标题区：页名只在长条里，正文从顶栏下方 --sgx-content-top 开始（input.css，全站同一个值）。 */}}
 {{ $pageName := .Title }}
-{{ if .IsHome }}{{ $pageName = cond $isEn "Space" "旷野" }}
-{{ else if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}
-{{ else if eq .Layout "sub" }}{{ $cat := .Params.cat }}{{ range (index site.Data "space-cats").cats }}{{ if eq .id $cat }}{{ $pageName = cond $isEn .en .zh }}{{ end }}{{ end }}
+{{ if .IsHome }}{{ $pageName = $tr.spaceCats.band.title }}
+{{ else if eq .Kind "404" }}{{ $pageName = $tr.baseof.pageNotFound }}
+{{ else if eq .Layout "sub" }}{{ $cat := .Params.cat }}{{ with index $tr.spaceCats $cat }}{{ $pageName = .title }}{{ end }}
 {{ end }}
 {{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿）。旷野页 = 「旷野 / Space」，其他页 = 页名；不再有顶栏标签（topbar-tabs 删除）。
    手机布局不显示（共享外壳 CSS 按 data-sgx-layout），桌面布局按整条顶栏居中。 */}}
@@ -186,7 +188,7 @@ __sgxLayoutWatch(__applyLayout);
   "lang" $pageLang
   "tr" (partialCached "sgx-tr.html" $pageLang $pageLang).shell
   "langs" $tbLangs
-  "home" (partial "sgx-lang-path.html" (dict "path" "/" "lang" (cond $isEn "en" "zh")))
+  "home" (partial "sgx-lang-path.html" (dict "path" "/" "lang" $pageLang))
   "center" $center
   "nav" $shellNav
   "site" "home"
@@ -202,7 +204,7 @@ __sgxLayoutWatch(__applyLayout);
 <dialog id="sheet-wrap" class="sgx-sheet" aria-labelledby="sheet-title">
   <div id="sheet-panel" class="overflow-hidden">
     {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
-    <button type="button" class="sgx-dlg-close" data-sheet-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
+    <button type="button" class="sgx-dlg-close" data-sheet-close aria-label="{{ $tr.baseof.close }}">×</button>
     <div class="sheet-handle" data-sheet-close></div>
     <p id="sheet-title" class="px-5 pt-2 pb-1 text-sm font-semibold text-m-on-surface-variant"></p>
     <div id="sheet-body" class="overflow-y-auto px-2 pb-4"></div>
@@ -223,7 +225,7 @@ __sgxLayoutWatch(__applyLayout);
 {{ if eq .Params.cat "about" }}
 <footer class="relative z-10 mt-4 sgx-about-foot">
   <div class="max-w-[1100px] mx-auto px-6 py-8 text-center">
-    <p class="text-xs text-m-on-surface-variant">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> Sloan Gray</p>
+    <p class="text-xs text-m-on-surface-variant">© {{ site.Params.since }}–<span id="copy-year">{{ now.Year }}</span> <span translate="no" data-sgx-personal>Sloan Gray</span></p>
     <script>document.getElementById('copy-year').textContent=new Date().getFullYear();</script>
   </div>
 </footer>
@@ -236,18 +238,7 @@ __sgxLayoutWatch(__applyLayout);
 
 {{/* 2.4.0-C：全站文案（中英双语，JS 按 <html lang> 取用；同一份 JS 中英文共用缓存）。
    键：临时钥匙提示 / 通行密钥 / 快捷面板（2026-10-21 语音搜索已删除；P4-2c 快捷键帮助删除） */}}
-{{ $coreI18n := dict
-  "wellTip" (dict "zh" "已经看了 15 分钟，起来活动一下？" "en" "You've been here 15 minutes, time for a stretch?")
-  "wellDismiss" (dict "zh" "关闭" "en" "Dismiss")
-  "pkCancelled" (dict "zh" "已取消" "en" "Cancelled")
-  "pkTimeout" (dict "zh" "超时，请重试" "en" "Timed out, please retry")
-  "pkNoKey" (dict "zh" "这台设备上没有这把钥匙" "en" "No matching key on this device")
-  "pkFailed" (dict "zh" "通行密钥验证失败" "en" "Passkey verification failed")
-  "qpOn" (dict "zh" "开" "en" "On")
-  "qpOff" (dict "zh" "关" "en" "Off")
-  "qpLangTo" (dict "zh" "语言：中文。点按切换为 English" "en" "Language: English. Tap to switch to 中文")
-  "qpLargeOnly" (dict "zh" "仅在大屏生效" "en" "Large screens only")
-}}
+{{ $coreI18n := $tr.js.core }}
 <script id="sgx-i18n-core" type="application/json">{{ $coreI18n | jsonify | safeJS }}</script>
 {{/* 2.4.0-G：功能开关定义（data/features.yaml），运行时 features.js 读取 */}}
 {{ $featDefs := slice }}

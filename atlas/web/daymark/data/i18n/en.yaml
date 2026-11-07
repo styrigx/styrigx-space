@@ -1,0 +1,69 @@
+# 本站字符串表（语言包化 2026-11-07）：英文是源文本；其他语言的表缺键时回退英文（partials/sgx-tr.html）。
+# 键按模板分组（<模板名>.<键>）；js.<表> 是页面 JS 读的文案表（<script id="sgx-i18n-<表>">）。
+# 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（partials/sgx-personal.html）、语言自己的名字（hugo.yaml label）。
+site:
+  name: Daymark
+  description: 'Sloan Gray''s Daymark: lines worth keeping, one a day'
+entries:
+  echo:
+    title: Echo
+    sub: One line, full screen
+  trove:
+    title: Trove
+    sub: Lines worth keeping
+  flavors:
+    title: Flavors
+    sub: By topic and author
+notFound:
+  pageNotFound: Page not found
+  thePageYoureLooking: The page you're looking for doesn't exist or has been moved.
+  backToDaymark: Back to Daymark
+index:
+  echo: Echo
+  share: Share
+  drawAnother: Draw another
+  setAsToday: Set as today
+  backToToday: Back to today
+  trove: Trove
+  loading: Loading…
+  flavors: Flavors
+  collections: Collections
+  people: People
+  delete: Delete
+  signInToYour: Sign in to your account to edit
+  saveALine: Save a line
+  close: Close
+  preview: Preview
+  previewEcho: Preview · Echo
+  theLine: The line
+  whatsWorthKeepingToday: What's worth keeping today?
+  addTranslation: + Add translation
+  translation: Translation
+  author: Author
+  whoSaidIt: Who said it
+  recentAuthors: Recent authors
+  source: Source
+  sourceType: Source type
+  title: Title
+  addToFlavors: Add to Flavors
+  collectionName: Collection name
+  add: Add
+  tags: Tags
+  typeThenEnter: Type, then Enter
+  existingTags: Existing tags
+  aQuickNote: A quick note
+  onlyYouCanSee: only you can see this
+  whereYouMetIt: Where you met it, why it stayed
+  public: Public
+  delete2: Delete
+  save: Save
+  newCollection: New collection
+  name: Name
+  oneLineIntro: One-line intro
+  create: Create
+  cancel: Cancel
+  sections: Sections
+baseof:
+  pageNotFound: Page not found
+  trove: Trove
+  flavors: Flavors

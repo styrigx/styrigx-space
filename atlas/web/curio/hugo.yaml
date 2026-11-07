@@ -26,7 +26,7 @@ markup:
       unsafe: true
 
 params:
-  description: 'Sloan Gray 的奇趣：在网上偶然遇到、想留下的好东西'
+  # 站点描述在字符串表 data/i18n/<语言>.yaml 的 site.description（语言包化 2026-11-07）
   version: '0.2.0'
 
 # P4-3 PR-4c：Hugo 自带的多语言站点地图会出 /curio/en/sitemap.xml（/en/… 已经不该存在），关掉，改成根上一份 /curio/sitemap.xml（sitemaproot，root: true，中英两版都在里面）

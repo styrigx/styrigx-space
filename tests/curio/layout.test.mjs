@@ -3,6 +3,7 @@
 // 运行：node --test tests/curio/layout.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { strings } from '../fixtures/strings.mjs';
 import yaml from 'js-yaml';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -20,7 +21,8 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-top
   assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "curio"/);
   /* P4-3 奇趣拆页：页名胶囊只显示页名——首页 = 站名，子页 = 子页名（内容文件的 title），404 = 页名；不再有 data-sgx-titles（没有页内分区） */
-  assert.match(base, /\{\{ if \.IsHome \}\}\{\{ \$pageName = cond \$isEn "Curio" "奇趣" \}\}\{\{ end \}\}/);
+  assert.match(base, /\{\{ if \.IsHome \}\}\{\{ \$pageName = \$tr\.site\.name \}\}\{\{ end \}\}/);
+  assert.deepEqual([strings('curio', 'en').site.name, strings('curio', 'zh').site.name], ['Curio', '奇趣']);
   assert.match(base, /\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
   assert.doesNotMatch(base, /data-sgx-titles/);
   assert.doesNotMatch(base, /sgx-seg|data-cu-seg|role=\\"tab/);
@@ -102,7 +104,8 @@ test('发现子页：分类条、格子、收藏按钮、更多菜单（分类 /
   assert.match(parts, /id="bk-toast"/);
   assert.match(finds, /id="menu-export"[^>]*href="\{\{ "api\/export" \| relURL \}\}/);
   assert.match(finds, /id="imp-private"[^>]*checked/);
-  assert.match(finds, /<section id="cu-pane-finds" class="cu-pane" aria-label="\{\{ if \$isEn \}\}Finds\{\{ else \}\}发现\{\{ end \}\}">/);
+  assert.match(finds, /<section id="cu-pane-finds" class="cu-pane" aria-label="\{\{ \$tr\.finds\.finds \}\}">/);
+  assert.deepEqual([strings('curio', 'en').finds.finds, strings('curio', 'zh').finds.finds], ['Finds', '发现']);
   assert.match(finds, /js\/curio\.js/);
   assert.doesNotMatch(finds, /curio-items|curio-tabs|dv-|gm-/);
 });

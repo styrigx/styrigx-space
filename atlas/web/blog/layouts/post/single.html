@@ -11,7 +11,7 @@
 {{ end }}
 {{ define "body" }}
 {{- $lang := .Language.Lang -}}
-{{- $isEn := eq $lang "en" -}}
+
 {{- $home := site.Home.RelPermalink -}}
 {{- $raw := .RawContent -}}
 {{- $words := len (findRE `[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*` $raw) -}}

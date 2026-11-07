@@ -10,9 +10,13 @@ languages:
   en:
     label: English
     weight: 1
+    params:
+      ogLocale: en_US
   zh:
     label: 中文
     weight: 2
+    params:
+      ogLocale: zh_CN
 theme: []
 
 build:
@@ -49,7 +53,7 @@ markup:
       unsafe: true
 
 params:
-  description: 'Sloan Gray 的个人门户'
+  # 站点描述在字符串表 data/i18n/<语言>.yaml 的 site.description（语言包化 2026-11-07）
   since: 2020
   # 版本号唯一来源：data/version.yaml（ui + sgx），此处不硬编码
 

@@ -26,7 +26,7 @@ markup:
       unsafe: true
 
 params:
-  description: 'Sloan Gray 的日刻：每天刻下一句值得记住的话'
+  # 站点描述在字符串表 data/i18n/<语言>.yaml 的 site.description（语言包化 2026-11-07）
   version: '1.1.0'
 
 # P4-3 PR-4c：Hugo 自带的多语言站点地图会出 /daymark/en/sitemap.xml（/en/… 已经不该存在），关掉，改成根上一份 /daymark/sitemap.xml（sitemaproot，root: true，中英两版都在里面）

@@ -4,10 +4,9 @@
 文章：全部文章列表。专题：系列 → 分类 → 标签，点分类 / 标签就地筛出文章。 */ -}}
 {{ define "head" }}
 {{- $alt := dict "en" ("" | relURL) "zh" ("zh/" | relURL) -}}
-{{ partial "head.html" (dict "page" . "title" (printf "%s | %s" (i18n "blogTitle") site.Title) "description" (i18n "siteDescription") "alt" $alt) }}
+{{ partial "head.html" (dict "page" . "title" (i18n "blogTitle") "description" (i18n "siteDescription") "alt" $alt) }}
 {{ end }}
 {{ define "body" }}
-{{- $isEn := eq .Language.Lang "en" -}}
 {{- $posts := partial "posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "post")) -}}
 {{- $latest := first 3 $posts -}}
 {{- $series := partial "groups.html" (dict "posts" $posts "field" "series") -}}
@@ -19,14 +18,14 @@
   {{- /* 分区入口（P4-3 PR-4b，Gray 2026-11-07）：顶栏不再有 首页 · 文章 · 专题 分段，首页正文的这组入口就是目录（共享外壳平铺入口组件）；切到别的分区时 app-tabs.ts 把它藏起来。
        链接就是页签的 hash（app-tabs.ts 听 hashchange 切面板；左右滑照旧）。副标题是占位文案。 */ -}}
   {{- $entItems := slice
-    (dict "id" "home" "icon" "pencil-line" "tone" "primary" "zh" "首页" "en" "Home" "sub_zh" "最新文章与系列" "sub_en" "Latest posts and series" "href" "#")
-    (dict "id" "posts" "icon" "book-open-check" "tone" "secondary" "zh" "文章" "en" "Posts" "sub_zh" "全部文章，按时间排" "sub_en" "Every post, newest first" "href" "#posts")
-    (dict "id" "topics" "icon" "tags" "tone" "tertiary" "zh" "专题" "en" "Topics" "sub_zh" "系列、分类与标签" "sub_en" "Series, categories and tags" "href" "#topics") -}}
+    (dict "id" "home" "icon" "pencil-line" "tone" "primary" "title" (i18n "tabHome") "sub" (i18n "entHomeSub") "href" "#")
+    (dict "id" "posts" "icon" "book-open-check" "tone" "secondary" "title" (i18n "tabPosts") "sub" (i18n "entPostsSub") "href" "#posts")
+    (dict "id" "topics" "icon" "tags" "tone" "tertiary" "title" (i18n "tabTopics") "sub" (i18n "entTopicsSub") "href" "#topics") -}}
   {{- $entIcons := dict -}}{{- range $entItems }}{{ $entIcons = merge $entIcons (dict .icon (partial "icon.html" (dict "name" .icon "size" 22) | string)) }}{{ end -}}
-  {{ partial "sgx-shell-entries.html" (dict "items" $entItems "icons" $entIcons "isEn" $isEn "id" "blog-entries" "label" (cond $isEn "Sections" "分区")) }}
+  {{ partial "sgx-shell-entries.html" (dict "items" $entItems "icons" $entIcons "id" "blog-entries" "label" (i18n "entSections")) }}
   <div class="sgx-panes" data-sgx-panes data-tab="home">
     <div class="sgx-panes-track" data-sgx-track>
-      <section class="sgx-pane is-active" id="sgx-pane-home" aria-label="{{ if $isEn }}Home{{ else }}首页{{ end }}" data-pane="home">
+      <section class="sgx-pane is-active" id="sgx-pane-home" aria-label="{{ i18n "tabHome" }}" data-pane="home">
         <h1 class="sgx-visually-hidden">{{ i18n "blogTitle" }}</h1>
         {{- if $latest }}
         <section class="sgx-sec" aria-labelledby="sgx-latest-title">
@@ -54,7 +53,7 @@
         {{- end }}
       </section>
 
-      <section class="sgx-pane" id="sgx-pane-posts" aria-label="{{ if $isEn }}Posts{{ else }}文章{{ end }}" data-pane="posts" inert>
+      <section class="sgx-pane" id="sgx-pane-posts" aria-label="{{ i18n "tabPosts" }}" data-pane="posts" inert>
         <div class="sgx-sec-head">
           <h2 class="sgx-sec-title">{{ i18n "allPosts" }} · {{ i18n "postCount" (dict "Count" (len $posts)) }}</h2>
         </div>
@@ -81,7 +80,7 @@
         {{- end }}
       </section>
 
-      <section class="sgx-pane" id="sgx-pane-topics" aria-label="{{ if $isEn }}Topics{{ else }}专题{{ end }}" data-pane="topics" inert>
+      <section class="sgx-pane" id="sgx-pane-topics" aria-label="{{ i18n "tabTopics" }}" data-pane="topics" inert>
         <section class="topic-results sgx-sec" data-topic-results hidden aria-live="polite">
           <div class="sgx-sec-head">
             <h2 class="sgx-sec-title" data-topic-results-title></h2>

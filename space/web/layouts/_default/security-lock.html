@@ -6,54 +6,54 @@
    脚本走 ES Module 入口 entry-security-lock.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security-lock.js" }}
-{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
+{{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 
 <div class="set-layout lock-page pb-28">
 
   <!-- 门：每次进页验一次锁屏凭证或进站凭证（JS 渲染验证行） -->
   <div id="lock-reauth" hidden>
-    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Verify it's you{{ else }}验证身份{{ end }}</span></h2>
-    <p class="sec-note mb-3">{{ if $isEn }}Changing lock screen credentials is a security action. Verify to continue; it lasts 3 minutes and ends as soon as you leave this page.{{ else }}修改锁屏凭证属于安全操作，请先验证。验证有效 3 分钟，离开本页立即失效。{{ end }}</p>
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "shield" }}</span><span>{{ $tr.securityLock.verifyItsYou }}</span></h2>
+    <p class="sec-note mb-3">{{ $tr.securityLock.changingLockScreenCredentials }}</p>
     <p class="sgx-credential-err mb-3" id="lock-reauth-notice" hidden></p>
     <div class="sgx-credential-methods animate-fade-up" id="lock-reauth-methods" style="animation-delay:.1s"></div>
   </div>
 
   <!-- 门内（验证通过后才渲染；顶部倒计时胶囊由 JS 插入） -->
   <div id="lockmgr" hidden> <!-- A-1：探针通过前不渲染门内内容 -->
-    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ if $isEn }}Unlock password{{ else }}解锁密码{{ end }}</span></h2>
+    <h2 class="set-gh"><span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "lock" }}</span><span>{{ $tr.securityLock.unlockPassword }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.1s">
       <div class="set-row" id="lockmgr-pwrow" role="button" tabindex="0">
         <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}Unlock password{{ else }}解锁密码{{ end }}</span>
-          <span class="block text-xs mt-0.5 text-m-primary" id="lockmgr-pwsub">{{ if $isEn }}Loading…{{ else }}正在读取…{{ end }}</span>
+          <span class="block font-medium">{{ $tr.securityLock.unlockPassword }}</span>
+          <span class="block text-xs mt-0.5 text-m-primary" id="lockmgr-pwsub">{{ $tr.securityLock.loading }}</span>
         </span>
         {{ partial "icon.html" "chev-r" }}
       </div>
-      <button type="button" class="lockmgr-delrow" id="lockmgr-pwdel" hidden>{{ if $isEn }}Delete password{{ else }}删除密码{{ end }}</button>
+      <button type="button" class="lockmgr-delrow" id="lockmgr-pwdel" hidden>{{ $tr.securityLock.deletePassword }}</button>
     </section>
-    <p class="sec-note mb-7">{{ if $isEn }}Used to unlock from the lock screen. Minimum 8 characters.{{ else }}用于从锁屏解锁，最短 8 位。{{ end }}</p>
+    <p class="sec-note mb-7">{{ $tr.securityLock.usedToUnlockFrom }}</p>
 
-    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Passkeys{{ else }}通行密钥{{ end }}</span></h2>
+    <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ $tr.securityLock.passkeys }}</span></h2>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       {{/* 2026-10-24：列表回来之前显示「正在加载」，不出现只有「添加通行密钥」的空列表 */}}
-      <ul class="lockmgr-pklist" id="lockmgr-pklist" aria-busy="true"><li class="lockmgr-pkloading" id="lockmgr-pkloading"><span class="sgx-spinner" aria-hidden="true"></span><span>{{ if $isEn }}Loading passkeys…{{ else }}正在加载通行密钥…{{ end }}</span></li></ul>
+      <ul class="lockmgr-pklist" id="lockmgr-pklist" aria-busy="true"><li class="lockmgr-pkloading" id="lockmgr-pkloading"><span class="sgx-spinner" aria-hidden="true"></span><span>{{ $tr.securityLock.loadingPasskeys }}</span></li></ul>
       <div class="p-4" id="lockmgr-pkempty" hidden>
-        <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No passkeys yet.{{ else }}还没有通行密钥。{{ end }}</p>
+        <p class="text-sm text-m-on-surface-variant m-0">{{ $tr.securityLock.noPasskeysYet }}</p>
       </div>
       <button type="button" class="lockmgr-add" id="lockmgr-pkadd" hidden>
-        <span aria-hidden="true">{{ if $isEn }}+{{ else }}＋{{ end }}</span> {{ if $isEn }}Add passkey{{ else }}添加通行密钥{{ end }}
+        <span aria-hidden="true">{{ $tr.securityLock.plus }}</span> {{ $tr.securityLock.addPasskey }}
       </button>
     </section>
-    <p class="sec-note mb-7">{{ if $isEn }}Unlock with fingerprint, face, or device passcode. Tap a device name to rename it.{{ else }}用指纹、面容或设备密码解锁。点设备名可重命名。{{ end }}</p>
+    <p class="sec-note mb-7">{{ $tr.securityLock.unlockWithFingerprintFace }}</p>
 
     {{/* 会话：重置锁屏（无会话）时 JS 隐藏 */}}
     <div id="lockmgr-sessions">
-      <h2 class="set-gh"><span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "clock" }}</span><span>{{ if $isEn }}Sessions{{ else }}会话{{ end }}</span></h2>
+      <h2 class="set-gh"><span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "clock" }}</span><span>{{ $tr.securityLock.sessions }}</span></h2>
       <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.18s">
         <div class="set-row" id="lockmgr-outall" role="button" tabindex="0">
           <span class="flex-1 min-w-0">
-            <span class="block font-medium">{{ if $isEn }}Sign out of all devices{{ else }}退出所有设备{{ end }}</span>
-            <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Every device, this one included, goes back to the lock screen{{ else }}所有设备（包括本机）回到锁屏{{ end }}</span>
+            <span class="block font-medium">{{ $tr.securityLock.signOutOfAll }}</span>
+            <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ $tr.securityLock.everyDeviceThisOne }}</span>
           </span>
         </div>
       </section>
@@ -65,14 +65,14 @@
 <dialog id="lockpkname-dlg" class="sgx-verify-dlg" aria-labelledby="lockpkname-title">
   <div class="sgx-verify-card">
     {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
-    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
+    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ $tr.securityLock.close }}">×</button>
     <div class="sheet-handle" data-pclose></div>
-    <h2 id="lockpkname-title" class="sgx-verify-title">{{ if $isEn }}Name this passkey{{ else }}为这把通行密钥命名{{ end }}</h2>
-    <p class="sgx-verify-desc">{{ if $isEn }}Give it a name so you can tell your passkeys apart.{{ else }}起个名字，方便区分多把通行密钥。{{ end }}</p>
+    <h2 id="lockpkname-title" class="sgx-verify-title">{{ $tr.securityLock.nameThisPasskey }}</h2>
+    <p class="sgx-verify-desc">{{ $tr.securityLock.giveItAName }}</p>
     <input id="lockpkname-input" type="text" maxlength="40" class="sgx-verify-input" autocomplete="off" />
     <div class="sgx-verify-actions">
-      <button type="button" class="sgx-verify-ghost" id="lockpkname-skip">{{ if $isEn }}Skip{{ else }}跳过{{ end }}</button>
-      <button type="button" class="sgx-verify-skip" id="lockpkname-save">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+      <button type="button" class="sgx-verify-ghost" id="lockpkname-skip">{{ $tr.securityLock.skip }}</button>
+      <button type="button" class="sgx-verify-skip" id="lockpkname-save">{{ $tr.securityLock.save }}</button>
     </div>
     <p class="sgx-verify-err" id="lockpkname-err" hidden></p>
   </div>
@@ -83,117 +83,28 @@
 <dialog id="lockpw-dlg" class="sgx-verify-dlg" aria-labelledby="lockpw-title">
   <div class="sgx-verify-card">
     {{/* 批次 A 收尾 A3：右上角 × 关闭按钮 */}}
-    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">×</button>
+    <button type="button" class="sgx-dlg-close" data-dlg-close aria-label="{{ $tr.securityLock.close }}">×</button>
     <div class="sheet-handle" data-pclose></div>
-    <h2 id="lockpw-title" class="sgx-verify-title">{{ if $isEn }}Set unlock password{{ else }}设置解锁密码{{ end }}</h2>
+    <h2 id="lockpw-title" class="sgx-verify-title">{{ $tr.securityLock.setUnlockPassword }}</h2>
     <div class="sgx-pw-field">
       {{/* 隐藏用户名框：密码管理器按 LockKey 保存（lib/key-names.js） */}}
       <input type="text" autocomplete="username" value="LockKey" aria-hidden="true" tabindex="-1" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;">
       <input type="password" id="lockpw-1" class="sgx-pw-input" autocomplete="new-password"
-             aria-label="{{ if $isEn }}New password{{ else }}新密码{{ end }}"
-             placeholder="{{ if $isEn }}New password (min 8){{ else }}新密码（最少 8 位）{{ end }}">
-      <button type="button" class="sgx-pw-eye" data-eye="lockpw-1" aria-label="{{ if $isEn }}Show password{{ else }}显示密码{{ end }}"></button>
+             aria-label="{{ $tr.securityLock.newPassword }}"
+             placeholder="{{ $tr.securityLock.newPasswordMin8 }}">
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-1" aria-label="{{ $tr.securityLock.showPassword }}"></button>
     </div>
     <div class="sgx-pw-field">
       <input type="password" id="lockpw-2" class="sgx-pw-input" autocomplete="new-password"
-             aria-label="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}"
-             placeholder="{{ if $isEn }}Confirm password{{ else }}确认密码{{ end }}">
-      <button type="button" class="sgx-pw-eye" data-eye="lockpw-2" aria-label="{{ if $isEn }}Show password{{ else }}显示密码{{ end }}"></button>
+             aria-label="{{ $tr.securityLock.confirmPassword }}"
+             placeholder="{{ $tr.securityLock.confirmPassword }}">
+      <button type="button" class="sgx-pw-eye" data-eye="lockpw-2" aria-label="{{ $tr.securityLock.showPassword }}"></button>
     </div>
     <p id="lockpw-err" class="sgx-verify-err" hidden></p>
-    <button type="button" class="sgx-verify-skip" id="lockpw-go">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+    <button type="button" class="sgx-verify-skip" id="lockpw-go">{{ $tr.securityLock.save }}</button>
   </div>
 </dialog>
 
-{{ $lkI18n := dict
-  "eyeShow" (dict "zh" "显示密码" "en" "Show password")
-  "eyeHide" (dict "zh" "隐藏密码" "en" "Hide password")
-  "pwSet" (dict "zh" "已设置" "en" "Set")
-  "pwUnset" (dict "zh" "未设置" "en" "Not set")
-  "pwMin8" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
-  "pwMismatch" (dict "zh" "两次输入不一致" "en" "Passwords do not match")
-  "pwSaved" (dict "zh" "已保存" "en" "Saved")
-  "pwChanged" (dict "zh" "已修改" "en" "Changed")
-  "pwDeleted" (dict "zh" "密码已删除" "en" "Password deleted")
-  "pwDelAsk" (dict "zh" "再点一次删除密码" "en" "Tap again to delete password")
-  "pwDelWarnLock" (dict "zh" "删除后锁屏只能通过重置锁屏重新设置，再点一次确认" "en" "After deletion the lock screen can only be set up again via Reset lock screen. Tap again to confirm")
-  "lastKeyConfirmTitle" (dict "zh" "删除最后一把解锁钥匙" "en" "Delete the last unlock key")
-  "lastKeyConfirmDesc" (dict "zh" "删除后锁屏只能通过重置锁屏重新设置" "en" "After deletion, the lock screen can only be set up again via Reset lock screen.")
-  "lastKeyConfirmCancel" (dict "zh" "取消" "en" "Cancel")
-  "lastKeyConfirmDelete" (dict "zh" "删除" "en" "Delete")
-  "pkRegistered" (dict "zh" "已注册" "en" "Registered")
-  "pkDeleted" (dict "zh" "已删除" "en" "Deleted")
-  "pkDelManual" (dict "zh" "请到 Samsung Pass 里手动删除这把通行密钥" "en" "Please delete this passkey manually in Samsung Pass")
-  "pkRenamed" (dict "zh" "已重命名" "en" "Renamed")
-  "pkUnnamed" (dict "zh" "通行密钥" "en" "Passkey")
-  "pkDel" (dict "zh" "删除" "en" "Delete")
-  "pkDelAsk" (dict "zh" "再点一次删除" "en" "Tap again to delete")
-  "pkRetryLater" (dict "zh" "请稍后重试" "en" "Please try again later")
-  "pkNeverUsed" (dict "zh" "尚未使用" "en" "Not used yet")
-  "created" (dict "zh" "创建于 " "en" "Created ")
-  "lastUsed" (dict "zh" "最近使用 " "en" "Last used ")
-  "pkProv_samsung_pass" (dict "en" "Samsung Pass")
-  "pkProv_google_password_manager" (dict "zh" "Google 密码管理器" "en" "Google Password Manager")
-  "pkProv_apple_passwords" (dict "zh" "Apple 密码" "en" "Apple Passwords")
-  "pkProv_icloud_keychain" (dict "zh" "iCloud 钥匙串" "en" "iCloud Keychain")
-  "pkProv_microsoft_password_manager" (dict "zh" "Microsoft 密码管理器" "en" "Microsoft Password Manager")
-  "pkProv_windows_hello" (dict "en" "Windows Hello")
-  "pkProv_1password" (dict "en" "1Password")
-  "pkProv_bitwarden" (dict "en" "Bitwarden")
-  "pkNameEmpty" (dict "zh" "名字不能为空" "en" "Name cannot be empty")
-  "pkRenameResetNo" (dict "zh" "重置时暂不支持命名，可解锁后修改" "en" "Naming is not available during reset; you can rename it after unlocking")
-  "pkAlready" (dict "zh" "此设备已注册过" "en" "Already registered on this device")
-  "pkNoSupport" (dict "zh" "设备不支持" "en" "Not supported on this device")
-  "pkFailed" (dict "zh" "注册失败" "en" "Registration failed")
-  "mPasskey" (dict "zh" "锁屏通行密钥" "en" "Lock screen passkey")
-  "mPasskeySub" (dict "zh" "使用指纹或设备锁屏" "en" "Use fingerprint or device screen lock")
-  "mPassword" (dict "zh" "解锁密码" "en" "Unlock password")
-  "mPasswordSub" (dict "zh" "输入解锁密码" "en" "Enter unlock password")
-  "mSpace" (dict "zh" "进站凭证" "en" "Space credential")
-  "mSpaceSub" (dict "zh" "粘贴或输入进站凭证" "en" "Paste or enter space credential")
-  "verifyBtn" (dict "zh" "验证" "en" "Verify")
-  "enterCred" (dict "zh" "请输入凭证" "en" "Enter credential")
-  "passkeyBusy" (dict "zh" "正在唤起通行密钥…" "en" "Opening passkey…")
-  "errWrongSpace" (dict "zh" "进站凭证不正确" "en" "Incorrect space credential")
-  "outAllTitle" (dict "zh" "退出所有设备？" "en" "Sign out of all devices?")
-  "outAllDesc" (dict "zh" "所有设备（包括本机）都会回到锁屏，需要重新解锁" "en" "Every device, this one included, returns to the lock screen and must unlock again.")
-  "outAllBtn" (dict "zh" "退出" "en" "Sign out")
-  "setTitle" (dict "zh" "设置解锁密码" "en" "Set unlock password")
-  "changeTitle" (dict "zh" "修改解锁密码" "en" "Change unlock password")
-  "sessExp" (dict "zh" "会话过期，请重新验证" "en" "Session expired, verify again")
-  "errReauthExpired" (dict "zh" "验证已过期，请重新验证" "en" "Verification expired, please verify again")
-  "errNetwork" (dict "zh" "网络连接失败，请重试" "en" "Network connection failed, please retry")
-  "errParse" (dict "zh" "服务响应异常，请重试" "en" "Bad server response, please retry")
-  "gateNetErr" (dict "zh" "网络错误" "en" "Network error")
-  "pkListFail" (dict "zh" "通行密钥列表读取失败，请稍后刷新" "en" "Couldn’t load passkeys. Refresh to try again")
-  "errParams" (dict "zh" "参数错误" "en" "Bad request")
-  "errNotFound" (dict "zh" "找不到这把钥匙" "en" "Key not found")
-  "errLastKey" (dict "zh" "这是最后一把解锁钥匙，请先设置解锁密码" "en" "This is the last unlock key; set an unlock password first")
-  "errRetry" (dict "zh" "请稍后重试" "en" "Please try again later")
-  "errServer" (dict "zh" "服务暂时不可用" "en" "Service temporarily unavailable")
-  "errChallenge" (dict "zh" "验证初始化失败" "en" "Verification setup failed")
-  "errVerify" (dict "zh" "验证失败" "en" "Verification failed")
-  "errUvRequired" (dict "zh" "需要设备解锁确认" "en" "Device unlock required")
-  "errWrongPw" (dict "zh" "密码错误" "en" "Wrong password")
-  "errShort" (dict "zh" "最短 8 位" "en" "Minimum 8 characters")
-  "gateSrvErr" (dict "zh" "服务器配置有误" "en" "Server misconfigured")
-  "gateCancelled" (dict "zh" "已取消" "en" "Cancelled")
-  "errExists" (dict "zh" "已经设置过了" "en" "Already set")
-  "errNotSet" (dict "zh" "尚未设置" "en" "Not set")
-  "errLocked" (dict "zh" "尝试次数过多，请稍后再试" "en" "Too many attempts, please try again later")
-  "errConfig" (dict "zh" "服务器配置有误" "en" "Server misconfigured")
-  "errCancelled" (dict "zh" "已取消" "en" "Cancelled")
-  "errUnknown" (dict "zh" "未知错误，请稍后重试" "en" "Unknown error, please try again later")
-  "errSameAsLock" (dict "zh" "不能与解锁密码相同" "en" "Can't be the same as the unlock password")
-  "errSameAsAccount" (dict "zh" "不能与账号密码相同" "en" "Can't be the same as the account password")
-  "reauthCountdown" (dict "zh" "验证剩余 {m}" "en" "Verification remaining {m}")
-  "reauthCountdownExpired" (dict "zh" "已过期" "en" "Expired")
-  "expiredReauthTitle" (dict "zh" "验证已过期" "en" "Verification expired")
-  "expiredReauthDesc" (dict "zh" "验证后回到这一页继续" "en" "Verify again to continue on this page.")
-  "expiredReauthBtn" (dict "zh" "重新验证" "en" "Verify again")
-  "expiredSessionTitle" (dict "zh" "会话已失效" "en" "Session expired")
-  "expiredSessionDesc" (dict "zh" "请回到锁屏重新解锁" "en" "Please go back to the lock screen to unlock again.")
-  "expiredSessionBtn" (dict "zh" "去锁屏" "en" "Go to lock screen")
-}}
+{{ $lkI18n := $tr.js.lockmgr }}
 <script id="sgx-i18n-lockmgr" type="application/json">{{ $lkI18n | jsonify | safeJS }}</script>
 {{ end }}

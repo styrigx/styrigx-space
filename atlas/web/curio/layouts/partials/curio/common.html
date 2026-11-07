@@ -1,5 +1,5 @@
-{{- /* 各子页共用的确认框 + 提示条（curio.js 的 SgxCurioUI.ask / toast）。参数：isEn */ -}}
-{{- $isEn := .isEn }}
+{{- /* 各子页共用的确认框 + 提示条（curio.js 的 SgxCurioUI.ask / toast）。参数：tr（字符串表）、lang（页面语言代码） */ -}}
+{{- $tr := .tr }}{{ $lang := .lang }}
 {{/* ===== 确认（删收藏 / 删分类） ===== */}}
 <div id="confirm-wrap" class="bk-overlay fixed inset-0 z-[70]" role="alertdialog" aria-modal="true" aria-labelledby="confirm-msg">
   <div class="bk-overlay-backdrop absolute inset-0" data-close="confirm"></div>
@@ -7,7 +7,7 @@
     <div class="px-6 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
       <p id="confirm-msg" class="text-[15px] leading-relaxed text-center"></p>
       <div class="flex gap-3 mt-5">
-        <button id="confirm-cancel" type="button" class="flex-1 h-12 rounded-full bg-m-container text-m-on-surface text-[15px] font-bold">{{ if $isEn }}Cancel{{ else }}取消{{ end }}</button>
+        <button id="confirm-cancel" type="button" class="flex-1 h-12 rounded-full bg-m-container text-m-on-surface text-[15px] font-bold">{{ $tr.curioCommon.cancel }}</button>
         <button id="confirm-ok" type="button" class="flex-1 h-12 rounded-full bg-m-error text-m-on-error text-[15px] font-bold"></button>
       </div>
     </div>

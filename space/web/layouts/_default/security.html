@@ -4,9 +4,9 @@
    脚本走 ES Module 入口 entry-security.js；localStorage 经 storage.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-security.js" }}
-{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
-{{ $lockUrl := (partial "sgx-lang-path.html" (dict "path" "/security/lock/" "lang" (cond $isEn "en" "zh"))) }}
-{{ $tkUrl := (partial "sgx-lang-path.html" (dict "path" "/security/tempkeys/" "lang" (cond $isEn "en" "zh"))) }}
+{{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
+{{ $lockUrl := (partial "sgx-lang-path.html" (dict "path" "/security/lock/" "lang" $pageLang)) }}
+{{ $tkUrl := (partial "sgx-lang-path.html" (dict "path" "/security/tempkeys/" "lang" $pageLang)) }}
 
 <div class="set-layout pb-28">
 
@@ -21,14 +21,14 @@
   </a>
 
   <!-- 安全分组：三个入口（所有进门的人看到完全一样） -->
-  <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ if $isEn }}Security{{ else }}安全{{ end }}</span></h2>
+  <h2 class="set-gh"><span class="set-ic bg-m-accent-container text-m-on-accent-container">{{ partial "icon.html" "shield" }}</span><span>{{ $tr.security.security }}</span></h2>
   <section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.1s">
     {{/* 锁屏凭证 → 锁屏凭证页（进页先过门：锁屏凭证或进站凭证，3 分钟reauth 票，离开即失效） */}}
     <a class="set-row" id="sec-lock-cred" href="{{ $lockUrl }}">
       <span class="set-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "key" }}</span>
       <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Lock screen credentials{{ else }}锁屏凭证{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5" id="sec-lock-sub">{{ if $isEn }}Password, passkeys, sessions{{ else }}解锁密码、通行密钥、会话{{ end }}</span>
+        <span class="block font-medium">{{ $tr.security.lockScreenCredentials }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5" id="sec-lock-sub">{{ $tr.security.passwordPasskeysSessions }}</span>
       </span>
       {{ partial "icon.html" "chev-r" }}
     </a>
@@ -36,33 +36,23 @@
     <a class="set-row" id="sec-tempkeys" href="{{ $tkUrl }}">
       <span class="set-ic bg-m-primary-container text-m-on-primary-container">{{ partial "icon.html" "key" }}</span>
       <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Temporary keys{{ else }}临时钥匙{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Let others past the lock screen, share links{{ else }}给别人的进门钥匙、分享短链{{ end }}</span>
+        <span class="block font-medium">{{ $tr.security.temporaryKeys }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ $tr.security.letOthersPastThe }}</span>
       </span>
       {{ partial "icon.html" "chev-r" }}
     </a>
     <div class="set-row" id="sec-locknow" role="button" tabindex="0">
       <span class="set-ic bg-m-warm-container text-m-on-warm-container">{{ partial "icon.html" "clock" }}</span>
       <span class="flex-1 min-w-0">
-        <span class="block font-medium">{{ if $isEn }}Lock now{{ else }}立即锁定{{ end }}</span>
-        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ if $isEn }}Clear this session and return to the lock screen{{ else }}清除当前会话并回到锁屏{{ end }}</span>
+        <span class="block font-medium">{{ $tr.security.lockNow }}</span>
+        <span class="block text-xs text-m-on-surface-variant mt-0.5">{{ $tr.security.clearThisSessionAnd }}</span>
       </span>
     </div>
   </section>
 
-  <p class="sec-note">{{ if $isEn }}Security status is read from this device only.{{ else }}安全状态仅从本设备读取。{{ end }}</p>
+  <p class="sec-note">{{ $tr.security.securityStatusIsRead }}</p>
 </div>
 
-{{ $secI18n := dict
-  "okTitle" (dict "zh" "一切正常" "en" "All good")
-  "okSub" (dict "zh" "解锁密码、锁屏通行密钥均已设置" "en" "Unlock password and passkeys are set")
-  "warnTitle" (dict "zh" "建议操作" "en" "Action suggested")
-  "missPw" (dict "zh" "未设置解锁密码" "en" "Unlock password not set")
-  "missPk" (dict "zh" "未注册锁屏通行密钥" "en" "No lock screen passkeys registered")
-  "lockSubBoth" (dict "zh" "密码，通行密钥" "en" "Password, passkeys")
-  "lockSubPw" (dict "zh" "密码" "en" "Password")
-  "lockSubPk" (dict "zh" "通行密钥" "en" "Passkeys")
-  "lockSubNone" (dict "zh" "未设置" "en" "Not set")
-}}
+{{ $secI18n := $tr.js.security }}
 <script id="sgx-i18n-security" type="application/json">{{ $secI18n | jsonify | safeJS }}</script>
 {{ end }}

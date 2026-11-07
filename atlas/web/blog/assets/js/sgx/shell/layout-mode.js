@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:e53b388800b4 space/web/shared/shell v0163ba596856（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:caf137b91ea5 space/web/shared/shell vb1cfa4a82b55（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- layout-mode.js ---- */
 /* 布局模式（P4-3 PR-4b，Gray 2026-11-07 定稿）：只有两种——手机 phone / 桌面 desktop，四个站同一条规则（共享外壳 layout-mode.js，各站原样内联进 <head>，首帧前定好，不闪）。
    - 手动（快捷面板 布局：手机 / 自动 / 桌面；localStorage sgx-layout = phone / auto / desktop，同源四站同一份）：手机 / 桌面直接照办，下面的都不看。

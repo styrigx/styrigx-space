@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-{{ $isEn := eq .Lang "en" }}
+{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" $lang $lang }}
 {{/* 自定义主题色引擎（共享外壳 palette-scheme.js）：只在 cookie 是自定义色且本站还没缓存时，由共享读端 SgxUI.apply 的 onMiss 按需加载 */}}
 {{ $shellAccent := resources.Get "js/sgx/shell-accent.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint }}
-<html lang="{{ if $isEn }}en{{ else }}zh{{ end }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}">
+<html lang="{{ $lang }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,8 +10,10 @@
 <meta name="theme-color" content="#f5f8fa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
 {{/* 404 的 .Title 是 Hugo 内置英文「404 Page not found」，不随语言：改用字符串表的页名 */}}
-<title>{{ if .IsHome }}{{ if $isEn }}Curio{{ else }}奇趣{{ end }}{{ else }}{{ if eq .Kind "404" }}{{ if $isEn }}Page not found{{ else }}页面不存在{{ end }}{{ else }}{{ .Title }}{{ end }} | {{ if $isEn }}Curio{{ else }}奇趣{{ end }}{{ end }}</title>
-<meta name="description" content="{{ if $isEn }}Sloan Gray's Curio: good things found on the web, kept one by one{{ else }}{{ .Site.Params.description }}{{ end }}">
+{{/* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，站名走字符串表 site.name；页名就是站名（首页）时只显示站名 */}}
+{{ $docTitle := .Title }}{{ if .IsHome }}{{ $docTitle = $tr.site.name }}{{ else if eq .Kind "404" }}{{ $docTitle = $tr.baseof.pageNotFound }}{{ end }}
+<title>{{ if eq $docTitle $tr.site.name }}{{ $docTitle }}{{ else }}{{ $docTitle }} | {{ $tr.site.name }}{{ end }}</title>
+<meta name="description" content="{{ $tr.site.description }}">
 {{/* P4-3 PR-4c：canonical + hreflang（英文默认、不带前缀 = x-default；中文 /curio/zh/），地址来自 Hugo 的语言版本 */}}
 {{ if ne .Kind "404" }}<link rel="canonical" href="{{ .Permalink }}">
 {{ range .AllTranslations }}<link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ .Permalink }}">
@@ -63,13 +65,13 @@ __sgxLayoutWatch(__applyLayout);
      深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）。
    JS：js/sgx/topbar-host.js（共享外壳 topbar.js + modal-sheet.js + ai.js + prefs-write.js + share.js）。外观和语言跟主站（sgx-ui cookie，见 ui-inherit-run.js）。 */}}
 {{ $pageName := .Title }}
-{{ if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}{{ end }}
+{{ if eq .Kind "404" }}{{ $pageName = $tr.baseof.pageNotFound }}{{ end }}
 {{ $shellNav := resources.Get "sgx-shell/nav.json" | transform.Unmarshal }}
 {{ $center := "" }}
 {{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿；顶栏不再有分区页签）。P4-3 奇趣拆页起每个分区是独立子页：
    首页 = 站名，子页（发现 / 设备 / 游戏 / 电影 / 音乐）= 子页名（内容文件的 title）；桌面布局显示、手机布局不显示（共享外壳 PR-4b 机制）。
    分区入口在首页正文（共享外壳平铺入口）。 */}}
-{{ if .IsHome }}{{ $pageName = cond $isEn "Curio" "奇趣" }}{{ end }}
+{{ if .IsHome }}{{ $pageName = $tr.site.name }}{{ end }}
 {{ $center = printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
 {{/* 语言磁贴：去另一种语言的同一页（有翻译用翻译，没有就去那种语言的本站首页） */}}
 {{ $langHref := "" }}

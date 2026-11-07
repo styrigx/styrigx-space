@@ -8,14 +8,14 @@
 - 快捷设置（P4-3 PR-4b 起四站同一套，没有按站的 tiles 参数）：深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条）。
 参数：.page .mode .title（.toc 2026-11-04 起不用，调用方照旧传也无妨） */ -}}
 {{- $lang := .page.Language.Lang -}}
-{{- $isEn := eq $lang "en" -}}
+
 {{- $mode := .mode | default "links" -}}
 {{- $nav := index hugo.Data "sgx-shell" "nav" -}}
 {{- $title := .title | default .page.Title -}}
 {{- $center := "" -}}
 {{- if eq $mode "tabs" -}}
 {{- /* 首页：页名胶囊 = 站名，切到页内分区（#posts / #topics）时 app-tabs.ts 换成分区名（data-sgx-titles 顺序同 TABS；首页分区就是首页本身） */ -}}
-{{- $titles := slice (cond $isEn "Blog" "博客") (i18n "tabPosts") (i18n "tabTopics") -}}
+{{- $titles := slice (i18n "blogTitle") (i18n "tabPosts") (i18n "tabTopics") -}}
 {{- $center = printf "<span class=\"sgx-tb-title\" data-sgx-titles=\"%s\">%s</span>" ($titles | jsonify | htmlEscape) (index $titles 0 | htmlEscape) -}}
 {{- else -}}
 {{- $center = printf "<span class=\"sgx-tb-title\">%s</span>" ($title | htmlEscape) -}}
