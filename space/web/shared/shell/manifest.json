@@ -4,14 +4,14 @@
   "dir": "space/web/shared/shell",
   "files": {
     "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
-    "shell.css": "8efaf6b7d309e7a60fa87b2bcfeb7900ebe1e0036c00d298775473fdaed55181",
+    "shell.css": "61d516744b9f133425252ce4646861c715e599baf917c7e3c1a4946d7578b276",
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "da46a782fdf9f80c24fae06bbbd83e5e29894a5c1db87b9e754071637ae158ca",
     "topbar.html": "dc876f034b39001415d62e7c5db4bdd46ca2beb6abc1e74d88b232bdb9969359",
     "entries.html": "08aa5362ea90368c2a594485c275e94cac2ca74e7013378f0ad46979fb7708b8",
     "topbar.js": "b5109369fec156d0d728d869212c2deafc487ffc4bd94fe3565aa680deeb8b8c",
     "modal-sheet.js": "f31bcbff02bee8437ced385a2cf781c02ad15762b5f7df025fe01e6ba1b8c2ee",
-    "ai.js": "5073e7d62ac1b77b4c3dd104e59e088ed7a0f023f1f8f0adbdfdcb0aae362585",
+    "ai.js": "0e3d72ab4dc075f021aab54a6d833f762a1d4dda518ccbaaeea635139a17c902",
     "vk.js": "3bc7000ba510e8a7cbc1dd420e85cffdc23e0c5bd8184f4421d5e57f22ad7633",
     "prefs-write.js": "b28b056a311d48d2eee57742c4542eec13e58a03fbbfca39c28b8dbccd260364",
     "nav.json": "0e3f8ec0011f543d27743a7745b7bc32a20113250cc7a635c91df41ca463a477",
@@ -22,13 +22,13 @@
     "lang-path.html": "cd08a62d609777847f5df10d171850a07a7072d8f3add12df4a0054da9ebfbd3",
     "lang-boot.js": "3cc8b195eade7b350cd91532edd3267e29ca9a41fe3cd473941134af492ec63e",
     "tr.html": "b030ba4a591729543de066e17ec6275e62dfd8a762283f71e99e7cbddd79dda1",
-    "i18n-en.yaml": "44ff09295361efc05a79506079da9614dbedeca006bc0daa1bb0da85e88814bf",
-    "i18n-zh.yaml": "436c1cc3bce5b0a4e86243185fa3d5ef6d1581199604a16ac8ebed8af06f5edf",
+    "i18n-en.yaml": "4e91464ecef040aa99d7a2928c5b946b4db40435c9743f001b4335d143f4ec37",
+    "i18n-zh.yaml": "b83b004111ba46d25cc3e631ea5a8c0cd5c29c0e5c230bbdd079bf4b507f7643",
     "ui-cookie-contract.json": "903e4d924d748e12bb759031d786af3f5621f010e2630e0f0dea0e2dacb9b276",
     "favicon.js": "4bb7f9fe412988861d682b8c2a88eb93f68fc39f9fb51bd5df38441755b5d433",
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
     "README.md": "53484df4aa7ecfd3ea06f914531d754700a0c73c4e4a8a60a9440f5472fdde37"
   },
-  "version": "6bce976ea2c7",
+  "version": "e5ece18d32a8",
   "rulesVersion": "palette-rules-1"
 }

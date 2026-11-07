@@ -50,6 +50,8 @@ ai:
   fail: 没能拿到回答，请稍后再试
   send: 发送
   stop: 停止
+  sources: 来源
+  newTab: （在新标签页打开）
 share:
   share: 分享
   copied: 已复制分享链接

@@ -1328,6 +1328,8 @@ jobs:
     # Workers Scripts 编辑 + Workers KV Storage 编辑 + Secrets Store 编辑（绑 SGX_CHAT_API_KEY 要它，同原 styrigx-chat-deploy），范围整个账号）。
     # 2026-11-05 run 42007357284：原 token 没有 Secrets Store 权限，带钥匙部署报 10021，Gray 定改名 + 加权限，一次带钥匙部署成功、不靠退路。
     # Workers AI 绑定要不要额外权限文档没写清：先不加；首次部署若报权限错，Gray 给这把 token 加 Workers AI 权限后重跑（对线上无影响）。
+    # 2026-11 AI 语义召回：wrangler.toml 加了 Vectorize 绑定 styrigx-ai-recall（索引要先在 Cloudflare 建好，否则部署失败、退路也失败、回滚）、
+    # 服务绑定 CURIO（styrigx-curio-core#CurioReader）、[placement] region、每小时 Cron。若部署报 Vectorize 权限错，给这把 token 加 Vectorize 编辑后重跑。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}

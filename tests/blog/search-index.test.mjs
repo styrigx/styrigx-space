@@ -35,7 +35,7 @@ function fixture() {
     '<figure class="code-block"><figcaption class="code-head"><span class="code-lang">bash</span><button>复制</button></figcaption>' +
     '<pre><code><span class="line"><span class="ln">1</span><span class="cl">echo hi</span></span></code></pre></figure>\n<script>alert(1)</script>'));
   post('zh', '2026-01-02-draft', 'title: 草稿\ndraft: true\ndate: 2026-01-02', null);
-  post('zh', '2026-01-03-secret', "title: '私密'\nprivate: true\ndate: 2026-01-03\ntags:\n  - 只有标签", page('私密', '<p>' + '字'.repeat(3000) + '</p>'));
+  post('zh', '2026-01-03-secret', "title: '私密'\nprivate: true\ndate: 2026-01-03\ntags:\n  - 只有标签", page('私密', '<p>' + '字'.repeat(30000) + '</p>'));
   post('en', '2026-01-01-hello', 'title: "Hello &quot;World&quot;"\ndate: 2026-01-01\ntags: ["Tag"]', page('Hello', '<p>don&rsquo;t &mdash; stop</p>'));
   return { dir, content, pub };
 }

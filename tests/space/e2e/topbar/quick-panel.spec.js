@@ -857,6 +857,45 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     expect(h2.cur).not.toBe(h2.chats[0].id);
   });
 
+  test('2026-11 AI 语义召回：回答按有限 Markdown 渲染（粗体 / 列表 / 链接，HTML 当文字）；站内链接同页、站外新标签 rel=noopener、虚下划线 + ↗；联网来源列在回答下', async ({ page }) => {
+    await go(page, '/theme/');
+    await page.route('**/api/ai', async (route) => {
+      const body = ['**锁屏**在设置里。<img src=x onerror="window.__xss=1">\n\n', '- [锁屏凭证](/security/lock/)\n', '- [外站文档](https://example.org/docs)\n', '- [坏](javascript:void0)']
+        .map((t) => 'event: delta\ndata: ' + JSON.stringify({ text: t }) + '\n\n').join('')
+        + 'event: sources\ndata: ' + JSON.stringify({ items: [{ title: 'example.org', url: 'https://example.org/a' }] }) + '\n\n'
+        + 'event: done\ndata: {}\n\n';
+      await route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' }, body });
+    });
+    await openAi(page);
+    await ai(page).locator('[data-ai-in]').fill('锁屏怎么开');
+    await ai(page).locator('[data-ai-in]').press('Enter');
+    const md = ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span.sgx-ai-md');
+    await expect(md.locator('strong')).toHaveText('锁屏');
+    await expect(md.locator('img')).toHaveCount(0);
+    await expect(md.locator('p').first()).toContainText('<img src=x onerror="window.__xss=1">');
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+    const links = md.locator('a.sgx-ai-link');
+    await expect(links).toHaveCount(3);
+    const inner = links.nth(0);
+    await expect(inner).toHaveAttribute('href', '/security/lock/');
+    expect(await inner.getAttribute('target')).toBe(null);
+    await expect(inner.locator('.sgx-ai-link-icon')).toHaveText('↗');
+    expect(await inner.locator('.sgx-ai-link-text').evaluate((el) => getComputedStyle(el).textDecorationStyle)).toBe('dotted');
+    const ext = links.nth(1);
+    await expect(ext).toHaveAttribute('target', '_blank');
+    await expect(ext).toHaveAttribute('rel', 'noopener');
+    await expect(md).toContainText('坏');
+    await expect(md.locator('a[href^="javascript"]')).toHaveCount(0);
+    /* 联网来源：追加成「来源」列表，随回答存进历史 */
+    await expect(md).toContainText('来源');
+    await expect(links.nth(2)).toHaveAttribute('href', 'https://example.org/a');
+    const h = JSON.parse(await ls(page, 'sgx-ai-history'));
+    expect(h.chats[0].msgs[1].text).toContain('来源\n- [example.org](https://example.org/a)');
+    /* 站内链接：关窗口后同页跳转 */
+    await inner.click();
+    await expect(page).toHaveURL(/\/security\/lock\/$/);
+  });
+
   test('2026-11-06：旧历史里带 hits 的回答，点开也是 0 张来源卡片', async ({ page }) => {
     await page.addInitScript(() => {
       try {

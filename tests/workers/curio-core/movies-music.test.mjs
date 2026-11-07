@@ -18,7 +18,7 @@ import { conclusionAuth } from '../_conclusion.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const W = REPO + '/workers/curio-core';
-const worker = (await import(W + '/src/index.js')).default;
+const worker = (await import(W + '/src/app.js')).default;
 const MV = await import(W + '/src/api/_movies.js');
 const MU = await import(W + '/src/api/_music.js');
 const SI = await import(W + '/src/search-index.js');
@@ -319,27 +319,83 @@ test('删专辑：曲目、令牌、R2 里的音频和封面一起删；删曲�
   assert.equal((await (await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.del', id } })).json()).error, 'not-found');
 });
 
-/* ================= 索引排除 ================= */
+/* ================= 索引（2026-11 AI 语义召回：电影、音乐元数据进索引） ================= */
 
-test('索引排除：搜索索引（AI 召回读同一份 KV site:curio）不含电影 / 音乐；写电影 / 音乐不触发重建；站点地图模板只列首页', async () => {
+test('索引：电影、音乐元数据进 site:curio（不标 private，进门即可问；音频 / 封面 / 歌词不进）；写电影 / 音乐触发重建；站点地图模板只列首页', async () => {
   const e = makeEnv();
-  const mv = await call(e, '/curio/api/movies', { who: 'owner', method: 'POST', body: { op: 'movie.add', title: '一部电影 moviezz' } });
-  assert.equal(mv.waits.length, 0, '写电影不重建索引');
-  const al = await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: '私人专辑 musiczz' } });
-  assert.equal(al.waits.length, 0, '写音乐不重建索引');
-  assert.equal(SI.isContentMutation('/api/movies', 'POST', 200), false);
-  assert.equal(SI.isContentMutation('/api/music', 'POST', 200), false);
-  assert.equal(SI.isContentMutation('/api/music-upload', 'POST', 200), false);
+  const mv = await call(e, '/curio/api/movies', { who: 'owner', method: 'POST', body: { op: 'movie.add', title: '一部电影 moviezz', original_title: 'Orig', year: 2000, director: '王家卫', rating: 4, watched_at: '2026-10-01', review: '好看' } });
+  assert.equal(mv.status, 200);
+  assert.equal(mv.waits.length, 1, '写电影重建索引');
+  const al = await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: '私人专辑 musiczz', artist: 'Joni Mitchell', year: 1971 } });
+  assert.equal(al.waits.length, 1, '写音乐重建索引');
+  const id = (await al.json()).id;
+  const up = await upTrack(e, id, 'no=1&title=' + encodeURIComponent('All I Want') + '&duration=212');
+  assert.equal(up.status, 200);
+  assert.equal(up.waits.length, 1, '上传曲目重建索引');
+  await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: (await (await call(e, '/curio/api/music', { who: 'owner' })).json()).albums[0].tracks[0].id, lrc: '[00:01.00]lyricszz' } });
+  assert.equal(SI.isContentMutation('/api/movies', 'POST', 200), true);
+  assert.equal(SI.isContentMutation('/api/music', 'POST', 200), true);
+  assert.equal(SI.isContentMutation('/api/music-upload', 'POST', 200), true);
+  assert.equal(SI.isContentMutation('/api/music', 'GET', 200), false);
+  assert.equal(SI.isContentMutation('/api/photo', 'POST', 200), false);
   const ix = await SI.buildIndex(e.db);
+  const movie = ix.items.find((it) => it.id === 'movie:1');
+  assert.deepEqual(movie, { id: 'movie:1', type: 'item', lang: 'zh', title: '一部电影 moviezz', url: 'https://styrigx.com/curio/zh/movies/', subtitle: '电影 · 2000 · 王家卫', text: '原名: Orig\n导演: 王家卫\n评分: 4/5\n观看日期: 2026-10-01\n好看' });
+  assert.equal(ix.items.find((it) => it.id === 'movie:1:en').url, 'https://styrigx.com/curio/movies/');
+  assert.match(ix.items.find((it) => it.id === 'movie:1:en').subtitle, /^Movies · 2000/);
+  const album = ix.items.find((it) => it.id === 'album:' + id);
+  assert.equal(album.title, '私人专辑 musiczz');
+  assert.equal(album.subtitle, '音乐 · Joni Mitchell · 1971');
+  assert.equal(album.text, '歌手: Joni Mitchell\n1. All I Want');
+  assert.equal(album.url, 'https://styrigx.com/curio/zh/music/');
+  assert.ok(ix.items.filter((it) => /^(movie|album):/.test(it.id)).every((it) => it.private === undefined), '没有私密列，不标 private');
   const all = JSON.stringify(ix);
-  assert.doesNotMatch(all, /moviezz|musiczz|\/movies\/|\/music\//);
-  assert.ok(ix.items.every((it) => /^(link|device|game):/.test(it.id)));
-  const src = readFileSync(W + '/src/search-index.js', 'utf8');
-  assert.doesNotMatch(src, /FROM (movies|music_)/);
+  assert.doesNotMatch(all, /lyricszz|r2_key|music\/\d|\.mp3/, '歌词 / 音频 key 不进');
   /* 站点地图：/curio/sitemap.xml 只列首页两种语言（模板里只有 site.Home）；子页一律 noindex */
   const sm = readFileSync(REPO + '/atlas/web/curio/layouts/index.sitemaproot.xml', 'utf8');
   assert.match(sm, /site\.Home\.AllTranslations/);
   assert.doesNotMatch(sm, /music|movies|RegularPages|\.Pages/);
+});
+
+/* ================= 只读固定查询（CurioReader，给 styrigx-ai） ================= */
+
+test('reader：recentMovies 按观看日期倒序（没填日期的在后）、n 夹在 1–20；music 认问句里的专辑名 / 歌手名、回曲目表；不认的查询名 unknown；只读', async () => {
+  const RD = await import(W + '/src/reader.js');
+  const e = makeEnv();
+  for (const [title, watched_at] of [['A', '2026-01-01'], ['B', ''], ['C', '2026-03-01'], ['D', '2026-02-01']]) {
+    await call(e, '/curio/api/movies', { who: 'owner', method: 'POST', body: { op: 'movie.add', title, watched_at } });
+  }
+  const env = { D1_MOVIES: e.db, D1_MUSIC: e.db };
+  let r = await RD.runQuery(env, 'recentMovies', { n: 3 });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.movies.map((m) => m.title), ['C', 'D', 'A']);
+  assert.deepEqual(Object.keys(r.movies[0]).sort(), ['director', 'original_title', 'rating', 'review', 'title', 'watched_at', 'year']);
+  assert.equal((await RD.runQuery(env, 'recentMovies', { n: 99 })).movies.length, 4);
+  assert.equal((await RD.runQuery(env, 'recentMovies', { n: 'x' })).movies.length, 4, '坏参数用默认 5');
+  assert.equal((await RD.runQuery(env, 'recentMovies', { n: 0 })).movies.length, 1);
+  const al = await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Blue', artist: 'Joni Mitchell', year: 1971 } });
+  const id = (await al.json()).id;
+  await upTrack(e, id, 'no=2&title=My%20Old%20Man&duration=215');
+  await upTrack(e, id, 'no=1&title=All%20I%20Want&duration=212');
+  await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'album.add', title: 'Hejira', artist: 'Joni Mitchell' } });
+  r = await RD.runQuery(env, 'music', { q: '专辑 blue 有哪些歌' });
+  assert.deepEqual(r.albums.map((a) => a.title), ['Blue']);
+  assert.deepEqual(r.albums[0].tracks, [{ no: 1, title: 'All I Want', duration: 212 }, { no: 2, title: 'My Old Man', duration: 215 }]);
+  r = await RD.runQuery(env, 'music', { q: 'joni mitchell 的歌' });
+  assert.deepEqual(r.albums.map((a) => a.title), ['Blue', 'Hejira']);
+  assert.deepEqual((await RD.runQuery(env, 'music', { q: 'x' })).albums, []);
+  assert.deepEqual((await RD.runQuery(env, 'music', { q: "'; DROP TABLE music_albums; --" })).albums, [], '参数化：问句只是 bind 的值');
+  assert.equal((await RD.runQuery(env, 'music', { q: 'blue' })).albums.length, 1, '表还在');
+  assert.deepEqual(await RD.runQuery(env, 'SELECT * FROM music_tracks', {}), { ok: false, error: 'unknown' });
+  assert.deepEqual(RD.QUERIES, ['recentMovies', 'music']);
+  const src = readFileSync(W + '/src/reader.js', 'utf8');
+  assert.doesNotMatch(src, /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE)\b/, '只读');
+  for (const sel of src.match(/SELECT [^'"]+FROM \w+/g)) assert.doesNotMatch(sel, /lrc|r2_key|cover|poster|token/, sel);
+  /* 入口：index.js 再导出 default 和 CurioReader；rpc/reader.js 是 WorkerEntrypoint */
+  const idx = readFileSync(W + '/src/index.js', 'utf8');
+  assert.match(idx, /export \{ default \} from '\.\/app\.js';/);
+  assert.match(idx, /export \{ CurioReader \} from '\.\/rpc\/reader\.js';/);
+  assert.match(readFileSync(W + '/src/rpc/reader.js', 'utf8'), /class CurioReader extends WorkerEntrypoint/);
 });
 
 /* ================= 迁移 / 配置 ================= */

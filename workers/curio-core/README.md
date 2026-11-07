@@ -10,14 +10,16 @@
 ## 入口
 
 ```
-src/index.js         入口：先问网关结论（AUTH.conclusion）→ 按路由表分发；scheduled（搜索索引 + 照片清扫）
+src/index.js         部署入口：只再导出 app.js 的 default 和 rpc/reader.js 的 CurioReader（2026-11）
+src/app.js           接口 + Cron：先问网关结论（AUTH.conclusion）→ 按路由表分发；scheduled（搜索索引 + 照片清扫）
+src/reader.js        只读固定查询（recentMovies / music，参数化），给 styrigx-ai 的服务绑定 RPC CurioReader（src/rpc/reader.js）用
 src/routes.js        路由表（去掉 /curio 前缀后的 /api/*）
 src/api/*.js         一个接口一个文件；_ 开头的是接口共用的内部模块（会话、存储、写操作、图片、书签导入导出、网页预览）
 src/search-index.js  KV site:curio 的索引
 src/photo-sweep.js   R2 photos/ 清扫
 ```
 
-还没按 `workers/README.md` 的骨架对齐（`main` 本来就是 `src/index.js`），对齐时机同第 3 节的小 Worker。
+2026-11 起入口按 `workers/README.md` 的骨架拆成 `index.js`（接线）+ `app.js`（逻辑），单测 import `app.js` / `reader.js`（`cloudflare:workers` 只在 Workers 里有）。
 
 ## 路由
 
@@ -36,7 +38,7 @@ src/photo-sweep.js   R2 photos/ 清扫
 ## 鉴权（P2-2，方案 3.4 R14、4.6）
 
 每个 `/curio/api/*` 请求只问网关一次 `AUTH.conclusion(cookie, clientContext, { reauth })`，结论放 `context.data.conclusion`（`src/api/_auth.js`）；
-`POST /curio/api/import` 这一问带 `reauth: true`（`src/index.js` 的 `REAUTH_ROUTES`）。
+`POST /curio/api/import` 这一问带 `reauth: true`（`src/app.js` 的 `REAUTH_ROUTES`）。
 
 | 接口 | 进门 | 账号会话 | 作用域 | 账号复验 |
 |---|---|---|---|---|

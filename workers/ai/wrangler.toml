@@ -1,10 +1,12 @@
 # styrigx-ai：站内对话助手（P4-1，方案 5.2；P4-2 并入原 styrigx-chat 的外部模型）。站内召回 + 模型流式回答。
-# 三套接口：搜索索引（KV，召回只作模型上下文，2026-11-06 起不再发 event: hits）、自营模型（Workers AI，不走网关）、外部模型（Gemini API）。
+# 接口：搜索索引（KV，关键词召回只作模型上下文，2026-11-06 起不再发 event: hits）、语义召回（Vectorize + Workers AI 嵌入，2026-11）、
+# 奇趣只读固定查询（服务绑定 CURIO）、自营模型（Workers AI，不走网关）、外部模型（Gemini API，带 Google 搜索）。
 #
 # 没有公开地址：不开 workers.dev、不挂路由、不挂域名。唯一入口是鉴权网关 styrigx-auth-gateway 的服务绑定 AI_SERVICE：
 #   POST /api/ai 由网关验进门、过两档 AI 限流、写账号结论头（X-Styrigx-Account-Session）后转进来（POST /ask）。
 # 所以这里不验 cookie、不持任何钥匙；结论头只可能是网关写的。
-# 不存对话、不写 KV、不联网搜索；没有 D1、R2。外部模型的钥匙在 Secrets Store（文件末尾）。
+# 不存对话；没有 D1、R2。KV 只在 Cron 同步向量时写状态键 ai:recall:<站名>（站点内容变了的那一轮才写）。
+# 联网搜索只对 gemini 模型（Google 搜索工具）。外部模型的钥匙在 Secrets Store（文件末尾）。
 
 name = "styrigx-ai"
 main = "src/index.js"
@@ -16,13 +18,35 @@ preview_urls = false
 enabled = true
 head_sampling_rate = 1
 
+# 固定在美国区执行（2026-11，Gemini 故障修复）：推测（未验证）2026-10-28 起 Gemini 答不了话，是因为请求从香港等 Gemini API 不支持的地区进来、
+# Worker 就近在那里执行，上游回「User location is not supported」。Placement Hints 让 Worker 在离 gcp:us-east4 最近的数据中心执行
+# （和 smart 互斥；只管 fetch 处理函数，网关经服务绑定 fetch 进来正好是它）。部署后看日志 [ai] gemini upstream 的 reason 验证。
+[placement]
+region = "gcp:us-east4"
+
+# 每小时同步一次语义召回的向量（core/vector-sync.js）：在 daymark-core（17 分）、curio-core（23 分）重建 KV 索引之后
+[triggers]
+crons = ["41 * * * *"]
+
 # Workers AI（计费见方案 5.6；单次封顶靠下面的变量）
 [ai]
 binding = "AI"
 
+# 语义召回（2026-11）：Vectorize 索引 styrigx-ai-recall（1024 维、cosine，对应嵌入模型 @cf/baai/bge-m3；元数据索引 private 布尔）。
+# 需在 Cloudflare 先建好（PR 正文「需在 Cloudflare 新建的资源」），否则部署失败。Cron 写、/ask 查。
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "styrigx-ai-recall"
+
+# 奇趣只读固定查询（2026-11）：curio-core 的 RPC 入口 CurioReader（workers/curio-core/src/rpc/reader.js），只有预先写好的参数化查询
+[[services]]
+binding = "CURIO"
+service = "styrigx-curio-core"
+entrypoint = "CurioReader"
+
 # 全站搜索索引（KV styrigx-space-gateway，2026-11 由 styrigx-search-index 换过来：主站数据 D1 + KV 一套；各站 CI / Cron 写 site:<站名>）。
-# ai:models 是手写的值，由 .github/workflows/d1-cutover.yml 从旧命名空间拷过来；site:* 会被 CI / Cron 重建。只读：site:space / site:blog / site:curio / site:daymark，
-# 以及模型登记 ai:models（P4-2，core/models.js；换模型改这个 KV 值即可，不用补丁部署）。
+# ai:models 是手写的值，由 .github/workflows/d1-cutover.yml 从旧命名空间拷过来；site:* 会被 CI / Cron 重建。读：site:space / site:blog / site:curio / site:daymark，
+# 以及模型登记 ai:models（P4-2，core/models.js；换模型改这个 KV 值即可，不用补丁部署）。写：只有向量同步状态 ai:recall:<站名>（2026-11）。
 [[kv_namespaces]]
 binding = "KV_SEARCH_INDEX"
 id = "608cf3e27184481cbca2922950506d87"
@@ -32,7 +56,11 @@ id = "608cf3e27184481cbca2922950506d87"
 # 默认模型以真实站内内容的中文能力实测为准（Gray 实测后改 KV 的 default）。
 AI_MODELS = '{"default":"@cf/google/gemma-4-26b-a4b-it","models":[{"id":"@cf/google/gemma-4-26b-a4b-it","label":"Gemma 4","provider":"workers-ai"},{"id":"@cf/openai/gpt-oss-20b","label":"GPT-OSS 20B","provider":"workers-ai"},{"id":"gemini-2.5-flash","label":"Gemini 2.5 Flash","provider":"gemini"}]}'
 AI_MAX_TOKENS = "1024"
-AI_CONTEXT_HITS = "5"
+AI_CONTEXT_HITS = "6"
+# 语义召回的最低相似度（余弦）；Gray 实测后可调
+AI_RECALL_MIN_SCORE = "0.42"
+# gemini 模型带 Google 搜索（"0" 关）
+AI_GEMINI_SEARCH = "1"
 
 # ---- 密钥：Secrets Store（和鉴权网关同一个 store；store_id 是存储的编号，不是密值）----
 # 外部模型钥匙（Gemini API key）：原 styrigx-chat 的那把，P4-2 复用，不新建、不删除。只有选中 gemini 模型且要调用时才读（core/gemini.js）。

@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:1ea51934348e space/web/shared/shell v6bce976ea2c7（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:797e721103d8 space/web/shared/shell ve5ece18d32a8（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- ai.js ---- */
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
@@ -27,6 +27,11 @@
  *   粗指针（触屏）打开窗口不自动聚焦、点发送后 blur() 收键盘；细指针（桌面）照旧打开即聚焦，发送后焦点回输入框（鼠标点发送也一样，§4）。
  *   触屏点发送按钮在 touchstart 就 preventDefault、touchend 提交：不让输入框先失焦收键盘、按钮下移把这次点击吃掉（§5）。
  * - 停止：回答进行中发送按钮变停止按钮（data-stop，读屏名「停止」），点它接 abort()；已收到的部分保留，答完 / 停下后变回发送。
+ * - 回答渲染（2026-11 AI 语义召回）：助手回答按有限 Markdown 渲染（mdParse → renderMd）：段落、换行、列表（- / * / 1.）、**粗体**、链接 [文字](地址) 和裸网址；
+ *   其余一律当纯文本（只用 createElement / textContent 拼 DOM，不用 innerHTML，HTML 天然转义）。链接只认 http(s) 和站内绝对路径（/…），别的协议当文字。
+ *   链接文字带虚下划线 + ↗（参照 ChatGPT 安卓）；站内链接同页打开（关窗口后跳转），站外新标签 + rel=noopener。
+ *   长网址不当链接文字：同一条回答里有 [标题](同一地址) 就用那个标题，否则显示「域名/…」。
+ *   event: sources（gemini 联网来源）→ 在回答末尾追加「来源」一段（- [标题](地址)），随回答存进历史。
  */
 
 export const AI_API = '/api/ai';
@@ -64,7 +69,9 @@ const STR_EN = {
   quota: "Today’s quota is used up. Come back tomorrow",
   fail: "Couldn’t get an answer. Please try again",
   send: "Send",
-  stop: "Stop"
+  stop: "Stop",
+  sources: "Sources",
+  newTab: "(opens in a new tab)"
 };
 /** @param {Document} doc @returns {Record<string, string>} */
 function shellStr(doc) {
@@ -198,6 +205,175 @@ export function errKey(status, j) {
   if (status === 413) return 'tooLong';
   if (e === 'quota') return 'quota';
   return 'fail';
+}
+
+/* ---- 有限 Markdown（2026-11 AI 语义召回）---- */
+
+/** @typedef {{t: 'text', v: string} | {t: 'b', v: string} | {t: 'a', text: string, href: string} | {t: 'br'}} MdInline */
+/** @typedef {{t: 'p', c: MdInline[]} | {t: 'ul'|'ol', items: MdInline[][]}} MdBlock */
+
+const MD_INLINE = /\*\*([^*\n]+?)\*\*|\[([^\]\n]{1,300})\]\(\s*<?([^\s()<>]+)>?\s*\)|(https?:\/\/[^\s<>()\[\]"'`]*[^\s<>()\[\]"'`.,;:!?。，；：！？、）」』])/g;
+const MD_UL = /^\s{0,3}[-*•]\s+(.*)$/;
+const MD_OL = /^\s{0,3}\d{1,3}[.)、]\s+(.*)$/;
+
+/** 文字看起来就是网址（不当链接文字用） @param {string} s */
+function looksUrl(s) {
+  return /^\s*(https?:\/\/|www\.)/i.test(s);
+}
+/** 长网址 → 显示用的短名：域名，有路径就加「/…」 @param {string} href */
+export function shortLabel(href) {
+  try {
+    const u = new URL(href, 'https://styrigx.com');
+    const host = u.hostname.replace(/^www\./, '');
+    return host + (u.pathname.length > 1 || u.search ? '/…' : '');
+  } catch (e) {
+    return href.slice(0, 40);
+  }
+}
+/**
+ * 一行文字 → 行内片段。titles：同一条回答里 [标题](地址) 给过的标题，裸网址 / 文字就是网址的链接用它当文字。
+ * @param {string} line @param {Map<string, string>} titles @returns {MdInline[]}
+ */
+function mdInline(line, titles) {
+  /** @type {MdInline[]} */
+  const out = [];
+  let last = 0;
+  MD_INLINE.lastIndex = 0;
+  let m;
+  while ((m = MD_INLINE.exec(line))) {
+    if (m.index > last) out.push({ t: 'text', v: line.slice(last, m.index) });
+    if (m[1] != null) out.push({ t: 'b', v: m[1] });
+    else {
+      const href = m[3] != null ? m[3] : m[4];
+      let text = m[2] != null ? m[2].trim() : '';
+      if (!text || looksUrl(text) || text === href) text = titles.get(href) || shortLabel(href);
+      out.push({ t: 'a', text: text, href: href });
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < line.length) out.push({ t: 'text', v: line.slice(last) });
+  return out;
+}
+/**
+ * 回答原文 → 块（段落 / 无序列表 / 有序列表）。纯函数，不碰 DOM；不认的语法原样当文字（标题的 # 去掉）。
+ * @param {string} text @returns {MdBlock[]}
+ */
+export function mdParse(text) {
+  const src = String(text || '').replace(/\r\n?/g, '\n');
+  /** @type {Map<string, string>} */
+  const titles = new Map();
+  const tre = /\[([^\]\n]{1,300})\]\(\s*<?([^\s()<>]+)>?\s*\)/g;
+  let tm;
+  while ((tm = tre.exec(src))) {
+    const label = tm[1].trim();
+    if (label && !looksUrl(label) && !titles.has(tm[2])) titles.set(tm[2], label);
+  }
+  /** @type {MdBlock[]} */
+  const blocks = [];
+  /** @type {MdInline[]|null} */
+  let para = null;
+  /** @type {{t: 'ul'|'ol', items: MdInline[][]}|null} */
+  let list = null;
+  for (const raw of src.split('\n')) {
+    const line = raw.replace(/\s+$/, '');
+    if (!line.trim()) { para = null; list = null; continue; }
+    const ul = MD_UL.exec(line);
+    const ol = ul ? null : MD_OL.exec(line);
+    if (ul || ol) {
+      const kind = ul ? 'ul' : 'ol';
+      if (!list || list.t !== kind) { list = { t: kind, items: [] }; blocks.push(list); }
+      para = null;
+      list.items.push(mdInline(/** @type {RegExpExecArray} */ (ul || ol)[1], titles));
+      continue;
+    }
+    list = null;
+    const body = line.replace(/^\s{0,3}#{1,6}\s+/, '');
+    if (!para) { para = []; blocks.push({ t: 'p', c: para }); }
+    else para.push({ t: 'br' });
+    para.push(...mdInline(body, titles));
+  }
+  return blocks;
+}
+/**
+ * 链接地址能不能点、是不是站内：只认 http(s) 和站内绝对路径（/…，不认 //…）。不能点 → null。
+ * @param {string} href @param {{host: string, origin: string}} here 当前页（location）
+ * @returns {{href: string, internal: boolean}|null}
+ */
+export function linkInfo(href, here) {
+  const h = String(href || '').trim();
+  if (/^\/(?!\/)/.test(h)) return { href: h, internal: true };
+  let u;
+  try { u = new URL(h); } catch (e) { return null; }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  return { href: u.href, internal: !!here && u.host === here.host };
+}
+/**
+ * 块 → DOM（只用 createElement / textContent）。onInternal(url)：站内链接点击（不带修饰键）时调用，交给调用方关窗口后跳转。
+ * @param {Document} doc @param {string} text @param {{here?: {host: string, origin: string}, newTab?: string, onInternal?: (url: string) => void}} [o]
+ * @returns {DocumentFragment}
+ */
+export function renderMd(doc, text, o) {
+  const opt = o || {};
+  const here = opt.here || (typeof location !== 'undefined' ? location : { host: '', origin: '' });
+  const frag = doc.createDocumentFragment();
+  /** @param {Node} parent @param {MdInline[]} parts */
+  const inline = function (parent, parts) {
+    for (const p of parts) {
+      if (p.t === 'br') parent.appendChild(doc.createElement('br'));
+      else if (p.t === 'b') { const b = doc.createElement('strong'); b.textContent = p.v; parent.appendChild(b); }
+      else if (p.t === 'a') {
+        const li = linkInfo(p.href, here);
+        if (!li) { parent.appendChild(doc.createTextNode(p.text)); continue; }
+        const a = doc.createElement('a');
+        a.className = 'sgx-ai-link';
+        a.href = li.href;
+        const tx = doc.createElement('span');
+        tx.className = 'sgx-ai-link-text';
+        tx.textContent = p.text;
+        a.appendChild(tx);
+        const ic = doc.createElement('span');
+        ic.className = 'sgx-ai-link-icon';
+        ic.setAttribute('aria-hidden', 'true');
+        ic.textContent = '↗';
+        a.appendChild(ic);
+        if (li.internal) {
+          if (opt.onInternal) {
+            const go = opt.onInternal;
+            a.addEventListener('click', function (e) {
+              if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+              e.preventDefault();
+              go(li.href);
+            });
+          }
+        } else {
+          a.target = '_blank';
+          a.rel = 'noopener';
+          if (opt.newTab) a.setAttribute('aria-label', p.text + ' ' + opt.newTab);
+        }
+        parent.appendChild(a);
+      } else parent.appendChild(doc.createTextNode(p.v));
+    }
+  };
+  for (const b of mdParse(text)) {
+    if (b.t === 'p') { const el = doc.createElement('p'); inline(el, b.c); frag.appendChild(el); }
+    else {
+      const el = doc.createElement(b.t);
+      for (const it of b.items) { const li = doc.createElement('li'); inline(li, it); el.appendChild(li); }
+      frag.appendChild(el);
+    }
+  }
+  return frag;
+}
+/** gemini 联网来源 → 追加到回答末尾的一段（- [标题](地址)；标题里的方括号换成圆括号，免得断开链接语法） @param {any} items @param {string} label */
+export function sourcesBlock(items, label) {
+  const list = (Array.isArray(items) ? items : []).filter(function (/** @type {any} */ x) {
+    return x && typeof x.url === 'string' && /^https?:\/\//i.test(x.url);
+  }).slice(0, 8);
+  if (!list.length) return '';
+  return '\n\n' + label + '\n' + list.map(function (/** @type {any} */ x) {
+    const tl = String(x.title || '').replace(/[\[\]]/g, function (c) { return c === '[' ? '(' : ')'; }).replace(/\s+/g, ' ').trim() || shortLabel(x.url);
+    return '- [' + tl + '](' + x.url.replace(/[()\s]/g, function (c) { return c === '(' ? '%28' : c === ')' ? '%29' : '%20'; }) + ')';
+  }).join('\n');
 }
 
 /**
@@ -412,14 +588,25 @@ export function mountAiChat(dlg, opts) {
     }
     return row;
   }
+  /** 站内链接：关窗口后同页跳转 @param {string} url */
+  function goInternal(url) {
+    const nav = o.navigate || function (/** @type {string} */ u) { location.href = u; };
+    if (o.close) o.close(function () { nav(url); }); else nav(url);
+  }
+  /** 助手回答的正文：有限 Markdown（出错的提示照旧纯文本） @param {HTMLElement} tx @param {string} text */
+  function paintAnswer(tx, text) {
+    tx.replaceChildren(renderMd(doc, text, { newTab: t.newTab, onInternal: goInternal }));
+  }
   /** @param {Msg} m @returns {HTMLElement} */
   function bubble(m) {
     const el = doc.createElement('div');
     el.className = 'sgx-ai-msg';
     el.setAttribute('data-role', m.role);
     if (m.error) el.setAttribute('data-state', 'error');
-    const tx = doc.createElement('span');
-    tx.textContent = m.text;
+    const md = m.role === 'assistant' && !m.error;
+    const tx = doc.createElement('span'); /* 仍是 span（e2e 按 .sgx-ai-msg > span 取正文）；Markdown 时 display:block */
+    if (md) { tx.className = 'sgx-ai-md'; paintAnswer(tx, m.text); }
+    else tx.textContent = m.text;
     el.appendChild(tx);
     if (m.role !== 'assistant') return el;
     /* 助手回答：气泡 + 下面一行操作（回答进行中的那条先不带） */
@@ -595,8 +782,10 @@ export function mountAiChat(dlg, opts) {
         await readSse(res.body, function (ev, d) {
           if (ev === 'delta' && d && typeof d.text === 'string') {
             ans.text += d.text;
-            if (liveText) liveText.textContent = ans.text;
+            if (liveText) paintAnswer(liveText, ans.text);
             list.scrollTop = list.scrollHeight;
+          } else if (ev === 'sources' && d && ans.text) {
+            ans.text += sourcesBlock(d.items, t.sources);
           } else if (ev === 'error') failed = errKey(0, d);
         });
         if (!ans.text && !failed) failed = 'fail';
