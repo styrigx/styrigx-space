@@ -357,6 +357,15 @@ export async function runKv(o) {
     }
     if (now.length !== keys.length) diff.push('key count ' + KV.from.name + '=' + keys.length + ' ' + KV.to.name + '=' + now.length);
     if (!diff.length) { log('kv: ' + keys.length + ' keys, all values identical'); break; }
+    if (o.mode === 'verify') {
+      /* 部署后核对：site:* 由部署 / Cron 重建，新值和旧库不同是正常的，只报 warning；其余键（ai:models 等手写值）仍须一致 */
+      for (const d of diff) {
+        if (/^site:\S+ differs$/.test(d)) log('::warning::kv: ' + d + ' (rebuilt by deploy / cron, expected)');
+        else errors.push('kv: ' + d);
+      }
+      if (!errors.length) log('kv: verify OK (only rebuilt site:* keys differ)');
+      break;
+    }
     if (Date.now() > deadline) { errors.push(...diff.map((d) => 'kv: ' + d)); break; }
     await new Promise((res) => setTimeout(res, 10000));
   }
