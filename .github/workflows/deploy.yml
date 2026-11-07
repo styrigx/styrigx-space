@@ -31,7 +31,7 @@ env:
 # 回滚下限：space/scripts/deploy-rollback-floor.json。线上版本低于下限（网关 / 账号 Worker 是 #226 之前的 KV 版本）就不记、不自动回滚，
 # 免得退回读旧 KV 的代码；以后存储改成旧代码读不懂的格式时在那里加一行。
 # 健康闸门第二阶段（2026-10-28，space/scripts/health-gate.mjs）：ai 没有公开地址（P4-2 起取代 search / chat），第一阶段只能核对版本换上了。
-# status 部署并核对后，等 styrigx-status 在部署之后跑的巡检（D1 styrigx-status 的 checks 表，经服务绑定测 ai 的 /healthz），
+# status 部署并核对后，等 styrigx-status 在部署之后跑的巡检（D1 styrigx-space-gateway 的 status_checks 表，经服务绑定测 ai 的 /healthz），
 # 连续 2 次失败（部署前就在失败的不算）→ status job 红：status 自己按原样回滚，rollback-ai-worker
 # 用 ai 环境原有的 token 把 ai 退回部署前版本；网关 / Pages / 账号 / 分享都等 status，不会部署。
 # 读 D1 用 status 部署本来就有的 token（D1 编辑），不经网关、不开免会话口子、不加 Worker / 子域名 / secret。
@@ -914,6 +914,7 @@ jobs:
         # 2026-10-29 起所有 Worker 的预览共用这一个库：网关（space/web/wrangler.toml，迁移目录 workers/auth-gateway/migrations）、
         # 账号 Worker、短链 Worker（各自 wrangler.toml 的 [env.preview]）三套迁移都在这里跑。表名互不重叠；迁移记录表分开：
         # 网关用默认 d1_migrations，账号 d1_migrations_account，短链 d1_migrations_share（各 toml 的 migrations_table）。
+        # 2026-11 正式库合库（styrigx-space-gateway）不影响这里：预览仍是 styrigx-test-preview，短链迁移目录换成 0001_baseline.sql（IF NOT EXISTS，已有表时是空操作）。
         # 库是空的也没关系：第一次运行三套迁移全部应用，之后只补新的。跑完列一次三张记录表。
         working-directory: space/web
         run: |
@@ -1195,19 +1196,50 @@ jobs:
           PREVIOUS: ${{ steps.live.outputs.deployment }}
         run: node space/scripts/deploy-rollback.mjs pages-rollback --project styrigx-space --to "$PREVIOUS"
 
+  d1-cutover-gate:
+    # 主站数据合库（2026-11）：网关 / 短链 / 监测的 D1 和搜索索引 KV 换成 styrigx-space-gateway。新代码只能在数据搬完之后部署，
+    # 否则新代码会对着空库跑（网关没有锁屏密码 / 通行密钥，监测和短链从零开始）。.github/workflows/d1-cutover.yml 每搬完、核对完一个来源
+    # 在新库表 d1_cutover 里记一条（gateway / share / status / kv）；四条都在 → ready=true。
+    # 没搬完 → ready=false + warning：ai / status / share / curio-core / daymark-core / 网关的部署 job 跳过（不红，线上不变）；
+    # 账号 Worker、proxy-rules 和 Pages 不读这些资源，照常。查询出错（token / 网络）→ 本 job 红，后面的部署都不跑。
+    # 只读查询，token 用 status 部署那把（D1 编辑，账号级）。搬迁完、旧库删掉以后这个 job 可以去掉。
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: [quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: STYRIGX_STATUS_DEPLOY
+    outputs:
+      ready: ${{ steps.gate.outputs.ready }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Check cutover markers in styrigx-space-gateway (d1_cutover)
+        id: gate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node space/scripts/d1-cutover.mjs gate
+
   deploy-status-worker:
     # 站点监测 styrigx-status（workers/status）：先于网关部署（网关的服务绑定 STATUS 指向它，它不在就部署不了）。
     # 没有公开地址（workers_dev=false、没有路由），Cron 每分钟检查一轮；数据只能从网关 /api/status 进。
-    # 先把 D1 styrigx-status 的表结构迁到最新（migrations/，已迁过的跳过），再部署。
+    # 先把 D1 的表结构迁到最新（migrations/，已迁过的跳过），再部署。2026-11 合库起库是主站共用的 styrigx-space-gateway，
+    # 本 Worker 的表带 status_ 前缀、迁移记录表 d1_migrations_status（workers/status/wrangler.toml）。
     # token：Cloudflare 上 styrigx-status-deploy = GitHub 环境 STYRIGX_STATUS_DEPLOY 里的同名密钥，
     # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + Secrets Store 编辑（PR3 起有 Secrets Store 绑定
     # SGX_CF_USAGE_TOKEN，部署必须 Edit，Read 报 10021，同鉴权网关）；环境只允许 main。
-    # 迁移 migrations/0002_usage.sql（用量快照表）由下面的 d1 migrations apply 自动跑。
     # 服务绑定 AI_SERVICE（P4-2 起取代 SEARCH / CHAT，每分钟测 ai 的 /healthz）：排在 ai 之后，
     # 免得新监测先上线、测到还没部署好的版本，误开故障。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
-    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-ai-worker]
+    # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}
+    needs: [quality, passkey-e2e, deploy-ai-worker, d1-cutover-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_STATUS_DEPLOY
@@ -1224,14 +1256,14 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Apply D1 migrations (styrigx-status)
+      - name: Apply D1 migrations (status → styrigx-space-gateway, d1_migrations_status)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/status
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
-          command: d1 migrations apply styrigx-status --remote
+          command: d1 migrations apply styrigx-space-gateway --remote
 
       - name: Record live Worker version (rollback target)
         # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
@@ -1264,7 +1296,7 @@ jobs:
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Post-deploy health gate (status checks of ai after this deploy)
-        # 健康闸门第二阶段（space/scripts/health-gate.mjs）：等新部署的 status 每分钟巡检（经服务绑定测 ai 的 /healthz）写进 D1 checks，
+        # 健康闸门第二阶段（space/scripts/health-gate.mjs）：等新部署的 status 每分钟巡检（经服务绑定测 ai 的 /healthz）写进 D1 status_checks，
         # 只认部署之后的；连续 2 次失败 → 红。最多等 5 分钟（巡检不跑 = status 自己有问题，同样红）。
         # 红了：下面一步把 status 退回部署前版本；verdict = fail 时 rollback-ai-worker 退回 ai；
         # 网关 / Pages / 账号 / 分享都等这个 job，不会部署。部署前就在失败的站只打 warning。
@@ -1289,7 +1321,7 @@ jobs:
 
   deploy-ai-worker:
     # 站内对话助手 styrigx-ai（workers/ai，P4-1）：先于网关部署（网关的服务绑定 AI_SERVICE 指向它，它不在就部署不了）。
-    # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/ai 进。运行时只读 KV styrigx-search-index（索引 + 模型登记 ai:models）。
+    # 没有公开地址（workers_dev=false、preview_urls=false、没有路由），只能从网关 /api/ai 进。运行时只读 KV styrigx-space-gateway（2026-11 由 styrigx-search-index 换过来；索引 + 模型登记 ai:models）。
     # P4-2：search-index 退役，部署后把主站索引 site:space、博客索引 site:blog 写进同一个 KV（原 deploy-search-worker 的两步搬来）。
     # P4-2：外部模型钥匙 SGX_CHAT_API_KEY 的 Secrets Store 绑定（复用原 styrigx-chat 那把）；绑定失败退一步部署不带钥匙的版本（同原 deploy-chat-worker）。
     # token：GitHub 环境 STYRIGX_AI_DEPLOY 里的同名密钥（Cloudflare 上 styrigx-ai-deploy，2026-11-05 由 styrigx-search-index-deploy 改名，
@@ -1297,8 +1329,9 @@ jobs:
     # 2026-11-05 run 42007357284：原 token 没有 Secrets Store 权限，带钥匙部署报 10021，Gray 定改名 + 加权限，一次带钥匙部署成功、不靠退路。
     # Workers AI 绑定要不要额外权限文档没写清：先不加；首次部署若报权限错，Gray 给这把 token 加 Workers AI 权限后重跑（对线上无影响）。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
-    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e]
+    # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}
+    needs: [quality, passkey-e2e, d1-cutover-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_AI_DEPLOY
@@ -1392,7 +1425,7 @@ jobs:
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-verify --previous "$PREVIOUS"
 
       - name: Upload search index to KV (site:space)
-        # P4-2：原在 deploy-search-worker，search-index 退役后并到这里（同一把 token、同一个 KV styrigx-search-index）
+        # P4-2：原在 deploy-search-worker，search-index 退役后并到这里（同一把 token、同一个 KV styrigx-space-gateway）
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_AI_DEPLOY }}
@@ -1532,8 +1565,9 @@ jobs:
     # token：Cloudflare 上 styrigx-curio-core-deploy = GitHub 环境 STYRIGX_CURIO_CORE_DEPLOY 里的同名环境密钥 STYRIGX_CURIO_CORE_DEPLOY
     # （styrigx-atlas 仓库时用的同一把；权限 Workers Scripts 编辑 + D1 编辑 + styrigx.com 的 Workers Routes 编辑，部署前 Gray 核对）；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
-    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-status-worker]
+    # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}
+    needs: [quality, passkey-e2e, deploy-status-worker, d1-cutover-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_CURIO_CORE_DEPLOY
@@ -1625,8 +1659,9 @@ jobs:
     # token：Cloudflare 上 styrigx-daymark-core-deploy = GitHub 环境 STYRIGX_DAYMARK_CORE_DEPLOY 里的同名环境密钥 STYRIGX_DAYMARK_CORE_DEPLOY
     # （styrigx-atlas 仓库时用的同一把；权限 Workers Scripts 编辑 + D1 编辑 + styrigx.com 的 Workers Routes 编辑，部署前 Gray 核对）；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
-    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-status-worker]
+    # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}
+    needs: [quality, passkey-e2e, deploy-status-worker, d1-cutover-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_DAYMARK_CORE_DEPLOY
@@ -1719,14 +1754,16 @@ jobs:
     #   （旧图志域名的 301 和两个接口 Worker 的旧路由已于 P4-3 PR-1 删除。）
     # - 短链排在网关之前：短链只认锁屏进门会话（AUTH.lockSession），对新旧网关同样能用（AUTH.lockSession / ISSUER 接口没变）。
     # 密钥全在 Secrets Store，CI 不传任何密值。
+    # D1：2026-11 起 styrigx-space-gateway（D1_LOCK_AUTH，d1_migrations_gateway）。本 job 的 token 没有 D1 权限：迁移在 deploy-share-worker 里跑并核对（needs 里有它）。
     # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
     # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
     # + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑。Pages 的部署 token 不给 Worker 权限，互不影响。
     # 这把 token 放在 GitHub 环境 STYRIGX_AUTH_GATEWAY_DEPLOY（与密钥同名）的环境密钥里，该环境只允许 main 分支部署：
     # 其他分支即使改了工作流也拿不到它。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
-    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-status-worker, deploy-account-worker, deploy-share-worker, deploy-curio-core, deploy-daymark-core]
+    # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}
+    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-status-worker, deploy-account-worker, deploy-share-worker, deploy-curio-core, deploy-daymark-core, d1-cutover-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_AUTH_GATEWAY_DEPLOY
@@ -1979,7 +2016,8 @@ jobs:
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-share-worker:
-    # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理接口 /api/share，数据在 D1 styrigx-share（D1_SHARE_LINK）。
+    # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理接口 /api/share，
+    # 数据在 D1 styrigx-space-gateway 的 share_link / share_fail（D1_SHARE_LINK；2026-11 合库前是独立库 styrigx-share）。
     # 路由见 workers/share/wrangler.toml（styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体）；workers_dev=false、preview_urls=false。
     # 不持任何钥匙：只认锁屏进门会话，问网关 AuthVerifier.lockSession()（服务绑定 AUTH），不问账号会话（不绑账号 Worker）；
     # 签 / 作废短链钥匙、给打开短链的人换会话问网关 ShareIssuer（服务绑定 ISSUER）。CI 不传任何密值。
@@ -1987,13 +2025,16 @@ jobs:
     # 仍排在网关之前：新短链对旧网关同样能用（lockSession / ShareIssuer 接口没变，旧网关的 ShareIssuer 仍会多验一次账号会话）；
     # 新网关的 ShareIssuer 只验锁屏进门会话。
     # 和网关一样等 status 的健康闸门。
-    # 步骤：迁移 D1 styrigx-share（migrations/；失败要让 job 红，不 continue-on-error）
-    # → 查 d1_migrations 和表，确认 0001_share_links.sql、0002_drop_atlas_targets.sql 真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
+    # 步骤：迁移 D1 styrigx-space-gateway——本 Worker 的 migrations/（d1_migrations_share）+ 网关的 workers/auth-gateway/migrations/（d1_migrations_gateway；
+    # 网关的部署 token 没有 D1 权限，同一个库的迁移在这里跑；失败要让 job 红，不 continue-on-error）
+    # → 查两张迁移记录表、表和搬迁标记，确认真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
+    # 网关 job 排在本 job 之后（needs），所以网关部署时它的表一定已经迁好。
     # token：Cloudflare 上 styrigx-share-deploy = GitHub 环境 STYRIGX_SHARE_DEPLOY 里的同名环境密钥 STYRIGX_SHARE_DEPLOY，
     # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
-    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-status-worker]
+    # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}
+    needs: [quality, passkey-e2e, deploy-status-worker, d1-cutover-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_SHARE_DEPLOY
@@ -2006,27 +2047,36 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Apply D1 migrations (styrigx-share)
+      - name: Apply D1 migrations (share → styrigx-space-gateway, d1_migrations_share)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: workers/share
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
-          command: d1 migrations apply styrigx-share --remote
+          command: d1 migrations apply styrigx-space-gateway --remote
 
-      - name: Confirm migrations are really in the database (styrigx-share)
+      - name: Apply D1 migrations (gateway → styrigx-space-gateway, d1_migrations_gateway)
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/auth-gateway
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: d1 migrations apply styrigx-space-gateway --remote
+
+      - name: Confirm migrations and cutover markers are really in the database (styrigx-space-gateway)
         working-directory: workers/share
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -u
-          out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-share --remote --json --command "SELECT name FROM d1_migrations UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table'")
+          out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-space-gateway --remote --json --command "SELECT 'share:' || name AS n FROM d1_migrations_share UNION ALL SELECT 'gateway:' || name FROM d1_migrations_gateway UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table' UNION ALL SELECT 'cutover:' || source FROM d1_cutover")
           echo "$out"
           ok=0
-          for need in '"0001_share_links.sql"' '"0002_drop_atlas_targets.sql"' '"table:share_link"' '"table:share_fail"'; do
-            if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-share 里没有 $need"; ok=1; fi
+          for need in '"share:0001_baseline.sql"' '"gateway:0008_lock_reset_switch.sql"' '"gateway:0009_drop_recovery_switch.sql"' '"table:share_link"' '"table:share_fail"' '"table:passkey"' '"table:password"' '"table:lock_reset_switch"' '"cutover:share"' '"cutover:gateway"'; do
+            if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-space-gateway 里没有 $need"; ok=1; fi
           done
           exit $ok
 
