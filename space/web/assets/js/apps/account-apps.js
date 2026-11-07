@@ -22,7 +22,7 @@ const tx = i18nTable('account');
   const root = document.getElementById('acct-apps');
   if (!root) return;
   const en = document.documentElement.lang === 'en';
-  const t = createT(en);
+  const t = createT();
   const list = document.getElementById('acct-apps-list');
   const empty = document.getElementById('acct-apps-empty');
   const q = /** @type {HTMLInputElement|null} */ (document.getElementById('acct-apps-q'));
@@ -53,7 +53,7 @@ const tx = i18nTable('account');
 
   /** @param {any} g */
   function card(g) {
-    const name = appName(g, en);
+    const name = appName(g);
     const sec = document.createElement('section');
     sec.className = 'widget bg-m-container-lowest border border-m-outline overflow-hidden acct-app-card' + (g.granted ? '' : ' is-off');
     sec.setAttribute('data-app', g.app);
@@ -132,7 +132,7 @@ const tx = i18nTable('account');
   /** @param {string} app */
   function nameOf(app) {
     const g = grants.filter(function (x) { return x.app === app; })[0];
-    return g ? appName(g, en) : app;
+    return g ? appName(g) : app;
   }
 
   /** @param {HTMLButtonElement} btn @param {string} app */

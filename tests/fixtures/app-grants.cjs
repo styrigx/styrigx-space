@@ -15,9 +15,10 @@ function grants(off = {}) {
     ['wellbeing', '数字健康', 'Digital wellbeing', ['wellbeing.write'], []],
     ['avatar', '头像', 'Avatar', ['avatar.write'], []],
   ];
-  return base.map(([app, zh, en, scopes, sensitive]) => {
+  /* name：接口只回英文原文（语言包化第二部分），中文名在主站字符串表 js.account.app_<app> */
+  return base.map(([app, _zh, en, scopes, sensitive]) => {
     const on = !off[app];
-    return { app, name: { zh, en }, scopes, sensitive, granted: on, grantedAt: on ? AT : 0, by: on ? 'passkey' : '', device: on ? (app === 'avatar' ? { name: '', gone: true } : DEV) : null };
+    return { app, name: en, scopes, sensitive, granted: on, grantedAt: on ? AT : 0, by: on ? 'passkey' : '', device: on ? (app === 'avatar' ? { name: '', gone: true } : DEV) : null };
   });
 }
 

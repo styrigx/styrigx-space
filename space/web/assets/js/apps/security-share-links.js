@@ -57,13 +57,12 @@ export function targetParam(v) {
 }
 
 /**
- * 会话时长文案（秒 → 「3 小时」/「3 hours」）。
- * @param {boolean} en
+ * 会话时长文案（秒 → 「3 小时」/「3 hours」，文案走字符串表）。
  * @param {number} sec
  */
-export function sessLabel(en, sec) {
+export function sessLabel(sec) {
   /* 文案走字符串表（数字和单位之间留空格：en「3 hours」，zh「3 小时」，和同一行「剩余 6 小时 0 分钟」一致；
-     Intl 的 unit 格式在 zh 下是「3小时」，不用；参数 en 保留兼容） */
+     Intl 的 unit 格式在 zh 下是「3小时」，不用） */
   if (sec < 3600) return tx('slMinutes', { n: Math.round(sec / 60) });
   if (sec < 86400) {
     const h = Math.round(sec / 3600);
@@ -74,10 +73,10 @@ export function sessLabel(en, sec) {
 }
 
 /**
- * @param {boolean} en
+ * 到期 / 作废时间：本地时间「10月25日 16:00」/「Oct 25, 16:00」。
  * @param {number} ms
  */
-export function whenText(en, ms) {
+export function whenText(ms) {
   const d = new Date(ms);
   const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   /* 日期按页面语言交给 Intl，日期和时间之间的分隔走字符串表（en「Oct 25, 16:00」，zh「10月25日 16:00」） */
@@ -87,24 +86,23 @@ export function whenText(en, ms) {
 /**
  * 列表里一条的说明行（纯文案，单测直接测）。
  * @param {(k:string)=>string} t
- * @param {boolean} en
  * @param {{to:string, session:number, expiresAt:number, revokedAt:number, status:string, opens:number, lastOpenAt:number, openFor:number, sessionLeft:number}} l
  * @param {number} [now]
  * @returns {string[]} 第一行 = 打开的页面；第二行 = 到期；第三行 = 会话（普通短链没有）
  */
-export function metaLines(t, en, l, now) {
+export function metaLines(t, l, now) {
   const n = now || Date.now();
   const out = [t('slTo').replace('{v}', l.to && l.to !== '/' ? l.to : t('slHome') + ' /')];
-  if (l.status === 'revoked') out.push(t('slRevokedAt').replace('{t}', whenText(en, l.revokedAt || n)));
-  else if (l.status === 'expired' || l.expiresAt <= n) out.push(t('slExpiredAt').replace('{t}', whenText(en, l.expiresAt)));
-  else out.push(t('slExpAt').replace('{t}', whenText(en, l.expiresAt)) + ' · ' + leftText(t, l.expiresAt, n));
+  if (l.status === 'revoked') out.push(t('slRevokedAt').replace('{t}', whenText(l.revokedAt || n)));
+  else if (l.status === 'expired' || l.expiresAt <= n) out.push(t('slExpiredAt').replace('{t}', whenText(l.expiresAt)));
+  else out.push(t('slExpAt').replace('{t}', whenText(l.expiresAt)) + ' · ' + leftText(t, l.expiresAt, n));
   if (l.session) {
     const alive = l.status === 'active' && l.expiresAt > n;
-    if (!alive) out.push(t('slSessFor').replace('{v}', sessLabel(en, l.session)));
+    if (!alive) out.push(t('slSessFor').replace('{v}', sessLabel(l.session)));
     else {
       const left = l.lastOpenAt ? Math.max(0, Math.min(l.lastOpenAt + l.session * 1000, l.expiresAt) - n) : 0;
       const openFor = Math.max(0, Math.min(l.session * 1000, l.expiresAt - n));
-      out.push(t('slOpenFor').replace('{v}', sessLabel(en, Math.max(60, Math.round(openFor / 1000)))) + ' · ' +
+      out.push(t('slOpenFor').replace('{v}', sessLabel(Math.max(60, Math.round(openFor / 1000)))) + ' · ' +
         (!l.lastOpenAt ? t('slNotOpened') : left > 0 ? t('slLastLeft').replace('{v}', leftText(t, n + left, n)) : t('slLastEnded')));
     }
   }
@@ -115,8 +113,7 @@ export function metaLines(t, en, l, now) {
   const root = document.getElementById('acct-tk');
   const list = document.getElementById('acct-sl-list');
   if (!root || !list) return;
-  const en = document.documentElement.lang === 'en';
-  const t = createT(en);
+  const t = createT();
   const $ = function (/** @type {string} */ id) { return document.getElementById(id); };
   const empty = $('acct-sl-empty');
   const dlg = /** @type {any} */ ($('sl-dlg'));
@@ -189,7 +186,7 @@ export function metaLines(t, en, l, now) {
       nm.appendChild(st);
     }
     wrap.appendChild(nm);
-    metaLines(t, en, l).forEach(function (line, i) {
+    metaLines(t, l).forEach(function (line, i) {
       const meta = document.createElement('span');
       /* 第一行（打开的页面）太长就截断；到期、会话两行在窄屏上换行，不截断 */
       meta.className = 'block text-xs text-m-on-surface-variant mt-0.5 sl-meta' + (i === 0 ? ' truncate' : '');
@@ -230,7 +227,7 @@ export function metaLines(t, en, l, now) {
       }
       window.clearTimeout(timer);
       btn.disabled = true;
-      withLockReauth(function () { return postJSON(SHARE_API, { action: 'revoke', id: l.id }); }, { en: en }).then(function (res) {
+      withLockReauth(function () { return postJSON(SHARE_API, { action: 'revoke', id: l.id }); }).then(function (res) {
         if (authFail(res)) {
           btn.disabled = false;
           disarm();
@@ -270,7 +267,7 @@ export function metaLines(t, en, l, now) {
       const row = list.querySelector('[data-sl="' + l.id + '"]');
       if (!row) return;
       if (l.status === 'active' && l.expiresAt <= now) { l.status = 'expired'; gone = true; return; }
-      const lines = metaLines(t, en, l, now);
+      const lines = metaLines(t, l, now);
       row.querySelectorAll('.sl-meta').forEach(function (el, i) { if (lines[i] !== undefined) el.textContent = lines[i]; });
     });
     if (gone) render();
@@ -367,7 +364,7 @@ export function metaLines(t, en, l, now) {
       return;
     }
     go.disabled = true;
-    withLockReauth(function () { return postJSON(SHARE_API, Object.assign({ action: 'create', name: name, to: to, session: session }, dur)); }, { en: en }).then(function (res) {
+    withLockReauth(function () { return postJSON(SHARE_API, Object.assign({ action: 'create', name: name, to: to, session: session }, dur)); }).then(function (res) {
       go.disabled = false;
       if (needsLockReauth(res)) return; /* 复验取消：弹层留着，可以再点「生成」 */
       if (authFail(res)) { closeDlg('auth'); return; }
@@ -381,7 +378,7 @@ export function metaLines(t, en, l, now) {
       if (urlEl) urlEl.textContent = fullUrl(link.path);
       if (doneSub) {
         doneSub.textContent = (name ? name + ' · ' : '') + (link.session
-          ? t('slDoneSess').replace('{s}', sessLabel(en, link.session)).replace('{v}', vLabel)
+          ? t('slDoneSess').replace('{s}', sessLabel(link.session)).replace('{v}', vLabel)
           : t('slDonePlain').replace('{v}', vLabel));
       }
       if (doneWarn) doneWarn.textContent = link.session ? t('slWarnSess') : t('slWarnPlain');

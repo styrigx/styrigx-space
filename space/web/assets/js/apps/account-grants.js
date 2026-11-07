@@ -35,13 +35,12 @@ export function appReturn(ret) {
 }
 
 /**
- * 应用名（当前语言）。
+ * 应用名（当前语言）：字符串表 js.account.app_<应用 id>（缺键已回退英文）→ 接口回的英文原文 name → 应用 id。
  * @param {any} g grants 的一项
- * @param {boolean} en
  */
-export function appName(g, en) {
-  const n = g && g.name;
-  return (n && (en ? n.en : n.zh)) || (g && g.app) || '';
+export function appName(g) {
+  const id = (g && g.app) || '';
+  return (id && tx('app_' + id)) || (g && typeof g.name === 'string' ? g.name : '') || id;
 }
 
 /**
@@ -101,7 +100,7 @@ export function appIcon(app) {
 }
 
 /**
- * 过滤 + 搜索（页内轻量）：filter = all | on | off；q 按应用名（中英都比，忽略大小写）。
+ * 过滤 + 搜索（页内轻量）：filter = all | on | off；q 按应用名（当前语言的名字 + 接口的英文原文 + 应用 id，忽略大小写）。
  * @param {any[]} grants
  * @param {string} filter
  * @param {string} q
@@ -112,8 +111,7 @@ export function filterGrants(grants, filter, q) {
     if (filter === 'on' && !g.granted) return false;
     if (filter === 'off' && g.granted) return false;
     if (!k) return true;
-    const n = g.name || {};
-    return [n.zh, n.en, g.app].some(function (s) { return typeof s === 'string' && s.toLowerCase().indexOf(k) !== -1; });
+    return [appName(g), g.name, g.app].some(function (s) { return typeof s === 'string' && s.toLowerCase().indexOf(k) !== -1; });
   });
 }
 

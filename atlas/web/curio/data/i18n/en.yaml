@@ -162,3 +162,161 @@ curioItemView:
   close: Close
 curioSignin:
   signInToYour: Sign in to your account to edit
+js:
+  curio:
+    all: All
+    add: Keep a link
+    edit: Edit
+    saved: Saved.
+    deleted: Deleted.
+    failed: Something went wrong. Please try again.
+    needUrl: Enter a valid web address.
+    needName: Give it a name.
+    needCat: Pick a category.
+    dup: You already kept this one.
+    priv: Only you can see this
+    emptyAdmin: Nothing kept yet. Tap "Keep" or import your browser bookmarks.
+    emptyVisitor: Nothing here yet.
+    noMatch: Nothing matches.
+    filling: Fetching…
+    fillFail: Couldn't read that page. Fill it in yourself.
+    delLink: Delete this link?
+    delCat: Delete this category?
+    notEmpty: Empty the category first.
+    del: Delete
+    importing: Importing…
+    notBookmarks: That isn't a bookmarks file.
+    emptyFile: No links in that file.
+    tooLarge: The file is too large.
+    limit: That would go over the limit.
+    backup: Couldn't back up the file, so nothing was imported.
+    count: '{n} links'
+    count_one: '{n} link'
+    makePrivate: Only me
+    makePublic: Visible to visitors
+    up: Move up
+    down: Move down
+    needAccount: Sign in to your account to edit.
+    needReauth: 'Verify your account again before importing: open Account › Security and privacy, then come back within 3 minutes.'
+    signin: Sign in to your account to edit
+    noScope: Curio doesn’t have account access
+    noScopeErr: Curio doesn’t have account access.
+    verifyNow: Verify now
+    impAdded: Added {n} links
+    impCats: ', {n} new categories'
+    impSkipped: ; {n} already here
+    impEnd: .
+    impAdded_one: Added {n} link
+    impCats_one: ', {n} new category'
+  curioItems:
+    all: All
+    active: In use
+    retired: Retired
+    kind_phone: Phone
+    kind_tablet: Tablet
+    kind_laptop: Laptop
+    kind_desktop: Desktop
+    kind_watch: Watch
+    kind_audio: Audio
+    kind_console: Console
+    kind_camera: Camera
+    kind_other: Other
+    status_want: Want to play
+    status_playing: Playing
+    status_done: Finished
+    status_shelved: On hold
+    addDevice: Add a device
+    editDevice: Edit device
+    addGame: Add a game
+    editGame: Edit game
+    emptyDevAdmin: No devices yet. Tap "Device" to add one.
+    emptyGameAdmin: No games yet. Tap "Game" to add one.
+    empty: Nothing here yet.
+    noMatch: Nothing in this filter.
+    needName: Give it a name.
+    needAccount: Sign in to your account to edit.
+    noScope: Curio doesn’t have account access.
+    badDate: Check the dates.
+    failed: Something went wrong. Please try again.
+    saved: Saved.
+    deleted: Deleted.
+    photoFail: Saved, but the photo didn't upload.
+    notImage: That isn't a photo we can use.
+    tooLarge: The photo is too large.
+    delDevice: Delete this device?
+    delGame: Delete this game?
+    del: Delete
+    none: None
+    priv: Only you can see this
+    used: In use for
+    usedFor: Used for
+    bought: Bought
+    retiredOn: Retired
+    os: System
+    specs: Specs
+    acc: Accessories
+    notes: How it's been
+    from: Replaced
+    to: Replaced by
+    platform: Platform
+    'on': Played on
+    edition: Version
+    rating: Rating
+    review: Thoughts
+    stars: '{n} out of 5'
+    crop: Move and scale
+    cancel: Cancel
+    done: Done
+    adjust: Adjust photo
+    games: Games
+    listSep: ', '
+    days: '{n} days'
+    aboutYears: ' · about {y} years'
+    days_one: '{n} day'
+    aboutYears_one: ' · about {y} year'
+  curioMovies:
+    add: Add a movie
+    edit: Edit movie
+    empty: No movies yet.
+    emptyAdmin: No movies yet. Tap "Movie" to add one.
+    needTitle: Give it a title.
+    badYear: Check the year.
+    badDate: Check the date.
+    saved: Saved.
+    deleted: Deleted.
+    failed: Something went wrong. Please try again.
+    photoFail: Saved, but the poster didn't upload.
+    del: Delete
+    delMovie: Delete this movie?
+    original: Original title
+    year: Year
+    director: Director
+    watched: Watched
+    rating: My rating
+    review: A line or two
+    stars: '{n} out of 5'
+  curioMusic:
+    tracks: '{n} tracks'
+    tracks_one: '{n} track'
+    failed: Something went wrong. Please try again.
+    saved: Uploaded.
+    deleted: Deleted.
+    needName: Give the album a name.
+    needAudio: Choose at least one audio file.
+    tooBig: '{name} is over 95 MB.'
+    badType: '{name} isn''t an audio file we take.'
+    up: 'Uploading {i} of {n}: {name}'
+    cover: Uploading the cover…
+    lyrics: Adding lyrics…
+    partial: '{n} files didn''t upload.'
+    partial_one: '{n} file didn''t upload.'
+    delAlbum: Delete this album and its files?
+    del: Delete
+    choose: Choose tracks
+    chosen: '{n} files'
+    chosen_one: '{n} file'
+    coverNone: Cover (optional)
+    lrcNone: Lyrics .lrc (optional, matched by file name)
+    play: Play
+    pause: Pause
+    speed: Speed {s}×

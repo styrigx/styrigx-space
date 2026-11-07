@@ -10,7 +10,8 @@
  * 每一项：
  * - id：作用域 id
  * - app：所属应用 id（授权卡 id）
- * - name：应用名（授权卡标题），中 / 英
+ * - name：应用名（授权卡标题）的英文原文（语言包化第二部分 2026-11-07：英文是源，接口只回英文；
+ *   界面按字符串表 js.account.app_<应用 id> 显示当前语言，表里没有的应用回退这里的英文名）
  * - sensitive：在本作用域之外另要账号复验的敏感操作（空 = 没有）；只作说明和以后授权卡页展示，
  *   判断在下游（方案 4.6 requireScope(context, scope, { reauth: true })）
  *
@@ -22,11 +23,11 @@ export const SCOPE_ID_RE = /^[a-z]+\.[a-z]+$/;
 
 /** 作用域表（方案 4.2，5 项；顺序即授权卡顺序） */
 export const SCOPES = Object.freeze([
-  Object.freeze({ id: 'curio.write', app: 'curio', name: Object.freeze({ zh: '奇趣', en: 'Curio' }), sensitive: Object.freeze(['POST /curio/api/import']) }),
-  Object.freeze({ id: 'daymark.write', app: 'daymark', name: Object.freeze({ zh: '日刻', en: 'Daymark' }), sensitive: Object.freeze([]) }),
-  Object.freeze({ id: 'prefs.sync', app: 'prefs', name: Object.freeze({ zh: '设置同步', en: 'Settings sync' }), sensitive: Object.freeze([]) }),
-  Object.freeze({ id: 'wellbeing.write', app: 'wellbeing', name: Object.freeze({ zh: '数字健康', en: 'Digital wellbeing' }), sensitive: Object.freeze([]) }),
-  Object.freeze({ id: 'avatar.write', app: 'avatar', name: Object.freeze({ zh: '头像', en: 'Avatar' }), sensitive: Object.freeze([]) }),
+  Object.freeze({ id: 'curio.write', app: 'curio', name: 'Curio', sensitive: Object.freeze(['POST /curio/api/import']) }),
+  Object.freeze({ id: 'daymark.write', app: 'daymark', name: 'Daymark', sensitive: Object.freeze([]) }),
+  Object.freeze({ id: 'prefs.sync', app: 'prefs', name: 'Settings sync', sensitive: Object.freeze([]) }),
+  Object.freeze({ id: 'wellbeing.write', app: 'wellbeing', name: 'Digital wellbeing', sensitive: Object.freeze([]) }),
+  Object.freeze({ id: 'avatar.write', app: 'avatar', name: 'Avatar', sensitive: Object.freeze([]) }),
 ]);
 
 /** 全部已知作用域 id，按字母排序（结论里的 scopes 一律按字母排序） */

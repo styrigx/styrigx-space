@@ -82,10 +82,10 @@ export function syncSubText(t, en, now) {
 }
 
 /**
- * @param {boolean} en
+ * #sgx-i18n-account 的取文案函数：扁平字典（模板已叠好「英文表 ← 页面语言表」，缺键回退英文），不再按语言二选一。
  * @returns {function(string): string}
  */
-export function createT(en) {
+export function createT() {
   /** @type {any} */
   let T = {};
   try {
@@ -93,7 +93,6 @@ export function createT(en) {
   } catch (e) {}
   return function t(k) {
     const v = T[k];
-    if (v && typeof v === 'object') return en ? v.en : v.zh;
     if (v) return v;
     if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
     return tx('accounSomethingWentWrongPlease');

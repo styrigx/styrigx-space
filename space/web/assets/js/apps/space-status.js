@@ -19,8 +19,7 @@
  * 渲染全在 lib/status-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
  */
 import { on } from '../lib/events.js';
-import { loadI18n } from '../lib/i18n.js';
-import { isEn } from '../lib/util.js';
+import { loadI18n, pageLang } from '../lib/i18n.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderQuota, renderSite, renderUsage, slotText } from '../lib/status-view.js';
 
@@ -64,7 +63,7 @@ const ICON_DOWN = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" s
 function init() {
   const root = document.getElementById('st-root');
   if (!root) return;
-  const en = isEn();
+  const lang = pageLang();
   const { t, fmt } = loadI18n('sgx-i18n-status');
   const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
   const banner = $('st-banner');
@@ -105,7 +104,7 @@ function init() {
 
   function render() {
     const now = Date.now();
-    const ctx = { t, fmt, en, now, today: (data && data.today) || bjDay(now) };
+    const ctx = { t, fmt, lang, now, today: (data && data.today) || bjDay(now) };
     const b = bannerInfo(data, ctx);
     banner.setAttribute('data-state', b.state);
     /** @type {HTMLElement} */ (banner.querySelector('.st-banner-ic')).innerHTML = b.state === 'up' ? ICON_OK : ICON_DOWN;
@@ -121,7 +120,7 @@ function init() {
     /* 旧版监测 Worker 没有 usage 字段 → 按没配处理 */
     usageEl.innerHTML = renderUsage(data.usage || null, data.usage_reason || (data.usage === undefined ? 'not-configured' : null), ctx,
       { skipWorkers: !!(data.quota && data.quota.workers) });
-    foot.textContent = fmt('updated', { time: fmtBjTime(gotAt, en, bjDay(now)) });
+    foot.textContent = fmt('updated', { time: fmtBjTime(gotAt, lang, bjDay(now)) });
   }
 
   /** @param {number} status */
@@ -157,7 +156,7 @@ function init() {
       if (status === 401) dropCache();
       if (data && !isEmptySummary(data) && status !== 401) {
         /* 已经有数据：保留，页脚提示 */
-        foot.textContent = fmt('stale', { time: fmtBjTime(gotAt, en, bjDay(Date.now())) });
+        foot.textContent = fmt('stale', { time: fmtBjTime(gotAt, lang, bjDay(Date.now())) });
       } else {
         showError(status);
       }
@@ -197,7 +196,7 @@ function init() {
     const slot = buildSlots(site.days, data.today || bjDay(now))[i];
     if (!slot) return;
     cell.setAttribute('data-picked', '1');
-    detail.textContent = slotText(slot, { t, fmt, en });
+    detail.textContent = slotText(slot, { t, fmt, lang });
     detail.hidden = false;
   });
 
@@ -218,7 +217,7 @@ function init() {
       status = r.status;
       const j = r.ok ? await r.json() : null;
       if (!j || j.ok !== true || !Array.isArray(j.items)) throw new Error('bad');
-      auditBody.innerHTML = renderAudit(j.items, { t, fmt, en, now: Date.now() });
+      auditBody.innerHTML = renderAudit(j.items, { t, fmt, lang, now: Date.now() });
       auditState = 'done';
     } catch (e) {
       auditState = 'error';

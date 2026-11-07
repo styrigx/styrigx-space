@@ -76,7 +76,7 @@ export function deviceSub(t, d, en) {
   const root = document.getElementById('acct-devices');
   if (!root) return;
   const en = document.documentElement.lang === 'en';
-  const t = createT(en);
+  const t = createT();
   const thisRow = document.getElementById('acct-dev-this');
   const list = document.getElementById('acct-dev-list');
   const empty = document.getElementById('acct-dev-empty');

@@ -197,7 +197,7 @@ export async function summary(db, now, env) {
     const [ok30, tot30] = sum(d, from30);
     const [ok90, tot90] = sum(d, from90);
     return {
-      site: t.site, zh: t.zh, en: t.en, url: t.url,
+      site: t.site, name: t.name, url: t.url,
       checked: !!s,
       up: s ? Number(s.fails) < FAIL_THRESHOLD : null,
       fails: s ? Number(s.fails) : 0,

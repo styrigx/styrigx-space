@@ -9,6 +9,18 @@
  */
 import { TABS, parseHash, routeHash } from './app-tabs-route.js';
 
+/** 话题筛选结果标题：data-tpl-one / data-tpl-other 两种模板（字符串表），按页面语言的复数规则选，填 {label} {n} */
+export function topicResultsText(el: HTMLElement, label: string, n: number): string {
+  let cat = 'other';
+  try {
+    cat = new Intl.PluralRules(document.documentElement.lang || 'en').select(n);
+  } catch (e) {
+    cat = n === 1 ? 'one' : 'other';
+  }
+  const tpl = (cat === 'one' ? el.dataset.tplOne : el.dataset.tplOther) || el.dataset.tplOther || '{label} · {n}';
+  return tpl.split('{label}').join(label).split('{n}').join(String(n));
+}
+
 export type Tab = (typeof TABS)[number];
 export type FilterKind = 'tag' | 'category' | 'series';
 export interface Route {
@@ -142,8 +154,8 @@ export function initAppTabs() {
     );
     const label = chip?.dataset.label || f.slug;
     if (resultsTitle) {
-      const en = document.documentElement.lang.toLowerCase().startsWith('en');
-      resultsTitle.textContent = en ? `${label} · ${n} posts` : `${label} · ${n} 篇`;
+      /* 文案在 i18n/<语言>.yaml topicResults（模板放进 data-tpl-one / data-tpl-other），复数按页面语言的 Intl.PluralRules 选；不再按语言二选一 */
+      resultsTitle.textContent = topicResultsText(resultsTitle, label, n);
     }
     results.hidden = false;
     if (opts.reveal !== false) {

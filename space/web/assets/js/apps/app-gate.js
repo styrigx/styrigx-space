@@ -81,7 +81,7 @@ function verifyMessage(t, reason, detail) {
   }
   /* #72 补充：探针失败时 toast 末尾带上服务端原因码，例如「验证已过期（no-pubkey）」 */
   if (detail && typeof detail === 'string' && detail !== 'ok') {
-    msg += '（' + detail + '）';
+    msg += ct('codeWrap', { c: detail });
   }
   return msg;
 }
@@ -418,7 +418,7 @@ function showProbeFailure(t, info) {
     if (value === null || value === undefined || value === '') return;
     const dt = document.createElement('dt');
     dt.className = 'inline font-medium';
-    dt.textContent = label + '：';
+    dt.textContent = label + ct('labelSep');
     const dd = document.createElement('dd');
     dd.className = 'inline m-0 mr-4 font-mono break-all';
     dd.textContent = String(value);
@@ -564,7 +564,7 @@ export function apiErrorText(t, code, status) {
   let msg = t('errUnknown');
   /* 未知码：附上原始错误码和状态码，方便定位 */
   if (code) {
-    msg += '（' + code + (typeof status === 'number' && status ? '/' + status : '') + '）';
+    msg += ct('codeWrap', { c: code + (typeof status === 'number' && status ? '/' + status : '') });
   }
   return msg;
 }

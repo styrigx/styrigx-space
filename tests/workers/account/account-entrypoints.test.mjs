@@ -384,7 +384,7 @@ test('grant-list：首次调用种满 5 行 + 标记（同一批），回 5 项�
   const j = await r.json();
   assert.equal(j.ok, true);
   assert.deepEqual(j.grants.map((g) => g.app), APPS5);
-  assert.deepEqual(j.grants.map((g) => g.name.zh), ['奇趣', '日刻', '设置同步', '数字健康', '头像']);
+  assert.deepEqual(j.grants.map((g) => g.name), ['Curio', 'Daymark', 'Settings sync', 'Digital wellbeing', 'Avatar']);
   assert.deepEqual(j.grants.map((g) => g.scopes), [['curio.write'], ['daymark.write'], ['prefs.sync'], ['wellbeing.write'], ['avatar.write']]);
   assert.deepEqual(j.grants[0].sensitive, ['POST /curio/api/import']);
   for (const g of j.grants) {

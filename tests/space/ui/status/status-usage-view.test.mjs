@@ -17,6 +17,8 @@ const DICT = jsDict('status');
 
 function mk(en) {
   const t = (k) => {
+    /* 站名 site_<站 id> 按站查，没有的站返回空（同页面 loadI18n 的 t），其余键必须在表里 */
+    if (/^site_/.test(k) && !DICT[k]) return '';
     assert.ok(DICT[k], '字符串表 js.status 缺文案：' + k);
     return en ? DICT[k].en : DICT[k].zh;
   };
@@ -25,7 +27,7 @@ function mk(en) {
     for (const x in v || {}) s = s.split('{' + x + '}').join(String(v[x]));
     return s;
   };
-  return { t, fmt, en, now: fx.NOW, today: fx.TODAY };
+  return { t, fmt, lang: en ? 'en' : 'zh', now: fx.NOW, today: fx.TODAY };
 }
 const ZH = mk(false);
 const EN = mk(true);

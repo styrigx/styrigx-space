@@ -170,9 +170,7 @@ export function showLockScreen() {
       setTitle(tx('lockSessionNotActive'));
       setBody(
         '<p class="sgx-verify-failtx">' +
-          (en
-            ? 'The session was not recognized. Please try again.'
-            : '会话未生效，请重试。') +
+          tx('lockSessionNotRecognized') +
           '</p>'
       );
       clearErr();
@@ -421,7 +419,7 @@ export function showLockScreen() {
         return;
       }
       if (el) {
-        el.textContent = en ? 'Try again in ' + left + ' min' : left + ' 分钟后可再试';
+        el.textContent = tx('lockRetryMin', { n: left });
         el.hidden = false;
       }
       if (input) input.disabled = true;
@@ -519,7 +517,7 @@ export function showLockScreen() {
         return;
       }
       if (el) {
-        el.textContent = en ? 'Try again in ' + left + 's' : left + ' 秒后可再试';
+        el.textContent = tx('lockRetrySec', { n: left });
         el.hidden = false;
       }
       if (input) input.disabled = true;
@@ -636,9 +634,7 @@ export function showLockScreen() {
       /* 锁屏侧：进站凭证（SpaceKey） */
       keyKind: 'space',
       pmUser: KEY_SPACE,
-      keyText: en
-        ? { lead: 'First, verify with your space credential', ph: 'Space credential', empty: 'Enter space credential' }
-        : { lead: '先用进站凭证验证身份', ph: '进站凭证', empty: '请输入进站凭证' },
+      keyText: { lead: tx('rfSpaceLead'), ph: tx('rfSpacePh'), empty: tx('rfSpaceEmpty') },
       submitKey: function (key) {
         if (bootstrap) {
           return post('/api/space-auth', { key: key, purpose: 'lock-reset' }).then(function (res) {

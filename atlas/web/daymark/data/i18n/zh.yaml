@@ -65,3 +65,48 @@ baseof:
   pageNotFound: 页面不存在
   trove: 拾录
   flavors: 百味
+js:
+  daymark:
+    add: 记一句
+    edit: 编辑这一句
+    kept: 已拾录
+    deleted: 已删除
+    failed: 出了点问题，请再试一次。
+    needText: 先写下这一句。
+    priv: 仅自己可见
+    emptyAdmin: 还没有句子。点「记一句」留下第一句。
+    emptyVisitor: 这里还空着。
+    noToday: 今天还没有句子。
+    copied: 已复制
+    nothingToDraw: 还没有可以抽的句子。
+    setToday: 已设为今日
+    count: '{n} 句'
+    newCol: 新建
+    plus: ＋
+    colCreated: 专题已建好
+    delQuote: 确定删除这一句吗？删除后无法恢复。
+    delCol: 确定删除这个专题吗？里面的句子还留在拾录里。
+    removed: 已移出专题
+    groupEmpty: 这里还没有句子。
+    edit2: 编辑
+    done: 完成
+    needName: 先给专题起个名字。
+    previewPh: 写下的句子会像在余响里这样显示。
+    up: 上移
+    down: 下移
+    remove: 移出专题
+    needAccount: 登录账号后可编辑。
+    signin: 登录账号后可编辑
+    noScope: 日刻未获账号授权
+    noScopeErr: 日刻未获账号授权。
+    del: 删除
+    fromTrove: 拾录里的一句
+    keptOn: 拾于 {d}
+    sourceTitle: 《{s}》
+    untag: 删除 {t}
+    st_poetry: 诗词
+    st_book: 书
+    st_film: 电影
+    st_song: 歌
+    st_interview: 访谈
+    st_mine: 自己

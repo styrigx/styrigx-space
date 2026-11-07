@@ -190,6 +190,14 @@ js:
     rfRootPh: "根凭证"
     rfRootEmpty: "请输入根凭证"
     sheetClose: "关闭"
+    lockSessionNotRecognized: "会话未生效，请重试。"
+    lockRetryMin: "{n} 分钟后可再试"
+    lockRetrySec: "{n} 秒后可再试"
+    rfSpaceLead: "先用进站凭证验证身份"
+    rfSpacePh: "进站凭证"
+    rfSpaceEmpty: "请输入进站凭证"
+    codeWrap: "（{c}）"
+    labelSep: "："
   security:
     okTitle: 一切正常
     okSub: 解锁密码、锁屏通行密钥均已设置
@@ -201,6 +209,7 @@ js:
     lockSubPk: 通行密钥
     lockSubNone: 未设置
     securiSomethingWentWrongPlease: 出错了，请重试
+    listSep: "，"
   space:
     wellNoRec: 今天还没有到访记录
     areaLinks: 搜索
@@ -215,6 +224,11 @@ js:
     wbDurHr: "{n} 小时"
     wbDurHrs: "{n} 小时"
     wbDurMin: "{n} 分钟"
+    wbArea_space: "旷野"
+    wbArea_files: "我的文件"
+    wbArea_browser: "浏览器"
+    wbArea_book: "书籍"
+    wbArea_blog: "博客"
   status:
     loading: 正在加载…
     allUp: 全部正常
@@ -315,6 +329,10 @@ js:
     auditErr: 暂时拿不到记录，稍后再试。
     auditErrAuth: 会话已过期，重新解锁后再看。
     uErrorSub: 读取 Cloudflare 用量失败，下一个整点 41 分会再试。
+    site_space: "主站"
+    site_proxy-rules: "规则集"
+    site_ai: "AI 助手"
+    nameSep: "、"
   lockmgr:
     eyeShow: 显示密码
     eyeHide: 隐藏密码
@@ -585,6 +603,11 @@ js:
     gaSensSep: ；
     securiNewTemporaryKey: 新建临时钥匙
     securiTemporaryKey: 临时钥匙
+    app_curio: "奇趣"
+    app_daymark: "日刻"
+    app_prefs: "设置同步"
+    app_wellbeing: "数字健康"
+    app_avatar: "头像"
 filesIndex:
   app:
     settings:

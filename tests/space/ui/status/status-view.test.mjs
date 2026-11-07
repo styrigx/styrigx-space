@@ -18,6 +18,8 @@ const DICT = jsDict('status');
 
 function mk(en) {
   const t = (k) => {
+    /* 站名 site_<站 id> 按站查，没有的站返回空（同页面 loadI18n 的 t），其余键必须在表里 */
+    if (/^site_/.test(k) && !DICT[k]) return '';
     assert.ok(DICT[k], '字符串表 js.status 缺文案：' + k);
     return en ? DICT[k].en : DICT[k].zh;
   };
@@ -26,7 +28,7 @@ function mk(en) {
     for (const x in v || {}) s = s.split('{' + x + '}').join(String(v[x]));
     return s;
   };
-  return { t, fmt, en, now: fx.NOW, today: fx.TODAY };
+  return { t, fmt, lang: en ? 'en' : 'zh', now: fx.NOW, today: fx.TODAY };
 }
 const ZH = mk(false);
 const EN = mk(true);
@@ -42,13 +44,13 @@ test('北京时间：日期、跨日、时间格式（不看运行环境时区�
   assert.equal(bjDay(Date.parse('2026-10-21T16:00:00Z')), '2026-10-22');
   assert.equal(addDays('2026-10-01', -1), '2026-09-30');
   assert.equal(addDays('2026-12-31', 1), '2027-01-01');
-  assert.equal(fmtDay('2026-10-09', false), '10月9日');
-  assert.equal(fmtDay('2026-10-09', true), 'Oct 9');
+  assert.equal(fmtDay('2026-10-09', 'zh'), '10月9日');
+  assert.equal(fmtDay('2026-10-09', 'en'), 'Oct 9');
   const t = Date.parse('2026-10-21T16:03:00Z'); /* 北京 10-22 00:03 */
-  assert.equal(fmtBjTime(t, false), '10月22日 00:03');
-  assert.equal(fmtBjTime(t, true), 'Oct 22, 00:03');
-  assert.equal(fmtBjTime(t, false, '2026-10-22'), '00:03');
-  assert.equal(fmtBjTime(t, false, '2026-10-21'), '10月22日 00:03');
+  assert.equal(fmtBjTime(t, 'zh'), '10月22日 00:03');
+  assert.equal(fmtBjTime(t, 'en'), 'Oct 22, 00:03');
+  assert.equal(fmtBjTime(t, 'zh', '2026-10-22'), '00:03');
+  assert.equal(fmtBjTime(t, 'zh', '2026-10-21'), '10月22日 00:03');
 });
 
 test('时长 / 相对时间', () => {
@@ -112,11 +114,11 @@ test('siteState：等待检查 / 故障 / 波动（失败但没到阈值）/ 正
 });
 
 test('站名 / 域名 / 原因 / 最近一次检查', () => {
-  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, false)), ['主站', '规则集', 'AI 助手']);
-  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, true)), ['Space', 'Proxy rules', 'AI']);
-  assert.equal(siteName({ site: 'new', zh: '新站', en: 'New' }, true), 'New');
+  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, ZH.t)), ['主站', '规则集', 'AI 助手']);
+  assert.deepEqual(fx.normal().sites.map((s) => siteName(s, EN.t)), ['Space', 'Proxy rules', 'AI']);
+  assert.equal(siteName({ site: 'new', name: 'New' }, ZH.t), 'New', '表里没有的站：接口回的英文名（缺键回退英文）');
   /* 退役站不再有固定站名，只按接口给的 zh / en / site 兜底 */
-  assert.equal(siteName({ site: 'blog' }, false), 'blog');
+  assert.equal(siteName({ site: 'blog' }, ZH.t), 'blog');
   /* AI 助手走服务绑定：域名显示成 Worker 名 */
   assert.equal(hostOf('https://styrigx-ai/healthz'), 'styrigx-ai');
   assert.equal(hostOf('https://styrigx.com/robots.txt'), 'styrigx.com');
@@ -204,7 +206,7 @@ test('renderSite：故障的卡（故障 chip、超时标红）/ 没检查过的
 });
 
 test('renderSite：转义接口里的文字', () => {
-  const s = Object.assign({}, fx.normal().sites[0], { site: 'x"><img>', zh: '<b>坏</b>', url: 'https://a.example/' });
+  const s = Object.assign({}, fx.normal().sites[0], { site: 'x"><img>', name: '<b>坏</b>', url: 'https://a.example/' });
   const h = renderSite(s, ZH);
   assert.ok(!h.includes('<img>'));
   assert.ok(!h.includes('<b>'));

@@ -30,7 +30,7 @@ import { fmtDate as fmtIntlDate } from '../lib/i18n.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
-  const t = createT(en);
+  const t = createT();
   /** @param {string} id */
   function $(id) {
     return document.getElementById(id);

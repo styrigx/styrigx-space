@@ -48,7 +48,7 @@ const tx = i18nTable('account');
 
 (function () {
   const en = document.documentElement.lang === 'en';
-  const t = createT(en);
+  const t = createT();
   /** 总览「设备」一行的副标题：此设备的名字（服务端 session.device；没有就「此设备」） @param {any} j */
   function fillDevSub(j) {
     const el = document.getElementById('acct-dev-sub');
@@ -192,7 +192,7 @@ const tx = i18nTable('account');
   /** @param {any} g @param {{app: string, ret: string}} ret */
   function showConsent(g, ret) {
     if (!consentEl) { goBack(ret); return; }
-    const name = appName(g, en);
+    const name = appName(g);
     const ic = $('acct-consent-ic');
     if (ic) { ic.textContent = ''; ic.appendChild(appIcon(g.app)); }
     setText('acct-consent-title', t('gaConsentTitle').replace('{v}', name));

@@ -33,13 +33,13 @@ const epochReads = (env) => env.D1_ACCOUNT_AUTH.statements.filter((s) => /^\s*SE
 
 /* ---------------- 作用域表 ---------------- */
 
-test('作用域表：方案 4.2 的 5 项（id、所属应用、中英名），顺序固定', () => {
-  assert.deepEqual(scopes.SCOPES.map((s) => ({ id: s.id, app: s.app, zh: s.name.zh, en: s.name.en })), [
-    { id: 'curio.write', app: 'curio', zh: '奇趣', en: 'Curio' },
-    { id: 'daymark.write', app: 'daymark', zh: '日刻', en: 'Daymark' },
-    { id: 'prefs.sync', app: 'prefs', zh: '设置同步', en: 'Settings sync' },
-    { id: 'wellbeing.write', app: 'wellbeing', zh: '数字健康', en: 'Digital wellbeing' },
-    { id: 'avatar.write', app: 'avatar', zh: '头像', en: 'Avatar' },
+test('作用域表：方案 4.2 的 5 项（id、所属应用、英文名——中文在主站字符串表 js.account.app_<应用>），顺序固定', () => {
+  assert.deepEqual(scopes.SCOPES.map((s) => ({ id: s.id, app: s.app, name: s.name })), [
+    { id: 'curio.write', app: 'curio', name: 'Curio' },
+    { id: 'daymark.write', app: 'daymark', name: 'Daymark' },
+    { id: 'prefs.sync', app: 'prefs', name: 'Settings sync' },
+    { id: 'wellbeing.write', app: 'wellbeing', name: 'Digital wellbeing' },
+    { id: 'avatar.write', app: 'avatar', name: 'Avatar' },
   ]);
 });
 

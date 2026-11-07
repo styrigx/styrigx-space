@@ -67,3 +67,49 @@ baseof:
   pageNotFound: Page not found
   trove: Trove
   flavors: Flavors
+js:
+  daymark:
+    add: Save a line
+    edit: Edit line
+    kept: Kept.
+    deleted: Deleted.
+    failed: Something went wrong. Please try again.
+    needText: Write the line first.
+    priv: Only you can see this
+    emptyAdmin: Nothing kept yet. Tap "Save a line" to keep your first one.
+    emptyVisitor: Nothing here yet.
+    noToday: No line for today yet.
+    copied: Copied.
+    nothingToDraw: Nothing to draw from yet.
+    setToday: Set as today's line.
+    count: '{n} lines'
+    count_one: '{n} line'
+    newCol: New
+    plus: +
+    colCreated: Collection created.
+    delQuote: Delete this line? This cannot be undone.
+    delCol: Delete this collection? The lines in it stay in your Trove.
+    removed: Removed from this collection.
+    groupEmpty: Nothing in here yet.
+    edit2: Edit
+    done: Done
+    needName: Give it a name first.
+    previewPh: Your line will show here, just like in Echo.
+    up: Move up
+    down: Move down
+    remove: Remove from collection
+    needAccount: Sign in to your account to edit.
+    signin: Sign in to your account to edit
+    noScope: Daymark doesn’t have account access
+    noScopeErr: Daymark doesn’t have account access.
+    del: Delete
+    fromTrove: From the trove
+    keptOn: Kept {d}
+    sourceTitle: '{s}'
+    untag: Remove {t}
+    st_poetry: Poetry
+    st_book: Book
+    st_film: Film
+    st_song: Song
+    st_interview: Interview
+    st_mine: Mine
