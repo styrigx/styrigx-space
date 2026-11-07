@@ -1,0 +1,158 @@
+/* 宽屏平铺（Gray 2026-11-07，参考 rzcthink.top；共享外壳 shell.css wide 段）：只在桌面布局（<html data-sgx-layout="desktop">），手机布局不变。
+   - 页面外框通栏：首页 / 标签页 / 文章页外框 = 外壳框 --sgx-shell-w（桌面 = 窗口宽 − 两侧页边距），不再按 1104 / 1018 收窄，不对齐顶栏。
+   - 去卡片：最新文章、系列、标签页文章、相关文章、目录都去掉卡片底，文字铺在背景上；多栏 + 细分隔线（--sgx-wide-line）。
+   - 文章正文仍是一栏（720 读宽），目录在右侧，中间一条细竖线；分享按钮、代码块、筛选 chip 这些交互件保持原样。 */
+
+:root[data-sgx-layout="desktop"] .page-home main,
+:root[data-sgx-layout="desktop"] .page-tag main,
+:root[data-sgx-layout="desktop"] .oui-archive-wrap,
+:root[data-sgx-layout="desktop"] .oui-article-wrap,
+:root[data-sgx-layout="desktop"] .page-tag .tag-body {
+  max-width: none;
+}
+
+/* ---- 首页「最新」：三篇并排，栏间细竖线，上下各一条细线 ---- */
+:root[data-sgx-layout="desktop"] .latest-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 0;
+  overflow: hidden;
+  margin-left: calc(-1 * var(--sgx-wide-pad));
+  margin-right: calc(-1 * var(--sgx-wide-pad));
+  border-top: 1px solid var(--sgx-wide-line);
+  border-bottom: 1px solid var(--sgx-wide-line);
+}
+
+:root[data-sgx-layout="desktop"] .latest-list > li {
+  min-width: 0;
+  box-shadow: -1px 0 0 0 var(--sgx-wide-line), 0 -1px 0 0 var(--sgx-wide-line);
+}
+
+:root[data-sgx-layout="desktop"] .latest-card {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 28px var(--sgx-wide-pad);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-sgx-layout="desktop"] .latest-card strong {
+  font-size: 1.3rem;
+  line-height: 1.4;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root[data-sgx-layout="desktop"] .latest-card:hover strong {
+    color: var(--sgx-primary);
+  }
+}
+
+/* ---- 系列：去卡片，上边一条细线；系列里的文章两栏排 ---- */
+:root[data-sgx-layout="desktop"] .series-card {
+  padding: 24px 0 8px;
+  border: 0;
+  border-top: 1px solid var(--sgx-wide-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-sgx-layout="desktop"] .series-card.is-target {
+  box-shadow: inset 3px 0 0 var(--sgx-focus-ring);
+  padding-left: 16px;
+}
+
+:root[data-sgx-layout="desktop"] .series-card + .series-card {
+  margin-top: 0;
+}
+
+:root[data-sgx-layout="desktop"] .series-card ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  column-gap: var(--sgx-wide-pad);
+}
+
+:root[data-sgx-layout="desktop"] .series-card li + li {
+  border-top: 0;
+}
+
+:root[data-sgx-layout="desktop"] .series-card li {
+  border-bottom: 1px solid var(--sgx-wide-line);
+}
+
+/* ---- 文章列表（文章分区、专题筛选结果）：多栏，栏间细竖线 ---- */
+:root[data-sgx-layout="desktop"] .notes-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  gap: 0;
+  overflow: hidden;
+  margin-left: calc(-1 * var(--sgx-wide-pad));
+  margin-right: calc(-1 * var(--sgx-wide-pad));
+  border-top: 1px solid var(--sgx-wide-line);
+  border-bottom: 1px solid var(--sgx-wide-line);
+}
+
+:root[data-sgx-layout="desktop"] .notes-list > .note-entry {
+  padding-left: var(--sgx-wide-pad);
+  padding-right: var(--sgx-wide-pad);
+  border-bottom: 0;
+  box-shadow: -1px 0 0 0 var(--sgx-wide-line), 0 -1px 0 0 var(--sgx-wide-line);
+}
+
+/* ---- 标签页文章：去卡片，多栏 ---- */
+:root[data-sgx-layout="desktop"] .oui-archive-wrap .post-stack {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  gap: 0;
+  overflow: hidden;
+  margin-left: calc(-1 * var(--sgx-wide-pad));
+  margin-right: calc(-1 * var(--sgx-wide-pad));
+  border-top: 1px solid var(--sgx-wide-line);
+  border-bottom: 1px solid var(--sgx-wide-line);
+}
+
+:root[data-sgx-layout="desktop"] .oui-archive-wrap .post-item {
+  padding: 28px var(--sgx-wide-pad);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: -1px 0 0 0 var(--sgx-wide-line), 0 -1px 0 0 var(--sgx-wide-line);
+}
+
+/* ---- 文章页：正文去卡片（一栏 720 读宽），目录在右，中间细竖线；正文 + 目录整体居中 ---- */
+:root[data-sgx-layout="desktop"] .oui-article-layout {
+  justify-content: center;
+}
+
+:root[data-sgx-layout="desktop"] .oui-article-paper.article-card {
+  padding-left: 0;
+  padding-right: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-sgx-layout="desktop"] .oui-toc-card,
+:root[data-sgx-layout="desktop"] .oui-toc-card .toc-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-sgx-layout="desktop"] .oui-toc-card {
+  padding: 4px 0 4px var(--sgx-wide-pad);
+  border-left: 1px solid var(--sgx-wide-line);
+}
+
+:root[data-sgx-layout="desktop"] .related-posts.blog-card {
+  padding-left: 0;
+  padding-right: 0;
+  border: 0;
+  border-top: 1px solid var(--sgx-wide-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}

@@ -75,7 +75,7 @@ const SRC = {
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
-export const SHELL_REGIONS = ['topbar-frame', 'panel', 'entries'];
+export const SHELL_REGIONS = ['topbar-frame', 'panel', 'entries', 'wide'];
 /* 导航项以外外壳要用的图标（2026-11-04 P5-1）：顶栏（快捷面板滑块、AI 聊天）、快捷设置磁贴（深色 / 跟随系统 / 语言 / 锁定 / 恢复默认 / 分享）、AI 发送。
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
 export const EXTRA_ICONS = ['tb-grid', 'tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history'];
@@ -341,6 +341,12 @@ const README = `# space/web/shared/shell（生成物，勿手改）
 
 \`entries.html\` 是 Hugo partial（主站 partials/sgx-entries.html 原样），子站同步成 \`layouts/partials/sgx-shell-entries.html\`，只用参数（图标 SVG 由 \`icons\` 传入）。
 子站首页用它放分区入口（各布局都放；顶栏没有分区页签，页名胶囊只显示当前页 / 分区名）。
+
+## 宽屏平铺（shell.css wide 段；Gray 2026-11-07）
+
+只在桌面布局（\`<html data-sgx-layout="desktop">\`）：内容区通栏（\`--sgx-content-max\` = 100%，外壳框 = 窗口宽 − 两侧页边距，不对齐顶栏），内容页去卡片、文字铺在背景上，多栏 + 细分隔线。手机布局不变。
+- 公共件：\`.sgx-flat\`（去卡片）、\`.sgx-wide-cols\`（多栏，每栏 ≥ \`--sgx-wide-col\`，栏间 / 行间细线 \`--sgx-wide-line\`）、\`.sgx-wide-h\`（栏组标题）；\`--sgx-wide-pad\` 是栏内左右留白。
+- 可交互模块保留卡片：屏幕时间、风格页（调色板）、快捷面板 / AI 窗口、表单、锁屏、音乐播放器。各站 JS 画的卡片在自己的 CSS 里按同样的值去卡片。
 
 ## 顶栏 + 导航面板 + 快捷面板 + AI 窗口（topbar.html / topbar.js / modal-sheet.js / ai.js / vk.js + shell.css topbar-frame、panel 段；2026-11-04 P5-1，P4-3 PR-4b 定稿，四个站一样）
 

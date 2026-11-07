@@ -16,7 +16,7 @@
 {{ $commitShort := "local" }}
 {{ if gt (len $commit) 7 }}{{ $commitShort = slicestr $commit 0 7 }}{{ else if ne $commit "" }}{{ $commitShort = $commit }}{{ end }}
 <div class="set-group scroll-mt-24" id="sg-about">
-<section class="widget bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.28s">
+<section class="widget sgx-flat bg-m-container-lowest border border-m-outline mb-7 overflow-hidden animate-fade-up" style="animation-delay:.28s">
       <div class="set-row no-ic flex-wrap gap-y-1">
         <span class="font-medium">{{ $tr.setcatAbout.version }}</span>
         <span class="text-sm text-m-on-surface-variant ml-auto text-right break-words">Styrigx UI {{ $uiVer }}</span>

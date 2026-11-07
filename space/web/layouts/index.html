@@ -22,7 +22,7 @@
   <div id="home-widgets" class="grid grid-cols-4 lg:grid-cols-8 gap-3">
 
     <!-- 名片 -->
-    <div id="w-profile" class="widget col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
+    <div id="w-profile" class="widget sgx-flat col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
       {{/* 2026-11-07 个人资料：名字、签名、头像替代文字先画 data/profile.yaml 的默认值，lib/profile.js 用 /api/profile（账号 › 个人资料改的值）覆盖（data-sgx-profile） */}}
       <img src="/avatar/192.webp" alt="{{ $profile.name }}" translate="no" data-sgx-personal data-sgx-profile="name" data-sgx-profile-attr="alt" width="96" height="96" fetchpriority="high" class="prof-av w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover shadow shrink-0" data-sgx-avatar="192">
       <div class="min-w-0">
@@ -37,7 +37,7 @@
          CI 测试构建（SGX_TEST_NO_WEATHER=1；名字沿用天气时代的开关，CI 命令不动）不输出：本地静态服务没有日刻接口，请求失败会让 Lighthouse errors-in-console 误报。 -->
     {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
     {{ $dmUrl := (partial "sgx-lang-path.html" (dict "path" "/daymark/" "lang" $pageLang)) }}
-    <a id="w-daymark" href="{{ $dmUrl }}" class="widget dm-w col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-5 sm:p-6 overflow-hidden relative animate-fade-up hidden" style="animation-delay:.32s" aria-label="{{ $tr.index.daymarkLineOfThe }}">
+    <a id="w-daymark" href="{{ $dmUrl }}" class="widget sgx-flat dm-w col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-5 sm:p-6 overflow-hidden relative animate-fade-up hidden" style="animation-delay:.32s" aria-label="{{ $tr.index.daymarkLineOfThe }}">
       <span class="dm-w-mark" aria-hidden="true">&ldquo;</span>
       <div class="relative flex items-center justify-between gap-3">
         <p class="flex items-center gap-1.5 text-xs font-semibold tracking-widest text-m-primary">

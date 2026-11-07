@@ -4,7 +4,7 @@
    能编辑（接口回 canWrite：账号已登录 + daymark.write）：拾录右下角「记一句」，点句子打开编辑弹层；百味能建专题、排序。
    账号没登录：只读、只看公开句子，页底一行「登录账号后可编辑」（#dm-signin）。
    没有搜索栏、没有标签筛选条。数据全走 /daymark/api/*（接口 Worker，见 workers/daymark-core）。 */}}
-<main id="dm-main" class="w-full mx-auto" style="max-width:860px;padding-left:16px;padding-right:16px">
+<main id="dm-main" class="dm-main w-full mx-auto">
 {{/* 分区入口（P4-3 PR-4b，Gray 2026-11-07）：顶栏不再有分区页签，首页正文的这组入口就是目录（共享外壳平铺入口组件）；切到别的分区时页签脚本把它藏起来。
    链接就是页签的 hash（页签脚本听 hashchange 切面板）。副标题是占位文案；奇趣拆页另起 PR。 */}}
 {{ $entItems := slice

@@ -2,7 +2,7 @@
  * 布局（P4-3 PR-4b，Gray 2026-11-07 定稿）：只有手机 phone / 桌面 desktop（主站版面类照旧 layout-mobile / layout-dex）。
  * - 手动（快捷面板 手机 / 自动 / 桌面，sgx-layout = phone / auto / desktop；旧值 mobile → phone、dex / pc → desktop）照办，任何视口都一样
  * - 自动：navigator.userAgentData.mobile（没有就看 UA）；算出桌面但视口 < 720 CSS px → 手机。这里是无头桌面 UA（mobile = false）
- * - 外壳框（各页外框）= min(100% − 2 × 页边距, 手机 640 / 桌面 1440)；顶栏不再定内容栏（手机顶栏 min(100% − 32, 640)；桌面：手机设备 min(720, 100% − 48)，电脑 / 平板 min(clamp(720, 60vw, 960), 100% − 48)）
+ * - 外壳框（各页外框）= 手机 min(100% − 2 × 页边距, 640) / 桌面 100% − 2 × 页边距（宽屏平铺 PR 起通栏）；顶栏不再定内容栏（手机顶栏 min(100% − 32, 640)；桌面：手机设备 min(720, 100% − 48)，电脑 / 平板 min(clamp(720, 60vw, 960), 100% − 48)）
  * 手机 UA 的用例见 tests/space/e2e/topbar/topbar-length.spec.js。
  */
 const { test } = require('@playwright/test');
@@ -94,20 +94,20 @@ for (const [path, sel] of WRAPS) {
   });
 }
 
-/* ----- 桌面布局：外框 = min(100% − 2 × 页边距, 1440) 居中（顶栏不再定内容栏，电脑桌面顶栏 min(clamp(720, 60vw, 960), 100% − 48)），内部列在框里居中 ----- */
+/* ----- 桌面布局：外框 = 100% − 2 × 页边距 居中（宽屏平铺 PR 起桌面内容区通栏，原来最宽 1440；顶栏不定内容栏，电脑桌面顶栏 min(clamp(720, 60vw, 960), 100% − 48)），内部列在框里居中 ----- */
 for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
   for (const [path, sel] of WRAPS) {
-    test(`桌面 ${w}×${h}：${path} 外框 = min(100% − 2m, 1440) 居中；顶栏 = min(clamp(720, 60vw, 960), 100% − 48) 居中`, async ({ page }) => {
+    test(`桌面 ${w}×${h}：${path} 外框 = 100% − 2m（通栏）居中；顶栏 = min(clamp(720, 60vw, 960), 100% − 48) 居中`, async ({ page }) => {
       await go(page, { width: w, height: h }, path);
       await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
       const f = await frame(page, sel);
       const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
       expect(Math.abs(f.bar.w - deskBar(w)), `顶栏宽 ${f.bar.w}`).toBeLessThanOrEqual(1);
-      expect(Math.abs(f.wrap.w - Math.min(w - 2 * m, 1440)), `${sel} 外框宽 ${f.wrap.w}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(f.wrap.w - (w - 2 * m)), `${sel} 外框宽 ${f.wrap.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(f.wrap.l + f.wrap.w / 2 - f.vw / 2), `${sel} 居中`).toBeLessThanOrEqual(1);
     });
   }
-  test(`桌面 ${w}×${h}：内部列 —— 旷野子页 / 服务状态 720 居中（P4-3 PR-4b 起设置首页的两栏删除）`, async ({ page }) => {
+  test(`桌面 ${w}×${h}：内部列 —— 旷野子页 720 居中、服务状态通栏（宽屏平铺；P4-3 PR-4b 起设置首页的两栏删除）`, async ({ page }) => {
     const col = async (path, s) => {
       await go(page, { width: w, height: h }, path);
       await expect(page.locator(s).first()).toBeAttached();
@@ -117,8 +117,9 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
     await go(page, { width: w, height: h }, '/');
     await expect(page.locator('.set-dex-cols, .set-col-l')).toHaveCount(0);
     const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
-    const shell = Math.min(w - 2 * m, 1440);
-    for (const [path, s, want] of [['/theme/', '.set-layout > .set-main', 720], ['/status/', '#st-foot', 720]]) {
+    const shell = w - 2 * m;
+    /* 宽屏平铺：风格页（交互模块，设计不动）仍 720；服务状态去卡片、多栏，内容列通栏 */
+    for (const [path, s, want] of [['/theme/', '.set-layout > .set-main', 720], ['/status/', '#st-foot', shell]]) {
       const [c] = await col(path, s);
       expect(Math.abs(c.w - Math.min(want, shell)), `${path} ${s} 宽 ${c.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(c.c), `${path} 居中`).toBeLessThanOrEqual(1);

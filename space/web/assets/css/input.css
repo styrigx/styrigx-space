@@ -7270,7 +7270,7 @@
   .layout-dex main { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
   .layout-dex footer { padding-bottom: calc(16px + env(safe-area-inset-bottom,0px)); }
 
-  /* ----- 首页栅格（2026-10-23 PR-D）：外框 = 外壳框（--sgx-shell-w，DeX 最宽 1440，见文件末尾主站 layout 段），左右边缘对齐顶栏。
+  /* ----- 首页栅格（2026-10-23 PR-D）：外框 = 外壳框（--sgx-shell-w，桌面通栏，见文件末尾主站 layout 段；宽屏平铺 PR 起桌面名片 / 日刻去卡片，见 wide 段后的主站规则）。
      列数 N（P4-2c 起固定 2 列，原 ≥ 1200 宽 3 列）；每列最窄 320px：
        repeat(auto-fit, minmax(max(320px, (100% − (N−1)·gap) / N), 1fr))
      → 框够宽时正好 N 列等分；框窄到放不下 N 个 320 就自动少一列，直到一列，绝不挤到 320 以下。
@@ -8288,8 +8288,8 @@
 /* 尺寸体系（2026-10-23 PR-D）：间距 / 页边距按 8 的倍数，组件允许 4px 子网格；宽度之间用 clamp() 连续插值，断点只用来切换模式 / 列数。
    --sgx-page-m：左右页边距（手机 < 600px 固定 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px，两头封顶）。
    --sgx-tb-btn / --sgx-tb-gap：顶栏高 / 间距，600 宽 52 / 8 线性到 840 宽 56 / 12（< 600 仍是 52 / 8）。
-   --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop 1440（没有这个属性 = 没跑脚本，退回 1068）。
-   --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)；各站页面外框对齐它（顶栏不再定内容栏，P4-3 PR-4b；内容通栏另起 PR）。
+   --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop 100%（宽屏平铺 PR：桌面内容区通栏、不对齐顶栏；没有这个属性 = 没跑脚本，退回 1068）。
+   --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)；各站页面外框对齐它（顶栏不定内容栏：桌面 = 窗口宽 − 两侧页边距，顶栏仍按 --sgx-tb-w 居中）。
    布局模式（P4-3 PR-4b，Gray 2026-11-07 定稿）只有两种：手机 phone / 桌面 desktop。规则只有一份：共享外壳 layout-mode.js __sgxLayout()，四站 <head> 原样内联、首帧前写好
    data-sgx-layout（手动手机 / 桌面照办；自动 = 浏览器不是手机版网站模式就桌面，但视口 < 720 时手机；拖窗口 / 转屏按 matchMedia 重算，不刷新），
    tests/space/ui/shell/topbar-length.test.mjs 守着四站同一份。
@@ -8302,7 +8302,7 @@
 :root { --sgx-page-m: 16px; --sgx-content-max: 1068px; --sgx-shell-w: min(100% - 2 * var(--sgx-page-m), var(--sgx-content-max));
   --sgx-tb-w: min(100% - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px)), 640px); }
 :root[data-sgx-layout="phone"] { --sgx-content-max: 640px; }
-:root[data-sgx-layout="desktop"] { --sgx-content-max: 1440px;
+:root[data-sgx-layout="desktop"] { --sgx-content-max: 100%;
   --sgx-tb-w: min(clamp(720px, 60vw, 960px), 100% - max(24px, env(safe-area-inset-left, 0px)) - max(24px, env(safe-area-inset-right, 0px))); }
 :root[data-sgx-layout="desktop"][data-sgx-device="phone"] {
   --sgx-tb-w: min(720px, 100% - max(24px, env(safe-area-inset-left, 0px)) - max(24px, env(safe-area-inset-right, 0px))); }
@@ -8414,12 +8414,65 @@
 .sgx-share-reauth[aria-busy="true"] .sgx-share-reauth-btn { opacity: .6; pointer-events: none; }
 @media (min-width: 840px) { .sgx-share-reauth { margin: auto; border-radius: 24px; } }
 /* @shell:end topbar-frame */
-/* 主站 layout 层（2026-10-23 PR-D，只在主站，不进共享外壳）：外壳框最宽 Mobile 640（宽竖屏内容栏）、DeX 1440 —— 由共享外壳 topbar-frame 段按
+/* 主站 layout 层（2026-10-23 PR-D，只在主站，不进共享外壳）：外壳框最宽 Mobile 640（宽竖屏内容栏）、桌面通栏（宽屏平铺 PR）—— 由共享外壳 topbar-frame 段按
    <html data-sgx-layout> 统一定（P4-3 顶栏长度统一，四站同一处，这里不再按 html.layout-* 另写一遍）。
    顶栏在各页都跟随这个框（不按页面内容收缩，切页时两侧圆不跳）；页面外框（首页 / 设置 / 账号 / 聊天 / 404）宽 = --sgx-shell-w、
    不加横向内边距，左右边线和顶栏两侧圆外缘对齐；页面里的内容列在框里居中：设置子页 / 账号（含服务状态）720，聊天 760，设置首页 DeX 两栏 1024（见 settings 段）。 */
 .home-wrap, .set-layout, .acct-layout, .sgx-404 { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
 .set-layout > *, .acct-layout > * { max-width: 720px; margin-left: auto; margin-right: auto; }
+/* 门内验证剩余时间胶囊（inline-flex，外框第一个子元素）：外框桌面通栏后仍停在原来的位置——原外框（最宽 1440）的左缘（宽屏平铺 PR：表单页不改样子） */
+.set-layout > .sgx-credential-countdown, .acct-layout > .sgx-credential-countdown { margin-left: max(0px, (100% - 1440px) / 2); }
+/* @shell:begin wide（宽屏平铺：桌面布局内容页去卡片、多栏 + 细分隔线；共享外壳：gen-shell 抽到 shell.css，子站同步；只用 --sgx-* 角色，不写死颜色） */
+/* 宽屏平铺（Gray 2026-11-07，参考 rzcthink.top）：只在桌面布局（<html data-sgx-layout="desktop">，浏览器桌面版 / 手动「桌面」；不按像素断点）。手机布局一律不变。
+   - 内容区通栏：桌面 --sgx-content-max = 100%（topbar-frame 段），外壳框 --sgx-shell-w = 窗口宽 − 两侧页边距，不对齐顶栏（顶栏仍 --sgx-tb-w 居中）。
+   - 内容页去卡片：文字直接铺在背景上，块与块、栏与栏之间用细线（--sgx-wide-line）分开。
+   - 可交互模块保留卡片：屏幕时间、风格页（调色板，设计不动）、快捷面板 / AI 窗口、表单（安全 / 账号）、锁屏、音乐播放器，不挂下面这些类。
+   公共件（各站挂到自己的标记上；JS 画的卡片各站在自己的 CSS 里按同样的值去卡片）：
+     .sgx-flat       去卡片：没有底色、描边、阴影、圆角、毛玻璃
+     .sgx-wide-cols  多栏：每栏至少 --sgx-wide-col（默认 300px）自动排列，栏间细竖线、行间细横线（第一栏左边、第一行上边没有线：容器裁掉）
+     .sgx-wide-h     栏组标题：小字、字距、次要文字色，下边一条细线 */
+:root { --sgx-wide-line: var(--sgx-divider); --sgx-wide-col: 300px; --sgx-wide-pad: clamp(20px, 1.4vw + 8px, 32px); }
+:root[data-sgx-layout="desktop"] .sgx-flat { background: transparent; border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-sgx-layout="desktop"] .sgx-wide-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--sgx-wide-col)), 1fr)); gap: 0;
+  overflow: hidden; margin-left: calc(-1 * var(--sgx-wide-pad)); margin-right: calc(-1 * var(--sgx-wide-pad)); }
+:root[data-sgx-layout="desktop"] .sgx-wide-cols > * { min-width: 0; box-sizing: border-box; padding: 24px var(--sgx-wide-pad); box-shadow: -1px 0 0 0 var(--sgx-wide-line), 0 -1px 0 0 var(--sgx-wide-line); }
+:root[data-sgx-layout="desktop"] .sgx-wide-h { margin: 0; padding: 0 0 12px; border-bottom: 1px solid var(--sgx-wide-line);
+  font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--sgx-text-secondary); }
+/* @shell:end wide */
+/* 主站宽屏平铺（只在主站，不进共享外壳；桌面布局）：
+   - 旷野页（/）：名片、日刻今日一句去卡片，左右两栏中间一条细竖线，上下各一条细线；屏幕时间是可交互模块，保留卡片。
+   - 关于本站（/about/）：版本信息去卡片，按「名称在上、值在下」多栏平铺，内容列不再限 720。
+   - 服务状态（/status/）：横幅、每站卡、免费额度、用量、近期故障去卡片；每站三栏并排；内容列通栏。进站凭证使用记录（展开才请求）是可交互模块，保留卡片。
+   其余（风格、安全、数字健康、账号）不动：表单 / 交互模块保留卡片，内容列仍 720 居中。 */
+:root[data-sgx-layout="desktop"] #home-widgets { row-gap: 32px; column-gap: 0; }
+:root[data-sgx-layout="desktop"] #home-widgets > #w-profile,
+:root[data-sgx-layout="desktop"] #home-widgets > #w-daymark { padding: 32px var(--sgx-wide-pad); border-top: 1px solid var(--sgx-wide-line); border-bottom: 1px solid var(--sgx-wide-line); }
+:root[data-sgx-layout="desktop"] #home-widgets > #w-profile { padding-left: 0; }
+:root[data-sgx-layout="desktop"] #home-widgets > #w-daymark { border-left: 1px solid var(--sgx-wide-line); overflow: visible; }
+:root[data-sgx-layout="desktop"] .set-layout:has(#sg-about) > * { max-width: none; }
+:root[data-sgx-layout="desktop"] #sg-about .widget { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); margin-bottom: 0;
+  border-top: 1px solid var(--sgx-wide-line); border-bottom: 1px solid var(--sgx-wide-line); overflow: hidden; }
+:root[data-sgx-layout="desktop"] #sg-about .set-row { flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; min-height: 0; padding: 28px var(--sgx-wide-pad);
+  box-shadow: -1px 0 0 0 var(--sgx-wide-line), 0 -1px 0 0 var(--sgx-wide-line); }
+:root[data-sgx-layout="desktop"] #sg-about .set-row::before { content: none; }
+:root[data-sgx-layout="desktop"] #sg-about .set-row > :first-child { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--sgx-text-secondary); }
+:root[data-sgx-layout="desktop"] #sg-about .set-row > :last-child { margin-left: 0; text-align: left; font-size: 22px; font-weight: 700; color: var(--sgx-text-primary); }
+:root[data-sgx-layout="desktop"] .acct-layout > .st-wrap { max-width: none; }
+:root[data-sgx-layout="desktop"] .st-wrap { gap: 32px; }
+:root[data-sgx-layout="desktop"] .st-banner,
+:root[data-sgx-layout="desktop"] .st-banner[data-state] { padding: 8px 0 24px; border-radius: 0; border: 0; border-bottom: 1px solid var(--sgx-wide-line); background: transparent; box-shadow: none; color: var(--sgx-text-primary); }
+:root[data-sgx-layout="desktop"] .st-banner-title { font-size: 28px; }
+:root[data-sgx-layout="desktop"] .st-banner[data-state="down"] .st-banner-title { color: var(--sgx-danger); }
+:root[data-sgx-layout="desktop"] .st-sites { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 0; overflow: hidden;
+  margin: -32px calc(-1 * var(--sgx-wide-pad)) 0; border-bottom: 1px solid var(--sgx-wide-line); }
+:root[data-sgx-layout="desktop"] .st-sites > .st-card { padding: 28px var(--sgx-wide-pad); border: 0; border-radius: 0; background: transparent; box-shadow: -1px 0 0 0 var(--sgx-wide-line), 0 -1px 0 0 var(--sgx-wide-line); }
+:root[data-sgx-layout="desktop"] .st-usage-card,
+:root[data-sgx-layout="desktop"] .st-inc-card,
+:root[data-sgx-layout="desktop"] #st-error,
+:root[data-sgx-layout="desktop"] #st-empty { border: 0; border-radius: 0; background: transparent; box-shadow: none; border-top: 1px solid var(--sgx-wide-line); }
+:root[data-sgx-layout="desktop"] .st-wrap .acct-dev-h { padding: 0; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
+:root[data-sgx-layout="desktop"] :is(.st-u, .st-inc, .st-inc-none, .st-usage-none, .st-usage-foot) { padding-left: 0; padding-right: 0; }
+:root[data-sgx-layout="desktop"] .st-u[data-child] { padding-left: 16px; padding-right: 0; }
 /* 底部停靠栏高度（main 底部留白用；原地搜索层已在 P4-2 删除） */
 :root { --sgx-bottom-dock-h: 56px; }
 /* @shell:begin panel（共享外壳：space/scripts/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */

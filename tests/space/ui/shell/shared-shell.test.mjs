@@ -19,6 +19,30 @@ test('space/web/shared/shell 和源头一致（改了源头要重跑 node space/
   for (const [k, v] of Object.entries(files)) assert.equal(readFileSync(path.join(OUT_DIR, k), 'utf8'), v, k);
 });
 
+test('宽屏平铺（Gray 2026-11-07）：只在桌面布局——内容区通栏、去卡片公共件 .sgx-flat / .sgx-wide-cols；手机布局不变；交互模块不挂', () => {
+  const s = files['shell.css'];
+  // 桌面外壳框通栏（不对齐顶栏），手机仍 640；顶栏宽不变
+  assert.match(s, /:root\[data-sgx-layout="desktop"\] \{ --sgx-content-max: 100%;/);
+  assert.match(s, /:root\[data-sgx-layout="phone"\] \{ --sgx-content-max: 640px; \}/);
+  assert.doesNotMatch(s, /--sgx-content-max: 1440px/);
+  // 公共件只在桌面布局生效
+  for (const sel of ['.sgx-flat', '.sgx-wide-cols', '.sgx-wide-h']) {
+    const rules = s.match(new RegExp('[^}]*\\' + sel + ' \\{', 'g')) || [];
+    assert.ok(rules.length > 0, sel);
+    for (const r of rules) assert.match(r, /:root\[data-sgx-layout="desktop"\] \S+ \{$/, sel + ' 只在桌面布局');
+  }
+  assert.match(s, /\.sgx-flat \{ background: transparent; border: 0; border-radius: 0; box-shadow: none;/);
+  // 交互模块保留卡片：风格页（调色板）、数字健康（屏幕时间）、安全页、旷野页的屏幕时间不挂 .sgx-flat
+  const web = path.join(REPO, 'space/web/layouts');
+  for (const f of ['partials/setcat-theme.html', 'partials/setcat-wellbeing.html', '_default/security.html', '_default/security-lock.html', '_default/account.html']) {
+    assert.doesNotMatch(readFileSync(path.join(web, f), 'utf8'), /sgx-flat/, f);
+  }
+  const home = readFileSync(path.join(web, 'index.html'), 'utf8');
+  assert.match(home, /id="w-profile" class="widget sgx-flat /);
+  assert.match(home, /id="w-daymark" [^>]*class="widget sgx-flat /);
+  assert.doesNotMatch(home, /id="w-screen"[^>]*sgx-flat/);
+});
+
 test('manifest 的 sha256 对得上每个文件', () => {
   const m = JSON.parse(files['manifest.json']);
   for (const [k, h] of Object.entries(m.files)) assert.equal(createHash('sha256').update(files[k]).digest('hex'), h, k);
@@ -120,7 +144,7 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
 });
 
 test('顶栏（P5-1 起一整条胶囊；PR-4b 定稿）：[字标][页名胶囊][九宫格 · 快捷设置 · AI]，头像不在顶栏；同一份标记 topbar.html 四站共用', () => {
-  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'entries']);
+  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'entries', 'wide']);
   const s = files['shell.css'];
   assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*left: 0; right: 0; margin: 0 auto; width: var\(--sgx-tb-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
   // 三列网格：字标 | 中间 | 图标组（PR-4b 定稿）

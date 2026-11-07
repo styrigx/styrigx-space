@@ -16,8 +16,8 @@
 /* 尺寸体系（2026-10-23 PR-D）：间距 / 页边距按 8 的倍数，组件允许 4px 子网格；宽度之间用 clamp() 连续插值，断点只用来切换模式 / 列数。
    --sgx-page-m：左右页边距（手机 < 600px 固定 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px，两头封顶）。
    --sgx-tb-btn / --sgx-tb-gap：顶栏高 / 间距，600 宽 52 / 8 线性到 840 宽 56 / 12（< 600 仍是 52 / 8）。
-   --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop 1440（没有这个属性 = 没跑脚本，退回 1068）。
-   --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)；各站页面外框对齐它（顶栏不再定内容栏，P4-3 PR-4b；内容通栏另起 PR）。
+   --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop 100%（宽屏平铺 PR：桌面内容区通栏、不对齐顶栏；没有这个属性 = 没跑脚本，退回 1068）。
+   --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)；各站页面外框对齐它（顶栏不定内容栏：桌面 = 窗口宽 − 两侧页边距，顶栏仍按 --sgx-tb-w 居中）。
    布局模式（P4-3 PR-4b，Gray 2026-11-07 定稿）只有两种：手机 phone / 桌面 desktop。规则只有一份：共享外壳 layout-mode.js __sgxLayout()，四站 <head> 原样内联、首帧前写好
    data-sgx-layout（手动手机 / 桌面照办；自动 = 浏览器不是手机版网站模式就桌面，但视口 < 720 时手机；拖窗口 / 转屏按 matchMedia 重算，不刷新），
    tests/space/ui/shell/topbar-length.test.mjs 守着四站同一份。
@@ -30,7 +30,7 @@
 :root { --sgx-page-m: 16px; --sgx-content-max: 1068px; --sgx-shell-w: min(100% - 2 * var(--sgx-page-m), var(--sgx-content-max));
   --sgx-tb-w: min(100% - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px)), 640px); }
 :root[data-sgx-layout="phone"] { --sgx-content-max: 640px; }
-:root[data-sgx-layout="desktop"] { --sgx-content-max: 1440px;
+:root[data-sgx-layout="desktop"] { --sgx-content-max: 100%;
   --sgx-tb-w: min(clamp(720px, 60vw, 960px), 100% - max(24px, env(safe-area-inset-left, 0px)) - max(24px, env(safe-area-inset-right, 0px))); }
 :root[data-sgx-layout="desktop"][data-sgx-device="phone"] {
   --sgx-tb-w: min(720px, 100% - max(24px, env(safe-area-inset-left, 0px)) - max(24px, env(safe-area-inset-right, 0px))); }
@@ -384,3 +384,19 @@
   html:not([data-sgx-layout="phone"]) .sgx-ent-li .sgx-ent { padding: 26px 24px; }
   .sgx-ent-title { font-size: 60px; }
 }
+/* ---- wide ---- */
+/* 宽屏平铺（Gray 2026-11-07，参考 rzcthink.top）：只在桌面布局（<html data-sgx-layout="desktop">，浏览器桌面版 / 手动「桌面」；不按像素断点）。手机布局一律不变。
+   - 内容区通栏：桌面 --sgx-content-max = 100%（topbar-frame 段），外壳框 --sgx-shell-w = 窗口宽 − 两侧页边距，不对齐顶栏（顶栏仍 --sgx-tb-w 居中）。
+   - 内容页去卡片：文字直接铺在背景上，块与块、栏与栏之间用细线（--sgx-wide-line）分开。
+   - 可交互模块保留卡片：屏幕时间、风格页（调色板，设计不动）、快捷面板 / AI 窗口、表单（安全 / 账号）、锁屏、音乐播放器，不挂下面这些类。
+   公共件（各站挂到自己的标记上；JS 画的卡片各站在自己的 CSS 里按同样的值去卡片）：
+     .sgx-flat       去卡片：没有底色、描边、阴影、圆角、毛玻璃
+     .sgx-wide-cols  多栏：每栏至少 --sgx-wide-col（默认 300px）自动排列，栏间细竖线、行间细横线（第一栏左边、第一行上边没有线：容器裁掉）
+     .sgx-wide-h     栏组标题：小字、字距、次要文字色，下边一条细线 */
+:root { --sgx-wide-line: var(--sgx-divider); --sgx-wide-col: 300px; --sgx-wide-pad: clamp(20px, 1.4vw + 8px, 32px); }
+:root[data-sgx-layout="desktop"] .sgx-flat { background: transparent; border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-sgx-layout="desktop"] .sgx-wide-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--sgx-wide-col)), 1fr)); gap: 0;
+  overflow: hidden; margin-left: calc(-1 * var(--sgx-wide-pad)); margin-right: calc(-1 * var(--sgx-wide-pad)); }
+:root[data-sgx-layout="desktop"] .sgx-wide-cols > * { min-width: 0; box-sizing: border-box; padding: 24px var(--sgx-wide-pad); box-shadow: -1px 0 0 0 var(--sgx-wide-line), 0 -1px 0 0 var(--sgx-wide-line); }
+:root[data-sgx-layout="desktop"] .sgx-wide-h { margin: 0; padding: 0 0 12px; border-bottom: 1px solid var(--sgx-wide-line);
+  font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--sgx-text-secondary); }
