@@ -15,6 +15,7 @@
  * | /api/prefs*     | ACCOUNT | 进门；账号会话 + prefs.sync 在账号 Worker 里查                        |
  * | /api/avatar*    | ACCOUNT | 进门；PUT / DELETE 在账号 Worker 里查账号会话 + avatar.write          |
  * | /api/wellbeing* | ACCOUNT | 进门（账号未登录时 POST 204）                                        |
+ * | /api/profile*   | ACCOUNT | 进门；GET 不要账号会话，PUT 在账号 Worker 里查账号会话 + profile.write |
  * | /avatar/*       | ACCOUNT | 公开（AVATAR_FILE_RE 已在白名单）                                    |
  *
  * 匹配：/api/* 条目 = 路径本身或其子路径（p 或 p + '/…'，与 gate.js 白名单同一规则，门和转发永远对得上；
@@ -72,6 +73,7 @@ export const FORWARDING = Object.freeze([
   Object.freeze({ path: '/api/prefs', binding: 'ACCOUNT', gate: 'session' }),
   Object.freeze({ path: '/api/avatar', binding: 'ACCOUNT', gate: 'session' }),
   Object.freeze({ path: '/api/wellbeing', binding: 'ACCOUNT', gate: 'session' }),
+  Object.freeze({ path: '/api/profile', binding: 'ACCOUNT', gate: 'session' }),
   Object.freeze({ path: '/avatar/', binding: 'ACCOUNT', gate: 'public' }),
 ]);
 
