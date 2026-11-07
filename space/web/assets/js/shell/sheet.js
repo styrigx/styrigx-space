@@ -43,6 +43,11 @@ function ensure() {
   on(dlg, 'click', function (/** @type {MouseEvent} */ e) {
     onDialogBackdrop(e, dlg);
   });
+  /* 不经 closeSheet 被关掉（浏览器强制关闭、别的代码直接 close()）：同样清掉开 / 关动画类，关着的弹层不留在页面上 */
+  on(dlg, 'close', function () {
+    closing = false;
+    if (dlg) dlg.classList.remove('sgx-open', 'sgx-closing');
+  });
   /* 批次 A 收尾 A2：原生 cancel（Esc/返回）时，键盘开着先收键盘，键盘收起才关闭 */
   on(dlg, 'cancel', function (/** @type {Event} */ e) {
     onDialogCancel(e, dlg, function (reason) { closeSheet(reason); });
@@ -82,6 +87,10 @@ export function closeSheet(reason) {
   recordDialogClose('sheet', reason || 'unknown');
   if (!ensure() || !dlg || !dlg.open || closing) return;
   closing = true;
+  /* 2026-11-07 修：关闭时去掉 sgx-open（以前一直留着）。宽屏 / DeX 版面 dialog#sheet-wrap.sgx-open 有 display:flex，
+     盖过浏览器给关着的 <dialog> 的 display:none——关掉后整块弹层（标题「头像」等）以普通元素留在页面顶部、被顶栏压住半截
+     （Gray 真机：三星浏览器 S23 Ultra /zh/account/ 换头像后）。去掉 sgx-open 也让退出动画真的生效（面板滑下 / 淡出）。 */
+  dlg.classList.remove('sgx-open');
   dlg.classList.add('sgx-closing');
   window.setTimeout(function () {
     closing = false;

@@ -7197,6 +7197,8 @@
     max-width: none; max-height: none;
     &::backdrop { background: rgba(0, 0, 0, .4); opacity: 0; transition: opacity .25s; }
     &.sgx-open::backdrop { opacity: 1; }
+    /* 2026-11-07：关着的弹层永远不显示（下面宽屏版面的 display:flex 不能盖过 dialog 关着时的 display:none） */
+    &:not([open]) { display: none; }
   }
   /* 手机：底部弹层 */
   .layout-mobile dialog#sheet-wrap {
@@ -7216,7 +7218,8 @@
   .layout-dex {
     dialog#sheet-wrap {
       margin: auto; width: 100%; max-width: 22rem;
-      &.sgx-open, &.sgx-closing { display: flex; align-items: center; justify-content: center; }
+      /* 只在真开着时（[open]）：类名留着、dialog 已关的那一刻也不能把它画出来（2026-11-07 修） */
+      &[open].sgx-open, &[open].sgx-closing { display: flex; align-items: center; justify-content: center; }
     }
     #sheet-panel {
       position: relative; width: 100%; border-radius: 1.75rem; background: var(--glass-tint);
