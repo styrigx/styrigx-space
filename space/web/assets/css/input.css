@@ -6914,7 +6914,10 @@
   }
   /* One UI 式入场：只在本次会话第一次进入时播放（刷新/站内跳转不播） */
   h1, h2, h3 { letter-spacing: -0.02em; }
-  @keyframes fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+  /* 起点 opacity 不用 0（P4-3 PR-4c CI 修）：Chromium 不把 opacity:0 时画出来的内容记为 LCP 候选，淡入结束也不补记；
+     子页（/theme/ 等）的正文整块都在 .animate-fade-up 里，首次进入时整页没有 LCP（Lighthouse NO_LCP，性能分出不来）。
+     .01 肉眼看不出差别，首帧就算绘制，LCP 照常产出 */
+  @keyframes fade-up { from { opacity: .01; transform: translateY(24px); } to { opacity: 1; transform: none; } }
   .sgx-first-visit .animate-fade-up { animation: fade-up .7s cubic-bezier(.22,1,.36,1) both; }
   /* 页面骨架：页脚沉底 */
   body { display: flex; flex-direction: column; min-height: 100dvh; }

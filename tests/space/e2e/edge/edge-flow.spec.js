@@ -20,7 +20,9 @@ const { addVirtualAuth } = require('../helpers/preview-helpers.cjs');
 
 test.use({ launchOptions: { args: LAUNCH.args }, proxy: LAUNCH.proxy, viewport: { width: 412, height: 915 },
   userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/27.0 Chrome/125.0.0.0 Mobile Safari/537.36',
-  timezoneId: 'Asia/Shanghai', locale: 'zh-CN' });
+  timezoneId: 'Asia/Shanghai', locale: 'en-US' });
+/* P4-3 PR-4c：英文默认、中文 /zh/。网关的锁屏地址是默认语言的 /?lock=1，这里用英文浏览器，地址就是网关给的那个，不经首帧语言跳转；
+   中文浏览器（跳到 /zh/?lock=1、再回跳）那条路在文件末尾「中文浏览器」一组单独测 */
 
 
 const MAIN = 'https://styrigx.com';
@@ -492,5 +494,34 @@ test.describe('R9 分享短链', () => {
     const ok = await page.request.get(MAIN + link.path, { maxRedirects: 0, ignoreHTTPSErrors: true });
     expect(ok.headers()['location']).toBe('https://styrigx.com/');
     expect(ok.headers()['set-cookie'] || '').toMatch(/sgx-lock-session=tempkey\.\d+\./);
+  });
+});
+
+/* P4-3 PR-4c：中文浏览器。网关照样 302 到默认语言的 /?lock=1，首帧语言跳转再换成 /zh/?lock=1（查询串原样带着）；
+   中文地址也要过网关（锁屏页带 data-sgx-lock-session）、放行名单认 /zh/…，解锁后照样回到原地址 */
+test.describe('中文浏览器（首帧语言跳转到 /zh/）', () => {
+  test.use({ locale: 'zh-CN' });
+
+  test('R1 blog 直接打开 → /zh/?lock=1（return 原样）→ 通行密钥 → 回到 blog 原地址', async ({ page }) => {
+    await addAuthenticator(page);
+    await page.goto(BLOG + '/post/hello/');
+    await page.waitForURL((u) => u.pathname === '/zh/' && u.searchParams.get('lock') === '1', { timeout: 15000 });
+    expect(new URL(page.url()).searchParams.get('return')).toBe(BLOG + '/post/hello/');
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
+    await openMethods(page);
+    await page.click('#sgx-mopt-pk');
+    await page.waitForURL(BLOG + '/post/hello/', { timeout: 20000 });
+    await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT blog');
+  });
+
+  test('R4 临时钥匙进门的人在 /zh/security/ 点「锁屏凭证」→ /zh/security/lock/，页面自己的门要复验（不出全局锁屏）', async ({ page, context }) => {
+    await setSession(context, 'tempkey');
+    await page.goto(MAIN + '/zh/security/');
+    await page.click('#sec-lock-cred');
+    await page.waitForURL(MAIN + '/zh/security/lock/', { timeout: 15000 });
+    await expect(page.locator('#lock-reauth')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#lockmgr')).toBeHidden();
+    expect(await lockShownWithin(page, 300)).toBe(false);
+    expect(await sessionBy(page)).toBe('tempkey');
   });
 });

@@ -92,14 +92,15 @@ async function setup(page) {
   await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [] });
 }
 
-const LOCK_URL = '/security/lock/';
+/* P4-3 PR-4c：英文默认、中文 /zh/。本文件 setup 固定 sgx-lang=zh、断言中文文案，所以直接走中文地址（不经首帧语言跳转） */
+const LOCK_URL = '/zh/security/lock/';
 
 test.describe('安全与隐私：只剩锁屏凭证入口', () => {
   test.beforeEach(async ({ page }) => { await setup(page); });
 
   test('锁屏凭证行链到锁屏凭证页；没有管理凭证 / 应用', async ({ page }) => {
     await mockLockDoor(page);
-    await page.goto('/security/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/security/', { waitUntil: 'domcontentloaded' });
     const row = page.locator('#sec-lock-cred');
     await expect(row).toBeVisible({ timeout: 15000 });
     await expect(row).toContainText('锁屏凭证');

@@ -8,6 +8,6 @@ export const INLINE_SCRIPT_HASHES = Object.freeze([
   'sha256-EXXy0XPvXTtUhwj3HaX4YeIspqPULX4vksSB4X+ltm4=', // 404.html（30 页）: document.documentElement.classList.add('no-module');
   'sha256-FEweR2S8GQoFITD46Ym/ONW0WtcGzMDNUoDVH4fLS/o=', // 404.html（30 页）: (()=>{var p=["blog","curio","daymark"],L=new RegExp("^/("+p.
   'sha256-OJmjzPv5GPxJWCxz5XsqT+kxRohb5rwl7RHxVEolbkA=', // about/index.html（2 页）: document.getElementById('copy-year').textContent=new Date().
+  'sha256-PlaJWDLqr4EAqLojCYCQNd2s/cWllJVH2MMm6J5a6QU=', // 404.html（30 页）: addEventListener('pagereveal',function(e){window.__sgxReveal
   'sha256-VajZvo+PZeKs6fu52IKLef5vJXN5sw2nr52wct/ekCE=', // 404.html（30 页）: function __sgxUaMobile(){try{var t=navigator,e=t.userAgentDa
-  'sha256-bFkNzzXoq058B2Rkxeu4od1aSAG8M7Yo0LD7pTUzjDs=', // 404.html（30 页）: addEventListener('pagereveal',function(e){window.__sgxReveal
 ]);

@@ -105,7 +105,9 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
       if(L){
         var _want=_lg==='zh'||_lg==='en'?_lg:L.systemLang();
         var _go=L.langSwitch(_want,location);
-        if(_go)location.replace(_go);
+        /* 跳之前记下这次打开的来源（referrer）：跳过去的那份文档 referrer 变成本页（同源），
+           navhistory.js 就认不出「直接打开子页」、不插主页历史了；它读 sgx-lang-hop 还原（只认跳到的那个地址，用一次就删） */
+        if(_go){window.__sgxLangGo=1;try{sessionStorage.setItem('sgx-lang-hop',JSON.stringify({go:_go,ref:document.referrer||''}))}catch(e){}location.replace(_go)}
       }
     }catch(e){}
     /* 入场动画：只在本次会话第一次进入时播放，刷新/站内跳转不播 */
