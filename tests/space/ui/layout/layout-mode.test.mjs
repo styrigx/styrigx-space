@@ -95,7 +95,8 @@ test('layoutNarrow（旧接口）恒 false：桌面任何时候都能选', () =>
 });
 
 test('layout-mode.js：没有像素断点以外的规则（不再有 840 / 980 / 横屏判断），只有自动里 720 那一条（另有设备档屏幕短边 600、虚拟视口 1.25 倍两个比例）', () => {
-  const code = lib.replace(/\/\*[\s\S]*?\*\//g, '');
+  /* 980 只许出现在「手动桌面 + 手机屏」的固定视口宽 __SGX_DESKTOP_VW 那一行（不是断点） */
+  const code = lib.replace(/\/\*[\s\S]*?\*\//g, '').replace(/var __SGX_DESKTOP_VW=980;/, '');
   assert.doesNotMatch(code, /840|980|innerHeight|orientation:\s*landscape/);
   assert.match(code, /w<720\)return 'phone'/);
   assert.match(code, /w>s\[0\]\*1\.25/);
@@ -126,4 +127,88 @@ test('设备档 resolveDevice：手机 UA / 粗指针 + 短边 < 600 → phone�
   assert.equal(resolveDevice(false, false, 384), 'desktop'); // 细指针（电脑窄窗口不算）
   assert.equal(resolveDevice(false, true, 800), 'desktop'); // 平板 / 触屏电脑
   assert.equal(resolveDevice(false, true, 600), 'desktop');
+});
+
+/* ---------- 手动桌面 + 手机屏 → viewport 980（2026-11-07 Gray 真机：X 应用内浏览器选桌面只有顶栏变了） ---------- */
+/** 跑 layout-mode.js（带一个只有 viewport / color-scheme / theme-color meta 的假 document）：回 { meta, synced, auto, api } */
+function withDoc({ pref = null, screen = { width: 384, height: 824 }, ua = PHONE_UA, w = 384, dark = false, coarse = true, content = 'width=device-width, initial-scale=1' } = {}) {
+  const store = new Map(pref == null ? [] : [['sgx-layout', pref]]);
+  const localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
+  const mk = (attrs) => ({ a: { ...attrs }, getAttribute(k) { return k in this.a ? this.a[k] : null; }, setAttribute(k, v) { this.a[k] = String(v); } });
+  const vp = mk({ name: 'viewport', content });
+  const cs = mk({ name: 'color-scheme', content: 'light dark' });
+  const tc = [mk({ name: 'theme-color', content: '#f5f8fa' }), mk({ name: 'theme-color', content: '#10151a', media: '(prefers-color-scheme: dark)' })];
+  const styles = [];
+  const html = { getAttribute: (k) => (k === 'data-dark' ? (dark ? '1' : '0') : null), classList: { contains: (c) => c === 'dark' && dark }, clientWidth: w };
+  const head = { firstChild: null, insertBefore(el) { styles.unshift(el); } };
+  const document = {
+    documentElement: html, head,
+    querySelector: (sel) => (sel === 'meta[name="viewport"]' ? vp : null),
+    querySelectorAll: (sel) => (sel === 'meta[name="color-scheme"]' ? [cs] : sel === 'meta[name="theme-color"]' ? tc : []),
+    getElementById: () => null,
+    createElement: () => ({ id: '', textContent: '' }),
+  };
+  const window = { innerWidth: w, matchMedia: (q) => ({ matches: q === '(pointer: coarse)' ? coarse : false }) };
+  const fn = new Function('window', 'localStorage', 'location', 'navigator', 'URLSearchParams', 'screen', 'document',
+    lib + '\nreturn { sync: __sgxViewportSync, auto: __sgxLayoutAuto, forced: __sgxViewportForced, layout: __sgxLayout };');
+  const api = fn(window, localStorage, { search: '' }, { userAgent: ua }, URLSearchParams, screen, document);
+  return { vp, cs, tc, styles, api, store };
+}
+
+test('手动桌面 + 手机屏（S23 Ultra 384 宽）：加载时 viewport 改成 width=980，原值记在 data-sgx-vp', () => {
+  const r = withDoc({ pref: 'desktop' });
+  assert.equal(r.vp.getAttribute('content'), 'width=980');
+  assert.equal(r.vp.getAttribute('data-sgx-vp'), 'width=device-width, initial-scale=1');
+  assert.equal(r.api.forced(), true);
+  assert.equal(r.api.layout(), 'desktop');
+  /* 再同步一次不再变（不会反复重载） */
+  assert.equal(r.api.sync(), false);
+});
+
+test('手动桌面时「自动」按 UA 算（视口宽是我们改的，不能拿来判断）：手机 UA → 手机，桌面 UA（三星桌面版网站）→ 桌面', () => {
+  assert.equal(withDoc({ pref: 'desktop', w: 980 }).api.auto(), 'phone');
+  assert.equal(withDoc({ pref: 'desktop', w: 980, ua: DESK_UA }).api.auto(), 'desktop');
+});
+
+test('换回自动 / 手机：viewport 还原，sync() 回 true（快捷面板据此整页重载）', () => {
+  const r = withDoc({ pref: 'desktop' });
+  r.store.set('sgx-layout', 'auto');
+  assert.equal(r.api.sync(), true);
+  assert.equal(r.vp.getAttribute('content'), 'width=device-width, initial-scale=1');
+  assert.equal(r.api.forced(), false);
+  r.store.set('sgx-layout', 'phone');
+  assert.equal(r.api.sync(), false);
+});
+
+for (const [label, o] of [
+  ['自动（手机）', { pref: null }],
+  ['手机偏好', { pref: 'phone' }],
+  ['平板（短边 800）手动桌面', { pref: 'desktop', screen: { width: 1280, height: 800 }, ua: TABLET_UA, w: 1280 }],
+  ['电脑 / DeX（1920×1080）手动桌面', { pref: 'desktop', screen: { width: 1920, height: 1080 }, ua: DESK_UA, w: 1920 }],
+  ['三星桌面版网站（UA 报桌面、自动）', { pref: null, ua: DESK_UA, w: 980 }],
+  ['电脑上屏幕很小的窗口（桌面 UA、细指针，屏幕 412）手动桌面', { pref: 'desktop', ua: DESK_UA, coarse: false, screen: { width: 412, height: 915 }, w: 412 }],
+]) {
+  test(`viewport 不动：${label}`, () => {
+    const r = withDoc(o);
+    assert.equal(r.vp.getAttribute('content'), 'width=device-width, initial-scale=1');
+    assert.equal(r.api.forced(), false);
+  });
+}
+
+test('首帧底色：本站深色（系统浅色）→ color-scheme / theme-color 改成深色，<head> 最前面插最低层的 html 底色', () => {
+  const r = withDoc({ dark: true });
+  assert.equal(r.cs.getAttribute('content'), 'dark');
+  assert.deepEqual(r.tc.map((m) => m.getAttribute('content')), ['#10151a', '#10151a']);
+  assert.equal(r.styles.length, 1);
+  assert.equal(r.styles[0].id, 'sgx-first-paint');
+  assert.equal(r.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#0a0e10;color-scheme:dark}}');
+  const l = withDoc({ dark: false });
+  assert.equal(l.cs.getAttribute('content'), 'light');
+  assert.equal(l.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#f2f6f7;color-scheme:light}}');
+});
+
+test('默认调色板的首帧底色 = palettes.json 雾霾蓝 bg-1（换了默认调色板要跟着改）', () => {
+  const pal = JSON.parse(readFileSync(path.join(REPO, 'space/web/shared/shell/palettes.json'), 'utf8'));
+  const def = pal.presets.find((p) => p.id === pal.default);
+  assert.match(lib, new RegExp("bg=dk\\?'" + def.tokens.dark['bg-1'] + "':'" + def.tokens.light['bg-1'] + "'"));
 });
