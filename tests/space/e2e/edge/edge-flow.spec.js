@@ -55,7 +55,15 @@ test.beforeEach(async ({ context }) => {
     const seen = () => {
       if (document.getElementById('sgx-lock')) window.__sawLock = true;
       /* 登录区：节点出现就算（不论是否 hidden）；文案出现也算 */
-      if (document.getElementById('acct-login') || (document.body && /欢迎回来|Welcome back/.test(document.body.textContent || ''))) window.__sawLogin = true;
+      /* 只看可见文字：<script> 里的页面字符串表（#sgx-i18n-core 有锁屏的「欢迎回来」，语言包化 2026-11-07）不算 */
+      const visibleText = () => {
+        if (!document.body) return '';
+        const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.parentNode && /^(SCRIPT|STYLE|TEMPLATE)$/.test(n.parentNode.nodeName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+        let out = '';
+        while (w.nextNode()) out += w.currentNode.nodeValue;
+        return out;
+      };
+      if (document.getElementById('acct-login') || /欢迎回来|Welcome back/.test(visibleText())) window.__sawLogin = true;
       const m = document.getElementById('acct-main');
       if (m && !m.hidden) window.__sawMain = true;
     };

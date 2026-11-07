@@ -1,16 +1,19 @@
 <!DOCTYPE html>
-{{ $isEn := eq .Lang "en" }}
+{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" $lang $lang }}
 {{/* 自定义主题色引擎（共享外壳 palette-scheme.js）：只在 cookie 是自定义色且本站还没缓存时，由共享读端 SgxUI.apply 的 onMiss 按需加载 */}}
 {{ $shellAccent := resources.Get "js/sgx/shell-accent.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint }}
-<html lang="{{ if $isEn }}en{{ else }}zh{{ end }}" class="scroll-smooth" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}">
+<html lang="{{ $lang }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f5f8fa">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
-<title>{{ if .IsHome }}{{ if $isEn }}Daymark{{ else }}日刻{{ end }}{{ else }}{{ .Title }} | {{ if $isEn }}Daymark{{ else }}日刻{{ end }}{{ end }}</title>
-<meta name="description" content="{{ if $isEn }}Sloan Gray's Daymark: lines worth keeping, one a day{{ else }}{{ .Site.Params.description }}{{ end }}">
+{{/* 404 的 .Title 是 Hugo 内置英文「404 Page not found」，不随语言：改用字符串表的页名 */}}
+{{/* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，站名走字符串表 site.name；页名就是站名（首页）时只显示站名 */}}
+{{ $docTitle := .Title }}{{ if .IsHome }}{{ $docTitle = $tr.site.name }}{{ else if eq .Kind "404" }}{{ $docTitle = $tr.baseof.pageNotFound }}{{ end }}
+<title>{{ if eq $docTitle $tr.site.name }}{{ $docTitle }}{{ else }}{{ $docTitle }} | {{ $tr.site.name }}{{ end }}</title>
+<meta name="description" content="{{ $tr.site.description }}">
 {{/* P4-3 PR-4c：canonical + hreflang（英文默认、不带前缀 = x-default；中文 /daymark/zh/），地址来自 Hugo 的语言版本 */}}
 {{ if ne .Kind "404" }}<link rel="canonical" href="{{ .Permalink }}">
 {{ range .AllTranslations }}<link rel="alternate" hreflang="{{ .Language.Lang }}" href="{{ .Permalink }}">
@@ -26,6 +29,9 @@
 {{/* 外观 + 语言预读（渲染前）——继承主站 sgx-ui cookie 的深浅色、调色板、强调色、字体大小、减弱动效和语言；
      没有 cookie 时跟系统（日刻没有自己的开关） */}}
 {{/* 共享外壳读端 ui-cookie-read.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，挂 window.SgxUI；紧跟 ui-inherit-run.js 调 SgxUI.apply */}}
+{{/* 首帧语言跳转（语言清理 2026-11-07：四站同一份共享外壳 lang-boot.js，勿手改）：偏好明确语言 → 那种语言；跟随系统 / 旧版的空 → 浏览器语言；
+   和本页不同就 replace 到同一页的那种语言（每页都跳，不只首页） */}}
+<script>{{ (resources.Get "js/sgx/shell/lang-boot.js" | js.Build (dict "format" "iife" "minify" true "target" "es2017")).Content | safeJS }}</script>
 <script>{{ (resources.Get "js/sgx/shell/ui-cookie-read.js" | minify).Content | safeJS }}</script>
 <script>{{ (resources.Get "js/sgx/ui-inherit-run.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018")).Content | safeJS }}</script>
 {{/* 布局模式：共享外壳 layout-mode.js（主站唯一来源，sync-shell 同步，勿手改）原样内联，四站同一条规则 __sgxLayout()（手机 / 桌面，P4-3 PR-4b） */}}
@@ -57,13 +63,13 @@ __sgxLayoutWatch(__applyLayout);
      深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条，同源后主站同步生效）。
    JS：js/sgx/topbar-host.js（共享外壳 topbar.js + modal-sheet.js + ai.js + prefs-write.js + share.js）。外观和语言跟主站（sgx-ui cookie，见 ui-inherit-run.js）。 */}}
 {{ $pageName := .Title }}
-{{ if eq .Kind "404" }}{{ $pageName = cond $isEn "Page not found" "页面不存在" }}{{ end }}
+{{ if eq .Kind "404" }}{{ $pageName = $tr.baseof.pageNotFound }}{{ end }}
 {{ $shellNav := resources.Get "sgx-shell/nav.json" | transform.Unmarshal }}
 {{ $center := "" }}
 {{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿；顶栏不再有分区页签）。首页 = 站名，切到页内分区（hash）时脚本把胶囊换成分区名
    （data-sgx-titles：[站名, 第二个分区, 第三个分区]，顺序同页签；第一个分区就是首页本身）。分区入口在首页正文（共享外壳平铺入口）。 */}}
 {{ if .IsHome }}
-{{ $titles := slice (cond $isEn "Daymark" "日刻") (cond $isEn "Trove" "拾录") (cond $isEn "Flavors" "百味") }}
+{{ $titles := slice ($tr.site.name) ($tr.baseof.trove) ($tr.baseof.flavors) }}
 {{ $center = printf "<span class=\"sgx-tb-title\" data-sgx-titles=\"%s\">%s</span>" ($titles | jsonify | htmlEscape) (index $titles 0 | htmlEscape) }}
 {{ else }}
 {{ $center = printf "<span class=\"sgx-tb-title\">%s</span>" (htmlEscape $pageName) }}
@@ -73,6 +79,8 @@ __sgxLayoutWatch(__applyLayout);
 {{ range .Translations }}{{ if not $langHref }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}
 {{ if not $langHref }}{{ range site.Home.AllTranslations }}{{ if ne .Language.Lang $.Language.Lang }}{{ $langHref = .RelPermalink }}{{ end }}{{ end }}{{ end }}
 {{/* 调色板色块的变量（同主站 partials/palette-tile-vars.html 的 full=false：--pl-b1..7 / --pl-f1..6，深色 --pd-*），取自共享外壳 palettes.json */}}
+{{/* 选项顺序 = languages.<语言>.params.pickerWeight（没写按 weight）：快捷面板沿用「跟随系统 / 中文 / English」，和 features.yaml lang 选项同序；hugo.Sites 总是默认语言（英文）在前，不能直接用 */}}
+{{ $tbLangs := slice }}{{ range hugo.Sites }}{{ $tbLangs = $tbLangs | append (dict "code" .Language.Lang "name" .Language.Label "w" (.Language.Params.pickerWeight | default .Language.Weight)) }}{{ end }}{{ $tbLangs = sort $tbLangs "w" }}
 {{ $pal := slice }}
 {{ range (resources.Get "sgx-shell/palettes.json" | transform.Unmarshal).presets }}
 {{ $s := "" }}{{ $p := . }}
@@ -80,10 +88,12 @@ __sgxLayoutWatch(__applyLayout);
 {{ range $n := seq 7 }}{{ $s = printf "%s--%s-b%d:%s;" $s $k $n (index $tk (printf "bg-%d" $n)) }}{{ end }}
 {{ range $n := seq 6 }}{{ $s = printf "%s--%s-f%d:%s;" $s $k $n (index $tk (printf "fg-%d" $n)) }}{{ end }}
 {{ end }}
-{{ $pal = $pal | append (dict "id" $p.id "zh" $p.zh "en" $p.en "style" $s) }}
+{{ $pal = $pal | append (dict "id" $p.id "style" $s) }}
 {{ end }}
 {{ partial "sgx-shell-topbar.html" (dict
-  "isEn" $isEn
+  "lang" .Lang
+  "tr" (partialCached "sgx-tr.html" .Lang .Lang).shell
+  "langs" $tbLangs
   "home" site.Home.RelPermalink
   "center" $center
   "nav" $shellNav
@@ -91,7 +101,7 @@ __sgxLayoutWatch(__applyLayout);
   "icons" $shellNav.icons
   "wordmark" $shellNav.wordmark
   "mainOrigin" "https://styrigx.com"
-  "acct" (partial "sgx-lang-path.html" (dict "path" $shellNav.me.href "lang" (cond $isEn "en" "zh")))
+  "acct" (partial "sgx-lang-path.html" (dict "path" $shellNav.me.href "lang" .Lang))
   "avatar" $shellNav.me.avatar
   "langHref" $langHref
   "pal" $pal

@@ -15,30 +15,13 @@ import { createVerifyDialog } from './auth-sheet.js';
 import { renderAccountMethods } from './account-methods.js';
 import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from './passkey-assert.js';
 import { lockReauthFetch } from './auth-flow.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上，缺键回退英文） */
+const ct = i18nTable('core');
 
 /** 锁屏侧文案（和锁屏凭证页门口一致；账号页的 i18n 里同名键是账号侧说法，所以这里自带） */
-const STR = {
-  zh: {
-    title: '验证锁屏凭证',
-    mPasskey: '锁屏通行密钥', mPasskeySub: '使用指纹或设备锁屏',
-    mPassword: '解锁密码', mPasswordSub: '输入解锁密码',
-    mSpace: '进站凭证', mSpaceSub: '粘贴或输入进站凭证',
-    verifyBtn: '验证', enterCred: '请输入凭证', passkeyBusy: '正在唤起通行密钥…',
-    errWrongPw: '密码错误', errWrongSpace: '进站凭证不正确', errWrongRoot: '进站凭证不正确',
-    errLocked: '尝试次数过多，请稍后再试', errConfig: '服务器配置有误', errVerify: '验证失败',
-    errNetwork: '网络连接失败，请重试', pkNoSupport: '设备不支持', errSession: '会话已过期，请回锁屏重新解锁',
-  },
-  en: {
-    title: 'Verify lock screen credential',
-    mPasskey: 'Lock screen passkey', mPasskeySub: 'Use fingerprint or device screen lock',
-    mPassword: 'Unlock password', mPasswordSub: 'Enter unlock password',
-    mSpace: 'Space credential', mSpaceSub: 'Paste or enter space credential',
-    verifyBtn: 'Verify', enterCred: 'Enter credential', passkeyBusy: 'Opening passkey…',
-    errWrongPw: 'Wrong password', errWrongSpace: 'Incorrect space credential', errWrongRoot: 'Incorrect space credential',
-    errLocked: 'Too many attempts, please try again later', errConfig: 'Server misconfigured', errVerify: 'Verification failed',
-    errNetwork: 'Network connection failed, please retry', pkNoSupport: 'Not supported on this device', errSession: 'Session expired. Unlock again from the lock screen',
-  },
-};
+/** 锁屏侧文案在字符串表 js.core.lr*（和锁屏凭证页门口一致；账号页同名键是账号侧说法，所以单独一组；语言包化 2026-11-07） */
+const STR = new Proxy(/** @type {Record<string,string>} */ ({}), { get: function (_o, k) { return typeof k === 'string' ? ct('lr' + k.charAt(0).toUpperCase() + k.slice(1)) : undefined; } });
 
 /** @param {string} url @param {any} body */
 function post(url, body) {
@@ -78,7 +61,7 @@ export function lockReauthStatus() {
  */
 export function openLockReauth(opts) {
   const en = opts && typeof opts.en === 'boolean' ? opts.en : document.documentElement.lang === 'en';
-  const T = en ? STR.en : STR.zh;
+  const T = STR;
   /** @param {string} k */
   const t = function (k) { return /** @type {any} */ (T)[k] || k; };
   return lockReauthStatus().then(function (st) {

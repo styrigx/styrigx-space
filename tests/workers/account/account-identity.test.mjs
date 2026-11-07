@@ -511,7 +511,7 @@ test('passkey-list：{ by, userHandle, userName:AccountKey, displayName, keys[] 
   assert.equal(j.userHandle, '');
   assert.equal(j.userName, 'AccountKey');
   assert.equal(j.displayName, 'Sloan Gray');
-  assert.deepEqual(j.keys, [{ credId: a.credId, name: 'Pixel', provider: 'Google 密码管理器', createdAt: 5, lastUsedAt: 6 }]);
+  assert.deepEqual(j.keys, [{ credId: a.credId, name: 'Pixel', provider: 'google-password-manager', createdAt: 5, lastUsedAt: 6 }], '旧库存的中文 provider 显示名读时归一成 id');
   assert.equal(one(env, 'SELECT * FROM user_handle'), null, 'list 不创建 handle');
   setHandles(env, 'ACCT-H', 'LEGACY-H');
   const j2 = await (await post(env, { action: 'passkey-list' }, { 'sgx-account-session': await accSession('passkey') })).json();
@@ -866,4 +866,26 @@ test('login-password 旧记录（无 peppered 标记，按无 pepper 校验）�
   assert.equal(now.peppered, true);
   assert.notEqual(now.hash, old.hash);
   assert.equal((await post(env, { action: 'login-password', password: 'right-password-1' })).status, 200);
+});
+
+/* 语言清理（2026-11-07）：D1 不存显示文案。用户没起名 → name 存空、provider 存 id；旧库的中文默认名读出来是空（前端按语言显示默认名） */
+test('passkey 显示文案不进 D1：旧默认名「通行密钥」/ provider 显示名 → 空；provider 中文名 → id；用户自起的名字原样', async () => {
+  const env = makeEnv();
+  const a = await seedPasskey(env, { name: '通行密钥', provider: 'Apple 密码', createdAt: 1, lastUsedAt: 0 });
+  const b = await seedPasskey(env, { name: 'Google 密码管理器', provider: 'Google 密码管理器', createdAt: 2, lastUsedAt: 0 });
+  const c = await seedPasskey(env, { name: '我的 S24', provider: 'samsung-pass', createdAt: 3, lastUsedAt: 0 });
+  const j = await (await post(env, { action: 'passkey-list' }, { 'sgx-account-session': await accSession('passkey') })).json();
+  const byId = Object.fromEntries(j.keys.map((k) => [k.credId, k]));
+  assert.deepEqual([byId[a.credId].name, byId[a.credId].provider], ['', 'apple-passwords']);
+  assert.deepEqual([byId[b.credId].name, byId[b.credId].provider], ['', 'google-password-manager']);
+  assert.deepEqual([byId[c.credId].name, byId[c.credId].provider], ['我的 S24', 'samsung-pass'], '用户自起的名字属于个人信息类，原样');
+  for (const k of j.keys) assert.ok(!/[\u3400-\u9fff]/.test(k.provider), 'provider 只是 id');
+});
+
+test('源码：账号 Worker 不再把中文显示文案写进通行密钥记录', () => {
+  const src = readFileSync(new URL('../../../workers/account/src/api/account.js', import.meta.url), 'utf8');
+  const store = readFileSync(new URL('../../../workers/account/src/core/account-store.js', import.meta.url), 'utf8');
+  assert.ok(!/name:\s*[^\n]*'通行密钥'/.test(src + store), "不再有 name: … || '通行密钥'");
+  const map = store.slice(store.indexOf('const AAGUID_PROVIDERS'), store.indexOf('};', store.indexOf('const AAGUID_PROVIDERS')));
+  assert.ok(!/[\u3400-\u9fff]/.test(map), 'AAGUID 映射只存 id');
 });

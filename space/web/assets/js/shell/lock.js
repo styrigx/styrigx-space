@@ -29,6 +29,9 @@ import { mountResetFlow, resetT } from '../auth/reset-flow.js';
 import { sgxNavigate } from '../lib/diag-jumptrace.js';
 import { isLocalDev, pageState, askServer, proceed, bindAutoLock } from './lock-guard.js';
 import { langPath } from '../lib/lang-path.js';
+import { i18nTable, pageLang } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('core');
 
 const UNLOCK =
   '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/></svg>';
@@ -57,7 +60,7 @@ export function showLockScreen() {
   ov.id = 'sgx-lock';
   ov.setAttribute('role', 'dialog');
   ov.setAttribute('aria-modal', 'true');
-  ov.setAttribute('aria-label', en ? 'Lock screen' : '锁屏');
+  ov.setAttribute('aria-label', tx('lockLockScreen'));
   /* PR3 锁屏版面：保留锁屏的感觉（小锁 → 时钟 → 日期天气 → 日刻今日一句 → 头像解锁），
      整组在屏幕里垂直居中，不再「时钟顶在上面、头像压在底部、中间一大片空」。
      日刻卡只展示（div，不是链接，点了不跳转）；拉不到就不显示。
@@ -73,22 +76,22 @@ export function showLockScreen() {
     '<div class="sgx-lock-tb"><div class="sgx-topbar">' +
     '<span class="sgx-tb-logo" aria-hidden="true">' + tbLogo + '</span>' +
     /* 顶栏标题（2026-10-24）：静止时「锁定屏幕」，打开解锁方式 / 验证弹层时「解锁屏幕」（syncTitle） */
-    '<div class="sgx-tb-pill"><span class="sgx-tb-title" id="sgx-lock-title" aria-live="polite">' + (en ? 'Lock screen' : '锁定屏幕') + '</span></div>' +
+    '<div class="sgx-tb-pill"><span class="sgx-tb-title" id="sgx-lock-title" aria-live="polite">' + (tx('lockLockScreen2')) + '</span></div>' +
     '<span class="sgx-tb-acts" aria-hidden="true">' + tbActs + '</span>' +
     '</div></div>' +
     '<div class="sgx-lock-stage is-pending" id="sgx-lock-stage">' +
     '<div class="sgx-lock-user"><button type="button" id="sgx-lock-avatar" aria-label="' +
-    (en ? 'Unlock, choose method' : '解锁，选择方式') +
+    (tx('lockUnlockChooseMethod')) +
     '" aria-haspopup="dialog">' +
     '<span class="sgx-lock-halo" aria-hidden="true"></span>' +
     (avatarSrc
       ? '<img src="' + avatarSrc + '" alt="Styrigx" width="120" height="120">'
       : '<span class="sgx-lock-fb" aria-hidden="true">S</span>') +
     '</button>' +
-    '<p class="sgx-lock-welcome">' + (en ? 'Welcome back' : '欢迎回来') + '</p>' +
-    '<p class="sgx-lock-sub">' + (en ? 'Good to see you again' : '很高兴再次见到你') + '</p>' +
+    '<p class="sgx-lock-welcome">' + (tx('lockWelcomeBack')) + '</p>' +
+    '<p class="sgx-lock-sub">' + (tx('lockGoodToSeeYou')) + '</p>' +
     '<button type="button" class="sgx-credential-btn sgx-credential-btn-primary sgx-lock-go" id="sgx-lock-go" aria-haspopup="dialog">' +
-    UNLOCK + '<span>' + (en ? 'Unlock' : '解锁') + '</span></button>' +
+    UNLOCK + '<span>' + (tx('lockUnlock')) + '</span></button>' +
     '</div>' +
     '</div>';
   document.body.appendChild(ov);
@@ -164,7 +167,7 @@ export function showLockScreen() {
   function sessionCheckFailed() {
     done = false;
     try {
-      setTitle(en ? 'Session not active' : '会话未生效');
+      setTitle(tx('lockSessionNotActive'));
       setBody(
         '<p class="sgx-verify-failtx">' +
           (en
@@ -229,7 +232,7 @@ export function showLockScreen() {
     const el = document.getElementById('sgx-lock-title');
     if (!el) return;
     const unlocking = !!methodSheet || vd.isOpen();
-    el.textContent = unlocking ? (en ? 'Unlock screen' : '解锁屏幕') : (en ? 'Lock screen' : '锁定屏幕');
+    el.textContent = unlocking ? (tx('lockUnlockScreen')) : (tx('lockLockScreen2'));
   }
 
   /* 底层元素：弹层打开时隐藏并 inert，关闭时恢复 */
@@ -323,27 +326,27 @@ export function showLockScreen() {
     /** @type {import('../auth/auth-sheet.js').MethodOpt[]} */
     const opts = [
       /* 1. 临时钥匙（2026-10-23 取代 Turnstile） */
-      { id: 'sgx-mopt-tempkey', icon: METHOD_ICONS.tempkey, name: en ? 'Temporary key' : '临时钥匙',
-        desc: en ? 'Enter the temporary key you received' : '输入收到的临时钥匙',
-        ariaLabel: en ? 'Enter with a temporary key' : '用临时钥匙进门',
+      { id: 'sgx-mopt-tempkey', icon: METHOD_ICONS.tempkey, name: tx('lockTemporaryKey'),
+        desc: tx('lockEnterTheTemporaryKey'),
+        ariaLabel: tx('lockEnterWithATemporary'),
         onPick: function () { tapFeedback(); openTemp(); } },
     ];
     /* 2. 通行密钥（已配置且设备支持） */
-    if (showPk) opts.push({ id: 'sgx-mopt-pk', icon: METHOD_ICONS.passkey, name: en ? 'Passkey' : '通行密钥',
-      desc: en ? 'Unlock with fingerprint or device PIN' : '用指纹或设备 PIN 解锁',
-      ariaLabel: en ? 'Use passkey' : '使用通行密钥',
+    if (showPk) opts.push({ id: 'sgx-mopt-pk', icon: METHOD_ICONS.passkey, name: tx('lockPasskey'),
+      desc: tx('lockUnlockWithFingerprintOr'),
+      ariaLabel: tx('lockUsePasskey'),
       onPick: function () { tapFeedback(); openPk(); } });
     /* 3. 密码（已配置） */
-    if (showPw) opts.push({ id: 'sgx-mopt-pw', icon: METHOD_ICONS.password, name: en ? 'Password' : '密码',
-      desc: en ? 'Enter your unlock password' : '输入解锁密码',
-      ariaLabel: en ? 'Use password' : '使用密码',
+    if (showPw) opts.push({ id: 'sgx-mopt-pw', icon: METHOD_ICONS.password, name: tx('lockPassword'),
+      desc: tx('lockEnterYourUnlockPassword'),
+      ariaLabel: tx('lockUsePassword'),
       onPick: function () { tapFeedback(); openPw(); } });
     const ms = createMethodSheet({
-      ariaLabel: en ? 'Choose unlock method' : '选择解锁方式',
-      title: en ? 'Unlock' : '解锁',
+      ariaLabel: tx('lockChooseUnlockMethod'),
+      title: tx('lockUnlock'),
       options: opts,
       /* 4. PR3：「无法登录？」小字（原「重置锁屏」「进站凭证」两行合并到这里）：点了弹层原地切到重置登录 */
-      cant: { id: 'sgx-mopt-cant', text: en ? 'Can’t sign in?' : '无法登录？',
+      cant: { id: 'sgx-mopt-cant', text: tx('lockCantSignIn'),
         onClick: function (card) { tapFeedback(); openResetInSheet(card, cfg); } },
       /* 关闭一开始（Esc / 遮罩 / 下滑 / 选了方式 / closeMethodSheet）：清本地状态 */
       onClose: function () {
@@ -383,13 +386,13 @@ export function showLockScreen() {
       return;
     }
     dlgState = 'temp';
-    setTitle(en ? 'Enter temporary key' : '输入临时钥匙');
+    setTitle(tx('lockEnterTemporaryKey'));
     setBody(
       '<div class="sgx-pw-field"><input type="text" id="sgx-temp-input" class="sgx-pw-input sgx-temp-input" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="20" ' +
-        'aria-label="' + (en ? 'Temporary key' : '临时钥匙') + '" placeholder="XXXX-XXXX-XXXX"></div>' +
-        '<p class="sgx-temp-hint">' + (en ? 'Format XXXX-XXXX-XXXX, case doesn’t matter' : '格式 XXXX-XXXX-XXXX，不区分大小写') + '</p>' +
+        'aria-label="' + (tx('lockTemporaryKey')) + '" placeholder="XXXX-XXXX-XXXX"></div>' +
+        '<p class="sgx-temp-hint">' + (tx('lockFormatXxxxXxxxXxxx')) + '</p>' +
         '<p id="sgx-temp-count" class="sgx-pw-count" hidden></p>' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-temp-go">' + (en ? 'Enter' : '确定') + '</button>'
+        '<button type="button" class="sgx-verify-skip" id="sgx-temp-go">' + (tx('lockEnter')) + '</button>'
     );
     clearErr();
     if (!openDialog()) return;
@@ -434,7 +437,7 @@ export function showLockScreen() {
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-temp-input'));
     const code = input ? input.value.trim() : '';
     if (!code) {
-      showError(en ? 'Enter the temporary key' : '请输入临时钥匙', input);
+      showError(tx('lockEnterTheTemporaryKey2'), input);
       return;
     }
     fetch('/api/lock-tempkey-unlock', {
@@ -453,7 +456,7 @@ export function showLockScreen() {
         if (dlgState !== 'temp') return;
         const j = res.j;
         if (!j) {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(tx('lockServerError'));
           return;
         }
         if (j.ok) {
@@ -462,29 +465,29 @@ export function showLockScreen() {
         } else if (j.error === 'cooldown') {
           /* retryAfter（秒）：网关无会话总限流（src/core/anon-limit.js）给的；没有就是临时码自己的 15 分钟锁 */
           tempLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 15 * 60000);
-          showError(en ? 'Too many attempts' : '尝试次数过多');
+          showError(tx('lockTooManyAttempts'));
           tempCountdown();
         } else if (j.error === 'wrong' || j.error === 'code') {
           if (input) input.value = '';
-          showError(en ? 'Invalid or expired key' : '临时钥匙无效或已过期', input);
+          showError(tx('lockInvalidOrExpiredKey'), input);
         } else {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(tx('lockServerError'));
         }
       })
       .catch(function () {
         if (dlgState !== 'temp') return;
-        showError(en ? 'Network error' : '网络错误');
+        showError(tx('lockNetworkError'));
       });
   }
 
   /* ---------- 密码态（与验证态同一弹层） ---------- */
   function openPw() {
     dlgState = 'password';
-    setTitle(en ? 'Enter password' : '输入密码');
+    setTitle(tx('lockEnterPassword'));
     setBody(
-      pwFieldHtml({ id: 'sgx-pw-input', eyeId: 'sgx-pw-eye', autocomplete: 'current-password', pmUser: KEY_LOCK, ariaLabel: en ? 'Password' : '密码', placeholder: en ? 'Password' : '密码', en: en }) +
+      pwFieldHtml({ id: 'sgx-pw-input', eyeId: 'sgx-pw-eye', autocomplete: 'current-password', pmUser: KEY_LOCK, ariaLabel: tx('lockPassword'), placeholder: tx('lockPassword'), en: en }) +
         '<p id="sgx-pw-count" class="sgx-pw-count" hidden></p>' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-pw-go">' + (en ? 'Unlock' : '确定') + '</button>'
+        '<button type="button" class="sgx-verify-skip" id="sgx-pw-go">' + (tx('lockUnlock2')) + '</button>'
     );
     clearErr();
     if (!openDialog()) return;
@@ -532,7 +535,7 @@ export function showLockScreen() {
     const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
     const pw = input ? input.value : '';
     if (!pw) {
-      showError(en ? 'Enter password' : '请输入密码', input);
+      showError(tx('lockEnterPassword2'), input);
       return;
     }
     fetch('/api/lock-password', {
@@ -554,7 +557,7 @@ export function showLockScreen() {
         if (dlgState !== 'password') return;
         const j = res.j;
         if (!j) {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(tx('lockServerError'));
           return;
         }
         if (j.ok) {
@@ -563,20 +566,20 @@ export function showLockScreen() {
         } else if (j.error === 'cooldown') {
           /* retryAfter（秒）：网关无会话总限流给的；没有就是密码输错的 30 秒冷却 */
           pwLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 30000);
-          showError(en ? 'Too many attempts' : '尝试次数过多');
+          showError(tx('lockTooManyAttempts'));
           pwCountdown();
         } else if (j.error === 'not-set') {
-          showError(en ? 'No password set yet' : '尚未设置密码');
+          showError(tx('lockNoPasswordSetYet'));
         } else if (j.error === 'server') {
-          showError(en ? 'Server error' : '服务器错误');
+          showError(tx('lockServerError'));
         } else {
           if (input) input.value = '';
-          showError(en ? 'Wrong password' : '密码错误', input);
+          showError(tx('lockWrongPassword'), input);
         }
       })
       .catch(function () {
         if (dlgState !== 'password') return;
-        showError(en ? 'Network error' : '网络错误');
+        showError(tx('lockNetworkError'));
       });
   }
 
@@ -614,9 +617,9 @@ export function showLockScreen() {
           });
         });
     };
-    const netErr = function () { throw { message: en ? 'Network error' : '网络错误' }; };
-    const tooMany = { message: en ? 'Too many attempts' : '尝试次数过多' };
-    const failed = { message: en ? 'Verification failed' : '验证失败', clear: true };
+    const netErr = function () { throw { message: tx('lockNetworkError') }; };
+    const tooMany = { message: tx('lockTooManyAttempts') };
+    const failed = { message: tx('lockVerificationFailed'), clear: true };
     /* 键盘避让：进站凭证框、第二步展开的解锁密码框，聚焦时卡片随键盘上移（与其他弹层同一套 followKeyboard） */
     let kbStop = null;
     /** @type {any} */ let kbFor = null;
@@ -641,8 +644,8 @@ export function showLockScreen() {
           return post('/api/space-auth', { key: key, purpose: 'lock-reset' }).then(function (res) {
             if (res.j && res.j.ok) return {};
             if (res.s === 429) throw tooMany;
-            if (res.s === 503 || res.s === 500) throw { message: en ? 'Server error' : '服务器错误' };
-            throw { message: en ? 'Wrong space credential' : '进站凭证错误', clear: true };
+            if (res.s === 503 || res.s === 500) throw { message: tx('lockServerError') };
+            throw { message: tx('lockWrongSpaceCredential'), clear: true };
           }, netErr);
         }
         return post('/api/lock-reset', { action: 'verify', spaceKey: key }).then(function (res) {
@@ -666,14 +669,14 @@ export function showLockScreen() {
           passkey: function () {
             return post('/api/lock-reset', { action: 'challenge' }).then(function (res) {
               const j = res.j;
-              if (!j || !j.ok) throw { message: en ? 'Failed to start' : '启动失败' };
+              if (!j || !j.ok) throw { message: tx('lockFailedToStart') };
               return getPasskeyAssertion(assertionOptions(j), { hideEl: sheetEl || undefined }).then(function (cred) {
                 return verify({ type: 'passkey', cid: j.cid, credential: assertionToJSON(cred) });
               }, function (err) {
                 /* 取消 / 没有匹配钥匙（NotAllowedError）：行内提示，留在本页可重新选择 */
-                if (err && err.kind === 'cancelled') throw { cancelled: true, message: en ? 'Cancelled, you can select again' : '已取消验证，可重新选择' };
+                if (err && err.kind === 'cancelled') throw { cancelled: true, message: tx('lockCancelledYouCanSelect') };
                 if (isPasskeyCancel(err)) throw { cancelled: true, message: passkeyErrorText('nokey', en) };
-                throw { message: err && err.kind ? passkeyErrorText(err.kind, en) : (en ? 'Passkey failed' : '通行密钥验证失败') };
+                throw { message: err && err.kind ? passkeyErrorText(err.kind, en) : (tx('lockPasskeyFailed')) };
               });
             }, function (e) {
               if (e && e.message) throw e;
@@ -686,7 +689,7 @@ export function showLockScreen() {
         if (kbStop) { try { kbStop(); } catch (e) {} kbStop = null; }
         closeMethodSheet(true);
         /* 跳转到锁屏凭证管理页（重置锁屏票可开此页，仍进不了主页；启动站同样在这里设第一把锁屏凭证） */
-        sgxNavigate(langPath('/security/lock/', en ? 'en' : 'zh'));
+        sgxNavigate(langPath('/security/lock/', pageLang()));
       },
     });
   }
@@ -696,12 +699,12 @@ export function showLockScreen() {
   /* ---------- 通行密钥态（与验证态同一弹层） ---------- */
   function openPk() {
     dlgState = 'passkey';
-    setTitle(en ? 'Use passkey' : '使用通行密钥');
+    setTitle(tx('lockUsePasskey'));
     setBody(
       '<div class="sgx-verify-loading"><div class="sgx-spinner" role="progressbar" aria-label="' +
-        (en ? 'Verifying' : '正在验证') +
+        (tx('lockVerifying')) +
         '"></div><p class="sgx-verify-loading-tx">' +
-        (en ? 'Verifying passkey…' : '正在验证通行密钥…') +
+        (tx('lockVerifyingPasskey')) +
         '</p></div>'
     );
     clearErr();
@@ -714,10 +717,10 @@ export function showLockScreen() {
     if (dlgState !== 'passkey') return;
     setBody(
       '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
-        (msg || (en ? 'Passkey verification failed' : '通行密钥验证失败')) +
+        (msg || (tx('pkFailed'))) +
         '</p><div class="sgx-verify-actions">' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-pk-retry">' + (en ? 'Retry' : '重试') + '</button>' +
-        '<button type="button" class="sgx-verify-ghost" id="sgx-pk-topw">' + (en ? 'Use password' : '使用密码') + '</button>' +
+        '<button type="button" class="sgx-verify-skip" id="sgx-pk-retry">' + (tx('lockRetry')) + '</button>' +
+        '<button type="button" class="sgx-verify-ghost" id="sgx-pk-topw">' + (tx('lockUsePassword')) + '</button>' +
         '</div></div>'
     );
     const retry = document.getElementById('sgx-pk-retry');

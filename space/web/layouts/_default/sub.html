@@ -2,21 +2,18 @@
    用法：content/theme.md 等 frontmatter 设 layout: sub、params.cat: theme。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-sub.js" }}
-{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
+{{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 {{ $cat := .Params.cat }}
-{{/* 分类标题走 data/space-cats.yaml（单数据源，与旷野页入口卡共用） */}}
-{{ $t := dict "zh" $cat "en" $cat }}
-{{ range (index site.Data "space-cats").cats }}{{ if eq .id $cat }}{{ $t = dict "zh" .zh "en" .en }}{{ end }}{{ end }}
 {{ $featMap := dict }}
 {{ range site.Data.features.features }}{{ $featMap = merge $featMap (dict .id .) }}{{ end }}
 {{ $palettes := site.Data.palettes.palettes }}
 
 <div class="set-layout pb-28">
   <div class="set-main min-w-0">
-    {{ partial (printf "setcat-%s.html" $cat) (dict "isEn" $isEn "featMap" $featMap "palettes" $palettes) }}
+    {{ partial (printf "setcat-%s.html" $cat) (dict "tr" $tr "featMap" $featMap "palettes" $palettes) }}
   </div>
 </div>
 
-{{ partial "space-i18n.html" (dict "isEn" $isEn) }}
+{{ partial "space-i18n.html" (dict "tr" $tr) }}
 
 {{ end }}

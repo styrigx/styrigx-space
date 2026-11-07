@@ -3,18 +3,24 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { installI18nDom, setI18nLang } from '../../../fixtures/i18n-dom.mjs';
 import { fmtDaymarkDay, daymarkByline, daymarkCardHtml } from '../../../../space/web/assets/js/lib/daymark-today.js';
+
+/* 语言包化 2026-11-07：文案和日期按页面语言（<html lang> + #sgx-i18n-space），参数 en 只是兼容旧调用 */
+installI18nDom('zh');
+/** @param {boolean} en @param {() => any} fn */
+const inLang = (en, fn) => { setI18nLang(en ? 'en' : 'zh'); try { return fn(); } finally { setI18nLang('zh'); } };
 
 test('日期格式：中文 10月21日，英文 Oct 21；非法返回空', () => {
   assert.equal(fmtDaymarkDay('2026-10-21', false), '10月21日');
-  assert.equal(fmtDaymarkDay('2026-10-21', true), 'Oct 21');
+  assert.equal(inLang(true, () => fmtDaymarkDay('2026-10-21', true)), 'Oct 21');
   assert.equal(fmtDaymarkDay('bad', false), '');
 });
 
 test('出处：— 作者《出处》 / — Author, Source；只有作者也行', () => {
   assert.equal(daymarkByline({ author: '尼采', source: '偶像的黄昏' }, false), '— 尼采《偶像的黄昏》');
   assert.equal(daymarkByline({ author: '尼采', source: '《偶像的黄昏》' }, false), '— 尼采《偶像的黄昏》');
-  assert.equal(daymarkByline({ author: 'Nietzsche', source: 'Twilight of the Idols' }, true), '— Nietzsche, Twilight of the Idols');
+  assert.equal(inLang(true, () => daymarkByline({ author: 'Nietzsche', source: 'Twilight of the Idols' }, true)), '— Nietzsche, Twilight of the Idols');
   assert.equal(daymarkByline({ author: '尼采' }, false), '— 尼采');
   assert.equal(daymarkByline(null, false), '');
 });
@@ -24,5 +30,5 @@ test('卡片结构：与主页同一套 data-dm 槽位；锁屏版空状态不�
   for (const k of ['day', 'body', 'text', 'trans', 'by', 'empty']) assert.match(h, new RegExp('data-dm="' + k + '"'));
   assert.doesNotMatch(h, /点开日刻/);
   assert.match(daymarkCardHtml(false), /点开日刻/);
-  assert.match(daymarkCardHtml(true), /DAYMARK/);
+  assert.match(inLang(true, () => daymarkCardHtml(true)), /DAYMARK/);
 });

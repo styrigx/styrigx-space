@@ -7,6 +7,7 @@
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { installI18nDom } from '../../../fixtures/i18n-dom.mjs';
 
 /* ---------- 浏览器最小桩 ---------- */
 const SS = new Map();
@@ -26,6 +27,7 @@ globalThis.document = {
   body: { appendChild: () => {} },
   addEventListener() {},
 };
+installI18nDom('zh'); /* 页面字符串表 #sgx-i18n-core（语言包化后 lock-now.js 从页面取文案） */
 Object.defineProperty(toastEl, 'textContent', { set(v) { toasts.push(v); }, get() { return toasts[toasts.length - 1] || ''; } });
 let fetchImpl = null;
 const fetchCalls = [];

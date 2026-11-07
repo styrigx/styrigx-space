@@ -42,6 +42,9 @@ import { initAiModelRow } from './account-ai.js';
 import { appReturn, appIcon, appName, scopeText, sensitiveText, appsUrl } from './account-grants.js';
 import { toast } from '../lib/toast.js';
 import { langPath } from '../lib/lang-path.js';
+import { i18nTable, pageLang } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-account（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('account');
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -268,20 +271,20 @@ import { langPath } from '../lib/lang-path.js';
     /** @type {import('../auth/auth-sheet.js').MethodOpt[]} */
     const opts = [];
     if (kinds.indexOf('passkey') !== -1) {
-      opts.push({ id: 'acct-pk-btn', icon: METHOD_ICONS.passkey, name: en ? 'Passkey' : '通行密钥',
-        desc: t('mPasskeySub'), ariaLabel: en ? 'Sign in with passkey' : '使用通行密钥登录',
+      opts.push({ id: 'acct-pk-btn', icon: METHOD_ICONS.passkey, name: tx('accounPasskey'),
+        desc: t('mPasskeySub'), ariaLabel: tx('accounSignInWithPasskey'),
         onPick: function () { tapFeedback(); openPk(); } });
     }
     if (kinds.indexOf('password') !== -1) {
-      opts.push({ id: 'acct-pw-btn', icon: METHOD_ICONS.password, name: en ? 'Password' : '密码',
-        desc: t('mPasswordSub'), ariaLabel: en ? 'Sign in with password' : '使用密码登录',
+      opts.push({ id: 'acct-pw-btn', icon: METHOD_ICONS.password, name: tx('accounPassword'),
+        desc: t('mPasswordSub'), ariaLabel: tx('accounSignInWithPassword'),
         onPick: function () { tapFeedback(); openPw(); } });
     }
     const ms = createMethodSheet({
-      ariaLabel: en ? 'Choose sign-in method' : '选择登录方式',
-      title: en ? 'Sign in' : '登录',
+      ariaLabel: tx('accounChooseSignInMethod'),
+      title: tx('verifyBtn'),
       options: opts,
-      cant: { id: 'acct-cant', text: en ? 'Can’t sign in?' : '无法登录？', href: langPath('/account/reset/', en ? 'en' : 'zh') },
+      cant: { id: 'acct-cant', text: tx('accounCantSignIn'), href: langPath('/account/reset/', pageLang()) },
       onClose: function () { if (sheet === ms) sheet = null; },
       onClosed: function (navigating) {
         if (navigating || vd.isOpen()) return;
@@ -297,7 +300,7 @@ import { langPath } from '../lib/lang-path.js';
   let pwBusy = false;
   function openPw() {
     vState = 'password';
-    vd.setTitle(en ? 'Enter password' : '输入密码');
+    vd.setTitle(tx('accounEnterPassword'));
     vd.setBody(
       pwFieldHtml({ id: 'acct-pw-input', eyeId: 'acct-pw-eye', autocomplete: 'current-password', pmUser: KEY_ACCOUNT, ariaLabel: t('mPassword'), placeholder: t('mPassword'), en: en }) +
         '<button type="button" class="sgx-verify-skip" id="acct-pw-go">' + t('verifyBtn') + '</button>'
@@ -342,7 +345,7 @@ import { langPath } from '../lib/lang-path.js';
   function openPk() {
     if (pkBusy) return;
     vState = 'passkey';
-    vd.setTitle(en ? 'Use passkey' : '使用通行密钥');
+    vd.setTitle(tx('accounUsePasskey'));
     vd.setBody(
       '<div class="sgx-verify-loading"><div class="sgx-spinner" role="progressbar" aria-label="' + t('passkeyBusy') + '"></div>' +
         '<p class="sgx-verify-loading-tx" id="acct-pk-busy">' + t('passkeyBusy') + '</p></div>'
@@ -366,8 +369,8 @@ import { langPath } from '../lib/lang-path.js';
   function pkFailed(msg) {
     vd.setBody(
       '<div class="sgx-verify-loading"><p class="sgx-verify-failtx" id="acct-pk-err">' + msg + '</p><div class="sgx-verify-actions">' +
-        '<button type="button" class="sgx-verify-skip" id="acct-pk-retry">' + (en ? 'Retry' : '重试') + '</button>' +
-        (kinds.indexOf('password') !== -1 ? '<button type="button" class="sgx-verify-ghost" id="acct-pk-topw">' + (en ? 'Use password' : '使用密码') + '</button>' : '') +
+        '<button type="button" class="sgx-verify-skip" id="acct-pk-retry">' + (tx('accounRetry')) + '</button>' +
+        (kinds.indexOf('password') !== -1 ? '<button type="button" class="sgx-verify-ghost" id="acct-pk-topw">' + (tx('accounUsePassword')) + '</button>' : '') +
         '</div></div>'
     );
     const retry = document.getElementById('acct-pk-retry');

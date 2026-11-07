@@ -1,26 +1,26 @@
 {{ define "main" }}
-{{ $isEn := eq .Lang "en" }}
+{{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" $lang $lang }}
 {{/* 奇趣 › 发现（/curio/finds/，中文 /curio/zh/finds/；P4-3 奇趣拆页，原首页 hash 分区「发现」）：curio.js 画。
    分类筛选条（hash #c/<分类 id>）+ 按分类分组的收藏格子。能编辑（canWrite）：右下角「收藏」，长按格子编辑；「⋯」里有 管理分类 / 导入 / 导出。
    账号没登录：只读、只看公开的，页底一行「登录账号后可编辑」（#cu-signin）。数据走 /curio/api/links 等（接口 Worker workers/curio-core）。 */}}
 <main id="cu-main" class="cu-wrap" data-cu-page="finds">
-  <section id="cu-pane-finds" class="cu-pane" aria-label="{{ if $isEn }}Finds{{ else }}发现{{ end }}">
+  <section id="cu-pane-finds" class="cu-pane" aria-label="{{ $tr.finds.finds }}">
   <div class="cu-bar">
-    <div id="cu-chips" class="cu-chips" role="tablist" aria-label="{{ if $isEn }}Categories{{ else }}分类{{ end }}"></div>
-    <button id="cu-menu-btn" type="button" class="cu-menu-btn hidden" aria-haspopup="dialog" aria-label="{{ if $isEn }}More{{ else }}更多{{ end }}">
+    <div id="cu-chips" class="cu-chips" role="tablist" aria-label="{{ $tr.finds.categories }}"></div>
+    <button id="cu-menu-btn" type="button" class="cu-menu-btn hidden" aria-haspopup="dialog" aria-label="{{ $tr.finds.more }}">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
     </button>
   </div>
   <div id="cu-list" class="cu-list"></div>
   <p id="cu-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
-  <p id="cu-loading" class="text-center py-16 text-sm text-m-on-surface-variant">{{ if $isEn }}Loading…{{ else }}加载中…{{ end }}</p>
+  <p id="cu-loading" class="text-center py-16 text-sm text-m-on-surface-variant">{{ $tr.finds.loading }}</p>
   </section>
-{{ partial "curio/signin.html" (dict "isEn" $isEn) }}
+{{ partial "curio/signin.html" (dict "tr" $tr "lang" $lang) }}
 </main>
 
 {{/* ===== 收藏（canWrite，右下角浮动按钮） ===== */}}
 <button id="cu-fab" type="button" class="cu-fab hidden">
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>{{ if $isEn }}Keep{{ else }}收藏{{ end }}
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>{{ $tr.finds.keep }}
 </button>
 
 
@@ -29,11 +29,11 @@
   <div class="bk-overlay-backdrop absolute inset-0" data-close="menu"></div>
   <div class="bk-panel bk-dialog text-m-on-surface shadow-2xl">
     <div class="sheet-handle"></div>
-    <h2 id="menu-title" class="sr-only">{{ if $isEn }}More{{ else }}更多{{ end }}</h2>
+    <h2 id="menu-title" class="sr-only">{{ $tr.finds.more }}</h2>
     <div class="px-3 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] flex flex-col">
-      <button id="menu-cats" type="button" class="cu-row">{{ if $isEn }}Manage categories{{ else }}管理分类{{ end }}</button>
-      <button id="menu-import" type="button" class="cu-row">{{ if $isEn }}Import browser bookmarks{{ else }}导入浏览器书签{{ end }}</button>
-      <a id="menu-export" class="cu-row" href="{{ "api/export" | relURL }}{{ if $isEn }}?lang=en{{ end }}" download>{{ if $isEn }}Export as bookmarks file{{ else }}导出为书签文件{{ end }}</a>
+      <button id="menu-cats" type="button" class="cu-row">{{ $tr.finds.manageCategories }}</button>
+      <button id="menu-import" type="button" class="cu-row">{{ $tr.finds.importBrowserBookmarks }}</button>
+      <a id="menu-export" class="cu-row" href="{{ "api/export" | relURL }}?lang={{ $lang }}" download>{{ $tr.finds.exportAsBookmarksFile }}</a>
     </div>
   </div>
 </div>
@@ -46,48 +46,48 @@
     <div class="bk-titlebar">
       <div class="bk-titlebar-side" aria-hidden="true"></div>
       <div class="bk-titlebar-mid"><h2 id="edit-title" class="text-lg font-extrabold"></h2></div>
-      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="edit" aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "edit-x") }}</button></div>
+      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="edit" aria-label="{{ $tr.finds.close }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "edit-x") }}</button></div>
     </div>
     <form id="edit-form" class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pb-4 flex flex-col gap-4" novalidate>
       <div class="cu-field">
-        <label for="f-url">{{ if $isEn }}URL{{ else }}网址{{ end }}</label>
+        <label for="f-url">{{ $tr.finds.url }}</label>
         <div class="cu-inline">
           <input id="f-url" type="url" inputmode="url" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="https://">
-          <button id="f-fill" type="button" class="cu-btn-text">{{ if $isEn }}Auto-fill{{ else }}自动填写{{ end }}</button>
+          <button id="f-fill" type="button" class="cu-btn-text">{{ $tr.finds.autoFill }}</button>
         </div>
       </div>
-      <label class="cu-field"><span>{{ if $isEn }}Name{{ else }}名字{{ end }}</span><input id="f-name" type="text" maxlength="80" autocomplete="off"></label>
-      <button id="f-en-toggle" type="button" class="cu-addlink">＋ {{ if $isEn }}Chinese name and note{{ else }}英文名和英文简介{{ end }}</button>
+      <label class="cu-field"><span>{{ $tr.finds.name }}</span><input id="f-name" type="text" maxlength="80" autocomplete="off"></label>
+      <button id="f-en-toggle" type="button" class="cu-addlink">{{ $tr.finds.chineseNameAndNote }}</button>
       <div id="f-en-wrap" class="hidden flex flex-col gap-4">
-        <label class="cu-field"><span>{{ if $isEn }}Name (Chinese){{ else }}英文名{{ end }}</span><input id="f-name2" type="text" maxlength="80" autocomplete="off"></label>
-        <label class="cu-field"><span>{{ if $isEn }}Note (Chinese){{ else }}英文简介{{ end }}</span><input id="f-desc2" type="text" maxlength="160" autocomplete="off"></label>
+        <label class="cu-field"><span>{{ $tr.finds.nameChinese }}</span><input id="f-name2" type="text" maxlength="80" autocomplete="off"></label>
+        <label class="cu-field"><span>{{ $tr.finds.noteChinese }}</span><input id="f-desc2" type="text" maxlength="160" autocomplete="off"></label>
       </div>
-      <label class="cu-field"><span>{{ if $isEn }}Note{{ else }}简介{{ end }}</span><input id="f-desc" type="text" maxlength="160" autocomplete="off" placeholder="{{ if $isEn }}What it is, in a few words{{ else }}一句话说它是什么{{ end }}"></label>
+      <label class="cu-field"><span>{{ $tr.finds.note }}</span><input id="f-desc" type="text" maxlength="160" autocomplete="off" placeholder="{{ $tr.finds.whatItIsIn }}"></label>
       <div class="cu-field">
-        <span>{{ if $isEn }}Category{{ else }}分类{{ end }}</span>
-        <div id="f-cats" class="cu-chipset" role="radiogroup" aria-label="{{ if $isEn }}Category{{ else }}分类{{ end }}"></div>
+        <span>{{ $tr.finds.category }}</span>
+        <div id="f-cats" class="cu-chipset" role="radiogroup" aria-label="{{ $tr.finds.category }}"></div>
         <div id="f-cat-new-row" class="cu-inline">
-          <input id="f-cat-name" type="text" maxlength="80" autocomplete="off" placeholder="{{ if $isEn }}New category{{ else }}新分类{{ end }}">
-          <button id="f-cat-add" type="button" class="cu-btn-text">{{ if $isEn }}Add{{ else }}添加{{ end }}</button>
+          <input id="f-cat-name" type="text" maxlength="80" autocomplete="off" placeholder="{{ $tr.finds.newCategory }}">
+          <button id="f-cat-add" type="button" class="cu-btn-text">{{ $tr.finds.add }}</button>
         </div>
       </div>
-      <button id="f-icon-toggle" type="button" class="cu-addlink">＋ {{ if $isEn }}Custom icon{{ else }}自定义图标{{ end }}</button>
-      <label id="f-icon-wrap" class="cu-field hidden"><span>{{ if $isEn }}Icon URL (https){{ else }}图标网址（https）{{ end }}</span><input id="f-icon" type="url" inputmode="url" maxlength="2048" autocomplete="off" spellcheck="false"></label>
+      <button id="f-icon-toggle" type="button" class="cu-addlink">{{ $tr.finds.customIcon }}</button>
+      <label id="f-icon-wrap" class="cu-field hidden"><span>{{ $tr.finds.iconUrlHttps }}</span><input id="f-icon" type="url" inputmode="url" maxlength="2048" autocomplete="off" spellcheck="false"></label>
       <label class="flex items-center gap-3 cursor-pointer">
-        <span class="flex-1 text-[15px]">{{ if $isEn }}Only me{{ else }}仅自己可见{{ end }}</span>
+        <span class="flex-1 text-[15px]">{{ $tr.finds.onlyMe }}</span>
         <input id="f-private" type="checkbox" class="peer sr-only">
         <span class="shrink-0 w-12 h-7 rounded-full bg-[var(--sgx-switch-track-off)] peer-checked:bg-[var(--sgx-switch-track-on)] relative transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:w-5 after:h-5 after:rounded-full after:bg-[var(--sgx-switch-thumb-off)] peer-checked:after:bg-[var(--sgx-switch-thumb-on)] after:shadow-sm after:transition-transform peer-checked:after:translate-x-5"></span>
       </label>
       <div id="f-move" class="cu-move hidden">
-        <span>{{ if $isEn }}Position{{ else }}位置{{ end }}</span>
-        <button id="f-up" type="button" class="cu-rbtn" aria-label="{{ if $isEn }}Move up{{ else }}上移{{ end }}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
-        <button id="f-down" type="button" class="cu-rbtn" aria-label="{{ if $isEn }}Move down{{ else }}下移{{ end }}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <span>{{ $tr.finds.position }}</span>
+        <button id="f-up" type="button" class="cu-rbtn" aria-label="{{ $tr.finds.moveUp }}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
+        <button id="f-down" type="button" class="cu-rbtn" aria-label="{{ $tr.finds.moveDown }}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
       </div>
       <p id="edit-err" class="hidden text-sm text-m-error"></p>
     </form>
     <div class="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-[var(--sgx-divider)] flex gap-3">
-      <button id="edit-del" type="button" class="hidden flex-1 h-12 rounded-full bg-m-container text-m-error text-[15px] font-bold">{{ if $isEn }}Delete{{ else }}删除{{ end }}</button>
-      <button id="edit-save" type="button" class="flex-1 h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold">{{ if $isEn }}Save{{ else }}保存{{ end }}</button>
+      <button id="edit-del" type="button" class="hidden flex-1 h-12 rounded-full bg-m-container text-m-error text-[15px] font-bold">{{ $tr.finds.delete }}</button>
+      <button id="edit-save" type="button" class="flex-1 h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold">{{ $tr.finds.save }}</button>
     </div>
   </div>
 </div>
@@ -99,16 +99,16 @@
     <div class="sheet-handle"></div>
     <div class="bk-titlebar">
       <div class="bk-titlebar-side" aria-hidden="true"></div>
-      <div class="bk-titlebar-mid"><h2 id="cats-title" class="text-lg font-extrabold">{{ if $isEn }}Categories{{ else }}管理分类{{ end }}</h2></div>
-      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="cats" aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "cats-x") }}</button></div>
+      <div class="bk-titlebar-mid"><h2 id="cats-title" class="text-lg font-extrabold">{{ $tr.finds.categories2 }}</h2></div>
+      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="cats" aria-label="{{ $tr.finds.close }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "cats-x") }}</button></div>
     </div>
     <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col gap-3">
       <div id="cats-list" class="flex flex-col gap-2"></div>
       <div class="cu-inline">
-        <input id="cats-new" type="text" maxlength="80" autocomplete="off" placeholder="{{ if $isEn }}New category{{ else }}新分类{{ end }}">
-        <button id="cats-add" type="button" class="cu-btn-text">{{ if $isEn }}Add{{ else }}添加{{ end }}</button>
+        <input id="cats-new" type="text" maxlength="80" autocomplete="off" placeholder="{{ $tr.finds.newCategory }}">
+        <button id="cats-add" type="button" class="cu-btn-text">{{ $tr.finds.add }}</button>
       </div>
-      <p class="text-xs text-m-on-surface-variant">{{ if $isEn }}A category can be deleted once it's empty. Private categories, with everything in them, are only shown when signed in to the account.{{ else }}分类清空后才能删除。私密分类连同里面的收藏只在账号已登录时显示。{{ end }}</p>
+      <p class="text-xs text-m-on-surface-variant">{{ $tr.finds.aCategoryCanBe }}</p>
     </div>
   </div>
 </div>
@@ -120,28 +120,28 @@
     <div class="sheet-handle"></div>
     <div class="bk-titlebar">
       <div class="bk-titlebar-side" aria-hidden="true"></div>
-      <div class="bk-titlebar-mid"><h2 id="import-title" class="text-lg font-extrabold">{{ if $isEn }}Import bookmarks{{ else }}导入浏览器书签{{ end }}</h2></div>
-      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="import" aria-label="{{ if $isEn }}Close{{ else }}关闭{{ end }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "import-x") }}</button></div>
+      <div class="bk-titlebar-mid"><h2 id="import-title" class="text-lg font-extrabold">{{ $tr.finds.importBookmarks }}</h2></div>
+      <div class="bk-titlebar-side"><button type="button" class="bk-icbtn" data-close="import" aria-label="{{ $tr.finds.close }}">{{ partial "icon.html" (dict "name" "x-mark" "uid" "import-x") }}</button></div>
     </div>
     <div class="px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col gap-4">
-      <p class="text-sm leading-relaxed text-m-on-surface-variant">{{ if $isEn }}Export bookmarks from Samsung Internet, Chrome or any browser as an .html file, then pick it here. Folders become categories, links you already have are skipped, and the original file is kept as a backup.{{ else }}在三星浏览器、Chrome 等浏览器里把书签导出成 .html 文件，再在这里选它。文件夹会变成分类，已经收藏过的网址自动跳过，原文件会另存一份备份。{{ end }}</p>
+      <p class="text-sm leading-relaxed text-m-on-surface-variant">{{ $tr.finds.exportBookmarksFromSamsung }}</p>
       <label class="cu-file">
         <input id="imp-file" type="file" accept=".html,.htm,text/html" class="sr-only">
-        <span id="imp-file-name">{{ if $isEn }}Choose file{{ else }}选择文件{{ end }}</span>
+        <span id="imp-file-name">{{ $tr.finds.chooseFile }}</span>
       </label>
       <label class="flex items-center gap-3 cursor-pointer">
-        <span class="flex-1 text-[15px]">{{ if $isEn }}Import as only me{{ else }}导入为仅自己可见{{ end }}</span>
+        <span class="flex-1 text-[15px]">{{ $tr.finds.importAsOnlyMe }}</span>
         <input id="imp-private" type="checkbox" class="peer sr-only" checked>
         <span class="shrink-0 w-12 h-7 rounded-full bg-[var(--sgx-switch-track-off)] peer-checked:bg-[var(--sgx-switch-track-on)] relative transition-colors after:content-[''] after:absolute after:top-1 after:left-1 after:w-5 after:h-5 after:rounded-full after:bg-[var(--sgx-switch-thumb-off)] peer-checked:after:bg-[var(--sgx-switch-thumb-on)] after:shadow-sm after:transition-transform peer-checked:after:translate-x-5"></span>
       </label>
       <p id="imp-msg" class="hidden text-sm"></p>
-      <button id="imp-go" type="button" class="h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold disabled:opacity-50" disabled>{{ if $isEn }}Import{{ else }}导入{{ end }}</button>
+      <button id="imp-go" type="button" class="h-12 rounded-full bg-m-primary-fill text-m-on-primary-fill text-[15px] font-bold disabled:opacity-50" disabled>{{ $tr.finds.import }}</button>
     </div>
   </div>
 </div>
 
 
-{{ partial "curio/common.html" (dict "isEn" $isEn) }}
+{{ partial "curio/common.html" (dict "tr" $tr "lang" $lang) }}
 {{ end }}
 
 {{ define "pagejs" }}

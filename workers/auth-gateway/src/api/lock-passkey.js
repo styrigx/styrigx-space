@@ -58,6 +58,8 @@ import {
   deletePasskey,
   getUserHandle,
   providerOf,
+  normalizeProvider,
+  normalizePasskeyName,
   PASSKEY_LOCK,
   PASSKEY_DISPLAY_NAME,
 } from '../core/passkey-store.js';
@@ -216,11 +218,11 @@ async function handlePost(context) {
       const existing = await getPasskey(env, PASSKEY_LOCK, credIdB64);
       /* 存之前看锁屏层是不是已经配置过（D1 里已有锁屏凭证，core/lock-configured.js；读失败按已配置） */
       const lockWasConfigured = await isLockEffectivelyConfigured(env);
-      /* AAGUID 映射 provider，作为默认名 */
+      /* AAGUID 映射 provider id（中性标识，不存显示文案）；用户没起名就存空，前端按页面语言显示默认名 */
       const mappedProvider = providerOf(aaguid);
       const item = {
-        name: deviceName || mappedProvider || (existing && existing.name) || '通行密钥',
-        provider: mappedProvider || (body && body.provider) || (existing && existing.provider) || '',
+        name: deviceName || normalizePasskeyName(existing && existing.name),
+        provider: mappedProvider || normalizeProvider((body && body.provider) || (existing && existing.provider)),
         aaguid: aaguid || (existing && existing.aaguid) || '',
         createdAt: (existing && existing.createdAt) || now,
         lastUsedAt: (existing && existing.lastUsedAt) || 0,
@@ -340,8 +342,8 @@ async function handlePost(context) {
       keys: keys.map(function (k) {
         return {
           credId: k.credId,
-          name: k.name || '',
-          provider: k.provider || '',
+          name: normalizePasskeyName(k.name),
+          provider: normalizeProvider(k.provider),
           aaguid: k.aaguid || '',
           createdAt: k.createdAt || 0,
           lastUsedAt: k.lastUsedAt || 0,

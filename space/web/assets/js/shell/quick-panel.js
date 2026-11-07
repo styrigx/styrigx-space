@@ -25,17 +25,18 @@ import {
   setLang,
 } from '../lib/prefs.js';
 import { accent } from '../lib/accent.js';
+import { isLang } from '../lib/lang-path.js';
 import { modalSheet } from './modal-sheet.js';
 import { mountTopbar } from './topbar-panel.js';
 import { mountAiChat } from './ai-panel.js';
 import { onKeyboardHeight } from './vk.js';
 import { mountShare } from './share-button.js';
 
-/** 语言偏好（sgx-lang：zh / en，没存 = 跟随系统） @returns {'system'|'zh'|'en'} */
+/** 语言偏好（sgx-lang：配置里的语言；'system' / 旧版没存 = 跟随系统） @returns {string} */
 function langPref() {
   let v = null;
   try { v = localStorage.getItem('sgx-lang'); } catch (e) {}
-  return v === 'zh' || v === 'en' ? v : 'system';
+  return isLang(v) ? /** @type {string} */ (v) : 'system';
 }
 
 export function initQuickPanel() {

@@ -3,17 +3,17 @@
    2026-10-24 PR4：卡片只是展示（兼作个人资料卡），不能点、没有详情页（原「账号信息」子页删除）；
    头像读主站 /avatar/192.webp；账号已登录时头像右下角出现铅笔，点头像直接换照片 / 移除照片
    （assets/js/apps/avatar-edit.js，入口 entry-account.js，接口 /api/avatar），账号未登录只看不能点。 */}}
-{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
+{{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 <div class="sgx-account-card" data-acct-card>
   <div class="sgx-ac-tx">
-    <p class="sgx-ac-name">Sloan Gray</p>
+    <p class="sgx-ac-name" translate="no" data-sgx-personal>Sloan Gray</p>
     <div class="sgx-ac-line">
     <p class="sgx-ac-sub">Styrigx</p>
-    <p class="sgx-ac-state" data-acct-state><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>{{ if $isEn }}Signed in{{ else }}已登录{{ end }}</span></p>
+    <p class="sgx-ac-state" data-acct-state><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>{{ $tr.sgxAccountCard.signedIn }}</span></p>
     </div>
   </div>
-  <button type="button" class="sgx-ac-av" data-avatar-edit disabled aria-label="{{ if $isEn }}Change photo{{ else }}更换头像{{ end }}">
-    <img src="/avatar/192.webp" alt="Sloan Gray" width="48" height="48" class="sgx-ac-img" data-sgx-avatar="192">
+  <button type="button" class="sgx-ac-av" data-avatar-edit disabled aria-label="{{ $tr.sgxAccountCard.changePhoto }}">
+    <img src="/avatar/192.webp" alt="Sloan Gray" translate="no" data-sgx-personal width="48" height="48" class="sgx-ac-img" data-sgx-avatar="192">
     <span class="sgx-ac-pen" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg></span>
   </button>
 </div>

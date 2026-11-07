@@ -23,6 +23,9 @@
  *                      源文件里 @ui-cookie-presets 段（预设 id → 种子 + 引擎版本）由本脚本按 palette-roles.json 重写
  *   layout-mode.js     布局模式（手机 / 桌面）唯一规则 __sgxLayout()（space/web/assets/js/lib/layout-mode.js 原样复制；经典脚本 ES5，四站内联进 <head>，P4-3 PR-4b）
  *   lang-path.js       语言路径唯一函数 langPath / pathLang / stripLang / langSwitch（space/web/assets/js/lib/lang-path.js 原样复制；不 import；P4-3 PR-4c 英文默认、中文 /zh/）
+ *   tr.html            字符串表取值 partial（space/web/layouts/partials/sgx-tr.html 原样复制；子站 partials/sgx-tr.html）
+ *   i18n-<语言>.yaml   外壳字符串表（space/web/data/sgx-shell-i18n/<语言>.yaml 原样；子站 data/sgx-shell-i18n/<语言>.yaml）
+ *   lang-boot.js       首帧语言跳转（space/web/assets/js/lib/lang-boot.js 原样复制；只 import ./lang-path.js；四站 <head> 用 js.Build iife 内联，语言清理 2026-11-07）
  *   lang-path.html     同一规则的 Hugo partial（space/web/layouts/partials/sgx-lang-path.html 原样复制；子站链接主站 / 自己的中文地址都用它）
  *   ui-cookie-contract.json  写端真实产出的 cookie + 读端期望（tests/fixtures/ui-cookie-contract.json 原样复制，gen-ui-cookie-contract.mjs 生成）
  *   favicon.js / favicon.svg  标签页图标跟主题色（space/web/assets/js/shell/favicon.js、space/web/static/favicon.svg 原样复制）
@@ -59,6 +62,9 @@ const SRC = {
   reader: path.join(REPO, 'space/web/assets/js/lib/ui-cookie-read.js'),
   layoutMode: path.join(REPO, 'space/web/assets/js/lib/layout-mode.js'),
   langPath: path.join(REPO, 'space/web/assets/js/lib/lang-path.js'),
+  langBoot: path.join(REPO, 'space/web/assets/js/lib/lang-boot.js'),
+  tr: path.join(REPO, 'space/web/layouts/partials/sgx-tr.html'),
+  shellI18n: path.join(REPO, 'space/web/data/sgx-shell-i18n'),
   langPathTpl: path.join(REPO, 'space/web/layouts/partials/sgx-lang-path.html'),
   contract: path.join(REPO, 'tests/fixtures/ui-cookie-contract.json'),
   favicon: path.join(REPO, 'space/web/assets/js/shell/favicon.js'),
@@ -184,6 +190,23 @@ export function renderStandalone(file, label, exportName) {
   if (/^\s*import\s/m.test(src) || /\bimport\s*\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, ''))) throw new Error(label + ' 不能 import 任何东西（子站原样复制）');
   if (!new RegExp('^export (async )?function ' + exportName + '\\(', 'm').test(src)) throw new Error(label + ' 必须导出 ' + exportName);
   return src;
+}
+
+/** 首帧语言跳转（语言清理 2026-11-07，四站同一份）：原样复制；只许 import 同目录的 ./lang-path.js（子站也放在一起） */
+export function renderLangBoot() {
+  const src = readFileSync(SRC.langBoot, 'utf8');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '');
+  const imports = code.match(/^\s*import\s[^;]*;/gm) || [];
+  if (imports.some((l) => !/from '\.\/lang-path\.js';$/.test(l.trim())) || /\bimport\s*\(/.test(code)) throw new Error('lang-boot.js 只能 import ./lang-path.js');
+  if (!/^export function bootLang\(/m.test(src) || !/^export function langBootTarget\(/m.test(src)) throw new Error('lang-boot.js 必须导出 bootLang / langBootTarget');
+  return src;
+}
+
+/** 外壳字符串表（语言包化 2026-11-07）：space/web/data/sgx-shell-i18n/<语言>.yaml 原样复制成 i18n-<语言>.yaml（有几种语言复制几份；必须有 en.yaml） */
+export function renderShellI18n() {
+  const names = readdirSync(SRC.shellI18n).filter((f) => /^[a-z]{2,3}\.yaml$/.test(f)).sort();
+  if (!names.includes('en.yaml')) throw new Error('space/web/data/sgx-shell-i18n/ 必须有 en.yaml（英文是源文本、缺键回退英文）');
+  return Object.fromEntries(names.map((f) => ['i18n-' + f, readFileSync(path.join(SRC.shellI18n, f), 'utf8')]));
 }
 
 /** 顶栏 partial：原样复制；只能用参数（子站没有主站的 partial 和 data），不许 partial / site.Data / resources */
@@ -399,6 +422,9 @@ export function renderAll() {
     'layout-mode.js': readFileSync(SRC.layoutMode, 'utf8'),
     'lang-path.js': renderStandalone(SRC.langPath, 'lang-path.js', 'langPath'),
     'lang-path.html': readFileSync(SRC.langPathTpl, 'utf8'),
+    'lang-boot.js': renderLangBoot(),
+    'tr.html': readFileSync(SRC.tr, 'utf8'),
+    ...renderShellI18n(),
     'ui-cookie-contract.json': readFileSync(SRC.contract, 'utf8'),
     'favicon.js': readFileSync(SRC.favicon, 'utf8'),
     'favicon.svg': readFileSync(SRC.faviconSvg, 'utf8'),

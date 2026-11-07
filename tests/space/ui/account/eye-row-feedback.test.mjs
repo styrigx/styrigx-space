@@ -12,6 +12,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { jsDict } from '../../../fixtures/strings.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -137,10 +138,11 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
     assert.ok(!src.includes('M2 12s3.5-7'), f + ' 不应再内联眼睛 SVG（统一走 bindEyeButton）');
   }
   assert.ok(!read('space/web/assets/js/apps/security.js').includes('const EYE ='), 'security.js 的 EYE 常量应删除');
-  for (const t of ['space/web/layouts/partials/account-i18n.html', 'space/web/layouts/_default/security-lock.html']) {
-    const src = read(t);
-    assert.ok(src.includes('"eyeShow" (dict "zh" "显示密码" "en" "Show password")'), t + ' eyeShow 应为显示密码');
-    assert.ok(src.includes('"eyeHide" (dict "zh" "隐藏密码" "en" "Hide password")'), t + ' eyeHide 应为隐藏密码');
+  /* 语言包化（2026-11-07）：两页的文案表在主站字符串表 js.account / js.lockmgr */
+  for (const t of ['account', 'lockmgr']) {
+    const d = jsDict(t);
+    assert.deepEqual(d.eyeShow, { en: 'Show password', zh: '显示密码' }, t + ' eyeShow 应为显示密码');
+    assert.deepEqual(d.eyeHide, { en: 'Hide password', zh: '隐藏密码' }, t + ' eyeHide 应为隐藏密码');
   }
   /* 补眼睛按钮的三个位置都在 */
   /* PR3：重置登录（锁屏弹层与账号页同一个界面 auth/reset-flow.js）的进站凭证框与第二步密码框都走 cred-rows 的 bindPwEye */

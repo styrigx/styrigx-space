@@ -18,6 +18,9 @@ import { postJSON, errText } from '../auth/account-api.js';
 import { withLockReauth, needsLockReauth } from '../auth/lock-reauth.js';
 import { createT } from './account-common.js';
 import { leftText, durationParam } from './security-tempkeys.js';
+import { fmtDate, i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-account（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('account');
 
 /** 分享短链管理接口（styrigx-share） */
 export const SHARE_API = '/api/share';
@@ -59,25 +62,26 @@ export function targetParam(v) {
  * @param {number} sec
  */
 export function sessLabel(en, sec) {
-  if (sec < 3600) return en ? Math.round(sec / 60) + ' minutes' : Math.round(sec / 60) + ' 分钟';
+  /* 文案走字符串表（数字和单位之间留空格：en「3 hours」，zh「3 小时」，和同一行「剩余 6 小时 0 分钟」一致；
+     Intl 的 unit 格式在 zh 下是「3小时」，不用；参数 en 保留兼容） */
+  if (sec < 3600) return tx('slMinutes', { n: Math.round(sec / 60) });
   if (sec < 86400) {
     const h = Math.round(sec / 3600);
-    return en ? h + (h === 1 ? ' hour' : ' hours') : h + ' 小时';
+    return tx(h === 1 ? 'slHour' : 'slHours', { n: h });
   }
   const d = Math.round(sec / 86400);
-  return en ? d + (d === 1 ? ' day' : ' days') : d + ' 天';
+  return tx(d === 1 ? 'slDay' : 'slDays', { n: d });
 }
 
 /**
- * 到期 / 作废时间：本地时间「10月25日 16:00」/「Oct 25, 16:00」。
  * @param {boolean} en
  * @param {number} ms
  */
 export function whenText(en, ms) {
   const d = new Date(ms);
   const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-  if (en) return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + ' ' + d.getDate() + ', ' + hm;
-  return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + hm;
+  /* 日期按页面语言交给 Intl，日期和时间之间的分隔走字符串表（en「Oct 25, 16:00」，zh「10月25日 16:00」） */
+  return tx('slWhen', { d: fmtDate(d, { month: 'short', day: 'numeric' }), t: hm });
 }
 
 /**

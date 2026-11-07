@@ -47,7 +47,9 @@ const L = {
     status: { want: 'Want to play', playing: 'Playing', done: 'Finished', shelved: 'On hold' },
   },
 };
-const LANGS = /** @type {const} */ (['zh', 'en']);
+/** 本站语言（同 atlas/web/curio/hugo.yaml languages）；默认语言英文，不带前缀。加语言：这里加一项 + 字符串表（索引里的条目顺序沿用 zh、en） */
+export const LANGS = Object.freeze(['zh', 'en']);
+export const DEFAULT_LANG = 'en';
 
 /** 截断到 n 个字（按码点，不切坏表情），超了加省略号；换行压成空格 */
 export function clip(s, n) {
@@ -68,7 +70,7 @@ function pick(zh, en, lang) {
  * @param {'zh'|'en'} lang @param {string} section finds / devices / games（空 = 首页） @param {string} [hash]
  */
 export function pageUrl(lang, section, hash) {
-  return SITE_URL + (lang === 'zh' ? '/zh/' : '/') + (section ? section + '/' : '') + (hash || '');
+  return SITE_URL + (lang && lang !== DEFAULT_LANG ? '/' + lang + '/' : '/') + (section ? section + '/' : '') + (hash || '');
 }
 
 /** @param {Record<string, any>} it @param {string} subtitle @param {string[]} parts @param {boolean} priv */

@@ -1,0 +1,164 @@
+# 本站字符串表（语言包化 2026-11-07）：英文是源文本；其他语言的表缺键时回退英文（partials/sgx-tr.html）。
+# 键按模板分组（<模板名>.<键>）；js.<表> 是页面 JS 读的文案表（<script id="sgx-i18n-<表>">）。
+# 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（partials/sgx-personal.html）、语言自己的名字（hugo.yaml label）。
+site:
+  name: Curio
+  description: 'Sloan Gray''s Curio: good things found on the web, kept one by one'
+entries:
+  finds:
+    title: Finds
+    sub: Bookmarked finds by category
+  devices:
+    title: Devices
+    sub: Devices in use and retired
+  games:
+    title: Games
+    sub: Played, playing, want to play
+  movies:
+    title: Movies
+    sub: Films I love, with a line or two
+  music:
+    title: Music
+    sub: Private albums, only me
+notFound:
+  pageNotFound: Page not found
+  thePageYoureLooking: The page you're looking for doesn't exist or has been moved.
+  backToCurio: Back to Curio
+index:
+  sections: Sections
+baseof:
+  pageNotFound: Page not found
+devices:
+  devices: Devices
+  filter: Filter
+  loading: Loading…
+  device: Device
+  close: Close
+  choosePhoto: Choose photo
+  removePhoto: Remove photo
+  name: Name
+  eGGalaxyS25: e.g. Galaxy S25 Ultra
+  type: Type
+  boughtOn: Bought on
+  systemVersion: System version
+  eGOneUi: e.g. One UI 8
+  specs: Specs
+  chipMemoryStorageColour: Chip, memory, storage, colour…
+  accessories: Accessories
+  caseChargerEarbuds: Case, charger, earbuds…
+  howItsBeen: How it's been
+  retired: Retired
+  retiredOn: Retired on
+  replacedBy: Replaced by
+  onlyMe: Only me
+  delete: Delete
+  save: Save
+finds:
+  finds: Finds
+  categories: Categories
+  more: More
+  loading: Loading…
+  keep: Keep
+  manageCategories: Manage categories
+  importBrowserBookmarks: Import browser bookmarks
+  exportAsBookmarksFile: Export as bookmarks file
+  close: Close
+  url: URL
+  autoFill: Auto-fill
+  name: Name
+  chineseNameAndNote: + Chinese name and note
+  nameChinese: Name (Chinese)
+  noteChinese: Note (Chinese)
+  note: Note
+  whatItIsIn: What it is, in a few words
+  category: Category
+  newCategory: New category
+  add: Add
+  customIcon: + Custom icon
+  iconUrlHttps: Icon URL (https)
+  onlyMe: Only me
+  position: Position
+  moveUp: Move up
+  moveDown: Move down
+  delete: Delete
+  save: Save
+  categories2: Categories
+  aCategoryCanBe: A category can be deleted once it's empty. Private categories, with everything in them, are only shown when signed in to the account.
+  importBookmarks: Import bookmarks
+  exportBookmarksFromSamsung: Export bookmarks from Samsung Internet, Chrome or any browser as an .html file, then pick it here. Folders become categories, links you already have are skipped, and the original file is kept as a backup.
+  chooseFile: Choose file
+  importAsOnlyMe: Import as only me
+  import: Import
+games:
+  games: Games
+  filter: Filter
+  loading: Loading…
+  game: Game
+  close: Close
+  chooseCover: Choose cover
+  removeCover: Remove cover
+  title: Title
+  status: Status
+  platform: Platform
+  eGSwitchPc: e.g. Switch, PC
+  playedOn: Played on
+  version: Version
+  eGPhysicalDeluxe: e.g. physical, deluxe, 1.2
+  rating: Rating
+  thoughts: Thoughts
+  onlyMe: Only me
+  delete: Delete
+  save: Save
+movies:
+  movies: Movies
+  loading: Loading…
+  movie: Movie
+  close: Close
+  choosePoster: Choose poster
+  removePoster: Remove poster
+  title: Title
+  originalTitle: Original title
+  eG: e.g. In the Mood for Love
+  year: Year
+  director: Director
+  watchedOn: Watched on
+  myRating: My rating
+  aLineOrTwo: A line or two
+  delete: Delete
+  save: Save
+music:
+  music: Music
+  onlyMe: Only me
+  thisPageIsPrivate: This page is private. Sign in to your account, with Curio allowed, to open it.
+  account: Account
+  uploadAlbum: + Upload album
+  albums: Albums
+  playAlbum: Play album
+  tracks: Tracks
+  deleteAlbum: Delete album
+  noAlbumsYetTap: No albums yet. Tap "Upload album" to add one.
+  loading: Loading…
+  player: Player
+  position: Position
+  playbackSpeed: Playback speed
+  previous: Previous
+  play: Play
+  pause: Pause
+  next: Next
+  uploadAlbum2: Upload album
+  close: Close
+  album: Album
+  artist: Artist
+  year: Year
+  chooseTracks: Choose tracks
+  coverOptional: Cover (optional)
+  lyricsLrcOptionalMatched: Lyrics .lrc (optional, matched by file name)
+  trackOrderFollowsThe: 'Track order follows the number at the start of each file name (01, 02…). Each audio file can be up to 95 MB: mp3, m4a, aac, flac, ogg, opus, wav. The cover is resized to 1600 px.'
+  upload: Upload
+curioCommon:
+  cancel: Cancel
+curioItemView:
+  edit: Edit
+  close: Close
+curioSignin:
+  signInToYour: Sign in to your account to edit

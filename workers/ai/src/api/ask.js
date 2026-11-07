@@ -21,7 +21,7 @@
  * 不存对话、不写 KV。
  */
 import { loadIndexes, recall } from '../core/recall.js';
-import { buildMessages, Q_MAX } from '../core/prompt.js';
+import { buildMessages, Q_MAX, AI_LANGS } from '../core/prompt.js';
 import { thinkFilter } from '../core/think.js';
 import { loadModels, pickModel } from '../core/models.js';
 import { readKey, hasKeyBinding, geminiRequest, geminiChunk, classifyUpstream, errText, UPSTREAM_TIMEOUT_MS } from '../core/gemini.js';
@@ -104,7 +104,7 @@ async function readAsk(request) {
   const q = body.q.trim();
   if (!q) return { ok: false, res: apiError(400, 'bad_request') };
   if ([...q].length > Q_MAX) return { ok: false, res: apiError(400, 'too-long') };
-  return { ok: true, q, lang: body.lang === 'zh' ? 'zh' : 'en' /* P4-3 PR-4c：没带语言（或不认识）按英文，四站默认语言 */, history: body.history, model: body.model };
+  return { ok: true, q, lang: AI_LANGS.includes(body.lang) ? body.lang : 'en' /* P4-3 PR-4c：没带语言（或不认识）按英文，四站默认语言；语言列表 = prompt.js AI_LANGS */, history: body.history, model: body.model };
 }
 
 /**

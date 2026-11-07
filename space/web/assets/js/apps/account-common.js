@@ -19,14 +19,17 @@ import { syncEnabled, scopeDenied, LAST_KEY } from '../lib/cloud-sync.js';
 import { get as sget } from '../lib/storage.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { langPath } from '../lib/lang-path.js';
+import { i18nTable, pageLang } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-account（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('account');
 
 /** @param {boolean} en */
 export function accountUrl(en) {
-  return langPath('/account/', en ? 'en' : 'zh');
+  return langPath('/account/', pageLang());
 }
 /** @param {boolean} en */
 export function securityUrl(en) {
-  return langPath('/account/security/', en ? 'en' : 'zh');
+  return langPath('/account/security/', pageLang());
 }
 /** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、云同步、应用授权） */
 export const ACCOUNT_RETURN_RE = /^\/(zh\/)?account\/(security|devices|sync|apps)\/$/;
@@ -69,7 +72,12 @@ export function syncSubText(t, en, now) {
   const d = new Date(last);
   const pad = function (/** @type {number} */ n) { return (n < 10 ? '0' : '') + n; };
   const today = new Date(now || Date.now()).toDateString() === d.toDateString();
-  const when = (today ? '' : (d.getMonth() + 1) + (en ? '/' : '月') + d.getDate() + (en ? ' ' : '日 ')) + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  /* 日期按页面语言交给 Intl（en: Oct 22，zh: 10月22日），时间统一 HH:MM */
+  let day = '';
+  if (!today) {
+    try { day = new Intl.DateTimeFormat(pageLang(), { month: 'short', day: 'numeric' }).format(d) + ' '; } catch (e) { day = (d.getMonth() + 1) + '/' + d.getDate() + ' '; }
+  }
+  const when = day + pad(d.getHours()) + ':' + pad(d.getMinutes());
   return t('syncLast') + when;
 }
 
@@ -88,7 +96,7 @@ export function createT(en) {
     if (v && typeof v === 'object') return en ? v.en : v.zh;
     if (v) return v;
     if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
-    return en ? 'Something went wrong, please retry' : '出错了，请重试';
+    return tx('accounSomethingWentWrongPlease');
   };
 }
 

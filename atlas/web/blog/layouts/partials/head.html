@@ -2,7 +2,7 @@
 参数：.page（当前页）、.title、.description、.alt（中 / 英版本地址，有才给） */ -}}
 {{- $p := .page -}}
 {{- $title := .title -}}
-{{- $desc := .description | default site.Params.description -}}
+{{- $desc := .description | default (i18n "siteDescription") -}}
 {{- $canonical := $p.Permalink -}}
 {{- $og := "og.png" | absURL -}}
 {{- $rss := "rss.xml" | absLangURL -}}
@@ -41,7 +41,8 @@ __sgxLayoutWatch(__applyLayout);
 <link rel="alternate" hreflang="en" href="{{ . | absURL }}">
 <link rel="alternate" hreflang="x-default" href="{{ . | absURL }}">{{ end }}{{ with .zh }}
 <link rel="alternate" hreflang="zh" href="{{ . | absURL }}">{{ end }}{{ end }}
-<title>{{ $title }}</title>
+{{- /* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，站名 = 字符串表 blogTitle（博客 / Blog）；页名就是站名（首页）时只显示站名。调用方 .title 只传页名 */ -}}
+<title>{{ if eq $title (i18n "blogTitle") }}{{ $title }}{{ else }}{{ $title }} | {{ i18n "blogTitle" }}{{ end }}</title>
 <meta name="title" content="{{ $title }}">
 <meta name="description" content="{{ $desc }}">
 <meta property="og:type" content="website">

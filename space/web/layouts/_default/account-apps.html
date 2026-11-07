@@ -10,24 +10,24 @@
    noindex（见 baseof）。脚本走 ES Module 入口 entry-account-apps.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-apps.js" }}
-{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
+{{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 
 <div class="acct-layout pb-28">
   <div id="acct-apps" hidden>
-    <p class="acct-note acct-apps-intro">{{ if $isEn }}Review what each app can do with your account.{{ else }}核查账号授权给各应用的权限。{{ end }}</p>
+    <p class="acct-note acct-apps-intro">{{ $tr.accountApps.reviewWhatEachApp }}</p>
     <div class="acct-apps-tools">
       <label class="acct-apps-search">
         <span class="acct-apps-search-ic" aria-hidden="true">{{ partial "icon.html" "search" }}</span>
-        <input type="search" id="acct-apps-q" autocomplete="off" enterkeyhint="search" placeholder="{{ if $isEn }}Search by name{{ else }}按名称搜索{{ end }}" aria-label="{{ if $isEn }}Search by name{{ else }}按名称搜索{{ end }}">
+        <input type="search" id="acct-apps-q" autocomplete="off" enterkeyhint="search" placeholder="{{ $tr.accountApps.searchByName }}" aria-label="{{ $tr.accountApps.searchByName }}">
       </label>
-      <div class="acct-apps-chips" role="group" aria-label="{{ if $isEn }}Filter{{ else }}过滤{{ end }}">
+      <div class="acct-apps-chips" role="group" aria-label="{{ $tr.accountApps.filter }}">
         <button type="button" class="acct-apps-chip" data-ga-filter="all" aria-pressed="true"><span data-ga-label></span> <span class="acct-apps-n" data-ga-n></span></button>
         <button type="button" class="acct-apps-chip" data-ga-filter="on" aria-pressed="false"><span data-ga-label></span> <span class="acct-apps-n" data-ga-n></span></button>
         <button type="button" class="acct-apps-chip" data-ga-filter="off" aria-pressed="false"><span data-ga-label></span> <span class="acct-apps-n" data-ga-n></span></button>
       </div>
     </div>
     <div id="acct-apps-list" class="acct-apps-list"></div>
-    <p class="acct-note acct-apps-empty" id="acct-apps-empty" hidden>{{ if $isEn }}No matching apps.{{ else }}没有符合条件的应用。{{ end }}</p>
+    <p class="acct-note acct-apps-empty" id="acct-apps-empty" hidden>{{ $tr.accountApps.noMatchingApps }}</p>
   </div>
 </div>
 

@@ -11,7 +11,7 @@
   {{- $has := gt (len $it.children) 0 }}
   <li class="toc-tree-item{{ if $has }} has-children{{ end }}"{{ if $has }} data-toc-expanded="false"{{ end }}>
     <div class="toc-row">
-      {{- if $has }}<button class="toc-branch-toggle" type="button" aria-label="Expand section" aria-expanded="false" aria-controls="{{ $bid }}" data-toc-toggle><i aria-hidden="true"></i></button>
+      {{- if $has }}<button class="toc-branch-toggle" type="button" aria-label="{{ i18n "tocSectionExpand" }}" aria-expanded="false" data-label-expand="{{ i18n "tocSectionExpand" }}" data-label-collapse="{{ i18n "tocSectionCollapse" }}" aria-controls="{{ $bid }}" data-toc-toggle><i aria-hidden="true"></i></button>
       {{- else }}<span class="toc-branch-spacer" aria-hidden="true"></span>{{ end }}
       <a href="{{ $it.href | safeURL }}"{{ if $nav }} data-nav-toc-link{{ end }} data-toc-link data-toc-hash="{{ $it.href }}">{{ $it.label }}</a>
     </div>

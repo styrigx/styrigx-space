@@ -114,7 +114,7 @@ test('realms：rpConfig 缺变量 → null；rpConfigMissing 仍是 503 config',
   assert.deepEqual(rpConfig({ SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: 'https://styrigx.com' }), { rpId: 'styrigx.com', origin: 'https://styrigx.com' });
   const r = rpConfigMissing();
   assert.equal(r.status, 503);
-  assert.deepEqual(await r.json(), { ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN 未配置' });
+  assert.deepEqual(await r.json(), { ok: false, error: 'config', message: 'SGX_RP_ID / SGX_ORIGIN not configured' });
 });
 
 test('password：锁屏读 D1 password 表 realm=lock 那一行；库里遗留的账号行网关读不到（d1-state 只认 lock 域）', async () => {

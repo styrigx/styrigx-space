@@ -9,6 +9,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { renderAll, OUT_DIR, SHELL_REGIONS, extractRegion } from '../../../../space/scripts/gen-shell.mjs';
+import yaml from 'js-yaml';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const files = renderAll();
@@ -58,7 +59,9 @@ test('nav.json：旷野 / 奇趣 / 日刻 / 博客（PR-4b：主站一项改名�
   // 2026-10-21：书签项换成子站 奇趣 Curio（主站书签功能下线）
   const curio = nav.items.find((i) => i.id === 'curio');
   // 合并 PR3：三站和主站同在 styrigx.com（导航页里子站互相是相对地址 /curio/，见 partials/shell-topbar.html）
-  assert.deepEqual([curio.icon, curio.origin, curio.path, curio.en], ['nav-curio', 'https://styrigx.com', '/curio/', 'Curio']);
+  assert.deepEqual([curio.icon, curio.origin, curio.path], ['nav-curio', 'https://styrigx.com', '/curio/']);
+  // 语言包化（2026-11-07）：nav.json 不再带任何语言的文字，名字 / 副标题在外壳字符串表 i18n-<语言>.yaml 的 nav.<id>.title / sub
+  assert.ok(!/"(zh|en|subzh|suben)"\s*:/.test(files['nav.json']), 'nav.json 不带 zh / en 文本');
   assert.ok(!JSON.stringify(nav).includes('atlas.styrigx.com'));
   assert.deepEqual(nav.footer, []);
   assert.ok(![...nav.items, ...nav.footer].some((i) => i.id === 'settings'));
@@ -66,9 +69,11 @@ test('nav.json：旷野 / 奇趣 / 日刻 / 博客（PR-4b：主站一项改名�
   assert.equal(nav.search, undefined);
   assert.equal(nav.icons['ai-search'], undefined);
   // 顶栏头像（子站链到主站账号页）
-  assert.deepEqual(nav.me, { zh: '账号', en: 'Account', href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp' });
-  assert.deepEqual(nav.items.map((i) => i.zh), ['旷野', '奇趣', '日刻', '博客']);
-  for (const i of nav.items) { assert.ok(i.subzh && i.suben, i.id + ' 副标题'); }
+  assert.deepEqual(nav.me, { href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp' });
+  const tr = { en: yaml.load(files['i18n-en.yaml']), zh: yaml.load(files['i18n-zh.yaml']) };
+  assert.deepEqual(nav.items.map((i) => tr.zh.nav[i.id].title), ['旷野', '奇趣', '日刻', '博客']);
+  assert.deepEqual(nav.items.map((i) => tr.en.nav[i.id].title), ['Space', 'Curio', 'Daymark', 'Blog']);
+  for (const i of nav.items) for (const l of ['en', 'zh']) assert.ok(tr[l].nav[i.id].sub, i.id + ' 副标题 ' + l);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
   for (const k of ['tb-grid', 'tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history']) assert.match(nav.icons[k], /^<svg[\s\S]*<\/svg>$/, k);
   assert.equal(nav.icons['apps-grid'], undefined, '旧九宫格（九个点）不用；PR-4b 的九宫格是 tb-grid');
@@ -179,7 +184,7 @@ test('头像在 AI 窗口头部（PR-4b）：圆形 + 主题色环（同主页�
   assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), 'Gray AI → 新对话 → 历史 → 头像');
   assert.match(head, /<img src="\{\{ \.avatar \}\}" alt="" width="36" height="36" class="sgx-ai-avatar" data-sgx-avatar="192">/);
   assert.doesNotMatch(src, /sgx-ai-actions|sgx-ai-pill/, '新对话 / 历史 / 联系按钮行删了');
-  assert.match(src, /<a class="sgx-ai-contact" data-ai-contact href="mailto:styrigx@gmail\.com">\{\{ if \$en \}\}Contact me\{\{ else \}\}联系我\{\{ end \}\}<\/a>/);
+  assert.match(src, /<a class="sgx-ai-contact" data-ai-contact href="mailto:styrigx@gmail\.com">\{\{ \$t\.topbar\.contact \}\}<\/a>/);
   assert.doesNotMatch(src, /ai@styrigx\.com/);
   const lock = readFileSync(path.join(REPO, 'space/web/assets/js/shell/lock.js'), 'utf8');
   assert.match(lock, /'<span class="' \+ b\.className \+ '">'/, 'lock.js 抄顶栏按钮要带原类名');

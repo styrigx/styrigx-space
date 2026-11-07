@@ -1,7 +1,7 @@
 {{- /* 标签页（原 src/pages/tags/[tag].astro + BlogArchiveHeader + BlogPostList）：/tags/<slug>/（英文）、/zh/tags/<slug>/（中文） */ -}}
 {{ define "head" }}
 {{- $n := len .Pages -}}
-{{ partial "head.html" (dict "page" . "title" (printf "%s | %s" (i18n "tagPageTitle" (dict "Name" .Title)) site.Title) "description" (i18n "tagNote" (dict "Count" $n))) }}
+{{ partial "head.html" (dict "page" . "title" (i18n "tagPageTitle" (dict "Name" .Title)) "description" (i18n "tagNote" (dict "Count" $n))) }}
 {{ end }}
 {{ define "body" }}
 {{- $posts := partial "posts-sorted.html" (dict "pages" .Pages "mode" "archive") -}}

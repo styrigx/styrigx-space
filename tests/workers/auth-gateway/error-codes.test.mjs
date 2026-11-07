@@ -34,6 +34,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { strings } from '../../fixtures/strings.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
@@ -114,15 +115,13 @@ test('same-as-lock / same-as-account 必须在 ERR_KEY 里（双向相同密码�
   assert.equal(errKey.get('same-as-account'), 'errSameAsAccount');
 });
 
-test('每个 ERR_KEY 的 i18n key 都在门内模板里定义', () => {
+test('每个 ERR_KEY 的 i18n key 都在门内页的字符串表里定义（security-lock.html 输出 js.lockmgr；语言包化 2026-11-07 起文案在 data/i18n/<语言>.yaml）', () => {
   const { errKey } = extractFrontendMaps();
-  const templates = [
-    'space/web/layouts/_default/security-lock.html',
-  ];
-  for (const t of templates) {
-    const src = read(t);
-    const missing = [...errKey.values()].filter((k) => !src.includes('"' + k + '"'));
-    assert.deepEqual(missing, [], t + ' 缺少 i18n key');
+  assert.ok(read('space/web/layouts/_default/security-lock.html').includes('$tr.js.lockmgr'), '门内模板输出 js.lockmgr 表');
+  for (const lang of ['en', 'zh']) {
+    const table = (strings('space', lang).js || {}).lockmgr || {};
+    const missing = [...new Set(errKey.values())].filter((k) => table[k] == null || table[k] === '');
+    assert.deepEqual(missing, [], lang + ' 字符串表 js.lockmgr 缺少 i18n key');
   }
 });
 

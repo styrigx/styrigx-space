@@ -1795,6 +1795,13 @@ jobs:
           check /security/lock/ 302 || ok=1
           check /zh/security/lock/ 302 || ok=1
           check /security/ 302 || ok=1
+          # 旧 /en/…（P4-3 PR-4c 删除不 301；英文在根上是源，中文 /zh/ 是翻译层）：网关自己判 404，有没有会话都一样，不 302、不 301。
+          # 2026-11-07 线上解锁会话打开 /en/ 拿到过 77ce4d6 的旧英文首页（回源链路上的旧副本），这里同时核对正文不是首页
+          for p in /en/ /en /en/about/ /en/security/lock/ /EN/ /%65n/; do check "$p" 404 || ok=1; done
+          enbody=$(curl -sS "https://styrigx.com/en/?smoke=$GITHUB_RUN_ID" || true)
+          if printf '%s' "$enbody" | grep -q 'id="home-widgets"'; then echo "::error::/en/ served a home page"; ok=1; fi
+          # 四站同一条规则：子站旧 /<站>/en/… 也由网关直接 404（该站自己的 404 页），不 302 锁屏、不 301
+          for p in /blog/en/ /curio/en/ /daymark/en/ /blog/EN/ /curio/%65n/ /daymark/en/sitemap.xml; do check "$p" 404 || ok=1; done
           # 旧搜索 / 聊天页（P4-2 起 _redirects 301 回首页）：没会话时网关先 302 到锁屏
           check /browser/search/ 302 || ok=1
           check /chat/ 302 || ok=1

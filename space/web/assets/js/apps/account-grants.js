@@ -10,10 +10,13 @@
  * 只 import lib/ 和本目录。
  */
 import { langPath } from '../lib/lang-path.js';
+import { i18nTable, pageLang, fmtDate } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-account（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('account');
 
 /** 授权卡页地址 @param {boolean} en */
 export function appsUrl(en) {
-  return langPath('/account/apps/', en ? 'en' : 'zh');
+  return langPath('/account/apps/', pageLang());
 }
 
 /* 应用站的路径前缀（站内路径或 https://styrigx.com/ 下）：只用来认出是哪个应用。回跳地址本身不在这里校验，
@@ -68,12 +71,8 @@ export function sensitiveText(t, g) {
 export function fmtGrantDate(ts, en) {
   if (!ts) return '';
   const d = new Date(ts);
-  if (en) {
-    try {
-      return new Intl.DateTimeFormat('en', { year: 'numeric', month: 'short', day: 'numeric' }).format(d);
-    } catch (e) {}
-  }
-  return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  /* 按页面语言交给 Intl（en「Oct 22, 2026」，zh「2026年10月22日」） */
+  return fmtDate(d);
 }
 
 /**

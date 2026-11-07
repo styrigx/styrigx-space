@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ site.Language.Params.locale }}">
+<html lang="{{ site.Language.Params.locale }}" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}">
 <head>
 {{ block "head" . }}{{ end }}
 </head>

@@ -24,7 +24,7 @@ test('导航面板 #sgx-nav：九宫格按钮控制它；2×2 站点磁贴复用
   const nav = tb.slice(tb.indexOf('<dialog id="sgx-nav"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-nav"')));
   assert.match(nav, /<ul class="sgx-qp-grid sgx-nav-grid">/);
   assert.match(nav, /<a class="sgx-qp-tile sgx-nav-tile" href="\{\{ \$p \}\}" data-nav="\{\{ \.id \}\}"\{\{ if eq \.id \$\.site \}\} aria-current="page"\{\{ end \}\}><span class="sgx-qp-ic">/);
-  assert.match(nav, /<span class="sgx-qp-state">\{\{ cond \$en \.suben \.subzh \}\}<\/span>/);
+  assert.match(nav, /<span class="sgx-qp-label">\{\{ \(index \$t\.nav \.id\)\.title \}\}<\/span><span class="sgx-qp-state">\{\{ \(index \$t\.nav \.id\)\.sub \}\}<\/span>/);
   const js = rd('space/web/assets/js/shell/topbar-panel.js');
   assert.match(js, /wire\(navBtn, navDlg, 'sgxNav'/);
   assert.match(js, /return \{ nav: nav && nav\.ms, qp: qp && qp\.ms, ai: ai && ai\.ms, paint: paint \};/);

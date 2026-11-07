@@ -3,6 +3,8 @@
 // 运行：node --test tests/daymark/layout.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { strings } from '../fixtures/strings.mjs';
+import yaml from 'js-yaml';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +19,10 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-top
   assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "daymark"/);
   /* P4-3 PR-4b 定稿：页名胶囊只显示页名——首页 = 站名（data-sgx-titles = [站名, 后两个分区名]，脚本按 hash 换），其他页（404）= 页名；顶栏没有分段滑块 */
-  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$titles := slice \(cond \$isEn "Daymark" "日刻"\) \(cond \$isEn "Trove" "拾录"\) \(cond \$isEn "Flavors" "百味"\) \}\}/);
+  assert.match(base, /\{\{ if \.IsHome \}\}\n\{\{ \$titles := slice \(\$tr\.site\.name\) \(\$tr\.baseof\.trove\) \(\$tr\.baseof\.flavors\) \}\}/);
+  { const en = strings('daymark', 'en'); const zh = strings('daymark', 'zh');
+    assert.deepEqual([en.site.name, en.baseof.trove, en.baseof.flavors], ['Daymark', 'Trove', 'Flavors']);
+    assert.deepEqual([zh.site.name, zh.baseof.trove, zh.baseof.flavors], ['日刻', '拾录', '百味']); }
   assert.match(base, /<span class=\\"sgx-tb-title\\" data-sgx-titles=\\"%s\\">%s<\/span>/);
   assert.match(base, /\{\{ else \}\}\n\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
   assert.doesNotMatch(base, /sgx-seg|data-dm-seg|role=\\"tab/);
@@ -73,7 +78,9 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
 
 test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；日刻是当前项；主站项走 https://styrigx.com', () => {
   const nav = JSON.parse(readFileSync(path.join(REPO, 'atlas/web/daymark/assets/sgx-shell/nav.json'), 'utf8'));
-  assert.deepEqual(nav.items.map((i) => i.zh), ['旷野', '奇趣', '日刻', '博客']);
+  /* 语言包化（2026-11-07）：nav.json 只有 id / 图标 / 地址，站名在外壳字符串表（sync-shell 同步到 data/sgx-shell-i18n/<语言>.yaml） */
+  const trZh = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'atlas/web/daymark/data/sgx-shell-i18n/zh.yaml'), 'utf8')));
+  assert.deepEqual(nav.items.map((i) => trZh.nav[i.id].title), ['旷野', '奇趣', '日刻', '博客']);
   assert.deepEqual(nav.footer, []);
   assert.equal(nav.me.href, 'https://styrigx.com/account/');
   assert.match(base, /\{\{ \$shellNav := resources\.Get "sgx-shell\/nav\.json" \| transform\.Unmarshal \}\}/);

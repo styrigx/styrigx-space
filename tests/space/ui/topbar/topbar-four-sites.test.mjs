@@ -25,7 +25,7 @@ const CALLERS = {
   curio: 'atlas/web/curio/layouts/_default/baseof.html',
   daymark: 'atlas/web/daymark/layouts/_default/baseof.html',
 };
-const REQUIRED = ['isEn', 'home', 'center', 'nav', 'site', 'icons', 'wordmark', 'acct', 'avatar', 'pal'];
+const REQUIRED = ['lang', 'tr', 'langs', 'home', 'center', 'nav', 'site', 'icons', 'wordmark', 'acct', 'avatar', 'pal'];
 
 /** 取 `partial "...topbar.html" (dict ... )` 的参数段 */
 function callArgs(site) {
@@ -64,7 +64,7 @@ test('子站地址：主站项 / 账号 / 头像走 https://styrigx.com，中文
   for (const s of SUBS) {
     const a = callArgs(s);
     assert.match(a, /"mainOrigin" "https:\/\/styrigx\.com"/, s);
-    assert.match(a, /"acct" \(partial "sgx-lang-path\.html" \(dict "path" \$\w+\.me\.href "lang" \(cond \$isEn "en" "zh"\)\)\)/, s);
+    assert.match(a, /"acct" \(partial "sgx-lang-path\.html" \(dict "path" \$\w+\.me\.href "lang" (\.Lang|\$lang)\)\)/, s);
     assert.match(a, /"avatar" \$\w+\.me\.avatar/, s);
     assert.match(a, /"langHref" \$langHref/, s + '：语言磁贴去另一种语言的同一页');
   }

@@ -9,6 +9,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { strings, jsDict } from '../../../fixtures/strings.mjs';
+const TR = { en: strings('space', 'en'), zh: strings('space', 'zh') };
 import { readFileSync } from 'node:fs';
 import yaml from 'js-yaml';
 
@@ -43,10 +45,13 @@ test('每项都有中英文名字；extra 只放 features.yaml 里没有的 key'
     const f = byKey.get(k);
     const x = si.extra[k];
     assert.ok(!(f && x), k + ' 两边都有');
-    const name = (f || x || {}).name || {};
-    assert.ok(name.zh && name.en, k + ' 缺名字');
+    /* 语言包化（2026-11-07）：名字在字符串表——features.yaml 里的用 features.<id>.name，EXTRA 用 syncItems.extra.<key>；组名 syncItems.group.<id> */
+    for (const l of ['en', 'zh']) {
+      const name = f ? (TR[l].features[f.id] || {}).name : TR[l].syncItems.extra[k];
+      assert.ok(name, k + ' 缺名字 ' + l);
+    }
   }
-  for (const g of si.groups) assert.ok(g.zh && g.en && g.keys.length, g.id);
+  for (const g of si.groups) assert.ok(TR.en.syncItems.group[g.id] && TR.zh.syncItems.group[g.id] && g.keys.length, g.id);
 });
 
 const T = { syncValOn: '开', syncValOff: '关', syncValDefault: '默认', syncValCustom: '已自定义', syncValUnset: '未设置' };
@@ -96,8 +101,8 @@ test('模板：按 sync-items.yaml 渲染、有总开关；文案（account-i18n
   assert.match(tpl, /index site\.Data "sync-items"/);
   assert.match(tpl, /id="acct-sync-sw" role="switch"/);
   assert.match(tpl, /data-sync-key="\{\{ \$k \}\}"/);
-  const i18n = rd('space/web/layouts/partials/account-i18n.html');
-  for (const k of Object.keys(T)) assert.match(i18n, new RegExp('"' + k + '" \\(dict "zh" "[^"]+" "en" "[^"]+"\\)'), k);
+  const acc = jsDict('account');
+  for (const k of Object.keys(T)) assert.ok(acc[k] && acc[k].zh && acc[k].en, k);
 });
 
 test('P5-1：AI 窗口历史 sgx-ai-history 只存本地，不进云同步白名单（syncKeys / sync-items.yaml / features.yaml 都没有）', async () => {
@@ -117,7 +122,7 @@ test('P4-2d：AI 模型 sgx-ai-model 进云同步白名单（syncKeys + sync-ite
   assert.ok(syncKeys().includes(MODEL_KEY), 'syncKeys() 含 sgx-ai-model');
   assert.ok(si.groups.find((g) => g.id === 'more').keys.includes(MODEL_KEY), '列在「其他」组');
   assert.equal(si.extra[MODEL_KEY].type, 'ai-model');
-  assert.deepEqual(si.extra[MODEL_KEY].name, { zh: 'AI 模型', en: 'AI model' });
+  assert.deepEqual([TR.zh.syncItems.extra[MODEL_KEY], TR.en.syncItems.extra[MODEL_KEY]], ['AI 模型', 'AI model']);
   assert.ok(!feats.some((f) => f.key === MODEL_KEY), '不在 features.yaml（走 EXTRA）');
   assert.ok(!syncKeys().includes(HISTORY_KEY), '历史仍不同步');
   /* 共享外壳 ai.js（子站用的那份）读同一个键 */

@@ -8,6 +8,12 @@
 //   保存 → 已拾录；编辑时删除要确认
 const { test, expect } = require('@playwright/test');
 
+/* 语言清理（2026-11-07）起奇趣 / 日刻也「跟随系统」每页都跳（四站同一份首帧跳转 lang-boot.js），Playwright 默认 en-US 会把 /<站>/zh/… 换到英文页。
+   本文件的中文用例按中文浏览器跑（同 ui-cookie.spec.js）；要看英文页的地方先明确选英文（同源 localStorage sgx-lang=en），见 chooseLang。 */
+test.use({ locale: 'zh-CN' });
+/** 明确选语言（同源 localStorage sgx-lang；'system' = 回到跟随系统）。页面已在本站时用。 @param {import('@playwright/test').Page} page @param {string} l */
+const chooseLang = (page, l) => page.evaluate((v) => { localStorage.setItem('sgx-lang', v); }, l);
+
 const QUOTES = [
   { id: 'aaaaaaaaaaa1', text: '世上本没有路，走的人多了，也便成了路。', trans: '', author: '鲁迅', source: '故乡', source_type: 'book', tags: ['人生'], visibility: 'public', created_at: 4, updated_at: 4 },
   { id: 'aaaaaaaaaaa2', text: 'Stay hungry, stay foolish.', trans: '求知若饥，虚心若愚。', author: 'Steve Jobs', source: '', source_type: '', tags: ['English'], visibility: 'private', created_at: 3, updated_at: 3 },
@@ -136,6 +142,7 @@ test('分区：点首页入口改 hash、胶囊换分区名、入口收起；has
   await page.goto('/daymark/zh/#flavors');
   await expect(page.locator('#dm-pane-flavors')).toBeVisible();
   await expect(page.locator('.sgx-tb-title')).toHaveText('百味');
+  await chooseLang(page, 'en');
   await page.goto('/daymark/#trove');
   await expect(page.locator('#dm-entries .sgx-ent-name')).toHaveText(['Echo', 'Trove', 'Flavors']);
   await expect(page.locator('#dm-pane-trove')).toBeVisible();
@@ -234,6 +241,7 @@ test('余响 · 账号未登录：再抽一句后没有设为今日；英文页�
     await expect(page.locator('#dm-back-today')).toBeVisible();
     await expect(page.locator('#dm-set-today')).toBeHidden();
   }
+  await chooseLang(page, 'en');
   await page.goto('/daymark/');
   await expect(page.locator('#dm-set-today')).toHaveText('Set as today');
   await expect(page.locator('#dm-set-today')).toBeHidden();

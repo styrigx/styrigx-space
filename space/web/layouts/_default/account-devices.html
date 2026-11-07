@@ -9,32 +9,32 @@
    noindex（见 baseof）。脚本走 ES Module 入口 entry-account-devices.js。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-account-devices.js" }}
-{{ $isEn := eq (partial "sgx-page-lang.html" .) "en" }}
+{{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 
 <div class="acct-layout pb-28">
   <div id="acct-devices" hidden>
-    <h3 class="acct-dev-h">{{ if $isEn }}This device{{ else }}此设备{{ end }}</h3>
+    <h3 class="acct-dev-h">{{ $tr.accountDevices.thisDevice }}</h3>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.08s" id="acct-dev-this-card">
       <div class="acct-row" id="acct-dev-this"></div>
       <div class="acct-row" id="acct-dev-by-row">
         <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "shield" }}</span>
         <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ if $isEn }}Sign-in method{{ else }}登录方式{{ end }}</span>
+          <span class="block font-medium">{{ $tr.accountDevices.signInMethod }}</span>
           <span class="block text-xs mt-0.5 text-m-primary truncate" id="acct-by"></span>
         </span>
       </div>
-      <button type="button" class="lockmgr-delrow" id="acct-logout">{{ if $isEn }}Sign out{{ else }}退出账号{{ end }}</button>
+      <button type="button" class="lockmgr-delrow" id="acct-logout">{{ $tr.accountDevices.signOut }}</button>
     </section>
-    <p class="acct-note acct-note-gap" id="acct-keep-note">{{ if $isEn }}You stay signed in on this browser until you sign out.{{ else }}不点退出，这个浏览器会一直保持登录。{{ end }}</p>
+    <p class="acct-note acct-note-gap" id="acct-keep-note">{{ $tr.accountDevices.youStaySignedIn }}</p>
 
-    <h3 class="acct-dev-h">{{ if $isEn }}Other devices{{ else }}其他设备{{ end }}</h3>
+    <h3 class="acct-dev-h">{{ $tr.accountDevices.otherDevices }}</h3>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.14s">
       <div id="acct-dev-list" hidden></div>
       <div class="p-4" id="acct-dev-empty" hidden>
-        <p class="text-sm text-m-on-surface-variant m-0">{{ if $isEn }}No other signed-in devices.{{ else }}没有其他登录的设备。{{ end }}</p>
+        <p class="text-sm text-m-on-surface-variant m-0">{{ $tr.accountDevices.noOtherSignedIn }}</p>
       </div>
     </section>
-    <p class="acct-note">{{ if $isEn }}Signing out a device ends its account session right away; it has to sign in again.{{ else }}退出某台设备会立即结束它的账号会话，那台设备需要重新登录。{{ end }}</p>
+    <p class="acct-note">{{ $tr.accountDevices.signingOutADevice }}</p>
   </div>
 </div>
 

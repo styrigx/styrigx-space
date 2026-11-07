@@ -1,78 +1,59 @@
 /**
- * 继承主站外观和语言（sgx-ui cookie）：外观交给共享读端（契约见 ui-cookie-contract.test.mjs），这里测语言跟随和页面接线。
+ * 继承主站外观和语言：外观交给共享读端（契约见 ui-cookie-contract.test.mjs）；语言是四站同一份首帧跳转（共享外壳 lang-boot.js，
+ * 语言清理 2026-11-07：「跟随系统」四站一致，每页都按偏好 / 浏览器语言跳，不只首页）。这里测本站接线和本站地址。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { cookieLang, langTarget } from '../../atlas/web/curio/assets/js/sgx/lib/ui-inherit.js';
-import { sandbox } from './ui-cookie-sandbox.mjs';
+import { langBootTarget, readLangPref, cookieLangRaw } from '../../atlas/web/curio/assets/js/sgx/shell/lang-boot.js';
 
 const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8');
 const enc = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-const U = sandbox().U;
+const go = (pref, pathname, extra = {}) => langBootTarget({ pref, loc: { pathname, ...extra }, nav: extra.nav || { language: 'en-US' }, ua: extra.ua || 'Mozilla/5.0' });
 
-test('cookieLang：先过共享读端校验（v 不认识 / 乱码 / 没有 cookie → 不跟随）', () => {
-  assert.equal(cookieLang(U, 'a=1; sgx-ui=' + enc({ v: 2, mode: 'dark', lang: 'en' }) + '; b=2'), 'en');
-  assert.equal(cookieLang(U, 'sgx-ui=' + enc({ v: 1, lang: 'zh' })), 'zh');
-  assert.equal(cookieLang(U, 'sgx-ui=' + enc({ v: 3, lang: 'en' })), '', '未知版本');
-  assert.equal(cookieLang(U, 'sgx-ui=' + enc({ v: '2', lang: 'en' })), '', '版本是字符串');
-  assert.equal(cookieLang(U, 'sgx-ui=' + enc({ lang: 'en' })), '', '没有 v');
-  assert.equal(cookieLang(U, 'sgx-ui=' + enc({ v: 2, lang: 'fr' })), '');
-  assert.equal(cookieLang(U, 'sgx-ui=' + enc({ v: 2 })), '', '旧 cookie 没有 lang');
-  assert.equal(cookieLang(U, 'sgx-ui=' + enc({ v: 2, lang: '' })), '', '跟随系统 = 空');
-  assert.equal(cookieLang(U, 'sgx-ui=' + enc({ v: 2, lang: 'EN' })), '', '大写不认');
-  assert.equal(cookieLang(U, 'sgx-ui=' + enc({ v: 2, lang: 'en-US' })), '', 'en-US 不认');
-  assert.equal(cookieLang(U, 'sgx-ui=%%%'), '');
-  assert.equal(cookieLang(U, ''), '');
-  assert.equal(cookieLang(undefined, 'sgx-ui=' + enc({ v: 2, lang: 'en' })), '', '读端没加载就不跳');
+test('偏好：明确语言 / system / 旧版的空 → 跟随系统；localStorage 没有明确值才看 cookie', () => {
+  assert.equal(readLangPref('zh', ''), 'zh');
+  assert.equal(readLangPref('en', 'zh'), 'en', 'localStorage 优先');
+  assert.equal(readLangPref('system', 'zh'), 'system', '明确的跟随系统不被旧 cookie 盖掉');
+  assert.equal(readLangPref(null, 'zh'), 'zh');
+  assert.equal(readLangPref(null, ''), 'system', '旧版跟随系统存的空');
+  assert.equal(readLangPref('', 'system'), 'system');
+  assert.equal(readLangPref('klingon', 'xx'), 'system');
 });
 
-test('cookieLang：只用 SgxUI.read() 校验过的 lang，不再自己解原始 JSON', () => {
-  const fake = { read: () => ({ v: 2, lang: 'en' }), decode: () => assert.fail('不该再解原始值') };
-  assert.equal(cookieLang(fake, 'sgx-ui=x'), 'en');
-  const fake2 = { read: () => ({ v: 2, lang: '' }), decode: () => ({ lang: 'en' }) };
-  assert.equal(cookieLang(fake2, 'sgx-ui=x'), '', '读端判为不合法 / 跟随系统就不跟随');
-  const fake3 = { read: () => ({ v: 2 }), decode: () => assert.fail('不该再解原始值') };
-  assert.equal(cookieLang(fake3, 'sgx-ui=x'), '', '读端没给 lang 就不跟随');
-});
-
-test('cookieLang × 主站契约夹具：每个用例跟随的语言 = 夹具 read.lang（没有 cookie / 版本不认识 = 不跳）', () => {
+test('cookie × 主站契约夹具：首帧要的语言 = 夹具 read.lang（是配置里的语言才算明确选择，其余跟随系统）', () => {
   const fx = JSON.parse(read('tests/fixtures/ui-cookie-contract.json'));
-  const want = (c) => (c.read && c.read.lang) || '';
   for (const c of fx.cases) {
-    assert.equal(cookieLang(U, 'sgx-lock-session=x; sgx-ui=' + c.cookie + '; other=1'), want(c), c.name);
+    const lang = c.read && c.read.lang;
+    const want = lang === 'zh' || lang === 'en' ? lang : 'system';
+    assert.equal(readLangPref(null, cookieLangRaw('sgx-lock-session=x; sgx-ui=' + c.cookie + '; other=1')), want, c.name);
   }
-  const by = Object.fromEntries(fx.cases.map((c) => [c.name, want(c)]));
-  assert.equal(by['语言：明确选了 English → lang en'], 'en');
-  assert.equal(by['语言：明确选了中文 → lang zh'], 'zh');
-  assert.equal(by['语言：跟随系统 / 存了不认识的值 → lang 空'], '');
-  assert.equal(by['未知版本 v3 带 lang → 当没有 cookie（不跳语言）'], '');
+  assert.equal(cookieLangRaw('sgx-ui=' + enc({ v: 3, lang: 'en' })), '', '未知版本 = 没有 cookie');
 });
 
-test('langTarget：只在不同的时候跳，保留查询串和 #页签；地址都在 /curio/ 下（P4-3 PR-4c：英文 /curio/、中文 /curio/zh/）', () => {
-  assert.equal(langTarget('zh', { pathname: '/curio/', hash: '#trove' }, 'en'), '/curio/zh/#trove');
-  assert.equal(langTarget('en', { pathname: '/curio/zh/', hash: '#flavors' }, 'zh'), '/curio/#flavors');
-  assert.equal(langTarget('en', { pathname: '/curio/zh' }, 'zh'), '/curio/');
-  assert.equal(langTarget('en', { pathname: '/curio/zh/404.html' }, 'zh'), '/curio/404.html');
-  assert.equal(langTarget('zh', { pathname: '/curio/404.html' }, 'en'), '/curio/zh/404.html');
-  assert.equal(langTarget('zh', { pathname: '/curio', search: '?a=1' }, 'en'), '/curio/zh/?a=1');
-  assert.equal(langTarget('zh', { pathname: '/curio/', search: '?a=1' }, 'en'), '/curio/zh/?a=1');
-  assert.equal(langTarget('en', { pathname: '/curio/' }, 'en'), '');
-  assert.equal(langTarget('', { pathname: '/curio/' }, 'en'), '');
-  /* 不在本站前缀下（图志根、别的站）不跳 */
-  assert.equal(langTarget('zh', { pathname: '/' }, 'en'), '');
-  assert.equal(langTarget('zh', { pathname: '/blog/' }, 'en'), '');
+test('本站每一页都跳（不只首页）：跟随系统 + 中文浏览器 → /curio/zh/…；英文浏览器不跳；保留查询串和 #页签', () => {
+  const zhNav = { nav: { language: 'zh-CN', languages: ['zh-CN', 'en'] } };
+  assert.equal(go('system', '/curio/', { ...zhNav, hash: '#trove' }), '/curio/zh/#trove');
+  assert.equal(go('system', '/curio/404.html', zhNav), '/curio/zh/404.html');
+  assert.equal(go('system', '/curio/', { ...zhNav, search: '?a=1' }), '/curio/zh/?a=1');
+  assert.equal(go('system', '/curio/'), '', '英文浏览器');
+  assert.equal(go('system', '/curio/zh/', zhNav), '');
+  assert.equal(go('en', '/curio/zh/', { hash: '#flavors' }), '/curio/#flavors');
+  assert.equal(go('en', '/curio/zh'), '/curio/');
+  assert.equal(go('zh', '/curio/', { ua: 'Googlebot/2.1' }), '', '爬虫不跳');
 });
 
-test('页面接线：baseof 先原样内联共享读端，再内联 ui-inherit-run.js（都在样式前）；外观只走 SgxUI.apply，不再自己解析 cookie', () => {
+test('页面接线：<html data-sgx-langs> 来自 hugo.yaml；baseof 先内联 lang-boot，再内联共享读端和 ui-inherit-run.js（都在样式前）', () => {
   const base = read('atlas/web/curio/layouts/_default/baseof.html');
+  assert.ok(base.includes('data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}"'), '语言列表来自 hugo.yaml');
+  const iBoot = base.indexOf('resources.Get "js/sgx/shell/lang-boot.js" | js.Build');
   const iReader = base.indexOf('resources.Get "js/sgx/shell/ui-cookie-read.js" | minify');
   const iRun = base.indexOf('resources.Get "js/sgx/ui-inherit-run.js"');
-  assert.ok(iReader > 0 && iReader < iRun && iRun < base.indexOf('css/main.css'));
+  assert.ok(iBoot > 0 && iBoot < iReader && iReader < iRun && iRun < base.indexOf('css/main.css'));
   const run = read('atlas/web/curio/assets/js/sgx/ui-inherit-run.js');
   assert.match(run, /U\.apply\(document\.documentElement, \{ onMiss: loadEngine \}\)/);
-  const lib = read('atlas/web/curio/assets/js/sgx/lib/ui-inherit.js');
-  for (const [f, src] of [['ui-inherit-run.js', run], ['ui-inherit.js', lib], ['shell-accent.js', read('atlas/web/curio/assets/js/sgx/shell-accent.js')]]) {
+  assert.doesNotMatch(run, /location\.replace|langTarget|cookieLang/, '语言跳转只在 lang-boot.js');
+  for (const [f, src] of [['ui-inherit-run.js', run], ['shell-accent.js', read('atlas/web/curio/assets/js/sgx/shell-accent.js')]]) {
     assert.doesNotMatch(src, /atob|data-sgx-seed|'lake'|ui\.theme/, f);
   }
   assert.match(read('atlas/web/curio/assets/js/sgx/shell-accent.js'), /U\.setRoles\(seed, rolesCss\(seed\)\)/);

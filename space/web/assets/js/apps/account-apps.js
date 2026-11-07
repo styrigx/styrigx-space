@@ -14,6 +14,9 @@ import { createT, goAccountLogin } from './account-common.js';
 import { ACCOUNT_API, postJSON, errText } from '../auth/account-api.js';
 import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/account-methods.js';
 import { appIcon, appName, scopeText, sensitiveText, fmtGrantDate, deviceText, filterGrants, countGrants } from './account-grants.js';
+import { i18nTable } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-account（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('account');
 
 (function () {
   const root = document.getElementById('acct-apps');
@@ -61,19 +64,20 @@ import { appIcon, appName, scopeText, sensitiveText, fmtGrantDate, deviceText, f
     const head = document.createElement('div');
     head.className = 'acct-row acct-app-head';
     head.appendChild(appIcon(g.app));
-    const tx = document.createElement('span');
-    tx.className = 'flex-1 min-w-0';
+    /* 别叫 tx：模块级 tx 是字符串表取文案函数，同名局部变量会把它遮住（下面 tx('gaSensSep') 报 not a function，整页 0 张卡） */
+    const txt = document.createElement('span');
+    txt.className = 'flex-1 min-w-0';
     const nm = document.createElement('span');
     nm.className = 'block font-medium truncate acct-app-name';
     nm.textContent = name;
-    tx.appendChild(nm);
-    head.appendChild(tx);
+    txt.appendChild(nm);
+    head.appendChild(txt);
     body.appendChild(head);
 
     const info = document.createElement('div');
     info.className = 'acct-app-info';
     const sens = sensitiveText(t, g);
-    info.appendChild(metaRow('gaScopeLabel', scopeText(t, g) + (sens ? (en ? '. ' : '；') + sens : '')));
+    info.appendChild(metaRow('gaScopeLabel', scopeText(t, g) + (sens ? tx('gaSensSep') + sens : '')));
     if (g.granted) {
       info.appendChild(metaRow('gaAtLabel', fmtGrantDate(g.grantedAt, en)));
       info.appendChild(metaRow('gaDevLabel', deviceText(t, g)));

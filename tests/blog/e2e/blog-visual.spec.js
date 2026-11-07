@@ -12,6 +12,17 @@ async function imagesReady(page) {
     .catch(() => {});
 }
 
+/* 语言清理（2026-11-07）起博客也「跟随系统」每页都跳（四站同一份首帧跳转 lang-boot.js），Playwright 默认 en-US 会把 /blog/zh/… 换到英文页。
+   截图 / 布局用例要的是「这一页」本身：每页首帧前明确选它自己的语言（同源 localStorage sgx-lang），不跳；
+   浏览器 locale 不改（仍 en-US），和基线生成环境一致。「中文浏览器」那条用自己的 zh-CN 上下文，不受影响。 */
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('sgx-lang', location.pathname.startsWith('/blog/zh/') ? 'zh' : 'en');
+    } catch {}
+  });
+});
+
 const PAGES = [
   { name: 'home', path: '/blog/zh/' },
   { name: 'home-en', path: '/blog/' },

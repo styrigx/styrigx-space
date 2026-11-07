@@ -3,6 +3,8 @@
 // 运行：node --test tests/curio/layout.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { strings } from '../fixtures/strings.mjs';
+import yaml from 'js-yaml';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +21,8 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 sgx-shell-top
   assert.match(base, /\{\{ partial "sgx-shell-topbar\.html" \(dict\n/);
   assert.match(base, /"site" "curio"/);
   /* P4-3 奇趣拆页：页名胶囊只显示页名——首页 = 站名，子页 = 子页名（内容文件的 title），404 = 页名；不再有 data-sgx-titles（没有页内分区） */
-  assert.match(base, /\{\{ if \.IsHome \}\}\{\{ \$pageName = cond \$isEn "Curio" "奇趣" \}\}\{\{ end \}\}/);
+  assert.match(base, /\{\{ if \.IsHome \}\}\{\{ \$pageName = \$tr\.site\.name \}\}\{\{ end \}\}/);
+  assert.deepEqual([strings('curio', 'en').site.name, strings('curio', 'zh').site.name], ['Curio', '奇趣']);
   assert.match(base, /\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
   assert.doesNotMatch(base, /data-sgx-titles/);
   assert.doesNotMatch(base, /sgx-seg|data-cu-seg|role=\\"tab/);
@@ -57,7 +60,9 @@ test('留言板撤了（2026-10-24）：没有 /guestbook/ 页面、模板、脚
 
 test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主站共享外壳的 nav.json（主站 / 奇趣 / 日刻 / 博客），模板不写死项；奇趣是当前项；主站项走 https://styrigx.com', () => {
   const nav = JSON.parse(readFileSync(path.join(REPO, 'atlas/web/curio/assets/sgx-shell/nav.json'), 'utf8'));
-  assert.deepEqual(nav.items.map((i) => i.zh), ['旷野', '奇趣', '日刻', '博客']);
+  /* 语言包化（2026-11-07）：nav.json 只有 id / 图标 / 地址，站名在外壳字符串表（sync-shell 同步到 data/sgx-shell-i18n/<语言>.yaml） */
+  const trZh = /** @type {any} */ (yaml.load(readFileSync(path.join(REPO, 'atlas/web/curio/data/sgx-shell-i18n/zh.yaml'), 'utf8')));
+  assert.deepEqual(nav.items.map((i) => trZh.nav[i.id].title), ['旷野', '奇趣', '日刻', '博客']);
   assert.deepEqual(nav.footer, []);
   assert.equal(nav.me.href, 'https://styrigx.com/account/');
   assert.match(base, /\{\{ \$shellNav := resources\.Get "sgx-shell\/nav\.json" \| transform\.Unmarshal \}\}/);
@@ -99,7 +104,8 @@ test('发现子页：分类条、格子、收藏按钮、更多菜单（分类 /
   assert.match(parts, /id="bk-toast"/);
   assert.match(finds, /id="menu-export"[^>]*href="\{\{ "api\/export" \| relURL \}\}/);
   assert.match(finds, /id="imp-private"[^>]*checked/);
-  assert.match(finds, /<section id="cu-pane-finds" class="cu-pane" aria-label="\{\{ if \$isEn \}\}Finds\{\{ else \}\}发现\{\{ end \}\}">/);
+  assert.match(finds, /<section id="cu-pane-finds" class="cu-pane" aria-label="\{\{ \$tr\.finds\.finds \}\}">/);
+  assert.deepEqual([strings('curio', 'en').finds.finds, strings('curio', 'zh').finds.finds], ['Finds', '发现']);
   assert.match(finds, /js\/curio\.js/);
   assert.doesNotMatch(finds, /curio-items|curio-tabs|dv-|gm-/);
 });

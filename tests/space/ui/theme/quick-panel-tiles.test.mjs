@@ -28,12 +28,13 @@ const feats = rd('space/web/data/features.yaml');
 test('快捷面板磁贴（PR-4b 四站同一套）：dark / system / share / lock 两行 2×2 + 语言整行；没有按站开关、没有减弱动效和字体大小', () => {
   const tiles = [...qpHtml.matchAll(/data-qp="([a-z]+)"/g)].map((m) => m[1]);
   assert.deepEqual(tiles, ['dark', 'system', 'share', 'lock', 'lang']);
-  assert.doesNotMatch(qpHtml, /\$t\.|\.tiles|\{\{ with \.layout \}\}/, '磁贴不再按 tiles / layout 参数开关');
+  assert.doesNotMatch(qpHtml, /\.tiles\b|\$tiles|\{\{ with \.layout \}\}/, '磁贴不再按 tiles / layout 参数开关');
   assert.doesNotMatch(base, /\$tbTiles|"tiles"|"layout" \(index/, '主站不再传 tiles / layout');
   assert.match(qpHtml, /<button type="button" class="sgx-qp-line" data-qp="lang" aria-expanded="false" aria-controls="sgx-qp-lang-opts"/);
-  const langOpts = qpHtml.slice(qpHtml.indexOf('id="sgx-qp-lang-opts"'), qpHtml.indexOf('data-qp-lang="{{ .v }}"'));
-  assert.deepEqual([...langOpts.matchAll(/"v" "([a-z]+)"/g)].map((m) => m[1]), ['system', 'zh', 'en']);
-  assert.match(qpHtml, /<button type="button" class="sgx-qp-opt" role="radio" data-qp-lang="\{\{ \.v \}\}" aria-checked="false">/);
+  /* 语言包化（2026-11-07）：选项 = 跟随系统 + hugo.yaml languages 的每种语言（语言名用它自己的写法、translate="no"），不写死 zh / en */
+  assert.match(qpHtml, /<button type="button" class="sgx-qp-opt" role="radio" data-qp-lang="system" aria-checked="false"><span class="sgx-qp-opt-tx">\{\{ \$t\.topbar\.followSystem \}\}<\/span>/);
+  assert.match(qpHtml, /\{\{- range \.langs \}\}\s*<button type="button" class="sgx-qp-opt" role="radio" data-qp-lang="\{\{ \.code \}\}" lang="\{\{ \.code \}\}" aria-checked="false"><span class="sgx-qp-opt-tx" translate="no">\{\{ \.name \}\}<\/span>/);
+  assert.doesNotMatch(qpHtml, /"v" "(zh|en)"/);
   assert.match(qpHtml, /<div class="sgx-qp-opts" id="sgx-qp-lang-opts" role="radiogroup"[^>]*hidden>/);
   assert.match(qpHtml, /data-qp-seg="layout"/);
   assert.match(qpJs, /share: mountShare/, '主站也接分享本页');
@@ -54,8 +55,9 @@ test('七色调色板（PR-G）：两处都是 22 个 .pal-tile、不分单色 /
   assert.match(theme, /range site\.Data\.palettes\.groups/);
   assert.match(qpHtml, /<button type="button" class="palette-reset" data-qp-reset aria-disabled="true">/);
   assert.match(theme, /<button type="button" class="palette-reset" id="palette-reset" aria-disabled="true">/);
-  assert.match(qpHtml, /恢复默认/);
-  assert.match(theme, /Reset/);
+  assert.match(qpHtml, /<span>\{\{ \$t\.topbar\.reset \}\}<\/span>/);
+  assert.match(rd('space/web/data/sgx-shell-i18n/zh.yaml'), /\n  reset: 恢复默认\n/);
+  assert.match(theme, /\{\{ \$tr\.setcatTheme\.reset \}\}/);
   assert.match(setJs, /setPalette\(DEFAULT_PALETTE\)/);
   assert.match(setJs, /=== DEFAULT_PALETTE && !accent\(\)/);
   /* 快捷面板的逻辑在 topbar-panel.js（四站共用，依赖由 quick-panel.js 传入） */
@@ -84,7 +86,7 @@ test('配色（2026-10-23 PR-G 修订；P5-1 改用 --sgx-* 角色）：磁贴 /
 
 test('PR4：快捷面板没有标题和齿轮（模板、样式、脚本都删干净）；读屏名字在 dialog 的 aria-label；PR-4b 起没有页签 / 两页', () => {
   const open = tb.slice(tb.indexOf('<dialog id="sgx-qp"'), tb.indexOf('>', tb.indexOf('<dialog id="sgx-qp"')) + 1);
-  assert.match(open, /aria-label="\{\{ if \$en \}\}Quick settings\{\{ else \}\}快捷设置\{\{ end \}\}"/);
+  assert.match(open, /aria-label="\{\{ \$t\.topbar\.quick \}\}"/);
   assert.doesNotMatch(open, /aria-labelledby/);
   assert.doesNotMatch(qpHtml, /sgx-qp-head|sgx-qp-title|"gear"/);
   assert.doesNotMatch(qpHtml, /class="sgx-qp-set"/);

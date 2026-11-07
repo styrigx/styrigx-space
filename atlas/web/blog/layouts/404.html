@@ -1,6 +1,6 @@
 {{- /* 404（原 src/pages/404.astro）。Cloudflare Pages 回最近的 404.html：/404.html（英文）、/zh/404.html（中文） */ -}}
 {{ define "head" }}
-{{ partial "head.html" (dict "page" . "title" "404 Not Found" "description" (i18n "notFoundDesc")) }}
+{{ partial "head.html" (dict "page" . "title" (i18n "notFoundPill") "description" (i18n "notFoundDesc")) }}
 {{ end }}
 {{ define "body" }}
 <body class="page-404">

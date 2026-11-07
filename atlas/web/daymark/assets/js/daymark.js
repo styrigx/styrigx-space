@@ -210,7 +210,7 @@ var T = isEn ? {
   add: 'Save a line', edit: 'Edit line', kept: 'Kept.', deleted: 'Deleted.', failed: 'Something went wrong. Please try again.',
   needText: 'Write the line first.', priv: 'Only you can see this', emptyAdmin: 'Nothing kept yet. Tap "Save a line" to keep your first one.',
   emptyVisitor: 'Nothing here yet.', noToday: 'No line for today yet.', copied: 'Copied.', nothingToDraw: 'Nothing to draw from yet.', setToday: "Set as today's line.",
-  count: function(n){ return n + (n === 1 ? ' line' : ' lines'); }, newCol: 'New', colCreated: 'Collection created.',
+  count: function(n){ return n + (n === 1 ? ' line' : ' lines'); }, newCol: 'New', plus: '+', colCreated: 'Collection created.',
   delQuote: 'Delete this line? This cannot be undone.', delCol: 'Delete this collection? The lines in it stay in your Trove.',
   removed: 'Removed from this collection.', groupEmpty: 'Nothing in here yet.', edit2: 'Edit', done: 'Done', needName: 'Give it a name first.',
   previewPh: 'Your line will show here, just like in Echo.', up: 'Move up', down: 'Move down', remove: 'Remove from collection',
@@ -219,7 +219,7 @@ var T = isEn ? {
   add: '记一句', edit: '编辑这一句', kept: '已拾录', deleted: '已删除', failed: '出了点问题，请再试一次。',
   needText: '先写下这一句。', priv: '仅自己可见', emptyAdmin: '还没有句子。点「记一句」留下第一句。',
   emptyVisitor: '这里还空着。', noToday: '今天还没有句子。', copied: '已复制', nothingToDraw: '还没有可以抽的句子。', setToday: '已设为今日',
-  count: function(n){ return n + ' 句'; }, newCol: '新建', colCreated: '专题已建好',
+  count: function(n){ return n + ' 句'; }, newCol: '新建', plus: '＋', colCreated: '专题已建好',
   delQuote: '确定删除这一句吗？删除后无法恢复。', delCol: '确定删除这个专题吗？里面的句子还留在拾录里。',
   removed: '已移出专题', groupEmpty: '这里还没有句子。', edit2: '编辑', done: '完成', needName: '先给专题起个名字。',
   previewPh: '写下的句子会像在余响里这样显示。', up: '上移', down: '下移', remove: '移出专题',
@@ -435,7 +435,7 @@ function renderFlavors(){
       + '<span class="dm-fcard-name">' + esc(c.name) + '</span>'
       + (c.intro ? '<span class="dm-fcard-intro">' + esc(c.intro) + '</span>' : '')
       + '<span class="dm-fcard-count">' + esc(T.count(n)) + '</span></button>';
-  }).join('') + (canWrite ? '<button type="button" class="dm-fcard dm-fcard-new" id="dm-col-new"><span class="dm-fcard-plus" aria-hidden="true">＋</span><span class="dm-fcard-name">' + esc(T.newCol) + '</span></button>' : '');
+  }).join('') + (canWrite ? '<button type="button" class="dm-fcard dm-fcard-new" id="dm-col-new"><span class="dm-fcard-plus" aria-hidden="true">' + T.plus + '</span><span class="dm-fcard-name">' + esc(T.newCol) + '</span></button>' : '');
   var authors = authorGroups(quotes);
   $('#dm-authors-sec').classList.toggle('hidden', !authors.length);
   $('#dm-authors').innerHTML = authors.map(function(a){
@@ -643,7 +643,7 @@ function renderCols(){
   var box = $('#f-cols');
   box.innerHTML = collections.map(function(c){
     return '<button type="button" class="dm-chip" data-col="' + esc(c.id) + '" aria-pressed="' + (ed.cols.indexOf(c.id) >= 0) + '">' + esc(c.name) + '</button>';
-  }).join('') + '<button type="button" class="dm-chip dm-chip-new" id="f-col-new">＋ ' + esc(T.newCol) + '</button>';
+  }).join('') + '<button type="button" class="dm-chip dm-chip-new" id="f-col-new">' + T.plus + ' ' + esc(T.newCol) + '</button>';
   box.querySelectorAll('[data-col]').forEach(function(b){
     b.addEventListener('click', function(){
       var id = b.dataset.col, i = ed.cols.indexOf(id);

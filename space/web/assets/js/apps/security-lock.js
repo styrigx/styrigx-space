@@ -17,10 +17,15 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose, bindSubmitButton, showCenterDialog } from '../lib/dialog-behavior.js';
 import { api, apiErrorText, needVerify, startReauthCountdown, refreshReauthCountdown, guardReauthExpired } from './app-gate.js';
 import { registerPasskey, createPkNameDialog, genPkPrefillName } from '../auth/passkey-register.js';
+import { providerLabel, defaultPasskeyName } from '../lib/passkey-label.js';
+import { markPersonal } from '../lib/personal.js';
 import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from '../auth/passkey-assert.js';
 import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockReauthFetch } from '../auth/auth-flow.js';
 import { renderAccountMethods } from '../auth/account-methods.js';
 import { KEY_LOCK } from '../lib/key-names.js';
+import { i18nTable, fmtDate as fmtIntlDate } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-lockmgr（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('lockmgr');
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -44,7 +49,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
     if (v) return v;
     /* 批次 A 收尾 #36：兜底不显示内部键名；键名只记诊断 */
     if (typeof console !== 'undefined') console.warn('[i18n] missing key:', k);
-    return en ? 'Something went wrong, please retry' : '出错了，请重试';
+    return tx('securiSomethingWentWrongPlease');
   }
   /** @param {string} id */
   function $(id) {
@@ -73,13 +78,8 @@ import { KEY_LOCK } from '../lib/key-names.js';
   /** @param {number} ts */
   function fmtDate(ts) {
     try {
-      const d = new Date(ts);
-      const p = function (n) {
-        return String(n).padStart(2, '0');
-      };
-      return en
-        ? d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
-        : d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+      /* 按页面语言交给 Intl（en「Oct 22, 2026」，zh「2026年10月22日」；语言包化 2026-11-07） */
+      return fmtIntlDate(ts);
     } catch (e) {
       return '';
     }
@@ -122,16 +122,14 @@ import { KEY_LOCK } from '../lib/key-names.js';
     var done = hasPw || hasPk;
     showCenterDialog({
       title: done
-        ? (en ? 'Setup complete' : '设置完成')
-        : (en ? 'Verification expired' : '验证已过期'),
+        ? (tx('securiSetupComplete'))
+        : (tx('expiredReauthTitle')),
       desc: done
-        ? (en ? 'Unlock method is set. Please go back to the lock screen to unlock.'
-              : '解锁方式已设置，请回锁屏解锁')
-        : (en ? 'Please go back to the lock screen to start over.'
-              : '验证已过期，请回锁屏重新开始'),
+        ? tx('securiSetupDoneDesc')
+        : tx('securiExpiredStartOver'),
       dismissible: false,
       buttons: [{
-        label: en ? 'Go to lock screen' : '去锁屏',
+        label: tx('expiredSessionBtn'),
         kind: 'primary',
         onClick: function () {
           try { sgxReplace('/?lock=1'); } catch (e) {}
@@ -376,7 +374,9 @@ import { KEY_LOCK } from '../lib/key-names.js';
           const nameInput = document.createElement('input');
           nameInput.type = 'text';
           nameInput.value = k.name || '';
-          nameInput.placeholder = t('pkUnnamed');
+          /* 用户自起的名字 = 个人信息类（原样、不翻译）；没起名时占位显示按语言的默认名（界面文案） */
+          nameInput.placeholder = defaultPasskeyName(k, t);
+          markPersonal(nameInput);
           nameInput.maxLength = 40;
           nameInput.setAttribute('aria-label', t('pkUnnamed'));
           let lastSaved = k.name || '';
@@ -412,16 +412,16 @@ import { KEY_LOCK } from '../lib/key-names.js';
           });
           const meta = document.createElement('span');
           meta.className = 'lockmgr-pkdate';
-          /* 副标题：provider + 创建于 + 最近使用（lastUsedAt 为 0 显示“尚未使用”） */
-          let metaText = '创建于 ' + fmtDate(k.createdAt);
+          /* 副标题：provider + 创建于 + 最近使用（lastUsedAt 为 0 显示“尚未使用”）；全部走字符串表，provider 是 id，按语言取显示名 */
+          let metaText = t('created') + fmtDate(k.createdAt);
           if (k.lastUsedAt) {
-            metaText += ' · 最近使用 ' + fmtDate(k.lastUsedAt);
+            metaText += ' · ' + t('lastUsed') + fmtDate(k.lastUsedAt);
           } else {
             metaText += ' · ' + t('pkNeverUsed');
           }
-          /* provider 显示（如果有） */
-          if (k.provider) {
-            metaText = k.provider + ' · ' + metaText;
+          const prov = providerLabel(k.provider || '', t);
+          if (prov) {
+            metaText = prov + ' · ' + metaText;
           }
           meta.textContent = metaText;
           nameWrap.appendChild(nameInput);
@@ -544,7 +544,7 @@ import { KEY_LOCK } from '../lib/key-names.js';
           refreshPkList();
           refreshReauthCountdown(t);
         },
-        prefill: function () { return genPkPrefillName(t('pkUnnamed')); },
+        prefill: function () { return genPkPrefillName(''); },
         errText: srvErr,
         toast: toast,
         msg: { cancelled: t('gateCancelled'), already: t('pkAlready'), noSupport: t('pkNoSupport'), failed: t('pkFailed'), network: t('gateNetErr') },

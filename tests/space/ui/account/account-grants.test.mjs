@@ -9,6 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { setI18nLang } from '../../../fixtures/i18n-dom.mjs';
 
 const g = await import('../../../../space/web/assets/js/apps/account-grants.js');
 const fx = createRequire(import.meta.url)('../../../fixtures/app-grants.cjs');
@@ -38,9 +39,13 @@ test('filterGrants / countGrants：过滤 + 按名字搜（中英名、忽略大
 });
 
 test('fmtGrantDate / deviceText / sensitiveText', () => {
+  /* 语言包化 2026-11-07：日期按页面语言交给 Intl（参数 en 只是兼容） */
+  setI18nLang('zh');
   assert.equal(g.fmtGrantDate(fx.AT, false), '2026年11月5日');
-  assert.equal(g.fmtGrantDate(fx.AT, true), 'Nov 5, 2026');
   assert.equal(g.fmtGrantDate(0, false), '');
+  setI18nLang('en');
+  assert.equal(g.fmtGrantDate(fx.AT, true), 'Nov 5, 2026');
+  setI18nLang('zh');
   const t = (k) => ({ gaDevGone: '已退出的设备', gaDevUnknown: '未知设备', gaSensitive: '{v}另要验证账号', 'gaSens-curio': '批量导入书签' })[k];
   assert.equal(g.deviceText(t, { device: { name: 'Galaxy S25 Ultra', gone: false } }), 'Galaxy S25 Ultra');
   assert.equal(g.deviceText(t, { device: { name: '', gone: false } }), '未知设备');

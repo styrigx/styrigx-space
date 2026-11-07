@@ -7,6 +7,12 @@
 // - 360 / 412 宽：顶栏胶囊（字标 · 页名胶囊 · 九宫格 · 快捷设置 · AI）不溢出，没有右圆分享，页面不横向滚动。
 import { test, expect } from '@playwright/test';
 
+/* 语言清理（2026-11-07）起奇趣 / 日刻也「跟随系统」每页都跳（四站同一份首帧跳转 lang-boot.js），Playwright 默认 en-US 会把 /<站>/zh/… 换到英文页。
+   本文件的中文用例按中文浏览器跑（同 ui-cookie.spec.js）；要看英文页的地方先明确选英文（同源 localStorage sgx-lang=en），见 chooseLang。 */
+test.use({ locale: 'zh-CN' });
+/** 明确选语言（同源 localStorage sgx-lang；'system' = 回到跟随系统）。页面已在本站时用。 @param {import('@playwright/test').Page} page @param {string} l */
+const chooseLang = (page, l) => page.evaluate((v) => { localStorage.setItem('sgx-lang', v); }, l);
+
 const CODE = 'AbCdEfGhIjKlMnOpQrStUv';
 const SHORT = 'https://styrigx.com/s/' + CODE;
 const PAGE = '/daymark/zh/404.html';
@@ -178,6 +184,7 @@ test.describe('快捷面板「分享本页」磁贴', () => {
     test(`${w} 宽：顶栏胶囊（字标 · 九宫格 · 快捷设置 · AI；手机布局不显示页名胶囊）贴页边距，三颗圆按钮 40 × 40，页面不横向滚动（所有进门的人一样）`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: 800 });
       for (const home of HOMES) {
+        if (!/\/zh\//.test(home)) await chooseLang(page, 'en');
         await page.goto(home, { waitUntil: 'domcontentloaded' });
         await expect(page.locator('.sgx-topbar')).toBeVisible();
         const r = await page.evaluate(() => {

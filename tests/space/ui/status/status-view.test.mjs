@@ -5,6 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { jsDict } from '../../../fixtures/strings.mjs';
 import { readFileSync } from 'node:fs';
 import {
   esc, bjDay, addDays, fmtDay, fmtBjTime, fmtDur, fmtAgo, fmtPct, pctOf, dayLevel, buildSlots, siteState, siteName, hostOf,
@@ -12,14 +13,12 @@ import {
 } from '../../../../space/web/assets/js/lib/status-view.js';
 import fx from '../../../fixtures/status-summary.cjs';
 
-/* 文案直接读模板里的那份（partials/status-i18n.html 的 dict "key" (dict "zh" … "en" …)），和页面上一致 */
-const SRC = readFileSync(new URL('../../../../space/web/layouts/partials/status-i18n.html', import.meta.url), 'utf8');
-const DICT = {};
-for (const m of SRC.matchAll(/"(\w+)" \(dict "zh" "([^"]*)" "en" "([^"]*)"\)/g)) DICT[m[1]] = { zh: m[2], en: m[3] };
+/* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/status-i18n.html 输出 $tr.js.status），和页面上一致 */
+const DICT = jsDict('status');
 
 function mk(en) {
   const t = (k) => {
-    assert.ok(DICT[k], 'status-i18n.html 缺文案：' + k);
+    assert.ok(DICT[k], '字符串表 js.status 缺文案：' + k);
     return en ? DICT[k].en : DICT[k].zh;
   };
   const fmt = (k, v) => {

@@ -18,12 +18,15 @@ import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { followKeyboard } from '../shell/vk.js';
 import { registerPasskey, createPkNameDialog, genPkPrefillName, cleanPasskeyName } from '../auth/passkey-register.js';
+import { providerLabel, defaultPasskeyName } from '../lib/passkey-label.js';
+import { markPersonal } from '../lib/personal.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { bindDataEyes, createSetPwDialog, newPwError } from '../auth/auth-flow.js';
 import { bindSubmitButton } from '../lib/dialog-behavior.js';
 import { accountUrl, createT, signalAccountName } from './account-common.js';
 import { ACCOUNT_API, postJSON, errText as errTextT } from '../auth/account-api.js';
 import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/account-methods.js';
+import { fmtDate as fmtIntlDate } from '../lib/i18n.js';
 
 (function () {
   const en = document.documentElement.lang === 'en';
@@ -154,11 +157,8 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
   /** @param {number} ts */
   function fmtDate(ts) {
     try {
-      const d = new Date(ts);
-      const p = function (n) { return String(n).padStart(2, '0'); };
-      return en
-        ? d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
-        : d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+      /* 按页面语言交给 Intl（en「Oct 22, 2026」，zh「2026年10月22日」；语言包化 2026-11-07） */
+      return fmtIntlDate(ts);
     } catch (e) {
       return '';
     }
@@ -251,7 +251,9 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.value = k.name || '';
-    nameInput.placeholder = t('pkUnnamed');
+    /* 用户自起的名字 = 个人信息类（原样、不翻译）；没起名时占位显示按语言的默认名（界面文案） */
+    nameInput.placeholder = defaultPasskeyName(k, t);
+    markPersonal(nameInput);
     nameInput.maxLength = 40;
     nameInput.setAttribute('aria-label', t('pkNameAria'));
     let lastSaved = k.name || '';
@@ -294,7 +296,8 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
     meta.className = 'lockmgr-pkdate';
     let metaText = t('created') + fmtDate(k.createdAt);
     metaText += ' · ' + (k.lastUsedAt ? t('lastUsed') + fmtDate(k.lastUsedAt) : t('pkNeverUsed'));
-    if (k.provider) metaText = k.provider + ' · ' + metaText;
+    const prov = providerLabel(k.provider || '', t);
+    if (prov) metaText = prov + ' · ' + metaText;
     meta.textContent = metaText;
     nameWrap.appendChild(nameInput);
     nameWrap.appendChild(meta);
@@ -302,7 +305,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
     del.type = 'button';
     del.className = 'lockmgr-pkdel';
     del.textContent = t('pkDel');
-    del.setAttribute('aria-label', t('pkDel') + ' ' + (k.name || t('pkUnnamed')));
+    del.setAttribute('aria-label', t('pkDel') + ' ' + (k.name || defaultPasskeyName(k, t)));
     /* 两步确认删除 */
     let armed = false;
     let armTimer = 0;
@@ -387,7 +390,7 @@ import { accountSubmitters, renderAccountMethods, visibleKinds } from '../auth/a
           pkName.open(credId, prefill);
           refreshKeys();
         },
-        prefill: function () { return genPkPrefillName(t('pkUnnamed')); },
+        prefill: function () { return genPkPrefillName(''); },
         errText: errText,
         toast: toast,
         msg: { cancelled: t('errCancelled'), already: t('pkAlready'), noSupport: t('pkNoSupport'), failed: t('pkFailed'), network: t('errNetwork') },

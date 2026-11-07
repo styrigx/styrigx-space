@@ -174,5 +174,5 @@ export function rpConfig(env) {
 
 /** SGX_RP_ID / SGX_ORIGIN 缺失时的统一响应（503，前端据此禁用通行密钥入口） */
 export function rpConfigMissing() {
-  return apiError(503, 'config', { message: 'SGX_RP_ID / SGX_ORIGIN 未配置' });
+  return apiError(503, 'config', { message: 'SGX_RP_ID / SGX_ORIGIN not configured' });
 }

@@ -7,6 +7,9 @@
 import { on } from '../lib/events.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { langPath } from '../lib/lang-path.js';
+import { i18nTable, pageLang } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('core');
 
 /**
  * 首帧语言跳转（baseof.html）留下的原始来源：sessionStorage sgx-lang-hop = {go, ref}。
@@ -35,7 +38,7 @@ export function initNavHistory() {
   /* baseof 首帧语言跳转已发出（location.replace 到另一语言）：这份文档马上被换掉，不动历史，留给跳过去的那份 */
   if (/** @type {any} */ (window).__sgxLangGo) return;
   const en = document.documentElement.lang === 'en';
-  const home = langPath('/', en ? 'en' : 'zh');
+  const home = langPath('/', pageLang());
   const hopRef = langHopReferrer();
 
   /* 直接打开 App 页：最多插入一次主页历史，保证系统返回一次回到主页。 */
