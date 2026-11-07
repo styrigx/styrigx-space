@@ -404,6 +404,8 @@ test('百味 · 账号已登录（可写）：专题在前带新建、人物每�
 
   await page.locator('#dm-fl-back').click();
   await page.locator('#dm-col-new').click();
+  /* 弹层打开 60ms 后才把焦点放到名称框；先等它，否则 fill 简介时焦点被抢回名称框，两段字拼在标题里 */
+  await expect(page.locator('#c-name')).toBeFocused();
   await page.locator('#c-name').fill('电影台词');
   await page.locator('#c-intro').fill('看片时记下的');
   await page.locator('#col-save').click();
