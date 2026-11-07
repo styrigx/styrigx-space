@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:870234104d13 space/web/shared/shell v3d880d986a6c（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:b9f2d2854606 space/web/shared/shell v84f5013ce83d（space/scripts/blog/sync-shell.mjs 写入，勿手改） */
 /* ---- modal-sheet.js ---- */
 /**
  * @fileoverview 顶栏弹出层的开合状态机（快捷面板 #sgx-qp、AI 窗口 #sgx-ai 共用；2026-11-04 P5-1 导航抽屉删除）。

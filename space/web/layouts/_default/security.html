@@ -9,6 +9,8 @@
 {{ $tkUrl := (partial "sgx-lang-path.html" (dict "path" "/security/tempkeys/" "lang" $pageLang)) }}
 
 <div class="set-layout pb-28">
+{{/* 内容页标题带（P4-3 §6.6 / 设计 §6.3）：大标题 = 页名（同顶栏页名胶囊），一句话说明 = front matter description（共享外壳 sgx-page-hero.html） */}}
+{{ partial "sgx-page-hero.html" (dict "title" .Title "desc" .Description "path" .File.Path) }}
 
   <!-- 状态卡片（JS 按 GET /api/lock-credentials 填充：解锁密码 / 锁屏通行密钥是否已设置） -->
   <a id="sec-status" class="sec-status" href="{{ $lockUrl }}" hidden>

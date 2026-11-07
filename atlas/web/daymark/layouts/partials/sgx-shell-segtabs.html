@@ -1,0 +1,15 @@
+{{- /* 段式标签（P4-3 §6.6 / 设计 §5.2、§6.2，段式标签 PR）：原来顶栏里的分段滑块搬进内容页，作页内二级切换（同一站的兄弟分区）。
+   共享外壳组件：space/scripts/gen-shell.mjs 原样复制成外壳 segtabs.html，三个子站 sync-shell 同步成 layouts/partials/sgx-shell-segtabs.html。
+   只用参数（不能调用别的 partial、不能读 site.Data），只用 --sgx-* 角色（CSS 在 input.css 的 @inpage 段）：
+   非当前项 = color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent) 衬底 + text-primary；当前项 = --sgx-nav-selected 实色 + 粗体 + on-nav-selected（同顶栏页名胶囊）。
+   参数（dict）：
+     items    数据行列表：id、title（文字由调用方从字符串表取好）、href（独立子页 = 子页地址；页内分区 = hash）
+     current  当前项 id（aria-current="page"，服务端写好；页内分区的站每个分区面板各放一条，各自的当前项）
+     label    导航的 aria-label
+     id       nav 的 id（可选）
+     hidden   true = 先藏起来（可选，留给需要脚本控制显隐的页面；目前四站都不用） */ -}}
+<nav class="sgx-segs"{{ with .id }} id="{{ . }}"{{ end }} aria-label="{{ .label }}" data-sgx-segs{{ if .hidden }} hidden{{ end }}>
+  {{- range .items }}
+  <a class="sgx-segs-tab" href="{{ .href }}" data-seg="{{ .id }}"{{ if eq .id $.current }} aria-current="page"{{ end }}>{{ .title }}</a>
+  {{- end }}
+</nav>

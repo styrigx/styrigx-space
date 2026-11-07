@@ -144,7 +144,7 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
 });
 
 test('顶栏（P5-1 起一整条胶囊；PR-4b 定稿）：[字标][页名胶囊][九宫格 · 快捷设置 · AI]，头像不在顶栏；同一份标记 topbar.html 四站共用', () => {
-  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'entries', 'wide']);
+  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'entries', 'inpage', 'wide']);
   const s = files['shell.css'];
   assert.match(s, /\.sgx-topbar \{ position: fixed;[^}]*left: 0; right: 0; margin: 0 auto; width: var\(--sgx-tb-w\);[^}]*border-radius: 999px;[^}]*background: var\(--sgx-mat\);/);
   // 三列网格：字标 | 中间 | 图标组（PR-4b 定稿）

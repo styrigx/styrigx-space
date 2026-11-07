@@ -281,6 +281,16 @@ function applySignin(can, loggedIn){
   if (a && !can) { var h = signinHint(loggedIn); a.textContent = h.text; a.setAttribute('href', h.href); }
 }
 G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, openOverlay: openOverlay, closeOverlay: closeOverlay, signin: applySignin };
+/* 段式标签（P4-3 §6.6）：子页页头的「音乐」仅本人可见，默认被 CSS 藏着；不在音乐页时问 /curio/api/access（进门即可，只回布尔），
+   music = true 才给 <html> 加 .cu-music-ok（同首页 curio-home.js）。没权限、出错都保持藏着。 */
+var musicSeg = doc.querySelector('#cu-segs [data-seg="music"]');
+if (musicSeg && !musicSeg.hasAttribute('aria-current') && typeof fetch === 'function') {
+  fetch('/curio/api/access', { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
+    return r.ok ? r.json() : null;
+  }).then(function(j){
+    if (j && j.ok && j.music === true) doc.documentElement.classList.add('cu-music-ok');
+  }).catch(function(){});
+}
 /* P4-3 奇趣拆页：下面是「发现」子页（/curio/finds/）自己的部件；别的子页只用上面的确认框 / 提示条 / 弹层开关 / 页底一行 */
 if (!doc.getElementById('cu-list')) return;
 

@@ -1,0 +1,11 @@
+{{- /* 奇趣子页页头（P4-3 §6.6 / 设计 §6.2、§6.3，段式标签 PR）：标题带（共享外壳 sgx-shell-page-hero.html：大标题 = front matter title、一句话 = front matter description）
+   + 段式标签（共享外壳 sgx-shell-segtabs.html：原顶栏分段滑块，现在是页内二级切换，五个兄弟子页，当前页实色加粗）。
+   音乐仅本人可见：段式标签里的「音乐」默认藏起（CSS：html 没有 .cu-music-ok 且不是当前页时不显示），curio.js 问 /curio/api/access 有权限才露出来（同首页入口）。
+   参数（dict）：page（当前页）、id（当前子页 id：finds / devices / games / movies / music）、tr、lang */ -}}
+{{- $tr := .tr -}}{{- $lang := .lang -}}{{- $p := .page -}}
+{{- $segs := slice -}}
+{{- range (slice "finds" "devices" "games" "movies" "music") -}}
+{{- $segs = $segs | append (dict "id" . "title" (index $tr.entries .).title "href" (partial "sgx-lang-path.html" (dict "path" (printf "/curio/%s/" .) "lang" $lang))) -}}
+{{- end -}}
+{{ partial "sgx-shell-page-hero.html" (dict "title" $p.Title "desc" $p.Description "path" $p.File.Path) }}
+{{ partial "sgx-shell-segtabs.html" (dict "items" $segs "current" .id "label" $tr.index.sections "id" "cu-segs") }}

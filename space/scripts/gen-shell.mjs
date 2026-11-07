@@ -10,6 +10,8 @@
  *   share.js           子站快捷面板的「分享本页」磁贴（space/web/assets/js/shell/share-button.js 原样复制；不 import 任何东西）
  *   topbar.html        顶栏 + 快捷面板 + AI 窗口的标记（space/web/layouts/partials/shell-topbar.html 原样复制；Hugo partial，只用参数，2026-11-04 P5-1）
  *   entries.html       平铺入口组件（space/web/layouts/partials/sgx-entries.html 原样复制；旷野页分类入口 + 子站首页分区入口，P4-3 PR-4b）
+ *   page-hero.html     内容页标题带（space/web/layouts/partials/sgx-page-hero.html 原样复制；P4-3 §6.6 段式标签 PR）
+ *   segtabs.html       段式标签：页内二级切换（space/web/layouts/partials/sgx-segtabs.html 原样复制；原顶栏分段滑块搬进内容页，P4-3 §6.6）
  *   topbar.js          顶栏两个窗口的开合 / 互斥 / 两页 / 磁贴（space/web/assets/js/shell/topbar-panel.js 原样复制；不 import，依赖由调用方传入）
  *   modal-sheet.js     窗口开合状态机（space/web/assets/js/shell/modal-sheet.js 原样复制；不 import）
  *   ai.js              AI 窗口内容（space/web/assets/js/shell/ai-panel.js 原样复制；不 import）
@@ -57,6 +59,8 @@ const SRC = {
   share: path.join(REPO, 'space/web/assets/js/shell/share-button.js'),
   topbar: path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'),
   entries: path.join(REPO, 'space/web/layouts/partials/sgx-entries.html'),
+  pageHero: path.join(REPO, 'space/web/layouts/partials/sgx-page-hero.html'),
+  segtabs: path.join(REPO, 'space/web/layouts/partials/sgx-segtabs.html'),
   topbarJs: path.join(REPO, 'space/web/assets/js/shell/topbar-panel.js'),
   modalSheet: path.join(REPO, 'space/web/assets/js/shell/modal-sheet.js'),
   ai: path.join(REPO, 'space/web/assets/js/shell/ai-panel.js'),
@@ -75,7 +79,7 @@ const SRC = {
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
-export const SHELL_REGIONS = ['topbar-frame', 'panel', 'entries', 'wide'];
+export const SHELL_REGIONS = ['topbar-frame', 'panel', 'entries', 'inpage', 'wide'];
 /* 导航项以外外壳要用的图标（2026-11-04 P5-1）：顶栏（快捷面板滑块、AI 聊天）、快捷设置磁贴（深色 / 跟随系统 / 语言 / 锁定 / 恢复默认 / 分享）、AI 发送。
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
 export const EXTRA_ICONS = ['tb-grid', 'tb-sliders', 'tb-chat', 'tb-moon', 'sun', 'tb-globe', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history'];
@@ -234,6 +238,17 @@ export function renderEntries() {
   return src;
 }
 
+/** 内容页标题带 / 段式标签（P4-3 §6.6）：原样复制；同平铺入口，只能用传进来的参数 */
+function renderParamsOnly(file, name, mark) {
+  const src = readFileSync(file, 'utf8');
+  const code = src.replace(/\{\{-?\s*\/\*[\s\S]*?\*\/\s*-?\}\}/g, '');
+  if (/\{\{-?\s*partial(Cached)?\s/.test(code) || /site\.Data|hugo\.Data|resources\.|\.Site\b|\$\.Page\b/.test(code)) throw new Error(name + ' 只能用传进来的参数（不能调 partial / 读 site.Data / resources）');
+  if (!src.includes(mark)) throw new Error(name + ' 缺 ' + mark);
+  return src;
+}
+export const renderPageHero = () => renderParamsOnly(SRC.pageHero, 'sgx-page-hero.html', 'class="sgx-hero"');
+export const renderSegtabs = () => renderParamsOnly(SRC.segtabs, 'sgx-segtabs.html', 'class="sgx-segs"');
+
 /** 调色板用法规则版本（填充 vs ink、大面积块中性化、固定状态色、图表 3:1 回退、合成底审计；docs/palette-usage.md） */
 export const RULES_VERSION = 'palette-rules-1';
 
@@ -342,6 +357,14 @@ const README = `# space/web/shared/shell（生成物，勿手改）
 \`entries.html\` 是 Hugo partial（主站 partials/sgx-entries.html 原样），子站同步成 \`layouts/partials/sgx-shell-entries.html\`，只用参数（图标 SVG 由 \`icons\` 传入）。
 子站首页用它放分区入口（各布局都放；顶栏没有分区页签，页名胶囊只显示当前页 / 分区名）。
 
+## 内容页标题带 + 段式标签（page-hero.html、segtabs.html + shell.css inpage 段；P4-3 §6.6）
+
+\`page-hero.html\`、\`segtabs.html\` 是 Hugo partial（主站 partials/sgx-page-hero.html、partials/sgx-segtabs.html 原样），子站同步成
+\`layouts/partials/sgx-shell-page-hero.html\`、\`layouts/partials/sgx-shell-segtabs.html\`，只用参数。
+- 标题带：内容页顶栏下方大标题 + 一句话说明（title / desc；缺 desc 只显示标题，构建时 warnf 警告）。
+- 段式标签：原顶栏分段滑块搬进内容页的页内二级切换（items / current / label / hidden）；非当前项导航选中色 45% 衬底、当前项 --sgx-nav-selected 实色加粗。
+  入口页（首页 / 首页分区）只放平铺入口、不放段式标签；页内分区（hash）的站每个分区面板各放一条，当前项服务端写好。
+
 ## 宽屏平铺（shell.css wide 段；Gray 2026-11-07）
 
 只在桌面布局（\`<html data-sgx-layout="desktop">\`）：内容区通栏（\`--sgx-content-max\` = 100%，外壳框 = 窗口宽 − 两侧页边距，不对齐顶栏），内容页去卡片、文字铺在背景上，多栏 + 细分隔线。手机布局不变。
@@ -424,6 +447,8 @@ export function renderAll() {
     'share.js': renderShare(),
     'topbar.html': renderTopbar(),
     'entries.html': renderEntries(),
+    'page-hero.html': renderPageHero(),
+    'segtabs.html': renderSegtabs(),
     'topbar.js': renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar'),
     'modal-sheet.js': renderStandalone(SRC.modalSheet, 'modal-sheet.js', 'modalSheet'),
     'ai.js': renderStandalone(SRC.ai, 'ai-panel.js', 'mountAiChat'),

@@ -8241,6 +8241,34 @@
   .sgx-ent-title { font-size: 60px; }
 }
 /* @shell:end entries */
+/* @shell:begin inpage（内容页标题带 + 段式标签，P4-3 §6.6 / 设计 §5.2、§6.2、§6.3；组件 partials/sgx-page-hero.html、partials/sgx-segtabs.html，共享外壳：gen-shell 抽到 shell.css，四站同一套） */
+/* 只用共享外壳 --sgx-* 角色（跟调色板、深浅色、自定义色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。
+   标题带 .sgx-hero：顶栏下方大标题 + 一句话说明（内容页；首页 / 入口页不放）。只在手机布局显示（30px，跟内容列左对齐，放在各站内容外框里）；
+   桌面布局顶栏页名胶囊已显示页名，标题带视觉隐藏（Gray 2026-11-08 定）——留在 DOM 里给读屏 / 大纲（h1 不丢），不占位、不可见。段式标签两种布局都显示。
+   段式标签 .sgx-segs：原顶栏分段滑块搬进内容页，作页内二级切换。椭圆衬底常驻：非当前项导航选中色 45% + text-primary（22 套预设 + 自定义色 ≥ 4.5:1，
+   tests/space/ui/topbar/segtabs.test.mjs），当前项 --sgx-nav-selected 实色 + 粗体 + on-nav-selected（同顶栏页名胶囊）。一行放不下时横向滑动（不换行、不出滚动条）。 */
+.sgx-hero { box-sizing: border-box; padding: 8px 0 20px; color: var(--sgx-text-primary); }
+.sgx-hero-title { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.sgx-hero-desc { margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: var(--sgx-on-surface-variant); }
+:root[data-sgx-layout="desktop"] .sgx-hero { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.sgx-segs { box-sizing: border-box; display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 0 0 20px; padding: 2px 0;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.sgx-segs::-webkit-scrollbar { display: none; }
+.sgx-segs[hidden] { display: none; }
+.sgx-segs-tab { flex: none; box-sizing: border-box; display: inline-flex; align-items: center; height: 36px; padding: 0 18px; border-radius: 999px;
+  background-color: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); color: var(--sgx-text-primary);
+  font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 500; line-height: 1; white-space: nowrap; text-decoration: none;
+  -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
+.sgx-segs-tab[aria-current="page"] { background-color: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); font-weight: 700; }
+@media (hover: hover) and (pointer: fine) {
+  .sgx-segs-tab:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
+}
+.sgx-segs-tab:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
+.sgx-segs-tab:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+.reduced-motion .sgx-segs-tab { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-segs-tab { transition: none; } }
+/* @shell:end inpage */
 }
 
 /* ===== overrides 层（续）：设置 / 账号页底部留白、关于页页脚 =====
@@ -8458,6 +8486,7 @@
 :root[data-sgx-layout="desktop"] #sg-about .set-row > :first-child { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--sgx-text-secondary); }
 :root[data-sgx-layout="desktop"] #sg-about .set-row > :last-child { margin-left: 0; text-align: left; font-size: 22px; font-weight: 700; color: var(--sgx-text-primary); }
 :root[data-sgx-layout="desktop"] .acct-layout > .st-wrap { max-width: none; }
+:root[data-sgx-layout="desktop"] .acct-layout:has(> .st-wrap) > .sgx-hero { max-width: none; }
 :root[data-sgx-layout="desktop"] .st-wrap { gap: 32px; }
 :root[data-sgx-layout="desktop"] .st-banner,
 :root[data-sgx-layout="desktop"] .st-banner[data-state] { padding: 8px 0 24px; border-radius: 0; border: 0; border-bottom: 1px solid var(--sgx-wide-line); background: transparent; box-shadow: none; color: var(--sgx-text-primary); }

@@ -42,6 +42,14 @@
 `entries.html` 是 Hugo partial（主站 partials/sgx-entries.html 原样），子站同步成 `layouts/partials/sgx-shell-entries.html`，只用参数（图标 SVG 由 `icons` 传入）。
 子站首页用它放分区入口（各布局都放；顶栏没有分区页签，页名胶囊只显示当前页 / 分区名）。
 
+## 内容页标题带 + 段式标签（page-hero.html、segtabs.html + shell.css inpage 段；P4-3 §6.6）
+
+`page-hero.html`、`segtabs.html` 是 Hugo partial（主站 partials/sgx-page-hero.html、partials/sgx-segtabs.html 原样），子站同步成
+`layouts/partials/sgx-shell-page-hero.html`、`layouts/partials/sgx-shell-segtabs.html`，只用参数。
+- 标题带：内容页顶栏下方大标题 + 一句话说明（title / desc；缺 desc 只显示标题，构建时 warnf 警告）。
+- 段式标签：原顶栏分段滑块搬进内容页的页内二级切换（items / current / label / hidden）；非当前项导航选中色 45% 衬底、当前项 --sgx-nav-selected 实色加粗。
+  入口页（首页 / 首页分区）只放平铺入口、不放段式标签；页内分区（hash）的站每个分区面板各放一条，当前项服务端写好。
+
 ## 宽屏平铺（shell.css wide 段；Gray 2026-11-07）
 
 只在桌面布局（`<html data-sgx-layout="desktop">`）：内容区通栏（`--sgx-content-max` = 100%，外壳框 = 窗口宽 − 两侧页边距，不对齐顶栏），内容页去卡片、文字铺在背景上，多栏 + 细分隔线。手机布局不变。

@@ -11,6 +11,8 @@
 {{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 
 <div class="acct-layout pb-28">
+{{/* 内容页标题带（P4-3 §6.6 / 设计 §6.3）：大标题 = 页名（同顶栏页名胶囊），一句话说明 = front matter description（共享外壳 sgx-page-hero.html） */}}
+{{ partial "sgx-page-hero.html" (dict "title" .Title "desc" .Description "path" .File.Path) }}
 
   <!-- 门：每次进页验一次账号凭证（JS 渲染验证行，设了哪个显示哪个；下面「无法登录？」进重置登录） -->
   <div id="acct-reauth" hidden>

@@ -44,6 +44,9 @@ const SITE = {
     { path: 'web/layouts/partials/sgx-shell-topbar.html', kind: 'raw', parts: ['topbar.html'] },
     /* 平铺入口组件（P4-3 PR-4b：首页分区入口，手机布局顶栏不显示分区页签；Hugo partial，原样） */
     { path: 'web/layouts/partials/sgx-shell-entries.html', kind: 'raw', parts: ['entries.html'] },
+    /* 内容页标题带 + 段式标签（P4-3 §6.6）：Hugo partial，只用参数 */
+    { path: 'web/layouts/partials/sgx-shell-page-hero.html', kind: 'raw', parts: ['page-hero.html'] },
+    { path: 'web/layouts/partials/sgx-shell-segtabs.html', kind: 'raw', parts: ['segtabs.html'] },
     /* 顶栏两个窗口的开合 / 互斥 / 两页 / 磁贴、状态机、AI 窗口内容、外观写端（入口脚本把后三个传给 topbar.js 的 mountTopbar） */
     { path: 'web/assets/js/sgx/shell/topbar.js', kind: 'file', parts: ['topbar.js'] },
     { path: 'web/assets/js/sgx/shell/modal-sheet.js', kind: 'file', parts: ['modal-sheet.js'] },

@@ -38,6 +38,8 @@ test('renderTargets：标记段带来源和版本，内容按 manifest 拼接', 
     'share.js': 'export function mountShare() {}\n',
     'topbar.html': '<header id="site-nav"></header>\n',
     'entries.html': '<section class="sgx-ents"></section>\n',
+    'page-hero.html': '<header class="sgx-hero"></header>\n',
+    'segtabs.html': '<nav class="sgx-segs"></nav>\n',
     'topbar.js': 'export function mountTopbar() {}\n',
     'modal-sheet.js': 'export function createModalSheet() {}\n',
     'ai.js': 'export function mountAi() {}\n',
@@ -59,7 +61,7 @@ test('renderTargets：标记段带来源和版本，内容按 manifest 拼接', 
   for (const [p, text] of Object.entries(out)) {
     if (p.endsWith('.json')) continue;
     if (p.endsWith('.yaml')) { assert.equal(text, files['i18n-' + p.split('/').pop()], p + '：外壳字符串表原样'); continue; }
-    if (p.endsWith('.html')) { assert.equal(text, files[p.endsWith('-entries.html') ? 'entries.html' : p.endsWith('sgx-lang-path.html') ? 'lang-path.html' : p.endsWith('sgx-tr.html') ? 'tr.html' : 'topbar.html'], p + '：raw 原样'); continue; }
+    if (p.endsWith('.html')) { assert.equal(text, files[p.endsWith('-entries.html') ? 'entries.html' : p.endsWith('-page-hero.html') ? 'page-hero.html' : p.endsWith('-segtabs.html') ? 'segtabs.html' : p.endsWith('sgx-lang-path.html') ? 'lang-path.html' : p.endsWith('sgx-tr.html') ? 'tr.html' : 'topbar.html'], p + '：raw 原样'); continue; }
     assert.ok(text.includes(BEGIN + ' styrigx/styrigx-space@main web/shared/shell vabc'), p);
     assert.ok(text.includes(END), p);
     assert.doesNotMatch(text, /\nold\n/, p);

@@ -1,4 +1,4 @@
-/* @sgx-shell:begin styrigx/styrigx-space@tree:870234104d13 space/web/shared/shell v3d880d986a6c（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
+/* @sgx-shell:begin styrigx/styrigx-space@tree:b9f2d2854606 space/web/shared/shell v84f5013ce83d（space/scripts/curio/sync-shell.mjs 写入，勿手改） */
 /* ---- lang-path.js ---- */
 /**
  * @fileoverview 语言路径（P4-3 PR-4c，§6.8；语言包化 2026-11-07）：四站英文是默认语言、不带前缀，其他语言统一加 /<语言>/（现在只有 /zh/）。
