@@ -37,7 +37,7 @@ function readDict(doc, table){
  * 语言自己的规则（英文 1 link / 2 links，中文不分）都在字符串表里，脚本不分语言。
  */
 function makeTr(dict, lang){
-  /* 先拷一份原始文案：调用方会把带数字的键改挂成函数（T.count = function(n){ return tr('count', …) }），
+  /* 先拷一份原始文案：调用方会把带数字的键改挂成函数（例如数量键被改成按 n 取文案的函数），
      tr 若直接读同一个字典，拿到的就是那个函数而不是「{n} 条」 */
   var src = {};
   for (var k0 in dict) if (Object.prototype.hasOwnProperty.call(dict, k0)) src[k0] = dict[k0];
