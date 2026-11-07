@@ -53,6 +53,8 @@ ai:
   fail: Couldn’t get an answer. Please try again
   send: Send
   stop: Stop
+  sources: Sources
+  newTab: (opens in a new tab)
 share:
   share: Share
   copied: Share link copied

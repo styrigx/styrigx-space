@@ -43,7 +43,8 @@ sites/curio/
 | 位置 | 是什么 |
 |---|---|
 | `wrangler.toml` | 路由 `styrigx.com/curio/api/*`、D1 绑定 `D1_FINDS`（links、cats、imports）/ `D1_DEVICES`（devices）/ `D1_GAMES`（games）/ `D1_MOVIES`（movies）/ `D1_MUSIC`（music_*）（同一个库 styrigx-curio-core）、R2 绑定 `R2_PHOTOS`、`R2_MUSIC`（同一个桶，music/ 前缀）、网关服务绑定 `AUTH`、全站搜索 KV `KV_SEARCH_INDEX`、每小时 Cron |
-| `src/index.js` | 入口（公开地址 `/curio/api/*` 去掉 `/curio` 前缀后按路由表找）：全部 `/api/*` 先问网关会话（没有公开接口） |
+| `src/index.js` | 部署入口：只再导出 `app.js` 的 default 和 `rpc/reader.js` 的 `CurioReader`（给 styrigx-ai 的只读固定查询，2026-11） |
+| `src/app.js` | 接口（公开地址 `/curio/api/*` 去掉 `/curio` 前缀后按路由表找）：全部 `/api/*` 先问网关会话（没有公开接口） |
 | `src/search-index.js` | 全站搜索索引：收藏 / 设备 / 游戏 → KV `site:curio`（改内容的写接口成功后重建 + Cron 每小时兜底，内容没变不写 KV；私密的标 `private`） |
 | `src/routes.js` | 路由表（与 `src/api/` 一一对应，测试核对） |
 | `src/api/links.js` | `GET` 列表（没登录账号只有公开的），`POST {op}` 增删改排序（同源 + 账号会话 + `curio.write`） |

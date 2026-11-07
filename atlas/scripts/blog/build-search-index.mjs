@@ -8,7 +8,8 @@
  *   - atlas/web/blog/content/<lang>/post/*.md 的 front matter：标题、描述、标签、draft、private
  *     （draft: true 跳过；private: true 标 private，只给账号已登录的人搜到——和 index.sitemap0.xml 的 .Params.private 是同一个开关）
  *   - hugo 构建后的 atlas/web/blog/public/[en/]post/<文件名>/index.html：正文（<section id="article-start"> 里，短代码 / Markdown 已渲染好），
- *     去掉代码块标题栏和行号、HTML 标签，压成纯文本，最多 2000 字。
+ *     去掉代码块标题栏和行号、HTML 标签，压成纯文本，最多 TEXT_MAX 字（2026-11 AI 语义召回起 24000 字 ≈ 全文：
+ *     styrigx-ai 的 Cron 把正文切段写进 Vectorize；关键词召回仍只取前 600 字进上下文）。
  *     网址按 hugo.yaml 的 permalinks（/post/:contentbasename/，P4-3 PR-4c 起中文带 /zh/、英文无前缀，前缀由主站 lib/lang-path.js 拼）拼，并核对构建产物里确实有这一页——
  *     没有就报错（网址规则改了 → 这里红，不会把错地址写进索引）。
  *
@@ -25,7 +26,7 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 /** 博客的地址（不带结尾斜杠，和 atlas/web/blog/hugo.yaml 的 baseURL 一致）；条目链接 = SITE_URL + 产物里的相对地址。
  *  合并 PR2 起跟 baseURL 一起改到主域名；本仓库到合并 PR3 才上传 site:blog，之前线上索引仍由 styrigx-atlas 仓库写 */
 export const SITE_URL = 'https://styrigx.com/blog';
-export const TEXT_MAX = 2000;
+export const TEXT_MAX = 24000;
 export const SUBTITLE_MAX = 120;
 const LANGS = /** @type {const} */ (['zh', 'en']);
 
