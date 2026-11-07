@@ -2,12 +2,12 @@
   "_note": "space/scripts/blog/sync-shell.mjs 写入，勿手改：tree 是本站共享外壳副本对应的主站外壳目录（dir）的 git tree 哈希；from 只作记录",
   "source": "styrigx/styrigx-space",
   "dir": "space/web/shared/shell",
-  "tree": "1ea51934348e58dad4a2f8fdf5ecb8b854ccf4d4",
-  "from": "0d370ecd04f35673d0e8eb56791b878ce4e0792c",
-  "version": "6bce976ea2c7",
+  "tree": "e78eba36593a93927c2c3deb5cc40942a46d1cf9",
+  "from": "worktree",
+  "version": "5fa9aed3e5b5",
   "files": {
     "tokens.css": "aa03942d42cc9e00d621b58a421e5991ac3371520829599d544bdc9cb12ff3ea",
-    "shell.css": "8efaf6b7d309e7a60fa87b2bcfeb7900ebe1e0036c00d298775473fdaed55181",
+    "shell.css": "5bfc2f94e4f53aafff8455b5fd94e50fda7033dbb97b40d05f155b08b1f900a8",
     "palette-scheme.js": "ecccd7367bf6b6f6ddfb97fea097c1ebba6f0d0bfd91fe7ac81532429af11f70",
     "share.js": "da46a782fdf9f80c24fae06bbbd83e5e29894a5c1db87b9e754071637ae158ca",
     "topbar.html": "dc876f034b39001415d62e7c5db4bdd46ca2beb6abc1e74d88b232bdb9969359",
@@ -30,10 +30,10 @@
     "ui-cookie-contract.json": "903e4d924d748e12bb759031d786af3f5621f010e2630e0f0dea0e2dacb9b276",
     "favicon.js": "4bb7f9fe412988861d682b8c2a88eb93f68fc39f9fb51bd5df38441755b5d433",
     "favicon.svg": "d0140f4bb1f7fe856fc499f996b347bbbcab55c1f15e2c4a6d94b118c3aa569b",
-    "README.md": "53484df4aa7ecfd3ea06f914531d754700a0c73c4e4a8a60a9440f5472fdde37"
+    "README.md": "937319c0cb0daa17d99260ed5b784b6ab4dad053e5cf94a96baf6fbcc7430b39"
   },
   "vendored": {
-    "web/assets/css/sgx-shell.css": "6348b81f7a6555f9b79d3d67e827f4dc767478536b53304807dfc1ffcbe89ee7",
+    "web/assets/css/sgx-shell.css": "301944fd89bb3ff3e96afb4219f1c778c375fd9a2edb2d586be901244be3bc81",
     "web/assets/js/sgx/shell/palette-scheme.js": "bc41ea048163ad6514f9e7cf7a44d8d3e6c134995ffe1bc062b2629589c2ec54",
     "web/assets/js/sgx/shell/share.js": "1cc43846ac8dd8012928d01ab98d59948463faa6c6aec6585cc3093bc7671155",
     "web/layouts/partials/sgx-shell-topbar.html": "dc876f034b39001415d62e7c5db4bdd46ca2beb6abc1e74d88b232bdb9969359",

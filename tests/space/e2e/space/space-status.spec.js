@@ -175,14 +175,18 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(first.locator('.st-inc-site')).toHaveText('AI 助手');
       await expect(first.locator('.st-chip')).toHaveText('进行中');
       await expect(first.locator('.st-inc-time')).toHaveText(/开始 10月9日 11:53.*已持续 7 分钟/);
-      /* 横幅颜色 = danger 容器（等入场动画 / 过渡结束） */
+      /* 横幅颜色（等入场动画 / 过渡结束）：手机布局 = danger 容器；桌面布局（宽屏平铺）横幅去卡片、没有底色，标题 = danger 色 */
       await expect.poll(() => page.evaluate(() => {
+        const desk = document.documentElement.getAttribute('data-sgx-layout') === 'desktop';
         const ref = document.createElement('div');
-        ref.style.background = 'var(--sgx-danger-container)';
+        if (desk) ref.style.color = 'var(--sgx-danger)'; else ref.style.background = 'var(--sgx-danger-container)';
         document.body.appendChild(ref);
-        const v = getComputedStyle(ref).backgroundColor;
+        const cs = getComputedStyle(ref);
+        const v = desk ? cs.color : cs.backgroundColor;
         ref.remove();
-        return getComputedStyle(document.getElementById('st-banner')).backgroundColor === v;
+        const b = document.getElementById('st-banner');
+        if (!desk) return getComputedStyle(b).backgroundColor === v;
+        return getComputedStyle(b).backgroundColor === 'rgba(0, 0, 0, 0)' && getComputedStyle(b.querySelector('.st-banner-title')).color === v;
       })).toBe(true);
     });
 

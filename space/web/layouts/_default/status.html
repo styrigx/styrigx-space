@@ -16,7 +16,7 @@
 <div class="st-wrap" id="st-root" data-state="loading" aria-busy="true">
   <h1 class="sr-only">{{ $tr.status.serviceStatus }}</h1>
 
-  <section id="st-banner" class="widget st-banner animate-fade-up" data-state="loading" role="status" aria-live="polite" style="animation-delay:.04s">
+  <section id="st-banner" class="widget sgx-flat st-banner animate-fade-up" data-state="loading" role="status" aria-live="polite" style="animation-delay:.04s">
     <span class="st-banner-ic" aria-hidden="true"></span>
     <div class="st-banner-txt">
       <p class="st-banner-title" data-st="title">{{ $tr.status.loading }}</p>
@@ -47,19 +47,19 @@
      渲染 lib/status-view.js renderQuota。旧版 Worker（没有 quota 字段）整块不显示；拿不到 → 一行「额度暂时拿不到」。 */}}
   <section id="st-quota-wrap" class="st-usage-wrap" aria-labelledby="st-quota-h" hidden>
     <h3 class="acct-dev-h" id="st-quota-h">{{ $tr.status.freeTierQuota }}</h3>
-    <div id="st-quota" class="widget bg-m-container-lowest st-usage-card"></div>
+    <div id="st-quota" class="widget sgx-flat bg-m-container-lowest st-usage-card"></div>
   </section>
 
   {{/* 用量（PR3）：Cloudflare 免费额度用量（Workers 今天的请求数、D1 / R2 / KV 存储），监测 Worker 每小时 41 分收一次；
      数据在 /api/status 的 usage / usage_reason，渲染 lib/status-view.js renderUsage。没配 token → 一行「用量未配置」。 */}}
   <section id="st-usage-wrap" class="st-usage-wrap" aria-labelledby="st-usage-h" hidden>
     <h3 class="acct-dev-h" id="st-usage-h">{{ $tr.status.usage }}</h3>
-    <div id="st-usage" class="widget bg-m-container-lowest st-usage-card"></div>
+    <div id="st-usage" class="widget sgx-flat bg-m-container-lowest st-usage-card"></div>
   </section>
 
   <section id="st-inc-wrap" class="st-inc-wrap" hidden>
     <h3 class="acct-dev-h">{{ $tr.status.recentIncidents }}</h3>
-    <div id="st-inc" class="widget bg-m-container-lowest st-inc-card"></div>
+    <div id="st-inc" class="widget sgx-flat bg-m-container-lowest st-inc-card"></div>
   </section>
 
   {{/* 进站凭证使用记录：默认收起，展开时 apps/space-status.js 才请求 GET /api/space-audit（省 KV 读）。
