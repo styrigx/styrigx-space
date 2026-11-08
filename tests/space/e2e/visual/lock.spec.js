@@ -249,7 +249,8 @@ test.describe('命令解锁：终端行为（help / 不认识的命令 / clear /
 
   test('help 列出命令；不认识的命令 → command not found；clear 清屏', async ({ page }) => {
     await gotoLock(page);
-    await expect(page.locator('#sgx-lock-log')).toContainText('help');
+    /* 开屏只有一行 `styrigx space os 1.0 tty1`（2026-11-08 删掉多余的「# 输入 help 查看可用命令」） */
+    await expect(page.locator('#sgx-lock-log')).not.toContainText('help');
     await lockCmd(page, 'help');
     const keys = page.locator('#sgx-lock-log .sgx-lock-hk');
     await expect(keys).toHaveText(['password', 'passkey', 'tempkey', 'reset', 'clear', 'help']);
@@ -626,6 +627,242 @@ test.describe('B1-2 普通解锁路径 pkAuth()（mock WebAuthn）', () => {
       await expect(page.locator('#sgx-lock-k-pk')).toBeVisible();
       await lockCmd(page, 'password');
       await lockMode(page, 'pw');
+    });
+  }
+});
+
+/* 2026-11-08 Gray：「解锁后来一段加载动画」（设计稿 entry-v2/boot.html?from=1）。
+   解锁通过 → access granted / booting space… → 全屏开机层逐行打印 → 淡入主页；减少动态效果不放；按键 / 点击跳过；没敲凭证（首帧对账）不放。
+   这组不冻结时钟：会话时长 = 接口 exp − 页面 Date.now()。 */
+test.describe('解锁后开机动画（unlock boot）', () => {
+  const H12 = 12 * 3600e3;
+  /** 接口 mock：密码 / 临时钥匙通过后会话才生效；exp 用页面时钟算（page.evaluate） @param {import('@playwright/test').Page} page @param {{by?:string, ttl?:number, valid?:boolean}} [o] */
+  async function mockUnlock(page, o = {}) {
+    const st = { unlocked: !!o.valid };
+    const ok = (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    await page.route('**/api/lock-password', async (r) => { st.unlocked = true; await ok(r); });
+    await page.route('**/api/lock-tempkey-unlock', async (r) => { st.unlocked = true; await ok(r); });
+    await page.route('**/api/lock-session-check*', async (route) => {
+      if (!st.unlocked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: o.by || 'password', exp: Date.now() + (o.ttl || H12), next: null }) });
+    });
+  }
+  /** 记下开机层出现过几次、每次的行数序列（解锁后锁屏整块会被移除，事后查 DOM 查不到） @param {import('@playwright/test').Page} page */
+  async function watchBoot(page) {
+    await page.addInitScript(() => {
+      /** @type {any} */ (window).__boot = { seen: 0, lines: [], text: '', live: [] };
+      new MutationObserver(() => {
+        const b = document.getElementById('sgx-lock-boot');
+        const w = /** @type {any} */ (window).__boot;
+        if (b && !b.__seen) { b.__seen = true; w.seen++; }
+        const n = b ? Number(b.getAttribute('data-lines') || 0) : -1;
+        if (b && w.lines[w.lines.length - 1] !== n) w.lines.push(n);
+        if (b) w.text = b.textContent;
+        /* 读屏区域每次播报的文字（锁屏移除后查不到，边播边记） */
+        const l = document.getElementById('sgx-lock-live');
+        const t = l ? l.textContent : '';
+        if (t && w.live[w.live.length - 1] !== t) w.live.push(t);
+      }).observe(document, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['data-lines'] });
+    });
+  }
+  const boot = (page) => page.evaluate(() => /** @type {any} */ (window).__boot);
+
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await zh(page);
+    await watchBoot(page);
+  });
+
+  test('密码解锁 → 开机层逐行打印（真实方式与会话时长）→ 淡入主页，焦点回到页面，读屏只报「已解锁」', async ({ page }) => {
+    await mockUnlock(page, { by: 'password' });
+    await gotoLockTerm(page, NOBYPASS);
+    await lockCmd(page, 'password');
+    await lockMode(page, 'pw');
+    await lockCmd(page, 'correctpassword');
+    const layer = page.locator('#sgx-lock-boot');
+    await expect(layer).toBeVisible({ timeout: 10000 });
+    await expect(layer).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.locator('#sgx-lock-log')).toContainText('✓ access granted');
+    /* 淡入主页：锁屏整块移除，页面可用（开机层的文字、行数、读屏播报由 MutationObserver 边放边记，事后查，不和淡出抢时间） */
+    await expect(page.locator('#sgx-lock')).toHaveCount(0, { timeout: 8000 });
+    const rec = await boot(page);
+    for (const l of ['> styrigx space os — styrigx@space', '> LockKey verified (password) · session 12h', '> mounting /space/blog ... ok',
+      '> mounting /space/curio ... ok', '> mounting /space/daymark ... ok', '> mounting /space/wild ... ok', '> loading gray-ai ... ok', '> welcome back, sloan_']) {
+      expect(rec.text).toContain(l);
+    }
+    /* 读屏：解锁后只报「已解锁」（服务端回得快时会和「正在验证…」合成同一句播报——announce 30ms 合并），之后开机过程不再播报 */
+    expect(rec.live[rec.live.length - 1]).toMatch(/已解锁$/);
+    expect(rec.live.filter((t) => t.includes('已解锁'))).toHaveLength(1);
+    expect(rec.live.join(' ')).not.toMatch(/access granted|booting|mounting|welcome back|gray-ai/);
+    await expect(page.locator('body')).not.toHaveClass(/sgx-locked/);
+    await expect(page.locator('main')).toBeVisible();
+    expect(rec.lines.slice(0, 9)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    /* 焦点：不留在已移除的锁屏里（落在 body），Tab 能进页面 */
+    expect(await page.evaluate(() => document.activeElement === document.body || !!(document.activeElement && document.activeElement.isConnected))).toBe(true);
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!document.activeElement && document.activeElement !== document.body && !document.activeElement.closest('#sgx-lock'))).toBe(true);
+  });
+
+  test('临时钥匙：写 tempkey verified 和接口给的剩余时长', async ({ page }) => {
+    await mockUnlock(page, { by: 'tempkey', ttl: 2 * 3600e3 });
+    await gotoLockTerm(page, NOBYPASS);
+    await lockCmd(page, 'tempkey');
+    await lockMode(page, 'temp');
+    await lockCmd(page, 'abcd-efgh-jkmn');
+    const layer = page.locator('#sgx-lock-boot');
+    await expect(layer).toBeAttached({ timeout: 10000 });
+    await expect(page.locator('#sgx-lock')).toHaveCount(0, { timeout: 8000 });
+    expect((await boot(page)).text).toContain('> tempkey verified · session 2h');
+  });
+
+  test('减少动态效果：不出开机层、不逐行，直接短淡出', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await mockUnlock(page);
+    await gotoLockTerm(page, NOBYPASS);
+    await lockCmd(page, 'password');
+    await lockMode(page, 'pw');
+    await lockCmd(page, 'correctpassword');
+    await expect(page.locator('#sgx-lock')).toHaveCount(0, { timeout: 5000 });
+    expect((await boot(page)).seen).toBe(0);
+    await expect(page.locator('body')).not.toHaveClass(/sgx-locked/);
+  });
+
+  for (const how of ['key', 'click']) {
+    test(`动画期间${how === 'key' ? '按任意键' : '点击'}跳过：立刻打完并进主页`, async ({ page }) => {
+      await mockUnlock(page);
+      await gotoLockTerm(page, NOBYPASS);
+      await lockCmd(page, 'password');
+      await lockMode(page, 'pw');
+      await lockCmd(page, 'correctpassword');
+      /* 每帧查（expect 的轮询间隔可能跨过 1–3 行这一小段） */
+      await page.waitForFunction(() => {
+        const b = document.getElementById('sgx-lock-boot');
+        const n = b ? Number(b.getAttribute('data-lines') || 0) : 0;
+        return n >= 1 && n <= 3;
+      }, null, { polling: 'raf', timeout: 10000 });
+      const t0 = Date.now();
+      if (how === 'key') await page.keyboard.press('x');
+      else await page.mouse.click(200, 200);
+      await expect(page.locator('#sgx-lock')).toHaveCount(0, { timeout: 2000 });
+      expect(Date.now() - t0).toBeLessThan(1500);
+      const lines = (await boot(page)).lines;
+      expect(lines[lines.length - 1]).toBe(8);
+      expect(lines).not.toContain(7);
+      await expect(page.locator('main')).toBeVisible();
+    });
+  }
+
+  test('进站前不放：会话本来有效（首帧对账直接通过，没敲凭证）→ 不出开机层', async ({ page }) => {
+    await mockUnlock(page, { valid: true });
+    await page.goto(NOBYPASS, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-lock')).toHaveCount(0, { timeout: 10000 });
+    expect((await boot(page)).seen).toBe(0);
+  });
+});
+
+/* 2026-11-08 Gray（03:11 / 03:15）：开屏去掉多余提示行；man space 是手册（NAME / SYNOPSIS / COMMANDS，q 退出）；cd .. / cd / = 返回（同 Ctrl+C）。中英都测 */
+test.describe('终端：开屏提示行 / man space 手册 / cd .. 返回', () => {
+  for (const lang of ['zh', 'en']) {
+    const T = lang === 'zh'
+      ? { quit: '按 q 退出', back: '返回（同 Ctrl+C）', pw: '密码解锁', title: '锁屏终端手册' }
+      : { quit: 'Press q to quit', back: 'go back (same as Ctrl+C)', pw: 'unlock with password', title: 'Lock terminal manual' };
+    test.describe(`[${lang}]`, () => {
+      test.beforeEach(async ({ page }) => {
+        await blockExternalRequests(page);
+        await freezeTime(page);
+        await page.addInitScript((l) => { try { localStorage.setItem('sgx-lang', l); } catch (e) {} }, lang);
+        await page.route('**/api/lock-entry', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"passkey":true,"password":true}' }));
+      });
+
+      test('开屏只有一行，没有「输入 help 查看可用命令」', async ({ page }) => {
+        await gotoLock(page);
+        await expect(page.locator('html')).toHaveAttribute('lang', lang);
+        const lines = page.locator('#sgx-lock-log > div:not(.sgx-lock-lgap)');
+        await expect(lines).toHaveText(['styrigx space os 1.0 tty1']);
+        await expect(page.locator('#sgx-lock-log')).not.toContainText(/help|输入/);
+      });
+
+      test('man space：NAME / SYNOPSIS / COMMANDS 分节，提示符变 `:`；其他键不进输入行，q 退出回提示符（手册收掉）', async ({ page }) => {
+        await gotoLock(page);
+        const input = page.locator('#sgx-lock-cmd');
+        await lockCmd(page, 'man space');
+        await lockMode(page, 'man');
+        const man = page.locator('#sgx-lock-log .sgx-lock-man');
+        await expect(man).toHaveCount(1);
+        await expect(man.locator('.sgx-lock-mh')).toHaveText(['NAME', 'SYNOPSIS', 'COMMANDS']);
+        await expect(man).toContainText('SPACE(1)');
+        await expect(man).toContainText(T.title);
+        await expect(man).toContainText('man space · cd .. · cd /');
+        await expect(man.locator('.sgx-lock-hk')).toHaveText(['password', 'passkey', 'tempkey', 'reset', 'clear', 'help', 'cd ..']);
+        await expect(man).toContainText(T.pw);
+        await expect(man).toContainText(T.back);
+        await expect(man).toContainText('(END)');
+        await expect(page.locator('#sgx-lock-ps')).toHaveText(':');
+        /* 手册占满终端：快捷键收起，NAME 在视口里 */
+        await expect(page.locator('#sgx-lock-k-pw')).toBeHidden();
+        await expect(man.locator('.sgx-lock-mh').first()).toBeInViewport();
+        await expect(page.locator('#sgx-lock-hint')).toBeVisible();
+        await expect(page.locator('#sgx-lock-hint-tx')).toContainText(T.quit);
+        await expect(input).toHaveAttribute('aria-label', T.quit);
+        await expect(page.locator('#sgx-lock-live')).toContainText('man space');
+        await input.press('x');
+        await expect(input).toHaveValue('');
+        await lockMode(page, 'man');
+        await input.press('q');
+        await lockMode(page, 'cmd');
+        await expect(man).toHaveCount(0);
+        await expect(input).toBeFocused();
+        await expect(page.locator('#sgx-lock-k-pw')).toBeVisible();
+        await expect(page.locator('#sgx-lock-ps')).toContainText('styrigx@space');
+        /* Esc、回车、点「Ctrl+C 返回」也退出；手机键盘（keydown 不带字）靠输入内容里的 q */
+        await lockCmd(page, 'man');
+        await lockMode(page, 'man');
+        await input.press('Escape');
+        await lockMode(page, 'cmd');
+        await lockCmd(page, 'man space');
+        await lockMode(page, 'man');
+        await input.press('Enter');
+        await lockMode(page, 'cmd');
+        await lockCmd(page, 'man space');
+        await lockMode(page, 'man');
+        await page.click('#sgx-lock-cc');
+        await lockMode(page, 'cmd');
+        await lockCmd(page, 'man space');
+        await lockMode(page, 'man');
+        await input.fill('q');
+        await lockMode(page, 'cmd');
+        await expect(page.locator('#sgx-lock-log .sgx-lock-man')).toHaveCount(0);
+        await expectNoPopups(page);
+      });
+
+      test('cd .. / cd /：输凭证途中 = 返回（同 Ctrl+C，打印 ^C、不提交）；命令行里不报 command not found', async ({ page }) => {
+        const posted = [];
+        await page.route('**/api/lock-password', (r) => { posted.push('pw'); return r.fulfill({ status: 403, contentType: 'application/json', body: '{"ok":false,"error":"wrong"}' }); });
+        await page.route('**/api/lock-tempkey-unlock', (r) => { posted.push('temp'); return r.fulfill({ status: 403, contentType: 'application/json', body: '{"ok":false,"error":"wrong"}' }); });
+        await gotoLockTerm(page, NOBYPASS);
+        await lockCmd(page, 'password');
+        await lockMode(page, 'pw');
+        await lockCmd(page, 'cd ..');
+        await lockMode(page, 'cmd');
+        await expect(page.locator('#sgx-lock-log > div').last()).toContainText('^C');
+        await lockCmd(page, 'tempkey');
+        await lockMode(page, 'temp');
+        await lockCmd(page, 'cd /');
+        await lockMode(page, 'cmd');
+        await expect(page.locator('#sgx-lock-log > div').last()).toContainText('^C');
+        await lockCmd(page, 'reset');
+        await lockMode(page, 'rkey');
+        await lockCmd(page, 'cd ..');
+        await lockMode(page, 'cmd');
+        expect(posted).toEqual([]);
+        await expect(page.locator('#sgx-lock-st')).toHaveAttribute('data-st', 'locked');
+        /* 命令行里：只回显这一行，不报错 */
+        await lockCmd(page, 'cd ..');
+        await lockCmd(page, 'cd /');
+        await expect(page.locator('#sgx-lock-log .sgx-lock-lbad')).toHaveCount(0);
+        await expect(page.locator('#sgx-lock-log > div').last()).toContainText('cd /');
+        await lockMode(page, 'cmd');
+      });
     });
   }
 });

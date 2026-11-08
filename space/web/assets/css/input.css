@@ -7972,6 +7972,16 @@
   .sgx-lock-tbody { min-height: 150px; padding: 14px 16px 6px; box-sizing: border-box; font-size: 13px; line-height: 1.95; color: var(--sgx-text-primary); cursor: text; }
   #sgx-lock .sgx-lock-log { min-height: 0; padding: 0; max-height: 40vh; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
   .sgx-lock-lh { display: flex; gap: 0; padding-left: 14px; }
+  /* man space 手册：分节标题 / 缩进行 / 右上角标题 */
+  .sgx-lock-man { margin: 2px 0 4px; }
+  .sgx-lock-mh { margin-top: 6px; font-weight: 500; color: var(--sgx-text-primary); }
+  .sgx-lock-mi { padding-left: 14px; color: var(--sgx-text-secondary); overflow-wrap: anywhere; }
+  .sgx-lock-mr { float: right; }
+  .sgx-lock-hk.sgx-lock-mk { width: 72px; }
+  #sgx-lock .sgx-lock-term.is-man .sgx-lock-log { max-height: none; }
+  .sgx-lock-term.is-man .sgx-lock-qh, .sgx-lock-term.is-man .sgx-lock-qk { display: none; }
+  /* 底部 `~/styrigx · zh · en` 是贴底的绝对定位：手册把页面撑长后会压在手册上，手册打开时收起 */
+  #sgx-lock:has(.sgx-lock-term.is-man) .sgx-lock-tail { display: none; }
   .sgx-lock-hk { flex: none; width: 86px; color: var(--sgx-primary); }
   .sgx-lock-line {
     position: relative; display: flex; align-items: baseline; margin: 0; min-width: 0;
@@ -8055,6 +8065,26 @@
     .sgx-lock-tail { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { .sgx-lock-cur, .sgx-lock-tcur { animation: none; } }
+  /* 解锁后开机动画（设计稿 entry-v2/boot.html?from=1）：全屏底色跟主题（--sgx-bg-1），块光标 + 逐行输出；
+     先淡入盖住锁屏，放完连同锁屏一起淡出（#sgx-lock.sgx-lock-booted），主页同时从 96% 缩放回 100% */
+  .sgx-lock-boot {
+    position: fixed; inset: 0; z-index: 2; background: var(--sgx-bg-1);
+    opacity: 0; transition: opacity .2s ease;
+    &.is-on { opacity: 1; }
+  }
+  .sgx-lock-bout {
+    position: absolute; left: 22px; right: 18px; top: 38%;
+    font: 500 13.5px/1.75 var(--sgx-font-mono); color: var(--sgx-text-primary);
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    transition: opacity .45s ease, filter .45s ease;
+  }
+  @media (min-width: 768px) { .sgx-lock-bout { left: 50%; right: auto; width: min(560px, calc(100% - 48px)); transform: translateX(-50%); } }
+  .sgx-lock-bh { color: var(--sgx-primary); }
+  .sgx-lock-bok { color: var(--sgx-success); }
+  #sgx-lock.sgx-lock-booted {
+    opacity: 0; transition: opacity .5s ease;
+    .sgx-lock-bout { opacity: 0; filter: blur(2px); }
+  }
   /* 解锁时首页从 96% 缩放回 100%（约 400ms，与锁屏滑出同步） */
   main, #site-nav, footer { transition: transform .4s ease; }
   body.sgx-locked main, body.sgx-locked #site-nav, body.sgx-locked footer { transform: scale(.96); }

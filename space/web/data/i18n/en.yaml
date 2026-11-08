@@ -106,7 +106,6 @@ js:
     lockWelcomeBack: Welcome back
     lockGoodToSeeYou: Good to see you again
     lockTermHint: "# Don't want to type? Tap to auto-fill"
-    lockTermHelpHint: "# Type help to see available commands"
     lockTermCmdAria: "Unlock terminal: type a command, for example help"
     lockTermSecretHint: input is hidden, paste works
     lockTermBack: to go back
@@ -117,6 +116,10 @@ js:
     lockTermDescReset: "can't sign in? reset sign-in"
     lockTermDescClear: clear the screen
     lockTermDescHelp: show available commands
+    lockManTitle: "Lock terminal manual"
+    lockManName: "the styrigx space lock terminal: unlock by typing commands"
+    lockManDescBack: "go back (same as Ctrl+C)"
+    lockManQuit: "Press q to quit"
     lockTermPkUnavailable: "Passkey isn't set up or isn't supported on this device"
     lockTermPick: choose
     lockTermPickBad: Type one of the listed numbers
@@ -144,6 +147,7 @@ js:
     lockCancelledYouCanSelect: Cancelled, you can select again
     lockPasskeyFailed: Passkey failed
     lockVerifying: Verifying
+    lockBootUnlocked: Unlocked
     lockCannotReturnToThe: Cannot return to the subsite, please try again
     lockBackToMainSite: Back to main site
     lockReload: Reload
