@@ -2,5 +2,7 @@
 用法：partial "blog/script.html" (dict "name" "topnav.ts")，可选 "params"（入口里 import * as params from '@params'） */ -}}
 {{- $opts := dict "minify" hugo.IsProduction "target" "es2020" "format" "esm" -}}
 {{- with .params }}{{ $opts = merge $opts (dict "params" .) }}{{ end -}}
+{{- /* 测试构建（SGX_TEST_NO_WEATHER=1，CI 静态服务器没有 /api）：同主站 baseof，给外壳定义 SGX_TEST_NO_WB，加载时不自动取 /api/status（Lighthouse errors-in-console）；生产构建不加 define，产物不变 */ -}}
+{{- if eq (getenv "SGX_TEST_NO_WEATHER") "1" }}{{ $opts = merge $opts (dict "defines" (dict "SGX_TEST_NO_WB" "true")) }}{{ end -}}
 {{- $r := resources.Get (print "blog/js/entries/" .name) | js.Build $opts | fingerprint -}}
 <script type="module" src="{{ $r.RelPermalink }}"></script>
