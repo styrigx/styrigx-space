@@ -1,58 +1,33 @@
 /**
  * Hark：锁屏专用测试（与视觉回归/Lighthouse 分离）。
- * - 未解锁时锁屏覆盖内容（无法交互）
- * - ?lock=1 强制触发锁屏
- * - 临时钥匙（临时钥匙）弹层行为
- * - 锁屏基准截图（Hark：冻结时间 + 遮罩时钟/日期/天气，否则每次必然不同）
+ * lock-v10 命令解锁（2026-11-08）：锁屏上没有弹层，解锁 = 在终端输入行敲命令（password / passkey / tempkey / reset / help / clear）。
+ * - 未解锁时锁屏覆盖内容（无法交互）；?lock=1 强制触发锁屏
+ * - 各命令的真实行为（接口 mock）：密码 / 临时钥匙 / 通行密钥 / 重置登录 / 冷却 / 出错 / 会话确认
  *
  * 注意：这些测试需要锁屏启用的构建（生产构建）；CI 的 visual/Lighthouse
  * 用 SGX_TEST_NO_LOCK=1 的构建，两者分离。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
+const { gotoLockTerm, lockCmd, lockMode, badLine } = require('../helpers/lock-term.cjs');
 /* 2026-11 UI 重设计 PR-1：旧截图基线已删除（普通提交，不改历史），新精简基线在重设计最后一个 PR 重拍；
    在那之前不比截图（SHOTS = false），同一用例里的布局 / 行为断言照跑。重拍时改回 true。 */
 const SHOTS = false;
 
-/* Hark：CI 里 networkidle 可能永远等不到（锁屏页请求外部资源：天气、Turnstile），
-   改用 domcontentloaded + 等锁屏元素出现，不再依赖网络空闲 */
+/* Hark：CI 里 networkidle 可能永远等不到，改用 domcontentloaded + 等锁屏元素出现 */
 async function gotoLock(page) {
-  await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+  await gotoLockTerm(page, '/?lock=1');
 }
-
-/* 2.8.0 锁屏重设计：点头像 → 底部弹层 → 选方式 */
-async function openMethodSheet(page) {
-  await page.click('#sgx-lock-avatar');
-  await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
+const NOBYPASS = '/?lock=1&test-no-local-bypass=1';
+/** 锁屏上不许出现任何弹层（底部弹层、验证对话框、<dialog>） */
+async function expectNoPopups(page) {
+  /* 页面自己的抽屉（导航 / 快捷面板 / AI 的 <dialog>）不算：它们在锁屏下面、打不开 */
+  await expect(page.locator('#sgx-method-sheet, .sgx-verify-dlg, .sgx-sheet-backdrop, #sgx-lock dialog, dialog[open]')).toHaveCount(0);
 }
-async function choosePassword(page) {
-  await openMethodSheet(page);
-  await page.click('#sgx-mopt-pw');
-  await expect(page.locator('#sgx-pw-input')).toBeVisible({ timeout: 5000 });
-}
-async function choosePasskey(page) {
-  await openMethodSheet(page);
-  await page.click('#sgx-mopt-pk');
-}
-
-/* 断言两个元素的 boundingBox 不相交 */
-async function assertNoOverlap(page, loc1, loc2) {
-  const b1 = await loc1.boundingBox();
-  const b2 = await loc2.boundingBox();
-  expect(b1).not.toBeNull();
-  expect(b2).not.toBeNull();
-  const overlap =
-    b1.x < b2.x + b2.width &&
-    b1.x + b1.width > b2.x &&
-    b1.y < b2.y + b2.height &&
-    b1.y + b1.height > b2.y;
-  expect(overlap).toBe(false);
-}
+/* 只在没选过语言时写 zh（测试里点底部 en 换语言后，下一次导航不再被改回去） */
+const zh = async (page) => page.addInitScript(() => { try { if (!localStorage.getItem('sgx-lang')) localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
 
 test.describe('lock screen', () => {
-  /* Hark：每个测试先拦截外部请求（天气、Turnstile、字体/CDN），
-     /api/* mock 在测试体内注册，顺序靠后优先匹配 */
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
   });
@@ -60,14 +35,8 @@ test.describe('lock screen', () => {
   test('?lock=1 forces lock screen on any page', async ({ page }) => {
     await freezeTime(page);
     await gotoLock(page);
-    const lock = page.locator('#sgx-lock');
-    /* 锁屏覆盖内容：主内容不可见/不可点 */
-    const main = page.locator('main, #app-grid').first();
-    if (await main.count()) {
-      /* 锁屏是全屏覆盖，main 应被遮挡 */
-      const box = await lock.boundingBox();
-      expect(box.width).toBeGreaterThan(300);
-    }
+    const box = await page.locator('#sgx-lock').boundingBox();
+    expect(box.width).toBeGreaterThan(300);
   });
 
   test('lock screen baseline screenshot', async ({ page }) => {
@@ -75,91 +44,61 @@ test.describe('lock screen', () => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    /* 2026-10-23：锁屏不再有时钟 / 日期，不用遮罩 */
     if (SHOTS) await expect(page).toHaveScreenshot('lock-screen.png', { animations: 'disabled' });
   });
 
-  test('avatar → method sheet → temporary key unlocks (local fallback)', async ({ page }) => {
+  test('tempkey on localhost unlocks (local fallback)', async ({ page }) => {
     await freezeTime(page);
-    /* 2.8.0：localhost 本地回退——点头像 → 方法弹层 → 选"临时钥匙"直接解锁（本地不输临时钥匙），验证兜底路径 */
+    /* localhost 本地回退：tempkey 命令直接开锁（本地没有后端，不输临时钥匙） */
     await gotoLock(page);
-    await openMethodSheet(page);
-    await page.click('#sgx-mopt-tempkey');
-    /* 本地应直接解锁，锁屏消失 */
-    const lock = page.locator('#sgx-lock');
-    await expect(lock).toBeHidden({ timeout: 5000 });
-    /* 2.4.1：不再用 sessionStorage 标记解锁状态，一切以服务端为准；
-       本地无后端，锁屏消失即视为解锁成功 */
+    await lockCmd(page, 'tempkey');
+    await expect(page.locator('#sgx-lock')).toBeHidden({ timeout: 5000 });
   });
 
-  test('password option opens password dialog (via avatar sheet)', async ({ page }) => {
+  test('password command: the same input line becomes `[sudo] password for …:` (masked, password-manager friendly), no popups', async ({ page }) => {
     await freezeTime(page);
     await gotoLock(page);
-    /* 2.8.0：点头像 → 弹层 → 选密码 */
-    await openMethodSheet(page);
-    await page.click('#sgx-mopt-pw');
-    const dlg = page.locator('.sgx-verify-dlg');
-    await expect(dlg).toBeVisible();
-    /* 密码框存在 */
-    await expect(page.locator('#sgx-pw-input')).toBeVisible();
+    const input = page.locator('#sgx-lock-cmd');
+    await expect(input).toHaveAttribute('type', 'text');
+    await expect(input).toHaveAttribute('aria-label', /.+/);
+    await lockCmd(page, 'password');
+    await lockMode(page, 'pw');
+    await expect(input).toHaveAttribute('type', 'password');
+    await expect(input).toHaveAttribute('autocomplete', 'current-password');
+    await expect(input).toBeFocused();
+    await expect(page.locator('#sgx-lock-pmu')).toHaveAttribute('autocomplete', 'username');
+    await expect(page.locator('#sgx-lock-pmu')).toHaveValue('LockKey');
+    await expect(page.locator('#sgx-lock-ps')).toHaveText(/^\[sudo\] password for \S+: $/);
+    await expect(page.locator('#sgx-lock-hint')).toBeVisible();
+    await expect(page.locator('#sgx-lock-log')).toContainText('styrigx@space:~$ password');
+    await expectNoPopups(page);
   });
 
-  test('dialog open: avatar does not overlap the wordmark', async ({ page }) => {
-    /* 弹层打开时头像淡出，不得与时钟/日期/天气重叠（boundingBox 不相交）。
-       三种弹层（验证/密码/通行密钥）共用同一 dialog 组件和淡出机制，测密码弹层即可。 */
+  test('wrong password prints `✗ permission denied · …` and re-prompts (mocked API)', async ({ page }) => {
     await freezeTime(page);
-    await gotoLock(page);
-    const avatar = page.locator('.sgx-lock-user');
-    /* 2026-10-23：锁屏没有时钟和左上字标了，改测头像块和顶栏标题不重叠 */
-    const clock = page.locator('#sgx-lock .sgx-lock-tb');
-    await expect(avatar).toBeVisible();
-    await expect(clock).toBeVisible();
-
-    /* 打开密码弹层（2.8.0：经头像弹层） */
-    await choosePassword(page);
-    await expect(page.locator('.sgx-verify-dlg')).toBeVisible();
-    /* 等淡出动画完成（opacity 变为 0） */
-    await expect.poll(async () => {
-      return await avatar.evaluate((el) => getComputedStyle(el).opacity);
-    }, { timeout: 5000 }).toBe('0');
-    await assertNoOverlap(page, avatar, clock);
-
-    /* 关闭后头像恢复可见 */
-    await page.keyboard.press('Escape');
-    await expect(page.locator('.sgx-verify-dlg')).toBeHidden({ timeout: 5000 });
-    await expect.poll(async () => {
-      return await avatar.evaluate((el) => getComputedStyle(el).opacity);
-    }, { timeout: 5000 }).toBe('1');
-  });
-
-  test('wrong password shows error (mocked API)', async ({ page }) => {
-    await freezeTime(page);
-    /* Hark：http-server 没有 /api/*，用 page.route mock 后端 */
     await page.route('**/api/lock-password', async (route) => {
-      const req = route.request();
-      const body = JSON.parse(req.postData() || '{}');
+      const body = JSON.parse(route.request().postData() || '{}');
       if (body.action === 'verify') {
-        /* 模拟：密码错误 */
-        await route.fulfill({
-          status: 403,
-          contentType: 'application/json',
-          body: JSON.stringify({ ok: false, error: 'wrong' }),
-        });
+        await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
       } else {
         await route.continue();
       }
     });
     await gotoLock(page);
-    await choosePassword(page);
-    await page.fill('#sgx-pw-input', 'wrongpassword123');
-    await page.click('#sgx-pw-go');
-    /* 应提示密码错误（mock 返回 wrong） */
-    const err = page.locator('#sgx-verify-err');
-    await expect(err).toHaveText(/密码错误|wrong/i, { timeout: 10000 });
+    await lockCmd(page, 'password');
+    await lockMode(page, 'pw');
+    await lockCmd(page, 'wrongpassword123');
+    await expect(badLine(page)).toHaveText(/^✗ permission denied · (密码错误|Wrong password)/i, { timeout: 10000 });
+    /* 像 sudo 一样再问一次：还在密码态，输入行清空；密码从不出现在终端输出里 */
+    await lockMode(page, 'pw');
+    await expect(page.locator('#sgx-lock-cmd')).toHaveValue('');
+    await expect(page.locator('#sgx-lock-log')).not.toContainText('wrongpassword123');
+    /* 读屏区域播报同样的出错文字 */
+    await expect(page.locator('#sgx-lock-live')).toContainText('permission denied');
   });
 
   /* 2026-10-23：临时钥匙 = 输入临时钥匙（取代 Turnstile）。test-no-local-bypass 让 localhost 也走线上逻辑 */
-  test('temporary key dialog — wrong key shows error, right key unlocks (mocked API)', async ({ page }) => {
+  test('tempkey — empty / wrong key print errors, right key unlocks (mocked API)', async ({ page }) => {
     await freezeTime(page);
     const seen = [];
     await page.route('**/api/lock-tempkey-unlock', async (route) => {
@@ -169,98 +108,77 @@ test.describe('lock screen', () => {
       await route.fulfill({ status: ok ? 200 : 403, contentType: 'application/json',
         body: JSON.stringify(ok ? { ok: true } : { ok: false, error: 'wrong' }) });
     });
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    await openMethodSheet(page);
-    /* 方法弹层：临时钥匙在第一行，说明是临时钥匙，不再提 Cloudflare / 机器人 */
-    const opt = page.locator('#sgx-mopt-tempkey');
-    await expect(opt).toContainText('临时钥匙');
-    await expect(opt).toContainText('临时钥匙');
-    await expect(page.locator('#sgx-method-sheet')).not.toContainText(/Cloudflare|机器人/);
-    await opt.click();
-    const input = page.locator('#sgx-temp-input');
-    await expect(input).toBeVisible({ timeout: 5000 });
+    await zh(page);
+    await gotoLockTerm(page, NOBYPASS);
+    await lockCmd(page, 'tempkey');
+    await lockMode(page, 'temp');
+    const input = page.locator('#sgx-lock-cmd');
     await expect(input).toHaveAttribute('autocomplete', 'off');
-    /* 空着点确定：提示输入，不发请求 */
-    await page.click('#sgx-temp-go');
-    await expect(page.locator('#sgx-verify-err')).toHaveText('请输入临时钥匙');
-    expect(seen).toEqual([]);
-    await input.fill('AAAA-BBBB-CCCC');
+    await expect(input).toHaveAttribute('type', 'password');
+    await expect(page.locator('#sgx-lock-ps')).toHaveText('tempkey: ');
+    await expect(page.locator('#sgx-lock')).not.toContainText(/Cloudflare|机器人/);
+    /* 空着回车：提示输入，不发请求 */
     await input.press('Enter');
-    await expect(page.locator('#sgx-verify-err')).toHaveText('临时钥匙无效或已过期', { timeout: 10000 });
+    await expect(badLine(page)).toHaveText('✗ 请输入临时钥匙');
+    expect(seen).toEqual([]);
+    await lockCmd(page, 'AAAA-BBBB-CCCC');
+    await expect(badLine(page)).toHaveText('✗ permission denied · 临时钥匙无效或已过期', { timeout: 10000 });
     await expect(input).toHaveValue('');
-    await input.fill('abcd-efgh-jkmn');
-    await page.click('#sgx-temp-go');
+    await lockCmd(page, 'abcd-efgh-jkmn');
     expect(await page.evaluate(() => typeof window.turnstile)).toBe('undefined');
     await expect.poll(() => seen.length).toBe(2);
+    await expect(page.locator('#sgx-lock-log')).not.toContainText('AAAA-BBBB-CCCC');
   });
 
-  test('temporary key locked out (429) disables input with countdown (mocked API)', async ({ page }) => {
+  test('tempkey locked out (429): countdown printed in the terminal, input read-only (mocked API)', async ({ page }) => {
     await freezeTime(page);
     await page.route('**/api/lock-tempkey-unlock', (route) => route.fulfill({ status: 429, contentType: 'application/json', body: '{"ok":false,"error":"cooldown"}' }));
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    await openMethodSheet(page);
-    await page.click('#sgx-mopt-tempkey');
-    await page.fill('#sgx-temp-input', 'AAAA-BBBB-CCCC');
-    await page.click('#sgx-temp-go');
-    await expect(page.locator('#sgx-verify-err')).toHaveText('尝试次数过多', { timeout: 10000 });
-    await expect(page.locator('#sgx-temp-count')).toHaveText(/15 分钟后可再试/);
-    await expect(page.locator('#sgx-temp-input')).toBeDisabled();
-    await expect(page.locator('#sgx-temp-go')).toBeDisabled();
+    await zh(page);
+    await gotoLockTerm(page, NOBYPASS);
+    await lockCmd(page, 'tempkey');
+    await lockCmd(page, 'AAAA-BBBB-CCCC');
+    await expect(badLine(page)).toHaveText('✗ permission denied · 尝试次数过多', { timeout: 10000 });
+    await expect(page.locator('#sgx-lock-log .sgx-lock-lcd')).toHaveText(/› 15 分钟后可再试/);
+    await expect(page.locator('#sgx-lock-cmd')).toHaveJSProperty('readOnly', true);
+    /* Ctrl+C 回命令行；再敲 tempkey 仍在冷却 */
+    await page.locator('#sgx-lock-cmd').press('Control+c');
+    await lockMode(page, 'cmd');
+    await lockCmd(page, 'tempkey');
+    await expect(page.locator('#sgx-lock-log .sgx-lock-lcd')).toHaveText(/› 15 分钟后可再试/);
   });
 
   test('locked out after 5 wrong attempts (mocked API)', async ({ page }) => {
     await freezeTime(page);
     let attempts = 0;
     await page.route('**/api/lock-password', async (route) => {
-      const req = route.request();
-      const body = JSON.parse(req.postData() || '{}');
+      const body = JSON.parse(route.request().postData() || '{}');
       if (body.action === 'verify') {
         attempts++;
         if (attempts >= 5) {
-          /* 模拟：第 5 次后锁定 */
-          await route.fulfill({
-            status: 429,
-            contentType: 'application/json',
-            body: JSON.stringify({ ok: false, error: 'cooldown', retryAfter: 30 }),
-          });
+          await route.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'cooldown', retryAfter: 30 }) });
         } else {
-          await route.fulfill({
-            status: 403,
-            contentType: 'application/json',
-            body: JSON.stringify({ ok: false, error: 'wrong' }),
-          });
+          await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
         }
       } else {
         await route.continue();
       }
     });
     await gotoLock(page);
-    await choosePassword(page);
-    const err = page.locator('#sgx-verify-err');
-    /* 连续 5 次错误：每次等当次请求的响应回来，避免循环跑赢 fetch；
-       Hark：submitPw 收到"密码错误"会清 input.value，和下一轮 fill 竞争，
-       必须等响应回来再填下一次 */
+    await lockCmd(page, 'password');
     for (let i = 0; i < 5; i++) {
-      await page.fill('#sgx-pw-input', 'wrong' + i);
       await Promise.all([
         page.waitForResponse((r) => r.url().includes('/api/lock-password')),
-        page.click('#sgx-pw-go'),
+        lockCmd(page, 'wrong' + i),
       ]);
-      if (i < 4) await expect(err).toHaveText(/密码错误|wrong/i);
+      if (i < 4) await expect(badLine(page)).toHaveText(/密码错误|Wrong password/i);
     }
     expect(attempts).toBe(5);
-    /* 应显示锁定提示，且按钮被禁用 */
-    await expect(err).toHaveText(/尝试次数过多|Too many/i, { timeout: 10000 });
-    await expect(page.locator('#sgx-pw-go')).toBeDisabled();
+    await expect(badLine(page)).toHaveText(/尝试次数过多|Too many/i, { timeout: 10000 });
+    await expect(page.locator('#sgx-lock-log .sgx-lock-lcd')).toHaveText(/› ((30|29) 秒后可再试|Try again in (30|29)s)/);
+    await expect(page.locator('#sgx-lock-cmd')).toHaveJSProperty('readOnly', true);
   });
 
-  /* 2026-10-21：带 return 解锁后，前端问 /api/lock-session-check?return=（服务端校验 return，与首页 302 同一个函数），
-     照服务端给的 next 跳；不再「重载锁屏地址等 L1 302」——锁屏入口 styrigx.com/?lock=1 线上曾不过网关，
-     重载回来还是锁屏（用户报告：解锁后回不到子站 / 又回到锁屏）。 */
+  /* 2026-10-21：带 return 解锁后，前端问 /api/lock-session-check?return=，照服务端给的 next 跳 */
   test('unlock with ?return= goes to server-provided next (no reload of the lock URL)', async ({ page }) => {
     await freezeTime(page);
     let unlocked = false;
@@ -274,21 +192,14 @@ test.describe('lock screen', () => {
       if (!unlocked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/theme/' }) });
     });
-    await page.goto('/?lock=1&return=' + encodeURIComponent('/theme/') + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    await choosePassword(page);
-    await page.fill('#sgx-pw-input', 'correctpassword');
-    await page.click('#sgx-pw-go');
+    await gotoLockTerm(page, '/?lock=1&return=' + encodeURIComponent('/theme/') + '&test-no-local-bypass=1');
+    await lockCmd(page, 'sudo');
+    await lockMode(page, 'pw');
+    await lockCmd(page, 'correctpassword');
     await page.waitForURL(/\/theme\/$/, { timeout: 10000 });
     expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/theme/')))).toBe(true);
   });
 
-  /* 2.4.1 回跳修复：另一个标签页解锁后，切回来自动检测并回跳。
-     锁屏显示期间监听 visibilitychange/focus/pageshow，调 session-check。
-     （localhost 下用 ?test-no-local-bypass=1 强制走线上逻辑） */
-  /* 2.4.1 回跳修复：锁屏显示期间，切回标签页会自动重查会话。
-     （localhost 下用 ?test-no-local-bypass=1 强制走线上逻辑）
-     401 时保持锁屏；ok 时走 handleSessionOk 回跳（由 'unlock with ?return=' 测试覆盖）。 */
   test('lock screen rechecks session on focus (401 keeps lock)', async ({ page }) => {
     await freezeTime(page);
     let fetchCount = 0;
@@ -310,284 +221,135 @@ test.describe('lock screen', () => {
     await expect(page.locator('#sgx-lock')).toBeVisible();
   });
 
-  test('session-check 401 keeps lock screen (fail-closed)', async ({ page }) => {
+  test('session-check 401 keeps lock screen (fail-closed): error printed, back to the prompt', async ({ page }) => {
     await freezeTime(page);
-    /* mock lock-password 成功，但 session-check 返回 401 */
     await page.route('**/api/lock-password', async (route) => {
-      const req = route.request();
-      const body = JSON.parse(req.postData() || '{}');
-      if (body.action === 'verify') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ ok: true }),
-        });
-      } else {
-        await route.continue();
-      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
     });
     await page.route('**/api/lock-session-check*', async (route) => {
-      await route.fulfill({
-        status: 401,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: false }),
-      });
+      await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false }) });
     });
-    await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    await choosePassword(page);
-    await page.fill('#sgx-pw-input', 'correctpassword');
-    await page.click('#sgx-pw-go');
-    /* session-check 401 → 显示"会话未生效"标题，锁屏保持（fail-closed） */
-    const title = page.locator('#sgx-verify-title');
-    await expect(title).toHaveText(/会话未生效|Session not active/i, { timeout: 10000 });
+    await gotoLockTerm(page, NOBYPASS);
+    await lockCmd(page, 'password');
+    await lockCmd(page, 'correctpassword');
+    await expect(badLine(page)).toHaveText(/permission denied · (会话未生效|The session was not recognized)/, { timeout: 10000 });
     await expect(page.locator('#sgx-lock')).toBeVisible();
+    await lockMode(page, 'cmd');
+    await expect(page.locator('#sgx-lock-st')).toHaveAttribute('data-st', 'denied');
   });
 });
 
-
-
-
-/* 2.8.0 锁屏重设计 e2e */
-test.describe('lock screen redesign (2.8.0)', () => {
-  test('点头像 → 底部弹层 → 三个选项', async ({ page }) => {
-    await freezeTime(page);
-    await gotoLock(page);
-    /* 只有头像，没有 Styrigx 文字和常驻链接 */
-    await expect(page.locator('#sgx-lock-avatar')).toBeVisible();
-    await expect(page.locator('.sgx-lock-name')).toHaveCount(0);
-    await expect(page.locator('#sgx-lock-pwlink')).toHaveCount(0);
-    await expect(page.locator('#sgx-lock-pkbtn')).toHaveCount(0);
-    /* 点头像 → 弹层出现 */
-    await openMethodSheet(page);
-    /* 三个选项：临时钥匙在前，通行密钥，密码 */
-    const visitorOpt = page.locator('#sgx-mopt-tempkey');
-    const pkOpt = page.locator('#sgx-mopt-pk');
-    const pwOpt = page.locator('#sgx-mopt-pw');
-    await expect(visitorOpt).toBeVisible();
-    await expect(pwOpt).toBeVisible();
-    /* 临时钥匙是第一个 */
-    const firstId = await page.locator('.sgx-method-opt').first().getAttribute('id');
-    expect(firstId).toBe('sgx-mopt-tempkey');
-    /* 选密码 → 密码框出现 */
-    await pwOpt.click();
-    await expect(page.locator('#sgx-pw-input')).toBeVisible();
-  });
-
-  test('弹层可关闭（Esc/点外部）', async ({ page }) => {
-    await freezeTime(page);
-    await gotoLock(page);
-    await openMethodSheet(page);
-    /* Esc 关闭 */
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#sgx-method-sheet')).toHaveCount(0);
-    /* 重新打开，点外部关闭 */
-    await openMethodSheet(page);
-    await page.locator('.sgx-sheet-backdrop').click({ position: { x: 10, y: 10 } });
-    await expect(page.locator('#sgx-method-sheet')).toHaveCount(0);
-  });
-});
-
-test.describe('lock password dialog keyboard avoidance (批次 A 验收修复 P1)', () => {
-  /* 注：锁屏密码弹层用例放在本文件而非 dialog-kb.spec.js——
-     dialog-kb.spec.js 跑在默认 suite（SGX_TEST_NO_LOCK=1 构建，lock.js 直接 return，
-     锁屏弹层打不开）；本文件跑锁屏 suite（生产构建），才能真正打开锁屏密码弹层。 */
+test.describe('命令解锁：终端行为（help / 不认识的命令 / clear / 历史 / Tab / Ctrl+C / 快捷键）', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
-  });
-
-  /* 污点 window.visualViewport 模拟键盘弹出（与 dialog-kb.spec.js 同一套做法） */
-  async function taintViewport(pg) {
-    await pg.evaluate(() => {
-      try {
-        Object.defineProperty(Navigator.prototype, 'virtualKeyboard', {
-          configurable: true,
-          get: () => undefined,
-        });
-      } catch (e) {}
-      const real = window.visualViewport;
-      const fake = {
-        width: real ? real.width : window.innerWidth,
-        height: real ? real.height : window.innerHeight,
-        offsetTop: 0,
-        offsetLeft: 0,
-        scale: 1,
-        _l: {},
-      };
-      fake.addEventListener = function (t, f) {
-        (this._l[t] = this._l[t] || []).push(f);
-      };
-      fake.removeEventListener = function (t, f) {
-        const a = this._l[t];
-        if (a) {
-          const i = a.indexOf(f);
-          if (i !== -1) a.splice(i, 1);
-        }
-      };
-      fake.__setHeight = function (h) {
-        this.height = h;
-        (this._l.resize || []).slice().forEach((f) => f());
-      };
-      Object.defineProperty(window, 'visualViewport', {
-        configurable: true,
-        get: () => fake,
-      });
-      window.__fakeVV = fake;
-    });
-  }
-
-  async function waitFrames(pg, n) {
-    await pg.evaluate(
-      (count) =>
-        new Promise((resolve) => {
-          const tick = () => {
-            if (count <= 1) resolve();
-            else {
-              count -= 1;
-              requestAnimationFrame(tick);
-            }
-          };
-          requestAnimationFrame(tick);
-        }),
-      n
-    );
-  }
-
-  test('lock password dialog follows keyboard: dlg shifts up, input stays visible, restore on blur', async ({ page }) => {
+    await zh(page);
     await freezeTime(page);
+    await page.route('**/api/lock-entry', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"passkey":true,"password":true}' }));
+  });
+
+  test('help 列出命令；不认识的命令 → command not found；clear 清屏', async ({ page }) => {
     await gotoLock(page);
-    await taintViewport(page);
-    await choosePassword(page);
-    const dlg = page.locator('.sgx-verify-dlg');
-    await expect(dlg).toBeVisible();
-    const input = page.locator('#sgx-pw-input');
-    await expect(input).toBeVisible();
-    await expect(input).toBeFocused();
-
-    const origTransform = await dlg.evaluate((el) => el.style.transform);
-    expect(origTransform).toBe('');
-
-    /* 模拟键盘弹出：visualViewport 高度缩小 300（followKeyboard 经 rAF 节流） */
-    await page.evaluate(() => window.__fakeVV.__setHeight(window.innerHeight - 300));
-    await waitFrames(page, 3);
-    const raised = await page.evaluate(() => {
-      const d = document.querySelector('.sgx-verify-dlg');
-      const vv = window.__fakeVV;
-      const inputEl = document.getElementById('sgx-pw-input');
-      const goEl = document.getElementById('sgx-pw-go');
-      const ir = inputEl.getBoundingClientRect();
-      const br = goEl.getBoundingClientRect();
-      return {
-        transform: d.style.transform,
-        inputBottom: ir.bottom,
-        btnBottom: br.bottom,
-        vvBottom: vv.offsetTop + vv.height,
-      };
-    });
-    /* followKeyboard 作用到 dlg（不是 card）：dlg 上移键盘高度 */
-    expect(raised.transform).toBe('translateY(-300px)');
-    expect(raised.inputBottom).toBeLessThanOrEqual(raised.vvBottom + 1);
-    expect(raised.btnBottom).toBeLessThanOrEqual(raised.vvBottom + 1);
-
-    /* 恢复视口 + 失焦：弹层回到底部 */
-    await page.evaluate(() => window.__fakeVV.__setHeight(window.innerHeight));
-    await input.evaluate((el) => el.blur());
-    await waitFrames(page, 3);
-    const restored = await dlg.evaluate((el) => el.style.transform);
-    expect(restored).toBe('');
-  });
-});
-
-test.describe('lock password dialog eye button (批次 A 验收修复 P2)', () => {
-  test.beforeEach(async ({ page }) => {
-    await blockExternalRequests(page);
+    await expect(page.locator('#sgx-lock-log')).toContainText('help');
+    await lockCmd(page, 'help');
+    const keys = page.locator('#sgx-lock-log .sgx-lock-hk');
+    await expect(keys).toHaveText(['password', 'passkey', 'tempkey', 'reset', 'clear', 'help']);
+    await expect(page.locator('#sgx-lock-log')).toContainText('无法登录？重置登录');
+    await lockCmd(page, 'foo bar');
+    await expect(badLine(page)).toHaveText('command not found: foo · try help');
+    await lockCmd(page, 'clear');
+    await expect(page.locator('#sgx-lock-log .sgx-lock-hk')).toHaveCount(0);
+    await expect(page.locator('#sgx-lock-log')).toContainText('styrigx space os 1.0 tty1');
+    await expectNoPopups(page);
   });
 
-  test('lock password dialog: eye starts eye-off, toggles, keeps focus', async ({ page }) => {
-    await freezeTime(page);
+  test('↑ / ↓ 历史；Tab 补全；Ctrl+C 从密码态回到命令行（打印 ^C）', async ({ page }) => {
     await gotoLock(page);
-    await choosePassword(page);
-    const input = page.locator('#sgx-pw-input');
-    await expect(input).toBeVisible();
-    const eye = page.locator('#sgx-pw-eye');
-    await expect(eye).toBeVisible();
-
-    /* 锁屏套件不固定语言（现有测试均用中英双语正则），aria-label 接受任一语言 */
-    await expect(eye).toHaveAttribute('aria-label', /显示密码|Show password/);
-    await expect(eye).toHaveAttribute('aria-pressed', 'false');
-    expect(await eye.evaluate((el) => el.innerHTML)).toContain('<line');
-
-    await eye.click();
-    await expect(eye).toHaveAttribute('aria-label', /隐藏密码|Hide password/);
-    await expect(eye).toHaveAttribute('aria-pressed', 'true');
-    expect(await eye.evaluate((el) => el.innerHTML)).not.toContain('<line');
-    await expect(page.locator('#sgx-pw-input[type="text"]')).toBeVisible();
-    await expect(input).toBeFocused();
-
-    await eye.click();
-    await expect(eye).toHaveAttribute('aria-label', /显示密码|Show password/);
-    await expect(eye).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.locator('#sgx-pw-input[type="password"]')).toBeVisible();
+    const input = page.locator('#sgx-lock-cmd');
+    await lockCmd(page, 'help');
+    await lockCmd(page, 'clear');
+    await input.press('ArrowUp');
+    await expect(input).toHaveValue('clear');
+    await input.press('ArrowUp');
+    await expect(input).toHaveValue('help');
+    await input.press('ArrowDown');
+    await expect(input).toHaveValue('clear');
+    await input.fill('temp');
+    await input.press('Tab');
+    await expect(input).toHaveValue('tempkey');
+    await input.fill('pas');
+    await input.press('Tab');
+    await expect(input).toHaveValue('pass');
+    await lockCmd(page, 'password');
+    await lockMode(page, 'pw');
+    await expect(page.locator('#sgx-lock-title')).toHaveText('解锁屏幕');
+    await input.press('Control+c');
+    await lockMode(page, 'cmd');
+    await expect(page.locator('#sgx-lock-log > div').last()).toContainText('^C');
+    await expect(page.locator('#sgx-lock-title')).toHaveText('锁定屏幕');
+    /* Esc 同样退出 */
+    await lockCmd(page, 'reset');
+    await lockMode(page, 'rkey');
+    await input.press('Escape');
+    await lockMode(page, 'cmd');
   });
-});
 
-test.describe('lock method sheet row feedback (批次 A 验收修复 P2)', () => {
-  test.beforeEach(async ({ page }) => {
-    await blockExternalRequests(page);
-  });
-
-  test('method row click vibrates 10ms', async ({ page }) => {
+  test('快捷键 = 替你敲命令：password 键 → `sudo spacekey password` → 密码态（高亮）；点了轻震 10ms', async ({ page }) => {
     await page.addInitScript(() => {
       window.__vibCalls = [];
       navigator.vibrate = (ms) => { window.__vibCalls.push(ms); return true; };
     });
-    await freezeTime(page);
     await gotoLock(page);
-    /* 头像 id 是 #sgx-lock-avatar（openMethodSheet 已封装） */
-    await openMethodSheet(page);
-    const pwBtn = page.locator('#sgx-mopt-pw');
-    await expect(pwBtn).toBeVisible({ timeout: 5000 });
-    await pwBtn.click();
+    await expect(page.locator('#sgx-lock-k-pw')).toBeVisible();
+    await expect(page.locator('#sgx-lock-qh')).toHaveText('# 不想打命令？点一下自动输入');
+    await page.click('#sgx-lock-k-pw');
+    await lockMode(page, 'pw');
+    await expect(page.locator('#sgx-lock-log')).toContainText('sudo spacekey password');
+    await expect(page.locator('#sgx-lock-k-pw')).toHaveClass(/is-on/);
     expect(await page.evaluate(() => window.__vibCalls)).toEqual([10]);
-    /* 点击后进入密码态（弹层未关、未收键盘——行反馈不影响流程） */
-    await expect(page.locator('#sgx-pw-input')).toBeVisible();
+    /* 点「Ctrl+C」（触屏没有 Ctrl 键）回命令行 */
+    await page.click('#sgx-lock-cc');
+    await lockMode(page, 'cmd');
+    await expect(page.locator('#sgx-lock-k-pw')).not.toHaveClass(/is-on/);
+  });
+
+  test('焦点不在输入框时直接打字也进输入行', async ({ page }) => {
+    await gotoLock(page);
+    await page.locator('#sgx-lock-cmd').blur();
+    await page.keyboard.type('help');
+    await expect(page.locator('#sgx-lock-cmd')).toBeFocused();
+    await expect(page.locator('#sgx-lock-cmd')).toHaveValue('help');
   });
 });
 
-test.describe('A-2 锁屏凭证清空态 / 启动站（PR3：只剩「无法登录？」）', () => {
+test.describe('A-2 锁屏凭证清空态 / 启动站', () => {
   /* 账号拆分 PR3：lock-entry 只回锁屏自己的 passkey / password（resetOnly / accountConfigured 已删），
      「清空态」就是两项都是 false；多带的旧字段前端不认 */
-  test('锁屏凭证清空：方法弹层只显示临时钥匙 +「无法登录？」（无通行密钥/密码/进站凭证入口）', async ({ page }) => {
+  test('锁屏凭证清空：快捷键不显示，help 只剩 tempkey / reset，password / passkey 命令提示未设置', async ({ page }) => {
     await blockExternalRequests(page);
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-
+    await zh(page);
     await freezeTime(page);
     await page.route('**/api/lock-entry', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: true, passkey: false, password: false, accountConfigured: true, resetOnly: true }),
-      });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, passkey: false, password: false, accountConfigured: true, resetOnly: true }) });
     });
     await gotoLock(page);
-    await openMethodSheet(page);
-    const ids = await page.locator('.sgx-method-opt').evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(['sgx-mopt-tempkey']);
-    await expect(page.locator('#sgx-mopt-cant')).toHaveText('无法登录？');
-    await expect(page.locator('#sgx-mopt-reset, #sgx-mopt-mk')).toHaveCount(0);
+    await expect(page.locator('#sgx-lock-k-pw')).toBeHidden();
+    await expect(page.locator('#sgx-lock-k-pk')).toBeHidden();
+    await expect(page.locator('#sgx-lock-qh')).toBeHidden();
+    await lockCmd(page, 'help');
+    await expect(page.locator('#sgx-lock-log .sgx-lock-hk')).toHaveText(['tempkey', 'reset', 'clear', 'help']);
+    await lockCmd(page, 'password');
+    await expect(badLine(page)).toHaveText('✗ 尚未设置密码');
+    await lockMode(page, 'cmd');
+    await lockCmd(page, 'passkey');
+    await expect(badLine(page)).toHaveText('✗ 通行密钥未设置，或这台设备不支持');
   });
 
-  test('启动站（lock-entry 全 false）：进站凭证在「无法登录？」里，走 /api/space-auth { purpose:lock-reset } → 锁屏凭证页设第一把', async ({ page }) => {
+  test('启动站（lock-entry 全 false）：reset → 进站凭证走 /api/space-auth { purpose:lock-reset } → 锁屏凭证页设第一把', async ({ page }) => {
     await blockExternalRequests(page);
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-
+    await zh(page);
     await freezeTime(page);
     await page.route('**/api/lock-entry', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: true, passkey: false, password: false }),
-      });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, passkey: false, password: false }) });
     });
     const calls = [];
     await page.route('**/api/space-auth', async (route) => {
@@ -596,27 +358,24 @@ test.describe('A-2 锁屏凭证清空态 / 启动站（PR3：只剩「无法登�
     });
     await page.route('**/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
     await gotoLock(page);
-    await openMethodSheet(page);
-    await expect(page.locator('#sgx-mopt-mk')).toHaveCount(0);
-    await page.click('#sgx-mopt-cant');
-    await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
-    await page.fill('#sgx-reset-space', 'root-key');
-    await page.click('#sgx-reset-go');
+    await lockCmd(page, 'reset');
+    await lockMode(page, 'rkey');
+    await expect(page.locator('#sgx-lock-log')).toContainText('重置登录');
+    await lockCmd(page, 'root-key');
     await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
     expect(calls).toEqual([{ key: 'root-key', purpose: 'lock-reset' }]);
   });
 });
 
-test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', () => {
+test.describe('PR3 锁屏：无法登录？→ reset 命令在终端里重置登录', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-
+    await zh(page);
     await freezeTime(page);
   });
 
   /* 账号拆分 PR3：第 2 步是锁屏凭证（lockProof；网关不读账号凭证），服务端回 needLock */
-  test('进站凭证 → needLock → 锁屏凭证行（锁屏通行密钥 / 解锁密码，不出现旧角色名和「账号」字样）→ 解锁密码通过 → /security/lock/', async ({ page }) => {
+  test('进站凭证 → needLock → 列出锁屏凭证（解锁密码 / 锁屏通行密钥，不出现旧角色名和「账号」字样）→ 解锁密码通过 → /security/lock/', async ({ page }) => {
     const bodies = [];
     await page.route('**/api/lock-reset', async (route) => {
       const b = JSON.parse(route.request().postData() || '{}');
@@ -629,28 +388,32 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     });
     await page.route('**/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
     await gotoLock(page);
-    await openMethodSheet(page);
-    await page.click('#sgx-mopt-cant');
-    /* 同一个弹层（没有关掉再开别的） */
-    await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible();
-    await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
-    await expect(page.locator('#sgx-mopt-tempkey')).toHaveCount(0);
-    await expect(page.locator('.sgx-reset input[autocomplete="username"]')).toHaveValue('SpaceKey');
-    await page.fill('#sgx-reset-space', 'root-key');
-    await page.click('#sgx-reset-go');
-    await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
-    await expect(page.locator('.sgx-reset-opts .sgx-credential-rowtitle')).toHaveText(['锁屏通行密钥', '解锁密码']);
-    await expect(page.locator('#sgx-method-sheet')).not.toContainText('管理员'); // old-name guard
-    await expect(page.locator('#sgx-method-sheet')).not.toContainText('账号');
-    await page.locator('.sgx-credential-row').filter({ hasText: '解锁密码' }).click();
-    await page.locator('.sgx-credential-expand input[type="password"]').fill('lock-pw');
-    await page.locator('.sgx-credential-expand .sgx-credential-btn-primary').click();
+    await lockCmd(page, 'forgot');
+    await lockMode(page, 'rkey');
+    await expect(page.locator('#sgx-lock-pmu')).toHaveValue('SpaceKey');
+    await expect(page.locator('#sgx-lock-cmd')).toHaveAttribute('type', 'password');
+    await expect(page.locator('#sgx-lock-ps')).toHaveText('spacekey: ');
+    await lockCmd(page, 'root-key');
+    await lockMode(page, 'rpick');
+    const log = page.locator('#sgx-lock-log');
+    await expect(log).toContainText('[1] password 解锁密码');
+    await expect(log).toContainText('[2] passkey 锁屏通行密钥');
+    await expect(log).not.toContainText('管理员'); // old-name guard
+    await expect(log).not.toContainText('账号');
+    await expect(log).not.toContainText('root-key');
+    await lockCmd(page, '9');
+    await expect(badLine(page)).toHaveText('✗ 请输入列出的编号');
+    await lockCmd(page, '1');
+    await lockMode(page, 'rpw');
+    await expect(page.locator('#sgx-lock-pmu')).toHaveValue('LockKey');
+    await lockCmd(page, 'lock-pw');
     await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
     expect(bodies[0]).toEqual({ action: 'verify', spaceKey: 'root-key' });
     expect(bodies[1]).toEqual({ action: 'verify', spaceKey: 'root-key', lockProof: { type: 'password', password: 'lock-pw' } });
+    await expectNoPopups(page);
   });
 
-  test('恢复开关有效（verify 直接 ok）→ 不要锁屏凭证，直接去锁屏凭证页；进站凭证错误 → 行内「验证失败」并清空', async ({ page }) => {
+  test('恢复开关有效（verify 直接 ok）→ 不要锁屏凭证，直接去锁屏凭证页；进站凭证错误 → 「验证失败」、留在这一步并清空', async ({ page }) => {
     let n = 0;
     await page.route('**/api/lock-reset', async (route) => {
       n++;
@@ -662,63 +425,66 @@ test.describe('PR3 锁屏：无法登录？→ 弹层原地切到重置登录', 
     });
     await page.route('**/security/lock/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="landed">ok</p>' }));
     await gotoLock(page);
-    await openMethodSheet(page);
-    await page.click('#sgx-mopt-cant');
-    await page.fill('#sgx-reset-space', 'wrong');
-    await page.press('#sgx-reset-space', 'Enter');
-    await expect(page.locator('#sgx-reset-err')).toHaveText('验证失败');
-    await expect(page.locator('#sgx-reset-space')).toHaveValue('');
-    await page.fill('#sgx-reset-space', 'right');
-    await page.click('#sgx-reset-go');
+    await lockCmd(page, 'reset');
+    await lockCmd(page, 'wrong');
+    await expect(badLine(page)).toHaveText('✗ permission denied · 验证失败');
+    await lockMode(page, 'rkey');
+    await expect(page.locator('#sgx-lock-cmd')).toHaveValue('');
+    await lockCmd(page, 'right');
     await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
   });
 });
 
-test.describe('锁屏视觉统一（2026-10-23：与账号登录页同一套玻璃背景与版面）', () => {
+test.describe('锁屏版面（lock-v10 设计稿 K1：头像 → 状态 → 名字 → 欢迎语 → 终端 → 底部 zh · en）', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+    await zh(page);
   });
 
-  test('版面：顶栏标题静止时「锁定屏幕」（打开解锁弹层时变「解锁屏幕」，见 lock-mobile.spec.js）；顶栏左边是 logo（同页面顶栏，只是外观），顶栏之外没有字标和标语；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮；没有底部站点清单、时钟和日刻', async ({ page }) => {
+  test('版面：顶栏标题「锁定屏幕」；顶栏左边是 logo（只是外观）；头像（不可点）→ 欢迎回来 / 很高兴再次见到你 → 终端（命令输入行）；没有解锁按钮、弹层、时钟和日刻', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     const lock = page.locator('#sgx-lock');
     await expect(lock.locator('.sgx-glass-bg')).toHaveCount(1);
     await expect(page.locator('#sgx-lock-title')).toHaveText('锁定屏幕');
-    /* P5-1：锁屏顶栏跟页面顶栏同一个胶囊外观，左边是 logo（只是外观的 span，不可点）；顶栏之外仍然没有字标和标语 */
-    await expect(lock.locator('.sgx-lock-brand')).toHaveCount(0);
     await expect(lock.locator('.sgx-lock-tb span.sgx-tb-logo')).toHaveCount(1);
     await expect(lock.locator('.sgx-wordmark:not(.sgx-lock-tb .sgx-wordmark)')).toHaveCount(0);
     await expect(lock).not.toContainText('Personal');
     await expect(lock.locator('.sgx-lock-welcome')).toHaveText('欢迎回来');
     await expect(lock.locator('.sgx-lock-sub')).toHaveText('很高兴再次见到你');
-    await expect(page.locator('#sgx-lock-go')).toBeVisible();
-    await expect(lock.locator('.sgx-lock-foot')).toHaveCount(0);
+    await expect(page.locator('#sgx-lock-go')).toHaveCount(0);
+    await expect(lock.locator('button#sgx-lock-avatar, #sgx-lock-avatar[role="button"]')).toHaveCount(0);
     await expect(page.locator('#sgx-lock-clock')).toHaveCount(0);
     await expect(page.locator('#sgx-lock-dm')).toHaveCount(0);
-    await expect(page.locator('#sgx-lock-stage')).not.toHaveClass(/is-pending/);
-    /* 顺序：顶栏在头像上面，头像在按钮上面 */
+    await expectNoPopups(page);
+    /* 点头像不会打开任何东西 */
+    await page.locator('#sgx-lock-avatar').click({ force: true });
+    await expectNoPopups(page);
+    /* 顺序：顶栏在头像上面，头像在终端上面；底部 zh · en */
     const w = await lock.locator('.sgx-lock-tb').boundingBox();
     const u = await page.locator('#sgx-lock-avatar').boundingBox();
-    const g = await page.locator('#sgx-lock-go').boundingBox();
+    const t = await page.locator('#sgx-lock-term').boundingBox();
     expect(w.y + w.height).toBeLessThan(u.y);
-    expect(u.y + u.height).toBeLessThan(g.y);
+    expect(u.y + u.height).toBeLessThan(t.y);
+    await expect(page.locator('.sgx-lock-lang')).toHaveText(['zh', 'en']);
+    await expect(page.locator('.sgx-lock-lang[data-lang="zh"]')).toHaveAttribute('aria-current', 'true');
   });
 
-  test('英文：Lock screen / Good to see you again / Unlock', async ({ page }) => {
+  test('英文：Lock screen / Good to see you again / 输入行英文标签', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock-title')).toHaveText('Lock screen');
     await expect(page.locator('#sgx-lock .sgx-lock-sub')).toHaveText('Good to see you again');
-    await expect(page.locator('#sgx-lock-go')).toHaveText('Unlock');
+    await expect(page.locator('#sgx-lock-cmd')).toHaveAttribute('aria-label', /^Unlock terminal/);
   });
 
-  test('「解锁」按钮 = 点头像：打开同一个解锁方式弹层', async ({ page }) => {
-    await gotoLock(page);
-    await page.click('#sgx-lock-go');
-    await expect(page.locator('#sgx-method-sheet')).toBeVisible();
-    await expect(page.locator('#sgx-mopt-pw')).toBeVisible();
+  test('底部 zh · en：点 en 写语言偏好并换到英文同一页（lock / return 原样）', async ({ page }) => {
+    await page.goto('/zh/?lock=1&return=' + encodeURIComponent('/theme/'), { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-lock-cmd')).toBeVisible({ timeout: 15000 });
+    await page.click('.sgx-lock-lang[data-lang="en"]');
+    await page.waitForURL((u) => u.pathname === '/' && u.searchParams.get('lock') === '1' && u.searchParams.get('return') === '/theme/', { timeout: 10000 });
+    expect(await page.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('en');
+    await expect(page.locator('#sgx-lock-title')).toHaveText('Lock screen');
   });
 
   test('锁定时 NAVIGATE / 外观 / AI 按钮点不到（锁屏盖住整页；AI 浮钮被挤出视口也算点不到）', async ({ page }) => {
@@ -777,23 +543,14 @@ test.describe('B1-2 普通解锁路径 pkAuth()（mock WebAuthn）', () => {
     await page.addInitScript((l) => {
       try { localStorage.setItem('sgx-lang', l); } catch (e) {}
     }, lang);
-    /* /api/lock-passkey challenge 桩 */
     await page.route('**/api/lock-passkey', async (route) => {
       let body = {};
       try { body = route.request().postDataJSON() || {}; } catch (e) {}
       if (body.action === 'challenge') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ ok: true, challenge: CHALLENGE_B64, allowCredentials: [], cid: 'c1' }),
-        });
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, challenge: CHALLENGE_B64, allowCredentials: [], cid: 'c1' }) });
         return;
       }
-      await route.fulfill({
-        status: 400,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: false }),
-      });
+      await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ ok: false }) });
     });
   }
 
@@ -805,37 +562,30 @@ test.describe('B1-2 普通解锁路径 pkAuth()（mock WebAuthn）', () => {
       try {
         navigator.credentials.get = function (opts) {
           const pk = (opts && opts.publicKey) || {};
-          window.__pkArgs = {
-            timeout: pk.timeout,
-            hasSignal: !!(opts && opts.signal instanceof AbortSignal),
-            signalInPublicKey: 'signal' in pk,
-          };
-          return new Promise(function (resolve, reject) {
-            window.__pkReject = reject;
-          });
+          window.__pkArgs = { timeout: pk.timeout, hasSignal: !!(opts && opts.signal instanceof AbortSignal), signalInPublicKey: 'signal' in pk };
+          return new Promise(function (resolve, reject) { window.__pkReject = reject; });
         };
       } catch (e) {}
     });
   }
 
   for (const lang of ['zh', 'en']) {
-    test(`pkAuth: get 时弹层隐藏 / timeout 30000+signal / NotAllowedError→「${lang === 'zh' ? '已取消' : 'Cancelled'}」/ 恢复可见+重试按钮 [${lang}]`, async ({ page }) => {
+    test(`passkey 命令：终端「等待通行密钥」/ timeout 30000+signal / NotAllowedError→「${lang === 'zh' ? '已取消' : 'Cancelled'}」/ 回到命令行可重试 [${lang}]`, async ({ page }) => {
       const T = lang === 'zh'
-        ? { cancelled: '已取消', failed: '通行密钥验证失败', retry: '重试', usePw: '使用密码' }
-        : { cancelled: 'Cancelled', failed: 'Passkey verification failed', retry: 'Retry', usePw: 'Use password' };
+        ? { cancelled: '已取消', failed: '通行密钥验证失败', wait: '等待通行密钥' }
+        : { cancelled: 'Cancelled', failed: 'Passkey verification failed', wait: 'waiting for passkey' };
       /* 注意：不能 freezeTime——cancelled 判定依赖 Date.now() 的真实流逝（elapsed≥2s） */
       await setupUnlockMocks(page, lang);
       await gotoLock(page);
       await stubWebauthnHang(page);
-      await choosePasskey(page);
-      /* 等 get 被调用（challenge 取回后） */
+      await lockCmd(page, 'passkey');
       await page.waitForFunction(() => !!window.__pkArgs, null, { timeout: 8000 });
-      /* ① get 进行中：验证弹层不可见（visibility hidden，不是 display none） */
-      const visDuring = await page.evaluate(() => {
-        const d = document.querySelector('.sgx-verify-dlg');
-        return d ? window.getComputedStyle(d).visibility : 'missing';
-      });
-      expect(visDuring, 'get 进行中弹层应隐藏').toBe('hidden');
+      /* ① get 进行中：终端显示等待（设计稿 K4），输入行收起、状态 VERIFYING；没有任何弹层 */
+      await lockMode(page, 'busy');
+      await expect(page.locator('#sgx-lock-log')).toContainText(T.wait);
+      await expect(page.locator('#sgx-lock-st')).toHaveAttribute('data-st', 'verifying');
+      await expect(page.locator('#sgx-lock-k-pk')).toHaveClass(/is-on/);
+      await expectNoPopups(page);
       /* ② 传给 get 的 timeout 是 30000，并且顶层带了 signal（不在 publicKey 里） */
       const args = await page.evaluate(() => window.__pkArgs);
       expect(args.timeout, 'timeout 应为 30000').toBe(30000);
@@ -843,22 +593,15 @@ test.describe('B1-2 普通解锁路径 pkAuth()（mock WebAuthn）', () => {
       expect(args.signalInPublicKey, 'publicKey 里不应有 signal').toBe(false);
       /* ③ 2.5s 后抛 NotAllowedError（elapsed≥2s → kind cancelled） */
       await page.evaluate(() => {
-        setTimeout(() => {
-          window.__pkReject(new DOMException('User cancelled', 'NotAllowedError'));
-        }, 2500);
+        setTimeout(() => { window.__pkReject(new DOMException('User cancelled', 'NotAllowedError')); }, 2500);
       });
-      const failTx = page.locator('.sgx-verify-failtx');
-      await expect(failTx, '应显示已取消文案').toContainText(T.cancelled, { timeout: 10000 });
-      const failText = await failTx.textContent();
-      expect(failText, '不应显示旧的「通行密钥验证失败」').not.toContain(T.failed);
-      /* ④ 失败后弹层恢复可见，且有「重试」和「使用密码」 */
-      const visAfter = await page.evaluate(() => {
-        const d = document.querySelector('.sgx-verify-dlg');
-        return d ? d.style.visibility : 'missing';
-      });
-      expect(visAfter, '失败后弹层应恢复可见').toBe('');
-      await expect(page.locator('#sgx-pk-retry'), '应有重试按钮').toContainText(T.retry);
-      await expect(page.locator('#sgx-pk-topw'), '应有使用密码按钮').toContainText(T.usePw);
+      await expect(badLine(page), '应显示已取消文案').toContainText(T.cancelled, { timeout: 10000 });
+      expect(await badLine(page).textContent(), '不应显示旧的「通行密钥验证失败」').not.toContain(T.failed);
+      /* ④ 回到命令行：可以再敲 passkey 或换 password */
+      await lockMode(page, 'cmd');
+      await expect(page.locator('#sgx-lock-k-pk')).toBeVisible();
+      await lockCmd(page, 'password');
+      await lockMode(page, 'pw');
     });
   }
 });

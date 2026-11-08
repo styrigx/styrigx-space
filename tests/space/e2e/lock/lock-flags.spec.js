@@ -14,9 +14,8 @@ test.describe('lock feature flag (lock-gate)', () => {
 
     await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    /* 2.8.0：头像点击弹出方式选择 */
-    await page.click('#sgx-lock-avatar');
-    await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
+    /* lock-v10 命令解锁：终端输入行可用（没有弹层） */
+    await expect(page.locator('#sgx-lock-cmd')).toBeEditable({ timeout: 5000 });
   });
 
   test('no lock at all when lock-gate disabled', async ({ page }) => {

@@ -1,15 +1,13 @@
 /**
- * D1：重置登录第 2 步（锁屏弹层「无法登录？」→ 进站凭证 → needLock → 锁屏凭证行）通行密钥行 busy 态与取消不误报（e2e，mock WebAuthn）。
+ * D1：重置登录第 2 步（锁屏 reset 命令 → 进站凭证 → needLock → 选锁屏凭证）通行密钥 busy 态与取消不误报（e2e，mock WebAuthn）。
  * 账号拆分 PR3：第 2 步验的是锁屏凭证（lockProof），网关不再读账号凭证。
- * PR3：行与账号登录同一套（auth/cred-rows.js），错误都在行内；验证时隐藏的是方法弹层 #sgx-method-sheet。
+ * lock-v10 命令解锁（2026-11-08）：锁屏上没有弹层，这一步也在终端里：列出 [1] password / [2] passkey，输入编号。
  *
  * 量化验收：
- * - 点通行密钥行：副标题=「正在唤起通行密钥…」、出现 .sgx-credential-spin、两行 disabled；
- *   连点两次只发 1 次 /api/lock-reset challenge。
- * - 取消（NotAllowedError）：副标题/箭头恢复原样，行内显示「已取消验证，可重新选择」，
- *   留在本页（标题仍为 (2/2)，URL 未变），不报「验证失败」。
+ * - 选 passkey：终端「等待通行密钥…」，输入行收起（busy），不能再提交 → 只发 1 次 /api/lock-reset challenge。
+ * - 取消（NotAllowedError）：终端「✗ 已取消验证，可重新选择」（不是 permission denied），回到选择这一步，URL 未变，不报「验证失败」。
  * - 成功：进入 /security/lock/。
- * - 英文：副标题 'Opening passkey…'。
+ * - 英文：'Cancelled, you can select again'。
  *
  * 运行（生产构建，锁屏启用；静态构建 + API mock，无需真实后端）：
  *   hugo --minify
@@ -19,6 +17,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { blockExternalRequests } = require('../helpers/helpers');
+const { gotoLockTerm, lockCmd, lockMode, badLine } = require('../helpers/lock-term.cjs');
 
 const CHALLENGE_B64 = 'dGVzdC1jaGFsbGVuZ2U';
 
@@ -106,19 +105,15 @@ async function awaitPkGate(page) {
   await page.waitForFunction(() => !!window.__pkGate, null, { timeout: 8000 });
 }
 
-/* 走到重置锁屏 (2/2)：锁屏 → 头像 → 重置 → step1 进站凭证验证 → step2 */
+/* 走到重置 (2/2)：锁屏 → reset → 进站凭证 → 选锁屏凭证 */
 /** @param {import('@playwright/test').Page} page */
 async function gotoResetStep2(page) {
-  await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-  await page.click('#sgx-lock-avatar');
-  await expect(page.locator('#sgx-mopt-cant')).toBeVisible({ timeout: 8000 });
-  await page.click('#sgx-mopt-cant');
-  await expect(page.locator('#sgx-reset-space')).toBeVisible({ timeout: 8000 });
-  await page.locator('#sgx-reset-space').fill('test-root-key');
-  await page.click('#sgx-reset-go');
-  await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row')).toBeVisible({ timeout: 8000 });
-  await expect(page.locator('.sgx-reset-opts [data-kind="password"] .sgx-credential-row')).toBeVisible({ timeout: 8000 });
+  await gotoLockTerm(page, '/?lock=1');
+  await lockCmd(page, 'reset');
+  await lockMode(page, 'rkey');
+  await lockCmd(page, 'test-root-key');
+  await lockMode(page, 'rpick');
+  await expect(page.locator('#sgx-lock-log')).toContainText('[2] passkey');
 }
 
 test.describe('reset (2/2) passkey busy', () => {
@@ -128,92 +123,61 @@ test.describe('reset (2/2) passkey busy', () => {
     await mockLockConfig(page);
   });
 
-  test('点通行密钥行：busy 文案 + 转圈 + 两行 disabled，连点两次只发 1 次 challenge', async ({ page }) => {
+  test('选 passkey：终端等待 + 输入行收起，不能重复提交，只发 1 次 challenge', async ({ page }) => {
     const counters = { challenge: 0 };
     await mockLockreset(page, counters);
     await gotoResetStep2(page);
     await stubWebauthnPending(page);
-    await page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row').click();
-    /* 副标题切 busy 文案（与 security.html passkeyBusy 同一文案） */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-rowsub'))
-      .toHaveText('正在唤起通行密钥…', { timeout: 8000 });
-    /* 箭头换成转圈（B1-2：get 期间弹层隐藏，转圈存在但不可见） */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(1, { timeout: 8000 });
-    await expect(page.locator('#sgx-method-sheet')).toHaveCSS('visibility', 'hidden');
-    /* 两行都 disabled（通行密钥行 + 账号密码行） */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row')).toBeDisabled();
-    await expect(page.locator('.sgx-reset-opts [data-kind="password"] .sgx-credential-row')).toBeDisabled();
-    /* 连点第二次（合成事件）：handler 判 disabled 直接 return，不发 challenge */
+    await lockCmd(page, '2');
+    await lockMode(page, 'busy');
+    await expect(page.locator('#sgx-lock-log')).toContainText('等待通行密钥…');
+    await expect(page.locator('#sgx-lock-cmd')).toBeHidden();
+    await expect(page.locator('#sgx-lock-cmd')).toBeDisabled();
+    await awaitPkGate(page);
+    /* 再按回车（合成事件）也不会再发 */
     await page.evaluate(() => {
-      document.querySelector('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row')
-        .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      document.getElementById('sgx-lock-cmd').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     });
     await expect.poll(async () => counters.challenge, { timeout: 2000 }).toBe(1);
-    /* 仍在 busy 态：转圈存在，弹层仍隐藏 */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(1);
-    await expect(page.locator('#sgx-method-sheet')).toHaveCSS('visibility', 'hidden');
+    await lockMode(page, 'busy');
+    await expect(page.locator('#sgx-method-sheet, .sgx-verify-dlg')).toHaveCount(0);
   });
 
-  test('取消系统验证：行内提示可重新选择，副标题/箭头恢复，留在本页', async ({ page }) => {
+  test('取消系统验证：提示可重新选择，回到选择这一步，留在本页', async ({ page }) => {
     const counters = { challenge: 0 };
     await mockLockreset(page, counters);
     await gotoResetStep2(page);
     await stubWebauthnPending(page);
     /* B1-2：用假时钟走 cancelled 分支（≥2s），不真等 */
     await page.clock.install();
-    await page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row').click();
-    /* B1-2：get 期间转圈存在，弹层隐藏 */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(1, { timeout: 8000 });
-    await expect(page.locator('#sgx-method-sheet')).toHaveCSS('visibility', 'hidden');
-    /* 模拟用户在系统窗口点取消 */
+    await lockCmd(page, 'passkey');
+    await lockMode(page, 'busy');
     await awaitPkGate(page);
     await page.clock.fastForward(2100);
     await page.evaluate(() => {
       window.__pkGate.reject(Object.assign(new Error('cancelled'), { name: 'NotAllowedError' }));
     });
-    /* 转圈消失，弹层恢复可见，副标题/箭头恢复原样 */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(0, { timeout: 8000 });
-    await expect(page.locator('#sgx-method-sheet')).not.toHaveCSS('visibility', 'hidden');
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-rowsub')).toHaveText('使用指纹或设备锁屏');
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-chev svg')).toBeVisible();
-    /* 两行恢复可点 */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row')).toBeEnabled();
-    await expect(page.locator('.sgx-reset-opts [data-kind="password"] .sgx-credential-row')).toBeEnabled();
-    /* 行内提示「已取消验证，可重新选择」，不报「验证失败」 */
-    const rowErr = page.locator('.sgx-reset-opts [data-kind="passkey"] > .sgx-credential-err');
-    await expect(rowErr).toBeVisible();
-    await expect(rowErr).toHaveText('已取消验证，可重新选择');
-    
-    /* 留在本页：标题仍是 (2/2)，URL 未变 */
-    await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
-    await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
+    await expect(badLine(page)).toHaveText('✗ 已取消验证，可重新选择');
+    await lockMode(page, 'rpick');
+    await expect(page.locator('#sgx-lock-log')).not.toContainText('验证失败');
     expect(page.url()).toContain('?lock=1');
   });
 
-  test('无匹配钥匙（立即失败）：行内提示 nokey 文案，留在本页', async ({ page }) => {
-    /* B1-2：NotAllowedError 立即返回（<2s）走 nokey 分支，#sgx-reset-pk-err 可见且为翻译文案 */
+  test('无匹配钥匙（立即失败）：提示 nokey 文案，回到选择这一步', async ({ page }) => {
     const counters = { challenge: 0 };
     await mockLockreset(page, counters);
     await gotoResetStep2(page);
     await stubWebauthnPending(page);
-    await page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row').click();
-    /* B1-2：get 期间转圈存在，弹层隐藏 */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(1, { timeout: 8000 });
-    await expect(page.locator('#sgx-method-sheet')).toHaveCSS('visibility', 'hidden');
+    await lockCmd(page, '2');
     await awaitPkGate(page);
     /* 立即 reject（不快进时钟），走 nokey 分支 */
     await page.evaluate(() => {
       window.__pkGate.reject(Object.assign(new Error('no key'), { name: 'NotAllowedError' }));
     });
-    const rowErr = page.locator('.sgx-reset-opts [data-kind="passkey"] > .sgx-credential-err');
-    await expect(rowErr).toBeVisible({ timeout: 8000 });
-    /* 文案是翻译后的，不是 key 名 */
-    const text = await rowErr.textContent();
-    expect(text).not.toBe('pkNoKey');
-    expect(text.length).toBeGreaterThan(0);
-    /* 留在本页 */
-    await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
-    await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
+    await expect(badLine(page)).toHaveText('✗ 这台设备上没有这把钥匙');
+    const text = await badLine(page).textContent();
+    expect(text).not.toContain('pkNoKey');
+    await lockMode(page, 'rpick');
   });
 
   test('通行密钥验证成功：进入 /security/lock/', async ({ page }) => {
@@ -221,11 +185,7 @@ test.describe('reset (2/2) passkey busy', () => {
     await mockLockreset(page, counters);
     await gotoResetStep2(page);
     await stubWebauthnPending(page);
-    await page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row').click();
-    /* B1-2：get 期间转圈存在，弹层隐藏 */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(1, { timeout: 8000 });
-    await expect(page.locator('#sgx-method-sheet')).toHaveCSS('visibility', 'hidden');
-    /* 模拟系统验证通过：返回假 credential（ArrayBuffer 字段，供 b64 编码） */
+    await lockCmd(page, '2');
     await awaitPkGate(page);
     await page.evaluate(() => {
       const buf = (s) => Uint8Array.from(s.split('').map((c) => c.charCodeAt(0))).buffer;
@@ -242,52 +202,33 @@ test.describe('reset (2/2) passkey busy', () => {
     await page.waitForURL('**/security/lock/**', { timeout: 10000 });
   });
 
-  test('其他失败：显示现有中文文案，留在本页', async ({ page }) => {
+  test('其他失败（InvalidStateError）：permission denied · 这台设备上没有这把钥匙，留在本页', async ({ page }) => {
     const counters = { challenge: 0 };
     await mockLockreset(page, counters);
     await gotoResetStep2(page);
     await stubWebauthnPending(page);
-    await page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row').click();
-    /* B1-2：get 期间转圈存在，弹层隐藏 */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(1, { timeout: 8000 });
-    await expect(page.locator('#sgx-method-sheet')).toHaveCSS('visibility', 'hidden');
-    /* B1-2：InvalidStateError → nokey，显示「这台设备上没有这把钥匙」 */
+    await lockCmd(page, '2');
     await awaitPkGate(page);
     await page.evaluate(() => {
       window.__pkGate.reject(Object.assign(new Error('failed'), { name: 'InvalidStateError' }));
     });
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(0, { timeout: 8000 });
-    await expect(page.locator('#sgx-method-sheet')).not.toHaveCSS('visibility', 'hidden');
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] > .sgx-credential-err')).toHaveText('这台设备上没有这把钥匙');
-    await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
-    await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
+    await expect(badLine(page)).toHaveText('✗ permission denied · 这台设备上没有这把钥匙');
+    await lockMode(page, 'rpick');
     expect(page.url()).toContain('?lock=1');
-    /* 副标题/箭头恢复，两行可点 */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-rowsub')).toHaveText('使用指纹或设备锁屏');
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row')).toBeEnabled();
-    await expect(page.locator('.sgx-reset-opts [data-kind="password"] .sgx-credential-row')).toBeEnabled();
   });
 
-  test('通用失败（SecurityError）：行内「通行密钥验证失败」，留在本页', async ({ page }) => {
-    /* B1-2 选项 B：failed 走全局报错（保持 46fe723 前行为） */
+  test('通用失败（SecurityError）：「通行密钥验证失败」，留在本页', async ({ page }) => {
     const counters = { challenge: 0 };
     await mockLockreset(page, counters);
     await gotoResetStep2(page);
     await stubWebauthnPending(page);
-    await page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row').click();
-    /* B1-2：get 期间转圈存在，弹层隐藏 */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(1, { timeout: 8000 });
-    await expect(page.locator('#sgx-method-sheet')).toHaveCSS('visibility', 'hidden');
+    await lockCmd(page, '2');
     await awaitPkGate(page);
     await page.evaluate(() => {
       window.__pkGate.reject(Object.assign(new Error('security'), { name: 'SecurityError' }));
     });
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(0, { timeout: 8000 });
-    await expect(page.locator('#sgx-method-sheet')).not.toHaveCSS('visibility', 'hidden');
-    /* PR3：重置登录的错误都在行内（同一套验证行） */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] > .sgx-credential-err')).toHaveText('通行密钥验证失败');
-    await expect(page.locator('.sgx-reset[data-step="lock"]')).toBeVisible();
-    await expect(page.locator('#sgx-reset-title')).toHaveText('重置登录');
+    await expect(badLine(page)).toHaveText('✗ permission denied · 通行密钥验证失败');
+    await lockMode(page, 'rpick');
     expect(page.url()).toContain('?lock=1');
   });
 });
@@ -299,30 +240,21 @@ test.describe('reset (2/2) passkey busy (en)', () => {
     await mockLockConfig(page);
   });
 
-  test('英文 busy 文案与取消提示', async ({ page }) => {
+  test('英文等待文案与取消提示', async ({ page }) => {
     const counters = { challenge: 0 };
     await mockLockreset(page, counters);
     await gotoResetStep2(page);
     await stubWebauthnPending(page);
-    /* B1-2：用假时钟走 cancelled 分支（≥2s），不真等 */
     await page.clock.install();
-    await page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row').click();
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-rowsub'))
-      .toHaveText('Opening passkey…', { timeout: 8000 });
-    /* B1-2：get 期间转圈存在，弹层隐藏 */
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(1);
-    await expect(page.locator('#sgx-method-sheet')).toHaveCSS('visibility', 'hidden');
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row')).toBeDisabled();
-    await expect(page.locator('.sgx-reset-opts [data-kind="password"] .sgx-credential-row')).toBeDisabled();
+    await lockCmd(page, '2');
+    await expect(page.locator('#sgx-lock-log')).toContainText('waiting for passkey…');
     await awaitPkGate(page);
     await page.clock.fastForward(2100);
     await page.evaluate(() => {
       window.__pkGate.reject(Object.assign(new Error('cancelled'), { name: 'NotAllowedError' }));
     });
-    await expect(page.locator('.sgx-reset-opts [data-kind="passkey"] .sgx-credential-row .sgx-credential-spin')).toHaveCount(0, { timeout: 8000 });
-    const rowErr = page.locator('.sgx-reset-opts [data-kind="passkey"] > .sgx-credential-err');
-    await expect(rowErr).toBeVisible();
-    await expect(rowErr).toHaveText('Cancelled, you can select again');
-    await expect(page.locator('#sgx-reset-title')).toHaveText('Reset sign-in');
+    await expect(badLine(page)).toHaveText('✗ Cancelled, you can select again');
+    await lockMode(page, 'rpick');
+    await expect(page.locator('#sgx-lock-log')).toContainText('Reset sign-in');
   });
 });

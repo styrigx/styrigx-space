@@ -102,36 +102,38 @@ js:
     qpLargeOnly: 仅在大屏生效
     lockLockScreen: 锁屏
     lockLockScreen2: 锁定屏幕
-    lockUnlockChooseMethod: 解锁，选择方式
     lockWelcomeBack: 欢迎回来
     lockGoodToSeeYou: 很高兴再次见到你
-    lockTermHint: "# 点一下快捷键，直接开始解锁"
-    lockTermChoose: 选择验证方式：
+    lockTermHint: "# 不想打命令？点一下自动输入"
+    lockTermHelpHint: "# 输入 help 查看可用命令"
+    lockTermCmdAria: 解锁终端：输入命令，例如 help
+    lockTermSecretHint: 输入不回显，可直接粘贴
+    lockTermBack: 返回
+    lockTermHelpTitle: 可用命令：
+    lockTermDescPw: 密码解锁
+    lockTermDescPk: 通行密钥解锁
+    lockTermDescTemp: 临时钥匙进门
+    lockTermDescReset: 无法登录？重置登录
+    lockTermDescClear: 清屏
+    lockTermDescHelp: 查看可用命令
+    lockTermPkUnavailable: 通行密钥未设置，或这台设备不支持
+    lockTermPick: 选择
+    lockTermPickBad: 请输入列出的编号
+    lockTermResetOk: 验证通过
+    lockTermToLockPage: 正在前往锁屏凭证页…
     lockTermWaitPk: 等待通行密钥…
-    lockUnlock: 解锁
-    lockSessionNotActive: 会话未生效
     lockUnlockScreen: 解锁屏幕
     lockTemporaryKey: 临时钥匙
-    lockEnterTheTemporaryKey: 输入收到的临时钥匙
-    lockEnterWithATemporary: 用临时钥匙进门
-    lockPasskey: 通行密钥
-    lockUnlockWithFingerprintOr: 用指纹或设备 PIN 解锁
     lockUsePasskey: 使用通行密钥
     lockPassword: 密码
-    lockEnterYourUnlockPassword: 输入解锁密码
     lockUsePassword: 使用密码
-    lockChooseUnlockMethod: 选择解锁方式
     lockCantSignIn: 无法登录？
-    lockEnterTemporaryKey: 输入临时钥匙
     lockFormatXxxxXxxxXxxx: 格式 XXXX-XXXX-XXXX，不区分大小写
-    lockEnter: 确定
     lockEnterTheTemporaryKey2: 请输入临时钥匙
     lockServerError: 服务器错误
     lockTooManyAttempts: 尝试次数过多
     lockInvalidOrExpiredKey: 临时钥匙无效或已过期
     lockNetworkError: 网络错误
-    lockEnterPassword: 输入密码
-    lockUnlock2: 确定
     lockEnterPassword2: 请输入密码
     lockNoPasswordSetYet: 尚未设置密码
     lockWrongPassword: 密码错误
@@ -141,8 +143,6 @@ js:
     lockCancelledYouCanSelect: 已取消验证，可重新选择
     lockPasskeyFailed: 通行密钥验证失败
     lockVerifying: 正在验证
-    lockVerifyingPasskey: 正在验证通行密钥…
-    lockRetry: 重试
     lockCannotReturnToThe: 无法回到子站，请重试
     lockBackToMainSite: 回到主站
     lockReload: 重新加载
