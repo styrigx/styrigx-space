@@ -77,7 +77,7 @@ async function roleColor(page, v) {
 }
 const bg = (page, sel) => page.locator(sel).evaluate((el) => getComputedStyle(el).backgroundColor);
 /** 顶栏 / 页脚左右内边距（= CSS --sgx-tb-pad）：max(页边距, (宽 − 1080) / 2)；页边距 < 600 宽 16，≥ 600 宽 clamp(16, 5.333 + 2.2222vw, 48) */
-const pad = (w) => Math.max(w < 600 ? 16 : Math.min(48, Math.max(16, 5.333 + 0.022222 * w)), (w - 1080) / 2);
+const pad = (w) => Math.max(w < 600 ? 12 /* 对齐 PR-B：手机页边距 12 */ : Math.min(48, Math.max(16, 5.333 + 0.022222 * w)), (w - 1080) / 2);
 
 for (const dark of [false, true]) {
   test.describe(`390×844 ${dark ? '暗色' : '亮色'}`, () => {
@@ -93,14 +93,14 @@ for (const dark of [false, true]) {
         /* 通栏：贴顶、全宽、高 64 */
         expect(near(bar.x, 0) && near(bar.width, 390), `顶栏 x ${bar.x} 宽 ${bar.width}`).toBe(true);
         expect(near(bar.y, 0) && near(bar.height, 64), `顶栏 y ${bar.y} 高 ${bar.height}`).toBe(true);
-        /* 字标 / 按钮 40 高、上下居中；按钮 40 宽；字标左缘贴页边距（16 − 4 内缩）、头像右缘贴页边距 16 */
+        /* 字标 / 按钮 40 高、上下居中；按钮 40 宽；字标左缘贴页边距（12 − 4 内缩）、头像右缘贴页边距 12（对齐 PR-B） */
         for (const b of [logo, q, sh, g, av]) {
           expect(near(b.height, 40), `高 ${b.height}`).toBe(true);
           expect(near(b.y + b.height / 2, bar.y + bar.height / 2), `垂直居中 ${b.y}`).toBe(true);
         }
         for (const b of [q, sh, g, av]) expect(near(b.width, 40), `按钮宽 ${b.width}`).toBe(true);
-        expect(near(logo.x, 12), `logo 左 ${logo.x}`).toBe(true);
-        expect(near(av.x + av.width, 390 - 16), `头像右 ${av.x + av.width}`).toBe(true);
+        expect(near(logo.x, 8), `logo 左 ${logo.x}`).toBe(true);
+        expect(near(av.x + av.width, 390 - 12), `头像右 ${av.x + av.width}`).toBe(true);
         expect(q.x < sh.x && sh.x < g.x && g.x < av.x, '外观 → 盾牌 → >_ → 头像').toBe(true);
         expect(logo.x + logo.width).toBeLessThanOrEqual(q.x + 0.5);
         expect(logo.width, `字标宽 ${logo.width}`).toBeGreaterThan(80);
@@ -178,7 +178,7 @@ for (const w of [360, 384, 412, 1280, 1920]) {
     await page.setViewportSize({ width: w, height: w > 1000 ? 900 : 860 });
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     /* P4-3 PR-4c：中文 /zh/…，英文无前缀 */
-    for (const path of ['/zh/', '/zh/wellbeing/', '/zh/security/tempkeys/', '/status/']) {
+    for (const path of ['/zh/', '/zh/wild/', '/zh/security/tempkeys/', '/wild/']) { /* 对齐 PR-B：旷野 /wild/ 取代 /wellbeing/ /status/ */
       if (!path.startsWith('/zh/')) await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
       await go(page, path);
       const m = await page.evaluate(() => {
@@ -212,7 +212,8 @@ test.describe('390×844 行为', () => {
   /* 页名胶囊标记（不显示）仍是当前页名：子站脚本和锁屏顶栏读它 */
   const NAMES = [
     /* P4-3 PR-4c：英文无前缀、中文 /zh/ */
-    ['/zh/status/', '服务状态'],
+    ['/zh/wild/', '旷野'],
+    ['/zh/', '主页'],
     ['/zh/account/sync/', '云同步'],
     /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
     ['/zh/account/', '登录账号'],
@@ -220,7 +221,8 @@ test.describe('390×844 行为', () => {
     ['/zh/security/', '安全'],
     ['/zh/security/lock/', '锁屏凭证'],
     ['/zh/theme/', '风格'],
-    ['/status/', 'Service status'],
+    ['/wild/', 'Wild'],
+    ['/', 'Home'],
     ['/account/', 'Sign in'],
     ['/account/reset/', 'Reset sign-in'],
   ];
@@ -235,13 +237,13 @@ test.describe('390×844 行为', () => {
     });
   }
 
-  test('旷野页：顶栏没有设置按钮、没有搜索图标、没有标签；页名标记是「旷野」', async ({ page }) => {
+  test('主页：顶栏没有设置按钮、没有搜索图标、没有标签；页名标记是「主页」（对齐 PR-B）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/');
     await expect(page.locator('.sgx-tb-set')).toHaveCount(0);
     await expect(page.locator('.sgx-tb-psearch')).toHaveCount(0);
     expect(await page.locator('#site-nav .sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-title']);
-    await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText('旷野');
+    await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText('主页');
     await expect(page.locator('.sgx-tb-tabs, .sgx-tb-tab, .sgx-tb-pill a')).toHaveCount(0);
     await expect(page.locator('#sgx-tb-cap')).toHaveCount(0);
     await expect(page.locator('.sgx-topbar .sgx-tb-search, #sgx-tb-search')).toHaveCount(0);
@@ -400,12 +402,12 @@ test.describe('390×844 行为', () => {
     await expect(nav.locator('[data-st-ms]').first()).toHaveText('');
     await expect(nav.locator('[data-st="space"]')).not.toHaveAttribute('data-up', /./);
     await expect(nav.locator('.sgx-nav-st-h span')).toHaveText('STATUS');
-    await expect(nav.locator('a.sgx-nav-flink')).toHaveAttribute('href', '/zh/status/');
+    await expect(nav.locator('a.sgx-nav-flink')).toHaveAttribute('href', '/zh/wild/#status'); /* 对齐 PR-B：服务状态在旷野 #status */
     await expect(nav.locator('a.sgx-nav-flink')).toHaveText('systemctl status ›');
     await expect(nav.locator('[data-nav-close]')).toHaveText('esc 关闭');
     /* 手机：左右对齐顶栏内容区 */
     const sh = await box(page, '#sgx-nav .sgx-qp-sheet');
-    expect(near(sh.x, 16) && near(sh.width, 390 - 32), `面板 ${sh.x} / ${sh.width}`).toBe(true);
+    expect(near(sh.x, 12) && near(sh.width, 390 - 24), `面板 ${sh.x} / ${sh.width}`).toBe(true); /* 对齐 PR-B：手机页边距 12 */
     await page.keyboard.press('Escape');
     await expect(nav).toBeHidden();
     await expect(page.locator('.sgx-tb-grid')).toBeFocused();
@@ -451,9 +453,10 @@ test.describe('390×844 行为', () => {
     await expect(p2.locator('#sgx-nav [data-st="space"]')).not.toHaveAttribute('data-up', /./);
   });
 
-  test('NAVIGATE：旷野分类子页（关于）当前项是 05 旷野；账号页没有当前项（00/05）', async ({ page }) => {
+  test('NAVIGATE：旷野页（/zh/wild/）当前项是 05 旷野，地址 /zh/wild/；账号页没有当前项（00/05）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/about/');
+    await go(page, '/zh/wild/');
+    await expect(page.locator('#sgx-nav .sgx-nav-tile[data-nav="wild"]')).toHaveAttribute('href', '/zh/wild/');
     await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveAttribute('data-nav', 'wild');
     await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('05/05');
     await go(page, '/zh/account/');

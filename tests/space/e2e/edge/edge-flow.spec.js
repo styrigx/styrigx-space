@@ -344,7 +344,7 @@ test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / �
   expect(forged).toEqual([401, 'worker']);
   /* 进门：数字健康可读，云同步没登账号 → 401 account；接口地址不变 */
   await setSession(context, 'password');
-  await page.goto(MAIN + '/wellbeing/');
+  await page.goto(MAIN + '/wild/'); /* 对齐 PR-B：数字健康并进旷野 /wild/#screen-time */
   const wb = await page.evaluate(() => fetch('/api/wellbeing?d=2026-10-24', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.ok, r.headers.get('x-sgx-runtime')])));
   expect(wb).toEqual([200, true, 'account']);
   const pr = await page.evaluate(() => fetch('/api/prefs', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.error])));
@@ -353,7 +353,7 @@ test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / �
   /* 浏览器的请求都进网关（路由 styrigx.com/*）；账号的接口再经服务绑定转一跳（log 'account'）；没有一条走账号 Worker 自己的路由 */
   expect(new Set(by(/^\/(avatar\/|api\/(wellbeing|prefs|avatar))/))).toEqual(new Set(['worker', 'account']));
   expect(by(/^\/(avatar\/|api\/(wellbeing|prefs|avatar))/).filter((x) => x === 'account').length).toBeGreaterThanOrEqual(3);
-  expect(new Set(by(/^\/(wellbeing\/|api\/session-check)$/))).toEqual(new Set(['worker']));
+  expect(new Set(by(/^\/(wild\/|api\/session-check)$/))).toEqual(new Set(['worker']));
 });
 
 /* R8（顶栏标签页内切换）随 P4-3 PR-4b 删除：主站只剩旷野一个顶级页，shell/inpage-tabs.js 删了，没有页内切换可测。 */

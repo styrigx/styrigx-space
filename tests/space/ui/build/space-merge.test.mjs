@@ -60,7 +60,7 @@ export function reservedSegments() {
 }
 
 test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 一层', async () => {
-  assert.deepEqual([...cats].sort(), ['about', 'security', 'status', 'theme', 'wellbeing']);
+  assert.deepEqual([...cats].sort(), ['security', 'theme', 'wild'], '对齐 PR-B：数字健康 / 服务状态 / 关于本站并进 /wild/');
   const { SPACE_SUB_RE, wbAreaOf } = await import(pathToFileURL(path.join(REPO, 'space/web/assets/js/lib/wb-area.js')).href);
   for (const p of NEW_PATHS) {
     assert.ok(SPACE_SUB_RE.test(p) && SPACE_SUB_RE.test('/zh' + p), p + ' 应算旷野子页');
@@ -90,6 +90,11 @@ test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 
   /* P4-3 PR-4c：/en/… 旧地址删除不 301，_redirects 里没有 /en/ 开头的规则 */
   assert.doesNotMatch(red, /^\/en\//m);
   assert.ok(!red.includes(OLD_PATH), '_redirects 里没有旧设置层');
+  /* 对齐 PR-B：旧的三页 301 到旷野对应的锚点（中英） */
+  for (const [old, anchor] of [['status', 'status'], ['about', 'about'], ['wellbeing', 'screen-time']]) {
+    assert.match(red, new RegExp(`^/${old}/\\s+/wild/#${anchor}\\s+301$`, 'm'), `/${old}/ → /wild/#${anchor}`);
+    assert.match(red, new RegExp(`^/zh/${old}/\\s+/zh/wild/#${anchor}\\s+301$`, 'm'), `/zh/${old}/ → /zh/wild/#${anchor}`);
+  }
 });
 
 test('根下新路径不和子站、账号、Worker 路由、转发表、静态目录、旧跳转撞名', () => {
@@ -133,16 +138,19 @@ test('构建产物：没有 settings/ 目录，任何 HTML 都没有 href 指向
   }
   assert.ok(n > 20, '应扫到一批 HTML');
   assert.deepEqual(bad, [], '这些页面还有指向旧设置层的链接');
-  /* 旷野页：页名、顶栏标签、分类入口 */
-  /* P4-3 PR-4c：英文 Space 在根，中文旷野在 /zh/ */
+  /* 主页：页名、顶栏没有标签；对齐 PR-B 起主页叫「主页 / Home」，安全（顶栏盾牌）和旷野（[04] 一节）有入口；旧三页不再生成 */
+  /* P4-3 PR-4c：英文在根，中文在 /zh/ */
   const home = readFileSync(path.join(REPO, 'space/web/public/zh/index.html'), 'utf8');
-  assert.match(home, /<title>旷野 \| Styrigx<\/title>/);
-  assert.match(home, /<span class="?sgx-tb-title"?>旷野<\/span>/);
+  assert.match(home, /<title>主页 \| Styrigx<\/title>/);
+  assert.match(home, /<span class="?sgx-tb-title"?>主页<\/span>/);
   assert.doesNotMatch(home, /sgx-tb-tab/);
-  for (const c of cats) assert.ok(home.includes(`href="/zh/${c}/"`), '旷野页有 /zh/' + c + '/ 入口');
+  for (const c of ['security', 'wild']) assert.ok(home.includes(`href="/zh/${c}/"`), '主页有 /zh/' + c + '/ 入口');
   const en = readFileSync(path.join(REPO, 'space/web/public/index.html'), 'utf8');
-  assert.match(en, /<title>Space \| Styrigx<\/title>/);
-  for (const c of cats) assert.ok(en.includes(`href="/${c}/"`), 'Space 页有 /' + c + '/ 入口');
+  assert.match(en, /<title>Home \| Styrigx<\/title>/);
+  for (const c of ['security', 'wild']) assert.ok(en.includes(`href="/${c}/"`), '主页有 /' + c + '/ 入口');
+  for (const old of ['status', 'about', 'wellbeing']) for (const pre of ['', 'zh/']) {
+    assert.ok(!existsSync(path.join(REPO, 'space/web/public', pre + old, 'index.html')), `${pre}${old}/ 不再生成（301 到旷野）`);
+  }
 });
 
 /* ---- 全仓：旧设置层地址只允许出现在历史文档 ---- */

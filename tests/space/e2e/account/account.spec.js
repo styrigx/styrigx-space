@@ -1241,8 +1241,8 @@ test.describe('设置 → 安全与隐私 → 临时钥匙页 › 分享短链�
 
 test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/sync/）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
-  /* P4-2c：日期和时间、天气、搜索引擎、快捷键随功能删除 */
-  const SYNCED = ['sgx-theme-mode', 'sgx-palette', 'sgx-accent', 'sgx-well-tip', 'sgx-files-view', 'sgx-files-home', 'sgx-ai-model'];
+  /* P4-2c：日期和时间、天气、搜索引擎、快捷键随功能删除；对齐 PR-B：15 分钟提醒（sgx-well-tip）随「数字健康不做设置」删除 */
+  const SYNCED = ['sgx-theme-mode', 'sgx-palette', 'sgx-accent', 'sgx-files-view', 'sgx-files-home', 'sgx-ai-model'];
 
   test('总览「云同步」一行是可进入的行（链接 + 箭头，不再是开关）；副标题照旧显示状态', async ({ page }) => {
     await mockAccount(page, {
@@ -1282,7 +1282,7 @@ test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/syn
       localStorage.setItem('sgx-theme-mode', 'dark');
       localStorage.setItem('sgx-palette', 'lake');
       localStorage.setItem('sgx-accent', '#3d7bd9');
-      localStorage.setItem('sgx-well-tip', '0');
+      localStorage.setItem('sgx-well-tip', '0'); /* 旧键残留：不再列出 */
     });
     await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }) });
     await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
@@ -1298,7 +1298,7 @@ test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/syn
     await expect(val('sgx-palette')).toHaveText('湖蓝');
     await expect(val('sgx-accent')).toHaveText('#3D7BD9');
     await expect(page.locator('[data-sync-key="sgx-accent"] [data-sync-swatch]')).toBeVisible();
-    await expect(val('sgx-well-tip')).toHaveText('关');
+    await expect(page.locator('[data-sync-key="sgx-well-tip"]')).toHaveCount(0);
     await expect(val('sgx-files-view')).toHaveText('默认');
     /* P4-2d：AI 模型进云同步（「其他」组）；没选 = 默认 */
     await expect(page.locator('[data-sync-key="sgx-ai-model"]')).toContainText('AI 模型');
@@ -1315,7 +1315,8 @@ test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/syn
     await expect(page.locator('#acct-sync-sub')).toHaveText('Off. Settings stay on this device');
     await expect(page.locator('#acct-sync-items h3')).toHaveText(['Appearance', 'More']);
     await expect(page.locator('[data-sync-key="sgx-theme-mode"] [data-sync-val]')).toHaveText('Follow system');
-    await expect(page.locator('[data-sync-key="sgx-well-tip"] [data-sync-val]')).toHaveText('On');
+    await expect(page.locator('[data-sync-key="sgx-well-tip"]')).toHaveCount(0);
+    await expect(page.locator('[data-sync-key="sgx-files-view"] [data-sync-val]')).toHaveText('Default');
     await expect(page.locator('[data-sync-key="sgx-accent"] [data-sync-val]')).toHaveText('Not set');
   });
 

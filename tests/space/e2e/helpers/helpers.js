@@ -16,8 +16,8 @@
  *                             返回读取函数；用来断言「点了不跳转」。文档已被换掉时读取函数返回 null。
  *
  * - setHomeCards(page, { daymark })：模拟首页日刻有没有数据（true = 显示，false = .hidden）。
- *   测试构建（SGX_TEST_NO_WEATHER=1）不输出日刻卡，就在名片后面补一张同 id 的占位卡（和真卡一样是 .widget，
- *   高度 160），再按参数切 .hidden —— 和 daymark-today.js 显隐真卡的方式一致。（P4-2c 起双时钟、天气已删）
+ *   测试构建（SGX_TEST_NO_WEATHER=1）不输出日刻卡，就在 [03] 日刻分节里补一个同 id 的占位（和真的一样是 .home-qt 引言，
+ *   高度 96），再按参数切 .hidden —— 和 daymark-today.js 显隐真卡的方式一致。（P4-2c 起双时钟、天气已删）
  *
  * 注意：/api/* 的 mock 由各测试自己在测试体内注册（注册顺序靠后，
  * Playwright 按注册倒序匹配，mock 会优先于本 helper 的通配拦截生效）。
@@ -162,8 +162,9 @@ async function setHomeCards(page, { daymark }) {
     if (!el) {
       el = document.createElement('a');
       el.id = 'w-daymark';
-      el.className = 'widget dm-w hidden';
-      el.style.minHeight = '160px';
+      /* 对齐 PR-B：日刻是强调线引言 .home-qt（同 layouts/index.html #w-daymark），占位高度 96 */
+      el.className = 'home-qt hidden';
+      el.style.minHeight = '96px';
       sec.appendChild(el);
     }
     el.classList.toggle('hidden', !dm);

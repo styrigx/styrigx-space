@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { jsDict, strings } from '../../../fixtures/strings.mjs';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { renderAudit, AUDIT_MAX } from '../../../../space/web/assets/js/lib/status-view.js';
 import { AUDIT_SHOW } from '../../../../workers/auth-gateway/src/api/space-audit.js';
 
@@ -47,8 +47,9 @@ test('renderAudit：合计行 + 每条（结果、北京时间、IP 前缀）；
   assert.match(zh, /data-ok="0"><span class="st-chip" data-state="down">.*失败<\/span><span class="st-audit-time">10月8日 10:00<\/span><span class="st-audit-ip">2001:db8:1:2::x<\/span>/);
   const en = renderAudit(items, mk(true));
   assert.match(en, /2 records, 1 failed \(Beijing time\)/);
-  assert.match(en, />Succeeded</);
-  assert.match(en, />Failed</);
+  /* 对齐 PR-B：chip 以 ● 开头（systemctl 风格），文字跟在圆点后面 */
+  assert.match(en, /<span class="st-chip" data-state="up"><span class="st-dot" aria-hidden="true">●<\/span> Succeeded<\/span>/);
+  assert.match(en, /<span class="st-chip" data-state="down"><span class="st-dot" aria-hidden="true">●<\/span> Failed<\/span>/);
   assert.match(en, /Oct 8, 10:00/);
 });
 
@@ -81,7 +82,9 @@ test('renderAudit：IP 前缀转义；没有前缀显示「未知 IP」；没有
 });
 
 test('模板：默认收起的 <details id="st-audit">，标题 / 摘要中英都有，没有内联脚本，没有角色判断', () => {
-  const tpl = read('space/web/layouts/_default/status.html');
+  /* 对齐 PR-B：服务状态并进旷野页 #status（_default/wild.html），原 status.html 删除 */
+  assert.ok(!existsSync(new URL('../../../../space/web/layouts/_default/status.html', import.meta.url)), '旧 status.html 已删');
+  const tpl = read('space/web/layouts/_default/wild.html');
   const m = tpl.match(/<details id="st-audit"[^>]*>/);
   assert.ok(m, '有 <details id="st-audit">');
   assert.ok(!/\bopen\b/.test(m[0]), '默认收起');

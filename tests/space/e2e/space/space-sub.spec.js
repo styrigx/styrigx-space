@@ -1,10 +1,11 @@
 /**
- * 旷野（P4-3 PR-4b：主页和设置合成一个主站页「旷野 / Space」，就在根路径；2.6.0 起的设置二级页去掉 settings 一层挂到根下）。真实断言（不 mock 自家逻辑）：
+ * 主页与门内子页（P4-3 PR-4b：主页和设置合成一页；2026-11 对齐 PR-B：主页回到「主页 / Home」四节，旷野独立成 /wild/）。真实断言（不 mock 自家逻辑）：
+ * - 对齐 PR-B 起：主页 = hero + [01] 博客 · [02] 奇趣 · [03] 日刻 · [04] 旷野；没有分类入口；子页 /theme/ /wild/（/security/ 独立页）；下面几行是沿革
  * - 旷野页 /zh/（英文 /，P4-3 PR-4c 起英文默认）：上面名片 / 日刻 / 屏幕时间，下面标题带 + 5 个平铺入口（共享组件 partials/sgx-entries.html，数据 data/space-cats.yaml）：
  *   编号 01–05、圆底图标、名字 + 一行副标题、行间细线、无卡片底；≥ 760 两栏、≥ 1100 三栏（栏间细竖线）；没有账号卡、没有选项组、没有 DeX 双栏
  *   （分类沿革：2026-10-23 PR-E 常规管理 / 辅助功能删除；服务状态从账号页搬来；P4-2c 高级功能删除，「安全与隐私」改名「安全」；
  *    P4-3 PR-4b（Gray 2026-11-07）显示页 /display/ 整页删除，404，不做 301——功能都在快捷面板）
- * - 子页 /theme/ /wellbeing/ /about/ 可达、有对应选项组（顶栏没有返回键），/security/ /status/ 是独立页面
+ * - 子页 /theme/ /wild/ 可达、有对应内容（顶栏没有返回键），/security/ 是独立页面（对齐 PR-B 前：/wellbeing/ /about/ /status/）
  * - 旧设置层（原设置首页和全部子页）一律 404，不跳转
  * - 中英双语
  */
@@ -26,7 +27,7 @@ const OLD = '/' + 'settings' + '/';
 async function gotoSettings(pg, path) {
   await blockExternalRequests(pg);
   await pg.goto(path, { waitUntil: 'domcontentloaded' });
-  await expect(pg.locator('.set-layout, .home-wrap').first()).toBeVisible({ timeout: 15000 });
+  await expect(pg.locator('.set-layout, .home-wrap, .wild-wrap').first()).toBeVisible({ timeout: 15000 });
 }
 
 /* 2.8.0：2.7.0 起语言跟随浏览器（Playwright 默认 en-US），不钉住会导致
@@ -41,111 +42,80 @@ async function pinLang(pg, lang) {
 /* Mobile（竖屏）：单列 */
 test.use({ viewport: { width: 412, height: 915 } });
 
-test('space home (mobile): widgets on top, then title band + flat entries from data (01–05, icon, name + subtitle, thin dividers, no card); no account card, no option groups', async ({ page: pg }) => {
+test('home (mobile, 对齐 PR-B): hero, then [01] blog · [02] curio · [03] daymark · [04] wild in order; no category entries, no account card, no option groups', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/zh/');
-  await expect(pg).toHaveTitle('旷野 | Styrigx');
-  /* 顶栏没有标签，页名胶囊就是「旷野」（PR-4b 定稿；手机布局不显示） */
+  await expect(pg).toHaveTitle('主页 | Styrigx');
+  /* 顶栏没有标签，页名标记是「主页」（手机布局不显示） */
   await expect(pg.locator('.sgx-tb-tab')).toHaveCount(0);
-  await expect(pg.locator('.sgx-tb-title')).toHaveText('旷野');
-  // 账户卡在账号页，旷野页没有；名片、屏幕时间卡保留
+  await expect(pg.locator('.sgx-tb-title')).toHaveText('主页');
+  // 账户卡在账号页；名字（hero）、屏幕时间小卡保留
   await expect(pg.locator('.sgx-account-card')).toHaveCount(0);
   await expect(pg.locator('#w-profile')).toBeVisible();
   await expect(pg.locator('#w-screen')).toBeVisible();
-  // 名片在入口上面；标题带在入口列表上面
-  const catList = pg.locator('.home-wrap [aria-label="分类"]');
-  await expect(catList).toHaveCount(1);
-  const band = pg.locator('#space-entries .sgx-ent-band');
-  /* 中文标题带小标签是「空间」（Gray 2026-11-07 定，语言清理 PR） */
-  await expect(band.locator('.sgx-ent-label')).toHaveText('空间');
-  expect(sc('zh', 'band', 'label')).toBe('空间');
-  await expect(band.locator('.sgx-ent-title')).toHaveText('旷野');
-  await expect(band.locator('.sgx-ent-lede')).toHaveText(sc('zh', 'band', 'sub'));
-  const yProfile = (await pg.locator('#w-profile').boundingBox()).y;
-  const yBand = (await band.boundingBox()).y;
-  const yCats = (await catList.boundingBox()).y;
-  expect(yBand).toBeGreaterThan(yProfile);
-  expect(yCats).toBeGreaterThan(yBand);
-  // 数量、顺序、地址、编号、名字、副标题全按数据
-  const rows = catList.locator('a.sgx-ent');
-  await expect(rows).toHaveCount(CATS.length);
-  expect(await rows.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(CATS.map((c) => `/zh/${c.id}/`));
-  await expect(rows.locator('.sgx-ent-no')).toHaveText(CATS.map((_, i) => String(i + 1).padStart(2, '0')));
-  await expect(rows.locator('.sgx-ent-name')).toHaveText(CATS.map((c) => sc('zh', c.id, 'title')));
-  await expect(rows.locator('.sgx-ent-sub')).toHaveText(CATS.map((c) => sc('zh', c.id, 'sub')));
-  await expect(rows.locator('.sgx-ent-ic svg')).toHaveCount(CATS.length);
-  await expect(rows.locator('.sgx-ent-ch')).toHaveText(CATS.map(() => '›'));
-  // 平铺：无卡片底（透明背景、无边框圆角卡），行间细线（每行下边框 1px）；手机一栏
-  const st = await rows.first().evaluate((a) => {
-    const li = a.parentElement;
-    const cs = getComputedStyle(a);
-    const ls = getComputedStyle(li);
-    const ic = getComputedStyle(a.querySelector('.sgx-ent-ic'));
-    return { bg: cs.backgroundColor, liBg: ls.backgroundColor, bb: ls.borderBottomWidth, br: ls.borderRightWidth, icR: ic.borderRadius, icW: ic.width, cols: getComputedStyle(li.parentElement).gridTemplateColumns.split(' ').length };
-  });
-  expect(st.bg).toBe('rgba(0, 0, 0, 0)');
-  expect(st.liBg).toBe('rgba(0, 0, 0, 0)');
-  expect(st.bb).toBe('1px');
-  expect(st.br).toBe('0px');
-  expect(st.icW).toBe('48px');
-  expect(st.icR).toBe('999px');
-  expect(st.cols).toBe(1);
-  await expect(catList.locator('.set-card, .widget')).toHaveCount(0);
-  // 删掉的分类（含显示页）不再出现；页面上没有任何指向旧设置层的链接
-  for (const gone of ['display', 'manage', 'accessibility', 'goodlock', 'advanced', 'apps']) await expect(pg.locator(`a[href="/${gone}/"], a[href="/zh/${gone}/"]`), gone).toHaveCount(0);
+  /* 分类入口（旧 sgx-entries 平铺行 + 标题带）删除 */
+  await expect(pg.locator('#space-entries, .home-wrap .sgx-ents, .home-wrap [aria-label="分类"]')).toHaveCount(0);
+  // 四节顺序：hero 在上，[01]–[04] 自上而下
+  await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // CURIO', '[03] // DAYMARK', '[04] // WILD']);
+  const ys = [];
+  for (const id of ['#home-hero', '#blog', '#curio', '#daymark', '#wild']) ys.push((await pg.locator(id).boundingBox()).y);
+  expect([...ys].sort((a, b) => a - b)).toEqual(ys);
+  // [02] 奇趣三个目录、[04] 旷野三张小卡（手机一栏）
+  const dirs = pg.locator('#curio a.home-dir');
+  expect(await dirs.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/zh/finds/', '/curio/zh/devices/', '/curio/zh/games/']);
+  const mini = pg.locator('#wild a.home-mini');
+  expect(await mini.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/zh/wild/#screen-time', '/zh/wild/#status', '/zh/wild/#about']);
+  await expect(mini.locator('.home-dir-n')).toHaveText(['screen-time', 'status', 'about']);
+  expect(await pg.locator('#wild .home-wild').evaluate((ul) => getComputedStyle(ul).gridTemplateColumns.split(' ').length)).toBe(1);
+  // 删掉的分类（含显示页、并进旷野的三页）不再有链接；页面上没有任何指向旧设置层的链接
+  for (const gone of ['display', 'manage', 'accessibility', 'goodlock', 'advanced', 'apps', 'wellbeing', 'status', 'about']) await expect(pg.locator(`a[href="/${gone}/"], a[href="/zh/${gone}/"]`), gone).toHaveCount(0);
   await expect(pg.locator(`a[href^="${OLD}"], a[href^="/zh${OLD}"]`)).toHaveCount(0);
-  // 选项组与 DeX 双栏都不在旷野页
+  // 选项组与 DeX 双栏都不在主页
   await expect(pg.locator('#sg-display, #sg-theme, #sg-wellbeing, #sg-about, #set-cat-nav, .set-col-r')).toHaveCount(0);
 });
 
-/* 栏数：< 760 一栏，≥ 760 两栏（左栏右侧细竖线），≥ 1100 三栏（每行最后一栏没有竖线）；同一行的入口顶边对齐 */
-for (const [w, h, cols] of [[759, 900, 1], [760, 900, 2], [1099, 900, 2], [1100, 900, 3], [1366, 768, 3]]) {
-  test(`space entries: ${w}px wide → ${cols} column(s), vertical dividers between columns`, async ({ page: pg }) => {
+/* [02] 奇趣目录 / [04] 旷野小卡：手机布局一栏，桌面布局三栏、同一行顶边对齐（对齐 PR-B，设计稿 tb4.html） */
+for (const [w, h, cols] of [[412, 900, 1], [1100, 900, 3], [1366, 768, 3]]) {
+  test(`home dirs / wild cards: ${w}px wide → ${cols} column(s)`, async ({ page: pg }) => {
     await pg.setViewportSize({ width: w, height: h });
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/zh/');
-    const list = pg.locator('#space-entries .sgx-ent-list');
-    await expect(list.locator('.sgx-ent-li')).toHaveCount(CATS.length);
-    const info = await list.evaluate((ul) => ({
-      cols: getComputedStyle(ul).gridTemplateColumns.split(' ').length,
-      tops: [...ul.children].map((li) => Math.round(li.getBoundingClientRect().top)),
-      br: [...ul.children].map((li) => getComputedStyle(li).borderRightWidth),
-    }));
-    expect(info.cols).toBe(cols);
-    expect(new Set(info.tops.slice(0, cols)).size, '第一行同一高度').toBe(1);
-    const want = info.br.map((_, i) => (cols === 1 ? '0px' : cols === 2 ? (i % 2 === 0 ? '1px' : '0px') : (i % 3 === 2 ? '0px' : '1px')));
-    expect(info.br).toEqual(want);
+    for (const sel of ['#curio .home-dirs', '#wild .home-wild']) {
+      const info = await pg.locator(sel).evaluate((ul) => ({
+        cols: getComputedStyle(ul).gridTemplateColumns.split(' ').length,
+        tops: [...ul.children].map((li) => Math.round(li.getBoundingClientRect().top)),
+        n: ul.children.length,
+      }));
+      expect(info.n, sel).toBe(3);
+      expect(info.cols, sel).toBe(cols);
+      expect(new Set(info.tops.slice(0, cols)).size, sel + ' 第一行同一高度').toBe(1);
+    }
   });
 }
 
-test.describe('space home (dex)', () => {
+test.describe('home (dex)', () => {
   test.use({ viewport: { width: 1366, height: 768 } });
 
-  test('single page: entries are plain links, no two-pane', async ({ page: pg }) => {
+  test('single page: [04] about card is a plain link to /zh/wild/#about, no two-pane', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/zh/');
-    const catList = pg.locator('.home-wrap [aria-label="分类"]');
-    await expect(catList).toBeVisible();
     await expect(pg.locator('#set-cat-nav, .set-dex-cols, #set-panes')).toHaveCount(0);
-    await catList.locator('a[href="/zh/theme/"]').click();
-    await pg.waitForURL('**/theme/', { timeout: 10000 });
-    await expect(pg.locator('#palette-dots')).toBeVisible();
+    await pg.locator('#wild a.home-mini[href="/zh/wild/#about"]').click();
+    await pg.waitForURL('**/zh/wild/#about', { timeout: 10000 });
+    await expect(pg.locator('#sg-about')).toBeVisible();
   });
 });
 
-test('space home (en): title band + entries from data', async ({ page: pg }) => {
+test('home (en): title Home, sections, wild cards to /wild/#…', async ({ page: pg }) => {
   await pinLang(pg, 'en');
   await gotoSettings(pg, '/');
-  await expect(pg).toHaveTitle('Space | Styrigx');
+  await expect(pg).toHaveTitle('Home | Styrigx');
   await expect(pg.locator('.sgx-tb-tab')).toHaveCount(0);
-  await expect(pg.locator('.sgx-tb-title')).toHaveText('Space');
-  await expect(pg.locator('#space-entries .sgx-ent-label')).toHaveText('SPACE');
-  await expect(pg.locator('#space-entries .sgx-ent-title')).toHaveText('Space');
-  await expect(pg.locator('#space-entries .sgx-ent-lede')).toHaveText(sc('en', 'band', 'sub'));
-  const rows = pg.locator('.home-wrap [aria-label="Categories"] a.sgx-ent');
-  expect(await rows.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(CATS.map((c) => `/${c.id}/`));
-  await expect(rows.locator('.sgx-ent-name')).toHaveText(CATS.map((c) => sc('en', c.id, 'title')));
-  await expect(rows.locator('.sgx-ent-sub')).toHaveText(CATS.map((c) => sc('en', c.id, 'sub')));
+  await expect(pg.locator('.sgx-tb-title')).toHaveText('Home');
+  await expect(pg.locator('#space-entries')).toHaveCount(0);
+  await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // CURIO', '[03] // DAYMARK', '[04] // WILD']);
+  expect(await pg.locator('#wild a.home-mini').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/wild/#screen-time', '/wild/#status', '/wild/#about']);
+  expect(await pg.locator('#curio a.home-dir').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/finds/', '/curio/devices/', '/curio/games/']);
   await expect(pg.locator('a[href="/display/"]')).toHaveCount(0);
 });
 
@@ -177,18 +147,17 @@ test('old settings layer is gone: home and every subpage 404, no redirect', asyn
 
 const SUBCHECKS = {
   theme: ['#palette-dots'],
-  wellbeing: ['#wb-card', '#row-welltip'],
-  about: [],
+  /* 对齐 PR-B：旷野页 = 屏幕时间 / 服务状态 / 关于本站三窗 */
+  wild: ['#wb-card', '#st-root', '#sg-about'],
 };
-/* 2026-10-23 PR-E：删掉的设置项 */
+/* 2026-10-23 PR-E / 对齐 PR-B：删掉的设置项（15 分钟提醒随「数字健康不做设置」删除） */
 const GONE = {
   theme: ['#theme-previews', '#row-system', '#seg-layout', '#row-lang'],
-  wellbeing: ['#well-v-total'],
-  about: ['#row-reset'],
+  wild: ['#well-v-total', '#row-welltip', '#row-reset', '#sg-wellbeing'],
 };
 
 for (const c of CATS) {
-  if (c.id === 'security' || c.id === 'status') continue; // security、status 是独立页面，各有测试覆盖（status 见 space-status.spec.js）
+  if (c.id === 'security') continue; // security 是独立页面，另有测试覆盖
   test(`subpage /${c.id}/: no back button + options`, async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, `/zh/${c.id}/`);
@@ -209,7 +178,7 @@ for (const c of CATS) {
 
 test('space search removed: no bottom search bar on space pages; old settings search page is gone', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  for (const path of ['/zh/', '/zh/theme/', '/zh/wellbeing/']) {
+  for (const path of ['/zh/', '/zh/theme/', '/zh/wild/']) {
     await gotoSettings(pg, path);
     await expect(pg.locator('.sgx-cap, #sgx-cap-settings, #sgx-cap-input-setsearch'), path).toHaveCount(0);
     await expect(pg.locator('#setso-page')).toHaveCount(0);
@@ -225,33 +194,32 @@ test('space search removed: no bottom search bar on space pages; old settings se
 test('subpage: system back returns to the space page', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/zh/');
-  await pg.locator('.home-wrap [aria-label="分类"] a[href="/zh/theme/"]').click();
-  await pg.waitForURL('**/theme/', { timeout: 10000 });
+  await pg.locator('#wild .home-sec-more[href="/zh/wild/"]').click();
+  await pg.waitForURL('**/zh/wild/', { timeout: 10000 });
   await pg.goBack();
   await pg.waitForURL((u) => u.pathname === '/zh/', { timeout: 10000 });
 });
 
-test('about page: version rows (2.6.0 spec)', async ({ page: pg }) => {
+test('wild #about: neofetch rows (对齐 PR-B，原 /about/ 的版本行)', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/zh/about/');
-  /* 2.8.0：版本号从 data/version.yaml（唯一来源）读取，不再硬编码，
-     版本推进时测试自动跟随 */
+  await gotoSettings(pg, '/zh/wild/');
+  /* 2.8.0：版本号从 data/version.yaml（唯一来源）读取，不再硬编码，版本推进时测试自动跟随 */
   const fs = require('fs');
   const path = require('path');
   const vy = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'version.yaml'), 'utf8');
   const ui = (vy.match(/^ui:\s*"([^"]+)"/m) || [])[1];
   const sgx = (vy.match(/^sgx:\s*"([^"]+)"/m) || [])[1];
   const body = pg.locator('#sg-about');
-  await expect(body).toContainText(`Styrigx UI ${ui}`);
-  await expect(body).toContainText(`SGX ${sgx}`);
-  await expect(body).toContainText('Hugo');
-  await expect(body).toContainText('Tailwind CSS');
-  await expect(body).toContainText('构建时间');
-  /* B2-4：顺序 版本/内核/Hugo/Tailwind/构建/构建时间；无 GitHub 仓库行；重置所有设置 2026-10-23 删除 */
-  const labels = await body.locator('.set-row > span.font-medium').allTextContents();
-  expect(labels.map((t) => t.trim())).toEqual(['版本', '内核', 'Hugo', 'Tailwind CSS', '构建', '构建时间']);
-  await expect(body).not.toContainText('GitHub');
-  await expect(body.locator('a[href*="github.com"]')).toHaveCount(0);
+  await expect(body.locator('[data-about="version"]')).toHaveText(`Styrigx UI ${ui}`);
+  await expect(body.locator('[data-about="kernel"]')).toHaveText(`SGX ${sgx}`);
+  await expect(body.locator('[data-about="hugo"]')).not.toBeEmpty();
+  await expect(body.locator('[data-about="tailwind"]')).toContainText('Tailwind CSS');
+  await expect(body.locator('[data-about="build"]')).not.toBeEmpty();
+  await expect(body.locator('[data-about="built"]')).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  /* 顺序 OS / Kernel / Host / Hugo / CSS / Build / Built / AI / Repo（设计稿 neofetch）；仓库链接回来了（稿里有 Repo 行） */
+  const labels = await body.locator('.wild-info > div:not(.wild-info-h):not(.wild-info-r):not(.wild-info-sw) > dt').allTextContents();
+  expect(labels.map((t) => t.trim())).toEqual(['OS', 'Kernel', 'Host', 'Hugo', 'CSS', 'Build', 'Built', 'AI', 'Repo']);
+  await expect(body.locator('a[href="https://github.com/styrigx/styrigx-space"]')).toHaveCount(1);
   await expect(pg.locator('#row-reset')).toHaveCount(0);
 });
 
@@ -445,22 +413,19 @@ test('P4-2c Advanced features gone; no redirects to the old settings layer', asy
   expect(rd).not.toMatch(/goodlock|advanced|manage|accessibility/);
 });
 
-test('PR-E Digital wellbeing: one screen-time card (this device when signed out) + 15-minute reminder', async ({ page: pg }) => {
+test('wild #screen-time: one screen-time window (this device when signed out), no reminder switch (对齐 PR-B)', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/zh/wellbeing/');
+  await gotoSettings(pg, '/zh/wild/');
   const card = pg.locator('#wb-card');
-  await expect(pg.locator('#sg-wellbeing .p-5')).toHaveCount(1);
-  await expect(card).toContainText('我的屏幕时间');
+  await expect(card).toHaveCount(1);
+  await expect(card.locator('.sgx-term-title')).toHaveText('screen-time');
   await expect(card.locator('[data-wb="scope"]')).toHaveText('今天 · 本机');
   await expect(card.locator('[data-wb="total"]')).not.toHaveText('--');
-  /* P2-2：卡片不再按等级标记去掉 data-wb-root；改为带 data-wb-detail，只有 /api/wellbeing 回 detail:true（账号已登录）才换成所有设备 */
+  /* P2-2：卡片带 data-wb-detail，只有 /api/wellbeing 回 detail:true（账号已登录）才换成所有设备 */
   await expect(card).toHaveAttribute('data-wb-root', /.*/);
   await expect(card).toHaveAttribute('data-wb-detail', /.*/);
-  const tip = pg.locator('#row-welltip');
-  await expect(tip.locator('.switch')).toHaveAttribute('aria-checked', 'true');
-  await tip.click();
-  await expect(tip.locator('.switch')).toHaveAttribute('aria-checked', 'false');
-  expect(await pg.evaluate(() => localStorage.getItem('sgx-well-tip'))).toBe('0');
+  /* 15 分钟提醒开关按 Gray 04:01「数字健康不做设置，做成展示页」删除 */
+  await expect(pg.locator('#row-welltip, .switch')).toHaveCount(0);
 });
 
 test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async ({ page: pg }) => {
@@ -490,7 +455,7 @@ test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async
 test('B2-4 space has no Apps category; no reset-all-settings row anywhere', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/zh/');
-  const hrefs = await pg.locator('.home-wrap [aria-label="分类"] a.sgx-ent').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+  const hrefs = await pg.locator('.home-wrap a').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
   expect(hrefs).not.toContain('/apps/');
   await expect(pg.locator('#sg-apps, #row-app-files, #row-app-browser')).toHaveCount(0);
   await expect(pg.locator('#row-reset')).toHaveCount(0);

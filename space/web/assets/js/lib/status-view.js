@@ -1,5 +1,6 @@
 /**
- * @fileoverview 服务状态（设置 → 服务状态 /status/；2026-10-24 PR4 前是顶栏「状态」页）的纯函数：北京时间格式、时长、可用率、每日色块、当前状态，以及卡片 / 故障列表的 HTML。
+ * @fileoverview 服务状态（旷野 /wild/ 的 systemctl 窗，2026-11 对齐 PR-B 前是 /status/ 页；更早是顶栏「状态」页）的纯函数：
+ * 北京时间格式、时长、可用率、每日色块、当前状态，以及 unit 行 / 可用率行 / 故障列表的 HTML（终端形式，CSS 在 input.css「服务状态」段）。
  * 没有 DOM、没有请求（apps/space-status.js 负责取 /api/status、插进页面、每 60 秒刷新），node --test 直接测
  * （tests/space/ui/status/status-view.test.mjs）。
  *
@@ -277,7 +278,8 @@ export function uptime90(s) {
 }
 
 /**
- * 一张站点卡（article.st-card）。色块是 span，整条 role="img" 带可读的总结；点色块的说明由 apps/space-status.js 填进 .st-detail。
+ * 一个监测项的可用率行（article.st-card，旷野 systemctl 窗里 `uptime --days 90` 下面一项）：名字 · 域名 · 状态 · 最近一次检查 · 90 格可用率条。
+ * 色块是 span，整条 role="img" 带可读的总结；点色块的说明由 apps/space-status.js 填进 .st-detail。
  * @param {any} s
  * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string, now:number, today:string}} ctx
  */
@@ -296,10 +298,10 @@ export function renderSite(s, ctx) {
   const pct = fmtPct(uptime90(s));
   const cells = slots.map((x, i) => '<span class="st-cell" data-level="' + x.level + '" data-i="' + i + '"></span>').join('');
   return (
-    '<article class="widget bg-m-container-lowest st-card" data-site="' + esc(s.site) + '" data-state="' + state + '">' +
+    '<article class="st-card" data-site="' + esc(s.site) + '" data-state="' + state + '">' +
       '<div class="st-card-head">' +
-        '<div class="st-card-id"><h2 class="st-name">' + esc(name) + '</h2><p class="st-host">' + esc(hostOf(s.url)) + '</p></div>' +
-        '<span class="st-chip" data-state="' + state + '"><span class="st-dot" aria-hidden="true"></span>' + esc(ctx.t(chip)) + '</span>' +
+        '<div class="st-card-id"><h3 class="st-name">' + esc(name) + '</h3><p class="st-host" translate="no">' + esc(hostOf(s.url)) + '</p></div>' +
+        '<span class="st-chip" data-state="' + state + '"><span class="st-dot" aria-hidden="true">●</span> ' + esc(ctx.t(chip)) + '</span>' +
       '</div>' +
       '<p class="st-meta">' + meta.join('<span class="st-sep" aria-hidden="true">·</span>') + '</p>' +
       '<div class="st-bar" role="img" aria-label="' + esc(ctx.fmt('barLabel', { name, pct })) + '">' + cells + '</div>' +
@@ -307,6 +309,56 @@ export function renderSite(s, ctx) {
       '<p class="st-detail" hidden></p>' +
     '</article>'
   );
+}
+
+/* ===== unit 行（2026-11 对齐 PR-B，设计稿 tb4.html pg=wild 的 systemctl status space.target）=====
+ * 六个 unit，口径同外壳 NAVIGATE STATUS 六格（shell/topbar-panel.js mountStatus cellsOf）：
+ *   space / blog / curio / daymark = 主站那一项（四站同一个 Pages、同一条网关链路，子站不单独测）；gray-ai = ai 那一项；
+ *   auth = 网关本身（/api/status 这一问能回来就是在线，延迟 = 这一问的往返）。规则集（proxy-rules）不在六个 unit 里，在下面的可用率行。 */
+export const UNITS = [
+  { id: 'space', src: 'space', host: 'styrigx.com' },
+  { id: 'blog', src: 'space', host: 'styrigx.com/blog' },
+  { id: 'curio', src: 'space', host: 'styrigx.com/curio' },
+  { id: 'daymark', src: 'space', host: 'styrigx.com/daymark' },
+  { id: 'gray-ai', src: 'ai', host: 'Gray AI' },
+  { id: 'auth', src: '', host: 'passkey · lockkey' },
+];
+
+/**
+ * 六个 unit 的状态（纯数据）：state 同 siteState（auth 拿到数据就是 up），ms = 最近一次检查的延迟（auth = 往返）。
+ * @param {any} data /api/status
+ * @param {number|null} rtt 这一问的往返毫秒（拿不到 null）
+ * @returns {Array<{id:string, host:string, state:'pending'|'up'|'flaky'|'down', ms:number|null}>}
+ */
+export function unitList(data, rtt) {
+  /** @type {Record<string, any>} */
+  const by = {};
+  for (const x of (data && data.sites) || []) if (x && x.site) by[x.site] = x;
+  return UNITS.map((u) => {
+    if (!u.src) return { id: u.id, host: u.host, state: data && data.ok ? 'up' : 'pending', ms: typeof rtt === 'number' ? Math.round(rtt) : null };
+    const s = by[u.src];
+    const st = siteState(s);
+    const ms = s && s.last && s.last.ok && typeof s.last.ms === 'number' ? Math.round(s.last.ms) : null;
+    return { id: u.id, host: u.host, state: st, ms };
+  });
+}
+
+/**
+ * unit 行 HTML（li.st-unit × 6）：● name.service · 状态 · 延迟 · 域名。
+ * @param {Array<{id:string, host:string, state:string, ms:number|null}>} list
+ * @param {{t:(k:string)=>string}} ctx
+ */
+export function renderUnits(list, ctx) {
+  const word = /** @type {Record<string, string>} */ ({ up: 'unitActive', flaky: 'unitFlaky', down: 'unitFailed', pending: 'unitPending' });
+  return (list || []).map((u) =>
+    '<li class="st-unit" data-unit="' + esc(u.id) + '" data-state="' + esc(u.state) + '">' +
+      '<span class="st-dot" aria-hidden="true">●</span>' +
+      '<span class="st-unit-n" translate="no">' + esc(u.id) + '.service</span>' +
+      '<span class="st-unit-s" translate="no">' + esc(ctx.t(word[u.state] || 'unitPending')) + '</span>' +
+      '<span class="st-unit-ms" translate="no">' + (u.ms == null ? '—' : esc(String(u.ms)) + 'ms') + '</span>' +
+      '<span class="st-unit-h" translate="no">' + esc(u.host) + '</span>' +
+    '</li>'
+  ).join('');
 }
 
 /**
@@ -333,7 +385,7 @@ export function renderIncidents(incidents, ctx) {
       '<li class="st-inc" data-open="' + (open ? '1' : '0') + '" data-site="' + esc(x.site) + '">' +
         '<div class="st-inc-head">' +
           '<span class="st-inc-site">' + esc(siteName(x, ctx.t)) + '</span>' +
-          '<span class="st-chip" data-state="' + (open ? 'down' : 'resolved') + '"><span class="st-dot" aria-hidden="true"></span>' + esc(ctx.t(open ? 'incOngoing' : 'incResolved')) + '</span>' +
+          '<span class="st-chip" data-state="' + (open ? 'down' : 'resolved') + '"><span class="st-dot" aria-hidden="true">●</span> ' + esc(ctx.t(open ? 'incOngoing' : 'incResolved')) + '</span>' +
         '</div>' +
         '<p class="st-inc-cause">' + esc(causeText(x.cause, ctx.t)) + '</p>' +
         '<p class="st-inc-time">' + parts.map(esc).join('<span class="st-sep" aria-hidden="true">·</span>') + '</p>' +
@@ -366,7 +418,7 @@ export function renderAudit(items, ctx) {
     const ok = x.ok === true;
     return (
       '<li class="st-audit-item" data-ok="' + (ok ? '1' : '0') + '">' +
-        '<span class="st-chip" data-state="' + (ok ? 'up' : 'down') + '"><span class="st-dot" aria-hidden="true"></span>' + esc(ctx.t(ok ? 'auditOk' : 'auditFail')) + '</span>' +
+        '<span class="st-chip" data-state="' + (ok ? 'up' : 'down') + '"><span class="st-dot" aria-hidden="true">●</span> ' + esc(ctx.t(ok ? 'auditOk' : 'auditFail')) + '</span>' +
         '<span class="st-audit-time">' + esc(fmtBjTime(Number(x.ts), ctx.lang, today)) + '</span>' +
         '<span class="st-audit-ip">' + esc(x.ipPrefix || ctx.t('auditIpUnknown')) + '</span>' +
       '</li>'

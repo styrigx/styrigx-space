@@ -1,12 +1,10 @@
-# 旷野页（/）分类入口（单数据源）。旷野页平铺入口（共享组件 partials/sgx-entries.html）、各子页标题（layouts/_default/sub.html、baseof 页名）、
-# 搜索索引（space/scripts/build-search-index.mjs）共用。新增入口只加一行：id 即地址（/<id>/，中文 /zh/<id>/；security、status 是独立布局），
-# 同时在 content/（英文）与 content/zh/（中文）加页面、lib/wb-area.js SPACE_SUB_RE 加一项（tests/space/ui/build/space-merge.test.mjs 对照检查）。
-# 字段：icon = partials/icon.html 的图标名；tone = 圆底配色（primary / secondary / tertiary / info，走共享外壳色彩角色，跟调色板）；
-#   名字 / 副标题在字符串表 data/i18n/<语言>.yaml 的 spaceCats.<id>.title / sub（语言包化 2026-11-07；英文为底，缺键回退英文）。编号 01… 按行序自动生成。
-# P4-3 PR-4b（Gray 2026-11-07）：显示页（/display/）整页删除（深色 / 跟随系统 / 语言 / 布局都在快捷面板），不做 301；
-#   入口改成平铺（无卡片底、编号、圆底图标、名字 + 副标题、细分隔线），原 group / bg / fg 字段删除。
-# 副标题与标题带那句话是占位文案（Gray 定稿后替换）。
-band: {}  # 标题带的文字（小标签 / 大标题 / 一句话）在字符串表 spaceCats.band.label / title / sub
+# 主站门内子页（单数据源）：子页标题（layouts/_default/sub.html、baseof 页名）、搜索索引（space/scripts/build-search-index.mjs）、
+# 数字健康区域（lib/wb-area.js SPACE_SUB_RE，tests/space/ui/build/space-merge.test.mjs 对照检查）共用。
+# id 即地址（/<id>/，中文 /zh/<id>/）；名字 / 副标题在字符串表 data/i18n/<语言>.yaml 的 spaceCats.<id>.title / sub。
+# 2026-11 对齐 PR-B（设计稿 tb4.html）：主页不再有分类入口（旧 sgx-entries 平铺行删除）——
+#   旷野是独立页 /wild/（屏幕时间 / 服务状态 / 关于本站三窗，原 /wellbeing/ /status/ /about/ 在 static/_redirects 301 到它的锚点）；
+#   安全由顶栏盾牌进入；风格页 /theme/ 的功能在外观弹层里（页面暂留，子页 PR 再定）。
+# 字段：icon = partials/icon.html 的图标名；tone = 圆底配色（primary / secondary / tertiary / info）。
 cats:
   - id: theme
     icon: palette
@@ -14,12 +12,6 @@ cats:
   - id: security
     icon: shield
     tone: secondary
-  - id: wellbeing
-    icon: heart-ring
-    tone: tertiary
-  - id: status
+  - id: wild
     icon: pulse
     tone: info
-  - id: about
-    icon: info
-    tone: primary

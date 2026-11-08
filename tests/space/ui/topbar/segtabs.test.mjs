@@ -74,11 +74,13 @@ test('子站接入：奇趣子页页头（标题带 + 段式标签），日刻 /
 });
 
 test('主站内容页：标题带接入，front matter 都有 description（中英）', () => {
-  const pages = ['theme', 'wellbeing', 'about', 'status', 'security', 'security-tempkeys', 'account-apps', 'account-devices', 'account-profile', 'account-security', 'account-sync'];
+  /* 对齐 PR-B：数字健康 / 关于本站 / 服务状态并进旷野页 wild（三份旧内容删除） */
+  for (const p of ['wellbeing', 'about', 'status']) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`]) assert.ok(!has(f), f + ' 应已删除');
+  const pages = ['theme', 'wild', 'security', 'security-tempkeys', 'account-apps', 'account-devices', 'account-profile', 'account-security', 'account-sync'];
   for (const p of pages) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`]) assert.match(rd(f), /^description: '.+'$/m, f);
-  for (const l of ['sub', 'status', 'security', 'security-tempkeys', 'account-apps', 'account-devices', 'account-profile', 'account-security', 'account-sync']) {
+  for (const l of ['sub', 'wild', 'security', 'security-tempkeys', 'account-apps', 'account-devices', 'account-profile', 'account-security', 'account-sync']) {
     assert.ok(has(`space/web/layouts/_default/${l}.html`), l);
-    assert.match(rd(`space/web/layouts/_default/${l}.html`), /partial "sgx-page-hero\.html" \(dict "title" [^ ]+ "desc" \.Description "path" \.File\.Path\)/, l);
+    assert.match(rd(`space/web/layouts/_default/${l}.html`), /partial "sgx-page-hero\.html" \(dict "title" [^ ]+ "desc" \.Description "path" \.File\.Path(?: "cmd" "[^"]+")?\)/, l);
   }
 });
 

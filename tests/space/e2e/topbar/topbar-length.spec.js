@@ -12,7 +12,7 @@ const { blockExternalRequests, freezeTime, animationsDone, expect } = require('.
 
 const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
 /* 语言偏好固定 zh，直接走中文 /zh/…（P4-3 PR-4c：英文在根路径、无前缀），英文页名见 topbar-spec */
-const PAGES = [['/zh/', '旷野'], ['/zh/security/', '安全'], ['/zh/theme/', '风格'], ['/zh/account/', null]];
+const PAGES = [['/zh/', '主页'], ['/zh/wild/', '旷野'], ['/zh/security/', '安全'], ['/zh/theme/', '风格'], ['/zh/account/', null]]; /* 对齐 PR-B：根页叫「主页」，旷野独立成 /zh/wild/ */
 
 /**
  * 新开一个上下文：mobile = 手机 UA + userAgentData.mobile = true；pref = localStorage sgx-layout
@@ -39,7 +39,7 @@ async function open(page, p) {
   await animationsDone(page);
 }
 
-const pageM = (w) => (w < 600 ? 16 : Math.min(48, Math.max(16, 5.333 + 0.022222 * w)));
+const pageM = (w) => (w < 600 ? 12 /* 对齐 PR-B：手机页边距 12 */ : Math.min(48, Math.max(16, 5.333 + 0.022222 * w)));
 /** 顶栏内容宽 = 宽 − 2 × max(页边距, (宽 − 1080) / 2) */
 const contentW = (w) => w - 2 * Math.max(pageM(w), (w - 1080) / 2);
 

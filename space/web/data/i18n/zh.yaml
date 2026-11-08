@@ -11,21 +11,21 @@ home:
   blog: 博客
   minutes: "{n} 分钟"
   blogLabel: "[01] 博客 · 最新 3 篇"
+  curioLabel: "[02] 奇趣"
+  curio:
+    title: 奇趣
+    finds: { name: 发现, latest: 最近收藏 }
+    devices: { name: 设备, latest: 在用 }
+    games: { name: 游戏, latest: 在玩 }
   daymark: 日刻
-  daymarkLabel: "[02] 日刻 · 今日一句"
-  screen: 屏幕时间
-  screenLabel: "[03] 屏幕时间"
+  daymarkLabel: "[03] 日刻 · 今日一句"
   wildLabel: "[04] 旷野"
+  wild:
+    title: 旷野
+    screenNone: 今天还没有记录
 index:
-  daymarkLineOfThe: 日刻 · 今日一句
-  daymark: 日刻
   noLineForToday: 今天还没有句子
   tapToKeepOne: 点开日刻，记下一句
-  myScreenTime: 我的屏幕时间
-  todayAllDevices: 今天 · 所有设备
-  timeOnThisSite: 在本站的时间
-  timeBreakdown: 时间分布
-  categories: 分类
 accountApps:
   reviewWhatEachApp: 核查账号授权给各应用的权限。
   searchByName: 按名称搜索
@@ -90,8 +90,6 @@ account:
   profileSub: 头像、姓名、昵称、签名、邮箱
 js:
   core:
-    wellTip: 已经看了 15 分钟，起来活动一下？
-    wellDismiss: 关闭
     pkCancelled: 已取消
     pkTimeout: 超时，请重试
     pkNoKey: 这台设备上没有这把钥匙
@@ -236,25 +234,18 @@ js:
     securiSomethingWentWrongPlease: 出错了，请重试
     listSep: "，"
   space:
-    wellNoRec: 今天还没有到访记录
-    areaLinks: 搜索
-    areaSpace: 旷野
-    wb1Min: 不到 1 分钟
+    homeStatusUp: "STATUS: ONLINE · {up}/{n} ACTIVE"
+    homeStatusDown: "STATUS: DEGRADED · {up}/{n} ACTIVE"
     wbTodayAllDevices: 今天 · 所有设备
-    wbNothingRecordedYetToday: 今天还没有记录
     dmSourceWrap: 《{s}》
-    daymarDaymark: 日刻
-    daymarNoLineForToday: 今天还没有句子
-    daymarTapToKeepOne: 点开日刻，记下一句
-    wbDurHr: "{n} 小时"
-    wbDurHrs: "{n} 小时"
-    wbDurMin: "{n} 分钟"
-    wbArea_space: "旷野"
-    wbArea_files: "我的文件"
-    wbArea_browser: "浏览器"
-    wbArea_book: "书籍"
-    wbArea_blog: "博客"
   status:
+    activeUp: active (running)
+    activeDown: degraded
+    unitActive: active
+    unitFailed: failed
+    unitFlaky: flaky
+    unitPending: pending
+    checkedAt: checked {time}
     loading: 正在加载…
     allUp: 全部正常
     allUpSub: '{n} 个服务运行正常'
@@ -730,7 +721,6 @@ security:
   clearThisSessionAnd: 清除当前会话并回到锁屏
   securityStatusIsRead: 安全状态仅从本设备读取。
 status:
-  serviceStatus: 服务状态
   loading: 正在加载…
   noDataYet: 还没有监测数据
   resultsShowUpAfter: 第一轮检查完成后（约 1 分钟）这里会显示结果。
@@ -739,11 +729,6 @@ status:
   recentIncidents: 近期故障
   spaceCredentialActivity: 进站凭证使用记录
   last7DaysTime: 最近 7 天：时间、IP 前缀和结果
-setcatAbout:
-  version: 版本
-  kernel: 内核
-  build: 构建
-  builtAt: 构建时间
 setcatTheme:
   colorPalette: 调色板
   reset: 恢复默认
@@ -753,10 +738,14 @@ setcatTheme:
   dark: 深色
   default: （默认）
   default2: 默认
-setcatWellbeing:
-  myScreenTime: 我的屏幕时间
+wild:
   todayThisDevice: 今天 · 本机
-  timeBreakdown: 时间分布
+  timeBreakdown: 各区域时长
+  noRec: 今天还没有记录
+  version: 版本
+  kernel: 内核
+  build: 构建
+  builtAt: 构建时间
 sgxAccountCard:
   signedIn: 已登录
   changePhoto: 更换头像
@@ -809,31 +798,18 @@ features:
     name: 文件默认视图
   files-home:
     name: 文件主页分组
-  well-tip:
-    name: 15 分钟提醒
-    desc: 停留 15 分钟后温和提醒一次
   lock-gate:
     name: 锁屏门禁
 spaceCats:
-  band:
-    label: 空间
-    title: 旷野
-    sub: 这个站自己的样子、钥匙和作息，都在这里。
   theme:
     title: 风格
     sub: 调色板与主题色
   security:
     title: 安全
     sub: 通行密钥、锁屏与临时钥匙
-  wellbeing:
-    title: 数字健康
-    sub: 屏幕时间与作息
-  status:
-    title: 服务状态
-    sub: 四站与接口是否在线
-  about:
-    title: 关于本站
-    sub: 版本、致谢与开源
+  wild:
+    title: 旷野
+    sub: 屏幕时间、服务状态与关于本站
 sites:
   space:
     title: 主站

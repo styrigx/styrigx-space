@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
 function expected(w, h, pref = 'auto', mobile = false) {
   const mode = pref === 'phone' ? 'phone' : pref === 'desktop' ? 'desktop' : mobile || w < 720 ? 'phone' : 'desktop';
   const device = mobile || Math.min(w, h) < 600 ? 'phone' : 'desktop';
-  const m = w < 600 ? 16 : Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
+  const m = w < 600 ? 12 /* 对齐 PR-B：手机页边距 12 */ : Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
   return { mode, device, inset: Math.max(m, (w - 1080) / 2) };
 }
 

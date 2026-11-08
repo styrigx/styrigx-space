@@ -132,9 +132,9 @@ test.describe('外观面板：开合', () => {
       expect(g.scrim).toBe('rgba(0, 0, 0, 0)');
       expect(Math.abs(g.dlg.top - g.tb.bottom)).toBeLessThanOrEqual(1);
       expect(g.dlg.bottom).toBeGreaterThanOrEqual(914);
-      /* 实色卡贴着顶栏下沿；手机右缘对齐顶栏内容区（页边距 16px）、宽 260，圆角 14px */
+      /* 实色卡贴着顶栏下沿；手机右缘对齐顶栏内容区（页边距 12px，对齐 PR-B）、宽 260，圆角 14px */
       expect(Math.abs(g.sheet.top - g.tb.bottom)).toBeLessThanOrEqual(1);
-      expect(Math.abs(g.sheet.right - (412 - 16))).toBeLessThanOrEqual(1);
+      expect(Math.abs(g.sheet.right - (412 - 12))).toBeLessThanOrEqual(1);
       expect(Math.abs(g.sheet.width - 260)).toBeLessThanOrEqual(1);
       expect(g.rad).toBe('14px');
       await expect(page.locator('.sgx-qp-handle, .sgx-qp-clip, .sgx-qp-all')).toHaveCount(0);
@@ -682,7 +682,7 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(ctl(page, 'share')).toHaveAccessibleName('分享本页');
   });
 
-  test('P4-3 PR-4b：设置入口 = 旷野页的分类入口（面板里没有齿轮和设置项，顶栏没有「设置」标签）', async ({ page }) => {
+  test('P4-3 PR-4b：面板里没有齿轮和设置项，顶栏没有「设置」标签；对齐 PR-B 起主页没有分类入口，[04]「cd wild/ →」进旷野页', async ({ page }) => {
     await go(page, '/');
     await openQp(page);
     await expect(page.locator('#sgx-qp a')).toHaveCount(0);
@@ -690,8 +690,9 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await page.keyboard.press('Escape');
     await expectClosed(page);
     await expect(page.locator('.sgx-tb-tab, .sgx-tb-tabs')).toHaveCount(0);
-    await page.locator('.home-wrap [aria-label="分类"] a[href="/zh/theme/"]').click();
-    await expect(page).toHaveURL(/\/theme\/$/);
+    await expect(page.locator('.home-wrap [aria-label="分类"]')).toHaveCount(0);
+    await page.locator('#wild a.home-sec-more[href="/zh/wild/"]').click();
+    await expect(page).toHaveURL(/\/zh\/wild\/$/);
     await page.goBack();
     await expect(page).toHaveURL(/localhost:\d+\/zh\/$/);
   });
@@ -724,7 +725,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
       return { tbBottom: tb.bottom, top: sh.top, left: sh.left, w: sh.width };
     });
     expect(Math.abs(g.top - g.tbBottom - 8)).toBeLessThanOrEqual(1);
-    expect(Math.abs(g.left - 16)).toBeLessThanOrEqual(1);
+    expect(Math.abs(g.left - 12)).toBeLessThanOrEqual(1); /* 对齐 PR-B：手机页边距 12 */
     await expect(ai(page).locator('.sgx-ai-title')).toHaveText('Gray AI');
     /* 空态 = 开场白（助手气泡样式、不带操作行），没有旧的空态文案 */
     const greet = ai(page).locator('.sgx-ai-msg[data-greet]');

@@ -55,7 +55,7 @@ test('缺键回退英文：sgx-tr.html 是「英文表 ← 页面语言表」的
   /* 没有语言包的语言（假设 fr）= 全英文 */
   const fr = strings('space', 'fr');
   assert.deepEqual(flatKeys(fr).sort(), flatKeys(strings('space', 'en')).sort());
-  assert.equal(fr.spaceCats.band.title, 'Space');
+  assert.equal(fr.spaceCats.wild.title, 'Wild');
 });
 
 test('模板不再按语言二选一：主站 / 奇趣 / 日刻模板没有 $isEn、cond … "zh"、(dict "zh" … "en" …) 文案对子', () => {
@@ -147,10 +147,12 @@ test('个人信息节点中英输出相同：主站首页名片（名字、签�
   const nodes = (/** @type {string} */ f) => [...readFileSync(path.join(REPO, f), 'utf8').matchAll(/<(\w+)\b[^>]*data-sgx-personal[^>]*>([\s\S]*?)<\/\1>|<img\b[^>]*data-sgx-personal[^>]*>/g)].map((m) => m[0].replace(/\s+/g, ' '));
   const en = nodes('space/web/public/index.html');
   const zh = nodes('space/web/public/zh/index.html');
-  assert.ok(en.length >= 3, '名字、签名、头像替代文字：' + en.length);
+  assert.ok(en.length >= 1, '名字：' + en.length);
   assert.deepEqual(zh, en);
   for (const n of en) assert.match(n, /translate="?no"?/);
-  assert.ok(en.some((n) => n.includes('prof-motto')), '签名在个人信息节点里');
+  assert.ok(en.some((n) => n.includes('home-name')), '名字在个人信息节点里');
+  /* 对齐 PR-B（设计稿 tb4.html）：hero 不再有头像和签名（头像在顶栏右上、签名只在账号下拉） */
+  assert.ok(!en.some((n) => /home-motto|home-av\b/.test(n)), '主页 hero 没有签名 / 头像节点');
 });
 
 test('标签页标题（Gray 2026-11-07）：四站「页名 | 站名」，站名走字符串表；页名就是站名时只显示站名', { skip: !built && '没构建' }, () => {
@@ -160,8 +162,11 @@ test('标签页标题（Gray 2026-11-07）：四站「页名 | 站名」，站�
   };
   const sp = { en: strings('space', 'en'), zh: strings('space', 'zh') };
   /* 主站：站名 Styrigx（品牌名不翻） */
-  assert.equal(title('space/web/public/index.html'), `${sp.en.spaceCats.band.title} | Styrigx`);
-  assert.equal(title('space/web/public/zh/index.html'), `${sp.zh.spaceCats.band.title} | Styrigx`);
+  /* 对齐 PR-B：主页页名 = NAVIGATE 01「主页 / Home」（旷野是独立页 /wild/，页名 = front matter title） */
+  assert.equal(title('space/web/public/index.html'), `${sp.en.shell.nav.home.title} | Styrigx`);
+  assert.equal(title('space/web/public/zh/index.html'), `${sp.zh.shell.nav.home.title} | Styrigx`);
+  assert.equal(title('space/web/public/wild/index.html'), `${sp.en.spaceCats.wild.title} | Styrigx`);
+  assert.equal(title('space/web/public/zh/wild/index.html'), `${sp.zh.spaceCats.wild.title} | Styrigx`);
   assert.match(title('space/web/public/theme/index.html'), /^[^|]+ \| Styrigx$/);
   assert.match(title('space/web/public/zh/theme/index.html'), /^[^|]+ \| Styrigx$/);
   assert.equal(title('space/web/public/404.html'), `${sp.en.baseof.pageNotFound} | Styrigx`);
@@ -288,11 +293,11 @@ test('Worker 名字（语言包化第二部分）：服务状态站名、授权�
     assert.equal(en.account['app_' + s.app], s.name, 'js.account.app_' + s.app + ' 英文 = 接口原文');
     assert.ok(zh.account['app_' + s.app], 'js.account.app_' + s.app + ' 有中文');
   }
-  /* 数字健康区域名（lib/wb-view.js COLORS 的键 = 区域） */
+  /* 数字健康区域（对齐 PR-B 起终端字符条形式）：行首直接显示区域键（space / blog / book …，等宽、不翻译），旧的本语言区域名 wbArea_* 和彩色圆点 COLORS 删除 */
   const wb = rd('space/web/assets/js/lib/wb-view.js');
-  const areas = [...(/const COLORS = \{([\s\S]*?)\};/.exec(wb) || ['', ''])[1].matchAll(/^\s*(\w+):/gm)].map((m) => m[1]);
-  assert.ok(areas.length >= 5);
-  for (const a of areas) assert.ok(en.space['wbArea_' + a] && zh.space['wbArea_' + a], 'js.space.wbArea_' + a);
+  assert.doesNotMatch(wb, /const COLORS|wbArea_/);
+  assert.ok(!Object.keys(en.space).some((k) => k.startsWith('wbArea_')) && !Object.keys(zh.space || {}).some((k) => k.startsWith('wbArea_')), '字符串表里不留 wbArea_*');
+  assert.match(wb, /<span class="wb-k" translate="no">/, '区域键标 translate="no"');
   /* 奇趣搜索索引的页签 / 类型标签：英文底 + 中文层，缺键回退英文 */
   const { labels } = await import('../../../../workers/curio-core/src/search-index.js');
   assert.equal(labels('zh').kinds.phone, '手机');

@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import {
   esc, bjDay, addDays, fmtDay, fmtBjTime, fmtDur, fmtAgo, fmtPct, pctOf, dayLevel, buildSlots, siteState, siteName, hostOf,
   causeText, lastText, isEmptySummary, bannerInfo, sortIncidents, slotText, uptime90, renderSite, renderIncidents, BAR_DAYS,
+  UNITS, unitList, renderUnits,
 } from '../../../../space/web/assets/js/lib/status-view.js';
 import fx from '../../../fixtures/status-summary.cjs';
 
@@ -178,9 +179,10 @@ test('slotText：某一天的说明', () => {
 test('renderSite：正常的卡（站名、域名、正常、延迟、90 格、可用率）', () => {
   const s = fx.normal().sites[0];
   const h = renderSite(s, ZH);
-  assert.match(h, /^<article class="widget bg-m-container-lowest st-card" data-site="space" data-state="up">/);
-  assert.match(h, /<h2 class="st-name">主站<\/h2><p class="st-host">styrigx\.com<\/p>/);
-  assert.match(h, /<span class="st-chip" data-state="up">.*正常<\/span>/);
+  /* 对齐 PR-B：卡在旷野页 #status 终端窗里——去掉 widget 卡片底；站名降为 h3（窗标题是 h2）；chip 以 ● 开头 */
+  assert.match(h, /^<article class="st-card" data-site="space" data-state="up">/);
+  assert.match(h, /<h3 class="st-name">主站<\/h3><p class="st-host" translate="no">styrigx\.com<\/p>/);
+  assert.match(h, /<span class="st-chip" data-state="up"><span class="st-dot" aria-hidden="true">●<\/span> 正常<\/span>/);
   assert.match(h, /延迟 123 ms/);
   assert.match(h, /刚刚检查/);
   assert.equal((h.match(/class="st-cell"/g) || []).length, 90);
@@ -236,4 +238,48 @@ test('renderIncidents：进行中 / 已恢复，北京时间、同一天恢复�
   assert.match(en, /Resolved 09:25/);
   assert.match(en, /Lasted 25 min/);
   assert.equal(renderIncidents([], ZH), '<p class="st-inc-none">没有故障记录</p>');
+});
+
+/* ===== 六个 unit（对齐 PR-B：systemctl status space.target） ===== */
+test('UNITS：六个 unit 顺序和来源（四站 = 主站那项，gray-ai = ai，auth = 网关往返）', () => {
+  assert.deepEqual(UNITS.map((u) => u.id), ['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth']);
+  assert.deepEqual(UNITS.map((u) => u.src), ['space', 'space', 'space', 'space', 'ai', '']);
+});
+
+test('unitList：正常数据 → 六个 up，延迟取最近一次检查（取整），auth 用往返；没数据 → pending', () => {
+  const l = unitList(fx.normal(), 87.6);
+  assert.equal(l.length, 6);
+  assert.deepEqual(l.map((u) => u.state), ['up', 'up', 'up', 'up', 'up', 'up']);
+  assert.deepEqual(l.map((u) => u.ms), [123, 123, 123, 123, 140, 88]);
+  assert.equal(l[1].host, 'styrigx.com/blog');
+  const none = unitList(null, null);
+  assert.deepEqual(none.map((u) => u.state), ['pending', 'pending', 'pending', 'pending', 'pending', 'pending']);
+  assert.deepEqual(none.map((u) => u.ms), [null, null, null, null, null, null]);
+});
+
+test('unitList：AI 故障 → gray-ai down 且没有延迟，其余照常；还没检查过 → 站点 pending、auth up', () => {
+  const l = unitList(fx.oneDown(), null);
+  const by = Object.fromEntries(l.map((u) => [u.id, u]));
+  assert.equal(by['gray-ai'].state, 'down');
+  assert.equal(by['gray-ai'].ms, null);
+  assert.equal(by.space.state, 'up');
+  assert.equal(by.auth.state, 'up');
+  assert.equal(by.auth.ms, null, '拿不到往返时延迟为空');
+  const e = unitList(fx.empty(), 40);
+  assert.deepEqual(e.map((u) => u.state), ['pending', 'pending', 'pending', 'pending', 'pending', 'up']);
+});
+
+test('renderUnits：每行 ● name.service · 状态 · 延迟 · 域名；状态文案中英；转义；空列表为空串', () => {
+  const h = renderUnits(unitList(fx.oneDown(), 52), ZH);
+  assert.equal((h.match(/<li class="st-unit"/g) || []).length, 6);
+  assert.match(h, /<li class="st-unit" data-unit="space" data-state="up"><span class="st-dot" aria-hidden="true">●<\/span><span class="st-unit-n" translate="no">space\.service<\/span><span class="st-unit-s" translate="no">[^<]+<\/span><span class="st-unit-ms" translate="no">123ms<\/span><span class="st-unit-h" translate="no">styrigx\.com<\/span><\/li>/);
+  assert.match(h, /data-unit="gray-ai" data-state="down">.*?<span class="st-unit-ms" translate="no">—<\/span>/);
+  const zhUp = ZH.t('unitActive'); const zhDown = ZH.t('unitFailed');
+  assert.ok(h.includes('>' + zhUp + '<') && h.includes('>' + zhDown + '<'));
+  const en = renderUnits([{ id: 'x', host: '<b>', state: 'flaky', ms: 5 }, { id: 'y', host: 'h', state: 'weird', ms: null }], EN);
+  assert.ok(en.includes('>' + EN.t('unitFlaky') + '<'));
+  assert.ok(en.includes('>' + EN.t('unitPending') + '<'), '不认识的状态按 pending 文案');
+  assert.ok(!en.includes('<b>') && en.includes('&lt;b&gt;'), '转义');
+  assert.equal(renderUnits([], ZH), '');
+  assert.equal(renderUnits(/** @type {any} */ (null), ZH), '');
 });

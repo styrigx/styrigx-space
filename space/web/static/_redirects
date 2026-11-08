@@ -10,3 +10,9 @@
 /files/*  /  301
 /favicon-32x32.png  /avatar/32.webp  301
 /apple-touch-icon.png  /avatar/192.webp  301
+/status/  /wild/#status  301
+/zh/status/  /zh/wild/#status  301
+/about/  /wild/#about  301
+/zh/about/  /zh/wild/#about  301
+/wellbeing/  /wild/#screen-time  301
+/zh/wellbeing/  /zh/wild/#screen-time  301

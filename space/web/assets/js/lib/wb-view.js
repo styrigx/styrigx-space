@@ -1,47 +1,20 @@
 /**
- * @fileoverview B2-7 网站数字健康小组件渲染（首页卡片 + 设置 › 数字健康共用）。
- * 读 GET /api/wellbeing?d=<本机日期>，把今天各区域时长画成列表 + 总时长 + 分段条。
- * 模板先画好固定高度的骨架（3 行），这里只替换文字和宽度，不改变卡片高度。
+ * @fileoverview B2-7 网站数字健康渲染（主页 [04] 旷野 screen-time 小卡 + 旷野页 /wild/ screen-time 窗共用）。
+ * 读 GET /api/wellbeing?d=<本机日期>，把今天各区域时长画进容器。
+ * 2026-11 对齐 PR-B（设计稿 tb4.html）：终端字符条形式——容器带 data-wb-term="full"（旷野窗：区域 · 16 格字符条 · 时长 · 占比 · 最常看的一项）
+ * 或 "mini"（主页小卡：前 3 个区域 · 8 格字符条 · 时长）；字符条按最多的那个区域满格缩放。
+ * 旧的彩色圆点图例 + 分段条形式（旧首页大卡、旧 /wellbeing/ 页）随对齐 PR-B 删除。
+ * 模板先画好固定行数的骨架，这里只替换文字，不改变高度。
  */
 import { localDay } from './wb-track.js';
 import { i18nTable } from './i18n.js';
 /** 界面文案：页面字符串表 #sgx-i18n-space（语言包化 2026-11-07；当前语言已叠在英文上） */
 const tx = i18nTable('space');
 
-/* 区域名：字符串表 js.space.wbArea_<区域>（语言包化第二部分 2026-11-07；英文为底、中文是汉化层）；表里没有的区域原样显示键 */
-// 分段 / 图例圆点是不带字的填充：辅色 / 第三色用 *-fill（本色中间调，不用压深到 4.5:1 的文字色，免得发泥；2026-10-21）
-const COLORS = {
-  space: 'var(--m-primary-fill, var(--m-primary))',
-  files: 'var(--m-warm)',
-  browser: 'var(--sgx-tertiary-fill, var(--m-tertiary))',
-  book: 'var(--m-rose)',
-  blog: 'var(--m-on-surface-variant)',
-};
-
-/**
- * 秒 → 「1 小时 5 分钟」/「1 hr 5 min」；不到 1 分钟显示「不到 1 分钟」。
- * @param {number} sec
- * @param {boolean} en
- * @param {boolean} [long] 总时长用 hrs
- */
-export function fmtDur(sec, en, long) {
-  const m = Math.floor(sec / 60);
-  if (m < 1) return tx('wb1Min');
-  const h = Math.floor(m / 60),
-    mm = m % 60;
-  /* 单位走字符串表 wbDurHr / wbDurHrs（long 且不是 1 小时）/ wbDurMin（语言包化 2026-11-07；参数 en 保留兼容） */
-  const hk = long && h !== 1 ? 'wbDurHrs' : 'wbDurHr';
-  return (h ? tx(hk, { n: h }) : '') + (h && mm ? ' ' : '') + (mm || !h ? tx('wbDurMin', { n: mm }) : '');
-}
 
 /** @param {string} s */
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c);
-}
-
-/** @param {string} k 区域键 */
-function nameOf(k) {
-  return tx('wbArea_' + k) || k;
 }
 
 /** 旧区域键（P4-3 PR-4b 前：主页 home、设置 settings）→ 新键 space；读旧写新，旧 Worker / 旧缓存里的分组在这里并起来 */
@@ -63,56 +36,95 @@ export function foldSections(sections) {
   return [...m].map(([k, sec]) => ({ k, sec })).sort((a, b) => b.sec - a.sec);
 }
 
+/** 终端里的短时长：<1m / 42m / 1h 19m（各语言同一种写法，等宽对齐） @param {number} sec */
+export function fmtShort(sec) {
+  const m = Math.floor(Math.max(0, Number(sec) || 0) / 60);
+  if (m < 1) return '<1m';
+  const h = Math.floor(m / 60);
+  return h ? h + 'h ' + (m % 60) + 'm' : m + 'm';
+}
+
 /**
- * 把接口数据画进容器。
- * @param {HTMLElement} root 含 [data-wb=rows|total|bar|legend|scope] 的容器
- * @param {{total:number, sections:{k:string,sec:number}[], items:{k:string,t:string,sec:number}[]}} data
- * @param {boolean} en
+ * 字符条：满格 n 格，按 sec / max 缩放（有时长至少 1 格），[实心, 空心]。
+ * @param {number} sec @param {number} max @param {number} n
+ * @returns {[string, string]}
  */
-export function renderWb(root, data, en) {
-  const q = (/** @type {string} */ n) => /** @type {HTMLElement|null} */ (root.querySelector('[data-wb="' + n + '"]'));
-  const total = data.total || 0;
-  const secs = foldSections(data.sections || []).filter((s) => s.sec >= 60);
-  const items = data.items || [];
-  const rows = q('rows');
-  if (rows) {
-    const slots = rows.querySelectorAll('[data-wb-row]');
-    slots.forEach((el, i) => {
-      const s = secs[i];
-      const row = /** @type {HTMLElement} */ (el);
-      if (!s) {
+export function charBar(sec, max, n) {
+  const k = max > 0 && sec > 0 ? Math.max(1, Math.min(n, Math.round((sec / max) * n))) : 0;
+  return ['\u2588'.repeat(k), '\u2591'.repeat(n - k)];
+}
+
+/**
+ * 终端形式的行（纯数据，单测看它）：区域键、字符条、时长、占比、最常看的一项（明细，只在账号会话时有）。
+ * @param {{total:number, sections:{k:string,sec:number}[], items?:{k:string,t:string,sec:number}[]}} data
+ * @param {{n?: number, limit?: number}} [o] n = 满格格数（默认 16），limit = 最多几行（默认 5）
+ */
+export function termRows(data, o) {
+  const n = (o && o.n) || 16;
+  const limit = (o && o.limit) || 5;
+  const total = Number(data && data.total) || 0;
+  const secs = foldSections((data && data.sections) || []).filter((s) => s.sec >= 60).slice(0, limit);
+  const max = secs.length ? secs[0].sec : 0;
+  const items = (data && data.items) || [];
+  return secs.map((s) => {
+    const top = items.find((it) => (s.k === 'book' ? it.k.startsWith('book:') : s.k === 'blog' ? it.k.startsWith('post:') : false));
+    const pct = total ? Math.round((s.sec * 100) / total) : 0;
+    return { k: s.k, bar: charBar(s.sec, max, n), dur: fmtShort(s.sec), pct: pct + '%', top: top && top.t ? String(top.t) : '' };
+  });
+}
+
+/**
+ * 终端形式画进容器（data-wb-term="full" | "mini"）：[data-wb=rows] 里的 [data-wb-row] 骨架行（不够就补、多的藏起）、[data-wb=total]、[data-wb=none]、[data-wb=scope]。
+ * @param {HTMLElement} root
+ * @param {{total:number, sections:{k:string,sec:number}[], items?:{k:string,t:string,sec:number}[]}} data
+ * @param {{scope?: string}} [o] scope：窗口右上的范围文字（不给 = 「今天 · 所有设备」）
+ */
+export function renderWbTerm(root, data, o) {
+  const mini = root.getAttribute('data-wb-term') === 'mini';
+  const rowsEl = /** @type {HTMLElement|null} */ (root.querySelector('[data-wb="rows"]'));
+  const rows = termRows(data, mini ? { n: 8, limit: 3 } : { n: 16, limit: 5 });
+  if (rowsEl) {
+    let slots = /** @type {HTMLElement[]} */ (Array.from(rowsEl.querySelectorAll('[data-wb-row]')));
+    while (slots.length < rows.length && slots.length) {
+      const c = /** @type {HTMLElement} */ (slots[0].cloneNode(false));
+      rowsEl.appendChild(c);
+      slots = /** @type {HTMLElement[]} */ (Array.from(rowsEl.querySelectorAll('[data-wb-row]')));
+    }
+    slots.forEach((row, i) => {
+      const r = rows[i];
+      if (!r) {
         row.style.visibility = 'hidden';
+        row.innerHTML = '&nbsp;';
+        /* 骨架行：主页小卡留着高度（和旁边两张卡同高、不跳版面），旷野窗里没有记录就整行收起（下面一行「今天还没有记录」） */
+        if (i >= 3 || (!mini && !rows.length)) row.hidden = true;
         return;
       }
+      row.hidden = false;
       row.style.visibility = '';
-      const top = items.find((it) => (s.k === 'book' ? it.k.startsWith('book:') : s.k === 'blog' ? it.k.startsWith('post:') : false));
-      const label = nameOf(s.k) + (top && top.t ? ' · ' + top.t : '');
-      row.innerHTML =
-        '<span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:' + /** @type {any} */ (COLORS)[s.k] + '"></span>' +
-        '<span class="font-medium truncate">' + esc(label) + '</span>' +
-        '<span class="ml-auto text-m-on-surface-variant shrink-0">' + esc(fmtDur(s.sec, en)) + '</span>';
+      const bar = '<span class="wb-cbar" aria-hidden="true"><b>' + r.bar[0] + '</b><i>' + r.bar[1] + '</i></span>';
+      row.innerHTML = mini
+        ? '<span class="wb-k" translate="no">' + esc(r.k) + '</span> ' + bar + ' <span class="wb-t">' + esc(r.dur) + '</span>'
+        : '<span class="wb-k" translate="no">' + esc(r.k) + '</span>' + bar + '<span class="wb-t">' + esc(r.dur) + '</span><span class="wb-p">' + esc(r.pct) + '</span>' +
+          (r.top ? '<span class="wb-it">' + esc(r.top) + '</span>' : '');
     });
   }
-  const t = q('total');
-  if (t) t.textContent = fmtDur(total, en, true);
-  /* 设置 › 数字健康的卡片先画本机记录，拉到所有设备的数据后把范围标签换掉（2026-10-23 PR-E） */
-  const scope = q('scope');
-  if (scope) scope.textContent = tx('wbTodayAllDevices');
-  const bar = q('bar');
-  const shown = secs.slice(0, 5);
-  if (bar) {
-    bar.innerHTML = total
-      ? shown.map((s) => '<span style="width:' + ((s.sec * 100) / total).toFixed(1) + '%;background:' + /** @type {any} */ (COLORS)[s.k] + '"></span>').join('')
-      : '';
-  }
-  const legend = q('legend');
-  if (legend) {
-    legend.innerHTML = shown.length
-      ? shown
-          .map((s) => '<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:' + /** @type {any} */ (COLORS)[s.k] + '"></span>' + esc(nameOf(s.k)) + '</span>')
-          .join('')
-      : '<span>' + (tx('wbNothingRecordedYetToday')) + '</span>';
-  }
+  const none = /** @type {HTMLElement|null} */ (root.querySelector('[data-wb="none"]'));
+  if (none) none.hidden = rows.length > 0;
+  const t = root.querySelector('[data-wb="total"]');
+  if (t) t.textContent = fmtShort(Number(data.total) || 0);
+  const scope = root.querySelector('[data-wb="scope"]');
+  if (scope) scope.textContent = (o && o.scope) || tx('wbTodayAllDevices');
+}
+
+/**
+ * 把接口数据画进容器（[data-wb-root]；终端字符条形式，见 renderWbTerm）。
+ * @param {HTMLElement} root
+ * @param {{total:number, sections:{k:string,sec:number}[], items:{k:string,t:string,sec:number}[]}} data
+ * @param {boolean} [en] 保留兼容（文案走字符串表）
+ */
+export function renderWb(root, data, en) {
+  void en;
+  renderWbTerm(root, data);
 }
 
 /** 本文档里最近一次拿到的数据（页内切换回到首页 / 设置时先用它画，不再等一次请求） @type {{d: string, ts: number, data: any}|null} */

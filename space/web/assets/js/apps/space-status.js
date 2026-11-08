@@ -1,6 +1,7 @@
 /**
- * @fileoverview 设置 → 服务状态（/status/）：取 GET /api/status、渲染横幅 / 站点卡 / 近期故障，页面可见时每 60 秒刷新。
- * 2026-10-24 PR4：原来是顶栏三栏的「状态」页（/status/，apps/status.js），整页挪进账号页成为子页；之后从账号页搬到设置，旧地址删除；数据和行为不变。
+ * @fileoverview 旷野 › status 窗（/wild/#status，systemctl status space.target）：取 GET /api/status、渲染 space.target 两行 / 六个 unit / 可用率行 / 额度 / 用量 / 近期故障，
+ * 页面可见时每 60 秒刷新。2026-11 对齐 PR-B：原 /status/ 页（卡片形式）并进旷野页，改成设计稿的终端窗；数据和行为不变（旧地址 301 到 /wild/#status）。
+ * 2026-10-24 PR4 前是顶栏三栏的「状态」页，之后挪进账号页、再搬到设置。
  *
  * - 门内页：页面只认锁屏进门会话；进站凭证使用记录（/api/space-audit）另要账号会话。
  * - 同源 cookie（credentials: 'same-origin'），no-store；网关验锁屏会话（进门即可），没会话 401。
@@ -21,7 +22,7 @@
 import { on } from '../lib/events.js';
 import { loadI18n, pageLang } from '../lib/i18n.js';
 import { visibleInterval } from '../lib/scheduler.js';
-import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderQuota, renderSite, renderUsage, slotText } from '../lib/status-view.js';
+import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderQuota, renderSite, renderUnits, renderUsage, slotText, unitList } from '../lib/status-view.js';
 
 export const STATUS_API = '/api/status';
 export const AUDIT_API = '/api/space-audit';
@@ -57,9 +58,6 @@ function dropCache() {
   try { localStorage.removeItem(CACHE_KEY); } catch (e) {}
 }
 
-const ICON_OK = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-const ICON_DOWN = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 7v6"/><path d="M12 17h.01"/></svg>';
-
 function init() {
   const root = document.getElementById('st-root');
   if (!root) return;
@@ -68,6 +66,9 @@ function init() {
   const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
   const banner = $('st-banner');
   const sitesEl = $('st-sites');
+  const unitsEl = $('st-units');
+  const uptimeEl = $('st-uptime');
+  const checkedEl = $('st-checked');
   const incWrap = $('st-inc-wrap');
   const usageWrap = $('st-usage-wrap');
   const usageEl = $('st-usage');
@@ -81,6 +82,9 @@ function init() {
   let data = null;
   /** 上次成功拿到数据的时间（客户端时钟，页脚「更新于」用） */
   let gotAt = 0;
+  /** 上次成功那一问的往返毫秒（auth unit 的延迟）；从缓存画首帧时没有 */
+  /** @type {number|null} */
+  let rtt = null;
   let busy = false;
   /** 会话过期（401）：不再自动重试，等用户点「重新解锁」 */
   let authErr = false;
@@ -96,10 +100,15 @@ function init() {
     emptyEl.hidden = s !== 'empty';
     banner.hidden = s === 'error' || s === 'empty';
     sitesEl.hidden = s === 'error' || s === 'empty';
+    if (uptimeEl) uptimeEl.hidden = s === 'error' || s === 'empty';
+    if (unitsEl) unitsEl.hidden = s === 'error' || s === 'empty' || s === 'loading';
     incWrap.hidden = s !== 'ready';
     usageWrap.hidden = s !== 'ready';
     quotaWrap.hidden = s !== 'ready' || !data || data.quota === undefined;
-    if (s === 'error' || s === 'empty') foot.textContent = '';
+    if (s === 'error' || s === 'empty') {
+      foot.textContent = '';
+      if (checkedEl) checkedEl.textContent = '';
+    }
   }
 
   function render() {
@@ -107,9 +116,11 @@ function init() {
     const ctx = { t, fmt, lang, now, today: (data && data.today) || bjDay(now) };
     const b = bannerInfo(data, ctx);
     banner.setAttribute('data-state', b.state);
-    /** @type {HTMLElement} */ (banner.querySelector('.st-banner-ic')).innerHTML = b.state === 'up' ? ICON_OK : ICON_DOWN;
+    /** @type {HTMLElement} */ (banner.querySelector('[data-st="active"]')).textContent = t(b.state === 'up' ? 'activeUp' : 'activeDown');
     /** @type {HTMLElement} */ (banner.querySelector('[data-st="title"]')).textContent = b.title;
     /** @type {HTMLElement} */ (banner.querySelector('[data-st="sub"]')).textContent = b.sub;
+    if (unitsEl) unitsEl.innerHTML = renderUnits(unitList(data, rtt), ctx);
+    if (checkedEl) checkedEl.textContent = fmt('checkedAt', { time: fmtBjTime(gotAt, lang, bjDay(now)) });
     sitesEl.innerHTML = (data.sites || []).map((s) => renderSite(s, ctx)).join('');
     incEl.innerHTML = renderIncidents(data.incidents || [], ctx);
     /* 旧版监测 Worker 没有 usage 字段 → 按没配处理 */
@@ -139,6 +150,7 @@ function init() {
     if (busy) return;
     busy = true;
     let status = 0;
+    const t0 = Date.now();
     try {
       const r = await fetch(STATUS_API, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
       status = r.status;
@@ -146,6 +158,7 @@ function init() {
       if (!j || j.ok !== true || !Array.isArray(j.sites)) throw new Error('bad');
       data = j;
       gotAt = Date.now();
+      rtt = gotAt - t0;
       writeCache(j, gotAt);
       /* 外壳（NAVIGATE STATUS 六格 / tmux 页脚）在本页不另取，用这一份 */
       try { document.dispatchEvent(new CustomEvent('sgx:status', { detail: j })); } catch (e) { /* 老浏览器没有 CustomEvent 构造：外壳维持缓存 / 灰 */ }

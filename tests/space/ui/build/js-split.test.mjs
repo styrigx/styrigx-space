@@ -46,7 +46,9 @@ test('各页模板 sgx-entry 指向的入口都在列表里', () => {
   assert.ok(n >= 12, '模板里应有各页入口');
   assert.ok(rd('space/web/layouts/index.html').includes('"sgx-entry" "entry-space.js"'));
   assert.ok(rd('space/web/layouts/_default/sub.html').includes('"sgx-entry" "entry-space-sub.js"'));
-  assert.ok(rd('space/web/layouts/_default/status.html').includes('"sgx-entry" "entry-space-status.js"'));
+  assert.ok(rd('space/web/layouts/_default/wild.html').includes('"sgx-entry" "entry-space-wild.js"'), '对齐 PR-B：旷野页 /wild/ 一个入口（原 /status/ 的 entry-space-status 并进来）');
+  assert.ok(!existsSync(join(root, 'space/web/layouts/_default/status.html')), '对齐 PR-B：/status/ 页并进 /wild/');
+  assert.ok(!existsSync(join(root, ENTRY_DIR, 'entry-space-status.js')), '对齐 PR-B：entry-space-status.js 并进 entry-space-wild.js');
   assert.ok(!existsSync(join(root, 'space/web/layouts/_default/chat.html')), 'P4-2b：/chat/ 页已删');
   for (const f of ['settings.html', 'settings-sub.html', 'settings-status.html']) assert.ok(!existsSync(join(root, 'space/web/layouts/_default', f)), `PR-4b：${f} 已改名 / 删除`);
 });
