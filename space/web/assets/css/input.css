@@ -8354,8 +8354,8 @@
 .sgx-ctab { display: flex; align-items: stretch; gap: 22px; margin-top: 26px; border-bottom: 1px solid var(--sgx-term-line); font-family: var(--sgx-font-mono); font-size: 13.5px; line-height: 1.6; }
 .sgx-ctab-tabs { display: flex; gap: 22px; min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .sgx-ctab-tabs::-webkit-scrollbar { display: none; }
-/* 手机 tab 放不下时横滑：右端留 16px 并渐隐，被截的那项看得出是「还有」而不是被切断（放得下时渐隐只落在留白上） */
-:root:not([data-sgx-layout="desktop"]) .sgx-ctab-tabs { padding-right: 16px; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent); }
+/* 手机 tab 放不下时横滑：右端留 16px 并渐隐，被截的那项看得出是「还有」而不是被切断（放得下时渐隐只落在留白上；遮罩只看透明度，用不透明的角色色） */
+:root:not([data-sgx-layout="desktop"]) .sgx-ctab-tabs { padding-right: 16px; -webkit-mask-image: linear-gradient(to right, var(--sgx-text-primary) calc(100% - 16px), transparent); mask-image: linear-gradient(to right, var(--sgx-text-primary) calc(100% - 16px), transparent); }
 .sgx-ctab-a { flex: none; padding: 10px 0 8px; border-bottom: 2px solid transparent; color: var(--sgx-text-tertiary); text-decoration: none; white-space: nowrap; }
 .sgx-ctab-a i { margin-left: 4px; font-style: normal; font-size: 11px; color: var(--sgx-text-tertiary); }
 .sgx-ctab-a[aria-current="page"] { color: var(--sgx-text-primary); border-bottom-color: var(--sgx-primary); }
