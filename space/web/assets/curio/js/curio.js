@@ -7,9 +7,9 @@
  *   点卡片在新标签页打开网址。
  * - 能编辑（接口回 canWrite：账号已登录 + 作用域 curio.write）：页头命令链「收藏 / 管理分类 / 导入书签 / 导出书签」；长按卡片（或键盘 E 键）编辑。
  *   编辑弹层：网址（「自动填写」抓标题、简介、图标）、名字、英文名和英文简介、简介、分类（可就地新建）、自定义图标、仅自己可见、上移 / 下移、删除。
- * - 不能编辑（canWrite=false）：命令链里只有一条「sudo login」（#cu-signin，signinHint）：
- *   没登录账号 →「登录账号后可编辑」，链到 /account/?return=<本页>（P3-1 同意流程：登录完先判授权，没授权弹同意卡片，完了回本页）；
- *   已登录但奇趣没有 curio.write（在 账号 › 应用授权 取消过）→「奇趣未获账号授权」，链到 /account/apps/。写接口回 403 scope 也提示这一句。
+ * - 不能编辑（canWrite=false）：命令链里只有一条「sudo root」（#cu-signin，signinHint）：
+ *   没登录账号 →「登录账号后可编辑」，点了打开顶栏账号终端（P3-1 同意流程：登录完先判授权，没授权 [y]/[n]，完了关面板回本页）；
+ *   已登录但奇趣没有 curio.write（在 账号 › 应用授权 取消过）→「奇趣未获账号授权」，打开应用授权那一层。写接口回 403 scope 也提示这一句。
  *   写接口回 401 account / 403 scope 时也提示这一句；导入回 401 reauth（要账号复验）时提示去账号页验证一次再回来导入（P3-1 前的简版）。
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
  *
@@ -216,21 +216,22 @@ function errText(e){
     : c === 'account' ? T.needAccount : c === 'scope' ? T.noScopeErr : c === 'reauth' ? T.needReauth : T.failed;
 }
 
-/** P4-3 PR-4c：语言路径由模板（sgx-lang-path.html）算好放在 #cu-signin 的 data-*，本文件是经典脚本，不手写语言前缀 @param {string} attr @param {string} fallback */
-function pagePath(attr, fallback){
-  var el = doc && doc.getElementById('cu-signin');
-  return (el && el.getAttribute(attr)) || fallback;
-}
 /**
- * 不能编辑时页底那一行（P3-1）：没登录账号 → 登录（带 ?return= 回本页，走同意流程）；已登录没授权 → 去 账号 › 应用授权。
+ * 不能编辑时命令链里那一条（P3-1；2026-11-08 账号 UI 改版：打开顶栏账号终端，shell/topbar-panel.js 接 [data-acct-open]）：
+ * 没登录账号 → sudo root 登录 → 判授权 → 关面板回本页；已登录没授权 → 应用授权那一层。
  * @param {boolean} loggedIn 接口回的 showPrivate（= 有账号会话）
- * @returns {{text: string, href: string}}
+ * @returns {{text: string, open: string, app: string}}
  */
 function signinHint(loggedIn){
-  var acct = pagePath('data-acct', 'https://styrigx.com/account/');
-  if (loggedIn) return { text: T.noScope, href: acct + 'apps/' };
-  var here = G.location.pathname + G.location.search + G.location.hash;
-  return { text: T.signin, href: acct + '?return=' + encodeURIComponent(here) };
+  if (loggedIn) return { text: T.noScope, open: 'apps', app: '' };
+  return { text: T.signin, open: '', app: 'curio' };
+}
+/** 入口链接：data-acct-open / data-acct-app，href 留没 JS 时的退路（本语言首页 #acct=…） @param {Element} a @param {{open: string, app: string}} h */
+function setAcctOpen(a, h){
+  a.setAttribute('data-acct-open', h.open);
+  if (h.app) a.setAttribute('data-acct-app', h.app); else a.removeAttribute('data-acct-app');
+  var base = (a.getAttribute('href') || '/').replace(/#.*$/, '');
+  a.setAttribute('href', base + '#acct' + (h.open ? '=' + h.open : '') + (h.app ? '&app=' + h.app : ''));
 }
 
 /** 长按（≈550ms，手指不挪）触发 fn；触发后吞掉随后的那次点击（不打开网址） */
@@ -280,7 +281,7 @@ function applySignin(can, loggedIn){
   if (!can) {
     var h = signinHint(loggedIn), t = hint.querySelector('[data-signin-text]');
     if (t) t.textContent = h.text;
-    hint.setAttribute('href', h.href);
+    setAcctOpen(hint, h);
   }
 }
 
@@ -575,12 +576,13 @@ function impMsg(text, bad, link){
     /* 要账号复验（401 reauth）：提示后面带一个去账号页的链接（P3-1 前的简版） */
     var a = doc.createElement('a');
     a.href = link.href; a.textContent = link.label; a.className = 'underline font-bold ml-1';
+    if (link.open) a.setAttribute('data-acct-open', link.open);
     el.appendChild(a);
   }
   el.classList.toggle('hidden', !text); el.classList.toggle('text-m-error', !!bad);
 }
-/** 账号页「安全与隐私」（每次进都要验证账号，验过 3 分钟内导入不再要求复验） */
-function reauthLink(){ return { href: pagePath('data-acct-sec', '/account/security/'), label: T.verifyNow }; }
+/** 账号再验证（2026-11-08：打开顶栏账号终端只做 sudo root reauth，验过 3 分钟内导入不再要求复验） */
+function reauthLink(){ var el = doc.getElementById('cu-signin'); return { href: ((el && el.getAttribute('href')) || '/').replace(/#.*$/, '') + '#acct=reauth', open: 'reauth', label: T.verifyNow }; }
 function resetImport(){
   impFile = null;
   $('#imp-file').value = '';

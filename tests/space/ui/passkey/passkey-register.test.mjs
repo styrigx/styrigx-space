@@ -122,7 +122,15 @@ test('creationOptions：服务端没给用户名时用页面兜底；预填名�
 });
 
 test('两页都只经 passkey-register.js 注册：不再手写 credentials.create / 命名弹层；锁屏页没有 r.status 未定义的分支', () => {
-  for (const f of ['space/web/assets/js/apps/security-lock.js', 'space/web/assets/js/apps/account-security.js']) {
+  /* 2026-11-08：账号安全页删了，账号通行密钥在账号终端 shell/account/keys.js 里注册（命名在终端里问，不用命名弹层） */
+  {
+    const src = rd('space/web/assets/js/shell/account/keys.js');
+    assert.ok(src.includes("from '../../auth/passkey-register.js'"));
+    assert.ok(src.includes('registerPasskey({'));
+    assert.ok(!src.includes('navigator.credentials.create'), 'keys.js 不手写注册');
+    assert.ok(src.includes("genPkPrefillName('')"), 'keys.js 预填名不拿界面文案兜底');
+  }
+  for (const f of ['space/web/assets/js/apps/security-lock.js']) {
     const src = rd(f);
     assert.ok(src.includes("from '../auth/passkey-register.js'"), f);
     assert.ok(src.includes('registerPasskey({') && src.includes('createPkNameDialog({'), f);

@@ -214,15 +214,10 @@ test.describe('390×844 行为', () => {
     /* P4-3 PR-4c：英文无前缀、中文 /zh/ */
     ['/zh/wild/', '旷野'],
     ['/zh/', '主页'],
-    /* PR3：账号页没登录（这里没有账号会话）时页名是「登录账号」，登录后才是「账号」 */
-    ['/zh/account/', '登录账号'],
-    ['/zh/account/reset/', '重置登录'],
     ['/zh/security/', '安全'],
     ['/zh/security/lock/', '锁屏凭证'],
     ['/wild/', 'Wild'],
     ['/', 'Home'],
-    ['/account/', 'Sign in'],
-    ['/account/reset/', 'Reset sign-in'],
   ];
   for (const [path, name] of NAMES) {
     test(`${path}：页名标记是「${name}」（顶栏不显示），没有大标题区`, async ({ page }) => {
@@ -249,7 +244,7 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-topbar a[href$="' + '/' + 'settings' + '/' + '"]')).toHaveCount(0);
   });
 
-  test('盾牌 / 头像仍是当前语言安全页 / 账号页的链接（PR-5 起普通点击开下拉，下拉里的入口照旧去那两页）、字标回首页', async ({ page }) => {
+  test('盾牌 / 头像仍是当前语言安全页 / 账号旧地址的链接（PR-5 起普通点击开下拉；头像没 JS 时去 /zh/account/ → 301 首页 #acct，2026-11-08）、字标回首页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/wild/');
     await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('href', '/zh/security/');
@@ -264,7 +259,7 @@ test.describe('390×844 行为', () => {
     await page.waitForURL(/\/zh\/security\/$/);
   });
 
-  for (const path of ['/', '/account/', '/wild/']) {
+  for (const path of ['/', '/security/', '/wild/']) {
     test(`${path}：正文从顶栏下方 16px 开始（--sgx-content-top，全站同一个值）`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {
@@ -451,13 +446,13 @@ test.describe('390×844 行为', () => {
     await expect(p2.locator('#sgx-nav [data-st="space"]')).not.toHaveAttribute('data-up', /./);
   });
 
-  test('NAVIGATE：旷野页（/zh/wild/）当前项是 05 旷野，地址 /zh/wild/；账号页没有当前项（00/05）', async ({ page }) => {
+  test('NAVIGATE：旷野页（/zh/wild/）当前项是 05 旷野，地址 /zh/wild/；安全页没有当前项（00/05）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/wild/');
     await expect(page.locator('#sgx-nav .sgx-nav-tile[data-nav="wild"]')).toHaveAttribute('href', '/zh/wild/');
     await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveAttribute('data-nav', 'wild');
     await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('05/05');
-    await go(page, '/zh/account/');
+    await go(page, '/zh/security/');
     await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveCount(0);
     await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('00/05');
   });

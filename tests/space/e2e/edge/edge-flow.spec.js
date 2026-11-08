@@ -7,6 +7,7 @@
  *  R3 切到别的标签页再切回，主站自己解锁（cookie 一直有效，锁屏是假的）
  *  R4 （P2-3 改写）临时钥匙进门的人点「锁屏凭证」→ 进锁屏凭证页，页面自己的门要复验；全局锁屏不闪
  *  R5 已登录账号点顶栏头像 → 账号页先画「欢迎回来」登录区约 0.5 秒再换成总览；临时钥匙进门的人打开账号页看到登录页
+ *     （2026-11-08 账号 UI 改版：/account/ 301 → 首页 #acct，改验账号终端：已登录直接主页、不出登录选项）
  *  P2-3：带 v1（6 段）cookie 打开任意页 → 302 锁屏、不报错、不循环 → 解锁后回到原页，过程中不清 cookie；
  *        临时钥匙页新建 → 弹锁侧复验 → 通过后拿到临时码；子站分享 → 弹共享外壳复验 → 通过后拿到短链。
  *  另外：立即锁定之后刷新、去子站都必须仍是锁着的；锁定后已打开的已解锁页面切回来要上锁。
@@ -64,11 +65,12 @@ test.beforeEach(async ({ context }) => {
         while (w.nextNode()) out += w.currentNode.nodeValue;
         return out;
       };
-      if (document.getElementById('acct-login') || /欢迎回来|Welcome back/.test(visibleText())) window.__sawLogin = true;
+      /* 2026-11-08 账号终端：登录 = sudo root 的选方式（[data-at-pick]）或旧登录区；主页 = 终端 home 层 */
+      if (document.getElementById('acct-login') || document.querySelector('#sgx-acct [data-at-pick]') || /欢迎回来|Welcome back/.test(visibleText())) window.__sawLogin = true;
       const m = document.getElementById('acct-main');
-      if (m && !m.hidden) window.__sawMain = true;
+      if ((m && !m.hidden) || document.querySelector('#sgx-acct .sgx-at[data-at-layer="home"]')) window.__sawMain = true;
     };
-    new MutationObserver(seen).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    new MutationObserver(seen).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'data-at-layer'] });
   });
 });
 
@@ -220,13 +222,19 @@ test('R4 临时钥匙进门的人点「锁屏凭证」→ 进锁屏凭证页，�
   expect(await sessionBy(page)).toBe('tempkey');
 });
 
-test('R5 临时钥匙进门的人打开账号页：看到登录页（data-sgx-account-session=out，登录区可见），不再 302', async ({ page, context }) => {
+test('R5 临时钥匙进门的人打开旧账号页 /account/：301 → /#acct，账号终端以未登录打开（sudo root），不 302 锁屏', async ({ page, context }) => {
   await setSession(context, 'tempkey');
   await page.goto(MAIN + '/account/');
-  expect(new URL(page.url()).pathname).toBe('/account/');
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'out');
-  await expect(page.locator('#acct-login')).toBeVisible();
-  await expect(page.locator('#acct-main')).toBeHidden();
+  /* 2026-11-08 账号 UI 改版：没有 /account/ 整页了（_redirects 301 → 首页 #acct），hash 打开后被去掉 */
+  await expect(page.locator('#sgx-acct')).toHaveAttribute('data-state', 'open', { timeout: 15000 });
+  expect(new URL(page.url()).pathname).toBe('/');
+  await expect(page.locator('#sgx-acct')).toHaveAttribute('data-acct-state', 'guest');
+  await expect(page.locator('#sgx-acct [data-at-log]')).toContainText('sudo root');
+  /* 测试台的账号库是空的（没设 account password / passkey）：sudo root 不列选项，提示用 sudo root reset 设第一把（session.js A12 / A13）；
+     列选项的那一支由默认组 session.spec.js（mock 状态）覆盖 */
+  await expect(page.locator('#sgx-acct [data-at-log]')).toContainText('sudo root reset');
+  await expect(page.locator('#sgx-acct [data-at-pick]')).toHaveCount(0);
+  expect(await sessionBy(page)).toBe('tempkey');
 });
 
 test('P2-3 带 v1 cookie 打开旷野子页 /wild/ 和子站内页 → 302 锁屏（带 return）、不循环 → 通行密钥解锁后回到原页，过程中不清 cookie', async ({ page, context }) => {
@@ -298,34 +306,31 @@ test('P2-3 子站点分享（共享外壳同一个请求）：没有锁侧复验
 });
 
 for (const role of ['password', 'tempkey']) {
-  test(`R5 已登录账号（锁屏会话 ${role}）进账号页：登录区一帧都不出现（不下发节点），总览首帧可见`, async ({ page, context }) => {
+  test(`R5 已登录账号（进站会话 ${role}）打开旧账号页 /account/：301 → /#acct，账号终端直接是登录后的主页，没出过 sudo root 选方式`, async ({ page, context }) => {
     await setSession(context, role);
     await context.addCookies([{ name: 'sgx-account-session', value: await edge.mintAccount(), domain: 'styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
-    await page.goto(MAIN + '/account/', { waitUntil: 'commit' });
-    await page.waitForLoadState('domcontentloaded');
-    /* 解析完那一刻：登录区节点不存在、总览不是 hidden（不靠脚本） */
-    expect(await page.evaluate(() => window.__sawLogin)).toBe(false);
-    await expect(page.locator('#acct-main')).toBeVisible();
-    /* C8：networkidle → load（页面脚本都执行过）+ 等账号会话标记 */
-    await page.waitForLoadState('load');
+    await page.goto(MAIN + '/account/');
+    const d = page.locator('#sgx-acct');
+    await expect(d).toHaveAttribute('data-state', 'open', { timeout: 15000 });
+    await expect(d).toHaveAttribute('data-acct-state', 'in');
+    await expect(d.locator('.sgx-at')).toHaveAttribute('data-at-layer', 'home');
     await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'in');
-    // TODO(C8): 再看 800ms 内登录区有没有闪出来——account.js 读 GET /api/account 后才决定显示哪块，「已决定、不出登录区」没有可观察状态
-    // （showMain 之后不改任何属性）；要确定性需在生产代码加完成标记。保留原等待。
-    await page.waitForTimeout(800);
+    /* 首帧：网关只在旧 /account/ 页注入账号登录态，首页没有，终端等 GET /api/account 再画（PR 正文「偏离」1）；
+       但等的那一下不能出登录选项（sudo root / [1] passkey） */
     expect(await page.evaluate(() => window.__sawLogin)).toBe(false);
-    await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'in');
-    await expect(page.locator('#acct-main')).toBeVisible();
-    await expect(page.locator('#acct-login')).toHaveCount(0);
+    await expect(d.locator('[data-at-act="keys"]')).toBeVisible();
   });
 }
 
-test('R5 对照：进门但没有账号会话 → 只出登录区（欢迎回来），总览不出现', async ({ page, context }) => {
+test('R5 对照：进门但没有账号会话 → 账号终端是未登录的 sudo root（空账号库 → 提示 sudo root reset），主页（四行）不出现', async ({ page, context }) => {
   await setSession(context, 'password');
   await page.goto(MAIN + '/account/');
+  const d = page.locator('#sgx-acct');
+  await expect(d).toHaveAttribute('data-state', 'open', { timeout: 15000 });
+  await expect(d).toHaveAttribute('data-acct-state', 'guest');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'out');
-  await expect(page.locator('#acct-login')).toBeVisible();
-  // TODO(C8): 同上，静默窗口（总览一次都不出现），没有「状态已读完」的可观察标记。保留原等待。
-  await page.waitForTimeout(800);
+  /* 测试台账号库为空 → sudo root 走「还没有登录方式 · 输入 sudo root reset」那一支（同上一条 R5） */
+  await expect(d.locator('[data-at-log]')).toContainText('sudo root reset');
   expect(await page.evaluate(() => window.__sawMain)).toBe(false);
 });
 

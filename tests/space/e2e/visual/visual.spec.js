@@ -25,15 +25,11 @@ const VIEWPORTS = {
   desktop: { width: 1920, height: 1080 },
 };
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
-/* 账号页（独立页 /account/，2026-10-22 从设置下的 account 子页挪出）三星式总览：/account/ 拍登录后的总览（登录区由下方 account-login-* 覆盖），
-   P4-2d 起总览多一组「AI 模型」（2026-11-08 与「云同步」一行一起删除），
-   新增安全与隐私子页 /account/security/（已过门；倒计时数字在截图里遮罩），
-   账号信息子页 /account/profile/ 2026-10-24 PR4 删除（登录方式 / 退出账号挪进设备页「此设备」卡），截图一并删除；
-   2026-11-07 /account/profile/ 复用为「个人资料」子页（行内编辑，行为见 account/account-profile.spec.js），暂不拍基线；总览多一张「个人资料」卡（account 基线随之变化）；
-   PR4 新增的账号子页（云同步 / 设备）只拍手机，见文件末尾 account-sub-*；服务状态、临时钥匙搬到设置后也只拍手机，见文件末尾 space-status-* / space-tempkeys-*（P4-3 PR-4b 从 settings-* 改名） */
-/* P3-1：应用授权子页 /account/apps/ 按账号页惯例拍 5 视口 × 中英 × 深浅（20 张，Gray 2026-11-06 确认），5 张卡都已授权（含搜索框与过滤 chips） */
-const PAGES = ['/', '/security/', '/security/lock/', '/account/', '/account/security/', '/account/reset/', '/account/apps/'];
+/* 2026-11-08 账号 UI 改版：/account/ 整页（总览 / 账号安全 / 重置 / 应用授权）删除，账号在头像下拉的账号终端里，
+   截图改拍终端各层（见下「账号终端」一组）；原 /account/* 四页 × 5 视口 × 中英 × 深浅、account-login-* 和 account-sub-devices 一并删除 */
+const PAGES = ['/', '/security/', '/security/lock/'];
 const fxGrants = require('../../../fixtures/app-grants.cjs');
+const fxStatus = require('../../../fixtures/status-summary.cjs');
 const LANGS = [
   /* P4-3 PR-4c：英文无前缀、中文 /zh/（截图名不变） */
   { prefix: '/zh', name: 'zh' },
@@ -74,35 +70,6 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
                 contentType: 'application/json',
                 body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: null }),
               });
-            });
-          }
-          /* 账号总览 / 账号信息 / 安全与隐私子页：已登录账号（密码登录），已过门（倒计时数字遮罩），通行密钥列表固定一把 */
-          if (page === '/account/' || page === '/account/security/') {
-            await pg.route('**/api/account', async (route) => {
-              if (route.request().method() === 'GET') {
-                await route.fulfill({
-                  status: 200,
-                  contentType: 'application/json',
-                  body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'password', authAt: 1760000000000, expiresAt: 4102444800000, recent: true }, reauth: { by: 'password', expiresAt: 4102444800000 } }),
-                });
-                return;
-              }
-              await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({ ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26 Ultra', provider: 'samsung-pass' /* 服务端存 provider id（语言清理 2026-11-07），显示名走字符串表 */, createdAt: 1760000000000, lastUsedAt: 1760000000000 }] }),
-              });
-            });
-          }
-          /* 应用授权（P3-1）：已登录账号，grant-list 固定 5 个应用都已授权（fixtures/app-grants.cjs，授权时间固定） */
-          if (page === '/account/apps/') {
-            await pg.route('**/api/account', async (route) => {
-              if (route.request().method() === 'GET') {
-                await route.fulfill({ status: 200, contentType: 'application/json',
-                  body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'passkey', authAt: 1760000000000, expiresAt: 4102444800000 } }) });
-                return;
-              }
-              await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, grants: fxGrants.grants() }) });
             });
           }
           if (page === '/security/lock/') {
@@ -152,19 +119,6 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await freezeTime(pg);
           await pg.goto(lang.prefix + page, { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
-          /* 账号两页：等异步内容（总览 / 子页列表）落定再截图 */
-          if (page === '/account/') {
-            await expect(pg.locator('#acct-main')).toBeVisible({ timeout: 10000 });
-            /* 2026-11-08：AI 模型 / 云同步两行删除，总览最后一组是 设备 / 账号安全 / 应用授权 */
-            await expect(pg.locator('#acct-apps-row')).toBeVisible();
-            await expect(pg.locator('#acct-ai-row, #acct-sync-row')).toHaveCount(0);
-          }
-          if (page === '/account/reset/') await expect(pg.locator('#sgx-reset-root')).toBeVisible({ timeout: 10000 });
-          if (page === '/account/apps/') await expect(pg.locator('#acct-apps-list .acct-app-card')).toHaveCount(5, { timeout: 10000 });
-          if (page === '/account/security/') {
-            await expect(pg.locator('#lockmgr-pklist .lockmgr-pkitem')).toHaveCount(1, { timeout: 10000 });
-            await expect(pg.locator('#sgx-credential-countdown')).toBeVisible();
-          }
           if (SHOTS) await expect(pg).toHaveScreenshot(`${name}.png`, {
             fullPage: false,
             animations: 'disabled',
@@ -237,80 +191,88 @@ test('baseline-ai-panel-open', async ({ page: pg }) => {
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-ai-panel-open.png', { animations: 'disabled' });
 });
 
-/* ===== 两扇门验证弹层视觉基线（第七节验收） =====
- * 手机宽度 412×915 × 中英 × 深浅色 × 两扇门 × 四态（默认/展开/报错/键盘）。
- * 首次运行加 --update-snapshots 生成基准；无横向溢出、无文字截断。
- * Hark：等具体元素，不用 waitForTimeout/networkidle。
- */
-const DOOR_VP = { width: 412, height: 915 };
-const DOOR_LANGS = [
-  /* P4-3 PR-4c：英文无前缀、中文 /zh/（截图名不变） */
-  { prefix: '/zh', name: 'zh' },
-  { prefix: '', name: 'en' },
+/* ===== 账号终端（头像下拉 #sgx-acct，2026-11-08 账号 UI 改版，设计稿 acct-sec-redraw mock v3）=====
+ * 手机 412×915 / 桌面 1920×1080 × 中英 × 深浅 × 七层：guest（未登录，sudo root 选方式）/ pw-error（密码输错一次）/ home（已登录主页）/
+ * keys（账号安全，有 reauth 票，一把通行密钥）/ devices（两台）/ grants（5 个应用都已授权）/ reset（sudo root reset 恢复密钥输入）。
+ * 截图名 <视口>-acct-<层>-<语言>-<主题>；倒计时（reauth · mm:ss / reset · mm:ss）遮罩。行为断言见 account/*.spec.js。 */
+const ACCT_VPS = { mobile: VIEWPORTS.mobile, desktop: VIEWPORTS.desktop };
+const ACCT_STATES = ['guest', 'pw-error', 'home', 'keys', 'devices', 'grants', 'reset'];
+const FAR = 4102444800000;
+const ACCT_DEVICES = [
+  { deviceId: 'aaaaaaaaaaaaaaaa', current: true, name: 'Galaxy S25 Ultra', model: 'SM-S938B', platform: 'Android', browser: 'Samsung Internet', country: 'CN', by: 'passkey', lastSeen: 1760000000000 },
+  { deviceId: 'bbbbbbbbbbbbbbbb', current: false, name: 'iPad', platform: 'iOS', browser: 'Safari', country: 'CN', lastSeen: fxStatus.NOW - 3 * 3600 * 1000 },
 ];
-const DOOR_THEMES = [
-  { name: 'light', setup: null },
-  { name: 'dark', setup: 'dark' },
-];
-/* keyboard 态在 headless 下无法触发真实键盘（与 expanded 基线完全相同），已删除；
-   键盘避让逻辑由 followKeyboard 实现，真机行为不变。 */
-/* 2026-10-24：账号登录与锁屏同一套界面 —— default（页面）/ sheet（点「登录」后的方式弹层）/ expanded（密码弹层，密码框聚焦）/ error（密码错误） */
-const DOOR_STATES = ['default', 'sheet', 'expanded', 'error'];
-
-for (const lang of DOOR_LANGS) {
-  for (const theme of DOOR_THEMES) {
-    /* 账号登录页（与锁屏同一套：头像 + 欢迎回来 + 登录 → 方式弹层 → 密码弹层）的默认 / 方式弹层 / 密码弹层 / 报错态 */
-    for (const state of DOOR_STATES) {
-      const name = `mobile-account-login-${state}-${lang.name}-${theme.name}`;
-      test(name, async ({ page: pg }) => {
-        await pg.setViewportSize(DOOR_VP);
-        await blockExternalRequests(pg);
-        await pg.emulateMedia({ reducedMotion: 'reduce' });
-        await pg.addInitScript((t) => {
-          if (t === 'dark') {
-            try { localStorage.setItem('sgx-theme-mode', 'dark'); } catch (e) {}
+for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
+  for (const lang of LANGS) {
+    for (const theme of THEMES) {
+      for (const state of ACCT_STATES) {
+        const name = `${vpName}-acct-${state}-${lang.name}-${theme.name}`;
+        test(name, async ({ page: pg }) => {
+          await pg.setViewportSize(vp);
+          await blockExternalRequests(pg);
+          await pg.emulateMedia({ reducedMotion: 'reduce' });
+          const signedIn = state !== 'guest' && state !== 'pw-error' && state !== 'reset';
+          await pg.route('**/api/account', async (route) => {
+            const req = route.request();
+            const ok = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+            if (req.method() === 'GET') {
+              return ok({ ok: true, password: true, passkey: true, ready: true,
+                session: signedIn ? { by: 'passkey', device: 'Galaxy S25 Ultra', authAt: 1760000000000, expiresAt: FAR } : null,
+                reauth: state === 'keys' ? { by: 'passkey', expiresAt: FAR } : null });
+            }
+            const b = JSON.parse(req.postData() || '{}');
+            if (b.action === 'login-password') return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
+            if (b.action === 'grant-list') return ok({ ok: true, grants: fxGrants.grants() });
+            if (b.action === 'device-list') return ok({ ok: true, devices: ACCT_DEVICES });
+            if (b.action === 'passkey-list') return ok({ ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26 Ultra', provider: 'samsung-pass', createdAt: 1760000000000, lastUsedAt: 1760000000000 }] });
+            return ok({ ok: true });
+          });
+          await pg.addInitScript(([t, ln]) => {
+            try {
+              if (t === 'dark') localStorage.setItem('sgx-theme-mode', 'dark');
+              localStorage.setItem('sgx-lang', ln);
+            } catch (e) {}
+          }, [theme.setup, lang.name]);
+          await pg.addStyleTag({
+            content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
+          });
+          await freezeTime(pg);
+          const hash = state === 'reset' ? '#acct=reset' : state === 'keys' ? '#acct=security' : state === 'devices' ? '#acct=devices' : state === 'grants' ? '#acct=apps' : '#acct';
+          await pg.goto(lang.prefix + '/wild/' + hash, { waitUntil: 'domcontentloaded' });
+          await waitPageReady(pg);
+          const d = pg.locator('#sgx-acct');
+          await expect(d).toHaveAttribute('data-state', 'open', { timeout: 10000 });
+          const at = d.locator('.sgx-at');
+          if (state === 'guest' || state === 'pw-error') {
+            await expect(at).toHaveAttribute('data-at-mode', 'pick', { timeout: 10000 });
+            if (state === 'pw-error') {
+              await d.locator('[data-at-pick="2"]').click();
+              await d.locator('[data-at-in]').fill('wrong-value');
+              await d.locator('[data-at-in]').press('Enter');
+              await expect(d.locator('.sgx-at-l--er')).toHaveCount(1, { timeout: 8000 });
+            }
+          } else if (state === 'reset') {
+            await expect(at).toHaveAttribute('data-at-mode', 'rkey', { timeout: 10000 });
+          } else {
+            await expect(at).toHaveAttribute('data-at-layer', state, { timeout: 10000 });
+            if (state === 'keys') await expect(d.locator('.sgx-at-nm')).toHaveCount(1, { timeout: 10000 });
+            if (state === 'devices') await expect(d.locator('.sgx-at-hv')).not.toHaveText('');
+            if (state === 'grants') await expect(d.locator('.sgx-at-app')).toHaveCount(5, { timeout: 10000 });
+            if (state === 'home') await expect(d.locator('[data-at-v="grants"] .sgx-pop-v')).toHaveText('5');
           }
-        }, theme.setup);
-        await pg.addInitScript((ln) => {
-          try { localStorage.setItem('sgx-lang', ln); } catch (e) {}
-        }, lang.name);
-        await pg.addStyleTag({
-          content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
+          await pg.evaluate(() => { const a = /** @type {HTMLElement|null} */ (document.activeElement); if (a) a.blur(); });
+          /* 面板在视口里、不横向溢出 */
+          const m = await pg.evaluate(() => {
+            const de = document.documentElement;
+            const r = document.querySelector('#sgx-acct .sgx-qp-sheet').getBoundingClientRect();
+            return { overflow: de.scrollWidth - de.clientWidth, l: r.left, r: r.right, vw: innerWidth };
+          });
+          if (m.overflow > 1) throw new Error(`横向溢出 ${m.overflow}px on ${name}`);
+          expect(m.l).toBeGreaterThanOrEqual(-1);
+          expect(m.r).toBeLessThanOrEqual(m.vw + 1);
+          if (SHOTS) await expect(pg).toHaveScreenshot(`${name}.png`, { animations: 'disabled', caret: 'hide', mask: [d.locator('[data-at-cd]')] });
         });
-        /* 账号凭证已设置、未登录；报错态：密码登录一律 403 wrong */
-        await pg.route('**/api/account', async (route) => {
-          if (route.request().method() === 'GET') {
-            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: null }) });
-            return;
-          }
-          await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
-        });
-        await freezeTime(pg);
-        await pg.goto(lang.prefix + '/account/', { waitUntil: 'domcontentloaded' });
-        await waitPageReady(pg);
-        await expect(pg.locator('#acct-login-go')).toBeVisible({ timeout: 10000 });
-        if (state !== 'default') {
-          await pg.click('#acct-login-go');
-          await expect(pg.locator('#sgx-method-sheet.visible #acct-pw-btn')).toBeVisible({ timeout: 5000 });
-        }
-        if (state === 'expanded' || state === 'error') {
-          await pg.click('#acct-pw-btn');
-          const field = pg.locator('#acct-pw-input');
-          await expect(field).toBeVisible({ timeout: 5000 });
-          await expect(field).toBeFocused();
-          if (state === 'error') {
-            await field.fill('wrong-value');
-            await pg.click('#acct-pw-go');
-            await expect(pg.locator('#acct-pw-err:not([hidden])')).toBeVisible({ timeout: 8000 });
-          }
-        }
-        const overflow = await pg.evaluate(() => {
-          const de = document.documentElement;
-          return de.scrollWidth - de.clientWidth;
-        });
-        if (overflow > 1) throw new Error(`横向溢出 ${overflow}px on ${name}`);
-        if (SHOTS) await expect(pg).toHaveScreenshot(`account-login-${state}-${lang.name}-${theme.name}.png`, { animations: 'disabled', caret: 'hide' });
-      });
+      }
     }
   }
 }
@@ -319,12 +281,10 @@ for (const lang of DOOR_LANGS) {
  * 设置里的门内页：服务状态（/status/，原顶栏「状态」页 → 账号页 → 设置）/ 临时钥匙（/security/tempkeys/，原账号 → 临时钥匙）=====
  * 截图名 mobile-<stem>-<lang>-<theme>：账号子页 stem = account-sub-<id>，旷野子页 stem = space-status / space-tempkeys（2026-11 从 account-sub-status / account-sub-tempkeys 改名为 settings-*，P4-3 PR-4b 再改 space-*，页面内容不变）。
  * 手机 412×915 × 中英 × 深浅色。/api/status 用 tests/fixtures/status-summary.cjs（含用量），/api/account 固定已登录（设置页不读它）、设备列表固定两台。 */
-const fxStatus = require('../../../fixtures/status-summary.cjs');
 const SUB_PAGES = [
   /* 对齐 PR-B：服务状态并进旷野 /wild/（截图名留 space-status，新基线在重设计最后一个 PR 重拍） */
   ['space-status', '/wild/', async (pg) => { await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 }); }],
-  /* 云同步子页 /account/sync/ 2026-11-08 删除（Gray 04:47；301 → /account/），account-sub-sync 一组截图随之删 */
-  ['account-sub-devices', '/account/devices/', async (pg) => { await expect(pg.locator('#acct-devices')).toBeVisible({ timeout: 10000 }); await expect(pg.locator('#acct-by')).not.toHaveText(''); }],
+  /* 账号子页（云同步 2026-11-08 删除；设备随 /account/ 整页 2026-11-08 删除，改拍账号终端 devices 层，见上「账号终端」） */
   /* 2026-10-24 分享短链：临时钥匙页（临时钥匙 + 分享短链两张列表），数据见 tests/fixtures/share-links.cjs */
   ['space-tempkeys', '/security/tempkeys/', async (pg) => { await expect(pg.locator('#acct-sl-list .sl-item')).toHaveCount(3, { timeout: 10000 }); await expect(pg.locator('#acct-tk-list .acct-dev-item')).toHaveCount(1); }],
 ];

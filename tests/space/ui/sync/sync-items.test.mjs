@@ -82,12 +82,13 @@ test('2026-11-08：云同步子页删除——模板 / 入口 / 页面脚本 / c
   for (const p of ['space/web/layouts/_default/account-sync.html', 'space/web/assets/js/entries/entry-account-sync.js', 'space/web/assets/js/apps/account-sync.js',
     'space/web/assets/js/lib/sync-items.js', 'space/web/content/account-sync.md', 'space/web/content/zh/account-sync.md']) assert.equal(ex(p), false, p);
   const red = rd('space/web/static/_redirects');
-  assert.match(red, /^\/account\/sync\/\s+\/account\/\s+301$/m);
-  assert.match(red, /^\/zh\/account\/sync\/\s+\/zh\/account\/\s+301$/m);
+  /* 同日账号整页也删了：/account/sync/ 跟 /account/ 一样 301 到本语言首页 #acct（打开账号终端） */
+  assert.match(red, /^\/account\/sync\/\s+\/#acct\s+301$/m);
+  assert.match(red, /^\/zh\/account\/sync\/\s+\/zh\/#acct\s+301$/m);
   assert.doesNotMatch(rd('space/web/layouts/_default/baseof.html'), /account-sync/);
-  assert.doesNotMatch(rd('space/web/layouts/_default/account.html'), /acct-sync-row|"path" "\/account\/sync\/"/);
+  assert.equal(ex('space/web/layouts/_default/account.html'), false);
   assert.doesNotMatch(rd('space/web/layouts/partials/shell-topbar.html'), /"sync\/"|data-acct-v="sync"/);
-  /* 后台自动同步照旧：账号页登录后 force 同步一次，外壳 core.js 照常起同步 */
-  assert.match(rd('space/web/assets/js/apps/account.js'), /initCloudSync\(\{ force: true \}\)/);
+  assert.doesNotMatch(rd('space/web/assets/js/shell/account/term.js'), /sync/i);
+  /* 后台自动同步照旧：外壳 core.js 照常起同步（账号终端登录后清拉取时刻，见 cloud-sync-throttle.test.mjs） */
   assert.match(rd('space/web/assets/js/shell/core.js'), /initCloudSync\(\)\.catch/);
 });

@@ -561,7 +561,7 @@ jobs:
           '
 
   passkey-e2e:
-    # WebAuthn 虚拟认证器 + 真实网关代码的 E2E（tests/space/e2e/passkey/passkey.spec.js、account-challenge.spec.js）。生产部署的所有 job 都等它通过。
+    # WebAuthn 虚拟认证器 + 真实网关代码的 E2E（tests/space/e2e/passkey/passkey.spec.js、account-passkey.spec.js）。生产部署的所有 job 都等它通过。
     # 按事件分两条路（job 名不变：passkey-e2e 是分支保护的必需检查，结论就是这个 job 的结论）：
     # - pull_request：本地模拟器 tests/space/e2e/helpers/preview-emulator.cjs——同一个组合入口 tests/space/e2e/helpers/preview-worker.js
     #   （网关 workers/auth-gateway/src/app.js + 账号 Worker 命名入口的实现，账号拆分 PR3；SGX_ENV=preview），

@@ -2,7 +2,7 @@
 {{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "daymark") (printf "daymark-%s" $lang) }}
 {{/* 日刻首页（2026-11 对齐 PR-C2，设计稿 tb4.html pg=day）：
    - 余响（首页本身）：居中一屏——「cat daymark/<日期>」· 日期行「2026 · 11 · 08 · 星期日」· 大号「」引句 · — 出处 → 一行命令链（shuf -n1 再抽一句 · set today 设为今日 · cat today 回到今日 ·
-     不能编辑时 sudo login 登录账号后可编辑）→ 13 格日期条（看那天的句子；今天主题色描边，还没到的日子灰掉）→ 三个终端窗（余响：最近几天的句子 · 拾录：最新三句 · 百味：专题 / 人物；
+     不能编辑时 sudo root 登录账号后可编辑）→ 13 格日期条（看那天的句子；今天主题色描边，还没到的日子灰掉）→ 三个终端窗（余响：最近几天的句子 · 拾录：最新三句 · 百味：专题 / 人物；
      窗标题进完整列表）→ 前后日两卡（‹ cat 前一天 │ cat 后一天 ›，明天是「明天见」）。
    - 拾录 #trove、百味 #flavors：完整列表（同风格页头 + cd .. 回余响），能编辑时拾录页头「touch trove/ + 记一句」，点句子编辑；百味能建专题、排序。
    取代旧的平铺入口、段式标签、实心「再抽一句」/ 描边按钮组、右上分享图标（分享并入顶栏 NAVIGATE share）、右下浮动按钮、页底提示。
@@ -24,9 +24,10 @@
         {{/* 设为今日：只在 canWrite、只在抽到一句公开的（不是今日那句）之后出现（daymark.js canSetToday）；点了改写今天那句（PUT /api/today） */}}
         <button id="dm-set-today" type="button" class="sgx-cmd hidden"><span class="sgx-cmd-k" translate="no">set today</span><i>{{ $tr.index.setAsToday }}</i></button>
         <button id="dm-back-today" type="button" class="sgx-cmd hidden"><span class="sgx-cmd-k" translate="no">cat today</span><i>{{ $tr.index.backToToday }}</i></button>
-        {{/* 不能编辑（接口回 canWrite=false）：命令链里多一条「sudo login」，链到主站账号页（daymark.js signinHint 按有没有账号会话换说明和链接）。
-           data-acct / data-home：经典脚本用的主站账号地址和本站首页，由 sgx-lang-path.html 按本页语言算好（P4-3 PR-4c，不在 JS 里手写前缀） */}}
-        <a id="dm-signin" data-dm-signin class="sgx-cmd hidden" data-acct="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}" data-home="{{ partial "sgx-lang-path.html" (dict "path" "/daymark/" "lang" ($lang)) }}" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}"><span class="sgx-cmd-k" translate="no">sudo login</span><i data-signin-text>{{ $tr.index.signInToYour }}</i></a>
+        {{/* 不能编辑（接口回 canWrite=false）：命令链里多一条「sudo root」（2026-11-08 账号命令体系 v3），点它打开顶栏账号终端
+           （data-acct-open，shell/topbar-panel.js 接住；daymark.js signinHint 按有没有账号会话换说明和入口：没登录 → 登录 + 授权同意 → 回本页；已登录没授权 → 应用授权）。
+           href 只是没 JS / 中键时的退路：本语言首页 #acct&app=daymark */}}
+        <a id="dm-signin" data-dm-signin class="sgx-cmd hidden" data-acct-open="" data-acct-app="daymark" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}#acct&amp;app=daymark"><span class="sgx-cmd-k" translate="no">sudo root</span><i data-signin-text>{{ $tr.index.signInToYour }}</i></a>
       </div>
       <nav id="dm-dcal" class="dm-dcal" aria-label="{{ $tr.index.dayStrip }}"></nav>
     </div>
@@ -51,7 +52,7 @@
       <a class="sgx-cmd" href="#"><span class="sgx-cmd-k" translate="no">cd ..</span><i>{{ $tr.index.back }}</i></a>
       <button id="dm-fab" type="button" class="sgx-cmd hidden"><span class="sgx-cmd-k" translate="no">touch trove/ +</span><i>{{ $tr.index.saveALine }}</i></button>
       {{/* 拾录里也有一条（不能编辑时；同余响那条，daymark.js 一起换说明和链接） */}}
-      <a id="dm-signin-trove" data-dm-signin class="sgx-cmd hidden" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}"><span class="sgx-cmd-k" translate="no">sudo login</span><i data-signin-text>{{ $tr.index.signInToYour }}</i></a>
+      <a id="dm-signin-trove" data-dm-signin class="sgx-cmd hidden" data-acct-open="" data-acct-app="daymark" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}#acct&amp;app=daymark"><span class="sgx-cmd-k" translate="no">sudo root</span><i data-signin-text>{{ $tr.index.signInToYour }}</i></a>
     </div>
     <div id="dm-list" class="dm-list"></div>
     <p id="dm-empty" class="dm-note hidden"></p>

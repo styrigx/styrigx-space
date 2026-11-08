@@ -29,6 +29,7 @@ import { isLang } from '../lib/lang-path.js';
 import { modalSheet } from './modal-sheet.js';
 import { mountTopbar } from './topbar-panel.js';
 import { mountAiChat } from './ai-panel.js';
+import { mountAccountTerm, layerFromPath } from './account/term.js';
 import { onKeyboardHeight } from './vk.js';
 import { mountShare } from './share-button.js';
 import * as terminal from './terminal.js';
@@ -61,6 +62,9 @@ export function initQuickPanel() {
     navigate: sgxNavigate,
     replace: sgxReplace,
     ai: mountAiChat,
+    /* 账号终端（头像下拉，2026-11-08 账号 UI 改版） */
+    account: mountAccountTerm,
+    accountLayer: layerFromPath,
     share: mountShare,
     /* 全站终端（Ctrl / ⌘ K、NAVIGATE「$ terminal」；2026-11 PR-2） */
     terminal,

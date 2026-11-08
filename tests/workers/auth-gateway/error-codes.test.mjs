@@ -55,7 +55,7 @@ const KNOWN_FIXED = new Set([
   'account',
   'bad-json',
   'bad-url',
-  'current', /* 账号 › 设备：不能在设备页退出此设备（auth/account-api.js ERR_KEYS → devCurrent） */
+  'current', /* 账号 › 设备：不能在设备页退出此设备（auth/post-json.js ERR_KEYS → devCurrent） */
   'unauthorized',
   'upstream',
   /* /api/ai（P4-1）：AI 窗口在 P5-1，按码显示固定文案（全站太忙，稍后再试），不进 apiErrorText */

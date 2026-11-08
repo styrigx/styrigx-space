@@ -1,7 +1,7 @@
 // 奇趣（手机）：接口用 page.route 假数据，不碰线上。2026-11 对齐 PR-C2（设计稿 pg=curio / citem）：首页 /curio/ 就是「发现」，
 //   分区 /curio/finds/、/devices/、/games/、/movies/、/music/（中文 /curio/zh/…）是页头的下划线 tab（#cu-tabs）。电影、音乐的用例在 curio-movies-music.spec.js。
 // - 顶栏：字标 · 页名胶囊（首页 = 奇趣，子页 = 子页名）· 外观 · 盾牌 · >_ · 头像；页头 tab 带计数，音乐 tab 仅本人可见
-// - 账号没登录（canWrite=false）：命令链里没有「收藏 / 管理分类 / 导入 / 导出」，只有「sudo login · 登录账号后可编辑」链到 /account/；封面卡点开新标签页；图标取不到显示首字母
+// - 账号没登录（canWrite=false）：命令链里没有「收藏 / 管理分类 / 导入 / 导出」，只有「sudo root · 登录账号后可编辑」打开顶栏账号终端（2026-11-08 账号 UI 改版）；封面卡点开新标签页；图标取不到显示首字母
 // - 分类 chips 筛选 + hash；grep 行内过滤；排序；分页条；旧 hash 地址（#devices、#games）在首页转到子页（#c/<分类> 就地生效）；左右滑切分区已删
 // - 设备 / 游戏：账号没登录只读；条目页 ?id=（取代详情弹层：面包屑、spec 表、换代互链、cd .. / cd ../next）；能编辑时新建（照片缩图后上传）、条目页里编辑、删除；使用天数
 // - 能编辑（canWrite + showPrivate）：私密带锁；没有「登录账号后可编辑」；写接口回 401 account 不刷新页面、提示登录；收藏 → 填网址自动补全 → 保存发 link.add；长按卡片编辑、删除要确认；管理分类；导入发原文
@@ -119,10 +119,14 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await expect(page.locator('[data-pg-count]')).toHaveText('-- 2 / 2 --');
   await expect(page.locator('[data-cu-sort]')).toHaveValue('recent');
   expect(await page.locator('.cu-cc').evaluateAll((els) => els.map((e) => e.getAttribute('data-id')))).toEqual(['21', '11']);
-  /* 编辑入口换成「sudo login · 登录账号后可编辑」，链到主站账号页并带 ?return=本页（P3-1 同意流程：登录完回来） */
+  /* 编辑入口换成「sudo root · 登录账号后可编辑」：点了打开顶栏账号终端（data-acct-open + data-acct-app=curio：登录 → 判授权 → 关面板回本页）；
+     href 只是没 JS 的退路（主站本语言首页 #acct&app=curio，2026-11-08 账号 UI 改版） */
   await expect(page.locator('#cu-signin')).toBeVisible();
   await expect(page.locator('#cu-signin [data-signin-text]')).toHaveText('登录账号后可编辑');
-  await expect(page.locator('#cu-signin')).toHaveAttribute('href', 'https://styrigx.com/zh/account/?return=%2Fcurio%2Fzh%2Ffinds%2F');
+  await expect(page.locator('#cu-signin')).toHaveAttribute('href', 'https://styrigx.com/zh/#acct&app=curio');
+  await expect(page.locator('#cu-signin')).toHaveAttribute('data-acct-open', '');
+  await expect(page.locator('#cu-signin')).toHaveAttribute('data-acct-app', 'curio');
+  await expect(page.locator('#cu-signin .sgx-cmd-k')).toHaveText('sudo root');
   const gh = page.locator('.cu-cc[data-id="11"]');
   await expect(gh).toHaveAttribute('href', 'https://github.com/');
   await expect(gh).toHaveAttribute('target', '_blank');
@@ -142,9 +146,10 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await expect(page.locator('.sgx-tb-acts .sgx-tb-grid')).toHaveAttribute('aria-controls', 'sgx-nav');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-av')).toHaveAttribute('href', 'https://styrigx.com/zh/account/');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-shield')).toHaveAttribute('href', 'https://styrigx.com/zh/security/');
-  /* 2026-11 PR-5：账号入口 = 顶栏头像 → 账号下拉（AI 窗口头部不再有头像） */
-  await expect(page.locator('#sgx-acct .sgx-pop-me-a')).toHaveAttribute('href', 'https://styrigx.com/zh/account/');
-  await expect(page.locator('#sgx-acct .sgx-pop-avatar')).toHaveAttribute('src', 'https://styrigx.com/avatar/192.webp');
+  /* 2026-11 PR-5：账号入口 = 顶栏头像 → 账号下拉（AI 窗口头部不再有头像）；2026-11-08 账号下拉 = 账号终端，没有去账号页的链接 */
+  await expect(page.locator('#sgx-acct')).toHaveCount(1);
+  await expect(page.locator('#sgx-acct a[href*="/account/"]')).toHaveCount(0);
+  await expect(page.locator('.sgx-tb-acts .sgx-tb-avatar')).toHaveAttribute('src', 'https://styrigx.com/avatar/192.webp');
   await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveCount(0);
   await expect(page.locator('#site-nav .sgx-tb-me')).toHaveCount(0);
   await expect(page.locator('.sgx-tb-nav, #sgx-drawer, .sgx-tb-end, .sgx-tb-share, .sgx-topbar [data-sgx-share], .sgx-tb-end-group, .sgx-tb-guestbook, a[href*="guestbook"]')).toHaveCount(0);
@@ -326,7 +331,9 @@ test('写接口回 401 account（账号会话刚过期）不刷新页面、提�
   await page.locator('#imp-file').setInputFiles({ name: 'bookmarks.html', mimeType: 'text/html', buffer: Buffer.from(html) });
   await page.locator('#imp-go').click();
   await expect(page.locator('#imp-msg')).toContainText('导入前要再验证一次账号');
-  await expect(page.locator('#imp-msg a')).toHaveAttribute('href', '/zh/account/security/');
+  /* 2026-11-08：打开顶栏账号终端只做 sudo root reauth（验过关面板，reauth 票留给导入用） */
+  await expect(page.locator('#imp-msg a')).toHaveAttribute('href', 'https://styrigx.com/zh/#acct=reauth');
+  await expect(page.locator('#imp-msg a')).toHaveAttribute('data-acct-open', 'reauth');
   await expect(page.locator('#imp-go')).toBeEnabled();
   expect(reloads).toBe(before);
 });
@@ -610,7 +617,7 @@ test('账号已登录（可写）：游戏封面「移动和缩放」——框�
   await expect(page.locator('#gm-photo-prev')).toBeDisabled();
 });
 
-test('P3-1 账号已登录但奇趣未获授权（canWrite=false、showPrivate=true）：命令链「sudo login · 奇趣未获账号授权」链到 /account/apps/；写接口 403 scope 提示同一句', async ({ page }) => {
+test('P3-1 账号已登录但奇趣未获授权（canWrite=false、showPrivate=true）：命令链「sudo root · 奇趣未获账号授权」打开账号终端的应用授权层；写接口 403 scope 提示同一句', async ({ page }) => {
   await mock(page, true);
   await page.route('**/api/links**', (r) => (r.request().method() === 'GET'
     ? r.fulfill({ json: { ok: true, canWrite: false, showPrivate: true, cats: [] } })
@@ -618,6 +625,8 @@ test('P3-1 账号已登录但奇趣未获授权（canWrite=false、showPrivate=t
   await page.goto('/curio/zh/finds/');
   await expect(page.locator('#cu-signin')).toBeVisible();
   await expect(page.locator('#cu-signin [data-signin-text]')).toHaveText('奇趣未获账号授权');
-  await expect(page.locator('#cu-signin')).toHaveAttribute('href', 'https://styrigx.com/zh/account/apps/');
+  await expect(page.locator('#cu-signin')).toHaveAttribute('href', 'https://styrigx.com/zh/#acct=apps');
+  await expect(page.locator('#cu-signin')).toHaveAttribute('data-acct-open', 'apps');
+  await expect(page.locator('#cu-signin')).not.toHaveAttribute('data-acct-app', /./);
   await expect(page.locator('#cu-fab')).toBeHidden();
 });

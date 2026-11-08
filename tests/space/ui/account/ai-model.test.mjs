@@ -1,5 +1,5 @@
 /**
- * P4-2d 账号侧切换 AI 模型：纯函数部分（DOM 行为见 e2e account.spec.js「AI 模型」、quick-panel.spec.js「AI 窗口」）。
+ * P4-2d 账号侧切换 AI 模型：纯函数部分（DOM 行为见 e2e（账号侧 AI 模型行 2026-11-08 已删）、quick-panel.spec.js「AI 窗口」）。
  * - shell/ai-panel.js：loadModel / clearModel（清掉并派发 sgx-settings-changed）/ isBadModel（只认 400 + error bad_model）。
  * - 2026-11-08（Gray 04:45）：账号页「AI 模型」一行与 apps/account-ai.js 删除、账号下拉也没有模型行；模型只在 AI 窗口右上角切换（同一个键 sgx-ai-model）。
  * 运行：node --test tests/space/ui/account/ai-model.test.mjs
@@ -69,9 +69,8 @@ test('2026-11-08 Gray 04:45：账号页 / 账号下拉都没有 AI 模型行，a
   let gone = false;
   try { rd('space/web/assets/js/apps/account-ai.js'); } catch (e) { gone = true; }
   assert.ok(gone, 'account-ai.js 应已删除');
-  const tpl = rd('space/web/layouts/_default/account.html');
-  assert.doesNotMatch(tpl, /acct-ai-row|acct-ai-list|account\.aiModel/);
-  assert.doesNotMatch(rd('space/web/assets/js/apps/account.js'), /account-ai|initAiModelRow/);
+  /* 2026-11-08 账号页删了；账号终端（shell/account/）里也没有模型行 */
+  for (const f of ['term.js', 'profile.js', 'session.js']) assert.doesNotMatch(rd('space/web/assets/js/shell/account/' + f), /account-ai|initAiModelRow|aiModel/);
   const tb = rd('space/web/layouts/partials/shell-topbar.html');
   const acct = tb.slice(tb.indexOf('<dialog id="sgx-acct"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-acct"')));
   assert.doesNotMatch(acct, /\$t\.acct\.ai\b|"k" "ai"|data-acct-v="ai"/);
