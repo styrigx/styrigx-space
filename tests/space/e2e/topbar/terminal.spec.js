@@ -196,7 +196,7 @@ test('抽屉：/blog/ 上 Ctrl K 打开（提示符 ~/blog$），能跑 help；E
   await page.keyboard.press('Escape');
   await expect(dlg).not.toHaveAttribute('open', '');
   await expect(dlg).toHaveAttribute('data-state', 'closed');
-  await page.keyboard.press('Meta+k');
+  await page.keyboard.press('Control+k');
   await expect(dlg).toHaveAttribute('open', '');
   /* 历史跨开合保留 */
   await inp.press('ArrowUp');
