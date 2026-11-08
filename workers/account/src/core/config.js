@@ -51,6 +51,13 @@ export const TICKET = Object.freeze({
   }),
 });
 
+/**
+ * 登录标记 cookie（#327 偏离修复，2026-11-08）：值固定 '1'，不含任何秘密、不签名，**不是** HttpOnly，前端首帧读它决定先画
+ * root@account:~# 还是 guest 提示符（GET /api/account 回来后校正）。只用于显示：鉴权一律只认 HttpOnly 的 sgx-account-session，
+ * 服务端从不读这个 cookie。随 session 签发 / 清除（core/session.js issueSession / endSession），时长同 session。
+ */
+export const SIGNED_IN_MARKER = Object.freeze({ cookie: 'sgx-account-signed-in', value: '1', maxAge: TICKET_MAX_AGE.session });
+
 /* ---------- Secrets Store 里的名字（wrangler.toml secrets_store_secrets，binding = secret_name；secrets.js 换成字符串） ---------- */
 export const SIGNING_PRIVATE = 'SGX_ACCOUNT_PRIVATE';
 export const SIGNING_PUBLIC = 'SGX_ACCOUNT_PUBLIC';

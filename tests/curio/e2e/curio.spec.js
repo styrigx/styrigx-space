@@ -310,7 +310,14 @@ test('写接口回 401 account（账号会话刚过期）不刷新页面、提�
   await page.route('**/api/links**', (r) => (r.request().method() === 'POST'
     ? r.fulfill({ status: 401, json: { ok: false, error: 'account' } })
     : r.fallback()));
-  await page.route('**/api/import**', (r) => r.fulfill({ status: 401, json: { ok: false, error: 'reauth' } }));
+  let reauthed = false;
+  let imports = 0;
+  await page.route('**/api/import**', (r) => {
+    imports++;
+    return reauthed
+      ? r.fulfill({ json: { ok: true, found: 1, added: 1, skipped: 0, invalid: 0, cats_added: 0, canWrite: true, showPrivate: true, cats: [] } })
+      : r.fulfill({ status: 401, json: { ok: false, error: 'reauth' } });
+  });
   let reloads = 0;
   page.on('framenavigated', (f) => { if (f === page.mainFrame()) reloads++; });
   await page.goto('/curio/zh/finds/');
@@ -330,12 +337,26 @@ test('写接口回 401 account（账号会话刚过期）不刷新页面、提�
   const html = '<!DOCTYPE NETSCAPE-Bookmark-file-1><DL><p><DT><A HREF="https://t.example/">T</A></DL>';
   await page.locator('#imp-file').setInputFiles({ name: 'bookmarks.html', mimeType: 'text/html', buffer: Buffer.from(html) });
   await page.locator('#imp-go').click();
-  await expect(page.locator('#imp-msg')).toContainText('导入前要再验证一次账号');
-  /* 2026-11-08：打开顶栏账号终端只做 sudo root reauth（验过关面板，reauth 票留给导入用） */
+  await expect(page.locator('#imp-msg')).toContainText('导入要再验证一次账号');
+  /* 打开顶栏账号终端只做 sudo root reauth；验过后终端发 sgx-account-reauthed，奇趣当场重发导入并 waitUntil 登记，
+     终端等它做完再 POST /reauth { end }（关下拉 reauth 即失效，#327 偏离修复） */
   await expect(page.locator('#imp-msg a')).toHaveAttribute('href', 'https://styrigx.com/zh/#acct=reauth');
   await expect(page.locator('#imp-msg a')).toHaveAttribute('data-acct-open', 'reauth');
   await expect(page.locator('#imp-go')).toBeEnabled();
   expect(reloads).toBe(before);
+  expect(imports).toBe(1);
+  reauthed = true;
+  const waited = await page.evaluate(() => {
+    let n = 0;
+    document.dispatchEvent(new CustomEvent('sgx-account-reauthed', { detail: { waitUntil(p) { n++; return p; } } }));
+    return n;
+  });
+  expect(waited).toBe(1);
+  await expect(page.locator('#imp-msg')).toContainText('新增 1 条');
+  expect(imports).toBe(2);
+  /* 导入做完后再发一次（别的页面复验）：不重复导入 */
+  await page.evaluate(() => { document.dispatchEvent(new CustomEvent('sgx-account-reauthed', { detail: { waitUntil() {} } })); });
+  expect(imports).toBe(2);
 });
 
 test('英文页：tab 提示、分类名、命令说明用英文（英文空时退回中文）', async ({ page }) => {

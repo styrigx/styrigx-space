@@ -29,10 +29,13 @@ export function mountProfile(C) {
         (photoCustom ? '<button type="button" class="sgx-at-a" data-at-act="photo-rm">' + esc(t('profile.removePhoto')) + '</button>' : '') +
         '<button type="button" class="sgx-at-a2" data-at-act="ed-cancel"><kbd>esc</kbd>' + esc(t('common.cancel')) + '</button></div><p class="sgx-at-ms">' + esc(t('profile.cropHint')) + '</p></div>';
     }
+    /* 没改过的字段显示站点默认值（灰字，data-at-default）；只有默认值也没有时才是「未填写」 */
+    const own = readCache();
     PROFILE_FIELDS.forEach(function (f) {
       const v = /** @type {any} */ (p)[f.id] || '';
+      const isDef = /** @type {any} */ (own)[f.id] === undefined;
       const label = t('profile.' + f.id);
-      h += C.row({ k: label, vHtml: v ? '<span translate="no" data-sgx-personal>' + esc(v) + '</span>' : '<span class="sgx-at-dim">' + esc(t('profile.notSet')) + '</span>', act: 'edit:' + f.id, chev: true, armed: ed === f.id });
+      h += C.row({ k: label, vHtml: v ? '<span translate="no" data-sgx-personal' + (isDef ? ' class="sgx-at-dim" data-at-default' : '') + '>' + esc(v) + '</span>' : '<span class="sgx-at-dim">' + esc(t('profile.notSet')) + '</span>', act: 'edit:' + f.id, chev: true, armed: ed === f.id });
       if (ed === f.id) {
         h += '<div class="sgx-at-ed"><label class="sgx-at-eln"><span class="sgx-at-p" aria-hidden="true">&gt;</span><input class="sgx-at-ein" data-at-ein="' + f.id + '" type="' + (f.kind === 'email' ? 'email' : 'text') + '" maxlength="' + (f.max * 2) + '" value="' + esc(v) + '" aria-label="' + esc(label) + '" autocomplete="off" spellcheck="false"><span class="sgx-at-ct" data-at-ct>' + Array.from(v).length + '/' + f.max + '</span></label>' +
           '<div class="sgx-at-ac"><button type="button" class="sgx-at-a2" data-at-act="ed-cancel"><kbd>esc</kbd>' + esc(t('common.cancel')) + '</button><button type="button" class="sgx-at-a" data-at-act="ed-save"><kbd>enter</kbd>' + esc(t('common.save')) + '</button></div>' +

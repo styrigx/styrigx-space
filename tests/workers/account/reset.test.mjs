@@ -116,7 +116,7 @@ test('finish all（本机已登录）：纪元 +1、不重签、清本机 sessio
   const r = await post(env, 'reset', { action: 'finish', signOut: 'all' }, ck);
   assert.deepEqual(await r.json(), { ok: true, signOut: 'all', signedOut: 3 });
   for (const c of setCookies(r)) assert.match(c, /Max-Age=0/);
-  assert.deepEqual(setCookies(r).map((c) => c.split('=')[0]).sort(), ['sgx-account-reauth', 'sgx-account-reset', 'sgx-account-session']);
+  assert.deepEqual(setCookies(r).map((c) => c.split('=')[0]).sort(), ['sgx-account-reauth', 'sgx-account-reset', 'sgx-account-session', 'sgx-account-signed-in']);
   assert.deepEqual(devIds(env), []);
   assert.equal((await (await get(env, ck)).json()).session, null);
   assert.deepEqual(auditEvents(env), ['reset-finish-all']);

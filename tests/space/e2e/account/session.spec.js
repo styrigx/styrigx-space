@@ -317,3 +317,96 @@ test.describe('通行密钥按钮反馈', () => {
   });
 });
 
+
+/* #327 偏离修复（2026-11-08）：首帧登录态按登录标记 cookie sgx-account-signed-in（非 HttpOnly、值 1、不含秘密；账号 Worker 随 session 签发 / 清除），
+   GET /api/account 回来后校正（没 session 清掉标记；有 session 没标记补上）。鉴权仍只认 HttpOnly 的 sgx-account-session。 */
+test.describe('首帧登录态（登录标记 cookie）', () => {
+  /** GET /api/account 先挡住，放行后才回 @param {any} page */
+  async function holdStatus(page) {
+    let release = () => {};
+    const gate = new Promise((r) => { release = r; });
+    await page.route(/\/api\/account\/?(\?.*)?$/, async (route) => {
+      if (route.request().method() === 'GET') await gate;
+      await route.fallback();
+    });
+    return () => release();
+  }
+  const marker = (page) => page.context().cookies().then((cs) => cs.find((c) => c.name === 'sgx-account-signed-in'));
+
+  test('有标记：接口还没回就画 root 提示符；接口说没 session → 校正成 guest 并清掉标记', async ({ page }) => {
+    await mockAccount(page, { status: STATUS({ session: null }) });
+    const release = await holdStatus(page);
+    await page.context().addCookies([{ name: 'sgx-account-signed-in', value: '1', url: 'http://localhost:8931' }]);
+    await T.goPage(page);
+    const d = await openTerm(page);
+    await expect(d).toHaveAttribute('data-acct-state', 'in');
+    release();
+    await expect(d).toHaveAttribute('data-acct-state', 'guest');
+    await expect.poll(() => marker(page)).toBeUndefined();
+  });
+
+  test('没标记：首帧 guest；接口说有 session → 校正成 root，并补上标记', async ({ page }) => {
+    await mockAccount(page, { status: STATUS({ session: SESSION() }) });
+    const release = await holdStatus(page);
+    await T.goPage(page);
+    const d = await openTerm(page);
+    await expect(d).toHaveAttribute('data-acct-state', 'guest');
+    release();
+    await expect(d).toHaveAttribute('data-acct-state', 'in');
+    await expect(ps(page)).toHaveText('root@account:~#');
+    await expect.poll(async () => (await marker(page) || {}).value).toBe('1');
+    expect((await marker(page)).httpOnly).toBe(false);
+  });
+});
+
+/* #327 偏离修复：只做再验证的入口（[data-acct-open="reauth"]，奇趣导入书签）也遵守「关下拉 reauth 即失效」 */
+test.describe('只做再验证（data-acct-open="reauth"）', () => {
+  /** 已登录、reauth/password 签票；页面上放一个入口 @param {any} page */
+  async function setup(page) {
+    let ticket = null;
+    const calls = await mockAccount(page, {
+      status: () => STATUS({ session: SESSION(), reauth: ticket }),
+      handlers: { 'reauth/password': () => { ticket = REAUTH(); return [200, { ok: true }]; }, 'reauth/end': () => { ticket = null; return [200, { ok: true }]; } },
+    });
+    await T.goPage(page);
+    await page.evaluate(() => {
+      const a = document.createElement('a');
+      a.id = 'reauth-only'; a.href = '#acct=reauth'; a.setAttribute('data-acct-open', 'reauth'); a.textContent = 'verify';
+      document.body.appendChild(a);
+    });
+    return calls;
+  }
+
+  test('没有页面接手：验过关面板，立刻 POST /reauth { end }', async ({ page }) => {
+    const calls = await setup(page);
+    await page.locator('#reauth-only').click();
+    const d = page.locator('#sgx-acct');
+    await expect(d).toHaveAttribute('data-state', 'open');
+    await expect(log(page)).toContainText('sudo root reauth');
+    await termIn(page).press('2');
+    await typeLine(page, 'correct-horse');
+    await expect(d).toBeHidden();
+    await expect.poll(() => calls.filter((c) => c.action === 'reauth/end').length).toBe(1);
+  });
+
+  test('页面接手（sgx-account-reauthed + waitUntil）：在 reauth 里做完那件事，做完才 POST /reauth { end }', async ({ page }) => {
+    const calls = await setup(page);
+    await page.evaluate(() => {
+      /** @type {any} */ (window).__pageWork = { started: false, finish: null };
+      document.addEventListener('sgx-account-reauthed', (e) => {
+        const w = /** @type {any} */ (window).__pageWork;
+        w.started = true;
+        /** @type {any} */ (e).detail.waitUntil(new Promise((r) => { w.finish = r; }));
+      });
+    });
+    await page.locator('#reauth-only').click();
+    await termIn(page).press('2');
+    await typeLine(page, 'correct-horse');
+    await expect(page.locator('#sgx-acct')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__pageWork.started)).toBe(true);
+    await page.waitForTimeout(300);
+    expect(calls.filter((c) => c.action === 'reauth/end')).toHaveLength(0);
+    await page.evaluate(() => /** @type {any} */ (window).__pageWork.finish());
+    await expect.poll(() => calls.filter((c) => c.action === 'reauth/end').length).toBe(1);
+  });
+});

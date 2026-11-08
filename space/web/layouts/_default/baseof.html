@@ -262,9 +262,8 @@ __sgxLayoutWatch(__applyLayout);
   {{ $featDefs = $featDefs | append $d }}
 {{ end }}
 <script id="sgx-features" type="application/json">{{ $featDefs | jsonify | safeJS }}</script>
-{{/* 2026-11-07 个人资料的构建期默认值（data/profile.yaml），lib/profile.js profileDefaults() 读：接口对没改过的字段回 null 时用它 */}}
-{{ $pf := site.Data.profile }}
-<script id="sgx-profile-default" type="application/json">{{ dict "name" $pf.name "nickname" $pf.nickname "motto" $pf.motto "email" $pf.email | jsonify | safeJS }}</script>
+{{/* 2026-11-07 个人资料的构建期默认值（四站同一个片段） */}}
+{{ partial "sgx-profile-default.html" . }}
 {{/* 2.4.0-C：ES Modules 入口（js.Build 打包 + minify + fingerprint，type="module" 引入）。
    各页模板用 .Scratch.Set "sgx-entry" 指定入口（默认 entry-core.js，即只有公共 core）。 */}}
 {{ $entryName := .Scratch.Get "sgx-entry" | default "entry-core.js" }}

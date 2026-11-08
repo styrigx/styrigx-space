@@ -10,7 +10,7 @@
  * - 不能编辑（canWrite=false）：命令链里只有一条「sudo root」（#cu-signin，signinHint）：
  *   没登录账号 →「登录账号后可编辑」，点了打开顶栏账号终端（P3-1 同意流程：登录完先判授权，没授权 [y]/[n]，完了关面板回本页）；
  *   已登录但奇趣没有 curio.write（在 账号 › 应用授权 取消过）→「奇趣未获账号授权」，打开应用授权那一层。写接口回 403 scope 也提示这一句。
- *   写接口回 401 account / 403 scope 时也提示这一句；导入回 401 reauth（要账号复验）时提示去账号页验证一次再回来导入（P3-1 前的简版）。
+ *   写接口回 401 account / 403 scope 时也提示这一句；导入回 401 reauth（要账号复验）时给「去验证」：打开账号终端只做 sudo root reauth，验过后当场重发导入，关下拉 reauth 即失效（#327 偏离修复）。
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
  *
  * 数据：GET /api/links；写：POST /api/links {op}、POST /api/import（原文）；GET /api/preview；导出是 /api/export 的下载链接。
@@ -581,7 +581,8 @@ function impMsg(text, bad, link){
   }
   el.classList.toggle('hidden', !text); el.classList.toggle('text-m-error', !!bad);
 }
-/** 账号再验证（2026-11-08：打开顶栏账号终端只做 sudo root reauth，验过 3 分钟内导入不再要求复验） */
+/** 账号再验证（2026-11-08：打开顶栏账号终端只做 sudo root reauth）。验过后终端发 sgx-account-reauthed，这里当场重发导入；
+ *  关下拉后 reauth 即失效（#327 偏离修复，和 O12 一致），所以不靠「3 分钟内再点一次导入」 */
 function reauthLink(){ var el = doc.getElementById('cu-signin'); return { href: ((el && el.getAttribute('href')) || '/').replace(/#.*$/, '') + '#acct=reauth', open: 'reauth', label: T.verifyNow }; }
 function resetImport(){
   impFile = null;
@@ -600,19 +601,35 @@ $('#imp-file').addEventListener('change', function(){
   $('#imp-go').disabled = !impFile;
   impMsg('');
 });
-$('#imp-go').addEventListener('click', function(){
-  if (!impFile) return;
+/* 导入回了 401 reauth、还没复验：账号终端只做 reauth 验过后（sgx-account-reauthed）当场重发这一次导入 */
+var impNeedsReauth = false;
+/** @returns {Promise<void>} */
+function runImport(){
+  if (!impFile) return Promise.resolve();
   var btn = $('#imp-go');
   btn.disabled = true;
+  impNeedsReauth = false;
   impMsg(T.importing);
-  impFile.text().then(function(text){
+  return impFile.text().then(function(text){
     return send('/curio/api/import' + ($('#imp-private').checked ? '' : '?private=0'), text, 'text/html');
   }).then(function(j){
     cats = j.cats || [];
     render();
     impMsg(importSummary(j, tr));
     impFile = null;
-  }).catch(function(e){ if (!e.sgxLocked) { impMsg(errText(e), true, e.code === 'reauth' ? reauthLink() : null); btn.disabled = false; } });
+  }).catch(function(e){
+    if (e.sgxLocked) return;
+    impNeedsReauth = e.code === 'reauth';
+    impMsg(errText(e), true, impNeedsReauth ? reauthLink() : null);
+    btn.disabled = false;
+  });
+}
+$('#imp-go').addEventListener('click', function(){ runImport(); });
+doc.addEventListener('sgx-account-reauthed', function(ev){
+  if (!impNeedsReauth || !impFile) return;
+  var p = runImport();
+  var d = /** @type {any} */ (ev).detail;
+  if (d && typeof d.waitUntil === 'function') d.waitUntil(p);
 });
 
 /* ---------- 启动 ---------- */

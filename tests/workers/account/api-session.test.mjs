@@ -71,8 +71,10 @@ test('password 成功：只签 session（by=password，400 天）——不再顺
   await seedPassword(env, 'right-password-1');
   const r = await post(env, 'session', { action: 'password', password: 'right-password-1', reauth: true, device: { model: 'SM-S9380', platform: 'Android' } });
   assert.equal(r.status, 200);
-  assert.deepEqual(setCookies(r).map((c) => c.split('=')[0]), ['sgx-account-session']);
+  assert.deepEqual(setCookies(r).map((c) => c.split('=')[0]), ['sgx-account-session', 'sgx-account-signed-in']);
   assert.match(setCookies(r)[0], /Max-Age=34560000/);
+  /* 登录标记：值 1、不含秘密、非 HttpOnly（只给前端首帧显示），时长同 session */
+  assert.equal(setCookies(r)[1], 'sgx-account-signed-in=1; Path=/; Secure; SameSite=Strict; Max-Age=34560000');
   const s = pickCookie(r, 'sgx-account-session');
   assert.match(s, /^password\.0\./);
   const devs = all(env, 'SELECT record FROM account_device').map((x) => JSON.parse(x.record));
@@ -157,8 +159,9 @@ test('end：清 session + reauth（不碰 reset 票），本机设备行拉黑�
   const env = makeEnv();
   const ck = { ...(await full()), 'sgx-account-reset': await resetTicket() };
   const r = await post(env, 'session', { action: 'end' }, ck);
-  assert.deepEqual(setCookies(r).map((c) => c.split('=')[0]), ['sgx-account-session', 'sgx-account-reauth']);
+  assert.deepEqual(setCookies(r).map((c) => c.split('=')[0]), ['sgx-account-session', 'sgx-account-reauth', 'sgx-account-signed-in']);
   for (const c of setCookies(r)) assert.match(c, /Max-Age=0/);
+  assert.doesNotMatch(setCookies(r)[2], /HttpOnly/, '登录标记非 HttpOnly：清的时候属性一致');
   assert.equal(await devices.isRevoked(env, TEST_DEVICE_ID), true);
   const g = await (await get(env, ck)).json();
   assert.equal(g.session, null);

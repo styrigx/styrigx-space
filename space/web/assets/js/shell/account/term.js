@@ -40,6 +40,38 @@ export function flatStrings(tree, pre, acc) {
   return out;
 }
 
+/** 登录标记 cookie（账号 Worker 随 session 签发 / 清除，workers/account/src/core/config.js SIGNED_IN_MARKER）：只给首帧画提示符，鉴权只认 HttpOnly 的 session */
+export const SIGNED_IN_COOKIE = 'sgx-account-signed-in';
+
+/**
+ * 首帧登录态：有登录标记 → 'in'，没有 → 'guest'（读不到 cookie → ''，等接口）。不是鉴权，GET /api/account 回来后校正。
+ * @param {string} cookieStr document.cookie
+ * @returns {'in'|'guest'|''}
+ */
+export function firstFrameState(cookieStr) {
+  if (typeof cookieStr !== 'string') return '';
+  const on = cookieStr.split(';').some(function (p) { return p.trim() === SIGNED_IN_COOKIE + '=1'; });
+  return on ? 'in' : 'guest';
+}
+
+/**
+ * 按接口结果校正登录标记（只是显示用的提示）：没有 session 就清掉；有 session 但没标记（这次改动前登录的设备）就补上，时长到 session 到期。
+ * @param {Document} doc @param {any} s api.status() 的结果
+ */
+export function correctSignedInMarker(doc, s) {
+  try {
+    const has = firstFrameState(doc.cookie) === 'in';
+    if (!s.session && has) doc.cookie = SIGNED_IN_COOKIE + '=; Path=/; Secure; SameSite=Strict; Max-Age=0';
+    else if (s.session && !has) {
+      const left = Math.floor(((s.session.expiresAt || 0) - Date.now()) / 1000);
+      if (left > 0) doc.cookie = SIGNED_IN_COOKIE + '=1; Path=/; Secure; SameSite=Strict; Max-Age=' + left;
+    }
+  } catch (e) {}
+}
+
+/** 只做再验证时，等页面把要复验的事做完的上限（毫秒）；到点不管做没做完都结束 reauth */
+export const REAUTH_HOLD_MS = 60000;
+
 /** 第一屏要显示的层（旧地址 / 站内入口给的名字，见 commands.layerFromPath） */
 export { layerFromPath };
 
@@ -238,6 +270,7 @@ export function mountAccountTerm(o) {
     return api.status().then(function (s) {
       if (!s) return null;
       C.status = s;
+      correctSignedInMarker(doc, s);
       C.setSt(s.session ? 'in' : 'guest');
       C.reauthExp = s.reauth && s.reauth.expiresAt > Date.now() ? s.reauth.expiresAt : 0;
       C.resetExp = s.reset && s.reset.expiresAt > Date.now() ? s.reset.expiresAt : 0;
@@ -316,7 +349,7 @@ export function mountAccountTerm(o) {
     const sec = s && (s.configured.password || s.configured.passkey) ? t('keys.hint') : t('keys.unprotected');
     viewEl.innerHTML =
       '<div class="sgx-pop-me"><button type="button" class="sgx-pop-me-a" data-at-act="profile"><img src="' + esc(src) + '" alt="" width="48" height="48" class="sgx-pop-avatar" data-sgx-avatar="192">' +
-      '<span class="sgx-pop-who"><b translate="no" data-sgx-personal>' + esc(p.name || 'Styrigx') + '</b><small><span translate="no" data-sgx-personal>' + esc(p.nickname || 'Styrigx') + '</span><span class="sgx-pop-state"> · <i aria-hidden="true">✓</i> ' + esc(t('common.signedIn')) + '</span></small></span></button>' +
+      '<span class="sgx-pop-who"><b translate="no" data-sgx-personal>' + esc(p.name) + '</b><small><span translate="no" data-sgx-personal>' + esc(p.nickname) + '</span><span class="sgx-pop-state"> · <i aria-hidden="true">✓</i> ' + esc(t('common.signedIn')) + '</span></small></span></button>' +
       '<button type="button" class="sgx-pop-edit" data-at-act="profile">' + esc(t('common.edit')) + '</button></div>' +
       '<div class="sgx-pop-list">' +
       C.row({ k: t('profile.title'), v: t('profile.hint'), act: 'profile', chev: true }) +
@@ -500,9 +533,12 @@ export function mountAccountTerm(o) {
     C.consent = x && x.app ? { app: x.app } : null;
     C.clearLog();
     C.toCmd();
-    /* 首帧按网关注入的登录态（A18：不闪），再按接口校正 */
-    const hint = doc.documentElement.getAttribute('data-sgx-account-session');
-    if (!C.st) C.setSt(hint === 'in' ? 'in' : hint === 'out' ? 'guest' : '');
+    /* 首帧按登录标记 cookie 画提示符（A18：不闪；网关命名 v2 起不再注入登录态），GET /api/account 回来后校正 */
+    if (!C.st) {
+      let ff = /** @type {'in'|'guest'|''} */ ('');
+      try { ff = firstFrameState(doc.cookie); } catch (e) {}
+      C.setSt(ff);
+    }
     C.layer = LAYERS.indexOf(want) !== -1 ? want : 'home';
     C.render();
     C.loadStatus().then(function (s) {
@@ -522,24 +558,51 @@ export function mountAccountTerm(o) {
       C.focusIn();
     });
   }
-  /** 只做再验证（[data-acct-open="reauth"]，奇趣导入书签要复验）：通过后关面板，reauth 票留给页面用（这一次关面板不结束 reauth） */
-  let keepReauth = false;
+  /**
+   * 只做再验证（[data-acct-open="reauth"]，奇趣导入书签要复验）。和「关下拉 reauth 即失效」（O12）一致（#327 偏离修复）：
+   * 验过后先在 document 上发 `sgx-account-reauthed`（detail.waitUntil(promise)），等它的页面在这一刻把要复验的事做完
+   * （奇趣：重发导入）；然后关面板，等页面登记的事做完（最多 REAUTH_HOLD_MS）就 POST /reauth { end }。
+   * 没人登记就关面板时立刻结束。离开页面（pagehide）照旧立刻结束。
+   */
+  /** @type {Promise<void>|null} */
+  let holdReauth = null;
   function onlyReauth() {
-    const done = function () { keepReauth = true; o.ms.close(); };
+    const done = function () {
+      /** @type {Promise<any>[]} */
+      const waits = [];
+      try {
+        doc.dispatchEvent(new CustomEvent('sgx-account-reauthed', { detail: { waitUntil: function (/** @type {any} */ p) { waits.push(Promise.resolve(p).catch(function () {})); } } }));
+      } catch (e) {}
+      if (waits.length) {
+        holdReauth = Promise.race([
+          Promise.all(waits).then(function () {}),
+          new Promise(function (r) { window.setTimeout(r, REAUTH_HOLD_MS); }),
+        ]).then(function () {});
+      }
+      o.ms.close();
+    };
     C.render();
     if (C.st === 'in') { C.echo(CMD.reauth); C.cmdReauth(done); }
     else { C.echo(CMD.session); C.verify({ withReauth: true, lead: t('session.lead'), done: done }); }
     C.focusIn();
   }
   function onClose() {
+    const h = holdReauth;
+    holdReauth = null;
     if (C.resetPending) C.toast(t('reset.signOut.pending'));
-    if (C.loginChanged) { C.loginChanged = false; window.setTimeout(reload, 0); }
+    if (C.loginChanged) {
+      C.loginChanged = false;
+      /* 只做再验证时顺带登录了：等页面把复验的事做完再重新载入，不然重载会打断它 */
+      if (h) h.then(function () { window.setTimeout(reload, 0); });
+      else window.setTimeout(reload, 0);
+    }
     C.stopTick();
     if (C.inReset) { C.inReset = false; C.resetPending = false; C.resetExp = 0; }
     C.editing = '';
     C.armed = '';
-    if (keepReauth) keepReauth = false;
-    else C.endReauth();
+    if (!h) { C.endReauth(); return; }
+    /* 页面还在用这张 reauth（奇趣导入）：做完再结束（离开页面时 pagehide 照旧立刻结束）；这期间又打开了面板就交给那一次的关闭去结束 */
+    h.then(function () { if (!o.ms.isShown()) C.endReauth(); });
   }
   return { onOpen: onOpen, onClose: onClose, _state: function () { return { st: C.st, layer: C.layer, mode: C.mode, inReset: C.inReset, resetPending: C.resetPending }; } };
 }

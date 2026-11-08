@@ -38,6 +38,19 @@ export function mountGrants(C) {
 
   /** @param {string} app */
   const appName = function (app) { return t('grants.app.' + app) || app; };
+  /**
+   * 应用图标（奇趣 / 日刻，#327 偏离修复）：外壳骨架 <template data-acct-app-icons> 里导航已有的 SVG；其余应用没有图标，留空位对齐
+   * @param {string} app @returns {string}
+   */
+  const appIcon = function (app) {
+    let svg = '';
+    try {
+      const tpl = /** @type {HTMLTemplateElement|null} */ (C.dlg.querySelector('template[data-acct-app-icons]'));
+      const el = tpl && tpl.content.querySelector('[data-app="' + app + '"] svg');
+      if (el) svg = el.outerHTML;
+    } catch (e) {}
+    return '<span class="sgx-at-appi" aria-hidden="true">' + svg + '</span>';
+  };
   /** @param {any} g */
   const sensText = function (g) { return g.sensitive && g.sensitive.length && t('grants.sens.' + g.app) ? tf('grants.sensitive', { v: t('grants.sens.' + g.app) }) : ''; };
 
@@ -57,7 +70,7 @@ export function mountGrants(C) {
       const sens = sensText(g);
       const dev = g.device ? (g.device.gone ? t('grants.deviceGone') : g.device.name || t('devices.unknown')) : '';
       const when = g.granted ? tf('grants.at', { d: mmdd(g.grantedAt) }) + (dev ? ' · ' + dev : '') : t('grants.offAt');
-      h += '<div class="sgx-at-app' + (g.granted ? '' : ' is-off') + '"><span class="sgx-at-k"><span class="sgx-pop-k">' + esc(name) + '</span>' +
+      h += '<div class="sgx-at-app' + (g.granted ? '' : ' is-off') + '" data-app="' + esc(g.app) + '">' + appIcon(g.app) + '<span class="sgx-at-k"><span class="sgx-pop-k">' + esc(name) + '</span>' +
         '<small><span translate="no">' + esc((g.scopes || []).join(' ')) + '</span> · ' + esc(t('grants.desc.' + g.app)) + (sens ? '<br><span class="sgx-at-warn">' + esc(sens) + '</span>' : '') + '<br>' + esc(when) + '</small></span>' +
         '<button type="button" class="sgx-at-sw" role="switch" aria-checked="' + (g.granted ? 'true' : 'false') + '" aria-label="' + esc(name) + '" data-at-act="grant:' + esc(g.app) + '"></button></div>';
     });

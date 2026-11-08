@@ -61,7 +61,7 @@ export function parseCmd(line) {
 
 /**
  * 入口给的名字（旧地址 /account/<子页>/ → #acct=<子页>，O1；页面上的 [data-acct-open="<名字>"]）→ 面板怎么开。
- * reset = 直接 sudo root reset；reauth = 只做 sudo root reauth，做完关面板、票留给页面用（奇趣导入书签要复验）。
+ * reset = 直接 sudo root reset；reauth = 只做 sudo root reauth（奇趣导入书签要复验）：验过发 sgx-account-reauthed 让页面当场做完，关面板后结束 reauth（term.js onlyReauth）。
  * @param {string} name
  * @returns {{layer: string, reset: boolean, reauth: boolean}}
  */
