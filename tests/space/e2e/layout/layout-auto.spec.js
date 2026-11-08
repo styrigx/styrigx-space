@@ -81,7 +81,7 @@ test('顶栏 412×915（手机布局）：通栏，不显示页名，字标和�
 /* ----- 手机布局：外框最宽 640 居中（顶栏 v3 是通栏，不再和外框同宽） ----- */
 /* 首页（/）2026-11 PR-2 起内容栏对齐顶栏内容（1080），不跟外壳框，单独测（见下「首页内容栏」） */
 /* 对齐 PR-B：原 /status/ 并进旷野 /wild/，旷野页内容栏同主页（对齐顶栏内容 1080，见「首页 / 旷野内容栏」） */
-const WRAPS = [['/theme/', '.set-layout'], ['/account/', '.acct-layout'], ['/404.html', '.sgx-404']];
+const WRAPS = [['/security/', '.set-layout'], ['/account/', '.acct-layout'], ['/404.html', '.sgx-404']];
 async function frame(page, sel) {
   return page.evaluate((s) => {
     const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
@@ -124,7 +124,7 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
     const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
     const shell = Math.min(1080, w - 2 * m);
     /* 风格页（交互模块，设计不动）仍 720；旷野页（原服务状态并进来）内容列 = 外框（最宽 1080） */
-    for (const [path, s, want] of [['/theme/', '.set-layout > .set-main', 720], ['/wild/', '.wild-wrap', shell]]) {
+    for (const [path, s, want] of [['/wild/', '.wild-wrap', shell]] /* 对齐 PR-C：风格页 /theme/（720 栏）退役 */) {
       const [c] = await col(path, s);
       expect(Math.abs(c.w - Math.min(want, shell)), `${path} ${s} 宽 ${c.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(c.c), `${path} 居中`).toBeLessThanOrEqual(1);

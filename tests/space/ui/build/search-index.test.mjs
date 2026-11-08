@@ -103,7 +103,8 @@ test('真实构建：锁屏凭证的副标题是完整面包屑，text 带上级
   const en = get('/security/lock/');
   assert.equal(en.subtitle, 'Home › Security');
   assert.match(en.text, /passkeys/i);
-  assert.equal(get('/zh/theme/').subtitle, '主页');
+  assert.equal(get('/zh/wild/').subtitle, '主页');
+  assert.ok(!ix.items.some((x) => /\/theme\//.test(x.url)), '对齐 PR-C：风格页 /theme/ 退役，索引里没有');
   /* P4-3 PR-4b：显示页删除，索引里没有 /display/；旷野页平铺入口的副标题进了子页的 text */
   assert.ok(!ix.items.some((x) => /\/display\//.test(x.url)), '索引里没有 /display/');
   assert.ok(!ix.items.some((x) => /^https:\/\/styrigx\.com\/en\//.test(x.url)), '索引里没有 /en/（P4-3 PR-4c）');
@@ -118,8 +119,8 @@ test('真实构建：锁屏凭证的副标题是完整面包屑，text 带上级
   assert.equal(get('/zh/').title, '主页');
   assert.equal(get('/zh/account/security/').subtitle, '账号');
   for (const x of ix.items) if (x.text) assert.ok(x.text.length <= S.TEXT_MAX || x.id.startsWith('feature:'), x.id + ' text 超长');
-  const feat = ix.items.find((x) => x.id.startsWith('feature:') && x.lang === 'zh' && x.url === 'https://styrigx.com/zh/theme/');
-  assert.ok(feat && feat.subtitle === '主页' + S.CRUMB + '壁纸和主题', '功能开关副标题 = 面包屑 + 页名');
+  /* 对齐 PR-C：风格页 /theme/ 退役，调色板开关只在外观弹层（features.yaml section 空），不进索引 */
+  assert.ok(!ix.items.some((x) => x.id.startsWith('feature:palette:')), '调色板开关不进索引');
   /* 显示页删除：主题模式 / 布局 / 语言只在快捷面板，不进索引 */
   for (const id of ['theme-mode', 'layout', 'lang']) assert.ok(!ix.items.some((x) => x.id.startsWith('feature:' + id + ':')), id + ' 不进索引');
   /* 私密标记照旧 */

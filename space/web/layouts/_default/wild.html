@@ -23,7 +23,7 @@
 {{ if gt (len $commit) 7 }}{{ $commitShort = slicestr $commit 0 7 }}{{ else if ne $commit "" }}{{ $commitShort = $commit }}{{ end }}
 
 <div class="wild-wrap">
-{{ partial "sgx-page-hero.html" (dict "title" .Title "desc" .Description "path" .File.Path "cmd" "cd wild") }}
+{{ partial "sgx-ph.html" (dict "cmd" "cd wild" "title" .Title "desc" .Description "path" .File.Path) }}
 
   {{/* ① screen-time：今天各区域的停留时长（字符条 · 时长 · 占比）+ total。窗口右上 = 范围（今天 · 本机 / 今天 · 所有设备） */}}
   <section class="wild-sec" id="screen-time" aria-labelledby="wild-st-h">

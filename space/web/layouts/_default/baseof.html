@@ -168,7 +168,6 @@ __sgxLayoutWatch(__applyLayout);
 {{ $pageName := .Title }}
 {{ if .IsHome }}{{ $pageName = $tr.shell.nav.home.title }}
 {{ else if eq .Kind "404" }}{{ $pageName = $tr.baseof.pageNotFound }}
-{{ else if eq .Layout "sub" }}{{ $cat := .Params.cat }}{{ with index $tr.spaceCats $cat }}{{ $pageName = .title }}{{ end }}
 {{ end }}
 {{/* 页名胶囊只做一件事：显示当前页的名字（Gray 2026-11-07 定稿）。旷野页 = 「旷野 / Space」，其他页 = 页名；不再有顶栏标签（topbar-tabs 删除）。
    手机布局不显示（共享外壳 CSS 按 data-sgx-layout），桌面布局按整条顶栏居中。 */}}
@@ -285,10 +284,10 @@ __sgxLayoutWatch(__applyLayout);
    否则 GET /api/wellbeing 404 会触发 Lighthouse errors-in-console；生产构建为 false */}}
 {{ $featDefines = merge $featDefines (dict "SGX_TEST_NO_WB" (cond (eq (getenv "SGX_TEST_NO_WEATHER") "1") "true" "false")) }}
 {{/* 2026-10-24 JS 拆分：所有入口一次 js.Batch 构建，共享代码拆成可缓存的 chunk（见 partials/sgx-js-batch.html）。
-   旷野页 entry-space.js、子页 entry-space-sub.js（PR-4b 起没有页内切换，原 entry-tab-* / lazy-* 删除）。
+   主页 entry-space.js、各子页各自的入口（PR-4b 起没有页内切换，原 entry-tab-* / lazy-* 删除；2026-11 对齐 PR-C 风格页 /theme/ 退役，entry-space-sub 删除）。
    modulepreload 让入口静态依赖的 chunk 和入口并行下载（不等入口解析完再发现）；放在入口 <script> 前，预加载扫描器同时看到。
    主题 / 锁屏判定 / 防闪的首帧脚本仍在 <head> 内联同步执行，跟这里无关。 */}}
-{{ $sgxJs := partialCached "sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-space" "entry-space-sub" "entry-account" "entry-account-devices" "entry-account-reset" "entry-account-security" "entry-account-sync" "entry-account-apps" "entry-account-profile" "entry-security" "entry-security-lock" "entry-security-tempkeys" "entry-space-wild")) "sgx-js" }}
+{{ $sgxJs := partialCached "sgx-js-batch.html" (dict "defines" $featDefines "entries" (slice "entry-core" "entry-space" "entry-account" "entry-account-devices" "entry-account-reset" "entry-account-security" "entry-account-sync" "entry-account-apps" "entry-account-profile" "entry-security" "entry-security-lock" "entry-security-tempkeys" "entry-space-wild")) "sgx-js" }}
 {{ $js := index $sgxJs (strings.TrimSuffix ".js" $entryName) }}
 {{ range $js.preload }}<link rel="modulepreload" href="{{ . }}">
 {{ end }}

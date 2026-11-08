@@ -23,6 +23,7 @@
     "/tags/security/",
     "/tags/specification/",
     "/tags/styrigx-ui/",
+    "/tree/",
     "/zh/",
     "/zh/post/2026-09-27-invite-board/",
     "/zh/post/2026-10-07-muse-playbook/",
@@ -45,7 +46,8 @@
     "/zh/tags/passkey/",
     "/zh/tags/security/",
     "/zh/tags/specification/",
-    "/zh/tags/styrigx-ui/"
+    "/zh/tags/styrigx-ui/",
+    "/zh/tree/"
   ],
   "feeds": [
     "/rss.xml",
@@ -75,6 +77,7 @@
     "https://styrigx.com/blog/tags/security/",
     "https://styrigx.com/blog/tags/specification/",
     "https://styrigx.com/blog/tags/styrigx-ui/",
+    "https://styrigx.com/blog/tree/",
     "https://styrigx.com/blog/zh/",
     "https://styrigx.com/blog/zh/post/2026-09-27-invite-board/",
     "https://styrigx.com/blog/zh/post/2026-10-07-muse-playbook/",
@@ -97,7 +100,8 @@
     "https://styrigx.com/blog/zh/tags/passkey/",
     "https://styrigx.com/blog/zh/tags/security/",
     "https://styrigx.com/blog/zh/tags/specification/",
-    "https://styrigx.com/blog/zh/tags/styrigx-ui/"
+    "https://styrigx.com/blog/zh/tags/styrigx-ui/",
+    "https://styrigx.com/blog/zh/tree/"
   ],
   "rss": {
     "/rss.xml": [

@@ -7,7 +7,7 @@ import { stripLang } from './lang-path.js';
  * 旷野子页（P4-3 PR-4b：原设置子页去掉 settings 一层，直接挂在根下；P4-3 PR-4c 起英文无前缀、中文 /zh/ 前缀）。
  * 新增 data/space-cats.yaml 分类时这里同步加一项（tests/space/ui/build/space-merge.test.mjs 对照检查）。
  */
-export const SPACE_SUB_RE = /^(?:\/zh)?\/(?:theme|wild|security)\//;
+export const SPACE_SUB_RE = /^(?:\/zh)?\/(?:wild|security)\//;
 
 /**
  * B2-7：当前页面属于哪个数字健康区域（主站：旷野 / 我的文件 / 浏览器）。

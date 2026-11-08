@@ -67,7 +67,7 @@ test('悬浮顶栏不遮挡首个标题（布局断言）', async ({ page }) => 
       localStorage.removeItem('navfolio-theme');
     } catch {}
   });
-  // 首页 + 文章页：页面顶部时，首个可见标题（首页是「最新」分区标题，h1 只给读屏）的 top 必须 ≥ 顶栏 bottom
+  // 首页 + 文章页：页面顶部时，首个可见标题的 top 必须 ≥ 顶栏 bottom（对齐 PR-C：首页是页头 .sgx-ph 的大标题「博客_」）
   for (const path of ['/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/']) {
     await page.goto(path, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => document.fonts.ready);
@@ -75,7 +75,7 @@ test('悬浮顶栏不遮挡首个标题（布局断言）', async ({ page }) => 
     const result = await page.evaluate(() => {
       const header = document.querySelector('.sgx-topbar');
       const h1 = document.querySelector(
-        '#sgx-pane-home .sgx-sec-head, .oui-article-wrap h1, .oui-page-title h1',
+        '.sgx-ph-title, .oui-article-wrap h1, .oui-page-title h1',
       );
       if (!header || !h1) return { ok: false, reason: 'header 或 h1 未找到' };
       const hb = header.getBoundingClientRect();

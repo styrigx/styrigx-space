@@ -1,17 +1,15 @@
 /**
- * @fileoverview 风格子页（/theme/）的调色板，与旷野页（/wild/）screen-time 窗的本机记录。
+ * @fileoverview 旷野页（/wild/）screen-time 窗的本机记录（+ 自定义主题色同步）。
+ * 2026-11 对齐 PR-C：风格页 /theme/ 退役（调色板 / 恢复默认都在顶栏外观弹层），调色板网格代码删除。
  * 2026-11 对齐 PR-B：/wellbeing/ /about/ 并进旷野页 /wild/，15 分钟提醒删除（Gray 04:01）。
  * P4-3 PR-4b（2026-11-07，Gray）：显示页（/display/）整页删除——深色 / 跟随系统 / 语言 / 布局都在快捷面板（共享外壳），这里不再有主题模式、布局、语言三段。
  * P4-3 PR-4b（2026-11-07）：由 apps/settings.js 改名；主页和设置合成「旷野 / Space」一页，页内切换、DeX 双栏、旧 hash 跳转删除。
  * （2026-10-23 PR-E：字体大小、减弱动效、重置所有设置删除；P4-2c：日期和时间、天气、快捷键连同高级功能分类删除）
  * 文案来自页面内 sgx-i18n-space JSON（中英双语），JS 与语言无关。
- * mountSpace() 在加载时挂一次（入口 entry-space.js / entry-space-sub.js），返回 destroy()：拆掉本次挂的全部监听。
+ * mountSpace() 在加载时挂一次（入口 entry-space.js / entry-space-wild.js），返回 destroy()：拆掉本次挂的全部监听。
  */
 import { on as evOn } from '../lib/events.js';
-import { on as featOnRaw } from '../lib/features.js';
-import { setPalette, palette, DEFAULT_PALETTE } from '../lib/prefs.js';
 import { syncAccent } from '../lib/accent-roles.js';
-import { accent } from '../lib/accent.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { renderWbTerm } from '../lib/wb-view.js';
 
@@ -28,60 +26,15 @@ export function mountSpace() {
     offs.push(off);
     return off;
   };
-  /** @param {string} id @param {(v: any) => void} fn */
-  const featOn = function (id, fn) {
-    const off = featOnRaw(id, fn);
-    offs.push(off);
-    return off;
-  };
 
   /** @param {string} id */
   function $(id) {
     return document.getElementById(id);
   }
 
-  /* ---- 调色板（2026-10-23 PR-G 七色调色板：22 套一个列表、按组分组；默认 terra，2026-11 PR-A 前 dustyblue） ---- */
-  /* 色块 .pal-tile（#palette-dots 下，按 group 分组的网格）；上面的预览卡 #pal-preview 显示当前色板：
-     选中后把色块 style 上的颜色变量（partials/palette-tile-vars.html）和名字拷到预览卡，两部小手机（浅色 / 深色）跟着换色。 */
-  const SW_SEL = '#palette-dots .pal-tile';
-  const preview = document.getElementById('pal-preview');
-  const previewName = document.getElementById('pal-preview-name');
-  function paintPreview(/** @type {string} */ p) {
-    if (!preview) return;
-    const tile = document.querySelector(SW_SEL + '[data-palette="' + p + '"]') || document.querySelector(SW_SEL + '[data-palette="' + DEFAULT_PALETTE + '"]');
-    if (!tile) return;
-    const st = tile.getAttribute('style') || '';
-    if (preview.getAttribute('style') !== st) preview.setAttribute('style', st);
-    if (previewName) previewName.textContent = tile.getAttribute('data-name') || '';
-  }
-  /* 标题右端「恢复默认」（#palette-reset）= 选默认色板（同一个 setPalette，自定义色一并清掉）；
-     已是默认（且没有自定义主题色）时 aria-disabled 置灰、点了不动 */
-  const palReset = document.getElementById('palette-reset');
-  function paintPalette() {
-    const p = palette();
-    document.querySelectorAll(SW_SEL).forEach(function (b) {
-      b.setAttribute('aria-pressed', b.getAttribute('data-palette') === p ? 'true' : 'false');
-    });
-    paintPreview(p);
-    if (palReset) palReset.setAttribute('aria-disabled', p === DEFAULT_PALETTE && !accent() ? 'true' : 'false');
-  }
-  if (palReset) {
-    on(palReset, 'click', function () {
-      if (palReset.getAttribute('aria-disabled') === 'true') return;
-      setPalette(DEFAULT_PALETTE);
-      paintPalette();
-    });
-  }
-  document.querySelectorAll(SW_SEL).forEach(function (b) {
-    on(b, 'click', function () {
-      setPalette(b.getAttribute('data-palette') || DEFAULT_PALETTE);
-      paintPalette();
-    });
-  });
-  /* 自定义主题色（sgx-accent）：缓存缺失 / 过期时按种子重算整套角色（lib/palette-scheme.js） */
+  /* 自定义主题色（sgx-accent）：缓存缺失 / 过期时按种子重算整套角色（lib/palette-scheme.js）。
+     风格页 /theme/ 的调色板网格 2026-11 对齐 PR-C 退役（功能在顶栏外观弹层，共享外壳 quick-panel.js），这里只剩这一步。 */
   syncAccent();
-  paintPalette();
-  featOn('palette', paintPalette);
 
   /* ---- 旷野 › screen-time 窗（/wild/ #wb-card，2026-11 对齐 PR-B；原 /wellbeing/ 页的屏幕时间卡）：先画本机记录（sgx-well-v）；
      core 的 loadWb() 拉到 /api/wellbeing 且 detail:true（账号已登录，P2-2）时覆盖同一组 [data-wb] 槽位并把范围改成「所有设备」；

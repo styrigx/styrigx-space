@@ -20,10 +20,12 @@ test('PR-4b 定稿：页名胶囊只显示页名——主站没有顶栏标签�
     const src = rd(f);
     assert.doesNotMatch(src, new RegExp(attr), f);
     /* P4-3 奇趣拆页：奇趣的分区是独立子页，胶囊 = 页名（首页站名、子页子页名），不再由脚本换；博客 / 日刻仍是页内分区 */
-    if (f.includes('/curio/')) assert.match(src, /\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/, f + '：胶囊 = 页名');
+    /* 对齐 PR-C：博客首页是单一文章列表，胶囊同样只显示页名（原首页 tabs 模式删除） */
+    if (f.includes('/blog/')) assert.doesNotMatch(src, /data-sgx-titles/, f + '：没有分区名切换');
+    else if (f.includes('/curio/')) assert.match(src, /\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/, f + '：胶囊 = 页名');
     else assert.match(src, /class=\\"sgx-tb-title\\" data-sgx-titles=/, f + '：首页胶囊 = 站名，分区名由脚本换');
   }
-  for (const f of ['space/web/layouts/blog/section.html', 'space/web/layouts/curio/section.html', 'space/web/layouts/daymark/section.html']) {
+  for (const f of ['space/web/layouts/curio/section.html', 'space/web/layouts/daymark/section.html']) {
     assert.match(rd(f), /partial "sgx-entries\.html"/, f + '：首页有分区入口');
   }
 });

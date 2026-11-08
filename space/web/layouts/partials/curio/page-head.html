@@ -8,5 +8,5 @@
 {{- $segs = $segs | append (dict "id" . "title" (index $tr.entries .).title "href" (partial "sgx-lang-path.html" (dict "path" (printf "/curio/%s/" .) "lang" $lang))) -}}
 {{- end -}}
 {{- /* 2026-11 UI 重设计 PR-3（设计稿 s-curio）：终端风标题带，提示符「ls curio/<子页>/」，两种布局都显示 */ -}}
-{{ partial "sgx-page-hero.html" (dict "title" $p.Title "desc" $p.Description "path" $p.File.Path "cmd" (printf "ls curio/%s/" .id)) }}
+{{ partial "sgx-ph.html" (dict "cmd" (printf "ls curio/%s/" .id) "title" $p.Title "desc" $p.Description "path" $p.File.Path) }}
 {{ partial "sgx-segtabs.html" (dict "items" $segs "current" .id "label" $tr.index.sections "id" "cu-segs") }}

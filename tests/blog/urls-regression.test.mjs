@@ -139,28 +139,25 @@ describe('网址回归（图志 /blog/ 下）', () => {
     }
   });
 
-  it('列表页：首页 · 文章 · 专题 三个面板 + 首页分区入口，没有归档', async () => {
+  it('博客首页（对齐 PR-C，设计稿 pg=blog）：页头 ls -lt blog/ · 博客_ + 分类 chips + tree blog/ 入口 + 按年分组文章行 + less 分页条；没有分区面板 / 入口 / 段式标签', async () => {
     const res = await fetch(base + '/blog/zh/');
     const html = await res.text();
-    assert.match(html, /<h1 class="sgx-visually-hidden"[^>]*>博客</, '中文首页 h1「博客」只给读屏 / 搜索引擎');
-    assert.match(await (await fetch(base + '/blog/')).text(), /<h1 class="sgx-visually-hidden"[^>]*>Blog</, '英文首页 h1「Blog」');
-    assert.doesNotMatch(html, /sgx-subpage-head|sgx-subpage-title/, '没有居中大标题区');
-    assert.match(html, /note-entry/, '应有文章列表');
-    for (const id of ['home', 'posts', 'topics']) {
-      assert.match(html, new RegExp(`id="sgx-pane-${id}"`), `面板 ${id}`);
-      assert.match(html, new RegExp(`data-entry="${id}"`), `分区入口 ${id}`);
-    }
-    /* P4-3 PR-4b：顶栏没有分段滑块，页名胶囊 = 站名「博客」（切分区时脚本换成分区名）；
-       段式标签 PR（§6.6）：分段搬进页内——文章 / 专题面板各有标题带 + 一条段式标签（当前项服务端写好），首页分区是入口页不放 */
-    assert.doesNotMatch(html, /data-sgx-seg(?!s)|data-sgx-tab=/);
-    for (const cur of ['posts', 'topics']) {
-      assert.match(html, new RegExp(`id="?blog-segs-${cur}"?[^>]*data-sgx-segs`), `段式标签在 ${cur} 面板`);
-      assert.match(html, new RegExp(`href="?#${cur}"? data-seg="?${cur}"? aria-current="?page"?`), `${cur} 面板里 ${cur} 是当前项`);
-    }
-    assert.equal((html.match(/data-sgx-segs/g) || []).length, 2, '只有文章 / 专题两条');
-    assert.equal((html.match(/data-sgx-hero/g) || []).length, 2, '文章 / 专题两个面板各一个标题带');
-    assert.match(html, /class="?sgx-tb-title"? data-sgx-titles=[^>]*>博客</);
-    assert.doesNotMatch(html, /sgx-pane-archive|data-sgx-tab="archive"/, '没有归档页签');
+    assert.match(html, /<header class="?sgx-ph"? data-sgx-ph>/, '页头');
+    assert.match(html, /styrigx@space:~\$<\/span> ls -lt blog\//, '页头命令');
+    assert.match(html, /<h1 class="?sgx-ph-title"?>博客<\/h1>/, '中文 h1「博客」（可见）');
+    assert.match(await (await fetch(base + '/blog/')).text(), /<h1 class="?sgx-ph-title"?>Blog<\/h1>/, '英文 h1「Blog」');
+    assert.match(html, /写下来的东西。共 7 篇 · 最近更新 \d{4}-\d{2}-\d{2}/);
+    const chips = [...html.matchAll(/class="?sgx-chip"?[^>]*data-chip="?([^" >]*)"?/g)].map((m) => m[1]);
+    assert.equal(chips[0], '', '第一个 chip = 全部');
+    assert.ok(chips.length >= 2 && chips.length <= 7, '全部 + 至多 6 个分类：' + chips.length);
+    assert.match(html, /aria-current="?true"?[^>]*>全部 <i>7<\/i>|data-chip=""? aria-current="?true"?>全部 <i>7<\/i>/, '全部 7 是当前项');
+    assert.match(html, /class="?sgx-chip sgx-chip--more"? href="?\/blog\/zh\/tree\/"?/, 'tree blog/ → 目录页');
+    assert.equal((html.match(/data-post[ >]/g) || []).length, 7, '7 篇都在页里（不跑脚本也能看全）');
+    assert.match(html, /<h2 class="?sgx-yr"? data-year="?2026"?>2026<\/h2>/, '按年分组');
+    assert.match(html, /class="?sgx-pl-rt"?>\d+ min</, '阅读分钟');
+    assert.match(html, /class="?sgx-pl-ex"?>/, '摘要');
+    assert.match(html, /data-blog-pager[^>]*hidden/, '分页条（脚本填页码）');
+    assert.doesNotMatch(html, /sgx-pane|data-sgx-entries|data-sgx-segs|data-sgx-titles|sgx-visually-hidden/, '没有三面板 / 入口 / 段式标签 / 分区名切换');
     assert.doesNotMatch(html, /oui-hero/, '旧首页 hero 已删除');
     assert.doesNotMatch(
       html,
@@ -169,26 +166,40 @@ describe('网址回归（图志 /blog/ 下）', () => {
     );
   });
 
-  it('专题：鉴权规范系列（中文 2 篇，按 seriesOrder）', async () => {
-    const html = await (await fetch(base + '/blog/zh/')).text();
-    const card = html.match(/data-series-card="[^"]+"[\s\S]*?<\/article>/);
-    assert.ok(card, '应有系列卡');
-    assert.match(card[0], /Styrigx UI 鉴权规范/);
-    const titles = [...card[0].matchAll(/<a href="\/blog\/zh\/post\/([^"]+)\/"/g)].map((m) => m[1]);
-    assert.deepEqual(titles, [
-      '2026-10-11-key-spec-whitepaper',
-      '2026-10-11-key-spec-whitepaper-v2',
-    ]);
+  it('目录页 /blog/zh/tree/（对齐 PR-C，设计稿 pg=tree）：tree blog/ -L 2 窗（分类 │ 年份）+ archive 窗（--by-year 月份行、--tags 纯文字两列）；鉴权规范系列按 seriesOrder', async () => {
+    const res = await fetch(base + '/blog/zh/tree/');
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.match(html, /<h1 class="?sgx-ph-title"?>目录<\/h1>/);
+    assert.match(html, /按分类，或按年份。点任何一行直接打开。/);
+    assert.match(html, /data-tree-view="?cat"? aria-pressed="?true"?/);
+    assert.match(html, /data-tree-view="?year"? aria-pressed="?false"?/);
+    assert.match(html, /data-tree-pane="?year"? hidden/, '年份视图默认收起');
+    const ser = html.match(/id="?series-[^" >]+"?[\s\S]*?(?=<p class="?sgx-tl"?><span class="?tp"? aria-hidden="?true"?>[├└]── <\/span><(?:a|span) class="?cb)/);
+    assert.ok(ser, '系列目录');
+    assert.match(ser[0], /Styrigx UI 鉴权规范\//);
+    const posts = [...ser[0].matchAll(/href="?\/blog\/zh\/post\/([^"/]+)\/"?/g)].map((m) => m[1]);
+    assert.deepEqual(posts, ['2026-10-11-key-spec-whitepaper', '2026-10-11-key-spec-whitepaper-v2']);
+    assert.match(html, /ls blog\/ --by-year/);
+    assert.match(html, /class="?sgx-arch-m"?><span class="?sgx-arch-k"?>10 月<\/span>/, '月份行');
+    assert.match(html, /<ul class="?sgx-tags2"?/);
+    assert.match(html, /href="?\/blog\/zh\/\?tag=[^"]+"?><span class="?k"?>#/, '标签 → 首页筛选');
+    assert.match(html, /\d+ directories, 7 files/);
+    assert.equal((await fetch(base + '/blog/tree/')).status, 200, '英文目录页');
   });
 
-  it('系列文章页有系列小块（第 n / N 篇）', async () => {
+  it('系列文章页（对齐 PR-C，设计稿 pg=post）：元信息里有系列 n / N（链到目录页系列目录），cd ../prev 卡是系列上一篇；没有旧系列小块 / 分享按钮行 / 更多文章', async () => {
     const html = await (await fetch(base + '/blog/zh/post/2026-10-11-key-spec-whitepaper-v2/')).text();
-    assert.match(html, /sgx-series-block/);
-    assert.match(html, /第 2 \/ 2 篇/);
-    assert.match(
-      html,
-      /rel="prev"[^>]*href="\/blog\/zh\/post\/2026-10-11-key-spec-whitepaper\/"|href="\/blog\/zh\/post\/2026-10-11-key-spec-whitepaper\/"[^>]*>\s*<small/,
-    );
+    assert.doesNotMatch(html, /sgx-series-block|share-buttons|share-row|related-posts/);
+    assert.match(html, /class="?metadata-item sgx-series-meta"? href="?\/blog\/zh\/tree\/#series-[^"]+"?>Styrigx UI 鉴权规范 · 第 2 \/ 2 篇</);
+    assert.match(html, /class="?sgx-nx-a"? rel="?prev"? href="?\/blog\/zh\/post\/2026-10-11-key-spec-whitepaper\/"?[^>]*>‹ cd \.\.\/prev/);
+    assert.match(html, /cd \.\.\/next ›/);
+    assert.match(html, /cat ~\/blog\/[^/]+\/2026-10-11-key-spec-whitepaper-v2\.md/, '面包屑带分类目录');
+    assert.match(html, /<h2 translate="?no"?>ON THIS PAGE<\/h2>/);
+    assert.match(html, /class="?blog-rd blog-rd--toc"?/, '目录下一行分享');
+    assert.match(html, /data-share-copy=/);
+    assert.match(html, /data-ask-ai/);
+    assert.match(html, /href="?https:\/\/x\.com\/intent\/post\?text=/);
   });
 
   it('NAVIGATE（顶栏 v3）：主页 / 博客 / 奇趣 / 日刻 / 旷野（主站项绝对地址、三站之间相对 /<站>/），博客「开」态；头像在顶栏最右和 AI 窗口头部，都去主站账号页；没有搜索框', async () => {

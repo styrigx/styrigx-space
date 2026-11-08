@@ -190,14 +190,14 @@ test.describe('lock screen', () => {
     await page.route('**/api/lock-session-check*', async (route) => {
       checks.push(route.request().url());
       if (!unlocked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/theme/' }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/wild/' }) });
     });
-    await gotoLockTerm(page, '/?lock=1&return=' + encodeURIComponent('/theme/') + '&test-no-local-bypass=1');
+    await gotoLockTerm(page, '/?lock=1&return=' + encodeURIComponent('/wild/') + '&test-no-local-bypass=1');
     await lockCmd(page, 'sudo');
     await lockMode(page, 'pw');
     await lockCmd(page, 'correctpassword');
-    await page.waitForURL(/\/theme\/$/, { timeout: 10000 });
-    expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/theme/')))).toBe(true);
+    await page.waitForURL(/\/wild\/$/, { timeout: 10000 });
+    expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/wild/')))).toBe(true);
   });
 
   test('lock screen rechecks session on focus (401 keeps lock)', async ({ page }) => {
@@ -211,7 +211,7 @@ test.describe('lock screen', () => {
         body: JSON.stringify({ ok: false }),
       });
     });
-    const ret = encodeURIComponent('/theme/');
+    const ret = encodeURIComponent('/wild/');
     await page.goto('/?lock=1&return=' + ret + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     /* dispatch focus → recheckSession → fetch → 401 → 锁屏保持 */
@@ -479,10 +479,10 @@ test.describe('锁屏版面（lock-v10 设计稿 K1：头像 → 状态 → 名�
   });
 
   test('底部 zh · en：点 en 写语言偏好并换到英文同一页（lock / return 原样）', async ({ page }) => {
-    await page.goto('/zh/?lock=1&return=' + encodeURIComponent('/theme/'), { waitUntil: 'domcontentloaded' });
+    await page.goto('/zh/?lock=1&return=' + encodeURIComponent('/wild/'), { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock-cmd')).toBeVisible({ timeout: 15000 });
     await page.click('.sgx-lock-lang[data-lang="en"]');
-    await page.waitForURL((u) => u.pathname === '/' && u.searchParams.get('lock') === '1' && u.searchParams.get('return') === '/theme/', { timeout: 10000 });
+    await page.waitForURL((u) => u.pathname === '/' && u.searchParams.get('lock') === '1' && u.searchParams.get('return') === '/wild/', { timeout: 10000 });
     expect(await page.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('en');
     await expect(page.locator('#sgx-lock-title')).toHaveText('Lock screen');
   });

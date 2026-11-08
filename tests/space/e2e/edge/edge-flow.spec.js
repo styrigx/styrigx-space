@@ -229,7 +229,7 @@ test('R5 临时钥匙进门的人打开账号页：看到登录页（data-sgx-ac
   await expect(page.locator('#acct-main')).toBeHidden();
 });
 
-test('P2-3 带 v1 cookie 打开旷野子页 /theme/ 和子站内页 → 302 锁屏（带 return）、不循环 → 通行密钥解锁后回到原页，过程中不清 cookie', async ({ page, context }) => {
+test('P2-3 带 v1 cookie 打开旷野子页 /wild/ 和子站内页 → 302 锁屏（带 return）、不循环 → 通行密钥解锁后回到原页，过程中不清 cookie', async ({ page, context }) => {
   await addAuthenticator(page);
   /* v1 票（6 段 by.role.epoch.exp.tempkeyId.sig）：v2 只认 5 段 → bad-format，和没 cookie 一样 */
   const v1 = 'password.admin.0.' + (Date.now() + 3600e3) + '..AAAA'; // v1 fixture
@@ -237,7 +237,7 @@ test('P2-3 带 v1 cookie 打开旷野子页 /theme/ 和子站内页 → 302 锁�
   await putV1();
   const clears = [];
   page.on('response', (r) => { if (/sgx-lock-session=;/.test(r.headers()['set-cookie'] || '')) clears.push(r.url()); });
-  for (const [target, ret] of [[MAIN + '/theme/', '/theme/'], [BLOG + '/post/hello/', BLOG + '/post/hello/']]) {
+  for (const [target, ret] of [[MAIN + '/wild/', '/wild/'], [BLOG + '/post/hello/', BLOG + '/post/hello/']]) {
     const navs = [];
     const h = (f) => { if (f === page.mainFrame()) navs.push(f.url()); };
     page.on('framenavigated', h);
@@ -392,7 +392,7 @@ test.describe('R9 分享短链', () => {
     await expect(page.locator('#sl-dlg')).toBeVisible();
     await page.fill('#sl-name', '小明');
     await page.selectOption('#sl-dur', 'h6');
-    await page.fill('#sl-to', '/theme/');
+    await page.fill('#sl-to', '/wild/');
     await page.selectOption('#sl-sess', '3600');
     await page.click('#sl-go');
     await expect(page.locator('#sl-done')).toBeVisible();
@@ -407,9 +407,9 @@ test.describe('R9 分享短链', () => {
     page.on('request', (r) => { if (r.isNavigationRequest()) refs.push([r.url(), r.headers()['referer'] || '']); });
     await page.goto(url);
     /* C8：networkidle → 等落到目标地址 + load */
-    await page.waitForURL(MAIN + '/theme/', { timeout: 15000 });
+    await page.waitForURL(MAIN + '/wild/', { timeout: 15000 });
     await page.waitForLoadState('load');
-    expect(page.url()).toBe(MAIN + '/theme/');
+    expect(page.url()).toBe(MAIN + '/wild/');
     expect(await lockShownWithin(page, 600)).toBe(false);
     expect(await sessionBy(page)).toBe('tempkey');
     expect(edge.log.find((l) => l[2].includes('/s/'))[0]).toBe('share');
@@ -429,12 +429,12 @@ test.describe('R9 分享短链', () => {
   });
 
   test('R9 普通短链 → 没解锁的人到目标页照常出锁屏（return 是目标页）', async ({ page, context }) => {
-    const link = await makeLink(page, context, { hours: 2, to: '/theme/' });
+    const link = await makeLink(page, context, { hours: 2, to: '/wild/' });
     await page.goto(MAIN + link.path);
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     const u = new URL(page.url());
     expect(u.pathname).toBe('/');
-    expect(u.searchParams.get('return')).toBe('/theme/');
+    expect(u.searchParams.get('return')).toBe('/wild/');
     expect(page.url()).not.toContain(link.path.slice(3));
     expect(await sessionBy(page)).toBe(null);
   });
@@ -454,7 +454,7 @@ test.describe('R9 分享短链', () => {
     else edge.shareDb._links.get(expired.id).expires_at = Date.now() - 1;
     await mgrCtx.close();
 
-    await page.goto(MAIN + '/theme/');
+    await page.goto(MAIN + '/wild/');
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
     expect(await sessionBy(page)).toBe(null);
 

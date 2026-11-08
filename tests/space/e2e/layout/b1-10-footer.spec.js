@@ -16,7 +16,7 @@ const VIEWPORTS = [
 
 /* P4-3 PR-4c：英文无前缀、中文 /zh/。当前窗口同 NAVIGATE 当前项：主页 = 0:home，旷野页 /wild/ 和风格页 = 4:wild，安全 / 账号页没有当前项
    （对齐 PR-B：原 /status/ /about/ 并进 /wild/） */
-const PAGES = [['/', 'home'], ['/theme/', 'wild'], ['/security/', null], ['/wild/', 'wild'], ['/zh/', 'home'], ['/zh/theme/', 'wild'], ['/zh/wild/', 'wild']];
+const PAGES = [['/', 'home'], ['/security/', null], ['/wild/', 'wild'], ['/zh/', 'home'], ['/zh/wild/', 'wild']] /* 对齐 PR-C：风格页 /theme/ 退役 */;
 
 for (const vp of VIEWPORTS) {
   for (const [path, win] of PAGES) {

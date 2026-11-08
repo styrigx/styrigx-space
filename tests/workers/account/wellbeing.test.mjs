@@ -121,7 +121,9 @@ test('wbAreaOf：主站页面映射', () => {
   assert.equal(wbAreaOf('/zh/search/'), 'browser');
   /* 对齐 PR-B：数字健康 / 关于 / 状态并进旷野 /wild/（旧地址 301，页面不再存在，不算区域） */
   for (const p of ['/wellbeing/', '/about/', '/status/', '/zh/status/']) assert.equal(wbAreaOf(p), null, p);
-  for (const p of ['/theme/', '/wild/', '/zh/wild/', '/security/', '/security/lock/', '/zh/security/tempkeys/', '/account/', '/zh/account/devices/']) {
+  /* 对齐 PR-C：风格页 /theme/ 退役（301 到主页），不再算旷野子页 */
+  for (const p of ['/theme/', '/zh/theme/']) assert.equal(wbAreaOf(p), null, p);
+  for (const p of ['/wild/', '/zh/wild/', '/security/', '/security/lock/', '/zh/security/tempkeys/', '/account/', '/zh/account/devices/']) {
     assert.equal(wbAreaOf(p), 'space', p);
   }
   assert.equal(wbAreaOf('/blog/'), null, '子站不归主站区域');

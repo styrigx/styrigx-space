@@ -1,0 +1,5 @@
+{{- /* 博客「分类」用哪个 front matter 字段（2026-11 对齐 PR-C）：有任何一篇写了 categories 就是 categories，否则退回 tags（目前文章都还没写分类）。
+输入：文章列表；返回 "categories" | "tags"。首页 chips / 行内 #分类、目录页「分类」视图、文章页面包屑共用。 */ -}}
+{{- $f := "tags" -}}
+{{- range . }}{{ if .Params.categories }}{{ $f = "categories" }}{{ end }}{{ end -}}
+{{- return $f -}}

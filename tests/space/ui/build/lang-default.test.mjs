@@ -161,7 +161,7 @@ test('主站产物：中文页 lang=zh、英文页 lang=en；hreflang = langPath
 
 test('主站产物：快捷面板导航 / 账号入口在中文页都带 /zh/（同 langPath）', { skip: !hasMain && '没有主站构建' }, () => {
   const nav = JSON.parse(rd('space/web/data/shell-nav.json'));
-  for (const [rel, lang] of [['/', 'en'], ['/zh/', 'zh'], ['/theme/', 'en'], ['/zh/theme/', 'zh']]) {
+  for (const [rel, lang] of [['/', 'en'], ['/zh/', 'zh'], ['/wild/', 'en'], ['/zh/wild/', 'zh']]) {
     const html = readFileSync(path.join(MAIN, rel.slice(1), 'index.html'), 'utf8');
     for (const it of nav.items) {
       assert.ok(html.includes(`href="${langPath(it.path, lang)}"`), `${rel}：导航 ${it.id} 应指向 ${langPath(it.path, lang)}`);

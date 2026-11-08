@@ -729,15 +729,6 @@ status:
   recentIncidents: 近期故障
   spaceCredentialActivity: 进站凭证使用记录
   last7DaysTime: 最近 7 天：时间、IP 前缀和结果
-setcatTheme:
-  colorPalette: 调色板
-  reset: 恢复默认
-  theBackgroundGlowButtons: 背景光晕和按钮、标题、图标一起换色。
-  currentPalette: 当前调色板
-  light: 浅色
-  dark: 深色
-  default: （默认）
-  default2: 默认
 wild:
   todayThisDevice: 今天 · 本机
   timeBreakdown: 各区域时长
@@ -801,9 +792,6 @@ features:
   lock-gate:
     name: 锁屏门禁
 spaceCats:
-  theme:
-    title: 风格
-    sub: 调色板与主题色
   security:
     title: 安全
     sub: 通行密钥、锁屏与临时钥匙

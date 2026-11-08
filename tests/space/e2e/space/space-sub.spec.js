@@ -1,11 +1,11 @@
 /**
  * 主页与门内子页（P4-3 PR-4b：主页和设置合成一页；2026-11 对齐 PR-B：主页回到「主页 / Home」四节，旷野独立成 /wild/）。真实断言（不 mock 自家逻辑）：
- * - 对齐 PR-B 起：主页 = hero + [01] 博客 · [02] 奇趣 · [03] 日刻 · [04] 旷野；没有分类入口；子页 /theme/ /wild/（/security/ 独立页）；下面几行是沿革
+ * - 对齐 PR-B 起：主页 = hero + [01] 博客 · [02] 奇趣 · [03] 日刻 · [04] 旷野；没有分类入口；子页 /wild/（/security/ 独立页）；下面几行是沿革
  * - 旷野页 /zh/（英文 /，P4-3 PR-4c 起英文默认）：上面名片 / 日刻 / 屏幕时间，下面标题带 + 5 个平铺入口（共享组件 partials/sgx-entries.html，数据 data/space-cats.yaml）：
  *   编号 01–05、圆底图标、名字 + 一行副标题、行间细线、无卡片底；≥ 760 两栏、≥ 1100 三栏（栏间细竖线）；没有账号卡、没有选项组、没有 DeX 双栏
  *   （分类沿革：2026-10-23 PR-E 常规管理 / 辅助功能删除；服务状态从账号页搬来；P4-2c 高级功能删除，「安全与隐私」改名「安全」；
  *    P4-3 PR-4b（Gray 2026-11-07）显示页 /display/ 整页删除，404，不做 301——功能都在快捷面板）
- * - 子页 /theme/ /wild/ 可达、有对应内容（顶栏没有返回键），/security/ 是独立页面（对齐 PR-B 前：/wellbeing/ /about/ /status/）
+ * - 子页 /wild/ 可达（对齐 PR-C：风格页 /theme/ 退役，301 到主页）、有对应内容（顶栏没有返回键），/security/ 是独立页面（对齐 PR-B 前：/wellbeing/ /about/ /status/）
  * - 旧设置层（原设置首页和全部子页）一律 404，不跳转
  * - 中英双语
  */
@@ -146,13 +146,11 @@ test('old settings layer is gone: home and every subpage 404, no redirect', asyn
 });
 
 const SUBCHECKS = {
-  theme: ['#palette-dots'],
   /* 对齐 PR-B：旷野页 = 屏幕时间 / 服务状态 / 关于本站三窗 */
   wild: ['#wb-card', '#st-root', '#sg-about'],
 };
 /* 2026-10-23 PR-E / 对齐 PR-B：删掉的设置项（15 分钟提醒随「数字健康不做设置」删除） */
 const GONE = {
-  theme: ['#theme-previews', '#row-system', '#seg-layout', '#row-lang'],
   wild: ['#well-v-total', '#row-welltip', '#row-reset', '#sg-wellbeing'],
 };
 
@@ -178,7 +176,7 @@ for (const c of CATS) {
 
 test('space search removed: no bottom search bar on space pages; old settings search page is gone', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  for (const path of ['/zh/', '/zh/theme/', '/zh/wild/']) {
+  for (const path of ['/zh/', '/zh/wild/']) {
     await gotoSettings(pg, path);
     await expect(pg.locator('.sgx-cap, #sgx-cap-settings, #sgx-cap-input-setsearch'), path).toHaveCount(0);
     await expect(pg.locator('#setso-page')).toHaveCount(0);
@@ -272,114 +270,87 @@ test.describe('unlock methods entry relocation', () => {
   });
 });
 
-/* v1.3 #42 → B2-7 → 2026-10-23 PR-G 七色调色板：22 套一个列表，按 group 分组（冷调 / 自然 / 暖调 / 花色 / 中性），没有单色 / 撞色分页。
-   断言分组 + 412 宽每行 4 个 + 末行左对齐 + 选中描边 / 对勾 + 预览卡跟着换 + 键盘可选 + 恢复默认。
-   注：像素级视觉基线需在 CI 环境生成，本地环境字体渲染有差异，故此处只做 DOM 断言。 */
-test('palette 8-color test state', async ({ page: pg }) => {
+/* v1.3 #42 → B2-7 → 2026-10-23 PR-G 七色调色板：22 套一个列表（palettes.yaml 顺序），没有单色 / 撞色分页。
+   对齐 PR-C：风格页 /theme/ 退役（301 到主页），色板网格 / 预览卡 / 恢复默认只在顶栏外观弹层 #sgx-qp——这里改走弹层，覆盖不减：
+   顺序 + 默认 terra 选中 / 对勾 + 点选写 key 整页换色 + 刷新保持 + 键盘可选 + 恢复默认置灰 / 置灰不动。
+   （弹层本身的开合、焦点、互斥见 tests/space/e2e/topbar/quick-panel.spec.js。） */
+async function openQpOn(pg) {
+  await pg.locator('.sgx-tb-quick').click();
+  await expect(pg.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
+}
+test('palette 8-color test state（外观弹层）', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/zh/theme/');
-  const grid = pg.locator('#palette-dots');
+  await gotoSettings(pg, '/zh/wild/');
+  await openQpOn(pg);
+  const grid = pg.locator('#sgx-qp .sgx-th-pals');
   await expect(grid).toBeVisible();
   const fs = require('fs');
   const path = require('path');
   const yml = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'palettes.yaml'), 'utf8');
-  const items = [...yml.matchAll(/^\s*- id: ([a-z]+)\n(?:\s+\w+: .*\n)*?\s+group: ([a-z]+)$/gm)].map((m) => [m[1], m[2]]);
+  const items = [...yml.matchAll(/^\s*- id: ([a-z]+)\n(?:\s+\w+: .*\n)*?\s+group: ([a-z]+)$/gm)].map((m) => m[1]);
   expect(items.length).toBe(22);
-  /* 没有单色 / 撞色分页，没有撞色胶囊 */
-  await expect(pg.locator('[data-pal-tab]')).toHaveCount(0);
-  await expect(pg.locator('#palette-dots-clash, .swatch-clash')).toHaveCount(0);
-  await expect(pg.locator('#sg-theme .text-m-on-surface-variant').first()).toHaveText('背景光晕和按钮、标题、图标一起换色。');
-  /* 分组标题 + 每组的色块（顺序 = palettes.yaml） */
-  await expect(grid.locator('.pal-group-title')).toHaveText(['冷调', '自然', '暖调', '花色', '中性']);
-  const groups = grid.locator('.pal-grid');
-  await expect(groups).toHaveCount(5);
-  for (const [i, g] of ['cool', 'nature', 'warm', 'floral', 'neutral'].entries()) {
-    const want = items.filter((x) => x[1] === g).map((x) => x[0]);
-    expect(await groups.nth(i).locator('.pal-tile').evaluateAll((els) => els.map((e) => e.getAttribute('data-palette')))).toEqual(want);
-  }
-  await expect(grid.locator('.pal-tile')).toHaveCount(22);
-  /* 默认 terra（2026-11 PR-A）有「默认」标，初始选中；其他都没选 */
-  await expect(grid.locator('.palette-cell:has([data-palette="terra"]) .pal-def')).toHaveText('默认');
-  await expect(grid.locator('.pal-def')).toHaveCount(1);
-  await expect(grid.locator('.pal-tile[aria-pressed="true"]')).toHaveCount(1);
-  await expect(grid.locator('[data-palette="terra"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(grid.locator('.pal-tile[aria-pressed="true"] .pal-check')).toBeVisible();
-  /* 412 宽：冷调 6 个排成 4 + 2，末行左对齐；色块是正方形，6 个前景色点 */
-  const boxes = await groups.nth(0).locator('.palette-cell').evaluateAll((els) =>
-    els.map((el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top), left: Math.round(r.left) }; })
-  );
-  const rows = [...new Set(boxes.map((b) => b.top))];
-  expect(rows.length).toBe(2);
-  expect(boxes.filter((b) => b.top === rows[0]).length).toBe(4);
-  expect(Math.abs(boxes[4].left - boxes[0].left)).toBeLessThanOrEqual(2);
-  const tb = await grid.locator('.pal-tile').first().boundingBox();
-  expect(Math.abs(tb.width - tb.height)).toBeLessThanOrEqual(1);
-  await expect(grid.locator('.pal-tile').first().locator('.pal-dots i')).toHaveCount(6);
-  /* 预览卡：浅色 / 深色两部小手机（只有文字标签，没有单选、不能点），名字 = 当前色板 */
-  const pv = pg.locator('#pal-preview');
-  await expect(pv.locator('.pal-mini')).toHaveCount(2);
-  await expect(pv.locator('.pal-pv-label')).toHaveText(['浅色', '深色']);
-  await expect(pv.locator('input, button, [role="radio"]')).toHaveCount(0);
-  await expect(pg.locator('#pal-preview-name')).toHaveText('陶土');
-  /* 选山绿：写 sgx-palette、整页换色、预览卡换成山绿的变量；刷新后仍选中 */
-  await grid.locator('.pal-tile[data-palette="forest"]').click();
+  await expect(pg.locator('[data-pal-tab], #palette-dots-clash, .swatch-clash')).toHaveCount(0);
+  /* 顺序 = palettes.yaml；每块 6 色点 */
+  expect(await grid.locator('[data-qp-palette]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp-palette')))).toEqual(items);
+  await expect(grid.locator('[data-qp-palette]').first().locator('.sgx-th-sw u')).toHaveCount(6);
+  /* 默认 terra 初始选中、有对勾；其他都没选 */
+  await expect(grid.locator('[aria-pressed="true"]')).toHaveCount(1);
+  await expect(grid.locator('[data-qp-palette="terra"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(grid.locator('[data-qp-palette="terra"] em')).toBeVisible();
+  /* 选山绿：写 sgx-palette、整页换色；刷新后仍选中 */
+  await grid.locator('[data-qp-palette="forest"]').click();
   await expect(pg.locator('html')).toHaveAttribute('data-palette', 'forest');
-  await expect(grid.locator('[data-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(grid.locator('[data-palette="terra"]')).toHaveAttribute('aria-pressed', 'false');
-  await expect(pg.locator('#pal-preview-name')).toHaveText('山绿');
-  expect(await pv.getAttribute('style')).toBe(await grid.locator('[data-palette="forest"]').getAttribute('style'));
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBe('forest');
+  await expect(grid.locator('[data-qp-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(grid.locator('[data-qp-palette="terra"]')).toHaveAttribute('aria-pressed', 'false');
   await pg.reload({ waitUntil: 'domcontentloaded' });
-  await expect(pg.locator('#palette-dots [data-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(pg.locator('#pal-preview-name')).toHaveText('山绿');
+  await expect(pg.locator('html')).toHaveAttribute('data-palette', 'forest');
+  await openQpOn(pg);
+  await expect(grid.locator('[data-qp-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
   /* 键盘：焦点到色块、Enter 选中 */
-  await pg.locator('#palette-dots [data-palette="cream"]').focus();
+  await grid.locator('[data-qp-palette="cream"]').focus();
   await pg.keyboard.press('Enter');
   await expect(pg.locator('html')).toHaveAttribute('data-palette', 'cream');
-  await expect(pg.locator('#palette-dots [data-palette="cream"]')).toHaveAttribute('aria-pressed', 'true');
-  /* 恢复默认（标题行右端）：非默认时可点 → 回默认 terra（不存 key）、置灰（aria-disabled，不隐藏）；置灰时点了不动 */
-  const rs = pg.locator('#palette-reset');
-  await expect(rs).toHaveText('恢复默认');
+  await expect(grid.locator('[data-qp-palette="cream"]')).toHaveAttribute('aria-pressed', 'true');
+  /* 恢复默认：非默认时可点 → 回默认 terra（不存 key）、置灰（aria-disabled，不隐藏）；置灰时点了不动 */
+  const rs = pg.locator('#sgx-qp [data-qp-reset]');
   await expect(rs).toHaveAttribute('aria-disabled', 'false');
-  const title = pg.locator('#sg-theme p.text-sm.font-medium').first();
-  const tt = await title.boundingBox();
-  const rb = await rs.boundingBox();
-  expect(rb.x).toBeGreaterThan(tt.x + tt.width);
-  expect(Math.abs(rb.y + rb.height / 2 - (tt.y + tt.height / 2))).toBeLessThanOrEqual(1.5);
   await rs.click();
   await expect(pg.locator('html')).not.toHaveAttribute('data-palette', /.+/);
   expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
   await expect(rs).toHaveAttribute('aria-disabled', 'true');
   await expect(rs).toBeVisible();
-  await expect.poll(() => rs.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(0.6); /* opacity 有 .15s 过渡 */
-  await expect(pg.locator('#palette-dots .pal-tile[aria-pressed="true"]')).toHaveCount(1);
-  await expect(pg.locator('#palette-dots [data-palette="terra"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(pg.locator('#pal-preview-name')).toHaveText('陶土');
-  await rs.click({ force: true }); /* aria-disabled：强制点一下验证没反应 */
+  await expect(grid.locator('[aria-pressed="true"]')).toHaveCount(1);
+  await expect(grid.locator('[data-qp-palette="terra"]')).toHaveAttribute('aria-pressed', 'true');
+  await rs.click({ force: true });
   expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
   await pg.reload({ waitUntil: 'domcontentloaded' });
-  await expect(pg.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'true');
+  await openQpOn(pg);
+  await expect(rs).toHaveAttribute('aria-disabled', 'true');
 });
 
 /* 2026-10-23 PR-G：单色 / 撞色合并，旧的撞色 id x<id> 首屏迁到 <id>（localStorage 也改写），不认识的 id 清掉回默认 */
 test('旧撞色 id 迁移：xforest → forest；不认识的 id → 默认 terra', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await pg.addInitScript(() => { try { if (!sessionStorage.getItem('mig')) { localStorage.setItem('sgx-palette', 'xforest'); sessionStorage.setItem('mig', '1'); } } catch (e) {} });
-  await gotoSettings(pg, '/zh/theme/');
+  await gotoSettings(pg, '/zh/wild/');
   await expect(pg.locator('html')).toHaveAttribute('data-palette', 'forest');
   expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBe('forest');
-  await expect(pg.locator('#palette-dots [data-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
+  await openQpOn(pg);
+  await expect(pg.locator('#sgx-qp [data-qp-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
   await pg.evaluate(() => localStorage.setItem('sgx-palette', 'neon'));
   await pg.reload({ waitUntil: 'domcontentloaded' });
   await expect(pg.locator('html')).not.toHaveAttribute('data-palette', /.+/);
   expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
-  await expect(pg.locator('#palette-dots [data-palette="terra"]')).toHaveAttribute('aria-pressed', 'true');
+  await openQpOn(pg);
+  await expect(pg.locator('#sgx-qp [data-qp-palette="terra"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
 /* B2-1：诊断留痕已删除——即使 sessionStorage 里残留旧版的留痕/信标，安全与隐私页也不显示跳转日志卡；
    站内跳转不再写留痕 */
 test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
-  await gotoSettings(pg, '/zh/theme/');
+  await gotoSettings(pg, '/zh/wild/');
   await pg.evaluate(() => {
     sessionStorage.setItem('sgx-last-jump', JSON.stringify([{ who: 'navhistory.js:59', reason: 'goback-primary;to=/', at: Date.now(), desktop: false, visibility: 'visible' }]));
     sessionStorage.setItem('sgx-credential-beacon', JSON.stringify({ path: '/security/owner/', at: Date.now() }));
@@ -393,7 +364,7 @@ test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
   /* 站内返回（系统返回）：不再写新的留痕 */
   await pg.evaluate(() => sessionStorage.removeItem('sgx-last-jump'));
   await pg.goBack();
-  await pg.waitForURL(/\/theme\/$/, { timeout: 15000 });
+  await pg.waitForURL(/\/wild\/$/, { timeout: 15000 });
   expect(await pg.evaluate(() => sessionStorage.getItem('sgx-last-jump'))).toBeNull();
 });
 

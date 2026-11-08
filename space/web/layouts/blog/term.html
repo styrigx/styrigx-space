@@ -1,4 +1,4 @@
-{{- /* 标签页（原 src/pages/tags/[tag].astro + BlogArchiveHeader + BlogPostList）：/tags/<slug>/（英文）、/zh/tags/<slug>/（中文） */ -}}
+{{- /* 标签页：/blog/tags/<slug>/（英文）、/blog/zh/tags/<slug>/（中文）。2026-11 对齐 PR-C 起页头 / 文章行同博客首页（站内 #标签 链接改去 首页?tag= 就地筛选，这页留给外链 / 搜索引擎）。 */ -}}
 {{ define "head" }}
 {{- $n := len .Pages -}}
 {{ partial "blog/head.html" (dict "page" . "title" (i18n "tagPageTitle" (dict "Name" .Title)) "description" (i18n "tagNote" (dict "Count" $n))) }}
@@ -7,21 +7,11 @@
 {{- $posts := partial "blog/posts-sorted.html" (dict "pages" .Pages "mode" "archive") -}}
 <body class="page-tag">
 {{ partial "blog/topnav.html" (dict "page" . "mode" "links") }}
-<main class="oui-archive-wrap">
-  <div class="tag-body">
-    <header class="archive-hero archive-header-shared page-header-spacing">
-      <div class="archive-header-main">
-        {{- /* 2026-11 UI 重设计 PR-3：标题带上面一行装饰提示符（同 sgx-page-hero 的 cmd），小字 kicker 照旧 */}}
-        <p class="sgx-hero-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">styrigx@space:~$</span> grep -l "#{{ .Title }}" blog/*</p>
-        <p class="archive-kicker">{{ i18n "tagCloudKicker" }}</p>
-        <h1 class="archive-title">#{{ .Title }}</h1>
-      </div>
-      <div class="archive-copy">
-        <p class="archive-subtitle">{{ i18n "tagNote" (dict "Count" (len $posts)) }}</p>
-      </div>
-    </header>
-    {{ partial "blog/post-list.html" (dict "posts" $posts) }}
-  </div>
+<main class="oui-archive-wrap blog-list">
+  {{- /* 2026-11 对齐 PR-C：页头同全站 .sgx-ph（$ grep -l "#标签" blog/* · #标签_ · 共 n 篇），文章行同博客首页（partials/blog/post-rows.html） */ -}}
+  {{- $all := partial "blog/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}
+  {{ partial "sgx-ph.html" (dict "cmd" (printf "grep -l \"#%s\" blog/*" .Title) "title" (printf "#%s" .Title) "desc" (i18n "tagNote" (dict "Count" (len $posts))) "path" .RelPermalink) }}
+  {{ partial "blog/post-rows.html" (dict "posts" $posts "home" (site.GetPage "/blog").RelPermalink "cf" (partial "blog/cat-field.html" $all)) }}
 </main>
 {{ partial "blog/footer.html" . }}
 </body>

@@ -1,6 +1,6 @@
 // 2026-10-20 沉浸式 app 顶栏验收（不截图，只断言行为和布局）：
 // - 顶栏三块：九宫格 · 长条 · 右圆分享（2026-10-24 留言板撤了）；没有 ‹ 返回、没有 ⋮，没有版权页脚。
-// - 列表页长条 = 分段滑块 首页 · 文章 · 专题（没有归档）：点、滑、键盘切换，hash 记住页签。
+// - 2026-11 对齐 PR-C（设计稿 pg=blog / tree / post）：列表页是一页文章列表（分类 chips 筛选、less 分页、旧 #topics 地址转到目录页 / 筛选），目录页 /blog/tree/，文章文末两卡 + 分享一行。
 // - 指示器 = 抽屉当前项同一套 tonal（--sgx-nav-selected，同主站顶栏三栏 .sgx-tb-tab）；阅读进度 = 填充档（--sgx-accent = --sgx-primary-fill）；
 //   都跟 sgx-ui cookie 的 pal / 自定义种子 accent 变；抽屉当前项 / 目录当前节是 tonal。
 // - 九宫格 → 左侧导航抽屉（主站共享外壳同一份：主站 / 奇趣 / 日刻 / 博客，字标 + 头像、底栏搜索框，毛玻璃、tonal 当前项）；文章页抽屉最下面是目录。
@@ -52,10 +52,6 @@ test.beforeEach(async ({ page }) => {
 const ARTICLE = '/blog/zh/post/2026-10-07-muse-playbook/';
 const SERIES_V2 = '/blog/zh/post/2026-10-11-key-spec-whitepaper-v2/';
 
-async function ready(page) {
-  await expect(page.locator('[data-sgx-panes]')).toHaveAttribute('data-state', 'ready');
-}
-
 /** 计算任一 --sgx-* 角色的实际颜色 */
 const roleColor = (page, v) =>
   page.evaluate((v) => {
@@ -66,18 +62,6 @@ const roleColor = (page, v) =>
     probe.remove();
     return c;
   }, v);
-
-/* P4-3 PR-4b：顶栏没有分段滑块——页名胶囊显示当前分区名（首页分区 = 站名），分区入口（#blog-entries）只在首页分区显示 */
-const PANE_TITLE = { zh: { home: '博客', posts: '文章', topics: '专题' }, en: { home: 'Blog', posts: 'Posts', topics: 'Topics' } };
-
-async function expectTab(page, id) {
-  await expect(page.locator(`[data-pane="${id}"]`)).toHaveClass(/\bis-active\b/);
-  await expect(page.locator(`[data-pane="${id}"]`)).not.toHaveAttribute('inert', '');
-  const en = !new URL(page.url()).pathname.startsWith('/blog/zh/');
-  await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveText(PANE_TITLE[en ? 'en' : 'zh'][id]);
-  if (id === 'home') await expect(page.locator('#blog-entries')).toBeVisible();
-  else await expect(page.locator('#blog-entries')).toBeHidden();
-}
 
 test.describe('顶栏', () => {
   for (const path of ['/blog/zh/', '/blog/', ARTICLE, '/blog/zh/tags/ai/', '/blog/zh/404.html']) {
@@ -114,177 +98,130 @@ test.describe('顶栏', () => {
   }
 });
 
-test.describe('列表页分区', () => {
-  test('首页正文三个分区入口：首页 · 文章 · 专题，默认首页；顶栏没有分段滑块，页名胶囊 = 站名', async ({ page }) => {
+test.describe('博客首页（对齐 PR-C，设计稿 pg=blog）：一页文章列表 + 分类 chips + less 分页', () => {
+  const rows = (page) => page.locator('[data-post]:visible');
+  async function listReady(page) {
+    await expect(page.locator('[data-blog-list]')).toHaveAttribute('data-ready', 'true');
+  }
+
+  test('页头 ls -lt blog/ · 博客_ · 一行说明；chips 全部 7（当前）+ 分类 + 虚线 tree blog/ →；页名胶囊 = 站名；没有分区入口 / 面板', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    await expect(page.locator('#blog-entries .sgx-ent-name')).toHaveText(['首页', '文章', '专题']);
-    await expect(page.locator('#blog-entries [data-entry="posts"]')).toHaveAttribute('href', '#posts');
-    await expect(page.locator('.sgx-tb-pill .sgx-seg, .sgx-tb-pill [role="tab"], [data-sgx-seg]')).toHaveCount(0);
-    await expectTab(page, 'home');
-    /* 第一条入口在顶栏下面，不被顶栏压住 */
-    const [bar, ent] = await Promise.all([page.locator('.sgx-topbar').boundingBox(), page.locator('#blog-entries .sgx-ent').first().boundingBox()]);
-    expect(ent.y).toBeGreaterThanOrEqual(bar.y + bar.height);
-    /* 首页面板：标题区 + 最新 3 篇 + 系列卡 */
-    await expect(page.locator('[data-pane="home"] h1')).toHaveText('博客');
-    await expect(page.locator('[data-pane="home"] .latest-card')).toHaveCount(3);
-    await expect(page.locator('[data-pane="home"] .series-card')).toHaveCount(1);
+    await listReady(page);
+    await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls -lt blog/');
+    await expect(page.locator('h1.sgx-ph-title')).toHaveText('博客');
+    await expect(page.locator('.sgx-ph-desc')).toContainText('共 7 篇');
+    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveText('全部 7');
+    await expect(page.locator('.sgx-chip--more')).toHaveAttribute('href', '/blog/zh/tree/');
+    await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveText('博客');
+    await expect(page.locator('#blog-entries, [data-sgx-panes], [data-sgx-segs]')).toHaveCount(0);
   });
 
-  test('点首页入口切分区，hash 记住，刷新停在原分区；hash 回首页', async ({ page }) => {
+  test('分页：每页 6 篇，-- less (1/2) --；点页码 / → 翻页，地址 ?page=2，刷新停在原页；返回回第 1 页', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    await page.locator('#blog-entries [data-entry="posts"]').click();
-    await expectTab(page, 'posts');
-    await expect(page).toHaveURL(/\/#posts$/);
-    expect(await page.locator('[data-pane="posts"] .note-entry').count()).toBeGreaterThan(3);
+    await listReady(page);
+    await expect(rows(page)).toHaveCount(6);
+    await expect(page.locator('[data-pg-less]')).toHaveText('-- less (1/2) --');
+    await page.locator('.sgx-pg-next').click();
+    await expect(page).toHaveURL(/\/blog\/zh\/\?page=2$/);
+    await expect(rows(page)).toHaveCount(1);
+    await expect(page.locator('[data-pg-less]')).toHaveText('-- less (2/2) --');
+    await expect(page.locator('[data-pg-nums] a[aria-current="page"]')).toHaveText('2');
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await ready(page);
-    await expectTab(page, 'posts');
-    await page.evaluate(() => { location.hash = '#topics'; });
-    await expectTab(page, 'topics');
-    await expect(page).toHaveURL(/\/#topics$/);
-    await page.evaluate(() => { location.hash = ''; });
-    await expectTab(page, 'home');
-    await page.locator('#blog-entries [data-entry="topics"]').click();
-    await expectTab(page, 'topics');
-  });
-
-  test('从文章返回列表：停在原页签', async ({ page }) => {
-    await page.goto('/blog/zh/#posts', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    await expectTab(page, 'posts');
-    await page.locator('[data-pane="posts"] .note-title a').first().click();
-    await page.waitForURL(/\/post\//);
+    await listReady(page);
+    await expect(rows(page)).toHaveCount(1);
     await page.goBack();
-    await expect(page).toHaveURL(/\/#posts$/);
-    await ready(page);
-    await expectTab(page, 'posts');
+    await expect(page).toHaveURL(/\/blog\/zh\/$/);
+    await expect(rows(page)).toHaveCount(6);
   });
 
-  test('键盘：分区入口是普通链接，聚焦后回车进分区', async ({ page }) => {
+  test('空格：分页条进入视口时翻下一页（less）', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    await page.locator('#blog-entries [data-entry="posts"]').focus();
-    await page.keyboard.press('Enter');
-    await expectTab(page, 'posts');
-    await expect(page).toHaveURL(/#posts$/);
+    await listReady(page);
+    await page.locator('[data-blog-pager]').scrollIntoViewIfNeeded();
+    await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : null));
+    await page.keyboard.press('Space');
+    await expect(page).toHaveURL(/\?page=2$/);
+    await expect(page.locator('[data-pg-less]')).toHaveText('-- less (2/2) --');
   });
 
-  test('左右滑动切换面板，面板跟手', async ({ page }) => {
+  test('chips 就地筛选：点分类 → 只剩该分类的文章、chip 主题色当前项、地址 ?tag=；点「全部」回来；行里的 #分类 同样筛选', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    /* 分区入口在面板上方：按在面板里滑 */
-    const pb = await page.locator('[data-sgx-panes]').boundingBox();
-    const y = Math.min(pb.y + 60, 780);
-    await page.mouse.move(340, y);
-    await page.mouse.down();
-    for (let x = 340; x >= 200; x -= 20) await page.mouse.move(x, y);
-    const mid = await page.evaluate(() =>
-      Number(
-        getComputedStyle(document.querySelector('[data-sgx-track]')).getPropertyValue('--pane-pos'),
-      ),
-    );
-    expect(mid).toBeGreaterThan(0.1);
-    expect(mid).toBeLessThan(0.9);
-    for (let x = 200; x >= 60; x -= 20) await page.mouse.move(x, y);
-    await page.mouse.up();
-    await expectTab(page, 'posts');
-    await expect(page).toHaveURL(/#posts$/);
-    /* 往右滑回首页（切到文章后入口收起，面板位置变了，重新量） */
-    const pb2 = await page.locator('[data-sgx-panes]').boundingBox();
-    const y2 = Math.min(Math.max(pb2.y + 60, 600), 780);
-    await page.mouse.move(60, y2);
-    await page.mouse.down();
-    for (let x = 60; x <= 360; x += 25) await page.mouse.move(x, y2);
-    await page.mouse.up();
-    await expectTab(page, 'home');
-    /* 首页再往右滑：到头了，留在首页 */
-    await page.mouse.move(60, y);
-    await page.mouse.down();
-    for (let x = 60; x <= 360; x += 25) await page.mouse.move(x, y);
-    await page.mouse.up();
-    await expectTab(page, 'home');
-  });
-
-  test('竖向拖动不触发切换', async ({ page }) => {
-    await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    const pb = await page.locator('[data-sgx-panes]').boundingBox();
-    const y = Math.min(pb.y + 200, 780);
-    await page.mouse.move(200, y);
-    await page.mouse.down();
-    await page.mouse.move(215, y - 200, { steps: 8 });
-    await page.mouse.up();
-    await expectTab(page, 'home');
-  });
-
-  test('专题：系列在最前、按篇序；点标签就地筛选，hash 可直达', async ({ page }) => {
-    await page.goto('/blog/zh/#topics', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    await expectTab(page, 'topics');
-    const pane = page.locator('[data-pane="topics"]');
-    await expect(pane.locator('.sgx-sec-title:visible').first()).toHaveText('系列');
-    const card = pane.locator('[data-series-card]').first();
-    await expect(card.locator('.series-card-name')).toHaveText('Styrigx UI 鉴权规范');
-    await expect(card.locator('li a')).toHaveCount(2);
-    await expect(card.locator('li a').first()).toHaveAttribute(
-      'href',
-      '/blog/zh/post/2026-10-11-key-spec-whitepaper/',
-    );
-    /* 标签筛选 */
-    const chip = pane.locator('[data-topic-filter="tag:ai"]');
+    await listReady(page);
+    const chip = page.locator('.blog-chips [data-chip]:not([data-chip=""])').first();
+    const n = Number(((await chip.locator('i').textContent()) || '0').trim());
+    const slug = await chip.getAttribute('data-chip');
     await chip.click();
-    await expect(chip).toHaveAttribute('aria-pressed', 'true');
-    await expect(page).toHaveURL(/#topics\/tag\/ai$/);
-    const results = pane.locator('[data-topic-results]');
-    await expect(results).toBeVisible();
-    const n = await results.locator('[data-topic-post]:visible').count();
-    expect(n).toBeGreaterThan(0);
-    await expect(results.locator('[data-topic-results-title]')).toContainText(`${n} 篇`);
-    await results.locator('[data-topic-clear]').click();
-    await expect(results).toBeHidden();
-    await expect(page).toHaveURL(/#topics$/);
-    /* 直达 */
-    await page.goto('/blog/zh/#topics/tag/ai', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    await expectTab(page, 'topics');
-    await expect(pane.locator('[data-topic-filter="tag:ai"]')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    await expect(results).toBeVisible();
+    await expect(page).toHaveURL(new RegExp('\\?tag=' + encodeURIComponent(slug || '') + '$'));
+    await expect(chip).toHaveAttribute('aria-current', 'true');
+    await expect(rows(page)).toHaveCount(Math.min(n, 6));
+    await page.locator('.blog-chips [data-chip=""]').first().click();
+    await expect(page).toHaveURL(/\/blog\/zh\/$/);
+    await expect(rows(page)).toHaveCount(6);
+    await page.locator('[data-post] .sgx-pl-tg[href*="?tag="]').first().click();
+    await expect(page).toHaveURL(/\/blog\/zh\/\?tag=/);
+    await expect(page.locator('[data-post]:visible')).not.toHaveCount(0);
   });
 
-  test('文章列表里的 #标签 跳到专题筛选', async ({ page }) => {
+  test('不在 chips 里的标签（目录页 / 文章页的 #标签 链接）：一行筛选提示「筛选：#标签 · n 篇 清除」', async ({ page }) => {
+    await page.goto('/blog/zh/?tag=ed25519', { waitUntil: 'domcontentloaded' });
+    await listReady(page);
+    await expect(page.locator('[data-blog-filter-note]')).toBeVisible();
+    await expect(page.locator('[data-filter-text]')).toHaveText('筛选：#Ed25519 · 1 篇');
+    await expect(rows(page)).toHaveCount(1);
+    await page.locator('[data-blog-filter-note] a').click();
+    await expect(page).toHaveURL(/\/blog\/zh\/$/);
+    await expect(page.locator('[data-blog-filter-note]')).toBeHidden();
+  });
+
+  test('旧地址（专题面板时代）：#posts → 首页，#topics → 目录页，#topics/tag/<slug> → ?tag=，#topics/series/<slug> → 目录页系列目录', async ({ page }) => {
     await page.goto('/blog/zh/#posts', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    await page.locator('[data-pane="posts"] .note-meta a[href^="#topics/tag/"]').first().click();
-    await expectTab(page, 'topics');
-    await expect(page.locator('[data-topic-results]')).toBeVisible();
+    await expect(page).toHaveURL(/\/blog\/zh\/$/);
+    await page.goto('/blog/zh/#topics', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/blog\/zh\/tree\/$/);
+    await page.goto('/blog/zh/#topics/tag/ai', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/blog\/zh\/\?tag=ai$/);
+    await page.goto('/blog/zh/#topics/series/styrigx-ui-鉴权规范', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/blog\/zh\/tree\/#series-/);
+    await expect(page.locator('[data-series]')).toHaveCount(1);
   });
 
-  test('英文：Home · Posts · Topics', async ({ page }) => {
+  test('英文：Blog · All 6（英文 6 篇）', async ({ page }) => {
     await preferLang(page, 'en');
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    await expect(page.locator('#blog-entries .sgx-ent-name')).toHaveText(['Home', 'Posts', 'Topics']);
-    await expectTab(page, 'home');
+    await listReady(page);
+    await expect(page.locator('h1.sgx-ph-title')).toHaveText('Blog');
+    await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveText('All 6');
+    await expect(page.locator('.sgx-tb-pill .sgx-tb-title')).toHaveText('Blog');
   });
+});
 
-  test('减弱动效：面板没有过渡', async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
-    await ready(page);
-    const d = await page.evaluate(() => [
-      getComputedStyle(document.querySelector('[data-sgx-track]')).transitionDuration,
-    ]);
-    /* one-ui.css 的全局减弱动效规则把过渡压到 ≤ 1ms */
-    for (const v of d) expect(parseFloat(v)).toBeLessThanOrEqual(0.001);
-    await page.locator('#blog-entries [data-entry="topics"]').click();
-    await expectTab(page, 'topics');
+test.describe('博客目录页（对齐 PR-C，设计稿 pg=tree）', () => {
+  test('tree blog/ -L 2：分类 │ 年份 切换（会话内记住）；点文章行打开文章；标签 → 首页筛选', async ({ page }) => {
+    await page.goto('/blog/zh/tree/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('h1.sgx-ph-title')).toHaveText('目录');
+    const cat = page.locator('[data-tree-pane="cat"]');
+    const yr = page.locator('[data-tree-pane="year"]');
+    await expect(cat).toBeVisible();
+    await expect(yr).toBeHidden();
+    await page.locator('[data-tree-view="year"]').click();
+    await expect(page.locator('[data-tree-view="year"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(yr).toBeVisible();
+    await expect(cat).toBeHidden();
+    await expect(yr).toContainText('2026/');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(yr).toBeVisible();
+    await page.locator('[data-tree-view="cat"]').click();
+    await expect(cat).toBeVisible();
+    await page.locator('.sgx-tags2 a').first().click();
+    await expect(page).toHaveURL(/\/blog\/zh\/\?tag=/);
+    await page.goto('/blog/zh/tree/', { waitUntil: 'domcontentloaded' });
+    await cat.locator('a.tf').first().click();
+    await expect(page).toHaveURL(/\/blog\/zh\/post\//);
   });
+});
 
+test.describe('标签页', () => {
   test('标签页：长条只有页名（标签名），没有滑块', async ({ page }) => {
     await page.goto('/blog/zh/tags/ai/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-tb-pill .sgx-seg')).toHaveCount(0);
@@ -459,22 +396,30 @@ test.describe('文章页：页名 + 进度细线 + 抽屉目录', () => {
     await expect(page.locator('.comment-section, [data-comment-provider], [data-giscus], iframe.giscus-frame')).toHaveCount(0);
   });
 
-  test('系列文章：系列小块（第 n / N 篇 + 上一篇），点系列名到专题', async ({ page }) => {
+  test('系列文章（对齐 PR-C）：元信息「系列 · 第 n / N 篇」，cd ../prev 卡 = 系列上一篇；点系列名到目录页系列目录', async ({ page }) => {
     await page.goto(SERIES_V2, { waitUntil: 'domcontentloaded' });
-    const block = page.locator('.sgx-series-block');
-    await expect(block).toBeVisible();
-    await expect(block.locator('.sgx-series-name')).toHaveText('Styrigx UI 鉴权规范');
-    await expect(block.locator('.sgx-series-pos')).toHaveText('第 2 / 2 篇');
-    await expect(block.locator('a[rel="prev"]')).toHaveAttribute(
-      'href',
-      '/blog/zh/post/2026-10-11-key-spec-whitepaper/',
-    );
-    await expect(block.locator('a[rel="next"]')).toHaveCount(0);
-    await block.locator('.sgx-series-name').click();
-    await expect(page).toHaveURL(/\/#topics\/series\//);
-    await ready(page);
-    await expectTab(page, 'topics');
-    await expect(page.locator('[data-series-card].is-target')).toHaveCount(1);
+    await expect(page.locator('.sgx-series-block, .share-buttons, .related-posts')).toHaveCount(0);
+    const meta = page.locator('.sgx-series-meta');
+    await expect(meta).toHaveText('Styrigx UI 鉴权规范 · 第 2 / 2 篇');
+    await expect(page.locator('.blog-nx a[rel="prev"]')).toHaveAttribute('href', '/blog/zh/post/2026-10-11-key-spec-whitepaper/');
+    await expect(page.locator('.blog-nx a[rel="prev"]')).toContainText('cd ../prev');
+    await meta.click();
+    await expect(page).toHaveURL(/\/blog\/zh\/tree\/#series-/);
+    await expect(page.locator('[data-series]')).toHaveCount(1);
+  });
+
+  test('文章页文末（对齐 PR-C）：两张 cd ../prev · cd ../next 卡；分享一行（X · 复制链接 · 问 Gray AI）手机在两卡下面，复制链接写剪贴板，问 Gray AI 打开 AI 窗', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto(ARTICLE, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.blog-nx .sgx-nx-a')).toHaveCount(2);
+    const rd = page.locator('.blog-rd--inline');
+    await expect(rd).toBeVisible();
+    await expect(rd.locator('a[href^="https://x.com/intent/post"]')).toHaveText('X');
+    await rd.locator('[data-share-copy]').click();
+    await expect(rd.locator('[data-share-copy] span')).toHaveText('已复制');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('/blog/zh/post/2026-10-07-muse-playbook/');
+    await rd.locator('[data-ask-ai]').click();
+    await expect(page.locator('#sgx-ai')).toHaveAttribute('open', '');
   });
 });
 
@@ -501,14 +446,14 @@ test.describe('跟随主站设置（sgx-ui cookie）', () => {
     expect(await bg()).not.toBe(cherry);
   });
 
-  test('lang=en：中文列表页跳英文并保留 hash；没有英文版的文章不跳', async ({
+  test('lang=en：中文列表页跳英文并保留 hash（文章锚点式 hash 不转址）；没有英文版的文章不跳', async ({
     page,
     context,
     baseURL,
   }) => {
     await setUi(context, baseURL, { v: 2, lang: 'en' });
-    await page.goto('/blog/zh/#topics', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(/\/blog\/#topics$/);
+    await page.goto('/blog/zh/#latest', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/blog\/#latest$/);
     await page.goto('/blog/zh/post/2026-10-11-key-spec-whitepaper/', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(300);
     expect(new URL(page.url()).pathname).toBe('/blog/zh/post/2026-10-11-key-spec-whitepaper/');

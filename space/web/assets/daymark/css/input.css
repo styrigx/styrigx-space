@@ -7,7 +7,7 @@
 @source "../../../content/daymark/**/*.md";
 @source "../js/**/*.js";
 /* 共享外壳（合站前是本站的副本，现在直接用主站的源文件）：顶栏等 partial + 外壳 JS */
-@source "../../../layouts/partials/{shell-topbar,sgx-entries,sgx-page-hero,sgx-segtabs,sgx-tr,sgx-lang-path}.html";
+@source "../../../layouts/partials/{shell-topbar,sgx-entries,sgx-ph,sgx-segtabs,sgx-tr,sgx-lang-path}.html";
 @source "../../../assets/js/shell/{topbar-panel,modal-sheet,ai-panel,vk,share-button}.js";
 @source "../../../assets/js/lib/{palette-scheme,prefs-write,ui-cookie-read,layout-mode,lang-path,lang-boot}.js";
 

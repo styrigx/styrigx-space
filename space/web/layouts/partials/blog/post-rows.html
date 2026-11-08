@@ -1,0 +1,24 @@
+{{- /* 按年分组的文章行（2026-11 对齐 PR-C，设计稿 pg=blog 的 .yr + .pl）：博客首页、标签页共用。
+参数：.posts（已排序）.home（博客首页地址，行内 #分类 链到 首页?cat= / ?tag=）.cf（分类字段，partials/blog/cat-field.html） */ -}}
+{{- $posts := .posts }}{{ $home := .home }}{{ $cf := .cf -}}
+  {{- $years := slice }}{{ range $posts }}{{ $y := .Date.Format "2006" }}{{ if not (in $years $y) }}{{ $years = $years | append $y }}{{ end }}{{ end -}}
+  <div class="blog-rows" data-blog-rows>
+  {{- range $y := $years }}
+    <h2 class="sgx-yr" data-year="{{ $y }}">{{ $y }}</h2>
+    <ol class="blog-yl" data-year-list="{{ $y }}">
+      {{- range $p := $posts }}{{ if eq ($p.Date.Format "2006") $y }}
+      {{- $rd := partial "blog/reading.html" $p }}
+      {{- $ts := slice }}{{ range ($p.Params.tags | default slice) }}{{ $ts = $ts | append (partial "blog/group-slug.html" .) }}{{ end }}
+      {{- $cs := slice }}{{ range ($p.Params.categories | default slice) }}{{ $cs = $cs | append (partial "blog/group-slug.html" .) }}{{ end }}
+      {{- $c1 := "" }}{{ with index $p.Params $cf }}{{ $c1 = index . 0 }}{{ end }}
+      <li class="sgx-pl" data-post data-tags="{{ delimit $ts " " }}" data-cats="{{ delimit $cs " " }}">
+        <time class="sgx-pl-dt" datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format "01-02" }}</time>
+        <a class="sgx-pl-t" href="{{ $p.RelPermalink }}">{{ $p.Title }}</a>
+        {{- with $c1 }}<a class="sgx-pl-tg" href="{{ $home }}?{{ cond (eq $cf "tags") "tag" "cat" }}={{ partial "blog/group-slug.html" . | urlquery }}">#{{ . }}</a>{{ else }}<span class="sgx-pl-tg"></span>{{ end }}
+        <span class="sgx-pl-rt">{{ i18n "readMin" (dict "Minutes" $rd.mins) }}</span>
+        {{- with $p.Description }}<p class="sgx-pl-ex">{{ . }}</p>{{ end }}
+      </li>
+      {{- end }}{{ end }}
+    </ol>
+  {{- end }}
+  </div>

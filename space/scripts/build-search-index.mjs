@@ -5,7 +5,7 @@
  * 来源（都在 hugo 构建后的 space/web/public/ 里）：
  *   - files-index.json：我的站点、应用（type site / app）。博客文章不在这里：博客自己写 KV site:blog，
  *     主站不再顺带
- *   - 旷野页（/、en/）、旷野子页（data/space-cats.yaml 的每个分类：theme/**、security/** …，英文加 en/；P4-3 PR-4b 起去掉 settings 一层）、
+ *   - 旷野页（/、en/）、旷野子页（data/space-cats.yaml 的每个分类：security/**、wild/** …，英文加 en/；P4-3 PR-4b 起去掉 settings 一层）、
  *     account/**、en/account/** 每个页面：标题取 <title> 去掉「 | Styrigx」，类型 setting
  *     账号页（/account/…）和旷野里的门内页（临时钥匙 /security/tempkeys/、服务状态 /status/）标 private（只给账号已登录的人搜到）
  *     副标题 = 完整面包屑：从地址逐级取上级页名，用「 › 」连起来，旷野子页最上一级是旷野页（锁屏凭证 → 「旷野 › 安全」；P4-3 PR-2 / PR-4b），

@@ -940,7 +940,7 @@ export function mountStatus(d) {
       .then(function () { busy = false; });
   };
   /* CI 静态测试构建（SGX_TEST_NO_WB，同数字健康）没有 /api：加载时不自动问，免得 404 进控制台（Lighthouse errors-in-console）；
-     e2e 要测这条时先设 window.__sgxStatusApi = true（只在测试构建里有这个分支，生产构建 define 为 false 整段摇掉；子站构建没有这个 define，按生产走） */
+     e2e 要测这条时先设 window.__sgxStatusApi = true（只在测试构建里有这个分支，生产构建 define 为 false 整段摇掉；博客测试构建同样定义（partials/blog/script.html，对齐 PR-C1）；奇趣 / 日刻构建没有这个 define，按生产走） */
   const noApi = typeof SGX_TEST_NO_WB !== 'undefined' && SGX_TEST_NO_WB && !(/** @type {any} */ (window).__sgxStatusApi);
   if (noApi) return function () {};
   const idle = /** @type {any} */ (window).requestIdleCallback || function (/** @type {() => void} */ f) { return window.setTimeout(f, 1200); };

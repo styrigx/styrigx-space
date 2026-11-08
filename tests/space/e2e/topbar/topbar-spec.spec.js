@@ -12,7 +12,7 @@
  * 顶栏 v8（2026-10-22，三个站同一套）：九宫格圆 | 长条（只有页名）| 右圆（每站自定义；主站 = 快捷面板）；头像挪进导航抽屉头（字标右边）。
  * 主站顶栏三栏（2026-10-22 PR2，只在主站）：主页 / 聊天 / 设置（2026-10-24 PR4 第三栏由「状态」换成「设置」）这三页长条里是三个标签（.sgx-tb-tabs），
  * 不放页名；其他页照旧只有页名。三栏本身的验收见 space-status.spec.js。
- * P4-3 PR-4b（2026-11-07）：主页和设置合成「旷野 / Space」（根路径 /），顶栏标签只剩一个「旷野」；原设置子页去掉 settings 一层挂到根下（/theme/ 等；显示页 /display/ 随后删除）。
+ * P4-3 PR-4b（2026-11-07）：主页和设置合成「旷野 / Space」（根路径 /），顶栏标签只剩一个「旷野」；原设置子页去掉 settings 一层挂到根下（/wild/ 等；显示页 /display/ 随后删除）。
  * 顶栏全大椭圆（2026-11-04 P5-1，四个站同一个）：一整条胶囊 .sgx-topbar = [logo][中间：主站标签 / 页名][快捷面板 · AI · 头像]；
  * 九宫格圆、导航抽屉、右圆删除（导航进快捷面板第 1 页，见 quick-panel.spec.js）；主站标签只剩 主页 / 设置。材质（--sgx-mat + 毛玻璃）在整条胶囊上，
  * 中间和按钮本身透明；胶囊高 = 原来圆按钮的高（52，≥ 600 宽按公式到 56），里面的按钮 40px；< 600 宽中间伸缩，≥ 600 宽中间按内容定宽、在屏幕正中。
@@ -83,7 +83,7 @@ for (const dark of [false, true]) {
   test.describe(`390×844 ${dark ? '暗色' : '亮色'}`, () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    for (const path of ['/', '/theme/', '/security/']) {
+    for (const path of ['/', '/wild/', '/security/']) {
       test(`${path}：贴顶通栏（字标 · 外观 · 盾牌 · | · >_ · 头像；不显示页名），按钮 40 × 40；AI 浮钮右下角；按钮颜色按状态`, async ({ page }) => {
         await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
         await go(page, path, { dark });
@@ -202,7 +202,7 @@ test.describe('390×844 行为', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test('旧顶栏元素、标题区旧按钮、大标题区、Styrigx 品牌字都已删除', async ({ page }) => {
-    await go(page, '/theme/');
+    await go(page, '/wild/');
     for (const sel of ['#nav-time-center', '#nav-wx', '#nav-music-note', '.nav-inner', '.subpage-back', '#nav-brand', '.sgx-tb-text', '.subpage-mini-title']) {
       await expect(page.locator(sel), sel).toHaveCount(0);
     }
@@ -220,7 +220,6 @@ test.describe('390×844 行为', () => {
     ['/zh/account/reset/', '重置登录'],
     ['/zh/security/', '安全'],
     ['/zh/security/lock/', '锁屏凭证'],
-    ['/zh/theme/', '风格'],
     ['/wild/', 'Wild'],
     ['/', 'Home'],
     ['/account/', 'Sign in'],
@@ -253,7 +252,7 @@ test.describe('390×844 行为', () => {
 
   test('盾牌 / 头像仍是当前语言安全页 / 账号页的链接（PR-5 起普通点击开下拉，下拉里的入口照旧去那两页）、字标回首页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/theme/');
+    await go(page, '/zh/wild/');
     await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('href', '/zh/security/');
     await expect(page.locator('.sgx-tb-shield')).toHaveAccessibleName('站点安全');
     await expect(page.locator('.sgx-tb-av')).toHaveAttribute('href', '/zh/account/');
@@ -266,7 +265,7 @@ test.describe('390×844 行为', () => {
     await page.waitForURL(/\/zh\/security\/$/);
   });
 
-  for (const path of ['/', '/account/', '/theme/']) {
+  for (const path of ['/', '/account/', '/wild/']) {
     test(`${path}：正文从顶栏下方 16px 开始（--sgx-content-top，全站同一个值）`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {
@@ -282,7 +281,7 @@ test.describe('390×844 行为', () => {
 
   test('滚动时顶栏不动（没有 sgx-stuck 切换）；底边进度条跟着滚动变长：顶上不显示、到底整宽', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/theme/'); /* 风格页够长（色板列表），手机上能滚 */
+    await go(page, '/zh/wild/'); /* 旷野页够长（三窗），手机上能滚；对齐 PR-C 前是风格页 */
     const prog = page.locator('#site-nav .sgx-tb-prog');
     await expect(prog).toHaveAttribute('data-empty', '');
     const before = await Promise.all(['.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-grid', '.sgx-tb-ai'].map((s) => box(page, s)));
@@ -320,7 +319,7 @@ test.describe('390×844 行为', () => {
   });
 
   test('顶栏切页过渡名挂在有尺寸的 .sgx-topbar 上', async ({ page }) => {
-    await go(page, '/theme/');
+    await go(page, '/wild/');
     const names = await page.evaluate(() => ({
       bar: getComputedStyle(document.querySelector('.sgx-topbar')).viewTransitionName,
       nav: getComputedStyle(document.getElementById('site-nav')).viewTransitionName,
@@ -492,7 +491,7 @@ test.describe('1280×800', () => {
   for (const [w, h] of [[600, 900], [840, 600], [1280, 800], [1920, 1080], [2560, 1440]]) {
     test(`${w}×${h}：通栏高 64，内容区按公式（±1px），居中`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
-      await go(page, '/theme/');
+      await go(page, '/wild/');
       const desktop = w >= 720;
       await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', desktop ? 'desktop' : 'phone');
       const bar = await box(page, '.sgx-topbar');
@@ -508,7 +507,7 @@ test.describe('1280×800', () => {
   }
 
   test('1280：AI 浮钮右下角（桌面边距 32），NAVIGATE 宽 360 落在 >_ 下面', async ({ page }) => {
-    await go(page, '/theme/');
+    await go(page, '/wild/');
     const ai = await box(page, '.sgx-tb-ai');
     expect(near(ai.x + ai.width, 1280 - 32) && near(ai.y + ai.height, 800 - 32), `AI 浮钮 ${ai.x},${ai.y}`).toBe(true);
     await page.locator('.sgx-tb-grid').click();
@@ -519,7 +518,7 @@ test.describe('1280×800', () => {
     expect(near(sh.x + sh.width, acts.x + acts.width - 44), `右缘 ${sh.x + sh.width}`).toBe(true);
   });
 
-  for (const path of ['/', '/theme/']) {
+  for (const path of ['/', '/wild/']) {
     test(`${path}：宽屏正文同样从顶栏下方 16px 开始，没有大标题区`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {
