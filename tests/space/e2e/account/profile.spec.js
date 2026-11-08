@@ -125,23 +125,31 @@ test('接口错误（没授权 profile.write）：显示在展开区，输入框
 
 /* 2026-11-08（Gray 截图）：什么都没填（接口全 null / 旧值空串）→ 头部大字 = 站点默认姓名 Sloan Gray、第二行默认昵称 Styrigx；
    个人资料层四项显示默认值（灰字 data-at-default），不是「未填写」。子站以前没有 #sgx-profile-default，默认值全空 → 回退写死的 Styrigx。 */
-for (const [where, path] of [['主站', '/zh/wild/'], ['子站（博客）', '/blog/zh/']]) {
-  test(`没填过资料（${where}）：头部 Sloan Gray / Styrigx；个人资料层显示默认值（灰字），不是「未填写」`, async ({ page }) => {
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-profile', JSON.stringify({ v: 1, p: { motto: '' }, t: 1 })); } catch (e) {} });
-    await mockAccount(page, { status: STATUS({ session: SESSION() }) });
-    await mockProfile(page, { stored: { name: null, nickname: null, motto: '', email: null } });
-    await T.goPage(page, path);
-    await expect(page.locator('#sgx-profile-default')).toHaveCount(1);
-    const d = await openTerm(page);
-    await layer(page, 'home');
-    await expect(d.locator('.sgx-pop-who b')).toHaveText('Sloan Gray');
-    await expect(d.locator('.sgx-pop-who small > span').first()).toHaveText('Styrigx');
-    await d.locator('.sgx-pop-edit').click();
-    await layer(page, 'profile');
-    await expect(row(page, 'name')).toContainText('Sloan Gray');
-    await expect(row(page, 'nickname')).toContainText('Styrigx');
-    await expect(row(page, 'motto')).toContainText('To understand the world');
-    await expect(d.locator('[data-at-view]')).not.toContainText('未填写');
-    await expect(row(page, 'name').locator('[data-at-default]')).toHaveCount(1);
+test('没填过资料：头部 Sloan Gray / Styrigx；个人资料层显示默认值（灰字），不是「未填写」', async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.setItem('sgx-profile', JSON.stringify({ v: 1, p: { motto: '' }, t: 1 })); } catch (e) {} });
+  await mockAccount(page, { status: STATUS({ session: SESSION() }) });
+  await mockProfile(page, { stored: { name: null, nickname: null, motto: '', email: null } });
+  await T.goPage(page);
+  const d = await openTerm(page);
+  await layer(page, 'home');
+  await expect(d.locator('.sgx-pop-who b')).toHaveText('Sloan Gray');
+  await expect(d.locator('.sgx-pop-who small > span').first()).toHaveText('Styrigx');
+  await d.locator('.sgx-pop-edit').click();
+  await layer(page, 'profile');
+  await expect(row(page, 'name')).toContainText('Sloan Gray');
+  await expect(row(page, 'nickname')).toContainText('Styrigx');
+  await expect(row(page, 'motto')).toContainText('To understand the world');
+  await expect(d.locator('[data-at-view]')).not.toContainText('未填写');
+  await expect(row(page, 'name').locator('[data-at-default]')).toHaveCount(1);
+});
+
+/* 子站（截图是在奇趣上）：以前没有 #sgx-profile-default，默认值全空。账号终端的画法同主站（同一份 shell/account），这里核对默认值确实在页面上 */
+for (const path of ['/blog/zh/', '/curio/zh/', '/daymark/zh/']) {
+  test(`子站 ${path} 也输出站点默认资料 #sgx-profile-default`, async ({ page }) => {
+    await page.goto(path, { waitUntil: 'domcontentloaded' });
+    const j = JSON.parse(await page.locator('#sgx-profile-default').textContent());
+    expect(j.name).toBe('Sloan Gray');
+    expect(j.nickname).toBe('Styrigx');
+    expect(j.motto).toContain('To understand the world');
   });
 }
