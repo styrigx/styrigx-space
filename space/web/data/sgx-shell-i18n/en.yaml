@@ -131,7 +131,7 @@ foot:
   clock: "Beijing time"
   langs: "Language"
   contact: "contact"
-# 外观弹层里的色板名（2026-11 PR-A 照设计稿 tb4.html：等宽小写英文，所有语言都用这一份，所以只写在英文表里，zh 表不写这个键）
+# 外观弹层里的色板名（2026-11 PR-A 照设计稿 tb4.html：等宽小写英文，所有语言都用这一份，中文表照抄同一份）
 paletteTerm:
   dustyblue: "dusty-blue"
   lake: "lake"

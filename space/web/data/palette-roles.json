@@ -1,6 +1,6 @@
 {
  "schema": "styrigx-palette/2",
- "generated": "2026-11-08 11:09 CST (UTC+08:00)",
+ "generated": "2026-11-08 11:16 CST (UTC+08:00)",
  "presets": {
   "dustyblue": {
    "id": "dustyblue",
@@ -4287,6 +4287,7 @@
     "disabled-container": "rgba(236,230,220,0.12)",
     "outline": "#8b857f",
     "outline-variant": "#2c2825",
+    "night-card": "#472932",
     "divider": "rgba(236,230,220,0.12)",
     "card": "#12100f",
     "card-nested": "#1a1816",
@@ -4313,7 +4314,6 @@
     ],
     "link": "#ffad91",
     "link-visited": "#fc9cbe",
-    "night-card": "#42232e",
     "on-night-card": "#ffdee8",
     "focus-ring": "#de7a58",
     "switch-track-on": "#de7a58",

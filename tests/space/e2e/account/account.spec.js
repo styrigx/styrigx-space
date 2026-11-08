@@ -887,14 +887,14 @@ test.describe('主题色角色（PR3）', () => {
     await page.evaluate(() => document.documentElement.classList.add('dark'));
     expect(await roleOf(page, '--sgx-primary')).not.toBe('#ba2863');
     await page.evaluate(() => document.documentElement.classList.remove('dark'));
-    /* 回设置页点「恢复默认」：清掉自定义色，回到默认 dustyblue（浅色主色 = 前景 1 芥末按对比度压深） */
+    /* 回设置页点「恢复默认」：清掉自定义色，回到默认 terra（2026-11 PR-A；浅色主色 = 前景 1 赤陶按对比度压深） */
     await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'false');
     await page.locator('#palette-reset').click();
     await expect(page.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'true');
     await expect(page.locator('style#sgx-accent-roles')).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('sgx-accent'))).toBeNull();
-    expect(await roleOf(page, '--sgx-primary')).toBe('#7e6000');
+    expect(await roleOf(page, '--sgx-primary')).toBe('#a94521');
   });
 });
 

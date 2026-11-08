@@ -3800,6 +3800,7 @@
   --sgx-disabled-container: rgba(236,230,220,0.12);
   --sgx-outline: #8b857f;
   --sgx-outline-variant: #2c2825;
+  --sgx-night-card: #472932;
   --sgx-divider: rgba(236,230,220,0.12);
   --sgx-card: #12100f;
   --sgx-card-nested: #1a1816;
@@ -3824,7 +3825,6 @@
   --sgx-bg-gradient-3: #131110;
   --sgx-link: #ffad91;
   --sgx-link-visited: #fc9cbe;
-  --sgx-night-card: #42232e;
   --sgx-on-night-card: #ffdee8;
   --sgx-focus-ring: #de7a58;
   --sgx-switch-track-on: #de7a58;

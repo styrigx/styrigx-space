@@ -10,10 +10,10 @@
   --blog-code-str: color-mix(in srgb, var(--sgx-tertiary) 75%, var(--sgx-text-primary));
   /* 数字 / 常量 / 转义 / 正则：danger 75%（最低 4.76:1 @ #1202d9/light） */
   --blog-code-num: color-mix(in srgb, var(--sgx-danger) 75%, var(--sgx-text-primary));
-  /* 注释：text-secondary 100%（最低 5.35:1 @ #1202d9/light） */
-  --blog-code-cm: var(--sgx-text-secondary);
-  /* 运算符 / 标点 / 提示符 / 输出：text-secondary 100%（最低 5.35:1 @ #1202d9/light） */
-  --blog-code-op: var(--sgx-text-secondary);
+  /* 注释：text-secondary 95%（最低 4.68:1 @ terra/dark） */
+  --blog-code-cm: color-mix(in srgb, var(--sgx-text-secondary) 95%, var(--sgx-text-primary));
+  /* 运算符 / 标点 / 提示符 / 输出：text-secondary 95%（最低 4.68:1 @ terra/dark） */
+  --blog-code-op: color-mix(in srgb, var(--sgx-text-secondary) 95%, var(--sgx-text-primary));
   /* 标题：primary 80%（最低 4.86:1 @ #d055a9/light） */
   --blog-code-hd: color-mix(in srgb, var(--sgx-primary) 80%, var(--sgx-text-primary));
   /* 行号：text-tertiary 100%（最低 3.41:1 @ #1202d9/light） */

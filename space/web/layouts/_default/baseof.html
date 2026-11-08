@@ -7,8 +7,8 @@
 {{/* 切页时等 <main> 解析完再出第一帧，避免过渡里露出还没排好版的新页面（标准写法，Chromium 124+；不支持的浏览器忽略） */}}
 <link rel="expect" href="#sgx-main" blocking="render">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#f5f8fa">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
+<meta name="theme-color" content="#fcf3ef">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161412">
 {{/* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，站名走字符串表 site.name（主站 Styrigx，品牌名不翻，只在英文表、各语言回退）；
    页名就是站名时只显示站名。旷野页（根路径）页名是「旷野 / Space」（spaceCats.band.title），所以是「旷野 | Styrigx」。 */}}
 {{/* 404 的 .Title 是 Hugo 内置英文「404 Page not found」，不随语言：改用字符串表的页名（与页名胶囊同一个） */}}

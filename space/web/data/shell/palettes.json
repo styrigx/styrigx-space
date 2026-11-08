@@ -1,7 +1,7 @@
 {
   "_generated": "styrigx-space space/scripts/gen-shell.mjs ← space/web/data/palette-roles.json；勿手改",
   "default": "terra",
-  "schemeVersion": "9d2088ecc816",
+  "schemeVersion": "55912bce56a5",
   "rulesVersion": "palette-rules-1",
   "groups": [
     {
@@ -4104,6 +4104,7 @@
           "on-danger-container": "#ffddd9",
           "text-disabled": "rgba(236,230,220,0.38)",
           "disabled-container": "rgba(236,230,220,0.12)",
+          "night-card": "#472932",
           "card": "#12100f",
           "card-nested": "#1a1816",
           "card-nested-2": "#23211e",
@@ -4121,7 +4122,6 @@
           "bg-gradient-1": "#171311",
           "bg-gradient-2": "#161412",
           "bg-gradient-3": "#131110",
-          "night-card": "#42232e",
           "on-night-card": "#ffdee8",
           "switch-track-on": "#de7a58",
           "switch-thumb-on": "#32170e",

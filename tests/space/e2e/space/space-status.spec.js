@@ -518,7 +518,7 @@ test.describe('旷野 → 服务状态（入口 / 旧地址删除）', () => {
     /* 页面里的入口只在旷野页分类卡；NAVIGATE 面板底部另有「systemctl status」（2026-11 PR-1） */
     await expect(page.locator('a[href="/zh/status/"]:not(#sgx-nav a)')).toHaveCount(1);
     await expect(page.locator('.home-wrap [aria-label="分类"] a[href="/zh/status/"]')).toHaveCount(1);
-    await expect(page.locator('#sgx-nav .sgx-nav-flink')).toHaveAttribute('href', '/zh/status/');
+    await expect(page.locator('#sgx-nav a.sgx-nav-flink')).toHaveAttribute('href', '/zh/status/');
   });
 });
 

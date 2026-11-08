@@ -4039,6 +4039,7 @@
     --sgx-disabled-container: rgba(236,230,220,0.12);
     --sgx-outline: #8b857f;
     --sgx-outline-variant: #2c2825;
+    --sgx-night-card: #472932;
     --sgx-divider: rgba(236,230,220,0.12);
     --sgx-card: #12100f;
     --sgx-card-nested: #1a1816;
@@ -4063,7 +4064,6 @@
     --sgx-bg-gradient-3: #131110;
     --sgx-link: #ffad91;
     --sgx-link-visited: #fc9cbe;
-    --sgx-night-card: #42232e;
     --sgx-on-night-card: #ffdee8;
     --sgx-focus-ring: #de7a58;
     --sgx-switch-track-on: #de7a58;
@@ -8792,6 +8792,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 }
 .reduced-motion .sgx-nav .sgx-qp-sheet, .reduced-motion .sgx-theme .sgx-qp-sheet { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { transition: none; } }
+.sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { top: 0; } /* 稿：卡片顶贴顶栏下沿（稿 top 60 = 顶栏 64 往上 4px，这里不压顶栏） */
 .sgx-nav .sgx-qp-sheet { max-width: none; }
 .sgx-theme .sgx-qp-sheet { left: auto; right: calc((100% - var(--sgx-tb-w)) / 2); width: min(260px, var(--sgx-tb-w)); margin: 0; padding: 10px; border-radius: 14px; }
 .dark .sgx-theme .sgx-qp-sheet { box-shadow: 0 20px 50px rgba(0,0,0,.5); }

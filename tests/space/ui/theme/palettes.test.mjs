@@ -14,13 +14,13 @@ const css = readFileSync(new URL('../../../../space/web/assets/css/input.css', i
 const ids = [...yaml.matchAll(/^\s*- id: ([a-z]+)$/gm)].map((m) => m[1]);
 const custom = ids.filter((id) => id !== 'dustyblue');
 
-test('palettes.yaml 22 个色板、id 不重复、默认 dustyblue 在第一个；撞色 x* id 已删除', () => {
+test('palettes.yaml 22 个色板、id 不重复、dustyblue 在第一个（默认 2026-11 PR-A 起是 terra）；撞色 x* id 已删除', () => {
   assert.equal(ids.length, 22);
   assert.equal(new Set(ids).size, ids.length);
   assert.equal(ids[0], 'dustyblue');
   for (const id of ids) assert.ok(!/^x(forest|terra|violet|rose|cherry|tangerine|amber|matcha|teal|indigo|orchid|dustyblue|mustard|sage|dustyrose|graphite)$/.test(id), id);
   for (const id of ['glacier', 'coral', 'berry', 'champagne', 'cream', 'lake']) assert.ok(ids.includes(id), id);
-  assert.match(feats, /- id: palette[\s\S]*?default: dustyblue/);
+  assert.match(feats, /- id: palette[\s\S]*?default: terra/);
 });
 
 test('palettes.yaml 分组：group 按设计稿（冷调 / 自然 / 暖调 / 花色 / 中性），同组连续', () => {

@@ -97,7 +97,7 @@ test.describe('手机（412 宽，手机 UA）', () => {
     await page.route(/\/css\/main\.[0-9a-f]+\.css$/, (r) => r.abort());
     await go(page, { theme: 'dark' });
     expect(await page.evaluate(() => document.querySelector('meta[name="color-scheme"]').getAttribute('content'))).toBe('dark');
-    expect(await page.evaluate(() => Array.from(document.querySelectorAll('meta[name="theme-color"]')).map((m) => m.getAttribute('content')))).toEqual(['#10151a', '#10151a']);
+    expect(await page.evaluate(() => Array.from(document.querySelectorAll('meta[name="theme-color"]')).map((m) => m.getAttribute('content')))).toEqual(['#161412', '#161412']);
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(10, 14, 16)');
     expect(await page.evaluate(() => document.head.firstElementChild && document.head.firstElementChild.id)).toBe('sgx-first-paint');
   });

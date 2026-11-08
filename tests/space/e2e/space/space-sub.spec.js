@@ -330,11 +330,11 @@ test('palette 8-color test state', async ({ page: pg }) => {
     expect(await groups.nth(i).locator('.pal-tile').evaluateAll((els) => els.map((e) => e.getAttribute('data-palette')))).toEqual(want);
   }
   await expect(grid.locator('.pal-tile')).toHaveCount(22);
-  /* 默认 dustyblue 有「默认」标，初始选中；其他都没选 */
-  await expect(grid.locator('.palette-cell:has([data-palette="dustyblue"]) .pal-def')).toHaveText('默认');
+  /* 默认 terra（2026-11 PR-A）有「默认」标，初始选中；其他都没选 */
+  await expect(grid.locator('.palette-cell:has([data-palette="terra"]) .pal-def')).toHaveText('默认');
   await expect(grid.locator('.pal-def')).toHaveCount(1);
   await expect(grid.locator('.pal-tile[aria-pressed="true"]')).toHaveCount(1);
-  await expect(grid.locator('[data-palette="dustyblue"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(grid.locator('[data-palette="terra"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(grid.locator('.pal-tile[aria-pressed="true"] .pal-check')).toBeVisible();
   /* 412 宽：冷调 6 个排成 4 + 2，末行左对齐；色块是正方形，6 个前景色点 */
   const boxes = await groups.nth(0).locator('.palette-cell').evaluateAll((els) =>
@@ -352,12 +352,12 @@ test('palette 8-color test state', async ({ page: pg }) => {
   await expect(pv.locator('.pal-mini')).toHaveCount(2);
   await expect(pv.locator('.pal-pv-label')).toHaveText(['浅色', '深色']);
   await expect(pv.locator('input, button, [role="radio"]')).toHaveCount(0);
-  await expect(pg.locator('#pal-preview-name')).toHaveText('雾霾蓝');
+  await expect(pg.locator('#pal-preview-name')).toHaveText('陶土');
   /* 选山绿：写 sgx-palette、整页换色、预览卡换成山绿的变量；刷新后仍选中 */
   await grid.locator('.pal-tile[data-palette="forest"]').click();
   await expect(pg.locator('html')).toHaveAttribute('data-palette', 'forest');
   await expect(grid.locator('[data-palette="forest"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(grid.locator('[data-palette="dustyblue"]')).toHaveAttribute('aria-pressed', 'false');
+  await expect(grid.locator('[data-palette="terra"]')).toHaveAttribute('aria-pressed', 'false');
   await expect(pg.locator('#pal-preview-name')).toHaveText('山绿');
   expect(await pv.getAttribute('style')).toBe(await grid.locator('[data-palette="forest"]').getAttribute('style'));
   await pg.reload({ waitUntil: 'domcontentloaded' });
@@ -368,7 +368,7 @@ test('palette 8-color test state', async ({ page: pg }) => {
   await pg.keyboard.press('Enter');
   await expect(pg.locator('html')).toHaveAttribute('data-palette', 'cream');
   await expect(pg.locator('#palette-dots [data-palette="cream"]')).toHaveAttribute('aria-pressed', 'true');
-  /* 恢复默认（标题行右端）：非默认时可点 → 回 dustyblue（不存 key）、置灰（aria-disabled，不隐藏）；置灰时点了不动 */
+  /* 恢复默认（标题行右端）：非默认时可点 → 回默认 terra（不存 key）、置灰（aria-disabled，不隐藏）；置灰时点了不动 */
   const rs = pg.locator('#palette-reset');
   await expect(rs).toHaveText('恢复默认');
   await expect(rs).toHaveAttribute('aria-disabled', 'false');
@@ -384,8 +384,8 @@ test('palette 8-color test state', async ({ page: pg }) => {
   await expect(rs).toBeVisible();
   await expect.poll(() => rs.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(0.6); /* opacity 有 .15s 过渡 */
   await expect(pg.locator('#palette-dots .pal-tile[aria-pressed="true"]')).toHaveCount(1);
-  await expect(pg.locator('#palette-dots [data-palette="dustyblue"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(pg.locator('#pal-preview-name')).toHaveText('雾霾蓝');
+  await expect(pg.locator('#palette-dots [data-palette="terra"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(pg.locator('#pal-preview-name')).toHaveText('陶土');
   await rs.click({ force: true }); /* aria-disabled：强制点一下验证没反应 */
   expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
   await pg.reload({ waitUntil: 'domcontentloaded' });
@@ -393,7 +393,7 @@ test('palette 8-color test state', async ({ page: pg }) => {
 });
 
 /* 2026-10-23 PR-G：单色 / 撞色合并，旧的撞色 id x<id> 首屏迁到 <id>（localStorage 也改写），不认识的 id 清掉回默认 */
-test('旧撞色 id 迁移：xforest → forest；不认识的 id → 默认 dustyblue', async ({ page: pg }) => {
+test('旧撞色 id 迁移：xforest → forest；不认识的 id → 默认 terra', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await pg.addInitScript(() => { try { if (!sessionStorage.getItem('mig')) { localStorage.setItem('sgx-palette', 'xforest'); sessionStorage.setItem('mig', '1'); } } catch (e) {} });
   await gotoSettings(pg, '/zh/theme/');
@@ -404,7 +404,7 @@ test('旧撞色 id 迁移：xforest → forest；不认识的 id → 默认 dust
   await pg.reload({ waitUntil: 'domcontentloaded' });
   await expect(pg.locator('html')).not.toHaveAttribute('data-palette', /.+/);
   expect(await pg.evaluate(() => localStorage.getItem('sgx-palette'))).toBeNull();
-  await expect(pg.locator('#palette-dots [data-palette="dustyblue"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(pg.locator('#palette-dots [data-palette="terra"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
 /* B2-1：诊断留痕已删除——即使 sessionStorage 里残留旧版的留痕/信标，安全与隐私页也不显示跳转日志卡；

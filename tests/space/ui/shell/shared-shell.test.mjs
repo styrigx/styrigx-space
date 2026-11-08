@@ -30,10 +30,10 @@ test('共享外壳的四个派生文件和源头一致（改了源头要重跑 n
   assert.equal(existsSync(path.join(REPO, 'space/web/shared')), false);
 });
 
-test('宽屏平铺（Gray 2026-11-07）：只在桌面布局——内容区通栏、去卡片公共件 .sgx-flat / .sgx-wide-cols；手机布局不变；交互模块不挂', () => {
+test('宽屏平铺（Gray 2026-11-07；2026-11 PR-A 起内容区回 1080）：只在桌面布局——去卡片公共件 .sgx-flat / .sgx-wide-cols；手机布局不变；交互模块不挂', () => {
   const s = files['shell.css'];
-  // 桌面外壳框通栏（不对齐顶栏），手机仍 640；顶栏宽不变
-  assert.match(s, /:root\[data-sgx-layout="desktop"\] \{ --sgx-content-max: 100%;/);
+  // 桌面外壳框 = 内容宽 1080（2026-11 PR-A 照设计稿，和顶栏对齐），手机仍 640；顶栏宽不变
+  assert.match(s, /:root\[data-sgx-layout="desktop"\] \{ --sgx-content-max: var\(--sgx-content-w\); \}/);
   assert.match(s, /:root\[data-sgx-layout="phone"\] \{ --sgx-content-max: 640px; \}/);
   assert.doesNotMatch(s, /--sgx-content-max: 1440px/);
   // 公共件只在桌面布局生效
@@ -71,7 +71,7 @@ test('快捷面板（P5-1，替代抽屉；PR-4b 单页 + 导航面板）：非�
   // 毛玻璃两行分开：基础规则只写 -webkit-，标准属性在 @supports 里单独一条（压缩器合并同值两行会丢掉其中一行）
   assert.match(s, /\.sgx-qp-sheet \{[^}]*background: var\(--sgx-mat\); -webkit-backdrop-filter: var\(--sgx-mat-filter\);/);
   assert.match(s, /@supports \(backdrop-filter: blur\(1px\)\) \{\s*\.sgx-qp-sheet \{ backdrop-filter: var\(--sgx-mat-filter\); \}/);
-  assert.match(s, /@supports \(backdrop-filter: blur\(1px\)\) \{\s*\.sgx-topbar \{ backdrop-filter: var\(--sgx-mat-filter\); \}/);
+  assert.match(s, /@supports \(backdrop-filter: blur\(1px\)\) \{\s*\.sgx-topbar \{ backdrop-filter: var\(--sgx-tb-filter\); \}/);
   assert.match(s, /--sgx-qp-shadow: 0 4px 12px rgba\(0,0,0,\.10\), 0 16px 48px rgba\(0,0,0,\.24\)/);
   assert.match(s, /\.dark \{ --sgx-qp-shadow: 0 4px 12px rgba\(0,0,0,\.22\), 0 16px 48px rgba\(0,0,0,\.5\)/);
   // 宽屏 400px（AI 440px），右缘对齐外壳框
@@ -139,12 +139,12 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
       assert.ok(files['tokens.css'].includes(`--sgx-bg-1: ${t['bg-1']};`), `${x.id} ${m} bg-1 in tokens.css`);
     }
   }
-  assert.equal(p.default, 'dustyblue');
+  assert.equal(p.default, 'terra');
   assert.equal(p.rulesVersion, 'palette-rules-1');
   assert.equal(JSON.parse(files['palettes.json']).rulesVersion, 'palette-rules-1');
   assert.equal(p.presets[0].id, 'dustyblue');
   for (const { id, seed } of p.presets) {
-    const sel = id === 'dustyblue' ? ':root,\n:root[data-palette="dustyblue"] {' : `:root[data-palette="${id}"] {`;
+    const sel = id === 'terra' ? ':root,\n:root[data-palette="terra"] {' : `:root[data-palette="${id}"] {`;
     assert.ok(files['tokens.css'].includes(`${sel}\n  --sgx-seed: ${seed};`), id);
   }
   // 调色板派生 token（tag）在 tokens.css；chart-1..6 是每套生成的角色
@@ -157,7 +157,9 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'entries', 'inpage', 'wide', 'terminal']);
   const s = files['shell.css'];
   // 贴顶通栏：top 0、left 0 / right 0、底边 1px 线、毛玻璃材质；内容宽一个 token（1080）
-  assert.match(s, /\.sgx-topbar \{ position: fixed; top: 0; left: 0; right: 0;[^}]*display: grid; grid-template-columns: auto minmax\(0, 1fr\) auto;[^}]*padding: env\(safe-area-inset-top, 0px\) var\(--sgx-tb-pad\) 0; border-bottom: 1px solid var\(--sgx-term-line\);[^}]*background: var\(--sgx-mat\);/);
+  assert.match(s, /\.sgx-topbar \{ position: fixed; top: 0; left: 0; right: 0;[^}]*display: grid; grid-template-columns: auto minmax\(0, 1fr\) auto;[^}]*padding: env\(safe-area-inset-top, 0px\) var\(--sgx-tb-pad\) 0; border-bottom: 1px solid var\(--sgx-term-line\);[^}]*background: var\(--sgx-tb-mat\);/);
+  // 顶栏底照稿：页面底色 85% + 12px 模糊（2026-11 PR-A）
+  assert.match(s, /--sgx-tb-mat: color-mix\(in srgb, var\(--sgx-bg-1\) 85%, transparent\); --sgx-tb-filter: blur\(12px\);/);
   assert.match(s, /--sgx-content-w: 1080px;/);
   assert.match(s, /--sgx-tb-pad: max\(var\(--sgx-page-m\), env\(safe-area-inset-left, 0px\), env\(safe-area-inset-right, 0px\), \(100% - var\(--sgx-content-w\)\) \/ 2\);/);
   assert.equal((s.match(/1080px/g) || []).length, 1, '1080 只写在 --sgx-content-w 一处');
@@ -168,7 +170,7 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   assert.match(s, /--sgx-tb-icw: 40px;/);
   assert.match(s, /\.sgx-tb-btn \{ width: var\(--sgx-tb-icw\); height: var\(--sgx-tb-ic\);[^}]*border-radius: 10px;/);
   assert.match(s, /\.sgx-tb-btn svg \{ width: 20px; height: 20px; \}/);
-  assert.match(s, /\.sgx-tb-btn\[aria-expanded="true"\] \{ background-color: var\(--sgx-term-sel\); color: var\(--sgx-primary\); \}/);
+  assert.match(s, /\.sgx-tb-btn\[aria-expanded="true"\] \{ background-color: var\(--sgx-surface-container-high\); color: var\(--sgx-primary\); \}/);
   assert.match(s, /\.sgx-tb-sep \{[^}]*width: 1px; height: 22px;/);
   assert.match(s, /\.sgx-tb-avatar \{[^}]*width: 30px; height: 30px; border-radius: 50%;/);
   // AI 浮钮（右下角，主题实色）

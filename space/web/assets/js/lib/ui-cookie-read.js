@@ -26,7 +26,7 @@
   'use strict';
   /* @ui-cookie-presets:begin（space/scripts/gen-shell.mjs 按 space/web/data/palette-roles.json + palette-scheme.js 生成，勿手改） */
   var PRESETS = {"dustyblue":"#d4a72c","lake":"#f17f72","glacier":"#f17f72","indigo":"#f2559b","teal":"#d6334a","violet":"#d4628f","forest":"#f08a3c","matcha":"#c46a43","sage":"#cf9494","cherry":"#86ad3f","tangerine":"#168f9c","coral":"#168f9c","terra":"#de7a58","amber":"#b54a88","mustard":"#7a95ab","champagne":"#536dfa","rose":"#f2a86b","berry":"#e3a93b","orchid":"#7a95ab","dustyrose":"#94a982","graphite":"#4f86b5","cream":"#168f9c"};
-  var SCHEME_VER = '9d2088ecc816';
+  var SCHEME_VER = '55912bce56a5';
   /* @ui-cookie-presets:end */
 
   var NAME = 'sgx-ui';

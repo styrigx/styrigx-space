@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mixHex, presetRoles, rolesFor, rolesCss, roleDecls, toneDecls, contrast, hexToOklch, audit, bgTones, fgTones, PRESETS, DEFAULT_ID, FG_POOL } from '../../../../space/web/assets/js/lib/palette-scheme.js';
+import { mixHex, presetRoles, rolesFor, rolesCss, roleDecls, toneDecls, contrast, hexToOklch, audit, bgTones, fgTones, PRESETS, PINS, DEFAULT_ID, FG_POOL } from '../../../../space/web/assets/js/lib/palette-scheme.js';
 import { renderBlock, splice } from '../../../../space/scripts/gen-palettes.mjs';
 import { ACCENT_CACHE_VER } from '../../../../space/web/assets/js/lib/accent.js';
 
@@ -23,7 +23,7 @@ test('22 套七色调色板、亮暗各 108 个角色 + 31 个色调 token（bg-
   const ids = Object.keys(DATA.presets);
   assert.equal(ids.length, 22);
   assert.equal(ids[0], 'dustyblue');
-  assert.equal(DEFAULT_ID, 'dustyblue');
+  assert.equal(DEFAULT_ID, 'terra'); // 2026-11 PR-A 照设计稿：默认赤陶（之前 dustyblue；列表顺序不变，dustyblue 仍排第一）
   for (const id of ids) for (const m of ['light', 'dark']) {
     assert.equal(Object.keys(DATA.presets[id][m]).length, 108, id + ' ' + m);
     const t = DATA.presets[id][m + 'Tones'];
@@ -106,13 +106,13 @@ test('input.css 里的预设角色就是 gen-palettes 生成的（改 JSON 忘�
   assert.equal(splice(CSS, renderBlock(DATA)), CSS);
 });
 
-test('每个预设都有浅色 + 深色（.dark）两段；默认 dustyblue 兜底在 :root / :root.dark；x* 撞色段已删除', () => {
+test('每个预设都有浅色 + 深色（.dark）两段；默认 terra 兜底在 :root / :root.dark；x* 撞色段已删除', () => {
   for (const id of Object.keys(DATA.presets)) {
     assert.ok(CSS.includes(`:root[data-palette="${id}"]`), id);
     assert.ok(CSS.includes(`:root.dark[data-palette="${id}"]`), id + ' dark');
   }
-  assert.match(CSS, /\n {2}:root,\n {2}:root\[data-palette="dustyblue"\] \{/);
-  assert.match(CSS, /\n {2}:root\.dark,\n {2}:root\.dark\[data-palette="dustyblue"\] \{/);
+  assert.match(CSS, /\n {2}:root,\n {2}:root\[data-palette="terra"\] \{/);
+  assert.match(CSS, /\n {2}:root\.dark,\n {2}:root\.dark\[data-palette="terra"\] \{/);
   assert.doesNotMatch(CSS, /data-palette="x[a-z]+"/);
   assert.doesNotMatch(CSS, /:root,\n {2}:root\[data-palette="lake"\]/);
 });
@@ -186,7 +186,8 @@ test('三层规则：中性色只带一点背景色相（n.c ≤ 0.012，石墨�
 test('背景 7 档：浅色从页面底往深走、深色往亮走，色相 = 背景色；页面底 = bg-1', () => {
   for (const x of PRESETS) for (const m of ['light', 'dark']) {
     const t = DATA.presets[x.id][m + 'Tones'];
-    assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map((i) => t['bg-' + i]), bgTones(x.bg, m), x.id + ' ' + m);
+    const pt = (x.pin && x.pin[m] && x.pin[m].tones) || {}; // 设计稿钉死的档（terra 深色 bg-1 = #161412）
+    assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map((i) => t['bg-' + i]), bgTones(x.bg, m).map((c, i) => pt['bg-' + (i + 1)] || c), x.id + ' ' + m);
     const L = [1, 2, 3, 4, 5, 6, 7].map((i) => hexToOklch(t['bg-' + i]).l);
     for (let i = 1; i < 7; i++) assert.ok(m === 'light' ? L[i] < L[i - 1] : L[i] > L[i - 1], `${x.id} ${m} bg-${i + 1}`);
     if (hexToOklch(x.bg).c >= 0.03) assert.ok(hueDist(hue(t['bg-7']), hue(x.bg)) <= 6, `${x.id} ${m} bg hue`);
@@ -197,8 +198,8 @@ test('前景 6 色：本色 base（浅色 = 色池原值）/ tint / ink 三档�
   for (const x of PRESETS) for (const m of ['light', 'dark']) {
     const t = DATA.presets[x.id][m + 'Tones'];
     x.fg.forEach((hex, i) => {
-      const f = fgTones(hex, m);
-      assert.deepEqual([t[`fg-${i + 1}`], t[`fg-${i + 1}-tint`], t[`fg-${i + 1}-ink`]], [f.base, f.tint, f.ink], `${x.id} ${m} fg-${i + 1}`);
+      const f = fgTones(hex, m), pb = x.pin && x.pin[m] && x.pin[m].tones && x.pin[m].tones[`fg-${i + 1}`];
+      assert.deepEqual([t[`fg-${i + 1}`], t[`fg-${i + 1}-tint`], t[`fg-${i + 1}-ink`]], [pb || f.base, f.tint, f.ink], `${x.id} ${m} fg-${i + 1}`);
       if (m === 'light') assert.equal(f.base, hex);
       assert.ok(contrast(f.ink, f.tint) >= 4.5, `${x.id} ${m} fg-${i + 1} ink/tint ${contrast(f.ink, f.tint).toFixed(2)}`);
     });
@@ -264,7 +265,7 @@ test('状态色：success 族固定绿色（不随主题变，和 danger 一样�
   assert.ok(h > 130 && h < 165, 'success 是绿色 ' + h);
 });
 
-test('22 套亮 / 暗全部由公式生成：规格里没有逐套手调的深色值（p.hd / tune / slider 覆盖），cd = min(前景 1 彩度, 0.13)', () => {
+test('22 套亮 / 暗全部由公式生成：规格里没有逐套手调的深色值（p.hd / tune / slider 覆盖），cd = min(前景 1 彩度, 0.13)；唯一例外是设计稿钉死的 PINS（只有 terra 深色）', () => {
   for (const x of PRESETS) {
     const sp = x.spec;
     assert.equal(sp.tune, undefined, x.id + ' tune');
@@ -321,13 +322,28 @@ test('不带字的填充 *-fill 在卡片上 ≥ 3:1（亮色比文字色亮，�
   }
 });
 
-test('光晕只用背景 7 档（--sgx-bg-*），不再取 primary / secondary / tertiary；页面底 = --sgx-bg-1', () => {
-  const halo = CSS.slice(CSS.indexOf('    --sgx-halo:'), CSS.indexOf('--sgx-halo-mask:'));
-  assert.match(halo, /var\(--sgx-bg-7\)/);
-  assert.doesNotMatch(halo, /--sgx-(primary|secondary|tertiary)/);
-  assert.equal((halo.match(/radial-gradient\(/g) || []).length, 7);
+test('页面底（2026-11 PR-A 照设计稿去光晕）：--sgx-bg-1 纯色 + 44px 网格，不再有 --sgx-halo；页面底 = --sgx-bg-1', () => {
+  assert.doesNotMatch(CSS, /--sgx-halo:|var\(--sgx-halo/);
+  assert.match(CSS, /--sgx-grid: linear-gradient\(var\(--sgx-grid-line\) 1px, transparent 1px\) 0 0 \/ 44px 44px/);
+  assert.match(CSS, /body::before \{ content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var\(--sgx-grid\); \}/);
   assert.match(CSS, /--m-wallpaper: var\(--sgx-bg-1\);/);
   assert.doesNotMatch(CSS, /--sgx-chart-1: var\(--sgx-fg-1\);/); // chart 是生成的角色，不再是 CSS 别名
+});
+
+test('默认色板 terra 深色 = 设计稿 tb4.html 的取值（钉死，PINS）；稿的 --mut / --dim 低于 4.5:1 时由审计提亮（可读性底线）', () => {
+  const d = DATA.presets.terra.dark, t = DATA.presets.terra.darkTones;
+  assert.equal(d.primary, '#de7a58');
+  assert.equal(d['primary-fill'], '#de7a58');
+  assert.equal(t['fg-1'], '#de7a58');
+  assert.equal(t['bg-1'], '#161412');
+  assert.equal(d.background, '#161412');
+  assert.equal(d.surface, '#1d1b19');
+  assert.equal(d['surface-container-lowest'], '#12100f');
+  assert.equal(d['surface-container-high'], '#2a2522');
+  assert.equal(d['outline-variant'], '#2c2825');
+  assert.equal(d['text-primary'], '#ece6dc');
+  assert.ok(contrast(d['text-tertiary'], d['surface-container-high']) >= 4.5);
+  assert.deepEqual(Object.keys(PINS), ['terra']);
 });
 
 test('前景去重（2026-10-23）：每套 6 个前景里，有彩色（OKLCH C > 0.05）的任意两色色相差 ≥ 22°', () => {

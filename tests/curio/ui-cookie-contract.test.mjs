@@ -29,11 +29,11 @@ function rootState(html) {
 }
 const plain = (o) => JSON.parse(JSON.stringify(o));
 
-test('夹具来自主站写端：40 个用例，覆盖默认 dustyblue、lake、旧撞色、自定义色、旧 v1 / v2、旧种子、theme 别名、大写 accent、lang、未知版本、乱码', () => {
+test('夹具来自主站写端：40 个用例，覆盖默认 terra、lake、旧撞色、自定义色、旧 v1 / v2、旧种子、theme 别名、大写 accent、lang、未知版本、乱码', () => {
   assert.match(fx._generated, /styrigx-space space\/scripts\/gen-ui-cookie-contract\.mjs/);
   assert.equal(fx.cases.length, 40);
   const names = fx.cases.map((c) => c.name).join('|');
-  for (const k of ['默认 dustyblue 亮色', '湖蓝 lake', '旧撞色 xforest', '自定义主题色', '旧 v1', '旧 v2', '旧种子', 'theme 别名', 'accent 大写', 'lang en', 'lang zh', 'lang system', 'lang 大写', '未知版本 v3 带 lang', '未知版本', '版本是字符串', '没有 v', '乱码']) {
+  for (const k of ['默认 terra 亮色', '湖蓝 lake', '旧撞色 xforest', '自定义主题色', '旧 v1', '旧 v2', '旧种子', 'theme 别名', 'accent 大写', 'lang en', 'lang zh', 'lang system', 'lang 大写', '未知版本 v3 带 lang', '未知版本', '版本是字符串', '没有 v', '乱码']) {
     assert.match(names, new RegExp(k), k);
   }
 });
@@ -53,13 +53,13 @@ for (const c of fx.cases) {
   });
 }
 
-test('读端预设表 / 引擎版本 / 默认色板 = 共享外壳 palettes.json（默认 dustyblue，不是 lake）', () => {
+test('读端预设表 / 引擎版本 / 默认色板 = 共享外壳 palettes.json（默认 terra，不是 lake）', () => {
   const s = sandbox();
   assert.deepEqual(plain(s.U.PRESETS), Object.fromEntries(palettes.presets.map((p) => [p.id, p.seed])));
   assert.equal(Object.keys(s.U.PRESETS).length, 22);
   assert.equal(s.U.SCHEME_VER, palettes.schemeVersion);
   assert.equal(s.U.DEFAULT_PAL, palettes.default);
-  assert.equal(s.U.DEFAULT_PAL, 'dustyblue');
+  assert.equal(s.U.DEFAULT_PAL, 'terra');
   assert.deepEqual(plain(s.U.VERSIONS), [1, 2]);
 });
 
