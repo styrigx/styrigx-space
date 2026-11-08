@@ -205,6 +205,32 @@ test('抽屉：/blog/ 上 Ctrl K 打开（提示符 ~/blog$），能跑 help；E
   await expect(dlg).not.toHaveAttribute('open', '');
 });
 
+test('抽屉：Esc 关上后马上 Ctrl K 重开，上一次关闭迟到的 close 事件不会把重开的抽屉又关掉', async ({ page }) => {
+  /* close 事件是 dialog.close() 后异步派发的；CI 上偶发它晚于重开才到（2026-11-08 main Deploy visual (2)）。
+   * 这里把第一次关闭的 close 事件扣住，等重开之后再派发，确定性地复现那个先后顺序。 */
+  await go(page, '/blog/', { lang: 'en' });
+  const dlg = page.locator('#sgx-term');
+  await page.keyboard.press('Control+k');
+  await expect(dlg).toHaveAttribute('open', '');
+  await dlg.evaluate((d) => {
+    const hold = (e) => { d.removeEventListener('close', hold, true); e.stopImmediatePropagation(); window.__heldClose = true; };
+    d.addEventListener('close', hold, true);
+  });
+  await page.keyboard.press('Escape');
+  await expect(dlg).toHaveAttribute('data-state', 'closed');
+  await expect.poll(() => page.evaluate(() => window.__heldClose === true)).toBe(true);
+  await page.keyboard.press('Control+k');
+  await expect(dlg).toHaveAttribute('open', '');
+  await dlg.evaluate((d) => d.dispatchEvent(new Event('close')));
+  await expect(dlg).toHaveAttribute('open', '');
+  await expect(dlg).not.toHaveAttribute('data-state', 'closed');
+  await expect(page.locator('#sgx-term-in')).toBeFocused();
+  /* 历史只多一条哨兵：再 Esc 关掉后回到打开前的那一条 */
+  await page.keyboard.press('Escape');
+  await expect(dlg).toHaveAttribute('data-state', 'closed');
+  await expect.poll(() => page.evaluate(() => history.state)).toBeNull();
+});
+
 test('抽屉：NAVIGATE 里的「$ terminal」打开；cd curio 跳到奇趣', async ({ page }) => {
   await go(page, '/zh/theme/');
   await page.locator('.sgx-tb-grid').click();

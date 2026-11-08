@@ -129,6 +129,11 @@ export function modalSheet(dlg, btn, opts) {
       awaiting = function () { prev(); window.setTimeout(open, 0); };
       return;
     }
+    /* 被浏览器强关、close 事件还没到（状态还停在 open / closing）：先把状态收成已关；哨兵还在历史里就沿用，不再多压一条 */
+    if (dlg.getAttribute('data-state') !== 'closed') {
+      gen++;
+      settleClosed();
+    }
     cancelPending();
     const my = ++gen;
     dlg.classList.remove('is-open');
@@ -155,6 +160,7 @@ export function modalSheet(dlg, btn, opts) {
     /* 下一帧再加 is-open，让滑入过渡生效；减弱动效直接到位 */
     if (reducedMotion()) shown();
     else rafs.push(requestAnimationFrame(function () { rafs.push(requestAnimationFrame(shown)); }));
+    if (pushed) return;
     try {
       /** @type {Record<string, number>} */
       const st = {};
@@ -214,9 +220,11 @@ export function modalSheet(dlg, btn, opts) {
       close();
     });
   }
-  /* <dialog> 被我们以外的途径关掉（浏览器连按 Esc 时可能无视 preventDefault 强关）：同步状态并退掉哨兵 */
+  /* <dialog> 被我们以外的途径关掉（浏览器连按 Esc 时可能无视 preventDefault 强关）：同步状态并退掉哨兵。
+   * close 事件是 dialog.close() 之后排进任务队列、异步派发的：Esc 关上后马上 Ctrl K 重开，上一次关闭的 close 事件可能晚到、
+   * 落在已经重开的层上（2026-11-08 main CI 偶发：重开后立刻又被关掉）。所以派发时 <dialog> 又开着 = 过期事件，不理。 */
   dlg.addEventListener('close', function () {
-    if (dlg.getAttribute('data-state') === 'closed') return;
+    if (dlg.open || dlg.getAttribute('data-state') === 'closed') return;
     gen++;
     settleClosed();
     if (pushed) {
