@@ -123,6 +123,12 @@ export function modalSheet(dlg, btn, opts) {
 
   function open() {
     if (dlg.open) return;
+    /* 上一次关闭的哨兵还没出栈（history.back() 是异步的）：等它出栈后再开，免得那次 popstate 把刚开的层当成「系统返回」关掉 */
+    if (awaiting) {
+      const prev = awaiting;
+      awaiting = function () { prev(); window.setTimeout(open, 0); };
+      return;
+    }
     cancelPending();
     const my = ++gen;
     dlg.classList.remove('is-open');
