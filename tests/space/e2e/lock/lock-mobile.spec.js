@@ -1,29 +1,31 @@
 /**
- * 锁屏 · 手机触屏回归（2026-10-24：Samsung Internet 上密码框点不进去 / 选不中字、连点按钮放大、空密码没提示、顶栏标题）。
+ * 锁屏 · 手机触屏回归（lock-v10 命令解锁，2026-11-08）：
+ * 锁屏上没有弹层，解锁在终端输入行里敲命令；触屏上用快捷键（替你敲命令）或软键盘输入。
+ * - 触屏不自动聚焦（不一进来就弹键盘）；点快捷键后焦点在输入行；
+ * - 软键盘弹起时整组上移刚好够的距离，输入行不被盖住；
+ * - 空密码回车：终端里提示「请输入密码」，不发请求，焦点留在输入行；
+ * - 顶栏标题跟着状态变；不触发双击放大，输入框字号 ≥ 16px。
  *
- * 手机模拟：412×915、isMobile、hasTouch（粗指针）。软键盘在无头浏览器里弹不出来，这里两种方式模拟它的效果：
- * - VirtualKeyboard API：给 navigator.virtualKeyboard 装一个 boundingRect，再派发 geometrychange（followKeyboard 会把弹层顶上去）；
- * - 「按在输入框里、松开在遮罩上」：拖选文字或弹层被键盘顶走时的真实手势，click 的 target 会变成 dialog 本身。
- *
+ * 手机模拟：412×915、isMobile、hasTouch（粗指针）。软键盘用 VirtualKeyboard API 模拟（boundingRect + geometrychange）。
  * 需要锁屏启用的构建（SGX_TEST_SUITE=lock）。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, expect } = require('../helpers/helpers');
+const { gotoLockTerm, lockMode, badLine } = require('../helpers/lock-term.cjs');
 
 test.use({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
 
 test.beforeEach(async ({ page }) => {
   await blockExternalRequests(page);
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+  await page.route('**/api/lock-entry', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"passkey":true,"password":true}' }));
 });
 
 async function openPwByTouch(page) {
-  await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-  await page.tap('#sgx-lock-go');
-  await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible();
-  await page.tap('#sgx-mopt-pw');
-  await expect(page.locator('#sgx-pw-input')).toBeVisible();
+  await gotoLockTerm(page, '/?lock=1');
+  await expect(page.locator('#sgx-lock-k-pw')).toBeVisible();
+  await page.tap('#sgx-lock-k-pw');
+  await lockMode(page, 'pw');
 }
 
 /** 模拟软键盘弹出 h px（VirtualKeyboard API 路径） */
@@ -35,83 +37,61 @@ async function fakeKeyboard(page, h) {
   }, h);
 }
 
-test('点「密码」后焦点留在密码框：方式弹层关闭 250ms 后不再把焦点抢回头像', async ({ page }) => {
+test('触屏不自动聚焦；点 password 快捷键 → 焦点留在输入行（密码态）', async ({ page }) => {
+  await gotoLockTerm(page, '/?lock=1');
+  await expect(page.locator('#sgx-lock-cmd')).not.toBeFocused();
+  await page.tap('#sgx-lock-k-pw');
+  await lockMode(page, 'pw');
+  await expect(page.locator('#sgx-lock-cmd')).toBeFocused();
+  await expect(page.locator('#sgx-method-sheet, .sgx-verify-dlg')).toHaveCount(0);
+});
+
+test('键盘弹起：整组上移刚好够，输入行在键盘上方；收起键盘 / 失焦后回原位', async ({ page }) => {
   await openPwByTouch(page);
-  const input = page.locator('#sgx-pw-input');
+  const input = page.locator('#sgx-lock-cmd');
   await expect(input).toBeFocused();
-  /* C8：原来固定等 450ms。方式弹层关闭 250ms 后的回调（auth/auth-sheet.js close()）先把 #sgx-method-sheet 移出 DOM、再同步调 onClosed（会不会抢焦点就在这里）；
-     等节点没了 = 那个回调已经跑完 */
-  await expect(page.locator('#sgx-method-sheet')).toHaveCount(0);
+  await fakeKeyboard(page, 420);
+  await expect.poll(() => page.locator('#sgx-lock-stage').evaluate((el) => el.style.transform)).toMatch(/^translateY\(-\d+px\)$/);
+  const r = await page.evaluate(() => ({ bottom: document.getElementById('sgx-lock-term').getBoundingClientRect().bottom, vb: innerHeight - 420 }));
+  expect(r.bottom).toBeLessThanOrEqual(r.vb + 1);
+  await fakeKeyboard(page, 0);
+  await expect.poll(() => page.locator('#sgx-lock-stage').evaluate((el) => el.style.transform)).toBe('');
+  await page.tap('#sgx-lock-cmd');
   await expect(input).toBeFocused();
 });
 
-test('键盘弹起把弹层顶上去后，点密码框 / 拖选文字松开在遮罩上，焦点都不丢', async ({ page }) => {
-  await openPwByTouch(page);
-  const input = page.locator('#sgx-pw-input');
-  await fakeKeyboard(page, 320);
-  await expect.poll(() => page.locator('.sgx-verify-dlg').evaluate((el) => el.style.transform)).toBe('translateY(-320px)');
-  await page.tap('#sgx-pw-input');
-  await expect(input).toBeFocused();
-  await input.fill('abc');
-  /* 按在输入框里，拖到弹层上方的遮罩再松开（拖选 / 弹层在手指下面移走）：click 的 target 是 dialog */
-  const box = await input.boundingBox();
-  await page.mouse.move(box.x + 10, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 10, 40, { steps: 4 });
-  await page.mouse.up();
-  await expect(input).toBeFocused();
-  await expect(page.locator('.sgx-verify-dlg')).toBeVisible();
-});
-
-test('真的点遮罩：只让密码框失焦（收键盘），弹层保留', async ({ page }) => {
-  await openPwByTouch(page);
-  const input = page.locator('#sgx-pw-input');
-  await expect(input).toBeFocused();
-  await page.touchscreen.tap(200, 60);
-  await expect(input).not.toBeFocused();
-  await expect(page.locator('.sgx-verify-dlg')).toBeVisible();
-});
-
-test('空密码提交：输入框正下方提示「请输入密码」，输入框标 aria-invalid 并保持聚焦；输入后清除标记', async ({ page }) => {
+test('空密码回车：终端提示「请输入密码」，不发请求，焦点留在输入行', async ({ page }) => {
   let posted = 0;
   await page.route('**/api/lock-password', (r) => { posted++; return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false,"error":"wrong"}' }); });
   await openPwByTouch(page);
-  const input = page.locator('#sgx-pw-input');
-  await page.tap('#sgx-pw-go');
-  const err = page.locator('#sgx-verify-err');
-  await expect(err).toHaveText('请输入密码');
-  await expect(err).toBeVisible();
-  await expect(input).toHaveAttribute('aria-invalid', 'true');
+  const input = page.locator('#sgx-lock-cmd');
+  await input.press('Enter');
+  await expect(badLine(page)).toHaveText('✗ 请输入密码');
   await expect(input).toBeFocused();
-  /* 提示紧贴在输入框下面（在「确定」按钮上面） */
-  const fb = await page.locator('#sgx-verify-body .sgx-pw-field').boundingBox();
-  const eb = await err.boundingBox();
-  const gb = await page.locator('#sgx-pw-go').boundingBox();
-  expect(eb.y).toBeGreaterThanOrEqual(fb.y + fb.height - 1);
-  expect(eb.y).toBeLessThan(gb.y);
+  await lockMode(page, 'pw');
   expect(posted).toBe(0);
-  await input.pressSequentially('x');
-  await expect(input).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('#sgx-lock-live')).toContainText('请输入密码');
 });
 
-test('顶栏标题：静止「锁定屏幕」→ 打开解锁方式 / 密码弹层「解锁屏幕」→ 关掉回到「锁定屏幕」', async ({ page }) => {
-  await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
+test('顶栏标题：静止「锁定屏幕」→ 密码态「解锁屏幕」→ 点 Ctrl+C 回到「锁定屏幕」', async ({ page }) => {
+  await gotoLockTerm(page, '/?lock=1');
   const title = page.locator('#sgx-lock-title');
   await expect(title).toHaveText('锁定屏幕');
-  await page.tap('#sgx-lock-go');
-  await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible();
+  await page.tap('#sgx-lock-k-pw');
+  await lockMode(page, 'pw');
   await expect(title).toHaveText('解锁屏幕');
-  await page.keyboard.press('Escape');
-  await expect(page.locator('#sgx-method-sheet')).toHaveCount(0);
+  await page.tap('#sgx-lock-cc');
+  await lockMode(page, 'cmd');
   await expect(title).toHaveText('锁定屏幕');
-  await page.tap('#sgx-lock-go');
-  await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible();
-  await page.tap('#sgx-mopt-pw');
-  await expect(page.locator('#sgx-pw-input')).toBeVisible();
-  await expect(title).toHaveText('解锁屏幕');
-  await page.locator('.sgx-verify-dlg .sgx-dlg-close').click();
-  await expect(page.locator('.sgx-verify-dlg')).toBeHidden();
-  await expect(title).toHaveText('锁定屏幕');
+  /* 输凭证途中点另一个快捷键 = 先 Ctrl+C 再换 */
+  await page.tap('#sgx-lock-k-pw');
+  await lockMode(page, 'pw');
+  await page.route('**/api/lock-passkey', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"challenge":"dGVzdA","cid":"c1","allowCredentials":[]}' }));
+  await page.evaluate(() => { window.__pkCalled = false; navigator.credentials.get = () => { window.__pkCalled = true; return new Promise(() => {}); }; });
+  await page.tap('#sgx-lock-k-pk');
+  await page.waitForFunction(() => window.__pkCalled === true, null, { timeout: 8000 });
+  await lockMode(page, 'busy');
+  await expect(page.locator('#sgx-lock-log')).toContainText('^C');
 });
 
 test('不触发双击放大：html touch-action = manipulation；触屏上输入框字号 ≥ 16px', async ({ page }) => {

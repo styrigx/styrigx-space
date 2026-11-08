@@ -105,36 +105,38 @@ js:
     qpLargeOnly: Large screens only
     lockLockScreen: Lock screen
     lockLockScreen2: Lock screen
-    lockUnlockChooseMethod: Unlock, choose method
     lockWelcomeBack: Welcome back
     lockGoodToSeeYou: Good to see you again
-    lockTermHint: "# Tap a key to start unlocking"
-    lockTermChoose: "Choose a verification method:"
+    lockTermHint: "# Don't want to type? Tap to auto-fill"
+    lockTermHelpHint: "# Type help to see available commands"
+    lockTermCmdAria: "Unlock terminal: type a command, for example help"
+    lockTermSecretHint: input is hidden, paste works
+    lockTermBack: to go back
+    lockTermHelpTitle: "Available commands:"
+    lockTermDescPw: unlock with password
+    lockTermDescPk: unlock with passkey
+    lockTermDescTemp: enter with a temporary key
+    lockTermDescReset: "can't sign in? reset sign-in"
+    lockTermDescClear: clear the screen
+    lockTermDescHelp: show available commands
+    lockTermPkUnavailable: "Passkey isn't set up or isn't supported on this device"
+    lockTermPick: choose
+    lockTermPickBad: Type one of the listed numbers
+    lockTermResetOk: verified
+    lockTermToLockPage: Opening lock credentials…
     lockTermWaitPk: waiting for passkey…
-    lockUnlock: Unlock
-    lockSessionNotActive: Session not active
     lockUnlockScreen: Unlock screen
     lockTemporaryKey: Temporary key
-    lockEnterTheTemporaryKey: Enter the temporary key you received
-    lockEnterWithATemporary: Enter with a temporary key
-    lockPasskey: Passkey
-    lockUnlockWithFingerprintOr: Unlock with fingerprint or device PIN
     lockUsePasskey: Use passkey
     lockPassword: Password
-    lockEnterYourUnlockPassword: Enter your unlock password
     lockUsePassword: Use password
-    lockChooseUnlockMethod: Choose unlock method
     lockCantSignIn: Can’t sign in?
-    lockEnterTemporaryKey: Enter temporary key
     lockFormatXxxxXxxxXxxx: Format XXXX-XXXX-XXXX, case doesn’t matter
-    lockEnter: Enter
     lockEnterTheTemporaryKey2: Enter the temporary key
     lockServerError: Server error
     lockTooManyAttempts: Too many attempts
     lockInvalidOrExpiredKey: Invalid or expired key
     lockNetworkError: Network error
-    lockEnterPassword: Enter password
-    lockUnlock2: Unlock
     lockEnterPassword2: Enter password
     lockNoPasswordSetYet: No password set yet
     lockWrongPassword: Wrong password
@@ -144,8 +146,6 @@ js:
     lockCancelledYouCanSelect: Cancelled, you can select again
     lockPasskeyFailed: Passkey failed
     lockVerifying: Verifying
-    lockVerifyingPasskey: Verifying passkey…
-    lockRetry: Retry
     lockCannotReturnToThe: Cannot return to the subsite, please try again
     lockBackToMainSite: Back to main site
     lockReload: Reload

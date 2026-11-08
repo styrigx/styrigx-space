@@ -14,6 +14,7 @@
  * 运行：SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
  * （需要先 hugo --minify -s space/web 生产构建；需要 openssl）
  */
+const { lockCmd, lockMode } = require('../helpers/lock-term.cjs');
 const { test, expect } = require('@playwright/test');
 const { startEdge, LAUNCH } = require('../helpers/edge-harness.cjs');
 const { addVirtualAuth } = require('../helpers/preview-helpers.cjs');
@@ -84,10 +85,10 @@ async function setSession(context, by) {
   await context.addCookies(c);
 }
 
+/* lock-v10 命令解锁：锁屏上没有方式弹层，等终端输入行可用 */
 async function openMethods(page) {
   await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-  await page.click('#sgx-lock-avatar');
-  await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('#sgx-lock-cmd')).toBeEditable({ timeout: 15000 });
 }
 
 async function lockShownWithin(page, ms) {
@@ -115,7 +116,7 @@ test('R1 blog 直接打开 → 主站锁屏 → 通行密钥 → 回到 blog 原
   /* 锁屏页本身必须是网关给的（带 data-sgx-lock-session），不能是 Pages 直出 */
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
   await openMethods(page);
-  await page.click('#sgx-mopt-pk');
+  await lockCmd(page, 'passkey');
   await page.waitForURL(BLOG + '/post/hello/', { timeout: 20000 });
   await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT blog');
 });
@@ -125,9 +126,9 @@ test('R1 daymark 直接打开 → 主站锁屏 → 临时钥匙 → 回到 dayma
   await page.goto(DAYMARK + '/');
   expect(page.url()).toContain(MAIN + '/?lock=1');
   await openMethods(page);
-  await page.click('#sgx-mopt-tempkey');
-  await page.fill('#sgx-temp-input', code.toLowerCase());
-  await page.click('#sgx-temp-go');
+  await lockCmd(page, 'tempkey');
+  await lockMode(page, 'temp');
+  await lockCmd(page, code.toLowerCase());
   await page.waitForURL(DAYMARK + '/', { timeout: 20000 });
   await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT daymark');
   /* 合并 PR3：子站和主站同源，/api/lock-session-check 由主站路由回答（有效 200 {ok:true}；以前 atlas 根上由子站关口回 204） */
@@ -149,7 +150,7 @@ test('R2 主站解锁（通行密钥）→ 刷新仍是解锁的', async ({ page
   await addAuthenticator(page);
   await page.goto(MAIN + '/?lock=1');
   await openMethods(page);
-  await page.click('#sgx-mopt-pk');
+  await lockCmd(page, 'passkey');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid', { timeout: 20000 });
   await expect(page.locator('#sgx-lock')).toHaveCount(0);
   await page.reload();
@@ -249,7 +250,7 @@ test('P2-3 带 v1 cookie 打开旷野子页 /theme/ 和子站内页 → 302 锁�
     expect(await sessionBy(page)).toBe(null);
     expect(await page.evaluate(() => fetch('/api/status', { cache: 'no-store' }).then((r) => r.status))).toBe(401);
     await openMethods(page);
-    await page.click('#sgx-mopt-pk');
+    await lockCmd(page, 'passkey');
     await page.waitForURL(target, { timeout: 20000 });
     page.off('framenavigated', h);
     expect(await sessionBy(page)).toBe('passkey');
@@ -517,7 +518,7 @@ test.describe('中文浏览器（首帧语言跳转到 /zh/）', () => {
     expect(new URL(page.url()).searchParams.get('return')).toBe(BLOG + '/post/hello/');
     await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
     await openMethods(page);
-    await page.click('#sgx-mopt-pk');
+    await lockCmd(page, 'passkey');
     await page.waitForURL(BLOG + '/post/hello/', { timeout: 20000 });
     await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT blog');
   });

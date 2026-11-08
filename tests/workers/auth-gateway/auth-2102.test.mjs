@@ -187,18 +187,16 @@ test('9c：lock-passkey 缺 Origin → 403', async () => {
 
 /* ============ 1：管理密钥入口静态检查 ============ */
 
-test('1a：锁屏方法弹层按配置显示入口（PR3：进站凭证 / 重置锁屏两行合并成「无法登录？」）', () => {
+test('1a：锁屏解锁入口按配置显示（lock-v10 命令解锁 2026-11-08：方式弹层换成终端命令；「无法登录？」= reset 命令）', () => {
   const src = fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/lock.js'), 'utf8');
-  /* 进站凭证不再是单独一行；都没设置（启动站）时「无法登录？」里的进站凭证走 space-auth 引导 */
-  assert.ok(!src.includes("'sgx-mopt-mk'") && !src.includes('id="sgx-mopt-mk"'), '不应再有进站凭证一行');
-  assert.ok(src.includes('sgx-mopt-cant'), '应有「无法登录？」');
-  assert.ok(src.includes('function openResetInSheet'), '弹层原地切到重置登录');
-  assert.ok(/bootstrap[\s\S]*?'\/api\/space-auth'/.test(src), '启动站：进站凭证走 /api/space-auth');
+  /* 进站凭证不是单独的入口；都没设置（启动站）时 reset 里的进站凭证走 space-auth 引导 */
+  assert.ok(!src.includes('sgx-mopt-'), '锁屏不再有方式弹层的行');
+  assert.ok(/'reset': 'reset'/.test(src) && /'forgot': 'reset'/.test(src), '应有 reset / forgot 命令（无法登录？）');
+  assert.ok(/rBootstrap[\s\S]*?'\/api\/space-auth'/.test(src), '启动站：进站凭证走 /api/space-auth');
   /* 配置以服务端为准 */
   assert.ok(src.includes('/api/lock-entry'), '应从 /api/lock-entry 读取配置');
-  /* 其他选项必须存在 */
-  assert.ok(src.includes('sgx-mopt-tempkey'), '应有临时钥匙');
-  assert.ok(src.includes('sgx-mopt-pk'), '应有通行密钥');
-  assert.ok(src.includes('sgx-mopt-pw'), '应有密码');
-  assert.ok(!src.includes('sgx-mopt-reset'), '「重置锁屏」一行已并入「无法登录？」');
+  /* 其他入口必须存在 */
+  assert.ok(/'tempkey': 'tempkey'/.test(src), '应有临时钥匙');
+  assert.ok(/'passkey': 'passkey'/.test(src), '应有通行密钥');
+  assert.ok(/'password': 'password'/.test(src), '应有密码');
 });

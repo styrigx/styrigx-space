@@ -68,28 +68,29 @@ const spaceRows = (db) => ({
 
 /* ============ 1. 锁屏入口按配置显示（补充定稿七.1） ============ */
 
-test('认证入口：锁屏方法弹层按锁屏凭证配置显示入口（PR3：最下面一行「无法登录？」）', () => {
+test('认证入口：锁屏解锁入口按锁屏凭证配置显示（lock-v10 命令解锁：help / 快捷键只列已配置的；reset =「无法登录？」）', () => {
   const src = fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/lock.js'), 'utf8');
   /* 配置以服务端 /api/lock-entry 为准 */
   assert.ok(src.includes('/api/lock-entry'), '应从 /api/lock-entry 读取配置');
-  assert.ok(src.includes('sgx-mopt-tempkey'), '应有临时钥匙');
-  assert.ok(src.includes('sgx-mopt-pk'), '应有通行密钥');
-  assert.ok(src.includes('sgx-mopt-pw'), '应有密码');
-  /* 「重置锁屏」「进站凭证」两行合并为「无法登录？」→ 弹层原地切到重置登录 */
-  assert.ok(src.includes('sgx-mopt-cant'), '应有「无法登录？」');
-  /* 语言包化 2026-11-07：文案在字符串表 js.core（lock.js 只留键） */
-  assert.ok(src.includes("tx('lockCantSignIn')"), '「无法登录？」走字符串表');
+  assert.ok(/'tempkey': 'tempkey'/.test(src), '应有临时钥匙');
+  assert.ok(/'passkey': 'passkey'/.test(src), '应有通行密钥');
+  assert.ok(/'password': 'password'/.test(src), '应有密码');
+  assert.ok(/if \(cfg\.password\) rows\.push\(\['password'/.test(src) && /if \(pkUsable\(\)\) rows\.push\(\['passkey'/.test(src), 'help 只列已配置的密码 / 通行密钥');
+  /* 「无法登录？」→ reset 命令在终端里重置登录；文案走字符串表 */
+  assert.ok(/'reset': 'reset'/.test(src), '应有 reset（无法登录？）');
+  assert.ok(src.includes("tx('lockTermDescReset')"), 'reset 的说明走字符串表');
   const yEn = fs.readFileSync(path.join(REPO, 'space/web/data/i18n/en.yaml'), 'utf8');
   const yZh = fs.readFileSync(path.join(REPO, 'space/web/data/i18n/zh.yaml'), 'utf8');
-  assert.ok(yZh.includes('lockCantSignIn: 无法登录？') && yEn.includes('lockCantSignIn: Can’t sign in?'), '中英文案');
-  assert.ok(!src.includes('sgx-mopt-reset') && !src.includes('function openMk'), '旧的两行已删除');
+  assert.ok(yZh.includes('lockTermDescReset: 无法登录？重置登录') && yEn.includes("lockTermDescReset: \"can't sign in? reset sign-in\""), '中英文案');
+  assert.ok(!src.includes('sgx-mopt-') && !src.includes('function openMk'), '旧的弹层行已删除');
   /* 启动站（锁屏凭证都没设）：视为从零重置——进站凭证 → /api/space-auth purpose=lock-reset（不再换 root-session） */
-  assert.ok(/bootstrap[\s\S]*?'\/api\/space-auth', \{ key: key, purpose: 'lock-reset' \}/.test(src), '启动站进站凭证走 lock-reset');
+  assert.ok(/rBootstrap[\s\S]*?'\/api\/space-auth', \{ key: key, purpose: 'lock-reset' \}/.test(src), '启动站进站凭证走 lock-reset');
   assert.ok(!src.includes('root-session') && !src.includes('exchangeRootSession'), 'root-session 已删除');
   /* 读取失败按已配置处理 */
   assert.ok(src.includes('读取失败按已配置处理'), '应有读取失败 fail closed 注释');
   assert.ok(!src.includes('先验证进站凭证，再验证锁屏凭证'), '描述不应出现旧说法');
 });
+
 
 /* ============ 2. 安全页 DOM 一致 ============ */
 

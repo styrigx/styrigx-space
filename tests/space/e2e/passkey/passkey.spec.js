@@ -21,6 +21,7 @@
  *   npx playwright test --config=tests/config/playwright.config.js
  * 本地没配 SGX_TEST_BASE / SGX_TEST_SPACE_KEY / SGX_TEST_ACCOUNT_ROOT_KEY 时跳过；CI（CI=true）里缺了直接失败。
  */
+const { lockCmd } = require('../helpers/lock-term.cjs');
 const { test, expect } = require('@playwright/test');
 const h = require('../helpers/preview-helpers.cjs');
 
@@ -81,16 +82,15 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
       await page.goto(BASE + '/?lock=1');
       const lock = page.locator('#sgx-lock');
       await expect(lock).toBeVisible({ timeout: 15000 });
-      await page.click('#sgx-lock-avatar');
-      await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
-      await expect(page.locator('#sgx-mopt-pk'), '锁屏方式面板里有通行密钥选项').toBeVisible({ timeout: 5000 });
+      /* lock-v10 命令解锁：passkey 快捷键（只在 lock-entry 说 passkey:true 时显示）+ passkey 命令 */
+      await expect(page.locator('#sgx-lock-k-pk'), '锁屏终端有 passkey 快捷键').toBeVisible({ timeout: 5000 });
 
       /* 读 auth 接口的原始响应头：预览域名存不下 Domain=.styrigx.com 的 cookie，只能看头 */
       const authResp = page.waitForResponse((r) => {
         if (!r.url().includes('/api/lock-passkey') || r.request().method() !== 'POST') return false;
         try { return JSON.parse(r.request().postData() || '{}').action === 'auth'; } catch (e) { return false; }
       }, { timeout: 30000 });
-      await page.click('#sgx-mopt-pk');
+      await lockCmd(page, 'passkey');
       const resp = await authResp;
       expect(resp.status()).toBe(200);
       expect((await resp.json()).ok).toBe(true);
