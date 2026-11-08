@@ -1,5 +1,5 @@
 /**
- * 预览站（真实网关）E2E 的共享 helper：passkey.spec.js、account-challenge.spec.js 共用；
+ * 预览站（真实网关）E2E 的共享 helper：passkey.spec.js、account-passkey.spec.js 共用；
  * addVirtualAuth 也给本地 mock 的 spec（b1-12-guard.spec.js）用。
  *
  * 环境变量（CI 的 passkey-e2e job 注入；本地没配时整组跳过，CI 里缺了直接失败）：

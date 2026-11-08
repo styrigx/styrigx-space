@@ -90,15 +90,10 @@ export function stripComments(src) {
 /**
  * 规则 3 白名单：现在还在用 openSheet 的文件（2026-11-07 按 git grep "openSheet(" 列出；account-ai.js 已改行内列表、不在内；PR-4b 语言选择改行内后 apps/settings.js 删除、移出白名单）。
  * - shell/sheet.js：openSheet 本身的定义
- * - apps/account.js：账号页自己的登录方式弹层（同名局部函数 openSheet）
- * - apps/account-apps.js：应用授权「重新授权」前的验证弹层
- * - apps/avatar-edit.js：头像编辑弹层
+ * （2026-11-08 账号 UI 改版：账号页删了，头像改成账号终端里的行内选项，apps/account.js、account-apps.js、avatar-edit.js 移出白名单）
  */
 export const SHEET_ALLOW = new Set([
   'space/web/assets/js/shell/sheet.js',
-  'space/web/assets/js/apps/account.js',
-  'space/web/assets/js/apps/account-apps.js',
-  'space/web/assets/js/apps/avatar-edit.js',
 ]);
 
 /* 规则 2 的匹配模式（作用于去注释后的代码，逐行检查，报错带行号） */

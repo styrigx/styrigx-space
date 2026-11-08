@@ -11,7 +11,7 @@
  *   取景框 = 卡片显示的比例（设备 .it-media 4:3、游戏 .it-media--cover 3:4），裁好的图卡片里正好铺满、详情里完整显示。
  *   完成 → 浏览器里裁成长边 ≤1200（电影海报 ≤1600；不放大）、转 webp（不支持就 jpeg），保存时再传；保存前点缩略图可以重新调整。
  *   电影子页（curio-movies.js）借用同一套裁剪和照片状态：window.SgxCurioPhoto.box(前缀, 'movie')（海报 2:3）。
- * 账号没登录：只读、只看公开的（showPrivate=false）；「sudo login · 登录账号后可编辑」那条命令在 curio.js（#cu-signin）。
+ * 账号没登录：只读、只看公开的（showPrivate=false）；「sudo root · 登录账号后可编辑」那条命令在 curio.js（#cu-signin）。
  * 写请求只有 401 unauthorized 才当锁定刷新（401 account / reauth 是账号的事，提示「登录账号后可编辑」；403 scope 提示「奇趣未获账号授权」）。
  *
  * 数据：GET /api/items；写：POST /api/items {op}；照片：/api/photo?kind=device|game&id=（GET 图、POST 传、DELETE 删）。

@@ -21,7 +21,7 @@ import { providerLabel, defaultPasskeyName } from '../lib/passkey-label.js';
 import { markPersonal } from '../lib/personal.js';
 import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from '../auth/passkey-assert.js';
 import { bindDataEyes, createSetPwDialog, newPwError, passwordSetRequest, lockReauthFetch } from '../auth/auth-flow.js';
-import { renderAccountMethods } from '../auth/account-methods.js';
+import { renderVerifyRows } from '../auth/verify-rows.js';
 import { KEY_LOCK } from '../lib/key-names.js';
 import { i18nTable, fmtDate as fmtIntlDate } from '../lib/i18n.js';
 /** 界面文案：页面字符串表 #sgx-i18n-lockmgr（语言包化 2026-11-07；当前语言已叠在英文上） */
@@ -671,7 +671,7 @@ const tx = i18nTable('lockmgr');
     if (st && st.passkey) kinds.push('passkey');
     if (st && st.password) kinds.push('password');
     kinds.push('space');
-    reauthMethods = renderAccountMethods({
+    reauthMethods = renderVerifyRows({
       el: reauthMethodsEl,
       t: t,
       en: en,

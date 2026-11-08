@@ -355,12 +355,17 @@ test('锁屏没解锁 / 开关关：不请求', async () => {
   assert.equal(calls.length, 0);
 });
 
-test('强制入口：账号页登录后用 force（云同步子页 2026-11-08 删了，只剩这一处）；登出清时刻', () => {
-  const acct = readFileSync(path.join(ROOT, 'space/web/assets/js/apps/account.js'), 'utf8');
-  const dev = readFileSync(path.join(ROOT, 'space/web/assets/js/apps/account-devices.js'), 'utf8');
+test('强制入口：账号终端登录后清掉拉取时刻、标记已登录，关面板重新载入后 core.js 照常起同步（立刻拉一次）；登出清时刻（2026-11-08 账号页删了）', () => {
+  const sess = readFileSync(path.join(ROOT, 'space/web/assets/js/shell/account/session.js'), 'utf8');
+  const cs = readFileSync(path.join(ROOT, 'space/web/assets/js/lib/cloud-sync.js'), 'utf8');
   const core = readFileSync(path.join(ROOT, 'space/web/assets/js/shell/core.js'), 'utf8');
-  assert.match(acct, /initCloudSync\(\{ force: true \}\)/);
-  assert.match(dev, /clearPullStamp\(\)/);
+  /* 账号终端不 import cloud-sync（子站也挂它）：键名和 lib/cloud-sync.js 对得上 */
+  assert.match(sess, /const SYNC_AUTH_KEY = 'sgx-sync-auth';/);
+  assert.match(sess, /const SYNC_PULL_KEY = 'sgx-sync-pull';/);
+  assert.match(cs, /'sgx-sync-auth'/);
+  assert.match(cs, /'sgx-sync-pull'/);
+  assert.match(sess, /sset\(SYNC_AUTH_KEY, 'in'\); localStorage\.removeItem\(SYNC_PULL_KEY\)/, '登录后');
+  assert.match(sess, /api\.session\.end\(\)[\s\S]*localStorage\.removeItem\(SYNC_PULL_KEY\)/, '登出后');
   assert.match(core, /initCloudSync\(\)\.catch/);
 });
 

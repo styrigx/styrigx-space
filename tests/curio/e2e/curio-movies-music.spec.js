@@ -60,7 +60,7 @@ async function mockMovies(page, can) {
   return calls;
 }
 
-test('电影（无权限）：只读封面卡——没有新建命令、条目页没有编辑；命令链「sudo login · 登录账号后可编辑」；胶囊 = 电影', async ({ page }) => {
+test('电影（无权限）：只读封面卡——没有新建命令、条目页没有编辑；命令链「sudo root · 登录账号后可编辑」；胶囊 = 电影', async ({ page }) => {
   await mockMovies(page, false);
   await page.goto('/curio/zh/');
   await page.locator('#cu-tabs [data-ctab="movies"]').click();
@@ -219,7 +219,9 @@ for (const who of ['lock', 'noscope']) {
     await page.goto('/curio/zh/music/');
     await expect(page.locator('#mu-denied')).toBeVisible();
     await expect(page.locator('#mu-denied .mu-denied-title')).toHaveText('仅本人可见');
-    await expect(page.locator('#mu-denied-link')).toHaveAttribute('href', who === 'noscope' ? 'https://styrigx.com/zh/account/apps/' : 'https://styrigx.com/zh/account/');
+    /* 2026-11-08 账号 UI 改版：打开顶栏账号终端（没授权 → 应用授权层；没登录 → sudo root + 奇趣授权同意），href 是没 JS 的退路 */
+    await expect(page.locator('#mu-denied-link')).toHaveAttribute('href', who === 'noscope' ? 'https://styrigx.com/zh/#acct=apps' : 'https://styrigx.com/zh/#acct&app=curio');
+    await expect(page.locator('#mu-denied-link')).toHaveAttribute('data-acct-open', who === 'noscope' ? 'apps' : '');
     await expect(page.locator('#mu-app')).toBeHidden();
     await expect(page.locator('#mu-upload')).toBeHidden();
     await expect(page.locator('#mu-player')).toBeHidden();

@@ -13,6 +13,8 @@
 
 /** 目录（ls 的结果，cd 的目标；wild = 旷野） */
 export const DIRS = ['blog', 'curio', 'daymark', 'wild'];
+/** 账号终端的命令字（= shell/account/commands.js ROOT_COMMAND；这个文件不 import 任何东西，只能抄一份） */
+const ROOT_COMMAND = 'root';
 /** 命令（help 的顺序 = 补全的顺序） */
 export const COMMANDS = ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear'];
 /** 各命令参数的候选 */
@@ -20,7 +22,7 @@ export const ARGS = {
   cd: ['blog', 'curio', 'daymark', 'wild', '~', '..'],
   ls: ['blog', 'curio', 'daymark', 'wild'],
   cat: ['daymark/today'],
-  sudo: ['account', 'security'],
+  sudo: [ROOT_COMMAND, 'security'],
   theme: ['dark', 'light', 'auto'],
 };
 const HIST_KEY = 'sgx-term-hist';
@@ -52,7 +54,7 @@ export const TERM_EN = {
   opening: 'opening {x} …',
   todayNone: 'no line for today yet · {x}',
   todayFail: 'couldn’t load today’s line · {x}',
-  usageSudo: 'usage: sudo account | sudo security',
+  usageSudo: 'usage: sudo ' + ROOT_COMMAND + ' [reauth|reset] | sudo security',
   usageTheme: 'usage: theme [dark | light | auto]',
   usageCat: 'usage: cat daymark/today',
   themeSet: 'theme → {x}',
@@ -193,7 +195,7 @@ export function fill(s, map) {
  * @typedef {{ out: Out[], clear?: boolean, after?: () => void }} Result
  * @typedef {Object} TermAct
  * @property {(dir: string) => ({ kind: 'scroll', label: string } | { kind: 'nav', href: string, go: () => void })} cd
- * @property {(which: 'account'|'security') => ({ href: string, go: () => void })} sudo
+ * @property {(which: string, sub?: string) => ({ href: string, go: () => void })} sudo  which = ROOT_COMMAND（账号终端，sub = '' | reauth | reset）| security
  * @property {(mode: string) => void} theme  '' = 打开外观面板；dark / light / auto = 设定
  * @property {() => void} lock
  * @property {(q: string) => void} ask
@@ -252,7 +254,7 @@ export function createShell(o) {
       rows: [
         ['ls', S.dLs],
         ['cat', S.dCat],
-        ['sudo account', S.dAccount],
+        ['sudo ' + ROOT_COMMAND, S.dAccount],
         ['sudo security', S.dSecurity],
         ['theme', S.dTheme],
         ['lock', S.dLock],
@@ -315,8 +317,11 @@ export function createShell(o) {
         });
       }
       case 'sudo': {
-        if (a0 !== 'account' && a0 !== 'security') return { out: [plain(S.usageSudo)] };
-        const r = act.sudo(/** @type {'account'|'security'} */ (a0));
+        /* sudo root [reauth|reset]：账号终端（2026-11-08 账号命令体系 v3）；sudo security：盾牌 */
+        const a1 = (p.args[1] || '').toLowerCase();
+        const okRoot = a0 === ROOT_COMMAND && (a1 === '' || a1 === 'reauth' || a1 === 'reset') && p.args.length <= 2;
+        if (!okRoot && !(a0 === 'security' && p.args.length === 1)) return { out: [plain(S.usageSudo)] };
+        const r = act.sudo(a0, a1);
         return { out: [arrow(fill(S.opening, { x: ['k', r.href] }))], after: r.go };
       }
       case 'theme': {

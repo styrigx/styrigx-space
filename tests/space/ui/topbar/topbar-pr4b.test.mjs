@@ -29,7 +29,7 @@ test('NAVIGATE #sgx-nav（顶栏 v3）：>_ 按钮（类名照旧 sgx-tb-grid）
   assert.match(js, /tg\.closest\('\[data-nav-close\]'\)/);
   assert.match(js, /tg\.closest\('\[data-qp-lang\]'\)/);
   assert.match(js, /tg\.closest\('\[data-qp-seg="layout"\] button'\)/);
-  assert.match(js, /return \{ nav: nav && nav\.ms, qp: qp && qp\.ms, ai: ai && ai\.ms, term: termSheet, termShell: term, paint: paint, paintNav: paintNav \};/);
+  assert.match(js, /return \{ nav: nav && nav\.ms, qp: qp && qp\.ms, ai: ai && ai\.ms, acct: acct && acct\.ms, openAccount: function \(\/\*\* @type \{any\} \*\/ x\) \{ openAcct\(x\); \}, term: termSheet, termShell: term, paint: paint, paintNav: paintNav \};/);
   /* 2026-11 PR-2：NAVIGATE「$ terminal」→ 关面板后打开终端 */
   assert.match(js, /if \(id === 'term'\) \{ ms\.close\(function \(\) \{ window\.setTimeout\(openTerm, 0\); \}\); return; \}/);
 });

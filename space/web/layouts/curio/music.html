@@ -13,7 +13,8 @@
       <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
       <p class="mu-denied-title">{{ $tr.music.onlyMe }}</p>
       <p class="mu-denied-text">{{ $tr.music.thisPageIsPrivate }}</p>
-      <a id="mu-denied-link" class="mu-denied-link" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}">{{ $tr.music.account }}</a>
+      {{/* 2026-11-08 账号 UI 改版：打开顶栏账号终端（data-acct-open；没登录 → 登录 + 奇趣授权同意；curio-music.js 在 403 scope 时改成应用授权那一层） */}}
+      <a id="mu-denied-link" class="mu-denied-link" data-acct-open="" data-acct-app="curio" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}#acct&amp;app=curio">{{ $tr.music.account }}</a>
     </div>
     <div id="mu-app" class="hidden">
       <div id="mu-covers" class="mu-covers" role="list" aria-label="{{ $tr.music.albums }}"></div>

@@ -57,7 +57,7 @@ test('assertionOptions / assertionToJSON / isPasskeyCancel', () => {
 
 test('全站的通行密钥断言都经 getPasskeyAssertion + assertionToJSON：没有别处手写 credentials.get / 断言序列化', () => {
   /* 共享外壳的 shell/share-button.js 不在其列：子站原样复制、不能 import（gen-shell 强制），最小复验步骤只好自带一份断言 */
-  const files = ['space/web/assets/js/shell/lock.js', 'space/web/assets/js/auth/lock-reauth.js', 'space/web/assets/js/apps/security-lock.js', 'space/web/assets/js/auth/account-methods.js'];
+  const files = ['space/web/assets/js/shell/lock.js', 'space/web/assets/js/auth/lock-reauth.js', 'space/web/assets/js/apps/security-lock.js', 'space/web/assets/js/shell/account/api.js'];
   let flows = 0;
   for (const f of files) {
     const src = readFileSync(join(ROOT, f), 'utf8');
@@ -66,6 +66,6 @@ test('全站的通行密钥断言都经 getPasskeyAssertion + assertionToJSON：
     flows += (src.match(/getPasskeyAssertion\(assertionOptions\(/g) || []).length;
     assert.ok(src.includes('assertionToJSON(cred)'), f + ' 用 assertionToJSON');
   }
-  /* 锁屏解锁、锁屏里的重置、主站锁侧复验弹层（P2-3，代替原升级层）、锁屏凭证页再验证、账号登录 / 再验证 */
+  /* 锁屏解锁、锁屏里的重置、主站锁侧复验弹层（P2-3，代替原升级层）、锁屏凭证页再验证、账号登录 / 再验证（2026-11-08 起在账号终端 shell/account/api.js） */
   assert.equal(flows, 5);
 });

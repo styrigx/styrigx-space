@@ -45,7 +45,7 @@ test('宽屏平铺（Gray 2026-11-07；2026-11 PR-A 起内容区回 1080）：�
   assert.match(s, /\.sgx-flat \{ background: transparent; border: 0; border-radius: 0; box-shadow: none;/);
   // 交互模块保留卡片：旷野页（屏幕时间 / 状态 / 关于，对齐 PR-B 起在 _default/wild.html）、安全页不挂 .sgx-flat
   const web = path.join(REPO, 'space/web/layouts');
-  for (const f of ['_default/wild.html', '_default/security.html', '_default/security-lock.html', '_default/account.html']) {
+  for (const f of ['_default/wild.html', '_default/security.html', '_default/security-lock.html']) {
     assert.doesNotMatch(readFileSync(path.join(web, f), 'utf8'), /sgx-flat/, f);
   }
   const home = readFileSync(path.join(web, 'index.html'), 'utf8');

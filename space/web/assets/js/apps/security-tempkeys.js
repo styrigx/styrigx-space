@@ -12,9 +12,9 @@
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';
 import { onDialogBackdrop, onDialogCancel, recordDialogClose } from '../lib/dialog-behavior.js';
-import { postJSON, errText } from '../auth/account-api.js';
+import { postJSON, errText } from '../auth/post-json.js';
 import { withLockReauth, needsLockReauth } from '../auth/lock-reauth.js';
-import { createT } from './account-common.js';
+import { createT } from './tempkeys-i18n.js';
 import { markPersonal } from '../lib/personal.js';
 import { i18nTable } from '../lib/i18n.js';
 /** 界面文案：页面字符串表 #sgx-i18n-account（语言包化 2026-11-07；当前语言已叠在英文上） */

@@ -113,7 +113,8 @@ test('子站接入（对齐 PR-C2）：奇趣五个分区页同一个页头（�
 test('主站内容页：页头接入（带命令），front matter 都有 description（中英）', () => {
   /* 对齐 PR-B：数字健康 / 关于本站 / 服务状态并进旷野页 wild（三份旧内容删除）；对齐 PR-C：风格页 theme 退役 */
   for (const p of ['wellbeing', 'about', 'status', 'theme']) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`]) assert.ok(!has(f), f + ' 应已删除');
-  const pages = ['wild', 'security', 'security-tempkeys', 'account-apps', 'account-devices', 'account-profile', 'account-security'];
+  /* 2026-11-08 账号整页删了（账号都在顶栏头像的账号终端里） */
+  const pages = ['wild', 'security', 'security-tempkeys'];
   /* 2026-11-08 云同步子页删除（Gray 04:47） */
   for (const f of ['space/web/content/account-sync.md', 'space/web/content/zh/account-sync.md', 'space/web/layouts/_default/account-sync.html']) assert.ok(!has(f), f + ' 应已删除');
   for (const p of pages) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`]) assert.match(rd(f), /^description: '.+'$/m, f);

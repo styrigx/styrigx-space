@@ -20,7 +20,7 @@
      wordmark    字标 SVG（partials/shell-wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
      security    盾牌（站点安全）链接：主站安全页（当前语言）
      status      NAVIGATE 底部「systemctl status」链接：主站服务状态页（当前语言）
-     acct        头像链接（账号页；账号下拉 #sgx-acct 各行 = acct + profile/ devices/ security/ apps/ sync/）；avatar 头像图片地址（顶栏头像 + AI 窗口头部 + 账号下拉）
+     acct        头像链接（没 JS / 中键时的去处：/account/ → 301 首页 #acct；普通点击打开账号终端 #sgx-acct）；avatar 头像图片地址（顶栏头像 + AI 窗口头部 + 账号下拉）
      name / nick 账号下拉头部的姓名 / 昵称默认值（data/profile.yaml；运行时 topbar.js 再用本机缓存 sgx-profile 覆盖）
      （security 同时是站点安全下拉 #sgx-sec 各行的前缀：security + lock/ tempkeys/）
      email       对外联系邮箱（AI 窗口底部「联系我」的 mailto；主站传 data/profile.yaml 的 email，子站传 nav.json 的 me.email；
@@ -128,34 +128,14 @@
     <p class="sgx-ai-foot"><span><span class="sgx-ai-err">{{ $t.topbar.mayErr }}</span><span class="sgx-ai-dot" aria-hidden="true"> · </span><span class="sgx-ai-scope" data-ai-scope>{{ $t.topbar.publicOnly }}</span></span><a class="sgx-ai-contact" data-ai-contact title="{{ $t.topbar.contact }}"{{ with .email }} href="mailto:{{ . }}"{{ end }}>{{ with .email }}<span data-ai-email translate="no" data-sgx-personal>{{ . }}</span>{{ else }}{{ $t.topbar.contact }}{{ end }}</a></p>
   </div>
 </dialog>
-{{- /* 账号下拉（2026-11 PR-5 acct-v2，设计稿 acct-v2 / tb4.html pop=1 · guest=1）：头像点开。只是去账号各页的入口，不做登录 / 退出 / 改资料本身（那些仍在账号页）。
-   data-acct-state：空 = 还不知道（没问到 / 锁着）→ 头部不写登录态，列表照常；in = 有账号会话；guest = 没有账号会话 → 头部「账号未登录」+ 终端式登录入口（去账号页登录，passkey · AccountKey）。
-   登录态由 topbar.js 每次打开时 GET /api/account（同账号子页进页那一问，只读）判定；名字 / 昵称先画参数里的默认值，再用本机缓存 sgx-profile 覆盖。
-   不放 AI 模型行（Gray 2026-11-08 04:45：模型只在 AI 窗口右上角切换）、不放云同步行（04:47：只留后台自动同步，/account/sync/ 301 → /account/）。 */ -}}
-{{- $acct := .acct -}}
+{{- /* 账号下拉 = 账号终端（2026-11-08 账号 UI 改版，设计稿 acct-sec-redraw mock v3）：头像点开。没有 /account/ 整页了（OPEN O1），
+   登录（sudo root）/ 再验证（sudo root reauth）/ 重置（sudo root reset）/ 个人资料 / 设备 / 账号安全 / 应用授权 / 奇趣日刻授权同意都在这张下拉里一层层进。
+   内容全由 shell/account/term.js 第一次打开时画（文案在 .shell.account，四站同一份）；这里只放面板骨架和没 JS 时的一行字。
+   旧地址 /account/* 由 static/_redirects 301 到本语言首页 #acct=<层>，topbar-panel.js 打开对应那一层。 */ -}}
 <dialog id="sgx-acct" class="sgx-qp sgx-pop sgx-acct" aria-label="{{ $t.topbar.account }}" data-acct-state="">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
-    <div class="sgx-nav-h sgx-pop-gh" data-acct-login hidden><span translate="no"><b aria-hidden="true">$</b> ACCOUNT</span><span translate="no">guest</span></div>
-    <div class="sgx-pop-me" data-acct-only>
-      <a class="sgx-pop-me-a" href="{{ $acct }}"><img src="{{ .avatar }}" alt="" width="48" height="48" class="sgx-pop-avatar" data-sgx-avatar="192"><span class="sgx-pop-who"><b data-acct-name translate="no" data-sgx-personal>{{ .name | default "Styrigx" }}</b><small><span data-acct-nick translate="no" data-sgx-personal>{{ .nick | default "Styrigx" }}</span><span class="sgx-pop-state" data-acct-in hidden> · <i aria-hidden="true">✓</i> {{ $t.acct.signedIn }}</span></small></span></a>
-      <a class="sgx-pop-edit" href="{{ $acct }}profile/" data-acct-only>{{ $t.acct.edit }}</a>
-    </div>
-    <div class="sgx-pop-login" data-acct-login hidden>
-      <p><span class="sgx-pop-ps" translate="no">guest@space:~$</span> <span translate="no">sudo account</span></p>
-      <p>{{ $t.acct.guestLine }}</p>
-      <p class="sgx-pop-opts"><a class="sgx-pop-opt" href="{{ $acct }}" data-key="1"><b translate="no">[1]</b> <span translate="no">passkey</span></a><a class="sgx-pop-opt" href="{{ $acct }}" data-key="2"><b translate="no">[2]</b> <span translate="no">accountkey</span></a></p>
-      <p class="sgx-pop-cur" aria-hidden="true"><span class="sgx-pop-ps">&gt;</span> <i></i></p>
-      <p class="sgx-pop-dim">{{ $t.acct.back }}</p>
-    </div>
-    <ul class="sgx-pop-list" data-acct-only>
-      {{- range slice (dict "p" "profile/" "t" $t.acct.profile "v" $t.acct.profileHint "k" "profile") (dict "p" "devices/" "t" $t.acct.devices "v" "" "k" "device") (dict "p" "security/" "t" $t.acct.security "v" "" "k" "security") (dict "p" "apps/" "t" $t.acct.apps "v" "" "k" "apps") }}
-      <li><a class="sgx-pop-row" href="{{ $acct }}{{ .p }}"><span class="sgx-pop-k">{{ .t }}</span><span class="sgx-pop-v" data-acct-v="{{ .k }}">{{ .v }}</span><span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
-      {{- end }}
-    </ul>
-    {{- /* 退出登录（设计稿最后一行）：同设备页「退出账号」——POST /api/account {action:logout} → 回账号页；只在有账号会话时显示 */}}
-    <ul class="sgx-pop-list sgx-pop-list--line" data-acct-in hidden>
-      <li><button type="button" class="sgx-pop-row sgx-pop-row--acc" data-acct-logout><span class="sgx-pop-k" data-acct-logout-label>{{ $t.acct.signOut }}</span><span class="sgx-pop-v" translate="no">exit</span></button></li>
-    </ul>
+    <div class="sgx-nav-h sgx-pop-gh"><span translate="no"><b aria-hidden="true">$</b> ACCOUNT</span><span translate="no">login</span></div>
+    <p class="sgx-pop-dim">{{ $t.account.common.opening }}</p>
   </div>
 </dialog>
 {{- /* 站点安全下拉（2026-11 PR-5 sec-v1，设计稿 sec-v1 / tb4.html sg=1 · so=1）：盾牌点开。钥匙（锁屏凭证 = 通行密钥 + LockKey、临时钥匙）和会话（锁屏会话、锁定所有设备）的入口；

@@ -81,7 +81,7 @@ test('顶栏 412×915（手机布局）：通栏，不显示页名，字标和�
 /* ----- 手机布局：外框最宽 640 居中（顶栏 v3 是通栏，不再和外框同宽） ----- */
 /* 首页（/）2026-11 PR-2 起内容栏对齐顶栏内容（1080），不跟外壳框，单独测（见下「首页内容栏」） */
 /* 对齐 PR-B：原 /status/ 并进旷野 /wild/，旷野页内容栏同主页（对齐顶栏内容 1080，见「首页 / 旷野内容栏」） */
-const WRAPS = [['/security/', '.set-layout'], ['/account/', '.acct-layout'], ['/404.html', '.sgx-404']];
+const WRAPS = [['/security/', '.set-layout'], ['/security/tempkeys/', '.acct-layout'], ['/404.html', '.sgx-404']];
 async function frame(page, sel) {
   return page.evaluate((s) => {
     const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };

@@ -642,6 +642,104 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-pop-hv { letter-spacing: 2px; color: var(--sgx-text-tertiary); }
 .sgx-pop-hv[data-live] { letter-spacing: 0; color: var(--sgx-primary); }
 .sgx-pop-list--line { border-top: 1px solid var(--sgx-term-line); }
+/* 账号终端（头像下拉，2026-11-08 账号 UI 改版，shell/account/term.js；设计稿 acct-sec-redraw mock v3）：
+   一张下拉里一层层进（‹ 返回），每层底下同一个终端（输出 + 一行真输入框，输入不回显、可粘贴）。内容长时面板里滚动。 */
+.sgx-acct .sgx-qp-sheet { max-height: min(720px, calc(100% - 2 * var(--sgx-qp-gap) - env(safe-area-inset-bottom, 0px))); }
+.sgx-at { display: flex; flex-direction: column; min-height: 0; }
+.sgx-at-head:empty, .sgx-at-view:empty, .sgx-at-ft:empty, .sgx-at-ft[hidden], .sgx-at-hint[hidden], .sgx-at-line[hidden] { display: none; }
+.sgx-at-head { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 20px 0 10px; border-bottom: 1px solid var(--sgx-term-line); }
+.sgx-at-head > .sgx-at-bar { flex: 1 1 auto; margin: 0 -20px 0 -10px; border-bottom: 0; }
+.sgx-at-bk { flex: none; width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 20px; line-height: 1; color: var(--sgx-primary); cursor: pointer; }
+.sgx-at-h { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 16px; font-weight: 600; color: var(--sgx-text-primary); }
+.sgx-at-hv { flex: none; font-size: 12px; color: var(--sgx-text-tertiary); }
+.sgx-at-hv[data-live] { color: var(--sgx-primary); }
+.sgx-at-view .sgx-pop-list { padding: 0; }
+.sgx-at-r { min-height: 52px; padding-top: 6px; padding-bottom: 6px; }
+button.sgx-at-r { color: var(--sgx-text-tertiary); }
+.sgx-at-k { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sgx-at-k small { font-size: 11px; line-height: 1.5; color: var(--sgx-text-tertiary); white-space: normal; }
+.sgx-at-acc { color: var(--sgx-primary); }
+.sgx-at-dim { color: var(--sgx-text-tertiary); }
+.sgx-at-ph { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; display: block; }
+.sgx-at-note { margin: 0; padding: 0 20px 10px; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 11px; line-height: 1.7; color: var(--sgx-text-tertiary); }
+.sgx-at-nm, .sgx-at-del { padding: 0; border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.sgx-at-nm { text-decoration: underline dashed; text-decoration-color: var(--sgx-text-tertiary); text-underline-offset: 4px; }
+.sgx-at-del { color: var(--sgx-primary); font-size: 12px; min-height: 36px; }
+/* 行内编辑（取代旧弹层）：> 值_  n/40 · esc 取消 / enter 保存 */
+.sgx-at-ed { padding: 2px 20px 14px; background: color-mix(in srgb, var(--sgx-primary) 5%, transparent); border-bottom: 1px solid var(--sgx-term-line); }
+.sgx-at-eln { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--sgx-primary); color: var(--sgx-text-primary); }
+.sgx-at-ein { flex: 1 1 auto; min-width: 0; min-height: 32px; padding: 0; border: 0; background: transparent; font: inherit; font-size: 14px; color: var(--sgx-text-primary); }
+.sgx-at-ein:focus { outline: none; }
+.sgx-at-ct { flex: none; font-size: 11px; color: var(--sgx-text-tertiary); }
+.sgx-at-ac { display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: flex-end; margin-top: 8px; }
+.sgx-at-ac--start { justify-content: flex-start; margin-top: 10px; }
+.sgx-at-a, .sgx-at-a2 { min-height: 36px; padding: 0; border: 0; background: transparent; font: inherit; font-size: 12px; color: var(--sgx-text-secondary); cursor: pointer; }
+.sgx-at-a { color: var(--sgx-primary); }
+.sgx-at-a2 { margin-left: auto; }
+.sgx-at-ac:not(.sgx-at-ac--start) .sgx-at-a2 { margin-left: 0; }
+.sgx-at-a kbd, .sgx-at-a2 kbd { margin-right: 4px; font-family: var(--sgx-font-mono); color: var(--sgx-text-tertiary); }
+.sgx-at-ms { margin: 6px 0 0; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 11.5px; color: var(--sgx-text-tertiary); }
+.sgx-at-ms.is-er { color: var(--sgx-danger); }
+/* 应用授权：$ grep · 标签 · 开关 */
+.sgx-at-grep { display: flex; align-items: center; gap: 8px; margin: 12px 20px 2px; padding: 0 12px; border: 1px solid var(--sgx-term-line); border-radius: 10px; color: var(--sgx-text-tertiary); }
+.sgx-at-grep input { flex: 1 1 auto; min-width: 0; min-height: 38px; padding: 0; border: 0; background: transparent; font: inherit; color: var(--sgx-text-primary); }
+.sgx-at-grep input:focus { outline: none; }
+.sgx-at-grep:focus-within { border-color: var(--sgx-primary); }
+.sgx-at-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 20px 10px; }
+.sgx-at-chip { min-height: 30px; padding: 0 10px; border: 1px solid var(--sgx-term-line); border-radius: 7px; background: transparent; font: inherit; font-size: 12px; color: var(--sgx-text-secondary); cursor: pointer; }
+.sgx-at-chip[aria-pressed="true"] { border-color: var(--sgx-primary); color: var(--sgx-primary); background: color-mix(in srgb, var(--sgx-primary) 8%, transparent); }
+.sgx-at-app { display: flex; align-items: flex-start; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--sgx-term-line); }
+.sgx-at-app.is-off { box-shadow: inset 3px 0 var(--sgx-primary); background: color-mix(in srgb, var(--sgx-primary) 4%, transparent); }
+.sgx-at-app.is-off .sgx-at-k { opacity: .55; }
+.sgx-at-warn { color: var(--sgx-warning); }
+.sgx-at-sw { position: relative; flex: none; width: 46px; height: 26px; margin-top: 2px; border: 0; border-radius: 13px; background: var(--sgx-primary); cursor: pointer; }
+.sgx-at-sw::after { content: ""; position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--sgx-on-primary); transition: right .15s ease; }
+.sgx-at-sw[aria-checked="false"] { background: var(--sgx-term-line); }
+.sgx-at-sw[aria-checked="false"]::after { right: 23px; background: var(--sgx-text-tertiary); }
+/* 终端：输出 + 输入行（同锁屏 lock-v10 的写法） */
+.sgx-at-term { padding: 12px 20px 14px; border-top: 1px solid var(--sgx-term-line); line-height: 1.7; color: var(--sgx-text-secondary); cursor: text; }
+.sgx-at-head:empty + .sgx-at-view:empty + .sgx-at-term, .sgx-at[data-at-layer="guest"] .sgx-at-term, .sgx-at[data-at-layer="consent"] .sgx-at-term { border-top: 0; }
+.sgx-at-log { overflow-wrap: anywhere; }
+.sgx-at-l { white-space: pre-wrap; }
+.sgx-at-l--d { color: var(--sgx-text-tertiary); }
+.sgx-at-l--er { color: var(--sgx-danger); }
+.sgx-at-l--warn { color: var(--sgx-warning); }
+.sgx-at-l--opts { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; white-space: normal; }
+.sgx-at-p { color: var(--sgx-primary); }
+.sgx-at-w { color: var(--sgx-text-primary); }
+.sgx-at-y { color: var(--sgx-warning); }
+.sgx-at-ok { color: var(--sgx-success); }
+.sgx-at-o { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; border: 1px solid var(--sgx-term-line); border-radius: 7px; background: transparent; font: inherit; color: var(--sgx-text-primary); cursor: pointer; }
+.sgx-at-o b { font-weight: 400; color: var(--sgx-primary); }
+.sgx-at-o.is-on { border-color: var(--sgx-primary); background: color-mix(in srgb, var(--sgx-primary) 10%, transparent); }
+.sgx-at-line { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.sgx-at-ps { flex: none; color: var(--sgx-primary); white-space: nowrap; }
+.sgx-at-in { flex: 1 1 auto; min-width: 2ch; min-height: 30px; padding: 0; border: 0; background: transparent; font: inherit; color: var(--sgx-text-primary); caret-color: var(--sgx-primary); }
+.sgx-at-in:focus { outline: none; }
+.sgx-at-line:focus-within .sgx-at-ps { text-shadow: 0 0 8px color-mix(in srgb, var(--sgx-primary) 45%, transparent); }
+.sgx-at-pmu { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.sgx-at-hint { margin: 0; font-size: 12px; color: var(--sgx-text-tertiary); }
+.sgx-at-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sgx-at-ft { padding: 12px 20px 16px; border-top: 1px solid var(--sgx-term-line); font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 11px; line-height: 1.7; color: var(--sgx-text-tertiary); }
+.sgx-at-bk:focus-visible, .sgx-at-o:focus-visible, .sgx-at-chip:focus-visible, .sgx-at-sw:focus-visible, .sgx-at-a:focus-visible, .sgx-at-a2:focus-visible, .sgx-at-nm:focus-visible, .sgx-at-del:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .sgx-at-o:hover, .sgx-at-chip:hover { border-color: var(--sgx-primary); }
+  .sgx-at-bk:hover { background: var(--sgx-state-hover-bg); }
+}
+/* 头像裁剪（shell/avatar-edit.js；O7：交互不变，只换成稿的样式——终端标题条 + esc 取消 / enter 完成；四站都能用，所以放外壳） */
+.sgx-avc { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: var(--sgx-background); color: var(--sgx-text-primary); font-family: var(--sgx-font-mono); }
+.sgx-avc::backdrop { background: var(--sgx-background); }
+.sgx-avc-stage { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab; }
+.sgx-avc-stage:active { cursor: grabbing; }
+.sgx-avc-img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.sgx-avc-ring { position: absolute; left: 50%; top: 50%; border-radius: 999px; pointer-events: none; transform: translate(-50%,-50%); box-shadow: 0 0 0 9999px color-mix(in srgb, var(--sgx-background) 70%, transparent); outline: 2px solid var(--sgx-primary); }
+.sgx-avc-title { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 8px; height: calc(52px + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) 20px 0; box-sizing: border-box; border-bottom: 1px solid var(--sgx-term-line); background: var(--sgx-mat-solid); font-size: 12px; letter-spacing: 2px; color: var(--sgx-text-secondary); }
+.sgx-avc-title b { font-weight: 400; color: var(--sgx-primary); }
+.sgx-avc-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: flex-end; gap: 20px; padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--sgx-term-line); background: var(--sgx-mat-solid); }
+.sgx-avc-btn { min-height: 40px; padding: 0 4px; border: 0; background: transparent; font: inherit; font-size: 13px; color: var(--sgx-text-secondary); cursor: pointer; }
+.sgx-avc-btn kbd { margin-right: 6px; font-family: inherit; color: var(--sgx-text-tertiary); }
+.sgx-avc-btn.primary { color: var(--sgx-primary); }
+.sgx-avc-btn:disabled { opacity: .5; }
 /* ---- inpage ---- */
 /* 只用共享外壳 --sgx-* 角色（跟调色板、深浅色、自定义色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。
    页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 tb4.html 的 .hero.ph；partials/sgx-ph.html）：一行装饰提示符「styrigx@space:~$ <命令>」+ 等宽大标题 + 主题色「_」+ 一行说明，

@@ -245,11 +245,9 @@ test('E 账号页（进门）：ACCOUNT_VERIFIER 没绑 / RPC 出错 → 不给�
     assert.doesNotMatch(html, /data-sgx-account-session="(in|out)"/);
   }
 });
-test('E 账号页模板：登录区默认 hidden，并被 SGX-ACCT-LOGIN 标记包住（safeHTML）', () => {
-  const tpl = fs.readFileSync(path.join(REPO, 'space/web/layouts/_default/account.html'), 'utf8');
-  assert.match(tpl, /\{\{ "<!-- SGX-ACCT-LOGIN-START -->" \| safeHTML \}\}\n\s*<div id="acct-login" class="acct-login" hidden>/);
-  assert.match(tpl, /\{\{ "<!-- SGX-ACCT-LOGIN-END -->" \| safeHTML \}\}/);
-  assert.match(tpl, /<div id="acct-main" hidden>/);
+test('E 账号页模板随 2026-11-08 账号 UI 改版删除（账号在顶栏账号终端里；/account/ 由 _redirects 301 到首页 #acct）', () => {
+  assert.equal(fs.existsSync(path.join(REPO, 'space/web/layouts/_default/account.html')), false);
+  assert.match(fs.readFileSync(path.join(REPO, 'space/web/static/_redirects'), 'utf8'), /^\/account\/\s+\/#acct\s+301$/m);
 });
 
 /* ---------------- F. 内容索引 ---------------- */

@@ -5,7 +5,7 @@
  * - lock.js 不再读写 sessionStorage 的 'sgx-lock-shown'（grep 断言）
  * - lock.js 页面加载先 fetch('/api/lock-session-check', { credentials: 'include' })
  * - page-security.js 的「立即锁定」调 POST /api/lock-now，不再清 sessionStorage
- * - sgx-account-card.html 不再读 sessionStorage，改听 sgx:session 事件
+ * - sgx-account-card.html 随账号页删除（2026-11-08）
  * - /api/lock-now：POST 下发两条 Set-Cookie 清除头（带 Domain + 不带 Domain）
  *
  * 运行：node --test tests/ui/frontend-session.test.mjs
@@ -22,7 +22,6 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /* 2026-10-26（frontend-js #6）：锁屏拆成守卫 shell/lock-guard.js（core 里）+ 界面 shell/lock.js（按需加载），两份合起来查 */
 const lockJs = readFileSync(join(root, 'space/web/assets/js/shell/lock-guard.js'), 'utf8') + '\n' + readFileSync(join(root, 'space/web/assets/js/shell/lock.js'), 'utf8');
 const secJs = readFileSync(join(root, 'space/web/assets/js/apps/security.js'), 'utf8');
-const cardHtml = readFileSync(join(root, 'space/web/layouts/partials/sgx-account-card.html'), 'utf8');
 
 test('lock.js：不再读写 sgx-lock-shown', () => {
   assert.ok(!lockJs.includes('sgx-lock-shown'), 'lock.js 不应再出现 sgx-lock-shown');
@@ -50,19 +49,14 @@ test('page-security.js：立即锁定调 POST /api/lock-now（确认层与请求
   assert.ok(lockNowJs.includes("method: 'POST'"), '应用 POST');
 });
 
-test('sgx-account-card.html：只保留名字和头像（解锁入口已移走）；只在账号页使用，旷野页不再放', () => {
-  assert.ok(!cardHtml.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
-  assert.ok(!cardHtml.includes('sgx-unlock-link'), '孤立的解锁入口应已删掉');
-  assert.ok(!cardHtml.includes('sgx:session'), '账户卡不再监听会话事件');
-  assert.ok(cardHtml.includes('sgx-account-card'), '账户卡主体保留');
+test('2026-11-08 账号 UI 改版：账号卡 sgx-account-card.html 和账号页一起删了；旷野页 / 子页也不放账号卡', () => {
+  let gone = false;
+  try { readFileSync(join(root, 'space/web/layouts/partials/sgx-account-card.html'), 'utf8'); } catch (e) { gone = true; }
+  assert.ok(gone, 'sgx-account-card.html 应已删除');
   const setHtml = readFileSync(join(root, 'space/web/layouts/index.html'), 'utf8') + readFileSync(join(root, 'space/web/layouts/_default/wild.html'), 'utf8');
-  const acctHtml = readFileSync(join(root, 'space/web/layouts/_default/account.html'), 'utf8');
   assert.ok(!setHtml.includes('sgx-account-card'), '旷野页 / 子页不放账号卡');
-  assert.ok(acctHtml.includes('partial "sgx-account-card.html"'), '账号页总览放账号卡');
   const setEntry = readFileSync(join(root, 'space/web/assets/js/entries/entry-space.js'), 'utf8') + readFileSync(join(root, 'space/web/assets/js/entries/entry-space-wild.js'), 'utf8');
-  const acctEntry = readFileSync(join(root, 'space/web/assets/js/entries/entry-account.js'), 'utf8');
   assert.ok(!setEntry.includes('initAvatarEdit'), '旷野页入口不加载换头像');
-  assert.ok(acctEntry.includes('initAvatarEdit()'), '账号页入口加载换头像');
 });
 
 test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；没有管理凭证、应用凭证；账号在顶栏头像（2026-11 PR-5：点开账号下拉）', () => {
@@ -78,7 +72,9 @@ test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；
   assert.ok(base.includes('"acct" $acctUrl'), '顶栏头像 / 账号下拉链到账号页');
   const tb = readFileSync('space/web/layouts/partials/shell-topbar.html', 'utf8');
   assert.ok(tb.includes('<a class="sgx-tb-av" href="{{ .acct }}"'), '顶栏头像用 acct 参数');
-  assert.ok(tb.includes('<a class="sgx-pop-me-a" href="{{ $acct }}">'), '账号下拉头部链到账号页');
+  /* 2026-11-08：账号下拉 = 账号终端（shell/account/term.js 画内容），模板里只剩骨架，不再链到账号页 */
+  assert.ok(tb.includes('<dialog id="sgx-acct"'), '账号下拉骨架');
+  assert.ok(!tb.includes('sgx-pop-me-a'), '账号下拉模板里不再有去账号页的链接');
   assert.ok(!tb.includes('sgx-tb-me'), '顶栏没有头像');
 });
 

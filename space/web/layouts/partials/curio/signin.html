@@ -1,5 +1,8 @@
-{{- /* 不能编辑（接口回 canWrite=false）时命令链里这一条（curio.js 的 SgxCurioUI.signin 按 canWrite / showPrivate 显隐、换说明、换链接），各子页共用。
-   2026-11 对齐 PR-C2：从页底一行改成页头命令链里的「sudo login · 登录账号后可编辑」（稿的终端风）。
-   data-acct / data-acct-sec：经典脚本用的主站账号地址，由 sgx-lang-path.html 按本页语言算好（P4-3 PR-4c，不在 JS 里手写前缀）。参数：tr（字符串表）、lang（页面语言代码） */ -}}
+{{- /* 不能编辑（接口回 canWrite=false）时命令链里这一条（curio.js 的 SgxCurioUI.signin 按 canWrite / showPrivate 显隐、换说明、换入口），各子页共用。
+   2026-11 对齐 PR-C2：页头命令链里的「sudo root · 登录账号后可编辑」（稿的终端风；2026-11-08 账号命令体系 v3：sudo login → sudo root）。
+   2026-11-08 账号 UI 改版：没有 /account/ 整页了，点它打开顶栏账号终端（data-acct-open，shell/topbar-panel.js 接住）：
+   没登录 → sudo root 登录 → 判授权（[y]/[n]）→ 关面板回本页；已登录没授权 → 应用授权那一层。
+   href 只是没 JS / 中键时的退路：本语言首页 #acct&app=curio（打开同一个面板）。参数：tr（字符串表）、lang（页面语言代码） */ -}}
 {{- $tr := .tr }}{{ $lang := .lang }}
-<a id="cu-signin" class="sgx-cmd hidden" data-acct="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}" data-acct-sec="{{ partial "sgx-lang-path.html" (dict "path" "/account/security/" "lang" ($lang)) }}" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}"><span class="sgx-cmd-k" translate="no">sudo login</span><i data-signin-text>{{ $tr.curioSignin.signInToYour }}</i></a>
+{{- $home := partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}
+<a id="cu-signin" class="sgx-cmd hidden" data-acct-open="" data-acct-app="curio" href="{{ $home }}#acct&amp;app=curio"><span class="sgx-cmd-k" translate="no">sudo root</span><i data-signin-text>{{ $tr.curioSignin.signInToYour }}</i></a>
