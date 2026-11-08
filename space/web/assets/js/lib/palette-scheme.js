@@ -135,7 +135,9 @@ const STATUS = {
 function build(spec, mode) {
   const t = { ...T[mode], ...((spec.tune || {})[mode] || {}) };
   const D = mode === 'dark';
-  const P = spec.p, S = spec.s, Te = spec.t, N = spec.n, Dg = spec.d;
+  const P = spec.p, S = spec.s, Te = spec.t, Dg = spec.d;
+  const pin = (spec.pin && spec.pin[mode]) || null; // 设计稿钉死的取值（目前只有 terra 深色 = 设计稿 tb4.html，见 PINS）
+  const N = (pin && pin.n) || spec.n;
   const pH = D && P.hd != null ? P.hd : P.h;
   const pcH = spec.pc && spec.pc.h != null ? spec.pc.h : P.h;
   const pcC = spec.pc && spec.pc.c != null ? spec.pc.c : Math.min(P.c * 0.45, 0.075);
@@ -182,6 +184,12 @@ function build(spec, mode) {
   r['disabled-container'] = rgba(r['text-primary'], 0.12);
   r['outline'] = oklch(t.outline, nc(D ? 2.2 : 3.0), N.h);
   r['outline-variant'] = oklch(t.outlineVar, nc(D ? 2.0 : 2.2), N.h);
+  if (pin && pin.roles) {
+    Object.assign(r, pin.roles);
+    if (pin.roles['primary-fill']) r['on-primary-fill'] = fillPair(pin.roles['primary-fill']).on;
+    r['text-disabled'] = rgba(r['text-primary'], 0.38);
+    r['disabled-container'] = rgba(r['text-primary'], 0.12);
+  }
   r['divider'] = rgba(r['text-primary'], D ? 0.12 : 0.10);
   // elevation aliases (what each layer of the site sits on)
   r['card'] = r['surface-container-lowest'];
@@ -435,7 +443,7 @@ const FG_POOL = {
   兰紫: '#a77bd6', 冰川蓝: '#72c7e8', 珊瑚: '#f17f72', 琥珀: '#e3a93b', 极光青: '#42cdbb', 蔷薇: '#d4628f',
   电光蓝: '#536dfa', 莓果: '#b54a88', 香槟金: '#c5a66a', 抹茶: '#86ad3f', 雾霾蓝: '#7a95ab', 芥末: '#d4a72c',
   鼠尾草: '#94a982', 干枯玫瑰: '#cf9494', 陶土: '#c46a43', 石墨: '#6b6e75',
-  橘子: '#f08a3c', 杏: '#f2a86b', 樱桃: '#d6334a', 霓虹粉: '#f2559b', 湖蓝: '#4f86b5', 孔雀蓝: '#168f9c',
+  赤陶: '#de7a58', 橘子: '#f08a3c', 杏: '#f2a86b', 樱桃: '#d6334a', 霓虹粉: '#f2559b', 湖蓝: '#4f86b5', 孔雀蓝: '#168f9c',
 };
 const FG_ROLES = ['主交互', '辅助强调', '标题图标', '标签装饰', '图表装饰', '低频点缀'];
 // 背景 7 档：浅色从页面底（L 0.97）往深走，深色从页面底（L 0.16）往亮走；彩度按档位放大，封顶 0.14
@@ -467,6 +475,8 @@ export function tonesFor(th, mode) {
     // 本色当填充时上面的字（fill / on-fill，2026-10-23 PR-G 修订；同 primary-fill 的 fillPair 规则，子站按需取）
     out['fg-' + (i + 1) + '-on'] = fillPair(t.base).on;
   });
+  const pt = th.pin && th.pin[mode] && th.pin[mode].tones;
+  if (pt) for (const [k, v] of Object.entries(pt)) { out[k] = v; if (/^fg-\d$/.test(k)) out[k + '-on'] = fillPair(v).on; }
   return out;
 }
 
@@ -496,7 +506,7 @@ const THEMES = [
   ['cherry', '樱桃', 'Cherry', 'warm', '#ba1a20', ['抹茶', '冰川蓝', '琥珀', '极光青', '兰紫', '莓果']],
   ['tangerine', '橘子', 'Tangerine', 'warm', '#b02e00', ['孔雀蓝', '电光蓝', '极光青', '兰紫', '抹茶', '莓果']],
   ['coral', '珊瑚', 'Coral', 'warm', '#f17f72', ['孔雀蓝', '电光蓝', '琥珀', '兰紫', '抹茶', '石墨']],
-  ['terra', '陶土', 'Terracotta', 'warm', '#8a4b2d', ['鼠尾草', '孔雀蓝', '蔷薇', '兰紫', '电光蓝', '香槟金']],
+  ['terra', '陶土', 'Terracotta', 'warm', '#8a4b2d', ['赤陶', '孔雀蓝', '蔷薇', '兰紫', '电光蓝', '香槟金']],
   ['amber', '琥珀', 'Amber', 'warm', '#825500', ['莓果', '电光蓝', '极光青', '兰紫', '珊瑚', '冰川蓝']],
   ['mustard', '芥末黄', 'Mustard', 'warm', '#d4a72c', ['雾霾蓝', '电光蓝', '莓果', '极光青', '干枯玫瑰', '兰紫']],
   ['champagne', '香槟金', 'Champagne', 'warm', '#c5a66a', ['电光蓝', '莓果', '孔雀蓝', '兰紫', '雾霾蓝', '珊瑚']],
@@ -507,7 +517,25 @@ const THEMES = [
   ['graphite', '石墨', 'Graphite', 'neutral', '#5e5e5e', ['湖蓝', '珊瑚', '琥珀', '极光青', '兰紫', '蔷薇']],
   ['cream', '奶油白', 'Cream', 'neutral', '#f0e6d5', ['孔雀蓝', '珊瑚', '电光蓝', '莓果', '抹茶', '琥珀']],
 ];
-const DEFAULT_ID = 'dustyblue';
+const DEFAULT_ID = 'terra';
+/* 设计稿钉死的取值（2026-11 UI 重设计对齐 PR-A，设计稿 tb4.html 的 :root 变量；Gray 10:43「照稿」）：
+   默认色板 terra 的深色档 = 稿的暖黑底 #161412 / 卡 #1d1b19 / 线 #2c2825、文字 #ece6dc / #8f877d / #5e5851、强调赤陶 #de7a58。
+   只钉这几项（其余角色照公式），钉完照常过对比度审计：稿的 --dim #5e5851 在底上不到 4.5:1，审计会把 text-tertiary 提亮到刚好够（可读性底线优先）。
+   n = 深色中性色相 / 彩度（稿的灰带一点暖：h 67.5、C 0.005），没钉的表面（container / highest 等）也跟着同一色相。
+   tones = 色调 token：bg-1 页面底、fg-1 前景 1（= primary-fill，保持「填充 = 前景 1 本色」）。 */
+const PINS = {
+  terra: {
+    dark: {
+      n: { h: 67.5, c: 0.005 },
+      roles: {
+        primary: '#de7a58', 'primary-fill': '#de7a58',
+        background: '#161412', surface: '#1d1b19', 'surface-container-lowest': '#12100f', 'surface-container-low': '#1a1816', 'surface-container-high': '#2a2522',
+        'outline-variant': '#2c2825', 'text-primary': '#ece6dc', 'text-secondary': '#8f877d', 'text-tertiary': '#5e5851',
+      },
+      tones: { 'bg-1': '#161412', 'fg-1': '#de7a58' },
+    },
+  },
+};
 
 /** 背景色 + 6 前景 → 引擎规格（94 个角色照旧由 build() 出）。 @param {{bg:string, fg:string[], group:string}} th */
 function themeSpec(th) {
@@ -529,9 +557,10 @@ function themeSpec(th) {
 const PRESETS = THEMES.map(([id, zh, en, group, bg, names]) => {
   const fg = names.map((nm) => FG_POOL[nm]);
   const th = { bg, fg, group };
-  return { id, zh, en, group, bg, fgNames: names, fg, seed: fg[0],
+  const pin = PINS[id];
+  return { id, zh, en, group, bg, fgNames: names, fg, seed: fg[0], pin,
     mood: { zh: `背景${zh}；前景 ${names.join(' / ')}`, en: `${en} background with six foreground accents` },
-    spec: themeSpec(th) };
+    spec: Object.assign(themeSpec(th), pin ? { pin } : {}) };
 });
 
 /* ---------- site glue ---------- */
@@ -660,4 +689,4 @@ export function rolesCss(seed) {
     `html:root.dark{${roleDecls(r.dark, r.darkState).join("")}${toneDecls(r.darkTones).join("")}}`;
 }
 
-export { mixHex, PRESETS, GROUPS, DEFAULT_ID, FG_POOL, FG_ROLES, deriveSpec, build, audit, contrast, hexToOklch };
+export { mixHex, PRESETS, PINS, GROUPS, DEFAULT_ID, FG_POOL, FG_ROLES, deriveSpec, build, audit, contrast, hexToOklch };

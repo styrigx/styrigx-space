@@ -4,17 +4,17 @@
   "now": 1761062400000,
   "cases": [
     {
-      "name": "默认 dustyblue 亮色",
+      "name": "默认 terra 亮色",
       "source": "writer",
       "local": {
         "sgx-theme-mode": "light"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJkdXN0eWJsdWUiLCJhY2NlbnQiOiIjZDRhNzJjIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJ0ZXJyYSIsImFjY2VudCI6IiNkZTdhNTgiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
       "read": {
         "v": 2,
         "mode": "light",
-        "pal": "dustyblue",
-        "accent": "#d4a72c",
+        "pal": "terra",
+        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -24,7 +24,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -45,7 +45,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -64,17 +64,17 @@
       }
     },
     {
-      "name": "默认 dustyblue 深色",
+      "name": "默认 terra 深色",
       "source": "writer",
       "local": {
         "sgx-theme-mode": "dark"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6InRlcnJhIiwiYWNjZW50IjoiI2RlN2E1OCIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "dark",
-        "pal": "dustyblue",
-        "accent": "#d4a72c",
+        "pal": "terra",
+        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -84,7 +84,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -105,7 +105,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -127,12 +127,12 @@
       "name": "跟随系统（空 localStorage）",
       "source": "writer",
       "local": {},
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidGVycmEiLCJhY2NlbnQiOiIjZGU3YTU4IiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "dustyblue",
-        "accent": "#d4a72c",
+        "pal": "terra",
+        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -142,7 +142,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -163,7 +163,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -431,11 +431,11 @@
       "local": {
         "sgx-accent": "#1F8A70"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiIzFmOGE3MCIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidGVycmEiLCJhY2NlbnQiOiIjMWY4YTcwIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "#1f8a70",
         "fs": "standard",
         "rm": 0,
@@ -446,7 +446,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": "#1f8a70"
@@ -467,7 +467,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": "#1f8a70"
@@ -563,12 +563,12 @@
         "sgx-weather-loc": "city",
         "sgx-weather-city": "{\"name\":\"上海\",\"lat\":31.23,\"lon\":121.47}"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidGVycmEiLCJhY2NlbnQiOiIjZGU3YTU4IiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "dustyblue",
-        "accent": "#d4a72c",
+        "pal": "terra",
+        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -578,7 +578,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -599,7 +599,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -624,12 +624,12 @@
         "sgx-font-size": "small",
         "sgx-theme-mode": "light"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJkdXN0eWJsdWUiLCJhY2NlbnQiOiIjZDRhNzJjIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJ0ZXJyYSIsImFjY2VudCI6IiNkZTdhNTgiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
       "read": {
         "v": 2,
         "mode": "light",
-        "pal": "dustyblue",
-        "accent": "#d4a72c",
+        "pal": "terra",
+        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -639,7 +639,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -660,7 +660,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -679,18 +679,18 @@
       }
     },
     {
-      "name": "本地存了不认识的色板 id（写端写默认 dustyblue）",
+      "name": "本地存了不认识的色板 id（写端写默认 terra）",
       "source": "writer",
       "local": {
         "sgx-palette": "neon",
         "sgx-theme-mode": "dark"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6InRlcnJhIiwiYWNjZW50IjoiI2RlN2E1OCIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "dark",
-        "pal": "dustyblue",
-        "accent": "#d4a72c",
+        "pal": "terra",
+        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -700,7 +700,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -721,7 +721,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -746,12 +746,12 @@
         "sgx-lang": "en",
         "sgx-theme-mode": "light"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJkdXN0eWJsdWUiLCJhY2NlbnQiOiIjZDRhNzJjIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoiZW4iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJ0ZXJyYSIsImFjY2VudCI6IiNkZTdhNTgiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJlbiIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "light",
-        "pal": "dustyblue",
-        "accent": "#d4a72c",
+        "pal": "terra",
+        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -761,7 +761,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -782,7 +782,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -806,12 +806,12 @@
       "local": {
         "sgx-lang": "zh"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InpoIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidGVycmEiLCJhY2NlbnQiOiIjZGU3YTU4IiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoiemgiLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "dustyblue",
-        "accent": "#d4a72c",
+        "pal": "terra",
+        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -821,7 +821,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -842,7 +842,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -867,12 +867,12 @@
         "sgx-lang": "system",
         "sgx-theme-mode": "dark"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6InRlcnJhIiwiYWNjZW50IjoiI2RlN2E1OCIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
       "read": {
         "v": 2,
         "mode": "dark",
-        "pal": "dustyblue",
-        "accent": "#d4a72c",
+        "pal": "terra",
+        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -882,7 +882,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -903,7 +903,7 @@
         "resolve": {
           "mode": "dark",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -927,12 +927,12 @@
       "local": {
         "sgx-lang": "klingon"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoiZHVzdHlibHVlIiwiYWNjZW50IjoiI2Q0YTcyYyIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidGVycmEiLCJhY2NlbnQiOiIjZGU3YTU4IiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "dustyblue",
-        "accent": "#d4a72c",
+        "pal": "terra",
+        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
         "mat": 1761062400000,
@@ -942,7 +942,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -963,7 +963,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -990,7 +990,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1011,7 +1011,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1036,7 +1036,7 @@
       "read": {
         "v": 1,
         "mode": "system",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1047,7 +1047,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1068,7 +1068,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1093,7 +1093,7 @@
       "read": {
         "v": 1,
         "mode": "system",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "",
         "fs": "large",
         "rm": 1,
@@ -1104,7 +1104,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "large",
           "rm": true,
           "seed": ""
@@ -1125,7 +1125,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "large",
           "rm": true,
           "seed": ""
@@ -1207,7 +1207,7 @@
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1218,7 +1218,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1239,7 +1239,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1492,7 +1492,7 @@
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1503,7 +1503,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1524,7 +1524,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1549,7 +1549,7 @@
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1560,7 +1560,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1581,7 +1581,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1606,7 +1606,7 @@
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1617,7 +1617,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1638,7 +1638,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1663,7 +1663,7 @@
       "read": {
         "v": 2,
         "mode": "light",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1674,7 +1674,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1695,7 +1695,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1720,7 +1720,7 @@
       "read": {
         "v": 2,
         "mode": "light",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1731,7 +1731,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1752,7 +1752,7 @@
         "resolve": {
           "mode": "light",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1777,7 +1777,7 @@
       "read": {
         "v": 2,
         "mode": "system",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1788,7 +1788,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1809,7 +1809,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1834,7 +1834,7 @@
       "read": {
         "v": 1,
         "mode": "system",
-        "pal": "dustyblue",
+        "pal": "terra",
         "accent": "",
         "fs": "standard",
         "rm": 0,
@@ -1845,7 +1845,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1866,7 +1866,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1893,7 +1893,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1914,7 +1914,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1941,7 +1941,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1962,7 +1962,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -1989,7 +1989,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2010,7 +2010,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2037,7 +2037,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2058,7 +2058,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2085,7 +2085,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2106,7 +2106,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2133,7 +2133,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2154,7 +2154,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2181,7 +2181,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2202,7 +2202,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2229,7 +2229,7 @@
         "resolve": {
           "mode": "system",
           "dark": false,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""
@@ -2250,7 +2250,7 @@
         "resolve": {
           "mode": "system",
           "dark": true,
-          "pal": "dustyblue",
+          "pal": "terra",
           "fs": "standard",
           "rm": false,
           "seed": ""

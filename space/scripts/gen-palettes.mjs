@@ -7,7 +7,7 @@
  * 每个预设生成两段：
  *   :root[data-palette="<id>"]       浅色
  *   :root.dark[data-palette="<id>"]  深色（站点的深色是 <html class="dark">）
- * 默认色板 dustyblue（雾霾蓝）不写 data-palette，所以 dustyblue 写在 :root / :root.dark 上（同时兜住未知的 data-palette 值）。
+ * 默认色板 terra（陶土，2026-11 PR-A 起；之前 dustyblue）不写 data-palette，所以 terra 写在 :root / :root.dark 上（同时兜住未知的 data-palette 值）。
  * 变量名：--sgx-<角色>（bg-gradient 拆成 --sgx-bg-gradient-1..3；状态层 --sgx-state-color / -hover / -focus / -pressed / -selected / -dragged），
  * 和自定义种子在运行时写的变量名同一个函数出（space/web/assets/js/lib/palette-scheme.js 的 roleDecls）。
  * 每个预设另写 --sgx-seed（= 色板种子，ui-cookie 把它同步给子站）。

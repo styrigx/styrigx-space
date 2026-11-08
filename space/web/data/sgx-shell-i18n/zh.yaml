@@ -103,6 +103,8 @@ nav:
   statusPending: "待接入"
   allUp: "全部在线"
   statusLink: "systemctl status"
+  termLink: "Ctrl K 终端"
+  statusOff: "离线"
   close: "esc 关闭"
 foot:
   label: "站点页脚"

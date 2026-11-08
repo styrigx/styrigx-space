@@ -2,9 +2,9 @@
 外观 + 语言（内联脚本，渲染前同步执行）：读主站写的 sgx-ui cookie。契约以主站为准（styrigx-space docs/ui-cookie-contract.md），
 博客这边的补充见 docs/sgx-ui-cookie.md。
 - 第一个 <script>：主站共享外壳的只读解析器 ui-cookie-read.js 原样内联（atlas/web/blog/assets/js/sgx/shell/ui-cookie-read.js，
-  atlas/scripts/blog/sync-shell.mjs 同步、勿手改），挂 window.SgxUI。校验 v（只认 1 / 2）、mode、pal（旧撞色 x<id> → <id>，不认识 → dustyblue）、
+  atlas/scripts/blog/sync-shell.mjs 同步、勿手改），挂 window.SgxUI。校验 v（只认 1 / 2）、mode、pal（旧撞色 x<id> → <id>，不认识 → terra）、
   accent（只认小写 #rrggbb；等于预设当前种子或 LEGACY_SEEDS 旧种子 = 预设色板）、fs、rm；不认 theme 别名。
-  SgxUI.apply 落到 <html>：class dark、data-theme-mode、data-dark、font-size、data-font-size、data-palette（默认 dustyblue 不写）、
+  SgxUI.apply 落到 <html>：class dark、data-theme-mode、data-dark、font-size、data-font-size、data-palette（默认 terra 不写）、
   自定义色时内联 --sgx-seed + <style id="sgx-accent-roles">（有缓存首帧直接插；没缓存先按预设，entries/inherit.ts 按需 import 引擎算好再插）、
   class reduced-motion、data-reduced-motion。
 - 第二个 <script>：博客自己的部分

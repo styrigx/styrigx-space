@@ -59,7 +59,7 @@ export function mountSpace() {
     });
   }
 
-  /* ---- 调色板（2026-10-23 PR-G 七色调色板：22 套一个列表、按组分组；默认 dustyblue） ---- */
+  /* ---- 调色板（2026-10-23 PR-G 七色调色板：22 套一个列表、按组分组；默认 terra，2026-11 PR-A 前 dustyblue） ---- */
   /* 色块 .pal-tile（#palette-dots 下，按 group 分组的网格）；上面的预览卡 #pal-preview 显示当前色板：
      选中后把色块 style 上的颜色变量（partials/palette-tile-vars.html）和名字拷到预览卡，两部小手机（浅色 / 深色）跟着换色。 */
   const SW_SEL = '#palette-dots .pal-tile';

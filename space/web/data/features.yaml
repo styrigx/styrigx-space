@@ -48,7 +48,7 @@ features:
       - {id: dustyrose}
       - {id: graphite}
       - {id: cream}
-    default: dustyblue
+    default: terra
     key: sgx-palette
     section: theme
     requires: []

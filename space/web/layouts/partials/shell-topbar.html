@@ -4,8 +4,8 @@
    结构：<header id="site-nav"> 通栏 .sgx-topbar（底边一条 1px 线，内容宽 = --sgx-content-w，1080）=
      [字标 ❯ + SVG 字标 Styrigx + _（光标 1.05s 闪；2026-11 PR-2 起不再是等宽文字 styrigx :~$）] [.sgx-tb-pill：页名（v3 不显示，标记留着给子站脚本 / 锁屏抄）] [外观 · 盾牌（安全页）· 分隔 · >_（NAVIGATE）· 头像（账号页）]；
      底边 .sgx-tb-prog 滑页进度条（JS 写 --sgx-prog）；右下角 AI 浮钮 .sgx-tb-ai（打开 AI 窗口）。三个窗口都是非模态 <dialog>、互斥：
-     #sgx-nav NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻 05 旷野（当前站「开」态）→ lang / layout 分段 → share / lock → STATUS → systemctl status · esc 关闭；
-     #sgx-qp  外观：MODE（跟随系统 / 深 / 浅）+ PALETTE（色板列表 + 恢复默认）；
+     #sgx-nav NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻 05 旷野（当前站「开」态）→ lang / layout 分段 → share / lock → STATUS（/api/status）→ systemctl status · Ctrl K 终端 · esc 关闭；
+     #sgx-qp  外观：MODE（跟随系统 / 深 / 浅）+ PALETTE（色板列表 + 标题行 reset = 恢复默认）；（2026-11 PR-A：NAVIGATE / 外观都是锚在各自图标下的实色卡，不压暗页面、不毛玻璃）
      #sgx-ai  AI 窗口：头部 Gray AI · 新对话 · 历史 · 头像（账号页），底部「仅公开内容 · 联系我」（邮箱 = 参数 email）。
    参数（dict）：
      lang        页面语言代码（en / zh …）
@@ -72,17 +72,18 @@
     <div class="sgx-nav-act">
       <button type="button" class="sgx-nav-btn" data-qp="share" data-sgx-share aria-label="{{ $t.topbar.share }}">{{ index $i "share" | safeHTML }}<span>{{ $t.topbar.shareKey }}</span></button>
       <button type="button" class="sgx-nav-btn" data-qp="lock" aria-label="{{ $t.topbar.lock }}">{{ index $i "lock" | safeHTML }}<span data-qp-lock-state>{{ $t.topbar.lockKey }}</span></button>
-      {{- /* 终端（2026-11 PR-2）：关面板后打开全站终端抽屉 #sgx-term（主页上改为聚焦首屏那一个），同 Ctrl / ⌘ K */}}
-      <button type="button" class="sgx-nav-btn" data-qp="term" aria-label="{{ $t.term.drawer }}" aria-keyshortcuts="Control+K Meta+K"><b class="sgx-nav-term-ps" aria-hidden="true">$</b><span translate="no">{{ $t.term.open }}</span></button>
     </div>
-    {{- /* STATUS：六个单元的占位（PR-1 先放占位「—」：现有监测只覆盖主站 / AI，要登录态接口；接真数据另做） */}}
+    {{- /* STATUS（2026-11 PR-A 接真数据，设计稿 nav-v2「● 全部在线」+ 各服务延迟）：topbar-panel.js mountStatus 取 GET /api/status（主站监测，进门会话）——
+       space / blog / curio / daymark 同一个 Pages、同一条网关链路 = 主站那一项；gray-ai = AI 那一项；auth = 网关自己（这一问的往返时间）。
+       拿不到（没进门 / 出错）：点是灰的、延迟空着，头部写 statusPending。数据也写进 tmux 页脚的 ● n/6。 */}}
     <div class="sgx-nav-st" data-nav-status>
-      <div class="sgx-nav-st-h"><span>{{ $t.nav.status }}</span><b data-st-sum>{{ $t.nav.statusPending }}</b></div>
+      <div class="sgx-nav-st-h"><span>{{ $t.nav.status }}</span><b data-st-sum data-up-text="● {{ $t.nav.allUp }}" data-off-text="{{ $t.nav.statusOff }}">{{ $t.nav.statusPending }}</b></div>
       <ul class="sgx-nav-st-gd">
-        {{- range slice "space" "blog" "curio" "daymark" "gray-ai" "auth" }}<li data-st="{{ . }}"><i aria-hidden="true"></i><span translate="no">{{ . }}</span><em data-st-ms>—</em></li>{{ end }}
+        {{- range slice "space" "blog" "curio" "daymark" "gray-ai" "auth" }}<li data-st="{{ . }}"><i aria-hidden="true"></i><span translate="no">{{ . }}</span><em data-st-ms></em></li>{{ end }}
       </ul>
     </div>
-    <div class="sgx-nav-f"><a href="{{ .status }}" class="sgx-nav-flink" translate="no">{{ $t.nav.statusLink }} ›</a><button type="button" class="sgx-nav-close" data-nav-close>{{ $t.nav.close }}</button></div>
+    {{- /* 页脚（设计稿 nav-v2：systemctl status › · esc 关闭）。终端（2026-11 PR-2 起的功能，PR-A 照稿去掉第三颗按钮）挪成这里的一行文字链：关面板后开全站终端抽屉（主页上聚焦首屏那一个），同 Ctrl / ⌘ K；手机没有键盘也靠它 */}}
+    <div class="sgx-nav-f"><a href="{{ .status }}" class="sgx-nav-flink" translate="no">{{ $t.nav.statusLink }} ›</a><button type="button" class="sgx-nav-flink sgx-nav-termlink" data-qp="term" aria-label="{{ $t.term.drawer }}" aria-keyshortcuts="Control+K Meta+K">{{ $t.nav.termLink }} ›</button><button type="button" class="sgx-nav-close" data-nav-close>{{ $t.nav.close }}</button></div>
   </div>
 </dialog>
 <dialog id="sgx-qp" class="sgx-qp sgx-theme" aria-label="{{ $t.topbar.theme }}">
@@ -91,12 +92,14 @@
     <div class="sgx-th-seg" role="group" aria-labelledby="sgx-th-mode" data-qp-seg="mode">
       {{- range slice (dict "v" "system" "t" $t.topbar.followSystem) (dict "v" "dark" "t" $t.topbar.schemeDark) (dict "v" "light" "t" $t.topbar.schemeLight) }}<button type="button" data-qp-mode="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
     </div>
+    {{- /* PALETTE 标题行右侧：恢复默认（2026-11 PR-A 照稿改成一行小字命令样式，功能不变：已是默认时 aria-disabled 置灰） */}}
     <div class="sgx-th-hrow">
       <p class="sgx-th-h" id="sgx-th-pal">{{ $t.topbar.paletteKey }}</p>
-      <button type="button" class="palette-reset" data-qp-reset aria-disabled="true">{{ index $i "tb-undo" | safeHTML }}<span>{{ $t.topbar.reset }}</span></button>
+      <button type="button" class="sgx-th-reset" data-qp-reset aria-disabled="true" aria-label="{{ $t.topbar.reset }}" title="{{ $t.topbar.reset }}" translate="no">reset</button>
     </div>
+    {{- /* 色板行（设计稿 tb4.html pop=1）：6 色色块（体系保留）· 等宽小写英文名（tr.paletteTerm，各语言同一份；读屏另念本语言名）· 当前 ✓ */}}
     <div class="sgx-th-pals" role="group" aria-labelledby="sgx-th-pal">
-      {{- range .pal }}<button type="button" class="sgx-th-pal" data-qp-palette="{{ .id }}" style="{{ .style | safeCSS }}" aria-pressed="false"><span class="sgx-th-sw" aria-hidden="true"><u></u><u></u><u></u><u></u><u></u><u></u></span><span class="sgx-th-name">{{ index $t.palette .id }}</span><em aria-hidden="true">✓</em></button>{{ end }}
+      {{- range .pal }}<button type="button" class="sgx-th-pal" data-qp-palette="{{ .id }}" style="{{ .style | safeCSS }}" aria-pressed="false" aria-label="{{ index $t.palette .id }}"><span class="sgx-th-sw" aria-hidden="true"><u></u><u></u><u></u><u></u><u></u><u></u></span><span class="sgx-th-name" aria-hidden="true" translate="no">{{ index $t.paletteTerm .id | default .id }}</span><em aria-hidden="true">✓</em></button>{{ end }}
     </div>
   </div>
 </dialog>
@@ -117,7 +120,7 @@
     <p class="sgx-ai-foot"><span class="sgx-ai-scope" data-ai-scope>{{ $t.topbar.publicOnly }}</span><span class="sgx-ai-dot" aria-hidden="true">·</span><a class="sgx-ai-contact" data-ai-contact{{ with .email }} href="mailto:{{ . }}"{{ end }}>{{ $t.topbar.contact }}</a></p>
   </div>
 </dialog>
-{{- /* 全站终端抽屉（2026-11 PR-2，设计稿 term-v1）：Ctrl / ⌘ K 或 NAVIGATE 里的「$ terminal」打开，Esc 关；引擎 shell/terminal.js（主页首屏嵌入的终端用同一套标记、同一个引擎实例） */}}
+{{- /* 全站终端抽屉（2026-11 PR-2，设计稿 term-v1）：Ctrl / ⌘ K 或 NAVIGATE 页脚的「Ctrl K 终端 ›」打开，Esc 关；引擎 shell/terminal.js（主页首屏嵌入的终端用同一套标记、同一个引擎实例） */}}
 <dialog id="sgx-term" class="sgx-term-dlg" aria-label="{{ $t.term.drawer }}">
   <div class="sgx-term sgx-term--drawer" data-sgx-term="drawer">
     <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><b class="sgx-term-title" data-term-title translate="no">{{ $t.term.user }}: ~</b><em class="sgx-term-hint" aria-hidden="true">{{ $t.term.hintShort }}</em></div>

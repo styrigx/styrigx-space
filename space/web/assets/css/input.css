@@ -219,9 +219,9 @@
      场景 → 角色：抽屉当前项 / 快捷面板开着的磁贴 = 主色族选中底（前景 1 tint + ink）；开关 / 进度 / 按钮 = 填充档 primary-fill；
        首页名片 / 快捷面板磁贴与行 = 中性玻璃（2026-10-23 PR-G 修订）；最近搜索 chip = 辅色容器（前景 2）；夜间时钟 = night-card（前景 3 浅底）；
        状态正常 = success（固定绿）；
-       屏幕时间卡、日刻点缀、信息徽标 = 第三色族（前景 3）；页面底 = 光晕（--sgx-halo，背景 7 档）。 */
+       屏幕时间卡、日刻点缀、信息徽标 = 第三色族（前景 3）；页面底 = 背景第 1 档 + 44px 网格（2026-11 PR-A 去光晕）。 */
   /* ===== 调色板三层（2026-10-23 PR-G；完整说明 docs/palette-usage.md）=====
-     1. 背景层（Shell · 底）：--sgx-bg-1..7 = 背景色的 7 档深浅，只给光晕（--sgx-halo）和页面底用，组件不许引用。
+     1. 背景层（Shell · 底）：--sgx-bg-1..7 = 背景色的 7 档深浅，只给页面底（bg-1）用，组件不许引用。
      2. 材质层（Shell · 壳）：玻璃顶栏、抽屉 / 边栏、内容底板、卡片、弹层、输入框 = 中性色（--sgx-surface* / --sgx-mat*），
         只带一点背景色相（spec.n.c ≤ 0.012），不混饱和主题色；透明度 / 模糊 / 描边规则所有主题一样。
         顶栏、边栏、内容底板是同一个壳，只用材质、透明度、深浅区分，不各自绑一个主题色。
@@ -240,7 +240,6 @@
   }
   /* @gen-palettes:begin（space/scripts/gen-palettes.mjs 由 space/web/data/palette-roles.json 生成，勿手改） */
   /* 雾霾蓝 · Dusty Blue（dustyblue）：背景雾霾蓝；前景 芥末 / 珊瑚 / 鼠尾草 / 电光蓝 / 莓果 / 极光青 */
-  :root,
   :root[data-palette="dustyblue"] {
     --sgx-seed: #d4a72c;
     --sgx-primary: #7e6000;
@@ -391,7 +390,6 @@
     --sgx-fg-6-ink: #007368;
     --sgx-fg-6-on: #012621;
   }
-  :root.dark,
   :root.dark[data-palette="dustyblue"] {
     --sgx-primary: #e2b850;
     --sgx-on-primary: #372800;
@@ -3841,13 +3839,14 @@
     --sgx-fg-6-ink: #d5d7dc;
     --sgx-fg-6-on: #1e1f21;
   }
-  /* 陶土 · Terracotta（terra）：背景陶土；前景 鼠尾草 / 孔雀蓝 / 蔷薇 / 兰紫 / 电光蓝 / 香槟金 */
+  /* 陶土 · Terracotta（terra）：背景陶土；前景 赤陶 / 孔雀蓝 / 蔷薇 / 兰紫 / 电光蓝 / 香槟金 */
+  :root,
   :root[data-palette="terra"] {
-    --sgx-seed: #94a982;
-    --sgx-primary: #566a44;
-    --sgx-on-primary: #fafdf8;
-    --sgx-primary-container: #dee6d8;
-    --sgx-on-primary-container: #253318;
+    --sgx-seed: #de7a58;
+    --sgx-primary: #a94521;
+    --sgx-on-primary: #fffbf9;
+    --sgx-primary-container: #ffdacd;
+    --sgx-on-primary-container: #531600;
     --sgx-secondary: #00717c;
     --sgx-on-secondary: #f8fdfd;
     --sgx-secondary-container: #b0f4fd;
@@ -3858,8 +3857,8 @@
     --sgx-on-tertiary-container: #54002c;
     --sgx-secondary-fill: #00a3b3;
     --sgx-tertiary-fill: #e86399;
-    --sgx-primary-fill: #94a982;
-    --sgx-on-primary-fill: #1c2117;
+    --sgx-primary-fill: #de7a58;
+    --sgx-on-primary-fill: #32170e;
     --sgx-success: #107637;
     --sgx-on-success: #f9fdfa;
     --sgx-success-container: #d1f2d7;
@@ -3907,31 +3906,31 @@
     --sgx-scrim: rgba(20,11,7,0.32);
     --sgx-inverse-surface: #2f2723;
     --sgx-inverse-on-surface: #f6eeeb;
-    --sgx-inverse-primary: #b4c4a6;
+    --sgx-inverse-primary: #f6a88d;
     --sgx-bg-blob-1: #f4ded4;
     --sgx-bg-blob-2: #f5e2d9;
     --sgx-bg-blob-3: #f2e5df;
     --sgx-bg-gradient-1: #f6f0ed;
     --sgx-bg-gradient-2: #faf3ef;
     --sgx-bg-gradient-3: #f5f2f0;
-    --sgx-link: #4b5e3a;
+    --sgx-link: #913410;
     --sgx-link-visited: #912456;
     --sgx-night-card: #fad4e0;
     --sgx-on-night-card: #401527;
-    --sgx-focus-ring: #566a44;
-    --sgx-switch-track-on: #94a982;
-    --sgx-switch-thumb-on: #1c2117;
+    --sgx-focus-ring: #a94521;
+    --sgx-switch-track-on: #de7a58;
+    --sgx-switch-thumb-on: #32170e;
     --sgx-switch-track-off: #e8dcd7;
     --sgx-switch-thumb-off: #88746b;
-    --sgx-slider-active: #94a982;
-    --sgx-slider-inactive: #dee6d8;
-    --sgx-slider-thumb: #566a44;
+    --sgx-slider-active: #de7a58;
+    --sgx-slider-inactive: #ffdacd;
+    --sgx-slider-thumb: #a94521;
     --sgx-chip-selected: #b0f4fd;
     --sgx-on-chip-selected: #003238;
-    --sgx-nav-selected: #c2cbba;
-    --sgx-on-nav-selected: #252f1c;
-    --sgx-fab: #dee6d8;
-    --sgx-on-fab: #253318;
+    --sgx-nav-selected: #e9bcad;
+    --sgx-on-nav-selected: #4a1a09;
+    --sgx-fab: #ffdacd;
+    --sgx-on-fab: #531600;
     --sgx-badge: #c22826;
     --sgx-on-badge: #fffbfa;
     --sgx-badge-info: #a23464;
@@ -3940,15 +3939,15 @@
     --sgx-lock-meta: #56453d;
     --sgx-lock-quote: #54002c;
     --sgx-lock-quote-bg: rgba(255,217,229,0.6);
-    --sgx-lock-unlock: #94a982;
-    --sgx-on-lock-unlock: #1c2117;
+    --sgx-lock-unlock: #de7a58;
+    --sgx-on-lock-unlock: #32170e;
     --sgx-daymark-card: #fffefd;
     --sgx-daymark-mark: rgba(162,52,100,0.1);
     --sgx-daymark-label: #a23464;
     --sgx-daymark-text: #231610;
     --sgx-daymark-trans: #56453d;
     --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #f4ded4 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #f5e2d9 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #f2e5df 0%, transparent 60%), linear-gradient(180deg, #f6f0ed 0%, #faf3ef 55%, #f5f2f0 100%);
-    --sgx-chart-1: #576b44;
+    --sgx-chart-1: #a3401a;
     --sgx-chart-2: #168f9c;
     --sgx-chart-3: #d4628f;
     --sgx-chart-4: #a77bd6;
@@ -3967,10 +3966,10 @@
     --sgx-bg-5: #dfa991;
     --sgx-bg-6: #cd9277;
     --sgx-bg-7: #b97657;
-    --sgx-fg-1: #94a982;
-    --sgx-fg-1-tint: #e3ebdd;
-    --sgx-fg-1-ink: #576b44;
-    --sgx-fg-1-on: #1c2117;
+    --sgx-fg-1: #de7a58;
+    --sgx-fg-1-tint: #ffe0d6;
+    --sgx-fg-1-ink: #a3401a;
+    --sgx-fg-1-on: #32170e;
     --sgx-fg-2: #168f9c;
     --sgx-fg-2-tint: #cfeff3;
     --sgx-fg-2-ink: #00717c;
@@ -3992,11 +3991,12 @@
     --sgx-fg-6-ink: #7c5e1b;
     --sgx-fg-6-on: #261e0e;
   }
+  :root.dark,
   :root.dark[data-palette="terra"] {
-    --sgx-primary: #b0c69e;
-    --sgx-on-primary: #242e1b;
-    --sgx-primary-container: #39442f;
-    --sgx-on-primary-container: #e3e8de;
+    --sgx-primary: #de7a58;
+    --sgx-on-primary: #491806;
+    --sgx-primary-container: #632e1c;
+    --sgx-on-primary-container: #fbdfd6;
     --sgx-secondary: #79cdd9;
     --sgx-on-secondary: #003136;
     --sgx-secondary-container: #004249;
@@ -4005,8 +4005,8 @@
     --sgx-on-tertiary: #4a112a;
     --sgx-tertiary-container: #661f3d;
     --sgx-on-tertiary-container: #ffd9e5;
-    --sgx-primary-fill: #aac098;
-    --sgx-on-primary-fill: #1c2117;
+    --sgx-primary-fill: #de7a58;
+    --sgx-on-primary-fill: #32170e;
     --sgx-success: #7cd591;
     --sgx-on-success: #093517;
     --sgx-success-container: #214a2b;
@@ -4023,81 +4023,81 @@
     --sgx-on-danger: #4f1310;
     --sgx-danger-container: #6c2e28;
     --sgx-on-danger-container: #ffddd9;
-    --sgx-background: #130d0a;
-    --sgx-surface-dim: #0f0907;
-    --sgx-surface: #17110e;
-    --sgx-surface-bright: #3a322f;
-    --sgx-surface-container-lowest: #1a1512;
-    --sgx-surface-container-low: #201916;
-    --sgx-surface-container: #271f1c;
-    --sgx-surface-container-high: #2f2622;
-    --sgx-surface-container-highest: #362d29;
-    --sgx-text-primary: #f1e7e3;
-    --sgx-text-secondary: #c8b9b2;
-    --sgx-text-tertiary: #a6968f;
-    --sgx-text-disabled: rgba(241,231,227,0.38);
-    --sgx-disabled-container: rgba(241,231,227,0.12);
-    --sgx-outline: #92827c;
-    --sgx-outline-variant: #4c3f3a;
-    --sgx-divider: rgba(241,231,227,0.12);
-    --sgx-card: #1a1512;
-    --sgx-card-nested: #201916;
-    --sgx-card-nested-2: #271f1c;
-    --sgx-sheet: #201916;
-    --sgx-dialog: #2f2622;
-    --sgx-drawer: #201916;
-    --sgx-menu: #271f1c;
-    --sgx-input-fill: #362d29;
-    --sgx-topbar-glass: rgba(58,50,47,0.68);
-    --sgx-glass-tint: rgba(39,31,28,0.72);
-    --sgx-glass-edge: rgba(251,243,240,0.08);
-    --sgx-scrim: rgba(3,1,1,0.6);
-    --sgx-inverse-surface: #eaded9;
-    --sgx-inverse-on-surface: #2d2725;
-    --sgx-inverse-primary: #566a44;
+    --sgx-background: #161412;
+    --sgx-surface-dim: #0c0a08;
+    --sgx-surface: #1d1b19;
+    --sgx-surface-bright: #363331;
+    --sgx-surface-container-lowest: #12100f;
+    --sgx-surface-container-low: #1a1816;
+    --sgx-surface-container: #23211e;
+    --sgx-surface-container-high: #2a2522;
+    --sgx-surface-container-highest: #322f2b;
+    --sgx-text-primary: #ece6dc;
+    --sgx-text-secondary: #a39b90;
+    --sgx-text-tertiary: #948b84;
+    --sgx-text-disabled: rgba(236,230,220,0.38);
+    --sgx-disabled-container: rgba(236,230,220,0.12);
+    --sgx-outline: #8b857f;
+    --sgx-outline-variant: #2c2825;
+    --sgx-divider: rgba(236,230,220,0.12);
+    --sgx-card: #12100f;
+    --sgx-card-nested: #1a1816;
+    --sgx-card-nested-2: #23211e;
+    --sgx-sheet: #1a1816;
+    --sgx-dialog: #2a2522;
+    --sgx-drawer: #1a1816;
+    --sgx-menu: #23211e;
+    --sgx-input-fill: #322f2b;
+    --sgx-topbar-glass: rgba(54,51,49,0.68);
+    --sgx-glass-tint: rgba(35,33,30,0.72);
+    --sgx-glass-edge: rgba(247,244,242,0.08);
+    --sgx-scrim: rgba(2,2,1,0.6);
+    --sgx-inverse-surface: #e5e0dc;
+    --sgx-inverse-on-surface: #2b2826;
+    --sgx-inverse-primary: #a94521;
     --sgx-bg-blob-1: #382a24;
     --sgx-bg-blob-2: #342823;
     --sgx-bg-blob-3: #2f2723;
     --sgx-bg-gradient-1: #171311;
-    --sgx-bg-gradient-2: #130d0a;
+    --sgx-bg-gradient-2: #161412;
     --sgx-bg-gradient-3: #131110;
-    --sgx-link: #b9cbab;
+    --sgx-link: #ffad91;
     --sgx-link-visited: #fc9cbe;
     --sgx-night-card: #42232e;
     --sgx-on-night-card: #ffdee8;
-    --sgx-focus-ring: #b0c69e;
-    --sgx-switch-track-on: #aac098;
-    --sgx-switch-thumb-on: #1c2117;
-    --sgx-switch-track-off: #362d29;
-    --sgx-switch-thumb-off: #92827c;
-    --sgx-slider-active: #aac098;
-    --sgx-slider-inactive: #39442f;
-    --sgx-slider-thumb: #b0c69e;
+    --sgx-focus-ring: #de7a58;
+    --sgx-switch-track-on: #de7a58;
+    --sgx-switch-thumb-on: #32170e;
+    --sgx-switch-track-off: #322f2b;
+    --sgx-switch-thumb-off: #8b857f;
+    --sgx-slider-active: #de7a58;
+    --sgx-slider-inactive: #632e1c;
+    --sgx-slider-thumb: #de7a58;
     --sgx-secondary-fill: #79cdd9;
     --sgx-tertiary-fill: #ff9abe;
     --sgx-chip-selected: #004249;
     --sgx-on-chip-selected: #c2ecf2;
-    --sgx-nav-selected: #333b2d;
-    --sgx-on-nav-selected: #e5eae1;
-    --sgx-fab: #39442f;
-    --sgx-on-fab: #e3e8de;
+    --sgx-nav-selected: #502e22;
+    --sgx-on-nav-selected: #f9e2db;
+    --sgx-fab: #632e1c;
+    --sgx-on-fab: #fbdfd6;
     --sgx-badge: #f89a8f;
     --sgx-on-badge: #4f1310;
     --sgx-badge-info: #ff9abe;
     --sgx-on-badge-info: #4a112a;
-    --sgx-lock-clock: #f1e7e3;
-    --sgx-lock-meta: #c8b9b2;
+    --sgx-lock-clock: #ece6dc;
+    --sgx-lock-meta: #a39b90;
     --sgx-lock-quote: #ffd9e5;
     --sgx-lock-quote-bg: rgba(102,31,61,0.55);
-    --sgx-lock-unlock: #aac098;
-    --sgx-on-lock-unlock: #1c2117;
-    --sgx-daymark-card: #1a1512;
+    --sgx-lock-unlock: #de7a58;
+    --sgx-on-lock-unlock: #32170e;
+    --sgx-daymark-card: #12100f;
     --sgx-daymark-mark: rgba(255,154,190,0.14);
     --sgx-daymark-label: #ff9abe;
-    --sgx-daymark-text: #f1e7e3;
-    --sgx-daymark-trans: #c8b9b2;
-    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #382a24 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #342823 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #2f2723 0%, transparent 60%), linear-gradient(180deg, #171311 0%, #130d0a 55%, #131110 100%);
-    --sgx-chart-1: #aac098;
+    --sgx-daymark-text: #ece6dc;
+    --sgx-daymark-trans: #a39b90;
+    --sgx-background-css: radial-gradient(120% 80% at 18% 0%, #382a24 0%, transparent 60%), radial-gradient(100% 70% at 92% 8%, #342823 0%, transparent 55%), radial-gradient(120% 90% at 50% 100%, #2f2723 0%, transparent 60%), linear-gradient(180deg, #171311 0%, #161412 55%, #131110 100%);
+    --sgx-chart-1: #de7a58;
     --sgx-chart-2: #61c9d7;
     --sgx-chart-3: #f993b8;
     --sgx-chart-4: #cba1fa;
@@ -4109,17 +4109,17 @@
     --sgx-state-pressed: 0.15;
     --sgx-state-selected: 0.13;
     --sgx-state-dragged: 0.18;
-    --sgx-bg-1: #160a05;
+    --sgx-bg-1: #161412;
     --sgx-bg-2: #29140b;
     --sgx-bg-3: #3e2011;
     --sgx-bg-4: #542c18;
     --sgx-bg-5: #693922;
     --sgx-bg-6: #824a30;
     --sgx-bg-7: #9f5e40;
-    --sgx-fg-1: #aac098;
-    --sgx-fg-1-tint: #2e3627;
-    --sgx-fg-1-ink: #cfddc4;
-    --sgx-fg-1-on: #1c2117;
+    --sgx-fg-1: #de7a58;
+    --sgx-fg-1-tint: #4c271b;
+    --sgx-fg-1-ink: #ffc9b8;
+    --sgx-fg-1-on: #32170e;
     --sgx-fg-2: #61c9d7;
     --sgx-fg-2-tint: #12393e;
     --sgx-fg-2-ink: #aae3eb;
@@ -6879,35 +6879,10 @@
 
 /* ===== base 层：页面骨架、壁纸、主题过渡 ===== */
 @layer sgx-base {
-  /* 壁纸背景（2.3.15 B3：独立 fixed 合成层，避免 body background-attachment:fixed 滚动时整页重绘） */
+  /* 页面底（2026-11 对齐设计稿 tb4.html，PR-A：去掉七团光晕壁纸 #sgx-wallpaper / --sgx-halo）：纯色底 --sgx-bg-1 + 44px 细网格。
+     网格层在共享外壳 shell.css（topbar-frame 段 body::before，四站同一条），这里只给 html 底色。 */
   html { background: var(--sgx-bg-1); }
   body { background: transparent; }
-  #sgx-wallpaper {
-    position: fixed; inset: -30px; z-index: -1; pointer-events: none; transform: translateZ(0);
-    background: var(--m-wallpaper);
-  }
-  /* 2026-10-23 底板定稿：全页纯光晕（用户：全页柔和光晕；不要玻璃圆、壁纸形状、图片）。
-     PR-G 七色调色板：光晕只用背景色的 7 档深浅（--sgx-bg-1..7，背景层），不再取 primary / secondary / tertiary；
-     页面底 = --sgx-bg-1，七团光从深到浅 = bg-7 / bg-6 / bg-5 / bg-4 / bg-3 / bg-2，第七团（右侧中段的小团）复用 bg-5；位置和 F2 一样没动。
-     内容页 #sgx-wallpaper、账号登录页 / 锁屏 .sgx-glass-bg 共用同一个 --sgx-halo；顶栏区域保持干净（--sgx-halo-mask 从顶栏下沿淡入）。 */
-  :root {
-    --sgx-halo-a: .9;
-    --sgx-halo:
-      radial-gradient(64% 38% at 104% 22%, oklch(from var(--sgx-bg-7) l c h / var(--sgx-halo-a)) 0%, transparent 72%),
-      radial-gradient(68% 40% at -8% 50%, oklch(from var(--sgx-bg-6) l c h / var(--sgx-halo-a)) 0%, transparent 72%),
-      radial-gradient(60% 32% at 96% 100%, oklch(from var(--sgx-bg-5) l c h / var(--sgx-halo-a)) 0%, transparent 70%),
-      radial-gradient(56% 30% at 6% 104%, oklch(from var(--sgx-bg-4) l c h / var(--sgx-halo-a)) 0%, transparent 70%),
-      radial-gradient(46% 26% at 62% 54%, oklch(from var(--sgx-bg-3) l c h / var(--sgx-halo-a)) 0%, transparent 70%),
-      radial-gradient(52% 26% at 28% -6%, oklch(from var(--sgx-bg-2) l c h / var(--sgx-halo-a)) 0%, transparent 70%),
-      radial-gradient(42% 24% at 104% 66%, oklch(from var(--sgx-bg-5) l c h / calc(var(--sgx-halo-a) * .6)) 0%, transparent 70%);
-    --sgx-halo-mask: linear-gradient(to bottom, transparent 0, rgb(0 0 0) calc(var(--nav-h, 84px) + 140px));
-  }
-  :root.dark { --sgx-halo-a: .85; }
-  #sgx-wallpaper::before {
-    content: ''; position: absolute; inset: 0;
-    background: var(--sgx-halo);
-    -webkit-mask: var(--sgx-halo-mask); mask: var(--sgx-halo-mask);
-  }
   /* 暗色切换平滑过渡 */
   body, nav, .widget {
     transition: background-color .4s ease, border-color .4s ease, color .4s ease;
@@ -7867,8 +7842,8 @@
   .acct-login-go:disabled { opacity: .7; cursor: default; }
   .acct-login .acct-cant { margin-top: 18px; }
   #acct-reauth .acct-cant { display: inline-block; margin-top: 12px; }
-  /* .sgx-glass-bg：账号登录页与锁屏共用的 fixed 全屏背景层，盖在 #sgx-wallpaper 之上、内容之下。
-     2026-10-23 定稿：和内容页同一套纯光晕（--sgx-halo，见 base 层），没有图片和形状；
+  /* .sgx-glass-bg：账号登录页与锁屏共用的 fixed 全屏背景层，盖在页面网格之上、内容之下。
+     2026-11 PR-A：和内容页同一套纯色底 + 44px 网格（--sgx-grid，共享外壳 topbar-frame 段），没有光晕；
      锁屏要盖住整页，所以底下多一层不透明的页面底（--sgx-bg-1）。顶栏区域干净。 */
   .sgx-glass-bg {
     position: fixed; inset: 0; z-index: 0; pointer-events: none; isolation: isolate;
@@ -7876,8 +7851,7 @@
   }
   .sgx-glass-bg::before {
     content: ''; position: absolute; inset: 0;
-    background: var(--sgx-halo);
-    -webkit-mask: var(--sgx-halo-mask); mask: var(--sgx-halo-mask);
+    background: var(--sgx-grid);
   }
   /* 账号页：只有登录区显示时才铺光晕背景层（总览、子页用内容页壁纸）；内容在背景层之上 */
   .acct-glass { display: none; }
@@ -8442,7 +8416,7 @@
 /* 顶栏标签 / 子站分段的常驻衬底：导航选中色 45%（段式标签、页名胶囊仍在用） */
 :root { --sgx-tb-label-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
 /* 尺寸体系（2026-10-23 PR-D）：--sgx-page-m 左右页边距（手机 < 600px 固定 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px）。
-   --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop 100%（宽屏平铺；没有这个属性 = 没跑脚本，退回 1068）。
+   --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop = 内容宽 --sgx-content-w 1080（2026-11 PR-A 照设计稿：所有页内容 1080 居中、和顶栏字标 / 图标对齐，撤掉 #308 的宽屏通栏；没有这个属性 = 没跑脚本，退回 1068）。
    --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)。
    --sgx-tb-pad：顶栏 / 页脚左右内边距 = max(页边距 / 刘海安全区, (100% − 内容宽) / 2)，两者内容都落在居中的 --sgx-content-w 里；
    --sgx-tb-w：顶栏内容宽（= 100% − 2 × --sgx-tb-pad），面板的右缘按它对齐。
@@ -8451,9 +8425,15 @@
   --sgx-tb-pad: max(var(--sgx-page-m), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px), (100% - var(--sgx-content-w)) / 2);
   --sgx-tb-w: calc(100% - 2 * var(--sgx-tb-pad)); }
 :root[data-sgx-layout="phone"] { --sgx-content-max: 640px; }
-:root[data-sgx-layout="desktop"] { --sgx-content-max: 100%; }
+:root[data-sgx-layout="desktop"] { --sgx-content-max: var(--sgx-content-w); }
 /* 横向不许滚：任何一块超宽都裁掉，不出现横向滚动条（clip 不建滚动容器，position: sticky 照常） */
 :root { overflow-x: clip; }
+/* 页面底（2026-11 对齐设计稿 tb4.html，PR-A；四站同一条）：纯色底 --sgx-bg-1（深色赤陶 = #161412）+ 44px 细网格（线 = 正文色 2.5%，稿 rgba(255,255,255,.025)），整页一致、没有光晕。
+   网格是 fixed 层（body::before，z -1，不跟内容滚、不重绘）；--sgx-grid 也给账号登录页 / 锁屏的 .sgx-glass-bg 用。 */
+:root { --sgx-grid-line: color-mix(in srgb, var(--sgx-text-primary) 2.5%, transparent);
+  --sgx-grid: linear-gradient(var(--sgx-grid-line) 1px, transparent 1px) 0 0 / 44px 44px, linear-gradient(90deg, var(--sgx-grid-line) 1px, transparent 1px) 0 0 / 44px 44px; }
+html { background-color: var(--sgx-bg-1); }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--sgx-grid); }
 @media (min-width: 600px) {
   :root { --sgx-page-m: clamp(16px, 5.333px + 2.2222vw, 48px); --sgx-tb-btn: clamp(52px, 42px + 1.667vw, 56px); --sgx-tb-gap: clamp(8px, -2px + 1.667vw, 12px); }
 }
@@ -8475,15 +8455,17 @@
 .dark {
   --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.35);
 }
+/* 顶栏底（2026-11 PR-A 照稿 .bar：页面底色 85% + 12px 模糊，赤陶深色 = rgba(22,20,18,.85)） */
+:root { --sgx-tb-mat: color-mix(in srgb, var(--sgx-bg-1) 85%, transparent); --sgx-tb-filter: blur(12px); }
 /* 顶栏：贴顶通栏（top 0、left 0 / right 0），高 --sgx-tb-h + 刘海安全区；三列网格（字标 | 中间 | 图标组），左右内边距 --sgx-tb-pad 把内容收进 1080 */
 .sgx-topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 55; box-sizing: border-box; height: calc(var(--sgx-tb-h) + env(safe-area-inset-top, 0px));
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 12px;
   padding: env(safe-area-inset-top, 0px) var(--sgx-tb-pad) 0; border-bottom: 1px solid var(--sgx-term-line);
-  background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter); pointer-events: auto; color: var(--sgx-text-primary);
+  background: var(--sgx-tb-mat); -webkit-backdrop-filter: var(--sgx-tb-filter); pointer-events: auto; color: var(--sgx-text-primary);
   font-family: var(--sgx-font-mono); }
 /* 标准 backdrop-filter 单独放进 @supports：子站的压缩器会把同一规则里同值的 -webkit- / 标准两行合并成一行，分开两条规则就不会被合并 */
 @supports (backdrop-filter: blur(1px)) {
-  .sgx-topbar { backdrop-filter: var(--sgx-mat-filter); }
+  .sgx-topbar { backdrop-filter: var(--sgx-tb-filter); }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sgx-topbar { background: var(--sgx-mat-solid); }
@@ -8519,7 +8501,7 @@
   background-color: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-secondary); cursor: pointer;
   text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
 .sgx-tb-btn svg { width: 20px; height: 20px; }
-.sgx-tb-btn[aria-expanded="true"] { background-color: var(--sgx-term-sel); color: var(--sgx-primary); }
+.sgx-tb-btn[aria-expanded="true"] { background-color: var(--sgx-surface-container-high); color: var(--sgx-primary); }
 .sgx-tb-sep { flex: none; width: 1px; height: 22px; margin: 0 6px; background: var(--sgx-term-line); }
 .sgx-tb-av { flex: none; display: inline-grid; place-items: center; width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); border-radius: 999px; -webkit-tap-highlight-color: transparent; }
 .sgx-tb-avatar { display: block; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--sgx-surface-container-high); }
@@ -8569,7 +8551,9 @@
 .sgx-foot-win a[aria-current="page"]::after { content: "*"; color: var(--sgx-primary); }
 :root:not([data-sgx-layout="desktop"]) .sgx-foot-win a:not([aria-current="page"]) { display: none; }
 .sgx-foot-rt { margin-left: auto; display: flex; align-items: center; gap: 14px; }
-.sgx-foot-st i { font-style: normal; color: var(--sgx-success); }
+.sgx-foot-st i { font-style: normal; color: var(--sgx-text-tertiary); }
+.sgx-foot-st[data-up="1"] i { color: var(--sgx-success); }
+.sgx-foot-st[data-up="0"] i { color: var(--sgx-warning); }
 .sgx-foot-lang [aria-current="true"] { color: var(--sgx-text-primary); }
 :root:not([data-sgx-layout="desktop"]) .sgx-foot-lang { display: none; }
 .sgx-foot-2 { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; padding: 14px 0 18px; color: var(--sgx-text-tertiary); font-size: 11.5px; }
@@ -8617,7 +8601,7 @@
 .set-layout > .sgx-credential-countdown, .acct-layout > .sgx-credential-countdown { margin-left: max(0px, (100% - 1440px) / 2); }
 /* @shell:begin wide（宽屏平铺：桌面布局内容页去卡片、多栏 + 细分隔线；共享外壳：gen-shell 抽到 shell.css，子站同步；只用 --sgx-* 角色，不写死颜色） */
 /* 宽屏平铺（Gray 2026-11-07，参考 rzcthink.top）：只在桌面布局（<html data-sgx-layout="desktop">，浏览器桌面版 / 手动「桌面」；不按像素断点）。手机布局一律不变。
-   - 内容区通栏：桌面 --sgx-content-max = 100%（topbar-frame 段），外壳框 --sgx-shell-w = 窗口宽 − 两侧页边距，不对齐顶栏（顶栏仍 --sgx-tb-w 居中）。
+   - 内容区宽（2026-11 PR-A 起）：桌面 --sgx-content-max = 1080（topbar-frame 段），外壳框和顶栏内容区同宽对齐（原来是通栏）；下面的去卡片 / 多栏照旧。
    - 内容页去卡片：文字直接铺在背景上，块与块、栏与栏之间用细线（--sgx-wide-line）分开。
    - 可交互模块保留卡片：屏幕时间、风格页（调色板，设计不动）、快捷面板 / AI 窗口、表单（安全 / 账号）、锁屏、音乐播放器，不挂下面这些类。
    公共件（各站挂到自己的标记上；JS 画的卡片各站在自己的 CSS 里按同样的值去卡片）：
@@ -8791,17 +8775,28 @@
 .palette-reset:focus-visible { outline: 2px solid var(--sgx-primary); outline-offset: 2px; }
 .palette-reset[aria-disabled="true"] { opacity: .38; cursor: default; box-shadow: none; }
 .sgx-qp-row .palette-reset { background: var(--sgx-surface-container-lowest); color: var(--sgx-primary); }
-/* 顶栏 v3 的两个终端风面板（2026-11 UI 重设计 PR-1，设计稿 nav-v2 / tb4.html pop=1）：共用 .sgx-qp 的落下 / 遮罩 / 互斥，外观改成终端窗：
-   实色表面、1px 线、圆角 16、无内边距（各段自己留）、等宽字。桌面：右缘对齐顶栏内容区再往左让到自己按钮下面（NAVIGATE 让 44px、外观让 92px），
-   宽 360 / 280；手机：左右对齐顶栏内容区（和其它面板一样）。 */
-.sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { padding: 0; border-radius: 16px; border-color: var(--sgx-term-line); background: var(--sgx-mat-solid);
-  -webkit-backdrop-filter: none; font-family: var(--sgx-font-mono); font-size: 13px; color: var(--sgx-text-secondary); }
+/* 顶栏 v3 的两个终端风面板（2026-11 UI 重设计 PR-1；PR-A 照设计稿 tb4.html pop=1 / nav=1 对齐）：共用 .sgx-qp 的开合 / 互斥 / 点外面关，外观照稿：
+   不压暗页面（dialog 本身透明，只用来接「点外面关」）、不毛玻璃；实色卡（--sgx-surface，赤陶深色 = #1d1b19）、1px 线、阴影；
+   外观卡 260 宽、圆角 14、内边距 10；NAVIGATE 360 宽、圆角 16、无内边距（各段自己留）。
+   桌面：右缘 = 顶栏内容区右缘再往左让到自己按钮下面（NAVIGATE 让 44px、外观让 92px，同稿 --navr / --popr）；
+   手机：右缘对齐顶栏内容区，NAVIGATE 全宽（稿 100vw − 2 × 页边距）、外观仍 260 宽（稿 m=1 popr 0）。
+   出现不再从顶栏后面滑下来（稿是静态卡）：淡入 + 上移 4px，减弱动效直接到位。 */
+.sgx-nav.is-open, .sgx-theme.is-open { background-color: transparent; }
+.sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { padding: 0; border-radius: 16px; border-color: var(--sgx-term-line); background: var(--sgx-surface);
+  -webkit-backdrop-filter: none; font-family: var(--sgx-font-mono); font-size: 13px; color: var(--sgx-text-secondary);
+  box-shadow: 0 30px 80px rgba(0,0,0,.22); opacity: 0; transform: translateY(-4px); transition: opacity .16s ease, transform .16s ease; }
+.dark .sgx-nav .sgx-qp-sheet, .dark .sgx-theme .sgx-qp-sheet { box-shadow: 0 30px 80px rgba(0,0,0,.55); }
+.sgx-nav.is-open .sgx-qp-sheet, .sgx-theme.is-open .sgx-qp-sheet { opacity: 1; transform: none; }
 @supports (backdrop-filter: blur(1px)) {
   .sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { backdrop-filter: none; }
 }
+.reduced-motion .sgx-nav .sgx-qp-sheet, .reduced-motion .sgx-theme .sgx-qp-sheet { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { transition: none; } }
+.sgx-nav .sgx-qp-sheet { max-width: none; }
+.sgx-theme .sgx-qp-sheet { left: auto; right: calc((100% - var(--sgx-tb-w)) / 2); width: min(260px, var(--sgx-tb-w)); margin: 0; padding: 10px; border-radius: 14px; }
+.dark .sgx-theme .sgx-qp-sheet { box-shadow: 0 20px 50px rgba(0,0,0,.5); }
 :root[data-sgx-layout="desktop"] .sgx-nav .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 44px); width: min(360px, var(--sgx-tb-w)); }
-:root[data-sgx-layout="desktop"] .sgx-theme .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 92px); width: min(280px, var(--sgx-tb-w)); padding: 10px; }
-.sgx-theme .sgx-qp-sheet { padding: 10px; }
+:root[data-sgx-layout="desktop"] .sgx-theme .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 92px); width: min(260px, var(--sgx-tb-w)); }
 /* NAVIGATE 头：$ NAVIGATE · 01/05（字距 3px、次要色）；下面一条线 */
 .sgx-nav-h, .sgx-nav-f { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; font-size: 12px; letter-spacing: 3px; color: var(--sgx-text-secondary); }
 .sgx-nav-h { border-bottom: 1px solid var(--sgx-term-line); }
@@ -8833,29 +8828,33 @@
 .sgx-nav-btn svg { width: 16px; height: 16px; flex: none; }
 .sgx-nav-btn[data-armed] { border-color: var(--sgx-primary); color: var(--sgx-primary); background: var(--sgx-term-sel); }
 @media (hover: hover) and (pointer: fine) { .sgx-nav-btn:hover { color: var(--sgx-text-primary); } }
-/* STATUS：六个单元两列（点 · 名 · 延迟）；占位态点是描边空心、延迟「—」 */
+/* STATUS：六个单元两列（点 · 名 · 延迟）；没数据 = 灰点、延迟空着（2026-11 PR-A 接 /api/status，见 topbar-panel.js mountStatus） */
 .sgx-nav-st { padding: 12px 20px 13px; border-top: 1px solid var(--sgx-term-line); font-size: 12px; }
 .sgx-nav-st-h { display: flex; justify-content: space-between; margin-bottom: 9px; font-size: 11px; letter-spacing: 3px; color: var(--sgx-text-tertiary); }
 .sgx-nav-st-h b { font-weight: 400; letter-spacing: 0; color: var(--sgx-text-tertiary); }
 .sgx-nav-st[data-state="up"] .sgx-nav-st-h b { color: var(--sgx-success); }
+.sgx-nav-st[data-state="partial"] .sgx-nav-st-h b { color: var(--sgx-warning); }
 .sgx-nav-st-gd { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 0; padding: 0; list-style: none; }
 .sgx-nav-st-gd li { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.sgx-nav-st-gd i { flex: none; width: 7px; height: 7px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--sgx-text-tertiary); }
-.sgx-nav-st-gd li[data-up="1"] i { border: 0; background: var(--sgx-success); box-shadow: 0 0 8px color-mix(in srgb, var(--sgx-success) 60%, transparent); }
-.sgx-nav-st-gd li[data-up="0"] i { border: 0; background: var(--sgx-danger); }
+.sgx-nav-st-gd i { flex: none; width: 7px; height: 7px; box-sizing: border-box; border-radius: 50%; background: var(--sgx-text-tertiary); opacity: .6; }
+.sgx-nav-st-gd li[data-up="1"] i { opacity: 1; border: 0; background: var(--sgx-success); box-shadow: 0 0 8px color-mix(in srgb, var(--sgx-success) 60%, transparent); }
+.sgx-nav-st-gd li[data-up="0"] i { opacity: 1; border: 0; background: var(--sgx-danger); }
 .sgx-nav-st-gd em { margin-left: auto; font-style: normal; color: var(--sgx-text-tertiary); }
-.sgx-nav-f { border-top: 1px solid var(--sgx-term-line); letter-spacing: 1px; color: var(--sgx-text-tertiary); }
+.sgx-nav-f { border-top: 1px solid var(--sgx-term-line); gap: 8px 14px; flex-wrap: wrap; letter-spacing: 0; color: var(--sgx-text-tertiary); }
+.sgx-nav-termlink { margin-right: auto; padding: 0; border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; }
 .sgx-nav-flink { color: inherit; text-decoration: none; border-radius: 4px; }
-.sgx-nav-close { padding: 0; border: 0; background: transparent; font: inherit; letter-spacing: 1px; color: inherit; cursor: pointer; border-radius: 4px; }
+.sgx-nav-close { padding: 0; border: 0; background: transparent; font: inherit; letter-spacing: 0; color: inherit; cursor: pointer; border-radius: 4px; }
 @media (hover: hover) and (pointer: fine) { .sgx-nav-flink:hover, .sgx-nav-close:hover { color: var(--sgx-text-primary); } }
 /* 外观面板（MODE / PALETTE）：小标题字距 2px；模式三段；色板列表（两块色 · 名字 · 当前 ✓），列表太长时面板内滚动 */
 .sgx-th-h { margin: 0; padding: 6px 8px; font-size: 11px; letter-spacing: 2px; color: var(--sgx-text-tertiary); }
 .sgx-th-hrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-right: 4px; }
-.sgx-th-hrow .palette-reset { height: 26px; padding: 0 10px 0 8px; font-size: 12px; background: transparent; box-shadow: none; }
+.sgx-th-reset { padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 11px; letter-spacing: 1px; color: var(--sgx-primary); cursor: pointer; }
+.sgx-th-reset[aria-disabled="true"] { color: var(--sgx-text-tertiary); opacity: .6; cursor: default; }
+.sgx-th-reset:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .sgx-th-seg { display: flex; gap: 4px; margin: 2px 4px 10px; padding: 4px; border: 1px solid var(--sgx-term-line); border-radius: 10px; }
 .sgx-th-seg button { flex: 1 1 auto; min-width: 0; padding: 6px 8px; white-space: nowrap; border: 0; border-radius: 7px; background: transparent; font: inherit; color: var(--sgx-text-secondary); cursor: pointer;
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; }
-.sgx-th-seg button[aria-pressed="true"] { background: var(--sgx-term-sel); color: var(--sgx-primary); }
+.sgx-th-seg button[aria-pressed="true"] { background: var(--sgx-surface-container-high); color: var(--sgx-primary); }
 .sgx-th-pals { display: flex; flex-direction: column; gap: 2px; max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; }
 .sgx-th-pal { --b2: var(--pl-b2); --f1: var(--pl-f1); --f2: var(--pl-f2); --f3: var(--pl-f3); --f4: var(--pl-f4); --f5: var(--pl-f5); --f6: var(--pl-f6); display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent;
   font: inherit; text-align: left; color: var(--sgx-text-secondary); cursor: pointer; }
@@ -8865,9 +8864,9 @@
 .sgx-th-sw u { display: block; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--sgx-surface) 55%, transparent); }
 .sgx-th-sw u:nth-child(1) { background: var(--f1); } .sgx-th-sw u:nth-child(2) { background: var(--f2); } .sgx-th-sw u:nth-child(3) { background: var(--f3); }
 .sgx-th-sw u:nth-child(4) { background: var(--f4); } .sgx-th-sw u:nth-child(5) { background: var(--f5); } .sgx-th-sw u:nth-child(6) { background: var(--f6); }
-.sgx-th-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; }
+.sgx-th-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--sgx-font-mono); }
 .sgx-th-pal em { flex: none; font-style: normal; color: var(--sgx-primary); visibility: hidden; }
-.sgx-th-pal[aria-pressed="true"] { background: var(--sgx-term-sel); color: var(--sgx-text-primary); }
+.sgx-th-pal[aria-pressed="true"] { background: var(--sgx-surface-container-high); color: var(--sgx-text-primary); }
 .sgx-th-pal[aria-pressed="true"] em { visibility: visible; }
 @media (hover: hover) and (pointer: fine) { .sgx-th-pal:not([aria-pressed="true"]):hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); } }
 /* AI 窗口（#sgx-ai，第 4 件；P4-3 PR-4b Gray 2026-11-07 定稿）：同快捷面板的落下方式。
@@ -9034,8 +9033,6 @@
 .sgx-term--drawer .sgx-term-body { height: min(56vh, 460px); }
 .reduced-motion .sgx-term-dlg .sgx-term, .reduced-motion .sgx-term-dlg::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-term-dlg .sgx-term, .sgx-term-dlg::backdrop { transition: none; } }
-/* NAVIGATE 里的「$ terminal」按钮：$ 主题色 */
-.sgx-nav-term-ps { font-weight: 500; color: var(--sgx-primary); }
 /* @shell:end terminal */
 
 /* 主页首屏终端（2026-11 UI 重设计 PR-2，设计稿 term-v1；只在主站）：内容宽对齐顶栏内容（--sgx-content-w 1080，左右同 --sgx-tb-pad）。

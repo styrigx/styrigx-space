@@ -60,7 +60,6 @@ __sgxLayoutWatch(__applyLayout);
 {{/* 合站：Hugo 只给站点首页自动插 generator；本站首页现在是分区页，照合站前补上 */}}{{ if $isHome }}{{ hugo.Generator }}{{ end }}
 </head>
 <body class="text-m-on-surface font-sans antialiased">
-<div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/shell-topbar.html（合站后直接用主站这份），
    这里只准备日刻自己的参数：
    - 中间（原样搬进来）：页名胶囊 .sgx-tb-title（首页 = 站名，页内分区时换成分区名；其他页 = 页名）。
