@@ -63,7 +63,14 @@ jobs:
           git checkout -- space/web/data/ 2>/dev/null || true   # 生产构建生成的数据文件不提交
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add tests/space/e2e/visual/visual.spec.js-snapshots tests/space/e2e/visual/lock.spec.js-snapshots tests/blog/e2e/blog-visual.spec.js-snapshots
+          # 只 add 存在的（或仓库里还跟踪着的）基线目录：截图开关 SHOTS=false / 某组还没生成基线时目录不存在，
+          # 直接 git add 会 "pathspec did not match" 退出 128（run 42478955025）。-A 让整组被删的基线也记成删除。
+          paths=()
+          for p in tests/space/e2e/visual/visual.spec.js-snapshots tests/space/e2e/visual/lock.spec.js-snapshots tests/blog/e2e/blog-visual.spec.js-snapshots; do
+            if [ -e "$p" ] || [ -n "$(git ls-files -- "$p")" ]; then paths+=("$p"); else echo "跳过 $p（没有生成、仓库里也没有）"; fi
+          done
+          if [ "${#paths[@]}" -eq 0 ]; then echo "没有任何基线目录（截图开关都关着？），不提交"; exit 0; fi
+          git add -A -- "${paths[@]}"
           git diff --cached --quiet && echo "基线无变化" && exit 0
           git diff --cached --stat
           git commit -m "[UI] CI 更新视觉基线 (ubuntu-24.04)"
