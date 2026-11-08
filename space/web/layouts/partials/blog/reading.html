@@ -1,0 +1,7 @@
+{{- /* 字数 / 阅读分钟（文章页元信息、文章列表行共用；2026-11 UI 重设计 PR-3 从 single.html 抽出来，算法不变）。
+参数：页面。返回 dict：count（英文词 + 中日韩字）、mins（英文 220 词 / 分 + 中日韩 500 字 / 分，向上取整，至少 1） */ -}}
+{{- $raw := .RawContent -}}
+{{- $words := len (findRE `[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*` $raw) -}}
+{{- $cjk := len (findRE `[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]` $raw) -}}
+{{- $mins := math.Max 1 (math.Ceil (add (div (float $words) 220) (div (float $cjk) 500))) | int -}}
+{{- return (dict "count" (add $words $cjk) "mins" $mins) -}}

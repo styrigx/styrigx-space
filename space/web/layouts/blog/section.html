@@ -22,7 +22,11 @@
     (dict "id" "posts" "icon" "book-open-check" "tone" "secondary" "title" (i18n "tabPosts") "sub" (i18n "entPostsSub") "href" "#posts")
     (dict "id" "topics" "icon" "tags" "tone" "tertiary" "title" (i18n "tabTopics") "sub" (i18n "entTopicsSub") "href" "#topics") -}}
   {{- $entIcons := dict -}}{{- range $entItems }}{{ $entIcons = merge $entIcons (dict .icon (partial "blog/icon.html" (dict "name" .icon "size" 22) | string)) }}{{ end -}}
-  {{ partial "sgx-entries.html" (dict "items" $entItems "icons" $entIcons "id" "blog-entries" "label" (i18n "entSections")) }}
+  {{- /* 2026-11 UI 重设计 PR-3（设计稿 s-blog）：入口上面一条终端风标题带（提示符「ls blog/」+ 博客_ + 篇数 · 最近更新），和入口一起只在首页分区显示（app-tabs.ts 藏 [data-sgx-entries]）。
+       标题带的 h2 是可见标题；首页面板里的 h1 照旧只给读屏 / 搜索引擎。 */ -}}
+  {{- $lastDate := "" }}{{ with index $posts 0 }}{{ $lastDate = .Date.Format "2006-01-02" }}{{ end -}}
+  {{- $bandSub := i18n "postCount" (dict "Count" (len $posts)) }}{{ with $lastDate }}{{ $bandSub = printf "%s · %s" $bandSub (i18n "lastUpdated" (dict "Date" .)) }}{{ end -}}
+  {{ partial "sgx-entries.html" (dict "items" $entItems "icons" $entIcons "id" "blog-entries" "label" (i18n "entSections") "band" (dict "cmd" "ls blog/" "title" (i18n "blogTitle") "sub" $bandSub)) }}
   {{- /* 段式标签（P4-3 §6.6 / 设计 §5.2、§6.2）：原顶栏 首页 · 文章 · 专题 分段搬进页内，作分区之间的二级切换（共享外壳 sgx-shell-segtabs.html）。
        首页分区是入口页（上面的平铺入口），不放；文章 / 专题两个面板各放一条，紧跟标题带，当前分区实色（服务端写好 aria-current，不用脚本）。链接 = 分区 hash，同入口。 */ -}}
   {{- $segItems := slice }}{{ range $entItems }}{{ $segItems = $segItems | append (dict "id" .id "title" .title "href" .href) }}{{ end }}
@@ -58,29 +62,37 @@
 
       <section class="sgx-pane" id="sgx-pane-posts" aria-label="{{ i18n "tabPosts" }}" data-pane="posts" inert>
         {{- /* 分区标题带（P4-3 §6.6 / 设计 §6.3；共享外壳 sgx-shell-page-hero.html）：页内分区没有 front matter，标题 / 一句话取 i18n（同首页入口） */}}
-        {{ partial "sgx-page-hero.html" (dict "title" (i18n "tabPosts") "desc" (i18n "entPostsSub") "path" "blog#posts" "tag" "h2") }}
+        {{ partial "sgx-page-hero.html" (dict "title" (i18n "tabPosts") "desc" (i18n "entPostsSub") "path" "blog#posts" "tag" "h2" "cmd" "ls -lt blog/") }}
         {{ partial "sgx-segtabs.html" (dict "items" $segItems "current" "posts" "label" (i18n "entSections") "id" "blog-segs-posts") }}
         <div class="sgx-sec-head">
           <h2 class="sgx-sec-title">{{ i18n "allPosts" }} · {{ i18n "postCount" (dict "Count" (len $posts)) }}</h2>
         </div>
         {{- if $posts }}
-        <ol class="notes-list">
-          {{- range $i, $p := $posts }}
+        {{- /* 2026-11 UI 重设计 PR-3（设计稿 s-blog）：按年分组（年份分隔线 + 每年一个列表），每行 日期 · 标题 + 摘要 · 标签 · 阅读分钟；编号、标签筛选链接、摘要照旧 */ -}}
+        {{- $years := slice }}{{ range $posts }}{{ $y := .Date.Format "2006" }}{{ if not (in $years $y) }}{{ $years = $years | append $y }}{{ end }}{{ end -}}
+        {{- $n := 0 }}
+        {{- range $y := $years }}
+        <h3 class="sgx-yr note-yr">{{ $y }}</h3>
+        <ol class="notes-list" start="{{ add $n 1 }}">
+          {{- range $p := $posts }}{{ if eq ($p.Date.Format "2006") $y }}{{ $n = add $n 1 }}
+          {{- $rd := partial "blog/reading.html" $p }}
           <li class="note-entry">
-            <span class="note-num">{{ printf "%02d" (add $i 1) }}</span>
+            <span class="note-num">{{ printf "%02d" $n }}</span>
+            <time class="note-date" datetime="{{ $p.Date.UTC.Format "2006-01-02T15:04:05.000Z" }}"><span class="note-y">{{ $p.Date.Format "2006-" }}</span>{{ $p.Date.Format "01-02" }}</time>
             <div class="note-body">
               <h3 class="note-title"><a href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></h3>
-              <div class="note-meta">
-                {{ partial "blog/date.html" $p.Date }}
-                {{- range first 4 ($p.Params.tags | default slice) }}
-                <a href="#topics/tag/{{ partial "blog/group-slug.html" . | urlquery }}">#{{ . }}</a>
-                {{- end }}
-              </div>
               {{- with $p.Description }}<p class="note-desc">{{ . }}</p>{{ end }}
             </div>
+            <div class="note-meta">
+              {{- range first 4 ($p.Params.tags | default slice) }}
+              <a href="#topics/tag/{{ partial "blog/group-slug.html" . | urlquery }}">#{{ . }}</a>
+              {{- end }}
+            </div>
+            <span class="note-rt">{{ i18n "readMin" (dict "Minutes" $rd.mins) }}</span>
           </li>
-          {{- end }}
+          {{- end }}{{ end }}
         </ol>
+        {{- end }}
         {{- else }}
         <p class="empty-note">{{ i18n "emptyArchives" }}</p>
         {{- end }}
@@ -88,7 +100,7 @@
 
       <section class="sgx-pane" id="sgx-pane-topics" aria-label="{{ i18n "tabTopics" }}" data-pane="topics" inert>
         {{- /* 分区标题带（P4-3 §6.6 / 设计 §6.3；共享外壳 sgx-shell-page-hero.html）：页内分区没有 front matter，标题 / 一句话取 i18n（同首页入口） */}}
-        {{ partial "sgx-page-hero.html" (dict "title" (i18n "tabTopics") "desc" (i18n "entTopicsSub") "path" "blog#topics" "tag" "h2") }}
+        {{ partial "sgx-page-hero.html" (dict "title" (i18n "tabTopics") "desc" (i18n "entTopicsSub") "path" "blog#topics" "tag" "h2" "cmd" "tree blog/") }}
         {{ partial "sgx-segtabs.html" (dict "items" $segItems "current" "topics" "label" (i18n "entSections") "id" "blog-segs-topics") }}
         <section class="topic-results sgx-sec" data-topic-results hidden aria-live="polite">
           <div class="sgx-sec-head">
@@ -108,7 +120,21 @@
             {{- end }}
           </ol>
         </section>
-        {{- if $series }}
+        {{- /* 2026-11 UI 重设计 PR-3（设计稿 s-tree「目录」）：两个静态终端窗口——左「tree blog/ -L 2」放系列 + 分类，右「archive」放按年份归档 + 标签；
+             系列卡（#topics/series/<slug> 定位）、分类 / 标签就地筛选（data-topic-filter）、筛选结果都照旧，只换外观。窗口标题栏是装饰（aria-hidden），分节标题照旧是 h2。 */ -}}
+        {{- $yrs := slice }}{{ $ym := dict }}{{ $yc := dict }}
+        {{- range $posts }}{{ $y := .Date.Format "2006" }}{{ $m := .Date.Format "01" }}
+          {{- if not (in $yrs $y) }}{{ $yrs = $yrs | append $y }}{{ end }}
+          {{- $yc = merge $yc (dict $y (add (index $yc $y | default 0) 1)) }}
+          {{- $k := printf "%s-%s" $y $m }}{{ $ym = merge $ym (dict $k (add (index $ym $k | default 0) 1)) }}
+        {{- end }}
+        {{- $maxY := 1 }}{{ range $yrs }}{{ if gt (index $yc .) $maxY }}{{ $maxY = index $yc . }}{{ end }}{{ end }}
+        <div class="sgx-tree-grid">
+          <div class="sgx-term sgx-term--static sgx-tree-win">
+            <div class="sgx-term-bar" aria-hidden="true"><span class="sgx-term-dots"><i></i><i></i><i></i></span><span class="sgx-term-title" translate="no">tree blog/ -L 2</span></div>
+            <div class="sgx-term-body">
+              <p class="sgx-term-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> tree blog/ -L 2</p>
+                {{- if $series }}
         <section class="sgx-sec" aria-labelledby="sgx-series-title">
           <div class="sgx-sec-head"><h2 class="sgx-sec-title" id="sgx-series-title">{{ i18n "series" }}</h2></div>
           {{- range $series }}
@@ -126,8 +152,32 @@
           </div>
         </section>
         {{- end }}
+              {{- if not (or $series $cats) }}<p class="empty-note">{{ i18n "emptyArchives" }}</p>{{ end }}
+            </div>
+          </div>
+          <div class="sgx-term sgx-term--static sgx-tree-win">
+            <div class="sgx-term-bar" aria-hidden="true"><span class="sgx-term-dots"><i></i><i></i><i></i></span><span class="sgx-term-title" translate="no">archive</span><em class="sgx-term-count">{{ len $posts }}</em></div>
+            <div class="sgx-term-body">
+              {{- if $yrs }}
+              <section class="sgx-sec sgx-archive" aria-labelledby="sgx-archive-title">
+                <p class="sgx-term-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> ls blog/ --by-year</p>
+                <div class="sgx-sec-head"><h2 class="sgx-sec-title" id="sgx-archive-title">{{ i18n "archiveByYear" }}</h2></div>
+                <ul class="sgx-arch">
+                  {{- range $y := $yrs }}{{ $c := index $yc $y }}
+                  <li class="sgx-arch-y"><span class="sgx-arch-k">{{ $y }}</span><span class="sgx-arch-bar" aria-hidden="true">{{ strings.Repeat (int (math.Max 1 (math.Ceil (mul 16.0 (div (float $c) $maxY))))) "█" }}</span><span class="sgx-arch-n">{{ i18n "postCount" (dict "Count" $c) }}</span>
+                    <ul>
+                      {{- range $mi := seq 12 1 }}{{ $mk := printf "%s-%02d" $y $mi }}{{ with index $ym $mk }}
+                      <li class="sgx-arch-m"><span class="sgx-arch-k">{{ i18n "archiveMonth" (dict "Month" (printf "%02d" $mi)) }}</span><span class="sgx-arch-bar" aria-hidden="true">{{ strings.Repeat (int (math.Max 1 (math.Ceil (mul 16.0 (div (float .) $maxY))))) "█" }}</span><span class="sgx-arch-n">{{ i18n "postCount" (dict "Count" .) }}</span></li>
+                      {{- end }}{{ end }}
+                    </ul>
+                  </li>
+                  {{- end }}
+                </ul>
+              </section>
+              {{- end }}
         {{- if $tags }}
         <section class="sgx-sec" aria-labelledby="sgx-tags-title">
+          <p class="sgx-term-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> ls blog/ --tags</p>
           <div class="sgx-sec-head"><h2 class="sgx-sec-title" id="sgx-tags-title">{{ i18n "tags" }}</h2></div>
           <div class="chip-wall">
             {{- range $tags }}
@@ -136,6 +186,9 @@
           </div>
         </section>
         {{- end }}
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   </div>

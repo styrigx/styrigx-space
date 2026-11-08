@@ -14,7 +14,8 @@
   (dict "id" "music" "icon" "music-note" "tone" "primary" "title" (index $tr.entries "music").title "sub" (index $tr.entries "music").sub "href" (partial "sgx-lang-path.html" (dict "path" "/curio/music/" "lang" $lang)))
 }}
 {{ $entIcons := dict }}{{ range $entItems }}{{ $entIcons = merge $entIcons (dict .icon (partial "curio/icon.html" .icon | string)) }}{{ end }}
-{{ partial "sgx-entries.html" (dict "items" $entItems "icons" $entIcons "id" "cu-entries" "label" ($tr.index.sections)) }}
+{{/* 2026-11 UI 重设计 PR-3（设计稿 s-curio）：入口上面一条终端风标题带（提示符「ls curio/」+ 奇趣_ + 站点一句话），入口本身照旧 */}}
+{{ partial "sgx-entries.html" (dict "items" $entItems "icons" $entIcons "id" "cu-entries" "label" ($tr.index.sections) "band" (dict "cmd" "ls curio/" "title" $tr.site.name "sub" $tr.site.description)) }}
 </main>
 {{ end }}
 

@@ -6,7 +6,8 @@
      items  数据行列表：id、icon（icons 里的图标名）、tone（primary / secondary / tertiary / info，圆底配色走共享外壳角色）、
             title（名字）、sub（一行副标题）、href（可选；默认 base + id + "/"）——文字由调用方从字符串表取好（语言包化 2026-11-07：组件不认语言）
      base   默认地址前缀（如 "/"、"/zh/"、"/curio/"；调用方用 sgx-lang-path.html 算好传进来）
-     band   标题带（可选）：label（小字，如 SPACE / 空间）、title（大标题）、sub（一句话）
+     band   标题带（可选）：label（小字，如 SPACE / 空间）、title（大标题）、sub（一句话）、
+            cmd（可选；2026-11 UI 重设计 PR-3：子站首页的终端风标题带——上面一行装饰提示符「styrigx@space:~$ <cmd>」，标题后主题色「_」，样式同内容页 .sgx-hero--term）
      id     区块 id（标题带标题 id = <id>-title）
      label  入口列表的 aria-label（读屏 / 测试按它找）
      icons  图标 SVG（图标名 → SVG 串，调用方用本站 icon.html 渲染好）
@@ -16,7 +17,8 @@
 {{- $band := .band -}}
 <section class="sgx-ents" id="{{ $id }}"{{ if $band }} aria-labelledby="{{ $id }}-title"{{ end }} data-sgx-entries>
   {{- with $band }}
-  <header class="sgx-ent-band">
+  <header class="sgx-ent-band{{ with .cmd }} sgx-ent-band--term{{ end }}">
+    {{- with .cmd }}<p class="sgx-hero-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">styrigx@space:~$</span> {{ . }}</p>{{ end }}
     {{- with .label }}<p class="sgx-ent-label">{{ . }}</p>{{ end }}
     <h2 class="sgx-ent-title" id="{{ $id }}-title">{{ .title }}</h2>
     {{- with .sub }}<p class="sgx-ent-lede">{{ . }}</p>{{ end }}

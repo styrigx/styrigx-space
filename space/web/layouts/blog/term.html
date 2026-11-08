@@ -11,6 +11,8 @@
   <div class="tag-body">
     <header class="archive-hero archive-header-shared page-header-spacing">
       <div class="archive-header-main">
+        {{- /* 2026-11 UI 重设计 PR-3：标题带上面一行装饰提示符（同 sgx-page-hero 的 cmd），小字 kicker 照旧 */}}
+        <p class="sgx-hero-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">styrigx@space:~$</span> grep -l "#{{ .Title }}" blog/*</p>
         <p class="archive-kicker">{{ i18n "tagCloudKicker" }}</p>
         <h1 class="archive-title">#{{ .Title }}</h1>
       </div>

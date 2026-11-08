@@ -57,3 +57,10 @@ entHomeSub: 最新文章与系列
 entPostsSub: 全部文章，按时间排
 entTopicsSub: 系列、分类与标签
 entSections: 分区
+# 2026-11 UI 重设计 PR-3（终端风子页）
+lastUpdated: '最近更新 {{ .Date }}'
+readMin: '{{ .Minutes }} 分钟'
+onThisPage: ON THIS PAGE
+archiveByYear: 按年份
+archiveMonth: '{{ .Month }} 月'
+treeSummary: '{{ .Dirs }} 个目录，{{ .Files }} 篇'

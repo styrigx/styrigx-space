@@ -64,3 +64,10 @@ entHomeSub: Latest posts and series
 entPostsSub: Every post, newest first
 entTopicsSub: Series, categories and tags
 entSections: Sections
+# 2026-11 UI redesign PR-3 (terminal-style sub-pages)
+lastUpdated: 'Last updated {{ .Date }}'
+readMin: '{{ .Minutes }} min'
+onThisPage: ON THIS PAGE
+archiveByYear: By year
+archiveMonth: '{{ .Month }}'
+treeSummary: '{{ .Dirs }} directories, {{ .Files }} posts'

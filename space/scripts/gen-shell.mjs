@@ -231,7 +231,7 @@ function renderParamsOnly(file, name, mark) {
   if (!src.includes(mark)) throw new Error(name + ' 缺 ' + mark);
   return src;
 }
-export const renderPageHero = () => renderParamsOnly(SRC.pageHero, 'sgx-page-hero.html', 'class="sgx-hero"');
+export const renderPageHero = () => renderParamsOnly(SRC.pageHero, 'sgx-page-hero.html', 'class="sgx-hero');
 export const renderSegtabs = () => renderParamsOnly(SRC.segtabs, 'sgx-segtabs.html', 'class="sgx-segs"');
 /** tmux 页脚（2026-11 UI 重设计 PR-1）：四站同一个，同上只能用传进来的参数 */
 export const renderFooter = () => renderParamsOnly(SRC.footer, 'sgx-footer.html', 'class="sgx-foot"');

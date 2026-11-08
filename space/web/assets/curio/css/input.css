@@ -518,3 +518,50 @@ html.mu-playing .mu-wrap { padding-bottom: 236px; }
   :root[data-sgx-layout="desktop"] .cu-tile:hover,
   :root[data-sgx-layout="desktop"] .it-card:hover { background-color: var(--sgx-state-hover-bg); }
 }
+
+/* ===== 终端风子页（2026-11 UI 重设计 PR-3，设计稿 s-curio「奇趣」、s-citem「条目」，Gray 已批）：只换外观，不减功能 =====
+   首页分区入口、子页段式标签、分类 / 状态筛选条、收藏格子（长按编辑）、设备 / 游戏 / 电影卡片与详情、音乐播放器、新建 FAB、弹层表单、登录提示都照旧。
+   - 页面外框 = 顶栏内容宽 --sgx-col-w（1080 居中，对齐字标 / 图标组），两种布局一样；不再是外壳框通栏。
+   - 筛选条：等宽小方签（同段式标签），选中 = 主题色描边 + 主题色字 + --sgx-term-sel 衬底。
+   - 收藏格子 / 条目卡：细线框（--sgx-term-line）、圆角 12、半透明底，格子之间留缝（不再是平铺细线网格）；卡片副行等宽小字，使用天数主题色。
+   - 详情：大图细线框圆角 14；每项「名称 …… 值」一行，行间虚线（手机布局名称在上）。 */
+:root .cu-wrap { width: var(--sgx-col-w); }
+:root .cu-narrow > * { max-width: none; }
+.cu-chip { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--sgx-term-line); background: transparent; color: var(--sgx-text-secondary);
+  font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 400; }
+.cu-chip[aria-selected="true"], .cu-chip[aria-checked="true"] { border-color: var(--sgx-primary); background: var(--sgx-term-sel); color: var(--sgx-primary); font-weight: 500; }
+.cu-chip-sm { height: 30px; font-size: 12.5px; }
+.cu-bar { background: transparent; }
+.cu-sec-h, :root[data-sgx-layout="desktop"] .cu-sec-h { margin: 0 0 12px; font-family: var(--sgx-font-mono); font-size: 12px; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; color: var(--sgx-text-tertiary); }
+.cu-sec-h::before { content: "# " / ""; color: var(--sgx-primary); }
+.cu-sec-n { font-family: var(--sgx-font-mono); font-weight: 400; letter-spacing: 0; }
+:root .cu-grid, :root[data-sgx-layout="desktop"] .cu-grid,
+:root .it-grid, :root[data-sgx-layout="desktop"] .it-grid { gap: 14px; overflow: visible; border: 0; }
+:root[data-sgx-layout="desktop"] .cu-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); }
+:root[data-sgx-layout="desktop"] .it-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
+:root:not([data-sgx-layout="desktop"]) .cu-grid, :root:not([data-sgx-layout="desktop"]) .it-grid { gap: 10px; }
+:root .cu-tile, :root[data-sgx-layout="desktop"] .cu-tile,
+:root .it-card, :root[data-sgx-layout="desktop"] .it-card { border: 1px solid var(--sgx-term-line); border-radius: 12px; box-shadow: none;
+  background: color-mix(in srgb, var(--sgx-surface-container-lowest) 70%, transparent); }
+.dark .cu-tile, .dark .it-card { border-color: var(--sgx-term-line); box-shadow: none; }
+:root[data-sgx-layout="desktop"] .cu-tile { min-height: 116px; padding: 18px 12px 14px; }
+:root .it-card, :root[data-sgx-layout="desktop"] .it-card { gap: 0; padding: 0; overflow: hidden; }
+:root .it-card .it-media, :root[data-sgx-layout="desktop"] .it-card .it-media { border-radius: 0; border-bottom: 1px solid var(--sgx-term-line); }
+:root .it-card .it-body, :root[data-sgx-layout="desktop"] .it-card .it-body { padding: 12px 14px 14px; }
+.cu-name { font-weight: 500; }
+.it-name { font-size: 14.5px; font-weight: 500; }
+.it-sub { font-family: var(--sgx-font-mono); font-size: 12px; color: var(--sgx-text-tertiary); }
+.it-meta { font-family: var(--sgx-font-mono); font-size: 12px; font-weight: 400; }
+.it-badge, .it-status { border-radius: 6px; font-family: var(--sgx-font-mono); font-weight: 400; }
+@media (hover: hover) and (pointer: fine) {
+  :root .cu-tile:hover, :root[data-sgx-layout="desktop"] .cu-tile:hover,
+  :root .it-card:hover, :root[data-sgx-layout="desktop"] .it-card:hover { border-color: var(--sgx-primary); background-color: color-mix(in srgb, var(--sgx-surface-container-lowest) 70%, transparent); }
+}
+/* 详情（设计稿 s-citem 的规格表）：大图细线框，规格「名称 …… 值」，行间虚线 */
+.it-hero { border: 1px solid var(--sgx-term-line); border-radius: 14px; }
+.it-hero-sub { font-family: var(--sgx-font-mono); font-size: 12px; font-weight: 400; color: var(--sgx-text-tertiary); }
+.it-days { font-family: var(--sgx-font-mono); font-size: 18px; font-weight: 500; }
+.it-dl { display: grid; grid-template-columns: 7em minmax(0, 1fr); align-items: baseline; gap: 12px; padding: 8px 2px; border-top: 1px dashed var(--sgx-term-line); }
+.it-dt { margin: 0; font-family: var(--sgx-font-mono); font-size: 12px; font-weight: 400; color: var(--sgx-text-tertiary); }
+.it-dd { font-size: 14.5px; }
+.layout-phone .it-dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }

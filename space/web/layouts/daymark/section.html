@@ -13,7 +13,8 @@
   (dict "id" "flavors" "icon" "garden" "tone" "tertiary" "title" (index $tr.entries "flavors").title "sub" (index $tr.entries "flavors").sub "href" "#flavors")
 }}
 {{ $entIcons := dict }}{{ range $entItems }}{{ $entIcons = merge $entIcons (dict .icon (partial "daymark/icon.html" .icon | string)) }}{{ end }}
-{{ partial "sgx-entries.html" (dict "items" $entItems "icons" $entIcons "id" "dm-entries" "label" ($tr.index.sections)) }}
+{{/* 2026-11 UI 重设计 PR-3（设计稿 s-day）：入口上面一条终端风标题带（提示符「ls daymark/」+ 日刻_ + 站点一句话），和入口一起只在余响分区显示 */}}
+{{ partial "sgx-entries.html" (dict "items" $entItems "icons" $entIcons "id" "dm-entries" "label" ($tr.index.sections) "band" (dict "cmd" "ls daymark/" "title" $tr.site.name "sub" $tr.site.description)) }}
 {{/* 段式标签（P4-3 §6.6 / 设计 §5.2、§6.2）：原顶栏分段滑块搬进页内，作分区之间的二级切换（共享外壳 sgx-shell-segtabs.html）。
    首页分区（余响）是入口页（上面的平铺入口），不放；拾录 / 百味两个面板各放一条，紧跟标题带，当前分区实色（服务端写好 aria-current，不用脚本）。链接 = 分区 hash，同入口。 */}}
 {{ $segItems := slice }}{{ range $entItems }}{{ $segItems = $segItems | append (dict "id" .id "title" .title "href" .href) }}{{ end }}
@@ -21,6 +22,8 @@
 
   {{/* ===== 余响 Echo：整屏一句 ===== */}}
   <section id="dm-pane-echo" class="dm-pane dm-pane-echo" aria-label="{{ $tr.index.echo }}">
+    {{/* 2026-11 UI 重设计 PR-3（设计稿 s-day）：今日一句上面一行装饰提示符「cat daymark/today」（aria-hidden、不翻译） */}}
+    <p class="sgx-crumb dm-echo-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">styrigx@space:~$</span> cat daymark/today</p>
     <article id="dm-echo" class="dm-echo" aria-live="polite">
       <button id="dm-share" type="button" class="dm-share hidden" aria-label="{{ $tr.index.share }}">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M5 12.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5"/></svg>
@@ -41,7 +44,7 @@
   {{/* ===== 拾录 Trove：全部句子，新的在前 ===== */}}
   <section id="dm-pane-trove" class="dm-pane dm-pane-trove" aria-label="{{ $tr.index.trove }}" hidden>
     {{/* 分区标题带（P4-3 §6.6 / 设计 §6.3；共享外壳 sgx-shell-page-hero.html）：页内分区没有 front matter，标题 / 一句话取字符串表（同首页入口） */}}
-    {{ partial "sgx-page-hero.html" (dict "title" (index $tr.entries "trove").title "desc" (index $tr.entries "trove").sub "path" "daymark#trove" "tag" "h2") }}
+    {{ partial "sgx-page-hero.html" (dict "title" (index $tr.entries "trove").title "desc" (index $tr.entries "trove").sub "path" "daymark#trove" "tag" "h2" "cmd" "ls daymark/trove/") }}
     {{ partial "sgx-segtabs.html" (dict "items" $segItems "current" "trove" "label" ($tr.index.sections) "id" "dm-segs-trove") }}
     <div id="dm-list" class="flex flex-col gap-3"></div>
     <p id="dm-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
@@ -51,7 +54,7 @@
   {{/* ===== 百味 Flavors：自建专题在前，再是按作者的「人物」；点进去是该组句子（页内返回） ===== */}}
   <section id="dm-pane-flavors" class="dm-pane dm-pane-flavors" aria-label="{{ $tr.index.flavors }}" hidden>
     {{/* 分区标题带（P4-3 §6.6 / 设计 §6.3；共享外壳 sgx-shell-page-hero.html）：页内分区没有 front matter，标题 / 一句话取字符串表（同首页入口） */}}
-    {{ partial "sgx-page-hero.html" (dict "title" (index $tr.entries "flavors").title "desc" (index $tr.entries "flavors").sub "path" "daymark#flavors" "tag" "h2") }}
+    {{ partial "sgx-page-hero.html" (dict "title" (index $tr.entries "flavors").title "desc" (index $tr.entries "flavors").sub "path" "daymark#flavors" "tag" "h2" "cmd" "ls daymark/flavors/") }}
     {{ partial "sgx-segtabs.html" (dict "items" $segItems "current" "flavors" "label" ($tr.index.sections) "id" "dm-segs-flavors") }}
     <div id="dm-fl-home">
       <section id="dm-cols-sec" class="hidden mb-6" aria-labelledby="dm-cols-h">
