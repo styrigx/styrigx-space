@@ -1,5 +1,9 @@
 # 共享外壳字符串表：中文翻译（源文本见 en.yaml；缺的键自动用英文）。
 topbar:
+  mayErr: "回答可能出错"
+  model: "AI 模型"
+  aiSub: "问这个空间里的任何东西"
+  close: "关闭"
   sys: 跟随系统
   home: Styrigx 首页
   sites: 导航
@@ -41,6 +45,9 @@ topbar:
   schemeLight: 浅
   paletteKey: PALETTE
 ai:
+  sug3: "在用什么设备"
+  sug2: "今天的日刻"
+  sug1: "最近在听什么"
   greet: 你好，我是 Gray 的 AI 助手。想了解站里的内容，或者聊聊你手上的问题，都行。
   histEmpty: 还没有历史对话
   untitled: （无标题）
@@ -179,3 +186,42 @@ term:
   themeOpen: "已打开外观面板"
   locking: "正在锁屏 …"
   asking: "正在问 Gray AI …"
+acct:
+  last: "上次 {t}"
+  unprotected: "未设置"
+  protected: "已保护"
+  signOutFail: "退出失败，请检查网络后重试"
+  back: "Ctrl+C 或 esc 返回"
+  signOut: "退出登录"
+  signedIn: "已登录"
+  guest: "账号未登录"
+  guestLine: "账号未登录 · 选择验证方式"
+  signIn: "登录"
+  edit: "编辑"
+  profile: "个人资料"
+  profileHint: "头像 · 姓名 · 昵称 · 签名 · 邮箱"
+  devices: "设备"
+  security: "账号安全"
+  apps: "应用授权"
+  sync: "云同步"
+  ai: "AI 模型"
+  aiHint: "账号总览"
+  overview: "账号总览"
+sec:
+  locked: "locked"
+  left: "剩 {t}"
+  pkCount: "{n} 个"
+  lockSession: "锁屏会话"
+  passkeys: "通行密钥"
+  ticket: "通过后 3 分钟有效 · 离开即失效"
+  choose: "选择验证方式"
+  title: "SECURITY"
+  keys: "钥匙"
+  lockKeys: "锁屏钥匙"
+  tempKeys: "临时钥匙"
+  tempHint: "签发 · 管理"
+  overview: "站点安全"
+  overviewHint: "安全状态"
+  session: "会话"
+  lockNow: "立即锁屏"
+  lockAll: "锁定所有设备"

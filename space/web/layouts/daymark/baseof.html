@@ -108,6 +108,8 @@ __sgxLayoutWatch(__applyLayout);
   "mainOrigin" "https://styrigx.com"
   "acct" (partial "sgx-lang-path.html" (dict "path" $shellNav.me.href "lang" .Lang))
   "avatar" $shellNav.me.avatar
+  "name" site.Data.profile.name
+  "nick" site.Data.profile.nickname
   "email" $shellNav.me.email
   "langHref" $langHref
   "security" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/security/" "lang" .Lang))

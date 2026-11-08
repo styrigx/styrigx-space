@@ -99,7 +99,8 @@ function skeleton(html) {
     status: [...nav.matchAll(/data-st=([a-z-]+)/g)].map((x) => x[1]),
     modes: [...qp.matchAll(/data-qp-mode=([a-z]+)/g)].map((x) => x[1]),
     swatches: (qp.match(/class=sgx-th-pal /g) || []).length,
-    me: /class=sgx-tb-av/.test(hdr) && /class=sgx-ai-me/.test(ai),
+    /* 2026-11 PR-5：头像在顶栏最右（点开账号下拉 #sgx-acct）；AI 窗口头部不再有头像 */
+    me: /class=sgx-tb-av/.test(hdr) && !/class=sgx-ai-me/.test(ai) && /id=sgx-acct/.test(h),
     /* 2026-11 PR-2：字标是 SVG（四站都传 wordmark）；终端抽屉四站都有 */
     wordmark: /class=sgx-tb-name[^>]*><svg class=sgx-wordmark/.test(hdr),
     term: /<dialog id=sgx-term /.test(h) && /data-sgx-term=drawer/.test(h),
@@ -119,7 +120,7 @@ test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字�
       const sk = skeleton(readFileSync(path.join(REPO, PUB[site], f), 'utf8'));
       const at = `${site}/${f}`;
       assert.ok(sk.sorted, at + '：顶栏顺序');
-      assert.ok(sk.me, at + '：头像在顶栏最右（AI 窗口头部也有）');
+      assert.ok(sk.me, at + '：头像在顶栏最右、账号下拉在（AI 窗口头部没有头像）');
       assert.deepEqual(sk.nav, ['home', 'blog', 'curio', 'daymark', 'wild'], at);
       assert.deepEqual(sk.current, [CUR[site]], at + '：当前项高亮');
       assert.equal(sk.count, NO[CUR[site]] + '/05', at + '：计数');

@@ -238,7 +238,7 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-topbar a[href$="' + '/' + 'settings' + '/' + '"]')).toHaveCount(0);
   });
 
-  test('盾牌去当前语言的安全页、头像去当前语言的账号页、字标回首页', async ({ page }) => {
+  test('盾牌 / 头像仍是当前语言安全页 / 账号页的链接（PR-5 起普通点击开下拉，下拉里的入口照旧去那两页）、字标回首页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/theme/');
     await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('href', '/zh/security/');
@@ -247,6 +247,9 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-tb-av')).toHaveAccessibleName('账号');
     await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/zh/');
     await page.locator('.sgx-tb-shield').click();
+    await expect(page.locator('#sgx-sec')).toHaveAttribute('open', '');
+    await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('aria-expanded', 'true');
+    await page.locator('#sgx-sec a.sgx-pop-row[href="/zh/security/"]').click();
     await page.waitForURL(/\/zh\/security\/$/);
   });
 
@@ -312,49 +315,42 @@ test.describe('390×844 行为', () => {
     expect(names).toEqual({ bar: 'sgx-topbar', nav: 'none' });
   });
 
-  test('AI 窗口（AI 浮钮打开）头部：Gray AI · 新对话 · 历史 · 头像（主题色环），点头像进账号页', async ({ page }) => {
+  test('AI 窗口（AI 浮钮打开）头部（2026-11 PR-5 按设计稿 ai-v1）：G 徽标 · Gray AI / 副标题 · 模型胶囊 · 新对话 · 历史 · ×；底部「回答可能出错 · 仅公开内容」+ 邮箱', async ({ page }) => {
     /* 固定中文：不设 sgx-lang 时语言跟随浏览器（en-US）会停在英文 /（P4-3 PR-4c：中文在 /zh/） */
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/');
+    /* 拦外部请求之后再注册（后注册的路由先匹配） */
+    await page.route('**/api/ai', (r) => (r.request().method() === 'GET' ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, default: 'gemma-4', canChoose: false, models: [{ id: 'gemma-4', label: 'Gemma 4' }] }) }) : r.continue()));
     await page.locator('.sgx-tb-ai').click();
     const dlg = page.locator('#sgx-ai');
     await expect(dlg).toBeVisible();
     await animationsDone(page);
+    await expect(dlg.locator('[data-ai-model]')).toBeVisible();
     expect(await dlg.locator('.sgx-ai-head > *').evaluateAll((els) => els.map((e) => e.className + '|' + (e.getAttribute('aria-label') || e.textContent.trim())))).toEqual(
-      ['sgx-ai-title|Gray AI', 'sgx-ai-hbtn|新对话', 'sgx-ai-hbtn|历史', 'sgx-ai-me|账号']);
-    const [t, nc, hi, me] = await Promise.all(['.sgx-ai-title', '[data-ai-clear]', '[data-ai-history]', '.sgx-ai-me'].map((s) => box(page, '#sgx-ai ' + s)));
-    expect(t.x + t.width <= nc.x && nc.x + nc.width <= hi.x && hi.x + hi.width <= me.x, '从左到右：标题 → 新对话 → 历史 → 头像').toBe(true);
-    for (const b of [nc, hi, me]) expect(Math.abs(b.y + b.height / 2 - (t.y + t.height / 2)), '一行对齐').toBeLessThanOrEqual(2);
-    await expect(dlg.locator('.sgx-ai-actions, .sgx-ai-pill')).toHaveCount(0);
-    const av = await dlg.locator('img.sgx-ai-avatar').evaluate((el) => {
-      const c = getComputedStyle(el);
-      const probe = document.createElement('span');
-      probe.style.color = 'var(--sgx-primary-fill)';
-      document.body.appendChild(probe);
-      const accent = getComputedStyle(probe).color;
-      probe.remove();
-      return { br: c.borderTopLeftRadius, of: c.objectFit, sh: c.boxShadow, accent, w: el.getBoundingClientRect().width };
-    });
-    expect(parseFloat(av.br)).toBeGreaterThanOrEqual(16);
-    expect(av.of).toBe('cover');
-    expect(av.sh.startsWith(av.accent), `头像环 = 主题色（${av.sh}）`).toBe(true);
-    expect(av.sh).not.toContain('rgb(255, 255, 255)');
+      ['sgx-ai-badge|G', 'sgx-ai-tt|Gray AI问这个空间里的任何东西', 'sgx-ai-model|AI 模型', 'sgx-ai-hbtn|新对话', 'sgx-ai-hbtn|历史', 'sgx-ai-hbtn sgx-ai-x|关闭']);
+    await expect(dlg.locator('.sgx-ai-title')).toHaveText('Gray AI');
+    await expect(dlg.locator('[data-ai-model-name]')).toHaveText('Gemma 4');
+    await expect(dlg.locator('[data-ai-model]')).toHaveAttribute('aria-disabled', 'true');
+    const [t, mo, nc, hi, x] = await Promise.all(['.sgx-ai-tt', '[data-ai-model]', '[data-ai-clear]', '[data-ai-history]', '[data-ai-close]'].map((s) => box(page, '#sgx-ai ' + s)));
+    expect(t.x + t.width <= mo.x && mo.x + mo.width <= nc.x && nc.x + nc.width <= hi.x && hi.x + hi.width <= x.x, '从左到右：标题 → 模型 → 新对话 → 历史 → ×').toBe(true);
+    for (const b of [nc, hi, x]) expect(Math.abs(b.y + b.height / 2 - (t.y + t.height / 2)), '一行对齐').toBeLessThanOrEqual(3);
+    await expect(dlg.locator('.sgx-ai-me')).toHaveCount(0);
     expect(await dlg.locator('.sgx-ai-head').evaluate((el) => getComputedStyle(el).borderBottomWidth)).toBe('1px');
-    await expect(dlg.locator('.sgx-ai-foot')).toHaveText('仅公开内容·联系我');
+    await expect(dlg.locator('.sgx-ai-foot')).toHaveText('回答可能出错 · 仅公开内容styrigx@gmail.com');
     await expect(dlg.locator('[data-ai-contact]')).toHaveAttribute('href', 'mailto:styrigx@gmail.com');
-    await expect(dlg.locator('.sgx-ai-me')).toHaveAttribute('href', '/zh/account/');
-    await dlg.locator('.sgx-ai-me').click();
-    await page.waitForURL(/\/zh\/account\/$/);
-    await expect(page.locator('#acct-login')).toBeVisible();
+    /* 空态：开场白后面是建议问题 */
+    await expect(dlg.locator('.sgx-ai-sug')).toHaveCount(3);
   });
 
-  test('英文页：AI 窗口头像链到英文账号页，底部 Public content only · Contact me', async ({ page }) => {
+  test('英文页：AI 窗口底部 Answers may be wrong · Public content only + 邮箱（title Contact me）', async ({ page }) => {
     await go(page, '/');
-    await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', '/account/');
-    await expect(page.locator('#sgx-ai [data-ai-contact]')).toHaveText('Contact me');
+    await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveCount(0);
+    await expect(page.locator('#sgx-ai [data-ai-contact]')).toHaveText('styrigx@gmail.com');
+    await expect(page.locator('#sgx-ai [data-ai-contact]')).toHaveAttribute('title', 'Contact me');
     await expect(page.locator('#sgx-ai [data-ai-contact]')).toHaveAttribute('href', 'mailto:styrigx@gmail.com');
     await expect(page.locator('#sgx-ai [data-ai-clear]')).toHaveAttribute('aria-label', 'New chat');
   });
+
 
   test('>_ 打开 NAVIGATE：$ NAVIGATE 01/05 · 五项（编号 · 名字 · 路径提示，当前项「开」态）· lang / layout · share / lock · STATUS · systemctl status / esc 关闭', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
