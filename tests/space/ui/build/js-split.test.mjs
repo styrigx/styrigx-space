@@ -43,7 +43,7 @@ test('各页模板 sgx-entry 指向的入口都在列表里', () => {
       assert.ok(list.includes(m[1]), `${f}: ${m[1]} 不在批量构建列表里`);
     }
   }
-  assert.ok(n >= 12, '模板里应有各页入口');
+  assert.ok(n >= 11, '模板里应有各页入口（2026-11-08 云同步子页 account-sync 删除后 11 个）');
   assert.ok(rd('space/web/layouts/index.html').includes('"sgx-entry" "entry-space.js"'));
   assert.ok(!existsSync(join(root, 'space/web/layouts/_default/sub.html')), '对齐 PR-C：风格页 /theme/ 退役，sub.html 删除');
   assert.ok(!existsSync(join(root, ENTRY_DIR, 'entry-space-sub.js')), '对齐 PR-C：entry-space-sub.js 随风格页删除');

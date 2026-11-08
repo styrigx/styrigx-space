@@ -75,14 +75,18 @@ export function showDialog(dlg, modal) {
 /**
  * @param {HTMLDialogElement} dlg 弹出层 <dialog>（模态：铺满视口，::backdrop 是遮罩；非模态：调用方自己画遮罩）
  * @param {HTMLElement} btn 打开它的顶栏按钮（同步 aria-expanded）
- * @param {{ ms: number, stateKey: string, modal?: boolean, onOpen?: () => void, onClosed?: () => void }} opts
- *   ms：滑入 / 滑出时长（与 CSS transition 一致）；stateKey：历史哨兵 state 里的键名；
+ * @param {{ ms: number, reducedMs?: number, stateKey: string, modal?: boolean, onOpen?: () => void, onClosed?: () => void }} opts
+ *   ms：滑入 / 滑出时长（与 CSS transition 一致）；reducedMs：减弱动效下仍做的短淡入淡出时长（AI 窗口 120，2026-11-08；不传 = 减弱动效直接到位、直接关）；
+ *   stateKey：历史哨兵 state 里的键名；
  *   modal：默认 true = showModal()；false = show()（不进顶层、不 inert 页面，快捷面板用：顶栏留在它上面可点）；
  *   onOpen：打开之后调用（重绘内容）；onClosed：<dialog> 真正关上之后调用（非模态时还焦点用）
  * @returns {ModalSheet}
  */
 export function modalSheet(dlg, btn, opts) {
   const MS = opts.ms;
+  /* 减弱动效下要不要等一段短淡入淡出（reducedMs > 0）；不要就同以前一样直接到位 */
+  const rmWait = function () { return reducedMotion() && !(opts.reducedMs && opts.reducedMs > 0); };
+  const dur = function () { return reducedMotion() ? opts.reducedMs || 0 : MS; };
   /* 历史里是否有本层的哨兵；关闭时退掉它 */
   let pushed = false;
   /* 正在等哨兵出栈的 popstate：null = 不在等；否则出栈后执行它（noop = 只关闭） */
@@ -147,18 +151,18 @@ export function modalSheet(dlg, btn, opts) {
     const shown = function () {
       if (my !== gen) return;
       dlg.classList.add('is-open');
-      if (reducedMotion()) {
+      if (rmWait()) {
         setState('open');
         return;
       }
       timer = window.setTimeout(function () {
         timer = null;
         if (my === gen) setState('open');
-      }, MS);
+      }, dur());
     };
     setState('opening');
-    /* 下一帧再加 is-open，让滑入过渡生效；减弱动效直接到位 */
-    if (reducedMotion()) shown();
+    /* 下一帧再加 is-open，让滑入过渡生效；减弱动效直接到位（给了 reducedMs 的照样等两帧，好做短淡入） */
+    if (rmWait()) shown();
     else rafs.push(requestAnimationFrame(function () { rafs.push(requestAnimationFrame(shown)); }));
     if (pushed) return;
     try {
@@ -179,7 +183,7 @@ export function modalSheet(dlg, btn, opts) {
     /* 还没真正滑出来（opening 且 is-open 没加上）或减弱动效：没有可等的滑出，直接关 */
     const slid = dlg.classList.contains('is-open');
     dlg.classList.remove('is-open');
-    if (!dlg.open || !slid || reducedMotion()) {
+    if (!dlg.open || !slid || rmWait()) {
       settleClosed();
       return;
     }
@@ -187,7 +191,7 @@ export function modalSheet(dlg, btn, opts) {
     timer = window.setTimeout(function () {
       timer = null;
       if (my === gen) settleClosed();
-    }, MS);
+    }, dur());
   }
   /** @param {() => void} [after] */
   function close(after) {

@@ -213,7 +213,6 @@ term:
   locking: "正在锁屏 …"
   asking: "正在问 Gray AI …"
 acct:
-  last: "上次 {t}"
   unprotected: "未设置"
   protected: "已保护"
   signOutFail: "退出失败，请检查网络后重试"
@@ -229,9 +228,6 @@ acct:
   devices: "设备"
   security: "账号安全"
   apps: "应用授权"
-  sync: "云同步"
-  ai: "AI 模型"
-  aiHint: "账号总览"
   overview: "账号总览"
 sec:
   locked: "locked"
@@ -249,5 +245,4 @@ sec:
   overview: "站点安全"
   overviewHint: "安全状态"
   session: "会话"
-  lockNow: "立即锁屏"
   lockAll: "锁定所有设备"
