@@ -24,6 +24,15 @@ async function desktopSite(page) {
   });
 }
 
+/** Esc 关弹层。账号终端未登录打开时停在 sudo root 选方式（pick），Esc 先退出当前命令（^C）、再按才关（term.js），所以最多按 3 次 */
+async function escClose(page, dlg) {
+  for (let i = 0; i < 3 && await page.locator(dlg).isVisible(); i++) {
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(50);
+  }
+  await expect(page.locator(dlg)).toBeHidden();
+}
+
 const vv = (page) => page.evaluate(() => ({ scale: Math.round(visualViewport.scale * 100) / 100, left: Math.round(visualViewport.offsetLeft), top: Math.round(visualViewport.offsetTop), x: scrollX, y: scrollY }));
 
 test('桌面版网站 + 放大到 1 倍：打开九宫格 / 快捷设置 / AI，可视视口不平移、不缩放，焦点在弹层里', async ({ page, context }) => {
@@ -46,8 +55,7 @@ test('桌面版网站 + 放大到 1 倍：打开九宫格 / 快捷设置 / AI，
     await page.waitForTimeout(350);
     expect(await vv(page), `${dlg} 打开后可视视口`).toEqual(before);
     expect(await page.evaluate((d) => !!document.activeElement && document.querySelector(d).contains(document.activeElement), dlg), `${dlg} 焦点在弹层里`).toBe(true);
-    await page.keyboard.press('Escape');
-    await expect(page.locator(dlg)).toBeHidden();
+    await escClose(page, dlg);
     expect(await vv(page), `${dlg} 关上后可视视口`).toEqual(before);
   }
 });
@@ -91,8 +99,7 @@ test('桌面版网站（手机屏 + 桌面布局）：面板打开过程中没�
     }, [btn, dlg]);
     for (const s of samples) expect(s, `${dlg} 打开中`).toEqual({ bf: 'none', wbf: 'none', tf: 'none' });
     await expect.poll(() => page.$eval(dlg + ' .sgx-qp-sheet', (el) => getComputedStyle(el).opacity)).toBe('1');
-    await page.keyboard.press('Escape');
-    await expect(page.locator(dlg)).toBeHidden();
+    await escClose(page, dlg);
   }
 });
 

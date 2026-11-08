@@ -81,9 +81,9 @@ test('build(pub)：副标题 = 完整面包屑（旷野页自己没有；子页�
   assert.equal(get('/security/lock/').text, 'Password, passkeys, sessions');
   assert.equal(get('/zh/security/tempkeys/').text, undefined, '没有文字就不带 text');
   assert.equal(get('/zh/security/tempkeys/').private, true);
-  assert.equal(get('/zh/account/security/').subtitle, '账号', '账号页独立，不挂在旷野下');
-  assert.equal(get('/zh/account/').subtitle, '');
-  assert.equal(get('/zh/account/security/').private, true);
+  /* 2026-11-08 账号整页删了（账号都在顶栏头像的账号终端里）：account/** 不再收录 */
+  assert.equal(get('/zh/account/security/'), undefined, '账号页不进索引');
+  assert.equal(get('/zh/account/'), undefined);
   assert.equal(lock.private, undefined);
   assert.ok(!ix.items.some((x) => /\/en\//.test(x.url)), '索引里没有 /en/ 地址（P4-3 PR-4c）');
   assert.ok(!ix.items.some((x) => /\/settings\//.test(x.url)), '索引里没有 settings 一层的地址');
@@ -117,7 +117,7 @@ test('真实构建：锁屏凭证的副标题是完整面包屑，text 带上级
   assert.equal(get('/zh/').subtitle, '', '主页自己没有面包屑');
   assert.equal(get('/').title, 'Home');
   assert.equal(get('/zh/').title, '主页');
-  assert.equal(get('/zh/account/security/').subtitle, '账号');
+  assert.ok(!ix.items.some((x) => /\/account\//.test(x.url)), '2026-11-08 账号整页删了，索引里没有 /account/');
   for (const x of ix.items) if (x.text) assert.ok(x.text.length <= S.TEXT_MAX || x.id.startsWith('feature:'), x.id + ' text 超长');
   /* 对齐 PR-C：风格页 /theme/ 退役，调色板开关只在外观弹层（features.yaml section 空），不进索引 */
   assert.ok(!ix.items.some((x) => x.id.startsWith('feature:palette:')), '调色板开关不进索引');

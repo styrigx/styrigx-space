@@ -127,8 +127,8 @@ test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-of
 
 test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案为显示密码/隐藏密码', () => {
   for (const f of [
-    'space/web/assets/js/apps/account.js',
-    'space/web/assets/js/apps/account-security.js',
+    'space/web/assets/js/shell/account/term.js',
+    'space/web/assets/js/shell/account/keys.js',
     'space/web/assets/js/apps/security-lock.js',
     'space/web/assets/js/apps/security.js',
     'space/web/assets/js/shell/lock.js',

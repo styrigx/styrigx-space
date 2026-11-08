@@ -1,7 +1,7 @@
 /**
  * 应用授权（P3-1）的 grant-list 假数据：5 个应用按作用域表顺序（workers/account/src/core/scopes.js），
  * 形状同 workers/account/src/api/account.js grantListView。授权时间固定在 2026-11-05 中午（UTC），换时区也是同一天。
- * account-apps.spec.js 与 visual.spec.js 共用。
+ * account/grants.spec.js 与 visual.spec.js 共用。
  */
 const AT = Date.UTC(2026, 10, 5, 4, 0, 0);
 const DEV = { name: 'Galaxy S25 Ultra', gone: false };

@@ -10,6 +10,7 @@
 import { mountTopbar } from '../../../js/shell/topbar-panel.js';
 import { modalSheet } from '../../../js/shell/modal-sheet.js';
 import { mountAiChat } from '../../../js/shell/ai-panel.js';
+import { mountAccountTerm, layerFromPath } from '../../../js/shell/account/term.js';
 import { onKeyboardHeight } from '../../../js/shell/vk.js';
 import * as prefs from '../../../js/lib/prefs-write.js';
 import { mountShare } from '../../../js/shell/share-button.js';
@@ -36,6 +37,8 @@ function boot() {
       setLayout: prefs.setLayout,
     },
     ai: mountAiChat,
+    account: mountAccountTerm,
+    accountLayer: layerFromPath,
     share: mountShare,
     /* 全站终端（Ctrl / ⌘ K、NAVIGATE「$ terminal」；2026-11 PR-2） */
     terminal,

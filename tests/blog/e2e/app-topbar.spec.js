@@ -76,7 +76,9 @@ test.describe('顶栏', () => {
       const acct = path.startsWith('/blog/zh/') ? 'https://styrigx.com/zh/account/' : 'https://styrigx.com/account/';
       await expect(page.locator('#site-nav .sgx-tb-me')).toHaveCount(0);
       await expect(page.locator('.sgx-topbar .sgx-tb-av')).toHaveAttribute('href', acct);
-      await expect(page.locator('#sgx-acct .sgx-pop-me-a')).toHaveAttribute('href', acct);
+      /* 2026-11-08 账号 UI 改版：账号下拉 = 账号终端，没有去账号页的链接了 */
+      await expect(page.locator('#sgx-acct')).toHaveCount(1);
+      await expect(page.locator('#sgx-acct a[href*="/account/"]')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-nav, #sgx-drawer, .sgx-tb-end, .sgx-tb-share, .sgx-topbar [data-sgx-share]')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-end-group, .sgx-tb-guestbook, a[href*="guestbook"]')).toHaveCount(0);
       await expect(page.locator('.oui-footer')).toHaveCount(0);
@@ -317,14 +319,14 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await openNav(page);
   });
 
-  test('英文：Home / Blog / Curio / Daymark / Wild；AI 窗口头像去主站英文账号页', async ({ page }) => {
+  test('英文：Home / Blog / Curio / Daymark / Wild；顶栏头像去主站英文账号旧地址', async ({ page }) => {
     await preferLang(page, 'en');
     await page.goto('/blog/', { waitUntil: 'domcontentloaded' });
     await openNav(page);
     await expect(nav(page).locator('.sgx-nav-name')).toHaveText(['Home', 'Blog', 'Curio', 'Daymark', 'Wild']);
     await expect(nav(page).locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
     await expect(nav(page).locator('[data-nav="blog"]')).toHaveAttribute('href', '/blog/');
-    await expect(page.locator('#sgx-acct .sgx-pop-me-a')).toHaveAttribute('href', 'https://styrigx.com/account/');
+    await expect(page.locator('.sgx-topbar .sgx-tb-av')).toHaveAttribute('href', 'https://styrigx.com/account/');
   });
 });
 

@@ -57,7 +57,7 @@ test('help：桌面三栏、带说明；cd 一行在最上面', async ({ page })
   const h = home(page).locator('.sgx-term-help').last();
   await expect(home(page).locator('.sgx-term-help')).toHaveCount(2);
   await expect(h.locator('.sgx-term-hh')).toHaveText('cd blog · curio · daymark · wild · ~');
-  await expect(h.locator(':scope > div:not(.sgx-term-hh) > .sgx-term-k')).toHaveText(['ls', 'cat', 'sudo account', 'sudo security', 'theme', 'lock', 'ask', 'clear']);
+  await expect(h.locator(':scope > div:not(.sgx-term-hh) > .sgx-term-k')).toHaveText(['ls', 'cat', 'sudo root', 'sudo security', 'theme', 'lock', 'ask', 'clear']);
   await expect(h.locator('.sgx-term-dsc').first()).toBeVisible();
   await expect(h.locator('.sgx-term-dsc').first()).toHaveText(' 列出目录');
   const cols = await h.evaluate((e) => getComputedStyle(e).gridTemplateColumns.split(' ').length);
@@ -131,15 +131,15 @@ test('历史：↑ / ↓ 翻命令，到底回到正在打的字；clear 清屏'
   await expect(home(page).locator('[data-term-out] > *')).toHaveCount(0);
 });
 
-test('tab 补全：sudo acc → sudo account（打字时淡色影子 ount）；多个候选列出来；空行 Tab 照常移焦点', async ({ page }) => {
+test('tab 补全：sudo ro → sudo root（打字时淡色影子 ot；2026-11-08 sudo account → sudo root）；多个候选列出来；空行 Tab 照常移焦点', async ({ page }) => {
   await go(page, '/zh/');
   const i = input(page);
   await i.click();
-  await i.pressSequentially('sudo acc');
-  await expect(home(page).locator('[data-term-ghost]')).toHaveText('ount');
+  await i.pressSequentially('sudo ro');
+  await expect(home(page).locator('[data-term-ghost]')).toHaveText('ot');
   await expect(home(page).locator('[data-term-ghost]')).toBeVisible();
   await i.press('Tab');
-  await expect(i).toHaveValue('sudo account');
+  await expect(i).toHaveValue('sudo root');
   await expect(i).toBeFocused();
   await i.fill('c');
   await i.press('Tab');

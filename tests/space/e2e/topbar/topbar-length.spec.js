@@ -12,7 +12,7 @@ const { blockExternalRequests, freezeTime, animationsDone, expect } = require('.
 
 const PHONE_UA = 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
 /* 语言偏好固定 zh，直接走中文 /zh/…（P4-3 PR-4c：英文在根路径、无前缀），英文页名见 topbar-spec */
-const PAGES = [['/zh/', '主页'], ['/zh/wild/', '旷野'], ['/zh/security/', '安全'], ['/zh/account/', null]]; /* 对齐 PR-B：根页叫「主页」，旷野独立成 /zh/wild/ */
+const PAGES = [['/zh/', '主页'], ['/zh/wild/', '旷野'], ['/zh/security/', '安全'], ['/zh/security/tempkeys/', null]]; /* 对齐 PR-B：根页叫「主页」，旷野独立成 /zh/wild/；2026-11-08 /zh/account/ 删除（账号在头像下拉），换临时钥匙页 */
 
 /**
  * 新开一个上下文：mobile = 手机 UA + userAgentData.mobile = true；pref = localStorage sgx-layout
@@ -104,7 +104,7 @@ test('手机上手动选「桌面」：跨页保持（同源 localStorage），�
   await page.evaluate(() => { localStorage.setItem('sgx-layout', 'desktop'); /** @type {any} */ (window).__applyLayout(); });
   await animationsDone(page);
   expect((await measure(page)).layout).toBe('desktop');
-  for (const p of ['/zh/', '/zh/security/', '/zh/account/']) {
+  for (const p of ['/zh/', '/zh/security/', '/zh/security/tempkeys/']) {
     await open(page, p);
     const m = await measure(page);
     expect(m.layout, p).toBe('desktop');

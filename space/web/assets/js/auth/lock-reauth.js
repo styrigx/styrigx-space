@@ -2,7 +2,7 @@
  * @fileoverview 主站的锁侧复验弹层（P2-3，方案 3.3 / 3.7）：临时钥匙、分享短链的新建 / 作废前要锁侧复验（sgx-lock-reauth，3 分钟）。
  *
  * withLockReauth(run)：先照常请求；服务端回 401 reauth（没有有效复验票；临时钥匙 / 短链进门的会话本身不算复验）时，
- * 弹验证底部弹层（auth/auth-sheet.js createVerifyDialog），里面是和锁屏凭证页门口同一套验证行（auth/account-methods.js）：
+ * 弹验证底部弹层（auth/auth-sheet.js createVerifyDialog），里面是和锁屏凭证页门口同一套验证行（auth/verify-rows.js）：
  * 设了哪个锁屏凭证显示哪个（锁屏通行密钥 / 解锁密码），进站凭证一直在作兜底。通过后自动重试一次刚才的请求。
  * 取消 → 返回原来的 401 reauth 结果（调用方照常提示），页面状态不动。
  *
@@ -12,7 +12,7 @@
 import { lockState } from '../lib/lock-state.js';
 import { KEY_LOCK } from '../lib/key-names.js';
 import { createVerifyDialog } from './auth-sheet.js';
-import { renderAccountMethods } from './account-methods.js';
+import { renderVerifyRows } from './verify-rows.js';
 import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from './passkey-assert.js';
 import { lockReauthFetch } from './auth-flow.js';
 import { i18nTable } from '../lib/i18n.js';
@@ -82,7 +82,7 @@ export function openLockReauth(opts) {
       if (st.password) kinds.push('password');
       kinds.push('space');
       const el = /** @type {HTMLElement} */ (document.getElementById('sgx-lr-methods'));
-      renderAccountMethods({
+      renderVerifyRows({
         el: el,
         t: t,
         en: en,

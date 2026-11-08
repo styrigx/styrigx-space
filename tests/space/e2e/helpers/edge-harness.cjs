@@ -67,11 +67,28 @@ const MIME = {
   woff2: 'font/woff2', woff: 'font/woff', txt: 'text/plain',
 };
 
-/** 主站 Pages：space/web/public 静态文件（目录补尾斜杠 308、找不到 404.html），HTML 带 _headers 的 public, max-age=300 */
+/** _redirects 里站内的整路径 301（没有 * / :splat 的行，去处以 / 开头；同 Cloudflare Pages：不带原查询串）。2026-11-08 旧账号页 /account/* → 首页 #acct=<层> 靠它 */
+let redirects = null;
+function pageRedirect(p) {
+  if (!redirects) {
+    redirects = new Map();
+    try {
+      for (const line of fs.readFileSync(path.join(REPO, 'space/web/static/_redirects'), 'utf8').split('\n')) {
+        const m = /^(\/\S*)\s+(\/\S*)\s+(30[1278])\s*$/.exec(line.trim());
+        if (m && !/[*:]/.test(m[1])) redirects.set(m[1], [m[2], Number(m[3])]);
+      }
+    } catch (e) {}
+  }
+  return redirects.get(p) || null;
+}
+
+/** 主站 Pages：space/web/public 静态文件（目录补尾斜杠 308、找不到 404.html），HTML 带 _headers 的 public, max-age=300；_redirects 的整路径 301 */
 function mainPages(req) {
   const u = new URL(req.url);
   const pub = path.join(REPO, 'space/web/public');
   let p = decodeURIComponent(u.pathname);
+  const rd = pageRedirect(p);
+  if (rd) return new Response(null, { status: rd[1], headers: { Location: rd[0] } });
   let file = path.join(pub, p);
   if (!file.startsWith(pub)) return new Response('bad', { status: 400 });
   try {

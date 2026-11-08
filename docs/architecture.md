@@ -61,7 +61,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 
 ### L3½ 鉴权与凭证流程：`assets/js/auth/`
 - 锁屏 / 账号的凭证界面和请求：`auth-flow`（密码框、再验证请求）、`auth-sheet`（登录方式弹层 / 验证弹层）、
-  `cred-rows`（凭证验证行）、`reset-flow`（重置登录）、`account-methods`、`account-api`（`/api/account` 客户端）、
+  `cred-rows`（凭证验证行）、`reset-flow`（重置登录）、`verify-rows`（凭证验证行的封装）、`post-json`（POST JSON + 错误码文案）、
   `passkey-assert`（WebAuthn 断言：全站五处断言都经 `getPasskeyAssertion` + `assertionOptions` / `assertionToJSON`）、
   `passkey-register`（通行密钥注册 + 命名弹层，锁屏凭证页与账号安全页共用）、`lock-now`（立即锁定）。
 - 只能 import `lib/` 和 `auth/`；`shell/`（lock.js、upgrade.js、quick-panel.js）和 `apps/` 用它。

@@ -5,7 +5,7 @@
  * - 电脑：浮钮上方 390 × 560 浮窗（不压暗），浮钮变关闭态（再点 = 关）。
  * - 减弱动效：不缩放，只短淡入淡出。
  * - Esc / × / 点外部关闭，焦点回浮钮；Tab 圈不落到藏起来的浮钮上。
- * 窗口内容、功能见 quick-panel.spec.js「AI 窗口」组与 acct-sec-pop.spec.js。
+ * 窗口内容、功能见 quick-panel.spec.js「AI 窗口」组与 ai-window.spec.js。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');

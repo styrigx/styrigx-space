@@ -202,13 +202,14 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /href="?https:\/\/x\.com\/intent\/post\?text=/);
   });
 
-  it('NAVIGATE（顶栏 v3）：主页 / 博客 / 奇趣 / 日刻 / 旷野（主站项绝对地址、三站之间相对 /<站>/），博客「开」态；头像在顶栏最右和 AI 窗口头部，都去主站账号页；没有搜索框', async () => {
+  it('NAVIGATE（顶栏 v3）：主页 / 博客 / 奇趣 / 日刻 / 旷野（主站项绝对地址、三站之间相对 /<站>/），博客「开」态；头像在顶栏最右（没 JS 时去主站旧账号地址，301 → 首页 #acct；点开是账号终端）；没有搜索框', async () => {
     const html = await (await fetch(base + '/blog/')).text();
     const hrefs = [...html.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
     /* 对齐 PR-B：05 旷野指向独立页 /wild/ */
     assert.deepEqual(hrefs, ['https://styrigx.com/', '/blog/', '/curio/', '/daymark/', 'https://styrigx.com/wild/']);
     assert.match(html, /class="sgx-nav-tile" href="\/blog\/" data-nav="blog" aria-current="page"/);
-    assert.match(html, /<a class="sgx-pop-me-a" href="https:\/\/styrigx\.com\/account\/"><img src="https:\/\/styrigx\.com\/avatar\/192\.webp"/);
+    /* 2026-11-08 账号 UI 改版：账号下拉 = 账号终端（内容由 shell/account/term.js 画），模板里只有骨架 */
+    assert.match(html, /<dialog id="sgx-acct" class="sgx-qp sgx-pop sgx-acct"/);
     assert.match(html, /<a class="sgx-tb-av" href="https:\/\/styrigx\.com\/account\/"/, '顶栏头像去主站账号页');
     assert.doesNotMatch(html, /sgx-drawer|sgx-tb-nav\b/, '抽屉和九宫格删了');
     assert.doesNotMatch(html, /book\.styrigx\.com/, '书库已下线');
@@ -216,7 +217,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     const zh = await (await fetch(base + '/blog/zh/')).text();
     const zhHrefs = [...zh.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
     assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/blog/zh/', '/curio/zh/', '/daymark/zh/', 'https://styrigx.com/zh/wild/']);
-    assert.match(zh, /<a class="sgx-pop-me-a" href="https:\/\/styrigx\.com\/zh\/account\/"/);
+    assert.match(zh, /<a class="sgx-tb-av" href="https:\/\/styrigx\.com\/zh\/account\/"/);
   });
 
   it('文章页：长条只有页名（文章标题）+ 阅读进度（顶栏 v3 起不显示，读屏照读），没有页签；分享本页在 NAVIGATE；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {

@@ -190,7 +190,7 @@ export function mountTopbar(o) {
    * @param {HTMLElement} btn @param {HTMLDialogElement} dlg @param {string} key @param {() => void} onOpen
    * @param {number} [reducedMs] 减弱动效下的短淡入淡出时长（AI 窗口传 AI_RM_MS；不传 = 直接到位）
    */
-  function wire(btn, dlg, key, onOpen, reducedMs) {
+  function wire(btn, dlg, key, onOpen, reducedMs, onClosedCb) {
     if (typeof dlg.show !== 'function') return null;
     const sheet = /** @type {HTMLElement|null} */ (dlg.querySelector('.sgx-qp-sheet'));
     const ms = o.modalSheet(dlg, btn, {
@@ -200,6 +200,7 @@ export function mountTopbar(o) {
       modal: false,
       onOpen: onOpen,
       onClosed: function () {
+        if (onClosedCb) onClosedCb();
         const a = doc.activeElement;
         if (!a || a === doc.body || dlg.contains(a)) {
           try { btn.focus({ preventScroll: true }); } catch (e) {}
@@ -526,63 +527,56 @@ export function mountTopbar(o) {
       a.click();
     });
   };
-  /* ---------------- 账号下拉（2026-11 PR-5 acct-v2，按设计稿） ---------------- */
+  /* ---------------- 账号下拉 = 账号终端（2026-11-08 账号 UI 改版：没有 /account/ 整页了，登录 / 重置 / 资料 / 设备 / 账号安全 / 应用授权都在这里一层层进；shell/account/term.js） ---------------- */
   const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
   const acctDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-acct'));
-  if (acctBtn && acctDlg) {
-    const A = trSec('acct');
-    const nameEl = acctDlg.querySelector('[data-acct-name]');
-    const nickEl = acctDlg.querySelector('[data-acct-nick]');
-    const val = function (/** @type {string} */ k, /** @type {string} */ v) {
-      const el = acctDlg.querySelector('[data-acct-v="' + k + '"]');
-      if (el && v) el.textContent = v;
-    };
-    /** 名字 / 昵称：本机缓存 sgx-profile（主站 lib/profile.js 写的 {v:1, p:{name, nickname…}}）里改过的值盖住模板默认值；这里不发 /api/profile */
-    const paintWho = function () {
-      try {
-        const j = JSON.parse(lsGet('sgx-profile') || 'null');
-        const p = j && j.v === 1 && j.p && typeof j.p === 'object' ? j.p : null;
-        if (p && typeof p.name === 'string' && p.name && nameEl) nameEl.textContent = p.name;
-        if (p && typeof p.nickname === 'string' && p.nickname && nickEl) nickEl.textContent = p.nickname;
-      } catch (e) {}
-    };
-    /** 登录态：'' 未知（问不到 / 锁着 / 非 JSON）· in · guest @param {string} st */
-    const setState = function (st) {
-      acctDlg.setAttribute('data-acct-state', st);
-      acctDlg.querySelectorAll('[data-acct-in]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = st !== 'in'; });
-      acctDlg.querySelectorAll('[data-acct-login]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = st !== 'guest'; });
-      acctDlg.querySelectorAll('[data-acct-only]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = st === 'guest'; });
-    };
-    /** 每次打开问一次 GET /api/account（同账号子页进页那一问，只读）：ok 且有 session = 已登录；ok 且 session=null = 未登录；其余不改 */
-    const askState = function () {
-      getJSON('/api/account').then(function (/** @type {any} */ j) {
-        if (!j || !j.ok) return;
-        setState(j.session ? 'in' : 'guest');
-        if (!j.session) return;
-        if (j.session.device) val('device', String(j.session.device));
-        if (A.protected) val('security', j.password || j.passkey ? A.protected : A.unprotected || '');
-      });
-    };
-    const acct = wire(acctBtn, acctDlg, 'sgxAcct', function () { paintWho(); askState(); });
+  /** 层名（旧地址 #acct=<子页>、[data-acct-open]、sudo root reauth）→ 面板的层：o.accountLayer = shell/account/commands.js layerFromPath
+   * @param {string} n @returns {{layer: string, reset: boolean, reauth: boolean}} */
+  const acctLayer = function (n) { return o.accountLayer ? o.accountLayer(n) : { layer: '', reset: n === 'reset', reauth: false }; };
+  /** @type {{onOpen: (x?: any) => void, onClose: () => void}|null} */
+  let acctTerm = null;
+  /** 下一次打开要直接进的层（旧地址 #acct=… / 奇趣日刻的 sudo root 入口） @type {any} */
+  let acctNext = null;
+  /** @type {any} */
+  let acct = null;
+  /** @type {(x?: any) => void} */
+  let openAcct = function () {};
+  if (acctBtn && acctDlg && o.account) {
+    acct = wire(acctBtn, acctDlg, 'sgxAcct', function () {
+      if (!acctTerm) acctTerm = o.account({ dlg: acctDlg, ms: acct.ms, S: trSec('account'), replace: replace, reload: o.reload });
+      const x = acctNext;
+      acctNext = null;
+      acctTerm.onOpen(x || undefined);
+    }, undefined, function () { if (acctTerm) acctTerm.onClose(); });
     if (acct) {
-      popLinks(acctDlg, acct.ms);
-      numKeys(acctDlg, acct.ms, function () { return acctDlg.getAttribute('data-acct-state') === 'guest'; });
-      /* 退出登录：同设备页「退出账号」——POST /api/account {action:logout}，清云同步拉取时刻 sgx-sync-pull，回账号页 */
-      const out = /** @type {HTMLElement|null} */ (acctDlg.querySelector('[data-acct-logout]'));
-      const outLabel = /** @type {HTMLElement|null} */ (acctDlg.querySelector('[data-acct-logout-label]'));
-      const home = /** @type {HTMLAnchorElement|null} */ (acctDlg.querySelector('a.sgx-pop-me-a'));
-      if (out) {
-        out.addEventListener('click', function () {
-          const f = getFetch();
-          if (!f) return;
-          f('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }), credentials: 'same-origin' }).then(function (r) {
-            if (!r || !r.ok) throw new Error('http');
-            try { localStorage.removeItem('sgx-sync-pull'); } catch (e) {}
-            const href = home ? home.href : '/account/';
-            acct.ms.close(function () { replace(href); });
-          }).catch(function () { if (outLabel && A.signOutFail) outLabel.textContent = A.signOutFail; });
-        });
-      }
+      /** 打开账号终端（指定层 / 应用）。已开着就按新参数重来一次 @param {any} x */
+      openAcct = function (x) {
+        acctNext = x || null;
+        if (acct.ms.isOpen()) { if (acctTerm) { acctTerm.onOpen(acctNext || undefined); acctNext = null; } return; }
+        acct.ms.open();
+      };
+      /* 页面上的入口：[data-acct-open="<层>"]（可带 data-acct-app="curio|daymark"，奇趣 / 日刻的 sudo root：登录 → 判授权 → [y]/[n]，O1 / O6） */
+      doc.addEventListener('click', function (e) {
+        const tg = /** @type {Element|null} */ (e.target);
+        const a = tg && /** @type {HTMLElement|null} */ (tg.closest('[data-acct-open]'));
+        if (!a || acctDlg.contains(a)) return;
+        const me2 = /** @type {MouseEvent} */ (e);
+        if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const lay = acctLayer(a.getAttribute('data-acct-open') || '');
+        openAcct({ layer: lay.layer, reset: lay.reset, reauth: lay.reauth, app: a.getAttribute('data-acct-app') || '' });
+      });
+      /* 旧地址（/account/、/account/devices/ …）跳到这里带 #acct=<层>[&app=…]：打开对应的那一层，去掉 hash（O1） */
+      const fromHash = function () {
+        const m = /^#acct(?:=([a-z]*))?(?:&app=([a-z]+))?$/.exec(location.hash || '');
+        if (!m) return;
+        try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+        const lay = acctLayer(m[1] || '');
+        window.setTimeout(function () { openAcct({ layer: lay.layer, reset: lay.reset, reauth: lay.reauth, app: m[2] || '' }); }, 0);
+      };
+      fromHash();
+      window.addEventListener('hashchange', fromHash);
     }
   }
 
@@ -699,9 +693,13 @@ export function mountTopbar(o) {
           const href = hrefOf(dir === '~' ? 'home' : dir, '/');
           return { kind: 'nav', href: href, go: function () { closeAll(function () { navigate(href); }); } };
         },
-        sudo: function (/** @type {string} */ which) {
-          const a = /** @type {HTMLAnchorElement|null} */ (doc.querySelector(which === 'account' ? '#site-nav .sgx-tb-av' : '#site-nav .sgx-tb-shield'));
-          const href = a ? a.href : which === 'account' ? '/account/' : '/security/';
+        sudo: function (/** @type {string} */ which, /** @type {string} */ sub) {
+          /* sudo root [reauth|reset]：打开账号终端（2026-11-08 没有 /account/ 整页了）；sudo security 照旧去安全页 */
+          if (which === 'root') {
+            return { href: '~/account', go: function () { closeAll(function () { openAcct(sub === 'reset' ? { reset: true } : sub === 'reauth' ? { layer: acctLayer('security').layer } : {}); }); } };
+          }
+          const a = /** @type {HTMLAnchorElement|null} */ (doc.querySelector('#site-nav .sgx-tb-shield'));
+          const href = a ? a.href : '/security/';
           return { href: href, go: function () { closeAll(function () { navigate(href); }); } };
         },
         theme: function (/** @type {string} */ mode) {
@@ -785,7 +783,7 @@ export function mountTopbar(o) {
   mountClock(doc);
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
-  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, term: termSheet, termShell: term, paint: paint, paintNav: paintNav };
+  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, openAccount: function (/** @type {any} */ x) { openAcct(x); }, term: termSheet, termShell: term, paint: paint, paintNav: paintNav };
 }
 
 /**

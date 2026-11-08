@@ -6,7 +6,7 @@
  * 主站在 space/web/public 里是生产构建（锁屏启用、没有网关）：这里只看顶栏 / 快捷面板的 DOM 和首帧外观，不过锁屏。 */
 const { test, expect } = require('@playwright/test');
 
-const MAIN = ['/', '/wild/', '/account/', '/zh/', '/zh/account/'];
+const MAIN = ['/', '/wild/', '/security/', '/zh/', '/zh/security/']; /* 2026-11-08 /account/ 删除（账号在头像下拉），换安全页 */
 const SUB = ['/curio/', '/daymark/', '/blog/', '/blog/post/2026-10-07-muse-playbook/'];
 
 test.beforeEach(async ({ page }) => {

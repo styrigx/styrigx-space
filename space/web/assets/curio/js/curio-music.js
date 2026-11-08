@@ -1,6 +1,6 @@
 /* assets/js/curio-music.js —— 奇趣「音乐」私人子页（P4-3 奇趣拆页：/curio/music/；浏览器 IIFE；node 测试时导出纯函数）。
  *
- * 仅本人可见：GET /curio/api/music 回 401 account / 403 scope 时只显示 #mu-denied（链到账号页）；401 unauthorized = 锁了 → 刷新去锁屏。
+ * 仅本人可见：GET /curio/api/music 回 401 account / 403 scope 时只显示 #mu-denied（点了打开顶栏账号终端）；401 unauthorized = 锁了 → 刷新去锁屏。
  * 播放器（交互借 jojo.best/music 的思路，只借交互）：
  *   - 封面横滑切专辑（scroll-snap，停下来的那张是当前专辑；点封面也能切），下面是这张的曲目（按曲序）。
  *   - 「播放整张」从第 1 首按曲序放到最后一首；点某一首从那首开始，放完接下一首。
@@ -401,7 +401,7 @@ req('GET', '/curio/api/music').then(function(j){
   done();
   if (e && (e.code === 'account' || e.code === 'scope')) {
     var l = $('#mu-denied-link');
-    if (l && e.code === 'scope') l.setAttribute('href', l.getAttribute('href') + 'apps/');
+    if (l && e.code === 'scope') { l.setAttribute('data-acct-open', 'apps'); l.removeAttribute('data-acct-app'); l.setAttribute('href', (l.getAttribute('href') || '').replace(/#.*$/, '') + '#acct=apps'); }
     $('#mu-denied').classList.remove('hidden');
     return;
   }

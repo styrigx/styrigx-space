@@ -22,7 +22,7 @@ function fakeAct(o = {}) {
   const calls = [];
   const act = {
     cd: (d) => { calls.push(['cd', d]); return o.scroll && o.scroll.includes(d) ? { kind: 'scroll', label: '[01] ' + d } : { kind: 'nav', href: '/' + d + '/', go: () => calls.push(['go', d]) }; },
-    sudo: (w) => { calls.push(['sudo', w]); return { href: '/' + w + '/', go: () => calls.push(['go', w]) }; },
+    sudo: (w, sub) => { calls.push(sub ? ['sudo', w, sub] : ['sudo', w]); return { href: w === 'root' ? '~/account' : '/' + w + '/', go: () => calls.push(['go', w]) }; },
     theme: (m) => calls.push(['theme', m]),
     lock: () => calls.push(['lock']),
     ask: (q) => calls.push(['ask', q]),
@@ -52,10 +52,10 @@ test('complete：命令名补全（唯一 → 补全，带参数的命令加空�
   assert.deepEqual(complete('zz'), { line: 'zz', options: [] });
 });
 
-test('complete：参数补全（sudo acc → sudo account；cd 目录；theme；cat daymark/today；第三个词不补）', () => {
-  assert.deepEqual(complete('sudo acc'), { line: 'sudo account', options: [] });
+test('complete：参数补全（sudo r → sudo root；cd 目录；theme；cat daymark/today；第三个词不补）', () => {
+  assert.deepEqual(complete('sudo r'), { line: 'sudo root', options: [] });
   assert.deepEqual(complete('sudo s'), { line: 'sudo security', options: [] });
-  assert.deepEqual(complete('sudo '), { line: 'sudo ', options: ['account', 'security'] });
+  assert.deepEqual(complete('sudo '), { line: 'sudo ', options: ['root', 'security'] });
   assert.deepEqual(complete('cd b'), { line: 'cd blog', options: [] });
   assert.deepEqual(complete('cd d'), { line: 'cd daymark', options: [] });
   assert.deepEqual(complete('theme d'), { line: 'theme dark', options: [] });
@@ -64,8 +64,8 @@ test('complete：参数补全（sudo acc → sudo account；cd 目录；theme；
   assert.deepEqual(ARGS.cd, ['blog', 'curio', 'daymark', 'wild', '~', '..']);
 });
 
-test('ghost：唯一候选时给出没打的那一截（设计稿 sudo acc_ount），多个 / 已完整 / 空行不给', () => {
-  assert.equal(ghost('sudo acc'), 'ount');
+test('ghost：唯一候选时给出没打的那一截（sudo ro_ot；2026-11-08 sudo account → sudo root），多个 / 已完整 / 空行不给', () => {
+  assert.equal(ghost('sudo ro'), 'ot');
   assert.equal(ghost('he'), 'lp');
   assert.equal(ghost('the'), 'me');
   assert.equal(ghost('c'), '');
@@ -112,7 +112,7 @@ test('help：cd 一行 + 八条命令（顺序同设计稿）；clear 清屏；�
   const sh = createShell({ act, storage: mem() });
   const h = sh.exec('help');
   assert.equal(h.out.length, 1);
-  assert.equal(text(h.out[0]), 'cd blog · curio · daymark · wild · ~ | ls,cat,sudo account,sudo security,theme,lock,ask,clear');
+  assert.equal(text(h.out[0]), 'cd blog · curio · daymark · wild · ~ | ls,cat,sudo root,sudo security,theme,lock,ask,clear');
   assert.equal(h.out[0].rows[0][1], TERM_EN.dLs);
   assert.deepEqual(sh.exec('clear'), { out: [], clear: true });
   const nf = sh.exec('foo bar');
@@ -161,17 +161,23 @@ test('cat daymark/today：异步取今日一句；没有句子 / 失败 → 给�
 test('sudo / theme / lock / ask：输出一行提示，动作放在 after（先打印再动）；theme 设定立即生效', () => {
   const { act, calls } = fakeAct();
   const sh = createShell({ act, storage: mem() });
-  const a = sh.exec('sudo account');
-  assert.equal(text(a.out[0]), '→ opening /account/ …');
+  /* 2026-11-08 账号命令体系 v3：sudo root [reauth|reset] 打开账号终端；sudo account 不再认 */
+  const a = sh.exec('sudo root');
+  assert.equal(text(a.out[0]), '→ opening ~/account …');
   a.after();
+  sh.exec('sudo root reauth').after();
+  sh.exec('sudo root reset').after();
   assert.equal(text(sh.exec('sudo rm').out[0]), TERM_EN.usageSudo);
+  assert.equal(text(sh.exec('sudo account').out[0]), TERM_EN.usageSudo);
+  assert.equal(text(sh.exec('sudo root rm').out[0]), TERM_EN.usageSudo);
+  assert.equal(text(sh.exec('sudo security now').out[0]), TERM_EN.usageSudo);
   sh.exec('theme').after();
   sh.exec('theme dark');
   assert.equal(text(sh.exec('theme pink').out[0]), TERM_EN.usageTheme);
   sh.exec('lock').after();
   sh.exec('ask  how is this site built?').after();
   sh.exec('ask').after();
-  assert.deepEqual(calls, [['sudo', 'account'], ['go', 'account'], ['theme', ''], ['theme', 'dark'], ['lock'], ['ask', 'how is this site built?'], ['ask', '']]);
+  assert.deepEqual(calls, [['sudo', 'root'], ['go', 'root'], ['sudo', 'root', 'reauth'], ['go', 'root'], ['sudo', 'root', 'reset'], ['go', 'root'], ['theme', ''], ['theme', 'dark'], ['lock'], ['ask', 'how is this site built?'], ['ask', '']]);
 });
 
 test('历史：↑ 从最近一条往前，↓ 回到正在打的草稿；连续重复只记一次；存 sessionStorage（跨页保留，最多 50 条）', () => {

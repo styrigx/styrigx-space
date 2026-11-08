@@ -48,7 +48,7 @@ test('check-layers：本仓库通过', () => {
 test('check-frontend：本仓库通过（含 space/web/shared/shell）', () => {
   const { files, errors } = frontend.checkRepo(REPO);
   assert.deepEqual(errors, []);
-  assert.ok(files > 90, String(files));
+  assert.ok(files > 80, String(files)); /* 2026-11-08 账号整页（apps/account*.js 7 个 + entries 6 个）删了，账号终端在 shell/account/ */
 });
 
 test('check-layers：网关禁止的 import（外部包、账号、其他 Worker）', () => {
@@ -271,11 +271,15 @@ test('check-frontend 规则 3：openSheet( 只许白名单文件（P4-3 §6.7 �
   /* 白名单里照常放行；PR-4b 语言选择改行内后 settings.js 已删、移出白名单，旷野页 space.js 不在白名单 */
   assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/js/apps/settings.js'), false);
   assert.equal(frontend.SHEET_ALLOW.has('space/web/assets/js/apps/space.js'), false);
-  for (const f of ['space/web/assets/js/shell/sheet.js', 'space/web/assets/js/apps/account.js', 'space/web/assets/js/apps/account-apps.js', 'space/web/assets/js/apps/avatar-edit.js']) {
+  /* 2026-11-08 账号整页删了、头像改成账号终端里的行内选项：白名单只剩 sheet.js 本身 */
+  for (const f of ['space/web/assets/js/apps/account.js', 'space/web/assets/js/apps/account-apps.js', 'space/web/assets/js/apps/avatar-edit.js', 'space/web/assets/js/shell/account/avatar-edit.js']) {
+    assert.equal(frontend.SHEET_ALLOW.has(f), false, f);
+  }
+  for (const f of ['space/web/assets/js/shell/sheet.js']) {
     assert.ok(frontend.SHEET_ALLOW.has(f), f);
     assert.deepEqual(frontend.checkSource(f, 'openSheet({});'), [], f);
   }
-  assert.equal(frontend.SHEET_ALLOW.size, 4, '白名单只减不增');
+  assert.equal(frontend.SHEET_ALLOW.size, 1, '白名单只减不增');
   /* 共享外壳（子站用）也在扫描范围里 */
   assert.equal(frontend.checkSource('space/web/shared/shell/topbar.js', 'openSheet({});').length, 1);
 });
