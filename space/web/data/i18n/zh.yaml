@@ -103,7 +103,6 @@ js:
     lockWelcomeBack: 欢迎回来
     lockGoodToSeeYou: 很高兴再次见到你
     lockTermHint: "# 不想打命令？点一下自动输入"
-    lockTermHelpHint: "# 输入 help 查看可用命令"
     lockTermCmdAria: 解锁终端：输入命令，例如 help
     lockTermSecretHint: 输入不回显，可直接粘贴
     lockTermBack: 返回
@@ -114,6 +113,10 @@ js:
     lockTermDescReset: 无法登录？重置登录
     lockTermDescClear: 清屏
     lockTermDescHelp: 查看可用命令
+    lockManTitle: "锁屏终端手册"
+    lockManName: "styrigx space 锁屏终端：敲命令解锁"
+    lockManDescBack: "返回（同 Ctrl+C）"
+    lockManQuit: "按 q 退出"
     lockTermPkUnavailable: 通行密钥未设置，或这台设备不支持
     lockTermPick: 选择
     lockTermPickBad: 请输入列出的编号

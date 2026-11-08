@@ -47,7 +47,10 @@ function lockName() {
  * @type {Record<string, string>}
  */
 const ALIAS = {
-  'help': 'help', 'man': 'help', 'man space': 'help', '?': 'help', 'ls': 'help',
+  'help': 'help', '?': 'help', 'ls': 'help',
+  'man': 'man', 'man space': 'man',
+  /* cd .. / cd /：和 Ctrl+C 一样「返回」（2026-11-08 03:11 Gray） */
+  'cd ..': 'back', 'cd /': 'back',
   'password': 'password', 'pw': 'password', 'sudo': 'sudo', 'sudo spacekey': 'sudo', 'sudo spacekey password': 'password', 'sudo password': 'password',
   'passkey': 'passkey', 'pk': 'passkey', 'sudo spacekey passkey': 'passkey', 'sudo passkey': 'passkey',
   'tempkey': 'tempkey', 'key': 'tempkey', 'sudo tempkey': 'tempkey',
@@ -55,7 +58,9 @@ const ALIAS = {
   'clear': 'clear', 'cls': 'clear',
 };
 /** Tab 补全候选（顺序 = help 列表顺序） */
-const COMPLETE = ['help', 'password', 'passkey', 'tempkey', 'reset', 'clear', 'sudo spacekey password', 'sudo spacekey passkey', 'sudo tempkey'];
+const COMPLETE = ['help', 'password', 'passkey', 'tempkey', 'reset', 'clear', 'man space', 'sudo spacekey password', 'sudo spacekey passkey', 'sudo tempkey'];
+/** 输凭证时敲这几行 = 返回（同 Ctrl+C） */
+const BACK_RE = /^cd\s*(\.\.|\/)\s*$/;
 
 /**
  * 显示锁屏 UI（2.4.0 H；lock-v10 命令解锁）。
@@ -202,7 +207,6 @@ export function showLockScreen() {
   function boot() {
     logEl.textContent = '';
     out('styrigx space os 1.0 tty1', 'ld', false);
-    out(esc(tx('lockTermHelpHint')), 'ld', false);
     const g = document.createElement('div');
     g.className = 'sgx-lock-lgap';
     logEl.appendChild(g);
@@ -218,8 +222,8 @@ export function showLockScreen() {
   }
 
   /* ---------- 输入行状态 ----------
-     cmd 敲命令 · pw 解锁密码 · temp 临时钥匙 · rkey 重置：进站凭证 · rpick 重置：选锁屏凭证 · rpw 重置：解锁密码 · busy 等服务端 / 系统窗口 · done 已解锁 */
-  /** @type {'cmd'|'pw'|'temp'|'rkey'|'rpick'|'rpw'|'busy'|'done'} */ let mode = 'cmd';
+     cmd 敲命令 · man 手册（man space，按 q 退出） · pw 解锁密码 · temp 临时钥匙 · rkey 重置：进站凭证 · rpick 重置：选锁屏凭证 · rpw 重置：解锁密码 · busy 等服务端 / 系统窗口 · done 已解锁 */
+  /** @type {'cmd'|'man'|'pw'|'temp'|'rkey'|'rpick'|'rpw'|'busy'|'done'} */ let mode = 'cmd';
   /** 当前快捷键高亮（password / passkey） */
   let keyOn = '';
   const SECRET = { pw: 1, temp: 1, rkey: 1, rpw: 1 };
@@ -229,11 +233,12 @@ export function showLockScreen() {
     if (m === 'temp') return 'tempkey: ';
     if (m === 'rkey') return 'spacekey: ';
     if (m === 'rpick') return esc(tx('lockTermPick')) + ' [' + rOpts.map(function (_, i) { return i + 1; }).join('/') + ']: ';
+    if (m === 'man') return ':';
     return P_CMD;
   }
   function syncTitle() {
     const el = $('sgx-lock-title');
-    if (el) el.textContent = mode === 'cmd' || mode === 'done' ? tx('lockLockScreen2') : tx('lockUnlockScreen');
+    if (el) el.textContent = mode === 'cmd' || mode === 'man' || mode === 'done' ? tx('lockLockScreen2') : tx('lockUnlockScreen');
   }
   /**
    * 切换输入行。
@@ -255,20 +260,23 @@ export function showLockScreen() {
       m === 'pw' || m === 'rpw' ? tx('lockPassword') :
       m === 'temp' ? tx('lockTemporaryKey') :
       m === 'rkey' ? tx('rfSpacePh') :
-      m === 'rpick' ? tx('rfStep2') : tx('lockTermCmdAria'));
+      m === 'rpick' ? tx('rfStep2') : m === 'man' ? tx('lockManQuit') : tx('lockTermCmdAria'));
     pmu.value = m === 'rkey' ? KEY_SPACE : KEY_LOCK;
     psEl.innerHTML = promptHtml(m);
     const hidden = m === 'busy' || m === 'done';
     form.hidden = hidden;
+    /* 手册模式：终端输出不限高、快捷键收起（像 less 占满屏） */
+    termEl.classList.toggle('is-man', m === 'man');
     input.disabled = hidden;
     /* 输凭证时下面一行注释（设计稿 K3）+ 可点的 Ctrl+C（触屏没有 Ctrl） */
-    if (secret || m === 'rpick') {
-      hintTx.textContent = '# ' + (m === 'temp' ? tx('lockFormatXxxxXxxxXxxx') + ' · ' : m === 'rpick' ? '' : tx('lockTermSecretHint') + ' · ');
+    if (secret || m === 'rpick' || m === 'man') {
+      hintTx.textContent = '# ' + (m === 'temp' ? tx('lockFormatXxxxXxxxXxxx') + ' · ' : m === 'rpick' ? '' : m === 'man' ? tx('lockManQuit') + ' · ' : tx('lockTermSecretHint') + ' · ');
       hintEl.hidden = false;
     } else {
       hintEl.hidden = true;
     }
     if (m === 'pw' || m === 'temp' || m === 'rkey' || m === 'rpick' || m === 'rpw') chip('sudo');
+    else if (m === 'man') chip('locked');
     else if (m === 'busy') chip('verifying');
     else if (m === 'done') chip('unlocked');
     else if (m === 'cmd') {
@@ -324,6 +332,45 @@ export function showLockScreen() {
       out('<span class="sgx-lock-hk">' + rows[i][0] + '</span><span class="sgx-lock-lm">' + esc(rows[i][1]) + '</span>', 'lh', rows[i][0] + ' — ' + rows[i][1]);
     }
   }
+  /* man space：手册（NAME / SYNOPSIS / COMMANDS，2026-11-08 03:15 Gray）。像 less 一样占住终端，提示符变成 `:`，
+     按 q（或 Esc / Ctrl+C / 点「Ctrl+C 返回」）退出：手册整块收掉，回到提示符。 */
+  /** @type {HTMLElement|null} */ let manEl = null;
+  function manPage() {
+    /** @param {string} t */
+    const sec = function (t) { return '<div class="sgx-lock-mh">' + t + '</div>'; };
+    /** @param {string} k @param {string} d */
+    const row = function (k, d) { return '<div class="sgx-lock-lh"><span class="sgx-lock-hk sgx-lock-mk">' + k + '</span><span class="sgx-lock-lm">' + esc(d) + '</span></div>'; };
+    /** @param {string} t */
+    const ind = function (t) { return '<div class="sgx-lock-mi">' + t + '</div>'; };
+    const html =
+      '<div class="sgx-lock-ld">SPACE(1)' + '<span class="sgx-lock-mr">' + esc(tx('lockManTitle')) + '</span></div>' +
+      sec('NAME') + ind('space — ' + esc(tx('lockManName'))) +
+      sec('SYNOPSIS') +
+      ind('password | passkey | tempkey | reset | clear | help') +
+      ind('sudo spacekey password | passkey') +
+      ind('sudo tempkey · man space · cd .. · cd /') +
+      sec('COMMANDS') +
+      row('password', tx('lockTermDescPw') + ' · pw, sudo') +
+      row('passkey', tx('lockTermDescPk') + ' · pk') +
+      row('tempkey', tx('lockTermDescTemp') + ' · key') +
+      row('reset', tx('lockTermDescReset') + ' · forgot') +
+      row('clear', tx('lockTermDescClear') + ' · Ctrl+L') +
+      row('help', tx('lockTermDescHelp') + ' · ?, ls') +
+      row('cd ..', tx('lockManDescBack') + ' · cd /') +
+      '<div class="sgx-lock-ld">(END)</div>';
+    manEl = out(html, 'man', 'man space: NAME, SYNOPSIS, COMMANDS. ' + tx('lockManQuit'));
+    setMode('man', { focus: document.activeElement === input || document.activeElement === document.body });
+    /* 手册整页可见（终端输出平时最多 40vh、顶上裁掉）：从 NAME 开始看 */
+    try { manEl.scrollIntoView({ block: 'start' }); } catch (e) {}
+  }
+  /** 退出手册：收掉整块，回提示符 */
+  function quitMan() {
+    if (mode !== 'man') return;
+    if (manEl && manEl.parentNode) manEl.parentNode.removeChild(manEl);
+    manEl = null;
+    toCmd();
+  }
+
   /** @param {string} raw */
   function runCmd(raw) {
     const shown = raw.replace(/\s+/g, ' ').trim();
@@ -336,6 +383,8 @@ export function showLockScreen() {
     /* 新命令开始：上一条的 DENIED 撤掉 */
     if (c) chip('locked');
     if (c === 'help') help();
+    else if (c === 'man') manPage();
+    else if (c === 'back') { /* 命令行里「返回」= 什么都不做（同 Ctrl+C 清掉这一行） */ }
     else if (c === 'clear') boot();
     else if (c === 'password') cmdPassword();
     else if (c === 'passkey') cmdPasskey();
@@ -689,6 +738,9 @@ export function showLockScreen() {
   function submit() {
     if (isBusy || done) return;
     const v = input.value;
+    if (mode === 'man') { quitMan(); return; }
+    /* 输凭证 / 重置途中敲 cd .. 或 cd / = 返回（同 Ctrl+C） */
+    if (mode !== 'cmd' && BACK_RE.test(v.trim())) { input.value = ''; interrupt(); return; }
     if (mode === 'cmd') { input.value = ''; runCmd(v); }
     else if (mode === 'pw') { input.value = ''; submitPw(v); }
     else if (mode === 'temp') { input.value = ''; submitTemp(v); }
@@ -698,6 +750,7 @@ export function showLockScreen() {
   }
   /** Ctrl+C / Esc：输凭证时回命令行（打印 ^C），命令行里清掉这一行 */
   function interrupt() {
+    if (mode === 'man') { quitMan(); return; }
     if (mode === 'busy' || mode === 'done' || isBusy) return;
     out(promptHtml(mode) + (mode === 'cmd' ? esc(input.value) : '') + '^C', '', false);
     input.value = '';
@@ -712,6 +765,11 @@ export function showLockScreen() {
       e.preventDefault();
       submit();
       return;
+    }
+    if (mode === 'man') {
+      /* 手册里像 less：q / Esc 退出，其他键不进输入行（Ctrl+C 走下面同一个 interrupt） */
+      if (e.key === 'q' || e.key === 'Q' || e.key === 'Escape') { e.preventDefault(); quitMan(); return; }
+      if (!(e.ctrlKey && e.key.toLowerCase() === 'c') && e.key.length === 1) { e.preventDefault(); return; }
     }
     if (e.key === 'Escape') {
       if (mode !== 'cmd') { e.preventDefault(); interrupt(); }
@@ -750,6 +808,12 @@ export function showLockScreen() {
       }
     }
   });
+  /* 手机软键盘的 keydown 常是 Unidentified：手册里看输入内容，有 q 就退出，别的字清掉 */
+  on(input, 'input', function () {
+    if (mode !== 'man') return;
+    if (/q/i.test(input.value)) quitMan();
+    else input.value = '';
+  });
   /* 点终端任何地方 = 聚焦输入行（点快捷键 / Ctrl+C 按钮除外） */
   on(termEl, 'click', function (/** @type {MouseEvent} */ e) {
     const t = /** @type {HTMLElement|null} */ (e.target);
@@ -763,9 +827,11 @@ export function showLockScreen() {
     if (t === input || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable))) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (t && t.closest && t.closest('button') && (e.key === 'Enter' || e.key === ' ')) return;
+    if (mode === 'man' && (e.key === 'q' || e.key === 'Q' || e.key === 'Escape')) { e.preventDefault(); quitMan(); focusInput(); return; }
     if (e.key.length === 1 && e.key !== ' ') {
       e.preventDefault();
       focusInput();
+      if (mode === 'man') return;
       if (!input.readOnly) input.value += e.key;
     } else if (e.key === 'Enter') {
       e.preventDefault();
