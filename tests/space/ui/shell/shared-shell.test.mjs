@@ -243,27 +243,20 @@ test('P4-2b：搜索层整套删除——没有 search.js、shell.css 没有 sea
     assert.ok(!existsSync(path.join(REPO, f)), f);
 });
 
-test('头像在 AI 窗口头部（PR-4b）：圆形 + 主题色环（同主页名片头像环，不是白圈）；锁屏顶栏抄按钮时类名照抄、没有头像', () => {
-  const css = files['shell.css'].replace(/\/\*[\s\S]*?\*\//g, '');
-  const rule = css.match(/(^|\})\s*\.sgx-ai-avatar \{([^}]*)\}/m);
-  assert.ok(rule, 'shell.css 里要有 .sgx-ai-avatar 规则');
-  assert.match(rule[2], /border-radius:\s*999px/);
-  assert.match(rule[2], /object-fit:\s*cover/);
-  assert.match(rule[2], /box-shadow: 0 0 0 2px var\(--sgx-primary-fill\), 0 0 0 5px color-mix\(in srgb, var\(--sgx-primary-fill\) 22%, transparent\)/);
-  assert.doesNotMatch(rule[2], /#fff|white/);
+test('AI 窗口头部（2026-11 PR-5 按设计稿 ai-v1）：G 徽标 · Gray AI / 副标题 · 模型 · 新对话 · 历史 · ×，没有头像；底部邮箱由参数 email 来；锁屏头像取顶栏头像', () => {
   const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');
-  const head = src.slice(src.indexOf('<div class="sgx-ai-head">'), src.indexOf('<div class="sgx-ai-hist"'));
-  const order = ['sgx-ai-title', 'data-ai-clear', 'data-ai-history', 'class="sgx-ai-me" href="{{ .acct }}"'].map((k) => head.indexOf(k));
-  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), 'Gray AI → 新对话 → 历史 → 头像');
-  assert.match(head, /<img src="\{\{ \.avatar \}\}" alt="" width="36" height="36" class="sgx-ai-avatar" data-sgx-avatar="192">/);
+  const head = src.slice(src.indexOf('<div class="sgx-ai-head">'), src.indexOf('<div class="sgx-ai-models"'));
+  const order = ['sgx-ai-badge', 'sgx-ai-title', 'data-ai-model', 'data-ai-clear', 'data-ai-history', 'data-ai-close'].map((k) => head.indexOf(k));
+  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), 'G → Gray AI → 模型 → 新对话 → 历史 → ×');
+  assert.doesNotMatch(head, /sgx-ai-me|sgx-ai-avatar/);
   assert.doesNotMatch(src, /sgx-ai-actions|sgx-ai-pill/, '新对话 / 历史 / 联系按钮行删了');
-  /* 2026-11-07：邮箱由调用方传参 email（主站 profile.yaml、子站 nav.json me.email），外壳不写死 */
-  assert.match(src, /<a class="sgx-ai-contact" data-ai-contact\{\{ with \.email \}\} href="mailto:\{\{ \. \}\}"\{\{ end \}\}>\{\{ \$t\.topbar\.contact \}\}<\/a>/);
+  /* 邮箱由调用方传参 email（主站 profile.yaml、子站 nav.json me.email），外壳不写死 */
+  assert.match(src, /<a class="sgx-ai-contact" data-ai-contact title="\{\{ \$t\.topbar\.contact \}\}"\{\{ with \.email \}\} href="mailto:\{\{ \. \}\}"\{\{ end \}\}>/);
   assert.doesNotMatch(src, /styrigx@gmail\.com/);
   assert.doesNotMatch(src, /ai@styrigx\.com/);
   const lock = readFileSync(path.join(REPO, 'space/web/assets/js/shell/lock.js'), 'utf8');
   assert.match(lock, /'<span class="' \+ b\.className \+ '">'/, 'lock.js 抄顶栏按钮要带原类名');
   assert.match(lock, /querySelectorAll\('#site-nav \.sgx-tb-acts \.sgx-tb-btn'\)/);
-  assert.match(lock, /document\.querySelector\('\.sgx-ai-avatar'\)/, '锁屏头像取 AI 窗口头部那张');
-  assert.doesNotMatch(lock, /sgx-tb-me|sgx-tb-avatar/);
+  assert.match(lock, /document\.querySelector\('#site-nav \.sgx-tb-avatar'\)/, '锁屏头像取顶栏头像那张');
+  assert.doesNotMatch(lock, /sgx-tb-me|sgx-ai-avatar/);
 });

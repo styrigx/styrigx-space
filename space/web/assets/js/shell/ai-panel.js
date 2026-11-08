@@ -10,14 +10,14 @@
  *   最多 20 份、超了删最旧的；title = 首问前 20 字；cur = 当前对话 id。读到 v1 {v:1, msgs} 包成一份对话写回 v2；旧记录里可能还带 hits，读出来不渲染）；
  *   四站同源所以同一台设备上是同一份（同源带来的，不是同步）；
  *   lib/cloud-sync.js 的白名单不收这个键，不跨设备。发给服务端的 history 只带最近 6 条 {role, text}（服务端再截 2000 字）。
- * - 头部一行（P4-3 PR-4b，Gray 2026-11-07）：标题 Gray AI；右边新对话图标（data-ai-clear：当前对话已在历史里，开一份空的）/ 历史图标（data-ai-history：
- *   窗口内的列表视图，不是底部弹出窗口）/ 头像（账号页）。联系挪到底部那行「仅公开内容 · 联系我」（data-ai-contact：mailto:<对外联系邮箱>）。
+ * - 头部一行（2026-11 PR-5 按设计稿 ai-v1）：G 徽标 · Gray AI / 副标题 · 模型胶囊（data-ai-model）· 新对话（data-ai-clear）· 历史（data-ai-history：窗口内的列表视图）· ×（topbar.js 接）；
+ *   头像（账号页）不在 AI 窗口里了（设计稿没有；账号入口是顶栏头像）。回答下是来源卡片（站内链接）和建议问题。联系挪到底部那行「仅公开内容 · 联系我」（data-ai-contact：mailto:<对外联系邮箱>）。
  *   邮箱（2026-11-07 个人资料）：模板按各站传入的默认值（data/profile.yaml 的 email）画 href；挂载和每次打开时再读本机缓存
  *   localStorage sgx-profile（主站 lib/profile.js 进门后从 GET /api/profile 写的；四站同源同一份），有改过的合法邮箱就换上。这里不发请求。
  *   底部小字的「仅公开内容 / 包含私密内容」在 data-ai-scope 上。空态显示开场白（助手气泡样式，不存历史）。
  * - 每条助手回答下（§3.4）：复制 / 重试（重问前面那条提问，替换这条回答）/ 👍 / 👎（只存本地，记在该条消息的 rate 上，再点取消）。
  * - 模型（P4-2d）：账号页「AI 模型」一行把选择存在 localStorage sgx-ai-model（进云同步，换设备跟着走）；这里发问时有就带上 body.model，
- *   窗口里不做切换。服务端只在有账号会话时采纳（没登录带了也忽略，一律默认模型），不在登记里 → 400 bad_model：
+ *   2026-11 PR-5（设计稿 ai-v1）起 AI 窗口头部也能切（模型胶囊 → 头部下方单选，同一个键）。服务端只在有账号会话时采纳（没登录带了也忽略，一律默认模型），不在登记里 → 400 bad_model：
  *   清掉本地选择、不带 model 自动重发一次（只重发一次；再错按普通错误显示）。清掉时派发 sgx-settings-changed，主站的云同步把删除推上去。
  *   响应头 X-Styrigx-AI-Model（这次用的模型 id）只用于排查，这里不显示。
  * - 键盘（P4-3 PR-3）：输入框聚焦时订阅键盘高度（调用方传入 opts.keyboard = 共享外壳 vk.js 的 onKeyboardHeight），写到 #sgx-ai 的 --sgx-kb：
@@ -69,7 +69,10 @@ const STR_EN = {
   send: "Send",
   stop: "Stop",
   sources: "Sources",
-  newTab: "(opens in a new tab)"
+  newTab: "(opens in a new tab)",
+  sug1: "What have you been listening to?",
+  sug2: "Today’s daymark",
+  sug3: "What devices do you use?"
 };
 /** @param {Document} doc @returns {Record<string, string>} */
 function shellStr(doc) {
@@ -431,7 +434,12 @@ export function mountAiChat(dlg, opts) {
   /** 「联系我」换成本机缓存里改过的邮箱（没有就保持模板默认值） */
   function syncContact() {
     const e = cachedEmail(o.store);
-    if (contact && e) contact.setAttribute('href', 'mailto:' + e);
+    if (contact && e) {
+      contact.setAttribute('href', 'mailto:' + e);
+      /* 设计稿 ai-v1：底部右边直接显示邮箱（模板画的就是邮箱时跟着换） */
+      const em = contact.querySelector('[data-ai-email]');
+      if (em) em.textContent = e;
+    }
   }
   syncContact();
   const doFetch = o.fetch || window.fetch.bind(window);
@@ -612,8 +620,67 @@ export function mountAiChat(dlg, opts) {
     turn.className = 'sgx-ai-turn';
     turn.appendChild(el);
     if (m === live) turn.setAttribute('data-live', '');
-    else if (m.text) turn.appendChild(ops(m));
+    else if (m.text) {
+      const cards = srcCards(m.text);
+      if (cards) turn.appendChild(cards);
+      turn.appendChild(ops(m));
+    }
     return turn;
+  }
+  /**
+   * 来源卡片（设计稿 ai-v1）：回答里出现的站内链接 [标题](/路径)，去重后最多 3 条，卡片 = 路径前两段（blog/post）+ 标题；点了关窗口再跳（同正文里的站内链接）。
+   * 正文里的链接照旧可点；这里只是把站内去处再列一遍。
+   * @param {string} text @returns {HTMLElement|null}
+   */
+  function srcCards(text) {
+    const re = /\[([^\]\n]{1,120})\]\((\/[^)\s]*)\)/g;
+    /** @type {Array<[string, string]>} */
+    const seen = [];
+    let mm;
+    while ((mm = re.exec(text)) && seen.length < 3) {
+      const href = mm[2];
+      if (href.indexOf('//') === 0 || seen.some(function (x) { return x[1] === href; })) continue;
+      seen.push([mm[1], href]);
+    }
+    if (!seen.length) return null;
+    const box = doc.createElement('div');
+    box.className = 'sgx-ai-srcs';
+    for (const [title, href] of seen) {
+      const a = doc.createElement('a');
+      a.className = 'sgx-ai-src';
+      a.href = href;
+      const segs = href.split(/[?#]/)[0].split('/').filter(Boolean).filter(function (x) { return x !== 'zh' && x !== 'en'; });
+      const lab = doc.createElement('code');
+      lab.textContent = segs.slice(0, 2).join('/') || '~';
+      lab.setAttribute('translate', 'no');
+      const ti = doc.createElement('span');
+      ti.textContent = title;
+      a.appendChild(lab);
+      a.appendChild(ti);
+      a.addEventListener('click', function (e) {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        goInternal(href);
+      });
+      box.appendChild(a);
+    }
+    return box;
+  }
+  /** 建议问题（设计稿 ai-v1 回答下面那排小块）：点一下 = 直接问这一句；回答进行中不显示 */
+  function sugRow() {
+    const row = doc.createElement('div');
+    row.className = 'sgx-ai-sugs';
+    for (const k of ['sug1', 'sug2', 'sug3']) {
+      const q = t[k];
+      if (!q) continue;
+      const b = doc.createElement('button');
+      b.type = 'button';
+      b.className = 'sgx-ai-sug';
+      b.textContent = q;
+      b.addEventListener('click', function () { if (!busy) ask(q); });
+      row.appendChild(b);
+    }
+    return row;
   }
   function render() {
     list.replaceChildren();
@@ -630,6 +697,7 @@ export function mountAiChat(dlg, opts) {
     } else {
       for (const m of msgs) list.appendChild(bubble(m));
     }
+    if (!busy) list.appendChild(sugRow());
     if (clear) clear.disabled = !msgs.length || busy;
     if (histBtn) histBtn.disabled = busy;
     list.scrollTop = list.scrollHeight;
@@ -884,12 +952,84 @@ export function mountAiChat(dlg, opts) {
       showHist(!histOpen);
     });
   }
+  /* ---------- 模型（设计稿 ai-v1 头部「Gemma 4 ▾」）：GET /api/ai → { default, models, canChoose }（同账号页 AI 模型一行）；
+     显示当前生效的模型；canChoose（有账号会话）时点开在头部下面展开单选，选中写 sgx-ai-model 并派发 sgx-settings-changed（云同步跟着走）；
+     不能选时只显示、点了不展开；读不到就不显示 ---------- */
+  const mBtn = /** @type {HTMLButtonElement|null} */ (dlg.querySelector('[data-ai-model]'));
+  const mName = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-model-name]'));
+  const mList = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-models]'));
+  /** @type {any} */
+  let models = null;
+  const store = function () { return o.store || window.localStorage; };
+  function curModel() {
+    if (!models) return null;
+    let mine = '';
+    try { mine = store().getItem(MODEL_KEY) || ''; } catch (e) {}
+    const ls = /** @type {any[]} */ (models.models);
+    return (models.canChoose && ls.find(function (m) { return m && m.id === mine; })) || ls.find(function (m) { return m && m.id === models.default; }) || ls[0] || null;
+  }
+  /** @param {boolean} v */
+  function showModels(v) {
+    if (!mList || !mBtn) return;
+    mList.hidden = !v;
+    mBtn.setAttribute('aria-expanded', String(v));
+    if (!v) return;
+    mList.replaceChildren();
+    const c = curModel();
+    for (const m of /** @type {any[]} */ (models.models)) {
+      const b = doc.createElement('button');
+      b.type = 'button';
+      b.className = 'sgx-ai-mopt';
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(!!c && c.id === m.id));
+      b.setAttribute('translate', 'no');
+      b.textContent = String(m.label || m.id);
+      b.addEventListener('click', function () {
+        try { store().setItem(MODEL_KEY, String(m.id)); } catch (e) {}
+        try { window.dispatchEvent(new Event('sgx-settings-changed')); } catch (e) {}
+        paintModel();
+        showModels(false);
+        try { mBtn.focus({ preventScroll: true }); } catch (e) {}
+      });
+      mList.appendChild(b);
+    }
+  }
+  function paintModel() {
+    const c = curModel();
+    if (!mBtn || !mName || !c) return;
+    mName.textContent = String(c.label || c.id);
+    mBtn.hidden = false;
+    if (models.canChoose) mBtn.removeAttribute('aria-disabled'); else mBtn.setAttribute('aria-disabled', 'true');
+  }
+  function loadModels() {
+    if (!mBtn) return;
+    Promise.resolve().then(function () { return doFetch('/api/ai', { method: 'GET', credentials: 'same-origin' }); })
+      .then(function (r) { return r && r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !Array.isArray(j.models) || !j.models.length) return;
+        models = j;
+        paintModel();
+      }, function () {});
+  }
+  if (mBtn) {
+    mBtn.addEventListener('click', function () {
+      if (!models || !models.canChoose) return;
+      showModels(mList ? mList.hidden : false);
+    });
+  }
+  if (mList) {
+    mList.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); showModels(false); if (mBtn) mBtn.focus(); }
+    });
+  }
   /* 别的标签页 / 子站改了历史（同源同一份）：下次打开时重读 */
   render();
   setScope(null);
   return {
     onOpen: function () {
       syncContact();
+      loadModels();
+      showModels(false);
       if (!busy) {
         data = loadChats(o.store);
         pickCurrent();

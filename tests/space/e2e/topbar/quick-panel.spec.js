@@ -693,6 +693,12 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
 
 test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   const ai = (page) => page.locator('#sgx-ai');
+  /* 2026-11 PR-5（设计稿 ai-v1）：窗口打开时还会 GET /api/ai 读模型列表（头部模型胶囊）。下面各用例的 /api/ai 替身只管 POST 提问：
+     GET 一律回 404（胶囊不显示），不进替身、不算进提问次数 */
+  test.beforeEach(async ({ page }) => {
+    const orig = page.route.bind(page);
+    page.route = (url, handler, opts) => orig(url, url === '**/api/ai' ? (r, req) => (r.request().method() === 'GET' ? r.fulfill({ status: 404, body: '' }) : handler(r, req)) : handler, opts);
+  });
   async function openAi(page) {
     await page.locator('.sgx-tb-ai').click();
     await expect(ai(page)).toHaveAttribute('data-state', 'open');
@@ -724,7 +730,8 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ai(page).locator('.sgx-ai-actions')).toHaveCount(0);
     await expect(ai(page).locator('.sgx-ai-head [data-ai-clear]')).toHaveAttribute('aria-label', '新对话');
     await expect(ai(page).locator('.sgx-ai-head [data-ai-history]')).toHaveAttribute('aria-label', '历史');
-    await expect(ai(page).locator('.sgx-ai-foot [data-ai-contact]')).toHaveText('联系我');
+    await expect(ai(page).locator('.sgx-ai-foot [data-ai-contact]')).toHaveText('styrigx@gmail.com');
+    await expect(ai(page).locator('.sgx-ai-foot [data-ai-contact]')).toHaveAttribute('title', '联系我');
     await expect(ai(page).locator('[data-ai-contact]')).toHaveAttribute('href', 'mailto:styrigx@gmail.com');
     await expect(ai(page).locator('[data-ai-in]')).toHaveAttribute('maxlength', '200');
     await expect(ai(page).locator('[data-ai-scope]')).toHaveText('仅公开内容');
@@ -862,7 +869,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   const okSse = (route, model) => route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-Styrigx-AI-Scope': 'private', 'X-Styrigx-AI-Model': model },
     body: sse([], ['好的。']) });
 
-  test('P4-2d：账号页选过模型（sgx-ai-model）→ 发问带上 body.model；窗口里没有模型切换', async ({ page }) => {
+  test('P4-2d：账号页选过模型（sgx-ai-model）→ 发问带上 body.model（2026-11 PR-5 起窗口头部有模型胶囊，读不到模型列表时不显示）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-ai-model', '@cf/openai/gpt-oss-20b'); } catch (e) {} });
     await go(page, '/theme/');
     const bodies = [];
@@ -872,7 +879,9 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
       await okSse(route, b.model || 'default');
     });
     await openAi(page);
-    await expect(ai(page).locator('select, [role="radiogroup"], [data-ai-model]')).toHaveCount(0);
+    await expect(ai(page).locator('select')).toHaveCount(0);
+    await expect(ai(page).locator('[data-ai-model]')).toBeHidden();
+    await expect(ai(page).locator('[data-ai-models]')).toBeHidden();
     await ai(page).locator('[data-ai-in]').fill('你好');
     await ai(page).locator('[data-ai-in]').press('Enter');
     await expect(ai(page).locator('.sgx-ai-msg[data-role="assistant"] > span')).toHaveText('好的。');
@@ -1216,7 +1225,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ai(page).locator('[data-ai-scope]')).toHaveText('Public content only');
     await expect(ai(page).locator('.sgx-ai-head [data-ai-clear]')).toHaveAttribute('aria-label', 'New chat');
     await expect(ai(page).locator('.sgx-ai-head [data-ai-history]')).toHaveAttribute('aria-label', 'History');
-    await expect(ai(page).locator('[data-ai-contact]')).toHaveText('Contact me');
+    await expect(ai(page).locator('[data-ai-contact]')).toHaveAttribute('title', 'Contact me');
     await ai(page).locator('[data-ai-history]').click();
     await expect(ai(page).locator('[data-ai-hist]')).toHaveText('No past chats yet');
   });

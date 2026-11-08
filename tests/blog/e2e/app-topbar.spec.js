@@ -92,7 +92,7 @@ test.describe('顶栏', () => {
       const acct = path.startsWith('/blog/zh/') ? 'https://styrigx.com/zh/account/' : 'https://styrigx.com/account/';
       await expect(page.locator('#site-nav .sgx-tb-me')).toHaveCount(0);
       await expect(page.locator('.sgx-topbar .sgx-tb-av')).toHaveAttribute('href', acct);
-      await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', acct);
+      await expect(page.locator('#sgx-acct .sgx-pop-me-a')).toHaveAttribute('href', acct);
       await expect(page.locator('.sgx-tb-nav, #sgx-drawer, .sgx-tb-end, .sgx-tb-share, .sgx-topbar [data-sgx-share]')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-end-group, .sgx-tb-guestbook, a[href*="guestbook"]')).toHaveCount(0);
       await expect(page.locator('.oui-footer')).toHaveCount(0);
@@ -387,7 +387,7 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await expect(nav(page).locator('.sgx-nav-name')).toHaveText(['Home', 'Blog', 'Curio', 'Daymark', 'Wild']);
     await expect(nav(page).locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
     await expect(nav(page).locator('[data-nav="blog"]')).toHaveAttribute('href', '/blog/');
-    await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', 'https://styrigx.com/account/');
+    await expect(page.locator('#sgx-acct .sgx-pop-me-a')).toHaveAttribute('href', 'https://styrigx.com/account/');
   });
 });
 

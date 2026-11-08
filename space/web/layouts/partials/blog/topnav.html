@@ -58,6 +58,8 @@
   "mainOrigin" "https://styrigx.com"
   "acct" (partial "sgx-lang-path.html" (dict "path" $nav.me.href "lang" $lang))
   "avatar" $nav.me.avatar
+  "name" site.Data.profile.name
+  "nick" site.Data.profile.nickname
   "email" $nav.me.email
   "langHref" $langHref
   "security" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/security/" "lang" $lang))
