@@ -48,6 +48,8 @@ async function goStatus(page, path, handler) {
   await blockExternalRequests(page);
   await freezeTime(page);
   await page.route('**/api/status', handler);
+  /* 测试构建默认不自动问 /api/status（静态站没接口，免得 Lighthouse 控制台报 404）；这里打开 */
+  await page.addInitScript(() => { window.__sgxStatusApi = true; });
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
 }
