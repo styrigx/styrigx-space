@@ -7,28 +7,28 @@ notFound:
   backHome: Back home
   curio: Curio
 home:
-  # 主页首屏终端（2026-11 UI 重设计 PR-2）。status 是占位（真数据另做）；role 是副标题（轮换未定，先静态）
+  # 主页首屏终端（2026-11 UI 重设计 PR-2；对齐 PR-B 按设计稿 tb4.html 四节：博客 / 奇趣 / 日刻 / 旷野）。status 是首帧文字，外壳取到 /api/status 后换成 js.space.homeStatusUp / Down
   status: "STATUS: ONLINE · 6/6 ACTIVE"
   role: "writing the blog, collecting curios, keeping a daymark"
   intro: "A Personal Digital Space — one person’s corner of the web, browsable from the command line."
   blog: Blog
   minutes: "{n} min"
   blogLabel: "[01] Blog · latest 3"
+  curioLabel: "[02] Curio"
+  curio:
+    title: Curio
+    finds: { name: Finds, latest: Latest find }
+    devices: { name: Devices, latest: In use }
+    games: { name: Games, latest: Playing }
   daymark: Daymark
-  daymarkLabel: "[02] Daymark · line of the day"
-  screen: Screen time
-  screenLabel: "[03] Screen time"
+  daymarkLabel: "[03] Daymark · line of the day"
   wildLabel: "[04] Wild"
+  wild:
+    title: Wild
+    screenNone: nothing recorded today
 index:
-  daymarkLineOfThe: Daymark · Line of the day
-  daymark: DAYMARK
   noLineForToday: No line for today yet
   tapToKeepOne: Tap to keep one in Daymark
-  myScreenTime: My screen time
-  todayAllDevices: Today · all devices
-  timeOnThisSite: Time on this site
-  timeBreakdown: Time breakdown
-  categories: Categories
 accountApps:
   reviewWhatEachApp: Review what each app can do with your account.
   searchByName: Search by name
@@ -93,8 +93,6 @@ account:
   profileSub: Photo, name, nickname, motto, email
 js:
   core:
-    wellTip: You've been here 15 minutes, time for a stretch?
-    wellDismiss: Dismiss
     pkCancelled: Cancelled
     pkTimeout: Timed out, please retry
     pkNoKey: No matching key on this device
@@ -239,25 +237,18 @@ js:
     securiSomethingWentWrongPlease: Something went wrong, please retry
     listSep: ", "
   space:
-    wellNoRec: No visits recorded yet today
-    areaLinks: Search
-    areaSpace: Space
-    wb1Min: <1 min
+    homeStatusUp: "STATUS: ONLINE · {up}/{n} ACTIVE"
+    homeStatusDown: "STATUS: DEGRADED · {up}/{n} ACTIVE"
     wbTodayAllDevices: Today · all devices
-    wbNothingRecordedYetToday: Nothing recorded yet today
     dmSourceWrap: '{s}'
-    daymarDaymark: DAYMARK
-    daymarNoLineForToday: No line for today yet
-    daymarTapToKeepOne: Tap to keep one in Daymark
-    wbDurHr: "{n} hr"
-    wbDurHrs: "{n} hrs"
-    wbDurMin: "{n} min"
-    wbArea_space: "Space"
-    wbArea_files: "My Files"
-    wbArea_browser: "Internet"
-    wbArea_book: "Books"
-    wbArea_blog: "Blog"
   status:
+    activeUp: active (running)
+    activeDown: degraded
+    unitActive: active
+    unitFailed: failed
+    unitFlaky: flaky
+    unitPending: pending
+    checkedAt: checked {time}
     loading: Loading…
     allUp: All systems operational
     allUpSub: '{n} services are up'
@@ -742,7 +733,6 @@ security:
   clearThisSessionAnd: Clear this session and return to the lock screen
   securityStatusIsRead: Security status is read from this device only.
 status:
-  serviceStatus: Service status
   loading: Loading…
   noDataYet: No data yet
   resultsShowUpAfter: Results show up after the first round of checks, in about a minute.
@@ -751,11 +741,6 @@ status:
   recentIncidents: Recent incidents
   spaceCredentialActivity: Space credential activity
   last7DaysTime: 'Last 7 days: time, IP prefix and result'
-setcatAbout:
-  version: Version
-  kernel: Kernel
-  build: Build
-  builtAt: Built at
 setcatTheme:
   colorPalette: Color palette
   reset: Reset
@@ -765,10 +750,15 @@ setcatTheme:
   dark: Dark
   default: ' (default)'
   default2: Default
-setcatWellbeing:
-  myScreenTime: My screen time
+wild:
+  # 旷野页（/wild/，对齐 PR-B）：screen-time 窗右上的范围、读屏用的列表名、没有记录、neofetch 各行的本语言说明（鼠标悬停 title）
   todayThisDevice: Today · this device
-  timeBreakdown: Time breakdown
+  timeBreakdown: Time by area
+  noRec: nothing recorded today
+  version: Version
+  kernel: Kernel
+  build: Build
+  builtAt: Built at
 sgxAccountCard:
   signedIn: Signed in
   changePhoto: Change photo
@@ -821,31 +811,18 @@ features:
     name: Files default view
   files-home:
     name: Files home sections
-  well-tip:
-    name: 15-minute reminder
-    desc: A gentle nudge after 15 minutes here
   lock-gate:
     name: Lock gate
 spaceCats:
-  band:
-    label: SPACE
-    title: Space
-    sub: How this site looks, its keys and its rhythm — all in one place.
   theme:
     title: Style
     sub: Palettes and accent colour
   security:
     title: Security
     sub: Passkeys, lock screen and temporary keys
-  wellbeing:
-    title: Digital wellbeing
-    sub: Screen time and habits
-  status:
-    title: Service status
-    sub: Whether the sites and APIs are up
-  about:
-    title: About
-    sub: Version, credits and open source
+  wild:
+    title: Wild
+    sub: Screen time, service status and about this site
 sites:
   space:
     title: Home

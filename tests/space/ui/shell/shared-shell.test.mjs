@@ -43,15 +43,16 @@ test('宽屏平铺（Gray 2026-11-07；2026-11 PR-A 起内容区回 1080）：�
     for (const r of rules) assert.match(r, /:root\[data-sgx-layout="desktop"\] \S+ \{$/, sel + ' 只在桌面布局');
   }
   assert.match(s, /\.sgx-flat \{ background: transparent; border: 0; border-radius: 0; box-shadow: none;/);
-  // 交互模块保留卡片：风格页（调色板）、数字健康（屏幕时间）、安全页、旷野页的屏幕时间不挂 .sgx-flat
+  // 交互模块保留卡片：风格页（调色板）、旷野页（屏幕时间 / 状态 / 关于，对齐 PR-B 起在 _default/wild.html）、安全页不挂 .sgx-flat
   const web = path.join(REPO, 'space/web/layouts');
-  for (const f of ['partials/setcat-theme.html', 'partials/setcat-wellbeing.html', '_default/security.html', '_default/security-lock.html', '_default/account.html']) {
+  for (const f of ['partials/setcat-theme.html', '_default/wild.html', '_default/security.html', '_default/security-lock.html', '_default/account.html']) {
     assert.doesNotMatch(readFileSync(path.join(web, f), 'utf8'), /sgx-flat/, f);
   }
   const home = readFileSync(path.join(web, 'index.html'), 'utf8');
-  /* 2026-11 PR-2 首屏终端：名片（#w-profile）并进居中 hero，不再是卡片；日刻仍挂 .sgx-flat；屏幕时间是交互模块，不挂 */
+  /* 2026-11 PR-2 首屏终端：名片（#w-profile）并进居中 hero，不再是卡片；对齐 PR-B：日刻是强调线引言（.home-qt，本身无卡片底，不挂 .sgx-flat）；屏幕时间小卡不挂 */
   assert.match(home, /<div id="w-profile" class="home-id">/);
-  assert.match(home, /id="w-daymark" [^>]*class="widget sgx-flat /);
+  assert.match(home, /id="w-daymark" [^>]*class="home-qt /);
+  assert.doesNotMatch(home, /sgx-flat/, '主页不再用 .sgx-flat');
   assert.doesNotMatch(home, /id="w-screen"[^>]*sgx-flat/);
 });
 

@@ -1,5 +1,6 @@
 /**
- * @fileoverview 旷野页（/）与子页（/theme/、/wellbeing/、/about/）：风格（调色板）、数字健康。
+ * @fileoverview 风格子页（/theme/）的调色板，与旷野页（/wild/）screen-time 窗的本机记录。
+ * 2026-11 对齐 PR-B：/wellbeing/ /about/ 并进旷野页 /wild/，15 分钟提醒删除（Gray 04:01）。
  * P4-3 PR-4b（2026-11-07，Gray）：显示页（/display/）整页删除——深色 / 跟随系统 / 语言 / 布局都在快捷面板（共享外壳），这里不再有主题模式、布局、语言三段。
  * P4-3 PR-4b（2026-11-07）：由 apps/settings.js 改名；主页和设置合成「旷野 / Space」一页，页内切换、DeX 双栏、旧 hash 跳转删除。
  * （2026-10-23 PR-E：字体大小、减弱动效、重置所有设置删除；P4-2c：日期和时间、天气、快捷键连同高级功能分类删除）
@@ -7,13 +8,12 @@
  * mountSpace() 在加载时挂一次（入口 entry-space.js / entry-space-sub.js），返回 destroy()：拆掉本次挂的全部监听。
  */
 import { on as evOn } from '../lib/events.js';
-import { get as featGet, set as featSet, on as featOnRaw } from '../lib/features.js';
-import { loadI18n } from '../lib/i18n.js';
+import { on as featOnRaw } from '../lib/features.js';
 import { setPalette, palette, DEFAULT_PALETTE } from '../lib/prefs.js';
 import { syncAccent } from '../lib/accent-roles.js';
 import { accent } from '../lib/accent.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
-import { fmtDur } from '../lib/wb-view.js';
+import { renderWbTerm } from '../lib/wb-view.js';
 
 /**
  * 挂旷野页 / 旷野子页。返回 destroy()：移除这次挂上的所有监听（含 features 订阅）。
@@ -34,29 +34,10 @@ export function mountSpace() {
     offs.push(off);
     return off;
   };
-  const en = document.documentElement.lang === 'en';
-  const T = loadI18n('sgx-i18n-space');
 
   /** @param {string} id */
   function $(id) {
     return document.getElementById(id);
-  }
-  /** @param {string} id @param {boolean} on_ */
-  function setSwitch(id, on_) {
-    const el = $(id);
-    if (el) el.setAttribute('aria-checked', on_ ? 'true' : 'false');
-  }
-  /** @param {string} id @param {() => void} fn */
-  function rowToggle(id, fn) {
-    const r = $(id);
-    if (!r) return;
-    on(r, 'click', fn);
-    on(r, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        fn();
-      }
-    });
   }
 
   /* ---- 调色板（2026-10-23 PR-G 七色调色板：22 套一个列表、按组分组；默认 terra，2026-11 PR-A 前 dustyblue） ---- */
@@ -102,29 +83,13 @@ export function mountSpace() {
   paintPalette();
   featOn('palette', paintPalette);
 
-  /* ---- 数字健康：时长提示 ---- */
-  function paintWellTip() {
-    setSwitch('sw-welltip', !!featGet('well-tip'));
-  }
-  rowToggle('row-welltip', function () {
-    featSet('well-tip', !featGet('well-tip'));
-    paintWellTip();
-  });
-  paintWellTip();
-  featOn('well-tip', paintWellTip);
-  /* 屏幕时间卡（2026-10-23 PR-E 两张并一张）：先画本机记录（sgx-well-v）；core 的 loadWb() 拉到 /api/wellbeing 且 detail:true
-     （账号已登录，P2-2）时覆盖同一组 [data-wb] 槽位并把范围改成「所有设备」；detail:false 就保持本机记录（卡上的 data-wb-detail，lib/wb-view.js wbFits）。
-     不看锁屏进门方式。 */
+  /* ---- 旷野 › screen-time 窗（/wild/ #wb-card，2026-11 对齐 PR-B；原 /wellbeing/ 页的屏幕时间卡）：先画本机记录（sgx-well-v）；
+     core 的 loadWb() 拉到 /api/wellbeing 且 detail:true（账号已登录，P2-2）时覆盖同一组 [data-wb] 槽位并把范围改成「所有设备」；
+     detail:false 就保持本机记录（卡上的 data-wb-detail，lib/wb-view.js wbFits）。不看锁屏进门方式。
+     15 分钟提醒开关按 Gray 04:01「数字健康不做设置，做成展示页」删除。 */
   (function () {
     const card = $('wb-card');
     if (!card) return;
-    const q = function (/** @type {string} */ n) {
-      return /** @type {HTMLElement|null} */ (card.querySelector('[data-wb="' + n + '"]'));
-    };
-    const totalEl = q('total'),
-      bar = q('bar'),
-      legend = q('legend');
-    if (!totalEl || !bar) return;
     let v = wellLoad();
     try {
       v = wellFlush();
@@ -132,31 +97,15 @@ export function mountSpace() {
     const ar = v.areas || {};
     /* 读旧写新（P4-3 PR-4b）：旧区域键 'home'（主页）、'settings'（设置）和更早的 'goodlock'（原 Good Lock 页）并进旷野 'space'；
        搜索页的区域键是 'browser'（更早是 'links'） */
-    const mins = {
-      space: (ar.space || 0) + (ar.home || 0) + (ar.settings || 0) + (ar.goodlock || 0),
-      links: (ar.browser || 0) + (ar.links || 0),
-    };
+    const space = (ar.space || 0) + (ar.home || 0) + (ar.settings || 0) + (ar.goodlock || 0);
+    const browser = (ar.browser || 0) + (ar.links || 0);
     const total = Math.max(0, v.min || 0);
-    totalEl.textContent = fmtDur(total * 60, en, true);
-    const AREAS = [
-      { id: 'space', label: T.t('areaSpace'), color: 'var(--m-primary-fill, var(--m-primary))' },
-      { id: 'links', label: T.t('areaLinks'), color: 'var(--m-accent)' },
-    ];
-    if (total < 1) {
-      bar.innerHTML = '<span style="width:100%;background:var(--m-container-highest)"></span>';
-      if (legend) legend.innerHTML = '<span>' + T.t('wellNoRec') + '</span>';
-      return;
-    }
-    bar.innerHTML = AREAS.map(function (a) {
-      const pct = Math.max(0, (/** @type {any} */ (mins)[a.id] / total) * 100);
-      return '<span style="width:' + pct.toFixed(1) + '%;background:' + a.color + '" title="' + a.label + '"></span>';
-    }).join('');
-    if (legend)
-      legend.innerHTML = AREAS.map(function (a) {
-        return (
-          '<span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:' + a.color + '"></span>' + a.label + '</span>'
-        );
-      }).join('');
+    const scopeEl = card.querySelector('[data-wb="scope"]');
+    renderWbTerm(card, {
+      total: total * 60,
+      sections: [{ k: 'space', sec: space * 60 }, { k: 'browser', sec: browser * 60 }],
+      items: [],
+    }, { scope: scopeEl ? scopeEl.textContent || '' : '' });
   })();
 
   return function destroy() {

@@ -332,7 +332,8 @@ for (const lang of DOOR_LANGS) {
  * 手机 412×915 × 中英 × 深浅色。/api/status 用 tests/fixtures/status-summary.cjs（含用量），/api/account 固定已登录（设置页不读它）、设备列表固定两台。 */
 const fxStatus = require('../../../fixtures/status-summary.cjs');
 const SUB_PAGES = [
-  ['space-status', '/status/', async (pg) => { await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 }); }],
+  /* 对齐 PR-B：服务状态并进旷野 /wild/（截图名留 space-status，新基线在重设计最后一个 PR 重拍） */
+  ['space-status', '/wild/', async (pg) => { await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 }); }],
   ['account-sub-sync', '/account/sync/', async (pg) => { await expect(pg.locator('[data-sync-key="sgx-theme-mode"] [data-sync-val]')).not.toHaveText('', { timeout: 10000 }); }],
   ['account-sub-devices', '/account/devices/', async (pg) => { await expect(pg.locator('#acct-devices')).toBeVisible({ timeout: 10000 }); await expect(pg.locator('#acct-by')).not.toHaveText(''); }],
   /* 2026-10-24 分享短链：临时钥匙页（临时钥匙 + 分享短链两张列表），数据见 tests/fixtures/share-links.cjs */
@@ -411,7 +412,7 @@ for (const lang of LANGS) {
         content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
       });
       await freezeTime(pg);
-      await pg.goto(lang.prefix + '/status/', { waitUntil: 'domcontentloaded' });
+      await pg.goto(lang.prefix + '/wild/', { waitUntil: 'domcontentloaded' });
       await waitPageReady(pg);
       await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 });
       await pg.locator('#st-audit summary').click();

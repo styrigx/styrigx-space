@@ -312,8 +312,8 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await expect(nav(page).locator('[data-nav-count]')).toHaveText('02/05');
     await expect(nav(page).locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
     await expect(nav(page).locator('[data-nav="daymark"]')).toHaveAttribute('href', '/daymark/zh/');
-    /* 05 旷野先链到主站首页（/wild/ 页面还没有） */
-    await expect(nav(page).locator('[data-nav="wild"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
+    /* 05 旷野：对齐 PR-B 起链到独立页 /wild/ */
+    await expect(nav(page).locator('[data-nav="wild"]')).toHaveAttribute('href', 'https://styrigx.com/zh/wild/');
     await expect(nav(page).locator('[data-nav="book"]')).toHaveCount(0);
     await expect(page.locator('#sgx-nav input, #sgx-nav [type="search"], #sgx-nav [role="search"], #sgx-nav a[href*="/search/"]')).toHaveCount(0);
     await expect(nav(page).locator('[aria-current="page"]')).toHaveCount(1);
@@ -329,12 +329,12 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     /* 竖排列表：一项一行 */
     const b = await tiles.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; }));
     for (let i = 1; i < b.length; i++) { expect(b[i][0]).toBe(b[0][0]); expect(b[i][1]).toBeGreaterThan(b[i - 1][1]); }
-    /* 面板上沿贴顶栏下沿（2026-11 PR-A 照设计稿：静态实色卡、不留 8px 缝），左右对齐顶栏内容区（手机 412：页边距 16） */
+    /* 面板上沿贴顶栏下沿（2026-11 PR-A 照设计稿：静态实色卡、不留 8px 缝），左右对齐顶栏内容区（手机 412：页边距 12，对齐 PR-B） */
     const sheet = await page.locator('#sgx-nav .sgx-qp-sheet').boundingBox();
     const bar = await page.locator('.sgx-topbar').boundingBox();
     expect(Math.abs(sheet.y - (bar.y + bar.height))).toBeLessThanOrEqual(1);
-    expect(Math.abs(sheet.x - 16)).toBeLessThanOrEqual(1);
-    expect(Math.abs(sheet.x + sheet.width - (412 - 16))).toBeLessThanOrEqual(1);
+    expect(Math.abs(sheet.x - 12)).toBeLessThanOrEqual(1);
+    expect(Math.abs(sheet.x + sheet.width - (412 - 12))).toBeLessThanOrEqual(1);
     /* 分享 / 锁定在 NAVIGATE；外观面板没有页签、导航列表、分享 */
     await expect(page.locator('#sgx-nav [data-qp="share"][data-sgx-share]')).toBeVisible();
     await page.keyboard.press('Escape');

@@ -194,7 +194,8 @@ describe('网址回归（图志 /blog/ 下）', () => {
   it('NAVIGATE（顶栏 v3）：主页 / 博客 / 奇趣 / 日刻 / 旷野（主站项绝对地址、三站之间相对 /<站>/），博客「开」态；头像在顶栏最右和 AI 窗口头部，都去主站账号页；没有搜索框', async () => {
     const html = await (await fetch(base + '/blog/')).text();
     const hrefs = [...html.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(hrefs, ['https://styrigx.com/', '/blog/', '/curio/', '/daymark/', 'https://styrigx.com/']);
+    /* 对齐 PR-B：05 旷野指向独立页 /wild/ */
+    assert.deepEqual(hrefs, ['https://styrigx.com/', '/blog/', '/curio/', '/daymark/', 'https://styrigx.com/wild/']);
     assert.match(html, /class="sgx-nav-tile" href="\/blog\/" data-nav="blog" aria-current="page"/);
     assert.match(html, /<a class="sgx-pop-me-a" href="https:\/\/styrigx\.com\/account\/"><img src="https:\/\/styrigx\.com\/avatar\/192\.webp"/);
     assert.match(html, /<a class="sgx-tb-av" href="https:\/\/styrigx\.com\/account\/"/, '顶栏头像去主站账号页');
@@ -203,7 +204,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.doesNotMatch(html, /atlas\.styrigx\.com/, '合并 PR3：不再有旧图志域名');
     const zh = await (await fetch(base + '/blog/zh/')).text();
     const zhHrefs = [...zh.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/blog/zh/', '/curio/zh/', '/daymark/zh/', 'https://styrigx.com/zh/']);
+    assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/blog/zh/', '/curio/zh/', '/daymark/zh/', 'https://styrigx.com/zh/wild/']);
     assert.match(zh, /<a class="sgx-pop-me-a" href="https:\/\/styrigx\.com\/zh\/account\/"/);
   });
 

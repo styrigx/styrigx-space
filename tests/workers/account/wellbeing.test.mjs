@@ -13,7 +13,7 @@ const onRequestPost = wrap(rawPost);
 const onRequestGet = wrap(rawGet);
 import { buildBody, localDay } from '../../../space/web/assets/js/lib/wb-track.js';
 import { wbAreaOf } from '../../../space/web/assets/js/lib/wb-area.js';
-import { fmtDur, foldSections } from '../../../space/web/assets/js/lib/wb-view.js';
+import { fmtShort, foldSections } from '../../../space/web/assets/js/lib/wb-view.js';
 import { setI18nLang } from '../../fixtures/i18n-dom.mjs';
 
 const NOW = Date.parse('2026-10-17T09:00:00Z');
@@ -119,7 +119,9 @@ test('wbAreaOf：主站页面映射', () => {
   assert.equal(wbAreaOf('/zh/browser/'), 'browser');
   assert.equal(wbAreaOf('/bookmarks/'), null); /* 2026-10-21 主站书签下线 */
   assert.equal(wbAreaOf('/zh/search/'), 'browser');
-  for (const p of ['/theme/', '/wellbeing/', '/about/', '/status/', '/security/', '/security/lock/', '/zh/security/tempkeys/', '/account/', '/zh/account/devices/']) {
+  /* 对齐 PR-B：数字健康 / 关于 / 状态并进旷野 /wild/（旧地址 301，页面不再存在，不算区域） */
+  for (const p of ['/wellbeing/', '/about/', '/status/', '/zh/status/']) assert.equal(wbAreaOf(p), null, p);
+  for (const p of ['/theme/', '/wild/', '/zh/wild/', '/security/', '/security/lock/', '/zh/security/tempkeys/', '/account/', '/zh/account/devices/']) {
     assert.equal(wbAreaOf(p), 'space', p);
   }
   assert.equal(wbAreaOf('/blog/'), null, '子站不归主站区域');
@@ -137,15 +139,18 @@ test('foldSections（前端读旧）：home / settings 并进 space，同键相�
   assert.deepEqual(foldSections([]), []);
 });
 
-test('fmtDur：中英文时长', () => {
-  /* 语言包化 2026-11-07：文案来自页面字符串表 #sgx-i18n-space（这里用 strings.mjs 的同一份表） */
-  setI18nLang('zh');
-  assert.equal(fmtDur(30, false), '不到 1 分钟');
-  assert.equal(fmtDur(65 * 60, false), '1 小时 5 分钟');
-  assert.equal(fmtDur(120 * 60, false), '2 小时');
-  setI18nLang('en');
-  assert.equal(fmtDur(5 * 60, true), '5 min');
-  assert.equal(fmtDur(150 * 60, true, true), '2 hrs 30 min');
+test('fmtShort：终端短时长（对齐 PR-B 起取代 fmtDur；各语言同一写法）', () => {
+  for (const l of ['zh', 'en']) {
+    setI18nLang(l);
+    assert.equal(fmtShort(30), '<1m');
+    assert.equal(fmtShort(5 * 60), '5m');
+    assert.equal(fmtShort(65 * 60), '1h 5m');
+    assert.equal(fmtShort(120 * 60), '2h 0m');
+    assert.equal(fmtShort(150 * 60 + 59), '2h 30m');
+  }
+  assert.equal(fmtShort(0), '<1m');
+  assert.equal(fmtShort(-5), '<1m');
+  assert.equal(fmtShort(/** @type {any} */ ('abc')), '<1m');
 });
 
 /* ---- P2-2：POST 只记账号会话 + wellbeing.write；GET 明细只给账号会话，响应带 detail ---- */

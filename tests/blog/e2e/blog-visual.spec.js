@@ -102,7 +102,7 @@ test.describe('顶栏 v3 布局', () => {
 
   test('通栏（贴顶、全宽、高 64）：字标 · 外观 · 盾牌 · | · >_ · 头像，按钮 40；内容收进居中的 max(页边距, (宽 − 1080) / 2)；不显示页名；没有右圆分享', async ({ page }) => {
     const w = page.viewportSize().width;
-    const m = w < 600 ? 16 : Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
+    const m = w < 600 ? 12 /* 对齐 PR-B：手机页边距 12 */ : Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
     const pad = Math.max(m, (w - 1080) / 2);
     for (const path of ['/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/']) {
       await page.goto(path, { waitUntil: 'domcontentloaded' });

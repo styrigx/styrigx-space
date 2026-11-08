@@ -1,12 +1,12 @@
 {
-  "_note": "导航面板（NAVIGATE，顶栏 v3）和 tmux 页脚的数据：只放 id / 图标 / 地址 / 终端路径提示；站点名在字符串表 data/sgx-shell-i18n/<语言>.yaml 的 nav.<id>.title、页脚窗口名在 foot.win.<id>。顺序 = 面板编号 01–05 = 页脚窗口 0–4。wild（旷野）独立页还没有，暂指 /（旷野现在就是主站首页那一页），等子页 PR 再改。links：页脚的外部链接（README 同一组）",
+  "_note": "导航面板（NAVIGATE，顶栏 v3）和 tmux 页脚的数据：只放 id / 图标 / 地址 / 终端路径提示；站点名在字符串表 data/sgx-shell-i18n/<语言>.yaml 的 nav.<id>.title、页脚窗口名在 foot.win.<id>。顺序 = 面板编号 01–05 = 页脚窗口 0–4。wild（旷野）= /wild/（2026-11 对齐 PR-B 起的独立页：屏幕时间 / 服务状态 / 关于本站）。links：页脚的外部链接（README 同一组）",
   "brand": "Styrigx",
   "items": [
     { "id": "home", "icon": "nav-home", "origin": "https://styrigx.com", "path": "/", "hint": "~" },
     { "id": "blog", "icon": "nav-blog", "origin": "https://styrigx.com", "path": "/blog/", "hint": "blog/" },
     { "id": "curio", "icon": "nav-curio", "origin": "https://styrigx.com", "path": "/curio/", "hint": "curio/" },
     { "id": "daymark", "icon": "nav-daymark", "origin": "https://styrigx.com", "path": "/daymark/", "hint": "daymark/" },
-    { "id": "wild", "icon": "nav-home", "origin": "https://styrigx.com", "path": "/", "hint": "wild/" }
+    { "id": "wild", "icon": "nav-home", "origin": "https://styrigx.com", "path": "/wild/", "hint": "wild/" }
   ],
   "footer": [],
   "links": { "github": "https://github.com/styrigx", "x": "https://x.com/styrigx" },

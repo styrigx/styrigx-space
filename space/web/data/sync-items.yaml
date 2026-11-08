@@ -6,7 +6,7 @@ groups:
   - id: look
     keys: [sgx-theme-mode, sgx-palette, sgx-accent]
   - id: more
-    keys: [sgx-well-tip, sgx-files-view, sgx-files-home, sgx-ai-model]
+    keys: [sgx-files-view, sgx-files-home, sgx-ai-model]
 extra:
   sgx-accent:
     type: accent

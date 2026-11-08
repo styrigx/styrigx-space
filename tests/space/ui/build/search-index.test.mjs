@@ -96,25 +96,30 @@ test('真实构建：锁屏凭证的副标题是完整面包屑，text 带上级
   const get = (/** @type {string} */ u) => ix.items.find((x) => x.url === 'https://styrigx.com' + u && x.id.startsWith('setting:'));
   const lock = get('/zh/security/lock/');
   assert.equal(lock.title, '锁屏凭证');
-  assert.equal(lock.subtitle, '旷野 › 安全');
+  assert.equal(lock.subtitle, '主页 › 安全', '对齐 PR-B：根页叫「主页」');
   assert.match(lock.text, /通行密钥/);
   assert.match(lock.text, /解锁密码、通行密钥、会话/, '上级页「安全」里指向本页那一行的说明');
   assert.doesNotMatch(lock.text, /正在读取/);
   const en = get('/security/lock/');
-  assert.equal(en.subtitle, 'Space › Security');
+  assert.equal(en.subtitle, 'Home › Security');
   assert.match(en.text, /passkeys/i);
-  assert.equal(get('/zh/theme/').subtitle, '旷野');
+  assert.equal(get('/zh/theme/').subtitle, '主页');
   /* P4-3 PR-4b：显示页删除，索引里没有 /display/；旷野页平铺入口的副标题进了子页的 text */
   assert.ok(!ix.items.some((x) => /\/display\//.test(x.url)), '索引里没有 /display/');
   assert.ok(!ix.items.some((x) => /^https:\/\/styrigx\.com\/en\//.test(x.url)), '索引里没有 /en/（P4-3 PR-4c）');
-  assert.match(get('/zh/theme/').text, /调色板与主题色/, '旷野页入口副标题进子页 text');
-  assert.match(get('/wellbeing/').text, /Screen time and habits/);
-  assert.equal(get('/zh/').subtitle, '', '旷野页自己没有面包屑');
-  assert.equal(get('/').title, 'Space');
+  /* 对齐 PR-B：主页不再有分类入口；数字健康 / 服务状态 / 关于本站并进旷野页 /wild/，旧地址不进索引 */
+  for (const old of ['wellbeing', 'status', 'about']) assert.ok(!ix.items.some((x) => new RegExp('/' + old + '/$').test(x.url)), '索引里没有 /' + old + '/');
+  assert.equal(get('/wild/').title, 'Wild');
+  assert.equal(get('/wild/').subtitle, 'Home');
+  assert.equal(get('/zh/wild/').title, '旷野');
+  assert.equal(get('/zh/wild/').subtitle, '主页');
+  assert.equal(get('/zh/').subtitle, '', '主页自己没有面包屑');
+  assert.equal(get('/').title, 'Home');
+  assert.equal(get('/zh/').title, '主页');
   assert.equal(get('/zh/account/security/').subtitle, '账号');
   for (const x of ix.items) if (x.text) assert.ok(x.text.length <= S.TEXT_MAX || x.id.startsWith('feature:'), x.id + ' text 超长');
   const feat = ix.items.find((x) => x.id.startsWith('feature:') && x.lang === 'zh' && x.url === 'https://styrigx.com/zh/theme/');
-  assert.ok(feat && feat.subtitle === '旷野' + S.CRUMB + '壁纸和主题', '功能开关副标题 = 面包屑 + 页名');
+  assert.ok(feat && feat.subtitle === '主页' + S.CRUMB + '壁纸和主题', '功能开关副标题 = 面包屑 + 页名');
   /* 显示页删除：主题模式 / 布局 / 语言只在快捷面板，不进索引 */
   for (const id of ['theme-mode', 'layout', 'lang']) assert.ok(!ix.items.some((x) => x.id.startsWith('feature:' + id + ':')), id + ' 不进索引');
   /* 私密标记照旧 */

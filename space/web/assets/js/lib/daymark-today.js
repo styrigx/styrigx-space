@@ -1,9 +1,10 @@
 /**
  * @fileoverview 日刻 · 今日一句（/daymark/api/today，公开只读；合并 PR3 起和主站同源，接口 Worker styrigx-daymark-core 挂在 styrigx.com/daymark/api/*）。
  *
- * 主页小组件（layouts/index.html #w-daymark，整张卡点进日刻）与锁屏（shell/lock.js，只展示、不可点）共用：
- * - daymarkCardHtml()：卡片内部结构（与主页模板同一套 data-dm 槽位与 dm-w-* 样式）
- * - mountDaymarkToday()：先画本地缓存（同一天才用），再静默拉新；拉失败且没缓存 → 卡片保持隐藏
+ * 主页 [03] 日刻（layouts/index.html #w-daymark，设计稿 .qt 强调线引言，整块点进日刻）用：
+ * - paintDaymark()：画进模板里的 data-dm 槽位（text / trans / by / day / body / empty）
+ * - mountDaymarkToday()：先画本地缓存（同一天才用），再静默拉新；拉失败且没缓存 → 保持隐藏
+ * （旧的大引号卡片结构 daymarkCardHtml / .dm-w-* 随对齐 PR-B 删除）
  *
  * 只读公开字段：{ok, day, quote|null}，quote = {text, trans, author, source}。
  * 不读、不显示任何私密内容（随手一笔 note 等）：即使响应里带了别的字段也不用。
@@ -16,8 +17,6 @@ const tx = i18nTable('space');
 
 export const DAYMARK_API = '/daymark/api/today';
 export const DAYMARK_CACHE = 'sgx-daymark-today';
-
-const DM_ICON = '<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15.5" rx="2.5"/><path d="M8.5 3v4M15.5 3v4"/><path d="M10.5 11.2c-1.3.5-2 1.6-2 3.3v1.3"/><path d="M8.5 15.8h1.8v-1.9H8.6"/><path d="M15.5 11.2c-1.3.5-2 1.6-2 3.3v1.3"/><path d="M13.5 15.8h1.8v-1.9h-1.7"/></svg>';
 
 /** 上海时区的今天（YYYY-MM-DD）；日刻按上海时区换日 */
 export function todayShanghai() {
@@ -56,28 +55,6 @@ export function daymarkByline(quote, en) {
   let by = '';
   try { by = new Intl.ListFormat(pageLang(), { type: 'unit', style: 'short' }).format(parts); } catch (e) { by = parts.join(' '); }
   return by ? '— ' + by : '';
-}
-
-/**
- * 卡片内部 HTML（与主页模板 #w-daymark 的内部结构一致；外层元素由调用方给）。
- * @param {boolean} en
- * @param {{emptyHint?: boolean}} [opts] emptyHint=false 时空状态不写「点开日刻，记下一句」（锁屏不可点）
- */
-export function daymarkCardHtml(en, opts) {
-  const emptyHint = !opts || opts.emptyHint !== false;
-  return '<span class="dm-w-mark" aria-hidden="true">\u201C</span>' +
-    '<div class="relative flex items-center justify-between gap-3">' +
-    '<p class="flex items-center gap-1.5 text-xs font-semibold tracking-widest text-m-primary">' +
-    '<span class="dm-w-ic">' + DM_ICON + '</span><span>' + (tx('daymarDaymark')) + '</span></p>' +
-    '<p class="text-[11px] text-m-on-surface-variant" data-dm="day"></p></div>' +
-    '<div class="relative" data-dm="body">' +
-    '<p class="dm-w-text mt-4 font-bold leading-snug" data-dm="text"></p>' +
-    '<p class="dm-w-trans mt-2 text-sm text-m-on-surface-variant leading-relaxed hidden" data-dm="trans"></p>' +
-    '<p class="mt-3 text-sm text-m-on-surface-variant text-right truncate" data-dm="by"></p></div>' +
-    '<div class="relative hidden" data-dm="empty">' +
-    '<p class="mt-4 text-lg font-bold">' + (tx('daymarNoLineForToday')) + '</p>' +
-    (emptyHint ? '<p class="mt-1.5 text-sm text-m-on-surface-variant">' + (tx('daymarTapToKeepOne')) + '</p>' : '') +
-    '</div>';
 }
 
 /**

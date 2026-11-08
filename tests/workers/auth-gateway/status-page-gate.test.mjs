@@ -31,7 +31,8 @@ function ctx(url, cookie) {
   };
 }
 
-const PAGES = ['/status/', '/zh/status/', '/chat/', '/zh/chat/'];
+/* 对齐 PR-B：服务状态并进旷野 /wild/#status；/status/ 留着验证旧地址照样先过网关（之后由 Pages _redirects 301） */
+const PAGES = ['/status/', '/zh/status/', '/wild/', '/zh/wild/', '/chat/', '/zh/chat/'];
 
 test('没会话：/status/、/chat/（中英）302 到首页锁屏，return = 原路径，no-store', async () => {
   for (const p of PAGES) {
@@ -59,8 +60,11 @@ test('进门会话（没有账号会话；锁屏密码 / 锁屏通行密钥 / �
   }
 });
 
-test('旧的顶栏「状态」页 /status/ 已删除：网关不认这个路径，也没有跳转规则', async () => {
+test('旧的「状态」页 /status/（含 /zh/）并进旷野：_redirects 301 到 /wild/#status（对齐 PR-B），没有 /en/ 规则', async () => {
   const { readFileSync } = await import('node:fs');
   const red = readFileSync(new URL('../../../space/web/static/_redirects', import.meta.url), 'utf8');
-  assert.doesNotMatch(red, /^\/(en\/)?status/m);
+  assert.match(red, /^\/status\/\s+\/wild\/#status\s+301$/m);
+  assert.match(red, /^\/zh\/status\/\s+\/zh\/wild\/#status\s+301$/m);
+  assert.doesNotMatch(red, /^\/en\/status/m);
+  assert.equal((red.match(/^\/(?:zh\/)?status/gm) || []).length, 2, '只有这两条');
 });

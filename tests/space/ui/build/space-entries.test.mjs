@@ -1,9 +1,9 @@
 /**
- * P4-3 PR-4b §9–11（Gray 2026-11-07）：显示页删除 + 旷野页平铺入口。
- * - 数据（data/space-cats.yaml）：标题带 + 5 个入口，顺序、字段齐全、图标存在、配色在白名单里
- * - 模板：旷野页只调用共享入口组件（partials/sgx-entries.html），入口名字不写死在模板里（加入口 = 加一行数据）
+ * P4-3 PR-4b §9–11（Gray 2026-11-07）：显示页删除 + 平铺入口组件；2026-11 对齐 PR-B：主页不再有分类入口，旷野独立成 /wild/。
+ * - 数据（data/space-cats.yaml）：3 个门内子页，顺序、字段齐全、图标存在、配色在白名单里
+ * - 模板：主页不调用入口组件（子站首页仍用 partials/sgx-entries.html）；旷野独立布局；旧页删除
  * - CSS：@shell entries 区块（共享外壳）只用 --sgx-* 角色；≥ 760 两栏、≥ 1100 三栏（栏间细竖线）
- * - 构建产物（有才跑）：中英旷野页的入口按数据渲染（数量、顺序、编号、名字、副标题、地址）、标题带；
+ * - 构建产物（有才跑）：中英主页四节、旷野小卡锚点、旷野页三窗；
  *   /display/ 页面不存在；任何产物（HTML / XML / JSON）里没有 /display/ 链接；搜索索引里没有 /display/
  * 运行：node --test tests/space/ui/build/space-entries.test.mjs
  */
@@ -22,11 +22,11 @@ const cats = /** @type {any[]} */ (data.cats);
 const TR = { en: strings('space', 'en'), zh: strings('space', 'zh') };
 const TONES = ['primary', 'secondary', 'tertiary', 'info'];
 
-test('数据：旷野 5 个入口（风格、安全、数字健康、服务状态、关于本站），字段齐全', () => {
-  assert.deepEqual(cats.map((c) => c.id), ['theme', 'security', 'wellbeing', 'status', 'about']);
-  /* 语言包化（2026-11-07）：名字 / 副标题 / 标题带在字符串表 spaceCats（数据文件只留 id / icon / tone） */
-  assert.deepEqual(cats.map((c) => TR.zh.spaceCats[c.id].title), ['风格', '安全', '数字健康', '服务状态', '关于本站']);
-  assert.deepEqual(cats.map((c) => TR.en.spaceCats[c.id].title), ['Style', 'Security', 'Digital wellbeing', 'Service status', 'About']);
+test('数据：主站门内子页 3 个（风格、安全、旷野），字段齐全（对齐 PR-B：数字健康 / 服务状态 / 关于本站并进旷野）', () => {
+  assert.deepEqual(cats.map((c) => c.id), ['theme', 'security', 'wild']);
+  /* 语言包化（2026-11-07）：名字 / 副标题在字符串表 spaceCats（数据文件只留 id / icon / tone） */
+  assert.deepEqual(cats.map((c) => TR.zh.spaceCats[c.id].title), ['风格', '安全', '旷野']);
+  assert.deepEqual(cats.map((c) => TR.en.spaceCats[c.id].title), ['Style', 'Security', 'Wild']);
   const icons = rd('space/web/layouts/partials/icon.html');
   for (const c of cats) {
     for (const k of ['icon', 'tone']) assert.ok(typeof c[k] === 'string' && c[k].trim(), `${c.id}.${k}`);
@@ -36,21 +36,30 @@ test('数据：旷野 5 个入口（风格、安全、数字健康、服务状�
     assert.ok(icons.includes(`eq $name "${c.icon}"`), `${c.id}：icon.html 里有图标 ${c.icon}`);
     assert.ok(!c.id.includes('/') && c.id !== 'display', c.id);
   }
-  assert.equal(TR.en.spaceCats.band.label, 'SPACE');
-  assert.equal(TR.zh.spaceCats.band.label, '空间', '中文版「空间」（Gray 2026-11-07）');
-  assert.equal(TR.zh.spaceCats.band.title, '旷野');
-  assert.equal(TR.en.spaceCats.band.title, 'Space');
-  assert.ok(TR.zh.spaceCats.band.sub && TR.en.spaceCats.band.sub, '标题带一句话（中英）');
+  /* 旧入口和主页标题带的文字都删了 */
+  for (const l of ['en', 'zh']) for (const k of ['wellbeing', 'status', 'about', 'band']) assert.equal(TR[l].spaceCats[k], undefined, `${l} spaceCats.${k} 应已删除`);
+  assert.equal(data.band, undefined, 'space-cats.yaml 不再有 band');
 });
 
-test('模板：旷野页用共享入口组件，入口不写死在模板里；显示页的模板和内容都删了', () => {
+test('模板：主页不再渲染分类入口（入口组件只给子站首页用）；旷野是独立页；显示页的模板和内容都删了', () => {
   const idx = rd('space/web/layouts/index.html');
-  assert.match(idx, /partial "sgx-entries\.html"/);
-  for (const c of cats) assert.ok(!idx.includes(`/${c.id}/`) && !idx.includes(TR.zh.spaceCats[c.id].sub), `index.html 不写死 ${c.id}`);
+  assert.doesNotMatch(idx, /partial "sgx-entries\.html"/, '主页不调用入口组件');
+  assert.doesNotMatch(idx, /space-cats/, '主页不读 space-cats');
+  for (const c of cats) assert.ok(!idx.includes(TR.zh.spaceCats[c.id].sub), `index.html 不写死 ${c.id} 副标题`);
+  for (const f of ['blog/section.html', 'curio/section.html', 'daymark/section.html']) {
+    assert.match(rd('space/web/layouts/' + f), /partial "sgx-entries\.html"/, f + ' 仍用共享入口组件');
+  }
   const part = rd('space/web/layouts/partials/sgx-entries.html');
   assert.match(part, /range \$i, \$e := \.items/, '组件按数据行渲染');
   assert.match(part, /printf "%02d" \(add \$i 1\)/, '编号 01… 按行序生成');
-  for (const f of ['space/web/content/display.md', 'space/web/content/zh/display.md', 'space/web/layouts/partials/setcat-display.html']) {
+  /* 旷野页：独立布局 + 中英内容 */
+  assert.ok(existsSync(path.join(REPO, 'space/web/layouts/_default/wild.html')), 'wild.html');
+  for (const f of ['space/web/content/wild.md', 'space/web/content/zh/wild.md']) assert.match(rd(f), /layout:\s*"?wild"?/, f + ' 用 wild 布局');
+  /* 旧的三页（并进旷野）内容和模板删除 */
+  for (const f of ['space/web/content/display.md', 'space/web/content/zh/display.md', 'space/web/layouts/partials/setcat-display.html',
+    'space/web/content/wellbeing.md', 'space/web/content/zh/wellbeing.md', 'space/web/content/status.md', 'space/web/content/zh/status.md',
+    'space/web/content/about.md', 'space/web/content/zh/about.md', 'space/web/layouts/_default/status.html',
+    'space/web/layouts/partials/setcat-about.html', 'space/web/layouts/partials/setcat-wellbeing.html']) {
     assert.ok(!existsSync(path.join(REPO, f)), f + ' 应已删除');
   }
   /* 不做 301：_redirects 里没有 /display/ */
@@ -87,31 +96,21 @@ function files(dir) {
   return out;
 }
 
-test('构建产物：中英旷野页入口按数据渲染（数量、顺序、编号、名字、副标题、地址）+ 标题带', { skip: !BUILT && '没构建 space/web/public' }, () => {
+test('构建产物：中英主页四节 [01]–[04]、没有分类入口；[04] 三张小卡指向旷野锚点；旷野页三个窗', { skip: !BUILT && '没构建 space/web/public' }, () => {
   for (const [lang, file, pre] of [['en', 'index.html', '/'], ['zh', 'zh/index.html', '/zh/']]) {
     const html = readFileSync(path.join(REPO, 'space/web/public', file), 'utf8');
-    const sec = (html.match(/<section class="?sgx-ents"?[\s\S]*?<\/section>/) || [''])[0];
-    assert.ok(sec, lang + '：有入口区块');
-    const label = TR[lang].index.categories;
-    assert.match(sec, new RegExp(`<ul class="?sgx-ent-list"? role="?list"? aria-label="?${label}"?>`));
-    const band = TR[lang].spaceCats.band;
-    assert.match(sec, new RegExp(`class="?sgx-ent-label"?>${band.label}<`));
-    assert.match(sec, new RegExp(`class="?sgx-ent-title"? id="?space-entries-title"?>${band.title}<`));
-    assert.ok(sec.includes(band.sub), lang + '：标题带一句话');
-    const items = [...sec.matchAll(/<a class="?sgx-ent"? href="?([^" >]+)"? data-entry="?([a-z-]+)"?>([\s\S]*?)<\/a>/g)];
-    assert.equal(items.length, cats.length, lang + '：入口数 = 数据行数');
-    items.forEach((m, i) => {
-      const c = cats[i];
-      assert.equal(m[2], c.id, `${lang} 第 ${i + 1} 个`);
-      assert.equal(m[1], pre + c.id + '/');
-      assert.match(m[3], new RegExp(`sgx-ent-no"? aria-hidden="?true"?>${String(i + 1).padStart(2, '0')}<`));
-      assert.match(m[3], new RegExp(`sgx-ent-ic sgx-ent-ic--${c.tone}`));
-      assert.ok(m[3].includes('>' + TR[lang].spaceCats[c.id].title + '<'), `${lang} ${c.id} 名字`);
-      assert.ok(m[3].includes('>' + TR[lang].spaceCats[c.id].sub + '<'), `${lang} ${c.id} 副标题`);
-    });
-    /* 名片和屏幕时间卡保留 */
+    assert.doesNotMatch(html, /class="?sgx-ents/, lang + '：主页没有入口区块');
+    const ks = [...html.matchAll(/home-sec-k"? aria-hidden="?true"? translate="?no"?>([^<]+)</g)].map((m) => m[1]);
+    assert.deepEqual(ks, ['[01] // BLOG', '[02] // CURIO', '[03] // DAYMARK', '[04] // WILD'], lang + '：四节顺序');
+    for (const a of ['screen-time', 'status', 'about']) assert.ok(html.includes(`href="${pre}wild/#${a}"`) || html.includes(`href=${pre}wild/#${a}`), `${lang}：小卡 ${a} → ${pre}wild/#${a}`);
+    const cu = lang === 'zh' ? '/curio/zh/' : '/curio/';
+    for (const d of ['finds', 'devices', 'games']) assert.match(html, new RegExp(`href="?${cu}${d}/"? data-curio="?${d}"?`), `${lang}：奇趣 ${d}/`);
+    /* 名字和屏幕时间小卡保留 */
     assert.match(html, /id="?w-profile"?/);
     assert.match(html, /id="?w-screen"?/);
+    const wild = readFileSync(path.join(REPO, 'space/web/public', pre.slice(1) + 'wild/index.html'), 'utf8');
+    for (const id of ['screen-time', 'status', 'about']) assert.match(wild, new RegExp(`<section class="?wild-sec"? id="?${id}"?`), `${lang} 旷野 #${id}`);
+    for (const id of ['wb-card', 'st-root', 'sg-about']) assert.match(wild, new RegExp(`id="?${id}"?`), `${lang} 旷野 #${id}`);
   }
 });
 

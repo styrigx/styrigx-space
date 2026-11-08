@@ -138,10 +138,10 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
     await page.waitForURL((u) => u.pathname === ZH + '/');
     await expect.poll(() => homeState(page).then((s) => settledHome(s, 'navigate'))).toBe(true);
 
-    /* 站内从旷野页的分类卡进子页（P4-3 PR-4b 起没有页内切换，是一次普通的跨文档导航），再系统返回：回到旷野页；
+    /* 站内从主页进子页（对齐 PR-B 起主页没有分类卡，走 [04]「cd wild/ →」进旷野页；一次普通的跨文档导航），再系统返回：回到主页；
        这条历史是真正请求过 / 的，不带 sgxRoot，不会再 location.replace 出第二份文档 */
-    await page.locator('.home-wrap [aria-label="分类"] a[href="/zh/theme/"]').click();
-    await page.waitForURL((u) => u.pathname === ZH + '/theme/');
+    await page.locator('#wild a.home-sec-more[href="/zh/wild/"]').click();
+    await page.waitForURL((u) => u.pathname === ZH + '/wild/');
     await page.waitForLoadState('load');
     docs.length = 0;
     await page.goBack();

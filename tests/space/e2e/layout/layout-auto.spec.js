@@ -51,7 +51,7 @@ for (const [pref, vp, want] of [['desktop', { width: 412, height: 915 }, 'dex'],
 
 /* ----- 顶栏 v3（2026-11 UI 重设计 PR-1）：贴顶通栏（x 0、宽 = 视口宽，任何布局一样），内容收进居中的 --sgx-content-w（1080）：
    左右内边距 pad = max(页边距, (宽 − 1080) / 2)；字标左缘 = pad − 4（内缩），图标组右缘 = 宽 − pad；不显示页名 ----- */
-const pageM = (w) => (w < 600 ? 16 : Math.min(48, Math.max(16, 5.333 + 0.022222 * w)));
+const pageM = (w) => (w < 600 ? 12 /* 对齐 PR-B：手机页边距 12 */ : Math.min(48, Math.max(16, 5.333 + 0.022222 * w)));
 const tbPad = (w) => Math.max(pageM(w), (w - 1080) / 2);
 for (const [width, height] of [[1280, 800], [1920, 1080], [1024, 700], [768, 1024]]) {
   test(`顶栏 ${width}×${height}（桌面布局）：贴顶通栏，内容收进居中的 1080；字标 / 图标组贴内容两端、互不重叠；不显示页名`, async ({ page }) => {
@@ -69,18 +69,19 @@ for (const [width, height] of [[1280, 800], [1920, 1080], [1024, 700], [768, 102
     await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
   });
 }
-test('顶栏 412×915（手机布局）：通栏，不显示页名，字标和图标组贴页边距 16', async ({ page }) => {
+test('顶栏 412×915（手机布局）：通栏，不显示页名，字标和图标组贴页边距 12（对齐 PR-B）', async ({ page }) => {
   await go(page, { width: 412, height: 915 }, '/security/');
   await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
   const b = await page.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); return { bar: r('.sgx-topbar'), logo: r('.sgx-tb-logo'), acts: r('.sgx-tb-acts') }; });
   expect(Math.abs(b.bar.width - 412)).toBeLessThanOrEqual(1);
-  expect(Math.abs(b.logo.left - 12)).toBeLessThanOrEqual(1);
-  expect(Math.abs(b.acts.right - 396)).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.logo.left - 8)).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.acts.right - 400)).toBeLessThanOrEqual(1);
 });
 
 /* ----- 手机布局：外框最宽 640 居中（顶栏 v3 是通栏，不再和外框同宽） ----- */
 /* 首页（/）2026-11 PR-2 起内容栏对齐顶栏内容（1080），不跟外壳框，单独测（见下「首页内容栏」） */
-const WRAPS = [['/theme/', '.set-layout'], ['/account/', '.acct-layout'], ['/status/', '.acct-layout'], ['/404.html', '.sgx-404']];
+/* 对齐 PR-B：原 /status/ 并进旷野 /wild/，旷野页内容栏同主页（对齐顶栏内容 1080，见「首页 / 旷野内容栏」） */
+const WRAPS = [['/theme/', '.set-layout'], ['/account/', '.acct-layout'], ['/404.html', '.sgx-404']];
 async function frame(page, sel) {
   return page.evaluate((s) => {
     const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
@@ -111,7 +112,7 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
       expect(Math.abs(f.wrap.l + f.wrap.w / 2 - f.vw / 2), `${sel} 居中`).toBeLessThanOrEqual(1);
     });
   }
-  test(`桌面 ${w}×${h}：内部列 —— 旷野子页 720 居中、服务状态 = 外框宽（≤ 1080；P4-3 PR-4b 起设置首页的两栏删除）`, async ({ page }) => {
+  test(`桌面 ${w}×${h}：内部列 —— 风格页 720 居中、旷野页 = 外框宽（≤ 1080；P4-3 PR-4b 起设置首页的两栏删除）`, async ({ page }) => {
     const col = async (path, s) => {
       await go(page, { width: w, height: h }, path);
       await expect(page.locator(s).first()).toBeAttached();
@@ -122,8 +123,8 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
     await expect(page.locator('.set-dex-cols, .set-col-l')).toHaveCount(0);
     const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
     const shell = Math.min(1080, w - 2 * m);
-    /* 风格页（交互模块，设计不动）仍 720；服务状态内容列 = 外框（2026-11 PR-A 起最宽 1080） */
-    for (const [path, s, want] of [['/theme/', '.set-layout > .set-main', 720], ['/status/', '#st-foot', shell]]) {
+    /* 风格页（交互模块，设计不动）仍 720；旷野页（原服务状态并进来）内容列 = 外框（最宽 1080） */
+    for (const [path, s, want] of [['/theme/', '.set-layout > .set-main', 720], ['/wild/', '.wild-wrap', shell]]) {
       const [c] = await col(path, s);
       expect(Math.abs(c.w - Math.min(want, shell)), `${path} ${s} 宽 ${c.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(c.c), `${path} 居中`).toBeLessThanOrEqual(1);
@@ -131,15 +132,15 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
   });
 }
 
-/* ----- 首页内容栏（2026-11 PR-2 首屏终端）：任何布局 = 顶栏内容栏 min(1080, 100% − 2 × 页边距) 居中，左缘 = 字标左缘 + 4、右缘 = 图标组右缘 ----- */
-for (const [w, h, pref] of [[834, 1194, 'phone'], [412, 915, ''], [1024, 700, ''], [1366, 650, ''], [1920, 950, '']]) {
-  test(`首页内容栏 ${w}×${h}${pref ? ' 手动手机' : ''}：对齐顶栏内容（1080）`, async ({ page }) => {
-    await go(page, { width: w, height: h }, '/', pref || undefined);
-    await expect(page.locator('#home-hero')).toBeVisible({ timeout: 15000 });
-    const f = await page.evaluate(() => {
+/* ----- 首页 / 旷野内容栏（2026-11 PR-2 首屏终端；对齐 PR-B 旷野页同规则）：任何布局 = 顶栏内容栏 min(1080, 100% − 2 × 页边距) 居中，左缘 = 字标左缘 + 4、右缘 = 图标组右缘 ----- */
+for (const [path, wrapSel, ready] of [['/', '.home-wrap', '#home-hero'], ['/wild/', '.wild-wrap', '#st-root']]) for (const [w, h, pref] of [[834, 1194, 'phone'], [412, 915, ''], [1024, 700, ''], [1366, 650, ''], [1920, 950, '']]) {
+  test(`${path === '/' ? '首页' : '旷野'}内容栏 ${w}×${h}${pref ? ' 手动手机' : ''}：对齐顶栏内容（1080）`, async ({ page }) => {
+    await go(page, { width: w, height: h }, path, pref || undefined);
+    await expect(page.locator(ready)).toBeVisible({ timeout: 15000 });
+    const f = await page.evaluate((ws) => {
       const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
-      return { wrap: r('.home-wrap'), logo: r('#site-nav .sgx-tb-logo'), acts: r('#site-nav .sgx-tb-acts'), vw: innerWidth, sw: document.scrollingElement.scrollWidth };
-    });
+      return { wrap: r(ws), logo: r('#site-nav .sgx-tb-logo'), acts: r('#site-nav .sgx-tb-acts'), vw: innerWidth, sw: document.scrollingElement.scrollWidth };
+    }, wrapSel);
     const want = Math.min(1080, w - 2 * pageM(w));
     expect(Math.abs(f.wrap.w - want), `外框宽 ${f.wrap.w} ≠ ${want}`).toBeLessThanOrEqual(1);
     expect(Math.abs(f.wrap.l - (f.logo.l + 4))).toBeLessThanOrEqual(1);
@@ -156,21 +157,25 @@ for (const w of [719, 720, 721]) {
       const want = w >= 720 ? 'dex' : 'mobile';
       await expect(page.locator('html')).toHaveClass(new RegExp('\\blayout-' + want + '\\b'));
       await expect(page.locator('#home-hero')).toBeVisible();
-      /* 2026-11 PR-2：首页各块（hero、终端、分节、屏幕时间卡）都铺满内容栏，不会窄到 320 以下 */
+      /* 2026-11 PR-2：首页各块（hero、终端、分节）都铺满内容栏，不会窄到 320 以下；
+         对齐 PR-B：[02] 目录卡 / [04] 旷野小卡桌面三栏、手机一栏，每张 ≥ 200（720 宽桌面三栏约 218） */
       const m = await page.evaluate(() => ({ sw: document.scrollingElement.scrollWidth, iw: innerWidth,
-        cards: [...document.querySelectorAll('#home-hero, #home-term, .home-sec, #w-screen')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]) }));
+        cards: [...document.querySelectorAll('#home-hero, #home-term, .home-sec')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]),
+        minis: [...document.querySelectorAll('.home-dirs > li, .home-wild > li')].map((e) => e.getBoundingClientRect().width) }));
       expect(m.sw).toBeLessThanOrEqual(m.iw);
       expect(m.cards.length).toBeGreaterThan(0);
       for (const [id, cw] of m.cards) expect(cw, `${id} 宽 ${cw}`).toBeGreaterThanOrEqual(320);
+      expect(m.minis.length).toBe(6);
+      for (const cw of m.minis) expect(cw, `小卡宽 ${cw}`).toBeGreaterThanOrEqual(200);
     });
   }
 }
 
 /* ----- 首页（2026-11 PR-2 首屏终端；原「首页栅格」「栅格退列」用例随小组件网格删除）：日刻有 / 没数据都不留空白——
-   有数据卡片铺满 [02] 日刻分节；没数据（.hidden）分节只剩标题和命令行，下一节紧接着；屏幕时间卡铺满 [03] 分节 ----- */
+   有数据引言铺满 [03] 日刻分节；没数据（.hidden）分节只剩标题和命令行，下一节紧接着；[04] 旷野三张小卡铺满分节（对齐 PR-B） ----- */
 for (const [w, h] of [[1920, 950], [1280, 760], [841, 673]]) {
   for (const dm of [true, false]) {
-    test(`首页分节 ${w}×${h}：日刻${dm ? '有' : '无'}数据，卡片铺满分节、没有空白；屏幕时间整行`, async ({ page }) => {
+    test(`首页分节 ${w}×${h}：日刻${dm ? '有' : '无'}数据，卡片铺满分节、没有空白；旷野三卡铺满`, async ({ page }) => {
       await go(page, { width: w, height: h }, '/');
       await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
       await expect(page.locator('#home-hero')).toBeVisible();
@@ -180,10 +185,10 @@ for (const [w, h] of [[1920, 950], [1280, 760], [841, 673]]) {
         const sec = document.getElementById('daymark');
         const head = sec.querySelector('.home-sec-cmd');
         return { sec: box(sec), head: box(head), dm: box(document.getElementById('w-daymark')), dmShown: !document.getElementById('w-daymark').classList.contains('hidden'),
-          st: box(document.getElementById('screen-time')), screen: box(document.getElementById('w-screen')) };
+          st: box(document.querySelector('#wild .home-wild')), screen: box(document.getElementById('w-screen')), last: box(document.querySelector('#wild .home-wild > li:last-child')) };
       });
-      expect(Math.abs(m.screen.l - m.st.l)).toBeLessThanOrEqual(1);
-      expect(Math.abs(m.screen.r - m.st.r), '屏幕时间整行').toBeLessThanOrEqual(1);
+      expect(Math.abs(m.screen.l - m.st.l), '屏幕时间小卡在第一栏').toBeLessThanOrEqual(1);
+      expect(Math.abs(m.last.r - m.st.r), '旷野三卡铺满').toBeLessThanOrEqual(1);
       if (dm) {
         expect(m.dmShown).toBe(true);
         expect(Math.abs(m.dm.l - m.sec.l)).toBeLessThanOrEqual(1);
@@ -205,7 +210,7 @@ test('首页收窄：容器 700 / 600 / 330 → 各块跟着收、终端不超�
       const g = document.querySelector('.home-wrap');
       g.style.width = v + 'px';
       const gr = g.getBoundingClientRect();
-      const over = [...g.querySelectorAll('#home-term, .home-sec, #w-daymark, #w-screen')].filter((e) => e.offsetParent !== null)
+      const over = [...g.querySelectorAll('#home-term, .home-sec, #w-daymark, #w-screen, .home-dir')].filter((e) => e.offsetParent !== null)
         .filter((e) => { const r = e.getBoundingClientRect(); return r.left < gr.left - 1 || r.right > gr.right + 1; }).map((e) => e.id);
       return { over, sw: document.scrollingElement.scrollWidth, iw: innerWidth };
     }, px);

@@ -1,14 +1,11 @@
 /**
- * @fileoverview 全站生效的小模块（文件名沿用旧的 goodlock.js）：本机到访计时 + 15 分钟提醒（设置 › 数字健康，只存本地）。
+ * @fileoverview 全站生效的小模块（文件名沿用旧的 goodlock.js）：本机到访计时（只存本地；旷野 › screen-time 窗没登录账号时显示它）。
+ * 2026-11 对齐 PR-B：15 分钟提醒（well-tip）删除（Gray 04:01：数字健康不做设置，做成展示页）。
  * P4-2c（2026-11-05）：快捷键随高级功能分类删除。
- * 2026-10-23 PR-E：视差壁纸、点击音效、边缘光效删除；数字健康不再有总开关（计时一直开，提醒只看 well-tip）。
- * 开关经 features.js 统一读写。
+ * 2026-10-23 PR-E：视差壁纸、点击音效、边缘光效删除；数字健康不再有总开关（计时一直开）。
  */
 import { on } from '../lib/events.js';
 import { get, set } from '../lib/storage.js';
-import { get as featGet } from '../lib/features.js';
-import { loadI18n } from '../lib/i18n.js';
-import { visibleInterval } from '../lib/scheduler.js';
 import { stripLang } from '../lib/lang-path.js';
 
 /** @returns {string} YYYY-M-D */
@@ -63,13 +60,12 @@ export function wellFlush() {
 }
 
 /**
- * 初始化全站模块（本机到访计时 / 15 分钟提醒）。
+ * 初始化全站模块（本机到访计时）。
  */
 export function initGoodLock() {
-  const T = loadI18n('sgx-i18n-core');
   sessArea = areaOf();
 
-  /* ---- 本机到访计时（只存本地；设置 › 数字健康 没登录时显示它） ---- */
+  /* ---- 本机到访计时（只存本地；旷野 › screen-time 窗没登录账号时显示它） ---- */
   {
   on(window, 'pagehide', function () {
     wellFlush();
@@ -79,43 +75,6 @@ export function initGoodLock() {
     else sessStart = Date.now();
   });
 
-  /* 15 分钟温和提示（每天一次） */
-  function showTip() {
-    const txt = T.t('wellTip');
-    const t = document.createElement('div');
-    t.id = 'well-toast';
-    t.setAttribute('role', 'status');
-    t.innerHTML =
-      '<span class="flex-1">' +
-      txt +
-      '</span><button type="button" id="well-toast-x" aria-label="' +
-      T.t('wellDismiss') +
-      '" class="w-9 h-9 -m-1 rounded-full flex items-center justify-center shrink-0">✕</button>';
-    document.body.appendChild(t);
-    requestAnimationFrame(function () {
-      t.classList.add('show');
-    });
-    function hide() {
-      t.classList.remove('show');
-      window.setTimeout(function () {
-        t.remove();
-      }, 300);
-    }
-    const x = document.getElementById('well-toast-x');
-    if (x) on(x, 'click', hide);
-    window.setTimeout(hide, 12000);
-  }
-  function checkTip() {
-    if (!SGX_FEAT_WELL_TIP || !featGet('well-tip')) return;
-    const today = dayStr(new Date());
-    if (get('sgx-well-tipday') === today) return;
-    const v = wellLoad(),
-      total = v.min + (Date.now() - sessStart) / 60000;
-    if (total >= 15) {
-      set('sgx-well-tipday', today);
-      showTip();
-    }
-  }
-  visibleInterval(checkTip, 30000);
+  /* 15 分钟温和提示（well-tip）随旷野改展示页删除（Gray 04:01「数字健康不做设置，做成展示页」，2026-11 对齐 PR-B） */
   } /* /本机到访计时 */
 }

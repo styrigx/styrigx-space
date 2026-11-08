@@ -200,8 +200,8 @@ test.describe('NAVIGATE「分享本页」按钮', () => {
             overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 };
         });
         expect(r.bar).toEqual([0, w, 64]);
-        expect(r.logoL, home + ' 字标左缘 = 页边距 16 − 4').toBe(12);
-        expect(r.actsR, home + ' 图标组右缘 = 宽 − 16').toBe(w - 16);
+        expect(r.logoL, home + ' 字标左缘 = 页边距 12 − 4（2026-11 对齐 PR-B：手机页边距 16 → 12，照设计稿 m=1 的 --pad）').toBe(8);
+        expect(r.actsR, home + ' 图标组右缘 = 宽 − 12').toBe(w - 12);
         expect(r.kids).toEqual(['sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'sgx-tb-av']);
         expect(r.btns).toEqual([[40, 40], [40, 40], [40, 40], [40, 40]]);
         expect(r.between, home + ' 字标在按钮组左边、不重叠').toBe(true);

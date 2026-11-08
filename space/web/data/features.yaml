@@ -100,18 +100,6 @@ features:
     section: files
     requires: []
 
-  - id: well-tip
-    icon: ""
-    iclass: ""
-    row: welltip
-    build: true
-    user: true
-    type: bool
-    default: true
-    storage: {on: null, off: "0"}
-    key: sgx-well-tip
-    section: wellbeing
-    requires: []
 
   - id: lock-gate
     build: true

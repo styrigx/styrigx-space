@@ -694,7 +694,7 @@ export function mountTopbar(o) {
     const curId = cur ? cur.getAttribute('data-nav') || '' : '';
     term = T.createShell({
       str: T.termStrings(doc),
-      cwd: homeTerm ? '~' : ['blog', 'curio', 'daymark'].indexOf(curId) >= 0 ? curId : '~',
+      cwd: homeTerm ? '~' : ['blog', 'curio', 'daymark', 'wild'].indexOf(curId) >= 0 ? curId : '~',
       act: {
         cd: function (/** @type {string} */ dir) {
           /* 主页上有这一节（[data-term-dir]）就滚过去；~ 回到首屏终端；其余去那个站 */
@@ -896,6 +896,8 @@ export function mountStatus(d) {
       if (i) el.insertBefore(i, el.firstChild);
       el.setAttribute('data-up', up === n ? '1' : '0');
     });
+    /* 主页 [04] 旷野 status 小卡和首屏胶囊（apps/index.js）接同一份结果，不另取（2026-11 对齐 PR-B） */
+    try { doc.dispatchEvent(new CustomEvent('sgx:status-cells', { detail: v })); } catch (e) {}
   };
   /** @param {any} j @param {number|null} rtt */
   const cellsOf = function (j, rtt) {
