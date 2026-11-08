@@ -629,3 +629,125 @@ test.describe('B1-2 普通解锁路径 pkAuth()（mock WebAuthn）', () => {
     });
   }
 });
+
+/* 2026-11-08 Gray：「解锁后来一段加载动画」（设计稿 entry-v2/boot.html?from=1）。
+   解锁通过 → access granted / booting space… → 全屏开机层逐行打印 → 淡入主页；减少动态效果不放；按键 / 点击跳过；没敲凭证（首帧对账）不放。
+   这组不冻结时钟：会话时长 = 接口 exp − 页面 Date.now()。 */
+test.describe('解锁后开机动画（unlock boot）', () => {
+  const H12 = 12 * 3600e3;
+  /** 接口 mock：密码 / 临时钥匙通过后会话才生效；exp 用页面时钟算（page.evaluate） @param {import('@playwright/test').Page} page @param {{by?:string, ttl?:number, valid?:boolean}} [o] */
+  async function mockUnlock(page, o = {}) {
+    const st = { unlocked: !!o.valid };
+    const ok = (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    await page.route('**/api/lock-password', async (r) => { st.unlocked = true; await ok(r); });
+    await page.route('**/api/lock-tempkey-unlock', async (r) => { st.unlocked = true; await ok(r); });
+    await page.route('**/api/lock-session-check*', async (route) => {
+      if (!st.unlocked) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: o.by || 'password', exp: Date.now() + (o.ttl || H12), next: null }) });
+    });
+  }
+  /** 记下开机层出现过几次、每次的行数序列（解锁后锁屏整块会被移除，事后查 DOM 查不到） @param {import('@playwright/test').Page} page */
+  async function watchBoot(page) {
+    await page.addInitScript(() => {
+      /** @type {any} */ (window).__boot = { seen: 0, lines: [] };
+      new MutationObserver(() => {
+        const b = document.getElementById('sgx-lock-boot');
+        const w = /** @type {any} */ (window).__boot;
+        if (b && !b.__seen) { b.__seen = true; w.seen++; }
+        const n = b ? Number(b.getAttribute('data-lines') || 0) : -1;
+        if (b && w.lines[w.lines.length - 1] !== n) w.lines.push(n);
+      }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-lines'] });
+    });
+  }
+  const boot = (page) => page.evaluate(() => /** @type {any} */ (window).__boot);
+
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await zh(page);
+    await watchBoot(page);
+  });
+
+  test('密码解锁 → 开机层逐行打印（真实方式与会话时长）→ 淡入主页，焦点回到页面，读屏只报「已解锁」', async ({ page }) => {
+    await mockUnlock(page, { by: 'password' });
+    await gotoLockTerm(page, NOBYPASS);
+    await lockCmd(page, 'password');
+    await lockMode(page, 'pw');
+    await lockCmd(page, 'correctpassword');
+    const layer = page.locator('#sgx-lock-boot');
+    await expect(layer).toBeVisible({ timeout: 10000 });
+    await expect(layer).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.locator('#sgx-lock-log')).toContainText('✓ access granted');
+    /* 逐行：打满 8 行；行数序列（MutationObserver 记的）在后面查 0→1→…→8 一行一行来 */
+    await expect(layer).toHaveAttribute('data-lines', '8', { timeout: 5000 });
+    await expect(layer).toContainText('> styrigx space os — styrigx@space');
+    await expect(layer).toContainText('> LockKey verified (password) · session 12h');
+    await expect(layer).toContainText('> mounting /space/blog ... ok');
+    await expect(layer).toContainText('> mounting /space/curio ... ok');
+    await expect(layer).toContainText('> mounting /space/daymark ... ok');
+    await expect(layer).toContainText('> mounting /space/wild ... ok');
+    await expect(layer).toContainText('> loading gray-ai ... ok');
+    await expect(layer).toContainText('> welcome back, sloan_');
+    await expect(page.locator('#sgx-lock-live')).toHaveText('已解锁');
+    /* 淡入主页：锁屏整块移除，页面可用 */
+    await expect(page.locator('#sgx-lock')).toHaveCount(0, { timeout: 5000 });
+    await expect(page.locator('body')).not.toHaveClass(/sgx-locked/);
+    await expect(page.locator('main')).toBeVisible();
+    const lines = (await boot(page)).lines;
+    expect(lines.slice(0, 9)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    /* 焦点：不留在已移除的锁屏里（落在 body），Tab 能进页面 */
+    expect(await page.evaluate(() => document.activeElement === document.body || !!(document.activeElement && document.activeElement.isConnected))).toBe(true);
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!document.activeElement && document.activeElement !== document.body && !document.activeElement.closest('#sgx-lock'))).toBe(true);
+  });
+
+  test('临时钥匙：写 tempkey verified 和接口给的剩余时长', async ({ page }) => {
+    await mockUnlock(page, { by: 'tempkey', ttl: 2 * 3600e3 });
+    await gotoLockTerm(page, NOBYPASS);
+    await lockCmd(page, 'tempkey');
+    await lockMode(page, 'temp');
+    await lockCmd(page, 'abcd-efgh-jkmn');
+    const layer = page.locator('#sgx-lock-boot');
+    await expect(layer).toContainText('> tempkey verified · session 2h', { timeout: 10000 });
+    await expect(page.locator('#sgx-lock')).toHaveCount(0, { timeout: 8000 });
+  });
+
+  test('减少动态效果：不出开机层、不逐行，直接短淡出', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await mockUnlock(page);
+    await gotoLockTerm(page, NOBYPASS);
+    await lockCmd(page, 'password');
+    await lockMode(page, 'pw');
+    await lockCmd(page, 'correctpassword');
+    await expect(page.locator('#sgx-lock')).toHaveCount(0, { timeout: 5000 });
+    expect((await boot(page)).seen).toBe(0);
+    await expect(page.locator('body')).not.toHaveClass(/sgx-locked/);
+  });
+
+  for (const how of ['key', 'click']) {
+    test(`动画期间${how === 'key' ? '按任意键' : '点击'}跳过：立刻打完并进主页`, async ({ page }) => {
+      await mockUnlock(page);
+      await gotoLockTerm(page, NOBYPASS);
+      await lockCmd(page, 'password');
+      await lockMode(page, 'pw');
+      await lockCmd(page, 'correctpassword');
+      const layer = page.locator('#sgx-lock-boot');
+      await expect(layer).toHaveAttribute('data-lines', /^[1-3]$/, { timeout: 10000 });
+      const t0 = Date.now();
+      if (how === 'key') await page.keyboard.press('x');
+      else await page.mouse.click(200, 200);
+      await expect(page.locator('#sgx-lock')).toHaveCount(0, { timeout: 2000 });
+      expect(Date.now() - t0).toBeLessThan(1500);
+      const lines = (await boot(page)).lines;
+      expect(lines[lines.length - 1]).toBe(8);
+      expect(lines).not.toContain(7);
+      await expect(page.locator('main')).toBeVisible();
+    });
+  }
+
+  test('进站前不放：会话本来有效（首帧对账直接通过，没敲凭证）→ 不出开机层', async ({ page }) => {
+    await mockUnlock(page, { valid: true });
+    await page.goto(NOBYPASS, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-lock')).toHaveCount(0, { timeout: 10000 });
+    expect((await boot(page)).seen).toBe(0);
+  });
+});

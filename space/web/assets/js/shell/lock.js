@@ -369,7 +369,7 @@ export function showLockScreen() {
         if (mode !== 'pw') return;
         const j = res.j;
         if (!j) { deny(tx('lockServerError')); return; }
-        if (j.ok) { unlock(); return; }
+        if (j.ok) { unlock('password'); return; }
         if (j.error === 'cooldown') {
           /* retryAfter（秒）：网关无会话总限流给的；没有就是密码输错的 30 秒冷却 */
           pwLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 30000);
@@ -396,7 +396,7 @@ export function showLockScreen() {
   function cmdTemp() {
     if (isLocal) {
       /* 本地开发没有后端：直接开锁 */
-      unlock();
+      unlock('tempkey');
       return;
     }
     setMode('temp', { focus: true, key: '' });
@@ -420,7 +420,7 @@ export function showLockScreen() {
         if (mode !== 'temp') return;
         const j = res.j;
         if (!j) { deny(tx('lockServerError')); return; }
-        if (j.ok) { unlock(); return; }
+        if (j.ok) { unlock('tempkey'); return; }
         if (j.error === 'cooldown') {
           /* retryAfter（秒）：网关无会话总限流（src/core/anon-limit.js）给的；没有就是临时码自己的 15 分钟锁 */
           tempLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 15 * 60000);
@@ -530,7 +530,7 @@ export function showLockScreen() {
       .then(function (j) {
         if (run !== pkRun) return;
         if (j && j.ok) {
-          unlock();
+          unlock('passkey');
         } else {
           /* 服务端不认识这把密钥 → 通知密码管理器删掉 */
           try {
@@ -858,7 +858,8 @@ export function showLockScreen() {
   function grantedLines() {
     if (granted) return;
     granted = true;
-    out('✓ access granted', 'lok');
+    /* 读屏只报一句「已解锁」（终端行和开机输出都 aria-hidden） */
+    out('✓ access granted', 'lok', tx('lockBootUnlocked'));
     out('› booting space…<span class="sgx-lock-cur"></span>', 'lm', false);
     setMode('done');
   }
@@ -868,19 +869,28 @@ export function showLockScreen() {
     done = true;
     pkRun++;
     grantedLines();
-    proceed(ans, doUnlockAnimation);
+    /* 这次是在锁屏上亲手解的（unlockVia 有值）→ 先放开机动画，放完（或被跳过）再交给 proceed；
+       首帧对账 / 别的标签页解锁（没敲过凭证）不放。只是推迟同一个 proceed，去处和会话判断不变。 */
+    if (unlockVia && !reducedMotion()) bootSequence(ans, function () { proceed(ans, doUnlockAnimation); });
+    else proceed(ans, doUnlockAnimation);
   }
 
   /* 解锁成功（密码 / 通行密钥 / 临时钥匙）后：先向服务端确认会话真的生效，再按服务端给的 next 走；
      没确认到 → 停在锁屏显示错误，绝不跳转。 */
-  function unlock() {
+  /** 这次解锁用的方式（password / passkey / tempkey）；只在锁屏上真的敲了凭证时有值 */
+  let unlockVia = '';
+  /** @param {string} via */
+  function unlock(via) {
     if (done) return;
     done = true;
+    unlockVia = via || '';
     out('› ' + esc(tx('lockVerifying')) + '…', 'lm');
     setMode('busy');
     if (isLocal) {
-      /* 本地开发没有后端：原地开锁 */
-      doUnlockAnimation();
+      /* 本地开发没有后端：原地开锁（开机动画照放，没有会话时长） */
+      grantedLines();
+      if (!reducedMotion()) bootSequence({ ok: true, by: unlockVia }, doUnlockAnimation);
+      else doUnlockAnimation();
       return;
     }
     askServer().then(function (ans) {
@@ -916,9 +926,91 @@ export function showLockScreen() {
     toCmd();
   }
 
+  /* ---------- 开机动画（2026-11-08 Gray：「解锁后来一段加载动画」；设计稿 entry-v2/boot.html?from=1） ----------
+     全屏底色（跟主题 --sgx-bg-1）+ 块光标，逐行打印：系统行 → 验证方式与会话时长（接口真实值）→ 挂载四站 → gray-ai → welcome back。
+     节奏照稿：首行 260ms，之后每行 190ms，末行后 520ms 再交出去（淡入主页在 doUnlockAnimation）。
+     输出 aria-hidden；按任意键 / 点击跳过（直接打完、立刻交出去）。减少动态效果时不放（onServerOk 判断）。 */
+  /** @type {HTMLElement|null} */ let bootEl = null;
+  /**
+   * @param {{by?:string, exp?:number}} ans 服务端回答（by 进门方式、exp 会话到期毫秒）
+   * @param {() => void} then 放完 / 跳过后
+   */
+  function bootSequence(ans, then) {
+    const by = String(ans.by || unlockVia || '');
+    let sess = '';
+    const left = Number(ans.exp || 0) - Date.now();
+    /* 时钟不可信（差出一个月以上）就不写时长，不编数 */
+    if (left > 0 && left < 31 * 864e5) {
+      sess = left >= 36e5 ? Math.round(left / 36e5) + 'h' : Math.max(1, Math.ceil(left / 6e4)) + 'm';
+    }
+    const ver = (by === 'tempkey' ? 'tempkey verified' : 'LockKey verified' + (by === 'password' || by === 'passkey' ? ' (' + by + ')' : '')) +
+      (sess ? ' · session ' + sess : '');
+    const OK = ' <span class="sgx-lock-bok">ok</span>';
+    /** @type {string[]} */
+    const lines = [
+      '<span class="sgx-lock-bh">&gt; styrigx space os — styrigx@space</span>',
+      '<span class="sgx-lock-bok">&gt; ' + esc(ver) + '</span>',
+      '&gt; mounting /space/blog ...' + OK,
+      '&gt; mounting /space/curio ...' + OK,
+      '&gt; mounting /space/daymark ...' + OK,
+      '&gt; mounting /space/wild ...' + OK,
+      '&gt; loading gray-ai ...' + OK,
+      '&gt; welcome back, ' + esc(termUser) + '_',
+    ];
+    const el = document.createElement('div');
+    el.id = 'sgx-lock-boot';
+    el.className = 'sgx-lock-boot';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '<div class="sgx-lock-bout" id="sgx-lock-bout"><span class="sgx-lock-cur"></span></div>';
+    ov.appendChild(el);
+    bootEl = el;
+    const outEl = /** @type {HTMLElement} */ (el.firstChild);
+    /* 输入行已收起（mode done）；焦点从锁屏里撤出来，手机键盘收起 */
+    try { if (document.activeElement && ov.contains(document.activeElement)) /** @type {HTMLElement} */ (document.activeElement).blur(); } catch (e) {}
+    requestAnimationFrame(function () { el.classList.add('is-on'); });
+    let n = 0;
+    let timer = 0;
+    let finished = false;
+    /** @param {number} k */
+    function render(k) {
+      outEl.innerHTML = lines.slice(0, k).map(function (l) { return '<div>' + l + '</div>'; }).join('') + '<span class="sgx-lock-cur"></span>';
+      el.setAttribute('data-lines', String(k));
+    }
+    function finish() {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(timer);
+      document.removeEventListener('keydown', skip, true);
+      document.removeEventListener('pointerdown', skip, true);
+      then();
+    }
+    /** @param {Event} e */
+    function skip(e) {
+      if (finished) return;
+      try { e.preventDefault(); e.stopPropagation(); } catch (x) {}
+      window.clearTimeout(timer);
+      render(lines.length);
+      finish();
+    }
+    document.addEventListener('keydown', skip, true);
+    document.addEventListener('pointerdown', skip, true);
+    function step() {
+      render(++n);
+      timer = window.setTimeout(n < lines.length ? step : finish, n < lines.length ? 190 : 520);
+    }
+    timer = window.setTimeout(step, 260);
+  }
+
   /* 开锁动画：显示桌面 */
   function doUnlockAnimation() {
     grantedLines();
+    if (bootEl && !reducedMotion()) {
+      /* 放过开机动画：开机层连同锁屏一起淡出，主页从 96% 缩放回 100% */
+      document.body.classList.remove('sgx-locked');
+      ov.classList.add('sgx-lock-booted');
+      window.setTimeout(cleanup, 520);
+      return;
+    }
     if (reducedMotion()) {
       ov.style.transition = 'opacity .25s ease';
       ov.style.opacity = '0';

@@ -8079,6 +8079,26 @@
     .sgx-lock-tail { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { .sgx-lock-cur, .sgx-lock-tcur { animation: none; } }
+  /* 解锁后开机动画（设计稿 entry-v2/boot.html?from=1）：全屏底色跟主题（--sgx-bg-1），块光标 + 逐行输出；
+     先淡入盖住锁屏，放完连同锁屏一起淡出（#sgx-lock.sgx-lock-booted），主页同时从 96% 缩放回 100% */
+  .sgx-lock-boot {
+    position: fixed; inset: 0; z-index: 2; background: var(--sgx-bg-1);
+    opacity: 0; transition: opacity .2s ease;
+    &.is-on { opacity: 1; }
+  }
+  .sgx-lock-bout {
+    position: absolute; left: 22px; right: 18px; top: 38%;
+    font: 500 13.5px/1.75 var(--sgx-font-mono); color: var(--sgx-text-primary);
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    transition: opacity .45s ease, filter .45s ease;
+  }
+  @media (min-width: 768px) { .sgx-lock-bout { left: 50%; right: auto; width: min(560px, calc(100% - 48px)); transform: translateX(-50%); } }
+  .sgx-lock-bh { color: var(--sgx-primary); }
+  .sgx-lock-bok { color: var(--sgx-success); }
+  #sgx-lock.sgx-lock-booted {
+    opacity: 0; transition: opacity .5s ease;
+    .sgx-lock-bout { opacity: 0; filter: blur(2px); }
+  }
   /* 解锁时首页从 96% 缩放回 100%（约 400ms，与锁屏滑出同步） */
   main, #site-nav, footer { transition: transform .4s ease; }
   body.sgx-locked main, body.sgx-locked #site-nav, body.sgx-locked footer { transform: scale(.96); }

@@ -141,6 +141,7 @@ js:
     lockCancelledYouCanSelect: 已取消验证，可重新选择
     lockPasskeyFailed: 通行密钥验证失败
     lockVerifying: 正在验证
+    lockBootUnlocked: 已解锁
     lockCannotReturnToThe: 无法回到子站，请重试
     lockBackToMainSite: 回到主站
     lockReload: 重新加载

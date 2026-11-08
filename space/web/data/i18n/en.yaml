@@ -144,6 +144,7 @@ js:
     lockCancelledYouCanSelect: Cancelled, you can select again
     lockPasskeyFailed: Passkey failed
     lockVerifying: Verifying
+    lockBootUnlocked: Unlocked
     lockCannotReturnToThe: Cannot return to the subsite, please try again
     lockBackToMainSite: Back to main site
     lockReload: Reload
