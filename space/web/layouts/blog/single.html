@@ -13,10 +13,8 @@
 {{- $lang := .Language.Lang -}}
 
 {{- $home := (site.GetPage "/blog").RelPermalink -}}
-{{- $raw := .RawContent -}}
-{{- $words := len (findRE `[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*` $raw) -}}
-{{- $cjk := len (findRE `[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]` $raw) -}}
-{{- $mins := math.Max 1 (math.Ceil (add (div (float $words) 220) (div (float $cjk) 500))) | int -}}
+{{- $rd := partial "blog/reading.html" . -}}
+{{- $mins := $rd.mins -}}
 {{- $toc := partial "blog/toc-items.html" .Fragments.Headings -}}
 {{- $hasToc := gt (len $toc) 0 -}}
 {{- $all := partial "blog/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) -}}
@@ -47,11 +45,13 @@
     <main class="blog-layout oui-article-main{{ if not $hasToc }} blog-layout-centered{{ end }}">
       <div class="article-column">
         <article class="article-card oui-article-paper">
+          {{- /* 2026-11 UI 重设计 PR-3（设计稿 s-post）：页顶一行装饰提示符「$ cat ~/blog/post/<文件名>.md」（aria-hidden、不翻译） */}}
+          <p class="sgx-crumb article-crumb" aria-hidden="true" translate="no"><span class="sgx-pr">$</span>cat ~/blog/post/{{ .File.TranslationBaseName }}.md</p>
           <header class="article-header">
             <h1>{{ .Title }}</h1>
             <div class="meta-line" aria-label="{{ i18n "metadata" }}">
               {{- partial "blog/meta-item.html" (dict "kind" "date" "content" (partial "blog/date.html" .Date)) -}}
-              {{- partial "blog/meta-item.html" (dict "kind" "words" "separated" true "content" (i18n "wordCount" (dict "Count" (lang.FormatNumberCustom 0 (add $words $cjk))))) -}}
+              {{- partial "blog/meta-item.html" (dict "kind" "words" "separated" true "content" (i18n "wordCount" (dict "Count" (lang.FormatNumberCustom 0 $rd.count)))) -}}
               {{- partial "blog/meta-item.html" (dict "kind" "reading" "separated" true "content" (i18n "readingTime" (dict "Minutes" $mins))) -}}
               {{- with .GetTerms "tags" -}}
               {{- $links := "" -}}

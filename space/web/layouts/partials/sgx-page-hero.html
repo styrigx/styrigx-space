@@ -5,10 +5,15 @@
      desc   一句话说明（front matter description；页内分区 = 字符串表入口副标题）。缺了只显示标题，构建时 warnf 警告（带 path）
      path   警告里标出是哪一页（调用方传 .File.Path 或页内分区名）
      id     标题 id（可选；默认不写）
-     tag    标题标签（可选；默认 h1。页内分区面板里已经有站点 h1 的传 h2） */ -}}
+     tag    标题标签（可选；默认 h1。页内分区面板里已经有站点 h1 的传 h2）
+     cmd    终端命令行（可选；2026-11 UI 重设计 PR-3 子页，设计稿 s-blog / s-curio）：给了就是终端风标题带 .sgx-hero--term——
+            上面一行装饰提示符「styrigx@space:~$ <cmd>」（aria-hidden、不翻译），标题后一个主题色「_」（CSS ::after，读屏 / textContent 不含），两种布局都显示（不再只在手机布局显示） */ -}}
 {{- $tag := .tag | default "h1" -}}
 {{- if not .desc }}{{ warnf "page-hero: %s 缺 description（标题带只显示标题）" (.path | default .title) }}{{ end -}}
-<header class="sgx-hero" data-sgx-hero>
+<header class="sgx-hero{{ with .cmd }} sgx-hero--term{{ end }}" data-sgx-hero>
+  {{- with .cmd }}
+  <p class="sgx-hero-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">styrigx@space:~$</span> {{ . }}</p>
+  {{- end }}
   {{- if eq $tag "h2" }}
   <h2 class="sgx-hero-title"{{ with .id }} id="{{ . }}"{{ end }}>{{ .title }}</h2>
   {{- else }}

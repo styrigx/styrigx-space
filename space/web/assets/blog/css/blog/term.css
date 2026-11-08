@@ -1,0 +1,947 @@
+/* 终端风子页（2026-11 UI 重设计 PR-3，设计稿 s-blog「博客」、s-tree「目录」、s-post「文章」，Gray 已批）。最后引入，压过前面的 One UI / 宽屏平铺样式。
+   只换外观，不减功能：首页 / 文章 / 专题三个面板、分区入口、段式标签、标签筛选、系列卡定位、系列上一篇 / 下一篇、分享、更多文章、目录（折叠 / 高亮）、
+   阅读进度、代码块复制，标记和脚本钩子都不动。颜色只用共享外壳 --sgx-* 角色；等宽字 --sgx-font-mono。
+   - 页面外框 = 顶栏内容宽 --sgx-col-w（1080 居中，左右缘对齐字标 / 图标组），两种布局一样；不再是外壳框通栏。
+   - 列表行：日期 · 标题 + 摘要 · 标签 · 阅读分钟（手机：标题一行，下面 日期 · 标签 · 分钟，再摘要），行间虚线，按年分组。
+   - 文章：一栏正文 + 右侧 220 目录（桌面），等宽元信息、「## 」二级标题、主题色竖线引用、终端窗口式代码块。 */
+
+/* ---- 页面外框：对齐顶栏内容 ---- */
+:root .page-home main,
+:root .page-tag main,
+:root .oui-archive-wrap,
+:root .oui-article-wrap {
+  box-sizing: border-box;
+  width: var(--sgx-col-w);
+  max-width: none;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+:root .page-tag .tag-body {
+  max-width: none;
+}
+
+/* 面板滑动区：出血到窗口边距不再需要（内容栏已经比窗口窄），左右不出血 */
+:root .page-home .sgx-panes {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+:root .page-home .sgx-pane {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* 首页分区入口（含终端风标题带）：左右不再缩进，和面板内容同一左缘 */
+:root .page-home .sgx-ents {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* ---- 分节标题：终端注释风「# 最新」 ---- */
+:root .page-home .sgx-sec-head {
+  align-items: baseline;
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+}
+
+:root .page-home .sgx-sec-title {
+  margin: 0;
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+:root .page-home .sgx-sec-title::before {
+  content: "# " / "";
+  color: var(--sgx-primary);
+}
+
+:root .page-home .sgx-sec-more {
+  color: var(--sgx-primary);
+  font-family: var(--sgx-font-mono);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+:root .page-home .sgx-sec + .sgx-sec {
+  margin-top: 40px;
+}
+
+#sgx-pane-home > .sgx-sec:first-of-type {
+  margin-top: 36px;
+  padding-top: 22px;
+  border-top: 1px solid var(--sgx-term-line);
+}
+
+/* ---- 首页「最新」三篇：行（日期 · 标题），同主页 [01] BLOG ---- */
+:root .latest-list,
+:root[data-sgx-layout="desktop"] .latest-list {
+  display: block;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  list-style: none;
+}
+
+:root[data-sgx-layout="desktop"] .latest-list > li {
+  box-shadow: none;
+}
+
+:root .latest-card,
+:root[data-sgx-layout="desktop"] .latest-card {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 16px;
+  height: auto;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px dashed var(--sgx-term-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--sgx-text-secondary);
+  text-decoration: none;
+}
+
+:root .latest-card time {
+  order: -1;
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 13px;
+}
+
+:root .latest-card strong,
+:root[data-sgx-layout="desktop"] .latest-card strong {
+  min-width: 0;
+  color: var(--sgx-text-primary);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+:root:not([data-sgx-layout="desktop"]) .latest-card {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root .latest-card:hover strong {
+    color: var(--sgx-primary);
+  }
+}
+
+/* ---- 系列卡：目录树风（名字 = 目录，篇目 = ├── 行） ---- */
+:root .series-card,
+:root[data-sgx-layout="desktop"] .series-card {
+  margin: 0;
+  padding: 4px 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root .series-card + .series-card {
+  margin-top: 8px;
+}
+
+:root .series-card.is-target,
+:root[data-sgx-layout="desktop"] .series-card.is-target {
+  padding-left: 12px;
+  box-shadow: inset 2px 0 0 var(--sgx-primary);
+}
+
+:root .series-card-head {
+  align-items: baseline;
+  margin: 0 0 4px;
+}
+
+:root .series-card-name {
+  color: var(--sgx-primary);
+  font-family: var(--sgx-font-mono);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+:root .series-card-name::after {
+  content: "/" / "";
+}
+
+:root .series-card-count {
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+:root .series-card ol,
+:root[data-sgx-layout="desktop"] .series-card ol {
+  display: block;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+:root .series-card li,
+:root[data-sgx-layout="desktop"] .series-card li,
+:root .series-card li + li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  border: 0;
+}
+
+:root .series-card li span {
+  flex: none;
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+:root .series-card li span::before {
+  content: "├── " / "";
+  white-space: pre;
+}
+
+:root .series-card li:last-child span::before {
+  content: "└── " / "";
+}
+
+:root .series-card li a {
+  min-width: 0;
+  color: var(--sgx-text-primary);
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root .series-card li a:hover {
+    color: var(--sgx-primary);
+  }
+}
+
+/* ---- 文章列表（文章分区、专题筛选结果）：一栏行，按年分组 ---- */
+:root .notes-list,
+:root[data-sgx-layout="desktop"] .notes-list {
+  display: block;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  list-style: none;
+}
+
+.note-yr {
+  font-weight: 400;
+}
+
+:root .note-entry,
+:root[data-sgx-layout="desktop"] .notes-list > .note-entry,
+:root .oui-archive-wrap .note-entry {
+  display: grid;
+  grid-template-columns: 26px 64px minmax(0, 1fr) auto 64px;
+  grid-template-areas: "num date body meta rt";
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px dashed var(--sgx-term-line);
+  box-shadow: none;
+}
+
+:root .note-entry[hidden] {
+  display: none;
+}
+
+:root .note-num,
+:root .oui-archive-wrap .note-num {
+  grid-area: num;
+  min-width: 0;
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.note-date {
+  grid-area: date;
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* 年份在分隔线上，行里只显示 月-日（年份字留在标记里，读屏 / 复制完整） */
+.note-y {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:root .note-body {
+  grid-area: body;
+  min-width: 0;
+}
+
+:root .note-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+:root .note-title a,
+:root .oui-archive-wrap .note-body a {
+  color: var(--sgx-text-primary);
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root .note-title a:hover {
+    color: var(--sgx-primary);
+  }
+}
+
+:root .note-desc {
+  margin: 4px 0 0;
+  color: var(--sgx-text-secondary);
+  font-size: 13.5px;
+  line-height: 1.7;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+:root .note-meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 10px;
+  margin: 0;
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12px;
+}
+
+:root .note-meta a {
+  color: var(--sgx-primary);
+  font-weight: 400;
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root .note-meta a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+.note-rt {
+  grid-area: rt;
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 筛选结果的精简行（没有编号 / 分钟，日期在 note-meta 里） */
+:root .note-entry.is-compact {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "body meta";
+}
+
+/* 手机：标题一行；下面 日期 · 标签 · 分钟；再摘要 */
+:root:not([data-sgx-layout="desktop"]) .note-entry:not(.is-compact) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "body body body"
+    "date meta rt";
+  gap: 6px 12px;
+}
+
+:root:not([data-sgx-layout="desktop"]) .note-entry:not(.is-compact) .note-num {
+  display: none;
+}
+
+:root:not([data-sgx-layout="desktop"]) .note-meta {
+  justify-content: flex-start;
+}
+
+:root:not([data-sgx-layout="desktop"]) .note-entry:not(.is-compact) .note-body {
+  display: contents;
+}
+
+:root:not([data-sgx-layout="desktop"]) .note-entry:not(.is-compact) .note-title {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+:root:not([data-sgx-layout="desktop"]) .note-entry:not(.is-compact) .note-desc {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+/* ---- 专题「目录」：两个静态终端窗口（桌面 1.25 : 1 并排，手机上下） ---- */
+.sgx-tree-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+  margin-top: 8px;
+}
+
+:root[data-sgx-layout="desktop"] .sgx-tree-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.sgx-tree-win .sgx-term-body {
+  font-size: 13.5px;
+  line-height: 1.8;
+}
+
+.sgx-term-cmd {
+  margin: 0 0 8px;
+  color: var(--sgx-text-secondary);
+  font-family: var(--sgx-font-mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.sgx-tree-win .sgx-sec + .sgx-sec,
+:root .page-home .sgx-tree-win .sgx-sec + .sgx-sec {
+  margin-top: 22px;
+}
+
+.sgx-tree-win .sgx-sec-head {
+  margin-bottom: 4px;
+}
+
+/* 分类 / 标签筛选：#标签 n 的终端词，按下 = 主题色衬底 */
+:root .sgx-tree-win .chip-wall {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin: 0;
+}
+
+:root .sgx-tree-win .chip {
+  min-height: 30px;
+  height: auto;
+  padding: 2px 9px;
+  border: 1px solid var(--sgx-term-line);
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--sgx-primary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12.5px;
+  font-weight: 400;
+  gap: 0;
+}
+
+:root .sgx-tree-win .chip::before {
+  content: "#" / "";
+}
+
+:root .sgx-tree-win .chip .count {
+  color: var(--sgx-text-tertiary);
+  font-weight: 400;
+}
+
+:root .sgx-tree-win .chip[aria-pressed='true'] {
+  border-color: var(--sgx-primary);
+  background: var(--sgx-term-sel);
+  color: var(--sgx-primary);
+}
+
+/* 按年份归档：年 / 月 + 方块条 + 篇数 */
+.sgx-arch,
+.sgx-arch ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--sgx-font-mono);
+  font-size: 13px;
+}
+
+.sgx-arch-y,
+.sgx-arch-m {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, auto) auto;
+  justify-content: start;
+  align-items: baseline;
+  column-gap: 10px;
+}
+
+.sgx-arch-y > ul {
+  grid-column: 1 / -1;
+}
+
+.sgx-arch-y > .sgx-arch-k {
+  color: var(--sgx-warning);
+}
+
+.sgx-arch-m > .sgx-arch-k {
+  padding-left: 2ch;
+  color: var(--sgx-text-secondary);
+}
+
+.sgx-arch-bar {
+  overflow: hidden;
+  color: var(--sgx-primary);
+  letter-spacing: -1px;
+  white-space: nowrap;
+}
+
+.sgx-arch-n {
+  color: var(--sgx-text-tertiary);
+}
+
+/* ---- 专题筛选结果 ---- */
+:root .topic-results {
+  margin: 0 0 22px;
+}
+
+/* ---- 标签页：终端风标题带 ---- */
+:root .page-tag .archive-hero {
+  padding: 28px 0 20px;
+}
+
+:root[data-sgx-layout="desktop"] .page-tag .archive-hero {
+  padding: 46px 0 22px;
+}
+
+:root .page-tag .archive-title {
+  font-family: var(--sgx-font-mono);
+  font-weight: 500;
+  letter-spacing: -1px;
+}
+
+:root .page-tag .archive-title::after {
+  content: "_" / "";
+  color: var(--sgx-primary);
+}
+
+:root .page-tag .archive-kicker {
+  font-family: var(--sgx-font-mono);
+}
+
+/* ---- 文章页 ---- */
+:root .oui-article-wrap {
+  padding-top: var(--oui-nav-clear, 88px);
+}
+
+:root[data-sgx-layout="desktop"] .oui-article-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 48px;
+  justify-content: stretch;
+  align-items: start;
+}
+
+:root[data-sgx-layout="desktop"] .oui-article-main.blog-layout-centered {
+  grid-column: 1 / -1;
+}
+
+:root .oui-article-paper.article-card,
+:root[data-sgx-layout="desktop"] .oui-article-paper.article-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.article-crumb {
+  padding-top: 0;
+}
+
+:root .oui-article-paper .article-header {
+  margin: 0 0 8px;
+}
+
+:root .oui-article-paper .article-header h1 {
+  margin: 10px 0 12px;
+  color: var(--sgx-text-primary);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+:root[data-sgx-layout="desktop"] .oui-article-paper .article-header h1 {
+  font-size: 36px;
+}
+
+/* 元信息：等宽小字一行，图标收起（装饰），标签主题色 */
+:root .meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12.5px;
+}
+
+:root .meta-line .metadata-icon {
+  display: none;
+}
+
+:root .meta-line .metadata-item,
+:root .meta-line .metadata-item-separated {
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+
+:root .meta-line .metadata-item::before,
+:root .meta-line .metadata-item-separated::before {
+  display: none;
+}
+
+:root .meta-line .tag-list .metadata-content {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+}
+
+:root .meta-line .tag {
+  color: var(--sgx-primary);
+  font-weight: 400;
+}
+
+/* 正文 */
+:root .oui-article-paper .article-content {
+  --article-content-max: 100%;
+  max-width: none;
+  margin-top: 26px;
+  color: var(--sgx-text-primary);
+  font-size: 16px;
+  line-height: 1.95;
+}
+
+:root .oui-article-paper .article-content h2 {
+  margin: 34px 0 8px;
+  font-family: var(--sgx-font-mono);
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+:root .oui-article-paper .article-content h2::before {
+  content: "## " / "";
+  color: var(--sgx-primary);
+}
+
+:root .oui-article-paper .article-content h3 {
+  margin: 28px 0 8px;
+  font-family: var(--sgx-font-mono);
+  font-size: 16.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+:root .oui-article-paper .article-content h3::before {
+  content: "### " / "";
+  color: var(--sgx-primary);
+  opacity: 0.75;
+}
+
+:root .oui-article-paper .article-content a {
+  color: var(--sgx-primary);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--sgx-primary) 45%, transparent);
+  text-underline-offset: 4px;
+}
+
+:root .oui-article-paper .article-content blockquote {
+  margin: 18px 0;
+  padding: 4px 16px;
+  border: 0;
+  border-left: 2px solid var(--sgx-primary);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--sgx-primary) 5%, transparent);
+  color: var(--sgx-text-secondary);
+  font-size: inherit;
+}
+
+:root .article-content :not(pre) > code {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--sgx-term-sel);
+  color: var(--sgx-warning);
+  font-family: var(--sgx-font-mono);
+  font-size: 0.85em;
+}
+
+/* 代码块：终端窗口（细线框、圆角 12、标题栏等宽小字；仍是一个容器、代码面底色），复制按钮照旧 */
+:root .article-content figure.code-block {
+  margin: 18px 0;
+  border: 1px solid var(--sgx-term-line);
+  border-radius: 12px;
+}
+
+:root .article-content .code-block .code-head {
+  min-height: 34px;
+  border-bottom-color: var(--sgx-term-line);
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+:root .article-content .code-block pre.chroma {
+  font-family: var(--sgx-font-mono);
+}
+
+/* 系列块：细线框，上一篇 / 下一篇同设计稿 cd ../prev 两格 */
+:root .sgx-series-block {
+  margin: 22px 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--sgx-term-line);
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root .sgx-series-name {
+  color: var(--sgx-primary);
+  font-family: var(--sgx-font-mono);
+  font-weight: 500;
+}
+
+:root .sgx-series-pos {
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+}
+
+:root .sgx-series-nav a {
+  border: 1px solid var(--sgx-term-line);
+  border-radius: 10px;
+  background: transparent;
+}
+
+:root .sgx-series-nav small {
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+}
+
+/* 分享：等宽小按钮，细线框 */
+:root .article-column .share-buttons {
+  margin-top: 40px;
+  padding-top: 18px;
+  border-top: 1px solid var(--sgx-term-line);
+}
+
+:root .share-heading {
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+:root .share-btn {
+  height: 34px;
+  border: 1px solid var(--sgx-term-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sgx-text-secondary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root .share-btn:hover {
+    border-color: var(--sgx-primary);
+    color: var(--sgx-primary);
+  }
+}
+
+/* 更多文章：两到三格细线框（同设计稿 cd ../next 卡） */
+:root .related-posts.blog-card,
+:root[data-sgx-layout="desktop"] .related-posts.blog-card {
+  margin-top: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root .related-posts h2 {
+  margin: 0 0 12px;
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+:root .related-list {
+  gap: 14px;
+}
+
+:root .related-list a {
+  padding: 14px 16px;
+  border: 1px solid var(--sgx-term-line);
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root .related-list strong {
+  color: var(--sgx-text-primary);
+  font-size: 14.5px;
+  font-weight: 500;
+}
+
+:root .related-list small {
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root .related-list a:hover {
+    border-color: var(--sgx-primary);
+  }
+}
+
+/* 目录和正文起始对齐（让开页顶命令行 + 标题） */
+:root[data-sgx-layout="desktop"] .oui-toc-card {
+  margin-top: 96px;
+}
+
+/* 目录：ON THIS PAGE 小字 + 左侧细线，当前节主题色竖线 + 主题色字（不再是实色块）；折叠 / 展开 / 高亮脚本照旧 */
+:root[data-sgx-layout="desktop"] .oui-toc-card,
+:root .oui-toc-card {
+  padding: 4px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root .oui-toc-card .toc-card.blog-card h2,
+:root .toc-card h2 {
+  margin: 0 0 10px;
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+:root .toc-card .toc-tree a,
+:root .oui-toc-card .toc-list-wrap a {
+  min-height: 0;
+  padding: 4px 0 4px 12px;
+  border-left: 1px solid var(--sgx-term-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--sgx-text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+:root .toc-card .toc-tree-nested a {
+  font-size: 12px;
+}
+
+:root .toc-card .toc-tree a[data-state='active'],
+:root .toc-card .toc-tree a[aria-current='true'] {
+  margin-left: 0;
+  border-left: 2px solid var(--sgx-primary);
+  padding-left: 11px;
+  background: transparent;
+  color: var(--sgx-primary);
+}
+
+:root .toc-card .toc-tree a[data-state]:not([data-state='active']):not([aria-current='true']):hover {
+  background: transparent;
+  color: var(--sgx-text-primary);
+}
+
+/* ---- 标签页文章列表：一栏行（同文章分区），编号 / 日期 / 标签 / 摘要照旧 ---- */
+:root .oui-archive-wrap .post-stack,
+:root[data-sgx-layout="desktop"] .oui-archive-wrap .post-stack {
+  display: block;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-top: 1px solid var(--sgx-term-line);
+}
+
+:root .oui-archive-wrap .post-item,
+:root[data-sgx-layout="desktop"] .oui-archive-wrap .post-item {
+  padding: 14px 0;
+  border: 0;
+  border-bottom: 1px dashed var(--sgx-term-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root .oui-archive-wrap .post-item .title {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+:root .oui-archive-wrap .post-item .post-index {
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 11px;
+}
+
+:root .oui-archive-wrap .post-item .title-link {
+  color: var(--sgx-text-primary);
+}
+
+:root .oui-archive-wrap .post-item .date {
+  color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono);
+  font-size: 12px;
+}
+
+:root .oui-archive-wrap .post-item .metadata-icon {
+  display: none;
+}
+
+:root .oui-archive-wrap .post-item .post-tag {
+  color: var(--sgx-primary);
+  font-weight: 400;
+}
+
+:root .oui-archive-wrap .post-item .post-excerpt {
+  color: var(--sgx-text-secondary);
+  font-size: 13.5px;
+  line-height: 1.7;
+}

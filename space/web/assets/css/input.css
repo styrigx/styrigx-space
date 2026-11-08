@@ -8238,8 +8238,8 @@
 /* 只用共享外壳 --sgx-* 角色（跟调色板、深浅色、自定义色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。
    标题带 .sgx-hero：顶栏下方大标题 + 一句话说明（内容页；首页 / 入口页不放）。只在手机布局显示（30px，跟内容列左对齐，放在各站内容外框里）；
    桌面布局顶栏页名胶囊已显示页名，标题带视觉隐藏（Gray 2026-11-08 定）——留在 DOM 里给读屏 / 大纲（h1 不丢），不占位、不可见。段式标签两种布局都显示。
-   段式标签 .sgx-segs：原顶栏分段滑块搬进内容页，作页内二级切换。椭圆衬底常驻：非当前项导航选中色 45% + text-primary（22 套预设 + 自定义色 ≥ 4.5:1，
-   tests/space/ui/topbar/segtabs.test.mjs），当前项 --sgx-nav-selected 实色 + 粗体 + on-nav-selected（同顶栏页名胶囊）。一行放不下时横向滑动（不换行、不出滚动条）。 */
+   段式标签 .sgx-segs：原顶栏分段滑块搬进内容页，作页内二级切换。2026-11 UI 重设计 PR-3（设计稿 s-blog 的 chips）起是终端风小方签：等宽 13px、细线框、
+   非当前项次要文字色；当前项主题色描边 + 主题色文字 + --sgx-term-sel 衬底（同顶栏打开态按钮）。一行放不下时横向滑动（不换行、不出滚动条）。 */
 .sgx-hero { box-sizing: border-box; padding: 8px 0 20px; color: var(--sgx-text-primary); }
 .sgx-hero-title { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .sgx-hero-desc { margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: var(--sgx-on-surface-variant); }
@@ -8249,18 +8249,56 @@
   overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .sgx-segs::-webkit-scrollbar { display: none; }
 .sgx-segs[hidden] { display: none; }
-.sgx-segs-tab { flex: none; box-sizing: border-box; display: inline-flex; align-items: center; height: 36px; padding: 0 18px; border-radius: 999px;
-  background-color: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); color: var(--sgx-text-primary);
-  font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 500; line-height: 1; white-space: nowrap; text-decoration: none;
-  -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
-.sgx-segs-tab[aria-current="page"] { background-color: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); font-weight: 700; }
+.sgx-segs-tab { flex: none; box-sizing: border-box; display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid var(--sgx-term-line); border-radius: 8px;
+  background-color: transparent; color: var(--sgx-text-secondary);
+  font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 400; line-height: 1; letter-spacing: 0; white-space: nowrap; text-decoration: none;
+  -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+.sgx-segs-tab[aria-current="page"] { border-color: var(--sgx-primary); background-color: var(--sgx-term-sel); color: var(--sgx-primary); font-weight: 500; }
 @media (hover: hover) and (pointer: fine) {
-  .sgx-segs-tab:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
+  .sgx-segs-tab:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); color: var(--sgx-text-primary); }
+  .sgx-segs-tab[aria-current="page"]:hover { color: var(--sgx-primary); }
 }
 .sgx-segs-tab:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
 .sgx-segs-tab:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 .reduced-motion .sgx-segs-tab { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-segs-tab { transition: none; } }
+/* ---- 终端风子页件（2026-11 UI 重设计 PR-3，设计稿 s-blog / s-tree / s-post / s-curio / s-citem / s-day，Gray 已批）：三个子站共用 ----
+   --sgx-col-w   内容栏宽 = 顶栏内容宽（min(--sgx-content-w 1080, 100% − 2 × 页边距)），子站页面外框按它对齐字标 / 图标组（同主页首屏终端）。
+   .sgx-hero--term   终端风标题带（partials/sgx-page-hero.html 传 cmd；子站首页是平铺入口的 .sgx-ent-band--term）：一行装饰提示符 + 等宽大标题 + 主题色「_」 + 一句话；
+                     两种布局都显示（覆盖上面「桌面视觉隐藏」那条，只对传了 cmd 的标题带）。手机 40px / 桌面 64px（同主页名字）。
+   .sgx-pr       提示符（主题色）；.sgx-crumb 文章 / 条目页顶的「$ cat ~/…」一行；.sgx-yr 年份分隔（小字 + 一条细线）；
+   .sgx-term--static 页面里的静态终端窗口（借 terminal 段的窗口 / 标题栏 / 圆点，不要阴影、不限高）；.sgx-nx 上一篇 / 下一篇两格（细线框）。 */
+:root { --sgx-col-w: min(var(--sgx-content-w), 100% - 2 * max(var(--sgx-page-m), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))); }
+.sgx-pr { color: var(--sgx-primary); }
+.sgx-hero--term, :root[data-sgx-layout="desktop"] .sgx-hero.sgx-hero--term { position: static; width: auto; height: auto; margin: 0; padding: 28px 0 20px; border: 0; overflow: visible;
+  clip: auto; clip-path: none; white-space: normal; font-family: var(--sgx-font-mono); }
+:root[data-sgx-layout="desktop"] .sgx-hero.sgx-hero--term { padding: 46px 0 22px; }
+.sgx-hero-cmd { margin: 0; font-family: var(--sgx-font-mono); font-size: 14px; line-height: 1.6; color: var(--sgx-text-secondary); overflow-wrap: anywhere; letter-spacing: 0; }
+:root[data-sgx-layout="desktop"] .sgx-hero-cmd { font-size: 15px; }
+.sgx-hero--term .sgx-hero-title, .sgx-ent-band--term .sgx-ent-title { margin: 6px 0 4px; font-family: var(--sgx-font-mono); font-size: 40px; font-weight: 500; line-height: 1.15; letter-spacing: -1px; color: var(--sgx-text-primary); }
+:root[data-sgx-layout="desktop"] .sgx-hero--term .sgx-hero-title, :root[data-sgx-layout="desktop"] .sgx-ent-band--term .sgx-ent-title { font-size: 64px; }
+.sgx-hero--term .sgx-hero-title::after, .sgx-ent-band--term .sgx-ent-title::after { content: "_" / ""; color: var(--sgx-primary); }
+.sgx-hero--term .sgx-hero-desc, .sgx-ent-band--term .sgx-ent-lede { margin: 8px 0 0; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.7; color: var(--sgx-text-secondary); }
+:root[data-sgx-layout="desktop"] .sgx-hero--term .sgx-hero-desc, :root[data-sgx-layout="desktop"] .sgx-ent-band--term .sgx-ent-lede { font-size: 16px; }
+.sgx-ent-band.sgx-ent-band--term { padding: 28px 0 22px; }
+:root[data-sgx-layout="desktop"] .sgx-ent-band.sgx-ent-band--term { padding: 46px 0 26px; }
+.sgx-hero--term + .sgx-segs { margin-top: 4px; }
+.sgx-crumb { margin: 0; padding-top: 28px; font-family: var(--sgx-font-mono); font-size: 13px; line-height: 1.6; color: var(--sgx-text-tertiary); overflow-wrap: anywhere; letter-spacing: 0; }
+:root[data-sgx-layout="desktop"] .sgx-crumb { padding-top: 40px; }
+.sgx-crumb .sgx-pr { margin-right: 6px; }
+.sgx-yr { display: flex; align-items: center; gap: 12px; margin: 30px 0 0; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.4; letter-spacing: 2px; color: var(--sgx-text-tertiary); }
+.sgx-yr::after { content: ""; flex: 1; height: 1px; background: var(--sgx-term-line); }
+:root .sgx-term.sgx-term--static { box-shadow: none; }
+.sgx-term--static .sgx-term-body { overflow: visible; }
+.sgx-term--static .sgx-term-title { overflow: hidden; text-overflow: ellipsis; }
+.sgx-term-count { margin-left: auto; font-style: normal; font-size: 11px; color: var(--sgx-text-tertiary); }
+.sgx-nx { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 40px 0 0; padding: 0; list-style: none; }
+.sgx-nx-a { display: block; box-sizing: border-box; height: 100%; padding: 14px 16px; border: 1px solid var(--sgx-term-line); border-radius: 12px; color: var(--sgx-text-tertiary);
+  font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.5; text-decoration: none; transition: border-color .15s ease; }
+.sgx-nx-a b { display: block; margin-top: 4px; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 14.5px; font-weight: 500; line-height: 1.5; color: var(--sgx-text-primary); overflow-wrap: anywhere; }
+.sgx-nx-a.is-next { text-align: right; }
+.sgx-nx-a:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .sgx-nx-a:hover { border-color: var(--sgx-primary); } .sgx-nx-a:hover b { color: var(--sgx-primary); } }
 /* @shell:end inpage */
 }
 
