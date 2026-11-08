@@ -387,7 +387,7 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     await expect(nav(page).locator('.sgx-nav-name')).toHaveText(['Home', 'Blog', 'Curio', 'Daymark', 'Wild']);
     await expect(nav(page).locator('[data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/');
     await expect(nav(page).locator('[data-nav="blog"]')).toHaveAttribute('href', '/blog/');
-    await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', 'https://styrigx.com/account/');
+    await expect(page.locator('#sgx-acct .sgx-pop-me-a')).toHaveAttribute('href', 'https://styrigx.com/account/');
   });
 });
 
