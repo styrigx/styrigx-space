@@ -58,7 +58,7 @@ export function pageTitle(html) {
 }
 
 /**
- * 页面 <main> 里的文字：分组标题（.set-gh）、设置行（font-medium 标题 + 紧跟的 text-xs 说明）、平铺入口（.sgx-ent-name + .sgx-ent-sub，P4-3 PR-4b），行在 <a href> 里时带上地址。
+ * 页面 <main> 里的文字：分组标题（.set-gh）、设置行（font-medium 标题 + 紧跟的 text-xs 说明），行在 <a href> 里时带上地址。
  * 「正在读取…」这类运行时才填的占位说明不要。
  * @param {string} html
  * @returns {{heads: string[], rows: Array<{title: string, sub: string, href: string}>}}
@@ -71,15 +71,15 @@ export function pageText(html) {
   /** @type {Array<{title: string, sub: string, href: string}>} */
   const rows = [];
   const clean = (/** @type {string} */ x) => unesc(x).replace(/\s+/g, ' ').trim();
-  const re = /<a\b[^>]*\bhref="([^"]*)"[^>]*>|<\/a>|class="set-gh"[^>]*>[\s\S]*?<span>([^<]*)<\/span><\/h2>|class="block font-medium"[^>]*>([^<]*)<\/span>\s*(?:<span class="block text-xs[^"]*"[^>]*>([^<]*)<\/span>)?|class="sgx-ent-name">([^<]*)<\/span>(?:<span class="sgx-ent-sub">([^<]*)<\/span>)?/g;
+  const re = /<a\b[^>]*\bhref="([^"]*)"[^>]*>|<\/a>|class="set-gh"[^>]*>[\s\S]*?<span>([^<]*)<\/span><\/h2>|class="block font-medium"[^>]*>([^<]*)<\/span>\s*(?:<span class="block text-xs[^"]*"[^>]*>([^<]*)<\/span>)?/g;
   let href = '';
   for (let r; (r = re.exec(main));) {
     if (r[1] !== undefined) href = r[1];
     else if (r[0] === '</a>') href = '';
     else if (r[2] !== undefined) { const t = clean(r[2]); if (t) heads.push(t); }
     else {
-      const title = clean(r[3] || r[5] || '');
-      const sub = clean(r[4] || r[6] || '');
+      const title = clean(r[3] || '');
+      const sub = clean(r[4] || '');
       if (title) rows.push({ title, sub: /…$|\.\.\.$/.test(sub) ? '' : sub, href });
     }
   }

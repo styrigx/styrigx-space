@@ -6,7 +6,8 @@
 {{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "daymark") (printf "daymark-%s" $lang) }}
 {{/* 自定义主题色引擎（共享外壳 palette-scheme.js）：只在 cookie 是自定义色且本站还没缓存时，由共享读端 SgxUI.apply 的 onMiss 按需加载 */}}
 {{ $shellAccent := resources.Get "daymark/js/sgx/shell-accent.js" | js.Build (dict "format" "iife" "minify" true "target" "es2018") | fingerprint }}
-<html lang="{{ $lang }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}">
+{{- /* 测试构建（SGX_TEST_NO_WEATHER=1，CI 静态服务器没有接口）：<html data-sgx-test-no-api>，页面脚本加载时不自动问新加的读接口（tab 计数 / /api/days），免得 404 进控制台（同主站 SGX_TEST_NO_WB）；e2e 要测时先设 window.__sgxCurioApi / __sgxDaymarkApi = true。生产构建不加，产物不变 */ -}}
+<html lang="{{ $lang }}" class="scroll-smooth" data-sgx-langs="{{ range $i, $s := hugo.Sites }}{{ if $i }} {{ end }}{{ $s.Language.Lang }}{{ end }}" data-sgx-accent-js="{{ $shellAccent.RelPermalink }}"{{ if eq (getenv "SGX_TEST_NO_WEATHER") "1" }} data-sgx-test-no-api{{ end }}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

@@ -160,9 +160,9 @@ test('筛选、换代历史、平台联想、缩图尺寸', () => {
 
 test('裁剪几何：取景框按卡片比例、照片始终盖满、框住的原图区域、重新调整摆回原位', () => {
   const css = readFileSync(new URL('../../space/web/assets/curio/css/input.css', import.meta.url), 'utf8');
-  /* 比例跟卡片的 CSS 一致：设备 .it-media 4/3，游戏 .it-media--cover 3/4 */
-  assert.match(css, /\.it-media \{[^}]*aspect-ratio: 4\/3;/);
-  assert.match(css, /\.it-media--cover \{ aspect-ratio: 3\/4; \}/);
+  /* 照片按 设备 4:3 / 游戏 3:4 存；2026-11 对齐 PR-C2 起卡片封面位是固定高度（共享外壳 .sgx-cc-im 150 / 90px），图片 object-fit: cover 铺满 */
+  assert.match(readFileSync(new URL('../../space/web/assets/css/shell/shell.css', import.meta.url), 'utf8'), /\.sgx-cc-im img \{[^}]*object-fit: cover;/);
+  assert.match(css, /\.it-cc \.sgx-cc-im img \{ z-index: 1; \}/);
   assert.equal(IT.CROP_RATIO.device, 4 / 3);
   assert.equal(IT.CROP_RATIO.game, 3 / 4);
   /* 412×915 手机：设备框 364×273，游戏框 364×485；矮屏按高度收 */
@@ -200,12 +200,11 @@ test('裁剪几何：取景框按卡片比例、照片始终盖满、框住的�
   assert.deepEqual(IT.cropOut(300, 400, 3 / 4, 1200), { w: 300, h: 400 });
 });
 
-test('首页旧 hash（P4-3 奇趣拆页，客户端兼容）：#devices / #games → 子页，#c/<id> → 发现子页带 hash，其余不跳；curio-tabs.js 已删', () => {
+test('首页旧 hash（客户端兼容）：#devices / #games → 子页；#c/<id> 不跳（对齐 PR-C2 起首页就是发现，就地生效），其余不跳；curio-tabs.js 已删', () => {
   assert.deepEqual(HM.legacyTarget('#devices'), { entry: 'devices', hash: '' });
   assert.deepEqual(HM.legacyTarget('#games'), { entry: 'games', hash: '' });
   assert.deepEqual(HM.legacyTarget('#games/x'), { entry: 'games', hash: '' });
-  assert.deepEqual(HM.legacyTarget('#c/3'), { entry: 'finds', hash: '#c/3' });
-  for (const h of ['', '#', '#c/x', '#trove', '#music']) assert.equal(HM.legacyTarget(h), null, h);
+  for (const h of ['', '#', '#c/3', '#c/x', '#trove', '#music']) assert.equal(HM.legacyTarget(h), null, h);
   assert.equal(existsSync(new URL('../../space/web/assets/curio/js/curio-tabs.js', import.meta.url)), false);
 });
 
@@ -244,4 +243,70 @@ test('音乐：倍速循环、时间格式、LRC 解析与当前行、文件名 
   assert.equal(MU.audioType({ type: '', name: 'a.txt' }), '');
   assert.equal(MU.lrcKey('01 - Help Me.lrc'), MU.lrcKey('01 - Help Me.wav'));
   assert.equal(MU.TRACK_MAX, 95 * 1024 * 1024);
+});
+
+/* ---------- 2026-11 对齐 PR-C2：分区列表公共部件（curio-list.js）+ 条目页（相关文章 / 前后条目） ---------- */
+const CL = require('../../space/web/assets/curio/js/curio-list.js');
+
+test('grep：按空白切词、转小写、去掉开头 #；每个词都要出现', () => {
+  assert.deepEqual(CL.grepWords('  #三星  Galaxy '), ['三星', 'galaxy']);
+  assert.deepEqual(CL.grepWords(''), []);
+  assert.equal(CL.grepMatch('Galaxy S25 Ultra 手机 三星', CL.grepWords('galaxy #三星')), true);
+  assert.equal(CL.grepMatch('Galaxy S25 Ultra', CL.grepWords('galaxy pixel')), false);
+  assert.equal(CL.grepMatch('anything', []), true);
+});
+
+test('排序：order / name 升序，其余降序；数字按数字比，空值垫底；同值按原顺序', () => {
+  assert.equal(CL.sortAsc('order'), true);
+  assert.equal(CL.sortAsc('name'), true);
+  for (const k of ['recent', 'bought', 'rating', 'watched']) assert.equal(CL.sortAsc(k), false, k);
+  const rows = [{ v: '3', ord: 0 }, { v: '10', ord: 1 }, { v: '', ord: 2 }, { v: '3', ord: 3 }];
+  assert.deepEqual(rows.slice().sort((a, b) => CL.cmpKey(a, b, 'rating')).map((r) => r.ord), [1, 0, 3, 2]);
+  assert.deepEqual(rows.slice().sort((a, b) => CL.cmpKey(a, b, 'order')).map((r) => r.ord), [0, 3, 1, 2]);
+  const dates = [{ v: '2024-01-02', ord: 0 }, { v: '2025-03-01', ord: 1 }];
+  assert.deepEqual(dates.slice().sort((a, b) => CL.cmpKey(a, b, 'bought')).map((r) => r.ord), [1, 0]);
+  const names = [{ v: 'b', ord: 0 }, { v: 'A', ord: 1 }];
+  assert.deepEqual(names.slice().sort((a, b) => CL.cmpKey(a, b, 'name', 'en')).map((r) => r.ord), [1, 0]);
+});
+
+test('分页条：「-- 已显示 / 共 --」，页大小桌面 12 / 手机 8；tab 计数只问别的分区的接口', () => {
+  assert.equal(CL.countText(12, 42), '-- 12 / 42 --');
+  assert.equal(CL.countText(12, 5), '-- 5 / 5 --');
+  assert.equal(CL.countText(3, 9, '{n} of {total}'), '3 of 9');
+  assert.equal(CL.pageSize(true), 12);
+  assert.equal(CL.pageSize(false), 8);
+  assert.deepEqual(CL.countSources('finds'), ['items', 'movies']);
+  assert.deepEqual(CL.countSources('devices'), ['links', 'movies']);
+  assert.deepEqual(CL.countSources('games'), ['links', 'movies']);
+  assert.deepEqual(CL.countSources('movies'), ['links', 'items']);
+  assert.deepEqual(CL.countSources('music'), ['links', 'items', 'movies']);
+});
+
+test('条目页：相关文章按名字找（整名在标题 > 词在标题 > 词在标签；同分取新的；没有 null）；收入于取年月；前后条目', () => {
+  const posts = [
+    { t: '把 Galaxy 当主力：一年记', u: '/blog/post/a/', g: ['三星'] },
+    { t: 'Galaxy S25 Ultra 上手', u: '/blog/post/b/', g: [] },
+    { t: '王国之泪通关', u: '/blog/post/c/', g: ['塞尔达传说'] },
+    { t: '随便写写', u: '/blog/post/d/', g: ['Hades'] },
+  ];
+  assert.equal(IT.relatedPost('Galaxy S25 Ultra', posts).u, '/blog/post/b/');
+  assert.equal(IT.relatedPost('Galaxy Tab S9', posts).u, '/blog/post/a/');
+  assert.equal(IT.relatedPost('塞尔达传说 王国之泪', posts).u, '/blog/post/c/');
+  assert.equal(IT.relatedPost('Hades II', posts).u, '/blog/post/d/');
+  assert.equal(IT.relatedPost('Pixel 9', posts), null);
+  assert.equal(IT.relatedPost('', posts), null);
+  assert.equal(IT.relatedPost('Galaxy', []), null);
+  assert.equal(IT.monthOf('2025-03-01'), '2025-03');
+  assert.equal(IT.monthOf(''), '');
+  const list = [{ id: 1 }, { id: 2 }, { id: 3 }];
+  assert.deepEqual(IT.neighbors(list, 1), { prev: null, next: { id: 2 } });
+  assert.deepEqual(IT.neighbors(list, 2), { prev: { id: 1 }, next: { id: 3 } });
+  assert.deepEqual(IT.neighbors(list, 3), { prev: { id: 2 }, next: null });
+  assert.deepEqual(IT.neighbors(list, 9), { prev: null, next: null });
+});
+
+test('相关文章：拉丁词按整词比（pro 不算 project），中文按子串', () => {
+  const posts = [{ t: 'Project notes', u: '/a/', g: [] }, { t: '用 iPad Pro 写字', u: '/b/', g: [] }];
+  assert.equal(IT.relatedPost('MacBook Pro', posts).u, '/b/');
+  assert.equal(IT.relatedPost('Prodigy', posts), null);
 });

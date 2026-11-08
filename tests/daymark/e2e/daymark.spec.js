@@ -1,8 +1,11 @@
 // 日刻首页（手机）：接口用 page.route 假数据，不碰线上。
-// - 顶栏：字标 · 页名胶囊（首页 = 日刻，切分区换分区名）· 九宫格 · 快捷 · AI；P4-3 PR-4b 起顶栏没有分段滑块，首页正文的分区入口（#dm-entries）余响 / 拾录 / 百味就是目录；没有搜索栏、页脚
-// - 分区：默认余响，#trove / #flavors 直达，点首页入口改 hash；英文页 Echo / Trove / Flavors
-// - 余响：今日一句；再抽一句 → 回到今日；长按复制；账号已登录（可写）抽到公开句子 → 设为今日（PUT /api/today）→ 回到今日状态 + toast；账号未登录没有设为今日
-// - 拾录：全部句子新的在前；账号没登录没有「记一句」、页底「登录账号后可编辑」；能编辑时有，私密句子带锁；写接口 401 account 不刷新、提示登录
+// - 顶栏：字标 · 页名胶囊（首页 = 日刻，切分区换分区名）· 外观 · 盾牌 · >_ · 头像；顶栏没有分段滑块；没有搜索栏
+// - 2026-11 对齐 PR-C2（设计稿 pg=day）：余响居中一屏（cat daymark/<日期> · 日期行 · 引句 · 命令链 · 13 格日期条）+ 三窗（窗标题进拾录 / 百味）+ 前后日卡；
+//   平铺入口、段式标签、实心按钮组、右上分享图标删除
+// - 分区：默认余响，#trove / #flavors 直达，点窗标题改 hash，拾录 / 百味「cd ..」回余响；#d/<日期> 看那天；英文页 Echo / Trove / Flavors
+// - 余响：今日一句；shuf -n1 再抽一句 → cat today 回到今日；长按复制；账号已登录（可写）抽到公开句子 → set today 设为今日（PUT /api/today）→ 回到今日状态 + toast；账号未登录没有设为今日
+// - 日期条 / 前后日：/api/days 记下的日子能点（看那天的句子、地址 #d/<日期>），还没到的灰掉；明天是「明天见」
+// - 拾录：全部句子新的在前；账号没登录没有「记一句」、命令链「sudo login · 登录账号后可编辑」；能编辑时有，私密句子带锁；写接口 401 account 不刷新、提示登录
 // - 百味：自建专题在前（可写时有「＋ 新建」），再是人物（每位作者一组）；点进分组、页内返回；可写时上移 / 移出
 // - 记一句：预览、加译文、作者补全 + 最近作者、出处类型 + 名字补全、归入百味（含就地新建）、标签块、随手一笔、公开；
 //   保存 → 已拾录；编辑时删除要确认
@@ -63,20 +66,36 @@ async function mock(page, signedIn) {
   return calls;
 }
 
-test('账号未登录：首页三个分区入口（顶栏没有页签）、没有搜索栏；NAVIGATE 同主站（五项）；余响今日一句', async ({ page }) => {
+test('账号未登录：余响居中一屏（命令行 · 日期行 · 引句 · 命令链 · 日期条）+ 三窗（顶栏没有页签）、没有搜索栏；NAVIGATE 同主站（五项）', async ({ page }) => {
   await mock(page, false);
   await page.goto('/daymark/zh/');
-  /* P4-3 PR-4b：顶栏不再有分区页签，首页正文的分区入口就是目录；页名胶囊在首页显示站名 */
-  await expect(page.locator('#dm-entries .sgx-ent-name')).toHaveText(['余响', '拾录', '百味']);
-  await expect(page.locator('#dm-entries')).toBeVisible();
+  /* 对齐 PR-C2：没有平铺入口 / 段式标签；三窗 余响 · 拾录 · 百味，拾录 / 百味的窗标题是进完整列表的链接；页名胶囊在首页显示站名 */
+  await expect(page.locator('#dm-entries, #dm-segs, .sgx-ents, .sgx-segs, #dm-share')).toHaveCount(0);
+  await expect(page.locator('.dm-dcol .sgx-term-title')).toHaveText(['余响', '拾录', '百味']);
+  await expect(page.locator('#dm-wt-trove a')).toHaveAttribute('href', '#trove');
+  await expect(page.locator('#dm-wt-flavors a')).toHaveAttribute('href', '#flavors');
+  await expect(page.locator('#dm-n-trove')).toHaveText('3');
+  await expect(page.locator('#dm-w-trove .dm-li')).toHaveCount(3);
+  await expect(page.locator('#dm-w-trove .dm-li').first()).toHaveText('书世上本没有路，走的人多了，也便成了路。');
+  await expect(page.locator('#dm-w-flavors .dm-li').first()).toContainText('晨读');
   await expect(page.locator('.sgx-tb-pill .sgx-seg, .sgx-tb-pill [role="tab"]')).toHaveCount(0);
   await expect(page.locator('.sgx-tb-title')).toHaveText('日刻');
   await expect(page.locator('#dm-pane-echo')).toBeVisible();
   /* 没有搜索栏（2026-11-04 P5-1 起有快捷面板 + AI 窗口，共享外壳顶栏，下面单独验） */
   await expect(page.locator('#bk-cap, .sgx-tb-search, input[type="search"]:visible, [role="search"]:visible')).toHaveCount(0);
-  await expect(page.locator('#dm-echo-day')).toHaveText('10月20日星期二'); /* 日期交给 Intl（语言包化第二部分）：zh-CN weekday+month+day 不加空格 */
+  await expect(page.locator('#dm-cmd-day')).toHaveText('2026-10-20');
+  await expect(page.locator('#dm-echo-day')).toHaveText('2026 · 10 · 20 · 星期二'); /* 设计稿日期行；星期交给 Intl */
   await expect(page.locator('#dm-echo-body')).toContainText('鲁迅 · 《故乡》');
-  await expect(page.locator('#dm-share')).toBeVisible();
+  await expect(page.locator('#dm-draw')).toHaveText('shuf -n1 ↻再抽一句');
+  await expect(page.locator('#dm-signin')).toBeVisible();
+  /* 13 格日期条：今天在中间、主题色描边；后面 6 天还没到（灰、点不了） */
+  await expect(page.locator('#dm-dcal .dm-dc')).toHaveCount(13);
+  await expect(page.locator('#dm-dcal .dm-dc.is-today')).toHaveText('20');
+  await expect(page.locator('#dm-dcal .dm-dc[aria-current="date"]')).toHaveText('20');
+  await expect(page.locator('#dm-dcal .dm-dc:disabled')).toHaveCount(6);
+  /* 前后日卡：明天是「明天见」（不是链接） */
+  await expect(page.locator('#dm-nx a.sgx-nx-a')).toHaveAttribute('href', '#d/2026-10-19');
+  await expect(page.locator('#dm-nx .is-off')).toHaveText('cat 2026-10-21 ›明天见');
   /* 2026-11 UI 重设计 PR-1 顶栏 v3（四站同一个）：通栏 字标 · 页名标记（不显示）· 外观 · 盾牌 · | · >_ · 头像 + 底边进度条；AI 浮钮右下角；
      抽屉、右圆分享删除；每页底部 tmux 页脚（当前窗口 3:daymark） */
   expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-prog']);
@@ -129,28 +148,31 @@ test('账号未登录：首页三个分区入口（顶栏没有页签）、没�
   await expect(page.locator('#sgx-qp')).toBeHidden();
 });
 
-test('分区：点首页入口改 hash、胶囊换分区名、入口收起；hash 回余响；#trove / #flavors 直达；英文页 Echo / Trove / Flavors', async ({ page }) => {
+test('分区：点窗标题改 hash、胶囊换分区名；cd .. / hash 回余响；#trove / #flavors 直达；英文页 Echo / Trove / Flavors', async ({ page }) => {
   await mock(page, false);
   await page.goto('/daymark/zh/');
-  await page.locator('#dm-entries [data-entry="trove"]').click();
+  await page.locator('#dm-wt-trove a').click();
   await expect(page).toHaveURL(/#trove$/);
   await expect(page.locator('#dm-pane-trove')).toBeVisible();
   await expect(page.locator('#dm-pane-echo')).toBeHidden();
   await expect(page.locator('.sgx-tb-title')).toHaveText('拾录');
-  await expect(page.locator('#dm-entries')).toBeHidden();
+  await expect(page.locator('#dm-pane-trove .sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls daymark/trove/');
+  /* cd .. 回余响 */
+  await page.locator('#dm-pane-trove .sgx-cmds a[href="#"]').click();
+  await expect(page.locator('#dm-pane-echo')).toBeVisible();
+  await expect(page.locator('.sgx-tb-title')).toHaveText('日刻');
   await page.evaluate(() => { location.hash = '#flavors'; });
   await expect(page).toHaveURL(/#flavors$/);
   await expect(page.locator('.sgx-tb-title')).toHaveText('百味');
   await page.evaluate(() => { location.hash = '#echo'; });
   await expect(page.locator('#dm-pane-echo')).toBeVisible();
   await expect(page.locator('.sgx-tb-title')).toHaveText('日刻');
-  await expect(page.locator('#dm-entries')).toBeVisible();
   await page.goto('/daymark/zh/#flavors');
   await expect(page.locator('#dm-pane-flavors')).toBeVisible();
   await expect(page.locator('.sgx-tb-title')).toHaveText('百味');
   await chooseLang(page, 'en');
   await page.goto('/daymark/#trove');
-  await expect(page.locator('#dm-entries .sgx-ent-name')).toHaveText(['Echo', 'Trove', 'Flavors']);
+  await expect(page.locator('.dm-dcol .sgx-term-title')).toHaveText(['Echo', 'Trove', 'Flavors']);
   await expect(page.locator('#dm-pane-trove')).toBeVisible();
   await expect(page.locator('.sgx-tb-title')).toHaveText('Trove');
 });
@@ -195,25 +217,25 @@ test('余响 · 账号已登录（可写）：再抽一句 → 设为今日 → 
   await page.addInitScript(() => { Math.random = () => 0.99; });
   await page.goto('/daymark/zh/');
   await expect(page.locator('#dm-echo-body')).toContainText('世上本没有路');
-  await expect(page.locator('#dm-entries [data-entry="trove"]')).toBeVisible();
+  await expect(page.locator('#dm-wt-trove a')).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dm-can-write'))).toBe(true);
   await expect(page.locator('#dm-set-today')).toBeHidden();
   await page.locator('#dm-draw').click();
   await expect(page.locator('#dm-echo-body')).toContainText('也无风雨也无晴');
   await expect(page.locator('#dm-set-today')).toBeVisible();
-  await expect(page.locator('#dm-set-today')).toHaveText('设为今日');
+  await expect(page.locator('#dm-set-today')).toHaveText('set today设为今日');
   await expect(page.locator('#dm-back-today')).toBeVisible();
-  /* 与「回到今日」同一套描边胶囊按钮 */
+  /* 与「cat today 回到今日」同一套命令链（虚线细框，取代旧的描边胶囊按钮） */
   const st = await page.evaluate(() => {
     const a = getComputedStyle(document.querySelector('#dm-set-today'));
     const b = getComputedStyle(document.querySelector('#dm-back-today'));
-    return { r: a.borderRadius, h: a.height, c: a.color === b.color, bd: a.borderColor === b.borderColor };
+    return { dash: a.borderTopStyle, same: a.borderTopStyle === b.borderTopStyle && a.color === b.color && a.borderRadius === b.borderRadius };
   });
-  expect(st).toEqual({ r: '999px', h: '48px', c: true, bd: true });
+  expect(st).toEqual({ dash: 'dashed', same: true });
   await page.locator('#dm-set-today').click();
   await expect(page.locator('#bk-toast')).toHaveText('已设为今日');
   expect(puts).toEqual([{ id: 'aaaaaaaaaaa4' }]);
-  await expect(page.locator('#dm-echo-day')).toHaveText('10月20日星期二'); /* 日期交给 Intl（语言包化第二部分）：zh-CN weekday+month+day 不加空格 */
+  await expect(page.locator('#dm-echo-day')).toHaveText('2026 · 10 · 20 · 星期二');
   await expect(page.locator('#dm-echo-body')).toContainText('也无风雨也无晴');
   await expect(page.locator('#dm-set-today')).toBeHidden();
   await expect(page.locator('#dm-back-today')).toBeHidden();
@@ -249,20 +271,21 @@ test('余响 · 账号未登录：再抽一句后没有设为今日；英文页�
   }
   await chooseLang(page, 'en');
   await page.goto('/daymark/');
-  await expect(page.locator('#dm-set-today')).toHaveText('Set as today');
+  await expect(page.locator('#dm-set-today')).toHaveText('set todaySet as today');
   await expect(page.locator('#dm-set-today')).toBeHidden();
 });
 
-test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；页底「登录账号后可编辑」链到 /account/?return=本页', async ({ page }) => {
+test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；命令链「sudo login · 登录账号后可编辑」链到 /account/?return=本页', async ({ page }) => {
   await mock(page, false);
   await page.goto('/daymark/zh/#trove');
   await expect(page.locator('#dm-list .dm-card')).toHaveCount(3);
   await expect(page.locator('#dm-fab')).toBeHidden();
   await expect(page.locator('.dm-lock')).toHaveCount(0);
-  await expect(page.locator('#dm-signin')).toBeVisible();
-  await expect(page.locator('#dm-signin a')).toHaveText('登录账号后可编辑');
-  /* P3-1：带 ?return=本页（同意流程登录完回来） */
-  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', 'https://styrigx.com/zh/account/?return=%2Fdaymark%2Fzh%2F%23trove');
+  await expect(page.locator('#dm-signin-trove')).toBeVisible();
+  await expect(page.locator('#dm-signin-trove [data-signin-text]')).toHaveText('登录账号后可编辑');
+  /* P3-1：带 ?return=本页（同意流程登录完回来）；余响那条同一个链接 */
+  await expect(page.locator('#dm-signin-trove')).toHaveAttribute('href', 'https://styrigx.com/zh/account/?return=%2Fdaymark%2Fzh%2F%23trove');
+  await expect(page.locator('#dm-signin')).toHaveAttribute('href', 'https://styrigx.com/zh/account/?return=%2Fdaymark%2Fzh%2F%23trove');
 });
 
 test('拾录 · 写接口回 401 account（账号会话刚过期）：不刷新页面，编辑弹层提示登录账号', async ({ page }) => {
@@ -292,7 +315,7 @@ test('拾录 · 账号已登录（可写）：新的在前、私密带锁、右�
   await page.evaluate(() => { location.hash = '#echo'; });
   await expect(page.locator('#dm-pane-echo')).toBeVisible();
   await expect(page.locator('#dm-fab')).toBeHidden();
-  await page.locator('#dm-entries [data-entry="trove"]').click();
+  await page.locator('#dm-wt-trove a').click();
   await expect(page.locator('#dm-pane-trove')).toBeVisible();
   await page.locator('#dm-list .dm-card').first().click();
   await expect(page.locator('#edit-title')).toHaveText('编辑这一句');
@@ -458,13 +481,59 @@ test('主题跟主站 sgx-ui cookie：pal 换预设；accent 是自定义种子 
   expect(await ind()).toBe(custom);
 });
 
-test('P3-1 账号已登录但日刻未获授权（canWrite=false、showPrivate=true）：页底「日刻未获账号授权」链到 /account/apps/', async ({ page }) => {
+test('P3-1 账号已登录但日刻未获授权（canWrite=false、showPrivate=true）：命令链「日刻未获账号授权」链到 /account/apps/', async ({ page }) => {
   await mock(page, true);
   await page.route('**/api/quotes**', (r) => (r.request().method() === 'GET'
     ? r.fulfill({ json: { ok: true, canWrite: false, showPrivate: true, quotes: [] } })
     : r.fulfill({ status: 403, json: { ok: false, error: 'scope', scope: 'daymark.write' } })));
   await page.goto('/daymark/zh/#trove');
-  await expect(page.locator('#dm-signin')).toBeVisible();
-  await expect(page.locator('#dm-signin a')).toHaveText('日刻未获账号授权');
-  await expect(page.locator('#dm-signin a')).toHaveAttribute('href', 'https://styrigx.com/zh/account/apps/');
+  await expect(page.locator('#dm-signin-trove')).toBeVisible();
+  await expect(page.locator('#dm-signin-trove [data-signin-text]')).toHaveText('日刻未获账号授权');
+  await expect(page.locator('#dm-signin-trove')).toHaveAttribute('href', 'https://styrigx.com/zh/account/apps/');
+});
+
+test('余响 · 日期条 / 前后日（/api/days）：记下的日子能点，看那天的句子（地址 #d/<日期>、命令行换日期）；cat today / 点今天格回来；那天没记下的灰掉；余响窗列最近几天', async ({ page }) => {
+  await mock(page, false);
+  const asked = [];
+  await page.route('**/api/days**', (r) => {
+    asked.push(new URL(r.request().url()).search);
+    return r.fulfill({ json: { ok: true, today: '2026-10-20', days: [
+      { day: '2026-10-19', quote: { id: 'aaaaaaaaaaa3', text: '人生如逆旅，我亦是行人。', trans: '', author: '苏轼', source: '临江仙', source_type: 'poetry', tags: [] } },
+      { day: '2026-10-17', quote: { id: 'aaaaaaaaaaa4', text: '回首向来萧瑟处，也无风雨也无晴。', trans: '', author: '苏轼', source: '定风波', source_type: 'poetry', tags: [] } },
+    ] } });
+  });
+  await page.goto('/daymark/zh/');
+  await expect(page.locator('#dm-w-echo .dm-li')).toHaveText(['10-20世上本没有路，走的人多了，也便成了路。', '10-19人生如逆旅，我亦是行人。', '10-17回首向来萧瑟处，也无风雨也无晴。']);
+  await expect(page.locator('#dm-n-echo')).toHaveText('3');
+  expect(asked[0]).toBe('?from=2026-10-14&to=2026-10-19');
+  /* 10-18 没记下：灰掉 */
+  await expect(page.locator('#dm-dcal [data-day="2026-10-18"]')).toBeDisabled();
+  await expect(page.locator('#dm-nx a.sgx-nx-a').first()).toHaveText('‹ cat 2026-10-19人生如逆旅，我亦是行人。');
+  await page.locator('#dm-dcal [data-day="2026-10-19"]').click();
+  await expect(page).toHaveURL(/#d\/2026-10-19$/);
+  await expect(page.locator('#dm-cmd-day')).toHaveText('2026-10-19');
+  await expect(page.locator('#dm-echo-day')).toHaveText('2026 · 10 · 19 · 星期一');
+  await expect(page.locator('#dm-echo-body')).toContainText('人生如逆旅');
+  await expect(page.locator('#dm-back-today')).toBeVisible();
+  await expect(page.locator('#dm-dcal .dm-dc[aria-current="date"]')).toHaveText('19');
+  /* 前后日：往后一天是今天（链接回首页），往前一天 10-18 没记下 */
+  await expect(page.locator('#dm-nx a.is-next')).toHaveAttribute('href', '#');
+  await expect(page.locator('#dm-nx a.sgx-nx-a').first()).toHaveText('‹ cat 2026-10-18那天没有记下句子。');
+  await page.locator('#dm-nx a.sgx-nx-a').first().click();
+  await expect(page).toHaveURL(/#d\/2026-10-18$/);
+  await expect(page.locator('#dm-echo-body')).toHaveText('那天没有记下句子。');
+  /* cat today 回来 */
+  await page.locator('#dm-back-today').click();
+  await expect(page.locator('#dm-echo-body')).toContainText('世上本没有路');
+  await expect(page.locator('#dm-cmd-day')).toHaveText('2026-10-20');
+  await expect(page.locator('#dm-back-today')).toBeHidden();
+  /* 余响窗的行也能点；点今天格回来 */
+  await page.locator('#dm-w-echo .dm-li[href="#d/2026-10-17"]').click();
+  await expect(page.locator('#dm-echo-body')).toContainText('也无风雨也无晴');
+  await page.locator('#dm-dcal .dm-dc.is-today').click();
+  await expect(page.locator('#dm-echo-body')).toContainText('世上本没有路');
+  /* 直接打开 #d/<日期> */
+  await page.goto('/daymark/zh/#d/2026-10-19');
+  await expect(page.locator('#dm-echo-body')).toContainText('人生如逆旅');
+  await expect(page.locator('#dm-cmd-day')).toHaveText('2026-10-19');
 });

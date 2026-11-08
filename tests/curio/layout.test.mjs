@@ -1,4 +1,4 @@
-// 页面模板（space/web/layouts/curio）：共享外壳顶栏（页名胶囊：首页 = 站名、子页 = 子页名）、首页只有平铺入口、各子页部件都在、不被搜索引擎收录。
+// 页面模板（space/web/layouts/curio）：共享外壳顶栏（页名胶囊：首页 = 站名、子页 = 子页名）、首页 = 发现（2026-11 对齐 PR-C2：页头 + 下划线 tab + 封面卡）、各子页部件都在、条目页、不被搜索引擎收录。
 // 只读模板源码，不用构建；构建后的行为在手机 E2E（tests/curio/e2e）。
 // 运行：node --test tests/curio/layout.test.mjs
 import { test } from 'node:test';
@@ -14,8 +14,12 @@ const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
 const base = read('space/web/layouts/curio/baseof.html');
 const index = read('space/web/layouts/curio/section.html');
 const page = (n) => read('space/web/layouts/curio/' + n + '.html');
-const finds = page('finds'), devices = page('devices'), games = page('games'), movies = page('movies'), music = page('music');
-const parts = ['common', 'item-view', 'signin'].map((n) => read('space/web/layouts/partials/curio/' + n + '.html')).join('\n');
+const part = (n) => read('space/web/layouts/partials/curio/' + n + '.html');
+const findsMain = part('finds-main');
+const finds = page('finds') + '\n' + findsMain, devices = page('devices'), games = page('games'), movies = page('movies'), music = page('music');
+const parts = ['common', 'item-page', 'signin', 'page-head', 'list'].map(part).join('\n');
+/** 部件 id 在模板源码里：直接写的 id="…"，或 page-head 命令链 / list 的 dict "id" "…"、id 前缀 pre "…" */
+const hasId = (src, id) => new RegExp('id="' + id + '"|"id" "' + id + '"').test(src) || (/^(cu|dv|gm|mv)-(chips|list|empty)$/.test(id) && new RegExp('"pre" "' + id.split('-')[0] + '"').test(src));
 
 test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.html；中间 = 页名胶囊（首页 = 站名）；右边九宫格 · 快捷设置 · AI（PR-4b，头像在 AI 窗口头部）；没有抽屉、右圆分享', () => {
   assert.match(base, /\{\{ partial "shell-topbar\.html" \(dict\n/);
@@ -78,69 +82,88 @@ test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主
   assert.doesNotMatch(base, /主页|书库/);
 });
 
-test('首页（P4-3 奇趣拆页）：只有平铺入口（共享外壳），五个入口链到子页、地址走 sgx-lang-path；音乐排最后；没有面板；脚本只有 curio-home.js', () => {
-  assert.match(index, /partial "sgx-entries\.html"/);
-  const ids = [...index.matchAll(/\(dict "id" "([a-z]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ['finds', 'devices', 'games', 'movies', 'music']);
-  for (const id of ids) assert.match(index, new RegExp('"href" \\(partial "sgx-lang-path\\.html" \\(dict "path" "/curio/' + id + '/" "lang" \\$lang\\)\\)'), id);
-  assert.doesNotMatch(index, /cu-pane|cu-panes|"href" "#/);
-  assert.match(index, /js\/curio-home\.js/);
-  assert.doesNotMatch(index, /js\/curio\.js|curio-items|curio-tabs/);
+test('首页（2026-11 对齐 PR-C2，设计稿 pg=curio）：就是「发现」（和 /curio/finds/ 同一份 finds-main.html，命令写 ls curio/）；平铺入口删掉；脚本 curio-home.js（旧 hash）→ curio.js → curio-list.js', () => {
+  assert.doesNotMatch(index, /sgx-entries/);
+  assert.match(index, /partial "curio\/finds-main\.html" \(dict "page" \. "tr" \$tr "lang" \$lang "home" true\)/);
+  assert.match(page('finds'), /partial "curio\/finds-main\.html" \(dict "page" \. "tr" \$tr "lang" \$lang "home" false\)/);
+  const a = index.indexOf('js/curio-home.js'), b = index.indexOf('js/curio.js'), c = index.indexOf('js/curio-list.js');
+  assert.ok(a > 0 && a < b && b < c, '脚本顺序');
+  assert.doesNotMatch(index, /curio-items|curio-tabs/);
+  const head = part('page-head');
+  assert.match(head, /cond \(\.home \| default false\) "ls curio\/" \(printf "ls curio\/%s\/" \$cur\)/, '首页命令 ls curio/，子页 ls curio/<分区>/');
+  assert.match(head, /range \(slice "finds" "devices" "games" "movies" "music"\)/, '五个 tab，音乐最后');
+  assert.match(head, /href="\{\{ partial "sgx-lang-path\.html" \(dict "path" \(printf "\/curio\/%s\/" \.\) "lang" \$lang\) \}\}"/, 'tab 地址走 sgx-lang-path');
   const css = read('space/web/assets/curio/css/input.css');
-  assert.match(css, /html:not\(\.cu-music-ok\) #cu-entries \.sgx-ent-li:has\(> \[data-entry="music"\]\) \{ display: none; \}/);
+  assert.match(css, /html:not\(\.cu-music-ok\) #cu-tabs \[data-ctab="music"\]:not\(\[aria-current\]\) \{ display: none; \}/);
+  assert.doesNotMatch(css, /\.cu-fab|\.it-view|\.cu-tile|\.it-card|\.sgx-ent|#cu-segs/, '旧浮动按钮 / 详情弹层 / 格子 / 旧卡片 / 入口 / 段式标签样式删除');
   /* 子页内容：中英各一份，layout 指到 _default/<分区>.html */
-  for (const id of ids) {
+  for (const id of ['finds', 'devices', 'games', 'movies', 'music']) {
     assert.match(read(`space/web/content/curio/${id}.md`), new RegExp('^layout: ' + id + '$', 'm'));
     assert.match(read(`space/web/content/curio/${id}.zh.md`), new RegExp('^layout: ' + id + '$', 'm'));
   }
 });
 
-test('发现子页：分类条、格子、收藏按钮、更多菜单（分类 / 导入 / 导出）、编辑弹层、确认；只加载 curio.js', () => {
-  for (const id of ['cu-chips', 'cu-menu-btn', 'cu-list', 'cu-empty', 'cu-fab', 'menu-cats', 'menu-import', 'menu-export',
+test('发现：分类 chips、封面卡网格、分页条（排序 最近收藏 / 我的顺序 / 名称）、页头命令链（收藏 / 管理分类 / 导入 / 导出）、编辑弹层、确认；没有「⋯」菜单和浮动按钮；加载 curio.js → curio-list.js', () => {
+  for (const id of ['cu-chips', 'cu-list', 'cu-empty', 'cu-fab', 'menu-cats', 'menu-import', 'menu-export',
     'f-url', 'f-fill', 'f-name', 'f-name2', 'f-desc', 'f-desc2', 'f-cats', 'f-cat-name', 'f-icon', 'f-private', 'f-up', 'f-down', 'edit-del', 'edit-save',
     'cats-list', 'cats-new', 'imp-file', 'imp-private', 'imp-go']) {
-    assert.match(finds, new RegExp('id="' + id + '"'), id);
+    assert.ok(hasId(finds, id), id);
   }
+  assert.doesNotMatch(finds, /cu-menu-btn|menu-wrap|class="cu-fab/);
   assert.match(parts, /id="confirm-ok"/);
   assert.match(parts, /id="bk-toast"/);
-  assert.match(finds, /id="menu-export"[^>]*href="\{\{ "curio\/api\/export" \| relURL \}\}/);
+  assert.match(findsMain, /\(dict "id" "cu-fab" "k" "touch curio\/finds\/ \+" "d" \$tr\.cmd\.addFind\)/);
+  assert.match(findsMain, /\(dict "id" "menu-export" "k" "export" "d" \$tr\.cmd\.export "href" \(printf "%s\?lang=%s" \("curio\/api\/export" \| relURL\) \$lang\) "dl" true\)/);
+  assert.match(findsMain, /"sorts" \(slice\s+\(dict "v" "recent" "label" \$tr\.sort\.recent\) \(dict "v" "order" "label" \$tr\.sort\.order\) \(dict "v" "name" "label" \$tr\.sort\.name\)/);
   assert.match(finds, /id="imp-private"[^>]*checked/);
   assert.match(finds, /<section id="cu-pane-finds" class="cu-pane" aria-label="\{\{ \$tr\.finds\.finds \}\}">/);
   assert.deepEqual([strings('curio', 'en').finds.finds, strings('curio', 'zh').finds.finds], ['Finds', '发现']);
-  assert.match(finds, /js\/curio\.js/);
+  assert.ok(finds.indexOf('js/curio.js') > 0 && finds.indexOf('js/curio.js') < finds.indexOf('js/curio-list.js'));
   assert.doesNotMatch(finds, /curio-items|curio-tabs|dv-|gm-/);
+  const list = part('list');
+  assert.match(list, /<div id="\{\{ \$pre \}\}-list" class="sgx-cgrid cu-grid" data-cu-grid/);
+  assert.match(list, /<nav class="sgx-pg cu-pg" data-cu-pager/);
+  assert.match(list, /<b data-pg-count translate="no">-- 0 \/ 0 --<\/b><span class="sgx-pg-hint">\{\{ \$tr\.list\.more \}\}<\/span>/);
+  assert.match(list, /<select data-cu-sort/);
 });
 
-test('设备 / 游戏子页：各自只有自己的面板和编辑弹层；详情弹层共用；脚本 curio.js → curio-items.js；没有 hidden 面板、没有 curio-tabs.js', () => {
+test('设备 / 游戏子页：各自只有自己的面板和编辑弹层；条目页（#cu-item，取代旧详情弹层）；命令链新建；脚本 curio.js → curio-list.js → curio-items.js；没有 hidden 面板、没有 curio-tabs.js', () => {
   for (const id of ['dv-chips', 'dv-list', 'dv-empty', 'dv-fab',
     'dv-photo', 'dv-photo-del', 'dv-name', 'dv-kind', 'dv-bought', 'dv-os', 'dv-specs', 'dv-acc', 'dv-notes', 'dv-retired', 'dv-retired-at', 'dv-replaced', 'dv-private', 'dv-del', 'dv-save']) {
-    assert.match(devices, new RegExp('id="' + id + '"'), id);
+    assert.ok(hasId(devices, id), id);
   }
   for (const id of ['gm-chips', 'gm-list', 'gm-empty', 'gm-fab', 'gm-photo', 'gm-title', 'gm-status', 'gm-platform', 'gm-platforms', 'gm-device', 'gm-edition', 'gm-rating', 'gm-review', 'gm-private', 'gm-del', 'gm-save']) {
-    assert.match(games, new RegExp('id="' + id + '"'), id);
+    assert.ok(hasId(games, id), id);
   }
-  for (const id of ['it-view-wrap', 'it-view-edit', 'it-view-body']) assert.match(parts, new RegExp('id="' + id + '"'), id);
+  assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/curio/item-view.html')), '旧详情弹层删除');
+  assert.match(parts, /<section id="cu-item" class="cu-item" hidden aria-live="polite"><\/section>/);
+  assert.match(parts, /<script id="cu-posts" type="application\/json">/, '相关文章候选');
+  assert.doesNotMatch(parts, /it-view/);
   assert.match(devices, /id="dv-bought" type="date"/);
+  assert.match(devices, /\(dict "id" "dv-fab" "k" "touch curio\/devices\/ \+"/);
+  assert.match(games, /\(dict "id" "gm-fab" "k" "touch curio\/games\/ \+"/);
   assert.doesNotMatch(devices, /id="gm-/);
   assert.doesNotMatch(games, /id="dv-/);
   for (const t of [devices, games]) {
-    assert.doesNotMatch(t, /hidden inert|curio-tabs/);
-    assert.match(t, /partial "curio\/item-view\.html"/);
-    const a = t.indexOf('js/curio.js'), b = t.indexOf('js/curio-items.js');
-    assert.ok(a > 0 && a < b);
+    assert.doesNotMatch(t, /hidden inert|curio-tabs|<button id="(dv|gm)-fab"/);
+    assert.match(t, /partial "curio\/item-page\.html"/);
+    const a = t.indexOf('js/curio.js'), l = t.indexOf('js/curio-list.js'), b = t.indexOf('js/curio-items.js');
+    assert.ok(a > 0 && a < l && l < b);
   }
 });
 
-test('电影 / 音乐子页：部件都在；电影脚本 curio.js → curio-items.js（借裁剪）→ curio-movies.js；音乐 curio.js → curio-music.js，有「仅本人可见」和上传上限说明', () => {
+test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js → curio-list.js → curio-items.js（借裁剪 / 条目文案）→ curio-movies.js；音乐 curio.js → curio-music.js，有「仅本人可见」和上传上限说明，上传是页头命令', () => {
   for (const id of ['mv-list', 'mv-empty', 'mv-fab', 'mv-edit-wrap', 'mv-photo', 'mv-photo-prev', 'mv-title', 'mv-original', 'mv-year', 'mv-director', 'mv-watched', 'mv-rating', 'mv-review', 'mv-del', 'mv-save']) {
-    assert.match(movies, new RegExp('id="' + id + '"'), id);
+    assert.ok(hasId(movies, id), id);
   }
-  const a = movies.indexOf('js/curio.js'), b = movies.indexOf('js/curio-items.js'), c = movies.indexOf('js/curio-movies.js');
-  assert.ok(a > 0 && a < b && b < c);
+  assert.match(movies, /partial "curio\/item-page\.html"/);
+  const a = movies.indexOf('js/curio.js'), l = movies.indexOf('js/curio-list.js'), b = movies.indexOf('js/curio-items.js'), c = movies.indexOf('js/curio-movies.js');
+  assert.ok(a > 0 && a < l && l < b && b < c);
   for (const id of ['cu-pane-music', 'mu-denied', 'mu-app', 'mu-upload', 'mu-covers', 'mu-tracks', 'mu-play-all', 'mu-player', 'mu-lyrics', 'mu-seek', 'mu-speed', 'mu-prev', 'mu-toggle', 'mu-next', 'mu-audio',
     'mu-up-wrap', 'mu-up-name', 'mu-up-artist', 'mu-up-year', 'mu-up-audio', 'mu-up-cover', 'mu-up-lrc', 'mu-up-go']) {
-    assert.match(music, new RegExp('id="' + id + '"'), id);
+    assert.ok(hasId(music, id), id);
   }
+  assert.match(music, /"grep" false "cmds" \(slice \(dict "id" "mu-upload"/);
   assert.match(music, /id="mu-up-audio"[^>]*multiple/);
   assert.match(music, /95 MB/);
   assert.match(music, /id="mu-denied" class="mu-denied hidden"/);
@@ -181,4 +204,10 @@ test('head 内联脚本和自定义色引擎不打包整份 palettes.json（预�
   assert.doesNotMatch(base, /palettes\.json[^\n]*jsonify/);
   assert.match(base, /<script>\{\{ \(resources\.Get "js\/lib\/ui-cookie-read\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
   assert.match(base, /js\/sgx\/ui-inherit-run\.js" \| js\.Build \(dict "format" "iife" "minify" true "target" "es2018"\)\)/);
+});
+
+test('测试构建不问新加的读接口（对齐 PR-C2）：SGX_TEST_NO_WEATHER=1 时 <html data-sgx-test-no-api>，curio-list.js 不问 tab 计数（e2e 设 __sgxCurioApi 才问）；生产构建不加属性', () => {
+  assert.match(base, /\{\{ if eq \(getenv "SGX_TEST_NO_WEATHER"\) "1" \}\} data-sgx-test-no-api\{\{ end \}\}>/);
+  const js = read('space/web/assets/curio/js/curio-list.js');
+  assert.match(js, /hasAttribute\('data-sgx-test-no-api'\) && !G\.__sgxCurioApi\) return;/);
 });

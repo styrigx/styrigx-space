@@ -3,22 +3,12 @@
 {{/* 奇趣 › 游戏（/curio/games/；P4-3 奇趣拆页，原首页 hash 分区 #games）：curio-items.js 画，卡片 + 状态筛选条；点卡片看详情，能编辑时在详情里编辑；右下角「游戏」新建。
    「在哪台设备上」的选项来自同一个 /api/items（设备列表一起回来）。 */}}
 <main id="cu-main" class="cu-wrap" data-cu-page="games">
-{{ partial "curio/page-head.html" (dict "page" . "id" "games" "tr" $tr "lang" $lang) }}
+{{ partial "curio/page-head.html" (dict "page" . "id" "games" "tr" $tr "lang" $lang "cmds" (slice (dict "id" "gm-fab" "k" "touch curio/games/ +" "d" $tr.cmd.addGame))) }}
   <section id="cu-pane-games" class="cu-pane" aria-label="{{ $tr.games.games }}">
-    <div class="cu-bar"><div id="gm-chips" class="cu-chips" role="tablist" aria-label="{{ $tr.games.filter }}"></div></div>
-    <div id="gm-list" class="it-grid"></div>
-    <p id="gm-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
-    <p class="it-loading text-center py-16 text-sm text-m-on-surface-variant">{{ $tr.games.loading }}</p>
+{{ partial "curio/list.html" (dict "tr" $tr "pre" "gm" "chips" true "chipsLabel" $tr.games.filter "label" $tr.games.games "loading" $tr.games.loading "sorts" (slice (dict "v" "recent" "label" $tr.sort.recent) (dict "v" "rating" "label" $tr.sort.rating) (dict "v" "name" "label" $tr.sort.name))) }}
   </section>
-{{ partial "curio/signin.html" (dict "tr" $tr "lang" $lang) }}
+{{ partial "curio/item-page.html" (dict "tr" $tr) }}
 </main>
-
-{{/* ===== 新建（canWrite，右下角浮动按钮） ===== */}}
-<button id="gm-fab" type="button" class="cu-fab it-fab hidden">
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>{{ $tr.games.game }}
-</button>
-
-{{ partial "curio/item-view.html" (dict "tr" $tr "lang" $lang) }}
 
 {{/* ===== 游戏：添加 / 编辑（canWrite） ===== */}}
 <div id="gm-edit-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="gm-edit-title">
@@ -67,5 +57,6 @@
 
 {{ define "pagejs" }}
 <script src="{{ (resources.Get "curio/js/curio.js" | minify | fingerprint).RelPermalink }}"></script>
+<script src="{{ (resources.Get "curio/js/curio-list.js" | minify | fingerprint).RelPermalink }}"></script>
 <script src="{{ (resources.Get "curio/js/curio-items.js" | minify | fingerprint).RelPermalink }}"></script>
 {{ end }}

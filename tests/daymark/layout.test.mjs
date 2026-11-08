@@ -52,7 +52,8 @@ test('没有搜索；快捷面板只来自共享外壳（本站不自己写）�
   assert.doesNotMatch(code, /sgx-qp|sgx-tb-quick/);
   assert.doesNotMatch(index, /sgx-qp|sgx-tb-quick/);
   assert.doesNotMatch(index, /sgx-tb-title/);
-  assert.match(index, /partial "sgx-entries\.html"/, '首页分区入口');
+  assert.doesNotMatch(index, /sgx-entries|sgx-segtabs/, '平铺入口 / 段式标签退役（对齐 PR-C2）');
+  assert.match(index, /<a href="#\{\{ \$w \}\}">/, '窗标题进拾录 / 百味');
   assert.doesNotMatch(index, /id="dm-tags"/);
   assert.equal(existsSync(path.join(REPO, 'space/web/layouts/partials/daymark/sgx-qp.html')), false);
   assert.equal(existsSync(path.join(REPO, 'space/web/assets/daymark/js/sgx/shell/capsule-kb.js')), false);
@@ -96,12 +97,28 @@ test('导航：九宫格导航面板（PR-4b；原快捷面板第 1 页）用主
   assert.doesNotMatch(base, /主页|书库/);
 });
 
-test('首页三块面板 + 记一句弹层的各个部件都在', () => {
-  for (const id of ['dm-pane-echo', 'dm-pane-trove', 'dm-pane-flavors', 'dm-draw', 'dm-set-today', 'dm-back-today', 'dm-share', 'dm-fab',
+test('首页三块面板 + 记一句弹层的各个部件都在；余响是稿的居中一屏（命令行 · 日期行 · 引句 · 命令链 · 13 格日期条 · 三窗 · 前后日卡）', () => {
+  for (const id of ['dm-pane-echo', 'dm-pane-trove', 'dm-pane-flavors', 'dm-draw', 'dm-set-today', 'dm-back-today', 'dm-fab', 'dm-signin',
+    'dm-cmd-day', 'dm-echo-day', 'dm-echo-body', 'dm-dcal', 'dm-nx',
     'dm-cols', 'dm-authors', 'dm-fl-back', 'ed-preview', 'f-text', 'f-trans-toggle', 'f-author-ac', 'f-author-recent',
     'f-stype', 'f-source-ac', 'f-cols', 'f-col-new-row', 'f-tagbox', 'f-tag-sugg', 'f-note', 'f-public', 'edit-del']) {
     assert.match(index, new RegExp('id="' + id + '"'), id);
   }
+  for (const w of ['echo', 'trove', 'flavors']) assert.match(index, /id="dm-w-\{\{ \$w \}\}"/) && assert.match(index, /id="dm-n-\{\{ \$w \}\}"/);
+  assert.match(index, /range \$w := slice "echo" "trove" "flavors"/, '三窗顺序 余响 / 拾录 / 百味');
+  assert.match(index, /<section class="sgx-term sgx-term--static dm-win"/);
+  assert.match(index, /<span class="sgx-cmd-k" translate="no">shuf -n1 ↻<\/span><i>\{\{ \$tr\.index\.drawAnother \}\}<\/i>/);
+  assert.match(index, /<span class="sgx-cmd-k" translate="no">set today<\/span>/);
+  assert.match(index, /<span class="sgx-cmd-k" translate="no">touch trove\/ \+<\/span><i>\{\{ \$tr\.index\.saveALine \}\}<\/i>/);
+  /* 旧形式删除：右上分享图标、实心 / 描边按钮组、浮动按钮、页底提示、段式标签 */
+  assert.doesNotMatch(index, /id="dm-share"|dm-btn|class="dm-fab|dm-echo-actions|sgx-segtabs/);
+  assert.doesNotMatch(css, /\.dm-share|\.dm-btn\b|\.dm-fab|\.dm-echo-actions/);
+  assert.match(css, /\.dm-dc \{[^}]*width: 30px; height: 38px;[^}]*border-radius: 7px;/, '日期格 30×38 圆角 7');
+  assert.match(css, /\.dm-dc\.is-today \{ border-color: var\(--sgx-primary\);/);
+  assert.match(css, /:root\[data-sgx-layout="desktop"\] \.dm-dcol \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \}/);
+  assert.match(css, /:root\[data-sgx-layout="desktop"\] \.dm-echo-body \.dm-text \{ font-size: 34px; \}/);
+  assert.match(css, /\.dm-echo-body \.dm-text \{[^}]*font-size: 24px;/);
+  assert.match(css, /\.dm-today \{ max-width: 720px;/);
   /* 百味只按作者自动分组：没有出处 / 标签分组 */
   assert.doesNotMatch(index, /dm-sources|dm-tags-sec|意境/);
 });
@@ -134,4 +151,11 @@ test('head 内联脚本和自定义色引擎不打包整份 palettes.json（预�
   assert.doesNotMatch(base, /palettes\.json[^\n]*jsonify/);
   assert.match(base, /<script>\{\{ \(resources\.Get "js\/lib\/ui-cookie-read\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
   assert.match(base, /js\/sgx\/ui-inherit-run\.js" \| js\.Build \(dict "format" "iife" "minify" true "target" "es2018"\)\)/);
+});
+
+test('测试构建不问 /api/days（对齐 PR-C2）：SGX_TEST_NO_WEATHER=1 时 <html data-sgx-test-no-api>，daymark.js ensureDays 不问（e2e 设 __sgxDaymarkApi 才问）；生产构建不加属性', () => {
+  const b = readFileSync(path.join(REPO, 'space/web/layouts/daymark/baseof.html'), 'utf8');
+  assert.match(b, /\{\{ if eq \(getenv "SGX_TEST_NO_WEATHER"\) "1" \}\} data-sgx-test-no-api\{\{ end \}\}>/);
+  const js = readFileSync(path.join(REPO, 'space/web/assets/daymark/js/daymark.js'), 'utf8');
+  assert.match(js, /hasAttribute\('data-sgx-test-no-api'\) && !G\.__sgxDaymarkApi\) return;/);
 });

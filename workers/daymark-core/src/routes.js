@@ -4,12 +4,14 @@
  * 下划线开头的文件不是接口（_auth、_lib、_quotes、_write）。
  */
 import * as collections from './api/collections.js';
+import * as days from './api/days.js';
 import * as quotes from './api/quotes.js';
 import * as today from './api/today.js';
 
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([
   ['/api/collections', collections],
+  ['/api/days', days],
   ['/api/quotes', quotes],
   ['/api/today', today],
 ]);

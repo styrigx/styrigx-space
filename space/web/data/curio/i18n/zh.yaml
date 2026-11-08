@@ -160,6 +160,31 @@ curioItemView:
   close: 关闭
 curioSignin:
   signInToYour: 登录账号后可编辑
+list:
+  grep: 筛选
+  grepPh: 名字或 #标签
+  grepClose: 关闭筛选
+  sortBy: 排序
+  more: 滚动加载更多
+  pager: 分页
+  loading: 正在加载…
+  tabs: 奇趣分区
+sort:
+  recent: 最近收藏
+  order: 我的顺序
+  name: 名称
+  bought: 最近购入
+  rating: 评分
+  watched: 最近看过
+cmd:
+  addFind: 收藏
+  addDevice: 添加设备
+  addGame: 添加游戏
+  addMovie: 添加电影
+  cats: 管理分类
+  import: 导入书签
+  export: 导出书签
+  upload: 上传专辑
 js:
   curio:
     all: 全部
@@ -173,7 +198,7 @@ js:
     needCat: 选一个分类。
     dup: 这个网址已经收藏过了。
     priv: 仅自己可见
-    emptyAdmin: 还没有收藏。点「收藏」，或者导入浏览器书签。
+    emptyAdmin: 还没有收藏。用上面的「收藏」，或者导入浏览器书签。
     emptyVisitor: 这里还空着。
     noMatch: 没有找到。
     filling: 正在读取…
@@ -203,6 +228,9 @@ js:
     impCats: 、{n} 个分类
     impSkipped: ，{n} 条已经有了
     impEnd: 。
+  curioList:
+    count: '-- {n} / {total} --'
+    noMatch: 没有匹配的。
   curioItems:
     all: 全部
     active: 在用
@@ -224,8 +252,8 @@ js:
     editDevice: 编辑设备
     addGame: 添加游戏
     editGame: 编辑游戏
-    emptyDevAdmin: 还没有设备。点「设备」添加第一台。
-    emptyGameAdmin: 还没有游戏。点「游戏」添加。
+    emptyDevAdmin: 还没有设备。用上面的「添加设备」加第一台。
+    emptyGameAdmin: 还没有游戏。用上面的「添加游戏」加一个。
     empty: 这里还空着。
     noMatch: 这个筛选下没有。
     needName: 起个名字。
@@ -267,11 +295,20 @@ js:
     listSep: 、
     days: '{n} 天'
     aboutYears: ' · 约 {y} 年'
+    state: 状态
+    tags: 标签
+    link: 链接
+    kept: '收入于 {d}'
+    related: 相关文章
+    editCmd: 编辑
+    back: 回到列表
+    nextNone: 已经是最后一个
+    notFound: 这个条目不存在，或者你看不到它。
   curioMovies:
     add: 添加电影
     edit: 编辑电影
     empty: 这里还空着。
-    emptyAdmin: 还没有电影。点「电影」添加第一部。
+    emptyAdmin: 还没有电影。用上面的「添加电影」加第一部。
     needTitle: 填一下片名。
     badYear: 年份不对，检查一下。
     badDate: 日期不对，检查一下。
@@ -288,6 +325,8 @@ js:
     rating: 我的评分
     review: 短评
     stars: '{n} 星'
+    title: 电影
+    editCmd: 编辑
   curioMusic:
     tracks: '{n} 首'
     failed: 出了点问题，请再试一次。

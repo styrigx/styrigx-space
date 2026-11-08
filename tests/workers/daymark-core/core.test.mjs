@@ -838,3 +838,46 @@ test('边缘缓存：设为今日、改句子（改私密 / 删）之后清掉�
     assert.deepEqual(log.del, []);
   });
 });
+
+/* ---------- /api/days（2026-11 对齐 PR-C2：日刻日期条 / 前后日卡 / 余响窗） ---------- */
+const DY = await import(W + '/src/api/days.js');
+
+test('/api/days：进门才给（没进门 401，不是公开接口）；只读已记下的日子、只出公开句子、新→旧；不写库', async () => {
+  const db = makeD1();
+  const a = await add(db, { text: '甲', author: '某' });
+  const b = await add(db, { text: '乙' });
+  const c = await add(db, { text: '丙', visibility: 'private' });
+  const today = Q.dayInShanghai();
+  const d1 = DY.addDays(today, -1), d2 = DY.addDays(today, -2), d3 = DY.addDays(today, -3);
+  for (const [d, id] of [[d1, a.id], [d2, b.id], [d3, c.id]]) db.raw.prepare("INSERT INTO daily_pick (day, quote_id, set_by, set_at) VALUES (?, ?, 'auto', 0)").run(d, id);
+  assert.equal(isPublic('/api/days', 'GET'), false);
+  assert.equal((await call('/daymark/api/days', { db })).status, 401);
+  const before = db.raw.prepare('SELECT COUNT(*) AS n FROM daily_pick').get().n;
+  for (const who of ['lock', 'owner']) {
+    const j = await (await call('/daymark/api/days', { db, who })).json();
+    assert.equal(j.ok, true);
+    assert.equal(j.today, today);
+    assert.deepEqual(j.days.map((x) => x.day), [d1, d2], who + '：私密的那天不出，今天没记录不现挑');
+    assert.equal(j.days[0].quote.text, '甲');
+    assert.deepEqual(Object.keys(j.days[0].quote).sort(), ['author', 'id', 'source', 'source_type', 'tags', 'text', 'trans']);
+  }
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM daily_pick').get().n, before, '只读不写');
+  const r = await (await call('/daymark/api/days?from=' + d2 + '&to=' + d2, { db, who: 'lock' })).json();
+  assert.deepEqual(r.days.map((x) => x.day), [d2]);
+  assert.equal((await call('/daymark/api/days', { db, who: 'owner', method: 'POST', body: {} })).status, 405);
+});
+
+test('/api/days 区间：默认今天往前 13 天；to 截到今天；坏日期 / from 晚于 to / 超过 31 天 → 400 bad-day', async () => {
+  const today = '2026-11-08';
+  const sp = (s) => new URLSearchParams(s);
+  assert.deepEqual(DY.rangeOf(sp(''), today), { from: '2026-10-26', to: today });
+  assert.deepEqual(DY.rangeOf(sp('to=2099-01-01'), today), { from: '2026-10-26', to: today });
+  assert.deepEqual(DY.rangeOf(sp('from=2026-10-09&to=2026-11-08'), today), { from: '2026-10-09', to: today });
+  for (const q of ['from=2026-10-08&to=2026-11-08', 'from=2026-11-09&to=2026-11-08', 'to=2026-02-30', 'from=x', 'to=', 'from=2026-1-2']) assert.equal(DY.rangeOf(sp(q), today), null, q);
+  assert.equal(DY.addDays('2026-03-01', -1), '2026-02-28');
+  assert.equal(DY.validDay('2024-02-29'), true);
+  assert.equal(DY.validDay('2026-02-29'), false);
+  const r = await call('/daymark/api/days?from=bad', { who: 'owner' });
+  assert.equal(r.status, 400);
+  assert.equal((await r.json()).error, 'bad-day');
+});

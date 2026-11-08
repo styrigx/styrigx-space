@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
  * 共享外壳（shared shell）：主站是唯一来源。2026-11 合站起主站和三个子站（blog / curio / daymark）是同一个 Hugo 站（space/web/），
- * 子站直接用主站的 partial（shell-topbar.html、sgx-entries.html、sgx-ph.html、sgx-segtabs.html、sgx-tr.html、sgx-lang-path.html）
+ * 子站直接用主站的 partial（shell-topbar.html、sgx-ph.html、sgx-tr.html、sgx-lang-path.html；平铺入口 sgx-entries.html、段式标签 sgx-segtabs.html 对齐 PR-C2 退役）
  * 和 JS（assets/js/shell/*、assets/js/lib/*），没有副本、没有同步脚本、没有 lock。
  *
  * 只剩四个由源头算出来、没法直接引用的派生文件由本脚本生成（勿手改，改源头后重跑本脚本）：
  *   space/web/assets/css/shell/tokens.css  22 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
  *                                          + 调色板派生 token（tag / chart）+ 组件别名层
- *   space/web/assets/css/shell/shell.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、平铺入口、标题带 / 段式标签、宽屏平铺：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
+ *   space/web/assets/css/shell/shell.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、页头 / 子页共用件、宽屏平铺：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *                                          （子站样式表 @import 这两份：assets/blog/css/input.css、assets/curio/css/input.css、assets/daymark/css/input.css）
  *   space/web/data/shell/nav.json          快捷面板导航页的项（space/web/data/shell-nav.json）+ 用到的图标 SVG（space/web/layouts/partials/icon.html）
  *                                          + me.email：对外联系邮箱（space/web/data/profile.yaml 的 email；子站 AI 窗口「联系我」的默认值）
@@ -46,9 +46,7 @@ const SRC = {
   wordmark: path.join(REPO, 'space/web/layouts/partials/shell-wordmark.html'),
   share: path.join(REPO, 'space/web/assets/js/shell/share-button.js'),
   topbar: path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'),
-  entries: path.join(REPO, 'space/web/layouts/partials/sgx-entries.html'),
   pageHeader: path.join(REPO, 'space/web/layouts/partials/sgx-ph.html'),
-  segtabs: path.join(REPO, 'space/web/layouts/partials/sgx-segtabs.html'),
   footer: path.join(REPO, 'space/web/layouts/partials/sgx-footer.html'),
   topbarJs: path.join(REPO, 'space/web/assets/js/shell/topbar-panel.js'),
   terminal: path.join(REPO, 'space/web/assets/js/shell/terminal.js'),
@@ -64,7 +62,7 @@ const SRC = {
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
-export const SHELL_REGIONS = ['topbar-frame', 'panel', 'entries', 'inpage', 'wide', 'terminal'];
+export const SHELL_REGIONS = ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal'];
 /* 导航项以外外壳要用的图标（2026-11-04 P5-1；2026-11 顶栏 v3）：顶栏（外观调色盘、盾牌、>_ NAVIGATE）、AI 浮钮、NAVIGATE 的 share / lock、外观面板恢复默认、AI 发送 / 新对话 / 历史。
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
 export const EXTRA_ICONS = ['tb-palette', 'tb-shield', 'tb-term', 'tb-chat', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history'];
@@ -214,16 +212,7 @@ export function renderTopbar() {
   return src;
 }
 
-/** 平铺入口组件（P4-3 PR-4b）：原样复制；和顶栏一样只能用传进来的参数 */
-export function renderEntries() {
-  const src = readFileSync(SRC.entries, 'utf8');
-  const code = src.replace(/\{\{-?\s*\/\*[\s\S]*?\*\/\s*-?\}\}/g, '');
-  if (/\{\{-?\s*partial(Cached)?\s/.test(code) || /site\.Data|hugo\.Data|resources\.|\.Site\b|\$\.Page\b/.test(code)) throw new Error('sgx-entries.html 只能用传进来的参数（不能调 partial / 读 site.Data / resources）');
-  if (!/class="sgx-ents/.test(src)) throw new Error('sgx-entries.html 缺 .sgx-ents');
-  return src;
-}
-
-/** 页头 sgx-ph（2026-11 对齐 PR-C）/ 段式标签（P4-3 §6.6）：原样复制；同平铺入口，只能用传进来的参数 */
+/** 页头 sgx-ph（2026-11 对齐 PR-C）：原样复制；同顶栏，只能用传进来的参数 */
 function renderParamsOnly(file, name, mark) {
   const src = readFileSync(file, 'utf8');
   const code = src.replace(/\{\{-?\s*\/\*[\s\S]*?\*\/\s*-?\}\}/g, '');
@@ -232,7 +221,6 @@ function renderParamsOnly(file, name, mark) {
   return src;
 }
 export const renderPageHeader = () => renderParamsOnly(SRC.pageHeader, 'sgx-ph.html', 'class="sgx-ph"');
-export const renderSegtabs = () => renderParamsOnly(SRC.segtabs, 'sgx-segtabs.html', 'class="sgx-segs"');
 /** tmux 页脚（2026-11 UI 重设计 PR-1）：四站同一个，同上只能用传进来的参数 */
 export const renderFooter = () => renderParamsOnly(SRC.footer, 'sgx-footer.html', 'class="sgx-foot"');
 
@@ -307,9 +295,7 @@ export function renderAll() {
   /* 子站直接引用的 partial / JS：只核对约束（结果不落盘） */
   renderShare();
   renderTopbar();
-  renderEntries();
   renderPageHeader();
-  renderSegtabs();
   renderFooter();
   renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar');
   renderStandalone(SRC.terminal, 'terminal.js', 'createShell');
@@ -340,9 +326,7 @@ export const SHELL_FILES = Object.freeze({
   'palette-scheme.js': 'space/web/assets/js/lib/palette-scheme.js',
   'share.js': 'space/web/assets/js/shell/share-button.js',
   'topbar.html': 'space/web/layouts/partials/shell-topbar.html',
-  'entries.html': 'space/web/layouts/partials/sgx-entries.html',
   'page-header.html': 'space/web/layouts/partials/sgx-ph.html',
-  'segtabs.html': 'space/web/layouts/partials/sgx-segtabs.html',
   'footer.html': 'space/web/layouts/partials/sgx-footer.html',
   'topbar.js': 'space/web/assets/js/shell/topbar-panel.js',
   'terminal.js': 'space/web/assets/js/shell/terminal.js',
