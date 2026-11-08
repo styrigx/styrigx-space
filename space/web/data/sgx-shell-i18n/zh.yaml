@@ -265,6 +265,8 @@ account:
     passwordAria: "密码"
     typeHelp: "输入 {x} 查看账号命令"
     hidden: "输入不显示 · 可直接粘贴"
+    interruptAria: "退出当前命令（^C）"
+    noOption: "没有这个选项"
     cancelled: "已取消"
     tooMany: "sudo: too many attempts · try again in 15 min"
     pkNoSupport: "此设备不支持通行密钥"
@@ -289,7 +291,10 @@ account:
   session:
     guest: "账号未登录"
     lead: "账号未登录 · 选择验证方式"
-    keyMap: "passkey = 账号通行密钥 · password = 账号密码"
+    kind:
+      passkey: "passkey = 账号通行密钥"
+      password: "password = 账号密码"
+    pwUnset: "账号密码未设置 · 登录后 {x} 设置，或 {y}"
     cantSignIn: "无法登录？输入 {x} · Ctrl+C 或 esc 退出"
     noMethod: "账号还没有设置登录方式 · 输入 {x} 用恢复密钥设置"
     noSigning: "账号登录暂不可用：服务器缺少账号密钥配置"
@@ -420,6 +425,7 @@ account:
     note: "你的账号就是 root（超级管理员）。reauth 像 Linux 的 sudo -v。恢复密钥只给 reset 用，不能登录、不能再验证。Ctrl+C 或 esc 退出当前命令。"
   reauth:
     cantVerify: "验证不了？输入 {x} · Ctrl+C 或 esc 退出"
+    pwUnset: "账号密码未设置 · 验证后可在 {x} 设置，或 {y}"
     lead:
       keys: "进入账号安全 · 再验证一次"
       grants: "重新授权要再验证"
