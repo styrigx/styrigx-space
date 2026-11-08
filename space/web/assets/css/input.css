@@ -8109,6 +8109,9 @@
     .sgx-lock-tail { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { .sgx-lock-cur, .sgx-lock-tcur { animation: none; } }
+  /* 通行密钥等系统弹窗时验证弹层被临时隐藏（passkey-assert.js hideEl → style.visibility:hidden）：锁屏这组压暗留着（设计稿 K4），
+     让终端的「等待通行密钥」垫在系统弹窗后面，而不是整屏空白；仍不可点（pointer-events 照旧 none） */
+  body.sgx-dlg-open:has(.sgx-verify-dlg[style*="visibility: hidden"]) #sgx-lock .sgx-lock-user { opacity: .45; }
   /* 解锁时首页从 96% 缩放回 100%（约 400ms，与锁屏滑出同步） */
   main, #site-nav, footer { transition: transform .4s ease; }
   body.sgx-locked main, body.sgx-locked #site-nav, body.sgx-locked footer { transform: scale(.96); }
