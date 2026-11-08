@@ -27,6 +27,19 @@ export function verifyKinds(status) {
   return ks;
 }
 
+/**
+ * 选项说明那一行：只列给了的方式（verifyKinds 的结果），比如只给通行密钥就只写「passkey = 账号通行密钥」。
+ * @param {string[]} kinds @param {(k: string) => string} t
+ */
+export function keyMapLine(kinds, t) {
+  return kinds.map(function (k) { return t('session.kind.' + k); }).join(' · ');
+}
+
+/** 状态里明确写了账号密码没设（读不到状态不算） @param {any} status */
+export function pwUnset(status) {
+  return !!(status && status.configured && !status.configured.password && status.configured.passkey);
+}
+
 /** @param {any} C */
 export function mountSession(C) {
   const t = C.t;
@@ -51,19 +64,28 @@ export function mountSession(C) {
     if (C.status && C.status.signing === false) { C.err(t('session.noSigning')); C.toCmd(); return; }
     const ks = verifyKinds(C.status);
     if (!ks.length) { C.note('session.noMethod', CMD.reset); C.toCmd(); return; }
+    /* 选项说明只列真的给了的方式（Gray 22:13）；账号密码没设：多一行怎么设 */
+    C.out('# ' + esc(keyMapLine(ks, t)), 'd');
+    if (pwUnset(C.status)) C.out('# ' + esc(t(v.reauth ? 'reauth.pwUnset' : 'session.pwUnset')).replace('{x}', C.k('cd security')).replace('{y}', C.k(CMD.reset)), 'd');
+    C.note(v.reauth ? 'reauth.cantVerify' : 'session.cantSignIn', CMD.reset);
+    offer(v, ks);
+  };
+  /**
+   * 列出验证方式让用户选。通行密钥取消 / 失败后回到这里（同一轮，计入 3 次），不掉回命令行（Gray 22:13）。
+   * @param {{reauth?: boolean, withReauth?: boolean, done: () => void}} v @param {string[]} ks
+   */
+  function offer(v, ks) {
     const list = /** @type {Array<[string, string, boolean?]>} */ ([]);
     /** @type {Record<string, () => void>} */ const p = {};
     ks.forEach(function (kk, i) {
       const key = String(i + 1);
       list.push([key, kk]);
-      p[key] = function () { C.echoPick(key); if (kk === 'passkey') viaPasskey(v); else askPw(v); };
+      p[key] = function () { C.echoPick(key); if (kk === 'passkey') viaPasskey(v, ks); else askPw(v); };
       p[kk] = p[key];
     });
     C.opts(list);
-    C.note('session.keyMap');
-    C.note(v.reauth ? 'reauth.cantVerify' : 'session.cantSignIn', CMD.reset);
     C.pick(p);
-  };
+  }
   /** @param {{reauth?: boolean, withReauth?: boolean, done: () => void}} v */
   function askPw(v) {
     C.ask('pw', function (/** @type {string} */ val) {
@@ -85,16 +107,29 @@ export function mountSession(C) {
       }, function () { C.netErr(); C.toCmd(); });
     }, { ps: PS_PASSWORD, pm: api.PM_USER.password, hint: t('common.hidden') });
   }
-  /** @param {{reauth?: boolean, withReauth?: boolean, done: () => void}} v */
-  function viaPasskey(v) {
-    if (!(/** @type {any} */ (window)).PublicKeyCredential) { C.err(t('common.pkNoSupport')); C.toCmd(); return; }
-    C.setMode('busy');
+  /** 等通行密钥时可 ^C / esc（C.busyCancel）：之后回来的结果作废，也不再提交断言 */
+  let pkSeq = 0;
+  /** @param {{reauth?: boolean, withReauth?: boolean, done: () => void}} v @param {string[]} ks */
+  function viaPasskey(v, ks) {
+    if (!(/** @type {any} */ (window)).PublicKeyCredential) { C.err(t('common.pkNoSupport')); again(v, ks); return; }
+    const my = ++pkSeq;
+    const stale = function () { return my !== pkSeq; };
+    C.setMode('busy', { cc: true });
+    C.busyCancel = function () { pkSeq++; };
     C.out(esc(t('session.passkeyWait')), 'd');
-    const call = v.reauth ? api.reauth.passkey(C.errT) : api.session.passkey(C.errT);
-    call.then(function () { verified(v, 'passkey'); }, function (/** @type {any} */ e) {
+    const call = v.reauth ? api.reauth.passkey(C.errT, stale) : api.session.passkey(C.errT, stale);
+    call.then(function () { if (stale()) return; C.busyCancel = null; verified(v, 'passkey'); }, function (/** @type {any} */ e) {
+      if (stale()) return;
+      C.busyCancel = null;
       C.out(esc(e && e.cancelled ? t('common.cancelled') : (e && e.message) || t('common.errVerify')), e && e.cancelled ? 'd' : 'er');
-      C.toCmd();
+      again(v, ks);
     });
+  }
+  /** 通行密钥没成：还在这一轮（< 3 次）就重新列选项，满 3 次结束这一轮 @param {{reauth?: boolean, withReauth?: boolean, done: () => void}} v @param {string[]} ks */
+  function again(v, ks) {
+    C.tries++;
+    if (C.tries >= MAX_TRIES) { C.err(TRIES_OVER); C.toCmd(); return; }
+    offer(v, ks);
   }
   /** @param {{reauth?: boolean, withReauth?: boolean, done: () => void}} v @param {string} by */
   function verified(v, by) {
