@@ -416,7 +416,7 @@ test('改动要 AccountReauthTicket：没有 / 过期 / 别的钥匙签 / 纪元
   assert.equal((await post(env, { action: 'passkey-list' }, { 'sgx-account-session': s })).status, 200);
 });
 
-test('AccountResetTicket（没有账号会话）：能列 / 改密码 / 删通行密钥（by=root），不签会话；设备 action 一律 401 account', async () => {
+test('AccountResetTicket（没有账号会话）：能列 / 改密码 / 删通行密钥（by=root），不签会话、不推纪元（登出留给 reset-finish）；设备 action 一律 401 account', async () => {
   const env = makeEnv();
   await seedPassword(env, 'old-account-password-1');
   const base = { 'sgx-account-reset': await reset(0) };
@@ -424,11 +424,11 @@ test('AccountResetTicket（没有账号会话）：能列 / 改密码 / 删通�
   assert.equal((await l.json()).by, 'root');
   const r = await post(env, { action: 'password-change', password: 'brand-new-pass-1' }, base);
   assert.deepEqual(await r.json(), { ok: true, changed: true });
-  assert.equal(epochOf(env), 1);
+  assert.equal(epochOf(env), 0, 'reset 票下改密码不推纪元（2026-11-08 §1.1：统一到 reset-finish）');
   assert.equal(pickCookie(r, 'sgx-account-session'), null);
-  assert.ok(pickCookie(r, 'sgx-account-reset').startsWith('root.1.'), 'reset 票重签到新纪元');
+  assert.equal(pickCookie(r, 'sgx-account-reset'), null, '纪元没变，reset 票不用重签');
   for (const action of ['device-list', 'device-revoke', 'device-revoke-all']) {
-    assert.equal((await post(env, { action, deviceId: 'abcdefgh1' }, { 'sgx-account-reset': await reset(1) })).status, 401, action);
+    assert.equal((await post(env, { action, deviceId: 'abcdefgh1' }, base)).status, 401, action);
   }
 });
 
@@ -892,4 +892,99 @@ test('源码：账号 Worker 不再把中文显示文案写进通行密钥记录
   assert.ok(!/name:\s*[^\n]*'通行密钥'/.test(src + store), "不再有 name: … || '通行密钥'");
   const map = store.slice(store.indexOf('const AAGUID_PROVIDERS'), store.indexOf('};', store.indexOf('const AAGUID_PROVIDERS')));
   assert.ok(!/[\u3400-\u9fff]/.test(map), 'AAGUID 映射只存 id');
+});
+
+/* ================= reset-finish（sudo root reset 最后一步，2026-11-08 §1.1） ================= */
+
+async function seedDevices(env, ids) {
+  for (const id of ids) await devices.recordLogin(env, id, 'password', Date.now(), {});
+}
+const deviceIds = (env) => all(env, "SELECT device_id FROM device WHERE realm = 'account' AND revoked_at = 0 ORDER BY device_id").map((r) => r.device_id);
+const rfEvents = (env) => all(env, "SELECT path FROM audit WHERE realm = 'account' ORDER BY ts, id").map((r) => r.path);
+
+test('reset-finish：只认 reset 票（reauth 票 / 只有会话 / 什么都没有 → 401 account）；signOut 不对 → 400 params', async () => {
+  const env = makeEnv();
+  for (const ck of [{}, await full(), { 'sgx-account-session': await accSession() }]) {
+    const r = await post(env, { action: 'reset-finish', signOut: 'all' }, ck);
+    assert.equal(r.status, 401);
+    assert.equal((await r.json()).error, 'account');
+  }
+  for (const signOut of [undefined, '', 'ALL', 'some', 1]) {
+    const r = await post(env, { action: 'reset-finish', signOut }, { 'sgx-account-reset': await reset(0) });
+    assert.equal(r.status, 400, String(signOut));
+    assert.equal((await r.json()).error, 'params');
+  }
+  assert.equal(epochOf(env), 0);
+});
+
+test('reset-finish others（本机已登录）：纪元 +1、本机按原 by 重签、删其他设备行、清 reset 票；回登出台数；审计 reset-signout-others', async () => {
+  const env = makeEnv();
+  await seedDevices(env, [TEST_DEVICE_ID, 'otherdevice001', 'otherdevice002']);
+  const s = await accSession('passkey');
+  const r = await post(env, { action: 'reset-finish', signOut: 'others' }, { 'sgx-account-session': s, 'sgx-account-reset': await reset(0) });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, signOut: 'others', signedOut: 2 });
+  assert.equal(epochOf(env), 1);
+  const ns = pickCookie(r, 'sgx-account-session');
+  assert.ok(ns && ns.startsWith('passkey.1.'), '本机重签到新纪元');
+  assert.ok(setCookies(r).some((c) => c.startsWith('sgx-account-reset=; ')), '清 reset 票');
+  assert.deepEqual(deviceIds(env), [TEST_DEVICE_ID]);
+  assert.equal((await (await get(env, { 'sgx-account-session': ns })).json()).session.by, 'passkey');
+  assert.equal((await (await get(env, { 'sgx-account-session': s })).json()).session, null, '旧会话票随纪元失效');
+  assert.deepEqual(rfEvents(env), ['reset-signout-others']);
+});
+
+test('reset-finish others（本机没登录）= all：纪元 +1、全部设备行删掉、不签会话', async () => {
+  const env = makeEnv();
+  await seedDevices(env, ['otherdevice001', 'otherdevice002']);
+  const r = await post(env, { action: 'reset-finish', signOut: 'others' }, { 'sgx-account-reset': await reset(0) });
+  assert.deepEqual(await r.json(), { ok: true, signOut: 'others', signedOut: 2 });
+  assert.equal(epochOf(env), 1);
+  assert.equal(pickCookie(r, 'sgx-account-session'), null);
+  assert.deepEqual(deviceIds(env), []);
+});
+
+test('reset-finish all（本机已登录）：纪元 +1、不重签、清本机会话 + 两张短票、删全部设备行；审计 reset-signout-all', async () => {
+  const env = makeEnv();
+  await seedDevices(env, [TEST_DEVICE_ID, 'otherdevice001']);
+  const r = await post(env, { action: 'reset-finish', signOut: 'all' }, { 'sgx-account-session': await accSession(), 'sgx-account-reset': await reset(0) });
+  assert.deepEqual(await r.json(), { ok: true, signOut: 'all', signedOut: 2 });
+  assert.equal(epochOf(env), 1);
+  const sc = setCookies(r);
+  assert.ok(sc.some((c) => c.startsWith('sgx-account-session=; ')), '清本机会话');
+  assert.ok(sc.some((c) => c.startsWith('sgx-account-reauth=; ')));
+  assert.ok(sc.some((c) => c.startsWith('sgx-account-reset=; ')));
+  assert.equal(sc.filter((c) => /^sgx-account-session=[^;]/.test(c)).length, 0, '不重签');
+  assert.deepEqual(deviceIds(env), []);
+  assert.deepEqual(rfEvents(env), ['reset-signout-all']);
+});
+
+test('reset-finish none：什么都不动（纪元、会话、设备行），只清 reset 票；也写审计 reset-signout-none', async () => {
+  const env = makeEnv();
+  await seedDevices(env, [TEST_DEVICE_ID, 'otherdevice001']);
+  const s = await accSession();
+  const r = await post(env, { action: 'reset-finish', signOut: 'none' }, { 'sgx-account-session': s, 'sgx-account-reset': await reset(0) });
+  assert.deepEqual(await r.json(), { ok: true, signOut: 'none', signedOut: 0 });
+  assert.equal(epochOf(env), 0);
+  assert.deepEqual(setCookies(r).map((c) => c.split('=')[0]), ['sgx-account-reset']);
+  assert.deepEqual(deviceIds(env), [TEST_DEVICE_ID, 'otherdevice001']);
+  assert.equal((await (await get(env, { 'sgx-account-session': s })).json()).session.by, 'password');
+  assert.deepEqual(rfEvents(env), ['reset-signout-none']);
+});
+
+test('reset 票下改凭证不自动登出：password-change（已有密码）/ passkey-delete 都不推纪元、不删设备行；reauth 票下照旧立刻 rotate', async () => {
+  const env = makeEnv();
+  await seedPassword(env, 'old-account-password-1');
+  const { credId } = await seedPasskey(env);
+  await seedDevices(env, [TEST_DEVICE_ID, 'otherdevice001']);
+  const ck = { 'sgx-account-session': await accSession(), 'sgx-account-reset': await reset(0) };
+  assert.equal((await post(env, { action: 'password-change', password: 'brand-new-pass-1' }, ck)).status, 200);
+  assert.equal((await post(env, { action: 'passkey-delete', credId }, ck)).status, 200);
+  assert.equal(epochOf(env), 0);
+  assert.deepEqual(deviceIds(env), [TEST_DEVICE_ID, 'otherdevice001']);
+  /* 正常账号安全（reauth 票）：改已有密码立刻 rotate */
+  const r = await post(env, { action: 'password-change', password: 'another-pass-12' }, await full());
+  assert.equal(r.status, 200);
+  assert.equal(epochOf(env), 1);
+  assert.deepEqual(deviceIds(env), [TEST_DEVICE_ID]);
 });

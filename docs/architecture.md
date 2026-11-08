@@ -126,7 +126,8 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - 登录入口两者平级：账号通行密钥、账号密码；前置条件是已解锁的 锁屏进门会话。账号根密钥不签账号会话。
 - 敏感操作（注册/删除账号通行密钥、修改账号密码）要求有效的 3 分钟 AccountReauthTicket `sgx-account-reauth`
   （进「账号安全」子页前再验一次，离开即作废；会话还在时也认 AccountResetTicket），没有票返回 403 `reauth`，前端重新验证。
-- 改账号密码 / 删账号通行密钥时 `account-epoch` +1，其他设备的账号会话失效，当前设备重签。
+- 改账号密码 / 删账号通行密钥时（账号安全，reauth 票）`account-epoch` +1，其他设备的账号会话失效，当前设备重签。
+  恢复密钥重置（reset 票）下改凭证不自动登出，最后一步 `reset-finish { signOut: 'all' | 'others' | 'none' }` 由用户三选一（默认 others；本机没登录时 others = all）；三种都记安全事件 `reset-signout-*`（2026-11-08）。
 - 存储（账号拆分 PR3 起在 D1 `styrigx-account`，账号 Worker 的绑定 `D1_ACCOUNT_AUTH`，各表 `realm = 'account'`；网关库里的旧行已在 PR4 删除）：
   `password`、`passkey`、`user_handle`、`challenge`、`epoch`、`device`（已退出的 `revoked_at > 0`）；
   「已配置」由凭证推出；账号密码登录限速在 `attempt_limit`（`kind = 'password'`，规则同锁屏密码）。
