@@ -7,7 +7,7 @@
  * - 与网关有意不同：首次配置不推 Lock 纪元、不查「与锁屏密码相同」、不查锁屏通行密钥、legacy_handle 读本库
  * - 新增：GET configured、device-revoke-all；安全事件写审计
  * - 存储在账号库（D1_ACCOUNT_AUTH），空库第一次请求按本库 0003 建表（user_handle 带 legacy_handle）
- * 账号根密钥（root-reauth / root-reset / audit-list）见 account-root.test.mjs。
+ * 账号根密钥 / 恢复密钥（root-reset / audit-list）见 account-root.test.mjs。
  *
  * 运行：node --test tests/workers/account/account-identity.test.mjs
  */
@@ -114,7 +114,7 @@ test('GET：没进门（没有 X-Styrigx-Lock-Session: 1）→ 401 session；只
 test('POST：除 logout / reauth-clear 外每个 action 都要进门（401 session，不读不写库）', async () => {
   const env = makeEnv();
   const actions = ['login-challenge', 'login-passkey', 'login-password', 'passkey-list', 'passkey-register-challenge', 'passkey-register',
-    'passkey-delete', 'passkey-rename', 'password-change', 'device-list', 'device-revoke', 'device-revoke-all', 'root-reauth', 'root-reset', 'audit-list', 'nope'];
+    'passkey-delete', 'passkey-rename', 'password-change', 'device-list', 'device-revoke', 'device-revoke-all', 'root-reset', 'audit-list', 'nope'];
   const before = env.D1_ACCOUNT_AUTH.statements.length;
   for (const action of actions) {
     for (const identity of [null, { session: '', role: 'password' }]) {
@@ -737,12 +737,16 @@ test('切换不掉线：按拆分前（网关）的票格式手工签的账号�
   /* 方案第 8 节：sgx-account-session = by.epoch.authAt.exp.deviceId.sig；两张短票 = by.epoch.iat.exp.sig；签名串带 cookie 名前缀 */
   const signed = async (cookie, payload) => payload + '.' + (await ed25519Sign(K.ACCOUNT.priv, cookie + '|' + payload));
   const s = await signed('sgx-account-session', 'passkey.7.' + now + '.' + (now + 34560000 * 1000) + '.' + TEST_DEVICE_ID);
-  const rt = await signed('sgx-account-reauth', 'root.7.' + now + '.' + (now + 180000));
+  const rt = await signed('sgx-account-reauth', 'passkey.7.' + now + '.' + (now + 180000));
+  /* 2026-11-08：by=root 的 reauth 票不再认（恢复密钥不能再验证） */
+  const rtRoot = await signed('sgx-account-reauth', 'root.7.' + now + '.' + (now + 180000));
   const xt = await signed('sgx-account-reset', 'root.7.' + now + '.' + (now + 180000));
   const j = await (await get(env, { 'sgx-account-session': s, 'sgx-account-reauth': rt, 'sgx-account-reset': xt })).json();
   assert.equal(j.session.by, 'passkey');
-  assert.equal(j.reauth.by, 'root');
+  assert.equal(j.reauth.by, 'passkey');
   assert.equal(j.reset.by, 'root');
+  const j2 = await (await get(env, { 'sgx-account-session': s, 'sgx-account-reauth': rtRoot })).json();
+  assert.equal(j2.reauth, null, 'by=root 的 reauth 票不算');
   /* 这里签的会话票同一格式：六段、第五段是设备 id */
   const mine = await accSession('password', 7);
   const p = session.parseAccountSessionTicket(mine);
@@ -767,7 +771,7 @@ test('账号会话：篡改 deviceId → bad-sig；别的钥匙签 → bad-sig�
 
 test('会话票不能当 reset 票用，reauth 票不能当 reset 票用（签名串带 cookie 名前缀）', async () => {
   const env = makeEnv();
-  const r = await post(env, { action: 'passkey-list' }, { 'sgx-account-reset': await reauth('root', 0) });
+  const r = await post(env, { action: 'passkey-list' }, { 'sgx-account-reset': await reauth('password', 0) });
   assert.equal(r.status, 401);
   const r2 = await post(env, { action: 'passkey-list' }, { 'sgx-account-reset': await accSession() });
   assert.equal(r2.status, 401);

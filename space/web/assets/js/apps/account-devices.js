@@ -90,7 +90,7 @@ export function deviceSub(t, d, en) {
 
   /** 登录方式的文字 @param {string} by */
   function byText(by) {
-    return by === 'root' ? t('byRoot') : by === 'passkey' ? t('byPasskey') : t('byPassword');
+    return by === 'passkey' ? t('byPasskey') : t('byPassword');
   }
   /** @param {string} by 空 = 设备记录里没有（旧记录）→ 读一次 GET /api/account */
   function fillBy(by) {

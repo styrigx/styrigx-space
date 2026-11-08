@@ -83,7 +83,7 @@ Secrets Store（`src/secrets.js` 换成字符串，60 秒缓存）：
 | 名字 | 用途 |
 |---|---|
 | `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC` | 账号三张票的签名钥匙对 |
-| `SGX_ACCOUNT_ROOT_KEY` | 账号根密钥（`POST /api/account { action:'root-reauth' \| 'root-reset', key }`），与进站凭证 `SGX_LOCK_SPACE_KEY` 是不同的值、各自计数 |
+| `SGX_ACCOUNT_ROOT_KEY` | 账号根密钥，界面叫恢复密钥（`POST /api/account { action:'root-reset', key }`，只签 reset 票；2026-11-08 删 `root-reauth`），与进站凭证 `SGX_LOCK_SPACE_KEY` 是不同的值、各自计数 |
 | `SGX_PW_PEPPER` | 密码哈希 pepper，与网关同一个密值（有意共用的例外） |
 
 ## 数据与迁移

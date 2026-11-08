@@ -256,8 +256,11 @@ import { fmtDate as fmtIntlDate } from '../lib/i18n.js';
     markPersonal(nameInput);
     nameInput.maxLength = 40;
     nameInput.setAttribute('aria-label', t('pkNameAria'));
+    /* 重置模式（恢复密钥进来，by=root）只能重设密码、增删通行密钥，不能改名（服务端 passkey-rename 不认 reset 票，2026-11-08） */
+    if (sessBy === 'root') nameInput.readOnly = true;
     let lastSaved = k.name || '';
     const saveName = function () {
+      if (sessBy === 'root') return;
       const v = cleanPasskeyName(nameInput.value);
       if (v === lastSaved) {
         nameInput.value = lastSaved;
@@ -386,8 +389,9 @@ import { fmtDate as fmtIntlDate } from '../lib/i18n.js';
         register: function (body) { return postJSON(ACCOUNT_API, Object.assign({ action: 'passkey-register' }, body)).then(toRes); },
         onAuthError: function (res) { return handleAuthError(fromRes(res)); },
         onRegistered: function (credId, prefill) {
-          /* 注册成功 → 命名弹层（预填名已随 register 提交，用户改了名才调 rename） */
-          pkName.open(credId, prefill);
+          /* 注册成功 → 命名弹层（预填名已随 register 提交，用户改了名才调 rename）；重置模式不能改名，只提示已添加 */
+          if (sessBy === 'root') toast(t('pkRegistered'));
+          else pkName.open(credId, prefill);
           refreshKeys();
         },
         prefill: function () { return genPkPrefillName(''); },

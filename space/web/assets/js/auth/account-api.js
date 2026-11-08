@@ -36,7 +36,6 @@ const ERR_KEYS = {
   config: 'errConfig',
   server: 'errServer',
   short: 'errShort',
-  'same-as-lock': 'errSameAsLock',
   'not-found': 'errNotFound',
   session: 'sessExp',
   reauth: 'reauthExpired',

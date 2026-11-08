@@ -22,7 +22,7 @@
 六张票分两处登记：锁屏三张在网关 `workers/auth-gateway/src/core/realms.js`（`TICKETS`），账号三张在账号 Worker `workers/account/src/core/realm.js`（`TICKETS`）；网关不签、不验账号票（账号拆分 PR3）。签名串一律是 `<cookie 名>|<票内容>`，
 同一把私钥签的票互相冒充不了。Lock 三张票共用 Lock 纪元，Account 三张票共用 Account 纪元。
 SpaceKey 不拥有会话，两把各管各的：进站凭证 `SGX_LOCK_SPACE_KEY` 走网关 `/api/space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`；
-账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 走账号 Worker `POST /api/account { action:'root-reauth' | 'root-reset', key }`。各签一张对应的短票（锁屏侧 by=space，账号侧 by=root）；LockSessionTicket 的 by 永远没有 space。
+账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 走账号 Worker `POST /api/account { action:'root-reset', key }`，只签 AccountResetTicket（2026-11-08 删 `root-reauth`：恢复密钥只给 `sudo root reset` 用，不能登录、不能再验证；AccountReauthTicket 只认 password / passkey）。各签一张对应的短票（锁屏侧 by=space，账号侧 by=root）；LockSessionTicket 的 by 永远没有 space。
 
 立即锁定 = `POST /api/lock-now` 清 `sgx-lock-session`（两条）+ `sgx-lock-reauth` + `sgx-lock-reset`。锁定所有设备 = Lock 纪元 +1。
 

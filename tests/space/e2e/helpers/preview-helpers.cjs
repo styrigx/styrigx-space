@@ -7,7 +7,7 @@
  * - SGX_TEST_SPACE_KEY：预览站的测试进站凭证（与预览网关的 SGX_LOCK_SPACE_KEY 相同，绝不是生产值；CI 每次运行现生成，
  *   连同 SGX_PW_PEPPER 一起写进预览，不存 GitHub Secrets）。/api/space-auth、/api/lock-reset 用它。
  * - SGX_TEST_ACCOUNT_ROOT_KEY：预览站的测试账号根密钥（与预览账号那一半的 SGX_ACCOUNT_ROOT_KEY 相同，值与进站凭证不同，
- *   同样每次现生成）。POST /api/account { action:'root-reset' | 'root-reauth', key } 用它（账号拆分 PR3）。
+ *   同样每次现生成）。POST /api/account { action:'root-reset', key } 用它（账号拆分 PR3；2026-11-08 起没有 root-reauth）。
  * - SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_D1_ID：写预览 D1（打开重置开关、清进站凭证限速计数；D1 REST query）
  * - SGX_TEST_CF_API：只在模拟预览站（preview-emulator.cjs：本地，或 CI 里 pull_request 的运行）时设，把 Cloudflare REST 指到本机
  *

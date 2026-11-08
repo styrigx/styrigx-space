@@ -106,7 +106,7 @@ test('_d1.mjs：migrations: "data" 只建数据表（测 auth 表缺失时用）
 
 /* ---------------- realm.js ---------------- */
 
-test('realm：REALM_ACCOUNT 钉死字面量（拆分前网关 REALM_ACCOUNT 的值，PR3 起只在账号 Worker），另有 rootKey = SGX_ACCOUNT_ROOT_KEY、rootIssues = 两张账号短票', () => {
+test('realm：REALM_ACCOUNT 钉死字面量（拆分前网关 REALM_ACCOUNT 的值，PR3 起只在账号 Worker），另有 rootKey = SGX_ACCOUNT_ROOT_KEY、rootIssues = 只有 reset 票（恢复密钥不换 reauth 票，2026-11-08）', () => {
   const a = acct.REALM_ACCOUNT;
   assert.deepEqual(Object.keys(a).sort(), ['bys', 'challenge', 'cookie', 'cookieAttrs', 'd1Binding', 'epoch', 'id', 'keyName', 'maxAge', 'pepper', 'privateKey', 'publicKey', 'rootIssues', 'rootKey']);
   assert.equal(a.id, 'account');
@@ -121,7 +121,7 @@ test('realm：REALM_ACCOUNT 钉死字面量（拆分前网关 REALM_ACCOUNT 的�
   assert.equal(a.epoch, 'account-epoch');
   assert.deepEqual(a.challenge, { login: 'login', register: 'register', ttl: 300 });
   assert.equal(a.rootKey, 'SGX_ACCOUNT_ROOT_KEY');
-  assert.deepEqual(a.rootIssues, ['AccountReauthTicket', 'AccountResetTicket']);
+  assert.deepEqual(a.rootIssues, ['AccountResetTicket']);
   assert.equal(a.d1Binding, 'D1_ACCOUNT_AUTH');
   assert.ok(Object.isFrozen(a) && Object.isFrozen(a.challenge) && Object.isFrozen(a.rootIssues) && Object.isFrozen(a.bys));
   /* 根密钥名不是网关的进站凭证 */
@@ -134,7 +134,8 @@ test('realm：三张账号票钉死字面量（方案第 8 节：cookie 名 / TT
   assert.deepEqual(Object.keys(acct.TICKETS).sort(), names.slice().sort());
   const want = {
     AccountSessionTicket: { cookie: 'sgx-account-session', maxAge: 34560000, bys: ['password', 'passkey'] },
-    AccountReauthTicket: { cookie: 'sgx-account-reauth', maxAge: 180, bys: ['password', 'passkey', 'root'] },
+    /* 2026-11-08 三钥匙三入口：reauth 只认 account password / account passkey（删 root-reauth） */
+    AccountReauthTicket: { cookie: 'sgx-account-reauth', maxAge: 180, bys: ['password', 'passkey'] },
     AccountResetTicket: { cookie: 'sgx-account-reset', maxAge: 180, bys: ['root'] },
   };
   for (const n of names) {
@@ -187,12 +188,12 @@ test('realm：realmCookie / realmClearCookie / realmPrivateKey / realmPublicKey 
 test('realm：账号短票格式（"<cookie 名>|by.epoch.iat.exp" Ed25519）不变：按拆分前的格式手工签的票，账号 Worker 验得过', async () => {
   const { priv, pub } = await genKeyPair();
   const { ed25519Sign } = await import(REPO + 'workers/account/src/lib/crypto.js');
-  for (const n of ['AccountReauthTicket', 'AccountResetTicket']) {
+  for (const [n, by] of [['AccountReauthTicket', 'password'], ['AccountResetTicket', 'root']]) {
     const c = acct.TICKETS[n];
     const now = Date.now();
-    const payload = 'root.3.' + now + '.' + (now + 180000);
+    const payload = by + '.3.' + now + '.' + (now + 180000);
     const val = payload + '.' + (await ed25519Sign(priv, c.cookie + '|' + payload));
-    assert.equal(await sharedTickets.signShortTicket(priv, c, 'root', 3, now), val, n + '：账号 Worker 签出来逐字节相同');
+    assert.equal(await sharedTickets.signShortTicket(priv, c, by, 3, now), val, n + '：账号 Worker 签出来逐字节相同');
     const req = new Request('https://styrigx.com/', { headers: { Cookie: c.cookie + '=' + val } });
     const r = await sharedTickets.verifyShortTicket(req, { SGX_ACCOUNT_PUBLIC: pub }, c, async () => 3);
     assert.equal(r.ok, true, n + ' ' + r.reason);
