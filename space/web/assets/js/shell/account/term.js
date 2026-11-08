@@ -328,11 +328,11 @@ export function mountAccountTerm(o) {
     if (!logEl.childNodes.length) C.note('common.typeHelp', 'help');
   };
 
-  /** 服务端说没会话 / 票过期：401 account → 回登录；403 reauth → 回门口；401 session → 锁屏 @param {{s:number, j:any}} res @returns {boolean} */
+  /** 服务端说没会话 / 票过期：401 account → 回登录；401 reset → 结束 reset；403 reauth → 回门口；401 session → 锁屏 @param {{s:number, j:any}} res @returns {boolean} */
   C.authErr = function (res) {
     if (api.isErr(res, api.ERR.lock)) { C.err(t('common.sessExp')); return true; }
+    if (api.isErr(res, api.ERR.reset)) { C.endReset(true); return true; }
     if (api.isErr(res, api.ERR.account)) {
-      if (C.inReset) { C.endReset(true); return true; }
       C.setSt('guest');
       C.layer = 'home';
       C.render();

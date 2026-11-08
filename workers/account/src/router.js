@@ -5,10 +5,10 @@
  * - 账号（api/account/，一个入口一个文件；子路径就是入口名）：GET /api/account（status.js 只读状态）、
  *   POST /api/account/session（sudo root 登录）、/reauth（sudo root reauth）、/reset（sudo root reset，恢复密钥）、
  *   /keys（账号安全：账号密码、账号通行密钥）、/devices（已登录设备）、/grants（应用授权）
- * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（进门 + 账号会话 + avatar.write）→ KV_PROFILE
- * - 个人资料（2026-11-07）：GET /api/profile（进门即可）、PUT /api/profile（进门 + 账号会话 + profile.write）→ KV_PROFILE 的 profile 键
- * - 设置云同步：GET / POST /api/prefs（进门 + 账号会话 + prefs.sync）→ D1_ACCOUNT 的 settings_sync
- * - 数字健康：POST /api/wellbeing（账号会话 + wellbeing.write 才记）/ GET（进门；明细只给账号会话）→ D1_ACCOUNT 的 wb_daily
+ * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（进站会话 + 账号会话 + avatar.write）→ KV_PROFILE
+ * - 个人资料（2026-11-07）：GET /api/profile（有进站会话即可）、PUT /api/profile（进站会话 + 账号会话 + profile.write）→ KV_PROFILE 的 profile 键
+ * - 设置云同步：GET / POST /api/prefs（进站会话 + 账号会话 + prefs.sync）→ D1_ACCOUNT 的 settings_sync
+ * - 数字健康：POST /api/wellbeing（账号会话 + wellbeing.write 才记）/ GET（有进站会话即可；明细只给账号会话）→ D1_ACCOUNT 的 wb_daily
  *
  * 请求只经网关进来（浏览器 → 网关验锁屏、剥外部 x-styrigx-* 头、写规范身份头 → 服务绑定 ACCOUNT → 命名入口 AccountService，
  * 见 rpc/account-service.js）。默认 fetch（app.js）一律 404，不经这里。

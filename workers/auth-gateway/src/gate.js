@@ -11,14 +11,13 @@
 import { verifyLockSession } from './core/lock-session.js';
 import { verifyLockResetTicket } from './core/tickets.js';
 import { withNoStore, json, apiError, NO_STORE } from './lib/http.js';
-import { askSessionFor } from './core/account-rpc.js';
 import { resolveReturn } from './core/return.js';
 import { anonLimit } from './core/anon-limit.js';
 
 /* ================= HTML 会话标记（原 _kernel/html.js） ================= */
 
 /**
- * 网关改写 HTML：会话标记（data-sgx-lock-session / account-session）的注入，以及旧标记的清理。
+ * 网关改写 HTML：进站会话标记（data-sgx-lock-session）的注入，以及旧标记（含账号首帧提示 account-session，命名 v2 起不再注入）的清理。
  * 主站 middleware（injectSessionState）和子站（下面图志关口的 subsitePage）共用。
 
  */
@@ -45,9 +44,8 @@ export function stripSessionAttrs(html) {
  * 非 HTML 响应原样返回。
  * @param {Response} res
  * @param {'valid'|'locked'|'lock-reset'} state
- * @param {'in'|'out'|null} [account] 账号页首帧提示
  */
-export async function injectSessionState(res, state, account) {
+export async function injectSessionState(res, state) {
   const ct = res.headers.get('Content-Type') || '';
   if (!ct.includes('text/html')) return res;
   let html = stripSessionAttrs(await res.text());
@@ -58,18 +56,6 @@ export async function injectSessionState(res, state, account) {
     html = html.replace(/<!-- SGX-DESKTOP-START -->[\s\S]*?<!-- SGX-DESKTOP-END -->/g, '');
   }
   let injected = html.replace(/<html(\s|>)/i, '<html data-sgx-lock-session="' + state + '"$1');
-  /* 2026-10-21：账号页首帧就按服务端的账号会话画（in / out），不先画「欢迎回来」再换。
-     只是展示提示：账号页的数据和所有操作仍由 /api/account 验签。 */
-  if (account === 'in' || account === 'out') {
-    injected = injected.replace(/<html(\s|>)/i, '<html data-sgx-account-session="' + account + '"$1');
-    if (account === 'in') {
-      /* 已登录：登录区（欢迎回来 / 通行密钥登录 / 密码登录）整段不下发，总览首帧就可见 */
-      injected = injected.replace(/<!-- SGX-ACCT-LOGIN-START -->[\s\S]*?<!-- SGX-ACCT-LOGIN-END -->/g, '');
-      injected = injected.replace(/<div id="acct-main" hidden>/, '<div id="acct-main">');
-    } else {
-      injected = injected.replace(/<div id="acct-login" class="acct-login" hidden>/, '<div id="acct-login" class="acct-login">');
-    }
-  }
   const headers = new Headers(res.headers);
   headers.set('Cache-Control', 'private, no-store');
   /* 2.8.0 搜索收录：锁屏态页面不被搜索引擎收录。重置锁屏票页同样不收录。 */
@@ -234,11 +220,6 @@ async function retiredEnNotFound(request, next, prefix, finish) {
   return new Response(out.body, { status: 404, headers });
 }
 
-/** 账号页（顶栏右圆头像进入）：注入账号会话提示，首帧不闪登录区 */
-function isAccountPage(pathname) {
-  return pathname === '/account/' || pathname === '/zh/account/';
-}
-
 /* 跳过会话检查的环境名（本地开发 / 单测 / passkey-e2e 预览）。其余值和缺失都按生产 */
 const NON_PROD_ENVS = new Set(['preview', 'development', 'test']);
 
@@ -372,17 +353,7 @@ async function handleRequest(context) {
          只改 text/html，静态资源保持原缓存策略。 */
       const ct = res.headers.get('Content-Type') || '';
       if (ct.includes('text/html')) {
-        let account = null;
-        if (isAccountPage(pathname)) {
-          /* 首帧提示：经 ACCOUNT_VERIFIER 问账号 Worker（方案第 2 节）；读不到（没绑定 / RPC 出错）→ 不给提示，前端停在中性态等 /api/account */
-          try {
-            const a = await askSessionFor(request, env);
-            account = a.ok ? 'in' : (a.reason === 'no-verifier' || a.reason === 'rpc-error' ? null : 'out');
-          } catch (e) {
-            account = null;
-          }
-        }
-        return injectSessionState(res, 'valid', account);
+        return injectSessionState(res, 'valid');
       }
       return res;
     }

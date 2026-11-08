@@ -5,8 +5,8 @@
  * - passkey-challenge → { cid, challenge, rpId, allowCredentials }（challenge 用途 session）
  * - passkey { cid, credential, device? } → 签 session
  * - password { password, device? } → 签 session（输错限速与 reauth 共用，kind = password）
- * - end → 清 session 和挂在上面的 reauth，本机设备行记为已退出（不要求进门；不碰 reset 票）
- * 除 end 外都要进门（401 session）。登录成功 / 失败都写审计 session-<by>。
+ * - end → 清 session 和挂在上面的 reauth，本机设备行记为已退出（不要求进站会话；不碰 reset 票）
+ * 除 end 外都要进站会话（401 session）。登录成功 / 失败都写审计 session-<by>。
  */
 import { json, apiError } from '../../lib/http.js';
 import { BY_PASSKEY, BY_PASSWORD, CHALLENGE_PURPOSE, rpConfig, rpConfigMissing } from '../../core/config.js';

@@ -2,13 +2,13 @@
  * PUT / DELETE /api/avatar —— 换头像、恢复默认头像（读取在 GET /avatar/<尺寸>.webp）。
  *
  * PUT（multipart/form-data，字段 32 / 96 / 192 / 512 各一张图）
- * - 进门 + 账号会话 + 作用域 avatar.write（方案 3.4 R12；src/gate.js scopeDenial，同一份 core/authorize.js）；必须同源。
- *   没进门 401 session；没账号会话 401 account；没作用域 403 scope。
+ * - 进站会话 + 账号会话 + 作用域 avatar.write（方案 3.4 R12；src/gate.js scopeDenial，同一份 core/authorize.js）；必须同源。
+ *   没有进站会话 401 session；没账号会话 401 account；没作用域 403 scope。
  * - 图在前端裁好、缩好（Workers 里没有图片库），这里只校验格式（WebP 或 PNG 文件头）和大小。
  * - 先写四张图，最后写版本号 avatar:ver；返回 { ok:true, ver }。
  *
  * DELETE
- * - 同 PUT：进门 + 账号会话 + avatar.write；必须同源。先删版本号（立刻回到默认图），再删四张图。
+ * - 同 PUT：进站会话 + 账号会话 + avatar.write；必须同源。先删版本号（立刻回到默认图），再删四张图。
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { AVATAR_SIZES, AVATAR_MAX, KEY_VER, keyOf, sniffImage, NO_STORE, avatarKv } from '../lib/avatar.js';

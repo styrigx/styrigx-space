@@ -28,7 +28,7 @@ const accCookie = async (o) => 'sgx-account-session=' + (await accSession('passw
 
 const APPS = ['curio', 'daymark', 'prefs', 'wellbeing', 'avatar', 'profile'];
 const ALL = ['avatar.write', 'curio.write', 'daymark.write', 'prefs.sync', 'profile.write', 'wellbeing.write'];
-/** POST /api/account/grants 经 AccountService（进门身份头 + 给定 cookie） @param {any} env @param {any} body @param {string} [cookie] */
+/** POST /api/account/grants 经 AccountService（进站会话身份头 + 给定 cookie） @param {any} env @param {any} body @param {string} [cookie] */
 const grantPost = (env, body, cookie) => service(env).fetch(postReq(ORIGIN + '/api/account/grants', body, { ...idHeaders(), ...(cookie ? { Cookie: cookie } : {}) }));
 const reauthCookie = async (o) => 'sgx-account-reauth=' + (await reauthTicket('password', 0, o));
 /** 网关问的授权结论（AccountVerifier.authorize） @param {any} env @param {string} cookie */
@@ -55,7 +55,7 @@ test('grants list：回 6 项（作用域表顺序、名字、作用域、授权
   assert.deepEqual(env.D1_ACCOUNT.rows('account_grant').map((x) => x.granted_at), t0);
 });
 
-test('grants：要进门（401 session）+ 账号会话（401 account；只有 reset 票也不行）；不认识的 action 400', async () => {
+test('grants：要进站会话（401 session）+ 账号会话（401 account；只有 reset 票也不行）；不认识的 action 400', async () => {
   const { env } = makeEnv();
   for (const action of ['list', 'revoke', 'add']) {
     let r = await service(env).fetch(postReq(ORIGIN + '/api/account/grants', { action, app: 'curio' }, {}));

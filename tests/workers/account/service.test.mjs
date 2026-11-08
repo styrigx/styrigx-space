@@ -3,9 +3,9 @@
  * - wrangler.toml：名字、不开 workers.dev / 预览地址、没有 [[routes]]、没有 [[services]]（不回调网关）、正式 / 预览库 id、
  *   一个 D1_ACCOUNT 指向账号库、不绑网关认证库（Secrets Store 绑定见 config.test.mjs）
  * - 默认 fetch：一律 404（第二道保险：残留公开路由也碰不到接口），伪造的 x-styrigx-* 头不起作用
- * - AccountService（serviceFetch）：只认网关写的身份头；没有身份头 → /api/* 401；进门没账号会话调 /api/prefs 401 account；头像文件公开
+ * - AccountService（serviceFetch）：只认网关写的身份头；没有身份头 → /api/* 401；有进站会话、没账号会话调 /api/prefs 401 account；头像文件公开
  * - 头像：默认图回源、KV 里的图、只读 KV_PROFILE；X-SGX-Runtime: account；/api/* no-store
- * - AccountVerifier（checkSession）：账号会话本 Worker 自己验；吊销 → revoked；设备记录带上 User-Agent
+ * - AccountVerifier（checkAuthorize）：账号会话本 Worker 自己验；吊销 → revoked；设备记录带上 User-Agent
  *
  * 请求经 _auth.mjs 的 gatewayHop 模拟网关：真实 verifyLockSession + writeLockIdentity 把锁屏 cookie 换成身份头。
  * 运行：node --test tests/workers/account/*.test.mjs
@@ -22,7 +22,7 @@ const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/account/src/app.js')).default;
 const { API_ROUTES } = await import(REPO + 'workers/account/src/router.js');
 const { serviceFetch } = await import(REPO + 'workers/account/src/rpc/account-service.js');
-const { checkSession } = await import(REPO + 'workers/account/src/rpc/account-verifier.js');
+const { checkAuthorize } = await import(REPO + 'workers/account/src/rpc/account-verifier.js');
 const { KEY_VER, keyOf, avatarKv } = await import(REPO + 'workers/account/src/lib/avatar.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
@@ -142,7 +142,7 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-sto
   assert.equal(page.status, 404, '网关只转发表里的路径；别的路径不在这里出页面');
 });
 
-test('AccountService：临时钥匙进门会话（网关写 Session: 1 + By: tempkey）在账号 Worker 只算进门——没有账号会话 → /api/prefs 401 account、/api/account/devices 401 account', async () => {
+test('AccountService：临时钥匙进站会话（网关写 Session: 1 + By: tempkey）在账号 Worker 只算有进站会话——没有账号会话 → /api/prefs 401 account、/api/account/devices 401 account', async () => {
   const { env } = setup();
   const ck = await sess('tempkey');
   let r = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: ck } }), env);
@@ -155,7 +155,7 @@ test('AccountService：临时钥匙进门会话（网关写 Session: 1 + By: tem
   assert.equal((await r.json()).error, 'account');
 });
 
-test('进门但没登录账号：PUT /api/avatar 401 account、数字健康上报 204 丢弃（不写库）、读取 200 且 detail:false', async () => {
+test('有进站会话但没登录账号：PUT /api/avatar 401 account、数字健康上报 204 丢弃（不写库）、读取 200 且 detail:false', async () => {
   let touched = 0;
   const db = {
     prepare() { touched++; return { run: async () => ({}), bind() { return this; }, all: async () => ({ results: [] }) }; },
@@ -176,7 +176,7 @@ test('进门但没登录账号：PUT /api/avatar 401 account、数字健康上�
   assert.equal(gj.detail, false);
 });
 
-test('进门：未知子路径 404、不支持的方法 405；/api/prefs/ 尾斜杠同 /api/prefs', async () => {
+test('有进站会话：未知子路径 404、不支持的方法 405；/api/prefs/ 尾斜杠同 /api/prefs', async () => {
   const { env, authKv } = setup();
   const ck = await sess('password');
   assert.equal((await call(new Request('https://styrigx.com/api/avatarx', { headers: { Cookie: ck } }), env)).status, 404);
@@ -223,7 +223,7 @@ test('网关这一跳：验过的进站会话写成身份头，外来伪造的 x
   assert.equal(none.headers.get('X-Styrigx-Client-Address'), null);
   const real = await gatewayHop(new Request('https://styrigx.com/api/prefs', { headers: { ...fake, Cookie: ck, 'CF-Connecting-IP': '203.0.113.5' } }), env);
   assert.equal(real.headers.get('X-Styrigx-Lock-Session'), '1');
-  assert.equal(real.headers.get('X-Styrigx-Lock-Level'), null, '进门二值：网关不写等级头，外来的也剥掉');
+  assert.equal(real.headers.get('X-Styrigx-Lock-Level'), null, '进站二值：网关不写等级头，外来的也剥掉');
   assert.equal(real.headers.get('X-Styrigx-Lock-By'), 'password');
   assert.equal(real.headers.get('X-Styrigx-Client-Address'), '203.0.113.5');
 });
@@ -269,20 +269,21 @@ test('头像只读 KV_PROFILE：认证库里有 avatar:* 也不读', () => {
   assert.equal(avatarKv({ KV_LOCK_DOOR: lockKv, KV_ACCOUNT_LOGIN: lockKv }), null);
 });
 
-test('AccountVerifier.session()（checkSession）：账号 Worker 自己验；吊销 → revoked；设备记录带浏览器 User-Agent', async () => {
+test('AccountVerifier.authorize()（checkAuthorize）：会话部分账号 Worker 自己验；吊销 → revoked；设备记录带浏览器 User-Agent', async () => {
   const env = { SGX_ACCOUNT_PUBLIC: PUB, D1_ACCOUNT: makeAccountD1() }; /* session 纪元、设备在 D1_ACCOUNT 的 account_epoch / account_device */
   const sid = 'BBBBBBBBBBBBBBBB';
   const t = await testAccountSession(PRIV, 'passkey', 0, Date.now(), undefined, sid);
   const ua = 'Mozilla/5.0 (Linux; Android 16; SM-S9380) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/136.0.0.0 Mobile Safari/537.36';
-  assert.deepEqual(await checkSession(env, 'sgx-account-session=' + t, { ua, country: 'CN' }), { ok: true });
+  assert.equal((await checkAuthorize(env, 'sgx-account-session=' + t, { ua, country: 'CN' }, {})).ok, true);
   const rec = env.D1_ACCOUNT.rows('account_device').find((r) => r.device_id === sid);
   assert.ok(rec, '设备记录补写了（account_device 表）');
   const dev = JSON.parse(rec.record);
   assert.equal(dev.country, 'CN');
   assert.ok(dev.browser || dev.platform, '从 User-Agent 解析出了浏览器 / 系统');
   env.D1_ACCOUNT.raw.prepare('UPDATE account_device SET revoked_at = ? WHERE device_id = ?').run(Date.now(), sid);
-  assert.deepEqual(await checkSession(env, 'sgx-account-session=' + t, {}), { ok: false, reason: 'revoked' });
-  assert.equal((await checkSession(env, '')).ok, false);
+  const r = await checkAuthorize(env, 'sgx-account-session=' + t, {}, {});
+  assert.deepEqual([r.ok, r.reason], [false, 'revoked']);
+  assert.equal((await checkAuthorize(env, '', {}, {})).ok, false);
 });
 
 test('check-worker-routes：现在通过；账号 Worker 只要登记任何一条路由就报错', async () => {

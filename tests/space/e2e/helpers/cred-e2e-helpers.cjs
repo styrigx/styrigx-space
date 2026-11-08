@@ -181,7 +181,7 @@ async function startCredentialTestServer(port) {
     SGX_RP_ID: 'localhost',
     SGX_ORIGIN: origin,
     ACCOUNT: { fetch: (req) => acctEntry.serviceFetch(req, accountEnv, { waitUntil() {} }) },
-    ACCOUNT_VERIFIER: { session: (c, m) => acctEntry.checkSession(accountEnv, c, m) },
+    ACCOUNT_VERIFIER: { authorize: (c, m, o) => acctEntry.checkAuthorize(accountEnv, c, m, o) },
   };
   const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-password.js')).href);
   const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-passkey.js')).href);

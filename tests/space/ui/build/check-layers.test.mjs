@@ -319,7 +319,7 @@ test('规则 16：网关源码里出现任一账号鉴权标识都报错，信�
   for (const id of ACCOUNT_AUTH_IDS) {
     const errs = layers.checkFile(REPO, f, `const x = ${id};`);
     assert.equal(errs.length, 1, id + ' → ' + JSON.stringify(errs));
-    assert.equal(errs[0], `${GW}src/rpc/auth-verifier.js:1: 网关源码禁止出现账号鉴权标识 ${id}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.session() 拿结论）`);
+    assert.equal(errs[0], `${GW}src/rpc/auth-verifier.js:1: 网关源码禁止出现账号鉴权标识 ${id}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.authorize() 拿结论）`);
   }
   const cookie = layers.checkFile(REPO, join(REPO, GW + 'src/api/lock-now.js'), "clear('sgx-account-reauth');");
   assert.match(cookie[0], /账号鉴权标识 sgx-account-reauth/);
@@ -329,13 +329,13 @@ test('规则 16：网关源码里出现任一账号鉴权标识都报错，信�
   assert.match(ln[0], /^workers\/auth-gateway\/src\/core\/realms\.js:5: .*SGX_ROOT_KEY/);
 });
 
-test('规则 16：注释、ACCOUNT_VERIFIER.session()、首帧提示属性名不算；账号 Worker 自己用这些标识不算', () => {
+test('规则 16：注释、ACCOUNT_VERIFIER.authorize()、首帧提示属性名不算；账号 Worker 自己用这些标识不算', () => {
   const f = join(REPO, GW + 'src/core/account-rpc.js');
   for (const code of [
     '// SGX_ACCOUNT_ROOT_KEY 只绑在账号 Worker',
     '/* 原来的 REALM_ROOT、D1_ROOT_AUTH 已删；AccountReauthTicket 在账号 Worker */',
     '/** @see checkAccountSession */ export const a = 1;',
-    "const r = await env.ACCOUNT_VERIFIER.session(cookie, ctx);",
+    "const r = await env.ACCOUNT_VERIFIER.authorize(cookie, ctx);",
     "html.replace('<html', '<html data-sgx-account-session=\"in\"');",
     "const u = 'https://x/'; // verifyAccountSession",
   ]) {

@@ -88,7 +88,7 @@ async function setup(page) {
   });
   await mockJson(page, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: false });
   await mockJson(page, '**/api/lock-entry', 200, { ok: true, password: true, passkey: false });
-  await mockJson(page, '**/api/account', 200, { ok: true, password: true, passkey: true, ready: true, session: null });
+  await mockJson(page, '**/api/account**', 200, { ok: true, signing: true, configured: { password: true, passkey: true }, session: null });
   await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [] });
 }
 

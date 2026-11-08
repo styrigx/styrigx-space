@@ -1,5 +1,5 @@
 /**
- * 账号云同步 /api/prefs（2026-10-22）：进门 + 账号会话 + 作用域 prefs.sync（P2-2 起不看 role）；逐项新的赢。
+ * 账号云同步 /api/prefs（2026-10-22）：进站会话 + 账号会话 + 作用域 prefs.sync（P2-2 起不看 role）；逐项新的赢。
  *
  * 2026-10-24 搬到账号 Worker styrigx-account（workers/account）；锁屏身份经网关这一跳写成身份头、账号会话由账号 Worker 自己验（_auth.mjs）。
  *
@@ -93,12 +93,12 @@ before(async () => {
   LOCK = await genKeyPair(); ACCOUNT = await genKeyPair(); OTHER = await genKeyPair();
 });
 
-test('进门 + 账号会话 + prefs.sync：没进门 401 session、没账号 401 account；临时钥匙进门 + 账号会话也放行（P2-2 起账号 Worker 不看 role）', async () => {
+test('进站会话 + 账号会话 + prefs.sync：没有进站会话 401 session、没账号 401 account；临时钥匙进站会话 + 账号会话也放行（P2-2 起账号 Worker 不看 role）', async () => {
   const kv = makeKV();
   const none = await prefsCall(kv, 'GET', null, {});
   assert.equal(none.status, 401);
   assert.equal((await none.json()).error, 'session');
-  /* 有账号会话、没进门 → 仍是 401 session */
+  /* 有账号会话、没有进站会话 → 仍是 401 session */
   const noLock = await prefsCall(kv, 'GET', null, { 'sgx-account-session': await accTicket() });
   assert.equal(noLock.status, 401);
   assert.equal((await noLock.json()).error, 'session');
@@ -110,7 +110,7 @@ test('进门 + 账号会话 + prefs.sync：没进门 401 session、没账号 401
   const bad = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess, 'sgx-account-session': await accTicket('password', Date.now(), 0, OTHER.priv) });
   assert.equal(bad.status, 401);
   assert.equal((await bad.json()).error, 'account');
-  /* 过渡期：临时钥匙进门会话（网关 role 门 P2-3 前还会挡 /api/prefs）在账号 Worker 这一层只看进门 + 账号会话 */
+  /* 过渡期：临时钥匙进站会话（网关 role 门 P2-3 前还会挡 /api/prefs）在账号 Worker 这一层只看进站会话 + 账号会话 */
   const vis = await visitorSess();
   assert.equal((await prefsCall(kv, 'GET', null, { 'sgx-lock-session': vis, 'sgx-account-session': await accTicket() })).status, 200);
   const ok = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess, 'sgx-account-session': await accTicket() });

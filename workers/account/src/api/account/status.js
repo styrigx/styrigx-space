@@ -1,5 +1,5 @@
 /**
- * GET /api/account：账号状态（只读）。要进门。
+ * GET /api/account：账号状态（只读）。要进站会话。
  *
  * → { ok, configured:{ password, passkey }, signing, session, reauth, reset }
  * - configured：账号密码 / 账号通行密钥各有没有设置（两个都没有就只能 sudo root reset 设第一把）

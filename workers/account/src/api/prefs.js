@@ -1,8 +1,8 @@
 /**
  * 账号云同步：设置项（外观 / 时区天气 / 搜索引擎 / Good Lock 等）跨设备同步。
  *
- * 进门 + 账号会话 + 作用域 prefs.sync（方案 3.4 R12；src/gate.js scopeDenial，同一份 core/authorize.js）：
- * 没进门 401 session；没登录账号 401 account；没作用域 403 scope。前端（lib/cloud-sync.js）遇到 401 / 403 停在「只存本机」。
+ * 进站会话 + 账号会话 + 作用域 prefs.sync（方案 3.4 R12；src/gate.js scopeDenial，同一份 core/authorize.js）：
+ * 没有进站会话 401 session；没登录账号 401 account；没作用域 403 scope。前端（lib/cloud-sync.js）遇到 401 / 403 停在「只存本机」。
  *
  * 存储：D1 styrigx-account 的 settings_sync 表（绑定 D1_ACCOUNT，migrations/0002_settings_sync.sql），一项设置一行
  *   (k, v, t, updated_at)。运行时不读 KV、没有回落。
@@ -52,7 +52,7 @@ function prefsDb(env) {
   return (env && env.D1_ACCOUNT) || null;
 }
 
-/** 进门 + 账号会话 + prefs.sync（context.auth，见 src/gate.js headerAuth / scopeDenial）；不满足返回错误响应 @param {any} context */
+/** 进站会话 + 账号会话 + prefs.sync（context.auth，见 src/gate.js headerAuth / scopeDenial）；不满足返回错误响应 @param {any} context */
 async function gate(context) {
   const { env, auth } = context;
   const denied = await scopeDenial(auth, 'prefs.sync');

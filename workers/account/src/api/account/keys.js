@@ -1,5 +1,5 @@
 /**
- * POST /api/account/keys（账号安全）：管理账号的钥匙。要进门 + 有效 session（401 account）；
+ * POST /api/account/keys（账号安全）：管理账号的钥匙。要进站会话 + 有效 session（401 account）；
  * 除 passkey-list 外还要挂在本机 session 上的 reauth 票（403 reauth，带 reason）。reset 票在这里不算数。
  *
  * { action }（同源）：

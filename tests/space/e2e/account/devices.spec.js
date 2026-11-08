@@ -1,5 +1,5 @@
 /**
- * 账号终端 › 设备（devices.js）：此设备 / 其他设备，单台退出两步（device-revoke），退出其他所有设备要 reauth。
+ * 账号终端 › 设备（devices.js）：此设备 / 其他设备，单台退出两步（devices/revoke），退出其他所有设备要 reauth。
  *
  * 静态构建 + /api/account 替身（helpers/account-term.cjs），无需真实后端。2026-11-08 账号 UI 改版：没有 /account/ 整页了，账号在头像下拉 #sgx-acct 的账号终端（shell/account/*）。
  */
@@ -18,16 +18,16 @@ const DEVICES = () => [
 ];
 
 test.describe('设备', () => {
-  test('此设备 / 其他设备；单台退出两步 device-revoke；退出其他所有设备要 reauth', async ({ page }) => {
+  test('此设备 / 其他设备；单台退出两步 devices/revoke；退出其他所有设备要 reauth', async ({ page }) => {
     let devs = DEVICES();
     let ticket = null;
     const calls = await mockAccount(page, {
       status: () => STATUS({ session: SESSION(), reauth: ticket }),
       handlers: {
-        'device-list': () => [200, { ok: true, devices: devs }],
-        'device-revoke': (b) => { devs = devs.filter((x) => x.deviceId !== b.deviceId); return [200, { ok: true }]; },
-        'login-password': (b) => { ticket = b.reauth ? REAUTH() : null; return [200, { ok: true }]; },
-        'device-revoke-all': [200, { ok: true }],
+        'devices/list': () => [200, { ok: true, devices: devs }],
+        'devices/revoke': (b) => { devs = devs.filter((x) => x.deviceId !== b.deviceId); return [200, { ok: true }]; },
+        'reauth/password': () => { ticket = REAUTH(); return [200, { ok: true }]; },
+        'devices/revoke-all': [200, { ok: true }],
       },
     });
     await T.goPage(page);
@@ -47,14 +47,14 @@ test.describe('设备', () => {
     await termIn(page).press('2');
     await typeLine(page, 'correct-horse');
     await expect(log(page)).toContainText('已退出其他所有设备');
-    expect(calls.some((c) => c.action === 'device-revoke-all')).toBe(true);
+    expect(calls.some((c) => c.action === 'devices/revoke-all')).toBe(true);
 
     const one = d.locator('[data-at-act="dev:d-2"]');
     await one.click();
     await expect(d.locator('[data-at-act="dev:d-2"]')).toContainText('再按一次');
     await d.locator('[data-at-act="dev:d-2"]').click();
     await expect(log(page)).toContainText('已退出该设备');
-    expect(calls.find((c) => c.action === 'device-revoke')).toEqual({ action: 'device-revoke', deviceId: 'd-2' });
+    expect(calls.find((c) => c.action === 'devices/revoke')).toEqual({ action: 'devices/revoke', deviceId: 'd-2' });
     await expect(d.locator('[data-at-view]')).toContainText('没有其他设备登录着');
   });
 });

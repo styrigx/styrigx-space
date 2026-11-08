@@ -55,7 +55,7 @@ function normalizeClientContext(c) {
 }
 
 /**
- * 规范化锁屏身份：session 必须是 '1'（网关验过的进门）才算有身份；by 不认识 → ''；
+ * 规范化锁屏身份：session 必须是 '1'（网关验过的进站会话）才算有身份；by 不认识 → ''；
  * tempkeyId 只在 by=tempkey 且格式合规时给。没有身份 → null。
  * @param {any} s
  * @returns {{session:true, by:string, tempkeyId:string}|null}
@@ -71,7 +71,7 @@ function normalizeLockIdentity(s) {
 }
 
 /**
- * 读网关写的锁屏身份（白名单校验）。没有 X-Styrigx-Lock-Session: 1 → null（= 没进门 / 无会话）。
+ * 读网关写的锁屏身份（白名单校验）。没有 X-Styrigx-Lock-Session: 1 → null（= 没有进站会话 / 无会话）。
  * session 只认 '1'；by 不认识 → ''；tempkeyId 只在 by=tempkey 时给。
  * @param {Headers|null|undefined} headers
  * @returns {{session:true, by:string, tempkeyId:string}|null}

@@ -5,8 +5,8 @@
  * - passkey-challenge → { cid, challenge, rpId, allowCredentials }（challenge 用途 reauth，和登录的互不通用）
  * - passkey { cid, credential } → 签 reauth
  * - password { password } → 签 reauth（输错限速与 session 共用，kind = password）
- * - end → 只清 reauth（不要求进门；不碰 session、reset）
- * 除 end 外都要进门（401 session）+ 有效 session（401 account，带 reason）。成功 / 失败都写审计 reauth-<by>。
+ * - end → 只清 reauth（不要求进站会话；不碰 session、reset）
+ * 除 end 外都要进站会话（401 session）+ 有效 session（401 account，带 reason）。成功 / 失败都写审计 reauth-<by>。
  * 不签 session（session 的 by / authAt 不变）。
  */
 import { json, apiError } from '../../lib/http.js';

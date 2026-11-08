@@ -46,26 +46,8 @@ export async function testTicketCookie(priv, name, by, epoch, now) {
 
 /* ---------- 账号会话：网关不验，问账号 Worker 的 AccountVerifier（服务绑定 ACCOUNT_VERIFIER） ---------- */
 
-/** 测试用账号会话 cookie：fakeAccountVerifier 只认这个值 */
+/** 测试用账号会话 cookie：fakeAuthorizeVerifier 只认这个值 */
 export const TEST_ACCOUNT_COOKIE = 'sgx-account-session=test-account-session-ok';
-
-/**
- * ACCOUNT_VERIFIER 的替身：Cookie 头里有 TEST_ACCOUNT_COOKIE → { ok:true }；没 cookie → no-cookie；否则 denied。
- * calls 记下每次调用的 [cookieHeader, clientContext]（核对网关原样转 Cookie、带 UA / 地点）。
- * @param {{throws?:boolean}} [o]
- */
-export function fakeAccountVerifier(o) {
-  const calls = [];
-  return {
-    calls,
-    async session(cookieHeader, clientContext) {
-      calls.push([cookieHeader, clientContext]);
-      if (o && o.throws) throw new Error('down');
-      if (!cookieHeader) return { ok: false, reason: 'no-cookie' };
-      return String(cookieHeader).split(/;\s*/).includes(TEST_ACCOUNT_COOKIE) ? { ok: true } : { ok: false, reason: 'denied' };
-    },
-  };
-}
 
 /**
  * ACCOUNT_VERIFIER.authorize 的替身（P2-2 起网关问账号结论用 askAuthorize）：Cookie 头里有 TEST_ACCOUNT_COOKIE → { ok:true }；

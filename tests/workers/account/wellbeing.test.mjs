@@ -185,7 +185,7 @@ async function wbCookie(role, acc) {
 }
 const body = () => JSON.stringify({ d: new Date().toISOString().slice(0, 10), s: [{ k: 'home', sec: 30 }] });
 
-test('POST：进门没账号会话 → 204 丢弃不写（锁屏密码 / 临时钥匙进门一样）；进门 + 账号会话 → 写入', async () => {
+test('POST：有进站会话、没账号会话 → 204 丢弃不写（锁屏密码 / 临时钥匙进站一样）；进站会话 + 账号会话 → 写入', async () => {
   for (const role of ['password', 'tempkey']) {
     const db = wbDb();
     const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: { Cookie: await wbCookie(role, false) } }), env: wbEnv(db) });

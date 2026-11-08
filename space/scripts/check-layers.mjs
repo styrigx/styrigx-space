@@ -31,7 +31,7 @@
  * 16. 网关源码（workers/auth-gateway/ 下的 .js / .mjs / .cjs 和 wrangler.toml）去掉注释后不许出现账号鉴权标识
  *     （GATEWAY_ACCOUNT_AUTH_RE：SGX_ACCOUNT_*、SGX_ROOT_KEY、D1_ACCOUNT（含旧名）、D1_ROOT_AUTH、REALM_ACCOUNT、REALM_ROOT、
  *     checkAccountSession、verifyAccountSession、Account*Ticket / ACCOUNT_*_TICKET、账号 cookie 名等）。
- *     账号鉴权全在账号 Worker；网关只经 ACCOUNT_VERIFIER.session() 拿结论，首帧提示属性名 data-sgx-account-session 不算。
+ *     账号鉴权全在账号 Worker；网关只经 ACCOUNT_VERIFIER.authorize() 拿结论，旧首帧提示属性名 data-sgx-account-session（网关只清不写）不算。
  * 17. 账号 Worker 的 workers/account/wrangler.toml 不许有路由：[[routes]] / [[env.*.routes]]、route = …、非空的 routes = [...]
  *     （[env.preview] 的 routes = [] 允许）；账号请求只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
  *
@@ -261,7 +261,7 @@ export function checkGatewayAccountAuth(rel, src, kind = 'js') {
     const re = new RegExp(GATEWAY_ACCOUNT_AUTH_RE.source, 'g');
     let m;
     while ((m = re.exec(lines[ln]))) {
-      errors.push(`${rel}:${ln + 1}: 网关源码禁止出现账号鉴权标识 ${m[0]}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.session() 拿结论）`);
+      errors.push(`${rel}:${ln + 1}: 网关源码禁止出现账号鉴权标识 ${m[0]}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.authorize() 拿结论）`);
     }
   }
   return errors;

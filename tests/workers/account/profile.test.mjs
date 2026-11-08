@@ -2,8 +2,8 @@
  * 个人资料接口（2026-11-07 Gray 定；workers/account/src/api/profile.js、src/lib/profile.js）
  * - 字段表：姓名 / 昵称 / 签名 / 邮箱四项（头像另走 /avatar/*），与前端 space/web/assets/js/lib/profile.js 同名同序、长度一致
  * - 校验 checkField：去首尾空白；长度上限（按字符）；单行（控制字符、换行不收）；姓名、昵称、邮箱不能为空串，签名可空；邮箱格式；null = 清掉
- * - GET /api/profile：进门即可；KV 没存 / 没绑 / 坏 JSON / 存了不合法的字段 → 对应字段 null（前端回退默认值），照样 200；回头像版本号
- * - PUT /api/profile：不同源 403；没进门 401 session；没账号会话 401 account；没 profile.write 403 scope；
+ * - GET /api/profile：有进站会话即可；KV 没存 / 没绑 / 坏 JSON / 存了不合法的字段 → 对应字段 null（前端回退默认值），照样 200；回头像版本号
+ * - PUT /api/profile：不同源 403；没有进站会话 401 session；没账号会话 401 account；没 profile.write 403 scope；
  *   不是 JSON / 空对象 / 不认识的字段 / 不合法的值 → 400 params（带 field、reason），整个请求不写；> 4 KB → 413；
  *   合法 → 与已存的合并写回一个键 profile；null 清掉；全清掉删键
  *
@@ -129,7 +129,7 @@ test('GET 回退：KV 没绑 / 读出错 / 坏 JSON / 存了不合法的字段 �
   assert.equal('extra' in j.profile, false, '只回字段表里的公开字段');
 });
 
-test('GET：进门即可，不要账号会话（临时钥匙进门也行）；没进门 401 session', async () => {
+test('GET：有进站会话即可，不要账号会话（临时钥匙进站也行）；没有进站会话 401 session', async () => {
   const kv = makeKv({ profile: JSON.stringify({ v: 1, nickname: 'Styrigx', updatedAt: 5 }) });
   for (const role of ['password', 'passkey', 'tempkey']) {
     const res = await onGet({ request: await getReq(role, false), env: env(kv) });
@@ -145,7 +145,7 @@ test('GET：进门即可，不要账号会话（临时钥匙进门也行）；�
 
 /* ---------------- PUT 权限 ---------------- */
 
-test('PUT 不同源 → 403 origin；没进门 401 session；进门没账号会话 401 account（临时钥匙进门同样）；都不写', async () => {
+test('PUT 不同源 → 403 origin；没有进站会话 401 session；有进站会话、没账号会话 401 account（临时钥匙进站同样）；都不写', async () => {
   const kv = makeKv();
   let res = await onPut({ request: await putReq({ name: 'A' }, { origin: 'https://evil.example' }), env: env(kv) });
   assert.equal(res.status, 403);

@@ -9,9 +9,9 @@
  *   - passkey-add-challenge → 注册 challenge（用途 reset-add）；passkey-add { cid, credential, name? } → { ok, credId }
  *   - passkey-delete { credId }
  *   - finish { signOut: all | others | none } → { ok, signOut, signedOut }（core/reset.js finishReset；票用完即废）
- * - end → 只清 reset 票（不要求进门）
+ * - end → 只清 reset 票（不要求进站会话）
  * reset 下的写操作都不碰会话（只有 finish 决定登出），也没有改名（改名在 /api/account/keys）。
- * 除 end 外都要进门（401 session）。审计：reset-recovery-key、reset-password-set、reset-passkey-add、reset-passkey-delete、reset-finish-<值>。
+ * 除 end 外都要进站会话（401 session）。审计：reset-recovery-key、reset-password-set、reset-passkey-add、reset-passkey-delete、reset-finish-<值>。
  */
 import { json, apiError } from '../../lib/http.js';
 import { CHALLENGE_PURPOSE, rpConfig, rpConfigMissing } from '../../core/config.js';

@@ -5,8 +5,8 @@
  * 调账号 Worker styrigx-account。预览只有一个 Pages 项目（passkey-e2e.styrigx-space.pages.dev），它的 _worker.js 只能是一个脚本，
  * 所以这里把两边仓库里的真实代码装进同一个脚本：
  * - 网关那一半 = workers/auth-gateway/src/app.js 的 default.fetch（剥头、门、转发表、锁屏接口全是正式代码）；
- * - 账号那一半 = workers/account/src/rpc/account-service.js 的 serviceFetch（AccountService.fetch 的实现）和 rpc/account-verifier.js 的 checkSession
- *   （AccountVerifier.session 的实现），包成和服务绑定同形状的进程内适配器，挂到网关 env 的 ACCOUNT / ACCOUNT_VERIFIER 上。
+ * - 账号那一半 = workers/account/src/rpc/account-service.js 的 serviceFetch（AccountService.fetch 的实现）和 rpc/account-verifier.js 的 checkAuthorize
+ *   （AccountVerifier.authorize 的实现），包成和服务绑定同形状的进程内适配器，挂到网关 env 的 ACCOUNT / ACCOUNT_VERIFIER 上。
  *
  * env 按正式的绑定拆开，两半互相看不到对方的钥匙和库（预览也验证「网关不碰账号钥匙」）：
  * - 网关：去掉 SGX_ACCOUNT_*（含恢复密钥 SGX_ACCOUNT_RECOVERY_KEY、账号密码 pepper SGX_ACCOUNT_PASSWORD_PEPPER）和 D1_ACCOUNT，加上 ACCOUNT / ACCOUNT_VERIFIER；
@@ -21,7 +21,7 @@
  */
 import gateway from '../../../../workers/auth-gateway/src/app.js';
 import { serviceFetch } from '../../../../workers/account/src/rpc/account-service.js';
-import { checkSession, checkAuthorize } from '../../../../workers/account/src/rpc/account-verifier.js';
+import { checkAuthorize } from '../../../../workers/account/src/rpc/account-verifier.js';
 
 /** 账号那一半能看到的 env 键（同 workers/account/wrangler.toml 的绑定 / 变量；预览不绑账号资料库，有就带上） */
 export const ACCOUNT_ENV_KEYS = Object.freeze([
@@ -82,7 +82,6 @@ export function gatewayEnvOf(env, ctx) {
   const acct = accountEnvOf(env);
   out.ACCOUNT = { fetch: (/** @type {Request} */ req) => serviceFetch(req, acct, ctx) };
   out.ACCOUNT_VERIFIER = {
-    session: (/** @type {string} */ cookie, /** @type {any} */ clientContext) => checkSession(acct, cookie, clientContext),
     /* P2-2：网关 api/search.js、api/chat.js 经 core/account-rpc.js askAuthorize 问它（AccountVerifier.authorize 的实现） */
     authorize: (/** @type {string} */ cookie, /** @type {any} */ clientContext, /** @type {any} */ opts) => checkAuthorize(acct, cookie, clientContext, opts),
   };

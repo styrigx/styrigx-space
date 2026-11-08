@@ -20,7 +20,7 @@ test('preview-worker：网关那一半没有任何账号钥匙 / 账号库，有
   for (const k of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_RECOVERY_KEY', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'D1_ACCOUNT']) assert.equal(g[k], undefined, k);
   for (const k of ['SGX_LOCK_PRIVATE', 'SGX_LOCK_PUBLIC', 'SGX_LOCK_SPACE_KEY', 'SGX_PW_PEPPER', 'D1_LOCK_AUTH', 'ASSETS', 'SGX_ENV']) assert.equal(g[k], FULL[k], k);
   assert.equal(typeof g.ACCOUNT.fetch, 'function');
-  assert.equal(typeof g.ACCOUNT_VERIFIER.session, 'function');
+  assert.equal(g.ACCOUNT_VERIFIER.session, undefined, '命名 v2：session() 删了');
   assert.equal(typeof g.ACCOUNT_VERIFIER.authorize, 'function', 'P2-2：网关 api/search.js、api/chat.js 要问 authorize');
 });
 
@@ -41,7 +41,7 @@ test('preview-worker：默认导出是 { fetch }，只交给网关（伪造的 x
   assert.equal(typeof pw.default.fetch, 'function');
   const env = Object.assign({}, FULL, { SGX_ENV: 'preview' });
   const r = await pw.default.fetch(new Request('https://x.pages.dev/api/prefs', { headers: { 'X-Styrigx-Lock-Level': 'password' } }), env, { waitUntil() {} });
-  /* 预览 SGX_ENV=preview 时网关不拦 /api/*：剥头后转发，账号 Worker 看不到身份头 → 401（没剥掉就会当成已进门进 prefs） */
+  /* 预览 SGX_ENV=preview 时网关不拦 /api/*：剥头后转发，账号 Worker 看不到身份头 → 401（没剥掉就会当成有进站会话进 prefs） */
   assert.equal(r.status, 401);
   assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
 });

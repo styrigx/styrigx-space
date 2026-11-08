@@ -1,5 +1,5 @@
 /**
- * POST /api/account/grants：应用授权（授权卡、登录后的同意卡）。要进门 + 有效 session（401 account）。
+ * POST /api/account/grants：应用授权（授权卡、登录后的同意卡）。要进站会话 + 有效 session（401 account）。
  *
  * { action }（同源）：
  * - list → { ok, grants }

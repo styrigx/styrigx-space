@@ -14,7 +14,7 @@
     "ensureSeed", "ensureSupplements", "SEED_MARK", "SEED_SUPPLEMENTS", "data_migration", "readGrantState",
     "LEGACY_PROVIDER_NAMES", "LEGACY_DEFAULT_NAMES", "normalizeProvider", "normalizePasskeyName",
     "root-reset", "root-reauth", "rootkey", "reauth-clear", "reset-signout", "audit-list",
-    "login-challenge", "login-passkey", "login-password", "password-change", "passkey-register", "passkey-register-challenge",
+    "login-challenge", "login-passkey", "login-password", "password-change", "passkey-register-challenge",
     "device-list", "device-revoke", "device-revoke-all", "grant-list", "grant-add", "grant-revoke",
     "lock-identity", "hasLockSession", "deferRotate", "soAll", "soOthers", "soNone"
   ],

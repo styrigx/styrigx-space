@@ -816,7 +816,7 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # Pages 上已经没有后端代码。预览把组合入口打包成 Pages 的 _worker.js（覆盖静态的那个），在 passkey-e2e.styrigx-space.pages.dev 上跑：
         # 网关和账号 Worker 两边仓库里的真实代码，网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器，env 按正式绑定拆给两半
-        # （账号拆分 PR3；见 preview-worker.js 文件头）。页面和默认头像读 env.ASSETS，接口连预览的 D1（D1_LOCK_AUTH / D1_ACCOUNT_AUTH 同一个测试库）。
+        # （账号拆分 PR3；见 preview-worker.js 文件头）。页面和默认头像读 env.ASSETS，接口连预览的 D1（D1_LOCK_AUTH / D1_ACCOUNT 同一个测试库）。
         # 只打包不部署 Worker，不需要 Worker 权限。
         run: |
           npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/space/e2e/helpers/preview-worker.js --dry-run --outdir "$RUNNER_TEMP/preview-dist" \

@@ -1,5 +1,5 @@
 /**
- * POST /api/account/devices：已登录设备。要进门 + 有效 session（401 account）。
+ * POST /api/account/devices：已登录设备。要进站会话 + 有效 session（401 account）。
  *
  * { action }（同源）：
  * - list → { ok, devices }（本机排最上面，标 current）

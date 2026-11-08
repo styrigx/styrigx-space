@@ -64,11 +64,11 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
              避免探针失败弹 toast 导致截图不稳定。 */
           /* 安全页：GET /api/account 固定为「已设置、未登录账号」 */
           if (page === '/security/') {
-            await pg.route('**/api/account', async (route) => {
+            await pg.route('**/api/account**', async (route) => {
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
-                body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: null }),
+                body: JSON.stringify({ ok: true, signing: true, configured: { password: true, passkey: true }, session: null }),
               });
             });
           }
@@ -212,19 +212,21 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
           await blockExternalRequests(pg);
           await pg.emulateMedia({ reducedMotion: 'reduce' });
           const signedIn = state !== 'guest' && state !== 'pw-error' && state !== 'reset';
-          await pg.route('**/api/account', async (route) => {
+          await pg.route('**/api/account**', async (route) => {
             const req = route.request();
             const ok = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
             if (req.method() === 'GET') {
-              return ok({ ok: true, password: true, passkey: true, ready: true,
+              return ok({ ok: true, signing: true, configured: { password: true, passkey: true },
                 session: signedIn ? { by: 'passkey', device: 'Galaxy S25 Ultra', authAt: 1760000000000, expiresAt: FAR } : null,
                 reauth: state === 'keys' ? { by: 'passkey', expiresAt: FAR } : null });
             }
             const b = JSON.parse(req.postData() || '{}');
-            if (b.action === 'login-password') return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
-            if (b.action === 'grant-list') return ok({ ok: true, grants: fxGrants.grants() });
-            if (b.action === 'device-list') return ok({ ok: true, devices: ACCT_DEVICES });
-            if (b.action === 'passkey-list') return ok({ ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26 Ultra', provider: 'samsung-pass', createdAt: 1760000000000, lastUsedAt: 1760000000000 }] });
+            /* POST /api/account/<入口> { action }（NAMING-V2 P2） */
+            const a = (new URL(req.url()).pathname.split('/')[3] || '') + '/' + b.action;
+            if (a === 'session/password') return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
+            if (a === 'grants/list') return ok({ ok: true, grants: fxGrants.grants() });
+            if (a === 'devices/list') return ok({ ok: true, devices: ACCT_DEVICES });
+            if (a === 'keys/passkey-list' || a === 'reset/passkey-list') return ok({ ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26 Ultra', provider: 'samsung-pass', createdAt: 1760000000000, lastUsedAt: 1760000000000 }] });
             return ok({ ok: true });
           });
           await pg.addInitScript(([t, ln]) => {
@@ -297,10 +299,10 @@ for (const lang of LANGS) {
         await pg.setViewportSize(VIEWPORTS.mobile);
         await blockExternalRequests(pg);
         await pg.emulateMedia({ reducedMotion: 'reduce' });
-        await pg.route('**/api/account', async (route) => {
+        await pg.route('**/api/account**', async (route) => {
           if (route.request().method() === 'GET') {
             await route.fulfill({ status: 200, contentType: 'application/json',
-              body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'passkey', authAt: 1760000000000, expiresAt: 4102444800000, recent: true } }) });
+              body: JSON.stringify({ ok: true, signing: true, configured: { password: true, passkey: true }, session: { by: 'passkey', authAt: 1760000000000, expiresAt: 4102444800000, recent: true } }) });
             return;
           }
           await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, keys: [], devices: [
@@ -345,8 +347,8 @@ for (const lang of LANGS) {
       await pg.setViewportSize(VIEWPORTS.mobile);
       await blockExternalRequests(pg);
       await pg.emulateMedia({ reducedMotion: 'reduce' });
-      await pg.route('**/api/account', (route) => route.fulfill({ status: 200, contentType: 'application/json',
-        body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: { by: 'passkey', authAt: 1760000000000, expiresAt: 4102444800000, recent: true } }) }));
+      await pg.route('**/api/account**', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ ok: true, signing: true, configured: { password: true, passkey: true }, session: { by: 'passkey', authAt: 1760000000000, expiresAt: 4102444800000, recent: true } }) }));
       await pg.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
         body: JSON.stringify(fxStatus.withUsage(fxStatus.normal(), fxStatus.usage())) }));
       await pg.route('**/api/space-audit', (route) => route.fulfill({ status: 200, contentType: 'application/json',

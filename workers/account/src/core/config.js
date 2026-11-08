@@ -24,7 +24,7 @@ export const EPOCH = Object.freeze({ session: 'session', reset: 'reset' });
 
 /* ---------- 票的时长（秒） ---------- */
 export const TICKET_MAX_AGE = Object.freeze({
-  /* 400 天（浏览器 Max-Age 上限）：不点退出就一直登录；用账号仍要先进门（进站会话） */
+  /* 400 天（浏览器 Max-Age 上限）：不点退出就一直登录；用账号仍要先有进站会话 */
   session: 34560000,
   reauth: 180,
   reset: 180,

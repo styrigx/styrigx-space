@@ -162,15 +162,15 @@ async function startEdge() {
   const acctPubPem = derToPem(await crypto.subtle.exportKey('spki', akp.publicKey), 'PUBLIC KEY');
   const assets = { fetch: (input, init) => pagesFor(input instanceof Request ? input : new Request(input, init)) };
 
-  /* 账号 Worker：自己的钥匙、根密钥和库（styrigx-account：D1_ACCOUNT_AUTH / D1_SETTINGS_SYNC 同一个库），不绑任何网关的东西 */
+  /* 账号 Worker：自己的钥匙、恢复密钥、密码 pepper 和库（styrigx-account：一个绑定 D1_ACCOUNT），不绑任何网关的东西 */
   const accountKv = makeKV();
   const { makeAccountD1 } = await mod('tests/workers/account/_d1.mjs');
-  const accountD1 = makeAccountD1(); /* 跑 workers/account/migrations/*.sql：账号鉴权表 + 设置同步 settings_sync */
+  const accountD1 = makeAccountD1(); /* 跑 workers/account/migrations/*.sql：account_* 表 + 设置同步 settings_sync */
   const accountEnv = {
     SGX_ENV: 'production', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
-    D1_ACCOUNT_AUTH: accountD1, D1_SETTINGS_SYNC: accountD1, KV_PROFILE: accountKv,
+    D1_ACCOUNT: accountD1, KV_PROFILE: accountKv,
     SGX_ACCOUNT_PRIVATE: acctPrivPem, SGX_ACCOUNT_PUBLIC: acctPubPem,
-    SGX_ACCOUNT_ROOT_KEY: 'edge-test-account-root-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
+    SGX_ACCOUNT_RECOVERY_KEY: 'edge-test-recovery-key-not-a-secret', SGX_ACCOUNT_PASSWORD_PEPPER: 'edge-test-account-pepper',
     ASSETS: assets,
   };
   /* 账号 Worker 的两个命名入口，形状同服务绑定（只给网关；短链 Worker 不绑账号） */
@@ -181,7 +181,7 @@ async function startEdge() {
       return res;
     },
   };
-  const ACCOUNT_VERIFIER = { session: (c, m) => accountEntry.checkSession(accountEnv, c, m) };
+  const ACCOUNT_VERIFIER = { authorize: (c, m, o) => accountEntry.checkAuthorize(accountEnv, c, m, o) };
 
   /* 网关：只绑正式网关 wrangler.toml 里有的（锁屏钥匙、进站凭证 SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER） */
   const env = {
