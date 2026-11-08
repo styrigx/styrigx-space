@@ -481,7 +481,14 @@ export function mountTopbar(o) {
   /** 终端式选择（账号未登录 / 安全未验证）：开着时按 1 / 2 = 点对应那一项 @param {HTMLDialogElement} dlg @param {any} ms @param {() => boolean} active */
   const numKeys = function (dlg, ms, active) {
     doc.addEventListener('keydown', function (e) {
-      if (!ms.isShown() || !active() || e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
+      if (!ms.isShown() || !active() || e.altKey || e.metaKey || e.isComposing) return;
+      /* Ctrl+C（没选中文字时）= 返回，同 esc（设计稿「Ctrl+C 或 esc 返回」） */
+      if (e.ctrlKey) {
+        let sel = '';
+        try { sel = String(doc.getSelection() || ''); } catch (err) {}
+        if ((e.key === 'c' || e.key === 'C') && !sel) { e.preventDefault(); ms.close(); }
+        return;
+      }
       if (e.key !== '1' && e.key !== '2') return;
       const a = /** @type {HTMLElement|null} */ (dlg.querySelector('.sgx-pop-opt[data-key="' + e.key + '"]'));
       if (!a) return;

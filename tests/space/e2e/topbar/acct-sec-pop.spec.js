@@ -159,6 +159,12 @@ test.describe('站点安全下拉 #sgx-sec（sec-v1，按设计稿）', () => {
     await expect(s.locator('.sgx-pop-opt[data-key="2"]')).toContainText('lockkey');
     await expect(s.locator('[data-sec-open]')).toBeHidden();
     await settled(page, 'sgx-sec');
+    /* Ctrl+C = 返回（同 esc） */
+    await page.keyboard.press('Control+c');
+    await expect(s).toBeHidden();
+    await page.locator('.sgx-tb-shield').click();
+    await expect(s).toHaveAttribute('data-sec-state', 'locked');
+    await settled(page, 'sgx-sec');
     await page.keyboard.press('1');
     await page.waitForURL(/\/zh\/security\/lock\/$/);
   });
