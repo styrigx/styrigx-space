@@ -449,10 +449,17 @@ export function mountTopbar(o) {
     if (open) { open.ms.close(later); return; }
     f();
   };
+  /** 开抽屉；正在滑出收起（哨兵还没出栈）时等它收完再开（最多约 1 秒） */
+  const openDrawer = function (/** @type {number} */ n) {
+    if (!termSheet) return;
+    if (!termSheet.isOpen()) { termSheet.open(); return; }
+    const left = typeof n === 'number' ? n : 16;
+    if (!termSheet.isShown() && left > 0) window.setTimeout(function () { openDrawer(left - 1); }, 60);
+  };
   /** 打开终端：主页聚焦首屏那个（滚到视野里），其他页开抽屉 */
   const openTerm = function () {
     if (homeView) { homeView.focus({ scroll: true }); return; }
-    if (termSheet && !termSheet.isOpen()) termSheet.open();
+    openDrawer();
   };
   if (T && typeof T.createShell === 'function' && (homeTerm || termDlg)) {
     const tile = function (/** @type {string} */ id) { return /** @type {HTMLAnchorElement|null} */ (navDlg ? navDlg.querySelector('a.sgx-nav-tile[data-nav="' + id + '"]') : null); };
@@ -552,8 +559,8 @@ export function mountTopbar(o) {
       e.preventDefault();
       if (homeView) { closeAll(function () { homeView.focus({ scroll: true }); }); return; }
       if (!termSheet) return;
-      if (termSheet.isOpen()) termSheet.close();
-      else closeAll(function () { termSheet.open(); });
+      if (termSheet.isShown()) termSheet.close();
+      else closeAll(openDrawer);
     });
   }
 

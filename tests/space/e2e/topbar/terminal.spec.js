@@ -187,6 +187,7 @@ test('抽屉：/blog/ 上 Ctrl K 打开（提示符 ~/blog$），能跑 help；E
   await expect(inp).toBeFocused();
   await expect(inp).toHaveAccessibleName('Terminal command');
   await expect(dlg.locator('[data-term-ps]')).toHaveText('guest@space:~/blog$');
+  await expect(dlg.locator('[data-term-out] .sgx-term-ln').first()).toHaveText('space os 1.0 — type help to see all commands, cd blog to jump there');
   await expect(dlg.locator('[data-term-out]')).toHaveAttribute('aria-live', 'polite');
   await run(page, 'help', inp);
   await expect(dlg.locator('.sgx-term-help')).toHaveCount(1);
