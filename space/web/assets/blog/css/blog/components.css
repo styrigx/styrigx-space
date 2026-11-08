@@ -775,7 +775,8 @@
   position: fixed;
   /* 顶栏 v3：右下角是 AI 浮钮（共享外壳 .sgx-tb-ai，56 高、边距 --sgx-ai-fab-m），回到顶部摞在它上面、右缘对齐 */
   right: calc(max(var(--sgx-ai-fab-m, 16px), env(safe-area-inset-right, 0px)) + (56px - var(--sgx-tb-btn)) / 2);
-  bottom: calc(max(var(--sgx-ai-fab-m, 16px), env(safe-area-inset-bottom, 0px)) + 56px + 12px);
+  /* 离底跟浮钮同一个式子（2026-11-08 PR-A：基准抬高 + 安全区叠加 + 页脚露出时 --sgx-foot-lift 让开，见 input.css .sgx-tb-ai） */
+  bottom: calc(var(--sgx-ai-fab-b, 28px) + max(env(safe-area-inset-bottom, 0px), var(--sgx-foot-lift, 0px)) + 56px + 12px);
   z-index: 45;
   opacity: 0;
   pointer-events: none;
