@@ -10,7 +10,7 @@
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
  * - 网关 = 仓库里真实的 workers/auth-gateway/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
  *   （锁屏钥匙、SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
- *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAccountSession，AccountService / AccountVerifier 里跑的同一份代码）。
+ *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAuthorize，AccountService / AccountVerifier 里跑的同一份代码）。
  *   账号 Worker 自己一对 Ed25519 钥匙、账号根密钥和自己的库（tests/workers/account/_d1.mjs：账号鉴权表 + 云同步），
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
  *   Pages = 单树：space/web/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
@@ -333,11 +333,11 @@ async function startEdge() {
     return r.code;
   }
 
-  /** 账号会话 cookie 值（sgx-account-session，by=passkey，账号 Worker 当前的 Account 纪元，账号钥匙签） */
+  /** 账号 session cookie 值（sgx-account-session，by=passkey，账号 Worker 当前的 session 纪元，账号钥匙签） */
   async function mintAccount() {
-    const acc = await mod('workers/account/src/core/account-session.js');
-    const ep = await acc.getAccountEpoch(accountEnv);
-    return acc.signAccountSessionTicket(acctPrivPem, { by: 'passkey', epoch: ep, authAt: Date.now(), deviceId: 'edgedeviceedgede' });
+    const acc = await mod('workers/account/src/core/session.js');
+    const ep = await acc.readEpoch(accountEnv, 'session');
+    return acc.signSessionTicket(acctPrivPem, { by: 'passkey', epoch: ep, authAt: Date.now(), deviceId: 'edgedeviceedgede' });
   }
 
   /** 清掉 /s/* 的失败计数（D1 share_fail + isolate 内存），限速测试之间不互相影响 */
