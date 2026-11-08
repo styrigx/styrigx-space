@@ -8410,14 +8410,19 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-tb-btn:focus-visible, .sgx-tb-logo:focus-visible, .sgx-tb-av:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .reduced-motion .sgx-tb-btn, .reduced-motion .sgx-tb-logo { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-btn, .sgx-tb-logo { transition: none; } }
-/* AI 浮钮（右下角，56 × 56、圆角 18，主题实色；打开 AI 窗口时深一档）：在 #site-nav 里（z 50，盖过面板遮罩），手机 16px、桌面 32px 边距 */
-.sgx-tb-ai { position: fixed; right: max(var(--sgx-ai-fab-m), env(safe-area-inset-right, 0px)); bottom: max(var(--sgx-ai-fab-m), env(safe-area-inset-bottom, 0px)); z-index: 56;
+/* AI 浮钮（右下角，56 × 56、圆角 18，主题实色；打开 AI 窗口时深一档）：在 #site-nav 里（z 50，盖过面板遮罩），右边距手机 16px、桌面 32px。
+   离底（2026-11-08 PR-A，原来是 max(边距, 底部安全区)，滑到底会压住 tmux 页脚的状态栏和「联系」）：
+   --sgx-ai-fab-b（手机 28px、桌面 40px）+ max(底部安全区, --sgx-foot-lift)。安全区是叠在基准上的（不再和边距取大）；
+   --sgx-foot-lift = 页脚露出视口多高（shell/topbar-panel.js mountFootLift 按帧写到浮钮、博客回顶按钮、AI 窗口上，页脚不在视口里时 0），
+   页脚一露头浮钮就跟着往上让、始终停在页脚上沿之上 --sgx-ai-fab-b；和安全区取大是因为页脚自己已经垫过安全区，不重复算。
+   回顶按钮（博客 .scroll-top-button）摞在浮钮上方、桌面 AI 窗口在浮钮上方 68px，都用同一个式子，所以一起移。 */
+.sgx-tb-ai { position: fixed; right: max(var(--sgx-ai-fab-m), env(safe-area-inset-right, 0px)); bottom: calc(var(--sgx-ai-fab-b) + max(env(safe-area-inset-bottom, 0px), var(--sgx-foot-lift, 0px))); z-index: 56;
   width: 56px; height: 56px; border-radius: 18px; pointer-events: auto;
   background-color: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); box-shadow: 0 12px 30px color-mix(in srgb, var(--sgx-primary-fill) 30%, transparent); }
 .sgx-tb-ai svg { width: 26px; height: 26px; }
 .sgx-tb-ai[aria-expanded="true"] { background-color: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
-:root { --sgx-ai-fab-m: 16px; }
-:root[data-sgx-layout="desktop"] { --sgx-ai-fab-m: 32px; }
+:root { --sgx-ai-fab-m: 16px; --sgx-ai-fab-b: 28px; }
+:root[data-sgx-layout="desktop"] { --sgx-ai-fab-m: 32px; --sgx-ai-fab-b: 40px; }
 @media (hover: hover) and (pointer: fine) {
   .sgx-tb-ai:hover { color: var(--sgx-on-primary-fill); }
 }
@@ -8912,7 +8917,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-ai.is-open .sgx-qp-sheet { transform: none; opacity: 1; }
 :root[data-sgx-layout="desktop"] .sgx-ai.is-open { background-color: transparent; }
 :root[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet, :root[data-sgx-layout="desktop"] .sgx-ai[data-kb] .sgx-qp-sheet { top: auto; left: auto; right: max(var(--sgx-ai-fab-m), env(safe-area-inset-right, 0px));
-  bottom: calc(max(var(--sgx-ai-fab-m), env(safe-area-inset-bottom, 0px)) + 68px); width: min(390px, calc(100% - 2 * var(--sgx-ai-fab-m))); max-width: none; height: min(560px, calc(100% - 96px));
+  bottom: calc(var(--sgx-ai-fab-b) + max(env(safe-area-inset-bottom, 0px), var(--sgx-foot-lift, 0px)) + 68px); width: min(390px, calc(100% - 2 * var(--sgx-ai-fab-m))); max-width: none; height: min(560px, calc(100% - 96px));
   margin: 0; box-shadow: 0 30px 70px rgba(0,0,0,.28); }
 .dark:root[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet, :root.dark[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet { box-shadow: 0 30px 70px rgba(0,0,0,.5); }
 .reduced-motion .sgx-ai .sgx-qp-sheet { transform: none; transition: opacity .12s ease; }
@@ -9090,7 +9095,10 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-hint-s { display: none; }
 :root:not([data-sgx-layout="desktop"]) .sgx-term-hint-l { display: none; }
 :root:not([data-sgx-layout="desktop"]) .sgx-term-hint-s { display: inline; }
-.sgx-term-body { box-sizing: border-box; padding: 16px 18px 18px; overflow: auto; overscroll-behavior: contain; font-size: 14px; line-height: 1.85; }
+/* 触屏滚动（2026-11-08 PR-A）：窗内只在横向收住（长行横划到头不触发浏览器左右滑返回），纵向不收——
+   从任何终端窗起划都能直接滚页面；有限高的窗（主页可输入终端）先滚自己、滚到底下一划交给页面（浏览器原生滚动链）。
+   只有模态抽屉（下面 .sgx-term--drawer）纵向也收住，免得抽屉里滚到头把后面的页面带着走。 */
+.sgx-term-body { box-sizing: border-box; padding: 16px 18px 18px; overflow: auto; overscroll-behavior-x: contain; font-size: 14px; line-height: 1.85; }
 :root:not([data-sgx-layout="desktop"]) .sgx-term-body { padding: 14px 14px 16px; font-size: 12.5px; }
 .sgx-term-out { overflow-wrap: anywhere; }
 .sgx-term-ln { white-space: pre-wrap; }
@@ -9128,7 +9136,7 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-dlg.is-open::backdrop { opacity: 1; }
 .sgx-term-dlg .sgx-term { width: min(820px, 100%); margin: 0 auto; opacity: 0; transform: translateY(-12px); transition: opacity .24s ease, transform .24s ease; }
 .sgx-term-dlg.is-open .sgx-term { opacity: 1; transform: none; }
-.sgx-term--drawer .sgx-term-body { height: min(56vh, 460px); }
+.sgx-term--drawer .sgx-term-body { height: min(56vh, 460px); overscroll-behavior: contain; }
 .reduced-motion .sgx-term-dlg .sgx-term, .reduced-motion .sgx-term-dlg::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-term-dlg .sgx-term, .sgx-term-dlg::backdrop { transition: none; } }
 /* @shell:end terminal */
