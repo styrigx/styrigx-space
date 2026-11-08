@@ -132,7 +132,13 @@ for (const dark of [false, true]) {
         expect(near(sep.width, 1) && near(sep.height, 22), `分隔 ${sep.width}×${sep.height}`).toBe(true);
         /* AI 浮钮：右下角 56 × 56（手机边距 16），主题实色 */
         expect(near(ai.width, 56) && near(ai.height, 56), `AI 浮钮 ${ai.width}`).toBe(true);
-        expect(near(ai.x + ai.width, 390 - 16) && near(ai.y + ai.height, 844 - 16), `AI 浮钮位置 ${ai.x},${ai.y}`).toBe(true);
+        /* 2026-11-08 PR-A：离底抬到 28（右边距仍 16）；页脚露出时再往上让，见 layout/touch-scroll-fab.spec.js */
+        {
+          /* 短页（/security/）页脚一进来就在视口里：浮钮停在页脚上沿之上 28 */
+          const footTop = await page.evaluate(() => document.querySelector('.sgx-foot').getBoundingClientRect().top);
+          const fabB = Math.min(844, footTop) - 28;
+          expect(near(ai.x + ai.width, 390 - 16) && near(ai.y + ai.height, fabB), `AI 浮钮位置 ${ai.x},${ai.y}（页脚上沿 ${footTop}）`).toBe(true);
+        }
         /* 颜色：外观 / >_ 平时透明，打开 = 选中衬底（--sgx-surface-container-high，2026-11 PR-A 照稿）；AI 浮钮平时实色（primary-fill），打开浅一档（primary-container） */
         const sel = await roleColor(page, '--sgx-surface-container-high') /* 2026-11 PR-A 照稿 .ic a.on：#2a2522 */;
         const fill = await roleColor(page, '--sgx-primary-fill');
@@ -500,10 +506,10 @@ test.describe('1280×800', () => {
     });
   }
 
-  test('1280：AI 浮钮右下角（桌面边距 32），NAVIGATE 宽 360 落在 >_ 下面', async ({ page }) => {
+  test('1280：AI 浮钮右下角（桌面右 32、离底 40），NAVIGATE 宽 360 落在 >_ 下面', async ({ page }) => {
     await go(page, '/wild/');
     const ai = await box(page, '.sgx-tb-ai');
-    expect(near(ai.x + ai.width, 1280 - 32) && near(ai.y + ai.height, 800 - 32), `AI 浮钮 ${ai.x},${ai.y}`).toBe(true);
+    expect(near(ai.x + ai.width, 1280 - 32) && near(ai.y + ai.height, 800 - 40), `AI 浮钮 ${ai.x},${ai.y}`).toBe(true);
     await page.locator('.sgx-tb-grid').click();
     await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
     await animationsDone(page);

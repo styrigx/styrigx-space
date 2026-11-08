@@ -780,6 +780,7 @@ export function mountTopbar(o) {
   }
 
   mountProgress(doc);
+  mountFootLift(doc);
   mountClock(doc);
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
@@ -817,6 +818,47 @@ export function mountProgress(d) {
   window.addEventListener('resize', queue, { passive: true });
   calc();
   return calc;
+}
+
+/**
+ * 浮钮给页脚让位（2026-11-08 PR-A）：tmux 页脚 .sgx-foot 露出视口多高，就把 --sgx-foot-lift 写成多少 px（不露 = 0），
+ * 写到 AI 浮钮、博客回顶按钮、AI 窗口（桌面浮窗在浮钮上方）这几个元素自己身上——CSS 的 bottom 用 max(安全区, --sgx-foot-lift) 叠在基准上，
+ * 所以滑到底时浮钮停在页脚上沿之上、不压状态栏和「联系」。只写这几个元素、值不变不写，不让整页重算样式；滚动 / 尺寸变化按帧合并。
+ * @param {Document} [d]
+ * @returns {(() => void) | null} 立刻重算一次（测试 / 内容变长后用）
+ */
+export function mountFootLift(d) {
+  const doc = d || document;
+  const foot = /** @type {HTMLElement|null} */ (doc.querySelector('.sgx-foot'));
+  if (!foot || typeof foot.getBoundingClientRect !== 'function') return null;
+  let queued = false;
+  let last = -1;
+  const calc = function () {
+    queued = false;
+    const vh = window.innerHeight || doc.documentElement.clientHeight || 0;
+    const top = foot.getBoundingClientRect().top;
+    const lift = Math.max(0, Math.round(vh - top));
+    if (lift === last) return;
+    last = lift;
+    const v = lift + 'px';
+    doc.querySelectorAll('#site-nav .sgx-tb-ai, [data-scroll-top-button], #sgx-ai').forEach(function (el) {
+      /** @type {HTMLElement} */ (el).style.setProperty('--sgx-foot-lift', v);
+    });
+  };
+  const queue = function () {
+    if (queued) return;
+    queued = true;
+    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(calc);
+    else window.setTimeout(calc, 16);
+  };
+  window.addEventListener('scroll', queue, { passive: true });
+  window.addEventListener('resize', queue, { passive: true });
+  /* 内容晚到（列表、状态卡）把页脚往下推、但没有滚动时也要重算 */
+  if (typeof ResizeObserver === 'function' && doc.body) {
+    try { new ResizeObserver(queue).observe(doc.body); } catch (e) {}
+  }
+  calc();
+  return function () { last = -1; calc(); };
 }
 
 /**
