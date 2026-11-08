@@ -105,6 +105,9 @@ js:
     lockUnlockChooseMethod: 解锁，选择方式
     lockWelcomeBack: 欢迎回来
     lockGoodToSeeYou: 很高兴再次见到你
+    lockTermHint: "# 点一下快捷键，直接开始解锁"
+    lockTermChoose: 选择验证方式：
+    lockTermWaitPk: 等待通行密钥…
     lockUnlock: 解锁
     lockSessionNotActive: 会话未生效
     lockUnlockScreen: 解锁屏幕

@@ -89,6 +89,11 @@ export function showLockScreen() {
     '<div class="sgx-tb-pill"><span class="sgx-tb-title" id="sgx-lock-title" aria-live="polite">' + (tx('lockLockScreen2')) + '</span></div>' +
     '<span class="sgx-tb-acts" aria-hidden="true">' + tbActs + '</span>' +
     '</div></div>' +
+    /* lock-v10（2026-11 UI 重设计 PR-4，设计稿 entry-v2/lock.html K1–K4）：只换外观——
+       头像（仍是按钮，点它解锁）→ 状态胶囊 `$ STATUS: …` → 名字 → 欢迎回来 · 很高兴再次见到你 → 锁屏终端窗
+       （标题栏 `$ LOCK · tty1`、装饰性输出区跟着解锁进度回显、快捷键 password / passkey + 原「解锁」按钮）→ 底部 `~/styrigx_`。
+       状态胶囊、名字、终端输出、底部都是装饰（aria-hidden）：读屏仍走头像按钮、解锁按钮、顶栏 aria-live 标题和各弹层。
+       快捷键只是直接打开密码 / 通行密钥弹层（同方式弹层里的那两行，按 /api/lock-entry 只显示已配置的）；临时钥匙、无法登录？仍在「解锁」→ 方式弹层。 */
     '<div class="sgx-lock-stage is-pending" id="sgx-lock-stage">' +
     '<div class="sgx-lock-user"><button type="button" id="sgx-lock-avatar" aria-label="' +
     (tx('lockUnlockChooseMethod')) +
@@ -98,11 +103,24 @@ export function showLockScreen() {
       ? '<img src="' + avatarSrc + '" alt="' + esc(lockName()) + '" translate="no" data-sgx-personal width="120" height="120">'
       : '<span class="sgx-lock-fb" aria-hidden="true">S</span>') +
     '</button>' +
-    '<p class="sgx-lock-welcome">' + (tx('lockWelcomeBack')) + '</p>' +
-    '<p class="sgx-lock-sub">' + (tx('lockGoodToSeeYou')) + '</p>' +
+    '<p class="sgx-lock-st" id="sgx-lock-st" data-st="locked" aria-hidden="true"><i></i><span id="sgx-lock-st-tx">$ STATUS: LOCKED</span></p>' +
+    '<p class="sgx-lock-nm" aria-hidden="true" translate="no" data-sgx-personal>' + esc(lockName()) + '</p>' +
+    '<p class="sgx-lock-greet"><span class="sgx-lock-welcome">' + (tx('lockWelcomeBack')) + '</span>' +
+    '<span class="sgx-lock-gsep" aria-hidden="true"> · </span>' +
+    '<span class="sgx-lock-sub">' + (tx('lockGoodToSeeYou')) + '</span></p>' +
+    '<div class="sgx-lock-term">' +
+    '<div class="sgx-lock-term-bar" aria-hidden="true"><span><b>$</b> LOCK · tty1</span><span id="sgx-lock-tty">guest</span></div>' +
+    '<div class="sgx-lock-log" id="sgx-lock-log" aria-hidden="true"></div>' +
+    '<p class="sgx-lock-qh" aria-hidden="true">' + esc(tx('lockTermHint')) + '</p>' +
+    '<div class="sgx-lock-qk">' +
+    '<button type="button" class="sgx-lock-k" id="sgx-lock-k-pw" data-k="password" aria-label="' + esc(tx('lockUsePassword')) + '" aria-haspopup="dialog" hidden>password</button>' +
+    '<button type="button" class="sgx-lock-k" id="sgx-lock-k-pk" data-k="passkey" aria-label="' + esc(tx('lockUsePasskey')) + '" aria-haspopup="dialog" hidden>passkey</button>' +
     '<button type="button" class="sgx-credential-btn sgx-credential-btn-primary sgx-lock-go" id="sgx-lock-go" aria-haspopup="dialog">' +
     UNLOCK + '<span>' + (tx('lockUnlock')) + '</span></button>' +
     '</div>' +
+    '</div>' +
+    '</div>' +
+    '<p class="sgx-lock-tail" aria-hidden="true" translate="no">~/styrigx<span class="sgx-lock-tcur"></span></p>' +
     '</div>';
   document.body.appendChild(ov);
   document.body.classList.add('sgx-locked');
@@ -117,6 +135,73 @@ export function showLockScreen() {
   const stage = document.getElementById('sgx-lock-stage');
   if (stage) stage.classList.remove('is-pending');
 
+  /* ---------- lock-v10 锁屏终端回显（只是外观，aria-hidden；不参与任何判断） ----------
+     状态：locked 静止 · sudo 方式弹层 / 密码 / 临时钥匙 · verifying 通行密钥 · denied 出错 · unlocked 已确认会话。
+     解锁、凭证、会话逻辑一律不看这里；这里只在各流程已有的节点上被调用，把进度画成命令行。 */
+  const TERM_ST = {
+    locked: 'LOCKED', sudo: 'SUDO', verifying: 'VERIFYING', denied: 'DENIED', unlocked: 'UNLOCKED',
+  };
+  const termUser = (String(lockName() || '').trim().split(/\s+/)[0] || 'user').toLowerCase();
+  const TERM_P = '<span class="sgx-lock-pp">styrigx@space</span><span class="sgx-lock-pd">:~$</span> ';
+  const TERM_CUR = '<span class="sgx-lock-cur"></span>';
+  const TERM_BOOT = '<div class="sgx-lock-ld">styrigx space os 1.0 tty1</div><div class="sgx-lock-lgap"></div>';
+  /** @type {string} */ let termSt = 'locked';
+  /** 上一条命令（出错 / 关弹层后留一行历史） */
+  let termCmd = '';
+  /** @param {string} st @param {string} lines @param {string} [key] 高亮的快捷键 */
+  function paintTerm(st, lines, key) {
+    termSt = st;
+    const chip = document.getElementById('sgx-lock-st');
+    const chipTx = document.getElementById('sgx-lock-st-tx');
+    const shown = st === 'pw' || st === 'temp' ? 'sudo' : st === 'pk' ? 'verifying' : st;
+    if (chip) chip.setAttribute('data-st', shown);
+    if (chipTx) chipTx.textContent = '$ STATUS: ' + (TERM_ST[shown] || 'LOCKED');
+    const log = document.getElementById('sgx-lock-log');
+    if (log) log.innerHTML = TERM_BOOT + lines;
+    const tty = document.getElementById('sgx-lock-tty');
+    if (tty) tty.textContent = st === 'unlocked' ? termUser : 'guest';
+    const ks = ov.querySelectorAll('.sgx-lock-k');
+    for (let i = 0; i < ks.length; i++) ks[i].classList.toggle('is-on', !!key && ks[i].getAttribute('data-k') === key);
+  }
+  /** @param {string} cmd */
+  function termLine(cmd) { return '<div>' + TERM_P + esc(cmd) + '</div>'; }
+  /**
+   * @param {'locked'|'sudo'|'pw'|'temp'|'pk'|'check'|'denied'|'unlocked'} st
+   * @param {string} [msg] denied 时的出错文字
+   */
+  function termState(st, msg) {
+    try {
+      if (st === 'locked') {
+        /* 关掉弹层回到静止：刚才出错的话留一行历史 */
+        const hist = termSt === 'denied' && termCmd ? (termLine(termCmd) + (ov.querySelector('.sgx-lock-lbad') ? ov.querySelector('.sgx-lock-lbad').outerHTML : '')) : '';
+        termCmd = hist ? termCmd : '';
+        paintTerm('locked', hist + '<div>' + TERM_P + TERM_CUR + '</div>');
+      } else if (st === 'sudo') {
+        termCmd = 'sudo spacekey';
+        paintTerm('sudo', termLine(termCmd) + '<div class="sgx-lock-lm">' + esc(tx('lockTermChoose')) + TERM_CUR + '</div>');
+      } else if (st === 'pw') {
+        termCmd = 'sudo spacekey password';
+        paintTerm('pw', termLine(termCmd) + '<div>[sudo] password for ' + esc(termUser) + ': ' + TERM_CUR + '</div>', 'password');
+      } else if (st === 'temp') {
+        termCmd = 'sudo tempkey';
+        paintTerm('temp', termLine(termCmd) + '<div>tempkey: ' + TERM_CUR + '</div>');
+      } else if (st === 'pk') {
+        termCmd = 'sudo spacekey passkey';
+        paintTerm('pk', termLine(termCmd) + '<div class="sgx-lock-lm">› ' + esc(tx('lockTermWaitPk')) + TERM_CUR + '</div>', 'passkey');
+      } else if (st === 'denied') {
+        paintTerm('denied', (termCmd ? termLine(termCmd) : '') +
+          '<div class="sgx-lock-lbad">✗ permission denied' + (msg ? ' · ' + esc(msg) : '') + '</div>' +
+          '<div>' + TERM_P + TERM_CUR + '</div>');
+      } else if (st === 'check') {
+        paintTerm('verifying', (termCmd ? termLine(termCmd) : '') + '<div class="sgx-lock-lm">› ' + esc(tx('lockVerifying')) + TERM_CUR + '</div>');
+      } else if (st === 'unlocked') {
+        paintTerm('unlocked', (termCmd ? termLine(termCmd) : '') +
+          '<div class="sgx-lock-lok">✓ access granted</div><div class="sgx-lock-lm">› booting space…' + TERM_CUR + '</div>');
+      }
+    } catch (e) {}
+  }
+  termState('locked');
+
   let done = false;
   function cleanup() {
     if (ov.parentNode) ov.parentNode.removeChild(ov);
@@ -129,6 +214,7 @@ export function showLockScreen() {
   /** 服务端确认有效后：关掉弹层，交给模块级 proceed（唯一去处判定） */
   function onServerOk(ans) {
     done = true;
+    termState('unlocked');
     try { closeMethodSheet(true); } catch (e) {}
     if (vd.isOpen()) closeDialog('session-ok');
     proceed(ans, doUnlockAnimation);
@@ -139,6 +225,7 @@ export function showLockScreen() {
   function unlock() {
     if (done) return;
     done = true;
+    termState('check');
     if (isLocal) {
       /* 本地开发没有后端：原地开锁 */
       doUnlockAnimation();
@@ -176,6 +263,7 @@ export function showLockScreen() {
   /* 会话没生效：停在锁屏，显示友好错误，不跳转（允许重试） */
   function sessionCheckFailed() {
     done = false;
+    termState('denied', tx('lockSessionNotRecognized'));
     try {
       setTitle(tx('lockSessionNotActive'));
       setBody(
@@ -191,6 +279,7 @@ export function showLockScreen() {
 
   /* 开锁动画（无 return 时）：显示桌面 */
   function doUnlockAnimation() {
+    if (termSt !== 'unlocked') termState('unlocked');
     if (reducedMotion()) {
       ov.style.transition = 'opacity .25s ease';
       ov.style.opacity = '0';
@@ -224,12 +313,17 @@ export function showLockScreen() {
       setBgHidden(false);
       dlgState = null;
       syncTitle();
+      if (termSt !== 'unlocked') termState('locked');
     },
   });
   const setTitle = vd.setTitle;
   const setBody = vd.setBody;
   const clearErr = vd.clearErr;
-  const showError = vd.showError;
+  /** 出错提示照旧走弹层（vd.showError）；锁屏终端同时回显一行 permission denied（外观） @type {typeof vd.showError} */
+  const showError = function (/** @type {any} */ msg, /** @type {any} */ input) {
+    termState('denied', typeof msg === 'string' ? msg : '');
+    return vd.showError(msg, input);
+  };
   /** @param {any} input */
   function armDlgKbFor(input) { vd.armKb(input); }
   /** @param {string} reason */
@@ -359,6 +453,8 @@ export function showLockScreen() {
       /* 关闭一开始（Esc / 遮罩 / 下滑 / 选了方式 / closeMethodSheet）：清本地状态 */
       onClose: function () {
         if (methodSheet === ms) methodSheet = null;
+        /* 选了某个方式会在同一 tick 打开验证弹层（回显已换成那一态）；没接着开就回到静止 */
+        window.setTimeout(function () { if (termSt === 'sudo' && !methodSheet && !vd.isOpen()) termState('locked'); }, 0);
         if (flow) {
           try { flow.destroy(); } catch (e) {}
           flow = null;
@@ -377,6 +473,7 @@ export function showLockScreen() {
     });
     methodSheet = ms;
     syncTitle();
+    termState('sudo');
   }
 
   /** @param {boolean} [navigating] 重置完成要跳页：不把焦点还给头像 */
@@ -394,6 +491,7 @@ export function showLockScreen() {
       return;
     }
     dlgState = 'temp';
+    termState('temp');
     setTitle(tx('lockEnterTemporaryKey'));
     setBody(
       '<div class="sgx-pw-field"><input type="text" id="sgx-temp-input" class="sgx-pw-input sgx-temp-input" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="20" ' +
@@ -491,6 +589,7 @@ export function showLockScreen() {
   /* ---------- 密码态（与验证态同一弹层） ---------- */
   function openPw() {
     dlgState = 'password';
+    termState('pw');
     setTitle(tx('lockEnterPassword'));
     setBody(
       pwFieldHtml({ id: 'sgx-pw-input', eyeId: 'sgx-pw-eye', autocomplete: 'current-password', pmUser: KEY_LOCK, ariaLabel: tx('lockPassword'), placeholder: tx('lockPassword'), en: en }) +
@@ -705,6 +804,7 @@ export function showLockScreen() {
   /* ---------- 通行密钥态（与验证态同一弹层） ---------- */
   function openPk() {
     dlgState = 'passkey';
+    termState('pk');
     setTitle(tx('lockUsePasskey'));
     setBody(
       '<div class="sgx-verify-loading"><div class="sgx-spinner" role="progressbar" aria-label="' +
@@ -721,6 +821,7 @@ export function showLockScreen() {
   /* 通行密钥失败 → 同一弹层内给重试 / 用密码 */
   function pkFailed(msg) {
     if (dlgState !== 'passkey') return;
+    termState('denied', msg || tx('pkFailed'));
     setBody(
       '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
         (msg || (tx('pkFailed'))) +
@@ -799,6 +900,23 @@ export function showLockScreen() {
       });
   }
 
+  /* lock-v10 快捷键显示：和方式弹层同一规则（GET /api/lock-entry；通行密钥还要设备支持；读取失败按已配置处理）。
+     只决定这两个按钮显不显示；临时钥匙 / 无法登录？永远在「解锁」→ 方式弹层里。 */
+  function showQuickKeys() {
+    /** @param {{passkey:boolean, password:boolean}} cfg */
+    function apply(cfg) {
+      if (done) return;
+      const kPw = document.getElementById('sgx-lock-k-pw');
+      const kPk = document.getElementById('sgx-lock-k-pk');
+      if (kPw) kPw.hidden = !cfg.password;
+      if (kPk) kPk.hidden = !(cfg.passkey && !!window.PublicKeyCredential);
+    }
+    fetch('/api/lock-entry', { method: 'GET', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { apply(j && j.ok ? { passkey: !!j.passkey, password: !!j.password } : { passkey: true, password: true }); })
+      .catch(function () { apply({ passkey: true, password: true }); });
+  }
+
   /* ---------- 入口接线（2.8.0 锁屏重设计） ---------- */
   /* 头像点击 → 解锁方式选择底部弹层 */
   const av = document.getElementById('sgx-lock-avatar');
@@ -810,6 +928,20 @@ export function showLockScreen() {
     /* 「解锁」按钮 = 点头像（同一个入口，不另走流程） */
     const go = document.getElementById('sgx-lock-go');
     if (go) on(go, 'click', function (e) { e.stopPropagation(); av.click(); });
+    /* lock-v10 快捷键：直接打开密码 / 通行密钥弹层（同方式弹层里那两行的 onPick） */
+    const kPw = document.getElementById('sgx-lock-k-pw');
+    const kPk = document.getElementById('sgx-lock-k-pk');
+    if (kPw) on(kPw, 'click', function (e) {
+      e.stopPropagation();
+      if (done || vd.isOpen() || methodSheet) return;
+      tapFeedback(); openPw();
+    });
+    if (kPk) on(kPk, 'click', function (e) {
+      e.stopPropagation();
+      if (done || vd.isOpen() || methodSheet) return;
+      tapFeedback(); openPk();
+    });
+    showQuickKeys();
     try {
       av.focus(/** @type {any} */ ({ preventScroll: true }));
     } catch (e) {
@@ -823,6 +955,8 @@ export function showLockScreen() {
     if (e.key === 'Enter' || e.key === ' ') {
       const t = /** @type {HTMLElement|null} */ (e.target);
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      /* 焦点在快捷键上：让按钮自己的 click 处理（打开对应弹层） */
+      if (t && t.closest && t.closest('.sgx-lock-k')) return;
       if (vd.isOpen()) return;
       if (methodSheet) return;
       e.preventDefault();
