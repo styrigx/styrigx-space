@@ -272,6 +272,8 @@ account:
     passwordAria: "Password"
     typeHelp: "type {x} for account commands"
     hidden: "input is hidden · paste works"
+    interruptAria: "quit the current command (^C)"
+    noOption: "no such option"
     cancelled: "cancelled"
     tooMany: "sudo: too many attempts · try again in 15 min"
     pkNoSupport: "passkeys aren’t supported on this device"
@@ -296,7 +298,10 @@ account:
   session:
     guest: "Not signed in"
     lead: "Not signed in · choose a method"
-    keyMap: "passkey = account passkey · password = account password"
+    kind:
+      passkey: "passkey = account passkey"
+      password: "password = account password"
+    pwUnset: "account password isn’t set · sign in, then {x} to set it, or {y}"
     cantSignIn: "can’t sign in? type {x} · Ctrl+C or esc to quit"
     noMethod: "no sign-in method is set yet · type {x} to set one with your recovery key"
     noSigning: "Account sign-in is unavailable: the server is missing the account key configuration"
@@ -427,6 +432,7 @@ account:
     note: "Your account is root (the superuser). reauth is like Linux sudo -v. The recovery key is only for reset: it can’t sign in or verify again. Ctrl+C or esc quits the current command."
   reauth:
     cantVerify: "can’t verify? type {x} · Ctrl+C or esc to quit"
+    pwUnset: "account password isn’t set · verify, then {x} to set it, or {y}"
     lead:
       keys: "Account security · verify again"
       grants: "allowing again needs reauth"

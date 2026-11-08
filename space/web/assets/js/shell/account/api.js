@@ -76,9 +76,10 @@ export function status() {
 /**
  * 通行密钥断言（session / reauth 各用各的入口和 challenge）。
  * reject：{ cancelled: true } | { message } | { code, s }
- * @param {'session'|'reauth'} entry @param {(k: string) => string} t 错误文案（common.*）
+ * stale：终端里 ^C 过了（返回 true）→ 拿到断言也不再提交（不签票）
+ * @param {'session'|'reauth'} entry @param {(k: string) => string} t 错误文案（common.*） @param {() => boolean} [stale]
  */
-function passkeyAssert(entry, t) {
+function passkeyAssert(entry, t, stale) {
   return post(entry, 'passkey-challenge').then(function (res) {
     const j = res.j;
     if (!j || !j.ok || !j.challenge) throw { message: apiErrText(t, j && j.error, res.s) };
@@ -91,6 +92,7 @@ function passkeyAssert(entry, t) {
   }, function () {
     throw { message: t('errNetwork') };
   }).then(function (r) {
+    if (stale && stale()) throw { cancelled: true };
     const cred = r.cred;
     const fields = { cid: r.cid, credential: assertionToJSON(cred) };
     return post(entry, 'passkey', entry === 'session' ? withDevice(fields) : fields).then(function (res) {
@@ -106,8 +108,8 @@ function passkeyAssert(entry, t) {
 export const session = Object.freeze({
   /** @param {string} pw */
   password: function (pw) { return post('session', 'password', withDevice({ password: pw })); },
-  /** @param {(k: string) => string} t */
-  passkey: function (t) { return passkeyAssert('session', t); },
+  /** @param {(k: string) => string} t @param {() => boolean} [stale] */
+  passkey: function (t, stale) { return passkeyAssert('session', t, stale); },
   /** exit：退出登录（连带清掉挂在会话上的 reauth） */
   end: function () { return post('session', 'end'); },
 });
@@ -116,8 +118,8 @@ export const session = Object.freeze({
 export const reauth = Object.freeze({
   /** @param {string} pw */
   password: function (pw) { return post('reauth', 'password', { password: pw }); },
-  /** @param {(k: string) => string} t */
-  passkey: function (t) { return passkeyAssert('reauth', t); },
+  /** @param {(k: string) => string} t @param {() => boolean} [stale] */
+  passkey: function (t, stale) { return passkeyAssert('reauth', t, stale); },
   /** 关下拉 / 离开页面（keepalive，不等结果；只清 reauth） */
   end: function () {
     try {

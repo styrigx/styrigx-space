@@ -14,7 +14,7 @@
 import { esc } from '../../lib/util.js';
 import { toast } from '../../lib/toast.js';
 import * as api from './api.js';
-import { CMD, PS_GUEST, PS_ROOT, LAYERS, LAYER_PATH, normCmd, parseCmd, layerFromPath } from './commands.js';
+import { CMD, PS_GUEST, PS_ROOT, PS_RESET, LAYERS, LAYER_PATH, normCmd, parseCmd, layerFromPath } from './commands.js';
 import { mountSession } from './session.js';
 import { mountReauth } from './reauth.js';
 import { mountReset } from './reset.js';
@@ -148,13 +148,15 @@ export function mountAccountTerm(o) {
     /** 当前一轮的输错次数 */ tries: 0,
     /** 秘密输入（密码 / 恢复密钥 / 新密码 / 通行密钥名字）的提交函数 */ onSecret: null,
     onCancel: null,
+    /** 等待中（busy）也能 ^C 的那件事（通行密钥）：^C 时调它 */ busyCancel: null,
+    /** 进 busy 时输入行有焦点：回命令行要把焦点还回来（触屏键盘收起后命令行像死了，Gray 22:12） */ refocus: false,
     armed: '', editing: '',
     /** 这次打开期间登录状态变了：关下拉时重新载入 */ loginChanged: false,
   };
   /** pick 模式的选项 { key → fn } */ let picks = /** @type {Record<string, () => void>} */ ({});
   let pickDefault = '';
 
-  C.ps = function () { return C.st === 'in' ? PS_ROOT : PS_GUEST; };
+  C.ps = function () { return C.inReset ? PS_RESET : C.st === 'in' ? PS_ROOT : PS_GUEST; };
   const live = function (/** @type {string} */ s) { liveEl.textContent = s; };
 
   /* ---------- 输出 ---------- */
@@ -213,6 +215,7 @@ export function mountAccountTerm(o) {
   const isSecret = function (/** @type {string} */ m) { return m === 'pw' || m === 'rkey' || m === 'newpw' || m === 'newpw2'; };
   /** @param {string} m @param {{ps?: string, pm?: string, hint?: string}} [x] */
   C.setMode = function (m, x) {
+    if (m === 'busy' && doc.activeElement === input) C.refocus = true;
     C.mode = m;
     const secret = isSecret(m);
     form.setAttribute('data-mode', m);
@@ -224,7 +227,13 @@ export function mountAccountTerm(o) {
     psEl.textContent = (x && x.ps) || (m === 'pick' || m === 'pkname' ? '>' : C.ps());
     form.hidden = m === 'busy';
     input.disabled = m === 'busy';
-    if (x && x.hint) { hintEl.textContent = '# ' + x.hint; hintEl.hidden = false; } else hintEl.hidden = true;
+    /* 输入不显示的那几行（密码 / 恢复密钥 / 新密码）和等通行密钥：提示行末尾一个能点的 ^C（触屏没有 Ctrl+C / esc，Gray 22:12；只在 pointer:coarse 显示，input.css .sgx-at-cc） */
+    const cc = secret || m === 'pick' || m === 'pkname' || (m === 'cmd' && C.inReset) || !!(x && x.cc);
+    if ((x && x.hint) || cc) {
+      hintEl.innerHTML = (x && x.hint ? '# ' + esc(x.hint) : '') + (cc ? '<span class="sgx-at-cc">' + (x && x.hint ? ' · ' : '# ') + '<button type="button" data-at-cc translate="no" aria-label="' + esc(t('common.interruptAria')) + '">^C</button></span>' : '');
+      hintEl.classList.toggle('sgx-at-hint--cc', cc && !(x && x.hint));
+      hintEl.hidden = false;
+    } else hintEl.hidden = true;
     root.setAttribute('data-at-mode', m);
   };
   C.toCmd = function () {
@@ -232,7 +241,13 @@ export function mountAccountTerm(o) {
     pickDefault = '';
     C.onSecret = null;
     C.onCancel = null;
+    C.busyCancel = null;
+    const rf = C.refocus;
+    C.refocus = false;
     C.setMode('cmd');
+    /* 一轮结束（3 次输错 / ^C / 出错）回命令行：输错时输入行正有焦点，busy 把它藏起来、焦点掉到 body，触屏上键盘收起、
+       之后不自动聚焦（focusIn 在 cmd 模式不抢焦点），命令行看着像死了。原来有焦点就还回去 */
+    if (rf) C.focusIn(true);
   };
   /** 秘密输入 @param {string} m @param {(v: string) => void} fn @param {{ps?: string, pm?: string, hint?: string}} [x] */
   C.ask = function (m, fn, x) {
@@ -250,7 +265,17 @@ export function mountAccountTerm(o) {
   };
   /** Ctrl+C / esc：退出当前命令 */
   C.interrupt = function () {
-    if (C.mode === 'cmd' || C.mode === 'busy') return false;
+    /* reset 层的命令行：^C / esc = 离开 reset（同关掉下拉：没选登出方式 = [3] 不登出），回 login@account / root@account */
+    if (C.mode === 'cmd' && C.inReset) { C.out('^C', 'd'); C.leaveReset(); return true; }
+    if (C.mode === 'cmd') return false;
+    if (C.mode === 'busy') {
+      const b = C.busyCancel;
+      if (!b) return false;
+      C.out('^C', 'd');
+      b();
+      C.toCmd();
+      return true;
+    }
     C.out('^C', 'd');
     const c = C.onCancel;
     C.toCmd();
@@ -402,7 +427,7 @@ export function mountAccountTerm(o) {
       case 'session': C.cmdSession(); return;
       case 'reauth': C.cmdReauth(); return;
       case 'reset': C.cmdReset(); return;
-      case 'exit': C.cmdExit(); return;
+      case 'exit': if (C.inReset) { C.leaveReset(); return; } C.cmdExit(); return;
       case 'passwd': C.cmdPasswd(true); return;
       case 'passkey-add': C.cmdPasskeyAdd(true); return;
       case 'cd': if (C.st === 'in' && !C.inReset) C.go(c.arg || 'home'); return;
@@ -435,8 +460,12 @@ export function mountAccountTerm(o) {
 
   /* ---------- 事件 ---------- */
   const BACK_RE = /^cd\s*(\.\.|\/)\s*$/;
+  /** 提交次数 / 最近一次 enter 按下时的提交次数（-1 = 没有待补的 enter），见下面 keyup */
+  let subN = 0;
+  let enterAt = -1;
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+    subN++;
     const v = input.value;
     const m = C.mode;
     if (m === 'busy') return;
@@ -444,8 +473,10 @@ export function mountAccountTerm(o) {
       const key = normCmd(v) || pickDefault;
       const fn = picks[key] || picks[key.replace(/^\[|\]$/g, '')];
       if (fn) { picks = {}; fn(); return; }
-      if (key && parseCmd(key).cmd !== 'unknown') { C.toCmd(); C.runCmd(v); return; }
       input.value = '';
+      /* 选项里没有的编号：说一声、接着选（不当命令跑，Gray 22:13） */
+      if (/^\[?\d+\]?$/.test(key)) { C.echoPick(key); C.err(t('common.noOption')); return; }
+      if (key && parseCmd(key).cmd !== 'unknown') { C.toCmd(); C.runCmd(v); return; }
       return;
     }
     if (isSecret(m) || m === 'pkname') {
@@ -461,12 +492,17 @@ export function mountAccountTerm(o) {
     input.value = '';
     C.runCmd(v);
   });
+  const submit = function () {
+    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+    else form.dispatchEvent(new Event('submit', { cancelable: true }));
+  };
   input.addEventListener('keydown', function (e) {
     /* enter 提交：表单里还有密码管理器用的隐藏用户名框（两个文本框），浏览器不做隐式提交，这里手动提交 */
-    if (e.key === 'Enter' && !e.isComposing && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      enterAt = subN;
+      if (e.isComposing) return;
       e.preventDefault();
-      if (typeof form.requestSubmit === 'function') form.requestSubmit();
-      else form.dispatchEvent(new Event('submit', { cancelable: true }));
+      submit();
       return;
     }
     if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
@@ -483,6 +519,16 @@ export function mountAccountTerm(o) {
       fn();
     }
   });
+  /* 手机输入法（三星键盘、Gboard 联想）在命令行（文本框）按 enter 时 keydown 常带 isComposing（字还在组合里），上面不提交，
+     浏览器也不隐式提交（两个文本框），命令发不出去（Gray 22:12「命令行死了」的另一半；密码框不联想所以输密码正常）。
+     keyup 补一次：这次 enter 之后还没提交过就提交 */
+  input.addEventListener('keyup', function (e) {
+    if (e.key !== 'Enter' || enterAt < 0) return;
+    const at = enterAt;
+    enterAt = -1;
+    if (e.isComposing || at !== subN || C.mode === 'busy') return;
+    submit();
+  });
   /* esc：先退出当前命令，再回上一层，最外层才交给下拉关掉（modalSheet 的 Esc 看 defaultPrevented） */
   dlg.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
@@ -495,6 +541,7 @@ export function mountAccountTerm(o) {
     const tg = /** @type {Element|null} */ (e.target);
     if (!tg) return;
     if (tg.closest('[data-at-back]')) { C.go('home'); return; }
+    if (tg.closest('[data-at-cc]')) { e.preventDefault(); C.refocus = true; if (!C.interrupt()) C.toCmd(); return; }
     const pk = /** @type {HTMLElement|null} */ (tg.closest('[data-at-pick]'));
     if (pk) {
       const key = pk.getAttribute('data-at-pick') || '';

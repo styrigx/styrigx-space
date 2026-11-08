@@ -13,9 +13,11 @@ export const CMD = Object.freeze({
   reauth: 'sudo ' + ROOT_COMMAND + ' reauth',
   reset: 'sudo ' + ROOT_COMMAND + ' reset',
 });
-/** 提示符：未登录 / 登录后（Gray 17:45 / 17:18） */
+/** 提示符：未登录 / 登录后（Gray 17:45 / 17:18）；reauth 期间不变（仍是 PS_ROOT） */
 export const PS_GUEST = 'login@account:~$';
 export const PS_ROOT = ROOT_COMMAND + '@account:~#';
+/** sudo root reset 验过恢复密钥、在 reset 里时的提示符（未登录从 sudo root 进、已登录进都一样；Gray 2026-11-08 22:10）；reset 结束回 PS_GUEST / PS_ROOT */
+export const PS_RESET = 'reset@account:~#';
 /** 输密码 / 恢复密钥那一行（同锁屏 L4，不回显） */
 export const PS_PASSWORD = '[sudo] password for ' + ROOT_COMMAND + ':';
 export const PS_RECOVERY_KEY = '[sudo] recovery key:';

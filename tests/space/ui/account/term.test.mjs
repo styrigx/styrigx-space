@@ -24,6 +24,7 @@ const C = await import('../../../../' + DIR + 'commands.js');
 const G = await import('../../../../' + DIR + 'grants.js');
 const D = await import('../../../../' + DIR + 'devices.js');
 const R = await import('../../../../' + DIR + 'reset.js');
+const SE = await import('../../../../' + DIR + 'session.js');
 
 test('命令：三条账号命令 + exit / passwd / passkey add / cd / help / clear；别的 command not found', () => {
   const p = (/** @type {string} */ s) => C.parseCmd(C.normCmd(s));
@@ -49,10 +50,27 @@ test('命令：三条账号命令 + exit / passwd / passkey add / cd / help / cl
   /* 提示符（Gray 17:45 / 17:18）与不回显的输入行（同锁屏） */
   assert.equal(C.PS_GUEST, 'login@account:~$');
   assert.equal(C.PS_ROOT, 'root@account:~#');
+  assert.equal(C.PS_RESET, 'reset@account:~#');
   assert.equal(C.PS_PASSWORD, '[sudo] password for root:');
   assert.equal(C.PS_RECOVERY_KEY, '[sudo] recovery key:');
   assert.equal(C.TRY_AGAIN, 'Sorry, try again.');
   assert.equal(C.TRIES_OVER, 'sudo: 3 incorrect password attempts');
+});
+
+test('sudo root 选项说明只列给了的方式；账号密码没设才多一行（Gray 22:13）', () => {
+  const zh = TR.zh.account.session.kind;
+  const tt = (/** @type {string} */ k) => (k.startsWith('session.kind.') ? zh[k.slice(13)] : k);
+  assert.deepEqual(SE.verifyKinds({ configured: { passkey: true, password: false } }), ['passkey']);
+  assert.equal(SE.keyMapLine(['passkey'], tt), 'passkey = 账号通行密钥');
+  assert.equal(SE.keyMapLine(['passkey', 'password'], tt), 'passkey = 账号通行密钥 · password = 账号密码');
+  assert.equal(SE.keyMapLine(['password'], tt), 'password = 账号密码');
+  assert.equal(SE.pwUnset({ configured: { passkey: true, password: false } }), true);
+  assert.equal(SE.pwUnset({ configured: { passkey: true, password: true } }), false);
+  assert.equal(SE.pwUnset({ configured: { passkey: false, password: false } }), false, '一种都没设走 noMethod');
+  assert.equal(SE.pwUnset(null), false, '读不到状态不算');
+  assert.equal(TR.zh.account.session.keyMap, undefined, '旧的整行 keyMap 删了');
+  assert.match(TR.zh.account.session.pwUnset, /账号密码未设置/);
+  assert.equal(TR.zh.account.common.noOption, '没有这个选项');
 });
 
 test('入口名 → 层（旧地址 #acct=<子页>、[data-acct-open]、sudo root reauth）', () => {

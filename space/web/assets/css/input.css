@@ -9055,6 +9055,14 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-at-line:focus-within .sgx-at-ps { text-shadow: 0 0 8px color-mix(in srgb, var(--sgx-primary) 45%, transparent); }
 .sgx-at-pmu { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .sgx-at-hint { margin: 0; font-size: 12px; color: var(--sgx-text-tertiary); }
+/* 提示行末尾能点的 ^C（输密码 / 恢复密钥 / 等通行密钥时；触屏没有 Ctrl+C / esc，Gray 22:12）：只在触屏（pointer:coarse）显示；
+   只有 ^C 的提示行（等通行密钥）在非触屏整行不显示 */
+.sgx-at-cc { display: none; }
+.sgx-at-cc button { min-height: 32px; padding: 0 10px; margin-left: 2px; border: 1px solid var(--sgx-term-line); border-radius: 6px; background: transparent;
+  font: inherit; font-family: var(--sgx-font-mono); color: var(--sgx-text-secondary); cursor: pointer; }
+.sgx-at-cc button:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+.sgx-at-hint--cc { display: none; }
+@media (pointer: coarse) { .sgx-at-cc { display: inline; } .sgx-at-hint--cc:not([hidden]) { display: block; } }
 .sgx-at-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .sgx-at-ft { padding: 12px 20px 16px; border-top: 1px solid var(--sgx-term-line); font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 11px; line-height: 1.7; color: var(--sgx-text-tertiary); }
 .sgx-at-bk:focus-visible, .sgx-at-o:focus-visible, .sgx-at-chip:focus-visible, .sgx-at-sw:focus-visible, .sgx-at-a:focus-visible, .sgx-at-a2:focus-visible, .sgx-at-nm:focus-visible, .sgx-at-del:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }

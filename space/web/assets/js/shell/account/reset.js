@@ -93,6 +93,14 @@ export function mountReset(C) {
     C.focusIn();
   };
 
+  /** 主动离开 reset（^C / esc / exit，触屏点 ^C）：同关掉下拉，没选登出方式 = [3] 不登出（提示一句）；不登出本机 */
+  C.leaveReset = function () {
+    if (!C.inReset) return;
+    if (C.resetPending) C.out(esc(t('reset.signOut.pending')), 'warn');
+    C.refocus = true;
+    C.endReset(false);
+  };
+
   /** 离开 reset：票过期 / 选完 / 401 @param {boolean} expired */
   C.endReset = function (expired) {
     C.stopTick();

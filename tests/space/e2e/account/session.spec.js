@@ -146,14 +146,15 @@ test.describe('密码登录', () => {
 });
 
 test.describe('通行密钥登录', () => {
-  test('取消系统窗口 → 「已取消」，只发一次 session/passkey-challenge，回命令行', async ({ page }) => {
+  test('取消系统窗口 → 「已取消」，只发一次 session/passkey-challenge，重新列出选项（同一轮，Gray 22:13）', async ({ page }) => {
     await T.fakePasskey(page, { cancel: true });
     const calls = await mockAccount(page, { status: STATUS(), handlers: { 'session/passkey-challenge': [200, { ok: true, challenge: 'Y2hhbA', cid: 'c1' }] } });
     await T.goPage(page);
     await openTerm(page);
     await termIn(page).press('1');
     await expect(log(page)).toContainText('已取消');
-    await mode(page, 'cmd');
+    await mode(page, 'pick');
+    await expect(log(page).locator('.sgx-at-l--opts')).toHaveCount(2);
     expect(calls.filter((c) => c.action === 'session/passkey-challenge')).toHaveLength(1);
     expect(calls.filter((c) => c.action === 'session/passkey')).toHaveLength(0);
   });
@@ -282,7 +283,7 @@ test.describe('密码输入行（O10）', () => {
 });
 
 test.describe('通行密钥按钮反馈', () => {
-  test('选了立即 busy（正在唤起通行密钥…），challenge 只发一次；取消 → 已取消，回命令行', async ({ page: pg }) => {
+  test('选了立即 busy（正在唤起通行密钥…），challenge 只发一次；取消 → 已取消，重新列出选项', async ({ page: pg }) => {
         let challengeCalls = 0;
     await pg.route('**/api/account**', async (route) => {
       if (route.request().method() === 'GET') {
@@ -311,7 +312,7 @@ test.describe('通行密钥按钮反馈', () => {
     await expect.poll(() => pg.evaluate(() => typeof window.__sgxRejectGet === 'function')).toBe(true);
     await pg.evaluate(() => { window.__sgxRejectGet(new DOMException('User cancelled', 'NotAllowedError')); });
     await expect(T.log(pg)).toContainText('已取消');
-    await T.mode(pg, 'cmd');
+    await T.mode(pg, 'pick');
     await expect(pg.locator('#sgx-acct .sgx-at-l--er')).toHaveCount(0);
     expect(challengeCalls).toBe(1);
   });
