@@ -60,25 +60,34 @@ async function mockMovies(page, can) {
   return calls;
 }
 
-test('电影（无权限）：只读列表——没有「电影」按钮、详情没有编辑；页底「登录账号后可编辑」；胶囊 = 电影', async ({ page }) => {
+test('电影（无权限）：只读封面卡——没有新建命令、条目页没有编辑；命令链「sudo login · 登录账号后可编辑」；胶囊 = 电影', async ({ page }) => {
   await mockMovies(page, false);
   await page.goto('/curio/zh/');
-  await page.locator('#cu-entries [data-entry="movies"]').click();
+  await page.locator('#cu-tabs [data-ctab="movies"]').click();
   await expect(page).toHaveURL(/\/curio\/zh\/movies\/$/);
   await expect(page.locator('.sgx-tb-title')).toHaveText('电影');
   await expect(page.locator('#mv-list .it-name')).toHaveText(['花样年华', '奥本海默']);
-  await expect(page.locator('#mv-list [data-movie="1"] .it-sub')).toHaveText('2000 · 王家卫');
-  await expect(page.locator('#mv-list [data-movie="1"] .it-star.on')).toHaveCount(5);
-  await expect(page.locator('#mv-list [data-movie="1"] .it-media--poster img')).toHaveCount(1);
+  await expect(page.locator('#mv-list [data-movie="1"] .sgx-cc-m')).toHaveText('movies · 2000 · 王家卫');
+  await expect(page.locator('#mv-list [data-movie="1"] .it-stars-ro')).toHaveText('★★★★★');
+  await expect(page.locator('#mv-list [data-movie="1"] .sgx-cc-im img')).toHaveCount(1);
+  await expect(page.locator('#cu-tabs [data-cu-count="movies"]')).toHaveText('2');
   await expect(page.locator('#mv-fab')).toBeHidden();
-  await expect(page.locator('#cu-signin a')).toHaveText('登录账号后可编辑');
+  await expect(page.locator('#cu-signin [data-signin-text]')).toHaveText('登录账号后可编辑');
   await page.locator('#mv-list [data-movie="1"]').click();
-  await expect(page.locator('#it-view-wrap')).toHaveClass(/open/);
-  await expect(page.locator('#it-view-title')).toHaveText('花样年华');
-  await expect(page.locator('#it-view-body')).toContainText('In the Mood for Love');
-  await expect(page.locator('#it-view-body')).toContainText('2025-06-01');
-  await expect(page.locator('#it-view-body')).toContainText('旗袍和雨');
-  await expect(page.locator('#it-view-edit')).toBeHidden();
+  await expect(page).toHaveURL(/\/curio\/zh\/movies\/\?id=1$/);
+  await expect(page.locator('#cu-item .sgx-crumb')).toContainText('cat ~/curio/movies/');
+  await expect(page.locator('#cu-item .sgx-item-t')).toHaveText('花样年华');
+  await expect(page.locator('#cu-item .sgx-spec')).toContainText('In the Mood for Love');
+  await expect(page.locator('#cu-item .sgx-spec')).toContainText('2025-06-01');
+  await expect(page.locator('#cu-item .sgx-item-p')).toHaveText('旗袍和雨');
+  await expect(page.locator('#cu-item [data-item-edit]')).toHaveCount(0);
+  /* 底部两卡：第一个是 cd ..（回列表），右边 cd ../next 下一部 */
+  await expect(page.locator('#cu-item .sgx-nx-a')).toHaveText([/cd \.\./, /cd \.\.\/next.*奥本海默/]);
+  await page.locator('#cu-item .sgx-nx-a.is-next').click();
+  await expect(page).toHaveURL(/\?id=2$/);
+  await expect(page.locator('#cu-item .sgx-item-t')).toHaveText('奥本海默');
+  await page.locator('#cu-item .sgx-nx-a').first().click();
+  await expect(page.locator('#cu-item .sgx-item-t')).toHaveText('花样年华');
 });
 
 test('电影（有权限）：添加（海报裁成 2:3、长边 ≤1600、webp 上传 kind=movie）、详情里编辑、删除要确认', async ({ page }) => {
@@ -116,9 +125,9 @@ test('电影（有权限）：添加（海报裁成 2:3、长边 ≤1600、webp 
   await expect(page.locator('#bk-toast')).toHaveText('已保存');
   await expect(page.locator('#mv-list .it-name').first()).toHaveText('千与千寻');
 
-  /* 编辑：从详情进 */
+  /* 编辑：从条目页进 */
   await page.locator('#mv-list [data-movie="2"]').click();
-  await page.locator('#it-view-edit').click();
+  await page.locator('#cu-item [data-item-edit]').click();
   await expect(page.locator('#mv-edit-title')).toHaveText('编辑电影');
   await expect(page.locator('#mv-title')).toHaveValue('奥本海默');
   await page.locator('#mv-year').fill('1800');
@@ -130,9 +139,10 @@ test('电影（有权限）：添加（海报裁成 2:3、长边 ≤1600、webp 
   await expect(page.locator('#mv-edit-wrap')).not.toHaveClass(/open/);
   expect(calls.find((c) => c.op === 'movie.edit')).toMatchObject({ id: 2, rating: 3, year: 2023 });
 
-  /* 删除 */
+  /* 删除（删完回列表） */
+  await page.goBack();
   await page.locator('#mv-list [data-movie="1"]').click();
-  await page.locator('#it-view-edit').click();
+  await page.locator('#cu-item [data-item-edit]').click();
   await page.locator('#mv-del').click();
   await expect(page.locator('#confirm-msg')).toHaveText('确定删除这部电影吗？');
   await page.locator('#confirm-ok').click();
@@ -201,11 +211,11 @@ async function mockMusic(page, who) {
 }
 
 for (const who of ['lock', 'noscope']) {
-  test(`音乐（没权限：${who === 'lock' ? '没登录账号 401 account' : '没授权 403 scope'}）：首页没有音乐入口；直接打开子页只显示「仅本人可见」，没有上传按钮和播放器`, async ({ page }) => {
+  test(`音乐（没权限：${who === 'lock' ? '没登录账号 401 account' : '没授权 403 scope'}）：首页没有音乐 tab；直接打开子页只显示「仅本人可见」，没有上传命令和播放器`, async ({ page }) => {
     await mockMusic(page, who);
     await page.goto('/curio/zh/');
-    await expect(page.locator('#cu-entries .sgx-ent:visible .sgx-ent-name')).toHaveText(['发现', '设备', '游戏', '电影']);
-    await expect(page.locator('#cu-entries [data-entry="music"]')).toBeHidden();
+    await expect(page.locator('#cu-tabs .sgx-ctab-a:visible')).toHaveText([/^finds\//, /^devices\//, /^games\//, /^movies\//]);
+    await expect(page.locator('#cu-tabs [data-ctab="music"]')).toBeHidden();
     await page.goto('/curio/zh/music/');
     await expect(page.locator('#mu-denied')).toBeVisible();
     await expect(page.locator('#mu-denied .mu-denied-title')).toHaveText('仅本人可见');
@@ -217,11 +227,11 @@ for (const who of ['lock', 'noscope']) {
   });
 }
 
-test('音乐（有权限）：首页露出入口；封面横滑切专辑；整张按曲序播放走短链；歌词跟着亮；倍速 1 → 1.25 → … 循环；下一首；胶囊 = 音乐', async ({ page }) => {
+test('音乐（有权限）：首页露出 music/ tab；封面横滑切专辑；整张按曲序播放走短链；歌词跟着亮；倍速 1 → 1.25 → … 循环；下一首；胶囊 = 音乐', async ({ page }) => {
   const calls = await mockMusic(page, 'owner');
   await page.goto('/curio/zh/');
-  await expect(page.locator('#cu-entries [data-entry="music"]')).toBeVisible();
-  await page.locator('#cu-entries [data-entry="music"]').click();
+  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toBeVisible();
+  await page.locator('#cu-tabs [data-ctab="music"]').click();
   await expect(page).toHaveURL(/\/curio\/zh\/music\/$/);
   await expect(page.locator('.sgx-tb-title')).toHaveText('音乐');
   await expect(page.locator('#mu-denied')).toBeHidden();

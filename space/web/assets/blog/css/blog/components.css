@@ -55,13 +55,7 @@
   }
 }
 
-/* 首页分区入口（共享外壳平铺入口，P4-3 PR-4b）：在面板上方，顶部让开顶栏；入口显示时首页面板不再重复留顶栏那段 */
-.page-home .sgx-ents {
-  margin-top: 0;
-  padding: var(--oui-nav-clear) var(--sgx-page-m, 16px) 0;
-}
-
-.page-home .sgx-ents:not([hidden]) + .sgx-panes .sgx-pane {
+.sgx-pane {
   padding-top: 8px;
 }
 

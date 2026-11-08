@@ -155,7 +155,7 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
 });
 
 test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽屉）：通栏 [字标 ❯ Styrigx_][页名（不显示）][外观 · 盾牌 · | · >_ · 头像] + 进度条 + AI 浮钮；同一份标记四站共用', () => {
-  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'entries', 'inpage', 'wide', 'terminal']);
+  assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal']);
   const s = files['shell.css'];
   // 贴顶通栏：top 0、left 0 / right 0、底边 1px 线、毛玻璃材质；内容宽一个 token（1080）
   assert.match(s, /\.sgx-topbar \{ position: fixed; top: 0; left: 0; right: 0;[^}]*display: grid; grid-template-columns: auto minmax\(0, 1fr\) auto;[^}]*padding: env\(safe-area-inset-top, 0px\) var\(--sgx-tb-pad\) 0; border-bottom: 1px solid var\(--sgx-term-line\);[^}]*background: var\(--sgx-tb-mat\);/);

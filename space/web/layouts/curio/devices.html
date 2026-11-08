@@ -2,22 +2,12 @@
 {{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
 {{/* 奇趣 › 设备（/curio/devices/；P4-3 奇趣拆页，原首页 hash 分区 #devices）：curio-items.js 画，卡片 + 状态筛选条；点卡片看详情，能编辑时在详情里编辑；右下角「设备」新建。 */}}
 <main id="cu-main" class="cu-wrap" data-cu-page="devices">
-{{ partial "curio/page-head.html" (dict "page" . "id" "devices" "tr" $tr "lang" $lang) }}
+{{ partial "curio/page-head.html" (dict "page" . "id" "devices" "tr" $tr "lang" $lang "cmds" (slice (dict "id" "dv-fab" "k" "touch curio/devices/ +" "d" $tr.cmd.addDevice))) }}
   <section id="cu-pane-devices" class="cu-pane" aria-label="{{ $tr.devices.devices }}">
-    <div class="cu-bar"><div id="dv-chips" class="cu-chips" role="tablist" aria-label="{{ $tr.devices.filter }}"></div></div>
-    <div id="dv-list" class="it-grid"></div>
-    <p id="dv-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
-    <p class="it-loading text-center py-16 text-sm text-m-on-surface-variant">{{ $tr.devices.loading }}</p>
+{{ partial "curio/list.html" (dict "tr" $tr "pre" "dv" "chips" true "chipsLabel" $tr.devices.filter "label" $tr.devices.devices "loading" $tr.devices.loading "sorts" (slice (dict "v" "order" "label" $tr.sort.order) (dict "v" "bought" "label" $tr.sort.bought) (dict "v" "name" "label" $tr.sort.name))) }}
   </section>
-{{ partial "curio/signin.html" (dict "tr" $tr "lang" $lang) }}
+{{ partial "curio/item-page.html" (dict "tr" $tr) }}
 </main>
-
-{{/* ===== 新建（canWrite，右下角浮动按钮） ===== */}}
-<button id="dv-fab" type="button" class="cu-fab it-fab hidden">
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>{{ $tr.devices.device }}
-</button>
-
-{{ partial "curio/item-view.html" (dict "tr" $tr "lang" $lang) }}
 
 {{/* ===== 设备：添加 / 编辑（canWrite） ===== */}}
 <div id="dv-edit-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="dv-edit-title">
@@ -75,5 +65,6 @@
 
 {{ define "pagejs" }}
 <script src="{{ (resources.Get "curio/js/curio.js" | minify | fingerprint).RelPermalink }}"></script>
+<script src="{{ (resources.Get "curio/js/curio-list.js" | minify | fingerprint).RelPermalink }}"></script>
 <script src="{{ (resources.Get "curio/js/curio-items.js" | minify | fingerprint).RelPermalink }}"></script>
 {{ end }}

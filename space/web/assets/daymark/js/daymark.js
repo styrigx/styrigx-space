@@ -1,19 +1,22 @@
 /* assets/js/daymark.js —— 日刻首页逻辑（浏览器 IIFE；node 测试时导出纯函数）。
  *
- * 三个页签（顺序固定；P4-3 PR-4b 起顶栏不再有分段滑块，入口在首页正文的平铺入口，顶栏页名胶囊显示当前分区名）：余响 Echo（默认）· 拾录 Trove · 百味 Flavors。
- *   hash：余响 = 无，#trove，#flavors；百味里的分组 #flavors/c/<专题 id>、#flavors/a/<作者>。只用 replaceState，切页签不加历史。
- * - 余响：整屏一句（今日一句 /api/today，当天锁定）；「再抽一句」从能看到的句子里随机抽（账号已登录：全部；没登录：公开），抽过后多一个「回到今日」；
- *   能编辑（接口回 canWrite：账号已登录 + daymark.write）时抽到公开句子还多一个「设为今日」（PUT /api/today 改写今天那句，回到今日状态，toast 已设为今日；主站首页和锁屏跟着变）。
- *   长按复制（toast 已复制），右上角分享（navigator.share，不支持就复制）。
- * - 拾录：全部句子，新的在前；没有搜索。能编辑：右下角「记一句」，点句子进编辑；私密句子带小锁（showPrivate：账号已登录）。
+ * 三个分区（顺序固定；顶栏页名胶囊显示当前分区名）：余响 Echo（默认 = 首页）· 拾录 Trove · 百味 Flavors。
+ *   hash：余响 = 无（看某一天 #d/<YYYY-MM-DD>），#trove，#flavors；百味里的分组 #flavors/c/<专题 id>、#flavors/a/<作者>。只用 replaceState，切分区不加历史。
+ * - 余响（2026-11 对齐 PR-C2，设计稿 pg=day）：居中一句（今日一句 /api/today，当天锁定），上面「cat daymark/<日期>」和日期行「2026 · 11 · 08 · 星期日」。
+ *   命令链：shuf -n1 再抽一句（从能看到的句子里随机抽：账号已登录全部、没登录公开），抽过或看别的日子时多一条 cat today 回到今日；
+ *   能编辑（接口回 canWrite：账号已登录 + daymark.write）时抽到公开句子还多一条 set today 设为今日（PUT /api/today 改写今天那句，回到今日状态，toast 已设为今日；主站首页和锁屏跟着变）。
+ *   13 格日期条（以正在看的那天为中心；今天主题色描边；还没到 / 那天没记下的灰掉）：点格子看那天记下的句子（/api/days，只读往前已锁定的日子）。
+ *   下面三个终端窗：余响（最近几天的句子，点了看那天）· 拾录（最新三句）· 百味（专题 / 人物），窗标题进完整列表；再下面前后日两卡（明天是「明天见」）。
+ *   长按复制（toast 已复制）；分享本页并入顶栏 NAVIGATE share（旧的右上角分享图标删掉）。
+ * - 拾录：全部句子，新的在前；没有搜索。能编辑：页头命令「touch trove/ + 记一句」，点句子进编辑；私密句子带小锁（showPrivate：账号已登录）。
  * - 百味：先是自建专题（能编辑时多一张「＋ 新建」），再是按作者自动分组的「人物」；点进去是该组的句子（页内返回）。
  *   能编辑时在自建专题里可以上移 / 下移 / 移出句子、删专题。
- * - 不能编辑（canWrite=false）：编辑入口换成页底一行（#dm-signin，signinHint）：没登录账号 →「登录账号后可编辑」，链到 /account/?return=<本页>
+ * - 不能编辑（canWrite=false）：余响命令链里多一条「sudo login」（#dm-signin，signinHint）：没登录账号 →「登录账号后可编辑」，链到 /account/?return=<本页>
  *   （P3-1 同意流程）；已登录但日刻没有 daymark.write → 「日刻未获账号授权」，链到 /account/apps/。写接口回 401 account / 403 scope 分别提示这两句。
  * - 记一句（底部弹层）：顶部实时预览；句子；「＋ 加译文」；作者（自动补全 + 最近作者）；出处（类型 + 名字自动补全）；
  *   归入百味（多选 + 就地新建）；标签（回车 / 逗号成块，推荐已有标签）；随手一笔（只有账号已登录看得到）；公开开关。
  *
- * 数据：GET /api/quotes、GET /api/collections、GET /api/today；写：POST/PUT/DELETE /api/quotes、/api/collections、PUT /api/today（账号会话 + daymark.write + 同源）。
+ * 数据：GET /api/quotes、GET /api/collections、GET /api/today、GET /api/days（往前几天）；写：POST/PUT/DELETE /api/quotes、/api/collections、PUT /api/today（账号会话 + daymark.write + 同源）。
  * 读请求走 sgxLockSync.apiFetch（401 = 锁定 → 刷新去锁屏）；写请求只有 401 unauthorized 才当锁定（401 account 是账号的事，不刷新）。纯函数导出给 tests/daymark/daymark.test.mjs。
  */
 (function(){
@@ -30,6 +33,8 @@ var MAX_TAGS = 8;
 function parseHash(hash){
   var h = String(hash || '').replace(/^#/, '');
   if (!h) return { tab: 'echo' };
+  var dm = /^d\/(\d{4}-\d{2}-\d{2})$/.exec(h);
+  if (dm) return { tab: 'echo', day: dm[1] };
   var parts = h.split('/');
   var tab = parts[0];
   if (TABS.indexOf(tab) < 0) return null;
@@ -43,6 +48,7 @@ function parseHash(hash){
 
 /** 路由 → hash */
 function routeHash(r){
+  if (r && r.tab === 'echo' && r.day) return '#d/' + r.day;
   if (!r || r.tab === 'echo') return '';
   if (r.tab === 'flavors' && r.group) return '#flavors/' + r.group.kind + '/' + encodeURIComponent(r.group.key);
   return '#' + r.tab;
@@ -194,6 +200,39 @@ function fmtKept(ts, lang, tr){
   return tr('keptOn', { d: intlDate(d, lang, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) });
 }
 
+/** 'YYYY-MM-DD' 加 n 天（UTC 算） @param {string} day @param {number} n */
+function addDay(day, n){
+  var t = Date.parse(day + 'T00:00:00Z');
+  if (isNaN(t)) return '';
+  return new Date(t + n * 86400000).toISOString().slice(0, 10);
+}
+/** 余响的日期行（设计稿「2026 · 11 · 08 · 星期日」）：年 · 月 · 日 · 星期（星期按页面语言交给 Intl） @param {string} day @param {string} lang */
+function dayDots(day, lang){
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
+  if (!m) return '';
+  var wd = intlDate(new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])), lang, { weekday: 'long', timeZone: 'UTC' });
+  return [m[1], m[2], m[3], wd].join(' · ');
+}
+/**
+ * 日期条：以 center 为中心的 n 格（默认 13）→ [{day, dd, today, future}]
+ * @param {string} center @param {string} today @param {number} [n]
+ */
+function stripDays(center, today, n){
+  n = n || 13;
+  var half = Math.floor(n / 2), out = [];
+  for (var i = -half; i < n - half; i++) {
+    var d = addDay(center, i);
+    if (d) out.push({ day: d, dd: d.slice(8, 10), today: d === today, future: !!today && d > today });
+  }
+  return out;
+}
+/** 前后日卡上的那句开头：最多 n 个字，长了加「……」 @param {string} text @param {number} [n] */
+function snippet(text, n){
+  var a = Array.from(String(text || '').replace(/\s+/g, ' ').trim());
+  n = n || 14;
+  return a.length > n ? a.slice(0, n).join('') + '……' : a.join('');
+}
+
 /** 复制 / 分享用的纯文本 @param {any} q @param {string} [titleTpl] 出处书名格式（同 attribution） */
 function shareText(q, titleTpl){
   if (!q) return '';
@@ -237,7 +276,7 @@ var pure = {
   TABS: TABS, SOURCE_TYPES: SOURCE_TYPES, parseHash: parseHash, routeHash: routeHash, parseTagInput: parseTagInput, addTags: addTags,
   allTags: allTags, authorGroups: authorGroups, recentAuthors: recentAuthors, knownSources: knownSources, suggest: suggest,
   pickRandom: pickRandom, canSetToday: canSetToday, isLockedReply: isLockedReply, moveItem: moveItem, groupQuotes: groupQuotes, attribution: attribution, fmtDay: fmtDay, fmtKept: fmtKept,
-  shareText: shareText
+  shareText: shareText, addDay: addDay, dayDots: dayDots, stripDays: stripDays, snippet: snippet
 };
 if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 G.SgxDaymark = pure;
@@ -261,6 +300,9 @@ var loaded = false;
 var today = { day: '', quote: null };
 var echoQuote = null;
 var drawn = false;
+var view = '';           /* 余响正在看的那天（'' = 今天）；#d/<日期> */
+var picks = {};          /* 往前几天记下的句子：日期 → 句子（null = 那天没记下 / 已删 / 私密）；/api/days */
+var loadingDays = {};
 var tab = 'echo';
 var group = null;
 var groupEditing = false;
@@ -407,20 +449,95 @@ function bindCards(box){
 }
 
 /* ---------- 余响 ---------- */
+function shownDay(){ return view || today.day || ''; }
 function renderEcho(){
-  var q = echoQuote;
-  $('#dm-echo-day').textContent = drawn ? fmtKept(q && q.created_at, lang, tr) : fmtDay(today.day, lang);
-  $('#dm-echo-body').innerHTML = q ? bodyHTML(q) : '<p class="dm-trans">' + esc(loaded || today.day ? T.noToday : '') + '</p>';
-  $('#dm-share').classList.toggle('hidden', !q);
-  $('#dm-back-today').classList.toggle('hidden', !drawn);
+  var q = echoQuote, d = shownDay(), past = !!(view && view !== today.day);
+  $('#dm-cmd-day').textContent = drawn ? 'trove | shuf -n1' : (d || 'today');
+  $('#dm-echo-day').textContent = drawn ? fmtKept(q && q.created_at, lang, tr) : dayDots(d, lang);
+  var none = past ? (view > today.day ? T.notYet : (view in picks ? T.noDay : '')) : (loaded || today.day ? T.noToday : '');
+  $('#dm-echo-body').innerHTML = q ? bodyHTML(q) : '<p class="dm-trans">' + esc(none) + '</p>';
+  $('#dm-back-today').classList.toggle('hidden', !(drawn || past));
   $('#dm-set-today').classList.toggle('hidden', !canSetToday(canWrite, drawn, q, today.quote));
+  renderStrip(); renderNx(); renderWindows();
+}
+/** 某天的句子：今天 = /api/today 那句；往前 = /api/days 记下的（undefined = 还没问到） */
+function quoteOn(day){ return day === today.day ? today.quote : picks[day]; }
+function renderStrip(){
+  var box = $('#dm-dcal');
+  if (!today.day) { box.innerHTML = ''; return; }
+  var cur = drawn ? today.day : shownDay();
+  box.innerHTML = stripDays(cur, today.day).map(function(c){
+    var off = c.future || (!c.today && picks[c.day] === null);
+    return '<button type="button" class="dm-dc' + (c.day === cur ? ' on' : '') + (c.today ? ' is-today' : '') + '" data-day="' + c.day + '" aria-label="' + esc(c.day) + '"'
+      + (c.day === cur ? ' aria-current="date"' : '') + (off ? ' disabled' : '') + '>' + c.dd + '</button>';
+  }).join('');
+}
+function renderNx(){
+  var box = $('#dm-nx');
+  if (!today.day) { box.innerHTML = ''; return; }
+  var cur = drawn ? today.day : shownDay();
+  var p = addDay(cur, -1), n = addDay(cur, 1);
+  var pq = quoteOn(p), nq = quoteOn(n);
+  var title = function(q, d){ return q ? snippet(q.text) : q === null ? T.noDay : d; };
+  box.innerHTML = '<li><a class="sgx-nx-a" href="#d/' + p + '" data-day="' + p + '">‹ cat ' + p + '<b>' + esc(title(pq, p)) + '</b></a></li>'
+    + (n > today.day
+      ? '<li><span class="sgx-nx-a is-next is-off" aria-disabled="true">cat ' + n + ' ›<b>' + esc(T.tomorrow) + '</b></span></li>'
+      : '<li><a class="sgx-nx-a is-next" href="' + (n === today.day ? '#' : '#d/' + n) + '" data-day="' + n + '">cat ' + n + ' ›<b>' + esc(title(nq, n)) + '</b></a></li>');
+}
+function li(href, k, text, attrs){ return '<a class="dm-li" href="' + href + '"' + (attrs || '') + '><i>' + esc(k) + '</i><span>' + esc(text) + '</span></a>'; }
+function renderWindows(){
+  /* 余响：今天 + 往前记下的（新→旧）前三条 */
+  var days = Object.keys(picks).filter(function(d){ return picks[d]; }).sort().reverse();
+  var rows = [];
+  if (today.quote) rows.push(li('#', today.day.slice(5), today.quote.text));
+  days.forEach(function(d){ if (rows.length < 3) rows.push(li('#d/' + d, d.slice(5), picks[d].text)); });
+  $('#dm-w-echo').innerHTML = rows.join('') || '<p class="dm-li-none">' + esc(loaded ? T.noToday : '…') + '</p>';
+  $('#dm-n-echo').textContent = String(days.length + (today.quote ? 1 : 0));
+  /* 拾录：最新三句（出处类型当左边小字） */
+  $('#dm-w-trove').innerHTML = quotes.slice(0, 3).map(function(q){ return li('#trove', ST_LABEL[q.source_type] || '·', q.text); }).join('') || '<p class="dm-li-none">' + esc(loaded ? T.emptyVisitor : '…') + '</p>';
+  $('#dm-n-trove').textContent = loaded ? String(quotes.length) : '';
+  /* 百味：专题在前、再是人物（左边小字 = 句数） */
+  var groups = collections.map(function(c){ return { h: '#flavors/c/' + encodeURIComponent(c.id), n: groupQuotes(quotes, collections, { kind: 'c', key: c.id }).length, name: c.name }; })
+    .concat(authorGroups(quotes).map(function(a){ return { h: '#flavors/a/' + encodeURIComponent(a.name), n: a.count, name: a.name }; }));
+  $('#dm-w-flavors').innerHTML = groups.slice(0, 3).map(function(g){ return li(g.h, String(g.n), g.name); }).join('') || '<p class="dm-li-none">' + esc(loaded ? T.emptyVisitor : '…') + '</p>';
+  $('#dm-n-flavors').textContent = loaded ? String(groups.length) : '';
+}
+/** 问 /api/days 补齐以 center 为中心那 13 天（只问今天以前、还没问过的） */
+function ensureDays(center){
+  if (!today.day) return;
+  /* 测试构建（<html data-sgx-test-no-api>，CI 静态服务器没有接口）不问，免得 404 进控制台；e2e 要测时先设 window.__sgxDaymarkApi = true */
+  if (G.document.documentElement.hasAttribute('data-sgx-test-no-api') && !G.__sgxDaymarkApi) return;
+  var from = addDay(center, -6), to = addDay(center, 6);
+  if (to >= today.day) to = addDay(today.day, -1);
+  if (!from || from > to) return;
+  var need = false;
+  for (var d = from; d && d <= to; d = addDay(d, 1)) if (!(d in picks)) { need = true; break; }
+  var key = from + '_' + to;
+  if (!need || loadingDays[key]) return;
+  loadingDays[key] = true;
+  getJSON('/daymark/api/days?from=' + from + '&to=' + to).then(function(j){
+    for (var x = from; x && x <= to; x = addDay(x, 1)) if (!(x in picks)) picks[x] = null;
+    (j.days || []).forEach(function(r){ if (r && r.day) picks[r.day] = r.quote || null; });
+    if (view && view !== today.day) echoQuote = quoteOn(view) || null;
+    renderEcho();
+  }, function(){ loadingDays[key] = false; });
+}
+/** 看某一天（'' 或今天 = 回到今天这句） */
+function showDay(day){
+  view = day && day !== today.day ? day : '';
+  drawn = false;
+  echoQuote = view ? (quoteOn(view) || null) : today.quote;
+  renderEcho();
+  ensureDays(view || today.day);
 }
 $('#dm-draw').addEventListener('click', function(){
   var q = pickRandom(quotes, echoQuote && echoQuote.id);
   if (!q) { toast(T.nothingToDraw); return; }
-  echoQuote = q; drawn = true; renderEcho();
+  echoQuote = q; drawn = true; view = '';
+  if (tab === 'echo') writeHash();
+  renderEcho();
 });
-$('#dm-back-today').addEventListener('click', function(){ echoQuote = today.quote; drawn = false; renderEcho(); });
+$('#dm-back-today').addEventListener('click', function(){ go({ tab: 'echo' }); showDay(''); });
 var settingToday = false;
 $('#dm-set-today').addEventListener('click', function(){
   var q = echoQuote;
@@ -428,18 +545,16 @@ $('#dm-set-today').addEventListener('click', function(){
   settingToday = true;
   send('PUT', '/daymark/api/today', { id: q.id }).then(function(j){
     today = { day: j.day, quote: j.quote };
-    if (echoQuote === q) { echoQuote = j.quote; drawn = false; }
+    if (echoQuote === q) { echoQuote = j.quote; drawn = false; view = ''; }
     renderEcho(); haptic(); toast(T.setToday);
   }).catch(function(e){ if (!e.sgxLocked) toast(failText(e)); }).then(function(){ settingToday = false; });
 });
-$('#dm-share').addEventListener('click', function(){
-  var q = echoQuote; if (!q) return;
-  var text = shareText(q, T.sourceTitle);
-  if (G.navigator && typeof navigator.share === 'function') {
-    navigator.share({ text: text, url: G.location.origin + pagePath('data-home', '/daymark/') }).catch(function(e){ if (!e || e.name !== 'AbortError') copyQuote(q); });
-  } else copyQuote(q);
+$('#dm-dcal').addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-day]');
+  if (!b || b.disabled) return;
+  go({ tab: 'echo', day: b.dataset.day === today.day ? '' : b.dataset.day });
 });
-onLongPress($('#dm-echo'), function(t){ if (t && t.closest && t.closest('#dm-share')) return; copyQuote(echoQuote); });
+onLongPress($('#dm-echo'), function(){ copyQuote(echoQuote); });
 
 /* ---------- 拾录 ---------- */
 function renderTrove(){
@@ -589,7 +704,7 @@ function syncTitle(i){
   if (ents) ents.hidden = i !== 0;
 }
 function writeHash(){
-  var h = routeHash({ tab: tab, group: tab === 'flavors' ? group : null });
+  var h = routeHash({ tab: tab, group: tab === 'flavors' ? group : null, day: tab === 'echo' && !drawn ? view : '' });
   var url = G.location.pathname + G.location.search + h;
   if (url !== G.location.pathname + G.location.search + G.location.hash) { try { history.replaceState(history.state, '', url); } catch (e) {} }
 }
@@ -611,6 +726,8 @@ function setTab(next, opts){
 }
 function go(r, opts){
   opts = opts || {};
+  if (r.tab === 'echo' && (r.day || '') !== view && !opts.initial) { setTab('echo', opts); showDay(r.day || ''); writeHash(); return; }
+  if (r.tab === 'echo' && opts.initial) view = r.day || '';
   var g = r.tab === 'flavors' ? (r.group || null) : group;
   var groupChanged = r.tab === 'flavors' && JSON.stringify(g) !== JSON.stringify(group);
   if (r.tab === 'flavors') { group = g; if (groupChanged) groupEditing = false; renderGroup(); }
@@ -830,10 +947,12 @@ $('#dm-fab').addEventListener('click', function(){ openEdit(null); });
 function renderAll(){ renderEcho(); renderTrove(); renderFlavors(); }
 function loadToday(){
   return getJSON('/daymark/api/today').then(function(j){
-    var wasToday = !drawn;
+    var wasToday = !drawn && !view;
     today = { day: j.day, quote: j.quote };
+    if (view === today.day) view = '';
     if (wasToday) echoQuote = j.quote;
     renderEcho();
+    ensureDays(view || today.day);
   }, function(e){ if (!e.sgxLocked) renderEcho(); });
 }
 function boot(){
@@ -849,12 +968,11 @@ function boot(){
     if (showPrivate) syncQuoteCollections();
     loaded = true;
     doc.documentElement.classList.toggle('dm-can-write', canWrite);
-    var hint = $('#dm-signin');
-    if (hint) {
+    var h = canWrite ? null : signinHint(showPrivate);
+    doc.querySelectorAll('[data-dm-signin]').forEach(function(hint){
       hint.classList.toggle('hidden', canWrite);
-      var a = hint.querySelector('a');
-      if (a && !canWrite) { var h = signinHint(showPrivate); a.textContent = h.text; a.setAttribute('href', h.href); }
-    }
+      if (h) { var t = hint.querySelector('[data-signin-text]'); if (t) t.textContent = h.text; hint.setAttribute('href', h.href); }
+    });
     renderAll();
     setTab(tab, { initial: true });
   }).catch(function(e){
