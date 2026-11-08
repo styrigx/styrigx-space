@@ -238,7 +238,7 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-topbar a[href$="' + '/' + 'settings' + '/' + '"]')).toHaveCount(0);
   });
 
-  test('盾牌去当前语言的安全页、头像去当前语言的账号页、字标回首页', async ({ page }) => {
+  test('盾牌 / 头像仍是当前语言安全页 / 账号页的链接（PR-5 起普通点击开下拉，下拉里的入口照旧去那两页）、字标回首页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/theme/');
     await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('href', '/zh/security/');
@@ -247,6 +247,9 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-tb-av')).toHaveAccessibleName('账号');
     await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/zh/');
     await page.locator('.sgx-tb-shield').click();
+    await expect(page.locator('#sgx-sec')).toHaveAttribute('open', '');
+    await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('aria-expanded', 'true');
+    await page.locator('#sgx-sec a.sgx-pop-row[href="/zh/security/"]').click();
     await page.waitForURL(/\/zh\/security\/$/);
   });
 

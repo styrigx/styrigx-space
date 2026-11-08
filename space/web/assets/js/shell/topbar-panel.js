@@ -184,6 +184,12 @@ export function mountTopbar(o) {
     const me = { btn, dlg, ms };
     sheets.push(me);
     btn.addEventListener('click', function (e) {
+      /* 盾牌 / 头像是链接（PR-5）：中键 / Ctrl / ⌘ / Shift / Alt 点照旧按链接走（新标签页等），只有普通点击开面板 */
+      if (btn.tagName === 'A') {
+        const me2 = /** @type {MouseEvent} */ (e);
+        if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
+        e.preventDefault();
+      }
       e.stopPropagation();
       if (ms.isOpen()) ms.close();
       else ms.open();
@@ -424,6 +430,106 @@ export function mountTopbar(o) {
       if (!chat && o.ai) chat = o.ai(aiDlg, { lang: doc.documentElement.lang || 'en', close: function (/** @type {any} */ after) { if (ai) ai.ms.close(after); }, navigate: navigate, keyboard: o.keyboard }) || {};
       if (chat && chat.onOpen) chat.onOpen();
     });
+    /* 头部 ×（2026-11 PR-5 ai-v1）：同 Esc / 点遮罩 */
+    if (ai) {
+      const aiMs = ai.ms;
+      aiDlg.addEventListener('click', function (e) {
+        const tg = /** @type {Element|null} */ (e.target);
+        if (tg && tg.closest('[data-ai-close]')) aiMs.close();
+      });
+    }
+  }
+
+  /**
+   * 下拉面板里的链接（账号 / 站点安全，PR-5）：普通点击先关面板（退掉历史哨兵）再跳，同 NAVIGATE；带修饰键的点照旧按链接走。
+   * @param {HTMLDialogElement} dlg @param {any} ms
+   */
+  const popLinks = function (dlg, ms) {
+    dlg.addEventListener('click', function (e) {
+      const tg = /** @type {Element|null} */ (e.target);
+      if (!tg) return;
+      if (tg.closest('[data-pop-close]')) { ms.close(); return; }
+      const a = /** @type {HTMLAnchorElement|null} */ (tg.closest('a[href]'));
+      if (!a) return;
+      const me2 = /** @type {MouseEvent} */ (e);
+      if (e.defaultPrevented || me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
+      e.preventDefault();
+      const href = a.href;
+      ms.close(function () { navigate(href); });
+    });
+  };
+
+  /* ---------------- 账号下拉（2026-11 PR-5 acct-v2） ---------------- */
+  const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
+  const acctDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-acct'));
+  if (acctBtn && acctDlg) {
+    const nameEl = acctDlg.querySelector('[data-acct-name]');
+    const nickEl = acctDlg.querySelector('[data-acct-nick]');
+    /** 名字 / 昵称：本机缓存 sgx-profile（主站 lib/profile.js 写的 {v:1, p:{name, nickname…}}）里改过的值盖住模板默认值；这里不发 /api/profile */
+    const paintWho = function () {
+      try {
+        const j = JSON.parse(localStorage.getItem('sgx-profile') || 'null');
+        const p = j && j.v === 1 && j.p && typeof j.p === 'object' ? j.p : null;
+        if (p && typeof p.name === 'string' && p.name && nameEl) nameEl.textContent = p.name;
+        if (p && typeof p.nickname === 'string' && p.nickname && nickEl) nickEl.textContent = p.nickname;
+      } catch (e) {}
+    };
+    /** 登录态：'' 未知（问不到 / 锁着 / 非 JSON）· in · guest @param {string} st */
+    const setState = function (st) {
+      acctDlg.setAttribute('data-acct-state', st);
+      acctDlg.querySelectorAll('[data-acct-in]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = st !== 'in'; });
+      acctDlg.querySelectorAll('[data-acct-guest], [data-acct-login]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = st !== 'guest'; });
+      acctDlg.querySelectorAll('[data-acct-only]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = st === 'guest'; });
+    };
+    /** 每次打开问一次 GET /api/account（同账号子页进页那一问，只读）：ok 且有 session = 已登录；ok 且 session=null = 未登录；其余不改 */
+    const askState = function () {
+      const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
+      if (!f) return;
+      Promise.resolve().then(function () { return f('/api/account', { method: 'GET', credentials: 'same-origin' }); }).then(function (r) {
+        return r && r.ok ? r.json() : null;
+      }).then(function (/** @type {any} */ j) {
+        if (j && j.ok) setState(j.session ? 'in' : 'guest');
+      }, function () {});
+    };
+    const acct = wire(acctBtn, acctDlg, 'sgxAcct', function () { paintWho(); askState(); });
+    if (acct) popLinks(acctDlg, acct.ms);
+  }
+
+  /* ---------------- 站点安全下拉（2026-11 PR-5 sec-v1） ---------------- */
+  const secBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-shield'));
+  const secDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-sec'));
+  if (secBtn && secDlg) {
+    const lockBtn2 = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec="lock"]'));
+    const lockState2 = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec-lock-state]'));
+    const lockLabel2 = lockState2 ? lockState2.textContent : '';
+    let armed2 = 0;
+    const disarm2 = function () {
+      if (armed2) { clearTimeout(armed2); armed2 = 0; }
+      if (lockBtn2) lockBtn2.removeAttribute('data-armed');
+      if (lockState2) lockState2.textContent = lockLabel2;
+    };
+    const sec = wire(secBtn, secDlg, 'sgxSec', disarm2);
+    if (sec) {
+      const ms = sec.ms;
+      popLinks(secDlg, ms);
+      /* 立即锁屏：同 NAVIGATE 的 lock（主站 onLock 确认层；子站点两下确认后 POST /api/lock-now → 锁屏） */
+      secDlg.addEventListener('click', function (e) {
+        const tg = /** @type {Element|null} */ (e.target);
+        if (!tg || !tg.closest('[data-sec="lock"]')) return;
+        if (o.onLock) { ms.close(o.onLock); return; }
+        if (armed2) {
+          disarm2();
+          ms.close(function () {
+            const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
+            if (f) f('/api/lock-now', { method: 'POST', credentials: 'include' }).then(function (r) { if (r && r.ok) replace('/?lock=1'); }, function () {});
+          });
+          return;
+        }
+        if (lockBtn2) lockBtn2.setAttribute('data-armed', '');
+        if (lockState2) lockState2.textContent = t.lockArm;
+        armed2 = window.setTimeout(disarm2, LOCK_ARM_MS);
+      });
+    }
   }
 
   /* ---------------- 终端（2026-11 PR-2） ---------------- */

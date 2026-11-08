@@ -1,5 +1,7 @@
 # 共享外壳字符串表：中文翻译（源文本见 en.yaml；缺的键自动用英文）。
 topbar:
+  aiSub: "问这个空间里的任何东西"
+  close: "关闭"
   sys: 跟随系统
   home: Styrigx 首页
   sites: 导航
@@ -179,3 +181,29 @@ term:
   themeOpen: "已打开外观面板"
   locking: "正在锁屏 …"
   asking: "正在问 Gray AI …"
+acct:
+  signedIn: "已登录"
+  guest: "账号未登录"
+  guestLine: "账号未登录 · 去账号页选择验证方式"
+  signIn: "登录"
+  edit: "编辑"
+  profile: "个人资料"
+  profileHint: "头像 · 姓名 · 昵称 · 签名 · 邮箱"
+  devices: "设备"
+  security: "账号安全"
+  apps: "应用授权"
+  sync: "云同步"
+  ai: "AI 模型"
+  aiHint: "账号总览"
+  overview: "账号总览"
+sec:
+  title: "SECURITY"
+  keys: "钥匙"
+  lockKeys: "锁屏钥匙"
+  tempKeys: "临时钥匙"
+  tempHint: "签发 · 管理"
+  overview: "站点安全"
+  overviewHint: "安全状态"
+  session: "会话"
+  lockNow: "立即锁屏"
+  lockAll: "锁定所有设备"

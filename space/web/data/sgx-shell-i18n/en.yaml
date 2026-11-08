@@ -3,6 +3,8 @@
 # 加一种语言：放一份 <语言>.yaml（缺的键自动用英文），各站 hugo.yaml languages 加一项。
 # 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（名字、邮箱、账号名……原样渲染，见 partials/sgx-personal.html）、语言自己的名字（用 hugo.yaml languageName / label）。
 topbar:
+  aiSub: "Ask anything about this space"
+  close: "Close"
   sys: Follow system
   home: Styrigx home
   sites: Navigate
@@ -186,3 +188,29 @@ term:
   themeOpen: "appearance panel opened"
   locking: "locking …"
   asking: "asking Gray AI …"
+acct:
+  signedIn: "Signed in"
+  guest: "Not signed in"
+  guestLine: "Not signed in · choose how to verify on the account page"
+  signIn: "Sign in"
+  edit: "Edit"
+  profile: "Profile"
+  profileHint: "avatar · name · nickname · motto · email"
+  devices: "Devices"
+  security: "Account security"
+  apps: "App access"
+  sync: "Cloud sync"
+  ai: "AI model"
+  aiHint: "account overview"
+  overview: "Account overview"
+sec:
+  title: "SECURITY"
+  keys: "Keys"
+  lockKeys: "Lock screen credentials"
+  tempKeys: "Temporary keys"
+  tempHint: "issue · manage"
+  overview: "Site security"
+  overviewHint: "status"
+  session: "Session"
+  lockNow: "Lock now"
+  lockAll: "Lock all devices"
