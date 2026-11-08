@@ -9126,6 +9126,10 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .home-pr { color: var(--sgx-primary); }
 .home-hero { text-align: center; padding-top: 94px; }
 :root:not([data-sgx-layout="desktop"]) .home-hero { padding-top: 60px; }
+/* 手机 / 平板：首屏（hero + 终端）至少撑到一屏，[01] 起始线落在首屏折线以下——否则矮终端时 [01] 标题正好落进
+   底部渐隐带 #edge-bottom（96px，z 30）和 AI 浮钮那一带，被遮住、上半截像被裁掉；稿里 [01] 也在折线下。
+   多出来的空白留在终端下面；横屏 / 矮视口算出来是负数就不起作用。 */
+:root:not([data-sgx-layout="desktop"]) .home-hero { min-height: calc(100svh - var(--sgx-content-top) - 56px); }
 .home-pill { display: inline-flex; align-items: center; gap: 10px; margin: 0; padding: 6px 16px; border: 1px solid var(--sgx-term-line); border-radius: 999px;
   font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--sgx-text-secondary); }
 .home-pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--sgx-success); box-shadow: 0 0 8px var(--sgx-success); }
