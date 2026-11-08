@@ -1,18 +1,18 @@
 /**
  * 账号云同步：设置项（外观 / 时区天气 / 搜索引擎 / Good Lock 等）跨设备同步。
  *
- * 进门 + 账号会话 + 作用域 prefs.sync（方案 3.4 R12；src/gate.js scopeDenial，同一份 core/authz.js）：
+ * 进门 + 账号会话 + 作用域 prefs.sync（方案 3.4 R12；src/gate.js scopeDenial，同一份 core/authorize.js）：
  * 没进门 401 session；没登录账号 401 account；没作用域 403 scope。前端（lib/cloud-sync.js）遇到 401 / 403 停在「只存本机」。
  *
- * 存储：D1 styrigx-account 的 settings_sync 表（绑定 D1_SETTINGS_SYNC，migrations/0002_settings_sync.sql），一项设置一行
- *   (k, v, t, updated_at)。2026-10-28 之前在 KV account-prefs，旧值由 space/scripts/migrate-prefs-kv-to-d1.mjs 一次性导入；运行时不读 KV、没有回落。
+ * 存储：D1 styrigx-account 的 settings_sync 表（绑定 D1_ACCOUNT，migrations/0002_settings_sync.sql），一项设置一行
+ *   (k, v, t, updated_at)。运行时不读 KV、没有回落。
  * - 逐项「新的赢」：t 更大的覆盖（相等不动），在 SQL 里原子完成（UPSERT ... WHERE excluded.t > settings_sync.t），
  *   两台设备同时写、或旧设备拿着旧值来写，都不会把更新的值盖掉；v=null 表示这一项被恢复默认（本地删了 key）
  * - 只收 sgx- 开头的 key（前端 lib/cloud-sync.js 的白名单决定同步哪些，锁屏 / 凭证类从来不在里面）
  * - 每次最多 80 项、值最长 600 字符、总共最多 160 项；t 不能比服务器时间快 1 分钟以上（防坏时钟把别的设备永久压住）
  * - updatedAt = 服务器最后一次真正写入的时间（MAX(updated_at)），没有数据为 0
  * - 表不存在（"no such table"，还没跑 migration）时自己补建一次再重试，同数字健康的 CREATE TABLE IF NOT EXISTS 兜底
- * - 没绑 D1_SETTINGS_SYNC → 500 config（正式 / 预览的 wrangler.toml 都绑了；缺绑定只会是配置错误）
+ * - 没绑 D1_ACCOUNT → 500 config（正式 / 预览的 wrangler.toml 都绑了；缺绑定只会是配置错误）
  *
  * GET  /api/prefs → { ok, items, updatedAt }
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）
@@ -27,7 +27,7 @@ export const MAX_TOTAL = MAX_ITEMS * 2;
 const MAX_VALUE = 600;
 const SKEW_MS = 60 * 1000;
 
-/** 表结构（同 migrations/0002_settings_sync.sql）；导入脚本 space/scripts/migrate-prefs-kv-to-d1.mjs 也用这一条 */
+/** 表结构（同 migrations/0002_settings_sync.sql） */
 export const SCHEMA =
   'CREATE TABLE IF NOT EXISTS settings_sync (k TEXT NOT NULL PRIMARY KEY, v TEXT, t INTEGER NOT NULL, updated_at INTEGER NOT NULL)';
 
@@ -45,11 +45,11 @@ export const UPSERT_SQL =
 const SELECT_ALL = 'SELECT k, v, t, updated_at FROM settings_sync';
 
 /**
- * 云同步存在 D1_SETTINGS_SYNC（D1 styrigx-account 的 settings_sync）；没绑 → 500 config。
+ * 云同步存在 D1_ACCOUNT（D1 styrigx-account 的 settings_sync）；没绑 → 500 config。
  * @param {any} env
  */
 function prefsDb(env) {
-  return (env && env.D1_SETTINGS_SYNC) || null;
+  return (env && env.D1_ACCOUNT) || null;
 }
 
 /** 进门 + 账号会话 + prefs.sync（context.auth，见 src/gate.js headerAuth / scopeDenial）；不满足返回错误响应 @param {any} context */

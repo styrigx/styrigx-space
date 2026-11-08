@@ -3,7 +3,7 @@
  * - src/core/lock-identity.js：头名常量、stripInternalHeaders、writeLockIdentity（只写白名单里的值）
  * - 授权骨架 P2-1：有身份时额外写 X-Styrigx-Lock-Session: 1（与 X-Styrigx-Lock-Level 并存）；没身份不写；浏览器伪造的同名头剥掉
  * - src/app.js 第一步剥掉外来的 x-styrigx-* / x-sgx-legacy；账号路径（src/router.js 的 FORWARDING）门过了才经 ACCOUNT 转发，
- *   身份头由网关按验过的锁屏会话写；ACCOUNT 没绑 / 出错 → 503 upstream（fail closed）。
+ *   身份头由网关按验过的进站会话写；ACCOUNT 没绑 / 出错 → 503 upstream（fail closed）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -100,7 +100,7 @@ function fakeAccount() {
 }
 const FORGED = { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Lock-Session': '1', 'x-styrigx-lock-by': 'password', 'X-Styrigx-Client-Address': '6.6.6.6', 'X-Sgx-Legacy': 'password' };
 
-test('伪造身份头、没有锁屏会话：/api/prefs、/api/account → 网关 401，账号 Worker 一次都没被调', async () => {
+test('伪造身份头、没有进站会话：/api/prefs、/api/account → 网关 401，账号 Worker 一次都没被调', async () => {
   _resetSecretCache();
   const acct = fakeAccount();
   for (const p of ['/api/prefs', '/api/account', '/api/wellbeing']) {

@@ -19,19 +19,21 @@ function bindings(toml) {
 }
 
 /* 2026-10-27 起网关认证状态全部在 D1 styrigx-auth-gateway，不再绑任何 KV。
-   账号拆分 PR3：网关只剩锁屏域 D1_LOCK_AUTH（D1_ACCOUNT_AUTH / D1_ROOT_AUTH 删掉，库里的账号旧行 PR4 已删）。
-   Pages 预览跑的是组合入口（tests/space/e2e/helpers/preview-worker.js：网关 + 账号 Worker 代码），所以预览另绑 D1_ACCOUNT_AUTH 给账号那一半，
-   同一个测试库 styrigx-test-preview。 */
-const AUTH = { 'workers/auth-gateway/wrangler.toml': ['D1_LOCK_AUTH'], 'space/web/wrangler.toml': ['D1_LOCK_AUTH', 'D1_ACCOUNT_AUTH'] };
+   账号拆分 PR3：网关只剩锁屏域 D1_LOCK_AUTH（D1_ROOT_AUTH 删掉，库里的账号旧行 PR4 已删）。
+   Pages 预览跑的是组合入口（tests/space/e2e/helpers/preview-worker.js：网关 + 账号 Worker 代码），所以预览另绑 D1_ACCOUNT 给账号那一半
+   （命名 v2：账号库一个名字），同一个测试库 styrigx-test-preview。 */
+const AUTH = { 'workers/auth-gateway/wrangler.toml': ['D1_LOCK_AUTH'], 'space/web/wrangler.toml': ['D1_LOCK_AUTH', 'D1_ACCOUNT'] };
 /* 以前的认证 KV / 重置开关 D1 绑定名：网关和 Pages 预览都不能再出现 */
 const AUTH_GONE = ['KV_LOCK_DOOR', 'KV_ACCOUNT_LOGIN', 'D1_LOCK_RESET', 'D1_LOCK_DOOR', 'D1_ACCOUNT_LOGIN'];
+/* 命名 v2：账号库以前三个名字指向同一个库，现在只叫 D1_ACCOUNT；旧名哪里都不许再绑 */
+const ACCOUNT_GONE = ['D1_ACCOUNT_AUTH', 'D1_SETTINGS_SYNC', 'D1_WELLBEING'];
 /* 2026-10-24 起在账号 Worker styrigx-account（workers/account），网关和 Pages 预览都不再绑定 */
-const ACCOUNT = ['KV_PROFILE', 'D1_SETTINGS_SYNC', 'D1_WELLBEING'];
+const ACCOUNT = ['KV_PROFILE'].concat(ACCOUNT_GONE);
 const OLD = /\b(OWNER_KV|ACCOUNT_KV|SGX_D1|SEARCH_KV|STATUS_DB)\b|"CF_USAGE_TOKEN"/;
 /** 去掉 # 注释（注释里可以提旧名字，绑定里不行） */
 const code = (toml) => toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
 
-test('鉴权网关正式只绑 D1_LOCK_AUTH；Pages 预览（组合入口）另绑 D1_ACCOUNT_AUTH，同一个库；没有任何 KV；不绑 D1_ROOT_AUTH / 账号资料库', () => {
+test('鉴权网关正式只绑 D1_LOCK_AUTH；Pages 预览（组合入口）另绑 D1_ACCOUNT，同一个库；没有任何 KV；不绑 D1_ROOT_AUTH / 账号资料库', () => {
   for (const p of ['workers/auth-gateway/wrangler.toml', 'space/web/wrangler.toml']) {
     const toml = read(p);
     const src = code(toml);
@@ -57,29 +59,27 @@ test('鉴权网关正式只绑 D1_LOCK_AUTH；Pages 预览（组合入口）另�
   }
 });
 
-test('账号 Worker 正式 / 预览：D1_SETTINGS_SYNC = D1_WELLBEING = D1_ACCOUNT_AUTH（styrigx-account），KV 只剩头像 KV_PROFILE，不碰网关认证库', () => {
+test('账号 Worker 正式 / 预览：只有一个 D1 绑定 D1_ACCOUNT（styrigx-account），KV 只剩头像 KV_PROFILE，不碰网关认证库', () => {
   const toml = read('workers/account/wrangler.toml');
   assert.doesNotMatch(toml, OLD);
   const [prod, preview] = toml.split(/^\[env\.preview\]$/m);
-  const m = bindings(prod);
-  for (const n of ACCOUNT) assert.ok(m[n], '缺 ' + n);
+  const m = bindings(code(prod));
   assert.equal(m.KV_SETTINGS_SYNC, undefined, 'KV_SETTINGS_SYNC 已删（2026-10-27 设置同步搬到 D1）');
   assert.equal(m.KV_PROFILE, 'b20701f5f48e498e897bc6f0bd81643f');
-  assert.equal(m.D1_WELLBEING, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d');
-  assert.equal(m.D1_SETTINGS_SYNC, m.D1_WELLBEING, '设置同步和数字健康是同一个库');
-  /* 2026-10-29 PR2：账号 Worker 只绑 D1_ACCOUNT_AUTH，而且指向账号库 styrigx-account（不是网关的认证库）；锁屏 / 根的认证绑定一个都不绑 */
-  assert.equal(m.D1_ACCOUNT_AUTH, m.D1_WELLBEING, 'D1_ACCOUNT_AUTH = 账号库 styrigx-account');
-  assert.notEqual(m.D1_ACCOUNT_AUTH, '6931d1da-3502-480d-b0bd-de1bc4829d1d', '不许指向网关认证库');
-  for (const n of ['D1_LOCK_AUTH', 'D1_ROOT_AUTH'].concat(AUTH_GONE)) assert.equal(m[n], undefined, '账号 Worker 不该绑 ' + n);
+  /* 命名 v2：设置同步 / 数字健康 / 账号身份是同一个库，只叫 D1_ACCOUNT（功能靠表名分：settings_sync、wb_daily、account_*） */
+  assert.equal(m.D1_ACCOUNT, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d', 'D1_ACCOUNT = 账号库 styrigx-account');
+  assert.notEqual(m.D1_ACCOUNT, '6931d1da-3502-480d-b0bd-de1bc4829d1d', '不许指向网关认证库');
+  const d1 = (src) => [...code(src).matchAll(/^\[\[(?:env\.preview\.)?d1_databases\]\]\s*\nbinding = "([A-Z0-9_]+)"/gm)].map((x) => x[1]);
+  assert.deepEqual(d1(prod), ['D1_ACCOUNT'], '正式只有一个 D1 绑定');
+  assert.deepEqual(d1(preview), ['D1_ACCOUNT'], '预览只有一个 D1 绑定');
+  for (const n of ['D1_LOCK_AUTH', 'D1_ROOT_AUTH'].concat(AUTH_GONE, ACCOUNT_GONE)) assert.equal(m[n], undefined, '账号 Worker 不该绑 ' + n);
   const pm = bindings(code(preview));
-  for (const n of ['D1_LOCK_AUTH', 'D1_ROOT_AUTH'].concat(AUTH_GONE)) assert.equal(pm[n], undefined, '账号 Worker 预览不该绑 ' + n);
-  assert.equal(pm.D1_ACCOUNT_AUTH, pm.D1_WELLBEING, '预览 D1_ACCOUNT_AUTH = 测试库');
+  for (const n of ['D1_LOCK_AUTH', 'D1_ROOT_AUTH'].concat(AUTH_GONE, ACCOUNT_GONE)) assert.equal(pm[n], undefined, '账号 Worker 预览不该绑 ' + n);
   assert.equal(pm.KV_PROFILE, '193b4d68b8ac4c6f8c0ba16b5ea78b14', '预览 KV = 测试专用 namespace');
   assert.equal(pm.KV_SETTINGS_SYNC, undefined);
-  /* 预览 D1 = 测试库 styrigx-test-preview（2026-10-29），两个名字同一个库，绝不是正式库 */
-  assert.equal(pm.D1_WELLBEING, '1339bb0b-f9f8-4e3d-b413-ff07ca28ce69');
-  assert.equal(pm.D1_SETTINGS_SYNC, pm.D1_WELLBEING);
-  assert.notEqual(pm.D1_WELLBEING, m.D1_WELLBEING);
+  /* 预览 D1 = 测试库 styrigx-test-preview（2026-10-29），绝不是正式库 */
+  assert.equal(pm.D1_ACCOUNT, '1339bb0b-f9f8-4e3d-b413-ff07ca28ce69');
+  assert.notEqual(pm.D1_ACCOUNT, m.D1_ACCOUNT);
 });
 
 test('搜索 / 监测：KV_SEARCH_INDEX（P4-2b 起只在 ai）、D1_UPTIME_MONITOR + D1_CLOUDFLARE_USAGE、SGX_CF_USAGE_TOKEN', () => {
@@ -165,7 +165,7 @@ test('主站数据一套 styrigx-space-gateway（2026-11 合库）：网关 / �
   /* 账号独立：D1 styrigx-account、KV_PROFILE 不动 */
   const acct = top('workers/account/wrangler.toml');
   assert.doesNotMatch(acct, new RegExp(SPACE_D1 + '|' + SPACE_KV + '|styrigx-space-gateway'));
-  assert.equal(bindings(acct).D1_ACCOUNT_AUTH, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d');
+  assert.equal(bindings(acct).D1_ACCOUNT, '03f60d23-9c2f-4f3d-a692-764ccaac6f5d');
   assert.equal(bindings(acct).KV_PROFILE, 'b20701f5f48e498e897bc6f0bd81643f');
   /* 同一个库里三套表不重名（网关原表名、share_*、status_*） */
   const names = (dir) => [...readFileSync(new URL('../../../' + dir, import.meta.url), 'utf8').matchAll(/CREATE (?:UNIQUE )?(?:TABLE|INDEX) IF NOT EXISTS (\w+)/g)].map((m) => m[1]);

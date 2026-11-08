@@ -91,7 +91,7 @@ test('必修安全项 2：by=space 会话不重签（首次配 lock 的 epoch bu
 
 
 
-test('锁屏会话纪元必须等于当前 lock-epoch：比当前大的旧票（存储重建后纪元回到小值）也作废', async () => {
+test('进站会话纪元必须等于当前 lock-epoch：比当前大的旧票（存储重建后纪元回到小值）也作废', async () => {
   const { verifyLockSessionTicket } = await import('../../../workers/auth-gateway/src/core/lock-session.js');
   if (!LOCK_PRIV) await genKeys();
   const kv = makeKV();

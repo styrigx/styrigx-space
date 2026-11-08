@@ -11,7 +11,7 @@
 import { verifyLockSession } from './core/lock-session.js';
 import { verifyLockResetTicket } from './core/tickets.js';
 import { withNoStore, json, apiError, NO_STORE } from './lib/http.js';
-import { askAccountSessionFor } from './core/account-rpc.js';
+import { askSessionFor } from './core/account-rpc.js';
 import { resolveReturn } from './core/return.js';
 import { anonLimit } from './core/anon-limit.js';
 
@@ -108,10 +108,10 @@ export function isPublicPage(pathname) {
 /* ================= 主站关口（原 functions/_middleware.js） ================= */
 
 /**
- * 主站 middleware（SGX_SITE=space）：主站页面与 /api/* 的锁屏会话关口
+ * 主站 middleware（SGX_SITE=space）：主站页面与 /api/* 的进站会话关口
  *
  * 1. 域名隔离：生产环境只允许 styrigx.com 访问
- * 2. 会话检查：锁屏会话 cookie（Ed25519 签名，见 core/lock-session.js）
+ * 2. 会话检查：进站会话 cookie（Ed25519 签名，见 core/lock-session.js）
  *    - 有效 → next()
  *    - 无效 → 白名单放行，否则 302 到首页锁屏（?lock=1&return=原地址）
  * 3. verifyLockSession 每次拒绝都打 [sgx-verify] fail: <原因> 日志（只记原因，
@@ -376,7 +376,7 @@ async function handleRequest(context) {
         if (isAccountPage(pathname)) {
           /* 首帧提示：经 ACCOUNT_VERIFIER 问账号 Worker（方案第 2 节）；读不到（没绑定 / RPC 出错）→ 不给提示，前端停在中性态等 /api/account */
           try {
-            const a = await askAccountSessionFor(request, env);
+            const a = await askSessionFor(request, env);
             account = a.ok ? 'in' : (a.reason === 'no-verifier' || a.reason === 'rpc-error' ? null : 'out');
           } catch (e) {
             account = null;

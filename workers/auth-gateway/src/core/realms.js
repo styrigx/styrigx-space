@@ -16,7 +16,7 @@
  * 网关库里没有 realm='account' / realm='root' 的行（账号数据在账号 Worker 的 D1 styrigx-account；网关库的旧行 PR4 已由 --cleanup 删除）。
  *
  * 三张票（见 TICKETS），SGX_LOCK_* 签名，共用 Lock 纪元：
- * - LockSessionTicket（锁屏进门会话；by 只作审计，不分等级）
+ * - LockSessionTicket（进站会话；by 只作审计，不分等级）
  * - LockResetTicket（重置锁屏，by ∈ space / password / passkey）
  * - LockReauthTicket（进「安全与隐私 → 锁屏凭证」前再验一次，by ∈ password / passkey / space）
  *
@@ -29,14 +29,14 @@ import { COOKIE_EXPIRED } from '../lib/cookies.js';
 export const KEY_SPACE = 'SpaceKey';
 export const KEY_LOCK = 'LockKey';
 
-/* 锁屏会话 cookie 的作用域：主站与子站（blog/daymark/curio）共享（子站要读） */
+/* 进站会话 cookie 的作用域：主站与子站（blog/daymark/curio）共享（子站要读） */
 const SHARED_SESSION_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
 /* 两张 reset / reauth 短票：只发主站、HttpOnly、Strict、3 分钟、不续期 */
 const SHORT_TICKET_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Strict';
 /* 清除 cookie 时追加的过期时间（值在 workers/auth-gateway/src/lib/cookies.js，共享短票 tickets.js 也用它） */
 export { COOKIE_EXPIRED };
 
-/* lock-epoch：Lock 纪元（锁屏会话、LockReset、LockReauth 三张票共用）；D1 epoch 表 realm='lock' 那一行 */
+/* lock-epoch：Lock 纪元（进站会话、LockReset、LockReauth 三张票共用）；D1 epoch 表 realm='lock' 那一行 */
 export const LOCK_EPOCH = 'lock-epoch';
 
 /* ---------- 三张票：cookie 名 ---------- */

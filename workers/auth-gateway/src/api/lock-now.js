@@ -1,7 +1,7 @@
 /**
  * 立即锁定接口。
  * POST /api/lock-now
- * - 清除锁屏会话 cookie sgx-lock-session（Domain=.styrigx.com；子站共用该 cookie，清掉后一起上锁）。
+ * - 清除进站会话 cookie sgx-lock-session（Domain=.styrigx.com；子站共用该 cookie，清掉后一起上锁）。
  *   临时钥匙 / 短链进门的会话同样清掉（换来的也是这张票）。
  * - 同时清除 LockReauthTicket（sgx-lock-reauth）和 LockResetTicket（sgx-lock-reset），
  *   否则锁定后 3 分钟内仍可用残留的票改密码 / 删密钥 / 重设锁屏。

@@ -3,7 +3,7 @@
  *
  * 用途：
  * 1. 不碰 Cloudflare 就能跑 SGX_TEST_SUITE=passkey 的 17 条用例：本地，以及 CI 里 pull_request 的 passkey-e2e
- *    （.github/workflows/deploy.yml「Start local preview emulator」，固定 --port 8788、--space-key / --account-root-key / --pepper 每次现生成；
+ *    （.github/workflows/deploy.yml「Start local preview emulator」，固定 --port 8788、--space-key / --recovery-key / --pepper / --account-pepper 每次现生成；
  *    main 的 push / 手动运行仍打真实预览站）；
  * 2. 统计一次运行到底花了多少 KV 操作（读 / 写 / 删 / 列），按「谁发的」（网关 = 预览站上的应用代码；
  *    rest = 测试进程和 CI 步骤经 Cloudflare REST 发的）和键前缀分开。space/scripts/kv-budget.mjs 里的
@@ -19,7 +19,7 @@
  * - 「读到旧值」（--stale-ms N [--stale-keys 前缀,前缀]）：以前用来复现 KV 写后读不到；网关已经不读 KV，这个选项只对
  *   appKV（现在没人用）生效，保留是为了和以前的运行方式一致（staleReads 应为 0）。D1 强一致，不模拟旧值。
  * - D1：node:sqlite 内存库（预览测试库 styrigx-test-preview 的替身，只建网关的表），实现网关用到的 prepare().bind().run() / first() / all()
- *   和 batch()（一个事务，任何一条失败整批回滚，同 D1）。D1_LOCK_AUTH（网关）、D1_ACCOUNT_AUTH（账号）绑同一个库（同预览 wrangler.toml）。
+ *   和 batch()（一个事务，任何一条失败整批回滚，同 D1）。D1_LOCK_AUTH（网关）、D1_ACCOUNT（账号）绑同一个库（同预览 wrangler.toml）。
  *   启动时按文件名顺序先跑 workers/auth-gateway/migrations/*.sql、再跑 workers/account/migrations/*.sql（同 CI 的「Apply D1 migrations to preview」）；
  *   --no-migrations 不跑，模拟正式网关（部署 job 不跑迁移，表由 d1-state.js 遇到 no such table 时自建）。
  *   /__kv/stats 的 d1 一栏按语句类型（select / insert / update / delete / other）记数。
@@ -31,10 +31,11 @@
  * - /__kv/stats（GET）：当前计数；/__kv/stats/reset（POST）清零计数（不清数据）；/__kv/dump（GET）：全部键和过期时间。
  *
  * 运行：
- *   node tests/space/e2e/helpers/preview-emulator.cjs [--port 8788] [--state /tmp/pv-kv.json] [--space-key K] [--account-root-key A] [--pepper P] [--stale-ms N [--stale-keys …]] [--no-migrations]
- *   --space-key = 网关的进站凭证 SGX_LOCK_SPACE_KEY；--account-root-key = 账号 Worker 的账号根密钥 SGX_ACCOUNT_ROOT_KEY（两把不同）。
+ *   node tests/space/e2e/helpers/preview-emulator.cjs [--port 8788] [--state /tmp/pv-kv.json] [--space-key K] [--recovery-key R] [--pepper P] [--account-pepper Q] [--stale-ms N [--stale-keys …]] [--no-migrations]
+ *   --space-key = 网关的进站凭证 SGX_LOCK_SPACE_KEY；--recovery-key = 账号 Worker 的恢复密钥 SGX_ACCOUNT_RECOVERY_KEY（两把不同）；
+ *   --pepper = 网关锁屏密码的 SGX_PW_PEPPER；--account-pepper = 账号密码的 SGX_ACCOUNT_PASSWORD_PEPPER（命名 v2 起两个 pepper 分开）。
  *   --state：启动时从该文件恢复 KV 和 D1 全部表（模拟「上一次运行留下的预览 KV / D1」），退出（SIGINT/SIGTERM）时写回。
- *   然后：SGX_TEST_SUITE=passkey SGX_TEST_BASE=http://localhost:8788 SGX_TEST_SPACE_KEY=K SGX_TEST_ACCOUNT_ROOT_KEY=A \
+ *   然后：SGX_TEST_SUITE=passkey SGX_TEST_BASE=http://localhost:8788 SGX_TEST_SPACE_KEY=K SGX_TEST_RECOVERY_KEY=R \
  *         SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4 SGX_TEST_CF_TOKEN=x SGX_TEST_CF_ACCOUNT=x SGX_TEST_PREVIEW_D1_ID=local CI=1 \
  *         npx playwright test --config=tests/config/playwright.config.js
  */
@@ -52,8 +53,9 @@ const arg = (name, dflt) => {
 const PORT = Number(arg('port', 8788));
 const STATE = arg('state', '');
 const SPACE_KEY = arg('space-key', 'local-preview-space-key');
-const ACCOUNT_ROOT_KEY = arg('account-root-key', 'local-preview-account-root-key');
+const RECOVERY_KEY = arg('recovery-key', 'local-preview-recovery-key');
 const PEPPER = arg('pepper', 'local-preview-pepper');
+const ACCOUNT_PEPPER = arg('account-pepper', 'local-preview-account-pepper');
 const STALE_MS = Number(arg('stale-ms', 0)) || 0;
 const STALE_KEYS = String(arg('stale-keys', 'lock-,account-,root-'))
   .split(',').map((x) => x.trim()).filter(Boolean);
@@ -330,10 +332,10 @@ async function main() {
   const env = {
     SGX_ENV: 'preview', SGX_SITE: 'space', SGX_ORIGIN: origin, SGX_RP_ID: 'localhost',
     /* 不绑 KV（同预览 wrangler.toml）；两个 D1 绑定接同一个库。组合入口按绑定拆给网关 / 账号两半（preview-worker.js） */
-    D1_LOCK_AUTH: d1, D1_ACCOUNT_AUTH: d1,
+    D1_LOCK_AUTH: d1, D1_ACCOUNT: d1,
     SGX_LOCK_PRIVATE: await pem(lkp.privateKey, 'pkcs8', 'PRIVATE KEY'), SGX_LOCK_PUBLIC: await pem(lkp.publicKey, 'spki', 'PUBLIC KEY'),
     SGX_ACCOUNT_PRIVATE: await pem(akp.privateKey, 'pkcs8', 'PRIVATE KEY'), SGX_ACCOUNT_PUBLIC: await pem(akp.publicKey, 'spki', 'PUBLIC KEY'),
-    SGX_LOCK_SPACE_KEY: SPACE_KEY, SGX_ACCOUNT_ROOT_KEY: ACCOUNT_ROOT_KEY, SGX_PW_PEPPER: PEPPER,
+    SGX_LOCK_SPACE_KEY: SPACE_KEY, SGX_ACCOUNT_RECOVERY_KEY: RECOVERY_KEY, SGX_PW_PEPPER: PEPPER, SGX_ACCOUNT_PASSWORD_PEPPER: ACCOUNT_PEPPER,
     ASSETS: { fetch: (input, init) => assets(input instanceof Request ? input : new Request(input, init)) },
   };
 

@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from '../auth-gateway/_tickets.mjs';
 import { genKeyPair, authD1For } from '../_harness.mjs';
+import { makeAccountD1 } from './_d1.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -43,7 +44,7 @@ function env(kv) {
   return {
     SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: ACC.pub,
     KV_PROFILE: kv,
-    D1_LOCK_AUTH: authD1For(lockKv), D1_ACCOUNT_AUTH: authD1For(lockKv), D1_ROOT_AUTH: authD1For(lockKv),
+    D1_LOCK_AUTH: authD1For(lockKv), D1_ACCOUNT: makeAccountD1(),
   };
 }
 /** @param {string|null} role @param {boolean} [acc] */
@@ -160,7 +161,7 @@ test('PUT 不同源 → 403 origin；没进门 401 session；进门没账号会�
 test('PUT 账号会话但没有 profile.write → 403 scope（带 scope），不写；有 → 写', async () => {
   const kv = makeKv();
   const req = await putReq({ name: 'A' });
-  const authWith = (scopes) => ({ lockSession: async () => ({ ok: true }), authorize: async () => ({ ok: true, reason: 'ok', deviceId: 'd', scopes, reauth: false }) });
+  const authWith = (scopes) => ({ gateway: async () => ({ ok: true }), authorize: async () => ({ ok: true, reason: 'ok', deviceId: 'd', scopes, reauth: false }) });
   let res = await api.onRequestPut({ request: req.clone(), env: env(kv), auth: authWith(['avatar.write', 'prefs.sync']) });
   assert.equal(res.status, 403);
   assert.deepEqual(await res.json(), { ok: false, error: 'scope', scope: 'profile.write' });

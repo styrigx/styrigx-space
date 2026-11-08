@@ -4,7 +4,7 @@
  * - 目标是 styrigx.com 的站内路径（lib/links.js cleanTarget；点开时再验一次，存坏了 / 指向已下线的旧图志也只走失败响应）。
  * - 普通短链：302 到目标，不签钥匙、不发会话；没解锁的人到了目标页由网关照常送去锁屏。
  * - 带临时会话：已有有效进门会话（任何进门方式）→ 只 302，不重签；否则请网关（服务绑定 ISSUER → ShareIssuer.openLinkSession）
- *   用这条短链的钥匙签锁屏进门会话（by=tempkey），Set-Cookie 原样放进这次 302。点开的人不用在锁屏输入任何东西。
+ *   用这条短链的钥匙签进站会话（by=tempkey），Set-Cookie 原样放进这次 302。点开的人不用在锁屏输入任何东西。
  *   会话只发给发起这次 GET 的浏览器：响应 private, no-store（任何缓存都不能存、不能转给别人）；HEAD 和浏览器预取
  *   （Sec-Purpose / Purpose: prefetch）不发会话——预取直接 503（浏览器丢掉预取、真点开时再走一遍），HEAD 只 302。
  * - 码只出现在 /s/<码> 这一跳：Location 是干净的目标地址（不带码），Referrer-Policy: no-referrer，

@@ -1,5 +1,5 @@
 // workers/curio-core/src/api/music-stream.js
-// GET / HEAD /api/music-stream?t=<令牌>&id=<曲目>   播放短链（<audio src>）：进门（index.js 已验锁屏会话）+ 令牌有效（_music.js trackForToken：
+// GET / HEAD /api/music-stream?t=<令牌>&id=<曲目>   播放短链（<audio src>）：进门（index.js 已验进站会话）+ 令牌有效（_music.js trackForToken：
 //   存在、没过期、曲目属于令牌那张专辑）。令牌格式不对 / 不存在 / 过期 / 曲目不对 → 403 token（不分原因）。
 // 支持单段 Range（拖进度）：bytes=a-b / a- / -n → 206 + Content-Range；没有 Range → 200 整个文件；Range 不合法 → 416。
 // Cache-Control: private, no-store（短链过期后不留在任何缓存里）；Accept-Ranges: bytes；类型按上传时的 Content-Type + nosniff。

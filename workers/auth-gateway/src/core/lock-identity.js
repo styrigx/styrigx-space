@@ -8,9 +8,9 @@
  * 头名大小写不敏感（Headers 会统一小写）；剥离外来同名头时按 INTERNAL_HEADER_PREFIX（小写）匹配前缀。
  *
  * - stripInternalHeaders(headers)：删掉所有 x-styrigx-* 和旧前缀 x-sgx-*（网关 fetch 第一步剥浏览器带来的；writeLockIdentity 写之前再剥一次）
- * - writeLockIdentity(headers, lockSession, clientContext)：先剥，再按验过的锁屏会话写身份头和客户端上下文头（只写白名单里的值）
+ * - writeLockIdentity(headers, lockSession, clientContext)：先剥，再按验过的进站会话写身份头和客户端上下文头（只写白名单里的值）
  *
- * X-Styrigx-Lock-Session: 1（授权骨架 P2-1，方案 2.3.1）：网关验过的锁屏会话有效（进门）。进门二值（P2-3）：没有等级头，
+ * X-Styrigx-Lock-Session: 1（授权骨架 P2-1，方案 2.3.1）：网关验过的进站会话有效（进门）。进门二值（P2-3）：没有等级头，
  * 只有进门与否；By / Tempkey-Id 只作审计。
  *
  * 不带会话 id、不签名（方案第 3 节）：靠三道保险——网关剥头、账号 Worker 只在命名入口读头（默认 fetch 一律 404）、账号 Worker 没有公开路由
@@ -85,7 +85,7 @@ function normalizeClientContext(c) {
 }
 
 /**
- * 规范化锁屏会话（verifyLockSession 的结论）：ok === true 才算进门；by 不认识 → ''；
+ * 规范化进站会话（verifyLockSession 的结论）：ok === true 才算进门；by 不认识 → ''；
  * tempkeyId 只在 by=tempkey 时给、且格式合规。没进门 → null。
  * @param {any} s
  * @returns {{by:string, tempkeyId:string}|null}
@@ -100,9 +100,9 @@ function normalizeLockIdentity(s) {
 }
 
 /**
- * 先剥掉所有内部头，再按验过的锁屏会话写身份头、按客户端上下文写上下文头（只写白名单里的非空值）。
+ * 先剥掉所有内部头，再按验过的进站会话写身份头、按客户端上下文写上下文头（只写白名单里的非空值）。
  * 进门 → X-Styrigx-Lock-Session: 1 + 白名单里的 By / Tempkey-Id。
- * 没有锁屏会话 → 不带任何 X-Styrigx-Lock-* 头（= 下游看到的是无会话）。
+ * 没有进站会话 → 不带任何 X-Styrigx-Lock-* 头（= 下游看到的是无会话）。
  * @param {Headers} headers 要写的头（就地改）
  * @param {any} lockSession verifyLockSession 的结论 { ok, by?, tempkeyId? }
  * @param {any} clientContext { address, country, city }

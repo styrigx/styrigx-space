@@ -11,7 +11,7 @@
  * 失败响应与假入口逐字节相同（401 { ok:false, error:'auth' }）；传 padTo 时在返回前对齐耗时。
  *
  * 按域参数化：spaceChecker(realm) 给出某个根域的校验函数，
- * 密值名取 realm.spaceKey（方案 6.2：网关 REALM_LOCK.spaceKey = SGX_LOCK_SPACE_KEY；账号 Worker 自己一份同形代码用 SGX_ACCOUNT_ROOT_KEY）、计数 / 审计经 realm.d1Binding（同一个域的 spaceLimiter / spaceAuditor）；本模块不认识具体的域。
+ * 密值名取 realm.spaceKey（方案 6.2：网关 REALM_LOCK.spaceKey = SGX_LOCK_SPACE_KEY；账号 Worker 的恢复密钥 SGX_ACCOUNT_RECOVERY_KEY 另有一份实现）、计数 / 审计经 realm.d1Binding（同一个域的 spaceLimiter / spaceAuditor）；本模块不认识具体的域。
  * 本文件下半部分用 REALM_LOCK（SGX_LOCK_SPACE_KEY、D1_LOCK_AUTH）绑好再导出。
  */
 import { timingSafeEqual, normalizeSpaceKey } from '../lib/crypto.js';

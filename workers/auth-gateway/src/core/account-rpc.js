@@ -1,10 +1,10 @@
 /**
- * 网关 → 账号 Worker 的只读 RPC：ACCOUNT_VERIFIER.accountSession() / authorize()（方案第 2、10.1 节；authorize 是授权骨架 P2-1，方案 2.3.3）。
+ * 网关 → 账号 Worker 的只读 RPC：ACCOUNT_VERIFIER.session() / authorize()（账号命名 v2 起 accountSession() 改名 session()）。
  *
  * 网关不再持账号钥匙、不读账号库，经服务绑定 ACCOUNT_VERIFIER（styrigx-account / AccountVerifier）问一句，只拿结论：
- * - askAccountSessionFor：账号页首帧提示（gate.js）用。临时钥匙管理（api/lock-tempkey.js）和短链签发 / 作废（core/link-keys.js）
- *   只认锁屏进门会话（生成 / 作废另要锁侧复验），不再问账号会话。
- * - askAuthorize：授权结论（core/conclusion.js 组装网关结论时用；P2-1 只新增，还没有调用方）。
+ * - askSessionFor：账号首帧提示（gate.js）用。临时钥匙管理（api/lock-tempkey.js）和短链签发 / 作废（core/link-keys.js）
+ *   只认进站会话（生成 / 作废另要锁侧复验），不问账号 session。
+ * - askAuthorize：授权结论（core/conclusion.js 组装网关结论时用）。
  * 绑定没配 / RPC 抛错 / 回了看不懂的东西 → 按「无账号会话」处理（fail closed，account.ok=false），reason 只是原因代号。
  * askAuthorize 只管传话和「ok 是不是 true」；deviceId、作用域的白名单校验在 core/conclusion.js。
  *
@@ -32,19 +32,19 @@ function verifierContextOf(request) {
 }
 
 /**
- * 问账号 Worker：这个 Cookie 头里有没有有效账号会话。
+ * 问账号 Worker：这个 Cookie 头里有没有有效的账号 session。
  * @param {Record<string, any>} env
  * @param {string} cookieHeader 浏览器发来的 Cookie 头（原样）
  * @param {{ua?:string, country?:string, city?:string}} [clientContext]
  * @returns {Promise<{ok:boolean, reason:string}>}
  */
-async function askAccountSession(env, cookieHeader, clientContext) {
+async function askSession(env, cookieHeader, clientContext) {
   const v = env && env.ACCOUNT_VERIFIER;
-  if (!v || typeof v.accountSession !== 'function') return { ok: false, reason: 'no-verifier' };
+  if (!v || typeof v.session !== 'function') return { ok: false, reason: 'no-verifier' };
   const cookie = typeof cookieHeader === 'string' ? cookieHeader.slice(0, MAX_COOKIE_HEADER) : '';
   if (!cookie) return { ok: false, reason: 'no-cookie' };
   try {
-    const r = await v.accountSession(cookie, clientContext || {});
+    const r = await v.session(cookie, clientContext || {});
     if (r && r.ok === true) return { ok: true, reason: 'ok' };
     return { ok: false, reason: (r && typeof r.reason === 'string' && r.reason) || 'denied' };
   } catch (e) {
@@ -113,6 +113,6 @@ export function askAuthorizeFor(request, env, opts) {
  * 请求版：取请求的 Cookie 头和客户端上下文再问（只给 gate.js 账号页首帧提示用）。
  * @param {Request} request @param {Record<string, any>} env
  */
-export function askAccountSessionFor(request, env) {
-  return askAccountSession(env, (request && request.headers.get('Cookie')) || '', verifierContextOf(request));
+export function askSessionFor(request, env) {
+  return askSession(env, (request && request.headers.get('Cookie')) || '', verifierContextOf(request));
 }

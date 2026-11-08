@@ -111,7 +111,7 @@ export function pickHandler(mod, method) {
 /**
  * 转发给账号（src/router.js 的转发表 FORWARDING）。路径不在转发表里 → null（调用方按 /api/* 路由表或回源处理）。
  * 在表里就只转发：没有这条绑定或绑定抛错 → 503 upstream（不落回网关路由表、不回源静态文件）。
- * 锁屏会话用 middleware 验过的结论（data.lockSession）；没有（非生产 middleware 不验）就在这里验一次。
+ * 进站会话用 middleware 验过的结论（data.lockSession）；没有（非生产 middleware 不验）就在这里验一次。
  * @param {Request} request @param {Record<string, any>} env @param {Record<string, any>} [data]
  * @returns {Promise<Response|null>}
  */
@@ -160,7 +160,7 @@ export function fromOrigin(req, env) {
 
 /**
  * middleware 放行后的去向：转发表 → /api/* 路由表 → 回源。
- * data：middleware 的 context.data（lockSession、clientContext），转发给账号时写身份头用（不重验锁屏会话）。
+ * data：middleware 的 context.data（lockSession、clientContext），转发给账号时写身份头用（不重验进站会话）。
  */
 export async function route(request, env, ctx, data) {
   const fwd = await forward(request, env, data);

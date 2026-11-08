@@ -2,16 +2,17 @@
  * 凭证类 API 真请求 e2e 的共享 helper（Item 25）。
  * - makeKV：内存 KV（tests/workers/_harness.cjs，和 Worker 单测同一份，这里转出）。
  * - startCredentialTestServer(port)：启动本地测试服务器，/api/lock-password、/api/lock-passkey、/api/lock-reauth
- *   路由到网关 src/api/ 下的真实 handler（onRequestPost）；/api/account 走网关的转发（src/router.js forward：验锁屏会话、
+ *   路由到网关 src/api/ 下的真实 handler（onRequestPost）；/api/account 走网关的转发（src/router.js forward：验进站会话、
  *   剥头、写身份头）→ 账号 Worker AccountService 的实现（workers/account/src/rpc/account-service.js serviceFetch），同正式的两跳（账号拆分 PR3）。
  *   网关 env 只绑正式网关有的（锁屏钥匙、SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER）；账号 env 自己一对钥匙、
- *   账号根密钥、D1_ACCOUNT_AUTH。两边的 D1 绑定接同一个库（同预览共库 styrigx-test-preview，表按 realm 列分开），
- *   d1.password('account') 这类观测照旧。返回 { kv, d1, env, accountEnv, close, mintAuth, … }。
+ *   恢复密钥、账号密码 pepper、D1_ACCOUNT。两边的 D1 绑定接同一个库（同预览共库 styrigx-test-preview：网关迁移 → 账号迁移，
+ *   网关的表带 realm 列，账号的表叫 account_*）。观测：d1.password('lock') 等（网关）、account.password() / passkey(credId) / epoch()（账号）。
+ *   返回 { kv, d1, account, env, accountEnv, close, mintAuth, … }。
  * - makeAttestationCredential：Node 端合成 WebAuthn 注册 attestation
  *   （UV=1；CDP 虚拟认证器开 UV 会抛 NotAllowedError，故不用浏览器仪式）。
- * - mintAuth(by)：按当前 Lock 纪元重签 锁屏进门会话 + LockReauthTicket（sgx-lock-reauth）
- * - mintAccount(by, authAt)：账号会话（sgx-account-session，by 只能 password|passkey）；mintAccountReauth(by)：AccountReauthTicket（sgx-account-reauth）；
- *   mintAccountReset()：AccountResetTicket（sgx-account-reset，by=root）。都用账号 Worker 的代码和账号钥匙签（workers/account/src/core/account-session.js）
+ * - mintAuth(by)：按当前 Lock 纪元重签 进站会话 + LockReauthTicket（sgx-lock-reauth）
+ * - mintAccount(by, authAt)：账号 session（sgx-account-session，by 只能 password|passkey）；mintAccountReauth(by)：挂在这个 session 上的 reauth 票（sgx-account-reauth）；
+ *   mintAccountReset()：reset 票（sgx-account-reset，by=recovery-key）。都用账号 Worker 的代码和账号钥匙签（workers/account/src/core/session.js / reauth.js / reset.js）
  *   （set/change/remove/register 会推进 epoch，每次鉴权操作前重签）。
  */
 const http = require('node:http');
@@ -150,12 +151,23 @@ async function startCredentialTestServer(port) {
     ...(await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/rpc/account-verifier.js')).href)),
   };
   /* 账号 Worker 的 env（同 workers/account/wrangler.toml 的绑定；资料库不用） */
+  /* 同预览库：网关迁移之后再跑账号迁移（CI「Apply D1 migrations to preview」同序） */
+  const ACCT_MIG = path.join(REPO, 'workers/account/migrations');
+  for (const f of require('node:fs').readdirSync(ACCT_MIG).filter((x) => x.endsWith('.sql')).sort()) {
+    d1.raw.exec(require('node:fs').readFileSync(path.join(ACCT_MIG, f), 'utf8'));
+  }
+  const one = (sql, ...p) => { const r = d1.raw.prepare(sql).get(...p); return r ? { ...r } : null; };
+  const account = {
+    password() { const r = one('SELECT record FROM account_password WHERE id = 1'); return r ? JSON.parse(r.record) : null; },
+    passkey(credId) { const r = one('SELECT record FROM account_passkey WHERE credential_id = ?', credId); return r ? JSON.parse(r.record) : null; },
+    epoch(name) { const r = one('SELECT value FROM account_epoch WHERE name = ?', name || 'session'); return r ? Number(r.value) : 0; },
+  };
   const accountEnv = {
-    D1_ACCOUNT_AUTH: d1,
-    SGX_PW_PEPPER: 'e2e-test-pepper',
+    D1_ACCOUNT: d1,
+    SGX_ACCOUNT_PASSWORD_PEPPER: 'e2e-test-account-pepper',
     SGX_ACCOUNT_PRIVATE: acctPrivPem,
     SGX_ACCOUNT_PUBLIC: acctPubPem,
-    SGX_ACCOUNT_ROOT_KEY: 'e2e-test-account-root-key',
+    SGX_ACCOUNT_RECOVERY_KEY: 'e2e-test-recovery-key',
     SGX_RP_ID: 'localhost',
     SGX_ORIGIN: origin,
   };
@@ -169,15 +181,19 @@ async function startCredentialTestServer(port) {
     SGX_RP_ID: 'localhost',
     SGX_ORIGIN: origin,
     ACCOUNT: { fetch: (req) => acctEntry.serviceFetch(req, accountEnv, { waitUntil() {} }) },
-    ACCOUNT_VERIFIER: { accountSession: (c, m) => acctEntry.checkAccountSession(accountEnv, c, m) },
+    ACCOUNT_VERIFIER: { session: (c, m) => acctEntry.checkSession(accountEnv, c, m) },
   };
   const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-password.js')).href);
   const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-passkey.js')).href);
   const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/core/lock-session.js')).href);
   const doorApi = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-reauth.js')).href);
   const ticketsMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/core/tickets.js')).href);
-  const acctSess = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/core/account-session.js')).href);
-  /* /api/account：网关转发（验锁屏会话 → 写身份头 → ACCOUNT.fetch），GET / POST 同一条路 */
+  const acctSess = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/core/session.js')).href);
+  const acctReauth = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/core/reauth.js')).href);
+  const acctReset = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/core/reset.js')).href);
+  const acctDb = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/lib/db.js')).href);
+  const ACCOUNT_DEVICE = 'e2edevicee2edev1';
+  /* /api/account：网关转发（验进站会话 → 写身份头 → ACCOUNT.fetch），GET / POST 同一条路 */
   const accountViaGateway = ({ request, env: e }) => gwRouter.forward(request, e, {});
 
   const server = http.createServer(async (req, res) => {
@@ -239,22 +255,22 @@ async function startCredentialTestServer(port) {
     return { sessionCookie, reauthCookie };
   }
 
-  /* 账号会话（sgx-account-session）：by=passkey|password，authAt 默认现在；epoch 读当前 Account 纪元 */
+  /* 账号 session（sgx-account-session）：by=passkey|password，authAt 默认现在；epoch 读当前 session 纪元 */
   async function mintAccount(by, authAt) {
-    const epoch = await acctSess.getAccountEpoch(accountEnv);
-    return await acctSess.signAccountSessionTicket(acctPrivPem, { by, epoch, authAt: authAt || Date.now(), deviceId: 'e2edevicee2edev1' });
+    const epoch = await acctDb.readEpoch(accountEnv, 'session');
+    return await acctSess.signSessionTicket(acctPrivPem, { by, epoch, authAt: authAt || Date.now(), deviceId: ACCOUNT_DEVICE });
   }
 
-  /* AccountReauthTicket（sgx-account-reauth），按当前 Account 纪元签 */
+  /* reauth 票（sgx-account-reauth）：挂在 mintAccount 那台设备的 session 上，按当前 session 纪元签 */
   async function mintAccountReauth(by) {
-    const epoch = await acctSess.getAccountEpoch(accountEnv);
-    return await acctSess.signTicket(acctPrivPem, 'AccountReauthTicket', by || 'password', epoch);
+    const epoch = await acctDb.readEpoch(accountEnv, 'session');
+    return await acctReauth.signReauthTicket(acctPrivPem, { by: by || 'password', epoch, deviceId: ACCOUNT_DEVICE });
   }
 
-  /* AccountResetTicket（sgx-account-reset）：只有 by=root（账号根凭证不签账号会话，第一次设账号凭证走重置票） */
+  /* reset 票（sgx-account-reset）：by=recovery-key（恢复密钥不签 session，第一次设账号钥匙走 reset），按当前 reset 纪元签 */
   async function mintAccountReset() {
-    const epoch = await acctSess.getAccountEpoch(accountEnv);
-    return await acctSess.signTicket(acctPrivPem, 'AccountResetTicket', 'root', epoch);
+    const epoch = await acctDb.readEpoch(accountEnv, 'reset');
+    return await acctReset.signResetTicket(acctPrivPem, { epoch });
   }
 
   return {
@@ -262,6 +278,7 @@ async function startCredentialTestServer(port) {
     d1,
     env,
     accountEnv,
+    account,
     origin,
     mintAuth,
     mintAccount,

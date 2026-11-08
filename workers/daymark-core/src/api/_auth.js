@@ -2,7 +2,7 @@
 // 接口鉴权（方案 3.4 R14、4.6；P2-2）：本 Worker 不持任何钥匙，把浏览器带来的 Cookie 头交给主站鉴权网关，
 // 问一次结论（服务绑定 env.AUTH → styrigx-auth-gateway 的 RPC 入口 AuthVerifier 的 conclusion()）：
 //   { lock: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }
-// 网关先验门（锁屏会话），进了门再问账号 Worker（账号会话、作用域、要的话再看账号复验票），只回结论。
+// 网关先验门（进站会话），进了门再问账号 Worker（账号会话、作用域、要的话再看账号复验票），只回结论。
 // 本文件只认结论：
 //   - 进门：lock.ok（没进门 401 unauthorized，index.js 统一挡）
 //   - 读私密：account.ok（canReadPrivate）

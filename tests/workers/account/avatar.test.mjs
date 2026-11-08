@@ -17,6 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from '../auth-gateway/_tickets.mjs';
 import { genKeyPair, authD1For } from '../_harness.mjs';
+import { makeAccountD1 } from './_d1.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -57,7 +58,7 @@ function env(kv) {
   return {
     SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: ACC.pub,
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, KV_PROFILE: kv,
-    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv),
+    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT: makeAccountD1(),
     ASSETS: { fetch: async (u) => new Response('DEFAULT:' + new URL(u).pathname, { status: 200 }) },
   };
 }

@@ -141,7 +141,7 @@ test('writeSpaceAudit：D1 出错或没绑 → false（调用方据此 fail clos
   assert.equal(await writeSpaceAudit({}, '192.0.2.1', true, { path: 'space-auth' }), false);
 });
 
-/* ===== 账号 → 服务状态页的折叠区：只要 锁屏进门会话，不要 LockReauthTicket ===== */
+/* ===== 账号 → 服务状态页的折叠区：只要 进站会话，不要 LockReauthTicket ===== */
 
 /** @param {string} cookie */
 function reqWith(cookie) {

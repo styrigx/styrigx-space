@@ -1,6 +1,6 @@
 /**
  * /api/ai（GET 模型列表）、/api/status、/api/lock-tempkey 先用关口（src/gate.js）放进 context.data.lockSession 的会话，
- *   没有再自验：经整条网关（app.js）的已认证请求只验一次锁屏会话；处理函数单独调用（没有 context.data）仍然正确拒绝。
+ *   没有再自验：经整条网关（app.js）的已认证请求只验一次进站会话；处理函数单独调用（没有 context.data）仍然正确拒绝。
  *   进门二值（P2-3）：任何 by（含临时钥匙）进门都算进门；lock-tempkey list 只要进门，create / revoke 另要锁侧复验。
  * 「验了几次」按锁屏纪元的读取次数数（verifyLockSession 每验一次读一次 epoch）。
  * P4-2b：/api/search、/api/chat 退役，有会话也 404（路由表里没了）。
@@ -66,11 +66,11 @@ const CASES = [
 ];
 
 for (const [name, mk] of CASES) {
-  test(name + '：经整条网关的已认证请求只验一次锁屏会话', async () => {
+  test(name + '：经整条网关的已认证请求只验一次进站会话', async () => {
     const e = env();
     const res = await app.fetch(mk(), e, ctx);
     assert.equal(res.status, 200, name + ' 应放行');
-    assert.equal(epochReads(e), 1, name + ' 锁屏会话只验一次（关口那次）');
+    assert.equal(epochReads(e), 1, name + ' 进站会话只验一次（关口那次）');
   });
 }
 

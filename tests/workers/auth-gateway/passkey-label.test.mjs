@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { providerOf, normalizeProvider, normalizePasskeyName } from '../../../workers/auth-gateway/src/core/passkey-store.js';
-import * as acct from '../../../workers/account/src/core/account-store.js';
+import * as acct from '../../../workers/account/src/core/passkey.js';
 
 const CJK = /[\u3400-\u9fff\uff00-\uffef]/;
 
@@ -28,11 +28,13 @@ test('旧库兼容：中文 provider 显示名 → id；旧默认名 → 空；�
   assert.equal(normalizePasskeyName('我的手机'), '我的手机', '个人信息类：原样');
 });
 
-test('网关与账号 Worker 两份映射同值（各自一份，不互相 import）', () => {
+test('网关与账号 Worker 两份 AAGUID 映射同值（各自一份，不互相 import）；账号那边旧显示名已由 0005 迁移改好，代码不再归一', () => {
   for (const g of ['53414d53-554e-4700-0000-000000000000', 'ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4', 'bada5566-a7aa-401f-bd96-45619a55120d']) {
     assert.equal(acct.providerOf(g), providerOf(g));
   }
-  for (const v of ['通行密钥', 'Apple 密码', 'Bob']) assert.equal(acct.normalizePasskeyName(v), normalizePasskeyName(v));
+  assert.equal(acct.normalizePasskeyName, undefined);
+  assert.equal(acct.providerId('samsung-pass'), 'samsung-pass');
+  assert.equal(acct.providerId('Samsung Pass'), '');
 });
 
 test('源码：注册 / 存储不再写中文默认名', () => {

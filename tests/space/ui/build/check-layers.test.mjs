@@ -302,8 +302,8 @@ test('规则 15：workers/shared 目录存在就失败；import workers/shared/ 
 
 /* PR3d 的残留 grep 列表（网关里删光的账号鉴权标识），每个都必须被规则 16 抓到 */
 const ACCOUNT_AUTH_IDS = [
-  'SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_ROOT_KEY', 'SGX_ROOT_KEY',
-  'D1_ACCOUNT_AUTH', 'D1_ROOT_AUTH', 'REALM_ACCOUNT', 'REALM_ROOT', 'BY_ACCOUNT', 'PASSKEY_ACCOUNT',
+  'SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_ROOT_KEY', 'SGX_ACCOUNT_RECOVERY_KEY', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'SGX_ROOT_KEY',
+  'D1_ACCOUNT', 'D1_ACCOUNT_AUTH', 'D1_ROOT_AUTH', 'REALM_ACCOUNT', 'REALM_ROOT', 'BY_ACCOUNT', 'PASSKEY_ACCOUNT',
   'checkAccountSession', 'verifyAccountSession', 'issueAccountSession', 'clearAccountSession',
   'AccountSessionTicket', 'AccountReauthTicket', 'AccountResetTicket', 'signAccountReauthTicket', 'verifyAccountResetTicket',
   'ACCOUNT_SESSION_TICKET', 'ACCOUNT_REAUTH_TICKET', 'ACCOUNT_RESET_COOKIE', 'ACCOUNT_EPOCH', 'bumpAccountEpoch',
@@ -315,7 +315,7 @@ test('规则 16：网关源码里出现任一账号鉴权标识都报错，信�
   for (const id of ACCOUNT_AUTH_IDS) {
     const errs = layers.checkFile(REPO, f, `const x = ${id};`);
     assert.equal(errs.length, 1, id + ' → ' + JSON.stringify(errs));
-    assert.equal(errs[0], `${GW}src/rpc/auth-verifier.js:1: 网关源码禁止出现账号鉴权标识 ${id}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.accountSession() 拿结论）`);
+    assert.equal(errs[0], `${GW}src/rpc/auth-verifier.js:1: 网关源码禁止出现账号鉴权标识 ${id}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.session() 拿结论）`);
   }
   const cookie = layers.checkFile(REPO, join(REPO, GW + 'src/api/lock-now.js'), "clear('sgx-account-reauth');");
   assert.match(cookie[0], /账号鉴权标识 sgx-account-reauth/);
@@ -325,19 +325,28 @@ test('规则 16：网关源码里出现任一账号鉴权标识都报错，信�
   assert.match(ln[0], /^workers\/auth-gateway\/src\/core\/realms\.js:5: .*SGX_ROOT_KEY/);
 });
 
-test('规则 16：注释、ACCOUNT_VERIFIER.accountSession()、首帧提示属性名不算；账号 Worker 自己用这些标识不算', () => {
+test('规则 16：注释、ACCOUNT_VERIFIER.session()、首帧提示属性名不算；账号 Worker 自己用这些标识不算', () => {
   const f = join(REPO, GW + 'src/core/account-rpc.js');
   for (const code of [
     '// SGX_ACCOUNT_ROOT_KEY 只绑在账号 Worker',
     '/* 原来的 REALM_ROOT、D1_ROOT_AUTH 已删；AccountReauthTicket 在账号 Worker */',
     '/** @see checkAccountSession */ export const a = 1;',
-    "const r = await env.ACCOUNT_VERIFIER.accountSession(cookie, ctx);",
+    "const r = await env.ACCOUNT_VERIFIER.session(cookie, ctx);",
     "html.replace('<html', '<html data-sgx-account-session=\"in\"');",
     "const u = 'https://x/'; // verifyAccountSession",
   ]) {
     assert.deepEqual(layers.checkFile(REPO, f, code), [], code);
   }
-  assert.deepEqual(layers.checkFile(REPO, join(REPO, AC + 'src/rpc/account-verifier.js'), "import { verifyAccountSession } from '../core/account-session.js';\nconst k = env.SGX_ACCOUNT_ROOT_KEY;"), []);
+  assert.deepEqual(layers.checkFile(REPO, join(REPO, AC + 'src/rpc/account-verifier.js'), "import { verifySession } from '../core/session.js';\nconst k = env.SGX_ACCOUNT_RECOVERY_KEY;"), []);
+});
+
+test('规则 22：账号 Worker / 账号前端里出现退役旧名（含注释）报错；别处不管；名单只在 retired-names.json', () => {
+  const errs = layers.checkFile(REPO, join(REPO, AC + 'src/core/session.js'), "// 原来叫 verifyAccountSession\nconst a = 'root-reset';\nconst b = 'reset-recovery-key';");
+  assert.deepEqual(errs.map((e) => e.replace(/（.*$/, '')).sort(), [AC + 'src/core/session.js:1: 退役旧名 verifyAccountSession', AC + 'src/core/session.js:2: 退役旧名 root-reset'].sort());
+  assert.deepEqual(layers.checkFile(REPO, join(REPO, 'space/web/assets/js/shell/account/api.js'), "post('/api/account/session', { action: 'password' })"), []);
+  assert.ok(layers.checkFile(REPO, join(REPO, 'space/web/assets/js/shell/account/api.js'), "post('/api/account', { action: 'login-password' })").some((e) => /login-password/.test(e)));
+  assert.deepEqual(layers.checkFile(REPO, join(REPO, 'space/scripts/x.mjs'), "const a = 'root-reset';"), [], '范围外不管');
+  assert.ok(layers.retiredNames().includes('SGX_ACCOUNT_ROOT_KEY'));
 });
 
 test('规则 16：网关 wrangler.toml 去掉 # 注释后也查；checkRepo 会读它', () => {

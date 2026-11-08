@@ -3,7 +3,7 @@
  *
  * 定位：lock 是保护 account 的一道屏障；临时 LockKey 是进门的人在 /security/tempkeys/ 复验锁屏凭证后签发给别人的一把临时进门钥匙。
  * 不是另一套认证体系：
- * - 在锁屏输入临时码 → 签发的仍是锁屏会话 LockSessionTicket v2（by=tempkey，tempkeyId=<钥匙 id>；进门二值，不分等级），
+ * - 在锁屏输入临时码 → 签发的仍是进站会话 LockSessionTicket v2（by=tempkey，tempkeyId=<钥匙 id>；进门二值，不分等级），
  *   用 lock 私钥（SGX_LOCK_PRIVATE）签名、lock 公钥验签（lock-session.js）。
  * - 会话的到期时间不晚于钥匙本身；验会话时再查「这把钥匙有没有被作废」（D1 tempkey 表一次主键读，主库、不缓存）：
  *   钥匙到期（票自己的 exp）或被作废，拿它进门的人下一个请求就进不来（以前 KV 作废标记在别的节点上最长约 60 秒才生效）。

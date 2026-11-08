@@ -8,6 +8,7 @@ import { parseReport, summarize, dayOk, sectionOf, onRequestPost as rawPost, onR
 import { wrap, testAccountSessionCookie } from './_auth.mjs';
 import { testLockSessionCookie } from '../auth-gateway/_tickets.mjs';
 import { genKeyPair, authD1For, makeKV } from '../_harness.mjs';
+import { makeAccountD1, splitD1 } from './_d1.mjs';
 
 const onRequestPost = wrap(rawPost);
 const onRequestGet = wrap(rawGet);
@@ -85,7 +86,7 @@ test('PR-4b 读旧写新：新键 space 能上报；旧键 home / settings 照�
 
 test('POST / GET：无会话 401，不碰数据库', async () => {
   let touched = false;
-  const env = { D1_WELLBEING: { prepare() { touched = true; } } };
+  const env = { D1_ACCOUNT: { prepare() { touched = true; } } };
   const post = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: '{}' }), env });
   assert.equal(post.status, 401);
   const get = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing'), env });
@@ -158,7 +159,7 @@ test('fmtShort：终端短时长（对齐 PR-B 起取代 fmtDur；各语言同�
 /* ---- P2-2：POST 只记账号会话 + wellbeing.write；GET 明细只给账号会话，响应带 detail ---- */
 const LK = await genKeyPair();
 const AK = await genKeyPair();
-/** D1_WELLBEING 替身：记下写入；SELECT 返回固定两行 */
+/** wb_daily 的替身（经 splitD1 只接 wb_daily 的语句）：记下写入；SELECT 返回固定两行 */
 function wbDb() {
   const db = {
     writes: 0,
@@ -175,7 +176,7 @@ function wbDb() {
 }
 function wbEnv(db) {
   const kv = makeKV();
-  return { SGX_LOCK_PUBLIC: LK.pub, SGX_ACCOUNT_PUBLIC: AK.pub, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_WELLBEING: db };
+  return { SGX_LOCK_PUBLIC: LK.pub, SGX_ACCOUNT_PUBLIC: AK.pub, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT: db ? splitD1(makeAccountD1(), db, /wb_daily/) : makeAccountD1() };
 }
 async function wbCookie(role, acc) {
   const c = [await testLockSessionCookie(LK.priv, 0, role)];
@@ -208,6 +209,6 @@ test('GET：没账号会话 detail:false 只有合计；有账号会话 detail:t
   const jb = await b.json();
   assert.equal(jb.detail, true);
   assert.equal(jb.items[0].t, '三体');
-  const c = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('password', false) } }), env: { ...wbEnv(null), D1_WELLBEING: undefined } });
+  const c = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('password', false) } }), env: wbEnv(null) });
   assert.equal((await c.json()).detail, false);
 });

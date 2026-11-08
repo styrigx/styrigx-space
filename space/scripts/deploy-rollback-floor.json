@@ -5,8 +5,8 @@
     "requireBindings": ["D1_LOCK_AUTH", "ACCOUNT", "SGX_LOCK_SPACE_KEY", "AI_SERVICE"]
   },
   "styrigx-account": {
-    "why": "账号拆分 PR3：更早的版本还挂着公开路由、问网关验会话（AUTH）；#226 设置同步 KV_SETTINGS_SYNC → D1 的下限随之被覆盖",
-    "requireBindings": ["D1_ACCOUNT_AUTH", "D1_SETTINGS_SYNC"]
+    "why": "命名 v2（P2）：账号库只绑 D1_ACCOUNT、表换成 account_*（0005 清了旧表里的账号行），更早的版本读旧表、绑旧名，退回去账号全空；账号拆分 PR3 / #226 的下限随之被覆盖",
+    "requireBindings": ["D1_ACCOUNT"]
   },
   "styrigx-status": {
     "why": "P4-2b：监测从 SEARCH / CHAT 两个服务绑定换成 AI_SERVICE；更早的版本绑着冒烟后会被 Gray 删除的 styrigx-search-index / styrigx-chat，退回去部署不了。notBefore 等 Gray 删旧 Worker 后由下一个碰 status 的 PR 加",

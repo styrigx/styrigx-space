@@ -29,10 +29,9 @@
  *
  * Worker 边界（账号拆分 PR3e，按 PR3d 之后的事实）：
  * 16. 网关源码（workers/auth-gateway/ 下的 .js / .mjs / .cjs 和 wrangler.toml）去掉注释后不许出现账号鉴权标识
- *     （GATEWAY_ACCOUNT_AUTH_RE：SGX_ACCOUNT_*、SGX_ROOT_KEY、D1_ACCOUNT_AUTH、D1_ROOT_AUTH、REALM_ACCOUNT、REALM_ROOT、
+ *     （GATEWAY_ACCOUNT_AUTH_RE：SGX_ACCOUNT_*、SGX_ROOT_KEY、D1_ACCOUNT（含旧名）、D1_ROOT_AUTH、REALM_ACCOUNT、REALM_ROOT、
  *     checkAccountSession、verifyAccountSession、Account*Ticket / ACCOUNT_*_TICKET、账号 cookie 名等）。
- *     账号鉴权全在账号 Worker；网关只经 ACCOUNT_VERIFIER.accountSession() 拿结论（accountSession 不算违规），
- *     首帧提示属性名 data-sgx-account-session 不算。
+ *     账号鉴权全在账号 Worker；网关只经 ACCOUNT_VERIFIER.session() 拿结论，首帧提示属性名 data-sgx-account-session 不算。
  * 17. 账号 Worker 的 workers/account/wrangler.toml 不许有路由：[[routes]] / [[env.*.routes]]、route = …、非空的 routes = [...]
  *     （[env.preview] 的 routes = [] 允许）；账号请求只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
  *
@@ -41,6 +40,10 @@
  * 19. 每个 Worker 的 wrangler.toml 顶层 main 必须是 "src/index.js"
  * 20. 每个 Worker 目录必须有 README.md
  * 21. 每个 Worker 的 package.json 必须有非空字符串 name
+ *
+ * 账号命名 v2（2026-11-08）：
+ * 22. 退役名单（space/scripts/retired-names.json 的 account）里的旧名字不许出现在账号 Worker（workers/account/src/）
+ *     和账号前端（space/web/assets/js/shell/account/）——注释也算，旧名字只留在退役名单这一处
  *     （19–21 的 Worker 目录 = workers/ 下有 wrangler.toml 的子目录；workers/ 下每个子目录都得有 wrangler.toml，
  *     tests/space/ui/build/check-layers.test.mjs 核对。只管这四条，依赖方向不在这里查）
  *
@@ -167,7 +170,7 @@ export const SHARED_DIR = 'workers/shared';
 export const GATEWAY_ACCOUNT_AUTH_RE = new RegExp([
   String.raw`\bSGX_ACCOUNT_\w+`,
   String.raw`\bSGX_ROOT_KEY\b`,
-  String.raw`\bD1_ACCOUNT_AUTH\b`,
+  String.raw`\bD1_ACCOUNT(?:_AUTH)?\b`,
   String.raw`\bD1_ROOT_AUTH\b`,
   String.raw`\bREALM_ACCOUNT\b`,
   String.raw`\bREALM_ROOT\b`,
@@ -258,8 +261,34 @@ export function checkGatewayAccountAuth(rel, src, kind = 'js') {
     const re = new RegExp(GATEWAY_ACCOUNT_AUTH_RE.source, 'g');
     let m;
     while ((m = re.exec(lines[ln]))) {
-      errors.push(`${rel}:${ln + 1}: 网关源码禁止出现账号鉴权标识 ${m[0]}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.accountSession() 拿结论）`);
+      errors.push(`${rel}:${ln + 1}: 网关源码禁止出现账号鉴权标识 ${m[0]}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.session() 拿结论）`);
     }
+  }
+  return errors;
+}
+
+/* 规则 22：退役名单的检查范围（账号 Worker 源码、账号前端） */
+export const RETIRED_SCOPE_RE = /^(?:workers\/account\/src\/|space\/web\/assets\/js\/shell\/account\/)/;
+/** @type {string[]|null} */
+let retiredCache = null;
+/** 退役名单（space/scripts/retired-names.json 的 account） */
+export function retiredNames() {
+  if (!retiredCache) retiredCache = JSON.parse(readFileSync(new URL('./retired-names.json', import.meta.url), 'utf8')).account;
+  return /** @type {string[]} */ (retiredCache);
+}
+
+/**
+ * 规则 22：文件里出现的退役旧名（整词匹配：前后不是字母数字下划线或连字符；注释也算）。
+ * @param {string} rel @param {string} src
+ * @returns {string[]}
+ */
+export function checkRetiredNames(rel, src) {
+  const errors = [];
+  const lines = String(src).split('\n');
+  for (const name of retiredNames()) {
+    const re = new RegExp('(?<![\\w-])' + name.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&') + '(?![\\w-])');
+    const ln = lines.findIndex((l) => re.test(l));
+    if (ln >= 0) errors.push(`${rel}:${ln + 1}: 退役旧名 ${name}（规则 22：账号命名 v2 起只留在 space/scripts/retired-names.json）`);
   }
   return errors;
 }
@@ -350,6 +379,7 @@ export function checkFile(root, abs, srcOverride) {
   }
 
   if (self.area === 'gateway') errors.push(...checkGatewayAccountAuth(r, src));
+  if (RETIRED_SCOPE_RE.test(r)) errors.push(...checkRetiredNames(r, src));
 
   if (self.area === 'frontend') {
     if (self.layer === 'lib' && LIB_AUTH_RE.test(code)) {

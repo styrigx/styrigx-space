@@ -19,7 +19,7 @@
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
  * - 分享短链 Worker = workers/share/src/index.js（路由 workers/share/wrangler.toml：/s/*、/api/share*），D1 用 tests/fixtures/share-d1.mjs，
  *   服务绑定 AUTH 接网关 verifier.js（只用 lockSession）、ISSUER 接网关 src/share-issuer.js（ShareIssuer RPC 里跑的同一份代码）；
- *   不绑 ACCOUNT_VERIFIER（短链管理只认锁屏进门会话，生成 / 作废另要锁侧复验，不问账号会话；同正式 workers/share/wrangler.toml）。
+ *   不绑 ACCOUNT_VERIFIER（短链管理只认进站会话，生成 / 作废另要锁侧复验，不问账号会话；同正式 workers/share/wrangler.toml）。
  */
 const https = require('node:https');
 const http = require('node:http');
@@ -164,7 +164,7 @@ async function startEdge() {
       return res;
     },
   };
-  const ACCOUNT_VERIFIER = { accountSession: (c, m) => accountEntry.checkAccountSession(accountEnv, c, m) };
+  const ACCOUNT_VERIFIER = { session: (c, m) => accountEntry.checkSession(accountEnv, c, m) };
 
   /* 网关：只绑正式网关 wrangler.toml 里有的（锁屏钥匙、进站凭证 SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER） */
   const env = {
@@ -294,7 +294,7 @@ async function startEdge() {
     };
   }
 
-  /** 按当前 Lock 纪元签一个 v2 锁屏会话 cookie 值（by=password | passkey；by=tempkey 时先登记一把 1 小时临时钥匙，带它的 tempkeyId） */
+  /** 按当前 Lock 纪元签一个 v2 进站会话 cookie 值（by=password | passkey；by=tempkey 时先登记一把 1 小时临时钥匙，带它的 tempkeyId） */
   async function mintCookie(by) {
     const ep = await sessMod.getLockEpoch(env);
     if (by === 'tempkey') {

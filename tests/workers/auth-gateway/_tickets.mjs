@@ -58,7 +58,7 @@ export function fakeAccountVerifier(o) {
   const calls = [];
   return {
     calls,
-    async accountSession(cookieHeader, clientContext) {
+    async session(cookieHeader, clientContext) {
       calls.push([cookieHeader, clientContext]);
       if (o && o.throws) throw new Error('down');
       if (!cookieHeader) return { ok: false, reason: 'no-cookie' };

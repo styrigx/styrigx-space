@@ -9,7 +9,7 @@
  *   （锁屏头像的替代文字用构建期默认值 + 本机上次进门时缓存的资料，前端 lib/profile.js）。
  *
  * PUT（JSON，任意几个字段：{ name?, nickname?, motto?, email? }）
- * - 进门 + 账号会话 + 作用域 profile.write（src/gate.js scopeDenial，同一份 core/authz.js）；必须同源。
+ * - 进门 + 账号会话 + 作用域 profile.write（src/gate.js scopeDenial，同一份 core/authorize.js）；必须同源。
  *   没进门 401 session；没账号会话 401 account；没作用域 403 scope。
  * - 每个字段按 lib/profile.js 的字段表校验：字符串去首尾空白；姓名 ≤40、昵称 ≤32、签名 ≤120、邮箱 ≤254 个字符；
  *   单行（不收控制字符 / 换行）；姓名、昵称、邮箱不能为空串，签名可以为空；邮箱要像邮箱；值为 null = 清掉回默认值。
@@ -42,7 +42,7 @@ async function view(kv, stored, updatedAt) {
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { env } = context;
-  const lock = await context.auth.lockSession();
+  const lock = await context.auth.gateway();
   if (!lock.ok) return apiError(401, 'session', undefined, NO_STORE);
   const kv = profileKv(env);
   const { stored, updatedAt } = await readStored(kv);

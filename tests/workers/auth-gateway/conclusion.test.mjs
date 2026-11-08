@@ -138,7 +138,7 @@ test('conclusionFor：锁屏库出错 → lock.ok=false（d1-error），也不�
 
 test('conclusionFor：账号绑定缺失 / 没有 authorize 方法 → account.ok=false（no-verifier），lock 结论照旧', async () => {
   const ck = (await lockCookie()) + '; ' + ACC_COOKIE;
-  for (const b of [undefined, null, {}, { accountSession: async () => ({ ok: true }) }, { authorize: 'x' }]) {
+  for (const b of [undefined, null, {}, { session: async () => ({ ok: true }) }, { authorize: 'x' }]) {
     const r = await conclusionFor(env({ ACCOUNT_VERIFIER: b }), ck, {});
     assert.equal(r.lock.ok, true);
     assert.deepEqual(r.account, { ok: false, deviceId: '', scopes: [], reauth: false, reason: 'no-verifier' }, JSON.stringify(b));

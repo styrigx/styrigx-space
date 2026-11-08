@@ -2,7 +2,7 @@
 
 ## 职责
 
-主站鉴权网关：锁屏会话和锁屏凭证的全部后端代码在这里。承接 `styrigx.com` 整站请求（含子站 `/blog/`、`/curio/`、`/daymark/`，按路径前缀走子站关口）：先验锁屏会话，页面验完回源 Pages 取静态文件，接口在本 Worker 回答或经服务绑定转给内部 Worker。Pages 本身只放静态文件（配置见 `space/web/wrangler.toml`）。
+主站鉴权网关：进站会话和锁屏凭证的全部后端代码在这里。承接 `styrigx.com` 整站请求（含子站 `/blog/`、`/curio/`、`/daymark/`，按路径前缀走子站关口）：先验进站会话，页面验完回源 Pages 取静态文件，接口在本 Worker 回答或经服务绑定转给内部 Worker。Pages 本身只放静态文件（配置见 `space/web/wrangler.toml`）。
 
 **账号不在这里**（账号拆分 PR3 起）：账号密码 / 账号通行密钥 / 已登录设备 / 账号会话 / 账号根密钥、头像、设置云同步、数字健康都在账号 Worker `styrigx-account`（`workers/account/`）。浏览器的账号请求一律先进网关，网关验门后经服务绑定 `ACCOUNT` 转发。网关源码里没有任何账号鉴权代码、账号绑定或账号钥匙（`space/scripts/check-layers.mjs` 规则 16 核对）。
 
@@ -53,7 +53,7 @@
 |---|---|
 | `styrigx.com/*` | 主站整站，含子站 `/blog/`、`/curio/`、`/daymark/`（同一个 Pages、一棵树；按路径前缀走子站关口 `handleSubsite`，子站页面用的 `/api/lock-session-check` 就是主站根上的同一个接口）。短链 Worker 的 `styrigx.com/s/*`、`styrigx.com/api/share*` 和接口 Worker 的 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*` 更具体，不进网关 |
 
-- 账号路径（转发表 `src/router.js` 的 `FORWARDING`）：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/api/profile*`、`/avatar/*`。关口先验（`/api/account`、`/api/prefs*`、`/api/profile*` 要进门；`/api/avatar*`、`/api/wellbeing*` 要有会话；`/avatar/*` 公开），放行后经 `ACCOUNT`（entrypoint `AccountService`）原样转给账号 Worker，按验过的锁屏会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`。没绑定或绑定出错 → 503 upstream，不落回网关路由表、不回源。转发回来的响应保留 `X-SGX-Runtime: account`。
+- 账号路径（转发表 `src/router.js` 的 `FORWARDING`）：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/api/profile*`、`/avatar/*`。关口先验（`/api/account`、`/api/prefs*`、`/api/profile*` 要进门；`/api/avatar*`、`/api/wellbeing*` 要有会话；`/avatar/*` 公开），放行后经 `ACCOUNT`（entrypoint `AccountService`）原样转给账号 Worker，按验过的进站会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`。没绑定或绑定出错 → 503 upstream，不落回网关路由表、不回源。转发回来的响应保留 `X-SGX-Runtime: account`。
 - 网关自己的接口：`src/router.js` 的 `API_ROUTES`（锁屏、锁屏凭证、进站凭证、临时钥匙、`geo`，以及只做门再转出去的 `ai`、`status`；`chat`、`search` 在 P4-2b 删除，回 404）。接口分工见 `docs/status-apis.md`。
 - 路由按域名整站通配，新增页面目录不用加路由。
 
@@ -76,7 +76,7 @@
 
 | 名字 | 用途 |
 |---|---|
-| `SGX_LOCK_PRIVATE` / `SGX_LOCK_PUBLIC` | 锁屏会话和两张锁屏短票的签名钥匙对 |
+| `SGX_LOCK_PRIVATE` / `SGX_LOCK_PUBLIC` | 进站会话和两张锁屏短票的签名钥匙对 |
 | `SGX_LOCK_SPACE_KEY` | 进站凭证（`/api/space-auth`、`/api/lock-reset` 比对） |
 | `SGX_PW_PEPPER` | 密码哈希 pepper；与账号 Worker 绑同一个密值（有意共用，Sloan 2026-10-30 确认不拆） |
 

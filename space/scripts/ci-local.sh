@@ -112,9 +112,9 @@ fi
 if want passkey; then
   begin passkey
   step passkey "build-css + 构建" bash -c 'node space/scripts/build-css.cjs --minify >/dev/null && hugo --minify -s space/web >/dev/null'
-  SPACE_KEY="$(openssl rand -hex 32)"; ROOT_KEY="$(openssl rand -hex 32)"; PEPPER="$(openssl rand -hex 32)"
+  SPACE_KEY="$(openssl rand -hex 32)"; RECOVERY_KEY="$(openssl rand -hex 32)"; PEPPER="$(openssl rand -hex 32)"
   LOG="$(mktemp)"
-  node tests/space/e2e/helpers/preview-emulator.cjs --port 8788 --space-key "$SPACE_KEY" --account-root-key "$ROOT_KEY" --pepper "$PEPPER" >"$LOG" 2>&1 &
+  node tests/space/e2e/helpers/preview-emulator.cjs --port 8788 --space-key "$SPACE_KEY" --recovery-key "$RECOVERY_KEY" --pepper "$PEPPER" --account-pepper "$PEPPER-account" >"$LOG" 2>&1 &
   EMU=$!
   trap 'kill $EMU 2>/dev/null' EXIT
   ready=0
@@ -125,7 +125,7 @@ if want passkey; then
   done
   if [ $ready = 1 ]; then
     step passkey "passkey（本地模拟器）" env SGX_TEST_SUITE=passkey SGX_TEST_BASE=http://localhost:8788 \
-      SGX_TEST_SPACE_KEY="$SPACE_KEY" SGX_TEST_ACCOUNT_ROOT_KEY="$ROOT_KEY" \
+      SGX_TEST_SPACE_KEY="$SPACE_KEY" SGX_TEST_RECOVERY_KEY="$RECOVERY_KEY" \
       SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4 SGX_TEST_CF_TOKEN=x SGX_TEST_CF_ACCOUNT=x SGX_TEST_PREVIEW_D1_ID=local CI=1 \
       npx playwright test --config=tests/config/playwright.config.js --reporter=line
   else

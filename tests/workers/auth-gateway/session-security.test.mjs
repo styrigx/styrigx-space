@@ -588,7 +588,7 @@ test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/Sa
   assertSessionCookieAttrs(r.headers.get('Set-Cookie'));
 });
 
-test('临时 LockKey 进门通过：Set-Cookie 属性齐全（v2 锁屏会话 by=tempkey、带 tempkeyId，Max-Age = 剩余时间封顶 12 小时；没有 sgx-tk）', async () => {
+test('临时 LockKey 进门通过：Set-Cookie 属性齐全（v2 进站会话 by=tempkey、带 tempkeyId，Max-Age = 剩余时间封顶 12 小时；没有 sgx-tk）', async () => {
   const { onRequestPost: tkPost } = await import('../../../workers/auth-gateway/src/api/lock-tempkey-unlock.js');
   const { createTempkey } = await import('../../../workers/auth-gateway/src/core/lock-tempkey.js');
   const kv = makeKV();

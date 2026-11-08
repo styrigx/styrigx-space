@@ -76,7 +76,7 @@ test('部署入口导出 AuthVerifier、ShareIssuer（短链 Worker 专用），
 const DEV = 'devtestdevtest01';
 function fakeVerifier(reply) {
   const calls = [];
-  return { calls, async authorize(c, x, o) { calls.push([c, x, o]); return reply; }, async accountSession() { return { ok: true }; } };
+  return { calls, async authorize(c, x, o) { calls.push([c, x, o]); return reply; }, async session() { return { ok: true }; } };
 }
 
 test('AuthVerifier：有 lockSession 和 conclusion 两个方法，没有 fetch', () => {

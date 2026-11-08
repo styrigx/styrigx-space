@@ -2,12 +2,13 @@
  * @fileoverview styrigx-account 的路由（AccountService 放行之后的去向）：接口路由表 API_ROUTES 与头像文件 /avatar/<尺寸>.webp。
  *
  * 管站点账号的全部身份和数据：
- * - 账号身份：POST / GET /api/account（api/account.js：账号密码、账号 Passkey、设备、账号会话 / reauth / reset、
- *   账号根密钥 SGX_ACCOUNT_ROOT_KEY、账号审计）
+ * - 账号（api/account/，一个入口一个文件；子路径就是入口名）：GET /api/account（status.js 只读状态）、
+ *   POST /api/account/session（sudo root 登录）、/reauth（sudo root reauth）、/reset（sudo root reset，恢复密钥）、
+ *   /keys（账号安全：账号密码、账号通行密钥）、/devices（已登录设备）、/grants（应用授权）
  * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（进门 + 账号会话 + avatar.write）→ KV_PROFILE
  * - 个人资料（2026-11-07）：GET /api/profile（进门即可）、PUT /api/profile（进门 + 账号会话 + profile.write）→ KV_PROFILE 的 profile 键
- * - 设置云同步：GET / POST /api/prefs（进门 + 账号会话 + prefs.sync）→ D1_SETTINGS_SYNC
- * - 数字健康：POST /api/wellbeing（账号会话 + wellbeing.write 才记）/ GET（进门；明细只给账号会话）→ D1_WELLBEING
+ * - 设置云同步：GET / POST /api/prefs（进门 + 账号会话 + prefs.sync）→ D1_ACCOUNT 的 settings_sync
+ * - 数字健康：POST /api/wellbeing（账号会话 + wellbeing.write 才记）/ GET（进门；明细只给账号会话）→ D1_ACCOUNT 的 wb_daily
  *
  * 请求只经网关进来（浏览器 → 网关验锁屏、剥外部 x-styrigx-* 头、写规范身份头 → 服务绑定 ACCOUNT → 命名入口 AccountService，
  * 见 rpc/account-service.js）。默认 fetch（app.js）一律 404，不经这里。
@@ -21,12 +22,24 @@ import * as avatarFile from './api/avatar-file.js';
 import * as prefs from './api/prefs.js';
 import * as profile from './api/profile.js';
 import * as wellbeing from './api/wellbeing.js';
-import * as account from './api/account.js';
+import * as accountStatus from './api/account/status.js';
+import * as accountSession from './api/account/session.js';
+import * as accountReauth from './api/account/reauth.js';
+import * as accountReset from './api/account/reset.js';
+import * as accountKeys from './api/account/keys.js';
+import * as accountDevices from './api/account/devices.js';
+import * as accountGrants from './api/account/grants.js';
 
 /** 接口路由表（只经 AccountService 用；网关转发表 workers/auth-gateway/src/router.js FORWARDING 里的 /api/* 路径与这里一一对应） */
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([
-  ['/api/account', account],
+  ['/api/account', accountStatus],
+  ['/api/account/session', accountSession],
+  ['/api/account/reauth', accountReauth],
+  ['/api/account/reset', accountReset],
+  ['/api/account/keys', accountKeys],
+  ['/api/account/devices', accountDevices],
+  ['/api/account/grants', accountGrants],
   ['/api/avatar', avatar],
   ['/api/prefs', prefs],
   ['/api/profile', profile],
