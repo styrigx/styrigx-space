@@ -108,6 +108,9 @@ js:
     lockUnlockChooseMethod: Unlock, choose method
     lockWelcomeBack: Welcome back
     lockGoodToSeeYou: Good to see you again
+    lockTermHint: "# Tap a key to start unlocking"
+    lockTermChoose: "Choose a verification method:"
+    lockTermWaitPk: waiting for passkey…
     lockUnlock: Unlock
     lockSessionNotActive: Session not active
     lockUnlockScreen: Unlock screen

@@ -7979,29 +7979,8 @@
   @media (min-width:1024px) {
     @media (hover: hover) and (pointer: fine) { #sgx-lock-avatar:hover .sgx-lock-halo { opacity: 1; border-color: rgba(255,255,255,.95); box-shadow: 0 0 28px rgba(255,255,255,.65); } }
   }
-  /* 2026-10-23 锁屏视觉统一：和账号登录页同一套光晕背景（.sgx-glass-bg）与版面。
-     顶栏和全站一样是三件套（两侧圆在锁屏上只是外观，点不了）；头像 → 欢迎回来 / 很高兴再次见到你 → 解锁按钮（左上字标、底部站点清单 2026-10-23 删除）。 */
-  #sgx-lock { background: var(--m-surface); flex-direction: column; }
-  #sgx-lock .sgx-glass-bg { position: fixed; }
-  .sgx-lock-tb {
-    position: relative; z-index: 1; flex: none; box-sizing: content-box;
-    width: var(--sgx-shell-w, calc(100% - 32px)); height: var(--sgx-tb-h); margin: 0 auto;
-    padding-top: env(safe-area-inset-top, 0px);
-    display: flex; align-items: center; gap: var(--sgx-tb-gap);
-  }
-  /* 锁屏顶栏的两侧圆只是外观：不可点、没有按压态 */
-  .sgx-lock-tb .sgx-topbar, .sgx-lock-tb .sgx-tb-btn, .sgx-lock-tb .sgx-tb-logo { pointer-events: none; cursor: default; }
-  /* 头像 + 欢迎语 + 解锁按钮一组，在整块屏幕上上下左右居中（2026-10-23 用户：太靠上了）：
-     舞台撑满顶栏下面的空间、内容居中；底部多留一个顶栏的高度，抵掉顶栏占的位置，看起来落在屏幕正中。小锁图标 2026-10-23 删掉。 */
-  .sgx-lock-stage {
-    position: relative; z-index: 1; margin: 0 auto; flex: 1 0 auto; max-width: 480px; justify-content: center;
-    padding: 24px 20px calc(env(safe-area-inset-bottom, 0px) + 24px + var(--sgx-tb-h));
-  }
+  /* 账号登录页（account.html .acct-login-user）复用的那组通用版面：欢迎语 / 副标题 / 主按钮（锁屏自己的外观见下面 lock-v10，全部限定在 #sgx-lock 里） */
   .sgx-lock-user { margin-top: 0; width: 100%; gap: 0; }
-  #sgx-lock-avatar { width: 130px; height: 130px; }
-  #sgx-lock-avatar img, .sgx-lock-fb { width: 120px; height: 120px; margin: 5px; }
-  #sgx-lock-avatar img { box-shadow: 0 0 0 5px rgba(255 255 255 / .92), 0 14px 30px -10px rgba(0 0 0 / .25); }
-  :root.dark #sgx-lock-avatar img { box-shadow: 0 0 0 4px rgba(255 255 255 / .2), 0 14px 30px -10px rgba(0 0 0 / .5); }
   .sgx-lock-welcome { margin: 18px 0 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; color: var(--sgx-text-primary); }
   .sgx-lock-sub { margin: 6px 0 0; font-size: 14px; letter-spacing: .04em; color: var(--sgx-text-secondary); }
   .sgx-lock-go {
@@ -8010,11 +7989,129 @@
     box-shadow: inset 0 1px 0 rgba(255 255 255 / .22), 0 12px 24px -12px color-mix(in oklch, var(--sgx-primary-fill) 70%, transparent);
     svg { width: 20px; height: 20px; }
   }
-  /* 手机横屏（矮屏）：一列居中，上下留白收小 */
+  /* 锁屏 lock-v10（2026-11 UI 重设计 PR-4，设计稿 entry-v2/lock.html K1–K4；只换外观）：
+     终端风——细网格 + 主题色光晕的底、等宽字；头像 → 状态胶囊 `$ STATUS: …` → 名字 → 欢迎语一行 → 锁屏终端窗（标题栏 · 回显 · 快捷键 + 解锁）→ 底部 `~/styrigx_`。
+     顶栏仍和全站同一个（只是外观，点不了）。颜色只用 --sgx-* 角色（亮 / 暗、各色板都跟着走），不写死设计稿的暗色。 */
+  #sgx-lock { background: var(--m-surface); flex-direction: column; font-family: var(--sgx-font-mono); }
+  #sgx-lock .sgx-glass-bg { position: fixed; }
+  /* 网格 + 上方主题色光晕（设计稿 body:before / :after）；原光晕层的大色块在锁屏上不画（设计稿底面干净） */
+  #sgx-lock .sgx-glass-bg::before { display: none; }
+  #sgx-lock .sgx-glass-bg::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(70% 40% at 50% 28%, color-mix(in srgb, var(--sgx-primary) 10%, transparent), transparent 70%),
+      linear-gradient(color-mix(in srgb, var(--sgx-text-primary) 4%, transparent) 1px, transparent 1px) 0 0 / 36px 36px,
+      linear-gradient(90deg, color-mix(in srgb, var(--sgx-text-primary) 4%, transparent) 1px, transparent 1px) 0 0 / 36px 36px;
+  }
+  .sgx-lock-tb {
+    position: relative; z-index: 1; flex: none; box-sizing: content-box;
+    width: var(--sgx-shell-w, calc(100% - 32px)); height: var(--sgx-tb-h); margin: 0 auto;
+    padding-top: env(safe-area-inset-top, 0px);
+    display: flex; align-items: center; gap: var(--sgx-tb-gap);
+  }
+  /* 锁屏顶栏的两侧圆只是外观：不可点、没有按压态 */
+  .sgx-lock-tb .sgx-topbar, .sgx-lock-tb .sgx-tb-btn, .sgx-lock-tb .sgx-tb-logo { pointer-events: none; cursor: default; }
+  /* 整组在顶栏下面的空间里上下居中（底部多留一个顶栏高度抵掉顶栏，看起来落在屏幕正中） */
+  .sgx-lock-stage {
+    position: relative; z-index: 1; margin: 0 auto; flex: 1 0 auto; max-width: 560px; justify-content: center;
+    padding: 24px 18px calc(env(safe-area-inset-bottom, 0px) + 24px + var(--sgx-tb-h));
+  }
+  #sgx-lock .sgx-lock-user { text-align: center; }
+  /* 头像 92px（设计稿），仍是按钮：点它 / 回车 / 空格 → 解锁方式弹层 */
+  #sgx-lock-avatar { width: 100px; height: 100px; }
+  #sgx-lock-avatar img, .sgx-lock-fb { width: 92px; height: 92px; margin: 4px; }
+  #sgx-lock-avatar img { filter: saturate(.9); box-shadow: 0 0 0 1px var(--sgx-term-line), 0 14px 30px -12px rgba(0 0 0 / .35); }
+  #sgx-lock .sgx-lock-halo { border: 1px solid color-mix(in srgb, var(--sgx-primary) 35%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--sgx-primary) 18%, transparent); }
+  @media (min-width:1024px) and (hover: hover) and (pointer: fine) {
+    #sgx-lock-avatar:hover .sgx-lock-halo { opacity: 1; border-color: var(--sgx-primary); box-shadow: 0 0 24px color-mix(in srgb, var(--sgx-primary) 45%, transparent); }
+  }
+  /* 状态胶囊：圆点颜色跟状态（锁定 = 主题色、验证中 = 警示色、拒绝 = 危险色、通过 = 成功色） */
+  .sgx-lock-st {
+    display: inline-flex; align-items: center; gap: 8px; margin: 18px 0 0; padding: 5px 13px;
+    border: 1px solid var(--sgx-term-line); border-radius: 999px;
+    font-size: 11px; letter-spacing: 2px; line-height: 1.4; color: var(--sgx-text-secondary); white-space: nowrap;
+    i { width: 7px; height: 7px; border-radius: 50%; background: var(--sgx-primary); flex: none; }
+    &[data-st="sudo"] i, &[data-st="verifying"] i { background: var(--sgx-warning); }
+    &[data-st="denied"] i { background: var(--sgx-danger); }
+    &[data-st="unlocked"] i { background: var(--sgx-success); }
+  }
+  .sgx-lock-nm { margin: 12px 0 0; font-size: 32px; font-weight: 500; line-height: 1.2; letter-spacing: -.5px; color: var(--sgx-text-primary); overflow-wrap: anywhere; }
+  :root[data-sgx-layout="desktop"] .sgx-lock-nm { font-size: 40px; }
+  .sgx-lock-greet { margin: 6px 0 0; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.6; color: var(--sgx-text-secondary); }
+  #sgx-lock .sgx-lock-welcome, #sgx-lock .sgx-lock-sub { margin: 0; font-size: inherit; font-weight: 400; letter-spacing: 0; color: inherit; }
+  /* 锁屏终端窗（同全站终端 .sgx-term 的线框 / 底色） */
+  .sgx-lock-term {
+    box-sizing: border-box; width: 100%; margin-top: 40px; text-align: left;
+    border: 1px solid var(--sgx-term-line); border-radius: 16px; overflow: hidden;
+    background: color-mix(in srgb, var(--sgx-surface-container-lowest) 92%, transparent);
+    box-shadow: 0 30px 70px rgba(0,0,0,.18);
+  }
+  .dark .sgx-lock-term { box-shadow: 0 30px 70px rgba(0,0,0,.4); }
+  .sgx-lock-term-bar {
+    display: flex; justify-content: space-between; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--sgx-term-line);
+    background: var(--sgx-surface-container-low); font-size: 11px; letter-spacing: 3px; line-height: 1.3; color: var(--sgx-text-secondary);
+    b { font-weight: 500; color: var(--sgx-primary); }
+  }
+  .sgx-lock-log { min-height: 128px; padding: 14px 16px 8px; font-size: 13px; line-height: 1.95; color: var(--sgx-text-primary); overflow-wrap: anywhere; }
+  .sgx-lock-ld { color: var(--sgx-text-tertiary); }
+  .sgx-lock-lgap { height: 6px; }
+  .sgx-lock-lm { color: var(--sgx-text-secondary); }
+  .sgx-lock-lbad { color: var(--sgx-danger); }
+  .sgx-lock-lok { color: var(--sgx-success); }
+  .sgx-lock-pp { color: var(--sgx-primary); }
+  .sgx-lock-pd { color: var(--sgx-text-tertiary); }
+  .sgx-lock-cur, .sgx-lock-tcur {
+    display: inline-block; width: 8px; height: 15px; margin-left: 2px; vertical-align: -3px; background: var(--sgx-primary);
+    animation: sgx-tb-blink 1.05s steps(1) infinite;
+    .reduced-motion & { animation: none; }
+  }
+  .sgx-lock-tcur { width: 7px; height: 2px; vertical-align: 0; background: var(--sgx-text-tertiary); }
+  .sgx-lock-qh { margin: 0; padding: 4px 16px 10px; font-size: 10.5px; letter-spacing: 1px; color: var(--sgx-text-tertiary); }
+  /* 快捷键一行（password / passkey，只显示已配置的），解锁主按钮在下面占满一行 */
+  .sgx-lock-qk { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 16px 16px; }
+  .sgx-lock-k {
+    flex: 1 1 0; min-width: 0; min-height: 44px; padding: 10px 8px; box-sizing: border-box;
+    border: 1px solid var(--sgx-term-line); border-radius: 10px; background: color-mix(in srgb, var(--sgx-surface-container-low) 70%, transparent);
+    font: inherit; font-size: 13px; color: var(--sgx-text-secondary); cursor: pointer; white-space: nowrap;
+    transition: border-color .15s ease, background-color .15s ease, transform .15s ease;
+    &::before { content: '$ '; font-weight: 500; color: var(--sgx-primary); }
+    &[hidden] { display: none; }
+    &.is-on { border-color: var(--sgx-primary); color: var(--sgx-text-primary); background: color-mix(in srgb, var(--sgx-primary) 12%, transparent); }
+    &:focus { outline: none; }
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+    &:active { transform: scale(.97); }
+    .reduced-motion & { transition: none; }
+  }
+  @media (hover: hover) and (pointer: fine) { .sgx-lock-k:hover { border-color: color-mix(in srgb, var(--sgx-primary) 60%, var(--sgx-term-line)); color: var(--sgx-text-primary); } }
+  /* 解锁 = 主按钮（主题色实心，原 .sgx-credential-btn-primary 的颜色角色），等宽字、$ 前缀 */
+  #sgx-lock .sgx-lock-go {
+    flex: 1 1 100%; width: 100%; max-width: none; margin-top: 0; min-height: 46px; border-radius: 10px; gap: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--sgx-font-mono); font-size: 14px; font-weight: 700; letter-spacing: 0;
+    box-shadow: 0 10px 22px -14px color-mix(in oklch, var(--sgx-primary-fill) 70%, transparent);
+    svg { width: 16px; height: 16px; }
+    &::before { content: '$'; font-weight: 700; opacity: .75; }
+    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+  }
+  /* 底部 ~/styrigx_（装饰） */
+  .sgx-lock-tail {
+    position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); margin: 0;
+    text-align: center; font-size: 11px; letter-spacing: 1px; color: var(--sgx-text-tertiary); pointer-events: none;
+  }
+  /* 触屏：快捷键 / 解锁字号放大到 14px，触控高度 ≥ 44 */
+  @media (pointer: coarse) { .sgx-lock-k, #sgx-lock .sgx-lock-go { font-size: 14px; min-height: 46px; } }
+  /* 手机横屏（矮屏）：一列居中，上下留白收小，终端回显区收矮 */
   @media (orientation:landscape) and (max-width:1023.5px) and (max-height:600px) {
     .sgx-lock-stage { flex-direction: column; padding-top: 8px; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
     .sgx-lock-user { flex: none; }
+    .sgx-lock-term { margin-top: 20px; }
+    .sgx-lock-log { min-height: 0; }
+    .sgx-lock-tail { display: none; }
   }
+  @media (prefers-reduced-motion: reduce) { .sgx-lock-cur, .sgx-lock-tcur { animation: none; } }
+  /* 通行密钥等系统弹窗时验证弹层被临时隐藏（passkey-assert.js hideEl → style.visibility:hidden）：锁屏这组压暗留着（设计稿 K4），
+     让终端的「等待通行密钥」垫在系统弹窗后面，而不是整屏空白；仍不可点（pointer-events 照旧 none） */
+  body.sgx-dlg-open:has(.sgx-verify-dlg[style*="visibility: hidden"]) #sgx-lock .sgx-lock-user { opacity: .45; }
   /* 解锁时首页从 96% 缩放回 100%（约 400ms，与锁屏滑出同步） */
   main, #site-nav, footer { transition: transform .4s ease; }
   body.sgx-locked main, body.sgx-locked #site-nav, body.sgx-locked footer { transform: scale(.96); }
