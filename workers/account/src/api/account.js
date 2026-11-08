@@ -21,7 +21,8 @@
  * 新增：
  * - device-revoke-all：要账号会话 + AccountReauthTicket（只有 reset 票不行，403 reauth）。Account 纪元 +1、当前设备重签、
  *   其他设备的行全部删除（票随纪元失效）、短票按原到期时间重签。
- * - root-reauth / root-reset / audit-list：见 account-root.js。
+ * - root-reset / audit-list：见 account-root.js。audit-list 要账号会话（没有 → 401 account）。
+ *   恢复密钥只能换 reset 票（不能换 reauth 票，2026-11-08 删 root-reauth）；reset 票只能重设账号密码、增删通行密钥，不能改名（passkey-rename 不认 reset 票）。
  * - grant-list / grant-revoke / grant-add（P3-1 应用授权，core/app-grant.js）：都要进门 + 账号会话（只有 reset 票不行，401 account）。
  *   grant-list 先跑幂等种子（core/app-grant.js ensureSeed，首次切换），再回全部应用的授权状态 { ok, grants }；
  *   grant-revoke { app } 删这一行（只降权，不要复验），回新列表；grant-add { app } 要 AccountReauthTicket（没有 → 401 reauth），
@@ -290,7 +291,11 @@ async function handlePost(context) {
   if (Object.prototype.hasOwnProperty.call(ROOT_ACTIONS, action)) {
     return handleRootAction({ request, env, ip, action, body });
   }
-  if (action === 'audit-list') return handleAuditList(env);
+  if (action === 'audit-list') {
+    const acc = await verifyAccountSession(request, env);
+    if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
+    return handleAuditList(env);
+  }
 
   /* ============ 应用授权（P3-1） ============ */
   if (GRANT_ACTIONS.indexOf(action) !== -1) return handleGrantAction(env, request, action, body);
@@ -421,13 +426,15 @@ async function handlePost(context) {
   const MGMT = ['passkey-list', 'passkey-register-challenge', 'passkey-register', 'passkey-delete', 'passkey-rename', 'password-change', 'device-list', 'device-revoke', 'device-revoke-all'];
   if (MGMT.indexOf(action) === -1) return apiError(400, 'action');
   const isDeviceAction = action === 'device-list' || action === 'device-revoke' || action === 'device-revoke-all';
+  /* reset 票（恢复密钥）只管「重设」：设账号密码、增删通行密钥；设备类、改名不认它（2026-11-08 Q1） */
+  const resetOk = !isDeviceAction && action !== 'passkey-rename';
 
   let ticketName = '';
   /** @type {{ok:boolean, by?:string, exp?:number, reason?:string}|null} */
   let tv = null;
   const acc = await verifyAccountSession(request, env);
   if (!acc.ok) {
-    const xv = isDeviceAction ? null : await verifyTicket(request, env, ACCOUNT_RESET_TICKET);
+    const xv = resetOk ? await verifyTicket(request, env, ACCOUNT_RESET_TICKET) : null;
     if (!xv || !xv.ok) return apiError(401, 'account', { reason: acc.reason });
     ticketName = ACCOUNT_RESET_TICKET;
     tv = xv;
@@ -456,14 +463,14 @@ async function handlePost(context) {
     await writeSecurityEvent(env, ip, 'device-revoke');
     return json(200, { ok: true });
   }
-  /* 有账号会话：安全操作要 AccountReauthTicket；会话还在时也认 AccountResetTicket（device-revoke-all 只认 reauth 票） */
+  /* 有账号会话：安全操作要 AccountReauthTicket；会话还在时也认 AccountResetTicket（device-revoke-all、passkey-rename 只认 reauth 票） */
   if (acc.ok && action !== 'passkey-list') {
     const rv = await verifyTicket(request, env, ACCOUNT_REAUTH_TICKET);
     if (rv.ok) {
       ticketName = ACCOUNT_REAUTH_TICKET;
       tv = rv;
     } else {
-      const xv = action === 'device-revoke-all' ? { ok: false } : await verifyTicket(request, env, ACCOUNT_RESET_TICKET);
+      const xv = resetOk ? await verifyTicket(request, env, ACCOUNT_RESET_TICKET) : { ok: false };
       if (!xv.ok) return apiError(403, 'reauth', { reason: rv.reason });
       ticketName = ACCOUNT_RESET_TICKET;
       tv = xv;

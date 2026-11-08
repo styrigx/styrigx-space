@@ -6,7 +6,7 @@
  *
  * 和网关域对象的区别只有两项（方案第 6.2 节）：
  * - rootKey：账号根密钥的 Secrets Store 名 SGX_ACCOUNT_ROOT_KEY（新建，值与进站凭证不同）。只用来比对，永远不签会话。
- * - rootIssues：账号根密钥验过后能签的票（AccountReauthTicket、AccountResetTicket，by=root）。
+ * - rootIssues：账号根密钥验过后能签的票：只有 AccountResetTicket（by=root）。2026-11-08 起不再能换 AccountReauthTicket。
  * 根密钥的限速 / 审计行就在本域：attempt_limit realm='account' kind='rootkey'、audit realm='account'。
  *
  * 存储：D1 styrigx-account（绑定 D1_ACCOUNT_AUTH），表见 migrations/0003_account_auth.sql，每张表 realm 列 = 'account'。
@@ -79,7 +79,7 @@ export const TICKETS = Object.freeze({
     publicKey: 'SGX_ACCOUNT_PUBLIC',
     maxAge: SHORT_TICKET_MAX_AGE,
     cookieAttrs: SHORT_TICKET_ATTRS,
-    bys: Object.freeze([BY_PASSWORD, BY_PASSKEY, BY_ROOT]),
+    bys: Object.freeze([BY_PASSWORD, BY_PASSKEY]),
     realm: 'account',
   }),
 });
@@ -103,7 +103,7 @@ export const REALM_ACCOUNT = Object.freeze({
   /* challenge 表的 purpose（账号通行密钥登录 / 注册）；5 分钟 */
   challenge: Object.freeze({ login: 'login', register: 'register', ttl: 300 }),
   rootKey: 'SGX_ACCOUNT_ROOT_KEY',
-  rootIssues: Object.freeze([ACCOUNT_REAUTH_TICKET, ACCOUNT_RESET_TICKET]),
+  rootIssues: Object.freeze([ACCOUNT_RESET_TICKET]),
 });
 
 /** 读签名私钥；缺失返回 ''（调用方 fail closed）。@param {any} env @param {{privateKey:string}} realm */

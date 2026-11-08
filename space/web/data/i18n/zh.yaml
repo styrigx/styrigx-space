@@ -469,7 +469,6 @@ js:
     passkeyBusy: 正在唤起通行密钥…
     byPasskey: 已用账号通行密钥登录
     byPassword: 已用账号密码登录
-    byRoot: 已用根凭证登录
     reauthNotice: 进入管理凭证前请先登录账号
     configNotice: 账号登录暂不可用：服务器缺少账号密钥配置
     loggedOut: 已退出账号
@@ -502,7 +501,6 @@ js:
     errConfig: 服务器配置有误
     errServer: 服务暂时不可用
     errShort: 最短 8 位
-    errSameAsLock: 不能与解锁密码相同
     errNotFound: 找不到这把钥匙
     errNetwork: 网络连接失败，请重试
     errUnknown: 未知错误，请稍后重试

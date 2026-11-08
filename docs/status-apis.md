@@ -45,7 +45,7 @@ cookie 值、挑战原文）。调用方列表由 `grep space/web/assets/js/` �
 - 账号会话、AccountReauthTicket、AccountResetTicket 全部由账号 Worker 签发和验证（`workers/account/src/core/account-session.js`，`SGX_ACCOUNT_PRIVATE / PUBLIC`）。网关不签、不验；网关需要结论时经 `ACCOUNT_VERIFIER.accountSession()` 问账号 Worker。
 - 账号登录两个入口：账号通行密钥（`POST /api/account` login-challenge + login-passkey）、
   账号密码（login-password）。账号根密钥不是登录入口：「无法登录？」→「重置登录」
-  （`POST /api/account { action:'root-reset', key }`，比对 `SGX_ACCOUNT_ROOT_KEY`）只签 AccountResetTicket（`sgx-account-reset`，by=root），重置页设好新 AccountKey 后正常登录（不顺带签账号会话）。`root-reauth` 同理签 AccountReauthTicket（要有效账号会话）。
+  （`POST /api/account { action:'root-reset', key }`，比对 `SGX_ACCOUNT_ROOT_KEY`）只签 AccountResetTicket（`sgx-account-reset`，by=root），重置页设好新 AccountKey 后正常登录（不顺带签账号会话）。2026-11-08 起恢复密钥不能再换 AccountReauthTicket（`root-reauth` 已删）；reset 票只能重设账号密码、增删通行密钥（不能改名）。
 - 锁屏弹层的「无法登录？」只管锁屏（`auth/reset-flow.js`）：进站凭证 → `POST /api/lock-reset verify`；
   恢复开关无效时服务端返回 `needLock`，再验锁屏凭证（锁屏通行密钥 / 锁屏密码，`lockProof`）。网关不读账号凭证。
   进站凭证比对只在网关 `src/core/space-check.js`（`SGX_LOCK_SPACE_KEY`）；账号根密钥比对只在账号 Worker `src/lib/root-check.js`（`SGX_ACCOUNT_ROOT_KEY`），两套互不相干、各自计数。

@@ -1,9 +1,10 @@
 /**
- * 账号拆分 PR2b：账号根密钥 SGX_ACCOUNT_ROOT_KEY（POST /api/account root-reauth / root-reset）与审计（audit-list、安全事件）。
+ * 账号拆分 PR2b：账号根密钥 SGX_ACCOUNT_ROOT_KEY（恢复密钥 RecoveryKey；POST /api/account root-reset）与审计（audit-list、安全事件）。
+ * 2026-11-08 三钥匙三入口：删 root-reauth（恢复密钥不能换 reauth 票）；audit-list 要账号会话；reset 票不能 passkey-rename。
  * 从网关 root-auth / root-check / root-limit / root-audit 的测试复制改写（账号那两条真路径）：
- * - 只认 SGX_ACCOUNT_ROOT_KEY（进站凭证的值不认）；root-reset 不签会话；root-reauth 要账号会话
+ * - 只认 SGX_ACCOUNT_ROOT_KEY（进站凭证的值不认）；root-reset 不签会话；root-reauth 已删（400 action）
  * - 限速 attempt_limit realm='account' kind='rootkey'：单 IP 5 次锁 15 分钟（429 cooldown）、全局只减速、成功清计数
- * - 审计 audit realm='account' path = root-reauth / root-reset（7 天）；成功写不进审计不签票（503）
+ * - 审计 audit realm='account' path = root-reset（7 天）；成功写不进审计不签票（503）
  * - 错误码：401 auth / 401 account / 429 cooldown / 500 config / 503 config / 503 server
  * - 共享 root-check 读 realm.secret：账号侧在调用处转接，共享模块不改
  *
@@ -69,29 +70,35 @@ test('root-reset：已有账号会话也不动它（不重签、不清除）', a
   assert.equal((await (await get(env, { 'sgx-account-session': s })).json()).session.by, 'password');
 });
 
-test('root-reauth：没有账号会话 → 401 account（不比对、不计数、不写审计）', async () => {
+test('root-reauth 已删：有没有账号会话都 400 action（不比对、不计数、不写审计、不签任何票）', async () => {
   const env = makeEnv();
-  const r = await post(env, { action: 'root-reauth', key: ROOT_KEY });
-  assert.equal(r.status, 401);
-  const j = await r.json();
-  assert.equal(j.error, 'account');
-  assert.equal(j.reason, 'no-cookie');
+  await seedPassword(env, 'old-account-password-1');
+  for (const ck of [{}, { 'sgx-account-session': await accSession('passkey') }]) {
+    const r = await post(env, { action: 'root-reauth', key: ROOT_KEY }, ck);
+    assert.equal(r.status, 400);
+    assert.equal((await r.json()).error, 'action');
+    assert.equal(r.headers.get('Set-Cookie'), null);
+  }
   assert.equal(audits(env).length, 0);
   assert.equal(one(env, 'SELECT COUNT(*) AS n FROM attempt_limit').n, 0);
 });
 
-test('root-reauth：有账号会话 → AccountReauthTicket(by=root)；凭它能改账号凭证；审计 path=root-reauth', async () => {
+test('reset 票不能当 reauth 票：已登录 + 只有 reset 票 → device-revoke-all / passkey-rename 都 403 reauth；password-change 照常可以', async () => {
   const env = makeEnv();
   await seedPassword(env, 'old-account-password-1');
   const s = await accSession('passkey');
-  const r = await post(env, { action: 'root-reauth', key: ROOT_KEY }, { 'sgx-account-session': s });
-  assert.equal(r.status, 200);
-  const t = pickCookie(r, 'sgx-account-reauth');
-  assert.ok(t.startsWith('root.0.'));
-  assert.equal(pickCookie(r, 'sgx-account-session'), null, '不签会话');
-  const pc = await post(env, { action: 'password-change', password: 'brand-new-pass-1' }, { 'sgx-account-session': s, 'sgx-account-reauth': t });
-  assert.deepEqual(await pc.json(), { ok: true, changed: true });
-  assert.deepEqual(audits(env).map((a) => a.path), ['root-reauth', 'password-change']);
+  const t = pickCookie(await post(env, { action: 'root-reset', key: ROOT_KEY }), 'sgx-account-reset');
+  for (const body of [{ action: 'device-revoke-all' }, { action: 'passkey-rename', credId: 'x', name: 'n' }]) {
+    const r = await post(env, body, { 'sgx-account-session': s, 'sgx-account-reset': t });
+    assert.equal(r.status, 403, body.action);
+    assert.equal((await r.json()).error, 'reauth', body.action);
+  }
+  /* 没登录 + reset 票：改名 401 account（reset 只管重设） */
+  const r2 = await post(env, { action: 'passkey-rename', credId: 'x', name: 'n' }, { 'sgx-account-reset': t });
+  assert.equal(r2.status, 401);
+  assert.equal((await r2.json()).error, 'account');
+  const pc = await post(env, { action: 'password-change', password: 'brand-new-pass-1' }, { 'sgx-account-session': s, 'sgx-account-reset': t });
+  assert.equal(pc.status, 200);
 });
 
 test('错误的根密钥 → 401 auth（与网关真失败同形）；计入 realm=account kind=rootkey（单 IP + 全局）；审计 ok=0；返回前对齐到 200 毫秒', async () => {
@@ -167,7 +174,7 @@ test('配置：缺 SGX_ACCOUNT_ROOT_KEY → 500 config；缺账号票钥匙 → 
   assert.equal(r1.status, 500);
   assert.equal((await r1.json()).error, 'config');
   const e2 = makeEnv({ SGX_ACCOUNT_PRIVATE: '' });
-  const r2 = await post(e2, { action: 'root-reauth', key: ROOT_KEY }, { 'sgx-account-session': await accSession() });
+  const r2 = await post(e2, { action: 'root-reset', key: ROOT_KEY });
   assert.equal(r2.status, 503);
   assert.equal((await r2.json()).error, 'config');
   for (const e of [e1, e2]) {
@@ -198,9 +205,9 @@ test('成功但审计写不进去 → 503 server，不签票（fail closed）', 
   assert.equal(r.headers.get('Set-Cookie'), null);
 });
 
-test('身份：root-reauth / root-reset / audit-list 都要进门（没有 X-Styrigx-Lock-Session: 1 → 401 session，不计数、不写审计）', async () => {
+test('身份：root-reset / audit-list 都要进门（没有 X-Styrigx-Lock-Session: 1 → 401 session，不计数、不写审计）', async () => {
   const env = makeEnv();
-  for (const action of ['root-reset', 'root-reauth', 'audit-list']) {
+  for (const action of ['root-reset', 'audit-list']) {
     for (const identity of [null, { session: '', role: 'password', by: 'password' }]) {
       const r = await post(env, { action, key: ROOT_KEY }, { 'sgx-account-session': await accSession() }, { identity });
       assert.equal(r.status, 401);
@@ -211,12 +218,16 @@ test('身份：root-reauth / root-reset / audit-list 都要进门（没有 X-Sty
   assert.equal(one(env, 'SELECT COUNT(*) AS n FROM attempt_limit').n, 0);
 });
 
-test('audit-list：{ items:[{ ts, ipPrefix, ok, event }] }，新的在前、最多 50 条；只给这四项（decoy / via 不出接口）；不要账号会话', async () => {
+test('audit-list：{ items:[{ ts, ipPrefix, ok, event }] }，新的在前、最多 50 条；只给这四项（decoy / via 不出接口）；要账号会话（没有 → 401 account，Q3 2026-11-08）', async () => {
   const env = makeEnv();
   const now = Date.now();
   const ins = raw(env).prepare('INSERT INTO audit (realm, id, ts, ip_prefix, ok, decoy, via, path, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  for (let i = 0; i < 60; i++) ins.run('account', 'a' + i, now - 1000 * i, '1.2.3.x', i % 2, 1, 'switch', i % 3 ? 'root-reauth' : 'device-revoke', now + 3600000);
-  const r = await post(env, { action: 'audit-list' });
+  for (let i = 0; i < 60; i++) ins.run('account', 'a' + i, now - 1000 * i, '1.2.3.x', i % 2, 1, 'switch', i % 3 ? 'root-reset' : 'device-revoke', now + 3600000);
+  const r0 = await post(env, { action: 'audit-list' });
+  assert.equal(r0.status, 401);
+  assert.equal((await r0.json()).error, 'account');
+  const ck = { 'sgx-account-session': await accSession() };
+  const r = await post(env, { action: 'audit-list' }, ck);
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.items.length, 50);
@@ -234,10 +245,11 @@ test('audit-list：过期行不返回；别的 realm 的行不返回；D1 出错
   ins.run('account', 'old', now - 8 * 86400000, '1.1.1.x', 1, 'root-reset', now - 1);
   ins.run('lock', 'lk', now, '1.1.1.x', 1, 'lock-reset', now + 1000);
   ins.run('root', 'rt', now, '1.1.1.x', 1, 'account-reset', now + 1000);
-  const j = await (await post(env, { action: 'audit-list' })).json();
+  const ck = { 'sgx-account-session': await accSession() };
+  const j = await (await post(env, { action: 'audit-list' }, ck)).json();
   assert.deepEqual(j.items.map((x) => x.event), ['root-reset']);
   env.D1_ACCOUNT_AUTH = failing(env.D1_ACCOUNT_AUTH, (q) => /FROM audit/.test(q));
-  const r = await post(env, { action: 'audit-list' });
+  const r = await post(env, { action: 'audit-list' }, ck);
   assert.equal(r.status, 503);
   assert.equal((await r.json()).error, 'server');
 });
@@ -247,8 +259,9 @@ test('audit-list 合在一张表：根密钥使用（7 天）+ 安全事件（30
   await post(env, { action: 'root-reset', key: 'bad' });
   await post(env, { action: 'root-reset', key: ROOT_KEY });
   await new Promise((r) => setTimeout(r, 2));
-  await post(env, { action: 'device-revoke-all' }, await full());
-  const j = await (await post(env, { action: 'audit-list' })).json();
+  const ra = await post(env, { action: 'device-revoke-all' }, await full());
+  /* device-revoke-all 推了纪元：用它重签的本机会话读审计 */
+  const j = await (await post(env, { action: 'audit-list' }, { 'sgx-account-session': pickCookie(ra, 'sgx-account-session') })).json();
   assert.deepEqual(j.items.map((x) => [x.event, x.ok]), [['device-revoke-all', true], ['root-reset', true], ['root-reset', false]]);
   const ttl = all(env, 'SELECT path, expires_at - ts AS ttl FROM audit ORDER BY ts DESC');
   assert.equal(ttl[0].ttl, 30 * 86400000);
@@ -271,7 +284,9 @@ test('根域：ROOT_REALM.rootKey = REALM_ACCOUNT.rootKey = SGX_ACCOUNT_ROOT_KEY
   assert.equal(root.ROOT_REALM.id, 'account');
   assert.equal(root.ROOT_REALM.d1Binding, 'D1_ACCOUNT_AUTH');
   assert.ok(Array.isArray(root.ROOT_REALM.schema));
-  assert.deepEqual(Object.keys(root.ROOT_ACTIONS), ['root-reauth', 'root-reset']);
+  assert.deepEqual(Object.keys(root.ROOT_ACTIONS), ['root-reset'], '恢复密钥只换 reset 票');
+  assert.deepEqual([...realm.TICKETS.AccountReauthTicket.bys], ['password', 'passkey'], 'reauth 票不认 by=root');
+  assert.deepEqual([...realm.REALM_ACCOUNT.rootIssues], ['AccountResetTicket']);
   const shared = readFileSync(REPO + 'workers/account/src/lib/root-check.js', 'utf8');
   assert.match(shared, /env\[realm\.rootKey\]/);
   assert.doesNotMatch(shared, /realm\.secret/);

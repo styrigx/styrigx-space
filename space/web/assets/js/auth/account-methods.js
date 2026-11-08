@@ -6,7 +6,7 @@
  * - 账号密码：login-password
  * reauth:true 时服务端在账号会话之外另签 3 分钟 AccountReauthTicket（账号安全子页用）。
  * 三个提交都带 device（lib/device-hints.js：型号 / 平台），服务端记进设置 › 账号 › 设备。
- * root(value)：重置登录（账号）第一步，POST /api/account { action:'root-reset', key }（账号根密钥，不是登录入口）→ AccountResetTicket。
+ * 恢复密钥（root-reset）不在这里：它不是登录 / 再验证的钥匙，提交函数在 apps/account-reset.js（三钥匙三入口，2026-11-08）。
  *
  * 行的渲染在 auth/cred-rows.js（锁屏弹层的重置登录也用它）。
  * 放在 lib/：账号页（apps/account*.js）和锁屏凭证页（apps/security-lock.js）都 import 它。
@@ -33,7 +33,7 @@ export function visibleKinds(status) {
 }
 
 /**
- * 三个入口的提交函数。成功 resolve；失败 reject { message, clear?, cancelled? }。
+ * 两个入口（账号通行密钥 / 账号密码）的提交函数。成功 resolve；失败 reject { message, clear?, cancelled? }。
  * @param {function(string): string} t
  * @param {{reauth?: boolean}} [opts]
  */
@@ -52,19 +52,6 @@ export function accountSubmitters(t, opts) {
     return postJSON(ACCOUNT_API, body).then(function (res) {
       if (res.j && res.j.ok) return;
       throw { message: errText(res.j && res.j.error, res.s), clear: true };
-    }, function () {
-      throw { message: t('errNetwork') };
-    });
-  }
-  /** 重置登录（账号）第一步：账号根密钥 → AccountResetTicket（3 分钟；不签账号会话，设好新凭证后正常登录；账号拆分 PR3 起在账号 Worker） @param {string} value */
-  function root(value) {
-    const body = { action: 'root-reset', key: value };
-    return postJSON(ACCOUNT_API, body).then(function (res) {
-      if (res.j && res.j.ok) return;
-      if (res.s === 429) throw { message: t('errLocked') };
-      if (res.j && res.j.error === 'config') throw { message: t('errConfig') };
-      /* 401：统一提示账号根凭证不正确 */
-      throw { message: t('errWrongRoot'), clear: true };
     }, function () {
       throw { message: t('errNetwork') };
     });
@@ -103,7 +90,7 @@ export function accountSubmitters(t, opts) {
       });
     });
   }
-  return { passkey: passkey, password: password, root: root };
+  return { passkey: passkey, password: password };
 }
 
 /**

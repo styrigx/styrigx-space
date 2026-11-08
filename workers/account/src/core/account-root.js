@@ -1,15 +1,15 @@
 /**
  * 账号根密钥（SGX_ACCOUNT_ROOT_KEY）与账号审计（账号拆分 PR2b，方案第 5.1、6.2、7.3 节）。
  *
- * POST /api/account 里的三个 action 由 account.js 交到这里（身份头已确认进门、同源、账号库已绑）：
- * - root-reauth { key } → AccountReauthTicket（by=root）。要有效账号会话（没有 → 401 account）。
+ * POST /api/account 里的两个 action 由 account.js 交到这里（身份头已确认进门、同源、账号库已绑）：
  * - root-reset  { key } → AccountResetTicket（by=root）。不要账号会话；不签会话（拿票设好新凭证后正常登录）。
- * - audit-list          → { items:[{ ts, ipPrefix, ok, event }] }，最近 50 条，新的在前（根密钥使用 + 安全事件）。
+ *   这是恢复密钥（RecoveryKey）唯一的用途：`sudo root reset`。恢复密钥不能登录、不能换 reauth 票（三钥匙三入口，Gray 2026-11-08）。
+ * - audit-list          → { items:[{ ts, ipPrefix, ok, event }] }，最近 50 条，新的在前（恢复密钥使用 + 安全事件）。要账号会话（account.js 先验）。
  *
  * 账号拆分前这两条路径在网关 /api/root-auth（purpose account-reauth / account-reset），PR3 起只在这里，差别：
  * - 比对的是账号自己的根密钥 SGX_ACCOUNT_ROOT_KEY（REALM_ACCOUNT.rootKey），不是进站凭证；没有恢复开关。
  * - 限速行在本库 attempt_limit realm='account' kind='rootkey'；审计行在本库 audit realm='account'，
- *   path = root-reauth / root-reset（网关原来写 realm='root'、path = account-reauth / account-reset）。
+ *   path = root-reset（网关原来写 realm='root'、path = account-reset；2026-11-08 起不再有 root-reauth）。
  * - 没有假入口：没进门在 account.js 就 401 session（网关的门本来也不放没进门的请求进账号接口）。
  * 规则与网关进站凭证相同（本 Worker 自己的 lib/root-check / root-limit / root-audit）：单 IP 连错 5 次锁 15 分钟（429 cooldown）；
  * 全局每小时满 20 次后每次先等 3 秒；成功清计数；失败统一 401 auth，返回前对齐到 200 毫秒；
@@ -28,9 +28,9 @@ import { rootChecker } from '../lib/root-check.js';
 import { rootAuditor, ipPrefix } from '../lib/root-audit.js';
 import { onAuthDb, sweepExpired } from '../lib/d1-state.js';
 import { json, apiError } from '../lib/http.js';
-import { REALM_ACCOUNT, TICKETS, BY_ROOT, ACCOUNT_REAUTH_TICKET, ACCOUNT_RESET_TICKET } from './realm.js';
+import { REALM_ACCOUNT, TICKETS, BY_ROOT, ACCOUNT_RESET_TICKET } from './realm.js';
 import { ACCOUNT_DB_REALM } from './account-store.js';
-import { verifyAccountSession, issueTicket } from './account-session.js';
+import { issueTicket } from './account-session.js';
 
 /** lib/root-* 用的根域：账号库（ACCOUNT_DB_REALM）+ 密值名 SGX_ACCOUNT_ROOT_KEY（REALM_ACCOUNT.rootKey） */
 export const ROOT_REALM = Object.freeze(Object.assign({}, ACCOUNT_DB_REALM, { rootKey: REALM_ACCOUNT.rootKey }));
@@ -40,7 +40,6 @@ const { writeRootAudit } = rootAuditor(ROOT_REALM);
 
 /** action → 签哪张票（审计 path 就是 action 名） */
 export const ROOT_ACTIONS = Object.freeze({
-  'root-reauth': ACCOUNT_REAUTH_TICKET,
   'root-reset': ACCOUNT_RESET_TICKET,
 });
 
@@ -69,12 +68,12 @@ async function padTo(t0) {
 }
 
 /**
- * root-reauth / root-reset。
- * @param {{request:any, env:any, ip:string, action:string, body:any}} o
+ * root-reset。
+ * @param {{request?:any, env:any, ip:string, action:string, body:any}} o
  * @returns {Promise<Response>}
  */
 export async function handleRootAction(o) {
-  const { request, env, ip, action, body } = o;
+  const { env, ip, action, body } = o;
   const t0 = Date.now();
   const ticket = ROOT_ACTIONS[action];
   if (!ticket) return apiError(400, 'action');
@@ -82,10 +81,6 @@ export async function handleRootAction(o) {
   /* 该票的签名钥匙缺失 → 503 config（先于比对，不浪费限速次数） */
   if (!(env && env[conf.privateKey]) || !(env && env[conf.publicKey])) return apiError(503, 'config');
   if (!(env && env[ROOT_REALM.rootKey]) || !(env && env[ROOT_REALM.d1Binding])) return apiError(500, 'config');
-  if (ticket === ACCOUNT_REAUTH_TICKET) {
-    const acc = await verifyAccountSession(request, env);
-    if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
-  }
   const rc = await checkRootCredential({
     env: env,
     ip: ip,

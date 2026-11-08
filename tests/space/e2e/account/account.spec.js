@@ -301,20 +301,6 @@ test.describe('安全与隐私子页', () => {
     expect(calls.find((c) => c.action === 'password-change')).toEqual({ action: 'password-change', password: 'brand-new-pass' });
   });
 
-  test('密码与解锁密码相同 → 弹层内「不能与解锁密码相同」', async ({ page }) => {
-    await mockAccount(page, {
-      status: { ok: true, password: false, passkey: false, ready: true, session: RECENT(), reauth: REAUTH() },
-      handlers: { 'passkey-list': [200, { ok: true, keys: [] }], 'password-change': [403, { ok: false, error: 'same-as-lock' }] },
-    });
-    await page.goto(SEC, { waitUntil: 'domcontentloaded' });
-    await page.locator('#lockmgr-pwrow').click();
-    await expect(page.locator('#lockpw-title')).toHaveText('设置账号密码');
-    await page.locator('#lockpw-1').fill('same-as-lock-1');
-    await page.locator('#lockpw-2').fill('same-as-lock-1');
-    await page.locator('#lockpw-go').click();
-    await expect(page.locator('#lockpw-err')).toHaveText('不能与解锁密码相同');
-  });
-
   test('删除通行密钥：两步确认后调 delete 并刷新列表', async ({ page }) => {
     let keys = [{ credId: 'k1', name: 'Galaxy S26', provider: '', createdAt: 1760000000000, lastUsedAt: 1760000000000 }];
     const calls = await mockAccount(page, {
@@ -825,11 +811,11 @@ test.describe('设备子页（2026-10-22）', () => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, {
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
-      handlers: { 'device-list': [200, { ok: true, devices: [{ deviceId: 'aaaaaaaaaaaaaaaa', current: true, name: 'Windows', platform: 'Windows', browser: 'Chrome', by: 'root', lastSeen: Date.now() }] }] },
+      handlers: { 'device-list': [200, { ok: true, devices: [{ deviceId: 'aaaaaaaaaaaaaaaa', current: true, name: 'Windows', platform: 'Windows', browser: 'Chrome', by: 'password', lastSeen: Date.now() }] }] },
     });
     await page.goto('/account/devices/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-dev-by-row')).toContainText('Sign-in method');
-    await expect(page.locator('#acct-by')).toHaveText('Signed in with root credential');
+    await expect(page.locator('#acct-by')).toHaveText('Signed in with account password');
     await expect(page.locator('#acct-logout')).toHaveText('Sign out');
     await expect(page.locator('#acct-keep-note')).toHaveText('You stay signed in on this browser until you sign out.');
   });

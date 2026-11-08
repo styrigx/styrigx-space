@@ -47,7 +47,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - 查询：`lock-session-check`、`lock-credentials`、`lock-entry`（锁屏上显示哪些入口，无需会话）、`space-audit`（进站凭证使用记录）。`layer-status` 已删除（PR3，前端无调用方）。
 - 账号：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/api/profile*`、`/avatar/*` 不在这一层：网关 `src/gate.js` 验门后经服务绑定 `ACCOUNT` 转给账号 Worker（转发表 `src/router.js` 的 `FORWARDING`，见下面「账号会话」）。
 - 锁屏凭证页的再验证：`lock-reauth`（LockReauthTicket 状态 / 清票）；由 `lock-passkey`/`lock-password`（`reauth:true`）或 `space-auth`（`purpose:'lock-reauth'`）签 3 分钟 LockReauthTicket `sgx-lock-reauth`（SGX_LOCK_* 签）。
-- 进站凭证（`SGX_LOCK_SPACE_KEY`）：`space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`，各签一张 3 分钟锁屏短票（by=space），不签任何会话；`space-audit` 只读进站凭证使用记录。账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 在账号 Worker（`POST /api/account { action:'root-reauth' | 'root-reset' }`），两套互不相干、各自计数。
+- 进站凭证（`SGX_LOCK_SPACE_KEY`）：`space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`，各签一张 3 分钟锁屏短票（by=space），不签任何会话；`space-audit` 只读进站凭证使用记录。账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 在账号 Worker（`POST /api/account { action:'root-reset' }`，只签 reset 票；2026-11-08 删 `root-reauth`），两套互不相干、各自计数。
 - 重置与临时钥匙：`lock-reset`（丢了锁屏凭证：先交进站凭证，再按重置开关或锁屏凭证（`needLock` / `lockProof`）签 LockResetTicket；不读账号的任何东西）、`lock-tempkey`（旷野 → 安全 → 临时钥匙页 `/security/tempkeys/`的列表 / 新建 / 作废；只认锁屏进门会话，不问账号会话）。
 - 网关只有 4 个密钥：锁屏签名钥匙 `SGX_LOCK_PRIVATE` / `SGX_LOCK_PUBLIC`、进站凭证 `SGX_LOCK_SPACE_KEY`、密码 pepper `SGX_PW_PEPPER`（与账号 Worker 共用同一个密值）。账号签名钥匙 `SGX_ACCOUNT_*` 和 `SGX_ACCOUNT_ROOT_KEY` 只在账号 Worker（stepup、应用凭证已删除）。
 - 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，子站一起上锁）、`lock-all-devices`（Lock 纪元 +1，所有设备一起上锁；要 LockReauthTicket）。

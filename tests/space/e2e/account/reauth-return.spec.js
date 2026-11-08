@@ -128,7 +128,7 @@ test.describe('批次 A 验收修复 P1：双向相同密码错误文案', () =>
     await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'root' });
   });
 
-  /* 账号页设账号密码与解锁密码相同 →「不能与解锁密码相同」：见 account.spec.js */
+  /* 账号页不再有「不能与解锁密码相同」：服务端早就不查（2026-11-08 删前端死码）；锁屏侧这条留给锁屏 PR */
 
   test('锁屏页设解锁密码与账号密码相同 → 「不能与账号密码相同」，不带错误码小字', async ({ page }) => {
     await mockJson(page, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: true });

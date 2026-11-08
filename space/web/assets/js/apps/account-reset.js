@@ -9,7 +9,7 @@
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { mountResetFlow } from '../auth/reset-flow.js';
 import { createT, securityUrl } from './account-common.js';
-import { accountSubmitters } from '../auth/account-methods.js';
+import { ACCOUNT_API, postJSON } from '../auth/account-api.js';
 import { KEY_ROOT } from '../lib/key-names.js';
 import { i18nTable } from '../lib/i18n.js';
 /** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07） */
@@ -20,7 +20,19 @@ const ct = i18nTable('core');
   if (!el) return;
   const en = document.documentElement.lang === 'en';
   const t = createT();
-  const sub = accountSubmitters(t);
+  /** 重置登录（账号）第一步：恢复密钥 → AccountResetTicket（3 分钟；不签账号会话，设好新凭证后正常登录）。
+   *  原在 auth/account-methods.js 的登录提交器里（X4，2026-11-08 搬来：恢复密钥只给 reset 用）。 @param {string} value */
+  function submitRecovery(value) {
+    return postJSON(ACCOUNT_API, { action: 'root-reset', key: value }).then(function (res) {
+      if (res.j && res.j.ok) return;
+      if (res.s === 429) throw { message: t('errLocked') };
+      if (res.j && res.j.error === 'config') throw { message: t('errConfig') };
+      /* 401：统一提示恢复密钥不正确 */
+      throw { message: t('errWrongRoot'), clear: true };
+    }, function () {
+      throw { message: t('errNetwork') };
+    });
+  }
   mountResetFlow({
     el: el,
     en: en,
@@ -28,7 +40,7 @@ const ct = i18nTable('core');
     keyKind: 'root',
     pmUser: KEY_ROOT,
     keyText: { lead: ct('rfRootLead'), ph: ct('rfRootPh'), empty: ct('rfRootEmpty') },
-    submitKey: function (key) { return sub.root(key); },
+    submitKey: submitRecovery,
     onDone: function () { sgxReplace(securityUrl(en)); },
   });
 })();

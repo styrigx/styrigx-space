@@ -476,7 +476,6 @@ js:
     passkeyBusy: Opening passkey…
     byPasskey: Signed in with account passkey
     byPassword: Signed in with account password
-    byRoot: Signed in with root credential
     reauthNotice: Sign in to your account to enter credential management
     configNotice: 'Account sign-in is unavailable: the server is missing the account key configuration'
     loggedOut: Signed out
@@ -509,7 +508,6 @@ js:
     errConfig: Server misconfigured
     errServer: Service temporarily unavailable
     errShort: Minimum 8 characters
-    errSameAsLock: Can't be the same as the unlock password
     errNotFound: Key not found
     errNetwork: Network connection failed, please retry
     errUnknown: Unknown error, please try again later

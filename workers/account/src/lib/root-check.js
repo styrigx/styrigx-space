@@ -1,7 +1,7 @@
 /**
  * 根密钥（SGX_ACCOUNT_ROOT_KEY）校验：全站只有这一份实现（PR3「根凭证统一」）。
  *
- * 账号 Worker 里只有一条路径用它：POST /api/account 的 root-reauth / root-reset（core/account-root.js），再按用途签账号短票。
+ * 账号 Worker 里只有一条路径用它：POST /api/account 的 root-reset（core/account-root.js），签 AccountResetTicket。
  *
  * 本函数只做：共用限速检查（全局减速时先等）→ 恒定时间比对（两边去空白）→ 失败计数 + 审计 / 成功清计数。
  * 不签任何票，不读重置开关。fail closed：限速或计数 D1 出错一律 503。
