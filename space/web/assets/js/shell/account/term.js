@@ -134,9 +134,26 @@ export function mountAccountTerm(o) {
     logEl.appendChild(d);
     const tx = d.textContent || '';
     if (cls !== 'echo') live(tx);
-    try { d.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    reveal(d);
     return d;
   };
+  /**
+   * 新行滚进下拉自己的滚动区。不用 scrollIntoView：它连可视视口一起滚，三星「桌面版网站」放大时整页会平移到面板那边
+   * （popover-no-zoom.spec.js，同 modal-sheet.js showDialog 的 preventScroll）。
+   * @param {HTMLElement} el
+   */
+  function reveal(el) {
+    try {
+      for (let p = el.parentElement; p; p = p === dlg ? null : p.parentElement) {
+        if (p.scrollHeight <= p.clientHeight || !/(auto|scroll)/.test(getComputedStyle(p).overflowY)) continue;
+        const pr = p.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        if (r.bottom > pr.bottom) p.scrollTop += r.bottom - pr.bottom;
+        else if (r.top < pr.top) p.scrollTop -= pr.top - r.top;
+        return;
+      }
+    } catch (e) {}
+  }
   /** 命令回显 @param {string} cmd */
   C.echo = function (cmd) { C.out('<span class="sgx-at-p">' + esc(C.ps()) + '</span> <span class="sgx-at-w">' + esc(cmd) + '</span>', 'echo'); };
   /** 选项回显 `> 2` @param {string} key */

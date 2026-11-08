@@ -230,7 +230,10 @@ test('R5 临时钥匙进门的人打开旧账号页 /account/：301 → /#acct�
   expect(new URL(page.url()).pathname).toBe('/');
   await expect(page.locator('#sgx-acct')).toHaveAttribute('data-acct-state', 'guest');
   await expect(page.locator('#sgx-acct [data-at-log]')).toContainText('sudo root');
-  await expect(page.locator('#sgx-acct [data-at-pick]').first()).toBeVisible();
+  /* 测试台的账号库是空的（没设 account password / passkey）：sudo root 不列选项，提示用 sudo root reset 设第一把（session.js A12 / A13）；
+     列选项的那一支由默认组 session.spec.js（mock 状态）覆盖 */
+  await expect(page.locator('#sgx-acct [data-at-log]')).toContainText('sudo root reset');
+  await expect(page.locator('#sgx-acct [data-at-pick]')).toHaveCount(0);
   expect(await sessionBy(page)).toBe('tempkey');
 });
 
@@ -319,14 +322,15 @@ for (const role of ['password', 'tempkey']) {
   });
 }
 
-test('R5 对照：进门但没有账号会话 → 账号终端出 sudo root 选方式，主页（四行）不出现', async ({ page, context }) => {
+test('R5 对照：进门但没有账号会话 → 账号终端是未登录的 sudo root（空账号库 → 提示 sudo root reset），主页（四行）不出现', async ({ page, context }) => {
   await setSession(context, 'password');
   await page.goto(MAIN + '/account/');
   const d = page.locator('#sgx-acct');
   await expect(d).toHaveAttribute('data-state', 'open', { timeout: 15000 });
   await expect(d).toHaveAttribute('data-acct-state', 'guest');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'out');
-  await expect(d.locator('[data-at-pick]').first()).toBeVisible();
+  /* 测试台账号库为空 → sudo root 走「还没有登录方式 · 输入 sudo root reset」那一支（同上一条 R5） */
+  await expect(d.locator('[data-at-log]')).toContainText('sudo root reset');
   expect(await page.evaluate(() => window.__sawMain)).toBe(false);
 });
 

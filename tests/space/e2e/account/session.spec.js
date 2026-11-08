@@ -12,6 +12,10 @@ const { test, expect } = require('@playwright/test');
 const T = require('../helpers/account-term.cjs');
 
 const { SESSION, REAUTH, STATUS, mockAccount, openTerm, log, termIn, ps, typeLine, mode, layer } = T;
+/** 设备层的替身数据（同 devices.spec.js） */
+const DEVICES = () => [
+  { deviceId: 'd-me', name: 'Galaxy S23 Ultra', browser: 'Samsung Internet', current: true, by: 'password', lastSeen: Date.now() },
+];
 
 test.use({ viewport: { width: 1280, height: 900 } });
 test.beforeEach(async ({ page }) => { await T.zh(page); });
