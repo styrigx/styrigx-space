@@ -8884,6 +8884,8 @@
 .sgx-term-in { box-sizing: border-box; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; background: transparent;
   color: var(--sgx-text-primary); caret-color: var(--sgx-primary); font: inherit; line-height: inherit; letter-spacing: 0; }
 .sgx-term-in:disabled { opacity: .6; }
+/* 触屏：输入行 16px（输入框字号 < 16 时 iOS / 三星浏览器聚焦会放大页面；锁屏 lock-mobile 用例同一条规则） */
+@media (pointer: coarse) { .sgx-term-line { font-size: 16px; } }
 .sgx-term-line:focus-within .sgx-term-ps { text-decoration: underline; text-decoration-color: var(--sgx-focus-ring); text-underline-offset: 4px; }
 .sgx-term-ghost { position: absolute; top: 0; pointer-events: none; white-space: pre; color: var(--sgx-text-tertiary); }
 .sgx-term-ghost[hidden] { display: none; }

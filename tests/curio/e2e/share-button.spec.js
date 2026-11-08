@@ -175,7 +175,7 @@ test.describe('NAVIGATE「分享本页」按钮', () => {
     await expect(page.locator('[data-sgx-share]')).toHaveCount(1);
     await expect(page.locator('.sgx-topbar [data-sgx-share], .sgx-tb-end, .sgx-tb-share')).toHaveCount(0);
     /* 2026-11 PR-1：NAVIGATE = 站点列表 → lang / layout 分段 → share / lock → STATUS；外观面板只有 MODE + PALETTE */
-    expect(await page.locator('#sgx-nav [data-qp]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp')))).toEqual(['share', 'lock']);
+    expect(await page.locator('#sgx-nav [data-qp]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp')))).toEqual(['share', 'lock', 'term']); /* 2026-11 PR-2：加「$ terminal」 */
     await expect(page.locator('#sgx-nav [data-qp-seg="layout"]')).toHaveCount(1);
     await expect(page.locator('#sgx-nav [data-qp-langs]')).toHaveCount(1);
     await expect(page.locator('#sgx-qp [data-qp], #sgx-qp [role="tab"], #sgx-qp [data-nav]')).toHaveCount(0);
