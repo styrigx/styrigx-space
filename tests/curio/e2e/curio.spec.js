@@ -134,8 +134,10 @@ test('账号未登录：首页只有分区入口（子页链接，音乐入口�
   await expect(page.locator('.sgx-tb-acts .sgx-tb-grid')).toHaveAttribute('aria-controls', 'sgx-nav');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-av')).toHaveAttribute('href', 'https://styrigx.com/zh/account/');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-shield')).toHaveAttribute('href', 'https://styrigx.com/zh/security/');
-  await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', 'https://styrigx.com/zh/account/');
-  await expect(page.locator('#sgx-ai .sgx-ai-me img')).toHaveAttribute('src', 'https://styrigx.com/avatar/192.webp');
+  /* 2026-11 PR-5：账号入口 = 顶栏头像 → 账号下拉（AI 窗口头部不再有头像） */
+  await expect(page.locator('#sgx-acct .sgx-pop-me-a')).toHaveAttribute('href', 'https://styrigx.com/zh/account/');
+  await expect(page.locator('#sgx-acct .sgx-pop-avatar')).toHaveAttribute('src', 'https://styrigx.com/avatar/192.webp');
+  await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveCount(0);
   await expect(page.locator('#site-nav .sgx-tb-me')).toHaveCount(0);
   await expect(page.locator('.sgx-tb-nav, #sgx-drawer, .sgx-tb-end, .sgx-tb-share, .sgx-topbar [data-sgx-share], .sgx-tb-end-group, .sgx-tb-guestbook, a[href*="guestbook"]')).toHaveCount(0);
   await expect(page.locator('footer')).toHaveCount(1);

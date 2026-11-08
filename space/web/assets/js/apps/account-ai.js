@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号总览「AI 模型」一行（P4-2d）：登了账号才能换 AI 窗口用的模型，换模型的口子只在这里（AI 窗口里不做切换）。
+ * @fileoverview 账号总览「AI 模型」一行（P4-2d）：登了账号才能换 AI 窗口用的模型（2026-11 PR-5 起 AI 窗口头部模型胶囊也能换，同一个键 sgx-ai-model）。
  *
  * - 这一行在 #acct-main（账号总览）里，总览只在登了账号时显示，所以没登录看不到它（登录区不画这一行）。
  * - 进总览（apps/account.js 确认有账号会话后）调 initAiModelRow：GET /api/ai → { ok, default, models: [{ id, label, provider }], canChoose }

@@ -53,8 +53,8 @@ export function showLockScreen() {
   const en = document.documentElement.lang === 'en';
   const isLocal = isLocalDev();
 
-  /* 头像：复用 AI 窗口头部的头像图片（P4-3 PR-4b 起头像不在顶栏，搬进 AI 窗口头部 .sgx-ai-avatar） */
-  const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('.sgx-ai-avatar'));
+  /* 头像：复用顶栏头像图片 .sgx-tb-avatar（2026-11 PR-5 按设计稿 AI 窗口头部不再有头像；顶栏头像是账号下拉的入口） */
+  const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('#site-nav .sgx-tb-avatar'));
   /* 锁屏头像 72px：用 192 那张 */
   const avatarSrc = navImg ? navImg.src.replace(/\/avatar\/96\.webp/, '/avatar/192.webp') : '';
 
