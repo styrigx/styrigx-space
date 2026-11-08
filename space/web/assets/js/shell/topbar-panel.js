@@ -20,6 +20,26 @@
  */
 
 const QP_MS = 240;
+/** AI 窗口在减弱动效下的淡入淡出（2026-11-08 Gray：从浮钮展开；减弱动效只做短淡入淡出、不缩放） */
+const AI_RM_MS = 120;
+/**
+ * AI 窗口的展开原点（2026-11-08 Gray 16:14：从浮钮往左上长出）：开窗那一刻（<dialog> 已 show、is-open 还没加）量浮钮中心离窗口右缘 / 下缘多远，
+ * 写成 --sgx-ai-ox / --sgx-ai-oy，CSS 用 transform-origin: calc(100% - ox) calc(100% - oy)——原点贴着窗口右下，键盘把窗口压矮也不跑。
+ * 窗口位置用 offset*（不受正在进行的 scale 影响）+ dialog 的矩形算。量不到就用 CSS 默认（32px）。
+ * @param {HTMLElement} btn @param {HTMLElement} dlg @param {HTMLElement|null} sheet
+ */
+function aiOrigin(btn, dlg, sheet) {
+  if (!sheet) return;
+  try {
+    const b = btn.getBoundingClientRect();
+    const d = dlg.getBoundingClientRect();
+    if (!b.width || !sheet.offsetWidth) return;
+    const right = d.left + sheet.offsetLeft + sheet.offsetWidth;
+    const bottom = d.top + sheet.offsetTop + sheet.offsetHeight;
+    sheet.style.setProperty('--sgx-ai-ox', Math.round(right - (b.left + b.width / 2)) + 'px');
+    sheet.style.setProperty('--sgx-ai-oy', Math.round(bottom - (b.top + b.height / 2)) + 'px');
+  } catch (e) {}
+}
 /** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-shell 的 topbar 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
 const STR_EN = {
   on: "On",
@@ -165,12 +185,17 @@ export function mountTopbar(o) {
     });
   }
 
-  /** 一个顶栏窗口的通用接线：开合、互斥、遮罩、Tab 圈、焦点归还 @param {HTMLElement} btn @param {HTMLDialogElement} dlg @param {string} key @param {() => void} onOpen */
-  function wire(btn, dlg, key, onOpen) {
+  /**
+   * 一个顶栏窗口的通用接线：开合、互斥、遮罩、Tab 圈、焦点归还
+   * @param {HTMLElement} btn @param {HTMLDialogElement} dlg @param {string} key @param {() => void} onOpen
+   * @param {number} [reducedMs] 减弱动效下的短淡入淡出时长（AI 窗口传 AI_RM_MS；不传 = 直接到位）
+   */
+  function wire(btn, dlg, key, onOpen, reducedMs) {
     if (typeof dlg.show !== 'function') return null;
     const sheet = /** @type {HTMLElement|null} */ (dlg.querySelector('.sgx-qp-sheet'));
     const ms = o.modalSheet(dlg, btn, {
       ms: QP_MS,
+      reducedMs: reducedMs,
       stateKey: key,
       modal: false,
       onOpen: onOpen,
@@ -203,7 +228,10 @@ export function mountTopbar(o) {
        不在 Tab 顺序里的不算：inert / 收起（hidden）的、tabindex=-1 的 */
     doc.addEventListener('keydown', function (e) {
       if (e.key !== 'Tab' || !ms.isShown()) return;
-      const list = [btn].concat(Array.from(dlg.querySelectorAll('a[href], button:not([disabled]), textarea, input')).filter(function (el) {
+      /* 图标被藏起来时（手机上 AI 浮钮开窗时淡出、visibility:hidden）不进圈：焦点给不到看不见的元素 */
+      let btnOn = true;
+      try { btnOn = getComputedStyle(btn).visibility !== 'hidden'; } catch (err) {}
+      const list = (btnOn ? [btn] : []).concat(Array.from(dlg.querySelectorAll('a[href], button:not([disabled]), textarea, input')).filter(function (el) {
         return /** @type {HTMLElement} */ (el).offsetParent !== null && !el.closest('[inert]') && /** @type {HTMLElement} */ (el).tabIndex >= 0;
       }));
       const i = list.indexOf(/** @type {HTMLElement} */ (doc.activeElement));
@@ -426,10 +454,12 @@ export function mountTopbar(o) {
   if (aiBtn && aiDlg) {
     /** @type {any} */
     let chat = null;
+    const aiSheet = /** @type {HTMLElement|null} */ (aiDlg.querySelector('.sgx-qp-sheet'));
     ai = wire(aiBtn, aiDlg, 'sgxAi', function () {
+      aiOrigin(aiBtn, aiDlg, aiSheet);
       if (!chat && o.ai) chat = o.ai(aiDlg, { lang: doc.documentElement.lang || 'en', close: function (/** @type {any} */ after) { if (ai) ai.ms.close(after); }, navigate: navigate, keyboard: o.keyboard }) || {};
       if (chat && chat.onOpen) chat.onOpen();
-    });
+    }, AI_RM_MS);
     /* 头部 ×（2026-11 PR-5 ai-v1）：同 Esc / 点遮罩 */
     if (ai) {
       const aiMs = ai.ms;
@@ -496,16 +526,6 @@ export function mountTopbar(o) {
       a.click();
     });
   };
-  /** AI 模型名（账号下拉「AI 模型」一行；同账号页：canChoose 且本地选的在列表里 → 它，否则默认） @returns {Promise<string>} */
-  const modelLabel = function () {
-    return getJSON('/api/ai').then(function (j) {
-      if (!j || !Array.isArray(j.models)) return '';
-      const mine = lsGet('sgx-ai-model') || '';
-      const pick = j.models.find(function (/** @type {any} */ m) { return j.canChoose && m && m.id === mine; }) || j.models.find(function (/** @type {any} */ m) { return m && m.id === j.default; });
-      return pick ? String(pick.label || pick.id || '') : '';
-    });
-  };
-
   /* ---------------- 账号下拉（2026-11 PR-5 acct-v2，按设计稿） ---------------- */
   const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
   const acctDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-acct'));
@@ -525,9 +545,6 @@ export function mountTopbar(o) {
         if (p && typeof p.name === 'string' && p.name && nameEl) nameEl.textContent = p.name;
         if (p && typeof p.nickname === 'string' && p.nickname && nickEl) nickEl.textContent = p.nickname;
       } catch (e) {}
-      /* 云同步：开着且同步过 → 上次 hh:mm（同账号页） */
-      const last = parseInt(lsGet('sgx-sync-last') || '0', 10) || 0;
-      if (lsGet('sgx-cloud-sync') !== '0' && last && A.last) { const d = new Date(last); val('sync', A.last.replace('{t}', pad2(d.getHours()) + ':' + pad2(d.getMinutes()))); }
     };
     /** 登录态：'' 未知（问不到 / 锁着 / 非 JSON）· in · guest @param {string} st */
     const setState = function (st) {
@@ -544,7 +561,6 @@ export function mountTopbar(o) {
         if (!j.session) return;
         if (j.session.device) val('device', String(j.session.device));
         if (A.protected) val('security', j.password || j.passkey ? A.protected : A.unprotected || '');
-        modelLabel().then(function (l) { val('ai', l); });
       });
     };
     const acct = wire(acctBtn, acctDlg, 'sgxAcct', function () { paintWho(); askState(); });
@@ -577,16 +593,7 @@ export function mountTopbar(o) {
     const S = trSec('sec');
     const head = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec-head]'));
     const sv = function (/** @type {string} */ k, /** @type {string} */ v) { const el = secDlg.querySelector('[data-sec-v="' + k + '"]'); if (el) el.textContent = v; };
-    const lockBtn2 = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec="lock"]'));
-    const lockState2 = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec-lock-state]'));
-    const lockLabel2 = lockState2 ? lockState2.textContent : '';
-    let armed2 = 0;
     let tick = 0;
-    const disarm2 = function () {
-      if (armed2) { clearTimeout(armed2); armed2 = 0; }
-      if (lockBtn2) lockBtn2.removeAttribute('data-armed');
-      if (lockState2) lockState2.textContent = lockLabel2;
-    };
     /** 状态：'' 未知（只给入口，验证在各页）· open（有 3 分钟 reauth 票，头部倒计时）· locked（没票：终端式选择验证方式） @param {string} st */
     const setSec = function (st) {
       secDlg.setAttribute('data-sec-state', st);
@@ -626,29 +633,13 @@ export function mountTopbar(o) {
         });
       });
     };
-    const sec = wire(secBtn, secDlg, 'sgxSec', function () { disarm2(); askSec(); });
+    const sec = wire(secBtn, secDlg, 'sgxSec', function () { askSec(); });
     if (sec) {
       const ms = sec.ms;
       popLinks(secDlg, ms);
       numKeys(secDlg, ms, function () { return secDlg.getAttribute('data-sec-state') === 'locked'; });
       secDlg.addEventListener('close', stopTick);
-      /* 立即锁屏：同 NAVIGATE 的 lock（主站 onLock 确认层；子站点两下确认后 POST /api/lock-now → 锁屏） */
-      secDlg.addEventListener('click', function (e) {
-        const tg = /** @type {Element|null} */ (e.target);
-        if (!tg || !tg.closest('[data-sec="lock"]')) return;
-        if (o.onLock) { ms.close(o.onLock); return; }
-        if (armed2) {
-          disarm2();
-          ms.close(function () {
-            const f = getFetch();
-            if (f) f('/api/lock-now', { method: 'POST', credentials: 'include' }).then(function (r) { if (r && r.ok) replace('/?lock=1'); }, function () {});
-          });
-          return;
-        }
-        if (lockBtn2) lockBtn2.setAttribute('data-armed', '');
-        if (lockState2) lockState2.textContent = t.lockArm;
-        armed2 = window.setTimeout(disarm2, LOCK_ARM_MS);
-      });
+      /* 立即锁屏不在这里（Gray 2026-11-08 04:06：盾牌要验证，锁屏不该被挡——只放 NAVIGATE 底部 lock） */
     }
   }
 

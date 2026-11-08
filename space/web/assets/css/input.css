@@ -7290,30 +7290,6 @@
       border-top: 1px solid color-mix(in srgb, var(--m-outline) 55%, transparent);
     }
   }
-  /* 没有圆形图标的行（云同步页的同步项）：分隔线从文字左缘开始 */
-  .acct-row-plain + .acct-row-plain::before { left: 20px; }
-  /* 账号 → 云同步（2026-10-24 PR4）：同步项列表；总开关关着时整组变淡（仍可看）。自定义主题色那一行右端一个色点 */
-  .acct-sync-items { transition: opacity .2s ease; }
-  .acct-sync-items.is-off { opacity: .5; }
-  /* 账号总览「AI 模型」（P4-3 §6.7，Gray 立规不做底部弹出窗口）：点行 → 行下方展开单选列表，选中即保存并收起（apps/account-ai.js）。
-     选项文字和行文字左缘对齐（68 = 行内边距 20 + 圆底 40 + 间距 14 − 6），分隔线同 .acct-row；展开时右箭头转向下 */
-  #acct-ai-row > svg:last-child { transition: transform .2s ease; }
-  #acct-ai-row[aria-expanded="true"] > svg:last-child { transform: rotate(90deg); }
-  .reduced-motion #acct-ai-row > svg:last-child { transition: none; }
-  @media (prefers-reduced-motion: reduce) { #acct-ai-row > svg:last-child { transition: none; } }
-  .acct-ai-list { padding: 0 0 6px; }
-  .acct-ai-list[hidden] { display: none; }
-  .acct-ai-opt {
-    position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
-    padding: 12px 20px 12px 74px; min-height: 52px; text-align: left; color: var(--m-on-surface);
-    &::before { content: ''; position: absolute; top: 0; left: 68px; right: 0; border-top: 1px solid color-mix(in srgb, var(--m-outline) 55%, transparent); }
-    &:active { background: var(--m-container); }
-    &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
-    &[aria-checked="true"] .acct-ai-opt-t { color: var(--m-primary); }
-  }
-  .acct-ai-opt-ck { width: 20px; flex-shrink: 0; text-align: center; color: var(--m-primary); font-weight: 700; }
-  .acct-sync-swatch { width: 24px; height: 24px; border-radius: 999px; flex-shrink: 0; box-shadow: inset 0 0 0 1px var(--m-outline); }
-  .acct-sync-swatch[hidden] { display: none; }
   .acct-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   /* 2026-11-07 账号 → 个人资料（/account/profile/，参考 Google「个人信息」页）：一行一项，灰色线框图标（不带彩色圆底）+ 标签 + 当前值；
      头像行右边是 48px 圆形头像。点行在行下方展开编辑框（输入框 + 红字 / 字数 + 取消 / 保存），展开时右箭头转向下（同「AI 模型」行）。 */
@@ -9080,14 +9056,41 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-pop-ps { color: var(--sgx-primary); }
 .sgx-pop-row:focus-visible, .sgx-pop-me-a:focus-visible, .sgx-pop-edit:focus-visible, .sgx-pop-opt:focus-visible, .sgx-ai-model:focus-visible, .sgx-ai-mopt:focus-visible, .sgx-ai-src:focus-visible, .sgx-ai-sug:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .sgx-tb-av[aria-expanded="true"] .sgx-tb-avatar { box-shadow: 0 0 0 2px var(--sgx-primary); }
-/* PR-5 按设计稿（Gray 2026-11-08 10:33）：桌面 AI 窗口浮在右下 AI 浮钮上方、不压暗页面；手机仍从顶栏下落（设计稿 m=1） */
+/* AI 窗口打开方式（Gray 2026-11-08 16:14 定，录屏参照 Mouzan 站；稿 ai-v1 之后讨论定的，以讨论为准）：
+   从右下 AI 浮钮展开、向左上长出——transform-origin 在窗口右下、对着浮钮中心（JS 开窗时量好写 --sgx-ai-ox / --sgx-ai-oy：离窗口右缘 / 下缘的距离，
+   键盘把窗口压矮时原点仍贴着右下），scale + opacity 240ms ease-out；关闭反向收回浮钮。电脑与手机同一个动作。
+   手机：悬浮终端卡片——左右留页边距（--sgx-page-m 12px，同 #319），上沿在顶栏下方 12px，下沿在底部安全区之上 12px（盖过浮钮，浮钮同时淡出缩小）；
+   宽手机布局（平板竖屏）最宽 560、靠右贴浮钮一侧。背景轻微变暗（半档遮罩），页面看得见但点了只关窗口。键盘：--sgx-kb 抬 dialog 下沿，卡片随之变矮、输入框贴键盘上方。
+   电脑：保持稿里浮钮上方 390 × 560 浮窗、不压暗页面，浮钮变成关闭态（图标换 ×）。
+   减弱动效：不缩放，只做 120ms 淡入淡出（topbar-panel.js 给 AI 窗口传 reducedMs）。
+   手机屏 + 桌面布局（三星「桌面版网站」）：照 panel 段的规则不位移只淡入（device=phone 那条特异性更高，transform 归 none）。 */
+:root { --sgx-ai-ease: cubic-bezier(.2,.8,.2,1); }
+.sgx-ai.is-open { background-color: color-mix(in srgb, var(--sgx-scrim) 45%, transparent); }
+.sgx-ai .sgx-qp-sheet, .sgx-ai[data-kb] .sgx-qp-sheet { top: var(--sgx-page-m); left: max(var(--sgx-page-m), env(safe-area-inset-left, 0px)); right: max(var(--sgx-page-m), env(safe-area-inset-right, 0px));
+  bottom: max(var(--sgx-page-m), env(safe-area-inset-bottom, 0px)); width: auto; max-width: 560px; height: auto; max-height: none; margin: 0 0 0 auto;
+  transform-origin: calc(100% - var(--sgx-ai-ox, 32px)) calc(100% - var(--sgx-ai-oy, 32px));
+  transform: scale(.2); opacity: 0; transition: transform .24s var(--sgx-ai-ease), opacity .24s var(--sgx-ai-ease); }
+.sgx-ai[data-kb] .sgx-qp-sheet { bottom: var(--sgx-page-m); }
+.sgx-ai.is-open .sgx-qp-sheet { transform: none; opacity: 1; }
 :root[data-sgx-layout="desktop"] .sgx-ai.is-open { background-color: transparent; }
-:root[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet { top: auto; left: auto; right: max(var(--sgx-ai-fab-m), env(safe-area-inset-right, 0px));
-  bottom: calc(max(var(--sgx-ai-fab-m), env(safe-area-inset-bottom, 0px)) + 68px); width: min(390px, calc(100% - 2 * var(--sgx-ai-fab-m))); height: min(560px, calc(100% - 96px));
-  transform: translateY(calc(100% + 96px)); box-shadow: 0 30px 70px rgba(0,0,0,.28); }
+:root[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet, :root[data-sgx-layout="desktop"] .sgx-ai[data-kb] .sgx-qp-sheet { top: auto; left: auto; right: max(var(--sgx-ai-fab-m), env(safe-area-inset-right, 0px));
+  bottom: calc(max(var(--sgx-ai-fab-m), env(safe-area-inset-bottom, 0px)) + 68px); width: min(390px, calc(100% - 2 * var(--sgx-ai-fab-m))); max-width: none; height: min(560px, calc(100% - 96px));
+  margin: 0; box-shadow: 0 30px 70px rgba(0,0,0,.28); }
 .dark:root[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet, :root.dark[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet { box-shadow: 0 30px 70px rgba(0,0,0,.5); }
-:root[data-sgx-layout="desktop"] .sgx-ai.is-open .sgx-qp-sheet { transform: none; }
-:root[data-sgx-layout="desktop"][data-sgx-device="phone"] .sgx-ai .sgx-qp-sheet { transform: none; }
+.reduced-motion .sgx-ai .sgx-qp-sheet { transform: none; transition: opacity .12s ease; }
+@media (prefers-reduced-motion: reduce) { .sgx-ai .sgx-qp-sheet { transform: none; transition: opacity .12s ease; } }
+/* 浮钮跟着窗口：手机淡出缩小（卡片盖住它的位置；visibility 等动画完再藏，Tab 圈不再落到它上面），关上时立刻回来好接住焦点；
+   电脑变关闭态：聊天图标转走淡出、× 转进来（再点 = 关闭） */
+.sgx-tb-ai { transition: background-color .15s ease, color .15s ease, opacity .2s var(--sgx-ai-ease), transform .24s var(--sgx-ai-ease), visibility 0s; }
+.sgx-tb-ai svg { transition: opacity .2s var(--sgx-ai-ease), transform .24s var(--sgx-ai-ease); }
+.sgx-tb-ai::after { content: "×"; content: "×" / ""; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 30px; line-height: 1;
+  opacity: 0; transform: rotate(-90deg) scale(.6); transition: opacity .2s var(--sgx-ai-ease), transform .24s var(--sgx-ai-ease); pointer-events: none; }
+:root:not([data-sgx-layout="desktop"]) .sgx-tb-ai[aria-expanded="true"] { opacity: 0; transform: scale(.6); visibility: hidden; pointer-events: none;
+  transition: background-color .15s ease, color .15s ease, opacity .16s var(--sgx-ai-ease), transform .24s var(--sgx-ai-ease), visibility 0s linear .24s; }
+:root[data-sgx-layout="desktop"] .sgx-tb-ai[aria-expanded="true"] svg { opacity: 0; transform: rotate(90deg) scale(.6); }
+:root[data-sgx-layout="desktop"] .sgx-tb-ai[aria-expanded="true"]::after { opacity: 1; transform: none; }
+.reduced-motion .sgx-tb-ai, .reduced-motion .sgx-tb-ai svg, .reduced-motion .sgx-tb-ai::after { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-tb-ai, .sgx-tb-ai svg, .sgx-tb-ai::after { transition: none; } }
 /* 模型胶囊 + 头部下方单选 */
 .sgx-ai-model { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; margin: 0 4px 0 8px; padding: 0 10px; border: 1px solid var(--sgx-term-line); border-radius: 7px; background: transparent;
   font-family: var(--sgx-font-mono); font-size: 11px; color: var(--sgx-text-secondary); cursor: pointer; white-space: nowrap; }

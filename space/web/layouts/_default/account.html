@@ -9,10 +9,10 @@
    第一组：「设备」→ 子页 /account/devices/（account-devices.html）：此设备（登录方式 + 退出账号）+ 其他登录的设备，可单独退出；
    「账号安全」→ 子页 /account/security/（account-security.html）管理账号密码和账号通行密钥，
    每次进都要再验一次账号凭证（3 分钟reauth 票，离开即作废）。
-   第二组（2026-10-24 PR4）：「云同步」→ 子页 /account/sync/（account-sync.html）：总开关 + 实际同步的每一项。
-   第三组（P4-2d）：「AI 模型」→ 底部单选列表（不是子页），选项来自 GET /api/ai，选择存 localStorage sgx-ai-model（进云同步）。
+   2026-11-08（Gray 04:45 / 04:47 定）：「云同步」一行与子页 /account/sync/ 删除（子页 301 → /account/），只保留后台自动同步（lib/cloud-sync.js，进页照常 force 同步一次）；
+   「AI 模型」一行删除，模型只在 AI 窗口右上角切换（同一个键 sgx-ai-model）。
    临时钥匙、服务状态已搬到设置（/security/tempkeys/、/status/），只认锁屏进门会话，账号页不再有入口。
-   ?return=/account/(security|devices|sync|apps|profile)/：子页没有账号会话时跳来，登录后回子页。
+   ?return=/account/(security|devices|apps|profile)/：子页没有账号会话时跳来，登录后回子页。
    ?return=/curio/… | /daymark/…（P3-1 同意流程）：应用内点登录跳来，登录完先判授权，没有就显示同意卡片 #acct-consent，完了回原页面。
    进门的人都看到同一个界面（没账号密码登不上）。noindex、不进 sitemap（见 baseof/sitemap）。
    脚本走 ES Module 入口 entry-account.js。 */}}
@@ -47,8 +47,7 @@
 {{ "<!-- SGX-ACCT-LOGIN-END -->" | safeHTML }}
 
   <!-- 账号总览（登录后，三星账号式）：账号卡（名字 + 已登录 + 头像，只展示；点头像换头像）
-       → 一组：设备（此设备的登录方式 / 退出账号 + 其他登录的设备）/ 账号安全
-       → 一组：云同步（进子页：总开关 + 同步项，lib/cloud-sync.js） -->
+       → 一组：设备（此设备的登录方式 / 退出账号 + 其他登录的设备）/ 账号安全 / 应用授权 -->
   <div id="acct-main" hidden>
     {{ partial "sgx-account-card.html" . }}
     {{/* 2026-11-07 个人资料（Gray 定，参考 Google 账号首页「个人信息」行）：独立一张卡，在「设备 / 账号安全 / 应用授权」那组上方；
@@ -88,29 +87,6 @@
         </span>
         {{ partial "icon.html" "chev-r" }}
       </a>
-    </section>
-    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.16s" aria-label="{{ $tr.account.sync }}">
-      <a class="acct-row" id="acct-sync-row" href="{{ (partial "sgx-lang-path.html" (dict "path" "/account/sync/" "lang" $pageLang)) }}">
-        <span class="acct-ic bg-m-tertiary-container text-m-on-tertiary-container">{{ partial "icon.html" "cloud" }}</span>
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium">{{ $tr.account.cloudSync }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-sync-sub"></span>
-        </span>
-        {{ partial "icon.html" "chev-r" }}
-      </a>
-    </section>
-    {{/* P4-2d：AI 模型（AI 窗口用哪个模型；只有登了账号能换，所以只放在总览里）。副标题 = 当前模型名；apps/account-ai.js。
-       P4-3 §6.7（Gray 立规：不做底部弹出窗口）：点这一行在行下方展开单选列表（#acct-ai-list，aria-expanded），选中即保存并收起 */}}
-    <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up" style="animation-delay:.2s" aria-label="AI">
-      <div class="acct-row" id="acct-ai-row" role="button" tabindex="0" aria-expanded="false" aria-controls="acct-ai-list">
-        <span class="acct-ic bg-m-secondary-container text-m-on-secondary-container">{{ partial "icon.html" "sparkles" }}</span>
-        <span class="flex-1 min-w-0">
-          <span class="block font-medium" id="acct-ai-title">{{ $tr.account.aiModel }}</span>
-          <span class="block text-xs text-m-on-surface-variant mt-0.5 truncate" id="acct-ai-sub"></span>
-        </span>
-        {{ partial "icon.html" "chev-r" }}
-      </div>
-      <div class="acct-ai-list" id="acct-ai-list" role="radiogroup" aria-labelledby="acct-ai-title" hidden></div>
     </section>
   </div>
 {{/* P3-1 同意卡片：应用内点登录（/account/?return=/curio/… 或 /daymark/…）→ 登录完先判该应用有无授权；

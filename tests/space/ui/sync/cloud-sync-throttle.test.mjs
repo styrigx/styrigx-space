@@ -355,13 +355,11 @@ test('锁屏没解锁 / 开关关：不请求', async () => {
   assert.equal(calls.length, 0);
 });
 
-test('强制入口：账号页、云同步页（进页 + 打开开关）都用 force；登出清时刻', () => {
+test('强制入口：账号页登录后用 force（云同步子页 2026-11-08 删了，只剩这一处）；登出清时刻', () => {
   const acct = readFileSync(path.join(ROOT, 'space/web/assets/js/apps/account.js'), 'utf8');
-  const sync = readFileSync(path.join(ROOT, 'space/web/assets/js/apps/account-sync.js'), 'utf8');
   const dev = readFileSync(path.join(ROOT, 'space/web/assets/js/apps/account-devices.js'), 'utf8');
   const core = readFileSync(path.join(ROOT, 'space/web/assets/js/shell/core.js'), 'utf8');
   assert.match(acct, /initCloudSync\(\{ force: true \}\)/);
-  assert.equal((sync.match(/initCloudSync\(\{ force: true \}\)/g) || []).length, 2);
   assert.match(dev, /clearPullStamp\(\)/);
   assert.match(core, /initCloudSync\(\)\.catch/);
 });

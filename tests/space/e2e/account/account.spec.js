@@ -12,7 +12,7 @@
  *   删除通行密钥（两步确认）、注册后命名弹层（A1/A2/A3）、列表内重命名、signalCurrentUserDetails；
  *   未登录 → 跳账号页 ?return= 登录后回来
  * - 账号总览（2026-10-24 PR4）：账号卡只展示（已登录，点头像换头像，见 avatar-edit.spec.js）；账号卡下面「个人资料」卡进 /account/profile/（见 account-profile.spec.js）；
- *   登录方式 / 退出账号 / 保持登录说明在设备页「此设备」卡；云同步一行进 /account/sync/（总开关 + 同步项）
+ *   登录方式 / 退出账号 / 保持登录说明在设备页「此设备」卡；云同步一行与 /account/sync/、AI 模型一行 2026-11-08 删除（Gray 04:47 / 04:45）
  * - 账号安全子页：没有 AccountReauthTicket → 验证行（设了哪个显示哪个），reauth:true 验证后进管理区 + 倒计时；
  *   管理操作返回 403 reauth → 回验证区并提示「验证已过期」
  * - 只有锁屏会话（GET /api/account session=null）→ 显示登录区，不当作已登录
@@ -411,7 +411,7 @@ test.describe('安全与隐私子页', () => {
 test.describe('账号总览', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
 
-  test('PR4：账号卡点了不跳页；账号卡下面「个人资料」一张卡（2026-11-07，进 /account/profile/），再是 设备 / 账号安全 / 应用授权（P3-1），云同步，AI 模型（临时钥匙、服务状态已搬到设置，账号页没有入口）', async ({ page }) => {
+  test('PR4：账号卡点了不跳页；账号卡下面「个人资料」一张卡（2026-11-07，进 /account/profile/），再是 设备 / 账号安全 / 应用授权（P3-1）（云同步、AI 模型两行 2026-11-08 删除；临时钥匙、服务状态已搬到设置，账号页没有入口）', async ({ page }) => {
     await mockAccount(page, {
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }] },
@@ -429,178 +429,34 @@ test.describe('账号总览', () => {
     await expect(page.locator('#acct-main a[href*="/account/profile/"]')).toHaveCount(1);
     await expect(page.locator('#acct-main [data-acct-card] a[href*="/account/profile/"]')).toHaveCount(0);
     const groups = await page.locator('#acct-main section').evaluateAll((els) => els.map((x) => Array.from(x.querySelectorAll('.acct-row')).map((r) => r.id)));
-    expect(groups).toEqual([['acct-profile-row'], ['acct-dev-row', 'acct-sec-row', 'acct-apps-row'], ['acct-sync-row'], ['acct-ai-row']]);
+    expect(groups).toEqual([['acct-profile-row'], ['acct-dev-row', 'acct-sec-row', 'acct-apps-row']]);
     await expect(page.locator('#acct-main a[href*="/tempkeys/"], #acct-main a[href*="/status/"]')).toHaveCount(0);
   });
 });
 
-/* P4-2d 账号侧切换 AI 模型：GET /api/ai 用 page.route 打桩（{ ok, default, models, canChoose }） */
-const AI_LIST = (over) => Object.assign({
-  ok: true,
-  default: '@cf/google/gemma-4-26b-a4b-it',
-  canChoose: true,
-  models: [
-    { id: '@cf/google/gemma-4-26b-a4b-it', label: 'Gemma 4', provider: 'workers-ai' },
-    { id: '@cf/openai/gpt-oss-20b', label: 'GPT-OSS 20B', provider: 'workers-ai' },
-    { id: 'gemini-2.5-flash', label: 'Gemini <b>2.5</b> Flash', provider: 'gemini' },
-  ],
-}, over || {});
-/** @returns {Promise<{gets: number}>} */
-async function mockAiList(page, body, status = 200) {
-  const seen = { gets: 0 };
-  await page.route('**/api/ai', async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback();
-    seen.gets++;
-    await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-  });
-  return seen;
-}
-
-test.describe('账号总览：AI 模型（P4-2d）', () => {
+/* 2026-11-08（Gray 04:45 / 04:47）：账号页没有「AI 模型」「云同步」两行（模型只在 AI 窗口右上角切换；云同步只留后台自动同步，子页 301 → 账号页） */
+test.describe('账号总览：没有 AI 模型 / 云同步行（2026-11-08）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
-  const row = (page) => page.locator('#acct-ai-row');
-  const sub = (page) => page.locator('#acct-ai-sub');
-  /* P4-3 §6.7（Gray 立规不做底部弹出窗口）：点行在行下方展开单选列表 #acct-ai-list，不再开 #sheet-wrap */
-  const list = (page) => page.locator('#acct-ai-list');
-  const opts = (page) => page.locator('#acct-ai-list .acct-ai-opt');
 
-  test('登录后可见：副标题 = 当前模型名（没选 = 服务端默认）；点行在行下方展开单选列表（不弹底部窗口），默认那项打勾，选项来自 GET /api/ai', async ({ page }) => {
-    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
-    const seen = await mockAiList(page, AI_LIST());
-    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(row(page)).toBeVisible();
-    await expect(row(page)).toContainText('AI 模型');
-    await expect(sub(page)).toHaveText('Gemma 4');
-    expect(seen.gets).toBe(1);
-    await expect(row(page)).toHaveAttribute('aria-expanded', 'false');
-    await expect(row(page)).not.toHaveAttribute('aria-haspopup', /.*/);
-    await expect(list(page)).toBeHidden();
-    await row(page).click();
-    await expect(row(page)).toHaveAttribute('aria-expanded', 'true');
-    await expect(row(page)).toHaveAttribute('aria-controls', 'acct-ai-list');
-    await expect(list(page)).toBeVisible();
-    await expect(list(page)).toHaveAttribute('role', 'radiogroup');
-    await expect(page.locator('#sheet-wrap[open]')).toHaveCount(0);
-    /* 列表紧跟在行下方、同一张卡里 */
-    const [rb, lb] = await Promise.all([row(page).boundingBox(), list(page).boundingBox()]);
-    expect(Math.abs(lb.y - (rb.y + rb.height))).toBeLessThanOrEqual(1);
-    await expect(opts(page)).toHaveCount(3);
-    await expect(opts(page).nth(0)).toContainText('Gemma 4');
-    await expect(opts(page).nth(0)).toContainText('默认 · 自营');
-    await expect(opts(page).nth(0)).toContainText('✓');
-    await expect(opts(page).nth(0)).toHaveAttribute('aria-checked', 'true');
-    await expect(opts(page).nth(1)).not.toContainText('✓');
-    await expect(opts(page).nth(1)).toHaveAttribute('aria-checked', 'false');
-    /* 模型名来自 KV：按文字显示，不当 HTML */
-    await expect(opts(page).nth(2)).toContainText('Gemini <b>2.5</b> Flash');
-    await expect(opts(page).nth(2)).toContainText('外部');
-    expect(await ls(page, 'sgx-ai-model')).toBe(null);
-    /* 再点一下行：收起，什么都不存 */
-    await row(page).click();
-    await expect(list(page)).toBeHidden();
-    await expect(row(page)).toHaveAttribute('aria-expanded', 'false');
-    expect(await ls(page, 'sgx-ai-model')).toBe(null);
-  });
-
-  test('切换：选中即保存并收起（焦点回到行上）；写 localStorage sgx-ai-model、派发 sgx-settings-changed（云同步跟着推），副标题跟着变；再开列表打勾在新选项上', async ({ page }) => {
-    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
-    await mockAiList(page, AI_LIST());
-    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(sub(page)).toHaveText('Gemma 4');
-    await page.evaluate(() => { window.__chg = 0; window.addEventListener('sgx-settings-changed', () => { window.__chg++; }); });
-    await row(page).click();
-    await opts(page).nth(1).click();
-    await expect(list(page)).toBeHidden();
-    await expect(row(page)).toHaveAttribute('aria-expanded', 'false');
-    await expect(row(page)).toBeFocused();
-    expect(await ls(page, 'sgx-ai-model')).toBe('@cf/openai/gpt-oss-20b');
-    await expect(sub(page)).toHaveText('GPT-OSS 20B');
-    expect(await page.evaluate(() => window.__chg)).toBeGreaterThan(0);
-    await row(page).press('Enter');
-    await expect(opts(page).nth(1)).toContainText('✓');
-    await expect(opts(page).nth(0)).not.toContainText('✓');
-    /* 键盘：下键在选项间移焦点，Enter 选中；Esc 收起回到行上 */
-    await opts(page).nth(1).focus();
-    await page.keyboard.press('ArrowDown');
-    await expect(opts(page).nth(2)).toBeFocused();
-    await page.keyboard.press('Enter');
-    await expect(list(page)).toBeHidden();
-    expect(await ls(page, 'sgx-ai-model')).toBe('gemini-2.5-flash');
-    await row(page).press('Enter');
-    await expect(list(page)).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(list(page)).toBeHidden();
-    await expect(row(page)).toBeFocused();
-    expect(await ls(page, 'sgx-ai-model')).toBe('gemini-2.5-flash');
-  });
-
-  test('本地选的模型已不在列表里（被下架）：按默认显示，不删本地值（真正清掉在 AI 窗口收到 bad_model 时）', async ({ page }) => {
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-ai-model', '@cf/gone/model'); } catch (e) {} });
-    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
-    await mockAiList(page, AI_LIST());
-    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(sub(page)).toHaveText('Gemma 4');
-    expect(await ls(page, 'sgx-ai-model')).toBe('@cf/gone/model');
-  });
-
-  test('canChoose=false：行标 aria-disabled，点了不弹列表，提示登录账号后才能切换', async ({ page }) => {
-    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
-    await mockAiList(page, AI_LIST({ canChoose: false }));
-    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(sub(page)).toHaveText('Gemma 4');
-    await expect(row(page)).toHaveAttribute('aria-disabled', 'true');
-    /* aria-disabled 的行 Playwright 默认不点：force 照样派发点击，看到提示、不弹列表 */
-    await row(page).click({ force: true });
-    await expect(page.locator('.sgx-toast')).toContainText('登录账号后才能切换模型');
-    await expect(page.locator('#sheet-wrap[open]')).toHaveCount(0);
-    await expect(list(page)).toBeHidden();
-    await expect(row(page)).toHaveAttribute('aria-expanded', 'false');
-    expect(await ls(page, 'sgx-ai-model')).toBe(null);
-  });
-
-  test('读不到列表（502）：副标题「暂时读不到模型列表」；点一下重读，读到了直接展开列表', async ({ page }) => {
-    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
-    let fail = true;
-    let gets = 0;
-    await page.route('**/api/ai', async (route) => {
-      gets++;
-      if (fail) await route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'upstream' }) });
-      else await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(AI_LIST()) });
+  test('登录后：没有 AI 模型 / 云同步行，也不为它请求 GET /api/ai；后台照常 force 同步一次（POST /api/prefs）', async ({ page }) => {
+    let aiGets = 0;
+    let prefs = 0;
+    await page.route('**/api/ai', (r) => { if (r.request().method() === 'GET') aiGets++; return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, default: 'g4', canChoose: true, models: [{ id: 'g4', label: 'Gemma 4' }] }) }); });
+    await page.route('**/api/prefs', (r) => { prefs++; return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, prefs: {}, ts: {} }) }); });
+    await page.route('**/account/', async (route) => {
+      const res = await route.fetch();
+      const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid">');
+      await route.fulfill({ response: res, body, headers: { ...res.headers(), 'content-type': 'text/html; charset=utf-8' } });
     });
-    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(sub(page)).toHaveText('暂时读不到模型列表');
-    await expect(row(page)).not.toHaveAttribute('aria-disabled', 'true');
-    fail = false;
-    await row(page).click();
-    await expect(opts(page)).toHaveCount(3);
-    await expect(sub(page)).toHaveText('Gemma 4');
-    expect(gets).toBe(2);
-  });
-
-  test('未登录（只有锁屏会话）：登录区里没有「AI 模型」，也不请求 GET /api/ai', async ({ page }) => {
-    await mockAccount(page, { status: { ok: true, password: true, passkey: true, ready: true, session: null } });
-    const seen = await mockAiList(page, AI_LIST());
-    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#acct-login')).toBeVisible();
-    await expect(row(page)).toBeHidden();
-    await expect(page.locator('#acct-login')).not.toContainText('AI 模型');
-    await page.waitForLoadState('load');
-    expect(seen.gets).toBe(0);
-  });
-
-  test('英文：AI model / Default · Self-hosted', async ({ page }) => {
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
     await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
-    await mockAiList(page, AI_LIST());
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    await expect(row(page)).toContainText('AI model');
-    await expect(sub(page)).toHaveText('Gemma 4');
-    await row(page).click();
-    await expect(list(page)).toBeVisible();
-    await expect(page.locator('#acct-ai-title')).toHaveText('AI model');
-    await expect(list(page)).toHaveAttribute('aria-labelledby', 'acct-ai-title');
-    await expect(opts(page).nth(0)).toContainText('Default · Self-hosted');
-    await expect(opts(page).nth(2)).toContainText('External');
+    await expect(page.locator('#acct-main')).toBeVisible();
+    await expect(page.locator('#acct-ai-row, #acct-ai-list, #acct-sync-row, a[href*="/account/sync/"]')).toHaveCount(0);
+    await expect(page.locator('#acct-main')).not.toContainText('AI 模型');
+    await expect(page.locator('#acct-main')).not.toContainText('云同步');
+    await expect.poll(() => prefs, { timeout: 10000 }).toBeGreaterThan(0);
+    await page.waitForLoadState('load');
+    expect(aiGets).toBe(0);
   });
 });
 
@@ -1243,92 +1099,22 @@ test.describe('设置 → 安全与隐私 → 临时钥匙页 › 分享短链�
   });
 });
 
-test.describe('云同步（2026-10-24 PR4：总览一行 → 子页 /account/sync/）', () => {
+/* 云同步子页（2026-10-24 PR4）2026-11-08 删除（Gray 04:47：只留后台自动同步）：构建里没有这页，线上由 Pages _redirects 301 → /account/（单测 sync-items.test.mjs 核对规则）；
+   ?return= 也不再认这一页 */
+test.describe('云同步子页已删除（2026-11-08）', () => {
   test.beforeEach(async ({ page }) => { await zh(page); });
-  /* P4-2c：日期和时间、天气、搜索引擎、快捷键随功能删除；对齐 PR-B：15 分钟提醒（sgx-well-tip）随「数字健康不做设置」删除 */
-  const SYNCED = ['sgx-theme-mode', 'sgx-palette', 'sgx-accent', 'sgx-files-view', 'sgx-files-home', 'sgx-ai-model'];
-
-  test('总览「云同步」一行是可进入的行（链接 + 箭头，不再是开关）；副标题照旧显示状态', async ({ page }) => {
-    await mockAccount(page, {
-      status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
-      handlers: { 'passkey-list': [200, { ok: true, keys: [] }] },
-    });
-    await page.goto('/account/', { waitUntil: 'domcontentloaded' });
-    const row = page.locator('#acct-sync-row');
-    await expect(row).toHaveAttribute('href', '/zh/account/sync/');
-    await expect(row.locator('.switch')).toHaveCount(0);
-    await expect(page.locator('#acct-sync-sub')).toHaveText('已开启，设置在登录的设备间同步');
-    await row.click();
-    await page.waitForURL(/\/account\/sync\/$/);
-    await expect(page.locator('.sgx-tb-title')).toHaveText('云同步');
+  test('/account/sync/、/zh/account/sync/ 不再构建（静态服务器 404，线上走 301）', async ({ page }) => {
+    for (const p of ['/account/sync/', '/zh/account/sync/']) {
+      const r = await page.request.get(p, { maxRedirects: 0 });
+      expect(r.status(), p).toBe(404);
+    }
   });
-
-  test('子页：总开关默认开，点一下关（sgx-cloud-sync=0，列表变淡、总览副标题跟着变），再点打开', async ({ page }) => {
-    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }) });
-    await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
-    const sw = page.locator('#acct-sync-sw');
-    await expect(sw).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('#acct-sync-sub')).toHaveText('已开启，设置在登录的设备间同步');
-    await page.locator('#acct-sync-row').click();
-    await expect(sw).toHaveAttribute('aria-checked', 'false');
-    await expect(page.locator('#acct-sync-sub')).toHaveText('已关闭，设置只存在此设备');
-    await expect(page.locator('#acct-sync-items')).toHaveClass(/\bis-off\b/);
-    expect(await page.evaluate(() => localStorage.getItem('sgx-cloud-sync'))).toBe('0');
-    await page.keyboard.press('Tab');
-    await page.locator('#acct-sync-row').press('Enter');
-    await expect(sw).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('#acct-sync-items')).not.toHaveClass(/\bis-off\b/);
-    expect(await page.evaluate(() => localStorage.getItem('sgx-cloud-sync'))).toBe(null);
-  });
-
-  test('子页列出实际同步的每一项（分组卡片），带本机当前值；不列语言 / 布局', async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem('sgx-theme-mode', 'dark');
-      localStorage.setItem('sgx-palette', 'lake');
-      localStorage.setItem('sgx-accent', '#3d7bd9');
-      localStorage.setItem('sgx-well-tip', '0'); /* 旧键残留：不再列出 */
-    });
-    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }) });
-    await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
-    const keys = await page.locator('#acct-sync-items [data-sync-key]').evaluateAll((els) => els.map((e) => e.getAttribute('data-sync-key')));
-    expect([...keys].sort()).toEqual([...SYNCED].sort());
-    expect(keys).not.toContain('sgx-lang');
-    expect(keys).not.toContain('sgx-layout');
-    await expect(page.locator('#acct-sync-items h3')).toHaveText(['外观', '其他']);
-    await expect(page.locator('#acct-sync-items section')).toHaveCount(2);
-    const val = (k) => page.locator(`[data-sync-key="${k}"] [data-sync-val]`);
-    await expect(page.locator('[data-sync-key="sgx-theme-mode"]')).toContainText('主题模式');
-    await expect(val('sgx-theme-mode')).toHaveText('深色');
-    await expect(val('sgx-palette')).toHaveText('湖蓝');
-    await expect(val('sgx-accent')).toHaveText('#3D7BD9');
-    await expect(page.locator('[data-sync-key="sgx-accent"] [data-sync-swatch]')).toBeVisible();
-    await expect(page.locator('[data-sync-key="sgx-well-tip"]')).toHaveCount(0);
-    await expect(val('sgx-files-view')).toHaveText('默认');
-    /* P4-2d：AI 模型进云同步（「其他」组）；没选 = 默认 */
-    await expect(page.locator('[data-sync-key="sgx-ai-model"]')).toContainText('AI 模型');
-    await expect(val('sgx-ai-model')).toHaveText('默认');
-    await expect(page.locator('main')).toContainText('语言和布局跟随每台设备各自的设置，不同步。');
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  });
-
-  test('英文子页：Cloud sync / Appearance … / On · Off', async ({ page }) => {
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); localStorage.setItem('sgx-cloud-sync', '0'); } catch (e) {} });
-    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }) });
-    await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.sgx-tb-title')).toHaveText('Cloud sync');
-    await expect(page.locator('#acct-sync-sub')).toHaveText('Off. Settings stay on this device');
-    await expect(page.locator('#acct-sync-items h3')).toHaveText(['Appearance', 'More']);
-    await expect(page.locator('[data-sync-key="sgx-theme-mode"] [data-sync-val]')).toHaveText('Follow system');
-    await expect(page.locator('[data-sync-key="sgx-well-tip"]')).toHaveCount(0);
-    await expect(page.locator('[data-sync-key="sgx-files-view"] [data-sync-val]')).toHaveText('Default');
-    await expect(page.locator('[data-sync-key="sgx-accent"] [data-sync-val]')).toHaveText('Not set');
-  });
-
-  test('子页：没有账号会话 → 跳账号页 ?return=子页', async ({ page }) => {
-    await mockAccount(page, { status: { ok: true, password: true, passkey: false, ready: true, session: null } });
-    await page.goto('/account/sync/', { waitUntil: 'domcontentloaded' });
-    await page.waitForURL(/\/account\/\?return=%2Fzh%2Faccount%2Fsync%2F$/);
-    await expect(page.locator('#acct-login')).toBeVisible();
+  test('?return=/zh/account/sync/ 不再回跳：已登录直接留在账号总览', async ({ page }) => {
+    await mockAccount(page, { status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }), handlers: { 'passkey-list': [200, { ok: true, keys: [] }] } });
+    await page.goto('/account/?return=' + encodeURIComponent('/zh/account/sync/'), { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#acct-main')).toBeVisible();
+    await page.waitForLoadState('load');
+    expect(new URL(page.url()).pathname).toBe('/zh/account/');
   });
 });
 
@@ -1348,7 +1134,7 @@ test.describe('账号页是独立页 /account/（2026-10-22 从设置层下挪�
       status: () => ({ ok: true, password: true, passkey: false, ready: true, session: RECENT() }),
       handlers: { 'passkey-list': [200, { ok: true, keys: [] }], 'device-list': [200, { ok: true, devices: [] }] },
     });
-    for (const p of ['/account/', '/account/security/', '/account/reset/', '/account/devices/', '/account/sync/', '/account/apps/']) {
+    for (const p of ['/account/', '/account/security/', '/account/reset/', '/account/devices/', '/account/apps/']) {
       await page.goto(p, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('main .acct-layout')).toHaveCount(1);
       await expect(page.locator('main .set-layout, main .set-row, main .set-ic, main .set-gh, main .sec-note')).toHaveCount(0);
@@ -1379,7 +1165,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     return prefs;
   }
 
-  test('普通页面 5 分钟内只拉一次；进云同步页强制再拉', async ({ page }) => {
+  test('普通页面 5 分钟内只拉一次；进账号页强制再拉（云同步子页 2026-11-08 删除）', async ({ page }) => {
     const prefs = await enteredWithPrefs(page);
     /* request 事件按发出顺序投递，配合 flushRequests 判断「没有再发」 */
     let gets = 0;
@@ -1397,7 +1183,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     expect(prefs.get).toBe(1);
     const stamp = await page.evaluate(() => JSON.parse(localStorage.getItem('sgx-sync-pull') || '{}'));
     expect(typeof stamp.account).toBe('number');
-    await page.goto('/account/sync/', { waitUntil: 'load' });
+    await page.goto('/account/', { waitUntil: 'load' });
     await expect.poll(() => prefs.get).toBe(2);
   });
 

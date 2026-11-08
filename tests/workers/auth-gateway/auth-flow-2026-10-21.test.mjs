@@ -209,7 +209,7 @@ test('D 首页模板用 safeHTML 输出瘦身标记（Go 模板会删 HTML 注�
 
 /* ---------------- E. 账号页首帧 ---------------- */
 test('E 账号页（临时钥匙进门）：进门的人都能打开 /account/ 及子页（中英），没账号会话 → 登录区（out），不再 302', async () => {
-  for (const p of ['/account/', '/account/devices/', '/account/sync/', '/account/security/', '/zh/account/', '/zh/account/profile/']) {
+  for (const p of ['/account/', '/account/devices/', '/account/apps/', '/account/security/', '/zh/account/', '/zh/account/profile/']) {
     const res = await get('https://styrigx.com' + p, await lockCookie('tempkey'));
     assert.equal(res.status, 200, p);
     const html = await res.text();

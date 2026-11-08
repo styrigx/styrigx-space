@@ -73,14 +73,14 @@ const val = (page, id) => item(page, id).locator('[data-pf-val]');
 test.describe('账号总览：个人资料卡', () => {
   test.use({ viewport: { width: 412, height: 915 } });
 
-  test('卡片顺序：账号卡 → 个人资料（独立一张）→ 设备 / 账号安全 / 应用授权 → 云同步 → AI 模型；点进 /zh/account/profile/', async ({ page }) => {
+  test('卡片顺序：账号卡 → 个人资料（独立一张）→ 设备 / 账号安全 / 应用授权（云同步 / AI 模型 2026-11-08 删除）；点进 /zh/account/profile/', async ({ page }) => {
     await setLang(page, 'zh');
     await mockAccount(page);
     await mockProfile(page);
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-main')).toBeVisible();
     const groups = await page.locator('#acct-main section').evaluateAll((els) => els.map((x) => Array.from(x.querySelectorAll('.acct-row')).map((r) => r.id)));
-    expect(groups).toEqual([['acct-profile-row'], ['acct-dev-row', 'acct-sec-row', 'acct-apps-row'], ['acct-sync-row'], ['acct-ai-row']]);
+    expect(groups).toEqual([['acct-profile-row'], ['acct-dev-row', 'acct-sec-row', 'acct-apps-row']]);
     /* 账号卡在个人资料卡之前 */
     const order = await page.evaluate(() => {
       const card = document.querySelector('#acct-main [data-acct-card]');
