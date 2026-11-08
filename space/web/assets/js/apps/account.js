@@ -10,10 +10,9 @@
  *   点头像直接换头像，见 avatar-edit.js。2026-10-24 PR4 删掉「账号信息」子页，登录方式 / 退出账号挪进设备页「此设备」卡）、
  *   一组：设备 /「安全与隐私」（副标题：账号密码或通行密钥任一已设置 → 已保护）→ 子页
  *   /account/security/（apps/account-security.js，每次进都要验签，3 分钟reauth 票）；
- *   另一组：云同步（副标题 = 开关状态 / 上次同步，进 /account/sync/ 看同步了哪些项、开关）；
- *   再一组（P4-2d）：「AI 模型」（副标题 = 当前模型名，点开单选列表；apps/account-ai.js，确认有账号会话后才读 GET /api/ai）。
+ *   2026-11-08（Gray 04:45 / 04:47）：「云同步」「AI 模型」两行删除——云同步只留后台自动同步（登录后照常 force 同步一次），模型只在 AI 窗口右上角切换。
  *   临时钥匙和服务状态已搬到设置（/security/tempkeys/、/status/），账号页不再有入口。
- * - ?return=/account/(security|devices|sync|apps|profile)/：子页没有账号会话时跳来，登录后回子页。
+ * - ?return=/account/(security|devices|apps|profile)/：子页没有账号会话时跳来，登录后回子页。
  * - ?return=/curio/… | /daymark/…（P3-1 同意流程，Gray 2026-11-05 定）：应用内点登录跳来。登录（带 reauth:true，拿 3 分钟复验票：
  *   刚完成的登录即视为已复验，Gray 2026-11-06 定 A）完成后做授权检查：grant-list（先跑幂等种子再回记录）→
  *   该应用有授权 → 直接回原页面，不停在账号卡上；没有 → 同意卡片（#acct-consent：应用图标与名、请求的作用域说明、授权 / 拒绝）。
@@ -35,10 +34,9 @@ import { bindPwEye, onEnter, focusNoScroll, pwFieldHtml } from '../auth/auth-flo
 import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../auth/auth-sheet.js';
 import { KEY_ACCOUNT } from '../lib/key-names.js';
 import { followKeyboard } from '../shell/vk.js';
-import { ACCOUNT_RETURN_RE, createT, signalAccountName, syncSubText } from './account-common.js';
+import { ACCOUNT_RETURN_RE, createT, signalAccountName } from './account-common.js';
 import { ACCOUNT_API, postJSON } from '../auth/account-api.js';
 import { accountSubmitters, visibleKinds } from '../auth/account-methods.js';
-import { initAiModelRow } from './account-ai.js';
 import { appReturn, appIcon, appName, scopeText, sensitiveText, appsUrl } from './account-grants.js';
 import { toast } from '../lib/toast.js';
 import { langPath } from '../lib/lang-path.js';
@@ -55,19 +53,12 @@ const tx = i18nTable('account');
     if (el) el.textContent = (j && j.session && j.session.device) || t('devThis');
   }
 
-  /* ===== 云同步一行（2026-10-24 PR4：进 /account/sync/ 看同步项和总开关；这里只显示状态，lib/cloud-sync.js 做实际同步） ===== */
-  function fillSync() {
-    const sub = document.getElementById('acct-sync-sub');
-    if (sub) sub.textContent = syncSubText(t, en);
-  }
+  /* ===== 云同步（2026-11-08 Gray 04:47：账号页不再有云同步一行 / 子页，只留后台自动同步，lib/cloud-sync.js 做实际同步） ===== */
   /** 登录了账号的总览：清掉「没登录账号」标记，立刻同步一次 */
   function startSync() {
     sset(AUTH_KEY, 'in');
-    fillSync();
-    if (syncEnabled()) initCloudSync({ force: true }).then(fillSync, fillSync);
+    if (syncEnabled()) initCloudSync({ force: true }).catch(function () {});
   }
-  /* 副标题只读本机（开关 + 上次同步时间），首帧就填上，不等 /api/account */
-  fillSync();
   /** @param {string} id */
   function $(id) {
     return document.getElementById(id);
@@ -121,7 +112,6 @@ const tx = i18nTable('account');
         if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
         fillDevSub(j);
         startSync();
-        initAiModelRow({ t: t });
         const PKC = /** @type {any} */ (window).PublicKeyCredential;
         if (PKC && typeof PKC.signalCurrentUserDetails === 'function') {
           postJSON(ACCOUNT_API, { action: 'passkey-list' }).then(function (res) {
@@ -420,7 +410,6 @@ const tx = i18nTable('account');
     if (secSub) secSub.textContent = (j.password || j.passkey) ? t('secProtected') : t('secUnprotected');
     fillDevSub(j);
     startSync();
-    initAiModelRow({ t: t });
     loginEl.hidden = true;
     mainEl.hidden = false;
     maybeSignalName();

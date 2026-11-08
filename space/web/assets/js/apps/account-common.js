@@ -1,12 +1,11 @@
 /**
  * @fileoverview 账号页共用：账号总览（/account/，含登录区）和各子页
- * （设备 /account/devices/、安全与隐私 /account/security/、云同步 /account/sync/、应用授权 /account/apps/、个人资料 /account/profile/）。
+ * （设备 /account/devices/、安全与隐私 /account/security/、应用授权 /account/apps/、个人资料 /account/profile/）。
  * 设置里的临时钥匙页（/security/tempkeys/）也用这里的 createT（同一份 #sgx-i18n-account 文案），不问账号会话。
  * 2026-10-24 PR4：「账号信息」子页删除，登录方式和「退出账号」挪进设备页「此设备」卡；2026-11-07 同一地址 /account/profile/ 改作「个人资料」子页（内容是新的）。
  *
  * - i18n：各页模板都输出同一份 #sgx-i18n-account（partials/account-i18n.html）
  * - requireAccountSession：子页进页查一次账号会话，明确没有 → 回账号页登录，登录后回子页
- * - syncSubText：云同步一行 / 云同步页总开关的副标题（已开启 / 已关闭 / 上次同步 hh:mm）
  * - /api/account 调用与错误码 → 文案在 auth/account-api.js（锁屏凭证页也用）
  * - signalAccountName：PublicKeyCredential.signalCurrentUserDetails 让密码管理器
  *   （Samsung Pass / Google 密码管理器）把已有账号通行密钥条目的名字更新为 AccountKey。
@@ -15,8 +14,6 @@
  */
 import { KEY_ACCOUNT } from '../lib/key-names.js';
 import { ACCOUNT_API } from '../auth/account-api.js';
-import { syncEnabled, scopeDenied, LAST_KEY } from '../lib/cloud-sync.js';
-import { get as sget } from '../lib/storage.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { langPath } from '../lib/lang-path.js';
 import { i18nTable, pageLang } from '../lib/i18n.js';
@@ -31,8 +28,8 @@ export function accountUrl(en) {
 export function securityUrl(en) {
   return langPath('/account/security/', pageLang());
 }
-/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、云同步、应用授权、个人资料） */
-export const ACCOUNT_RETURN_RE = /^\/(zh\/)?account\/(security|devices|sync|apps|profile)\/$/;
+/** 账号总览登录后可回跳的本站路径（只接受账号的子页：安全与隐私、设备、应用授权、个人资料；云同步子页 2026-11-08 删除） */
+export const ACCOUNT_RETURN_RE = /^\/(zh\/)?account\/(security|devices|apps|profile)\/$/;
 
 /** 回账号页登录，登录后回当前子页 @param {boolean} en */
 export function goAccountLogin(en) {
@@ -55,30 +52,6 @@ export function requireAccountSession(en) {
       }
       return j && j.ok ? j : null;
     }, function () { return null; });
-}
-
-/**
- * 云同步副标题：关 → 「已关闭…」；授权被取消 → 「设置同步未获账号授权，只存本机」；开、没同步过 → 「已开启…」；开、同步过 → 「上次同步 [M月D日 ]hh:mm」。
- * @param {function(string): string} t
- * @param {boolean} en
- * @param {number} [now]
- */
-export function syncSubText(t, en, now) {
-  if (!syncEnabled()) return t('syncOff');
-  /* P3-1：设置同步的授权被取消（/api/prefs 403 scope）→ 只存本机 */
-  if (scopeDenied()) return t('syncNoScope');
-  const last = parseInt(sget(LAST_KEY) || '0', 10) || 0;
-  if (!last) return t('syncOn');
-  const d = new Date(last);
-  const pad = function (/** @type {number} */ n) { return (n < 10 ? '0' : '') + n; };
-  const today = new Date(now || Date.now()).toDateString() === d.toDateString();
-  /* 日期按页面语言交给 Intl（en: Oct 22，zh: 10月22日），时间统一 HH:MM */
-  let day = '';
-  if (!today) {
-    try { day = new Intl.DateTimeFormat(pageLang(), { month: 'short', day: 'numeric' }).format(d) + ' '; } catch (e) { day = (d.getMonth() + 1) + '/' + d.getDate() + ' '; }
-  }
-  const when = day + pad(d.getHours()) + ':' + pad(d.getMinutes());
-  return t('syncLast') + when;
 }
 
 /**

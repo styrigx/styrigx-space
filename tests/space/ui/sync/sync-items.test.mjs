@@ -1,10 +1,9 @@
 /**
- * 账号 → 云同步页（/account/sync/，2026-10-24 PR4）：
- * - data/sync-items.yaml 列出的项 = lib/cloud-sync.js syncKeys() 实际同步的 key，一个不多一个不少、不重复；
+ * 云同步的同步项清单（2026-10-24 PR4 起；2026-11-08 Gray 04:47 删了云同步子页 /account/sync/（301 → /account/）和账号页那一行，只留后台自动同步）：
+ * - data/sync-items.yaml 列出的项 = lib/cloud-sync.js syncKeys() 实际同步的 key，一个不多一个不少、不重复（清单留作后台同步了什么的说明，加 key 要同步改它）；
  *   语言（sgx-lang）、布局（sgx-layout）不同步、不列；每项都有名字（features.yaml 的 name，或 extra 的 name）。
- * - lib/sync-items.js valueText：enum / bool（与 features.js 同一套存储语义）/ string / json / accent / city / ai-model 的显示。
- * - P4-2d：账号页选的 AI 模型 sgx-ai-model 进云同步（EXTRA + sync-items.yaml extra），AI 窗口历史 sgx-ai-history 仍不进。
- * - 模板 account-sync.html 按 yaml 渲染、有总开关；文案中英都有。
+ * - P4-2d：AI 模型 sgx-ai-model（AI 窗口右上角切换）进云同步（EXTRA + sync-items.yaml extra），AI 窗口历史 sgx-ai-history 仍不进。
+ * - 子页没了：模板 / 入口 / apps/account-sync.js / lib/sync-items.js 都删了，_redirects 有 301。
  * 运行：node --test tests/space/ui/sync/sync-items.test.mjs
  */
 import { test } from 'node:test';
@@ -23,7 +22,6 @@ const featDefs = feats.map((f) => Object.assign({ id: f.id, key: f.key, type: f.
 globalThis.window = globalThis.window || { addEventListener() {}, dispatchEvent() {} };
 globalThis.document = { getElementById: (id) => (id === 'sgx-features' ? { textContent: JSON.stringify(featDefs) } : null), documentElement: { getAttribute() { return null; } }, cookie: '' };
 const { syncKeys } = await import('../../../../space/web/assets/js/lib/cloud-sync.js');
-const { valueText, defOf } = await import('../../../../space/web/assets/js/lib/sync-items.js');
 
 const listed = si.groups.flatMap((g) => g.keys);
 
@@ -54,56 +52,6 @@ test('每项都有中英文名字；extra 只放 features.yaml 里没有的 key'
   for (const g of si.groups) assert.ok(TR.en.syncItems.group[g.id] && TR.zh.syncItems.group[g.id] && g.keys.length, g.id);
 });
 
-const T = { syncValOn: '开', syncValOff: '关', syncValDefault: '默认', syncValCustom: '已自定义', syncValUnset: '未设置' };
-const t = (k) => T[k];
-
-test('valueText：enum（null = 默认）、不认识的值原样显示', () => {
-  const d = { type: 'enum', def: 'system', opts: { system: '跟随系统', light: '浅色', dark: '深色' } };
-  assert.equal(valueText(d, null, t), '跟随系统');
-  assert.equal(valueText(d, 'dark', t), '深色');
-  assert.equal(valueText(d, 'weird', t), 'weird');
-});
-
-test('valueText：bool 与 features.js get 同一存储语义', () => {
-  /* 默认开，关 = '0'（storage on: null, off: "0"） */
-  const a = { type: 'bool', def: 'true', on: null, off: '0' };
-  assert.equal(valueText(a, null, t), '开');
-  assert.equal(valueText(a, '0', t), '关');
-  assert.equal(valueText(a, 'x', t), '开');
-  /* 默认关，开 = '1'（没有 storage → on '1'） */
-  const b = { type: 'bool', def: 'false', on: '1', off: null };
-  assert.equal(valueText(b, null, t), '关');
-  assert.equal(valueText(b, '1', t), '开');
-});
-
-test('valueText：string / json / accent / city', () => {
-  assert.equal(valueText({ type: 'string', def: 'America/Los_Angeles' }, null, t), 'America/Los_Angeles');
-  assert.equal(valueText({ type: 'string', def: 'America/Los_Angeles' }, 'Asia/Shanghai', t), 'Asia/Shanghai');
-  assert.equal(valueText({ type: 'json' }, null, t), '默认');
-  assert.equal(valueText({ type: 'json' }, '{"layout":"grid"}', t), '已自定义');
-  assert.equal(valueText({ type: 'accent' }, '#3d7bd9', t), '#3D7BD9');
-  assert.equal(valueText({ type: 'accent' }, null, t), '未设置');
-  assert.equal(valueText({ type: 'accent' }, 'red', t), '未设置');
-  assert.equal(valueText({ type: 'city' }, '{"name":"Shanghai","lat":1,"lon":2}', t), 'Shanghai');
-  assert.equal(valueText({ type: 'city' }, '{bad', t), '未设置');
-  assert.equal(valueText({ type: 'city' }, null, t), '未设置');
-});
-
-test('defOf：从行的 data-* 读定义', () => {
-  const attrs = { 'data-sync-type': 'enum', 'data-sync-default': '24', 'data-sync-opts': '{"12":"12 小时制","24":"24 小时制"}' };
-  const d = defOf({ getAttribute: (n) => (n in attrs ? attrs[n] : null) });
-  assert.deepEqual(d, { type: 'enum', def: '24', on: null, off: null, opts: { 12: '12 小时制', 24: '24 小时制' } });
-  assert.equal(valueText(d, null, t), '24 小时制');
-});
-
-test('模板：按 sync-items.yaml 渲染、有总开关；文案（account-i18n）中英都有', () => {
-  const tpl = rd('space/web/layouts/_default/account-sync.html');
-  assert.match(tpl, /index site\.Data "sync-items"/);
-  assert.match(tpl, /id="acct-sync-sw" role="switch"/);
-  assert.match(tpl, /data-sync-key="\{\{ \$k \}\}"/);
-  const acc = jsDict('account');
-  for (const k of Object.keys(T)) assert.ok(acc[k] && acc[k].zh && acc[k].en, k);
-});
 
 test('P5-1：AI 窗口历史 sgx-ai-history 只存本地，不进云同步白名单（syncKeys / sync-items.yaml / features.yaml 都没有）', async () => {
   const { HISTORY_KEY } = await import('../../../../space/web/assets/js/shell/ai-panel.js');
@@ -129,8 +77,17 @@ test('P4-2d：AI 模型 sgx-ai-model 进云同步白名单（syncKeys + sync-ite
   assert.match(rd('space/web/assets/js/shell/ai-panel.js'), /export const MODEL_KEY = 'sgx-ai-model';/);
 });
 
-test('valueText：ai-model 没设 →「默认」，设了 → 原样显示模型 id', () => {
-  assert.equal(valueText({ type: 'ai-model' }, null, t), '默认');
-  assert.equal(valueText({ type: 'ai-model' }, '', t), '默认');
-  assert.equal(valueText({ type: 'ai-model' }, '@cf/openai/gpt-oss-20b', t), '@cf/openai/gpt-oss-20b');
+test('2026-11-08：云同步子页删除——模板 / 入口 / 页面脚本 / content 都没有，_redirects 301 到账号页（中英）；账号页与账号下拉没有云同步一行', () => {
+  const ex = (p) => { try { rd(p); return true; } catch (e) { return false; } };
+  for (const p of ['space/web/layouts/_default/account-sync.html', 'space/web/assets/js/entries/entry-account-sync.js', 'space/web/assets/js/apps/account-sync.js',
+    'space/web/assets/js/lib/sync-items.js', 'space/web/content/account-sync.md', 'space/web/content/zh/account-sync.md']) assert.equal(ex(p), false, p);
+  const red = rd('space/web/static/_redirects');
+  assert.match(red, /^\/account\/sync\/\s+\/account\/\s+301$/m);
+  assert.match(red, /^\/zh\/account\/sync\/\s+\/zh\/account\/\s+301$/m);
+  assert.doesNotMatch(rd('space/web/layouts/_default/baseof.html'), /account-sync/);
+  assert.doesNotMatch(rd('space/web/layouts/_default/account.html'), /acct-sync-row|"path" "\/account\/sync\/"/);
+  assert.doesNotMatch(rd('space/web/layouts/partials/shell-topbar.html'), /"sync\/"|data-acct-v="sync"/);
+  /* 后台自动同步照旧：账号页登录后 force 同步一次，外壳 core.js 照常起同步 */
+  assert.match(rd('space/web/assets/js/apps/account.js'), /initCloudSync\(\{ force: true \}\)/);
+  assert.match(rd('space/web/assets/js/shell/core.js'), /initCloudSync\(\)\.catch/);
 });

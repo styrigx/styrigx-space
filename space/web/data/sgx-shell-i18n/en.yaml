@@ -220,7 +220,6 @@ term:
   locking: "locking …"
   asking: "asking Gray AI …"
 acct:
-  last: "Last {t}"
   unprotected: "Not set up"
   protected: "Protected"
   signOutFail: "Couldn’t sign out. Check your connection."
@@ -236,9 +235,6 @@ acct:
   devices: "Devices"
   security: "Account security"
   apps: "App access"
-  sync: "Cloud sync"
-  ai: "AI model"
-  aiHint: "account overview"
   overview: "Account overview"
 sec:
   locked: "locked"
@@ -256,5 +252,4 @@ sec:
   overview: "Site security"
   overviewHint: "status"
   session: "Session"
-  lockNow: "Lock now"
   lockAll: "Lock all devices"

@@ -29,8 +29,9 @@ test('「应用授权」行用 apps-linked，不再用 apps-grid', () => {
   assert.doesNotMatch(acct, /"apps-grid"/, '账号页别处也没有用九宫格');
 });
 
-test('其他行图标不变：设备 device、账号安全 shield-user、云同步 cloud、AI 模型 sparkles', () => {
-  for (const [id, ic] of [['acct-dev-row', 'device'], ['acct-sec-row', 'shield-user'], ['acct-sync-row', 'cloud'], ['acct-ai-row', 'sparkles']]) {
+test('其他行图标不变：设备 device、账号安全 shield-user（云同步 / AI 模型两行 2026-11-08 删除）', () => {
+  for (const id of ['acct-sync-row', 'acct-ai-row']) assert.equal(acct.indexOf(`id="${id}"`), -1, id + ' 应已删除');
+  for (const [id, ic] of [['acct-dev-row', 'device'], ['acct-sec-row', 'shield-user']]) {
     const at = acct.indexOf(`id="${id}"`);
     assert.ok(at >= 0, id);
     const row = acct.slice(at, acct.indexOf('</a>', at) > 0 ? acct.indexOf('</a>', at) : at + 600);

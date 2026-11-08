@@ -1,7 +1,7 @@
 /**
  * 重设计 PR-5（2026-11-08）：账号下拉 #sgx-acct（acct-v2）、站点安全下拉 #sgx-sec（sec-v1）、AI 窗口头部 ×（ai-v1）。
  * 只换外观：盾牌 / 头像仍是链接（href / 读屏名不变，修饰键点照旧按链接走），普通点击开下拉；下拉里是去账号 / 安全各页的入口，
- * 立即锁屏沿用 NAVIGATE lock 同一动作。登录态按 GET /api/account（ok + session / session=null；问不到不写）。
+ * 立即锁屏只在 NAVIGATE（Gray 2026-11-08 04:06：盾牌下拉不放）；账号下拉不放 AI 模型（04:45）、云同步（04:47）。登录态按 GET /api/account（ok + session / session=null；问不到不写）。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
@@ -25,7 +25,7 @@ const pageNow = (page) => page.evaluate(() => Date.now());
 const json = (o) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
 
 test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
-  test('点头像开下拉（非模态、aria-expanded）：头部 姓名 · 昵称 · 编辑；六行去账号各子页；Esc 关、焦点回头像', async ({ page }) => {
+  test('点头像开下拉（非模态、aria-expanded）：头部 姓名 · 昵称 · 编辑；四行去账号各子页（无云同步 / AI 模型）；Esc 关、焦点回头像', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await go(page, '/zh/wild/');
     const av = page.locator('.sgx-tb-av');
@@ -38,7 +38,12 @@ test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
     await expect(av).toHaveAttribute('aria-expanded', 'true');
     await expect(page).toHaveURL(/\/zh\/wild\/$/);
     expect(await d.locator('.sgx-pop-list a.sgx-pop-row').evaluateAll((els) => els.map((e) => e.getAttribute('href'))))
-      .toEqual(['/zh/account/profile/', '/zh/account/devices/', '/zh/account/security/', '/zh/account/apps/', '/zh/account/sync/', '/zh/account/']);
+      .toEqual(['/zh/account/profile/', '/zh/account/devices/', '/zh/account/security/', '/zh/account/apps/']);
+    await expect(d.locator('[data-acct-v="sync"]')).toHaveCount(0);
+    await expect(d.locator('.sgx-pop-list').first()).not.toContainText('云同步');
+    /* Gray 2026-11-08 04:45：账号下拉不放 AI 模型行，模型只在 AI 窗口右上角切换 */
+    await expect(d.locator('[data-acct-v="ai"]')).toHaveCount(0);
+    await expect(d.locator('.sgx-pop-list').first()).not.toContainText('AI 模型');
     await expect(d.locator('.sgx-pop-me-a')).toHaveAttribute('href', '/zh/account/');
     await expect(d.locator('.sgx-pop-edit')).toHaveAttribute('href', '/zh/account/profile/');
     await expect(d.locator('[data-acct-name]')).toHaveText('Sloan Gray');
@@ -51,7 +56,7 @@ test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
     await expect(av).toBeFocused();
   });
 
-  test('有账号会话：「✓ 已登录」、设备名、账号安全「已保护」、AI 模型名、退出登录（POST logout → 回账号页）', async ({ page }) => {
+  test('有账号会话：「✓ 已登录」、设备名、账号安全「已保护」、无 AI 模型行、退出登录（POST logout → 回账号页）', async ({ page }) => {
     let out = null;
     await go(page, '/zh/wild/');
     await page.route('**/api/ai', (r) => r.fulfill(json({ ok: true, default: 'g4', canChoose: true, models: [{ id: 'g4', label: 'Gemma 4' }] })));
@@ -65,7 +70,9 @@ test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
     await expect(d.locator('.sgx-pop-state')).toBeVisible();
     await expect(d.locator('[data-acct-v="device"]')).toHaveText('Galaxy S23 Ultra');
     await expect(d.locator('[data-acct-v="security"]')).toHaveText('已保护');
-    await expect(d.locator('[data-acct-v="ai"]')).toHaveText('Gemma 4');
+    /* 没有 AI 模型行（Gray 2026-11-08 04:45）：有会话、/api/ai 有模型也不画 */
+    await expect(d.locator('[data-acct-v="ai"]')).toHaveCount(0);
+    await expect(d).not.toContainText('Gemma 4');
     await expect(d.locator('[data-acct-login]').first()).toBeHidden();
     const lo = d.locator('[data-acct-logout]');
     await expect(lo).toBeVisible();
@@ -122,7 +129,7 @@ test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
 });
 
 test.describe('站点安全下拉 #sgx-sec（sec-v1，按设计稿）', () => {
-  test('有 3 分钟验证票：头部倒计时、通行密钥个数、锁屏钥匙 LockKey、临时钥匙、锁屏会话剩余、立即锁屏、锁定所有设备；和账号下拉互斥', async ({ page }) => {
+  test('有 3 分钟验证票：头部倒计时、通行密钥个数、锁屏钥匙 LockKey、临时钥匙、锁屏会话剩余、锁定所有设备（没有立即锁屏）；和账号下拉互斥', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await go(page, '/zh/wild/');
     const now = await pageNow(page);
@@ -139,7 +146,9 @@ test.describe('站点安全下拉 #sgx-sec（sec-v1，按设计稿）', () => {
     expect(await s.locator('[data-sec-open] a.sgx-pop-row').evaluateAll((els) => els.map((e) => e.getAttribute('href'))))
       .toEqual(['/zh/security/lock/', '/zh/security/lock/', '/zh/security/tempkeys/', '/zh/security/', '/zh/security/lock/#lockmgr-sessions']);
     await expect(s).toContainText('LockKey');
-    await expect(s.locator('[data-sec="lock"]')).toContainText('立即锁屏');
+    /* 立即锁屏不在盾牌里（Gray 2026-11-08 04:06），只在 NAVIGATE 底部 lock */
+    await expect(s.locator('[data-sec="lock"]')).toHaveCount(0);
+    await expect(s).not.toContainText('立即锁屏');
     await expect(s.locator('[data-sec-locked]')).toBeHidden();
     await settled(page, 'sgx-sec');
     await page.locator('.sgx-tb-av').click();

@@ -264,11 +264,12 @@ test.describe('同意流程（/account/?return=/curio/…）', () => {
   });
 });
 
-test('云同步：/api/prefs 403 scope（设置同步的授权被取消）→ 账号总览「云同步」显示只存本机', async ({ page }) => {
+test('云同步：/api/prefs 403 scope（设置同步的授权被取消）→ 账号总览照常、后台同步只存本机不报错（云同步一行 2026-11-08 删除，不再显示状态）', async ({ page }) => {
   await mockGrants(page);
   await page.route('**/api/ai', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, default: 'm', canChoose: true, models: [{ id: 'm', label: 'M' }] }) }));
-  await page.route('**/api/prefs', (r) => r.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'scope', scope: 'prefs.sync' }) }));
-  /* 测试构建是静态服务器：锁屏已解锁靠改写 HTML 注入（同 account.spec.js 云同步各条） */
+  let prefs = 0;
+  await page.route('**/api/prefs', (r) => { prefs++; return r.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'scope', scope: 'prefs.sync' }) }); });
+  /* 测试构建是静态服务器：锁屏已解锁靠改写 HTML 注入（同 account.spec.js「没有 AI 模型 / 云同步行」） */
   await page.route('**/account/', async (route) => {
     const res = await route.fetch();
     const body = (await res.text()).replace(/<html([^>]*)>/i, '<html$1 data-sgx-lock-session="valid">');
@@ -276,5 +277,9 @@ test('云同步：/api/prefs 403 scope（设置同步的授权被取消）→ �
   });
   await page.goto('/account/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#acct-main')).toBeVisible();
-  await expect(page.locator('#acct-sync-sub')).toHaveText('设置同步未获账号授权，只存本机');
+  await expect.poll(() => prefs, { timeout: 10000 }).toBeGreaterThan(0);
+  await expect(page.locator('#acct-sync-row, #acct-sync-sub')).toHaveCount(0);
+  /* 403 scope 不当成「没登录账号」：不标 out（lib/cloud-sync.js；单测 cloud-sync-throttle 覆盖细节） */
+  expect(await page.evaluate(() => localStorage.getItem('sgx-sync-auth'))).not.toBe('out');
+  await expect(page.locator('#acct-main')).toBeVisible();
 });
