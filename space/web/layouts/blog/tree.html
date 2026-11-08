@@ -1,0 +1,114 @@
+{{- /* 博客目录页 /blog/tree/（中文 /blog/zh/tree/；2026-11 对齐 PR-C，设计稿 tb4.html pg=tree / m=1）：
+   页头「tree blog/ · 目录_ · 按分类，或按年份。点任何一行直接打开。」→ 两个静态终端窗（桌面 1.25fr : 1fr，手机一栏）：
+   - 左「tree blog/ -L 2」：标题栏右侧 分类 │ 年份 切换（data-tree-view，blog-list.js initTree；不跑脚本只显示分类）。
+       分类视图 = 系列目录（全部篇，按篇序；id="series-<slug>"，旧 #topics/series/<slug> 转到这里）+ 分类目录（系列 + 分类一共前 4 个目录，同设计稿，每个最新 2 篇 + 「… n more」→ 首页筛选）；
+       年份视图 = 年 / 月 / 文章。
+   - 右「archive」：ls blog/ --by-year（年 + 月份行，字符条 + 篇数）、ls blog/ --tags（#标签 n 纯文字两列 → 首页 ?tag=）。
+   分类字段同首页（partials/blog/cat-field.html：没有文章写 categories 时用标签）。 */ -}}
+{{ define "head" }}
+{{- $alt := dict "en" ("blog/tree/" | relURL) "zh" ("blog/zh/tree/" | relURL) -}}
+{{ partial "blog/head.html" (dict "page" . "title" .Title "description" .Description "alt" $alt) }}
+{{ end }}
+{{ define "body" }}
+{{- $posts := partial "blog/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) -}}
+{{- $home := (site.GetPage "/blog").RelPermalink -}}
+{{- $cf := partial "blog/cat-field.html" $posts -}}
+{{- $qk := cond (eq $cf "tags") "tag" "cat" -}}
+{{- $series := partial "blog/groups.html" (dict "posts" $posts "field" "series") -}}
+{{- $cats := partial "blog/groups.html" (dict "posts" $posts "field" $cf) -}}
+{{- $tags := partial "blog/groups.html" (dict "posts" $posts "field" "tags") -}}
+{{- $dirs := slice }}
+{{- range $series }}{{ $dirs = $dirs | append (dict "kind" "series" "g" .) }}{{ end }}
+{{- range $cats }}{{ $dirs = $dirs | append (dict "kind" "cat" "g" .) }}{{ end }}
+{{- $nDirs := len $dirs }}{{ $dirs = first 4 $dirs }}
+{{- $yrs := slice }}{{ $yc := dict }}{{ $ym := dict }}
+{{- range $posts }}{{ $y := .Date.Format "2006" }}{{ $m := .Date.Format "01" }}
+  {{- if not (in $yrs $y) }}{{ $yrs = $yrs | append $y }}{{ end }}
+  {{- $yc = merge $yc (dict $y (add (index $yc $y | default 0) 1)) }}
+  {{- $k := printf "%s-%s" $y $m }}{{ $ym = merge $ym (dict $k (add (index $ym $k | default 0) 1)) }}
+{{- end }}
+{{- $maxY := 1 }}{{ range $yrs }}{{ if gt (index $yc .) $maxY }}{{ $maxY = index $yc . }}{{ end }}{{ end -}}
+<body class="page-home page-tree">
+{{ partial "blog/topnav.html" (dict "page" . "mode" "links") }}
+<main class="oui-archive-wrap blog-tree">
+  {{ partial "sgx-ph.html" (dict "cmd" "tree blog/" "title" .Title "desc" .Description "path" .File.Path) }}
+  <div class="sgx-tw">
+    <section class="sgx-term sgx-term--static blog-tree-win" aria-labelledby="blog-tree-h" data-tree>
+      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><h2 class="sgx-term-title" id="blog-tree-h" translate="no">tree blog/ -L 2</h2>
+        <div class="sgx-seg2" role="group" aria-label="{{ i18n "treeView" }}">
+          <button type="button" data-tree-view="cat" aria-pressed="true">{{ i18n "categories" }}</button><button type="button" data-tree-view="year" aria-pressed="false">{{ i18n "treeByYear" }}</button>
+        </div>
+      </div>
+      <div class="sgx-term-body sgx-tree-out">
+        <div data-tree-pane="cat">
+          <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> tree blog/ -L 2</p>
+          <p class="sgx-tl"><span class="cb">blog/</span></p>
+          {{- $nf := 0 }}
+          {{- range $i, $d := $dirs }}{{ $last := eq (add $i 1) (len $dirs) }}
+          {{- $g := $d.g }}{{ $p0 := cond $last "    " "│   " }}
+          {{- if eq $d.kind "series" }}
+          <p class="sgx-tl" id="series-{{ $g.slug }}" data-series="{{ $g.slug }}"><span class="tp" aria-hidden="true">{{ cond $last "└── " "├── " }}</span><span class="cb td">{{ $g.name }}/</span><span class="cd">{{ $g.count }}</span></p>
+          {{- range $j, $p := $g.posts }}{{ $nf = add $nf 1 }}
+          <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ $p0 }}{{ cond (eq (add $j 1) (len $g.posts)) "└── " "├── " }}</span><a class="tf" href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></p>
+          {{- end }}
+          {{- else }}
+          {{- $fh := printf "%s?%s=%s" $home $qk ($g.slug | urlquery) }}
+          {{- $shown := first 2 $g.posts }}{{ $more := sub $g.count (len $shown) }}
+          <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ cond $last "└── " "├── " }}</span><a class="cb td" href="{{ $fh }}">{{ $g.name }}/</a><span class="cd">{{ $g.count }}</span></p>
+          {{- range $j, $p := $shown }}
+          <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ $p0 }}{{ cond (and (eq (add $j 1) (len $shown)) (eq $more 0)) "└── " "├── " }}</span><a class="tf" href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></p>
+          {{- end }}
+          {{- if gt $more 0 }}
+          <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ $p0 }}└── </span><a class="cd" href="{{ $fh }}">… {{ i18n "treeMore" (dict "Count" $more) }}</a></p>
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          <p class="sgx-tl sgx-tl-gap cd">{{ i18n "treeSummary" (dict "Dirs" $nDirs "Files" (len $posts)) }}</p>
+        </div>
+        <div data-tree-pane="year" hidden>
+          <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> tree blog/ -L 3 --by-year</p>
+          <p class="sgx-tl"><span class="cb">blog/</span></p>
+          {{- range $i, $y := $yrs }}{{ $ly := eq (add $i 1) (len $yrs) }}{{ $p0 := cond $ly "    " "│   " }}
+          <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ cond $ly "└── " "├── " }}</span><span class="cy td">{{ $y }}/</span><span class="cd">{{ index $yc $y }}</span></p>
+          {{- $ms := slice }}{{ range $mi := seq 12 1 }}{{ $mk := printf "%s-%02d" $y $mi }}{{ with index $ym $mk }}{{ $ms = $ms | append (printf "%02d" $mi) }}{{ end }}{{ end }}
+          {{- range $k, $m := $ms }}{{ $lm := eq (add $k 1) (len $ms) }}{{ $p1 := printf "%s%s" $p0 (cond $lm "    " "│   ") }}
+          <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ $p0 }}{{ cond $lm "└── " "├── " }}</span><span class="cb td">{{ $m }}/</span><span class="cd">{{ index $ym (printf "%s-%s" $y $m) }}</span></p>
+          {{- $mp := slice }}{{ range $posts }}{{ if eq (.Date.Format "2006-01") (printf "%s-%s" $y $m) }}{{ $mp = $mp | append . }}{{ end }}{{ end }}
+          {{- range $j, $p := $mp }}
+          <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ $p1 }}{{ cond (eq (add $j 1) (len $mp)) "└── " "├── " }}</span><a class="tf" href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></p>
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          <p class="sgx-tl sgx-tl-gap cd">{{ i18n "treeSummary" (dict "Dirs" (len $yrs) "Files" (len $posts)) }}</p>
+        </div>
+        {{- if not $posts }}<p class="empty-note">{{ i18n "emptyArchives" }}</p>{{ end }}
+      </div>
+    </section>
+    <section class="sgx-term sgx-term--static blog-tree-win" aria-labelledby="blog-arch-h">
+      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><h2 class="sgx-term-title" id="blog-arch-h" translate="no">archive</h2></div>
+      <div class="sgx-term-body sgx-tree-out">
+        <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> ls blog/ --by-year</p>
+        <ul class="sgx-arch" aria-label="{{ i18n "archiveByYear" }}">
+          {{- range $y := $yrs }}{{ $c := index $yc $y }}
+          <li class="sgx-arch-y"><span class="sgx-arch-k cy">{{ $y }}</span><span class="sgx-arch-bar cb" aria-hidden="true">{{ strings.Repeat (int (math.Max 1 (math.Ceil (mul 14.0 (div (float $c) $maxY))))) "█" }}</span><span class="sgx-arch-n">{{ $c }}</span></li>
+          {{- range $mi := seq 12 1 }}{{ $mk := printf "%s-%02d" $y $mi }}{{ with index $ym $mk }}
+          <li class="sgx-arch-m"><span class="sgx-arch-k">{{ i18n "archiveMonth" (dict "Month" (printf "%02d" $mi)) }}</span><span class="sgx-arch-bar cb" aria-hidden="true">{{ strings.Repeat (int (math.Max 1 (math.Ceil (mul 14.0 (div (float .) $maxY))))) "█" }}</span><span class="sgx-arch-n">{{ . }}</span></li>
+          {{- end }}{{ end }}
+          {{- end }}
+        </ul>
+        {{- if $tags }}
+        <p class="sgx-tl sgx-tl-gap" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> ls blog/ --tags</p>
+        <ul class="sgx-tags2" aria-label="{{ i18n "tags" }}">
+          {{- range $tags }}
+          <li><a href="{{ $home }}?tag={{ .slug | urlquery }}"><span class="k">#{{ .name }}</span> {{ .count }}</a></li>
+          {{- end }}
+        </ul>
+        {{- end }}
+      </div>
+    </section>
+  </div>
+</main>
+{{ partial "blog/footer.html" . }}
+{{ partial "blog/script.html" (dict "name" "tree.ts") }}
+</body>
+{{ end }}

@@ -1,5 +1,5 @@
-// 文章页：分享按钮、代码块复制。（评论 2026-10-22 撤了）
-// 分享 / 评论的配置从页面上的 data-* 读。
+// 文章页：分享一行（2026-11 对齐 PR-C：目录下 / 两卡下的文字链 分享 · X · 复制链接 · 问 Gray AI）、代码块复制。（评论 2026-10-22 撤了）
+// 分享的配置从页面上的 data-* 读。
 
 /* ---------- 分享 ---------- */
 (() => {
@@ -9,7 +9,7 @@
   const title = root?.getAttribute('data-share-title') || document.title;
   const url = root?.getAttribute('data-share-url') || location.href;
   if (typeof navigator.share === 'function') {
-    document.querySelectorAll('[data-share-native]').forEach((btn) => btn.removeAttribute('hidden'));
+    document.querySelectorAll('[data-share-native], [data-share-native-sep]').forEach((btn) => btn.removeAttribute('hidden'));
   }
   document.addEventListener('click', async (event) => {
     const target = event.target;
@@ -26,6 +26,11 @@
           label.textContent = original;
         }, 1600);
       }
+      return;
+    }
+    if (target.closest('[data-ask-ai]')) {
+      /* 问 Gray AI：打开右下 AI 窗（共享外壳的浮钮） */
+      document.querySelector('.sgx-tb-ai')?.click();
       return;
     }
     const nativeBtn = target.closest('[data-share-native]');

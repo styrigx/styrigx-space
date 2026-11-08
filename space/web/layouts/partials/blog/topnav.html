@@ -1,8 +1,7 @@
 {{- /* 顶栏（2026-11-04 P5-1 全大椭圆，四站同一个）：标记是共享外壳 partials/shell-topbar.html（合站后直接用主站这份），
    这里只准备博客自己的参数：
 - 中间（.sgx-tb-pill，原样搬进来）：
-  tabs    列表页（首页）：页名胶囊 = 站名「博客」，页内切到 文章 / 专题 时换成分区名（P4-3 PR-4b：顶栏不再有分区页签，分区入口在首页正文）；面板切换见 assets/js/blog/app-tabs.ts。
-  links   标签页 / 404 等子页：只有页名（.title，不给就用页面标题）。
+  links   首页 / 目录页 / 标签页 / 404：只有页名（.title，不给就用页面标题）。2026-11 对齐 PR-C 起首页是单一文章列表，没有分区面板（原 tabs 模式删除）。
   article 文章页：只有页名（文章标题）；长条底边一条强调色细线是阅读进度。
 - 右边：九宫格（导航面板，博客是「开」态）· 快捷设置 · AI（头像在 AI 窗口头部）；原抽屉里的「目录」不再放顶栏（文章页正文旁的目录卡 toc-card 照旧）。
 - 快捷设置（P4-3 PR-4b 起四站同一套，没有按站的 tiles 参数）：深色 / 跟随系统 / 分享本页 / 立即锁定 + 语言 + 调色板 + 布局，写外观经共享外壳 prefs-write.js（定案第 5 条）。
@@ -13,13 +12,7 @@
 {{- $nav := site.Data.shell.nav -}}
 {{- $title := .title | default .page.Title -}}
 {{- $center := "" -}}
-{{- if eq $mode "tabs" -}}
-{{- /* 首页：页名胶囊 = 站名，切到页内分区（#posts / #topics）时 app-tabs.ts 换成分区名（data-sgx-titles 顺序同 TABS；首页分区就是首页本身） */ -}}
-{{- $titles := slice (i18n "blogTitle") (i18n "tabPosts") (i18n "tabTopics") -}}
-{{- $center = printf "<span class=\"sgx-tb-title\" data-sgx-titles=\"%s\">%s</span>" ($titles | jsonify | htmlEscape) (index $titles 0 | htmlEscape) -}}
-{{- else -}}
 {{- $center = printf "<span class=\"sgx-tb-title\">%s</span>" ($title | htmlEscape) -}}
-{{- end -}}
 {{- if eq $mode "article" -}}
 {{- $center = printf "%s<span class=\"sgx-tb-progress\" role=\"progressbar\" aria-label=\"%s\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"0\" data-sgx-progress></span>" $center (i18n "progress" | htmlEscape) -}}
 {{- end -}}

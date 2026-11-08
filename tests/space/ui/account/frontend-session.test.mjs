@@ -55,11 +55,11 @@ test('sgx-account-card.html：只保留名字和头像（解锁入口已移走�
   assert.ok(!cardHtml.includes('sgx-unlock-link'), '孤立的解锁入口应已删掉');
   assert.ok(!cardHtml.includes('sgx:session'), '账户卡不再监听会话事件');
   assert.ok(cardHtml.includes('sgx-account-card'), '账户卡主体保留');
-  const setHtml = readFileSync(join(root, 'space/web/layouts/index.html'), 'utf8') + readFileSync(join(root, 'space/web/layouts/_default/sub.html'), 'utf8');
+  const setHtml = readFileSync(join(root, 'space/web/layouts/index.html'), 'utf8') + readFileSync(join(root, 'space/web/layouts/_default/wild.html'), 'utf8');
   const acctHtml = readFileSync(join(root, 'space/web/layouts/_default/account.html'), 'utf8');
   assert.ok(!setHtml.includes('sgx-account-card'), '旷野页 / 子页不放账号卡');
   assert.ok(acctHtml.includes('partial "sgx-account-card.html"'), '账号页总览放账号卡');
-  const setEntry = readFileSync(join(root, 'space/web/assets/js/entries/entry-space.js'), 'utf8') + readFileSync(join(root, 'space/web/assets/js/entries/entry-space-sub.js'), 'utf8');
+  const setEntry = readFileSync(join(root, 'space/web/assets/js/entries/entry-space.js'), 'utf8') + readFileSync(join(root, 'space/web/assets/js/entries/entry-space-wild.js'), 'utf8');
   const acctEntry = readFileSync(join(root, 'space/web/assets/js/entries/entry-account.js'), 'utf8');
   assert.ok(!setEntry.includes('initAvatarEdit'), '旷野页入口不加载换头像');
   assert.ok(acctEntry.includes('initAvatarEdit()'), '账号页入口加载换头像');

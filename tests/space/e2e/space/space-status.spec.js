@@ -82,10 +82,7 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
     });
 
-    test('其他页（风格、旷野）长条照旧只有页名，没有标签', async ({ page }) => {
-      await go(page, '/zh/theme/');
-      await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
-      await expect(page.locator('.sgx-tb-title')).toHaveText('风格');
+    test('其他页（旷野）长条照旧只有页名，没有标签（对齐 PR-C：风格页 /theme/ 退役）', async ({ page }) => {
       await go(page, '/zh/wild/');
       await expect(page.locator('.sgx-tb-tab')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-title')).toHaveText('旷野');

@@ -1,6 +1,7 @@
-{{- /* 文章页（原 src/layouts/BlogArticle.astro + ArticleHeader.astro）：
-大标题 + 元信息（日期 · 字数 · 阅读时间 · 标签）→ 系列块（第 n / N 篇 + 上一篇 / 下一篇）→ 正文 → 分享 → 更多文章；
-宽屏右侧目录卡，手机目录在九宫格抽屉里。 */ -}}
+{{- /* 文章页（2026-11 对齐 PR-C，设计稿 tb4.html pg=post / m=1）：
+页顶「$ cat ~/blog/<分类>/<文件名>.md」→ 大标题 → 元信息（日期 · n min · 字数 · #标签 · 系列 n/N · 更新于）→ 正文 → cd ../prev · cd ../next 两卡；
+宽屏右侧 ON THIS PAGE 目录，下面一行 分享 · X · 复制链接 · 问 Gray AI（手机 / 没有目录时这一行在两卡下面）。
+旧的分享按钮行、更多文章卡、系列小块删除：系列前后篇并入两卡，系列名进元信息（链到目录页的系列目录）。 */ -}}
 {{ define "head" }}
 {{- $alt := dict -}}
 {{- with .Translations -}}
@@ -34,9 +35,13 @@
     {{- end -}}
   {{- end -}}
 {{- end -}}
-{{- $related := slice -}}
-{{- range $all }}{{ if ne . $ }}{{ $related = $related | append . }}{{ end }}{{ end -}}
-{{- $related = first 3 $related -}}
+{{- /* 上一篇 / 下一篇（2026-11 对齐 PR-C，设计稿 pg=post 的 cd ../prev · cd ../next 两卡）：系列文章先取系列里的前后篇，没有再按时间（prev = 更早一篇，next = 更新一篇） */ -}}
+{{- $older := false }}{{ $newer := false -}}
+{{- range $i, $p := $all }}{{ if eq $p $ }}{{ if gt $i 0 }}{{ $newer = index $all (sub $i 1) }}{{ end }}{{ if lt (add $i 1) (len $all) }}{{ $older = index $all (add $i 1) }}{{ end }}{{ end }}{{ end -}}
+{{- with $sc.prev }}{{ $older = . }}{{ end }}{{ with $sc.next }}{{ $newer = . }}{{ end -}}
+{{- $cf := partial "blog/cat-field.html" $all -}}
+{{- $dir := "post" }}{{ with index .Params $cf }}{{ $dir = partial "blog/group-slug.html" (index . 0) }}{{ end -}}
+{{- $updated := "" }}{{ if and (not .Lastmod.IsZero) (gt (.Lastmod.Format "2006-01-02") (.Date.Format "2006-01-02")) }}{{ $updated = .Lastmod.Format "01-02" }}{{ end -}}
 <body class="blog-detail-page">
 {{ partial "blog/topnav.html" (dict "page" . "mode" "article" "toc" (cond $hasToc $toc slice)) }}
 <div class="blog-background" aria-hidden="true"></div>
@@ -45,68 +50,46 @@
     <main class="blog-layout oui-article-main{{ if not $hasToc }} blog-layout-centered{{ end }}">
       <div class="article-column">
         <article class="article-card oui-article-paper">
-          {{- /* 2026-11 UI 重设计 PR-3（设计稿 s-post）：页顶一行装饰提示符「$ cat ~/blog/post/<文件名>.md」（aria-hidden、不翻译） */}}
-          <p class="sgx-crumb article-crumb" aria-hidden="true" translate="no"><span class="sgx-pr">$</span>cat ~/blog/post/{{ .File.TranslationBaseName }}.md</p>
+          {{- /* 页顶一行装饰提示符「$ cat ~/blog/<分类>/<文件名>.md」（aria-hidden、不翻译；分类同首页，没有就是 post） */}}
+          <p class="sgx-crumb article-crumb" aria-hidden="true" translate="no"><span class="sgx-pr">$</span>cat ~/blog/{{ $dir }}/{{ .File.TranslationBaseName }}.md</p>
           <header class="article-header">
             <h1>{{ .Title }}</h1>
             <div class="meta-line" aria-label="{{ i18n "metadata" }}">
-              {{- partial "blog/meta-item.html" (dict "kind" "date" "content" (partial "blog/date.html" .Date)) -}}
-              {{- partial "blog/meta-item.html" (dict "kind" "words" "separated" true "content" (i18n "wordCount" (dict "Count" (lang.FormatNumberCustom 0 $rd.count)))) -}}
-              {{- partial "blog/meta-item.html" (dict "kind" "reading" "separated" true "content" (i18n "readingTime" (dict "Minutes" $mins))) -}}
-              {{- with .GetTerms "tags" -}}
-              {{- $links := "" -}}
-              {{- range . }}{{ $links = print $links (printf `<a class="tag" href="%s">#%s</a>` .RelPermalink (.LinkTitle | htmlEscape)) }}{{ end -}}
-              {{- partial "blog/meta-item.html" (dict "kind" "tags" "separated" true "class" "tag-list" "content" $links) -}}
-              {{- end -}}
+              <span class="metadata-item">{{ partial "blog/date.html" .Date }}</span>
+              <span class="metadata-item">{{ i18n "readMin" (dict "Minutes" $mins) }} · {{ i18n "wordCount" (dict "Count" (lang.FormatNumberCustom 0 $rd.count)) }}</span>
+              {{- with .GetTerms "tags" }}
+              <span class="metadata-item tag-list">{{ range . }}<a class="tag" href="{{ $home }}?tag={{ partial "blog/group-slug.html" .LinkTitle | urlquery }}">#{{ .LinkTitle }}</a>{{ end }}</span>
+              {{- end }}
+              {{- with $sc.name }}
+              <a class="metadata-item sgx-series-meta" href="{{ (site.GetPage "/blog/tree").RelPermalink }}#series-{{ $sc.slug }}">{{ . }} · {{ i18n "seriesPart" (dict "Current" $sc.current "Total" $sc.total) }}</a>
+              {{- end }}
+              {{- with $updated }}
+              <span class="metadata-item">{{ i18n "updatedOn" (dict "Date" .) }}</span>
+              {{- end }}
             </div>
           </header>
-          {{- with $sc.name }}
-          <aside class="sgx-series-block" aria-label="{{ i18n "moreInSeries" (dict "Name" $sc.name) }}">
-            <div class="sgx-series-top">
-              <a class="sgx-series-name" href="{{ $home }}#topics/series/{{ $sc.slug | safeURL }}">{{ $sc.name }}</a>
-              <span class="sgx-series-pos">{{ i18n "seriesPart" (dict "Current" $sc.current "Total" $sc.total) }}</span>
-            </div>
-            {{- if or $sc.prev $sc.next }}
-            <div class="sgx-series-nav">
-              {{- with $sc.prev }}<a class="prev" rel="prev" href="{{ .RelPermalink }}"><small>{{ i18n "seriesPrev" }}</small><span>{{ .Title }}</span></a>{{ else }}<span></span>{{ end }}
-              {{- with $sc.next }}<a class="next" rel="next" href="{{ .RelPermalink }}"><small>{{ i18n "seriesNext" }}</small><span>{{ .Title }}</span></a>{{ else }}<span></span>{{ end }}
-            </div>
-            {{- end }}
-          </aside>
-          {{- end }}
+          
           <section id="article-start" class="article-content">
             {{ .Content }}
           </section>
         </article>
-        <div class="share-buttons" data-share-root data-share-title="{{ .Title }}" data-share-url="{{ .Permalink }}">
-          <p class="share-heading">{{ i18n "shareHeading" }}</p>
-          <div class="share-row">
-            <a class="share-btn" href="https://x.com/intent/post?text={{ .Title | urlquery }}&url={{ .Permalink | urlquery }}" target="_blank" rel="noreferrer noopener" aria-label="{{ i18n "shareOnX" }}"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg><span>X</span></a>
-            <button type="button" class="share-btn" data-share-copy="{{ .Permalink }}" data-copied-label="{{ i18n "shareCopied" }}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg><span>{{ i18n "shareCopy" }}</span></button>
-            <button type="button" class="share-btn" data-share-native hidden><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span>{{ i18n "shareNative" }}</span></button>
-          </div>
-        </div>
-        {{- with $related }}
-        <aside class="related-posts blog-card article-after-related">
-          <h2>{{ i18n "moreFromSite" (dict "Site" site.Title) }}</h2>
-          <div class="related-list">
-            {{- range . }}
-            <a href="{{ .RelPermalink }}"><span><strong>{{ .Title }}</strong><small>{{ partial "blog/date.html" .Date }}</small></span></a>
-            {{- end }}
-          </div>
-        </aside>
-        {{- end }}
+        <nav class="sgx-nx blog-nx" aria-label="{{ i18n "postNav" }}">
+          {{- with $older }}<a class="sgx-nx-a" rel="prev" href="{{ .RelPermalink }}" translate="no">‹ cd ../prev<b translate="yes">{{ .Title }}</b></a>{{ else }}<span class="sgx-nx-a is-none" translate="no">‹ cd ../prev<b translate="yes">{{ i18n "noOlder" }}</b></span>{{ end }}
+          {{- with $newer }}<a class="sgx-nx-a is-next" rel="next" href="{{ .RelPermalink }}" translate="no">cd ../next ›<b translate="yes">{{ .Title }}</b></a>{{ else }}<span class="sgx-nx-a is-next is-none" translate="no">cd ../next ›<b translate="yes">{{ i18n "noNewer" }}</b></span>{{ end }}
+        </nav>
+        {{ partial "blog/share-rd.html" (dict "page" . "class" (cond $hasToc "blog-rd--inline" "blog-rd--inline blog-rd--always")) }}
       </div>
     </main>
     {{- if $hasToc }}
     <aside class="right-sidebar oui-toc-card" aria-label="{{ i18n "readingTools" }}">
       <div class="right-sidebar-inner">
         <nav class="toc-card blog-card" aria-label="{{ i18n "tocTitle" }}" data-toc-root data-font="article" data-expand-aria-label="{{ i18n "tocExpand" }}" data-collapse-aria-label="{{ i18n "tocCollapse" }}" data-expand-label="{{ i18n "tocShowAll" }}" data-collapse-label="{{ i18n "tocCollapseButton" }}">
-          <h2>{{ i18n "tocTitle" }}</h2>
+          <h2 translate="no">{{ i18n "onThisPage" }}</h2>
           <div class="toc-list-wrap" data-toc-scroll>
             {{ partial "blog/toc-tree.html" (dict "items" $toc "prefix" "sidebar-toc") }}
           </div>
         </nav>
+        {{ partial "blog/share-rd.html" (dict "page" . "class" "blog-rd--toc") }}
         {{ partial "blog/script.html" (dict "name" "toc-card.ts") }}
       </div>
     </aside>

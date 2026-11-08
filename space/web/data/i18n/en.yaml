@@ -741,15 +741,6 @@ status:
   recentIncidents: Recent incidents
   spaceCredentialActivity: Space credential activity
   last7DaysTime: 'Last 7 days: time, IP prefix and result'
-setcatTheme:
-  colorPalette: Color palette
-  reset: Reset
-  theBackgroundGlowButtons: The background glow, buttons, titles and icons change together.
-  currentPalette: Current palette
-  light: Light
-  dark: Dark
-  default: ' (default)'
-  default2: Default
 wild:
   # 旷野页（/wild/，对齐 PR-B）：screen-time 窗右上的范围、读屏用的列表名、没有记录、neofetch 各行的本语言说明（鼠标悬停 title）
   todayThisDevice: Today · this device
@@ -814,9 +805,6 @@ features:
   lock-gate:
     name: Lock gate
 spaceCats:
-  theme:
-    title: Style
-    sub: Palettes and accent colour
   security:
     title: Security
     sub: Passkeys, lock screen and temporary keys

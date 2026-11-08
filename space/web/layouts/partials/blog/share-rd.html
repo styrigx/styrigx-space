@@ -1,0 +1,9 @@
+{{- /* 文章页分享一行（2026-11 对齐 PR-C，设计稿 pg=post 目录下的 .rd）：分享（系统分享，有 Web Share 才显示）· X · 复制链接 · 问 Gray AI（打开右下 AI 窗）。
+   文字链形式；动作在 assets/blog/js/entries/article.js（data-share-*、data-ask-ai）。参数：.page .class */ -}}
+{{- $p := .page -}}
+<p class="blog-rd {{ .class }}" data-share-root data-share-title="{{ $p.Title }}" data-share-url="{{ $p.Permalink }}">
+  <button type="button" class="blog-rd-a" data-share-native hidden>{{ i18n "shareNative" }}</button><span class="blog-rd-sep" data-share-native-sep hidden aria-hidden="true"> · </span>
+  <a class="blog-rd-a" href="https://x.com/intent/post?text={{ $p.Title | urlquery }}&url={{ $p.Permalink | urlquery }}" target="_blank" rel="noreferrer noopener" aria-label="{{ i18n "shareOnX" }}">X</a><span class="blog-rd-sep" aria-hidden="true"> · </span>
+  <button type="button" class="blog-rd-a" data-share-copy="{{ $p.Permalink }}" data-copied-label="{{ i18n "shareCopied" }}"><span>{{ i18n "shareCopy" }}</span></button><span class="blog-rd-sep" aria-hidden="true"> · </span>
+  <button type="button" class="blog-rd-a" data-ask-ai>{{ i18n "askAi" }}</button>
+</p>

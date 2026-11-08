@@ -129,7 +129,9 @@ test('英文页没有中文：四站英文页的可见文字和读屏文字里�
 /* https://：奇趣「发现」网址输入框的 placeholder（合站前奇趣的 HTML 被压缩成不带引号的属性，这里的提取没读到它） */
 /* 顶栏 v3（2026-11 UI 重设计 PR-1，Gray 定稿设计稿 nav-v2 / tb4）：终端风短标签中英都写英文（NAVIGATE / STATUS / MODE / PALETTE / lang / layout / share / lock / Auto / Mobile / DeX），
    仍在字符串表里（zh.yaml 同值），这里放行 */
-const ZH_ALLOW = /^(#?(AI|Astro|Cloudflare|Ed25519|GitHub|Muse|Passkey|Hugo|Tailwind CSS|Styrigx( UI( [0-9.]+)?)?|Gray AI)|SGX [0-9.]+|[0-9.:\- x]+|https:\/\/|NAVIGATE|STATUS|MODE|PALETTE|lang|layout|share|lock|Auto|Mobile|DeX)$/;
+/* 对齐 PR-C（设计稿 tb4.html pg=blog / tree）：博客的终端输出中英都照稿写英文——阅读分钟「6 min」、less 分页条「-- less (1/6) --」、
+   tree 的「blog/」「… 12 more」「4 directories, 36 files」、chip「tree blog/ →」 */
+const ZH_ALLOW = /^(\d+ min|-- less \(\d+\/\d+\) --|blog\/|tree blog\/ →|… \d+ more|\d+ directories, \d+ files|#?(AI|Astro|Cloudflare|Ed25519|GitHub|Muse|Passkey|Hugo|Tailwind CSS|Styrigx( UI( [0-9.]+)?)?|Gray AI)|SGX [0-9.]+|[0-9.:\- x]+|https:\/\/|NAVIGATE|STATUS|MODE|PALETTE|lang|layout|share|lock|Auto|Mobile|DeX)$/;
 
 test('中文页没有漏翻：四站中文页的可见文字里没有成句的英文（白名单：Gray AI、Styrigx、技术名、个人信息节点）', { skip: !built && '没构建' }, () => {
   const bad = [];
@@ -167,8 +169,8 @@ test('标签页标题（Gray 2026-11-07）：四站「页名 | 站名」，站�
   assert.equal(title('space/web/public/zh/index.html'), `${sp.zh.shell.nav.home.title} | Styrigx`);
   assert.equal(title('space/web/public/wild/index.html'), `${sp.en.spaceCats.wild.title} | Styrigx`);
   assert.equal(title('space/web/public/zh/wild/index.html'), `${sp.zh.spaceCats.wild.title} | Styrigx`);
-  assert.match(title('space/web/public/theme/index.html'), /^[^|]+ \| Styrigx$/);
-  assert.match(title('space/web/public/zh/theme/index.html'), /^[^|]+ \| Styrigx$/);
+  /* 对齐 PR-C：风格页 /theme/ 退役（_redirects 301 到主页） */
+  assert.ok(!existsSync(path.join(REPO, 'space/web/public/theme/index.html')) && !existsSync(path.join(REPO, 'space/web/public/zh/theme/index.html')));
   assert.equal(title('space/web/public/404.html'), `${sp.en.baseof.pageNotFound} | Styrigx`);
   assert.equal(title('space/web/public/zh/404.html'), `${sp.zh.baseof.pageNotFound} | Styrigx`);
   /* 奇趣 / 日刻：首页只有站名，子页「页名 | 站名」 */
@@ -257,10 +259,10 @@ test('奇趣 / 日刻页面脚本（语言包化第二部分）：文案只读 #
     const tpl = rd(`space/web/layouts/${s}/baseof.html`);
     assert.ok(tpl.indexOf('<script id="sgx-i18n-{{ $tbl }}"') !== -1 && tpl.indexOf('sgx-i18n-{{ $tbl }}') < tpl.indexOf('{{ block "main" . }}'), s + ' baseof 在 main 前输出文案表');
   }
-  /* 博客话题筛选标题：模板给 one / other 两种，脚本按 Intl.PluralRules 选 */
-  const tabs = rd('space/web/assets/blog/js/blog/app-tabs.ts');
-  assert.doesNotMatch(tabs, /\ben \?/);
-  assert.match(rd('space/web/layouts/blog/section.html'), /data-tpl-one="\{\{ i18n "topicResults" 1 \}\}"/);
+  /* 博客首页筛选提示（对齐 PR-C）：模板从字符串表给 data-tpl，脚本只填 {label} {n}，不按语言二选一 */
+  const list = rd('space/web/assets/blog/js/blog/blog-list.js');
+  assert.doesNotMatch(list, /\ben \?|\bisEn\b/);
+  assert.match(rd('space/web/layouts/blog/section.html'), /data-tpl="\{\{ i18n "filterNote" \}\}"/);
 });
 
 test('构建产物：奇趣 / 日刻中文页的页面文案表是中文、英文页是英文（缺键回退英文）', { skip: !built && '没构建' }, () => {

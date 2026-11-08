@@ -7,7 +7,7 @@
  * 主站自己的顶栏见 tests/space/e2e/topbar/topbar-length.spec.js。 */
 const { test, expect } = require('@playwright/test');
 
-const PAGES = ['/', '/security/', '/theme/', '/account/', '/?lock=1', '/blog/', '/blog/post/2026-10-07-muse-playbook/', '/curio/', '/daymark/'];
+const PAGES = ['/', '/security/', '/wild/', '/account/', '/?lock=1', '/blog/', '/blog/post/2026-10-07-muse-playbook/', '/curio/', '/daymark/'];
 /* 任务书验收三档 + 宽竖屏 + 横屏 900 + 平板竖屏 + 桌面窄窗 700（自动落手机） */
 const VIEWPORTS = [[412, 915], [1280, 800], [1920, 1080], [982, 2104], [900, 600], [1024, 1366], [700, 900]];
 
@@ -117,7 +117,7 @@ const SECTIONS = [
   /* 奇趣（P4-3 奇趣拆页）：入口是子页链接，点了到子页，胶囊 = 子页名 */
   ['/curio/', ['奇趣', 'Curio'], [['devices', ['设备', 'Devices']], ['games', ['游戏', 'Games']], ['finds', ['发现', 'Finds']], ['movies', ['电影', 'Movies']]]],
   ['/daymark/', ['日刻', 'Daymark'], [['trove', ['拾录', 'Trove']], ['flavors', ['百味', 'Flavors']], ['echo', ['日刻', 'Daymark']]]],
-  ['/blog/', ['博客', 'Blog'], [['posts', ['文章', 'Posts']], ['topics', ['专题', 'Topics']], ['home', ['博客', 'Blog']]]],
+  /* 博客（对齐 PR-C）：首页是一页文章列表 + 分类 chips，没有分区入口（tests/blog/e2e/app-topbar.spec.js 覆盖） */
 ];
 const pick = async (page, pair) => ((await page.evaluate(() => document.documentElement.lang)).startsWith('en') ? pair[1] : pair[0]);
 

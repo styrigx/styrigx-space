@@ -22,8 +22,8 @@
 }}
 
 <div class="acct-layout pb-28">
-{{/* 内容页标题带（P4-3 §6.6 / 设计 §6.3）：大标题 = 页名（同顶栏页名胶囊），一句话说明 = front matter description（共享外壳 sgx-page-hero.html） */}}
-{{ partial "sgx-page-hero.html" (dict "title" .Title "desc" .Description "path" .File.Path) }}
+{{/* 页头（2026-11 对齐 PR-C，设计稿 .hero.ph）：$ 命令 · 页名_ · 一句话说明 = front matter description（共享外壳 sgx-ph.html） */}}
+{{ partial "sgx-ph.html" (dict "cmd" "cat account/profile" "title" .Title "desc" .Description "path" .File.Path) }}
   <div id="acct-profile">
     <h3 class="acct-dev-h" id="acct-pf-h">{{ $t.basicInfo }}</h3>
     <section class="widget bg-m-container-lowest border border-m-outline mb-2 overflow-hidden animate-fade-up acct-pf-card" style="animation-delay:.06s" aria-labelledby="acct-pf-h">

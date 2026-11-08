@@ -27,7 +27,7 @@ const json = (o) => ({ status: 200, contentType: 'application/json', body: JSON.
 test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
   test('点头像开下拉（非模态、aria-expanded）：头部 姓名 · 昵称 · 编辑；六行去账号各子页；Esc 关、焦点回头像', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/theme/');
+    await go(page, '/zh/wild/');
     const av = page.locator('.sgx-tb-av');
     await expect(av).toHaveAttribute('href', '/zh/account/');
     await expect(av).toHaveAccessibleName('账号');
@@ -36,7 +36,7 @@ test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
     await expect(d).toHaveAttribute('data-state', 'open');
     expect(await d.evaluate((el) => el.open && !el.matches(':modal'))).toBe(true);
     await expect(av).toHaveAttribute('aria-expanded', 'true');
-    await expect(page).toHaveURL(/\/zh\/theme\/$/);
+    await expect(page).toHaveURL(/\/zh\/wild\/$/);
     expect(await d.locator('.sgx-pop-list a.sgx-pop-row').evaluateAll((els) => els.map((e) => e.getAttribute('href'))))
       .toEqual(['/zh/account/profile/', '/zh/account/devices/', '/zh/account/security/', '/zh/account/apps/', '/zh/account/sync/', '/zh/account/']);
     await expect(d.locator('.sgx-pop-me-a')).toHaveAttribute('href', '/zh/account/');
@@ -53,7 +53,7 @@ test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
 
   test('有账号会话：「✓ 已登录」、设备名、账号安全「已保护」、AI 模型名、退出登录（POST logout → 回账号页）', async ({ page }) => {
     let out = null;
-    await go(page, '/zh/theme/');
+    await go(page, '/zh/wild/');
     await page.route('**/api/ai', (r) => r.fulfill(json({ ok: true, default: 'g4', canChoose: true, models: [{ id: 'g4', label: 'Gemma 4' }] })));
     await page.route('**/api/account', (r) => {
       if (r.request().method() === 'POST') { out = r.request().postDataJSON(); return r.fulfill(json({ ok: true })); }
@@ -76,7 +76,7 @@ test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
   });
 
   test('没有账号会话：$ ACCOUNT guest + 终端式「sudo account · [1] passkey [2] accountkey」，按 2 去账号页；资料头 / 列表 / 退出不显示', async ({ page }) => {
-    await go(page, '/zh/theme/', { account: { ok: true, session: null } });
+    await go(page, '/zh/wild/', { account: { ok: true, session: null } });
     await page.locator('.sgx-tb-av').click();
     const g = page.locator('#sgx-acct');
     await expect(g).toHaveAttribute('data-acct-state', 'guest');
@@ -93,7 +93,7 @@ test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
   });
 
   test('接口不通：不写登录态，资料头和列表照常、没有退出', async ({ page }) => {
-    await go(page, '/theme/');
+    await go(page, '/wild/');
     await page.route('**/api/account', (r) => r.fulfill({ status: 503, body: 'x' }));
     await page.locator('.sgx-tb-av').click();
     const d = page.locator('#sgx-acct');
@@ -106,14 +106,14 @@ test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
 
   test('本机缓存 sgx-profile 改过的姓名 / 昵称盖住默认值', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-profile', JSON.stringify({ v: 1, p: { name: 'Test Name', nickname: 'tnick' }, t: 1 })); } catch (e) {} });
-    await go(page, '/theme/');
+    await go(page, '/wild/');
     await page.locator('.sgx-tb-av').click();
     await expect(page.locator('#sgx-acct [data-acct-name]')).toHaveText('Test Name');
     await expect(page.locator('#sgx-acct [data-acct-nick]')).toHaveText('tnick');
   });
 
   test('下拉里的链接：先关下拉再跳（不留历史哨兵）', async ({ page }) => {
-    await go(page, '/zh/theme/');
+    await go(page, '/zh/wild/');
     await page.locator('.sgx-tb-av').click();
     await expect(page.locator('#sgx-acct')).toHaveAttribute('data-state', 'open');
     await page.locator('#sgx-acct a.sgx-pop-row[href="/zh/account/devices/"]').click();
@@ -124,7 +124,7 @@ test.describe('账号下拉 #sgx-acct（acct-v2，按设计稿）', () => {
 test.describe('站点安全下拉 #sgx-sec（sec-v1，按设计稿）', () => {
   test('有 3 分钟验证票：头部倒计时、通行密钥个数、锁屏钥匙 LockKey、临时钥匙、锁屏会话剩余、立即锁屏、锁定所有设备；和账号下拉互斥', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/theme/');
+    await go(page, '/zh/wild/');
     const now = await pageNow(page);
     await page.route('**/api/lock-session-check', (r) => r.fulfill(json({ ok: true, exp: now + (11 * 60 + 20) * 60000 + 30000 })));
     await page.route('**/api/lock-reauth', (r) => r.fulfill(json({ ok: true, valid: true, expiresAt: now + 161000 })));
@@ -149,7 +149,7 @@ test.describe('站点安全下拉 #sgx-sec（sec-v1，按设计稿）', () => {
   });
 
   test('没有验证票：$ SECURITY locked + 终端式「sudo security · [1] passkey [2] lockkey」去锁屏凭证页的门，按 1 也行', async ({ page }) => {
-    await go(page, '/zh/theme/');
+    await go(page, '/zh/wild/');
     await page.route('**/api/lock-reauth', (r) => r.fulfill(json({ ok: true, valid: false })));
     await page.locator('.sgx-tb-shield').click();
     const s = page.locator('#sgx-sec');
@@ -170,7 +170,7 @@ test.describe('站点安全下拉 #sgx-sec（sec-v1，按设计稿）', () => {
   });
 
   test('Ctrl 点盾牌不开下拉（照旧按链接走）', async ({ page, context }) => {
-    await go(page, '/theme/');
+    await go(page, '/wild/');
     const pop = context.waitForEvent('page');
     await page.locator('.sgx-tb-shield').click({ modifiers: ['Control'] });
     const np = await pop;
@@ -183,7 +183,7 @@ test.describe('站点安全下拉 #sgx-sec（sec-v1，按设计稿）', () => {
 test.describe('AI 窗口（ai-v1，按设计稿）', () => {
   test('× 关窗，焦点回 AI 浮钮；桌面浮在 AI 浮钮上方、不压暗页面', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await go(page, '/theme/');
+    await go(page, '/wild/');
     await page.locator('.sgx-tb-ai').click();
     const ai = page.locator('#sgx-ai');
     await expect(ai).toHaveAttribute('data-state', 'open');
@@ -203,7 +203,7 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
 
   test('模型胶囊：登了账号能在窗口里换（写 sgx-ai-model，发问带上）；回答下站内链接成来源卡片、建议问题点了就问', async ({ page }) => {
     let body = null;
-    await go(page, '/zh/theme/');
+    await go(page, '/zh/wild/');
     await page.route('**/api/ai', (r) => {
       if (r.request().method() === 'GET') return r.fulfill(json({ ok: true, default: 'g4', canChoose: true, models: [{ id: 'g4', label: 'Gemma 4' }, { id: 'gf', label: 'Gemini Flash' }] }));
       body = r.request().postDataJSON();

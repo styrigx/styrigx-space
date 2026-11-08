@@ -43,9 +43,9 @@ test('宽屏平铺（Gray 2026-11-07；2026-11 PR-A 起内容区回 1080）：�
     for (const r of rules) assert.match(r, /:root\[data-sgx-layout="desktop"\] \S+ \{$/, sel + ' 只在桌面布局');
   }
   assert.match(s, /\.sgx-flat \{ background: transparent; border: 0; border-radius: 0; box-shadow: none;/);
-  // 交互模块保留卡片：风格页（调色板）、旷野页（屏幕时间 / 状态 / 关于，对齐 PR-B 起在 _default/wild.html）、安全页不挂 .sgx-flat
+  // 交互模块保留卡片：旷野页（屏幕时间 / 状态 / 关于，对齐 PR-B 起在 _default/wild.html）、安全页不挂 .sgx-flat
   const web = path.join(REPO, 'space/web/layouts');
-  for (const f of ['partials/setcat-theme.html', '_default/wild.html', '_default/security.html', '_default/security-lock.html', '_default/account.html']) {
+  for (const f of ['_default/wild.html', '_default/security.html', '_default/security-lock.html', '_default/account.html']) {
     assert.doesNotMatch(readFileSync(path.join(web, f), 'utf8'), /sgx-flat/, f);
   }
   const home = readFileSync(path.join(web, 'index.html'), 'utf8');

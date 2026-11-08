@@ -1,5 +1,5 @@
 {{/* 旷野页 i18n（原设置页 i18n；P4-3 PR-4b 改名），旷野页与各子页共用（2026-10-20 设置搜索删除，setidx 索引随之删除）。 */}}
 {{ $tr := .tr }}
-{{/* 文案（中英双语）；脚本 apps/space.js（入口 entry-space.js / entry-space-sub.js）。 */}}
+{{/* 文案（中英双语）；脚本 apps/space.js（入口 entry-space.js / entry-space-wild.js）。 */}}
 {{ $spaceI18n := $tr.js.space }}
 <script id="sgx-i18n-space" type="application/json">{{ $spaceI18n | jsonify | safeJS }}</script>

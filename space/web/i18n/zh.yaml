@@ -59,8 +59,23 @@ entTopicsSub: 系列、分类与标签
 entSections: 分区
 # 2026-11 UI 重设计 PR-3（终端风子页）
 lastUpdated: '最近更新 {{ .Date }}'
-readMin: '{{ .Minutes }} 分钟'
+readMin: '{{ .Minutes }} min'
 onThisPage: ON THIS PAGE
 archiveByYear: 按年份
 archiveMonth: '{{ .Month }} 月'
-treeSummary: '{{ .Dirs }} 个目录，{{ .Files }} 篇'
+treeSummary: '{{ .Dirs }} directories, {{ .Files }} files'
+# 2026-11 对齐 PR-C（设计稿 tb4.html pg=blog / tree / post）
+blogLede: '写下来的东西。共 {{ .Count }} 篇'
+chipAll: 全部
+pager: 分页
+pagerSpace: 空格 下一页
+filterNote: '筛选：{label} · {n} 篇'
+filterClear: 清除
+treeView: 目录视图
+treeByYear: 年份
+treeMore: '{{ .Count }} more'
+updatedOn: '更新于 {{ .Date }}'
+postNav: 上一篇 / 下一篇
+noOlder: 没有更早的文章
+noNewer: 暂无更新的文章
+askAi: 问 Gray AI

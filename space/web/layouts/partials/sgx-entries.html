@@ -18,7 +18,7 @@
 <section class="sgx-ents" id="{{ $id }}"{{ if $band }} aria-labelledby="{{ $id }}-title"{{ end }} data-sgx-entries>
   {{- with $band }}
   <header class="sgx-ent-band{{ with .cmd }} sgx-ent-band--term{{ end }}">
-    {{- with .cmd }}<p class="sgx-hero-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">styrigx@space:~$</span> {{ . }}</p>{{ end }}
+    {{- with .cmd }}<p class="sgx-ph-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">styrigx@space:~$</span> {{ . }}</p>{{ end }}
     {{- with .label }}<p class="sgx-ent-label">{{ . }}</p>{{ end }}
     <h2 class="sgx-ent-title" id="{{ $id }}-title">{{ .title }}</h2>
     {{- with .sub }}<p class="sgx-ent-lede">{{ . }}</p>{{ end }}

@@ -50,7 +50,7 @@ features:
       - {id: cream}
     default: terra
     key: sgx-palette
-    section: theme
+    section: ""  # 对齐 PR-C：风格页（/theme/）退役，调色板只在顶栏外观弹层，不进搜索索引
     requires: []
 
   - id: layout

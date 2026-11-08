@@ -70,4 +70,19 @@ readMin: '{{ .Minutes }} min'
 onThisPage: ON THIS PAGE
 archiveByYear: By year
 archiveMonth: '{{ .Month }}'
-treeSummary: '{{ .Dirs }} directories, {{ .Files }} posts'
+treeSummary: '{{ .Dirs }} directories, {{ .Files }} files'
+# 2026-11 alignment PR-C (design tb4.html pg=blog / tree / post)
+blogLede: 'Things written down. {{ .Count }} posts'
+chipAll: All
+pager: Pages
+pagerSpace: space for next page
+filterNote: 'Filter: {label} · {n}'
+filterClear: Clear
+treeView: Index view
+treeByYear: Year
+treeMore: '{{ .Count }} more'
+updatedOn: 'Updated {{ .Date }}'
+postNav: Previous / next post
+noOlder: No older posts
+noNewer: No newer posts yet
+askAi: Ask Gray AI

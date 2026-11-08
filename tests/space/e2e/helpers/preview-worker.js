@@ -37,7 +37,7 @@ export function isAccountOnlyKey(k) {
 }
 
 /** 预览桩的固定来源（公开一条；有账号会话再加私密一条） */
-export const PREVIEW_AI_ANSWER = Object.freeze(['这是预览环境的固定回答。', '\n\n- 调色板：/theme/']);
+export const PREVIEW_AI_ANSWER = Object.freeze(['这是预览环境的固定回答。', '\n\n- 调色板：/wild/']);
 
 /**
  * styrigx-ai 的预览桩（同服务绑定的形状：只有 fetch）。事件顺序同正式：delta… → done（2026-11-06 起不发 hits）。

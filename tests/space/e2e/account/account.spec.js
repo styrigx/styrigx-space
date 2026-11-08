@@ -872,7 +872,7 @@ test.describe('主题色角色（PR3）', () => {
         if (!sessionStorage.getItem('seeded')) { localStorage.setItem('sgx-accent', '#ff6b9d'); localStorage.setItem('sgx-theme-mode', 'light'); sessionStorage.setItem('seeded', '1'); }
       } catch (e) {}
     });
-    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/wild/', { waitUntil: 'domcontentloaded' });
     /* 设计稿校验种子：#ff6b9d → 最近预设（PR-G 起 indigo，前景 1 霓虹粉），浅色主色压到 #ba2863（2026-10-21 容器阶梯加深后要在更深的 container-high 上仍 ≥4.6:1，比原来的 #bb2a65 深一点） */
     await expect.poll(() => roleOf(page, '--sgx-primary')).toBe('#ba2863');
     const cache = await page.evaluate(() => localStorage.getItem('sgx-accent-css'));
@@ -888,10 +888,14 @@ test.describe('主题色角色（PR3）', () => {
     expect(await roleOf(page, '--sgx-primary')).not.toBe('#ba2863');
     await page.evaluate(() => document.documentElement.classList.remove('dark'));
     /* 回设置页点「恢复默认」：清掉自定义色，回到默认 terra（2026-11 PR-A；浅色主色 = 前景 1 赤陶按对比度压深） */
-    await page.goto('/theme/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'false');
-    await page.locator('#palette-reset').click();
-    await expect(page.locator('#palette-reset')).toHaveAttribute('aria-disabled', 'true');
+    await page.goto('/wild/', { waitUntil: 'domcontentloaded' });
+    /* 对齐 PR-C：风格页 /theme/ 退役，恢复默认在顶栏外观弹层 */
+    await page.locator('.sgx-tb-quick').click();
+    await expect(page.locator('#sgx-qp')).toHaveAttribute('data-state', 'open');
+    const rs = page.locator('#sgx-qp [data-qp-reset]');
+    await expect(rs).toHaveAttribute('aria-disabled', 'false');
+    await rs.click();
+    await expect(rs).toHaveAttribute('aria-disabled', 'true');
     await expect(page.locator('style#sgx-accent-roles')).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('sgx-accent'))).toBeNull();
     expect(await roleOf(page, '--sgx-primary')).toBe('#a94521');
@@ -1384,7 +1388,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     await expect.poll(() => prefs.get).toBe(1);
     /* 拉取成功写下时刻后再换页（还没处理完响应就离开，这次不算成功，下一页会再拉） */
     await page.waitForFunction(() => !!localStorage.getItem('sgx-sync-pull'));
-    await page.goto('/theme/', { waitUntil: 'load' });
+    await page.goto('/wild/', { waitUntil: 'load' });
     await page.goto('/', { waitUntil: 'load' });
     /* 拉不拉由 core 在模块执行时同步决定（shell/core.js → lib/cloud-sync.js initCloudSync，要拉就当场 fetch）：
        load 时已经决定完；冲刷请求事件后，要是发了 GET 一定已经记到 */
@@ -1416,7 +1420,7 @@ test.describe('云同步拉取节流（2026-10-24）', () => {
     await page.goto('/', { waitUntil: 'load' });
     await expect.poll(() => gets).toBe(1);
     await page.waitForFunction(() => localStorage.getItem('sgx-sync-auth') === 'out');
-    await page.goto('/theme/', { waitUntil: 'load' });
+    await page.goto('/wild/', { waitUntil: 'load' });
     await flushRequests(page);
     expect(gets).toBe(1);
   });

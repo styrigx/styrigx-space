@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 共享外壳（shared shell）：主站是唯一来源。2026-11 合站起主站和三个子站（blog / curio / daymark）是同一个 Hugo 站（space/web/），
- * 子站直接用主站的 partial（shell-topbar.html、sgx-entries.html、sgx-page-hero.html、sgx-segtabs.html、sgx-tr.html、sgx-lang-path.html）
+ * 子站直接用主站的 partial（shell-topbar.html、sgx-entries.html、sgx-ph.html、sgx-segtabs.html、sgx-tr.html、sgx-lang-path.html）
  * 和 JS（assets/js/shell/*、assets/js/lib/*），没有副本、没有同步脚本、没有 lock。
  *
  * 只剩四个由源头算出来、没法直接引用的派生文件由本脚本生成（勿手改，改源头后重跑本脚本）：
@@ -47,7 +47,7 @@ const SRC = {
   share: path.join(REPO, 'space/web/assets/js/shell/share-button.js'),
   topbar: path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'),
   entries: path.join(REPO, 'space/web/layouts/partials/sgx-entries.html'),
-  pageHero: path.join(REPO, 'space/web/layouts/partials/sgx-page-hero.html'),
+  pageHeader: path.join(REPO, 'space/web/layouts/partials/sgx-ph.html'),
   segtabs: path.join(REPO, 'space/web/layouts/partials/sgx-segtabs.html'),
   footer: path.join(REPO, 'space/web/layouts/partials/sgx-footer.html'),
   topbarJs: path.join(REPO, 'space/web/assets/js/shell/topbar-panel.js'),
@@ -223,7 +223,7 @@ export function renderEntries() {
   return src;
 }
 
-/** 内容页标题带 / 段式标签（P4-3 §6.6）：原样复制；同平铺入口，只能用传进来的参数 */
+/** 页头 sgx-ph（2026-11 对齐 PR-C）/ 段式标签（P4-3 §6.6）：原样复制；同平铺入口，只能用传进来的参数 */
 function renderParamsOnly(file, name, mark) {
   const src = readFileSync(file, 'utf8');
   const code = src.replace(/\{\{-?\s*\/\*[\s\S]*?\*\/\s*-?\}\}/g, '');
@@ -231,7 +231,7 @@ function renderParamsOnly(file, name, mark) {
   if (!src.includes(mark)) throw new Error(name + ' 缺 ' + mark);
   return src;
 }
-export const renderPageHero = () => renderParamsOnly(SRC.pageHero, 'sgx-page-hero.html', 'class="sgx-hero');
+export const renderPageHeader = () => renderParamsOnly(SRC.pageHeader, 'sgx-ph.html', 'class="sgx-ph"');
 export const renderSegtabs = () => renderParamsOnly(SRC.segtabs, 'sgx-segtabs.html', 'class="sgx-segs"');
 /** tmux 页脚（2026-11 UI 重设计 PR-1）：四站同一个，同上只能用传进来的参数 */
 export const renderFooter = () => renderParamsOnly(SRC.footer, 'sgx-footer.html', 'class="sgx-foot"');
@@ -308,7 +308,7 @@ export function renderAll() {
   renderShare();
   renderTopbar();
   renderEntries();
-  renderPageHero();
+  renderPageHeader();
   renderSegtabs();
   renderFooter();
   renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar');
@@ -341,7 +341,7 @@ export const SHELL_FILES = Object.freeze({
   'share.js': 'space/web/assets/js/shell/share-button.js',
   'topbar.html': 'space/web/layouts/partials/shell-topbar.html',
   'entries.html': 'space/web/layouts/partials/sgx-entries.html',
-  'page-hero.html': 'space/web/layouts/partials/sgx-page-hero.html',
+  'page-header.html': 'space/web/layouts/partials/sgx-ph.html',
   'segtabs.html': 'space/web/layouts/partials/sgx-segtabs.html',
   'footer.html': 'space/web/layouts/partials/sgx-footer.html',
   'topbar.js': 'space/web/assets/js/shell/topbar-panel.js',
