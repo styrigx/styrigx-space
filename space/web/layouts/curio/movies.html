@@ -6,21 +6,12 @@
    能编辑（接口回 canWrite：账号会话 + curio.write，同发现 / 设备 / 游戏）：右下角「电影」新建，详情里编辑 / 删除；
    海报沿用设备照片流程（「移动和缩放」→ 长边 ≤1600、webp → /curio/api/photo?kind=movie）。无权限只读，看不到添加按钮。 */}}
 <main id="cu-main" class="cu-wrap" data-cu-page="movies">
-{{ partial "curio/page-head.html" (dict "page" . "id" "movies" "tr" $tr "lang" $lang) }}
+{{ partial "curio/page-head.html" (dict "page" . "id" "movies" "tr" $tr "lang" $lang "cmds" (slice (dict "id" "mv-fab" "k" "touch curio/movies/ +" "d" $tr.cmd.addMovie))) }}
   <section id="cu-pane-movies" class="cu-pane" aria-label="{{ $tr.movies.movies }}">
-    <div id="mv-list" class="it-grid mv-grid"></div>
-    <p id="mv-empty" class="hidden text-center py-16 text-[15px] text-m-on-surface-variant"></p>
-    <p class="it-loading text-center py-16 text-sm text-m-on-surface-variant">{{ $tr.movies.loading }}</p>
+{{ partial "curio/list.html" (dict "tr" $tr "pre" "mv" "chips" false "chipsLabel" "" "label" $tr.movies.movies "loading" $tr.movies.loading "sorts" (slice (dict "v" "watched" "label" $tr.sort.watched) (dict "v" "rating" "label" $tr.sort.rating) (dict "v" "name" "label" $tr.sort.name))) }}
   </section>
-{{ partial "curio/signin.html" (dict "tr" $tr "lang" $lang) }}
+{{ partial "curio/item-page.html" (dict "tr" $tr) }}
 </main>
-
-{{/* ===== 新建（canWrite，右下角浮动按钮） ===== */}}
-<button id="mv-fab" type="button" class="cu-fab it-fab hidden">
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>{{ $tr.movies.movie }}
-</button>
-
-{{ partial "curio/item-view.html" (dict "tr" $tr "lang" $lang) }}
 
 {{/* ===== 电影：添加 / 编辑（canWrite） ===== */}}
 <div id="mv-edit-wrap" class="bk-overlay fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="mv-edit-title">
@@ -63,6 +54,7 @@
 
 {{ define "pagejs" }}
 <script src="{{ (resources.Get "curio/js/curio.js" | minify | fingerprint).RelPermalink }}"></script>
+<script src="{{ (resources.Get "curio/js/curio-list.js" | minify | fingerprint).RelPermalink }}"></script>
 <script src="{{ (resources.Get "curio/js/curio-items.js" | minify | fingerprint).RelPermalink }}"></script>
 <script src="{{ (resources.Get "curio/js/curio-movies.js" | minify | fingerprint).RelPermalink }}"></script>
 {{ end }}

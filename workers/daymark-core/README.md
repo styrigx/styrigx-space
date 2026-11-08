@@ -40,6 +40,7 @@ src/search-index.js  KV site:daymark 的索引
 |---|---|---|---|
 | `GET /api/today` | 否（公开） | — | — |
 | `GET /api/quotes`、`/api/collections` | 是 | 有则含私密句子和随手一笔 | — |
+| `GET /api/days?from=&to=`（往前几天已记下的今日一句，只出公开句子，最多 31 天，不现挑不写库；日刻日期条 / 前后日卡） | 是 | — | — |
 | `POST` / `PUT` / `DELETE /api/quotes`、`/api/collections`，`PUT /api/today` | 是 | 是 | `daymark.write` |
 
 - 错误码：没进门 `401 unauthorized`；没账号会话 `401 account`；没作用域 `403 scope`（带 `scope` 字段）；非同源 `403 origin`。日刻没有要账号复验的接口。

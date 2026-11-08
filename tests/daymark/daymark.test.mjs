@@ -141,3 +141,38 @@ test('分享文本：正文、译文、署名各一行', () => {
   assert.equal(D.shareText(QS[1], EN.sourceTitle), '世上本没有路\n—— 鲁迅 · 故乡');
   assert.equal(D.shareText(QS[2], ZH.sourceTitle), '无题');
 });
+
+/* ---------- 2026-11 对齐 PR-C2：余响看某一天（#d/<日期>）、日期行、13 格日期条、前后日卡的开头 ---------- */
+test('路由：#d/<YYYY-MM-DD> 是余响看那天；routeHash 反过来；格式不对当首页', () => {
+  assert.deepEqual(plain(D.parseHash('#d/2026-11-06')), { tab: 'echo', day: '2026-11-06' });
+  assert.equal(D.routeHash({ tab: 'echo', day: '2026-11-06' }), '#d/2026-11-06');
+  assert.equal(D.routeHash({ tab: 'echo' }), '');
+  for (const h of ['#d/2026-1-6', '#d/', '#d/today']) assert.equal((D.parseHash(h) || {}).day, undefined, h);
+});
+
+test('日期：addDay 跨月 / 闰年；日期行「2026 · 11 · 08 · 星期日」（星期按语言）；坏日期空串', () => {
+  assert.equal(D.addDay('2026-03-01', -1), '2026-02-28');
+  assert.equal(D.addDay('2024-02-28', 1), '2024-02-29');
+  assert.equal(D.addDay('2026-12-31', 1), '2027-01-01');
+  assert.equal(D.addDay('x', 1), '');
+  assert.equal(D.dayDots('2026-11-08', 'zh'), '2026 · 11 · 08 · 星期日');
+  assert.equal(D.dayDots('2026-11-08', 'en'), '2026 · 11 · 08 · Sunday');
+  assert.equal(D.dayDots('', 'zh'), '');
+});
+
+test('日期条：以正在看的那天为中心 13 格，标出今天、还没到的日子', () => {
+  const s = D.stripDays('2026-11-08', '2026-11-08');
+  assert.equal(s.length, 13);
+  assert.deepEqual([s[0].day, s[6].day, s[12].day], ['2026-11-02', '2026-11-08', '2026-11-14']);
+  assert.equal(s[6].today, true);
+  assert.deepEqual(plain(s.filter((c) => c.future).map((c) => c.dd)), ['09', '10', '11', '12', '13', '14']);
+  const back = D.stripDays('2026-10-30', '2026-11-08');
+  assert.equal(back[6].day, '2026-10-30');
+  assert.equal(back.some((c) => c.future || c.today), false);
+});
+
+test('前后日卡：那句开头最多 14 个字，长了加「……」', () => {
+  assert.equal(D.snippet('世上本没有路，走的人多了，也便成了路。'), '世上本没有路，走的人多了，也……');
+  assert.equal(D.snippet('短句'), '短句');
+  assert.equal(D.snippet('a  b\nc', 10), 'a b c');
+});

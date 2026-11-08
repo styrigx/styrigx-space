@@ -1,7 +1,8 @@
-/* P4-3 §6.6 / 设计 §5.2、§6.2、§6.3（段式标签 PR）：原顶栏分段滑块搬进内容页（页内二级切换），内容页顶栏下方标题带。
-   - 共享外壳：sgx-segtabs.html / sgx-ph.html（页头，2026-11 对齐 PR-C 取代 sgx-page-hero.html；合站后四站直接用主站这一份），CSS 在 input.css 的 @inpage 段（gen-shell 抽成 assets/css/shell/shell.css）
-   - 段式标签：2026-11 UI 重设计 PR-3 起终端风小方签（细线框、当前项主题色描边 + term-sel 衬底）；下面的对比度审计仍守着 nav-selected 这组角色（顶栏 / 锁屏还在用）
-   - 对比度审计：22 套预设 × 深浅色 + 自定义色（色相扫一圈 × 5 档明度 + 极端值），段式标签放在页面底色 / 表面色上，非当前项文字 ≥ 4.5:1、当前项 ≥ 4.5:1 */
+/* 内容页共用件（共享外壳 @inpage 段，gen-shell 抽成 assets/css/shell/shell.css；原 segtabs.test.mjs，对齐 PR-C2 改名）：
+   - 页头 sgx-ph.html（2026-11 对齐 PR-C 取代 sgx-page-hero.html；合站后四站直接用主站这一份）
+   - 对齐 PR-C 共用件（chips / 文章行 / 分页条 / 两窗）、对齐 PR-C2 共用件（下划线 tab .sgx-ctab、grep、命令链 .sgx-cmd、封面卡 .sgx-cc、排序、条目页 .sgx-item / .sgx-spec）
+   - 段式标签 sgx-segtabs.html / 平铺入口 sgx-entries.html 在对齐 PR-C2 退役（文件、样式、gen-shell 核对都删了）
+   - 对比度审计：22 套预设 × 深浅色 + 自定义色（色相扫一圈 × 5 档明度 + 极端值），nav-selected 这组角色（顶栏 / 锁屏还在用）放在页面底色 / 表面色上，非当前项文字 ≥ 4.5:1、当前项 ≥ 4.5:1 */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
@@ -12,12 +13,34 @@ const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'ut
 const has = (p) => existsSync(new URL('../../../../' + p, import.meta.url));
 const shell = rd('space/web/assets/css/shell/shell.css');
 
-test('共享外壳：inpage 段进 shell.css；段式标签（2026-11 UI 重设计 PR-3 起终端风小方签，奇趣 / 日刻还在用）：细线框、次要文字色，当前项主题色描边 + 主题色字 + term-sel 衬底', () => {
+test('共享外壳：inpage 段进 shell.css；段式标签 / 平铺入口退役（对齐 PR-C2：组件、样式段、gen-shell 区段都删了）', () => {
   assert.ok(SHELL_REGIONS.includes('inpage'));
-  assert.match(shell, /\.sgx-segs-tab \{[^}]*border: 1px solid var\(--sgx-term-line\); border-radius: 8px;[^}]*background-color: transparent; color: var\(--sgx-text-secondary\);[^}]*font-family: var\(--sgx-font-mono\);/);
-  assert.match(shell, /\.sgx-segs-tab\[aria-current="page"\] \{ border-color: var\(--sgx-primary\); background-color: var\(--sgx-term-sel\); color: var\(--sgx-primary\); font-weight: 500; \}/);
-  assert.match(shell, /\.sgx-segs\[hidden\] \{ display: none; \}/);
+  assert.ok(!SHELL_REGIONS.includes('entries'));
   assert.match(shell, /\.sgx-ph-title \{/);
+  assert.doesNotMatch(shell, /\.sgx-segs|\.sgx-ents|\.sgx-ent-/, '段式标签 / 平铺入口样式删除');
+  for (const f of ['sgx-segtabs.html', 'sgx-entries.html']) assert.ok(!has('space/web/layouts/partials/' + f), f + ' 已删除');
+  assert.doesNotMatch(rd('space/scripts/gen-shell.mjs'), /renderSegtabs|renderEntries|'segtabs\.html'|'entries\.html'/);
+});
+
+test('对齐 PR-C2 共用件（设计稿 tb4.html pg=curio / citem / day）：下划线 tab、grep、命令链、封面卡（桌面 3 栏 150px / 手机 2 栏 90px）、排序、条目页两栏（桌面 1fr 1fr、图 420 / 手机 220）、虚线 spec 表', () => {
+  assert.match(shell, /\.sgx-ctab \{[^}]*gap: 22px;[^}]*border-bottom: 1px solid var\(--sgx-term-line\);[^}]*font-size: 13\.5px;/);
+  assert.match(shell, /\.sgx-ctab-a\[aria-current="page"\] \{ color: var\(--sgx-text-primary\); border-bottom-color: var\(--sgx-primary\); \}/);
+  assert.match(shell, /\.sgx-ctab-a i \{[^}]*font-size: 11px;/, '计数小字');
+  assert.match(shell, /\.sgx-grep \{[^}]*margin-left: auto;/);
+  assert.match(shell, /\.sgx-cmd \{[^}]*border: 1px dashed var\(--sgx-term-line\);/);
+  assert.match(shell, /\.sgx-cmd-k \{ color: var\(--sgx-primary\); \}/);
+  assert.match(shell, /\.sgx-cgrid \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 14px;/);
+  assert.match(shell, /:root\[data-sgx-layout="desktop"\] \.sgx-cgrid \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \}/);
+  assert.match(shell, /\.sgx-cc \{[^}]*border-radius: 12px;/);
+  assert.match(shell, /\.sgx-cc-im \{[^}]*height: 90px;/);
+  assert.match(shell, /:root\[data-sgx-layout="desktop"\] \.sgx-cc-im \{ height: 150px; \}/);
+  assert.match(shell, /\.sgx-cc-k \{[^}]*color: var\(--sgx-warning\);/, '#标签黄色');
+  assert.match(shell, /:root\[data-sgx-layout="desktop"\] \.sgx-item \{ grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\); gap: 36px; \}/);
+  assert.match(shell, /\.sgx-item-im \{[^}]*height: 220px;/);
+  assert.match(shell, /:root\[data-sgx-layout="desktop"\] \.sgx-item-im \{ height: 420px; \}/);
+  assert.match(shell, /:root\[data-sgx-layout="desktop"\] \.sgx-item-t \{ font-size: 36px; \}/);
+  assert.match(shell, /\.sgx-spec \{[^}]*font-size: 13px; line-height: 2\.05;/);
+  assert.match(shell, /\.sgx-spec > div \{[^}]*border-bottom: 1px dashed var\(--sgx-term-line\);/);
 });
 
 test('页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 .hero.ph）：$ 命令 · 标题_ · 一行说明，两种布局都显示（不再桌面视觉隐藏）；旧 .sgx-hero 标题带退役', () => {
@@ -55,30 +78,36 @@ test('inpage 段只用 --sgx-* 角色，不写死颜色', () => {
   assert.doesNotMatch(region, /#[0-9a-f]{3,8}\b|rgba?\(/i);
 });
 
-test('共享外壳：sgx-segtabs.html / sgx-ph.html 只有主站一份（2026-11 合站后三个子站直接调用，没有副本）', () => {
+test('共享外壳：sgx-ph.html 只有主站一份（2026-11 合站后三个子站直接调用，没有副本）', () => {
   for (const site of ['blog', 'curio', 'daymark']) {
     assert.ok(!has(`space/web/layouts/partials/${site}/sgx-shell-segtabs.html`), site);
     assert.ok(!has(`space/web/layouts/partials/${site}/sgx-shell-page-hero.html`), site);
   }
 });
 
-test('子站接入：奇趣子页页头（页头 + 段式标签），日刻页内分区（另两个分区面板各一个页头 + 段式标签）；博客首页 / 目录页 / 标签页用 sgx-ph，没有段式标签', () => {
-  for (const id of ['finds', 'devices', 'games', 'movies', 'music']) {
+test('子站接入（对齐 PR-C2）：奇趣五个分区页同一个页头（页头 + 下划线 tab + grep + 命令链），日刻拾录 / 百味各一个页头 + cd ..；博客首页 / 目录页 / 标签页用 sgx-ph；都不用段式标签 / 平铺入口', () => {
+  for (const id of ['devices', 'games', 'movies', 'music']) {
     assert.match(rd(`space/web/layouts/curio/${id}.html`), new RegExp(`partial "curio/page-head\\.html" \\(dict "page" \\. "id" "${id}"`), id);
-    for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);
   }
+  assert.match(rd('space/web/layouts/partials/curio/finds-main.html'), /partial "curio\/page-head\.html" \(dict "page" \$p "id" "finds"/);
+  for (const f of ['finds.html', 'section.html']) assert.match(rd('space/web/layouts/curio/' + f), /partial "curio\/finds-main\.html"/, f);
+  for (const id of ['finds', 'devices', 'games', 'movies', 'music']) for (const f of [`${id}.md`, `${id}.zh.md`]) assert.match(rd(`space/web/content/curio/${f}`), /^description: '.+'$/m, f);
   const head = rd('space/web/layouts/partials/curio/page-head.html');
   assert.match(head, /partial "sgx-ph\.html"/);
-  assert.match(head, /partial "sgx-segtabs\.html" \(dict "items" \$segs "current" \.id/);
-  assert.match(rd('space/web/assets/curio/css/input.css'), /html:not\(\.cu-music-ok\) #cu-segs \.sgx-segs-tab\[data-seg="music"\]:not\(\[aria-current\]\) \{ display: none; \}/);
+  assert.match(head, /<div class="sgx-ctab" id="cu-tabs">/);
+  assert.match(head, /range \(slice "finds" "devices" "games" "movies" "music"\)/);
+  assert.match(head, /data-ctab="\{\{ \. \}\}"[^>]*\{\{ if eq \. \$cur \}\} aria-current="page"\{\{ end \}\}/);
+  assert.match(head, /<i data-cu-count="\{\{ \. \}\}"><\/i>/);
+  assert.match(head, /class="sgx-grep" data-cu-grep/);
+  assert.match(head, /<div class="sgx-cmds" id="cu-cmds">/);
+  assert.match(rd('space/web/assets/curio/css/input.css'), /html:not\(\.cu-music-ok\) #cu-tabs \[data-ctab="music"\]:not\(\[aria-current\]\) \{ display: none; \}/);
   const dm = rd('space/web/layouts/daymark/section.html');
   assert.equal((dm.match(/partial "sgx-ph\.html"/g) || []).length, 2, 'daymark');
-  for (const id of ['trove', 'flavors']) assert.match(dm, new RegExp(`partial "sgx-ph\\.html" \\(dict "cmd" "[^"]+" .*"tag" "h2"\\) \\}\\}\\n\\s*\\{\\{ partial "sgx-segtabs\\.html" \\(dict "items" \\$segItems "current" "${id}"`), 'daymark ' + id);
-  for (const f of ['section.html', 'tree.html', 'term.html']) {
-    const src = rd(`space/web/layouts/blog/${f}`);
-    assert.match(src, /partial "sgx-ph\.html" \(dict "cmd" /, 'blog ' + f);
-    assert.doesNotMatch(src, /sgx-segtabs|sgx-entries/, 'blog ' + f);
+  for (const id of ['trove', 'flavors']) assert.match(dm, new RegExp(`partial "sgx-ph\\.html" \\(dict "cmd" "ls daymark/${id}/" .*"tag" "h2"\\) \\}\\}\\n\\s*<div class="sgx-cmds">`), 'daymark ' + id);
+  for (const f of ['layouts/daymark/section.html', 'layouts/curio/section.html', 'layouts/partials/curio/page-head.html', 'layouts/blog/section.html', 'layouts/blog/tree.html', 'layouts/blog/term.html']) {
+    assert.doesNotMatch(rd('space/web/' + f), /sgx-segtabs|sgx-entries/, f);
   }
+  for (const f of ['section.html', 'tree.html', 'term.html']) assert.match(rd(`space/web/layouts/blog/${f}`), /partial "sgx-ph\.html" \(dict "cmd" /, 'blog ' + f);
 });
 
 test('主站内容页：页头接入（带命令），front matter 都有 description（中英）', () => {
@@ -92,7 +121,7 @@ test('主站内容页：页头接入（带命令），front matter 都有 descri
   }
 });
 
-/* 对比度（同 topbar-pr4a.test.mjs 的算法；段式标签在页面里：底 = 页面底色或表面色） */
+/* 对比度（同 topbar-pr4a.test.mjs 的算法；nav-selected 这组角色放在页面里：底 = 页面底色或表面色） */
 const rgba = (h) => {
   const m = /^#([0-9a-f]{6})$/i.exec(h);
   if (m) return [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)).concat(1);
@@ -111,7 +140,7 @@ const check = (t, label) => {
   assert.ok(cr(rgba(t['on-nav-selected']), rgba(t['nav-selected'])) >= 4.5, `${label} 当前项`);
 };
 
-test('对比度：22 套预设 × 深浅色，段式标签非当前项 / 当前项文字 ≥ 4.5:1', () => {
+test('对比度：22 套预设 × 深浅色，nav-selected 非当前项 / 当前项文字 ≥ 4.5:1', () => {
   const { presets } = JSON.parse(rd('space/web/data/shell/palettes.json'));
   assert.equal(presets.length, 22);
   for (const p of presets) for (const mode of ['light', 'dark']) check(p.tokens[mode], `${p.id} ${mode}`);

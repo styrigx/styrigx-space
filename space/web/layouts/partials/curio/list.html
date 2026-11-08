@@ -1,0 +1,15 @@
+{{- /* 奇趣分区的卡片列表（2026-11 对齐 PR-C2，设计稿 tb4.html pg=curio）：二级筛选 chips（.sgx-chips，可选）→ 封面卡网格（.sgx-cgrid，脚本画 .sgx-cc）
+   → 空 / 加载提示 → 分页条（.sgx-pg：左「-- 已显示 / 总数 --  滚动加载更多」，右「排序 … ▾」）。分页、排序、grep 过滤在 curio-list.js（只动卡片的显隐 / 顺序，不碰数据）。
+   参数（dict）：tr、pre（id 前缀：cu / dv / gm / mv）、chips（true = 有筛选 chips，id <pre>-chips）、label（列表的 aria-label）、
+     sorts（排序选项 {v, label}；第一个是默认）、loading（加载中文案） */ -}}
+{{- $tr := .tr -}}{{- $pre := .pre -}}
+{{- if .chips }}<div id="{{ $pre }}-chips" class="sgx-chips cu-chips" role="tablist" aria-label="{{ .chipsLabel }}"></div>{{ end }}
+<div id="{{ $pre }}-list" class="sgx-cgrid cu-grid" data-cu-grid aria-label="{{ .label }}"></div>
+<p id="{{ $pre }}-empty" class="cu-note hidden"></p>
+<p id="{{ $pre }}-loading" class="cu-note it-loading">{{ .loading | default $tr.list.loading }}</p>
+<nav class="sgx-pg cu-pg" data-cu-pager aria-label="{{ $tr.list.pager }}" hidden>
+  <span class="sgx-pg-l"><b data-pg-count translate="no">-- 0 / 0 --</b><span class="sgx-pg-hint">{{ $tr.list.more }}</span></span>
+  <span class="sgx-pg-r"><label class="sgx-sort">{{ $tr.list.sortBy }} <select data-cu-sort aria-label="{{ $tr.list.sortBy }}">
+    {{- range .sorts }}<option value="{{ .v }}">{{ .label }}</option>{{ end -}}
+  </select></label></span>
+</nav>

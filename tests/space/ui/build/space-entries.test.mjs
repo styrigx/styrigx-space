@@ -1,8 +1,7 @@
 /**
  * P4-3 PR-4b §9–11（Gray 2026-11-07）：显示页删除 + 平铺入口组件；2026-11 对齐 PR-B：主页不再有分类入口，旷野独立成 /wild/。
  * - 数据（data/space-cats.yaml）：3 个门内子页，顺序、字段齐全、图标存在、配色在白名单里
- * - 模板：主页不调用入口组件（子站首页仍用 partials/sgx-entries.html）；旷野独立布局；旧页删除
- * - CSS：@shell entries 区块（共享外壳）只用 --sgx-* 角色；≥ 760 两栏、≥ 1100 三栏（栏间细竖线）
+ * - 模板：平铺入口组件 partials/sgx-entries.html 在对齐 PR-C2 退役（主页、博客、奇趣、日刻都不用，文件和 @shell entries 样式段都删了）；旷野独立布局；旧页删除
  * - 构建产物（有才跑）：中英主页四节、旷野小卡锚点、旷野页三窗；
  *   /display/ 页面不存在；任何产物（HTML / XML / JSON）里没有 /display/ 链接；搜索索引里没有 /display/
  * 运行：node --test tests/space/ui/build/space-entries.test.mjs
@@ -41,19 +40,17 @@ test('数据：主站门内子页 2 个（安全、旷野），字段齐全（�
   assert.equal(data.band, undefined, 'space-cats.yaml 不再有 band');
 });
 
-test('模板：主页不再渲染分类入口（入口组件只给子站首页用）；旷野是独立页；显示页的模板和内容都删了', () => {
+test('模板：平铺入口组件退役（主页 / 四站都不用，组件和样式段删除）；旷野是独立页；显示页的模板和内容都删了', () => {
   const idx = rd('space/web/layouts/index.html');
   assert.doesNotMatch(idx, /partial "sgx-entries\.html"/, '主页不调用入口组件');
   assert.doesNotMatch(idx, /space-cats/, '主页不读 space-cats');
   for (const c of cats) assert.ok(!idx.includes(TR.zh.spaceCats[c.id].sub), `index.html 不写死 ${c.id} 副标题`);
-  for (const f of ['curio/section.html', 'daymark/section.html']) {
-    assert.match(rd('space/web/layouts/' + f), /partial "sgx-entries\.html"/, f + ' 仍用共享入口组件');
+  /* 对齐 PR-C：博客首页是单一文章列表（pg=blog）；对齐 PR-C2：奇趣首页是 tab + 卡片（pg=curio），日刻首页是居中引句 + 三窗（pg=day） */
+  for (const f of ['blog/section.html', 'curio/section.html', 'daymark/section.html', 'partials/curio/page-head.html']) {
+    assert.doesNotMatch(rd('space/web/layouts/' + f), /partial "sgx-entries\.html"/, f + ' 不用入口组件');
   }
-  /* 对齐 PR-C：博客首页是单一文章列表（设计稿 pg=blog），不再有分区入口 */
-  assert.doesNotMatch(rd('space/web/layouts/blog/section.html'), /partial "sgx-entries\.html"/, '博客首页不用入口组件');
-  const part = rd('space/web/layouts/partials/sgx-entries.html');
-  assert.match(part, /range \$i, \$e := \.items/, '组件按数据行渲染');
-  assert.match(part, /printf "%02d" \(add \$i 1\)/, '编号 01… 按行序生成');
+  assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/sgx-entries.html')), 'sgx-entries.html 已删除');
+  assert.doesNotMatch(rd('space/web/assets/css/input.css'), /@shell:begin entries|\.sgx-ent-li \{/, '@shell entries 样式段已删除');
   /* 旷野页：独立布局 + 中英内容 */
   assert.ok(existsSync(path.join(REPO, 'space/web/layouts/_default/wild.html')), 'wild.html');
   for (const f of ['space/web/content/wild.md', 'space/web/content/zh/wild.md']) assert.match(rd(f), /layout:\s*"?wild"?/, f + ' 用 wild 布局');
@@ -70,17 +67,6 @@ test('模板：主页不再渲染分类入口（入口组件只给子站首页�
   /* 功能开关不再指向显示页 */
   const feats = /** @type {any} */ (yaml.load(rd('space/web/data/features.yaml'))).features;
   assert.ok(!feats.some((/** @type {any} */ f) => f.section === 'display'), 'features.yaml 没有 section: display');
-});
-
-test('CSS：@entries 区块只用变量、≥ 760 两栏、≥ 1100 三栏', () => {
-  const css = rd('space/web/assets/css/input.css');
-  const m = css.match(/\/\* @shell:begin entries[\s\S]*?\/\* @shell:end entries \*\//);
-  assert.ok(m, '@shell entries 区块（共享外壳）');
-  const blk = m[0];
-  assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(/i.test(blk.replace(/\/\*[\s\S]*?\*\//g, '')), '不写死颜色');
-  assert.match(blk, /@media \(min-width: 760px\) \{[\s\S]*?grid-template-columns: repeat\(2,/);
-  assert.match(blk, /@media \(min-width: 1100px\) \{[\s\S]*?grid-template-columns: repeat\(3,/);
-  assert.match(blk, /\.sgx-ent-li \{[^}]*border-bottom: 1px solid/, '行间细线');
 });
 
 /* ---- 构建产物（npm run build / hugo 之后才有） ---- */

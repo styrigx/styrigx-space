@@ -394,6 +394,7 @@ req('GET', '/curio/api/music').then(function(j){
   albums = j.albums || [];
   done();
   $('#mu-app').classList.remove('hidden');
+  $('#mu-upload').classList.remove('hidden');
   renderCovers(); renderAlbum();
 }).catch(function(e){
   if (e && e.sgxLocked) return;

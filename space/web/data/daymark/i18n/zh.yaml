@@ -61,6 +61,10 @@ index:
   create: 建好了
   cancel: 取消
   sections: 分区
+  dayStrip: 看哪天
+  windows: 最近
+  back: 回到今天这一句
+  drawCmd: 再抽一句
 baseof:
   pageNotFound: 页面不存在
   trove: 拾录
@@ -74,7 +78,7 @@ js:
     failed: 出了点问题，请再试一次。
     needText: 先写下这一句。
     priv: 仅自己可见
-    emptyAdmin: 还没有句子。点「记一句」留下第一句。
+    emptyAdmin: 还没有句子。用上面的「记一句」留下第一句。
     emptyVisitor: 这里还空着。
     noToday: 今天还没有句子。
     copied: 已复制
@@ -110,3 +114,7 @@ js:
     st_song: 歌
     st_interview: 访谈
     st_mine: 自己
+    tomorrow: 明天见
+    noDay: 那天没有记下句子。
+    notYet: 那天还没到。
+    dayCount: '{n} 天'
