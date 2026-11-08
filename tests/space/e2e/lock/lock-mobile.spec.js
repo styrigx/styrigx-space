@@ -86,8 +86,10 @@ test('顶栏标题：静止「锁定屏幕」→ 密码态「解锁屏幕」→ 
   /* 输凭证途中点另一个快捷键 = 先 Ctrl+C 再换 */
   await page.tap('#sgx-lock-k-pw');
   await lockMode(page, 'pw');
-  await page.evaluate(() => { navigator.credentials.get = () => new Promise(() => {}); });
+  await page.route('**/api/lock-passkey', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"challenge":"dGVzdA","cid":"c1","allowCredentials":[]}' }));
+  await page.evaluate(() => { window.__pkCalled = false; navigator.credentials.get = () => { window.__pkCalled = true; return new Promise(() => {}); }; });
   await page.tap('#sgx-lock-k-pk');
+  await page.waitForFunction(() => window.__pkCalled === true, null, { timeout: 8000 });
   await lockMode(page, 'busy');
   await expect(page.locator('#sgx-lock-log')).toContainText('^C');
 });
