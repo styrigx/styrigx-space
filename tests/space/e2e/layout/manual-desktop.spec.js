@@ -90,7 +90,7 @@ test.describe('手机（412 宽，手机 UA）', () => {
     /* 不是 rgb() 的值不认（不往样式里拼任意字符串） */
     await page.evaluate(() => sessionStorage.setItem('sgx-fp-bg', 'red}html{color:red'));
     await page.reload({ waitUntil: 'load' });
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(242, 246, 247)');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(252, 243, 239)'); /* 2026-11 PR-A：默认访客 = terra，浅色首帧底 #fcf3ef */
   });
 
   test('首帧底色：本站深色、系统浅色，样式表没到 → color-scheme / theme-color 是深色，html 底色是深色（不是白底）', async ({ page }) => {
@@ -98,7 +98,7 @@ test.describe('手机（412 宽，手机 UA）', () => {
     await go(page, { theme: 'dark' });
     expect(await page.evaluate(() => document.querySelector('meta[name="color-scheme"]').getAttribute('content'))).toBe('dark');
     expect(await page.evaluate(() => Array.from(document.querySelectorAll('meta[name="theme-color"]')).map((m) => m.getAttribute('content')))).toEqual(['#161412', '#161412']);
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(10, 14, 16)');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(22, 20, 18)'); /* terra 深色 #161412，同 theme-color */
     expect(await page.evaluate(() => document.head.firstElementChild && document.head.firstElementChild.id)).toBe('sgx-first-paint');
   });
 

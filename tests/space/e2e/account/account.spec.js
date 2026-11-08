@@ -854,15 +854,15 @@ test.describe('主题色角色（PR3）', () => {
 
   const roleOf = (page, v) => page.evaluate((vv) => getComputedStyle(document.documentElement).getPropertyValue(vv).trim(), v);
 
-  test('预设色板：登录页按钮用该预设的角色（2026-10-23 PR-G 七色：terra 浅色主色（ink）= 前景 1 鼠尾草按对比度压深 #566a44；主按钮 = 填充档 = 鼠尾草本色 #94a982 + 深墨字；次按钮 = secondary-container）', async ({ page }) => {
+  test('预设色板：登录页按钮用该预设的角色（2026-11 PR-A 照稿：terra 前景 1 = 赤陶 #de7a58；浅色主色（ink）按对比度压深 #a94521；主按钮 = 填充档 = 赤陶本色 + 深墨字；次按钮 = secondary-container）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-palette', 'terra'); localStorage.setItem('sgx-theme-mode', 'light'); } catch (e) {} });
     await mockAccount(page, { status: { ok: true, password: true, passkey: true, ready: true, session: null } });
     await page.goto('/account/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#acct-login-go')).toBeVisible();
-    expect(await roleOf(page, '--sgx-primary')).toBe('#566a44');
-    expect(await roleOf(page, '--sgx-primary-fill')).toBe('#94a982');
-    expect(await page.locator('#acct-login-go').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(148, 169, 130)');
-    expect(await page.locator('#acct-login-go').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(28, 33, 23)');
+    expect(await roleOf(page, '--sgx-primary')).toBe('#a94521');
+    expect(await roleOf(page, '--sgx-primary-fill')).toBe('#de7a58');
+    expect(await page.locator('#acct-login-go').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(222, 122, 88)');
+    expect(await page.locator('#acct-login-go').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(50, 23, 14)');
     expect(await roleOf(page, '--sgx-btn-secondary-bg')).toBe(await roleOf(page, '--sgx-secondary-container'));
   });
 

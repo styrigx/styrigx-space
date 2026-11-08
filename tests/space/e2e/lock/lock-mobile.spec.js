@@ -73,7 +73,8 @@ test('空密码回车：终端提示「请输入密码」，不发请求，焦�
   await expect(page.locator('#sgx-lock-live')).toContainText('请输入密码');
 });
 
-test('顶栏标题：静止「锁定屏幕」→ 密码态「解锁屏幕」→ 点 Ctrl+C 回到「锁定屏幕」', async ({ page }) => {
+/* 2026-11 PR-A 起锁屏顶栏不显示；标题节点 #sgx-lock-title 仍由 lock.js 按状态改写，这里照测 */
+test('顶栏标题（节点）：静止「锁定屏幕」→ 密码态「解锁屏幕」→ 点 Ctrl+C 回到「锁定屏幕」', async ({ page }) => {
   await gotoLockTerm(page, '/?lock=1');
   const title = page.locator('#sgx-lock-title');
   await expect(title).toHaveText('锁定屏幕');

@@ -163,14 +163,6 @@ test.describe('外观面板：开合', () => {
     expect(m.bf === 'none' || m.bf === '').toBe(true);
     await page.evaluate(() => document.getElementById('sgx-qp').close());
   });
-    const m = await page.evaluate(() => {
-      const d = document.getElementById('sgx-qp');
-      return { d: d.getBoundingClientRect().top, s: d.querySelector('.sgx-qp-sheet').getBoundingClientRect().bottom, of: getComputedStyle(d).overflow };
-    });
-    expect(m.of).toBe('hidden');
-    expect(m.s).toBeLessThanOrEqual(m.d);
-    await page.evaluate(() => document.getElementById('sgx-qp').close());
-  });
 
   test('顶栏 v3 不显示页名（页名胶囊标记还在，给子站脚本和锁屏顶栏用）；开面板也不改它', async ({ page }) => {
     await go(page, '/security/');
@@ -544,7 +536,8 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     expect(await ls(page, 'sgx-palette')).toBeNull();
     await expect(qp(page)).toHaveAttribute('data-state', 'open');
     await expect(rs).toBeVisible();
-    await expect.poll(() => rs.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(0.6);
+    /* 2026-11 PR-A 照稿：外观卡的 RESET 置灰 = 三级字色 + 不透明度 .6 */
+    await expect.poll(() => rs.evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThanOrEqual(0.6);
     expect(await rs.boundingBox()).toEqual(box);
   });
 

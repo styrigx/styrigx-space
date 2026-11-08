@@ -332,6 +332,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 }
 .reduced-motion .sgx-nav .sgx-qp-sheet, .reduced-motion .sgx-theme .sgx-qp-sheet { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { transition: none; } }
+.sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { top: 0; } /* 稿：卡片顶贴顶栏下沿（稿 top 60 = 顶栏 64 往上 4px，这里不压顶栏） */
 .sgx-nav .sgx-qp-sheet { max-width: none; }
 .sgx-theme .sgx-qp-sheet { left: auto; right: calc((100% - var(--sgx-tb-w)) / 2); width: min(260px, var(--sgx-tb-w)); margin: 0; padding: 10px; border-radius: 14px; }
 .dark .sgx-theme .sgx-qp-sheet { box-shadow: 0 20px 50px rgba(0,0,0,.5); }

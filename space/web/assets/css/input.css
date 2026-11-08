@@ -7959,19 +7959,13 @@
     svg { width: 20px; height: 20px; }
   }
   /* 锁屏 lock-v10（2026-11 UI 重设计 PR-4，设计稿 entry-v2/lock.html K1–K4；只换外观）：
-     终端风——细网格 + 主题色光晕的底、等宽字；头像 → 状态胶囊 `$ STATUS: …` → 名字 → 欢迎语一行 → 锁屏终端窗（标题栏 · 回显 · 快捷键 + 解锁）→ 底部 `~/styrigx_`。
-     顶栏仍和全站同一个（只是外观，点不了）。颜色只用 --sgx-* 角色（亮 / 暗、各色板都跟着走），不写死设计稿的暗色。 */
-  #sgx-lock { background: var(--m-surface); flex-direction: column; font-family: var(--sgx-font-mono); }
+     终端风等宽字；头像 → 状态胶囊 `$ STATUS: …` → 名字 → 欢迎语一行 → 锁屏终端窗（标题栏 · 回显 · 快捷键 + 解锁）→ 底部 `~/styrigx_`。
+     2026-11 PR-A（外壳对齐，设计稿 02:48 定）：锁屏没有顶栏（.sgx-lock-tb 不显示，节点留给 lock.js 写标题）；
+     底 = 和全站同一套纯色 --sgx-bg-1 + 44px 网格（.sgx-glass-bg::before 的 --sgx-grid），不再有主题色光晕和 36px 粗网格。
+     颜色只用 --sgx-* 角色（亮 / 暗、各色板都跟着走），不写死设计稿的暗色。 */
+  #sgx-lock { background: var(--sgx-bg-1); flex-direction: column; font-family: var(--sgx-font-mono); }
   #sgx-lock .sgx-glass-bg { position: fixed; }
-  /* 网格 + 上方主题色光晕（设计稿 body:before / :after）；原光晕层的大色块在锁屏上不画（设计稿底面干净） */
-  #sgx-lock .sgx-glass-bg::before { display: none; }
-  #sgx-lock .sgx-glass-bg::after {
-    content: ''; position: absolute; inset: 0; pointer-events: none;
-    background:
-      radial-gradient(70% 40% at 50% 28%, color-mix(in srgb, var(--sgx-primary) 10%, transparent), transparent 70%),
-      linear-gradient(color-mix(in srgb, var(--sgx-text-primary) 4%, transparent) 1px, transparent 1px) 0 0 / 36px 36px,
-      linear-gradient(90deg, color-mix(in srgb, var(--sgx-text-primary) 4%, transparent) 1px, transparent 1px) 0 0 / 36px 36px;
-  }
+  #sgx-lock .sgx-lock-tb { display: none; }
   .sgx-lock-tb {
     position: relative; z-index: 1; flex: none; box-sizing: content-box;
     width: var(--sgx-shell-w, calc(100% - 32px)); height: var(--sgx-tb-h); margin: 0 auto;
@@ -7980,10 +7974,10 @@
   }
   /* 锁屏顶栏的两侧圆只是外观：不可点、没有按压态 */
   .sgx-lock-tb .sgx-topbar, .sgx-lock-tb .sgx-tb-btn, .sgx-lock-tb .sgx-tb-logo { pointer-events: none; cursor: default; }
-  /* 整组在顶栏下面的空间里上下居中（底部多留一个顶栏高度抵掉顶栏，看起来落在屏幕正中） */
+  /* 整组在整屏里上下居中（锁屏没有顶栏，上下等距；顶部让开刘海安全区） */
   .sgx-lock-stage {
     position: relative; z-index: 1; margin: 0 auto; flex: 1 0 auto; max-width: 560px; justify-content: center;
-    padding: 24px 18px calc(env(safe-area-inset-bottom, 0px) + 24px + var(--sgx-tb-h));
+    padding: calc(env(safe-area-inset-top, 0px) + 24px) 18px calc(env(safe-area-inset-bottom, 0px) + 24px);
   }
   #sgx-lock .sgx-lock-user { text-align: center; }
   /* 头像 92px（设计稿）：只是图，不可点、没有光环（解锁在终端里敲命令） */

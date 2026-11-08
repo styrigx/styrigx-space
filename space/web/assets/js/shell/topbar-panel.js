@@ -897,7 +897,7 @@ export function mountStatus(d) {
       el.setAttribute('data-up', up === n ? '1' : '0');
     });
   };
-  /** @param {any} j @param {number} rtt */
+  /** @param {any} j @param {number|null} rtt */
   const cellsOf = function (j, rtt) {
     /** @type {Record<string, any>} */
     const by = {};
@@ -908,11 +908,22 @@ export function mountStatus(d) {
     return { space: sp, blog: sp, curio: sp, daymark: sp, 'gray-ai': one(by.ai), auth: { up: true, ms: rtt } };
   };
   let busy = false;
+  /* 服务状态页（/status/，#st-root）自己每 60 秒取 /api/status：外壳不再另问一遍，接它取到的结果（sgx:status 事件）来画、写缓存 */
+  const ownPage = !!doc.getElementById('st-root');
+  if (ownPage) {
+    doc.addEventListener('sgx:status', function (/** @type {any} */ e) {
+      const j = e && e.detail;
+      if (!j || j.ok === false) return;
+      const v = { t: Date.now(), cells: cellsOf(j, null) };
+      try { sessionStorage.setItem(KEY, JSON.stringify(v)); } catch (err) {}
+      paint(v);
+    });
+  }
   const refresh = function () {
     let cached = null;
     try { cached = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) {}
-    if (cached && cached.t && Date.now() - cached.t < TTL) { paint(cached); return; }
-    if (busy || typeof fetch !== 'function') return;
+    if (cached && cached.t && (ownPage || Date.now() - cached.t < TTL)) { paint(cached); return; }
+    if (ownPage || busy || typeof fetch !== 'function') return;
     busy = true;
     const t0 = Date.now();
     fetch('/api/status', { credentials: 'same-origin', cache: 'no-store' })

@@ -147,6 +147,8 @@ function init() {
       data = j;
       gotAt = Date.now();
       writeCache(j, gotAt);
+      /* 外壳（NAVIGATE STATUS 六格 / tmux 页脚）在本页不另取，用这一份 */
+      try { document.dispatchEvent(new CustomEvent('sgx:status', { detail: j })); } catch (e) { /* 老浏览器没有 CustomEvent 构造：外壳维持缓存 / 灰 */ }
       if (isEmptySummary(j)) setState('empty');
       else {
         setState('ready');
