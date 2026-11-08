@@ -65,7 +65,7 @@ test('sgx-account-card.html：只保留名字和头像（解锁入口已移走�
   assert.ok(acctEntry.includes('initAvatarEdit()'), '账号页入口加载换头像');
 });
 
-test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；没有管理凭证、应用凭证；账号在 AI 窗口头部头像', () => {
+test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；没有管理凭证、应用凭证；账号在顶栏头像（2026-11 PR-5：点开账号下拉）', () => {
   const secHtml = readFileSync('space/web/layouts/_default/security.html', 'utf8');
   assert.ok(!secHtml.includes('id="sec-owner-cred"'), '锁屏凭证入口已移到顶栏头像（账号页）');
   assert.ok(!secHtml.includes('id="sec-mgmt-cred"'), '管理凭证已删除');
@@ -75,9 +75,10 @@ test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；
   assert.ok(secHtml.includes('id="sec-locknow"'), '应有立即锁定入口');
   assert.ok(!secHtml.includes('id="sec-app-row"'), '不应有应用验证');
   const base = readFileSync('space/web/layouts/_default/baseof.html', 'utf8');
-  assert.ok(base.includes('"acct" $acctUrl'), '头像（P4-3 PR-4b 起在 AI 窗口头部 .sgx-ai-me）链到账号页');
+  assert.ok(base.includes('"acct" $acctUrl'), '顶栏头像 / 账号下拉链到账号页');
   const tb = readFileSync('space/web/layouts/partials/shell-topbar.html', 'utf8');
-  assert.ok(tb.includes('<a class="sgx-ai-me" href="{{ .acct }}"'), 'AI 窗口头部头像用 acct 参数');
+  assert.ok(tb.includes('<a class="sgx-tb-av" href="{{ .acct }}"'), '顶栏头像用 acct 参数');
+  assert.ok(tb.includes('<a class="sgx-pop-me-a" href="{{ $acct }}">'), '账号下拉头部链到账号页');
   assert.ok(!tb.includes('sgx-tb-me'), '顶栏没有头像');
 });
 

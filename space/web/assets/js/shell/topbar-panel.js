@@ -459,59 +459,172 @@ export function mountTopbar(o) {
     });
   };
 
-  /* ---------------- 账号下拉（2026-11 PR-5 acct-v2） ---------------- */
+  /** 外壳字符串表的一节（acct / sec）：{key} 占位由调用方替换 @param {string} sec @returns {Record<string, string>} */
+  const trSec = function (sec) {
+    try {
+      const el = doc.getElementById('sgx-i18n-shell');
+      const j = el && el.textContent ? JSON.parse(el.textContent) : null;
+      return j && j[sec] && typeof j[sec] === 'object' ? j[sec] : {};
+    } catch (e) { return {}; }
+  };
+  const getFetch = function () { return o.fetch || (typeof fetch === 'function' ? fetch : null); };
+  /** GET / POST JSON（同源；失败 → null） @param {string} url @param {any} [body] @returns {Promise<any>} */
+  const getJSON = function (url, body) {
+    const f = getFetch();
+    if (!f) return Promise.resolve(null);
+    /** @type {RequestInit} */
+    const init = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin', cache: 'no-store' } : { method: 'GET', credentials: 'same-origin', cache: 'no-store' };
+    return Promise.resolve().then(function () { return f(url, init); }).then(function (r) { return r && r.json ? r.json().catch(function () { return null; }) : null; }, function () { return null; });
+  };
+  const pad2 = function (/** @type {number} */ n) { return (n < 10 ? '0' : '') + n; };
+  const lsGet = function (/** @type {string} */ k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  /** 终端式选择（账号未登录 / 安全未验证）：开着时按 1 / 2 = 点对应那一项 @param {HTMLDialogElement} dlg @param {any} ms @param {() => boolean} active */
+  const numKeys = function (dlg, ms, active) {
+    doc.addEventListener('keydown', function (e) {
+      if (!ms.isShown() || !active() || e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
+      if (e.key !== '1' && e.key !== '2') return;
+      const a = /** @type {HTMLElement|null} */ (dlg.querySelector('.sgx-pop-opt[data-key="' + e.key + '"]'));
+      if (!a) return;
+      e.preventDefault();
+      a.click();
+    });
+  };
+  /** AI 模型名（账号下拉「AI 模型」一行；同账号页：canChoose 且本地选的在列表里 → 它，否则默认） @returns {Promise<string>} */
+  const modelLabel = function () {
+    return getJSON('/api/ai').then(function (j) {
+      if (!j || !Array.isArray(j.models)) return '';
+      const mine = lsGet('sgx-ai-model') || '';
+      const pick = j.models.find(function (/** @type {any} */ m) { return j.canChoose && m && m.id === mine; }) || j.models.find(function (/** @type {any} */ m) { return m && m.id === j.default; });
+      return pick ? String(pick.label || pick.id || '') : '';
+    });
+  };
+
+  /* ---------------- 账号下拉（2026-11 PR-5 acct-v2，按设计稿） ---------------- */
   const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
   const acctDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-acct'));
   if (acctBtn && acctDlg) {
+    const A = trSec('acct');
     const nameEl = acctDlg.querySelector('[data-acct-name]');
     const nickEl = acctDlg.querySelector('[data-acct-nick]');
+    const val = function (/** @type {string} */ k, /** @type {string} */ v) {
+      const el = acctDlg.querySelector('[data-acct-v="' + k + '"]');
+      if (el && v) el.textContent = v;
+    };
     /** 名字 / 昵称：本机缓存 sgx-profile（主站 lib/profile.js 写的 {v:1, p:{name, nickname…}}）里改过的值盖住模板默认值；这里不发 /api/profile */
     const paintWho = function () {
       try {
-        const j = JSON.parse(localStorage.getItem('sgx-profile') || 'null');
+        const j = JSON.parse(lsGet('sgx-profile') || 'null');
         const p = j && j.v === 1 && j.p && typeof j.p === 'object' ? j.p : null;
         if (p && typeof p.name === 'string' && p.name && nameEl) nameEl.textContent = p.name;
         if (p && typeof p.nickname === 'string' && p.nickname && nickEl) nickEl.textContent = p.nickname;
       } catch (e) {}
+      /* 云同步：开着且同步过 → 上次 hh:mm（同账号页） */
+      const last = parseInt(lsGet('sgx-sync-last') || '0', 10) || 0;
+      if (lsGet('sgx-cloud-sync') !== '0' && last && A.last) { const d = new Date(last); val('sync', A.last.replace('{t}', pad2(d.getHours()) + ':' + pad2(d.getMinutes()))); }
     };
     /** 登录态：'' 未知（问不到 / 锁着 / 非 JSON）· in · guest @param {string} st */
     const setState = function (st) {
       acctDlg.setAttribute('data-acct-state', st);
       acctDlg.querySelectorAll('[data-acct-in]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = st !== 'in'; });
-      acctDlg.querySelectorAll('[data-acct-guest], [data-acct-login]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = st !== 'guest'; });
+      acctDlg.querySelectorAll('[data-acct-login]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = st !== 'guest'; });
       acctDlg.querySelectorAll('[data-acct-only]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = st === 'guest'; });
     };
     /** 每次打开问一次 GET /api/account（同账号子页进页那一问，只读）：ok 且有 session = 已登录；ok 且 session=null = 未登录；其余不改 */
     const askState = function () {
-      const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
-      if (!f) return;
-      Promise.resolve().then(function () { return f('/api/account', { method: 'GET', credentials: 'same-origin' }); }).then(function (r) {
-        return r && r.ok ? r.json() : null;
-      }).then(function (/** @type {any} */ j) {
-        if (j && j.ok) setState(j.session ? 'in' : 'guest');
-      }, function () {});
+      getJSON('/api/account').then(function (/** @type {any} */ j) {
+        if (!j || !j.ok) return;
+        setState(j.session ? 'in' : 'guest');
+        if (!j.session) return;
+        if (j.session.device) val('device', String(j.session.device));
+        if (A.protected) val('security', j.password || j.passkey ? A.protected : A.unprotected || '');
+        modelLabel().then(function (l) { val('ai', l); });
+      });
     };
     const acct = wire(acctBtn, acctDlg, 'sgxAcct', function () { paintWho(); askState(); });
-    if (acct) popLinks(acctDlg, acct.ms);
+    if (acct) {
+      popLinks(acctDlg, acct.ms);
+      numKeys(acctDlg, acct.ms, function () { return acctDlg.getAttribute('data-acct-state') === 'guest'; });
+      /* 退出登录：同设备页「退出账号」——POST /api/account {action:logout}，清云同步拉取时刻 sgx-sync-pull，回账号页 */
+      const out = /** @type {HTMLElement|null} */ (acctDlg.querySelector('[data-acct-logout]'));
+      const outLabel = /** @type {HTMLElement|null} */ (acctDlg.querySelector('[data-acct-logout-label]'));
+      const home = /** @type {HTMLAnchorElement|null} */ (acctDlg.querySelector('a.sgx-pop-me-a'));
+      if (out) {
+        out.addEventListener('click', function () {
+          const f = getFetch();
+          if (!f) return;
+          f('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }), credentials: 'same-origin' }).then(function (r) {
+            if (!r || !r.ok) throw new Error('http');
+            try { localStorage.removeItem('sgx-sync-pull'); } catch (e) {}
+            const href = home ? home.href : '/account/';
+            acct.ms.close(function () { replace(href); });
+          }).catch(function () { if (outLabel && A.signOutFail) outLabel.textContent = A.signOutFail; });
+        });
+      }
+    }
   }
 
-  /* ---------------- 站点安全下拉（2026-11 PR-5 sec-v1） ---------------- */
+  /* ---------------- 站点安全下拉（2026-11 PR-5 sec-v1，按设计稿） ---------------- */
   const secBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-shield'));
   const secDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-sec'));
   if (secBtn && secDlg) {
+    const S = trSec('sec');
+    const head = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec-head]'));
+    const sv = function (/** @type {string} */ k, /** @type {string} */ v) { const el = secDlg.querySelector('[data-sec-v="' + k + '"]'); if (el) el.textContent = v; };
     const lockBtn2 = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec="lock"]'));
     const lockState2 = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec-lock-state]'));
     const lockLabel2 = lockState2 ? lockState2.textContent : '';
     let armed2 = 0;
+    let tick = 0;
     const disarm2 = function () {
       if (armed2) { clearTimeout(armed2); armed2 = 0; }
       if (lockBtn2) lockBtn2.removeAttribute('data-armed');
       if (lockState2) lockState2.textContent = lockLabel2;
     };
-    const sec = wire(secBtn, secDlg, 'sgxSec', disarm2);
+    /** 状态：'' 未知（只给入口，验证在各页）· open（有 3 分钟 reauth 票，头部倒计时）· locked（没票：终端式选择验证方式） @param {string} st */
+    const setSec = function (st) {
+      secDlg.setAttribute('data-sec-state', st);
+      const lk = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec-locked]'));
+      const op = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec-open]'));
+      if (lk) lk.hidden = st !== 'locked';
+      if (op) op.hidden = st === 'locked';
+      if (head) { head.textContent = st === 'locked' ? S.locked || 'locked' : ''; head.toggleAttribute('data-live', st === 'open'); }
+    };
+    const stopTick = function () { if (tick) { clearInterval(tick); tick = 0; } };
+    /** 头部倒计时 mm:ss（到 0 → locked） @param {number} exp */
+    const countdown = function (exp) {
+      stopTick();
+      const paintT = function () {
+        const left = Math.max(0, Math.floor((exp - Date.now()) / 1000));
+        if (!left) { stopTick(); setSec('locked'); return; }
+        if (head) head.textContent = pad2(Math.floor(left / 60)) + ':' + pad2(left % 60);
+      };
+      paintT();
+      tick = window.setInterval(paintT, 1000);
+    };
+    /** 打开时只读地问：POST /api/lock-reauth {action:status}（票）、GET /api/lock-session-check（会话到期）、有票时 POST /api/lock-passkey {action:list}（个数） */
+    const askSec = function () {
+      getJSON('/api/lock-session-check').then(function (/** @type {any} */ j) {
+        if (!j || !j.ok || !(j.exp > 0)) { sv('sess', ''); return; }
+        const m = Math.max(0, Math.floor((j.exp - Date.now()) / 60000));
+        const t2 = (m >= 60 ? Math.floor(m / 60) + 'h ' : '') + (m % 60) + 'm';
+        sv('sess', S.left ? S.left.replace('{t}', t2) : t2);
+      });
+      getJSON('/api/lock-reauth', { action: 'status' }).then(function (/** @type {any} */ j) {
+        if (!j || !j.ok) { setSec(''); return; }
+        if (!j.valid || !(j.expiresAt > Date.now())) { setSec('locked'); return; }
+        setSec('open');
+        countdown(j.expiresAt);
+        getJSON('/api/lock-passkey', { action: 'list' }).then(function (/** @type {any} */ k) {
+          if (k && k.ok && Array.isArray(k.keys)) sv('pk', S.pkCount ? S.pkCount.replace('{n}', String(k.keys.length)) : String(k.keys.length));
+        });
+      });
+    };
+    const sec = wire(secBtn, secDlg, 'sgxSec', function () { disarm2(); askSec(); });
     if (sec) {
       const ms = sec.ms;
       popLinks(secDlg, ms);
+      numKeys(secDlg, ms, function () { return secDlg.getAttribute('data-sec-state') === 'locked'; });
+      secDlg.addEventListener('close', stopTick);
       /* 立即锁屏：同 NAVIGATE 的 lock（主站 onLock 确认层；子站点两下确认后 POST /api/lock-now → 锁屏） */
       secDlg.addEventListener('click', function (e) {
         const tg = /** @type {Element|null} */ (e.target);
@@ -520,7 +633,7 @@ export function mountTopbar(o) {
         if (armed2) {
           disarm2();
           ms.close(function () {
-            const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
+            const f = getFetch();
             if (f) f('/api/lock-now', { method: 'POST', credentials: 'include' }).then(function (r) { if (r && r.ok) replace('/?lock=1'); }, function () {});
           });
           return;

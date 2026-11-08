@@ -196,7 +196,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     const hrefs = [...html.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
     assert.deepEqual(hrefs, ['https://styrigx.com/', '/blog/', '/curio/', '/daymark/', 'https://styrigx.com/']);
     assert.match(html, /class="sgx-nav-tile" href="\/blog\/" data-nav="blog" aria-current="page"/);
-    assert.match(html, /<a class="sgx-ai-me" href="https:\/\/styrigx\.com\/account\/"[^>]*><img src="https:\/\/styrigx\.com\/avatar\/192\.webp"/);
+    assert.match(html, /<a class="sgx-pop-me-a" href="https:\/\/styrigx\.com\/account\/"><img src="https:\/\/styrigx\.com\/avatar\/192\.webp"/);
     assert.match(html, /<a class="sgx-tb-av" href="https:\/\/styrigx\.com\/account\/"/, '顶栏头像去主站账号页');
     assert.doesNotMatch(html, /sgx-drawer|sgx-tb-nav\b/, '抽屉和九宫格删了');
     assert.doesNotMatch(html, /book\.styrigx\.com/, '书库已下线');
@@ -204,7 +204,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     const zh = await (await fetch(base + '/blog/zh/')).text();
     const zhHrefs = [...zh.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
     assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/blog/zh/', '/curio/zh/', '/daymark/zh/', 'https://styrigx.com/zh/']);
-    assert.match(zh, /<a class="sgx-ai-me" href="https:\/\/styrigx\.com\/zh\/account\/"/);
+    assert.match(zh, /<a class="sgx-pop-me-a" href="https:\/\/styrigx\.com\/zh\/account\/"/);
   });
 
   it('文章页：长条只有页名（文章标题）+ 阅读进度（顶栏 v3 起不显示，读屏照读），没有页签；分享本页在 NAVIGATE；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {

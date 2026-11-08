@@ -108,11 +108,13 @@
     <div class="sgx-ai-head">
       <span class="sgx-ai-badge" aria-hidden="true" translate="no">G</span>
       <span class="sgx-ai-tt"><p class="sgx-ai-title" translate="no">Gray AI</p><small class="sgx-ai-sub">{{ $t.topbar.aiSub }}</small></span>
+      {{- /* 模型（设计稿 ai-v1 的「Gemma 4 ▾」）：显示当前生效的模型；登了账号（canChoose）点开在头部下面展开单选，选中写 sgx-ai-model（同账号页 AI 模型一行） */}}
+      <button type="button" class="sgx-ai-model" data-ai-model aria-expanded="false" aria-controls="sgx-ai-models" aria-label="{{ $t.topbar.model }}" hidden><span data-ai-model-name translate="no"></span><i aria-hidden="true">▾</i></button>
       <button type="button" class="sgx-ai-hbtn" data-ai-clear aria-label="{{ $t.topbar.newChat }}" title="{{ $t.topbar.newChat }}">{{ index $i "tb-newchat" | safeHTML }}</button>
       <button type="button" class="sgx-ai-hbtn" data-ai-history aria-expanded="false" aria-label="{{ $t.topbar.history }}" title="{{ $t.topbar.history }}">{{ index $i "tb-history" | safeHTML }}</button>
-      <a class="sgx-ai-me" href="{{ .acct }}" aria-label="{{ $t.topbar.account }}"><img src="{{ .avatar }}" alt="" width="36" height="36" class="sgx-ai-avatar" data-sgx-avatar="192"></a>
       <button type="button" class="sgx-ai-hbtn sgx-ai-x" data-ai-close aria-label="{{ $t.topbar.close }}" title="{{ $t.topbar.close }}"><span aria-hidden="true">×</span></button>
     </div>
+    <div class="sgx-ai-models" id="sgx-ai-models" role="radiogroup" aria-label="{{ $t.topbar.model }}" data-ai-models hidden></div>
     <div class="sgx-ai-hist" data-ai-hist hidden></div>
     <div class="sgx-ai-list" data-ai-list aria-live="polite"></div>
     <form class="sgx-ai-form" data-ai-form>
@@ -120,7 +122,7 @@
       <textarea class="sgx-ai-in" data-ai-in rows="1" maxlength="200" enterkeyhint="send" aria-label="{{ $t.topbar.question }}" placeholder="{{ $t.topbar.askPlaceholder }}"></textarea>
       <button type="submit" class="sgx-ai-send" aria-label="{{ $t.topbar.send }}">{{ index $i "tb-send" | safeHTML }}</button>
     </form>
-    <p class="sgx-ai-foot"><span class="sgx-ai-scope" data-ai-scope>{{ $t.topbar.publicOnly }}</span><span class="sgx-ai-dot" aria-hidden="true">·</span><a class="sgx-ai-contact" data-ai-contact{{ with .email }} href="mailto:{{ . }}"{{ end }}>{{ $t.topbar.contact }}</a></p>
+    <p class="sgx-ai-foot"><span><span class="sgx-ai-err">{{ $t.topbar.mayErr }}</span><span class="sgx-ai-dot" aria-hidden="true"> · </span><span class="sgx-ai-scope" data-ai-scope>{{ $t.topbar.publicOnly }}</span></span><a class="sgx-ai-contact" data-ai-contact title="{{ $t.topbar.contact }}"{{ with .email }} href="mailto:{{ . }}"{{ end }}>{{ with .email }}<span data-ai-email translate="no" data-sgx-personal>{{ . }}</span>{{ else }}{{ $t.topbar.contact }}{{ end }}</a></p>
   </div>
 </dialog>
 {{- /* 账号下拉（2026-11 PR-5 acct-v2，设计稿 acct-v2 / tb4.html pop=1 · guest=1）：头像点开。只是去账号各页的入口，不做登录 / 退出 / 改资料本身（那些仍在账号页）。
@@ -129,40 +131,57 @@
 {{- $acct := .acct -}}
 <dialog id="sgx-acct" class="sgx-qp sgx-pop sgx-acct" aria-label="{{ $t.topbar.account }}" data-acct-state="">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
-    <div class="sgx-pop-me">
-      <a class="sgx-pop-me-a" href="{{ $acct }}"><img src="{{ .avatar }}" alt="" width="48" height="48" class="sgx-pop-avatar" data-sgx-avatar="192"><span class="sgx-pop-who"><b data-acct-name translate="no" data-sgx-personal>{{ .name | default "Styrigx" }}</b><small><span data-acct-nick translate="no" data-sgx-personal>{{ .nick | default "Styrigx" }}</span><span class="sgx-pop-state" data-acct-in hidden> · <i aria-hidden="true">✓</i> {{ $t.acct.signedIn }}</span><span class="sgx-pop-state sgx-pop-state--guest" data-acct-guest hidden> · {{ $t.acct.guest }}</span></small></span></a>
+    <div class="sgx-nav-h sgx-pop-gh" data-acct-login hidden><span translate="no"><b aria-hidden="true">$</b> ACCOUNT</span><span translate="no">guest</span></div>
+    <div class="sgx-pop-me" data-acct-only>
+      <a class="sgx-pop-me-a" href="{{ $acct }}"><img src="{{ .avatar }}" alt="" width="48" height="48" class="sgx-pop-avatar" data-sgx-avatar="192"><span class="sgx-pop-who"><b data-acct-name translate="no" data-sgx-personal>{{ .name | default "Styrigx" }}</b><small><span data-acct-nick translate="no" data-sgx-personal>{{ .nick | default "Styrigx" }}</span><span class="sgx-pop-state" data-acct-in hidden> · <i aria-hidden="true">✓</i> {{ $t.acct.signedIn }}</span></small></span></a>
       <a class="sgx-pop-edit" href="{{ $acct }}profile/" data-acct-only>{{ $t.acct.edit }}</a>
     </div>
     <div class="sgx-pop-login" data-acct-login hidden>
-      <p class="sgx-pop-cmd"><span class="sgx-pop-ps" translate="no">guest@space:~$</span> <span translate="no">sudo account</span></p>
+      <p><span class="sgx-pop-ps" translate="no">guest@space:~$</span> <span translate="no">sudo account</span></p>
       <p>{{ $t.acct.guestLine }}</p>
-      <a class="sgx-pop-go" href="{{ $acct }}"><b aria-hidden="true">&gt;</b> {{ $t.acct.signIn }}<em translate="no">passkey · AccountKey</em><span class="sgx-pop-chev" aria-hidden="true">›</span></a>
+      <p class="sgx-pop-opts"><a class="sgx-pop-opt" href="{{ $acct }}" data-key="1"><b translate="no">[1]</b> <span translate="no">passkey</span></a><a class="sgx-pop-opt" href="{{ $acct }}" data-key="2"><b translate="no">[2]</b> <span translate="no">accountkey</span></a></p>
+      <p class="sgx-pop-cur" aria-hidden="true"><span class="sgx-pop-ps">&gt;</span> <i></i></p>
+      <p class="sgx-pop-dim">{{ $t.acct.back }}</p>
     </div>
     <ul class="sgx-pop-list" data-acct-only>
-      {{- range slice (dict "p" "profile/" "t" $t.acct.profile "v" $t.acct.profileHint) (dict "p" "devices/" "t" $t.acct.devices "v" "") (dict "p" "security/" "t" $t.acct.security "v" "") (dict "p" "apps/" "t" $t.acct.apps "v" "") (dict "p" "sync/" "t" $t.acct.sync "v" "") (dict "p" "" "t" $t.acct.ai "v" $t.acct.aiHint) }}
-      <li><a class="sgx-pop-row" href="{{ $acct }}{{ .p }}"><span class="sgx-pop-k">{{ .t }}</span>{{ with .v }}<span class="sgx-pop-v">{{ . }}</span>{{ end }}<span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
+      {{- range slice (dict "p" "profile/" "t" $t.acct.profile "v" $t.acct.profileHint "k" "profile") (dict "p" "devices/" "t" $t.acct.devices "v" "" "k" "device") (dict "p" "security/" "t" $t.acct.security "v" "" "k" "security") (dict "p" "apps/" "t" $t.acct.apps "v" "" "k" "apps") (dict "p" "sync/" "t" $t.acct.sync "v" "" "k" "sync") (dict "p" "" "t" $t.acct.ai "v" "" "k" "ai") }}
+      <li><a class="sgx-pop-row" href="{{ $acct }}{{ .p }}"><span class="sgx-pop-k">{{ .t }}</span><span class="sgx-pop-v" data-acct-v="{{ .k }}">{{ .v }}</span><span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
       {{- end }}
     </ul>
-    <div class="sgx-pop-f"><a class="sgx-pop-flink" href="{{ $acct }}">{{ $t.acct.overview }} ›</a><button type="button" class="sgx-nav-close" data-pop-close>{{ $t.nav.close }}</button></div>
+    {{- /* 退出登录（设计稿最后一行）：同设备页「退出账号」——POST /api/account {action:logout} → 回账号页；只在有账号会话时显示 */}}
+    <ul class="sgx-pop-list sgx-pop-list--line" data-acct-in hidden>
+      <li><button type="button" class="sgx-pop-row sgx-pop-row--acc" data-acct-logout><span class="sgx-pop-k" data-acct-logout-label>{{ $t.acct.signOut }}</span><span class="sgx-pop-v" translate="no">exit</span></button></li>
+    </ul>
   </div>
 </dialog>
 {{- /* 站点安全下拉（2026-11 PR-5 sec-v1，设计稿 sec-v1 / tb4.html sg=1 · so=1）：盾牌点开。钥匙（锁屏凭证 = 通行密钥 + LockKey、临时钥匙）和会话（立即锁屏、锁定所有设备）的入口；
    验证（sudo）、钥匙数量、会话剩余时间不在这里做（要新接口 / 新逻辑，见 PR 未决）——各行去安全页现有的那一处。立即锁屏 = NAVIGATE 里 lock 同一个动作（主站确认层 / 子站点两下）。 */ -}}
 {{- $sec := .security -}}
-<dialog id="sgx-sec" class="sgx-qp sgx-pop sgx-sec" aria-label="{{ $t.topbar.security }}">
+<dialog id="sgx-sec" class="sgx-qp sgx-pop sgx-sec" aria-label="{{ $t.topbar.security }}" data-sec-state="">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
-    <div class="sgx-nav-h"><span translate="no"><b aria-hidden="true">$</b> {{ $t.sec.title }}</span><a class="sgx-pop-hlink" href="{{ $sec }}" translate="no">sudo security ›</a></div>
-    <p class="sgx-pop-g">{{ $t.sec.keys }}</p>
-    <ul class="sgx-pop-list">
-      <li><a class="sgx-pop-row" href="{{ $sec }}lock/"><span class="sgx-pop-k">{{ $t.sec.lockKeys }}</span><span class="sgx-pop-v" translate="no">passkey · LockKey</span><span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
-      <li><a class="sgx-pop-row" href="{{ $sec }}tempkeys/"><span class="sgx-pop-k">{{ $t.sec.tempKeys }}</span><span class="sgx-pop-v">{{ $t.sec.tempHint }}</span><span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
-      <li><a class="sgx-pop-row" href="{{ $sec }}"><span class="sgx-pop-k">{{ $t.sec.overview }}</span><span class="sgx-pop-v">{{ $t.sec.overviewHint }}</span><span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
-    </ul>
-    <p class="sgx-pop-g sgx-pop-g--line">{{ $t.sec.session }}</p>
-    <ul class="sgx-pop-list">
-      <li><button type="button" class="sgx-pop-row sgx-pop-row--acc" data-sec="lock"><span class="sgx-pop-k" data-sec-lock-state>{{ $t.sec.lockNow }}</span><span class="sgx-pop-v" translate="no">lock</span></button></li>
-      <li><a class="sgx-pop-row sgx-pop-row--acc" href="{{ $sec }}lock/#lockmgr-sessions"><span class="sgx-pop-k">{{ $t.sec.lockAll }}</span><span class="sgx-pop-v" translate="no">lock --all</span><span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
-    </ul>
+    <div class="sgx-nav-h"><span translate="no"><b aria-hidden="true">$</b> {{ $t.sec.title }}</span><span class="sgx-pop-hv" data-sec-head translate="no"></span></div>
+    {{- /* 没验证（没有 3 分钟 reauth 票）：终端式「sudo security · 选择验证方式」，[1] / [2] 去锁屏凭证页的门（验证在那一页做） */}}
+    <div class="sgx-pop-login" data-sec-locked hidden>
+      <p><span class="sgx-pop-ps" translate="no">sloan@space:~$</span> <span translate="no">sudo security</span></p>
+      <p>{{ $t.sec.choose }}</p>
+      <p class="sgx-pop-opts"><a class="sgx-pop-opt" href="{{ $sec }}lock/" data-key="1"><b translate="no">[1]</b> <span translate="no">passkey</span></a><a class="sgx-pop-opt" href="{{ $sec }}lock/" data-key="2"><b translate="no">[2]</b> <span translate="no">lockkey</span></a></p>
+      <p class="sgx-pop-cur" aria-hidden="true"><span class="sgx-pop-ps">&gt;</span> <i></i></p>
+      <p class="sgx-pop-dim">{{ $t.sec.ticket }}</p>
+    </div>
+    <div data-sec-open>
+      <p class="sgx-pop-g">{{ $t.sec.keys }}</p>
+      <ul class="sgx-pop-list">
+        <li><a class="sgx-pop-row" href="{{ $sec }}lock/"><span class="sgx-pop-k">{{ $t.sec.passkeys }}</span><span class="sgx-pop-v" data-sec-v="pk"></span><span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
+        <li><a class="sgx-pop-row" href="{{ $sec }}lock/"><span class="sgx-pop-k">{{ $t.sec.lockKeys }}</span><span class="sgx-pop-v" translate="no">LockKey</span><span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
+        <li><a class="sgx-pop-row" href="{{ $sec }}tempkeys/"><span class="sgx-pop-k">{{ $t.sec.tempKeys }}</span><span class="sgx-pop-v">{{ $t.sec.tempHint }}</span><span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
+      </ul>
+      <p class="sgx-pop-g sgx-pop-g--line">{{ $t.sec.session }}</p>
+      <ul class="sgx-pop-list">
+        <li><a class="sgx-pop-row" href="{{ $sec }}"><span class="sgx-pop-k">{{ $t.sec.lockSession }}</span><span class="sgx-pop-v" data-sec-v="sess"></span></a></li>
+        <li><button type="button" class="sgx-pop-row sgx-pop-row--acc" data-sec="lock"><span class="sgx-pop-k" data-sec-lock-state>{{ $t.sec.lockNow }}</span><span class="sgx-pop-v" translate="no">lock</span></button></li>
+        <li><a class="sgx-pop-row sgx-pop-row--acc" href="{{ $sec }}lock/#lockmgr-sessions"><span class="sgx-pop-k">{{ $t.sec.lockAll }}</span><span class="sgx-pop-v" translate="no">lock --all</span></a></li>
+      </ul>
+    </div>
   </div>
 </dialog>
 {{- /* 全站终端抽屉（2026-11 PR-2，设计稿 term-v1）：Ctrl / ⌘ K 或 NAVIGATE 里的「$ terminal」打开，Esc 关；引擎 shell/terminal.js（主页首屏嵌入的终端用同一套标记、同一个引擎实例） */}}

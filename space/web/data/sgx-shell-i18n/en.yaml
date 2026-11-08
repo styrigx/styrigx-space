@@ -3,6 +3,8 @@
 # 加一种语言：放一份 <语言>.yaml（缺的键自动用英文），各站 hugo.yaml languages 加一项。
 # 不放进来的：品牌名（Gray AI、Styrigx）、个人信息类（名字、邮箱、账号名……原样渲染，见 partials/sgx-personal.html）、语言自己的名字（用 hugo.yaml languageName / label）。
 topbar:
+  mayErr: "Answers may be wrong"
+  model: "AI model"
   aiSub: "Ask anything about this space"
   close: "Close"
   sys: Follow system
@@ -47,6 +49,9 @@ topbar:
   schemeLight: Light
   paletteKey: PALETTE
 ai:
+  sug3: "What devices do you use?"
+  sug2: "Today’s daymark"
+  sug1: "What have you been listening to?"
   greet: "Hi, I'm Gray's AI assistant. Ask about this site, or talk through whatever you're working on."
   histEmpty: No past chats yet
   untitled: (Untitled)
@@ -66,7 +71,7 @@ ai:
   fail: Couldn’t get an answer. Please try again
   send: Send
   stop: Stop
-  sources: Sources
+  sources: "Sources"
   newTab: (opens in a new tab)
 share:
   share: Share
@@ -189,9 +194,15 @@ term:
   locking: "locking …"
   asking: "asking Gray AI …"
 acct:
+  last: "Last {t}"
+  unprotected: "Not set up"
+  protected: "Protected"
+  signOutFail: "Couldn’t sign out. Check your connection."
+  back: "Ctrl+C or esc to go back"
+  signOut: "Sign out"
   signedIn: "Signed in"
   guest: "Not signed in"
-  guestLine: "Not signed in · choose how to verify on the account page"
+  guestLine: "Not signed in · choose how to verify"
   signIn: "Sign in"
   edit: "Edit"
   profile: "Profile"
@@ -204,6 +215,13 @@ acct:
   aiHint: "account overview"
   overview: "Account overview"
 sec:
+  locked: "locked"
+  left: "{t} left"
+  pkCount: "{n}"
+  lockSession: "Lock screen session"
+  passkeys: "Passkeys"
+  ticket: "Valid 3 minutes after verifying · ends when you leave"
+  choose: "Choose how to verify"
   title: "SECURITY"
   keys: "Keys"
   lockKeys: "Lock screen credentials"

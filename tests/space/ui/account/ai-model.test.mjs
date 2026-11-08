@@ -107,11 +107,15 @@ test('模板：「AI 模型」一行在 #acct-main（登录后的总览）里，
   }
 });
 
-test('AI 窗口不做切换：ai-panel.js 里没有模型列表请求、没有选择控件（切换口子只在账号页）', () => {
+test('AI 窗口头部模型胶囊（2026-11 PR-5 按设计稿 ai-v1）：GET /api/ai 读列表，选中写同一个键 sgx-ai-model 并派发 sgx-settings-changed；单选不用底部弹出窗口', () => {
   const src = rd('space/web/assets/js/shell/ai-panel.js');
-  assert.doesNotMatch(src, /method: 'GET'/);
-  assert.doesNotMatch(src, /setItem\(MODEL_KEY/);
-  assert.doesNotMatch(rd('space/web/layouts/partials/shell-topbar.html'), /model/i);
+  assert.match(src, /doFetch\('\/api\/ai', \{ method: 'GET'/);
+  assert.match(src, /store\(\)\.setItem\(MODEL_KEY, String\(m\.id\)\)/);
+  assert.match(src, /setAttribute\('role', 'radio'\)/);
+  assert.doesNotMatch(src, /openSheet\s*\(/);
+  const tb = rd('space/web/layouts/partials/shell-topbar.html');
+  assert.match(tb, /data-ai-model aria-expanded="false" aria-controls="sgx-ai-models"/);
+  assert.match(tb, /role="radiogroup"[^>]*data-ai-models hidden/);
 });
 
 test('AI 模型选择不用底部弹出窗口（P4-3 §6.7）：account-ai.js 不引 shell/sheet.js、不调 openSheet；选项是 role=radio、选中即保存并收起', () => {

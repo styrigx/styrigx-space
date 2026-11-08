@@ -92,7 +92,7 @@ test.describe('顶栏', () => {
       const acct = path.startsWith('/blog/zh/') ? 'https://styrigx.com/zh/account/' : 'https://styrigx.com/account/';
       await expect(page.locator('#site-nav .sgx-tb-me')).toHaveCount(0);
       await expect(page.locator('.sgx-topbar .sgx-tb-av')).toHaveAttribute('href', acct);
-      await expect(page.locator('#sgx-ai .sgx-ai-me')).toHaveAttribute('href', acct);
+      await expect(page.locator('#sgx-acct .sgx-pop-me-a')).toHaveAttribute('href', acct);
       await expect(page.locator('.sgx-tb-nav, #sgx-drawer, .sgx-tb-end, .sgx-tb-share, .sgx-topbar [data-sgx-share]')).toHaveCount(0);
       await expect(page.locator('.sgx-tb-end-group, .sgx-tb-guestbook, a[href*="guestbook"]')).toHaveCount(0);
       await expect(page.locator('.oui-footer')).toHaveCount(0);

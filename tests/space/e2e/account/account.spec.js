@@ -841,8 +841,8 @@ test.describe('头像（2026-11-04 P5-1 起在顶栏最右；P4-3 PR-4b 起在 A
       await route.fulfill({ response: res, body: body });
     });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    /* P4-3 PR-4b：头像不在顶栏，搬进 AI 窗口头部（.sgx-ai-me） */
-    const me = page.locator('.sgx-ai-me');
+    /* 2026-11 PR-5（按设计稿）：账号入口 = 顶栏头像（点开账号下拉；AI 窗口头部不再有头像） */
+    const me = page.locator('.sgx-tb-av');
     await expect(me).toHaveAttribute('href', '/zh/account/');
     expect(await me.getAttribute('aria-disabled')).toBe(null);
     expect(await me.evaluate((el) => getComputedStyle(el).pointerEvents)).not.toBe('none');
