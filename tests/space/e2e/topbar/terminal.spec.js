@@ -231,7 +231,7 @@ test('抽屉：Esc 关上后马上 Ctrl K 重开，上一次关闭迟到的 clos
   await expect.poll(() => page.evaluate(() => history.state)).toBeNull();
 });
 
-test('抽屉：NAVIGATE 里的「$ terminal」打开；cd curio 跳到奇趣', async ({ page }) => {
+test('抽屉：NAVIGATE 页脚的「Ctrl K 终端 ›」打开（2026-11 PR-A，原「$ terminal」按钮）；cd curio 跳到奇趣', async ({ page }) => {
   await go(page, '/zh/theme/');
   await page.locator('.sgx-tb-grid').click();
   await expect(page.locator('#sgx-nav')).toHaveAttribute('open', '');

@@ -1,6 +1,6 @@
 // 外观 / 语言跟主站（sgx-ui cookie）：真页面跑一遍主站契约夹具（tests/fixtures/ui-cookie-contract.json，sync-shell 原样同步）。
 // - 每个用例：带上 cookie、系统浅色 / 深色各加载一次，<html> 状态 = 夹具的 light.root / dark.root（共享读端 SgxUI.apply 内联在 <head>）
-// - 选湖蓝 lake 必须写 data-palette="lake"（不能当默认渲染成 dustyblue）
+// - 选湖蓝 lake 必须写 data-palette="lake"（不能当默认渲染成 terra）
 // - 自定义主题色：没缓存时加载 shell-accent.js 算角色，写 <style id="sgx-accent-roles"> 和本站缓存
 // - 语言（语言清理 2026-11-07：四站同一份首帧跳转 lang-boot.js）：cookie 带明确语言且版本合法 → 跳到那种语言的同一页；
 //   版本不认识 / lang 是 system / 空 / 没有 cookie = 跟随系统 → 按浏览器语言（本文件浏览器用 zh-CN，和原来中文页的用例一致）
@@ -48,7 +48,7 @@ for (const sys of ['light', 'dark']) {
   });
 }
 
-test('湖蓝 lake：写 data-palette="lake"，主色取 lake 的角色（不是默认 dustyblue）', async ({ page, context }) => {
+test('湖蓝 lake：写 data-palette="lake"，主色取 lake 的角色（不是默认 terra）', async ({ page, context }) => {
   await setup(page);
   await setCookie(context, fx.cases.find((c) => c.name.startsWith('湖蓝 lake')).cookie);
   await page.goto(PAGE);

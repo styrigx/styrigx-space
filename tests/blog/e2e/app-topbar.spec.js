@@ -329,10 +329,10 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     /* 竖排列表：一项一行 */
     const b = await tiles.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; }));
     for (let i = 1; i < b.length; i++) { expect(b[i][0]).toBe(b[0][0]); expect(b[i][1]).toBeGreaterThan(b[i - 1][1]); }
-    /* 面板落在顶栏下方 8px，左右对齐顶栏内容区（手机 412：页边距 16） */
+    /* 面板上沿贴顶栏下沿（2026-11 PR-A 照设计稿：静态实色卡、不留 8px 缝），左右对齐顶栏内容区（手机 412：页边距 16） */
     const sheet = await page.locator('#sgx-nav .sgx-qp-sheet').boundingBox();
     const bar = await page.locator('.sgx-topbar').boundingBox();
-    expect(Math.abs(sheet.y - (bar.y + bar.height) - 8)).toBeLessThanOrEqual(1);
+    expect(Math.abs(sheet.y - (bar.y + bar.height))).toBeLessThanOrEqual(1);
     expect(Math.abs(sheet.x - 16)).toBeLessThanOrEqual(1);
     expect(Math.abs(sheet.x + sheet.width - (412 - 16))).toBeLessThanOrEqual(1);
     /* 分享 / 锁定在 NAVIGATE；外观面板没有页签、导航列表、分享 */

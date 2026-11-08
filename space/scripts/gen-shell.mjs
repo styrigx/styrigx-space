@@ -134,7 +134,7 @@ function renderTokens(data) {
     .join('\n');
   return (
     HEAD('space/web/data/palette-roles.json') +
-    '/* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 dustyblue 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */\n' +
+    '/* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 terra 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */\n' +
     block +
     '\n/* 调色板派生 token（tag / chart）：只引用上面的色调 token */\n' +
     derivedCss +

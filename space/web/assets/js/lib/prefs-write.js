@@ -4,7 +4,7 @@
  * 自成一体：不 import 任何东西（子站原样复制）；cookie 的字段表 / 编解码用页面上已有的 window.SgxUI（ui-cookie-read.js：主站 lib/ui-cookie.js 引入，子站 <head> 内联）。
  *
  * 写什么：
- * - localStorage（PR3 起四站同源，同一份）：sgx-theme-mode（跟随系统 = 删 key，同 features.yaml 默认）、sgx-palette（默认 dustyblue = 删 key）、
+ * - localStorage（PR3 起四站同源，同一份）：sgx-theme-mode（跟随系统 = 删 key，同 features.yaml 默认）、sgx-palette（默认 terra = 删 key）、
  *   sgx-lang（配置里的语言 en / zh …；跟随系统 = 'system'，语言清理 2026-11-07 起明确存值，旧的空 / 没有也按跟随系统）；选预设色板时清掉自定义主题色 sgx-accent / sgx-accent-css。
  * - sgx-ui cookie（syncUiCookie，原 lib/ui-cookie.js 的写法原样搬来）：子站首帧前读它；主站读 localStorage。
  * 主站：lib/prefs.js 的 setter 仍经 features.js 写同一批 key（features 的订阅 / 云同步要用），cookie 由 core.js 在 sgx-settings-changed 时调本文件的 syncUiCookie；
@@ -14,7 +14,7 @@
  */
 
 /** 默认调色板（= features.yaml palette.default = palettes.json default） */
-export const DEFAULT_PALETTE = 'dustyblue';
+export const DEFAULT_PALETTE = 'terra';
 
 var COOKIE_MAX_AGE = 34560000; /* 400 天 */
 
@@ -166,7 +166,7 @@ export function toggleFollowSystem() {
   if (themeMode() === 'system') setThemeMode(isDark() ? 'dark' : 'light');
   else setThemeMode('system');
 }
-/** 选预设色板（子站）：清掉自定义主题色，默认 dustyblue 不存。 @param {string} p */
+/** 选预设色板（子站）：清掉自定义主题色，默认 terra 不存。 @param {string} p */
 export function setPalette(p) {
   var v = normPalette(p);
   lsSet('sgx-accent', null);

@@ -19,7 +19,7 @@ assert.ok(start > 0, '找到预读脚本');
 const end = baseof.indexOf('})();', start) + '})();'.length;
 const PAL_TPL = /\{\{ \$palIds := slice \}\}[\s\S]*?\{\{ \$palIds \| jsonify \| safeJS \}\}/;
 assert.match(baseof.slice(start, end), PAL_TPL);
-const SRC = baseof.slice(start, end).replace(PAL_TPL, '["dustyblue","forest","lake"]');
+const SRC = baseof.slice(start, end).replace(PAL_TPL, '["dustyblue","forest","lake","terra"]');
 assert.doesNotMatch(SRC, /\{\{/, '没有剩下的模板语法');
 
 function run(storage) {
@@ -69,7 +69,7 @@ test('存储正常：调色板、布局照旧生效；默认调色板的值被�
   r = run(s);
   assert.equal(r.attrs['data-palette'], 'lake', '旧撞色 x<id> 迁到 <id>');
   assert.equal(s.m.get('sgx-palette'), 'lake');
-  s = mk({ 'sgx-palette': 'dustyblue' });
+  s = mk({ 'sgx-palette': 'terra' });
   r = run(s);
   assert.equal(r.attrs['data-palette'], undefined);
   assert.equal(s.m.has('sgx-palette'), false);

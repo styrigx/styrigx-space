@@ -43,6 +43,17 @@ async function go(page, path, opts = {}) {
   await animationsDone(page);
 }
 
+/** 同 go，但先挂 /api/status 的 mock（要排在 blockExternalRequests 之后注册才优先） */
+async function goStatus(page, path, handler) {
+  await blockExternalRequests(page);
+  await freezeTime(page);
+  await page.route('**/api/status', handler);
+  /* 测试构建默认不自动问 /api/status（静态站没接口，免得 Lighthouse 控制台报 404）；这里打开 */
+  await page.addInitScript(() => { window.__sgxStatusApi = true; });
+  await page.goto(path, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
+}
+
 async function box(page, sel) {
   const b = await page.locator(sel).first().boundingBox();
   if (!b) throw new Error('no box: ' + sel);
@@ -122,8 +133,8 @@ for (const dark of [false, true]) {
         /* AI 浮钮：右下角 56 × 56（手机边距 16），主题实色 */
         expect(near(ai.width, 56) && near(ai.height, 56), `AI 浮钮 ${ai.width}`).toBe(true);
         expect(near(ai.x + ai.width, 390 - 16) && near(ai.y + ai.height, 844 - 16), `AI 浮钮位置 ${ai.x},${ai.y}`).toBe(true);
-        /* 颜色：外观 / >_ 平时透明，打开 = 主题色衬底（--sgx-term-sel）；AI 浮钮平时实色（primary-fill），打开浅一档（primary-container） */
-        const sel = await roleColor(page, '--sgx-term-sel');
+        /* 颜色：外观 / >_ 平时透明，打开 = 选中衬底（--sgx-surface-container-high，2026-11 PR-A 照稿）；AI 浮钮平时实色（primary-fill），打开浅一档（primary-container） */
+        const sel = await roleColor(page, '--sgx-surface-container-high') /* 2026-11 PR-A 照稿 .ic a.on：#2a2522 */;
         const fill = await roleColor(page, '--sgx-primary-fill');
         const cont = await roleColor(page, '--sgx-primary-container');
         expect(await bg(page, '.sgx-tb-grid')).toBe('rgba(0, 0, 0, 0)');
@@ -379,14 +390,18 @@ test.describe('390×844 行为', () => {
     const order = await nav.locator('.sgx-qp-sheet > *').evaluateAll((els) => els.map((e) => e.className));
     expect(order).toEqual(['sgx-nav-h', '', 'sgx-nav-pf', 'sgx-nav-act', 'sgx-nav-st', 'sgx-nav-f']);
     await expect(nav.locator('.sgx-nav-pfk')).toHaveText(['lang', 'layout']);
-    /* 2026-11 PR-2：加「$ terminal」（打开全站终端抽屉） */
-    await expect(nav.locator('.sgx-nav-act button')).toHaveText(['share', 'lock', '$terminal']);
+    /* 2026-11 PR-A 照稿：只有 share / lock 两颗；终端（PR-2 的功能）挪到页脚一行「Ctrl K 终端 ›」 */
+    await expect(nav.locator('.sgx-nav-act button')).toHaveText(['share', 'lock']);
+    await expect(nav.locator('.sgx-nav-f [data-qp="term"]')).toHaveText('Ctrl K 终端 ›');
+    await expect(nav.locator('.sgx-nav-f [data-qp="term"]')).toHaveAccessibleName('终端');
     await expect(nav.locator('[data-st]')).toHaveCount(6);
     await expect(nav.locator('[data-st] span')).toHaveText(['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth']);
-    await expect(nav.locator('[data-st-ms]').first()).toHaveText('—');
+    /* 没有 /api/status 数据（测试静态站没有接口）：延迟空着、点是灰的（2026-11 PR-A 接真数据，见 nav-status.spec） */
+    await expect(nav.locator('[data-st-ms]').first()).toHaveText('');
+    await expect(nav.locator('[data-st="space"]')).not.toHaveAttribute('data-up', /./);
     await expect(nav.locator('.sgx-nav-st-h span')).toHaveText('STATUS');
-    await expect(nav.locator('.sgx-nav-flink')).toHaveAttribute('href', '/zh/status/');
-    await expect(nav.locator('.sgx-nav-flink')).toHaveText('systemctl status ›');
+    await expect(nav.locator('a.sgx-nav-flink')).toHaveAttribute('href', '/zh/status/');
+    await expect(nav.locator('a.sgx-nav-flink')).toHaveText('systemctl status ›');
     await expect(nav.locator('[data-nav-close]')).toHaveText('esc 关闭');
     /* 手机：左右对齐顶栏内容区 */
     const sh = await box(page, '#sgx-nav .sgx-qp-sheet');
@@ -401,6 +416,39 @@ test.describe('390×844 行为', () => {
     await nav.locator('[data-nav-close]').click();
     await expect(nav).toBeHidden();
     await expect(nav).toHaveAttribute('data-state', 'closed');
+  });
+
+  test('NAVIGATE STATUS + 页脚 ● n/6（2026-11 PR-A 接 /api/status）：主站一项 → space / blog / curio / daymark，ai → gray-ai，auth = 网关这一问；拿不到时灰点 –/6', async ({ page }) => {
+    let calls = 0;
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+    await goStatus(page, '/zh/', (r) => { calls++; return r.fulfill({ json: { ok: true, all_up: true, sites: [
+      { site: 'space', up: true, last: { ok: true, ms: 38 } }, { site: 'proxy-rules', up: true, last: { ok: true, ms: 50 } }, { site: 'ai', up: false, last: { ok: false, ms: 900 } }] } }); });
+    await expect(page.locator('.sgx-foot-st')).toContainText('5/6');
+    await expect(page.locator('.sgx-foot-st')).toHaveAttribute('data-up', '0');
+    await page.locator('.sgx-tb-grid').click();
+    const nav = page.locator('#sgx-nav');
+    await expect(nav.locator('[data-st="space"] [data-st-ms]')).toHaveText('38ms');
+    await expect(nav.locator('[data-st="blog"] [data-st-ms]')).toHaveText('38ms');
+    await expect(nav.locator('[data-st="daymark"]')).toHaveAttribute('data-up', '1');
+    await expect(nav.locator('[data-st="gray-ai"]')).toHaveAttribute('data-up', '0');
+    await expect(nav.locator('[data-st="auth"]')).toHaveAttribute('data-up', '1');
+    await expect(nav.locator('[data-st-sum]')).toHaveText('5/6');
+    /* 2 分钟内打开 NAVIGATE 不重复问（sessionStorage 缓存） */
+    expect(calls).toBe(1);
+  });
+
+  test('NAVIGATE STATUS：全部在线 =「● 全部在线」绿；接口 401（锁着）= 灰点、页脚 –/6', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
+    await goStatus(page, '/zh/', (r) => r.fulfill({ json: { ok: true, sites: [{ site: 'space', up: true, last: { ms: 40 } }, { site: 'ai', up: true, last: { ms: 120 } }] } }));
+    await expect(page.locator('.sgx-foot-st')).toContainText('● 6/6');
+    await page.locator('.sgx-tb-grid').click();
+    await expect(page.locator('#sgx-nav [data-st-sum]')).toHaveText('● 全部在线');
+    await expect(page.locator('#sgx-nav [data-nav-status]')).toHaveAttribute('data-state', 'up');
+    const p2 = await page.context().newPage();
+    await goStatus(p2, '/zh/', (r) => r.fulfill({ status: 401, json: { ok: false } }));
+    await p2.waitForTimeout(1500);
+    await expect(p2.locator('.sgx-foot-st')).toContainText('–/6');
+    await expect(p2.locator('#sgx-nav [data-st="space"]')).not.toHaveAttribute('data-up', /./);
   });
 
   test('NAVIGATE：旷野分类子页（关于）当前项是 05 旷野；账号页没有当前项（00/05）', async ({ page }) => {

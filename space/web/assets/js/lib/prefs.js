@@ -44,7 +44,7 @@ export function toggleFollowSystem() {
 
 /* 默认调色板 DEFAULT_PALETTE、存值归一 normPalette：2026-11-04 P5-1 起定义在外观写端 lib/prefs-write.js（四站共用，见上面的 import / export） */
 
-/** @returns {string} 调色板 id（默认 dustyblue） */
+/** @returns {string} 调色板 id（默认 terra） */
 export function palette() {
   return normPalette(featGet('palette'));
 }

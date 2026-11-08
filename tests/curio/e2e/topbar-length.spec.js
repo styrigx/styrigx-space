@@ -3,7 +3,8 @@
  * 顶栏 v3：任何布局 / 设备都是贴顶通栏，内容收进居中的 --sgx-content-w（1080）：左右内边距 = max(页边距, (宽 − 1080) / 2)
  * （字标左缘 + 4 内缩、图标组右缘量出来）——同一视口四站每页都一样。
  * 页名不在页面顶栏显示（标记留着：子站首页 = 站名，切到页内分区换成分区名；锁屏顶栏抄它当标题）。
- * 主站在 space/web/public 里是生产构建（锁屏启用）：主站页面量的是最上层看得见的那条（锁屏的顶栏）。主站自己的顶栏见 tests/space/e2e/topbar/topbar-length.spec.js。 */
+ * 主站在 space/web/public 里是生产构建（锁屏启用）：主站页面被锁屏盖住。2026-11 PR-A 起锁屏没有顶栏（设计稿 02:48 定），这时断言「看不到任何顶栏」、不量边距。
+ * 主站自己的顶栏见 tests/space/e2e/topbar/topbar-length.spec.js。 */
 const { test, expect } = require('@playwright/test');
 
 const PAGES = ['/', '/security/', '/theme/', '/account/', '/?lock=1', '/blog/', '/blog/post/2026-10-07-muse-playbook/', '/curio/', '/daymark/'];
@@ -30,9 +31,17 @@ function expected(w, h, pref = 'auto', mobile = false) {
   return { mode, device, inset: Math.max(m, (w - 1080) / 2) };
 }
 
-/** 用户看得见的顶栏（最上层那条：锁屏时是锁屏的顶栏，主站页面自己的顶栏被锁屏盖住，不算）：
- *  通栏本身离视口两边的距离（bl / br，应为 0）+ 内容左右内边距（字标左缘 + 4、视口宽 − 图标组右缘）；右边按视口宽算，不按去掉滚动条的宽 */
+/** 用户看得见的顶栏（最上层那条；主站页面自己的顶栏被锁屏盖住，不算）：
+ *  通栏本身离视口两边的距离（bl / br，应为 0）+ 内容左右内边距（字标左缘 + 4、视口宽 − 图标组右缘）；右边按视口宽算，不按去掉滚动条的宽。
+ *  锁着（#sgx-lock 在）：锁屏没有顶栏（2026-11 PR-A）→ 断言一条都看不到，返回 null（不量） */
 async function insets(page) {
+  if (await page.locator('#sgx-lock').count()) {
+    expect(await visibleBars(page), '锁屏：看不到任何顶栏').toEqual([]);
+    return null;
+  }
+  return visibleBars(page);
+}
+function visibleBars(page) {
   return page.evaluate(() => Array.from(document.querySelectorAll('.sgx-topbar'))
     .filter((el) => {
       const r = el.getBoundingClientRect();
@@ -73,6 +82,7 @@ async function open(page, p) {
 }
 
 function check(got, want, label) {
+  if (got === null) return; /* 锁屏：没有顶栏，上面已断言 */
   expect(got.length, `${label}：没有看得见的顶栏`).toBeGreaterThan(0);
   for (const b of got) {
     expect(Math.abs(b.bl) + Math.abs(b.br), `${label} 通栏 ${b.bl} / ${b.br}`).toBeLessThanOrEqual(1);
@@ -96,7 +106,7 @@ for (const [w, h] of VIEWPORTS) {
       const got = await insets(page);
       check(got, want, `${w}×${h} ${p}`);
       expect(await noHScroll(page), `${w}×${h} ${p} 横向不滚`).toBe(true);
-      seen.push(...got.map((b) => `${b.left.toFixed(1)}|${b.right.toFixed(1)}`));
+      if (got) seen.push(...got.map((b) => `${b.left.toFixed(1)}|${b.right.toFixed(1)}`));
     }
     expect(new Set(seen).size, `各页边距 ${[...new Set(seen)].join(' / ')}`).toBe(1);
   });

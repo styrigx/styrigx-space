@@ -441,14 +441,15 @@ test.describe('锁屏版面（lock-v10 设计稿 K1：头像 → 状态 → 名�
     await zh(page);
   });
 
-  test('版面：顶栏标题「锁定屏幕」；顶栏左边是 logo（只是外观）；头像（不可点）→ 欢迎回来 / 很高兴再次见到你 → 终端（命令输入行）；没有解锁按钮、弹层、时钟和日刻', async ({ page }) => {
+  test('版面（2026-11 PR-A 照稿：锁屏没有顶栏）：头像（不可点）→ 欢迎回来 / 很高兴再次见到你 → 终端（命令输入行）；没有顶栏、解锁按钮、弹层、时钟和日刻', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
     const lock = page.locator('#sgx-lock');
     await expect(lock.locator('.sgx-glass-bg')).toHaveCount(1);
+    /* 标题节点还在（lock.js 照写「锁定屏幕 / 解锁屏幕」），但整条顶栏不显示 */
     await expect(page.locator('#sgx-lock-title')).toHaveText('锁定屏幕');
-    await expect(lock.locator('.sgx-lock-tb span.sgx-tb-logo')).toHaveCount(1);
-    await expect(lock.locator('.sgx-wordmark:not(.sgx-lock-tb .sgx-wordmark)')).toHaveCount(0);
+    await expect(lock.locator('.sgx-lock-tb')).toBeHidden();
+    await expect(lock.locator('.sgx-wordmark:visible, .sgx-tb-logo:visible, .sgx-tb-btn:visible')).toHaveCount(0);
     await expect(lock).not.toContainText('Personal');
     await expect(lock.locator('.sgx-lock-welcome')).toHaveText('欢迎回来');
     await expect(lock.locator('.sgx-lock-sub')).toHaveText('很高兴再次见到你');
@@ -460,11 +461,10 @@ test.describe('锁屏版面（lock-v10 设计稿 K1：头像 → 状态 → 名�
     /* 点头像不会打开任何东西 */
     await page.locator('#sgx-lock-avatar').click({ force: true });
     await expectNoPopups(page);
-    /* 顺序：顶栏在头像上面，头像在终端上面；底部 zh · en */
-    const w = await lock.locator('.sgx-lock-tb').boundingBox();
+    /* 顺序：头像在终端上面；底部 zh · en */
     const u = await page.locator('#sgx-lock-avatar').boundingBox();
     const t = await page.locator('#sgx-lock-term').boundingBox();
-    expect(w.y + w.height).toBeLessThan(u.y);
+    expect(u.y).toBeGreaterThan(0);
     expect(u.y + u.height).toBeLessThan(t.y);
     await expect(page.locator('.sgx-lock-lang')).toHaveText(['zh', 'en']);
     await expect(page.locator('.sgx-lock-lang[data-lang="zh"]')).toHaveAttribute('aria-current', 'true');
@@ -505,15 +505,39 @@ test.describe('锁屏版面（lock-v10 设计稿 K1：头像 → 状态 → 名�
     }
   });
 
-  test('锁屏顶栏照抄顶栏按钮（2026-11 PR-1 顶栏 v3：外观 · 盾牌 · >_，头像和 AI 浮钮不抄），尺寸和顶栏一样（40 × 40）', async ({ page }) => {
+  test('锁屏没有顶栏（2026-11 PR-A，设计稿 02:48 定）：看不到字标 / 页名胶囊 / 外观 · 盾牌 · >_；底 = 纯色 --sgx-bg-1 + 44px 网格，没有主题色光晕', async ({ page }) => {
     await page.setViewportSize({ width: 412, height: 915 });
     await gotoLock(page);
-    await expect(page.locator('#sgx-lock .sgx-lock-tb img, #sgx-lock .sgx-lock-tb .sgx-tb-me')).toHaveCount(0);
-    expect(await page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.tagName + '.' + e.className)))
-      .toEqual(['SPAN.sgx-tb-btn sgx-tb-quick', 'SPAN.sgx-tb-btn sgx-tb-shield', 'SPAN.sgx-tb-btn sgx-tb-grid']);
-    const sz = await page.locator('#sgx-lock .sgx-lock-tb .sgx-tb-acts > *').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
-    /* 三颗 40 × 40 按钮，同顶栏 */
-    expect(sz).toEqual([[40, 40], [40, 40], [40, 40]]);
+    const lock = page.locator('#sgx-lock');
+    await expect(lock.locator('.sgx-lock-tb')).toBeHidden();
+    expect(await lock.locator('.sgx-lock-tb').evaluate((el) => getComputedStyle(el).display)).toBe('none');
+    /* 整页（含锁屏下面的全站顶栏）在锁屏范围里看不到任何顶栏控件：锁屏盖住整页 */
+    for (const sel of ['.sgx-tb-logo', '.sgx-tb-pill', '.sgx-tb-quick', '.sgx-tb-shield', '.sgx-tb-grid']) {
+      const hits = await page.evaluate((q) => Array.from(document.querySelectorAll(q)).some((el) => {
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) return false;
+        const x = r.left + r.width / 2, y = r.top + r.height / 2;
+        if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) return false;
+        const top = document.elementFromPoint(x, y);
+        return !!top && (top === el || el.contains(top));
+      }), sel);
+      expect(hits, sel).toBe(false);
+    }
+    /* 底：锁屏和背景层都是 --sgx-bg-1 纯色；网格 = --sgx-grid（44px）；没有 ::after 光晕 */
+    const bg = await page.evaluate(() => {
+      const L = document.getElementById('sgx-lock'), g = L.querySelector('.sgx-glass-bg');
+      const probe = document.createElement('div'); probe.style.background = 'var(--sgx-bg-1)'; document.body.appendChild(probe);
+      const bg1 = getComputedStyle(probe).backgroundColor; probe.remove();
+      const before = getComputedStyle(g, '::before'), after = getComputedStyle(g, '::after');
+      return { lock: getComputedStyle(L).backgroundColor, glass: getComputedStyle(g).backgroundColor, bg1,
+        img: before.backgroundImage, size: before.backgroundSize, after: after.content === 'none' || after.content === '' ? 'none' : after.backgroundImage };
+    });
+    expect(bg.lock).toBe(bg.bg1);
+    expect(bg.glass).toBe(bg.bg1);
+    expect(bg.img).toContain('linear-gradient');
+    expect(bg.img).not.toContain('radial-gradient');
+    expect(bg.size).toContain('44px');
+    expect(bg.after).toBe('none');
   });
 
   for (const theme of ['light', 'dark']) {

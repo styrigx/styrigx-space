@@ -7,8 +7,8 @@
 {{/* 切页时等 <main> 解析完再出第一帧，避免过渡里露出还没排好版的新页面（标准写法，Chromium 124+；不支持的浏览器忽略） */}}
 <link rel="expect" href="#sgx-main" blocking="render">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#f5f8fa">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10151a">
+<meta name="theme-color" content="#fcf3ef">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161412">
 {{/* 标签页标题（Gray 2026-11-07 定，四站统一）：「页名 | 站名」，站名走字符串表 site.name（主站 Styrigx，品牌名不翻，只在英文表、各语言回退）；
    页名就是站名时只显示站名。旷野页（根路径）页名是「旷野 / Space」（spaceCats.band.title），所以是「旷野 | Styrigx」。 */}}
 {{/* 404 的 .Title 是 Hugo 内置英文「404 Page not found」，不随语言：改用字符串表的页名（与页名胶囊同一个） */}}
@@ -76,9 +76,9 @@ addEventListener('pagereveal',function(e){window.__sgxRevealVT=e.viewTransition|
     try{['sgx-font-size','sgx-reduced-motion','sgx-gl-sound','sgx-gl-edgeglow','sgx-gl-parallax','sgx-gl-wellbeing',
       'sgx-tz1-auto','sgx-tz1','sgx-tz2','sgx-hour12','sgx-gl-clockstyle','sgx-weather-show','sgx-temp-unit','sgx-weather-loc','sgx-weather-city','sgx-weather-precise','sgx-weather',
       'sgx-gl-keys','sgx-search-engine'].forEach(function(k){localStorage.removeItem(k)})}catch(e){}
-    /* 调色板（2026-10-23 PR-G 七色调色板）：旧撞色 x<id> 迁到 <id>；不认识的 id、等于默认（dustyblue）的值清掉（默认不写 key，同 features.set） */
+    /* 调色板（2026-10-23 PR-G 七色调色板）：旧撞色 x<id> 迁到 <id>；不认识的 id、等于默认（terra）的值清掉（默认不写 key，同 features.set） */
     /* 存储读写各自 try：站点数据被禁用时 localStorage 会抛错，不能让它跳过后面的减弱动效 / 布局 / 语言 */
-    var p=null,PK={{ $palIds := slice }}{{ range site.Data.palettes.palettes }}{{ $palIds = $palIds | append .id }}{{ end }}{{ $palIds | jsonify | safeJS }},PD='dustyblue';
+    var p=null,PK={{ $palIds := slice }}{{ range site.Data.palettes.palettes }}{{ $palIds = $palIds | append .id }}{{ end }}{{ $palIds | jsonify | safeJS }},PD='terra';
     try{p=localStorage.getItem('sgx-palette');
     if(p&&PK.indexOf(p)<0&&/^x[a-z]+$/.test(p)&&PK.indexOf(p.slice(1))>=0){p=p.slice(1);localStorage.setItem('sgx-palette',p)}
     if(p&&(PK.indexOf(p)<0||p===PD)){localStorage.removeItem('sgx-palette');p=null}}catch(e){}
@@ -157,7 +157,6 @@ __sgxLayoutWatch(__applyLayout);
 </head>
 <body class="text-m-on-surface min-h-screen antialiased{{ if not .IsHome }} subpage{{ end }}">
 {{ partial "sgx-icon-sprite.html" . }}
-<div id="sgx-wallpaper" aria-hidden="true"></div>
 {{/* 2.4.0-C：调度器 / 边缘模糊 / 可见性定时器已移入 ES Module（assets/js/shell/），此处不再内联定义 */}}
 {{ $acctUrl := (partial "sgx-lang-path.html" (dict "path" "/account/" "lang" $pageLang)) }}
 

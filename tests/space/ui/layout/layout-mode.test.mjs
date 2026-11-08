@@ -137,7 +137,7 @@ function withDoc({ pref = null, screen = { width: 384, height: 824 }, ua = PHONE
   const mk = (attrs) => ({ a: { ...attrs }, getAttribute(k) { return k in this.a ? this.a[k] : null; }, setAttribute(k, v) { this.a[k] = String(v); } });
   const vp = mk({ name: 'viewport', content });
   const cs = mk({ name: 'color-scheme', content: 'light dark' });
-  const tc = [mk({ name: 'theme-color', content: '#f5f8fa' }), mk({ name: 'theme-color', content: '#10151a', media: '(prefers-color-scheme: dark)' })];
+  const tc = [mk({ name: 'theme-color', content: '#fcf3ef' }), mk({ name: 'theme-color', content: '#161412', media: '(prefers-color-scheme: dark)' })];
   const styles = [];
   const html = { getAttribute: (k) => (k === 'data-dark' ? (dark ? '1' : '0') : null), classList: { contains: (c) => c === 'dark' && dark }, clientWidth: w };
   const head = { firstChild: null, insertBefore(el) { styles.unshift(el); } };
@@ -198,16 +198,16 @@ for (const [label, o] of [
 test('首帧底色：本站深色（系统浅色）→ color-scheme / theme-color 改成深色，<head> 最前面插最低层的 html 底色', () => {
   const r = withDoc({ dark: true });
   assert.equal(r.cs.getAttribute('content'), 'dark');
-  assert.deepEqual(r.tc.map((m) => m.getAttribute('content')), ['#10151a', '#10151a']);
+  assert.deepEqual(r.tc.map((m) => m.getAttribute('content')), ['#161412', '#161412']);
   assert.equal(r.styles.length, 1);
   assert.equal(r.styles[0].id, 'sgx-first-paint');
-  assert.equal(r.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#0a0e10;color-scheme:dark}}');
+  assert.equal(r.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#161412;color-scheme:dark}}');
   const l = withDoc({ dark: false });
   assert.equal(l.cs.getAttribute('content'), 'light');
-  assert.equal(l.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#f2f6f7;color-scheme:light}}');
+  assert.equal(l.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#fcf3ef;color-scheme:light}}');
 });
 
-test('默认调色板的首帧底色 = palettes.json 雾霾蓝 bg-1（换了默认调色板要跟着改）', () => {
+test('默认调色板的首帧底色 = palettes.json 默认色板（terra）bg-1（换了默认调色板要跟着改）', () => {
   const pal = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/palettes.json'), 'utf8'));
   const def = pal.presets.find((p) => p.id === pal.default);
   assert.match(lib, new RegExp("bg=dk\\?'" + def.tokens.dark['bg-1'] + "':'" + def.tokens.light['bg-1'] + "'"));

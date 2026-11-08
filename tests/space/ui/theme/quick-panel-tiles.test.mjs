@@ -50,15 +50,15 @@ test('顶栏 v3 控件（四站同一套）：外观面板 = MODE 三段 + PALET
   assert.doesNotMatch(setJs, /setReducedMotion|setFontSize|seg-font|row-motion/);
 });
 
-test('七色调色板（PR-G）：外观面板 22 行色板 / 设置页 22 个 .pal-tile、不分单色 / 撞色；都有「恢复默认」，初始 aria-disabled，点了 setPalette(DEFAULT_PALETTE = dustyblue)', () => {
+test('七色调色板（PR-G）：外观面板 22 行色板 / 设置页 22 个 .pal-tile、不分单色 / 撞色；都有「恢复默认」，初始 aria-disabled，点了 setPalette(DEFAULT_PALETTE = terra)', () => {
   assert.match(qpHtml, /\{\{- range \.pal \}\}<button type="button" class="sgx-th-pal" data-qp-palette="\{\{ \.id \}\}"/);
   assert.match(base, /\{\{ range site\.Data\.palettes\.palettes \}\}\{\{ \$tbPal = \$tbPal \| append/, '主站色块来自 palettes.yaml（22 个）');
   assert.doesNotMatch(qpHtml, /swatch-clash|"group" "mono"|"group" "clash"/);
   assert.doesNotMatch(theme, /swatch-clash|data-pal-tab|palette-dots-clash/);
   assert.match(theme, /range site\.Data\.palettes\.groups/);
-  assert.match(qpHtml, /<button type="button" class="palette-reset" data-qp-reset aria-disabled="true">/);
+  /* 外观面板（2026-11 PR-A 照稿）：PALETTE 标题行右侧一行小字命令 reset，读屏念「恢复默认」 */
+  assert.match(qpHtml, /<button type="button" class="sgx-th-reset" data-qp-reset aria-disabled="true" aria-label="\{\{ \$t\.topbar\.reset \}\}"/);
   assert.match(theme, /<button type="button" class="palette-reset" id="palette-reset" aria-disabled="true">/);
-  assert.match(qpHtml, /<span>\{\{ \$t\.topbar\.reset \}\}<\/span>/);
   assert.match(rd('space/web/data/sgx-shell-i18n/zh.yaml'), /\n  reset: 恢复默认\n/);
   assert.match(theme, /\{\{ \$tr\.setcatTheme\.reset \}\}/);
   assert.match(setJs, /setPalette\(DEFAULT_PALETTE\)/);

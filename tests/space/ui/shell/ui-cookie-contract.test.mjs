@@ -93,9 +93,9 @@ test('夹具没过期：写端真实产出 = tests/fixtures/ui-cookie-contract.j
   assert.equal(await renderContract(), readFileSync(FIXTURE, 'utf8'));
 });
 
-test('夹具覆盖：默认 dustyblue 亮 / 暗、跟随系统、lake、旧撞色 xforest 迁移、自定义色、旧 v1 / v2、旧种子、未知版本、乱码', () => {
+test('夹具覆盖：默认 terra 亮 / 暗、跟随系统、lake、旧撞色 xforest 迁移、自定义色、旧 v1 / v2、旧种子、未知版本、乱码', () => {
   const names = fx.cases.map((c) => c.name).join('|');
-  for (const k of ['默认 dustyblue 亮色', '默认 dustyblue 深色', '跟随系统', '湖蓝 lake', '旧撞色 xforest', '自定义主题色', '旧 v1', '旧 v2', '旧 cookie：撞色 xforest \\+ 旧种子', '未知版本', '乱码']) assert.match(names, new RegExp(k), k);
+  for (const k of ['默认 terra 亮色', '默认 terra 深色', '跟随系统', '湖蓝 lake', '旧撞色 xforest', '自定义主题色', '旧 v1', '旧 v2', '旧 cookie：撞色 xforest \\+ 旧种子', '未知版本', '乱码']) assert.match(names, new RegExp(k), k);
   assert.ok(fx.cases.filter((c) => c.source === 'writer').length >= 8);
 });
 
@@ -222,7 +222,7 @@ test('跟随系统：系统深浅色一变就重落；cookie 指定了 light / d
   assert.equal(s.html.classList.contains('dark'), true);
   assert.equal(s.html.getAttribute('data-dark'), '1');
   assert.equal(s.html.getAttribute('data-theme-mode'), 'system');
-  s.setCookie(cookieOf('默认 dustyblue 亮色'));
+  s.setCookie(cookieOf('默认 terra 亮色'));
   s.flip(true);
   assert.equal(s.html.classList.contains('dark'), false);
   const n = sandbox();
@@ -230,14 +230,14 @@ test('跟随系统：系统深浅色一变就重落；cookie 指定了 light / d
   assert.equal(n.listeners.length, 0);
 });
 
-test('坏 cookie / 没有 DOM 能力也不抛：默认 dustyblue + 跟随系统', () => {
+test('坏 cookie / 没有 DOM 能力也不抛：默认 terra + 跟随系统', () => {
   const s = sandbox({ cookie: 'sgx-ui=%%%' });
   assert.equal(s.U.read(), null);
   assert.equal(s.U.decode(''), null);
   assert.equal(s.U.decode(null), null);
   assert.equal(s.U.read(null), null);
   const a = s.U.apply(s.html);
-  assert.deepEqual(plain(a), { mode: 'system', dark: false, pal: 'dustyblue', fs: 'standard', rm: false, seed: '' });
+  assert.deepEqual(plain(a), { mode: 'system', dark: false, pal: 'terra', fs: 'standard', rm: false, seed: '' });
 });
 
 test('cookie 属性按主机名 / 协议：localhost / http 不带 Domain / Secure；styrigx.com 及子域 https 带（P5-1 跨站 e2e 修法）', async () => {

@@ -98,20 +98,20 @@ for (const [path, sel] of WRAPS) {
   });
 }
 
-/* ----- 桌面布局：外框 = 100% − 2 × 页边距 居中（宽屏平铺 PR 起桌面内容区通栏）；顶栏 v3 通栏；内部列在框里居中 ----- */
+/* ----- 桌面布局：外框 = min(1080, 100% − 2 × 页边距) 居中（2026-11 PR-A 照设计稿：所有页内容 1080 居中，撤掉 #308 宽屏通栏）；顶栏 v3 通栏；内部列在框里居中 ----- */
 for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
   for (const [path, sel] of WRAPS) {
-    test(`桌面 ${w}×${h}：${path} 外框 = 100% − 2m（通栏）居中；顶栏通栏`, async ({ page }) => {
+    test(`桌面 ${w}×${h}：${path} 外框 = min(1080, 100% − 2m) 居中；顶栏通栏`, async ({ page }) => {
       await go(page, { width: w, height: h }, path);
       await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
       const f = await frame(page, sel);
       const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
       expect(Math.abs(f.bar.l) + Math.abs(f.bar.w - f.vw), `顶栏 ${f.bar.l} / ${f.bar.w}`).toBeLessThanOrEqual(1);
-      expect(Math.abs(f.wrap.w - (w - 2 * m)), `${sel} 外框宽 ${f.wrap.w}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(f.wrap.w - Math.min(1080, w - 2 * m)), `${sel} 外框宽 ${f.wrap.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs(f.wrap.l + f.wrap.w / 2 - f.vw / 2), `${sel} 居中`).toBeLessThanOrEqual(1);
     });
   }
-  test(`桌面 ${w}×${h}：内部列 —— 旷野子页 720 居中、服务状态通栏（宽屏平铺；P4-3 PR-4b 起设置首页的两栏删除）`, async ({ page }) => {
+  test(`桌面 ${w}×${h}：内部列 —— 旷野子页 720 居中、服务状态 = 外框宽（≤ 1080；P4-3 PR-4b 起设置首页的两栏删除）`, async ({ page }) => {
     const col = async (path, s) => {
       await go(page, { width: w, height: h }, path);
       await expect(page.locator(s).first()).toBeAttached();
@@ -121,8 +121,8 @@ for (const [w, h] of [[1024, 700], [1366, 650], [1920, 950]]) {
     await go(page, { width: w, height: h }, '/');
     await expect(page.locator('.set-dex-cols, .set-col-l')).toHaveCount(0);
     const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
-    const shell = w - 2 * m;
-    /* 宽屏平铺：风格页（交互模块，设计不动）仍 720；服务状态去卡片、多栏，内容列通栏 */
+    const shell = Math.min(1080, w - 2 * m);
+    /* 风格页（交互模块，设计不动）仍 720；服务状态内容列 = 外框（2026-11 PR-A 起最宽 1080） */
     for (const [path, s, want] of [['/theme/', '.set-layout > .set-main', 720], ['/status/', '#st-foot', shell]]) {
       const [c] = await col(path, s);
       expect(Math.abs(c.w - Math.min(want, shell)), `${path} ${s} 宽 ${c.w}`).toBeLessThanOrEqual(1);

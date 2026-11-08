@@ -38,17 +38,18 @@ const hasWebkit = (body) => /-webkit-backdrop-filter\s*:/.test(body);
 /* 两种写法可以在同一条规则里，也可以分开（主站共享外壳可能把标准写法放进 @supports (backdrop-filter: …) 防止被压缩器合并）；
    只要求最终 CSS 里两种都在、值都是 --sgx-mat-filter。降级块 @supports not (…) 里只有纯色背景，不影响判断。 */
 /* 2026-11-04 P5-1：毛玻璃在整条胶囊 .sgx-topbar 和快捷面板 / AI 窗口的 .sgx-qp-sheet 上（九宫格、抽屉删了） */
-for (const selector of ['.sgx-topbar', '.sgx-qp-sheet']) {
+/* 2026-11 PR-A 照设计稿：顶栏的模糊是 --sgx-tb-filter（页面底 85% + blur 12px），面板仍是 --sgx-mat-filter */
+for (const [selector, fv] of [['.sgx-topbar', '--sgx-tb-filter'], ['.sgx-qp-sheet', '--sgx-mat-filter']]) {
   test(`${selector}：构建后的 CSS 同时有 backdrop-filter 和 -webkit-backdrop-filter`, () => {
     const { file, css } = builtCss();
     const glass = rulesFor(css, selector).filter((b) => hasStd(b) || hasWebkit(b));
     assert.ok(glass.length > 0, `${file} 里 ${selector} 没有任何 backdrop-filter 规则`);
     assert.ok(
-      glass.some((b) => /(^|;)backdrop-filter:var\(--sgx-mat-filter\)/.test(b)),
+      glass.some((b) => new RegExp('(^|;)backdrop-filter:var\\(' + fv + '\\)').test(b)),
       `${selector} 丢了标准 backdrop-filter（Chromium / 三星浏览器没有毛玻璃）：\n${glass.join('\n')}`,
     );
     assert.ok(
-      glass.some((b) => /-webkit-backdrop-filter:var\(--sgx-mat-filter\)/.test(b)),
+      glass.some((b) => new RegExp('-webkit-backdrop-filter:var\\(' + fv + '\\)').test(b)),
       `${selector} 丢了 -webkit-backdrop-filter（Safari 没有毛玻璃）：\n${glass.join('\n')}`,
     );
   });

@@ -65,7 +65,7 @@ const measure = () => {
 };
 
 const CASES = [
-  { name: '默认 dustyblue 深色', page: '/', local: { 'sgx-theme-mode': 'dark' }, want: { pal: null, dark: true } },
+  { name: '默认 terra 深色', page: '/', local: { 'sgx-theme-mode': 'dark' }, want: { pal: null, dark: true } },
   { name: 'forest 亮色（存的是旧撞色 xforest，主站首屏迁到 forest）', page: '/', local: { 'sgx-theme-mode': 'light', 'sgx-palette': 'xforest' }, want: { pal: 'forest', dark: false } },
   { name: 'lake 深色（PR-G 起是普通色板）', page: '/', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'lake' }, want: { pal: 'lake', dark: true } },
   /* 自定义色：旷野页 / 子页加载时 syncAccent 才算角色（apps/space.js），所以主站这边量旷野子页风格页 /theme/（P4-3 PR-4b 前是设置页；显示页 /display/ 已删除） */
@@ -140,7 +140,7 @@ test.describe('子站读端 = 主站外观（真写端 cookie → 共享外壳 u
     });
   }
 
-  test('坏 cookie / 未知版本：子站按默认 dustyblue + 跟随系统，不报错', async ({ browser, baseURL }) => {
+  test('坏 cookie / 未知版本：子站按默认 terra + 跟随系统，不报错', async ({ browser, baseURL }) => {
     for (const value of ['%%%garbage', 'eyJ2IjozLCJtb2RlIjoiZGFyayJ9' /* {"v":3,"mode":"dark"} */]) {
       const sub = await browser.newContext({ colorScheme: 'dark' });
       const sp = await sub.newPage();

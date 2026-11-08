@@ -1,7 +1,7 @@
 {{- /* tmux 页脚（2026-11 UI 重设计 PR-1，设计稿 foot-v1；四站同一个，共享外壳：gen-shell 核对它只用参数）。
    第一行 = tmux 状态栏：会话 space · 窗口 0:home 1:blog 2:curio 3:daymark 4:wild（当前窗口带 *）· 右边 状态计数 / zh · en / CST 时钟；
    第二行 = © 年份 Sloan Gray · styrigx · rss · github · x · 联系。手机布局只显示当前窗口、不显示语言（CSS 按 data-sgx-layout）。没有站点地图。
-   状态计数先是占位「–/6」（STATUS 接数据另做）；时钟由 shell/topbar-panel.js 按北京时间每 30 秒写一次（[data-sgx-clock]）。
+   状态计数没数据时是「–/6」，shell/topbar-panel.js mountStatus 取到 /api/status 后写成「● n/6」（2026-11 PR-A）；时钟由 shell/topbar-panel.js 按北京时间每 30 秒写一次（[data-sgx-clock]）。
    参数（dict）：
      tr        共享外壳字符串表（sgx-tr.html 的 .shell）
      lang      页面语言；langs [{code short}]（hugo.yaml languages）；here 本页地址；langHref 另一种语言的同一页

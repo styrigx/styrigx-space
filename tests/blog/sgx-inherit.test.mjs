@@ -360,12 +360,13 @@ test('lang：跟随系统（明确存 system，或旧版的空 / 没有）每页
   assert.deepEqual(boot({ local: { 'styrigx-blog-lang': 'en' }, path: '/blog/', alt: both('/blog/') }).replaced, ['/blog/zh/']);
 });
 
-test('坏 cookie / 非法或未知调色板不抛错，回到主站默认 dustyblue（不写 data-palette）；lake 是普通色板；旧撞色 xlake → lake', () => {
-  assert.equal(palettes.default, 'dustyblue');
+test('坏 cookie / 非法或未知调色板不抛错，回到主站默认 terra（不写 data-palette；2026-11 PR-A 前是 dustyblue）；lake / dustyblue 是普通色板；旧撞色 xlake → lake', () => {
+  assert.equal(palettes.default, 'terra');
   const pal = (p) => run({ cookie: 'sgx-ui=' + enc({ v: 2, pal: p }) }).attrs['data-palette'];
   assert.equal(pal('lake'), 'lake');
   assert.equal(pal('xlake'), 'lake');
-  assert.equal(pal('dustyblue'), undefined);
+  assert.equal(pal('terra'), undefined);
+  assert.equal(pal('dustyblue'), 'dustyblue');
   assert.equal(run({ cookie: 'sgx-ui=%%%' }).attrs['data-palette'], undefined);
   assert.equal(pal('"><x'), undefined);
   assert.equal(pal('nosuch'), undefined);

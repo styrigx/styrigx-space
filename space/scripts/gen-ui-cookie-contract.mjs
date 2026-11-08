@@ -25,7 +25,7 @@ export const NOW = 1761062400000;
 
 /** 读端期望的默认值（没有 cookie / 字段不合法） */
 const BASE = {}; /* P4-2c 起时钟 / 天气字段删除，读端不再输出 */
-const V2 = (o) => ({ v: 2, mode: 'system', pal: 'dustyblue', accent: '', fs: 'standard', rm: 0, mat: NOW, lang: 'system', ...BASE, ...o });
+const V2 = (o) => ({ v: 2, mode: 'system', pal: 'terra', accent: '', fs: 'standard', rm: 0, mat: NOW, lang: 'system', ...BASE, ...o });
 /** 写端用例里的种子 = 当前 palette-roles.json 里该预设的种子（七色调色板 = 前景 1） */
 const SEEDS = Object.fromEntries(Object.entries(JSON.parse(readFileSync(ROLES, 'utf8')).presets).map(([id, p]) => [id, p.seed]));
 /** 2026-10-23 PR-G 之前的预设种子（读端 LEGACY_SEEDS，旧 cookie 的 accent 仍当预设） */
@@ -35,9 +35,9 @@ const LEGACY = JSON.parse(readFileSync(path.join(REPO, 'space/web/assets/js/lib/
 
 /* 写端用例：local = 主站 localStorage；expect = 读端 read() 期望（省略的字段 = V2 默认） */
 const WRITER_CASES = [
-  { name: '默认 dustyblue 亮色', local: { 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.dustyblue } },
-  { name: '默认 dustyblue 深色', local: { 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.dustyblue } },
-  { name: '跟随系统（空 localStorage）', local: {}, expect: { accent: SEEDS.dustyblue } },
+  { name: '默认 terra 亮色', local: { 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.terra } },
+  { name: '默认 terra 深色', local: { 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.terra } },
+  { name: '跟随系统（空 localStorage）', local: {}, expect: { accent: SEEDS.terra } },
   { name: '湖蓝 lake 亮色（PR-G 起是普通色板）', local: { 'sgx-theme-mode': 'light', 'sgx-palette': 'lake' }, expect: { mode: 'light', pal: 'lake', accent: SEEDS.lake } },
   { name: '旧撞色 xforest → forest（深色）', local: { 'sgx-theme-mode': 'dark', 'sgx-palette': 'xforest' }, expect: { mode: 'dark', pal: 'forest', accent: SEEDS.forest } },
   { name: 'violet 跟随系统', local: { 'sgx-theme-mode': 'system', 'sgx-palette': 'violet' }, expect: { pal: 'violet', accent: SEEDS.violet } },
@@ -52,16 +52,16 @@ const WRITER_CASES = [
       'sgx-hour12': '12', 'sgx-gl-clockstyle': '1', 'sgx-weather-show': '0', 'sgx-temp-unit': 'f', 'sgx-weather-loc': 'city',
       'sgx-weather-city': '{"name":"上海","lat":31.23,"lon":121.47}',
     },
-    expect: { accent: SEEDS.dustyblue },
+    expect: { accent: SEEDS.terra },
   },
-  { name: '旧的小字号 key 不再生效', local: { 'sgx-font-size': 'small', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.dustyblue } },
-  { name: '本地存了不认识的色板 id（写端写默认 dustyblue）', local: { 'sgx-palette': 'neon', 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.dustyblue } },
+  { name: '旧的小字号 key 不再生效', local: { 'sgx-font-size': 'small', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.terra } },
+  { name: '本地存了不认识的色板 id（写端写默认 terra）', local: { 'sgx-palette': 'neon', 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.terra } },
   /* 2026-10-27：lang = 主站用户明确选的语言（sgx-lang）。语言清理（2026-11-07）：跟随系统明确写 'system'（旧版写 ''，读端照样当跟随系统）；
      四站首帧同一份 lang-boot.js：跟随系统 = 按浏览器语言跳 */
-  { name: '语言：明确选了 English → lang en', local: { 'sgx-lang': 'en', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.dustyblue, lang: 'en' } },
-  { name: '语言：明确选了中文 → lang zh', local: { 'sgx-lang': 'zh' }, expect: { accent: SEEDS.dustyblue, lang: 'zh' } },
-  { name: '语言：跟随系统 → lang system', local: { 'sgx-lang': 'system', 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.dustyblue } },
-  { name: '语言：旧版没存 / 存了不认识的值 → lang system', local: { 'sgx-lang': 'klingon' }, expect: { accent: SEEDS.dustyblue } },
+  { name: '语言：明确选了 English → lang en', local: { 'sgx-lang': 'en', 'sgx-theme-mode': 'light' }, expect: { mode: 'light', accent: SEEDS.terra, lang: 'en' } },
+  { name: '语言：明确选了中文 → lang zh', local: { 'sgx-lang': 'zh' }, expect: { accent: SEEDS.terra, lang: 'zh' } },
+  { name: '语言：跟随系统 → lang system', local: { 'sgx-lang': 'system', 'sgx-theme-mode': 'dark' }, expect: { mode: 'dark', accent: SEEDS.terra } },
+  { name: '语言：旧版没存 / 存了不认识的值 → lang system', local: { 'sgx-lang': 'klingon' }, expect: { accent: SEEDS.terra } },
 ];
 
 const b64 = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -116,7 +116,7 @@ function expectations(read, seeds) {
   const out = {};
   for (const sys of ['light', 'dark']) {
     const mode = read ? read.mode : 'system';
-    const pal = read ? read.pal : 'dustyblue';
+    const pal = read ? read.pal : 'terra';
     const acc = read ? read.accent : '';
     const dark = mode === 'dark' || (mode === 'system' && sys === 'dark');
     const fs = read ? read.fs : 'standard';
@@ -130,7 +130,7 @@ function expectations(read, seeds) {
         'data-dark': dark ? '1' : '0',
         'data-font-size': fs,
         fontSize: fs === 'large' ? '112.5%' : fs === 'small' ? '87.5%' : '',
-        'data-palette': pal === 'dustyblue' ? null : pal,
+        'data-palette': pal === 'terra' ? null : pal,
         '--sgx-seed': seed,
         'reduced-motion': rm,
         'data-reduced-motion': rm ? '1' : '0',
@@ -144,7 +144,7 @@ function expectations(read, seeds) {
 async function runWriter(cases, seeds) {
   const store = new Map();
   let jar = '';
-  let pal = 'dustyblue';
+  let pal = 'terra';
   const g = /** @type {any} */ (globalThis);
   const saved = { window: g.window, document: g.document, localStorage: g.localStorage, getComputedStyle: g.getComputedStyle, now: Date.now };
   g.window = g;
@@ -154,9 +154,9 @@ async function runWriter(cases, seeds) {
     get cookie() { return jar; },
     set cookie(v) { const m = String(v).match(/^sgx-ui=([^;]*)/); if (m) jar = 'sgx-ui=' + m[1]; },
   };
-  /* 主站页面上 <html> 的 --sgx-seed = 当前预设的种子（tokens 层；未知 id 没有匹配的规则 → 默认 dustyblue；
+  /* 主站页面上 <html> 的 --sgx-seed = 当前预设的种子（tokens 层；未知 id 没有匹配的规则 → 默认 terra；
      旧撞色 x<id> 在 baseof 内联脚本里已经迁到 <id>，所以按迁移后的 id 取） */
-  g.getComputedStyle = () => ({ getPropertyValue: (n) => (n === '--sgx-seed' ? ' ' + (seeds[pal] || seeds.dustyblue) : '') });
+  g.getComputedStyle = () => ({ getPropertyValue: (n) => (n === '--sgx-seed' ? ' ' + (seeds[pal] || seeds.terra) : '') });
   Date.now = () => NOW;
   try {
     const { syncUiCookie } = await import(pathToFileURL(WRITER).href + '?contract=' + process.pid);
@@ -165,7 +165,7 @@ async function runWriter(cases, seeds) {
       store.clear();
       jar = '';
       for (const [k, v] of Object.entries(c.local)) store.set(k, v);
-      pal = (c.local['sgx-palette'] || 'dustyblue').replace(/^x(?=[a-z]+$)/, '');
+      pal = (c.local['sgx-palette'] || 'terra').replace(/^x(?=[a-z]+$)/, '');
       syncUiCookie();
       out.push(jar.replace(/^sgx-ui=/, ''));
     }

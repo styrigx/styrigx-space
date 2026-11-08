@@ -6,9 +6,9 @@
  * - 经典脚本、ES5、无依赖：子站原样内联进 <head>（共享外壳 space/web/shared/shell/ui-cookie-read.js 就是本文件），
  *   也能被打包器当副作用模块 import。挂在 window.SgxUI 上。
  * - 校验严格：v 只认 1 / 2；mode ∈ system/light/dark；pal 必须是已知预设（旧撞色 x<id> 迁到 <id>）；accent 必须 ^#[0-9a-f]{6}$。
- *   cookie 缺失 / 乱码 / 版本不认识 → read() 返回 null，apply() 按默认（dustyblue + 跟随系统）渲染，绝不抛错、绝不跳转。
+ *   cookie 缺失 / 乱码 / 版本不认识 → read() 返回 null，apply() 按默认（terra + 跟随系统）渲染，绝不抛错、绝不跳转。
  * - apply(root) 落的状态 = 主站 baseof 内联脚本：class dark、data-theme-mode、data-dark、font-size、data-font-size、
- *   data-palette（默认 dustyblue 不写）、自定义色时 --sgx-seed + <style id="sgx-accent-roles">、class reduced-motion、data-reduced-motion。
+ *   data-palette（默认 terra 不写）、自定义色时 --sgx-seed + <style id="sgx-accent-roles">、class reduced-motion、data-reduced-motion。
  *
  * API：
  *   SgxUI.read([cookieString])          → 校验后的对象 {v, mode, pal, accent, fs, rm, mat, lang} 或 null（旧 cookie 里的时钟 / 天气字段 P4-2c 起忽略）
@@ -25,8 +25,8 @@
 (function (g) {
   'use strict';
   /* @ui-cookie-presets:begin（space/scripts/gen-shell.mjs 按 space/web/data/palette-roles.json + palette-scheme.js 生成，勿手改） */
-  var PRESETS = {"dustyblue":"#d4a72c","lake":"#f17f72","glacier":"#f17f72","indigo":"#f2559b","teal":"#d6334a","violet":"#d4628f","forest":"#f08a3c","matcha":"#c46a43","sage":"#cf9494","cherry":"#86ad3f","tangerine":"#168f9c","coral":"#168f9c","terra":"#94a982","amber":"#b54a88","mustard":"#7a95ab","champagne":"#536dfa","rose":"#f2a86b","berry":"#e3a93b","orchid":"#7a95ab","dustyrose":"#94a982","graphite":"#4f86b5","cream":"#168f9c"};
-  var SCHEME_VER = 'ecccd7367bf6';
+  var PRESETS = {"dustyblue":"#d4a72c","lake":"#f17f72","glacier":"#f17f72","indigo":"#f2559b","teal":"#d6334a","violet":"#d4628f","forest":"#f08a3c","matcha":"#c46a43","sage":"#cf9494","cherry":"#86ad3f","tangerine":"#168f9c","coral":"#168f9c","terra":"#de7a58","amber":"#b54a88","mustard":"#7a95ab","champagne":"#536dfa","rose":"#f2a86b","berry":"#e3a93b","orchid":"#7a95ab","dustyrose":"#94a982","graphite":"#4f86b5","cream":"#168f9c"};
+  var SCHEME_VER = '55912bce56a5';
   /* @ui-cookie-presets:end */
 
   var NAME = 'sgx-ui';
@@ -35,7 +35,7 @@
   var VERSIONS = [1, 2];
   var MODES = ['system', 'light', 'dark'];
   var FONT_SIZES = ['standard', 'small', 'large'];
-  var DEFAULT_PAL = 'dustyblue';
+  var DEFAULT_PAL = 'terra';
   /* 2026-10-23 PR-G 七色调色板之前的预设种子（单色组；撞色 x<id> 和同名单色一样）：旧 cookie 里 accent = 旧种子时仍当预设，不当自定义色。不随引擎变，手写。 */
   var LEGACY_SEEDS = {"lake":"#2f5f86","forest":"#2f6b4f","terra":"#8a4b2d","violet":"#6750a4","rose":"#984061","cherry":"#ba1a20","tangerine":"#b02e00","amber":"#825500","matcha":"#3c6a00","teal":"#00696b","indigo":"#3d4fd3","orchid":"#a62092","dustyblue":"#78909c","mustard":"#d4a72c","sage":"#9caf88","dustyrose":"#d8a7a7","graphite":"#5e5e5e"};
   var HEX = /^#[0-9a-f]{6}$/;

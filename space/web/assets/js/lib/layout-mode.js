@@ -101,11 +101,11 @@ function __sgxViewportSync(){
 /* 首帧底色（2026-11-07 Gray 真机：切站 / 切页整页白一下）：<meta name="color-scheme" content="light dark"> 让浏览器按「系统」深浅色给页面画布底色，
    本站选了深色、系统是浅色时，两个文档之间、样式表还没生效的那几帧露出的是浏览器的白底；theme-color（三星浏览器地址栏）同样按系统，博客还是写死的浅色。
    这里按 <html data-dark>（四站外观预读刚落好）把 color-scheme、theme-color 改成本站的深浅色，并在 <head> 最前面插一条最低优先级的 html 底色
-   （@layer 第一个出现 = 最低层；各站样式表一到就按调色板盖过它，运行中切深浅色、换调色板都不受影响）。底色用默认调色板（雾霾蓝）的 bg-1。 */
+   （@layer 第一个出现 = 最低层；各站样式表一到就按调色板盖过它，运行中切深浅色、换调色板都不受影响）。底色用默认调色板（2026-11 PR-A 起 terra 陶土；深色 = 设计稿 #161412）的 bg-1。 */
 function __sgxFirstPaint(){
   try{
     var d=document.documentElement,h=document.head,dk=d.getAttribute('data-dark')==='1'||d.classList.contains('dark'),i,l;
-    var cs=dk?'dark':'light',tc=dk?'#10151a':'#f5f8fa',bg=dk?'#0a0e10':'#f2f6f7',sb=null;
+    var cs=dk?'dark':'light',tc=dk?'#161412':'#fcf3ef',bg=dk?'#161412':'#fcf3ef',sb=null;
     /* 快捷面板切布局、原地改视口没生效只能整页重载时（topbar.js），重载前把当时页面的实际底色（当前调色板）存进 sessionStorage sgx-fp-bg：
        这一帧就用它（只认不透明的 rgb()），用一次就删 */
     try{sb=sessionStorage.getItem('sgx-fp-bg');if(sb!==null)sessionStorage.removeItem('sgx-fp-bg')}catch(e){}

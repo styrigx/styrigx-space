@@ -14,7 +14,7 @@
 /* 顶栏标签 / 子站分段的常驻衬底：导航选中色 45%（段式标签、页名胶囊仍在用） */
 :root { --sgx-tb-label-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
 /* 尺寸体系（2026-10-23 PR-D）：--sgx-page-m 左右页边距（手机 < 600px 固定 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px）。
-   --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop 100%（宽屏平铺；没有这个属性 = 没跑脚本，退回 1068）。
+   --sgx-content-max：外壳框（各站页面外框）最宽，按 <html data-sgx-layout> 定：phone 640、desktop = 内容宽 --sgx-content-w 1080（2026-11 PR-A 照设计稿：所有页内容 1080 居中、和顶栏字标 / 图标对齐，撤掉 #308 的宽屏通栏；没有这个属性 = 没跑脚本，退回 1068）。
    --sgx-shell-w：外壳框宽 = min(100% − 2 × 页边距, 最宽)。
    --sgx-tb-pad：顶栏 / 页脚左右内边距 = max(页边距 / 刘海安全区, (100% − 内容宽) / 2)，两者内容都落在居中的 --sgx-content-w 里；
    --sgx-tb-w：顶栏内容宽（= 100% − 2 × --sgx-tb-pad），面板的右缘按它对齐。
@@ -23,9 +23,15 @@
   --sgx-tb-pad: max(var(--sgx-page-m), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px), (100% - var(--sgx-content-w)) / 2);
   --sgx-tb-w: calc(100% - 2 * var(--sgx-tb-pad)); }
 :root[data-sgx-layout="phone"] { --sgx-content-max: 640px; }
-:root[data-sgx-layout="desktop"] { --sgx-content-max: 100%; }
+:root[data-sgx-layout="desktop"] { --sgx-content-max: var(--sgx-content-w); }
 /* 横向不许滚：任何一块超宽都裁掉，不出现横向滚动条（clip 不建滚动容器，position: sticky 照常） */
 :root { overflow-x: clip; }
+/* 页面底（2026-11 对齐设计稿 tb4.html，PR-A；四站同一条）：纯色底 --sgx-bg-1（深色赤陶 = #161412）+ 44px 细网格（线 = 正文色 2.5%，稿 rgba(255,255,255,.025)），整页一致、没有光晕。
+   网格是 fixed 层（body::before，z -1，不跟内容滚、不重绘）；--sgx-grid 也给账号登录页 / 锁屏的 .sgx-glass-bg 用。 */
+:root { --sgx-grid-line: color-mix(in srgb, var(--sgx-text-primary) 2.5%, transparent);
+  --sgx-grid: linear-gradient(var(--sgx-grid-line) 1px, transparent 1px) 0 0 / 44px 44px, linear-gradient(90deg, var(--sgx-grid-line) 1px, transparent 1px) 0 0 / 44px 44px; }
+html { background-color: var(--sgx-bg-1); }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--sgx-grid); }
 @media (min-width: 600px) {
   :root { --sgx-page-m: clamp(16px, 5.333px + 2.2222vw, 48px); --sgx-tb-btn: clamp(52px, 42px + 1.667vw, 56px); --sgx-tb-gap: clamp(8px, -2px + 1.667vw, 12px); }
 }
@@ -47,15 +53,17 @@
 .dark {
   --sgx-mat-shadow: 0 8px 24px rgba(0,0,0,.35);
 }
+/* 顶栏底（2026-11 PR-A 照稿 .bar：页面底色 85% + 12px 模糊，赤陶深色 = rgba(22,20,18,.85)） */
+:root { --sgx-tb-mat: color-mix(in srgb, var(--sgx-bg-1) 85%, transparent); --sgx-tb-filter: blur(12px); }
 /* 顶栏：贴顶通栏（top 0、left 0 / right 0），高 --sgx-tb-h + 刘海安全区；三列网格（字标 | 中间 | 图标组），左右内边距 --sgx-tb-pad 把内容收进 1080 */
 .sgx-topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 55; box-sizing: border-box; height: calc(var(--sgx-tb-h) + env(safe-area-inset-top, 0px));
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 12px;
   padding: env(safe-area-inset-top, 0px) var(--sgx-tb-pad) 0; border-bottom: 1px solid var(--sgx-term-line);
-  background: var(--sgx-mat); -webkit-backdrop-filter: var(--sgx-mat-filter); pointer-events: auto; color: var(--sgx-text-primary);
+  background: var(--sgx-tb-mat); -webkit-backdrop-filter: var(--sgx-tb-filter); pointer-events: auto; color: var(--sgx-text-primary);
   font-family: var(--sgx-font-mono); }
 /* 标准 backdrop-filter 单独放进 @supports：子站的压缩器会把同一规则里同值的 -webkit- / 标准两行合并成一行，分开两条规则就不会被合并 */
 @supports (backdrop-filter: blur(1px)) {
-  .sgx-topbar { backdrop-filter: var(--sgx-mat-filter); }
+  .sgx-topbar { backdrop-filter: var(--sgx-tb-filter); }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .sgx-topbar { background: var(--sgx-mat-solid); }
@@ -91,7 +99,7 @@
   background-color: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-secondary); cursor: pointer;
   text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
 .sgx-tb-btn svg { width: 20px; height: 20px; }
-.sgx-tb-btn[aria-expanded="true"] { background-color: var(--sgx-term-sel); color: var(--sgx-primary); }
+.sgx-tb-btn[aria-expanded="true"] { background-color: var(--sgx-surface-container-high); color: var(--sgx-primary); }
 .sgx-tb-sep { flex: none; width: 1px; height: 22px; margin: 0 6px; background: var(--sgx-term-line); }
 .sgx-tb-av { flex: none; display: inline-grid; place-items: center; width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); border-radius: 999px; -webkit-tap-highlight-color: transparent; }
 .sgx-tb-avatar { display: block; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--sgx-surface-container-high); }
@@ -141,7 +149,9 @@
 .sgx-foot-win a[aria-current="page"]::after { content: "*"; color: var(--sgx-primary); }
 :root:not([data-sgx-layout="desktop"]) .sgx-foot-win a:not([aria-current="page"]) { display: none; }
 .sgx-foot-rt { margin-left: auto; display: flex; align-items: center; gap: 14px; }
-.sgx-foot-st i { font-style: normal; color: var(--sgx-success); }
+.sgx-foot-st i { font-style: normal; color: var(--sgx-text-tertiary); }
+.sgx-foot-st[data-up="1"] i { color: var(--sgx-success); }
+.sgx-foot-st[data-up="0"] i { color: var(--sgx-warning); }
 .sgx-foot-lang [aria-current="true"] { color: var(--sgx-text-primary); }
 :root:not([data-sgx-layout="desktop"]) .sgx-foot-lang { display: none; }
 .sgx-foot-2 { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; padding: 14px 0 18px; color: var(--sgx-text-tertiary); font-size: 11.5px; }
@@ -305,17 +315,29 @@
 .palette-reset:focus-visible { outline: 2px solid var(--sgx-primary); outline-offset: 2px; }
 .palette-reset[aria-disabled="true"] { opacity: .38; cursor: default; box-shadow: none; }
 .sgx-qp-row .palette-reset { background: var(--sgx-surface-container-lowest); color: var(--sgx-primary); }
-/* 顶栏 v3 的两个终端风面板（2026-11 UI 重设计 PR-1，设计稿 nav-v2 / tb4.html pop=1）：共用 .sgx-qp 的落下 / 遮罩 / 互斥，外观改成终端窗：
-   实色表面、1px 线、圆角 16、无内边距（各段自己留）、等宽字。桌面：右缘对齐顶栏内容区再往左让到自己按钮下面（NAVIGATE 让 44px、外观让 92px），
-   宽 360 / 280；手机：左右对齐顶栏内容区（和其它面板一样）。 */
-.sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { padding: 0; border-radius: 16px; border-color: var(--sgx-term-line); background: var(--sgx-mat-solid);
-  -webkit-backdrop-filter: none; font-family: var(--sgx-font-mono); font-size: 13px; color: var(--sgx-text-secondary); }
+/* 顶栏 v3 的两个终端风面板（2026-11 UI 重设计 PR-1；PR-A 照设计稿 tb4.html pop=1 / nav=1 对齐）：共用 .sgx-qp 的开合 / 互斥 / 点外面关，外观照稿：
+   不压暗页面（dialog 本身透明，只用来接「点外面关」）、不毛玻璃；实色卡（--sgx-surface，赤陶深色 = #1d1b19）、1px 线、阴影；
+   外观卡 260 宽、圆角 14、内边距 10；NAVIGATE 360 宽、圆角 16、无内边距（各段自己留）。
+   桌面：右缘 = 顶栏内容区右缘再往左让到自己按钮下面（NAVIGATE 让 44px、外观让 92px，同稿 --navr / --popr）；
+   手机：右缘对齐顶栏内容区，NAVIGATE 全宽（稿 100vw − 2 × 页边距）、外观仍 260 宽（稿 m=1 popr 0）。
+   出现不再从顶栏后面滑下来（稿是静态卡）：淡入 + 上移 4px，减弱动效直接到位。 */
+.sgx-nav.is-open, .sgx-theme.is-open { background-color: transparent; }
+.sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { padding: 0; border-radius: 16px; border-color: var(--sgx-term-line); background: var(--sgx-surface);
+  -webkit-backdrop-filter: none; font-family: var(--sgx-font-mono); font-size: 13px; color: var(--sgx-text-secondary);
+  box-shadow: 0 30px 80px rgba(0,0,0,.22); opacity: 0; transform: translateY(-4px); transition: opacity .16s ease, transform .16s ease; }
+.dark .sgx-nav .sgx-qp-sheet, .dark .sgx-theme .sgx-qp-sheet { box-shadow: 0 30px 80px rgba(0,0,0,.55); }
+.sgx-nav.is-open .sgx-qp-sheet, .sgx-theme.is-open .sgx-qp-sheet { opacity: 1; transform: none; }
 @supports (backdrop-filter: blur(1px)) {
   .sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { backdrop-filter: none; }
 }
+.reduced-motion .sgx-nav .sgx-qp-sheet, .reduced-motion .sgx-theme .sgx-qp-sheet { transition: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { transition: none; } }
+.sgx-nav .sgx-qp-sheet, .sgx-theme .sgx-qp-sheet { top: 0; } /* 稿：卡片顶贴顶栏下沿（稿 top 60 = 顶栏 64 往上 4px，这里不压顶栏） */
+.sgx-nav .sgx-qp-sheet { max-width: none; }
+.sgx-theme .sgx-qp-sheet { left: auto; right: calc((100% - var(--sgx-tb-w)) / 2); width: min(260px, var(--sgx-tb-w)); margin: 0; padding: 10px; border-radius: 14px; }
+.dark .sgx-theme .sgx-qp-sheet { box-shadow: 0 20px 50px rgba(0,0,0,.5); }
 :root[data-sgx-layout="desktop"] .sgx-nav .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 44px); width: min(360px, var(--sgx-tb-w)); }
-:root[data-sgx-layout="desktop"] .sgx-theme .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 92px); width: min(280px, var(--sgx-tb-w)); padding: 10px; }
-.sgx-theme .sgx-qp-sheet { padding: 10px; }
+:root[data-sgx-layout="desktop"] .sgx-theme .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 92px); width: min(260px, var(--sgx-tb-w)); }
 /* NAVIGATE 头：$ NAVIGATE · 01/05（字距 3px、次要色）；下面一条线 */
 .sgx-nav-h, .sgx-nav-f { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; font-size: 12px; letter-spacing: 3px; color: var(--sgx-text-secondary); }
 .sgx-nav-h { border-bottom: 1px solid var(--sgx-term-line); }
@@ -347,29 +369,33 @@
 .sgx-nav-btn svg { width: 16px; height: 16px; flex: none; }
 .sgx-nav-btn[data-armed] { border-color: var(--sgx-primary); color: var(--sgx-primary); background: var(--sgx-term-sel); }
 @media (hover: hover) and (pointer: fine) { .sgx-nav-btn:hover { color: var(--sgx-text-primary); } }
-/* STATUS：六个单元两列（点 · 名 · 延迟）；占位态点是描边空心、延迟「—」 */
+/* STATUS：六个单元两列（点 · 名 · 延迟）；没数据 = 灰点、延迟空着（2026-11 PR-A 接 /api/status，见 topbar-panel.js mountStatus） */
 .sgx-nav-st { padding: 12px 20px 13px; border-top: 1px solid var(--sgx-term-line); font-size: 12px; }
 .sgx-nav-st-h { display: flex; justify-content: space-between; margin-bottom: 9px; font-size: 11px; letter-spacing: 3px; color: var(--sgx-text-tertiary); }
 .sgx-nav-st-h b { font-weight: 400; letter-spacing: 0; color: var(--sgx-text-tertiary); }
 .sgx-nav-st[data-state="up"] .sgx-nav-st-h b { color: var(--sgx-success); }
+.sgx-nav-st[data-state="partial"] .sgx-nav-st-h b { color: var(--sgx-warning); }
 .sgx-nav-st-gd { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 0; padding: 0; list-style: none; }
 .sgx-nav-st-gd li { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.sgx-nav-st-gd i { flex: none; width: 7px; height: 7px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--sgx-text-tertiary); }
-.sgx-nav-st-gd li[data-up="1"] i { border: 0; background: var(--sgx-success); box-shadow: 0 0 8px color-mix(in srgb, var(--sgx-success) 60%, transparent); }
-.sgx-nav-st-gd li[data-up="0"] i { border: 0; background: var(--sgx-danger); }
+.sgx-nav-st-gd i { flex: none; width: 7px; height: 7px; box-sizing: border-box; border-radius: 50%; background: var(--sgx-text-tertiary); opacity: .6; }
+.sgx-nav-st-gd li[data-up="1"] i { opacity: 1; border: 0; background: var(--sgx-success); box-shadow: 0 0 8px color-mix(in srgb, var(--sgx-success) 60%, transparent); }
+.sgx-nav-st-gd li[data-up="0"] i { opacity: 1; border: 0; background: var(--sgx-danger); }
 .sgx-nav-st-gd em { margin-left: auto; font-style: normal; color: var(--sgx-text-tertiary); }
-.sgx-nav-f { border-top: 1px solid var(--sgx-term-line); letter-spacing: 1px; color: var(--sgx-text-tertiary); }
+.sgx-nav-f { border-top: 1px solid var(--sgx-term-line); gap: 8px 14px; flex-wrap: wrap; letter-spacing: 0; color: var(--sgx-text-tertiary); }
+.sgx-nav-termlink { margin-right: auto; padding: 0; border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; }
 .sgx-nav-flink { color: inherit; text-decoration: none; border-radius: 4px; }
-.sgx-nav-close { padding: 0; border: 0; background: transparent; font: inherit; letter-spacing: 1px; color: inherit; cursor: pointer; border-radius: 4px; }
+.sgx-nav-close { padding: 0; border: 0; background: transparent; font: inherit; letter-spacing: 0; color: inherit; cursor: pointer; border-radius: 4px; }
 @media (hover: hover) and (pointer: fine) { .sgx-nav-flink:hover, .sgx-nav-close:hover { color: var(--sgx-text-primary); } }
 /* 外观面板（MODE / PALETTE）：小标题字距 2px；模式三段；色板列表（两块色 · 名字 · 当前 ✓），列表太长时面板内滚动 */
 .sgx-th-h { margin: 0; padding: 6px 8px; font-size: 11px; letter-spacing: 2px; color: var(--sgx-text-tertiary); }
 .sgx-th-hrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-right: 4px; }
-.sgx-th-hrow .palette-reset { height: 26px; padding: 0 10px 0 8px; font-size: 12px; background: transparent; box-shadow: none; }
+.sgx-th-reset { padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 11px; letter-spacing: 1px; color: var(--sgx-primary); cursor: pointer; }
+.sgx-th-reset[aria-disabled="true"] { color: var(--sgx-text-tertiary); opacity: .6; cursor: default; }
+.sgx-th-reset:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .sgx-th-seg { display: flex; gap: 4px; margin: 2px 4px 10px; padding: 4px; border: 1px solid var(--sgx-term-line); border-radius: 10px; }
 .sgx-th-seg button { flex: 1 1 auto; min-width: 0; padding: 6px 8px; white-space: nowrap; border: 0; border-radius: 7px; background: transparent; font: inherit; color: var(--sgx-text-secondary); cursor: pointer;
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; }
-.sgx-th-seg button[aria-pressed="true"] { background: var(--sgx-term-sel); color: var(--sgx-primary); }
+.sgx-th-seg button[aria-pressed="true"] { background: var(--sgx-surface-container-high); color: var(--sgx-primary); }
 .sgx-th-pals { display: flex; flex-direction: column; gap: 2px; max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; }
 .sgx-th-pal { --b2: var(--pl-b2); --f1: var(--pl-f1); --f2: var(--pl-f2); --f3: var(--pl-f3); --f4: var(--pl-f4); --f5: var(--pl-f5); --f6: var(--pl-f6); display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent;
   font: inherit; text-align: left; color: var(--sgx-text-secondary); cursor: pointer; }
@@ -379,9 +405,9 @@
 .sgx-th-sw u { display: block; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--sgx-surface) 55%, transparent); }
 .sgx-th-sw u:nth-child(1) { background: var(--f1); } .sgx-th-sw u:nth-child(2) { background: var(--f2); } .sgx-th-sw u:nth-child(3) { background: var(--f3); }
 .sgx-th-sw u:nth-child(4) { background: var(--f4); } .sgx-th-sw u:nth-child(5) { background: var(--f5); } .sgx-th-sw u:nth-child(6) { background: var(--f6); }
-.sgx-th-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; }
+.sgx-th-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--sgx-font-mono); }
 .sgx-th-pal em { flex: none; font-style: normal; color: var(--sgx-primary); visibility: hidden; }
-.sgx-th-pal[aria-pressed="true"] { background: var(--sgx-term-sel); color: var(--sgx-text-primary); }
+.sgx-th-pal[aria-pressed="true"] { background: var(--sgx-surface-container-high); color: var(--sgx-text-primary); }
 .sgx-th-pal[aria-pressed="true"] em { visibility: visible; }
 @media (hover: hover) and (pointer: fine) { .sgx-th-pal:not([aria-pressed="true"]):hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); } }
 /* AI 窗口（#sgx-ai，第 4 件；P4-3 PR-4b Gray 2026-11-07 定稿）：同快捷面板的落下方式。
@@ -695,7 +721,7 @@
 @media (hover: hover) and (pointer: fine) { .sgx-nx-a:hover { border-color: var(--sgx-primary); } .sgx-nx-a:hover b { color: var(--sgx-primary); } }
 /* ---- wide ---- */
 /* 宽屏平铺（Gray 2026-11-07，参考 rzcthink.top）：只在桌面布局（<html data-sgx-layout="desktop">，浏览器桌面版 / 手动「桌面」；不按像素断点）。手机布局一律不变。
-   - 内容区通栏：桌面 --sgx-content-max = 100%（topbar-frame 段），外壳框 --sgx-shell-w = 窗口宽 − 两侧页边距，不对齐顶栏（顶栏仍 --sgx-tb-w 居中）。
+   - 内容区宽（2026-11 PR-A 起）：桌面 --sgx-content-max = 1080（topbar-frame 段），外壳框和顶栏内容区同宽对齐（原来是通栏）；下面的去卡片 / 多栏照旧。
    - 内容页去卡片：文字直接铺在背景上，块与块、栏与栏之间用细线（--sgx-wide-line）分开。
    - 可交互模块保留卡片：屏幕时间、风格页（调色板，设计不动）、快捷面板 / AI 窗口、表单（安全 / 账号）、锁屏、音乐播放器，不挂下面这些类。
    公共件（各站挂到自己的标记上；JS 画的卡片各站在自己的 CSS 里按同样的值去卡片）：
@@ -766,5 +792,3 @@
 .sgx-term--drawer .sgx-term-body { height: min(56vh, 460px); }
 .reduced-motion .sgx-term-dlg .sgx-term, .reduced-motion .sgx-term-dlg::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-term-dlg .sgx-term, .sgx-term-dlg::backdrop { transition: none; } }
-/* NAVIGATE 里的「$ terminal」按钮：$ 主题色 */
-.sgx-nav-term-ps { font-weight: 500; color: var(--sgx-primary); }
