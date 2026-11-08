@@ -15,7 +15,8 @@
 import { readEpoch, bumpEpoch } from '../lib/db.js';
 import { apiError } from '../lib/http.js';
 import { signTicket, parseTicket, verifyTicket, ticketCookie, clearTicketCookie } from '../lib/ticket.js';
-import { TICKET, EPOCH, SIGNING_PRIVATE, SIGNING_PUBLIC } from './config.js';
+import { COOKIE_EXPIRED } from '../lib/cookies.js';
+import { TICKET, EPOCH, SIGNING_PRIVATE, SIGNING_PUBLIC, SIGNED_IN_MARKER } from './config.js';
 import { newDeviceId, isDeviceId, isRevoked, getDevice, putDevice, recordLogin, deviceInfo, clientPlace, pruneOtherDevices, TOUCH_INTERVAL_MS } from './devices.js';
 
 export { readEpoch, bumpEpoch };
@@ -97,6 +98,19 @@ async function touchDevice(env, request, p) {
 }
 
 /**
+ * 登录标记的 Set-Cookie（只给前端首帧显示用，见 config.js SIGNED_IN_MARKER；非 HttpOnly，不含秘密）。
+ * @param {number} [maxAge] 秒；默认同 session
+ */
+export function signedInMarkerCookie(maxAge) {
+  const m = SIGNED_IN_MARKER;
+  return m.cookie + '=' + m.value + '; Path=/; Secure; SameSite=Strict; Max-Age=' + (typeof maxAge === 'number' ? maxAge : m.maxAge);
+}
+/** 清登录标记的 Set-Cookie */
+export function clearSignedInMarkerCookie() {
+  return SIGNED_IN_MARKER.cookie + '=; Path=/; Secure; SameSite=Strict; ' + COOKIE_EXPIRED;
+}
+
+/**
  * 签发 session cookie（fail closed，永不抛错）。成功 null；失败 { status, body }：
  * 缺签名钥匙 503 config；读纪元出错 503 server；签名出错 500 sign-failed。
  * @param {any} env @param {Headers} headers @param {string} by passkey | password
@@ -117,6 +131,8 @@ export async function issueSession(env, headers, by, opts) {
     const deviceId = isDeviceId(o.deviceId || '') ? /** @type {string} */ (o.deviceId) : newDeviceId();
     const v = await signSessionTicket(env[SIGNING_PRIVATE], { by: by, epoch: epoch, authAt: authAt, deviceId: deviceId });
     headers.append('Set-Cookie', ticketCookie(CONF, v));
+    /* 登录标记跟着 session 走（首帧显示用，不参与鉴权） */
+    headers.append('Set-Cookie', signedInMarkerCookie());
     if (o.record !== false) {
       try {
         await recordLogin(env, deviceId, by, authAt, deviceInfo(o.request, o.device));
@@ -129,12 +145,13 @@ export async function issueSession(env, headers, by, opts) {
 }
 
 /**
- * 结束会话的 Set-Cookie：清 session，连同挂在它上面的 reauth 一起清（reset 不归会话管，不碰）。
+ * 结束会话的 Set-Cookie：清 session，连同挂在它上面的 reauth 一起清（reset 不归会话管，不碰）；登录标记一起清。
  * @param {Headers} headers
  */
 export function endSession(headers) {
   headers.append('Set-Cookie', clearTicketCookie(TICKET.session));
   headers.append('Set-Cookie', clearTicketCookie(TICKET.reauth));
+  headers.append('Set-Cookie', clearSignedInMarkerCookie());
 }
 
 /**

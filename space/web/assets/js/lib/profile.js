@@ -83,6 +83,7 @@ function str(v) {
 
 /**
  * 只留认识的、合法的字段（缓存 / 接口给的东西都先过一遍；不合法的当没有）。
+ * 空串（含只有空白）一律当没设置、回退默认值（2026-11-08 修：以前非必填的签名存成 '' 会盖掉默认值；前端清空本来就发 null）。
  * @param {any} raw
  * @returns {Partial<Profile>}
  */
@@ -92,7 +93,7 @@ export function cleanProfile(raw) {
   if (!raw || typeof raw !== 'object') return out;
   for (const f of PROFILE_FIELDS) {
     const v = raw[f.id];
-    if (typeof v !== 'string') continue;
+    if (typeof v !== 'string' || !v.trim()) continue;
     if (checkValue(f.id, v)) continue;
     out[f.id] = v.trim();
   }

@@ -50,6 +50,12 @@ test('主页「应用授权」= 已授权个数；进层：grep、三个标签�
   await expect(d.locator('.sgx-at-app').nth(4)).toContainText('已退出的设备');
   await expect(d.locator('.sgx-at-app.is-off')).toHaveCount(1);
   await expect(d.locator('.sgx-at-app.is-off')).toContainText('数字健康');
+  /* 应用图标（#327 偏离修复）：奇趣 / 日刻用导航已有的 nav-curio / nav-daymark SVG；其余应用留空位（名字列对齐） */
+  await expect(d.locator('.sgx-at-app[data-app="curio"] .sgx-at-appi svg')).toHaveCount(1);
+  await expect(d.locator('.sgx-at-app[data-app="daymark"] .sgx-at-appi svg')).toHaveCount(1);
+  await expect(d.locator('.sgx-at-app[data-app="avatar"] .sgx-at-appi svg')).toHaveCount(0);
+  const nameX = await d.locator('.sgx-at-app .sgx-at-k').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
+  expect(new Set(nameX).size, '有图标、没图标的行名字列左边对齐').toBe(1);
 
   /* 标签：已取消授权 → 只剩数字健康 */
   await d.locator('[data-at-act="filter:off"]').click();

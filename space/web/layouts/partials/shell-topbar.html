@@ -137,6 +137,9 @@
     <div class="sgx-nav-h sgx-pop-gh"><span translate="no"><b aria-hidden="true">$</b> ACCOUNT</span><span translate="no">login</span></div>
     <p class="sgx-pop-dim">{{ $t.account.common.opening }}</p>
   </div>
+  {{- /* 应用授权一行的应用图标（#327 偏离修复）：用导航已有的 nav-curio / nav-daymark（参数 icons 里本来就有：主站 baseof 按导航项收、子站是 nav.json icons），
+     shell/account/grants.js 按 data-app 取；template 不渲染、不占位 */}}
+  <template data-acct-app-icons>{{ range slice "curio" "daymark" }}<i data-app="{{ . }}">{{ index $i (printf "nav-%s" .) | safeHTML }}</i>{{ end }}</template>
 </dialog>
 {{- /* 站点安全下拉（2026-11 PR-5 sec-v1，设计稿 sec-v1 / tb4.html sg=1 · so=1）：盾牌点开。钥匙（锁屏凭证 = 通行密钥 + LockKey、临时钥匙）和会话（锁屏会话、锁定所有设备）的入口；
    验证（sudo）、钥匙数量、会话剩余时间不在这里做（要新接口 / 新逻辑，见 PR 未决）——各行去安全页现有的那一处。

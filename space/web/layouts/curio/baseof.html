@@ -115,6 +115,7 @@ __sgxLayoutWatch(__applyLayout);
   "status" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/wild/#status" "lang" .Lang))
   "pal" $pal
 ) }}
+{{ partial "sgx-profile-default.html" . }}
 {{/* 页面脚本的界面文案（语言包化第二部分 2026-11-07）：字符串表 js.<表> 已是「英文表 ← 页面语言表」的合并，每张表一个 #sgx-i18n-<表>；
    脚本（assets/js/curio*.js readDict / makeTr）只读这里，不再按语言二选一 */}}
 {{ range $tbl, $dict := $tr.js }}<script id="sgx-i18n-{{ $tbl }}" type="application/json">{{ $dict | jsonify | safeJS }}</script>

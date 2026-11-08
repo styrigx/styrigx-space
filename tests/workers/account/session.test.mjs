@@ -115,10 +115,11 @@ test('签发：缺签名钥匙 → session / reauth 503 config；纪元读不到
   assert.equal(await reauthCore.issueReauth(env, h2, 'passkey', TEST_DEVICE_ID), null);
   const c = h2.getSetCookie();
   assert.match(c[0], /^sgx-account-session=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=34560000$/);
-  assert.match(c[1], /^sgx-account-reauth=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=180$/);
+  assert.equal(c[1], 'sgx-account-signed-in=1; Path=/; Secure; SameSite=Strict; Max-Age=34560000', '登录标记跟着 session 签：值 1、非 HttpOnly、不含秘密');
+  assert.match(c[2], /^sgx-account-reauth=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=180$/);
   const h3 = new Headers();
   session.endSession(h3);
-  assert.deepEqual(h3.getSetCookie().map((x) => x.split('=')[0]), ['sgx-account-session', 'sgx-account-reauth'], 'end 连 reauth 一起清，不碰 reset');
+  assert.deepEqual(h3.getSetCookie().map((x) => x.split('=')[0]), ['sgx-account-session', 'sgx-account-reauth', 'sgx-account-signed-in'], 'end 连 reauth、登录标记一起清，不碰 reset');
 });
 
 test('rotateSessions：session 纪元 +1、本机按原 by / authAt 重签、其他设备行删掉（已退出的行留着）；reissueReauth 不延长剩余时间', async () => {
@@ -142,7 +143,7 @@ test('rotateSessions：session 纪元 +1、本机按原 by / authAt 重签、其
   const r2 = await reauthCore.verifyReauth(reqWith(ck), env, s2);
   assert.equal(r2.ok, true);
   assert.equal(r2.exp, rv.exp, '不延长');
-  assert.match(h.getSetCookie()[1], /Max-Age=1[12]\d$/);
+  assert.match(h.getSetCookie()[2], /Max-Age=1[12]\d$/);
   assert.deepEqual(all(env, 'SELECT device_id FROM account_device ORDER BY device_id').map((r) => r.device_id), [TEST_DEVICE_ID, 'revokeddevice_03']);
 });
 
@@ -156,4 +157,11 @@ test('设备：已退出的不会被 putDevice / recordLogin 复活；revokeDevi
   const list = await devices.listDevices(env);
   assert.equal(list.length, devices.DEVICE_LIST_MAX);
   assert.equal(list[0].deviceId, 'dev_000000000054');
+});
+
+test('登录标记 sgx-account-signed-in 只给前端首帧显示：单有它不算登录（服务端从不读它）', async () => {
+  const env = makeEnv();
+  const v = await session.verifySession(reqWith({ 'sgx-account-signed-in': '1' }), env);
+  assert.equal(v.ok, false);
+  assert.equal(v.reason, 'no-cookie');
 });

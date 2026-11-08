@@ -219,7 +219,7 @@ js:
     up: 上移
     down: 下移
     needAccount: 登录账号后可编辑。
-    needReauth: 导入前要再验证一次账号：打开 账号 › 安全与隐私 验证后，3 分钟内回来导入。
+    needReauth: 导入要再验证一次账号：在账号终端里验证后会立刻接着导入。
     signin: 登录账号后可编辑
     noScope: 奇趣未获账号授权
     noScopeErr: 奇趣未获账号授权。
