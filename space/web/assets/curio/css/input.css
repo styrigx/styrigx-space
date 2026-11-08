@@ -7,7 +7,7 @@
 @source "../../../content/curio/**/*.md";
 @source "../js/**/*.js";
 /* 共享外壳（合站前是本站的副本，现在直接用主站的源文件）：顶栏等 partial + 外壳 JS */
-@source "../../../layouts/partials/{shell-topbar,sgx-entries,sgx-ph,sgx-segtabs,sgx-tr,sgx-lang-path}.html";
+@source "../../../layouts/partials/{shell-topbar,sgx-ph,sgx-tr,sgx-lang-path}.html";
 @source "../../../assets/js/shell/{topbar-panel,modal-sheet,ai-panel,vk,share-button}.js";
 @source "../../../assets/js/lib/{palette-scheme,prefs-write,ui-cookie-read,layout-mode,lang-path,lang-boot}.js";
 
@@ -164,7 +164,7 @@ html, body {
 html { background: var(--sgx-bg-1); }
 body { background: transparent; }
 /* 2026-11 PR-A：光晕壁纸 #sgx-wallpaper 删掉；页面底 = --sgx-bg-1 + 44px 网格（共享外壳 shell.css body::before） */
-body, .cu-tile, .it-card { transition: background-color .4s ease, border-color .4s ease, color .4s ease; }
+body { transition: background-color .4s ease, border-color .4s ease, color .4s ease; }
 h1, h2, h3 { letter-spacing: -0.02em; }
 /* 正文撑满一屏（没有页脚）；正文顶部 = 顶栏下沿 + 16px（同主站 main） */
 body { display: flex; flex-direction: column; min-height: 100dvh; }
@@ -186,101 +186,74 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 #site-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 50; pointer-events: none;
   background: transparent; border: 0; box-shadow: none; padding: 0; }
 .sgx-topbar { view-transition-name: sgx-topbar; }
-/* ===== 内容卡片材质（同主站 .widget.bg-m-container-lowest）：中性玻璃 --sgx-mat + outline-variant 细边 +
-   0.5px 内高光 / 接触影 / 环境影；卡片后面只有固定的光晕，不加 backdrop-filter（几十张卡同时模糊会拖慢滚动） ===== */
-.cu-tile, .it-card {
-  background-color: var(--sgx-mat); background-image: none; border: 1px solid var(--sgx-outline-variant); color: var(--sgx-text-primary);
-  box-shadow:
-    inset 0 0.5px 0 rgba(255,255,255,.65),
-    0 1px 2px rgba(16,24,40,.08),
-    0 12px 32px -12px rgba(16,24,40,.22);
-}
-.dark .cu-tile, .dark .it-card {
-  box-shadow:
-    inset 0 0.5px 0 rgba(255,255,255,.09),
-    0 1px 2px rgba(0,0,0,.45),
-    0 16px 40px -12px rgba(0,0,0,.55);
-}
-
-/* ===== 弹层（详情 / 编辑 / 确认）：手机底部弹层，桌面居中弹窗；材质 = 共享外壳的玻璃（--sgx-glass-tint + --sgx-mat-filter） ===== */
-.bk-overlay { display: none; opacity: 0; transition: opacity .25s; }
-.bk-overlay-backdrop { background: var(--sgx-scrim); }
+/* ===== 弹层（编辑 / 管理分类 / 导入 / 确认）：2026-11 对齐 PR-C2 起是稿的终端窗口（设计稿没画编辑，按稿的风格：细线框、实色底、三点标题栏、等宽小标题，
+   不要毛玻璃）；手机从底部升起（贴底、上圆角），桌面居中。遮罩 = 稿里 AI 窗口的 50% 暗底 ===== */
+.bk-overlay { display: none; opacity: 0; transition: opacity .2s; }
+.bk-overlay-backdrop { background: rgb(0 0 0 / .5); }
 .bk-overlay.open { display: flex; opacity: 1; }
 .bk-overlay:not(.open) { pointer-events: none; }
-.bk-panel { transition: transform .32s cubic-bezier(.22,1,.36,1), opacity .25s; }
-.layout-phone .bk-panel { position: absolute; left: 0; right: 0; bottom: 0; max-height: 82vh; border-radius: 1.75rem 1.75rem 0 0; background: var(--sgx-glass-tint); -webkit-backdrop-filter: var(--sgx-mat-filter); display: flex; flex-direction: column; transform: translateY(102%); }
+.bk-panel { display: flex; flex-direction: column; max-height: 82vh; border: 1px solid var(--sgx-term-line); background: var(--sgx-surface-container-lowest); color: var(--sgx-text-primary);
+  box-shadow: 0 30px 80px rgba(0,0,0,.45); transition: transform .28s cubic-bezier(.22,1,.36,1), opacity .2s; }
+.layout-phone .bk-panel { position: absolute; left: 0; right: 0; bottom: 0; border-bottom: 0; border-radius: 14px 14px 0 0; transform: translateY(102%); }
 .layout-phone .bk-overlay.open .bk-panel { transform: translateY(0); }
 .layout-dex .bk-overlay.open, .layout-dex .bk-overlay.closing { align-items: center; justify-content: center; padding: 1rem; }
-.layout-dex .bk-panel { position: relative; width: 100%; max-width: 26rem; border-radius: 1.75rem; background: var(--sgx-glass-tint); -webkit-backdrop-filter: var(--sgx-mat-filter); border: 1px solid var(--sgx-mat-line); box-shadow: 0 24px 64px -16px rgba(0,0,0,.35); opacity: 0; transform: scale(.96) translateY(8px); max-height: 82vh; display: flex; flex-direction: column; }
-/* 标准 backdrop-filter 单独一条（同共享外壳 / 日刻：Tailwind 4 的 Lightning CSS 压缩会把同一规则里同值的 -webkit- / 标准两行并成一行，只剩 -webkit-，Chromium 就没了毛玻璃） */
-@supports (backdrop-filter: blur(1px)) {
-  .layout-phone .bk-panel, .layout-dex .bk-panel { backdrop-filter: var(--sgx-mat-filter); }
-}
+.layout-dex .bk-panel { position: relative; width: 100%; max-width: 30rem; border-radius: 14px; opacity: 0; transform: translateY(8px); }
 .layout-dex .bk-overlay.open .bk-panel { opacity: 1; transform: none; }
-.layout-dex .bk-dialog { max-width: 22rem; }
-.layout-phone .sheet-handle { width: 40px; height: 5px; border-radius: 999px; background: var(--sgx-outline-variant); margin: 10px auto 2px; flex-shrink: 0; }
-.layout-dex .sheet-handle { display: none; }
-/* 弹层标题行：三栏 grid（48px | 1fr | 48px），行高 56px */
-.bk-titlebar { display: grid; grid-template-columns: 48px 1fr 48px; height: 56px; margin-top: 10px; flex-shrink: 0; }
-.bk-titlebar-side { display: flex; align-items: center; justify-content: center; }
+.layout-dex .bk-dialog { max-width: 24rem; }
+.sheet-handle { display: none; }
+/* 标题栏 = 终端窗口标题栏：左三点，中间等宽小标题，右关闭 */
+.bk-titlebar { position: relative; display: grid; grid-template-columns: 64px 1fr 64px; align-items: center; height: 44px; flex-shrink: 0; margin-bottom: 14px; padding: 0 6px 0 14px;
+  border-bottom: 1px solid var(--sgx-term-line); background: var(--sgx-surface-container-low); border-radius: 14px 14px 0 0; }
+.bk-titlebar::before { content: ""; position: absolute; left: 14px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--sgx-outline-variant);
+  box-shadow: 17px 0 0 var(--sgx-outline-variant), 34px 0 0 var(--sgx-outline-variant); }
+.bk-titlebar-side { display: flex; align-items: center; justify-content: flex-end; }
+.bk-titlebar-side:first-child { justify-content: flex-start; }
 .bk-titlebar-mid { display: flex; align-items: center; justify-content: center; min-width: 0; }
-.bk-titlebar-mid h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* 图标按钮：24px 视觉，48px 触控区，按下 = 状态层 */
-.bk-icbtn { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 999px; color: var(--sgx-text-primary); flex-shrink: 0; transition: background .15s; }
+.bk-titlebar-mid h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 400; color: var(--sgx-text-secondary); }
+.bk-icbtn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; color: var(--sgx-text-secondary); flex-shrink: 0; transition: background .15s; }
 .bk-icbtn:active { background: var(--sgx-state-pressed-bg); }
-.bk-icbtn svg { width: 24px; height: 24px; }
+.bk-icbtn svg { width: 18px; height: 18px; }
+/* 底部按钮：圆角 8 的细线 / 主题色块，等宽字（取代旧的胶囊实心按钮） */
+.bk-panel .rounded-full.h-12 { height: 40px; border-radius: 8px; font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 500; }
+.bk-panel .bg-m-container { background: transparent; border: 1px dashed var(--sgx-term-line); }
 .layout-phone #edit-wrap .bk-panel, .layout-phone #cats-wrap .bk-panel { max-height: 92dvh; }
-.layout-phone #dv-edit-wrap .bk-panel, .layout-phone #gm-edit-wrap .bk-panel, .layout-phone #it-view-wrap .bk-panel { max-height: 92dvh; }
+.layout-phone #dv-edit-wrap .bk-panel, .layout-phone #gm-edit-wrap .bk-panel, .layout-phone #mv-edit-wrap .bk-panel { max-height: 92dvh; }
 
-/* ===== 发现：分类条 + 收藏格子 ===== */
-#cu-main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
-/* 分类条：单行横滚 + 右边「⋯」；吸在顶栏下沿 + 8px，左右出血到页边 */
-.cu-bar { position: sticky; top: calc(var(--nav-h) + 8px + env(safe-area-inset-top, 0px)); z-index: 20; display: flex; align-items: center; gap: 8px;
-  margin: 0 calc(-1 * var(--sgx-page-m)) 12px; padding: 4px var(--sgx-page-m); }
-.cu-chips { flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 2px 0; }
-.cu-chips::-webkit-scrollbar { display: none; }
-/* 筛选 chip：中性底 + 柔和中性边线 + 次要文字；选中 = chip-selected / on-chip-selected（主站调色板规则 §五） */
-.cu-chip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; max-width: 70vw; height: 36px; padding: 0 14px; border-radius: 999px;
-  border: 1px solid var(--sgx-mat-line); background: var(--sgx-mat-solid); color: var(--sgx-text-secondary); font-size: 14px; font-weight: 600; cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-tap-highlight-color: transparent; transition: background-color .15s ease, color .15s ease; }
-.cu-chip[aria-selected="true"], .cu-chip[aria-checked="true"] { background: var(--sgx-chip-selected); border-color: var(--sgx-chip-selected); color: var(--sgx-on-chip-selected); }
-@media (hover: hover) and (pointer: fine) {
-  .cu-chip:not([aria-selected="true"]):not([aria-checked="true"]):hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); color: var(--sgx-text-primary); }
-}
-.cu-chip:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-.cu-chip-sm { height: 32px; padding: 0 12px; font-size: 13px; }
+/* ===== 分区列表（2026-11 对齐 PR-C2，设计稿 pg=curio）：页头 tab + 命令链（共享外壳 .sgx-ctab / .sgx-cmds）→ chips → 封面卡（.sgx-cc）→ 分页条 ===== */
+#cu-main { padding-bottom: 60px; }
+/* 筛选 chips（共享外壳 .sgx-chip；这里是 tab 语义 aria-selected，选中同 aria-current） */
+.cu-chips { margin: 18px 0 0; }
+.cu-chips .sgx-chip { cursor: pointer; background: transparent; font-family: inherit; }
+.cu-chips .sgx-chip i { color: var(--sgx-text-tertiary); }
+.cu-chips .sgx-chip[aria-selected="true"] { border-color: var(--sgx-primary); color: var(--sgx-primary); background: color-mix(in oklab, var(--sgx-primary) 8%, transparent); }
+.cu-chips .sgx-chip[aria-selected="true"] i { color: inherit; }
 .cu-chip-lock { display: inline-flex; opacity: .8; }
-.cu-menu-btn { flex-shrink: 0; width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--sgx-mat-line); background: var(--sgx-mat-solid); color: var(--sgx-text-primary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
-.cu-menu-btn:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
-.cu-menu-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-/* 分组 + 格子 */
-.cu-list { display: flex; flex-direction: column; gap: 20px; }
-.cu-sec-h { display: flex; align-items: baseline; gap: 8px; margin: 0 4px 10px; font-size: 14px; font-weight: 700; color: var(--sgx-text-primary); }
-.cu-sec-n { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--sgx-primary); }
-.cu-lock-inline { display: inline-flex; color: var(--sgx-text-secondary); opacity: .75; }
-.cu-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-@media (min-width: 600px) { .cu-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@media (min-width: 980px) { .cu-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
-/* 格子 = 内容卡片材质（上面）；图标在上、名字在下（描述放在悬停提示里） */
-.cu-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 96px; padding: 14px 8px 12px;
-  border-radius: 1.25rem; text-decoration: none; text-align: center; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-.cu-tile:active { transform: scale(.97); }
-.cu-tile:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-/* 网站图标：取不到时是首字母方块，中性（普通图标不带主题色）；取到的图标衬白底（网站图标按白底设计，深色模式也一样，算外来图片的原色，同封面） */
-.cu-ic { position: relative; flex-shrink: 0; width: 48px; height: 48px; border-radius: 14px; overflow: hidden; display: inline-flex; align-items: center; justify-content: center;
-  background: var(--sgx-surface-container-high); color: var(--sgx-text-secondary); font-size: 20px; font-weight: 800; }
+.cu-lock-inline { display: inline-flex; flex: none; color: var(--sgx-text-secondary); opacity: .75; }
+.cu-note { margin: 0; padding: 48px 0; text-align: center; font-family: var(--sgx-font-mono); font-size: 13px; color: var(--sgx-text-tertiary); }
+.cu-pg { cursor: default; }
+.cu-pg .sgx-pg-l { cursor: pointer; }
+.cu-pg.is-done .sgx-pg-l { cursor: default; }
+.cu-pg.is-done .sgx-pg-hint { visibility: hidden; }
+/* 发现的卡片：封面位放站点图标（56px 圆角方块）；取不到时首字母，中性；取到的图标衬白底（网站图标按白底设计，算外来图片的原色） */
+.cu-cc { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.cu-ic { position: relative; flex-shrink: 0; width: 48px; height: 48px; border-radius: 12px; overflow: hidden; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--sgx-surface-container-high); color: var(--sgx-text-secondary); font-family: var(--sgx-font-mono); font-size: 20px; font-weight: 600; }
+:root[data-sgx-layout="desktop"] .cu-ic { width: 56px; height: 56px; }
 /* stylelint-disable-next-line color-no-hex */
-.cu-ic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 5px; }
-.cu-name { max-width: 100%; font-size: 13px; font-weight: 700; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cu-lock { position: absolute; top: 8px; right: 9px; display: inline-flex; color: var(--sgx-text-secondary); opacity: .75; }
-/* 右下角浮动按钮：fab / on-fab（主站调色板导出的交互角色）。顶栏 v3（2026-11 PR-1）：右下角是 AI 浮钮（共享外壳 .sgx-tb-ai，56 高、边距 --sgx-ai-fab-m），
-   这颗摞在它上面、右缘对齐 */
-.cu-fab { position: fixed; right: max(var(--sgx-ai-fab-m, 16px), env(safe-area-inset-right, 0px)); bottom: calc(max(var(--sgx-ai-fab-m, 16px), env(safe-area-inset-bottom, 0px)) + 56px + 12px); z-index: 40;
-  display: inline-flex; align-items: center; gap: 8px; height: 56px; padding: 0 22px 0 18px; border-radius: 18px; border: 0;
-  background: var(--sgx-fab); color: var(--sgx-on-fab); font-size: 15px; font-weight: 700;
-  box-shadow: 0 8px 24px -6px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.14); cursor: pointer; transition: transform .15s ease; }
-.cu-fab:active { transform: scale(.96); }
-.cu-fab:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 3px; }
+.cu-ic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 6px; }
+.cu-lock { display: inline-flex; flex: none; color: var(--sgx-text-secondary); opacity: .75; }
+/* 设备 / 游戏 / 电影卡片：照片 / 封面 / 海报铺满封面位；没图时类型图标；已退役的设备照片去色 */
+.it-cc .sgx-cc-im img { z-index: 1; }
+.it-cc.is-retired .sgx-cc-im img { filter: grayscale(.85); opacity: .8; }
+.it-media-ic { display: inline-flex; opacity: .7; }
+.it-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.it-status { color: inherit; }
+.it-stars-ro { letter-spacing: 1px; }
+/* 条目页（设计稿 pg=citem；curio.js showItem） */
+.cu-item[hidden] { display: none; }
+.cu-item .sgx-item-im .it-media-ic { opacity: .6; }
+.cu-item .sgx-cmds { margin-top: 18px; }
+.cu-item .sgx-spec .cd { color: var(--sgx-text-tertiary); }
 /* 弹层里的部件 */
 .cu-row { display: flex; align-items: center; width: 100%; min-height: 52px; padding: 0 16px; border: 0; border-radius: 1rem; background: transparent; color: var(--sgx-text-primary); font-size: 16px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; }
 .cu-row:active { background: var(--sgx-state-pressed-bg); }
@@ -309,56 +282,13 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 .cu-catrow-n { flex-shrink: 0; min-width: 28px; text-align: center; font-size: 12px; font-weight: 600; color: var(--sgx-text-secondary); }
 .cu-file { display: flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 16px; border-radius: 1rem; border: 1.5px dashed var(--sgx-outline); color: var(--sgx-primary); font-size: 15px; font-weight: 700; cursor: pointer; text-align: center; overflow-wrap: anywhere; }
 .cu-file:focus-within { border-color: var(--sgx-focus-ring); }
-@media (prefers-reduced-motion: reduce) { .cu-tile, .cu-fab { transition: none; } }
-.reduced-motion .cu-tile, .reduced-motion .cu-fab { transition: none; }
 
-/* ===== 三个页签：发现 / 设备 / 游戏 ===== */
+/* ===== 分区面板 ===== */
 .cu-pane[hidden] { display: none !important; }
 .cu-pane { animation: cu-in .22s ease both; min-height: 60vh; }
 @keyframes cu-in { from { opacity: 0; } to { opacity: 1; } }
 .reduced-motion .cu-pane { animation: none; }
 @media (prefers-reduced-motion: reduce) { .cu-pane { animation: none; } }
-#cu-pane-devices, #cu-pane-games, #cu-pane-movies { padding-bottom: 88px; }
-/* 卡片：手机 2 栏、平板 3、桌面 4；卡片 = 内容卡片材质（上面） */
-.it-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-@media (min-width: 600px) { .it-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (min-width: 980px) { .it-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-.it-card { display: flex; flex-direction: column; min-width: 0; padding: 0; border-radius: 1.75rem; text-align: left; overflow: hidden; cursor: pointer; font: inherit; -webkit-tap-highlight-color: transparent; }
-.it-card:active { transform: scale(.98); }
-.it-card:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
-.it-card.is-retired .it-media { filter: grayscale(.85); opacity: .8; }
-/* 封面 / 照片位：没图时中性底 + 次要色图标；有图时图片原色 */
-.it-media { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 4/3; background: var(--sgx-surface-container); color: var(--sgx-text-secondary); }
-.it-media--cover { aspect-ratio: 3/4; }
-/* z-index：.it-media-ic 的 opacity 会让图标和定位元素同层、按顺序画在图上面；照片要压住占位图标 */
-.it-media img { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: cover; }
-.it-media-ic { display: inline-flex; opacity: .7; }
-.it-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 14px 14px; }
-.it-name { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 15px; font-weight: 700; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.it-sub { font-size: 12px; color: var(--sgx-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.it-meta { font-size: 12px; font-weight: 600; color: var(--sgx-primary); }
-/* 「已退役」小标 = 中性 */
-.it-badge { align-self: flex-start; margin-top: 2px; padding: 1px 8px; border-radius: 999px; background: var(--sgx-surface-container-high); color: var(--sgx-text-secondary); font-size: 11px; font-weight: 700; }
-.it-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
-/* 游玩状态：在玩 = primary-container（主色浅底），通关 = secondary-container（辅色浅底），想玩 / 搁置 = 中性 */
-.it-status { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--sgx-surface-container-high); color: var(--sgx-text-secondary); }
-.it-status--playing { background: var(--sgx-primary-container); color: var(--sgx-on-primary-container); }
-.it-status--done { background: var(--sgx-secondary-container); color: var(--sgx-on-secondary-container); }
-/* 评分星：亮的 = primary ink（图形要 ≥3:1，本色在浅色卡上不够，按 fill → ink 回退），暗的 = outline-variant */
-.it-stars-ro { display: inline-flex; gap: 1px; }
-.it-star { display: inline-flex; color: var(--sgx-outline-variant); }
-.it-star.on { color: var(--sgx-primary); }
-/* 详情 */
-.it-hero { display: flex; align-items: center; justify-content: center; aspect-ratio: 4/3; margin: 4px 0 12px; border-radius: 1.25rem; overflow: hidden; background: var(--sgx-surface-container); color: var(--sgx-text-secondary); }
-.it-hero--cover { aspect-ratio: auto; max-height: 46vh; }
-.it-hero img { width: 100%; height: 100%; object-fit: cover; }
-.it-hero--cover img { width: auto; max-width: 100%; max-height: 46vh; object-fit: contain; }
-.it-hero-sub { display: flex; align-items: center; gap: 8px; margin: 0 2px 6px; font-size: 13px; font-weight: 600; color: var(--sgx-text-secondary); }
-.it-days { margin: 0 2px 12px; font-size: 20px; font-weight: 800; color: var(--sgx-primary); }
-.it-dl { padding: 10px 2px; border-top: 1px solid var(--sgx-divider); }
-.it-dt { font-size: 12px; font-weight: 700; color: var(--sgx-text-secondary); margin-bottom: 4px; }
-.it-dd { font-size: 15px; line-height: 1.6; color: var(--sgx-text-primary); word-break: break-word; }
-.it-link { border: 0; padding: 0; background: none; color: var(--sgx-link); font: inherit; font-weight: 700; cursor: pointer; }
 /* 编辑 */
 .it-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .cu-field textarea { resize: vertical; min-height: 3.2em; }
@@ -381,7 +311,6 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 .it-star-btn { width: 44px; height: 44px; border: 0; border-radius: 999px; background: transparent; color: var(--sgx-outline-variant); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .it-star-btn.on { color: var(--sgx-primary); }
 .it-star-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); }
-@media (prefers-reduced-motion: reduce) { .it-card { transition: none; } }
 /* 照片「移动和缩放」（curio-items.js；同主站头像裁剪 .sgx-avc）：全屏 <dialog>，深浅色都是黑底看照片；
    取景框 = 卡片比例的圆角矩形（设备 4:3、游戏封面 3:4），框外压暗；拖动移动、双指 / 滚轮缩放；底部 取消 / 完成（完成 = 主题主色填充） */
 .cu-crop { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: rgb(0 0 0); color: rgb(255 255 255); overflow: hidden; }
@@ -396,25 +325,17 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 .cu-crop-btn.primary { background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); }
 .cu-crop-btn:disabled { opacity: .5; }
 .cu-crop-btn:focus-visible { outline: 2px solid rgb(255 255 255); outline-offset: 2px; }
-.reduced-motion .it-card { transition: none; }
 
 /* ===== P4-3 奇趣拆页：首页入口、电影、私人音乐 ===== */
-/* 音乐仅本人可见：首页入口默认不显示，curio-home.js 问过 /curio/api/access 有权限才给 <html> 加 .cu-music-ok */
-html:not(.cu-music-ok) #cu-entries .sgx-ent-li:has(> [data-entry="music"]) { display: none; }
-/* 子页段式标签（P4-3 §6.6）同理：「音乐」不是当前页时默认藏起，curio.js 问过 /curio/api/access 有权限才露出来 */
-html:not(.cu-music-ok) #cu-segs .sgx-segs-tab[data-seg="music"]:not([aria-current]) { display: none; }
+/* 音乐仅本人可见：页头 tab 的「music/」不是当前页时默认藏起，curio.js 问过 /curio/api/access 有权限才给 <html> 加 .cu-music-ok */
+html:not(.cu-music-ok) #cu-tabs [data-ctab="music"]:not([aria-current]) { display: none; }
 
-/* 电影：海报 2:3（同 curio-items.js 的 CROP_RATIO.movie） */
-.it-media--poster { aspect-ratio: 2/3; }
+/* 电影：编辑弹层里的海报缩略图 2:3（同 curio-items.js 的 CROP_RATIO.movie） */
 .it-photo-prev--poster { width: 60px; height: 90px; }
-.it-hero--poster { aspect-ratio: auto; max-height: 52vh; }
-.it-hero--poster img { width: auto; max-width: 100%; max-height: 52vh; object-fit: contain; }
 
 /* 音乐 */
 .mu-wrap { padding-bottom: 24px; }
 html.mu-playing .mu-wrap { padding-bottom: 236px; }
-.mu-top { display: flex; justify-content: flex-end; padding: 4px 0 8px; }
-.mu-upload-btn { font-weight: 700; }
 .mu-covers { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 6px calc(50% - min(31vw, 130px)) 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .mu-covers::-webkit-scrollbar { display: none; }
 .mu-cover { position: relative; flex: 0 0 min(62vw, 260px); aspect-ratio: 1/1; border: 0; padding: 0; border-radius: 1.25rem; overflow: hidden; scroll-snap-align: center;
@@ -473,72 +394,12 @@ html.mu-playing .mu-wrap { padding-bottom: 236px; }
 .mu-toggle.is-playing .mu-ic-pause { display: block; }
 .mu-cbtn:focus-visible, .mu-speed:focus-visible, .mu-play-all:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 
-/* ===== 宽屏平铺（Gray 2026-11-07，参考 rzcthink.top；共享外壳 shell.css wide 段）：只在桌面布局（<html data-sgx-layout="desktop">），手机布局不变 =====
-   页面外框 .cu-wrap = 外壳框（桌面通栏，不对齐顶栏）。发现的收藏格子、设备 / 游戏 / 电影卡片去卡片：没有底色、描边、阴影，
-   多栏排列，格子之间细线（--sgx-wide-line），首行上边、首栏左边的线由容器裁掉，上下各一条细线收边。
-   音乐页的播放器、分类条 chip、记一句 / 收藏 FAB、弹层这些交互件保持原样。 */
-:root[data-sgx-layout="desktop"] .cu-sec-h { margin: 0 0 12px; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--sgx-text-secondary); }
-:root[data-sgx-layout="desktop"] .cu-list { gap: 36px; }
-:root[data-sgx-layout="desktop"] .cu-grid,
-:root[data-sgx-layout="desktop"] .it-grid { gap: 0; overflow: hidden; border-top: 1px solid var(--sgx-wide-line); border-bottom: 1px solid var(--sgx-wide-line); }
-:root[data-sgx-layout="desktop"] .cu-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); }
-:root[data-sgx-layout="desktop"] .it-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
-:root[data-sgx-layout="desktop"] .cu-tile,
-:root[data-sgx-layout="desktop"] .it-card { border: 0; border-radius: 0; background: transparent; box-shadow: -1px 0 0 0 var(--sgx-wide-line), 0 -1px 0 0 var(--sgx-wide-line); }
-:root[data-sgx-layout="desktop"] .cu-tile { min-height: 128px; padding: 20px 12px 16px; }
-:root[data-sgx-layout="desktop"] .it-card { padding: var(--sgx-wide-pad); gap: 12px; overflow: visible; }
-:root[data-sgx-layout="desktop"] .it-card .it-media { border-radius: 16px; overflow: hidden; }
-:root[data-sgx-layout="desktop"] .it-card .it-body { padding: 0; }
-:root[data-sgx-layout="desktop"] .cu-tile:active,
-:root[data-sgx-layout="desktop"] .it-card:active { transform: none; background-color: var(--sgx-state-pressed-bg); }
-@media (hover: hover) and (pointer: fine) {
-  :root[data-sgx-layout="desktop"] .cu-tile:hover,
-  :root[data-sgx-layout="desktop"] .it-card:hover { background-color: var(--sgx-state-hover-bg); }
-}
-
-/* ===== 终端风子页（2026-11 UI 重设计 PR-3，设计稿 s-curio「奇趣」、s-citem「条目」，Gray 已批）：只换外观，不减功能 =====
-   首页分区入口、子页段式标签、分类 / 状态筛选条、收藏格子（长按编辑）、设备 / 游戏 / 电影卡片与详情、音乐播放器、新建 FAB、弹层表单、登录提示都照旧。
-   - 页面外框 = 顶栏内容宽 --sgx-col-w（1080 居中，对齐字标 / 图标组），两种布局一样；不再是外壳框通栏。
-   - 筛选条：等宽小方签（同段式标签），选中 = 主题色描边 + 主题色字 + --sgx-term-sel 衬底。
-   - 收藏格子 / 条目卡：细线框（--sgx-term-line）、圆角 12、半透明底，格子之间留缝（不再是平铺细线网格）；卡片副行等宽小字，使用天数主题色。
-   - 详情：大图细线框圆角 14；每项「名称 …… 值」一行，行间虚线（手机布局名称在上）。 */
+/* ===== 页面外框 = 顶栏内容宽 --sgx-col-w（1080 居中，对齐字标 / 图标组），两种布局一样 ===== */
 :root .cu-wrap { width: var(--sgx-col-w); }
 :root .cu-narrow > * { max-width: none; }
-.cu-chip { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--sgx-term-line); background: transparent; color: var(--sgx-text-secondary);
-  font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 400; }
+/* 编辑弹层里的单选 / 多选签（类型、状态、分类）：等宽小方签，选中 = 主题色描边 + 主题色字 + --sgx-term-sel 衬底 */
+.cu-chip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--sgx-term-line); background: transparent;
+  color: var(--sgx-text-secondary); font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 400; white-space: nowrap; cursor: pointer; }
 .cu-chip[aria-selected="true"], .cu-chip[aria-checked="true"] { border-color: var(--sgx-primary); background: var(--sgx-term-sel); color: var(--sgx-primary); font-weight: 500; }
+.cu-chip:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 .cu-chip-sm { height: 30px; font-size: 12.5px; }
-.cu-bar { background: transparent; }
-.cu-sec-h, :root[data-sgx-layout="desktop"] .cu-sec-h { margin: 0 0 12px; font-family: var(--sgx-font-mono); font-size: 12px; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; color: var(--sgx-text-tertiary); }
-.cu-sec-h::before { content: "# " / ""; color: var(--sgx-primary); }
-.cu-sec-n { font-family: var(--sgx-font-mono); font-weight: 400; letter-spacing: 0; }
-:root .cu-grid, :root[data-sgx-layout="desktop"] .cu-grid,
-:root .it-grid, :root[data-sgx-layout="desktop"] .it-grid { gap: 14px; overflow: visible; border: 0; }
-:root[data-sgx-layout="desktop"] .cu-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); }
-:root[data-sgx-layout="desktop"] .it-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
-:root:not([data-sgx-layout="desktop"]) .cu-grid, :root:not([data-sgx-layout="desktop"]) .it-grid { gap: 10px; }
-:root .cu-tile, :root[data-sgx-layout="desktop"] .cu-tile,
-:root .it-card, :root[data-sgx-layout="desktop"] .it-card { border: 1px solid var(--sgx-term-line); border-radius: 12px; box-shadow: none;
-  background: color-mix(in srgb, var(--sgx-surface-container-lowest) 70%, transparent); }
-.dark .cu-tile, .dark .it-card { border-color: var(--sgx-term-line); box-shadow: none; }
-:root[data-sgx-layout="desktop"] .cu-tile { min-height: 116px; padding: 18px 12px 14px; }
-:root .it-card, :root[data-sgx-layout="desktop"] .it-card { gap: 0; padding: 0; overflow: hidden; }
-:root .it-card .it-media, :root[data-sgx-layout="desktop"] .it-card .it-media { border-radius: 0; border-bottom: 1px solid var(--sgx-term-line); }
-:root .it-card .it-body, :root[data-sgx-layout="desktop"] .it-card .it-body { padding: 12px 14px 14px; }
-.cu-name { font-weight: 500; }
-.it-name { font-size: 14.5px; font-weight: 500; }
-.it-sub { font-family: var(--sgx-font-mono); font-size: 12px; color: var(--sgx-text-tertiary); }
-.it-meta { font-family: var(--sgx-font-mono); font-size: 12px; font-weight: 400; }
-.it-badge, .it-status { border-radius: 6px; font-family: var(--sgx-font-mono); font-weight: 400; }
-@media (hover: hover) and (pointer: fine) {
-  :root .cu-tile:hover, :root[data-sgx-layout="desktop"] .cu-tile:hover,
-  :root .it-card:hover, :root[data-sgx-layout="desktop"] .it-card:hover { border-color: var(--sgx-primary); background-color: color-mix(in srgb, var(--sgx-surface-container-lowest) 70%, transparent); }
-}
-/* 详情（设计稿 s-citem 的规格表）：大图细线框，规格「名称 …… 值」，行间虚线 */
-.it-hero { border: 1px solid var(--sgx-term-line); border-radius: 14px; }
-.it-hero-sub { font-family: var(--sgx-font-mono); font-size: 12px; font-weight: 400; color: var(--sgx-text-tertiary); }
-.it-days { font-family: var(--sgx-font-mono); font-size: 18px; font-weight: 500; }
-.it-dl { display: grid; grid-template-columns: 7em minmax(0, 1fr); align-items: baseline; gap: 12px; padding: 8px 2px; border-top: 1px dashed var(--sgx-term-line); }
-.it-dt { margin: 0; font-family: var(--sgx-font-mono); font-size: 12px; font-weight: 400; color: var(--sgx-text-tertiary); }
-.it-dd { font-size: 14.5px; }
-.layout-phone .it-dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }

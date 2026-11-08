@@ -10,7 +10,7 @@ test('§6.2 衬底变量在共享外壳里：导航选中色 45%', () => {
   assert.match(shell, /--sgx-tb-label-bg: color-mix\(in oklab, var\(--sgx-nav-selected\) 45%, transparent\);/);
 });
 
-test('PR-4b 定稿：页名胶囊只显示页名——主站没有顶栏标签，三个子站顶栏没有分段滑块（分区入口在首页正文）', () => {
+test('PR-4b 定稿：页名胶囊只显示页名——主站没有顶栏标签，三个子站顶栏没有分段滑块（分区切换在首页正文：对齐 PR-C2 起奇趣是下划线 tab、日刻是窗标题链接）', () => {
   const css = rd('space/web/assets/css/input.css');
   assert.doesNotMatch(css, /\.sgx-tb-tabs? \{/);
   for (const f of ['space/web/assets/blog/css/blog/components.css', 'space/web/assets/curio/css/input.css', 'space/web/assets/daymark/css/input.css', 'space/web/assets/css/shell/shell.css']) {
@@ -25,9 +25,9 @@ test('PR-4b 定稿：页名胶囊只显示页名——主站没有顶栏标签�
     else if (f.includes('/curio/')) assert.match(src, /\{\{ \$center = printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/, f + '：胶囊 = 页名');
     else assert.match(src, /class=\\"sgx-tb-title\\" data-sgx-titles=/, f + '：首页胶囊 = 站名，分区名由脚本换');
   }
-  for (const f of ['space/web/layouts/curio/section.html', 'space/web/layouts/daymark/section.html']) {
-    assert.match(rd(f), /partial "sgx-entries\.html"/, f + '：首页有分区入口');
-  }
+  assert.match(rd('space/web/layouts/partials/curio/page-head.html'), /<div class="sgx-ctab" id="cu-tabs">/, '奇趣：页头下划线 tab');
+  const dm = rd('space/web/layouts/daymark/section.html');
+  for (const w of ['trove', 'flavors']) assert.match(dm, /<a href="#\{\{ \$w \}\}">/, '日刻：窗标题进拾录 / 百味');
 });
 
 test('§6.3（顶栏 v3 起）：宽屏不再三段网格定宽中段、页名不在顶栏显示（#site-nav 里藏）；页名样式留着（锁屏顶栏用），按字定宽、长页名省略号', () => {

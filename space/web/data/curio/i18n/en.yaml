@@ -162,6 +162,31 @@ curioItemView:
   close: Close
 curioSignin:
   signInToYour: Sign in to your account to edit
+list:
+  grep: Filter
+  grepPh: name or #tag
+  grepClose: Close filter
+  sortBy: Sort
+  more: scroll for more
+  pager: Pager
+  loading: Loading…
+  tabs: Curio sections
+sort:
+  recent: recently kept
+  order: my order
+  name: name
+  bought: recently bought
+  rating: rating
+  watched: recently watched
+cmd:
+  addFind: keep a find
+  addDevice: add a device
+  addGame: add a game
+  addMovie: add a movie
+  cats: categories
+  import: import bookmarks
+  export: export bookmarks
+  upload: upload an album
 js:
   curio:
     all: All
@@ -175,7 +200,7 @@ js:
     needCat: Pick a category.
     dup: You already kept this one.
     priv: Only you can see this
-    emptyAdmin: Nothing kept yet. Tap "Keep" or import your browser bookmarks.
+    emptyAdmin: Nothing kept yet. Use "keep a find" above, or import your browser bookmarks.
     emptyVisitor: Nothing here yet.
     noMatch: Nothing matches.
     filling: Fetching…
@@ -208,6 +233,9 @@ js:
     impEnd: .
     impAdded_one: Added {n} link
     impCats_one: ', {n} new category'
+  curioList:
+    count: '-- {n} / {total} --'
+    noMatch: Nothing matches.
   curioItems:
     all: All
     active: In use
@@ -229,8 +257,8 @@ js:
     editDevice: Edit device
     addGame: Add a game
     editGame: Edit game
-    emptyDevAdmin: No devices yet. Tap "Device" to add one.
-    emptyGameAdmin: No games yet. Tap "Game" to add one.
+    emptyDevAdmin: No devices yet. Use "add a device" above.
+    emptyGameAdmin: No games yet. Use "add a game" above.
     empty: Nothing here yet.
     noMatch: Nothing in this filter.
     needName: Give it a name.
@@ -274,11 +302,20 @@ js:
     aboutYears: ' · about {y} years'
     days_one: '{n} day'
     aboutYears_one: ' · about {y} year'
+    state: Status
+    tags: Tags
+    link: Link
+    kept: 'added {d}'
+    related: related post
+    editCmd: edit
+    back: back to the list
+    nextNone: 'end of list'
+    notFound: This item doesn't exist or isn't visible to you.
   curioMovies:
     add: Add a movie
     edit: Edit movie
     empty: No movies yet.
-    emptyAdmin: No movies yet. Tap "Movie" to add one.
+    emptyAdmin: No movies yet. Use "add a movie" above.
     needTitle: Give it a title.
     badYear: Check the year.
     badDate: Check the date.
@@ -295,6 +332,8 @@ js:
     rating: My rating
     review: A line or two
     stars: '{n} out of 5'
+    title: Movie
+    editCmd: edit
   curioMusic:
     tracks: '{n} tracks'
     tracks_one: '{n} track'

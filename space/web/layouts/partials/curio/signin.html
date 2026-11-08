@@ -1,4 +1,5 @@
-{{- /* 不能编辑（接口回 canWrite=false）时页底这一行（curio.js 的 SgxCurioUI.signin 按 canWrite / showPrivate 显隐、换字、换链接），各子页共用。
+{{- /* 不能编辑（接口回 canWrite=false）时命令链里这一条（curio.js 的 SgxCurioUI.signin 按 canWrite / showPrivate 显隐、换说明、换链接），各子页共用。
+   2026-11 对齐 PR-C2：从页底一行改成页头命令链里的「sudo login · 登录账号后可编辑」（稿的终端风）。
    data-acct / data-acct-sec：经典脚本用的主站账号地址，由 sgx-lang-path.html 按本页语言算好（P4-3 PR-4c，不在 JS 里手写前缀）。参数：tr（字符串表）、lang（页面语言代码） */ -}}
 {{- $tr := .tr }}{{ $lang := .lang }}
-<p id="cu-signin" data-acct="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}" data-acct-sec="{{ partial "sgx-lang-path.html" (dict "path" "/account/security/" "lang" ($lang)) }}" class="hidden text-center pt-2 pb-8 text-sm text-m-on-surface-variant"><a href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}" class="underline underline-offset-4">{{ $tr.curioSignin.signInToYour }}</a></p>
+<a id="cu-signin" class="sgx-cmd hidden" data-acct="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}" data-acct-sec="{{ partial "sgx-lang-path.html" (dict "path" "/account/security/" "lang" ($lang)) }}" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/account/" "lang" ($lang)) }}"><span class="sgx-cmd-k" translate="no">sudo login</span><i data-signin-text>{{ $tr.curioSignin.signInToYour }}</i></a>

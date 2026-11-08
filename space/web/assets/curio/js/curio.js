@@ -1,13 +1,13 @@
 /* assets/js/curio.js —— 奇趣「发现」子页逻辑 + 各子页共用的确认框 / 提示条 / 弹层开关 / 页底一行（浏览器 IIFE；node 测试时导出纯函数）。
  *
- * - P4-3 奇趣拆页起「发现」是独立子页 /curio/finds/（中文 /curio/zh/finds/）：分类筛选条（全部 + 每个分类，hash #c/<分类 id>，只用 replaceState）。
- *   设备 / 游戏 / 电影子页也加载本文件，只用 window.SgxCurioUI（没有 #cu-list 时后面「发现」的部件不启动）。
- *   顶栏没有搜索栏（2026-10-22 起）；filterCats 仍支持搜索词，留给以后。
- * - 按分类分组的格子：图标（/api/icon?id=，R2 缓存；取不到显示首字母方块）、名字、简介；私密的带小锁（只有账号已登录看得到私密的）。
- *   点格子在新标签页打开网址。
- * - 能编辑（接口回 canWrite：账号已登录 + 作用域 curio.write）：右下角「收藏」新建；长按格子（或键盘 Enter 以外的 E 键）编辑；分类条右边「⋯」：管理分类 / 导入浏览器书签 / 导出书签。
+ * - 「发现」= 奇趣首页 /curio/ 和 /curio/finds/（中文 /curio/zh/…；2026-11 对齐 PR-C2 起同一份内容）：分类 chips（全部 + 每个分类，hash #c/<分类 id>，只用 replaceState）。
+ *   设备 / 游戏 / 电影 / 音乐子页也加载本文件，只用 window.SgxCurioUI（没有 #cu-list 时后面「发现」的部件不启动）。
+ *   grep / 排序 / 分页在 curio-list.js（只动画好的卡片）；filterCats 的搜索词留给以后。
+ * - 封面卡（设计稿 .cc）：封面位放站点图标（/api/icon?id=，R2 缓存；取不到显示首字母方块）、「finds · 域名」、名字、#分类；私密的带小锁（只有账号已登录看得到私密的）。
+ *   点卡片在新标签页打开网址。
+ * - 能编辑（接口回 canWrite：账号已登录 + 作用域 curio.write）：页头命令链「收藏 / 管理分类 / 导入书签 / 导出书签」；长按卡片（或键盘 E 键）编辑。
  *   编辑弹层：网址（「自动填写」抓标题、简介、图标）、名字、英文名和英文简介、简介、分类（可就地新建）、自定义图标、仅自己可见、上移 / 下移、删除。
- * - 不能编辑（canWrite=false）：编辑入口换成页底一行（#cu-signin，signinHint）：
+ * - 不能编辑（canWrite=false）：命令链里只有一条「sudo login」（#cu-signin，signinHint）：
  *   没登录账号 →「登录账号后可编辑」，链到 /account/?return=<本页>（P3-1 同意流程：登录完先判授权，没授权弹同意卡片，完了回本页）；
  *   已登录但奇趣没有 curio.write（在 账号 › 应用授权 取消过）→「奇趣未获账号授权」，链到 /account/apps/。写接口回 403 scope 也提示这一句。
  *   写接口回 401 account / 403 scope 时也提示这一句；导入回 401 reauth（要账号复验）时提示去账号页验证一次再回来导入（P3-1 前的简版）。
@@ -277,13 +277,75 @@ function applySignin(can, loggedIn){
   var hint = $('#cu-signin');
   if (!hint) return;
   hint.classList.toggle('hidden', !!can);
-  var a = hint.querySelector('a');
-  if (a && !can) { var h = signinHint(loggedIn); a.textContent = h.text; a.setAttribute('href', h.href); }
+  if (!can) {
+    var h = signinHint(loggedIn), t = hint.querySelector('[data-signin-text]');
+    if (t) t.textContent = h.text;
+    hint.setAttribute('href', h.href);
+  }
 }
-G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, openOverlay: openOverlay, closeOverlay: closeOverlay, signin: applySignin };
-/* 段式标签（P4-3 §6.6）：子页页头的「音乐」仅本人可见，默认被 CSS 藏着；不在音乐页时问 /curio/api/access（进门即可，只回布尔），
-   music = true 才给 <html> 加 .cu-music-ok（同首页 curio-home.js）。没权限、出错都保持藏着。 */
-var musicSeg = doc.querySelector('#cu-segs [data-seg="music"]');
+
+/* ---------- 条目页（2026-11 对齐 PR-C2，设计稿 pg=citem；取代旧的详情弹层）：设备 / 游戏 / 电影子页的 ?id=<编号> ----------
+   列表（页头、tab、命令链、分区面板）和条目页（#cu-item）二选一显示；点卡片 pushState，返回键 popstate 回到列表。 */
+var ITEM_IMG = '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M20.5 16l-5-5-8 8.5"/></svg>';
+/** 地址里的条目编号（?id=）；没有 / 不对返回 0 */
+function itemIdOf(search){ var m = /[?&]id=(\d+)(?:&|$)/.exec(String(search || '')); return m ? Number(m[1]) : 0; }
+/** 名字 → 面包屑里的文件名（小写、空白变 -、去掉路径符号；中文原样） */
+function slugOf(name){ return String(name || '').trim().toLowerCase().replace(/[\/\\?#%*:|"<>]+/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').slice(0, 80) || 'item'; }
+function listParts(){ return doc.querySelectorAll('#cu-main > .sgx-ph, #cu-tabs, #cu-cmds, #cu-main > .cu-pane'); }
+function showList(){
+  var it = $('#cu-item'); if (it) { it.hidden = true; it.innerHTML = ''; }
+  listParts().forEach(function(el){ el.hidden = false; });
+}
+/**
+ * 画条目页：o = {dir 分区目录名（devices / games / movies）, name, img（封面 HTML，可空）, meta（「devices · 在用 · 收入于 2024-03」）,
+ *   spec [[标签, 值 HTML]], prose（短评，纯文字）, edit {k, d, fn}（能编辑时）, prev / next {href, k, title}（next 为空就不画右卡）}
+ */
+function showItem(o){
+  var it = $('#cu-item'); if (!it) return;
+  listParts().forEach(function(el){ el.hidden = true; });
+  var nx = function(x, right){
+    if (!x) return '<li></li>';
+    return '<li><a class="sgx-nx-a' + (right ? ' is-next' : '') + '" href="' + esc(x.href) + '"' + (x.ext ? ' target="_blank" rel="noopener"' : '') + (x.id ? ' data-item="' + x.id + '"' : '') + '>'
+      + (right ? esc(x.k) + ' ›' : '‹ ' + esc(x.k)) + '<b>' + esc(x.title) + '</b></a></li>';
+  };
+  it.innerHTML = '<p class="sgx-crumb" translate="no"><span class="sgx-pr">$</span>cat ~/curio/' + esc(o.dir) + '/' + esc(slugOf(o.name)) + '</p>'
+    + '<div class="sgx-item"><div class="sgx-item-im">' + (o.img || ITEM_IMG) + '</div><div class="sgx-item-b">'
+    + '<p class="sgx-item-m">' + esc(o.meta || '') + '</p><h1 class="sgx-item-t">' + esc(o.name) + '</h1>'
+    + (o.spec && o.spec.length ? '<dl class="sgx-spec">' + o.spec.map(function(r){ return '<div><dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd></div>'; }).join('') + '</dl>' : '')
+    + (o.prose ? '<p class="sgx-item-p">' + esc(o.prose) + '</p>' : '')
+    + (o.edit ? '<div class="sgx-cmds"><button type="button" class="sgx-cmd" data-item-edit><span class="sgx-cmd-k" translate="no">' + esc(o.edit.k) + '</span><i>' + esc(o.edit.d) + '</i></button></div>' : '')
+    + '<ul class="sgx-nx">' + nx(o.prev, false) + nx(o.next, true) + '</ul>'
+    + '</div></div>';
+  it.hidden = false;
+  var eb = it.querySelector('[data-item-edit]');
+  if (eb && o.edit) eb.addEventListener('click', o.edit.fn);
+}
+/** 去某个条目（0 = 回列表）：改地址（pushState）并通知本页脚本重画 */
+function goItem(id, replace){
+  var url = G.location.pathname + (id ? '?id=' + id : '') + G.location.hash;
+  try { G.history[replace ? 'replaceState' : 'pushState']({ cuItem: id }, '', url); } catch (e) {}
+  G.scrollTo({ top: 0, behavior: 'auto' });
+  if (itemRoute) itemRoute(id);
+}
+var itemRoute = null;
+/** 本页脚本登记路由：fn(id)（id = 0 时回列表）；卡片 / 条目页里带 data-item 的链接点了走这里（新标签页 / 修饰键照常） */
+function onItemRoute(fn){
+  itemRoute = fn;
+  G.addEventListener('popstate', function(){ fn(itemIdOf(G.location.search)); });
+  doc.addEventListener('click', function(e){
+    var a = e.target.closest && e.target.closest('a[data-item]');
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    goItem(Number(a.getAttribute('data-item')) || 0);
+  });
+}
+G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, openOverlay: openOverlay, closeOverlay: closeOverlay, signin: applySignin,
+  itemId: function(){ return itemIdOf(G.location.search); }, showItem: showItem, showList: showList, goItem: goItem, onItemRoute: onItemRoute, slug: slugOf };
+/* 页头 tab 的「音乐」仅本人可见，默认被 CSS 藏着；不在音乐页时问 /curio/api/access（进门即可，只回布尔），
+   music = true 才给 <html> 加 .cu-music-ok。没权限、出错都保持藏着。 */
+/* 直接打开 / 刷新条目页：列表先藏起来，等本页脚本拿到数据再画条目（免得先闪一下列表） */
+if (itemIdOf(G.location.search) && doc.getElementById('cu-item')) listParts().forEach(function(el){ el.hidden = true; });
+var musicSeg = doc.querySelector('#cu-tabs [data-ctab="music"]');
 if (musicSeg && !musicSeg.hasAttribute('aria-current') && typeof fetch === 'function') {
   fetch('/curio/api/access', { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
     return r.ok ? r.json() : null;
@@ -300,43 +362,44 @@ function findLink(id){
   for (var i = 0; i < cats.length; i++) for (var j = 0; j < cats[i].links.length; j++) if (cats[i].links[j].id === id) return { cat: cats[i], link: cats[i].links[j] };
   return null;
 }
-function tileHTML(l, c){
+/** 封面卡（设计稿 .cc）：封面位 = 站点图标（取不到是首字母），「finds · 域名」/ 名字 / #分类；data-q 给 grep，data-s-* 给排序 */
+function cardHTML(l, c, i){
   var name = pick(l.name, lang) || hostOf(l.url);
-  var desc = pick(l.desc, lang) || hostOf(l.url);
+  var desc = pick(l.desc, lang);
+  var cname = pick(c.name, lang);
   var locked = showPrivate && (l.private || c.private);
-  return '<a class="cu-tile" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer" data-id="' + l.id + '" title="' + esc(desc + ' · ' + l.url) + '">'
-    + '<span class="cu-ic"><span class="cu-ic-letter" aria-hidden="true">' + esc(initial(name, l.url)) + '</span>'
-    + '<img src="/curio/api/icon?id=' + l.id + '" alt="" width="48" height="48" loading="lazy" decoding="async" onerror="this.remove()"></span>'
-    + '<span class="cu-name">' + esc(name) + '</span>'
-    + (locked ? '<span class="cu-lock" role="img" aria-label="' + esc(T.priv) + '" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '')
+  var q = [l.name && l.name.zh, l.name && l.name.en, l.desc && l.desc.zh, l.desc && l.desc.en, hostOf(l.url), cname].join(' ');
+  return '<a class="sgx-cc cu-cc" href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer" data-id="' + l.id + '" title="' + esc((desc ? desc + ' · ' : '') + l.url) + '"'
+    + ' data-q="' + esc(q) + '" data-ord="' + i + '" data-s-recent="' + l.id + '" data-s-order="' + i + '" data-s-name="' + esc(name) + '">'
+    + '<span class="sgx-cc-im"><span class="cu-ic"><span class="cu-ic-letter" aria-hidden="true">' + esc(initial(name, l.url)) + '</span>'
+    + '<img src="/curio/api/icon?id=' + l.id + '" alt="" width="48" height="48" loading="lazy" decoding="async" onerror="this.remove()"></span></span>'
+    + '<span class="sgx-cc-ci"><span class="sgx-cc-m" translate="no">finds · ' + esc(hostOf(l.url)) + '</span>'
+    + '<span class="sgx-cc-t"><span class="cu-name">' + esc(name) + '</span>'
+    + (locked ? '<span class="cu-lock" role="img" aria-label="' + esc(T.priv) + '" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '') + '</span>'
+    + '<span class="sgx-cc-k">#' + esc(cname) + '</span></span>'
     + '</a>';
 }
 function renderChips(){
-  var html = '<button type="button" role="tab" class="cu-chip" aria-selected="' + (cat === 0) + '" data-cat="0">' + esc(T.all) + '</button>';
+  var html = '<button type="button" role="tab" class="sgx-chip" aria-selected="' + (cat === 0) + '" data-cat="0">' + esc(T.all) + ' <i>' + countLinks(cats) + '</i></button>';
   cats.forEach(function(c){
     if (!showPrivate && !c.links.length) return;
-    html += '<button type="button" role="tab" class="cu-chip" aria-selected="' + (cat === c.id) + '" data-cat="' + c.id + '">'
-      + (showPrivate && c.private ? '<span class="cu-chip-lock">' + LOCK + '</span>' : '') + esc(pick(c.name, lang)) + '</button>';
+    html += '<button type="button" role="tab" class="sgx-chip" aria-selected="' + (cat === c.id) + '" data-cat="' + c.id + '">'
+      + (showPrivate && c.private ? '<span class="cu-chip-lock">' + LOCK + '</span>' : '') + esc(pick(c.name, lang)) + ' <i>' + c.links.length + '</i></button>';
   });
   $('#cu-chips').innerHTML = html;
-  var sel = $('#cu-chips [aria-selected="true"]');
-  if (sel && sel.scrollIntoView && cat) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 function render(){
   if (cat && !cats.some(function(c){ return c.id === cat; })) cat = 0;
   renderChips();
   var shown = filterCats(cats, query, cat);
-  var list = $('#cu-list');
-  list.innerHTML = shown.map(function(c){
-    return '<section class="cu-sec" data-cat="' + c.id + '"><h2 class="cu-sec-h"><span>' + esc(pick(c.name, lang)) + '</span>'
-      + (showPrivate && c.private ? '<span class="cu-lock-inline" title="' + esc(T.priv) + '">' + LOCK + '</span>' : '')
-      + '<span class="cu-sec-n">' + esc(T.count(c.links.length)) + '</span></h2>'
-      + '<div class="cu-grid">' + c.links.map(function(l){ return tileHTML(l, c); }).join('') + '</div></section>';
-  }).join('');
+  var list = $('#cu-list'), i = 0, html = '';
+  shown.forEach(function(c){ c.links.forEach(function(l){ html += cardHTML(l, c, i++); }); });
+  list.innerHTML = html;
   var empty = $('#cu-empty');
   var none = loaded && !countLinks(shown);
   empty.textContent = query ? T.noMatch : canWrite ? T.emptyAdmin : T.emptyVisitor;
   empty.classList.toggle('hidden', !none);
+  if (loaded && G.SgxCurioList) G.SgxCurioList.count('finds', countLinks(cats));
 }
 
 /* ---------- 筛选 ---------- */
@@ -346,7 +409,6 @@ $('#cu-chips').addEventListener('click', function(e){
   cat = Number(b.dataset.cat) || 0;
   try { G.history.replaceState(null, '', G.location.pathname + G.location.search + catHash(cat)); } catch (err) {}
   render();
-  G.scrollTo({ top: 0, behavior: 'auto' });
 });
 /* ---------- 编辑 ---------- */
 function setErr(msg){ var el = $('#edit-err'); el.textContent = msg || ''; el.classList.toggle('hidden', !msg); }
@@ -446,24 +508,22 @@ $('#f-up').addEventListener('click', function(){ moveLink(-1); });
 $('#f-down').addEventListener('click', function(){ moveLink(1); });
 $('#cu-fab').addEventListener('click', function(){ openEdit(null); });
 
-/* 能编辑：长按格子编辑；键盘：格子上按 E 编辑 */
-onLongPress($('#cu-list'), '.cu-tile', function(el){
+/* 能编辑：长按卡片编辑；键盘：卡片上按 E 编辑 */
+onLongPress($('#cu-list'), '.cu-cc', function(el){
   if (!canWrite) return;
   var hit = findLink(Number(el.dataset.id));
   if (hit) { try { navigator.vibrate && navigator.vibrate(12); } catch (e) {} openEdit(hit.link, hit.cat.id); }
 });
 $('#cu-list').addEventListener('keydown', function(e){
   if (!canWrite || (e.key !== 'e' && e.key !== 'E')) return;
-  var el = e.target.closest && e.target.closest('.cu-tile');
+  var el = e.target.closest && e.target.closest('.cu-cc');
   var hit = el && findLink(Number(el.dataset.id));
   if (hit) { e.preventDefault(); openEdit(hit.link, hit.cat.id); }
 });
 
-/* ---------- 菜单 / 分类 / 导入 ---------- */
-$('#cu-menu-btn').addEventListener('click', function(){ openOverlay('menu-wrap'); });
-$('#menu-cats').addEventListener('click', function(){ closeOverlay('menu-wrap'); renderCatsSheet(); openOverlay('cats-wrap'); });
-$('#menu-import').addEventListener('click', function(){ closeOverlay('menu-wrap'); resetImport(); openOverlay('import-wrap'); });
-$('#menu-export').addEventListener('click', function(){ closeOverlay('menu-wrap'); });
+/* ---------- 管理分类 / 导入（页头命令链；导出是命令链里的下载链接） ---------- */
+$('#menu-cats').addEventListener('click', function(){ renderCatsSheet(); openOverlay('cats-wrap'); });
+$('#menu-import').addEventListener('click', function(){ resetImport(); openOverlay('import-wrap'); });
 
 function renderCatsSheet(){
   var ids = cats.map(function(c){ return c.id; });
@@ -562,8 +622,7 @@ function boot(){
     cats = j.cats || [];
     loaded = true;
     doc.documentElement.classList.toggle('cu-can-write', canWrite);
-    $('#cu-fab').classList.toggle('hidden', !canWrite);
-    $('#cu-menu-btn').classList.toggle('hidden', !canWrite);
+    ['#cu-fab', '#menu-cats', '#menu-import', '#menu-export'].forEach(function(id){ $(id).classList.toggle('hidden', !canWrite); });
     applySignin(canWrite, showPrivate);
     $('#cu-loading').classList.add('hidden');
     render();

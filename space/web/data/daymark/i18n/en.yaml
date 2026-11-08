@@ -63,6 +63,10 @@ index:
   create: Create
   cancel: Cancel
   sections: Sections
+  dayStrip: Pick a day
+  windows: Recent
+  back: back to today's line
+  drawCmd: draw another
 baseof:
   pageNotFound: Page not found
   trove: Trove
@@ -76,7 +80,7 @@ js:
     failed: Something went wrong. Please try again.
     needText: Write the line first.
     priv: Only you can see this
-    emptyAdmin: Nothing kept yet. Tap "Save a line" to keep your first one.
+    emptyAdmin: Nothing kept yet. Use "save a line" above to keep your first one.
     emptyVisitor: Nothing here yet.
     noToday: No line for today yet.
     copied: Copied.
@@ -113,3 +117,7 @@ js:
     st_song: Song
     st_interview: Interview
     st_mine: Mine
+    tomorrow: See you tomorrow
+    noDay: Nothing was kept that day.
+    notYet: That day hasn't come yet.
+    dayCount: '{n} days'

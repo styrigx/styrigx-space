@@ -1,8 +1,8 @@
 /* assets/js/curio-movies.js —— 奇趣「电影」子页（P4-3 奇趣拆页：/curio/movies/；浏览器 IIFE；node 测试时导出纯函数）。
  *
- * 卡片：海报（2:3，没有就显示胶片图标）、片名、年份 · 导演、评分。默认顺序 = 接口的（最近看的在前）。
- * 点卡片 → 详情（原名、年份、导演、观看日期、评分、短评）；能编辑时详情左上角「编辑」。
- * 能编辑（接口回 canWrite：账号会话 + curio.write）：右下角「电影」新建；编辑弹层里删除（要确认）。无权限只读，看不到添加按钮。
+ * 2026-11 对齐 PR-C2（设计稿 pg=curio / citem）：封面卡（海报当封面，没有就胶片图标；「movies · 年份 · 导演」/ 片名 / 评分）。默认顺序 = 接口的（最近看的在前）。
+ * 点卡片 → 条目页 ?id=（原名、年份、导演、观看日期、评分；短评当正文；底部 cd ../prev │ 相关文章 / cd ../next），取代旧的详情弹层；能编辑时条目页里「vim …」编辑。
+ * 能编辑（接口回 canWrite：账号会话 + curio.write）：页头命令链「touch curio/movies/ +」新建；编辑弹层里删除（要确认）。无权限只读，看不到添加命令。
  * 海报：借 curio-items.js 的裁剪 + 照片状态（window.SgxCurioPhoto.box('mv', 'movie')：2:3 取景框，长边 ≤1600、webp），保存后再传 /curio/api/photo?kind=movie。
  * 确认框、提示条、弹层开关、页底一行借 curio.js 的（window.SgxCurioUI）。
  * 数据：GET /curio/api/movies；写：POST /curio/api/movies {op: movie.add | movie.edit | movie.del}。
@@ -69,7 +69,7 @@ T.stars = function(n){ return tr('stars', { n: n }); };
 var FILM = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M7.5 4.5v15M16.5 4.5v15M3.5 9h4M3.5 15h4M16.5 9h4M16.5 15h4"/></svg>';
 function starSvg(n){ return '<svg viewBox="0 0 24 24" width="' + n + '" height="' + n + '" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="currentColor"/></svg>'; }
 
-var movies = [], canWrite = false, showPrivate = false, loaded = false, editing = null, rating = 0, viewing = 0;
+var movies = [], canWrite = false, showPrivate = false, loaded = false, editing = null, rating = 0;
 var ver = {};
 var photo = PH ? PH.box('mv', 'movie') : null;
 
@@ -91,49 +91,57 @@ function errText(e){
   if (c === 'bad-watched-at') return T.badDate;
   return PH ? PH.errText(e) : T.failed;
 }
-function stars(n, size){
+function stars(n){
   if (!n) return '';
   var s = '';
-  for (var i = 1; i <= 5; i++) s += '<span class="it-star' + (i <= n ? ' on' : '') + '">' + starSvg(size || 16) + '</span>';
+  for (var i = 1; i <= 5; i++) s += i <= n ? '★' : '☆';
   return '<span class="it-stars-ro" role="img" aria-label="' + esc(T.stars(n)) + '">' + s + '</span>';
 }
-function card(m){
+function card(m, i){
   var sub = movieSub(m);
-  return '<button type="button" class="it-card it-card--movie" data-movie="' + m.id + '">'
-    + '<span class="it-media it-media--poster">' + (m.poster ? '<img src="' + posterUrl(m.id) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '') + '<span class="it-media-ic">' + FILM + '</span></span>'
-    + '<span class="it-body"><span class="it-name">' + esc(m.title) + '</span>'
-    + (sub ? '<span class="it-sub">' + esc(sub) + '</span>' : '')
-    + (m.rating ? '<span class="it-row">' + stars(m.rating) + '</span>' : '')
-    + '</span></button>';
+  return '<a class="sgx-cc it-cc it-cc--movie" href="?id=' + m.id + '" data-item="' + m.id + '" data-movie="' + m.id + '"'
+    + ' data-q="' + esc([m.title, m.original_title, m.director, m.year, m.review].join(' ')) + '" data-ord="' + i + '" data-s-watched="' + esc(m.watched_at || '') + '" data-s-rating="' + (m.rating || 0) + '" data-s-name="' + esc(m.title) + '">'
+    + '<span class="sgx-cc-im">' + (m.poster ? '<img src="' + posterUrl(m.id) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '<span class="it-media-ic">' + FILM + '</span>') + '</span>'
+    + '<span class="sgx-cc-ci"><span class="sgx-cc-m"><span translate="no">movies</span>' + (sub ? ' · ' + esc(sub) : '') + '</span>'
+    + '<span class="sgx-cc-t"><span class="it-name">' + esc(m.title) + '</span></span>'
+    + '<span class="sgx-cc-k">' + (m.rating ? stars(m.rating) : esc(m.watched_at || '')) + '</span>'
+    + '</span></a>';
 }
 function render(){
   $('#mv-list').innerHTML = movies.map(card).join('');
   var e = $('#mv-empty');
   e.textContent = canWrite ? T.emptyAdmin : T.empty;
   e.classList.toggle('hidden', !loaded || movies.length > 0);
+  if (loaded && G.SgxCurioList) G.SgxCurioList.count('movies', movies.length);
+  if (loaded && UI && UI.itemId()) route(UI.itemId());
 }
 
-/* ---------- 详情 ---------- */
-function para(label, v){ return v ? '<div class="it-dl"><div class="it-dt">' + esc(label) + '</div><div class="it-dd">' + esc(v).replace(/\n/g, '<br>') + '</div></div>' : ''; }
+/* ---------- 条目页（?id=） ---------- */
+var POSTS = (function(){ try { var e = doc.getElementById('cu-posts'); return e ? JSON.parse(e.textContent) || [] : []; } catch (x) { return []; } })();
+var IT = G.SgxCurioItems || {};
+function txt(v){ return esc(v).replace(/\n/g, '<br>'); }
 function view(m){
-  viewing = m.id;
-  var html = '<div class="it-hero it-hero--poster">' + (m.poster ? '<img src="' + posterUrl(m.id) + '" alt="">' : '<span class="it-media-ic">' + FILM + '</span>') + '</div>'
-    + (m.rating ? '<p class="it-hero-sub">' + stars(m.rating, 18) + '</p>' : '')
-    + para(T.original, m.original_title) + para(T.year, m.year ? String(m.year) : '') + para(T.director, m.director)
-    + para(T.watched, m.watched_at) + para(T.review, m.review);
-  $('#it-view-title').textContent = m.title;
-  $('#it-view-body').innerHTML = html;
-  $('#it-view-body').scrollTop = 0;
-  $('#it-view-edit').classList.toggle('hidden', !canWrite);
-  if (UI) UI.openOverlay('it-view-wrap');
+  var spec = [];
+  if (m.rating) spec.push([T.rating, '<span class="cy">' + stars(m.rating) + '</span>']);
+  [[T.original, m.original_title], [T.year, m.year ? String(m.year) : ''], [T.director, m.director], [T.watched, m.watched_at]].forEach(function(r){ if (r[1]) spec.push([r[0], txt(r[1])]); });
+  var nb = IT.neighbors ? IT.neighbors(movies, m.id) : { prev: null, next: null };
+  var rel = IT.relatedPost ? IT.relatedPost(m.title, POSTS) : null;
+  var IT_T = G.SgxCurioItemsT || {};
+  UI.showItem({ dir: 'movies', name: m.title, meta: ['movies', movieSub(m)].filter(Boolean).join(' · '), spec: spec, prose: m.review,
+    img: m.poster ? '<img src="' + posterUrl(m.id) + '" alt="">' : '<span class="it-media-ic">' + FILM + '</span>',
+    edit: canWrite ? { k: 'vim curio/movies/' + UI.slug(m.title), d: T.editCmd, fn: function(){ openEdit(find(m.id)); } } : null,
+    prev: nb.prev ? { href: '?id=' + nb.prev.id, id: nb.prev.id, k: 'cd ../prev', title: nb.prev.title } : { href: '?', id: 0, k: 'cd ..', title: IT_T.back || '' },
+    next: rel ? { href: rel.u, k: IT_T.related || '', title: rel.t } : nb.next ? { href: '?id=' + nb.next.id, id: nb.next.id, k: 'cd ../next', title: nb.next.title } : null });
 }
-$('#mv-list').addEventListener('click', function(e){ var b = e.target.closest('[data-movie]'); var m = b && find(Number(b.dataset.movie)); if (m) view(m); });
-$('#it-view-edit').addEventListener('click', function(){
-  var m = viewing && find(viewing);
-  if (!m) return;
-  if (UI) UI.closeOverlay('it-view-wrap');
-  openEdit(m);
-});
+function route(id){
+  if (!UI) return;
+  if (!id) { UI.showList(); return; }
+  if (!loaded) return;
+  var m = find(id);
+  if (!m) { UI.showItem({ dir: 'movies', name: '#' + id, meta: 'movies', prose: (G.SgxCurioItemsT || {}).notFound || '', prev: { href: '?', id: 0, k: 'cd ..', title: (G.SgxCurioItemsT || {}).back || '' }, next: null }); return; }
+  view(m);
+}
+if (UI && UI.onItemRoute) UI.onItemRoute(route);
 
 /* ---------- 编辑 ---------- */
 function renderRating(){
@@ -188,7 +196,7 @@ $('#mv-save').addEventListener('click', function(){
 $('#mv-del').addEventListener('click', function(){
   if (!editing || !UI) return;
   var id = editing.id;
-  UI.ask(T.delMovie, T.del, function(){ op({ op: 'movie.del', id: id }).then(function(){ UI.closeOverlay('mv-edit-wrap'); toast(T.deleted); }).catch(function(e){ if (!e.sgxLocked) toast(errText(e)); }); });
+  UI.ask(T.delMovie, T.del, function(){ op({ op: 'movie.del', id: id }).then(function(){ UI.closeOverlay('mv-edit-wrap'); toast(T.deleted); if (UI.itemId()) UI.goItem(0, true); }).catch(function(e){ if (!e.sgxLocked) toast(errText(e)); }); });
 });
 
 /* ---------- 启动 ---------- */

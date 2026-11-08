@@ -114,14 +114,15 @@ for (const [w, h] of VIEWPORTS) {
 
 /* 名字按页面语言（博客跟主站 sgx-ui cookie / 浏览器语言，可能是英文） */
 const SECTIONS = [
-  /* 奇趣（P4-3 奇趣拆页）：入口是子页链接，点了到子页，胶囊 = 子页名 */
-  ['/curio/', ['奇趣', 'Curio'], [['devices', ['设备', 'Devices']], ['games', ['游戏', 'Games']], ['finds', ['发现', 'Finds']], ['movies', ['电影', 'Movies']]]],
-  ['/daymark/', ['日刻', 'Daymark'], [['trove', ['拾录', 'Trove']], ['flavors', ['百味', 'Flavors']], ['echo', ['日刻', 'Daymark']]]],
+  /* 奇趣（对齐 PR-C2）：页头下划线 tab 是子页链接，点了到子页，胶囊 = 子页名 */
+  ['/curio/', ['奇趣', 'Curio'], [['#cu-tabs [data-ctab="devices"]', ['设备', 'Devices']], ['#cu-tabs [data-ctab="games"]', ['游戏', 'Games']], ['#cu-tabs [data-ctab="finds"]', ['发现', 'Finds']], ['#cu-tabs [data-ctab="movies"]', ['电影', 'Movies']]]],
+  /* 日刻（对齐 PR-C2）：余响下面的窗标题进拾录 / 百味，那边「cd ..」回余响 */
+  ['/daymark/', ['日刻', 'Daymark'], [['#dm-wt-trove a', ['拾录', 'Trove']], ['#dm-pane-trove .sgx-cmds a[href="#"]', ['日刻', 'Daymark']], ['#dm-wt-flavors a', ['百味', 'Flavors']], ['#dm-pane-flavors .sgx-cmds a[href="#"]', ['日刻', 'Daymark']]]],
   /* 博客（对齐 PR-C）：首页是一页文章列表 + 分类 chips，没有分区入口（tests/blog/e2e/app-topbar.spec.js 覆盖） */
 ];
 const pick = async (page, pair) => ((await page.evaluate(() => document.documentElement.lang)).startsWith('en') ? pair[1] : pair[0]);
 
-test('子站首页：顶栏没有分区页签；分区入口（首页正文）切页内分区（奇趣：去子页），顶栏边距不变；页名标记 = 站名 → 分区名，顶栏不显示', async ({ page }, info) => {
+test('子站首页：顶栏没有分区页签；正文里的分区切换（奇趣 tab 去子页、日刻窗标题 / cd ..）顶栏边距不变；页名标记 = 站名 → 分区名，顶栏不显示', async ({ page }, info) => {
   test.skip(info.project.name !== 'phone-412');
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   for (const [w, h] of [[412, 915], [1280, 800]]) {
@@ -132,13 +133,10 @@ test('子站首页：顶栏没有分区页签；分区入口（首页正文）�
       await expect(page.locator('.sgx-tb-pill [role="tab"], .sgx-tb-pill .sgx-seg, .sgx-tb-pill a')).toHaveCount(0);
       await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText(await pick(page, site));
       await expect(page.locator('#site-nav .sgx-tb-title')).toBeHidden();
-      for (const [id, name] of secs) {
-        /* 回到首页分区时入口重新出现；先确保入口在 */
-        if (!(await page.locator('[data-sgx-entries]').count())) await open(page, p); /* 奇趣：上一个入口去了子页，回首页 */
-        else if (await page.locator('[data-sgx-entries]').isHidden()) await page.evaluate(() => { location.hash = ''; });
-        await page.locator(`[data-sgx-entries] [data-entry="${id}"]`).click();
+      for (const [sel, name] of secs) {
+        await page.locator(sel).click();
         await settled(page);
-        check(await insets(page), want, `${w}×${h} ${p} ${id}`);
+        check(await insets(page), want, `${w}×${h} ${p} ${sel}`);
         await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText(await pick(page, name));
         await expect(page.locator('#site-nav .sgx-tb-title')).toBeHidden();
       }
