@@ -44,7 +44,7 @@ accountDevices:
   signingOutADevice: Signing out a device ends its account session right away; it has to sign in again.
 accountSecurity:
   verifyItsYou: Verify it's you
-  changingAccountKeysIs: Changing account keys is a security action. Verify again to continue; it lasts 3 minutes and ends as soon as you leave this page.
+  changingAccountKeysIs: Changing your account password or passkeys is a security action. Verify again to continue; it lasts 3 minutes and ends as soon as you leave this page.
   cantSignIn: Can’t sign in?
   accountPassword: Account password
   loading: Loading…
@@ -81,7 +81,7 @@ account:
   welcomeBack: Welcome back
   recordCollectExploreEnjoy: Record · Collect · Explore · Enjoy
   signIn: Sign in
-  noSignInMethod: No sign-in method is set for this account yet. Tap Sign in → “Can’t sign in?” to set one with your root credential.
+  noSignInMethod: No sign-in method is set for this account yet. Tap Sign in → “Can’t sign in?” to set one with your recovery key.
   accountSettings: Account settings
   devices: Devices
   accountSecurity: Account security
@@ -216,9 +216,9 @@ js:
     gateProbeFailStatus: "Status"
     gateProbeFailReason: "Reason"
     gateProbeFailBack: "Back to Security"
-    rfRootLead: "First, verify with your root credential"
-    rfRootPh: "Root credential"
-    rfRootEmpty: "Enter root credential"
+    rfRootLead: "First, verify with your recovery key"
+    rfRootPh: "Recovery key"
+    rfRootEmpty: "Enter recovery key"
     sheetClose: "Close"
     lockSessionNotRecognized: "The session was not recognized. Please try again."
     lockRetryMin: "Try again in {n} min"
@@ -500,7 +500,7 @@ js:
     pkFailed: Registration failed
     errCancelled: Cancelled
     errWrongPw: Incorrect password
-    errWrongRoot: Incorrect root credential
+    errWrongRoot: Incorrect recovery key
     errNotSet: Not set
     errVerify: Verification failed, please retry
     errUvRequired: Device unlock required

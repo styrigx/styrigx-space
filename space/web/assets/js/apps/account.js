@@ -32,7 +32,7 @@ import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { tapFeedback, bindSubmitButton } from '../lib/dialog-behavior.js';
 import { bindPwEye, onEnter, focusNoScroll, pwFieldHtml } from '../auth/auth-flow.js';
 import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../auth/auth-sheet.js';
-import { KEY_ACCOUNT } from '../lib/key-names.js';
+import { KEY_ACCOUNT_PASSWORD } from '../lib/key-names.js';
 import { followKeyboard } from '../shell/vk.js';
 import { ACCOUNT_RETURN_RE, createT, signalAccountName } from './account-common.js';
 import { ACCOUNT_API, postJSON } from '../auth/account-api.js';
@@ -292,7 +292,7 @@ const tx = i18nTable('account');
     vState = 'password';
     vd.setTitle(tx('accounEnterPassword'));
     vd.setBody(
-      pwFieldHtml({ id: 'acct-pw-input', eyeId: 'acct-pw-eye', autocomplete: 'current-password', pmUser: KEY_ACCOUNT, ariaLabel: t('mPassword'), placeholder: t('mPassword'), en: en }) +
+      pwFieldHtml({ id: 'acct-pw-input', eyeId: 'acct-pw-eye', autocomplete: 'current-password', pmUser: KEY_ACCOUNT_PASSWORD, ariaLabel: t('mPassword'), placeholder: t('mPassword'), en: en }) +
         '<button type="button" class="sgx-verify-skip" id="acct-pw-go">' + t('verifyBtn') + '</button>'
     );
     vd.clearErr();
@@ -392,7 +392,7 @@ const tx = i18nTable('account');
   /* ================= 账号总览 ================= */
 
   /**
-   * 密码管理器改名（OwnerKey → AccountKey）：支持 signalCurrentUserDetails 时才拉一次 list 拿账号 handle。
+   * 密码管理器改名（OwnerKey → AccountKey → AccountPasskey）：支持 signalCurrentUserDetails 时才拉一次 list 拿账号 handle。
    * 用通行密钥登录后、或进总览时都会走到这里；每页只发一次（account-common.js）。
    */
   function maybeSignalName() {

@@ -60,7 +60,7 @@ import {
   BY_PASSWORD,
   ACCOUNT_REAUTH_TICKET,
   ACCOUNT_RESET_TICKET,
-  KEY_ACCOUNT,
+  KEY_ACCOUNT_PASSKEY,
   REALM_ACCOUNT,
   rpConfig,
   rpConfigMissing,
@@ -502,7 +502,7 @@ async function handlePost(context) {
       ok: true,
       by: by,
       userHandle: userHandle,
-      userName: KEY_ACCOUNT,
+      userName: KEY_ACCOUNT_PASSKEY,
       displayName: PASSKEY_DISPLAY_NAME,
       keys: keys.map(function (k) {
         return {
@@ -588,7 +588,7 @@ async function handlePost(context) {
         challenge: challenge,
         rpId: rp.rpId,
         rp: { id: rp.rpId, name: 'Styrigx' },
-        user: { id: userHandle, name: KEY_ACCOUNT, displayName: PASSKEY_DISPLAY_NAME },
+        user: { id: userHandle, name: KEY_ACCOUNT_PASSKEY, displayName: PASSKEY_DISPLAY_NAME },
         excludeCredentials: keys.map(function (k) { return { id: k.credId, type: 'public-key' }; }),
       });
     }

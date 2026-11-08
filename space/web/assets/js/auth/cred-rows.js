@@ -20,12 +20,12 @@ export const CRED_ICONS = {
 
 /**
  * 兜底凭证输入框（全站只有这一个组件：重置登录第一步、锁屏凭证页的进站凭证行用）。
- * 种类由调用方给：锁屏侧传 pmUser = KEY_SPACE（进站凭证），账号侧传 KEY_ROOT（账号根凭证）。
+ * 种类由调用方给：锁屏侧传 pmUser = KEY_SPACE（进站凭证），账号侧传 KEY_RECOVERY（恢复密钥）。
  * 隐藏用户名字段（值 = pmUser）让 Samsung Pass 能填充、按这个名字保存。
  * @param {object} o
  * @param {string} o.id 输入框 id
  * @param {string} o.placeholder
- * @param {string} o.pmUser 隐藏用户名（KEY_SPACE / KEY_ROOT）
+ * @param {string} o.pmUser 隐藏用户名（KEY_SPACE / KEY_RECOVERY）
  * @param {boolean} o.en
  * @returns {{field: HTMLElement, input: HTMLInputElement}}
  */
@@ -151,7 +151,7 @@ export function renderCredRows(o) {
         field = document.createElement('div');
         field.className = 'sgx-pw-field';
         if (m.pmUser) {
-          /* 隐藏用户名框：密码管理器按这个名字保存 / 填充（AccountKey / LockKey） */
+          /* 隐藏用户名框：密码管理器按这个名字保存 / 填充（AccountPassword / LockKey） */
           const u = document.createElement('input');
           u.type = 'text';
           u.autocomplete = 'username';

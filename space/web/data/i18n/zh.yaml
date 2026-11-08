@@ -41,7 +41,7 @@ accountDevices:
   signingOutADevice: 退出某台设备会立即结束它的账号会话，那台设备需要重新登录。
 accountSecurity:
   verifyItsYou: 验证身份
-  changingAccountKeysIs: 修改账号凭证属于安全操作，请再验证一次。验证有效 3 分钟，离开本页立即失效。
+  changingAccountKeysIs: 修改账号密码或通行密钥属于安全操作，请再验证一次。验证有效 3 分钟，离开本页立即失效。
   cantSignIn: 无法登录？
   accountPassword: 账号密码
   loading: 正在读取…
@@ -78,7 +78,7 @@ account:
   welcomeBack: 欢迎回来
   recordCollectExploreEnjoy: 记录 · 收藏 · 探索 · 享受
   signIn: 登录
-  noSignInMethod: 账号还没有设置登录方式。可以点「登录」→「无法登录？」用根凭证设置。
+  noSignInMethod: 账号还没有设置登录方式。可以点「登录」→「无法登录？」用恢复密钥设置。
   accountSettings: 账号设置
   devices: 设备
   accountSecurity: 账号安全
@@ -213,9 +213,9 @@ js:
     gateProbeFailStatus: "状态码"
     gateProbeFailReason: "原因"
     gateProbeFailBack: "返回安全"
-    rfRootLead: "先用根凭证验证身份"
-    rfRootPh: "根凭证"
-    rfRootEmpty: "请输入根凭证"
+    rfRootLead: "先用恢复密钥验证身份"
+    rfRootPh: "恢复密钥"
+    rfRootEmpty: "请输入恢复密钥"
     sheetClose: "关闭"
     lockSessionNotRecognized: "会话未生效，请重试。"
     lockRetryMin: "{n} 分钟后可再试"
@@ -493,7 +493,7 @@ js:
     pkFailed: 注册失败
     errCancelled: 已取消
     errWrongPw: 密码不正确
-    errWrongRoot: 根凭证不正确
+    errWrongRoot: 恢复密钥不正确
     errNotSet: 尚未设置
     errVerify: 验证失败，请重试
     errUvRequired: 需要设备解锁确认

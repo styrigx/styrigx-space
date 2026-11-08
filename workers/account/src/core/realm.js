@@ -1,11 +1,13 @@
 /**
  * 账号凭证域（REALM_ACCOUNT）与三张账号票的配置（账号拆分 PR2：从网关 functions/_kernel/realms.js 原样搬来账号那一半）。
+ * 账号三把钥匙（2026-11-08）：account password（账号密码）、account passkey（账号通行密钥）、RecoveryKey（恢复密钥，
+ * Secrets 名仍是 SGX_ACCOUNT_ROOT_KEY，代码里沿用 root 的叫法）。不再有 AccountKey 统称；REALM_ACCOUNT.keyName 没人读，已删。
  *
  * 线上格式一个字都不变：cookie 名、属性、时长、私钥 / 公钥的 Secrets Store 名、允许的 by、纪元名都和网关现有配置逐字段相同
  * （tests/workers/account/account-realm.test.mjs 拿网关 realms.js 逐字段核对），切换时现有账号票继续有效。
  *
  * 和网关域对象的区别只有两项（方案第 6.2 节）：
- * - rootKey：账号根密钥的 Secrets Store 名 SGX_ACCOUNT_ROOT_KEY（新建，值与进站凭证不同）。只用来比对，永远不签会话。
+ * - rootKey：恢复密钥（RecoveryKey）的 Secrets Store 名 SGX_ACCOUNT_ROOT_KEY（新建，值与进站凭证不同）。只用来比对，永远不签会话。
  * - rootIssues：账号根密钥验过后能签的票：只有 AccountResetTicket（by=root）。2026-11-08 起不再能换 AccountReauthTicket。
  * 根密钥的限速 / 审计行就在本域：attempt_limit realm='account' kind='rootkey'、audit realm='account'。
  *
@@ -19,8 +21,8 @@ import { COOKIE_EXPIRED } from '../lib/cookies.js';
 
 export { COOKIE_EXPIRED };
 
-/* 钥匙概念名 */
-export const KEY_ACCOUNT = 'AccountKey';
+/* 钥匙概念名（2026-11-08 三钥匙：不再有 AccountKey 统称）。账号通行密钥的 WebAuthn user.name（只是显示名，不碰 user.id / 凭证） */
+export const KEY_ACCOUNT_PASSKEY = 'AccountPasskey';
 
 /* 账号会话 cookie：只发主站，SameSite=Strict（同网关 ACCOUNT_SESSION_ATTRS） */
 const ACCOUNT_SESSION_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Strict';
@@ -90,7 +92,6 @@ export const TICKETS = Object.freeze({
  */
 export const REALM_ACCOUNT = Object.freeze({
   id: 'account',
-  keyName: KEY_ACCOUNT,
   privateKey: 'SGX_ACCOUNT_PRIVATE',
   publicKey: 'SGX_ACCOUNT_PUBLIC',
   cookie: ACCOUNT_SESSION_COOKIE,

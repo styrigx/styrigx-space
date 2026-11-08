@@ -123,7 +123,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - 请求路径（账号拆分 PR3）：浏览器 → 网关（验锁屏门、剥外来 `x-styrigx-*` / `x-sgx-*` 头、按验过的锁屏会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`）
   → 服务绑定 `ACCOUNT` → 账号 Worker 命名入口 `AccountService`。账号 Worker 没有公开路由，默认 fetch 一律 404。
   网关只有账号页首帧提示还要账号会话结论，经 `ACCOUNT_VERIFIER`（`AccountVerifier.accountSession()`）问账号 Worker；临时钥匙、短链只认锁屏进门会话，短链 Worker 不绑账号 Worker。
-- 登录入口两者平级：账号通行密钥、账号密码；前置条件是已解锁的 锁屏进门会话。账号根密钥不签账号会话。
+- 登录入口两者平级：账号通行密钥、账号密码；前置条件是已解锁的 锁屏进门会话。账号根密钥（恢复密钥）不签账号会话。
 - 敏感操作（注册/删除账号通行密钥、修改账号密码）要求有效的 3 分钟 AccountReauthTicket `sgx-account-reauth`
   （进「账号安全」子页前再验一次，离开即作废；会话还在时也认 AccountResetTicket），没有票返回 403 `reauth`，前端重新验证。
 - 改账号密码 / 删账号通行密钥时 `account-epoch` +1，其他设备的账号会话失效，当前设备重签。
@@ -132,7 +132,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
   「已配置」由凭证推出；账号密码登录限速在 `attempt_limit`（`kind = 'password'`，规则同锁屏密码）。
 - 缺账号钥匙 → 账号登录 503 `config`，只影响账号登录与进门，网站其余部分不受影响。
 - 敏感操作还包括重命名账号通行密钥（`rename`，同样要 AccountReauthTicket，不推纪元）。
-- 概念名 `AccountKey`（原 `OwnerKey`）：账号通行密钥注册时 WebAuthn `user.name = AccountKey`；
+- 概念名（2026-11-08 三钥匙，不再有 `AccountKey` 统称）：账号密码在密码管理器里的隐藏用户名 `AccountPassword`；账号通行密钥注册时 WebAuthn `user.name = AccountPasskey`（原 `OwnerKey` → `AccountKey`，只是显示名，`user.id` / 凭证不变）；恢复密钥 `RecoveryKey`（原 `RootKey`）；
   通行密钥记录不再有 class 字段（键名已表明域）。`list` 返回账号 handle，
   前端支持时调 `PublicKeyCredential.signalCurrentUserDetails` 让密码管理器把旧条目改名
   （只对当前 handle `account-user-id`；旧 handle 与 LockKey 共用，不发）。

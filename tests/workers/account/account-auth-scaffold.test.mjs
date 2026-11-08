@@ -108,9 +108,9 @@ test('_d1.mjs：migrations: "data" 只建数据表（测 auth 表缺失时用）
 
 test('realm：REALM_ACCOUNT 钉死字面量（拆分前网关 REALM_ACCOUNT 的值，PR3 起只在账号 Worker），另有 rootKey = SGX_ACCOUNT_ROOT_KEY、rootIssues = 只有 reset 票（恢复密钥不换 reauth 票，2026-11-08）', () => {
   const a = acct.REALM_ACCOUNT;
-  assert.deepEqual(Object.keys(a).sort(), ['bys', 'challenge', 'cookie', 'cookieAttrs', 'd1Binding', 'epoch', 'id', 'keyName', 'maxAge', 'pepper', 'privateKey', 'publicKey', 'rootIssues', 'rootKey']);
+  /* keyName（AccountKey）2026-11-08 删：没人读，三钥匙不再有统称 */
+  assert.deepEqual(Object.keys(a).sort(), ['bys', 'challenge', 'cookie', 'cookieAttrs', 'd1Binding', 'epoch', 'id', 'maxAge', 'pepper', 'privateKey', 'publicKey', 'rootIssues', 'rootKey']);
   assert.equal(a.id, 'account');
-  assert.equal(a.keyName, 'AccountKey');
   assert.equal(a.privateKey, 'SGX_ACCOUNT_PRIVATE');
   assert.equal(a.publicKey, 'SGX_ACCOUNT_PUBLIC');
   assert.equal(a.cookie, 'sgx-account-session');
@@ -155,14 +155,14 @@ test('realm：三张账号票钉死字面量（方案第 8 节：cookie 名 / TT
 
 test('realm：导出的常量钉死字面量；锁屏 / 根的东西不在这里', () => {
   const want = {
-    KEY_ACCOUNT: 'AccountKey', ACCOUNT_EPOCH: 'account-epoch', ACCOUNT_SESSION_COOKIE: 'sgx-account-session',
+    KEY_ACCOUNT_PASSKEY: 'AccountPasskey', ACCOUNT_EPOCH: 'account-epoch', ACCOUNT_SESSION_COOKIE: 'sgx-account-session',
     ACCOUNT_RESET_COOKIE: 'sgx-account-reset', ACCOUNT_REAUTH_COOKIE: 'sgx-account-reauth', BY_PASSWORD: 'password', BY_PASSKEY: 'passkey',
     BY_ROOT: 'root', ACCOUNT_SESSION_TICKET: 'AccountSessionTicket', ACCOUNT_RESET_TICKET: 'AccountResetTicket',
     ACCOUNT_REAUTH_TICKET: 'AccountReauthTicket', SHORT_TICKET_MAX_AGE: 180,
   };
   for (const [k, v] of Object.entries(want)) assert.equal(acct[k], v, k);
   assert.equal(acct.COOKIE_EXPIRED, gw.COOKIE_EXPIRED, '清 cookie 的过期串两边同值（各自一份 lib/cookies.js）');
-  for (const k of ['REALM_LOCK', 'REALM_ROOT', 'LOCK_SESSION_COOKIE', 'LOCK_EPOCH', 'BY_TEMPKEY', 'BY_ACCOUNT', 'REALMS']) assert.ok(!(k in acct), k);
+  for (const k of ['REALM_LOCK', 'REALM_ROOT', 'LOCK_SESSION_COOKIE', 'LOCK_EPOCH', 'BY_TEMPKEY', 'BY_ACCOUNT', 'REALMS', 'KEY_ACCOUNT']) assert.ok(!(k in acct), k);
   /* 网关这边没有账号的名字 */
   for (const k of ['REALM_ACCOUNT', 'REALM_ROOT', 'KEY_ACCOUNT', 'ACCOUNT_EPOCH', 'ACCOUNT_SESSION_COOKIE', 'BY_ACCOUNT', 'ACCOUNT_SESSION_TICKET']) assert.ok(!(k in gw), 'gateway ' + k);
 });

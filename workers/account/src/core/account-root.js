@@ -1,5 +1,5 @@
 /**
- * 账号根密钥（SGX_ACCOUNT_ROOT_KEY）与账号审计（账号拆分 PR2b，方案第 5.1、6.2、7.3 节）。
+ * 恢复密钥（RecoveryKey，Secrets 名 SGX_ACCOUNT_ROOT_KEY，代码里沿用「根密钥 / root」）与账号审计（账号拆分 PR2b，方案第 5.1、6.2、7.3 节）。
  *
  * POST /api/account 里的两个 action 由 account.js 交到这里（身份头已确认进门、同源、账号库已绑）：
  * - root-reset  { key } → AccountResetTicket（by=root）。不要账号会话；不签会话（拿票设好新凭证后正常登录）。

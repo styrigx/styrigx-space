@@ -2,7 +2,7 @@
 
 ## 职责
 
-账号 Worker：主人账号的完整账号系统（账号拆分 PR3 起）。账号身份（账号密码、账号通行密钥、已登录设备、账号会话 / reauth / reset 三张票、Account 纪元、账号根密钥、账号审计）和账号名下的数据（头像、设置云同步、数字健康）都在这里；网关 `styrigx-auth-gateway` 里没有任何账号鉴权代码。本 Worker 不调网关、不绑任何锁屏数据或钥匙（没有 `[[services]]`）。
+账号 Worker：主人账号的完整账号系统（账号拆分 PR3 起）。账号身份（账号密码、账号通行密钥、已登录设备、账号会话 / reauth / reset 三张票、Account 纪元、恢复密钥（RecoveryKey，Secrets 名 `SGX_ACCOUNT_ROOT_KEY`，代码里叫根密钥 / root）、账号审计）和账号名下的数据（头像、设置云同步、数字健康）都在这里；网关 `styrigx-auth-gateway` 里没有任何账号鉴权代码。本 Worker 不调网关、不绑任何锁屏数据或钥匙（没有 `[[services]]`）。
 
 ## 入口
 
@@ -83,7 +83,7 @@ Secrets Store（`src/secrets.js` 换成字符串，60 秒缓存）：
 | 名字 | 用途 |
 |---|---|
 | `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC` | 账号三张票的签名钥匙对 |
-| `SGX_ACCOUNT_ROOT_KEY` | 账号根密钥，界面叫恢复密钥（`POST /api/account { action:'root-reset', key }`，只签 reset 票；2026-11-08 删 `root-reauth`），与进站凭证 `SGX_LOCK_SPACE_KEY` 是不同的值、各自计数 |
+| `SGX_ACCOUNT_ROOT_KEY` | 恢复密钥（RecoveryKey；代码里叫账号根密钥）（`POST /api/account { action:'root-reset', key }`，只签 reset 票；2026-11-08 删 `root-reauth`），与进站凭证 `SGX_LOCK_SPACE_KEY` 是不同的值、各自计数 |
 | `SGX_PW_PEPPER` | 密码哈希 pepper，与网关同一个密值（有意共用的例外） |
 
 ## 数据与迁移

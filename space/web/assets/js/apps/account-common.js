@@ -8,11 +8,11 @@
  * - requireAccountSession：子页进页查一次账号会话，明确没有 → 回账号页登录，登录后回子页
  * - /api/account 调用与错误码 → 文案在 auth/account-api.js（锁屏凭证页也用）
  * - signalAccountName：PublicKeyCredential.signalCurrentUserDetails 让密码管理器
- *   （Samsung Pass / Google 密码管理器）把已有账号通行密钥条目的名字更新为 AccountKey。
+ *   （Samsung Pass / Google 密码管理器）把已有账号通行密钥条目的名字更新为 AccountPasskey（2026-11-08 起；原 AccountKey）。
  *   只对「当前账号 handle」（account-user-id）发；旧 handle（lock-user-id）与锁屏
  *   LockKey 共用，绝不能对它发，否则会把 LockKey 条目改名。
  */
-import { KEY_ACCOUNT } from '../lib/key-names.js';
+import { KEY_ACCOUNT_PASSKEY } from '../lib/key-names.js';
 import { ACCOUNT_API } from '../auth/account-api.js';
 import { sgxReplace } from '../lib/diag-jumptrace.js';
 import { langPath } from '../lib/lang-path.js';
@@ -91,7 +91,7 @@ export function signalAccountName(info) {
     const p = PKC.signalCurrentUserDetails({
       rpId: location.hostname,
       userId: uh,
-      name: (info && info.userName) || KEY_ACCOUNT,
+      name: (info && info.userName) || KEY_ACCOUNT_PASSKEY,
       displayName: (info && info.displayName) || 'Sloan Gray',
     });
     if (p && typeof p.catch === 'function') p.catch(function () {});

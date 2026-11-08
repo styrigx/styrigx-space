@@ -13,7 +13,7 @@
  */
 import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from './passkey-assert.js';
 import { renderCredRows, CRED_ICONS } from './cred-rows.js';
-import { KEY_ACCOUNT, KEY_SPACE } from '../lib/key-names.js';
+import { KEY_ACCOUNT_PASSWORD, KEY_SPACE } from '../lib/key-names.js';
 import { ACCOUNT_API, postJSON, errText as errTextT } from './account-api.js';
 import { deviceHints } from '../lib/device-hints.js';
 
@@ -102,14 +102,14 @@ export function accountSubmitters(t, opts) {
  * @param {string[]} o.kinds visibleKinds() 的结果
  * @param {{passkey:Function, password:Function, space?:Function}} o.submit accountSubmitters() 的结果（锁屏凭证的门另给 space）
  * @param {Function} o.onSuccess
- * @param {string} [o.pmUser] 密码行的隐藏用户名（默认 AccountKey；锁屏凭证的门传 LockKey）
+ * @param {string} [o.pmUser] 密码行的隐藏用户名（默认 AccountPassword；锁屏凭证的门传 LockKey）
  * @returns {{collapse: Function}}
  */
 export function renderAccountMethods(o) {
   const t = o.t;
   const defs = {
     passkey: { kind: 'passkey', field: 'webauthn', icon: CRED_ICONS.passkey, title: t('mPasskey'), sub: t('mPasskeySub'), submit: o.submit.passkey },
-    password: { kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: o.submit.password, pmUser: o.pmUser || KEY_ACCOUNT },
+    password: { kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: o.submit.password, pmUser: o.pmUser || KEY_ACCOUNT_PASSWORD },
     /* 只给锁屏凭证的门用（security-lock.js 的 kinds 带 space、submit 带 space）：进站凭证行；账号页没有这一行 */
     space: o.submit.space ? { kind: 'space', field: 'key', icon: CRED_ICONS.key, title: t('mSpace'), sub: t('mSpaceSub'), submit: o.submit.space, pmUser: KEY_SPACE } : null,
   };

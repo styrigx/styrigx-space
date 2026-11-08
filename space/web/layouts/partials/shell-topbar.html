@@ -129,7 +129,7 @@
   </div>
 </dialog>
 {{- /* 账号下拉（2026-11 PR-5 acct-v2，设计稿 acct-v2 / tb4.html pop=1 · guest=1）：头像点开。只是去账号各页的入口，不做登录 / 退出 / 改资料本身（那些仍在账号页）。
-   data-acct-state：空 = 还不知道（没问到 / 锁着）→ 头部不写登录态，列表照常；in = 有账号会话；guest = 没有账号会话 → 头部「账号未登录」+ 终端式登录入口（去账号页登录，passkey · AccountKey）。
+   data-acct-state：空 = 还不知道（没问到 / 锁着）→ 头部不写登录态，列表照常；in = 有账号会话；guest = 没有账号会话 → 头部「账号未登录」+ 终端式登录入口（去账号页登录，account passkey · account password）。
    登录态由 topbar.js 每次打开时 GET /api/account（同账号子页进页那一问，只读）判定；名字 / 昵称先画参数里的默认值，再用本机缓存 sgx-profile 覆盖。
    不放 AI 模型行（Gray 2026-11-08 04:45：模型只在 AI 窗口右上角切换）、不放云同步行（04:47：只留后台自动同步，/account/sync/ 301 → /account/）。 */ -}}
 {{- $acct := .acct -}}

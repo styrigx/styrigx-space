@@ -503,13 +503,13 @@ test('新密码真能登录、旧密码不行（pepper 同一个）；records �
 
 /* ================= 通行密钥管理 ================= */
 
-test('passkey-list：{ by, userHandle, userName:AccountKey, displayName, keys[] }；只读 handle、不新建', async () => {
+test('passkey-list：{ by, userHandle, userName:AccountPasskey, displayName, keys[] }；只读 handle、不新建', async () => {
   const env = makeEnv();
   const a = await seedPasskey(env, { name: 'Pixel', provider: 'Google 密码管理器', createdAt: 5, lastUsedAt: 6 });
   const j = await (await post(env, { action: 'passkey-list' }, { 'sgx-account-session': await accSession('passkey') })).json();
   assert.equal(j.by, 'passkey');
   assert.equal(j.userHandle, '');
-  assert.equal(j.userName, 'AccountKey');
+  assert.equal(j.userName, 'AccountPasskey');
   assert.equal(j.displayName, 'Sloan Gray');
   assert.deepEqual(j.keys, [{ credId: a.credId, name: 'Pixel', provider: 'google-password-manager', createdAt: 5, lastUsedAt: 6 }], '旧库存的中文 provider 显示名读时归一成 id');
   assert.equal(one(env, 'SELECT * FROM user_handle'), null, 'list 不创建 handle');
@@ -518,12 +518,12 @@ test('passkey-list：{ by, userHandle, userName:AccountKey, displayName, keys[] 
   assert.equal(j2.userHandle, 'ACCT-H', '只给账号 handle，不给 legacy');
 });
 
-test('passkey-register-challenge：生成并沿用账号 handle（user.id），user.name=AccountKey，排除已有通行密钥；challenge purpose=register', async () => {
+test('passkey-register-challenge：生成并沿用账号 handle（user.id），user.name=AccountPasskey（只是显示名），排除已有通行密钥；challenge purpose=register', async () => {
   const env = makeEnv();
   const a = await seedPasskey(env);
   const j = await (await post(env, { action: 'passkey-register-challenge' }, await full())).json();
   assert.ok(j.user.id && j.user.id.length >= 40);
-  assert.deepEqual([j.user.name, j.user.displayName, j.rp.id, j.rp.name], ['AccountKey', 'Sloan Gray', 'styrigx.com', 'Styrigx']);
+  assert.deepEqual([j.user.name, j.user.displayName, j.rp.id, j.rp.name], ['AccountPasskey', 'Sloan Gray', 'styrigx.com', 'Styrigx']);
   assert.deepEqual(j.excludeCredentials, [{ id: a.credId, type: 'public-key' }]);
   assert.equal(one(env, 'SELECT purpose FROM challenge WHERE id = ?', j.cid).purpose, 'register');
   const j2 = await (await post(env, { action: 'passkey-register-challenge' }, await full())).json();

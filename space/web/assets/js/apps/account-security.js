@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号 → 安全与隐私（/account/security/）：管理账号凭证（AccountKey）。
+ * @fileoverview 账号 → 安全与隐私（/account/security/）：管理账号密码（AccountPassword）与账号通行密钥（AccountPasskey）。
  *
  * - 账号密码：设置 / 修改（账号根凭证登录时为「重置」，恢复路径）
  * - 账号通行密钥：添加（注册成功弹命名弹层，预填设备名；改了名才调 rename）、
@@ -12,7 +12,7 @@
  *   reauth:true 换 3 分钟票），通过后显示管理区 + 倒计时胶囊；
  *   到点 / 改动返回 403 reauth → 回到验证行（提示「验证已过期」）。
  *   离开本页（pagehide）→ reauth-clear 立即作废 reauth / reset 票；从历史返回（bfcache）重新读状态，需要再验证。
- * - list 返回账号 handle → signalCurrentUserDetails（account-common.js）让密码管理器把旧条目改名 AccountKey
+ * - list 返回账号 handle → signalCurrentUserDetails（account-common.js）让密码管理器把旧条目改名 AccountPasskey
  */
 import { on } from '../lib/events.js';
 import { toast } from '../lib/toast.js';

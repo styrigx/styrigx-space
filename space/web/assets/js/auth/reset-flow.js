@@ -38,7 +38,7 @@ export function resetT(en) {
  * @param {HTMLElement} o.el 容器
  * @param {boolean} o.en
  * @param {string} o.keyKind 第 1 步凭证的种类（输入框 id 后缀）：锁屏侧 'space'，账号侧 'root'
- * @param {string} o.pmUser 第 1 步输入框的隐藏用户名：锁屏侧 KEY_SPACE，账号侧 KEY_ROOT
+ * @param {string} o.pmUser 第 1 步输入框的隐藏用户名：锁屏侧 KEY_SPACE，账号侧 KEY_RECOVERY
  * @param {{lead: string, ph: string, empty: string}} o.keyText 第 1 步文案（已按语言选好）：引导句、占位、空值提示
  * @param {(key: string) => Promise<{needLock?: {passkey?: boolean, password?: boolean}}|void>} o.submitKey
  * @param {(key: string) => {passkey: () => Promise<any>, password: (v: string) => Promise<any>}} [o.lock] 第 2 步提交（锁屏凭证）
