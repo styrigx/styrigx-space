@@ -3,29 +3,36 @@
  * 原说明：全站锁屏（2.4.0 H；2026-10-23 Turnstile 入口改临时 LockKey）。
  * 分层规范 L4：lock.js 只负责两件事——
  * 1. 按 L1（middleware 注入的 <html data-sgx-lock-session>）画锁屏，不自己判断会话；
- * 2. 把密码或通行密钥提交给 L2（workers/auth-gateway/src/api/*）。
+ * 2. 把密码、临时钥匙或通行密钥提交给 L2（workers/auth-gateway/src/api/*）。
  * 唯一状态源是服务端签发的 sgx-lock-session 会话；禁止用 sessionStorage、
  * localStorage、前端内存或标签页状态另做判断。
- * - 点头像（电脑回车/空格）→ 解锁方式弹层：临时钥匙 / 通行密钥 / 密码；
- *   通过 → 开锁动画 → 现有解锁流程；失败 → 红色提示。
- * - 本地开发（localhost）跳过验证。
- * - 安全与隐私：临时钥匙/密码/通行密钥三态共用同一个底部弹层组件（圆角、材质、
- *   拖动条、标题字号位置、按钮样式一致）；弹层背景完全不透明；打开时底层
- *   名字与入口设 visibility:hidden + inert；容器无 outline，:focus-visible 只在
- *   内部可交互元素上用本站焦点色。
- * - 临时钥匙：在设置 → 安全与隐私 → 临时钥匙页复验后签发（12 位，XXXX-XXXX-XXXX），拿到的人在这里输入 → POST /api/lock-tempkey-unlock
- *   → 锁屏进门会话（by=tempkey；进门二值，和别的进门方式一样，只是锁侧复验时不算数；账号照样要账号密码登录）。
+ *
+ * lock-v10 命令解锁（2026-11-08，Gray：「按设计稿」「弹窗是实现的方式」；设计稿 entry-v2/lock.html K1–K4）：
+ * 锁屏上没有任何弹层 / 底部弹层 / 对话框。终端窗里有一行真的命令输入框，解锁就是在这里敲命令：
+ * - help（man / ?）列出可用命令；clear 清屏；
+ * - password（sudo、sudo spacekey password）→ 同一行变成 `[sudo] password for …:`，输入不回显，回车提交 → POST /api/lock-password；
+ * - passkey（sudo spacekey passkey）→ 系统通行密钥窗口 → /api/lock-passkey；
+ * - tempkey（sudo tempkey、key）→ 同一行变成 `tempkey:`，输入不回显 → POST /api/lock-tempkey-unlock（在设置 → 安全与隐私 → 临时钥匙页签发，12 位 XXXX-XXXX-XXXX）；
+ * - reset（forgot）→「无法登录？」重置登录，也在终端里一步步问：进站凭证 → （服务端要求时）再验锁屏凭证 → 去 /security/lock/；
+ * - 不认识的命令 → `command not found: x · try help`。
+ * 快捷键 password / passkey 只是替你把命令敲进去再回车；只显示 /api/lock-entry 说已配置的（读取失败按已配置）。
+ * 出错、冷却倒计时、验证中、access granted 都打印成终端行；终端输出 aria-hidden，读屏走一个 aria-live 区域（同样的文字）。
+ * 本地开发（localhost）tempkey 直接开锁（不输临时钥匙）。
  */
 import { on } from '../lib/events.js';
 import { reducedMotion, esc } from '../lib/util.js';
-import { followKeyboard } from './vk.js';
+import { onKeyboardHeight } from './vk.js';
 import { tapFeedback } from '../lib/dialog-behavior.js';
-import { createMethodSheet, createVerifyDialog, METHOD_ICONS, keepInputFocus } from '../auth/auth-sheet.js';
 import { getPasskeyAssertion, passkeyErrorText, assertionOptions, assertionToJSON, isPasskeyCancel } from '../auth/passkey-assert.js';
-import { pwFieldHtml, bindPwEye, onEnter, focusNoScroll } from '../auth/auth-flow.js';
 import { KEY_LOCK, KEY_SPACE } from '../lib/key-names.js';
-import { mountResetFlow, resetT } from '../auth/reset-flow.js';
 import { profileDefaults, readCache, effectiveProfile } from '../lib/profile.js';
+import { sgxNavigate } from '../lib/diag-jumptrace.js';
+import { isLocalDev, pageState, askServer, proceed, bindAutoLock } from './lock-guard.js';
+import { langPath, langs } from '../lib/lang-path.js';
+import { setLang } from '../lib/prefs.js';
+import { i18nTable, pageLang } from '../lib/i18n.js';
+/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */
+const tx = i18nTable('core');
 
 /**
  * 锁屏头像的替代文字 = 个人资料的姓名（2026-11-07）：构建期默认值（data/profile.yaml）← 本机缓存里改过的（上次进门时 GET /api/profile 写的）。
@@ -35,19 +42,23 @@ function lockName() {
   return effectiveProfile(readCache(), profileDefaults()).name;
 }
 
-
-import { sgxNavigate } from '../lib/diag-jumptrace.js';
-import { isLocalDev, pageState, askServer, proceed, bindAutoLock } from './lock-guard.js';
-import { langPath } from '../lib/lang-path.js';
-import { i18nTable, pageLang } from '../lib/i18n.js';
-/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */
-const tx = i18nTable('core');
-
-const UNLOCK =
-  '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/></svg>';
+/**
+ * 命令表：别名（小写、空白归一）→ 命令。
+ * @type {Record<string, string>}
+ */
+const ALIAS = {
+  'help': 'help', 'man': 'help', 'man space': 'help', '?': 'help', 'ls': 'help',
+  'password': 'password', 'pw': 'password', 'sudo': 'sudo', 'sudo spacekey': 'sudo', 'sudo spacekey password': 'password', 'sudo password': 'password',
+  'passkey': 'passkey', 'pk': 'passkey', 'sudo spacekey passkey': 'passkey', 'sudo passkey': 'passkey',
+  'tempkey': 'tempkey', 'key': 'tempkey', 'sudo tempkey': 'tempkey',
+  'reset': 'reset', 'forgot': 'reset', 'sudo reset': 'reset',
+  'clear': 'clear', 'cls': 'clear',
+};
+/** Tab 补全候选（顺序 = help 列表顺序） */
+const COMPLETE = ['help', 'password', 'passkey', 'tempkey', 'reset', 'clear', 'sudo spacekey password', 'sudo spacekey passkey', 'sudo tempkey'];
 
 /**
- * 显示锁屏 UI（2.4.0 H）。
+ * 显示锁屏 UI（2.4.0 H；lock-v10 命令解锁）。
  */
 export function showLockScreen() {
   const en = document.documentElement.lang === 'en';
@@ -55,72 +66,79 @@ export function showLockScreen() {
 
   /* 头像：复用顶栏头像图片 .sgx-tb-avatar（2026-11 PR-5 按设计稿 AI 窗口头部不再有头像；顶栏头像是账号下拉的入口） */
   const navImg = /** @type {HTMLImageElement|null} */ (document.querySelector('#site-nav .sgx-tb-avatar'));
-  /* 锁屏头像 72px：用 192 那张 */
   const avatarSrc = navImg ? navImg.src.replace(/\/avatar\/96\.webp/, '/avatar/192.webp') : '';
 
-  /* 顶栏保持全站同一个（2026-11-04 P5-1 全大椭圆）：字标 + 页名 + 右边三个按钮（九宫格 · 快捷设置 · AI），外观取页面顶栏同一份。
-     锁屏上它们只是外观（span、不可点、不进读屏），导航 / 快捷面板 / AI 在锁定时打不开，不能绕过锁屏。
-     账号入口（头像）锁屏态同样不在顶栏（PR-4b：头像只在 AI 窗口头部，顶栏只抄 .sgx-tb-btn）。类名照抄（sgx-tb-btn sgx-tb-grid / sgx-tb-quick / sgx-tb-ai）。 */
+  /* 顶栏保持全站同一个（2026-11-04 P5-1 全大椭圆）：字标 + 页名 + 右边按钮，外观取页面顶栏同一份。
+     锁屏上它们只是外观（span、不可点、不进读屏），导航 / 快捷面板 / AI 在锁定时打不开，不能绕过锁屏。类名照抄。 */
   const tbLogoEl = document.querySelector('#site-nav .sgx-tb-logo');
   const tbLogo = tbLogoEl ? tbLogoEl.innerHTML : '';
   const tbActs = Array.from(document.querySelectorAll('#site-nav .sgx-tb-acts .sgx-tb-btn')).map(function (b) {
     return '<span class="' + b.className + '">' + b.innerHTML + '</span>';
   }).join('');
+
+  /* 底部语言切换（设计稿 `~/styrigx_ · zh · en`）：配置里的语言（hugo.yaml languages），点了和快捷面板语言行同一个写法（lib/prefs.js setLang） */
+  const curLang = pageLang();
+  /* 设计稿顺序 zh · en（配置顺序是默认语言 en 在前，这里倒过来） */
+  const langBtns = langs().slice().reverse().map(function (l) {
+    return '<span class="sgx-lock-tsep" aria-hidden="true"> · </span>' +
+      '<button type="button" class="sgx-lock-lang" data-lang="' + l + '" lang="' + l + '"' +
+      (l === curLang ? ' aria-current="true"' : '') + '>' + l + '</button>';
+  }).join('');
+
+  const termUser = (String(lockName() || '').trim().split(/\s+/)[0] || 'user').toLowerCase();
+
   const ov = document.createElement('div');
   ov.id = 'sgx-lock';
   ov.setAttribute('role', 'dialog');
   ov.setAttribute('aria-modal', 'true');
   ov.setAttribute('aria-label', tx('lockLockScreen'));
-  /* PR3 锁屏版面：保留锁屏的感觉（小锁 → 时钟 → 日期天气 → 日刻今日一句 → 头像解锁），
-     整组在屏幕里垂直居中，不再「时钟顶在上面、头像压在底部、中间一大片空」。
-     日刻卡只展示（div，不是链接，点了不跳转）；拉不到就不显示。
-     为了不跳版面：整组先透明，日刻有结论（缓存画上 / 拉到 / 失败）或等满 1.2 秒再一起显示；
-     之后才拉到的句子这次不再插进来（下次锁屏从缓存直接画）。 */
-  /* 2026-10-23 锁屏视觉统一（用户定稿）：和账号登录页同一套玻璃背景与版面 ——
-     顶栏和全站一样是三件套（两侧圆只是外观，点不了，锁屏不能绕过）；
-     头像（点它解锁）→ 欢迎回来 / 很高兴再次见到你 → 解锁按钮，整组在屏幕上下左右居中。
-     （2026-10-23：小锁图标、左上字标、底部站点清单删掉；A Personal Digital Space 挪到抽屉头）
-     时钟、日期天气、日刻不再放在锁屏上。解锁、凭证、会话逻辑不变：按钮只是转点头像。 */
+  /* 版面（设计稿 K1）：顶栏（只是外观）→ 头像 → 状态胶囊 `$ STATUS: …` → 名字 → 欢迎回来 · 很高兴再次见到你 →
+     锁屏终端窗（标题栏 `$ LOCK · tty1` · 输出 · 命令输入行 · 快捷键）→ 底部 `~/styrigx_ · zh · en`。 */
   ov.innerHTML =
     '<div class="sgx-glass-bg" aria-hidden="true"></div>' +
     '<div class="sgx-lock-tb"><div class="sgx-topbar">' +
     '<span class="sgx-tb-logo" aria-hidden="true">' + tbLogo + '</span>' +
-    /* 顶栏标题（2026-10-24）：静止时「锁定屏幕」，打开解锁方式 / 验证弹层时「解锁屏幕」（syncTitle） */
-    '<div class="sgx-tb-pill"><span class="sgx-tb-title" id="sgx-lock-title" aria-live="polite">' + (tx('lockLockScreen2')) + '</span></div>' +
+    /* 顶栏标题：静止时「锁定屏幕」，正在输入凭证 / 验证时「解锁屏幕」（syncTitle） */
+    '<div class="sgx-tb-pill"><span class="sgx-tb-title" id="sgx-lock-title">' + tx('lockLockScreen2') + '</span></div>' +
     '<span class="sgx-tb-acts" aria-hidden="true">' + tbActs + '</span>' +
     '</div></div>' +
-    /* lock-v10（2026-11 UI 重设计 PR-4，设计稿 entry-v2/lock.html K1–K4）：只换外观——
-       头像（仍是按钮，点它解锁）→ 状态胶囊 `$ STATUS: …` → 名字 → 欢迎回来 · 很高兴再次见到你 → 锁屏终端窗
-       （标题栏 `$ LOCK · tty1`、装饰性输出区跟着解锁进度回显、快捷键 password / passkey + 原「解锁」按钮）→ 底部 `~/styrigx_`。
-       状态胶囊、名字、终端输出、底部都是装饰（aria-hidden）：读屏仍走头像按钮、解锁按钮、顶栏 aria-live 标题和各弹层。
-       快捷键只是直接打开密码 / 通行密钥弹层（同方式弹层里的那两行，按 /api/lock-entry 只显示已配置的）；临时钥匙、无法登录？仍在「解锁」→ 方式弹层。 */
-    '<div class="sgx-lock-stage is-pending" id="sgx-lock-stage">' +
-    '<div class="sgx-lock-user"><button type="button" id="sgx-lock-avatar" aria-label="' +
-    (tx('lockUnlockChooseMethod')) +
-    '" aria-haspopup="dialog">' +
-    '<span class="sgx-lock-halo" aria-hidden="true"></span>' +
+    '<div class="sgx-lock-stage" id="sgx-lock-stage">' +
+    '<div class="sgx-lock-user">' +
+    '<div class="sgx-lock-av" id="sgx-lock-avatar">' +
     (avatarSrc
       ? '<img src="' + avatarSrc + '" alt="' + esc(lockName()) + '" translate="no" data-sgx-personal width="120" height="120">'
       : '<span class="sgx-lock-fb" aria-hidden="true">S</span>') +
-    '</button>' +
+    '</div>' +
     '<p class="sgx-lock-st" id="sgx-lock-st" data-st="locked" aria-hidden="true"><i></i><span id="sgx-lock-st-tx">$ STATUS: LOCKED</span></p>' +
     '<p class="sgx-lock-nm" aria-hidden="true" translate="no" data-sgx-personal>' + esc(lockName()) + '</p>' +
-    '<p class="sgx-lock-greet"><span class="sgx-lock-welcome">' + (tx('lockWelcomeBack')) + '</span>' +
+    '<p class="sgx-lock-greet"><span class="sgx-lock-welcome">' + tx('lockWelcomeBack') + '</span>' +
     '<span class="sgx-lock-gsep" aria-hidden="true"> · </span>' +
-    '<span class="sgx-lock-sub">' + (tx('lockGoodToSeeYou')) + '</span></p>' +
-    '<div class="sgx-lock-term">' +
+    '<span class="sgx-lock-sub">' + tx('lockGoodToSeeYou') + '</span></p>' +
+    '<div class="sgx-lock-term" id="sgx-lock-term">' +
     '<div class="sgx-lock-term-bar" aria-hidden="true"><span><b>$</b> LOCK · tty1</span><span id="sgx-lock-tty">guest</span></div>' +
+    '<div class="sgx-lock-tbody" id="sgx-lock-tbody">' +
     '<div class="sgx-lock-log" id="sgx-lock-log" aria-hidden="true"></div>' +
-    '<p class="sgx-lock-qh" aria-hidden="true">' + esc(tx('lockTermHint')) + '</p>' +
+    /* 命令输入行：真的 <input>（有 aria-label）。输凭证时 type=password（不回显），隐藏用户名给密码管理器（LockKey / 重置时 SpaceKey） */
+    '<form class="sgx-lock-line" id="sgx-lock-form" data-mode="cmd" novalidate>' +
+    '<input type="text" class="sgx-lock-pmu" id="sgx-lock-pmu" name="username" autocomplete="username" value="' + KEY_LOCK + '" aria-hidden="true" tabindex="-1" readonly>' +
+    '<label class="sgx-lock-ps" id="sgx-lock-ps" for="sgx-lock-cmd" aria-hidden="true"></label>' +
+    '<span class="sgx-lock-cur sgx-lock-icur" aria-hidden="true"></span>' +
+    '<input type="text" class="sgx-lock-in" id="sgx-lock-cmd" name="cmd" placeholder=" " autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" maxlength="256" aria-label="' + esc(tx('lockTermCmdAria')) + '">' +
+    '</form>' +
+    '<p class="sgx-lock-hint" id="sgx-lock-hint" hidden><span id="sgx-lock-hint-tx" aria-hidden="true"></span> ' +
+    '<button type="button" class="sgx-lock-cc" id="sgx-lock-cc" aria-label="' + esc(tx('lockCancel')) + '">Ctrl+C</button>' +
+    '<span aria-hidden="true"> ' + esc(tx('lockTermBack')) + '</span></p>' +
+    '</div>' +
+    '<p class="sgx-lock-qh" id="sgx-lock-qh" aria-hidden="true" hidden>' + esc(tx('lockTermHint')) + '</p>' +
     '<div class="sgx-lock-qk">' +
-    '<button type="button" class="sgx-lock-k" id="sgx-lock-k-pw" data-k="password" aria-label="' + esc(tx('lockUsePassword')) + '" aria-haspopup="dialog" hidden>password</button>' +
-    '<button type="button" class="sgx-lock-k" id="sgx-lock-k-pk" data-k="passkey" aria-label="' + esc(tx('lockUsePasskey')) + '" aria-haspopup="dialog" hidden>passkey</button>' +
-    '<button type="button" class="sgx-credential-btn sgx-credential-btn-primary sgx-lock-go" id="sgx-lock-go" aria-haspopup="dialog">' +
-    UNLOCK + '<span>' + (tx('lockUnlock')) + '</span></button>' +
+    '<button type="button" class="sgx-lock-k" id="sgx-lock-k-pw" data-k="password" data-run="sudo spacekey password" aria-label="' + esc(tx('lockUsePassword')) + '" hidden>password</button>' +
+    '<button type="button" class="sgx-lock-k" id="sgx-lock-k-pk" data-k="passkey" data-run="sudo spacekey passkey" aria-label="' + esc(tx('lockUsePasskey')) + '" hidden>passkey</button>' +
     '</div>' +
     '</div>' +
+    /* 读屏：终端输出的同样文字（终端本身 aria-hidden） */
+    '<p class="sgx-lock-sr" id="sgx-lock-live" role="status" aria-live="polite"></p>' +
     '</div>' +
-    '<p class="sgx-lock-tail" aria-hidden="true" translate="no">~/styrigx<span class="sgx-lock-tcur"></span></p>' +
+    '<p class="sgx-lock-tail" translate="no"><span aria-hidden="true">~/styrigx<span class="sgx-lock-tcur"></span></span>' + langBtns + '</p>' +
     '</div>';
   document.body.appendChild(ov);
   document.body.classList.add('sgx-locked');
@@ -130,93 +148,726 @@ export function showLockScreen() {
   document.documentElement.style.overflow = 'hidden';
   document.body.style.overflow = 'hidden';
 
+  const $ = function (/** @type {string} */ id) { return document.getElementById(id); };
+  const input = /** @type {HTMLInputElement} */ ($('sgx-lock-cmd'));
+  const form = /** @type {HTMLFormElement} */ ($('sgx-lock-form'));
+  const pmu = /** @type {HTMLInputElement} */ ($('sgx-lock-pmu'));
+  const logEl = /** @type {HTMLElement} */ ($('sgx-lock-log'));
+  const psEl = /** @type {HTMLElement} */ ($('sgx-lock-ps'));
+  const hintEl = /** @type {HTMLElement} */ ($('sgx-lock-hint'));
+  const hintTx = /** @type {HTMLElement} */ ($('sgx-lock-hint-tx'));
+  const live = /** @type {HTMLElement} */ ($('sgx-lock-live'));
+  const termEl = /** @type {HTMLElement} */ ($('sgx-lock-term'));
+  const stage = /** @type {HTMLElement} */ ($('sgx-lock-stage'));
 
-  /* 版面一次画完，直接显示（以前要等日刻） */
-  const stage = document.getElementById('sgx-lock-stage');
-  if (stage) stage.classList.remove('is-pending');
-
-  /* ---------- lock-v10 锁屏终端回显（只是外观，aria-hidden；不参与任何判断） ----------
-     状态：locked 静止 · sudo 方式弹层 / 密码 / 临时钥匙 · verifying 通行密钥 · denied 出错 · unlocked 已确认会话。
-     解锁、凭证、会话逻辑一律不看这里；这里只在各流程已有的节点上被调用，把进度画成命令行。 */
-  const TERM_ST = {
-    locked: 'LOCKED', sudo: 'SUDO', verifying: 'VERIFYING', denied: 'DENIED', unlocked: 'UNLOCKED',
-  };
-  const termUser = (String(lockName() || '').trim().split(/\s+/)[0] || 'user').toLowerCase();
-  const TERM_P = '<span class="sgx-lock-pp">styrigx@space</span><span class="sgx-lock-pd">:~$</span> ';
-  const TERM_CUR = '<span class="sgx-lock-cur"></span>';
-  const TERM_BOOT = '<div class="sgx-lock-ld">styrigx space os 1.0 tty1</div><div class="sgx-lock-lgap"></div>';
-  /** @type {string} */ let termSt = 'locked';
-  /** 上一条命令（出错 / 关弹层后留一行历史） */
-  let termCmd = '';
-  /** @param {string} st @param {string} lines @param {string} [key] 高亮的快捷键 */
-  function paintTerm(st, lines, key) {
-    termSt = st;
-    const chip = document.getElementById('sgx-lock-st');
-    const chipTx = document.getElementById('sgx-lock-st-tx');
-    const shown = st === 'pw' || st === 'temp' ? 'sudo' : st === 'pk' ? 'verifying' : st;
-    if (chip) chip.setAttribute('data-st', shown);
-    if (chipTx) chipTx.textContent = '$ STATUS: ' + (TERM_ST[shown] || 'LOCKED');
-    const log = document.getElementById('sgx-lock-log');
-    if (log) log.innerHTML = TERM_BOOT + lines;
-    const tty = document.getElementById('sgx-lock-tty');
-    if (tty) tty.textContent = st === 'unlocked' ? termUser : 'guest';
-    const ks = ov.querySelectorAll('.sgx-lock-k');
-    for (let i = 0; i < ks.length; i++) ks[i].classList.toggle('is-on', !!key && ks[i].getAttribute('data-k') === key);
+  /* ---------- 终端输出 ---------- */
+  const TERM_ST = { locked: 'LOCKED', sudo: 'SUDO', verifying: 'VERIFYING', denied: 'DENIED', unlocked: 'UNLOCKED' };
+  const P_CMD = '<span class="sgx-lock-pp">styrigx@space</span><span class="sgx-lock-pd">:~$</span> ';
+  /** @type {string[]} */ let liveBuf = [];
+  let liveTimer = 0;
+  /** 读屏：同一轮打印的几行合成一句播报 @param {string} t */
+  function announce(t) {
+    if (!t) return;
+    liveBuf.push(t);
+    if (liveTimer) return;
+    liveTimer = window.setTimeout(function () {
+      liveTimer = 0;
+      live.textContent = liveBuf.join(' ');
+      liveBuf = [];
+    }, 30);
   }
-  /** @param {string} cmd */
-  function termLine(cmd) { return '<div>' + TERM_P + esc(cmd) + '</div>'; }
   /**
-   * @param {'locked'|'sudo'|'pw'|'temp'|'pk'|'check'|'denied'|'unlocked'} st
-   * @param {string} [msg] denied 时的出错文字
+   * 打印一行。
+   * @param {string} html 行内容（已转义）
+   * @param {string} [cls] 行样式：lm 次要 / ld 注释 / lbad 出错 / lok 通过
+   * @param {string|false} [sr] 读屏文字（默认取行的纯文字；false 不播报）
+   * @returns {HTMLElement}
    */
-  function termState(st, msg) {
-    try {
-      if (st === 'locked') {
-        /* 关掉弹层回到静止：刚才出错的话留一行历史 */
-        const hist = termSt === 'denied' && termCmd ? (termLine(termCmd) + (ov.querySelector('.sgx-lock-lbad') ? ov.querySelector('.sgx-lock-lbad').outerHTML : '')) : '';
-        termCmd = hist ? termCmd : '';
-        paintTerm('locked', hist + '<div>' + TERM_P + TERM_CUR + '</div>');
-      } else if (st === 'sudo') {
-        termCmd = 'sudo spacekey';
-        paintTerm('sudo', termLine(termCmd) + '<div class="sgx-lock-lm">' + esc(tx('lockTermChoose')) + TERM_CUR + '</div>');
-      } else if (st === 'pw') {
-        termCmd = 'sudo spacekey password';
-        paintTerm('pw', termLine(termCmd) + '<div>[sudo] password for ' + esc(termUser) + ': ' + TERM_CUR + '</div>', 'password');
-      } else if (st === 'temp') {
-        termCmd = 'sudo tempkey';
-        paintTerm('temp', termLine(termCmd) + '<div>tempkey: ' + TERM_CUR + '</div>');
-      } else if (st === 'pk') {
-        termCmd = 'sudo spacekey passkey';
-        paintTerm('pk', termLine(termCmd) + '<div class="sgx-lock-lm">› ' + esc(tx('lockTermWaitPk')) + TERM_CUR + '</div>', 'passkey');
-      } else if (st === 'denied') {
-        paintTerm('denied', (termCmd ? termLine(termCmd) : '') +
-          '<div class="sgx-lock-lbad">✗ permission denied' + (msg ? ' · ' + esc(msg) : '') + '</div>' +
-          '<div>' + TERM_P + TERM_CUR + '</div>');
-      } else if (st === 'check') {
-        paintTerm('verifying', (termCmd ? termLine(termCmd) : '') + '<div class="sgx-lock-lm">› ' + esc(tx('lockVerifying')) + TERM_CUR + '</div>');
-      } else if (st === 'unlocked') {
-        paintTerm('unlocked', (termCmd ? termLine(termCmd) : '') +
-          '<div class="sgx-lock-lok">✓ access granted</div><div class="sgx-lock-lm">› booting space…' + TERM_CUR + '</div>');
-      }
-    } catch (e) {}
+  function out(html, cls, sr) {
+    const d = document.createElement('div');
+    if (cls) d.className = cls.split(' ').map(function (c) { return 'sgx-lock-' + c; }).join(' ');
+    d.innerHTML = html;
+    logEl.appendChild(d);
+    while (logEl.childNodes.length > 80) logEl.removeChild(/** @type {Node} */ (logEl.firstChild));
+    if (sr !== false) announce(typeof sr === 'string' ? sr : (d.textContent || ''));
+    return d;
   }
-  termState('locked');
+  /** 出错：`✗ permission denied · …`，状态胶囊变 DENIED @param {string} msg */
+  function deny(msg) {
+    out('✗ permission denied' + (msg ? ' · ' + esc(msg) : ''), 'lbad');
+    chip('denied');
+  }
+  /** 行内提示（不是验证失败）：`✗ …` @param {string} msg */
+  function warn(msg) { out('✗ ' + esc(msg), 'lbad'); }
+  function boot() {
+    logEl.textContent = '';
+    out('styrigx space os 1.0 tty1', 'ld', false);
+    out(esc(tx('lockTermHelpHint')), 'ld', false);
+    const g = document.createElement('div');
+    g.className = 'sgx-lock-lgap';
+    logEl.appendChild(g);
+  }
+  /** @param {string} st */
+  function chip(st) {
+    const c = $('sgx-lock-st');
+    const t = $('sgx-lock-st-tx');
+    if (c) c.setAttribute('data-st', st);
+    if (t) t.textContent = '$ STATUS: ' + (TERM_ST[/** @type {keyof typeof TERM_ST} */ (st)] || 'LOCKED');
+    const tty = $('sgx-lock-tty');
+    if (tty) tty.textContent = st === 'unlocked' ? termUser : 'guest';
+  }
 
+  /* ---------- 输入行状态 ----------
+     cmd 敲命令 · pw 解锁密码 · temp 临时钥匙 · rkey 重置：进站凭证 · rpick 重置：选锁屏凭证 · rpw 重置：解锁密码 · busy 等服务端 / 系统窗口 · done 已解锁 */
+  /** @type {'cmd'|'pw'|'temp'|'rkey'|'rpick'|'rpw'|'busy'|'done'} */ let mode = 'cmd';
+  /** 当前快捷键高亮（password / passkey） */
+  let keyOn = '';
+  const SECRET = { pw: 1, temp: 1, rkey: 1, rpw: 1 };
+  /** @param {string} m */
+  function promptHtml(m) {
+    if (m === 'pw' || m === 'rpw') return '[sudo] password for ' + esc(termUser) + ': ';
+    if (m === 'temp') return 'tempkey: ';
+    if (m === 'rkey') return 'spacekey: ';
+    if (m === 'rpick') return esc(tx('lockTermPick')) + ' [' + rOpts.map(function (_, i) { return i + 1; }).join('/') + ']: ';
+    return P_CMD;
+  }
+  function syncTitle() {
+    const el = $('sgx-lock-title');
+    if (el) el.textContent = mode === 'cmd' || mode === 'done' ? tx('lockLockScreen2') : tx('lockUnlockScreen');
+  }
+  /**
+   * 切换输入行。
+   * @param {typeof mode} m
+   * @param {{focus?: boolean, key?: string}} [o]
+   */
+  function setMode(m, o) {
+    /* 离开冷却那一态：倒计时行收掉（回来时重新画） */
+    if (cdLine && m !== mode) { if (cdLine.parentNode) cdLine.parentNode.removeChild(cdLine); cdLine = null; }
+    mode = m;
+    const secret = Object.prototype.hasOwnProperty.call(SECRET, m);
+    form.setAttribute('data-mode', m);
+    input.value = '';
+    input.readOnly = false;
+    input.type = secret ? 'password' : 'text';
+    input.setAttribute('autocomplete', m === 'pw' || m === 'rpw' || m === 'rkey' ? 'current-password' : 'off');
+    input.setAttribute('inputmode', m === 'rpick' ? 'numeric' : 'text');
+    input.setAttribute('aria-label',
+      m === 'pw' || m === 'rpw' ? tx('lockPassword') :
+      m === 'temp' ? tx('lockTemporaryKey') :
+      m === 'rkey' ? tx('rfSpacePh') :
+      m === 'rpick' ? tx('rfStep2') : tx('lockTermCmdAria'));
+    pmu.value = m === 'rkey' ? KEY_SPACE : KEY_LOCK;
+    psEl.innerHTML = promptHtml(m);
+    const hidden = m === 'busy' || m === 'done';
+    form.hidden = hidden;
+    input.disabled = hidden;
+    /* 输凭证时下面一行注释（设计稿 K3）+ 可点的 Ctrl+C（触屏没有 Ctrl） */
+    if (secret || m === 'rpick') {
+      hintTx.textContent = '# ' + (m === 'temp' ? tx('lockFormatXxxxXxxxXxxx') + ' · ' : m === 'rpick' ? '' : tx('lockTermSecretHint') + ' · ');
+      hintEl.hidden = false;
+    } else {
+      hintEl.hidden = true;
+    }
+    if (m === 'pw' || m === 'temp' || m === 'rkey' || m === 'rpick' || m === 'rpw') chip('sudo');
+    else if (m === 'busy') chip('verifying');
+    else if (m === 'done') chip('unlocked');
+    else if (m === 'cmd') {
+      const c = $('sgx-lock-st');
+      if (!c || c.getAttribute('data-st') !== 'denied') chip('locked');
+    }
+    keyOn = o && o.key ? o.key : (m === 'cmd' ? '' : keyOn);
+    const ks = ov.querySelectorAll('.sgx-lock-k');
+    for (let i = 0; i < ks.length; i++) ks[i].classList.toggle('is-on', !!keyOn && ks[i].getAttribute('data-k') === keyOn);
+    syncTitle();
+    if (o && o.focus && !hidden) focusInput();
+  }
+  function focusInput() {
+    try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
+  }
+  /** 回到命令行（出错 / Ctrl+C 之后） */
+  function toCmd() {
+    rKey = '';
+    setMode('cmd', { focus: document.activeElement === input || document.activeElement === document.body });
+  }
+
+  /* ---------- 锁屏凭证配置（/api/lock-entry；读取失败按已配置处理） ---------- */
+  /** @type {{passkey:boolean, password:boolean}} */ let cfg = { passkey: true, password: true };
+  const cfgReady = fetch('/api/lock-entry', { method: 'GET', credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      /* 账号拆分 PR3：lock-entry 只回锁屏自己的 passkey / password */
+      if (j && j.ok) cfg = { passkey: !!j.passkey, password: !!j.password };
+    }, function () {})
+    .then(function () { applyKeys(); return cfg; });
+  function pkUsable() { return cfg.passkey && !!window.PublicKeyCredential; }
+  function applyKeys() {
+    if (done) return;
+    const kPw = $('sgx-lock-k-pw');
+    const kPk = $('sgx-lock-k-pk');
+    if (kPw) kPw.hidden = !cfg.password;
+    if (kPk) kPk.hidden = !pkUsable();
+    const qh = $('sgx-lock-qh');
+    if (qh) qh.hidden = !cfg.password && !pkUsable();
+  }
+
+  /* ---------- 命令 ---------- */
+  /** @type {string[]} */ const hist = [];
+  let histIdx = 0;
+  function help() {
+    /** @type {Array<[string, string]>} */
+    const rows = [];
+    if (cfg.password) rows.push(['password', tx('lockTermDescPw')]);
+    if (pkUsable()) rows.push(['passkey', tx('lockTermDescPk')]);
+    rows.push(['tempkey', tx('lockTermDescTemp')], ['reset', tx('lockTermDescReset')], ['clear', tx('lockTermDescClear')], ['help', tx('lockTermDescHelp')]);
+    out(esc(tx('lockTermHelpTitle')), 'lm');
+    for (let i = 0; i < rows.length; i++) {
+      out('<span class="sgx-lock-hk">' + rows[i][0] + '</span><span class="sgx-lock-lm">' + esc(rows[i][1]) + '</span>', 'lh', rows[i][0] + ' — ' + rows[i][1]);
+    }
+  }
+  /** @param {string} raw */
+  function runCmd(raw) {
+    const shown = raw.replace(/\s+/g, ' ').trim();
+    out(P_CMD + esc(shown), '', shown ? '$ ' + shown : false);
+    if (!shown) return;
+    if (hist[hist.length - 1] !== shown) hist.push(shown);
+    histIdx = hist.length;
+    let c = ALIAS[shown.toLowerCase()] || '';
+    if (c === 'sudo') c = cfg.password ? 'password' : pkUsable() ? 'passkey' : 'password';
+    /* 新命令开始：上一条的 DENIED 撤掉 */
+    if (c) chip('locked');
+    if (c === 'help') help();
+    else if (c === 'clear') boot();
+    else if (c === 'password') cmdPassword();
+    else if (c === 'passkey') cmdPasskey();
+    else if (c === 'tempkey') cmdTemp();
+    else if (c === 'reset') cmdReset();
+    else out(esc('command not found: ' + shown.split(' ')[0] + ' · try help'), 'lbad');
+  }
+
+  /* ---------- 解锁密码 ---------- */
+  let pwLockedUntil = 0;
+  function cmdPassword() {
+    if (!cfg.password) { warn(tx('lockNoPasswordSetYet')); return; }
+    setMode('pw', { focus: true, key: 'password' });
+    if (Date.now() < pwLockedUntil) cooldown('pw');
+  }
+  /** @param {string} pw */
+  function submitPw(pw) {
+    if (Date.now() < pwLockedUntil) return;
+    out(promptHtml('pw'), '', false);
+    if (!pw) { warn(tx('lockEnterPassword2')); return; }
+    busy(true);
+    fetch('/api/lock-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify', password: pw }),
+    })
+      /* 区分网络错误（fetch 抛错）/ 服务器错误（非 JSON 响应）/ 业务错误 */
+      .then(readJson)
+      .then(function (res) {
+        busy(false);
+        if (mode !== 'pw') return;
+        const j = res.j;
+        if (!j) { deny(tx('lockServerError')); return; }
+        if (j.ok) { unlock(); return; }
+        if (j.error === 'cooldown') {
+          /* retryAfter（秒）：网关无会话总限流给的；没有就是密码输错的 30 秒冷却 */
+          pwLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 30000);
+          deny(tx('lockTooManyAttempts'));
+          cooldown('pw');
+        } else if (j.error === 'not-set') {
+          deny(tx('lockNoPasswordSetYet'));
+          toCmd();
+        } else if (j.error === 'server') {
+          deny(tx('lockServerError'));
+        } else {
+          deny(tx('lockWrongPassword'));
+        }
+      })
+      .catch(function () {
+        busy(false);
+        if (mode !== 'pw') return;
+        deny(tx('lockNetworkError'));
+      });
+  }
+
+  /* ---------- 临时钥匙 ---------- */
+  let tempLockedUntil = 0;
+  function cmdTemp() {
+    if (isLocal) {
+      /* 本地开发没有后端：直接开锁 */
+      unlock();
+      return;
+    }
+    setMode('temp', { focus: true, key: '' });
+    if (Date.now() < tempLockedUntil) cooldown('temp');
+  }
+  /** @param {string} raw */
+  function submitTemp(raw) {
+    if (Date.now() < tempLockedUntil) return;
+    out(promptHtml('temp'), '', false);
+    const code = raw.trim();
+    if (!code) { warn(tx('lockEnterTheTemporaryKey2')); return; }
+    busy(true);
+    fetch('/api/lock-tempkey-unlock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code }),
+    })
+      .then(readJson)
+      .then(function (res) {
+        busy(false);
+        if (mode !== 'temp') return;
+        const j = res.j;
+        if (!j) { deny(tx('lockServerError')); return; }
+        if (j.ok) { unlock(); return; }
+        if (j.error === 'cooldown') {
+          /* retryAfter（秒）：网关无会话总限流（src/core/anon-limit.js）给的；没有就是临时码自己的 15 分钟锁 */
+          tempLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 15 * 60000);
+          deny(tx('lockTooManyAttempts'));
+          cooldown('temp');
+        } else if (j.error === 'wrong' || j.error === 'code') {
+          deny(tx('lockInvalidOrExpiredKey'));
+        } else {
+          deny(tx('lockServerError'));
+        }
+      })
+      .catch(function () {
+        busy(false);
+        if (mode !== 'temp') return;
+        deny(tx('lockNetworkError'));
+      });
+  }
+
+  /**
+   * 冷却倒计时：终端里一行 `› N 秒后可再试`（临时钥匙按分钟），走完前输入行只读；Ctrl+C 仍可回命令行。
+   * @param {'pw'|'temp'} which
+   */
+  /** @type {HTMLElement|null} */ let cdLine = null;
+  function cooldown(which) {
+    const until = which === 'pw' ? pwLockedUntil : tempLockedUntil;
+    if (cdLine && cdLine.parentNode) cdLine.parentNode.removeChild(cdLine);
+    const line = out('', 'lm lcd', false);
+    cdLine = line;
+    let first = true;
+    input.readOnly = true;
+    function tick() {
+      const left = until - Date.now();
+      if (cdLine !== line) return;
+      if (mode !== which || left <= 0) {
+        if (line.parentNode) line.parentNode.removeChild(line);
+        cdLine = null;
+        if (mode === which) input.readOnly = false;
+        return;
+      }
+      const t = which === 'pw' ? tx('lockRetrySec', { n: Math.ceil(left / 1000) }) : tx('lockRetryMin', { n: Math.ceil(left / 60000) });
+      line.textContent = '› ' + t;
+      if (first) { announce(t); first = false; }
+      window.setTimeout(tick, which === 'pw' ? 1000 : 5000);
+    }
+    tick();
+  }
+
+  /** 等服务端时输入行只读（焦点留着，手机键盘不收起） @param {boolean} b */
+  let isBusy = false;
+  function busy(b) {
+    isBusy = b;
+    input.readOnly = b;
+    form.classList.toggle('is-busy', b);
+  }
+  /** @param {Response} r */
+  function readJson(r) {
+    return r.text().then(function (t) {
+      let j = null;
+      try { j = JSON.parse(t); } catch (e) {}
+      return { s: r.status, j: j };
+    });
+  }
+
+  /* ---------- 通行密钥（设计稿 K4：系统通行密钥窗口盖在终端上，终端显示「等待通行密钥」） ---------- */
+  let pkRun = 0;
+  function cmdPasskey() {
+    if (!pkUsable()) { warn(tx('lockTermPkUnavailable')); return; }
+    out('› ' + esc(tx('lockTermWaitPk')), 'lm');
+    keyOn = 'passkey';
+    setMode('busy', { key: 'passkey' });
+    pkAuth(++pkRun);
+  }
+  /** @param {string} [msg] */
+  function pkFailed(msg) {
+    deny(msg || tx('pkFailed'));
+    toCmd();
+  }
+  /** @param {number} run */
+  function pkAuth(run) {
+    /* 服务端回 unknown-key 时要告诉密码管理器删哪一把：这里记下 id */
+    let credId = '';
+    fetch('/api/lock-passkey', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'challenge', type: 'auth' }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (ch) {
+        if (run !== pkRun) throw { done: true };
+        if (!ch || !ch.ok) throw new Error('challenge');
+        /* B1-2：公共函数（30s 超时 + 4 档错误）；锁屏上没有弹层要藏 */
+        return getPasskeyAssertion(assertionOptions(ch)).then(function (cred) {
+          return { cred: cred, cid: ch.cid };
+        });
+      })
+      .then(function (res) {
+        if (run !== pkRun) throw { done: true };
+        const cred = res.cred;
+        credId = cred.id;
+        return fetch('/api/lock-passkey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'auth', cid: res.cid, credential: assertionToJSON(cred) }),
+        });
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (run !== pkRun) return;
+        if (j && j.ok) {
+          unlock();
+        } else {
+          /* 服务端不认识这把密钥 → 通知密码管理器删掉 */
+          try {
+            if (j && j.error === 'unknown-key' && window.PublicKeyCredential &&
+                typeof PublicKeyCredential.signalUnknownCredential === 'function') {
+              PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: credId }).catch(function () {});
+            }
+          } catch (e) {}
+          pkFailed();
+        }
+      })
+      .catch(function (e) {
+        if (e && e.done) return;
+        if (run !== pkRun) return;
+        if (e && e.kind) pkFailed(passkeyErrorText(e.kind, en));
+        else pkFailed();
+      });
+  }
+
+  /* ---------- 重置登录（「无法登录？」：reset 命令，在终端里一步步问） ----------
+     与账号页 /account/reset/ 同一套流程（auth/reset-flow.js 的服务端约定），只是锁屏上画成命令行：
+     - 锁屏凭证已设置（或读不到配置，按已设置处理）：进站凭证 → POST /api/lock-reset verify；
+       恢复开关有效直接拿到重置锁屏票（sgx-lock-reset）；否则服务端回 needLock → 再验锁屏凭证（锁屏通行密钥 / 解锁密码，
+       账号拆分 PR3 起网关不读账号凭证）→ 重置锁屏票 → 去 /security/lock/ 重设解锁方式。
+     - 锁屏凭证都没设置（启动站）：视为从零重置——进站凭证 → POST /api/space-auth { purpose:'lock-reset' }
+       （重置锁屏票 by=root）→ 同样去 /security/lock/ 设第一把锁屏凭证。
+     进站凭证只存在这里的闭包变量 rKey 里（回命令行 / 完成即清空），不进 DOM、不进历史。 */
+  let rKey = '';
+  let rBootstrap = false;
+  /** @type {Array<'password'|'passkey'>} */ let rOpts = [];
+  /** @param {string} url @param {any} body */
+  function post(url, body) {
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(readJson);
+  }
+  function cmdReset() {
+    busy(true);
+    cfgReady.then(function () {
+      busy(false);
+      rBootstrap = !cfg.passkey && !cfg.password;
+      out('# ' + esc(tx('rfTitle')) + ' · ' + esc(tx('rfSpaceLead')), 'ld');
+      setMode('rkey', { focus: true, key: '' });
+    });
+  }
+  /** @param {string} key */
+  function submitResetKey(key) {
+    out(promptHtml('rkey'), '', false);
+    if (!key) { warn(tx('rfSpaceEmpty')); return; }
+    busy(true);
+    /** @param {{message: string}} e */
+    const fail = function (e) { busy(false); if (mode === 'rkey') deny(e.message); };
+    if (rBootstrap) {
+      post('/api/space-auth', { key: key, purpose: 'lock-reset' }).then(function (res) {
+        if (res.j && res.j.ok) { busy(false); resetDone(); return; }
+        if (res.s === 429) fail({ message: tx('lockTooManyAttempts') });
+        else if (res.s === 503 || res.s === 500) fail({ message: tx('lockServerError') });
+        else fail({ message: tx('lockWrongSpaceCredential') });
+      }, function () { fail({ message: tx('lockNetworkError') }); });
+      return;
+    }
+    post('/api/lock-reset', { action: 'verify', spaceKey: key }).then(function (res) {
+      if (res.s === 200 && res.j && res.j.ok) {
+        busy(false);
+        if (!res.j.needLock) { resetDone(); return; }
+        rKey = key;
+        rOpts = [];
+        if (res.j.password) rOpts.push('password');
+        if (res.j.passkey && window.PublicKeyCredential) rOpts.push('passkey');
+        if (!rOpts.length) {
+          out(esc(tx('rfNoLock')), 'lm');
+          out('# ' + esc(tx('rfRecover')), 'ld');
+          toCmd();
+          return;
+        }
+        resetPick();
+        return;
+      }
+      if (res.s === 429) fail({ message: tx('lockTooManyAttempts') });
+      else fail({ message: tx('lockVerificationFailed') });
+    }, function () { fail({ message: tx('lockNetworkError') }); });
+  }
+  function resetPick() {
+    out(esc(tx('rfStep2')) + ':', 'lm');
+    for (let i = 0; i < rOpts.length; i++) {
+      out('&nbsp;&nbsp;<span class="sgx-lock-pp">[' + (i + 1) + ']</span> ' + rOpts[i] +
+        ' <span class="sgx-lock-ld">' + esc(rOpts[i] === 'password' ? tx('rfMPassword') : tx('rfMPasskey')) + '</span>', '',
+        (i + 1) + ' ' + rOpts[i] + ' — ' + (rOpts[i] === 'password' ? tx('rfMPassword') : tx('rfMPasskey')));
+    }
+    setMode('rpick', { focus: true, key: '' });
+  }
+  /** @param {string} raw */
+  function submitResetPick(raw) {
+    const v = raw.trim().toLowerCase();
+    out(promptHtml('rpick') + esc(raw.trim()), '', false);
+    const n = parseInt(v, 10);
+    const pick = rOpts.indexOf(/** @type {any} */ (v)) >= 0 ? v : (n >= 1 && n <= rOpts.length ? rOpts[n - 1] : '');
+    if (pick === 'password') setMode('rpw', { focus: true, key: '' });
+    else if (pick === 'passkey') resetPasskey();
+    else warn(tx('lockTermPickBad'));
+  }
+  /** @param {any} proof */
+  function resetVerify(proof) {
+    return post('/api/lock-reset', { action: 'verify', spaceKey: rKey, lockProof: proof }).then(function (res) {
+      if (res.s === 200 && res.j && res.j.ok && !res.j.needLock) return;
+      if (res.s === 429) throw { message: tx('lockTooManyAttempts') };
+      throw { message: tx('lockVerificationFailed') };
+    }, function () { throw { message: tx('lockNetworkError') }; });
+  }
+  /** @param {string} pw */
+  function submitResetPw(pw) {
+    out(promptHtml('rpw'), '', false);
+    if (!pw) { warn(tx('rfEnterCred')); return; }
+    busy(true);
+    resetVerify({ type: 'password', password: pw }).then(function () {
+      busy(false);
+      resetDone();
+    }, function (e) {
+      busy(false);
+      if (mode === 'rpw') deny(e && e.message ? e.message : tx('lockVerificationFailed'));
+    });
+  }
+  function resetPasskey() {
+    out('› ' + esc(tx('lockTermWaitPk')), 'lm');
+    setMode('busy', { key: '' });
+    const run = ++pkRun;
+    post('/api/lock-reset', { action: 'challenge' }).then(function (res) {
+      const j = res.j;
+      if (!j || !j.ok) throw { message: tx('lockFailedToStart') };
+      return getPasskeyAssertion(assertionOptions(j)).then(function (cred) {
+        return resetVerify({ type: 'passkey', cid: j.cid, credential: assertionToJSON(cred) });
+      }, function (err) {
+        /* 取消 / 没有匹配钥匙（NotAllowedError）：提示后回到选择，可重新选 */
+        if (err && err.kind === 'cancelled') throw { cancelled: true, message: tx('lockCancelledYouCanSelect') };
+        if (isPasskeyCancel(err)) throw { cancelled: true, message: passkeyErrorText('nokey', en) };
+        throw { message: err && err.kind ? passkeyErrorText(err.kind, en) : tx('lockPasskeyFailed') };
+      });
+    }, function () { throw { message: tx('lockNetworkError') }; }).then(function () {
+      if (run !== pkRun) return;
+      resetDone();
+    }, function (e) {
+      if (run !== pkRun) return;
+      const msg = e && e.message ? e.message : tx('lockPasskeyFailed');
+      if (e && e.cancelled) warn(msg); else deny(msg);
+      setMode('rpick', { focus: true, key: '' });
+    });
+  }
+  function resetDone() {
+    rKey = '';
+    out('✓ ' + esc(tx('lockTermResetOk')), 'lok');
+    out('› ' + esc(tx('lockTermToLockPage')), 'lm');
+    setMode('busy', { key: '' });
+    /* 跳转到锁屏凭证管理页（重置锁屏票可开此页，仍进不了主页；启动站同样在这里设第一把锁屏凭证） */
+    sgxNavigate(langPath('/security/lock/', pageLang()));
+  }
+
+  /* ---------- 提交 / 键盘 ---------- */
+  function submit() {
+    if (isBusy || done) return;
+    const v = input.value;
+    if (mode === 'cmd') { input.value = ''; runCmd(v); }
+    else if (mode === 'pw') { input.value = ''; submitPw(v); }
+    else if (mode === 'temp') { input.value = ''; submitTemp(v); }
+    else if (mode === 'rkey') { input.value = ''; submitResetKey(v); }
+    else if (mode === 'rpick') { input.value = ''; submitResetPick(v); }
+    else if (mode === 'rpw') { input.value = ''; submitResetPw(v); }
+  }
+  /** Ctrl+C / Esc：输凭证时回命令行（打印 ^C），命令行里清掉这一行 */
+  function interrupt() {
+    if (mode === 'busy' || mode === 'done' || isBusy) return;
+    out(promptHtml(mode) + (mode === 'cmd' ? esc(input.value) : '') + '^C', '', false);
+    input.value = '';
+    if (mode !== 'cmd') {
+      chip('locked');
+      toCmd();
+    }
+  }
+  on(form, 'submit', function (/** @type {Event} */ e) { e.preventDefault(); submit(); });
+  on(input, 'keydown', function (/** @type {KeyboardEvent} */ e) {
+    if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault();
+      submit();
+      return;
+    }
+    if (e.key === 'Escape') {
+      if (mode !== 'cmd') { e.preventDefault(); interrupt(); }
+      return;
+    }
+    if (e.ctrlKey && !e.metaKey && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'c') {
+        /* 命令行里有选中文字时照常复制 */
+        if (mode === 'cmd' && input.selectionStart !== input.selectionEnd) return;
+        e.preventDefault();
+        interrupt();
+        return;
+      }
+      if (k === 'l' && mode === 'cmd') { e.preventDefault(); boot(); return; }
+    }
+    if (mode !== 'cmd') return;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (!hist.length) return;
+      e.preventDefault();
+      histIdx = Math.max(0, Math.min(hist.length, histIdx + (e.key === 'ArrowUp' ? -1 : 1)));
+      input.value = hist[histIdx] || '';
+      return;
+    }
+    if (e.key === 'Tab' && !e.shiftKey && input.value.trim()) {
+      /* Tab 补全（空行时 Tab 照常移焦点，键盘用户能走到快捷键） */
+      e.preventDefault();
+      const v = input.value.replace(/\s+/g, ' ').replace(/^\s/, '').toLowerCase();
+      const hits = COMPLETE.filter(function (c) { return c.indexOf(v) === 0; });
+      if (hits.length === 1) input.value = hits[0];
+      else if (hits.length > 1) {
+        let pre = hits[0];
+        for (let i = 1; i < hits.length; i++) while (hits[i].indexOf(pre) !== 0) pre = pre.slice(0, -1);
+        if (pre.length > v.length) input.value = pre;
+        else out(P_CMD + esc(input.value) + '<br>' + hits.map(esc).join('&nbsp;&nbsp;'), '', hits.join(', '));
+      }
+    }
+  });
+  /* 点终端任何地方 = 聚焦输入行（点快捷键 / Ctrl+C 按钮除外） */
+  on(termEl, 'click', function (/** @type {MouseEvent} */ e) {
+    const t = /** @type {HTMLElement|null} */ (e.target);
+    if (t && t.closest && t.closest('button, input')) return;
+    if (!form.hidden) focusInput();
+  });
+  /* 焦点不在输入框时直接打字：转进输入行 */
+  on(document, 'keydown', function (/** @type {KeyboardEvent} */ e) {
+    if (done || form.hidden || !document.getElementById('sgx-lock')) return;
+    const t = /** @type {HTMLElement|null} */ (e.target);
+    if (t === input || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable))) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (t && t.closest && t.closest('button') && (e.key === 'Enter' || e.key === ' ')) return;
+    if (e.key.length === 1 && e.key !== ' ') {
+      e.preventDefault();
+      focusInput();
+      if (!input.readOnly) input.value += e.key;
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      focusInput();
+    }
+  });
+  const cc = $('sgx-lock-cc');
+  if (cc) on(cc, 'click', function () { tapFeedback(); interrupt(); focusInput(); });
+
+  /* 快捷键（设计稿「不想打命令？点一下自动输入」）：替你把命令敲进去再回车（输凭证途中点 = 先 Ctrl+C） */
+  let typing = false;
+  /** @param {string} cmd */
+  function typeAndRun(cmd) {
+    if (typing || isBusy || done || mode === 'busy') return;
+    if (mode !== 'cmd') interrupt();
+    typing = true;
+    focusInput();
+    if (reducedMotion()) {
+      input.value = cmd;
+      typing = false;
+      submit();
+      return;
+    }
+    let i = 0;
+    input.value = '';
+    (function step() {
+      if (mode !== 'cmd' || done) { typing = false; return; }
+      i = Math.min(cmd.length, i + 2);
+      input.value = cmd.slice(0, i);
+      if (i < cmd.length) { window.setTimeout(step, 16); return; }
+      typing = false;
+      submit();
+    })();
+  }
+  const ks = ov.querySelectorAll('.sgx-lock-k');
+  for (let i = 0; i < ks.length; i++) {
+    const k = /** @type {HTMLElement} */ (ks[i]);
+    on(k, 'click', function (/** @type {Event} */ e) {
+      e.stopPropagation();
+      tapFeedback();
+      typeAndRun(k.getAttribute('data-run') || '');
+    });
+  }
+
+  /* 底部语言：写偏好（同快捷面板），换到另一种语言的同一页（查询串原样：lock / return 都在） */
+  const lbs = ov.querySelectorAll('.sgx-lock-lang');
+  for (let i = 0; i < lbs.length; i++) {
+    const b = /** @type {HTMLElement} */ (lbs[i]);
+    on(b, 'click', function () {
+      const l = b.getAttribute('data-lang') || '';
+      const url = setLang(/** @type {any} */ (l));
+      if (url && url !== location.pathname + location.search + location.hash) location.replace(url);
+    });
+  }
+
+  /* 手机软键盘：输入行被键盘盖住时整组上移刚好够的距离（不是整块键盘高度，头像可以被顶出去） */
+  /** @type {(() => void)|null} */ let kbStop = null;
+  on(input, 'focus', function () {
+    if (kbStop) return;
+    try {
+      kbStop = onKeyboardHeight(function (h) {
+        try {
+          stage.style.transform = '';
+          if (!(h > 0)) return;
+          const r = termEl.getBoundingClientRect();
+          const over = r.bottom + 12 - (window.innerHeight - h);
+          if (over > 0) stage.style.transform = 'translateY(' + Math.round(-over) + 'px)';
+        } catch (e) {}
+      });
+    } catch (e) { kbStop = null; }
+  });
+  on(input, 'blur', function () {
+    /* 整个页面失焦（Samsung Pass 自动填充 / 指纹窗口盖上来）不算离开输入框 */
+    try { if (!document.hasFocus()) return; } catch (e) {}
+    stage.style.transform = '';
+    if (kbStop) { try { kbStop(); } catch (e) {} kbStop = null; }
+  });
+
+  /* ---------- 解锁 / 会话 ---------- */
   let done = false;
   function cleanup() {
+    if (kbStop) { try { kbStop(); } catch (e) {} kbStop = null; }
     if (ov.parentNode) ov.parentNode.removeChild(ov);
     document.body.classList.remove('sgx-locked');
     document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
     bindAutoLock();
   }
+  let granted = false;
+  function grantedLines() {
+    if (granted) return;
+    granted = true;
+    out('✓ access granted', 'lok');
+    out('› booting space…<span class="sgx-lock-cur"></span>', 'lm', false);
+    setMode('done');
+  }
 
-  /** 服务端确认有效后：关掉弹层，交给模块级 proceed（唯一去处判定） */
+  /** 服务端确认有效后：交给模块级 proceed（唯一去处判定） */
   function onServerOk(ans) {
     done = true;
-    termState('unlocked');
-    try { closeMethodSheet(true); } catch (e) {}
-    if (vd.isOpen()) closeDialog('session-ok');
+    pkRun++;
+    grantedLines();
     proceed(ans, doUnlockAnimation);
   }
 
@@ -225,7 +876,8 @@ export function showLockScreen() {
   function unlock() {
     if (done) return;
     done = true;
-    termState('check');
+    out('› ' + esc(tx('lockVerifying')) + '…', 'lm');
+    setMode('busy');
     if (isLocal) {
       /* 本地开发没有后端：原地开锁 */
       doUnlockAnimation();
@@ -249,37 +901,24 @@ export function showLockScreen() {
       if (!done && ans.ok) onServerOk(ans);
     });
   }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') recheckSession();
+  });
+  window.addEventListener('focus', recheckSession);
+  window.addEventListener('pageshow', function (e) {
+    if (e && e.persisted) recheckSession();
+  });
 
-  function bindRecheck() {
-    document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') recheckSession();
-    });
-    window.addEventListener('focus', recheckSession);
-    window.addEventListener('pageshow', function (e) {
-      if (e && e.persisted) recheckSession();
-    });
-  }
-
-  /* 会话没生效：停在锁屏，显示友好错误，不跳转（允许重试） */
+  /* 会话没生效：停在锁屏，终端里报错，回命令行（允许重试），不跳转 */
   function sessionCheckFailed() {
     done = false;
-    termState('denied', tx('lockSessionNotRecognized'));
-    try {
-      setTitle(tx('lockSessionNotActive'));
-      setBody(
-        '<p class="sgx-verify-failtx">' +
-          tx('lockSessionNotRecognized') +
-          '</p>'
-      );
-      clearErr();
-      if (!vd.isOpen()) openDialog();
-      dlgState = 'session-failed';
-    } catch (e) {}
+    deny(tx('lockSessionNotRecognized'));
+    toCmd();
   }
 
-  /* 开锁动画（无 return 时）：显示桌面 */
+  /* 开锁动画：显示桌面 */
   function doUnlockAnimation() {
-    if (termSt !== 'unlocked') termState('unlocked');
+    grantedLines();
     if (reducedMotion()) {
       ov.style.transition = 'opacity .25s ease';
       ov.style.opacity = '0';
@@ -295,682 +934,16 @@ export function showLockScreen() {
     }
   }
 
-  /* ============================================================
-     统一底部弹层：临时钥匙 / 密码 / 通行密钥三态共用同一个 dialog（auth/auth-sheet.js，账号登录页同一个组件）。
-     - 同样的圆角、材质、拖动条、标题字号/位置、按钮样式；
-     - 卡片背景完全不透明；打开时底层名字与入口 visibility:hidden + inert；
-     - 容器无 outline；:focus-visible 只在内部可交互元素上用本站焦点色。
-     键盘避让：各态 setBody 后对新生成输入框调 vd.armKb(input)（followKeyboard 作用到 dlg 而非 card，避免与 card 入场动画冲突）。
-     ============================================================ */
-  /** @type {string|null} */ let dlgState = null;
-  let pwLockedUntil = 0;
-  const vd = createVerifyDialog({
-    en: en,
-    reasonTag: 'lock-verify',
-    followKeyboard: followKeyboard,
-    onClose: function () {
-      resetAvatar();
-      setBgHidden(false);
-      dlgState = null;
-      syncTitle();
-      if (termSt !== 'unlocked') termState('locked');
-    },
-  });
-  const setTitle = vd.setTitle;
-  const setBody = vd.setBody;
-  const clearErr = vd.clearErr;
-  /** 出错提示照旧走弹层（vd.showError）；锁屏终端同时回显一行 permission denied（外观） @type {typeof vd.showError} */
-  const showError = function (/** @type {any} */ msg, /** @type {any} */ input) {
-    termState('denied', typeof msg === 'string' ? msg : '');
-    return vd.showError(msg, input);
-  };
-  /** @param {any} input */
-  function armDlgKbFor(input) { vd.armKb(input); }
-  /** @param {string} reason */
-  function closeDialog(reason) { vd.close(reason); }
-
-  /* 顶栏标题：锁屏静止时「锁定屏幕」，打开解锁方式 / 验证弹层（正在解锁）时「解锁屏幕」 */
-  function syncTitle() {
-    const el = document.getElementById('sgx-lock-title');
-    if (!el) return;
-    const unlocking = !!methodSheet || vd.isOpen();
-    el.textContent = unlocking ? (tx('lockUnlockScreen')) : (tx('lockLockScreen2'));
-  }
-
-  /* 底层元素：弹层打开时隐藏并 inert，关闭时恢复 */
-  /** @param {boolean} hidden */
-  function setBgHidden(hidden) {
-    const sels = ['.sgx-lock-name', '.sgx-lock-links'];
-    for (let i = 0; i < sels.length; i++) {
-      const el = document.querySelector(sels[i]);
-      if (el) {
-        el.classList.toggle('sgx-bg-hidden', hidden);
-        try {
-          /** @type {any} */ (el).inert = hidden;
-        } catch (e) {}
-      }
-    }
-  }
-
-  /* 头像淡出避让：弹层打开时淡出，关闭时恢复（One UI 式） */
-  function liftAvatar() {
-    try {
-      document.body.classList.add('sgx-dlg-open');
-    } catch (e) {}
-  }
-  function resetAvatar() {
-    try {
-      document.body.classList.remove('sgx-dlg-open');
-    } catch (e) {}
-  }
-
-  function openDialog() {
-    setBgHidden(true);
-    if (!vd.open()) {
-      setBgHidden(false);
-      return false;
-    }
-    syncTitle();
-    requestAnimationFrame(function () {
-      liftAvatar();
-    });
-    return true;
-  }
-
-  /**
-   * 2.8.0 锁屏重设计：点击头像后弹出的解锁方式选择底部弹层（auth/auth-sheet.js createMethodSheet，账号登录页同一个组件）。
-   * One UI 风格：底部弹层（宽屏居中卡片），各带图标和一行说明。
-   *
-   * 补充定稿七.1：入口按锁屏凭证配置显示（配置以服务端 /api/lock-entry 为准，
-   * 读取失败按「已配置」处理）。「临时钥匙」始终在第一位，最下面一行小字「无法登录？」（PR3）：
-   * - 两者都有 → 临时钥匙 / 通行密钥 / 密码 / 无法登录？
-   * - 仅通行密钥 / 仅密码 → 临时钥匙 / 该项 / 无法登录？
-   * - 都没设置（启动站）→ 临时钥匙 / 无法登录？（里面的进站凭证走 space-auth 引导，原「进站凭证」一行）
-   * 「无法登录？」→ 弹层原地切到重置登录（openResetInSheet）。
-   * 点外部、Esc 或下滑关闭；键盘可操作。
-   */
-  /** @type {{el: HTMLElement, card: HTMLElement, close: (navigating?: boolean) => void}|null} */
-  let methodSheet = null;
-  let methodSheetLoading = false;
-  function openMethodSheet() {
-    if (methodSheet || methodSheetLoading) return;
-    methodSheetLoading = true;
-    fetch('/api/lock-entry', { method: 'GET', credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        methodSheetLoading = false;
-        if (methodSheet) return;
-        var cfg = { passkey: true, password: true };
-        if (j && j.ok) {
-          /* 账号拆分 PR3：lock-entry 只回锁屏自己的 passkey / password（不再有 resetOnly / accountConfigured） */
-          cfg = { passkey: !!j.passkey, password: !!j.password };
-        }
-        buildMethodSheet(cfg);
-      })
-      .catch(function () {
-        methodSheetLoading = false;
-        if (methodSheet) return;
-        /* 读取失败按已配置处理：不暴露进站凭证入口 */
-        buildMethodSheet({ passkey: true, password: true });
-      });
-  }
-  /**
-   * 按锁屏凭证配置构建方法弹层。
-   * @param {{passkey:boolean, password:boolean}} cfg
-   */
-  function buildMethodSheet(cfg) {
-    const hasPk = !!(window.PublicKeyCredential);
-    /* PR3：进站凭证不再是单独一行；锁屏凭证都没设置（启动站）时，「无法登录？」里的进站凭证走 space-auth 引导。 */
-    const showPk = cfg.passkey && hasPk;
-    const showPw = cfg.password;
-    /* 批次 A 验收修复 P2：方法行点击轻触觉反馈。(b) 行 busy 不适用：
-       点击即关弹层并在同一 tick 打开下一态；通行密钥行 → openPk() 已有带转圈的加载态。 */
-    /** @type {import('../auth/auth-sheet.js').MethodOpt[]} */
-    const opts = [
-      /* 1. 临时钥匙（2026-10-23 取代 Turnstile） */
-      { id: 'sgx-mopt-tempkey', icon: METHOD_ICONS.tempkey, name: tx('lockTemporaryKey'),
-        desc: tx('lockEnterTheTemporaryKey'),
-        ariaLabel: tx('lockEnterWithATemporary'),
-        onPick: function () { tapFeedback(); openTemp(); } },
-    ];
-    /* 2. 通行密钥（已配置且设备支持） */
-    if (showPk) opts.push({ id: 'sgx-mopt-pk', icon: METHOD_ICONS.passkey, name: tx('lockPasskey'),
-      desc: tx('lockUnlockWithFingerprintOr'),
-      ariaLabel: tx('lockUsePasskey'),
-      onPick: function () { tapFeedback(); openPk(); } });
-    /* 3. 密码（已配置） */
-    if (showPw) opts.push({ id: 'sgx-mopt-pw', icon: METHOD_ICONS.password, name: tx('lockPassword'),
-      desc: tx('lockEnterYourUnlockPassword'),
-      ariaLabel: tx('lockUsePassword'),
-      onPick: function () { tapFeedback(); openPw(); } });
-    const ms = createMethodSheet({
-      ariaLabel: tx('lockChooseUnlockMethod'),
-      title: tx('lockUnlock'),
-      options: opts,
-      /* 4. PR3：「无法登录？」小字（原「重置锁屏」「进站凭证」两行合并到这里）：点了弹层原地切到重置登录 */
-      cant: { id: 'sgx-mopt-cant', text: tx('lockCantSignIn'),
-        onClick: function (card) { tapFeedback(); openResetInSheet(card, cfg); } },
-      /* 关闭一开始（Esc / 遮罩 / 下滑 / 选了方式 / closeMethodSheet）：清本地状态 */
-      onClose: function () {
-        if (methodSheet === ms) methodSheet = null;
-        /* 选了某个方式会在同一 tick 打开验证弹层（回显已换成那一态）；没接着开就回到静止 */
-        window.setTimeout(function () { if (termSt === 'sudo' && !methodSheet && !vd.isOpen()) termState('locked'); }, 0);
-        if (flow) {
-          try { flow.destroy(); } catch (e) {}
-          flow = null;
-        }
-        syncTitle();
-      },
-      onClosed: function (navigating) {
-        /* 焦点回到头像：只在没有别的弹层接手焦点时（选了某个方式会马上打开验证弹层，
-           这时把焦点抢回头像会让刚聚焦的密码框失焦，2026-10-24 修） */
-        if (navigating || vd.isOpen()) return;
-        try {
-          const av = document.getElementById('sgx-lock-avatar');
-          if (av) av.focus({ preventScroll: true });
-        } catch (e) {}
-      },
-    });
-    methodSheet = ms;
-    syncTitle();
-    termState('sudo');
-  }
-
-  /** @param {boolean} [navigating] 重置完成要跳页：不把焦点还给头像 */
-  function closeMethodSheet(navigating) {
-    if (!methodSheet) return;
-    methodSheet.close(navigating);
-  }
-
-
-  /* ---------- 临时钥匙态（与密码态同一弹层） ---------- */
-  let tempLockedUntil = 0;
-  function openTemp() {
-    if (isLocal) {
-      unlock();
-      return;
-    }
-    dlgState = 'temp';
-    termState('temp');
-    setTitle(tx('lockEnterTemporaryKey'));
-    setBody(
-      '<div class="sgx-pw-field"><input type="text" id="sgx-temp-input" class="sgx-pw-input sgx-temp-input" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="20" ' +
-        'aria-label="' + (tx('lockTemporaryKey')) + '" placeholder="XXXX-XXXX-XXXX"></div>' +
-        '<p class="sgx-temp-hint">' + (tx('lockFormatXxxxXxxxXxxx')) + '</p>' +
-        '<p id="sgx-temp-count" class="sgx-pw-count" hidden></p>' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-temp-go">' + (tx('lockEnter')) + '</button>'
-    );
-    clearErr();
-    if (!openDialog()) return;
-    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-temp-input'));
-    const go = document.getElementById('sgx-temp-go');
-    armDlgKbFor(input);
-    if (input) {
-      onEnter(input, submitTemp);
-      focusNoScroll(input);
-    }
-    if (go) { on(go, 'click', submitTemp); keepInputFocus(go); }
-    if (Date.now() < tempLockedUntil) tempCountdown();
-  }
-
-  function tempCountdown() {
-    const el = document.getElementById('sgx-temp-count');
-    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-temp-input'));
-    const go = /** @type {HTMLButtonElement|null} */ (document.getElementById('sgx-temp-go'));
-    function tick() {
-      if (dlgState !== 'temp') return;
-      const left = Math.max(0, Math.ceil((tempLockedUntil - Date.now()) / 60000));
-      if (Date.now() >= tempLockedUntil) {
-        if (el) el.hidden = true;
-        if (input) input.disabled = false;
-        if (go) go.disabled = false;
-        return;
-      }
-      if (el) {
-        el.textContent = tx('lockRetryMin', { n: left });
-        el.hidden = false;
-      }
-      if (input) input.disabled = true;
-      if (go) go.disabled = true;
-      window.setTimeout(tick, 5000);
-    }
-    tick();
-  }
-
-  function submitTemp() {
-    if (dlgState !== 'temp') return;
-    if (Date.now() < tempLockedUntil) return;
-    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-temp-input'));
-    const code = input ? input.value.trim() : '';
-    if (!code) {
-      showError(tx('lockEnterTheTemporaryKey2'), input);
-      return;
-    }
-    fetch('/api/lock-tempkey-unlock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: code }),
-    })
-      .then(function (r) {
-        return r.text().then(function (t) {
-          let j = null;
-          try { j = JSON.parse(t); } catch (e) {}
-          return { s: r.status, j: j };
-        });
-      })
-      .then(function (res) {
-        if (dlgState !== 'temp') return;
-        const j = res.j;
-        if (!j) {
-          showError(tx('lockServerError'));
-          return;
-        }
-        if (j.ok) {
-          closeDialog('success');
-          unlock();
-        } else if (j.error === 'cooldown') {
-          /* retryAfter（秒）：网关无会话总限流（src/core/anon-limit.js）给的；没有就是临时码自己的 15 分钟锁 */
-          tempLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 15 * 60000);
-          showError(tx('lockTooManyAttempts'));
-          tempCountdown();
-        } else if (j.error === 'wrong' || j.error === 'code') {
-          if (input) input.value = '';
-          showError(tx('lockInvalidOrExpiredKey'), input);
-        } else {
-          showError(tx('lockServerError'));
-        }
-      })
-      .catch(function () {
-        if (dlgState !== 'temp') return;
-        showError(tx('lockNetworkError'));
-      });
-  }
-
-  /* ---------- 密码态（与验证态同一弹层） ---------- */
-  function openPw() {
-    dlgState = 'password';
-    termState('pw');
-    setTitle(tx('lockEnterPassword'));
-    setBody(
-      pwFieldHtml({ id: 'sgx-pw-input', eyeId: 'sgx-pw-eye', autocomplete: 'current-password', pmUser: KEY_LOCK, ariaLabel: tx('lockPassword'), placeholder: tx('lockPassword'), en: en }) +
-        '<p id="sgx-pw-count" class="sgx-pw-count" hidden></p>' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-pw-go">' + (tx('lockUnlock2')) + '</button>'
-    );
-    clearErr();
-    if (!openDialog()) return;
-    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
-    const eye = document.getElementById('sgx-pw-eye');
-    const go = document.getElementById('sgx-pw-go');
-    /* 批次 A 验收修复 P2：眼睛按钮走 bindEyeButton（初始 eye-off） */
-    if (eye && input) bindPwEye(eye, input, en);
-    armDlgKbFor(input);
-    if (input) {
-      onEnter(input, submitPw);
-      focusNoScroll(input);
-    }
-    if (go) { on(go, 'click', submitPw); keepInputFocus(go); }
-    if (Date.now() < pwLockedUntil) pwCountdown();
-  }
-
-  function pwCountdown() {
-    const el = document.getElementById('sgx-pw-count');
-    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
-    const go = document.getElementById('sgx-pw-go');
-    function tickCount() {
-      if (dlgState !== 'password') return;
-      const left = Math.max(0, Math.ceil((pwLockedUntil - Date.now()) / 1000));
-      if (left <= 0) {
-        if (el) el.hidden = true;
-        if (input) input.disabled = false;
-        if (go) /** @type {HTMLButtonElement} */ (go).disabled = false;
-        return;
-      }
-      if (el) {
-        el.textContent = tx('lockRetrySec', { n: left });
-        el.hidden = false;
-      }
-      if (input) input.disabled = true;
-      if (go) /** @type {HTMLButtonElement} */ (go).disabled = true;
-      window.setTimeout(tickCount, 1000);
-    }
-    tickCount();
-  }
-
-  function submitPw() {
-    if (dlgState !== 'password') return;
-    if (Date.now() < pwLockedUntil) return;
-    const input = /** @type {HTMLInputElement|null} */ (document.getElementById('sgx-pw-input'));
-    const pw = input ? input.value : '';
-    if (!pw) {
-      showError(tx('lockEnterPassword2'), input);
-      return;
-    }
-    fetch('/api/lock-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'verify', password: pw }),
-    })
-      /* 区分网络错误（fetch 抛错）/ 服务器错误（非 JSON 响应）/ 业务错误 */
-      .then(function (r) {
-        return r.text().then(function (t) {
-          let j = null;
-          try {
-            j = JSON.parse(t);
-          } catch (e) {}
-          return { s: r.status, j: j };
-        });
-      })
-      .then(function (res) {
-        if (dlgState !== 'password') return;
-        const j = res.j;
-        if (!j) {
-          showError(tx('lockServerError'));
-          return;
-        }
-        if (j.ok) {
-          closeDialog('success');
-          unlock();
-        } else if (j.error === 'cooldown') {
-          /* retryAfter（秒）：网关无会话总限流给的；没有就是密码输错的 30 秒冷却 */
-          pwLockedUntil = Date.now() + (j.retryAfter > 0 ? j.retryAfter * 1000 : 30000);
-          showError(tx('lockTooManyAttempts'));
-          pwCountdown();
-        } else if (j.error === 'not-set') {
-          showError(tx('lockNoPasswordSetYet'));
-        } else if (j.error === 'server') {
-          showError(tx('lockServerError'));
-        } else {
-          if (input) input.value = '';
-          showError(tx('lockWrongPassword'), input);
-        }
-      })
-      .catch(function () {
-        if (dlgState !== 'password') return;
-        showError(tx('lockNetworkError'));
-      });
-  }
-
-  /* ---------- 重置登录（PR3：方法弹层里的「无法登录？」原地切到 auth/reset-flow.js） ----------
-     与账号页 /account/reset/ 同一个界面，提交不同：
-     - 锁屏凭证已设置（或读不到配置，按已设置处理）：进站凭证 → POST /api/lock-reset verify；
-       恢复开关有效直接拿到重置锁屏票（sgx-lock-reset）；否则服务端回 needLock → 再验锁屏凭证（锁屏通行密钥 / 解锁密码，
-       账号拆分 PR3 起网关不读账号凭证）→ 重置锁屏票 → 去 /security/lock/ 重设解锁方式。
-     - 锁屏凭证都没设置（启动站）：视为从零重置——进站凭证 → POST /api/space-auth { purpose:'lock-reset' }
-       （重置锁屏票 by=root）→ 同样去 /security/lock/ 设第一把锁屏凭证，再正常解锁进站。
-       进站凭证不拥有会话，也不是单独的解锁入口。
-     进站凭证只存在 reset-flow 的闭包里。 */
-  /**
-   * @param {HTMLElement} cardEl 方法弹层卡片
-   * @param {{passkey:boolean, password:boolean}} cfg
-   */
-  function openResetInSheet(cardEl, cfg) {
-    const bootstrap = !cfg.passkey && !cfg.password;
-    const T = resetT(en);
-    cardEl.innerHTML =
-      '<div class="sheet-handle" aria-hidden="true"></div>' +
-      '<h2 class="sgx-sheet-title" id="sgx-reset-title">' + T('title') + '</h2>' +
-      '<div class="sgx-sheet-reset" id="sgx-sheet-reset"></div>';
-    const sheetEl = /** @type {HTMLElement|null} */ (cardEl.closest('#sgx-method-sheet'));
-    if (sheetEl) sheetEl.setAttribute('aria-label', T('title'));
-    const host = /** @type {HTMLElement} */ (cardEl.querySelector('#sgx-sheet-reset'));
-    /** @param {any} body @returns {Promise<{s:number, j:any}>} */
-    const post = function (url, body) {
-      return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-        .then(function (r) {
-          return r.text().then(function (t) {
-            let j = null;
-            try { j = JSON.parse(t); } catch (e) {}
-            return { s: r.status, j: j };
-          });
-        });
-    };
-    const netErr = function () { throw { message: tx('lockNetworkError') }; };
-    const tooMany = { message: tx('lockTooManyAttempts') };
-    const failed = { message: tx('lockVerificationFailed'), clear: true };
-    /* 键盘避让：进站凭证框、第二步展开的解锁密码框，聚焦时卡片随键盘上移（与其他弹层同一套 followKeyboard） */
-    let kbStop = null;
-    /** @type {any} */ let kbFor = null;
-    on(host, 'focusin', function (/** @type {FocusEvent} */ e) {
-      const tg = /** @type {any} */ (e.target);
-      if (!tg || tg.tagName !== 'INPUT' || !tg.classList.contains('sgx-pw-input') || tg === kbFor) return;
-      if (kbStop) { try { kbStop(); } catch (e2) {} }
-      kbFor = tg;
-      kbStop = followKeyboard(cardEl, tg);
-    });
-    flow = mountResetFlow({
-      el: host,
-      en: en,
-      /* 锁屏侧：进站凭证（SpaceKey） */
-      keyKind: 'space',
-      pmUser: KEY_SPACE,
-      keyText: { lead: tx('rfSpaceLead'), ph: tx('rfSpacePh'), empty: tx('rfSpaceEmpty') },
-      submitKey: function (key) {
-        if (bootstrap) {
-          return post('/api/space-auth', { key: key, purpose: 'lock-reset' }).then(function (res) {
-            if (res.j && res.j.ok) return {};
-            if (res.s === 429) throw tooMany;
-            if (res.s === 503 || res.s === 500) throw { message: tx('lockServerError') };
-            throw { message: tx('lockWrongSpaceCredential'), clear: true };
-          }, netErr);
-        }
-        return post('/api/lock-reset', { action: 'verify', spaceKey: key }).then(function (res) {
-          if (res.s === 200 && res.j && res.j.ok) {
-            return res.j.needLock ? { needLock: { passkey: !!res.j.passkey, password: !!res.j.password } } : {};
-          }
-          if (res.s === 429) throw tooMany;
-          throw failed;
-        }, netErr);
-      },
-      lock: function (spaceKey) {
-        const verify = function (proof) {
-          return post('/api/lock-reset', { action: 'verify', spaceKey: spaceKey, lockProof: proof }).then(function (res) {
-            if (res.s === 200 && res.j && res.j.ok && !res.j.needLock) return;
-            if (res.s === 429) throw tooMany;
-            throw failed;
-          }, netErr);
-        };
-        return {
-          password: function (v) { return verify({ type: 'password', password: v }); },
-          passkey: function () {
-            return post('/api/lock-reset', { action: 'challenge' }).then(function (res) {
-              const j = res.j;
-              if (!j || !j.ok) throw { message: tx('lockFailedToStart') };
-              return getPasskeyAssertion(assertionOptions(j), { hideEl: sheetEl || undefined }).then(function (cred) {
-                return verify({ type: 'passkey', cid: j.cid, credential: assertionToJSON(cred) });
-              }, function (err) {
-                /* 取消 / 没有匹配钥匙（NotAllowedError）：行内提示，留在本页可重新选择 */
-                if (err && err.kind === 'cancelled') throw { cancelled: true, message: tx('lockCancelledYouCanSelect') };
-                if (isPasskeyCancel(err)) throw { cancelled: true, message: passkeyErrorText('nokey', en) };
-                throw { message: err && err.kind ? passkeyErrorText(err.kind, en) : (tx('lockPasskeyFailed')) };
-              });
-            }, function (e) {
-              if (e && e.message) throw e;
-              netErr();
-            });
-          },
-        };
-      },
-      onDone: function () {
-        if (kbStop) { try { kbStop(); } catch (e) {} kbStop = null; }
-        closeMethodSheet(true);
-        /* 跳转到锁屏凭证管理页（重置锁屏票可开此页，仍进不了主页；启动站同样在这里设第一把锁屏凭证） */
-        sgxNavigate(langPath('/security/lock/', pageLang()));
-      },
-    });
-  }
-  /** @type {{destroy: () => void}|null} */
-  let flow = null;
-
-  /* ---------- 通行密钥态（与验证态同一弹层） ---------- */
-  function openPk() {
-    dlgState = 'passkey';
-    termState('pk');
-    setTitle(tx('lockUsePasskey'));
-    setBody(
-      '<div class="sgx-verify-loading"><div class="sgx-spinner" role="progressbar" aria-label="' +
-        (tx('lockVerifying')) +
-        '"></div><p class="sgx-verify-loading-tx">' +
-        (tx('lockVerifyingPasskey')) +
-        '</p></div>'
-    );
-    clearErr();
-    if (!openDialog()) return;
-    pkAuth();
-  }
-
-  /* 通行密钥失败 → 同一弹层内给重试 / 用密码 */
-  function pkFailed(msg) {
-    if (dlgState !== 'passkey') return;
-    termState('denied', msg || tx('pkFailed'));
-    setBody(
-      '<div class="sgx-verify-loading"><p class="sgx-verify-failtx">' +
-        (msg || (tx('pkFailed'))) +
-        '</p><div class="sgx-verify-actions">' +
-        '<button type="button" class="sgx-verify-skip" id="sgx-pk-retry">' + (tx('lockRetry')) + '</button>' +
-        '<button type="button" class="sgx-verify-ghost" id="sgx-pk-topw">' + (tx('lockUsePassword')) + '</button>' +
-        '</div></div>'
-    );
-    const retry = document.getElementById('sgx-pk-retry');
-    const topw = document.getElementById('sgx-pk-topw');
-    if (retry) on(retry, 'click', openPk);
-    if (topw) on(topw, 'click', openPw);
-    liftAvatar();
-  }
-
-  function pkAuth() {
-    /* 服务端回 unknown-key 时要告诉密码管理器删哪一把：这里记下 id（以前在下一个 then 里直接用 cred，
-       那里没有这个变量，ReferenceError 被吞掉，signalUnknownCredential 从来没发出去） */
-    let credId = '';
-    fetch('/api/lock-passkey', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'challenge', type: 'auth' }),
-    })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (ch) {
-        if (dlgState !== 'passkey') throw { done: true };
-        if (!ch || !ch.ok) throw new Error('challenge');
-        /* B1-2：用公共函数（隐藏弹层 + 30s 超时 + 4 档错误） */
-        return getPasskeyAssertion(assertionOptions(ch), { hideEl: document.querySelector('.sgx-verify-dlg') }).then(function (cred) {
-          return { cred: cred, cid: ch.cid };
-        });
-      })
-      .then(function (res) {
-        if (dlgState !== 'passkey') throw { done: true };
-        const cred = res.cred;
-        credId = cred.id;
-        return fetch('/api/lock-passkey', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'auth',
-            cid: res.cid,
-            credential: assertionToJSON(cred),
-          }),
-        });
-      })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (j) {
-        if (dlgState !== 'passkey') return;
-        if (j && j.ok) {
-          closeDialog('success');
-          unlock();
-        } else {
-          /* 服务端不认识这把密钥 → 通知密码管理器删掉 */
-          try {
-            if (j && j.error === 'unknown-key' && window.PublicKeyCredential &&
-                typeof PublicKeyCredential.signalUnknownCredential === 'function') {
-              PublicKeyCredential.signalUnknownCredential({
-                rpId: location.hostname,
-                credentialId: credId,
-              }).catch(function () {});
-            }
-          } catch (e) {}
-          pkFailed();
-        }
-      })
-      .catch(function (e) {
-        if (e && e.done) return;
-        if (e && e.kind) pkFailed(passkeyErrorText(e.kind, en));
-        else pkFailed();
-      });
-  }
-
-  /* lock-v10 快捷键显示：和方式弹层同一规则（GET /api/lock-entry；通行密钥还要设备支持；读取失败按已配置处理）。
-     只决定这两个按钮显不显示；临时钥匙 / 无法登录？永远在「解锁」→ 方式弹层里。 */
-  function showQuickKeys() {
-    /** @param {{passkey:boolean, password:boolean}} cfg */
-    function apply(cfg) {
-      if (done) return;
-      const kPw = document.getElementById('sgx-lock-k-pw');
-      const kPk = document.getElementById('sgx-lock-k-pk');
-      if (kPw) kPw.hidden = !cfg.password;
-      if (kPk) kPk.hidden = !(cfg.passkey && !!window.PublicKeyCredential);
-    }
-    fetch('/api/lock-entry', { method: 'GET', credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (j) { apply(j && j.ok ? { passkey: !!j.passkey, password: !!j.password } : { passkey: true, password: true }); })
-      .catch(function () { apply({ passkey: true, password: true }); });
-  }
-
-  /* ---------- 入口接线（2.8.0 锁屏重设计） ---------- */
-  /* 头像点击 → 解锁方式选择底部弹层 */
-  const av = document.getElementById('sgx-lock-avatar');
-  if (av) {
-    on(av, 'click', function (e) {
-      e.stopPropagation();
-      openMethodSheet();
-    });
-    /* 「解锁」按钮 = 点头像（同一个入口，不另走流程） */
-    const go = document.getElementById('sgx-lock-go');
-    if (go) on(go, 'click', function (e) { e.stopPropagation(); av.click(); });
-    /* lock-v10 快捷键：直接打开密码 / 通行密钥弹层（同方式弹层里那两行的 onPick） */
-    const kPw = document.getElementById('sgx-lock-k-pw');
-    const kPk = document.getElementById('sgx-lock-k-pk');
-    if (kPw) on(kPw, 'click', function (e) {
-      e.stopPropagation();
-      if (done || vd.isOpen() || methodSheet) return;
-      tapFeedback(); openPw();
-    });
-    if (kPk) on(kPk, 'click', function (e) {
-      e.stopPropagation();
-      if (done || vd.isOpen() || methodSheet) return;
-      tapFeedback(); openPk();
-    });
-    showQuickKeys();
-    try {
-      av.focus(/** @type {any} */ ({ preventScroll: true }));
-    } catch (e) {
-      try {
-        av.focus();
-      } catch (_) {}
-    }
-  }
-  on(document, 'keydown', function (/** @type {KeyboardEvent} */ e) {
-    if (done || !document.getElementById('sgx-lock')) return;
-    if (e.key === 'Enter' || e.key === ' ') {
-      const t = /** @type {HTMLElement|null} */ (e.target);
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      /* 焦点在快捷键上：让按钮自己的 click 处理（打开对应弹层） */
-      if (t && t.closest && t.closest('.sgx-lock-k')) return;
-      if (vd.isOpen()) return;
-      if (methodSheet) return;
-      e.preventDefault();
-      /* 键盘也走方式选择弹层 */
-      openMethodSheet();
-    }
-  });
-
-  /* 锁屏显示期间：如果用户在别的标签页解锁了，切回来时自动检测并按服务端的 next 走 */
-  bindRecheck();
+  /* ---------- 开机 ---------- */
+  boot();
+  setMode('cmd');
+  /* 电脑上直接把光标放进命令行；触屏不自动聚焦（不一进来就弹键盘） */
+  try {
+    if (!window.matchMedia('(pointer: coarse)').matches) focusInput();
+  } catch (e) {}
 
   /* 首帧对账：页面是 locked 或根本没有会话标记（unknown）时立刻问服务端。
-     服务端说有效 → 直接按 next 走，不让用户对着一个本来有效的会话再解一次锁（2026-10-21：
-     这是「切到别的标签页再回来就自己解锁」的根因之一——以前只有切回来才对账，首帧不对账 unknown）。 */
+     服务端说有效 → 直接按 next 走，不让用户对着一个本来有效的会话再解一次锁（2026-10-21）。 */
   if (!isLocal) {
     askServer().then(function (ans) {
       if (!done && ans.ok) {

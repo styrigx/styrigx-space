@@ -19,6 +19,7 @@
  * 测试侧监听主框架导航请求（trackJumps）：去子站域名的导航就是一次回跳（被 blockExternalRequests 拦掉，页面不动）。
  * subsite-jump 记录保留在 sessionStorage，可断言。
  */
+const { lockCmd, lockMode } = require('../helpers/lock-term.cjs');
 const { test } = require('@playwright/test');
 const { blockExternalRequests, expect } = require('../helpers/helpers');
 
@@ -340,11 +341,9 @@ test.describe('B1-8 路径B：会话无效、用临时钥匙解锁后被踢回',
     const url = '/?lock=1&test-no-local-bypass=1&why=' + encodeURIComponent(why) + '&return=' + encodeURIComponent(target);
     await gotoWhy(page, url);
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    await page.click('#sgx-lock-avatar');
-    await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
-    await page.click('#sgx-mopt-tempkey');
-    await page.fill('#sgx-temp-input', 'AAAA-BBBB-CCCC');
-    await page.click('#sgx-temp-go');
+    await lockCmd(page, 'tempkey');
+    await lockMode(page, 'temp');
+    await lockCmd(page, 'AAAA-BBBB-CCCC');
     /* 等 handleSessionOk 跑完 */
     await waitDecision(page, 8000);
   }
@@ -507,11 +506,9 @@ for (const LANG of [
     page.__locked = true;
     await page.goto('/?lock=1&test-no-local-bypass=1&why=no-cookie&return=' + encodeURIComponent(TARGET), { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    await page.click('#sgx-lock-avatar');
-    await expect(page.locator('#sgx-method-sheet.visible')).toBeVisible({ timeout: 5000 });
-    await page.click('#sgx-mopt-tempkey');
-    await page.fill('#sgx-temp-input', 'AAAA-BBBB-CCCC');
-    await page.click('#sgx-temp-go');
+    await lockCmd(page, 'tempkey');
+    await lockMode(page, 'temp');
+    await lockCmd(page, 'AAAA-BBBB-CCCC');
     expect(await waitDecision(page, 8000)).toBe('jump');
     expect(page.__jumps[0]).toBe(TARGET);
     await settle(page);

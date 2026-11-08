@@ -149,7 +149,10 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
   const rows = read('space/web/assets/js/auth/cred-rows.js');
   assert.ok(/export function createKeyField[\s\S]*?bindPwEye\(eye, input, o\.en\)/.test(rows), '进站凭证框（重置第一步）应有眼睛按钮');
   assert.ok(/eye\.className = 'sgx-pw-eye';\s*bindPwEye\(eye, input, en\)/.test(rows), '第二步展开的账号密码框应有眼睛按钮');
-  assert.ok(read('space/web/assets/js/shell/lock.js').includes('mountResetFlow'), '锁屏弹层用 auth/reset-flow.js');
+  /* lock-v10 命令解锁（2026-11-08）：锁屏上没有弹层，「无法登录？」是终端里的 reset 命令，服务端约定同 auth/reset-flow.js（/api/lock-reset、启动站 /api/space-auth） */
+  const lockUi = read('space/web/assets/js/shell/lock.js');
+  assert.ok(lockUi.includes("'/api/lock-reset'") && lockUi.includes("purpose: 'lock-reset'"), '锁屏 reset 命令走同一套重置接口');
+  assert.ok(!/createMethodSheet|createVerifyDialog|mountResetFlow/.test(lockUi), '锁屏不再用底部弹层 / 验证对话框');
   /* P2-3：升级验证层（shell/upgrade.js）已删除 */
   assert.ok(!existsSync(join(ROOT, 'space/web/assets/js/shell/upgrade.js')), 'shell/upgrade.js 已删除');
 });
