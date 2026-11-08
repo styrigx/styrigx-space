@@ -13,12 +13,13 @@ const json = (o, status = 200) => ({ status, contentType: 'application/json', bo
 const SESSION = (by = 'password', device = 'Galaxy S23 Ultra') => ({ by, device, authAt: Date.now() - 1000, expiresAt: Date.now() + 3600000 });
 /** reauth 票（3 分钟） */
 const REAUTH = () => ({ by: 'password', expiresAt: Date.now() + 170000 });
-/** GET /api/account：已进门、两把钥匙都设了 */
-const STATUS = (x = {}) => Object.assign({ ok: true, ready: true, password: true, passkey: true, session: null }, x);
+/** GET /api/account：已进门、两把钥匙都设了（字段同 workers/account/src/api/account/status.js） */
+const STATUS = (x = {}) => Object.assign({ ok: true, signing: true, configured: { password: true, passkey: true }, session: null }, x);
 
 /**
- * /api/account 替身：GET 回 status（可为函数），POST 按 action 回 handlers[action]（[状态码, JSON] 或 (body) => [状态码, JSON]）。
- * 没写的 action：grant-list / device-list / passkey-list 回空列表，其余 400。
+ * /api/account 替身：GET /api/account 回 status（可为函数）；POST /api/account/<入口> { action } 按 handlers['<入口>/<action>'] 回
+ * （[状态码, JSON] 或 (body) => [状态码, JSON]）。记下的请求体里 action 写成 '<入口>/<action>'（比如 'session/password'）。
+ * 没写的：grants/list、devices/list、keys/passkey-list、reset/passkey-list 回空列表，reauth/end、reset/end 回 ok，其余 400。
  * @param {import('@playwright/test').Page} page
  * @param {{status?: any, handlers?: Record<string, any>}} o
  * @returns {Promise<Array<any>>} 记录的 POST 请求体
@@ -26,22 +27,26 @@ const STATUS = (x = {}) => Object.assign({ ok: true, ready: true, password: true
 async function mockAccount(page, o) {
   const calls = [];
   const defaults = {
-    'grant-list': [200, { ok: true, grants: [] }],
-    'device-list': [200, { ok: true, devices: [] }],
-    'passkey-list': [200, { ok: true, keys: [] }],
-    'reauth-clear': [200, { ok: true }],
+    'grants/list': [200, { ok: true, grants: [] }],
+    'devices/list': [200, { ok: true, devices: [] }],
+    'keys/passkey-list': [200, { ok: true, keys: [] }],
+    'reset/passkey-list': [200, { ok: true, keys: [] }],
+    'reauth/end': [200, { ok: true }],
+    'reset/end': [200, { ok: true }],
   };
-  await page.route('**/api/account', async (route) => {
+  await page.route(/\/api\/account(\/[a-z]+)?\/?(\?.*)?$/, async (route) => {
     const req = route.request();
-    if (req.method() === 'GET') {
+    const entry = (new URL(req.url()).pathname.match(/^\/api\/account\/([a-z]+)/) || [])[1] || '';
+    if (req.method() === 'GET' && !entry) {
       const st = typeof o.status === 'function' ? o.status() : o.status;
       await route.fulfill(json(st || { ok: false, error: 'session' }, st && st.ok === false ? 401 : 200));
       return;
     }
     let body = {};
     try { body = JSON.parse(req.postData() || '{}'); } catch (e) {}
-    calls.push(body);
-    const h = (o.handlers || {})[body.action] || /** @type {any} */ (defaults)[body.action] || [400, { ok: false, error: 'action' }];
+    const key = entry + '/' + body.action;
+    calls.push(Object.assign({}, body, { action: key }));
+    const h = (o.handlers || {})[key] || /** @type {any} */ (defaults)[key] || [400, { ok: false, error: 'action' }];
     const r = typeof h === 'function' ? h(body) : h;
     await route.fulfill(json(r[1], r[0]));
   });

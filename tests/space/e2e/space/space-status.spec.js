@@ -496,8 +496,8 @@ test.describe('主页 [04] → 旷野 #status（入口 / 旧地址）', () => {
   test('不问账号会话：没有账号会话（GET /api/account session=null）也照常显示，不跳账号页', async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await page.route('**/api/account', (route) => route.fulfill({ status: 200, contentType: 'application/json',
-      body: JSON.stringify({ ok: true, password: true, passkey: false, ready: true, session: null }) }));
+    await page.route('**/api/account**', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, signing: true, configured: { password: true, passkey: false }, session: null }) }));
     await page.route('**/api/status', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fx.normal()) }));
     await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');

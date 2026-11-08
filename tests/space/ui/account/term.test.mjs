@@ -122,17 +122,26 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
   for (const m of api.matchAll(/: '(err\w+|sessExp)'/g)) assert.ok(zk.includes('common.' + m[1]), m[1]);
 });
 
-test('后端名字只在 api.js：action 名、请求字段、旧状态字段、密码管理器隐藏用户名（NAMING-V2 P2 时只改这一个文件）', () => {
+test('后端名字只在 api.js：入口、action 名、请求字段、状态字段、密码管理器隐藏用户名（NAMING-V2 P2 已切到按入口的新接口）', () => {
   const files = readdirSync(path.join(REPO, DIR)).filter((f) => f.endsWith('.js'));
   assert.deepEqual(files.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'devices.js', 'grants.js', 'keys.js', 'passkey-signal.js', 'profile.js', 'reauth.js', 'reset.js', 'session.js', 'term.js']);
   const api = strip(rd(DIR + 'api.js'));
-  for (const a of ['login-challenge', 'login-passkey', 'login-password', 'logout', 'reauth-clear', 'root-reset', 'reset-finish', 'password-change', 'passkey-list',
-    'passkey-register-challenge', 'passkey-register', 'passkey-delete', 'passkey-rename', 'device-list', 'device-revoke', 'device-revoke-all', 'grant-list', 'grant-add', 'grant-revoke']) {
-    assert.ok(api.includes("action: '" + a + "'"), a);
+  /* NAMING-V2 P2：POST /api/account/<入口> { action }，入口和 action 都只在 api.js 里写 */
+  for (const [e, acts] of Object.entries({ session: ['passkey-challenge', 'passkey', 'password', 'end'], reauth: ['passkey-challenge', 'passkey', 'password'],
+    reset: ['recovery-key', 'finish', 'end'], keys: ['passkey-rename'], devices: ['list', 'revoke', 'revoke-all'], grants: ['list', 'add', 'revoke'] })) {
+    for (const a of acts) assert.ok(api.includes("post('" + e + "', '" + a + "'") || (a === 'passkey-challenge' || a === 'passkey'), e + '/' + a);
+  }
+  for (const a of ['password-set', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete']) assert.ok(api.includes("post(entry, '" + a + "'"), a);
+  assert.ok(api.includes("post(entry, 'passkey-challenge')") && api.includes("post(entry, 'passkey',"), 'session / reauth 的通行密钥断言');
+  assert.ok(api.includes("ACCOUNT_API + '/reauth'") && api.includes("action: 'end'"), 'reauth end（keepalive）');
+  /* 旧单入口 action 一个都不剩 */
+  for (const a of ['login-challenge', 'login-passkey', 'login-password', 'logout', 'reauth-clear', 'root-reset', 'reset-finish', 'password-change',
+    'passkey-register', 'device-list', 'device-revoke', 'grant-list', 'grant-add', 'grant-revoke', 'reauth: true', 'j.ready', 'j.password', 'j.passkey']) {
+    assert.ok(!api.includes(a), '旧接口残留：' + a);
   }
   for (const f of files.filter((x) => x !== 'api.js' && x !== 'avatar-edit.js')) {
     const src = strip(rd(DIR + f));
-    assert.doesNotMatch(src, /action:|\/api\/account|ACCOUNT_API|postJSON|account-api\.js|key-names\.js|KEY_ACCOUNT|KEY_ROOT|AccountKey|RootKey/, f);
+    assert.doesNotMatch(src, /action:|\/api\/account|ACCOUNT_API|postJSON|account-api\.js|key-names\.js|KEY_ACCOUNT|KEY_ROOT|KEY_RECOVERY|\b(?:AccountKey|AccountPassword|AccountPasskey|RecoveryKey|RootKey)\b/, f);
     assert.doesNotMatch(src, /\.ready\b|status\.password|status\.passkey/, f + '：状态用归一后的 signing / configured');
     if (f !== 'commands.js') assert.doesNotMatch(src, /'root'|"root"/, f + '：root 只在 commands.js');
   }

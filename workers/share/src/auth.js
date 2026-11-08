@@ -2,7 +2,7 @@
  * @fileoverview 分享短链 Worker 的会话判断（本 Worker 自己一份，不 import 任何别的 Worker 的代码）：
  * 浏览器带来的 Cookie 头原样交给验证方，只回结论；同一请求各只问一次；不可达 / 绑定没配 → 当作无会话（fail closed）。
  * - lockSession() → 网关 AuthVerifier（服务绑定 AUTH）
- * 进门二值（P2-3）：锁屏会话只回进门与否，不分等级。短链管理：看列表 = 进门；生成 / 作废 = 进门 + 锁侧复验（网关 ShareIssuer 验）。
+ * 进门二值（P2-3）：进站会话只回进门与否，不分等级。短链管理：看列表 = 进门；生成 / 作废 = 进门 + 锁侧复验（网关 ShareIssuer 验）。
  * 不问账号会话（不绑账号 Worker）。
  * 本 Worker 不持任何钥匙、不绑认证库。
  */

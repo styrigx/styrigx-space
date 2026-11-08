@@ -13,7 +13,7 @@ async function go(page, path, opts = {}) {
   if (path.indexOf('/zh/') === 0) await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   if (opts.route) await opts.route(page);
   if (opts.account !== undefined) {
-    await page.route('**/api/account', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.account) }));
+    await page.route('**/api/account**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.account) }));
   }
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
@@ -29,7 +29,7 @@ test.describe('账号下拉 = 账号终端 #sgx-acct（2026-11-08 账号 UI 改�
   /* 账号终端里面的流程见 account/*.spec.js；这里只管入口：头像、旧地址 #acct=…、主页终端 sudo root、和别的下拉互斥 */
   test('点头像开下拉（非模态、aria-expanded、地址不变）；头像仍是链接（没 JS → /zh/account/ 301 首页 #acct）；esc 先退出 sudo root 再关、焦点回头像', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/wild/', { account: { ok: true, ready: true, password: true, passkey: true, session: null } });
+    await go(page, '/zh/wild/', { account: { ok: true, signing: true, configured: { password: true, passkey: true }, session: null } });
     const av = page.locator('.sgx-tb-av');
     await expect(av).toHaveAttribute('href', '/zh/account/');
     await expect(av).toHaveAccessibleName('账号');
@@ -55,9 +55,9 @@ test.describe('账号下拉 = 账号终端 #sgx-acct（2026-11-08 账号 UI 改�
   });
 
   test('旧地址 #acct=devices（/zh/account/devices/ 301 过来）：打开设备层，去掉 hash', async ({ page }) => {
-    await go(page, '/zh/#acct=devices', { route: (pg) => pg.route('**/api/account', (r) => {
+    await go(page, '/zh/#acct=devices', { route: (pg) => pg.route('**/api/account**', (r) => {
       if (r.request().method() === 'POST') return r.fulfill(json({ ok: true, devices: [], grants: [] }));
-      return r.fulfill(json({ ok: true, ready: true, password: true, passkey: true, session: { by: 'passkey', device: 'Galaxy S23 Ultra' } }));
+      return r.fulfill(json({ ok: true, signing: true, configured: { password: true, passkey: true }, session: { by: 'passkey', device: 'Galaxy S23 Ultra' } }));
     }) });
     const d = page.locator('#sgx-acct');
     await expect(d).toHaveAttribute('data-state', 'open');
@@ -67,7 +67,7 @@ test.describe('账号下拉 = 账号终端 #sgx-acct（2026-11-08 账号 UI 改�
 
   test('主页终端 sudo root → 打开账号终端；sudo root reset → 直接要恢复密钥', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/', { account: { ok: true, ready: true, password: true, passkey: true, session: null } });
+    await go(page, '/zh/', { account: { ok: true, signing: true, configured: { password: true, passkey: true }, session: null } });
     const inp = page.locator('#home-term-in');
     await inp.fill('sudo root');
     await inp.press('Enter');
@@ -87,7 +87,7 @@ test.describe('账号下拉 = 账号终端 #sgx-acct（2026-11-08 账号 UI 改�
 
   test('Ctrl+K 开全站终端时账号下拉不叠开（同时只开一个）', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/wild/', { account: { ok: true, ready: true, password: true, passkey: true, session: null } });
+    await go(page, '/zh/wild/', { account: { ok: true, signing: true, configured: { password: true, passkey: true }, session: null } });
     await page.locator('.sgx-tb-av').click();
     await expect(page.locator('#sgx-acct')).toHaveAttribute('data-state', 'open');
     await page.locator('#sgx-acct [data-at-in]').press('Control+c');

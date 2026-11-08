@@ -25,23 +25,25 @@ test('kv-budget.mjs 只管 D1：不再导出 KV 清理（selectResetKeys / RESET
   assert.match(src, /\/d1\/database\//);
 });
 
-test('清预览 D1：只清 passkey / password / attempt_limit（「是否已设置」和输错计数）；纪元、审计、重置开关等不清', () => {
-  assert.deepEqual([...RESET_D1_TABLES], ['passkey', 'password', 'attempt_limit']);
-  for (const t of ['epoch', 'kv_migration', 'lock_reset_switch', 'recovery_switch', 'user_handle', 'audit', 'challenge', 'tempkey', 'device']) {
+test('清预览 D1：只清网关和账号的 passkey / password / attempt_limit（「是否已设置」和输错计数）；纪元、审计、重置开关等不清', () => {
+  assert.deepEqual([...RESET_D1_TABLES], ['passkey', 'password', 'attempt_limit', 'account_passkey', 'account_password', 'account_attempt_limit']);
+  for (const t of ['epoch', 'kv_migration', 'lock_reset_switch', 'recovery_switch', 'user_handle', 'audit', 'challenge', 'tempkey', 'device', 'account_epoch', 'account_user_handle', 'account_audit', 'account_grant']) {
     assert.ok(!RESET_D1_TABLES.includes(t), t + ' 不清');
   }
   /* 每张要清的表都真的在迁移里（不会清错表名） */
   const mig = ['0005_lock_account_state.sql', '0006_auth_state.sql']
     .map((f) => readFileSync(path.join(REPO, 'workers/auth-gateway/migrations', f), 'utf8')).join('\n');
-  for (const t of RESET_D1_TABLES) assert.match(mig, new RegExp('CREATE TABLE IF NOT EXISTS ' + t + ' \\('), t);
+  const acct = readFileSync(path.join(REPO, 'workers/account/migrations/0005_account_tables.sql'), 'utf8');
+  for (const t of RESET_D1_TABLES) assert.match(t.startsWith('account_') ? acct : mig, new RegExp('CREATE TABLE IF NOT EXISTS ' + t + ' \\('), t);
 });
 
-test('清预览 D1：库 id 取 space/web/wrangler.toml 预览的 D1_LOCK_AUTH，和组合预览账号那一半的 D1_ACCOUNT_AUTH 同一个库，且不是正式库', () => {
+test('清预览 D1：库 id 取 space/web/wrangler.toml 预览的 D1_LOCK_AUTH，和组合预览账号那一半的 D1_ACCOUNT 同一个库，且不是正式库', () => {
   const pvToml = readFileSync(path.join(REPO, 'space/web/wrangler.toml'), 'utf8');
   const prodToml = readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8');
   const pv = previewD1Id(REPO);
   assert.equal(pv, d1DatabaseId(pvToml, REALM_LOCK.d1Binding));
-  assert.equal(pv, d1DatabaseId(pvToml, 'D1_ACCOUNT_AUTH'), '预览两个 D1 名字同一个库');
+  assert.equal(pv, d1DatabaseId(pvToml, 'D1_ACCOUNT'), '预览两个 D1 名字同一个库');
+  assert.equal(d1DatabaseId(pvToml, 'D1_ACCOUNT_AUTH'), '', 'D1_ACCOUNT_AUTH 已改名 D1_ACCOUNT');
   assert.equal(d1DatabaseId(pvToml, 'D1_ROOT_AUTH'), '', 'D1_ROOT_AUTH 已删');
   assert.notEqual(pv, d1DatabaseId(prodToml, 'D1_LOCK_AUTH'));
   assert.equal(d1DatabaseId('[[d1_databases]]\nbinding = "X"\ndatabase_id = "ab-cd"\n', 'X'), 'ab-cd');
@@ -165,7 +167,7 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
   assert.ok(pos('Build site') < pos(EMU_START) && pos(EMU_START) < pos(EMU_RUN), '先建站、再起模拟器、再跑用例');
   assert.ok(pos('Generate preview test credentials') < pos(EMU_START));
   assert.match(start.run, /node -e "require\('node:sqlite'\)"/);
-  assert.match(start.run, /node tests\/space\/e2e\/helpers\/preview-emulator\.cjs --port 8788 --space-key "\$PREVIEW_TEST_SPACE_KEY" --account-root-key "\$PREVIEW_TEST_ACCOUNT_ROOT_KEY" --pepper "\$PREVIEW_TEST_PW_PEPPER" > "\$log" 2>&1 &/);
+  assert.match(start.run, /node tests\/space\/e2e\/helpers\/preview-emulator\.cjs --port 8788 --space-key "\$PREVIEW_TEST_SPACE_KEY" --recovery-key "\$PREVIEW_TEST_RECOVERY_KEY" --pepper "\$PREVIEW_TEST_PW_PEPPER" --account-pepper "\$PREVIEW_TEST_ACCOUNT_PEPPER" > "\$log" 2>&1 &/);
   assert.match(start.run, /curl -fsS -o \/dev\/null http:\/\/127\.0\.0\.1:8788\/__kv\/stats/, '等它就绪');
   assert.match(start.run, /exit 1\s*$/, '超时就红');
   /* 用例变量按 preview-emulator.cjs 文件头；端口和起模拟器的一致 */
@@ -173,7 +175,7 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
     SGX_TEST_SUITE: 'passkey',
     SGX_TEST_BASE: 'http://localhost:8788',
     SGX_TEST_SPACE_KEY: '${{ env.PREVIEW_TEST_SPACE_KEY }}',
-    SGX_TEST_ACCOUNT_ROOT_KEY: '${{ env.PREVIEW_TEST_ACCOUNT_ROOT_KEY }}',
+    SGX_TEST_RECOVERY_KEY: '${{ env.PREVIEW_TEST_RECOVERY_KEY }}',
     SGX_TEST_CF_API: 'http://127.0.0.1:8788/client/v4',
     SGX_TEST_CF_TOKEN: 'x',
     SGX_TEST_CF_ACCOUNT: 'x',
@@ -181,7 +183,7 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
     CI: '1',
   });
   assert.match(emu.run, /^npx playwright test --config=tests\/config\/playwright\.config\.js$/m);
-  const header = readFileSync(path.join(REPO, 'tests/space/e2e/helpers/preview-emulator.cjs'), 'utf8').slice(0, 3000);
+  const header = readFileSync(path.join(REPO, 'tests/space/e2e/helpers/preview-emulator.cjs'), 'utf8').split('*/')[0];
   for (const v of ['SGX_TEST_BASE=http://localhost:8788', 'SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4', 'SGX_TEST_PREVIEW_D1_ID=local']) {
     assert.ok(header.includes(v), '模拟器文件头写的运行方式：' + v);
   }

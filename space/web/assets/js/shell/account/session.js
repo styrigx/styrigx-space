@@ -41,7 +41,8 @@ export function mountSession(C) {
 
   /**
    * 选方式 → 验证。
-   * v.reauth：这是 sudo root reauth（已登录，再验证）；否则是 sudo root 登录（v.withReauth：登录时顺手拿 reauth 票，授权同意用）。
+   * v.reauth：这是 sudo root reauth（已登录，再验证）；否则是 sudo root 登录。v.withReauth：登录完接着 sudo root reauth
+   * （一次验证只签一张票，NAMING-V2 Q1；只有「只做再验证」的入口用，比如奇趣导入书签）。
    * @param {{reauth?: boolean, withReauth?: boolean, lead: string, done: () => void}} v
    */
   C.verify = function (v) {
@@ -67,7 +68,7 @@ export function mountSession(C) {
   function askPw(v) {
     C.ask('pw', function (/** @type {string} */ val) {
       C.setMode('busy');
-      const call = v.reauth ? api.reauth.password(val) : api.session.password(val, v.withReauth);
+      const call = v.reauth ? api.reauth.password(val) : api.session.password(val);
       call.then(function (/** @type {any} */ res) {
         if (res.j && res.j.ok) { verified(v, 'password'); return; }
         if (res.s === 429 || api.isErr(res, api.ERR.cooldown)) { C.err(t('common.tooMany')); C.toCmd(); return; }
@@ -89,13 +90,13 @@ export function mountSession(C) {
     if (!(/** @type {any} */ (window)).PublicKeyCredential) { C.err(t('common.pkNoSupport')); C.toCmd(); return; }
     C.setMode('busy');
     C.out(esc(t('session.passkeyWait')), 'd');
-    const call = v.reauth ? api.reauth.passkey(C.errT) : api.session.passkey(C.errT, v.withReauth);
+    const call = v.reauth ? api.reauth.passkey(C.errT) : api.session.passkey(C.errT);
     call.then(function () { verified(v, 'passkey'); }, function (/** @type {any} */ e) {
       C.out(esc(e && e.cancelled ? t('common.cancelled') : (e && e.message) || t('common.errVerify')), e && e.cancelled ? 'd' : 'er');
       C.toCmd();
     });
   }
-  /** @param {{reauth?: boolean, done: () => void}} v @param {string} by */
+  /** @param {{reauth?: boolean, withReauth?: boolean, done: () => void}} v @param {string} by */
   function verified(v, by) {
     const was = C.st;
     C.loadStatus().then(function () {
@@ -106,6 +107,7 @@ export function mountSession(C) {
         afterLogin();
       }
       C.toCmd();
+      if (!v.reauth && v.withReauth) { C.echo(CMD.reauth); C.cmdReauth(v.done, t('reauth.lead.grants')); C.focusIn(); return; }
       if (C.reauthLeft()) C.startTick();
       v.done();
     });
@@ -123,7 +125,7 @@ export function mountSession(C) {
 
   C.cmdSession = function () {
     if (C.st === 'in') { C.out(esc(t('session.already')).replace('{x}', C.k(CMD.reauth)), 'warn'); return; }
-    C.verify({ withReauth: !!C.consent, lead: t('session.lead'), done: function () { if (C.consent) return C.askConsent(); C.layer = 'home'; C.render(); } });
+    C.verify({ lead: t('session.lead'), done: function () { if (C.consent) return C.askConsent(); C.layer = 'home'; C.render(); } });
   };
 
   C.cmdExit = function () {

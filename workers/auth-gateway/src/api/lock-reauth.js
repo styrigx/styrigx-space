@@ -16,7 +16,7 @@
  * - { action:'status' } → { ok:true, valid, ticket?, by?, expiresAt?, password, passkey }
  *   ticket = 'lock-reauth' | 'lock-reset'（当前有效的是哪张票）
  *   需要进门或有效的 LockResetTicket；password/passkey = 锁屏凭证是否已设置（按它显示验证入口）
- * - { action:'clear' } → 清 LockReauthTicket（幂等，不要求会话；不动锁屏会话，也不动 LockResetTicket）
+ * - { action:'clear' } → 清 LockReauthTicket（幂等，不要求会话；不动进站会话，也不动 LockResetTicket）
  *
  * 只接受 POST；校验 Origin；外层 try/catch 异常一律 { ok:false, error:'server' }。
  */

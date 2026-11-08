@@ -144,10 +144,10 @@ test('回滚下限：floor 文件里网关、账号、status 的绑定名和 wra
   const gw = floorFor(workerNameFromToml(gwToml));
   const ac = floorFor(workerNameFromToml(acToml));
   const st = floorFor(workerNameFromToml(stToml));
-  /* 账号拆分 PR3：网关要有转发绑定 ACCOUNT，账号要有账号库 D1_ACCOUNT_AUTH（自动回滚不退过拆分点）。
+  /* 账号拆分 PR3：网关要有转发绑定 ACCOUNT，账号要有账号库 D1_ACCOUNT（命名 v2：自动回滚不退过 0005 换表那一版）。
      P2-3 放宽：不再要求进站凭证的绑定名（P2-3 之前的版本绑的是旧名，P2-3 部署失败时要能回到它） */
   assert.deepEqual(gw && gw.requireBindings, ['D1_LOCK_AUTH', 'ACCOUNT', 'SGX_LOCK_SPACE_KEY', 'AI_SERVICE']);
-  assert.deepEqual(ac && ac.requireBindings, ['D1_ACCOUNT_AUTH', 'D1_SETTINGS_SYNC']);
+  assert.deepEqual(ac && ac.requireBindings, ['D1_ACCOUNT']);
   assert.deepEqual(st && st.requireBindings, ['AI_SERVICE']);
   assert.equal(gw.notBefore, undefined, 'notBefore 等 Gray 删旧 Worker 后由下一个 PR 加');
   // 要求的绑定当前 wrangler.toml 里确实有（否则每次部署都记不到目标）

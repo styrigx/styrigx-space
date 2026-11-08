@@ -51,6 +51,7 @@ export const ERROR_CODES = Object.freeze({
   session: [401, 400], /* 400：分享 Worker 的 session（有效天数）参数不对 */
   unauthorized: [401],
   account: [401],
+  reset: [401], /* 账号 reset 票无效（/api/account/reset） */
   denied: [401],
   scope: [403], /* 账号作用域不够（P2-2：/api/avatar、/api/prefs；带 scope 字段） */
   reauth: [403],

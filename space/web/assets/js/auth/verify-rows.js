@@ -8,7 +8,7 @@
  * 行的渲染在 auth/cred-rows.js（锁屏弹层的重置登录也用它）。
  */
 import { renderCredRows, CRED_ICONS } from './cred-rows.js';
-import { KEY_ACCOUNT, KEY_SPACE } from '../lib/key-names.js';
+import { KEY_LOCK, KEY_SPACE } from '../lib/key-names.js';
 
 /**
  * 要显示的入口（固定顺序：通行密钥、密码）。PR3：账号根凭证不再是登录入口（改走「无法登录？」→ 重置登录）。
@@ -34,14 +34,14 @@ export function visibleKinds(status) {
  * @param {string[]} o.kinds visibleKinds() 的结果
  * @param {{passkey:Function, password:Function, space?:Function}} o.submit 提交函数（锁屏凭证的门另给 space）
  * @param {Function} o.onSuccess
- * @param {string} [o.pmUser] 密码行的隐藏用户名（默认 AccountKey；锁屏凭证的门传 LockKey）
+ * @param {string} [o.pmUser] 密码行的隐藏用户名（默认 LockKey：现在只有锁屏在用；账号终端有自己的隐藏用户名）
  * @returns {{collapse: Function}}
  */
 export function renderVerifyRows(o) {
   const t = o.t;
   const defs = {
     passkey: { kind: 'passkey', field: 'webauthn', icon: CRED_ICONS.passkey, title: t('mPasskey'), sub: t('mPasskeySub'), submit: o.submit.passkey },
-    password: { kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: o.submit.password, pmUser: o.pmUser || KEY_ACCOUNT },
+    password: { kind: 'password', field: 'password', icon: CRED_ICONS.password, title: t('mPassword'), sub: t('mPasswordSub'), submit: o.submit.password, pmUser: o.pmUser || KEY_LOCK },
     /* 只给锁屏凭证的门用（security-lock.js 的 kinds 带 space、submit 带 space）：进站凭证行；账号页没有这一行 */
     space: o.submit.space ? { kind: 'space', field: 'key', icon: CRED_ICONS.key, title: t('mSpace'), sub: t('mSpaceSub'), submit: o.submit.space, pmUser: KEY_SPACE } : null,
   };

@@ -4,8 +4,8 @@
  *
  * - 临时码：12 位 Crockford Base32，规范化（大小写 / 连字符 / 空格 / O→0、I L→1）
  * - 有效期：1–24 小时、3 / 7 / 15 / 30 天，别的一律 400
- * - /api/lock-tempkey：只要 锁屏进门会话（不问账号会话）；list 只要进门，create / revoke 另要锁侧复验；名字只在管理侧
- * - /api/lock-tempkey-unlock：对 → 临时钥匙进门的锁屏会话（by=tempkey，票里带 tempkeyId）；错 → 403，同 IP 连错 5 次 429
+ * - /api/lock-tempkey：只要 进站会话（不问账号会话）；list 只要进门，create / revoke 另要锁侧复验；名字只在管理侧
+ * - /api/lock-tempkey-unlock：对 → 临时钥匙进门的进站会话（by=tempkey，票里带 tempkeyId）；错 → 403，同 IP 连错 5 次 429
  * - middleware：临时钥匙进门的会话没有 tempkeyId / 钥匙被作废 → 当作没会话
  */
 import { test } from 'node:test';
@@ -216,7 +216,7 @@ test('管理接口：要同源 + 进门；list 只要进门（临时钥匙进门
   assert.equal(v.status, 200, '看 = 进门');
   /* 绑了一个一碰就抛的 ACCOUNT_VERIFIER：管理接口根本不该问它 */
   let asked = 0;
-  const trap = { accountSession() { asked++; throw new Error('不该问账号会话'); }, authorize() { asked++; throw new Error('不该问账号'); } };
+  const trap = { session() { asked++; throw new Error('不该问账号会话'); }, authorize() { asked++; throw new Error('不该问账号'); } };
   const ok = await tempPost({ request: post('https://styrigx.com/api/lock-tempkey', { action: 'list' }, await adminCookies()), env: { ...env(db), ACCOUNT_VERIFIER: trap } });
   assert.equal(ok.status, 200);
   assert.equal(asked, 0);
@@ -276,7 +276,7 @@ test('管理接口：create → 只这一次返回临时码；list 有名字和�
 
 /* ---------------- /api/lock-tempkey-unlock（进门） ---------------- */
 
-test('进门：码对 → 锁屏进门会话（v2：by=tempkey、带 tempkeyId），Max-Age 不超过钥匙剩余时间', async () => {
+test('进门：码对 → 进站会话（v2：by=tempkey、带 tempkeyId），Max-Age 不超过钥匙剩余时间', async () => {
   const db = makeAuthD1();
   const { key, code } = await TL.createTempkey(env(db), PEPPER, { name: '', ms: 2 * 3600e3 });
   const r = await U(code.toLowerCase().replace(/-/g, ' '), db, '1.1.1.1');

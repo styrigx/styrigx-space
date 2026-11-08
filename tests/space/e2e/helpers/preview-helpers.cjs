@@ -6,8 +6,8 @@
  * - SGX_TEST_BASE：预览站地址（https://passkey-e2e.styrigx-space.pages.dev）
  * - SGX_TEST_SPACE_KEY：预览站的测试进站凭证（与预览网关的 SGX_LOCK_SPACE_KEY 相同，绝不是生产值；CI 每次运行现生成，
  *   连同 SGX_PW_PEPPER 一起写进预览，不存 GitHub Secrets）。/api/space-auth、/api/lock-reset 用它。
- * - SGX_TEST_ACCOUNT_ROOT_KEY：预览站的测试账号根密钥（与预览账号那一半的 SGX_ACCOUNT_ROOT_KEY 相同，值与进站凭证不同，
- *   同样每次现生成）。POST /api/account { action:'root-reset', key } 用它（账号拆分 PR3；2026-11-08 起没有 root-reauth）。
+ * - SGX_TEST_RECOVERY_KEY：预览站的测试恢复密钥（与预览账号那一半的 SGX_ACCOUNT_RECOVERY_KEY 相同，值与进站凭证不同，
+ *   同样每次现生成）。POST /api/account/reset { action:'recovery-key', key } 用它（只换 reset 票）。
  * - SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_D1_ID：写预览 D1（打开重置开关、清进站凭证限速计数；D1 REST query）
  * - SGX_TEST_CF_API：只在模拟预览站（preview-emulator.cjs：本地，或 CI 里 pull_request 的运行）时设，把 Cloudflare REST 指到本机
  *
@@ -17,7 +17,7 @@
  * 一次运行花多少可以用 preview-emulator.cjs 在本地量（/__kv/stats 的 d1 一栏）。
  *
  * 预览站上的 cookie：
- * - 锁屏会话 sgx-lock-session 固定带 Domain=.styrigx.com，浏览器在 *.pages.dev 上不会存。
+ * - 进站会话 sgx-lock-session 固定带 Domain=.styrigx.com，浏览器在 *.pages.dev 上不会存。
  *   api() 每次都把响应里的 sgx-lock-* cookie 按预览主机名重新写进 context（Max-Age=0 → 删掉），
  *   这样纪元推进后服务端重签的会话 / 票也能接着用。
  * - reauth / reset 票本来就只发主机（不带 Domain），照样写一遍，无副作用。
@@ -42,14 +42,14 @@ const { expect } = require('@playwright/test');
 
 const BASE = (process.env.SGX_TEST_BASE || '').replace(/\/+$/, '');
 const SPACE_KEY = process.env.SGX_TEST_SPACE_KEY || '';
-const ACCOUNT_ROOT_KEY = process.env.SGX_TEST_ACCOUNT_ROOT_KEY || '';
+const RECOVERY_KEY = process.env.SGX_TEST_RECOVERY_KEY || '';
 const CF_TOKEN = process.env.SGX_TEST_CF_TOKEN || '';
 const CF_ACCOUNT = process.env.SGX_TEST_CF_ACCOUNT || '';
 const D1_ID = process.env.SGX_TEST_PREVIEW_D1_ID || '';
 /* Cloudflare API 根地址：只有模拟预览站（preview-emulator.cjs；本地或 CI 的 PR 运行）时才改，真实预览不设 */
 const CF_API = (process.env.SGX_TEST_CF_API || 'https://api.cloudflare.com/client/v4').replace(/\/+$/, '');
 
-const READY = !!(BASE && SPACE_KEY && ACCOUNT_ROOT_KEY);
+const READY = !!(BASE && SPACE_KEY && RECOVERY_KEY);
 const HAS_CF = !!(CF_TOKEN && CF_ACCOUNT && D1_ID);
 const ORIGIN = BASE ? new URL(BASE).origin : '';
 const SECURE = ORIGIN.startsWith('https:');
@@ -65,7 +65,7 @@ const TRACKED = [SESSION, REAUTH, RESET, ACCOUNT_SESSION, ACCOUNT_REAUTH, ACCOUN
 /**
  * worker 进程内的缓存（测试失败换 worker 后丢失，adminSession 会走重置）：
  * - password：本次运行设过的锁屏密码
- * - session / reauth：服务端最近一次发下来的 锁屏进门会话、LockReauthTicket 的值（absorbCookies 顺手记下）。
+ * - session / reauth：服务端最近一次发下来的 进站会话、LockReauthTicket 的值（absorbCookies 顺手记下）。
  *   每个用例是新的 context，以前每次都要重新密码解锁、重新 space-auth 进门；而网关每次密码解锁成功会删两个限速键、
  *   每次 space-auth 成功会写一条审计并删一个限速行。所以 adminSession / lockReauth 先把缓存的值
  *   放回 context，用只读接口（lock-session-check / lock-reauth status，只有 D1 读）问服务端还认不认，认就直接用，
@@ -91,10 +91,10 @@ function rand() {
 function requirePreview(test) {
   if (process.env.CI) {
     test.beforeAll(() => {
-      if (!READY) throw new Error('passkey-e2e 需要 SGX_TEST_BASE、SGX_TEST_SPACE_KEY 与 SGX_TEST_ACCOUNT_ROOT_KEY（CI 里缺失视为失败）');
+      if (!READY) throw new Error('passkey-e2e 需要 SGX_TEST_BASE、SGX_TEST_SPACE_KEY 与 SGX_TEST_RECOVERY_KEY（CI 里缺失视为失败）');
     });
   } else {
-    test.skip(!READY, '需要 SGX_TEST_BASE、SGX_TEST_SPACE_KEY 与 SGX_TEST_ACCOUNT_ROOT_KEY');
+    test.skip(!READY, '需要 SGX_TEST_BASE、SGX_TEST_SPACE_KEY 与 SGX_TEST_RECOVERY_KEY');
   }
 }
 
@@ -196,7 +196,7 @@ async function api(page, path, data) {
   const resp = await page.request.post(BASE + path, { headers: { Origin: ORIGIN }, data: data || {} });
   const before = state.session;
   await absorbCookies(page.context(), resp);
-  /* 服务端发了新的锁屏会话（解锁，或纪元推进后重签）：等它在 KV 里可见再往下走（见文件头「写后读」） */
+  /* 服务端发了新的进站会话（解锁，或纪元推进后重签）：等它在 KV 里可见再往下走（见文件头「写后读」） */
   if (state.session && state.session !== before) await settleSession(page);
   let json = null;
   try { json = await resp.json(); } catch (e) {}
@@ -204,13 +204,13 @@ async function api(page, path, data) {
 }
 
 /**
- * 轮询 lock-session-check 直到 context 里的锁屏会话被服务端接受（200）。只读：每次 1 个 D1 读（lock-epoch）。
+ * 轮询 lock-session-check 直到 context 里的进站会话被服务端接受（200）。只读：每次 1 个 D1 读（lock-epoch）。
  * 纪元在 D1（强一致）后正常第一次就是 200；以前在 KV 时边缘可能还读到旧纪元，新会话会暂时 401（epoch-low）。
  * @param {import('@playwright/test').Page} page
  */
 async function settleSession(page) {
   await expect.poll(async () => (await apiGet(page, '/api/lock-session-check')).status,
-    Object.assign({ message: '新锁屏会话被服务端接受（lock-epoch 写后读）' }, KV_SETTLE)).toBe(200);
+    Object.assign({ message: '新进站会话被服务端接受（lock-epoch 写后读）' }, KV_SETTLE)).toBe(200);
 }
 
 /**
@@ -321,7 +321,7 @@ async function unlockWithPassword(page, password) {
 }
 
 /**
- * 让页面 context 拿到 锁屏进门会话（sgx-lock-session，按预览主机写入）。返回当前锁屏密码。
+ * 让页面 context 拿到 进站会话（sgx-lock-session，按预览主机写入）。返回当前锁屏密码。
  * @param {import('@playwright/test').Page} page
  * @param {import('@playwright/test').TestType<any, any>} test
  */
@@ -528,7 +528,7 @@ async function deleteAllPasskeys(page) {
   }
 }
 
-/** 锁屏会话 cookie 值里的纪元（LockSessionTicket v2：by.epoch.exp.tempkeyId.sig，纪元是第 2 段） */
+/** 进站会话 cookie 值里的纪元（LockSessionTicket v2：by.epoch.exp.tempkeyId.sig，纪元是第 2 段） */
 function cookieEpoch(line) {
   return parseInt(cookieValue(line).split('.')[1], 10);
 }
@@ -537,7 +537,7 @@ module.exports = {
   BASE,
   ORIGIN,
   SPACE_KEY,
-  ACCOUNT_ROOT_KEY,
+  RECOVERY_KEY,
   READY,
   HAS_CF,
   SESSION,

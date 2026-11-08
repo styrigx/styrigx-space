@@ -8,7 +8,7 @@
  *    P2-3 起回 {ok, by, exp, next}（进门二值，没有 role / upgrade）。
  * C. （P2-3 改写）进门的人直接打开锁屏凭证页 → 200 回源（页面自己要锁侧复验），不再按角色 302。
  * D. 锁屏瘦身标记被 Go 模板删掉，锁屏态整份下发桌面。
- * E. 账号页没有服务端账号状态，首帧总是先画「欢迎回来」登录区。
+ * E. 账号页首帧提示（网关注入 data-sgx-account-session）：命名 v2 起删掉（旧整页已删，账号终端自己读 GET /api/account）。
  * F. 内容索引 /files-index.json 被后缀白名单放行。
  * G. 站内链接 prerender（Speculation Rules）启用的是旧会话状态的页面快照。
  *
@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { testLockSession, TEST_ACCOUNT_COOKIE, fakeAccountVerifier } from './_tickets.mjs';
+import { testLockSession, TEST_ACCOUNT_COOKIE } from './_tickets.mjs';
 import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,8 +43,6 @@ function env() {
     D1_LOCK_AUTH: d1,
     seen,
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_LOCK_PUBLIC: PUB,
-    /* 账号会话：网关经 ACCOUNT_VERIFIER 问账号 Worker（账号拆分 PR3），替身只认 TEST_ACCOUNT_COOKIE */
-    ACCOUNT_VERIFIER: fakeAccountVerifier(),
     ASSETS: {
       async fetch(req) {
         const u = new URL(req.url);
@@ -208,42 +206,18 @@ test('D 首页模板用 safeHTML 输出瘦身标记（Go 模板会删 HTML 注�
 });
 
 /* ---------------- E. 账号页首帧 ---------------- */
-test('E 账号页（临时钥匙进门）：进门的人都能打开 /account/ 及子页（中英），没账号会话 → 登录区（out），不再 302', async () => {
-  for (const p of ['/account/', '/account/devices/', '/account/apps/', '/account/security/', '/zh/account/', '/zh/account/profile/']) {
-    const res = await get('https://styrigx.com' + p, await lockCookie('tempkey'));
-    assert.equal(res.status, 200, p);
+test('E 网关不再给账号首帧提示（命名 v2：旧账号整页 #327 删了，gate.js isAccountPage / askSessionFor 删掉）：有账号会话也不注入 data-sgx-account-session，不问 ACCOUNT_VERIFIER', async () => {
+  let asked = 0;
+  const e = env();
+  e.ACCOUNT_VERIFIER = new Proxy({}, { get: () => { asked++; return async () => ({ ok: true }); } });
+  for (const p of ['/', '/zh/', '/account/', '/zh/account/']) {
+    const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: (await lockCookie('password')) + '; ' + (await accountCookie()) } }), e, CTX);
     const html = await res.text();
-    assert.match(html, /data-sgx-lock-session="valid"/, p);
-    /* 首帧账号提示只给账号首页（isAccountPage）；子页由前端问 /api/account */
-    if (p === '/account/' || p === '/zh/account/') {
-      assert.match(html, /data-sgx-account-session="out"/, p);
-      assert.match(html, /<div id="acct-login" class="acct-login">/, p);
-    }
+    assert.doesNotMatch(html, /data-sgx-account-session=/, p);
   }
-});
-for (const role of ['password', 'tempkey']) {
-  test(`E 账号页（锁屏 ${role} + 账号会话）：data-sgx-account-session=in，登录区不下发，总览不 hidden`, async () => {
-    const html = await (await get('https://styrigx.com/account/', (await lockCookie(role)) + '; ' + (await accountCookie()))).text();
-    assert.match(html, /data-sgx-account-session="in"/);
-    assert.doesNotMatch(html, /acct-login|欢迎回来/);
-    assert.match(html, /<div id="acct-main">/);
-  });
-}
-test('E 账号页（锁屏密码进门，无账号会话）：data-sgx-account-session=out，登录区去掉 hidden', async () => {
-  const html = await (await get('https://styrigx.com/account/', await lockCookie('password'))).text();
-  assert.match(html, /data-sgx-account-session="out"/);
-  assert.match(html, /<div id="acct-login" class="acct-login">/);
-  assert.match(html, /<div id="acct-main" hidden>/);
-});
-test('E 账号页（进门）：ACCOUNT_VERIFIER 没绑 / RPC 出错 → 不给首帧提示（前端停在中性态等 GET /api/account）', async () => {
-  for (const verifier of [undefined, fakeAccountVerifier({ throws: true })]) {
-    const e = env();
-    e.ACCOUNT_VERIFIER = verifier;
-    const res = await worker.fetch(new Request('https://styrigx.com/account/', { headers: { Cookie: (await lockCookie('password')) + '; ' + TEST_ACCOUNT_COOKIE } }), e, CTX);
-    const html = await res.text();
-    assert.equal(res.status, 200);
-    assert.doesNotMatch(html, /data-sgx-account-session="(in|out)"/);
-  }
+  assert.equal(asked, 0, '网关页面路径不问账号 Worker');
+  const src = fs.readFileSync(path.join(REPO, 'workers/auth-gateway/src/gate.js'), 'utf8');
+  assert.doesNotMatch(src, /isAccountPage|askSessionFor|SGX-ACCT-LOGIN|acct-main/);
 });
 test('E 账号页模板随 2026-11-08 账号 UI 改版删除（账号在顶栏账号终端里；/account/ 由 _redirects 301 到首页 #acct）', () => {
   assert.equal(fs.existsSync(path.join(REPO, 'space/web/layouts/_default/account.html')), false);

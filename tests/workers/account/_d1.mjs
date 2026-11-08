@@ -1,15 +1,13 @@
 /**
- * 账号库 D1 styrigx-account 的 node:sqlite 替身（D1_SETTINGS_SYNC / D1_WELLBEING 同一个库）。
+ * 账号库 D1 styrigx-account 的 node:sqlite 替身（一个绑定 D1_ACCOUNT：account_* 表 + settings_sync + wb_daily）。
  * 接口照 Cloudflare D1：prepare(sql).bind(...).first() / all() / run()（含 ... RETURNING），batch([...]) 整批一个事务（出错整批回滚）。
  * 每个异步方法先让出一次（await 微任务），Promise.all 发出的两个请求会交错执行，用来测并发。
  *
- * 2026-10-29 PR2：同一个库还有账号鉴权表（D1_ACCOUNT_AUTH，migrations/0003_account_auth.sql，AUTH_TABLES）。
  *
- * 2026-11-06 P3-1：应用授权记录 app_grant（migrations/0004_app_grant.sql，APP_GRANT_MIGRATION）。
- *
- * makeAccountD1({ migrations })：migrations 默认 true = 先跑 workers/account/migrations/*.sql（含 0003 的 auth 表、0004 的 app_grant）；false = 空库（测 "no such table" 自愈）；
- *   'data' = 只跑数据表（0001 / 0002，不建 auth 表和 app_grant）。
- * withAccountAuthD1(env, db?)：把同一个库挂成 D1_ACCOUNT_AUTH（和线上一样，三个绑定名同一个库）。
+ * makeAccountD1({ migrations })：migrations 默认 true = 按文件名顺序跑 workers/account/migrations/*.sql（0003 / 0004 的旧表，
+ *   再经 0005_account_tables.sql 换成 account_*；空库上 0005 会把全部应用写成已授权，同线上首次切换）；
+ *   false = 空库（测 "no such table" 自愈）；'data' = 只跑数据表（0001 / 0002）。
+ * withAccountD1(env, db?)：给 env 挂上 D1_ACCOUNT。
  * 观测：raw（DatabaseSync）、rows(table)、statements（执行过的 SQL 列表）。
  */
 import { readFileSync, readdirSync } from 'node:fs';
@@ -17,13 +15,17 @@ import { DatabaseSync } from 'node:sqlite';
 
 const MIG = new URL('../../../workers/account/migrations/', import.meta.url).pathname;
 
-/** 账号鉴权表的迁移文件（PR2）和它建的九张表（方案第 9.1 节） */
-export const AUTH_MIGRATION = '0003_account_auth.sql';
-export const ACCOUNT_AUTH_SQL = readFileSync(MIG + AUTH_MIGRATION, 'utf8');
-export const AUTH_TABLES = Object.freeze(['epoch', 'password', 'passkey', 'user_handle', 'challenge', 'attempt_limit', 'device', 'audit', 'data_migration']);
-/** 应用授权记录的迁移文件（P3-1）和它建的表 */
-export const APP_GRANT_MIGRATION = '0004_app_grant.sql';
-export const APP_GRANT_SQL = readFileSync(MIG + APP_GRANT_MIGRATION, 'utf8');
+/** 只建数据表的迁移（'data' 模式只跑这两个） */
+export const DATA_MIGRATIONS = Object.freeze(['0001_wellbeing.sql', '0002_settings_sync.sql']);
+/** 命名 v2 的账号表迁移和它建的表 */
+export const ACCOUNT_MIGRATION = '0005_account_tables.sql';
+export const ACCOUNT_SQL = readFileSync(MIG + ACCOUNT_MIGRATION, 'utf8');
+export const ACCOUNT_TABLES = Object.freeze(['account_epoch', 'account_password', 'account_passkey', 'account_user_handle', 'account_challenge',
+  'account_attempt_limit', 'account_device', 'account_audit', 'account_grant']);
+/** 所有迁移文件（按文件名顺序） */
+export const MIGRATION_FILES = Object.freeze(readdirSync(MIG).filter((n) => n.endsWith('.sql')).sort());
+/** 读某个迁移文件 @param {string} f */
+export const migrationSql = (f) => readFileSync(MIG + f, 'utf8');
 
 /** @param {any[]} p */
 const norm = (p) => p.map((x) => (x === undefined ? null : typeof x === 'boolean' ? (x ? 1 : 0) : x));
@@ -33,9 +35,9 @@ const tick = () => new Promise((r) => setImmediate(r));
 export function makeAccountD1(opts = {}) {
   const raw = new DatabaseSync(':memory:');
   if (opts.migrations !== false) {
-    for (const f of readdirSync(MIG).filter((n) => n.endsWith('.sql')).sort()) {
-      if (opts.migrations === 'data' && (f === AUTH_MIGRATION || f === APP_GRANT_MIGRATION)) continue;
-      raw.exec(readFileSync(MIG + f, 'utf8'));
+    for (const f of MIGRATION_FILES) {
+      if (opts.migrations === 'data' && DATA_MIGRATIONS.indexOf(f) === -1) continue;
+      raw.exec(migrationSql(f));
     }
   }
   /** @type {string[]} */
@@ -44,7 +46,7 @@ export function makeAccountD1(opts = {}) {
     statements.push(sql);
     const st = raw.prepare(sql);
     if (/^\s*(SELECT|WITH|PRAGMA)/i.test(sql)) return { results: st.all(...params), meta: { changes: 0 } };
-    /* 鉴权表要用的 UPDATE / DELETE / INSERT ... RETURNING（纪元推进、challenge 单次消费）：照 D1 返回行 */
+    /* UPDATE / DELETE / INSERT ... RETURNING（纪元推进、challenge 单次消费）：照 D1 返回行 */
     if (/\bRETURNING\b/i.test(sql)) { const rows = st.all(...params); return { results: rows, meta: { changes: rows.length } }; }
     const r = st.run(...params);
     return { results: [], meta: { changes: Number(r.changes) } };
@@ -83,10 +85,34 @@ export function makeAccountD1(opts = {}) {
 }
 
 /**
- * 账号 Worker 的 env 加上 D1_ACCOUNT_AUTH（默认新建一个带全部迁移的库；给了 db 就用同一个，和 D1_SETTINGS_SYNC / D1_WELLBEING 共库）。
+ * 给 env 挂上 D1_ACCOUNT（默认新建一个带全部迁移的库；给了 db 就用它）。
  * @param {Record<string, any>} env @param {ReturnType<typeof makeAccountD1>} [db]
  */
-export function withAccountAuthD1(env = {}, db) {
-  const d = db || env.D1_SETTINGS_SYNC || env.D1_WELLBEING || makeAccountD1();
-  return { ...env, D1_ACCOUNT_AUTH: d };
+export function withAccountD1(env = {}, db) {
+  return { ...env, D1_ACCOUNT: db || env.D1_ACCOUNT || makeAccountD1() };
+}
+
+/**
+ * 同一个绑定拆两半：SQL 命中 re 的语句交给 side（测某张表出错 / 缺表 / 记写入），其余交给 main（账号表照常，session 验得过）。
+ * batch 里全部命中才交给 side。
+ * @param {any} main @param {any} side @param {RegExp} re
+ */
+export function splitD1(main, side, re) {
+  const mine = new WeakSet();
+  /** side 发出的语句（含 bind 之后的）都记下来，batch 时据此分流 @param {any} st */
+  const track = (st) => {
+    if (st && typeof st === 'object') {
+      mine.add(st);
+      if (typeof st.bind === 'function') {
+        const b = st.bind.bind(st);
+        st.bind = (...p) => track(b(...p));
+      }
+    }
+    return st;
+  };
+  return {
+    raw: main.raw, statements: main.statements, rows: main.rows,
+    prepare: (sql) => (re.test(sql) ? track(side.prepare(sql)) : main.prepare(sql)),
+    batch: (list) => (list.length && list.every((s) => mine.has(s)) ? side.batch(list) : main.batch(list)),
+  };
 }

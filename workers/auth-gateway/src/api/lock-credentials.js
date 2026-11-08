@@ -3,7 +3,7 @@
  *
  * GET /api/lock-credentials → { ok:true, password:bool, passkey:bool }
  * - 只读：锁屏密码是否有 hash、是否有锁屏通行密钥。
- * - 鉴权：进门（有效锁屏会话，任何 by），或有效的 LockResetTicket——重置锁屏页没有会话也要能显示。
+ * - 鉴权：进门（有效进站会话，任何 by），或有效的 LockResetTicket——重置锁屏页没有会话也要能显示。
  * - 只返回「是否已设置」，不返回任何敏感数据。
  * - 密码读取失败（D1）→ 503（fail closed），不按未设置退回。
  * 外层 try/catch：异常一律返回 { ok:false }，不暴露细节。

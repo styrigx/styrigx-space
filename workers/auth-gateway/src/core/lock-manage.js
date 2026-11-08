@@ -12,7 +12,7 @@ export const TICKET_IDS = Object.freeze({ [LOCK_REAUTH_TICKET]: 'lock-reauth', [
 /**
  * 锁屏凭证管理的统一检查（lock-password / lock-passkey / lock-all-devices 共用）。
  *
- * - LockReauthTicket 有效 + 进门（锁屏会话有效，任何进门方式）→ 通过
+ * - LockReauthTicket 有效 + 进门（进站会话有效，任何进门方式）→ 通过
  * - allowReset 时，LockResetTicket 有效 → 通过（无会话，sess=null）
  * - 都没有：没进门 → 401 session；进门了 → 403 reauth（前端回到验证入口重新验证）
  *

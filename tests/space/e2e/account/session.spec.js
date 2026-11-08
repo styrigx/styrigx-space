@@ -1,9 +1,9 @@
 /**
  * 账号终端 › sudo root（session.js：登录会话 + exit）。
- * - 未登录（GET session=null）：$ ACCOUNT login，自动 `sudo root`，[1] passkey [2] password 只列已设置的（读不到状态两个都列）；一种都没设 → 提示 sudo root reset；ready=false → 配置提示
+ * - 未登录（GET session=null）：$ ACCOUNT login，自动 `sudo root`，[1] passkey [2] password 只列已设置的（读不到状态两个都列）；一种都没设 → 提示 sudo root reset；signing=false → 配置提示
  * - 密码登录：`[sudo] password for root:` 不回显（O10：type=password、current-password、没有小眼睛，隐藏用户名框给密码管理器）；输错 Sorry, try again.，3 次结束这一轮；
- *   429 → too many attempts；自动填充（不触发 input）直接回车照样提交（原 B1-12 守护）；成功 → POST login-password，✓ 已登录，主页；关下拉重新载入
- * - 通行密钥：选了立即 busy，只发一次 login-challenge；取消 → 「已取消」；成功 → login-passkey
+ *   429 → too many attempts；自动填充（不触发 input）直接回车照样提交（原 B1-12 守护）；成功 → POST session/password，✓ 已登录，主页；关下拉重新载入
+ * - 通行密钥：选了立即 busy，只发一次 session/passkey-challenge；取消 → 「已取消」；成功 → session/passkey
  * - 已登录主页：help / clear / 未知命令 / Ctrl+C、cd 各层、esc 逐层退、exit（POST logout）
  *
  * 静态构建 + /api/account 替身（helpers/account-term.cjs），无需真实后端。2026-11-08 账号 UI 改版：没有 /account/ 整页了，账号在头像下拉 #sgx-acct 的账号终端（shell/account/*）。
@@ -40,8 +40,8 @@ test.describe('未登录：sudo root', () => {
     await expect(page.locator('#acct-login, #acct-main, #sgx-acct .sgx-pop-opt')).toHaveCount(0);
   });
 
-  test('只设了密码：只列 [1] password；一种都没设 → 提示 sudo root reset；ready=false → 配置提示', async ({ page }) => {
-    let st = STATUS({ passkey: false });
+  test('只设了密码：只列 [1] password；一种都没设 → 提示 sudo root reset；signing=false → 配置提示', async ({ page }) => {
+    let st = STATUS({ configured: { password: true, passkey: false } });
     await mockAccount(page, { status: () => st });
     await T.goPage(page);
     const d = await openTerm(page);
@@ -53,7 +53,7 @@ test.describe('未登录：sudo root', () => {
     await page.keyboard.press('Escape');
     await expect(d).toBeHidden();
 
-    st = STATUS({ passkey: false, password: false });
+    st = STATUS({ configured: { password: false, passkey: false } });
     await openTerm(page);
     await expect(log(page)).toContainText('账号还没有设置登录方式 · 输入 sudo root reset 用恢复密钥设置');
     await expect(d.locator('[data-at-pick]')).toHaveCount(0);
@@ -61,13 +61,13 @@ test.describe('未登录：sudo root', () => {
     await page.keyboard.press('Escape');
     await expect(d).toBeHidden();
 
-    st = STATUS({ ready: false });
+    st = STATUS({ signing: false });
     await openTerm(page);
     await expect(log(page)).toContainText('服务器缺少账号密钥配置');
   });
 
   test('读不到状态（接口 503）：两个方式都列', async ({ page }) => {
-    await page.route('**/api/account', (r) => r.fulfill({ status: 503, body: 'x' }));
+    await page.route('**/api/account**', (r) => r.fulfill({ status: 503, body: 'x' }));
     await T.goPage(page);
     const d = await openTerm(page);
     await expect(d.locator('[data-at-pick]')).toHaveText(['[1] passkey', '[2] password']);
@@ -84,7 +84,7 @@ test.describe('未登录：sudo root', () => {
 
 test.describe('密码登录', () => {
   test('按 2 → [sudo] password for root:（type=password、不回显）；输错 Sorry, try again.，3 次结束这一轮', async ({ page }) => {
-    const calls = await mockAccount(page, { status: STATUS(), handlers: { 'login-password': [401, { ok: false, error: 'wrong' }] } });
+    const calls = await mockAccount(page, { status: STATUS(), handlers: { 'session/password': [401, { ok: false, error: 'wrong' }] } });
     await T.goPage(page);
     await openTerm(page);
     await mode(page, 'pick');
@@ -102,13 +102,13 @@ test.describe('密码登录', () => {
     await typeLine(page, 'nope-2');
     await expect(log(page)).toContainText('sudo: 3 incorrect password attempts');
     await mode(page, 'cmd');
-    expect(calls.filter((c) => c.action === 'login-password').map((c) => c.password)).toEqual(['nope-0', 'nope-1', 'nope-2']);
+    expect(calls.filter((c) => c.action === 'session/password').map((c) => c.password)).toEqual(['nope-0', 'nope-1', 'nope-2']);
     /* 不回显：输出区里没有输入的密码 */
     await expect(log(page)).not.toContainText('nope-');
   });
 
   test('429 → sudo: too many attempts', async ({ page }) => {
-    await mockAccount(page, { status: STATUS(), handlers: { 'login-password': [429, { ok: false, error: 'cooldown' }] } });
+    await mockAccount(page, { status: STATUS(), handlers: { 'session/password': [429, { ok: false, error: 'cooldown' }] } });
     await T.goPage(page);
     await openTerm(page);
     await termIn(page).press('2');
@@ -117,11 +117,11 @@ test.describe('密码登录', () => {
     await mode(page, 'cmd');
   });
 
-  test('成功：POST login-password（带设备提示）→ ✓ 已登录 → 主页四行 + 退出；关下拉重新载入', async ({ page }) => {
+  test('成功：POST session/password（带设备提示）→ ✓ 已登录 → 主页四行 + 退出；关下拉重新载入', async ({ page }) => {
     let signedIn = false;
     const calls = await mockAccount(page, {
       status: () => STATUS({ session: signedIn ? SESSION() : null }),
-      handlers: { 'login-password': (b) => { if (b.password !== 'correct-horse') return [401, { ok: false, error: 'wrong' }]; signedIn = true; return [200, { ok: true }]; } },
+      handlers: { 'session/password': (b) => { if (b.password !== 'correct-horse') return [401, { ok: false, error: 'wrong' }]; signedIn = true; return [200, { ok: true }]; } },
     });
     await T.goPage(page);
     const d = await openTerm(page);
@@ -131,7 +131,7 @@ test.describe('密码登录', () => {
     await expect(d).toHaveAttribute('data-acct-state', 'in');
     await layer(page, 'home');
     await expect(ps(page)).toHaveText('root@account:~#');
-    const lp = calls.find((c) => c.action === 'login-password');
+    const lp = calls.find((c) => c.action === 'session/password');
     expect(lp.password).toBe('correct-horse');
     expect(lp.reauth).toBeUndefined();
     await expect(d.locator('.sgx-pop-list').first().locator('.sgx-pop-k')).toHaveText(['个人资料', '设备', '账号安全', '应用授权']);
@@ -146,33 +146,33 @@ test.describe('密码登录', () => {
 });
 
 test.describe('通行密钥登录', () => {
-  test('取消系统窗口 → 「已取消」，只发一次 login-challenge，回命令行', async ({ page }) => {
+  test('取消系统窗口 → 「已取消」，只发一次 session/passkey-challenge，回命令行', async ({ page }) => {
     await T.fakePasskey(page, { cancel: true });
-    const calls = await mockAccount(page, { status: STATUS(), handlers: { 'login-challenge': [200, { ok: true, challenge: 'Y2hhbA', cid: 'c1' }] } });
+    const calls = await mockAccount(page, { status: STATUS(), handlers: { 'session/passkey-challenge': [200, { ok: true, challenge: 'Y2hhbA', cid: 'c1' }] } });
     await T.goPage(page);
     await openTerm(page);
     await termIn(page).press('1');
     await expect(log(page)).toContainText('已取消');
     await mode(page, 'cmd');
-    expect(calls.filter((c) => c.action === 'login-challenge')).toHaveLength(1);
-    expect(calls.filter((c) => c.action === 'login-passkey')).toHaveLength(0);
+    expect(calls.filter((c) => c.action === 'session/passkey-challenge')).toHaveLength(1);
+    expect(calls.filter((c) => c.action === 'session/passkey')).toHaveLength(0);
   });
 
-  test('成功：login-challenge → login-passkey（cid + credential）→ 已登录 · 通行密钥', async ({ page }) => {
+  test('成功：session/passkey-challenge → session/passkey（cid + credential）→ 已登录 · 通行密钥', async ({ page }) => {
     await T.fakePasskey(page);
     let signedIn = false;
     const calls = await mockAccount(page, {
       status: () => STATUS({ session: signedIn ? SESSION('passkey') : null }),
       handlers: {
-        'login-challenge': [200, { ok: true, challenge: 'Y2hhbA', cid: 'c1' }],
-        'login-passkey': () => { signedIn = true; return [200, { ok: true }]; },
+        'session/passkey-challenge': [200, { ok: true, challenge: 'Y2hhbA', cid: 'c1' }],
+        'session/passkey': () => { signedIn = true; return [200, { ok: true }]; },
       },
     });
     await T.goPage(page);
     await openTerm(page);
     await page.locator('#sgx-acct [data-at-pick="1"]').click();
     await expect(log(page)).toContainText('已登录 · Sloan Gray · 通行密钥');
-    const lp = calls.find((c) => c.action === 'login-passkey');
+    const lp = calls.find((c) => c.action === 'session/passkey');
     expect(lp.cid).toBe('c1');
     expect(lp.credential && lp.credential.rawId).toBeTruthy();
     await layer(page, 'home');
@@ -201,7 +201,7 @@ test.describe('已登录：主页 / 命令', () => {
   });
 
   test('cd security / cd ..：进出各层；‹ 返回；esc 先回上一层、最外层才关', async ({ page }) => {
-    await mockAccount(page, { status: STATUS({ session: SESSION() }), handlers: { 'device-list': [200, { ok: true, devices: DEVICES() }] } });
+    await mockAccount(page, { status: STATUS({ session: SESSION() }), handlers: { 'devices/list': [200, { ok: true, devices: DEVICES() }] } });
     await T.goPage(page);
     const d = await openTerm(page);
     await layer(page, 'home');
@@ -219,23 +219,23 @@ test.describe('已登录：主页 / 命令', () => {
     await expect(d).toBeHidden();
   });
 
-  test('exit：POST logout → 关下拉', async ({ page }) => {
-    const calls = await mockAccount(page, { status: STATUS({ session: SESSION() }), handlers: { logout: [200, { ok: true }] } });
+  test('exit：POST /api/account/session { action: end } → 关下拉', async ({ page }) => {
+    const calls = await mockAccount(page, { status: STATUS({ session: SESSION() }), handlers: { 'session/end': [200, { ok: true }] } });
     await T.goPage(page);
     const d = await openTerm(page);
     await layer(page, 'home');
     await d.locator('[data-at-act="exit"]').click();
     await expect(d).toBeHidden();
-    expect(calls.some((c) => c.action === 'logout')).toBe(true);
+    expect(calls.some((c) => c.action === 'session/end')).toBe(true);
   });
 });
 
 test.describe('密码输入行（O10）/ 自动填充（原 B1-12 守护）', () => {
   test('自动填充后直接回车，照样提交（账号终端：sudo root → password）', async ({ page }) => {
     let posted = null;
-    await page.route('**/api/account', async (route) => {
+    await page.route('**/api/account**', async (route) => {
       if (route.request().method() === 'GET') {
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: null }) });
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, signing: true, configured: { password: true, passkey: true }, session: null }) });
         return;
       }
       posted = JSON.parse(route.request().postData() || '{}');
@@ -284,13 +284,13 @@ test.describe('密码输入行（O10）', () => {
 test.describe('通行密钥按钮反馈', () => {
   test('选了立即 busy（正在唤起通行密钥…），challenge 只发一次；取消 → 已取消，回命令行', async ({ page: pg }) => {
         let challengeCalls = 0;
-    await pg.route('**/api/account', async (route) => {
+    await pg.route('**/api/account**', async (route) => {
       if (route.request().method() === 'GET') {
-        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, password: true, passkey: true, ready: true, session: null }) });
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, signing: true, configured: { password: true, passkey: true }, session: null }) });
         return;
       }
       const body = (route.request().postData() || '').toString();
-      if (body.includes('"login-challenge"')) challengeCalls++;
+      if (route.request().url().endsWith('/api/account/session') && body.includes('"passkey-challenge"')) challengeCalls++;
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, challenge: 'AA', cid: 'c1', rpId: 'localhost' }) });
     });
     await T.goPage(pg);

@@ -24,7 +24,7 @@
  *   allowCredentials = 锁屏通行密钥列表；没有锁屏通行密钥 → 403 not-set
  * - { action: 'verify', spaceKey, lockProof? } → 见上
  *
- * 只接受 POST；校验 Origin。不看锁屏会话（没进门的人本来就能在锁屏上试进站凭证，与 /api/space-auth 共用 space-limit 限速）。
+ * 只接受 POST；校验 Origin。不看进站会话（没进门的人本来就能在锁屏上试进站凭证，与 /api/space-auth 共用 space-limit 限速）。
  */
 import { checkSpaceCredential } from '../core/space-check.js';
 import { issueTicket } from '../core/tickets.js';

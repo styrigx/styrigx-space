@@ -34,9 +34,9 @@ zone_name = "styrigx.com"
 SGX_ENV = "production"
 
 # ---- 服务绑定 ----
-# AUTH：网关 AuthVerifier，只用 lockSession() 锁屏会话（账号拆分 PR3：网关 AuthVerifier 去掉了 accountSession()）。
+# AUTH：网关 AuthVerifier，只用 lockSession() 进站会话（账号拆分 PR3：网关 AuthVerifier 去掉了 accountSession()）。
 # ISSUER：网关 ShareIssuer（createLinkKey / revokeLinkKey / openLinkSession，网关 src/share-issuer.js），只有本 Worker 绑定。
-# 不绑账号 Worker：短链管理只认锁屏进门会话 + 锁侧复验，不问账号会话。
+# 不绑账号 Worker：短链管理只认进站会话 + 锁侧复验，不问账号会话。
 [[services]]
 binding = "AUTH"
 service = "styrigx-auth-gateway"

@@ -10,7 +10,7 @@
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
  * - 网关 = 仓库里真实的 workers/auth-gateway/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
  *   （锁屏钥匙、SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
- *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAccountSession，AccountService / AccountVerifier 里跑的同一份代码）。
+ *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAuthorize，AccountService / AccountVerifier 里跑的同一份代码）。
  *   账号 Worker 自己一对 Ed25519 钥匙、账号根密钥和自己的库（tests/workers/account/_d1.mjs：账号鉴权表 + 云同步），
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
  *   Pages = 单树：space/web/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
@@ -19,7 +19,7 @@
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
  * - 分享短链 Worker = workers/share/src/index.js（路由 workers/share/wrangler.toml：/s/*、/api/share*），D1 用 tests/fixtures/share-d1.mjs，
  *   服务绑定 AUTH 接网关 verifier.js（只用 lockSession）、ISSUER 接网关 src/share-issuer.js（ShareIssuer RPC 里跑的同一份代码）；
- *   不绑 ACCOUNT_VERIFIER（短链管理只认锁屏进门会话，生成 / 作废另要锁侧复验，不问账号会话；同正式 workers/share/wrangler.toml）。
+ *   不绑 ACCOUNT_VERIFIER（短链管理只认进站会话，生成 / 作废另要锁侧复验，不问账号会话；同正式 workers/share/wrangler.toml）。
  */
 const https = require('node:https');
 const http = require('node:http');
@@ -162,15 +162,15 @@ async function startEdge() {
   const acctPubPem = derToPem(await crypto.subtle.exportKey('spki', akp.publicKey), 'PUBLIC KEY');
   const assets = { fetch: (input, init) => pagesFor(input instanceof Request ? input : new Request(input, init)) };
 
-  /* 账号 Worker：自己的钥匙、根密钥和库（styrigx-account：D1_ACCOUNT_AUTH / D1_SETTINGS_SYNC 同一个库），不绑任何网关的东西 */
+  /* 账号 Worker：自己的钥匙、恢复密钥、密码 pepper 和库（styrigx-account：一个绑定 D1_ACCOUNT），不绑任何网关的东西 */
   const accountKv = makeKV();
   const { makeAccountD1 } = await mod('tests/workers/account/_d1.mjs');
-  const accountD1 = makeAccountD1(); /* 跑 workers/account/migrations/*.sql：账号鉴权表 + 设置同步 settings_sync */
+  const accountD1 = makeAccountD1(); /* 跑 workers/account/migrations/*.sql：account_* 表 + 设置同步 settings_sync */
   const accountEnv = {
     SGX_ENV: 'production', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
-    D1_ACCOUNT_AUTH: accountD1, D1_SETTINGS_SYNC: accountD1, KV_PROFILE: accountKv,
+    D1_ACCOUNT: accountD1, KV_PROFILE: accountKv,
     SGX_ACCOUNT_PRIVATE: acctPrivPem, SGX_ACCOUNT_PUBLIC: acctPubPem,
-    SGX_ACCOUNT_ROOT_KEY: 'edge-test-account-root-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
+    SGX_ACCOUNT_RECOVERY_KEY: 'edge-test-recovery-key-not-a-secret', SGX_ACCOUNT_PASSWORD_PEPPER: 'edge-test-account-pepper',
     ASSETS: assets,
   };
   /* 账号 Worker 的两个命名入口，形状同服务绑定（只给网关；短链 Worker 不绑账号） */
@@ -181,7 +181,7 @@ async function startEdge() {
       return res;
     },
   };
-  const ACCOUNT_VERIFIER = { accountSession: (c, m) => accountEntry.checkAccountSession(accountEnv, c, m) };
+  const ACCOUNT_VERIFIER = { authorize: (c, m, o) => accountEntry.checkAuthorize(accountEnv, c, m, o) };
 
   /* 网关：只绑正式网关 wrangler.toml 里有的（锁屏钥匙、进站凭证 SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER） */
   const env = {
@@ -311,7 +311,7 @@ async function startEdge() {
     };
   }
 
-  /** 按当前 Lock 纪元签一个 v2 锁屏会话 cookie 值（by=password | passkey；by=tempkey 时先登记一把 1 小时临时钥匙，带它的 tempkeyId） */
+  /** 按当前 Lock 纪元签一个 v2 进站会话 cookie 值（by=password | passkey；by=tempkey 时先登记一把 1 小时临时钥匙，带它的 tempkeyId） */
   async function mintCookie(by) {
     const ep = await sessMod.getLockEpoch(env);
     if (by === 'tempkey') {
@@ -333,11 +333,11 @@ async function startEdge() {
     return r.code;
   }
 
-  /** 账号会话 cookie 值（sgx-account-session，by=passkey，账号 Worker 当前的 Account 纪元，账号钥匙签） */
+  /** 账号 session cookie 值（sgx-account-session，by=passkey，账号 Worker 当前的 session 纪元，账号钥匙签） */
   async function mintAccount() {
-    const acc = await mod('workers/account/src/core/account-session.js');
-    const ep = await acc.getAccountEpoch(accountEnv);
-    return acc.signAccountSessionTicket(acctPrivPem, { by: 'passkey', epoch: ep, authAt: Date.now(), deviceId: 'edgedeviceedgede' });
+    const acc = await mod('workers/account/src/core/session.js');
+    const ep = await acc.readEpoch(accountEnv, 'session');
+    return acc.signSessionTicket(acctPrivPem, { by: 'passkey', epoch: ep, authAt: Date.now(), deviceId: 'edgedeviceedgede' });
   }
 
   /** 清掉 /s/* 的失败计数（D1 share_fail + isolate 内存），限速测试之间不互相影响 */

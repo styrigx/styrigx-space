@@ -10,13 +10,13 @@
  * - 绝不打印密钥值。
  */
 
-/** 放在 Secrets Store 里的密钥（wrangler.toml 的 secrets_store_secrets，binding = secret_name）：
- *  账号票签名钥匙一对（与网关同一对密值）、账号根密钥（新建）、密码 pepper（与网关同一个密值）。 */
+/** 放在 Secrets Store 里的密钥（wrangler.toml 的 secrets_store_secrets，binding = secret_name；全部只绑在账号 Worker）：
+ *  票的签名钥匙一对、恢复密钥、账号密码 pepper。 */
 export const SECRET_NAMES = Object.freeze([
   'SGX_ACCOUNT_PRIVATE',
   'SGX_ACCOUNT_PUBLIC',
-  'SGX_ACCOUNT_ROOT_KEY',
-  'SGX_PW_PEPPER',
+  'SGX_ACCOUNT_RECOVERY_KEY',
+  'SGX_ACCOUNT_PASSWORD_PEPPER',
 ]);
 
 const TTL_MS = 60 * 1000;

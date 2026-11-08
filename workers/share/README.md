@@ -5,9 +5,9 @@
 ```
 src/index.js        入口：/s/<码> → open.js；/api/share → api/share.js；X-SGX-Runtime: share
 src/gate.js         门：只认 styrigx.com；/s/* 谁都能开；/api/share* 要进门（没会话 401）；create / revoke 另要锁侧复验（没有 401 reauth）
-src/auth.js         会话：本 Worker 自己一份（只认锁屏进门会话，问网关 AuthVerifier / AUTH；不问账号会话）
+src/auth.js         会话：本 Worker 自己一份（只认进站会话，问网关 AuthVerifier / AUTH；不问账号会话）
 src/open.js         打开短链：普通 → 302；带会话 → 请网关 ShareIssuer 签临时会话 → 302（去掉码）；失败统一 302 /?lock=1；限速
-src/api/share.js    POST /api/share { list | create | revoke }（只认锁屏进门会话；只收同源，跨源一律 403，不回 CORS 头）
+src/api/share.js    POST /api/share { list | create | revoke }（只认进站会话；只收同源，跨源一律 403，不回 CORS 头）
 src/lib/links.js    规则（码、有效期、会话档位、目标：站内路径或 https://styrigx.com 的地址，一律存成相对路径）、复用查询和 D1 语句
 migrations/         D1 styrigx-space-gateway 的 share_* 表：0001_baseline.sql（share_link、share_fail；迁移记录表 d1_migrations_share）
 migrations-archive/ 旧库 styrigx-share 的迁移历史（0001_share_links、0002_drop_atlas_targets），只留史、不再跑

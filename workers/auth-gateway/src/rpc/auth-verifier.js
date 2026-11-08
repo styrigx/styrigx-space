@@ -2,7 +2,7 @@
  * @fileoverview 服务绑定 RPC 入口 AuthVerifier（lockSession()、conclusion()）。ShareIssuer 在 rpc/share-issuer.js。
  * 授权骨架 P2-1：加 conclusion(cookieHeader, clientContext, opts)（方案 2.3.2，逻辑在 core/conclusion.js conclusionFor）：
  * 网关验门，进了门再经 ACCOUNT_VERIFIER 问账号 Worker，回 { lock, account } 结论。只新增，P2-2 起子站接口 Worker 才调用。
- * 账号拆分 PR3：AuthVerifier 去掉 accountSession()（方案 10.3）——账号会话由账号 Worker 的 AccountVerifier 回答。
+ * 账号拆分 PR3：AuthVerifier 不回答账号 session——由账号 Worker 回答（命名 v2 起网关只问 AccountVerifier.authorize()）。
  *
  * 只能通过服务绑定调用（其他 Worker 的 wrangler.toml 写 service = "styrigx-auth-gateway"、
  * entrypoint = "AuthVerifier"），公网路由进不来。逻辑在 core/lock-session.js checkLockSession（node 单测直接测它）。
@@ -16,7 +16,7 @@ import { conclusionFor } from '../core/conclusion.js';
 
 export class AuthVerifier extends WorkerEntrypoint {
   /**
-   * 锁屏会话（进门二值，方案 3.4 R11）：{ ok:true, reason:'ok' } / { ok:false, reason }，不回任何等级。短链 Worker 用。
+   * 进站会话（进门二值，方案 3.4 R11）：{ ok:true, reason:'ok' } / { ok:false, reason }，不回任何等级。短链 Worker 用。
    * @param {string} cookieHeader
    */
   async lockSession(cookieHeader) {

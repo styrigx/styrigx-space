@@ -2,16 +2,16 @@
  * @fileoverview 分享短链要网关做的三件事（服务绑定 RPC ShareIssuer 调用，入口见 rpc/share-issuer.js；node 单测直接测这里）。
  *
  * 短链本身（码、目标地址、列表、限速、D1 存储）在分享短链 Worker styrigx-share（workers/share）。
- * 它不持任何钥匙、不碰认证库；短链钥匙和短链进门的锁屏会话只在这里、只用网关原来那一份代码：
+ * 它不持任何钥匙、不碰认证库；短链钥匙和短链进门的进站会话只在这里、只用网关原来那一份代码：
  * - createLinkKey(cookie, p)：签一把「短链钥匙」（core/lock-tempkey.js createTempkey，link=true：没有临时码、锁屏上输不进来、
  *   不占 20 把上限、不出现在临时钥匙列表里）。网关自己再验一次：要进门 + 锁侧复验（cookie 是浏览器带来的原样 Cookie 头，
  *   里面要有有效的 sgx-lock-reauth，只能由锁屏密码 / 锁屏通行密钥 / 进站凭证签出；临时钥匙或短链进门的会话本身不算复验；
  *   没有 → { ok:false, error:'reauth' }，由 styrigx-share 原样转成 401 reauth；不问账号会话；定案第 7 条，选 C）。
  * - revokeLinkKey(cookie, id)：作废这把钥匙（revokeTempkey：D1 tempkey 行写 revoked_at，强一致）→ 拿它进门的人下一个请求就进不来
- *   （验锁屏会话时查 tempkeyId 是否被作废，原样生效）。同样要进门 + 锁侧复验；只认 link 钥匙。
+ *   （验进站会话时查 tempkeyId 是否被作废，原样生效）。同样要进门 + 锁侧复验；只认 link 钥匙。
  * - checkLinkReauth(cookie)：只做「进门 + 锁侧复验」这一道判断，不签任何东西。styrigx-share 在不经 createLinkKey 的生成路径
  *   （普通短链、reuse:true 命中已有短链）和作废前先问它，所有 create / revoke 都过同一道门（方案 3.6）。
- * - openLinkSession(id, sessionSec)：点开带会话的短链 → 签锁屏进门会话（sgx-lock-session：by=tempkey，tempkeyId=钥匙 id，lock 私钥），
+ * - openLinkSession(id, sessionSec)：点开带会话的短链 → 签进站会话（sgx-lock-session：by=tempkey，tempkeyId=钥匙 id，lock 私钥），
  *   和锁屏输临时码进门（api/lock-tempkey-unlock.js）完全同一套；Max-Age = min(会话时长, 钥匙剩余时间)。
  *   只回 Set-Cookie 头的值（由 styrigx-share 原样放进这次 302），不回任何钥匙或签名材料。
  *   钥匙不存在 / 不是 link 钥匙 / 已作废 / 已过期 / 时长不在档位里 → { ok:false }，绝不签发。
@@ -32,7 +32,7 @@ import { REALM_LOCK } from './realms.js';
 export const LINK_SESSION_OPTS = Object.freeze([1800, 3600, 3 * 3600, 12 * 3600, 86400, 3 * 86400, 7 * 86400]);
 
 /**
- * 要进门（有效锁屏会话，任何进门方式）+ 锁侧复验（有效 sgx-lock-reauth），否则返回错误码 session / reauth。
+ * 要进门（有效进站会话，任何进门方式）+ 锁侧复验（有效 sgx-lock-reauth），否则返回错误码 session / reauth。
  * @param {string} cookie
  * @param {Record<string, any>} env
  */

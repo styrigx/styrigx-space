@@ -1,5 +1,5 @@
 /**
- * 锁屏会话（LockSessionTicket，cookie sgx-lock-session）：签发、解析、验证、Lock 纪元。
+ * 进站会话（LockSessionTicket，cookie sgx-lock-session）：签发、解析、验证、Lock 纪元。
  *
  * 票内容（v2，5 段）：by.epoch.exp.tempkeyId，最后一段是签名：
  *   sig = Ed25519(SGX_LOCK_PRIVATE, "sgx-lock-session|by.epoch.exp.tempkeyId")
@@ -52,20 +52,20 @@ function validCombo(by, tempkeyId) {
 }
 
 /**
- * 写锁屏会话 cookie。
+ * 写进站会话 cookie。
  * @param {Headers} headers @param {string} value 票值 @param {number} maxAge 秒
  */
 export function setLockSessionCookie(headers, value, maxAge) {
   headers.append('Set-Cookie', LOCK_SESSION_COOKIE + '=' + value + '; ' + CONF.cookieAttrs + '; Max-Age=' + (maxAge || CONF.maxAge));
 }
 
-/** 清锁屏会话 cookie @param {Headers} headers */
+/** 清进站会话 cookie @param {Headers} headers */
 export function clearLockSessionCookie(headers) {
   headers.append('Set-Cookie', LOCK_SESSION_COOKIE + '=; ' + CONF.cookieAttrs + '; ' + COOKIE_EXPIRED);
 }
 
 /**
- * 签锁屏会话票值。
+ * 签进站会话票值。
  * @param {string} privatePem SGX_LOCK_PRIVATE
  * @param {{by:string, epoch:number, exp:number, tempkeyId?:string}} t
  */
@@ -81,7 +81,7 @@ export async function signLockSessionTicket(privatePem, t) {
 }
 
 /**
- * 解析锁屏会话票值（不验签）。五段：by.epoch.exp.tempkeyId.sig；v1 的 6 段票返回 null（bad-format）。
+ * 解析进站会话票值（不验签）。五段：by.epoch.exp.tempkeyId.sig；v1 的 6 段票返回 null（bad-format）。
  * @param {string} val
  * @returns {{by:string, epoch:number, exp:number, tempkeyId:string, sig:string, payload:string}|null}
  */
@@ -122,7 +122,7 @@ export async function bumpLockEpoch(env) {
 }
 
 /**
- * 签发锁屏会话 cookie（fail closed，永不抛错）。成功返回 null；失败返回 { status, body }。
+ * 签发进站会话 cookie（fail closed，永不抛错）。成功返回 null；失败返回 { status, body }。
  * - SGX_LOCK_PRIVATE 为空 → 500 no-session-key
  * - 读纪元出错 → 503 server
  * - by / tempkeyId 组合不对 → 500 invalid-by
@@ -159,7 +159,7 @@ export async function issueLockSession(env, headers, o) {
 }
 
 /**
- * 纪元推进后重签当前设备的锁屏会话（删锁屏钥匙 / 改密码后保持当前设备不掉线）。
+ * 纪元推进后重签当前设备的进站会话（删锁屏钥匙 / 改密码后保持当前设备不掉线）。
  * 一律保留原 exp，不看进门方式、不延长（方案 2.2.1）。失败静默（调用方已返回业务成功）。
  * 没有会话（如重置锁屏）时 sess 为 null，不做任何事。
  * @param {any} env
@@ -181,7 +181,7 @@ export async function reissueLockSessionWithEpoch(env, headers, sess, newEpoch) 
 }
 
 /**
- * 验单个锁屏会话票值（签名、到期、Lock 纪元；tempkeyId 非空时另查这把钥匙是否被作废）。
+ * 验单个进站会话票值（签名、到期、Lock 纪元；tempkeyId 非空时另查这把钥匙是否被作废）。
  * @param {string} val
  * @param {any} env
  * @returns {Promise<{status:string, by:string|null, exp?:number, tempkeyId?:string}>}
@@ -226,7 +226,7 @@ function allLockSessionCookies(request) {
 }
 
 /**
- * 验请求里的锁屏会话（网关页面、接口、子站 RPC 共用这一个实现）。任一同名值验过即有效。
+ * 验请求里的进站会话（网关页面、接口、子站 RPC 共用这一个实现）。任一同名值验过即有效。
  * 每次失败打 [sgx-verify] fail: <原因> 日志（只记原因，不记密钥和 cookie 值）。
  * @param {any} request
  * @param {any} env
@@ -285,7 +285,7 @@ export async function checkLockSession(cookieHeader, env) {
 }
 
 /**
- * /api/* 处理函数取锁屏会话：先用关口（gate.js）验过、放进 context.data.lockSession 的结论（一次请求只验一次）；
+ * /api/* 处理函数取进站会话：先用关口（gate.js）验过、放进 context.data.lockSession 的结论（一次请求只验一次）；
  * 没有（非生产关口不验、图志关口直接调用、单测直接调用）就回落到自己验。
  * @param {{ request: Request, env: any, data?: any }} context
  */

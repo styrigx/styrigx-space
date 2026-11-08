@@ -2,7 +2,7 @@
  * 用临时 LockKey 进门（锁屏「临时钥匙」）。说明见 core/lock-tempkey.js。
  *
  * POST /api/lock-tempkey-unlock { code }（只接受同源；无需会话，在白名单里）
- * - 规范化后按哈希找钥匙；对得上 → 签锁屏进门会话（LockSessionTicket：by=tempkey，
+ * - 规范化后按哈希找钥匙；对得上 → 签进站会话（LockSessionTicket：by=tempkey，
  *   tempkeyId=钥匙 id，lock 私钥签名），Max-Age = min(钥匙剩余时间, 12 小时)
  * - 输错：403 wrong；同一 IP（IPv6 按 /64）连错 5 次锁 15 分钟 → 429 cooldown；
  *   全站每小时错满 30 次后只减速（每次先等 2 秒），不封锁

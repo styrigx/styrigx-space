@@ -37,7 +37,7 @@ cookie 值、挑战原文）。调用方列表由 `grep space/web/assets/js/` �
 - `lock-credentials` × `lock-entry`：`lock-entry` 必须**无鉴权**（锁屏页无会话时调用），
   `lock-credentials` 必须鉴权（把颗粒度状态给已验证的管理者看）。合并无法同时满足
   两种鉴权要求 → 保持拆分。
-- `lock-session-check`：查的是**锁屏会话有效性**而非凭证配置，用途完全不同 → 独立；
+- `lock-session-check`：查的是**进站会话有效性**而非凭证配置，用途完全不同 → 独立；
   它不看账号会话（账号会话只由 `GET /api/account` 的 `session` 字段报告）。
 
 ## 账号会话（sgx-account-session）说明
@@ -49,10 +49,10 @@ cookie 值、挑战原文）。调用方列表由 `grep space/web/assets/js/` �
 - 锁屏弹层的「无法登录？」只管锁屏（`auth/reset-flow.js`）：进站凭证 → `POST /api/lock-reset verify`；
   恢复开关无效时服务端返回 `needLock`，再验锁屏凭证（锁屏通行密钥 / 锁屏密码，`lockProof`）。网关不读账号凭证。
   进站凭证比对只在网关 `src/core/space-check.js`（`SGX_LOCK_SPACE_KEY`）；账号根密钥比对只在账号 Worker `src/lib/root-check.js`（`SGX_ACCOUNT_ROOT_KEY`），两套互不相干、各自计数。
-- 前置条件是已解锁的 锁屏进门会话，但锁屏会话**从不**被当作账号认证。
+- 前置条件是已解锁的 进站会话，但进站会话**从不**被当作账号认证。
 - 锁屏凭证页的 LockReauthTicket（`sgx-lock-reauth`）由锁屏凭证（`lock-passkey auth` / `lock-password verify`
   带 `reauth:true`）或进站凭证（`space-auth` `purpose:'lock-reauth'`）签发，SGX_LOCK_* 签名，与账号会话无关。
 
 ## 账号云同步（不算状态接口）
 
-- `GET/POST /api/prefs`（账号 Worker，代码 `workers/account/src/api/prefs.js`；网关验门后经 `ACCOUNT` 转发）：锁屏进门会话 + 账号会话（sgx-account-session，账号 Worker 自己验）。存 D1 `styrigx-account` 的 `settings_sync` 表（绑定 `D1_SETTINGS_SYNC`；2026-10-28 前在 KV `account-prefs`），逐项 `{ v, t }` 新的赢；只同步 `sgx-` 开头的设置项（白名单在 `space/web/assets/js/lib/cloud-sync.js`）。调用方：`lib/cloud-sync.js`（主站每页加载拉一次、设置改动后防抖推）、`apps/account.js`（账号页「云同步」行）。
+- `GET/POST /api/prefs`（账号 Worker，代码 `workers/account/src/api/prefs.js`；网关验门后经 `ACCOUNT` 转发）：进站会话 + 账号会话（sgx-account-session，账号 Worker 自己验）。存 D1 `styrigx-account` 的 `settings_sync` 表（绑定 `D1_SETTINGS_SYNC`；2026-10-28 前在 KV `account-prefs`），逐项 `{ v, t }` 新的赢；只同步 `sgx-` 开头的设置项（白名单在 `space/web/assets/js/lib/cloud-sync.js`）。调用方：`lib/cloud-sync.js`（主站每页加载拉一次、设置改动后防抖推）、`apps/account.js`（账号页「云同步」行）。

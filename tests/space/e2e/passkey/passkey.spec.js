@@ -16,10 +16,10 @@
  * 预览站的 _worker.js 是组合入口 preview-worker.js（网关 + 账号 Worker 两边的真实代码，账号拆分 PR3）。
  *
  * 运行：SGX_TEST_SUITE=passkey SGX_TEST_BASE=https://<preview> SGX_TEST_SPACE_KEY=<预览测试进站凭证> \
- *   SGX_TEST_ACCOUNT_ROOT_KEY=<预览测试账号根密钥> \
+ *   SGX_TEST_RECOVERY_KEY=<预览测试恢复密钥> \
  *   [SGX_TEST_CF_TOKEN=… SGX_TEST_CF_ACCOUNT=… SGX_TEST_PREVIEW_D1_ID=…] \
  *   npx playwright test --config=tests/config/playwright.config.js
- * 本地没配 SGX_TEST_BASE / SGX_TEST_SPACE_KEY / SGX_TEST_ACCOUNT_ROOT_KEY 时跳过；CI（CI=true）里缺了直接失败。
+ * 本地没配 SGX_TEST_BASE / SGX_TEST_SPACE_KEY / SGX_TEST_RECOVERY_KEY 时跳过；CI（CI=true）里缺了直接失败。
  */
 const { lockCmd } = require('../helpers/lock-term.cjs');
 const { test, expect } = require('@playwright/test');

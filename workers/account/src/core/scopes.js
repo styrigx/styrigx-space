@@ -28,7 +28,7 @@ export const SCOPES = Object.freeze([
   Object.freeze({ id: 'prefs.sync', app: 'prefs', name: 'Settings sync', sensitive: Object.freeze([]) }),
   Object.freeze({ id: 'wellbeing.write', app: 'wellbeing', name: 'Digital wellbeing', sensitive: Object.freeze([]) }),
   Object.freeze({ id: 'avatar.write', app: 'avatar', name: 'Avatar', sensitive: Object.freeze([]) }),
-  /* 2026-11-07 个人资料（姓名、昵称、签名、联系邮箱；PUT /api/profile）。已种过授权的库按 core/app-grant.js SEED_SUPPLEMENTS 补种 */
+  /* 2026-11-07 个人资料（姓名、昵称、签名、联系邮箱；PUT /api/profile）。授权行由 migrations/0005_account_tables.sql 补齐 */
   Object.freeze({ id: 'profile.write', app: 'profile', name: 'Profile', sensitive: Object.freeze([]) }),
 ]);
 

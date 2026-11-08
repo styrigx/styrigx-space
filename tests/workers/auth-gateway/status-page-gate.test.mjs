@@ -2,7 +2,7 @@
  * 聊天 /chat/ 与服务状态 /status/（含 /zh/）和其他主站内页一样过网关 gate.js：
  *   没会话 / 坏 cookie → 302 到首页锁屏（?lock=1&return=<原路径>，no-store）；进门会话（任何 by，含临时钥匙）放行（200）。
  *   进门二值（P2-3）：页面只分「要进门 / 公开」，没有按角色的 302。
- *   页面本身只认锁屏进门会话，不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也 200）。
+ *   页面本身只认进站会话，不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也 200）。
  *   /api/status 本身的会话校验见 tests/workers/auth-gateway/search-api.test.mjs。
  * 运行：node --test tests/workers/auth-gateway/status-page-gate.test.mjs
  * Ed25519 测试密钥在测试内临时生成，不用生产密钥。

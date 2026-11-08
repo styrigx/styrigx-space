@@ -135,7 +135,7 @@ test('网关只经 D1_LOCK_AUTH 读写 realm=lock 的行；已删的 D1_ACCOUNT_
   r = jar.absorb(await call('lock-password.js', 'onRequestPost', post('/api/lock-password', { action: 'set', password: 'lock-pass-1234' }, jar.header())));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
 
-  /* 解锁 → 锁屏进门会话 */
+  /* 解锁 → 进站会话 */
   r = jar.absorb(await call('lock-password.js', 'onRequestPost', post('/api/lock-password', { action: 'verify', password: 'lock-pass-1234' }, jar.header())));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
 

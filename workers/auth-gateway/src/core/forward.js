@@ -4,7 +4,7 @@
  * - stripRequest(request)：网关 fetch 第一步，删掉入站请求里所有 x-styrigx-* 和 x-sgx-*（之后的主站、子站回源、静态直通、转发用的都是剥过的请求）
  * - clientContextOf(request)：客户端上下文（IP 用 lib/http.js clientIp() 读 CF-Connecting-IP，国家城市读 request.cf）
  * - forwardToService(svc, target, lockSession, clientContext)：用 target（浏览器的请求，fetch 第一步已剥过头）构造一个新请求，
- *   再剥一次头、按验过的锁屏会话写全套身份头 + 客户端上下文头（lib/lock-identity.js writeLockIdentity），交给服务绑定 svc.fetch。
+ *   再剥一次头、按验过的进站会话写全套身份头 + 客户端上下文头（lib/lock-identity.js writeLockIdentity），交给服务绑定 svc.fetch。
  *   URL、方法、正文、Cookie、Origin 原样（账号侧 isSameOrigin 在转发后仍成立）。出错原样抛给调用方（router.js forward 映射成 503 upstream）。
  *
  * 用户：只有 router.js forward()（router.js 转发表 FORWARDING → 服务绑定 ACCOUNT）。ai / status 不经这里：

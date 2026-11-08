@@ -1,6 +1,6 @@
 /**
  * 账号终端 › sudo root reauth（reauth.js：3 分钟再验证）。
- * - 进账号安全没有 reauth 票：终端里 sudo root reauth（POST login-password reauth:true）→ 列表 + 头部 reauth · mm:ss
+ * - 进账号安全没有 reauth 票：终端里 sudo root reauth（POST /api/account/reauth { action: password }）→ 列表 + 头部 reauth · mm:ss
  * - 管理操作回 403 reauth → 「验证已过期」，回到 locked
  * 重新授权应用 / 退出其他所有设备前的 reauth 见 grants.spec.js / devices.spec.js。
  *
@@ -20,13 +20,13 @@ const KEYS = () => [
 ];
 
 test.describe('sudo root reauth（进账号安全前）', () => {
-  test('没有 reauth 票：进来先 sudo root reauth（POST login-password reauth:true）→ 列表 + 头部 reauth · mm:ss', async ({ page }) => {
+  test('没有 reauth 票：进来先 sudo root reauth（POST /api/account/reauth { action: password }）→ 列表 + 头部 reauth · mm:ss', async ({ page }) => {
     let ticket = null;
     const calls = await mockAccount(page, {
       status: () => STATUS({ session: SESSION(), reauth: ticket }),
       handlers: {
-        'login-password': (b) => { if (!b.reauth) return [400, { ok: false }]; ticket = REAUTH(); return [200, { ok: true }]; },
-        'passkey-list': [200, { ok: true, keys: KEYS() }],
+        'reauth/password': () => { ticket = REAUTH(); return [200, { ok: true }]; },
+        'keys/passkey-list': [200, { ok: true, keys: KEYS() }],
       },
     });
     await T.goPage(page);
@@ -41,7 +41,8 @@ test.describe('sudo root reauth（进账号安全前）', () => {
     await typeLine(page, 'correct-horse');
     await expect(log(page)).toContainText('✓ verified');
     await expect(d.locator('.sgx-at-hv')).toHaveText(/^reauth · 0[0-2]:\d\d$/);
-    expect(calls.find((c) => c.action === 'login-password').reauth).toBe(true);
+    expect(calls.filter((c) => c.action === 'reauth/password')).toHaveLength(1);
+    expect(calls.some((c) => c.action === 'session/password')).toBe(false);
     await expect(d.locator('.sgx-at-nm')).toHaveText(['S23 Ultra', 'Google 密码管理器']);
     await expect(d.locator('[data-at-act="passkey-add"]')).toContainText('添加通行密钥');
   });
@@ -49,7 +50,7 @@ test.describe('sudo root reauth（进账号安全前）', () => {
   test('管理操作回 403 reauth → 「验证已过期」，回到 locked', async ({ page }) => {
     await mockAccount(page, {
       status: STATUS({ session: SESSION(), reauth: REAUTH() }),
-      handlers: { 'passkey-list': [200, { ok: true, keys: KEYS() }], 'passkey-delete': [403, { ok: false, error: 'reauth' }] },
+      handlers: { 'keys/passkey-list': [200, { ok: true, keys: KEYS() }], 'keys/passkey-delete': [403, { ok: false, error: 'reauth' }] },
     });
     await T.goPage(page);
     const d = await openTerm(page);

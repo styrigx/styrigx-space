@@ -6,7 +6,7 @@
  * POST /api/lock-all-devices
  * - 没进门 → 401。
  * - 无 LockReauthTicket → 403 reauth（前端重新验证）。
- * - 逻辑：lock-epoch +1（D1，所有设备旧 cookie 失效），用 Set-Cookie 清当前锁屏会话和 LockReauthTicket。
+ * - 逻辑：lock-epoch +1（D1，所有设备旧 cookie 失效），用 Set-Cookie 清当前进站会话和 LockReauthTicket。
  * - 返回 {ok:true}。
  *
  * lock-epoch 在 D1（强一致，2026-10-27 前在 KV、要等约 60 秒）：推进后主站与子站的下一个请求就看到新纪元，旧会话立刻失效。

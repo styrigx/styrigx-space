@@ -1,7 +1,7 @@
 /**
  * @fileoverview /api/status：站点监测数据（2026-10-22），给主站监测页和首页长条模块用。
  *
- * 网关只做门：验锁屏会话（进门即可看；没会话 401），再通过服务绑定 STATUS 转给 styrigx-status Worker。
+ * 网关只做门：验进站会话（进门即可看；没会话 401），再通过服务绑定 STATUS 转给 styrigx-status Worker。
  * styrigx-status 没有公开地址，只能从这里进。
  *
  *   GET /api/status

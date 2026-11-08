@@ -5,12 +5,12 @@
  * 调账号 Worker styrigx-account。预览只有一个 Pages 项目（passkey-e2e.styrigx-space.pages.dev），它的 _worker.js 只能是一个脚本，
  * 所以这里把两边仓库里的真实代码装进同一个脚本：
  * - 网关那一半 = workers/auth-gateway/src/app.js 的 default.fetch（剥头、门、转发表、锁屏接口全是正式代码）；
- * - 账号那一半 = workers/account/src/rpc/account-service.js 的 serviceFetch（AccountService.fetch 的实现）和 rpc/account-verifier.js 的 checkAccountSession
- *   （AccountVerifier.accountSession 的实现），包成和服务绑定同形状的进程内适配器，挂到网关 env 的 ACCOUNT / ACCOUNT_VERIFIER 上。
+ * - 账号那一半 = workers/account/src/rpc/account-service.js 的 serviceFetch（AccountService.fetch 的实现）和 rpc/account-verifier.js 的 checkAuthorize
+ *   （AccountVerifier.authorize 的实现），包成和服务绑定同形状的进程内适配器，挂到网关 env 的 ACCOUNT / ACCOUNT_VERIFIER 上。
  *
  * env 按正式的绑定拆开，两半互相看不到对方的钥匙和库（预览也验证「网关不碰账号钥匙」）：
- * - 网关：去掉 SGX_ACCOUNT_*（含 SGX_ACCOUNT_ROOT_KEY）和 D1_ACCOUNT_AUTH，加上 ACCOUNT / ACCOUNT_VERIFIER；
- * - 账号：只拿 ACCOUNT_ENV_KEYS 里列出的（账号钥匙、账号根密钥、pepper、D1_ACCOUNT_AUTH、站点变量、ASSETS 和可选的账号资料绑定）。
+ * - 网关：去掉 SGX_ACCOUNT_*（含恢复密钥 SGX_ACCOUNT_RECOVERY_KEY、账号密码 pepper SGX_ACCOUNT_PASSWORD_PEPPER）和 D1_ACCOUNT，加上 ACCOUNT / ACCOUNT_VERIFIER；
+ * - 账号：只拿 ACCOUNT_ENV_KEYS 里列出的（签名钥匙、恢复密钥、账号密码 pepper、D1_ACCOUNT、站点变量、ASSETS 和可选的 KV_PROFILE）。
  *
  * 和真实服务绑定的差别（只影响预览）：请求 / 响应对象在同一个 isolate 里直接传，不经序列化；账号那一半没有自己的默认 fetch
  * （正式的默认 fetch 一律 404，预览里根本没有公网入口能到它）。
@@ -21,19 +21,19 @@
  */
 import gateway from '../../../../workers/auth-gateway/src/app.js';
 import { serviceFetch } from '../../../../workers/account/src/rpc/account-service.js';
-import { checkAccountSession, checkAuthorize } from '../../../../workers/account/src/rpc/account-verifier.js';
+import { checkAuthorize } from '../../../../workers/account/src/rpc/account-verifier.js';
 
 /** 账号那一半能看到的 env 键（同 workers/account/wrangler.toml 的绑定 / 变量；预览不绑账号资料库，有就带上） */
 export const ACCOUNT_ENV_KEYS = Object.freeze([
   'SGX_ENV', 'SGX_SITE', 'SGX_RP_ID', 'SGX_ORIGIN',
-  'SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_ROOT_KEY', 'SGX_PW_PEPPER',
-  'D1_ACCOUNT_AUTH', 'KV_PROFILE', 'D1_SETTINGS_SYNC', 'D1_WELLBEING',
+  'SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_RECOVERY_KEY', 'SGX_ACCOUNT_PASSWORD_PEPPER',
+  'D1_ACCOUNT', 'KV_PROFILE',
   'ASSETS',
 ]);
 
 /** 网关那一半不许看到的 env 键（正式网关 wrangler.toml 不绑这些） @param {string} k */
 export function isAccountOnlyKey(k) {
-  return k.startsWith('SGX_ACCOUNT_') || k === 'D1_ACCOUNT_AUTH' || k === 'KV_PROFILE' || k === 'D1_SETTINGS_SYNC' || k === 'D1_WELLBEING';
+  return k.startsWith('SGX_ACCOUNT_') || k === 'D1_ACCOUNT' || k === 'KV_PROFILE';
 }
 
 /** 预览桩的固定来源（公开一条；有账号会话再加私密一条） */
@@ -82,7 +82,6 @@ export function gatewayEnvOf(env, ctx) {
   const acct = accountEnvOf(env);
   out.ACCOUNT = { fetch: (/** @type {Request} */ req) => serviceFetch(req, acct, ctx) };
   out.ACCOUNT_VERIFIER = {
-    accountSession: (/** @type {string} */ cookie, /** @type {any} */ clientContext) => checkAccountSession(acct, cookie, clientContext),
     /* P2-2：网关 api/search.js、api/chat.js 经 core/account-rpc.js askAuthorize 问它（AccountVerifier.authorize 的实现） */
     authorize: (/** @type {string} */ cookie, /** @type {any} */ clientContext, /** @type {any} */ opts) => checkAuthorize(acct, cookie, clientContext, opts),
   };

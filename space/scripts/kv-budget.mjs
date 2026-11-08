@@ -25,8 +25,9 @@ export const PER_RUN_ESTIMATE = Object.freeze({ read: 0, write: 0, delete: 0, li
 
 /**
  * 清哪些表：会改变本次运行起始状态的（d1-state.js / attempt-limit.js）。
- * - passkey、password：锁屏 / 账号「是否已设置」（layers.js 由它们推出）；不清的话 space-auth 的 lock-reset / account-reset 入口会变成假入口
- * - attempt_limit：按 IP 的失败计数 / 冷却，会直接让本次运行 429（space-auth 连错锁 15 分钟、密码冷却）
+ * - passkey、password（网关锁屏）和 account_passkey、account_password（账号，命名 v2 起独立的表）：「是否已设置」；
+ *   不清的话 space-auth 的 lock-reset 入口、账号的「设第一把钥匙」会变成假入口
+ * - attempt_limit、account_attempt_limit：按 IP 的失败计数 / 冷却，会直接让本次运行 429（space-auth / 恢复密钥连错锁 15 分钟、密码冷却）
  * 不清的表，以及为什么不影响本次运行：
  * - epoch：只和会话 / 票里写的纪元比较。上一次运行的会话和票都是上一次现生成的 Ed25519 私钥签的，这次换了钥匙对，验签先失败；
  *   这次的会话按当前值签发。用例只断言「+1」这种相对变化。
@@ -37,7 +38,7 @@ export const PER_RUN_ESTIMATE = Object.freeze({ read: 0, write: 0, delete: 0, li
  * - lock_reset_switch（旧表 recovery_switch 网关已不读写）：签过票的行标了已用，永不再生效；用例要用时插一行新的（preview-helpers.cjs armResetSwitch）。
  * - kv_migration：只有导入脚本写，运行时不读。
  */
-export const RESET_D1_TABLES = Object.freeze(['passkey', 'password', 'attempt_limit']);
+export const RESET_D1_TABLES = Object.freeze(['passkey', 'password', 'attempt_limit', 'account_passkey', 'account_password', 'account_attempt_limit']);
 
 /**
  * 从 wrangler.toml 文本里取 binding 对应的 database_id（[[...d1_databases]] 块）。

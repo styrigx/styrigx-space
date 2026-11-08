@@ -1,18 +1,16 @@
 /**
  * @fileoverview 账号 Worker 的命名入口 AccountVerifier（WorkerEntrypoint，RPC；只有网关绑定，服务绑定 ACCOUNT_VERIFIER）：
- * - accountSession(cookieHeader, clientContext)：只回账号会话的校验结论（网关的账号页首帧提示用；
- *   临时钥匙管理、短链只认锁屏进门会话 + 锁侧复验，不再问它）。
- * - authorize(cookieHeader, clientContext, opts)：授权结论 { ok, reason, deviceId, scopes, reauth }（方案 2.3.3；逻辑在 core/authz.js）。
+ * - （命名 v2 删掉 session()：唯一的调用方网关首帧提示随旧账号整页一起删了；临时钥匙管理、短链只认进站会话 + 锁侧复验）
+ * - authorize(cookieHeader, clientContext, opts)：授权结论 { ok, reason, deviceId, scopes, reauth }（逻辑在 core/authorize.js）。
  *   P2-1 只新增：网关 core/account-rpc.js askAuthorize 会问它，但网关里还没有调用方（P2-2 起子站接口经 AuthVerifier.conclusion() 间接用）。
- * 两个方法都不签发任何东西。
+ * 不签发任何东西。
  * cloudflare:workers 只在 Workers 里有：node 单测用 tests/workers/account/_cf-workers.mjs 的替身。
  */
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { MAX_COOKIE_HEADER } from '../lib/cookies.js';
-import { CLIENT_CONTEXT_HEADERS } from '../lib/lock-identity.js';
+import { CLIENT_CONTEXT_HEADERS } from '../lib/gateway.js';
 import { resolveSecrets } from '../secrets.js';
-import { verifyAccountSession } from '../core/account-session.js';
-import { authorize } from '../core/authz.js';
+import { authorize } from '../core/authorize.js';
 
 const MAX_UA = 512;
 
@@ -34,24 +32,7 @@ export function verifierRequest(cookieHeader, clientContext) {
 }
 
 /**
- * AccountVerifier.accountSession 的实现：{ ok: true } 或 { ok: false, reason }。
- * 只验不签：不写 cookie、不签票、不推纪元（验证通过时照旧刷新设备 lastSeen，同网关）。
- * @param {Record<string, any>} env
- * @param {string} cookieHeader
- * @param {{ua?:string, country?:string, city?:string}} [clientContext]
- */
-export async function checkAccountSession(env, cookieHeader, clientContext) {
-  try {
-    const a = await verifyAccountSession(verifierRequest(cookieHeader, clientContext), await resolveSecrets(env || {}));
-    return a && a.ok ? { ok: true } : { ok: false, reason: (a && a.reason) || 'denied' };
-  } catch (e) {
-    console.error('[sgx-account] verifier unhandled: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
-    return { ok: false, reason: 'error' };
-  }
-}
-
-/**
- * AccountVerifier.authorize 的实现：{ ok, reason, deviceId, scopes, reauth }（core/authz.js authorize）。
+ * AccountVerifier.authorize 的实现：{ ok, reason, deviceId, scopes, reauth }（core/authorize.js authorize）。
  * opts 只认 reauth === true（RPC 传来的别的东西一律当没要复验）。永不抛错，出错 fail closed。
  * @param {Record<string, any>} env
  * @param {string} cookieHeader
@@ -68,19 +49,11 @@ export async function checkAuthorize(env, cookieHeader, clientContext, opts) {
   }
 }
 
-/** 账号会话只读校验与授权结论（服务绑定 ACCOUNT_VERIFIER：只有网关） */
+/** 授权结论（服务绑定 ACCOUNT_VERIFIER：只有网关） */
 export class AccountVerifier extends WorkerEntrypoint {
   /**
-   * @param {string} cookieHeader 浏览器发来的 Cookie 头
-   * @param {{ua?:string, country?:string, city?:string}} [clientContext]
-   */
-  async accountSession(cookieHeader, clientContext) {
-    return checkAccountSession(this.env, cookieHeader, clientContext);
-  }
-
-  /**
-   * 授权结论（方案 2.3.3）：账号会话有效 → ok、deviceId 取自票、scopes = 当前授权（骨架阶段 = 全部作用域）；
-   * opts.reauth 为 true 时再验 sgx-account-reauth。
+   * 授权结论：账号会话有效 → ok、deviceId 取自票、scopes = account_grant 里的当前授权；
+   * opts.reauth 为 true 时再验挂在这个会话上的 sgx-account-reauth。
    * @param {string} cookieHeader 浏览器发来的 Cookie 头
    * @param {{ua?:string, country?:string, city?:string}} [clientContext]
    * @param {{reauth?:boolean}} [opts]

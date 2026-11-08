@@ -9,14 +9,14 @@
  *     书站 book 或 book:<id>；博客 blog 或 post:<slug>
  *   - t：可选标题（书名 / 文章名），最长 60 字
  *   - sec：本次累计秒数，1–900（客户端最多 5 分钟一报，留余量）
- *   - 只记账号会话 + 作用域 wellbeing.write（方案 3.4 R12）：没登录账号 / 没作用域直接 204 丢弃，不进主人的数字健康；没进门 401
- *   - 写入 D1（D1_WELLBEING）wb_daily，同一天同一键原子累加，跨设备天然合并
+ *   - 只记账号会话 + 作用域 wellbeing.write（方案 3.4 R12）：没登录账号 / 没作用域直接 204 丢弃，不进主人的数字健康；没有进站会话 401
+ *   - 写入 D1（D1_ACCOUNT）wb_daily，同一天同一键原子累加，跨设备天然合并
  * GET /api/wellbeing?d=YYYY-MM-DD  读取某天汇总（默认服务器 UTC 今天）
- *   - 进门就能读（首页小组件没登录账号也能看到区域合计，和原来的静态数据一致）
+ *   - 有进站会话就能读（首页小组件没登录账号也能看到区域合计，和原来的静态数据一致）
  *   - 明细（书名 / 文章名）只给账号会话；没登录账号只拿到区域合计（items 为空）
  *   - 返回 {ok, d, detail, total, sections:[{k,sec}], items:[{k,t,sec}]}；detail = 这次有没有给明细（前端旷野 › 数字健康卡按它显示）
  *
- * 不涉及任何密钥 / 会话签发；未绑定 D1_WELLBEING（本地）时 POST 204、GET 返回空。
+ * 不涉及任何密钥 / 会话签发；未绑定 D1_ACCOUNT（本地）时 POST 204、GET 返回空。
  * 2026-10-24 起在账号 Worker styrigx-account（D1 styrigx-account，迁移在 workers/account/migrations/）。
  */
 import { json } from '../lib/http.js';
@@ -111,12 +111,12 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' };
 /** @param {any} context */
 export async function onRequestPost(context) {
   const { request, env } = context;
-  const sess = await context.auth.lockSession(); /* 进门：网关写的身份头（src/gate.js headerAuth） */
+  const sess = await context.auth.gateway(); /* 进站会话：网关写的身份头（src/gate.js headerAuth） */
   if (!sess.ok) return new Response(null, { status: 401, headers: NO_STORE });
   /* 账号会话 + wellbeing.write 才记；否则 204 丢弃（不报错，sendBeacon 不看结果） */
   const a = await context.auth.authorize();
   if (!a.ok || !a.scopes.includes('wellbeing.write')) return new Response(null, { status: 204, headers: NO_STORE });
-  const db = env && env.D1_WELLBEING;
+  const db = env && env.D1_ACCOUNT;
   if (!db) return new Response(null, { status: 204, headers: NO_STORE });
   const raw = await request.text();
   if (raw.length > MAX_BODY) return new Response(null, { status: 413, headers: NO_STORE });
@@ -151,7 +151,7 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const sess = await context.auth.lockSession(); /* 进门：网关写的身份头（src/gate.js headerAuth） */
+  const sess = await context.auth.gateway(); /* 进站会话：网关写的身份头（src/gate.js headerAuth） */
   if (!sess.ok) return json(401, { ok: false }, NO_STORE);
   const url = new URL(request.url);
   const qd = url.searchParams.get('d') || '';
@@ -159,7 +159,7 @@ export async function onRequestGet(context) {
   /* 明细只给账号会话（读私密 = 账号会话，不要作用域；方案 4.2） */
   const detail = (await context.auth.authorize()).ok === true;
   const empty = { ok: true, d, detail, total: 0, sections: [], items: [] };
-  const db = env && env.D1_WELLBEING;
+  const db = env && env.D1_ACCOUNT;
   if (!db) return json(200, empty, NO_STORE);
   try {
     await db.prepare(SCHEMA).run();

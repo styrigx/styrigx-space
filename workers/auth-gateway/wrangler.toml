@@ -115,8 +115,8 @@ migrations_dir = "migrations"
 migrations_table = "d1_migrations_gateway"
 
 # ---- 密钥：Secrets Store（方案 10.1：只剩 4 个）----
-# 外部模型钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-ai（P4-2 前在 styrigx-chat）；账号钥匙 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC / SGX_ACCOUNT_ROOT_KEY 只绑在 styrigx-account。
-# 进站凭证 SGX_LOCK_SPACE_KEY：部署 PR3 前在后台新建，值等于原 SGX_ROOT_KEY（Secrets Store 不能直接改名）；旧的 SGX_ROOT_KEY 已在 PR4 从 Secrets Store 删除。SGX_PW_PEPPER 与账号 Worker 绑同一个密值（方案 6.2）。
+# 外部模型钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-ai（P4-2 前在 styrigx-chat）；账号钥匙（SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC / SGX_ACCOUNT_RECOVERY_KEY / SGX_ACCOUNT_PASSWORD_PEPPER）只绑在 styrigx-account。
+# 进站凭证 SGX_LOCK_SPACE_KEY：部署 PR3 前在后台新建，值等于原 SGX_ROOT_KEY（Secrets Store 不能直接改名）；旧的 SGX_ROOT_KEY 已在 PR4 从 Secrets Store 删除。SGX_PW_PEPPER 只给锁屏密码用（账号命名 v2 起账号密码用自己的 SGX_ACCOUNT_PASSWORD_PEPPER）。
 # 换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。store_id 是存储的编号，不是密值。
 [[secrets_store_secrets]]
 binding = "SGX_LOCK_PRIVATE"

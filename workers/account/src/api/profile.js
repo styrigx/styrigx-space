@@ -1,16 +1,16 @@
 /**
  * GET / PUT /api/profile —— 个人资料（2026-11-07 Gray 定）：姓名、昵称、签名、对外联系邮箱 + 头像版本号。
  *
- * GET（进门即可，不要账号会话）
+ * GET（有进站会话即可，不要账号会话）
  * - 回 { ok:true, profile:{ name, nickname, motto, email }, avatar:<版本号|''>, updatedAt }。
  *   只回这五项里可公开的；没改过的字段是 null，前端回退构建期默认值（space/web/data/profile.yaml）。
  *   KV 没绑 / 读不到 / 坏 JSON → 全是 null（照样 200），页面显示默认值。
- * - 门在网关（转发表 gate='session'：没进门 401）；本 Worker 的 lockIdentityDenial 同样要进门。锁屏前不开放
- *   （锁屏头像的替代文字用构建期默认值 + 本机上次进门时缓存的资料，前端 lib/profile.js）。
+ * - 门在网关（转发表 gate='session'：没有进站会话 401）；本 Worker 的 lockIdentityDenial 同样要进站会话。锁屏前不开放
+ *   （锁屏头像的替代文字用构建期默认值 + 本机上次进站时缓存的资料，前端 lib/profile.js）。
  *
  * PUT（JSON，任意几个字段：{ name?, nickname?, motto?, email? }）
- * - 进门 + 账号会话 + 作用域 profile.write（src/gate.js scopeDenial，同一份 core/authz.js）；必须同源。
- *   没进门 401 session；没账号会话 401 account；没作用域 403 scope。
+ * - 进站会话 + 账号会话 + 作用域 profile.write（src/gate.js scopeDenial，同一份 core/authorize.js）；必须同源。
+ *   没有进站会话 401 session；没账号会话 401 account；没作用域 403 scope。
  * - 每个字段按 lib/profile.js 的字段表校验：字符串去首尾空白；姓名 ≤40、昵称 ≤32、签名 ≤120、邮箱 ≤254 个字符；
  *   单行（不收控制字符 / 换行）；姓名、昵称、邮箱不能为空串，签名可以为空；邮箱要像邮箱；值为 null = 清掉回默认值。
  *   不认识的字段、空对象、不是 JSON 对象 → 400；请求体超过 4 KB → 413。任何一个字段不合法整个请求不写。
@@ -42,7 +42,7 @@ async function view(kv, stored, updatedAt) {
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { env } = context;
-  const lock = await context.auth.lockSession();
+  const lock = await context.auth.gateway();
   if (!lock.ok) return apiError(401, 'session', undefined, NO_STORE);
   const kv = profileKv(env);
   const { stored, updatedAt } = await readStored(kv);

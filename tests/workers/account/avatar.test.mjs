@@ -2,8 +2,8 @@
  * 主站头像接口
  * - GET /avatar/<尺寸>.webp：没上传过 → 默认图（ETag "d-<尺寸>"）；上传过 → KV 里的图（ETag "<版本>-<尺寸>"）；
  *   If-None-Match 命中 → 304；不认识的尺寸 → 404；公开缓存头。
- * - PUT /api/avatar（P2-2 起：进门 + 账号会话 + avatar.write，不看 role）：不同源 403；没进门 401 session；
- *   进门没账号会话 401 account（临时钥匙进门同样）；缺尺寸 400；不是 WebP/PNG 415；太大 413；进门 + 账号会话 + 四张合法图 → 写四张 + 版本号。
+ * - PUT /api/avatar（P2-2 起：进站会话 + 账号会话 + avatar.write，不看 role）：不同源 403；没有进站会话 401 session；
+ *   有进站会话、没账号会话 401 account（临时钥匙进站同样）；缺尺寸 400；不是 WebP/PNG 415；太大 413；进站会话 + 账号会话 + 四张合法图 → 写四张 + 版本号。
  * - DELETE /api/avatar：同一道门；没账号会话 401 account；有 → 删版本号和四张。
  *
  * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关搬来）；锁屏身份经网关这一跳写成身份头（_auth.mjs）。
@@ -17,6 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testLockSession } from '../auth-gateway/_tickets.mjs';
 import { genKeyPair, authD1For } from '../_harness.mjs';
+import { makeAccountD1 } from './_d1.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
@@ -57,7 +58,7 @@ function env(kv) {
   return {
     SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: ACC.pub,
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, KV_PROFILE: kv,
-    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv),
+    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT: makeAccountD1(),
     ASSETS: { fetch: async (u) => new Response('DEFAULT:' + new URL(u).pathname, { status: 200 }) },
   };
 }
@@ -115,7 +116,7 @@ test('PUT 不同源 → 403', async () => {
   assert.equal(res.status, 403);
 });
 
-test('PUT 没进门 401 session；进门没账号会话 401 account（锁屏密码 / 临时钥匙进门一样），不写 KV', async () => {
+test('PUT 没有进站会话 401 session；有进站会话、没账号会话 401 account（锁屏密码 / 临时钥匙进站一样），不写 KV', async () => {
   for (const [role, acc, code] of [[null, false, 'session'], [null, true, 'session'], ['password', false, 'account'], ['tempkey', false, 'account']]) {
     const kv = makeKv();
     const res = await onRequestPut({ request: await putReq({ role, acc, parts: ALL }), env: env(kv) });
@@ -139,7 +140,7 @@ test('PUT 缺尺寸 400 / 格式不对 415 / 太大 413', async () => {
   assert.equal(kv.m.size, 0);
 });
 
-test('PUT 进门 + 账号会话 → 写四张 + 版本号；GET 读到新图和新 ETag；DELETE 回到默认', async () => {
+test('PUT 进站会话 + 账号会话 → 写四张 + 版本号；GET 读到新图和新 ETag；DELETE 回到默认', async () => {
   const kv = makeKv();
   const e = env(kv);
   const res = await onRequestPut({ request: await putReq({ role: 'password', parts: ALL }), env: e });

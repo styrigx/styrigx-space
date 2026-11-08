@@ -5,7 +5,7 @@
  * 输错要写输错计数。没有总闸时，刷接口能把 D1 每天的写入额度耗光，连带自己也解不了锁。
  *
  * 做法：Workers Rate Limiting 绑定 ANON_LIMITER（workers/auth-gateway/wrangler.toml [[ratelimits]]，
- * 每个 IP 60 秒 20 次；计数在 Cloudflare 边缘，不占存储、不收费）。只管「没有有效锁屏会话 + POST + 下面这几个接口」；
+ * 每个 IP 60 秒 20 次；计数在 Cloudflare 边缘，不占存储、不收费）。只管「没有有效进站会话 + POST + 下面这几个接口」；
  * 有会话的、GET 的都不限。超过 → 429 { error: 'cooldown' }（前端已有的「太频繁」文案）+ Retry-After: 60，不进端点，不写 D1。
  *
  * 这只是防刷的总闸，不是安全门：真正的门槛仍是各端点自己的输错锁定（password-limit / space-limit / lock-tempkey）。
@@ -29,7 +29,7 @@ export const ANON_LIMIT_PERIOD = 60;
  * 需要限流就返回 429 响应，否则 null。
  * @param {Request} request
  * @param {any} env
- * @param {boolean} sessionValid 当前请求是否带有效锁屏会话（任何角色）
+ * @param {boolean} sessionValid 当前请求是否带有效进站会话（任何角色）
  * @returns {Promise<Response|null>}
  */
 export async function anonLimit(request, env, sessionValid) {

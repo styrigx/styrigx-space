@@ -12,7 +12,7 @@
  */
 
 /** 放在 Secrets Store 里的密钥（方案 10.1，只剩 4 个）：锁屏签名钥匙对、进站凭证 SGX_LOCK_SPACE_KEY、密码 pepper。
- *  账号钥匙（SGX_ACCOUNT_*、SGX_ACCOUNT_ROOT_KEY）只绑在账号 Worker styrigx-account；外部模型钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-ai。网关都不碰。 */
+ *  账号钥匙（SGX_ACCOUNT_*：签名钥匙、恢复密钥、账号密码 pepper）只绑在账号 Worker styrigx-account；外部模型钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-ai。网关都不碰。 */
 export const SECRET_NAMES = Object.freeze([
   'SGX_LOCK_PRIVATE',
   'SGX_LOCK_SPACE_KEY',

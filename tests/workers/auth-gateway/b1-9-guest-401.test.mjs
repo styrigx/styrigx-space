@@ -1,6 +1,6 @@
 /**
  * B1-9 的会话假入口（v1：凭会话等级写死 401）随 P2-3 进门二值删除（方案 3.3、定案第 6 条）。这里验收删除之后的行为：
- * 1. /api/lock-reset 不看锁屏会话：没有会话、锁屏密码进门、临时钥匙进门 → 一律真比对进站凭证（错了 401 auth，计数、写审计）
+ * 1. /api/lock-reset 不看进站会话：没有会话、锁屏密码进门、临时钥匙进门 → 一律真比对进站凭证（错了 401 auth，计数、写审计）
  * 2. /api/space-auth purpose=lock-reauth 要先进门（任何进门方式，含临时钥匙进门）：没进门 → 401 session，不比对、不计数、不写审计；
  *    临时钥匙进门 + 正确进站凭证 → 200，签 LockReauthTicket（by=space），进门会话本身不算复验
  * 3. v1 的 6 段票按 bad-format 处理，等于没有会话
@@ -84,7 +84,7 @@ test('space-auth lock-reauth：临时钥匙进门（任何进门方式）即可�
     const ok = await spaceAuthPost({ request: post('/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reauth' }, cookie, '198.51.100.40'), env: env(kv) });
     assert.equal(ok.status, 200, by);
     assert.ok(pick(ok, 'sgx-lock-reauth').startsWith('space.'), by + '：复验票 by=space');
-    assert.equal(pick(ok, 'sgx-lock-session'), '', by + '：不签、不改锁屏会话');
+    assert.equal(pick(ok, 'sgx-lock-session'), '', by + '：不签、不改进站会话');
     const bad = await spaceAuthPost({ request: post('/api/space-auth', { key: 'wrong', purpose: 'lock-reauth' }, cookie, '198.51.100.41'), env: env(kv) });
     assert.equal(bad.status, 401, by);
     assert.deepEqual(await bad.json(), { ok: false, error: 'auth' });
@@ -93,7 +93,7 @@ test('space-auth lock-reauth：临时钥匙进门（任何进门方式）即可�
   }
 });
 
-test('v1 的 6 段锁屏会话票按 bad-format 处理：space-auth lock-reauth 等于没进门（401 session）', async () => {
+test('v1 的 6 段进站会话票按 bad-format 处理：space-auth lock-reauth 等于没进门（401 session）', async () => {
   const p6 = 'tempkey.' + 'visitor' + '.0.' + (Date.now() + 3600e3) + '.tktesttesttest01'; // v1 fixture
   const v1 = 'sgx-lock-session=' + p6 + '.' + (await ed25519Sign(PRIV, 'sgx-lock-session|' + p6)); // v1 fixture
   const kv = makeStore(CONFIGURED);

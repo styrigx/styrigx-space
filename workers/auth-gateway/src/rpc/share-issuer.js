@@ -1,6 +1,6 @@
 /**
  * @fileoverview 服务绑定 RPC 入口 ShareIssuer（2026-10-24）：分享短链 Worker styrigx-share（workers/share）专用的单独入口——
- * 签 / 作废短链钥匙、点开时换锁屏进门会话。逻辑在 core/link-keys.js（node 单测直接测它）。
+ * 签 / 作废短链钥匙、点开时换进站会话。逻辑在 core/link-keys.js（node 单测直接测它）。
  * 只有 styrigx-share 的 wrangler.toml 绑定它（entrypoint = "ShareIssuer"），拿 AuthVerifier 的 Worker 调不到；公网路由进不来。
  */
 import { WorkerEntrypoint } from 'cloudflare:workers';
@@ -35,7 +35,7 @@ export class ShareIssuer extends WorkerEntrypoint {
   }
 
   /**
-   * 点开带会话的短链：签锁屏进门会话（by=tempkey），只回 Set-Cookie 值。
+   * 点开带会话的短链：签进站会话（by=tempkey），只回 Set-Cookie 值。
    * @param {string} id
    * @param {number} sessionSec
    */

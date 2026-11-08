@@ -1,9 +1,9 @@
 /**
- * 账号云同步 /api/prefs（2026-10-22）：进门 + 账号会话 + 作用域 prefs.sync（P2-2 起不看 role）；逐项新的赢。
+ * 账号云同步 /api/prefs（2026-10-22）：进站会话 + 账号会话 + 作用域 prefs.sync（P2-2 起不看 role）；逐项新的赢。
  *
  * 2026-10-24 搬到账号 Worker styrigx-account（workers/account）；锁屏身份经网关这一跳写成身份头、账号会话由账号 Worker 自己验（_auth.mjs）。
  *
- * 2026-10-28 存储从 KV_SETTINGS_SYNC（account-prefs）搬到 D1_SETTINGS_SYNC（D1 styrigx-account 的 settings_sync）：
+ * 2026-10-28 存储从 KV 搬到 D1（styrigx-account 的 settings_sync；命名 v2 起绑定只叫 D1_ACCOUNT）：
  * 逐项新的赢在 SQL 里原子完成（旧 t 写不进、并发写不丢）、运行时不碰任何 KV、表不存在时自愈。
  *
  * 运行：node --test tests/workers/account/prefs.test.mjs
@@ -13,13 +13,12 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { testLockSession } from '../auth-gateway/_tickets.mjs';
 import { makeKV, genKeyPair, authD1For, forbiddenKV } from '../_harness.mjs';
-import { makeAccountD1 } from './_d1.mjs';
+import { makeAccountD1, splitD1 } from './_d1.mjs';
 
 const PREFS = '../../../workers/account/src/api/prefs.js';
 const KERNEL = '../../../workers/auth-gateway/src/core/';
 
 let LOCK, ACCOUNT, OTHER;
-const ROOT_KEY = 'test-root-key-account-123';
 const PEPPER = 'test-pepper-acc';
 
 /** 同一份 kv（一次测试）对应同一个账号库替身 */
@@ -33,14 +32,13 @@ function accountD1For(kv) {
 function envFor(kv, overrides = {}) {
   return {
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, /* 只给网关替身当认证库导入来源；账号 Worker 不读 */
-    D1_SETTINGS_SYNC: accountD1For(kv),
-    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT_AUTH: authD1For(kv), D1_ROOT_AUTH: authD1For(kv), /* 网关这一跳验锁屏纪元（D1_LOCK_AUTH）；账号 Worker 验账号会话（D1_ACCOUNT_AUTH） */
-    SGX_ROOT_KEY: ROOT_KEY,
+    D1_ACCOUNT: accountD1For(kv), /* 账号 Worker：session、授权、settings_sync 同一个库 */
+    D1_LOCK_AUTH: authD1For(kv), /* 网关这一跳验进站会话 */
     SGX_LOCK_PRIVATE: LOCK.priv,
     SGX_LOCK_PUBLIC: LOCK.pub,
     SGX_ACCOUNT_PRIVATE: ACCOUNT.priv,
     SGX_ACCOUNT_PUBLIC: ACCOUNT.pub,
-    SGX_PW_PEPPER: PEPPER,
+    SGX_ACCOUNT_PASSWORD_PEPPER: PEPPER,
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
     ...overrides,
@@ -95,12 +93,12 @@ before(async () => {
   LOCK = await genKeyPair(); ACCOUNT = await genKeyPair(); OTHER = await genKeyPair();
 });
 
-test('进门 + 账号会话 + prefs.sync：没进门 401 session、没账号 401 account；临时钥匙进门 + 账号会话也放行（P2-2 起账号 Worker 不看 role）', async () => {
+test('进站会话 + 账号会话 + prefs.sync：没有进站会话 401 session、没账号 401 account；临时钥匙进站会话 + 账号会话也放行（P2-2 起账号 Worker 不看 role）', async () => {
   const kv = makeKV();
   const none = await prefsCall(kv, 'GET', null, {});
   assert.equal(none.status, 401);
   assert.equal((await none.json()).error, 'session');
-  /* 有账号会话、没进门 → 仍是 401 session */
+  /* 有账号会话、没有进站会话 → 仍是 401 session */
   const noLock = await prefsCall(kv, 'GET', null, { 'sgx-account-session': await accTicket() });
   assert.equal(noLock.status, 401);
   assert.equal((await noLock.json()).error, 'session');
@@ -112,7 +110,7 @@ test('进门 + 账号会话 + prefs.sync：没进门 401 session、没账号 401
   const bad = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess, 'sgx-account-session': await accTicket('password', Date.now(), 0, OTHER.priv) });
   assert.equal(bad.status, 401);
   assert.equal((await bad.json()).error, 'account');
-  /* 过渡期：临时钥匙进门会话（网关 role 门 P2-3 前还会挡 /api/prefs）在账号 Worker 这一层只看进门 + 账号会话 */
+  /* 过渡期：临时钥匙进站会话（网关 role 门 P2-3 前还会挡 /api/prefs）在账号 Worker 这一层只看进站会话 + 账号会话 */
   const vis = await visitorSess();
   assert.equal((await prefsCall(kv, 'GET', null, { 'sgx-lock-session': vis, 'sgx-account-session': await accTicket() })).status, 200);
   const ok = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess, 'sgx-account-session': await accTicket() });
@@ -127,14 +125,14 @@ test('进门 + 账号会话 + prefs.sync：没进门 401 session、没账号 401
 test('没作用域 prefs.sync → 403 scope（gate.scopeDenial，带 scope 字段）', async () => {
   const { scopeDenial } = await import('../../../workers/account/src/gate.js');
   const lockOk = { ok: true, by: 'password', reason: 'ok' };
-  const auth = (a) => ({ lockSession: async () => lockOk, authorize: async () => a });
+  const auth = (a) => ({ gateway: async () => lockOk, authorize: async () => a });
   const d = await scopeDenial(auth({ ok: true, reason: 'ok', deviceId: 'x', scopes: ['curio.write'], reauth: false }), 'prefs.sync');
   assert.equal(d.status, 403);
   const j = await d.json();
   assert.equal(j.error, 'scope');
   assert.equal(j.scope, 'prefs.sync');
   assert.equal(await scopeDenial(auth({ ok: true, reason: 'ok', deviceId: 'x', scopes: ['prefs.sync'], reauth: false }), 'prefs.sync'), null);
-  const nl = await scopeDenial({ lockSession: async () => ({ ok: false, by: '', reason: 'no-identity' }), authorize: async () => { throw new Error('不该问账号'); } }, 'prefs.sync');
+  const nl = await scopeDenial({ gateway: async () => ({ ok: false, by: '', reason: 'no-identity' }), authorize: async () => { throw new Error('不该问账号'); } }, 'prefs.sync');
   assert.equal(nl.status, 401);
   assert.equal((await nl.json()).error, 'session');
   const na = await scopeDenial(auth({ ok: false, reason: 'missing', deviceId: '', scopes: [], reauth: false }), 'prefs.sync');
@@ -177,7 +175,7 @@ test('POST 跨源 → 拒绝', async () => {
 test('被单独退出的设备（revoked）不能同步', async () => {
   const kv = makeKV();
   const t = await testAccountSession(ACCOUNT.priv, 'password', 0, Date.now(), undefined, 'AAAAAAAAAAAAAAAA');
-  await kv.put('account-device-revoked:AAAAAAAAAAAAAAAA', '1');
+  accountD1For(kv).raw.prepare("INSERT INTO account_device (device_id, record, last_seen, revoked_at, expires_at) VALUES ('AAAAAAAAAAAAAAAA', '{}', 0, 1, ?)").run(Date.now() + 86400000);
   const r = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': await adminSess(), 'sgx-account-session': t });
   assert.equal(r.status, 401);
 });
@@ -270,9 +268,10 @@ test('不碰 KV：KV_SETTINGS_SYNC / KV_PROFILE 换成一碰就抛错的替身�
   assert.equal(r.status, 200);
   assert.equal((await r.json()).items['sgx-theme-mode'].v, 'dark');
   assert.deepEqual(touched, []);
-  /* 也没有 KV 回落：没绑 D1、只有 KV（哪怕里面有旧 account-prefs）→ 500 config，不读 KV */
-  const legacy = forbiddenKV('KV_SETTINGS_SYNC', touched);
-  r = await prefsCall(kv, 'GET', null, co, undefined, { D1_SETTINGS_SYNC: undefined, KV_SETTINGS_SYNC: legacy });
+  /* 也没有 KV 回落：prefs.js 没有 D1_ACCOUNT 就 500 config，从不读 KV（缺绑定时 session 先验不过，这里直接测处理函数的取库） */
+  const { onRequestGet } = await import(PREFS);
+  const ok = { gateway: async () => ({ ok: true }), authorize: async () => ({ ok: true, reason: 'ok', deviceId: 'd', scopes: ['prefs.sync'], reauth: false }) };
+  r = await onRequestGet({ request: new Request('https://styrigx.com/api/prefs'), env: { KV_SETTINGS_SYNC: forbiddenKV('KV_SETTINGS_SYNC', touched) }, auth: ok });
   assert.equal(r.status, 500);
   assert.equal((await r.json()).error, 'config');
   assert.deepEqual(touched, []);
@@ -282,12 +281,12 @@ test('表不存在（还没跑 migration）：自己补建一次，GET 返回空
   const kv = makeKV();
   const co = await adminCo();
   const db = makeAccountD1({ migrations: false });
-  const over = { D1_SETTINGS_SYNC: db };
+  const over = { D1_ACCOUNT: splitD1(accountD1For(kv), db, /settings_sync/) };
   let r = await prefsCall(kv, 'GET', null, co, undefined, over);
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true, items: {}, updatedAt: 0 });
   const db2 = makeAccountD1({ migrations: false });
-  r = await prefsCall(kv, 'POST', { changes: { 'sgx-palette': { v: 'mint', t: Date.now() } } }, co, undefined, { D1_SETTINGS_SYNC: db2 });
+  r = await prefsCall(kv, 'POST', { changes: { 'sgx-palette': { v: 'mint', t: Date.now() } } }, co, undefined, { D1_ACCOUNT: splitD1(accountD1For(kv), db2, /settings_sync/) });
   assert.equal(r.status, 200);
   assert.equal(db2.rows('settings_sync').length, 1);
 });
@@ -296,9 +295,9 @@ test('D1 出错（不是缺表）→ 503，不自愈也不回落', async () => {
   const kv = makeKV();
   const co = await adminCo();
   const broken = { prepare() { return { bind() { return this; }, async all() { throw new Error('D1_ERROR: network'); }, async run() { throw new Error('should not create'); } }; }, async batch() { throw new Error('D1_ERROR'); } };
-  const r = await prefsCall(kv, 'GET', null, co, undefined, { D1_SETTINGS_SYNC: broken });
+  const r = await prefsCall(kv, 'GET', null, co, undefined, { D1_ACCOUNT: splitD1(accountD1For(kv), broken, /settings_sync/) });
   assert.equal(r.status, 503);
-  const p = await prefsCall(kv, 'POST', { changes: { 'sgx-a': { v: '1', t: Date.now() } } }, co, undefined, { D1_SETTINGS_SYNC: broken });
+  const p = await prefsCall(kv, 'POST', { changes: { 'sgx-a': { v: '1', t: Date.now() } } }, co, undefined, { D1_ACCOUNT: splitD1(accountD1For(kv), broken, /settings_sync/) });
   assert.equal(p.status, 503);
 });
 

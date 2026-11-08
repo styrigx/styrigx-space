@@ -1,9 +1,9 @@
 /**
  * 进站凭证（SpaceKey，SGX_LOCK_SPACE_KEY）入口：比对通过后按用途签一张锁屏短票（by=space）。
  *
- * SpaceKey 不拥有会话：只用于比对（core/space-check.js），不签名；本接口从不签锁屏会话。
+ * SpaceKey 不拥有会话：只用于比对（core/space-check.js），不签名；本接口从不签进站会话。
  * 账号拆分 PR3（方案 5.2、6.2）：purpose 只剩 lock-reauth、lock-reset；账号的 root-reauth / root-reset 在账号 Worker
- * （POST /api/account，比对账号根密钥 SGX_ACCOUNT_ROOT_KEY），两套进站凭证互不相干、各自计数。
+ * （POST /api/account/reset recovery-key，比对恢复密钥 SGX_ACCOUNT_RECOVERY_KEY），两套互不相干、各自计数。
  *
  * POST /api/space-auth { key, purpose }，purpose 只有两个值（缺失 / 其它值 → 400 purpose，不比对、不计数）：
  * - 'lock-reauth' → LockReauthTicket（sgx-lock-reauth）：安全与隐私 → 锁屏凭证等锁侧复验；要先进门（任何进门方式，

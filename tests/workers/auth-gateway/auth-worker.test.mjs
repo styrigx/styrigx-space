@@ -346,7 +346,7 @@ test('头像 /avatar/<尺寸>.webp：未登录放行，转给账号 Worker（ACC
     assert.equal(await res.text(), 'IMG');
     assert.equal(seen.length, 1);
     assert.equal(seen[0].url, 'https://styrigx.com/avatar/96.webp?v=3');
-    assert.equal(seen[0].headers.get('X-Styrigx-Lock-Level'), null, '没有锁屏会话不写身份头');
+    assert.equal(seen[0].headers.get('X-Styrigx-Lock-Level'), null, '没有进站会话不写身份头');
     const bad = await worker.fetch(new Request('https://styrigx.com/avatar/100.webp'), env, CTX);
     assert.equal(bad.status, 302);
     assert.equal(seen.length, 1, '门没过的不转发');

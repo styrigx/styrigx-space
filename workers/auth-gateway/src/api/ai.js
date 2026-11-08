@@ -4,7 +4,7 @@
  * POST /api/ai { q, lang, history } → styrigx-ai POST /ask，SSE 原样流回（状态码、Content-Type、X-Styrigx-AI-Scope 不改）。
  * 顺序：
  *   1. 只接受同源 POST（lib/http.js isSameOrigin）→ 否则 403 origin；别的方法 405 method（router 的 pickHandler）
- *   2. 要进门（锁屏会话，不分进门方式）→ 否则 401 unauthorized。不要账号会话：没有账号会话也能问，只是只召回公开内容
+ *   2. 要进门（进站会话，不分进门方式）→ 否则 401 unauthorized。不要账号会话：没有账号会话也能问，只是只召回公开内容
  *   3. AI 限流（core/ai-limit.js）：每 IP 每分钟 6 次 → 429 cooldown；全站总闸每分钟 60 次 → 429 busy（D1 出错也 busy）
  *   4. 问账号 Worker 要授权结论（core/account-rpc.js askAuthorizeFor），写账号结论头（core/conclusion.js writeAccountConclusion：
  *      有账号会话才写 X-Styrigx-Account-Session: 1 等；没有 / 出错 → 不写 = 只给公开内容）

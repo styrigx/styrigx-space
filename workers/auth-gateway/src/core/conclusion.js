@@ -58,7 +58,7 @@ function accountDenied(reason) {
 }
 
 /**
- * 锁屏会话（verifyLockSession 的结论）→ lock 结论：by 只认白名单；tempkeyId 只在 by=tempkey 且格式合规时给。
+ * 进站会话（verifyLockSession 的结论）→ lock 结论：by 只认白名单；tempkeyId 只在 by=tempkey 且格式合规时给。
  * @param {any} s
  * @returns {LockConclusion}
  */
@@ -108,7 +108,7 @@ function cookieRequest(cookieHeader) {
 }
 
 /**
- * 网关结论（AuthVerifier.conclusion 的实现）：先验门（锁屏会话），进了门才问账号。永不抛错，出错 fail closed。
+ * 网关结论（AuthVerifier.conclusion 的实现）：先验门（进站会话），进了门才问账号。永不抛错，出错 fail closed。
  * @param {Record<string, any>} env 已换好密钥字符串的 env
  * @param {string} cookieHeader 浏览器发来的 Cookie 头（原样）
  * @param {any} [clientContext] { ua, country, city }（转给账号 Worker 刷设备 lastSeen 用）

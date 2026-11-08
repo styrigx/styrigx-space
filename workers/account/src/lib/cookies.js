@@ -1,5 +1,5 @@
 /**
- * 读请求 Cookie 头的唯一实现（锁屏会话、账号会话、短票都用它）。
+ * 读请求 Cookie 头的唯一实现（进站会话、账号会话、短票都用它）。
  *
  * 规则（和以前各处手写的解析逐字一致）：
  * - 按 ';' 切开，每段去首尾空白，第一个 '=' 前是名字，后面整段是值（值里再有 '=' 原样保留）
@@ -10,7 +10,7 @@
  * 只读不验：拿到值以后由各自的 parse / verify 判断格式和签名。
  */
 
-/* 清除 cookie 时追加的过期时间（网关 src/core/realms.js 原样再导出 COOKIE_EXPIRED） */
+/* 清除 cookie 时追加的过期时间 */
 export const COOKIE_EXPIRED = 'Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
 
 /** RPC 转来的 Cookie 头的长度上限（rpc/account-verifier.js verifierRequest；网关 / 分享 Worker 同一个值） */

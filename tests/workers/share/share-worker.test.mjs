@@ -7,11 +7,11 @@
  * D1：有 node:sqlite 时真 SQL（migrations + lib/links.js 的语句）和内存替身各跑一遍；Node 20 只跑内存替身。
  *
  * - 规则：码 128 位、目标只收站内相对路径（防开放重定向）、有效期 / 会话档位和网关一致、会话不超过有效期
- * - 生成：带会话 → 网关签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；网关再验一次锁屏进门会话（不问账号会话）
+ * - 生成：带会话 → 网关签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；网关再验一次进站会话（不问账号会话）
  * - 点开：带会话 → 临时钥匙进门的会话（by=tempkey，票里带 tempkeyId）（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；已进门的人点开不降级；
  *   预取 / HEAD 不发会话；不存在 / 过期 / 作废 / 格式不对 → 同一个响应；限速
  * - 作废：带会话的连钥匙一起作废，已发出的临时会话下一个请求就进不来
- * - 权限：只认锁屏进门会话（不问账号会话）；生成 / 作废另要锁侧复验（401 reauth）、没会话 401、跨源 403
+ * - 权限：只认进站会话（不问账号会话）；生成 / 作废另要锁侧复验（401 reauth）、没会话 401、跨源 403
  * - 路由：/s/*、/api/share* 归短链 Worker，网关的接口和页面一条没被抢
  */
 import { test } from 'node:test';
@@ -189,7 +189,7 @@ test('wrangler.toml：名字、不开 workers.dev / 预览地址、两条路由�
   assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/s/*', 'styrigx.com/api/share*']);
   assert.match(t, /binding = "AUTH"\nservice = "styrigx-auth-gateway"\nentrypoint = "AuthVerifier"/);
   assert.match(t, /binding = "ISSUER"\nservice = "styrigx-auth-gateway"\nentrypoint = "ShareIssuer"/);
-  assert.doesNotMatch(t, /ACCOUNT_VERIFIER|AccountVerifier|service = "styrigx-account"/, '短链只认锁屏进门会话，正式和 preview 都不绑账号 Worker');
+  assert.doesNotMatch(t, /ACCOUNT_VERIFIER|AccountVerifier|service = "styrigx-account"/, '短链只认进站会话，正式和 preview 都不绑账号 Worker');
   /* 正式 D1 = 主站共用库 styrigx-space-gateway（2026-11 合库；网关 / 短链 / 监测各自的迁移记录表） */
   assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-space-gateway"\ndatabase_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"\nmigrations_dir = "migrations"\nmigrations_table = "d1_migrations_share"\n/);
   assert.doesNotMatch(t, /database_name = "styrigx-share"|59bddcea-17cb-466a-90c9-16606d5b4b7e/, '旧库 styrigx-share 不再绑定');
