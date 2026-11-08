@@ -13,6 +13,7 @@ import { mountAiChat } from '../../../js/shell/ai-panel.js';
 import { onKeyboardHeight } from '../../../js/shell/vk.js';
 import * as prefs from '../../../js/lib/prefs-write.js';
 import { mountShare } from '../../../js/shell/share-button.js';
+import * as terminal from '../../../js/shell/terminal.js';
 
 function boot() {
   mountTopbar({
@@ -36,6 +37,8 @@ function boot() {
     },
     ai: mountAiChat,
     share: mountShare,
+    /* 全站终端（Ctrl / ⌘ K、NAVIGATE「$ terminal」；2026-11 PR-2） */
+    terminal,
     keyboard: onKeyboardHeight,
   });
 }

@@ -27,7 +27,7 @@ async function gotoWithLayout(page, layout) {
     try { localStorage.setItem('sgx-layout', l); } catch (e) {}
   }, layout);
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#home-widgets')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('#home-hero')).toBeVisible({ timeout: 15000 });
 }
 
 function boxesIntersect(a, b) {
@@ -62,7 +62,7 @@ test('?layout=auto 能重置偏好', async ({ page }) => {
     try { localStorage.setItem('sgx-layout', 'pc'); } catch (e) {}
   });
   await page.goto('/?layout=auto', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#home-widgets')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('#home-hero')).toBeVisible({ timeout: 15000 });
   const saved = await page.evaluate(() => {
     try { return localStorage.getItem('sgx-layout'); } catch (e) { return null; }
   });

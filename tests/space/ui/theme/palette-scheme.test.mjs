@@ -300,9 +300,10 @@ test('按钮 / 开关 / 进度在 CSS 里读填充档：--sgx-btn-primary-* = pr
 
 test('大面积块中性化：首页名片 = 中性玻璃卡（不是 primary-container）；夜间时钟不是渐变深色块；状态页 / 安全状态的「正常」读 success 不读 tertiary', () => {
   const home = readFileSync(path.join(REPO, 'space/web/layouts/index.html'), 'utf8');
+  /* 2026-11 PR-2：名片并进首屏 hero（不再是卡片，直接铺在页面底上），仍不用任何 *-container 大色块 */
   const prof = home.match(/<div id="w-profile" class="([^"]+)"/)[1];
-  assert.match(prof, /\bbg-m-container-lowest\b/);
-  assert.doesNotMatch(prof, /primary-container|secondary-container|tertiary-container/);
+  assert.equal(prof, 'home-id');
+  assert.doesNotMatch(home.slice(home.indexOf('id="home-hero"'), home.indexOf('id="home-term"')), /primary-container|secondary-container|tertiary-container/);
   assert.doesNotMatch(CSS, /\.clock-night \{[^}]*linear-gradient/);
   assert.match(CSS, /\.st-banner\[data-state="up"\] \{ background-color: var\(--sgx-success-container\)/);
   assert.match(CSS, /\.st-chip\[data-state="up"\] \.st-dot \{ background-color: var\(--sgx-success\); \}/);

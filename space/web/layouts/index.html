@@ -16,28 +16,61 @@
    必须用 safeHTML 输出：Go 的 html/template 会删掉模板里的 HTML 注释，以前这两个标记根本没进页面，
    锁屏态也整份下发了桌面（2026-10-21 查到）。解锁后前端换到干净地址重新取页面（lock.js proceed）。 */}}
 {{ "<!-- SGX-DESKTOP-START -->" | safeHTML }}
-<div class="home-wrap">
+{{/* 2026-11 UI 重设计 PR-2（设计稿 term-v1，只作参考；Gray 07:41：照现有功能做，只换外观，不删功能 / 内容）：
+   首屏 = 居中的 hero（状态胶囊 · $ whoami · 名字 · 一行副标题 + 闪烁光标 · # 介绍）+ 嵌入的真终端（引擎 shell/terminal.js，同全站抽屉一个实例）。
+   原名片（头像、名字、签名，/api/profile 覆盖）整块保留在 hero 里（#w-profile，换成居中样式）；日刻今日一句、我的屏幕时间、旷野分类入口都保留，换成「[0n] // 名字」分节。
+   新增 [01] 博客 · 最新 3 篇（构建期从博客分区取，cd blog 滚到这里）。各节带 data-term-dir（终端 cd 的落点）和 data-term-label（落点提示）。
+   内容宽 = 顶栏内容宽（--sgx-content-w 1080 + --sgx-tb-pad），和顶栏左右对齐。 */}}
+{{ $h := $tr.home }}
+{{ $user := $tr.shell.term.user }}
+<div class="home-wrap home-term-wrap">
 
-  <!-- 小组件网格 -->
-  <div id="home-widgets" class="grid grid-cols-4 lg:grid-cols-8 gap-3">
-
-    <!-- 名片 -->
-    <div id="w-profile" class="widget sgx-flat col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-6 sm:p-7 flex items-center gap-5 animate-fade-up" style="animation-delay:.08s">
-      {{/* 2026-11-07 个人资料：名字、签名、头像替代文字先画 data/profile.yaml 的默认值，lib/profile.js 用 /api/profile（账号 › 个人资料改的值）覆盖（data-sgx-profile） */}}
-      <img src="/avatar/192.webp" alt="{{ $profile.name }}" translate="no" data-sgx-personal data-sgx-profile="name" data-sgx-profile-attr="alt" width="96" height="96" fetchpriority="high" class="prof-av w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover shadow shrink-0" data-sgx-avatar="192">
-      <div class="min-w-0">
-        <h1 class="text-3xl sm:text-4xl font-extrabold" translate="no" data-sgx-personal data-sgx-profile="name">{{ $profile.name }}</h1>
-        <p class="prof-motto mt-1.5 text-sm leading-relaxed" translate="no" data-sgx-personal data-sgx-profile="motto">{{ $profile.motto }}</p>
-      </div>
+  <section id="home-hero" class="home-hero" aria-labelledby="home-name">
+    <p class="home-pill"><i aria-hidden="true"></i><span class="home-pr" aria-hidden="true">$</span> <span data-home-status translate="no">{{ $h.status }}</span></p>
+    {{/* 名片（原 #w-profile）：头像、名字、签名；lib/profile.js 用 /api/profile 覆盖（data-sgx-profile） */}}
+    <div id="w-profile" class="home-id">
+      <img src="/avatar/192.webp" alt="{{ $profile.name }}" translate="no" data-sgx-personal data-sgx-profile="name" data-sgx-profile-attr="alt" width="96" height="96" fetchpriority="high" class="prof-av home-av" data-sgx-avatar="192">
+      <p class="home-who" translate="no"><span class="home-pr" aria-hidden="true">$</span> whoami</p>
+      <h1 id="home-name" class="home-name" translate="no" data-sgx-personal data-sgx-profile="name">{{ $profile.name }}</h1>
+      <p class="home-role"><span class="home-pr" aria-hidden="true">$</span> {{ $h.role }}<span class="home-cur" aria-hidden="true"></span></p>
+      <p class="home-intro"><span class="home-pr" aria-hidden="true">#</span> {{ $h.intro }}</p>
+      <p class="prof-motto home-motto" translate="no" data-sgx-personal data-sgx-profile="motto">{{ $profile.motto }}</p>
     </div>
 
-    <!-- 日刻 · 今日一句（2026-10-20）：读 /daymark/api/today（公开只读；合并 PR3 起同源），
-         整张卡点进日刻。没拿到数据前隐藏，当天没有公开句子时显示空状态 + 去记一句。
-         apps/index.js 填字；本地缓存 sgx-daymark-today 先画上次的，再静默刷新。
-         CI 测试构建（SGX_TEST_NO_WEATHER=1；名字沿用天气时代的开关，CI 命令不动）不输出：本地静态服务没有日刻接口，请求失败会让 Lighthouse errors-in-console 误报。 -->
+    {{/* 嵌入终端：真输入框 + aria-live 输出区；同一套标记见 shell-topbar.html #sgx-term */}}
+    <div id="home-term" class="sgx-term sgx-term--home" data-sgx-term="home">
+      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><b class="sgx-term-title" data-term-title translate="no">{{ $user }}: ~</b><em class="sgx-term-hint" aria-hidden="true"><span class="sgx-term-hint-l">{{ $tr.shell.term.hint }}</span><span class="sgx-term-hint-s">{{ $tr.shell.term.hintShort }}</span></em></div>
+      <div class="sgx-term-body" data-term-body>
+        <div class="sgx-term-out" data-term-out role="log" aria-live="polite" aria-label="{{ $tr.shell.term.output }}"><div class="sgx-term-ln sgx-term-o">{{ replace (replace (htmlEscape $tr.shell.term.welcome) "{help}" `<span class="sgx-term-k" translate="no">help</span>`) "{cd}" `<span class="sgx-term-k" translate="no">cd blog</span>` | safeHTML }}</div></div>
+        <form class="sgx-term-line" data-term-form autocomplete="off">
+          <label class="sgx-term-ps" for="home-term-in" data-term-ps translate="no">{{ $user }}:~$</label>
+          <span class="sgx-term-field"><input id="home-term-in" class="sgx-term-in" data-term-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="{{ $tr.shell.term.input }}" aria-keyshortcuts="Control+K Meta+K"><span class="sgx-term-ghost" data-term-ghost aria-hidden="true" hidden></span></span>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  {{/* [01] 博客 · 最新 3 篇（新增；构建期从博客分区取，同博客首页的排序 partials/blog/posts-sorted.html） */}}
+  {{ $posts := partial "blog/posts-sorted.html" (dict "pages" (where site.RegularPages "Section" "blog")) }}
+  {{ $blogUrl := partial "sgx-lang-path.html" (dict "path" "/blog/" "lang" $pageLang) }}
+  <section class="home-sec" id="blog" data-term-dir="blog" data-term-label="{{ $h.blogLabel }}" aria-labelledby="home-blog-h">
+    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[01] // BLOG</p><h2 class="home-sec-t" id="home-blog-h">{{ $h.blog }}</h2></div><a class="home-sec-more" href="{{ $blogUrl }}" translate="no">ls blog/ --all →</a></div>
+    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> ls -lt blog/ | head -3</p>
+    <ul class="home-posts" role="list">
+      {{- range first 3 $posts }}
+      <li><a class="home-post" href="{{ .RelPermalink }}"><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006-01-02" }}</time><b>{{ .Title }}</b><i>{{ replace $h.minutes "{n}" (string .ReadingTime) }}</i></a></li>
+      {{- end }}
+    </ul>
+  </section>
+
+  {{/* [02] 日刻 · 今日一句（原首页小组件，保留：卡片、数据、点进日刻都不变，只换分节外观） */}}
+  {{ $dmHome := partial "sgx-lang-path.html" (dict "path" "/daymark/" "lang" $pageLang) }}
+  <section class="home-sec" id="daymark" data-term-dir="daymark" data-term-label="{{ $h.daymarkLabel }}" aria-labelledby="home-dm-h">
+    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[02] // DAYMARK</p><h2 class="home-sec-t" id="home-dm-h">{{ $h.daymark }}</h2></div><a class="home-sec-more" href="{{ $dmHome }}" translate="no">cd daymark/ →</a></div>
+    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> cat daymark/today</p>
     {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
     {{ $dmUrl := (partial "sgx-lang-path.html" (dict "path" "/daymark/" "lang" $pageLang)) }}
-    <a id="w-daymark" href="{{ $dmUrl }}" class="widget sgx-flat dm-w col-span-4 lg:col-span-4 bg-m-container-lowest text-m-on-surface border border-m-outline p-5 sm:p-6 overflow-hidden relative animate-fade-up hidden" style="animation-delay:.32s" aria-label="{{ $tr.index.daymarkLineOfThe }}">
+    <a id="w-daymark" href="{{ $dmUrl }}" class="widget sgx-flat dm-w bg-m-container-lowest text-m-on-surface border border-m-outline p-5 sm:p-6 overflow-hidden relative animate-fade-up hidden" style="animation-delay:.32s" aria-label="{{ $tr.index.daymarkLineOfThe }}">
       <span class="dm-w-mark" aria-hidden="true">&ldquo;</span>
       <div class="relative flex items-center justify-between gap-3">
         <p class="flex items-center gap-1.5 text-xs font-semibold tracking-widest text-m-primary">
@@ -57,10 +90,15 @@
       </div>
     </a>
     {{ end }}{{/* /日刻 */}}
+  </section>
 
+  {{/* [03] 我的屏幕时间（原首页小组件，保留：wb-view.js 拉 /api/wellbeing 填字，骨架 3 行不变） */}}
+  <section class="home-sec" id="screen-time" data-term-dir="screen-time" data-term-label="{{ $h.screenLabel }}" aria-labelledby="home-st-h">
+    <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[03] // SCREEN-TIME</p><h2 class="home-sec-t" id="home-st-h">{{ $h.screen }}</h2></div></div>
+    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> screen-time --today</p>
     <!-- 数字健康 · 我的屏幕时间（B2-7：网站自己的数字健康，今天在各区域停留的时长，所有设备合计；
          骨架固定 3 行，wb-view.js 拉 /api/wellbeing 后只替换文字和宽度，不改高度） -->
-    <div id="w-screen" data-wb-root class="widget wb-full col-span-4 lg:col-span-8 bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.44s">
+    <div id="w-screen" data-wb-root class="widget wb-full bg-m-container-lowest border border-m-outline p-5 sm:p-6 animate-fade-up" style="animation-delay:.44s">
       <div class="flex items-center justify-between gap-3 mb-4">
         <p class="text-xs font-semibold uppercase tracking-widest opacity-70" data-wb-title>{{ $tr.index.myScreenTime }}</p>
         <p class="text-[11px] text-m-on-surface-variant" data-wb="when">{{ $tr.index.todayAllDevices }}</p>
@@ -77,8 +115,11 @@
       <div class="wb-bar mt-5" data-wb="bar" role="img" aria-label="{{ $tr.index.timeBreakdown }}"></div>
       <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-m-on-surface-variant min-h-[1rem]" data-wb="legend"></div>
     </div>
-  </div>
+  </section>
 
+  {{/* [04] 旷野：分类入口（原样保留，含标题带） */}}
+  <div class="home-sec home-sec--wild" id="wild" data-term-dir="wild" data-term-label="{{ $h.wildLabel }}">
+    <p class="home-sec-k" aria-hidden="true" translate="no">[04] // WILD</p>
   {{/* 分类入口（P4-3 PR-4b §11，Gray 2026-11-07）：平铺入口共享组件 partials/sgx-entries.html（奇趣分类入口以后共用），数据 data/space-cats.yaml。
        上面标题带（小字 SPACE + 大标题 旷野 + 一句话），下面每行一个入口（编号、圆底图标、名字 + 副标题、细分隔线、淡色 ›），≥ 760 两栏、≥ 1100 三栏。
        列表 aria-label="分类"（测试和读屏按它找）。地址 /<id>/（中文 /zh/<id>/）。锁屏态同首页小组件一起被剥离。 */}}
@@ -93,6 +134,7 @@
     "id" "space-entries"
     "label" ($tr.index.categories)
   ) }}
+  </div>
 
 </div>
 

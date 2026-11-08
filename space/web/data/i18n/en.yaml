@@ -6,6 +6,19 @@ notFound:
   theLinkYouFollowed: The link you followed may be broken, or the page has moved.
   backHome: Back home
   curio: Curio
+home:
+  # 主页首屏终端（2026-11 UI 重设计 PR-2）。status 是占位（真数据另做）；role 是副标题（轮换未定，先静态）
+  status: "STATUS: ONLINE · 6/6 ACTIVE"
+  role: "writing the blog, collecting curios, keeping a daymark"
+  intro: "A Personal Digital Space — one person’s corner of the web, browsable from the command line."
+  blog: Blog
+  minutes: "{n} min"
+  blogLabel: "[01] Blog · latest 3"
+  daymark: Daymark
+  daymarkLabel: "[02] Daymark · line of the day"
+  screen: Screen time
+  screenLabel: "[03] Screen time"
+  wildLabel: "[04] Wild"
 index:
   daymarkLineOfThe: Daymark · Line of the day
   daymark: DAYMARK

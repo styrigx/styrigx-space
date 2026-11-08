@@ -30,17 +30,22 @@ test('字标：单行 SVG、可访问名 Styrigx、字母 / 圆点两条路径�
   const base = rd('space/web/layouts/_default/baseof.html').toString();
   /* P5-1：字标进顶栏单一来源 shell-topbar 的 logo（主站传 partial 结果，子站传 nav.json 的 wordmark） */
   assert.match(base, /"wordmark" \(partial "shell-wordmark\.html" \.\)/);
-  /* 2026-11 顶栏 v3：logo 换成终端字标 ❯ styrigx :~$_（文字，手机也完整显示）；SVG 字标仍在 nav.json / 参数里，顶栏不再渲染 */
+  /* 2026-11 顶栏 v3 PR-2（Gray 2026-11-08）：logo = ❯ + SVG 字标（参数 .wordmark）+ 闪烁光标；不再有等宽文字 styrigx :~$ */
   const tb = rd('space/web/layouts/partials/shell-topbar.html').toString();
-  assert.match(tb, /<a class="sgx-tb-logo" href="\{\{ \.home \}\}" aria-label="\{\{ \$t\.topbar\.home \}\}"><span class="sgx-tb-ps" aria-hidden="true">❯<\/span><span class="sgx-tb-name" translate="no">styrigx<\/span><span class="sgx-tb-tl" aria-hidden="true">:~\$<\/span><span class="sgx-tb-cu" aria-hidden="true"><\/span><\/a>/);
-  assert.doesNotMatch(tb.replace(/\{\{-? \/\*[\s\S]*?\*\/ -?\}\}/g, ''), /\.wordmark \| safeHTML/);
+  assert.match(tb, /<a class="sgx-tb-logo" href="\{\{ \.home \}\}" aria-label="\{\{ \$t\.topbar\.home \}\}"><span class="sgx-tb-ps" aria-hidden="true">❯<\/span><span class="sgx-tb-name" aria-hidden="true" translate="no">\{\{ \.wordmark \| safeHTML \}\}<\/span><span class="sgx-tb-cu" aria-hidden="true"><\/span><\/a>/);
+  assert.doesNotMatch(tb, /sgx-tb-tl/);
 });
 
-test('外壳 CSS（顶栏 v3）：终端字标 ❯ 主题色、:~$ 次要色、光标主题色 1.05 秒步进闪；等宽字体 token；窄屏也是完整字标', () => {
+test('外壳 CSS（顶栏 v3 · PR-2）：❯ 主题色、SVG 字标（字母正文色、圆点跟主题色，手机 20 / 桌面 23px 高）、光标主题色 1.05 秒步进闪；窄屏也是完整字标', () => {
   const s = shellFiles()['shell.css'];
   assert.match(s, /\.sgx-tb-logo \{[^}]*font-family: var\(--sgx-font-mono\); font-size: 18px;/);
   assert.match(s, /\.sgx-tb-ps \{ color: var\(--sgx-primary\);/);
-  assert.match(s, /\.sgx-tb-tl \{ color: var\(--sgx-text-tertiary\);/);
+  assert.doesNotMatch(s, /\.sgx-tb-tl\b/, ':~$ 删了');
+  assert.match(s, /\.sgx-tb-name \{[^}]*color: var\(--sgx-text-primary\); \}/);
+  assert.match(s, /\.sgx-tb-name \.wm-dot \{ fill: var\(--sgx-primary\); \}/);
+  assert.match(s, /:root \{ --sgx-wm-h: 20px; \}/);
+  assert.match(s, /:root\[data-sgx-layout="desktop"\] \{ --sgx-wm-h: 23px; \}/);
+  assert.doesNotMatch(s, /max-width: 399\.98px/, '没有 < 400 收起');
   assert.match(s, /\.sgx-tb-cu \{[^}]*background: var\(--sgx-primary\);[^}]*animation: sgx-tb-blink 1\.05s steps\(1\) infinite; \}/);
   assert.match(s, /--sgx-font-mono: ui-monospace,/);
   assert.doesNotMatch(s, /\.sgx-tb-logo \{ display: none; \}|\.sgx-tb-mark/, '没有窄屏藏字标 / 换图标版');

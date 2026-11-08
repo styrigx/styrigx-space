@@ -14,6 +14,9 @@
  * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
  * - 立即锁定：调用方传 onLock（主站：确认层 auth/lock-now.js）；不传（子站）= 按钮点两下确认（第一下字变「再点一下锁定」，3 秒内再点），
  *   POST /api/lock-now（同源网关）后回到锁屏 /?lock=1。
+ * - 终端（2026-11 UI 重设计 PR-2）：调用方传 terminal（shell/terminal.js 整个模块；本文件仍不 import）。每页一个引擎实例，接两处视图：
+ *   主页首屏嵌入的 [data-sgx-term="home"] 和全站抽屉 #sgx-term（模态 <dialog>，Esc / 点遮罩关）。
+ *   Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」：主页上聚焦首屏终端，其他页开合抽屉。命令的动作（滚动 / 跳转 / 外观 / 锁屏 / AI）都在这里接。
  */
 
 const QP_MS = 240;
@@ -82,6 +85,7 @@ export function resolveLang(v, nav, langs) {
  *   ai?: (dlg: HTMLDialogElement, o: { lang: 'zh'|'en', close: Function, navigate: Function, keyboard?: Function }) => ({ onOpen?: () => void } | void),
  *   keyboard?: (cb: (h: number) => void) => () => void,
  *   share?: (cfg: { button: Element }) => any,
+ *   terminal?: any,
  *   subscribe?: (repaint: () => void) => void,
  *   reload?: () => void,
  *   doc?: Document,
@@ -305,6 +309,7 @@ export function mountTopbar(o) {
         if (c) {
           const id = c.getAttribute('data-qp');
           if (id === 'share') return; /* share.js 自己接这一下 */
+          if (id === 'term') { ms.close(function () { window.setTimeout(openTerm, 0); }); return; }
           if (id === 'lock') {
             if (o.onLock) { ms.close(o.onLock); return; }
             if (lockArmed) { disarm(); ms.close(lockNow); return; }
@@ -421,9 +426,147 @@ export function mountTopbar(o) {
     });
   }
 
+  /* ---------------- 终端（2026-11 PR-2） ---------------- */
+  /** @type {any} */
+  let termSheet = null;
+  /** @type {any} */
+  let homeView = null;
+  /** @type {any} */
+  let drawerView = null;
+  /** @type {any} */
+  let term = null;
+  const T = o.terminal;
+  const termDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-term'));
+  const homeTerm = doc.querySelector('[data-sgx-term="home"]');
+  const reducedM = function () {
+    try { return doc.documentElement.classList.contains('reduced-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  };
+  /** 先关掉开着的顶栏窗口 / 抽屉，再做 f（放到下一个任务里：哨兵出栈的 popstate 还要派给别的窗口，同一个事件里开新窗口会被当成「系统返回」关掉，同上面的互斥） */
+  const closeAll = function (/** @type {() => void} */ f) {
+    const later = function () { window.setTimeout(f, 0); };
+    if (termSheet && termSheet.isOpen()) { termSheet.close(later); return; }
+    const open = sheets.find(function (x) { return x.ms.isOpen(); });
+    if (open) { open.ms.close(later); return; }
+    f();
+  };
+  /** 开抽屉；正在滑出收起（哨兵还没出栈）时等它收完再开（最多约 1 秒） */
+  const openDrawer = function (/** @type {number} */ n) {
+    if (!termSheet) return;
+    if (!termSheet.isOpen()) { termSheet.open(); return; }
+    const left = typeof n === 'number' ? n : 16;
+    if (!termSheet.isShown() && left > 0) window.setTimeout(function () { openDrawer(left - 1); }, 60);
+  };
+  /** 打开终端：主页聚焦首屏那个（滚到视野里），其他页开抽屉 */
+  const openTerm = function () {
+    if (homeView) { homeView.focus({ scroll: true }); return; }
+    openDrawer();
+  };
+  if (T && typeof T.createShell === 'function' && (homeTerm || termDlg)) {
+    const tile = function (/** @type {string} */ id) { return /** @type {HTMLAnchorElement|null} */ (navDlg ? navDlg.querySelector('a.sgx-nav-tile[data-nav="' + id + '"]') : null); };
+    const hrefOf = function (/** @type {string} */ id, /** @type {string} */ dflt) { const a = tile(id); return a ? a.href : dflt; };
+    const cur = navDlg ? navDlg.querySelector('a.sgx-nav-tile[aria-current="page"]') : null;
+    const curId = cur ? cur.getAttribute('data-nav') || '' : '';
+    term = T.createShell({
+      str: T.termStrings(doc),
+      cwd: homeTerm ? '~' : ['blog', 'curio', 'daymark'].indexOf(curId) >= 0 ? curId : '~',
+      act: {
+        cd: function (/** @type {string} */ dir) {
+          /* 主页上有这一节（[data-term-dir]）就滚过去；~ 回到首屏终端；其余去那个站 */
+          if (homeTerm) {
+            const sec = dir === '~' ? doc.getElementById('home-hero') : doc.querySelector('[data-term-dir="' + dir + '"]');
+            if (sec) {
+              try { sec.scrollIntoView({ behavior: reducedM() ? 'auto' : 'smooth', block: 'start' }); } catch (e) {}
+              return { kind: 'scroll', label: dir === '~' ? '' : sec.getAttribute('data-term-label') || dir };
+            }
+          }
+          const href = hrefOf(dir === '~' ? 'home' : dir, '/');
+          return { kind: 'nav', href: href, go: function () { closeAll(function () { navigate(href); }); } };
+        },
+        sudo: function (/** @type {string} */ which) {
+          const a = /** @type {HTMLAnchorElement|null} */ (doc.querySelector(which === 'account' ? '#site-nav .sgx-tb-av' : '#site-nav .sgx-tb-shield'));
+          const href = a ? a.href : which === 'account' ? '/account/' : '/security/';
+          return { href: href, go: function () { closeAll(function () { navigate(href); }); } };
+        },
+        theme: function (/** @type {string} */ mode) {
+          if (!mode) { closeAll(function () { if (qp) qp.ms.open(); }); return; }
+          P.setTheme(/** @type {any} */ (mode === 'auto' ? 'system' : mode));
+          paint();
+        },
+        lock: function () {
+          closeAll(function () {
+            if (o.onLock) o.onLock();
+            else {
+              const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
+              if (f) f('/api/lock-now', { method: 'POST', credentials: 'include' }).then(function (r) { if (r && r.ok) replace('/?lock=1'); }, function () {});
+            }
+          });
+        },
+        ask: function (/** @type {string} */ q) {
+          closeAll(function () {
+            if (!ai || !aiDlg) return;
+            if (!ai.ms.isOpen()) ai.ms.open();
+            if (!q) return;
+            window.setTimeout(function () {
+              const inp = /** @type {HTMLTextAreaElement|null} */ (aiDlg.querySelector('[data-ai-in]'));
+              const fm = /** @type {HTMLFormElement|null} */ (aiDlg.querySelector('[data-ai-form]'));
+              if (!inp || !fm) return;
+              inp.value = q.slice(0, inp.maxLength > 0 ? inp.maxLength : 200);
+              inp.dispatchEvent(new Event('input', { bubbles: true }));
+              if (fm.requestSubmit) fm.requestSubmit();
+              else fm.dispatchEvent(new Event('submit', { cancelable: true }));
+            }, 0);
+          });
+        },
+        today: function () {
+          const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
+          if (!f) return Promise.reject(new Error('no fetch'));
+          return f('/daymark/api/today', { credentials: 'same-origin' }).then(function (r) {
+            if (!r || !r.ok) throw new Error('http');
+            return r.json();
+          }).then(function (/** @type {any} */ j) {
+            const q = j && j.quote;
+            if (!q || !q.text) return null;
+            const by = [q.author, q.source].filter(Boolean).join(' · ');
+            return { text: String(q.text), by: by ? '— ' + by : '' };
+          });
+        },
+        daymarkHref: function () { return hrefOf('daymark', '/daymark/'); },
+      },
+    });
+    if (homeTerm) homeView = T.mountTermView(homeTerm, term, { autoHelp: true });
+    if (termDlg && !homeTerm && typeof termDlg.showModal === 'function') {
+      const opener = navBtn || /** @type {HTMLElement} */ (doc.body);
+      const coarse = function () { try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
+      termSheet = o.modalSheet(termDlg, opener, {
+        ms: QP_MS,
+        stateKey: 'sgxTerm',
+        onOpen: function () {
+          if (!drawerView) drawerView = T.mountTermView(termDlg.querySelector('[data-sgx-term]') || termDlg, term, {});
+          /* 触屏不直接聚焦输入框（会弹键盘 / 桌面版网站下放大），点一下输入行再打字 */
+          if (drawerView && !coarse()) drawerView.focus();
+        },
+        onClosed: function () {
+          const a = doc.activeElement;
+          if (!a || a === doc.body || termDlg.contains(a)) { try { opener.focus({ preventScroll: true }); } catch (e) {} }
+        },
+      });
+      /* 点遮罩（抽屉外）关 */
+      termDlg.addEventListener('click', function (e) { if (e.target === termDlg && termSheet) termSheet.close(); });
+    }
+    /* Ctrl / ⌘ K：主页聚焦首屏终端；其他页开合抽屉（输入法组字时不理） */
+    doc.addEventListener('keydown', function (e) {
+      if (e.isComposing || e.altKey || e.shiftKey || !(e.ctrlKey || e.metaKey) || (e.key !== 'k' && e.key !== 'K')) return;
+      e.preventDefault();
+      if (homeView) { closeAll(function () { homeView.focus({ scroll: true }); }); return; }
+      if (!termSheet) return;
+      if (termSheet.isShown()) termSheet.close();
+      else closeAll(openDrawer);
+    });
+  }
+
   mountProgress(doc);
   mountClock(doc);
-  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, paint: paint, paintNav: paintNav };
+  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, term: termSheet, termShell: term, paint: paint, paintNav: paintNav };
 }
 
 /**

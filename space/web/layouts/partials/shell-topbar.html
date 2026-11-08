@@ -2,7 +2,7 @@
    主站（baseof.html）和三个子站（blog/topnav.html、curio/daymark baseof.html）都直接调这一份；space/scripts/gen-shell.mjs 核对它只用参数：
    不能调用任何别的 partial、不能读 site.Data，要用的东西全由调用方传进来（站点自己的页名 / 标签、图标、色板都是参数）。
    结构：<header id="site-nav"> 通栏 .sgx-topbar（底边一条 1px 线，内容宽 = --sgx-content-w，1080）=
-     [字标 ❯ styrigx :~$_（光标 1.05s 闪）] [.sgx-tb-pill：页名（v3 不显示，标记留着给子站脚本 / 锁屏抄）] [外观 · 盾牌（安全页）· 分隔 · >_（NAVIGATE）· 头像（账号页）]；
+     [字标 ❯ + SVG 字标 Styrigx + _（光标 1.05s 闪；2026-11 PR-2 起不再是等宽文字 styrigx :~$）] [.sgx-tb-pill：页名（v3 不显示，标记留着给子站脚本 / 锁屏抄）] [外观 · 盾牌（安全页）· 分隔 · >_（NAVIGATE）· 头像（账号页）]；
      底边 .sgx-tb-prog 滑页进度条（JS 写 --sgx-prog）；右下角 AI 浮钮 .sgx-tb-ai（打开 AI 窗口）。三个窗口都是非模态 <dialog>、互斥：
      #sgx-nav NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻 05 旷野（当前站「开」态）→ lang / layout 分段 → share / lock → STATUS → systemctl status · esc 关闭；
      #sgx-qp  外观：MODE（跟随系统 / 深 / 浅）+ PALETTE（色板列表 + 恢复默认）；
@@ -17,7 +17,7 @@
      nav         shell-nav.json（items：id icon origin path hint；名字在 tr.nav.<id>.title）；site 当前项的 nav id（NAVIGATE「开」态、计数 01/05）
      mainOrigin  主站项（origin 为 styrigx.com、不是子站的项）地址前缀：主站不传（同源相对 /）；子站传 https://styrigx.com
      icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term tb-chat lock tb-undo share tb-send tb-newchat tb-history
-     wordmark    旧字标 SVG（v3 起顶栏不用，调用方照传无妨）
+     wordmark    字标 SVG（partials/shell-wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
      security    盾牌（站点安全）链接：主站安全页（当前语言）
      status      NAVIGATE 底部「systemctl status」链接：主站服务状态页（当前语言）
      acct        头像链接（账号页）；avatar 头像图片地址（顶栏头像 + AI 窗口头部）
@@ -31,7 +31,7 @@
 {{- $n := 0 }}{{ $cur := 0 }}{{ range .nav.items }}{{ $n = add $n 1 }}{{ if eq .id $.site }}{{ $cur = $n }}{{ end }}{{ end -}}
 <header id="site-nav" class="z-50{{ with .headerClass }} {{ . }}{{ end }}"{{ with .headerAttrs }} {{ . | safeHTMLAttr }}{{ end }}>
   <div class="sgx-topbar">
-    <a class="sgx-tb-logo" href="{{ .home }}" aria-label="{{ $t.topbar.home }}"><span class="sgx-tb-ps" aria-hidden="true">❯</span><span class="sgx-tb-name" translate="no">styrigx</span><span class="sgx-tb-tl" aria-hidden="true">:~$</span><span class="sgx-tb-cu" aria-hidden="true"></span></a>
+    <a class="sgx-tb-logo" href="{{ .home }}" aria-label="{{ $t.topbar.home }}"><span class="sgx-tb-ps" aria-hidden="true">❯</span><span class="sgx-tb-name" aria-hidden="true" translate="no">{{ .wordmark | safeHTML }}</span><span class="sgx-tb-cu" aria-hidden="true"></span></a>
     <div class="sgx-tb-pill{{ with .pillClass }} {{ . }}{{ end }}">{{ .center | safeHTML }}</div>
     <div class="sgx-tb-acts">
       <button type="button" class="sgx-tb-btn sgx-tb-quick" aria-label="{{ $t.topbar.theme }}" title="{{ $t.topbar.theme }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ index $i "tb-palette" | safeHTML }}</button>
@@ -72,6 +72,8 @@
     <div class="sgx-nav-act">
       <button type="button" class="sgx-nav-btn" data-qp="share" data-sgx-share aria-label="{{ $t.topbar.share }}">{{ index $i "share" | safeHTML }}<span>{{ $t.topbar.shareKey }}</span></button>
       <button type="button" class="sgx-nav-btn" data-qp="lock" aria-label="{{ $t.topbar.lock }}">{{ index $i "lock" | safeHTML }}<span data-qp-lock-state>{{ $t.topbar.lockKey }}</span></button>
+      {{- /* 终端（2026-11 PR-2）：关面板后打开全站终端抽屉 #sgx-term（主页上改为聚焦首屏那一个），同 Ctrl / ⌘ K */}}
+      <button type="button" class="sgx-nav-btn" data-qp="term" aria-label="{{ $t.term.drawer }}" aria-keyshortcuts="Control+K Meta+K"><b class="sgx-nav-term-ps" aria-hidden="true">$</b><span translate="no">{{ $t.term.open }}</span></button>
     </div>
     {{- /* STATUS：六个单元的占位（PR-1 先放占位「—」：现有监测只覆盖主站 / AI，要登录态接口；接真数据另做） */}}
     <div class="sgx-nav-st" data-nav-status>
@@ -94,7 +96,7 @@
       <button type="button" class="palette-reset" data-qp-reset aria-disabled="true">{{ index $i "tb-undo" | safeHTML }}<span>{{ $t.topbar.reset }}</span></button>
     </div>
     <div class="sgx-th-pals" role="group" aria-labelledby="sgx-th-pal">
-      {{- range .pal }}<button type="button" class="sgx-th-pal" data-qp-palette="{{ .id }}" style="{{ .style | safeCSS }}" aria-pressed="false"><span class="sgx-th-sw" aria-hidden="true"><u></u><u></u></span><span class="sgx-th-name">{{ index $t.palette .id }}</span><em aria-hidden="true">✓</em></button>{{ end }}
+      {{- range .pal }}<button type="button" class="sgx-th-pal" data-qp-palette="{{ .id }}" style="{{ .style | safeCSS }}" aria-pressed="false"><span class="sgx-th-sw" aria-hidden="true"><u></u><u></u><u></u><u></u><u></u><u></u></span><span class="sgx-th-name">{{ index $t.palette .id }}</span><em aria-hidden="true">✓</em></button>{{ end }}
     </div>
   </div>
 </dialog>
@@ -113,6 +115,19 @@
       <button type="submit" class="sgx-ai-send" aria-label="{{ $t.topbar.send }}">{{ index $i "tb-send" | safeHTML }}</button>
     </form>
     <p class="sgx-ai-foot"><span class="sgx-ai-scope" data-ai-scope>{{ $t.topbar.publicOnly }}</span><span class="sgx-ai-dot" aria-hidden="true">·</span><a class="sgx-ai-contact" data-ai-contact{{ with .email }} href="mailto:{{ . }}"{{ end }}>{{ $t.topbar.contact }}</a></p>
+  </div>
+</dialog>
+{{- /* 全站终端抽屉（2026-11 PR-2，设计稿 term-v1）：Ctrl / ⌘ K 或 NAVIGATE 里的「$ terminal」打开，Esc 关；引擎 shell/terminal.js（主页首屏嵌入的终端用同一套标记、同一个引擎实例） */}}
+<dialog id="sgx-term" class="sgx-term-dlg" aria-label="{{ $t.term.drawer }}">
+  <div class="sgx-term sgx-term--drawer" data-sgx-term="drawer">
+    <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><b class="sgx-term-title" data-term-title translate="no">{{ $t.term.user }}: ~</b><em class="sgx-term-hint" aria-hidden="true">{{ $t.term.hintShort }}</em></div>
+    <div class="sgx-term-body" data-term-body>
+      <div class="sgx-term-out" data-term-out role="log" aria-live="polite" aria-label="{{ $t.term.output }}"><div class="sgx-term-ln sgx-term-o">{{ replace (replace (htmlEscape $t.term.welcome) "{help}" `<span class="sgx-term-k" translate="no">help</span>`) "{cd}" `<span class="sgx-term-k" translate="no">cd blog</span>` | safeHTML }}</div></div>
+      <form class="sgx-term-line" data-term-form autocomplete="off">
+        <label class="sgx-term-ps" for="sgx-term-in" data-term-ps translate="no">{{ $t.term.user }}:~$</label>
+        <span class="sgx-term-field"><input id="sgx-term-in" class="sgx-term-in" data-term-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="{{ $t.term.input }}" autofocus><span class="sgx-term-ghost" data-term-ghost aria-hidden="true" hidden></span></span>
+      </form>
+    </div>
   </div>
 </dialog>
 {{- /* 外壳 JS（topbar.js / ai.js / share.js）的文案：同一张外壳字符串表，只出当前语言（已叠在英文上） */}}

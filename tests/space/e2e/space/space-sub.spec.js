@@ -467,7 +467,7 @@ test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async
   await pinLang(pg, 'zh');
   await blockExternalRequests(pg);
   await pg.goto('/zh/', { waitUntil: 'domcontentloaded' });
-  await expect(pg.locator('#home-widgets')).toBeVisible({ timeout: 15000 });
+  await expect(pg.locator('#home-hero')).toBeVisible({ timeout: 15000 });
   for (const sel of ['[data-dock="store"]', '[data-navpage="store"]', 'a[href="/store/"]', 'a[href="/ai/"]', 'a[href="/books/"]', 'a[href="/music/"]', 'a[href="/goodlock/"]', '#np-widget', '#books', '#music', '[data-appid]']) {
     await expect(pg.locator(sel), sel).toHaveCount(0);
   }

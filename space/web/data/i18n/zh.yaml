@@ -4,6 +4,18 @@ notFound:
   theLinkYouFollowed: 你访问的链接可能已失效，或页面已经搬家。
   backHome: 回首页
   curio: 奇趣
+home:
+  status: "STATUS: ONLINE · 6/6 ACTIVE"
+  role: "写博客，收集奇趣，记日刻"
+  intro: "A Personal Digital Space — 一个人的数字空间，命令行也能逛。"
+  blog: 博客
+  minutes: "{n} 分钟"
+  blogLabel: "[01] 博客 · 最新 3 篇"
+  daymark: 日刻
+  daymarkLabel: "[02] 日刻 · 今日一句"
+  screen: 屏幕时间
+  screenLabel: "[03] 屏幕时间"
+  wildLabel: "[04] 旷野"
 index:
   daymarkLineOfThe: 日刻 · 今日一句
   daymark: 日刻

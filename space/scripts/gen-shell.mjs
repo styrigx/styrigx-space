@@ -51,6 +51,7 @@ const SRC = {
   segtabs: path.join(REPO, 'space/web/layouts/partials/sgx-segtabs.html'),
   footer: path.join(REPO, 'space/web/layouts/partials/sgx-footer.html'),
   topbarJs: path.join(REPO, 'space/web/assets/js/shell/topbar-panel.js'),
+  terminal: path.join(REPO, 'space/web/assets/js/shell/terminal.js'),
   modalSheet: path.join(REPO, 'space/web/assets/js/shell/modal-sheet.js'),
   ai: path.join(REPO, 'space/web/assets/js/shell/ai-panel.js'),
   vk: path.join(REPO, 'space/web/assets/js/shell/vk.js'),
@@ -63,7 +64,7 @@ const SRC = {
 };
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
-export const SHELL_REGIONS = ['topbar-frame', 'panel', 'entries', 'inpage', 'wide'];
+export const SHELL_REGIONS = ['topbar-frame', 'panel', 'entries', 'inpage', 'wide', 'terminal'];
 /* 导航项以外外壳要用的图标（2026-11-04 P5-1；2026-11 顶栏 v3）：顶栏（外观调色盘、盾牌、>_ NAVIGATE）、AI 浮钮、NAVIGATE 的 share / lock、外观面板恢复默认、AI 发送 / 新对话 / 历史。
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
 export const EXTRA_ICONS = ['tb-palette', 'tb-shield', 'tb-term', 'tb-chat', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history'];
@@ -209,7 +210,7 @@ export function renderTopbar() {
   const src = readFileSync(SRC.topbar, 'utf8');
   const code = src.replace(/\{\{-?\s*\/\*[\s\S]*?\*\/\s*-?\}\}/g, '');
   if (/\{\{-?\s*partial(Cached)?\s/.test(code) || /site\.Data|hugo\.Data|resources\.|\.Site\b|\$\.Page\b/.test(code)) throw new Error('shell-topbar.html 只能用传进来的参数（不能调 partial / 读 site.Data / resources）');
-  if (!/<header id="site-nav"/.test(src) || !/id="sgx-nav"/.test(src) || !/id="sgx-qp"/.test(src) || !/id="sgx-ai"/.test(src)) throw new Error('shell-topbar.html 缺 header#site-nav / #sgx-nav / #sgx-qp / #sgx-ai');
+  if (!/<header id="site-nav"/.test(src) || !/id="sgx-nav"/.test(src) || !/id="sgx-qp"/.test(src) || !/id="sgx-ai"/.test(src) || !/id="sgx-term"/.test(src)) throw new Error('shell-topbar.html 缺 header#site-nav / #sgx-nav / #sgx-qp / #sgx-ai / #sgx-term');
   return src;
 }
 
@@ -311,6 +312,7 @@ export function renderAll() {
   renderSegtabs();
   renderFooter();
   renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar');
+  renderStandalone(SRC.terminal, 'terminal.js', 'createShell');
   renderStandalone(SRC.modalSheet, 'modal-sheet.js', 'modalSheet');
   renderStandalone(SRC.ai, 'ai-panel.js', 'mountAiChat');
   renderStandalone(SRC.vk, 'vk.js', 'onKeyboardHeight');
@@ -343,6 +345,7 @@ export const SHELL_FILES = Object.freeze({
   'segtabs.html': 'space/web/layouts/partials/sgx-segtabs.html',
   'footer.html': 'space/web/layouts/partials/sgx-footer.html',
   'topbar.js': 'space/web/assets/js/shell/topbar-panel.js',
+  'terminal.js': 'space/web/assets/js/shell/terminal.js',
   'modal-sheet.js': 'space/web/assets/js/shell/modal-sheet.js',
   'ai.js': 'space/web/assets/js/shell/ai-panel.js',
   'vk.js': 'space/web/assets/js/shell/vk.js',

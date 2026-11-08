@@ -31,6 +31,7 @@ import { mountTopbar } from './topbar-panel.js';
 import { mountAiChat } from './ai-panel.js';
 import { onKeyboardHeight } from './vk.js';
 import { mountShare } from './share-button.js';
+import * as terminal from './terminal.js';
 
 /** 语言偏好（sgx-lang：配置里的语言；'system' / 旧版没存 = 跟随系统） @returns {string} */
 function langPref() {
@@ -61,6 +62,8 @@ export function initQuickPanel() {
     replace: sgxReplace,
     ai: mountAiChat,
     share: mountShare,
+    /* 全站终端（Ctrl / ⌘ K、NAVIGATE「$ terminal」；2026-11 PR-2） */
+    terminal,
     keyboard: onKeyboardHeight,
     /* 设置页（或别的标签页）改了同一项：面板开着时即时重绘 */
     subscribe: function (repaint) {
