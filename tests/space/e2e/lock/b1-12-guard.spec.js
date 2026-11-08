@@ -35,7 +35,7 @@ test.describe('B1-12 守护：添加通行密钥', () => {
     /* 门内页探针通过（账号体系：原锁屏凭证门已移除，添加通行密钥在锁屏门内页测） */
     await mockJson(page, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: true });
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true, ticket: 'lock-reauth', password: true, passkey: true });
-    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'root' });
+    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [] });
   });
 
   test('点击后 1 秒内调 credentials.create，成功弹命名弹层', async ({ page }) => {
@@ -68,7 +68,7 @@ test.describe('B1-12 守护：添加通行密钥', () => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ ok: true, keys: [], scope: 'root' }),
+          body: JSON.stringify({ ok: true, keys: [] }),
         });
       }
     });
@@ -140,7 +140,7 @@ test.describe('B1-12 守护：添加通行密钥', () => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ ok: true, keys: [], scope: 'root' }),
+          body: JSON.stringify({ ok: true, keys: [] }),
         });
       }
     });

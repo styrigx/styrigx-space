@@ -3,7 +3,7 @@
  * - 读网关注入的 <html data-sgx-lock-session> 判断页面状态；valid 页只绑自动锁定（切回前台问服务端，401 → 重载）
  * - locked / unknown：先同步盖一层不透明遮罩（fail closed，和以前直接画锁屏同一时刻），再 import() 锁屏界面（shell/lock.js）；
  *   界面加载失败时遮罩不撤，只给「重新加载」按钮——绝不因为脚本没取到而露出页面
- * 锁屏界面、auth-sheet / auth-flow / reset-flow / passkey-assert 这些只在锁屏时用的模块因此不在每页的 core 里。
+ * 锁屏界面、auth-sheet / auth-flow / passkey-assert 这些只在锁屏时用的模块因此不在每页的 core 里。
  * 进门二值（P2-3）：没有等级、没有升级验证层；进门之后的事（锁侧复验、账号）由各页自己要。
  * 去处判定（askServer / proceed）和本地开发判断放这里，锁屏界面从这里 import，两边是同一份。
  */

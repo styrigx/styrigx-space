@@ -43,13 +43,13 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - `/api/*` 不走锁屏跳转，未登录返回 401 JSON。
 
 ### L2 系统调用：`workers/auth-gateway/src/api/*`（路由表 `src/router.js`）
-- 解锁：`lock-password`、`lock-passkey`（进门会话）、`lock-tempkey-unlock`（临时码 → 临时钥匙进门的会话，by=tempkey）。
+- 解锁：`lock-password`、`lock-passkey`（进站会话）、`lock-tempkey-unlock`（临时码 → 临时钥匙进门的会话，by=tempkey）。
 - 查询：`lock-session-check`、`lock-credentials`、`lock-entry`（锁屏上显示哪些入口，无需会话）、`space-audit`（进站凭证使用记录）。`layer-status` 已删除（PR3，前端无调用方）。
-- 账号：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/api/profile*`、`/avatar/*` 不在这一层：网关 `src/gate.js` 验门后经服务绑定 `ACCOUNT` 转给账号 Worker（转发表 `src/router.js` 的 `FORWARDING`，见下面「账号会话」）。
+- 账号：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/api/profile*`、`/avatar/*` 不在这一层：网关 `src/gate.js` 验门后经服务绑定 `ACCOUNT` 转给账号 Worker（转发表 `src/router.js` 的 `FORWARDING`，见下面「账号」）。
 - 锁屏凭证页的再验证：`lock-reauth`（LockReauthTicket 状态 / 清票）；由 `lock-passkey`/`lock-password`（`reauth:true`）或 `space-auth`（`purpose:'lock-reauth'`）签 3 分钟 LockReauthTicket `sgx-lock-reauth`（SGX_LOCK_* 签）。
-- 进站凭证（`SGX_LOCK_SPACE_KEY`）：`space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`，各签一张 3 分钟锁屏短票（by=space），不签任何会话；`space-audit` 只读进站凭证使用记录。账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 在账号 Worker（`POST /api/account { action:'root-reset' }`，只签 reset 票；2026-11-08 删 `root-reauth`），两套互不相干、各自计数。
+- 进站凭证（`SGX_LOCK_SPACE_KEY`）：`space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`，各签一张 3 分钟锁屏短票（by=space），不签任何会话；`space-audit` 只读进站凭证使用记录。账号的恢复密钥 `SGX_ACCOUNT_RECOVERY_KEY` 在账号 Worker（`POST /api/account/reset { action:'recovery-key' }`，只签 reset 票），两套互不相干、各自计数。
 - 重置与临时钥匙：`lock-reset`（丢了锁屏凭证：先交进站凭证，再按重置开关或锁屏凭证（`needLock` / `lockProof`）签 LockResetTicket；不读账号的任何东西）、`lock-tempkey`（旷野 → 安全 → 临时钥匙页 `/security/tempkeys/`的列表 / 新建 / 作废；只认进站会话，不问账号会话）。
-- 网关只有 4 个密钥：锁屏签名钥匙 `SGX_LOCK_PRIVATE` / `SGX_LOCK_PUBLIC`、进站凭证 `SGX_LOCK_SPACE_KEY`、密码 pepper `SGX_PW_PEPPER`（与账号 Worker 共用同一个密值）。账号签名钥匙 `SGX_ACCOUNT_*` 和 `SGX_ACCOUNT_ROOT_KEY` 只在账号 Worker（stepup、应用凭证已删除）。
+- 网关只有 4 个密钥：锁屏签名钥匙 `SGX_LOCK_PRIVATE` / `SGX_LOCK_PUBLIC`、进站凭证 `SGX_LOCK_SPACE_KEY`、锁屏密码 pepper `SGX_PW_PEPPER`（命名 v2 起账号用自己的 `SGX_ACCOUNT_PASSWORD_PEPPER`）。账号的 `SGX_ACCOUNT_*` 只在账号 Worker（stepup、应用凭证已删除）。
 - 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，子站一起上锁）、`lock-all-devices`（Lock 纪元 +1，所有设备一起上锁；要 LockReauthTicket）。
 - 其他：`geo`（Cloudflare 给的城市 / 坐标 / 时区）；`status` 只做门，验进站会话后经服务绑定转给 styrigx-status（`chat`、`search` 在 P4-2b 退役，回 404）。
 - 站内对话助手（P4-1）：`ai`（`POST /api/ai`）验同源、进门（不要账号会话），过两档 AI 限流（`core/ai-limit.js`：每 IP 每分钟 6 次走 Rate Limiting 绑定 `AI_LIMITER`，超了 429 `cooldown`；全站每分钟 60 次走 D1 `attempt_limit`（`realm='ai'`、`kind='global'`、bucket = 当前分钟）单条 upsert，超了或 D1 出错 429 `busy`），再写账号结论头，经服务绑定 `AI_SERVICE` 转给 styrigx-ai，SSE 原样流回。
@@ -60,8 +60,8 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - `storage` 只存偏好（主题、天气等），**禁止存解锁状态**。
 
 ### L3½ 鉴权与凭证流程：`assets/js/auth/`
-- 锁屏 / 账号的凭证界面和请求：`auth-flow`（密码框、再验证请求）、`auth-sheet`（登录方式弹层 / 验证弹层）、
-  `cred-rows`（凭证验证行）、`reset-flow`（重置登录）、`verify-rows`（凭证验证行的封装）、`post-json`（POST JSON + 错误码文案）、
+- 锁屏的凭证界面和请求（账号终端在 `shell/account/`，不用这一层；锁屏重置是 `shell/lock.js` 的 reset 命令，`reset-flow` 已在命名 v2 P3 删除）：`auth-flow`（密码框、再验证请求）、`auth-sheet`（登录方式弹层 / 验证弹层）、
+  `cred-rows`（凭证验证行）、`verify-rows`（凭证验证行的封装）、`post-json`（POST JSON + 错误码文案）、
   `passkey-assert`（WebAuthn 断言：全站五处断言都经 `getPasskeyAssertion` + `assertionOptions` / `assertionToJSON`）、
   `passkey-register`（通行密钥注册 + 命名弹层，锁屏凭证页与账号安全页共用）、`lock-now`（立即锁定）。
 - 只能 import `lib/` 和 `auth/`；`shell/`（lock.js、upgrade.js、quick-panel.js）和 `apps/` 用它。
@@ -71,11 +71,12 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - Worker：骨架和依赖链见 [`workers/README.md`](../workers/README.md)（脚本不查 Worker 内部的依赖方向，只查下面的边界和骨架防回退）。
 - 相对 import 解析不到文件也算失败。
 
-### Worker 边界（`space/scripts/check-layers.mjs` 规则 14-21，CI 必过）
+### Worker 边界（`space/scripts/check-layers.mjs` 规则 14-22，CI 必过）
 - 14：每个 Worker 只能相对 import 自己目录 `workers/<名字>/` 下的文件，Worker 之间（账号 ↔ 网关、短链、chat 等）一律不许 import；非相对 import 只认 `cloudflare:workers`。
 - 15：不许出现 `workers/shared` 目录（2026-10-30 删除；通用件每个 Worker 各自一份）。
-- 16：网关源码（`workers/auth-gateway/` 下的 `.js` / `.mjs` / `.cjs` 和 `wrangler.toml`，注释除外）不许出现账号鉴权标识：`SGX_ACCOUNT_*`、`SGX_ROOT_KEY`、`D1_ACCOUNT_AUTH`、`D1_ROOT_AUTH`、`REALM_ACCOUNT`、`REALM_ROOT`、`checkAccountSession`、`verifyAccountSession`、`Account*Ticket` / `ACCOUNT_*_TICKET` 等（完整列表在脚本的 `GATEWAY_ACCOUNT_AUTH_RE`）。网关只经 `ACCOUNT_VERIFIER.accountSession()` / `authorize()` 拿账号结论（字段名用 `account.reauth` 这类，不写账号票名）。
+- 16：网关源码（`workers/auth-gateway/` 下的 `.js` / `.mjs` / `.cjs` 和 `wrangler.toml`，注释除外）不许出现账号鉴权标识：`SGX_ACCOUNT_*`、`SGX_ROOT_KEY`、`D1_ACCOUNT`（含旧名）、`D1_ROOT_AUTH`、`REALM_ACCOUNT`、`REALM_ROOT`、`checkAccountSession`、`verifyAccountSession`、`Account*Ticket` / `ACCOUNT_*_TICKET` 等（完整列表在脚本的 `GATEWAY_ACCOUNT_AUTH_RE`）。网关只经 `ACCOUNT_VERIFIER.authorize()` 拿账号结论（字段名用 `account.reauth` 这类，不写账号票名）。
 - 17：账号 Worker 的 `workers/account/wrangler.toml` 不许有路由（`[[routes]]`、`route = …`、非空的 `routes = [...]`；`[env.preview]` 的 `routes = []` 允许），账号请求只经网关的服务绑定进来。
+- 22：退役名单（`space/scripts/retired-names.json` 的 `account`）里的旧名字不许出现在账号 Worker（`workers/account/src/`、`wrangler.toml`）和账号前端（`space/web/assets/js/shell/account/`），注释也不行。
 - 18–21：Worker 骨架防回退（`workers/**` 没有 `functions/`、`_kernel/`；`main = "src/index.js"`；每个 Worker 有 `README.md`；`package.json` 有 `name`），各条见 [`workers/README.md`](../workers/README.md)。
 
 ### L4 桌面环境·One UI：nav、goodlock、lock.js、sheet、capsule
@@ -116,40 +117,31 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 
 - 进站会话 `sgx-lock-session`（`Domain=.styrigx.com`）只回答「是否已解锁」，
   是唯一的解锁状态源；它**从不**被当作账号认证。
-- 账号会话 `sgx-account-session`（无 Domain，只发给主站；`HttpOnly; Secure; SameSite=Strict`；400 天，不点退出就一直登录）
-  由账号 Worker 的 `workers/account/src/core/account-session.js` 签发与验证，格式 `by.epoch.authAt.exp.deviceId.sig`，
-  用 `SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC`（Ed25519，PKCS8 / SPKI PEM，只绑在账号 Worker）签名。
-  凭证域定义在 `workers/account/src/core/realm.js` 的 `REALM_ACCOUNT`。
-- 请求路径（账号拆分 PR3）：浏览器 → 网关（验锁屏门、剥外来 `x-styrigx-*` / `x-sgx-*` 头、按验过的进站会话写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`）
-  → 服务绑定 `ACCOUNT` → 账号 Worker 命名入口 `AccountService`。账号 Worker 没有公开路由，默认 fetch 一律 404。
-  网关只有账号页首帧提示还要账号会话结论，经 `ACCOUNT_VERIFIER`（`AccountVerifier.accountSession()`）问账号 Worker；临时钥匙、短链只认进站会话，短链 Worker 不绑账号 Worker。
-- 登录入口两者平级：账号通行密钥、账号密码；前置条件是已解锁的 进站会话。账号根密钥不签账号会话。
-- 敏感操作（注册/删除账号通行密钥、修改账号密码）要求有效的 3 分钟 AccountReauthTicket `sgx-account-reauth`
-  （进「账号安全」子页前再验一次，离开即作废；会话还在时也认 AccountResetTicket），没有票返回 403 `reauth`，前端重新验证。
-- 改账号密码 / 删账号通行密钥时（账号安全，reauth 票）`account-epoch` +1，其他设备的账号会话失效，当前设备重签。
-  恢复密钥重置（reset 票）下改凭证不自动登出，最后一步 `reset-finish { signOut: 'all' | 'others' | 'none' }` 由用户三选一（默认 others；本机没登录时 others = all）；三种都记安全事件 `reset-signout-*`（2026-11-08）。
-- 存储（账号拆分 PR3 起在 D1 `styrigx-account`，账号 Worker 的绑定 `D1_ACCOUNT_AUTH`，各表 `realm = 'account'`；网关库里的旧行已在 PR4 删除）：
-  `password`、`passkey`、`user_handle`、`challenge`、`epoch`、`device`（已退出的 `revoked_at > 0`）；
-  「已配置」由凭证推出；账号密码登录限速在 `attempt_limit`（`kind = 'password'`，规则同锁屏密码）。
-- 缺账号钥匙 → 账号登录 503 `config`，只影响账号登录与进门，网站其余部分不受影响。
-- 敏感操作还包括重命名账号通行密钥（`rename`，同样要 AccountReauthTicket，不推纪元）。
-- 概念名 `AccountKey`（原 `OwnerKey`）：账号通行密钥注册时 WebAuthn `user.name = AccountKey`；
-  通行密钥记录不再有 class 字段（键名已表明域）。`list` 返回账号 handle，
-  前端支持时调 `PublicKeyCredential.signalCurrentUserDetails` 让密码管理器把旧条目改名
-  （只对当前 handle `account-user-id`；旧 handle 与 LockKey 共用，不发）。
-- 前端：账号页 `/account/`（`apps/account.js`），顶栏头像链接到它；登录后是三星式总览
-  （账号卡 + 头像编辑、已登录卡、「安全与隐私」一行）；账号密码和账号通行密钥在子页
-  `/account/security/`（`apps/account-security.js`）。顶栏没有 ‹ 返回（2026-10-20 删除），
-  返回走浏览器 / 系统返回。原锁屏凭证页（`security-owner`）已删除。
+- 账号（账号命名 v2，2026-11-08，`acct-naming/NAMING-V2.md`）：一个概念一个词，三张票各管各的——
+  - `session`（`sudo root`）：cookie `sgx-account-session`（无 Domain，只发给主站；`HttpOnly; Secure; SameSite=Strict`；400 天，不点退出就一直登录），
+    格式 `by.epoch.authAt.exp.deviceId.sig`，`SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC`（Ed25519，只绑在账号 Worker）签名；`workers/account/src/core/session.js`。
+  - `reauth`（`sudo root reauth`）：`sgx-account-reauth`，3 分钟，票里带本机 deviceId，只在同一台设备的 session 有效时算数；`core/reauth.js`。
+  - `reset`（`sudo root reset`）：恢复密钥 `SGX_ACCOUNT_RECOVERY_KEY` 换 `sgx-account-reset`，3 分钟，不签 session；`core/reset.js`。
+  - 两个纪元：`session`（管 session 和 reauth；改了钥匙 +1，其他设备掉线、本机重签）、`reset`（`finish` 时 +1，reset 票只能用一次）。
+- 接口按入口拆（`workers/account/src/api/account/`）：`GET /api/account`（状态）、`POST /api/account/session`、`/reauth`、`/reset`、`/keys`（账号安全，要 reauth）、`/devices`、`/grants`，各自只认自己的票；
+  reset 下改钥匙不碰会话，最后一步 `/reset { finish, signOut: 'all' | 'others' | 'none' }` 由用户三选一（默认 others）。错误码：没 session 401 `account`、要 reauth 403 `reauth`、reset 票无效 401 `reset`。
+- 请求路径：浏览器 → 网关（验进站会话、剥外来 `x-styrigx-*` / `x-sgx-*` 头、写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`）→ 服务绑定 `ACCOUNT` → 账号 Worker 命名入口 `AccountService`。
+  账号 Worker 没有公开路由，默认 fetch 一律 404。网关不问账号 session（命名 v2 删了旧整页的首帧提示）；只在需要授权结论时经 `ACCOUNT_VERIFIER.authorize()` 问。临时钥匙、短链只认进站会话。
+- 登录入口两者平级：账号通行密钥、账号密码（pepper `SGX_ACCOUNT_PASSWORD_PEPPER`，账号独占）；前置条件是进站会话。恢复密钥不签 session、不能再验证。
+- 存储：D1 `styrigx-account`，一个绑定 `D1_ACCOUNT`；表 `account_epoch`、`account_password`、`account_passkey`、`account_user_handle`、`account_challenge`、`account_attempt_limit`、`account_device`、`account_audit`（列 `event` = `<入口>-<action>`）、`account_grant`（`migrations/0005_account_tables.sql` 从旧的 realm 表搬来）。
+- 缺账号签名钥匙 → 登录 503 `config`，只影响账号，网站其余部分不受影响。
+- 钥匙概念名（K2）：密码管理器里的隐藏用户名 `AccountPassword`、`RecoveryKey`；账号通行密钥 WebAuthn `user.name = AccountPasskey`。`passkey-list` 返回账号 handle，
+  前端支持时调 `PublicKeyCredential.signalCurrentUserDetails` 让密码管理器改名（`shell/account/passkey-signal.js`）。
+- 前端：顶栏头像下拉里的账号终端（`space/web/assets/js/shell/account/`，#327）；调后端只在 `shell/account/api.js`。旧整页 `/account/*` 由 `static/_redirects` 301 到首页 `#acct=<层>`。
 - 发给 styrigx-ai 的请求写账号结论头（只认 `X-Styrigx-Account-Session: 1`）。search-index、chat 在 P4-2b 退役。入站的旧前缀 `x-sgx-*` 头仍照剥。
 - 账号拆分已完成（PR4）：D1 `styrigx-auth-gateway` 不再存账号数据，只剩锁屏数据（`realm='lock'` 的行和恢复开关表 `lock_reset_switch`）；
-  网关库里 `realm='account'` / `'root'` 的旧行和旧开关表 `recovery_switch` 已由 `space/scripts/migrate-account-auth.mjs --cleanup --confirm` 删除
+  网关库里 `realm='account'` / `'root'` 的旧行和旧开关表 `recovery_switch` 已由一次性脚本 `migrate-account-auth.mjs --cleanup --confirm` 删除（脚本在命名 v2 P2 删了）
   （预览库走网关 `migrations/0009_drop_recovery_switch.sql`）；Secrets Store 里的旧 `SGX_ROOT_KEY` 已删除。
 - 恢复开关表（账号拆分方案 9.4）：叫 `lock_reset_switch`（网关 `migrations/0008_lock_reset_switch.sql`），后台开开关插行用 `INSERT INTO lock_reset_switch …`。
 
 ## 网关结论（授权骨架，P2-1）
 
-门归网站、账号管授权：网关只验门（进站会话）；能不能写、能不能读私密由账号 Worker 回答（`workers/account/src/core/authz.js`，作用域表 `core/scopes.js`）；网关把结论交给下游，下游只信结论。依赖方向：浏览器 → 网关（验门）→ 需要授权时网关经 `ACCOUNT_VERIFIER.authorize()` 问账号 Worker → RPC 回结论对象（`AuthVerifier.conclusion()`）/ HTTP 转发写结论头。账号 Worker 不调网关，网关不读账号库（规则 14、16 不变）。
+门归网站、账号管授权：网关只验门（进站会话）；能不能写、能不能读私密由账号 Worker 回答（`workers/account/src/core/authorize.js`，作用域表 `core/scopes.js`）；网关把结论交给下游，下游只信结论。依赖方向：浏览器 → 网关（验门）→ 需要授权时网关经 `ACCOUNT_VERIFIER.authorize()` 问账号 Worker → RPC 回结论对象（`AuthVerifier.conclusion()`）/ HTTP 转发写结论头。账号 Worker 不调网关，网关不读账号库（规则 14、16 不变）。
 
 结论头（网关 fetch 第一步照旧剥掉所有入站 `x-styrigx-*`、`x-sgx-*`，再按验过的结果重写；只写白名单值，某一项没有就不写这个头，不写 `0`）：
 
@@ -172,21 +164,20 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 
 ## 授权记录（第 3 件，P3-1）
 
-授权是权限管控，与设备 / 浏览器无关：账号级、一个应用一行，存在账号库 D1 `styrigx-account` 的 `app_grant`（`workers/account/migrations/0004_app_grant.sql`，设计方案 2.5）。取消就删掉这一行，所有设备上这个应用立即失去这项权限；账号会话本身不受影响。
+授权是权限管控，与设备 / 浏览器无关：账号级、一个应用一行，存在账号库 D1 `styrigx-account` 的 `account_grant`（`0004_app_grant.sql` 建表，`0005_account_tables.sql` 改名，设计方案 2.5）。取消就删掉这一行，所有设备上这个应用立即失去这项权限；账号会话本身不受影响。
 
-- 判断：`workers/account/src/core/authz.js grantedScopes` 读 `app_grant`（`core/app-grant.js`），返回 已授权 ∩ 作用域表；还没有种子标记时保持骨架行为（全部）。每次授权请求读一次 D1 主库（授权记录 + 账号纪元 + 设备黑名单），不缓存；`authorize` 只读不写。网关、下游和结论头都不变（取消后的写请求 403 scope、wellbeing 上报 204 丢弃，P2-2 已落地的写法）。
-- 首次切换：表空且 `data_migration` 没有 `app-grant-seed-1` 时同一个 batch 写满全部应用 + 标记；之后取消到 0 行不再种。首次切换之后新增的应用按版本号补种（`SEED_SUPPLEMENTS`：`app-grant-seed-2` 补「个人资料」，2026-11-07），补种前那批应用按已授权算。
-- 管理：授权卡页 `/account/apps/`（账号总览「设备」「账号安全」同卡一行进入），`POST /api/account` `grant-list` / `grant-revoke`（不要复验）/ `grant-add`（要账号复验）。
-- 同意流程（OAuth 式，奇趣 / 日刻）：应用内点登录 → `/account/?return=<原页面>` → 登录完成后 `grant-list`（先种子再查记录）→ 有授权直接回原页面；没有 → 同意卡片 →「授权」`grant-add` /「拒绝」不写记录，都回原页面。刚完成的登录即视为已复验（登录带 reauth:true，Gray 2026-11-06 定 A）。回原页面走现有的网关回跳（`/api/lock-session-check?return=` 的 `next`，`workers/auth-gateway/src/core/return.js safeReturn`）。主站内功能（设置同步、数字健康、头像）只走管理页。
+- 判断：`workers/account/src/core/authorize.js` 读 `account_grant`（`core/grants.js`），返回 已授权 ∩ 作用域表；命名 v2 删了种子逻辑，没有行就是没授权。每次授权请求读一次 D1 主库，不缓存；`authorize` 只读不写。
+- 管理：账号终端「应用授权」层，`POST /api/account/grants` `list` / `revoke`（不要复验）/ `add`（要 reauth）。
+- 同意流程（奇趣 / 日刻）：应用里 `sudo root` → 登录（只签 session）→ `grants list` → 已授权直接关；没授权 → 同意 `[y]` → `grants add`（没有 reauth 时在终端里 `sudo root reauth` 一次，Q1）/ `[n]` 不写记录。
 
 | 作用域 | 应用（授权卡） | 取消后 |
 |---|---|---|
-| `curio.write` | 奇趣 | 奇趣写接口 403 scope，页底「奇趣未获账号授权」链到 `/account/apps/`；读不变 |
+| `curio.write` | 奇趣 | 奇趣写接口 403 scope，页底「奇趣未获账号授权」链到账号终端的应用授权；读不变 |
 | `daymark.write` | 日刻 | 同上（日刻） |
 | `prefs.sync` | 设置同步 | `/api/prefs` 403 scope，云同步只存本机 |
 | `wellbeing.write` | 数字健康 | `POST /api/wellbeing` 204 丢弃 |
 | `avatar.write` | 头像 | `PUT` / `DELETE /api/avatar` 403 scope |
-| `profile.write` | 个人资料（2026-11-07） | `PUT /api/profile` 403 scope；首次切换之后新增，按 `app-grant-seed-2` 补种 |
+| `profile.write` | 个人资料（2026-11-07） | `PUT /api/profile` 403 scope |
 
 ## 锁定与过期
 

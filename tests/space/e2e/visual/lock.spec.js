@@ -362,9 +362,9 @@ test.describe('A-2 锁屏凭证清空态 / 启动站', () => {
     await lockCmd(page, 'reset');
     await lockMode(page, 'rkey');
     await expect(page.locator('#sgx-lock-log')).toContainText('重置登录');
-    await lockCmd(page, 'root-key');
+    await lockCmd(page, 'sk-test-1');
     await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
-    expect(calls).toEqual([{ key: 'root-key', purpose: 'lock-reset' }]);
+    expect(calls).toEqual([{ key: 'sk-test-1', purpose: 'lock-reset' }]);
   });
 });
 
@@ -394,14 +394,14 @@ test.describe('PR3 锁屏：无法登录？→ reset 命令在终端里重置登
     await expect(page.locator('#sgx-lock-pmu')).toHaveValue('SpaceKey');
     await expect(page.locator('#sgx-lock-cmd')).toHaveAttribute('type', 'password');
     await expect(page.locator('#sgx-lock-ps')).toHaveText('spacekey: ');
-    await lockCmd(page, 'root-key');
+    await lockCmd(page, 'sk-test-1');
     await lockMode(page, 'rpick');
     const log = page.locator('#sgx-lock-log');
     await expect(log).toContainText('[1] password 解锁密码');
     await expect(log).toContainText('[2] passkey 锁屏通行密钥');
     await expect(log).not.toContainText('管理员'); // old-name guard
     await expect(log).not.toContainText('账号');
-    await expect(log).not.toContainText('root-key');
+    await expect(log).not.toContainText('sk-test-1');
     await lockCmd(page, '9');
     await expect(badLine(page)).toHaveText('✗ 请输入列出的编号');
     await lockCmd(page, '1');
@@ -409,8 +409,8 @@ test.describe('PR3 锁屏：无法登录？→ reset 命令在终端里重置登
     await expect(page.locator('#sgx-lock-pmu')).toHaveValue('LockKey');
     await lockCmd(page, 'lock-pw');
     await expect(page.locator('#landed')).toBeVisible({ timeout: 8000 });
-    expect(bodies[0]).toEqual({ action: 'verify', spaceKey: 'root-key' });
-    expect(bodies[1]).toEqual({ action: 'verify', spaceKey: 'root-key', lockProof: { type: 'password', password: 'lock-pw' } });
+    expect(bodies[0]).toEqual({ action: 'verify', spaceKey: 'sk-test-1' });
+    expect(bodies[1]).toEqual({ action: 'verify', spaceKey: 'sk-test-1', lockProof: { type: 'password', password: 'lock-pw' } });
     await expectNoPopups(page);
   });
 

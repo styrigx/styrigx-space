@@ -86,7 +86,7 @@ export function spaceAuditor(realm) {
 /**
  * 进站凭证审计（/api/space-auth、/api/lock-reset 写，/api/space-audit 读）。
  * 实现在本文件上半部分（按域参数化）；这里用 REALM_LOCK（D1 audit 表 realm='lock'、D1_LOCK_AUTH）绑好再导出。
- * 账号根密钥的审计在账号 Worker（POST /api/account audit-list），这里不读。
+ * 账号恢复密钥的审计在账号 Worker（D1 styrigx-account 的 account_audit，事件 reset-recovery-key），这里不读。
  * 只追加、保留 7 天；写不进去返回 false（成功路径据此 fail closed）。
  */
 export const { writeSpaceAudit, listSpaceAudit } = spaceAuditor(REALM_LOCK);

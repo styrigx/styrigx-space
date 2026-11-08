@@ -600,7 +600,7 @@ export function showLockScreen() {
   }
 
   /* ---------- 重置登录（「无法登录？」：reset 命令，在终端里一步步问） ----------
-     与账号页 /account/reset/ 同一套流程（auth/reset-flow.js 的服务端约定），只是锁屏上画成命令行：
+     锁屏重置的服务端约定，画成命令行：
      - 锁屏凭证已设置（或读不到配置，按已设置处理）：进站凭证 → POST /api/lock-reset verify；
        恢复开关有效直接拿到重置锁屏票（sgx-lock-reset）；否则服务端回 needLock → 再验锁屏凭证（锁屏通行密钥 / 解锁密码，
        账号拆分 PR3 起网关不读账号凭证）→ 重置锁屏票 → 去 /security/lock/ 重设解锁方式。

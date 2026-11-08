@@ -7624,7 +7624,7 @@
     &:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
     &:active { background: var(--sgx-surface-container-high); }
   }
-  /* PR3 重置登录（lib/reset-flow.js）：锁屏弹层 */
+  /* PR3 重置登录弹层（.sgx-reset*）：auth/reset-flow.js 命名 v2 P3 已删，这些样式没人用了，锁屏那轮连同下面合写的选择器一起清 */
   .sgx-reset { width: 100%; display: flex; flex-direction: column; gap: 12px; }
   .sgx-reset-lead { margin: 0; font-size: 15px; color: var(--sgx-text-primary); }
   .sgx-reset .sgx-pw-field { max-width: none; }

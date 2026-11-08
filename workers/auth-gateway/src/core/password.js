@@ -1,5 +1,5 @@
 /**
- * 密码哈希与校验（锁屏、账号两个凭证域共用）。
+ * 密码哈希与校验（网关只有锁屏域；账号 Worker 自己一份代码）。
  *
  * - PBKDF2-SHA256 + 随机 salt + pepper（SGX_PW_PEPPER），恒定时间比较
  * - 迭代次数 100000（Cloudflare Workers PBKDF2 上限，超过抛 NotSupportedError）；
@@ -36,13 +36,13 @@ async function hashPassword(password, salt, iterations, pepper) {
 }
 
 /**
- * pepper 的 Secrets Store 密钥名（不改名）。锁屏密码与账号密码共用一个 pepper：
- * 网关 core/realms.js 的 REALM_LOCK.pepper 同值；账号 Worker 自己一份代码读同一个密值（方案 6.2，Sloan 2026-10-30 定不拆）。
+ * pepper 的 Secrets Store 密钥名（不改名）。只给锁屏密码和临时钥匙码用，网关 core/realms.js 的 REALM_LOCK.pepper 同值；
+ * 账号命名 v2 起账号密码用账号 Worker 自己的 pepper，不再共用这个密值。
  */
 export const PEPPER_SECRET = 'SGX_PW_PEPPER';
 
 /**
- * 获取 pepper（SGX_PW_PEPPER，锁屏密码与账号密码共用）；缺失时返回空（调用方 fail closed）。
+ * 获取 pepper（SGX_PW_PEPPER，锁屏专用）；缺失时返回空（调用方 fail closed）。
  * @param {any} env
  */
 export function getPepper(env) {
@@ -50,7 +50,7 @@ export function getPepper(env) {
 }
 
 /**
- * 校验一把密码（供解锁、账号登录和 /api/lock-reset 复用）。
+ * 校验一把密码（供解锁和 /api/lock-reset 复用）。
  * - stored 为空 → { ok:false, set:false }
  * - peppered 记录：带 pepper 校验
  * - 旧记录（无 peppered 标记）：按无 pepper 校验，成功则 needsRehash=true

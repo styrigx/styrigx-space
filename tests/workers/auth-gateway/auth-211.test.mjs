@@ -561,18 +561,12 @@ test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）',
   /* C2：底部恢复提示改成新文案，不出现 lock-reset-switch 键名 */
   assert.ok(!src.includes('lock-reset-switch'), 'lock.js 不应再出现 lock-reset-switch 键名');
   assert.ok(!src.includes('sgx-reset-switch-hint'), '旧提示元素已删除');
-  /* PR3：重置界面在 auth/reset-flow.js（锁屏与账号页共用），不出现旧角色名；账号拆分 PR3 起第二步是锁屏凭证，恢复提示只在第二步 */
-  const rf = fs.readFileSync(REPO + 'space/web/assets/js/auth/reset-flow.js', 'utf8');
-  assert.ok(!src.includes('管理员') && !rf.includes('管理员'), '不再出现「管理员」字样'); // old-name guard
-  assert.ok(!rf.includes('lock-reset-switch'), 'reset-flow.js 不应出现开关键名');
-  /* 语言包化 2026-11-07：文案在字符串表 js.core.rf*（reset-flow.js 只留键） */
+  /* 重置在锁屏终端里（lock.js reset 命令；auth/reset-flow.js 的弹层版本没人调用了，命名 v2 P3 删掉）：不出现旧角色名；第二步是锁屏凭证 */
+  assert.equal(fs.existsSync(REPO + 'space/web/assets/js/auth/reset-flow.js'), false, 'auth/reset-flow.js 已删');
+  assert.ok(!src.includes('管理员'), '不再出现「管理员」字样'); // old-name guard
+  /* 语言包化 2026-11-07：文案在字符串表 js.core.rf* */
   const zhYaml = fs.readFileSync(REPO + 'space/web/data/i18n/zh.yaml', 'utf8');
   assert.ok(/rfRecover: .*锁屏凭证也无法使用？/.test(zhYaml), '恢复提示说的是锁屏凭证');
   assert.ok(!zhYaml.includes('管理员'), '字符串表里也不再出现「管理员」');
-  assert.ok(!/needAccount|accountProof/.test(rf + src), '前端不再有 needAccount / accountProof');
-  const step2Idx = rf.indexOf('function step2');
-  const step1Idx = rf.indexOf('function step1');
-  const hintUse = rf.indexOf("t('recover')");
-  assert.ok(step2Idx > 0 && hintUse > step2Idx, '恢复提示只在第二步');
-  assert.ok(!rf.slice(step1Idx, step2Idx).includes("t('recover')"), '第一步（进站凭证）不显示恢复提示');
+  assert.ok(!/needAccount|accountProof/.test(src), '前端不再有 needAccount / accountProof');
 });

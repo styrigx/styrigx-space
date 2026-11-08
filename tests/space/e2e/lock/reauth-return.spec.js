@@ -30,7 +30,7 @@ test.describe('bindSubmitButton 去重修复：锁屏页设置密码弹层', () 
     /* 门内页探针通过：reauth 票状态（/api/lock-reauth） */
     await mockJson(page, '**/api/lock-credentials', 200, { ok: true, password: true, passkey: true });
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true });
-    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'root' });
+    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [] });
   });
 
   test('两次输入不一致报错后，改对再点保存能成功', async ({ page }) => {
@@ -73,7 +73,7 @@ test.describe('批次 A 验收修复 P1：删除密码按钮', () => {
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true });
-    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'root' });
+    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [] });
   });
 
   test('锁屏页：密码已设时「删除密码」可见，两步确认删除后状态变未设置、按钮隐藏', async ({ page }) => {
@@ -125,7 +125,7 @@ test.describe('批次 A 验收修复 P1：双向相同密码错误文案', () =>
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true });
-    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'root' });
+    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [] });
   });
 
   /* 账号页不再有「不能与解锁密码相同」：服务端早就不查（2026-11-08 删前端死码）；锁屏侧这条留给锁屏 PR */
@@ -162,7 +162,7 @@ test.describe('锁屏凭证页进门探针（/api/lock-reauth status）失败', 
       try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
     });
     await mockJson(page, '**/api/lock-reauth', 200, { ok: true, valid: true });
-    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [], scope: 'root' });
+    await mockJson(page, '**/api/lock-passkey', 200, { ok: true, keys: [] });
   });
 
   test('探针 session 失败 → 无 JS 错误，弹会话失效框，不点不跳；点「去锁屏」才重载', async ({ page }) => {
@@ -509,7 +509,7 @@ test.describe('A-1 门内 3 分钟 + 剩余时间胶囊 + 到期弹框', () => {
 
 });
 
-test.describe('A-2 最后一把锁屏钥匙与 AccountKey 联动', () => {
+test.describe('A-2 删最后一把锁屏钥匙（确认框 / 服务端 last-key）', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
     await page.addInitScript(() => {
@@ -553,7 +553,7 @@ test.describe('A-2 最后一把锁屏钥匙与 AccountKey 联动', () => {
     return { getDeleteCalls: () => deleteCalls, getRemoveCalls: () => removeCalls };
   }
 
-  test('有 AccountKey 时删最后一把 lock 钥匙：先弹确认，点删除后成功', async ({ page }) => {
+  test('删最后一把 lock 钥匙：先弹确认，点删除后成功', async ({ page }) => {
     const lockKeys = [{ credId: 'lock-key-001', name: 'test', class: 'lock', createdAt: 1, lastUsedAt: 0 }];
     const { getDeleteCalls } = await gotoLockPage(page, { lockPw: false, lockKeys });
     await expect(page.locator('.lockmgr-pkdel')).toBeVisible({ timeout: 5000 });
@@ -572,7 +572,7 @@ test.describe('A-2 最后一把锁屏钥匙与 AccountKey 联动', () => {
     await expect(page.locator('.sgx-toast')).toContainText('已删除', { timeout: 5000 });
   });
 
-  test('无 AccountKey 时删最后一把 lock 钥匙：确认后服务端 403，提示先设置解锁密码', async ({ page }) => {
+  test('删最后一把 lock 钥匙、服务端回 403 last-key：提示先设置解锁密码', async ({ page }) => {
     const lockKeys = [{ credId: 'lock-key-001', name: 'test', class: 'lock', createdAt: 1, lastUsedAt: 0 }];
     await gotoLockPage(page, { lockPw: false, lockKeys, deleteStatus: 403, deleteBody: { ok: false, error: 'last-key' } });
     await expect(page.locator('.lockmgr-pkdel')).toBeVisible({ timeout: 5000 });
@@ -584,7 +584,7 @@ test.describe('A-2 最后一把锁屏钥匙与 AccountKey 联动', () => {
     await expect(page.locator('.sgx-toast')).toContainText('这是最后一把解锁钥匙，请先设置解锁密码', { timeout: 5000 });
   });
 
-  test('有 AccountKey 时删最后一把 lock 密码：先弹确认，点删除后成功', async ({ page }) => {
+  test('删最后一把 lock 密码：先弹确认，点删除后成功', async ({ page }) => {
     const { getRemoveCalls } = await gotoLockPage(page, { lockPw: true, lockKeys: [] });
     await expect(page.locator('#lockmgr-pwdel')).toBeVisible({ timeout: 5000 });
     /* v1.1 §二.4：点「删除密码」直接弹确认框，无 armed 中间态 */

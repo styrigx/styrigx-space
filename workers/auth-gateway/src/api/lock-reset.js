@@ -1,7 +1,7 @@
 /**
  * 重置锁屏（丢了锁屏凭证时；方案第 7 节）。
  *
- * 前端「重置登录」（auth/reset-flow.js，锁屏弹层里的「无法登录？」）先交进站凭证，服务端决定下一步。
+ * 前端「重置登录」（锁屏终端 shell/lock.js 的 reset 命令，「无法登录？」）先交进站凭证，服务端决定下一步。
  *
  * verify 步骤：
  * 1. 验 SGX_LOCK_SPACE_KEY（core/space-check.js：限速 → 比对 → 计数 / 审计）。错 → 401 auth。

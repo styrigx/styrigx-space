@@ -1,8 +1,8 @@
 /**
  * @fileoverview 凭证验证行（一行一个凭证：通行密钥点行直接调起系统验证；密码点行在行下展开输入框）。
  *
- * 从 account-methods.js（今 verify-rows.js）抽出（PR3）：账号 → 安全与隐私的门、「重置登录」第二步
- * （账号页的 /account/reset/ 与锁屏弹层里的同一个重置界面，auth/reset-flow.js）共用同一套行。
+ * 从 account-methods.js（今 verify-rows.js）抽出（PR3）。现在调用方只剩锁屏侧（锁屏凭证页的门等）；
+ * 旧账号整页和重置弹层（auth/reset-flow.js）已删，锁屏重置在 shell/lock.js 的 reset 命令里。
  * 行的内容（图标、标题、提交函数）由调用方给；失败 reject { message, clear?, cancelled? }。
  * 本文件在 lib/ 层：不 import shell/ 或 apps/。
  */
@@ -11,7 +11,7 @@ import { bindPwEye, onEnter, focusNoScroll, PM_USER_STYLE } from './auth-flow.js
 import { bindSubmitButton, tapFeedback, setRowBusy, setRowSelected } from '../lib/dialog-behavior.js';
 
 const CHEV = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>';
-/** 行图标（通行密钥 / 密码 / 兜底凭证：锁屏侧进站凭证、账号侧账号根凭证） */
+/** 行图标（通行密钥 / 密码 / 兜底凭证：进站凭证） */
 export const CRED_ICONS = {
   passkey: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7.5 3v5.25c0 4.6-3.2 7.9-7.5 9.75-4.3-1.85-7.5-5.15-7.5-9.75V6L12 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l2 2 3.5-4"/></svg>',
   password: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
@@ -20,12 +20,12 @@ export const CRED_ICONS = {
 
 /**
  * 兜底凭证输入框（全站只有这一个组件：重置登录第一步、锁屏凭证页的进站凭证行用）。
- * 种类由调用方给：锁屏侧传 pmUser = KEY_SPACE（进站凭证），账号侧传 KEY_ROOT（账号根凭证）。
+ * 种类由调用方给：现在只有锁屏侧（pmUser = KEY_SPACE，进站凭证）。
  * 隐藏用户名字段（值 = pmUser）让 Samsung Pass 能填充、按这个名字保存。
  * @param {object} o
  * @param {string} o.id 输入框 id
  * @param {string} o.placeholder
- * @param {string} o.pmUser 隐藏用户名（KEY_SPACE / KEY_ROOT）
+ * @param {string} o.pmUser 隐藏用户名（KEY_SPACE）
  * @param {boolean} o.en
  * @returns {{field: HTMLElement, input: HTMLInputElement}}
  */
@@ -151,7 +151,7 @@ export function renderCredRows(o) {
         field = document.createElement('div');
         field.className = 'sgx-pw-field';
         if (m.pmUser) {
-          /* 隐藏用户名框：密码管理器按这个名字保存 / 填充（AccountKey / LockKey） */
+          /* 隐藏用户名框：密码管理器按这个名字保存 / 填充（LockKey / SpaceKey） */
           const u = document.createElement('input');
           u.type = 'text';
           u.autocomplete = 'username';
