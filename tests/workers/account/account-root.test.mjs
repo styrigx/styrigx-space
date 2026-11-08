@@ -268,8 +268,8 @@ test('audit-list 合在一张表：根密钥使用（7 天）+ 安全事件（30
   assert.equal(ttl[1].ttl, 7 * 86400000);
 });
 
-test('writeSecurityEvent：只认 SECURITY_EVENTS 里的事件名（7 个，方案 6.2）；D1 没绑 / 出错 → false，不抛', async () => {
-  assert.deepEqual([...root.SECURITY_EVENTS], ['password-change', 'passkey-register', 'passkey-delete', 'passkey-rename', 'device-revoke', 'device-revoke-all', 'login-password-cooldown']);
+test('writeSecurityEvent：只认 SECURITY_EVENTS 里的事件名（7 个，方案 6.2；2026-11-08 加 reset-signout-* 3 个）；D1 没绑 / 出错 → false，不抛', async () => {
+  assert.deepEqual([...root.SECURITY_EVENTS], ['password-change', 'passkey-register', 'passkey-delete', 'passkey-rename', 'device-revoke', 'device-revoke-all', 'login-password-cooldown', 'reset-signout-all', 'reset-signout-others', 'reset-signout-none']);
   const env = makeEnv();
   assert.equal(await root.writeSecurityEvent(env, IP, 'root-reset'), false, 'root-* 只能经根密钥路径写');
   assert.equal(await root.writeSecurityEvent(env, IP, 'passkey-rename'), true);

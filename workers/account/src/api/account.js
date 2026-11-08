@@ -21,6 +21,8 @@
  * 新增：
  * - device-revoke-all：要账号会话 + AccountReauthTicket（只有 reset 票不行，403 reauth）。Account 纪元 +1、当前设备重签、
  *   其他设备的行全部删除（票随纪元失效）、短票按原到期时间重签。
+ * - reset-finish { signOut: all|others|none }：只认 reset 票，sudo root reset 最后一步决定其他设备的登录（见 handleResetFinish）。
+ *   reset 票下 password-change / passkey-delete 不再自动登出其他设备（统一到 reset-finish）；reauth 票下照旧立刻 rotate。
  * - root-reset / audit-list：见 account-root.js。audit-list 要账号会话（没有 → 401 account）。
  *   恢复密钥只能换 reset 票（不能换 reauth 票，2026-11-08 删 root-reauth）；reset 票只能重设账号密码、增删通行密钥，不能改名（passkey-rename 不认 reset 票）。
  * - grant-list / grant-revoke / grant-add（P3-1 应用授权，core/app-grant.js）：都要进门 + 账号会话（只有 reset 票不行，401 account）。
@@ -196,6 +198,48 @@ async function handleGrantAction(env, request, action, body) {
   return json(200, { ok: true, grants: grants });
 }
 
+/** reset-finish 的三种选择 */
+export const RESET_SIGNOUT = Object.freeze(['all', 'others', 'none']);
+
+/**
+ * reset-finish { signOut: 'all' | 'others' | 'none' }（sudo root reset 最后一步，PROPOSAL §1.1）。
+ * 只认 AccountResetTicket（不认 reauth 票、不要求账号会话）；做完清掉 reset 票。
+ * - others：Account 纪元 +1；本机有账号会话就按原 by/authAt 重签（没有就等于 all）；删其他设备行
+ * - all：纪元 +1，不重签本机，清本机 sgx-account-session；删全部设备行
+ * - none：什么都不动
+ * 三种都写安全事件 reset-signout-<选择>。回 { ok, signOut, signedOut }（登出了几台设备）。
+ * @param {any} env @param {any} request @param {string} ip @param {any} body
+ */
+async function handleResetFinish(env, request, ip, body) {
+  const xv = await verifyTicket(request, env, ACCOUNT_RESET_TICKET);
+  if (!xv.ok) return apiError(401, 'account', { reason: xv.reason });
+  const signOut = body && body.signOut;
+  if (RESET_SIGNOUT.indexOf(signOut) === -1) return apiError(400, 'params');
+  const headers = new Headers();
+  let signedOut = 0;
+  if (signOut !== 'none') {
+    const acc = await verifyAccountSession(request, env);
+    const keep = signOut === 'others' && acc.ok ? (acc.deviceId || '') : '';
+    try {
+      const before = await listDevices(env);
+      signedOut = before.filter(function (d) { return !keep || d.deviceId !== keep; }).length;
+      const ne = await bumpAccountEpoch(env);
+      if (keep && acc.ok) {
+        await issueAccountSession(env, headers, acc.by, { authAt: acc.authAt, epoch: ne, deviceId: acc.deviceId, record: false });
+      } else if (acc.ok) {
+        clearAccountSession(headers);
+      }
+      await pruneOtherDevices(env, keep);
+    } catch (e) {
+      return apiError(503, 'epoch');
+    }
+    if (signOut === 'all') clearTicket(headers, ACCOUNT_REAUTH_TICKET);
+  }
+  clearTicket(headers, ACCOUNT_RESET_TICKET);
+  await writeSecurityEvent(env, ip, 'reset-signout-' + signOut);
+  return json(200, { ok: true, signOut: signOut, signedOut: signedOut }, headers);
+}
+
 /* ---------------- GET ---------------- */
 
 /** @param {any} context */
@@ -296,6 +340,9 @@ async function handlePost(context) {
     if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
     return handleAuditList(env);
   }
+
+  /* ============ reset-finish（sudo root reset 最后一步：其他设备的登录怎么处理，Gray 2026-11-08 §1.1） ============ */
+  if (action === 'reset-finish') return handleResetFinish(env, request, ip, body);
 
   /* ============ 应用授权（P3-1） ============ */
   if (GRANT_ACTIONS.indexOf(action) !== -1) return handleGrantAction(env, request, action, body);
@@ -478,6 +525,9 @@ async function handlePost(context) {
   }
   const by = tv ? tv.by : acc.by;
 
+  /* reset 票（恢复密钥）下改凭证不自动登出：统一到 reset-finish 让用户三选一（2026-11-08 §1.1）；reauth 票下照旧立刻 rotate */
+  const deferRotate = ticketName === ACCOUNT_RESET_TICKET;
+
   /* 账号凭证变更 / 全部退出：Account 纪元 +1；有账号会话时当前设备保留原 by/authAt 重签；其他设备行删除；短票按原到期重签 */
   async function rotateAccount(headers) {
     const ne = await bumpAccountEpoch(env);
@@ -530,7 +580,7 @@ async function handlePost(context) {
       return apiError(503, 'server');
     }
     const headers = new Headers();
-    if (existed) {
+    if (existed && !deferRotate) {
       try { await rotateAccount(headers); } catch (e) { return apiError(503, 'server'); }
     }
     await writeSecurityEvent(env, ip, 'password-change');
@@ -544,8 +594,10 @@ async function handlePost(context) {
     const found = findStoredKey(keys, credId);
     if (!found) return apiError(404, 'not-found');
     const headers = new Headers();
-    /* 先推纪元再删（fail closed：纪元推进失败则钥匙仍在） */
-    try { await rotateAccount(headers); } catch (e) { return apiError(503, 'epoch'); }
+    /* 先推纪元再删（fail closed：纪元推进失败则钥匙仍在）；reset 票下不推，留给 reset-finish */
+    if (!deferRotate) {
+      try { await rotateAccount(headers); } catch (e) { return apiError(503, 'epoch'); }
+    }
     try { await deletePasskey(env, credId); } catch (e) { return apiError(503, 'server'); }
     await writeSecurityEvent(env, ip, 'passkey-delete');
     return json(200, { ok: true }, headers);

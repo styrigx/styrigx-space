@@ -20,7 +20,7 @@
  * ROOT_REALM = 账号库域对象（ACCOUNT_DB_REALM，带 0003 兜底建表）+ rootKey。
  *
  * 安全事件（方案 6.2）：password-change、passkey-register、passkey-delete、passkey-rename、device-revoke、device-revoke-all、
- * login-password-cooldown 各写一行 audit（path = 事件名，保留 30 天）。尽力而为：写不进去不挡操作。
+ * login-password-cooldown、reset-signout-all / -others / -none 各写一行 audit（path = 事件名，保留 30 天）。尽力而为：写不进去不挡操作。
  *
  * 只 import workers/account/src/lib/ 和本目录。
  */
@@ -52,6 +52,10 @@ export const SECURITY_EVENTS = Object.freeze([
   'device-revoke',
   'device-revoke-all',
   'login-password-cooldown',
+  /* sudo root reset 最后一步（reset-finish，2026-11-08）：三种选择都记，含「不登出」 */
+  'reset-signout-all',
+  'reset-signout-others',
+  'reset-signout-none',
 ]);
 export const SECURITY_EVENT_TTL_MS = 30 * 24 * 3600 * 1000;
 
