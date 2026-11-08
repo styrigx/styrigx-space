@@ -690,9 +690,10 @@ test.describe('解锁后开机动画（unlock boot）', () => {
       '> mounting /space/curio ... ok', '> mounting /space/daymark ... ok', '> mounting /space/wild ... ok', '> loading gray-ai ... ok', '> welcome back, sloan_']) {
       expect(rec.text).toContain(l);
     }
-    /* 读屏：解锁后只播一句「已解锁」（之前是敲命令时的播报），开机过程不播 */
-    const after = rec.live.slice(rec.live.findIndex((t) => t.includes('已解锁')));
-    expect(after).toEqual(['已解锁']);
+    /* 读屏：解锁后只报「已解锁」（服务端回得快时会和「正在验证…」合成同一句播报——announce 30ms 合并），之后开机过程不再播报 */
+    expect(rec.live[rec.live.length - 1]).toMatch(/已解锁$/);
+    expect(rec.live.filter((t) => t.includes('已解锁'))).toHaveLength(1);
+    expect(rec.live.join(' ')).not.toMatch(/access granted|booting|mounting|welcome back|gray-ai/);
     await expect(page.locator('body')).not.toHaveClass(/sgx-locked/);
     await expect(page.locator('main')).toBeVisible();
     expect(rec.lines.slice(0, 9)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
