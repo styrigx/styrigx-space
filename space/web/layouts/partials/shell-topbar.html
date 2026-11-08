@@ -107,7 +107,7 @@
   <div class="sgx-qp-sheet" tabindex="-1">
     <div class="sgx-ai-head">
       <span class="sgx-ai-badge" aria-hidden="true" translate="no">G</span>
-      <p class="sgx-ai-title"><b translate="no">Gray AI</b><small class="sgx-ai-sub">{{ $t.topbar.aiSub }}</small></p>
+      <span class="sgx-ai-tt"><p class="sgx-ai-title" translate="no">Gray AI</p><small class="sgx-ai-sub">{{ $t.topbar.aiSub }}</small></span>
       <button type="button" class="sgx-ai-hbtn" data-ai-clear aria-label="{{ $t.topbar.newChat }}" title="{{ $t.topbar.newChat }}">{{ index $i "tb-newchat" | safeHTML }}</button>
       <button type="button" class="sgx-ai-hbtn" data-ai-history aria-expanded="false" aria-label="{{ $t.topbar.history }}" title="{{ $t.topbar.history }}">{{ index $i "tb-history" | safeHTML }}</button>
       <a class="sgx-ai-me" href="{{ .acct }}" aria-label="{{ $t.topbar.account }}"><img src="{{ .avatar }}" alt="" width="36" height="36" class="sgx-ai-avatar" data-sgx-avatar="192"></a>
@@ -160,7 +160,7 @@
     </ul>
     <p class="sgx-pop-g sgx-pop-g--line">{{ $t.sec.session }}</p>
     <ul class="sgx-pop-list">
-      <li><button type="button" class="sgx-pop-row sgx-pop-row--acc" data-sec="lock" aria-label="{{ $t.topbar.lock }}"><span class="sgx-pop-k" data-sec-lock-state>{{ $t.sec.lockNow }}</span><span class="sgx-pop-v" translate="no">lock</span></button></li>
+      <li><button type="button" class="sgx-pop-row sgx-pop-row--acc" data-sec="lock"><span class="sgx-pop-k" data-sec-lock-state>{{ $t.sec.lockNow }}</span><span class="sgx-pop-v" translate="no">lock</span></button></li>
       <li><a class="sgx-pop-row sgx-pop-row--acc" href="{{ $sec }}lock/#lockmgr-sessions"><span class="sgx-pop-k">{{ $t.sec.lockAll }}</span><span class="sgx-pop-v" translate="no">lock --all</span><span class="sgx-pop-chev" aria-hidden="true">›</span></a></li>
     </ul>
   </div>

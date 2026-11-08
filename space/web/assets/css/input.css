@@ -8958,8 +8958,8 @@
 .sgx-ai-head { gap: 0; padding: 10px 8px 10px 14px; border-bottom-color: var(--sgx-term-line); }
 .sgx-ai-badge { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px;
   background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); font-family: var(--sgx-font-mono); font-size: 13px; font-weight: 700; }
-.sgx-ai-title { display: flex; flex-direction: column; gap: 2px; padding: 0; font-size: 14px; font-weight: 400; letter-spacing: 0; }
-.sgx-ai-title b { font-family: var(--sgx-font-mono); font-weight: 600; color: var(--sgx-text-primary); }
+.sgx-ai-tt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sgx-ai-title { padding: 0; font-family: var(--sgx-font-mono); font-size: 14px; font-weight: 600; line-height: 1.3; letter-spacing: 0; color: var(--sgx-text-primary); }
 .sgx-ai-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 1.3; color: var(--sgx-text-tertiary); }
 .sgx-ai-hbtn { color: var(--sgx-text-secondary); }
 .sgx-ai-hbtn svg { width: 19px; height: 19px; }

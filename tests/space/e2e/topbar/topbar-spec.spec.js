@@ -324,9 +324,11 @@ test.describe('390×844 行为', () => {
     await expect(dlg).toBeVisible();
     await animationsDone(page);
     expect(await dlg.locator('.sgx-ai-head > *').evaluateAll((els) => els.map((e) => e.className + '|' + (e.getAttribute('aria-label') || e.textContent.trim())))).toEqual(
-      ['sgx-ai-title|Gray AI', 'sgx-ai-hbtn|新对话', 'sgx-ai-hbtn|历史', 'sgx-ai-me|账号']);
-    const [t, nc, hi, me] = await Promise.all(['.sgx-ai-title', '[data-ai-clear]', '[data-ai-history]', '.sgx-ai-me'].map((s) => box(page, '#sgx-ai ' + s)));
-    expect(t.x + t.width <= nc.x && nc.x + nc.width <= hi.x && hi.x + hi.width <= me.x, '从左到右：标题 → 新对话 → 历史 → 头像').toBe(true);
+      ['sgx-ai-badge|G', 'sgx-ai-tt|Gray AI问这个空间里的任何东西', 'sgx-ai-hbtn|新对话', 'sgx-ai-hbtn|历史', 'sgx-ai-me|账号', 'sgx-ai-hbtn sgx-ai-x|关闭']);
+    /* 2026-11 PR-5 ai-v1：标题前加 G 徽标、标题下一行副标题，最右加 ×；新对话 / 历史 / 头像照旧 */
+    await expect(dlg.locator('.sgx-ai-title')).toHaveText('Gray AI');
+    const [t, nc, hi, me, x] = await Promise.all(['.sgx-ai-tt', '[data-ai-clear]', '[data-ai-history]', '.sgx-ai-me', '[data-ai-close]'].map((s) => box(page, '#sgx-ai ' + s)));
+    expect(t.x + t.width <= nc.x && nc.x + nc.width <= hi.x && hi.x + hi.width <= me.x && me.x + me.width <= x.x, '从左到右：标题 → 新对话 → 历史 → 头像 → ×').toBe(true);
     for (const b of [nc, hi, me]) expect(Math.abs(b.y + b.height / 2 - (t.y + t.height / 2)), '一行对齐').toBeLessThanOrEqual(2);
     await expect(dlg.locator('.sgx-ai-actions, .sgx-ai-pill')).toHaveCount(0);
     const av = await dlg.locator('img.sgx-ai-avatar').evaluate((el) => {

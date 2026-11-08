@@ -39,7 +39,7 @@ test('桌面版网站 + 放大到 1 倍：打开九宫格 / 快捷设置 / AI，
   await expect.poll(() => page.evaluate(() => Math.round(visualViewport.scale * 100) / 100)).toBe(1);
   const before = await vv(page);
   expect(before.left).toBe(0);
-  for (const [btn, dlg] of [['.sgx-tb-grid', '#sgx-nav'], ['.sgx-tb-quick', '#sgx-qp'], ['.sgx-tb-ai', '#sgx-ai']]) {
+  for (const [btn, dlg] of [['.sgx-tb-grid', '#sgx-nav'], ['.sgx-tb-quick', '#sgx-qp'], ['.sgx-tb-ai', '#sgx-ai'], ['.sgx-tb-av', '#sgx-acct'], ['.sgx-tb-shield', '#sgx-sec']]) {
     /* 按钮在放大后的可视视口外（右边），用脚本点（同真机点到之后的那一步：打开 <dialog>） */
     await page.$eval(btn, (b) => /** @type {HTMLElement} */ (b).click());
     await expect(page.locator(dlg)).toBeVisible();
@@ -76,7 +76,7 @@ test('桌面版网站（手机屏 + 桌面布局）：面板打开过程中没�
   await page.goto('/zh/', { waitUntil: 'load' });
   await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-device', 'phone');
-  for (const [btn, dlg] of [['.sgx-tb-grid', '#sgx-nav'], ['.sgx-tb-quick', '#sgx-qp'], ['.sgx-tb-ai', '#sgx-ai']]) {
+  for (const [btn, dlg] of [['.sgx-tb-grid', '#sgx-nav'], ['.sgx-tb-quick', '#sgx-qp'], ['.sgx-tb-ai', '#sgx-ai'], ['.sgx-tb-av', '#sgx-acct'], ['.sgx-tb-shield', '#sgx-sec']]) {
     /* 点下去之后连续取几帧的计算样式（打开动画期间） */
     const samples = await page.evaluate(async ([b, d]) => {
       const sheet = document.querySelector(d + ' .sgx-qp-sheet');
@@ -98,16 +98,13 @@ test('桌面版网站（手机屏 + 桌面布局）：面板打开过程中没�
 
 test.describe('电脑', () => {
   test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false, colorScheme: 'light' });
-  test('不是手机屏：面板照旧滑入；AI 窗口毛玻璃，外观 / NAVIGATE 是实色（2026-11 PR-1 终端风）', async ({ page }) => {
+  test('不是手机屏：面板照旧滑入；外观 / NAVIGATE（2026-11 PR-1）和 AI 窗口 / 账号 / 安全下拉（PR-5）都是终端风实色', async ({ page }) => {
     await blockExternalRequests(page);
     await freezeTime(page);
     await page.goto('/zh/', { waitUntil: 'load' });
     await expect(page.locator('html')).toHaveAttribute('data-sgx-device', 'desktop');
     const st = (sel) => page.$eval(sel, (el) => ({ bf: getComputedStyle(el).backdropFilter, tp: getComputedStyle(el).transitionProperty }));
-    const ai = await st('#sgx-ai .sgx-qp-sheet');
-    expect(ai.bf).toContain('blur');
-    expect(ai.tp).toContain('transform');
-    for (const sel of ['#sgx-qp .sgx-qp-sheet', '#sgx-nav .sgx-qp-sheet']) {
+    for (const sel of ['#sgx-qp .sgx-qp-sheet', '#sgx-nav .sgx-qp-sheet', '#sgx-ai .sgx-qp-sheet', '#sgx-acct .sgx-qp-sheet', '#sgx-sec .sgx-qp-sheet']) {
       const c = await st(sel);
       expect(c.bf, sel).toBe('none');
       expect(c.tp, sel).toContain('transform');
