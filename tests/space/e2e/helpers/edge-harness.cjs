@@ -11,7 +11,7 @@
  * - 网关 = 仓库里真实的 workers/auth-gateway/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
  *   （锁屏钥匙、SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
  *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAuthorize，AccountService / AccountVerifier 里跑的同一份代码）。
- *   账号 Worker 自己一对 Ed25519 钥匙、账号根密钥和自己的库（tests/workers/account/_d1.mjs：账号鉴权表 + 云同步），
+ *   账号 Worker 自己一对 Ed25519 钥匙、恢复密钥、账号密码 pepper 和自己的库（tests/workers/account/_d1.mjs：account_* 表 + 云同步），
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
  *   Pages = 单树：space/web/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
  *   cloudflare:workers（rpc/*.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。

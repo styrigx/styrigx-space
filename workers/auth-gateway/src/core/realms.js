@@ -1,8 +1,8 @@
 /**
  * 锁屏凭证域（realm='lock'）与三张锁屏票的配置：用哪把签名钥匙、发什么 cookie、数据在 D1 的哪一行（realm 列）。
  *
- * 账号拆分 PR3（方案第 2、6.2、8 节）：网关只管锁屏。账号凭证（AccountKey）、账号三张票、Account 纪元、账号根密钥
- * 全在账号 Worker styrigx-account（workers/account/src/core/realm.js）；网关不读账号的表、不持账号钥匙。
+ * 账号拆分 PR3（方案第 2、6.2、8 节）：网关只管锁屏。账号密码 / 账号通行密钥、账号三张票（session / reauth / reset）、账号纪元、恢复密钥
+ * 全在账号 Worker styrigx-account（workers/account/src/core/config.js）；网关不读账号的表、不持账号钥匙。
  * 原来的根域 REALM_ROOT 和 BY_ACCOUNT 删除：进站凭证并入 REALM_LOCK（spaceKey = 'SGX_LOCK_SPACE_KEY'，spaceIssues = 两张锁屏短票）。
  *
  * 钥匙概念名：
@@ -105,12 +105,12 @@ export const REALM_LOCK = Object.freeze({
   cookie: LOCK_SESSION_COOKIE,
   cookieAttrs: SHARED_SESSION_ATTRS,
   maxAge: TICKETS[LOCK_SESSION_TICKET].maxAge, /* 锁屏密码 / 通行密钥进门 12 小时；临时钥匙进门的时长见 lock-session.js */
-  pepper: 'SGX_PW_PEPPER', /* 锁屏密码 + 临时钥匙码哈希；与账号 Worker 绑同一个密值（方案 6.2，Secrets Store 密钥名不改） */
+  pepper: 'SGX_PW_PEPPER', /* 锁屏密码 + 临时钥匙码哈希（账号命名 v2 起账号密码用自己的 pepper，不再共用；Secrets Store 密钥名不改） */
   d1Binding: 'D1_LOCK_AUTH', /* lock 的行 + 恢复开关 lock_reset_switch */
   epoch: LOCK_EPOCH, /* 纪元名（票里的纪元归属；D1 epoch 表按 realm 存一行） */
   /* challenge 表的 purpose（锁屏通行密钥注册 / 解锁，重置锁屏时验锁屏通行密钥）；5 分钟 */
   challenge: Object.freeze({ register: 'register', auth: 'auth', reset: 'reset', ttl: 300 }),
-  /* 进站凭证（方案 6.2）：Secrets Store 名 SGX_LOCK_SPACE_KEY（后台新建一份，值等于原 SGX_ROOT_KEY；Secrets Store 不能直接改名，旧的 SGX_ROOT_KEY 已在 PR4 删除）；只比对、不签会话 */
+  /* 进站凭证（方案 6.2）：Secrets Store 名 SGX_LOCK_SPACE_KEY（后台新建一份，值等于原来的进站凭证；Secrets Store 不能直接改名，旧名已在 PR4 删除）；只比对、不签会话 */
   spaceKey: 'SGX_LOCK_SPACE_KEY',
   /* 进站凭证验过后能签的票（by=space） */
   spaceIssues: Object.freeze([LOCK_REAUTH_TICKET, LOCK_RESET_TICKET]),

@@ -14,15 +14,15 @@
 | （同名清除） | 网关 | host-only `Path=/` | Max-Age=0 | — | 每次签发 / 清除都附带，清掉 host-only 同名 cookie |
 | `sgx-lock-reset` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockResetTicket `by.epoch.iat.exp.sig`：重置锁屏；by = space / password / passkey（进站凭证 + 恢复开关，或进站凭证 + 锁屏凭证） |
 | `sgx-lock-reauth` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockReauthTicket `by.epoch.iat.exp.sig`：锁侧复验——进「锁屏凭证」页、新建 / 作废临时钥匙、生成 / 作废分享短链前再验一次；by = password / passkey / space（临时钥匙、短链进门的会话本身不算复验） |
-| `sgx-account-session` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 400 天 | AccountSessionTicket `by.epoch.authAt.exp.deviceId.sig`：账号会话（与进站会话无关）；by = password / passkey；Account 纪元变了或设备被单独退出即失效 |
-| `sgx-account-reset` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | AccountResetTicket `by.epoch.iat.exp.sig`：重置账号登录方式；by = root |
-| `sgx-account-reauth` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | AccountReauthTicket `by.epoch.iat.exp.sig`：进「账号安全」页前再验一次；by = password / passkey / root |
+| `sgx-account-session` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 400 天 | session 票 `by.epoch.authAt.exp.deviceId.sig`（`sudo root`）：账号 session（与进站会话无关）；by = password / passkey；`session` 纪元变了或设备被单独退出即失效 |
+| `sgx-account-reset` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | reset 票 `by.epoch.iat.exp.sig`（`sudo root reset`）：重置账号钥匙；by = recovery-key；`reset` 纪元，`finish` 后作废（只能用一次） |
+| `sgx-account-reauth` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | reauth 票 `by.epoch.iat.exp.deviceId.sig`（`sudo root reauth`）：账号安全、重新授权应用、退出所有设备前再验一次；by = password / passkey；只在同一台设备的 session 有效时算数 |
 | `sgx-ui` | 主站 JS | `Domain=styrigx.com` | Secure, SameSite=Lax（非 HttpOnly） | 400 天 | 只有外观设置，子站读；不含任何会话信息 |
 
-六张票分两处登记：锁屏三张在网关 `workers/auth-gateway/src/core/realms.js`（`TICKETS`），账号三张在账号 Worker `workers/account/src/core/realm.js`（`TICKETS`）；网关不签、不验账号票（账号拆分 PR3）。签名串一律是 `<cookie 名>|<票内容>`，
-同一把私钥签的票互相冒充不了。Lock 三张票共用 Lock 纪元，Account 三张票共用 Account 纪元。
+六张票分两处登记：锁屏三张在网关 `workers/auth-gateway/src/core/realms.js`（`TICKETS`），账号三张在账号 Worker `workers/account/src/core/config.js`（`TICKET`，签 / 验在 `lib/ticket.js`）；网关不签、不验账号票（账号拆分 PR3）。签名串一律是 `<cookie 名>|<票内容>`，
+同一把私钥签的票互相冒充不了。Lock 三张票共用 Lock 纪元；账号两个纪元：`session`（管 session 和 reauth）、`reset`（只管 reset 票）。
 SpaceKey 不拥有会话，两把各管各的：进站凭证 `SGX_LOCK_SPACE_KEY` 走网关 `/api/space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`；
-账号根密钥 `SGX_ACCOUNT_ROOT_KEY` 走账号 Worker `POST /api/account { action:'root-reset', key }`，只签 AccountResetTicket（2026-11-08 删 `root-reauth`：恢复密钥只给 `sudo root reset` 用，不能登录、不能再验证；AccountReauthTicket 只认 password / passkey）。各签一张对应的短票（锁屏侧 by=space，账号侧 by=root）；LockSessionTicket 的 by 永远没有 space。
+恢复密钥 `SGX_ACCOUNT_RECOVERY_KEY` 走账号 Worker `POST /api/account/reset { action:'recovery-key', key }`，只签 reset 票（不能登录、不能再验证）。各签一张对应的短票（锁屏侧 by=space，账号侧 by=recovery-key）；LockSessionTicket 的 by 永远没有 space。
 
 立即锁定 = `POST /api/lock-now` 清 `sgx-lock-session`（两条）+ `sgx-lock-reauth` + `sgx-lock-reset`。锁定所有设备 = Lock 纪元 +1。
 
@@ -50,7 +50,7 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 | 无效 | `/api/*` 白名单外 | 401 JSON |
 | 有效 | 首页 + `return`、无 `why` | 302 到 `resolveReturn(return)` |
 | 有效 | 首页 + `why`（子站踢回） | 200 valid（不 302，防两站来回跳；前端问 session-check 拿 next，20 秒窗口防死循环） |
-| 有效 | 其他页面（含锁屏凭证页、临时钥匙页、服务状态页；不分进门方式） | 200 valid，no-store；账号页另注入 `data-sgx-account-session="in|out"`（in 时登录区整段不下发） |
+| 有效 | 其他页面（含锁屏凭证页、临时钥匙页、服务状态页；不分进门方式） | 200 valid，no-store |
 
 图志（`workers/auth-gateway/src/gate.js` 的 `handleSubsite`）：有效 → 回源 + no-store；无效 → 302 `https://styrigx.com/?lock=1&why=<no-cookie|invalid-session>&return=<完整地址>`；
 图志根上的 `/api/lock-session-check`：有效 204、无效 401 `{ ok:false }`（`src/api/lock-session-check.js`）。
@@ -87,8 +87,7 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 入口：锁屏凭证页门口（`apps/security-lock.js`）；临时钥匙 / 分享短链的新建、作废先照常请求，服务端回 401 reauth 时弹主站复验层（`auth/lock-reauth.js` 的 `withLockReauth`），通过后自动重试一次；
 子站顶栏分享按钮用共享外壳 `share.js` 里的最小复验步骤（只有锁屏通行密钥 / 解锁密码）。取消不调任何接口，会话不动。
 
-账号页（`apps/account.js`）：登录区、总览默认都隐藏；网关注入 `data-sgx-account-session`（经 `ACCOUNT_VERIFIER` 问账号 Worker；没绑定 / RPC 出错就不给属性）：`in` → 登录区不下发、总览首帧可见；
-`out` → 登录区首帧可见；没有属性 → 中性，等 `/api/account`。只有服务端说「未登录」才出现「欢迎回来」。
+账号在顶栏头像下拉的账号终端（`shell/account/`，#327）：打开时读 `GET /api/account` 再画，网关不再注入账号首帧提示（命名 v2 删了 `isAccountPage` / `askSessionFor`）。
 
 不预渲染：站内链接不再用 Speculation Rules prerender（预渲染启用的是按下那一刻的会话状态快照）。
 

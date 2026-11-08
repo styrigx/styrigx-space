@@ -36,7 +36,7 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 - 只沿箭头往右 import，可以跳过中间的层（`app.js` 直接 import `gate.js`、`core/`、`lib/` 都行），不许往左：`lib/` 只 import `lib/`；`core/` 只 import `core/`、`lib/`；`api/` 不 import `gate.js`、`router.js`、`app.js`。跨 Worker 的 import 一律禁止（规则 14）。
 - `app.js` 和 `rpc/*` 是同一层（都是 `index.js` 导出的入口），可以互相取用：账号 `rpc/account-service.js` 用 `app.js` 的 `tagRuntime`。
 - `secrets.js` 谁都能 import。
-- 服务绑定：`api/` 可以经 `core/` 调，也可以直接用 `env` 上的绑定。现状：网关 `api/ai.js`、`api/status.js` 直接调 `AI_SERVICE` / `STATUS`（P4-2b 删了 `chat`、`search`）；`ACCOUNT_VERIFIER` 经 `core/account-rpc.js`；`ACCOUNT` 由 `router.js` 经 `core/forward.js` 转发。
+- 服务绑定：`api/` 可以经 `core/` 调，也可以直接用 `env` 上的绑定。现状：网关 `api/ai.js`、`api/status.js` 直接调 `AI_SERVICE` / `STATUS`（P4-2b 删了 `chat`、`search`）；`ACCOUNT_VERIFIER` 经 `core/account-rpc.js`（只问 `authorize()`，命名 v2 删了账号 session 的首帧 RPC）；`ACCOUNT` 由 `router.js` 经 `core/forward.js` 转发。
 - `gate.js` 是粗粒度的门（有没有会话、哪些路径公开）；handler 里可以再验，例如网关 `api/lock-tempkey.js` 自己再要求一次进站会话。
 - 同层的横向 import：现在没有（P2-3 起账号 `api/avatar.js`、`api/prefs.js`、`api/wellbeing.js` 不再从 `api/account.js` 取等级常量；网关 `gate.js` 只 import `core/`、`lib/`）。
 - 依赖方向不进 CI（`space/scripts/check-layers.mjs` 不查 Worker 内部的方向），靠评审守住。
@@ -46,7 +46,7 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 | Worker | 状态 |
 |---|---|
 | `auth-gateway` | 全量对齐：`index.js` / `app.js` / `router.js` / `gate.js` / `secrets.js` + `api/` `rpc/` `core/` `lib/`。原 Pages Functions 时代的 `functions/`（`_middleware.js`、`api/`、`_kernel/`、`_kernel/lib/`）全部并进 `src/`，`_kernel` 与 `_kernel/lib` 的同名文件（d1-state、tickets、space-audit / space-check / space-limit）各合成一份 |
-| `account` | 全量对齐入口和身份：`worker.js` → `index.js`，原 `index.js` 拆成 `app.js` + `router.js`，`entrypoints.js` 拆成 `rpc/account-service.js`、`rpc/account-verifier.js`、`gate.js`，`identity/account.js` → `api/account.js`，`identity/` 其余 → `core/`。`lib/` 原样保留：里面还有 d1-state、password*、root-*、tickets、lock-identity、avatar 这类业务文件 |
+| `account` | 全量对齐入口和身份：`worker.js` → `index.js`，原 `index.js` 拆成 `app.js` + `router.js`，`entrypoints.js` 拆成 `rpc/account-service.js`、`rpc/account-verifier.js`、`gate.js`，`identity/account.js` → `api/account.js`，`identity/` 其余 → `core/`。账号命名 v2（2026-11-08，P2 #328）再整理一次：`api/account.js` 按入口拆成 `api/account/`（`status`、`session`、`reauth`、`reset`、`keys`、`devices`、`grants`），业务文件（密码、通行密钥、三张票、恢复密钥、设备、授权、审计）都进 `core/`，`lib/` 只剩通用件（cookies、crypto、db、ticket、webauthn、http、avatar 等） |
 | `ai` | P4-1 新建，按骨架起步：`index.js`（只再导出）/ `app.js` / `router.js` + `api/` `core/` `lib/`；没有关口（只经网关服务绑定进来） |
 | `share`、`status`、`proxy-rules`（`chat`、`search-index` 已在 P4-2b 删除） | `main` 本来就是 `src/index.js`，这次只补齐 README，不搬家、不改 import。share 已有 `gate.js`、`api/`、`lib/`，另有两个文件在 `src/` 顶层（`auth.js` 会话判断、`open.js` 打开短链）；status 的 `monitor.js` / `quota.js` / `targets.js` / `usage.js` 也在顶层；status 读 Secrets Store 不经 `secrets.js` |
 | `curio-core`、`daymark-core` | 2026-11-02 从 styrigx-atlas 搬来（`sites/<站>/workers/core/` → `workers/<站>-core/`，合并 PR1），代码不动；`main` 本来就是 `src/index.js`，只补 `README.md`、`package.json`（规则 20、21）。路由表在 `src/routes.js`、接口在 `src/api/`（`_` 开头的是接口共用模块）、索引和清扫在 `src/` 顶层。合并 PR3 起由本仓库 `.github/workflows/deploy.yml` 部署（`deploy-curio-core` / `deploy-daymark-core`，在网关之前），路由 `styrigx.com/<站>/api/*`（旧图志域名下的过渡期旧路由已于 P4-3 PR-1 删除） |

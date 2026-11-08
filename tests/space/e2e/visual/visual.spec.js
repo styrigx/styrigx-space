@@ -92,7 +92,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
               await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
-                body: JSON.stringify({ ok: true, keys: [], scope: 'root' }),
+                body: JSON.stringify({ ok: true, keys: [] }),
               });
             });
           }

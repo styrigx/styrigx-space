@@ -111,7 +111,7 @@ async function gotoResetStep2(page) {
   await gotoLockTerm(page, '/?lock=1');
   await lockCmd(page, 'reset');
   await lockMode(page, 'rkey');
-  await lockCmd(page, 'test-root-key');
+  await lockCmd(page, 'test-spacekey');
   await lockMode(page, 'rpick');
   await expect(page.locator('#sgx-lock-log')).toContainText('[2] passkey');
 }

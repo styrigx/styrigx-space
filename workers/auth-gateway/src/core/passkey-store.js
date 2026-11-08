@@ -180,7 +180,7 @@ export async function deletePasskey(env, domain, credId) {
 
 /**
  * 获取或创建固定用户 ID（32 字节随机，D1 user_handle 表）。读写失败返回 null（调用方 503 / 跳过校验，同以前）。
- * 锁屏域自己一个 handle（账号 Worker 另有自己的），不共用，防止 Samsung Pass 把 AccountKey 覆盖到 LockKey 上。
+ * 锁屏域自己一个 handle（账号 Worker 另有自己的），不共用，防止 Samsung Pass 把账号通行密钥（AccountPasskey）覆盖到 LockKey 上。
  * @param {any} env
  * @param {string} domain PASSKEY_ACCOUNT | PASSKEY_LOCK
  */

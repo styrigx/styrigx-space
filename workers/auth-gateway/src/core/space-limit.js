@@ -79,6 +79,6 @@ export function spaceLimiter(realm) {
 /**
  * 进站凭证输错限速（/api/space-auth、/api/lock-reset 共用一套）。
  * 实现在本文件上半部分（按域参数化）；这里用 REALM_LOCK（attempt_limit realm='lock'、kind='spacekey'、D1_LOCK_AUTH）绑好再导出。
- * 规则：单 IP 连错 5 次锁 15 分钟；全局每小时满 20 次后每次等 3 秒；成功清计数。账号根密钥的计数在账号 Worker，两边各算各的。
+ * 规则：单 IP 连错 5 次锁 15 分钟；全局每小时满 20 次后每次等 3 秒；成功清计数。账号恢复密钥的计数在账号 Worker，两边各算各的。
  */
 export const { checkSpaceLimit, recordSpaceFail, clearSpaceFail } = spaceLimiter(REALM_LOCK);

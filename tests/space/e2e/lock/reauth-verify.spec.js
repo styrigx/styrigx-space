@@ -71,7 +71,7 @@ async function mockLockDoor(page, opts) {
     let body = {};
     try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
     st.roots++;
-    if (body.key === 'root-key-1' && body.purpose === 'lock-reauth') {
+    if (body.key === 'spacekey-1' && body.purpose === 'lock-reauth') {
       st.valid = true;
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     } else {
@@ -158,7 +158,7 @@ test.describe('锁屏凭证的门', () => {
     const st = await mockLockDoor(page);
     await page.goto(LOCK_URL, { waitUntil: 'domcontentloaded' });
     await page.locator('#lock-reauth-methods .sgx-credential-row').filter({ hasText: '进站凭证' }).click();
-    await page.locator('#lock-reauth-methods .sgx-credential-expand input[type="password"]').fill('root-key-1');
+    await page.locator('#lock-reauth-methods .sgx-credential-expand input[type="password"]').fill('spacekey-1');
     await page.locator('#lock-reauth-methods .sgx-credential-btn-primary').click();
     await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 10000 });
     expect(st.roots).toBe(1);

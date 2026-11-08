@@ -11,7 +11,7 @@ import { renderCredRows, CRED_ICONS } from './cred-rows.js';
 import { KEY_LOCK, KEY_SPACE } from '../lib/key-names.js';
 
 /**
- * 要显示的入口（固定顺序：通行密钥、密码）。PR3：账号根凭证不再是登录入口（改走「无法登录？」→ 重置登录）。
+ * 要显示的入口（固定顺序：通行密钥、密码）。恢复密钥 / 进站凭证都不是这里的入口。
  * 设了哪个显示哪个；读不到状态（网络失败）时两个都显示，界面一致，服务端照常校验。
  * 都没设 → 空数组（页面只留「无法登录？」）。
  * @param {{password?:boolean, passkey?:boolean}|null} status GET /api/account 的结果；null = 读不到

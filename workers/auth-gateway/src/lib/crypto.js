@@ -46,7 +46,7 @@ export async function timingSafeEqual(a, b) {
 /**
  * 进站凭证规范化：去掉所有空白字符（空格、制表符、换行 \r \n）。
  * 进站凭证是单行密码框输入，粘贴多行时浏览器会去掉换行；服务端两边（提交值与
- * SGX_ROOT_KEY）都用同一函数规范化后再比对。去空白后为空一律拒绝。
+ * SGX_LOCK_SPACE_KEY）都用同一函数规范化后再比对。去空白后为空一律拒绝。
  * 只有进站凭证这样处理；账号密码、解锁密码不做任何规范化。
  * @param {string} s
  * @returns {string}
