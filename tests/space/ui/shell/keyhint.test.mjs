@@ -70,8 +70,12 @@ test('选择的高亮跟着输入走（Gray 2026-11-09 手机截图：打了 2 �
   assert.equal(pickKeyOf(' [2] ', ['1', '2'], '1'), '2');
   assert.equal(pickKeyOf('9', ['1', '2'], '1'), '');
   assert.equal(pickKeyOf('', ['1', '2'], ''), '');
-  assert.match(read('space/web/assets/js/shell/space/term.js'), /if \(C\.mode === 'pick'\) paintPick\(d\.log, 'data-term-pick', input\.value, Object\.keys\(picks\), pickDefault\);/);
-  assert.match(read('space/web/assets/js/shell/account/term.js'), /if \(C\.mode === 'pick'\) paintPick\(logEl, 'data-at-pick', input\.value, Object\.keys\(picks\), pickDefault\);/);
+  /* 终端统一 T2：锁屏 / 盾牌 / 账号下拉同一个输入行（shell/term/view/input-line.js），属性名按 attr 取（data-term-pick / data-at-pick） */
+  const il = read('space/web/assets/js/shell/term/view/input-line.js');
+  assert.match(il, /if \(C\.mode === 'pick'\) paintPick\(d\.log, PICK, input\.value, Object\.keys\(picks\), pickDefault\);/);
+  assert.match(il, /const PICK = 'data-' \+ attr \+ '-pick';/);
+  assert.match(read('space/web/assets/js/shell/space/term.js'), /return createInputLine\(o\);/);
+  assert.match(read('space/web/assets/js/shell/account/term.js'), /attr: 'at',/);
 });
 
 test('锁屏底部 ~/styrigx · zh · en 是舞台里自己的一行（不再 absolute 压在终端最后一行上）', () => {

@@ -13,10 +13,9 @@
  */
 import { esc } from '../../lib/util.js';
 import { toast } from '../../lib/toast.js';
-import { mountKeyHint, khKeyFor } from '../keyhint.js';
-import { paintPick } from '../term-pick.js';
 import { suggest } from '../suggest.js';
 import { flatStrings } from '../term/core/strings.js';
+import { createInputLine } from '../term/view/input-line.js';
 import * as api from './api.js';
 import { CMD, PS_GUEST, PS_ROOT, PS_RESET, LAYERS, LAYER_PATH, normCmd, parseCmd, layerFromPath } from './commands.js';
 import { mountSession } from './session.js';
@@ -144,24 +143,8 @@ export function mountAccountTerm(o) {
     armed: '', editing: '',
     /** 这次打开期间登录状态变了：关下拉时重新载入 */ loginChanged: false,
   };
-  /** pick 模式的选项 { key → fn } */ let picks = /** @type {Record<string, () => void>} */ ({});
-  let pickDefault = '';
-
   C.ps = function () { return C.inReset ? PS_RESET : C.st === 'in' ? PS_ROOT : PS_GUEST; };
-  const live = function (/** @type {string} */ s) { liveEl.textContent = s; };
 
-  /* ---------- 输出 ---------- */
-  /** @param {string} html @param {string} [cls] */
-  C.out = function (html, cls) {
-    const d = doc.createElement('div');
-    d.className = 'sgx-at-l' + (cls ? ' sgx-at-l--' + cls : '');
-    d.innerHTML = html;
-    logEl.appendChild(d);
-    const tx = d.textContent || '';
-    if (cls !== 'echo') live(tx);
-    reveal(d);
-    return d;
-  };
   /**
    * 新行滚进下拉自己的滚动区。不用 scrollIntoView：它连可视视口一起滚，三星「桌面版网站」放大时整页会平移到面板那边
    * （popover-no-zoom.spec.js，同 modal-sheet.js showDialog 的 preventScroll）。
@@ -179,28 +162,6 @@ export function mountAccountTerm(o) {
       }
     } catch (e) {}
   }
-  /** 命令回显 @param {string} cmd */
-  C.echo = function (cmd) { C.out('<span class="sgx-at-p">' + esc(C.ps()) + '</span> <span class="sgx-at-w">' + esc(cmd) + '</span>', 'echo'); };
-  /** 选项回显 `> 2` @param {string} key */
-  C.echoPick = function (key) { C.out('<span class="sgx-at-p">&gt;</span> <span class="sgx-at-w">' + esc(key) + '</span>', 'echo'); };
-  /** 黄色命令字 @param {string} s */
-  C.k = function (s) { return '<span class="sgx-at-y" translate="no">' + esc(s) + '</span>'; };
-  /** 注释行 `# …`（{x} 换成黄色命令） @param {string} key @param {string} [x] */
-  C.note = function (key, x) { C.out('# ' + esc(t(key)).replace('{x}', x ? C.k(x) : ''), 'd'); };
-  /** 成功行 @param {string} txt @param {string} [dim] */
-  C.ok = function (txt, dim) { C.out('<span class="sgx-at-ok">' + esc(txt) + '</span>' + (dim ? ' <span class="sgx-at-dim">· ' + esc(dim) + '</span>' : '')); };
-  /** 红字（{x} 换成黄色命令） @param {string} txt @param {string} [x] */
-  C.err = function (txt, x) { C.out(esc(txt).replace('{x}', x ? C.k(x) : ''), 'er'); };
-  /** 服务端错误码 → 红字 @param {{s: number, j: any}} res */
-  C.apiErr = function (res) { C.err(api.errText(errT, res && res.j && res.j.error, res && res.s)); };
-  C.netErr = function () { C.err(t('common.errNetwork')); };
-  /** 选项行 @param {Array<[string, string, boolean?]>} list [键, 文字, 默认?] */
-  C.opts = function (list) {
-    return C.out(list.map(function (it) {
-      return '<button type="button" class="sgx-at-o' + (it[2] ? ' is-on' : '') + '" data-at-pick="' + esc(it[0]) + '"><b translate="no">[' + esc(it[0]) + ']</b> ' + esc(it[1]) + '</button>';
-    }).join(''), 'opts');
-  };
-  C.clearLog = function () { logEl.textContent = ''; };
 
   /* ---------- 按键提示行（Gray 2026-11-09 细节 1；shell/keyhint.js） ---------- */
   /** esc / 触屏「‹ 返回」的同一条路：先退出当前命令，再撤编辑 / 两步确认，再回首层；最外层回 false（交给下拉关掉） */
@@ -211,95 +172,56 @@ export function mountAccountTerm(o) {
     if (C.st === 'in' && !C.inReset && C.layer !== 'home') { C.go('home'); return true; }
     return false;
   }
-  const kh = mountKeyHint(q('data-at-kh'), { onBack: function () { C.refocus = true; if (!escBack()) o.ms.close(); } });
-  /** 按当前模式 / 层重画提示行：首层 esc 关下拉、下一层和 reset 里 esc 回去；触屏一直有「‹ 返回」（最外层 = 关下拉） */
-  C.paintKh = function () {
-    const cmdKey = C.inReset || (C.st === 'in' && C.layer && C.layer !== 'home') ? 'cmdLayer' : 'cmd';
-    const key = khKeyFor(C.mode, cmdKey, !!C.busyCancel);
-    kh.set(key, C.mode === 'cmd' ? true : !!key);
-  };
-  C.paintKh();
 
-  /* ---------- 输入行 ---------- */
-  const isSecret = function (/** @type {string} */ m) { return m === 'pw' || m === 'rkey' || m === 'newpw' || m === 'newpw2'; };
-  /** @param {string} m @param {{ps?: string, pm?: string, hint?: string}} [x] */
-  C.setMode = function (m, x) {
-    if (m === 'busy' && doc.activeElement === input) C.refocus = true;
-    C.mode = m;
-    const secret = isSecret(m);
-    form.setAttribute('data-mode', m);
-    input.value = '';
-    input.type = secret ? 'password' : 'text';
-    input.setAttribute('autocomplete', m === 'pw' || m === 'rkey' ? 'current-password' : m === 'newpw' || m === 'newpw2' ? 'new-password' : 'off');
-    input.setAttribute('aria-label', secret ? (m === 'rkey' ? t('reset.recoveryKeyAria') : t('common.passwordAria')) : m === 'pkname' ? t('keys.passkey.nameAria') : t('common.termAria'));
-    pmu.value = (x && x.pm) || api.PM_USER.password;
-    psEl.textContent = (x && x.ps) || (m === 'pick' || m === 'pkname' ? '>' : C.ps());
-    form.hidden = m === 'busy';
-    input.disabled = m === 'busy';
-    /* 输入不显示的那几行（密码 / 恢复密钥 / 新密码）和等通行密钥：提示行末尾一个能点的 ^C（触屏没有 Ctrl+C / esc，Gray 22:12；只在 pointer:coarse 显示，input.css .sgx-at-cc） */
-    const cc = secret || m === 'pick' || m === 'pkname' || (m === 'cmd' && C.inReset) || !!(x && x.cc);
-    if ((x && x.hint) || cc) {
-      hintEl.innerHTML = (x && x.hint ? '# ' + esc(x.hint) : '') + (cc ? '<span class="sgx-at-cc">' + (x && x.hint ? ' · ' : '# ') + '<button type="button" data-at-cc translate="no" aria-label="' + esc(t('common.interruptAria')) + '">^C</button></span>' : '');
-      hintEl.classList.toggle('sgx-at-hint--cc', cc && !(x && x.hint));
-      hintEl.hidden = false;
-    } else hintEl.hidden = true;
-    root.setAttribute('data-at-mode', m);
-    C.paintKh();
-    /* busyCancel 常在 setMode('busy') 之后才挂上：下一拍再画一次 */
-    if (m === 'busy') Promise.resolve().then(C.paintKh);
-  };
-  C.toCmd = function () {
-    picks = {};
-    pickDefault = '';
-    C.onSecret = null;
-    C.onCancel = null;
-    C.busyCancel = null;
-    const rf = C.refocus;
-    C.refocus = false;
-    C.setMode('cmd');
-    /* 一轮结束（3 次输错 / ^C / 出错）回命令行：输错时输入行正有焦点，busy 把它藏起来、焦点掉到 body，触屏上键盘收起、
-       之后不自动聚焦（focusIn 在 cmd 模式不抢焦点），命令行看着像死了。原来有焦点就还回去 */
-    if (rf) C.focusIn(true);
-  };
-  /** 秘密输入 @param {string} m @param {(v: string) => void} fn @param {{ps?: string, pm?: string, hint?: string}} [x] */
-  C.ask = function (m, fn, x) {
-    C.onSecret = fn;
-    C.setMode(m, x);
-    C.focusIn();
-  };
-  /** 聚焦输入行。触屏上只在要输密码 / 恢复密钥时自动聚焦（不然每次打开都弹键盘），选项能点 @param {boolean} [force] */
-  C.focusIn = function (force) {
-    if (!o.ms.isShown()) return;
-    let fine = true;
-    try { fine = window.matchMedia('(pointer: fine)').matches; } catch (e) {}
-    if (!fine && !isSecret(C.mode) && C.mode !== 'pkname' && !force) return;
-    try { input.focus({ preventScroll: true }); } catch (e) { try { input.focus(); } catch (_) {} }
-  };
-  /** Ctrl+C / esc：退出当前命令 */
-  C.interrupt = function () {
+  /* ---------- 输入行 + 输出（终端统一 T2：shell/term/view/input-line.js，和锁屏 / 盾牌同一份；这里的参数保留账号下拉原有的细节） ---------- */
+  const BACK_RE = /^cd\s*(\.\.|\/)\s*$/;
+  createInputLine({
+    ctx: C,
+    dom: { root: root, log: logEl, form: form, input: input, ps: psEl, pmu: pmu, hint: hintEl, live: liveEl, kh: q('data-at-kh') },
+    p: 'sgx-at',
+    attr: 'at',
+    t: t,
+    ps: function () { return C.ps(); },
+    onCmd: function (v) { C.runCmd(v); },
+    isShown: function () { return o.ms.isShown(); },
+    onReveal: reveal,
+    onMode: function (m) { root.setAttribute('data-at-mode', m); },
     /* reset 层的命令行：^C / esc = 离开 reset（同关掉下拉：没选登出方式 = [3] 不登出），回 login@account / root@account */
-    if (C.mode === 'cmd' && C.inReset) { C.out('^C', 'd'); C.leaveReset(); return true; }
-    if (C.mode === 'cmd') return false;
-    if (C.mode === 'busy') {
-      const b = C.busyCancel;
-      if (!b) return false;
-      C.out('^C', 'd');
-      b();
-      C.toCmd();
-      return true;
-    }
-    C.out('^C', 'd');
-    const c = C.onCancel;
-    C.toCmd();
-    if (c) c();
-    return true;
-  };
-  /** @param {Record<string, () => void>} p @param {string} [def] */
-  C.pick = function (p, def) {
-    picks = p;
-    pickDefault = def || '';
-    C.setMode('pick');
-  };
+    onCmdInterrupt: function () { if (C.inReset) { C.out('^C', 'd'); C.leaveReset(); return true; } return false; },
+    /* 首层 esc 关下拉、下一层和 reset 里 esc 回去；触屏一直有「‹ 返回」（最外层 = 关下拉） */
+    kh: {
+      cmdKey: function () { return C.inReset || (C.st === 'in' && C.layer && C.layer !== 'home') ? 'cmdLayer' : 'cmd'; },
+      canBackCmd: function () { return true; },
+      onBack: function () { C.refocus = true; if (!escBack()) o.ms.close(); },
+    },
+    secretModes: ['pw', 'rkey', 'newpw', 'newpw2'],
+    history: false,
+    ctrlL: false,
+    inputmode: false,
+    aria: function (m, secret) { return secret ? (m === 'rkey' ? t('reset.recoveryKeyAria') : t('common.passwordAria')) : m === 'pkname' ? t('keys.passkey.nameAria') : t('common.termAria'); },
+    pmDefault: api.PM_USER.password,
+    /* 输入不显示的那几行和等通行密钥：提示行末尾一个能点的 ^C（触屏没有 Ctrl+C / esc，Gray 22:12）；reset 层的命令行也有 */
+    ccCmd: function () { return C.inReset; },
+    ccEcho: 'plain',
+    echoSecret: function (m) { return m === 'pw' || m === 'rkey' ? 'plain' : ''; },
+    secretBack: BACK_RE,
+    pknameEmptyToCmd: true,
+    /* 选项里没有的编号：说一声、接着选；是条命令就回命令行跑它（Gray 22:13） */
+    pickMiss: function (key, v) {
+      if (/^\[?\d+\]?$/.test(key)) { C.echoPick(key); C.err(t('common.noOption')); return; }
+      if (key && parseCmd(key).cmd !== 'unknown') { C.toCmd(); C.runCmd(v); }
+    },
+    ctrlC: 'at',
+    pickFocus: false,
+    pickClickRefocus: false,
+    focusZone: '[data-at-term]',
+    focusForce: false,
+  });
+  /** 注释行 `# …`（这里传文案键；{x} 换成黄色命令） @param {string} key @param {string} [x] */
+  C.note = function (key, x) { C.out('# ' + esc(t(key)).replace('{x}', x ? C.k(x) : ''), 'd'); };
+  /** 服务端错误码 → 红字 @param {{s: number, j: any}} res */
+  C.apiErr = function (res) { C.err(api.errText(errT, res && res.j && res.j.error, res && res.s)); };
+  C.netErr = function () { C.err(t('common.errNetwork')); };
 
   /* ---------- 状态 / 票 ---------- */
   /** api.status() → 更新 st / 票 @returns {Promise<any>} */
@@ -476,80 +398,6 @@ export function mountAccountTerm(o) {
   };
 
   /* ---------- 事件 ---------- */
-  const BACK_RE = /^cd\s*(\.\.|\/)\s*$/;
-  /** 提交次数 / 最近一次 enter 按下时的提交次数（-1 = 没有待补的 enter），见下面 keyup */
-  let subN = 0;
-  let enterAt = -1;
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    subN++;
-    const v = input.value;
-    const m = C.mode;
-    if (m === 'busy') return;
-    if (m === 'pick') {
-      const key = normCmd(v) || pickDefault;
-      const fn = picks[key] || picks[key.replace(/^\[|\]$/g, '')];
-      if (fn) { picks = {}; fn(); return; }
-      input.value = '';
-      /* 选项里没有的编号：说一声、接着选（不当命令跑，Gray 22:13） */
-      if (/^\[?\d+\]?$/.test(key)) { C.echoPick(key); C.err(t('common.noOption')); return; }
-      if (key && parseCmd(key).cmd !== 'unknown') { C.toCmd(); C.runCmd(v); return; }
-      return;
-    }
-    if (isSecret(m) || m === 'pkname') {
-      if (m !== 'pkname' && BACK_RE.test(v)) { C.interrupt(); return; }
-      if (m === 'pkname' && !v.trim()) { C.toCmd(); return; }
-      if (m !== 'pkname' && !v) return;
-      const fn = C.onSecret;
-      input.value = '';
-      if (m === 'pw' || m === 'rkey') C.out(esc(psEl.textContent || ''), 'echo');
-      if (fn) fn(v);
-      return;
-    }
-    input.value = '';
-    C.runCmd(v);
-  });
-  const submit = function () {
-    if (typeof form.requestSubmit === 'function') form.requestSubmit();
-    else form.dispatchEvent(new Event('submit', { cancelable: true }));
-  };
-  input.addEventListener('keydown', function (e) {
-    /* enter 提交：表单里还有密码管理器用的隐藏用户名框（两个文本框），浏览器不做隐式提交，这里手动提交 */
-    if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
-      enterAt = subN;
-      if (e.isComposing) return;
-      e.preventDefault();
-      submit();
-      return;
-    }
-    if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
-      let sel = '';
-      try { sel = String(doc.getSelection() || ''); } catch (err) {}
-      if (sel && input.selectionStart !== input.selectionEnd) return;
-      e.preventDefault();
-      if (!C.interrupt()) C.out('^C', 'd');
-    }
-    if (C.mode === 'pick' && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 && !input.value && picks[e.key.toLowerCase()]) {
-      e.preventDefault();
-      const fn = picks[e.key.toLowerCase()];
-      picks = {};
-      fn();
-    }
-  });
-  /* 手机输入法（三星键盘、Gboard 联想）在命令行（文本框）按 enter 时 keydown 常带 isComposing（字还在组合里），上面不提交，
-     浏览器也不隐式提交（两个文本框），命令发不出去（Gray 22:12「命令行死了」的另一半；密码框不联想所以输密码正常）。
-     keyup 补一次：这次 enter 之后还没提交过就提交 */
-  /* 选择时高亮跟着输入框里的字走（手机输入法的数字进了输入框；同 shell/space/term.js） */
-  input.addEventListener('input', function () {
-    if (C.mode === 'pick') paintPick(logEl, 'data-at-pick', input.value, Object.keys(picks), pickDefault);
-  });
-  input.addEventListener('keyup', function (e) {
-    if (e.key !== 'Enter' || enterAt < 0) return;
-    const at = enterAt;
-    enterAt = -1;
-    if (e.isComposing || at !== subN || C.mode === 'busy') return;
-    submit();
-  });
   /* esc：先退出当前命令，再回上一层，最外层才交给下拉关掉（modalSheet 的 Esc 看 defaultPrevented） */
   /* 等通行密钥（busy）时输入行藏着、禁用，焦点掉到 body，键盘事件到不了下拉：在 document 上接 Ctrl+C / esc（2026-11-09），只中断等待、不关下拉；别的模式照旧 */
   doc.addEventListener('keydown', function (e) {
@@ -564,23 +412,13 @@ export function mountAccountTerm(o) {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
     if (escBack()) e.preventDefault();
   });
+  /* 选项 / ^C / 点空白处聚焦输入行在 input-line.js 里接；这里只接头部返回和行上的动作 */
   root.addEventListener('click', function (e) {
     const tg = /** @type {Element|null} */ (e.target);
     if (!tg) return;
     if (tg.closest('[data-at-back]')) { C.go('home'); return; }
-    if (tg.closest('[data-at-cc]')) { e.preventDefault(); C.refocus = true; if (!C.interrupt()) C.toCmd(); return; }
-    const pk = /** @type {HTMLElement|null} */ (tg.closest('[data-at-pick]'));
-    if (pk) {
-      const key = pk.getAttribute('data-at-pick') || '';
-      const fn = C.mode === 'pick' && picks[key];
-      if (fn) { picks = {}; fn(); }
-      return;
-    }
     const a = /** @type {HTMLElement|null} */ (tg.closest('[data-at-act]'));
-    if (!a) {
-      if (tg.closest('[data-at-term]') && !tg.closest('button, a, input')) C.focusIn();
-      return;
-    }
+    if (!a) return;
     e.preventDefault();
     act(a.getAttribute('data-at-act') || '');
     C.keepFocus();
