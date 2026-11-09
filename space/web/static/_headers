@@ -17,7 +17,8 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), payment=(), usb=(), serial=(), hid=(), midi=(), display-capture=()
   Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'sha256-3cnYCRXIA6PvNuskoomZSRzThARfCNNwL5rAwESJLec=' 'sha256-EXXy0XPvXTtUhwj3HaX4YeIspqPULX4vksSB4X+ltm4=' 'sha256-LEyUD+QpBJGQuguZ7duNA1niRnvHFSc+poR8PASgVWQ=' 'sha256-h5JNOR4zPHT8YecFgkGto7igIre3DOn8RLzWyBX/4IQ=' 'sha256-i1XMiEvbVUtdwdw3UvJJ8q9wEIV5cxYfeWksDFT51NY=' 'sha256-op3CP/1k6TQKGdurIATw2nTR/PE3++UTTQgtKCtXkEA='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com; frame-src 'none'; worker-src 'none'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'sha256-3cnYCRXIA6PvNuskoomZSRzThARfCNNwL5rAwESJLec=' 'sha256-EXXy0XPvXTtUhwj3HaX4YeIspqPULX4vksSB4X+ltm4=' 'sha256-LEyUD+QpBJGQuguZ7duNA1niRnvHFSc+poR8PASgVWQ=' 'sha256-h5JNOR4zPHT8YecFgkGto7igIre3DOn8RLzWyBX/4IQ=' 'sha256-i1XMiEvbVUtdwdw3UvJJ8q9wEIV5cxYfeWksDFT51NY=' 'sha256-op3CP/1k6TQKGdurIATw2nTR/PE3++UTTQgtKCtXkEA='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com; frame-src 'none'; worker-src 'none'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /api/csp-report; report-to csp-endpoint
+  Reporting-Endpoints: csp-endpoint="/api/csp-report"
 # @gen-security-headers end
 
 /css/*
