@@ -2,7 +2,7 @@
  * 无会话写接口的按 IP 总限流（src/core/anon-limit.js + gate.js，2026-10-28 PR2）。
  * - 无会话 POST 那五个接口：先过 ANON_LIMITER（按 CF-Connecting-IP），超了 429 cooldown + Retry-After，不进端点
  * - 有效会话（任何角色）、GET、别的接口：不过限流器
- * - 绑定缺失 / 限流器抛错：放行（防刷总闸，不是安全门）
+ * - 绑定缺失 = 部署配错：fail-closed 503 config + console.error（2026-11-09）；限流器抛错 / 返回怪值：放行（防刷总闸，不是安全门）
  * - wrangler.toml 的 [[ratelimits]] 和代码里的名字 / 周期一致
  */
 import { test } from 'node:test';
@@ -61,9 +61,26 @@ test('有效会话、GET、别的接口：不碰限流器', async () => {
   assert.deepEqual(lim.keys, []);
 });
 
-test('绑定缺失 / 限流器抛错 / 返回怪值：放行', async () => {
-  assert.equal(await anonLimit(post('/api/space-auth'), env(undefined), false), null);
-  assert.equal(await anonLimit(post('/api/space-auth'), env({}), false), null);
+test('绑定缺失：fail-closed 503 config，打 console.error（2026-11-09）；有会话 / GET / 不在名单的接口不受影响', async () => {
+  const errs = [];
+  const orig = console.error;
+  console.error = (...a) => { errs.push(a.join(' ')); };
+  try {
+    for (const lim of [undefined, {}]) {
+      const r = await anonLimit(post('/api/space-auth'), env(lim), false);
+      assert.ok(r, '缺绑定不放行');
+      assert.equal(r.status, 503);
+      assert.equal((await r.json()).error, 'config');
+    }
+  } finally { console.error = orig; }
+  assert.equal(errs.length, 2);
+  assert.match(errs[0], /no ANON_LIMITER binding, fail-closed 503 path=\/api\/space-auth/);
+  assert.equal(await anonLimit(post('/api/space-auth'), env(undefined), true), null, '有会话不经总闸');
+  assert.equal(await anonLimit(new Request('https://styrigx.com/api/space-auth'), env(undefined), false), null, 'GET 不经总闸');
+  assert.equal(await anonLimit(post('/api/ai'), env(undefined), false), null, '不在名单的接口不经总闸');
+});
+
+test('限流器抛错 / 返回怪值：放行', async () => {
   assert.equal(await anonLimit(post('/api/space-auth'), env({ limit: async () => { throw new Error('edge down'); } }), false), null);
   assert.equal(await anonLimit(post('/api/space-auth'), env({ limit: async () => undefined }), false), null);
 });
@@ -93,7 +110,7 @@ test('中间件：无会话超限 → 429，不进端点；带有效会话照常
   assert.equal(lim.keys.length, 2, '有会话那次没调 limit');
 });
 
-test('wrangler.toml：[[ratelimits]] ANON_LIMITER 每 60 秒 20 次，周期和代码一致，不和 AI_LIMITER 共用 namespace；Pages 预览不绑（缺绑定放行）', () => {
+test('wrangler.toml：[[ratelimits]] ANON_LIMITER 每 60 秒 20 次，周期和代码一致，不和 AI_LIMITER 共用 namespace；Pages 预览不绑（测试入口 preview-worker.js 给放行的桩）', () => {
   const toml = readFileSync(new URL('../../../workers/space-core/wrangler.toml', import.meta.url), 'utf8');
   const block = toml.split(/\n(?=\[\[)/).find((b) => /^\[\[ratelimits\]\]/m.test(b) && /^name = "ANON_LIMITER"$/m.test(b)) || '';
   assert.match(block, /^name = "ANON_LIMITER"$/m);

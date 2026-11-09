@@ -221,7 +221,10 @@ export async function checkAssertion(env, rp, purpose, body) {
     }
     stored.signCount = checked.signCount;
     stored.lastUsedAt = Date.now();
-    try { await updatePasskey(env, stored); } catch (e) {}
+    /* signCount / lastUsedAt 回写失败不挡登录（验签已过），但要留日志：不然计数一直停在旧值、克隆检测和「上次使用」都悄悄失效（2026-11-09） */
+    try { await updatePasskey(env, stored); } catch (e) {
+      console.error('[account-passkey] signCount writeback failed, sign-in allowed:', e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : e);
+    }
   } catch (e) {
     console.error('[account-passkey]', e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : e);
     const code = (e && /** @type {any} */ (e).message === 'uv-required') ? 'uv-required' : 'verify';

@@ -124,9 +124,12 @@ async function handlePost(context) {
     await clearFail();
     /* 旧 hash 成功验证后重哈希（加 pepper），写回锁屏密码 */
     if (vr.needsRehash) {
+      /* 重哈希写回失败不挡进站（密码已验过），留一行日志，下次验证再试（2026-11-09） */
       try {
         await savePassword(env, REALM_LOCK, await makePasswordRecord(password, pepper));
-      } catch (e) {}
+      } catch (e) {
+        console.error('[lock-password] rehash writeback failed, unlock allowed:', e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : e);
+      }
     }
     /* 通过：签发 Ed25519 会话 cookie（fail closed：无密钥/签发失败 → 5xx，
        绝不静默跳过然后返回 ok:true）。锁屏密码进门 12 小时 */

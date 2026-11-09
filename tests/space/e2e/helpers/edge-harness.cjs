@@ -189,6 +189,8 @@ async function startEdge() {
     SGX_SPACE_RECOVERY_KEY: 'edge-test-space-key-not-a-secret', SGX_SPACE_PASSWORD_PEPPER: 'edge-test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'edge-test-pepper',
     ACCOUNT, ACCOUNT_VERIFIER,
     ASSETS: assets,
+    /* 正式 wrangler.toml 绑了 [[ratelimits]] ANON_LIMITER；缺了网关 fail-closed 503（core/anon-limit.js），测试台给放行的桩 */
+    ANON_LIMITER: { limit: async () => ({ success: true }) },
   };
   /* 兼容旧调用方：分享链接已在同一个 Worker 里，env 就是同一份 */
   const shareEnv = env;
