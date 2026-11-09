@@ -4,10 +4,13 @@
  * - [03] 日刻 今日一句（lib/daymark-today.js，/daymark/api/today 公开只读）
  * - [04] 旷野 status 小卡 + 首屏状态胶囊：接外壳 shell/topbar-panel.js mountStatus 发的 sgx:status-cells（同一份 /api/status，不另取）
  * - [04] 旷野 screen-time 小卡由 core 的 loadWb()（lib/wb-view.js）画，这里不管
+ * - hero：$ 行标语打字轮播（apps/home-typer.js）；# 行签名 motto 空值时整行隐藏（跟 sgx-profile-changed）
  * mountHome() 由 entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
  */
 import { mountDaymarkToday } from '../lib/daymark-today.js';
 import { i18nTable } from '../lib/i18n.js';
+import { PROFILE_EVENT } from '../lib/profile.js';
+import { mountTyper } from './home-typer.js';
 
 /** 界面文案：页面字符串表 #sgx-i18n-space */
 const tx = i18nTable('space');
@@ -92,6 +95,18 @@ export function mountHome(o) {
     window.scrollTo(0, 0);
   }
   const lang = (document.documentElement.lang || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+
+  /* hero：$ 行标语打字轮播；# 行签名（个人资料 motto，lib/profile.js 用 textContent 覆盖）空了就藏整行，账号页改了跟着变 */
+  mountTyper(document.querySelector('[data-home-typer]'));
+  const motto = /** @type {HTMLElement|null} */ (document.querySelector('[data-home-motto-line]'));
+  if (motto) {
+    const syncMotto = function () {
+      const v = motto.querySelector('[data-sgx-profile="motto"]');
+      motto.hidden = !(v && (v.textContent || '').trim());
+    };
+    syncMotto();
+    window.addEventListener(PROFILE_EVENT, syncMotto);
+  }
 
   /* [03] 日刻 · 今日一句：先画本地缓存（同一天才用），再静默拉新；拉失败且没缓存 → 保持隐藏 */
   const dm = document.getElementById('w-daymark');

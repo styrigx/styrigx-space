@@ -9,8 +9,6 @@ notFound:
 home:
   # 主页首屏终端（2026-11 UI 重设计 PR-2；对齐 PR-B 按设计稿 tb4.html 四节：博客 / 奇趣 / 日刻 / 旷野）。status 是首帧文字，外壳取到 /api/status 后换成 js.space.homeStatusUp / Down
   status: "STATUS: ONLINE · 6/6 ACTIVE"
-  role: "writing the blog, collecting curios, keeping a daymark"
-  intro: "A Personal Digital Space — one person’s corner of the web, browsable from the command line."
   blog: Blog
   minutes: "{n} min"
   blogLabel: "[01] Blog · latest 3"
