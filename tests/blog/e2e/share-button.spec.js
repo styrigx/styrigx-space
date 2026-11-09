@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 
 const CODE = 'AbCdEfGhIjKlMnOpQrStUv';
 const SHORT = 'https://styrigx.com/s/' + CODE;
-const PAGE = '/blog/zh/post/2026-10-07-muse-playbook/';
+const PAGE = '/blog/zh/post/2026-09-27-invite-board/';
 const HOMES = ['/blog/zh/', '/blog/'];
 
 /* 语言清理（2026-11-07）起博客也「跟随系统」每页都跳（四站同一份首帧跳转 lang-boot.js），Playwright 默认 en-US 会把 /blog/zh/… 换到英文页。

@@ -104,7 +104,7 @@ test('四站同一个函数：/<站>/en… 及归一后等价写法都算，站�
 });
 
 const SUB_EN = {
-  blog: ['/blog/en/', '/blog/en', '/blog/en/post/2026-10-07-muse-playbook/', '/blog/en/rss.xml', '/blog/EN/', '/blog/%65n/', '//blog//en/', '/BLOG/En/tags/ai/', '/blog/en/x.js'],
+  blog: ['/blog/en/', '/blog/en', '/blog/en/post/2026-09-27-invite-board/', '/blog/en/rss.xml', '/blog/EN/', '/blog/%65n/', '//blog//en/', '/BLOG/En/tags/ai/', '/blog/en/x.js'],
   curio: ['/curio/en/', '/curio/en', '/curio/en/items/', '/curio/EN/', '/curio/%65n/', '//curio//en/', '/curio/en/sitemap.xml', '/curio/en/app.js'],
   daymark: ['/daymark/en/', '/daymark/en', '/daymark/en/entries/', '/daymark/EN/', '/daymark/%65n/', '//daymark//en/', '/daymark/en/sitemap.xml'],
 };

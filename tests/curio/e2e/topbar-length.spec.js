@@ -7,7 +7,7 @@
  * 主站自己的顶栏见 tests/space/e2e/topbar/topbar-length.spec.js。 */
 const { test, expect } = require('@playwright/test');
 
-const PAGES = ['/', '/wild/', '/?entry=1', '/blog/', '/blog/post/2026-10-07-muse-playbook/', '/curio/', '/daymark/'];
+const PAGES = ['/', '/wild/', '/?entry=1', '/blog/', '/blog/post/2026-09-27-invite-board/', '/curio/', '/daymark/'];
 /* 任务书验收三档 + 宽竖屏 + 横屏 900 + 平板竖屏 + 桌面窄窗 700（自动落手机） */
 const VIEWPORTS = [[412, 915], [1280, 800], [1920, 1080], [982, 2104], [900, 600], [1024, 1366], [700, 900]];
 
