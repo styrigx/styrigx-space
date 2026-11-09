@@ -193,7 +193,7 @@ test('标签页标题（Gray 2026-11-07）：四站「页名 | 站名」，站�
     assert.ok(posts.length > 0, l + ' 有文章');
     for (const p of posts) assert.match(title(`${dir}/${p}/index.html`), new RegExp(` \\| ${blog[l]}$`), `${l} ${p}`);
   }
-  assert.match(title('space/web/public/blog/tags/ai/index.html'), new RegExp(` \\| ${blog.en}$`));
+  assert.match(title('space/web/public/blog/tags/github/index.html'), new RegExp(` \\| ${blog.en}$`));
   assert.match(title('space/web/public/blog/404.html'), new RegExp(` \\| ${blog.en}$`));
   assert.match(title('space/web/public/blog/zh/404.html'), new RegExp(` \\| ${blog.zh}$`));
   /* 四站标题都不会出现「站名 | 站名」 */
