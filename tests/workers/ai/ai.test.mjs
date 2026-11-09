@@ -385,8 +385,8 @@ test('wrangler.toml：没有公开地址、绑定 AI、索引 KV、Vectorize、�
   assert.doesNotMatch(toml, /qwen/i);
   const reg = M.parseModels(/^AI_MODELS = '(.+)'$/m.exec(toml)[1]);
   assert.equal(reg.def, '@cf/google/gemma-4-26b-a4b-it');
-  assert.deepEqual(reg.models.map((m) => [m.id, m.provider]), [['@cf/google/gemma-4-26b-a4b-it', 'workers-ai'], ['@cf/openai/gpt-oss-20b', 'workers-ai'], ['gemini-3.8-flash', 'gemini']]);
-  assert.equal(reg.models[2].label, 'Gemini 3.8 Flash', '2026-11-09：gemini-2.5-flash 对新用户已下线（404），换 3.8 Flash');
+  assert.deepEqual(reg.models.map((m) => [m.id, m.provider]), [['@cf/google/gemma-4-26b-a4b-it', 'workers-ai'], ['@cf/openai/gpt-oss-20b', 'workers-ai'], ['gemini-3.5-flash-lite', 'gemini'], ['gemini-3.8-flash', 'gemini']]);
+  assert.deepEqual(reg.models.slice(2).map((m) => m.label), ['Gemini 3.5 Flash Lite', 'Gemini 3.8 Flash'], '2026-11-09：2.5 Flash 对新用户已下线；免费档 Flash-Lite 每天 500 次作主力，3.8 Flash 第二');
   assert.match(toml, /\[ai\]\s*\nbinding = "AI"/);
   assert.match(toml, /binding = "KV_SEARCH_INDEX"\s*\nid = "4bcdb84f205541b9b6c8d230bc2b106f"/);
   for (const v of ['AI_MODELS', 'AI_MAX_TOKENS = "1024"', 'AI_CONTEXT_HITS = "6"', 'AI_RECALL_MIN_SCORE = "0.42"', 'AI_GEMINI_SEARCH = "1"']) assert.ok(toml.includes(v), v);
@@ -507,7 +507,7 @@ test('外部模型（Gemini）：钥匙走头不进 URL；系统提示 + 上下�
   assert.equal(body.generationConfig.thinkingConfig, undefined, 'gemini-x 不是 3.x，不带 thinkingLevel');
 });
 
-test('外部模型：钥匙没绑 / 读不到 → 503 no_key（不调上游）；上游 404 → error model_unavailable，429 → rate_limited', async () => {
+test('外部模型：钥匙没绑 / 读不到 → 503 no_key（不调上游）；上游 404 → error model_unavailable，429 → daily_limit', async () => {
   let calls = 0;
   await withFetch(async () => { calls++; return new Response('{}', { status: 200 }); }, async () => {
     let r = await ask({ q: '主题' }, {}, gEnv());
@@ -517,7 +517,8 @@ test('外部模型：钥匙没绑 / 读不到 → 503 no_key（不调上游）�
     assert.deepEqual([r.status, (await r.json()).error], [503, 'no_key']);
   });
   assert.equal(calls, 0);
-  for (const [status, code] of [[404, 'model_unavailable'], [429, 'rate_limited'], [500, 'upstream']]) {
+  /* 2026-11-09：429 不能再换模型（gemini-x 不是 3.x Flash）且不是明确的每分钟限额 → daily_limit */
+  for (const [status, code] of [[404, 'model_unavailable'], [429, 'daily_limit'], [500, 'upstream']]) {
     M._resetModelsCache();
     await withFetch(async () => new Response('{"error":{}}', { status }), async () => {
       const ev = await events(await ask({ q: '主题' }, {}, gEnv({ SGX_CHAT_API_KEY: 'k' })));

@@ -158,9 +158,18 @@ test.describe('桌面/移动版切换：主页历史的原始请求地址必须�
 /* P4-3 PR-4c：中文浏览器直接打开英文地址，首帧语言跳转（baseof.html location.replace）到 /zh/…。
    跳过去的那份文档 referrer 是跳之前的同源页，以前就因此认不出「直接打开」、不插主页历史，系统返回一次回不到主页；
    baseof 跳之前把原始来源记进 sessionStorage sgx-lang-hop，navhistory.js 用一次就删 */
+/* 2026-11-09 语言行 EN | Auto | 中文：Auto（跟随浏览器）只在从站外进主站首页时换，深链不跳；明确选了中文的照旧每一页都跳，所以这里先存明确的 zh */
 test.describe('中文浏览器直接打开英文地址（首帧语言跳转）', () => {
-  test('/wild/ → /zh/wild/：照样插一条中文主页历史，系统返回一次回到真正的 /zh/ 请求', async ({ page }) => {
+  test('Auto：/wild/ 是深链，不跳，留在英文页', async ({ page }) => {
     await blockExternalRequests(page);
+    await page.goto('/wild/');
+    await page.waitForLoadState('load');
+    expect(new URL(page.url()).pathname).toBe('/wild/');
+  });
+
+  test('明确选了中文：/wild/ → /zh/wild/：照样插一条中文主页历史，系统返回一次回到真正的 /zh/ 请求', async ({ page }) => {
+    await blockExternalRequests(page);
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     const docs = trackDocs(page);
     await page.goto('/wild/');
     await page.waitForURL((u) => u.pathname === ZH + '/wild/');

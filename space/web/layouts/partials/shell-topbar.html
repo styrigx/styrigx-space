@@ -62,13 +62,16 @@
     </nav>
     <div class="sgx-nav-pf">
       <span class="sgx-nav-pfk" id="sgx-nav-lang-k">{{ $t.topbar.langKey }}</span>
-      {{- /* 语言分段（配置里的每种语言；短名用它自己的写法，不翻译、translate="no"）：选中即保存，和本页不同就去另一种语言的同一页 */}}
+      {{- /* 语言分段 EN | Auto | 中文（Gray 2026-11-09 13:44：Auto 在中间；配置里的每种语言，短名用它自己的写法，不翻译、translate="no"）：
+           选中即保存（sgx-lang），明确选的语言和本页不同就去另一种语言的同一页；Auto = data-qp-lang="system"（跟随浏览器语言，同一个 key 的 'system' 值），
+           只在主站首页（/ ↔ /zh/）换过去，深链不动。初始 aria-checked 全 false，开面板时 topbar-panel.js paintNav 按偏好点亮 */}}
       <div class="sgx-nav-seg" role="radiogroup" aria-labelledby="sgx-nav-lang-k" data-qp-langs{{ with .langHref }} data-href="{{ . }}"{{ end }}>
-        {{- range sort .langs "code" }}<button type="button" role="radio" data-qp-lang="{{ .code }}" lang="{{ .code }}" aria-checked="{{ if eq .code $lang }}true{{ else }}false{{ end }}" aria-label="{{ .name }}" translate="no">{{ .short | default .name }}</button>{{ end }}
+        {{- range $i, $l := sort .langs "code" }}{{ if eq $i 1 }}<button type="button" role="radio" data-qp-lang="system" aria-checked="false" aria-label="{{ $t.topbar.langAuto }}" translate="no">{{ $t.topbar.auto }}</button>{{ end }}<button type="button" role="radio" data-qp-lang="{{ $l.code }}" lang="{{ $l.code }}" aria-checked="false" aria-label="{{ $l.name }}" translate="no">{{ $l.short | default $l.name }}</button>{{ end }}
       </div>
       <span class="sgx-nav-pfk" id="sgx-nav-layout-k">{{ $t.topbar.layoutKey }}</span>
+      {{- /* 布局分段 Mobile | Auto | DeX（Gray 2026-11-09 13:45：Auto 在中间；只换顺序，值 / 默认 / 行为不变） */}}
       <div class="sgx-nav-seg sgx-qp-seg" role="group" aria-labelledby="sgx-nav-layout-k" data-qp-seg="layout">
-        {{- range slice (dict "v" "auto" "t" $t.topbar.auto) (dict "v" "phone" "t" $t.topbar.phone) (dict "v" "desktop" "t" $t.topbar.desktop) }}<button type="button" data-v="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
+        {{- range slice (dict "v" "phone" "t" $t.topbar.phone) (dict "v" "auto" "t" $t.topbar.auto) (dict "v" "desktop" "t" $t.topbar.desktop) }}<button type="button" data-v="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
       </div>
     </div>
     <div class="sgx-nav-act">
