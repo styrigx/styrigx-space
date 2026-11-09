@@ -51,11 +51,11 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 
 ## 预览
 
-| ![手机主页](docs/screenshots/home-mobile.jpg) | ![设置](docs/screenshots/settings-mobile.jpg) |
+| ![手机主页](docs/assets/screenshots/home-mobile.jpg) | ![设置](docs/assets/screenshots/settings-mobile.jpg) |
 |:---:|:---:|
 | 手机旷野页（上） | 旷野页分类入口 |
 
-![DeX](docs/screenshots/home-dex.jpg)
+![DeX](docs/assets/screenshots/home-dex.jpg)
 <p align="center">DeX</p>
 
 ## 应用
@@ -108,7 +108,7 @@ flowchart LR
 - **浏览器侧**：严格 CSP（内联脚本按哈希放行，由 `gen-csp` 生成并在 CI 校验）、HSTS、`nosniff`。
 - **分享**：只能通过带时限的短链（背后是一把临时钥匙），生成前要锁侧复验，可随时作废。
 
-设计细节见 [docs/architecture.md](docs/architecture.md)、[docs/auth-state-machine.md](docs/auth-state-machine.md)。
+设计细节见 [docs/architecture/overview.md](docs/architecture/overview.md)、[docs/specs/auth-state-machine.md](docs/specs/auth-state-machine.md)、[docs/security/account-v3.md](docs/security/account-v3.md)。
 
 ## Styrigx UI
 
@@ -150,11 +150,11 @@ styrigx-space/
 ├─ space/      网站 + 基建：web/ 一个 Hugo 站（主站 + 博客 / 奇趣 / 日刻，子站按 <目录>/<站>/ 分开，由 Cloudflare Pages 发布），scripts/ 构建、生成、静态检查脚本（子站自己的在 scripts/<站>/）
 ├─ workers/    全部 Worker，一个目录一个
 ├─ tests/      测试，按对象分目录
-├─ docs/       设计文档、任务书与截图（入口索引 docs/README.md）
+├─ docs/       规范书：架构、规范、设计、安全、运维、贡献、ADR（入口索引 docs/README.md）
 └─ .github/    CI 工作流与共享 composite action
 ```
 
-完整说明见 [STRUCTURE.md](STRUCTURE.md)。
+完整说明见 [docs/architecture/repo-structure.md](docs/architecture/repo-structure.md)。
 
 ## 站点家族
 

@@ -160,11 +160,13 @@ test('构建产物：没有 settings/ 目录，任何 HTML 都没有 href 指向
   }
 });
 
-/* ---- 全仓：旧设置层地址只允许出现在历史文档 ---- */
-const HISTORY = new Set(['docs/styrigx-3.0-task.md']);
+/* ---- 全仓：旧设置层地址不许再出现 ----
+   2026-11-09 docs 整理删掉了历史任务书 docs/styrigx-3.0-task.md（要点进 docs/decisions/ADR-0002），白名单清空；
+   以后真要保留历史文本，加进这里。 */
+const HISTORY = new Set(/** @type {string[]} */ ([]));
 const HAS_GIT = existsSync(path.join(REPO, '.git'));
 
-test('git grep 旧设置层地址：只剩历史文档', { skip: !HAS_GIT && '不是 git 工作区' }, () => {
+test('git grep 旧设置层地址：全仓零残留', { skip: !HAS_GIT && '不是 git 工作区' }, () => {
   let out = '';
   try {
     out = execFileSync('git', ['grep', '-l', '-F', OLD_PATH], { cwd: REPO, encoding: 'utf8' });
@@ -173,5 +175,5 @@ test('git grep 旧设置层地址：只剩历史文档', { skip: !HAS_GIT && '�
     out = /** @type {any} */ (e).stdout || '';
   }
   const files = out.split('\n').filter(Boolean);
-  assert.deepEqual(files.filter((f) => !HISTORY.has(f)), [], '除历史文档外不许再出现旧设置层地址');
+  assert.deepEqual(files.filter((f) => !HISTORY.has(f)), [], '不许再出现旧设置层地址');
 });

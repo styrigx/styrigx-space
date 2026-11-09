@@ -7,7 +7,7 @@
  * - 以前的 Cloudflare 绑定名：KV_LOCK_DOOR、KV_ACCOUNT_LOGIN、D1_LOCK_RESET（2026-10-27 起网关已不绑，binding-names.test.mjs 核对；
  *   测试替身和导入脚本里仍会出现这些名字）
  * - Secrets Store 密钥名：SGX_*（如 SGX_SPACE_PASSWORD_PEPPER、SGX_ROOT_KEY，不改名）
- * - 历史文档不在 workers/ space/web/ 下（docs/2.4.1-*、docs/styrigx-3.0-task.md），本测试不扫
+ * - docs/ 不在 workers/ space/web/ 下，本测试不扫（2026-11-09 docs 整理后 docs/ 里已没有历史任务书）
  * 生成物与第三方目录不扫：space/web/public、space/web/resources、node_modules、visual 基线图。
  *
  * 运行：node --test tests/workers/space-core/old-names.test.mjs

@@ -1,15 +1,29 @@
-# 调色板怎么用（七色调色板，2026-10-23 PR-G）
+# 调色板与色彩角色
 
-> 状态：现行 ｜ 最后更新：2026-11-06
+| 项 | 值 |
+|---|---|
+| 文档编号 | SGX-DES-001 |
+| 版本 | 2.0 |
+| 日期 | 2026-11-09 |
+| 状态 | 现行 |
+| 取代 | `docs/palette-usage.md`（2026-11-06） |
+| 规则版本 | `palette-rules-1`（`space/scripts/gen-shell.mjs` `RULES_VERSION`，导出到 `palettes.json` 的 `rulesVersion`） |
 
-> 适用：主站（本 PR 落地）；共享外壳完整导出全部 token，子站以后按需接入（见七），本 PR 不改子站仓库。
-> 数据源（**唯一一处**颜色值）：`space/web/assets/js/lib/palette-scheme.js` 的 `THEMES` + `FG_POOL`。
-> `space/web/data/palettes.yaml`（id / c / 名字 / 分组）和定稿夹具 `tests/fixtures/palette-v0.3.json` 都只是**被单测逐项核对的副本**，改了源头忘了改副本单测就红，不会悄悄漂移；
-> 设置风格页的色块 / 首页缩略预览卡、快捷面板色块都从生成的 `space/web/data/palette-roles.json` 取值（`partials/palette-tile-vars.html`），和页面上的角色同一份数据。
-> → `node space/scripts/gen-palettes.mjs --roles` → `space/web/data/palette-roles.json` + `input.css` 的 `@gen-palettes` 段
-> → `node space/scripts/gen-shell.mjs` → `space/web/assets/css/shell/tokens.css` + `space/web/data/shell/palettes.json`（子站直接用；2026-11 合站后没有副本）。
+## 0. 数据源与生成链
 
-## 一、一套调色板是什么
+0.1 颜色值的**唯一来源**是 `space/web/assets/js/lib/palette-scheme.js` 的 `THEMES` + `FG_POOL`。`space/web/data/palettes.yaml`（id / 名字 / 分组）与定稿夹具 `tests/fixtures/palette-v0.3.json` 只是被单测逐项核对的副本。
+
+0.2 生成链（CI 对两个脚本都跑 `--check`）：
+
+```
+palette-scheme.js
+  → node space/scripts/gen-palettes.mjs --roles → space/web/data/palette-roles.json + input.css 的 @gen-palettes 段
+  → node space/scripts/gen-shell.mjs           → space/web/assets/css/shell/tokens.css + space/web/data/shell/palettes.json
+```
+
+0.3 快捷面板的色块与预览从 `palette-roles.json` 取值（`layouts/partials/palette-tile-vars.html`），与页面角色同一份数据。四站直接使用同一份生成物，没有副本。
+
+## 1. 一套调色板是什么
 
 22 套，每套 = **1 个背景色 + 6 个前景撞色**。原来的「单色 / 撞色」两组合并成一个列表，`x*` 撞色 id 删除（旧值 `x<id>` 自动迁到 `<id>`）。默认 **dustyblue（雾霾蓝）**。
 
@@ -30,15 +44,15 @@
 
 | 档位 | 只能用在 | 不能用在 |
 |---|---|---|
-| 背景 7 档 `--sgx-bg-1..7` | 每个模式各一条阶梯，**只给光晕和页面底**（`--sgx-bg-1`） | 大面积内容表面、卡片、任何文字底下 |
+| 背景 7 档 `--sgx-bg-1..7` | 每个模式各一条阶梯；组件只用页面底 `--sgx-bg-1` | 大面积内容表面、卡片、任何文字底下 |
 | 前景 `-tint` | 浅底：chip / 标签、选中态底色 | — |
 | 前景本色（base） | 填充：按钮、开关、进度、选中分段（上面的字由引擎自动挑 on 色，见四） | 当文字色（浅色模式下多数不到 4.5:1） |
 | 前景 `-ink` | 文字、图标、链接、焦点环 | 大面积底色 |
-| 前景 5–6 | 只给图表 / 设置页色块与预览 | 普通组件 |
+| 前景 5–6 | 只给图表 / 快捷面板色块与预览 | 普通组件 |
 
-**深色、饱和的档位永远不当大面积底色铺在文字下面**（夜间时钟、名片这类大块以前就是这样发棕的，见三）。
+深色、饱和的档位 MUST NOT 当大面积底色铺在文字下面（PR-G 之前大块卡片因此整体发棕）。
 
-## 二、三层 token
+## 2. 三层 token
 
 组件只引用 **Shell + Semantic** 两层，**不直接写 `--sgx-fg-N` / `--sgx-bg-N`**。
 
@@ -46,8 +60,8 @@
 
 | token | 用在哪 |
 |---|---|
-| `--sgx-bg-1..7` | 只给页面底（`--sgx-bg-1`）和光晕 `--sgx-halo`（七团光 = bg-7 … bg-2）用 |
-| `--sgx-mat` / `--sgx-mat-solid` / `--sgx-mat-line` / `--sgx-mat-filter` | 玻璃材质：顶栏、抽屉 / 边栏、内容卡片、底部搜索栏、快捷面板 |
+| `--sgx-bg-1..7` | 只给页面底用：`--sgx-bg-1` 纯色底 + 44px 细网格 `--sgx-grid`（2026-11 PR-A 起没有光晕） |
+| `--sgx-mat` / `--sgx-mat-solid` / `--sgx-mat-line` / `--sgx-mat-filter` | 材质：顶栏、导航面板、内容卡片、快捷面板、终端窗口 |
 | `--sgx-surface*`、`--sgx-surface-container*`、`--sgx-topbar-glass`、`--sgx-glass-tint`、`--sgx-glass-edge`、`--sgx-scrim` | 表面层级、弹层、遮罩 |
 
 材质是**中性色**：只带一点背景色相（中性彩度 `n.c ≤ 0.012`），不混饱和主题色；透明度 / 模糊 / 描边规则所有主题一样。
@@ -64,11 +78,11 @@
 | `secondary` / `secondary-container` | 前景 2 | 次要操作、功能分类图标 |
 | `tertiary` / `tertiary-container` | 前景 3 | 徽标、特殊功能卡的局部撞色 |
 | `--sgx-tag-bg` / `--sgx-tag-fg` | 前景 4（tint / ink） | 标签 / chip 装饰 |
-| `--sgx-chart-1..6` | 前景 1..6 | 只给图表（以及设置页色块 / 预览卡） |
+| `--sgx-chart-1..6` | 前景 1..6 | 只给图表（以及快捷面板色块 / 预览） |
 | `link`、`focus-ring`、`nav-selected`、`chip-selected`、`outline`、`outline-variant`、`divider`、`text-primary` / `-secondary` / `-tertiary` | 引擎派生 | 链接、焦点、选中、边线、文字 |
 | `danger` 族 | **固定红色族，不随主题变** | 错误、故障 |
 | `warning` / `info` 族（各四个） | **固定琥珀（h 65）/ 蓝（h 250），不随主题变**，亮暗各一套、审计核对 | 先只导出，主站组件暂未接（需要时直接用） |
-| `success` / `on-success` / `success-container` / `on-success-container` | **固定绿色族（OKLCH h 150），不随主题变**，亮暗各一套、对比度审计 | 状态页「正常」横幅 / chip / 可用率色块、设置安全状态 `.is-ok`、验证成功勾 |
+| `success` / `on-success` / `success-container` / `on-success-container` | **固定绿色族（OKLCH h 150），不随主题变**，亮暗各一套、对比度审计 | 服务状态「正常」横幅 / chip / 可用率色块、验证成功提示 |
 
 **频率**：前景 1 为主，前景 2 次之，前景 3–4 少量，前景 5–6 很少（只在图表、色块预览里出现）。
 普通图标保持中性（`text-secondary`），只有关键操作用 `primary`。
@@ -77,28 +91,24 @@
 
 组件只引用上面两层，例如：搜索框、导航项、按钮、卡片、chip、开关。
 
-## 三、主站各区域
+## 3. 区域规则
 
 | 区域 | 规则 |
 |---|---|
-| 顶栏 | 玻璃材质；只有字标 / 品牌点和操作图标可以带一点主题色（primary ink），其余中性 |
-| 边栏 / 抽屉 | 和顶栏同一套玻璃规则 |
-| 边栏普通导航项 | 中性文字 + 中性图标，默认不带强调色 |
-| 导航项选中态 | 低透明度的 primary 浅底（`primary-container` 或 primary 12–16% 透明度）+ primary ink 的图标和文字 |
-| 内容区底板块 | 低对比的玻璃面板，不跟内容抢 |
-| 内容区上层块（卡片 / 模块） | 中性玻璃表面；只有特殊功能卡（首页夜间时钟卡、精选卡）用 secondary / tertiary 的局部撞色，**每张卡最多一种** |
-| 首页名片 | 普通卡片的中性玻璃（`.widget.bg-m-container-lowest` → `--sgx-mat`）；只留头像环一处 `primary-fill` |
-| 首页双时钟 | 白天半边 = 材质；夜间半边 = 唯一的局部撞色：`--sgx-night-card`（第三色的浅底、低彩度，按材质 88% 不透明铺）+ `on-night-card` 字（≥7:1）、月亮图标 tertiary ink；**不再是整块饱和深色** |
-| 快捷面板 | 面板 = 材质；磁贴 / 行 / 齿轮 / 恢复默认 = 中性玻璃（`--sgx-qp-glass`：最浅表面色半透明 + outline-variant 描边）；开着的磁贴 = `primary-container` + `on-primary-container`，图标圆 = `primary-fill`；选中分段 = `primary-fill` |
-| 天气卡 | 不变（自带天气渐变） |
-| 搜索框 | 中性玻璃底 + 柔和的中性边线；聚焦时边线 / 焦点环变 primary |
-| 主要按钮 | `primary-fill` 实色填充（前景 1 本色），`on-primary-fill` 文字 ≥4.5:1 |
-| 次要按钮 | 透明或玻璃底 + primary 描边或 primary 文字 |
+| 页面底 | `--sgx-bg-1` 纯色 + 44px 细网格；四站相同 |
+| 顶栏、导航面板、快捷面板、终端抽屉、AI 窗、下拉 | 同一套中性材质（`--sgx-mat*`）；只有字标提示符、关键操作图标可以用 `primary` ink |
+| 导航项 / 分段选中态 | `primary-container` 浅底 + `on-primary-container` / `primary` ink 文字与图标 |
+| 内容卡片、终端窗口 | 中性材质；特殊功能卡最多一种局部撞色（secondary / tertiary） |
+| 主要按钮、开着的开关、进度、选中分段 | `primary-fill` + `on-primary-fill` |
+| 次要按钮 | 透明或材质底 + `primary` 描边或文字 |
+| 状态（服务状态、校验结果） | 固定 `success` / `danger` / `warning` / `info` 族，不随主题 |
+| 提示符、命令回显 | `primary` ink（如 AI 回答前的 `grayai@… --reply` 行） |
 
-总原则：**顶栏 / 边栏 / 内容底板不各自绑不同的主题色**——它们是一个壳；主题色留给交互和视觉焦点内容。
-**大面积块中性化**：任何大块（名片、面板里的磁贴 / 行、整张卡）都是中性玻璃，不铺 `*-container` / 深色调；主题色只出现在小面积强调上（图标、头像环、选中态的浅底 + ink、按钮填充）。
+3.1 顶栏、抽屉、内容底板 MUST NOT 各自绑定不同的主题色——它们是同一个壳。
 
-## 四、按钮填充 vs ink（2026-10-23 PR-G 修订）
+3.2 **大面积块中性化**：任何大块（卡片、面板、磁贴、整张卡）MUST 使用中性材质，MUST NOT 铺 `*-container` 或深色调；主题色只出现在小面积强调上。
+
+## 4. 按钮填充 vs ink（2026-10-23 PR-G 修订）
 
 浅色模式下，前景 1 往往是中间调（默认雾霾蓝的前景 1 = 芥末 `#d4a72c`）。以前 `primary` 一个角色既当文字又当填充：
 为了白字够 4.5:1，引擎把它压深成 `#7e6000`（橄榄棕），大块 / 按钮全是这个颜色，整个首页发棕。现在拆成两档：
@@ -112,7 +122,7 @@
 - 辅色 / 第三色：没有带字的实色填充（状态页「正常」原来用 tertiary，已换成固定 success），不带字的填充照旧用 `secondary-fill` / `tertiary-fill`。
 - 单测：22 套 × 亮暗 `on-primary-fill` / `primary-fill` ≥4.5:1、`primary-fill` = `--sgx-fg-1`、`primary` ink 在表面上 ≥4.5:1、审计零失败。
 
-## 五、组件角色表（阈值）与回退顺序
+## 5. 组件角色表（阈值）与回退顺序
 
 | 组件 | 用哪个 token | 最低对比度（对它所在的底，含玻璃合成底） |
 |---|---|---|
@@ -122,7 +132,7 @@
 | 实心按钮 | `primary-fill` + `on-primary-fill`（子站其他前景：`fg-N` + `fg-N-on`） | 字 4.5:1 |
 | 标签 / chip | `tag-bg` + `tag-fg`（= 前景 4 tint / ink）；选中 `chip-selected` + `on-chip-selected` | 4.5:1 |
 | 图表 | `chart-1..6` | 对卡片 / 合成玻璃 3:1；两两分得开（都有彩色且色相差 ≥ 22°，或 OKLab ΔE ≥ 0.08） |
-| 装饰（光晕、图例底、分隔） | `bg-1..7`（只光晕 / 页面底）、`outline-variant`、`divider` | 不要求（不承载信息） |
+| 装饰（图例底、分隔） | `bg-1..7`（只页面底）、`outline-variant`、`divider` | 不要求（不承载信息） |
 | 焦点环 / 选中描边 | `focus-ring`（= primary ink）/ `text-primary` 描边 | 3:1 |
 | 悬停 / 按下 | `state-color` × `state-hover` / `state-pressed`（叠加） | 不改变文字对比 |
 | 禁用 | `text-disabled` / `disabled-container` | 不要求（WCAG 豁免） |
@@ -132,9 +142,9 @@
 就退到同色相的 ink 档；ink 也不合适（大面积底、长文）就用中性（`text-*` / 材质）。全部在构建期静态算好（`palette-scheme.js` → JSON → CSS），
 **运行时不做任何背景感知 / 取色**。
 
-合成底审计（单测）：玻璃卡、顶栏、抽屉 = 材质（surface 88%）叠在光晕 `bg-1..7` 任一档（最浅、最深都算）上；快捷面板磁贴玻璃、夜间时钟卡同样按合成色核对。
+合成底审计（单测 `tests/space/ui/theme/palette-scheme.test.mjs`）：玻璃卡、顶栏、抽屉 = 材质（surface 88%）叠在 `bg-1..7` 任一档（最浅、最深都算）上核对对比度。
 
-## 六、导出 token 全目录（`space/web/data/shell/palettes.json` / `space/web/assets/css/shell/tokens.css`）
+## 6. 导出 token 全目录（`space/web/data/shell/palettes.json` / `space/web/assets/css/shell/tokens.css`）
 
 主站组件只引用 Shell + Semantic；共享外壳**完整导出**下面这些（22 套 × 亮 / 暗，值与 `tokens.css` 同名 `--sgx-*` 变量一致），子站按需索取。
 `palettes.json` 顶层带 `schemeVersion`（引擎哈希）和 **`rulesVersion: "palette-rules-1"`**（本文这套用法规则的版本）。
@@ -154,15 +164,13 @@
 
 单测覆盖每一个导出的可读组合：审计表（on 色 / 容器字 / 正文 / 链接 / 控件）、合成玻璃、焦点环、图表、固定状态色、`fg-N-on` / `fg-N`、`fg-N-ink` 在 tint 和所有表面上。
 
-## 七、子站怎么接（以后）
+## 7. 子站
 
-子站不自己定义主题色：2026-11 合站后子站和主站是同一个 Hugo 站，样式表直接 `@import` 主站的 `assets/css/shell/tokens.css` / `shell.css`，模板读 `site.Data.shell.palettes`，没有副本、不用同步；
-当前色板 / 深浅色由主站写在 `.styrigx.com` 域的 `sgx-ui` cookie（`pal` / `accent` / 模式）里、子站用 `ui-cookie-read.js` 读——**不依赖跨域 localStorage**。cookie 的字段、版本、旧数据迁移和改格式的步骤见 `docs/ui-cookie-contract.md`。
-按上面的角色表挑 token，按 `rulesVersion` 判断规则是否更新。
+子站与主站是同一个 Hugo 站：样式表 `@import` 主站的 `assets/css/shell/tokens.css` / `shell.css`，模板读 `site.Data.shell.palettes`，MUST NOT 自己定义主题色。当前色板与深浅色由 `sgx-ui` cookie 带到子站首帧（SGX-SPEC-003）。子站按 `rulesVersion` 判断用法规则是否更新。
 
-## 八、改调色板
+## 8. 改调色板
 
 1. `palette-scheme.js` 的 `THEMES` 加 / 改一行（6 个前景从 `FG_POOL` 挑），`space/web/data/palettes.yaml`、`space/web/data/features.yaml` 的 palette 选项同步。
 2. `node space/scripts/gen-palettes.mjs --roles`、`node space/scripts/gen-shell.mjs`，再各跑一次 `--check`。
 3. 单测 `tests/space/ui/theme/palette-scheme.test.mjs` 会核对：对比度审计全过、中性彩度 ≤ 0.012、danger / success 不变、前景 ink 在 tint 上 ≥4.5:1、
-   填充档 on 色 ≥4.5:1、光晕只用 `--sgx-bg-*`、22 套没有手调深色值、palettes.yaml / 定稿夹具和 THEMES 一致。
+   填充档 on 色 ≥4.5:1、22 套没有手调深色值、palettes.yaml / 定稿夹具和 THEMES 一致。

@@ -37,7 +37,7 @@ const MAX_LINE = 2000;
 
 const EXEC_TYPES = new Set(['', 'text/javascript', 'application/javascript', 'module']);
 
-/** 子站目录（2026-11 合站后和主站同一棵 public/）：子站页面不发 Report-Only CSP（见 STRUCTURE.md 安全响应头），内联脚本不进主站哈希 */
+/** 子站目录（2026-11 合站后和主站同一棵 public/）：子站页面不发 Report-Only CSP（见 docs/architecture/overview.md §10 安全响应头），内联脚本不进主站哈希 */
 export const SUBSITE_DIRS = Object.freeze(['blog', 'curio', 'daymark']);
 
 /** @param {string} dir @param {string[]} [out] @param {boolean} [top] */

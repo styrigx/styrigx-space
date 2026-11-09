@@ -1,32 +1,74 @@
-# docs/ 入口索引
+# styrigx-space 文档索引
 
-> 状态：现行 ｜ 最后更新：2026-11-06
-
-本目录放设计文档、任务书、子站文档和截图。仓库整体结构见根目录 [`STRUCTURE.md`](../STRUCTURE.md)（2026-11 合站起主站和三个子站是 `space/web/` 一个 Hugo 站；含旧布局 `atlas/`、`dist/site/` 的换算说明）。
-
-状态说明：**现行** = 和现在的代码一致，改代码时顺手改文档；**历史** = 当时的记录，正文保持原样、不再更新、不代表现状，只留作查来龙去脉。每份文档开头都有「状态 ｜ 最后更新」一行。
-
-## 现行
-
-| 文档 | 用途 |
+| 项 | 值 |
 |---|---|
-| [`architecture.md`](architecture.md) | 分层规范：前端 lib ← auth ← shell ← apps ← entries 的依赖方向、Worker 边界（`space/scripts/check-layers.mjs` 检查的规则出处） |
-| [`auth-state-machine.md`](auth-state-machine.md) | 四站锁屏 / 解锁 / 回跳 / 复验 / 账号页的状态机：唯一状态源是网关验签过的 cookie |
-| [`status-apis.md`](status-apis.md) | 六个只读状态接口的分工表：谁回答、鉴权要求、返回口径、调用方 |
-| [`ui-cookie-contract.md`](ui-cookie-contract.md) | 外观 cookie `sgx-ui` 契约：主站写、三个子站只读，字段 / 版本 / 夹具 / 改格式的步骤 |
-| [`palette-usage.md`](palette-usage.md) | 七色调色板怎么用：色彩角色 token、数据源、生成与校验 |
-| [`repo-split-task.md`](repo-split-task.md) | 仓库分包任务书（2026-11-06，历史）：根目录分 `space/`（主站）/ `atlas/`（子站）两包、docs 整理、版本徽章；2026-11 合站后 `atlas/` 已并进 `space/web/` |
-| [`blog/content-series.md`](blog/content-series.md) | 博客：文章系列（series）的 frontmatter 写法 |
-| [`blog/sgx-ui-cookie.md`](blog/sgx-ui-cookie.md) | 博客：`sgx-ui` cookie 读端（博客这一侧，契约以主站为准） |
-| [`curio/STRUCTURE.md`](curio/STRUCTURE.md) | 奇趣子站结构（合站前的站内相对路径：`web/…` 现在在 `space/web/` 的 `<目录>/curio/` 下） |
-| [`daymark/STRUCTURE.md`](daymark/STRUCTURE.md) | 日刻子站结构（合站前的站内相对路径：`web/…` 现在在 `space/web/` 的 `<目录>/daymark/` 下） |
-| [`screenshots/`](screenshots/) | 根 README 用的截图（中英各三张：首页手机 / 首页 DeX / 设置手机） |
+| 文档编号 | SGX-DOC-000 |
+| 版本 | 2.0 |
+| 日期 | 2026-11-09 |
+| 状态 | 现行 |
 
-## 历史
+## 1. 范围
 
-| 文档 | 用途 |
+本目录是 styrigx-space 仓库（主站 `styrigx.com` 与子站 `/blog/`、`/curio/`、`/daymark/`，以及 `workers/` 下全部 Cloudflare Worker）的规范书。根目录只保留 `README.md` / `README.en.md`（项目介绍）。
+
+## 2. 约定
+
+2.1 **规范性用语**按 [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) / [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174) 解释，仅在全大写时具有规范含义：
+
+| 用语 | 含义 |
 |---|---|
-| [`2.4.1-three-site-lock-design.md`](2.4.1-three-site-lock-design.md) | 2.4.1 三站真实锁屏方案（2026-10-29 起作废）；现行规则见 `architecture.md`、`auth-state-machine.md` |
-| [`styrigx-3.0-task.md`](styrigx-3.0-task.md) | Styrigx 3.0 任务书（2026-10-10 当时的规则，2026-10-29 起不再现行）；现行规则同上 |
+| MUST / 必须 | 绝对要求 |
+| MUST NOT / 禁止 | 绝对禁止 |
+| SHOULD / 应当 | 有充分理由时可以偏离，但须理解并权衡后果 |
+| SHOULD NOT / 不应 | 同上，反向 |
+| MAY / 可以 | 真正可选 |
 
-历史文档留在原位只做标记，不删、不改正文（路径随仓库分包更新的除外）；以后整篇过时又不便原位保留的，移到 `docs/archive/`。
+2.2 **代码优先**。文档描述的是 `main` 上代码的现状，不是独立于代码的硬约束。文档与代码冲突时以代码为准，并 MUST 在同一个 PR 或紧随其后的 PR 里改正文档。
+
+2.3 **过时即改**。过时的文档 MUST 改写或删除，不保留「历史」副本；来龙去脉写进 `decisions/` 的 ADR，或留在 git 历史里。读取文档的测试 MUST 与文档一起更新。
+
+2.4 每份文档开头有编号、版本、日期、状态四项。改动规范性条款时版本号 +0.1（重写 +1.0），日期改为合并当天（Asia/Shanghai）。
+
+2.5 文档 MUST NOT 出现任何密钥、token 的值或内部资源 id（D1 / KV 的 id、Secrets Store id、namespace id 等）；只写名字（Secret 名、绑定名、资源名）。
+
+2.6 正文用中文，技术名词保留英文原文（Worker、binding、cookie、passkey、reauth 等）。术语见 [`glossary.md`](glossary.md)。
+
+## 3. 目录
+
+| 编号 | 文档 | 类型 | 内容 |
+|---|---|---|---|
+| SGX-DOC-001 | [`glossary.md`](glossary.md) | 参考 | 术语表 |
+| SGX-ARCH-001 | [`architecture/overview.md`](architecture/overview.md) | 规范 | 系统总览：请求路径、Worker 分工、前端分层、依赖规则 |
+| SGX-ARCH-002 | [`architecture/repo-structure.md`](architecture/repo-structure.md) | 参考 | 仓库目录结构（原根目录 `STRUCTURE.md`） |
+| SGX-ARCH-010 | [`architecture/sites/space.md`](architecture/sites/space.md) | 参考 | 主站：首页、旷野、外壳组件 |
+| SGX-ARCH-011 | [`architecture/sites/blog.md`](architecture/sites/blog.md) | 参考 | 博客子站 |
+| SGX-ARCH-012 | [`architecture/sites/curio-daymark.md`](architecture/sites/curio-daymark.md) | 参考 | 奇趣、日刻两个子站及其接口 Worker |
+| SGX-SPEC-001 | [`specs/auth-state-machine.md`](specs/auth-state-machine.md) | 规范 | 进站 / 锁屏 / 回跳状态机与 cookie 表 |
+| SGX-SPEC-002 | [`specs/status-apis.md`](specs/status-apis.md) | 规范 | 只读状态接口分工 |
+| SGX-SPEC-003 | [`specs/ui-cookie.md`](specs/ui-cookie.md) | 规范 | 外观 cookie `sgx-ui` 契约（含博客读端） |
+| SGX-DES-001 | [`design/palette.md`](design/palette.md) | 规范 | 调色板与色彩角色 token |
+| SGX-DES-002 | [`design/ui-system.md`](design/ui-system.md) | 规范 | 终端风格 UI 系统：顶栏、AI 窗、Auto 控件、提示符规则 |
+| SGX-SEC-001 | [`security/account-v3.md`](security/account-v3.md) | 规范 | 进站 / 账号安全模型 V3 |
+| SGX-OPS-001 | [`operations/deploy.md`](operations/deploy.md) | 规范 | CI 与部署 |
+| SGX-OPS-002 | [`operations/resources.md`](operations/resources.md) | 参考 | Cloudflare 资源清单（只有名字） |
+| SGX-CON-001 | [`contributing/pr-and-commits.md`](contributing/pr-and-commits.md) | 规范 | 分支、提交、PR、合并 |
+| SGX-CON-002 | [`contributing/blog-writing.md`](contributing/blog-writing.md) | 规范 | 写博客 |
+| ADR-0001 | [`decisions/ADR-0001-one-repo-one-site.md`](decisions/ADR-0001-one-repo-one-site.md) | 决策 | 子站并入一个仓库、一个 Hugo 站 |
+| ADR-0002 | [`decisions/ADR-0002-lock-screen.md`](decisions/ADR-0002-lock-screen.md) | 决策 | 锁屏方案演进：Turnstile → 临时钥匙 → 命令行进站 |
+| ADR-0003 | [`decisions/ADR-0003-account-v3.md`](decisions/ADR-0003-account-v3.md) | 决策 | 账号与进站 V3：门归网站、账号管授权 |
+| ADR-0004 | [`decisions/ADR-0004-ai-models.md`](decisions/ADR-0004-ai-models.md) | 决策 | AI 模型选择：Gemma 4 默认，Gemini 3.5 Flash Lite / 3.8 Flash |
+| — | [`assets/screenshots/`](assets/screenshots/) | 资源 | 根 README 用的截图 |
+
+## 4. 其他文档的位置
+
+4.1 每个 Worker 的职责、路由、绑定、数据与迁移写在 `workers/<名字>/README.md`；Worker 骨架契约在 [`workers/README.md`](../workers/README.md)。本目录不重复这些内容。
+
+4.2 共享 CI action 的说明在 [`.github/actions/README.md`](../.github/actions/README.md)；Renovate 配置在 `.github/renovate.json` 与 `.github/renovate-preset.json`。
+
+## 5. 新增 / 修改文档
+
+5.1 新文档 MUST 放进第 3 节的某个目录，并在本索引登记。
+
+5.2 架构性决定（换存储、换 Worker 边界、换鉴权模型、换外部依赖）SHOULD 写一份 ADR（`decisions/ADR-NNNN-<slug>.md`，编号顺延，不复用）。
+
+5.3 图片 MUST 放在 `assets/`，文件名小写加连字符。

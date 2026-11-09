@@ -31,6 +31,8 @@
  * - 3.x Flash（非 Lite）429 → 不再退避重试，直接换 Flash-Lite 一次（日志 [ai] gemini fallback）；Flash-Lite 也 429 → code daily_limit
  *   （错误体明确是每分钟限额时才回 rate_limited，并按原节奏退避重试）。
  * - 搜索被拒的记忆改为整把钥匙（免费档所有模型都没有搜索 grounding），不再按模型记。
+ *
+ * 决策记录：docs/decisions/ADR-0004-ai-models.md（默认 Gemma 4、Gemini 主力 / 第二选项、429 回退、免费档无搜索 grounding）。
  */
 
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';

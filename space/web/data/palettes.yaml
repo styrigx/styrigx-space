@@ -6,7 +6,7 @@
 # settings 风格页（setcat-theme.html）和快捷面板（baseof.html）共用 site.Data.palettes.palettes；色块颜色走 partials/palette-tile-vars.html。
 # 单一数据源：颜色值只在 palette-scheme.js 的 THEMES / FG_POOL；这里的 c / zh / en / group 是副本，单测（palette-scheme.test.mjs）逐项核对，不一致就红。
 #   色块 / 预览卡的颜色从生成的 data/palette-roles.json 取（palette-tile-vars.html），和页面角色同一份数据。
-# 档位用法（硬规则，详见 docs/palette-usage.md）：
+# 档位用法（硬规则，详见 docs/design/palette.md）：
 #   - 背景 7 档（--sgx-bg-1..7）：每个模式各一条阶梯，只给光晕和页面底（bg-1）；不当大面积内容表面，不放在文字底下。
 #   - 前景 tint = 浅底（chip / 标签 / 选中底）；base = 填充（按钮 / 开关 / 进度 / 选中分段，上面的字由引擎自动挑 on-primary-fill）；ink = 文字 / 图标。
 #   - 前景 5–6 只给图表和设置页色块 / 预览。

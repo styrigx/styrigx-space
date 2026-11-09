@@ -3,7 +3,7 @@
 # 管站点账号的全部身份和数据：账号密码、账号通行密钥、恢复密钥、已登录设备、session / reauth / reset 三张票、应用授权、审计（D1_ACCOUNT 的 account_* 表），
 # 以及头像 / 个人资料（KV_PROFILE）、设置云同步（D1_ACCOUNT 的 settings_sync）、数字健康（D1_ACCOUNT 的 wb_daily）。
 # 代码：src/（部署入口 index.js：默认 fetch = app.js（一律 404），命名入口 rpc/account-service.js AccountService、rpc/account-verifier.js AccountVerifier；
-# 身份头门 gate.js、路由 router.js、接口 api/、账号身份 core/、公共 lib/；骨架见 workers/README.md）+ migrations/（D1 styrigx-account）。分层与边界见 workers/account/README.md、docs/architecture.md「Worker 边界」。
+# 身份头门 gate.js、路由 router.js、接口 api/、账号身份 core/、公共 lib/；骨架见 workers/README.md）+ migrations/（D1 styrigx-account）。分层与边界见 workers/account/README.md、docs/architecture/overview.md「Worker 边界」。
 #
 # 安全（方案第 3 节三道保险）：
 # - 没有任何 [[routes]]：请求只经网关 styrigx-space-core 的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来（网关先验锁屏、剥外部 x-styrigx-* 头、写规范身份头）。
