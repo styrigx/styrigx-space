@@ -83,7 +83,7 @@ for (const dark of [false, true]) {
   test.describe(`390×844 ${dark ? '暗色' : '亮色'}`, () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
-    for (const path of ['/', '/wild/', '/security/']) {
+    for (const path of ['/', '/wild/', '/404.html']) { /* 进站 v3 L1：/security/ 已删，短页换 404 */
       test(`${path}：贴顶通栏（字标 · 外观 · 盾牌 · | · >_ · 头像；不显示页名），按钮 40 × 40；AI 浮钮右下角；按钮颜色按状态`, async ({ page }) => {
         await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
         await go(page, path, { dark });
@@ -134,7 +134,7 @@ for (const dark of [false, true]) {
         expect(near(ai.width, 56) && near(ai.height, 56), `AI 浮钮 ${ai.width}`).toBe(true);
         /* 2026-11-08 PR-A：离底抬到 28（右边距仍 16）；页脚露出时再往上让，见 layout/touch-scroll-fab.spec.js */
         {
-          /* 短页（/security/）页脚一进来就在视口里：浮钮停在页脚上沿之上 28 */
+          /* 短页（/404.html）页脚一进来就在视口里：浮钮停在页脚上沿之上 28 */
           const footTop = await page.evaluate(() => document.querySelector('.sgx-foot').getBoundingClientRect().top);
           const fabB = Math.min(844, footTop) - 28;
           expect(near(ai.x + ai.width, 390 - 16) && near(ai.y + ai.height, fabB), `AI 浮钮位置 ${ai.x},${ai.y}（页脚上沿 ${footTop}）`).toBe(true);
@@ -184,7 +184,7 @@ for (const w of [360, 384, 412, 1280, 1920]) {
     await page.setViewportSize({ width: w, height: w > 1000 ? 900 : 860 });
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     /* P4-3 PR-4c：中文 /zh/…，英文无前缀 */
-    for (const path of ['/zh/', '/zh/wild/', '/zh/security/tempkeys/', '/wild/']) { /* 对齐 PR-B：旷野 /wild/ 取代 /wellbeing/ /status/ */
+    for (const path of ['/zh/', '/zh/wild/', '/404.html', '/wild/']) { /* 进站 v3 L1：/zh/security/tempkeys/ 已删 */ /* 对齐 PR-B：旷野 /wild/ 取代 /wellbeing/ /status/ */
       if (!path.startsWith('/zh/')) await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
       await go(page, path);
       const m = await page.evaluate(() => {
@@ -220,8 +220,6 @@ test.describe('390×844 行为', () => {
     /* P4-3 PR-4c：英文无前缀、中文 /zh/ */
     ['/zh/wild/', '旷野'],
     ['/zh/', '主页'],
-    ['/zh/security/', '安全'],
-    ['/zh/security/lock/', '锁屏凭证'],
     ['/wild/', 'Wild'],
     ['/', 'Home'],
   ];
@@ -250,10 +248,10 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-topbar a[href$="' + '/' + 'settings' + '/' + '"]')).toHaveCount(0);
   });
 
-  test('盾牌 / 头像仍是当前语言安全页 / 账号旧地址的链接（PR-5 起普通点击开下拉；头像没 JS 时去 /zh/account/ → 301 首页 #acct，2026-11-08）、字标回首页', async ({ page }) => {
+  test('盾牌 / 头像的链接（盾牌 /zh/#sec——进站 v3 L1 安全页删了；PR-5 起普通点击开下拉；头像没 JS 时去 /zh/account/ → 301 首页 #acct，2026-11-08）、字标回首页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/wild/');
-    await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('href', '/zh/security/');
+    await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('href', '/zh/#sec');
     await expect(page.locator('.sgx-tb-shield')).toHaveAccessibleName('站点安全');
     await expect(page.locator('.sgx-tb-av')).toHaveAttribute('href', '/zh/account/');
     await expect(page.locator('.sgx-tb-av')).toHaveAccessibleName('账号');
@@ -261,11 +259,11 @@ test.describe('390×844 行为', () => {
     await page.locator('.sgx-tb-shield').click();
     await expect(page.locator('#sgx-sec')).toHaveAttribute('open', '');
     await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('aria-expanded', 'true');
-    await page.locator('#sgx-sec a.sgx-pop-row[href="/zh/security/"]').click();
-    await page.waitForURL(/\/zh\/security\/$/);
+    /* 下拉里没有去安全页的链接（命令行各层见 shield.spec.js） */
+    await expect(page.locator('#sgx-sec a[href*="/security/"]')).toHaveCount(0);
   });
 
-  for (const path of ['/', '/security/', '/wild/']) {
+  for (const path of ['/', '/404.html', '/wild/']) { /* 进站 v3 L1：/security/ 已删 */
     test(`${path}：正文从顶栏下方 16px 开始（--sgx-content-top，全站同一个值）`, async ({ page }) => {
       await go(page, path);
       const m = await page.evaluate(() => {
@@ -310,7 +308,7 @@ test.describe('390×844 行为', () => {
 
   test('减弱动效：进度条静止（不流动），字标光标常亮', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await go(page, '/security/');
+    await go(page, '/wild/');
     const st = await page.evaluate(() => ({
       prog: getComputedStyle(document.querySelector('#site-nav .sgx-tb-prog > i')).animationName,
       cu: getComputedStyle(document.querySelector('.sgx-tb-cu')).animationName,
@@ -452,24 +450,24 @@ test.describe('390×844 行为', () => {
     await expect(p2.locator('#sgx-nav [data-st="space"]')).not.toHaveAttribute('data-up', /./);
   });
 
-  test('NAVIGATE：旷野页（/zh/wild/）当前项是 05 旷野，地址 /zh/wild/；安全页没有当前项（00/05）', async ({ page }) => {
+  test('NAVIGATE：旷野页（/zh/wild/）当前项是 05 旷野，地址 /zh/wild/；不在五站里的页（404）没有当前项（00/05）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/wild/');
     await expect(page.locator('#sgx-nav .sgx-nav-tile[data-nav="wild"]')).toHaveAttribute('href', '/zh/wild/');
     await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveAttribute('data-nav', 'wild');
     await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('05/05');
-    await go(page, '/zh/security/');
+    await go(page, '/404.html'); /* 进站 v3 L1：安全页已删 */
     await expect(page.locator('#sgx-nav .sgx-nav-tile[aria-current="page"]')).toHaveCount(0);
     await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('00/05');
   });
 
   test('NAVIGATE：点别的站 / 子页点本站关面板后跳过去；已在本站首页点本站只关面板', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/security/');
+    await go(page, '/zh/wild/');
     await page.locator('.sgx-tb-grid').click();
     await page.locator('#sgx-nav .sgx-nav-tile[data-nav="home"]').click();
     await page.waitForURL((u) => new URL(u).pathname === '/zh/', { waitUntil: 'commit' });
-    await go(page, '/zh/security/');
+    await go(page, '/zh/wild/');
     await page.locator('.sgx-tb-grid').click();
     await page.route('**/curio/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>curio</title>' }));
     await page.locator('#sgx-nav .sgx-nav-tile[data-nav="curio"]').click();
