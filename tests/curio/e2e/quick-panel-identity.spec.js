@@ -89,7 +89,7 @@ test('子站真点开：外观面板 MODE / PALETTE 顺序四站相同、没有�
   }
   expect(seen[1]).toEqual(seen[0]);
   expect(seen[2]).toEqual(seen[0]);
-  expect(navSeen[0]).toEqual(['lang:en', 'lang:zh', 'seg:auto', 'seg:phone', 'seg:desktop', 'share', 'lock', 'term']); /* 2026-11 PR-2：加「$ terminal」 */
+  expect(navSeen[0]).toEqual(['lang:en', 'lang:system', 'lang:zh', 'seg:phone', 'seg:auto', 'seg:desktop', 'share', 'lock', 'term']); /* 2026-11 PR-2：加「$ terminal」；2026-11-09：EN | Auto | 中文、Mobile | Auto | DeX */
   expect(navSeen[1]).toEqual(navSeen[0]);
   expect(navSeen[2]).toEqual(navSeen[0]);
 });

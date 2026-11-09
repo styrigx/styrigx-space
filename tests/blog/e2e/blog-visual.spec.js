@@ -130,7 +130,8 @@ test.describe('顶栏 v3 布局', () => {
     }
   });
 
-  test('中文浏览器（没有 cookie）：英文首页 /blog/ 跳 /blog/zh/ 一次后停住，不循环（P4-3 PR-4c 起英文默认）', async ({ browser }) => {
+  /* 2026-11-09 语言行 Auto：跟随浏览器只在从站外进主站首页（/ ↔ /zh/）时换，子站首页 /blog/ 不跳 */
+  test('中文浏览器（没有 cookie = Auto）：英文首页 /blog/ 不跳，停在 /blog/', async ({ browser }) => {
     const ctx = await browser.newContext({ locale: 'zh-CN' });
     const page = await ctx.newPage();
     let navs = 0;
@@ -141,8 +142,8 @@ test.describe('顶栏 v3 布局', () => {
     await page.waitForTimeout(800);
     const settled = navs;
     await page.waitForTimeout(1500);
-    expect(new URL(page.url()).pathname).toBe('/blog/zh/');
-    expect(navs, '停在 /blog/zh/ 后不再导航').toBe(settled);
+    expect(new URL(page.url()).pathname).toBe('/blog/');
+    expect(navs, '停在 /blog/ 后不再导航').toBe(settled);
     await ctx.close();
   });
 });

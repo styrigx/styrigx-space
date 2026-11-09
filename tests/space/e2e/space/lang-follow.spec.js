@@ -133,3 +133,51 @@ test('NAVIGATE 语言行：没存过选择的访客打开面板 = Auto 亮', asy
   await expect(pg.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
   await expect(pg.locator('#sgx-nav [data-qp-langs] [aria-checked="true"]')).toHaveAttribute('data-qp-lang', 'system');
 });
+
+/* Muse 冒烟 2026-11-09：存了明确的 en 时点页脚 zh 没反应（新页首帧又被存着的 en 弹回）。
+   站内明确的换语言链接（页脚 en · zh，data-sgx-lang-set）点下去先把那种语言存成明确偏好，再跳；站外直接打开才按存着的偏好跳 */
+async function seedLangOnce(pg, v) {
+  await pg.addInitScript((val) => {
+    try { if (!sessionStorage.getItem('lf-seeded')) { localStorage.setItem('sgx-lang', val); sessionStorage.setItem('lf-seeded', '1'); } } catch (e) {}
+  }, v);
+}
+
+/* 页脚语言在手机布局上收起，按 Muse 冒烟的桌面视口测 */
+test.describe('页脚语言链接（桌面）', () => {
+  test.use({ viewport: { width: 1366, height: 900 } });
+
+  test('页脚语言链接：存了 en，在 /wild/ 点页脚 zh → 到 /zh/wild/ 停住，sgx-lang 改存 zh，重新载入也不弹回', async ({ page: pg }) => {
+    await blockExternalRequests(pg);
+    await seedLangOnce(pg, 'en');
+    await pg.goto('/wild/', { waitUntil: 'domcontentloaded' });
+    const zh = pg.locator('.sgx-foot-lang a[hreflang="zh"]');
+    await expect(zh).toHaveAttribute('data-sgx-lang-set', '');
+    await zh.click();
+    await pg.waitForURL((u) => u.pathname === '/zh/wild/', { timeout: 10000 });
+    await pg.waitForTimeout(1000);
+    expect(new URL(pg.url()).pathname).toBe('/zh/wild/');
+    expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('zh');
+    await pg.reload({ waitUntil: 'domcontentloaded' });
+    await pg.waitForTimeout(800);
+    expect(new URL(pg.url()).pathname).toBe('/zh/wild/');
+  });
+
+  test('页脚语言链接：存了 zh，在 /zh/wild/ 点页脚 en → 到 /wild/ 停住，sgx-lang 改存 en', async ({ page: pg }) => {
+    await blockExternalRequests(pg);
+    await seedLangOnce(pg, 'zh');
+    await pg.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+    await pg.locator('.sgx-foot-lang a[hreflang="en"]').click();
+    await pg.waitForURL((u) => u.pathname === '/wild/', { timeout: 10000 });
+    await pg.waitForTimeout(1000);
+    expect(new URL(pg.url()).pathname).toBe('/wild/');
+    expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('en');
+  });
+});
+
+test('明确存了 en：站外直接打开 /zh/ → 回 /（明确偏好每一页都跳；只有站内点语言链接才换）', async ({ page: pg }) => {
+  await blockExternalRequests(pg);
+  await seedLangOnce(pg, 'en');
+  await pg.goto('/zh/', { waitUntil: 'domcontentloaded' });
+  await pg.waitForURL((u) => u.pathname === '/', { timeout: 10000 });
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('en');
+});

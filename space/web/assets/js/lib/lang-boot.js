@@ -110,9 +110,29 @@ export function bootLang(w) {
   return go;
 }
 
+/**
+ * 站内明确的换语言链接（页脚 en · zh 等，标 data-sgx-lang-set + hreflang）：点下去先把那种语言存成明确偏好（sgx-lang），再照常跳。
+ * 不存的话，存着的另一种明确语言会在新页首帧把人弹回来（Muse 冒烟 2026-11-09：存了 en 时点页脚 zh 没反应）。
+ * 只认普通左键点开本页（带修饰键 / 中键 = 新标签打开，不改偏好）。cookie 由主站 core.js / 子站写端下次同步；首帧先读 localStorage，所以立即生效。
+ * @param {any} w window
+ */
+export function bindLangLinks(w) {
+  const d = w.document;
+  if (!d || !d.addEventListener) return;
+  d.addEventListener('click', function (/** @type {any} */ e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target && e.target.closest ? e.target.closest('a[data-sgx-lang-set][hreflang]') : null;
+    if (!a) return;
+    const l = a.getAttribute('hreflang') || '';
+    if (!isLang(l)) return;
+    try { w.localStorage.setItem('sgx-lang', l); } catch (err) {}
+  }, true);
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined' && !(/** @type {any} */ (window)).__sgxLangBoot) {
   const w = /** @type {any} */ (window);
   w.__sgxLangBoot = 1;
   w.SgxLang = { pathLang, stripLang, langPath, langSwitch, systemLang, langs, isLang, isHomePath, readLangPref };
   try { bootLang(w); } catch (e) {}
+  try { bindLangLinks(w); } catch (e) {}
 }
