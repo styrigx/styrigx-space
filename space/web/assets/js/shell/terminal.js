@@ -143,14 +143,14 @@ export function ghost(line) {
  */
 
 /**
- * @param {{ str?: Record<string, string>, act: TermAct, cwd?: string, storage?: Storage | null, signedIn?: () => boolean }} o
+ * @param {{ str?: Record<string, string>, act: TermAct, cwd?: string, storage?: Storage | null, signedIn?: () => boolean, histKey?: string, tty?: string }} o histKey 缺省 sgx-term-hist（tty2）；tty 缺省 tty2（AI 窗口里的 $ 命令是 tty4，T6c）
  */
 export function createShell(o) {
   const S = Object.assign({}, TERM_EN, o.str || {});
   const act = o.act;
   const signedIn = o.signedIn || function () { return accountSignedIn(); };
   let cwd = o.cwd && DIRS.indexOf(o.cwd) >= 0 ? o.cwd : '~';
-  const hist = createHistory({ storage: o.storage === undefined ? safeSession() : o.storage, key: HIST_KEY });
+  const hist = createHistory({ storage: o.storage === undefined ? safeSession() : o.storage, key: o.histKey || HIST_KEY });
   /** @type {Array<() => void>} */
   const subs = [];
   function emit() {
@@ -178,6 +178,8 @@ export function createShell(o) {
     setCwd: function (d) { cwd = d; emit(); },
     /** 这个 tty 的命令名（man 索引） */
     names: function () { return COMMANDS; },
+    /** 这个终端是哪个 tty（tty 命令显示） */
+    tty: o.tty || 'tty2',
     /** 名字或别名 → 命令名（不认识 → ''） @param {string} n */
     resolve: function (n) { const c = REG.get(n, 'tty2'); return c ? c.name : ''; },
   };

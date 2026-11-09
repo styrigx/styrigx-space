@@ -905,10 +905,65 @@ export function mountAiChat(dlg, opts) {
     ask(msgs[i - 1].text, m);
   }
 
+  /* ---------- tty4（终端统一 T6c，设计稿 v1.5 §2.3 / §8.4）：以 $ 开头的输入是命令，走站内终端同一张命令表 ----------
+     命令和输出只在窗口里显示，不进 AI 对话、不存 sgx-ai-history；命令自己的历史在 sgx-term-hist-4（↑↓ 只在输入以 $ 开头时翻它）。
+     输出是临时的：下一次问 AI、换对话时整份重画就没了。 */
+  const CMD_RE = /^\s*\$/;
+  /** 去掉开头的 $ @param {string} v */
+  const cmdPart = function (v) { return v.replace(/^\s*\$\s?/, ''); };
+  /** @returns {any} */
+  const t4 = function () { return typeof o.term === 'function' ? o.term() : null; };
+  /** 一条输出 → 几行纯文字 @param {any} x @returns {string[]} */
+  function outLines(x) {
+    const segs = function (/** @type {any[]} */ sg) { return sg.map(function (z) { return z[1]; }).join(''); };
+    if (x.t === 'help') return [segs(x.head)].concat(x.rows.map(function (/** @type {any[]} */ r) { return r[0] + '  ' + r[1]; }));
+    return [segs(x.seg)];
+  }
+  /** 往对话列表里加一块（在建议问题那排前面） @param {string} role @param {string[]} lines */
+  function termBlock(role, lines) {
+    const el = doc.createElement('div');
+    el.className = 'sgx-ai-msg';
+    el.setAttribute('data-role', role);
+    el.setAttribute('data-term', '');
+    el.setAttribute('translate', 'no');
+    const tx = doc.createElement('span');
+    lines.forEach(function (l) { const d = doc.createElement('div'); d.textContent = l; tx.appendChild(d); });
+    el.appendChild(tx);
+    list.insertBefore(el, list.querySelector('.sgx-ai-sugs'));
+    list.scrollTop = list.scrollHeight;
+  }
+  /** @param {string} line 去掉 $ 后的命令 */
+  function runCmd(line) {
+    const T = t4();
+    if (!T || !T.shell) return;
+    if (histOpen) showHist(false);
+    termBlock('user', ['$ ' + line.trim()]);
+    /** @param {any} r */
+    const done = function (r) {
+      if (!r) return;
+      if (r.clear) list.querySelectorAll('[data-term]').forEach(function (n) { n.remove(); });
+      else {
+        /** @type {string[]} */
+        let ls = [];
+        (r.out || []).forEach(function (/** @type {any} */ x) { ls = ls.concat(outLines(x)); });
+        if (ls.length) termBlock('assistant', ls);
+      }
+      if (r.after) r.after();
+    };
+    const r = T.shell.exec(line);
+    if (r && typeof r.then === 'function') r.then(done, function () {});
+    else done(r);
+  }
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     if (busy) return;
     const q = input.value;
+    if (CMD_RE.test(q) && t4()) {
+      input.value = '';
+      if (cmdPart(q).trim()) runCmd(cmdPart(q));
+      return;
+    }
     input.value = '';
     /* 发出去之后：触屏收键盘看回答；桌面焦点回输入框接着问（鼠标点发送时焦点在按钮上）。空的不算发 */
     if (q.trim()) {
@@ -950,6 +1005,26 @@ export function mountAiChat(dlg, opts) {
   }
   /* 回车发送，Shift+回车换行（输入法组字中不算）；回答进行中回车不发、也不中断 */
   input.addEventListener('keydown', function (e) {
+    /* tty4：输入以 $ 开头时 ↑↓ 翻命令历史、Tab 补全；其余照旧 */
+    if (!e.isComposing && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && CMD_RE.test(input.value) && t4()) {
+      const T = t4();
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const v = e.key === 'ArrowUp' ? T.shell.prev(cmdPart(input.value)) : T.shell.next();
+        if (v !== null) {
+          e.preventDefault();
+          input.value = '$ ' + v;
+          try { input.setSelectionRange(input.value.length, input.value.length); } catch (err) {}
+        }
+        return;
+      }
+      if (e.key === 'Tab' && cmdPart(input.value).trim() && T.complete) {
+        e.preventDefault();
+        const c = T.complete(cmdPart(input.value));
+        if (c.options.length > 1 && c.line === cmdPart(input.value)) termBlock('assistant', [c.options.join('  ')]);
+        input.value = '$ ' + c.line;
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       if (busy) return;
