@@ -43,8 +43,10 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
       await page.goto(BASE + '/wild/?test-no-local-bypass=1#sec=keys');
       await expect(page.locator('#sgx-entry')).toHaveCount(0, { timeout: 20000 });
       const sec = page.locator('#sgx-sec');
-      if ((await sec.getAttribute('data-state')) !== 'open') {
-        await page.locator('.sgx-tb-shield').click();
+      /* #sec=keys 会自己打开盾牌（可能还在开的过程中）：先等它开，开不了再点顶栏盾牌（a.sgx-tb-shield；页里还有个装饰用的 span 同名） */
+      const opened = await expect(sec).toHaveAttribute('data-state', 'open', { timeout: 8000 }).then(() => true, () => false);
+      if (!opened) {
+        await page.locator('a.sgx-tb-shield').first().click();
         await sec.locator('[data-sh-act="keys"]').click();
       }
       await expect(sec.locator('.sgx-sh')).toHaveAttribute('data-sh-layer', 'keys', { timeout: 15000 });
