@@ -22,7 +22,7 @@ const OLD_PATH = '/' + OLD + '/';
 
 const cats = /** @type {any} */ (yaml.load(rd('space/web/data/space-cats.yaml'))).cats.map((/** @type {any} */ c) => String(c.id));
 /** 旷野页之下的新地址（英文；中文前加 /zh，P4-3 PR-4c） */
-const NEW_PATHS = [...cats.map((c) => '/' + c + '/'), '/security/lock/', '/security/tempkeys/'];
+const NEW_PATHS = cats.map((c) => '/' + c + '/'); /* 进站 v3 L1：/security/、/security/lock/、/security/tempkeys/ 删了（盾牌下拉） */
 
 /**
  * 根下已被占用的首段：子站、账号、语言前缀、Worker 路由、网关转发表、静态目录、Hugo 产物目录、_redirects 旧跳转的来源。
@@ -60,7 +60,7 @@ export function reservedSegments() {
 }
 
 test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 一层', async () => {
-  assert.deepEqual([...cats].sort(), ['security', 'wild'], '对齐 PR-B：数字健康 / 服务状态 / 关于本站并进 /wild/；对齐 PR-C：风格页 /theme/ 退役');
+  assert.deepEqual([...cats].sort(), ['wild'], '对齐 PR-B：数字健康 / 服务状态 / 关于本站并进 /wild/；对齐 PR-C：风格页 /theme/ 退役；进站 v3 L1：安全页删了（盾牌下拉）');
   const { SPACE_SUB_RE, wbAreaOf } = await import(pathToFileURL(path.join(REPO, 'space/web/assets/js/lib/wb-area.js')).href);
   for (const p of NEW_PATHS) {
     assert.ok(SPACE_SUB_RE.test(p) && SPACE_SUB_RE.test('/zh' + p), p + ' 应算旷野子页');
@@ -84,9 +84,14 @@ test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 
   /* 顶栏没有标签了（页名胶囊只显示页名，Gray 2026-11-07）：topbar-tabs 数据 / 模板删除 */
   assert.ok(!existsSync(path.join(REPO, 'space/web/data/topbar-tabs.yaml')), 'topbar-tabs.yaml 已删');
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/topbar-tabs.html')), 'topbar-tabs.html 已删');
-  /* _redirects：/owner/ 指向新锁屏凭证页；没有任何一条跳到旧设置层 */
+  /* _redirects：/owner/ 和旧安全页指向盾牌的层（进站 v3 L1）；没有任何一条跳到旧设置层 */
   const red = rd('space/web/static/_redirects');
-  assert.match(red, /^\/owner\/\s+\/security\/lock\/\s+301$/m);
+  assert.match(red, /^\/owner\/\s+\/#sec=keys\s+301$/m);
+  for (const [old, layer] of [['security/', 'sec'], ['security/lock/', 'sec=keys'], ['security/tempkeys/', 'sec=tempkeys']]) {
+    assert.match(red, new RegExp(`^/${old}\\s+/#${layer}\\s+301$`, 'm'), '/' + old);
+    assert.match(red, new RegExp(`^/zh/${old}\\s+/zh/#${layer}\\s+301$`, 'm'), '/zh/' + old);
+  }
+  assert.ok(!urls.some((u) => /\/security\//.test(u)), 'content 里没有 /security/ 页面');
   /* P4-3 PR-4c：/en/… 旧地址删除不 301，_redirects 里没有 /en/ 开头的规则 */
   assert.doesNotMatch(red, /^\/en\//m);
   assert.ok(!red.includes(OLD_PATH), '_redirects 里没有旧设置层');
@@ -138,16 +143,18 @@ test('构建产物：没有 settings/ 目录，任何 HTML 都没有 href 指向
   }
   assert.ok(n > 20, '应扫到一批 HTML');
   assert.deepEqual(bad, [], '这些页面还有指向旧设置层的链接');
-  /* 主页：页名、顶栏没有标签；对齐 PR-B 起主页叫「主页 / Home」，安全（顶栏盾牌）和旷野（[04] 一节）有入口；旧三页不再生成 */
+  /* 主页：页名、顶栏没有标签；对齐 PR-B 起主页叫「主页 / Home」，旷野（[04] 一节）有入口（安全在顶栏盾牌下拉，进站 v3 L1 起没有页面）；旧三页不再生成 */
   /* P4-3 PR-4c：英文在根，中文在 /zh/ */
   const home = readFileSync(path.join(REPO, 'space/web/public/zh/index.html'), 'utf8');
   assert.match(home, /<title>主页 \| Styrigx<\/title>/);
   assert.match(home, /<span class="?sgx-tb-title"?>主页<\/span>/);
   assert.doesNotMatch(home, /sgx-tb-tab/);
-  for (const c of ['security', 'wild']) assert.ok(home.includes(`href="/zh/${c}/"`), '主页有 /zh/' + c + '/ 入口');
+  assert.ok(home.includes('href="/zh/wild/"'), '主页有 /zh/wild/ 入口');
+  assert.ok(!home.includes('href="/zh/security/'), '主页没有 /zh/security/ 链接');
   const en = readFileSync(path.join(REPO, 'space/web/public/index.html'), 'utf8');
   assert.match(en, /<title>Home \| Styrigx<\/title>/);
-  for (const c of ['security', 'wild']) assert.ok(en.includes(`href="/${c}/"`), '主页有 /' + c + '/ 入口');
+  assert.ok(en.includes('href="/wild/"'), '主页有 /wild/ 入口');
+  for (const pre of ['', 'zh/']) assert.ok(!existsSync(path.join(REPO, 'space/web/public', pre + 'security')), pre + 'security/ 不再生成（301 到盾牌）');
   for (const old of ['status', 'about', 'wellbeing']) for (const pre of ['', 'zh/']) {
     assert.ok(!existsSync(path.join(REPO, 'space/web/public', pre + old, 'index.html')), `${pre}${old}/ 不再生成（301 到旷野）`);
   }

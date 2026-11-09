@@ -52,7 +52,9 @@ test('页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 .hero.ph）：$ 命令 ·
   assert.doesNotMatch(shell, /\[data-sgx-layout="[a-z]+"\][^{]*\.sgx-segs[^{]*\{[^}]*display: none/, '段式标签不按布局隐藏');
   const ph = rd('space/web/layouts/partials/sgx-ph.html');
   assert.match(ph, /<header class="sgx-ph" data-sgx-ph>/);
-  assert.match(ph, /<p class="sgx-ph-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">styrigx@space:~\$<\/span> \{\{ \.cmd \}\}<\/p>/);
+  /* 环境提示符规则（进站 v3 L1）：两种都写，CSS 按 <html data-sgx-account-session> 只显示一种 */
+  assert.match(ph, /<p class="sgx-ph-cmd" aria-hidden="true" translate="no"><span class="sgx-pr"><span class="sgx-envps-g" translate="no">styrigx@space:~\$<\/span><span class="sgx-envps-r" translate="no">root@account:~#<\/span><\/span> \{\{ \.cmd \}\}<\/p>/);
+  assert.ok(shell.includes('html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-session="in"]) .sgx-envps-r { display: none; }'), '按账号登录状态只显示一种');
   assert.match(ph, /if not \.cmd \}\}\{\{ errorf "sgx-ph:/, '缺命令构建失败');
   assert.match(ph, /if not \.desc \}\}\{\{ warnf "sgx-ph:/, '缺说明只警告');
   assert.ok(!has('space/web/layouts/partials/sgx-page-hero.html'), 'sgx-page-hero.html 退役');
@@ -114,7 +116,9 @@ test('主站内容页：页头接入（带命令），front matter 都有 descri
   /* 对齐 PR-B：数字健康 / 关于本站 / 服务状态并进旷野页 wild（三份旧内容删除）；对齐 PR-C：风格页 theme 退役 */
   for (const p of ['wellbeing', 'about', 'status', 'theme']) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`]) assert.ok(!has(f), f + ' 应已删除');
   /* 2026-11-08 账号整页删了（账号都在顶栏头像的账号终端里） */
-  const pages = ['wild', 'security', 'security-tempkeys'];
+  const pages = ['wild'];
+  /* 进站 v3 L1：安全页（/security/、/security/lock/、/security/tempkeys/）删了，盾牌下拉 */
+  for (const p of ['security', 'security-lock', 'security-tempkeys']) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`, `space/web/layouts/_default/${p}.html`]) assert.ok(!has(f), f + ' 应已删除');
   /* 2026-11-08 云同步子页删除（Gray 04:47） */
   for (const f of ['space/web/content/account-sync.md', 'space/web/content/zh/account-sync.md', 'space/web/layouts/_default/account-sync.html']) assert.ok(!has(f), f + ' 应已删除');
   for (const p of pages) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`]) assert.match(rd(f), /^description: '.+'$/m, f);

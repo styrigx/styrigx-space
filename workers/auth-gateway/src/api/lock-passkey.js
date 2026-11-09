@@ -12,7 +12,8 @@
  *   reauth:true（安全与隐私 → 锁屏凭证，要进门）改签 3 分钟 LockReauthTicket，会话不动
  * - { action: 'list' } → 列出锁屏通行密钥（需 LockReauthTicket 或 LockResetTicket）
  * - { action: 'rename', credId, name } → 重命名设备名（需 LockReauthTicket；重置锁屏不可）
- * - { action: 'delete', credId } → 删除指定通行密钥（需 LockReauthTicket 或 LockResetTicket；先推纪元再删，失败 503 且密钥仍在）
+ * - { action: 'delete', credId } → 删除指定通行密钥（需 LockReauthTicket 或 LockResetTicket；reauth 票下先推纪元再删，失败 503 且密钥仍在；
+ *   reset 票下不推纪元，进站 v3 L1：其他设备由 /api/lock-reset finish 决定。第一次配置进站凭证的那次注册照旧推纪元）
  *
  * 只接受 POST；Origin 缺失/解析失败/跨站一律 403。
  *
@@ -396,6 +397,15 @@ async function handlePost(context) {
     const lockKeys = (await getPasskeys(env, PASSKEY_LOCK));
     if (!hasLockPassword && lockKeys.length <= 1) {
       return apiError(403, 'last-key');
+    }
+    /* reset 票下的删除不推纪元（进站 v3 L1，SPACE-V3 §2.0 L8）：其他设备怎么办由 /api/lock-reset { finish, signOut } 决定 */
+    if (mg.isLockReset) {
+      try {
+        await deletePasskey(env, PASSKEY_LOCK, credId);
+      } catch (e) {
+        return apiError(503, 'server');
+      }
+      return json(200, { ok: true });
     }
     /* 先推进纪元，成功才删（fail closed；纪元推进失败则密钥仍在）。 */
     let newEpoch = null;

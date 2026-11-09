@@ -420,32 +420,36 @@ for (const K of KINDS) {
     assert.equal(r.s, 200, JSON.stringify(r.j));
   });
 
-  T('权限：list 只要进门（短链 / 临时钥匙进门也能看）；create（含 reuse）/ revoke 要锁侧复验，没有 → 401 reauth；没会话 401、跨源 403；网关 ShareIssuer 自己也验', async () => {
+  T('权限（进站 v3 Q3 定稿 08:00）：新建（含 reuse、普通短链）只要进门——短链 / 临时钥匙进门也能发；管理（list / revoke）要锁侧复验，没有 → 401 reauth；没会话 401、跨源 403；网关 ShareIssuer 自己也验', async () => {
     const { env, gwEnv, calls, db } = mk();
     const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
     const viaLink = cookiesFrom(await open(env, l.path)); /* 短链进门的会话（by=tempkey） */
-    let r = await api(env, { action: 'list' }, viaLink);
-    assert.equal(r.s, 200, '看 = 进门');
+    let r;
     for (const cookie of [viaLink, await inCookie('password'), await inCookie('tempkey')]) {
-      for (const body of [{ action: 'create', hours: 1, session: 1800 }, { action: 'create', hours: 1 }, { action: 'create', hours: 2, session: 1800, reuse: true }, { action: 'revoke', id: l.id }]) {
+      for (const body of [{ action: 'create', hours: 1, session: 1800 }, { action: 'create', hours: 1 }, { action: 'create', hours: 2, session: 1800, reuse: true }]) {
+        r = await api(env, body, cookie);
+        assert.equal(r.s, 200, JSON.stringify(body) + ' ' + JSON.stringify(r.j));
+      }
+      for (const body of [{ action: 'list' }, { action: 'revoke', id: l.id }]) {
         r = await api(env, body, cookie);
         assert.equal(r.s, 401, JSON.stringify(body));
         assert.equal(r.j.error, 'reauth', JSON.stringify(body));
       }
     }
-    assert.deepEqual(calls, ['create', 'open'], '没复验时一把钥匙都没签 / 废');
-    assert.equal(db.rows().length, 1);
+    assert.ok(!calls.includes('revoke'), '没复验时一把钥匙都没废');
+    assert.ok(db.rows().every((x) => !x.revoked_at), '没复验时一条都没作废');
     assert.equal((await api(env, { action: 'list' }, '')).s, 401);
     assert.equal((await api(env, { action: 'create', hours: 1 }, '')).s, 401);
     assert.equal((await api(env, { action: 'list' }, undefined, 'https://evil.com')).s, 403);
-    /* 直接调网关内部接口：没进门 → session；进门没复验（含短链进门）→ reauth；都不签、不作废 */
+    /* 直接调网关内部接口：没进门 → session；进门就能签（含短链进门）；作废 / checkLinkReauth 没复验 → reauth */
     assert.deepEqual(await issuerMod.createLinkKey('', { hours: 1 }, gwEnv), { ok: false, error: 'session' });
-    assert.deepEqual(await issuerMod.createLinkKey(viaLink, { hours: 1 }, gwEnv), { ok: false, error: 'reauth' });
+    assert.equal((await issuerMod.createLinkKey(viaLink, { hours: 1 }, gwEnv)).ok, true, '新建只要进门');
     assert.deepEqual(await issuerMod.revokeLinkKey(viaLink, 'A'.repeat(16), gwEnv), { ok: false, error: 'reauth' });
     assert.deepEqual(await issuerMod.checkLinkReauth(viaLink, gwEnv), { ok: false, error: 'reauth' });
     assert.deepEqual(await issuerMod.checkLinkReauth('', gwEnv), { ok: false, error: 'session' });
     const owner = await adminCookie();
     assert.deepEqual(await issuerMod.checkLinkReauth(owner, gwEnv), { ok: true });
+    assert.equal((await api(env, { action: 'list' }, owner)).s, 200, '复验过能看列表');
     assert.deepEqual(await issuerMod.createLinkKey(owner, { hours: 25 }, gwEnv), { ok: false, error: 'duration' });
     /* 别的钥匙签的复验票不算 */
     const other = await genKeyPair();

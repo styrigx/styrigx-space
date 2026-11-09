@@ -5,9 +5,9 @@
  * 来源（都在 hugo 构建后的 space/web/public/ 里）：
  *   - files-index.json：我的站点、应用（type site / app）。博客文章不在这里：博客自己写 KV site:blog，
  *     主站不再顺带
- *   - 旷野页（/、en/）、旷野子页（data/space-cats.yaml 的每个分类：security/**、wild/** …，英文加 en/；P4-3 PR-4b 起去掉 settings 一层）
+ *   - 旷野页（/、en/）、旷野子页（data/space-cats.yaml 的每个分类：wild/** …；进站 v3 L1 起 security/** 删了，英文加 en/；P4-3 PR-4b 起去掉 settings 一层）
  *     每个页面：标题取 <title> 去掉「 | Styrigx」，类型 setting（2026-11-08 账号整页删了，账号都在顶栏头像的账号终端里，不再收录 account/**）
- *     账号页（/account/…）和旷野里的门内页（临时钥匙 /security/tempkeys/、服务状态 /status/）标 private（只给账号已登录的人搜到）
+ *     账号页（/account/…）和旷野里的门内页（服务状态 /status/）标 private（只给账号已登录的人搜到）
  *     副标题 = 完整面包屑：从地址逐级取上级页名，用「 › 」连起来，旷野子页最上一级是旷野页（锁屏凭证 → 「旷野 › 安全」；P4-3 PR-2 / PR-4b），
  *     AI 才说得出路径；账号页独立（/account/… 不挂在旷野下）
  *     text = 页面 <main> 里的分组标题、设置行标题和说明，加上上级页里指向本页那一行的说明（锁屏凭证 → 「解锁密码、通行密钥、会话 …」），
@@ -131,7 +131,7 @@ export function build(pub = PUB) {
         title,
         subtitle: '',
         url: ORIGIN + rel,
-        private: /^\/(account\/|security\/tempkeys\/|status\/)/.test(stripLang(rel)) || undefined,
+        private: /^\/(account\/|status\/)/.test(stripLang(rel)) || undefined,
       });
     }
   }

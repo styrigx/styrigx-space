@@ -90,7 +90,7 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await mock(page, false);
   await page.goto('/curio/zh/');
   /* 对齐 PR-C2：首页 = ls curio/，下划线 tab finds/ devices/ games/ movies/（music/ 仅本人可见，没权限藏着），当前 finds/ */
-  await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/');
+  await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/', { useInnerText: true });
   await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveCount(5);
   await expect(page.locator('#cu-tabs .sgx-ctab-a:visible')).toHaveText([/^finds\/\s*2$/, /^devices\/\s*2$/, /^games\/\s*2$/, /^movies\//]);
   await expect(page.locator('#cu-tabs [data-ctab="music"]')).toBeHidden();
@@ -108,7 +108,7 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await page.locator('#cu-tabs [data-ctab="finds"]').click();
   await expect(page).toHaveURL(/\/curio\/zh\/finds\/$/);
   await expect(page.locator('.sgx-tb-title')).toHaveText('发现');
-  await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/finds/');
+  await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/finds/', { useInnerText: true });
   await expect(page.locator('#cu-pane-finds')).toBeVisible();
   await expect(page.locator('#cu-q')).toHaveCount(0);
   await expect(page.locator('#cu-chips [data-cat]')).toHaveText([/^全部\s*2$/, /^开发与云\s*1$/, /^网络检测\s*1$/]);
@@ -145,7 +145,7 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'sgx-tb-av']);
   await expect(page.locator('.sgx-tb-acts .sgx-tb-grid')).toHaveAttribute('aria-controls', 'sgx-nav');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-av')).toHaveAttribute('href', 'https://styrigx.com/zh/account/');
-  await expect(page.locator('.sgx-tb-acts .sgx-tb-shield')).toHaveAttribute('href', 'https://styrigx.com/zh/security/');
+  await expect(page.locator('.sgx-tb-acts .sgx-tb-shield')).toHaveAttribute('href', 'https://styrigx.com/zh/#sec');
   /* 2026-11 PR-5：账号入口 = 顶栏头像 → 账号下拉（AI 窗口头部不再有头像）；2026-11-08 账号下拉 = 账号终端，没有去账号页的链接 */
   await expect(page.locator('#sgx-acct')).toHaveCount(1);
   await expect(page.locator('#sgx-acct a[href*="/account/"]')).toHaveCount(0);

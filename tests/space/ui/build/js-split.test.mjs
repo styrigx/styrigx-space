@@ -43,7 +43,9 @@ test('各页模板 sgx-entry 指向的入口都在列表里', () => {
       assert.ok(list.includes(m[1]), `${f}: ${m[1]} 不在批量构建列表里`);
     }
   }
-  assert.ok(n >= 5, '模板里应有各页入口（2026-11-08 云同步子页删除后 11 个；同日账号整页 6 个删除后 5 个）');
+  assert.ok(n >= 2, '模板里应有各页入口（2026-11-08 云同步子页删除后 11 个；同日账号整页 6 个删除后 5 个；进站 v3 L1 安全页 3 个删除后 2 个）');
+  for (const f of ['security.html', 'security-lock.html', 'security-tempkeys.html']) assert.ok(!existsSync(join(root, 'space/web/layouts/_default', f)), `进站 v3 L1：${f} 已删（盾牌下拉）`);
+  for (const f of ['entry-security.js', 'entry-security-lock.js', 'entry-security-tempkeys.js']) assert.ok(!existsSync(join(root, ENTRY_DIR, f)), `进站 v3 L1：${f} 已删`);
   assert.ok(rd('space/web/layouts/index.html').includes('"sgx-entry" "entry-space.js"'));
   assert.ok(!existsSync(join(root, 'space/web/layouts/_default/sub.html')), '对齐 PR-C：风格页 /theme/ 退役，sub.html 删除');
   assert.ok(!existsSync(join(root, ENTRY_DIR, 'entry-space-sub.js')), '对齐 PR-C：entry-space-sub.js 随风格页删除');
@@ -92,41 +94,33 @@ test('core.js：入口加载成功清掉自动重试标记', () => {
   assert.ok(core.includes("sessionStorage.getItem('sgx-js-retry') === location.pathname"), 'core 初始化成功清标记');
 });
 
-test('锁屏按需加载（frontend-js #6）：core 只带守卫，界面和鉴权模块不进每页的 core；P2-3 起没有升级层', () => {
+test('锁屏按需加载（frontend-js #6；进站 v3 L1 起在 shell/space/）：core 只带守卫，界面和鉴权模块不进每页的 core；P2-3 起没有升级层', () => {
   const core = rd('space/web/assets/js/shell/core.js');
-  assert.ok(core.includes("import { initLock } from './lock-guard.js';"), 'core 从 lock-guard.js 取 initLock');
-  assert.ok(!/from '\.\/(lock|upgrade)\.js'/.test(core), 'core 不静态 import 锁屏界面');
+  assert.ok(core.includes("import { initLock } from './space/guard.js';"), 'core 从 space/guard.js 取 initLock');
+  assert.ok(!/from '\.\/(lock|upgrade|lock-guard)\.js'/.test(core) && !/from '\.\/space\/entry\.js'/.test(core), 'core 不静态 import 锁屏界面');
   assert.ok(!/initUpgrade/.test(core), '升级层入口已删');
-  const guard = rd('space/web/assets/js/shell/lock-guard.js');
+  for (const f of ['shell/lock.js', 'shell/lock-guard.js', 'lib/lock-state.js']) assert.ok(!existsSync(join(root, 'space/web/assets/js', f)), f + ' 已搬进 shell/space/');
+  const guard = rd('space/web/assets/js/shell/space/guard.js');
   const staticImports = [...guard.matchAll(/^import [^\n]* from '([^']+)';$/gm)].map((m) => m[1]);
-  assert.deepEqual(staticImports, ['../lib/diag-jumptrace.js', '../lib/lock-state.js', '../lib/i18n.js'], '守卫只静态依赖 lib/diag-jumptrace.js、lib/lock-state.js、lib/i18n.js（字符串表读取，无依赖，语言包化 2026-11-07）');
-  assert.ok(guard.includes("import('./lock.js')") && !guard.includes("import('./upgrade.js')"), '界面按需 import()；没有升级层');
+  assert.deepEqual(staticImports, ['../../lib/diag-jumptrace.js', './state.js', '../../lib/i18n.js', './paths.js'], '守卫只静态依赖 diag-jumptrace、state、i18n（字符串表读取）、paths（接口地址常量）');
+  assert.ok(!/from '\.\/(api|entry|session|reset|shield)\.js'/.test(guard), '守卫不带 api / 通行密钥代码');
+  assert.ok(guard.includes("import('./entry.js')") && !guard.includes("import('./upgrade.js')"), '界面按需 import()；没有升级层');
   /* fail closed：先同步盖遮罩再 import，加载失败遮罩不撤 */
   const open = guard.slice(guard.indexOf('function openLockScreen()'));
-  assert.ok(open.indexOf('showLockCover()') < open.indexOf("import('./lock.js')"), '先盖遮罩再加载');
-  assert.ok(/\.catch\(function \(\) \{\s*if \(!lockReleased\) lockLoadFailed\(cover\);\s*\}\)/.test(open), '加载失败只换成重新加载按钮');
-  const fail = guard.slice(guard.indexOf('function lockLoadFailed('), guard.indexOf('function openLockScreen()'));
+  assert.ok(open.indexOf('showEntryCover()') < open.indexOf("import('./entry.js')"), '先盖遮罩再加载');
+  assert.ok(/\.catch\(function \(\) \{ entryLoadFailed\(cover\); \}\)/.test(open), '加载失败只换成重新加载按钮');
+  const fail = guard.slice(guard.indexOf('function entryLoadFailed('), guard.indexOf('function openLockScreen()'));
   assert.ok(!/remove\(|hidden = true|display ?= ?'none'/.test(fail), '加载失败不撤遮罩');
   /* initLock 不再直接画锁屏 */
-  const init = guard.slice(guard.indexOf('export function initLock()'), guard.indexOf('function showLockCover()'));
-  assert.ok(!init.includes('showLockScreen'), 'initLock 不直接调锁屏界面');
-  const lock = rd('space/web/assets/js/shell/lock.js');
-  assert.ok(lock.includes('export function showLockScreen()') && lock.includes("getElementById('sgx-lock-cover')"), '锁屏画上后撤掉遮罩');
+  const init = guard.slice(guard.indexOf('export function initLock()'), guard.indexOf('function showEntryCover()'));
+  assert.ok(!init.includes('showEntryScreen'), 'initLock 不直接调锁屏界面');
+  const entry = rd('space/web/assets/js/shell/space/entry.js');
+  assert.ok(entry.includes('export function showEntryScreen()') && entry.includes("getElementById('sgx-entry-cover')"), '锁屏画上后撤掉遮罩');
   assert.ok(!existsSync(join(root, 'space/web/assets/js/shell/upgrade.js')) && !guard.includes('initUpgrade'), 'P2-3：升级层整个删除');
 });
 
-test('锁屏按需加载 × 页面自带的门（2026-10-26 回归）：门内页撤锁屏走 releaseLockScreen，晚到的锁屏界面不再画上', () => {
-  const guard = rd('space/web/assets/js/shell/lock-guard.js');
-  const rel = guard.slice(guard.indexOf('export function releaseLockScreen()'));
-  assert.ok(rel.includes('lockReleased = true'), '释放是粘性的');
-  assert.ok(rel.includes("getElementById('sgx-lock')") && rel.includes("getElementById('sgx-lock-cover')"), '已画的锁屏和守卫遮罩都撤');
-  const open = guard.slice(guard.indexOf('function openLockScreen()'), guard.indexOf('export function releaseLockScreen()'));
-  assert.ok(/^\s*if \(lockReleased\) return;/m.test(open), '释放后不再盖遮罩');
-  assert.ok(/\.then\(function \(m\) \{[\s\S]*?if \(lockReleased\) return;[\s\S]*?m\.showLockScreen\(\);/.test(open), 'import 回来时已释放就不画锁屏');
-  /* 门内页不再自己删 #sgx-lock（只删 DOM 会被随后按需画上的锁屏盖住） */
-  for (const f of ['space/web/assets/js/apps/security-lock.js', 'space/web/assets/js/apps/app-gate.js']) {
-    const src = rd(f);
-    assert.ok(src.includes("import { releaseLockScreen } from '../shell/lock-guard.js';"), f + ' 经 releaseLockScreen');
-    assert.ok(!src.includes("getElementById('sgx-lock')"), f + ' 不再手删 #sgx-lock');
-  }
+test('进站 v3 L1：自带门的页面（安全页 / app-gate）删了，守卫不再需要 releaseLockScreen', () => {
+  for (const f of ['apps/security-lock.js', 'apps/app-gate.js', 'apps/security.js']) assert.ok(!existsSync(join(root, 'space/web/assets/js', f)), f + ' 已删');
+  const walk = (d) => readdirSync(join(root, d), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + '/' + e.name) : e.name.endsWith('.js') ? [d + '/' + e.name] : []));
+  for (const f of walk('space/web/assets/js')) assert.ok(!rd(f).includes('releaseLockScreen'), f + ' 不再引用 releaseLockScreen');
 });

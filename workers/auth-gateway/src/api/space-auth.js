@@ -1,18 +1,18 @@
 /**
- * 进站凭证（SpaceKey，SGX_LOCK_SPACE_KEY）入口：比对通过后按用途签一张锁屏短票（by=space）。
+ * 进站凭证（SpaceKey，SGX_LOCK_SPACE_KEY，v3 叫恢复钥匙）入口：比对通过后签一张锁屏短票（by=space）。
  *
  * SpaceKey 不拥有会话：只用于比对（core/space-check.js），不签名；本接口从不签进站会话。
- * 账号拆分 PR3（方案 5.2、6.2）：purpose 只剩 lock-reauth、lock-reset；账号的 root-reauth / root-reset 在账号 Worker
+ * 账号拆分 PR3（方案 5.2、6.2）：账号的 root-reauth / root-reset 在账号 Worker
  * （POST /api/account/reset recovery-key，比对恢复密钥 SGX_ACCOUNT_RECOVERY_KEY），两套互不相干、各自计数。
  *
- * POST /api/space-auth { key, purpose }，purpose 只有两个值（缺失 / 其它值 → 400 purpose，不比对、不计数）：
- * - 'lock-reauth' → LockReauthTicket（sgx-lock-reauth）：安全与隐私 → 锁屏凭证等锁侧复验；要先进门（任何进门方式，
- *                   含临时钥匙 / 短链进门；进门会话本身不算复验，复验靠这里比对进站凭证），不要求别的会话（方案 2.2.2、定案第 6 条）
+ * 进站 v3 L1（SPACE-V3 §2 L1，Gray C）：恢复钥匙不再签 reauth 票——reauth 只认解锁密码 / 通行密钥，
+ * 恢复钥匙只开 reset。purpose 'lock-reauth' 已删，和其它未知值一样 → 400 purpose（不比对、不计数、不签票）。
+ *
+ * POST /api/space-auth { key, purpose }，purpose 只有一个值（缺失 / 其它值含 'lock-reauth' → 400 purpose）：
  * - 'lock-reset'  → LockResetTicket（sgx-lock-reset）：只在锁屏未设置时可用（从零设置第一把 LockKey，
  *                   无需会话）；锁屏已设置时走 /api/lock-reset（进站凭证 + 重置开关 / 锁屏凭据），这里按假入口处理
- * 两张票都是 3 分钟、各自独立 cookie（见 realms.js TICKETS）。
+ * 票 3 分钟、独立 cookie（见 realms.js TICKETS）。
  *
- * lock-reauth 没进门 → 401 session（完整验票，不比对、不计数、不写审计）。v1 的会话假入口已删（P2-3）。
  * 锁屏已设置时的 lock-reset 假入口：写死 401 auth，与真失败逐字节相同；只计单 IP 限速（不比对，不计全局），
  * 全局减速时同样先等，不写审计。缺 Origin 仍先 403。
  *
@@ -28,7 +28,6 @@
  * 只接受 POST；校验 Origin（缺失/解析失败 403）。
  */
 import { checkSpaceCredential, sleep } from '../core/space-check.js';
-import { verifyLockSession } from '../core/lock-session.js';
 import { checkSpaceLimit, recordSpaceFail } from '../core/space-limit.js';
 import { writeSpaceAudit } from '../core/space-audit.js';
 import { isLockEffectivelyConfigured } from '../core/lock-configured.js';
@@ -37,14 +36,12 @@ import {
   REALM_LOCK,
   TICKETS,
   BY_SPACE,
-  LOCK_REAUTH_TICKET,
   LOCK_RESET_TICKET,
 } from '../core/realms.js';
 import { issueTicket } from '../core/tickets.js';
 
-/** purpose → 签哪张票 */
+/** purpose → 签哪张票（v3 L1：没有 'lock-reauth'，恢复钥匙不签 reauth 票） */
 export const SPACE_PURPOSES = Object.freeze({
-  'lock-reauth': LOCK_REAUTH_TICKET,
   'lock-reset': LOCK_RESET_TICKET,
 });
 
@@ -99,15 +96,6 @@ async function handlePost(context) {
   const ticket = SPACE_PURPOSES[purpose];
   const auditPath = purpose;
 
-  /* lock-reauth：要先进门（完整校验，含 D1 纪元）；没进门 → 401 session，不比对、不计数 */
-  if (ticket === LOCK_REAUTH_TICKET) {
-    const sess = await verifyLockSession(request, env);
-    if (!sess.ok) {
-      await padTo(t0);
-      return apiError(401, 'session');
-    }
-  }
-
   /* 锁屏是否已设置（D1 读失败按已设置处理）：只决定 lock-reset 能不能走 */
   let lockCfg = true;
   try {
@@ -116,8 +104,8 @@ async function handlePost(context) {
     lockCfg = true;
   }
 
-  /* 真路径还是假入口：lock-reset 只在锁屏未设置时走真路径（从零设置，无需会话）；lock-reauth 已在上面验过进门 */
-  const realPath = ticket === LOCK_RESET_TICKET ? !lockCfg : true;
+  /* 真路径还是假入口：lock-reset 只在锁屏未设置时走真路径（从零设置，无需会话） */
+  const realPath = !lockCfg;
 
   if (!realPath) {
     /* ===== 锁屏已设置时的 lock-reset 假入口：写死 401，与真失败逐字节相同 =====

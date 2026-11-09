@@ -1,11 +1,11 @@
 /**
  * 主页与门内子页（P4-3 PR-4b：主页和设置合成一页；2026-11 对齐 PR-B：主页回到「主页 / Home」四节，旷野独立成 /wild/）。真实断言（不 mock 自家逻辑）：
- * - 对齐 PR-B 起：主页 = hero + [01] 博客 · [02] 奇趣 · [03] 日刻 · [04] 旷野；没有分类入口；子页 /wild/（/security/ 独立页）；下面几行是沿革
+ * - 对齐 PR-B 起：主页 = hero + [01] 博客 · [02] 奇趣 · [03] 日刻 · [04] 旷野；没有分类入口；子页 /wild/（/security/ 三页随进站 v3 L1 删除，301 到盾牌 /#sec…）；下面几行是沿革
  * - 旷野页 /zh/（英文 /，P4-3 PR-4c 起英文默认）：上面名片 / 日刻 / 屏幕时间，下面标题带 + 5 个平铺入口（共享组件 partials/sgx-entries.html，数据 data/space-cats.yaml）：
  *   编号 01–05、圆底图标、名字 + 一行副标题、行间细线、无卡片底；≥ 760 两栏、≥ 1100 三栏（栏间细竖线）；没有账号卡、没有选项组、没有 DeX 双栏
  *   （分类沿革：2026-10-23 PR-E 常规管理 / 辅助功能删除；服务状态从账号页搬来；P4-2c 高级功能删除，「安全与隐私」改名「安全」；
  *    P4-3 PR-4b（Gray 2026-11-07）显示页 /display/ 整页删除，404，不做 301——功能都在快捷面板）
- * - 子页 /wild/ 可达（对齐 PR-C：风格页 /theme/ 退役，301 到主页）、有对应内容（顶栏没有返回键），/security/ 是独立页面（对齐 PR-B 前：/wellbeing/ /about/ /status/）
+ * - 子页 /wild/ 可达（对齐 PR-C：风格页 /theme/ 退役，301 到主页）、有对应内容（顶栏没有返回键）（对齐 PR-B 前：/wellbeing/ /about/ /status/）
  * - 旧设置层（原设置首页和全部子页）一律 404，不跳转
  * - 中英双语
  */
@@ -142,7 +142,7 @@ test('old settings layer is gone: home and every subpage 404, no redirect', asyn
   const path = require('path');
   const rd = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'static', '_redirects'), 'utf8');
   expect(rd.includes(OLD)).toBe(false);
-  expect(rd).toMatch(/^\/owner\/\s+\/security\/lock\/\s+301$/m);
+  expect(rd).toMatch(/^\/owner\/\s+\/#sec=keys\s+301$/m); /* 进站 v3 L1：安全页删了，旧地址直接开盾牌那一层 */
 });
 
 const SUBCHECKS = {
@@ -155,7 +155,7 @@ const GONE = {
 };
 
 for (const c of CATS) {
-  if (c.id === 'security') continue; // security 是独立页面，另有测试覆盖
+  if (c.id === 'security') continue; // 进站 v3 L1：安全页已删（space-cats 里也没有这一类，留着防回潮）
   test(`subpage /${c.id}/: no back button + options`, async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, `/zh/${c.id}/`);
@@ -233,40 +233,18 @@ test.describe('unlock methods entry relocation', () => {
     await expect(pg.locator('#sgx-unlock-link')).toHaveCount(0);
   });
 
-  test('security page: three entries (owner credential moved to account avatar), no unlock-methods', async ({ page: pg }) => {
-    await pinLang(pg, 'zh');
-    await blockExternalRequests(pg);
-    await pg.goto('/zh/security/', { waitUntil: 'domcontentloaded' });
-    await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
-    /* 安全页三项（锁屏凭证/临时钥匙/立即锁定；临时钥匙从账号页搬来）；管理凭证已删除；账号在头像（2026-10-22 从顶栏右圆挪进抽屉头，2026-11-04 P5-1 回到顶栏最右，P4-3 PR-4b 搬进 AI 窗口头部） */
-    await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
-    await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
-    await expect(pg.locator('.sgx-tb-av')).toHaveAttribute('href', '/zh/account/');
-    await expect(pg.locator('#sec-mgmt-cred')).toHaveCount(0);
-    const lockCred = pg.locator('#sec-lock-cred');
-    await expect(lockCred).toHaveCount(1);
-    await expect(lockCred).toContainText('锁屏凭证');
-    await expect(lockCred).toHaveAttribute('href', '/zh/security/lock/');
-    const tk = pg.locator('#sec-tempkeys');
-    await expect(tk).toHaveCount(1);
-    await expect(tk).toContainText('临时钥匙');
-    await expect(tk).toHaveAttribute('href', '/zh/security/tempkeys/');
-    const locknow = pg.locator('#sec-locknow');
-    await expect(locknow).toHaveCount(1);
-    await expect(locknow).toContainText('立即锁定');
-  });
-
-  test('security page (en): three entries', async ({ page: pg }) => {
-    await pinLang(pg, 'en');
-    await blockExternalRequests(pg);
-    await pg.goto('/security/', { waitUntil: 'domcontentloaded' });
-    await expect(pg.locator('.set-layout').first()).toBeVisible({ timeout: 15000 });
-    await expect(pg.locator('#sec-unlock-methods')).toHaveCount(0);
-    await expect(pg.locator('#sec-owner-cred')).toHaveCount(0);
-    await expect(pg.locator('#sec-lock-cred')).toContainText('Lock screen credentials');
-    await expect(pg.locator('#sec-tempkeys')).toContainText('Temporary keys');
-    await expect(pg.locator('#sec-tempkeys')).toHaveAttribute('href', '/security/tempkeys/');
-    await expect(pg.locator('#sec-locknow')).toContainText('Lock now');
+  test('进站 v3 L1：安全页三页删除——静态站里没有页面，_redirects 301 到盾牌 /#sec / #sec=keys / #sec=tempkeys（中英）', async ({ page: pg }) => {
+    const fs = require('fs');
+    const path = require('path');
+    const rd = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'static', '_redirects'), 'utf8');
+    for (const pre of ['', '/zh']) {
+      for (const [from, hash] of [['/security/', '#sec'], ['/security/lock/', '#sec=keys'], ['/security/tempkeys/', '#sec=tempkeys']]) {
+        const esc = (x) => x.replace(/[/.#=]/g, (c) => '\\' + c);
+        expect(rd, pre + from).toMatch(new RegExp('^' + esc(pre + from) + '\\s+' + esc(pre + '/' + hash) + '\\s+301$', 'm'));
+        const r = await pg.request.get(pre + from + 'index.html', { maxRedirects: 0 });
+        expect(r.status(), pre + from + 'index.html').toBe(404);
+      }
+    }
   });
 });
 
@@ -348,14 +326,14 @@ test('旧撞色 id 迁移：xforest → forest；不认识的 id → 默认 terr
 
 /* B2-1：诊断留痕已删除——即使 sessionStorage 里残留旧版的留痕/信标，安全与隐私页也不显示跳转日志卡；
    站内跳转不再写留痕 */
-test('B2-1 security page: no jump-trace diagnostics', async ({ page: pg }) => {
+test('B2-1 no jump-trace diagnostics (home page; /security/ removed in L1)', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/zh/wild/');
   await pg.evaluate(() => {
     sessionStorage.setItem('sgx-last-jump', JSON.stringify([{ who: 'navhistory.js:59', reason: 'goback-primary;to=/', at: Date.now(), desktop: false, visibility: 'visible' }]));
     sessionStorage.setItem('sgx-credential-beacon', JSON.stringify({ path: '/security/owner/', at: Date.now() }));
   });
-  await pg.goto('/zh/security/', { waitUntil: 'domcontentloaded' });
+  await pg.goto('/zh/', { waitUntil: 'domcontentloaded' }); /* 进站 v3 L1：/zh/security/ 已删，换主页 */
   await expect(pg.locator('main').first()).toBeVisible({ timeout: 15000 });
   /* C8：原来固定等 500ms；改成等 load（页面模块脚本都执行完，会渲染留痕卡的话此时已渲染） */
   await pg.waitForLoadState('load');
@@ -433,14 +411,11 @@ test('B2-4 space has no Apps category; no reset-all-settings row anywhere', asyn
   await expect(pg.locator('body')).not.toContainText('重置所有设置');
 });
 
-test('No top-bar menu; Security has no privacy group or search engine row (P4-2c)', async ({ page: pg }) => {
+test('No top-bar menu (P4-2c; the Security page itself was removed in L1)', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await blockExternalRequests(pg);
   await pg.goto('/zh/', { waitUntil: 'domcontentloaded' });
   await expect(pg.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   await expect(pg.locator('#brw-more, .sgx-tb-more')).toHaveCount(0);
-  await gotoSettings(pg, '/zh/security/');
-  await expect(pg.locator('.sgx-tb-title')).toHaveText('安全');
   await expect(pg.locator('#sec-engine')).toHaveCount(0);
-  await expect(pg.locator('main')).not.toContainText('搜索引擎');
 });

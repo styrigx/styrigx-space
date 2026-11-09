@@ -45,7 +45,9 @@ test('宽屏平铺（Gray 2026-11-07；2026-11 PR-A 起内容区回 1080）：�
   assert.match(s, /\.sgx-flat \{ background: transparent; border: 0; border-radius: 0; box-shadow: none;/);
   // 交互模块保留卡片：旷野页（屏幕时间 / 状态 / 关于，对齐 PR-B 起在 _default/wild.html）、安全页不挂 .sgx-flat
   const web = path.join(REPO, 'space/web/layouts');
-  for (const f of ['_default/wild.html', '_default/security.html', '_default/security-lock.html']) {
+  /* 进站 v3 L1：安全页删了（盾牌下拉） */
+  for (const f of ['_default/security.html', '_default/security-lock.html']) assert.ok(!existsSync(path.join(web, f)), f + ' 已删');
+  for (const f of ['_default/wild.html']) {
     assert.doesNotMatch(readFileSync(path.join(web, f), 'utf8'), /sgx-flat/, f);
   }
   const home = readFileSync(path.join(web, 'index.html'), 'utf8');
@@ -257,8 +259,9 @@ test('AI 窗口头部（2026-11 PR-5 按设计稿 ai-v1）：G 徽标 · Gray AI
   assert.match(src, /<a class="sgx-ai-contact" data-ai-contact title="\{\{ \$t\.topbar\.contact \}\}"\{\{ with \.email \}\} href="mailto:\{\{ \. \}\}"\{\{ end \}\}>/);
   assert.doesNotMatch(src, /styrigx@gmail\.com/);
   assert.doesNotMatch(src, /ai@styrigx\.com/);
-  const lock = readFileSync(path.join(REPO, 'space/web/assets/js/shell/lock.js'), 'utf8');
-  assert.match(lock, /'<span class="' \+ b\.className \+ '">'/, 'lock.js 抄顶栏按钮要带原类名');
+  /* 进站 v3 L1：锁屏界面在 shell/space/entry.js */
+  const lock = readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/entry.js'), 'utf8');
+  assert.match(lock, /'<span class="' \+ b\.className \+ '">'/, 'entry.js 抄顶栏按钮要带原类名');
   assert.match(lock, /querySelectorAll\('#site-nav \.sgx-tb-acts \.sgx-tb-btn'\)/);
   assert.match(lock, /document\.querySelector\('#site-nav \.sgx-tb-avatar'\)/, '锁屏头像取顶栏头像那张');
   assert.doesNotMatch(lock, /sgx-tb-me|sgx-ai-avatar/);

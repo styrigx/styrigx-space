@@ -70,7 +70,7 @@ for (const [width, height] of [[1280, 800], [1920, 1080], [1024, 700], [768, 102
   });
 }
 test('顶栏 412×915（手机布局）：通栏，不显示页名，字标和图标组贴页边距 12（对齐 PR-B）', async ({ page }) => {
-  await go(page, { width: 412, height: 915 }, '/security/');
+  await go(page, { width: 412, height: 915 }, '/wild/'); /* 进站 v3 L1：/security/ 已删 */
   await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
   const b = await page.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); return { bar: r('.sgx-topbar'), logo: r('.sgx-tb-logo'), acts: r('.sgx-tb-acts') }; });
   expect(Math.abs(b.bar.width - 412)).toBeLessThanOrEqual(1);
@@ -81,7 +81,7 @@ test('顶栏 412×915（手机布局）：通栏，不显示页名，字标和�
 /* ----- 手机布局：外框最宽 640 居中（顶栏 v3 是通栏，不再和外框同宽） ----- */
 /* 首页（/）2026-11 PR-2 起内容栏对齐顶栏内容（1080），不跟外壳框，单独测（见下「首页内容栏」） */
 /* 对齐 PR-B：原 /status/ 并进旷野 /wild/，旷野页内容栏同主页（对齐顶栏内容 1080，见「首页 / 旷野内容栏」） */
-const WRAPS = [['/security/', '.set-layout'], ['/security/tempkeys/', '.acct-layout'], ['/404.html', '.sgx-404']];
+const WRAPS = [['/404.html', '.sgx-404']]; /* 进站 v3 L1：/security/、/security/tempkeys/ 已删（盾牌命令行取代） */
 async function frame(page, sel) {
   return page.evaluate((s) => {
     const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };

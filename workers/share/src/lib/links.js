@@ -81,7 +81,7 @@ export function sessionSeconds(sec, ms) {
 /** 目标能指向的主机（https、默认端口）：只有 styrigx.com（旧图志 atlas.styrigx.com 已下线，2026-11 删出白名单，存量短链由 migrations-archive/0002 删除） */
 export const TARGET_HOSTS = Object.freeze(['styrigx.com']);
 /** 存目标前去掉的查询参数（锁屏 / 回跳 / 分享自己的参数，带进去会把人送回锁屏或绕圈） */
-export const STRIP_PARAMS = Object.freeze(['lock', 'why', 'return', 'share']);
+export const STRIP_PARAMS = Object.freeze(['entry', 'lock', 'why', 'return', 'share']);
 const ABS_RE = /^https:\/\/([a-z0-9.-]+)(?=[/?#]|$)/i;
 
 /**

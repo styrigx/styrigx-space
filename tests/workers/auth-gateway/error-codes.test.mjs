@@ -3,8 +3,8 @@
  *
  * 规则：网关 src/api/*.js 返回的每个 error 码，必须属于以下之一，
  * 否则前端 apiErrorText 会落到「未知错误（code/status）」：
- * - ERR_KEY（assets/js/apps/app-gate.js）：有用户文案映射
- * - NEED_VERIFY_CODES（同文件）：走 needVerify 跳验证流程，不展示开发用语
+ * - ERR_KEY（assets/js/shell/space/api.js；进站 v3 L1 起锁屏 / reset / 盾牌共用，原 apps/app-gate.js 已删）：有用户文案映射
+ * - NEED_VERIFY_CODES（同文件）：终端按码回锁屏 / 重跑 sudo styrigx reauth，不展示开发用语
  * - KNOWN_FIXED：调用方只用 HTTP 状态/ok 判断、显示固定文案，永不进 apiErrorText
  *
  * 提取方式（纯文本静态扫描，不跑服务端）：
@@ -23,8 +23,7 @@
  * - account：账号会话缺失（/api/account 管理），账号页按码跳回账号登录，不进 apiErrorText
  * - reauth：reauth 票缺失/过期（/api/account 管理、锁屏凭证管理），页面按码回到验证入口重新验证，不进 apiErrorText
  *
- * 另断言：每个 ERR_KEY 的 i18n key 都在门内模板
- * （security-lock；原 security-owner 已升级为账号页，应用凭证页已删除）里定义，
+ * 另断言：每个 ERR_KEY 的 i18n key 都在外壳字符串表 space.common.*（data/sgx-shell-i18n/<语言>.yaml）里定义，
  * 否则 t() 兜底会把映射当成缺键丢掉。
  *
  * 运行：node --test tests/kernel/error-codes.test.mjs
@@ -34,7 +33,6 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { strings } from '../../fixtures/strings.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
@@ -86,14 +84,14 @@ function extractServerCodes() {
 
 /** 提取 ERR_KEY 的码 → i18n key，以及 NEED_VERIFY_CODES。 */
 function extractFrontendMaps() {
-  const src = read('space/web/assets/js/apps/app-gate.js');
-  const errBlock = src.match(/var ERR_KEY = \{([\s\S]*?)\};/);
+  const src = read('space/web/assets/js/shell/space/api.js');
+  const errBlock = src.match(/export const ERR_KEY = Object\.freeze\(\{([\s\S]*?)\}\);/);
   assert.ok(errBlock, '应能找到 ERR_KEY 定义');
   const errKey = new Map();
   for (const m of errBlock[1].matchAll(/'([a-z][a-z0-9-]*)':\s*'([A-Za-z]+)'/g)) {
     errKey.set(m[1], m[2]);
   }
-  const needBlock = src.match(/const NEED_VERIFY_CODES = \[([\s\S]*?)\];/);
+  const needBlock = src.match(/export const NEED_VERIFY_CODES = \[([\s\S]*?)\];/);
   assert.ok(needBlock, '应能找到 NEED_VERIFY_CODES 定义');
   const needVerify = new Set([...needBlock[1].matchAll(/'([a-z][a-z0-9-]*)'/g)].map((m) => m[1]));
   return { errKey, needVerify };
@@ -115,13 +113,13 @@ test('same-as-lock / same-as-account 必须在 ERR_KEY 里（双向相同密码�
   assert.equal(errKey.get('same-as-account'), 'errSameAsAccount');
 });
 
-test('每个 ERR_KEY 的 i18n key 都在门内页的字符串表里定义（security-lock.html 输出 js.lockmgr；语言包化 2026-11-07 起文案在 data/i18n/<语言>.yaml）', () => {
+test('每个 ERR_KEY 的 i18n key 都在外壳字符串表 space.common 里定义（进站 v3 L1：data/sgx-shell-i18n/<语言>.yaml）', async () => {
   const { errKey } = extractFrontendMaps();
-  assert.ok(read('space/web/layouts/_default/security-lock.html').includes('$tr.js.lockmgr'), '门内模板输出 js.lockmgr 表');
+  const yaml = (await import('js-yaml')).default;
   for (const lang of ['en', 'zh']) {
-    const table = (strings('space', lang).js || {}).lockmgr || {};
+    const table = ((yaml.load(read('space/web/data/sgx-shell-i18n/' + lang + '.yaml')) || {}).space || {}).common || {};
     const missing = [...new Set(errKey.values())].filter((k) => table[k] == null || table[k] === '');
-    assert.deepEqual(missing, [], lang + ' 字符串表 js.lockmgr 缺少 i18n key');
+    assert.deepEqual(missing, [], lang + ' 字符串表 space.common 缺少 i18n key');
   }
 });
 

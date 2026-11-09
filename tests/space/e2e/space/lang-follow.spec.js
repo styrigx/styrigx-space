@@ -48,24 +48,24 @@ test('system 模式：浏览器英文时 /zh/ 跳到 / 且不循环', async ({ p
   expect(isZh(pg.url())).toBe(false);
 });
 
-test('明确偏好 sgx-lang=zh 时 /security/ 跳到 /zh/security/', async ({ page: pg }) => {
+test('明确偏好 sgx-lang=zh 时 /wild/ 跳到 /zh/wild/（进站 v3 L1：/security/ 已删）', async ({ page: pg }) => {
   await blockExternalRequests(pg);
   await pg.addInitScript(() => {
     try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {}
   });
-  await pg.goto('/security/', { waitUntil: 'domcontentloaded' });
-  await pg.waitForURL((url) => url.pathname === '/zh/security/', { timeout: 10000 });
-  expect(new URL(pg.url()).pathname).toBe('/zh/security/');
+  await pg.goto('/wild/', { waitUntil: 'domcontentloaded' });
+  await pg.waitForURL((url) => url.pathname === '/zh/wild/', { timeout: 10000 });
+  expect(new URL(pg.url()).pathname).toBe('/zh/wild/');
 });
 
-test('明确偏好 sgx-lang=en 时 /zh/security/ 跳到 /security/', async ({ page: pg }) => {
+test('明确偏好 sgx-lang=en 时 /zh/wild/ 跳到 /wild/', async ({ page: pg }) => {
   await blockExternalRequests(pg);
   await pg.addInitScript(() => {
     try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {}
   });
-  await pg.goto('/zh/security/', { waitUntil: 'domcontentloaded' });
-  await pg.waitForURL((url) => url.pathname === '/security/', { timeout: 10000 });
-  expect(new URL(pg.url()).pathname).toBe('/security/');
+  await pg.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+  await pg.waitForURL((url) => url.pathname === '/wild/', { timeout: 10000 });
+  expect(new URL(pg.url()).pathname).toBe('/wild/');
 });
 
 test('旧的 /en/… 删除不 301：静态站里不存在（线上 404，部署后另行手动验收）', async ({ page: pg }) => {

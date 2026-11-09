@@ -1,5 +1,5 @@
 {{- /* 页头（2026-11 对齐 PR-C，设计稿 tb4.html 的 .hero.ph；取代段式标签时代的 sgx-page-hero 标题带）：四站内容页同一个页头——
-   一行装饰提示符「styrigx@space:~$ <cmd>」（aria-hidden、不翻译）+ 等宽大标题 + 主题色「_」（CSS ::after，读屏 / textContent 不含）+ 一行说明。两种布局都显示。
+   一行装饰提示符「styrigx@space:~$ <cmd>」（账号已登录时 root@account:~#，环境提示符规则；外壳 partial 不能调别的 partial，两种写在这里，CSS .sgx-envps-* 按登录状态只显示一种）（aria-hidden、不翻译）+ 等宽大标题 + 主题色「_」（CSS ::after，读屏 / textContent 不含）+ 一行说明。两种布局都显示。
    子分区切换不在这里：用下划线文字 tab（.sgx-ctab）或 chips（.sgx-chips），由调用页自己放在页头下面。
    共享外壳组件：只用参数（不能调用别的 partial、不能读 site.Data），只用 --sgx-* 角色（CSS 在 input.css 的 @inpage 段，gen-shell 抽到 shell.css）。
    参数（dict）：
@@ -13,7 +13,7 @@
 {{- if not .cmd }}{{ errorf "sgx-ph: %s 缺 cmd（页头第一行是终端命令）" (.path | default .title) }}{{ end -}}
 {{- if not .desc }}{{ warnf "sgx-ph: %s 缺 description（页头只显示标题）" (.path | default .title) }}{{ end -}}
 <header class="sgx-ph" data-sgx-ph>
-  <p class="sgx-ph-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">styrigx@space:~$</span> {{ .cmd }}</p>
+  <p class="sgx-ph-cmd" aria-hidden="true" translate="no"><span class="sgx-pr"><span class="sgx-envps-g" translate="no">styrigx@space:~$</span><span class="sgx-envps-r" translate="no">root@account:~#</span></span> {{ .cmd }}</p>
   {{- if eq $tag "h2" }}
   <h2 class="sgx-ph-title"{{ with .id }} id="{{ . }}"{{ end }}>{{ .title }}</h2>
   {{- else }}

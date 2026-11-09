@@ -37,7 +37,7 @@ function initTopbar() {
   r.dataset.sgxReady = 'true';
 
   /* 快捷面板 + AI 窗口（共享外壳 topbar.js）：外观写端 prefs-write.js（写 localStorage + sgx-ui cookie，同源后主站同步生效）；
-     语言行写偏好，实际语言变了就去 data-href（另一种语言的同一页）；布局行写 sgx-layout（四站同一套快捷面板，PR-4b）；分享磁贴交给 share.js（带临时会话的短链，生成前要锁侧复验） */
+     语言行写偏好，实际语言变了就去 data-href（另一种语言的同一页）；布局行写 sgx-layout（四站同一套快捷面板，PR-4b）；分享磁贴交给 share.js（带临时会话的短链，只要进站会话、不验证） */
   mountTopbar({
     modalSheet,
     prefs: {

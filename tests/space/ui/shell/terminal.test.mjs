@@ -54,8 +54,8 @@ test('complete：命令名补全（唯一 → 补全，带参数的命令加空�
 
 test('complete：参数补全（sudo r → sudo root；cd 目录；theme；cat daymark/today；第三个词不补）', () => {
   assert.deepEqual(complete('sudo r'), { line: 'sudo root', options: [] });
-  assert.deepEqual(complete('sudo s'), { line: 'sudo security', options: [] });
-  assert.deepEqual(complete('sudo '), { line: 'sudo ', options: ['root', 'security'] });
+  assert.deepEqual(complete('sudo s'), { line: 'sudo styrigx', options: [] }, '进站 v3 L1：sudo security → sudo styrigx');
+  assert.deepEqual(complete('sudo '), { line: 'sudo ', options: ['root', 'styrigx'] });
   assert.deepEqual(complete('cd b'), { line: 'cd blog', options: [] });
   assert.deepEqual(complete('cd d'), { line: 'cd daymark', options: [] });
   assert.deepEqual(complete('theme d'), { line: 'theme dark', options: [] });
@@ -94,17 +94,23 @@ test('fill：占位换成片段，其余原样', () => {
   assert.deepEqual(fill('{y}', {}), [['', '{y}']]);
 });
 
-test('提示符 / 标题：guest@space:~$，cd blog 后 ~/blog$；初始 cwd 可以是子站目录', () => {
+test('提示符 / 标题（环境提示符规则，进站 v3 L1）：账号没登录 styrigx@space:~$、已登录 root@account:~#；cd blog 后 ~/blog$ / ~/blog#；初始 cwd 可以是子站目录', () => {
   const { act } = fakeAct({ scroll: ['blog'] });
-  const sh = createShell({ act, storage: mem() });
-  assert.equal(sh.ps1(), 'guest@space:~$');
-  assert.equal(sh.title(), 'guest@space: ~');
+  let inAcct = false;
+  const sh = createShell({ act, storage: mem(), signedIn: () => inAcct });
+  assert.equal(sh.ps1(), 'styrigx@space:~$');
+  assert.equal(sh.title(), 'styrigx@space: ~');
   sh.exec('cd blog');
-  assert.equal(sh.ps1(), 'guest@space:~/blog$');
+  assert.equal(sh.ps1(), 'styrigx@space:~/blog$');
+  inAcct = true;
+  assert.equal(sh.ps1(), 'root@account:~/blog#', '登录后立刻换（每次现读）');
+  assert.equal(sh.title(), 'root@account: ~/blog');
   sh.exec('cd ..');
-  assert.equal(sh.ps1(), 'guest@space:~$');
-  assert.equal(createShell({ act, cwd: 'curio', storage: mem() }).ps1(), 'guest@space:~/curio$');
-  assert.equal(createShell({ act, cwd: 'nope', storage: mem() }).ps1(), 'guest@space:~$');
+  assert.equal(sh.ps1(), 'root@account:~#');
+  assert.equal(createShell({ act, cwd: 'curio', storage: mem(), signedIn: () => false }).ps1(), 'styrigx@space:~/curio$');
+  assert.equal(createShell({ act, cwd: 'nope', storage: mem(), signedIn: () => false }).ps1(), 'styrigx@space:~$');
+  /* 没传 signedIn：读 <html data-sgx-account-session>；node 里没有 document → 没登录 */
+  assert.equal(createShell({ act, storage: mem() }).ps1(), 'styrigx@space:~$');
 });
 
 test('help：cd 一行 + 八条命令（顺序同设计稿）；clear 清屏；未知命令 command not found · try help', () => {
@@ -112,7 +118,7 @@ test('help：cd 一行 + 八条命令（顺序同设计稿）；clear 清屏；�
   const sh = createShell({ act, storage: mem() });
   const h = sh.exec('help');
   assert.equal(h.out.length, 1);
-  assert.equal(text(h.out[0]), 'cd blog · curio · daymark · wild · ~ | ls,cat,sudo root,sudo security,theme,lock,ask,clear');
+  assert.equal(text(h.out[0]), 'cd blog · curio · daymark · wild · ~ | ls,cat,sudo root,sudo styrigx,theme,lock,ask,clear');
   assert.equal(h.out[0].rows[0][1], TERM_EN.dLs);
   assert.deepEqual(sh.exec('clear'), { out: [], clear: true });
   const nf = sh.exec('foo bar');
@@ -170,7 +176,8 @@ test('sudo / theme / lock / ask：输出一行提示，动作放在 after（先�
   assert.equal(text(sh.exec('sudo rm').out[0]), TERM_EN.usageSudo);
   assert.equal(text(sh.exec('sudo account').out[0]), TERM_EN.usageSudo);
   assert.equal(text(sh.exec('sudo root rm').out[0]), TERM_EN.usageSudo);
-  assert.equal(text(sh.exec('sudo security now').out[0]), TERM_EN.usageSudo);
+  assert.equal(text(sh.exec('sudo security').out[0]), TERM_EN.usageSudo, '进站 v3 L1：旧 sudo security 不认');
+  assert.equal(text(sh.exec('sudo styrigx now').out[0]), TERM_EN.usageSudo);
   sh.exec('theme').after();
   sh.exec('theme dark');
   assert.equal(text(sh.exec('theme pink').out[0]), TERM_EN.usageTheme);
@@ -178,6 +185,15 @@ test('sudo / theme / lock / ask：输出一行提示，动作放在 after（先�
   sh.exec('ask  how is this site built?').after();
   sh.exec('ask').after();
   assert.deepEqual(calls, [['sudo', 'root'], ['go', 'root'], ['sudo', 'root', 'reauth'], ['go', 'root'], ['sudo', 'root', 'reset'], ['go', 'root'], ['theme', ''], ['theme', 'dark'], ['lock'], ['ask', 'how is this site built?'], ['ask', '']]);
+});
+
+test('sudo styrigx（进站 v3 L1）：打开盾牌（act.sudo(styrigx)），先打印再动', () => {
+  const { act, calls } = fakeAct();
+  const sh = createShell({ act, storage: mem() });
+  const r = sh.exec('sudo styrigx');
+  assert.match(text(r.out[0]), /^→ opening /);
+  r.after();
+  assert.deepEqual(calls[0].slice(0, 2), ['sudo', 'styrigx']);
 });
 
 test('历史：↑ 从最近一条往前，↓ 回到正在打的草稿；连续重复只记一次；存 sessionStorage（跨页保留，最多 50 条）', () => {

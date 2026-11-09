@@ -146,8 +146,11 @@ test('网关只经 D1_LOCK_AUTH 读写 realm=lock 的行；已删的 D1_ACCOUNT_
     assert.equal((await r.json()).error, 'purpose');
   }
 
-  /* 锁屏凭证页：进站凭证 lock-reauth → 改锁屏密码（和遗留的账号密码相同也行）、状态、通行密钥 challenge、凭证列表 */
-  r = jar.absorb(await call('space-auth.js', 'onRequestPost', post('/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reauth' }, jar.header())));
+  /* v3 L1：恢复钥匙不签 reauth 票（400 purpose）；reauth 用解锁密码 → 改锁屏密码（和遗留的账号密码相同也行）、状态、通行密钥 challenge、凭证列表 */
+  r = await call('space-auth.js', 'onRequestPost', post('/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reauth' }, jar.header()));
+  assert.equal(r.status, 400);
+  assert.equal((await r.json()).error, 'purpose');
+  r = jar.absorb(await call('lock-password.js', 'onRequestPost', post('/api/lock-password', { action: 'verify', password: 'lock-pass-1234', reauth: true }, jar.header())));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
   r = await call('lock-reauth.js', 'onRequestPost', post('/api/lock-reauth', { action: 'status' }, jar.header()));
   assert.equal(r.status, 200);
@@ -163,13 +166,16 @@ test('网关只经 D1_LOCK_AUTH 读写 realm=lock 的行；已删的 D1_ACCOUNT_
   r = await call('space-audit.js', 'onRequestGet', get('/api/space-audit', jar.header() + '; ' + TEST_ACCOUNT_COOKIE));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
 
-  /* 无法登录 → lock-reset：challenge（没有锁屏通行密钥 → not-set）；进站凭证 + 锁屏密码证明 → LockResetTicket(by=password) */
+  /* 无法登录 → sudo styrigx reset（L1）：恢复钥匙一把 → LockResetTicket(by=space)；不再有 challenge / lockProof；finish none 不推纪元 */
   const anon = cookieJar();
   r = await call('lock-reset.js', 'onRequestPost', post('/api/lock-reset', { action: 'challenge' }));
-  assert.equal((await r.json()).error, 'not-set', '没有锁屏通行密钥：回 not-set（遗留的账号通行密钥不算）');
-  r = anon.absorb(await call('lock-reset.js', 'onRequestPost', post('/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY, lockProof: { type: 'password', password: 'account-pass-5678' } })));
+  assert.equal((await r.json()).error, 'action', 'challenge 已删');
+  r = anon.absorb(await call('lock-reset.js', 'onRequestPost', post('/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY })));
   assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
-  assert.match(anon.header(), /sgx-lock-reset=/);
+  assert.match(anon.header(), /sgx-lock-reset=space\./);
+  r = anon.absorb(await call('lock-reset.js', 'onRequestPost', post('/api/lock-reset', { action: 'finish', signOut: 'none' }, anon.header())));
+  assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
+  assert.doesNotMatch(anon.header(), /sgx-lock-reset=/, 'finish 清 reset cookie');
 
   /* 锁屏的行都写进去了；遗留的账号行原样没动 */
   assert.deepEqual(d1.db.rows('epoch').map((x) => x.realm), ['lock']);

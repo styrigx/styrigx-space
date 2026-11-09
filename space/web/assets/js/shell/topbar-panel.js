@@ -12,8 +12,9 @@
  *   lang 分段（配置里的每种语言，选中即保存，换了语言就去另一种语言的同一页）、layout 分段（Auto / Mobile / DeX，模式规则见共享外壳 layout-mode.js）、
  *   share（share.js）/ lock（立即锁定）、STATUS（占位）、esc 关闭。
  * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
- * - 立即锁定：调用方传 onLock（主站：确认层 auth/lock-now.js）；不传（子站）= 按钮点两下确认（第一下字变「再点一下锁定」，3 秒内再点），
- *   POST /api/lock-now（同源网关）后回到锁屏 /?lock=1。
+ * - 立即锁屏：只锁本机、不验证、点一下就锁（Gray 2026-11-09 08:03；原确认层 / 点两下确认删了）：调用方传 onLock 就用它，
+ *   不传 = POST /api/lock-now（同源网关）后回到锁屏 /?entry=1。
+ * - 盾牌（进站 v3 L1）：调用方传 shield（shell/space/shield.js mountShield；本文件仍不 import），#sgx-sec 打开时挂上；旧地址 #sec[=<层>] 打开对应那一层。
  * - 终端（2026-11 UI 重设计 PR-2）：调用方传 terminal（shell/terminal.js 整个模块；本文件仍不 import）。每页一个引擎实例，接两处视图：
  *   主页首屏嵌入的 [data-sgx-term="home"] 和全站抽屉 #sgx-term（模态 <dialog>，Esc / 点遮罩关）。
  *   Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」：主页上聚焦首屏终端，其他页开合抽屉。命令的动作（滚动 / 跳转 / 外观 / 锁屏 / AI）都在这里接。
@@ -48,7 +49,6 @@ const STR_EN = {
   phone: "Mobile",
   desktop: "DeX",
   sys: "Follow system",
-  lockArm: "Tap again to lock",
   lockBack: "Back to lock screen",
   lockFail: "Couldn’t lock. Check your connection."
 };
@@ -63,8 +63,9 @@ function shellStr(doc) {
   } catch (e) {}
   return Object.assign({}, STR_EN, page);
 }
-/** 第二下确认的时限（子站立即锁定） */
-const LOCK_ARM_MS = 3000;
+/** 立即锁屏的接口（同源网关；= shell/space/paths.js API.lockNow，本文件不 import 任何东西，只能抄一份）和锁屏地址（?entry=1；旧 ?lock=1 守卫兼容读一版） */
+const LOCK_NOW_API = '/api/lock-now';
+const ENTRY_URL = '/?entry=1';
 
 /**
  * 语言偏好 → 实际语言（跟随系统看浏览器语言；语言列表第一项是默认语言 = 英文）
@@ -273,9 +274,7 @@ export function mountTopbar(o) {
     const lockBtn = ctl('lock');
     const lockState = /** @type {HTMLElement|null} */ (navDlg.querySelector('[data-qp-lock-state]'));
     const lockLabel = lockState ? lockState.textContent : '';
-    let lockArmed = 0;
     const disarm = function () {
-      if (lockArmed) { clearTimeout(lockArmed); lockArmed = 0; }
       if (lockBtn) lockBtn.removeAttribute('data-armed');
       if (lockState) lockState.textContent = lockLabel;
     };
@@ -300,12 +299,12 @@ export function mountTopbar(o) {
         b.setAttribute('aria-checked', b.getAttribute('data-qp-lang') === lv ? 'true' : 'false');
       });
     };
-    /** 子站默认的立即锁定：POST /api/lock-now（同源网关清会话）→ 锁屏 */
+    /** 立即锁屏（只锁本机，不验证；Gray 2026-11-09 08:03）：POST 同源网关清会话 → 锁屏 */
     const lockNow = function () {
       const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
       if (!f) return;
-      f('/api/lock-now', { method: 'POST', credentials: 'include' }).then(function (r) {
-        if (r && r.ok) replace('/?lock=1');
+      f(LOCK_NOW_API, { method: 'POST', credentials: 'include' }).then(function (r) {
+        if (r && r.ok) replace(ENTRY_URL);
         else if (lockState) lockState.textContent = t.lockFail;
       }, function () { if (lockState) lockState.textContent = t.lockFail; });
     };
@@ -346,11 +345,9 @@ export function mountTopbar(o) {
           if (id === 'share') return; /* share.js 自己接这一下 */
           if (id === 'term') { ms.close(function () { window.setTimeout(openTerm, 0); }); return; }
           if (id === 'lock') {
-            if (o.onLock) { ms.close(o.onLock); return; }
-            if (lockArmed) { disarm(); ms.close(lockNow); return; }
-            if (lockBtn) lockBtn.setAttribute('data-armed', '');
-            if (lockState) lockState.textContent = t.lockArm;
-            lockArmed = window.setTimeout(disarm, LOCK_ARM_MS);
+            /* 立即锁屏只锁本机、不验证、没有确认层（Gray C / 08:03）：点一下就锁 */
+            disarm();
+            ms.close(o.onLock || lockNow);
           }
           return;
         }
@@ -471,25 +468,6 @@ export function mountTopbar(o) {
     }
   }
 
-  /**
-   * 下拉面板里的链接（账号 / 站点安全，PR-5）：普通点击先关面板（退掉历史哨兵）再跳，同 NAVIGATE；带修饰键的点照旧按链接走。
-   * @param {HTMLDialogElement} dlg @param {any} ms
-   */
-  const popLinks = function (dlg, ms) {
-    dlg.addEventListener('click', function (e) {
-      const tg = /** @type {Element|null} */ (e.target);
-      if (!tg) return;
-      if (tg.closest('[data-pop-close]')) { ms.close(); return; }
-      const a = /** @type {HTMLAnchorElement|null} */ (tg.closest('a[href]'));
-      if (!a) return;
-      const me2 = /** @type {MouseEvent} */ (e);
-      if (e.defaultPrevented || me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
-      e.preventDefault();
-      const href = a.href;
-      ms.close(function () { navigate(href); });
-    });
-  };
-
   /** 外壳字符串表的一节（acct / sec）：{key} 占位由调用方替换 @param {string} sec @returns {Record<string, string>} */
   const trSec = function (sec) {
     try {
@@ -497,35 +475,6 @@ export function mountTopbar(o) {
       const j = el && el.textContent ? JSON.parse(el.textContent) : null;
       return j && j[sec] && typeof j[sec] === 'object' ? j[sec] : {};
     } catch (e) { return {}; }
-  };
-  const getFetch = function () { return o.fetch || (typeof fetch === 'function' ? fetch : null); };
-  /** GET / POST JSON（同源；失败 → null） @param {string} url @param {any} [body] @returns {Promise<any>} */
-  const getJSON = function (url, body) {
-    const f = getFetch();
-    if (!f) return Promise.resolve(null);
-    /** @type {RequestInit} */
-    const init = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin', cache: 'no-store' } : { method: 'GET', credentials: 'same-origin', cache: 'no-store' };
-    return Promise.resolve().then(function () { return f(url, init); }).then(function (r) { return r && r.json ? r.json().catch(function () { return null; }) : null; }, function () { return null; });
-  };
-  const pad2 = function (/** @type {number} */ n) { return (n < 10 ? '0' : '') + n; };
-  const lsGet = function (/** @type {string} */ k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
-  /** 终端式选择（账号未登录 / 安全未验证）：开着时按 1 / 2 = 点对应那一项 @param {HTMLDialogElement} dlg @param {any} ms @param {() => boolean} active */
-  const numKeys = function (dlg, ms, active) {
-    doc.addEventListener('keydown', function (e) {
-      if (!ms.isShown() || !active() || e.altKey || e.metaKey || e.isComposing) return;
-      /* Ctrl+C（没选中文字时）= 返回，同 esc（设计稿「Ctrl+C 或 esc 返回」） */
-      if (e.ctrlKey) {
-        let sel = '';
-        try { sel = String(doc.getSelection() || ''); } catch (err) {}
-        if ((e.key === 'c' || e.key === 'C') && !sel) { e.preventDefault(); ms.close(); }
-        return;
-      }
-      if (e.key !== '1' && e.key !== '2') return;
-      const a = /** @type {HTMLElement|null} */ (dlg.querySelector('.sgx-pop-opt[data-key="' + e.key + '"]'));
-      if (!a) return;
-      e.preventDefault();
-      a.click();
-    });
   };
   /* ---------------- 账号下拉 = 账号终端（2026-11-08 账号 UI 改版：没有 /account/ 整页了，登录 / 重置 / 资料 / 设备 / 账号安全 / 应用授权都在这里一层层进；shell/account/term.js） ---------------- */
   const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
@@ -580,60 +529,50 @@ export function mountTopbar(o) {
     }
   }
 
-  /* ---------------- 站点安全下拉（2026-11 PR-5 sec-v1，按设计稿） ---------------- */
+  /* ---------------- 盾牌下拉 = 进站命令行（进站 v3 L1：styrigx@space:~#，shell/space/shield.js；原安全页 /security/* 删了） ---------------- */
   const secBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-shield'));
   const secDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-sec'));
-  if (secBtn && secDlg) {
-    const S = trSec('sec');
-    const head = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec-head]'));
-    const sv = function (/** @type {string} */ k, /** @type {string} */ v) { const el = secDlg.querySelector('[data-sec-v="' + k + '"]'); if (el) el.textContent = v; };
-    let tick = 0;
-    /** 状态：'' 未知（只给入口，验证在各页）· open（有 3 分钟 reauth 票，头部倒计时）· locked（没票：终端式选择验证方式） @param {string} st */
-    const setSec = function (st) {
-      secDlg.setAttribute('data-sec-state', st);
-      const lk = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec-locked]'));
-      const op = /** @type {HTMLElement|null} */ (secDlg.querySelector('[data-sec-open]'));
-      if (lk) lk.hidden = st !== 'locked';
-      if (op) op.hidden = st === 'locked';
-      if (head) { head.textContent = st === 'locked' ? S.locked || 'locked' : ''; head.toggleAttribute('data-live', st === 'open'); }
-    };
-    const stopTick = function () { if (tick) { clearInterval(tick); tick = 0; } };
-    /** 头部倒计时 mm:ss（到 0 → locked） @param {number} exp */
-    const countdown = function (exp) {
-      stopTick();
-      const paintT = function () {
-        const left = Math.max(0, Math.floor((exp - Date.now()) / 1000));
-        if (!left) { stopTick(); setSec('locked'); return; }
-        if (head) head.textContent = pad2(Math.floor(left / 60)) + ':' + pad2(left % 60);
-      };
-      paintT();
-      tick = window.setInterval(paintT, 1000);
-    };
-    /** 打开时只读地问：POST /api/lock-reauth {action:status}（票）、GET /api/lock-session-check（会话到期）、有票时 POST /api/lock-passkey {action:list}（个数） */
-    const askSec = function () {
-      getJSON('/api/lock-session-check').then(function (/** @type {any} */ j) {
-        if (!j || !j.ok || !(j.exp > 0)) { sv('sess', ''); return; }
-        const m = Math.max(0, Math.floor((j.exp - Date.now()) / 60000));
-        const t2 = (m >= 60 ? Math.floor(m / 60) + 'h ' : '') + (m % 60) + 'm';
-        sv('sess', S.left ? S.left.replace('{t}', t2) : t2);
-      });
-      getJSON('/api/lock-reauth', { action: 'status' }).then(function (/** @type {any} */ j) {
-        if (!j || !j.ok) { setSec(''); return; }
-        if (!j.valid || !(j.expiresAt > Date.now())) { setSec('locked'); return; }
-        setSec('open');
-        countdown(j.expiresAt);
-        getJSON('/api/lock-passkey', { action: 'list' }).then(function (/** @type {any} */ k) {
-          if (k && k.ok && Array.isArray(k.keys)) sv('pk', S.pkCount ? S.pkCount.replace('{n}', String(k.keys.length)) : String(k.keys.length));
-        });
-      });
-    };
-    const sec = wire(secBtn, secDlg, 'sgxSec', function () { askSec(); });
+  /** @type {{onOpen: (x?: any) => void, onClose: () => void}|null} */
+  let secTerm = null;
+  /** 下一次打开要直接进的层（旧地址 #sec=<层>） @type {any} */
+  let secNext = null;
+  /** @type {any} */
+  let sec = null;
+  /** @type {(x?: any) => void} */
+  let openSec = function () {};
+  if (secBtn && secDlg && o.shield) {
+    sec = wire(secBtn, secDlg, 'sgxSec', function () {
+      if (!secTerm) secTerm = o.shield({ dlg: secDlg, ms: sec.ms, replace: replace });
+      const x = secNext;
+      secNext = null;
+      secTerm.onOpen(x || undefined);
+    }, undefined, function () { if (secTerm) secTerm.onClose(); });
     if (sec) {
-      const ms = sec.ms;
-      popLinks(secDlg, ms);
-      numKeys(secDlg, ms, function () { return secDlg.getAttribute('data-sec-state') === 'locked'; });
-      secDlg.addEventListener('close', stopTick);
-      /* 立即锁屏不在这里（Gray 2026-11-08 04:06：盾牌要验证，锁屏不该被挡——只放 NAVIGATE 底部 lock） */
+      openSec = function (x) {
+        secNext = x || null;
+        if (sec.ms.isOpen()) { if (secTerm) { secTerm.onOpen(secNext || undefined); secNext = null; } return; }
+        sec.ms.open();
+      };
+      /* 页面上的入口：[data-sec-open="<层>"] */
+      doc.addEventListener('click', function (e) {
+        const tg = /** @type {Element|null} */ (e.target);
+        const a = tg && /** @type {HTMLElement|null} */ (tg.closest('[data-sec-open]'));
+        if (!a || secDlg.contains(a)) return;
+        const me2 = /** @type {MouseEvent} */ (e);
+        if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openSec({ layer: a.getAttribute('data-sec-open') || '' });
+      });
+      /* 旧地址 /security/、/security/lock/、/security/tempkeys/、/owner/ 301 到这里带 #sec[=<层>]：打开盾牌那一层，去掉 hash */
+      const secHash = function () {
+        const m = /^#sec(?:=([a-z]*))?$/.exec(location.hash || '');
+        if (!m) return;
+        try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+        window.setTimeout(function () { openSec({ layer: m[1] || '' }); }, 0);
+      };
+      secHash();
+      window.addEventListener('hashchange', secHash);
     }
   }
 
@@ -694,13 +633,11 @@ export function mountTopbar(o) {
           return { kind: 'nav', href: href, go: function () { closeAll(function () { navigate(href); }); } };
         },
         sudo: function (/** @type {string} */ which, /** @type {string} */ sub) {
-          /* sudo root [reauth|reset]：打开账号终端（2026-11-08 没有 /account/ 整页了）；sudo security 照旧去安全页 */
+          /* sudo root [reauth|reset]：打开账号终端；sudo styrigx：打开盾牌（进站 v3 L1；锁屏上的 sudo styrigx 在锁屏终端里） */
           if (which === 'root') {
             return { href: '~/account', go: function () { closeAll(function () { openAcct(sub === 'reset' ? { reset: true } : sub === 'reauth' ? { layer: acctLayer('security').layer } : {}); }); } };
           }
-          const a = /** @type {HTMLAnchorElement|null} */ (doc.querySelector('#site-nav .sgx-tb-shield'));
-          const href = a ? a.href : '/security/';
-          return { href: href, go: function () { closeAll(function () { navigate(href); }); } };
+          return { href: '~/space', go: function () { closeAll(function () { if (sec) openSec(); }); } };
         },
         theme: function (/** @type {string} */ mode) {
           if (!mode) { closeAll(function () { if (qp) qp.ms.open(); }); return; }
@@ -712,7 +649,7 @@ export function mountTopbar(o) {
             if (o.onLock) o.onLock();
             else {
               const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
-              if (f) f('/api/lock-now', { method: 'POST', credentials: 'include' }).then(function (r) { if (r && r.ok) replace('/?lock=1'); }, function () {});
+              if (f) f(LOCK_NOW_API, { method: 'POST', credentials: 'include' }).then(function (r) { if (r && r.ok) replace(ENTRY_URL); }, function () {});
             }
           });
         },
@@ -784,7 +721,7 @@ export function mountTopbar(o) {
   mountClock(doc);
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
-  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, openAccount: function (/** @type {any} */ x) { openAcct(x); }, term: termSheet, termShell: term, paint: paint, paintNav: paintNav };
+  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, sec: sec && sec.ms, openAccount: function (/** @type {any} */ x) { openAcct(x); }, openShield: function (/** @type {any} */ x) { openSec(x); }, term: termSheet, termShell: term, paint: paint, paintNav: paintNav };
 }
 
 /**

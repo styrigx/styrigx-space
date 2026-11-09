@@ -299,7 +299,7 @@ test('按钮 / 开关 / 进度在 CSS 里读填充档：--sgx-btn-primary-* = pr
   assert.doesNotMatch(CSS.slice(CSS.indexOf('/* @gen-palettes:end */')), /background(?:-color)?: var\(--(?:sgx|m)-primary\); color: var\(--(?:sgx|m)-on-primary\)/);
 });
 
-test('大面积块中性化：首页名片 = 中性玻璃卡（不是 primary-container）；夜间时钟不是渐变深色块；状态（旷野 #status）/ 安全状态的「正常」读 success 不读 tertiary', () => {
+test('大面积块中性化：首页名片 = 中性玻璃卡（不是 primary-container）；夜间时钟不是渐变深色块；状态（旷野 #status）的「正常」读 success 不读 tertiary', () => {
   const home = readFileSync(path.join(REPO, 'space/web/layouts/index.html'), 'utf8');
   /* 2026-11 PR-2：名片并进首屏 hero（不再是卡片，直接铺在页面底上），仍不用任何 *-container 大色块 */
   const prof = home.match(/<div id="w-profile" class="([^"]+)"/)[1];
@@ -310,7 +310,8 @@ test('大面积块中性化：首页名片 = 中性玻璃卡（不是 primary-co
   assert.match(CSS, /\.st-banner\[data-state="up"\] \.st-dot, \.st-unit\[data-state="up"\] \.st-dot, \.st-chip\[data-state="up"\] \.st-dot \{ color: var\(--sgx-success\); \}/);
   assert.match(CSS, /\.st-banner\[data-state="up"\] \.st-banner-active \{ color: var\(--sgx-success\); \}/);
   assert.doesNotMatch(CSS, /\.st-banner\[data-state="[a-z]+"\] \{[^}]*-container/, '横幅不铺 *-container 色块');
-  assert.match(CSS, /&\.is-ok \{ background: var\(--sgx-success-container\); color: var\(--sgx-on-success-container\); \}/);
+  /* 进站 v3 L1：安全页（.sec-status 状态卡）删了，盾牌是终端文字 */
+  assert.doesNotMatch(CSS, /\.sec-status \{/);
   assert.doesNotMatch(CSS, /data-state="up"[^}]*tertiary/);
 });
 

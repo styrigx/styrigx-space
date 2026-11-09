@@ -9,7 +9,7 @@ import { createLinkKey, revokeLinkKey, openLinkSession, checkLinkReauth } from '
 
 export class ShareIssuer extends WorkerEntrypoint {
   /**
-   * 签一把短链钥匙（要进门 + 锁侧复验；没复验 → { ok:false, error:'reauth' }）。
+   * 签一把短链钥匙（要进门，不要 reauth：进站 v3 Q3 定稿；没进门 → { ok:false, error:'session' }）。
    * @param {string} cookieHeader
    * @param {{hours?:number, days?:number, name?:string}} p
    */
@@ -27,7 +27,7 @@ export class ShareIssuer extends WorkerEntrypoint {
   }
 
   /**
-   * 只判断「进门 + 锁侧复验」（不经 createLinkKey 的生成路径和作废前用）：{ ok } / { ok:false, error:'session'|'reauth'|'config' }。
+   * 只判断「进门 + 锁侧复验」（分享链接管理：list / revoke 前用）：{ ok } / { ok:false, error:'session'|'reauth'|'config' }。
    * @param {string} cookieHeader
    */
   async checkReauth(cookieHeader) {

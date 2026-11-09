@@ -112,7 +112,7 @@ __sgxLayoutWatch(__applyLayout);
   "nick" site.Data.profile.nickname
   "email" $shellNav.me.email
   "langHref" $langHref
-  "security" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/security/" "lang" .Lang))
+  "security" (printf "%s#sec" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" .Lang)))
   "status" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/wild/#status" "lang" .Lang))
   "pal" $pal
 ) }}

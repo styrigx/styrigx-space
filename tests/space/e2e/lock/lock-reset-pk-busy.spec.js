@@ -1,86 +1,40 @@
 /**
- * D1：重置登录第 2 步（锁屏 reset 命令 → 进站凭证 → needLock → 选锁屏凭证）通行密钥 busy 态与取消不误报（e2e，mock WebAuthn）。
- * 账号拆分 PR3：第 2 步验的是锁屏凭证（lockProof），网关不再读账号凭证。
- * lock-v10 命令解锁（2026-11-08）：锁屏上没有弹层，这一步也在终端里：列出 [1] password / [2] passkey，输入编号。
- *
- * 量化验收：
- * - 选 passkey：终端「等待通行密钥…」，输入行收起（busy），不能再提交 → 只发 1 次 /api/lock-reset challenge。
- * - 取消（NotAllowedError）：终端「✗ 已取消验证，可重新选择」（不是 permission denied），回到选择这一步，URL 未变，不报「验证失败」。
- * - 成功：进入 /security/lock/。
- * - 英文：'Cancelled, you can select again'。
+ * 锁屏通行密钥 busy 态与取消不误报（e2e，mock WebAuthn）。进站 v3 L1（2026-11-09）：
+ * 原「重置登录第 2 步选锁屏凭证」已删（恢复钥匙一把就进 reset，Gray B），这个文件改测同一类问题的两处现存入口：
+ * - `sudo styrigx` → [pick] 选 passkey：终端「正在唤起通行密钥…」，输入行收起（busy），再按回车不会再发 → 只发 1 次 challenge；
+ *   取消（NotAllowedError，含立即返回的 nokey）→「已取消」（不是出错色），回到选择这一步（还在这一轮，不算 permission denied）；
+ *   其他失败（InvalidStateError / SecurityError）→ 出错一行，回到选择；第 3 次没成 → `sudo: 3 incorrect password attempts` 回命令行；
+ *   成功 → 进站（localhost 本地回退：不问服务端）。
+ * - reset 终端 `passkey add`：busy 时只发 1 次注册 challenge；取消 → 回 reset@space:~#。
  *
  * 运行（生产构建，锁屏启用；静态构建 + API mock，无需真实后端）：
- *   hugo --minify
- *   SGX_TEST_SUITE=lock npx playwright test --config=playwright.config.js lock-reset-pk-busy.spec.js
- *
- * 注意：等具体元素，不用 waitForTimeout/networkidle。
+ *   SGX_TEST_SUITE=lock npx playwright test --config=tests/config/playwright.config.js lock-reset-pk-busy.spec.js
+ * 等具体元素，不用 waitForTimeout/networkidle。
  */
 const { test, expect } = require('@playwright/test');
 const { blockExternalRequests } = require('../helpers/helpers');
 const { gotoLockTerm, lockCmd, lockMode, badLine } = require('../helpers/lock-term.cjs');
 
 const CHALLENGE_B64 = 'dGVzdC1jaGFsbGVuZ2U';
+const json = (o, status = 200) => ({ status, contentType: 'application/json', body: JSON.stringify(o) });
 
 /** @param {import('@playwright/test').Page} page @param {'zh'|'en'} lang */
 async function setLang(page, lang) {
-  await page.addInitScript((l) => {
-    try { localStorage.setItem('sgx-lang', l); } catch (e) {}
-  }, lang);
+  await page.addInitScript((l) => { try { localStorage.setItem('sgx-lang', l); } catch (e) {} }, lang);
 }
 
-/** @param {import('@playwright/test').Page} page */
-async function mockLockConfig(page) {
-  await page.route('**/api/lock-entry', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ ok: true, passkey: true, password: true }),
-    });
-  });
-}
-
-/**
- * /api/lock-reset mock：verify(根密钥) → needLock；challenge → 计数；
- * verify(带 lockProof) → ok。
- * @param {import('@playwright/test').Page} page
- * @param {{challenge:number}} counters
- */
-async function mockLockreset(page, counters) {
-  await page.route('**/api/lock-reset', async (route) => {
+/** /api/lock-passkey：challenge 计数；auth → ok @param {import('@playwright/test').Page} page @param {{challenge:number, auth:number}} n */
+async function mockPasskey(page, n) {
+  await page.route('**/api/lock-passkey', async (route) => {
     let body = {};
     try { body = route.request().postDataJSON() || {}; } catch (e) {}
     if (body.action === 'challenge') {
-      counters.challenge += 1;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ok: true, challenge: CHALLENGE_B64, cid: 'c1', rpId: 'localhost', allowCredentials: [],
-        }),
-      });
+      n.challenge += 1;
+      await route.fulfill(json({ ok: true, challenge: CHALLENGE_B64, cid: 'c1', rpId: 'localhost', allowCredentials: [] }));
       return;
     }
-    if (body.action === 'verify' && body.lockProof) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: true }),
-      });
-      return;
-    }
-    if (body.action === 'verify') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: true, needLock: true, passkey: true, password: true }),
-      });
-      return;
-    }
-    await route.fulfill({
-      status: 400,
-      contentType: 'application/json',
-      body: JSON.stringify({ ok: false }),
-    });
+    if (body.action === 'auth') { n.auth += 1; await route.fulfill(json({ ok: true })); return; }
+    await route.fulfill(json({ ok: false }, 400));
   });
 }
 
@@ -91,170 +45,183 @@ async function stubWebauthnPending(page) {
     window.__pkGate = null;
     try {
       navigator.credentials.get = function () {
-        return new Promise(function (resolve, reject) {
-          window.__pkGate = { resolve: resolve, reject: reject };
-        });
+        return new Promise(function (resolve, reject) { window.__pkGate = { resolve: resolve, reject: reject }; });
       };
     } catch (e) {}
   });
 }
-
-/* 等 WebAuthn 桩被调用（challenge 取回后 get 挂起，window.__pkGate 就绪） */
 /** @param {import('@playwright/test').Page} page */
 async function awaitPkGate(page) {
   await page.waitForFunction(() => !!window.__pkGate, null, { timeout: 8000 });
 }
-
-/* 走到重置 (2/2)：锁屏 → reset → 进站凭证 → 选锁屏凭证 */
-/** @param {import('@playwright/test').Page} page */
-async function gotoResetStep2(page) {
-  await gotoLockTerm(page, '/?lock=1');
-  await lockCmd(page, 'reset');
-  await lockMode(page, 'rkey');
-  await lockCmd(page, 'test-spacekey');
-  await lockMode(page, 'rpick');
-  await expect(page.locator('#sgx-lock-log')).toContainText('[2] passkey');
+/** @param {import('@playwright/test').Page} page @param {string} name */
+async function rejectPk(page, name) {
+  await page.evaluate((n) => { const g = window.__pkGate; window.__pkGate = null; g.reject(Object.assign(new Error(n), { name: n })); }, name);
 }
 
-test.describe('reset (2/2) passkey busy', () => {
+/** 锁屏 → sudo styrigx → [pick] */
+/** @param {import('@playwright/test').Page} page */
+async function gotoPick(page) {
+  await page.route('**/api/lock-entry', (route) => route.fulfill(json({ ok: true, passkey: true, password: true })));
+  await gotoLockTerm(page);
+  await lockCmd(page, 'sudo styrigx');
+  await lockMode(page, 'pick');
+  await expect(page.locator('#sgx-entry-log [data-term-pick="1"]').last()).toHaveText('[1] passkey');
+}
+
+test.describe('sudo styrigx → [1] passkey：busy / 取消 / 失败 / 成功', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
     await setLang(page, 'zh');
-    await mockLockConfig(page);
   });
 
   test('选 passkey：终端等待 + 输入行收起，不能重复提交，只发 1 次 challenge', async ({ page }) => {
-    const counters = { challenge: 0 };
-    await mockLockreset(page, counters);
-    await gotoResetStep2(page);
+    const n = { challenge: 0, auth: 0 };
+    await mockPasskey(page, n);
+    await gotoPick(page);
     await stubWebauthnPending(page);
-    await lockCmd(page, '2');
+    await lockCmd(page, '1');
     await lockMode(page, 'busy');
-    await expect(page.locator('#sgx-lock-log')).toContainText('等待通行密钥…');
-    await expect(page.locator('#sgx-lock-cmd')).toBeHidden();
-    await expect(page.locator('#sgx-lock-cmd')).toBeDisabled();
+    await expect(page.locator('#sgx-entry-log')).toContainText('正在唤起通行密钥…');
+    await expect(page.locator('#sgx-entry-cmd')).toBeHidden();
+    await expect(page.locator('#sgx-entry-cmd')).toBeDisabled();
     await awaitPkGate(page);
-    /* 再按回车（合成事件）也不会再发 */
     await page.evaluate(() => {
-      document.getElementById('sgx-lock-cmd').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      document.getElementById('sgx-entry-cmd').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      document.getElementById('sgx-entry-form').dispatchEvent(new Event('submit', { cancelable: true }));
     });
-    await expect.poll(async () => counters.challenge, { timeout: 2000 }).toBe(1);
+    await expect.poll(async () => n.challenge, { timeout: 2000 }).toBe(1);
     await lockMode(page, 'busy');
     await expect(page.locator('#sgx-method-sheet, .sgx-verify-dlg')).toHaveCount(0);
   });
 
-  test('取消系统验证：提示可重新选择，回到选择这一步，留在本页', async ({ page }) => {
-    const counters = { challenge: 0 };
-    await mockLockreset(page, counters);
-    await gotoResetStep2(page);
+  test('取消系统验证（≥2s 的 NotAllowedError）：「已取消」（不是出错色），回到选择这一步，留在本页', async ({ page }) => {
+    const n = { challenge: 0, auth: 0 };
+    await mockPasskey(page, n);
+    await gotoPick(page);
     await stubWebauthnPending(page);
-    /* B1-2：用假时钟走 cancelled 分支（≥2s），不真等 */
     await page.clock.install();
     await lockCmd(page, 'passkey');
     await lockMode(page, 'busy');
     await awaitPkGate(page);
     await page.clock.fastForward(2100);
-    await page.evaluate(() => {
-      window.__pkGate.reject(Object.assign(new Error('cancelled'), { name: 'NotAllowedError' }));
-    });
-    await expect(badLine(page)).toHaveText('✗ 已取消验证，可重新选择');
-    await lockMode(page, 'rpick');
-    await expect(page.locator('#sgx-lock-log')).not.toContainText('验证失败');
-    expect(page.url()).toContain('?lock=1');
+    await rejectPk(page, 'NotAllowedError');
+    await lockMode(page, 'pick');
+    await expect(page.locator('#sgx-entry-log .sgx-entry-l--d').filter({ hasText: '已取消' })).toHaveCount(1);
+    await expect(page.locator('#sgx-entry-log .sgx-entry-l--er')).toHaveCount(0);
+    expect(page.url()).toContain('?entry=1');
   });
 
-  test('无匹配钥匙（立即失败）：提示 nokey 文案，回到选择这一步', async ({ page }) => {
-    const counters = { challenge: 0 };
-    await mockLockreset(page, counters);
-    await gotoResetStep2(page);
+  test('无匹配钥匙（立即返回的 NotAllowedError = nokey）：同样按「已取消」，回到选择', async ({ page }) => {
+    const n = { challenge: 0, auth: 0 };
+    await mockPasskey(page, n);
+    await gotoPick(page);
     await stubWebauthnPending(page);
-    await lockCmd(page, '2');
+    await lockCmd(page, '1');
     await awaitPkGate(page);
-    /* 立即 reject（不快进时钟），走 nokey 分支 */
-    await page.evaluate(() => {
-      window.__pkGate.reject(Object.assign(new Error('no key'), { name: 'NotAllowedError' }));
-    });
-    await expect(badLine(page)).toHaveText('✗ 这台设备上没有这把钥匙');
-    const text = await badLine(page).textContent();
-    expect(text).not.toContain('pkNoKey');
-    await lockMode(page, 'rpick');
+    await rejectPk(page, 'NotAllowedError');
+    await lockMode(page, 'pick');
+    await expect(page.locator('#sgx-entry-log')).toContainText('已取消');
+    await expect(page.locator('#sgx-entry-log')).not.toContainText('pkNoKey');
   });
 
-  test('通行密钥验证成功：进入 /security/lock/', async ({ page }) => {
-    const counters = { challenge: 0 };
-    await mockLockreset(page, counters);
-    await gotoResetStep2(page);
+  test('其他失败（InvalidStateError / SecurityError）：出错一行「验证失败，请重试」，回到选择；第 3 次没成 → 3 incorrect attempts 回命令行', async ({ page }) => {
+    const n = { challenge: 0, auth: 0 };
+    await mockPasskey(page, n);
+    await gotoPick(page);
     await stubWebauthnPending(page);
-    await lockCmd(page, '2');
+    await lockCmd(page, '1');
+    await awaitPkGate(page);
+    await rejectPk(page, 'InvalidStateError');
+    await expect(badLine(page)).toHaveText('验证失败，请重试');
+    await lockMode(page, 'pick');
+    await lockCmd(page, '1');
+    await awaitPkGate(page);
+    await rejectPk(page, 'SecurityError');
+    await expect(badLine(page)).toHaveText('验证失败，请重试');
+    await lockMode(page, 'pick');
+    await lockCmd(page, '1');
+    await awaitPkGate(page);
+    await rejectPk(page, 'SecurityError');
+    await expect(badLine(page)).toHaveText('sudo: 3 incorrect password attempts');
+    await lockMode(page, 'cmd');
+    expect(page.url()).toContain('?entry=1');
+  });
+
+  test('通行密钥验证成功 → 提交 auth → 进站（本地回退不问服务端），锁屏收掉', async ({ page }) => {
+    const n = { challenge: 0, auth: 0 };
+    await mockPasskey(page, n);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await gotoPick(page);
+    await stubWebauthnPending(page);
+    await lockCmd(page, '1');
     await awaitPkGate(page);
     await page.evaluate(() => {
       const buf = (s) => Uint8Array.from(s.split('').map((c) => c.charCodeAt(0))).buffer;
       window.__pkGate.resolve({
-        rawId: buf('fake-raw-id'),
-        response: {
-          authenticatorData: buf('fake-auth-data'),
-          clientDataJSON: buf('fake-client-data'),
-          signature: buf('fake-signature'),
-          userHandle: null,
-        },
+        id: 'ZmFrZS1yYXctaWQ', rawId: buf('fake-raw-id'), type: 'public-key',
+        response: { authenticatorData: buf('fake-auth-data'), clientDataJSON: buf('fake-client-data'), signature: buf('fake-signature'), userHandle: null },
       });
     });
-    await page.waitForURL('**/security/lock/**', { timeout: 10000 });
-  });
-
-  test('其他失败（InvalidStateError）：permission denied · 这台设备上没有这把钥匙，留在本页', async ({ page }) => {
-    const counters = { challenge: 0 };
-    await mockLockreset(page, counters);
-    await gotoResetStep2(page);
-    await stubWebauthnPending(page);
-    await lockCmd(page, '2');
-    await awaitPkGate(page);
-    await page.evaluate(() => {
-      window.__pkGate.reject(Object.assign(new Error('failed'), { name: 'InvalidStateError' }));
-    });
-    await expect(badLine(page)).toHaveText('✗ permission denied · 这台设备上没有这把钥匙');
-    await lockMode(page, 'rpick');
-    expect(page.url()).toContain('?lock=1');
-  });
-
-  test('通用失败（SecurityError）：「通行密钥验证失败」，留在本页', async ({ page }) => {
-    const counters = { challenge: 0 };
-    await mockLockreset(page, counters);
-    await gotoResetStep2(page);
-    await stubWebauthnPending(page);
-    await lockCmd(page, '2');
-    await awaitPkGate(page);
-    await page.evaluate(() => {
-      window.__pkGate.reject(Object.assign(new Error('security'), { name: 'SecurityError' }));
-    });
-    await expect(badLine(page)).toHaveText('✗ permission denied · 通行密钥验证失败');
-    await lockMode(page, 'rpick');
-    expect(page.url()).toContain('?lock=1');
+    await expect(page.locator('#sgx-entry')).toHaveCount(0, { timeout: 10000 });
+    expect(n).toEqual({ challenge: 1, auth: 1 });
   });
 });
 
-test.describe('reset (2/2) passkey busy (en)', () => {
-  test.beforeEach(async ({ page }) => {
+test.describe('sudo styrigx → passkey (en)', () => {
+  test('英文等待文案与取消提示', async ({ page }) => {
     await blockExternalRequests(page);
     await setLang(page, 'en');
-    await mockLockConfig(page);
-  });
-
-  test('英文等待文案与取消提示', async ({ page }) => {
-    const counters = { challenge: 0 };
-    await mockLockreset(page, counters);
-    await gotoResetStep2(page);
+    const n = { challenge: 0, auth: 0 };
+    await mockPasskey(page, n);
+    await gotoPick(page);
     await stubWebauthnPending(page);
     await page.clock.install();
-    await lockCmd(page, '2');
-    await expect(page.locator('#sgx-lock-log')).toContainText('waiting for passkey…');
+    await lockCmd(page, '1');
+    await expect(page.locator('#sgx-entry-log')).toContainText('waiting for passkey…');
     await awaitPkGate(page);
     await page.clock.fastForward(2100);
-    await page.evaluate(() => {
-      window.__pkGate.reject(Object.assign(new Error('cancelled'), { name: 'NotAllowedError' }));
+    await rejectPk(page, 'NotAllowedError');
+    await lockMode(page, 'pick');
+    await expect(page.locator('#sgx-entry-log')).toContainText('cancelled');
+    await expect(page.locator('#sgx-entry-ps')).toHaveText('choose [1/2/3]:');
+  });
+});
+
+test.describe('reset 终端 passkey add：busy 只发 1 次注册 challenge；取消回 reset@space', () => {
+  test('passkey add → 名字（回车 = 默认）→ busy → 取消 → 回 reset@space:~#，不算改动（不出两选）', async ({ page }) => {
+    await blockExternalRequests(page);
+    await setLang(page, 'zh');
+    let reg = 0;
+    await page.route('**/api/lock-reset', (route) => route.fulfill(json({ ok: true })));
+    await page.route('**/api/lock-passkey', async (route) => {
+      let body = {};
+      try { body = route.request().postDataJSON() || {}; } catch (e) {}
+      if (body.action === 'challenge' && body.type === 'register') {
+        reg++;
+        await route.fulfill(json({ ok: true, challenge: CHALLENGE_B64, cid: 'r1', rp: { name: 'Styrigx', id: 'localhost' }, user: { id: 'dGVzdA', name: 'LockKey', displayName: 'Styrigx' }, excludeCredentials: [] }));
+        return;
+      }
+      await route.fulfill(json({ ok: false }, 400));
     });
-    await expect(badLine(page)).toHaveText('✗ Cancelled, you can select again');
-    await lockMode(page, 'rpick');
-    await expect(page.locator('#sgx-lock-log')).toContainText('Reset sign-in');
+    await gotoLockTerm(page);
+    await lockCmd(page, 'sudo styrigx reset');
+    await lockCmd(page, 'rk');
+    await expect(page.locator('#sgx-entry-ps')).toHaveText('reset@space:~#');
+    await page.evaluate(() => {
+      window.__regGate = null;
+      navigator.credentials.create = function () { return new Promise(function (resolve, reject) { window.__regGate = { resolve, reject }; }); };
+    });
+    await lockCmd(page, 'passkey add');
+    await lockMode(page, 'pkname');
+    await page.locator('#sgx-entry-cmd').press('Enter');
+    await lockMode(page, 'busy');
+    await page.waitForFunction(() => !!window.__regGate, null, { timeout: 8000 });
+    await page.evaluate(() => document.getElementById('sgx-entry-form').dispatchEvent(new Event('submit', { cancelable: true })));
+    await expect.poll(() => reg, { timeout: 2000 }).toBe(1);
+    await page.evaluate(() => window.__regGate.reject(Object.assign(new Error('x'), { name: 'NotAllowedError' })));
+    await lockMode(page, 'cmd');
+    await expect(page.locator('#sgx-entry-ps')).toHaveText('reset@space:~#');
+    await expect(page.locator('#sgx-entry-log [data-term-pick]')).toHaveCount(0);
   });
 });

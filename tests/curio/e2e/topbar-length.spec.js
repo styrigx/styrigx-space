@@ -7,7 +7,7 @@
  * 主站自己的顶栏见 tests/space/e2e/topbar/topbar-length.spec.js。 */
 const { test, expect } = require('@playwright/test');
 
-const PAGES = ['/', '/security/', '/wild/', '/security/tempkeys/', '/?lock=1', '/blog/', '/blog/post/2026-10-07-muse-playbook/', '/curio/', '/daymark/'];
+const PAGES = ['/', '/wild/', '/?entry=1', '/blog/', '/blog/post/2026-10-07-muse-playbook/', '/curio/', '/daymark/'];
 /* 任务书验收三档 + 宽竖屏 + 横屏 900 + 平板竖屏 + 桌面窄窗 700（自动落手机） */
 const VIEWPORTS = [[412, 915], [1280, 800], [1920, 1080], [982, 2104], [900, 600], [1024, 1366], [700, 900]];
 
@@ -33,9 +33,9 @@ function expected(w, h, pref = 'auto', mobile = false) {
 
 /** 用户看得见的顶栏（最上层那条；主站页面自己的顶栏被锁屏盖住，不算）：
  *  通栏本身离视口两边的距离（bl / br，应为 0）+ 内容左右内边距（字标左缘 + 4、视口宽 − 图标组右缘）；右边按视口宽算，不按去掉滚动条的宽。
- *  锁着（#sgx-lock 在）：锁屏没有顶栏（2026-11 PR-A）→ 断言一条都看不到，返回 null（不量） */
+ *  锁着（#sgx-entry 在）：锁屏没有顶栏（2026-11 PR-A）→ 断言一条都看不到，返回 null（不量） */
 async function insets(page) {
-  if (await page.locator('#sgx-lock').count()) {
+  if (await page.locator('#sgx-entry').count()) {
     expect(await visibleBars(page), '锁屏：看不到任何顶栏').toEqual([]);
     return null;
   }

@@ -187,16 +187,13 @@ test('9c：lock-passkey 缺 Origin → 403', async () => {
 
 /* ============ 1：管理密钥入口静态检查 ============ */
 
-test('1a：锁屏解锁入口按配置显示（lock-v10 命令解锁 2026-11-08：方式弹层换成终端命令；「无法登录？」= reset 命令）', () => {
-  const src = fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/lock.js'), 'utf8');
-  /* 进站凭证不是单独的入口；都没设置（启动站）时 reset 里的进站凭证走 space-auth 引导 */
-  assert.ok(!src.includes('sgx-mopt-'), '锁屏不再有方式弹层的行');
-  assert.ok(/'reset': 'reset'/.test(src) && /'forgot': 'reset'/.test(src), '应有 reset / forgot 命令（无法登录？）');
-  assert.ok(/rBootstrap[\s\S]*?'\/api\/space-auth'/.test(src), '启动站：进站凭证走 /api/space-auth');
-  /* 配置以服务端为准 */
-  assert.ok(src.includes('/api/lock-entry'), '应从 /api/lock-entry 读取配置');
-  /* 其他入口必须存在 */
-  assert.ok(/'tempkey': 'tempkey'/.test(src), '应有临时钥匙');
-  assert.ok(/'passkey': 'passkey'/.test(src), '应有通行密钥');
-  assert.ok(/'password': 'password'/.test(src), '应有密码');
+test('1a（L1）：锁屏是 entry@space 终端，没有方式弹层；配置读 /api/lock-entry；进站 / reset 都是 sudo styrigx 命令', async () => {
+  const entry = fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/entry.js'), 'utf8');
+  const cmds = await import(path.join(REPO, 'space/web/assets/js/shell/space/commands.js'));
+  assert.ok(!entry.includes('sgx-mopt-'), '锁屏没有方式弹层的行');
+  assert.equal(cmds.PS_ENTRY, 'entry@space:~$');
+  assert.equal(cmds.CMD.session, 'sudo styrigx');
+  assert.equal(cmds.CMD.reset, 'sudo styrigx reset');
+  assert.ok(fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/paths.js'), 'utf8').includes('/api/lock-entry'), '应从 /api/lock-entry 读取配置');
+  assert.deepEqual(cmds.SESSION_KINDS, ['passkey', 'password', 'tempkey']);
 });

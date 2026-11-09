@@ -41,7 +41,7 @@
       </div>
       <div class="sgx-term-body sgx-tree-out">
         <div data-tree-pane="cat">
-          <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> tree blog/ -L 2</p>
+          <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ partial "sgx-envps.html" "~" }}</span> tree blog/ -L 2</p>
           <p class="sgx-tl"><span class="cb">blog/</span></p>
           {{- $nf := 0 }}
           {{- range $i, $d := $dirs }}{{ $last := eq (add $i 1) (len $dirs) }}
@@ -66,7 +66,7 @@
           <p class="sgx-tl sgx-tl-gap cd">{{ i18n "treeSummary" (dict "Dirs" $nDirs "Files" (len $posts)) }}</p>
         </div>
         <div data-tree-pane="year" hidden>
-          <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> tree blog/ -L 3 --by-year</p>
+          <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ partial "sgx-envps.html" "~" }}</span> tree blog/ -L 3 --by-year</p>
           <p class="sgx-tl"><span class="cb">blog/</span></p>
           {{- range $i, $y := $yrs }}{{ $ly := eq (add $i 1) (len $yrs) }}{{ $p0 := cond $ly "    " "│   " }}
           <p class="sgx-tl"><span class="tp" aria-hidden="true">{{ cond $ly "└── " "├── " }}</span><span class="cy td">{{ $y }}/</span><span class="cd">{{ index $yc $y }}</span></p>
@@ -87,7 +87,7 @@
     <section class="sgx-term sgx-term--static blog-tree-win" aria-labelledby="blog-arch-h">
       <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><h2 class="sgx-term-title" id="blog-arch-h" translate="no">archive</h2></div>
       <div class="sgx-term-body sgx-tree-out">
-        <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> ls blog/ --by-year</p>
+        <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ partial "sgx-envps.html" "~" }}</span> ls blog/ --by-year</p>
         <ul class="sgx-arch" aria-label="{{ i18n "archiveByYear" }}">
           {{- range $y := $yrs }}{{ $c := index $yc $y }}
           <li class="sgx-arch-y"><span class="sgx-arch-k cy">{{ $y }}</span><span class="sgx-arch-bar cb" aria-hidden="true">{{ strings.Repeat (int (math.Max 1 (math.Ceil (mul 14.0 (div (float $c) $maxY))))) "█" }}</span><span class="sgx-arch-n">{{ $c }}</span></li>
@@ -97,7 +97,7 @@
           {{- end }}
         </ul>
         {{- if $tags }}
-        <p class="sgx-tl sgx-tl-gap" aria-hidden="true" translate="no"><span class="sgx-term-pp">guest@space:~$</span> ls blog/ --tags</p>
+        <p class="sgx-tl sgx-tl-gap" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ partial "sgx-envps.html" "~" }}</span> ls blog/ --tags</p>
         <ul class="sgx-tags2" aria-label="{{ i18n "tags" }}">
           {{- range $tags }}
           <li><a href="{{ $home }}?tag={{ .slug | urlquery }}"><span class="k">#{{ .name }}</span> {{ .count }}</a></li>

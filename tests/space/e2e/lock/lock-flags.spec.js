@@ -12,17 +12,18 @@ test.describe('lock feature flag (lock-gate)', () => {
   test('lock screen shows when lock-gate is on (default build)', async ({ page }) => {
     test.skip(flagsMode === 'gate-off', '默认构建：LOCK_GATE=true');
 
-    await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    /* lock-v10 命令解锁：终端输入行可用（没有弹层） */
-    await expect(page.locator('#sgx-lock-cmd')).toBeEditable({ timeout: 5000 });
+    await page.goto('/?entry=1', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
+    /* 进站 v3 L1：entry@space 终端输入行可用（没有弹层） */
+    await expect(page.locator('#sgx-entry-cmd')).toBeEditable({ timeout: 5000 });
   });
 
   test('no lock at all when lock-gate disabled', async ({ page }) => {
     test.skip(flagsMode !== 'gate-off', '需要构建：SGX_TEST_LOCK_GATE=0');
 
-    await page.goto('/?lock=1', { waitUntil: 'domcontentloaded' });
-    /* lock-gate 关：锁屏完全不出现（即使 ?lock=1） */
-    await expect(page.locator('#sgx-lock')).toBeHidden({ timeout: 15000 });
+    await page.goto('/?entry=1', { waitUntil: 'domcontentloaded' });
+    /* lock-gate 关：锁屏完全不出现（即使 ?entry=1） */
+    await expect(page.locator('#sgx-entry')).toBeHidden({ timeout: 15000 });
+    await expect(page.locator('#sgx-entry-cover')).toHaveCount(0);
   });
 });

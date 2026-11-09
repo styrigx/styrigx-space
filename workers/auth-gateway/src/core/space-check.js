@@ -2,7 +2,7 @@
  * 进站凭证（SGX_LOCK_SPACE_KEY）校验：网关里只有这一份实现。
  *
  * 用到进站凭证的两条路径都走这里，再各自按用途签票：
- * - /api/space-auth   purpose=lock-reauth / lock-reset → 对应的锁屏短票（by=space）；lock-reset 只在锁屏未设置时可用
+ * - /api/space-auth   purpose=lock-reset → LockResetTicket（by=space），只在锁屏未设置时可用（v3 L1：lock-reauth 已删，恢复钥匙不签 reauth 票）
  * - /api/lock-reset  verify → 重置开关有效：LockResetTicket(by=space)；否则 needLock，再验锁屏凭证 → LockResetTicket(by=password|passkey)
  *
  * 本函数只做：共用限速检查（全局减速时先等）→ 恒定时间比对（两边去空白）→ 失败计数 + 审计 / 成功清计数。

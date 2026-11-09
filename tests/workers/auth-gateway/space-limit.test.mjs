@@ -11,6 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestPost as spaceAuth } from '../../../workers/auth-gateway/src/api/space-auth.js';
+import { onRequestPost as lockReset } from '../../../workers/auth-gateway/src/api/lock-reset.js';
 import {
   checkSpaceLimit,
   recordSpaceFail,
@@ -18,7 +19,6 @@ import {
   SPACE_GLOBAL_DELAY_MS,
 } from '../../../workers/auth-gateway/src/core/space-limit.js';
 import { makeAuthD1, genKeyPair } from '../_harness.mjs';
-import { testLockSession } from './_tickets.mjs';
 import { makePasswordRecord } from '../../../workers/auth-gateway/src/core/password.js';
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
@@ -40,15 +40,17 @@ function post(body, ip) {
     body: JSON.stringify(body),
   });
 }
-/* 锁屏未设置（空库）时 lock-reset 走真路径（无需会话）；锁屏已设置时 lock-reset 走假入口（P2-3 起唯一的假入口）；
-   lock-reauth 要进门，进了门就走真路径 */
+/* 锁屏未设置（空库）时 lock-reset 走真路径（无需会话）；锁屏已设置时 lock-reset 走假入口（P2-3 起唯一的假入口）。
+   v3 L1：space-auth 没有 lock-reauth 了；锁屏已设置时的真比对走 /api/lock-reset verify（同一套 space-limit 计数） */
 const real = (db, key, ip) => spaceAuth({ request: post({ key, purpose: 'lock-reset' }, ip), env: env(db) });
 const decoy = (db, key, ip) => spaceAuth({ request: post({ key, purpose: 'lock-reset' }, ip), env: env(db) });
-const SESS = 'sgx-lock-session=' + (await testLockSession(PRIV, 0, 'tempkey'));
-const realReauth = (db, key, ip) => {
-  const r = post({ key, purpose: 'lock-reauth' }, ip);
-  r.headers.set('Cookie', SESS);
-  return spaceAuth({ request: r, env: env(db) });
+const realReset = (db, key, ip) => {
+  const r = new Request('https://styrigx.com/api/lock-reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: 'https://styrigx.com', 'CF-Connecting-IP': ip },
+    body: JSON.stringify({ action: 'verify', spaceKey: key }),
+  });
+  return lockReset({ request: r, env: env(db) });
 };
 const PW_REC = await makePasswordRecord('lock-pass-1', 'pep');
 /** 锁屏已设置的库（lock-reset 走假入口） */
@@ -66,7 +68,7 @@ test('假入口：多个 IP 刷错只计单 IP，不推全局计数；主人随�
   assert.equal(row(db, '*'), null, '假入口不写全局计数');
   assert.equal(row(db, '198.51.100.0').count, 1, '单 IP 照样计数');
   const t0 = Date.now();
-  const ok = await realReauth(db, SPACE_KEY, '203.0.113.7');
+  const ok = await realReset(db, SPACE_KEY, '203.0.113.7');
   assert.equal(ok.status, 200);
   assert.ok(Date.now() - t0 < SPACE_GLOBAL_DELAY_MS, '没有触发全局减速');
 });
@@ -100,7 +102,7 @@ test('全局暂停不存在：全局计数爆表时正确的 SpaceKey 仍然通�
   const now = Date.now();
   db.raw.prepare("INSERT INTO attempt_limit (realm, kind, bucket, count, window_start, expires_at) VALUES ('lock', 'spacekey', '*', 100000, ?, ?)").run(now, now + 3600 * 1000);
   const t0 = Date.now();
-  const ok = await realReauth(db, SPACE_KEY, '203.0.113.8');
+  const ok = await realReset(db, SPACE_KEY, '203.0.113.8');
   assert.equal(ok.status, 200, '不是 429');
   assert.ok(Date.now() - t0 >= SPACE_GLOBAL_DELAY_MS - 50, '全局减速：比对前先等');
   /* 假入口同样等（时间上和真路径分不出来） */

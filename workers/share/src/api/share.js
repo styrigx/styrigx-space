@@ -1,14 +1,15 @@
 /**
  * @fileoverview 分享短链管理：POST /api/share { action }（只收同源）。
- * 鉴权（方案 3.4 R13、3.6）：list = 进门；create（含 reuse:true）/ revoke = 进门 + 锁侧复验——先问网关 ShareIssuer.checkReauth，
- * 没有有效 sgx-lock-reauth → 原样回 401 reauth（前端先走锁侧复验，通过后自动重试）。生成短链就是发放一张入门凭证，与发临时钥匙同级。
+ * 鉴权（进站 v3 Q3 定稿，Gray 2026-11-09 08:00：「新建」和「管理」分开）：create（含 reuse:true）= 进门（任何进门方式，不验证）；
+ * list / revoke = 进门 + 锁侧复验——先问网关 ShareIssuer.checkReauth，没有有效 sgx-lock-reauth → 原样回 401 reauth
+ * （盾牌「分享链接」层一打开就跑 sudo styrigx reauth）。
  *
  * - list → { links: [view] }（新到旧；含已过期 / 已作废的，留 7 天后删；字段见 lib/links.js view）
- * - create { name?, hours? | days?, to?, session? } → { link: view }
+ * - create { name?, hours? | days?, to?, session? } → { link: view }（只要进门）
  *     有效期：hours 1–24 或 days 3 / 7 / 15 / 30；to 站内相对路径或 https://styrigx.com 的地址（默认 /，lib/links.js cleanTarget）；
  *     session = 短链进门会话秒数（0 / 不传 = 普通短链，不签钥匙、不发会话），只收 1800 / 3600 / 10800 / 43200 / 86400 / 259200 / 604800，
  *     且不超过有效期；同时有效最多 20 条（409 full）。
- *     带会话：请网关（ISSUER → ShareIssuer.createLinkKey）签一把新的短链钥匙，网关再验一次进门 + 锁侧复验；
+ *     带会话：请网关（ISSUER → ShareIssuer.createLinkKey）签一把新的短链钥匙，网关再验一次进门；
  *     短链到期时间 = 钥匙到期时间。写 D1 失败 → 把刚签的钥匙作废，不留孤儿。
  * - create 加 reuse:true（顶栏分享按钮用）：已有同一目标（规范化后）、同一会话档位、同一有效期、没作废、还剩 ≥ 12 小时的短链
  *     → 直接返回它（{ link, reused:true }），不签新钥匙、不占名额，临时钥匙列表不会越点越长；名字超过 24 字截断（按钮拿页面标题当名字）。
@@ -63,8 +64,8 @@ async function handle(context) {
   const reuse = !!(body && body.reuse === true);
   const now = Date.now();
 
-  /* 生成 / 作废：进门 + 锁侧复验，统一先问网关（不管带不带会话、reuse 命不命中） */
-  if (action === 'create' || action === 'revoke') {
+  /* 管理（列表 / 作废）：进门 + 锁侧复验，先问网关；新建只要进门（进站 v3 Q3 定稿 08:00：临时钥匙、分享链接进来的人也能发） */
+  if (action === 'list' || action === 'revoke') {
     if (!issuer || typeof issuer.checkReauth !== 'function') return apiError(503, 'config');
     let g;
     try {

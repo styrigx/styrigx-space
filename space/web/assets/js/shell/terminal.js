@@ -1,7 +1,7 @@
 /**
  * @fileoverview 站内终端（2026-11 UI 重设计 PR-2，设计稿 term-v1 / tb4.html）：一个模块，四站共用。
  *
- * - 引擎 createShell()：提示符（guest@space:~$，cd 之后 ~/blog$）、历史（↑ / ↓，sessionStorage 跨页保留）、tab 补全、clear；
+ * - 引擎 createShell()：提示符按账号登录状态（环境提示符规则：没登录 styrigx@space:~$、已登录 root@account:~#；cd 之后 ~/blog$ / ~/blog#）、历史（↑ / ↓，sessionStorage 跨页保留）、tab 补全、clear；
  *   命令 help · cd · ls · cat · sudo · theme · lock · ask · clear，真正的动作（滚动 / 跳转 / 开面板 / 锁屏 / 问 AI）由调用方经 act 传进来。
  * - 解析 / 补全 parse()、complete()、normDir() 是纯函数（单测 tests/space/ui/shell/terminal.test.mjs）。
  * - 视图 mountTermView()：把一个终端窗口标记（[data-sgx-term]：标题栏 + 输出区 + 一行真 <input>）接到引擎上。
@@ -13,8 +13,23 @@
 
 /** 目录（ls 的结果，cd 的目标；wild = 旷野） */
 export const DIRS = ['blog', 'curio', 'daymark', 'wild'];
-/** 账号终端的命令字（= shell/account/commands.js ROOT_COMMAND；这个文件不 import 任何东西，只能抄一份） */
+/** 账号终端的命令字（= shell/account/commands.js ROOT_COMMAND）、进站的命令字（= shell/space/commands.js ADMIN_COMMAND）；这个文件不 import 任何东西，只能抄一份 */
 const ROOT_COMMAND = 'root';
+const ADMIN_COMMAND = 'styrigx';
+/** 环境提示符（= shell/space/commands.js ENV_GUEST / ENV_ROOT）：账号没登录 / 已登录 */
+export const ENV_GUEST = 'styrigx@space';
+export const ENV_ROOT = 'root@account';
+
+/**
+ * 账号登录了没有：读 <html data-sgx-account-session="in|out">（首帧由 layout-mode.js __sgxAccountPs 按登录标记写好，账号终端登录 / 退出时改）。
+ * @param {Document} [doc] @returns {boolean}
+ */
+export function accountSignedIn(doc) {
+  try {
+    const d = doc || document;
+    return d.documentElement.getAttribute('data-sgx-account-session') === 'in';
+  } catch (e) { return false; }
+}
 /** 命令（help 的顺序 = 补全的顺序） */
 export const COMMANDS = ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear'];
 /** 各命令参数的候选 */
@@ -22,7 +37,7 @@ export const ARGS = {
   cd: ['blog', 'curio', 'daymark', 'wild', '~', '..'],
   ls: ['blog', 'curio', 'daymark', 'wild'],
   cat: ['daymark/today'],
-  sudo: [ROOT_COMMAND, 'security'],
+  sudo: [ROOT_COMMAND, ADMIN_COMMAND],
   theme: ['dark', 'light', 'auto'],
 };
 const HIST_KEY = 'sgx-term-hist';
@@ -30,7 +45,6 @@ const HIST_MAX = 50;
 
 /** 英文底（源文本）；页面上以 #sgx-i18n-shell 的 term 节为准 */
 export const TERM_EN = {
-  user: 'guest@space',
   welcome: 'space os 1.0 — type {help} to see all commands, {cd} to jump there',
   hint: 'tab complete · ↑ history · Ctrl K anywhere',
   hintShort: 'Ctrl K anywhere',
@@ -54,7 +68,7 @@ export const TERM_EN = {
   opening: 'opening {x} …',
   todayNone: 'no line for today yet · {x}',
   todayFail: 'couldn’t load today’s line · {x}',
-  usageSudo: 'usage: sudo ' + ROOT_COMMAND + ' [reauth|reset] | sudo security',
+  usageSudo: 'usage: sudo ' + ROOT_COMMAND + ' [reauth|reset] | sudo ' + ADMIN_COMMAND,
   usageTheme: 'usage: theme [dark | light | auto]',
   usageCat: 'usage: cat daymark/today',
   themeSet: 'theme → {x}',
@@ -195,7 +209,7 @@ export function fill(s, map) {
  * @typedef {{ out: Out[], clear?: boolean, after?: () => void }} Result
  * @typedef {Object} TermAct
  * @property {(dir: string) => ({ kind: 'scroll', label: string } | { kind: 'nav', href: string, go: () => void })} cd
- * @property {(which: string, sub?: string) => ({ href: string, go: () => void })} sudo  which = ROOT_COMMAND（账号终端，sub = '' | reauth | reset）| security
+ * @property {(which: string, sub?: string) => ({ href: string, go: () => void })} sudo  which = ROOT_COMMAND（账号终端，sub = '' | reauth | reset）| ADMIN_COMMAND（盾牌）
  * @property {(mode: string) => void} theme  '' = 打开外观面板；dark / light / auto = 设定
  * @property {() => void} lock
  * @property {(q: string) => void} ask
@@ -204,11 +218,12 @@ export function fill(s, map) {
  */
 
 /**
- * @param {{ str?: Record<string, string>, act: TermAct, cwd?: string, storage?: Storage | null }} o
+ * @param {{ str?: Record<string, string>, act: TermAct, cwd?: string, storage?: Storage | null, signedIn?: () => boolean }} o
  */
 export function createShell(o) {
   const S = Object.assign({}, TERM_EN, o.str || {});
   const act = o.act;
+  const signedIn = o.signedIn || function () { return accountSignedIn(); };
   let cwd = o.cwd && DIRS.indexOf(o.cwd) >= 0 ? o.cwd : '~';
   const store = o.storage === undefined ? safeSession() : o.storage;
   /** @type {string[]} */
@@ -255,7 +270,7 @@ export function createShell(o) {
         ['ls', S.dLs],
         ['cat', S.dCat],
         ['sudo ' + ROOT_COMMAND, S.dAccount],
-        ['sudo security', S.dSecurity],
+        ['sudo ' + ADMIN_COMMAND, S.dSecurity],
         ['theme', S.dTheme],
         ['lock', S.dLock],
         ['ask', S.dAsk],
@@ -317,10 +332,10 @@ export function createShell(o) {
         });
       }
       case 'sudo': {
-        /* sudo root [reauth|reset]：账号终端（2026-11-08 账号命令体系 v3）；sudo security：盾牌 */
+        /* sudo root [reauth|reset]：账号终端（2026-11-08 账号命令体系 v3）；sudo styrigx：盾牌（进站 v3 L1；原 sudo security） */
         const a1 = (p.args[1] || '').toLowerCase();
         const okRoot = a0 === ROOT_COMMAND && (a1 === '' || a1 === 'reauth' || a1 === 'reset') && p.args.length <= 2;
-        if (!okRoot && !(a0 === 'security' && p.args.length === 1)) return { out: [plain(S.usageSudo)] };
+        if (!okRoot && !(a0 === ADMIN_COMMAND && p.args.length === 1)) return { out: [plain(S.usageSudo)] };
         const r = act.sudo(a0, a1);
         return { out: [arrow(fill(S.opening, { x: ['k', r.href] }))], after: r.go };
       }
@@ -349,10 +364,10 @@ export function createShell(o) {
     str: S,
     exec: exec,
     help: helpOut,
-    /** 提示符：guest@space:~$ / guest@space:~/blog$ */
-    ps1: function () { return S.user + ':' + cwdPath(cwd) + '$'; },
-    /** 标题栏：guest@space: ~ */
-    title: function () { return S.user + ': ' + cwdPath(cwd); },
+    /** 提示符（环境提示符规则）：styrigx@space:~$ / styrigx@space:~/blog$；账号已登录 root@account:~# / root@account:~/blog# */
+    ps1: function () { const r = signedIn(); return (r ? ENV_ROOT : ENV_GUEST) + ':' + cwdPath(cwd) + (r ? '#' : '$'); },
+    /** 标题栏：styrigx@space: ~ / root@account: ~ */
+    title: function () { return (signedIn() ? ENV_ROOT : ENV_GUEST) + ': ' + cwdPath(cwd); },
     cwd: function () { return cwd; },
     /** @param {() => void} f */
     onChange: function (f) { subs.push(f); },
@@ -411,6 +426,12 @@ export function mountTermView(root, sh, opts) {
     if (ps) ps.textContent = sh.ps1();
     if (titleEl) titleEl.textContent = sh.title();
   }
+  /* 账号登录 / 退出（账号终端改 <html data-sgx-account-session>）：提示符跟着换（环境提示符规则） */
+  try {
+    if (typeof MutationObserver === 'function') {
+      new MutationObserver(paintPrompt).observe(doc.documentElement, { attributes: true, attributeFilter: ['data-sgx-account-session'] });
+    }
+  } catch (e) {}
   function paintGhost() {
     if (!gh) return;
     const g = inp.selectionStart === inp.value.length ? ghost(inp.value) : '';

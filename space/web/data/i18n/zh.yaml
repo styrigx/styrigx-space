@@ -98,96 +98,11 @@ js:
     qpOff: 关
     qpLangTo: 语言：中文。点按切换为 English
     qpLargeOnly: 仅在大屏生效
-    lockLockScreen: 锁屏
-    lockLockScreen2: 锁定屏幕
     lockWelcomeBack: 欢迎回来
-    lockGoodToSeeYou: 很高兴再次见到你
-    lockTermHint: "# 不想打命令？点一下自动输入"
-    lockTermCmdAria: 解锁终端：输入命令，例如 help
-    lockTermSecretHint: 输入不回显，可直接粘贴
-    lockTermBack: 返回
-    lockTermHelpTitle: 可用命令：
-    lockTermDescPw: 密码解锁
-    lockTermDescPk: 通行密钥解锁
-    lockTermDescTemp: 临时钥匙进门
-    lockTermDescReset: 无法登录？重置登录
-    lockTermDescClear: 清屏
-    lockTermDescHelp: 查看可用命令
-    lockManTitle: "锁屏终端手册"
-    lockManName: "styrigx space 锁屏终端：敲命令解锁"
-    lockManDescBack: "返回（同 Ctrl+C）"
-    lockManQuit: "按 q 退出"
-    lockTermPkUnavailable: 通行密钥未设置，或这台设备不支持
-    lockTermPick: 选择
-    lockTermPickBad: 请输入列出的编号
-    lockTermResetOk: 验证通过
-    lockTermToLockPage: 正在前往锁屏凭证页…
-    lockTermWaitPk: 等待通行密钥…
-    lockUnlockScreen: 解锁屏幕
-    lockTemporaryKey: 临时钥匙
-    lockUsePasskey: 使用通行密钥
-    lockPassword: 密码
-    lockUsePassword: 使用密码
     lockCantSignIn: 无法登录？
-    lockFormatXxxxXxxxXxxx: 格式 XXXX-XXXX-XXXX，不区分大小写
-    lockEnterTheTemporaryKey2: 请输入临时钥匙
-    lockServerError: 服务器错误
-    lockTooManyAttempts: 尝试次数过多
-    lockInvalidOrExpiredKey: 临时钥匙无效或已过期
-    lockNetworkError: 网络错误
-    lockEnterPassword2: 请输入密码
-    lockNoPasswordSetYet: 尚未设置密码
-    lockWrongPassword: 密码错误
-    lockVerificationFailed: 验证失败
-    lockWrongSpaceCredential: 进站凭证错误
-    lockFailedToStart: 启动失败
-    lockCancelledYouCanSelect: 已取消验证，可重新选择
-    lockPasskeyFailed: 通行密钥验证失败
-    lockVerifying: 正在验证
-    lockBootUnlocked: 已解锁
     lockCannotReturnToThe: 无法回到子站，请重试
     lockBackToMainSite: 回到主站
     lockReload: 重新加载
-    lockCouldntLockThisDevice: 锁定失败，请检查网络后重试。
-    lockLockNow: 立即锁定？
-    lockThisDeviceWillReturn: 当前设备会回到锁屏。
-    lockCancel: 取消
-    lockLock: 锁定
-    authShowPassword: 显示密码
-    authHidePassword: 隐藏密码
-    rfTitle: "重置登录"
-    rfNext: "下一步"
-    rfStep2: "再验证一次锁屏凭证"
-    rfNoLock: "锁屏还没有设置凭证，无法用锁屏凭证验证。"
-    rfRecover: "锁屏凭证也无法使用？可在站点后台开启一次性恢复，24 小时内有效"
-    rfMPasskey: "锁屏通行密钥"
-    rfMPasskeySub: "使用指纹或设备锁屏"
-    rfMPassword: "解锁密码"
-    rfMPasswordSub: "输入解锁密码"
-    rfVerifyBtn: "验证"
-    rfEnterCred: "请输入凭证"
-    rfPasskeyBusy: "正在唤起通行密钥…"
-    rfErrVerify: "验证失败，请重试"
-    rfSessionLost: "会话过期，请重新开始"
-    lrTitle: "验证锁屏凭证"
-    lrMPasskey: "锁屏通行密钥"
-    lrMPasskeySub: "使用指纹或设备锁屏"
-    lrMPassword: "解锁密码"
-    lrMPasswordSub: "输入解锁密码"
-    lrMSpace: "进站凭证"
-    lrMSpaceSub: "粘贴或输入进站凭证"
-    lrVerifyBtn: "验证"
-    lrEnterCred: "请输入凭证"
-    lrPasskeyBusy: "正在唤起通行密钥…"
-    lrErrWrongPw: "密码错误"
-    lrErrWrongSpace: "进站凭证不正确"
-    lrErrWrongRoot: "进站凭证不正确"
-    lrErrLocked: "尝试次数过多，请稍后再试"
-    lrErrConfig: "服务器配置有误"
-    lrErrVerify: "验证失败"
-    lrErrNetwork: "网络连接失败，请重试"
-    lrPkNoSupport: "设备不支持"
-    lrErrSession: "会话已过期，请回锁屏重新解锁"
     avTitle: "头像"
     avPick: "选择照片…"
     avRemove: "移除照片"
@@ -199,44 +114,6 @@ js:
     avFailed: "头像没保存上，请重试"
     avBadFile: "这个文件打不开"
     avNoScope: "头像未获账号授权"
-    gateErrAccountConfigured: "账号凭证已设置，请先登录账号再进入"
-    gateExpiredSessionTitle: "会话已失效"
-    gateExpiredReauthTitle: "验证已过期"
-    gateExpiredSessionDesc: "请回到锁屏重新解锁"
-    gateExpiredReauthDesc: "验证后回到这一页继续"
-    gateExpiredSessionBtn: "去锁屏"
-    gateExpiredReauthBtn: "重新验证"
-    gateReauthCountdownExpired: "已过期"
-    gateReauthCountdown: "验证剩余 {m}"
-    gateProbeFailTitle: "无法进入"
-    gateProbeFailApi: "接口"
-    gateProbeFailStatus: "状态码"
-    gateProbeFailReason: "原因"
-    gateProbeFailBack: "返回安全"
-    rfRootLead: "先用根凭证验证身份"
-    rfRootPh: "根凭证"
-    rfRootEmpty: "请输入根凭证"
-    sheetClose: "关闭"
-    lockSessionNotRecognized: "会话未生效，请重试。"
-    lockRetryMin: "{n} 分钟后可再试"
-    lockRetrySec: "{n} 秒后可再试"
-    rfSpaceLead: "先用进站凭证验证身份"
-    rfSpacePh: "进站凭证"
-    rfSpaceEmpty: "请输入进站凭证"
-    codeWrap: "（{c}）"
-    labelSep: "："
-  security:
-    okTitle: 一切正常
-    okSub: 解锁密码、锁屏通行密钥均已设置
-    warnTitle: 建议操作
-    missPw: 未设置解锁密码
-    missPk: 未注册锁屏通行密钥
-    lockSubBoth: 密码，通行密钥
-    lockSubPw: 密码
-    lockSubPk: 通行密钥
-    lockSubNone: 未设置
-    securiSomethingWentWrongPlease: 出错了，请重试
-    listSep: "，"
   space:
     homeStatusUp: "STATUS: ONLINE · {up}/{n} ACTIVE"
     homeStatusDown: "STATUS: DEGRADED · {up}/{n} ACTIVE"
@@ -353,95 +230,6 @@ js:
     site_proxy-rules: "规则集"
     site_ai: "AI 助手"
     nameSep: "、"
-  lockmgr:
-    eyeShow: 显示密码
-    eyeHide: 隐藏密码
-    pwSet: 已设置
-    pwUnset: 未设置
-    pwMin8: 最短 8 位
-    pwMismatch: 两次输入不一致
-    pwSaved: 已保存
-    pwChanged: 已修改
-    pwDeleted: 密码已删除
-    pwDelAsk: 再点一次删除密码
-    pwDelWarnLock: 删除后锁屏只能通过重置锁屏重新设置，再点一次确认
-    lastKeyConfirmTitle: 删除最后一把解锁钥匙
-    lastKeyConfirmDesc: 删除后锁屏只能通过重置锁屏重新设置
-    lastKeyConfirmCancel: 取消
-    lastKeyConfirmDelete: 删除
-    pkRegistered: 已注册
-    pkDeleted: 已删除
-    pkDelManual: 请到 Samsung Pass 里手动删除这把通行密钥
-    pkRenamed: 已重命名
-    pkUnnamed: 通行密钥
-    pkDel: 删除
-    pkDelAsk: 再点一次删除
-    pkRetryLater: 请稍后重试
-    pkNeverUsed: 尚未使用
-    created: '创建于 '
-    lastUsed: '最近使用 '
-    pkProv_google_password_manager: Google 密码管理器
-    pkProv_apple_passwords: Apple 密码
-    pkProv_icloud_keychain: iCloud 钥匙串
-    pkProv_microsoft_password_manager: Microsoft 密码管理器
-    pkNameEmpty: 名字不能为空
-    pkRenameResetNo: 重置时暂不支持命名，可解锁后修改
-    pkAlready: 此设备已注册过
-    pkNoSupport: 设备不支持
-    pkFailed: 注册失败
-    mPasskey: 锁屏通行密钥
-    mPasskeySub: 使用指纹或设备锁屏
-    mPassword: 解锁密码
-    mPasswordSub: 输入解锁密码
-    mSpace: 进站凭证
-    mSpaceSub: 粘贴或输入进站凭证
-    verifyBtn: 验证
-    enterCred: 请输入凭证
-    passkeyBusy: 正在唤起通行密钥…
-    errWrongSpace: 进站凭证不正确
-    outAllTitle: 退出所有设备？
-    outAllDesc: 所有设备（包括本机）都会回到锁屏，需要重新解锁
-    outAllBtn: 退出
-    setTitle: 设置解锁密码
-    changeTitle: 修改解锁密码
-    sessExp: 会话过期，请重新验证
-    errReauthExpired: 验证已过期，请重新验证
-    errNetwork: 网络连接失败，请重试
-    errParse: 服务响应异常，请重试
-    gateNetErr: 网络错误
-    pkListFail: 通行密钥列表读取失败，请稍后刷新
-    errParams: 参数错误
-    errNotFound: 找不到这把钥匙
-    errLastKey: 这是最后一把解锁钥匙，请先设置解锁密码
-    errRetry: 请稍后重试
-    errServer: 服务暂时不可用
-    errChallenge: 验证初始化失败
-    errVerify: 验证失败
-    errUvRequired: 需要设备解锁确认
-    errWrongPw: 密码错误
-    errShort: 最短 8 位
-    gateSrvErr: 服务器配置有误
-    gateCancelled: 已取消
-    errExists: 已经设置过了
-    errNotSet: 尚未设置
-    errLocked: 尝试次数过多，请稍后再试
-    errConfig: 服务器配置有误
-    errCancelled: 已取消
-    errUnknown: 未知错误，请稍后重试
-    errSameAsLock: 不能与解锁密码相同
-    errSameAsAccount: 不能与账号密码相同
-    reauthCountdown: 验证剩余 {m}
-    reauthCountdownExpired: 已过期
-    expiredReauthTitle: 验证已过期
-    expiredReauthDesc: 验证后回到这一页继续
-    expiredReauthBtn: 重新验证
-    expiredSessionTitle: 会话已失效
-    expiredSessionDesc: 请回到锁屏重新解锁
-    expiredSessionBtn: 去锁屏
-    securiSomethingWentWrongPlease: 出错了，请重试
-    securiSetupComplete: 设置完成
-    securiSetupDoneDesc: "解锁方式已设置，请回锁屏解锁"
-    securiExpiredStartOver: "验证已过期，请回锁屏重新开始"
   account:
     pfEdit: 修改
     pfSave: 保存
@@ -651,77 +439,6 @@ baseof:
   close: 关闭
   space: 旷野
   pageNotFound: 页面不存在
-securityLock:
-  verifyItsYou: 验证身份
-  changingLockScreenCredentials: 修改锁屏凭证属于安全操作，请先验证。验证有效 3 分钟，离开本页立即失效。
-  unlockPassword: 解锁密码
-  loading: 正在读取…
-  deletePassword: 删除密码
-  usedToUnlockFrom: 用于从锁屏解锁，最短 8 位。
-  passkeys: 通行密钥
-  loadingPasskeys: 正在加载通行密钥…
-  noPasskeysYet: 还没有通行密钥。
-  plus: ＋
-  addPasskey: 添加通行密钥
-  unlockWithFingerprintFace: 用指纹、面容或设备密码解锁。点设备名可重命名。
-  sessions: 会话
-  signOutOfAll: 退出所有设备
-  everyDeviceThisOne: 所有设备（包括本机）回到锁屏
-  close: 关闭
-  nameThisPasskey: 为这把通行密钥命名
-  giveItAName: 起个名字，方便区分多把通行密钥。
-  skip: 跳过
-  save: 保存
-  setUnlockPassword: 设置解锁密码
-  newPassword: 新密码
-  newPasswordMin8: 新密码（最少 8 位）
-  showPassword: 显示密码
-  confirmPassword: 确认密码
-securityTempkeys:
-  hourOne: 小时
-  hourMany: 小时
-  newTemporaryKey: 新建临时钥匙
-  forSomeoneElseTo: 给别人进锁屏用
-  newShareLink: 新建分享短链
-  aLinkToSend: 发给别人的链接，可带临时会话
-  activeKeys: 有效的临时钥匙
-  noTemporaryKeysYet: 还没有临时钥匙。
-  enterTheKeyAt: 在锁屏点「临时钥匙」输入，能进门看网站，账号仍要账号密码登录。作废后，用这把钥匙进来的人会立刻被锁在外面。
-  shareLinks: 分享短链
-  noShareLinksYet: 还没有分享短链。
-  aLinkWithA: 带临时会话的短链，点开就直接进门，能看多久由你定，不用输临时钥匙；普通短链只是打开页面，没解锁的人仍会看到锁屏。作废后，用这条短链进来的人会立刻被锁在外面。
-  close: 关闭
-  nameOnlyYouCan: 名字（只有你看得到）
-  nameOptionalOnlyYou: 名字（可不填，只有你看得到）
-  validFor: 有效期
-  hours: 小时
-  days: 天
-  days2: 天
-  create: 生成
-  thisKeyIsShown: 临时钥匙只显示这一次，复制后发给要进门的人。
-  copy: 复制
-  linkValidFor: 链接有效期
-  opens: 打开的页面
-  homePageOrBlog: 首页（也可填 /blog/ 或子站链接）
-  withTemporarySession: 带临时会话
-  sessionLength: 点开后能看多久
-  n30Minutes: 30 分钟
-  n1Hour: 1 小时
-  n3Hours: 3 小时
-  n12Hours: 12 小时
-  n1Day: 1 天
-  n3Days: 3 天
-  n7Days: 7 天
-  copyLink: 复制链接
-security:
-  security: 安全
-  lockScreenCredentials: 锁屏凭证
-  passwordPasskeysSessions: 解锁密码、通行密钥、会话
-  temporaryKeys: 临时钥匙
-  letOthersPastThe: 给别人的进门钥匙、分享短链
-  lockNow: 立即锁定
-  clearThisSessionAnd: 清除当前会话并回到锁屏
-  securityStatusIsRead: 安全状态仅从本设备读取。
 status:
   loading: 正在加载…
   noDataYet: 还没有监测数据
@@ -794,9 +511,6 @@ features:
   lock-gate:
     name: 锁屏门禁
 spaceCats:
-  security:
-    title: 安全
-    sub: 通行密钥、锁屏与临时钥匙
   wild:
     title: 旷野
     sub: 屏幕时间、服务状态与关于本站

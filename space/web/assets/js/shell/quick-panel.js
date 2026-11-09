@@ -4,14 +4,13 @@
  * 这里只把主站自己的东西传进去：
  * - 状态机 modal-sheet.js；外观 setter 是设置页同一套（lib/prefs.js，经 features.js 写同一个 localStorage key，面板和设置页互相即时同步）；
  * - 语言行（跟随系统 / 中文 / English）：lib/prefs.js setLang 写偏好、算目标语言的同一页地址，和本页不同就关面板后 replace 过去（不留历史）；
- * - 立即锁定：关面板后弹出与安全页相同的「立即锁定？」确认层（auth/lock-now.js）；
+ * - 立即锁屏：只锁本机、不验证（topbar-panel.js 自带；原确认层删了，进站 v3 L1）；盾牌 shell/space/shield.js；
  * - 布局行（手机 / 自动 / 桌面，P4-3 PR-4b；模式规则见 lib/layout-mode.js）；
  * - 分享本页 shell/share-button.js（共享外壳 share.js；PR-4b 起主站也有，四站快捷面板同一套）；
  * - AI 窗口内容 shell/ai-panel.js（共享外壳 ai.js），键盘高度订阅 shell/vk.js（共享外壳 vk.js，P4-3 PR-3）。
  */
 import { on as featOn } from '../lib/features.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
-import { confirmLockNow } from '../auth/lock-now.js';
 import {
   themeMode,
   isDark,
@@ -30,6 +29,7 @@ import { modalSheet } from './modal-sheet.js';
 import { mountTopbar } from './topbar-panel.js';
 import { mountAiChat } from './ai-panel.js';
 import { mountAccountTerm, layerFromPath } from './account/term.js';
+import { mountShield } from './space/shield.js';
 import { onKeyboardHeight } from './vk.js';
 import { mountShare } from './share-button.js';
 import * as terminal from './terminal.js';
@@ -58,13 +58,14 @@ export function initQuickPanel() {
       layoutPref,
       setLayout,
     },
-    onLock: confirmLockNow,
     navigate: sgxNavigate,
     replace: sgxReplace,
     ai: mountAiChat,
     /* 账号终端（头像下拉，2026-11-08 账号 UI 改版） */
     account: mountAccountTerm,
     accountLayer: layerFromPath,
+    /* 盾牌 = 进站命令行 styrigx@space:~#（进站 v3 L1） */
+    shield: mountShield,
     share: mountShare,
     /* 全站终端（Ctrl / ⌘ K、NAVIGATE「$ terminal」；2026-11 PR-2） */
     terminal,

@@ -12,7 +12,8 @@
  * - remove：只认 LockReauthTicket（重置锁屏不能删）
  * - 哈希：PBKDF2-SHA256 + 随机 salt + SGX_PW_PEPPER（workers/auth-gateway/src/core/password.js）；旧 hash 下次成功登录时重哈希；缺 pepper fail closed
  *
- * 会话可吊销：改密码 / 删密码时 lock-epoch +1，旧 cookie 失效；纪元推进后重签 reauth / reset 票 + 当前设备会话。
+ * 会话可吊销：改密码 / 删密码时 lock-epoch +1，旧 cookie 失效；纪元推进后重签 reauth 票 + 当前设备会话。
+ * reset 票（sgx-lock-reset，锁屏 `sudo styrigx reset`）下的 set / change 不推纪元（进站 v3 L1）：由 /api/lock-reset finish 决定其他设备。
  * 锁定所有设备走 /api/lock-all-devices。读存储出错时 → 503，绝不继续写入。
  * 存储：密码记录、纪元、输错计数都在 D1（core/d1-state.js / password-limit.js，强一致：改完下一个请求就认新密码、拒旧密码）。
  * 只接受 POST；校验 Origin；未设置密码时 verify 一律拒绝。
@@ -226,8 +227,13 @@ async function handlePost(context) {
       return apiError(503, 'server');
     }
 
+    /* reset 票下的写不推纪元（进站 v3 L1，SPACE-V3 §2.0 L8）：其他设备怎么办由 /api/lock-reset { finish, signOut } 决定 */
+    if (gate.isLockReset) {
+      return json(200, { ok: true });
+    }
+
     /* 改密码后：lock-epoch +1，旧会话 cookie 失效（D1 出错→503）
-       纪元推进后重签 reauth / reset 票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
+       纪元推进后重签 reauth 票 + 当前设备会话，保持门内连续操作、当前设备不掉线。 */
     let newEpoch2 = null;
     try {
       newEpoch2 = await bumpLockEpoch(env);
