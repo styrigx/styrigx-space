@@ -10,10 +10,11 @@
  *
  * 谁能选：只有带账号结论头（X-Styrigx-Account-Session: 1）的请求，body.model 才生效；进站（没有账号会话）一律默认模型。
  * 读 KV 带 60 秒 isolate 内缓存（同索引），不多吃读额度。
- * 2026-11-09：gemini 的退役 id（gemini-2.5-flash 等，core/gemini.js RETIRED_GEMINI）在解析时换成当前 id（GEMINI_CURRENT），
- * 标签是旧版本号的一并换掉；浏览器里存的旧选择（sgx-ai-model）在 pickModel 也按新 id 认，不报 bad_model。
+ * 2026-11-09：gemini 的退役 id（gemini-2.5-flash 等，core/gemini.js RETIRED_GEMINI）在解析时展开成当前的两条
+ * （Gemini 3.5 Flash Lite 主力 + Gemini 3.8 Flash），标签是旧版本号的换成新标签；KV 里只登记了旧 id 也能两条都选。
+ * 浏览器里存的旧选择（sgx-ai-model）在 pickModel 按主力（Flash-Lite）认，不报 bad_model。
  */
-import { currentGeminiId, GEMINI_CURRENT } from './gemini.js';
+import { currentGeminiId, RETIRED_GEMINI, GEMINI_LITE, GEMINI_FLASH } from './gemini.js';
 
 export const MODELS_KEY = 'ai:models';
 export const MAX_MODELS = 8;
@@ -44,20 +45,23 @@ export function parseModels(raw) {
   if (!v || typeof v !== 'object' || !Array.isArray(v.models)) return null;
   /** @type {Array<{id: string, label: string, provider: 'workers-ai'|'gemini'}>} */
   const models = [];
-  for (const m of v.models) {
+  /** 退役 gemini id 展开成当前两条（主力在前） @param {any} m */
+  const expand = (m) => (m && m.provider === 'gemini' && RETIRED_GEMINI.includes(m.id)
+    ? [GEMINI_LITE, GEMINI_FLASH].map((c) => ({ id: c.id, label: c.label, provider: 'gemini' }))
+    : [m]);
+  for (const m of v.models.flatMap(expand)) {
     if (models.length >= MAX_MODELS) break;
     if (!m || typeof m !== 'object' || typeof m.id !== 'string' || !ID_RE.test(m.id)) continue;
     const provider = m.provider === 'gemini' ? 'gemini' : m.provider === 'workers-ai' || m.provider == null ? 'workers-ai' : null;
     if (!provider) continue;
     if (provider === 'workers-ai' && !m.id.startsWith('@cf/')) continue;
-    const id = provider === 'gemini' ? currentGeminiId(m.id) : m.id;
+    const id = m.id;
     if (models.some((x) => x.id === id)) continue;
-    let label = typeof m.label === 'string' && m.label.trim() ? m.label.trim().slice(0, 40) : id;
-    if (id !== m.id && (label === m.id || /gemini\s*[12]\./i.test(label))) label = GEMINI_CURRENT.label;
+    const label = typeof m.label === 'string' && m.label.trim() ? m.label.trim().slice(0, 40) : id;
     models.push({ id, label, provider });
   }
   if (!models.length) return null;
-  const wantDef = typeof v.default === 'string' ? currentGeminiId(v.default) : '';
+  const wantDef = typeof v.default === 'string' ? currentGeminiId(v.default) : ''; /* 退役 id 作默认 → 主力 Flash-Lite */
   const def = wantDef && models.some((x) => x.id === wantDef) ? wantDef : models[0].id;
   return { def, models };
 }

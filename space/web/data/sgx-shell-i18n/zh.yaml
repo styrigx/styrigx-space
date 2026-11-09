@@ -36,6 +36,7 @@ topbar:
   theme: 外观
   security: 站点安全
   langKey: lang
+  langAuto: 跟随系统语言
   layoutKey: layout
   shareKey: share
   lockKey: lock

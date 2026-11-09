@@ -78,25 +78,25 @@ test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（�
   await setCookie(context, enc({ v: 3, mode: 'light', lang: 'en' }));
   await page.goto('/daymark/zh/');
   await expect(page).toHaveURL(/:\d+\/daymark\/zh\/$/);
-  /* 跟随系统每页都跳（不只主站）：没有 cookie、中文浏览器打开英文页 → 中文同一页 */
+  /* 2026-11-09 Auto（跟随系统）只在从站外进主站首页时换：子站页不跳。没有 cookie、中文浏览器打开英文页 → 留在英文 */
   await setCookie(context, fx.cases[0].cookie);
   await page.goto('/daymark/');
-  await expect(page).toHaveURL(/\/daymark\/zh\/$/);
-  /* 明确存了 system（新写法）同样跟随系统 */
+  await expect(page).toHaveURL(/:\d+\/daymark\/$/);
+  /* 明确存了 system（新写法）同样 = Auto：子站不跳 */
   await setCookie(context, enc({ v: 2, mode: 'light', lang: 'system' }));
   await page.goto('/daymark/#flavors');
-  await expect(page).toHaveURL(/\/daymark\/zh\/#flavors$/);
+  await expect(page).toHaveURL(/:\d+\/daymark\/#flavors$/);
 });
 
 test.describe('英文浏览器', () => {
   test.use({ locale: 'en-US' });
-  test('跟随系统 + 英文浏览器：中文页回英文同一页；明确选了中文就留在中文', async ({ page, context }) => {
+  test('Auto + 英文浏览器：子站中文页不跳；明确选了英文 → 回英文同一页', async ({ page, context }) => {
     await setup(page);
     await setCookie(context, enc({ v: 2, mode: 'light', lang: 'system' }));
     await page.goto('/daymark/zh/');
-    await expect(page).toHaveURL(/:\d+\/daymark\/$/);
-    await setCookie(context, enc({ v: 2, mode: 'light', lang: 'zh' }));
-    await page.goto('/daymark/zh/');
     await expect(page).toHaveURL(/:\d+\/daymark\/zh\/$/);
+    await setCookie(context, enc({ v: 2, mode: 'light', lang: 'en' }));
+    await page.goto('/daymark/zh/');
+    await expect(page).toHaveURL(/:\d+\/daymark\/$/);
   });
 });
