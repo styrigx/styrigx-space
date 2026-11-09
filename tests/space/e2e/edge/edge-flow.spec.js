@@ -501,11 +501,11 @@ test.describe('R9 分享短链', () => {
     for (let i = 0; i < 10; i++) {
       const r = await page.request.get(MAIN + '/s/' + 'B'.repeat(21) + String.fromCharCode(65 + i), { maxRedirects: 0, ignoreHTTPSErrors: true });
       expect(r.status()).toBe(302);
-      expect(r.headers()['location']).toBe('https://styrigx.com/?lock=1');
+      expect(r.headers()['location']).toBe('https://styrigx.com/?entry=1');
     }
     const r = await page.request.get(MAIN + link.path, { maxRedirects: 0, ignoreHTTPSErrors: true });
     expect(r.status()).toBe(302);
-    expect(r.headers()['location']).toBe('https://styrigx.com/?lock=1');
+    expect(r.headers()['location']).toBe('https://styrigx.com/?entry=1');
     expect(r.headers()['set-cookie'] || '').toBe('');
     await edge.resetShareLimit();
     const ok = await page.request.get(MAIN + link.path, { maxRedirects: 0, ignoreHTTPSErrors: true });
