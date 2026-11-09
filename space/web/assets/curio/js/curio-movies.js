@@ -208,6 +208,6 @@ getJSON('/curio/api/movies').then(function(j){
   render();
 }).catch(function(e){
   if (e && e.sgxLocked) return;
-  doc.querySelectorAll('.it-loading').forEach(function(el){ el.textContent = T.failed; });
+  doc.querySelectorAll('.it-loading').forEach(function(el){ el.textContent = (T.loadFail || T.failed); });
 });
 })();

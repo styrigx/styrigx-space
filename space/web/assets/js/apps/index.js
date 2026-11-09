@@ -97,7 +97,13 @@ export function mountHome(o) {
   const dm = document.getElementById('w-daymark');
   /* 等的时候那行「› fetching daymark…」：有结论（缓存画上 / 拉到 / 拉失败）就收起 */
   const dmWait = /** @type {HTMLElement|null} */ (document.querySelector('[data-dm-wait]'));
-  if (dm) mountDaymarkToday(dm, { en: lang === 'en', onSettled: function () { if (dmWait) dmWait.hidden = true; } });
+  /* 等日刻时顶栏头像外圈的弧转快一档，有结论就恢复（只发一次 false；topbar-panel.js mountAvBusy） */
+  let dmBusy = false;
+  if (dm && dmWait && !dmWait.hidden) { dmBusy = true; document.dispatchEvent(new CustomEvent('sgx-busy', { detail: true })); }
+  if (dm) mountDaymarkToday(dm, { en: lang === 'en', onSettled: function () {
+    if (dmWait) dmWait.hidden = true;
+    if (dmBusy) { dmBusy = false; document.dispatchEvent(new CustomEvent('sgx-busy', { detail: false })); }
+  } });
   else if (dmWait) dmWait.hidden = true;
 
   /* [04] 旷野 status 小卡 + 首屏胶囊：外壳每次画 NAVIGATE STATUS 时发 sgx:status-cells */

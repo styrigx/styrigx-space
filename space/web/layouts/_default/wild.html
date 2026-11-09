@@ -36,8 +36,8 @@
           {{ range seq 3 }}<p class="wild-grid wild-st-row" data-wb-row role="listitem" style="visibility:hidden">&nbsp;</p>{{ end }}
         </div>
         <p class="wild-dim wild-st-none" data-wb="none" hidden>{{ $W.noRec }}</p>
-        <p class="wild-rule" aria-hidden="true"></p>
-        <p class="wild-grid wild-st-row wild-st-total"><span translate="no">total</span><span class="wild-y" data-wb="total">--</span></p>
+        <p class="wild-rule" aria-hidden="true" data-wb-totalrow></p>
+        <p class="wild-grid wild-st-row wild-st-total" data-wb-totalrow><span translate="no">total</span><span class="wild-y" data-wb="total">--</span></p>
       </div>
     </div>
   </section>

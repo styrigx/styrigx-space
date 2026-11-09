@@ -226,7 +226,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 :root[data-sgx-layout="desktop"] .dm-today { padding-top: 40px; }
 .dm-cmd { text-align: center; }
 .dm-echo { margin: 0; padding: 0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.dm-dd { margin: 22px 0 0; font-family: var(--sgx-font-mono); font-size: 12.5px; letter-spacing: 2px; color: var(--sgx-text-tertiary); }
+.dm-dd { margin: 22px 0 0; font-family: var(--sgx-font-mono); font-size: 12.5px; letter-spacing: var(--sgx-track-label, .08em); color: var(--sgx-text-tertiary); }
 .dm-echo-body .dm-text { margin: 26px 0 14px; font-family: Inter, "Inter Fallback", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif; font-size: 24px; font-weight: 400; line-height: 1.6;
   white-space: pre-line; text-wrap: balance; overflow-wrap: anywhere; color: var(--sgx-text-primary); }
 :root[data-sgx-layout="desktop"] .dm-echo-body .dm-text { font-size: 34px; }

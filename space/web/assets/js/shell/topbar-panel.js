@@ -718,11 +718,36 @@ export function mountTopbar(o) {
 
   mountProgress(doc);
   mountPrefetch(doc);
+  mountAvBusy(doc);
   mountFootLift(doc);
   mountClock(doc);
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
   return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, sec: sec && sec.ms, openAccount: function (/** @type {any} */ x) { openAcct(x); }, openShield: function (/** @type {any} */ x) { openSec(x); }, term: termSheet, termShell: term, paint: paint, paintNav: paintNav };
+}
+
+/**
+ * 顶栏头像外圈的弧（Gray 2026-11-09，参考 mahmad.me）：平时 2.4 秒一圈；页面还在加载、终端在取数据（› fetching…）、Gray AI 在回答时
+ * 头像按钮加 .is-busy，CSS 把一圈改成 0.9 秒。各处发 document 上的 `sgx-busy` 事件（detail = true / false），这里按计数合并（几件事同时等也只算一次忙）。
+ * @param {Document} [d]
+ */
+export function mountAvBusy(d) {
+  const doc = d || document;
+  let n = 0;
+  let loading = doc.readyState !== 'complete';
+  function paint() {
+    const on = n > 0 || loading;
+    doc.querySelectorAll('.sgx-tb-av').forEach(function (a) { a.classList.toggle('is-busy', on); });
+  }
+  doc.addEventListener('sgx-busy', function (e) {
+    n = Math.max(0, n + (/** @type {CustomEvent} */ (e).detail ? 1 : -1));
+    paint();
+  });
+  if (loading) {
+    const w = doc.defaultView || window;
+    w.addEventListener('load', function () { loading = false; paint(); }, { once: true });
+  }
+  paint();
 }
 
 /**

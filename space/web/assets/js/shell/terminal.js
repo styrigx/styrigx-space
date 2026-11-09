@@ -579,6 +579,8 @@ export function mountTermView(root, sh, opts) {
     paintPrompt();
     if (r.after) r.after();
   }
+  /** @param {boolean} on */
+  function busyEv(on) { try { document.dispatchEvent(new CustomEvent('sgx-busy', { detail: on })); } catch (e) {} }
   /** @param {string} line */
   function run(line) {
     const pr = sh.ps1();
@@ -589,7 +591,10 @@ export function mountTermView(root, sh, opts) {
       const pend = /** @type {any} */ (r).pending;
       if (pend) print([{ t: 'line', seg: [['', '› ' + String(sh.str.fetching || TERM_EN.fetching).split('{x}').join(pend)]], cls: 'o' }]);
       inp.disabled = true;
+      /* 等待期间顶栏头像外圈的弧转快一档（topbar-panel.js mountAvBusy；这个文件不 import，只发事件） */
+      busyEv(true);
       /** @type {Promise<Result>} */ (r).then(function (x) {
+        busyEv(false);
         inp.disabled = false;
         finish(x);
         try { inp.focus({ preventScroll: true }); } catch (e) {}

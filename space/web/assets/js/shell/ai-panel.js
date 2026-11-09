@@ -797,6 +797,8 @@ export function mountAiChat(dlg, opts) {
     if (histBtn) histBtn.setAttribute('aria-expanded', String(v));
   }
   function setBusy(/** @type {boolean} */ v) {
+    /* 顶栏头像外圈的弧转快一档（等回答时；topbar-panel.js mountAvBusy 收 sgx-busy 事件，2026-11-09） */
+    if (v !== busy) { try { doc.dispatchEvent(new CustomEvent('sgx-busy', { detail: v })); } catch (e) {} }
     busy = v;
     if (send) {
       send.disabled = false;

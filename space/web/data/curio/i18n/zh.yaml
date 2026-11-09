@@ -193,6 +193,7 @@ js:
     saved: 已保存
     deleted: 已删除
     failed: 出了点问题，请再试一次。
+    loadFail: "error: 列表没能加载  # 刷新重试"
     needUrl: 填一个有效的网址。
     needName: 起个名字。
     needCat: 选一个分类。
@@ -261,6 +262,7 @@ js:
     noScope: 奇趣未获账号授权。
     badDate: 日期不对，检查一下。
     failed: 出了点问题，请再试一次。
+    loadFail: "error: 列表没能加载  # 刷新重试"
     saved: 已保存
     deleted: 已删除
     photoFail: 已保存，但照片没传上去。
@@ -315,6 +317,7 @@ js:
     saved: 已保存
     deleted: 已删除
     failed: 出了点问题，请再试一次。
+    loadFail: "error: 列表没能加载  # 刷新重试"
     photoFail: 已保存，但海报没传上去。
     del: 删除
     delMovie: 确定删除这部电影吗？
@@ -330,6 +333,7 @@ js:
   curioMusic:
     tracks: '{n} 首'
     failed: 出了点问题，请再试一次。
+    loadFail: "error: 列表没能加载  # 刷新重试"
     saved: 已上传
     deleted: 已删除
     needName: 填一下专辑名。

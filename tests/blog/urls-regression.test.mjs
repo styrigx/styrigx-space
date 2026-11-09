@@ -147,7 +147,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /styrigx@space:~\$<\/span><span class="?sgx-envps-r"? translate="?no"?>root@account:~#<\/span><\/span> ls -lt blog\//, '页头命令');
     assert.match(html, /<h1 class="?sgx-ph-title"?>博客<\/h1>/, '中文 h1「博客」（可见）');
     assert.match(await (await fetch(base + '/blog/')).text(), /<h1 class="?sgx-ph-title"?>Blog<\/h1>/, '英文 h1「Blog」');
-    assert.match(html, /写下来的东西。共 7 篇 · 最近更新 \d{4}-\d{2}-\d{2}/);
+    assert.match(html, /写下来的东西。共 7 篇 · 最近更新 <span class=\"?sgx-nw\"?>\d{4}-\d{2}-\d{2}<\/span>/, '日期整段不折行（2026-11-09 细节 6）');
     const chips = [...html.matchAll(/class="?sgx-chip"?[^>]*data-chip="?([^" >]*)"?/g)].map((m) => m[1]);
     assert.equal(chips[0], '', '第一个 chip = 全部');
     assert.ok(chips.length >= 2 && chips.length <= 7, '全部 + 至多 6 个分类：' + chips.length);
@@ -155,7 +155,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /class="?sgx-chip sgx-chip--more"? href="?\/blog\/zh\/tree\/"?/, 'tree blog/ → 目录页');
     assert.equal((html.match(/data-post[ >]/g) || []).length, 7, '7 篇都在页里（不跑脚本也能看全）');
     assert.match(html, /<h2 class="?sgx-yr"? data-year="?2026"?>2026<\/h2>/, '按年分组');
-    assert.match(html, /class="?sgx-pl-rt"?>\d+ min</, '阅读分钟');
+    assert.match(html, /class="?sgx-pl-rt"?>\d+ 分钟</, '阅读分钟（中文单位，2026-11-09 细节 9）');
     assert.match(html, /class="?sgx-pl-ex"?>/, '摘要');
     assert.match(html, /data-blog-pager[^>]*hidden/, '分页条（脚本填页码）');
     assert.doesNotMatch(html, /sgx-pane|data-sgx-entries|data-sgx-segs|data-sgx-titles|sgx-visually-hidden/, '没有三面板 / 入口 / 段式标签 / 分区名切换');
