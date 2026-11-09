@@ -7223,29 +7223,6 @@
   /* ===== 设置页组标题：三星设置风格（彩色实心圆形图标 + 标题） ===== */
   .set-gh { display: flex; align-items: center; gap: 12px; padding: 0 4px; margin: 0 0 10px; font-size: 17px; font-weight: 700; color: var(--m-on-surface); letter-spacing: -0.01em; }
 
-  /* ===== 安全与隐私页 ===== */
-
-  /* 账号 › 设备：「此设备」「其他设备」小标题（三星账号设备页式，灰色小字） */
-  .acct-dev-h { font-size: 13px; font-weight: 600; color: var(--m-on-surface-variant); padding: 0 20px; margin: 0 0 8px; }
-  .acct-dev-item[hidden], #acct-dev-list[hidden], #acct-dev-empty[hidden] { display: none; }
-  /* ===== .acct-layout / .acct-row / .acct-ic / .acct-note：临时钥匙、分享短链页的外框 / 行 / 圆形图标 / 小字说明
-     （2026-11-08 账号 UI 改版：旧 /account/* 页删除，账号改在头像下拉终端里，这几条只剩这两个页在用） ===== */
-  .acct-row {
-    position: relative; display: flex; align-items: center; gap: 14px; width: 100%;
-    padding: 14px 20px; min-height: 60px; text-align: left;
-    & + .acct-row::before {
-      content: ''; position: absolute; top: 0; left: 68px; right: 0;
-      border-top: 1px solid color-mix(in srgb, var(--m-outline) 55%, transparent);
-    }
-  }
-  .acct-ic { width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .acct-note { font-size: 12px; color: var(--sgx-text-secondary); padding: 0 4px; margin: 0; }
-  /* 卡片下面紧跟的说明、后面还有下一组（2026-10-24 PR4：设备页「此设备」卡下的保持登录说明、云同步页总开关下的说明）：上 8 下 24，和组间距一致 */
-  .acct-note.acct-note-gap { margin: 8px 0 24px; }
-  /* 2026-10-23 临时钥匙（设置 → 安全与隐私 → 临时钥匙）：新建弹层（名字 + 有效期下拉）和签发后的临时码 */
-
-  /* 2026-10-24 分享短链：弹层里「带临时会话」开关行、会话时长、生成后的链接；列表里的带会话 / 普通标记和复制按钮 */
-
   .sgx-verify-desc { font-size: 13px; color: var(--sgx-text-secondary); margin: 0; text-align: center; max-width: 300px; }
 
   /* B14 fix (Gray 2026-10-15)：锁定屏幕 360 折叠态大标题与顶栏重叠。
@@ -7974,28 +7951,6 @@
 /* @shell:end inpage */
 }
 
-/* ===== overrides 层（续）：设置 / 账号页底部留白、关于页页脚 =====
-   以前放在所有层之外；这一段不和后面不分层的共享外壳规则抢同一属性，放进 overrides 后结果不变。 */
-@layer overrides {
-  /* 布局切换时内容不卸载：只换 class 做重排 */
-  .layout-mobile .set-layout,
-  .layout-dex .set-layout,
-  .layout-mobile .acct-layout,
-  .layout-dex .acct-layout {
-    contain: layout style;
-  }
-  /* 手机布局：main 底部留白 = 底栏高 + 安全区 + 16px */
-  .layout-mobile .set-layout,
-  .layout-mobile .acct-layout {
-    padding-bottom: calc(var(--sgx-bottom-dock-h) + env(safe-area-inset-bottom, 0px) + 16px);
-  }
-  /* 版权页脚只在「设置 › 关于本站」，紧跟卡片下方，不沉到视口底（overrides 层，压过 pb-28 / 底栏留白） */
-  body:has(footer.sgx-about-foot) main { flex: 0 0 auto; padding-bottom: 0; }
-  body:has(footer.sgx-about-foot) .set-layout { padding-bottom: 0; }
-  body:has(footer.sgx-about-foot) .set-layout .widget { margin-bottom: 0; }
-  body footer.sgx-about-foot { margin-top: 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
-  footer.sgx-about-foot > div { padding-top: 20px; padding-bottom: 16px; }
-}
 
 /* topbar v2.0 start — 与 Book 同一套（返回圆 + 长条 + 导航圆）。旧顶栏（时间/日期/天气/音乐、
    标题区 ←/⋮、吸顶浮钮）已整体删除。放在所有 @layer 之外，优先于分层样式。 */
@@ -8183,8 +8138,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
    <html data-sgx-layout> 统一定（P4-3 顶栏长度统一，四站同一处，这里不再按 html.layout-* 另写一遍）。
    顶栏在各页都跟随这个框（不按页面内容收缩，切页时两侧圆不跳）；页面外框（首页 / 设置 / 账号 / 聊天 / 404）宽 = --sgx-shell-w、
    不加横向内边距，左右边线和顶栏两侧圆外缘对齐；页面里的内容列在框里居中：设置子页 / 账号（含服务状态）720，聊天 760，设置首页 DeX 两栏 1024（见 settings 段）。 */
-.home-wrap, .set-layout, .acct-layout, .sgx-404 { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
-.set-layout > *, .acct-layout > * { max-width: 720px; margin-left: auto; margin-right: auto; }
+.home-wrap, .sgx-404 { box-sizing: border-box; width: var(--sgx-shell-w); max-width: none; margin-left: auto; margin-right: auto; }
 /* 门内验证剩余时间胶囊（inline-flex，外框第一个子元素）：外框桌面通栏后仍停在原来的位置——原外框（最宽 1440）的左缘（宽屏平铺 PR：表单页不改样子） */
 
 /* @shell:begin wide（宽屏平铺：桌面布局内容页去卡片、多栏 + 细分隔线；共享外壳：gen-shell 抽到 shell.css，子站同步；只用 --sgx-* 角色，不写死颜色） */
