@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-CON-002 |
-| 版本 | 2.0 |
+| 版本 | 2.1 |
 | 日期 | 2026-11-09 |
 | 状态 | 现行 |
 | 取代 | `docs/blog/content-series.md` |
@@ -42,6 +42,10 @@ private: false                   # 可选；true 时不进站点地图
 3.2 `title`、`description`、`date` MUST 填写。
 
 3.3 系列：同一系列先按 `seriesOrder` 升序，没写的排在后面，再按日期、文件名。系列的「第 n / N 篇」只在同一语言里计算；文章页标题下显示系列名 · 第 n / N 篇 · 上一篇 / 下一篇，系列名链接到树形目录页 `/blog/tree/#series-<slug>`。中英版本各写各语言的系列名。
+
+3.4 新标签：第一次用到的标签 MUST 在 `space/web/content/tags/<标签>/_index.zh.md` 建中文标签页，写 `url: /blog/zh/tags/<slug>/` 与 `title`；中文标签名再加 `slug: <英文 slug>`（地址里不出现中文，与英文版同一个 slug）。缺这个文件构建失败。英文标签页不需要文件。中文页上的纯英文标签名要在 `tests/space/ui/build/lang-pack.test.mjs` 的 `ZH_ALLOW` 放行。
+
+3.5 新增文章后同步 `tests/blog/url-map.json`（页面、站点地图、RSS 顺序）和读取文章篇数的测试（`tests/blog/urls-regression.test.mjs`、`tests/blog/e2e/app-topbar.spec.js`）。
 
 ## 4. 内容规则
 
