@@ -1,5 +1,5 @@
 /**
- * @fileoverview 全站搜索索引：奇趣自己把收藏、设备、游戏、电影、音乐（元数据）写进 KV styrigx-space-gateway（2026-11 前 styrigx-search-index）的 site:curio。
+ * @fileoverview 全站搜索索引：奇趣自己把收藏、设备、游戏、电影、音乐（元数据）写进 KV styrigx-space-core（进站 v3 L2b 前 styrigx-space-gateway）的 site:curio。
  * 这份索引只给 AI 用（站内没有搜索界面）：styrigx-ai 关键词召回直接读它，每小时 Cron 再切段写进 Vectorize 做语义召回（2026-11 AI 语义召回）。
  *
  * 值的格式（与 styrigx-space 仓库 workers/ai/src/core/rank.js 一致）：

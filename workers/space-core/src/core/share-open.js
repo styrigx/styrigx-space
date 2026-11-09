@@ -9,7 +9,7 @@
  *   （Sec-Purpose / Purpose: prefetch）不发会话——预取直接 503（浏览器丢掉预取、真点开时再走一遍），HEAD 只 302。
  * - 码只出现在 /s/<码> 这一跳：Location 是干净的目标地址（不带码），Referrer-Policy: no-referrer，
  *   所以码不会留在地址栏、历史（最终地址）和下一页的 Referer 里。
- * - 不存在 / 过期 / 作废 / 格式不对 / 目标不合法 / 网关拒签 / 被限速 / 出错：一律同一个响应（302 到 /?lock=1），不说是哪种。
+ * - 不存在 / 过期 / 作废 / 格式不对 / 目标不合法 / 网关拒签 / 被限速 / 出错：一律同一个响应（302 到锁屏 /?entry=1；进站 v3 L2b 起，之前是旧参数 ?lock=1，前端仍兼容读），不说是哪种。
  * - 限速：同一 IP 15 分钟内 10 次打不开 → 锁 15 分钟（期间这个 IP 的 /s/* 一律走失败响应，真码也一样）。
  *   计数在 D1 share_fail，外面再套一层本 isolate 内存计数（锁住期间不再查 / 写 D1）。格式不对的码不写 D1（不可能对得上），只记内存。
  *   share_fail 每个打不开过的 IP 一行：每次写失败计数时约 FAIL_PURGE_RATE 的概率顺手删掉窗口和锁定都已过期的行
@@ -53,7 +53,7 @@ function redirect(location, cookies) {
 
 /** 所有失败都是这一个响应 */
 export function failResponse() {
-  return redirect(ORIGIN + '/?lock=1');
+  return redirect(ORIGIN + '/?entry=1');
 }
 
 /** @param {Request} request */
@@ -113,7 +113,7 @@ export async function openShare(request, env, ctx, auth, code) {
   if (isPrefetch(request)) {
     return new Response(null, { status: 503, headers: { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' } });
   }
-  const db = env && env.D1_SHARE_LINK;
+  const db = env && env.D1_SPACE;
   const ip = clientIp(request);
   const now = Date.now();
   if (!db || memLocked(ip, now)) return failResponse();

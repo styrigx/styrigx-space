@@ -1,4 +1,4 @@
--- 站点监测 styrigx-status 的基线表结构（2026-11 D1 合库）：库 styrigx-space-gateway（主站数据统一进这一个库），迁移记录表 d1_migrations_status。
+-- 站点监测 styrigx-status 的基线表结构（2026-11 D1 合库时写的）：进站 v3 L2b（2026-11-09）起库是 status 自己的 styrigx-status（之前在共用库 styrigx-space-gateway），迁移记录表 d1_migrations_status。
 -- 等于旧库 styrigx-status 跑完 migrations-archive/0001–0005 后的表结构，表名和索引名一律加 status_ 前缀（库里还有网关表和短链 share_*）。
 -- 列的顺序和旧库一致（status_state.first_fail_at 在最后，旧库是 ALTER 加的），搬数据时按列名插入。
 -- 只建表建索引，不放数据、不删数据（存量行由 .github/workflows/d1-cutover.yml 从旧库 styrigx-status 搬来并改表名）。

@@ -1,39 +1,43 @@
 #!/usr/bin/env node
 /**
- * @fileoverview 主站数据合库（2026-11，Gray 定）：一次性把三个旧 D1 和旧搜索索引 KV 搬进主站共用的一套 styrigx-space-gateway。
+ * @fileoverview 进站 v3 L2b（2026-11-09，Gray 08:18 / 08:21 定）：一次性把主站数据从 2026-11-07 合出来的共用库 styrigx-space-gateway 拆进两个新库，
+ * 搜索索引 KV 换成同名的 styrigx-space-core（Pages 站 + <站>-core Worker + <站>-core D1 / KV，和奇趣、日刻一个模子）。
  *
- *   D1 styrigx-auth-gateway（网关，全表）  → D1 styrigx-space-gateway（表名不变）
- *   D1 styrigx-share（短链 share_link / share_fail）→ 同上（表名不变，本来就带 share_ 前缀）
- *   D1 styrigx-status（监测 7 张表）        → 同上（表名加 status_ 前缀：checks → status_checks …）
- *   KV styrigx-search-index（全部键）       → KV styrigx-space-gateway
- * 账号 styrigx-account（D1 + KV）、奇趣 / 日刻 core、预览库 styrigx-test-preview 不动。旧库 / 旧命名空间只读、不删（删前 Gray 确认）。
+ *   D1 styrigx-space-gateway 的网关表（epoch / password / passkey / …，表名不变）→ D1 styrigx-space-core（绑定 D1_SPACE）
+ *   D1 styrigx-space-gateway 的 share_link / share_fail                       → D1 styrigx-space-core（同一个绑定 D1_SPACE）
+ *   D1 styrigx-space-gateway 的 status_* 七张表                               → D1 styrigx-status（status Worker 自己的库，表名不变）
+ *   KV styrigx-space-gateway（全部键：site:*、ai:models、ai:recall:*）        → KV styrigx-space-core
+ * 账号 styrigx-account、奇趣 / 日刻 core、预览库 styrigx-test-preview 不动。旧库 / 旧命名空间只读、不删（回滚兜底；L3 删，先列清单）。
+ * 2026-11-07 那一次（三个旧库 → styrigx-space-gateway）的版本见 git 历史（PR #304）。
  *
- * 由 .github/workflows/d1-cutover.yml（workflow_dispatch）跑，用法：
+ * 由 .github/workflows/d1-cutover.yml（workflow_dispatch）和 deploy.yml 跑，用法：
  *   node space/scripts/d1-cutover.mjs d1 [--dry-run | --verify] [--kv-keys N]
  *   node space/scripts/d1-cutover.mjs kv [--dry-run | --verify]
- *   node space/scripts/d1-cutover.mjs gate                     （deploy.yml 的 d1-cutover-gate：四个搬迁标记都在 → ready=true）
- * 环境：CLOUDFLARE_API_TOKEN（D1 编辑 / KV 编辑）、CLOUDFLARE_ACCOUNT_ID、WRANGLER_VERSION；CF_API_BASE 只给测试用。
+ *   node space/scripts/d1-cutover.mjs gate      （deploy.yml 的 d1-cutover-gate：四个搬迁标记都在 → ready=true）
+ *   node space/scripts/d1-cutover.mjs resync    （deploy.yml 的 deploy-space-core，部署新绑定之前：凭证类表再和旧库比一遍，变了就整表重拷；见下）
+ *   node space/scripts/d1-cutover.mjs switched  （deploy-space-core 部署 + 冒烟通过后：写 switched 标记，之后 resync 一律跳过）
+ * 环境：CLOUDFLARE_API_TOKEN（D1 编辑 / KV 编辑，账号级）、CLOUDFLARE_ACCOUNT_ID、WRANGLER_VERSION；CF_API_BASE 只给测试用。
  *
- * D1（每个来源一遍，顺序 status → share → gateway）：
- *   1. 列旧库的表（去掉 sqlite_* / _cf_* / d1_migrations*），和白名单核对：多出来或缺了必需表 → 失败（不悄悄丢表）。
- *   2. 新库里对应的表必须已经在（迁移由工作流先跑：三个 Worker 目录各自 d1 migrations apply，各用各的 migrations_table）。
- *      本脚本和 Worker 代码都不建业务表：表不在 = 迁移没跑，直接失败，不会在空库上悄悄建出空表。
- *   3. wrangler d1 export <旧库> --remote --no-schema --table …，逐行改表名（只认 INSERT INTO "<表>" / PRAGMA 行，别的行一律失败）。
- *   4. --dry-run：不写远端。在本机 node:sqlite 上按三套迁移建出新库的表，导入改好的 SQL，逐表比对行数，报告远端新库现状。
+ * D1（每个来源一遍，顺序 status → share → gateway；三个来源同一个旧库）：
+ *   1. 列旧库的表（去掉 sqlite_* / _cf_* / d1_migrations* / d1_cutover），和三个来源名单的并集核对：多出来的表或缺了必需表 → 失败（不悄悄丢表）。
+ *   2. 新库里对应的表必须已经在（迁移由工作流先跑：space-core 的 D1_SPACE、status 的 styrigx-status，各用各的 migrations_table）。
+ *      本脚本不建业务表：表不在 = 迁移没跑，直接失败。
+ *   3. wrangler d1 export <旧库> --remote --no-schema --table …（只认 INSERT INTO "<表>" / PRAGMA 行，别的行一律失败）。
+ *   4. --dry-run：不写远端。在本机 node:sqlite 上按两套迁移建出新库的表，导入导出的 SQL，逐表比对行数，报告远端新库现状。
  *      正式：这个来源还没有搬迁标记 → 先清空新库里它的那几张表（没有标记 = 还没有新代码在用，见 gate），再 wrangler d1 execute --file 导入。
  *      已有标记 → 不再导入，只核对。
  *   5. 核对（不一致即失败）：
  *      - 每张表：新库行数 = 导出文件里的行数；
- *      - 凭证表（网关 epoch / password / passkey / user_handle / lock_reset_switch）：新库内容 = 旧库此刻的内容（逐行 sha256，与顺序无关）；
- *      - 计数表（网关 tempkey / device / kv_migration、短链 share_link）：新库行数 = 旧库此刻的行数；
- *      - 其余（challenge / attempt_limit / audit / share_fail / 监测全部）：旧库此刻和新库行数不一样只打 warning
- *        （旧 Worker 在新代码部署前还在写：监测每分钟、锁屏页的计数和审计；丢这几分钟无害）。
- *      导出里有凭证但新库对不上，多半是搬迁期间有人登录 / 改了密码：重跑一次（没有标记会先清空再搬）。
- *   6. 全部通过才写搬迁标记（新库表 d1_cutover：source / done_at / counts）。deploy.yml 的 d1-cutover-gate 见到
- *      gateway / share / status / kv 四条标记才放行部署（之前合并的 main 推送不会把新代码部署到空库上）。
+ *      - 凭证表（epoch / password / passkey / user_handle / lock_reset_switch）：新库内容 = 旧库此刻的内容（逐行 sha256，与顺序无关）；
+ *      - 计数表（tempkey / device / kv_migration、share_link）：新库行数 = 旧库此刻的行数；
+ *      - 其余（challenge / attempt_limit / audit / share_fail / 监测全部）：只打 warning（旧 Worker 在新代码部署前还在写）。
+ *   6. 全部通过才写搬迁标记（styrigx-space-core 的表 d1_cutover：source / done_at / counts）。deploy.yml 的 d1-cutover-gate 见到
+ *      gateway / share / status / kv 四条标记才放行 ai / status / space-core / 奇趣 / 日刻的部署（合并后的 main 推送不会把新绑定部署到空库上）。
+ * resync（搬完到切绑定之间旧 Worker 还在写旧库：Gray 可能正好在改解锁密码 / 加通行密钥 / 作废临时钥匙或分享链接）：
+ *   部署 space-core 新版本之前，把凭证表 + 计数表（epoch / password / passkey / user_handle / lock_reset_switch / tempkey / device / kv_migration / share_link）
+ *   逐表和旧库比指纹；不一样的整表重拷（新库清空 → 按旧库此刻的行插入 → 再比一次，还不一样就失败、不部署）。只在没有 switched 标记时做：
+ *   切换成功后新库才是准的，再拿旧库盖它就是丢数据。
  * KV：列旧命名空间全部键（带 metadata / expiration）→ 逐个读值 → bulk 写新命名空间 → 核对键数一致、每个值逐字节一致。
- *   site:space / site:blog 由 deploy-ai-worker 每次部署重写，site:curio / site:daymark 由各自 Worker 的 Cron 每小时重建，
- *   但模型登记 ai:models 是手写的值、不会重建，所以整个命名空间照搬一遍（量很小）。
  * 不打印、不上传任何行内容（只有表名、行数、哈希前缀）。临时文件在系统临时目录，结束时删掉。
  */
 import { execFileSync } from 'node:child_process';
@@ -46,41 +50,53 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEFAULT_API = 'https://api.cloudflare.com/client/v4';
 
-/** 新库（主站共用）。和 workers/{space-core,status}/wrangler.toml 的 database_id 一致（d1-cutover.test.mjs 核对）。 */
-export const TARGET = { name: 'styrigx-space-gateway', id: '39d037fe-6ab3-410d-a090-4d7ce8d48d83' };
+/** 旧库：2026-11-07 合出来的主站共用库（只读，不删）。 */
+export const OLD = { name: 'styrigx-space-gateway', id: '39d037fe-6ab3-410d-a090-4d7ce8d48d83' };
+/** 新库。和 workers/space-core/wrangler.toml 的 D1_SPACE、workers/status/wrangler.toml 的 D1_UPTIME_MONITOR 一致（d1-cutover.test.mjs 核对）。 */
+export const TARGETS = {
+  core: { name: 'styrigx-space-core', id: '1354c898-aacd-4122-92de-0ae39a3fcc1a' },
+  status: { name: 'styrigx-status', id: '38719f10-fdff-43fd-bcbb-387a6b734f55' },
+};
+/** 搬迁标记都记在 styrigx-space-core 里（gate / resync 只查这一个库） */
+export const MARKER_DB = TARGETS.core;
 /** 新旧搜索索引 KV 命名空间。新的和 workers/{ai,curio-core,daymark-core}/wrangler.toml 的 KV_SEARCH_INDEX 一致。 */
-export const KV = { from: { name: 'styrigx-search-index', id: 'bd1babcc3fe74d58994e254c74d34ced' }, to: { name: 'styrigx-space-gateway', id: '608cf3e27184481cbca2922950506d87' } };
+export const KV = { from: { name: 'styrigx-space-gateway', id: '608cf3e27184481cbca2922950506d87' }, to: { name: 'styrigx-space-core', id: '4bcdb84f205541b9b6c8d230bc2b106f' } };
 export const MARKER_TABLE = 'd1_cutover';
+export const SWITCHED = 'switched';
 
+const same = (t) => t;
 /**
- * 三个来源。tables：旧表名 → 级别（hash 内容必须一致 / count 行数必须一致 / live 只打 warning）；required：旧库里必须有的表。
- * rename：旧表名 → 新表名。migrations：建新库表的迁移目录（dry-run 在本机按它建表）。
+ * 三个来源（同一个旧库）。tables：表名 → 级别（hash 内容必须一致 / count 行数必须一致 / live 只打 warning）；required：旧库里必须有的表。
+ * 表名新旧一样（rename 恒等，留着是为了导出改写那一步的接口不变）。migrations：建新库表的迁移目录（dry-run 在本机按它建表）。
  */
 export const SOURCES = [
   {
-    key: 'status', old: { name: 'styrigx-status', id: '31970da7-4b8f-4180-ad93-c170649188dc' },
-    tables: { checks: 'live', state: 'live', hourly: 'live', daily: 'live', incidents: 'live', usage: 'live', quota: 'live' },
-    required: ['checks', 'state', 'hourly', 'daily', 'incidents', 'usage', 'quota'],
-    rename: (t) => 'status_' + t, migrations: 'workers/status/migrations',
+    key: 'status', old: OLD, target: TARGETS.status,
+    tables: { status_checks: 'live', status_state: 'live', status_hourly: 'live', status_daily: 'live', status_incidents: 'live', status_usage: 'live', status_quota: 'live' },
+    required: ['status_checks', 'status_state', 'status_hourly', 'status_daily', 'status_incidents', 'status_usage', 'status_quota'],
+    rename: same, migrations: 'workers/status/migrations',
   },
   {
-    key: 'share', old: { name: 'styrigx-share', id: '59bddcea-17cb-466a-90c9-16606d5b4b7e' },
+    key: 'share', old: OLD, target: TARGETS.core,
     tables: { share_link: 'count', share_fail: 'live' },
     required: ['share_link', 'share_fail'],
-    rename: (t) => t, migrations: 'workers/space-core/migrations-share',
+    rename: same, migrations: 'workers/space-core/migrations',
   },
   {
-    key: 'gateway', old: { name: 'styrigx-auth-gateway', id: '6931d1da-3502-480d-b0bd-de1bc4829d1d' },
+    key: 'gateway', old: OLD, target: TARGETS.core,
     tables: {
       epoch: 'hash', password: 'hash', passkey: 'hash', user_handle: 'hash', lock_reset_switch: 'hash',
       tempkey: 'count', device: 'count', kv_migration: 'count',
       challenge: 'live', attempt_limit: 'live', audit: 'live',
     },
     required: ['epoch', 'password', 'passkey', 'user_handle', 'lock_reset_switch'],
-    rename: (t) => t, migrations: 'workers/space-core/migrations',
+    rename: same, migrations: 'workers/space-core/migrations',
   },
 ];
 export const GATE_SOURCES = ['gateway', 'share', 'status', 'kv'];
+/** resync 的表：网关 / 分享链接里级别是 hash 或 count 的（凭证、钥匙、链接；live 的计数 / 审计不管） */
+export const RESYNC_TABLES = SOURCES.filter((s) => s.target === TARGETS.core)
+  .flatMap((s) => Object.entries(s.tables).filter(([, l]) => l !== 'live').map(([t]) => t));
 
 /** 内部表：不搬（迁移记录各库自己的；sqlite_sequence 由显式 id 自动更新；_cf_* 是 Cloudflare 自己的） */
 export const isInternal = (t) => /^(sqlite_|_cf_|d1_migrations)/.test(t) || t === MARKER_TABLE;
@@ -114,13 +130,22 @@ export function rowsHash(rows) {
   return createHash('sha256').update(lines.join('\n')).digest('hex');
 }
 
-/** 旧表的级别和白名单检查。 @returns {{ tables: string[], problems: string[] }} */
-export function planTables(src, oldTables) {
+/**
+ * 旧库的表和三个来源名单的并集核对，再按来源分。 @param {string[]} oldTables
+ * @returns {{ bySource: Record<string, string[]>, problems: string[] }}
+ */
+export function planTables(oldTables, sources = SOURCES) {
   const tables = oldTables.filter((t) => !isInternal(t)).sort();
   const problems = [];
-  for (const t of tables) if (!(t in src.tables)) problems.push(src.key + ': table ' + t + ' in ' + src.old.name + ' is not in the cutover list');
-  for (const t of src.required) if (!tables.includes(t)) problems.push(src.key + ': required table ' + t + ' missing in ' + src.old.name);
-  return { tables, problems };
+  const owner = new Map(sources.flatMap((s) => Object.keys(s.tables).map((t) => [t, s.key])));
+  for (const t of tables) if (!owner.has(t)) problems.push('table ' + t + ' in ' + OLD.name + ' is not in the cutover list');
+  /** @type {Record<string, string[]>} */
+  const bySource = {};
+  for (const s of sources) {
+    bySource[s.key] = tables.filter((t) => owner.get(t) === s.key);
+    for (const t of s.required) if (!tables.includes(t)) problems.push(s.key + ': required table ' + t + ' missing in ' + OLD.name);
+  }
+  return { bySource, problems };
 }
 
 // ---------------------------------------------------------------------------------------------------------------- Cloudflare
@@ -179,7 +204,7 @@ export function wranglerRunner(dir) {
   const config = (src) => writeFileSync(path.join(dir, 'wrangler.toml'), [
     'name = "d1-cutover"', 'main = "x.js"', 'compatibility_date = "2026-10-09"',
     '[[d1_databases]]', 'binding = "OLD"', 'database_name = "' + src.old.name + '"', 'database_id = "' + src.old.id + '"',
-    '[[d1_databases]]', 'binding = "NEW"', 'database_name = "' + TARGET.name + '"', 'database_id = "' + TARGET.id + '"', ''].join('\n'));
+    '[[d1_databases]]', 'binding = "NEW"', 'database_name = "' + src.target.name + '"', 'database_id = "' + src.target.id + '"', ''].join('\n'));
   return {
     exportData(src, tables) {
       config(src);
@@ -208,25 +233,25 @@ async function colsOf(cf, db, t) { return (await cf.query(db, 'PRAGMA table_info
 const selectCols = (t, cols) => 'SELECT ' + cols.map(q).join(', ') + ' FROM ' + q(t);
 async function hashOf(cf, db, t, cols) { return rowsHash(await cf.query(db, selectCols(t, cols))); }
 
-/** 本机 node:sqlite：按三套迁移建出新库的表（dry-run 用） */
+/** 本机 node:sqlite：按两套迁移（space-core、status；表名不重叠）建出新库的表（dry-run 用） */
 async function localTarget() {
   const { DatabaseSync } = await import('node:sqlite');
   const db = new DatabaseSync(':memory:');
-  for (const s of SOURCES) {
-    const dir = path.join(REPO, s.migrations);
+  for (const m of new Set(SOURCES.map((x) => x.migrations))) {
+    const dir = path.join(REPO, m);
     for (const f of readdirSync(dir).filter((x) => x.endsWith('.sql')).sort()) db.exec(readFileSync(path.join(dir, f), 'utf8'));
   }
   return db;
 }
 
 async function markers(cf) {
-  const have = await tableNames(cf, TARGET.id);
+  const have = await tableNames(cf, MARKER_DB.id);
   if (!have.includes(MARKER_TABLE)) return new Map();
-  return new Map((await cf.query(TARGET.id, 'SELECT source, done_at, counts FROM ' + MARKER_TABLE)).map((r) => [r.source, r]));
+  return new Map((await cf.query(MARKER_DB.id, 'SELECT source, done_at, counts FROM ' + MARKER_TABLE)).map((r) => [r.source, r]));
 }
 async function writeMarker(cf, source, counts) {
-  await cf.query(TARGET.id, 'CREATE TABLE IF NOT EXISTS ' + MARKER_TABLE + ' (source TEXT PRIMARY KEY, done_at INTEGER NOT NULL, counts TEXT NOT NULL)');
-  await cf.query(TARGET.id, 'INSERT INTO ' + MARKER_TABLE + ' (source, done_at, counts) VALUES (?, ?, ?) ON CONFLICT (source) DO UPDATE SET done_at = excluded.done_at, counts = excluded.counts',
+  await cf.query(MARKER_DB.id, 'CREATE TABLE IF NOT EXISTS ' + MARKER_TABLE + ' (source TEXT PRIMARY KEY, done_at INTEGER NOT NULL, counts TEXT NOT NULL)');
+  await cf.query(MARKER_DB.id, 'INSERT INTO ' + MARKER_TABLE + ' (source, done_at, counts) VALUES (?, ?, ?) ON CONFLICT (source) DO UPDATE SET done_at = excluded.done_at, counts = excluded.counts',
     [source, Date.now(), JSON.stringify(counts)]);
 }
 
@@ -241,7 +266,11 @@ export async function runD1(o) {
   const warnings = [];
   const report = {};
   const cf = o.cf;
-  const newTables = new Set(await tableNames(cf, TARGET.id));
+  /** @type {Map<string, Set<string>>} 新库 id → 表名 */
+  const newTablesOf = new Map();
+  for (const t of Object.values(TARGETS)) newTablesOf.set(t.id, new Set(await tableNames(cf, t.id)));
+  const plan = planTables(await tableNames(cf, OLD.id), o.sources || SOURCES);
+  if (plan.problems.length) return { ok: false, errors: plan.problems, warnings, report };
   const marks = await markers(cf);
   const local = o.mode === 'dry-run' ? await localTarget() : null;
   const localTables = local ? new Set(local.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name)) : null;
@@ -250,8 +279,9 @@ export async function runD1(o) {
     /* 正式：前一个来源失败就停（不往下搬）；dry-run / verify 全部报告 */
     if (o.mode === 'apply' && errors.length) break;
     const r = report[src.key] = { tables: {}, marker: marks.has(src.key) };
-    const { tables, problems } = planTables(src, await tableNames(cf, src.old.id));
-    if (problems.length) { errors.push(...problems); continue; }
+    const tables = plan.bySource[src.key];
+    const TARGET = src.target;
+    const newTables = newTablesOf.get(TARGET.id);
     const want = localTables || newTables;
     const missing = tables.map(src.rename).filter((t) => !want.has(t));
     if (missing.length) {
@@ -319,6 +349,51 @@ export async function runD1(o) {
   if (o.mode === 'apply' && o.kvKeys != null && !errors.length) { await writeMarker(cf, 'kv', { keys: o.kvKeys }); report.kv = { marker: true, keys: o.kvKeys }; }
   return { ok: errors.length === 0, errors, warnings, report };
 }
+
+// ---------------------------------------------------------------------------------------------------------------- resync
+
+/** D1 一条语句最多 100 个绑定参数 */
+const MAX_PARAMS = 90;
+
+/**
+ * 切绑定之前（deploy-space-core 部署新版本前一步）：RESYNC_TABLES 逐表和旧库比指纹，不一样的整表重拷。
+ * 有 switched 标记（已经切过）→ 什么都不做。gateway / share 没有搬迁标记 → 失败（gate 本来就不该放行）。
+ * @param {{ cf: ReturnType<typeof cloudflare>, log?: (s:string)=>void }} o
+ * @returns {Promise<{ ok: boolean, skipped: boolean, errors: string[], copied: Record<string, number>, same: string[] }>}
+ */
+export async function runResync(o) {
+  const log = o.log || ((s) => process.stdout.write(s + '\n'));
+  const cf = o.cf;
+  const out = { ok: true, skipped: false, errors: [], copied: {}, same: [] };
+  const marks = await markers(cf);
+  if (marks.has(SWITCHED)) { out.skipped = true; log('resync: already switched (marker ' + SWITCHED + '), nothing to do'); return out; }
+  for (const k of ['gateway', 'share']) if (!marks.has(k)) out.errors.push('resync: no cutover marker ' + k + ' in ' + MARKER_DB.name);
+  if (out.errors.length) { out.ok = false; return out; }
+  const target = TARGETS.core.id;
+  for (const t of RESYNC_TABLES) {
+    const cols = await colsOf(cf, OLD.id, t);
+    const oldRows = await cf.query(OLD.id, selectCols(t, cols));
+    const h = rowsHash(oldRows);
+    if (h === await hashOf(cf, target, t, cols)) { out.same.push(t); continue; }
+    await cf.query(target, 'DELETE FROM ' + q(t));
+    const per = Math.max(1, Math.floor(MAX_PARAMS / cols.length));
+    for (let i = 0; i < oldRows.length; i += per) {
+      const chunk = oldRows.slice(i, i + per);
+      const sql = 'INSERT INTO ' + q(t) + ' (' + cols.map(q).join(', ') + ') VALUES ' + chunk.map(() => '(' + cols.map(() => '?').join(', ') + ')').join(', ');
+      await cf.query(target, sql, chunk.flatMap((r) => cols.map((c) => (r[c] === undefined ? null : r[c]))));
+    }
+    const after = await hashOf(cf, target, t, cols);
+    if (after !== h || after !== await hashOf(cf, OLD.id, t, cols)) out.errors.push('resync: ' + t + ' still differs after the copy (written again meanwhile? run the deploy again)');
+    out.copied[t] = oldRows.length;
+    log('resync: ' + t + ' changed since the cutover → re-copied ' + oldRows.length + ' rows (hash ' + h.slice(0, 12) + ')');
+  }
+  if (out.same.length) log('resync: unchanged ' + out.same.join(', '));
+  out.ok = out.errors.length === 0;
+  return out;
+}
+
+/** 切换成功（deploy-space-core 部署 + 冒烟通过）后写 switched 标记：之后 resync 一律跳过（新库才是准的）。 */
+export async function markSwitched(cf) { await writeMarker(cf, SWITCHED, { at: new Date().toISOString() }); }
 
 // ---------------------------------------------------------------------------------------------------------------- KV
 
@@ -393,8 +468,19 @@ async function main(argv) {
   if (cmd === 'gate') {
     const g = await gate(cf);
     process.stdout.write('d1-cutover gate: ' + (g.ready ? 'ready' : 'NOT ready') + ' (markers: ' + (g.have.join(', ') || 'none') + ')\n');
-    if (!g.ready) process.stdout.write('::warning::主站数据还没搬进 ' + TARGET.name + '（.github/workflows/d1-cutover.yml 没跑完）：本次跳过 ai / status / curio-core / daymark-core / space-core 部署\n');
+    if (!g.ready) process.stdout.write('::warning::主站数据还没搬进 ' + TARGETS.core.name + ' / ' + TARGETS.status.name + '（.github/workflows/d1-cutover.yml 没跑完）：本次跳过 ai / status / curio-core / daymark-core / space-core 部署\n');
     if (out) writeFileSync(out, 'ready=' + g.ready + '\n', { flag: 'a' });
+    return 0;
+  }
+  if (cmd === 'resync') {
+    const r = await runResync({ cf });
+    for (const e of r.errors) process.stdout.write('::error::' + e + '\n');
+    if (Object.keys(r.copied).length) process.stdout.write('::warning::resync re-copied ' + Object.keys(r.copied).join(', ') + ' from ' + OLD.name + ' (changed after the cutover)\n');
+    return r.ok ? 0 : 1;
+  }
+  if (cmd === 'switched') {
+    await markSwitched(cf);
+    process.stdout.write('d1-cutover: marker ' + SWITCHED + ' written in ' + MARKER_DB.name + '\n');
     return 0;
   }
   if (cmd === 'kv') {
@@ -419,7 +505,7 @@ async function main(argv) {
       rmSync(dir, { recursive: true, force: true }); /* 导出里有锁屏凭证：不留文件 */
     }
   }
-  process.stdout.write('usage: d1-cutover.mjs d1|kv|gate [--dry-run|--verify] [--kv-keys N]\n');
+  process.stdout.write('usage: d1-cutover.mjs d1|kv|gate|resync|switched [--dry-run|--verify] [--kv-keys N]\n');
   return 2;
 }
 

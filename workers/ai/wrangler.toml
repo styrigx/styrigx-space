@@ -44,12 +44,12 @@ binding = "CURIO"
 service = "styrigx-curio-core"
 entrypoint = "CurioReader"
 
-# 全站搜索索引（KV styrigx-space-gateway，2026-11 由 styrigx-search-index 换过来：主站数据 D1 + KV 一套；各站 CI / Cron 写 site:<站名>）。
+# 全站搜索索引（KV styrigx-space-core；进站 v3 L2b 2026-11-09 由 styrigx-space-gateway 换过来，再之前是 styrigx-search-index；各站 CI / Cron 写 site:<站名>）。
 # ai:models 是手写的值，由 .github/workflows/d1-cutover.yml 从旧命名空间拷过来；site:* 会被 CI / Cron 重建。读：site:space / site:blog / site:curio / site:daymark，
 # 以及模型登记 ai:models（P4-2，core/models.js；换模型改这个 KV 值即可，不用补丁部署）。写：只有向量同步状态 ai:recall:<站名>（2026-11）。
 [[kv_namespaces]]
 binding = "KV_SEARCH_INDEX"
-id = "608cf3e27184481cbca2922950506d87"
+id = "4bcdb84f205541b9b6c8d230bc2b106f"
 
 [vars]
 # 模型登记的退路（KV ai:models 没有 / 坏时用）：自营 Gemma 4（默认）+ GPT-OSS 20B，走 Workers AI；外部 Gemini 2.5 Flash 走 Gemini API。

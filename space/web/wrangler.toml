@@ -29,24 +29,17 @@ SGX_SITE = "space"
 # KV_PROFILE，passkey-e2e 不测它，/avatar/<尺寸>.webp 落到静态默认图（env.ASSETS）。
 [env.preview]
 # preview D1 绑定（styrigx-test-preview：所有 Worker 的预览共用的测试专用库，2026-10-29 起；绝不指向正式库）。
-# 同库还有账号 Worker 的预览表（workers/account 的 [env.preview]）和分享链接的 share_* 表，表名互不重叠；
-# 本块用默认迁移记录表 d1_migrations，账号用 d1_migrations_account，分享链接用 d1_migrations_share。
-# 绑定名同正式：D1_SPACE（进站）、D1_SHARE_LINK（分享链接，进站 v3 L2 由 styrigx-share 并入）、D1_ACCOUNT（账号 Worker），同一个库三个名字；
-# 迁移文件和 Worker 放在一起（workers/space-core/migrations/、migrations-share/）。
+# 同库还有账号 Worker 的预览表（workers/account 的 [env.preview]），表名互不重叠；本块迁移记录表 d1_migrations_core（同正式），账号用 d1_migrations_account。
+# 绑定名同正式：D1_SPACE（进站 + 分享链接，进站 v3 L2b 起一个绑定）、D1_ACCOUNT（账号 Worker），同一个库两个名字。
+# 迁移文件和 Worker 放在一起（workers/space-core/migrations/0001_baseline.sql，全部 IF NOT EXISTS：预览库里旧迁移建好的表遇到它是空操作）。
 [[env.preview.d1_databases]]
 binding = "D1_SPACE"
 database_name = "styrigx-test-preview"
 database_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"
 migrations_dir = "../../workers/space-core/migrations"
+migrations_table = "d1_migrations_core"
 
 [[env.preview.d1_databases]]
 binding = "D1_ACCOUNT"
 database_name = "styrigx-test-preview"
 database_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"
-
-[[env.preview.d1_databases]]
-binding = "D1_SHARE_LINK"
-database_name = "styrigx-test-preview"
-database_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"
-migrations_dir = "../../workers/space-core/migrations-share"
-migrations_table = "d1_migrations_share"

@@ -41,23 +41,23 @@ crons = ["* * * * *", "41 * * * *"]
 enabled = true
 head_sampling_rate = 1
 
-# D1 styrigx-space-gateway（2026-11 D1 合库：主站数据统一进这一个库，网关 / 短链 / 监测三个 Worker 各自独立、共用一个库）。
-# 本 Worker 两套数据，表名都带 status_ 前缀（库里还有网关表和短链 share_*）：
+# D1 styrigx-status（进站 v3 L2b，2026-11-09，Gray 08:21 定：监测和账号一个做法，独立一个库；之前和网关 / 短链共用 styrigx-space-gateway）。
+# 本 Worker 两套数据，表名带 status_ 前缀（2026-11-07 合库时加的，搬到独立库后保留不改）：
 #   D1_UPTIME_MONITOR = status_checks / status_state / status_hourly / status_daily / status_incidents；
 #   D1_CLOUDFLARE_USAGE = status_usage / status_quota。migrations_dir / migrations_table 只配在第一个上。
-# 迁移记录表 d1_migrations_status（网关 d1_migrations_gateway、短链 d1_migrations_share）。
-# 旧库 styrigx-status 的迁移历史在 migrations-archive/（只留史，不再跑）；数据由 .github/workflows/d1-cutover.yml 一次性搬来（表名加 status_）。
+# 迁移记录表 d1_migrations_status。数据由 .github/workflows/d1-cutover.yml 从旧库 styrigx-space-gateway 原样搬来（旧库只读不删，L3 删）。
+# 更早的迁移历史在 migrations-archive/（只留史，不再跑）。
 [[d1_databases]]
 binding = "D1_UPTIME_MONITOR"
-database_name = "styrigx-space-gateway"
-database_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"
+database_name = "styrigx-status"
+database_id = "38719f10-fdff-43fd-bcbb-387a6b734f55"
 migrations_dir = "migrations"
 migrations_table = "d1_migrations_status"
 
 [[d1_databases]]
 binding = "D1_CLOUDFLARE_USAGE"
-database_name = "styrigx-space-gateway"
-database_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"
+database_name = "styrigx-status"
+database_id = "38719f10-fdff-43fd-bcbb-387a6b734f55"
 
 [[services]]
 binding = "AI_SERVICE"

@@ -1,5 +1,5 @@
 /**
- * @fileoverview 分享短链的规则和存储（D1 styrigx-space-gateway 的 share_* 表，绑定 D1_SHARE_LINK；表结构见 migrations/0001_baseline.sql）。
+ * @fileoverview 分享短链的规则和存储（D1 styrigx-space-core 的 share_* 表，绑定 D1_SPACE；表结构见 migrations/0001_baseline.sql）。
  *
  * - 码：16 字节随机数 → 22 位 base64url（128 位），不可枚举。存 D1（临时钥匙页的列表里复制要用），只经 /api/share 的 list 给进门的人看。
  * - 有效期：1–24 小时任选，或 3 / 7 / 15 / 30 天（和网关临时钥匙同一张表；带会话的短链以网关签回的钥匙到期时间为准）。

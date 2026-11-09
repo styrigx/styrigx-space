@@ -38,11 +38,11 @@ binding = "SPACE"
 service = "styrigx-space-core"
 entrypoint = "SpaceVerifier"
 
-# 全站搜索索引：KV styrigx-space-gateway（2026-11 由 styrigx-search-index 换过来，主站 styrigx-ai 读它），本 Worker 只写 site:daymark 这一条。
+# 全站搜索索引：KV styrigx-space-core（进站 v3 L2b 由 styrigx-space-gateway 换过来，主站 styrigx-ai 读它），本 Worker 只写 site:daymark 这一条。
 # 写接口成功后重建（src/search-index.js），下面的 Cron 每小时兜底；KV 里只有句子的标题、署名、链接，不是钥匙。
 [[kv_namespaces]]
 binding = "KV_SEARCH_INDEX"
-id = "608cf3e27184481cbca2922950506d87"
+id = "4bcdb84f205541b9b6c8d230bc2b106f"
 
 # Cron：每小时第 17 分重建一次搜索索引（首次部署后也靠它填上）。
 [triggers]

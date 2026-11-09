@@ -1,4 +1,4 @@
-// styrigx-curio-core 的全站搜索索引（src/search-index.js，KV styrigx-space-gateway 的 site:curio）：
+// styrigx-curio-core 的全站搜索索引（src/search-index.js，KV styrigx-space-core 的 site:curio）：
 // - 条目映射：收藏 / 设备 / 游戏各出 zh + en 两条；标题、副标题（页签 · 分类 / 类型 / 平台）、text、url 深链
 // - 私密：分类或收藏任一私密 → private:true；私密设备 / 游戏同样；公开的不带 private
 // - 改内容的写接口（links / items / import）成功后 ctx.waitUntil 重建并 put；读接口、失败的写、照片接口不重建
@@ -265,8 +265,8 @@ test('Cron 兜底：内容和 KV 里那份一样就不写；内容变了、旧�
   assert.equal(kv.reads, 0);
 });
 
-test('wrangler.toml：KV_SEARCH_INDEX 绑 styrigx-space-gateway（2026-11 前 styrigx-search-index）、每小时 Cron', () => {
+test('wrangler.toml：KV_SEARCH_INDEX 绑 styrigx-space-core（进站 v3 L2b 前 styrigx-space-gateway）、每小时 Cron', () => {
   const t = readFileSync(W + '/wrangler.toml', 'utf8');
-  assert.match(t, /\[\[kv_namespaces\]\]\nbinding = "KV_SEARCH_INDEX"\nid = "608cf3e27184481cbca2922950506d87"/);
+  assert.match(t, /\[\[kv_namespaces\]\]\nbinding = "KV_SEARCH_INDEX"\nid = "4bcdb84f205541b9b6c8d230bc2b106f"/);
   assert.match(t, /^\[triggers\]\ncrons = \["23 \* \* \* \*"\]$/m);
 });

@@ -33,12 +33,16 @@ function statements(sql) {
   return sql.split('\n').map((l) => l.replace(/--.*$/, '')).join(' ').split(';').map((x) => x.replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').trim()).filter(Boolean);
 }
 
-test('SCHEMA 与 migrations/0005 + 0006 逐条一致（按文件顺序）；全部幂等；迁移编号在本库里不重复', () => {
-  const files = ['0005_lock_account_state.sql', '0006_auth_state.sql'].map((f) => readFileSync(new URL(f, MIG_DIR), 'utf8'));
-  assert.deepEqual(files.flatMap(statements), SCHEMA.map((s) => statements(s)[0]));
+test('SCHEMA 与 L2b 基线 migrations/0001_baseline.sql 的进站段逐条一致（按文件顺序）；基线 = SCHEMA + lock_reset_switch + 分享链接；全部幂等；只有一个迁移文件', async () => {
+  const { CREATE_SQL } = await import('../../../workers/space-core/src/core/lock-reset-switch.js');
+  const base = statements(readFileSync(new URL('0001_baseline.sql', MIG_DIR), 'utf8'));
+  const n = SCHEMA.length;
+  assert.deepEqual(base.slice(0, n), SCHEMA.map((s) => statements(s)[0]));
+  assert.equal(base[n], CREATE_SQL);
+  assert.deepEqual(base.slice(n + 1).map((s) => s.replace(/\(.*$/, '').trim()),
+    ['CREATE TABLE IF NOT EXISTS share_link', 'CREATE INDEX IF NOT EXISTS share_link_created ON share_link', 'CREATE TABLE IF NOT EXISTS share_fail']);
   for (const s of SCHEMA) assert.match(s, /^CREATE (UNIQUE )?(TABLE|INDEX) IF NOT EXISTS /, '幂等：代码兜底建表和迁移重复跑都不出错');
-  const nums = readdirSync(MIG_DIR).filter((f) => f.endsWith('.sql')).map((f) => f.slice(0, 4));
-  assert.equal(new Set(nums).size, nums.length, nums.join(','));
+  assert.deepEqual(readdirSync(MIG_DIR).filter((f) => f.endsWith('.sql')), ['0001_baseline.sql']);
   /* 0006 的六张表都有 realm 列 */
   const db = makeAuthD1();
   for (const t of ['user_handle', 'challenge', 'attempt_limit', 'tempkey', 'device', 'audit', 'epoch', 'passkey', 'password']) {
@@ -257,8 +261,8 @@ test('源码扫描：网关和 workers/space-core/src/lib/ 任何源码都不用
   assert.deepEqual(kv.map((f) => path.relative(GATEWAY, f)), []);
 });
 
-test('0007（user_handle 加 legacy_handle，预览共库兼容）：只有一条 ADD COLUMN；网关跑完全部迁移后 user_handle 读写照旧，代码不读写新列', async () => {
-  const sql = readFileSync(new URL('0007_user_handle_legacy_handle.sql', MIG_DIR), 'utf8');
+test('0007（user_handle 加 legacy_handle，预览共库兼容；L2b 起在 migrations-archive/gateway/，基线直接带这一列）：只有一条 ADD COLUMN；跑完基线后 user_handle 读写照旧，代码除了建表语句不读写新列', async () => {
+  const sql = readFileSync(new URL('../migrations-archive/gateway/0007_user_handle_legacy_handle.sql', MIG_DIR), 'utf8');
   assert.deepEqual(statements(sql), ["ALTER TABLE user_handle ADD COLUMN legacy_handle TEXT NOT NULL DEFAULT ''"]);
   const db = makeAuthD1();
   assert.deepEqual(db.raw.prepare('PRAGMA table_info(user_handle)').all().map((c) => c.name), ['realm', 'handle', 'legacy_handle']);
@@ -268,7 +272,7 @@ test('0007（user_handle 加 legacy_handle，预览共库兼容）：只有一�
   assert.equal(h1, 'LOCK-H');
   assert.equal(await userHandleRecord(env, REALM_LOCK, true, () => 'OTHER'), 'LOCK-H', '已有就复用');
   assert.deepEqual({ ...db.raw.prepare("SELECT * FROM user_handle WHERE realm = 'lock'").get() }, { realm: 'lock', handle: 'LOCK-H', legacy_handle: '' });
-  /* 网关源码不碰这一列 */
+  /* 网关源码不碰这一列（只有 SCHEMA 的建表语句带它，和正式库表结构一致） */
   const gwSrc = (d) => readdirSync(d).flatMap((f) => { const p = path.join(d, f); return statSync(p).isDirectory() ? gwSrc(p) : p.endsWith('.js') ? [readFileSync(p, 'utf8')] : []; });
-  assert.ok(!gwSrc(GATEWAY).some((s) => s.includes('legacy_handle')));
+  assert.ok(!gwSrc(GATEWAY).some((s) => s.replace(/CREATE TABLE IF NOT EXISTS user_handle \([^)]*\)/g, '').replace(/^\s*\*.*$/gm, '').includes('legacy_handle')));
 });

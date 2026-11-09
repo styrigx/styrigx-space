@@ -5,7 +5,7 @@
  *
  * - derToPem(der, label)：DER → PEM（64 列折行，结尾带换行；Web Crypto importKey / 网关 pemToDer 都认）
  * - makeKV(seed?, opts?)：内存 KV，实现 handler 用到的 get / put / delete / list 子集，外加测试用的观测与故障注入
- * - makeAuthD1(opts?)：站点核心 D1（D1_SPACE；正式库 styrigx-space-gateway）的 node:sqlite 替身，表结构就是 workers/space-core/migrations/*.sql；
+ * - makeAuthD1(opts?)：站点核心 D1（D1_SPACE；正式库 styrigx-space-core，进站 + 分享链接）的 node:sqlite 替身，表结构就是 workers/space-core/migrations/*.sql；
  *   可带一份「上线前的 KV」模拟部署前跑过 space/scripts/migrate-kv-to-d1.mjs
  */
 'use strict';

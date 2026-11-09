@@ -4,7 +4,7 @@
 # 旧的两个 Worker 在 Cloudflare 上暂时保留（L3 删除，先给 Gray 清单）；第一次部署时路由由 deploy.yml 的接管步骤
 # （space/scripts/route-takeover.mjs）从旧 Worker 挪过来。
 #
-# 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥；骨架见 workers/README.md）+ migrations/（D1，进站）+ migrations-share/（D1，分享链接）。
+# 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥；骨架见 workers/README.md）+ migrations/（D1 基线：进站 + 分享链接；旧迁移在 migrations-archive/ 只留史）。
 # 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步、数字健康）在账号 Worker styrigx-account（workers/account）：
 # 它没有任何公开路由，/api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/avatar/* 由本 Worker 验门后
 # 经服务绑定 ACCOUNT 转发（src/router.js 的转发表 FORWARDING）。
@@ -99,30 +99,23 @@ namespace_id = "2802"
 simple = { limit = 6, period = 60 }
 
 # ---- 数据绑定（正式 D1）----
-# 进站 v3 L2：还连旧库 styrigx-space-gateway（39d037fe-…；表、行都不动）。L2b 搬到新库 styrigx-space-core（建新库 + 导出导入 + 换绑定）。
-# 进站的认证状态全部在 D1（强一致），不绑定任何 KV。同库还有 styrigx-status 的 status_* 表（status Worker 自己绑，本 Worker 不碰）。
-# - D1_SPACE：进站的行（realm='lock'：纪元、解锁密码 / 通行密钥、user handle、challenge、输错计数、临时钥匙、恢复钥匙审计）
-#   和 lock_reset_switch。表：migrations/0005_lock_account_state.sql、0006_auth_state.sql（0007 给 user_handle 加 legacy_handle 列）、
-#   0008_lock_reset_switch.sql（0001 / 0003 建的旧表由 0004 / 0009 删）。迁移记录表 d1_migrations_gateway。
-# - D1_SHARE_LINK：分享链接的 share_link + share_fail（migrations-share/0001_baseline.sql，原 workers/share/migrations；迁移记录表 d1_migrations_share）。
-#   同一个库的第二个绑定，只为了两套迁移目录各记各的；L2b 新库只剩一套迁移、一个绑定。
+# 进站 v3 L2b（2026-11-09）：新库 styrigx-space-core（1354c898-…），一套迁移（migrations/0001_baseline.sql）、一张迁移记录表 d1_migrations_core、
+# 一个绑定 D1_SPACE（L2 的第二个绑定 D1_SHARE_LINK 并掉）。数据由 .github/workflows/d1-cutover.yml 从旧库 styrigx-space-gateway（39d037fe-…）原样搬来；
+# 旧库只读不删（回滚兜底，L3 删）。监测表在自己的库 styrigx-status（workers/status/wrangler.toml），本 Worker 不碰。
+# 进站的认证状态全部在 D1（强一致），不绑定任何 KV。
+# - 进站的行（realm='lock'：纪元、解锁密码 / 通行密钥、user handle、challenge、输错计数、临时钥匙、审计）和 lock_reset_switch；
+#   AI 全站总闸（attempt_limit realm='ai'，core/ai-limit.js）。
+# - 分享链接 share_link + share_fail（原 styrigx-share）。
 # 迁移由 deploy.yml 的 deploy-space-core 自己跑（token styrigx-space-core-deploy 有 D1 编辑）：
-#   cd workers/space-core && wrangler d1 migrations apply D1_SPACE --remote && wrangler d1 migrations apply D1_SHARE_LINK --remote
-# 代码兜底建表（src/core/d1-state.js SCHEMA，遇到「no such table」时按同一份语句建，幂等）保留。
+#   cd workers/space-core && wrangler d1 migrations apply D1_SPACE --remote
+# 代码兜底建表（src/core/d1-state.js SCHEMA，遇到「no such table」时按同一份语句建，幂等）保留；分享链接不兜底（表只由迁移建）。
 # 安全读（纪元、吊销、challenge、计数、临时钥匙）只读主库：代码不开 read replication / withSession。
 [[d1_databases]]
 binding = "D1_SPACE"
-database_name = "styrigx-space-gateway"
-database_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"
+database_name = "styrigx-space-core"
+database_id = "1354c898-aacd-4122-92de-0ae39a3fcc1a"
 migrations_dir = "migrations"
-migrations_table = "d1_migrations_gateway"
-
-[[d1_databases]]
-binding = "D1_SHARE_LINK"
-database_name = "styrigx-space-gateway"
-database_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"
-migrations_dir = "migrations-share"
-migrations_table = "d1_migrations_share"
+migrations_table = "d1_migrations_core"
 
 # ---- 密钥：Secrets Store（进站 v3 Q18：5 个 SGX_SPACE_*，Gray 2026-11-09 建好；本仓库只按名字绑定，不碰值）----
 # - SGX_SPACE_PRIVATE / SGX_SPACE_PUBLIC：进站三张票（session / reauth / reset）的 Ed25519 签名钥匙对

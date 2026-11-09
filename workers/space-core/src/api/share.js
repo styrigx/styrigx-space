@@ -15,7 +15,7 @@
  *     → 直接返回它（{ link, reused:true }），不签新钥匙、不占名额，临时钥匙列表不会越点越长；名字超过 24 字截断（按钮拿页面标题当名字）。
  * - 只收同源（Origin 必须是 styrigx.com 本身）：跨源或不带 Origin 一律 403 origin。
  * - revoke { id } → 作废（带会话的先作废钥匙：拿它进门的人下一个请求就进不来；失败 → 503，D1 不改，可以重试）
- * 数据：D1 styrigx-space-gateway 的 share_* 表（绑定 D1_SHARE_LINK，迁移目录 migrations-share/；L2b 换库）。
+ * 数据：D1 styrigx-space-core 的 share_* 表（绑定 D1_SPACE，表结构见 migrations/0001_baseline.sql；进站 v3 L2b 起和进站同库同绑定）。
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { createLinkKey, revokeLinkKey, checkLinkReauth } from '../core/link-keys.js';
@@ -54,7 +54,7 @@ async function handle(context) {
   if (!isSameOrigin(request)) return originDenied();
   const sess = await auth.session();
   if (!sess.ok) return apiError(401, 'session');
-  const db = env && env.D1_SHARE_LINK;
+  const db = env && env.D1_SPACE;
   if (!db) return apiError(500, 'config');
   const cookie = shareCookieOf(request);
 
