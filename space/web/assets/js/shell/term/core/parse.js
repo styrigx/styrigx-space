@@ -18,3 +18,16 @@ export const ENV_ROOT = 'root@account';
 export function normCmd(s) {
   return String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
+
+/**
+ * 一行命令 → 命令名 + 参数（只按空白切，不做管道 / 变量 / 通配符；空行 → null）
+ * @param {string} line @returns {{cmd: string, args: string[], rest: string} | null}
+ */
+export function parse(line) {
+  const s = String(line == null ? '' : line).trim();
+  if (!s) return null;
+  const m = /^(\S+)\s*([\s\S]*)$/.exec(s);
+  if (!m) return null;
+  const rest = m[2].trim();
+  return { cmd: m[1].toLowerCase(), args: rest ? rest.split(/\s+/) : [], rest: rest };
+}

@@ -41,7 +41,7 @@ test('站内终端：hepl → did you mean help（同一份算法）；不像就
   assert.equal(txt(sh.exec('xyzzy').out[0]), 'command not found: xyzzy · try help');
   /* 终端统一 T1：只有一份实现（shell/term/core/suggest.js）；terminal.js 不再抄，shell/suggest.js 只转出 */
   const src = read('space/web/assets/js/shell/terminal.js');
-  assert.match(src, /^import \{ suggest \} from '\.\/term\/core\/suggest\.js';$/m, 'terminal.js 用公共件');
+  assert.match(read('space/web/assets/js/shell/term/core/engine.js'), /^import \{ suggest \} from '\.\/suggest\.js';$/m, '站内终端的引擎用公共件（T3）');
   assert.doesNotMatch(src, /function (lev|suggest)\(/, 'terminal.js 不再抄 lev / suggest');
   assert.match(read('space/web/assets/js/shell/suggest.js'), /export \{ lev, suggest \} from '\.\/term\/core\/suggest\.js';/);
 });

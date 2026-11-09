@@ -235,7 +235,7 @@ test('共享外壳约束：terminal.js 只 import shell/term/**（终端统一 T
   const src = readFileSync(path.join(REPO, 'space/web/assets/js/shell/terminal.js'), 'utf8');
   const imports = src.match(/^\s*import\s[^;]*;/gm) || [];
   assert.ok(imports.length > 0);
-  for (const l of imports) assert.match(l.trim(), /from '\.\/term\/[a-z/-]+\.js';$/, l);
+  for (const l of imports) assert.match(l.trim(), /from '\.\/term\/[a-z0-9/-]+\.js';$/, l);
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /\bimport\s*\(/);
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /innerHTML/);
   for (const f of ['space/web/assets/js/shell/quick-panel.js', 'space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts']) {
