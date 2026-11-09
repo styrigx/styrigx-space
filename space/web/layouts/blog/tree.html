@@ -40,7 +40,9 @@
         </div>
       </div>
       <div class="sgx-term-body sgx-tree-out">
-        <div data-tree-pane="cat">
+        {{- /* 名字栏宽 = 最长的目录名（+ "/" + 2 格间距），至少 22ch：长名字（如 Styrigx UI Auth Spec/）不再把数字挤出栏（2026-11-09 细节 7）。中日韩字按 2ch 算 */ -}}
+        {{- $tdw := 0 }}{{ range $dirs }}{{ $n := .g.name }}{{ $w := add (strings.RuneCount $n) (len (findRE `[^\x00-\x7F]` $n)) }}{{ if gt $w $tdw }}{{ $tdw = $w }}{{ end }}{{ end }}
+        <div data-tree-pane="cat" style="--sgx-td: {{ add $tdw 3 }}ch">
           <p class="sgx-tl" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ partial "sgx-envps.html" "~" }}</span> tree blog/ -L 2</p>
           <p class="sgx-tl"><span class="cb">blog/</span></p>
           {{- $nf := 0 }}

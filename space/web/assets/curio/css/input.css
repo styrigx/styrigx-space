@@ -329,6 +329,9 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 /* ===== P4-3 奇趣拆页：首页入口、电影、私人音乐 ===== */
 /* 音乐仅本人可见：页头 tab 的「music/」不是当前页时默认藏起，curio.js 问过 /curio/api/access 有权限才给 <html> 加 .cu-music-ok */
 html:not(.cu-music-ok) #cu-tabs [data-ctab="music"]:not([aria-current]) { display: none; }
+/* 手机 tab 放不下时的「›」（curio.js paintTabsMore）：贴在 tab 条右端、渐隐带上面，点了滑到最后一项 */
+.cu-tabs-more { flex: none; align-self: center; margin: 0 0 0 -22px; padding: 0 6px; border: 0; background: transparent; font: inherit; color: var(--sgx-primary); cursor: pointer; }
+.cu-tabs-more[hidden] { display: none; }
 
 /* 电影：编辑弹层里的海报缩略图 2:3（同 curio-items.js 的 CROP_RATIO.movie） */
 .it-photo-prev--poster { width: 60px; height: 90px; }

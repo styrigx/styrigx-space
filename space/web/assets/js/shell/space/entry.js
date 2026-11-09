@@ -87,7 +87,7 @@ export function showEntryScreen() {
     '<span class="sgx-entry-gsep" aria-hidden="true"> · </span>' +
     '<span class="sgx-entry-sub">' + esc(t('entry.goodToSee')) + '</span></p>' +
     '<div class="sgx-entry-term" id="sgx-entry-term">' +
-    '<div class="sgx-entry-term-bar" aria-hidden="true"><span translate="no"><b>$</b> ENTRY · tty1</span><span id="sgx-entry-tty" translate="no">entry</span></div>' +
+    '<div class="sgx-entry-term-bar" aria-hidden="true"><span translate="no"><b>$</b> ENTRY · tty1</span><span id="sgx-entry-tty" translate="no"></span></div>' +
     '<div class="sgx-entry-tbody" id="sgx-entry-tbody">' +
     '<div class="sgx-entry-log" id="sgx-entry-log" data-term-log aria-hidden="true"></div>' +
     /* 命令输入行：真的 <input>。输凭证时 type=password（不回显），隐藏用户名给密码管理器 */
@@ -186,7 +186,7 @@ export function showEntryScreen() {
   C.cfg = null;
   const cfgReady = api.entryConfig().then(function (c) { C.cfg = c; return c; });
   C.authErr = function () { return false; };
-  C.setBar = function (/** @type {string} */ s) { const el = $('sgx-entry-tty'); if (el) el.textContent = s || 'entry'; };
+  C.setBar = function (/** @type {string} */ s) { const el = $('sgx-entry-tty'); if (el) el.textContent = s || ''; }; /* 平时空（标题已有 ENTRY，右边不再重复）；reset 层写倒计时 */
   C.setStatus = function (/** @type {string} */ s) { chip(s === 'reset' ? 'reset' : 'locked'); };
   const baseErr = C.err;
   C.err = function (/** @type {string} */ txt, /** @type {string} */ x) { chip('denied'); return baseErr(txt, x); };

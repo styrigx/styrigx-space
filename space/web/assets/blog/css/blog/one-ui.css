@@ -79,7 +79,7 @@ a {
 /* 文章正文排版（覆盖 blog-article.css 的基础值） */
 .oui-article-paper .article-content {
   font-size: 16px;
-  line-height: 1.95;
+  line-height: 1.7; /* 2026-11-09 细节 5：原 1.95 手机上像双倍行距；中文 1.8 见下 */
   color: var(--sgx-text-primary);
 }
 
