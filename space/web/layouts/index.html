@@ -8,8 +8,8 @@
    锁屏态也整份下发了桌面（2026-10-21 查到）。解锁后前端换到干净地址重新取页面（lock.js proceed）。 */}}
 {{ "<!-- SGX-DESKTOP-START -->" | safeHTML }}
 {{/* 主页（2026-11 对齐计划 PR-B，设计稿 tb4.html 主页默认 / m=1；Gray 10:43 / 10:45：功能一个不少，形式照稿）：
-   首屏 = 居中 hero（状态胶囊 · $ whoami · 名字 · $ 副标题 + 闪烁光标 · # 介绍）+ 嵌入的真终端（引擎 shell/terminal.js，同全站抽屉一个实例）。
-   头像只在顶栏右上、签名只在账号下拉（稿里 hero 没有这两样）；名字仍由 /api/profile 覆盖（data-sgx-profile）。
+   首屏 = 居中 hero（状态胶囊 · $ whoami · 名字 · $ 标语打字轮播 + 闪烁光标 · # 签名）+ 嵌入的真终端（引擎 shell/terminal.js，同全站抽屉一个实例）。
+   头像只在顶栏右上；签名 2026-11-09 回到 hero 的 # 行；名字、签名都由 /api/profile 覆盖（data-sgx-profile）。
    下面四节「[0n] // 名字」：[01] 博客 最新 3 篇 · [02] 奇趣 三个目录卡 · [03] 日刻 今日一句（强调线引言）· [04] 旷野 三张小终端卡（screen-time / status / about，点进 /wild/）。
    各节带 data-term-dir（终端 cd 的落点）和 data-term-label（落点提示）。内容宽 = 顶栏内容宽（--sgx-content-w 1080）。 */}}
 {{ $h := $tr.home }}
@@ -20,8 +20,15 @@
     <div id="w-profile" class="home-id">
       <p class="home-who" translate="no"><span class="home-pr" aria-hidden="true">$</span> whoami</p>
       <h1 id="home-name" class="home-name" translate="no" data-sgx-personal data-sgx-profile="name">{{ $profile.name }}</h1>
-      <p class="home-role"><span class="home-pr" aria-hidden="true">$</span> {{ $h.role }}<span class="home-cur" aria-hidden="true"></span></p>
-      <p class="home-intro"><span class="home-pr" aria-hidden="true">#</span> {{ $h.intro }}</p>
+      {{/* $ 行 = 站点标语打字轮播（Gray 2026-11-09 17:45–17:48：只轮播这一句英文，中英页面相同，不翻译）：文字取 hugo.yaml params.tagline。
+         首帧 / 无 JS / 减弱动效静态显示整句；apps/home-typer.js 逐字删、逐字打、停顿、循环（标签页隐藏时暂停）。
+         读屏只读 sr-only 那份完整文字，动的那份 aria-hidden。 */}}
+      {{ $tagline := site.Params.tagline }}
+      <p class="home-role" translate="no"><span class="home-pr" aria-hidden="true">$</span> <span class="sr-only">{{ $tagline }}</span><span class="home-typer" aria-hidden="true" data-home-typer="{{ $tagline }}">{{ $tagline }}</span><span class="home-cur" aria-hidden="true"></span></p>
+      {{/* # 行 = 个人资料签名 motto（Gray 2026-11-09 17:48：由账号个人资料控制，填什么显示什么，不截断、不翻译，中英相同）：
+         首帧画 profile.yaml 默认值，lib/profile.js 用 /api/profile 覆盖（data-sgx-profile="motto"，textContent 纯文本）；
+         空值隐藏整行（apps/index.js 跟 sgx-profile-changed 切换 hidden）。 */}}
+      <p class="home-intro" data-home-motto-line{{ if not $profile.motto }} hidden{{ end }}><span class="home-pr" aria-hidden="true">#</span> <span class="home-motto" translate="no" data-sgx-personal data-sgx-profile="motto">{{ $profile.motto }}</span></p>
     </div>
 
     {{/* 嵌入终端：真输入框 + aria-live 输出区；同一套标记见 shell-topbar.html #sgx-term */}}
