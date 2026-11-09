@@ -147,13 +147,13 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /styrigx@space:~\$<\/span><span class="?sgx-envps-r"? translate="?no"?>root@account:~#<\/span><\/span> ls -lt blog\//, '页头命令');
     assert.match(html, /<h1 class="?sgx-ph-title"?>博客<\/h1>/, '中文 h1「博客」（可见）');
     assert.match(await (await fetch(base + '/blog/')).text(), /<h1 class="?sgx-ph-title"?>Blog<\/h1>/, '英文 h1「Blog」');
-    assert.match(html, /写下来的东西。共 4 篇 · 最近更新 <span class=\"?sgx-nw\"?>\d{4}-\d{2}-\d{2}<\/span>/, '日期整段不折行（2026-11-09 细节 6）');
+    assert.match(html, /写下来的东西。共 8 篇 · 最近更新 <span class=\"?sgx-nw\"?>\d{4}-\d{2}-\d{2}<\/span>/, '日期整段不折行（2026-11-09 细节 6）');
     const chips = [...html.matchAll(/class="?sgx-chip"?[^>]*data-chip="?([^" >]*)"?/g)].map((m) => m[1]);
     assert.equal(chips[0], '', '第一个 chip = 全部');
     assert.ok(chips.length >= 2 && chips.length <= 7, '全部 + 至多 6 个分类：' + chips.length);
-    assert.match(html, /aria-current="?true"?[^>]*>全部 <i>4<\/i>|data-chip=""? aria-current="?true"?>全部 <i>4<\/i>/, '全部 4 是当前项');
+    assert.match(html, /aria-current="?true"?[^>]*>全部 <i>8<\/i>|data-chip=""? aria-current="?true"?>全部 <i>8<\/i>/, '全部 8 是当前项');
     assert.match(html, /class="?sgx-chip sgx-chip--more"? href="?\/blog\/zh\/tree\/"?/, 'tree blog/ → 目录页');
-    assert.equal((html.match(/data-post[ >]/g) || []).length, 4, '4 篇都在页里（不跑脚本也能看全）');
+    assert.equal((html.match(/data-post[ >]/g) || []).length, 8, '8 篇都在页里（不跑脚本也能看全）');
     assert.match(html, /<h2 class="?sgx-yr"? data-year="?2026"?>2026<\/h2>/, '按年分组');
     assert.match(html, /class="?sgx-pl-rt"?>\d+ 分钟</, '阅读分钟（中文单位，2026-11-09 细节 9）');
     assert.match(html, /class="?sgx-pl-ex"?>/, '摘要');
@@ -185,7 +185,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /class="?sgx-arch-m"?><span class="?sgx-arch-k"?>10 月<\/span>/, '月份行');
     assert.match(html, /<ul class="?sgx-tags2"?/);
     assert.match(html, /href="?\/blog\/zh\/\?tag=[^"]+"?><span class="?k"?>#/, '标签 → 首页筛选');
-    assert.match(html, /\d+ directories, 4 files/);
+    assert.match(html, /\d+ directories, 8 files/);
     assert.equal((await fetch(base + '/blog/tree/')).status, 200, '英文目录页');
   });
 
