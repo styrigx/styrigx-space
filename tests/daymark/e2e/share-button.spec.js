@@ -3,7 +3,7 @@
 // - 进门二值（P2-3）：不分角色，都 POST https://styrigx.com/api/share（同源带 cookie）
 //   { action:'create', reuse:true, name:页面标题, to:当前页（去 lock / why / return / share）, hours:24, session:43200 } → navigator.share 短链；
 //   系统分享被拒 / 没有 → 复制 + toast「已复制分享链接」；用户取消不复制；生成中再点不理；接口失败只 toast，不分享原地址。
-// - 服务端回 401 reauth → share.js 自带的最小锁侧复验步骤（dialog.sgx-share-reauth：锁屏通行密钥 / 解锁密码）→ 通过后自动重试一次；取消 = 不分享。
+// - 新建只要进站会话（SPACE-V3）：401 一律是会话过期 → toast 回锁屏重新解锁；没有复验弹层（列表 / 作废在盾牌，要 reauth）。
 // - 2026-11 PR-1 起「分享本页」在 NAVIGATE（>_）面板里 [data-qp="share"]；360 / 412 宽：顶栏 v3 通栏不溢出，没有分享按钮，页面不横向滚动。
 import { test, expect } from '@playwright/test';
 
@@ -131,38 +131,15 @@ test.describe('NAVIGATE「分享本页」按钮', () => {
     await expect(page.locator('[data-sgx-share]')).not.toHaveAttribute('aria-busy', 'true');
   });
 
-  test('401 reauth → 弹最小锁侧复验（只给设了的方式）→ 解锁密码通过 → 自动重试，系统分享短链', async ({ page }) => {
-    const calls = await setup(page, { api: async (n) => (n === 1 ? [401, { ok: false, error: 'reauth' }] : [200, { ok: true, reused: true, link: { path: '/s/' + CODE } }]) });
-    const pw = [];
-    await page.route('**/api/lock-reauth', (r) => r.fulfill({ json: { ok: true, valid: false, passkey: false, password: true } }));
-    await page.route('**/api/lock-password', (r) => { pw.push(JSON.parse(r.request().postData() || '{}')); return r.fulfill({ json: { ok: true } }); });
-    await go(page, PAGE);
-    await page.locator('[data-sgx-share]').click();
-    const step = page.locator('dialog.sgx-share-reauth');
-    await expect(step).toBeVisible();
-    await expect(step.locator('[data-pk]')).toHaveCount(0);
-    await step.locator('.sgx-share-reauth-in').fill('lock-pass-1');
-    await step.locator('.sgx-share-reauth-pw button[type="submit"]').click();
-    await expect(step).toHaveCount(0);
-    await expect.poll(() => log(page)).toEqual([['share', { title: await page.title(), url: SHORT }]]);
-    expect(pw).toEqual([{ action: 'verify', password: 'lock-pass-1', reauth: true }]);
-    expect(calls).toHaveLength(2);
-    expect(calls[1].body).toEqual(calls[0].body);
-  });
-
-  test('401 reauth → 复验取消 → 什么也不分享、不 toast，按钮恢复', async ({ page }) => {
+  test('新建只要进站会话：401 reauth 也当会话过期处理（toast 重新解锁，不弹复验、不重试）', async ({ page }) => {
     const calls = await setup(page, { api: async () => [401, { ok: false, error: 'reauth' }] });
-    await page.route('**/api/lock-reauth', (r) => r.fulfill({ json: { ok: true, valid: false, passkey: true, password: true } }));
     await go(page, PAGE);
     await page.locator('[data-sgx-share]').click();
-    const step = page.locator('dialog.sgx-share-reauth');
-    await expect(step).toBeVisible();
-    await step.locator('[data-cancel]').click();
-    await expect(step).toHaveCount(0);
+    await expect(page.locator('.sgx-share-toast')).toContainText('重新解锁');
+    await expect(page.locator('dialog.sgx-share-reauth')).toHaveCount(0);
     expect(await log(page)).toEqual([]);
-    await expect(page.locator('.sgx-share-toast.show')).toHaveCount(0);
-    await expect(page.locator('[data-sgx-share]')).not.toHaveAttribute('aria-busy', 'true');
     expect(calls).toHaveLength(1);
+    await expect(page.locator('[data-sgx-share]')).not.toHaveAttribute('aria-busy', 'true');
   });
 
   test('按钮：在 NAVIGATE 面板里（四站同一套），读屏名「分享本页」、按钮上写 share；顶栏上没有分享；外观面板里没有分享 / 锁定', async ({ page }) => {

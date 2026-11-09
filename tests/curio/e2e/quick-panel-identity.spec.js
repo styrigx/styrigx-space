@@ -8,7 +8,7 @@ const { test, expect } = require('@playwright/test');
 
 const SETS = {
   /* P4-3 PR-4c：英文无前缀，中文 /zh/ */
-  zh: ['/zh/', '/curio/zh/', '/daymark/zh/', '/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/', '/zh/security/'],
+  zh: ['/zh/', '/curio/zh/', '/daymark/zh/', '/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/', '/zh/wild/'],
   en: ['/', '/curio/', '/daymark/', '/blog/'],
 };
 

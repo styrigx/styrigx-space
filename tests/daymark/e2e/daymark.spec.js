@@ -107,7 +107,7 @@ test('账号未登录：余响居中一屏（命令行 · 日期行 · 引句 ·
   expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'sgx-tb-av']);
   await expect(page.locator('.sgx-tb-acts .sgx-tb-grid')).toHaveAttribute('aria-controls', 'sgx-nav');
   await expect(page.locator('.sgx-tb-acts .sgx-tb-av')).toHaveAttribute('href', 'https://styrigx.com/zh/account/');
-  await expect(page.locator('.sgx-tb-acts .sgx-tb-shield')).toHaveAttribute('href', 'https://styrigx.com/zh/security/');
+  await expect(page.locator('.sgx-tb-acts .sgx-tb-shield')).toHaveAttribute('href', 'https://styrigx.com/zh/#sec');
   /* 2026-11 PR-5：账号入口 = 顶栏头像 → 账号下拉（AI 窗口头部不再有头像）；2026-11-08 账号下拉 = 账号终端，没有去账号页的链接 */
   await expect(page.locator('#sgx-acct')).toHaveCount(1);
   await expect(page.locator('#sgx-acct a[href*="/account/"]')).toHaveCount(0);
