@@ -20,6 +20,8 @@ import { setLang } from '../../lib/prefs.js';
 import { pageLang } from '../../lib/i18n.js';
 import * as api from './api.js';
 import { createTerm, shellTable } from './term.js';
+import { completerOf } from '../term/core/complete.js';
+import { TTY1_TABLE, TTY1_RESET_TABLE } from '../term/cmds/index-tty1.js';
 import { suggest } from '../suggest.js';
 import { CMD, PS_ENTRY, PS_RESET, ADMIN_COMMAND, normCmd, parseEntryCmd } from './commands.js';
 import { mountVerify } from './session.js';
@@ -139,6 +141,8 @@ export function showEntryScreen() {
   }
 
   /* ---------- 终端 ---------- */
+  const completeEntry = completerOf(TTY1_TABLE);
+  const completeReset = completerOf(TTY1_RESET_TABLE);
   /** @type {any} */
   let C = null;
   C = createTerm({
@@ -166,6 +170,8 @@ export function showEntryScreen() {
     maxLines: 120,
     onMode: onMode,
     onCmd: function (raw) { if (C.inReset) C.runResetCmd(raw); else runCmd(raw); },
+    /* tty1：Tab 只补白名单命令（终端统一 T4）；历史只在内存（锁屏不落盘） */
+    complete: function (line) { return (C && C.inReset ? completeReset : completeEntry)(line); },
     onCmdInterrupt: function () {
       if (!C.inReset) return false;
       C.out('^C', 'd');
