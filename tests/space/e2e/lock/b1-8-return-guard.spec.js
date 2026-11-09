@@ -340,8 +340,8 @@ test.describe('B1-8 路径B：会话无效、用临时钥匙解锁后被踢回',
     resetJumpTrace(page);
     const url = '/?lock=1&test-no-local-bypass=1&why=' + encodeURIComponent(why) + '&return=' + encodeURIComponent(target);
     await gotoWhy(page, url);
-    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    await lockCmd(page, 'tempkey');
+    await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
+    await lockCmd(page, 'sudo styrigx tempkey');
     await lockMode(page, 'temp');
     await lockCmd(page, 'AAAA-BBBB-CCCC');
     /* 等 handleSessionOk 跑完 */
@@ -505,8 +505,8 @@ for (const LANG of [
     /* 锁着进锁屏（子站踢回），临时钥匙解锁 → 回跳奇趣 */
     page.__locked = true;
     await page.goto('/?lock=1&test-no-local-bypass=1&why=no-cookie&return=' + encodeURIComponent(TARGET), { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
-    await lockCmd(page, 'tempkey');
+    await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
+    await lockCmd(page, 'sudo styrigx tempkey');
     await lockMode(page, 'temp');
     await lockCmd(page, 'AAAA-BBBB-CCCC');
     expect(await waitDecision(page, 8000)).toBe('jump');
