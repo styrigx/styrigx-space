@@ -8,6 +8,10 @@
  * - deviceId：本次登录的设备（core/devices.js；单独退出后 reason=revoked）
  * 与进站会话（sgx-space-session）完全独立：进站会话从不被当作账号登录。
  *
+ * 时长（2026-11-09）：30 天滑动续期。账号接口的响应（rpc/account-service.js）在票剩不到 15 天时按原 by / authAt / epoch / deviceId
+ * 重签（renewSession），常用设备一直登录，30 天不用的设备自然过期。之前签的 400 天旧票：第一次用到就重签成 30 天；
+ * 设备记录的 lastSeen 已超过 30 天的旧票按过期处理（只这一次，旧票之后就没了）。
+ *
  * 缺 SGX_ACCOUNT_PRIVATE / PUBLIC：签发 503 config（signingMissing），验证一律失败（no-pubkey）；只影响账号，网站其余部分不受影响。
  *
  * 只 import workers/account/src/lib/ 和本目录。
@@ -16,7 +20,8 @@ import { readEpoch, bumpEpoch } from '../lib/db.js';
 import { apiError } from '../lib/http.js';
 import { signTicket, parseTicket, verifyTicket, ticketCookie, clearTicketCookie } from '../lib/ticket.js';
 import { COOKIE_EXPIRED } from '../lib/cookies.js';
-import { TICKET, EPOCH, SIGNING_PRIVATE, SIGNING_PUBLIC, SIGNED_IN_MARKER } from './config.js';
+import { TICKET, EPOCH, SIGNING_PRIVATE, SIGNING_PUBLIC, SIGNED_IN_MARKER, SESSION_RENEW_BELOW } from './config.js';
+import { readCookie } from '../lib/cookies.js';
 import { newDeviceId, isDeviceId, isRevoked, getDevice, putDevice, recordLogin, deviceInfo, clientPlace, pruneOtherDevices, TOUCH_INTERVAL_MS } from './devices.js';
 
 export { readEpoch, bumpEpoch };
@@ -69,11 +74,52 @@ export async function verifySession(request, env) {
   /* 单独退出的设备：每个请求读一次 D1 主库（不缓存），退出后那台的下一个请求就被拒 */
   try {
     if (await isRevoked(env, deviceId)) return { ok: false, reason: 'revoked' };
+    /* 2026-11-09 之前签的 400 天旧票：设备 30 天没用过就按过期处理（和新票的自然过期一致）；用着的会在响应里重签成 30 天 */
+    if (isLegacyExp(/** @type {number} */ (v.exp), Date.now())) {
+      const rec = await getDevice(env, deviceId);
+      if (rec && Date.now() - (Number(rec.lastSeen) || 0) > CONF.maxAge * 1000) return { ok: false, reason: 'expired' };
+    }
   } catch (e) {
     return { ok: false, reason: 'd1-error' };
   }
   await touchDevice(env, request, { deviceId, by: /** @type {string} */ (v.by), authAt: /** @type {number} */ (v.at) });
   return { ok: true, reason: 'ok', by: v.by, epoch: v.epoch, authAt: v.at, exp: v.exp, deviceId };
+}
+
+/** 票的剩余时长比现在的 session 时长还长（+1 天余量）= 2026-11-09 之前签的 400 天旧票 @param {number} exp @param {number} now 毫秒 */
+export function isLegacyExp(exp, now) {
+  return exp - now > (CONF.maxAge + 86400) * 1000;
+}
+
+/**
+ * 要不要重签（只看票面的 exp，不验签）：剩不到 SESSION_RENEW_BELOW，或者是旧的 400 天票。已过期的不续（验证会拒）。
+ * @param {number} exp 毫秒 @param {number} now 毫秒
+ */
+export function sessionNeedsRenewal(exp, now) {
+  if (!(exp > now)) return false;
+  return exp - now < SESSION_RENEW_BELOW * 1000 || isLegacyExp(exp, now);
+}
+
+/**
+ * 滑动续期（rpc/account-service.js 在每个账号接口的响应上调）：请求带的 session 票需要续（sessionNeedsRenewal）且验证通过
+ * → 按原 by / authAt / epoch / deviceId 重签，Set-Cookie 加到 headers（连同登录标记）。不用续 / 验不过 / 出错：什么都不做。
+ * 不需要续的请求只解析票面，不读 D1。cookie 名、属性、签名格式、设备记录都不变，只换 exp 和 Max-Age。永不抛错。
+ * @param {any} request @param {any} env @param {Headers} headers 响应头（已经设了 session cookie 的响应——登录 / 退出 / 轮换——调用方不要调）
+ * @returns {Promise<boolean>} 是否重签了
+ */
+export async function renewSession(request, env, headers) {
+  try {
+    const val = readCookie(request, CONF.cookie);
+    if (!val) return false;
+    const p = parseSessionTicket(val);
+    if (!p || !sessionNeedsRenewal(p.exp, Date.now())) return false;
+    const cur = await verifySession(request, env);
+    if (!cur.ok || !cur.deviceId) return false;
+    const err = await issueSession(env, headers, /** @type {string} */ (cur.by), { authAt: cur.authAt, epoch: cur.epoch, deviceId: cur.deviceId, record: false });
+    return !err;
+  } catch (e) {
+    return false;
+  }
 }
 
 /**

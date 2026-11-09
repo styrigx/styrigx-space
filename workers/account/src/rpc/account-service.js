@@ -15,6 +15,8 @@ import { tagRuntime } from '../app.js';
 import { headerAuth, lockIdentityDenial } from '../gate.js';
 import { withNoStore, apiError } from '../lib/http.js';
 import { resolveSecrets } from '../secrets.js';
+import { renewSession } from '../core/session.js';
+import { TICKET } from '../core/config.js';
 
 /** AccountService 的接口路由表（= router.js API_ROUTES：/api/account[/*]、/api/avatar、/api/prefs、/api/profile、/api/wellbeing） */
 export const SERVICE_API_ROUTES = API_ROUTES;
@@ -32,12 +34,31 @@ export async function serviceFetch(request, env, ctx) {
     const e = await resolveSecrets(env || {});
     const auth = headerAuth(request, e);
     const denied = lockIdentityDenial(request, auth.identity);
-    const res = denied || (await route(request, e, ctx, auth, SERVICE_API_ROUTES));
+    let res = denied || (await route(request, e, ctx, auth, SERVICE_API_ROUTES));
+    if (isApi && !denied) res = await withSessionRenewal(request, e, res);
     return tagRuntime(isApi ? withNoStore(res) : res);
   } catch (err) {
     console.error('[sgx-account] service unhandled: ' + (err && /** @type {any} */ (err).name ? /** @type {any} */ (err).name : 'error'));
     return tagRuntime(apiError(500, 'internal'));
   }
+}
+
+/**
+ * session 滑动续期（2026-11-09，core/session.js renewSession）：账号接口的响应上，票剩不到 15 天（或旧的 400 天票）就重签。
+ * 响应自己已经设了 session cookie（登录 / 退出 / 改钥匙轮换）就不碰；5xx 不碰。
+ * @param {Request} request @param {Record<string, any>} env @param {Response} res
+ * @returns {Promise<Response>}
+ */
+export async function withSessionRenewal(request, env, res) {
+  if (!res || res.status >= 500) return res;
+  const prefix = TICKET.session.cookie + '=';
+  const sets = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [res.headers.get('Set-Cookie') || ''];
+  if (sets.some((c) => c.startsWith(prefix))) return res;
+  const add = new Headers();
+  if (!(await renewSession(request, env, add))) return res;
+  const out = new Response(res.body, res);
+  for (const c of add.getSetCookie()) out.headers.append('Set-Cookie', c);
+  return out;
 }
 
 /** 网关转发入口（服务绑定 ACCOUNT） */
