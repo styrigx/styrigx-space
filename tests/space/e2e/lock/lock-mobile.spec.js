@@ -1,9 +1,9 @@
 /**
- * 锁屏 · 手机触屏回归（lock-v10 命令解锁，2026-11-08）：
- * 锁屏上没有弹层，解锁在终端输入行里敲命令；触屏上用快捷键（替你敲命令）或软键盘输入。
- * - 触屏不自动聚焦（不一进来就弹键盘）；点快捷键后焦点在输入行；
+ * 锁屏 · 手机触屏回归（进站 v3 L1，2026-11-09：entry@space 终端，没有快捷键按钮）：
+ * 锁屏上没有弹层，进站在终端输入行里敲 sudo styrigx；选项（[1] passkey …）可以点，^C 是输入行下面的按钮（只在触屏显示）。
+ * - 触屏不自动聚焦（不一进来就弹键盘）；要输秘密时自动聚焦；
  * - 软键盘弹起时整组上移刚好够的距离，输入行不被盖住；
- * - 空密码回车：终端里提示「请输入密码」，不发请求，焦点留在输入行；
+ * - 空密码回车：不发请求，还在密码态，焦点留在输入行；
  * - 顶栏标题跟着状态变；不触发双击放大，输入框字号 ≥ 16px。
  *
  * 手机模拟：412×915、isMobile、hasTouch（粗指针）。软键盘用 VirtualKeyboard API 模拟（boundingRect + geometrychange）。
@@ -11,7 +11,7 @@
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, expect } = require('../helpers/helpers');
-const { gotoLockTerm, lockMode, badLine } = require('../helpers/lock-term.cjs');
+const { gotoLockTerm, lockCmd, lockMode } = require('../helpers/lock-term.cjs');
 
 test.use({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
 
@@ -21,10 +21,13 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/lock-entry', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"passkey":true,"password":true}' }));
 });
 
+/** 点输入行（弹键盘）→ 敲 sudo styrigx → 点选项 [2] password → 密码态 */
 async function openPwByTouch(page) {
-  await gotoLockTerm(page, '/?lock=1');
-  await expect(page.locator('#sgx-lock-k-pw')).toBeVisible();
-  await page.tap('#sgx-lock-k-pw');
+  await gotoLockTerm(page);
+  await page.tap('#sgx-entry-cmd');
+  await lockCmd(page, 'sudo styrigx');
+  await lockMode(page, 'pick');
+  await page.tap('#sgx-entry-log [data-term-pick="2"]');
   await lockMode(page, 'pw');
 }
 
@@ -37,62 +40,59 @@ async function fakeKeyboard(page, h) {
   }, h);
 }
 
-test('触屏不自动聚焦；点 password 快捷键 → 焦点留在输入行（密码态）', async ({ page }) => {
-  await gotoLockTerm(page, '/?lock=1');
-  await expect(page.locator('#sgx-lock-cmd')).not.toBeFocused();
-  await page.tap('#sgx-lock-k-pw');
-  await lockMode(page, 'pw');
-  await expect(page.locator('#sgx-lock-cmd')).toBeFocused();
+test('触屏不自动聚焦；sudo styrigx → 点选项 [2] password → 焦点在输入行（密码态），^C 键可见', async ({ page }) => {
+  await gotoLockTerm(page);
+  await expect(page.locator('#sgx-entry-cmd')).not.toBeFocused();
+  await expect(page.locator('#sgx-lock-k-pw, [id^="sgx-entry-k-"]')).toHaveCount(0);
+  await openPwByTouch(page);
+  await expect(page.locator('#sgx-entry-cmd')).toBeFocused();
+  await expect(page.locator('#sgx-entry-hint [data-term-cc]')).toBeVisible();
   await expect(page.locator('#sgx-method-sheet, .sgx-verify-dlg')).toHaveCount(0);
 });
 
 test('键盘弹起：整组上移刚好够，输入行在键盘上方；收起键盘 / 失焦后回原位', async ({ page }) => {
   await openPwByTouch(page);
-  const input = page.locator('#sgx-lock-cmd');
+  const input = page.locator('#sgx-entry-cmd');
   await expect(input).toBeFocused();
   await fakeKeyboard(page, 420);
-  await expect.poll(() => page.locator('#sgx-lock-stage').evaluate((el) => el.style.transform)).toMatch(/^translateY\(-\d+px\)$/);
-  const r = await page.evaluate(() => ({ bottom: document.getElementById('sgx-lock-term').getBoundingClientRect().bottom, vb: innerHeight - 420 }));
+  await expect.poll(() => page.locator('#sgx-entry-stage').evaluate((el) => el.style.transform)).toMatch(/^translateY\(-\d+px\)$/);
+  const r = await page.evaluate(() => ({ bottom: document.getElementById('sgx-entry-term').getBoundingClientRect().bottom, vb: innerHeight - 420 }));
   expect(r.bottom).toBeLessThanOrEqual(r.vb + 1);
   await fakeKeyboard(page, 0);
-  await expect.poll(() => page.locator('#sgx-lock-stage').evaluate((el) => el.style.transform)).toBe('');
-  await page.tap('#sgx-lock-cmd');
+  await expect.poll(() => page.locator('#sgx-entry-stage').evaluate((el) => el.style.transform)).toBe('');
+  await page.tap('#sgx-entry-cmd');
   await expect(input).toBeFocused();
 });
 
-test('空密码回车：终端提示「请输入密码」，不发请求，焦点留在输入行', async ({ page }) => {
+test('空密码回车：不发请求，还在密码态，焦点留在输入行', async ({ page }) => {
   let posted = 0;
   await page.route('**/api/lock-password', (r) => { posted++; return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false,"error":"wrong"}' }); });
   await openPwByTouch(page);
-  const input = page.locator('#sgx-lock-cmd');
+  const input = page.locator('#sgx-entry-cmd');
   await input.press('Enter');
-  await expect(badLine(page)).toHaveText('✗ 请输入密码');
-  await expect(input).toBeFocused();
   await lockMode(page, 'pw');
+  await expect(input).toBeFocused();
   expect(posted).toBe(0);
-  await expect(page.locator('#sgx-lock-live')).toContainText('请输入密码');
 });
 
-/* 2026-11 PR-A 起锁屏顶栏不显示；标题节点 #sgx-lock-title 仍由 lock.js 按状态改写，这里照测 */
-test('顶栏标题（节点）：静止「锁定屏幕」→ 密码态「解锁屏幕」→ 点 Ctrl+C 回到「锁定屏幕」', async ({ page }) => {
-  await gotoLockTerm(page, '/?lock=1');
-  const title = page.locator('#sgx-lock-title');
+/* 锁屏顶栏不显示；标题节点 #sgx-entry-title 仍由 entry.js 按状态改写，这里照测 */
+test('顶栏标题（节点）：静止「锁定屏幕」→ 密码态「解锁屏幕」→ 点 ^C 回到「锁定屏幕」；等通行密钥时 ^C 也能退出', async ({ page }) => {
+  await gotoLockTerm(page);
+  const title = page.locator('#sgx-entry-title');
   await expect(title).toHaveText('锁定屏幕');
-  await page.tap('#sgx-lock-k-pw');
-  await lockMode(page, 'pw');
+  await openPwByTouch(page);
   await expect(title).toHaveText('解锁屏幕');
-  await page.tap('#sgx-lock-cc');
+  await page.tap('#sgx-entry-hint [data-term-cc]');
   await lockMode(page, 'cmd');
   await expect(title).toHaveText('锁定屏幕');
-  /* 输凭证途中点另一个快捷键 = 先 Ctrl+C 再换 */
-  await page.tap('#sgx-lock-k-pw');
-  await lockMode(page, 'pw');
   await page.route('**/api/lock-passkey', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"challenge":"dGVzdA","cid":"c1","allowCredentials":[]}' }));
   await page.evaluate(() => { window.__pkCalled = false; navigator.credentials.get = () => { window.__pkCalled = true; return new Promise(() => {}); }; });
-  await page.tap('#sgx-lock-k-pk');
+  await lockCmd(page, 'sudo styrigx passkey');
   await page.waitForFunction(() => window.__pkCalled === true, null, { timeout: 8000 });
   await lockMode(page, 'busy');
-  await expect(page.locator('#sgx-lock-log')).toContainText('^C');
+  await page.tap('#sgx-entry-hint [data-term-cc]');
+  await lockMode(page, 'cmd');
+  await expect(page.locator('#sgx-entry-log')).toContainText('^C');
 });
 
 test('不触发双击放大：html touch-action = manipulation；触屏上输入框字号 ≥ 16px', async ({ page }) => {
