@@ -7,7 +7,7 @@
 const { test, expect } = require('@playwright/test');
 
 const MAIN = ['/', '/wild/', '/zh/', '/zh/wild/']; /* 2026-11-09 L1：安全页删除（盾牌弹层）*/
-const SUB = ['/curio/', '/daymark/', '/blog/', '/blog/post/2026-09-27-invite-board/'];
+const SUB = ['/curio/', '/daymark/', '/blog/', '/blog/post/2026-10-11-agent-collaboration-whitepaper-v2/'];
 
 test.beforeEach(async ({ page }) => {
   /* 不让页面去打真接口，页面照常出顶栏：主站（锁屏检查等）回 401；子站数据接口回 503。
