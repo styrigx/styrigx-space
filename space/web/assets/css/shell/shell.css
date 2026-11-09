@@ -907,9 +907,11 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 @media (hover: hover) and (pointer: fine) { .sgx-pg-r a:hover { color: var(--sgx-primary); } }
 :root:not([data-sgx-layout="desktop"]) .sgx-pg { flex-direction: column; }
 :root:not([data-sgx-layout="desktop"]) .sgx-pg-hint { display: none; }
-/* 列表到底（Gray 2026-11-09 细节 5）：博客列表最后一页「-- EOF --」，旷野页末「› more soon_」带闪烁光标；装饰，读屏不念；减弱动效光标不闪 */
+/* 列表到底（Gray 2026-11-09 细节 5）：博客列表最后一页「-- EOF --」，旷野页末「› more soon_」带闪烁光标、下面再一行「-- EOF --」；装饰，读屏不念；减弱动效光标不闪 */
 .sgx-eof { margin: 28px 0 0; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.6; letter-spacing: .04em; text-align: center; color: var(--sgx-text-tertiary); }
 .sgx-eof[hidden] { display: none; }
+/* 旷野页末两行：› more soon_ 下面紧跟 -- EOF --（2026-11-09） */
+.sgx-eof.wild-eof-end { margin-top: 6px; }
 .sgx-eof-cur { display: inline-block; width: .6em; height: 2px; margin-left: 2px; vertical-align: -1px; background: var(--sgx-primary); animation: sgx-eof-blink 1.05s steps(1) infinite; }
 @keyframes sgx-eof-blink { 50% { opacity: 0; } }
 .reduced-motion .sgx-eof-cur { animation: none; }
