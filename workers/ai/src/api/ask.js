@@ -14,7 +14,10 @@
  *   召回为空也调模型：hits 空，上下文写明没有相关条目，由模型回应（打招呼照常答，站内问题说没找到）。
  *   2026-11-05 前召回为空直接回固定句不调模型，连「你好」都答不了，已去掉。
  *   外部模型出错时 code 也可能是 rate_limited / model_unavailable（Gemini 429 / 404 等）。
- *   模型正常结束但一个字正文都没有 → event: error { code: 'empty' }（日志 [ai] empty answer 带 finish_reason 和思考字数）。
+ *   模型正常结束但一个字正文都没有 → event: error { code: 'empty' }（日志 [ai] empty answer 带 finish_reason 和思考字数；
+ *   gemini 是 [ai] gemini empty，带 finishReason 和 usageMetadata 的计数）。
+ *   gemini 首字前的重试见 core/gemini.js geminiOpen（429 / 5xx 退避 2 次、每次首字 20 秒、总共 60 秒；搜索被拒不带工具重试一次）；
+ *   首字一直不来 → error { code: 'timeout' }。
  * 错误（还没开始流）：405 method · 400 bad_request / too-long / bad_model · 413 too-large ·
  *   503 config（选中自营模型但没绑 AI）/ no_key（选中外部模型但钥匙没绑 / 读不到）/ index（索引读不了）。
  *
@@ -31,7 +34,7 @@ import { fixedHits } from '../core/fixed.js';
 import { buildMessages, Q_MAX, AI_LANGS } from '../core/prompt.js';
 import { thinkFilter } from '../core/think.js';
 import { loadModels, pickModel } from '../core/models.js';
-import { readKey, hasKeyBinding, geminiRequest, geminiChunk, geminiSources, describeUpstream, toolRejected, redact, errText, UPSTREAM_TIMEOUT_MS } from '../core/gemini.js';
+import { readKey, hasKeyBinding, geminiOpen, geminiChunk, geminiSources, geminiMeta, geminiMaxTokens, redact, UPSTREAM_TIMEOUT_MS } from '../core/gemini.js';
 import { apiError, SSE_HEADERS, sseEvent, sseData } from '../lib/http.js';
 
 export const BODY_MAX = 16 * 1024;
@@ -186,34 +189,30 @@ export async function onRequestPost(request, env) {
       const sources = [];
       let reasoningChars = 0;
       let finish = '';
+      /* gemini 空回答排查用：最后的 finishReason、usageMetadata 计数、这次带没带搜索 */
+      let gFinish = '';
+      /** @type {Record<string, number> | null} */
+      let gUsage = null;
+      let gSearch = false;
       try {
         const search = model.provider === 'gemini' && cfg.geminiSearch;
         const messages = buildMessages({ q: a.q, lang: a.lang, history: a.history, hits, web: search });
         const filter = thinkFilter();
         if (model.provider === 'gemini') {
+          const deadline = Date.now() + UPSTREAM_TIMEOUT_MS;
           const timer = setTimeout(() => ac.abort(), UPSTREAM_TIMEOUT_MS);
           try {
-            let up = await geminiRequest(env, key, model.id, messages, cfg.maxTokens, ac.signal, { search });
-            if (!up.ok && search) {
-              const body = await errText(up);
-              if (toolRejected(up.status, body)) {
-                /* 搜索工具被拒（模型 / 账号不支持）：不带工具重试一次 */
-                console.error('[ai] gemini search tool rejected, retrying without it', JSON.stringify(describeUpstream(up.status, body)));
-                up = await geminiRequest(env, key, model.id, messages, cfg.maxTokens, ac.signal, { search: false });
-              } else {
-                up = new Response(body, { status: up.status });
-              }
-            }
-            if (!up.ok || !up.body) {
-              const d = up.ok ? { status: up.status, code: 'upstream', reason: 'no-body', googleStatus: '', message: '' } : describeUpstream(up.status, await errText(up));
+            const opened = await geminiOpen(env, key, model.id, (/** @type {boolean} */ s) => (s === search ? messages : buildMessages({ q: a.q, lang: a.lang, history: a.history, hits, web: s })), geminiMaxTokens(cfg.maxTokens), { search, signal: ac.signal, deadline });
+            if (!opened.ok) {
+              if (opened.aborted || closed) return;
               /* 脱敏日志（不含钥匙）：2026-10-28 起的故障靠这行定位（reason=location 即地区不支持） */
-              console.error('[ai] gemini upstream', JSON.stringify({ model: model.id, ...d }));
-              send('error', { code: d.code });
+              console.error('[ai] gemini upstream', JSON.stringify({ model: model.id, attempts: opened.attempts, ...opened.d }));
+              send('error', { code: opened.d.code });
               return;
             }
-            upReader = up.body.getReader();
+            upReader = opened.reader;
             if (closed) { try { await upReader.cancel(); } catch (e) {} return; }
-            for await (const data of sseData(upReader)) {
+            for await (const data of sseData(/** @type {any} */ (upReader))) {
               if (closed) break;
               let chunk;
               try { chunk = JSON.parse(data); } catch (e) { continue; }
@@ -223,10 +222,20 @@ export async function onRequestPost(request, env) {
                 send('error', { code: r.error });
                 return;
               }
+              const meta = geminiMeta(chunk);
+              if (meta.finishReason) gFinish = meta.finishReason;
+              if (meta.usage) gUsage = meta.usage;
               for (const s of geminiSources(chunk)) if (!sources.some((x) => x.url === s.url)) sources.push(s);
               const text = filter.push(r.text);
               if (text) { sentText = true; send('delta', { text }); }
             }
+            gSearch = opened.search;
+          } catch (e) {
+            if (closed) return;
+            const timedOut = Date.now() >= deadline - 50;
+            console.error('[ai] gemini answer failed', JSON.stringify({ model: model.id, timedOut, sentText, name: e && /** @type {any} */ (e).name, message: redact(e && /** @type {any} */ (e).message, 200) }));
+            send('error', { code: timedOut ? 'timeout' : 'upstream' });
+            return;
           } finally {
             clearTimeout(timer);
           }
@@ -251,7 +260,8 @@ export async function onRequestPost(request, env) {
         if (tail) { sentText = true; send('delta', { text: tail }); }
         if (!sentText) {
           /* 模型正常结束但没有正文（额度被思考段用完 / 只输出了思考）：记日志，回 error 让前端提示，不当成功 */
-          console.error('[ai] empty answer', JSON.stringify({ model: model.id, finish, reasoningChars, hits: hits.length }));
+          if (model.provider === 'gemini') console.error('[ai] gemini empty', redact(JSON.stringify({ model: model.id, finishReason: gFinish, usage: gUsage, search: gSearch, hits: hits.length }), 600));
+          else console.error('[ai] empty answer', JSON.stringify({ model: model.id, finish, reasoningChars, hits: hits.length }));
           send('error', { code: 'empty' });
           return;
         }
