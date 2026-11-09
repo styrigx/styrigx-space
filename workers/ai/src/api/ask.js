@@ -16,7 +16,8 @@
  *   外部模型出错时 code 也可能是 rate_limited / model_unavailable（Gemini 429 / 404 等）。
  *   模型正常结束但一个字正文都没有 → event: error { code: 'empty' }（日志 [ai] empty answer 带 finish_reason 和思考字数；
  *   gemini 是 [ai] gemini empty，带 finishReason 和 usageMetadata 的计数）。
- *   gemini 首字前的重试见 core/gemini.js geminiOpen（429 / 5xx 退避 2 次、每次首字 20 秒、总共 60 秒；搜索被拒不带工具重试一次）；
+ *   gemini 首字前的重试见 core/gemini.js geminiOpen（5xx 退避 2 次、每次首字 20 秒、总共 60 秒；搜索被拒不带工具重试一次；
+ *   3.x Flash 429 → 换 Flash-Lite 一次，Lite 也 429 → error { code: 'daily_limit' }，明确是每分钟限额才是 rate_limited）；
  *   首字一直不来 → error { code: 'timeout' }。
  * 错误（还没开始流）：405 method · 400 bad_request / too-long / bad_model · 413 too-large ·
  *   503 config（选中自营模型但没绑 AI）/ no_key（选中外部模型但钥匙没绑 / 读不到）/ index（索引读不了）。
@@ -194,6 +195,8 @@ export async function onRequestPost(request, env) {
       /** @type {Record<string, number> | null} */
       let gUsage = null;
       let gSearch = false;
+      /** gemini 实际用的模型（429 换过 Flash-Lite 就是它；响应头 X-Styrigx-AI-Model 仍是选中的那个） */
+      let gModel = model.id;
       try {
         const search = model.provider === 'gemini' && cfg.geminiSearch;
         const messages = buildMessages({ q: a.q, lang: a.lang, history: a.history, hits, web: search });
@@ -203,10 +206,11 @@ export async function onRequestPost(request, env) {
           const timer = setTimeout(() => ac.abort(), UPSTREAM_TIMEOUT_MS);
           try {
             const opened = await geminiOpen(env, key, model.id, (/** @type {boolean} */ s) => (s === search ? messages : buildMessages({ q: a.q, lang: a.lang, history: a.history, hits, web: s })), geminiMaxTokens(cfg.maxTokens), { search, signal: ac.signal, deadline });
+            gModel = opened.model || model.id;
             if (!opened.ok) {
               if (opened.aborted || closed) return;
               /* 脱敏日志（不含钥匙）：2026-10-28 起的故障靠这行定位（reason=location 即地区不支持） */
-              console.error('[ai] gemini upstream', JSON.stringify({ model: model.id, attempts: opened.attempts, ...opened.d }));
+              console.error('[ai] gemini upstream', JSON.stringify({ model: gModel, picked: model.id, attempts: opened.attempts, ...opened.d }));
               send('error', { code: opened.d.code });
               return;
             }
@@ -218,7 +222,7 @@ export async function onRequestPost(request, env) {
               try { chunk = JSON.parse(data); } catch (e) { continue; }
               const r = geminiChunk(chunk);
               if (r.error) {
-                console.error('[ai] gemini stream error', JSON.stringify({ model: model.id, code: r.error, detail: redact(JSON.stringify(chunk.error || chunk.promptFeedback || {}), 300) }));
+                console.error('[ai] gemini stream error', JSON.stringify({ model: gModel, code: r.error, detail: redact(JSON.stringify(chunk.error || chunk.promptFeedback || {}), 300) }));
                 send('error', { code: r.error });
                 return;
               }
@@ -233,7 +237,7 @@ export async function onRequestPost(request, env) {
           } catch (e) {
             if (closed) return;
             const timedOut = Date.now() >= deadline - 50;
-            console.error('[ai] gemini answer failed', JSON.stringify({ model: model.id, timedOut, sentText, name: e && /** @type {any} */ (e).name, message: redact(e && /** @type {any} */ (e).message, 200) }));
+            console.error('[ai] gemini answer failed', JSON.stringify({ model: gModel, timedOut, sentText, name: e && /** @type {any} */ (e).name, message: redact(e && /** @type {any} */ (e).message, 200) }));
             send('error', { code: timedOut ? 'timeout' : 'upstream' });
             return;
           } finally {
@@ -260,7 +264,7 @@ export async function onRequestPost(request, env) {
         if (tail) { sentText = true; send('delta', { text: tail }); }
         if (!sentText) {
           /* 模型正常结束但没有正文（额度被思考段用完 / 只输出了思考）：记日志，回 error 让前端提示，不当成功 */
-          if (model.provider === 'gemini') console.error('[ai] gemini empty', redact(JSON.stringify({ model: model.id, finishReason: gFinish, usage: gUsage, search: gSearch, hits: hits.length }), 600));
+          if (model.provider === 'gemini') console.error('[ai] gemini empty', redact(JSON.stringify({ model: gModel, picked: model.id, finishReason: gFinish, usage: gUsage, search: gSearch, hits: hits.length }), 600));
           else console.error('[ai] empty answer', JSON.stringify({ model: model.id, finish, reasoningChars, hits: hits.length }));
           send('error', { code: 'empty' });
           return;
