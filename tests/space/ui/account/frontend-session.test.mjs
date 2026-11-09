@@ -2,9 +2,9 @@
  * 2.4.1 前端会话修复测试（node --test）。
  *
  * 覆盖：
- * - lock.js 不再读写 sessionStorage 的 'sgx-lock-shown'（grep 断言）
- * - lock.js 页面加载先 fetch('/api/lock-session-check', { credentials: 'include' })
- * - page-security.js 的「立即锁定」调 POST /api/lock-now，不再清 sessionStorage
+ * - 锁屏（进站 v3 L1：守卫 shell/space/guard.js + 界面 shell/space/entry.js）不再读写 sessionStorage 的 'sgx-lock-shown'（grep 断言）
+ * - 守卫读网关注入的 data-sgx-lock-session，不自己 fetch 做初始判断
+ * - 立即锁屏（shell/space/lock-now.js，盾牌 / lock 命令共用）调 POST /api/lock-now，不确认、不清 sessionStorage
  * - sgx-account-card.html 随账号页删除（2026-11-08）
  * - /api/lock-now：POST 下发两条 Set-Cookie 清除头（带 Domain + 不带 Domain）
  *
@@ -19,9 +19,9 @@ import { dirname, join } from 'node:path';
 import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../../workers/auth-gateway/src/api/lock-now.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
-/* 2026-10-26（frontend-js #6）：锁屏拆成守卫 shell/lock-guard.js（core 里）+ 界面 shell/lock.js（按需加载），两份合起来查 */
-const lockJs = readFileSync(join(root, 'space/web/assets/js/shell/lock-guard.js'), 'utf8') + '\n' + readFileSync(join(root, 'space/web/assets/js/shell/lock.js'), 'utf8');
-const secJs = readFileSync(join(root, 'space/web/assets/js/apps/security.js'), 'utf8');
+/* 2026-10-26（frontend-js #6）：锁屏拆成守卫（core 里）+ 界面（按需加载）；进站 v3 L1 起是 shell/space/guard.js + shell/space/entry.js，两份合起来查 */
+const SP = join(root, 'space/web/assets/js/shell/space');
+const lockJs = readFileSync(join(SP, 'guard.js'), 'utf8') + '\n' + readFileSync(join(SP, 'entry.js'), 'utf8');
 
 test('lock.js：不再读写 sgx-lock-shown', () => {
   assert.ok(!lockJs.includes('sgx-lock-shown'), 'lock.js 不应再出现 sgx-lock-shown');
@@ -32,7 +32,8 @@ test('lock.js：不再读写 sgx-lock-shown', () => {
 test('lock.js：initLock 读 data-sgx-lock-session（L1 注入，不自己 fetch 做初始判断）', () => {
   assert.ok(lockJs.includes('dataset.sgxLockSession'), '应读 document.documentElement.dataset.sgxLockSession');
   /* initLock 不应 fetch session-check（unlock 后的防循环确认保留，那是另一处） */
-  const initLockSrc = lockJs.slice(lockJs.indexOf('export function initLock()'), lockJs.indexOf('function showLockScreen()'));
+  const initLockSrc = lockJs.slice(lockJs.indexOf('export function initLock()'), lockJs.indexOf('function showEntryCover()'));
+  assert.ok(initLockSrc.length > 100, '找到 initLock');
   assert.ok(!initLockSrc.includes("fetch('/api/lock-session-check'"), 'initLock 不应 fetch session-check');
 });
 
@@ -40,13 +41,20 @@ test('lock.js：会话有效时分发 sgx:session 事件', () => {
   assert.ok(lockJs.includes("CustomEvent('sgx:session'"), '应分发 sgx:session 事件');
 });
 
-test('page-security.js：立即锁定调 POST /api/lock-now（确认层与请求在 auth/lock-now.js，安全页和快捷面板共用）', () => {
-  const lockNowJs = readFileSync(join(root, 'space/web/assets/js/auth/lock-now.js'), 'utf8');
-  assert.ok(!secJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
-  assert.ok(secJs.includes("from '../auth/lock-now.js'") && secJs.includes('confirmLockNow()'), '安全页应调用共用的 confirmLockNow');
+test('立即锁屏（shell/space/lock-now.js）：只锁本机、不验证、没有确认层；调 api.session.end → POST /api/lock-now；锁所有设备是 /api/lock-all-devices', () => {
+  const lockNowJs = readFileSync(join(SP, 'lock-now.js'), 'utf8');
+  const api = readFileSync(join(SP, 'api.js'), 'utf8');
+  const paths = readFileSync(join(SP, 'paths.js'), 'utf8');
   assert.ok(!lockNowJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
-  assert.ok(lockNowJs.includes("fetch('/api/lock-now'"), '应 fetch /api/lock-now');
-  assert.ok(lockNowJs.includes("method: 'POST'"), '应用 POST');
+  assert.ok(lockNowJs.includes('api.session.end()'), '走 api.session.end');
+  assert.ok(!/confirm|dialog/i.test(lockNowJs.replace(/\/\*[\s\S]*?\*\//g, '')), '没有确认层');
+  assert.ok(/end: function \(\) \{ return postJSON\(API\.lockNow, \{\}\); \}/.test(api), 'session.end = POST lockNow');
+  assert.ok(paths.includes("lockNow: '/api/lock-now'") && paths.includes("lockAll: '/api/lock-all-devices'"));
+  for (const f of ['auth/lock-now.js', 'apps/security.js']) {
+    let gone = false;
+    try { readFileSync(join(root, 'space/web/assets/js', f), 'utf8'); } catch (e) { gone = true; }
+    assert.ok(gone, f + ' 已删');
+  }
 });
 
 test('2026-11-08 账号 UI 改版：账号卡 sgx-account-card.html 和账号页一起删了；旷野页 / 子页也不放账号卡', () => {
@@ -59,31 +67,19 @@ test('2026-11-08 账号 UI 改版：账号卡 sgx-account-card.html 和账号页
   assert.ok(!setEntry.includes('initAvatarEdit'), '旷野页入口不加载换头像');
 });
 
-test('security.html：安全分组两个入口（锁屏凭证/立即锁定）；没有管理凭证、应用凭证；账号在顶栏头像（2026-11 PR-5：点开账号下拉）', () => {
-  const secHtml = readFileSync('space/web/layouts/_default/security.html', 'utf8');
-  assert.ok(!secHtml.includes('id="sec-owner-cred"'), '锁屏凭证入口已移到顶栏头像（账号页）');
-  assert.ok(!secHtml.includes('id="sec-mgmt-cred"'), '管理凭证已删除');
-  assert.ok(!secHtml.includes('管理凭证'), '不应再出现「管理凭证」');
-  assert.ok(secHtml.includes('id="sec-lock-cred"'), '应有锁屏凭证入口');
-  assert.ok(secHtml.includes('锁屏凭证'), '中文标题');
-  assert.ok(secHtml.includes('id="sec-locknow"'), '应有立即锁定入口');
-  assert.ok(!secHtml.includes('id="sec-app-row"'), '不应有应用验证');
+test('进站 v3 L1：安全页（security.html / security.js）删了，旧地址 301 到盾牌 /#sec；顶栏账号下拉是骨架', () => {
+  let gone = false;
+  try { readFileSync('space/web/layouts/_default/security.html', 'utf8'); } catch (e) { gone = true; }
+  assert.ok(gone, 'security.html 已删');
+  const red = readFileSync('space/web/static/_redirects', 'utf8');
+  assert.match(red, /^\/security\/\s+\/#sec\s+301/m, '/security/ → /#sec 301');
   const base = readFileSync('space/web/layouts/_default/baseof.html', 'utf8');
   assert.ok(base.includes('"acct" $acctUrl'), '顶栏头像 / 账号下拉链到账号页');
   const tb = readFileSync('space/web/layouts/partials/shell-topbar.html', 'utf8');
   assert.ok(tb.includes('<a class="sgx-tb-av" href="{{ .acct }}"'), '顶栏头像用 acct 参数');
-  /* 2026-11-08：账号下拉 = 账号终端（shell/account/term.js 画内容），模板里只剩骨架，不再链到账号页 */
   assert.ok(tb.includes('<dialog id="sgx-acct"'), '账号下拉骨架');
   assert.ok(!tb.includes('sgx-pop-me-a'), '账号下拉模板里不再有去账号页的链接');
   assert.ok(!tb.includes('sgx-tb-me'), '顶栏没有头像');
-});
-
-test('security.js：读锁屏凭证状态，不再走 stepup；无角色条件渲染', () => {
-  const js = readFileSync('space/web/assets/js/apps/security.js', 'utf8');
-  assert.ok(!/stepup/i.test(js), '不应再有 stepup');
-  assert.ok(js.includes("'/api/lock-credentials'"), '状态卡片读 /api/lock-credentials');
-  assert.ok(js.includes("getElementById('sec-locknow')"), '应操作立即锁定入口');
-  assert.ok(!js.includes("role === 'visitor'"), '不应有按角色的条件分支'); // old-name guard
 });
 
 test('/api/lock-now：POST 下发 Set-Cookie 清除头（锁屏会话 + LockReauthTicket + LockResetTicket）', async () => {

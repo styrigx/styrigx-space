@@ -13,7 +13,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { jsDict } from '../../../fixtures/strings.mjs';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -126,33 +126,27 @@ test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-of
 });
 
 test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案为显示密码/隐藏密码', () => {
-  for (const f of [
-    'space/web/assets/js/shell/account/term.js',
-    'space/web/assets/js/shell/account/keys.js',
-    'space/web/assets/js/apps/security-lock.js',
-    'space/web/assets/js/apps/security.js',
-    'space/web/assets/js/shell/lock.js',
-  ]) {
+  const spaceDir = 'space/web/assets/js/shell/space';
+  const files = ['space/web/assets/js/shell/account/term.js', 'space/web/assets/js/shell/account/keys.js']
+    .concat(readdirSync(join(ROOT, spaceDir)).filter((f) => f.endsWith('.js')).map((f) => spaceDir + '/' + f));
+  for (const f of files) {
     const src = read(f);
     assert.ok(!src.includes("classList.toggle('off'"), f + ' 不应再 toggle .off');
     assert.ok(!src.includes('M2 12s3.5-7'), f + ' 不应再内联眼睛 SVG（统一走 bindEyeButton）');
   }
-  assert.ok(!read('space/web/assets/js/apps/security.js').includes('const EYE ='), 'security.js 的 EYE 常量应删除');
-  /* 语言包化（2026-11-07）：两页的文案表在主站字符串表 js.account / js.lockmgr */
-  for (const t of ['account', 'lockmgr']) {
-    const d = jsDict(t);
-    assert.deepEqual(d.eyeShow, { en: 'Show password', zh: '显示密码' }, t + ' eyeShow 应为显示密码');
-    assert.deepEqual(d.eyeHide, { en: 'Hide password', zh: '隐藏密码' }, t + ' eyeHide 应为隐藏密码');
+  /* 进站 v3 L1：安全页（security.js / security-lock.js）和锁屏 lock.js、cred-rows.js 都删了，进站凭证在盾牌终端里 */
+  for (const f of ['apps/security.js', 'apps/security-lock.js', 'shell/lock.js', 'auth/cred-rows.js']) {
+    assert.ok(!existsSync(join(ROOT, 'space/web/assets/js', f)), f + ' 已删');
   }
-  /* 补眼睛按钮的三个位置都在 */
-  /* 进站凭证框（createKeyField）与展开的密码框都走 cred-rows 的 bindPwEye */
-  const rows = read('space/web/assets/js/auth/cred-rows.js');
-  assert.ok(/export function createKeyField[\s\S]*?bindPwEye\(eye, input, o\.en\)/.test(rows), '进站凭证框（重置第一步）应有眼睛按钮');
-  assert.ok(/eye\.className = 'sgx-pw-eye';\s*bindPwEye\(eye, input, en\)/.test(rows), '第二步展开的账号密码框应有眼睛按钮');
-  /* lock-v10 命令解锁（2026-11-08）：锁屏上没有弹层，「无法登录？」是终端里的 reset 命令，服务端约定 /api/lock-reset、启动站 /api/space-auth */
-  const lockUi = read('space/web/assets/js/shell/lock.js');
-  assert.ok(lockUi.includes("'/api/lock-reset'") && lockUi.includes("purpose: 'lock-reset'"), '锁屏 reset 命令走同一套重置接口');
-  assert.ok(!/createMethodSheet|createVerifyDialog|mountResetFlow/.test(lockUi), '锁屏不再用底部弹层 / 验证对话框');
+  /* 语言包化（2026-11-07）：账号页文案表在主站字符串表 js.account */
+  const d = jsDict('account');
+  assert.deepEqual(d.eyeShow, { en: 'Show password', zh: '显示密码' }, 'account eyeShow 应为显示密码');
+  assert.deepEqual(d.eyeHide, { en: 'Hide password', zh: '隐藏密码' }, 'account eyeHide 应为隐藏密码');
+  /* 锁屏 sudo styrigx reset 走 /api/lock-reset（paths.js 唯一一处地址）；没有底部弹层 / 验证对话框 */
+  assert.ok(read(spaceDir + '/paths.js').includes("reset: '/api/lock-reset'"), 'reset 走 /api/lock-reset');
+  for (const f of ['entry.js', 'reset.js', 'session.js']) {
+    assert.ok(!/createMethodSheet|createVerifyDialog|mountResetFlow/.test(read(spaceDir + '/' + f)), f + ' 不用底部弹层 / 验证对话框');
+  }
   /* P2-3：升级验证层（shell/upgrade.js）已删除 */
   assert.ok(!existsSync(join(ROOT, 'space/web/assets/js/shell/upgrade.js')), 'shell/upgrade.js 已删除');
 });
@@ -195,13 +189,4 @@ test('行反馈：busy / 选中 helper 按约定 class 增删', () => {
   assert.ok(row.classList.contains('sgx-row-selected'));
   setRowSelected(row, false);
   assert.ok(!row.classList.contains('sgx-row-selected'));
-});
-
-test('行反馈：CSS 有按下/选中/箭头旋转规则', () => {
-  const css = read('space/web/assets/css/input.css');
-  assert.ok(css.includes('.sgx-credential-row'), '应有 .sgx-credential-row 规则');
-  assert.ok(css.includes('&:active { background: var(--m-container-high); }'), '按下态应有背景变色');
-  assert.ok(css.includes('&.sgx-row-selected'), '应有选中态规则');
-  assert.ok(css.includes('.sgx-credential-chev.expanded'), '应有箭头旋转规则');
-  assert.ok(css.includes('.sgx-method-opt'), '应有 .sgx-method-opt 规则');
 });
