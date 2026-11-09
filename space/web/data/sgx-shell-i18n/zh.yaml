@@ -205,6 +205,8 @@ term:
   manIndex: "手册页 · man <命令> 查看一页"
   manNone: "没有 {x} 的手册页"
   manPager: "q 或 enter 退出"
+  notDir: "{c}: 不是目录：{x}"
+  usageTty: "用法：tty [2 | 3 | 4 | 5]"
 # 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/js/shell/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
 man:
   help: "列出命令"
@@ -217,6 +219,9 @@ man:
   lock: "立即锁定这台设备"
   ask: "问 Gray AI 一个问题"
   clear: "清屏"
+  pwd: "显示当前目录"
+  open: "打开一个路径：站点、daymark/today、账号或盾牌的某一层"
+  tty: "显示当前终端，或打开另一个（3 盾牌 · 4 AI · 5 账号）"
 # 终端窗口底部的按键提示行（Gray 2026-11-09 细节 1）：键名同英文表
 kh:
   cmd: "enter 执行 · esc 关闭"

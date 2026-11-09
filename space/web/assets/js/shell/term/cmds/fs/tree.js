@@ -1,22 +1,82 @@
 /**
- * @fileoverview 虚拟目录（终端统一 T3；T6 扩成设计稿 §8.3 的整棵树）：现在只有 ~ 和四个站的目录。
+ * @fileoverview 虚拟目录树（终端统一 T6，设计稿 v1.5 §8.3）。路径写成 '~'、'blog'、'account/security'；只读、不跨站。
+ * ~ 下：四个站的目录（cd 在主页滚到那一节、在别的页去那个站）+ account（tty5 账号下拉的层）+ shield（tty3 盾牌下拉的层）。
  */
 
-/** 目录（ls 的结果，cd 的目标；wild = 旷野） */
+/** 四个站的目录（cd 的头一行、help 的 cd 那一行） */
 export const DIRS = ['blog', 'curio', 'daymark', 'wild'];
 
+/** 目录 → 里面的东西（目录带 /）；不在表里的目录是空的 */
+const TREE = /** @type {Record<string, string[]>} */ ({
+  '~': ['blog/', 'curio/', 'daymark/', 'wild/', 'account/', 'shield/'],
+  daymark: ['today'],
+  account: ['profile/', 'devices/', 'security/', 'apps/'],
+  shield: ['keys/', 'tempkeys/', 'links/'],
+});
+
+/** @param {string} p @returns {[string, string]} [父目录, 名字] */
+function split(p) {
+  const i = p.lastIndexOf('/');
+  return i < 0 ? ['~', p] : [p.slice(0, i), p.slice(i + 1)];
+}
+/** @param {string} p */
+function kindOf(p) {
+  if (p === '~') return 'dir';
+  const s = split(p);
+  const kids = TREE[s[0]] || [];
+  if (kids.indexOf(s[1] + '/') >= 0) return 'dir';
+  if (kids.indexOf(s[1]) >= 0) return 'file';
+  return '';
+}
+
 /**
- * cd 的参数 → 目标目录（'~' 或 DIRS 之一）；不认识 → null
- * @param {string} cwd 当前目录（'~' 或 DIRS 之一） @param {string} [arg]
- * @returns {string|null}
+ * 参数 → 路径和类型；不存在 → null。相对路径先在当前目录下找，找不到再从 ~ 找（不以 ./ ../ 开头时）
+ * @param {string} cwd @param {string} [arg] @returns {{path: string, dir: boolean} | null}
+ */
+export function resolvePath(cwd, arg) {
+  const r = walk(cwd, arg);
+  if (r || !cwd || cwd === '~') return r;
+  /* 相对路径在当前目录下找不到：再从 ~ 找一次（站内终端的习惯：在 ~/blog 里 cd curio 也能去奇趣） */
+  const a = String(arg == null ? '' : arg).trim();
+  return /^\.{1,2}(\/|$)/.test(a) ? null : walk('~', a);
+}
+
+/** @param {string} cwd @param {string} [arg] @returns {{path: string, dir: boolean} | null} */
+function walk(cwd, arg) {
+  let a = String(arg == null ? '' : arg).trim().toLowerCase();
+  if (!a || a === '~' || a === '/' || a === '~/') return { path: '~', dir: true };
+  /** @type {string[]} */
+  let parts;
+  if (a.indexOf('~/') === 0 || a.charAt(0) === '/') { parts = []; a = a.replace(/^~?\/+/, ''); } else parts = !cwd || cwd === '~' ? [] : cwd.split('/');
+  const segs = a.split('/');
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i];
+    if (!s || s === '.') continue;
+    if (s === '..') { parts.pop(); continue; }
+    parts.push(s);
+    const k = kindOf(parts.join('/'));
+    if (!k) return null;
+    if (k === 'file' && segs.slice(i + 1).some(function (x) { return x && x !== '.'; })) return null;
+  }
+  const p = parts.length ? parts.join('/') : '~';
+  return { path: p, dir: kindOf(p) === 'dir' };
+}
+
+/**
+ * cd 的参数 → 目标目录（'~'、'blog'、'account/security' …）；不存在或是文件 → null
+ * @param {string} cwd @param {string} [arg] @returns {string|null}
  */
 export function normDir(cwd, arg) {
-  let a = String(arg == null ? '' : arg).trim();
-  if (!a || a === '~' || a === '/' || a === '~/') return '~';
-  a = a.replace(/^~\//, '').replace(/^\.\//, '').replace(/\/+$/, '');
-  if (a === '..' || a === '.') return a === '.' ? (cwd || '~') : '~';
-  const up = /^\.\.\/(.+)$/.exec(a);
-  if (up) a = up[1];
-  a = a.toLowerCase();
-  return DIRS.indexOf(a) >= 0 ? a : null;
+  const r = resolvePath(cwd, arg);
+  return r && r.dir ? r.path : null;
+}
+
+/** 目录里的东西（目录带 /） @param {string} p */
+export function listDir(p) {
+  return (TREE[p] || []).slice();
+}
+
+/** 第一段（'account/security' → 'account'） @param {string} p */
+export function top(p) {
+  return p === '~' ? '~' : p.split('/')[0];
 }

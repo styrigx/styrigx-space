@@ -695,6 +695,25 @@ export function mountTopbar(o) {
           });
         },
         daymarkHref: function () { return hrefOf('daymark', '/daymark/'); },
+        /* open ~/account[/层]、open ~/shield[/层]（终端统一 T6）：打开对应下拉的那一层，不跳页 */
+        account: function (/** @type {string} */ layer) {
+          return { href: '~/account' + (layer ? '/' + layer : ''), go: function () { closeAll(function () { openAcct(layer ? { layer: layer } : {}); }); } };
+        },
+        shield: function (/** @type {string} */ layer) {
+          return { href: '~/shield' + (layer ? '/' + layer : ''), go: function () { closeAll(function () { if (sec) openSec(layer ? { layer: layer } : undefined); }); } };
+        },
+        /* tty <n>：3 盾牌、4 AI 窗口、5 账号下拉（2 = 本终端，不进这里） */
+        tty: function (/** @type {number} */ n) {
+          return {
+            go: function () {
+              closeAll(function () {
+                if (n === 3) { if (sec) openSec(); }
+                else if (n === 5) openAcct({});
+                else if (n === 4) { if (ai && !ai.ms.isOpen()) ai.ms.open(); }
+              });
+            },
+          };
+        },
       },
     });
     if (homeTerm) homeView = T.mountTermView(homeTerm, term, { autoHelp: true, kh: 'cmdHome' });
