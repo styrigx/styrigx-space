@@ -11,7 +11,7 @@
 {{ .Scratch.Set "sgx-entry" "entry-space-wild.js" }}
 {{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 {{ $W := $tr.wild }}
-{{ $ps := "guest@space:~/wild$" }}
+{{ $ps := partial "sgx-envps.html" "~/wild" }}
 {{ $ver := site.Data.version }}
 {{/* 版本号唯一来源 data/version.yaml；缺字段时构建直接失败，禁止静默兜底旧版本 */}}
 {{ if not $ver.ui }}{{ errorf "data/version.yaml 缺少 ui 字段" }}{{ end }}

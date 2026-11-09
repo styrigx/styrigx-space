@@ -1,5 +1,0 @@
-{{/* 账号页各页（账号总览 account.html、设备 account-devices.html、安全与隐私 account-security.html、应用授权 account-apps.html 等）共用的文案：
-   输出 #sgx-i18n-account，JS 见 apps/tempkeys-i18n.js createT（2026-11-08 起只剩临时钥匙 / 分享短链页用）。用法：{{ partial "account-i18n.html" . }} */}}
-{{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
-{{ $acI18n := $tr.js.account }}
-<script id="sgx-i18n-account" type="application/json">{{ $acI18n | jsonify | safeJS }}</script>

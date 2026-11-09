@@ -13,7 +13,7 @@
   {{/* ===== 余响 Echo：今天（或日期条选中那天）的一句 ===== */}}
   <section id="dm-pane-echo" class="dm-pane dm-pane-echo" aria-label="{{ $tr.index.echo }}">
     <div class="dm-today">
-      <p class="sgx-ph-cmd dm-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">styrigx@space:~$</span> cat daymark/<span id="dm-cmd-day">today</span></p>
+      <p class="sgx-ph-cmd dm-cmd" aria-hidden="true" translate="no"><span class="sgx-pr">{{ partial "sgx-envps.html" "~" }}</span> cat daymark/<span id="dm-cmd-day">today</span></p>
       <h1 class="sr-only">{{ $tr.site.name }}</h1>
       <article id="dm-echo" class="dm-echo" aria-live="polite">
         <p id="dm-echo-day" class="dm-dd"></p>

@@ -12,9 +12,10 @@
      bfcache 恢复（pageshow persisted）也重算一次，变了就调 fn（各站传 __applyLayout）。
    经典脚本 ES5，只定义全局函数，不碰 DOM；调用方把结果写进 <html data-sgx-layout="phone|desktop" data-sgx-device="phone|desktop"> 和各站自己的 layout-* 类。
    主站 space/web/assets/js/lib/prefs.js resolveLayout() 是同一条规则（tests/space/ui/layout/layout-mode.test.mjs 对表）。
-   另外两件首帧前的事也在这里（四站同一份、同一个时机：外观预读之后、样式表生效之前），见文件末尾：
+   另外三件首帧前的事也在这里（四站同一份、同一个时机：外观预读之后、样式表生效之前），见文件末尾：
    - 手动桌面 + 手机屏 → viewport 改成固定 980 宽（__sgxViewportSync）；
-   - 首帧底色：color-scheme / theme-color / 最低优先级的 html 底色跟着本站深浅色走，不跟系统（__sgxFirstPaint）。 */
+   - 首帧底色：color-scheme / theme-color / 最低优先级的 html 底色跟着本站深浅色走，不跟系统（__sgxFirstPaint）；
+   - 环境提示符：按账号登录标记 cookie 写 <html data-sgx-account-session>（__sgxAccountPs）。 */
 function __sgxUaMobile(){
   try{
     var n=navigator,u=n.userAgentData;
@@ -117,4 +118,15 @@ function __sgxFirstPaint(){
     st.textContent='@layer sgx-first-paint{html{background-color:'+bg+';color-scheme:'+cs+'}}';
   }catch(e){}
 }
-try{if(typeof document!=='undefined'){__sgxViewportSync();__sgxFirstPaint()}}catch(e){}
+/* 环境提示符首帧（进站 v3 L1，SPACE-V3「环境提示符规则」）：除锁屏 / 盾牌 / reset 终端 / 账号下拉外，全站提示符按账号登录状态显示
+   （没登录 styrigx@space:~$，已登录 root@account:~#）。账号 Worker 登录时种的非 HttpOnly 标记 cookie sgx-account-signed-in=1（= shell/account/term.js SIGNED_IN_COOKIE）
+   在第一次绘制前写成 <html data-sgx-account-session="in|out">，CSS（shell.css .sgx-envps-*）和 JS（shell/terminal.js）都只读这个属性；只是显示，不放行任何东西。
+   已经有值（账号终端写过）就不动。 */
+function __sgxAccountPs(){
+  try{
+    var d=document.documentElement;
+    if(d.getAttribute('data-sgx-account-session'))return;
+    d.setAttribute('data-sgx-account-session',/(?:^|;\s*)sgx-account-signed-in=1(?:;|$)/.test(document.cookie||'')?'in':'out');
+  }catch(e){}
+}
+try{if(typeof document!=='undefined'){__sgxViewportSync();__sgxFirstPaint();__sgxAccountPs()}}catch(e){}

@@ -175,24 +175,6 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-share-toast.show { opacity: 1; transform: translate(-50%, 0); }
 .reduced-motion .sgx-share-toast { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-share-toast { transition: none; } }
-/* 分享前的最小锁侧复验步骤（share.js lockReauthStep，P2-3）：底部弹层，宽屏居中；只用 --sgx-* 角色 */
-.sgx-share-reauth { box-sizing: border-box; width: min(100%, 480px); max-width: 100%; margin: auto auto 0; padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
-  border: 0; border-radius: 24px 24px 0 0; background: var(--sgx-surface); color: var(--sgx-on-surface);
-  font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; }
-.sgx-share-reauth::backdrop { background: rgba(0,0,0,.5); }
-.sgx-share-reauth-title { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
-.sgx-share-reauth-desc { margin: 0 0 20px; font-size: 14px; color: var(--sgx-on-surface-variant); }
-.sgx-share-reauth-pw { display: flex; flex-direction: column; gap: 12px; margin: 0 0 12px; }
-.sgx-share-reauth-in { box-sizing: border-box; width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--sgx-outline-variant);
-  background: var(--sgx-surface-container-highest); color: var(--sgx-on-surface); font-size: 16px; }
-.sgx-share-reauth-btn { display: block; box-sizing: border-box; width: 100%; padding: 14px; margin: 0 0 12px; border: 0; border-radius: 12px;
-  background: var(--sgx-btn-primary-bg); color: var(--sgx-btn-primary-fg); font-size: 16px; font-weight: 600; cursor: pointer; }
-.sgx-share-reauth-pw .sgx-share-reauth-btn { margin: 0; }
-.sgx-share-reauth-cancel { display: block; width: 100%; padding: 12px; border: 0; background: none; color: var(--sgx-on-surface-variant); font-size: 15px; cursor: pointer; }
-.sgx-share-reauth-err { margin: 0 0 12px; font-size: 14px; text-align: center; color: var(--sgx-primary); }
-.sgx-share-reauth-err[hidden] { display: none; }
-.sgx-share-reauth[aria-busy="true"] .sgx-share-reauth-btn { opacity: .6; pointer-events: none; }
-@media (min-width: 840px) { .sgx-share-reauth { margin: auto; border-radius: 24px; } }
 /* ---- panel ---- */
 /* 快捷面板 + AI 窗口（2026-11-04 P5-1，四个站同一套；标记在共享外壳 topbar.html，主站 shell/quick-panel.js、子站共享外壳 topbar.js 开关）：
    非模态 <dialog>（show()，不进顶层），fixed 铺满「顶栏下沿以下」的区域：dialog 本身就是遮罩（is-open 时 --sgx-scrim），
@@ -519,6 +501,9 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-ai-msg { border-radius: 10px; }
 .sgx-ai-msg[data-role="user"] { padding: 9px 13px; background: var(--sgx-surface-container-high); color: var(--sgx-text-primary); box-shadow: inset 0 0 0 1px var(--sgx-term-line); border-bottom-right-radius: 10px; }
 .sgx-ai-msg[data-role="assistant"] { max-width: 100%; padding: 0; background: transparent; box-shadow: none; border-radius: 0; }
+/* 用户那一行的提示符跟环境提示符规则（进站 v3 L1）：账号没登录 styrigx@space:~$，已登录 root@account:~#（gray@space 那一行是 AI 自己，不动） */
+.sgx-ai-msg[data-role="user"]::before { content: "styrigx@space:~$"; content: "styrigx@space:~$" / ""; display: block; margin-bottom: 2px; font-family: var(--sgx-font-mono); font-size: 11px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
+html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { content: "root@account:~#"; content: "root@account:~#" / ""; }
 .sgx-ai-msg[data-role="assistant"]::before { content: "gray@space:~$"; content: "gray@space:~$" / ""; display: block; margin-bottom: 4px; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
 .sgx-ai-msg[data-greet] > span { color: var(--sgx-text-secondary); }
 .sgx-ai-msg[data-state="error"] { padding: 9px 13px; border-radius: 10px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sgx-danger) 45%, transparent); }
@@ -757,6 +742,8 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-avc-btn kbd { margin-right: 6px; font-family: inherit; color: var(--sgx-text-tertiary); }
 .sgx-avc-btn.primary { color: var(--sgx-primary); }
 .sgx-avc-btn:disabled { opacity: .5; }
+/* 盾牌（进站 v3 L1，shell/space/shield.js）：复用 .sgx-at-*；临时钥匙明文码只多这一条 */
+.sgx-sh-code { font-family: var(--sgx-font-mono); font-size: 15px; font-weight: 500; letter-spacing: .08em; color: var(--sgx-text-primary); -webkit-user-select: all; user-select: all; overflow-wrap: anywhere; }
 /* ---- inpage ---- */
 /* 只用共享外壳 --sgx-* 角色（跟调色板、深浅色、自定义色），不写死颜色；不用 Tailwind 工具类（便于原样搬到子站）。
    页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 tb4.html 的 .hero.ph；partials/sgx-ph.html）：一行装饰提示符「styrigx@space:~$ <命令>」+ 等宽大标题 + 主题色「_」+ 一行说明，
@@ -1007,3 +994,6 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term--drawer .sgx-term-body { height: min(56vh, 460px); overscroll-behavior: contain; }
 .reduced-motion .sgx-term-dlg .sgx-term, .reduced-motion .sgx-term-dlg::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-term-dlg .sgx-term, .sgx-term-dlg::backdrop { transition: none; } }
+/* 环境提示符（进站 v3 L1，SPACE-V3「环境提示符规则」）：模板里静态的提示符两种都写（.sgx-envps-g 账号没登录 styrigx@space:~$ / .sgx-envps-r 已登录 root@account:~#），
+   按 <html data-sgx-account-session>（layout-mode.js __sgxAccountPs 首帧前写好）只显示一种，首帧不闪。JS 拼的提示符（站内终端、AI 窗）读同一个属性。 */
+html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-session="in"]) .sgx-envps-r { display: none; }

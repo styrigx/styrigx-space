@@ -2,7 +2,7 @@
 /tp    https://github.com/styrigx/textbook-playbook    301
 /gh    https://github.com/styrigx                     301
 /gh/*  https://github.com/styrigx/:splat               301
-/owner/  /security/lock/  301
+/owner/  /#sec=keys  301
 /chat/  /  301
 /search/  /  301
 /browser/  /  301
@@ -32,3 +32,9 @@
 /zh/account/apps/  /zh/#acct=apps  301
 /zh/account/reset/  /zh/#acct=reset  301
 /zh/account/sync/  /zh/#acct  301
+/security/  /#sec  301
+/security/lock/  /#sec=keys  301
+/security/tempkeys/  /#sec=tempkeys  301
+/zh/security/  /zh/#sec  301
+/zh/security/lock/  /zh/#sec=keys  301
+/zh/security/tempkeys/  /zh/#sec=tempkeys  301

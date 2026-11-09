@@ -1,15 +1,16 @@
 /**
- * @fileoverview 锁屏守卫（core chunk 里只有这一小块；frontend-js #6，2026-10-26 从 lock.js 拆出）。
- * - 读网关注入的 <html data-sgx-lock-session> 判断页面状态；valid 页只绑自动锁定（切回前台问服务端，401 → 重载）
- * - locked / unknown：先同步盖一层不透明遮罩（fail closed，和以前直接画锁屏同一时刻），再 import() 锁屏界面（shell/lock.js）；
+ * @fileoverview 进站守卫（core chunk 里只有这一小块；原 shell/lock-guard.js，进站 v3 L1 搬进 shell/space/）。
+ * - 读网关注入的 <html data-sgx-lock-session> 判断页面状态（属性名 L2 随网关改）；valid 页只绑自动锁屏（切回前台问服务端，401 → 重载）
+ * - locked / unknown：先同步盖一层不透明遮罩（fail closed），再 import() 锁屏界面（shell/space/entry.js）；
  *   界面加载失败时遮罩不撤，只给「重新加载」按钮——绝不因为脚本没取到而露出页面
- * 锁屏界面、auth-sheet / auth-flow / passkey-assert 这些只在锁屏时用的模块因此不在每页的 core 里。
+ * 锁屏界面、终端、passkey-assert 这些只在锁屏时用的模块因此不在每页的 core 里。
  * 进门二值（P2-3）：没有等级、没有升级验证层；进门之后的事（锁侧复验、账号）由各页自己要。
  * 去处判定（askServer / proceed）和本地开发判断放这里，锁屏界面从这里 import，两边是同一份。
  */
-import { sgxNavigate, sgxReplace, sgxReload } from '../lib/diag-jumptrace.js';
-import { lockState } from '../lib/lock-state.js';
-import { i18nTable } from '../lib/i18n.js';
+import { sgxNavigate, sgxReplace, sgxReload } from '../../lib/diag-jumptrace.js';
+import { spaceState } from './state.js';
+import { i18nTable } from '../../lib/i18n.js';
+import { API } from './paths.js';
 /** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */
 const tx = i18nTable('core');
 
@@ -63,7 +64,7 @@ export function qp(k) {
  */
 export function askServer() {
   const ret = qp('return');
-  const url = '/api/lock-session-check' + (ret ? '?return=' + encodeURIComponent(ret) : '');
+  const url = API.sessionCheck + (ret ? '?return=' + encodeURIComponent(ret) : '');
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' })
     .then(function (r) {
       if (!r.ok) return { ok: false };
@@ -71,7 +72,7 @@ export function askServer() {
     })
     .then(function (d) {
       if (!d || d.ok !== true) return { ok: false };
-      lockState.lockBy = typeof d.by === 'string' ? d.by : '';
+      spaceState.by = typeof d.by === 'string' ? d.by : '';
       return d;
     })
     .catch(function () { return { ok: false }; });
@@ -133,10 +134,11 @@ function showSubsiteFailure() {
   el.hidden = false;
 }
 
-/** 当前地址去掉 lock / why / return（其余参数、hash 原样） */
+/** 当前地址去掉 entry / lock（旧参数，兼容读一版）/ why / return（其余参数、hash 原样） */
 function cleanUrl() {
   try {
     const u = new URL(window.location.href);
+    u.searchParams.delete('entry');
     u.searchParams.delete('lock');
     u.searchParams.delete('why');
     u.searchParams.delete('return');
@@ -206,8 +208,8 @@ function checkSessionForAutoLock() {
   const now = Date.now();
   if (now - lastLockCheck < 5000) return;
   lastLockCheck = now;
-  if (document.getElementById('sgx-lock')) return;
-  fetch('/api/lock-session-check', { credentials: 'same-origin', cache: 'no-store' })
+  if (document.getElementById('sgx-entry')) return;
+  fetch(API.sessionCheck, { credentials: 'same-origin', cache: 'no-store' })
     .then(function (r) {
       if (r.status === 401) sgxReload();
     })
@@ -249,7 +251,7 @@ export function initLock() {
   try {
     window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: state === 'valid' } }));
   } catch (e) {}
-  if (state === 'lock-reset') return; /* LockResetTicket页：落地页需可操作 */
+  if (state === 'lock-reset') return; /* 网关给 reset 票页面的状态（L2 删）：不盖锁屏 */
   if (state === 'valid') {
     bindAutoLock();
     /* 子站踢回（带 why）但主站会话有效：问服务端 next，回子站（20 秒窗口防死循环） */
@@ -269,59 +271,30 @@ export function initLock() {
    ============================================================ */
 
 /** 锁屏界面加载前的遮罩：不透明、盖住整页、挡住点击和读屏（fail closed） */
-function showLockCover() {
-  let c = document.getElementById('sgx-lock-cover');
+function showEntryCover() {
+  let c = document.getElementById('sgx-entry-cover');
   if (c) return c;
   c = document.createElement('div');
-  c.id = 'sgx-lock-cover';
+  c.id = 'sgx-entry-cover';
   c.setAttribute('aria-busy', 'true');
   c.style.cssText = 'position:fixed;inset:0;z-index:301;background:var(--m-surface,#000);display:flex;align-items:center;justify-content:center;';
   document.body.appendChild(c);
-  document.body.classList.add('sgx-locked');
+  document.body.classList.add('sgx-entry');
   return c;
 }
 
 /** 锁屏界面脚本没取到（断网 / 部署换代）：遮罩不撤，给一个重新加载按钮 @param {HTMLElement} cover */
-function lockLoadFailed(cover) {
-  const en = document.documentElement.lang === 'en';
+function entryLoadFailed(cover) {
   cover.removeAttribute('aria-busy');
-  cover.innerHTML = '<button type="button" class="sgx-credential-btn-primary" id="sgx-lock-cover-retry">' +
+  cover.innerHTML = '<button type="button" class="sgx-credential-btn-primary" id="sgx-entry-cover-retry">' +
     (tx('lockReload')) + '</button>';
-  const btn = document.getElementById('sgx-lock-cover-retry');
+  const btn = document.getElementById('sgx-entry-cover-retry');
   if (btn) btn.addEventListener('click', function () { sgxReload(); });
 }
 
-/* 页面自带验证门（锁屏凭证页等）已接管：之后不再画全局锁屏。见 releaseLockScreen() */
-let lockReleased = false;
-
 function openLockScreen() {
-  if (lockReleased) return;
-  const cover = showLockCover();
-  import('./lock.js')
-    .then(function (m) {
-      /* 界面脚本按需加载期间页面自带的门已经接管（releaseLockScreen）：不再画锁屏，否则会盖在门 / 管理区上 */
-      if (lockReleased) return;
-      m.showLockScreen();
-    })
-    .catch(function () {
-      if (!lockReleased) lockLoadFailed(cover);
-    });
-}
-
-/**
- * 页面自带验证门（锁屏凭证页 apps/security-lock.js、门内页 apps/app-gate.js）进门 / 显示门口 / 显示失败原因时调用：
- * 撤掉全局锁屏（已画的锁屏、守卫的遮罩），并让还在加载中的锁屏界面不再画上来。
- * 以前锁屏是同步画的，页面晚些时候删掉 #sgx-lock 就够了；#6 之后锁屏界面是 import() 按需加载、晚于页面的请求返回，
- * 只删 DOM 会被随后画上的锁屏重新盖住（2026-10-26 passkey-e2e「锁屏凭证页：添加通行密钥」回归的根因）。
- * 这些页面本来就以自己的门为准（服务端 reauth 票），不靠全局锁屏，所以「释放」是粘性的、只对本页生效。
- */
-export function releaseLockScreen() {
-  lockReleased = true;
-  try {
-    const gl = document.getElementById('sgx-lock');
-    if (gl) gl.remove();
-    const cover = document.getElementById('sgx-lock-cover');
-    if (cover) cover.remove();
-    document.body.classList.remove('sgx-locked');
-  } catch (e) {}
+  const cover = showEntryCover();
+  import('./entry.js')
+    .then(function (m) { m.showEntryScreen(); })
+    .catch(function () { entryLoadFailed(cover); });
 }
