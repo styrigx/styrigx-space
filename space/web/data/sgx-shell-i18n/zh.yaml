@@ -403,6 +403,8 @@ account:
   reset:
     recoveryKeyAria: "恢复密钥"
     lead: "重置登录 · 用恢复密钥验证（不登录账号）"
+    back: "返回"
+    backAria: "离开 reset，返回（^C）"
     ok: "重置票 3 分钟 · 不签账号会话"
     cooldown: "恢复密钥连错 5 次锁 15 分钟"
     group: "重设账号密码 / 通行密钥"

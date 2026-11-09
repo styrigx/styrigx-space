@@ -564,6 +564,15 @@ export function mountAccountTerm(o) {
     submit();
   });
   /* esc：先退出当前命令，再回上一层，最外层才交给下拉关掉（modalSheet 的 Esc 看 defaultPrevented） */
+  /* 等通行密钥（busy）时输入行藏着、禁用，焦点掉到 body，键盘事件到不了下拉：在 document 上接 Ctrl+C / esc（2026-11-09），只中断等待、不关下拉；别的模式照旧 */
+  doc.addEventListener('keydown', function (e) {
+    if (C.mode !== 'busy' || !C.busyCancel || !o.ms.isShown() || e.defaultPrevented) return;
+    const ctrlC = e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'c' || e.key === 'C');
+    if (!ctrlC && e.key !== 'Escape') return;
+    e.preventDefault();
+    C.refocus = true;
+    C.interrupt();
+  }, true); /* 捕获阶段：先于 modal-sheet 在 document 上的 Esc 关闭（它看 defaultPrevented） */
   dlg.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
     if (escBack()) e.preventDefault();
