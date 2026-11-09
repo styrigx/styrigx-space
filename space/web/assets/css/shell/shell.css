@@ -528,7 +528,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 @supports (backdrop-filter: blur(1px)) {
   .sgx-ai .sgx-qp-sheet, .sgx-pop .sgx-qp-sheet { backdrop-filter: none; }
 }
-/* AI 窗口：头部 G 徽标 · Gray AI / 副标题 · 新对话 · 历史 · 头像 · ×；消息区每条回答前一行命令回显（提示符跟环境提示符规则 + gray --reply；装饰，读屏不念）；输入框 ask › 前缀 + 方形发送 */
+/* AI 窗口：头部 G 徽标 · Gray AI / 副标题 · 新对话 · 历史 · 头像 · ×；消息区每条回答前一行命令回显（提问 --ask / 回答 grayai … --reply；装饰，读屏不念）；输入框 ask › 前缀 + 方形发送 */
 .sgx-ai .sgx-qp-sheet { gap: 0; padding: 0; }
 .sgx-ai-head { gap: 0; padding: 10px 8px 10px 14px; border-bottom-color: var(--sgx-term-line); }
 .sgx-ai-badge { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px;
@@ -549,11 +549,12 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-ai-msg { border-radius: 10px; }
 .sgx-ai-msg[data-role="user"] { padding: 9px 13px; background: var(--sgx-surface-container-high); color: var(--sgx-text-primary); box-shadow: inset 0 0 0 1px var(--sgx-term-line); border-bottom-right-radius: 10px; }
 .sgx-ai-msg[data-role="assistant"] { max-width: 100%; padding: 0; background: transparent; box-shadow: none; border-radius: 0; }
-/* 用户那一行的提示符跟环境提示符规则（进站 v3 L1）：账号没登录 styrigx@space:~$，已登录 root@account:~#；回答前的命令回显同一规则（Gray 2026-11-09）：styrigx@space:~$ gray --reply / root@account:~# gray --reply */
-.sgx-ai-msg[data-role="user"]::before { content: "styrigx@space:~$"; content: "styrigx@space:~$" / ""; display: block; margin-bottom: 2px; font-family: var(--sgx-font-mono); font-size: 11px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
-html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { content: "root@account:~#"; content: "root@account:~#" / ""; }
-.sgx-ai-msg[data-role="assistant"]::before { content: "styrigx@space:~$ gray --reply"; content: "styrigx@space:~$ gray --reply" / ""; display: block; margin-bottom: 4px; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
-html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before { content: "root@account:~# gray --reply"; content: "root@account:~# gray --reply" / ""; }
+/* 用户那一行 = 提问者的提示符 + --ask，回答前一行 = grayai 的提示符 + --reply（Gray 2026-11-09 第二版；只改文字，样式不变）：
+   账号没登录 styrigx@space:~$ --ask / grayai@space:~$ --reply；已登录 root@account:~# --ask / grayai@account:~# --reply */
+.sgx-ai-msg[data-role="user"]::before { content: "styrigx@space:~$ --ask"; content: "styrigx@space:~$ --ask" / ""; display: block; margin-bottom: 2px; font-family: var(--sgx-font-mono); font-size: 11px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
+html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { content: "root@account:~# --ask"; content: "root@account:~# --ask" / ""; }
+.sgx-ai-msg[data-role="assistant"]::before { content: "grayai@space:~$ --reply"; content: "grayai@space:~$ --reply" / ""; display: block; margin-bottom: 4px; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
+html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before { content: "grayai@account:~# --reply"; content: "grayai@account:~# --reply" / ""; }
 .sgx-ai-msg[data-greet] > span { color: var(--sgx-text-secondary); }
 .sgx-ai-msg[data-state="error"] { padding: 9px 13px; border-radius: 10px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sgx-danger) 45%, transparent); }
 .sgx-ai-turn { max-width: 100%; align-self: stretch; }
