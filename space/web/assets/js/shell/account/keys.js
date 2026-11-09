@@ -117,16 +117,25 @@ export function mountKeys(C) {
   C.cmdPasskeyAdd = function (typed) {
     if (needReauth()) { C.withReauth(function () { C.layer = 'keys'; C.render(); C.cmdPasskeyAdd(); }, t('reauth.lead.keys')); return; }
     if (!typed) C.echo('passkey add');
-    C.setMode('busy');
+    C.setMode('busy', { cc: true });
     const toRes = function (/** @type {any} */ r) { return { status: r.s, json: r.j }; };
     const x = ops();
     let done = false;
+    /* 等系统窗口时可 ^C / esc / 点 ^C（2026-11-09）：收起系统窗口（AbortController），之后回来的结果不再提示、不再提交注册 */
+    let stopped = false;
+    const ac = typeof AbortController === 'function' ? new AbortController() : null;
+    C.busyCancel = function () { stopped = true; try { if (ac) ac.abort(); } catch (e) {} };
     registerPasskey({
+      stale: function () { return stopped; },
+      signal: ac ? ac.signal : undefined,
       challenge: function () { return x.passkeyAddChallenge().then(toRes); },
       register: function (/** @type {any} */ body) { return x.passkeyAdd(body).then(toRes); },
       onAuthError: function (/** @type {any} */ res) { return C.authErr({ s: res.status, j: res.json }); },
       onRegistered: function (/** @type {string} */ credId, /** @type {string} */ prefill) {
         done = true;
+        C.busyCancel = null;
+        /* ^C 时注册请求已经发出去了：钥匙已存上，只刷新列表，不再接着问名字 */
+        if (stopped) { C.loadKeys(); return; }
         C.ok('✓ ' + t('keys.passkey.registered'));
         if (C.status) C.status.configured.passkey = true;
         C.loadKeys();
@@ -135,9 +144,9 @@ export function mountKeys(C) {
       },
       prefill: function () { return genPkPrefillName(''); },
       errText: function (/** @type {string} */ c, /** @type {number} */ s) { return api.errText(C.errT, c, s); },
-      toast: function (/** @type {string} */ m) { C.err(m); },
+      toast: function (/** @type {string} */ m) { if (!stopped) C.err(m); },
       msg: { cancelled: t('common.cancelled'), already: t('keys.passkey.already'), noSupport: t('common.pkNoSupport'), failed: t('keys.passkey.failed'), network: t('common.errNetwork') },
-    }).then(function () { if (!done && C.mode === 'busy') C.toCmd(); });
+    }).then(function () { if (!done && !stopped && C.mode === 'busy') C.toCmd(); });
   };
   /** 终端里 `为这把通行密钥命名 [现名]:` @param {string} credId @param {string} cur @param {boolean} fill 输入行先填上现名 */
   function askName(credId, cur, fill) {

@@ -71,7 +71,7 @@ export function mountSession(C) {
     offer(v, ks);
   };
   /**
-   * 列出验证方式让用户选。通行密钥取消 / 失败后回到这里（同一轮，计入 3 次），不掉回命令行（Gray 22:13）。
+   * 列出验证方式让用户选。通行密钥取消 / 失败后回到这里（同一轮；失败计入 3 次，取消系统窗口不计，2026-11-09），不掉回命令行（Gray 22:13）。
    * @param {{reauth?: boolean, withReauth?: boolean, done: () => void}} v @param {string[]} ks
    */
   function offer(v, ks) {
@@ -122,6 +122,8 @@ export function mountSession(C) {
       if (stale()) return;
       C.busyCancel = null;
       C.out(esc(e && e.cancelled ? t('common.cancelled') : (e && e.message) || t('common.errVerify')), e && e.cancelled ? 'd' : 'er');
+      /* 系统通行密钥窗口被用户取消（NotAllowedError / AbortError → cancelled）不算一次失败，只重新列选项；真的验证失败才计入 3 次（Gray 2026-11-09） */
+      if (e && e.cancelled) { offer(v, ks); return; }
       again(v, ks);
     });
   }

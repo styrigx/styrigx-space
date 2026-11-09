@@ -96,6 +96,48 @@ test.describe('sudo root reset', () => {
     await expect(d).toHaveAttribute('data-acct-state', 'in');
   });
 
+  test('reset 层底部「^C 返回」（2026-11-09）：点了离开 reset（没选登出方式 = 不登出），回 login@account；Ctrl+C 一样', async ({ page }) => {
+    let reset = null;
+    const calls = await mockAccount(page, {
+      status: () => STATUS({ reset }),
+      handlers: { 'reset/recovery-key': () => { reset = { by: 'recovery-key', expiresAt: Date.now() + 175000 }; return [200, { ok: true }]; } },
+    });
+    await T.goPage(page);
+    const d = await openTerm(page);
+    await typeLine(page, 'sudo root reset');
+    await mode(page, 'rkey');
+    await typeLine(page, 'RK-good');
+    await layer(page, 'reset');
+    await mode(page, 'cmd');
+    const chip = d.locator('.sgx-at-rcc button');
+    await expect(chip).toBeVisible();
+    await expect(chip).toHaveText('^C 返回');
+    await expect(chip).toHaveAttribute('aria-label', '离开 reset，返回（^C）');
+    /* 在面板最底部（页脚上面，列表下面） */
+    const g = await page.evaluate(() => {
+      const r = (s) => document.querySelector(s).getBoundingClientRect();
+      return { chipTop: r('#sgx-acct .sgx-at-rcc').top, listBottom: r('#sgx-acct [data-at-view] .sgx-pop-list').bottom };
+    });
+    expect(g.chipTop).toBeGreaterThanOrEqual(g.listBottom - 1);
+    await chip.click();
+    await expect(log(page).getByText('^C', { exact: true })).toHaveCount(1);
+    await layer(page, 'guest');
+    await expect(ps(page)).not.toHaveText('reset@account:~#');
+    await expect(d.locator('.sgx-at-rcc')).toHaveCount(0);
+    expect(calls.some((c) => c.action === 'reset/finish')).toBe(false);
+    /* 再进一次，用 Ctrl+C 离开 */
+    reset = null;
+    await mode(page, 'cmd');
+    await typeLine(page, 'sudo root reset');
+    await mode(page, 'rkey');
+    await typeLine(page, 'RK-good');
+    await layer(page, 'reset');
+    await mode(page, 'cmd');
+    await termIn(page).press('Control+c');
+    await layer(page, 'guest');
+    await expect(d.locator('.sgx-at-rcc')).toHaveCount(0);
+  });
+
   test('旧地址 #acct=reset（/account/reset/ 301 过来）：直接进 sudo root reset', async ({ page }) => {
     await mockAccount(page, { status: STATUS() });
     await T.goPage(page, '/zh/#acct=reset');

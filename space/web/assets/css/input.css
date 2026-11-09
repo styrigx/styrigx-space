@@ -7831,9 +7831,11 @@
 @media (hover: hover) and (pointer: fine) { .sgx-pg-r a:hover { color: var(--sgx-primary); } }
 :root:not([data-sgx-layout="desktop"]) .sgx-pg { flex-direction: column; }
 :root:not([data-sgx-layout="desktop"]) .sgx-pg-hint { display: none; }
-/* 列表到底（Gray 2026-11-09 细节 5）：博客列表最后一页「-- EOF --」，旷野页末「› more soon_」带闪烁光标；装饰，读屏不念；减弱动效光标不闪 */
+/* 列表到底（Gray 2026-11-09 细节 5）：博客列表最后一页「-- EOF --」，旷野页末「› more soon_」带闪烁光标、下面再一行「-- EOF --」；装饰，读屏不念；减弱动效光标不闪 */
 .sgx-eof { margin: 28px 0 0; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.6; letter-spacing: .04em; text-align: center; color: var(--sgx-text-tertiary); }
 .sgx-eof[hidden] { display: none; }
+/* 旷野页末两行：› more soon_ 下面紧跟 -- EOF --（2026-11-09） */
+.sgx-eof.wild-eof-end { margin-top: 6px; }
 .sgx-eof-cur { display: inline-block; width: .6em; height: 2px; margin-left: 2px; vertical-align: -1px; background: var(--sgx-primary); animation: sgx-eof-blink 1.05s steps(1) infinite; }
 @keyframes sgx-eof-blink { 50% { opacity: 0; } }
 .reduced-motion .sgx-eof-cur { animation: none; }
@@ -7978,6 +7980,9 @@
   --sgx-tb-h: 64px; --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; --sgx-tb-icw: 40px;
   --sgx-content-w: 1080px;
   --sgx-font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+/* 手机布局顶栏高 56px（Gray 2026-11-09：手机上原来约 73px 偏高；桌面仍 64）：只收上下留白——字标 / 图标 40px / 头像 30px（外圈 38px）都不变，垂直居中照旧；
+   --sgx-tb-h 一处改，正文偏移 --nav-h / 面板 --sgx-qp-top / 终端层顶距都跟着走 */
+html[data-sgx-layout="phone"] { --sgx-tb-h: 56px; }
 /* 顶栏标签 / 子站分段的常驻衬底：导航选中色 45%（段式标签、页名胶囊仍在用） */
 :root { --sgx-tb-label-bg: color-mix(in oklab, var(--sgx-nav-selected) 45%, transparent); }
 /* 尺寸体系（2026-10-23 PR-D）：--sgx-page-m 左右页边距（手机 < 600px 固定 12px——2026-11 对齐 PR-B 照设计稿 m=1 的 --pad，之前 16px；≥ 600px 从 840 宽 24px 线性到 1920 宽 48px）。
@@ -8611,6 +8616,27 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before {
 .dark:root[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet, :root.dark[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet { box-shadow: 0 30px 70px rgba(0,0,0,.5); }
 .reduced-motion .sgx-ai .sgx-qp-sheet { transform: none; transition: opacity .12s ease; }
 @media (prefers-reduced-motion: reduce) { .sgx-ai .sgx-qp-sheet { transform: none; transition: opacity .12s ease; } }
+/* 手机（视口 ≤ 640px、非桌面布局）：AI 窗口改成底部半屏面板（Gray 2026-11-09）——贴底全宽、上圆角、半屏高（至少 360px，不超过可用高），从下沿滑上来；
+   关：下滑（拖头部 / 顶端把手，topbar-panel.js mountSheetSwipe）、点面板外、系统返回（modal-sheet 的历史哨兵）、头部 × 都行。键盘在时 dialog 下沿抬到键盘上沿，面板跟着上去。
+   电脑 / 桌面布局不变（上面的浮窗规则）。拖动时 JS 写 --sgx-ai-drag（只往下）并关掉过渡 */
+@media (max-width: 640px) {
+  :root:not([data-sgx-layout="desktop"]) .sgx-ai .sgx-qp-sheet, :root:not([data-sgx-layout="desktop"]) .sgx-ai[data-kb] .sgx-qp-sheet {
+    top: auto; left: 0; right: 0; bottom: 0; width: auto; max-width: none; height: min(max(50dvh, 360px), 100%); max-height: 100%; margin: 0;
+    border-radius: 16px 16px 0 0; border-bottom-width: 0; padding-bottom: env(safe-area-inset-bottom, 0px);
+    transform-origin: 50% 100%; transform: translateY(100%); opacity: 1; transition: transform .24s var(--sgx-ai-ease); }
+  :root:not([data-sgx-layout="desktop"]) .sgx-ai[data-kb] .sgx-qp-sheet { padding-bottom: 0; }
+  :root:not([data-sgx-layout="desktop"]) .sgx-ai.is-open .sgx-qp-sheet { transform: translateY(var(--sgx-ai-drag, 0px)); }
+  :root:not([data-sgx-layout="desktop"]) .sgx-ai[data-drag] .sgx-qp-sheet { transition: none; }
+  /* 顶端把手（装饰，提示能往下拉）；头部整条可拖，不让浏览器把这一下当成页面滚动，也不选字（选中的字一拖会变成原生拖放，指针被取消） */
+  :root:not([data-sgx-layout="desktop"]) .sgx-ai .sgx-qp-sheet::before { content: ""; position: absolute; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--sgx-term-line); pointer-events: none; }
+  :root:not([data-sgx-layout="desktop"]) .sgx-ai-head { padding-top: 16px; touch-action: none; -webkit-user-select: none; user-select: none; }
+  .reduced-motion:root:not([data-sgx-layout="desktop"]) .sgx-ai .sgx-qp-sheet { transform: none; opacity: 0; transition: opacity .12s ease; }
+  .reduced-motion:root:not([data-sgx-layout="desktop"]) .sgx-ai.is-open .sgx-qp-sheet { transform: translateY(var(--sgx-ai-drag, 0px)); opacity: 1; }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  :root:not([data-sgx-layout="desktop"]) .sgx-ai .sgx-qp-sheet { transform: none; opacity: 0; transition: opacity .12s ease; }
+  :root:not([data-sgx-layout="desktop"]) .sgx-ai.is-open .sgx-qp-sheet { transform: translateY(var(--sgx-ai-drag, 0px)); opacity: 1; }
+}
 /* 浮钮跟着窗口：手机淡出缩小（卡片盖住它的位置；visibility 等动画完再藏，Tab 圈不再落到它上面），关上时立刻回来好接住焦点；
    电脑变关闭态：聊天图标转走淡出、× 转进来（再点 = 关闭） */
 .sgx-tb-ai { transition: background-color .15s ease, color .15s ease, opacity .2s var(--sgx-ai-ease), transform .24s var(--sgx-ai-ease), visibility 0s; }
@@ -8753,6 +8779,12 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-at-cc button:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 .sgx-at-hint--cc { display: none; }
 @media (pointer: coarse) { .sgx-at-cc { display: inline; } .sgx-at-hint--cc:not([hidden]) { display: block; } }
+/* reset 层底部「^C 返回」（2026-11-09）：常显（不分触屏），终端文字样式，同上面 ^C 按钮的边框 */
+.sgx-at-rcc { margin: 0; padding: 4px 20px 12px; }
+.sgx-at-rcc button { min-height: 32px; padding: 0 10px; border: 1px solid var(--sgx-term-line); border-radius: 6px; background: transparent;
+  font: inherit; font-family: var(--sgx-font-mono); font-size: 12px; color: var(--sgx-text-secondary); cursor: pointer; }
+.sgx-at-rcc button b { font-weight: inherit; color: var(--sgx-primary); }
+.sgx-at-rcc button:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 .sgx-at-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .sgx-at-ft { padding: 12px 20px 16px; border-top: 1px solid var(--sgx-term-line); font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 11px; line-height: 1.7; color: var(--sgx-text-tertiary); }
 .sgx-at-bk:focus-visible, .sgx-at-o:focus-visible, .sgx-at-chip:focus-visible, .sgx-at-sw:focus-visible, .sgx-at-a:focus-visible, .sgx-at-a2:focus-visible, .sgx-at-nm:focus-visible, .sgx-at-del:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
