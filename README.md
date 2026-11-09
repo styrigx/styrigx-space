@@ -45,7 +45,12 @@ Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站
 
 ## 截图
 
-新版界面的截图会在后续 PR 中补到 [`docs/assets/screenshots/`](docs/assets/screenshots/)。
+深色主题，默认个人签名；手机为三星手机视口（412 × 915，三星浏览器），DeX / 桌面为 1920 × 1080 的桌面布局。点图看原图。
+
+| | 首页 | 锁屏 | AI 浮窗 | 博客 |
+|---|---|---|---|---|
+| **手机** | <a href="docs/assets/screenshots/home-mobile-zh.webp"><img src="docs/assets/screenshots/home-mobile-zh.webp" alt="首页 · 手机" width="200"></a> | <a href="docs/assets/screenshots/lock-mobile-zh.webp"><img src="docs/assets/screenshots/lock-mobile-zh.webp" alt="锁屏 · 手机" width="200"></a> | <a href="docs/assets/screenshots/ai-mobile-zh.webp"><img src="docs/assets/screenshots/ai-mobile-zh.webp" alt="AI 浮窗 · 手机" width="200"></a> | <a href="docs/assets/screenshots/blog-mobile-zh.webp"><img src="docs/assets/screenshots/blog-mobile-zh.webp" alt="博客 · 手机" width="200"></a> |
+| **DeX / 桌面** | <a href="docs/assets/screenshots/home-dex-zh.webp"><img src="docs/assets/screenshots/home-dex-zh.webp" alt="首页 · DeX / 桌面" width="200"></a> | <a href="docs/assets/screenshots/lock-dex-zh.webp"><img src="docs/assets/screenshots/lock-dex-zh.webp" alt="锁屏 · DeX / 桌面" width="200"></a> | <a href="docs/assets/screenshots/ai-dex-zh.webp"><img src="docs/assets/screenshots/ai-dex-zh.webp" alt="AI 浮窗 · DeX / 桌面" width="200"></a> | <a href="docs/assets/screenshots/blog-dex-zh.webp"><img src="docs/assets/screenshots/blog-dex-zh.webp" alt="博客 · DeX / 桌面" width="200"></a> |
 
 ## 站点与功能
 

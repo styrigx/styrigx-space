@@ -45,7 +45,12 @@ This repository holds all of [styrigx.com](https://styrigx.com): one Hugo site (
 
 ## Screenshots
 
-Screenshots of the current interface will be added to [`docs/assets/screenshots/`](docs/assets/screenshots/) in a follow-up PR.
+Dark theme with the default motto. Phone shots use a Samsung phone viewport (412 × 915, Samsung Internet); DeX / desktop shots use the 1920 × 1080 desktop layout. Click an image for full size.
+
+| | Home | Lock screen | AI card | Blog |
+|---|---|---|---|---|
+| **Phone** | <a href="docs/assets/screenshots/home-mobile-en.webp"><img src="docs/assets/screenshots/home-mobile-en.webp" alt="Home · Phone" width="200"></a> | <a href="docs/assets/screenshots/lock-mobile-en.webp"><img src="docs/assets/screenshots/lock-mobile-en.webp" alt="Lock screen · Phone" width="200"></a> | <a href="docs/assets/screenshots/ai-mobile-en.webp"><img src="docs/assets/screenshots/ai-mobile-en.webp" alt="AI card · Phone" width="200"></a> | <a href="docs/assets/screenshots/blog-mobile-en.webp"><img src="docs/assets/screenshots/blog-mobile-en.webp" alt="Blog · Phone" width="200"></a> |
+| **DeX / desktop** | <a href="docs/assets/screenshots/home-dex-en.webp"><img src="docs/assets/screenshots/home-dex-en.webp" alt="Home · DeX / desktop" width="200"></a> | <a href="docs/assets/screenshots/lock-dex-en.webp"><img src="docs/assets/screenshots/lock-dex-en.webp" alt="Lock screen · DeX / desktop" width="200"></a> | <a href="docs/assets/screenshots/ai-dex-en.webp"><img src="docs/assets/screenshots/ai-dex-en.webp" alt="AI card · DeX / desktop" width="200"></a> | <a href="docs/assets/screenshots/blog-dex-en.webp"><img src="docs/assets/screenshots/blog-dex-en.webp" alt="Blog · DeX / desktop" width="200"></a> |
 
 ## Sites and features
 
