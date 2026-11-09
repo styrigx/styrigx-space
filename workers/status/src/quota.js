@@ -3,7 +3,7 @@
  *
  * 和 src/usage.js 的区别：usage.js 每小时 41 分收「存储量」快照（D1 / R2 / KV 占了多少字节）；
  * 这里是「操作次数」，免费计划按天卡（超了就报错：KV 写 429、D1 拒绝查询、Workers 1027），一小时一收太慢，
- * 所以改成按需：/summary 被请求时，缓存超过 QUOTA_TTL_MS（5 分钟）才去问 Cloudflare GraphQL，结果存 D1 表 status_quota（migrations/0001_baseline.sql；库 styrigx-space-gateway）。
+ * 所以改成按需：/summary 被请求时，缓存超过 QUOTA_TTL_MS（5 分钟）才去问 Cloudflare GraphQL，结果存 D1 表 status_quota（migrations/0001_baseline.sql；库 styrigx-status）。
  * 状态页开着时每 60 秒刷新一次 /api/status，最多每 5 分钟真正查一轮（5 个 GraphQL 请求）；没人看就一次都不查，不占 Cron。
  * 不用 Cache API：这个 Worker 没有自定义域名 / 路由（只从网关服务绑定进来），文档只保证挂在自定义域名上的 Worker 缓存可用
  * （https://developers.cloudflare.com/workers/runtime-apis/cache/）；D1 一行缓存每次只多读 1 行、每 5 分钟最多写 1 行。

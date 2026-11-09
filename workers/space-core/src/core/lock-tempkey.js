@@ -12,7 +12,7 @@
  * 输入时忽略大小写、空格和连字符，O→0、I/L→1。服务端只存 SHA-256(pepper|code)，
  * 临时码只在签发那一刻返回一次。
  *
- * 存储（D1 styrigx-space-gateway，绑定 D1_SPACE；2026-10-27 从 KV 搬来，realm = 'lock'）：
+ * 存储（D1 styrigx-space-core，绑定 D1_SPACE；2026-10-27 从 KV 搬来，realm = 'lock'）：
  * - tempkey (realm, id, name, code_hash, link, created_at, revoked_at, expires_at)：一把钥匙一行（以前 lock-tempkey:<id>）；
  *   code_hash 有唯一索引 tempkey_code（以前 lock-tempkey-code:<hash> → id）；
  *   link = 1：分享短链自动签的钥匙（分享链接经 core/link-keys.js）：

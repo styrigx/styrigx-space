@@ -249,8 +249,8 @@ test('出错不影响接口：KV 抛错、没绑 KV、D1 读失败都只打日�
   assert.ok(logs.some((l) => l.includes('[daymark-search] rebuild failed')));
 });
 
-test('wrangler.toml：KV_SEARCH_INDEX 绑 styrigx-space-gateway（2026-11 前 styrigx-search-index），每小时 Cron', () => {
+test('wrangler.toml：KV_SEARCH_INDEX 绑 styrigx-space-core（进站 v3 L2b 前 styrigx-space-gateway），每小时 Cron', () => {
   const t = readFileSync(W + '/wrangler.toml', 'utf8');
-  assert.match(t, /\[\[kv_namespaces\]\]\nbinding = "KV_SEARCH_INDEX"\nid = "608cf3e27184481cbca2922950506d87"/);
+  assert.match(t, /\[\[kv_namespaces\]\]\nbinding = "KV_SEARCH_INDEX"\nid = "4bcdb84f205541b9b6c8d230bc2b106f"/);
   assert.match(t, /\[triggers\]\ncrons = \["17 \* \* \* \*"\]/);
 });

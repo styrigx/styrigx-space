@@ -385,10 +385,10 @@ test('migrate-kv-to-d1 readKv：只为计划要的键取值，带上 KV 的过�
   assert.doesNotMatch(src, /\/bulk/);
 });
 
-test('migrate-kv-to-d1 d1IdOf：默认库 = 网关 wrangler.toml 的 D1_SPACE（2026-11 起 styrigx-space-gateway）；--preview 读 space/web/wrangler.toml，两者不同', () => {
+test('migrate-kv-to-d1 d1IdOf：默认库 = 网关 wrangler.toml 的 D1_SPACE（进站 v3 L2b 起 styrigx-space-core）；--preview 读 space/web/wrangler.toml，两者不同', () => {
   const prod = readFileSync(new URL('../../../workers/space-core/wrangler.toml', import.meta.url), 'utf8');
   const pv = readFileSync(new URL('../../../space/web/wrangler.toml', import.meta.url), 'utf8');
-  assert.equal(d1IdOf(prod, 'D1_SPACE'), '39d037fe-6ab3-410d-a090-4d7ce8d48d83');
+  assert.equal(d1IdOf(prod, 'D1_SPACE'), '1354c898-aacd-4122-92de-0ae39a3fcc1a');
   assert.ok(d1IdOf(pv, 'D1_SPACE'));
   assert.notEqual(d1IdOf(pv, 'D1_SPACE'), d1IdOf(prod, 'D1_SPACE'));
   assert.equal(d1IdOf(prod, 'KV_LOCK_DOOR'), '', '网关不再绑 KV');

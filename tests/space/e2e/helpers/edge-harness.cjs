@@ -18,7 +18,7 @@
  * - 临时钥匙用临时钥匙：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
  * - 分享链接（进站 v3 L2 起并入站点核心 Worker）：/s/*、/api/share 走同一个 workers/space-core/src/app.js（router.js routeShare），
- *   D1 绑定 D1_SHARE_LINK 用 tests/fixtures/share-d1.mjs；会话、链接钥匙都是 core 内的直接函数调用（没有服务绑定）。
+ *   分享链接表和进站同一个 D1_SPACE（L2b）；会话、链接钥匙都是 core 内的直接函数调用（没有服务绑定）。
  *   日志里这两类请求记成 'share'，方便断言「真的进了分享链接那一段」。
  */
 const https = require('node:https');
@@ -144,7 +144,6 @@ async function startEdge() {
   const accountEntry = { ...(await mod('workers/account/src/rpc/account-service.js')), ...(await mod('workers/account/src/rpc/account-verifier.js')) };
   const account = (await mod('workers/account/src/app.js')).default; /* 默认 fetch：一律 404（只在 toml 里还有路由时用到） */
   const { isSharePath } = await mod('workers/space-core/src/router.js');
-  const { shareD1 } = await mod('tests/fixtures/share-d1.mjs');
   const sessMod = await mod('workers/space-core/src/core/lock-session.js');
   const tempMod = await mod('workers/space-core/src/core/lock-tempkey.js');
   const ticketMod = await mod('workers/space-core/src/core/tickets.js');
@@ -180,13 +179,12 @@ async function startEdge() {
   };
   const ACCOUNT_VERIFIER = { authorize: (c, m, o) => accountEntry.checkAuthorize(accountEnv, c, m, o) };
 
-  /* 分享链接表（D1_SHARE_LINK，正式和 D1_SPACE 同一个库的第二个绑定；测试台里单独一份内存 / sqlite 库） */
-  const shareDb = shareD1();
-  /* 站点核心 Worker：只绑正式 wrangler.toml 里有的（SGX_SPACE_* 五个、D1_SPACE、D1_SHARE_LINK、ACCOUNT / ACCOUNT_VERIFIER） */
+  /* 分享链接表：进站 v3 L2b 起和进站同库同绑定 D1_SPACE（migrations/0001_baseline.sql 里一起建），测试台里就是同一份库 */
+  const shareDb = d1;
+  /* 站点核心 Worker：只绑正式 wrangler.toml 里有的（SGX_SPACE_* 五个、D1_SPACE、ACCOUNT / ACCOUNT_VERIFIER） */
   const env = {
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
     D1_SPACE: d1, /* 进站只绑 D1（2026-10-27 起不绑 KV） */
-    D1_SHARE_LINK: shareDb,
     SGX_SPACE_PRIVATE: privPem, SGX_SPACE_PUBLIC: pubPem,
     SGX_SPACE_RECOVERY_KEY: 'edge-test-space-key-not-a-secret', SGX_SPACE_PASSWORD_PEPPER: 'edge-test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'edge-test-pepper',
     ACCOUNT, ACCOUNT_VERIFIER,

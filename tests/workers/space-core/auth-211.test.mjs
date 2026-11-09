@@ -27,10 +27,10 @@ const REPO = new URL('../../../', import.meta.url).pathname;
 const SWITCH_MOD = await import('../../../workers/space-core/src/core/lock-reset-switch.js');
 assert.equal('LOCK_RESET_SWITCH_KEY' in SWITCH_MOD, false, '开关不再是 KV 键');
 
-test('预览库按编号跑网关迁移（PR4）：0008 把旧表 recovery_switch 的行拷进 lock_reset_switch，0009 再 DROP 旧表；行原样', async () => {
+test('旧迁移（PR4，L2b 起在 migrations-archive/gateway/ 只留史）：0008 把旧表 recovery_switch 的行拷进 lock_reset_switch，0009 再 DROP 旧表；行原样', async () => {
   const fs = await import('node:fs');
   const { DatabaseSync } = await import('node:sqlite');
-  const dir = REPO + 'workers/space-core/migrations/';
+  const dir = REPO + 'workers/space-core/migrations-archive/gateway/';
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
   assert.ok(files.includes('0009_drop_recovery_switch.sql'));
   const db = new DatabaseSync(':memory:');
@@ -45,10 +45,13 @@ test('预览库按编号跑网关迁移（PR4）：0008 把旧表 recovery_switc
   assert.equal(fs.readFileSync(dir + '0009_drop_recovery_switch.sql', 'utf8').replace(/--.*$/gm, '').trim(), 'DROP TABLE IF EXISTS recovery_switch;');
 });
 
-test('恢复开关表名 lock_reset_switch（方案 9.4）：CREATE_SQL 与 migrations/0008_lock_reset_switch.sql 的建表语句一致；模块去掉注释后不再出现旧表名 recovery_switch', async () => {
+test('恢复开关表名 lock_reset_switch（方案 9.4）：CREATE_SQL 与旧 0008_lock_reset_switch.sql、L2b 基线 migrations/0001_baseline.sql 的建表语句一致；模块去掉注释后不再出现旧表名 recovery_switch', async () => {
   const fs = await import('node:fs');
   const flat = (x) => x.replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').trim();
-  const mig = fs.readFileSync(REPO + 'workers/space-core/migrations/0008_lock_reset_switch.sql', 'utf8')
+  const base = fs.readFileSync(REPO + 'workers/space-core/migrations/0001_baseline.sql', 'utf8')
+    .split('\n').map((l) => l.replace(/--.*$/, '')).join('\n').split(';').map(flat).filter(Boolean);
+  assert.ok(base.includes(SWITCH_MOD.CREATE_SQL), 'L2b 基线里有同一条建表语句');
+  const mig = fs.readFileSync(REPO + 'workers/space-core/migrations-archive/gateway/0008_lock_reset_switch.sql', 'utf8')
     .split('\n').map((l) => l.replace(/--.*$/, '')).join('\n').split(';').map(flat).filter(Boolean);
   assert.equal(mig[0], SWITCH_MOD.CREATE_SQL);
   assert.equal(mig[1], 'INSERT OR IGNORE INTO lock_reset_switch (hash, first_seen, used) SELECT hash, first_seen, used FROM recovery_switch');

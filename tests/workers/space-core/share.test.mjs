@@ -4,7 +4,7 @@
  * 运行：node --test tests/workers/space-core/share.test.mjs
  *
  * 跑真代码：styrigx-space-core 的 default.fetch（app.js → router.js routeShare）；env 用临时 Ed25519 钥匙 + 进站 D1 替身（makeAuthD1）+ 分享 D1。
- * D1：有 node:sqlite 时真 SQL（migrations-share + core/share-links.js 的语句）和内存替身各跑一遍；Node 20 只跑内存替身。
+ * D1：有 node:sqlite 时真 SQL（migrations/0001_baseline.sql + core/share-links.js 的语句）和内存替身各跑一遍；Node 20 只跑内存替身。
  *
  * - 规则：码 128 位、目标只收站内相对路径（防开放重定向）、有效期 / 会话档位和临时钥匙一致、会话不超过有效期
  * - 生成：带会话 → 签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；再验一次进站会话（不问账号会话）
@@ -40,13 +40,23 @@ const tkRow = (authDb, id) => authDb.rows('tempkey').find((r) => r.realm === 'lo
 /** 进站 D1（authDb）里的 link 钥匙（分享链接签的）：原来按服务绑定调用计数，并入后按 D1 里的钥匙核对 */
 const linkKeys = (authDb) => authDb.rows('tempkey').filter((r) => r.realm === 'lock' && r.link);
 
-/** 一个 env（styrigx-space-core 自己的绑定）：进站 D1 + 分享 D1 + 5 个 SGX_SPACE_* 测试值 */
+/**
+ * 进站 v3 L2b：进站和分享链接同一个库、同一个绑定 D1_SPACE。测试里两半还是各一份替身（分享那半要跑 sqlite / 内存两种），
+ * 按语句碰的表分流：share_link / share_fail → 分享替身，其余 → 进站替身。每次调用时才取 prepare（failOn 换掉的也生效）。
+ */
+function spaceD1(authDb, shareDb) {
+  return {
+    prepare: (sql) => (/\bshare_(link|fail)\b/.test(sql) ? shareDb : authDb).prepare(sql),
+    batch: (stmts) => authDb.batch(stmts), /* 分享链接不用 batch；进站的 batch 语句都是进站那半 prepare 出来的 */
+  };
+}
+
+/** 一个 env（styrigx-space-core 自己的绑定）：D1_SPACE（进站 + 分享）+ 5 个 SGX_SPACE_* 测试值 */
 function setup(d1opts) {
-  const authDb = makeAuthD1(); /* 进站库：纪元、临时钥匙（含 link 钥匙）都在这里 */
+  const authDb = makeAuthD1(); /* 进站那半：纪元、临时钥匙（含 link 钥匙）都在这里 */
   const db = shareD1(d1opts);
   const env = {
-    D1_SPACE: authDb,
-    D1_SHARE_LINK: db,
+    D1_SPACE: spaceD1(authDb, db),
     SGX_SPACE_PRIVATE: LOCK.priv, SGX_SPACE_PUBLIC: LOCK.pub,
     SGX_SPACE_RECOVERY_KEY: 'share-test-recovery', SGX_SPACE_PASSWORD_PEPPER: 'share-test-password-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'share-test-pepper',
     SGX_ENV: 'production', SGX_SITE: 'space',
@@ -101,7 +111,7 @@ async function failShape(res) {
     body: await res.text(),
   };
 }
-const FAIL = { status: 302, loc: 'https://styrigx.com/?lock=1', cc: 'private, no-store', ref: 'no-referrer', robots: 'noindex', cookies: 0, body: '' };
+const FAIL = { status: 302, loc: 'https://styrigx.com/?entry=1', cc: 'private, no-store', ref: 'no-referrer', robots: 'noindex', cookies: 0, body: '' };
 
 /* ---------------- 规则 ---------------- */
 
@@ -179,17 +189,18 @@ test('有效期、会话档位和网关一致；会话不超过有效期；名�
   assert.equal(links.cleanName('a'.repeat(25)), null);
 });
 
-test('并入 styrigx-space-core：workers/share 不在了；core 的 wrangler.toml 只有 styrigx.com/* 一条路由、D1_SHARE_LINK 指向主站库（d1_migrations_share）、没有 ISSUER / AUTH 绑定', () => {
+test('并入 styrigx-space-core：workers/share 不在了；core 的 wrangler.toml 只有 styrigx.com/* 一条路由；分享链接和进站同一个 D1_SPACE（L2b：库 styrigx-space-core，d1_migrations_core）；没有 ISSUER / AUTH / D1_SHARE_LINK 绑定', () => {
   assert.equal(existsSync(REPO + 'workers/share'), false, 'workers/share 已删');
   const t = readFileSync(REPO + 'workers/space-core/wrangler.toml', 'utf8');
   assert.match(t, /^name = "styrigx-space-core"$/m);
   assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/*'], '分享链接不再单独登记路由');
-  assert.match(t, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-space-gateway"\ndatabase_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"\nmigrations_dir = "migrations-share"\nmigrations_table = "d1_migrations_share"\n/);
+  assert.match(t, /binding = "D1_SPACE"\ndatabase_name = "styrigx-space-core"\ndatabase_id = "1354c898-aacd-4122-92de-0ae39a3fcc1a"\nmigrations_dir = "migrations"\nmigrations_table = "d1_migrations_core"\n/);
   const body = t.replace(/^\s*#.*$/gm, '');
-  assert.doesNotMatch(body, /binding = "(ISSUER|AUTH)"|ShareIssuer|styrigx-share/, '不再有短链 Worker 的绑定');
-  /* 预览组合入口（space/web/wrangler.toml [env.preview]）也绑 D1_SHARE_LINK（预览共用库，迁移记录表 d1_migrations_share） */
+  assert.doesNotMatch(body, /binding = "(ISSUER|AUTH|D1_SHARE_LINK)"|ShareIssuer|styrigx-share|styrigx-space-gateway/, '不再有短链 Worker 的绑定、第二个 D1 绑定和旧库');
+  /* 预览组合入口（space/web/wrangler.toml [env.preview]）同样只有 D1_SPACE（+ 账号的 D1_ACCOUNT） */
   const pv = readFileSync(REPO + 'space/web/wrangler.toml', 'utf8');
-  assert.match(pv, /binding = "D1_SHARE_LINK"\ndatabase_name = "styrigx-test-preview"\ndatabase_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"\nmigrations_dir = "\.\.\/\.\.\/workers\/space-core\/migrations-share"\nmigrations_table = "d1_migrations_share"\n/);
+  assert.match(pv, /binding = "D1_SPACE"\ndatabase_name = "styrigx-test-preview"\ndatabase_id = "1339bb0b-f9f8-4e3d-b413-ff07ca28ce69"\nmigrations_dir = "\.\.\/\.\.\/workers\/space-core\/migrations"\nmigrations_table = "d1_migrations_core"\n/);
+  assert.doesNotMatch(pv.replace(/^\s*#.*$/gm, ''), /D1_SHARE_LINK|migrations-share/);
 });
 
 test('分享链接的文件不带签名逻辑：api/share.js、core/share-open.js、core/share-links.js 里不出现私钥 / pepper / 签名函数（签钥匙、签会话只在 core/link-keys.js → lock-tempkey / lock-session）', () => {
@@ -531,15 +542,15 @@ for (const K of KINDS) {
   });
 
   T('进站 D1 出错：带会话的点开走失败响应，生成带会话的 503；分享 D1 没绑：点开失败响应', async () => {
-    const { env, authDb } = mk();
+    const { env, authDb, db } = mk();
     const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
     const broken = makeAuthD1();
     failOn(broken, /tempkey/);
-    const e2 = Object.assign({}, env, { D1_SPACE: broken });
+    const e2 = Object.assign({}, env, { D1_SPACE: spaceD1(broken, db) });
     assert.deepEqual(await failShape(await open(e2, l.path)), FAIL);
     failOn(authDb, /INSERT INTO tempkey/);
     assert.equal((await api(env, { action: 'create', hours: 1, session: 1800 })).s, 503);
-    const e4 = Object.assign({}, env, { D1_SHARE_LINK: undefined });
+    const e4 = Object.assign({}, env, { D1_SPACE: undefined });
     assert.deepEqual(await failShape(await open(e4, l.path)), FAIL);
   });
 
@@ -577,8 +588,8 @@ for (const K of KINDS) {
     assert.equal(bad.s, 400, JSON.stringify(bad.j));
     /* 存坏成别的主机 / 存量的旧图志完整地址：点开只走失败响应 */
     for (const t of ['https://styrigx.com.evil.com/', 'https://atlas.styrigx.com/curio/']) {
-      const { db } = mk();
-      const e2 = Object.assign({}, env, { D1_SHARE_LINK: db });
+      const { db, env: fresh } = mk();
+      const e2 = Object.assign({}, env, { D1_SPACE: fresh.D1_SPACE });
       const l2 = (await api(e2, { action: 'create', hours: 1, to: '/curio/' })).j.link;
       if (db.raw) db.raw.prepare('UPDATE share_link SET target = ? WHERE id = ?').run(t, l2.id);
       else db._links.get(l2.id).target = t;
@@ -717,21 +728,31 @@ test('安全头：/s/<码> 失败跳转保留 Referrer-Policy: no-referrer，其
   assert.equal(pre.headers.get('Strict-Transport-Security'), SECH.HSTS);
 });
 
-test('migrations-share/0001_baseline：只建 share_link / share_fail 和索引，没有种子 / 删数据；旧迁移只在 migrations-share-archive/ 留史；分享链接的代码不兜底建表', { skip: !HAS_SQLITE }, async () => {
+test('migrations/0001_baseline（L2b）：只建表建索引，没有种子 / 删数据；= 旧库两套迁移（migrations-archive/gateway、share）跑完的表结构（逐列一致：搬来的行原样插得进）；分享链接的代码不兜底建表', { skip: !HAS_SQLITE }, async () => {
   const { DatabaseSync } = await import('node:sqlite');
-  assert.deepEqual(readdirSync(REPO + 'workers/space-core/migrations-share').sort(), ['0001_baseline.sql']);
-  assert.deepEqual(readdirSync(REPO + 'workers/space-core/migrations-share-archive').sort(), ['0001_share_links.sql', '0002_drop_atlas_targets.sql']);
-  const sql = readFileSync(REPO + 'workers/space-core/migrations-share/0001_baseline.sql', 'utf8').replace(/--[^\n]*/g, '');
+  assert.deepEqual(readdirSync(REPO + 'workers/space-core/migrations').sort(), ['0001_baseline.sql']);
+  assert.equal(existsSync(REPO + 'workers/space-core/migrations-share'), false);
+  assert.deepEqual(readdirSync(REPO + 'workers/space-core/migrations-archive/share').sort(), ['0001_share_links.sql', '0002_drop_atlas_targets.sql', '0003_baseline_space_gateway.sql']);
+  const sql = readFileSync(REPO + 'workers/space-core/migrations/0001_baseline.sql', 'utf8').replace(/--[^\n]*/g, '');
   assert.doesNotMatch(sql, /\b(INSERT|DELETE|DROP|UPDATE|ALTER)\b/i);
   const db = new DatabaseSync(':memory:');
   db.exec(sql);
-  assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name),
-    ['share_fail', 'share_link', 'share_link_created']);
-  /* 基线 = 旧库跑完 0001–0002 的表结构（逐列一致：搬来的行原样插得进） */
+  db.exec(sql); /* 幂等（预览库里表早就在） */
+  const objs = (d) => d.prepare("SELECT type || ':' || name AS n FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.n);
+  /* 旧库：网关 0001–0009 + 分享链接 0001–0002（同一个库 styrigx-space-gateway） */
   const old = new DatabaseSync(':memory:');
-  for (const f of ['0001_share_links.sql', '0002_drop_atlas_targets.sql']) old.exec(readFileSync(REPO + 'workers/space-core/migrations-share-archive/' + f, 'utf8'));
+  const arch = REPO + 'workers/space-core/migrations-archive/';
+  for (const f of readdirSync(arch + 'gateway').sort()) old.exec(readFileSync(arch + 'gateway/' + f, 'utf8'));
+  for (const f of ['0001_share_links.sql', '0002_drop_atlas_targets.sql']) old.exec(readFileSync(arch + 'share/' + f, 'utf8'));
+  assert.deepEqual(objs(db), objs(old));
+  assert.ok(objs(db).includes('table:share_link') && objs(db).includes('table:epoch'));
   const cols = (d, t) => d.prepare('PRAGMA table_info(' + t + ')').all().map((c) => [c.name, c.type, c.notnull, c.dflt_value, c.pk].join('|'));
-  for (const t of ['share_link', 'share_fail']) assert.deepEqual(cols(db, t), cols(old, t), t);
-  /* 表只由迁移建：代码不兜底（库是主站共用的 styrigx-space-gateway，悄悄建空表会掩盖没搬数据） */
+  const idx = (d, t) => d.prepare('PRAGMA index_list(' + t + ')').all().map((i) => [i.name, i.unique, d.prepare('PRAGMA index_info(' + i.name + ')').all().map((c) => c.name).join(',')].join('|')).sort();
+  for (const n of objs(db).filter((x) => x.startsWith('table:')).map((x) => x.slice(6))) {
+    assert.deepEqual(cols(db, n), cols(old, n), n);
+    assert.deepEqual(idx(db, n), idx(old, n), n + ' indexes');
+  }
+  /* 表只由迁移建：分享链接的代码不兜底（悄悄建空表会掩盖没搬数据） */
   for (const f of ['api/share.js', 'core/share-open.js', 'core/share-links.js']) assert.doesNotMatch(readFileSync(REPO + 'workers/space-core/src/' + f, 'utf8'), /\b(CREATE|DROP)\s+(TABLE|INDEX)\b/i, f);
 });
+

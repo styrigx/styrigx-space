@@ -31,8 +31,7 @@ test('清预览 D1：只清网关和账号的 passkey / password / attempt_limit
     assert.ok(!RESET_D1_TABLES.includes(t), t + ' 不清');
   }
   /* 每张要清的表都真的在迁移里（不会清错表名） */
-  const mig = ['0005_lock_account_state.sql', '0006_auth_state.sql']
-    .map((f) => readFileSync(path.join(REPO, 'workers/space-core/migrations', f), 'utf8')).join('\n');
+  const mig = readFileSync(path.join(REPO, 'workers/space-core/migrations/0001_baseline.sql'), 'utf8');
   const acct = readFileSync(path.join(REPO, 'workers/account/migrations/0005_account_tables.sql'), 'utf8');
   for (const t of RESET_D1_TABLES) assert.match(t.startsWith('account_') ? acct : mig, new RegExp('CREATE TABLE IF NOT EXISTS ' + t + ' \\('), t);
 });

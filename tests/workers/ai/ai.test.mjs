@@ -387,7 +387,7 @@ test('wrangler.toml：没有公开地址、绑定 AI、索引 KV、Vectorize、�
   assert.equal(reg.def, '@cf/google/gemma-4-26b-a4b-it');
   assert.deepEqual(reg.models.map((m) => [m.id, m.provider]), [['@cf/google/gemma-4-26b-a4b-it', 'workers-ai'], ['@cf/openai/gpt-oss-20b', 'workers-ai'], ['gemini-2.5-flash', 'gemini']]);
   assert.match(toml, /\[ai\]\s*\nbinding = "AI"/);
-  assert.match(toml, /binding = "KV_SEARCH_INDEX"\s*\nid = "608cf3e27184481cbca2922950506d87"/);
+  assert.match(toml, /binding = "KV_SEARCH_INDEX"\s*\nid = "4bcdb84f205541b9b6c8d230bc2b106f"/);
   for (const v of ['AI_MODELS', 'AI_MAX_TOKENS = "1024"', 'AI_CONTEXT_HITS = "6"', 'AI_RECALL_MIN_SCORE = "0.42"', 'AI_GEMINI_SEARCH = "1"']) assert.ok(toml.includes(v), v);
   /* 2026-11 AI 语义召回 */
   assert.match(toml, /\[\[vectorize\]\]\s*\nbinding = "VECTORIZE"\s*\nindex_name = "styrigx-ai-recall"/);

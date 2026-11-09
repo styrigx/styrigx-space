@@ -16,7 +16,7 @@
  * 输错计数、临时钥匙这些安全读只走绑定本身（= 主库）；内存和 KV 都不缓存，任何吊销判断都以这一次请求读到的 D1 为准。
  * （tests/workers/space-core/d1-state.test.mjs 扫网关源码核对：任何地方出现 session API 调用就失败。）
  *
- * 表（migrations/0005_lock_account_state.sql、0006_auth_state.sql，库 styrigx-space-gateway；SCHEMA 是同一份语句的代码兜底）：
+ * 表（migrations/0001_baseline.sql，库 styrigx-space-core；SCHEMA 是同一份语句的代码兜底）：
  * 都是小写 snake_case 名词、都有 realm 列（网关只读写 'lock'）。本文件管 epoch / passkey / password / user_handle；
  * challenge（passkey-verify.js）、attempt_limit（attempt-limit.js）、tempkey（lock-tempkey.js）、
  * audit（space-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。
@@ -32,17 +32,16 @@ import { REALM_LOCK } from './realms.js';
 
 
 /**
- * 与 migrations/0005_lock_account_state.sql + 0006_auth_state.sql 相同的建表语句（按文件顺序；d1-state.test.mjs 核对）。
+ * 与 migrations/0001_baseline.sql 进站段相同的建表语句（按文件顺序；d1-state.test.mjs 核对）。L2b 起 user_handle 带上 legacy_handle 列（旧 0007 加的，网关不读写），
+ * 和正式库一致。
  * 全部 IF NOT EXISTS：代码兜底建表和迁移重复跑都不出错。
  */
 export const SCHEMA = Object.freeze([
-  /* 0005 */
   'CREATE TABLE IF NOT EXISTS epoch (realm TEXT PRIMARY KEY, value INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS passkey (realm TEXT NOT NULL, credential_id TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY (realm, credential_id))',
   'CREATE TABLE IF NOT EXISTS password (realm TEXT PRIMARY KEY, record TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS kv_migration (name TEXT PRIMARY KEY, migrated_at INTEGER NOT NULL)',
-  /* 0006 */
-  'CREATE TABLE IF NOT EXISTS user_handle (realm TEXT PRIMARY KEY, handle TEXT NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS user_handle (realm TEXT PRIMARY KEY, handle TEXT NOT NULL, legacy_handle TEXT NOT NULL DEFAULT \'\')',
   'CREATE TABLE IF NOT EXISTS challenge (realm TEXT NOT NULL, id TEXT NOT NULL, purpose TEXT NOT NULL, challenge TEXT NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY (realm, id))',
   'CREATE TABLE IF NOT EXISTS attempt_limit (realm TEXT NOT NULL, kind TEXT NOT NULL, bucket TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, strikes INTEGER NOT NULL DEFAULT 0, locked_until INTEGER NOT NULL DEFAULT 0, window_start INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL, PRIMARY KEY (realm, kind, bucket))',
   'CREATE TABLE IF NOT EXISTS tempkey (realm TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL DEFAULT \'\', code_hash TEXT, link INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, revoked_at INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL, PRIMARY KEY (realm, id))',

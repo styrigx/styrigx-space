@@ -97,7 +97,7 @@ test('deploy.yml / scripts：对预览跑的 wrangler d1 命令只碰 styrigx-te
       const m = line.match(/\bd1\s+(?:migrations\s+apply|execute)\s+([A-Za-z0-9_-]+)/);
       if (m && /--env\s+preview\b/.test(line)) {
         previewCmds++;
-        /* 按绑定名跑的（进站 v3 L2：D1_SHARE_LINK，space/web/wrangler.toml [env.preview]）也必须落在测试库上 */
+        /* 按绑定名跑的（space/web/wrangler.toml [env.preview]；L2 的 D1_SHARE_LINK 在 L2b 并进 D1_SPACE）也必须落在测试库上 */
         const pv = read('space/web/wrangler.toml').split(/^\[env\.preview\]$/m)[1] || '';
         const blk = pv.split(/\n(?=\[\[)/).find((b) => new RegExp('^binding = "' + m[1] + '"$', 'm').test(b));
         const name = blk ? (blk.match(/^database_name = "([^"]+)"$/m) || [])[1] : m[1];

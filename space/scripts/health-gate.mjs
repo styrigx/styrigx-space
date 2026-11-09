@@ -5,7 +5,7 @@
  *
  * 为什么要它：ai（styrigx-ai；P4-2 前是 search / chat）没有公开地址，第一阶段只能核对
  * 「线上换成了新版本」（deploy-rollback.mjs worker-verify），测不到新代码能不能用。styrigx-status 每分钟经服务绑定
- * 测它们的 GET /healthz，结果进 D1 styrigx-space-gateway 的 status_checks 表（2026-11 合库前是 styrigx-status 的 checks）（workers/status/src/monitor.js persist）。
+ * 测它们的 GET /healthz，结果进 D1 styrigx-status 的 status_checks 表（进站 v3 L2b 起 status 自己的库；之前在共用库 styrigx-space-gateway）（workers/status/src/monitor.js persist）。
  * 本脚本在 deploy.yml 的 deploy-status-worker 里、status 部署并核对之后跑，等新一轮巡检，按结果判定。
  * 不经网关、不开免会话口子、不加 Worker / 子域名：直接用 D1 REST 查表，token 是 status 部署本来就有的那把
  * （STYRIGX_STATUS_DEPLOY，D1 编辑；同一把 token 部署时已经在跑 d1 migrations apply --remote，走的是同一个查询接口）。
@@ -166,7 +166,7 @@ export async function waitForHealth(o) {
     } else {
       lastReason = r.reason;
       if (r.fatal) {
-        log('::error::health gate: D1 query failed (' + r.reason + '); the status deploy token needs D1 access to styrigx-space-gateway');
+        log('::error::health gate: D1 query failed (' + r.reason + '); the status deploy token needs D1 access to styrigx-status');
         return { verdict: 'error', failed: [], perSite: last.perSite };
       }
       log('::warning::health gate: D1 query failed, retrying (' + r.reason + ')');
