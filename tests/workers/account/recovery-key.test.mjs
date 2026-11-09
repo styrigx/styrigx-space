@@ -35,7 +35,7 @@ test('已有 session 也不动它（不重签、不清除）', async () => {
 });
 
 test('只认 SGX_ACCOUNT_RECOVERY_KEY：旧名 SGX_ACCOUNT_ROOT_KEY 里的值、进站凭证的值都不认', async () => {
-  const env = makeEnv({ SGX_ACCOUNT_ROOT_KEY: 'old-root-value', SGX_ROOT_KEY: 'space-key', SGX_LOCK_SPACE_KEY: 'space-key-2' });
+  const env = makeEnv({ SGX_ACCOUNT_ROOT_KEY: 'old-root-value', SGX_ROOT_KEY: 'space-key', SGX_SPACE_RECOVERY_KEY: 'space-key-2' });
   for (const k of ['old-root-value', 'space-key', 'space-key-2']) assert.equal((await rk(env, k)).status, 401, k);
   const noKey = makeEnv({ SGX_ACCOUNT_RECOVERY_KEY: '', SGX_ACCOUNT_ROOT_KEY: RECOVERY_KEY });
   const r = await rk(noKey, RECOVERY_KEY);

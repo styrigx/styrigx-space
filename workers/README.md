@@ -1,6 +1,6 @@
 # workers/：Worker 骨架契约
 
-本目录一个 Worker 一个子目录，目录名 = Cloudflare 上的 Worker 名去掉 `styrigx-` 前缀（`workers/auth-gateway/` ↔ `styrigx-auth-gateway`）。这份文件是 Worker 骨架的唯一出处：新 Worker 照它起步，大 Worker 照它对齐。各 Worker 自己的 `README.md` 只写本 Worker（职责 / 入口 / 路由 / 绑定 / 钥匙 / 数据与迁移），不复述这里。系统分层（L0–L6）、锁屏和账号的整体设计见 [`docs/architecture.md`](../docs/architecture.md)，这里不重复。
+本目录一个 Worker 一个子目录，目录名 = Cloudflare 上的 Worker 名去掉 `styrigx-` 前缀（`workers/space-core/` ↔ `styrigx-space-core`）。这份文件是 Worker 骨架的唯一出处：新 Worker 照它起步，大 Worker 照它对齐。各 Worker 自己的 `README.md` 只写本 Worker（职责 / 入口 / 路由 / 绑定 / 钥匙 / 数据与迁移），不复述这里。系统分层（L0–L6）、锁屏和账号的整体设计见 [`docs/architecture.md`](../docs/architecture.md)，这里不重复。
 
 ## 1. 骨架
 
@@ -19,13 +19,13 @@ workers/<name>/
    ├─ secrets.js      按需。读取 Secrets Store 绑定的地方
    ├─ api/            按需。一个接口一个文件，文件名 = 路径最后一段（/api/lock-entry ↔ api/lock-entry.js）；
    │                  最后一段是变量时用固定段加用途（/avatar/<尺寸>.webp ↔ api/avatar-file.js）
-   ├─ rpc/            按需。WorkerEntrypoint 类，一个类一个文件，文件名 = 类名转 kebab（AuthVerifier ↔ rpc/auth-verifier.js）
+   ├─ rpc/            按需。WorkerEntrypoint 类，一个类一个文件，文件名 = 类名转 kebab（SpaceVerifier ↔ rpc/space-verifier.js）
    ├─ core/           按需。业务逻辑：会话、身份、票据、存储、限流……
    └─ lib/            按需。和业务无关的通用工具：http、cookies、crypto、security-headers、csp-hashes……
 ```
 
 - 同一个 Worker 里，一个概念只有一个文件。不同 Worker 里同名的 `lib/*.js` 必须同名同义（安全头、CSP 由 `space/scripts/gen-csp.mjs` 生成或单测做同值核对）。
-- 单测在 `tests/workers/<name>/`。按骨架对齐的 Worker（网关、账号），单测 import `app.js`、`router.js`、`gate.js` 和 `api/ rpc/ core/ lib/` 里的文件，不 import `src/index.js`（入口只核对源码里的再导出，例如 `tests/workers/auth-gateway/verifier.test.mjs`）；还没对齐的小 Worker 逻辑在 `index.js` 里，单测直接 import 它。`rpc/` 里的类 import 了 `cloudflare:workers`，单测先装替身 `tests/workers/account/_cf-workers.mjs`。
+- 单测在 `tests/workers/<name>/`。按骨架对齐的 Worker（网关、账号），单测 import `app.js`、`router.js`、`gate.js` 和 `api/ rpc/ core/ lib/` 里的文件，不 import `src/index.js`（入口只核对源码里的再导出，例如 `tests/workers/space-core/verifier.test.mjs`）；还没对齐的小 Worker 逻辑在 `index.js` 里，单测直接 import 它。`rpc/` 里的类 import 了 `cloudflare:workers`，单测先装替身 `tests/workers/account/_cf-workers.mjs`。
 
 ## 2. 依赖链
 
@@ -45,11 +45,11 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 
 | Worker | 状态 |
 |---|---|
-| `auth-gateway` | 全量对齐：`index.js` / `app.js` / `router.js` / `gate.js` / `secrets.js` + `api/` `rpc/` `core/` `lib/`。原 Pages Functions 时代的 `functions/`（`_middleware.js`、`api/`、`_kernel/`、`_kernel/lib/`）全部并进 `src/`，`_kernel` 与 `_kernel/lib` 的同名文件（d1-state、tickets、space-audit / space-check / space-limit）各合成一份 |
+| `space-core`（原 `auth-gateway`，进站 v3 L2 改名并并入 `share`） | 全量对齐：`index.js` / `app.js` / `router.js` / `gate.js` / `secrets.js` + `api/` `rpc/` `core/` `lib/`。原 Pages Functions 时代的 `functions/`（`_middleware.js`、`api/`、`_kernel/`、`_kernel/lib/`）全部并进 `src/`，`_kernel` 与 `_kernel/lib` 的同名文件（d1-state、tickets、space-audit / space-check / space-limit）各合成一份。L2 起分享链接的门和接口也在这里：`router.js` 的 `routeShare`、`api/share.js`、`core/share-open.js`、`core/share-links.js`（原 `workers/share` 的 `index.js` / `gate.js` / `open.js` / `lib/links.js`），迁移在 `migrations-share/` |
 | `account` | 全量对齐入口和身份：`worker.js` → `index.js`，原 `index.js` 拆成 `app.js` + `router.js`，`entrypoints.js` 拆成 `rpc/account-service.js`、`rpc/account-verifier.js`、`gate.js`，`identity/account.js` → `api/account.js`，`identity/` 其余 → `core/`。账号命名 v2（2026-11-08，P2 #328）再整理一次：`api/account.js` 按入口拆成 `api/account/`（`status`、`session`、`reauth`、`reset`、`keys`、`devices`、`grants`），业务文件（密码、通行密钥、三张票、恢复密钥、设备、授权、审计）都进 `core/`，`lib/` 只剩通用件（cookies、crypto、db、ticket、webauthn、http、avatar 等） |
 | `ai` | P4-1 新建，按骨架起步：`index.js`（只再导出）/ `app.js` / `router.js` + `api/` `core/` `lib/`；没有关口（只经网关服务绑定进来） |
-| `share`、`status`、`proxy-rules`（`chat`、`search-index` 已在 P4-2b 删除） | `main` 本来就是 `src/index.js`，这次只补齐 README，不搬家、不改 import。share 已有 `gate.js`、`api/`、`lib/`，另有两个文件在 `src/` 顶层（`auth.js` 会话判断、`open.js` 打开短链）；status 的 `monitor.js` / `quota.js` / `targets.js` / `usage.js` 也在顶层；status 读 Secrets Store 不经 `secrets.js` |
-| `curio-core`、`daymark-core` | 2026-11-02 从 styrigx-atlas 搬来（`sites/<站>/workers/core/` → `workers/<站>-core/`，合并 PR1），代码不动；`main` 本来就是 `src/index.js`，只补 `README.md`、`package.json`（规则 20、21）。路由表在 `src/routes.js`、接口在 `src/api/`（`_` 开头的是接口共用模块）、索引和清扫在 `src/` 顶层。合并 PR3 起由本仓库 `.github/workflows/deploy.yml` 部署（`deploy-curio-core` / `deploy-daymark-core`，在网关之前），路由 `styrigx.com/<站>/api/*`（旧图志域名下的过渡期旧路由已于 P4-3 PR-1 删除） |
+| `status`、`proxy-rules`（`chat`、`search-index` 已在 P4-2b 删除；`share` 进站 v3 L2 并入 `space-core`） | `main` 本来就是 `src/index.js`，这次只补齐 README，不搬家、不改 import。status 的 `monitor.js` / `quota.js` / `targets.js` / `usage.js` 也在顶层；status 读 Secrets Store 不经 `secrets.js` |
+| `curio-core`、`daymark-core` | 2026-11-02 从 styrigx-atlas 搬来（`sites/<站>/workers/core/` → `workers/<站>-core/`，合并 PR1），代码不动；`main` 本来就是 `src/index.js`，只补 `README.md`、`package.json`（规则 20、21）。路由表在 `src/routes.js`、接口在 `src/api/`（`_` 开头的是接口共用模块）、索引和清扫在 `src/` 顶层。合并 PR3 起由本仓库 `.github/workflows/deploy.yml` 部署（`deploy-curio-core` / `deploy-daymark-core`；进站 v3 L2 起排在站点核心之后，服务绑定 `SPACE` 要它先在），路由 `styrigx.com/<站>/api/*`（旧图志域名下的过渡期旧路由已于 P4-3 PR-1 删除） |
 
 小 Worker 什么时候再对齐：要给它加第二个接口或第二个入口、要加关口或 RPC 类、单个文件大到要拆、或者要给它加 `migrations/` 的时候，顺手按上面的骨架搬一次（同一个提交里只搬结构，不改行为）。在那之前不为对齐而搬。
 
@@ -72,6 +72,6 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 
 1. 建 `workers/<name>/`：`wrangler.toml`（`name = "styrigx-<name>"`、`main = "src/index.js"`、`workers_dev` / `preview_urls` 按需关）、`package.json`（上面三个键）、`README.md`（六个小节）、`src/index.js`。其余文件按需加。
 2. 有路由就写进它自己 `wrangler.toml` 的 `[[routes]]`，再在 `space/scripts/check-worker-routes.mjs` 里登记它的路径，确认不抢网关的路由；没有公开地址的 Worker 经网关的服务绑定进来，在网关 `wrangler.toml` 加 `[[services]]`。
-3. 绑 D1 就加 `migrations/0001_<名字>.sql`；预览 / 测试资源只用共用的 `styrigx-test-preview`（`tests/workers/auth-gateway/preview-resources.test.mjs` 守卫）。
+3. 绑 D1 就加 `migrations/0001_<名字>.sql`；预览 / 测试资源只用共用的 `styrigx-test-preview`（`tests/workers/space-core/preview-resources.test.mjs` 守卫）。
 4. 单测放 `tests/workers/<name>/*.test.mjs`；在 `.github/workflows/deploy.yml` 的 Unit tests 步骤加上这个目录，加一步 `wrangler deploy --dry-run` 打包检查和部署 job。
 5. 本地跑 `node space/scripts/check-layers.mjs`、`node space/scripts/check-worker-routes.mjs` 和单测。

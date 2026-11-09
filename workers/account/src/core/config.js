@@ -6,7 +6,7 @@
  * - 两个纪元：EPOCH.session 管 session 和 reauth 票（改钥匙、全部退出、reset finish 登出时 +1）；
  *   EPOCH.reset 只管 reset 票（finish 时 +1，所以一张 reset 票只能完成一次）。
  * - by：password / passkey（session、reauth）；recovery-key（reset，只会是这个值）。
- * - 签名钥匙一对：SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC（和锁屏的 SGX_LOCK_PRIVATE / PUBLIC 平行；三张票共用，签名串带 cookie 名，互相冒充不了）。
+ * - 签名钥匙一对：SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC（和锁屏的 SGX_SPACE_PRIVATE / PUBLIC 平行；三张票共用，签名串带 cookie 名，互相冒充不了）。
  * - 恢复密钥 SGX_ACCOUNT_RECOVERY_KEY、账号密码 pepper SGX_ACCOUNT_PASSWORD_PEPPER：都只绑在账号 Worker（Secrets Store）。
  * - 通行密钥 challenge 的用途按入口分开（CHALLENGE_PURPOSE）。
  *

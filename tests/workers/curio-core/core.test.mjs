@@ -1,5 +1,5 @@
 // styrigx-curio-core（workers/core）：
-// - 路由表与 src/api 接口文件一一对应；没有公开接口，全部先问网关要结论（AUTH.conclusion，每个请求一次）；网关出错 → 500 不是 401
+// - 路由表与 src/api 接口文件一一对应；没有公开接口，全部先问网关要结论（SPACE.conclusion，每个请求一次）；网关出错 → 500 不是 401
 // - 鉴权（方案 4.6，P2-2）：没进门 401 unauthorized、没账号会话 401 account、没作用域 403 scope、导入没复验 401 reauth
 // - 收藏：没登录账号只看公开（私密分类 / 私密收藏 / 空分类都不给），账号已登录看全部；写：非同源 403、校验、增改删排序
 // - 导入：先备份原文到 R2（R2 不可用就不导入）、文件夹 → 分类、按网址去重、默认私密、超上限一条不写、记录 imports
@@ -79,11 +79,11 @@ const CTX = { waitUntil() {} };
 const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/curio';
 function call(p, { who = null, db = makeD1(), r2 = makeR2(), method = 'GET', body, origin = ORIGIN, throws = false, headers: extra = {} } = {}) {
-  const headers = { Cookie: 'sgx-lock-session=x', ...extra };
+  const headers = { Cookie: 'sgx-space-session=x', ...extra };
   if (origin) headers.Origin = origin;
   if (body !== undefined && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
   const req = new Request(ORIGIN + p, { method, headers, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) });
-  return worker.fetch(req, { AUTH: auth(who, throws), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 }, CTX);
+  return worker.fetch(req, { SPACE: auth(who, throws), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 }, CTX);
 }
 const op = async (db, body, who = 'owner') => call('/curio/api/links', { who, db, method: 'POST', body });
 const list = async (db, who) => (await call('/curio/api/links', { who, db })).json();
@@ -112,10 +112,10 @@ test('没有公开接口：未登录一律 401，带运行标记；不存在 404
 test('每个接口请求只问网关一次（index.js 问到的结论经 context.data.conclusion 传给 handler）；只有导入那一问带 reauth', async () => {
   const calls = [];
   const db = makeD1();
-  const env = (who) => ({ AUTH: conclusionAuth(who, { calls }), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: makeR2() });
+  const env = (who) => ({ SPACE: conclusionAuth(who, { calls }), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: makeR2() });
   const req = (p, method = 'GET', body, type = 'application/json') => new Request(ORIGIN + p, {
     method,
-    headers: { Cookie: 'sgx-lock-session=x; sgx-account-session=y', Origin: ORIGIN, 'User-Agent': 'UA/1', ...(body ? { 'Content-Type': type } : {}) },
+    headers: { Cookie: 'sgx-space-session=x; sgx-account-session=y', Origin: ORIGIN, 'User-Agent': 'UA/1', ...(body ? { 'Content-Type': type } : {}) },
     body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
   });
   const cases = [
@@ -137,7 +137,7 @@ test('每个接口请求只问网关一次（index.js 问到的结论经 context
     assert.ok(res.status < 500, p + ' ' + res.status);
     assert.equal(calls.length, 1, who + ' ' + (method || 'GET') + ' ' + p);
     assert.deepEqual(calls[0].opts, { reauth: false }, p);
-    assert.equal(calls[0].cookie, 'sgx-lock-session=x; sgx-account-session=y');
+    assert.equal(calls[0].cookie, 'sgx-space-session=x; sgx-account-session=y');
     assert.equal(calls[0].ctx.ua, 'UA/1');
   }
   /* 导入：同样只问一次，这一问带 reauth: true */
@@ -167,29 +167,29 @@ test('每个接口请求只问网关一次（index.js 问到的结论经 context
   assert.equal(calls.length, 2);
   /* 绑定缺失 / 只有旧的 lockSession() → 抛错（index.js 回 500，不回 401） */
   await assert.rejects(() => A.askConclusion(req('/curio/api/links'), {}), /auth-binding-missing/);
-  await assert.rejects(() => A.askConclusion(req('/curio/api/links'), { AUTH: { async lockSession() { return { ok: true, role: 'admin' }; } } }), /auth-binding-missing/); // v1 fixture
+  await assert.rejects(() => A.askConclusion(req('/curio/api/links'), { SPACE: { async lockSession() { return { ok: true, role: 'admin' }; } } }), /auth-binding-missing/); // v1 fixture
 });
 
-test('结论白名单：lock.ok / account.ok / reauth 只认 true；作用域只留合格式的；没进门时账号部分一律不算', async () => {
+test('结论白名单：space.ok / account.ok / reauth 只认 true；作用域只留合格式的；没进门时账号部分一律不算', async () => {
   const A = await import(W + '/src/api/_auth.js');
   const N = A.normalizeConclusion;
-  assert.equal(N(null).lock.ok, false);
-  assert.equal(N({ ok: true, role: 'admin' }).lock.ok, false); // v1 fixture
-  assert.equal(N({ lock: { ok: 'yes' }, account: { ok: true, scopes: ['curio.write'] } }).lock.ok, false);
-  const noLock = N({ lock: { ok: false }, account: { ok: true, scopes: ['curio.write'], reauth: true } });
+  assert.equal(N(null).space.ok, false);
+  assert.equal(N({ ok: true, role: 'admin' }).space.ok, false); // v1 fixture
+  assert.equal(N({ space: { ok: 'yes' }, account: { ok: true, scopes: ['curio.write'] } }).space.ok, false);
+  const noLock = N({ space: { ok: false }, account: { ok: true, scopes: ['curio.write'], reauth: true } });
   assert.equal(noLock.account.ok, false);
   assert.equal(A.can(noLock, 'curio.write'), false);
-  assert.equal(N({ lock: { ok: true }, account: { ok: true } }).account.ok, false, 'scopes 不是数组 → 没账号');
-  assert.equal(N({ lock: { ok: true }, account: { ok: 1, scopes: [] } }).account.ok, false);
-  const c = N({ lock: { ok: true }, account: { ok: true, scopes: ['curio.write', 'CURIO.WRITE', 'x', 7, 'daymark.write'], reauth: 'true' } });
+  assert.equal(N({ space: { ok: true }, account: { ok: true } }).account.ok, false, 'scopes 不是数组 → 没账号');
+  assert.equal(N({ space: { ok: true }, account: { ok: 1, scopes: [] } }).account.ok, false);
+  const c = N({ space: { ok: true }, account: { ok: true, scopes: ['curio.write', 'CURIO.WRITE', 'x', 7, 'daymark.write'], reauth: 'true' } });
   assert.deepEqual(c.account.scopes, ['curio.write', 'daymark.write']);
   assert.equal(c.account.reauth, false);
   assert.equal(A.canReadPrivate(c), true);
   assert.equal(A.can(c, 'curio.write'), true);
   assert.equal(A.can(c, 'avatar.write'), false);
   assert.deepEqual(A.visibility(c), { canWrite: true, showPrivate: true });
-  assert.deepEqual(A.visibility(N({ lock: { ok: true }, account: { ok: false } })), { canWrite: false, showPrivate: false });
-  assert.deepEqual(A.visibility(N({ lock: { ok: true }, account: { ok: true, scopes: [] } })), { canWrite: false, showPrivate: true });
+  assert.deepEqual(A.visibility(N({ space: { ok: true }, account: { ok: false } })), { canWrite: false, showPrivate: false });
+  assert.deepEqual(A.visibility(N({ space: { ok: true }, account: { ok: true, scopes: [] } })), { canWrite: false, showPrivate: true });
 });
 
 test('写接口四种情况（方案 4.6）：没进门 401 unauthorized、没账号 401 account、没作用域 403 scope、都有 200', async () => {
@@ -207,7 +207,7 @@ test('写接口四种情况（方案 4.6）：没进门 401 unauthorized、没�
       if (type) headers['Content-Type'] = type;
       const b = body === undefined ? undefined : body instanceof Uint8Array ? body : JSON.stringify(body);
       const db = makeD1();
-      return worker.fetch(new Request(ORIGIN + p, { method, headers, body: b }), { AUTH: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: makeR2() }, CTX);
+      return worker.fetch(new Request(ORIGIN + p, { method, headers, body: b }), { SPACE: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: makeR2() }, CTX);
     };
     const tag = method + ' ' + p;
     let r = await run(null);
@@ -564,7 +564,7 @@ test('图标：没缓存现抓（apple-touch-icon → favicon.ico），存 R2 �
   const f = fakeFetch({ 'https://site.example/favicon.ico': () => new Response(PNG, { headers: { 'Content-Type': 'application/octet-stream' } }) });
   const ctxFetch = { waitUntil() {} };
   const req = (id, who = 'owner') => new Request(ORIGIN + '/curio/api/icon?id=' + id, { headers: { Cookie: 'x' } });
-  const env = (who) => ({ AUTH: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 });
+  const env = (who) => ({ SPACE: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 });
   const r = await I.onRequestGet({ request: req(1), env: env('owner'), fetchImpl: f, ...ctxFetch });
   assert.equal(r.status, 200);
   assert.equal(r.headers.get('Content-Type'), 'image/x-icon');
@@ -587,7 +587,7 @@ test('图标：抓不到存「没有」标记，7 天内不再抓；账号未登
   await op(db, { op: 'link.add', cat: 1, url: 'https://none.example/', name: 'N' });
   await op(db, { op: 'link.add', cat: 1, url: 'https://secret.example/', name: 'S', private: true });
   const f = fakeFetch({ 'https://none.example/favicon.ico': () => new Response('<html>', { headers: { 'Content-Type': 'text/html' } }) });
-  const env = (who) => ({ AUTH: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 });
+  const env = (who) => ({ SPACE: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 });
   const get = (id, who = 'owner') => I.onRequestGet({ request: new Request(ORIGIN + '/curio/api/icon?id=' + id), env: env(who), fetchImpl: f });
   assert.equal((await get(1)).status, 404);
   assert.equal(f.calls.length, 2);
@@ -608,7 +608,7 @@ test('图标：图片一律要过会话——private, no-cache + ETag，304 只�
   const f = fakeFetch({ 'https://pub.example/apple-touch-icon.png': () => new Response(PNG, { headers: { 'Content-Type': 'image/png' } }) });
   const get = (id, who, inm) => call('/curio/api/icon?id=' + id, { who, headers: inm ? { 'If-None-Match': inm } : {}, db, r2 });
   /* 先由 handler 抓进 R2（call() 走 index.js 没法注入 fetchImpl） */
-  const env = { AUTH: auth('owner'), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 };
+  const env = { SPACE: auth('owner'), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 };
   const first = await I.onRequestGet({ request: new Request(ORIGIN + '/curio/api/icon?id=1'), env, fetchImpl: f });
   const etag = first.headers.get('ETag');
   assert.ok(etag);
@@ -700,7 +700,7 @@ test('wrangler.toml：不开 workers.dev，只挂 curio 的 /api/*，D1 + R2 + �
   assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/curio/api/*']);
   assert.match(t, /^database_id = "[0-9a-f-]{36}"$/m);
   assert.match(t, /^bucket_name = "styrigx-curio-core"$/m);
-  assert.match(t, /^service = "styrigx-auth-gateway"$/m);
-  assert.match(t, /^entrypoint = "AuthVerifier"$/m);
+  assert.match(t, /^service = "styrigx-space-core"$/m);
+  assert.match(t, /^entrypoint = "SpaceVerifier"$/m);
   assert.doesNotMatch(t, /SGX_|\[vars\]/);
 });

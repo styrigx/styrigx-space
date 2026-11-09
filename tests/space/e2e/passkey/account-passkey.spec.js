@@ -1,7 +1,7 @@
 /**
  * 锁屏凭证的门 / 账号登录 challenge 的用途隔离（预览站：真实网关 + 账号 Worker，组合入口 preview-worker.js）。
  *
- * 完整逻辑由 tests/workers/auth-gateway/lock-reauth.test.mjs、tests/workers/account/ 覆盖；这里只验真实部署上的边界：
+ * 完整逻辑由 tests/workers/space-core/lock-reauth.test.mjs、tests/workers/account/ 覆盖；这里只验真实部署上的边界：
  * - 无会话 lock-reauth status → 401
  * - 锁屏通行密钥的 challenge 不能拿去做账号登录（POST /api/account/session passkey → 403 challenge，用途隔离）
  * - 账号登录 challenge 单次使用，重放被拒（403 challenge）
@@ -26,8 +26,8 @@ test.describe('锁屏门 / 账号 challenge e2e（预览站）', () => {
     expect(r.status()).toBe(401);
   });
 
-  test('伪造身份头：无会话带 X-Styrigx-Lock-Session: 1 仍 401', async ({ request }) => {
-    const forged = { Origin: ORIGIN, 'X-Styrigx-Lock-Session': '1', 'X-Styrigx-Lock-By': 'password' };
+  test('伪造身份头：无会话带 X-Styrigx-Space-Session: 1 仍 401', async ({ request }) => {
+    const forged = { Origin: ORIGIN, 'X-Styrigx-Space-Session': '1', 'X-Styrigx-Space-By': 'password' };
     /* 正式域名上网关的门先拒（无会话 /api/* 401）；预览不拦 /api/*，网关剥掉外来的 x-styrigx-* 后转发，
        账号 Worker 看不到身份头同样 401（没剥掉的话 GET /api/account 会当成已进门回 200） */
     for (const path of ['/api/account', '/api/account/keys', '/api/prefs']) {

@@ -2,9 +2,9 @@
 
 ## 职责
 
-账号 Worker：主人账号的完整账号系统。账号身份（账号密码、账号通行密钥、恢复密钥、已登录设备、session / reauth / reset 三张票、审计、应用授权）和账号名下的数据（头像、个人资料、设置云同步、数字健康）都在这里；网关 `styrigx-auth-gateway` 里没有任何账号鉴权代码。本 Worker 不调网关、不绑任何锁屏数据或钥匙（没有 `[[services]]`）。
+账号 Worker：主人账号的完整账号系统。账号身份（账号密码、账号通行密钥、恢复密钥、已登录设备、session / reauth / reset 三张票、审计、应用授权）和账号名下的数据（头像、个人资料、设置云同步、数字健康）都在这里；网关 `styrigx-space-core` 里没有任何账号鉴权代码。本 Worker 不调网关、不绑任何锁屏数据或钥匙（没有 `[[services]]`）。
 
-命名（账号命名 v2，2026-11-08）：一个概念一个词——`session`（`sudo root` 登录）、`reauth`（`sudo root reauth`，3 分钟，挂在本机 session 上）、`reset`（`sudo root reset`，恢复密钥换 3 分钟的票，不签 session）、`keys`（账号安全）、`devices`、`grants`、`audit`、`recovery key`。`root` 只出现在用户看得见的终端命令里，代码里没有。网关签发、本 Worker 只读结论头的那张凭证叫「进站会话」（`X-Styrigx-Lock-Session: 1`）。
+命名（账号命名 v2，2026-11-08）：一个概念一个词——`session`（`sudo root` 登录）、`reauth`（`sudo root reauth`，3 分钟，挂在本机 session 上）、`reset`（`sudo root reset`，恢复密钥换 3 分钟的票，不签 session）、`keys`（账号安全）、`devices`、`grants`、`audit`、`recovery key`。`root` 只出现在用户看得见的终端命令里，代码里没有。网关签发、本 Worker 只读结论头的那张凭证叫「进站会话」（`X-Styrigx-Space-Session: 1`）。
 
 ## 入口
 
@@ -16,7 +16,7 @@
 | `AccountService` | `src/rpc/account-service.js` | 网关经服务绑定 `ACCOUNT` 转发来的请求：`serviceFetch` → `gate.js` → `router.js` |
 | `AccountVerifier` | `src/rpc/account-verifier.js` | 只读 RPC，不签任何东西，调用方只有网关（服务绑定 `ACCOUNT_VERIFIER`）：`authorize(cookieHeader, clientContext, opts)` → 授权结论（见下文「结论」）。命名 v2 删了 `session()`（唯一的调用方是网关给旧账号整页的首帧提示，整页 #327 已删） |
 
-- `src/gate.js`：只有 `AccountService` 读身份头——网关写的 `X-Styrigx-Lock-*`（Session / By / Tempkey-Id）、`X-Styrigx-Client-*`（Address / Country / City），`src/lib/gateway.js` 白名单校验（`passedGateway`：有没有进站会话）。纵深防御：没有进站会话的 `/api/*` → 401；之后 `/api/prefs`、`/api/avatar`、`/api/profile` PUT 要账号 session + 作用域（`gate.js scopeDenial`：401 account / 403 scope）；`/api/account/*` 各入口自己验票。
+- `src/gate.js`：只有 `AccountService` 读身份头——网关写的 `X-Styrigx-Space-*`（Session / By / Tempkey-Id）、`X-Styrigx-Client-*`（Address / Country / City），`src/lib/gateway.js` 白名单校验（`passedGateway`：有没有进站会话）。纵深防御：没有进站会话的 `/api/*` → 401；之后 `/api/prefs`、`/api/avatar`、`/api/profile` PUT 要账号 session + 作用域（`gate.js scopeDenial`：401 account / 403 scope）；`/api/account/*` 各入口自己验票。
 - `src/router.js`：接口路由表 `API_ROUTES` 和头像文件 `/avatar/<尺寸>.webp`。
 - 一个文件一件事，文件名就是那件事的词：
 
@@ -68,7 +68,7 @@
 
 没有公开路由（第一道保险）：`wrangler.toml` 没有任何 `[[routes]]` / `route`（`[env.preview]` 只写 `routes = []`），`workers_dev = false`、`preview_urls = false`。`space/scripts/check-worker-routes.mjs` 核对 0 条路由，`check-layers.mjs` 规则 17 禁止这个 toml 出现非空的 routes。
 
-浏览器请求只能先进网关：网关验进站会话、剥掉外来的 `x-styrigx-*` / `x-sgx-*` 头，再经 `ACCOUNT` 转进 `AccountService`。网关转发表 `workers/auth-gateway/src/router.js` 的 `FORWARDING` 按前缀转 `/api/account`，子路径不用改网关。
+浏览器请求只能先进网关：网关验进站会话、剥掉外来的 `x-styrigx-*` / `x-sgx-*` 头，再经 `ACCOUNT` 转进 `AccountService`。网关转发表 `workers/space-core/src/router.js` 的 `FORWARDING` 按前缀转 `/api/account`，子路径不用改网关。
 
 | 路径 | 处理 |
 |---|---|
@@ -95,8 +95,8 @@ Secrets Store（`src/secrets.js` 换成字符串，60 秒缓存）：
 | 名字 | 用途 |
 |---|---|
 | `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC` | 三张票的签名钥匙对（签名串带 cookie 名，票之间互相冒充不了） |
-| `SGX_ACCOUNT_RECOVERY_KEY` | 恢复密钥（`POST /api/account/reset { action:'recovery-key', key }`，只签 reset 票），与进站凭证 `SGX_LOCK_SPACE_KEY` 是不同的值、各自计数 |
-| `SGX_ACCOUNT_PASSWORD_PEPPER` | 账号密码哈希 pepper，账号独占（网关的锁屏密码用自己的 `SGX_PW_PEPPER`） |
+| `SGX_ACCOUNT_RECOVERY_KEY` | 恢复密钥（`POST /api/account/reset { action:'recovery-key', key }`，只签 reset 票），与进站凭证 `SGX_SPACE_RECOVERY_KEY` 是不同的值、各自计数 |
+| `SGX_ACCOUNT_PASSWORD_PEPPER` | 账号密码哈希 pepper，账号独占（网关的锁屏密码用自己的 `SGX_SPACE_PASSWORD_PEPPER`） |
 
 ## 数据与迁移
 

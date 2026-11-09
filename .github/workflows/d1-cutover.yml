@@ -92,8 +92,8 @@ jobs:
         run: |
           set -eu
           (cd workers/status && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-space-gateway --remote)
-          (cd workers/share && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-space-gateway --remote)
-          (cd workers/auth-gateway && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-space-gateway --remote)
+          (cd workers/space-core && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply D1_SHARE_LINK --remote)
+          (cd workers/space-core && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply D1_SPACE --remote)
 
       - name: Export → rename → import → per-table check (styrigx-status / styrigx-share / styrigx-auth-gateway → styrigx-space-gateway)
         env:

@@ -144,7 +144,7 @@ test('应用授权：没种过 → 写满 6 个；种过没补 → 只补 profil
 
 test('CI 预览库顺序：网关全部迁移 → 账号 0001–0005（同一个库）不报错；网关自己的表（tempkey / kv_migration 等）不动', () => {
   const db = new DatabaseSync(':memory:');
-  const gwDir = REPO + 'workers/auth-gateway/migrations/';
+  const gwDir = REPO + 'workers/space-core/migrations/';
   for (const f of readdirSync(gwDir).filter((x) => x.endsWith('.sql')).sort()) db.exec(readFileSync(gwDir + f, 'utf8'));
   const gwTables = rows(db, "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").map((r) => r.name);
   for (const f of MIGRATION_FILES) db.exec(migrationSql(f));

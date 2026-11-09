@@ -73,8 +73,7 @@ The interface is **Styrigx UI**, built in-house, with version numbers that track
 flowchart LR
   V([Browser]) --> GW
   subgraph CF[Cloudflare]
-    GW[styrigx-auth-gateway<br/>styrigx.com/*]
-    SH[styrigx-share<br/>/s/* · /api/share*]
+    GW[styrigx-space-core<br/>styrigx.com/*]
     CC[styrigx-curio-core<br/>/curio/api/*]
     DC[styrigx-daymark-core<br/>/daymark/api/*]
     GW --> P1[(Pages<br/>styrigx-space<br/>main site + /blog/ /curio/ /daymark/)]
@@ -83,7 +82,6 @@ flowchart LR
     GW -. service binding .-> ST[styrigx-status]
     PR[styrigx-proxy-rules<br/>proxy-rules.styrigx.com]
   end
-  V --> SH
   V --> CC
   V --> DC
   V --> PR
@@ -91,9 +89,8 @@ flowchart LR
 
 | Worker | Responsibility | Entry |
 |---|---|---|
-| `styrigx-auth-gateway` | Issues and verifies lock sessions, lock credentials and temporary-key APIs; checks the session on every page (including the `/blog/`, `/curio/`, `/daymark/` sub-sites) before serving it from Pages | `styrigx.com/*` |
+| `styrigx-space-core` | Issues and verifies lock sessions, lock credentials and temporary-key APIs, share links (`/s/*`, `/api/share`, merged in from `styrigx-share`); checks the session on every page (including the `/blog/`, `/curio/`, `/daymark/` sub-sites) before serving it from Pages | `styrigx.com/*` |
 | `styrigx-account` | Account system: password, passkeys, devices, account root key, avatar, cloud sync, digital wellbeing | Gateway service binding only, no public route |
-| `styrigx-share` | Share short links and their management API | `styrigx.com/s/*`, `styrigx.com/api/share*` |
 | `styrigx-ai` | On-site assistant: KV index recall + model answer (Workers AI / Gemini); stores nothing | Gateway service binding only |
 | `styrigx-status` | Checks every minute, reads usage hourly (D1) | Gateway service binding only |
 | `styrigx-proxy-rules` | Accelerating proxy for rule sets, allow-listed upstream only | `proxy-rules.styrigx.com` (bypasses the gateway) |

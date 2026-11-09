@@ -189,7 +189,7 @@ test('契约夹具不能是空的（sync-shell 同步自主站 space/web/shared/
 for (const c of fx.cases) {
   test(`契约：${c.name}`, () => {
     for (const sys of ['light', 'dark']) {
-      const r = run({ cookie: 'sgx-lock-session=x; sgx-ui=' + c.cookie + '; other=1', dark: sys === 'dark' });
+      const r = run({ cookie: 'sgx-space-session=x; sgx-ui=' + c.cookie + '; other=1', dark: sys === 'dark' });
       assert.deepEqual(rootState(r.html), c[sys].root, sys + ' <html>');
       /* 博客自己的样式钩子跟着 dark 走 */
       const d = c[sys].resolve.dark;

@@ -199,7 +199,7 @@ test.describe('reset 终端 passkey add：busy 只发 1 次注册 challenge；�
       try { body = route.request().postDataJSON() || {}; } catch (e) {}
       if (body.action === 'challenge' && body.type === 'register') {
         reg++;
-        await route.fulfill(json({ ok: true, challenge: CHALLENGE_B64, cid: 'r1', rp: { name: 'Styrigx', id: 'localhost' }, user: { id: 'dGVzdA', name: 'LockKey', displayName: 'Styrigx' }, excludeCredentials: [] }));
+        await route.fulfill(json({ ok: true, challenge: CHALLENGE_B64, cid: 'r1', rp: { name: 'Styrigx', id: 'localhost' }, user: { id: 'dGVzdA', name: 'SpacePasskey', displayName: 'Styrigx' }, excludeCredentials: [] }));
         return;
       }
       await route.fulfill(json({ ok: false }, 400));

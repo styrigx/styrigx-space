@@ -22,7 +22,7 @@ export function json(status, body, headers) {
 }
 
 /**
- * 错误响应：{ ok:false, error:<code>, ...extra }。code 必须登记在 ERROR_CODES（tests/workers/auth-gateway/error-codes.test.mjs 核对）。
+ * 错误响应：{ ok:false, error:<code>, ...extra }。code 必须登记在 ERROR_CODES（tests/workers/space-core/error-codes.test.mjs 核对）。
  * 状态码按各接口原样（前端和测试依赖），这里不改写。
  * @param {number} status
  * @param {string} code
@@ -35,7 +35,7 @@ export function apiError(status, code, extra, headers) {
 
 /**
  * 网关 / 账号 / 分享 Worker 返回的全部 error 码和各自用到的 HTTP 状态（只登记，不改写）。
- * 新加一个码要在这里登记；前端怎么显示见 tests/workers/auth-gateway/error-codes.test.mjs。
+ * 新加一个码要在这里登记；前端怎么显示见 tests/workers/space-core/error-codes.test.mjs。
  */
 export const ERROR_CODES = Object.freeze({
   /* 请求本身 */

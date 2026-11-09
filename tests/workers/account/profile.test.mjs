@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { testLockSession } from '../auth-gateway/_tickets.mjs';
+import { testLockSession } from '../space-core/_tickets.mjs';
 import { genKeyPair, authD1For } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
 
@@ -42,15 +42,15 @@ function makeKv(init = {}) {
 const lockKv = makeKv();
 function env(kv) {
   return {
-    SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: ACC.pub,
+    SGX_SPACE_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: ACC.pub,
     KV_PROFILE: kv,
-    D1_LOCK_AUTH: authD1For(lockKv), D1_ACCOUNT: makeAccountD1(),
+    D1_SPACE: authD1For(lockKv), D1_ACCOUNT: makeAccountD1(),
   };
 }
 /** @param {string|null} role @param {boolean} [acc] */
 async function cookie(role, acc) {
   const c = [];
-  if (role) c.push('sgx-lock-session=' + (await testLockSession(PRIV, 0, role)));
+  if (role) c.push('sgx-space-session=' + (await testLockSession(PRIV, 0, role)));
   if (acc) c.push(await testAccountSessionCookie(ACC.priv, 'password', 0, Date.now()));
   return c.join('; ');
 }

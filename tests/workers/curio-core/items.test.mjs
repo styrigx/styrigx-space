@@ -54,12 +54,12 @@ const auth = (who) => conclusionAuth(who);
 const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/curio';
 function call(p, { who = null, db, r2, method = 'GET', body, origin = ORIGIN, type, inm } = {}) {
-  const headers = { Cookie: 'sgx-lock-session=x' };
+  const headers = { Cookie: 'sgx-space-session=x' };
   if (inm) headers['If-None-Match'] = inm;
   if (origin) headers.Origin = origin;
   if (body !== undefined) headers['Content-Type'] = type || 'application/json';
   const b = body === undefined ? undefined : body instanceof Uint8Array || typeof body === 'string' ? body : JSON.stringify(body);
-  return worker.fetch(new Request(ORIGIN + p, { method, headers, body: b }), { AUTH: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 }, { waitUntil() {} });
+  return worker.fetch(new Request(ORIGIN + p, { method, headers, body: b }), { SPACE: auth(who), D1_FINDS: db, D1_DEVICES: db, D1_GAMES: db, R2_PHOTOS: r2 }, { waitUntil() {} });
 }
 const env = () => ({ db: makeD1(), r2: makeR2() });
 const post = (e, body, who = 'owner') => call('/curio/api/items', { ...e, who, method: 'POST', body });
@@ -246,8 +246,8 @@ test('绑定：设备走 D1_DEVICES、游戏走 D1_GAMES（同一个库）；wra
     const note = (sql) => { for (const t of ['devices', 'games', 'links', 'cats']) if (new RegExp('\\b' + t + '\\b').test(sql)) seen[name].add(t); };
     return { ...d, prepare: (sql) => { note(sql); return d.prepare(sql); } };
   };
-  const envOf = (who) => ({ AUTH: auth(who), D1_FINDS: tag('D1_FINDS'), D1_DEVICES: tag('D1_DEVICES'), D1_GAMES: tag('D1_GAMES'), R2_PHOTOS: makeR2() });
-  const req = (p, method = 'GET', body) => new Request(ORIGIN + p, { method, headers: { Cookie: 'sgx-lock-session=x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
+  const envOf = (who) => ({ SPACE: auth(who), D1_FINDS: tag('D1_FINDS'), D1_DEVICES: tag('D1_DEVICES'), D1_GAMES: tag('D1_GAMES'), R2_PHOTOS: makeR2() });
+  const req = (p, method = 'GET', body) => new Request(ORIGIN + p, { method, headers: { Cookie: 'sgx-space-session=x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
   const E = envOf('owner');
   assert.equal((await worker.fetch(req('/curio/api/items', 'POST', { op: 'device.add', name: 'S24' }), E, { waitUntil() {} })).status, 200);
   assert.equal((await worker.fetch(req('/curio/api/items', 'POST', { op: 'game.add', title: 'Zelda' }), E, { waitUntil() {} })).status, 200);

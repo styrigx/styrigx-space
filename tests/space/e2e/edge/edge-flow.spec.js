@@ -83,7 +83,7 @@ async function addAuthenticator(page) {
 async function setSession(context, by) {
   const value = await edge.mintCookie(by);
   /* 临时钥匙进门的会话（by=tempkey）票里自带临时钥匙 id，mintCookie('tempkey') 会先登记那把钥匙 */
-  const c = [{ name: 'sgx-lock-session', value, domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' }];
+  const c = [{ name: 'sgx-space-session', value, domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' }];
   await context.addCookies(c);
 }
 
@@ -111,9 +111,9 @@ async function sessionBy(page) {
   return page.evaluate(() => fetch('/api/lock-session-check', { cache: 'no-store' }).then((r) => r.ok ? r.json() : { ok: false }).then((j) => j.ok ? j.by : null));
 }
 
-/** 塞一张锁侧复验票（sgx-lock-reauth，host-only、SameSite=Strict，同网关下发的属性） */
+/** 塞一张锁侧复验票（sgx-space-reauth，host-only、SameSite=Strict，同网关下发的属性） */
 async function setReauth(context) {
-  await context.addCookies([{ name: 'sgx-lock-reauth', value: await edge.mintReauth(), url: MAIN + '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
+  await context.addCookies([{ name: 'sgx-space-reauth', value: await edge.mintReauth(), url: MAIN + '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
 }
 
 test('R1 blog 直接打开 → 主站锁屏 → 通行密钥 → 回到 blog 原地址', async ({ page }) => {
@@ -256,10 +256,10 @@ test('P2-3 带 v1 cookie 打开旷野子页 /wild/ 和子站内页 → 302 锁�
   await addAuthenticator(page);
   /* v1 票（6 段 by.role.epoch.exp.tempkeyId.sig）：v2 只认 5 段 → bad-format，和没 cookie 一样 */
   const v1 = 'password.admin.0.' + (Date.now() + 3600e3) + '..AAAA'; // v1 fixture
-  const putV1 = () => context.addCookies([{ name: 'sgx-lock-session', value: v1, domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' }]);
+  const putV1 = () => context.addCookies([{ name: 'sgx-space-session', value: v1, domain: '.styrigx.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' }]);
   await putV1();
   const clears = [];
-  page.on('response', (r) => { if (/sgx-lock-session=;/.test(r.headers()['set-cookie'] || '')) clears.push(r.url()); });
+  page.on('response', (r) => { if (/sgx-space-session=;/.test(r.headers()['set-cookie'] || '')) clears.push(r.url()); });
   for (const [target, ret] of [[MAIN + '/wild/', '/wild/'], [BLOG + '/post/hello/', BLOG + '/post/hello/']]) {
     const navs = [];
     const h = (f) => { if (f === page.mainFrame()) navs.push(f.url()); };
@@ -362,7 +362,7 @@ test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / �
   const anon = await page.evaluate(() => fetch('/api/wellbeing', { cache: 'no-store' }).then((r) => [r.status, r.headers.get('x-sgx-runtime')]));
   expect(anon).toEqual([401, 'worker']);
   /* 伪造身份头也一样：网关先剥掉外来的 x-styrigx-*，门照样按 cookie 判 */
-  const forged = await page.evaluate(() => fetch('/api/prefs', { cache: 'no-store', headers: { 'X-Styrigx-Lock-Level': 'password' } }).then((r) => [r.status, r.headers.get('x-sgx-runtime')]));
+  const forged = await page.evaluate(() => fetch('/api/prefs', { cache: 'no-store', headers: { 'X-Styrigx-Space-Level': 'password' } }).then((r) => [r.status, r.headers.get('x-sgx-runtime')]));
   expect(forged).toEqual([401, 'worker']);
   /* 进门：数字健康可读，云同步没登账号 → 401 account；接口地址不变 */
   await setSession(context, 'password');
@@ -380,7 +380,7 @@ test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / �
 
 /* R8（顶栏标签页内切换）随 P4-3 PR-4b 删除：主站只剩旷野一个顶级页，shell/inpage-tabs.js 删了，没有页内切换可测。 */
 
-/* ---------------- R9 分享短链（2026-10-24，styrigx-share）：/s/* 经线上路由规则进短链 Worker，钥匙和会话由网关签 ---------------- */
+/* ---------------- R9 分享短链（2026-10-24；进站 v3 L2 起并入 styrigx-space-core）：/s/* 经线上路由规则进站点核心 Worker，钥匙和会话也在同一个 Worker 里签 ---------------- */
 
 /** 短链管理（进站 v3 L1：盾牌 → 分享链接）：新建只要进站会话，列表 / 作废要锁侧复验；不要账号会话 */
 async function setManager(context) {
@@ -510,7 +510,7 @@ test.describe('R9 分享短链', () => {
     await edge.resetShareLimit();
     const ok = await page.request.get(MAIN + link.path, { maxRedirects: 0, ignoreHTTPSErrors: true });
     expect(ok.headers()['location']).toBe('https://styrigx.com/');
-    expect(ok.headers()['set-cookie'] || '').toMatch(/sgx-lock-session=tempkey\.\d+\./);
+    expect(ok.headers()['set-cookie'] || '').toMatch(/sgx-space-session=tempkey\.\d+\./);
   });
 });
 

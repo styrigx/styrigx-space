@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../../workers/auth-gateway/src/api/lock-now.js';
+import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../../workers/space-core/src/api/lock-now.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /* 2026-10-26（frontend-js #6）：锁屏拆成守卫（core 里）+ 界面（按需加载）；进站 v3 L1 起是 shell/space/guard.js + shell/space/entry.js，两份合起来查 */
@@ -91,11 +91,11 @@ test('/api/lock-now：POST 下发 Set-Cookie 清除头（锁屏会话 + LockReau
     ? res.headers.getSetCookie()
     : [res.headers.get('set-cookie')];
   assert.equal(cookies.length, 3, '应下发三条 Set-Cookie（锁屏会话 + LockReauthTicket + LockResetTicket）');
-  const sess = cookies.filter((c) => c.startsWith('sgx-lock-session=;'));
-  assert.equal(sess.length, 1, '应有一条 sgx-lock-session 清除');
+  const sess = cookies.filter((c) => c.startsWith('sgx-space-session=;'));
+  assert.equal(sess.length, 1, '应有一条 sgx-space-session 清除');
   assert.ok(sess[0].includes('Domain=.styrigx.com') && sess[0].includes('Max-Age=0'), '锁屏会话清除带 Domain=.styrigx.com');
-  assert.ok(cookies.some((c) => c.startsWith('sgx-lock-reauth=;') && c.includes('Max-Age=0')), '应清除 LockReauthTicket');
-  assert.ok(cookies.some((c) => c.startsWith('sgx-lock-reset=;') && c.includes('Max-Age=0')), '应清除 LockResetTicket');
+  assert.ok(cookies.some((c) => c.startsWith('sgx-space-reauth=;') && c.includes('Max-Age=0')), '应清除 LockReauthTicket');
+  assert.ok(cookies.some((c) => c.startsWith('sgx-space-reset=;') && c.includes('Max-Age=0')), '应清除 LockResetTicket');
   assert.ok(!cookies.some((c) => c.startsWith('sgx-door=') || c.startsWith('sgx-tk=') || c.startsWith('sgx-verified=')), '不再有旧 cookie');
   assert.ok(!cookies.some((c) => c.startsWith('sgx-stepup=') || c.startsWith('sgx-app=')), '不再有 stepup / app cookie');
 });

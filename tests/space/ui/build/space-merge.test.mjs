@@ -45,7 +45,7 @@ export function reservedSegments() {
     for (const mm of readFileSync(f, 'utf8').matchAll(/pattern\s*=\s*"styrigx\.com\/([^"/*]*)/g)) add(mm[1], `Worker ${w} 路由`);
   }
   /* 网关转发表 FORWARDING（/api/…、/avatar/） */
-  for (const mm of rd('workers/auth-gateway/src/router.js').matchAll(/path: '\/([^/']+)/g)) add(mm[1], '网关转发表');
+  for (const mm of rd('workers/space-core/src/router.js').matchAll(/path: '\/([^/']+)/g)) add(mm[1], '网关转发表');
   add('api', '网关 /api/*');
   /* Pages 静态目录（主站 static）和 Hugo 产物里的目录 */
   for (const n of readdirSync(path.join(REPO, 'space/web/static'))) add(n, 'space/web/static');

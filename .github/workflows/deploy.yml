@@ -63,7 +63,7 @@ jobs:
         # 先确认 node:sqlite 可用：没有它 D1 的真 SQL 测试会静默跳过
         run: |
           node -e "require('node:sqlite')" || { echo "::error::node:sqlite unavailable, D1 SQL tests would be skipped"; exit 1; }
-          node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs"
+          node --test tests/workers/space-core/*.test.mjs tests/workers/account/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs"
 
   build:
     # 生产构建只做一次（2026-11 合站：主站和三个子站同一个 Hugo 站，一次构建）：打包 dry-run、生成物同步、分层 / 前端守卫、CSP、产物检查、搜索索引、子站单测、站点树检查、路由检查、stylelint。
@@ -101,10 +101,10 @@ jobs:
       - name: Build CSS
         run: node space/scripts/build-css.cjs --minify
 
-      - name: Auth Worker bundle check (styrigx-auth-gateway, dry-run)
-        # 主站后端代码全在 workers/auth-gateway/src/；只打包不部署，import 断了 CI 就红
-        working-directory: workers/auth-gateway
-        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-auth-gateway-dist
+      - name: Space core Worker bundle check (styrigx-space-core, dry-run)
+        # 主站后端代码全在 workers/space-core/src/（进站 v3 L2 起含分享链接）；只打包不部署，import 断了 CI 就红
+        working-directory: workers/space-core
+        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-space-core-dist
 
       - name: Account Worker bundle check (styrigx-account, dry-run)
         working-directory: workers/account
@@ -117,11 +117,7 @@ jobs:
           npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/space/e2e/helpers/preview-worker.js --dry-run --outdir /tmp/preview-worker-dist \
             --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' space/web/wrangler.toml)"
           grep -q "X-SGX-Runtime" /tmp/preview-worker-dist/preview-worker.js
-          grep -q "X-Styrigx-Lock-Session" /tmp/preview-worker-dist/preview-worker.js
-
-      - name: Share Worker bundle check (styrigx-share, dry-run)
-        working-directory: workers/share
-        run: npx --yes "wrangler@$WRANGLER_VERSION" deploy --dry-run --outdir /tmp/styrigx-share-dist
+          grep -q "X-Styrigx-Space-Session" /tmp/preview-worker-dist/preview-worker.js
 
       - name: AI Worker bundle check (styrigx-ai, dry-run)
         working-directory: workers/ai
@@ -157,7 +153,7 @@ jobs:
       - name: Layer boundary check (SGX 3.0 分层规范)
         # 依赖方向（docs/architecture.md）：前端 lib ← auth ← shell ← apps ← entries；lib 不含鉴权接口；
         # Worker 之间：每个 Worker 只 import 自己目录下的文件，没有 workers/shared；网关不许出现账号鉴权标识；账号 Worker 不许有路由（规则 14–17）；Worker 骨架防回退（规则 18–21，见 workers/README.md）；
-        # 相对 import 解析不到文件也算失败；前端禁止 sgx-lock-session（cookie 名）/sgx-lock-shown；禁止用 storage 存解锁状态
+        # 相对 import 解析不到文件也算失败；前端禁止 sgx-space-session（cookie 名）/sgx-lock-shown；禁止用 storage 存解锁状态
         run: node space/scripts/check-layers.mjs
 
       - name: Frontend guard (无原生弹窗 / 无废弃 token 变量)
@@ -179,7 +175,7 @@ jobs:
 
       - name: 前端技术名词检查（生产构建的 HTML 里不许出现后端变量名）
         # 用户可见文案不得出现后端变量名（名单在 space/scripts/retired-names.json 的 html：OWNER_KEY / SESSION_SECRET / SGX_ROOT_KEY /
-        # SGX_LOCK_SPACE_KEY / SGX_ACCOUNT_ROOT_KEY / SGX_ACCOUNT_RECOVERY_KEY / SGX_ACCOUNT_PASSWORD_PEPPER / SGX_PW_PEPPER / TURNSTILE_SECRET）；
+        # SGX_SPACE_RECOVERY_KEY / SGX_ACCOUNT_ROOT_KEY / SGX_ACCOUNT_RECOVERY_KEY / SGX_ACCOUNT_PASSWORD_PEPPER / SGX_SPACE_PASSWORD_PEPPER / TURNSTILE_SECRET）；
         # 后端变量名只许出现在 workers/ 与注释里，不许进 space/web/public/ HTML。
         # 2026-11 合站：只查主站页面（子站 /blog/ /curio/ /daymark/ 不在范围里，同合站前；博客白皮书正文会如实写这些名字）
         run: |
@@ -570,7 +566,7 @@ jobs:
     # WebAuthn 虚拟认证器 + 真实网关代码的 E2E（tests/space/e2e/passkey/passkey.spec.js、account-passkey.spec.js）。生产部署的所有 job 都等它通过。
     # 按事件分两条路（job 名不变：passkey-e2e 是分支保护的必需检查，结论就是这个 job 的结论）：
     # - pull_request：本地模拟器 tests/space/e2e/helpers/preview-emulator.cjs——同一个组合入口 tests/space/e2e/helpers/preview-worker.js
-    #   （网关 workers/auth-gateway/src/app.js + 账号 Worker 命名入口的实现，账号拆分 PR3；SGX_ENV=preview），
+    #   （网关 workers/space-core/src/app.js + 账号 Worker 命名入口的实现，账号拆分 PR3；SGX_ENV=preview），
     #   D1 是 node:sqlite 内存库（网关 2026-10-27 起不绑 KV）、Cloudflare D1 / KV REST 也由它在本机模拟；env.ASSETS 读本步骤构建的 space/web/public。
     #   不用任何 Cloudflare secret、不部署预览、不清预览 D1 / 不跑 D1 迁移。
     # - push 到 main、workflow_dispatch：真实预览部署 passkey-e2e.styrigx-space.pages.dev + 预览 D1（下面带
@@ -608,7 +604,7 @@ jobs:
         #   space/web/content/*.md 只改 title / linkTitle / description / summary / keywords（这里的页面只有 front matter，
         #   url / layout 决定路由，E2E 正好走这些页面，改了就照跑；新增页面也照跑）。
         # 照跑名单优先于上面的跳过规则：.github/**（workflow 本身）、package.json、package-lock.json、space/web/shared/**、
-        #   space/web/assets/js/**（含 shell/）、网关内核 workers/auth-gateway/src/core/**、src/lib/**（原 _kernel/**）。删除、类型变化也一律照跑。
+        #   space/web/assets/js/**（含 shell/）、网关内核 workers/space-core/src/core/**、src/lib/**（原 _kernel/**）。删除、类型变化也一律照跑。
         # PR 比 base...head（合并基点起 PR 自己的改动）；push 直接比 before 和 after 两棵树（快进时等同 before...after，
         # 强推时把被覆盖掉的改动也算进来）；before 全零（新分支）、workflow_dispatch、拿不到 SHA、fetch / diff 出错、空 diff 都照跑。
         # 本步意外报错也不拦：continue-on-error，拿不到 docs_only=true 就照跑。
@@ -658,7 +654,7 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # 照跑名单优先于下面的跳过规则（workflow 自身、依赖、共享外壳、前端 JS、网关内核 src/core/、src/lib/）
-              .github/* | package.json | package-lock.json | space/web/shared/* | space/web/assets/js/* | workers/auth-gateway/src/core/* | workers/auth-gateway/src/lib/*)
+              .github/* | package.json | package-lock.json | space/web/shared/* | space/web/assets/js/* | workers/space-core/src/core/* | workers/space-core/src/lib/*)
                 verdict false "$f: always run" ;;
             esac
             [ "$st" = M ] || [ "$st" = A ] || verdict false "$st $f (deleted / type change): run"
@@ -715,8 +711,8 @@ jobs:
 
       - name: Generate preview test credentials (CI only)
         if: steps.gate.outputs.run == 'true'
-        # 预览站的测试进站凭证（网关 SGX_LOCK_SPACE_KEY）、测试恢复密钥（账号 Worker SGX_ACCOUNT_RECOVERY_KEY，两把不同）、
-        # 锁屏密码 pepper（网关 SGX_PW_PEPPER）和账号密码 pepper（账号 Worker SGX_ACCOUNT_PASSWORD_PEPPER，命名 v2 起分开）：
+        # 预览站的测试进站凭证（网关 SGX_SPACE_RECOVERY_KEY）、测试恢复密钥（账号 Worker SGX_ACCOUNT_RECOVERY_KEY，两把不同）、
+        # 锁屏密码 pepper（网关 SGX_SPACE_PASSWORD_PEPPER）和账号密码 pepper（账号 Worker SGX_ACCOUNT_PASSWORD_PEPPER，命名 v2 起分开）：
         # 每次运行新生成，只给这次的预览（PR：本地模拟器）用，和下面的 Ed25519 测试钥匙对一样不进仓库、不存 GitHub Secrets。
         # 根密钥只要求去空白后非空（两边 lib/crypto.js normalizeSpaceKey），这里用 32 字节随机数的 hex（64 个字符，无空白、无特殊字符）。
         # 先 ::add-mask:: 再写进 $GITHUB_ENV，后面各步骤的日志里都打码。
@@ -745,7 +741,7 @@ jobs:
         # 密码、通行密钥（「锁屏 / 账号都未设置」）和输错计数（attempt_limit：会 429）。网关和账号的预览表同库同名、按 realm 列分开，一起清。
         # 纪元、user handle、审计、challenge、临时钥匙、设备、重置开关不清：旧会话 / 票都是旧钥匙签的、验签先失败，
         # 其余只是过期就不认的行，不改变任何断言的前提（逐条理由见 space/scripts/kv-budget.mjs）。
-        # 库 id 只认 space/web/wrangler.toml [env.preview] 的 D1_LOCK_AUTH，且断言它不是正式网关的库。D1 REST 要这个 token 有 D1 编辑。
+        # 库 id 只认 space/web/wrangler.toml [env.preview] 的 D1_SPACE，且断言它不是正式网关的库。D1 REST 要这个 token 有 D1 编辑。
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         env:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -816,14 +812,14 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # Pages 上已经没有后端代码。预览把组合入口打包成 Pages 的 _worker.js（覆盖静态的那个），在 passkey-e2e.styrigx-space.pages.dev 上跑：
         # 网关和账号 Worker 两边仓库里的真实代码，网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器，env 按正式绑定拆给两半
-        # （账号拆分 PR3；见 preview-worker.js 文件头）。页面和默认头像读 env.ASSETS，接口连预览的 D1（D1_LOCK_AUTH / D1_ACCOUNT 同一个测试库）。
+        # （账号拆分 PR3；见 preview-worker.js 文件头）。页面和默认头像读 env.ASSETS，接口连预览的 D1（D1_SPACE / D1_ACCOUNT 同一个测试库）。
         # 只打包不部署 Worker，不需要 Worker 权限。
         run: |
           npx --yes "wrangler@$WRANGLER_VERSION" deploy tests/space/e2e/helpers/preview-worker.js --dry-run --outdir "$RUNNER_TEMP/preview-dist" \
             --name sgx-preview-worker-bundle --compatibility-date "$(sed -n 's/^compatibility_date = "\(.*\)"$/\1/p' space/web/wrangler.toml)"
           cp "$RUNNER_TEMP/preview-dist/preview-worker.js" space/web/public/_worker.js
           grep -q "X-SGX-Runtime" space/web/public/_worker.js
-          grep -q "X-Styrigx-Lock-Session" space/web/public/_worker.js
+          grep -q "X-Styrigx-Space-Session" space/web/public/_worker.js
 
       - name: Generate Ed25519 test key pairs (CI only)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
@@ -839,7 +835,7 @@ jobs:
       - name: Put this run's public keys into space/web/wrangler.toml (runner copy only)
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # space/web/wrangler.toml 是 Pages 的配置源：部署时它的 [env.preview.vars] 覆盖后台的明文变量。
-        # 仓库里那份 SGX_LOCK_PUBLIC 是固定值，和本次生成的私钥对不上，所以部署前在 runner 里换成本次的公钥，
+        # 仓库里那份 SGX_SPACE_PUBLIC 是固定值，和本次生成的私钥对不上，所以部署前在 runner 里换成本次的公钥，
         # 并补上账号域公钥。不提交，只影响这次部署。
         run: |
           python3 - <<'PYEOF'
@@ -849,13 +845,13 @@ jobs:
           acct_pub = open(f"{tmp}/account-pub.pem").read()
           path = "space/web/wrangler.toml"
           s = open(path).read()
-          pat = re.compile(r'^SGX_LOCK_PUBLIC = .*$', re.M)
-          assert len(pat.findall(s)) == 1, "expected exactly one SGX_LOCK_PUBLIC line"
+          pat = re.compile(r'^SGX_SPACE_PUBLIC = .*$', re.M)
+          assert len(pat.findall(s)) == 1, "expected exactly one SGX_SPACE_PUBLIC line"
           assert "SGX_ACCOUNT_PUBLIC" not in s
-          s = pat.sub(lambda m: "SGX_LOCK_PUBLIC = " + json.dumps(lock_pub) + "\nSGX_ACCOUNT_PUBLIC = " + json.dumps(acct_pub), s)
+          s = pat.sub(lambda m: "SGX_SPACE_PUBLIC = " + json.dumps(lock_pub) + "\nSGX_ACCOUNT_PUBLIC = " + json.dumps(acct_pub), s)
           open(path, "w").write(s)
           v = tomllib.loads(s)["env"]["preview"]["vars"]
-          assert v["SGX_LOCK_PUBLIC"] == lock_pub and v["SGX_ACCOUNT_PUBLIC"] == acct_pub and v["SGX_ENV"] == "preview"
+          assert v["SGX_SPACE_PUBLIC"] == lock_pub and v["SGX_ACCOUNT_PUBLIC"] == acct_pub and v["SGX_ENV"] == "preview"
           print("preview public keys written to the runner copy of space/web/wrangler.toml")
           PYEOF
 
@@ -863,7 +859,7 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 只写 preview 环境（PATCH deployment_configs.preview），绝不碰 production。
         # 必须在部署之前写，否则新值要到下一次部署才生效。secret 都经 env 传进来，不拼进脚本；
-        # SGX_LOCK_SPACE_KEY（网关进站凭证）/ SGX_PW_PEPPER（锁屏密码）/ SGX_ACCOUNT_RECOVERY_KEY（恢复密钥）/ SGX_ACCOUNT_PASSWORD_PEPPER（账号密码）
+        # SGX_SPACE_RECOVERY_KEY（网关进站凭证）/ SGX_SPACE_PASSWORD_PEPPER（锁屏密码）/ SGX_ACCOUNT_RECOVERY_KEY（恢复密钥）/ SGX_ACCOUNT_PASSWORD_PEPPER（账号密码）
         # 用上面本次生成的值（已打码）。命名 v2 起预览不再写 SGX_ACCOUNT_ROOT_KEY（账号代码不读它；以前写过的旧测试值不删也不被读）。
         # 账号拆分 PR3 起预览不再写 SGX_ROOT_KEY（网关代码不读它）；预览环境里以前写过的旧值是以前某次运行的测试值，不删也不被读。
         env:
@@ -886,14 +882,15 @@ jobs:
           secret = lambda v: {"type": "secret_text", "value": v}
           plain = lambda v: {"type": "plain_text", "value": v}
           body = json.dumps({"deployment_configs": {"preview": {"env_vars": {
-              "SGX_LOCK_SPACE_KEY": secret(space_key),
+              "SGX_SPACE_RECOVERY_KEY": secret(space_key),
               "SGX_ACCOUNT_RECOVERY_KEY": secret(recovery_key),
-              "SGX_PW_PEPPER": secret(pepper),
+              "SGX_SPACE_PASSWORD_PEPPER": secret(pepper),
+              "SGX_SPACE_TEMPKEY_PEPPER": secret(pepper),
               "SGX_ACCOUNT_PASSWORD_PEPPER": secret(account_pepper),
-              "SGX_LOCK_PRIVATE": secret(lock_priv),
+              "SGX_SPACE_PRIVATE": secret(lock_priv),
               "SGX_ACCOUNT_PRIVATE": secret(acct_priv),
               # 下面这些也在 space/web/wrangler.toml 里（部署时以它为准）；这里写同样的值，两边不会不一致
-              "SGX_LOCK_PUBLIC": plain(lock_pub),
+              "SGX_SPACE_PUBLIC": plain(lock_pub),
               "SGX_ACCOUNT_PUBLIC": plain(acct_pub),
               "SGX_SITE": plain(pv["SGX_SITE"]),
               "SGX_ENV": plain(pv["SGX_ENV"]),
@@ -916,17 +913,17 @@ jobs:
       - name: Apply D1 migrations to preview
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 部署 preview 前对测试专用库 styrigx-test-preview 跑迁移（--env preview），绝不碰 production；失败要让 CI 红。
-        # 2026-10-29 起所有 Worker 的预览共用这一个库：网关（space/web/wrangler.toml，迁移目录 workers/auth-gateway/migrations）、
-        # 账号 Worker、短链 Worker（各自 wrangler.toml 的 [env.preview]）三套迁移都在这里跑。表名互不重叠；迁移记录表分开：
-        # 网关用默认 d1_migrations，账号 d1_migrations_account，短链 d1_migrations_share（各 toml 的 migrations_table）。
+        # 2026-10-29 起所有 Worker 的预览共用这一个库：站点核心（space/web/wrangler.toml [env.preview]：D1_SPACE 迁移目录 workers/space-core/migrations、
+        # D1_SHARE_LINK 迁移目录 workers/space-core/migrations-share，进站 v3 L2 起分享链接并入 core）、账号 Worker（workers/account [env.preview]）三套迁移都在这里跑。
+        # 表名互不重叠；迁移记录表分开：进站用默认 d1_migrations，账号 d1_migrations_account，分享链接 d1_migrations_share。
         # 2026-11 正式库合库（styrigx-space-gateway）不影响这里：预览仍是 styrigx-test-preview，短链迁移目录换成 0001_baseline.sql（IF NOT EXISTS，已有表时是空操作）。
         # 库是空的也没关系：第一次运行三套迁移全部应用，之后只补新的。跑完列一次三张记录表。
         working-directory: space/web
         run: |
           npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview
           (cd ../../workers/account && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)
-          (cd ../../workers/share && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-test-preview --remote --env preview)
-          npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-test-preview --remote --env preview --command "SELECT 'auth-gateway' AS worker, name, applied_at FROM d1_migrations UNION ALL SELECT 'account', name, applied_at FROM d1_migrations_account UNION ALL SELECT 'share', name, applied_at FROM d1_migrations_share ORDER BY 1, 2"
+          npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply D1_SHARE_LINK --remote --env preview
+          npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-test-preview --remote --env preview --command "SELECT 'space-core' AS worker, name, applied_at FROM d1_migrations UNION ALL SELECT 'account', name, applied_at FROM d1_migrations_account UNION ALL SELECT 'share', name, applied_at FROM d1_migrations_share ORDER BY 1, 2"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_PAGES_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -973,7 +970,7 @@ jobs:
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 跑 passkey 组的全部 describe（testMatch 已限定文件，不再 --grep）。
         # 预览地址和预览 D1 id 从 space/web/wrangler.toml 读，不在这里重复写。
-        # SGX_TEST_SPACE_KEY / SGX_TEST_RECOVERY_KEY 是本次生成、已写进预览 SGX_LOCK_SPACE_KEY / SGX_ACCOUNT_RECOVERY_KEY 的同一对值。
+        # SGX_TEST_SPACE_KEY / SGX_TEST_RECOVERY_KEY 是本次生成、已写进预览 SGX_SPACE_RECOVERY_KEY / SGX_ACCOUNT_RECOVERY_KEY 的同一对值。
         # 测试进程写预览 D1（打开重置开关、清进站凭证限速计数）用 Pages 部署 token（和上面清 D1 同一个）。
         # 测试 helper 尽量少写：缓存会话 / 进门票并用只读接口确认（tests/space/e2e/helpers/preview-helpers.cjs 文件头）。
         env:
@@ -986,7 +983,7 @@ jobs:
           eval "$(python3 - <<'PYEOF'
           import shlex, tomllib
           p = tomllib.load(open("space/web/wrangler.toml", "rb"))["env"]["preview"]
-          d1 = [k["database_id"] for k in p["d1_databases"] if k["binding"] == "D1_LOCK_AUTH"][0]
+          d1 = [k["database_id"] for k in p["d1_databases"] if k["binding"] == "D1_SPACE"][0]
           print("export SGX_TEST_BASE=" + shlex.quote(p["vars"]["SGX_ORIGIN"]))
           print("export SGX_TEST_PREVIEW_D1_ID=" + shlex.quote(d1))
           PYEOF
@@ -1014,7 +1011,7 @@ jobs:
           names = sorted(prod.keys())
           print("production vars:", names)
           # Pages 只放静态文件，会话检查全在网关；生产部署按 space/web/wrangler.toml 不带任何变量
-          forbidden = ["SGX_LOCK_PRIVATE", "SGX_ACCOUNT_PRIVATE", "SGX_STEPUP_PRIVATE", "SGX_APP_PRIVATE", "SGX_ROOT_KEY", "SGX_LOCK_SPACE_KEY", "SGX_ACCOUNT_ROOT_KEY", "SGX_ACCOUNT_RECOVERY_KEY", "SGX_ACCOUNT_PASSWORD_PEPPER", "SGX_PW_PEPPER", "TURNSTILE_SECRET", "OWNER_KEY"]
+          forbidden = ["SGX_SPACE_PRIVATE", "SGX_ACCOUNT_PRIVATE", "SGX_STEPUP_PRIVATE", "SGX_APP_PRIVATE", "SGX_ROOT_KEY", "SGX_SPACE_RECOVERY_KEY", "SGX_ACCOUNT_ROOT_KEY", "SGX_ACCOUNT_RECOVERY_KEY", "SGX_ACCOUNT_PASSWORD_PEPPER", "SGX_SPACE_PASSWORD_PEPPER", "TURNSTILE_SECRET", "OWNER_KEY"]
           present = [v for v in forbidden if v in names]
           assert not present, f"private vars must not be on Pages production: {present}"
           print("guard OK: no private vars on Pages production")
@@ -1037,7 +1034,7 @@ jobs:
     # Pages 只放静态文件，会话检查全靠网关，所以等网关部署好、线上冒烟通过后再部署 Pages；网关失败就不部署 Pages。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [quality, passkey-e2e, deploy-auth-worker]
+    needs: [quality, passkey-e2e, deploy-space-core, deploy-curio-core, deploy-daymark-core]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -1125,7 +1122,7 @@ jobs:
           echo "::error::styrigx.com/ does not serve build $short"; exit 1
 
       - name: Smoke test single tree (subsites behind the gateway's subsite gate, static files direct, no images / feeds without a session)
-        # 合并 PR3：网关已按子站前缀验会话（deploy-auth-worker 先部署、先冒烟）。只发不带 cookie 的只读请求：
+        # 合并 PR3：网关已按子站前缀验会话（deploy-space-core 先部署、先冒烟）。只发不带 cookie 的只读请求：
         # - 三站产物里每个一级页面目录各抽一个页面：302 到 https://styrigx.com/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2F<站>…，
         #   X-SGX-Runtime: worker（子站关口格式，带 why 和完整 return；新目录没被网关接管 → 红）
         # - 三站指纹 CSS：200 text/css，没有 X-SGX-Runtime（子站静态后缀直通回源 → 也证明这次部署的树里真的有 /<站>/）
@@ -1566,15 +1563,16 @@ jobs:
   deploy-curio-core:
     # 奇趣接口 Worker styrigx-curio-core（workers/curio-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
     # 路由见 workers/curio-core/wrangler.toml：styrigx.com/curio/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），
-    # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：会话问网关 AuthVerifier.lockSession()（服务绑定 AUTH）。
-    # 排在网关之前（deploy-auth-worker 的 needs）：网关按子站前缀分发时，主域名上的接口已经在。和网关一样等 status 的健康闸门。
+    # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：会话问站点核心 SpaceVerifier.conclusion()（服务绑定 SPACE）。
+    # 进站 v3 L2 起排在 styrigx-space-core 之后（needs）：服务绑定 SPACE 指向的 Worker / 入口 SpaceVerifier 要先在，不然部署不了。
+    # 网关切过去到本 Worker 部署完的那一两分钟，旧版本问的是旧网关的 AuthVerifier（还在，L3 才删），子站接口照旧。和网关一样等 status 的健康闸门。
     # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 核对新版本 → 冒烟 → 失败回滚。
     # token：Cloudflare 上 styrigx-curio-core-deploy = GitHub 环境 STYRIGX_CURIO_CORE_DEPLOY 里的同名环境密钥 STYRIGX_CURIO_CORE_DEPLOY
     # （styrigx-atlas 仓库时用的同一把；权限 Workers Scripts 编辑 + D1 编辑 + styrigx.com 的 Workers Routes 编辑，部署前 Gray 核对）；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}
-    needs: [quality, passkey-e2e, deploy-status-worker, d1-cutover-gate]
+    needs: [quality, passkey-e2e, deploy-status-worker, deploy-space-core, d1-cutover-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_CURIO_CORE_DEPLOY
@@ -1660,15 +1658,16 @@ jobs:
   deploy-daymark-core:
     # 日刻接口 Worker styrigx-daymark-core（workers/daymark-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
     # 路由见 workers/daymark-core/wrangler.toml：styrigx.com/daymark/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），
-    # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：会话问网关 AuthVerifier.lockSession()（服务绑定 AUTH）。
-    # 排在网关之前（deploy-auth-worker 的 needs）：网关按子站前缀分发时，主域名上的接口已经在。和网关一样等 status 的健康闸门。
+    # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：会话问站点核心 SpaceVerifier.conclusion()（服务绑定 SPACE）。
+    # 进站 v3 L2 起排在 styrigx-space-core 之后（needs）：服务绑定 SPACE 指向的 Worker / 入口 SpaceVerifier 要先在，不然部署不了。
+    # 网关切过去到本 Worker 部署完的那一两分钟，旧版本问的是旧网关的 AuthVerifier（还在，L3 才删），子站接口照旧。和网关一样等 status 的健康闸门。
     # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 核对新版本 → 冒烟 → 失败回滚。
     # token：Cloudflare 上 styrigx-daymark-core-deploy = GitHub 环境 STYRIGX_DAYMARK_CORE_DEPLOY 里的同名环境密钥 STYRIGX_DAYMARK_CORE_DEPLOY
     # （styrigx-atlas 仓库时用的同一把；权限 Workers Scripts 编辑 + D1 编辑 + styrigx.com 的 Workers Routes 编辑，部署前 Gray 核对）；环境只允许 main。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}
-    needs: [quality, passkey-e2e, deploy-status-worker, d1-cutover-gate]
+    needs: [quality, passkey-e2e, deploy-status-worker, deploy-space-core, d1-cutover-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: STYRIGX_DAYMARK_CORE_DEPLOY
@@ -1750,30 +1749,27 @@ jobs:
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
-  deploy-auth-worker:
-    # 鉴权网关 styrigx-auth-gateway：main 上真部署。先于 Pages 部署（Pages 只放静态文件，靠网关验会话）。
-    # 路由见 workers/auth-gateway/wrangler.toml（整站通配；workers_dev=false）。账号拆分 PR3 起 /api/account、/api/prefs*、/api/avatar*、
-    # /api/wellbeing*、/avatar/* 也归网关：验门后经服务绑定 ACCOUNT 转给账号 Worker（src/router.js 的转发表 FORWARDING）。部署后自动冒烟检查线上。
-    # Pages 部署（build-and-deploy）等这里成功后才开始。
-    # 部署顺序：账号、短链、两个子站接口 Worker（互不依赖，可并行）→ 网关 → Pages。
-    # - 服务绑定指向的 Worker 要先在：ai / status，以及 ACCOUNT / ACCOUNT_VERIFIER 指向的 styrigx-account（deploy-account-worker）。
-    # - curio-core / daymark-core 先于网关（合并 PR3 起的顺序）：子站页面一打开，主域名上的接口已经在了。它们任何一个失败 → 网关不部署。
-    #   （旧图志域名的 301 和两个接口 Worker 的旧路由已于 P4-3 PR-1 删除。）
-    # - 短链排在网关之前：短链只认进站会话（AUTH.lockSession），对新旧网关同样能用（AUTH.lockSession / ISSUER 接口没变）。
-    # 密钥全在 Secrets Store，CI 不传任何密值。
-    # D1：2026-11 起 styrigx-space-gateway（D1_LOCK_AUTH，d1_migrations_gateway）。本 job 的 token 没有 D1 权限：迁移在 deploy-share-worker 里跑并核对（needs 里有它）。
-    # 用专门的 token（GitHub 环境密钥 STYRIGX_AUTH_GATEWAY_DEPLOY，名字对应 Cloudflare 上的
-    # styrigx-auth-gateway-deploy）：Workers Scripts 编辑 + Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）
-    # + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑。Pages 的部署 token 不给 Worker 权限，互不影响。
-    # 这把 token 放在 GitHub 环境 STYRIGX_AUTH_GATEWAY_DEPLOY（与密钥同名）的环境密钥里，该环境只允许 main 分支部署：
-    # 其他分支即使改了工作流也拿不到它。
+  deploy-space-core:
+    # 站点核心 Worker styrigx-space-core（workers/space-core；进站 v3 L2 起取代 styrigx-auth-gateway，并入分享链接 styrigx-share）：main 上真部署。
+    # 先于 Pages 部署（Pages 只放静态文件，靠它验会话），也先于奇趣 / 日刻两个接口 Worker（它们的服务绑定 SPACE → SpaceVerifier 要它先在）。
+    # 路由见 workers/space-core/wrangler.toml（整站通配 styrigx.com/*；/s/*、/api/share 也在里面，按路径分；workers_dev=false）。
+    # 账号路径 /api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/api/profile、/avatar/* 验门后经服务绑定 ACCOUNT 转给账号 Worker（src/router.js FORWARDING）。
+    # 部署顺序：ai → status → 账号 → 本 Worker → 奇趣 / 日刻接口 Worker → Pages。服务绑定指向的 ai / status / styrigx-account 要先在。
+    # D1：还是 styrigx-space-gateway（L2b 才换库）。本 job 自己跑两套迁移（D1_SPACE → d1_migrations_gateway；D1_SHARE_LINK → d1_migrations_share），
+    # 再查记录表、表和搬迁标记确认真的在库里（只看到 No migrations to apply 不算数）。
+    # 第一次部署（L2）：路由 styrigx.com/* 还挂在旧的 styrigx-auth-gateway、短链两条挂在 styrigx-share，带路由的 wrangler deploy 会被拒。
+    #   所以先不带路由部署一次（Worker 先存在），再用 space/scripts/route-takeover.mjs 把 styrigx.com/* 改挂到本 Worker、删掉短链两条，
+    #   然后照常带路由部署。之后的部署 plan 回 needed=false，这几步全跳过。部署 / 冒烟失败：同一个脚本把路由原样还给旧 Worker（旧 Worker 在 L3 前不删）。
+    # 密钥全在 Secrets Store（5 个 SGX_SPACE_*，按名字绑定），CI 不传任何密值。
+    # token：Cloudflare 上 styrigx-space-core-deploy = GitHub 环境 STYRIGX_SPACE_CORE_DEPLOY 里的同名环境密钥 STYRIGX_SPACE_CORE_DEPLOY
+    # （Workers Scripts 编辑 + Workers Routes 编辑（styrigx.com）+ Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit）+ D1 编辑）；该环境只允许 main 分支部署。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}
-    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-status-worker, deploy-account-worker, deploy-share-worker, deploy-curio-core, deploy-daymark-core, d1-cutover-gate]
+    needs: [quality, passkey-e2e, deploy-ai-worker, deploy-status-worker, deploy-account-worker, d1-cutover-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: STYRIGX_AUTH_GATEWAY_DEPLOY
+    environment: STYRIGX_SPACE_CORE_DEPLOY
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -1783,30 +1779,106 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Apply D1 migrations (D1_SPACE → styrigx-space-gateway, d1_migrations_gateway)
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/space-core
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: d1 migrations apply D1_SPACE --remote
+
+      - name: Apply D1 migrations (D1_SHARE_LINK → styrigx-space-gateway, d1_migrations_share)
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/space-core
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: d1 migrations apply D1_SHARE_LINK --remote
+
+      - name: Confirm migrations and cutover markers are really in the database (styrigx-space-gateway)
+        working-directory: workers/space-core
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -u
+          out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute D1_SPACE --remote --json --command "SELECT 'share:' || name AS n FROM d1_migrations_share UNION ALL SELECT 'gateway:' || name FROM d1_migrations_gateway UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table' UNION ALL SELECT 'cutover:' || source FROM d1_cutover")
+          echo "$out"
+          ok=0
+          for need in '"share:0001_baseline.sql"' '"gateway:0008_lock_reset_switch.sql"' '"gateway:0009_drop_recovery_switch.sql"' '"table:share_link"' '"table:share_fail"' '"table:passkey"' '"table:password"' '"table:lock_reset_switch"' '"cutover:share"' '"cutover:gateway"'; do
+            if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-space-gateway 里没有 $need"; ok=1; fi
+          done
+          exit $ok
+
       - name: Record live Worker version (rollback target)
         # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
-        # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
+        # 只打 warning、不拦部署：空 = 这次失败不自动回滚代码版本（第一次部署时由下面的路由还原兜底）。
         id: live
         continue-on-error: true
-        working-directory: workers/auth-gateway
+        working-directory: workers/space-core
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
 
-      - name: Deploy auth Worker (styrigx-auth-gateway)
+      - name: Check whether routes still belong to the old Workers (route takeover plan)
+        # 只读：styrigx.com/* 不在本 Worker 上、或短链两条还在 → needed=true（第一次部署）；否则 false，下面两步跳过。
+        id: routes
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node space/scripts/route-takeover.mjs plan
+
+      - name: First deploy without routes (the Worker must exist before routes can point at it)
+        if: steps.routes.outputs.needed == 'true'
+        working-directory: workers/space-core
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -eu
+          # 同目录的临时配置（相对路径 main / migrations_dir 不变），只去掉 [[routes]] 块；wrangler 在配置里没有路由时不碰线上路由
+          python3 - <<'PY'
+          import re
+          s = open("wrangler.toml").read()
+          t, n = re.subn(r'^\[\[routes\]\]\npattern = "[^"]+"\nzone_name = "[^"]+"\n', '', s, flags=re.M)
+          assert n == 1, n
+          assert "[[routes]]" not in t
+          open("wrangler.noroutes.toml", "w").write(t)
+          PY
+          npx --yes "wrangler@$WRANGLER_VERSION" deploy --config wrangler.noroutes.toml
+          rm -f wrangler.noroutes.toml
+
+      - name: Take over routes from styrigx-auth-gateway / styrigx-share
+        # styrigx.com/* 改挂本 Worker（一次 PUT），再删掉 styrigx.com/s/*、styrigx.com/api/share*；改之前的状态记进 $RUNNER_TEMP，失败时还原用。
+        if: steps.routes.outputs.needed == 'true'
+        id: takeover
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node space/scripts/route-takeover.mjs takeover --state "$RUNNER_TEMP/route-state.json"
+
+      - name: Deploy space core Worker (styrigx-space-core)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
-          apiToken: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
+          apiToken: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/auth-gateway
+          workingDirectory: workers/space-core
           wranglerVersion: ${{ env.WRANGLER_VERSION }}
           command: deploy
+
+      - name: Verify routes (styrigx.com/* → styrigx-space-core, no separate share routes)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node space/scripts/route-takeover.mjs verify
 
       - name: Smoke test production /api/* and pages (must be served by the Worker)
         # passkey-e2e 只测预览，测不到生产这条路，所以部署后直接打线上。
         # 只发不带 cookie 的只读请求，不登录、不写数据。路由生效可能要几秒，最多重试 6 次。
-        # 失败时网关自动退回部署前的版本（最后一步），Pages 不会部署（等这个 job）；账号 / 短链已先部署，新代码对旧网关兼容。修好或 revert 后重新跑。
+        # 失败时自动退回部署前的版本（最后两步：第一次部署时把路由还给旧 Worker），Pages、奇趣 / 日刻接口 Worker 不会部署（等这个 job）。修好或 revert 后重新跑。
         run: |
           set -u
           check() { # 路径（可带子站域名） 期望状态码
@@ -1851,9 +1923,9 @@ jobs:
           check /chat/ 302 || ok=1
           # 账号（账号拆分 PR3）：/api/account 没有账号 Worker 的旧路由，一定进网关——无会话 401；伪造身份头也一样 401（网关先剥头）
           check /api/account 401 || ok=1
-          forged() { # 路径：带伪造的 X-Styrigx-Lock-* 头，必须 401 且由网关回答（不许 200、不许进账号 Worker 的接口）
+          forged() { # 路径：带伪造的 X-Styrigx-Space-* 头，必须 401 且由网关回答（不许 200、不许进账号 Worker 的接口）
             for i in 1 2 3 4 5 6; do
-              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Lock-Session: 1' -H 'X-Styrigx-Lock-By: password' "https://styrigx.com$1" || true)
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Space-Session: 1' -H 'X-Styrigx-Space-By: password' "https://styrigx.com$1" || true)
               code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
               rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
               echo "forged $1 -> $code runtime=${rt:-none} (try $i)"
@@ -1899,15 +1971,33 @@ jobs:
           css=$(curl -sS -o /dev/null -D - https://styrigx.com/robots.txt | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "/robots.txt runtime=${css:-none}"
           if [ -n "$css" ]; then echo "::error::static file went through the Worker"; ok=1; fi
+          # 分享链接（进站 v3 L2 起由本 Worker 接，原 styrigx-share）：打不开的短链统一 302 到锁屏；管理接口没会话 401
+          redir "https://styrigx.com/s/smoke$(date +%s)xxxxxxxxxxx" 302 'https://styrigx.com/?lock=1' || ok=1
+          check /api/share 401 || ok=1
+          # 旧锁屏头名也一样被剥（所有外来 x-styrigx-* 都剥）
+          for i in 1 2 3; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -H 'X-Styrigx-Lock-Session: 1' -H 'X-Styrigx-Lock-By: password' https://styrigx.com/api/account || true)
+            [ "$code" = 401 ] && break; sleep 5
+          done
+          [ "$code" = 401 ] || { echo "::error::old X-Styrigx-Lock-* headers on /api/account expected 401, got $code"; ok=1; }
           exit $ok
+
+      - name: Give routes back to the old Workers (first deploy failed after the takeover)
+        # 只在这次接管过路由（第一次部署）且后面失败时：styrigx.com/* 改回 styrigx-auth-gateway，短链两条重新挂回 styrigx-share。
+        # 旧 Worker、旧表、旧 cookie 都还在，等于回到 L2 之前；奇趣 / 日刻 / Pages 等这个 job，没部署。
+        if: failure() && steps.takeover.outputs.taken == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node space/scripts/route-takeover.mjs restore --state "$RUNNER_TEMP/route-state.json"
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)
         # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
         # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
         if: failure() && steps.live.outputs.version != ''
-        working-directory: workers/auth-gateway
+        working-directory: workers/space-core
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AUTH_GATEWAY_DEPLOY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
@@ -1985,12 +2075,12 @@ jobs:
         # 只发不带 cookie 的只读请求。这时网关可能还是旧版本、账号的 4 条旧路由可能还在（见上），所以每条只断言「碰不到接口」：
         # - 旧路由还在 → 进本 Worker 的默认 fetch：404 + X-SGX-Runtime: account（同时证明线上已是新代码：旧代码在这些路径回 401 / 200）；
         # - 旧路由已删 → 进网关：无会话 401 + X-SGX-Runtime: worker。
-        # 绝不许 200（伪造的 X-Styrigx-Lock-Session: 1 不能当身份用）。
+        # 绝不许 200（伪造的 X-Styrigx-Space-Session: 1 不能当身份用）。
         run: |
           set -u
           check() { # 路径
             for i in 1 2 3 4 5 6; do
-              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Lock-Session: 1' -H 'X-Styrigx-Lock-By: password' "https://styrigx.com$1" || true)
+              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Space-Session: 1' -H 'X-Styrigx-Space-By: password' "https://styrigx.com$1" || true)
               code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
               rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
               echo "forged $1 -> $code runtime=${rt:-none} (try $i)"
@@ -2022,125 +2112,3 @@ jobs:
           PREVIOUS: ${{ steps.live.outputs.version }}
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
-  deploy-share-worker:
-    # 分享短链 Worker styrigx-share（workers/share，2026-10-24）：https://styrigx.com/s/<码> + 管理接口 /api/share，
-    # 数据在 D1 styrigx-space-gateway 的 share_link / share_fail（D1_SHARE_LINK；2026-11 合库前是独立库 styrigx-share）。
-    # 路由见 workers/share/wrangler.toml（styrigx.com/s/*、styrigx.com/api/share*，比网关的 styrigx.com/* 更具体）；workers_dev=false、preview_urls=false。
-    # 不持任何钥匙：只认进站会话，问网关 AuthVerifier.lockSession()（服务绑定 AUTH），不问账号会话（不绑账号 Worker）；
-    # 签 / 作废短链钥匙、给打开短链的人换会话问网关 ShareIssuer（服务绑定 ISSUER）。CI 不传任何密值。
-    # 部署顺序：账号、短链（互不依赖，可并行）→ 网关 → Pages。短链不绑账号 Worker，所以不再等 deploy-account-worker（needs 里已去掉）；
-    # 仍排在网关之前：新短链对旧网关同样能用（lockSession / ShareIssuer 接口没变，旧网关的 ShareIssuer 仍会多验一次账号会话）；
-    # 新网关的 ShareIssuer 只验进站会话。
-    # 和网关一样等 status 的健康闸门。
-    # 步骤：迁移 D1 styrigx-space-gateway——本 Worker 的 migrations/（d1_migrations_share）+ 网关的 workers/auth-gateway/migrations/（d1_migrations_gateway；
-    # 网关的部署 token 没有 D1 权限，同一个库的迁移在这里跑；失败要让 job 红，不 continue-on-error）
-    # → 查两张迁移记录表、表和搬迁标记，确认真的在库里（只看到 No migrations to apply 不算数）→ 部署 → 冒烟。
-    # 网关 job 排在本 job 之后（needs），所以网关部署时它的表一定已经迁好。
-    # token：Cloudflare 上 styrigx-share-deploy = GitHub 环境 STYRIGX_SHARE_DEPLOY 里的同名环境密钥 STYRIGX_SHARE_DEPLOY，
-    # 权限 Workers Scripts 编辑 + D1 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
-    # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
-    # d1-cutover-gate：主站数据（D1 + KV styrigx-space-gateway）搬完才部署，见 .github/workflows/d1-cutover.yml。
-    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.d1-cutover-gate.outputs.ready == 'true' }}
-    needs: [quality, passkey-e2e, deploy-status-worker, d1-cutover-gate]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment: STYRIGX_SHARE_DEPLOY
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - name: Setup Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Apply D1 migrations (share → styrigx-space-gateway, d1_migrations_share)
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
-        with:
-          apiToken: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/share
-          wranglerVersion: ${{ env.WRANGLER_VERSION }}
-          command: d1 migrations apply styrigx-space-gateway --remote
-
-      - name: Apply D1 migrations (gateway → styrigx-space-gateway, d1_migrations_gateway)
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
-        with:
-          apiToken: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/auth-gateway
-          wranglerVersion: ${{ env.WRANGLER_VERSION }}
-          command: d1 migrations apply styrigx-space-gateway --remote
-
-      - name: Confirm migrations and cutover markers are really in the database (styrigx-space-gateway)
-        working-directory: workers/share
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -u
-          out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute styrigx-space-gateway --remote --json --command "SELECT 'share:' || name AS n FROM d1_migrations_share UNION ALL SELECT 'gateway:' || name FROM d1_migrations_gateway UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table' UNION ALL SELECT 'cutover:' || source FROM d1_cutover")
-          echo "$out"
-          ok=0
-          for need in '"share:0001_baseline.sql"' '"gateway:0008_lock_reset_switch.sql"' '"gateway:0009_drop_recovery_switch.sql"' '"table:share_link"' '"table:share_fail"' '"table:passkey"' '"table:password"' '"table:lock_reset_switch"' '"cutover:share"' '"cutover:gateway"'; do
-            if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-space-gateway 里没有 $need"; ok=1; fi
-          done
-          exit $ok
-
-      - name: Record live Worker version (rollback target)
-        # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。第一次部署（Worker 还不存在）/ 灰度中 / 记录失败 → 记成空，
-        # 只打 warning、不拦部署：空 = 这次失败不自动回滚。token 同部署那一步（读部署状态只要 Workers Scripts，已有）
-        id: live
-        continue-on-error: true
-        working-directory: workers/share
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-snapshot
-
-      - name: Deploy share Worker (styrigx-share)
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
-        with:
-          apiToken: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/share
-          wranglerVersion: ${{ env.WRANGLER_VERSION }}
-          command: deploy
-
-      - name: Smoke test production (/s/* and /api/share must be served by styrigx-share)
-        # 只发不带 cookie 的只读请求，不登录、不写数据（随机码打不开，只算 1 次失败计数）。路由生效可能要几秒，最多重试 6 次。
-        run: |
-          set -u
-          check() { # 路径 期望状态码 期望 X-SGX-Runtime [期望 Location]
-            for i in 1 2 3 4 5 6; do
-              hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "https://styrigx.com$1" || true)
-              code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
-              rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
-              loc=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="location"{print $2}')
-              echo "$1 -> $code runtime=${rt:-none} location=${loc:-none} (try $i)"
-              if [ "$code" = "$2" ] && [ "$rt" = "$3" ] && { [ -z "${4:-}" ] || [ "$loc" = "$4" ]; }; then return 0; fi
-              sleep 5
-            done
-            echo "::error::$1 expected $2 from $3"; return 1
-          }
-          ok=0
-          # 打不开的短链：统一 302 到锁屏
-          check "/s/smoke$(date +%s)xxxxxxxxxxx" 302 share 'https://styrigx.com/?lock=1' || ok=1
-          # 管理接口：没会话 401（门）
-          check /api/share 401 share || ok=1
-          # 网关的接口和页面没被抢走（这时网关可能还是旧版本：这几条新旧网关回答相同）
-          check /api/lock-session-check 401 worker || ok=1
-          check /security/ 302 worker || ok=1
-          check /security/tempkeys/ 302 worker || ok=1
-          exit $ok
-
-      - name: Roll back to the recorded version (deploy or post-deploy check failed)
-        # 前面任何一步失败且记到了部署前版本：线上已经不是那个版本就 wrangler rollback 回去并核对；线上没变（上传阶段就失败）什么都不做。
-        # 只换代码版本：D1 迁移、KV 数据、Secrets Store、路由不回滚。job 照样红，后面依赖它的 job 不部署
-        if: failure() && steps.live.outputs.version != ''
-        working-directory: workers/share
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SHARE_DEPLOY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PREVIOUS: ${{ steps.live.outputs.version }}
-        run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"

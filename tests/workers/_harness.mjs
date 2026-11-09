@@ -2,9 +2,9 @@
  * Worker 单测的公共测试台。纯工具（derToPem、makeKV）的实现在 _harness.cjs（e2e 的 CJS 测试台也用它），这里转出。
  *
  * - derToPem(der, label) / makeKV(seed?, opts?) / makeAuthD1(opts?)：见 _harness.cjs
- * - withAuthD1(env, db?)：给网关 env 补 D1_LOCK_AUTH / D1_ACCOUNT_AUTH / D1_ROOT_AUTH（同一个库）
+ * - withAuthD1(env, db?)：给网关 env 补 D1_SPACE / D1_ACCOUNT_AUTH / D1_ROOT_AUTH（同一个库）
  * - forbiddenKV(name, touched)：碰一下就抛错的 KV（网关运行时没有 KV、没有回落），碰过的记进 touched
- * - genKeyPair()：一对临时 Ed25519 钥匙 { priv, pub }（PEM），当 SGX_LOCK_* / SGX_ACCOUNT_* 用
+ * - genKeyPair()：一对临时 Ed25519 钥匙 { priv, pub }（PEM），当 SGX_SPACE_* / SGX_ACCOUNT_* 用
  * - postReq(url, body, headers?)：JSON POST；默认带 Content-Type 和 Origin（= url 的 origin，真实浏览器 POST 必带）；
  *   headers 里 Origin: null 表示不带 Origin
  *
@@ -24,7 +24,7 @@ export const makeAuthD1 = harness.makeAuthD1;
 const d1ByKv = new WeakMap();
 
 /**
- * 给网关 env 补上 D1 绑定（D1_LOCK_AUTH / D1_ACCOUNT_AUTH / D1_ROOT_AUTH，正式与预览都绑同一个库），返回同一个 env。
+ * 给网关 env 补上 D1 绑定（D1_SPACE / D1_ACCOUNT_AUTH / D1_ROOT_AUTH，正式与预览都绑同一个库），返回同一个 env。
  * db 不给：按 env.KV_LOCK_DOOR（测试里那份「上线前的 KV」）取：第一次新建一个跑过迁移的库，并把这份 KV 当作导入脚本的来源
  * （makeAuthD1 legacyKv：模拟部署前跑过 space/scripts/migrate-kv-to-d1.mjs）；同一份 kv 拿到同一个库。网关代码本身不读 env 里的 KV。
  * @param {any} env @param {any} [db]
@@ -35,7 +35,7 @@ export function withAuthD1(env, db) {
     const key = env && env.KV_LOCK_DOOR;
     d = key && typeof key === 'object' ? authD1For(key) : makeAuthD1();
   }
-  env.D1_LOCK_AUTH = d;
+  env.D1_SPACE = d;
   env.D1_ACCOUNT_AUTH = d;
   env.D1_ROOT_AUTH = d;
   return env;

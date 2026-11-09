@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { serviceCall, gatewayHop, testAccountSession } from './_auth.mjs';
-import { testLockSession } from '../auth-gateway/_tickets.mjs';
+import { testLockSession } from '../space-core/_tickets.mjs';
 import { genKeyPair, withAuthD1 } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
 
@@ -43,10 +43,10 @@ function makeKv(init = {}) {
   };
 }
 
-/** 一个 env 同时给网关这一跳（SGX_LOCK_PUBLIC + D1_LOCK_AUTH）和账号 Worker（账号库 + SGX_ACCOUNT_PUBLIC）用；账号代码只读自己的名字 */
+/** 一个 env 同时给网关这一跳（SGX_SPACE_PUBLIC + D1_SPACE）和账号 Worker（账号库 + SGX_ACCOUNT_PUBLIC）用；账号代码只读自己的名字 */
 function setup(over = {}) {
   const authKv = makeKv();
-  const gwEnv = withAuthD1({ SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: PUB, KV_LOCK_DOOR: authKv, KV_ACCOUNT_LOGIN: authKv });
+  const gwEnv = withAuthD1({ SGX_SPACE_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: PUB, KV_LOCK_DOOR: authKv, KV_ACCOUNT_LOGIN: authKv });
   const profile = makeKv();
   const origin = [];
   const env = {
@@ -61,7 +61,7 @@ function setup(over = {}) {
 }
 const CTX = { waitUntil() {} };
 const call = (req, env) => serviceCall(req, env, CTX);
-async function sess(role) { return 'sgx-lock-session=' + (await testLockSession(PRIV, 0, role)); }
+async function sess(role) { return 'sgx-space-session=' + (await testLockSession(PRIV, 0, role)); }
 
 test('wrangler.toml：styrigx-account、不开公开地址、没有路由、没有服务绑定（不回调网关）、D1_ACCOUNT → 账号库、不绑网关认证库', () => {
   const toml = readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8');
@@ -73,7 +73,7 @@ test('wrangler.toml：styrigx-account、不开公开地址、没有路由、没�
   assert.match(prod, /^preview_urls = false$/m);
   assert.match(prod, /^SGX_ENV = "production"$/m);
   assert.doesNotMatch(code, /\[\[routes\]\]|^pattern = /m, '账号 Worker 一条路由都没有（方案第 4 节）');
-  assert.doesNotMatch(code, /\[\[(env\.preview\.)?services\]\]|styrigx-auth-gateway|AuthVerifier/, '不绑网关、不回调网关');
+  assert.doesNotMatch(code, /\[\[(env\.preview\.)?services\]\]|styrigx-space-core|SpaceVerifier/, '不绑网关、不回调网关');
   /* 一个库一个绑定（命名 v2）：D1_ACCOUNT；旧的三个名字都没了 */
   assert.deepEqual([...code.matchAll(/^binding = "(D1_[A-Z0-9_]+)"/gm)].map((m) => m[1]), ['D1_ACCOUNT', 'D1_ACCOUNT']);
   assert.doesNotMatch(code, /D1_WELLBEING|D1_SETTINGS_SYNC|D1_ACCOUNT_AUTH/);
@@ -99,7 +99,7 @@ test('wrangler.toml：styrigx-account、不开公开地址、没有路由、没�
 
 test('默认 fetch：一律 404（任何路径、任何方法；伪造的 x-styrigx-* 头也不起作用），带 X-SGX-Runtime: account 和安全头', async () => {
   for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['GET', '/avatar/96.webp'], ['GET', '/'], ['POST', '/api/wellbeing']]) {
-    const r = await worker.fetch(new Request('https://styrigx.com' + p, { method: m, headers: { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Lock-By': 'password', Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{"action":"passkey-challenge"}' }), {}, CTX);
+    const r = await worker.fetch(new Request('https://styrigx.com' + p, { method: m, headers: { 'X-Styrigx-Space-Level': 'password', 'X-Styrigx-Space-By': 'password', Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{"action":"passkey-challenge"}' }), {}, CTX);
     assert.equal(r.status, 404, m + ' ' + p);
     assert.deepEqual(await r.json(), { ok: false, error: 'not-found' });
     assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
@@ -110,16 +110,16 @@ test('默认 fetch：一律 404（任何路径、任何方法；伪造的 x-styr
 test('迁移：wb_daily 在账号库；网关的迁移目录不再建它', async () => {
   const sql = readFileSync(REPO + 'workers/account/migrations/0001_wellbeing.sql', 'utf8');
   assert.match(sql, /CREATE TABLE IF NOT EXISTS wb_daily/);
-  const gw = readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8');
+  const gw = readFileSync(REPO + 'workers/space-core/wrangler.toml', 'utf8');
   assert.doesNotMatch(gw, /^binding = "(D1_WELLBEING|KV_PROFILE|KV_SETTINGS_SYNC)"$/m);
   const { readdirSync } = await import('node:fs');
-  assert.equal(readdirSync(REPO + 'workers/auth-gateway/migrations').some((f) => /wellbeing/.test(f)), false);
+  assert.equal(readdirSync(REPO + 'workers/space-core/migrations').some((f) => /wellbeing/.test(f)), false);
 });
 
 test('路由表：/api/account（状态）+ 六个入口子路径 + 四个账号数据接口；网关转发表按前缀转（/api/account 一条覆盖子路径）', async () => {
   const ACCOUNT = ['/api/account', '/api/account/devices', '/api/account/grants', '/api/account/keys', '/api/account/reauth', '/api/account/reset', '/api/account/session'];
   assert.deepEqual([...API_ROUTES.keys()].sort(), [...ACCOUNT, '/api/avatar', '/api/prefs', '/api/profile', '/api/wellbeing'].sort());
-  const { FORWARDING, matchForwarding } = await import(REPO + 'workers/auth-gateway/src/router.js');
+  const { FORWARDING, matchForwarding } = await import(REPO + 'workers/space-core/src/router.js');
   const top = [...API_ROUTES.keys()].filter((k) => !k.startsWith('/api/account/'));
   assert.deepEqual(FORWARDING.filter((r) => r.path.startsWith('/api/')).map((r) => r.path).sort(), top.sort());
   for (const k of ACCOUNT) assert.equal(matchForwarding(k).binding, 'ACCOUNT', k);
@@ -193,22 +193,22 @@ test('有进站会话：未知子路径 404、不支持的方法 405；/api/pref
   assert.ok(authKv);
 });
 
-test('身份头白名单：没有 X-Styrigx-Lock-Session: 1（只有 Role / By、Session 不是 1、旧头名 X-Sgx-Legacy）→ 当作无会话（401）', async () => {
+test('身份头白名单：没有 X-Styrigx-Space-Session: 1（只有 Role / By、Session 不是 1、旧头名 X-Sgx-Legacy）→ 当作无会话（401）', async () => {
   const { env } = setup();
-  for (const h of [{ 'X-Styrigx-Lock-Level': 'password' }, { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Lock-By': 'passkey' }, { 'X-Styrigx-Lock-By': 'password' }, { 'X-Styrigx-Lock-Session': 'true' }, { 'X-Sgx-Legacy': 'password' }]) {
+  for (const h of [{ 'X-Styrigx-Space-Level': 'password' }, { 'X-Styrigx-Space-Level': 'password', 'X-Styrigx-Space-By': 'passkey' }, { 'X-Styrigx-Space-By': 'password' }, { 'X-Styrigx-Space-Session': 'true' }, { 'X-Sgx-Legacy': 'password' }]) {
     const r = await serviceFetch(new Request('https://styrigx.com/api/wellbeing', { headers: h }), env, CTX);
     assert.equal(r.status, 401, JSON.stringify(h));
     const del = await serviceFetch(new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { ...h, Origin: 'https://styrigx.com' } }), env, CTX);
     assert.equal(del.status, 401, JSON.stringify(h));
   }
-  const ok = await serviceFetch(new Request('https://styrigx.com/api/wellbeing?d=2000-01-01', { headers: { 'X-Styrigx-Lock-Session': '1', 'X-Styrigx-Lock-By': 'passkey' } }), { ...env, D1_WELLBEING: makeAccountD1() }, CTX);
+  const ok = await serviceFetch(new Request('https://styrigx.com/api/wellbeing?d=2000-01-01', { headers: { 'X-Styrigx-Space-Session': '1', 'X-Styrigx-Space-By': 'passkey' } }), { ...env, D1_WELLBEING: makeAccountD1() }, CTX);
   assert.equal(ok.status, 200, '合规的身份头 → 放行');
 });
 
 test('伪造 / 过期的锁屏 cookie：网关这一跳验签不过 → 不写身份头 → 401', async () => {
   const { env } = setup();
   const { priv: otherPriv } = await genKeyPair();
-  const forged = 'sgx-lock-session=' + (await testLockSession(otherPriv, 0, 'password'));
+  const forged = 'sgx-space-session=' + (await testLockSession(otherPriv, 0, 'password'));
   const r = await call(new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: forged } }), env);
   assert.equal(r.status, 401);
 });
@@ -216,15 +216,15 @@ test('伪造 / 过期的锁屏 cookie：网关这一跳验签不过 → 不写�
 test('网关这一跳：验过的进站会话写成身份头，外来伪造的 x-styrigx-* 头先被剥掉', async () => {
   const { env } = setup();
   const ck = await sess('password');
-  const fake = { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Client-Address': '6.6.6.6' };
-  const none = await gatewayHop(new Request('https://styrigx.com/api/prefs', { headers: { ...fake, 'X-Styrigx-Lock-Session': '1' } }), env);
-  assert.equal(none.headers.get('X-Styrigx-Lock-Level'), null, '没有进站会话：伪造的身份头被剥掉');
-  assert.equal(none.headers.get('X-Styrigx-Lock-Session'), null);
+  const fake = { 'X-Styrigx-Space-Level': 'password', 'X-Styrigx-Client-Address': '6.6.6.6' };
+  const none = await gatewayHop(new Request('https://styrigx.com/api/prefs', { headers: { ...fake, 'X-Styrigx-Space-Session': '1' } }), env);
+  assert.equal(none.headers.get('X-Styrigx-Space-Level'), null, '没有进站会话：伪造的身份头被剥掉');
+  assert.equal(none.headers.get('X-Styrigx-Space-Session'), null);
   assert.equal(none.headers.get('X-Styrigx-Client-Address'), null);
   const real = await gatewayHop(new Request('https://styrigx.com/api/prefs', { headers: { ...fake, Cookie: ck, 'CF-Connecting-IP': '203.0.113.5' } }), env);
-  assert.equal(real.headers.get('X-Styrigx-Lock-Session'), '1');
-  assert.equal(real.headers.get('X-Styrigx-Lock-Level'), null, '进站二值：网关不写等级头，外来的也剥掉');
-  assert.equal(real.headers.get('X-Styrigx-Lock-By'), 'password');
+  assert.equal(real.headers.get('X-Styrigx-Space-Session'), '1');
+  assert.equal(real.headers.get('X-Styrigx-Space-Level'), null, '进站二值：网关不写等级头，外来的也剥掉');
+  assert.equal(real.headers.get('X-Styrigx-Space-By'), 'password');
   assert.equal(real.headers.get('X-Styrigx-Client-Address'), '203.0.113.5');
 });
 
@@ -288,9 +288,9 @@ test('AccountVerifier.authorize()（checkAuthorize）：会话部分账号 Worke
 
 test('check-worker-routes：现在通过；账号 Worker 只要登记任何一条路由就报错', async () => {
   const { readRoutes, readApiRoutes, checkAccount } = await import(REPO + 'space/scripts/check-worker-routes.mjs');
-  const gw = readRoutes(readFileSync(REPO + 'workers/auth-gateway/wrangler.toml', 'utf8'));
+  const gw = readRoutes(readFileSync(REPO + 'workers/space-core/wrangler.toml', 'utf8'));
   const acct = readRoutes(readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8'));
-  const apis = readApiRoutes(readFileSync(REPO + 'workers/auth-gateway/src/router.js', 'utf8'));
+  const apis = readApiRoutes(readFileSync(REPO + 'workers/space-core/src/router.js', 'utf8'));
   assert.deepEqual(acct, []);
   assert.ok(!apis.includes('/api/account') && apis.includes('/api/geo') && !apis.includes('/api/prefs'));
   const pages = ['/', '/account/', '/wellbeing/', '/zh/display/'];

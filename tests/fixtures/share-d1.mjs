@@ -1,15 +1,15 @@
 /**
- * 测试用 D1（分享短链 Worker styrigx-share 的 D1_SHARE_LINK）。
- * - 有 node:sqlite（Node 22+）：真 SQL，表结构就是 workers/share/migrations/*.sql，语句就是 lib/links.js 的 SQL
+ * 测试用 D1（站点核心 Worker styrigx-space-core 的分享链接绑定 D1_SHARE_LINK；原 styrigx-share）。
+ * - 有 node:sqlite（Node 22+）：真 SQL，表结构就是 workers/space-core/migrations-share/*.sql，语句就是 lib/links.js 的 SQL
  * - 没有（CI 的 Node 20）：内存替身，只认 lib/links.js SQL 里的那几条语句（认不出的语句直接抛错，不会悄悄放过）
  * 两种都暴露 rows()（share_link 全部行）和 fails()（share_fail 全部行）给断言用。
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SQL } from '../../workers/share/src/lib/links.js';
+import { SQL } from '../../workers/space-core/src/core/share-links.js';
 
-const MIG = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'workers/share/migrations');
+const MIG = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'workers/space-core/migrations-share');
 let sqlite = null;
 try { sqlite = await import('node:sqlite'); } catch (e) {}
 

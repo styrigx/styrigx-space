@@ -1,7 +1,7 @@
 /**
- * @fileoverview 账号 Worker 的门（纵深防御的最小检查；门本身在网关 workers/auth-gateway/src/gate.js：
+ * @fileoverview 账号 Worker 的门（纵深防御的最小检查；门本身在网关 workers/space-core/src/gate.js：
  * 无会话 /api/* 401、头像文件公开）。
- * 只看网关写的规范身份头（lib/gateway.js readLockIdentity，白名单校验）判断「有没有进站会话」（X-Styrigx-Lock-Session: 1），
+ * 只看网关写的规范身份头（lib/gateway.js readLockIdentity，白名单校验）判断「有没有进站会话」（X-Styrigx-Space-Session: 1），
  * 不看锁屏 cookie，也不验进站会话（网关已验过）。有进站会话之后能做什么由账号会话 + 作用域决定（core/authorize.js）。
  * 调用方：rpc/account-service.js serviceFetch。
  */
@@ -12,7 +12,7 @@ import { authorize } from './core/authorize.js';
 
 /**
  * 按身份头和账号会话回答（context.auth）。
- * - gateway()：进站会话（身份头 X-Styrigx-Lock-Session: 1）→ { ok:true, by, reason:'ok' }；没有 → { ok:false, by:'', reason:'no-identity' }
+ * - gateway()：进站会话（身份头 X-Styrigx-Space-Session: 1）→ { ok:true, by, reason:'ok' }；没有 → { ok:false, by:'', reason:'no-identity' }
  * - session()：账号会话在本 Worker 自己验（core/session.js，账号库 D1_ACCOUNT），同一请求只验一次
  * - authorize(opts)：授权结论（core/authorize.js authorize：账号会话 + 作用域，opts.reauth 时再看挂在会话上的 reauth 票），
  *   { ok, reason, deviceId, scopes, reauth }；同一请求、同样的 reauth 只算一次
@@ -70,7 +70,7 @@ export async function scopeDenial(auth, scope, headers) {
 
 /**
  * 按网关写的锁屏身份（readLockIdentity 的结论）算出这个请求该被拒的响应；放行 → null。
- * 纵深防御的最小门（门本身在网关 src/gate.js，结论相同）：/api/* 没有进站会话（没有 X-Styrigx-Lock-Session: 1）→ 401 {ok:false}。
+ * 纵深防御的最小门（门本身在网关 src/gate.js，结论相同）：/api/* 没有进站会话（没有 X-Styrigx-Space-Session: 1）→ 401 {ok:false}。
  * 有进站会话之后的判断在各接口（/api/account/* 自己验账号会话 / reauth / reset 票；/api/prefs、/api/avatar 要账号会话 + 作用域）；头像文件 /avatar/* 不要身份。
  * 不按进站方式拦（P2-3 起网关也不再分等级）：有进站会话之后能做什么由账号会话 + 作用域决定。
  * 只看身份头、不看 cookie，也不验任何会话（进站会话网关已验过）。

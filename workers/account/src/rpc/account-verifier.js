@@ -2,7 +2,7 @@
  * @fileoverview 账号 Worker 的命名入口 AccountVerifier（WorkerEntrypoint，RPC；只有网关绑定，服务绑定 ACCOUNT_VERIFIER）：
  * - （命名 v2 删掉 session()：唯一的调用方网关首帧提示随旧账号整页一起删了；临时钥匙管理、短链只认进站会话 + 锁侧复验）
  * - authorize(cookieHeader, clientContext, opts)：授权结论 { ok, reason, deviceId, scopes, reauth }（逻辑在 core/authorize.js）。
- *   P2-1 只新增：网关 core/account-rpc.js askAuthorize 会问它，但网关里还没有调用方（P2-2 起子站接口经 AuthVerifier.conclusion() 间接用）。
+ *   P2-1 只新增：网关 core/account-rpc.js askAuthorize 会问它，但网关里还没有调用方（P2-2 起子站接口经 SpaceVerifier.conclusion() 间接用）。
  * 不签发任何东西。
  * cloudflare:workers 只在 Workers 里有：node 单测用 tests/workers/account/_cf-workers.mjs 的替身。
  */

@@ -46,7 +46,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEFAULT_API = 'https://api.cloudflare.com/client/v4';
 
-/** 新库（主站共用）。和 workers/{auth-gateway,share,status}/wrangler.toml 的 database_id 一致（d1-cutover.test.mjs 核对）。 */
+/** 新库（主站共用）。和 workers/{space-core,status}/wrangler.toml 的 database_id 一致（d1-cutover.test.mjs 核对）。 */
 export const TARGET = { name: 'styrigx-space-gateway', id: '39d037fe-6ab3-410d-a090-4d7ce8d48d83' };
 /** 新旧搜索索引 KV 命名空间。新的和 workers/{ai,curio-core,daymark-core}/wrangler.toml 的 KV_SEARCH_INDEX 一致。 */
 export const KV = { from: { name: 'styrigx-search-index', id: 'bd1babcc3fe74d58994e254c74d34ced' }, to: { name: 'styrigx-space-gateway', id: '608cf3e27184481cbca2922950506d87' } };
@@ -67,7 +67,7 @@ export const SOURCES = [
     key: 'share', old: { name: 'styrigx-share', id: '59bddcea-17cb-466a-90c9-16606d5b4b7e' },
     tables: { share_link: 'count', share_fail: 'live' },
     required: ['share_link', 'share_fail'],
-    rename: (t) => t, migrations: 'workers/share/migrations',
+    rename: (t) => t, migrations: 'workers/space-core/migrations-share',
   },
   {
     key: 'gateway', old: { name: 'styrigx-auth-gateway', id: '6931d1da-3502-480d-b0bd-de1bc4829d1d' },
@@ -77,7 +77,7 @@ export const SOURCES = [
       challenge: 'live', attempt_limit: 'live', audit: 'live',
     },
     required: ['epoch', 'password', 'passkey', 'user_handle', 'lock_reset_switch'],
-    rename: (t) => t, migrations: 'workers/auth-gateway/migrations',
+    rename: (t) => t, migrations: 'workers/space-core/migrations',
   },
 ];
 export const GATE_SOURCES = ['gateway', 'share', 'status', 'kv'];
@@ -393,7 +393,7 @@ async function main(argv) {
   if (cmd === 'gate') {
     const g = await gate(cf);
     process.stdout.write('d1-cutover gate: ' + (g.ready ? 'ready' : 'NOT ready') + ' (markers: ' + (g.have.join(', ') || 'none') + ')\n');
-    if (!g.ready) process.stdout.write('::warning::主站数据还没搬进 ' + TARGET.name + '（.github/workflows/d1-cutover.yml 没跑完）：本次跳过 ai / status / share / curio-core / daymark-core / 网关部署\n');
+    if (!g.ready) process.stdout.write('::warning::主站数据还没搬进 ' + TARGET.name + '（.github/workflows/d1-cutover.yml 没跑完）：本次跳过 ai / status / curio-core / daymark-core / space-core 部署\n');
     if (out) writeFileSync(out, 'ready=' + g.ready + '\n', { flag: 'a' });
     return 0;
   }

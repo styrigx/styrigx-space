@@ -14,7 +14,7 @@ const STATUS = { 'not-found': 404, limit: 409 };
 export async function onRequestGet(context) {
   const { env } = context;
   const c = await conclusionOf(context);
-  if (!c.lock.ok) return err('unauthorized', 401);
+  if (!c.space.ok) return err('unauthorized', 401);
   if (!env || !env.D1_MOVIES) return err('server', 503);
   await ensureMovieSchema(env.D1_MOVIES);
   return json({ ok: true, ...visibility(c), movies: await listMovies(env.D1_MOVIES) });

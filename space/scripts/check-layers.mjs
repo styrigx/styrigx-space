@@ -14,7 +14,7 @@
  *  5. 前端不得 import space/web/assets/js/ 以外的文件（前后端隔离，含 functions/、workers/）
  *  6. lib/ 不得包含鉴权逻辑：不得出现鉴权接口地址（/api/lock-*、/api/space-*、/api/account）
  *     和 navigator.credentials（这些放 auth/）
- *  7. 前端代码禁止出现 cookie 名 `sgx-lock-session`（HttpOnly，前端读不到；`data-sgx-lock-session` 属性名不算）
+ *  7. 前端代码禁止出现 cookie 名 `sgx-space-session`（HttpOnly，前端读不到；`data-sgx-lock-session` 属性名不算）
  *  8. 前端代码禁止出现 `sgx-lock-shown` 字符串
  *  9. 前端代码不得用 sessionStorage/localStorage 保存解锁状态
  *     （key 匹配：unlock、sgx-lock、session；storage.js 本身除外）
@@ -23,12 +23,12 @@
  *     这四条随之退役（编号不复用）；防止退回旧目录的是规则 18。
  *
  * 所有 Worker（workers/<名字>/，2026-10-30 起没有共享目录，每个 Worker 各自实现）：
- * 14. 每个 Worker 只能相对 import 自己目录 workers/<名字>/ 下的文件；账号（workers/account/）和网关（workers/auth-gateway/）
+ * 14. 每个 Worker 只能相对 import 自己目录 workers/<名字>/ 下的文件；账号（workers/account/）和网关（workers/space-core/）
  *     互相不许 import，别的 Worker 之间也一样，没有任何例外；非相对 import 只认 cloudflare:workers
  * 15. 不许有 workers/shared（2026-10-30 删除，账号拆分 PR3a）：目录本身存在就失败，任何文件 import workers/shared/ 也失败
  *
  * Worker 边界（账号拆分 PR3e，按 PR3d 之后的事实）：
- * 16. 网关源码（workers/auth-gateway/ 下的 .js / .mjs / .cjs 和 wrangler.toml）去掉注释后不许出现账号鉴权标识
+ * 16. 网关源码（workers/space-core/ 下的 .js / .mjs / .cjs 和 wrangler.toml）去掉注释后不许出现账号鉴权标识
  *     （GATEWAY_ACCOUNT_AUTH_RE：SGX_ACCOUNT_*、SGX_ROOT_KEY、D1_ACCOUNT（含旧名）、D1_ROOT_AUTH、REALM_ACCOUNT、REALM_ROOT、
  *     checkAccountSession、verifyAccountSession、Account*Ticket / ACCOUNT_*_TICKET、账号 cookie 名等）。
  *     账号鉴权全在账号 Worker；网关只经 ACCOUNT_VERIFIER.authorize() 拿结论，旧首帧提示属性名 data-sgx-account-session（网关只清不写）不算。
@@ -136,7 +136,7 @@ export function layerOf(root, abs) {
   if (m) return { area: 'frontend', layer: m[1], rel };
   if (rel.startsWith('space/web/assets/js/')) return { area: 'frontend', layer: '(root)', rel };
   const g = gatewayLayer(rel);
-  if (g) return { area: 'gateway', layer: g, rel, worker: 'auth-gateway' };
+  if (g) return { area: 'gateway', layer: g, rel, worker: 'space-core' };
   m = rel.match(/^workers\/([^/]+)\//);
   if (m) return { area: 'worker', layer: m[1], rel, worker: m[1] };
   return { area: 'other', layer: 'other', rel };
@@ -144,8 +144,8 @@ export function layerOf(root, abs) {
 
 /** 网关内的层（2026-11-02 起只分 src / 其他，方向规则 10–13 随 functions/ 一起退役）；不在网关目录 → null @param {string} rel */
 function gatewayLayer(rel) {
-  if (rel.startsWith('workers/auth-gateway/src/')) return 'src';
-  if (rel.startsWith('workers/auth-gateway/')) return 'gateway-other';
+  if (rel.startsWith('workers/space-core/src/')) return 'src';
+  if (rel.startsWith('workers/space-core/')) return 'gateway-other';
   return null;
 }
 
@@ -308,7 +308,7 @@ export function checkAccountToml(rel, src) {
     if (/^\[\[\s*(?:env\.[\w-]+\.)?routes\s*\]\]$/.test(t)) bad = t;
     const kv = t.match(/^(?:env\.[\w-]+\.)?(route|routes)\s*=\s*(.*)$/);
     if (kv && (kv[1] === 'route' || !/^\[\s*\]$/.test(kv[2]))) bad = t;
-    if (bad) errors.push(`${rel}:${ln + 1}: 账号 Worker 不许有公开路由，发现「${bad}」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/auth-gateway/src/router.js 登记）`);
+    if (bad) errors.push(`${rel}:${ln + 1}: 账号 Worker 不许有公开路由，发现「${bad}」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/space-core/src/router.js 登记）`);
   }
   return errors;
 }
@@ -365,7 +365,7 @@ export function checkFile(root, abs, srcOverride) {
       if (t.worker !== self.worker) {
         /* 规则 14 */
         const pair = new Set([self.worker, t.worker]);
-        if (pair.has('account') && pair.has('auth-gateway')) {
+        if (pair.has('account') && pair.has('space-core')) {
           errors.push(`${r}: 账号和网关互相不许 import，发现 ${t.rel} (${spec})`);
         } else if (self.area === 'gateway') {
           errors.push(`${r}: 网关禁止 import 网关目录以外的文件 (${spec})`);
@@ -385,8 +385,8 @@ export function checkFile(root, abs, srcOverride) {
     if (self.layer === 'lib' && LIB_AUTH_RE.test(code)) {
       errors.push(`${r}: lib/ 不得包含鉴权逻辑（鉴权接口 / navigator.credentials 放 auth/）`);
     }
-    if (/(?<!data-)sgx-lock-session/.test(code)) {
-      errors.push(`${r}: 前端禁止出现 sgx-lock-session 字符串`);
+    if (/(?<!data-)sgx-space-session/.test(code)) {
+      errors.push(`${r}: 前端禁止出现 sgx-space-session 字符串`);
     }
     if (code.includes('sgx-lock-shown')) {
       errors.push(`${r}: 前端禁止出现 sgx-lock-shown 字符串`);
@@ -470,8 +470,8 @@ export function checkRepo(root) {
   if (existsSync(join(root, SHARED_DIR))) {
     errors.push(`${SHARED_DIR}: 不许存在（规则 15：2026-10-30 起没有跨 Worker 的共享目录，每个 Worker 各自实现）`);
   }
-  const gwToml = join(root, 'workers/auth-gateway/wrangler.toml');
-  if (existsSync(gwToml)) errors.push(...checkGatewayAccountAuth('workers/auth-gateway/wrangler.toml', readFileSync(gwToml, 'utf8'), 'toml'));
+  const gwToml = join(root, 'workers/space-core/wrangler.toml');
+  if (existsSync(gwToml)) errors.push(...checkGatewayAccountAuth('workers/space-core/wrangler.toml', readFileSync(gwToml, 'utf8'), 'toml'));
   const acToml = join(root, 'workers/account/wrangler.toml');
   if (existsSync(acToml)) errors.push(...checkAccountToml('workers/account/wrangler.toml', readFileSync(acToml, 'utf8')));
   errors.push(...checkWorkerSkeleton(root));

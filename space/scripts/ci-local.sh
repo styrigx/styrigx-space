@@ -53,7 +53,7 @@ css() { node space/scripts/build-css.cjs --minify >/dev/null; }
 if want unit; then
   begin unit
   step unit "build-css" css
-  step unit "单测（workers + ui）" bash -c 'node --test tests/workers/auth-gateway/*.test.mjs tests/workers/account/*.test.mjs tests/workers/share/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs" 2>&1 | tee /tmp/ci-local-unit.log | grep -E "^# (tests|pass|fail|skipped)"; ! grep -qE "^# fail [1-9]" /tmp/ci-local-unit.log'
+  step unit "单测（workers + ui）" bash -c 'node --test tests/workers/space-core/*.test.mjs tests/workers/account/*.test.mjs tests/workers/ai/*.test.mjs tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs" 2>&1 | tee /tmp/ci-local-unit.log | grep -E "^# (tests|pass|fail|skipped)"; ! grep -qE "^# fail [1-9]" /tmp/ci-local-unit.log'
 fi
 
 if want build; then

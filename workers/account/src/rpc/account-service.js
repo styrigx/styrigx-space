@@ -1,6 +1,6 @@
 /**
  * @fileoverview 账号 Worker 的命名入口 AccountService（WorkerEntrypoint，fetch；方案第 2、3、4、10.2 节）：
- * 网关经服务绑定 ACCOUNT 转发过来的请求（转发表 workers/auth-gateway/src/router.js FORWARDING）。
+ * 网关经服务绑定 ACCOUNT 转发过来的请求（转发表 workers/space-core/src/router.js FORWARDING）。
  * 读网关写的规范身份头（gate.js headerAuth / lockIdentityDenial）→ 路由表 router.js API_ROUTES（/api/account/*、头像、
  * 设置云同步、数字健康）+ 头像文件 /avatar/<尺寸>.webp。
  *

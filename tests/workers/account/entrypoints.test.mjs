@@ -14,7 +14,7 @@
 import './_cf-workers.mjs';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { testLockSession } from '../auth-gateway/_tickets.mjs';
+import { testLockSession } from '../space-core/_tickets.mjs';
 import { genKeyPair, postReq } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
 import { K, keys, idHeaders, accSession, reauthTicket, resetTicket, seedPassword, setEpoch, one, PEPPER, RECOVERY_KEY, TEST_DEVICE_ID, pickCookie } from './_fixtures.mjs';
@@ -111,16 +111,16 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false}（最小门）�
   assert.deepEqual(calls, []);
 });
 
-test('AccountService：没有 X-Styrigx-Lock-Session: 1 一律当作没有进站会话 → 401（只有 Role / By 头、Session 不是 1 都不算）', async () => {
+test('AccountService：没有 X-Styrigx-Space-Session: 1 一律当作没有进站会话 → 401（只有 Role / By 头、Session 不是 1 都不算）', async () => {
   const { env } = makeEnv();
   for (const h of [
-    { 'X-Styrigx-Lock-Level': 'password' },
-    { 'X-Styrigx-Lock-Level': 'password', 'X-Styrigx-Lock-By': 'password' },
-    { 'X-Styrigx-Lock-By': 'password' },
-    { 'X-Styrigx-Lock-Session': '0' },
-    { 'X-Styrigx-Lock-Session': 'true' },
-    { 'X-Styrigx-Lock-Session': '' },
-    { 'X-Styrigx-Lock-Session': '1,1' },
+    { 'X-Styrigx-Space-Level': 'password' },
+    { 'X-Styrigx-Space-Level': 'password', 'X-Styrigx-Space-By': 'password' },
+    { 'X-Styrigx-Space-By': 'password' },
+    { 'X-Styrigx-Space-Session': '0' },
+    { 'X-Styrigx-Space-Session': 'true' },
+    { 'X-Styrigx-Space-Session': '' },
+    { 'X-Styrigx-Space-Session': '1,1' },
     { 'X-Sgx-Legacy': 'password' },
   ]) {
     const r = await service(env).fetch(req('/api/account', { headers: h }));
@@ -128,7 +128,7 @@ test('AccountService：没有 X-Styrigx-Lock-Session: 1 一律当作没有进站
   }
 });
 
-test('AccountService：不看外来的 X-Styrigx-Lock-Level——进站会话（Session: 1）+ 任意 Level 也照常走到账号判断（/api/prefs 没账号会话 401 account、/api/account 读状态 200）', async () => {
+test('AccountService：不看外来的 X-Styrigx-Space-Level——进站会话（Session: 1）+ 任意 Level 也照常走到账号判断（/api/prefs 没账号会话 401 account、/api/account 读状态 200）', async () => {
   const { env } = makeEnv();
   const h = idHeaders({ role: 'tempkey', by: 'tempkey', tempkeyId: 'tk1' });
   let r = await service(env).fetch(req('/api/prefs', { headers: h }));
@@ -177,7 +177,7 @@ test('AccountService：处理中抛错 → 500 internal（仍打 X-SGX-Runtime�
 
 test('默认 fetch：任何路径一律 404，伪造的 x-styrigx-* 进站会话头 + 有效锁屏 cookie 也碰不到接口', async () => {
   const { env } = makeEnv();
-  const ck = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'password'));
+  const ck = 'sgx-space-session=' + (await testLockSession(LOCK_PRIV, 0, 'password'));
   for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/wellbeing'], ['GET', '/api/prefs'], ['GET', '/avatar/32.webp']]) {
     const r = await index.default.fetch(req(p, { method: m, headers: { ...idHeaders(), Cookie: ck }, body: m === 'POST' ? '{"action":"login-password"}' : undefined }), env, CTX);
     assert.equal(r.status, 404, m + ' ' + p);
@@ -201,7 +201,7 @@ test('源码：账号 Worker 没有任何回调网关的代码（不读 env.AUTH
   const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(d + e.name + '/') : [d + e.name]));
   for (const f of walk(root).filter((x) => x.endsWith('.js'))) {
     const code = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-    assert.doesNotMatch(code, /env\.AUTH\b|env\[['"]AUTH['"]\]|AuthVerifier|auth-gateway|D1_LOCK_AUTH|SGX_LOCK_|SGX_LOCK_SPACE_KEY|lock_reset_switch/, f);
+    assert.doesNotMatch(code, /env\.AUTH\b|env\[['"]AUTH['"]\]|SpaceVerifier|auth-gateway|D1_SPACE|SGX_LOCK_|SGX_SPACE_RECOVERY_KEY|lock_reset_switch/, f);
   }
 });
 
@@ -238,7 +238,7 @@ test('AccountVerifier.authorize：opts.reauth === true 才验 sgx-account-reauth
 test('AccountVerifier.authorize：反例——没 cookie / 非字符串 / 只有进站会话 / 格式错 / 别的钥匙签 / 纪元变了 / 过期 / 设备已退出', async () => {
   const { env } = makeEnv();
   const v = new ep.AccountVerifier(CTX, env);
-  const lock = 'sgx-lock-session=' + (await testLockSession(LOCK_PRIV, 0, 'password'));
+  const lock = 'sgx-space-session=' + (await testLockSession(LOCK_PRIV, 0, 'password'));
   assert.deepEqual(await v.authorize('', {}), DENY('no-cookie'));
   assert.deepEqual(await v.authorize(undefined), DENY('no-cookie'));
   assert.deepEqual(await v.authorize({ Cookie: 'x' }), DENY('no-cookie'));
@@ -278,7 +278,7 @@ test('verifierRequest：只带 Cookie / User-Agent / 地点头，不带锁屏身
   assert.equal(r.headers.get('User-Agent').length, 512);
   assert.equal(r.headers.get('X-Styrigx-Client-Country'), 'CN');
   assert.equal(r.headers.get('X-Styrigx-Client-City'), 'Shanghai');
-  assert.equal(r.headers.get('X-Styrigx-Lock-Level'), null);
+  assert.equal(r.headers.get('X-Styrigx-Space-Level'), null);
   assert.deepEqual([...r.headers.keys()].sort(), ['cookie', 'user-agent', 'x-styrigx-client-city', 'x-styrigx-client-country']);
 });
 

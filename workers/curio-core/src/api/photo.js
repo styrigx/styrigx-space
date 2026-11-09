@@ -41,7 +41,7 @@ async function ensureKind(db, kind) {
 export async function onRequestGet(context) {
   const { request, env } = context;
   const c = await conclusionOf(context);
-  if (!c.lock.ok) return err('unauthorized', 401);
+  if (!c.space.ok) return err('unauthorized', 401);
   const t = target(request);
   if (!t) return err('bad-id', 400);
   const db = photoDb(env, t.kind); // 设备 → D1_DEVICES，游戏 → D1_GAMES，电影 → D1_MOVIES

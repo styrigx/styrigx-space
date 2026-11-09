@@ -5,7 +5,7 @@
  *
  * - derToPem(der, label)：DER → PEM（64 列折行，结尾带换行；Web Crypto importKey / 网关 pemToDer 都认）
  * - makeKV(seed?, opts?)：内存 KV，实现 handler 用到的 get / put / delete / list 子集，外加测试用的观测与故障注入
- * - makeAuthD1(opts?)：网关 D1（styrigx-auth-gateway）的 node:sqlite 替身，表结构就是 workers/auth-gateway/migrations/*.sql；
+ * - makeAuthD1(opts?)：站点核心 D1（D1_SPACE；正式库 styrigx-space-gateway）的 node:sqlite 替身，表结构就是 workers/space-core/migrations/*.sql；
  *   可带一份「上线前的 KV」模拟部署前跑过 space/scripts/migrate-kv-to-d1.mjs
  */
 'use strict';
@@ -91,13 +91,13 @@ function makeKV(seed, opts) {
   return kv;
 }
 
-const AUTH_MIGRATIONS = path.join(__dirname, '..', '..', 'workers/auth-gateway/migrations');
+const AUTH_MIGRATIONS = path.join(__dirname, '..', '..', 'workers/space-core/migrations');
 
 /** 每张表属于导入计划的哪一类（space/scripts/migrate-kv-to-d1.mjs planAuthImport 的 family 名去掉 realm 前缀） */
 const IMPORT_FAMILY_OF_TABLE = { epoch: 'epoch', password: 'password', passkey: 'passkey', user_handle: 'user-handle', device: 'device', tempkey: 'tempkey' };
 
 /**
- * 网关 D1 替身（D1_LOCK_AUTH / D1_ACCOUNT_AUTH / D1_ROOT_AUTH 同一个库）：node:sqlite 内存库，
+ * 网关 D1 替身（D1_SPACE / D1_ACCOUNT_AUTH / D1_ROOT_AUTH 同一个库）：node:sqlite 内存库，
  * 实现 prepare().bind().first() / all() / run() 和 batch()（一个事务，任何一条失败整批回滚，同 D1）。
  * - opts.migrations === false：不跑迁移（模拟正式网关：表由 d1-state.js 遇到 no such table 时自建）
  * - opts.epochs：{ lock: 3, account: 1 }（也认 'lock-epoch' 这种旧名）直接写进 epoch 表

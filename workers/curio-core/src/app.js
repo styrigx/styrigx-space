@@ -3,10 +3,10 @@
  *
  * 数据接口都在这里，D1（D1_FINDS / D1_DEVICES / D1_GAMES / D1_MOVIES / D1_MUSIC，同一个库）和 R2（R2_PHOTOS：图标缓存、导入原文备份、设备照片、电影海报；
  * R2_MUSIC：私人音乐的音频和封面，同一个桶的 music/ 前缀）只绑在本 Worker 上；Pages 只放静态文件。
- * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 AUTH，见 src/api/_auth.js）。
+ * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 SPACE，见 src/api/_auth.js）。
  *
  * 请求顺序（下面的 /api/* 都是去掉 /curio 前缀后的路径，公开地址是 styrigx.com/curio/api/*）：
- *   1. 所有 /api/*：先问网关要结论（AUTH.conclusion()，方案 4.6）；没进门 → 401 unauthorized（不 302，fetch 不跟跳转）。没有公开接口。
+ *   1. 所有 /api/*：先问网关要结论（SPACE.conclusion()，方案 4.6）；没进门 → 401 unauthorized（不 302，fetch 不跟跳转）。没有公开接口。
  *      结论放进 context.data.conclusion，handler 用 conclusionOf(context) 直接取，每个请求只问网关一次
  *      （POST /api/import 这一问就带上 reauth: true，见 REAUTH_ROUTES）。
  *   2. 按路由表交给 src/api/<路径>.js；读私密要账号会话（account.ok），写要账号会话 + 作用域 curio.write + 同源；
@@ -112,7 +112,7 @@ export async function handle(request, env, ctx) {
   const reauth = wantsReauth(path, request.method);
   if (!isPublic(path)) {
     conclusion = await askConclusion(request, env, { reauth });
-    if (!conclusion.lock.ok) return json(401, { ok: false, error: 'unauthorized' });
+    if (!conclusion.space.ok) return json(401, { ok: false, error: 'unauthorized' });
   }
 
   const hit = resolve(path);

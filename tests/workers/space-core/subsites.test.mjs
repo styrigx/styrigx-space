@@ -1,0 +1,254 @@
+/**
+ * 网关子站门禁（workers/space-core/src/gate.js，合并 PR3）：主域名 styrigx.com 的 /blog/、/curio/、/daymark/ 前缀
+ * - 页面：会话有效回源（HTML 加 no-store），无效 302 主站锁屏（带 why 和完整的 return）
+ * - 编码 / 大小写 / 多斜杠 / .. 绕法都按子站处理：博客全文 RSS、站点地图没有会话拿不到
+ * - 静态资源后缀不验会话（xml / json 不算）
+ * - /<站>/api/*（未登录、漏到网关）回 401 JSON，不 302
+ * - 根上的 /api/lock-session-check 由主站路由回答（有效 200 {ok:true}、无效 401 {ok:false}），子站前端的判断都对得上
+ * - 主站请求不受影响；未登记的域名照旧 301 回主站
+ *
+ * 运行：node --test tests/workers/space-core/subsites.test.mjs
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { testLockSession } from './_tickets.mjs';
+import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const REPO = path.resolve(__dirname, '../../..');
+const worker = (await import(REPO + '/workers/space-core/src/app.js')).default;
+const { isStaticAsset, subsiteOf, siteOf, normPath, stripSessionAttrs } = await import(REPO + '/workers/space-core/src/gate.js');
+const { signLockSessionTicket } = await import(REPO + '/workers/space-core/src/core/lock-session.js');
+
+const { priv: PRIV, pub: PUB } = await genKeyPair();
+
+const CTX = { waitUntil() {} };
+function env(epoch = '0') {
+  const seen = [];
+  const d1 = makeAuthD1({ epochs: { 'lock-epoch': Number(epoch) } }); /* 纪元在 D1 */
+  return {
+    seen,
+    SGX_ENV: 'production', SGX_SITE: 'space', SGX_SPACE_PUBLIC: PUB,
+    KV_LOCK_DOOR: { async get() { return null; } },
+    D1_SPACE: d1,
+    ASSETS: {
+      async fetch(req) {
+        seen.push(new URL(req.url).hostname + new URL(req.url).pathname);
+        const p = new URL(req.url).pathname;
+        if (p.endsWith('.js')) return new Response('js', { headers: { 'Content-Type': 'text/javascript', 'Cache-Control': 'public, max-age=60' } });
+        return new Response('<html><body>page</body></html>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      },
+    },
+  };
+}
+
+async function cookie(role = 'tempkey', epoch = 0) {
+  const v = await testLockSession(PRIV, epoch, role);
+  return 'sgx-space-session=' + v;
+}
+
+function req(url, cookieHeader) {
+  return new Request(url, { headers: cookieHeader ? { Cookie: cookieHeader } : {} });
+}
+
+test('子站判断：只认主域名 styrigx.com + 第一段 blog / curio / daymark；旧子域名、书库、别的主机都不算子站', () => {
+  for (const u of ['https://styrigx.com/blog/', 'https://styrigx.com/curio/x', 'https://styrigx.com/daymark', 'https://styrigx.com/%62log/rss.xml', 'https://styrigx.com//blog/rss.xml', 'https://styrigx.com/BLOG/']) {
+    assert.ok(subsiteOf(new URL(u)), u);
+  }
+  for (const u of ['https://blog.styrigx.com/', 'https://curio.styrigx.com/curio/', 'https://book.styrigx.com/blog/',
+    'https://evil.styrigx.com/blog/', 'https://styrigx.com/', 'https://styrigx.com/blogx/', 'https://styrigx.com/__proto__/', 'https://styrigx.com/zh/blog/']) {
+    assert.equal(subsiteOf(new URL(u)), null, u);
+  }
+});
+
+test('路径归一：解码一次、反斜杠、小写、多斜杠、. / .. 段', () => {
+  assert.equal(normPath('/%62log/rss.xml'), '/blog/rss.xml');
+  assert.equal(normPath('/blog%2Frss.xml'), '/blog/rss.xml');
+  assert.equal(normPath('//blog///rss.xml'), '/blog/rss.xml');
+  assert.equal(normPath('/BLOG/RSS.XML'), '/blog/rss.xml');
+  assert.equal(normPath('/css/..%2Fblog/rss.xml'), '/blog/rss.xml');
+  assert.equal(normPath('/blog\\rss.xml'), '/blog/rss.xml');
+  assert.equal(normPath('/blog/.'), '/blog/');
+  assert.equal(normPath('/a/../..'), '/');
+  assert.equal(normPath('/%zz/x'), '/%zz/x', '解不开就按原样');
+});
+
+test('路径归哪个站：第一段是 blog / curio / daymark 才算', () => {
+  assert.equal(siteOf('/blog/post/x/'), 'blog');
+  assert.equal(siteOf('/curio/'), 'curio');
+  assert.equal(siteOf('/daymark/zh/'), 'daymark');
+  assert.equal(siteOf('/'), null);
+  assert.equal(siteOf('/robots.txt'), null);
+  assert.equal(siteOf('/__proto__/'), null);
+  assert.equal(siteOf('/blogx/'), null);
+  assert.equal(siteOf('/%63urio/'), 'curio');
+});
+
+test('静态资源后缀判断（xml / json / txt 都不算，只有博客 manifest 例外）', () => {
+  assert.equal(isStaticAsset('/blog/pagefind/pagefind.js'), true);
+  assert.equal(isStaticAsset('/blog/fonts/a.woff2'), true);
+  assert.equal(isStaticAsset('/blog/CSS/A.CSS'), true);
+  assert.equal(isStaticAsset('/blog/pagefind/fragment/zh_1.pf_fragment'), false);
+  assert.equal(isStaticAsset('/blog/rss.xml'), false);
+  assert.equal(isStaticAsset('/blog/zh/rss.xml'), false);
+  assert.equal(isStaticAsset('/curio/sitemap.xml'), false);
+  /* 带编码 / 多斜杠 / .. 的一律不当静态文件（回源时 Pages 自己解码，指向哪个文件说不准），交给会话检查 */
+  for (const p of ['/blog/rss.xml%3F.css', '/blog/rss.xml%23.css', '/blog/%2e%2e/blog/a.css', '//blog/a.css', '/blog/x/../a.css', '/blog\\a.css', '/blog/./a.css']) {
+    assert.equal(isStaticAsset(p), false, p);
+  }
+  assert.equal(isStaticAsset('/blog/robots.txt'), false, 'robots.txt 只在主域名根上（归主站）');
+  assert.equal(isStaticAsset('/blog/manifest.json'), true);
+  assert.equal(isStaticAsset('/blog/%6Danifest.json'), false);
+  assert.equal(isStaticAsset('/curio/manifest.json'), false);
+  assert.equal(isStaticAsset('/blog/index.json'), false);
+  assert.equal(isStaticAsset('/blog/post/a.b/'), false);
+  assert.equal(isStaticAsset('/blog/'), false);
+});
+
+for (const site of ['blog', 'daymark', 'curio']) {
+  const host = 'styrigx.com';
+  const base = 'https://' + host + '/' + site;
+  test(site + '：未登录页面 302 到主站锁屏，带 why=no-cookie 和 return，不回源', async () => {
+    const e = env();
+    const res = await worker.fetch(req(base + '/post/hello/?a=1'), e, CTX);
+    assert.equal(res.status, 302);
+    const loc = new URL(res.headers.get('Location'));
+    assert.equal(loc.origin, 'https://styrigx.com');
+    assert.equal(loc.searchParams.get('lock'), '1');
+    assert.equal(loc.searchParams.get('why'), 'no-cookie');
+    assert.equal(loc.searchParams.get('return'), base + '/post/hello/?a=1');
+    assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
+    assert.match(res.headers.get('Cache-Control'), /no-store/);
+    assert.deepEqual(e.seen, []);
+  });
+
+  test(site + '：任何进门方式都回源，HTML 加 private, no-store，<html> 不标等级（进门二值）', async () => {
+    for (const by of ['tempkey', 'password', 'passkey']) {
+      const e = env();
+      const res = await worker.fetch(req(base + '/', await cookie(by)), e, CTX);
+      assert.equal(res.status, 200);
+      assert.equal(await res.text(), '<html><body>page</body></html>');
+      assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
+      assert.deepEqual(e.seen, [host + '/' + site + '/']);
+    }
+  });
+
+  test(site + '：伪造签名、epoch 过低都算无效（why=invalid-session）', async () => {
+    const good = await cookie('password');
+    const i = good.length - 10; /* 改签名中间一位（最后一位可能只是补位） */
+    const bad = good.slice(0, i) + (good[i] === 'A' ? 'B' : 'A') + good.slice(i + 1);
+    let res = await worker.fetch(req(base + '/', bad), env(), CTX);
+    assert.equal(res.status, 302);
+    assert.equal(new URL(res.headers.get('Location')).searchParams.get('why'), 'invalid-session');
+    res = await worker.fetch(req(base + '/', await cookie('password', 1)), env('2'), CTX);
+    assert.equal(res.status, 302);
+  });
+
+  test(site + '：静态资源后缀不验会话，原样回源（不打 X-SGX-Runtime，只补 HSTS / nosniff）', async () => {
+    const e = env();
+    const res = await worker.fetch(req(base + '/pagefind/pagefind.js'), e, CTX);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('Cache-Control'), 'public, max-age=60');
+    assert.equal(res.headers.get('X-SGX-Runtime'), null);
+    assert.equal(res.headers.get('X-Content-Type-Options'), 'nosniff');
+    assert.deepEqual(e.seen, [host + '/' + site + '/pagefind/pagefind.js']);
+  });
+
+  test(site + '：未登录漏到网关的 /<站>/api/* 回 401 JSON，不 302、不回源', async () => {
+    for (const u of [base + '/api/x', base + '/api/links?x=1', base + '/api']) {
+      const e = env();
+      const res = await worker.fetch(req(u), e, CTX);
+      assert.equal(res.status, 401, u);
+      assert.match(res.headers.get('Content-Type'), /json/);
+      assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
+      assert.deepEqual(e.seen, [], u);
+    }
+  });
+
+  test(site + '：xml / json（全文 RSS、站点地图、索引）没有会话 302 锁屏、不回源；有会话照常回源', async () => {
+    for (const p of ['/rss.xml', '/zh/rss.xml', '/sitemap.xml', '/sitemap-index.xml', '/index.xml', '/index.json']) {
+      const e = env();
+      const res = await worker.fetch(req(base + p), e, CTX);
+      assert.equal(res.status, 302, p);
+      assert.deepEqual(e.seen, [], p);
+      const ok = env();
+      const r2 = await worker.fetch(req(base + p, await cookie('tempkey')), ok, CTX);
+      assert.equal(r2.status, 200, p);
+      assert.deepEqual(ok.seen, [host + '/' + site + p]);
+    }
+  });
+}
+
+test('绕法：编码 / 大小写 / 多斜杠 / .. / 反斜杠拼出来的子站路径，没有会话一律不回源（不会落到主站的公开后缀白名单）', async () => {
+  for (const p of ['/%62log/rss.xml', '/blog%2Frss.xml', '//blog/rss.xml', '/BLOG/rss.xml', '/Blog/Rss.xml', '/css/..%2Fblog/rss.xml',
+    '/js/%2e%2e/blog/rss.xml', '/blog%5Crss.xml', '/%63urio/sitemap.xml', '//daymark//sitemap.xml', '/fonts/..%2F..%2Fblog/zh/rss.xml',
+    '/blog/rss.xml%3F.css', '/blog/rss.xml%23.js', '/css/..%2Fblog/rss.xml%3F.css']) {
+    const e = env();
+    const res = await worker.fetch(req('https://styrigx.com' + p), e, CTX);
+    assert.equal(res.status, 302, p);
+    assert.equal(new URL(res.headers.get('Location')).searchParams.get('why'), 'no-cookie', p);
+    assert.equal(res.headers.get('X-SGX-Runtime'), 'worker', p);
+    assert.deepEqual(e.seen, [], p);
+  }
+});
+
+test('主域名根上的 /api/lock-session-check（子站前端问的）：有效 200 {ok:true}、无效 401 {ok:false}——blog 只对 401 跳锁屏，curio / daymark 只认 401', async () => {
+  const c = await cookie('tempkey');
+  let res = await worker.fetch(req('https://styrigx.com/api/lock-session-check', c), env(), CTX);
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).ok, true);
+  res = await worker.fetch(req('https://styrigx.com/api/lock-session-check'), env(), CTX);
+  assert.equal(res.status, 401);
+  assert.deepEqual(await res.json(), { ok: false });
+  assert.match(res.headers.get('Cache-Control'), /no-store/);
+  /* 前端判断：blog sgx-lock-check.js 只在 204 时「什么都不做」、401 时跳锁屏、其他状态不动；curio / daymark sgx-lock-sync.js 只认 401 */
+  const blog = readFileSync(REPO + '/space/web/assets/blog/js/blog/sgx-lock-check.js', 'utf8');
+  assert.match(blog, /if \(r\.status === 401\)/);
+  assert.match(blog, /其他状态码：不跳转/);
+  for (const s of ['curio', 'daymark']) {
+    assert.match(readFileSync(REPO + '/space/web/assets/' + s + '/js/sgx-lock-sync.js', 'utf8'), /res\.status === 401/);
+  }
+});
+
+test('主站照旧；未登记的子域名照旧 301 回主站', async () => {
+  let res = await worker.fetch(req('https://styrigx.com/display/'), env(), CTX);
+  assert.equal(res.status, 302);
+  assert.match(res.headers.get('Location'), /^https:\/\/styrigx\.com\/\?lock=1&return=%2Fdisplay%2F/);
+  res = await worker.fetch(req('https://evil.styrigx.com/'), env(), CTX);
+  assert.equal(res.status, 301);
+  assert.equal(res.headers.get('Location'), 'https://styrigx.com/');
+  /* 书库、旧的 blog / daymark / curio 子域名已下线：当未登记子域名处理（主站关口 301 回首页，不保留路径） */
+  for (const h of ['book.styrigx.com', 'blog.styrigx.com', 'daymark.styrigx.com', 'curio.styrigx.com']) {
+    res = await worker.fetch(req('https://' + h + '/'), env(), CTX);
+    assert.equal(res.status, 301, h);
+    assert.equal(res.headers.get('Location'), 'https://styrigx.com/');
+  }
+});
+
+/* 子站页面源码里混进旧会话标记（等级 / 升级验证）时，网关先清掉；P2-3 起不分进门方式，抽屉头像都能点进账号页。 */
+const DRAWER = '<html lang="zh-CN" data-sgx-' + 'role="x" data-sgx-upgrade="1"><body>' // old-name guard（伪造的旧标记要被剥掉）
+  + '<div class="sgx-drawer-head"><span class="sgx-drawer-brand">S</span>'
+  + '<a class="sgx-drawer-me" href="https://styrigx.com/account/" aria-label="账号">'
+  + '<img src="https://styrigx.com/avatar/192.webp" alt="" width="52" height="52" class="sgx-tb-avatar"></a></div>'
+  + '<a class="sgx-drawer-item" href="https://styrigx.com/">主站</a></body></html>';
+
+test('子站页面：页面源码里混进的旧会话标记（等级 / 升级验证）先清掉；抽屉头像原样（进门的人都能点进账号页）', () => {
+  const out = stripSessionAttrs(DRAWER);
+  assert.match(out, /^<html lang="zh-CN"><body>/);
+  assert.match(out, /<a class="sgx-drawer-me" href="https:\/\/styrigx.com\/account\/" aria-label="账号">/);
+});
+
+for (const site of ['blog', 'daymark', 'curio']) {
+  const host = 'styrigx.com/' + site;
+  test(site + '：临时钥匙进门、锁屏密码进门拿到的页面一样，头像都可点、没有旧会话标记', async () => {
+    const page = (e) => { e.ASSETS.fetch = async () => new Response(DRAWER, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }); return e; };
+    const a = await (await worker.fetch(req('https://' + host + '/', await cookie('tempkey')), page(env()), CTX)).text();
+    const b = await (await worker.fetch(req('https://' + host + '/', await cookie('password')), page(env()), CTX)).text();
+    assert.equal(a, b);
+    assert.match(a, /<a class="sgx-drawer-me" href="https:\/\/styrigx.com\/account\/"/);
+    assert.doesNotMatch(a, /data-sgx-(?:role|upgrade)/);
+  });
+}

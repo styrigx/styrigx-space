@@ -106,7 +106,7 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     }
   });
 
-  test('伪造 sgx-lock-session=1 不算会话，首页仍是锁屏', async ({ page }) => {
+  test('伪造 sgx-space-session=1 不算会话，首页仍是锁屏', async ({ page }) => {
     /* 预览站 SGX_ENV=preview：网关不拦页面、不注入会话标记（只有正式域名才拦），这里只验接口和前端锁屏 */
     await page.context().addCookies([
       { name: SESSION, value: '1', url: ORIGIN + '/', httpOnly: true, secure: ORIGIN.startsWith('https:'), sameSite: 'Lax' },
@@ -293,12 +293,12 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     const ok = await h.api(page, '/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY });
     expect(ok.status, JSON.stringify(ok.json)).toBe(200);
     expect(ok.json).toEqual({ ok: true });
-    expect(h.setCookieLine(ok.resp, 'sgx-lock-reset')).toContain('sgx-lock-reset=');
+    expect(h.setCookieLine(ok.resp, 'sgx-space-reset')).toContain('sgx-space-reset=');
     expect(h.setCookieLine(ok.resp, SESSION)).toBe('');
-    await page.context().clearCookies({ name: 'sgx-lock-reset' });
+    await page.context().clearCookies({ name: 'sgx-space-reset' });
     const bad = await h.api(page, '/api/lock-reset', { action: 'verify', spaceKey: 'wrong-' + h.rand() });
     expect(bad.status).toBe(401);
-    expect(h.setCookieLine(bad.resp, 'sgx-lock-reset')).toBe('');
+    expect(h.setCookieLine(bad.resp, 'sgx-space-reset')).toBe('');
     const ra = await h.api(page, '/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reauth' });
     expect(ra.status).toBe(400);
     expect(ra.json.error).toBe('purpose');

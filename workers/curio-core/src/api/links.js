@@ -18,7 +18,7 @@ function db(env) {
 export async function onRequestGet(context) {
   const { env } = context;
   const c = await conclusionOf(context);
-  if (!c.lock.ok) return err('unauthorized', 401);
+  if (!c.space.ok) return err('unauthorized', 401);
   const d = db(env);
   if (!d) return err('server', 503);
   await ensureSchema(d);

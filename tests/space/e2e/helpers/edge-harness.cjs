@@ -4,22 +4,22 @@
  * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com（含子站 /blog/ /curio/ /daymark/，合并 PR3；旧图志域名的 301 已于 P4-3 PR-1 删除，不再接）；
  *   代理把 TLS 接到本机 HTTPS 服务（临时自签证书，
  *   Chromium 用 --ignore-certificate-errors-spki-list 信任它，页面是正常安全上下文，WebAuthn 可用）。
- * - 路由按 workers/auth-gateway/wrangler.toml、workers/account/wrangler.toml、workers/share/wrangler.toml 的 [[routes]]，用 space/scripts/lib/cf-routes.mjs
- *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中；多条命中取最具体的）决定这次请求走网关、短链 Worker 还是直达 Pages。
+ * - 路由按 workers/space-core/wrangler.toml、workers/account/wrangler.toml 的 [[routes]]，用 space/scripts/lib/cf-routes.mjs
+ *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中；多条命中取最具体的）决定这次请求走站点核心 Worker 还是直达 Pages。
  *   账号 Worker 账号拆分 PR3 起没有路由（读到有就照样挂上，测试会因此红），只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
- * - 网关 = 仓库里真实的 workers/auth-gateway/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
- *   （锁屏钥匙、SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
+ * - 网关 = 仓库里真实的 workers/space-core/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
+ *   （锁屏钥匙、SGX_SPACE_RECOVERY_KEY、pepper、D1_SPACE）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
  *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAuthorize，AccountService / AccountVerifier 里跑的同一份代码）。
  *   账号 Worker 自己一对 Ed25519 钥匙、恢复密钥、账号密码 pepper 和自己的库（tests/workers/account/_d1.mjs：account_* 表 + 云同步），
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
  *   Pages = 单树：space/web/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
  *   cloudflare:workers（rpc/*.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。
- * - 临时钥匙用临时 LockKey：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
+ * - 临时钥匙用临时钥匙：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
- * - 分享短链 Worker = workers/share/src/index.js（路由 workers/share/wrangler.toml：/s/*、/api/share*），D1 用 tests/fixtures/share-d1.mjs，
- *   服务绑定 AUTH 接网关 verifier.js（只用 lockSession）、ISSUER 接网关 src/share-issuer.js（ShareIssuer RPC 里跑的同一份代码）；
- *   不绑 ACCOUNT_VERIFIER（短链管理只认进站会话，生成 / 作废另要锁侧复验，不问账号会话；同正式 workers/share/wrangler.toml）。
+ * - 分享链接（进站 v3 L2 起并入站点核心 Worker）：/s/*、/api/share 走同一个 workers/space-core/src/app.js（router.js routeShare），
+ *   D1 绑定 D1_SHARE_LINK 用 tests/fixtures/share-d1.mjs；会话、链接钥匙都是 core 内的直接函数调用（没有服务绑定）。
+ *   日志里这两类请求记成 'share'，方便断言「真的进了分享链接那一段」。
  */
 const https = require('node:https');
 const http = require('node:http');
@@ -135,22 +135,19 @@ function pagesFor(req) {
  */
 async function startEdge() {
   const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', '..', 'space/scripts/lib/cf-routes.mjs')).href);
-  const routes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
+  const routes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/space-core/wrangler.toml'), 'utf8'));
   const accountRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
-  const shareRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));
-  const allRoutes = routes.concat(accountRoutes, shareRoutes);
+  const allRoutes = routes.concat(accountRoutes);
   const OTHER_WORKER_ROUTES = OTHER_WORKER_TOMLS.flatMap((f) => readRoutes(fs.readFileSync(path.join(REPO, f), 'utf8')));
-  const gateway = (await mod('workers/auth-gateway/src/app.js')).default;
+  const gateway = (await mod('workers/space-core/src/app.js')).default;
   await mod('tests/workers/account/_cf-workers.mjs'); /* cloudflare:workers 替身，要在 import rpc/*.js 之前 */
   const accountEntry = { ...(await mod('workers/account/src/rpc/account-service.js')), ...(await mod('workers/account/src/rpc/account-verifier.js')) };
   const account = (await mod('workers/account/src/app.js')).default; /* 默认 fetch：一律 404（只在 toml 里还有路由时用到） */
-  const verifier = await mod('workers/auth-gateway/src/core/lock-session.js');
-  const share = (await mod('workers/share/src/index.js')).default;
-  const issuer = await mod('workers/auth-gateway/src/core/link-keys.js');
+  const { isSharePath } = await mod('workers/space-core/src/router.js');
   const { shareD1 } = await mod('tests/fixtures/share-d1.mjs');
-  const sessMod = await mod('workers/auth-gateway/src/core/lock-session.js');
-  const tempMod = await mod('workers/auth-gateway/src/core/lock-tempkey.js');
-  const ticketMod = await mod('workers/auth-gateway/src/core/tickets.js');
+  const sessMod = await mod('workers/space-core/src/core/lock-session.js');
+  const tempMod = await mod('workers/space-core/src/core/lock-tempkey.js');
+  const ticketMod = await mod('workers/space-core/src/core/tickets.js');
 
   const kv = makeKV();
   const d1 = makeAuthD1(); /* 网关 D1（全部认证状态） */
@@ -183,31 +180,20 @@ async function startEdge() {
   };
   const ACCOUNT_VERIFIER = { authorize: (c, m, o) => accountEntry.checkAuthorize(accountEnv, c, m, o) };
 
-  /* 网关：只绑正式网关 wrangler.toml 里有的（锁屏钥匙、进站凭证 SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER） */
+  /* 分享链接表（D1_SHARE_LINK，正式和 D1_SPACE 同一个库的第二个绑定；测试台里单独一份内存 / sqlite 库） */
+  const shareDb = shareD1();
+  /* 站点核心 Worker：只绑正式 wrangler.toml 里有的（SGX_SPACE_* 五个、D1_SPACE、D1_SHARE_LINK、ACCOUNT / ACCOUNT_VERIFIER） */
   const env = {
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
-    D1_LOCK_AUTH: d1, /* 网关只绑 D1（2026-10-27 起不绑 KV） */
-    SGX_LOCK_PRIVATE: privPem, SGX_LOCK_PUBLIC: pubPem,
-    SGX_LOCK_SPACE_KEY: 'edge-test-space-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
+    D1_SPACE: d1, /* 进站只绑 D1（2026-10-27 起不绑 KV） */
+    D1_SHARE_LINK: shareDb,
+    SGX_SPACE_PRIVATE: privPem, SGX_SPACE_PUBLIC: pubPem,
+    SGX_SPACE_RECOVERY_KEY: 'edge-test-space-key-not-a-secret', SGX_SPACE_PASSWORD_PEPPER: 'edge-test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'edge-test-pepper',
     ACCOUNT, ACCOUNT_VERIFIER,
     ASSETS: assets,
   };
-
-  /* 分享短链 Worker：自己的 D1，会话和钥匙都问网关 */
-  const shareDb = shareD1();
-  const shareEnv = {
-    SGX_ENV: 'production',
-    D1_SHARE_LINK: shareDb,
-    AUTH: { lockSession: (c) => verifier.checkLockSession(c, env) },
-    ISSUER: {
-      createLinkKey: (c, p) => issuer.createLinkKey(c, p, env),
-      revokeLinkKey: (c, id, m) => issuer.revokeLinkKey(c, id, env, m),
-      openLinkSession: (id, s) => issuer.openLinkSession(id, s, env),
-      /* P2-3：生成 / 作废前 share Worker 先问「进门 + 锁侧复验」（同正式 ShareIssuer.checkReauth） */
-      checkReauth: (c) => issuer.checkLinkReauth(c, env),
-    },
-    ASSETS: env.ASSETS,
-  };
+  /* 兼容旧调用方：分享链接已在同一个 Worker 里，env 就是同一份 */
+  const shareEnv = env;
 
   const realFetch = globalThis.fetch;
 
@@ -222,11 +208,6 @@ async function startEdge() {
       log.push(['other', request.method, request.url, 404]);
       return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
     }
-    if (mine && shareRoutes.includes(mine)) {
-      const res = await share.fetch(request, shareEnv, { waitUntil() {} });
-      log.push(['share', request.method, request.url, res.status]);
-      return res;
-    }
     if (mine && accountRoutes.includes(mine)) {
       const res = await account.fetch(request, accountEnv, { waitUntil() {} });
       log.push(['account-route', request.method, request.url, res.status]);
@@ -234,7 +215,7 @@ async function startEdge() {
     }
     if (mine) {
       const res = await gateway.fetch(request, env, { waitUntil() {} });
-      log.push(['worker', request.method, request.url, res.status]);
+      log.push([isSharePath(u.pathname) ? 'share' : 'worker', request.method, request.url, res.status]);
       return res;
     }
     const res = await pagesFor(request);
@@ -291,7 +272,7 @@ async function startEdge() {
   await new Promise((r) => proxy.listen(PROXY_PORT, '127.0.0.1', r));
 
   async function seedPasskey() {
-    const pk = await mod('workers/auth-gateway/src/core/passkey-store.js');
+    const pk = await mod('workers/space-core/src/core/passkey-store.js');
     const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
     const jwk = kp.publicKey.export({ format: 'jwk' });
     const credId = nodeCrypto.randomBytes(32);
@@ -315,21 +296,21 @@ async function startEdge() {
   async function mintCookie(by) {
     const ep = await sessMod.getLockEpoch(env);
     if (by === 'tempkey') {
-      const r = await tempMod.createTempkey(env, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+      const r = await tempMod.createTempkey(env, env.SGX_SPACE_TEMPKEY_PEPPER, { name: 'edge', ms: 3600 * 1000 });
       return sessMod.signLockSessionTicket(privPem, { by: 'tempkey', epoch: ep, exp: Date.now() + 3600 * 1000, tempkeyId: r.key.id });
     }
     return sessMod.signLockSessionTicket(privPem, { by: by || 'password', epoch: ep, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
   }
 
-  /** 锁侧复验短票 sgx-lock-reauth 的值（by=password，当前 Lock 纪元，3 分钟）：测试里直接塞 cookie，省掉每次走一遍复验界面 */
+  /** 锁侧复验短票 sgx-space-reauth 的值（by=password，当前 Lock 纪元，3 分钟）：测试里直接塞 cookie，省掉每次走一遍复验界面 */
   async function mintReauth() {
     const ep = await sessMod.getLockEpoch(env);
     return ticketMod.signLockReauthTicket(privPem, 'password', ep);
   }
 
-  /** 签发一把 1 小时的临时 LockKey，返回临时码（XXXX-XXXX-XXXX） */
+  /** 签发一把 1 小时的临时钥匙，返回临时码（XXXX-XXXX-XXXX） */
   async function seedTempkey() {
-    const r = await tempMod.createTempkey(env, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+    const r = await tempMod.createTempkey(env, env.SGX_SPACE_TEMPKEY_PEPPER, { name: 'edge', ms: 3600 * 1000 });
     return r.code;
   }
 
@@ -342,7 +323,7 @@ async function startEdge() {
 
   /** 清掉 /s/* 的失败计数（D1 share_fail + isolate 内存），限速测试之间不互相影响 */
   async function resetShareLimit() {
-    const open = await mod('workers/share/src/open.js');
+    const open = await mod('workers/space-core/src/core/share-open.js');
     open._resetMem();
     if (shareDb.raw) shareDb.raw.exec('DELETE FROM share_fail');
     else await shareDb.prepare('DELETE FROM share_fail WHERE window_start < ?1 AND locked_until < ?1').bind(Number.MAX_SAFE_INTEGER).run();

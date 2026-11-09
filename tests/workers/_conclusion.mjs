@@ -1,8 +1,8 @@
 /**
- * 子站接口 Worker（curio-core / daymark-core）单测共用：网关 AuthVerifier.conclusion() 的替身（方案 2.3.2、4.6；P2-2）。
+ * 子站接口 Worker（curio-core / daymark-core）单测共用：网关 SpaceVerifier.conclusion() 的替身（方案 2.3.2、4.6；P2-2）。
  *
  * 几种「谁」：
- * - null / ''      没进门（lock.ok=false，账号部分 no-lock）
+ * - null / ''      没进门（space.ok=false，账号部分 no-space）
  * - 'lock'         进门了，账号没登录（account.ok=false）——临时钥匙进门、或主人没登录账号
  * - 'owner'        进门 + 账号会话 + 全部作用域；问复验（opts.reauth）时 reauth=true
  * - 'noscope'      进门 + 账号会话，但一个作用域都没有（第 3 件取消授权后的样子）
@@ -22,12 +22,12 @@ export const ALL_SCOPES = Object.freeze(['avatar.write', 'curio.write', 'daymark
 export function conclusionFor(who, opts) {
   if (who === 'garbage') return { ok: true, junk: 1 };
   const no = (/** @type {string} */ reason) => ({ ok: false, deviceId: '', scopes: [], reauth: false, reason });
-  if (!who) return { lock: { ok: false, by: '', tempkeyId: '', reason: 'no-cookie' }, account: no('no-lock') };
+  if (!who) return { space: { ok: false, by: '', tempkeyId: '', reason: 'no-cookie' }, account: no('no-space') };
   const lock = { ok: true, by: who === 'lock' ? 'tempkey' : 'passkey', tempkeyId: who === 'lock' ? 'tk_1' : '', reason: 'ok' };
-  if (who === 'lock') return { lock, account: no('no-cookie') };
+  if (who === 'lock') return { space: lock, account: no('no-cookie') };
   const scopes = who === 'noscope' ? [] : ALL_SCOPES.slice();
   const reauth = !!(opts && opts.reauth === true) && who !== 'noreauth';
-  return { lock, account: { ok: true, deviceId: 'dev_A1b2C3d4', scopes, reauth, reason: 'ok' } };
+  return { space: lock, account: { ok: true, deviceId: 'dev_A1b2C3d4', scopes, reauth, reason: 'ok' } };
 }
 
 /**

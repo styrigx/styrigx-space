@@ -1,7 +1,7 @@
 /**
  * 测试用：模拟「浏览器 → 网关 → 账号 Worker」这一跳（账号拆分 PR3）。
  *
- * 线上账号 Worker 只信网关写的身份头：网关验进站会话（verifyLockSession）后剥外部 x-styrigx-* 头、写 X-Styrigx-Lock-* /
+ * 线上账号 Worker 只信网关写的身份头：网关验进站会话（verifyLockSession）后剥外部 x-styrigx-* 头、写 X-Styrigx-Space-* /
  * X-Styrigx-Client-*（writeLockIdentity）。这里用网关真实的这两段代码把测试请求里的锁屏 cookie 换成身份头，
  * 再交给账号 Worker 真实的 headerAuth / serviceFetch——测到的就是线上同一套结论。账号会话只在账号 Worker 自己验。
  * - gatewayHop(request, env)：返回带身份头的新请求（锁屏 cookie 验不过 → 不带身份头）
@@ -10,14 +10,14 @@
  * - testAccountSession / testAccountSessionCookie / testReauthCookie / testResetCookie：用账号 Worker 的签名函数签账号三张票
  */
 import './_cf-workers.mjs';
-import { verifyLockSession } from '../../../workers/auth-gateway/src/core/lock-session.js';
-import { writeLockIdentity } from '../../../workers/auth-gateway/src/core/lock-identity.js';
-import { clientContextOf } from '../../../workers/auth-gateway/src/core/forward.js';
+import { verifyLockSession } from '../../../workers/space-core/src/core/lock-session.js';
+import { writeLockIdentity } from '../../../workers/space-core/src/core/lock-identity.js';
+import { clientContextOf } from '../../../workers/space-core/src/core/forward.js';
 import { signSessionTicket } from '../../../workers/account/src/core/session.js';
 import { signReauthTicket } from '../../../workers/account/src/core/reauth.js';
 import { signResetTicket } from '../../../workers/account/src/core/reset.js';
 import { TICKET } from '../../../workers/account/src/core/config.js';
-import { TEST_DEVICE_ID } from '../auth-gateway/_tickets.mjs';
+import { TEST_DEVICE_ID } from '../space-core/_tickets.mjs';
 
 /* rpc/*.js 静态 import 了 cloudflare:workers：替身（_cf-workers.mjs）注册好之后再动态 import */
 const { headerAuth } = await import('../../../workers/account/src/gate.js');

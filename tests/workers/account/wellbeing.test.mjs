@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseReport, summarize, dayOk, sectionOf, onRequestPost as rawPost, onRequestGet as rawGet } from '../../../workers/account/src/api/wellbeing.js';
 import { wrap, testAccountSessionCookie } from './_auth.mjs';
-import { testLockSessionCookie } from '../auth-gateway/_tickets.mjs';
+import { testLockSessionCookie } from '../space-core/_tickets.mjs';
 import { genKeyPair, authD1For, makeKV } from '../_harness.mjs';
 import { makeAccountD1, splitD1 } from './_d1.mjs';
 
@@ -178,7 +178,7 @@ function wbDb() {
 }
 function wbEnv(db) {
   const kv = makeKV();
-  return { SGX_LOCK_PUBLIC: LK.pub, SGX_ACCOUNT_PUBLIC: AK.pub, D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT: db ? splitD1(makeAccountD1(), db, /wb_daily/) : makeAccountD1() };
+  return { SGX_SPACE_PUBLIC: LK.pub, SGX_ACCOUNT_PUBLIC: AK.pub, D1_SPACE: authD1For(kv), D1_ACCOUNT: db ? splitD1(makeAccountD1(), db, /wb_daily/) : makeAccountD1() };
 }
 async function wbCookie(role, acc) {
   const c = [await testLockSessionCookie(LK.priv, 0, role)];

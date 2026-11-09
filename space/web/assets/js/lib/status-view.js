@@ -398,7 +398,7 @@ export function renderIncidents(incidents, ctx) {
 /* ===== 进站凭证使用记录（GET /api/space-audit；设置 → 服务状态页底部的折叠区，展开才请求）=====
  * 接口给 { ok, items: [{ ts, ipPrefix, ok }] }，已按新到旧排好、最多 AUDIT_MAX 条，记录保留 7 天。 */
 
-/** 接口一次最多给几条（同 workers/auth-gateway/src/api/space-audit.js AUDIT_SHOW） */
+/** 接口一次最多给几条（同 workers/space-core/src/api/space-audit.js AUDIT_SHOW） */
 export const AUDIT_MAX = 50;
 
 /**

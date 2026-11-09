@@ -8,11 +8,11 @@
  */
 import { postJSON } from '../../auth/post-json.js';
 import { getPasskeyAssertion, assertionOptions, assertionToJSON, isPasskeyCancel } from '../../auth/passkey-assert.js';
-import { KEY_LOCK, KEY_SPACE } from '../../lib/key-names.js';
+import { KEY_SPACE_PASSWORD, KEY_SPACE_RECOVERY_KEY } from '../../lib/key-names.js';
 import { API } from './paths.js';
 
-/** 密码管理器里的隐藏用户名：解锁密码（LockKey）、恢复钥匙（SpaceKey）。Q6 的 SpacePassword / SpaceRecoveryKey 跟 L2 换 pepper、重设密码那一次一起换 */
-export const PM_USER = Object.freeze({ password: KEY_LOCK, recoveryKey: KEY_SPACE });
+/** 密码管理器里的隐藏用户名（进站 v3 Q6，L2 换 pepper、重设密码那一次一起换）：解锁密码 SpacePassword、恢复钥匙 SpaceRecoveryKey */
+export const PM_USER = Object.freeze({ password: KEY_SPACE_PASSWORD, recoveryKey: KEY_SPACE_RECOVERY_KEY });
 
 /** 服务端错误码（面板按它分支） */
 export const ERR = Object.freeze({
@@ -32,7 +32,7 @@ export const ERR = Object.freeze({
 });
 
 /**
- * 服务端 error 码 → 文案键（space.common.*，sgx-shell-i18n）。tests/workers/auth-gateway/error-codes.test.mjs 核对网关每个码都在这里
+ * 服务端 error 码 → 文案键（space.common.*，sgx-shell-i18n）。tests/workers/space-core/error-codes.test.mjs 核对网关每个码都在这里
  * （或在 NEED_VERIFY_CODES / 测试的 KNOWN_FIXED 里）。
  */
 export const ERR_KEY = Object.freeze({

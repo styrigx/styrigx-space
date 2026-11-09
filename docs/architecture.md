@@ -12,15 +12,15 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 
 ## 唯一状态源
 
-是否已解锁，只由服务端签发的 `sgx-lock-session` 会话决定
+是否已解锁，只由服务端签发的 `sgx-space-session` 会话决定
 （`Domain=.styrigx.com; Path=/`）。
 任何站点、任何页面都不得用 sessionStorage、localStorage、
 前端内存或标签页状态另做判断。
 
 ## 分层
 
-### L0 内核·业务与通用件：`workers/auth-gateway/src/core/` + `src/lib/`
-- `core/`：凭证、会话、票据和它们的存储——锁屏域配置 `realms.js`（只有 `REALM_LOCK`）、进站会话 `lock-session.js`（Ed25519 签名/验签，格式 `by.role.epoch.exp.tempkeyId.sig`；`checkLockSession` 给 RPC `AuthVerifier` 用）、
+### L0 内核·业务与通用件：`workers/space-core/src/core/` + `src/lib/`
+- `core/`：凭证、会话、票据和它们的存储——锁屏域配置 `realms.js`（只有 `REALM_LOCK`）、进站会话 `lock-session.js`（Ed25519 签名/验签，格式 `by.role.epoch.exp.tempkeyId.sig`；`checkLockSession` 给 RPC `SpaceVerifier` 用）、
   锁屏短票 `tickets.js`、D1 认证状态 `d1-state.js`、密码 / 通行密钥 / 进站凭证（`password.js`、`password-limit.js`、`passkey-store.js`、`passkey-verify.js`、`space-check.js`、`space-limit.js`、`space-audit.js`）、输错计数 `attempt-limit.js`、临时钥匙 `lock-tempkey.js`、
   凭证管理门槛 `lock-manage.js`、锁屏是否已配置 `lock-configured.js`、重置开关 `lock-reset-switch.js`、回跳校验 `return.js`、无会话写接口限流 `anon-limit.js`、
   转发帮手 `forward.js` 与身份头 `lock-identity.js`、问账号 Worker 的 `account-rpc.js`、短链钥匙 `link-keys.js`。
@@ -29,7 +29,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - 不改写页面：HTML 会话标记、公开页清单在 L1 的 `src/gate.js`。
 - 2026-10-30 起没有跨 Worker 的共享目录：账号、分享、chat、search-index 各自一份需要的通用件；每个 Worker 只能 import 自己目录下的文件，账号和网关互相不许 import（`space/scripts/check-layers.mjs` 规则 14、15，见下面「Worker 边界」）。
 
-### L1 内核·权限：`workers/auth-gateway/src/gate.js`
+### L1 内核·权限：`workers/space-core/src/gate.js`
 - **页面和 `/api/*` 进门时决定是否已解锁的只有这一个文件**（2026-11-02 由原 `functions/_middleware.js` 和 `src/subsites.js` 合成），两个调用点（都在 `src/app.js`）：
   主站路径走 `onRequest`（原 `_middleware`），子站路径前缀 `styrigx.com/blog/`、`/curio/`、`/daymark/` 走 `handleSubsite`（原 `subsites`）；
   （旧图志域名进门前的 301 `atlasRedirect` 已于 P4-3 PR-1 删除。）
@@ -42,15 +42,15 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - 受保护页面返回 `Cache-Control: private, no-store`（防浏览器缓存绕过锁屏）。
 - `/api/*` 不走锁屏跳转，未登录返回 401 JSON。
 
-### L2 系统调用：`workers/auth-gateway/src/api/*`（路由表 `src/router.js`）
+### L2 系统调用：`workers/space-core/src/api/*`（路由表 `src/router.js`）
 - 解锁：`lock-password`、`lock-passkey`（进站会话）、`lock-tempkey-unlock`（临时码 → 临时钥匙进门的会话，by=tempkey）。
 - 查询：`lock-session-check`、`lock-credentials`、`lock-entry`（锁屏上显示哪些入口，无需会话）、`space-audit`（进站凭证使用记录）。`layer-status` 已删除（PR3，前端无调用方）。
 - 账号：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/api/profile*`、`/avatar/*` 不在这一层：网关 `src/gate.js` 验门后经服务绑定 `ACCOUNT` 转给账号 Worker（转发表 `src/router.js` 的 `FORWARDING`，见下面「账号」）。
-- 锁屏凭证页的再验证：`lock-reauth`（LockReauthTicket 状态 / 清票）；由 `lock-passkey`/`lock-password`（`reauth:true`）或 `space-auth`（`purpose:'lock-reauth'`）签 3 分钟 LockReauthTicket `sgx-lock-reauth`（SGX_LOCK_* 签）。
-- 进站凭证（`SGX_LOCK_SPACE_KEY`）：`space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`，各签一张 3 分钟锁屏短票（by=space），不签任何会话；`space-audit` 只读进站凭证使用记录。账号的恢复密钥 `SGX_ACCOUNT_RECOVERY_KEY` 在账号 Worker（`POST /api/account/reset { action:'recovery-key' }`，只签 reset 票），两套互不相干、各自计数。
+- 锁屏凭证页的再验证：`lock-reauth`（LockReauthTicket 状态 / 清票）；由 `lock-passkey`/`lock-password`（`reauth:true`）或 `space-auth`（`purpose:'lock-reauth'`）签 3 分钟 LockReauthTicket `sgx-space-reauth`（SGX_SPACE_* 签）。
+- 进站凭证（`SGX_SPACE_RECOVERY_KEY`）：`space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`，各签一张 3 分钟锁屏短票（by=space），不签任何会话；`space-audit` 只读进站凭证使用记录。账号的恢复密钥 `SGX_ACCOUNT_RECOVERY_KEY` 在账号 Worker（`POST /api/account/reset { action:'recovery-key' }`，只签 reset 票），两套互不相干、各自计数。
 - 重置与临时钥匙：`lock-reset`（丢了锁屏凭证：先交进站凭证，再按重置开关或锁屏凭证（`needLock` / `lockProof`）签 LockResetTicket；不读账号的任何东西）、`lock-tempkey`（旷野 → 安全 → 临时钥匙页 `/security/tempkeys/`的列表 / 新建 / 作废；只认进站会话，不问账号会话）。
-- 网关只有 4 个密钥：锁屏签名钥匙 `SGX_LOCK_PRIVATE` / `SGX_LOCK_PUBLIC`、进站凭证 `SGX_LOCK_SPACE_KEY`、锁屏密码 pepper `SGX_PW_PEPPER`（命名 v2 起账号用自己的 `SGX_ACCOUNT_PASSWORD_PEPPER`）。账号的 `SGX_ACCOUNT_*` 只在账号 Worker（stepup、应用凭证已删除）。
-- 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-lock-session`，子站一起上锁）、`lock-all-devices`（Lock 纪元 +1，所有设备一起上锁；要 LockReauthTicket）。
+- 网关只有 4 个密钥：锁屏签名钥匙 `SGX_SPACE_PRIVATE` / `SGX_SPACE_PUBLIC`、进站凭证 `SGX_SPACE_RECOVERY_KEY`、锁屏密码 pepper `SGX_SPACE_PASSWORD_PEPPER`（命名 v2 起账号用自己的 `SGX_ACCOUNT_PASSWORD_PEPPER`）。账号的 `SGX_ACCOUNT_*` 只在账号 Worker（stepup、应用凭证已删除）。
+- 锁定：`lock-now`（清除 `Domain=.styrigx.com` 的 `sgx-space-session`，子站一起上锁）、`lock-all-devices`（Lock 纪元 +1，所有设备一起上锁；要 LockReauthTicket）。
 - 其他：`geo`（Cloudflare 给的城市 / 坐标 / 时区）；`status` 只做门，验进站会话后经服务绑定转给 styrigx-status（`chat`、`search` 在 P4-2b 退役，回 404）。
 - 站内对话助手（P4-1）：`ai`（`POST /api/ai`）验同源、进门（不要账号会话），过两档 AI 限流（`core/ai-limit.js`：每 IP 每分钟 6 次走 Rate Limiting 绑定 `AI_LIMITER`，超了 429 `cooldown`；全站每分钟 60 次走 D1 `attempt_limit`（`realm='ai'`、`kind='global'`、bucket = 当前分钟）单条 upsert，超了或 D1 出错 429 `busy`），再写账号结论头，经服务绑定 `AI_SERVICE` 转给 styrigx-ai，SSE 原样流回。
 - 前端改变会话只能通过这些接口。
@@ -74,7 +74,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 ### Worker 边界（`space/scripts/check-layers.mjs` 规则 14-22，CI 必过）
 - 14：每个 Worker 只能相对 import 自己目录 `workers/<名字>/` 下的文件，Worker 之间（账号 ↔ 网关、短链、chat 等）一律不许 import；非相对 import 只认 `cloudflare:workers`。
 - 15：不许出现 `workers/shared` 目录（2026-10-30 删除；通用件每个 Worker 各自一份）。
-- 16：网关源码（`workers/auth-gateway/` 下的 `.js` / `.mjs` / `.cjs` 和 `wrangler.toml`，注释除外）不许出现账号鉴权标识：`SGX_ACCOUNT_*`、`SGX_ROOT_KEY`、`D1_ACCOUNT`（含旧名）、`D1_ROOT_AUTH`、`REALM_ACCOUNT`、`REALM_ROOT`、`checkAccountSession`、`verifyAccountSession`、`Account*Ticket` / `ACCOUNT_*_TICKET` 等（完整列表在脚本的 `GATEWAY_ACCOUNT_AUTH_RE`）。网关只经 `ACCOUNT_VERIFIER.authorize()` 拿账号结论（字段名用 `account.reauth` 这类，不写账号票名）。
+- 16：网关源码（`workers/space-core/` 下的 `.js` / `.mjs` / `.cjs` 和 `wrangler.toml`，注释除外）不许出现账号鉴权标识：`SGX_ACCOUNT_*`、`SGX_ROOT_KEY`、`D1_ACCOUNT`（含旧名）、`D1_ROOT_AUTH`、`REALM_ACCOUNT`、`REALM_ROOT`、`checkAccountSession`、`verifyAccountSession`、`Account*Ticket` / `ACCOUNT_*_TICKET` 等（完整列表在脚本的 `GATEWAY_ACCOUNT_AUTH_RE`）。网关只经 `ACCOUNT_VERIFIER.authorize()` 拿账号结论（字段名用 `account.reauth` 这类，不写账号票名）。
 - 17：账号 Worker 的 `workers/account/wrangler.toml` 不许有路由（`[[routes]]`、`route = …`、非空的 `routes = [...]`；`[env.preview]` 的 `routes = []` 允许），账号请求只经网关的服务绑定进来。
 - 22：退役名单（`space/scripts/retired-names.json` 的 `account`）里的旧名字不许出现在账号 Worker（`workers/account/src/`、`wrangler.toml`）和账号前端（`space/web/assets/js/shell/account/`），注释也不行。
 - 18–21：Worker 骨架防回退（`workers/**` 没有 `functions/`、`_kernel/`；`main = "src/index.js"`；每个 Worker 有 `README.md`；`package.json` 有 `name`），各条见 [`workers/README.md`](../workers/README.md)。
@@ -99,9 +99,9 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 ### L6 外部 App：子站 styrigx.com/blog/、/curio/、/daymark/
 - 合并 PR3 起三站和主站是同一个 Pages 项目 `styrigx-space` 里的一棵树，各占一个路径 `/blog/`、`/curio/`、`/daymark/`，代码在本仓库；2026-11 合站起三站和主站是同一个 Hugo 站（`space/web/` 下的 `content|layouts|assets|static/<站>/`），一次构建。
   旧图志域名的 301 跳转已于 P4-3 PR-1 删除，该域名下线。
-- 子站页面由网关（`workers/auth-gateway/src/gate.js` 的 `handleSubsite`，按路径前缀）验同一份进站会话，Pages 不持任何钥匙。
+- 子站页面由网关（`workers/space-core/src/gate.js` 的 `handleSubsite`，按路径前缀）验同一份进站会话，Pages 不持任何钥匙。
 - 未解锁时 302 到 space 锁屏并带完整 return。
-- 子站的接口 `styrigx.com/daymark/api/*`、`/curio/api/*` 归本仓库的两个接口 Worker `styrigx-daymark-core`、`styrigx-curio-core`（`workers/daymark-core`、`workers/curio-core`；atlas 上的旧接口路由过渡期保留）；门内操作（daymark 记句子、curio 改收藏）由它们经服务绑定 `AuthVerifier` 再问网关。
+- 子站的接口 `styrigx.com/daymark/api/*`、`/curio/api/*` 归本仓库的两个接口 Worker `styrigx-daymark-core`、`styrigx-curio-core`（`workers/daymark-core`、`workers/curio-core`；atlas 上的旧接口路由过渡期保留）；门内操作（daymark 记句子、curio 改收藏）由它们经服务绑定 `SpaceVerifier` 再问网关。
 
 ## 一致性规则
 
@@ -115,7 +115,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 
 原「锁屏凭证」升级为账号体系，账号会话与进站会话**是两套独立的票据**：
 
-- 进站会话 `sgx-lock-session`（`Domain=.styrigx.com`）只回答「是否已解锁」，
+- 进站会话 `sgx-space-session`（`Domain=.styrigx.com`）只回答「是否已解锁」，
   是唯一的解锁状态源；它**从不**被当作账号认证。
 - 账号（账号命名 v2，2026-11-08，`acct-naming/NAMING-V2.md`）：一个概念一个词，三张票各管各的——
   - `session`（`sudo root`）：cookie `sgx-account-session`（无 Domain，只发给主站；`HttpOnly; Secure; SameSite=Strict`；400 天，不点退出就一直登录），
@@ -125,7 +125,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
   - 两个纪元：`session`（管 session 和 reauth；改了钥匙 +1，其他设备掉线、本机重签）、`reset`（`finish` 时 +1，reset 票只能用一次）。
 - 接口按入口拆（`workers/account/src/api/account/`）：`GET /api/account`（状态）、`POST /api/account/session`、`/reauth`、`/reset`、`/keys`（账号安全，要 reauth）、`/devices`、`/grants`，各自只认自己的票；
   reset 下改钥匙不碰会话，最后一步 `/reset { finish, signOut: 'all' | 'others' | 'none' }` 由用户三选一（默认 others）。错误码：没 session 401 `account`、要 reauth 403 `reauth`、reset 票无效 401 `reset`。
-- 请求路径：浏览器 → 网关（验进站会话、剥外来 `x-styrigx-*` / `x-sgx-*` 头、写 `X-Styrigx-Lock-*` / `X-Styrigx-Client-*`）→ 服务绑定 `ACCOUNT` → 账号 Worker 命名入口 `AccountService`。
+- 请求路径：浏览器 → 网关（验进站会话、剥外来 `x-styrigx-*` / `x-sgx-*` 头、写 `X-Styrigx-Space-*` / `X-Styrigx-Client-*`）→ 服务绑定 `ACCOUNT` → 账号 Worker 命名入口 `AccountService`。
   账号 Worker 没有公开路由，默认 fetch 一律 404。网关不问账号 session（命名 v2 删了旧整页的首帧提示）；只在需要授权结论时经 `ACCOUNT_VERIFIER.authorize()` 问。临时钥匙、短链只认进站会话。
 - 登录入口两者平级：账号通行密钥、账号密码（pepper `SGX_ACCOUNT_PASSWORD_PEPPER`，账号独占）；前置条件是进站会话。恢复密钥不签 session、不能再验证。
 - 存储：D1 `styrigx-account`，一个绑定 `D1_ACCOUNT`；表 `account_epoch`、`account_password`、`account_passkey`、`account_user_handle`、`account_challenge`、`account_attempt_limit`、`account_device`、`account_audit`（列 `event` = `<入口>-<action>`）、`account_grant`（`migrations/0005_account_tables.sql` 从旧的 realm 表搬来）。
@@ -141,23 +141,23 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 
 ## 网关结论（授权骨架，P2-1）
 
-门归网站、账号管授权：网关只验门（进站会话）；能不能写、能不能读私密由账号 Worker 回答（`workers/account/src/core/authorize.js`，作用域表 `core/scopes.js`）；网关把结论交给下游，下游只信结论。依赖方向：浏览器 → 网关（验门）→ 需要授权时网关经 `ACCOUNT_VERIFIER.authorize()` 问账号 Worker → RPC 回结论对象（`AuthVerifier.conclusion()`）/ HTTP 转发写结论头。账号 Worker 不调网关，网关不读账号库（规则 14、16 不变）。
+门归网站、账号管授权：网关只验门（进站会话）；能不能写、能不能读私密由账号 Worker 回答（`workers/account/src/core/authorize.js`，作用域表 `core/scopes.js`）；网关把结论交给下游，下游只信结论。依赖方向：浏览器 → 网关（验门）→ 需要授权时网关经 `ACCOUNT_VERIFIER.authorize()` 问账号 Worker → RPC 回结论对象（`SpaceVerifier.conclusion()`）/ HTTP 转发写结论头。账号 Worker 不调网关，网关不读账号库（规则 14、16 不变）。
 
 结论头（网关 fetch 第一步照旧剥掉所有入站 `x-styrigx-*`、`x-sgx-*`，再按验过的结果重写；只写白名单值，某一项没有就不写这个头，不写 `0`）：
 
 | 头 | 值 | 含义 | 谁写（P2-1 起） |
 |---|---|---|---|
-| `X-Styrigx-Lock-Session` | `1` | 进门有效（网关验过的进站会话） | `core/lock-identity.js`，转发给账号 Worker 时写（P2-3 起唯一的锁侧身份头，没有等级头） |
-| `X-Styrigx-Lock-By` | `password` \| `passkey` \| `tempkey` | 进门方式，只作审计 | `core/lock-identity.js`（不变） |
-| `X-Styrigx-Lock-Tempkey-Id` | `<id>` | 审计，只在 `by=tempkey` 时有 | `core/lock-identity.js`（不变） |
+| `X-Styrigx-Space-Session` | `1` | 进门有效（网关验过的进站会话） | `core/lock-identity.js`，转发给账号 Worker 时写（P2-3 起唯一的锁侧身份头，没有等级头） |
+| `X-Styrigx-Space-By` | `password` \| `passkey` \| `tempkey` | 进门方式，只作审计 | `core/lock-identity.js`（不变） |
+| `X-Styrigx-Space-Tempkey-Id` | `<id>` | 审计，只在 `by=tempkey` 时有 | `core/lock-identity.js`（不变） |
 | `X-Styrigx-Account-Session` | `1` | 网关问过账号 Worker，账号会话有效 | `core/conclusion.js` `writeAccountConclusion` |
 | `X-Styrigx-Account-Device` | `<deviceId>` | 审计 / 设备区分 | 同上 |
 | `X-Styrigx-Account-Scopes` | `curio.write daymark.write` | 已授权 ∩ 已知作用域，空格分隔，按字母排序 | 同上 |
 | `X-Styrigx-Account-Reauth` | `1` | 账号复验短票有效（本次请求需要时才问） | 同上 |
 | `X-Styrigx-Client-Address` / `-Country` / `-City` | — | 客户端上下文 | `core/lock-identity.js`（不变） |
 
-- `X-Styrigx-Account-*` 只写给 `styrigx-ai`（第 4 件；P4-2b 前还有过渡期的 `search-index`）。账号 Worker 自己验账号会话和作用域，网关只给它写 `X-Styrigx-Lock-*` 和 `X-Styrigx-Client-*`。
-- RPC 结论 `AuthVerifier.conclusion(cookieHeader, clientContext, opts)` → `{ lock: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }`；`lock.ok=false` 时不问账号；账号绑定没配、RPC 出错、回了看不懂的东西 → `account.ok=false`。子站接口 Worker（curio-core、daymark-core）P2-2 起用它。
+- `X-Styrigx-Account-*` 只写给 `styrigx-ai`（第 4 件；P4-2b 前还有过渡期的 `search-index`）。账号 Worker 自己验账号会话和作用域，网关只给它写 `X-Styrigx-Space-*` 和 `X-Styrigx-Client-*`。
+- RPC 结论 `SpaceVerifier.conclusion(cookieHeader, clientContext, opts)` → `{ lock: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }`；`lock.ok=false` 时不问账号；账号绑定没配、RPC 出错、回了看不懂的东西 → `account.ok=false`。子站接口 Worker（curio-core、daymark-core）P2-2 起用它。
 - 骨架阶段账号会话自动拥有全部作用域；第 3 件实现（P3-1）只换 `grantedScopes` 的数据源，函数签名、RPC 形状、结论头都不变，见下一节。
 - 已删除：锁侧等级头在 P2-3 删（网关不再写，账号 Worker P2-2 起已不读）；旧前缀的等级头 P2-2 停写停读。
 - P2-1 只新增，没有调用方，线上行为不变。
@@ -191,5 +191,5 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - 2.4.0 H：`lock.js` 用 sessionStorage 按标签页判断，middleware 又把首页
   放进白名单，服务端和前端各有一套锁 → 新标签页重复弹锁屏（2026-10-10）。
   修复：L1 注入状态，L4 只负责显示（PR #27）。
-- 2.4.1：旧版残留的同名 host-only `sgx-lock-session` cookie 导致验签取到旧值。
+- 2.4.1：旧版残留的同名 host-only `sgx-space-session` cookie 导致验签取到旧值。
   修复：读取时遍历所有同名 cookie 任一通过即有效；签发时下发清除头（PR #25）。

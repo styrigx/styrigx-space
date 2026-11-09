@@ -11,7 +11,7 @@
 ## 入口
 
 ```
-src/index.js         入口：先问网关结论（AUTH.conclusion，today 的读除外）→ 按路由表分发；scheduled（搜索索引）
+src/index.js         入口：先问网关结论（SPACE.conclusion，today 的读除外）→ 按路由表分发；scheduled（搜索索引）
 src/routes.js        路由表（去掉 /daymark 前缀后的 /api/*）
 src/api/*.js         一个接口一个文件；_ 开头的是接口共用的内部模块
 src/search-index.js  KV site:daymark 的索引
@@ -28,13 +28,13 @@ src/search-index.js  KV site:daymark 的索引
 ## 绑定
 
 - D1 `styrigx-daymark-core`：`D1_QUOTES`。
-- 服务绑定 `AUTH` → `styrigx-auth-gateway` 的 `AuthVerifier`（`conclusion()`：网关验门，再问账号 Worker，回结论）。
+- 服务绑定 `SPACE` → `styrigx-space-core` 的 `SpaceVerifier`（`conclusion()`：网关验门，再问账号 Worker，回结论）。
 - KV `KV_SEARCH_INDEX`（`styrigx-space-gateway`，2026-11 前是 `styrigx-search-index`；只写 `site:daymark`）。
 - Cron `17 * * * *`。
 
 ## 鉴权（P2-2，方案 3.4 R14、4.6）
 
-每个 `/daymark/api/*` 请求（`GET /api/today` 除外）只问网关一次 `AUTH.conclusion(cookie, clientContext, { reauth: false })`，结论放 `context.data.conclusion`（`src/api/_auth.js`）。
+每个 `/daymark/api/*` 请求（`GET /api/today` 除外）只问网关一次 `SPACE.conclusion(cookie, clientContext, { reauth: false })`，结论放 `context.data.conclusion`（`src/api/_auth.js`）。
 
 | 接口 | 进门 | 账号会话 | 作用域 |
 |---|---|---|---|

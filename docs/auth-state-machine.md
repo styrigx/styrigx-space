@@ -2,7 +2,7 @@
 
 > 状态：现行 ｜ 最后更新：2026-11-06
 
-唯一状态源是服务端（网关 `styrigx-auth-gateway`）验签过的 cookie。前端只「反映服务端的回答」：
+唯一状态源是服务端（网关 `styrigx-space-core`）验签过的 cookie。前端只「反映服务端的回答」：
 页面里的 `<html data-sgx-lock-session / data-sgx-account-session>`（网关注入；进门二值，P2-3 起没有等级标记）和
 `GET /api/lock-session-check[?return=]` 的 JSON。前端不在 localStorage / sessionStorage / 内存里另存「已解锁 / 已锁定」。
 
@@ -10,21 +10,21 @@
 
 | 名字 | 谁签 | 作用域 | 属性 | 寿命 | 用途 |
 |---|---|---|---|---|---|
-| `sgx-lock-session` | 网关（SGX_LOCK_PRIVATE） | `Domain=.styrigx.com; Path=/` | HttpOnly, Secure, SameSite=Lax | 锁屏密码 / 通行密钥进门 12 h；临时钥匙（含分享短链）进门按钥匙剩余时间（上限 12 h） | LockSessionTicket v2 `by.epoch.exp.tempkeyId.sig`（签名串带 `sgx-lock-session\|` 前缀）；主站和 blog / daymark / curio 共用；票里没有等级，有效就是进门了；by = password / passkey / tempkey，只作审计；by=tempkey 时带一把未作废的临时钥匙 id，其余为空串；epoch ≠ Lock 纪元即失效；v1 的 6 段票一律 bad-format（上线即作废） |
+| `sgx-space-session` | 网关（SGX_SPACE_PRIVATE） | `Domain=.styrigx.com; Path=/` | HttpOnly, Secure, SameSite=Lax | 锁屏密码 / 通行密钥进门 12 h；临时钥匙（含分享短链）进门按钥匙剩余时间（上限 12 h） | LockSessionTicket v2 `by.epoch.exp.tempkeyId.sig`（签名串带 `sgx-space-session\|` 前缀）；主站和 blog / daymark / curio 共用；票里没有等级，有效就是进门了；by = password / passkey / tempkey，只作审计；by=tempkey 时带一把未作废的临时钥匙 id，其余为空串；epoch ≠ Lock 纪元即失效；v1 的 6 段票一律 bad-format（上线即作废） |
 | （同名清除） | 网关 | host-only `Path=/` | Max-Age=0 | — | 每次签发 / 清除都附带，清掉 host-only 同名 cookie |
-| `sgx-lock-reset` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockResetTicket `by.epoch.iat.exp.sig`：重置锁屏；by = space / password / passkey（进站凭证 + 恢复开关，或进站凭证 + 锁屏凭证） |
-| `sgx-lock-reauth` | 网关（SGX_LOCK_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockReauthTicket `by.epoch.iat.exp.sig`：锁侧复验——进「锁屏凭证」页、新建 / 作废临时钥匙、生成 / 作废分享短链前再验一次；by = password / passkey / space（临时钥匙、短链进门的会话本身不算复验） |
+| `sgx-space-reset` | 网关（SGX_SPACE_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockResetTicket `by.epoch.iat.exp.sig`：重置锁屏；by = space / password / passkey（进站凭证 + 恢复开关，或进站凭证 + 锁屏凭证） |
+| `sgx-space-reauth` | 网关（SGX_SPACE_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockReauthTicket `by.epoch.iat.exp.sig`：锁侧复验——进「锁屏凭证」页、新建 / 作废临时钥匙、生成 / 作废分享短链前再验一次；by = password / passkey / space（临时钥匙、短链进门的会话本身不算复验） |
 | `sgx-account-session` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 400 天 | session 票 `by.epoch.authAt.exp.deviceId.sig`（`sudo root`）：账号 session（与进站会话无关）；by = password / passkey；`session` 纪元变了或设备被单独退出即失效 |
 | `sgx-account-reset` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | reset 票 `by.epoch.iat.exp.sig`（`sudo root reset`）：重置账号钥匙；by = recovery-key；`reset` 纪元，`finish` 后作废（只能用一次） |
 | `sgx-account-reauth` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | reauth 票 `by.epoch.iat.exp.deviceId.sig`（`sudo root reauth`）：账号安全、重新授权应用、退出所有设备前再验一次；by = password / passkey；只在同一台设备的 session 有效时算数 |
 | `sgx-ui` | 主站 JS | `Domain=styrigx.com` | Secure, SameSite=Lax（非 HttpOnly） | 400 天 | 只有外观设置，子站读；不含任何会话信息 |
 
-六张票分两处登记：锁屏三张在网关 `workers/auth-gateway/src/core/realms.js`（`TICKETS`），账号三张在账号 Worker `workers/account/src/core/config.js`（`TICKET`，签 / 验在 `lib/ticket.js`）；网关不签、不验账号票（账号拆分 PR3）。签名串一律是 `<cookie 名>|<票内容>`，
+六张票分两处登记：锁屏三张在网关 `workers/space-core/src/core/realms.js`（`TICKETS`），账号三张在账号 Worker `workers/account/src/core/config.js`（`TICKET`，签 / 验在 `lib/ticket.js`）；网关不签、不验账号票（账号拆分 PR3）。签名串一律是 `<cookie 名>|<票内容>`，
 同一把私钥签的票互相冒充不了。Lock 三张票共用 Lock 纪元；账号两个纪元：`session`（管 session 和 reauth）、`reset`（只管 reset 票）。
-SpaceKey 不拥有会话，两把各管各的：进站凭证 `SGX_LOCK_SPACE_KEY` 走网关 `/api/space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`；
+SpaceKey 不拥有会话，两把各管各的：进站凭证 `SGX_SPACE_RECOVERY_KEY` 走网关 `/api/space-auth { key, purpose }`，purpose 只有 `lock-reauth` / `lock-reset`；
 恢复密钥 `SGX_ACCOUNT_RECOVERY_KEY` 走账号 Worker `POST /api/account/reset { action:'recovery-key', key }`，只签 reset 票（不能登录、不能再验证）。各签一张对应的短票（锁屏侧 by=space，账号侧 by=recovery-key）；LockSessionTicket 的 by 永远没有 space。
 
-立即锁定 = `POST /api/lock-now` 清 `sgx-lock-session`（两条）+ `sgx-lock-reauth` + `sgx-lock-reset`。锁定所有设备 = Lock 纪元 +1。
+立即锁定 = `POST /api/lock-now` 清 `sgx-space-session`（两条）+ `sgx-space-reauth` + `sgx-space-reset`。锁定所有设备 = Lock 纪元 +1。
 
 ## 2. 路由（谁处理请求）
 
@@ -35,13 +35,13 @@ SpaceKey 不拥有会话，两把各管各的：进站凭证 `SGX_LOCK_SPACE_KEY
 静态资源（主站 `/css/ /js/ /fonts/ /fav/ /images/`，子站前缀下的静态后缀，如 `/blog/manifest.json`）第一行原样回源，不验会话、不打 `X-SGX-Runtime`。
 
 账号路径（`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/avatar/*`）同样归网关的 `styrigx.com/*`：网关验门后经服务绑定 `ACCOUNT` 转给账号 Worker
-（转发表 `workers/auth-gateway/src/router.js` 的 `FORWARDING`）。账号 Worker 没有任何路由（账号拆分 PR3）。
+（转发表 `workers/space-core/src/router.js` 的 `FORWARDING`）。账号 Worker 没有任何路由（账号拆分 PR3）。
 
 Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）完全相等；带查询串就不命中（2026-10-21 线上实测，`space/scripts/lib/cf-routes.mjs`）。
 
 ## 3. 网关的判定（页面）
 
-主站（`workers/auth-gateway/src/gate.js` 的 `onRequest`）：
+主站（`workers/space-core/src/gate.js` 的 `onRequest`）：
 
 | 会话 | 路径 | 结果 |
 |---|---|---|
@@ -52,7 +52,7 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 | 有效 | 首页 + `why`（子站踢回） | 200 valid（不 302，防两站来回跳；前端问 session-check 拿 next，20 秒窗口防死循环） |
 | 有效 | 其他页面（含锁屏凭证页、临时钥匙页、服务状态页；不分进门方式） | 200 valid，no-store |
 
-图志（`workers/auth-gateway/src/gate.js` 的 `handleSubsite`）：有效 → 回源 + no-store；无效 → 302 `https://styrigx.com/?lock=1&why=<no-cookie|invalid-session>&return=<完整地址>`；
+图志（`workers/space-core/src/gate.js` 的 `handleSubsite`）：有效 → 回源 + no-store；无效 → 302 `https://styrigx.com/?lock=1&why=<no-cookie|invalid-session>&return=<完整地址>`；
 图志根上的 `/api/lock-session-check`：有效 204、无效 401 `{ ok:false }`（`src/api/lock-session-check.js`）。
 
 `resolveReturn(return)`（唯一实现，首页 302 和 session-check 共用）：站内路径（不许 `//`、`/\`、`/lock/`）或 `https://*.styrigx.com`
@@ -83,7 +83,7 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 
 永不「重载同一个锁屏地址等服务端 302」。
 
-锁侧复验（P2-3 起取代旧的升级验证层）是独立的一态，不改会话：就地弹层，只有锁屏通行密钥 / 解锁密码（进站凭证兜底），通过后服务端种 3 分钟的 `sgx-lock-reauth`。
+锁侧复验（P2-3 起取代旧的升级验证层）是独立的一态，不改会话：就地弹层，只有锁屏通行密钥 / 解锁密码（进站凭证兜底），通过后服务端种 3 分钟的 `sgx-space-reauth`。
 入口：锁屏凭证页门口（`apps/security-lock.js`）；临时钥匙 / 分享短链的新建、作废先照常请求，服务端回 401 reauth 时弹主站复验层（`auth/lock-reauth.js` 的 `withLockReauth`），通过后自动重试一次；
 子站顶栏分享按钮用共享外壳 `share.js` 里的最小复验步骤（只有锁屏通行密钥 / 解锁密码）。取消不调任何接口，会话不动。
 
@@ -93,7 +93,7 @@ Cloudflare 路由规则：不带 `*` 的规则要求整条 URL（含查询串）
 
 ## 5. 测试
 
-- 单测：`tests/workers/auth-gateway/auth-flow-2026-10-21.test.mjs`
+- 单测：`tests/workers/space-core/auth-flow-2026-10-21.test.mjs`
 - 端到端：`SGX_TEST_SUITE=edge`（`tests/space/e2e/edge/edge-flow.spec.js` + `edge-harness.cjs`）：真实网关代码 + 账号 Worker 代码（两边绑定和钥匙按正式环境拆开）+ wrangler.toml 路由 + 线上匹配规则 +
   真实域名（本地 HTTPS 代理）+ CDP 虚拟认证器 + 假 Turnstile
 - 锁屏套件：`SGX_TEST_SUITE=lock`（http-server + mock，覆盖界面细节）

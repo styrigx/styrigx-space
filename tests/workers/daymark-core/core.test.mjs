@@ -1,6 +1,6 @@
 // styrigx-daymark-core（workers/core）：
 // - 路由表与 src/api 接口文件一一对应
-// - /api/today 公开（CORS 只给 styrigx.com），其余先问网关要结论（AUTH.conclusion，每个请求一次）；网关出错 → 500 不是 401
+// - /api/today 公开（CORS 只给 styrigx.com），其余先问网关要结论（SPACE.conclusion，每个请求一次）；网关出错 → 500 不是 401
 // - 鉴权（方案 4.6，P2-2）：没进门 401 unauthorized、没账号会话 401 account、没作用域 403 scope（daymark.write）
 // - 读：没登录账号只看公开，账号已登录看全部；写：非同源 403、校验、增改删
 // - 今日一句：只从公开里挑，同一天固定，按北京时间换天；当天第一次请求锁进 daily_pick（加句子不变）；
@@ -58,11 +58,11 @@ const CTX = { waitUntil() {} };
 const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/daymark';
 function call(p, { who = null, db = makeD1(), method = 'GET', body, origin = ORIGIN, throws = false } = {}) {
-  const headers = { Cookie: 'sgx-lock-session=x' };
+  const headers = { Cookie: 'sgx-space-session=x' };
   if (origin) headers.Origin = origin;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const req = new Request(ORIGIN + p, { method, headers, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) });
-  return worker.fetch(req, { AUTH: auth(who, throws), D1_QUOTES: db, KV_SEARCH_INDEX: { async put() {} } }, CTX);
+  return worker.fetch(req, { SPACE: auth(who, throws), D1_QUOTES: db, KV_SEARCH_INDEX: { async put() {} } }, CTX);
 }
 const add = async (db, q) => (await (await call('/daymark/api/quotes', { who: 'owner', db, method: 'POST', body: q })).json()).quote;
 
@@ -79,19 +79,19 @@ test('未登录读 /api/quotes → 401，带运行标记；不存在 404；网�
   assert.equal((await call('/daymark/api/quotes', { throws: true })).status, 500);
 });
 
-test('网关回答：只认 AuthVerifier.conclusion 的结论；看不懂的当没进门，只有旧的 lockSession / session 方法当绑定缺失', async () => {
+test('网关回答：只认 SpaceVerifier.conclusion 的结论；看不懂的当没进门，只有旧的 lockSession / session 方法当绑定缺失', async () => {
   assert.equal((await call('/daymark/api/quotes', { who: 'garbage' })).status, 401);
   assert.equal((await call('/daymark/api/quotes', { who: 'owner' })).status, 200);
   assert.equal((await call('/daymark/api/quotes', { who: 'lock' })).status, 200);
   /* 锁屏复查是网关的 /api/lock-session-check（图志根路径），不归本 Worker：本站前缀外的路径一律 404 */
   assert.equal((await call('/api/lock-session-check', { who: 'lock' })).status, 404);
   assert.equal((await call('/api/quotes', { who: 'owner' })).status, 404);
-  const req = new Request(ORIGIN + '/daymark/api/quotes', { headers: { Cookie: 'sgx-lock-session=x' } });
+  const req = new Request(ORIGIN + '/daymark/api/quotes', { headers: { Cookie: 'sgx-space-session=x' } });
   const errs = console.error;
   console.error = () => {};
   try {
     for (const legacy of [{ async session() { return { ok: true, who: 'owner' }; } }, { async lockSession() { return { ok: true, who: 'owner' }; } }]) {
-      assert.equal((await worker.fetch(req, { AUTH: legacy, D1_QUOTES: makeD1(), KV_SEARCH_INDEX: { async put() {} } }, CTX)).status, 500);
+      assert.equal((await worker.fetch(req, { SPACE: legacy, D1_QUOTES: makeD1(), KV_SEARCH_INDEX: { async put() {} } }, CTX)).status, 500);
     }
   } finally {
     console.error = errs;
@@ -110,10 +110,10 @@ test('/daymark/api/today 公开：不验会话，CORS 只给 styrigx.com，空�
 test('每个接口请求只问网关一次（index.js 问到的结论经 context.data.conclusion 传给 handler）；公开的 GET /api/today 不问；不问复验', async () => {
   const calls = [];
   const db = makeD1();
-  const env = (who) => ({ AUTH: conclusionAuth(who, { calls }), D1_QUOTES: db, KV_SEARCH_INDEX: { async put() {} } });
+  const env = (who) => ({ SPACE: conclusionAuth(who, { calls }), D1_QUOTES: db, KV_SEARCH_INDEX: { async put() {} } });
   const req = (p, method = 'GET', body) => new Request(ORIGIN + p, {
     method,
-    headers: { Cookie: 'sgx-lock-session=x; sgx-account-session=y', Origin: ORIGIN, 'User-Agent': 'UA/2', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { Cookie: 'sgx-space-session=x; sgx-account-session=y', Origin: ORIGIN, 'User-Agent': 'UA/2', ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const go = async (who, p, method, body) => {
@@ -125,7 +125,7 @@ test('每个接口请求只问网关一次（index.js 问到的结论经 context
   assert.equal(r.res.status, 201);
   assert.equal(r.n, 1);
   assert.deepEqual(calls[0].opts, { reauth: false });
-  assert.equal(calls[0].cookie, 'sgx-lock-session=x; sgx-account-session=y');
+  assert.equal(calls[0].cookie, 'sgx-space-session=x; sgx-account-session=y');
   assert.equal(calls[0].ctx.ua, 'UA/2');
   const id = (await r.res.json()).quote.id;
   for (const [who, p, method, body] of [
@@ -165,7 +165,7 @@ test('每个接口请求只问网关一次（index.js 问到的结论经 context
   await A.conclusionOf({ request: req('/daymark/api/quotes'), env: env('owner'), data });
   assert.equal(calls.length, 1);
   assert.deepEqual(A.visibility(c), { canWrite: true, showPrivate: true });
-  assert.equal(A.can(A.normalizeConclusion({ lock: { ok: true }, account: { ok: true, scopes: ['curio.write'] } }), 'daymark.write'), false);
+  assert.equal(A.can(A.normalizeConclusion({ space: { ok: true }, account: { ok: true, scopes: ['curio.write'] } }), 'daymark.write'), false);
 });
 
 test('写接口四种情况（方案 4.6）：没进门 401 unauthorized、没账号 401 account、没作用域 403 scope、都有 2xx', async () => {
@@ -334,8 +334,8 @@ test('wrangler.toml：不开 workers.dev，只挂 daymark 的 /api/*，D1 + 网�
   /* 合并 PR3：主域名路由 + 过渡期的旧图志路由，只有这两条 */
   assert.deepEqual([...t.matchAll(/^pattern = "([^"]+)"$/gm)].map((m) => m[1]), ['styrigx.com/daymark/api/*']);
   assert.match(t, /^database_id = "[0-9a-f-]{36}"$/m);
-  assert.match(t, /^service = "styrigx-auth-gateway"$/m);
-  assert.match(t, /^entrypoint = "AuthVerifier"$/m);
+  assert.match(t, /^service = "styrigx-space-core"$/m);
+  assert.match(t, /^entrypoint = "SpaceVerifier"$/m);
   assert.doesNotMatch(t, /SGX_|r2_buckets/);
 });
 
@@ -782,10 +782,10 @@ async function withCaches(fn) {
 async function callWait(p, o = {}) {
   const pending = [];
   const ctx = { waitUntil: (x) => pending.push(x) };
-  const headers = { Cookie: 'sgx-lock-session=x', Origin: 'origin' in o ? o.origin : ORIGIN };
+  const headers = { Cookie: 'sgx-space-session=x', Origin: 'origin' in o ? o.origin : ORIGIN };
   if (o.body !== undefined) headers['Content-Type'] = 'application/json';
   const req = new Request(ORIGIN + p, { method: o.method || 'GET', headers, body: o.body === undefined ? undefined : JSON.stringify(o.body) });
-  const res = await worker.fetch(req, { AUTH: auth(o.who || null), D1_QUOTES: o.db, KV_SEARCH_INDEX: { async put() {} } }, ctx);
+  const res = await worker.fetch(req, { SPACE: auth(o.who || null), D1_QUOTES: o.db, KV_SEARCH_INDEX: { async put() {} } }, ctx);
   await Promise.all(pending);
   return res;
 }

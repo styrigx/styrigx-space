@@ -1,0 +1,158 @@
+# styrigx-space-core：站点核心 Worker（CI 部署；承接 styrigx.com 整站请求：进站会话检查 + 接口 + 分享链接；静态资源原样回源）
+# 进站 v3 L2（2026-11-09）：原鉴权网关 styrigx-auth-gateway 改名为本 Worker（和 styrigx-curio-core / styrigx-daymark-core 一个模子），
+# 分享短链 Worker styrigx-share 并入（/s/<码>、/api/share 由本 Worker 的 styrigx.com/* 接，src/router.js routeShare）。
+# 旧的两个 Worker 在 Cloudflare 上暂时保留（L3 删除，先给 Gray 清单）；第一次部署时路由由 deploy.yml 的接管步骤
+# （space/scripts/route-takeover.mjs）从旧 Worker 挪过来。
+#
+# 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥；骨架见 workers/README.md）+ migrations/（D1，进站）+ migrations-share/（D1，分享链接）。
+# 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步、数字健康）在账号 Worker styrigx-account（workers/account）：
+# 它没有任何公开路由，/api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/avatar/* 由本 Worker 验门后
+# 经服务绑定 ACCOUNT 转发（src/router.js 的转发表 FORWARDING）。
+# Pages 只放静态文件（配置见 space/web/wrangler.toml），本 Worker 验完会话回源取页面。
+#
+# 安全：
+# - workers_dev = false，不开 *.workers.dev 地址（它连的是正式 D1，不能有未鉴权的入口）。
+# - SGX_ENV = "production"：middleware 按生产规则执行，非 styrigx.com 的 /api 请求一律 403。
+# - 私密值只在 Secrets Store（见文件末尾），不进仓库。
+
+name = "styrigx-space-core"
+main = "src/index.js"
+compatibility_date = "2026-10-09"
+workers_dev = false
+preview_urls = false
+
+# 日志：在后台 Observability 里看每个请求的路径、状态码、耗时和报错，方便切换后排查。
+# 写在这里是为了不被 CI 部署覆盖（后台手动开的设置会被下一次部署改回）。
+# 代码只打印错误名和非敏感诊断信息，不打印 cookie、令牌或密钥。免费版每天 20 万条、保留 3 天。
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# 路由：本文件就是本 Worker 路由的唯一登记处（space/scripts/check-worker-routes.mjs 在 CI 里核对）。
+# 只有一个主机，整站一条通配路由（styrigx.com/*）；分享链接（原 styrigx-share 的 styrigx.com/s/*、styrigx.com/api/share*）也在这条里，按路径分：
+# - Cloudflare 的路由规则不带 * 时要求整条 URL（含查询串）完全相等，遇到 ?lock=1、?utm=… 就不命中 → 请求直达 Pages：
+#   锁屏入口 styrigx.com/?lock=1&return=… 没有会话标记；子站页面带任意查询串不验会话直出正文。
+# - 通配后新增页面目录不会漏登记（fail closed）。静态资源（/css/ /js/ /fonts/ /fav/ /images/）也进 Worker，
+#   但在 src/app.js 第一步就原样回源，不验会话、不改响应（与以前不登记时行为一致）。
+# - 子站（合并 PR3，2026-11-03）：博客 / 奇趣 / 日刻和主站拼成一棵树，在 styrigx.com 的 /blog/ /curio/ /daymark/ 下，
+#   由本 Worker 按路径前缀验会话（src/gate.js 子站关口 handleSubsite）；更具体的 styrigx.com/curio/api/*、styrigx.com/daymark/api/*
+#   归两个接口 Worker（workers/curio-core、workers/daymark-core 的 wrangler.toml 登记），网关这里不登记比它们更具体的规则。
+# - 旧图志域名的过渡期跳转（合并 PR3 起的 301）已于 P4-3 PR-1 删除，路由不再登记；旧的 blog / daymark / curio 子域名同样不登记（不跳转）。
+# 注意：Pages 上已经没有后端代码，删掉路由 = 页面不验会话，不能靠删路由回滚；出问题时 revert 对应提交重新部署。
+# 路由一次只能挂一个 Worker：L2 第一次部署前它挂在旧的 styrigx-auth-gateway 上（短链两条挂在 styrigx-share），
+# deploy.yml 的 deploy-space-core 先不带路由部署，再用 space/scripts/route-takeover.mjs 把 styrigx.com/* 改挂本 Worker、删掉短链两条，
+# 然后照常带路由部署；部署 / 冒烟失败时同一个脚本把路由原样还给旧 Worker。
+[[routes]]
+pattern = "styrigx.com/*"
+zone_name = "styrigx.com"
+
+# ---- 明文变量（公钥在 Secrets Store）----
+[vars]
+SGX_ENV = "production"
+SGX_SITE = "space"
+SGX_ORIGIN = "https://styrigx.com"
+SGX_RP_ID = "styrigx.com"
+
+# ---- 服务绑定 ----
+# 账号 Worker styrigx-account（workers/account；没有公开地址，只能从这里进；方案第 1、10.1 节）：
+# - ACCOUNT（entrypoint AccountService）：src/router.js 转发表里的路径验完门后原样转过去，写全套身份头（X-Styrigx-Space-* / X-Styrigx-Client-*）
+# - ACCOUNT_VERIFIER（entrypoint AccountVerifier）：只读 RPC accountSession()——只有账号页首帧提示用（临时钥匙、短链只认锁屏进门会话 + 锁侧复验）
+# 部署顺序：deploy.yml 里 deploy-account-worker 先于本 Worker（命名入口 PR2 已导出）。
+[[services]]
+binding = "ACCOUNT"
+service = "styrigx-account"
+entrypoint = "AccountService"
+
+[[services]]
+binding = "ACCOUNT_VERIFIER"
+service = "styrigx-account"
+entrypoint = "AccountVerifier"
+
+# 站点监测 styrigx-status（workers/status；没有公开地址，只能从这里进）。/api/status 验完会话转给它。
+# 部署顺序：deploy.yml 里 deploy-status-worker 先于本 Worker。
+[[services]]
+binding = "STATUS"
+service = "styrigx-status"
+
+# 站内对话助手（P4-1，方案 5.3；P4-2 起 chat 的外部模型并入它，SEARCH / CHAT 绑定删除）：POST /api/ai 由 src/api/ai.js 验同源、进门、
+# 过两档 AI 限流、写账号结论头，再转给 styrigx-ai 的 POST /ask；GET /api/ai（可选模型列表）转给 GET /models，不计限流。
+# styrigx-ai 没有公开地址（workers_dev / preview_urls 关、没有路由），唯一入口是这个绑定。
+# 部署顺序：deploy.yml 里 deploy-ai-worker 先于本 Worker。
+[[services]]
+binding = "AI_SERVICE"
+service = "styrigx-ai"
+
+# ---- 限流（Workers Rate Limiting，2026-10-28）----
+# 无会话写接口（锁屏 / 重置 / 恢复钥匙 / 临时钥匙进门的 POST）按 IP 每 60 秒 20 次，超了 429；计数在边缘，不占存储、不收费。
+# 代码见 core/anon-limit.js（绑定缺失时放行）。namespace_id 是本账号内自定的整数，别的 Worker 不要复用。
+[[ratelimits]]
+name = "ANON_LIMITER"
+namespace_id = "2801"
+simple = { limit = 20, period = 60 }
+
+# /api/ai 第一档：每 IP 每 60 秒 6 次（P4-1，方案 5.6）；超了 429 cooldown。代码见 core/ai-limit.js（绑定缺失时放行）。
+# 单独的 namespace，不和 ANON_LIMITER 共用（共用会让 AI 请求挤占锁屏接口的配额）。
+# 第二档全站总闸每分钟 60 次不用 Rate Limiting（它按机房计数），走 D1_SPACE 的 attempt_limit（realm='ai'），见 core/ai-limit.js。
+[[ratelimits]]
+name = "AI_LIMITER"
+namespace_id = "2802"
+simple = { limit = 6, period = 60 }
+
+# ---- 数据绑定（正式 D1）----
+# 进站 v3 L2：还连旧库 styrigx-space-gateway（39d037fe-…；表、行都不动）。L2b 搬到新库 styrigx-space-core（建新库 + 导出导入 + 换绑定）。
+# 进站的认证状态全部在 D1（强一致），不绑定任何 KV。同库还有 styrigx-status 的 status_* 表（status Worker 自己绑，本 Worker 不碰）。
+# - D1_SPACE：进站的行（realm='lock'：纪元、解锁密码 / 通行密钥、user handle、challenge、输错计数、临时钥匙、恢复钥匙审计）
+#   和 lock_reset_switch。表：migrations/0005_lock_account_state.sql、0006_auth_state.sql（0007 给 user_handle 加 legacy_handle 列）、
+#   0008_lock_reset_switch.sql（0001 / 0003 建的旧表由 0004 / 0009 删）。迁移记录表 d1_migrations_gateway。
+# - D1_SHARE_LINK：分享链接的 share_link + share_fail（migrations-share/0001_baseline.sql，原 workers/share/migrations；迁移记录表 d1_migrations_share）。
+#   同一个库的第二个绑定，只为了两套迁移目录各记各的；L2b 新库只剩一套迁移、一个绑定。
+# 迁移由 deploy.yml 的 deploy-space-core 自己跑（token styrigx-space-core-deploy 有 D1 编辑）：
+#   cd workers/space-core && wrangler d1 migrations apply D1_SPACE --remote && wrangler d1 migrations apply D1_SHARE_LINK --remote
+# 代码兜底建表（src/core/d1-state.js SCHEMA，遇到「no such table」时按同一份语句建，幂等）保留。
+# 安全读（纪元、吊销、challenge、计数、临时钥匙）只读主库：代码不开 read replication / withSession。
+[[d1_databases]]
+binding = "D1_SPACE"
+database_name = "styrigx-space-gateway"
+database_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"
+migrations_dir = "migrations"
+migrations_table = "d1_migrations_gateway"
+
+[[d1_databases]]
+binding = "D1_SHARE_LINK"
+database_name = "styrigx-space-gateway"
+database_id = "39d037fe-6ab3-410d-a090-4d7ce8d48d83"
+migrations_dir = "migrations-share"
+migrations_table = "d1_migrations_share"
+
+# ---- 密钥：Secrets Store（进站 v3 Q18：5 个 SGX_SPACE_*，Gray 2026-11-09 建好；本仓库只按名字绑定，不碰值）----
+# - SGX_SPACE_PRIVATE / SGX_SPACE_PUBLIC：进站三张票（session / reauth / reset）的 Ed25519 签名钥匙对
+# - SGX_SPACE_RECOVERY_KEY：恢复钥匙（sudo styrigx reset；新值）
+# - SGX_SPACE_PASSWORD_PEPPER：解锁密码哈希的 pepper（新随机值：旧记录验不过，解锁密码要经 reset 重设一次）
+# - SGX_SPACE_TEMPKEY_PEPPER：临时钥匙码哈希的 pepper（新随机值：已有临时钥匙作废；分享链接的钥匙不靠码，照常能用）
+# 外部模型钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-ai；账号钥匙（SGX_ACCOUNT_*）只绑在 styrigx-account。
+# 旧的四个锁屏密钥（名单见 space/scripts/retired-names.json 的 legacy）部署核对后由 Hark 在 Secrets Store 删除（Gray 2026-11-09 08:33）。
+# 换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。store_id 是存储的编号，不是密值。
+[[secrets_store_secrets]]
+binding = "SGX_SPACE_PRIVATE"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_SPACE_PRIVATE"
+
+[[secrets_store_secrets]]
+binding = "SGX_SPACE_PUBLIC"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_SPACE_PUBLIC"
+
+[[secrets_store_secrets]]
+binding = "SGX_SPACE_RECOVERY_KEY"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_SPACE_RECOVERY_KEY"
+
+[[secrets_store_secrets]]
+binding = "SGX_SPACE_PASSWORD_PEPPER"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_SPACE_PASSWORD_PEPPER"
+
+[[secrets_store_secrets]]
+binding = "SGX_SPACE_TEMPKEY_PEPPER"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_SPACE_TEMPKEY_PEPPER"

@@ -2,7 +2,7 @@
 # 接口：搜索索引（KV，关键词召回只作模型上下文，2026-11-06 起不再发 event: hits）、语义召回（Vectorize + Workers AI 嵌入，2026-11）、
 # 奇趣只读固定查询（服务绑定 CURIO）、自营模型（Workers AI，不走网关）、外部模型（Gemini API，带 Google 搜索）。
 #
-# 没有公开地址：不开 workers.dev、不挂路由、不挂域名。唯一入口是鉴权网关 styrigx-auth-gateway 的服务绑定 AI_SERVICE：
+# 没有公开地址：不开 workers.dev、不挂路由、不挂域名。唯一入口是鉴权网关 styrigx-space-core 的服务绑定 AI_SERVICE：
 #   POST /api/ai 由网关验进门、过两档 AI 限流、写账号结论头（X-Styrigx-Account-Session）后转进来（POST /ask）。
 # 所以这里不验 cookie、不持任何钥匙；结论头只可能是网关写的。
 # 不存对话；没有 D1、R2。KV 只在 Cron 同步向量时写状态键 ai:recall:<站名>（站点内容变了的那一轮才写）。

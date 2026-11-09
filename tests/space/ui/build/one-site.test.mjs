@@ -118,7 +118,7 @@ test('_worker.js：跳转原样放行（Pages 补尾斜杠、_redirects），不
   assert.equal(b.status, 302);
 });
 
-test('_worker.js：合并 PR3 删掉 PR2 的过渡规则——三站 .xml 原样交给静态文件（会话由网关子站关口验，见 tests/workers/auth-gateway/subsites.test.mjs）', async () => {
+test('_worker.js：合并 PR3 删掉 PR2 的过渡规则——三站 .xml 原样交给静态文件（会话由网关子站关口验，见 tests/workers/space-core/subsites.test.mjs）', async () => {
   const xml = (p) => () => new Response('<rss>' + p + '</rss>', { headers: { 'Content-Type': 'application/rss+xml' } });
   const assets = assetsWith({
     '/blog/rss.xml': xml('a'), '/blog/en/rss.xml': xml('b'), '/curio/sitemap.xml': xml('d'), '/sitemap.xml': xml('main'),
