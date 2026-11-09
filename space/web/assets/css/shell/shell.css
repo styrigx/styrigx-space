@@ -633,27 +633,6 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before {
 .dark:root[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet, :root.dark[data-sgx-layout="desktop"] .sgx-ai .sgx-qp-sheet { box-shadow: 0 30px 70px rgba(0,0,0,.5); }
 .reduced-motion .sgx-ai .sgx-qp-sheet { transform: none; transition: opacity .12s ease; }
 @media (prefers-reduced-motion: reduce) { .sgx-ai .sgx-qp-sheet { transform: none; transition: opacity .12s ease; } }
-/* 手机（视口 ≤ 640px、非桌面布局）：AI 窗口改成底部半屏面板（Gray 2026-11-09）——贴底全宽、上圆角、半屏高（至少 360px，不超过可用高），从下沿滑上来；
-   关：下滑（拖头部 / 顶端把手，topbar-panel.js mountSheetSwipe）、点面板外、系统返回（modal-sheet 的历史哨兵）、头部 × 都行。键盘在时 dialog 下沿抬到键盘上沿，面板跟着上去。
-   电脑 / 桌面布局不变（上面的浮窗规则）。拖动时 JS 写 --sgx-ai-drag（只往下）并关掉过渡 */
-@media (max-width: 640px) {
-  :root:not([data-sgx-layout="desktop"]) .sgx-ai .sgx-qp-sheet, :root:not([data-sgx-layout="desktop"]) .sgx-ai[data-kb] .sgx-qp-sheet {
-    top: auto; left: 0; right: 0; bottom: 0; width: auto; max-width: none; height: min(max(50dvh, 360px), 100%); max-height: 100%; margin: 0;
-    border-radius: 16px 16px 0 0; border-bottom-width: 0; padding-bottom: env(safe-area-inset-bottom, 0px);
-    transform-origin: 50% 100%; transform: translateY(100%); opacity: 1; transition: transform .24s var(--sgx-ai-ease); }
-  :root:not([data-sgx-layout="desktop"]) .sgx-ai[data-kb] .sgx-qp-sheet { padding-bottom: 0; }
-  :root:not([data-sgx-layout="desktop"]) .sgx-ai.is-open .sgx-qp-sheet { transform: translateY(var(--sgx-ai-drag, 0px)); }
-  :root:not([data-sgx-layout="desktop"]) .sgx-ai[data-drag] .sgx-qp-sheet { transition: none; }
-  /* 顶端把手（装饰，提示能往下拉）；头部整条可拖，不让浏览器把这一下当成页面滚动，也不选字（选中的字一拖会变成原生拖放，指针被取消） */
-  :root:not([data-sgx-layout="desktop"]) .sgx-ai .sgx-qp-sheet::before { content: ""; position: absolute; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--sgx-term-line); pointer-events: none; }
-  :root:not([data-sgx-layout="desktop"]) .sgx-ai-head { padding-top: 16px; touch-action: none; -webkit-user-select: none; user-select: none; }
-  .reduced-motion:root:not([data-sgx-layout="desktop"]) .sgx-ai .sgx-qp-sheet { transform: none; opacity: 0; transition: opacity .12s ease; }
-  .reduced-motion:root:not([data-sgx-layout="desktop"]) .sgx-ai.is-open .sgx-qp-sheet { transform: translateY(var(--sgx-ai-drag, 0px)); opacity: 1; }
-}
-@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
-  :root:not([data-sgx-layout="desktop"]) .sgx-ai .sgx-qp-sheet { transform: none; opacity: 0; transition: opacity .12s ease; }
-  :root:not([data-sgx-layout="desktop"]) .sgx-ai.is-open .sgx-qp-sheet { transform: translateY(var(--sgx-ai-drag, 0px)); opacity: 1; }
-}
 /* 浮钮跟着窗口：手机淡出缩小（卡片盖住它的位置；visibility 等动画完再藏，Tab 圈不再落到它上面），关上时立刻回来好接住焦点；
    电脑变关闭态：聊天图标转走淡出、× 转进来（再点 = 关闭） */
 .sgx-tb-ai { transition: background-color .15s ease, color .15s ease, opacity .2s var(--sgx-ai-ease), transform .24s var(--sgx-ai-ease), visibility 0s; }
