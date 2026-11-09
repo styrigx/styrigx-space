@@ -9,7 +9,7 @@
 # - 没有任何 [[routes]]：请求只经网关 styrigx-space-core 的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来（网关先验锁屏、剥外部 x-styrigx-* 头、写规范身份头）。
 # - 默认 fetch 一律 404；只有命名入口 AccountService 读身份头。
 # - workers_dev = false、preview_urls = false：不开 *.workers.dev 和预览地址。
-# - 不调网关、不绑任何锁屏数据或钥匙（不再有 [[services]] AUTH）。
+# - 不调网关、不绑任何锁屏数据或钥匙（不再有 [[services]] AUTH）。唯一的服务绑定是 PROXY → styrigx-proxy-rules 的 ProxyAdmin（代理订阅管理，不是网关）。
 
 name = "styrigx-account"
 main = "src/index.js"
@@ -79,6 +79,13 @@ secret_name = "SGX_ACCOUNT_RECOVERY_KEY"
 binding = "SGX_ACCOUNT_PASSWORD_PEPPER"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_ACCOUNT_PASSWORD_PEPPER"
+
+# ---- 服务绑定：代理订阅管理（设计稿 v1.7 §7；/api/account/proxy 验完会话 / reauth 后调）----
+# 订阅的数据和 SGX_PROXY_DB_KEY 只在 styrigx-proxy-rules；本 Worker 只转发。预览环境不绑（/api/account/proxy 回 503 config）。
+[[services]]
+binding = "PROXY"
+service = "styrigx-proxy-rules"
+entrypoint = "ProxyAdmin"
 
 # ---- preview 环境：只用来登记测试资源（所有预览资源都是同一个 styrigx-test-preview：KV / D1，2026-10-30 Sloan 定），----
 # CI 的 passkey-e2e 据此给测试库跑账号迁移。不部署成单独的预览 Worker（不写预览 name）；预览里的账号代码由组合入口

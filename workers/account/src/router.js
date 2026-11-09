@@ -4,7 +4,8 @@
  * 管站点账号的全部身份和数据：
  * - 账号（api/account/，一个入口一个文件；子路径就是入口名）：GET /api/account（status.js 只读状态）、
  *   POST /api/account/session（sudo root 登录）、/reauth（sudo root reauth）、/reset（sudo root reset，恢复密钥）、
- *   /keys（账号安全：账号密码、账号通行密钥）、/devices（已登录设备）、/grants（应用授权）
+ *   /keys（账号安全：账号密码、账号通行密钥）、/devices（已登录设备）、/grants（应用授权）、
+ *   /proxy（代理订阅管理：只验会话 / reauth，经服务绑定 PROXY 转给 styrigx-proxy-rules 的 ProxyAdmin）
  * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（进站会话 + 账号会话 + avatar.write）→ KV_PROFILE
  * - 个人资料（2026-11-07）：GET /api/profile（有进站会话即可）、PUT /api/profile（进站会话 + 账号会话 + profile.write）→ KV_PROFILE 的 profile 键
  * - 设置云同步：GET / POST /api/prefs（进站会话 + 账号会话 + prefs.sync）→ D1_ACCOUNT 的 settings_sync
@@ -29,6 +30,7 @@ import * as accountReset from './api/account/reset.js';
 import * as accountKeys from './api/account/keys.js';
 import * as accountDevices from './api/account/devices.js';
 import * as accountGrants from './api/account/grants.js';
+import * as accountProxy from './api/account/proxy.js';
 
 /** 接口路由表（只经 AccountService 用；网关转发表 workers/space-core/src/router.js FORWARDING 里的 /api/* 路径与这里一一对应） */
 /** @type {Map<string, Record<string, Function>>} */
@@ -40,6 +42,7 @@ export const API_ROUTES = new Map([
   ['/api/account/keys', accountKeys],
   ['/api/account/devices', accountDevices],
   ['/api/account/grants', accountGrants],
+  ['/api/account/proxy', accountProxy],
   ['/api/avatar', avatar],
   ['/api/prefs', prefs],
   ['/api/profile', profile],

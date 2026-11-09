@@ -1,5 +1,5 @@
 /**
- * 规则集反代 styrigx-proxy-rules：自有仓 styrigx/mihomo-rules dist 分支（core/sources/own-repo.js）。
+ * 规则集反代 styrigx-proxy-rules：自有仓 styrigx/mihomo-rules release 分支（core/sources/own-repo.js）。
  * 白名单（只认 geosite / geoip 下 [a-z0-9-] 名字的 .mrs / .yaml）、上游顺序（raw 在前）、缓存 1 小时，
  * 以及两个来源互不串（MetaCubeX 仍 24 小时）。
  * 运行：node --test tests/workers/proxy-rules/*.test.mjs
@@ -12,9 +12,9 @@ import * as metacubex from '../../../workers/proxy-rules/src/core/sources/metacu
 import { matchSource, SOURCES } from '../../../workers/proxy-rules/src/core/sources.js';
 
 const BASE = 'https://proxy-rules.styrigx.com';
-const P = '/styrigx/mihomo-rules/dist/';
+const P = '/styrigx/mihomo-rules/release/';
 
-/* mihomo-rules README 里的 13 个规则集（dist 分支每个各一份 .mrs + .yaml） */
+/* mihomo-rules README 里的 13 个规则集（release 分支每个各一份 .mrs + .yaml） */
 const GEOSITE = ['overseas', 'cn', 'ai', 'google', 'samsung', 'galaxy-store', 'nintendo', 'private', 'ntp', 'ads'];
 const GEOIP = ['cn', 'google', 'private'];
 const DIST = [...GEOSITE.map((n) => `geosite/${n}`), ...GEOIP.map((n) => `geoip/${n}`)];
@@ -41,7 +41,7 @@ const get = (path, init) => worker.fetch(new Request(BASE + path, init), {}, ctx
 /* 和 Worker 里一样经 URL 解析后的 pathname（`..`、`%2e%2e` 已折叠） */
 const parsed = (path) => new URL(BASE + path).pathname;
 
-test('白名单：dist 里 13 个规则集的 .mrs 和 .yaml 全部放行', () => {
+test('白名单：release 里 13 个规则集的 .mrs 和 .yaml 全部放行', () => {
   assert.equal(DIST.length, 13);
   for (const f of DIST) for (const ext of ['mrs', 'yaml']) {
     const p = `${P}${f}.${ext}`;
@@ -64,7 +64,7 @@ test('白名单：manifest、别的后缀、大写、未知目录、子目录、
     assert.equal(matchSource(parsed(P + bad)), null, bad);
   }
   /* 别的分支、别的仓、大小写不同的仓名 */
-  for (const bad of ['/styrigx/mihomo-rules/main/geosite/cn.mrs', '/styrigx/other/dist/geosite/cn.mrs', '/Styrigx/mihomo-rules/dist/geosite/cn.mrs', '/styrigx/mihomo-rules/dist/../dist/geosite/x/../../../../MetaCubeX/x.mrs'])
+  for (const bad of ['/styrigx/mihomo-rules/main/geosite/cn.mrs', '/styrigx/other/release/geosite/cn.mrs', '/Styrigx/mihomo-rules/release/geosite/cn.mrs', '/styrigx/mihomo-rules/dist/geosite/cn.mrs', '/styrigx/mihomo-rules/release/../release/geosite/x/../../../../MetaCubeX/x.mrs'])
     assert.equal(matchSource(parsed(bad)), null, bad);
 });
 
@@ -83,17 +83,17 @@ test('路径穿越：URL 解析把 .. 折叠后不会落到白名单外的上游
   /* 折叠后恰好落在白名单内的，转发的也是折叠后的规范路径 */
   const r = await get(P + 'geoip/../geosite/samsung.mrs');
   assert.equal(r.status, 200);
-  assert.deepEqual(calls, ['https://raw.githubusercontent.com/styrigx/mihomo-rules/dist/geosite/samsung.mrs']);
+  assert.deepEqual(calls, ['https://raw.githubusercontent.com/styrigx/mihomo-rules/release/geosite/samsung.mrs']);
 });
 
 test('上游：raw.githubusercontent 在前，jsDelivr 在后（jsDelivr 的分支缓存会滞后）', () => {
   assert.deepEqual(upstreamUrls(P + 'geosite/samsung.mrs'), [
-    'https://raw.githubusercontent.com/styrigx/mihomo-rules/dist/geosite/samsung.mrs',
-    'https://cdn.jsdelivr.net/gh/styrigx/mihomo-rules@dist/geosite/samsung.mrs',
+    'https://raw.githubusercontent.com/styrigx/mihomo-rules/release/geosite/samsung.mrs',
+    'https://cdn.jsdelivr.net/gh/styrigx/mihomo-rules@release/geosite/samsung.mrs',
   ]);
   assert.deepEqual(upstreamUrls(P + 'geoip/cn.yaml'), [
-    'https://raw.githubusercontent.com/styrigx/mihomo-rules/dist/geoip/cn.yaml',
-    'https://cdn.jsdelivr.net/gh/styrigx/mihomo-rules@dist/geoip/cn.yaml',
+    'https://raw.githubusercontent.com/styrigx/mihomo-rules/release/geoip/cn.yaml',
+    'https://cdn.jsdelivr.net/gh/styrigx/mihomo-rules@release/geoip/cn.yaml',
   ]);
 });
 
