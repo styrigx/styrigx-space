@@ -14,6 +14,8 @@
  */
 import * as api from './api.js';
 import { createTerm, shellTable } from './term.js';
+import { completerOf } from '../term/core/complete.js';
+import { TTY3_TABLE } from '../term/cmds/index-tty3.js';
 import { suggest } from '../suggest.js';
 import { CMD, PS_ADMIN, SHIELD_LAYERS, REAUTH_LAYERS, normCmd, parseShieldCmd, shieldLayerFrom, hmm, mmss } from './commands.js';
 import { mountVerify } from './session.js';
@@ -92,6 +94,9 @@ export function mountShield(o) {
     ariaCmd: t('shield.cmdAria'),
     isShown: function () { return o.ms.isShown(); },
     onCmd: function (raw) { runCmd(raw); },
+    /* tty3：Tab 补全 + 历史落 sessionStorage（终端统一 T4） */
+    complete: completerOf(TTY3_TABLE),
+    histKey: 'sgx-term-hist-3',
     onReveal: reveal,
     onMode: function (m) { root.setAttribute('data-sh-mode', m); },
   });

@@ -16,6 +16,8 @@ import { toast } from '../../lib/toast.js';
 import { suggest } from '../suggest.js';
 import { flatStrings } from '../term/core/strings.js';
 import { createInputLine } from '../term/view/input-line.js';
+import { completerOf } from '../term/core/complete.js';
+import { TTY5_TABLE } from '../term/cmds/index-tty5.js';
 import * as api from './api.js';
 import { CMD, PS_GUEST, PS_ROOT, PS_RESET, LAYERS, LAYER_PATH, normCmd, parseCmd, layerFromPath } from './commands.js';
 import { mountSession } from './session.js';
@@ -195,7 +197,9 @@ export function mountAccountTerm(o) {
       onBack: function () { C.refocus = true; if (!escBack()) o.ms.close(); },
     },
     secretModes: ['pw', 'rkey', 'newpw', 'newpw2'],
-    history: false,
+    /* tty5：Tab 补全 + 历史落 sessionStorage（终端统一 T4；以前没有历史） */
+    complete: completerOf(TTY5_TABLE),
+    histKey: 'sgx-term-hist-5',
     ctrlL: false,
     inputmode: false,
     aria: function (m, secret) { return secret ? (m === 'rkey' ? t('reset.recoveryKeyAria') : t('common.passwordAria')) : m === 'pkname' ? t('keys.passkey.nameAria') : t('common.termAria'); },
