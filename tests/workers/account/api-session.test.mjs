@@ -66,15 +66,15 @@ test('password：未设置 403 not-set；错 403 wrong；空 / 非字符串 400 
   assert.deepEqual(auditEvents(env), ['session-password:fail', 'session-password:fail']);
 });
 
-test('password 成功：只签 session（by=password，400 天）——不再顺手签 reauth（带 reauth:true 也不签）；设备记一行；审计 session-password', async () => {
+test('password 成功：只签 session（by=password，30 天）——不再顺手签 reauth（带 reauth:true 也不签）；设备记一行；审计 session-password', async () => {
   const env = makeEnv();
   await seedPassword(env, 'right-password-1');
   const r = await post(env, 'session', { action: 'password', password: 'right-password-1', reauth: true, device: { model: 'SM-S9380', platform: 'Android' } });
   assert.equal(r.status, 200);
   assert.deepEqual(setCookies(r).map((c) => c.split('=')[0]), ['sgx-account-session', 'sgx-account-signed-in']);
-  assert.match(setCookies(r)[0], /Max-Age=34560000/);
+  assert.match(setCookies(r)[0], /Max-Age=2592000$/);
   /* 登录标记：值 1、不含秘密、非 HttpOnly（只给前端首帧显示），时长同 session */
-  assert.equal(setCookies(r)[1], 'sgx-account-signed-in=1; Path=/; Secure; SameSite=Strict; Max-Age=34560000');
+  assert.equal(setCookies(r)[1], 'sgx-account-signed-in=1; Path=/; Secure; SameSite=Strict; Max-Age=2592000');
   const s = pickCookie(r, 'sgx-account-session');
   assert.match(s, /^password\.0\./);
   const devs = all(env, 'SELECT record FROM account_device').map((x) => JSON.parse(x.record));

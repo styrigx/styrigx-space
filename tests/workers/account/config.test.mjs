@@ -23,7 +23,7 @@ const { SECRET_NAMES, resolveSecrets, _resetSecretCache } = await import(SRC + '
 test('三张票：cookie 名 / 时长 / by / 带不带 deviceId / 归哪个纪元钉死', () => {
   assert.deepEqual(Object.keys(config.TICKET), ['session', 'reauth', 'reset']);
   const pick = (t) => ({ name: t.name, cookie: t.cookie, maxAge: t.maxAge, bys: [...t.bys], device: t.device, span: t.span, epoch: t.epoch });
-  assert.deepEqual(pick(config.TICKET.session), { name: 'session', cookie: 'sgx-account-session', maxAge: 34560000, bys: ['password', 'passkey'], device: true, span: false, epoch: 'session' });
+  assert.deepEqual(pick(config.TICKET.session), { name: 'session', cookie: 'sgx-account-session', maxAge: 2592000, bys: ['password', 'passkey'], device: true, span: false, epoch: 'session' });
   assert.deepEqual(pick(config.TICKET.reauth), { name: 'reauth', cookie: 'sgx-account-reauth', maxAge: 180, bys: ['password', 'passkey'], device: true, span: true, epoch: 'session' });
   assert.deepEqual(pick(config.TICKET.reset), { name: 'reset', cookie: 'sgx-account-reset', maxAge: 180, bys: ['recovery-key'], device: false, span: true, epoch: 'reset' });
   assert.ok(Object.isFrozen(config.TICKET) && Object.isFrozen(config.TICKET.session.bys));

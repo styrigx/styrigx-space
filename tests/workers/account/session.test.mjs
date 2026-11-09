@@ -114,8 +114,8 @@ test('签发：缺签名钥匙 → session / reauth 503 config；纪元读不到
   assert.equal(await session.issueSession(env, h2, 'passkey', { deviceId: TEST_DEVICE_ID }), null);
   assert.equal(await reauthCore.issueReauth(env, h2, 'passkey', TEST_DEVICE_ID), null);
   const c = h2.getSetCookie();
-  assert.match(c[0], /^sgx-account-session=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=34560000$/);
-  assert.equal(c[1], 'sgx-account-signed-in=1; Path=/; Secure; SameSite=Strict; Max-Age=34560000', '登录标记跟着 session 签：值 1、非 HttpOnly、不含秘密');
+  assert.match(c[0], /^sgx-account-session=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000$/);
+  assert.equal(c[1], 'sgx-account-signed-in=1; Path=/; Secure; SameSite=Strict; Max-Age=2592000', '登录标记跟着 session 签：值 1、非 HttpOnly、不含秘密');
   assert.match(c[2], /^sgx-account-reauth=[^;]+; Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=180$/);
   const h3 = new Headers();
   session.endSession(h3);

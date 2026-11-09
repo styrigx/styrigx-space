@@ -118,7 +118,7 @@ space（styrigx.com）相当于 One UI，子站 blog、daymark、curio（`styrig
 - 进站会话 `sgx-space-session`（`Domain=.styrigx.com`）只回答「是否已解锁」，
   是唯一的解锁状态源；它**从不**被当作账号认证。
 - 账号（账号命名 v2，2026-11-08，`acct-naming/NAMING-V2.md`）：一个概念一个词，三张票各管各的——
-  - `session`（`sudo root`）：cookie `sgx-account-session`（无 Domain，只发给主站；`HttpOnly; Secure; SameSite=Strict`；400 天，不点退出就一直登录），
+  - `session`（`sudo root`）：cookie `sgx-account-session`（无 Domain，只发给主站；`HttpOnly; Secure; SameSite=Strict`；30 天滑动续期：剩不到 15 天时账号接口的响应重签，常用设备不掉线，30 天不用自然过期），
     格式 `by.epoch.authAt.exp.deviceId.sig`，`SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC`（Ed25519，只绑在账号 Worker）签名；`workers/account/src/core/session.js`。
   - `reauth`（`sudo root reauth`）：`sgx-account-reauth`，3 分钟，票里带本机 deviceId，只在同一台设备的 session 有效时算数；`core/reauth.js`。
   - `reset`（`sudo root reset`）：恢复密钥 `SGX_ACCOUNT_RECOVERY_KEY` 换 `sgx-account-reset`，3 分钟，不签 session；`core/reset.js`。

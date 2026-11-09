@@ -5,7 +5,7 @@
  *   record = { deviceId, by, createdAt, authAt, lastSeen, model, platform, platformVersion, browser, country, city }
  * - 同一浏览器重新登录沿用原 deviceId，只更新 by/authAt，不会多出一台
  * - 设备页列出全部未退出、未过期的行（ORDER BY last_seen DESC），当前请求的 deviceId 标为「此设备」排最上面
- * - 单独退出别的设备：revoked_at = now（行留到 expires_at = 400 天，同 session 票），之后那台设备的票验签通过也会被拒（reason=revoked）。
+ * - 单独退出别的设备：revoked_at = now（行留到 expires_at = 400 天：2026-11-09 之前签的旧票最长 400 天，退出的行要比它活得久），之后那台设备的票验签通过也会被拒（reason=revoked）。
  *   D1 强一致：退出后那台的下一个请求就被拒。已退出的行不会被改回来（写记录的 UPSERT 带 WHERE revoked_at = 0）
  * - session 纪元 +1（改钥匙、全部退出、reset 登出）：其他设备的票本来就失效，顺手删掉它们的行（pruneOtherDevices）
  * - 不存 IP，只存网关转来的国家 / 城市（X-Styrigx-Client-Country / City，lib/gateway.js readClientContext；不读 request.cf）
@@ -20,11 +20,14 @@ import { b64urlEnc } from '../lib/crypto.js';
 import { onDb, sweepExpired, parseRecord } from '../lib/db.js';
 import { isDeviceId } from '../lib/ticket.js';
 import { readClientContext } from '../lib/gateway.js';
-import { TICKET_MAX_AGE } from './config.js';
+import { TICKET_MAX_AGE, LEGACY_SESSION_MAX_AGE } from './config.js';
 
 export { isDeviceId };
 
+/* 设备行跟着 session 走：每次 touch / 登录写行时续到 now + 30 天（session 滑动续期，设备行也滑动） */
 const TTL_MS = TICKET_MAX_AGE.session * 1000;
+/* 已单独退出的行保留 400 天（不跟着缩短）：2026-11-09 之前签的旧票最长 400 天，退出行先过期的话那张旧票会重新有效 */
+const REVOKED_TTL_MS = LEGACY_SESSION_MAX_AGE * 1000;
 /** lastSeen 至多每 30 分钟写一次（省 D1 写次数） */
 export const TOUCH_INTERVAL_MS = 30 * 60 * 1000;
 
@@ -193,7 +196,7 @@ export async function revokeDevice(env, deviceId) {
   await onDb(env, (d) => d.prepare(
     'INSERT INTO account_device (device_id, record, last_seen, revoked_at, expires_at) VALUES (?1, ?2, ?3, ?3, ?4) ' +
     'ON CONFLICT (device_id) DO UPDATE SET revoked_at = ?3, expires_at = ?4'
-  ).bind(String(deviceId), JSON.stringify({ deviceId: String(deviceId) }), now, now + TTL_MS).run());
+  ).bind(String(deviceId), JSON.stringify({ deviceId: String(deviceId) }), now, now + REVOKED_TTL_MS).run());
 }
 
 /** 设备页一次最多列多少台（最近活跃的在前；当前设备不在其中时由 /api/account/devices list 单独补上，见 api/account/devices.js）。 */

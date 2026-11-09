@@ -1,7 +1,7 @@
 /**
  * 账号 Worker 的命名和配置（命名 v2：一个概念一个词，见仓库 docs / PR「账号命名 v2」）。
  *
- * - 三张票：TICKET.session（sudo root 登录，400 天）、TICKET.reauth（sudo root reauth，3 分钟，挂在某个会话上：带 deviceId）、
+ * - 三张票：TICKET.session（sudo root 登录，30 天滑动续期：剩不到 15 天时由 rpc/account-service.js 重签，见 core/session.js renewSession）、TICKET.reauth（sudo root reauth，3 分钟，挂在某个会话上：带 deviceId）、
  *   TICKET.reset（sudo root reset，3 分钟，只用恢复密钥换，不签会话）。签名格式见 lib/ticket.js。
  * - 两个纪元：EPOCH.session 管 session 和 reauth 票（改钥匙、全部退出、reset finish 登出时 +1）；
  *   EPOCH.reset 只管 reset 票（finish 时 +1，所以一张 reset 票只能完成一次）。
@@ -24,11 +24,17 @@ export const EPOCH = Object.freeze({ session: 'session', reset: 'reset' });
 
 /* ---------- 票的时长（秒） ---------- */
 export const TICKET_MAX_AGE = Object.freeze({
-  /* 400 天（浏览器 Max-Age 上限）：不点退出就一直登录；用账号仍要先有进站会话 */
-  session: 34560000,
+  /* 30 天，滑动续期（2026-11-09；以前 400 天）：用着就不掉（剩不到 SESSION_RENEW_BELOW 时重签），30 天不用的设备自然过期；
+     用账号仍要先有进站会话 */
+  session: 2592000,
   reauth: 180,
   reset: 180,
 });
+
+/** session 剩余不到 15 天才重签（秒）：一台常用设备大约每 15 天写一次 Set-Cookie，不是每个请求都写 */
+export const SESSION_RENEW_BELOW = 15 * 86400;
+/** 2026-11-09 之前签的 400 天票（旧时长，秒）：只用来认出旧票、让单独退出的行保留得比旧票长（core/devices.js revokeDevice） */
+export const LEGACY_SESSION_MAX_AGE = 34560000;
 
 /**
  * 三张票（键就是票名）：cookie、时长、允许的 by、带不带 deviceId（device）、exp − at 是否限在时长内（span）、归哪个纪元。

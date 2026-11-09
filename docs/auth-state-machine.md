@@ -14,7 +14,7 @@
 | （同名清除） | 网关 | host-only `Path=/` | Max-Age=0 | — | 每次签发 / 清除都附带，清掉 host-only 同名 cookie |
 | `sgx-space-reset` | 网关（SGX_SPACE_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockResetTicket `by.epoch.iat.exp.sig`：重置锁屏；by = space / password / passkey（进站凭证 + 恢复开关，或进站凭证 + 锁屏凭证） |
 | `sgx-space-reauth` | 网关（SGX_SPACE_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockReauthTicket `by.epoch.iat.exp.sig`：锁侧复验——进「锁屏凭证」页、新建 / 作废临时钥匙、生成 / 作废分享短链前再验一次；by = password / passkey / space（临时钥匙、短链进门的会话本身不算复验） |
-| `sgx-account-session` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 400 天 | session 票 `by.epoch.authAt.exp.deviceId.sig`（`sudo root`）：账号 session（与进站会话无关）；by = password / passkey；`session` 纪元变了或设备被单独退出即失效 |
+| `sgx-account-session` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 30 天，滑动续期（剩不到 15 天时重签） | session 票 `by.epoch.authAt.exp.deviceId.sig`（`sudo root`）：账号 session（与进站会话无关）；by = password / passkey；`session` 纪元变了或设备被单独退出即失效 |
 | `sgx-account-reset` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | reset 票 `by.epoch.iat.exp.sig`（`sudo root reset`）：重置账号钥匙；by = recovery-key；`reset` 纪元，`finish` 后作废（只能用一次） |
 | `sgx-account-reauth` | 账号 Worker（SGX_ACCOUNT_PRIVATE） | host-only styrigx.com | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | reauth 票 `by.epoch.iat.exp.deviceId.sig`（`sudo root reauth`）：账号安全、重新授权应用、退出所有设备前再验一次；by = password / passkey；只在同一台设备的 session 有效时算数 |
 | `sgx-ui` | 主站 JS | `Domain=styrigx.com` | Secure, SameSite=Lax（非 HttpOnly） | 400 天 | 只有外观设置，子站读；不含任何会话信息 |
