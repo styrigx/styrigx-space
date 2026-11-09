@@ -33,7 +33,7 @@
 | `AI` | Workers AI | 自营模型：`@cf/google/gemma-4-26b-a4b-it`（Gemma 4，默认）、`@cf/openai/gpt-oss-20b`（GPT-OSS 20B） |
 | `VECTORIZE` | Vectorize | `styrigx-ai-recall`（1024 维、cosine；元数据索引 `private` 布尔），语义召回（2026-11） |
 | `CURIO` | 服务绑定（RPC） | `styrigx-curio-core` 的 `CurioReader`：只读固定查询（2026-11） |
-| `KV_SEARCH_INDEX` | KV（读；只写 `ai:recall:<站名>`） | `styrigx-space-gateway`（2026-11 前是 `styrigx-search-index`），键 `site:space`、`site:blog`、`site:daymark`、`site:curio`；模型登记 `ai:models` |
+| `KV_SEARCH_INDEX` | KV（读；只写 `ai:recall:<站名>`） | `styrigx-space-core`（进站 v3 L2b 前是 `styrigx-space-gateway`，再之前 `styrigx-search-index`），键 `site:space`、`site:blog`、`site:daymark`、`site:curio`；模型登记 `ai:models` |
 | `SGX_CHAT_API_KEY` | Secrets Store | 外部模型（Gemini）钥匙，原 styrigx-chat 那把，复用，不新建 |
 
 `[vars]`：`AI_MODELS`（模型登记的退路，KV 没有 / 坏时用）、`AI_MAX_TOKENS = "1024"`、`AI_CONTEXT_HITS = "6"`、`AI_RECALL_MIN_SCORE = "0.42"`、`AI_GEMINI_SEARCH = "1"`。

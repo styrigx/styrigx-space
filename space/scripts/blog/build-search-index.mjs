@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 生成博客在全站索引里的条目（styrigx-ai 召回时读 KV styrigx-space-gateway（2026-11 前 styrigx-search-index）的 site:blog；P4-2b 起由 deploy-ai-worker 写）。
+ * 生成博客在全站索引里的条目（styrigx-ai 召回时读 KV styrigx-space-core（进站 v3 L2b 前 styrigx-space-gateway，再之前 styrigx-search-index）的 site:blog；P4-2b 起由 deploy-ai-worker 写）。
  * 格式见主站 styrigx-space workers/ai/src/core/rank.js 顶部：
  *   { site: 'blog', generated, items: [{ id, type: 'post', lang, title, subtitle?, text?, url, private? }] }
  *

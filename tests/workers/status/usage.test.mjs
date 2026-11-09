@@ -16,7 +16,7 @@ import worker from '../../../workers/status/src/index.js';
 
 let sqlite = null;
 try { sqlite = await import('node:sqlite'); } catch {}
-/* 表结构 = migrations/0001_baseline.sql（库 styrigx-space-gateway，表名带 status_）；without(...) = 基线里去掉这几张表（模拟表不在） */
+/* 表结构 = migrations/0001_baseline.sql（库 styrigx-status，表名带 status_）；without(...) = 基线里去掉这几张表（模拟表不在） */
 const SCHEMA = readFileSync(new URL('../../../workers/status/migrations/0001_baseline.sql', import.meta.url), 'utf8');
 const without = (...tables) => SCHEMA + '\n' + tables.map((t) => 'DROP TABLE ' + t + ';').join('\n');
 

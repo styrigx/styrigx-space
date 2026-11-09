@@ -29,7 +29,7 @@ src/search-index.js  KV site:daymark 的索引
 
 - D1 `styrigx-daymark-core`：`D1_QUOTES`。
 - 服务绑定 `SPACE` → `styrigx-space-core` 的 `SpaceVerifier`（`conclusion()`：网关验门，再问账号 Worker，回结论）。
-- KV `KV_SEARCH_INDEX`（`styrigx-space-gateway`，2026-11 前是 `styrigx-search-index`；只写 `site:daymark`）。
+- KV `KV_SEARCH_INDEX`（`styrigx-space-core`，进站 v3 L2b 前是 `styrigx-space-gateway`；只写 `site:daymark`）。
 - Cron `17 * * * *`。
 
 ## 鉴权（P2-2，方案 3.4 R14、4.6）

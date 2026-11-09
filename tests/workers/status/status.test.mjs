@@ -13,7 +13,7 @@ import worker from '../../../workers/status/src/index.js';
 
 let sqlite = null;
 try { sqlite = await import('node:sqlite'); } catch {}
-/* 表结构 = migrations/0001_baseline.sql（2026-11 合库：库 styrigx-space-gateway，表名带 status_） */
+/* 表结构 = migrations/0001_baseline.sql（进站 v3 L2b：库 styrigx-status，表名带 status_） */
 const SCHEMA = readFileSync(new URL('../../../workers/status/migrations/0001_baseline.sql', import.meta.url), 'utf8');
 
 /** 用 node:sqlite 模拟 D1（prepare / bind / batch / first / all / run） */

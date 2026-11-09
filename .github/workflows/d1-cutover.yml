@@ -1,20 +1,21 @@
-name: D1 cutover (one-time, main site data → styrigx-space-gateway)
+name: D1 cutover (one-time, styrigx-space-gateway → styrigx-space-core + styrigx-status)
 
-# 主站数据合库（2026-11，Gray 定）的一次性搬迁。只手动触发，只在 main 上跑（两个 GitHub 环境都只允许 main）。
-#   D1 styrigx-auth-gateway（网关全表）、styrigx-share（share_link / share_fail）、styrigx-status（监测 7 张表，表名加 status_）
-#   → D1 styrigx-space-gateway；KV styrigx-search-index（全部键）→ KV styrigx-space-gateway。
-# 旧库 / 旧命名空间只读、不删（合并稳定后由 Gray 确认再删）。账号 styrigx-account、奇趣 / 日刻 core、预览库不动。
-# 细节、核对规则见 space/scripts/d1-cutover.mjs 开头。
+# 进站 v3 L2b（2026-11-09，Gray 08:18 / 08:21 定）的一次性搬迁。只手动触发，只在 main 上跑（两个 GitHub 环境都只允许 main）。
+#   D1 styrigx-space-gateway：网关表 + share_link / share_fail → D1 styrigx-space-core；status_* 七张表 → D1 styrigx-status（表名都不变）
+#   KV styrigx-space-gateway（全部键）→ KV styrigx-space-core
+# 旧库 / 旧命名空间只读、不删（回滚兜底；L3 删，先列清单）。账号 styrigx-account、奇趣 / 日刻 core、预览库不动。
+# 细节、核对规则见 space/scripts/d1-cutover.mjs 开头。（2026-11-07 那一次三个旧库 → styrigx-space-gateway 的版本见 git 历史，PR #304）
 #
-# 顺序（写在 PR 正文和 Muse 指令里）：
-#   1. 合并 PR（squash）。main 推送的部署里 d1-cutover-gate 见不到搬迁标记 → ai / status / share / curio-core / daymark-core / 网关部署全部跳过
+# 顺序（写在 PR 正文里）：
+#   1. 合并 PR（squash）。main 推送的部署里 d1-cutover-gate 在 styrigx-space-core 里见不到搬迁标记 → ai / status / space-core / curio-core / daymark-core 部署全部跳过
 #      （线上还是旧代码、旧库，不受影响）。
 #   2. 跑本工作流 dry_run = true：只读旧库和新库，本机按迁移建表试导入，逐表比对行数；不写任何远端。
-#   3. 停写窗口（约 10 分钟：别改锁屏密码 / 通行密钥 / 临时钥匙 / 短链，尽量别登录）里跑 dry_run = false：
-#      kv（照搬 + 逐值核对）→ d1（三套迁移 → 导出 → 改表名 → 导入 → 逐表核对 → 写标记）。任何一步不一致即失败、不写标记；可直接重跑。
-#   4. 重跑 deploy.yml（workflow_dispatch，main）：gate 放行，新代码部署到新库。
+#   3. 短暂停写（几分钟：尽量别改解锁密码 / 通行密钥 / 临时钥匙 / 分享链接）里跑 dry_run = false：
+#      kv（照搬 + 逐值核对）→ d1（两套迁移 → 导出 → 导入 → 逐表核对 → 写标记）。任何一步不一致即失败、不写标记；可直接重跑。
+#   4. 重跑 deploy.yml（workflow_dispatch，main）：gate 放行；deploy-space-core 在部署新绑定前先 resync（凭证 / 钥匙 / 链接表再和旧库比一遍，
+#      搬完之后又变了的整表重拷），部署 + 冒烟通过后写 switched 标记。
 #   5. 部署后跑一次 verify_only = true，看旧库和新库的差异报告（只报告）。
-# 不上传任何导出文件（里面有锁屏凭证）；日志只有表名、行数和哈希前缀。
+# 不上传任何导出文件（里面有进站凭证）；日志只有表名、行数和哈希前缀。
 
 on:
   workflow_dispatch:
@@ -43,6 +44,8 @@ jobs:
   kv:
     # 搜索索引 KV：site:* 会被 CI / Cron 重建，但 ai:models 是手写值，所以整个命名空间照搬。
     # token：styrigx-ai-deploy（GitHub 环境 STYRIGX_AI_DEPLOY；Workers KV Storage 编辑，范围整个账号，读旧命名空间写新命名空间都够）。
+    # 读写这个 KV 的只有 ai（读）、curio-core / daymark-core（写自己的 site:*）和 deploy-ai-worker（写 site:space / site:blog），space-core 不绑，
+    # 所以 space-core 的部署 token 不用加 KV 权限。
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -58,7 +61,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Copy KV styrigx-search-index → styrigx-space-gateway
+      - name: Copy KV styrigx-space-gateway → styrigx-space-core
         id: kv
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_AI_DEPLOY }}
@@ -67,7 +70,7 @@ jobs:
         run: node space/scripts/d1-cutover.mjs kv $MODE
 
   d1:
-    # token：styrigx-status-deploy（GitHub 环境 STYRIGX_STATUS_DEPLOY；D1 编辑是账号级权限，读三个旧库、写新库都够）。
+    # token：styrigx-status-deploy（GitHub 环境 STYRIGX_STATUS_DEPLOY；D1 编辑是账号级权限，读旧库、写两个新库都够）。
     if: github.ref == 'refs/heads/main'
     needs: kv
     runs-on: ubuntu-latest
@@ -82,20 +85,19 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Apply D1 migrations to styrigx-space-gateway (status / share / gateway, each with its own migrations_table)
-        # 只建表建索引（status / share 是 0001_baseline.sql；网关按原迁移历史在空库上重放，结果是最终表结构、不含数据）。
-        # 记录表：d1_migrations_status / d1_migrations_share / d1_migrations_gateway（各 wrangler.toml）。已迁过的跳过。
+      - name: Apply D1 migrations to styrigx-space-core / styrigx-status
+        # 只建表建索引：space-core 一份基线 migrations/0001_baseline.sql（记录表 d1_migrations_core），
+        # status 一份 migrations/0001_baseline.sql（记录表 d1_migrations_status）。已迁过的跳过。
         if: ${{ !inputs.dry_run && !inputs.verify_only }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -eu
-          (cd workers/status && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-space-gateway --remote)
-          (cd workers/space-core && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply D1_SHARE_LINK --remote)
+          (cd workers/status && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply styrigx-status --remote)
           (cd workers/space-core && npx --yes "wrangler@$WRANGLER_VERSION" d1 migrations apply D1_SPACE --remote)
 
-      - name: Export → rename → import → per-table check (styrigx-status / styrigx-share / styrigx-auth-gateway → styrigx-space-gateway)
+      - name: Export → import → per-table check (styrigx-space-gateway → styrigx-status / styrigx-space-core)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_STATUS_DEPLOY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

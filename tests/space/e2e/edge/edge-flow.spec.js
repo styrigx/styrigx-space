@@ -453,7 +453,7 @@ test.describe('R9 分享短链', () => {
     expect(await sessionBy(page)).toBe(null);
   });
 
-  test('R9 作废 / 过期 / 不存在：同一个结果（锁屏 /?lock=1）；作废带会话的短链后，已进来的人下一页就被锁在外面', async ({ page, context }) => {
+  test('R9 作废 / 过期 / 不存在：同一个结果（锁屏 /?entry=1）；作废带会话的短链后，已进来的人下一页就被锁在外面', async ({ page, context }) => {
     const live = await makeLink(page, context, { hours: 3, session: 1800 });
     await page.goto(MAIN + live.path);
     expect(await sessionBy(page)).toBe('tempkey');
@@ -483,7 +483,7 @@ test.describe('R9 分享短链', () => {
       await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
       finals.push([page.url(), resp.join('|')]);
     }
-    for (const f of finals) expect(f).toEqual([MAIN + '/?lock=1', '302 https://styrigx.com/?lock=1 private, no-store']);
+    for (const f of finals) expect(f).toEqual([MAIN + '/?entry=1', '302 https://styrigx.com/?entry=1 private, no-store']);
   });
 
   test('R9 开放重定向被拒：目标只能是站内相对路径', async ({ page, context }) => {

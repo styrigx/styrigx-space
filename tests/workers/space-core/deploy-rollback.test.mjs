@@ -351,11 +351,17 @@ test('deploy.yml：部署顺序 ai → status → 账号 → styrigx-space-core 
   for (const n of ['deploy-ai-worker', 'deploy-status-worker', 'deploy-account-worker']) assert.ok(needs('deploy-space-core').includes(n), n);
   for (const n of ['deploy-space-core', 'deploy-curio-core', 'deploy-daymark-core']) assert.ok(needs('build-and-deploy').includes(n), n);
   assert.equal(wf.jobs['deploy-space-core'].environment, 'STYRIGX_SPACE_CORE_DEPLOY');
-  /* space-core 自己跑两套迁移（D1_SPACE、D1_SHARE_LINK），在部署之前 */
+  /* space-core 自己跑迁移（进站 v3 L2b：一个绑定 D1_SPACE、一份基线），在部署之前；没有 D1_SHARE_LINK 了 */
   const core = wf.jobs['deploy-space-core'].steps;
-  const migs = core.map((st, k) => [st, k]).filter(([st]) => st.with && /^d1 migrations apply D1_(SPACE|SHARE_LINK) --remote$/.test(String(st.with.command)));
-  assert.equal(migs.length, 2);
+  const migs = core.map((st, k) => [st, k]).filter(([st]) => st.with && /^d1 migrations apply D1_[A-Z_]+ --remote$/.test(String(st.with.command)));
+  assert.deepEqual(migs.map(([st]) => st.with.command), ['d1 migrations apply D1_SPACE --remote']);
   for (const [, k] of migs) assert.ok(k < core.findIndex(isDeploy));
+  /* L2b 切绑定：resync 紧挨在部署之前；switched 标记在冒烟之后、失败回退步骤之前 */
+  const runIdx = (re) => core.findIndex((st) => typeof st.run === 'string' && re.test(st.run));
+  const resync = runIdx(/d1-cutover\.mjs resync$/), switched = runIdx(/d1-cutover\.mjs switched$/), smokeAt = runIdx(/check \/api\/share 401/);
+  assert.equal(resync, core.findIndex(isDeploy) - 1, 'resync 在部署前一步');
+  assert.ok(smokeAt > core.findIndex(isDeploy) && switched === smokeAt + 1, [smokeAt, switched].join(","));
+  assert.equal(core[switched].if, undefined, 'switched 只在前面全部成功时跑');
   /* 第一次部署的路由接管：plan → 不带路由部署 → takeover → 带路由部署 → verify；失败时 restore 在版本回滚之前 */
   const idx = (re) => core.findIndex((st) => typeof st.run === 'string' && re.test(st.run));
   const plan = idx(/route-takeover\.mjs plan$/), bare = idx(/deploy --config wrangler\.noroutes\.toml/), take = idx(/route-takeover\.mjs takeover /), ver = idx(/route-takeover\.mjs verify$/), rest = idx(/route-takeover\.mjs restore /);

@@ -5,7 +5,7 @@
 #
 # 安全：
 # - 本 Worker 不持任何钥匙。会话交给鉴权网关验（服务绑定 SPACE → SpaceVerifier）。
-# - 全站搜索：本 Worker 自己把收藏 / 设备 / 游戏写进 KV styrigx-space-gateway 的 site:curio（src/search-index.js）。
+# - 全站搜索：本 Worker 自己把收藏 / 设备 / 游戏写进 KV styrigx-space-core 的 site:curio（src/search-index.js）。
 # - workers_dev = false、preview_urls = false：只通过 styrigx.com/curio/api/* 路由访问（它连的是正式 D1 / R2）。
 
 name = "styrigx-curio-core"
@@ -76,11 +76,11 @@ binding = "SPACE"
 service = "styrigx-space-core"
 entrypoint = "SpaceVerifier"
 
-# 全站搜索索引：KV styrigx-space-gateway（2026-11 由 styrigx-search-index 换过来，主站 styrigx-ai 读）。本 Worker 只写自己那条 site:curio：
+# 全站搜索索引：KV styrigx-space-core（进站 v3 L2b 由 styrigx-space-gateway 换过来，主站 styrigx-ai 读）。本 Worker 只写自己那条 site:curio：
 # 改内容的写接口成功后重建（ctx.waitUntil），下面的 Cron 每小时兜底一次。格式见 src/search-index.js。
 [[kv_namespaces]]
 binding = "KV_SEARCH_INDEX"
-id = "608cf3e27184481cbca2922950506d87"
+id = "4bcdb84f205541b9b6c8d230bc2b106f"
 
 # Cron：每小时第 23 分重建一次搜索索引（首次部署后也靠它填上）；UTC 19:23（北京 03:23）那轮顺带清扫 R2 photos/ 里没人引用的照片。
 [triggers]
