@@ -2,22 +2,18 @@
 
 [中文](README.md) | English
 
-# Styrigx's Space
+# Styrigx
 
-**To understand the world, take it apart; to believe in it, put it back together.**
+**A Personal Digital Space**
 
-Sloan Gray's personal portal — Space and Account — and the auth gateway that guards the whole site family.
+The personal digital space of Sloan Gray (styrigx): a terminal-style personal website with Blog, Curio, Daymark and Wild.
 
-[styrigx.com](https://styrigx.com) · [Blog styrigx.com/blog/](https://styrigx.com/blog/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
+[styrigx.com](https://styrigx.com/) · [Blog](https://styrigx.com/blog/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
+![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?branch=main&style=flat-square&label=Deploy&color=2563eb)
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
-![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
 ![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
 ![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
-![Blog](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.blog.version&label=Blog&style=flat-square&color=2563eb)
-![Curio](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.curio.version&label=Curio&style=flat-square&color=2563eb)
-![Daymark](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.daymark.version&label=Daymark&style=flat-square&color=2563eb)
-![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?branch=main&style=flat-square&label=Deploy&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
 </div>
@@ -26,146 +22,155 @@ Sloan Gray's personal portal — Space and Account — and the auth gateway that
 
 ## Contents
 
-- [Overview](#overview)
-- [Preview](#preview)
-- [Apps](#apps)
+- [About](#about)
+- [Screenshots](#screenshots)
+- [Sites and features](#sites-and-features)
+- [Tech stack](#tech-stack)
 - [Architecture](#architecture)
-- [Security model](#security-model)
-- [Styrigx UI](#styrigx-ui)
-- [Local development](#local-development)
-- [Testing and CI](#testing-and-ci)
 - [Repository layout](#repository-layout)
-- [Site family](#site-family)
+- [Local development](#local-development)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Documentation](#documentation)
 - [License](#license)
 
-## Overview
+## About
 
-This is the source of styrigx.com and the "system" repository of the site family:
+This repository holds all of [styrigx.com](https://styrigx.com): one Hugo site (the main site plus three sub-sites) and a set of Cloudflare Workers.
 
-- **Portal** — Space (the single top-level page) and Account, fully bilingual.
-- **Auth gateway** — every page and API on the main site and on the sub-sites (Blog, Curio, Daymark at `styrigx.com/<site>/`) goes through it first. The whole site is locked by design; sharing only happens through short links that carry a temporary key.
-- **Shared shell** — the top bar, quick panel and AI window are shared by all four sites; the sub-sites live in the same Hugo site as the main site and use the very same templates and scripts, with no copies.
-- **Shared CI** — Hugo, Node and Playwright setup are published as composite actions (`v*` tags) that Atlas references by tag.
+- **Terminal style** — Home, the lock screen, the shield, the account and the AI window all work as "prompt + command + output", with no pop-up dialogs; `Ctrl K` opens the terminal drawer on any page.
+- **One site, one build** — the main site and `/blog/`, `/curio/`, `/daymark/` are one Hugo site in one Cloudflare Pages project, sharing one shell (top bar, navigation panel, quick panel, terminal, AI window).
+- **Locked by default** — the site is not public. Without a space session every page shows the lock screen first; the owner gets in with an unlock password or a passkey, visitors only with a temporary key or a share link.
+- **Bilingual** — English is the default language (`/`), Chinese lives at `/zh/`; light / dark follows the system, with 22 palettes to choose from.
 
-The interface is **Styrigx UI**, built in-house, with version numbers that track One UI; the **SGX** kernel handles sign-in and sessions. It works on phone, tablet and DeX, and feels much like a Samsung phone.
+## Screenshots
 
-## Preview
+Screenshots of the current interface will be added to [`docs/assets/screenshots/`](docs/assets/screenshots/) in a follow-up PR.
 
-| ![Home](docs/assets/screenshots/en-home-mobile.jpg) | ![Settings](docs/assets/screenshots/en-settings-mobile.jpg) |
-|:---:|:---:|
-| Space (top) | Space category entries |
+## Sites and features
 
-![DeX](docs/assets/screenshots/en-home-dex.jpg)
-<p align="center">DeX</p>
-
-## Apps
-
-| App | Path | What it does |
+| Site | Address | What's there |
 |---|---|---|
-| Home | `/` (Chinese `/zh/`) | The main site's front page: a centred hero (name, tagline) with an embedded terminal, then four sections — [01] latest 3 blog posts, [02] Curio's three directories (finds / devices / games), [03] Daymark's quote of the day, [04] three Wild cards. Security `/security/` (lock credentials `/security/lock/`, temporary keys `/security/tempkeys/`) opens from the shield in the top bar; Style `/theme/` stays for now. |
-| Wild | `/wild/` (Chinese `/zh/wild/`) | Three read-only terminal windows: `#screen-time` site screen time (this device, all devices once signed in), `#status` service status (six units, 90-day uptime per monitor, free-tier quota / usage / recent incidents, space-credential activity), `#about` neofetch version info. The old `/status/`, `/about/` and `/wellbeing/` (and `/zh/`) 301 to those anchors. Settings are stored locally and synced once you sign in; temporary keys include share links, and creating or revoking one asks for a lock re-verification. |
-| AI assistant | Top-bar AI button | On-site assistant: recalls from the site-wide index, then a model (self-hosted Gemma 4 / GPT-OSS 20B, or external Gemini) streams the answer with on-site source cards; the conversation stays local. |
-| Account | `/account/` | Opened from the avatar in the drawer head: account sign-in, cloud sync, devices, account security. |
+| Home | [`/`](https://styrigx.com/) (Chinese `/zh/`) | Hero (`$ whoami`, name, typed tagline, personal motto) with an embedded terminal; then four sections: latest 3 blog posts, Curio directories, Daymark's quote of the day, Wild cards |
+| Wild | `/wild/` (Chinese `/zh/wild/`) | Three read-only terminal windows: `#screen-time` screen time, `#status` service status and usage, `#about` version info |
+| Blog | [`/blog/`](https://styrigx.com/blog/) (Chinese `/blog/zh/`) | Posts, a tree of series, tags, RSS |
+| Curio | `/curio/` (Chinese `/curio/zh/`) | Finds, devices, games, movies, music |
+| Daymark | `/daymark/` (Chinese `/daymark/zh/`) | A collection of quotes and the quote of the day |
+
+Shared by all four sites:
+
+- **AI floating card (Gray AI)** — opened from the bottom-right button; a floating card on phones. It first recalls from the site index (keywords + semantic vectors + read-only Curio queries), then a model streams the answer, rendered as Markdown; conversations stay on the device. The default model is Gemma 4 on Workers AI; a signed-in account can pick GPT-OSS 20B or Gemini ([ADR-0004](docs/decisions/ADR-0004-ai-models.md)).
+- **Lock screen (space entry V3)** — a terminal lock screen, `entry@space:~$`, command `sudo styrigx`, unlocked with the unlock password or a passkey; temporary keys and share links work too. The shield in the top bar manages space credentials, temporary keys, share links and lock-now.
+- **Account (V3)** — the avatar in the top bar opens the account terminal, signed in with the account password / account passkey. It handles authorization (writing to Curio and Daymark, settings sync, avatar and profile, …) and is a separate set of tickets from space entry: "the door belongs to the site, the account grants permissions" ([SGX-SEC-001](docs/security/account-v3.md)).
+
+## Tech stack
+
+| Layer | What's used |
+|---|---|
+| Website | [Hugo](https://gohugo.io/) extended (version in [`setup-hugo`](.github/actions/setup-hugo/action.yml)), Tailwind CSS 4, native ES modules (bundled with Hugo `js.Batch`) |
+| Hosting | Cloudflare Pages (static files only) |
+| Backend | Cloudflare Workers (7), talking over service bindings + RPC |
+| Storage | Cloudflare D1, KV, R2, Vectorize, Secrets Store |
+| AI | Workers AI (Gemma 4, GPT-OSS 20B, bge-m3 embeddings), Google Gemini API |
+| Testing | `node:test` (real SQL on `node:sqlite`), Playwright, Lighthouse CI, stylelint |
+| CI / CD | GitHub Actions, Renovate |
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  V([Browser]) --> GW
-  subgraph CF[Cloudflare]
-    GW[styrigx-space-core<br/>styrigx.com/*]
-    CC[styrigx-curio-core<br/>/curio/api/*]
-    DC[styrigx-daymark-core<br/>/daymark/api/*]
-    GW --> P1[(Pages<br/>styrigx-space<br/>main site + /blog/ /curio/ /daymark/)]
-    GW -. service binding .-> AC[styrigx-account]
-    GW -. service binding .-> AI[styrigx-ai]
-    GW -. service binding .-> ST[styrigx-status]
-    PR[styrigx-proxy-rules<br/>proxy-rules.styrigx.com]
-  end
-  V --> CC
-  V --> DC
-  V --> PR
+```
+browser ──► styrigx.com/*            styrigx-space-core   space session, page gate, share links, API routing
+                                       ├─ Pages  styrigx-space (main site + /blog/ /curio/ /daymark/)
+                                       ├─ service binding → styrigx-account   account and authorization (no public route)
+                                       ├─ service binding → styrigx-ai        on-site AI chat
+                                       └─ service binding → styrigx-status    monitoring and usage
+        ──► styrigx.com/curio/api/*   styrigx-curio-core    Curio API (D1 + R2)
+        ──► styrigx.com/daymark/api/* styrigx-daymark-core  Daymark API (D1)
+        ──► proxy-rules.styrigx.com   styrigx-proxy-rules   rule-set accelerating proxy
 ```
 
-| Worker | Responsibility | Entry |
-|---|---|---|
-| `styrigx-space-core` | Issues and verifies lock sessions, lock credentials and temporary-key APIs, share links (`/s/*`, `/api/share`, merged in from `styrigx-share`); checks the session on every page (including the `/blog/`, `/curio/`, `/daymark/` sub-sites) before serving it from Pages | `styrigx.com/*` |
-| `styrigx-account` | Account system: password, passkeys, devices, account root key, avatar, cloud sync, digital wellbeing | Gateway service binding only, no public route |
-| `styrigx-ai` | On-site assistant: KV index recall + model answer (Workers AI / Gemini); stores nothing | Gateway service binding only |
-| `styrigx-status` | Checks every minute, reads usage hourly (D1) | Gateway service binding only |
-| `styrigx-proxy-rules` | Accelerating proxy for rule sets, allow-listed upstream only | `proxy-rules.styrigx.com` (bypasses the gateway) |
-| `styrigx-curio-core` | Curio API (D1 + R2) | `styrigx.com/curio/api/*` (more specific than the gateway) |
-| `styrigx-daymark-core` | Daymark API (D1) | `styrigx.com/daymark/api/*` (same) |
+Request paths, Worker responsibilities, front-end / back-end layering and the boundary rules CI enforces: [System overview SGX-ARCH-001](docs/architecture/overview.md); cookies and the entry state machine: [SGX-SPEC-001](docs/specs/auth-state-machine.md).
 
-The sub-sites and the main site are one Hugo site (`space/web/`, built once); the output is one tree (main site at the root, the three sites under `/blog/`, `/curio/`, `/daymark/`) in a single Pages project, deployed together.
+## Repository layout
 
-## Security model
+```
+styrigx-space/
+├─ space/
+│  ├─ web/       the one Hugo site: main site + sub-sites (kept apart as <dir>/<site>/), output in space/web/public/
+│  └─ scripts/   build, generator and static-check scripts (sub-site scripts in scripts/<site>/)
+├─ workers/      all Workers, one directory each (directory = Worker name without styrigx-)
+├─ tests/        all tests, grouped by what they test
+├─ docs/         specifications and ADRs (index: docs/README.md)
+└─ .github/      CI workflows, shared composite actions, Renovate config
+```
 
-- **Locked by default** — pages and APIs check the lock session first; signed-out page requests get a 302 to the lock screen, APIs get 401.
-- **Separation of duties** — the lock (gateway) and the account (account Worker) have their own storage, keys and root keys, and never import each other's code (enforced in CI by `check-layers`).
-- **Minimal exposure** — account, chat, search and status have no public routes and are reachable only through the gateway's service bindings; the gateway strips any forged identity headers from outside.
-- **Key handling** — secrets live only in Cloudflare Secrets Store and per-Worker secrets, never in the repo; each Worker deploys with its own least-privilege token, stored in a GitHub environment restricted to `main`.
-- **In the browser** — strict CSP (inline scripts allowed by hash, generated by `gen-csp` and verified in CI), HSTS, `nosniff`.
-- **Sharing** — only through time-limited short links (each backed by a temporary key); creating one asks for a lock re-verification, and any link can be revoked at any time.
-
-Design details: [docs/architecture/overview.md](docs/architecture/overview.md), [docs/specs/auth-state-machine.md](docs/specs/auth-state-machine.md), [docs/security/account-v3.md](docs/security/account-v3.md).
-
-## Styrigx UI
-
-- Three layouts, Mobile · Auto · DeX: on Auto, landscape viewports at least 840 wide and 500 tall get DeX, everything else gets Mobile (viewport only, no device sniffing).
-- Sizes scale smoothly on wide screens: margins and top-bar buttons grow with the width; the top bar and the page share one frame (up to 1440 on DeX, 640 for Mobile on wide portrait screens); Home cards use 2–3 columns, never narrower than 320.
-- Light / dark follows the system by default.
-- One top bar everywhere: nine-dot drawer button, a capsule showing only the current page name, the quick panel; on Space the capsule shows its single top-level tab.
-- Two complete versions: 中文 / English.
+Full details: [SGX-ARCH-002 Repository layout](docs/architecture/repo-structure.md).
 
 ## Local development
 
-Requirements: Node.js ≥ 22, Hugo extended (version defined in [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml)).
+Requires Node.js 22 (`node:sqlite`) and Hugo extended (version defined in [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml)).
 
 ```bash
 git clone https://github.com/styrigx/styrigx-space.git
 cd styrigx-space
 npm ci
 npm run build:css
-hugo server -s space/web          # http://localhost:1313
+hugo server -s space/web     # http://localhost:1313 — main site and /blog/ /curio/ /daymark/ together
 ```
 
-Production build: `hugo --minify -s space/web`, output in `space/web/public/`. Each Worker's README explains how to run it locally.
+Locally there is no site core to inject the space session, so pages stay on the lock screen. To just look at the interface, turn the lock off with the test switch (local and CI test builds only; production builds never set it):
 
-## Testing and CI
+```bash
+SGX_TEST_NO_LOCK=1 hugo server -s space/web
+```
 
-| Layer | What runs |
+Production build: `npm run build` (CSS + one Hugo run), output in `space/web/public/`. Each Worker's routes, bindings and data are in `workers/<name>/README.md`; the Worker skeleton is defined in [`workers/README.md`](workers/README.md).
+
+## Testing
+
+From the repository root:
+
+```bash
+# Unit tests (Workers + main-site front end); run npm run build:css first
+node --test tests/workers/space-core/*.test.mjs tests/workers/account/*.test.mjs tests/workers/ai/*.test.mjs \
+  tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs"
+
+npm run build && npm run test:sites                                   # sub-site unit tests (build first)
+npx playwright test --config=tests/config/playwright.config.js        # main-site e2e and visual regression
+npx playwright test --config=tests/blog/config/playwright.config.js   # sub-site e2e (same for curio / daymark)
+
+space/scripts/ci-local.sh                     # run the CI groups locally (lighthouse excluded)
+space/scripts/ci-local.sh unit build          # only the named groups
+```
+
+`ci-local.sh` never touches Cloudflare; the passkey group runs against a local emulator.
+
+## Deployment
+
+GitHub Actions ([`deploy.yml`](.github/workflows/deploy.yml)):
+
+- **Pull requests** — `unit`, `build` (including generated-file `--check`, layering and route checks), `e2e-lock`, `e2e-sites`, `visual`, `lighthouse`, rolled up into `quality`; plus `passkey-e2e`. Both must be green and the branch up to date with `main` before merging; squash only.
+- **main** — Workers deploy in dependency order (AI, status, account → site core → Curio / Daymark APIs; the rule-set proxy in parallel), Pages last; every step has post-deploy checks and a smoke test, and rolls back to the pre-deploy version on failure.
+- Every deploy job uses its own least-privilege deploy token, kept in a GitHub environment restricted to `main`; the repository holds no secrets.
+
+Details: [SGX-OPS-001 CI and deployment](docs/operations/deploy.md).
+
+## Documentation
+
+The specifications live in [`docs/`](docs/README.md) (written in Chinese); the index is [docs/README.md](docs/README.md). Good starting points:
+
+| Document | What it covers |
 |---|---|
-| Unit | `node --test` across all Workers and front-end modules; auth code runs real SQL on `node:sqlite` |
-| Page | Playwright end-to-end flows (lock screen, credentials, account, navigation, layout) plus visual regression baselines |
-| Static | Generated-file consistency (shell, CSP, palettes, cookie contract), Worker route registry, front-end layering, stylelint |
-| passkey-e2e | Full passkey flow against real Workers in a preview environment |
-
-Pull requests must pass `quality` and `passkey-e2e` (squash-only, linear history). Merging to `main` deploys Pages and the 9 Workers, in the order API Workers (including Curio and Daymark) → gateway → Pages; every deploy is followed by a smoke check and rolls back to the previous version on failure, and search and chat also sit behind a health gate fed by the status monitor. Dependencies are updated weekly by Renovate.
-
-## Repository layout
-
-```
-styrigx-space/
-├─ space/      site + infrastructure: web/ is one Hugo site (main site + Blog / Curio / Daymark, sub-sites kept apart as <dir>/<site>/, published by Cloudflare Pages); scripts/ holds build, generators and static checks (sub-site scripts in scripts/<site>/)
-├─ workers/    all Workers, one directory each
-├─ tests/      tests, grouped by what they test
-├─ docs/       specifications: architecture, specs, design, security, operations, contributing, ADRs (index: docs/README.md)
-└─ .github/    CI workflows and shared composite actions
-```
-
-Full details in [docs/architecture/repo-structure.md](docs/architecture/repo-structure.md) (Chinese).
-
-## Site family
-
-| Repository | Address | What |
-|---|---|---|
-| **styrigx-space** (this repo) | [styrigx.com](https://styrigx.com) | Portal and auth gateway; sub-sites [Blog](https://styrigx.com/blog/), [Curio](https://styrigx.com/curio/), [Daymark](https://styrigx.com/daymark/) (merged in from styrigx-atlas, 2026-11) |
-
-The old Atlas domain's 301 redirect was removed in 2026-11 (P4-3 PR-1); the domain is retired.
+| [Glossary](docs/glossary.md) | Site, space-entry and account terms |
+| [System overview](docs/architecture/overview.md) | Request paths, Worker responsibilities, layering rules |
+| [Main site](docs/architecture/sites/space.md) · [Blog](docs/architecture/sites/blog.md) · [Curio and Daymark](docs/architecture/sites/curio-daymark.md) | Pages and code locations per site |
+| [Space entry and account security model V3](docs/security/account-v3.md) | Credentials, session lifetimes, reauth / reset |
+| [Terminal-style UI system](docs/design/ui-system.md) · [Palette](docs/design/palette.md) | Interface rules |
+| [CI and deployment](docs/operations/deploy.md) | Check jobs, deploy order, rollback |
+| [PRs and commits](docs/contributing/pr-and-commits.md) · [Writing posts](docs/contributing/blog-writing.md) | Contribution conventions |
+| [ADR-0001](docs/decisions/ADR-0001-one-repo-one-site.md) · [ADR-0002](docs/decisions/ADR-0002-lock-screen.md) · [ADR-0003](docs/decisions/ADR-0003-account-v3.md) · [ADR-0004](docs/decisions/ADR-0004-ai-models.md) | Decision records: one site, lock screen, account V3, AI models |
 
 ## License
 
 Code is released under the [MIT](LICENSE) license; posts, images, avatars and other personal content are all rights reserved.
 
-<p align="center">© 2020–2026 Sloan Gray · Powered by Styrigx UI</p>
+<p align="center">© 2020–2026 Sloan Gray</p>
