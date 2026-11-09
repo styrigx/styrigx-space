@@ -473,11 +473,6 @@ export function mountTopbar(o) {
     /* 头部 ×（2026-11 PR-5 ai-v1）：同 Esc / 点遮罩 */
     if (ai) {
       const aiMs = ai.ms;
-      /* 手机底部半屏面板（≤ 640px、非桌面布局，2026-11-09）：拖头部往下滑关 */
-      if (aiSheet) mountSheetSwipe(aiDlg, /** @type {HTMLElement|null} */ (aiDlg.querySelector('.sgx-ai-head')), function () { aiMs.close(); }, function () {
-        const w = doc.defaultView;
-        return !!(w && w.matchMedia && w.matchMedia('(max-width: 640px)').matches) && doc.documentElement.getAttribute('data-sgx-layout') !== 'desktop';
-      });
       aiDlg.addEventListener('click', function (e) {
         const tg = /** @type {Element|null} */ (e.target);
         if (tg && tg.closest('[data-ai-close]')) aiMs.close();
@@ -741,69 +736,6 @@ export function mountTopbar(o) {
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
   return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, sec: sec && sec.ms, openAccount: function (/** @type {any} */ x) { openAcct(x); }, openShield: function (/** @type {any} */ x) { openSec(x); }, term: termSheet, termShell: term, paint: paint, paintNav: paintNav };
-}
-
-/** 下滑关闭的阈值：拖过这么多 px，或松手时还在以这个速度（px/ms）往下 */
-export const SWIPE_CLOSE_PX = 80;
-export const SWIPE_CLOSE_V = 0.5;
-/**
- * 松手时关不关（纯函数，单测用）。@param {number} dy 往下拖了多少 px @param {number} v 松手前的速度 px/ms（往下为正） @returns {boolean}
- */
-export function swipeShouldClose(dy, v) {
-  return dy >= SWIPE_CLOSE_PX || (dy > 12 && v >= SWIPE_CLOSE_V);
-}
-/**
- * 底部面板的下滑关闭（AI 窗口手机半屏，2026-11-09）：在 handle（头部）上按下、竖直往下拖超过 8px 才算拖（横拖 / 往上 / 点按钮照旧），
- * 拖动中把位移写进 dlg 的 --sgx-ai-drag（只往下）并加 [data-drag] 关过渡；松手按 swipeShouldClose 决定关（close()）还是弹回。
- * 拖过之后吞掉这一下的 click（免得松手落在按钮上又点了）。enabled() 每次按下时判断（视口 / 布局会变）。
- * @param {HTMLElement} dlg @param {HTMLElement|null} handle @param {() => void} close @param {() => boolean} enabled
- */
-export function mountSheetSwipe(dlg, handle, close, enabled) {
-  if (!handle || !handle.addEventListener) return;
-  /** @type {{id: number, y0: number, x0: number, dy: number, drag: boolean, t: number, y: number, v: number}|null} */
-  let st = null;
-  let swallow = false;
-  /** @param {boolean} keep 正常松手（false = 被系统取消，只弹回） */
-  const end = function (keep) {
-    const s0 = st;
-    st = null;
-    if (!s0 || !s0.drag) return;
-    swallow = true;
-    setTimeout(function () { swallow = false; }, 0);
-    /* 去掉拖动位移、同一帧恢复过渡：关 = 从当前位置滑到底，不关 = 弹回原位 */
-    dlg.removeAttribute('data-drag');
-    dlg.style.removeProperty('--sgx-ai-drag');
-    if (keep && swipeShouldClose(s0.dy, s0.v)) close();
-  };
-  handle.addEventListener('pointerdown', function (e) {
-    if (e.button !== 0 || !enabled()) return;
-    st = { id: e.pointerId, y0: e.clientY, x0: e.clientX, dy: 0, drag: false, t: e.timeStamp, y: e.clientY, v: 0 };
-  });
-  handle.addEventListener('pointermove', function (e) {
-    if (!st || e.pointerId !== st.id) return;
-    const dy = e.clientY - st.y0;
-    if (!st.drag) {
-      if (dy > 8 && Math.abs(dy) > Math.abs(e.clientX - st.x0)) {
-        st.drag = true;
-        dlg.setAttribute('data-drag', '');
-        try { handle.setPointerCapture(e.pointerId); } catch (err) {}
-      } else {
-        if (Math.abs(e.clientX - st.x0) > 8 || dy < -8) st = null;
-        return;
-      }
-    }
-    const dt = e.timeStamp - st.t;
-    if (dt > 0) st.v = (e.clientY - st.y) / dt;
-    st.t = e.timeStamp;
-    st.y = e.clientY;
-    st.dy = Math.max(0, dy);
-    dlg.style.setProperty('--sgx-ai-drag', st.dy + 'px');
-  });
-  handle.addEventListener('pointerup', function (e) { if (st && e.pointerId === st.id) end(true); });
-  handle.addEventListener('pointercancel', function (e) { if (st && e.pointerId === st.id) end(false); });
-  /* 按住头部时不让浏览器起原生拖放（会发 pointercancel，拖到一半就断） */
-  handle.addEventListener('dragstart', function (e) { if (st) e.preventDefault(); });
-  handle.addEventListener('click', function (e) { if (swallow) { e.preventDefault(); e.stopPropagation(); swallow = false; } }, true);
 }
 
 /**
