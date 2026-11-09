@@ -128,12 +128,14 @@ Worker 之间的边界（`space/scripts/check-layers.mjs`，CI 必过）：每�
 
 | 出口 | 加什么 |
 |---|---|
-| 网关：主站 `styrigx.com` 的页面、锁屏首页、所有跳转、`/api/*` | 全套：HSTS（一年，不带 includeSubDomains）、nosniff、`X-Frame-Options: DENY`、Referrer-Policy、Permissions-Policy、强制 CSP（只有 `frame-ancestors` / `object-src` / `base-uri` / `form-action`）、完整的 `Content-Security-Policy-Report-Only` |
+| 网关：主站 `styrigx.com` 的页面、锁屏首页、所有跳转、`/api/*` | 全套：HSTS（一年，不带 includeSubDomains）、nosniff、`X-Frame-Options: DENY`、Referrer-Policy、Permissions-Policy、强制 CSP（只有 `frame-ancestors` / `object-src` / `base-uri` / `form-action`）、完整的 `Content-Security-Policy-Report-Only`（`report-uri /api/csp-report` + `report-to csp-endpoint`）、`Reporting-Endpoints` |
 | 账号 Worker；站点核心的分享链接 `/s/<码>`、`/api/share` | 同上（`/s/<码>` 自己的 `Referrer-Policy: no-referrer` 不被覆盖） |
 | Pages 静态文件 | `space/web/static/_headers` 的 `/*` 段，同一套，由 `space/scripts/gen-csp.mjs` 生成 |
 | Pages `_worker.js` 的 `*.pages.dev` → 301 | 不依赖内容的那几个（HSTS、nosniff、X-Frame-Options、Referrer-Policy、强制 CSP） |
 | 网关代理的子站 `styrigx.com/blog/`、`/curio/`、`/daymark/` 页面、跳转和 401 | HSTS（统一覆盖）；nosniff、`X-Frame-Options: DENY`、Referrer-Policy、只有 `frame-ancestors` / `object-src` / `base-uri` 的强制 CSP（图志自己没发才补，已有任何 CSP 就不补）；不加 Permissions-Policy 和 Report-Only，图志内容的完整 CSP 各自审计后再加。图志静态资源直通时只补 HSTS、nosniff |
 | `proxy-rules.styrigx.com` | 上游头一律不透传，只留 ETag / Last-Modified，加 nosniff |
+
+Report-Only 的违规报告送 `POST /api/csp-report`：网关 `workers/space-core/src/core/csp-report.js` 在关口之前接住，只 `console.log`（Workers Logs 看）、回 204，不存任何东西、不占 `ANON_LIMITER`；正文超 16KB 丢弃、一次最多记 5 条。强制 CSP 不变。
 
 Report-Only 里的内联脚本 sha256 由 `space/scripts/gen-csp.mjs` 从生产构建算出（`workers/space-core/src/lib/csp-hashes.js`），CI 在构建后跑 `--check`。改了模板里的内联脚本：`hugo --minify -s space/web && node space/scripts/gen-csp.mjs`。
 

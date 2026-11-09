@@ -13,7 +13,8 @@
  *   frame-ancestors 'none'（防点击劫持）、object-src 'none'、base-uri 'self'、form-action 'self'。
  *   全站唯一的 <form> 是聊天输入框（JS 接管提交，没有 action，退化提交也是同源），锁屏 / 解锁 / 通行密钥都不走表单提交。
  *   强制策略里绝不出现 script-src / style-src / default-src 等：一旦写错，锁屏、解锁、通行密钥脚本被拦，所有人都会被锁在站外。
- * script-src / style-src / connect-src / img-src 等先放 Content-Security-Policy-Report-Only：只在浏览器控制台报，不拦。
+ * script-src / style-src / connect-src / img-src 等先放 Content-Security-Policy-Report-Only：不拦，违规报到 /api/csp-report
+ *   （report-uri 给旧浏览器，report-to + Reporting-Endpoints 给新的；网关 core/csp-report.js 只记日志、回 204、不存任何东西，2026-11-09）。
  *   内联脚本的 sha256 由 space/scripts/gen-csp.mjs 从生产构建（hugo --minify -s space/web）算出，写进 csp-hashes.js；CI 里 --check。
  *   style-src 暂时 'unsafe-inline'：模板里有几十个 style="" 属性、首屏主题色 <style> 是脚本动态插的，不在这次改。
  * 子站内容（网关代理的 /blog/、/curio/、/daymark/ 页面）不套主站的完整 CSP：三块内容的脚本、外链各不相同，要各自审计后再加。
@@ -44,6 +45,12 @@ export const CONNECT_EXTERNAL = [
   'https://geocoding-api.open-meteo.com',
 ];
 
+/** Report-Only CSP 的报告地址（网关 workers/space-core/src/core/csp-report.js 接，只记日志）；同源相对路径，预览站报给自己 */
+export const CSP_REPORT_PATH = '/api/csp-report';
+/** Reporting-Endpoints 里的端点名（report-to 指令引用它） */
+export const CSP_REPORT_GROUP = 'csp-endpoint';
+export const REPORTING_ENDPOINTS = CSP_REPORT_GROUP + '="' + CSP_REPORT_PATH + '"';
+
 /** 只报告、不拦截的完整 CSP（主站） */
 export const CSP_REPORT_ONLY = [
   "default-src 'self'",
@@ -59,6 +66,8 @@ export const CSP_REPORT_ONLY = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  'report-uri ' + CSP_REPORT_PATH,
+  'report-to ' + CSP_REPORT_GROUP,
 ].join('; ');
 
 /**
@@ -74,6 +83,7 @@ export function mainSiteHeaderList() {
     ['Permissions-Policy', PERMISSIONS_POLICY],
     ['Content-Security-Policy', CSP_ENFORCED],
     ['Content-Security-Policy-Report-Only', CSP_REPORT_ONLY],
+    ['Reporting-Endpoints', REPORTING_ENDPOINTS],
   ];
 }
 
