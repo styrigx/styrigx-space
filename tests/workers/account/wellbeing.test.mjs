@@ -124,7 +124,9 @@ test('wbAreaOf：主站页面映射', () => {
   for (const p of ['/wellbeing/', '/about/', '/status/', '/zh/status/']) assert.equal(wbAreaOf(p), null, p);
   /* 对齐 PR-C：风格页 /theme/ 退役（301 到主页），不再算旷野子页 */
   for (const p of ['/theme/', '/zh/theme/']) assert.equal(wbAreaOf(p), null, p);
-  for (const p of ['/wild/', '/zh/wild/', '/security/', '/security/lock/', '/zh/security/tempkeys/', '/account/', '/zh/account/devices/']) {
+  /* 进站 v3 L1：安全页删了（301 到盾牌 /#sec），不再算旷野子页 */
+  for (const p of ['/security/', '/security/lock/', '/zh/security/tempkeys/']) assert.equal(wbAreaOf(p), null, p);
+  for (const p of ['/wild/', '/zh/wild/', '/account/', '/zh/account/devices/']) {
     assert.equal(wbAreaOf(p), 'space', p);
   }
   assert.equal(wbAreaOf('/blog/'), null, '子站不归主站区域');

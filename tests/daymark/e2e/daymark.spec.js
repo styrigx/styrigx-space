@@ -157,7 +157,7 @@ test('分区：点窗标题改 hash、胶囊换分区名；cd .. / hash 回余�
   await expect(page.locator('#dm-pane-trove')).toBeVisible();
   await expect(page.locator('#dm-pane-echo')).toBeHidden();
   await expect(page.locator('.sgx-tb-title')).toHaveText('拾录');
-  await expect(page.locator('#dm-pane-trove .sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls daymark/trove/');
+  await expect(page.locator('#dm-pane-trove .sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls daymark/trove/', { useInnerText: true });
   /* cd .. 回余响 */
   await page.locator('#dm-pane-trove .sgx-cmds a[href="#"]').click();
   await expect(page.locator('#dm-pane-echo')).toBeVisible();

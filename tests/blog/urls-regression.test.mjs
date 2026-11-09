@@ -143,7 +143,8 @@ describe('网址回归（图志 /blog/ 下）', () => {
     const res = await fetch(base + '/blog/zh/');
     const html = await res.text();
     assert.match(html, /<header class="?sgx-ph"? data-sgx-ph>/, '页头');
-    assert.match(html, /styrigx@space:~\$<\/span> ls -lt blog\//, '页头命令');
+    /* 环境提示符规则（进站 v3 L1）：两种都写，CSS 按账号登录状态只显示一种 */
+    assert.match(html, /styrigx@space:~\$<\/span><span class="?sgx-envps-r"? translate="?no"?>root@account:~#<\/span><\/span> ls -lt blog\//, '页头命令');
     assert.match(html, /<h1 class="?sgx-ph-title"?>博客<\/h1>/, '中文 h1「博客」（可见）');
     assert.match(await (await fetch(base + '/blog/')).text(), /<h1 class="?sgx-ph-title"?>Blog<\/h1>/, '英文 h1「Blog」');
     assert.match(html, /写下来的东西。共 7 篇 · 最近更新 \d{4}-\d{2}-\d{2}/);

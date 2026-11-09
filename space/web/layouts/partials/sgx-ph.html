@@ -13,7 +13,7 @@
 {{- if not .cmd }}{{ errorf "sgx-ph: %s 缺 cmd（页头第一行是终端命令）" (.path | default .title) }}{{ end -}}
 {{- if not .desc }}{{ warnf "sgx-ph: %s 缺 description（页头只显示标题）" (.path | default .title) }}{{ end -}}
 <header class="sgx-ph" data-sgx-ph>
-  <p class="sgx-ph-cmd" aria-hidden="true" translate="no"><span class="sgx-pr"><span class="sgx-envps-g">styrigx@space:~$</span><span class="sgx-envps-r">root@account:~#</span></span> {{ .cmd }}</p>
+  <p class="sgx-ph-cmd" aria-hidden="true" translate="no"><span class="sgx-pr"><span class="sgx-envps-g" translate="no">styrigx@space:~$</span><span class="sgx-envps-r" translate="no">root@account:~#</span></span> {{ .cmd }}</p>
   {{- if eq $tag "h2" }}
   <h2 class="sgx-ph-title"{{ with .id }} id="{{ . }}"{{ end }}>{{ .title }}</h2>
   {{- else }}

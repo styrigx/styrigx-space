@@ -67,8 +67,8 @@ test('createLink：请求形状（跨源带 cookie、reuse、24h / 12h、名字�
   assert.deepEqual(calls[0].body, { action: 'create', reuse: true, name: '一'.repeat(24), to: 'https://styrigx.com/blog/post/a/', hours: 24, session: 43200 });
 });
 
-test('createLink：401 reauth → reauth，401 → session，409 → full，500 / 网络错 / 响应里没有像样的 path → fail', async () => {
-  const cases = [[401, { ok: false, error: 'reauth' }, 'reauth'], [401, { ok: false }, 'session'], [401, { ok: false, error: 'session' }, 'session'], [409, { ok: false, error: 'full' }, 'full'],
+test('createLink（进站 v3 Q3：新建不要 reauth）：401（不论 error）→ session，409 → full，500 / 网络错 / 响应里没有像样的 path → fail', async () => {
+  const cases = [[401, { ok: false, error: 'reauth' }, 'session'], [401, { ok: false }, 'session'], [401, { ok: false, error: 'session' }, 'session'], [409, { ok: false, error: 'full' }, 'full'],
     [503, { ok: false, error: 'server' }, 'fail'], [403, { ok: false, error: 'origin' }, 'fail'], ['throw', null, 'fail'],
     [200, { ok: true, link: { path: 'https://evil.com/' } }, 'fail'], [200, { ok: true, link: {} }, 'fail'], [200, null, 'fail']];
   for (const [st, body, key] of cases) {
@@ -167,52 +167,20 @@ test('mountShare：接口失败 → 只 toast 原因，不分享也不复制原�
   assert.equal(S.mountShare({ doc: d.doc, nav }), null, '同一个按钮只绑一次');
 });
 
-test('mountShare：401 reauth → 先走锁侧复验，通过后自动重试一次，分享的是短链；取消 → 什么也不分享、不 toast', async () => {
+test('mountShare（进站 v3 Q3 定稿 08:00）：新建只要进站会话——不弹复验、不重试；401 → 会话过期提示；最小复验步骤（lockReauthStep / reauthApi / .sgx-share-reauth）删了', async () => {
+  assert.equal(S.reauthApi, undefined);
+  assert.equal(S.lockReauthStep, undefined);
   const d = fakeDom();
   const { nav, log } = fakeNav({ share: 'ok' });
-  const bodies = [];
-  let n = 0;
-  const f = async (url, init) => {
-    bodies.push(JSON.parse(init.body));
-    n++;
-    return n === 1
-      ? { ok: false, status: 401, json: async () => ({ ok: false, error: 'reauth' }) }
-      : { ok: true, status: 200, json: async () => ({ ok: true, link: { path: '/s/' + CODE }, reused: true }) };
-  };
-  let asked = 0;
-  const m = S.mountShare({ doc: d.doc, nav, fetch: f, toast: () => {}, url: () => 'https://styrigx.com/curio/x/', reauth: async () => { asked++; return true; } });
-  assert.equal(await m.share(), 'shared');
-  assert.equal(asked, 1);
-  assert.equal(bodies.length, 2, '复验后重试一次');
-  assert.deepEqual(bodies[0], bodies[1]);
-  assert.equal(bodies[1].reuse, true);
-  assert.deepEqual(log, [['share', { title: '文章 · 博客', url: 'https://styrigx.com/s/' + CODE }]]);
-
-  const c = fakeDom();
-  const cn = fakeNav({ share: 'ok' });
   const toasts = [];
   const cf = fakeFetch(401, { ok: false, error: 'reauth' });
-  const cm = S.mountShare({ doc: c.doc, nav: cn.nav, fetch: cf.f, toast: (x) => toasts.push(x), url: () => 'https://styrigx.com/curio/x/', reauth: async () => false });
-  assert.equal(await cm.share(), 'cancelled');
-  assert.equal(cf.calls.length, 1, '取消后不再请求');
-  assert.deepEqual(cn.log, []);
-  assert.deepEqual(toasts, []);
-  assert.ok(!c.cls.has('is-busy'));
-});
-
-test('reauthApi：只发同源 POST、带 cookie；解锁密码 verify reauth:true；wrong / cooldown / 429 / 别的失败分开', async () => {
-  const seen = [];
-  const mk = (status, body) => async (url, init) => { seen.push([url, init.credentials, JSON.parse(init.body)]); return { status, json: async () => body }; };
-  assert.equal(await S.reauthApi({ fetch: mk(200, { ok: true }) }).password('pw'), 'ok');
-  assert.deepEqual(seen[0], ['https://styrigx.com/api/lock-password', 'include', { action: 'verify', password: 'pw', reauth: true }]);
-  assert.equal(await S.reauthApi({ fetch: mk(403, { ok: false, error: 'wrong' }) }).password('x'), 'wrong');
-  assert.equal(await S.reauthApi({ fetch: mk(429, { ok: false, error: 'cooldown' }) }).password('x'), 'locked');
-  assert.equal(await S.reauthApi({ fetch: mk(401, { ok: false, error: 'session' }) }).password('x'), 'fail');
-  const st = await S.reauthApi({ fetch: mk(200, { ok: true, valid: false, passkey: true, password: false }) }).status();
-  assert.deepEqual(st, { s: 200, j: { ok: true, valid: false, passkey: true, password: false } });
-  assert.deepEqual(seen[seen.length - 1], ['https://styrigx.com/api/lock-reauth', 'include', { action: 'status' }]);
-  /* 没有 WebAuthn → fail，不发请求 */
-  const before = seen.length;
-  assert.equal(await S.reauthApi({ fetch: mk(200, {}), nav: {} }).passkey(), 'fail');
-  assert.equal(seen.length, before);
+  const m = S.mountShare({ doc: d.doc, nav, fetch: cf.f, toast: (x) => toasts.push(x), url: () => 'https://styrigx.com/curio/x/' });
+  assert.equal(await m.share(), 'error');
+  assert.equal(cf.calls.length, 1, '只请求一次');
+  assert.deepEqual(log, [], '什么也不分享');
+  assert.equal(toasts.length, 1);
+  assert.match(toasts[0], /重新解锁/);
+  assert.ok(!d.cls.has('is-busy'));
+  const src = readFileSync(path.join(REPO, 'space/web/assets/js/shell/share-button.js'), 'utf8');
+  assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /sgx-share-reauth|lock-reauth|lock-password|credentials\.get/);
 });

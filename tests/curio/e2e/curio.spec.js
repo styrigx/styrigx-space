@@ -90,7 +90,7 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await mock(page, false);
   await page.goto('/curio/zh/');
   /* 对齐 PR-C2：首页 = ls curio/，下划线 tab finds/ devices/ games/ movies/（music/ 仅本人可见，没权限藏着），当前 finds/ */
-  await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/');
+  await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/', { useInnerText: true });
   await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveCount(5);
   await expect(page.locator('#cu-tabs .sgx-ctab-a:visible')).toHaveText([/^finds\/\s*2$/, /^devices\/\s*2$/, /^games\/\s*2$/, /^movies\//]);
   await expect(page.locator('#cu-tabs [data-ctab="music"]')).toBeHidden();
@@ -108,7 +108,7 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await page.locator('#cu-tabs [data-ctab="finds"]').click();
   await expect(page).toHaveURL(/\/curio\/zh\/finds\/$/);
   await expect(page.locator('.sgx-tb-title')).toHaveText('发现');
-  await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/finds/');
+  await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/finds/', { useInnerText: true });
   await expect(page.locator('#cu-pane-finds')).toBeVisible();
   await expect(page.locator('#cu-q')).toHaveCount(0);
   await expect(page.locator('#cu-chips [data-cat]')).toHaveText([/^全部\s*2$/, /^开发与云\s*1$/, /^网络检测\s*1$/]);
