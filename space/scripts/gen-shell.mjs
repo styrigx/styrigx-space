@@ -181,18 +181,22 @@ export function renderShare() {
 /** 终端公共件目录（终端统一 T1）：terminal.js、ai-panel.js 只许 import 这里面的文件 */
 export const TERM_DIR = path.join(REPO, 'space/web/assets/js/shell/term');
 
-/** 一份源码的静态 import 路径（去掉注释后）；有 import() 就报错 @param {string} code @param {string} label */
+/**
+ * 一份源码的 import 路径（去掉注释后）：静态 import + 字面量路径的 import()（终端统一 T5：man 页懒加载）；import() 的参数不是字符串字面量就报错
+ * @param {string} code @param {string} label
+ */
 function staticImports(code, label) {
-  if (/\bimport\s*\(/.test(code)) throw new Error(label + ' 不能动态 import()');
+  const dyn = [...code.matchAll(/\bimport\s*\(\s*'([^']+)'\s*\)/g)].map((m) => m[1]);
+  if ((code.match(/\bimport\s*\(/g) || []).length !== dyn.length) throw new Error(label + ' 不能动态 import() 非字面量路径');
   return (code.match(/^\s*import\s[^;]*;/gm) || []).map((l) => {
     const m = /from\s+'([^']+)';$/.exec(l.trim()) || /^import\s+'([^']+)';$/.exec(l.trim());
     if (!m) throw new Error(label + ' 的 import 写法认不出：' + l.trim());
     return m[1];
-  });
+  }).concat(dyn);
 }
 
 /**
- * 核对 import 只落在 shell/term/** 里，并顺着 term/** 里的文件往下查（它们也只许互相 import）
+ * 核对 import（含字面量 import()）只落在 shell/term/** 里，并顺着 term/** 里的文件往下查（它们也只许互相 import）
  * @param {string} file @param {string} label @param {string} [termDir] 单测换成临时目录 @param {Set<string>} [seen]
  */
 export function checkTermImports(file, label, termDir = TERM_DIR, seen = new Set()) {

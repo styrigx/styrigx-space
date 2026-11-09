@@ -202,6 +202,21 @@ term:
   locking: "正在锁屏 …"
   asking: "正在问 Gray AI …"
   fetching: "正在取 {x}…"
+  manIndex: "手册页 · man <命令> 查看一页"
+  manNone: "没有 {x} 的手册页"
+  manPager: "q 或 enter 退出"
+# 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/js/shell/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
+man:
+  help: "列出命令"
+  man: "查看命令的手册页"
+  cd: "进入目录（在主页上滚到那一节）"
+  ls: "列出目录"
+  cat: "显示今天的 daymark 一句"
+  sudo: "登录账号，或打开网站安全"
+  theme: "打开外观面板，或设为 dark / light / auto"
+  lock: "立即锁定这台设备"
+  ask: "问 Gray AI 一个问题"
+  clear: "清屏"
 # 终端窗口底部的按键提示行（Gray 2026-11-09 细节 1）：键名同英文表
 kh:
   cmd: "enter 执行 · esc 关闭"
