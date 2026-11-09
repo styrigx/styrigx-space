@@ -1,14 +1,15 @@
 {
   "$comment": "自动回滚的下限（space/scripts/deploy-rollback.mjs 读）。键 = Worker 名（wrangler.toml 的 name）。部署前线上的版本不满足这里的条件，就不记成回滚目标，这次部署失败也不自动回滚（job 照样红，线上留在新版本，人工处理）。requireBindings：目标版本必须带这些绑定名；notBefore（可选，ISO 时间）：目标版本的创建时间不能早于它。存储改成旧代码读不懂的格式时在这里加一行；以后放宽只能删条件，不要改成更早的时间。",
   "styrigx-space-core": {
-    "why": "进站 v3 L2（2026-11-09）：styrigx-auth-gateway 改名 styrigx-space-core 并入分享链接，新 Worker 从零开始（第一次部署没有回滚目标，失败时由 route-takeover.mjs 把路由还给旧 Worker）。要 D1_SPACE（原 D1_LOCK_AUTH）、ACCOUNT（账号拆分 PR3）、AI_SERVICE（P4-2b）、SGX_SPACE_RECOVERY_KEY / SGX_SPACE_TEMPKEY_PEPPER（新密钥名、解锁密码和临时钥匙换了 pepper：退回读旧 pepper 的版本，解锁密码又验不过）。notBefore 等 L3 删旧 Worker 后由下一个碰它的 PR 加",
+    "why": "进站 v3 L2（2026-11-09）：styrigx-auth-gateway 改名 styrigx-space-core 并入分享链接，新 Worker 从零开始。要 D1_SPACE（原 D1_LOCK_AUTH）、ACCOUNT（账号拆分 PR3）、AI_SERVICE（P4-2b）、SGX_SPACE_RECOVERY_KEY / SGX_SPACE_TEMPKEY_PEPPER（新密钥名、解锁密码和临时钥匙换了 pepper：退回读旧 pepper 的版本，解锁密码又验不过）。L3：notBefore = L2b 切库那次部署开始（2026-11-09 12:16 CST，run 42560887373）——更早的版本 D1_SPACE 指向已删的旧库 styrigx-space-gateway",
     "requireBindings": [
       "D1_SPACE",
       "ACCOUNT",
       "SGX_SPACE_RECOVERY_KEY",
       "SGX_SPACE_TEMPKEY_PEPPER",
       "AI_SERVICE"
-    ]
+    ],
+    "notBefore": "2026-11-09T04:16:00Z"
   },
   "styrigx-account": {
     "why": "命名 v2（P2）：账号库只绑 D1_ACCOUNT、表换成 account_*（0005 清了旧表里的账号行），更早的版本读旧表、绑旧名，退回去账号全空；账号拆分 PR3 / #226 的下限随之被覆盖",
@@ -17,9 +18,14 @@
     ]
   },
   "styrigx-status": {
-    "why": "P4-2b：监测从 SEARCH / CHAT 两个服务绑定换成 AI_SERVICE；更早的版本绑着冒烟后会被 Gray 删除的 styrigx-search-index / styrigx-chat，退回去部署不了。notBefore 等 Gray 删旧 Worker 后由下一个碰 status 的 PR 加",
+    "why": "P4-2b：监测从 SEARCH / CHAT 两个服务绑定换成 AI_SERVICE；更早的版本绑着冒烟后会被 Gray 删除的 styrigx-search-index / styrigx-chat，退回去部署不了。notBefore 等 Gray 删旧 Worker 后由下一个碰 status 的 PR 加。L3：notBefore = L2b 切库那次部署开始（2026-11-09 12:16 CST）——更早的版本绑着已删的旧库 styrigx-space-gateway",
     "requireBindings": [
       "AI_SERVICE"
-    ]
+    ],
+    "notBefore": "2026-11-09T04:16:00Z"
+  },
+  "styrigx-ai": {
+    "why": "进站 v3 L3：L2b 切库（2026-11-09 12:16 CST 那次部署）之前的版本读已删的 KV styrigx-space-gateway，不退过去",
+    "notBefore": "2026-11-09T04:16:00Z"
   }
 }

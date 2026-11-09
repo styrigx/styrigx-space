@@ -1,8 +1,7 @@
 # styrigx-space-core：站点核心 Worker（CI 部署；承接 styrigx.com 整站请求：进站会话检查 + 接口 + 分享链接；静态资源原样回源）
 # 进站 v3 L2（2026-11-09）：原鉴权网关 styrigx-auth-gateway 改名为本 Worker（和 styrigx-curio-core / styrigx-daymark-core 一个模子），
 # 分享短链 Worker styrigx-share 并入（/s/<码>、/api/share 由本 Worker 的 styrigx.com/* 接，src/router.js routeShare）。
-# 旧的两个 Worker 在 Cloudflare 上暂时保留（L3 删除，先给 Gray 清单）；第一次部署时路由由 deploy.yml 的接管步骤
-# （space/scripts/route-takeover.mjs）从旧 Worker 挪过来。
+# 旧的两个 Worker 已于进站 v3 L3（2026-11-09）删除；L2 第一次部署时的一次性路由接管见 git 历史（PR #337）。
 #
 # 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥；骨架见 workers/README.md）+ migrations/（D1 基线：进站 + 分享链接；旧迁移在 migrations-archive/ 只留史）。
 # 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步、数字健康）在账号 Worker styrigx-account（workers/account）：
@@ -39,9 +38,7 @@ head_sampling_rate = 1
 #   归两个接口 Worker（workers/curio-core、workers/daymark-core 的 wrangler.toml 登记），网关这里不登记比它们更具体的规则。
 # - 旧图志域名的过渡期跳转（合并 PR3 起的 301）已于 P4-3 PR-1 删除，路由不再登记；旧的 blog / daymark / curio 子域名同样不登记（不跳转）。
 # 注意：Pages 上已经没有后端代码，删掉路由 = 页面不验会话，不能靠删路由回滚；出问题时 revert 对应提交重新部署。
-# 路由一次只能挂一个 Worker：L2 第一次部署前它挂在旧的 styrigx-auth-gateway 上（短链两条挂在 styrigx-share），
-# deploy.yml 的 deploy-space-core 先不带路由部署，再用 space/scripts/route-takeover.mjs 把 styrigx.com/* 改挂本 Worker、删掉短链两条，
-# 然后照常带路由部署；部署 / 冒烟失败时同一个脚本把路由原样还给旧 Worker。
+# 部署后 deploy.yml 用 space/scripts/verify-core-routes.mjs 只读核对：styrigx.com/* 正好一条、归本 Worker，没有单独的短链路由。
 [[routes]]
 pattern = "styrigx.com/*"
 zone_name = "styrigx.com"
@@ -100,8 +97,8 @@ simple = { limit = 6, period = 60 }
 
 # ---- 数据绑定（正式 D1）----
 # 进站 v3 L2b（2026-11-09）：新库 styrigx-space-core（1354c898-…），一套迁移（migrations/0001_baseline.sql）、一张迁移记录表 d1_migrations_core、
-# 一个绑定 D1_SPACE（L2 的第二个绑定 D1_SHARE_LINK 并掉）。数据由 .github/workflows/d1-cutover.yml 从旧库 styrigx-space-gateway（39d037fe-…）原样搬来；
-# 旧库只读不删（回滚兜底，L3 删）。监测表在自己的库 styrigx-status（workers/status/wrangler.toml），本 Worker 不碰。
+# 一个绑定 D1_SPACE（L2 的第二个绑定 D1_SHARE_LINK 并掉）。数据由 L2b 的一次性搬迁（d1-cutover，见 git 历史 PR #338）从旧库原样搬来；
+# 旧库已于 L3（2026-11-09）删除。监测表在自己的库 styrigx-status（workers/status/wrangler.toml），本 Worker 不碰。
 # 进站的认证状态全部在 D1（强一致），不绑定任何 KV。
 # - 进站的行（realm='lock'：纪元、解锁密码 / 通行密钥、user handle、challenge、输错计数、临时钥匙、审计）和 lock_reset_switch；
 #   AI 全站总闸（attempt_limit realm='ai'，core/ai-limit.js）。
