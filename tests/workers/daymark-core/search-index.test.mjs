@@ -6,6 +6,7 @@
 // - wrangler.toml：KV_SEARCH_INDEX 绑定 + 每小时 Cron
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。
 // 运行：node --test tests/workers/search-index.test.mjs
+import '../account/_cf-workers.mjs'; /* cloudflare:workers 替身：index.js 再导出 HourlyJob（WorkerEntrypoint） */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { conclusionAuth } from '../_conclusion.mjs';
@@ -249,8 +250,8 @@ test('出错不影响接口：KV 抛错、没绑 KV、D1 读失败都只打日�
   assert.ok(logs.some((l) => l.includes('[daymark-search] rebuild failed')));
 });
 
-test('wrangler.toml：KV_SEARCH_INDEX 绑 styrigx-space-core（进站 v3 L2b 前 styrigx-space-gateway），每小时 Cron', () => {
+test('wrangler.toml：KV_SEARCH_INDEX 绑 styrigx-space-core（进站 v3 L2b 前 styrigx-space-gateway），不自带 Cron', () => {
   const t = readFileSync(W + '/wrangler.toml', 'utf8');
   assert.match(t, /\[\[kv_namespaces\]\]\nbinding = "KV_SEARCH_INDEX"\nid = "4bcdb84f205541b9b6c8d230bc2b106f"/);
-  assert.match(t, /\[triggers\]\ncrons = \["17 \* \* \* \*"\]/);
+  assert.match(t, /^crons = \[\]$/m, '不自带 Cron：每小时由 status 经 JOB_DAYMARK 调 HourlyJob（2026-11-10）');
 });

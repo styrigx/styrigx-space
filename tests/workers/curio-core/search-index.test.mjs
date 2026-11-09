@@ -265,8 +265,8 @@ test('Cron 兜底：内容和 KV 里那份一样就不写；内容变了、旧�
   assert.equal(kv.reads, 0);
 });
 
-test('wrangler.toml：KV_SEARCH_INDEX 绑 styrigx-space-core（进站 v3 L2b 前 styrigx-space-gateway）、每小时 Cron', () => {
+test('wrangler.toml：KV_SEARCH_INDEX 绑 styrigx-space-core（进站 v3 L2b 前 styrigx-space-gateway）、不自带 Cron', () => {
   const t = readFileSync(W + '/wrangler.toml', 'utf8');
   assert.match(t, /\[\[kv_namespaces\]\]\nbinding = "KV_SEARCH_INDEX"\nid = "4bcdb84f205541b9b6c8d230bc2b106f"/);
-  assert.match(t, /^\[triggers\]\ncrons = \["23 \* \* \* \*"\]$/m);
+  assert.match(t, /^crons = \[\]$/m, '不自带 Cron：每小时由 status 经 JOB_CURIO 调 HourlyJob（2026-11-10）');
 });

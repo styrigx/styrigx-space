@@ -14,7 +14,7 @@
  *      批量导入另要账号复验（_auth.js requireScope）
  * 不在路由表里的路径 → 404；方法不支持 → 405。
  *
- * 全站搜索：改内容的写接口成功后 ctx.waitUntil 重建 KV site:curio；Cron 每小时兜底（scheduled），见 src/search-index.js。
+ * 全站搜索：改内容的写接口成功后 ctx.waitUntil 重建 KV site:curio；每小时兜底（status 的 Cron 经服务绑定调 rpc/hourly-job.js），见 src/search-index.js。
  */
 import { API_ROUTES } from './routes.js';
 import { askConclusion } from './api/_auth.js';
@@ -126,6 +126,17 @@ export async function handle(request, env, ctx) {
   return res;
 }
 
+/**
+ * 每小时任务（2026-11-10 起由 styrigx-status 的 Cron 经服务绑定调 rpc/hourly-job.js，本 Worker 不再自带 Cron；scheduled 保留给手动 / 本地触发）。
+ * 兜底重建：内容和 KV 里那份一样就不写（省账号共享的 KV 写额度）；清扫时段顺带清照片。
+ * @param {Record<string, any>} env @param {number} at
+ */
+export function runHourly(env, at) {
+  const jobs = [rebuildSearchIndex(env, Date.now(), { skipUnchanged: true })];
+  if (isSweepHour(at)) jobs.push(sweepPhotos(env, at).catch(() => {}));
+  return Promise.all(jobs);
+}
+
 export default {
   /**
    * @param {Request} request
@@ -142,17 +153,14 @@ export default {
   },
 
   /**
-   * Cron（wrangler.toml [triggers]）：每小时兜底重建全站搜索索引（内容没变不写 KV）；每天一次（UTC 19 点那轮）顺带清扫没人引用的照片（src/photo-sweep.js）。出错只打日志。
+   * Cron 入口（2026-11-10 起 wrangler.toml 不再挂 Cron，每小时由 status 调 HourlyJob；这里保留给手动触发）：每小时兜底重建全站搜索索引（内容没变不写 KV）；每天一次（UTC 19 点那轮）顺带清扫没人引用的照片（src/photo-sweep.js）。出错只打日志。
    * @param {any} controller
    * @param {Record<string, any>} env
    * @param {{ waitUntil(p: Promise<any>): void }} ctx
    */
   async scheduled(controller, env, ctx) {
     const at = controller && controller.scheduledTime ? Number(controller.scheduledTime) : Date.now();
-    /* 兜底重建：内容和 KV 里那份一样就不写（省账号共享的 KV 写额度） */
-    const jobs = [rebuildSearchIndex(env, Date.now(), { skipUnchanged: true })];
-    if (isSweepHour(at)) jobs.push(sweepPhotos(env, at).catch(() => {}));
-    const p = Promise.all(jobs);
+    const p = runHourly(env, at);
     if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p);
     await p;
   },
