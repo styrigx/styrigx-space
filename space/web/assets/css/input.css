@@ -8753,6 +8753,12 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-at-cc button:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 .sgx-at-hint--cc { display: none; }
 @media (pointer: coarse) { .sgx-at-cc { display: inline; } .sgx-at-hint--cc:not([hidden]) { display: block; } }
+/* reset 层底部「^C 返回」（2026-11-09）：常显（不分触屏），终端文字样式，同上面 ^C 按钮的边框 */
+.sgx-at-rcc { margin: 0; padding: 4px 20px 12px; }
+.sgx-at-rcc button { min-height: 32px; padding: 0 10px; border: 1px solid var(--sgx-term-line); border-radius: 6px; background: transparent;
+  font: inherit; font-family: var(--sgx-font-mono); font-size: 12px; color: var(--sgx-text-secondary); cursor: pointer; }
+.sgx-at-rcc button b { font-weight: inherit; color: var(--sgx-primary); }
+.sgx-at-rcc button:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
 .sgx-at-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .sgx-at-ft { padding: 12px 20px 16px; border-top: 1px solid var(--sgx-term-line); font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 11px; line-height: 1.7; color: var(--sgx-text-tertiary); }
 .sgx-at-bk:focus-visible, .sgx-at-o:focus-visible, .sgx-at-chip:focus-visible, .sgx-at-sw:focus-visible, .sgx-at-a:focus-visible, .sgx-at-a2:focus-visible, .sgx-at-nm:focus-visible, .sgx-at-del:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }

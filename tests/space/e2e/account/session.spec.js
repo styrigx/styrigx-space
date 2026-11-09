@@ -159,6 +159,38 @@ test.describe('通行密钥登录', () => {
     expect(calls.filter((c) => c.action === 'session/passkey')).toHaveLength(0);
   });
 
+  test('取消系统窗口不计入 3 次（2026-11-09）：连取消 4 次还在选方式，没有 incorrect attempts；真的输错密码 3 次才结束这一轮', async ({ page }) => {
+    await T.fakePasskey(page, { cancel: true });
+    const calls = await mockAccount(page, {
+      status: STATUS(),
+      handlers: {
+        'session/passkey-challenge': [200, { ok: true, challenge: 'Y2hhbA', cid: 'c1' }],
+        'session/password': [401, { ok: false, error: 'wrong' }],
+      },
+    });
+    await T.goPage(page);
+    await openTerm(page);
+    for (let i = 0; i < 4; i++) {
+      await mode(page, 'pick');
+      await termIn(page).press('1');
+      await expect(log(page).getByText('已取消')).toHaveCount(i + 1);
+    }
+    await mode(page, 'pick');
+    await expect(log(page)).not.toContainText('incorrect password attempts');
+    expect(calls.filter((c) => c.action === 'session/passkey-challenge')).toHaveLength(4);
+    /* 密码输错：第 1、2 次 Sorry，第 3 次结束这一轮（取消没占名额） */
+    await termIn(page).press('2');
+    await mode(page, 'pw');
+    await typeLine(page, 'wrong-1');
+    await expect(log(page)).toContainText('Sorry, try again.');
+    await mode(page, 'pw');
+    await typeLine(page, 'wrong-2');
+    await mode(page, 'pw');
+    await typeLine(page, 'wrong-3');
+    await expect(log(page)).toContainText('sudo: 3 incorrect password attempts');
+    await mode(page, 'cmd');
+  });
+
   test('成功：session/passkey-challenge → session/passkey（cid + credential）→ 已登录 · 通行密钥', async ({ page }) => {
     await T.fakePasskey(page);
     let signedIn = false;
