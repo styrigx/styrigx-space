@@ -27,6 +27,7 @@ import { mountKeys } from './keys.js';
 import { mountDevices } from './devices.js';
 import { mountGrants } from './grants.js';
 import { mountProfile } from './profile.js';
+import { mountProxy, parseSub } from './proxy.js';
 
 /** 嵌套字符串表 → 点号键：终端统一 T1 起在 shell/term/core/strings.js，这里转出 */
 export { flatStrings };
@@ -196,7 +197,7 @@ export function mountAccountTerm(o) {
       canBackCmd: function () { return true; },
       onBack: function () { C.refocus = true; if (!escBack()) o.ms.close(); },
     },
-    secretModes: ['pw', 'rkey', 'newpw', 'newpw2'],
+    secretModes: ['pw', 'rkey', 'newpw', 'newpw2', 'suburl'],
     /* tty5：Tab 补全 + 历史落 sessionStorage（终端统一 T4；以前没有历史） */
     complete: completerOf(TTY5_TABLE),
     histKey: 'sgx-term-hist-5',
@@ -290,6 +291,7 @@ export function mountAccountTerm(o) {
   mountDevices(C);
   mountGrants(C);
   mountProfile(C);
+  mountProxy(C);
 
   C.render = function () {
     root.setAttribute('data-at-layer', C.inReset ? 'reset' : C.consent && C.st !== 'in' ? 'consent' : C.st === 'in' ? C.layer : 'guest');
@@ -358,6 +360,8 @@ export function mountAccountTerm(o) {
     const line = normCmd(raw);
     if (!line) return;
     C.echo(raw.trim());
+    /* sub-*（代理订阅 P2）：来源名大小写敏感，拿原样的一行 */
+    if (parseSub(raw)) { C.cmdSub(raw); return; }
     const c = parseCmd(line);
     switch (c.cmd) {
       case 'help': help(); return;
@@ -432,7 +436,7 @@ export function mountAccountTerm(o) {
     if (LAYERS.indexOf(a) !== -1) { C.go(a); return; }
     if (a === 'exit') { C.echo('exit'); C.cmdExit(); return; }
     if (a === 'ed-cancel') { C.editing = ''; C.render(); return; }
-    if (C.actKeys(a) || C.actDevices(a) || C.actGrants(a) || C.actProfile(a)) return;
+    if (C.actKeys(a) || C.actDevices(a) || C.actGrants(a) || C.actProfile(a) || C.actProxy(a)) return;
   }
   try {
     /* 离开页面：reauth 结束（O12） */
@@ -442,7 +446,8 @@ export function mountAccountTerm(o) {
   /* ---------- 开 / 关 ---------- */
   /**
    * 打开时（topbar-panel 的 onOpen）。x.layer：旧地址跳来（O1）或站内入口要直接进的那一层；x.app：奇趣 / 日刻的授权同意；x.reset：sudo root reset；x.reauth：只再验证。
-   * @param {{layer?: string, app?: string, reset?: boolean, reauth?: boolean}} [x]
+   * x.run：别的终端转来的一条命令（sub-*，P2）：登录了就在这里跑；没登录先 sudo root。
+   * @param {{layer?: string, app?: string, reset?: boolean, reauth?: boolean, run?: string}} [x]
    */
   function onOpen(x) {
     const want = (x && x.layer) || '';
@@ -466,6 +471,7 @@ export function mountAccountTerm(o) {
         if (C.consent) { C.render(); C.askConsent(); return; }
         if (!C.grants) C.loadGrants();
         C.go(C.layer);
+        if (x && x.run) { C.runCmd(x.run); C.focusIn(); }
         return;
       }
       C.render();
@@ -516,6 +522,7 @@ export function mountAccountTerm(o) {
     if (C.inReset) { C.inReset = false; C.resetPending = false; C.resetExp = 0; }
     C.editing = '';
     C.armed = '';
+    C.forgetProxy();
     if (!h) { C.endReauth(); return; }
     /* 页面还在用这张 reauth（奇趣导入）：做完再结束（离开页面时 pagehide 照旧立刻结束）；这期间又打开了面板就交给那一次的关闭去结束 */
     h.then(function () { if (!o.ms.isShown()) C.endReauth(); });

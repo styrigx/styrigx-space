@@ -253,6 +253,12 @@ export function mountShield(o) {
     const line = normCmd(raw);
     if (!line) return;
     C.echo(raw.trim());
+    /* sub-*（代理订阅 P2）：转到账号终端（tty5）去跑（来源名大小写敏感，传原样的一行；topbar-panel 收 sgx-acct-run） */
+    if (/^sub(-[a-z]+)?(\s|$)/.test(line)) {
+      C.out('<span class="sgx-at-dim">→</span> <span class="sgx-at-y" translate="no">~/account</span>');
+      doc.dispatchEvent(new CustomEvent('sgx-acct-run', { detail: raw.trim() }));
+      return;
+    }
     const c = parseShieldCmd(line);
     switch (c.cmd) {
       case 'help': help(); return;

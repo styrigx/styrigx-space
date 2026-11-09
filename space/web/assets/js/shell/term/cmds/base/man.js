@@ -14,7 +14,7 @@ export default {
   run: function (p, x) {
     const want = (p.args[0] || '').toLowerCase();
     return import('../../man/pages.js').then(function (m) {
-      /** @type {Record<string, {d: string, syn: string[]}>} */
+      /** @type {Record<string, {d: string, syn: string[], desc?: string[], auth?: string, notes?: string[], see?: string}>} */
       const P = m.PAGES;
       /* NAME 说明：#sgx-i18n-shell 的 man 节叠在英文底上 */
       const D = shellSection(null, 'man');
@@ -32,8 +32,22 @@ export default {
       if (!name || !Object.prototype.hasOwnProperty.call(P, name)) return { out: [{ t: 'line', seg: fill(x.S.manNone, { x: ['k', p.args[0]] }), cls: 'err' }] };
       const pg = P[name];
       /** @type {any[]} */
-      const out = [x.k.plain(name.toUpperCase() + '(1)'), { t: 'line', seg: [['', 'NAME']], cls: '' }, { t: 'line', seg: [['', '    '], ['k', name], ['', ' — ' + desc(name)]], cls: '' }, { t: 'line', seg: [['', 'SYNOPSIS']], cls: '' }];
-      pg.syn.forEach(function (s) { out.push({ t: 'line', seg: [['', '    ' + s.replace('{root}', ROOT_COMMAND).replace('{admin}', ADMIN_COMMAND)]], cls: '' }); });
+      const out = [x.k.plain(name.toUpperCase() + '(1)'), { t: 'line', seg: [['', 'NAME']], cls: '' }, { t: 'line', seg: [['', '    '], ['k', name], ['', ' — ' + desc(name)]], cls: '' }];
+      /** @param {string} s */
+      const sub = function (s) { return s.split('{root}').join(ROOT_COMMAND).split('{admin}').join(ADMIN_COMMAND); };
+      /** @param {string} h @param {string[]|undefined} ls */
+      const sec = function (h, ls) {
+        if (!ls || !ls.length) return;
+        out.push({ t: 'line', seg: [['', h]], cls: '' });
+        ls.forEach(function (s) { out.push({ t: 'line', seg: [['', '    ' + sub(s)]], cls: '' }); });
+      };
+      sec('SYNOPSIS', pg.syn);
+      /** @type {any} */
+      const g = pg;
+      sec('DESCRIPTION', g.desc);
+      sec('AUTH', g.auth ? [g.auth] : undefined);
+      sec('NOTES', g.notes);
+      sec('SEE ALSO', g.see ? [g.see] : undefined);
       out.push(x.k.plain('(END)'));
       return { out: out, pager: true };
     }, function () {

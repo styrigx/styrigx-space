@@ -10,6 +10,7 @@ import { completerOf } from '../../../../space/web/assets/js/shell/term/core/com
 import { createHistory } from '../../../../space/web/assets/js/shell/term/core/history.js';
 import { TTY1_TABLE, TTY1_RESET_TABLE } from '../../../../space/web/assets/js/shell/term/cmds/index-tty1.js';
 import { TTY3_TABLE } from '../../../../space/web/assets/js/shell/term/cmds/index-tty3.js';
+import { parseSub } from '../../../../space/web/assets/js/shell/account/proxy.js';
 import { TTY5_TABLE } from '../../../../space/web/assets/js/shell/term/cmds/index-tty5.js';
 import { parseEntryCmd, parseResetCmd, parseShieldCmd } from '../../../../space/web/assets/js/shell/space/commands.js';
 import { parseCmd } from '../../../../space/web/assets/js/shell/account/commands.js';
@@ -39,8 +40,11 @@ test('tty3 / tty5 补全', () => {
 test('补全出来的每条命令名分发都认得（表和 parse*Cmd 一致）', () => {
   for (const n of TTY1_TABLE.names) assert.notEqual(parseEntryCmd(n === 'sudo' ? 'sudo styrigx' : n).cmd, 'unknown', 'tty1 ' + n);
   for (const n of TTY1_RESET_TABLE.names) assert.notEqual(parseResetCmd(n === 'passkey' ? 'passkey ls' : n).cmd, 'unknown', 'reset ' + n);
-  for (const n of TTY3_TABLE.names) assert.notEqual(parseShieldCmd(n === 'sudo' ? 'sudo styrigx reauth' : n === 'passkey' ? 'passkey add' : n).cmd, 'unknown', 'tty3 ' + n);
-  for (const n of TTY5_TABLE.names) assert.notEqual(parseCmd(n === 'sudo' ? 'sudo root' : n === 'passkey' ? 'passkey add' : n === 'cd' ? 'cd' : n).cmd, 'unknown', 'tty5 ' + n);
+  for (const n of TTY3_TABLE.names) if (!/^sub/.test(n)) assert.notEqual(parseShieldCmd(n === 'sudo' ? 'sudo styrigx reauth' : n === 'passkey' ? 'passkey add' : n).cmd, 'unknown', 'tty3 ' + n);
+  /* sub-*（代理订阅 P2）：tty5 由 account/proxy.js parseSub 分发，tty3 转给 tty5 */
+  for (const n of TTY5_TABLE.names.filter((x) => /^sub/.test(x))) assert.ok(parseSub(n), 'tty5 ' + n);
+  for (const n of TTY3_TABLE.names.filter((x) => /^sub/.test(x))) assert.ok(TTY5_TABLE.names.includes(n), 'tty3 → tty5 ' + n);
+  for (const n of TTY5_TABLE.names) if (!/^sub/.test(n)) assert.notEqual(parseCmd(n === 'sudo' ? 'sudo root' : n === 'passkey' ? 'passkey add' : n === 'cd' ? 'cd' : n).cmd, 'unknown', 'tty5 ' + n);
 });
 
 test('历史：落盘键、草稿、只在内存', () => {
