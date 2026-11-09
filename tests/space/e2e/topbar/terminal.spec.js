@@ -42,7 +42,7 @@ test('主页终端：真输入框 + 标签、输出区 aria-live=polite；自动
   await expect(t.locator('[data-term-ps]')).toHaveText('styrigx@space:~$');
   await expect(t.locator('[data-term-title]')).toHaveText('styrigx@space: ~');
   await expect(t.locator('.sgx-term-hint-l')).toHaveText('tab 补全 · ↑ 历史 · Ctrl K 全站呼出');
-  await expect(out.locator('.sgx-term-ln').first()).toContainText('space os 1.0 — 输入 help 看全部命令，cd blog 直接跳过去');
+  await expect(out.locator('.sgx-term-ln').first()).toContainText('space os 1.0 — 输入 help 看全部命令，open blog 直接跳过去');
   await expect(out.locator('.sgx-term-cmd').first()).toHaveText('styrigx@space:~$ help');
   await expect(out.locator('.sgx-term-help')).toHaveCount(1);
   /* 首屏：hero 在终端上面，名字 / whoami / 状态胶囊都在 */
@@ -87,12 +87,15 @@ test('help（手机）：两栏，不显示说明', async ({ page }) => {
   await expect(home(page).locator('.sgx-term-hint-l')).toBeHidden();
 });
 
-test('cd blog：滚到 [01] 博客（顶栏下面），提示符 ~/blog$，输出「滚动到 [01] 博客 · 最新 3 篇」；cd .. 回到首屏', async ({ page }) => {
+test('cd blog：只改 cwd 和提示符 ~/blog$，不滚动（Gray 2026-11-10 02:11，T6b）；open blog 滚到 [01] 博客（顶栏下面），输出「滚动到 [01] 博客 · 最新 3 篇」；open ~ 回到首屏', async ({ page }) => {
   await go(page, '/zh/');
   await run(page, 'cd blog');
-  await expect(lastLine(home(page))).toHaveText('→ 滚动到 [01] 博客 · 最新 3 篇');
   await expect(home(page).locator('[data-term-ps]')).toHaveText('styrigx@space:~/blog$');
   await expect(home(page).locator('[data-term-title]')).toHaveText('styrigx@space: ~/blog');
+  await expect(lastLine(home(page))).toHaveText('styrigx@space:~$ cd blog');
+  expect(await page.evaluate(() => scrollY), 'cd 不滚动').toBeLessThan(80);
+  await run(page, 'open blog');
+  await expect(lastLine(home(page))).toHaveText('→ 滚动到 [01] 博客 · 最新 3 篇');
   await expect.poll(() => page.evaluate(() => Math.round(document.getElementById('blog').getBoundingClientRect().top)), { timeout: 3000 }).toBeLessThan(120);
   const top = await page.evaluate(() => document.getElementById('blog').getBoundingClientRect().top);
   const barH = await page.evaluate(() => document.querySelector('.sgx-topbar').getBoundingClientRect().bottom);
@@ -102,14 +105,16 @@ test('cd blog：滚到 [01] 博客（顶栏下面），提示符 ~/blog$，输�
   expect(await posts.count()).toBeGreaterThan(0);
   expect(await posts.count()).toBeLessThanOrEqual(3);
   await expect(posts.first()).toHaveAttribute('href', /^\/blog\/zh\/post\//);
+  await expect(home(page).locator('[data-term-ps]')).toHaveText('styrigx@space:~/blog$');
+  await run(page, 'open ~');
+  await expect.poll(() => page.evaluate(() => scrollY), { timeout: 3000 }).toBeLessThan(80);
   await run(page, 'cd ..');
   await expect(home(page).locator('[data-term-ps]')).toHaveText('styrigx@space:~$');
-  await expect.poll(() => page.evaluate(() => scrollY), { timeout: 3000 }).toBeLessThan(80);
 });
 
-test('cd blog（不减弱动效）：平滑滚动，最后停在 [01] 博客', async ({ page }) => {
+test('open blog（不减弱动效）：平滑滚动，最后停在 [01] 博客', async ({ page }) => {
   await go(page, '/zh/', { reduce: false });
-  await run(page, 'cd blog');
+  await run(page, 'open blog');
   await expect.poll(() => page.evaluate(() => Math.round(document.getElementById('blog').getBoundingClientRect().top)), { timeout: 5000 }).toBeLessThan(120);
 });
 
@@ -200,7 +205,7 @@ test('抽屉：/blog/ 上 Ctrl K 打开（提示符 ~/blog$），能跑 help；E
   await expect(inp).toBeFocused();
   await expect(inp).toHaveAccessibleName('Terminal command');
   await expect(dlg.locator('[data-term-ps]')).toHaveText('styrigx@space:~/blog$');
-  await expect(dlg.locator('[data-term-out] .sgx-term-ln').first()).toHaveText('space os 1.0 — type help to see all commands, cd blog to jump there');
+  await expect(dlg.locator('[data-term-out] .sgx-term-ln').first()).toHaveText('space os 1.0 — type help to see all commands, open blog to jump there');
   await expect(dlg.locator('[data-term-out]')).toHaveAttribute('aria-live', 'polite');
   await run(page, 'help', inp);
   await expect(dlg.locator('.sgx-term-help')).toHaveCount(1);
@@ -244,7 +249,7 @@ test('抽屉：Esc 关上后马上 Ctrl K 重开，上一次关闭迟到的 clos
   await expect.poll(() => page.evaluate(() => history.state)).toBeNull();
 });
 
-test('抽屉：NAVIGATE 页脚的「Ctrl K 终端 ›」打开（2026-11 PR-A，原「$ terminal」按钮）；cd curio 跳到奇趣', async ({ page }) => {
+test('抽屉：NAVIGATE 页脚的「Ctrl K 终端 ›」打开（2026-11 PR-A，原「$ terminal」按钮）；open curio 跳到奇趣（cd 不再跳页，T6b）', async ({ page }) => {
   await go(page, '/zh/wild/');
   await page.locator('.sgx-tb-grid').click();
   await expect(page.locator('#sgx-nav')).toHaveAttribute('open', '');
@@ -254,6 +259,6 @@ test('抽屉：NAVIGATE 页脚的「Ctrl K 终端 ›」打开（2026-11 PR-A，
   const dlg = page.locator('#sgx-term');
   await expect(dlg).toHaveAttribute('open', '');
   await expect(page.locator('#sgx-nav')).not.toHaveAttribute('open', '');
-  await run(page, 'cd curio', page.locator('#sgx-term-in'));
+  await run(page, 'open curio', page.locator('#sgx-term-in'));
   await page.waitForURL(/\/curio\/zh\/$/);
 });
