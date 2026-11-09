@@ -41,6 +41,8 @@ function env(db) {
     SGX_SPACE_PASSWORD_PEPPER: PEPPER, SGX_SPACE_TEMPKEY_PEPPER: PEPPER,
     SGX_ENV: 'production',
     SGX_SITE: 'space',
+    /* 正式网关绑了 ANON_LIMITER（缺了 fail-closed 503，core/anon-limit.js）：放行的桩 */
+    ANON_LIMITER: { limit: async () => ({ success: true }) },
   };
 }
 

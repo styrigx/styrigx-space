@@ -36,6 +36,9 @@ export function isAccountOnlyKey(k) {
   return k.startsWith('SGX_ACCOUNT_') || k === 'D1_ACCOUNT' || k === 'KV_PROFILE';
 }
 
+/** 预览没有 Rate Limiting 绑定：总闸用这个永远放行的桩（只在测试入口里，正式网关绑真的 [[ratelimits]]） */
+export const PREVIEW_ANON_LIMITER = Object.freeze({ limit: async () => ({ success: true }) });
+
 /** 预览桩的固定来源（公开一条；有账号会话再加私密一条） */
 export const PREVIEW_AI_ANSWER = Object.freeze(['这是预览环境的固定回答。', '\n\n- 调色板：/wild/']);
 
@@ -87,6 +90,8 @@ export function gatewayEnvOf(env, ctx) {
   };
   /* P4-1：不调真实 Workers AI */
   out.AI_SERVICE = { fetch: previewAiService };
+  /* 无会话写接口的总闸（core/anon-limit.js）缺绑定会 fail-closed 503；Pages 预览 / 本地模拟器不支持 Rate Limiting 绑定 → 放行的桩（2026-11-09） */
+  if (!out.ANON_LIMITER) out.ANON_LIMITER = PREVIEW_ANON_LIMITER;
   return out;
 }
 
