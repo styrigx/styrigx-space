@@ -81,7 +81,7 @@ service = "styrigx-ai"
 
 # ---- 限流（Workers Rate Limiting，2026-10-28）----
 # 无会话写接口（锁屏 / 重置 / 恢复钥匙 / 临时钥匙进门的 POST）按 IP 每 60 秒 20 次，超了 429；计数在边缘，不占存储、不收费。
-# 代码见 core/anon-limit.js（绑定缺失时放行）。namespace_id 是本账号内自定的整数，别的 Worker 不要复用。
+# 代码见 core/anon-limit.js（绑定缺失时 fail-closed 503；限流器调用出错时放行并记日志）。namespace_id 是本账号内自定的整数，别的 Worker 不要复用。
 [[ratelimits]]
 name = "ANON_LIMITER"
 namespace_id = "2801"

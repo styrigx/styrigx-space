@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @fileoverview L0-L6 分层边界检查（SGX 3.0 架构规范，docs/architecture.md）。
+ * @fileoverview L0-L6 分层边界检查（SGX 3.0 架构规范，docs/architecture/overview.md §6–7）。
  *
  * 每个相对 import 都解析成真实文件，再按目标文件所在目录判层（不再按文件名猜）。
  * 解析不到文件的相对 import 直接报错：以前这种情况记成 'unknown' 并且放行，

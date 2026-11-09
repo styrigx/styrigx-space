@@ -151,7 +151,7 @@ jobs:
         run: node space/scripts/gen-ui-cookie-contract.mjs --check
 
       - name: Layer boundary check (SGX 3.0 分层规范)
-        # 依赖方向（docs/architecture.md）：前端 lib ← auth ← shell ← apps ← entries；lib 不含鉴权接口；
+        # 依赖方向（docs/architecture/overview.md）：前端 lib ← auth ← shell ← apps ← entries；lib 不含鉴权接口；
         # Worker 之间：每个 Worker 只 import 自己目录下的文件，没有 workers/shared；网关不许出现账号鉴权标识；账号 Worker 不许有路由（规则 14–17）；Worker 骨架防回退（规则 18–21，见 workers/README.md）；
         # 相对 import 解析不到文件也算失败；前端禁止 sgx-space-session（cookie 名）/sgx-lock-shown；禁止用 storage 存解锁状态
         run: node space/scripts/check-layers.mjs

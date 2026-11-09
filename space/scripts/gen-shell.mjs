@@ -224,7 +224,7 @@ export const renderPageHeader = () => renderParamsOnly(SRC.pageHeader, 'sgx-ph.h
 /** tmux 页脚（2026-11 UI 重设计 PR-1）：四站同一个，同上只能用传进来的参数 */
 export const renderFooter = () => renderParamsOnly(SRC.footer, 'sgx-footer.html', 'class="sgx-foot"');
 
-/** 调色板用法规则版本（填充 vs ink、大面积块中性化、固定状态色、图表 3:1 回退、合成底审计；docs/palette-usage.md） */
+/** 调色板用法规则版本（填充 vs ink、大面积块中性化、固定状态色、图表 3:1 回退、合成底审计；docs/design/palette.md） */
 export const RULES_VERSION = 'palette-rules-1';
 
 /* palettes.json 每套带的 token（子站只消费这些，不自己定义主题色）：
@@ -272,7 +272,7 @@ function renderPalettes(data, schemeSrc) {
         default: DEFAULT_ID,
         /* 子站缓存自定义色角色时用的版本号：引擎一变就变，旧缓存自动作废 */
         schemeVersion: sha(schemeSrc).slice(0, 12),
-        /* 子站据此判断自己消费的是哪一版调色板用法规则（docs/palette-usage.md）；规则变了手动加一 */
+        /* 子站据此判断自己消费的是哪一版调色板用法规则（docs/design/palette.md）；规则变了手动加一 */
         rulesVersion: RULES_VERSION,
         groups: GROUPS,
         presets: ids.map((id) => {

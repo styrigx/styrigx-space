@@ -1,6 +1,6 @@
 # workers/：Worker 骨架契约
 
-本目录一个 Worker 一个子目录，目录名 = Cloudflare 上的 Worker 名去掉 `styrigx-` 前缀（`workers/space-core/` ↔ `styrigx-space-core`）。这份文件是 Worker 骨架的唯一出处：新 Worker 照它起步，大 Worker 照它对齐。各 Worker 自己的 `README.md` 只写本 Worker（职责 / 入口 / 路由 / 绑定 / 钥匙 / 数据与迁移），不复述这里。系统分层（L0–L6）、锁屏和账号的整体设计见 [`docs/architecture.md`](../docs/architecture.md)，这里不重复。
+本目录一个 Worker 一个子目录，目录名 = Cloudflare 上的 Worker 名去掉 `styrigx-` 前缀（`workers/space-core/` ↔ `styrigx-space-core`）。这份文件是 Worker 骨架的唯一出处：新 Worker 照它起步，大 Worker 照它对齐。各 Worker 自己的 `README.md` 只写本 Worker（职责 / 入口 / 路由 / 绑定 / 钥匙 / 数据与迁移），不复述这里。系统分层（L0–L6）、锁屏和账号的整体设计见 [`docs/architecture/overview.md`](../docs/architecture/overview.md)，这里不重复。
 
 ## 1. 骨架
 
@@ -45,7 +45,7 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 
 | Worker | 状态 |
 |---|---|
-| `space-core`（原 `auth-gateway`，进站 v3 L2 改名并并入 `share`） | 全量对齐：`index.js` / `app.js` / `router.js` / `gate.js` / `secrets.js` + `api/` `rpc/` `core/` `lib/`。原 Pages Functions 时代的 `functions/`（`_middleware.js`、`api/`、`_kernel/`、`_kernel/lib/`）全部并进 `src/`，`_kernel` 与 `_kernel/lib` 的同名文件（d1-state、tickets、space-audit / space-check / space-limit）各合成一份。L2 起分享链接的门和接口也在这里：`router.js` 的 `routeShare`、`api/share.js`、`core/share-open.js`、`core/share-links.js`（原 `workers/share` 的 `index.js` / `gate.js` / `open.js` / `lib/links.js`），迁移在 `migrations-share/` |
+| `space-core`（原 `auth-gateway`，进站 v3 L2 改名并并入 `share`） | 全量对齐：`index.js` / `app.js` / `router.js` / `gate.js` / `secrets.js` + `api/` `rpc/` `core/` `lib/`。原 Pages Functions 时代的 `functions/`（`_middleware.js`、`api/`、`_kernel/`、`_kernel/lib/`）全部并进 `src/`，`_kernel` 与 `_kernel/lib` 的同名文件（d1-state、tickets、space-audit / space-check / space-limit）各合成一份。L2 起分享链接的门和接口也在这里：`router.js` 的 `routeShare`、`api/share.js`、`core/share-open.js`、`core/share-links.js`（原 `workers/share` 的 `index.js` / `gate.js` / `open.js` / `lib/links.js`），旧迁移留史在 `migrations-archive/share/`（L2b 起只跑一份基线 `migrations/0001_baseline.sql`） |
 | `account` | 全量对齐入口和身份：`worker.js` → `index.js`，原 `index.js` 拆成 `app.js` + `router.js`，`entrypoints.js` 拆成 `rpc/account-service.js`、`rpc/account-verifier.js`、`gate.js`，`identity/account.js` → `api/account.js`，`identity/` 其余 → `core/`。账号命名 v2（2026-11-08，P2 #328）再整理一次：`api/account.js` 按入口拆成 `api/account/`（`status`、`session`、`reauth`、`reset`、`keys`、`devices`、`grants`），业务文件（密码、通行密钥、三张票、恢复密钥、设备、授权、审计）都进 `core/`，`lib/` 只剩通用件（cookies、crypto、db、ticket、webauthn、http、avatar 等） |
 | `ai` | P4-1 新建，按骨架起步：`index.js`（只再导出）/ `app.js` / `router.js` + `api/` `core/` `lib/`；没有关口（只经网关服务绑定进来） |
 | `status`、`proxy-rules`（`chat`、`search-index` 已在 P4-2b 删除；`share` 进站 v3 L2 并入 `space-core`） | `main` 本来就是 `src/index.js`，这次只补齐 README，不搬家、不改 import。status 的 `monitor.js` / `quota.js` / `targets.js` / `usage.js` 也在顶层；status 读 Secrets Store 不经 `secrets.js` |
