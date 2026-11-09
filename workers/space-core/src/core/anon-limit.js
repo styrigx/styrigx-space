@@ -9,7 +9,9 @@
  * 有会话的、GET 的都不限。超过 → 429 { error: 'cooldown' }（前端已有的「太频繁」文案）+ Retry-After: 60，不进端点，不写 D1。
  *
  * 这只是防刷的总闸，不是安全门：真正的门槛仍是各端点自己的输错锁定（password-limit / space-limit / lock-tempkey）。
- * 所以绑定缺失（本地、单测、Pages 预览不支持这个绑定）或调用出错时放行，只打一行日志。
+ * 绑定缺失 = 部署配错（wrangler.toml 漏了 [[ratelimits]]）：fail-closed，503 config + console.error（2026-11-09；以前放行，配错了没人知道）。
+ * Pages 预览 / 本地测试台不支持这个绑定，由测试入口（tests/space/e2e/helpers/preview-worker.js、edge-harness）塞一个放行的桩。
+ * 限流器调用本身出错（边缘偶发）仍放行，只打日志：别因为它把锁屏整个关掉。
  */
 import { apiError, clientIp } from '../lib/http.js';
 
@@ -38,8 +40,8 @@ export async function anonLimit(request, env, sessionValid) {
   if (!ANON_LIMITED_APIS.includes(path)) return null;
   const limiter = env && env.ANON_LIMITER;
   if (!limiter || typeof limiter.limit !== 'function') {
-    console.log('[sgx-anon-limit] no ANON_LIMITER binding, pass');
-    return null;
+    console.error('[sgx-anon-limit] no ANON_LIMITER binding, fail-closed 503 path=' + path);
+    return apiError(503, 'config');
   }
   let ok = true;
   try {

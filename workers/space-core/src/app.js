@@ -9,6 +9,7 @@
  *   1. 主站静态直通（isMainStaticPassthrough）
  *   2. 子站前缀（styrigx.com/blog/ /curio/ /daymark/，gate.js subsiteOf）的静态后缀 → 原样回源（只补 HSTS、nosniff）；旧 /<站>/en/… 除外（交给子站关口判 404）
  * 主站的后端代码只在本 Worker，Pages 只放静态文件：
+ *   2b. POST /api/csp-report（core/csp-report.js）：Report-Only CSP 的违规报告，只记日志、204，不经关口、不存东西
  *   3. Secrets Store 的私密值换成字符串（secrets.js）
  *   3b. 分享链接 /s/<码>、/api/share（router.js routeShare；原 styrigx-share Worker 的门和接口，进站 v3 L2 并入）
  *   4. 子站前缀的页面：gate.js handleSubsite（子站关口），Pages 不持钥匙
@@ -32,6 +33,7 @@ import { resolveSecrets } from './secrets.js';
 import { applyMainSiteHeaders, applySubsiteHeaders, applySubsiteStaticHeaders } from './lib/security-headers.js';
 import { apiError } from './lib/http.js';
 import { stripRequest, clientContextOf } from './core/forward.js';
+import { isCspReportPath, handleCspReport } from './core/csp-report.js';
 
 /* 主站静态资源目录：内容带指纹或公开（css/js/字体/收藏图标），不含任何正文。
    2026-10-21 路由改成整站通配前这些路径不过 Worker；现在进来也原样回源，行为不变。 */
@@ -83,6 +85,8 @@ export default {
     if (sub && isSubsiteStaticAsset(url0.pathname) && !isRetiredEnPath(url0.pathname)) {
       return applySubsiteStaticHeaders(await fromOrigin(request, rawEnv));
     }
+    /* Report-Only CSP 的违规报告（core/csp-report.js）：只记日志、回 204、不存东西；不经主站关口（锁屏页也会报），不用密钥 */
+    if (!sub && isCspReportPath(url0)) return applyMainSiteHeaders(tagRuntime(await handleCspReport(request)));
     const env = await resolveSecrets(rawEnv);
     /* 分享链接 /s/<码>、/api/share（原 styrigx-share Worker，进站 v3 L2 并入）：不走主站关口，安全头同主站 */
     if (!sub && isSharePath(url0.pathname)) return applyMainSiteHeaders(tagRuntime(await routeShare(request, env, ctx)));

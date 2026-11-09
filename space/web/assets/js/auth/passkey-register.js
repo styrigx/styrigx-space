@@ -85,7 +85,10 @@ export function attestationToJSON(cred) {
  *   toast: (msg: string) => void,
  *   msg: {cancelled: string, already: string, noSupport: string, failed: string, network: string},
  *   userFallback?: {name?: string, displayName?: string},
+ *   stale?: () => boolean,
+ *   signal?: AbortSignal,
  * }} o
+ * stale：调用方已放弃（比如终端里 ^C）→ 不再提交注册、不再提示；signal：给系统注册窗口的 AbortSignal（放弃时收起窗口）。都可不传。
  * @returns {Promise<void>}
  */
 export function registerPasskey(o) {
@@ -98,7 +101,10 @@ export function registerPasskey(o) {
       if (o.onAuthError(res)) throw { kind: 'handled' };
       const ch = res.json;
       if (!ch || !ch.ok) throw { kind: 'server', code: ch && ch.error, status: res.status };
-      return navigator.credentials.create({ publicKey: /** @type {any} */ (creationOptions(ch, o.userFallback)) }).then(
+      if (o.stale && o.stale()) throw { kind: 'handled' };
+      /** @type {any} */ const req = { publicKey: creationOptions(ch, o.userFallback) };
+      if (o.signal) req.signal = o.signal;
+      return navigator.credentials.create(req).then(
         function (cred) { return { cred: cred, cid: ch.cid }; },
         function (e) {
           if (e && e.name === 'NotAllowedError') throw { kind: 'cancelled' };
@@ -109,6 +115,7 @@ export function registerPasskey(o) {
       );
     })
     .then(function (r) {
+      if (o.stale && o.stale()) throw { kind: 'handled' };
       const prefill = o.prefill();
       return o.register({ cid: r.cid, name: prefill, credential: attestationToJSON(r.cred) }).then(function (res) {
         return { res: res, prefill: prefill };
@@ -125,7 +132,7 @@ export function registerPasskey(o) {
       }
     })
     .catch(function (e) {
-      if (!e || e.kind === 'handled') return;
+      if (!e || e.kind === 'handled' || (o.stale && o.stale())) return;
       if (e.kind === 'cancelled') o.toast(o.msg.cancelled);
       else if (e.kind === 'already') o.toast(o.msg.already);
       else if (e.kind === 'nosupport') o.toast(o.msg.noSupport);
