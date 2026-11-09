@@ -466,7 +466,7 @@ test('百味专题 · 账号未登录：只含公开句子，空专题不返回'
   assert.deepEqual(o.collections[0].quote_ids, [pri.id, pub.id]);
 });
 
-test('迁移：0001 + 0002 + 0004 + 0005 依次跑完（0004、0005 重复跑不报错），老数据保留、新字段有默认值、接口可用', async () => {
+test('迁移：0001 + 0002 + 0004 + 0005 + 0006 依次跑完（0004、0005、0006 重复跑不报错），老数据保留、新字段有默认值、接口可用', async () => {
   const raw = new DatabaseSync(':memory:');
   raw.exec(readFileSync(W + '/migrations/0001_init.sql', 'utf8'));
   raw.prepare("INSERT INTO quotes (id, text, created_at) VALUES ('aaaaaaaaaaaa', '老句子', 1)").run();
@@ -474,6 +474,8 @@ test('迁移：0001 + 0002 + 0004 + 0005 依次跑完（0004、0005 重复跑不
   raw.exec(readFileSync(W + '/migrations/0004_daily_pick.sql', 'utf8'));
   raw.exec(readFileSync(W + '/migrations/0004_daily_pick.sql', 'utf8'));
   raw.exec(readFileSync(W + '/migrations/0005_daily_pick_set_by_admin.sql', 'utf8'));
+  raw.exec(readFileSync(W + '/migrations/0006_daily_pick_set_by_grant.sql', 'utf8'));
+  raw.exec(readFileSync(W + '/migrations/0006_daily_pick_set_by_grant.sql', 'utf8'));
   const db = makeD1(raw);
   const o = await (await call('/daymark/api/quotes', { who: 'owner', db })).json();
   assert.equal(o.quotes[0].text, '老句子');
@@ -514,6 +516,37 @@ test('迁移 0005：daily_pick.set_by 旧值 owner → admin，auto 不动，其
   assert.doesNotMatch(ddl, /owner|CHECK/i, '表定义里没有 owner 默认值或 CHECK，只改数据不用重建表');
   /* 代码里已经没有写 'owner' 的地方 */
   assert.doesNotMatch(readFileSync(W + '/src/api/_today.js', 'utf8').replace(/^\/\/.*$/gm, ''), /'owner'/);
+});
+
+test('迁移 0006：daily_pick.set_by 旧值 admin → grant，auto 不动，其余列原样；重复跑结果不变；0005 → 0006 连跑把 owner 也落到 grant；没有 admin 相关的约束 / 默认值', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec(readFileSync(W + '/migrations/0001_init.sql', 'utf8'));
+  raw.exec(readFileSync(W + '/migrations/0002_three_tabs.sql', 'utf8'));
+  raw.exec(readFileSync(W + '/migrations/0004_daily_pick.sql', 'utf8'));
+  const ins = raw.prepare('INSERT INTO daily_pick (day, quote_id, set_by, set_at) VALUES (?, ?, ?, ?)');
+  ins.run('2026-01-01', 'aaaaaaaaaaaa', 'admin', 11);
+  ins.run('2026-01-02', 'bbbbbbbbbbbb', 'auto', 22);
+  ins.run('2026-01-03', 'cccccccccccc', 'admin', 33);
+  raw.prepare('INSERT INTO daily_pick (day, quote_id) VALUES (?, ?)').run('2026-01-04', 'dddddddddddd');
+  ins.run('2026-01-05', 'eeeeeeeeeeee', 'owner', 55);
+  const all = () => raw.prepare('SELECT day, quote_id, set_by, set_at FROM daily_pick ORDER BY day').all().map((r) => ({ ...r }));
+  const sql = readFileSync(W + '/migrations/0006_daily_pick_set_by_grant.sql', 'utf8');
+  const want = [
+    { day: '2026-01-01', quote_id: 'aaaaaaaaaaaa', set_by: 'grant', set_at: 11 },
+    { day: '2026-01-02', quote_id: 'bbbbbbbbbbbb', set_by: 'auto', set_at: 22 },
+    { day: '2026-01-03', quote_id: 'cccccccccccc', set_by: 'grant', set_at: 33 },
+    { day: '2026-01-04', quote_id: 'dddddddddddd', set_by: 'auto', set_at: 0 },
+    { day: '2026-01-05', quote_id: 'eeeeeeeeeeee', set_by: 'grant', set_at: 55 },
+  ];
+  raw.exec(readFileSync(W + '/migrations/0005_daily_pick_set_by_admin.sql', 'utf8'));
+  raw.exec(sql);
+  assert.deepEqual(all(), want);
+  raw.exec(sql);
+  assert.deepEqual(all(), want, '重复跑结果不变');
+  const ddl = raw.prepare("SELECT sql FROM sqlite_master WHERE name = 'daily_pick'").get().sql;
+  assert.doesNotMatch(ddl, /admin|CHECK/i, '表定义里没有 admin 默认值或 CHECK，只改数据不用重建表');
+  /* 代码里已经没有写 'admin' 的地方（兜底建表也一样） */
+  for (const f of ['/src/api/_today.js', '/src/api/_quotes.js']) assert.doesNotMatch(readFileSync(W + f, 'utf8').replace(/^\s*\/\/.*$/gm, ''), /'admin'/, f);
 });
 
 /* ================= 种子迁移 0003_seed_quotes ================= */
@@ -610,7 +643,7 @@ test('锁定：别的日期接口不给（?d= 400、不写库）；resolveDay �
   await TD.resolveDay(db, '2026-01-02');
   assert.equal(pickRow(db, '2026-01-02'), null);
   const qs = db.raw.prepare('SELECT id FROM quotes ORDER BY id').all();
-  db.raw.prepare("INSERT INTO daily_pick (day, quote_id, set_by, set_at) VALUES ('2026-01-02', ?, 'admin', 1)").run(qs[3].id);
+  db.raw.prepare("INSERT INTO daily_pick (day, quote_id, set_by, set_at) VALUES ('2026-01-02', ?, 'grant', 1)").run(qs[3].id);
   assert.equal((await TD.resolveDay(db, '2026-01-02')).id, qs[3].id);
 });
 
@@ -687,7 +720,7 @@ test('设为今日：账号已登录（可写）时改写当天这一句；所�
   assert.equal(j.day, TODAY());
   assert.equal(j.quote.id, target);
   assert.deepEqual(Object.keys(j.quote).sort(), ['author', 'id', 'source', 'source_type', 'tags', 'text', 'trans']);
-  assert.deepEqual(pickRow(db), { quote_id: target, set_by: 'admin' });
+  assert.deepEqual(pickRow(db), { quote_id: target, set_by: 'grant' });
   for (const who of [null, 'lock', 'owner']) assert.equal((await getToday(db, who)).quote.id, target, String(who));
   for (let i = 0; i < 10; i++) await add(db, { text: '再加' + i });
   assert.equal((await getToday(db)).quote.id, target);

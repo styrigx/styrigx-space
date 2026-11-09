@@ -47,7 +47,7 @@ CSS 类名里的 `bk-` 前缀沿用自 styrigx-book 的共用组件（弹层、�
 | `src/api/_today.js` | 今日一句的锁定（`daily_pick`：当天第一次请求挑好写进去，失效（删了 / 改私密）就重挑）与改写 |
 | `src/api/_quotes.js` | 表结构、校验、行映射（`note` 只给账号已登录）、按日期挑句子 |
 | `src/api/_write.js` | 写接口共用：读 body、写操作门槛（同源 + 账号会话 + `daymark.write`）、`?id=` |
-| `migrations/` | D1 迁移：`0001_init`（quotes）、`0002_three_tabs`（quotes.source_type / note，collections、collection_quotes）、`0003_seed_quotes`（63 句种子 + 专题「尼采」「了不起的盖茨比」，只增不删，由 `space/scripts/daymark/gen-seed-sql.mjs` 生成）、`0004_daily_pick`（今日一句锁定表）、`0005_daily_pick_set_by_admin`（`set_by` 的 `'owner'` → `'admin'`）。代码里的 `CREATE TABLE IF NOT EXISTS` 只兜底全新的库，不做 ALTER |
+| `migrations/` | D1 迁移：`0001_init`（quotes）、`0002_three_tabs`（quotes.source_type / note，collections、collection_quotes）、`0003_seed_quotes`（63 句种子 + 专题「尼采」「了不起的盖茨比」，只增不删，由 `space/scripts/daymark/gen-seed-sql.mjs` 生成）、`0004_daily_pick`（今日一句锁定表）、`0005_daily_pick_set_by_admin`（`set_by` 的 `'owner'` → `'admin'`）、`0006_daily_pick_set_by_grant`（`set_by` 的 `'admin'` → `'grant'`，`admin` 让给主站身份）。代码里的 `CREATE TABLE IF NOT EXISTS` 只兜底全新的库，不做 ALTER |
 
 ## 部署
 
