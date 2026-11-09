@@ -367,29 +367,21 @@ test('从零设置：锁屏未配置时进站凭证无会话只能签 LockResetT
   assert.equal(pick(res, 'sgx-lock-reset'), null);
 });
 
-test('/api/lock-reset：恢复开关关闭时进站凭证 + 解锁密码 → 签 LockResetTicket(by=password)；accountProof（账号密码）不认', async () => {
+test('/api/lock-reset（L1）：恢复钥匙一把就签 LockResetTicket(by=space)；带 accountProof / lockProof 都不看（第二步已删）', async () => {
   const kv = makeKV({ 'lock-password': JSON.stringify(await makePasswordRecord('lockpass99', PEPPER)), 'account-password': JSON.stringify(await makePasswordRecord('acctpass99', PEPPER)) });
   const { onRequestPost } = await import(API + 'lock-reset.js');
-  let res = await onRequestPost({
-    request: post('/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY, accountProof: { type: 'password', password: 'acctpass99' } }),
-    env: envFor(kv),
-  });
-  assert.deepEqual(await res.json(), { ok: true, needLock: true, passkey: false, password: true }, 'accountProof 当作没有证明');
-  assert.equal(pick(res, 'sgx-lock-reset'), null);
-  res = await onRequestPost({
-    request: post('/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY, lockProof: { type: 'password', password: 'acctpass99' } }),
-    env: envFor(kv),
-  });
-  assert.equal(res.status, 401, '账号密码不是锁屏凭证');
-  res = await onRequestPost({
-    request: post('/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY, lockProof: { type: 'password', password: 'lockpass99' } }),
-    env: envFor(kv),
-  });
-  const j = await res.json();
-  assert.equal(res.status, 200, JSON.stringify(j));
-  assert.ok(!j.needLock);
-  const t = pick(res, 'sgx-lock-reset');
-  assert.ok(t && t.startsWith('password.'), t);
+  for (const extra of [{}, { accountProof: { type: 'password', password: 'acctpass99' } }, { lockProof: { type: 'password', password: 'wrong' } }]) {
+    const res = await onRequestPost({ request: post('/api/lock-reset', Object.assign({ action: 'verify', spaceKey: SPACE_KEY }, extra)), env: envFor(kv) });
+    const j = await res.json();
+    assert.equal(res.status, 200, JSON.stringify(j));
+    assert.deepEqual(j, { ok: true });
+    const t = pick(res, 'sgx-lock-reset');
+    assert.ok(t && t.startsWith('space.'), t);
+    assert.equal(pick(res, 'sgx-lock-session'), null, '不签进站会话');
+  }
+  const bad = await onRequestPost({ request: post('/api/lock-reset', { action: 'verify', spaceKey: 'nope', lockProof: { type: 'password', password: 'lockpass99' } }), env: envFor(kv) });
+  assert.equal(bad.status, 401, '恢复钥匙错：解锁密码对也不签');
+  assert.equal(pick(bad, 'sgx-lock-reset'), null);
 });
 /* ================= 删除 ================= */
 

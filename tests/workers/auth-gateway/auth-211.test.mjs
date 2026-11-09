@@ -121,20 +121,6 @@ test('2.11 无 lock 会话：单用进站凭证进不了 lock-reauth（没进门
 
 /* ============ 3. 重置锁屏 ============ */
 
-test('2.11 重置锁屏：开关关闭时只进站凭证 → 返回 needLock（带锁屏凭证的 passkey / password 布尔）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
-  const kv = configuredKV({ lock: true, account: true });
-  const env = baseEnv(kv); /* 无开关 → 关闭 */
-  const req = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345',
-    /* 无 lockProof */
-  });
-  const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true, needLock: true, passkey: false, password: true });
-  assert.equal(res.headers.get('Set-Cookie'), null, '没签票');
-});
-
 test('2.11 重置锁屏：开关关闭时只锁屏凭证被拒（缺进站凭证 → 401）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
   const kv = configuredKV({ lock: true });
@@ -147,68 +133,6 @@ test('2.11 重置锁屏：开关关闭时只锁屏凭证被拒（缺进站凭证
   const res = await onRequestPost({ request: req, env });
   assert.equal(res.status, 401);
   assert.equal(res.headers.get('Set-Cookie'), null);
-});
-
-test('2.11 重置锁屏：进站凭证 + 锁屏密码 → LockResetTicket(by=password)；锁屏密码错 → 401 auth 并计入进站凭证限速', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
-  const { verifyLockResetTicket } = await import(REPO + '/workers/auth-gateway/src/core/tickets.js');
-  const kv = configuredKV({ lock: true });
-  const env = baseEnv(kv);
-  const h = { 'CF-Connecting-IP': '9.9.9.1' };
-  const bad = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345', lockProof: { type: 'password', password: 'wrong-pass' } }, h), env });
-  assert.equal(bad.status, 401);
-  assert.deepEqual(await bad.json(), { ok: false, error: 'auth' });
-  const rows = authD1For(kv).raw.prepare("SELECT count FROM attempt_limit WHERE realm = 'lock' AND kind = 'spacekey' AND bucket = ?").all('9.9.9.1');
-  assert.equal(rows.length, 1, '锁屏凭证错计入进站凭证那一行');
-  const ok = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345', lockProof: { type: 'password', password: 'lock-pass-1' } }, h), env });
-  assert.equal(ok.status, 200);
-  assert.deepEqual(await ok.json(), { ok: true });
-  const sc = ok.headers.get('Set-Cookie') || '';
-  const m = sc.match(/sgx-lock-reset=([^;]+)/);
-  assert.ok(m, '签了 sgx-lock-reset');
-  const v = await verifyLockResetTicket(new Request('https://test.example.com/', { headers: { Cookie: 'sgx-lock-reset=' + m[1] } }), env);
-  assert.equal(v.ok, true);
-  assert.equal(v.by, 'password');
-});
-
-test('2.11 重置锁屏：库里遗留的账号密码不算锁屏凭证（网关不读 realm=account）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
-  const kv = configuredKV({ account: true }); /* 只有拆分前遗留的账号密码行 */
-  const env = baseEnv(kv);
-  const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345', lockProof: { type: 'password', password: 'account-pass-1' } }), env });
-  assert.equal(res.status, 401);
-  assert.equal(res.headers.get('Set-Cookie'), null);
-});
-
-test('2.11 重置锁屏：challenge 只下发锁屏通行密钥；没有锁屏通行密钥 → 403 not-set', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
-  const kv = configuredKV({ lock: true });
-  const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', { action: 'challenge' }), env: baseEnv(kv) });
-  assert.equal(res.status, 403);
-  assert.equal((await res.json()).error, 'not-set');
-});
-
-test('2.11 重置锁屏：锁屏凭证一项都没有且开关关闭 → status 始终可用，verify 通用 401 auth（不泄露 not-set）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
-  const kv = configuredKV({ account: true }); /* 锁屏没有任何凭证（库里只有遗留的账号行） */
-  const env = baseEnv(kv);
-  const st = postReq('https://test.example.com/api/lock-reset', { action: 'status' });
-  const stRes = await onRequestPost({ request: st, env });
-  const stBody = await stRes.json();
-  /* status 不再按锁屏凭证配置返回 available，始终允许进入第一步 */
-  assert.equal(stBody.available, true);
-  assert.ok(!('skippable' in stBody), 'status 不再返回 skippable');
-  const req = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345',
-  });
-  const res = await onRequestPost({ request: req, env });
-  /* 锁屏凭证一项都没有：不返回 403 not-set，改为通用 401 auth */
-  assert.equal(res.status, 401);
-  const body = await res.json();
-  assert.equal(body.error, 'auth');
 });
 
 /* ============ 4. 恢复开关（D1 lock_reset_switch：计时 / 单次） ============ */
@@ -230,42 +154,6 @@ function switchEnv(kv, hash) {
   return env;
 }
 
-test('2.11 开关：不存在 → 关闭（进站凭证正确后返回 needLock）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
-  const kv = configuredKV({ lock: true });
-  const env = switchEnv(kv); /* lock_reset_switch 没有行 */
-  const req = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345',
-  });
-  const res = await onRequestPost({ request: req, env });
-  assert.equal(res.status, 200);
-  const body = await res.json();
-  assert.equal(body.ok, true);
-  assert.equal(body.needLock, true);
-});
-
-
-test('2.11 开关：已用后再用 → 关闭（返回 needLock）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
-  const kv = configuredKV({ lock: true });
-  const env = switchEnv(kv, 'switch-1');
-  /* 第一次：成功（单根拿到 lockreset），开关标记已用 */
-  const req1 = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345',
-  });
-  const res1 = await onRequestPost({ request: req1, env });
-  assert.equal(res1.status, 200);
-  assert.deepEqual(await res1.json(), { ok: true });
-  assert.equal(switchRows(switchDb(kv))[0].used, 1);
-  /* 第二次：同一行已用 → needLock */
-  const req2 = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345',
-  });
-  const res2 = await onRequestPost({ request: req2, env });
-  assert.equal(res2.status, 200);
-  assert.equal((await res2.json()).needLock, true);
-});
-
 test('2.11 开关：过期（24h+）→ 关闭；同时还有一行没见过的 → 那一行开始计时、有效', async () => {
   const { checkLockResetSwitch } = SWITCH_MOD;
   const db = switchDb(makeKV());
@@ -284,26 +172,6 @@ test('2.11 开关：过期（24h+）→ 关闭；同时还有一行没见过的 
   assert.equal(r3.reason, 'within-window');
 });
 
-test('2.11 开关：插新行重新开启', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
-  const kv = configuredKV({ lock: true });
-  /* 旧行已用 */
-  const env1 = switchEnv(kv, 'old');
-  const req1 = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345',
-  });
-  await onRequestPost({ request: req1, env: env1 });
-  assert.equal(switchRows(switchDb(kv)).find((x) => x.hash === 'old').used, 1);
-  /* 插一行新的 */
-  const env2 = switchEnv(kv, 'new-2');
-  const req2 = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345',
-  });
-  const res2 = await onRequestPost({ request: req2, env: env2 });
-  assert.equal(res2.status, 200);
-  assert.deepEqual(await res2.json(), { ok: true });
-});
-
 test('2.11 开关：D1 缺失/失败 → fail closed', async () => {
   const { checkLockResetSwitch, claimLockResetSwitch } = SWITCH_MOD;
   /* D1 未绑定 */
@@ -320,17 +188,6 @@ test('2.11 开关：D1 缺失/失败 → fail closed', async () => {
   assert.equal(await claimLockResetSwitch(db, 'some'), false, '标记已用失败 → 不签');
   const brokenDb = { prepare: () => { throw new Error('d1-down'); } };
   assert.equal((await checkLockResetSwitch(brokenDb)).valid, false);
-});
-
-test('2.11 开关：D1 出错时重置路径不签 lockreset（单根）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
-  const kv = configuredKV({ lock: true });
-  const env = switchEnv(kv, 'switch-1');
-  switchDb(kv).failOn = (sql) => /lock_reset_switch/.test(sql);
-  const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', { action: 'verify', spaceKey: 'test-root-key-12345' }), env });
-  const body = await res.json();
-  assert.notDeepEqual(body, { ok: true }, '开关读不到不能当打开');
-  assert.equal(res.headers.get('Set-Cookie'), null);
 });
 
 test('2.11 开关：进站凭证错误时不读开关', async () => {
@@ -504,30 +361,6 @@ test('2.11 补充二：/api/layer-status 已删（账号拆分 PR3：前端无�
   assert.equal(rows[0].used, 0);
 });
 
-test('2.11 补充二：计时 24 小时后，开关在重置路径上已失效', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
-  const { touchLockResetSwitch } = SWITCH_MOD;
-  const kv = configuredKV({ lock: true });
-  const env0 = switchEnv(kv, 'timer-1');
-  const db = switchDb(kv);
-  /* 先触发计时 */
-  await touchLockResetSwitch(db);
-  assert.ok(switchRows(db)[0].first_seen > 0);
-  /* 把首次时间拨到 25 小时前（模拟过期） */
-  db.raw.prepare('UPDATE lock_reset_switch SET first_seen = ? WHERE hash = ?').run(Date.now() - 25 * 3600 * 1000, 'timer-1');
-  /* 重置路径：进站凭证正确，但开关已过期 → needLock（而非 lockreset） */
-  const req = postReq('https://test.example.com/api/lock-reset', {
-    action: 'verify', spaceKey: 'test-root-key-12345',
-  });
-  const res = await onRequestPost({ request: req, env: env0 });
-  assert.equal(res.status, 200);
-  const body = await res.json();
-  assert.equal(body.needLock, true, '过期开关不应签发 lockreset');
-  assert.equal(res.headers.get('Set-Cookie'), null, '不应直接成功');
-  assert.equal(switchRows(db)[0].used, 0, '过期的行不被标记已用');
-  void DAY_MS;
-});
-
 /* ============ 11. 补充四：恢复开关提示仅出现在重置第二步 ============ */
 
 test('2.11 补充四：进站凭证错误的 lockreset 响应不含 lock-reset-switch / lock_reset_switch / recovery_switch', async () => {
@@ -555,18 +388,88 @@ test('2.11 补充四：lock-reset 假入口（space-auth，锁屏已设置）响
   assert.ok(!text.includes('lock-reset-switch') && !text.includes('lock_reset_switch') && !text.includes('recovery_switch') && !text.includes('some-secret'), '假入口响应不应泄露开关');
 });
 
-test('2.11 补充四：C2 重置第二步恢复提示（lock.js，无键名）', async () => {
+/* ============ L1：重置 = 恢复钥匙一把（SPACE-V3 §2.0 L2 / L3 / L8、Q1） ============ */
+
+test('L1 重置（SPACE-V3 §2.0 L2 / L3）：恢复钥匙一把就签 reset 票（by=space），不要第二次验证、不读开关；有没有进站凭证都一样', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
+  const { verifyLockResetTicket } = await import(REPO + '/workers/auth-gateway/src/core/tickets.js');
+  for (const o of [{ lock: true, account: true }, { account: true }, {}]) {
+    const kv = configuredKV(o);
+    const env = switchEnv(kv, 'switch-1');
+    const db = switchDb(kv);
+    db.calls.length = 0;
+    const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', { action: 'verify', spaceKey: 'test-root-key-12345' }), env });
+    assert.equal(res.status, 200, JSON.stringify(o));
+    assert.deepEqual(await res.json(), { ok: true }, '不再返回 needLock / passkey / password');
+    const sc = res.headers.get('Set-Cookie') || '';
+    const m = sc.match(/sgx-lock-reset=([^;]+)/);
+    assert.ok(m, '签了 sgx-lock-reset');
+    const v = await verifyLockResetTicket(new Request('https://test.example.com/', { headers: { Cookie: 'sgx-lock-reset=' + m[1] } }), env);
+    assert.equal(v.ok, true);
+    assert.equal(v.by, 'space');
+    assert.ok(!/sgx-lock-session=[^;]/.test(sc), '不签进站会话');
+    assert.equal(touchedSwitch(db), false, '不读重置开关');
+    assert.equal(switchRows(db)[0].used, 0, '开关没被用掉');
+  }
+});
+
+test('L1 重置：恢复钥匙错 → 401 auth、不签票（带旧 lockProof 也一样）；challenge 不再有 → 400 action', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
+  const env = baseEnv(configuredKV({ lock: true }));
+  const bad = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', {
+    action: 'verify', spaceKey: 'wrong', lockProof: { type: 'password', password: 'lock-pass-1' } }), env });
+  assert.equal(bad.status, 401);
+  assert.deepEqual(await bad.json(), { ok: false, error: 'auth' });
+  assert.equal(bad.headers.get('Set-Cookie'), null);
+  const ch = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', { action: 'challenge' }), env });
+  assert.equal(ch.status, 400);
+  assert.equal((await ch.json()).error, 'action');
+});
+
+test('L1 重置 finish（Q1）：要 reset 票；none 不推纪元，all 推纪元（所有设备回锁屏）；两种都清 reset cookie；signOut 只认 all / none', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
+  const { signLockResetTicket } = await import(REPO + '/workers/auth-gateway/src/core/tickets.js');
+  const kv = configuredKV({ lock: true });
+  const env = baseEnv(kv);
+  const epoch = () => Number(authD1For(kv).epoch('lock-epoch') || 0);
+  const post = (body, cookie) => onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', body, cookie ? { Cookie: cookie } : undefined), env });
+  const noTicket = await post({ action: 'finish', signOut: 'all' });
+  assert.equal(noTicket.status, 401);
+  assert.equal((await noTicket.json()).error, 'reset');
+  assert.equal(epoch(), 0, '没票不推');
+  const ck = 'sgx-lock-reset=' + (await signLockResetTicket(TEST_PRIV_PEM, 'space', 0));
+  assert.equal((await post({ action: 'finish', signOut: 'others' }, ck)).status, 400);
+  const none = await post({ action: 'finish', signOut: 'none' }, ck);
+  assert.equal(none.status, 200);
+  assert.deepEqual(await none.json(), { ok: true, signOut: 'none' });
+  assert.equal(epoch(), 0, 'none 不推纪元');
+  assert.match(none.headers.get('Set-Cookie') || '', /sgx-lock-reset=/, '清 reset cookie');
+  const all = await post({ action: 'finish', signOut: 'all' }, ck);
+  assert.equal(all.status, 200);
+  assert.deepEqual(await all.json(), { ok: true, signOut: 'all' });
+  assert.equal(epoch(), 1, 'all 推纪元');
+  assert.equal((await post({ action: 'finish', signOut: 'none' }, ck)).status, 401, '纪元推过以后旧票失效');
+});
+
+test('L1 重置 end：只清 reset cookie，不要票、幂等、不推纪元', async () => {
+  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/lock-reset.js');
+  const kv = configuredKV({ lock: true });
+  const env = baseEnv(kv);
+  for (let i = 0; i < 2; i++) {
+    const res = await onRequestPost({ request: postReq('https://test.example.com/api/lock-reset', { action: 'end' }), env });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true });
+    assert.match(res.headers.get('Set-Cookie') || '', /sgx-lock-reset=/);
+  }
+  assert.equal(Number(authD1For(kv).epoch('lock-epoch') || 0), 0);
+});
+
+test('L1 重置前端（shell/space/reset.js）：无开关键名、无「管理员」、不再有 needLock / lockProof / needAccount / accountProof', async () => {
   const fs = await import('node:fs');
-  const src = fs.readFileSync(REPO + 'space/web/assets/js/shell/lock.js', 'utf8');
-  /* C2：底部恢复提示改成新文案，不出现 lock-reset-switch 键名 */
-  assert.ok(!src.includes('lock-reset-switch'), 'lock.js 不应再出现 lock-reset-switch 键名');
-  assert.ok(!src.includes('sgx-reset-switch-hint'), '旧提示元素已删除');
-  /* 重置在锁屏终端里（lock.js reset 命令；auth/reset-flow.js 的弹层版本没人调用了，命名 v2 P3 删掉）：不出现旧角色名；第二步是锁屏凭证 */
+  assert.equal(fs.existsSync(REPO + 'space/web/assets/js/shell/lock.js'), false, '旧锁屏 lock.js 已删');
   assert.equal(fs.existsSync(REPO + 'space/web/assets/js/auth/reset-flow.js'), false, 'auth/reset-flow.js 已删');
-  assert.ok(!src.includes('管理员'), '不再出现「管理员」字样'); // old-name guard
-  /* 语言包化 2026-11-07：文案在字符串表 js.core.rf* */
-  const zhYaml = fs.readFileSync(REPO + 'space/web/data/i18n/zh.yaml', 'utf8');
-  assert.ok(/rfRecover: .*锁屏凭证也无法使用？/.test(zhYaml), '恢复提示说的是锁屏凭证');
-  assert.ok(!zhYaml.includes('管理员'), '字符串表里也不再出现「管理员」');
-  assert.ok(!/needAccount|accountProof/.test(src), '前端不再有 needAccount / accountProof');
+  const src = fs.readFileSync(REPO + 'space/web/assets/js/shell/space/reset.js', 'utf8');
+  assert.ok(!/lock-reset-switch|sgx-reset-switch-hint/.test(src));
+  assert.ok(!src.includes('管理员')); // old-name guard
+  assert.ok(!/needLock|lockProof|needAccount|accountProof/.test(src));
 });

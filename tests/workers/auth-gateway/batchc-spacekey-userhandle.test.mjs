@@ -111,14 +111,15 @@ test('B2：space-auth 空串失败（去空白后为空一律拒绝）', async (
 test('B2：lockreset verify 带换行通过', async () => {
   const { onRequestPost } = await import('../../../workers/auth-gateway/src/api/lock-reset.js');
   const kv = makeKV();
-  /* 锁屏已配置（D1 里有锁屏密码）：进站凭证正确后走 needLock 分支（不是 401 auth） */
+  /* 锁屏已配置（D1 里有锁屏密码）：L1 起恢复钥匙一把就签 reset 票 */
   authD1For(kv).putPassword('lock', { salt: 's', hash: 'h', iterations: 100000, peppered: true });
   const req = postReq('https://styrigx.com/api/lock-reset', { action: 'verify', spaceKey: 'test-root-key-\nabc123' }, { 'CF-Connecting-IP': '10.0.0.3' });
   const res = await onRequestPost({ request: req, env: authEnv(kv) });
-  /* 进站凭证正确 → 进入开关 / 锁屏凭证流程（needLock），不是 401 auth */
+  /* 恢复钥匙正确 → 直接签 reset 票（L1：不再有第二步 needLock），不是 401 auth */
   const j = await res.json();
   assert.notEqual(j.error, 'auth', '带换行的进站凭证不应报 auth 失败');
-  assert.equal(j.needLock, true, '应进入锁屏凭证步骤');
+  assert.deepEqual(j, { ok: true }, '带换行也直接签 reset 票');
+  assert.match(res.headers.get('Set-Cookie') || '', /sgx-lock-reset=space\./);
 });
 
 /* ============ C4：user handle 按类别区分（D1 user_handle 表，每个 realm 一行） ============ */
