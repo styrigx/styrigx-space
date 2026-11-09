@@ -1,4 +1,4 @@
-# styrigx-proxy-rules：规则集加速反代（CI 部署；只干一件事——转发规则集文件，现在的上游是 MetaCubeX/meta-rules-dat；名字不绑内核和上游，换了只改代码）
+# styrigx-proxy-rules：规则集加速反代（CI 部署；只干一件事——转发规则集文件，现在的来源是 MetaCubeX/meta-rules-dat 和自有仓 styrigx/mihomo-rules；名字不绑内核和上游，换了只改代码，来源登记在 src/core/sources.js）
 #
 # 公开地址只有自定义域名 proxy-rules.styrigx.com；不开 workers.dev、不开预览地址。
 # 没有绑定、没有变量和密钥，不过鉴权网关（规则集本来就是公开文件，客户端也带不了会话）。
