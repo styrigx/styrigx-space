@@ -28,7 +28,7 @@ const { registerPasskey, attestationToJSON, creationOptions, genPkPrefillName, c
 
 const B = (s) => new TextEncoder().encode(s).buffer;
 const fakeCred = () => ({ id: 'cid-1', rawId: B('raw'), type: 'public-key', response: { clientDataJSON: B('cd'), attestationObject: B('ao') } });
-const CH = { ok: true, cid: 'c1', challenge: 'AQID', rpId: 'styrigx.com', user: { id: 'dXNlcg', name: 'LockKey', displayName: 'Sloan' }, excludeCredentials: [{ id: 'AAEC', type: 'public-key' }] };
+const CH = { ok: true, cid: 'c1', challenge: 'AQID', rpId: 'styrigx.com', user: { id: 'dXNlcg', name: 'SpacePasskey', displayName: 'Sloan' }, excludeCredentials: [{ id: 'AAEC', type: 'public-key' }] };
 
 function harness(over) {
   const log = { toasts: [], errText: [], registered: [], bodies: [], auth: 0 };
@@ -71,7 +71,7 @@ test('成功：register 带 cid、预填名、attestation JSON；打开命名弹
   /* 选项来自服务端：rp.id、用户、excludeCredentials、UV / resident 必须 */
   const pk = created[created.length - 1].publicKey;
   assert.equal(pk.rp.id, 'styrigx.com');
-  assert.equal(pk.user.name, 'LockKey');
+  assert.equal(pk.user.name, 'SpacePasskey');
   assert.equal(pk.excludeCredentials.length, 1);
   assert.deepEqual(pk.authenticatorSelection, { userVerification: 'required', residentKey: 'required' });
   assert.deepEqual(pk.pubKeyCredParams, [{ type: 'public-key', alg: -7 }]);
@@ -112,8 +112,8 @@ test('鉴权失败交给页面处理（返回 true 不再提示）；challenge �
 });
 
 test('creationOptions：服务端没给用户名时用页面兜底；预填名兜底 / 名字清理', () => {
-  const pk = creationOptions({ challenge: 'AQID', rpId: 'x', user: { id: 'dXNlcg' } }, { name: 'LockKey', displayName: 'Sloan Gray' });
-  assert.equal(pk.user.name, 'LockKey');
+  const pk = creationOptions({ challenge: 'AQID', rpId: 'x', user: { id: 'dXNlcg' } }, { name: 'SpacePasskey', displayName: 'Sloan Gray' });
+  assert.equal(pk.user.name, 'SpacePasskey');
   assert.equal(pk.user.displayName, 'Sloan Gray');
   assert.equal(pk.rp.name, 'Styrigx');
   assert.equal(genPkPrefillName('Passkey'), 'Passkey');

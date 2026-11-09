@@ -18,7 +18,7 @@
  * 用法：import { mountShare } from '…/share.js'; mountShare();  // 每页一次；找不到 [data-sgx-share] 就什么也不做
  */
 
-/** 生成短链的接口（分享短链 Worker styrigx-share；CORS 只认三个子站） */
+/** 生成短链的接口（站点核心 Worker styrigx-space-core 的 /api/share；CORS 只认三个子站） */
 export const SHARE_API = 'https://styrigx.com/api/share';
 export const SHARE_ORIGIN = 'https://styrigx.com';
 /** 一键分享的档位：链接 24 小时、点开后能看 12 小时（和设置 → 临时钥匙页「新建分享短链」的默认一样） */

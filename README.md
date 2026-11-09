@@ -74,7 +74,6 @@ flowchart LR
   V([浏览器]) --> GW
   subgraph CF[Cloudflare]
     GW[styrigx-space-core<br/>styrigx.com/*]
-    SH[styrigx-share<br/>/s/* · /api/share*]
     CC[styrigx-curio-core<br/>/curio/api/*]
     DC[styrigx-daymark-core<br/>/daymark/api/*]
     GW --> P1[(Pages<br/>styrigx-space<br/>主站 + /blog/ /curio/ /daymark/)]
@@ -83,7 +82,6 @@ flowchart LR
     GW -. 服务绑定 .-> ST[styrigx-status]
     PR[styrigx-proxy-rules<br/>proxy-rules.styrigx.com]
   end
-  V --> SH
   V --> CC
   V --> DC
   V --> PR
@@ -91,9 +89,8 @@ flowchart LR
 
 | Worker | 职责 | 入口 |
 |---|---|---|
-| `styrigx-space-core` | 进站会话的签发与校验、锁屏凭证与临时钥匙接口；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages | `styrigx.com/*` |
+| `styrigx-space-core` | 进站会话的签发与校验、锁屏凭证与临时钥匙接口、分享链接（`/s/*`、`/api/share`，原 `styrigx-share` 并入）；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages | `styrigx.com/*` |
 | `styrigx-account` | 账号系统：密码、通行密钥、设备、账号根密钥、头像、云同步、数字健康 | 只走网关服务绑定，无公开路由 |
-| `styrigx-share` | 分享短链与管理接口 | `styrigx.com/s/*`、`styrigx.com/api/share*` |
 | `styrigx-ai` | 站内对话助手：KV 索引召回 + 模型回答（Workers AI / Gemini），不存对话 | 只走网关服务绑定 |
 | `styrigx-status` | 每分钟监测，每小时读取用量（D1） | 只走网关服务绑定 |
 | `styrigx-proxy-rules` | 规则集加速反代，仅放行指定上游 | `proxy-rules.styrigx.com`（不经网关） |

@@ -913,9 +913,9 @@ jobs:
       - name: Apply D1 migrations to preview
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
         # 部署 preview 前对测试专用库 styrigx-test-preview 跑迁移（--env preview），绝不碰 production；失败要让 CI 红。
-        # 2026-10-29 起所有 Worker 的预览共用这一个库：网关（space/web/wrangler.toml，迁移目录 workers/space-core/migrations）、
-        # 账号 Worker、短链 Worker（各自 wrangler.toml 的 [env.preview]）三套迁移都在这里跑。表名互不重叠；迁移记录表分开：
-        # 网关用默认 d1_migrations，账号 d1_migrations_account，短链 d1_migrations_share（各 toml 的 migrations_table）。
+        # 2026-10-29 起所有 Worker 的预览共用这一个库：站点核心（space/web/wrangler.toml [env.preview]：D1_SPACE 迁移目录 workers/space-core/migrations、
+        # D1_SHARE_LINK 迁移目录 workers/space-core/migrations-share，进站 v3 L2 起分享链接并入 core）、账号 Worker（workers/account [env.preview]）三套迁移都在这里跑。
+        # 表名互不重叠；迁移记录表分开：进站用默认 d1_migrations，账号 d1_migrations_account，分享链接 d1_migrations_share。
         # 2026-11 正式库合库（styrigx-space-gateway）不影响这里：预览仍是 styrigx-test-preview，短链迁移目录换成 0001_baseline.sql（IF NOT EXISTS，已有表时是空操作）。
         # 库是空的也没关系：第一次运行三套迁移全部应用，之后只补新的。跑完列一次三张记录表。
         working-directory: space/web
@@ -1563,7 +1563,7 @@ jobs:
   deploy-curio-core:
     # 奇趣接口 Worker styrigx-curio-core（workers/curio-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
     # 路由见 workers/curio-core/wrangler.toml：styrigx.com/curio/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），
-    # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：会话问网关 SpaceVerifier.lockSession()（服务绑定 AUTH）。
+    # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：会话问站点核心 SpaceVerifier.conclusion()（服务绑定 SPACE）。
     # 进站 v3 L2 起排在 styrigx-space-core 之后（needs）：服务绑定 SPACE 指向的 Worker / 入口 SpaceVerifier 要先在，不然部署不了。
     # 网关切过去到本 Worker 部署完的那一两分钟，旧版本问的是旧网关的 AuthVerifier（还在，L3 才删），子站接口照旧。和网关一样等 status 的健康闸门。
     # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 核对新版本 → 冒烟 → 失败回滚。
@@ -1658,7 +1658,7 @@ jobs:
   deploy-daymark-core:
     # 日刻接口 Worker styrigx-daymark-core（workers/daymark-core；合并 PR3 起由本仓库部署，styrigx-atlas 仓库不再部署）。
     # 路由见 workers/daymark-core/wrangler.toml：styrigx.com/daymark/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），
-    # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：会话问网关 SpaceVerifier.lockSession()（服务绑定 AUTH）。
+    # 比网关的整站通配更具体；workers_dev=false、preview_urls=false。不持任何钥匙：会话问站点核心 SpaceVerifier.conclusion()（服务绑定 SPACE）。
     # 进站 v3 L2 起排在 styrigx-space-core 之后（needs）：服务绑定 SPACE 指向的 Worker / 入口 SpaceVerifier 要先在，不然部署不了。
     # 网关切过去到本 Worker 部署完的那一两分钟，旧版本问的是旧网关的 AuthVerifier（还在，L3 才删），子站接口照旧。和网关一样等 status 的健康闸门。
     # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 核对新版本 → 冒烟 → 失败回滚。
@@ -1828,6 +1828,7 @@ jobs:
         id: routes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node space/scripts/route-takeover.mjs plan
 
       - name: First deploy without routes (the Worker must exist before routes can point at it)
@@ -1856,6 +1857,7 @@ jobs:
         id: takeover
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node space/scripts/route-takeover.mjs takeover --state "$RUNNER_TEMP/route-state.json"
 
       - name: Deploy space core Worker (styrigx-space-core)
@@ -1870,6 +1872,7 @@ jobs:
       - name: Verify routes (styrigx.com/* → styrigx-space-core, no separate share routes)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node space/scripts/route-takeover.mjs verify
 
       - name: Smoke test production /api/* and pages (must be served by the Worker)
@@ -1985,6 +1988,7 @@ jobs:
         if: failure() && steps.takeover.outputs.taken == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node space/scripts/route-takeover.mjs restore --state "$RUNNER_TEMP/route-state.json"
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)

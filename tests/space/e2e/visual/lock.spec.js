@@ -73,7 +73,7 @@ test.describe('lock screen', () => {
     await expect(input).toHaveAttribute('autocomplete', 'current-password');
     await expect(input).toBeFocused();
     await expect(page.locator('#sgx-entry-pmu')).toHaveAttribute('autocomplete', 'username');
-    await expect(page.locator('#sgx-entry-pmu')).toHaveValue('LockKey');
+    await expect(page.locator('#sgx-entry-pmu')).toHaveValue('SpacePassword');
     await expect(page.locator('#sgx-entry-ps')).toHaveText(/^\[sudo\] password for \S+:\s?$/);
     await expect(page.locator('#sgx-entry-hint')).toBeVisible();
     await expect(log(page)).toContainText('entry@space:~$ sudo styrigx password');
@@ -343,7 +343,7 @@ test.describe('sudo styrigx reset：恢复钥匙 → reset@space:~# → 改 → 
     await freezeTime(page);
   });
 
-  test('恢复钥匙（SpaceKey，不回显）错 → Sorry, try again.；对 → reset@space:~#（不签进站会话）；passwd 两次 → 两选 [1] 全部回锁屏 → finish all → 回 entry@space', async ({ page }) => {
+  test('恢复钥匙（SpaceRecoveryKey，不回显）错 → Sorry, try again.；对 → reset@space:~#（不签进站会话）；passwd 两次 → 两选 [1] 全部回锁屏 → finish all → 回 entry@space', async ({ page }) => {
     const resetBodies = [];
     const pwBodies = [];
     await page.route('**/api/lock-reset', async (route) => {
@@ -359,7 +359,7 @@ test.describe('sudo styrigx reset：恢复钥匙 → reset@space:~# → 改 → 
     await gotoLock(page);
     await lockCmd(page, 'sudo styrigx reset');
     await lockMode(page, 'rkey');
-    await expect(page.locator('#sgx-entry-pmu')).toHaveValue('SpaceKey');
+    await expect(page.locator('#sgx-entry-pmu')).toHaveValue('SpaceRecoveryKey');
     await expect(page.locator('#sgx-entry-cmd')).toHaveAttribute('type', 'password');
     await expect(page.locator('#sgx-entry-ps')).toHaveText('[sudo] recovery key:');
     await lockCmd(page, 'sk-wrong');

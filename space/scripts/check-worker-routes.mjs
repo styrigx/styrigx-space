@@ -111,7 +111,7 @@ export function readApiRoutes(js) {
 }
 
 /**
- * 拆出去的 Worker（账号 styrigx-account、短链 styrigx-share）的路由：归它的路径都归它，网关的接口和页面一条都不抢，
+ * 拆出去的 Worker（账号 styrigx-account）的路由：归它的路径都归它，网关的接口和页面一条都不抢，
  * 彼此也不抢。
  * @param {string[]} gateway 网关的路由
  * @param {{name:string, label:string, routes:string[], must:string[]}[]} workers

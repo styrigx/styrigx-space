@@ -1,6 +1,6 @@
 /**
  * @fileoverview API 公共小工具：JSON 响应、错误响应、客户端 IP、同源校验、no-store、限速分桶。
- * 网关 src/ 用这一份；账号 / 分享 Worker 各自一份 lib/http.js。
+ * 站点核心 src/ 用这一份（进站 v3 L2 起分享链接也在这里）；账号 Worker 自己一份 lib/http.js。
  */
 
 /** /api/* 默认的缓存头（middleware 兜底加的也是这个） */
@@ -34,7 +34,7 @@ export function apiError(status, code, extra, headers) {
 }
 
 /**
- * 全仓 error 码登记表：网关 / 账号 / 分享 Worker 返回的全部 error 码和各自用到的 HTTP 状态（只登记，不改写）。
+ * 全仓 error 码登记表：站点核心（含分享链接）/ 账号 Worker 返回的全部 error 码和各自用到的 HTTP 状态（只登记，不改写）。
  * 账号 / 分享 Worker 的 lib/http.js 各有一份副本；tests/workers/space-core/error-codes.test.mjs 只按这一份核对。
  * 新加一个码要在这里登记；前端怎么显示见 tests/workers/space-core/error-codes.test.mjs。
  */
@@ -53,7 +53,7 @@ export const ERROR_CODES = Object.freeze({
   account: [401],
   reset: [401], /* 账号 reset 票无效或过期（命名 v2：/api/account/reset，不再借用 account） */
   scope: [403], /* 账号作用域不够（P2-2：/api/avatar、/api/prefs；带 scope 字段） */
-  reauth: [403, 401], /* 403：锁屏凭证管理（checkLockManage）；401：临时钥匙 create / revoke、短链 create / revoke 没有锁侧复验 */
+  reauth: [403, 401], /* 403：锁屏凭证管理（checkLockManage）；401：临时钥匙 create / revoke、分享链接 list / revoke 没有 reauth */
   challenge: [403],
   /* 凭证 */
   auth: [401],

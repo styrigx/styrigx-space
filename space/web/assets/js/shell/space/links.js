@@ -14,7 +14,7 @@ export const LINK_DURATIONS = Object.freeze([
   ['1', { hours: 1 }, '1h', 36e5], ['2', { hours: 24 }, '24h', 864e5], ['3', { days: 3 }, '3d', 3 * 864e5],
   ['4', { days: 7 }, '7d', 7 * 864e5], ['5', { days: 30 }, '30d', 30 * 864e5],
 ]);
-/** 会话档位（秒；0 = 普通链接，不带会话）：同 workers/share/src/lib/links.js SESSION_OPTS */
+/** 会话档位（秒；0 = 普通链接，不带会话）：同 workers/space-core/src/core/share-links.js SESSION_OPTS */
 export const LINK_SESSIONS = Object.freeze([['0', 0, 'none'], ['1', 1800, '30m'], ['2', 3600, '1h'], ['3', 12 * 3600, '12h'], ['4', 86400, '1d'], ['5', 7 * 86400, '7d']]);
 const ORIGIN = 'https://styrigx.com';
 

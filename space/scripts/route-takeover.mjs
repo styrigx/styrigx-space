@@ -19,6 +19,7 @@
  * 本 Worker 必须先存在（deploy.yml 先不带路由部署一次），不然改挂会被 Cloudflare 拒。
  *
  * 环境变量：CLOUDFLARE_API_TOKEN（同部署那一步：styrigx-space-core-deploy，有 styrigx.com 的 Workers Routes 编辑）；
+ *   CLOUDFLARE_ACCOUNT_ID（区域查询带上 account.id，同 wrangler）；CF_ZONE_ID（可选，给了就不查区域）；
  *   CF_API_BASE（默认 https://api.cloudflare.com/client/v4，测试用）；ZONE_NAME（默认 styrigx.com）。
  * 只打印路由的 pattern / script / id，不打印 token。
  */
@@ -94,16 +95,30 @@ function api() {
     try { j = await res.json(); } catch (e) { /* 不是 JSON */ }
     if (!res.ok || !j || j.success !== true) {
       const msg = j && Array.isArray(j.errors) ? j.errors.map((e) => e.code + ' ' + e.message).join('; ') : 'HTTP ' + res.status;
-      throw new Error(method + ' ' + p.replace(/\/zones\/[0-9a-f]+/, '/zones/<zone>') + ' failed: ' + msg);
+      throw new Error(method + ' ' + p.replace(/\/zones\/[0-9a-f]+/, '/zones/<zone>').replace(/account\.id=[0-9a-f]+/, 'account.id=<account>') + ' failed: ' + msg);
     }
     return j.result;
   };
 }
 
+/**
+ * 区域 id：先认环境变量 CF_ZONE_ID（区域 id 不是密值；有就不查）；没有就照 wrangler 部署带 zone_name 的路由时的查法
+ * （wrangler 4.x deploy-helpers/src/triggers/zones.ts getZoneIdFromHost：GET /zones?name=<区域>&account.id=<账户>）。
+ * 旧网关、奇趣 / 日刻的部署 job 都用 zone_name 路由经同一个查询成功过，部署 token 只要有 styrigx.com 的 Workers Routes 编辑就够。
+ * @param {(method:string, p:string, body?:any)=>Promise<any>} call
+ */
 async function zoneId(call) {
+  const fixed = (process.env.CF_ZONE_ID || '').trim();
+  if (fixed) {
+    if (!/^[0-9a-f]{32}$/.test(fixed)) throw new Error('CF_ZONE_ID is not a zone id');
+    return fixed;
+  }
   const name = process.env.ZONE_NAME || 'styrigx.com';
-  const zones = await call('GET', '/zones?name=' + encodeURIComponent(name));
-  if (!Array.isArray(zones) || zones.length !== 1 || !/^[0-9a-f]{32}$/.test(zones[0].id)) throw new Error('zone ' + name + ' not found (token needs a styrigx.com zone permission)');
+  const q = new URLSearchParams({ name });
+  const account = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
+  if (account) q.set('account.id', account);
+  const zones = await call('GET', '/zones?' + q.toString());
+  if (!Array.isArray(zones) || zones.length !== 1 || !/^[0-9a-f]{32}$/.test(zones[0].id)) throw new Error('zone ' + name + ' not found (token needs a styrigx.com zone permission, or set CF_ZONE_ID)');
   return zones[0].id;
 }
 
