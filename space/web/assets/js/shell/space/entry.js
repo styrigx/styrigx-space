@@ -434,6 +434,8 @@ export function showEntryScreen() {
   /* 开锁动画：显示桌面 */
   function doUnlockAnimation() {
     grantedLines();
+    /* 锁屏态页面原地开锁：放回 CSS 藏起来的页面顶栏（input.css「锁屏态不画页面顶栏」）；锁屏层还盖着，随滑出一起露出 */
+    document.documentElement.classList.add('sgx-entry-off');
     if (bootEl && !reducedMotion()) {
       document.body.classList.remove('sgx-entry');
       ov.classList.add('sgx-entry-booted');

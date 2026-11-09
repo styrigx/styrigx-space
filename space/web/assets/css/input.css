@@ -7956,6 +7956,14 @@
   background: transparent; border: 0; box-shadow: none; padding: 0;
   animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
   -webkit-mask-image: none; mask-image: none; contain: none; isolation: auto; }
+/* 锁屏态不画页面顶栏（2026-11-09 Gray 报：三星浏览器刷新 / 切语言时锁屏上闪一下顶栏）。
+   data-sgx-lock-session="locked" 是网关在 HTML 里直接写的（workers/space-core/src/gate.js injectSessionState），首帧前就在；
+   锁屏层 #sgx-entry 要等 JS 才盖上来，这之前顶栏会先画出来。这里只用 CSS 藏：首帧就不画、不可点、不进读屏，
+   也不挂 view-transition-name（跨页过渡会把带名字的顶栏单独画在整页快照之上，压过锁屏）。
+   原地开锁（防循环 / 子站失败兜底，正常解锁是换地址重取 valid 页）时 entry.js 给 <html> 加 .sgx-entry-off 放回顶栏。
+   放在 @layer 外：要压过同样不分层的 .sgx-topbar { view-transition-name }。只主站（子站页面不带会话标记），不进共享外壳。 */
+html[data-sgx-lock-session="locked"]:not(.sgx-entry-off) #site-nav { visibility: hidden; }
+html[data-sgx-lock-session="locked"]:not(.sgx-entry-off) #site-nav .sgx-topbar { view-transition-name: none; }
 /* @shell:begin topbar-frame（共享外壳：space/scripts/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：
    同源跨文档跳转自动交叉淡化 180ms（渐进增强，不支持的浏览器忽略）；顶栏挂 view-transition-name 保持不动。
