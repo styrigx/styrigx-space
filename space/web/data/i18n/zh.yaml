@@ -794,9 +794,6 @@ features:
   lock-gate:
     name: 锁屏门禁
 spaceCats:
-  security:
-    title: 安全
-    sub: 通行密钥、锁屏与临时钥匙
   wild:
     title: 旷野
     sub: 屏幕时间、服务状态与关于本站

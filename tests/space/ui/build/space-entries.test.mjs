@@ -21,11 +21,11 @@ const cats = /** @type {any[]} */ (data.cats);
 const TR = { en: strings('space', 'en'), zh: strings('space', 'zh') };
 const TONES = ['primary', 'secondary', 'tertiary', 'info'];
 
-test('数据：主站门内子页 2 个（安全、旷野），字段齐全（对齐 PR-B：数字健康 / 服务状态 / 关于本站并进旷野；对齐 PR-C：风格页退役）', () => {
-  assert.deepEqual(cats.map((c) => c.id), ['security', 'wild']);
+test('数据：主站门内子页 1 个（旷野；进站 v3 L1 安全页删了），字段齐全（对齐 PR-B：数字健康 / 服务状态 / 关于本站并进旷野；对齐 PR-C：风格页退役）', () => {
+  assert.deepEqual(cats.map((c) => c.id), ['wild']);
   /* 语言包化（2026-11-07）：名字 / 副标题在字符串表 spaceCats（数据文件只留 id / icon / tone） */
-  assert.deepEqual(cats.map((c) => TR.zh.spaceCats[c.id].title), ['安全', '旷野']);
-  assert.deepEqual(cats.map((c) => TR.en.spaceCats[c.id].title), ['Security', 'Wild']);
+  assert.deepEqual(cats.map((c) => TR.zh.spaceCats[c.id].title), ['旷野']);
+  assert.deepEqual(cats.map((c) => TR.en.spaceCats[c.id].title), ['Wild']);
   const icons = rd('space/web/layouts/partials/icon.html');
   for (const c of cats) {
     for (const k of ['icon', 'tone']) assert.ok(typeof c[k] === 'string' && c[k].trim(), `${c.id}.${k}`);
@@ -36,7 +36,7 @@ test('数据：主站门内子页 2 个（安全、旷野），字段齐全（�
     assert.ok(!c.id.includes('/') && c.id !== 'display', c.id);
   }
   /* 旧入口和主页标题带的文字都删了 */
-  for (const l of ['en', 'zh']) for (const k of ['wellbeing', 'status', 'about', 'band', 'theme']) assert.equal(TR[l].spaceCats[k], undefined, `${l} spaceCats.${k} 应已删除`);
+  for (const l of ['en', 'zh']) for (const k of ['wellbeing', 'status', 'about', 'band', 'theme', 'security']) assert.equal(TR[l].spaceCats[k], undefined, `${l} spaceCats.${k} 应已删除`);
   assert.equal(data.band, undefined, 'space-cats.yaml 不再有 band');
 });
 

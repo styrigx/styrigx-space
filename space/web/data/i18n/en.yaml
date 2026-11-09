@@ -807,9 +807,6 @@ features:
   lock-gate:
     name: Lock gate
 spaceCats:
-  security:
-    title: Security
-    sub: Passkeys, lock screen and temporary keys
   wild:
     title: Wild
     sub: Screen time, service status and about this site

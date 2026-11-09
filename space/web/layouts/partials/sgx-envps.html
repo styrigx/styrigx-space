@@ -2,5 +2,5 @@
    全站装饰提示符按账号登录状态显示——没登录 styrigx@space:<路径>$，已登录 root@account:<路径>#。两种都写，CSS 按 <html data-sgx-account-session>
    只显示一种（shell.css terminal 段 .sgx-envps-*；首帧前 layout-mode.js __sgxAccountPs 写好属性，不闪）。参数：路径（默认 ~）。 */ -}}
 {{- $p := . | default "~" -}}
-<span class="sgx-envps-g">styrigx@space:{{ $p }}$</span><span class="sgx-envps-r">root@account:{{ $p }}#</span>
+<span class="sgx-envps-g" translate="no">styrigx@space:{{ $p }}$</span><span class="sgx-envps-r" translate="no">root@account:{{ $p }}#</span>
 {{- /**/ -}}

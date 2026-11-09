@@ -28,7 +28,7 @@ test('signal 在顶层、publicKey 里没有 signal；timeout 30000；原选项�
 
 /* ---- frontend-js #9：五处断言共用 assertionOptions / assertionToJSON ---- */
 const { assertionOptions, assertionToJSON, isPasskeyCancel } = await import('../../../../space/web/assets/js/auth/passkey-assert.js');
-const { readFileSync } = await import('node:fs');
+const { readFileSync, readdirSync } = await import('node:fs');
 const { join, dirname } = await import('node:path');
 const { fileURLToPath } = await import('node:url');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -57,15 +57,21 @@ test('assertionOptions / assertionToJSON / isPasskeyCancel', () => {
 
 test('全站的通行密钥断言都经 getPasskeyAssertion + assertionToJSON：没有别处手写 credentials.get / 断言序列化', () => {
   /* 共享外壳的 shell/share-button.js 不在其列：子站原样复制、不能 import（gen-shell 强制），最小复验步骤只好自带一份断言 */
-  const files = ['space/web/assets/js/shell/lock.js', 'space/web/assets/js/auth/lock-reauth.js', 'space/web/assets/js/apps/security-lock.js', 'space/web/assets/js/shell/account/api.js'];
+  /* 进站 v3 L1：锁屏 / reset / 盾牌 reauth 都经 shell/space/api.js 一个 passkeyAssert（原 shell/lock.js、auth/lock-reauth.js、apps/security-lock.js 删了） */
+  const dir = join(ROOT, 'space/web/assets/js/shell/space');
+  for (const f of readdirSync(dir)) {
+    const src = readFileSync(join(dir, f), 'utf8');
+    assert.ok(!src.includes('navigator.credentials.get'), f + ' 不直接调 credentials.get');
+  }
+  const files = ['space/web/assets/js/shell/space/api.js', 'space/web/assets/js/shell/account/api.js'];
   let flows = 0;
   for (const f of files) {
     const src = readFileSync(join(ROOT, f), 'utf8');
     assert.ok(!src.includes('navigator.credentials.get'), f + ' 不直接调 credentials.get');
     assert.ok(!/signature: bufToB64url/.test(src), f + ' 不手写断言序列化');
     flows += (src.match(/getPasskeyAssertion\(assertionOptions\(/g) || []).length;
-    assert.ok(src.includes('assertionToJSON(cred)'), f + ' 用 assertionToJSON');
+    assert.ok(/assertionToJSON\((r\.)?cred\)/.test(src), f + ' 用 assertionToJSON');
   }
-  /* 锁屏解锁、锁屏里的重置、主站锁侧复验弹层（P2-3，代替原升级层）、锁屏凭证页再验证、账号登录 / 再验证（2026-11-08 起在账号终端 shell/account/api.js） */
-  assert.equal(flows, 5);
+  /* 进站（锁屏 sudo styrigx passkey + 盾牌 sudo styrigx reauth passkey 同一个 passkeyAssert）、账号登录 / 再验证（账号终端 shell/account/api.js） */
+  assert.equal(flows, 2);
 });
