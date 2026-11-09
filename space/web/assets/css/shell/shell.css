@@ -163,6 +163,8 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 @media (hover: hover) and (pointer: fine) {
   .sgx-tb-ai:hover { color: var(--sgx-on-primary-fill); }
 }
+/* 键盘焦点（冒烟 #31，2026-11-09）：顶栏按钮的内圈焦点环（offset -2px）落在主题实色底上看不见，浮钮改外圈，和其他按钮同色同粗 */
+.sgx-tb-ai:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 3px; }
 /* 滑页进度条（prog-v1）：顶栏底边、整个视口宽，3px 主题色虚线段（14 实 8 空），宽 = 已滚比例（JS 写 --sgx-prog，0–100%），
    段向前流动（.6 秒一格）、头上一个亮点；减弱动效 = 静止、不流动。没滚 / 页面不够长时宽 0 不显示 */
 .sgx-tb-prog { position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; pointer-events: none; overflow: hidden; }
