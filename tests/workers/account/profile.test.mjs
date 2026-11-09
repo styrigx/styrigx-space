@@ -70,11 +70,11 @@ const stored = (kv) => (kv.m.has('profile') ? JSON.parse(kv.m.get('profile')) : 
 
 /* ---------------- 字段表 / 校验 ---------------- */
 
-test('字段表：name / nickname / motto / email（长度 40 / 32 / 120 / 254；签名可空），冻结；前端 lib/profile.js 同名同序同长度', () => {
+test('字段表：name / nickname / motto / email（长度 40 / 32 / 不限 / 254；签名可空、不限长度，Gray 2026-11-09 18:11），冻结；前端 lib/profile.js 同名同序同长度', () => {
   assert.deepEqual(lib.PROFILE_FIELDS.map((f) => [f.id, f.max, f.required, f.kind]), [
     ['name', 40, true, 'text'],
     ['nickname', 32, true, 'text'],
-    ['motto', 120, false, 'text'],
+    ['motto', null, false, 'text'],
     ['email', 254, true, 'email'],
   ]);
   assert.ok(Object.isFrozen(lib.PROFILE_FIELDS));
@@ -83,7 +83,7 @@ test('字段表：name / nickname / motto / email（长度 40 / 32 / 120 / 254�
   const fe = readFileSync(REPO + '/space/web/assets/js/lib/profile.js', 'utf8');
   const m = /PROFILE_FIELDS = Object\.freeze\(\[([\s\S]*?)\]\);/.exec(fe);
   assert.ok(m, '前端 lib/profile.js 有 PROFILE_FIELDS');
-  const ids = [...m[1].matchAll(/id: '([a-z]+)', max: (\d+)/g)].map((x) => [x[1], Number(x[2])]);
+  const ids = [...m[1].matchAll(/id: '([a-z]+)', max: (\d+|null)/g)].map((x) => [x[1], x[2] === 'null' ? null : Number(x[2])]);
   assert.deepEqual(ids, lib.PROFILE_FIELDS.map((f) => [f.id, f.max]));
 });
 
@@ -93,7 +93,9 @@ test('checkField：去空白、上限按字符算（中文 / emoji 一个算一�
   assert.deepEqual(lib.checkField('name', '甲'.repeat(41)), { ok: false, error: 'too-long' });
   assert.deepEqual(lib.checkField('nickname', '😀'.repeat(32)), { ok: true, value: '😀'.repeat(32) });
   assert.deepEqual(lib.checkField('nickname', 'x'.repeat(33)), { ok: false, error: 'too-long' });
-  assert.deepEqual(lib.checkField('motto', 'a'.repeat(121)), { ok: false, error: 'too-long' });
+  assert.deepEqual(lib.checkField('motto', 'a'.repeat(121)), { ok: true, value: 'a'.repeat(121) }, '签名不限长度（原 120 上限已去掉）');
+  assert.deepEqual(lib.checkField('motto', '想'.repeat(1000)), { ok: true, value: '想'.repeat(1000) });
+  assert.deepEqual(lib.checkField('motto', 'a\nb'), { ok: false, error: 'format' }, '签名仍是单行纯文本');
   assert.deepEqual(lib.checkField('motto', '   '), { ok: true, value: '' }, '签名可以清空成空串');
   for (const id of ['name', 'nickname', 'email']) assert.deepEqual(lib.checkField(id, ' '), { ok: false, error: 'empty' }, id);
   for (const bad of ['a\nb', 'a\rb', 'a\tb', 'a\u0000b', 'a\u2028b', 'a\u007fb']) assert.deepEqual(lib.checkField('name', bad), { ok: false, error: 'format' }, JSON.stringify(bad));
@@ -196,6 +198,15 @@ test('PUT 校验：不是 JSON / 不是对象 400 body；空对象、不认识�
     if (extra) for (const k of Object.keys(extra)) assert.equal(j[k], extra[k], JSON.stringify(body) + ' ' + k);
   }
   assert.equal(kv.m.get('profile'), before, '一个字段不合法整个请求不写');
+});
+
+test('PUT 签名超过原 120 字（请求体 4 KB 以内）→ 200 原样存（不截断）；网址 / 中英混排照收', async () => {
+  const kv = makeKv();
+  const motto = '想理解世界，就把它拆开。'.repeat(20) + ' https://styrigx.com/' + 'a'.repeat(200);
+  const res = await onPut({ request: await putReq({ motto }), env: env(kv) });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).profile.motto, motto);
+  assert.equal(JSON.parse(kv.m.get('profile')).motto, motto);
 });
 
 test('PUT 请求体 > 4 KB → 413 too-large', async () => {
