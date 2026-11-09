@@ -747,7 +747,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await page.route('**/api/ai', async (route) => {
       body = route.request().postDataJSON();
       await route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-Styrigx-AI-Scope': 'private' },
-        body: sse([{ site: 'blog', title: 'Muse 邀请码共享站', url: '/blog/post/2026-09-27-invite-board/' }, { title: '外站', url: 'https://evil.example/' }], ['Muse 是', '协作代理。']) });
+        body: sse([{ site: 'blog', title: 'AI 代理协作开发规范白皮书', url: '/blog/post/2026-10-11-agent-collaboration-whitepaper-v2/' }, { title: '外站', url: 'https://evil.example/' }], ['Muse 是', '协作代理。']) });
     });
     await openAi(page);
     await ai(page).locator('[data-ai-in]').fill('Muse 是什么？');

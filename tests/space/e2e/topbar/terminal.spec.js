@@ -95,7 +95,8 @@ test('cd blog：滚到 [01] 博客（顶栏下面），提示符 ~/blog$，输�
   await expect(home(page).locator('[data-term-title]')).toHaveText('styrigx@space: ~/blog');
   await expect.poll(() => page.evaluate(() => Math.round(document.getElementById('blog').getBoundingClientRect().top)), { timeout: 3000 }).toBeLessThan(120);
   const top = await page.evaluate(() => document.getElementById('blog').getBoundingClientRect().top);
-  expect(top, '在顶栏下面（不被顶栏挡）').toBeGreaterThanOrEqual(64);
+  const barH = await page.evaluate(() => document.querySelector('.sgx-topbar').getBoundingClientRect().bottom);
+  expect(top, '在顶栏下面（不被顶栏挡）').toBeGreaterThanOrEqual(Math.floor(barH));
   /* 博客分节真的有最新几篇（构建期从博客分区取） */
   const posts = page.locator('#blog .home-post');
   expect(await posts.count()).toBeGreaterThan(0);

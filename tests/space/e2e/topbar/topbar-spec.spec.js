@@ -90,9 +90,9 @@ for (const dark of [false, true]) {
         /* 390 宽、桌面 UA、自动：视口 < 720 → 手机布局 */
         await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'phone');
         const [bar, logo, q, sh, g, av, ai] = await Promise.all(['.sgx-topbar', '.sgx-tb-logo', '.sgx-tb-quick', '.sgx-tb-shield', '.sgx-tb-grid', '.sgx-tb-av', '.sgx-tb-ai'].map((s) => box(page, s)));
-        /* 通栏：贴顶、全宽、高 64 */
+        /* 通栏：贴顶、全宽；手机布局高 56（2026-11-09 fix/mobile-topbar-56，原 64；只收上下留白） */
         expect(near(bar.x, 0) && near(bar.width, 390), `顶栏 x ${bar.x} 宽 ${bar.width}`).toBe(true);
-        expect(near(bar.y, 0) && near(bar.height, 64), `顶栏 y ${bar.y} 高 ${bar.height}`).toBe(true);
+        expect(near(bar.y, 0) && near(bar.height, 56), `顶栏 y ${bar.y} 高 ${bar.height}`).toBe(true);
         /* 字标 / 按钮 40 高、上下居中；按钮 40 宽；字标左缘贴页边距（12 − 4 内缩）、头像右缘贴页边距 12（对齐 PR-B） */
         for (const b of [logo, q, sh, g, av]) {
           expect(near(b.height, 40), `高 ${b.height}`).toBe(true);
@@ -487,14 +487,14 @@ test.describe('1280×800', () => {
 
   /* 顶栏 v3：通栏、高 64；内容区 = 居中的 min(宽 − 2 × 页边距, 1080)；按钮 40 × 40；自动（桌面 UA）视口 < 720 → 手机 */
   for (const [w, h] of [[600, 900], [840, 600], [1280, 800], [1920, 1080], [2560, 1440]]) {
-    test(`${w}×${h}：通栏高 64，内容区按公式（±1px），居中`, async ({ page }) => {
+    test(`${w}×${h}：通栏高 64（手机布局 56），内容区按公式（±1px），居中`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
       await go(page, '/wild/');
       const desktop = w >= 720;
       await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', desktop ? 'desktop' : 'phone');
       const bar = await box(page, '.sgx-topbar');
       expect(near(bar.x, 0) && near(bar.width, w), `通栏 ${bar.x} / ${bar.width}`).toBe(true);
-      expect(near(bar.height, 64), `顶栏高 ${bar.height}`).toBe(true);
+      expect(near(bar.height, desktop ? 64 : 56), `顶栏高 ${bar.height}`).toBe(true);
       const [logo, q, av, acts] = await Promise.all(['.sgx-tb-logo', '.sgx-tb-quick', '.sgx-tb-av', '.sgx-tb-acts'].map((s) => box(page, s)));
       expect(near(q.width, 40) && near(av.width, 40) && near(logo.height, 40), `按钮 ${q.width} / ${av.width} / logo 高 ${logo.height}`).toBe(true);
       const p = pad(w);

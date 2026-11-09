@@ -50,7 +50,7 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     await page.route('**/api/ai', (r) => {
       if (r.request().method() === 'GET') return r.fulfill(json({ ok: true, default: 'g4', canChoose: true, models: [{ id: 'g4', label: 'Gemma 4' }, { id: 'gf', label: 'Gemini Flash' }] }));
       body = r.request().postDataJSON();
-      const sse = 'event: delta\ndata: ' + JSON.stringify({ text: '写过：[Muse 邀请码共享站](/blog/post/2026-09-27-invite-board/)' }) + '\n\nevent: done\ndata: {}\n\n';
+      const sse = 'event: delta\ndata: ' + JSON.stringify({ text: '写过：[AI 代理协作开发规范白皮书](/blog/post/2026-10-11-agent-collaboration-whitepaper-v2/)' }) + '\n\nevent: done\ndata: {}\n\n';
       return r.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: sse });
     });
     await page.locator('.sgx-tb-ai').click();
@@ -65,7 +65,7 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     await ai.locator('.sgx-ai-sug').first().click();
     await expect(ai.locator('.sgx-ai-src')).toHaveCount(1);
     await expect(ai.locator('.sgx-ai-src code')).toHaveText('blog/post');
-    await expect(ai.locator('.sgx-ai-src')).toContainText('Muse 邀请码共享站');
+    await expect(ai.locator('.sgx-ai-src')).toContainText('AI 代理协作开发规范白皮书');
     expect(body.q).toBe('最近在听什么');
     expect(body.model).toBe('gf');
   });
