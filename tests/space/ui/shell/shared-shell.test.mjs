@@ -230,7 +230,8 @@ test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layou
   assert.match(foot, /<span class="sgx-foot-ses" translate="no">space<\/span>/);
   assert.match(foot, /\{\{ \$k \}\}:\{\{ index \$t\.foot\.win \.id \}\}/, '窗口 0:home …');
   assert.match(foot, /data-sgx-clock/);
-  assert.match(foot, /\{\{ \.nav\.links\.github \}\}[\s\S]*\{\{ \.nav\.links\.x \}\}[\s\S]*mailto:\{\{ \.email \}\}/);
+  assert.match(foot, /\{\{ \.rss \}\}[\s\S]*\{\{ \.nav\.links\.github \}\}[\s\S]*\{\{ \.nav\.links\.x \}\}/);
+  assert.doesNotMatch(foot, /mailto:|foot\.contact/, '页脚只留 rss / github / x（Gray 2026-11-09：邮箱只在 AI 窗口）');
   assert.doesNotMatch(foot, /sitemap/i, '没有站点地图');
   const s = files['shell.css'];
   assert.match(s, /:root:not\(\[data-sgx-layout="desktop"\]\) \.sgx-foot-win a:not\(\[aria-current="page"\]\) \{ display: none; \}/, '手机只显示当前窗口');

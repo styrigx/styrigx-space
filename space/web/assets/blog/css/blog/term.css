@@ -29,6 +29,12 @@
   padding-top: calc(var(--sgx-tb-h) + 38px);
 }
 
+/* 目录页的栏宽 = 文章页正文栏（Gray 2026-11-09：目录仍是单独一页，栏宽和文章页一致）：
+   文章页桌面 = 正文 1fr + 48 间距 + 220 本文目录（下面 .oui-article-layout），这里右边让出同样的 268，左缘照旧对齐字标 */
+:root[data-sgx-layout="desktop"] .oui-archive-wrap.blog-tree {
+  padding-right: calc(220px + 48px);
+}
+
 /* ---- 首页 ---- */
 .blog-yl {
   margin: 0;

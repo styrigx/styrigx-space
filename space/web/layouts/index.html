@@ -34,6 +34,7 @@
           <span class="sgx-term-field"><input id="home-term-in" class="sgx-term-in" data-term-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="{{ $tr.shell.term.input }}" aria-keyshortcuts="Control+K Meta+K"><span class="sgx-term-ghost" data-term-ghost aria-hidden="true" hidden></span></span>
         </form>
       </div>
+      <p class="sgx-kh sgx-term-kh" data-term-kh hidden></p>
     </div>
   </section>
 
@@ -74,6 +75,8 @@
     <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[03] // DAYMARK</p><h2 class="home-sec-t" id="home-dm-h">{{ $h.daymark }}</h2></div><a class="home-sec-more" href="{{ $dmHome }}" translate="no">cd daymark/ →</a></div>
     <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> cat daymark/today</p>
     {{ if ne (getenv "SGX_TEST_NO_WEATHER") "1" }}
+    {{/* 取今日一句的时候一行输出式的提示「› fetching daymark…」（Gray 2026-11-09 细节 3），有结论（画上 / 没取到）就收起（apps/index.js） */}}
+    <p class="sgx-wait home-wait" data-dm-wait role="status"><span aria-hidden="true">› </span>{{ replace $tr.shell.term.fetching "{x}" "daymark" }}</p>
     <a id="w-daymark" href="{{ $dmHome }}" class="home-qt hidden">
       <span class="home-qt-body" data-dm="body">
         <span class="home-qt-text" data-dm="text"></span>
@@ -90,7 +93,8 @@
 
   {{/* [04] 旷野（设计稿 [04] // WILD：top -n1 · systemctl status · uname + 三张小终端卡），点进 /wild/ 对应的窗：
      screen-time = /api/wellbeing 今天各区域（lib/wb-view.js 字符条，data-wb-root 不带 data-wb-detail = 区域合计照画）；
-     status = 外壳取到的 /api/status（shell/topbar-panel.js mountStatus 发 sgx:status-cells，本页不另取）；about = 构建期常量。 */}}
+     status = 外壳取到的 /api/status（shell/topbar-panel.js mountStatus 发 sgx:status-cells，本页不另取）；about = 构建期常量。
+     每张卡右上一个位置计数「01 / 03」（Gray 2026-11-09 细节 2）。 */}}
   {{ $w := $h.wild }}
   {{ $wildUrl := partial "sgx-lang-path.html" (dict "path" "/wild/" "lang" $pageLang) }}
   {{ $ver := site.Data.version }}
@@ -99,17 +103,20 @@
     <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> top -n1 · systemctl status · uname</p>
     <ul class="home-wild" role="list">
       <li><a class="home-dir home-mini" href="{{ $wildUrl }}#screen-time" id="w-screen" data-wb-root data-wb-term="mini">
+        <span class="home-mini-n" aria-hidden="true" translate="no">01 / 03</span>
         <span class="home-dir-n" translate="no">screen-time</span>
         <span class="home-mini-rows" data-wb="rows">{{ range seq 3 }}<span class="home-mini-row" data-wb-row>&nbsp;</span>{{ end }}</span>
         <span class="home-mini-none" data-wb="none" hidden>{{ $w.screenNone }}</span>
       </a></li>
       <li><a class="home-dir home-mini" href="{{ $wildUrl }}#status" data-home-st>
+        <span class="home-mini-n" aria-hidden="true" translate="no">02 / 03</span>
         <span class="home-dir-n" translate="no">status</span>
         <span class="home-mini-row"><i class="home-st-dot" data-home-st-dot aria-hidden="true">●</i> <span translate="no"><b class="home-st-sum" data-home-st-sum>–/6</b> active</span></span>
         <span class="home-mini-row" translate="no">avg <b class="home-st-sum" data-home-st-avg>—</b></span>
         <span class="home-mini-row" translate="no">checked <b class="home-st-sum" data-home-st-at>—</b></span>
       </a></li>
       <li><a class="home-dir home-mini" href="{{ $wildUrl }}#about">
+        <span class="home-mini-n" aria-hidden="true" translate="no">03 / 03</span>
         <span class="home-dir-n" translate="no">about</span>
         <span class="home-mini-row" translate="no">Styrigx UI {{ $ver.ui }}</span>
         <span class="home-mini-row" translate="no">hugo · workers</span>

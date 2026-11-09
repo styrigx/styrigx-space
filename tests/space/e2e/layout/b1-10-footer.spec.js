@@ -3,7 +3,7 @@
  *
  * 取代 2026-10-22 起「版权只在关于本站显示」：现在每页底部都有一个 tmux 页脚 footer.sgx-foot：
  *   第一行 状态栏 = 会话 space · 窗口 0:home 1:blog …（当前窗口带 *）· 右边 状态 / 语言 / CST 时钟；
- *   第二行 © 年份 Sloan Gray · styrigx · rss · github · x · 联系。
+ *   第二行 © 年份 Sloan Gray · styrigx · rss · github · x（2026-11-09 去掉「联系」）。
  * 手机布局（360 / 412）只显示当前窗口、不显示语言；Powered by 一行仍然没有。页脚在正文之后、页面不横向滚动。
  */
 const { test } = require('@playwright/test');

@@ -214,9 +214,10 @@ test('wild #about: neofetch rows (对齐 PR-B，原 /about/ 的版本行)', asyn
   await expect(body.locator('[data-about="tailwind"]')).toContainText('Tailwind CSS');
   await expect(body.locator('[data-about="build"]')).not.toBeEmpty();
   await expect(body.locator('[data-about="built"]')).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
-  /* 顺序 OS / Kernel / Host / Hugo / CSS / Build / Built / AI / Repo（设计稿 neofetch）；仓库链接回来了（稿里有 Repo 行） */
+  /* 顺序 OS / Kernel / Uptime / Host / Hugo / CSS / Build / Built / AI / Repo（设计稿 neofetch；Uptime 自 2026-10-07，Gray 2026-11-09）；仓库链接回来了（稿里有 Repo 行） */
   const labels = await body.locator('.wild-info > div:not(.wild-info-h):not(.wild-info-r):not(.wild-info-sw) > dt').allTextContents();
-  expect(labels.map((t) => t.trim())).toEqual(['OS', 'Kernel', 'Host', 'Hugo', 'CSS', 'Build', 'Built', 'AI', 'Repo']);
+  expect(labels.map((t) => t.trim())).toEqual(['OS', 'Kernel', 'Uptime', 'Host', 'Hugo', 'CSS', 'Build', 'Built', 'AI', 'Repo']);
+  await expect(body.locator('[data-about="uptime"]')).toHaveText(/^\d+ days?$/);
   await expect(body.locator('a[href="https://github.com/styrigx/styrigx-space"]')).toHaveCount(1);
   await expect(pg.locator('#row-reset')).toHaveCount(0);
 });

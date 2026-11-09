@@ -6,7 +6,8 @@
 {{- if .chips }}<div id="{{ $pre }}-chips" class="sgx-chips cu-chips" role="tablist" aria-label="{{ .chipsLabel }}"></div>{{ end }}
 <div id="{{ $pre }}-list" class="sgx-cgrid cu-grid" data-cu-grid aria-label="{{ .label }}"></div>
 <p id="{{ $pre }}-empty" class="cu-note hidden"></p>
-<p id="{{ $pre }}-loading" class="cu-note it-loading">{{ .loading | default $tr.list.loading }}</p>
+{{- /* 加载中：一行输出式的提示「› 加载中…」（Gray 2026-11-09 细节 3；› 是装饰） */}}
+<p id="{{ $pre }}-loading" class="cu-note it-loading"><span aria-hidden="true">› </span>{{ .loading | default $tr.list.loading }}</p>
 <nav class="sgx-pg cu-pg" data-cu-pager aria-label="{{ $tr.list.pager }}" hidden>
   <span class="sgx-pg-l"><b data-pg-count translate="no">-- 0 / 0 --</b><span class="sgx-pg-hint">{{ $tr.list.more }}</span></span>
   <span class="sgx-pg-r"><label class="sgx-sort">{{ $tr.list.sortBy }} <select data-cu-sort aria-label="{{ $tr.list.sortBy }}">

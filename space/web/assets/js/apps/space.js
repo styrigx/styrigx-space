@@ -12,6 +12,7 @@ import { on as evOn } from '../lib/events.js';
 import { syncAccent } from '../lib/accent-roles.js';
 import { wellLoad, wellFlush } from '../shell/goodlock.js';
 import { renderWbTerm } from '../lib/wb-view.js';
+import { uptimeDays, uptimeText } from '../lib/uptime.js';
 
 /**
  * 挂旷野页 / 旷野子页。返回 destroy()：移除这次挂上的所有监听（含 features 订阅）。
@@ -35,6 +36,12 @@ export function mountSpace() {
   /* 自定义主题色（sgx-accent）：缓存缺失 / 过期时按种子重算整套角色（lib/palette-scheme.js）。
      风格页 /theme/ 的调色板网格 2026-11 对齐 PR-C 退役（功能在顶栏外观弹层，共享外壳 quick-panel.js），这里只剩这一步。 */
   syncAccent();
+
+  /* ---- 旷野 › about 窗 neofetch 的 Uptime（自 2026-10-07，Gray 2026-11-09）：构建时写过一份，这里按今天重算（页面可能是几天前构建的） ---- */
+  (function () {
+    const up = document.querySelector('[data-about="uptime"][data-since]');
+    if (up) up.textContent = uptimeText(uptimeDays(up.getAttribute('data-since') || '', Date.now()));
+  })();
 
   /* ---- 旷野 › screen-time 窗（/wild/ #wb-card，2026-11 对齐 PR-B；原 /wellbeing/ 页的屏幕时间卡）：先画本机记录（sgx-well-v）；
      core 的 loadWb() 拉到 /api/wellbeing 且 detail:true（账号已登录，P2-2）时覆盖同一组 [data-wb] 槽位并把范围改成「所有设备」；

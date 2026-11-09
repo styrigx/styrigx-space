@@ -61,6 +61,7 @@ export const TERM_EN = {
   dAsk: 'ask Gray AI',
   dClear: 'clear screen',
   notFound: 'command not found: {x} · try help',
+  didYouMean: 'command not found: {c} — did you mean {x}?',
   noDir: '{c}: no such directory: {x}',
   noFile: 'cat: {x}: no such file',
   lsEmpty: 'nothing to list here · try cd ..',
@@ -75,6 +76,7 @@ export const TERM_EN = {
   themeOpen: 'appearance panel opened',
   locking: 'locking …',
   asking: 'asking Gray AI …',
+  fetching: 'fetching {x}…',
 };
 
 /**
@@ -91,6 +93,67 @@ export function termStrings(doc) {
     if (o && o.term && typeof o.term === 'object') page = o.term;
   } catch (e) {}
   return Object.assign({}, TERM_EN, page);
+}
+
+/** 打错命令时拿来比的真命令（命令名 + 几个常用的整句） */
+const SUGGEST = COMMANDS.concat(['cd blog', 'cd curio', 'cd daymark', 'cd wild', 'sudo ' + ROOT_COMMAND, 'sudo ' + ADMIN_COMMAND, 'cat daymark/today']);
+/* ---- 以下两个函数抄自 shell/suggest.js（这个文件不 import；单测 suggest.test.mjs 核对两份一样） ---- */
+/** 编辑距离（Levenshtein） @param {string} a @param {string} b @returns {number} */
+function lev(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = [];
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/**
+ * 最近的真命令：整行和每个命令比，第一个词也和每个命令的第一个词比（`sudo stryigx` → `sudo styrigx`，`hepl` → `help`）。
+ * 距离 ≤ 2 且不超过较长那个的一半才算像；一样近取列表里靠前的。没有像的 → ''
+ * @param {string} raw @param {string[]} cands @returns {string}
+ */
+function suggest(raw, cands) {
+  const x = String(raw || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!x) return '';
+  const w = x.split(' ')[0];
+  let best = '';
+  let bd = Infinity;
+  for (const c of cands) {
+    let d = lev(x, c);
+    let ok = d <= 2 && d * 2 <= Math.max(x.length, c.length);
+    if (c.indexOf(' ') === -1 && w !== x) {
+      const d2 = lev(w, c);
+      if (d2 <= 2 && d2 * 2 <= Math.max(w.length, c.length) && d2 < d) { d = d2; ok = true; }
+    }
+    if (ok && d > 0 && d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+
+/** 按键提示行的英文底（= shell/keyhint.js KH_EN 里这里用到的几句；这个文件不 import，抄一份） */
+const KH_EN = { cmdHome: 'enter run · ^C cancel · ^L clear', cmdDrawer: 'tab complete · enter run · esc close', back: '‹ back', backAria: 'Back' };
+/**
+ * 页面字符串表的 kh 节叠在英文上
+ * @param {Document} [doc] @returns {Record<string, string>}
+ */
+function khStrings(doc) {
+  /** @type {Record<string, string>} */
+  let page = {};
+  try {
+    const d = doc || document;
+    const el = d.getElementById('sgx-i18n-shell');
+    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
+    if (o && o.kh && typeof o.kh === 'object') page = o.kh;
+  } catch (e) {}
+  return Object.assign({}, KH_EN, page);
 }
 
 /**
@@ -319,7 +382,8 @@ export function createShell(o) {
         if (!f) return { out: [plain(S.usageCat)] };
         if (!ok) return { out: [tpl('noFile', p.args[0], 'err')] };
         const href = act.daymarkHref();
-        return act.today().then(function (q) {
+        /** @type {any} */
+        const pr = act.today().then(function (q) {
           if (q && q.text) {
             /** @type {Out[]} */
             const out = [{ t: 'line', seg: [['q', '“' + q.text + '”']], cls: '' }];
@@ -330,6 +394,9 @@ export function createShell(o) {
         }, function () {
           return { out: [tpl('todayFail', href, 'o', href)] };
         });
+        /* 等的时候视图先打一行「› fetching daymark…」（Gray 2026-11-09 细节 3） */
+        pr.pending = 'daymark';
+        return pr;
       }
       case 'sudo': {
         /* sudo root [reauth|reset]：账号终端（2026-11-08 账号命令体系 v3）；sudo styrigx：盾牌（进站 v3 L1；原 sudo security） */
@@ -351,8 +418,12 @@ export function createShell(o) {
         const q = p.rest;
         return { out: [arrow([['', S.asking]])], after: function () { act.ask(q); } };
       }
-      default:
+      default: {
+        /* 打错了：给最近的真命令（Gray 2026-11-09；输出区 aria-live，读屏照念）；不像任何命令就照旧 */
+        const sg = suggest(line, SUGGEST);
+        if (sg) return { out: [{ t: 'line', seg: fill(S.didYouMean, { c: ['', p.cmd], x: ['k', sg] }), cls: 'err' }] };
         return { out: [tpl('notFound', p.cmd, 'err')] };
+      }
     }
   }
 
@@ -407,7 +478,7 @@ export { reduced as reducedMotion };
  *   > label[data-term-ps] + .sgx-term-field > input[data-term-in] + [data-term-ghost]
  * @param {Element} root
  * @param {ReturnType<typeof createShell>} sh
- * @param {{ autoHelp?: boolean }} [opts]
+ * @param {{ autoHelp?: boolean, kh?: string, onBack?: () => void }} [opts] kh = 按键提示行那一句的键（#sgx-i18n-shell kh 节）；onBack = 触屏「‹ 返回」
  */
 export function mountTermView(root, sh, opts) {
   const doc = root.ownerDocument || document;
@@ -514,6 +585,9 @@ export function mountTermView(root, sh, opts) {
     echo(pr, line);
     const r = sh.exec(line);
     if (r && typeof (/** @type {any} */ (r)).then === 'function') {
+      /* 异步命令（cat daymark/today）：先打一行输出式的等待提示，不留空白（输出区是 aria-live，读屏照念） */
+      const pend = /** @type {any} */ (r).pending;
+      if (pend) print([{ t: 'line', seg: [['', '› ' + String(sh.str.fetching || TERM_EN.fetching).split('{x}').join(pend)]], cls: 'o' }]);
       inp.disabled = true;
       /** @type {Promise<Result>} */ (r).then(function (x) {
         inp.disabled = false;
@@ -585,6 +659,37 @@ export function mountTermView(root, sh, opts) {
   });
   sh.onChange(paintPrompt);
   paintPrompt();
+  /* 按键提示行（Gray 2026-11-09 细节 1；同 shell/keyhint.js，这个文件不 import，内联几行）：[data-term-kh] 在窗口最底。
+     桌面显示 opts.kh 那一句（主页 cmdHome / 抽屉 cmdDrawer）；触屏有 opts.onBack 时换成「‹ 返回」按钮（抽屉 = 关掉），没有就整行不显示 */
+  const khEl = /** @type {HTMLElement|null} */ (root.querySelector('[data-term-kh]'));
+  if (khEl && opts && opts.kh) {
+    const KS = khStrings(doc);
+    let fine = true;
+    try { fine = window.matchMedia('(pointer: fine)').matches; } catch (e) {}
+    khEl.textContent = '';
+    if (!fine) {
+      const back = opts.onBack;
+      if (back) {
+        const b = doc.createElement('button');
+        b.type = 'button';
+        b.className = 'sgx-kh-b';
+        b.setAttribute('data-kh-back', '');
+        b.setAttribute('aria-label', KS.backAria || 'Back');
+        b.textContent = KS.back || '‹ back';
+        b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); back(); });
+        khEl.appendChild(b);
+      }
+      khEl.hidden = !back;
+    } else {
+      const k = doc.createElement('span');
+      k.className = 'sgx-kh-k';
+      k.setAttribute('aria-hidden', 'true');
+      k.setAttribute('translate', 'no');
+      k.textContent = KS[opts.kh] || '';
+      khEl.appendChild(k);
+      khEl.hidden = !k.textContent;
+    }
+  }
   if (opts && opts.autoHelp) {
     echo(sh.ps1(), 'help');
     print([sh.help()]);

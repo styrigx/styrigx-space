@@ -17,6 +17,7 @@
   "mainOrigin" "https://styrigx.com"
   "name" $prof.name
   "year" now.Year
+  "sha" (partial "sgx-build-sha.html" .)
   "email" $nav.me.email
   "rss" (printf "%srss.xml" (site.GetPage "/blog").RelPermalink)
 ) -}}

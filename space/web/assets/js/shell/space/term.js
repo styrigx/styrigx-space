@@ -7,6 +7,8 @@
  * （锁屏 sgx-entry、盾牌复用账号下拉的 sgx-at），行样式 `<p>-l` + `<p>-l--<d|er|warn|ok|echo|opts>`。
  */
 import { esc } from '../../lib/util.js';
+import { mountKeyHint, khKeyFor } from '../keyhint.js';
+import { paintPick } from '../term-pick.js';
 
 /**
  * @typedef {Object} TermDom
@@ -18,6 +20,7 @@ import { esc } from '../../lib/util.js';
  * @property {HTMLInputElement} pmu 给密码管理器的隐藏用户名
  * @property {HTMLElement} hint 输入行下面一行注释 + 触屏 ^C
  * @property {HTMLElement} live aria-live 区
+ * @property {HTMLElement} [kh] 最底一行按键提示（shell/keyhint.js；可选）
  */
 
 /** 输入不回显的模式：解锁密码、临时钥匙、恢复钥匙、新密码两次 */
@@ -36,7 +39,8 @@ export const SECRET_MODES = Object.freeze(['pw', 'temp', 'rkey', 'newpw', 'newpw
  *   onMode?: (m: string) => void,
  *   onReveal?: (el: HTMLElement) => void,
  *   onCmdInterrupt?: () => boolean,
- * }} o
+ *   kh?: { cmdKey: () => string, canBackCmd: () => boolean, onBack: () => void },
+ * }} o kh = 按键提示行：命令行时显示哪一句（cmd / cmdLayer / cmdEntry）、触屏命令行时有没有「‹ 返回」、按下「‹ 返回」做什么（同 esc）
  */
 export function createTerm(o) {
   const d = o.dom;
@@ -62,6 +66,16 @@ export function createTerm(o) {
     /** 进 busy 时输入行有焦点：回命令行要把焦点还回来 */ refocus: false,
   };
   const live = function (/** @type {string} */ s) { if (s) d.live.textContent = s; };
+
+  /* ---------- 按键提示行（Gray 2026-11-09 细节 1） ---------- */
+  const khOpt = o.kh;
+  const kh = d.kh && khOpt ? mountKeyHint(d.kh, { onBack: khOpt.onBack }) : null;
+  /** 按当前模式重画提示行（宿主换层后也调一次） */
+  C.paintKh = function () {
+    if (!kh || !khOpt) return;
+    const key = khKeyFor(C.mode, khOpt.cmdKey(), !!C.busyCancel);
+    kh.set(key, C.mode === 'cmd' ? khOpt.canBackCmd() : !!key);
+  };
 
   /* ---------- 输出 ---------- */
   /** @param {string} html @param {string} [cls] d 注释 · er 出错 · warn 提示 · ok 通过 · echo 回显（不播报）· opts 选项 */
@@ -127,6 +141,9 @@ export function createTerm(o) {
       d.hint.hidden = false;
     } else d.hint.hidden = true;
     if (o.onMode) o.onMode(m);
+    C.paintKh();
+    /* busyCancel 常在 setMode('busy') 之后才挂上：下一拍再画一次 */
+    if (m === 'busy') Promise.resolve().then(C.paintKh);
   };
   /** 回命令行（一轮结束 / ^C / 出错）；原来输入行有焦点就还回去（触屏键盘收起后命令行像死了，#333） */
   C.toCmd = function () {
@@ -252,6 +269,10 @@ export function createTerm(o) {
       input.value = hist[histIdx] || '';
     }
   });
+  /* 选择时高亮跟着输入框里的字走（手机输入法的数字进了输入框、不走上面的单键直选；Gray 2026-11-09 截图：打了 2 还亮着 [1]） */
+  input.addEventListener('input', function () {
+    if (C.mode === 'pick') paintPick(d.log, 'data-term-pick', input.value, Object.keys(picks), pickDefault);
+  });
   /* 手机输入法（三星键盘、Gboard 联想）在命令行按 enter 时 keydown 常带 isComposing，上面不提交、浏览器也不隐式提交：keyup 补一次 */
   input.addEventListener('keyup', function (e) {
     if (e.key !== 'Enter' || enterAt < 0) return;
@@ -274,6 +295,7 @@ export function createTerm(o) {
     if (tg.closest('[data-term-log], form') && !tg.closest('button, a, input')) C.focusIn(true);
   });
 
+  C.paintKh();
   return C;
 }
 

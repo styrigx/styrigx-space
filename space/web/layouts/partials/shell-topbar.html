@@ -124,6 +124,7 @@
       <textarea class="sgx-ai-in" data-ai-in rows="1" maxlength="200" enterkeyhint="send" aria-label="{{ $t.topbar.question }}" placeholder="{{ $t.topbar.askPlaceholder }}"></textarea>
       <button type="submit" class="sgx-ai-send" aria-label="{{ $t.topbar.send }}">{{ index $i "tb-send" | safeHTML }}</button>
     </form>
+    <p class="sgx-kh sgx-ai-kh" data-ai-kh hidden></p>
     <p class="sgx-ai-foot"><span><span class="sgx-ai-err">{{ $t.topbar.mayErr }}</span><span class="sgx-ai-dot" aria-hidden="true"> · </span><span class="sgx-ai-scope" data-ai-scope>{{ $t.topbar.publicOnly }}</span></span><a class="sgx-ai-contact" data-ai-contact title="{{ $t.topbar.contact }}"{{ with .email }} href="mailto:{{ . }}"{{ end }}>{{ with .email }}<span data-ai-email translate="no" data-sgx-personal>{{ . }}</span>{{ else }}{{ $t.topbar.contact }}{{ end }}</a></p>
   </div>
 </dialog>
@@ -160,6 +161,7 @@
         <span class="sgx-term-field"><input id="sgx-term-in" class="sgx-term-in" data-term-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="{{ $t.term.input }}" autofocus><span class="sgx-term-ghost" data-term-ghost aria-hidden="true" hidden></span></span>
       </form>
     </div>
+    <p class="sgx-kh sgx-term-kh" data-term-kh hidden></p>
   </div>
 </dialog>
 {{- /* 外壳 JS（topbar.js / ai.js / share.js）的文案：同一张外壳字符串表，只出当前语言（已叠在英文上） */}}

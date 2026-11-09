@@ -9,6 +9,7 @@
  */
 import { registerPasskey, genPkPrefillName, cleanPasskeyName } from '../../auth/passkey-register.js';
 import { CMD, PS_RECOVERY_KEY, MAX_TRIES, TRIES_OVER, TRY_AGAIN, normCmd, parseResetCmd, mmdd, passkeyName } from './commands.js';
+import { suggest } from '../suggest.js';
 
 /** reset 票时长（毫秒；服务端 SHORT_TICKET_MAX_AGE = 180 秒，前端只拿来显示倒计时） */
 export const RESET_MS = 180000;
@@ -128,7 +129,12 @@ export function mountReset(C) {
       case 'passkey-ls': listKeys(true); return;
       case 'passkey-add': addPasskey(); return;
       case 'passkey-rm': removeKey(c.arg || ''); return;
-      default: C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
+      default: {
+        /* 打错了：给最近的真命令（Gray 2026-11-09） */
+        const sg = suggest(line, ['help', 'clear', 'exit', 'passwd', 'passkey ls', 'passkey add', 'passkey rm']);
+        if (sg) C.err(tf('common.didYouMean', { c: raw.trim().split(' ')[0] }), sg);
+        else C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
+      }
     }
   };
   function help() {
