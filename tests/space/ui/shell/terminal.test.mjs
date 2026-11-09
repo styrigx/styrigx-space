@@ -321,3 +321,14 @@ test('T6 tty：不带参数显示 tty2；tty 3/4/5 打开对应宿主（after）
   assert.deepEqual(got, [3, 4, 5]);
   assert.equal(text(sh.exec('tty 9').out[0]), TERM_EN.usageTty);
 });
+
+test('T6c tty4：createShell 可换历史键和 tty 名（AI 窗口里的 $ 命令）', () => {
+  const st = mem();
+  const { act } = fakeAct();
+  const sh = createShell({ act, storage: st, histKey: 'sgx-term-hist-4', tty: 'tty4' });
+  assert.equal(text(sh.exec('tty').out[0]), 'tty4');
+  assert.equal(text(sh.exec('tty 4').out[0]), 'tty4');
+  sh.exec('pwd');
+  assert.deepEqual(JSON.parse(st.getItem('sgx-term-hist-4')), ['tty', 'tty 4', 'pwd']);
+  assert.equal(st.getItem('sgx-term-hist'), null);
+});

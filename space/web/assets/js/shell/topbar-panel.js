@@ -460,6 +460,8 @@ export function mountTopbar(o) {
   } catch (e) {}
 
   /* ---------------- AI 窗口 ---------------- */
+  /** tty4 的命令外壳（终端那一段建好后才有；AI 窗口打开时才取） @type {() => any} */
+  let term4Of = function () { return null; };
   let ai = null;
   if (aiBtn && aiDlg) {
     /** @type {any} */
@@ -467,7 +469,7 @@ export function mountTopbar(o) {
     const aiSheet = /** @type {HTMLElement|null} */ (aiDlg.querySelector('.sgx-qp-sheet'));
     ai = wire(aiBtn, aiDlg, 'sgxAi', function () {
       aiOrigin(aiBtn, aiDlg, aiSheet);
-      if (!chat && o.ai) chat = o.ai(aiDlg, { lang: doc.documentElement.lang || 'en', close: function (/** @type {any} */ after) { if (ai) ai.ms.close(after); }, navigate: navigate, keyboard: o.keyboard }) || {};
+      if (!chat && o.ai) chat = o.ai(aiDlg, { lang: doc.documentElement.lang || 'en', close: function (/** @type {any} */ after) { if (ai) ai.ms.close(after); }, navigate: navigate, keyboard: o.keyboard, term: function () { return term4Of(); } }) || {};
       if (chat && chat.onOpen) chat.onOpen();
     }, AI_RM_MS);
     /* 头部 ×（2026-11 PR-5 ai-v1）：同 Esc / 点遮罩 */
@@ -628,10 +630,8 @@ export function mountTopbar(o) {
     const hrefOf = function (/** @type {string} */ id, /** @type {string} */ dflt) { const a = tile(id); return a ? a.href : dflt; };
     const cur = navDlg ? navDlg.querySelector('a.sgx-nav-tile[aria-current="page"]') : null;
     const curId = cur ? cur.getAttribute('data-nav') || '' : '';
-    term = T.createShell({
-      str: T.termStrings(doc),
-      cwd: homeTerm ? '~' : ['blog', 'curio', 'daymark', 'wild'].indexOf(curId) >= 0 ? curId : '~',
-      act: {
+    /** 命令的动作（tty2 站内终端和 tty4 AI 窗口里的 $ 命令共用） @type {any} */
+    const act = {
         cd: function (/** @type {string} */ dir) {
           /* 主页上有这一节（[data-term-dir]）就滚过去；~ 回到首屏终端；其余去那个站 */
           if (homeTerm) {
@@ -707,15 +707,27 @@ export function mountTopbar(o) {
           return {
             go: function () {
               closeAll(function () {
-                if (n === 3) { if (sec) openSec(); }
+                if (n === 2) openTerm();
+                else if (n === 3) { if (sec) openSec(); }
                 else if (n === 5) openAcct({});
                 else if (n === 4) { if (ai && !ai.ms.isOpen()) ai.ms.open(); }
               });
             },
           };
         },
-      },
+    };
+    term = T.createShell({
+      str: T.termStrings(doc),
+      cwd: homeTerm ? '~' : ['blog', 'curio', 'daymark', 'wild'].indexOf(curId) >= 0 ? curId : '~',
+      act: act,
     });
+    /* tty4：AI 窗口里以 $ 开头的输入走同一张命令表；自己的 cwd、自己的历史 sgx-term-hist-4（终端统一 T6c） */
+    /** @type {any} */
+    let t4 = null;
+    term4Of = function () {
+      if (!t4) t4 = { shell: T.createShell({ str: T.termStrings(doc), act: act, histKey: 'sgx-term-hist-4', tty: 'tty4' }), complete: T.complete };
+      return t4;
+    };
     if (homeTerm) homeView = T.mountTermView(homeTerm, term, { autoHelp: true, kh: 'cmdHome' });
     if (termDlg && !homeTerm && typeof termDlg.showModal === 'function') {
       const opener = navBtn || /** @type {HTMLElement} */ (doc.body);

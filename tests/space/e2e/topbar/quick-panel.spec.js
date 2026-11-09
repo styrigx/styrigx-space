@@ -739,6 +739,34 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     expect(await page.evaluate(() => document.getElementById('sgx-ai').contains(document.activeElement))).toBe(true);
   });
 
+  test('tty4（终端统一 T6c）：$ 开头 = 命令，走站内终端的命令表，不发 /api/ai、不进 AI 历史；↑ 翻命令历史（sgx-term-hist-4）；Tab 补全；clear 清掉命令输出', async ({ page }) => {
+    await go(page, '/wild/');
+    let posts = 0;
+    await page.route('**/api/ai', async (route) => { if (route.request().method() === 'POST') posts++; await route.fallback(); });
+    await openAi(page);
+    const inp = ai(page).locator('[data-ai-in]');
+    await inp.fill('$ pwd');
+    await inp.press('Enter');
+    await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="user"]').last()).toHaveText('$ pwd');
+    await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('~');
+    await inp.fill('$ tty');
+    await inp.press('Enter');
+    await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('tty4');
+    await inp.fill('$');
+    await inp.press('ArrowUp');
+    await expect(inp).toHaveValue('$ tty');
+    await inp.fill('$ pw');
+    await inp.press('Tab');
+    await expect(inp).toHaveValue('$ pwd');
+    await inp.fill('$ clear');
+    await inp.press('Enter');
+    await expect(ai(page).locator('[data-term]')).toHaveCount(0);
+    expect(posts).toBe(0);
+    const h = await page.evaluate(() => [sessionStorage.getItem('sgx-term-hist-4'), localStorage.getItem('sgx-ai-history')]);
+    expect(JSON.parse(h[0])).toEqual(['pwd', 'tty', 'clear']);
+    expect(h[1] || '').not.toContain('pwd');
+  });
+
   test('问一句：POST /api/ai（问题 + 语言 + 历史），流式回答（不显示来源卡片，旧服务端发了 hits 也不显示）；范围按响应头；历史只存本地 sgx-ai-history', async ({ page }) => {
     await go(page, '/wild/');
     let body = null;
