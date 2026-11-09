@@ -8,17 +8,16 @@
  *   主页首屏嵌入的那一个（layouts/index.html，data-sgx-term="home"）和全站抽屉（共享外壳 shell-topbar.html 的 #sgx-term）用同一个引擎实例。
  * - 文案：#sgx-i18n-shell 的 term 节（data/sgx-shell-i18n/<语言>.yaml，缺键回退下面的英文）。
  *
- * 共享外壳组件：不 import 任何东西（gen-shell 核对）；输出只用 textContent 拼，不写 innerHTML。
+ * 共享外壳组件：只许 import shell/term/**（终端统一 T1，gen-shell 核对）；输出只用 textContent 拼，不写 innerHTML。
  */
+import { ROOT_COMMAND, ADMIN_COMMAND, ENV_GUEST, ENV_ROOT } from './term/core/parse.js';
+import { suggest } from './term/core/suggest.js';
+import { KH_EN, shellSection } from './term/core/strings.js';
 
 /** 目录（ls 的结果，cd 的目标；wild = 旷野） */
 export const DIRS = ['blog', 'curio', 'daymark', 'wild'];
-/** 账号终端的命令字（= shell/account/commands.js ROOT_COMMAND）、进站的命令字（= shell/space/commands.js ADMIN_COMMAND）；这个文件不 import 任何东西，只能抄一份 */
-const ROOT_COMMAND = 'root';
-const ADMIN_COMMAND = 'styrigx';
-/** 环境提示符（= shell/space/commands.js ENV_GUEST / ENV_ROOT）：账号没登录 / 已登录 */
-export const ENV_GUEST = 'styrigx@space';
-export const ENV_ROOT = 'root@account';
+/** 环境提示符（shell/term/core/parse.js，和 shell/space/commands.js 同一份）：账号没登录 / 已登录 */
+export { ENV_GUEST, ENV_ROOT };
 
 /**
  * 账号登录了没有：读 <html data-sgx-account-session="in|out">（首帧由 layout-mode.js __sgxAccountPs 按登录标记写好，账号终端登录 / 退出时改）。
@@ -84,76 +83,17 @@ export const TERM_EN = {
  * @param {Document} [doc] @returns {Record<string, string>}
  */
 export function termStrings(doc) {
-  /** @type {Record<string, string>} */
-  let page = {};
-  try {
-    const d = doc || document;
-    const el = d.getElementById('sgx-i18n-shell');
-    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
-    if (o && o.term && typeof o.term === 'object') page = o.term;
-  } catch (e) {}
-  return Object.assign({}, TERM_EN, page);
+  return Object.assign({}, TERM_EN, shellSection(doc, 'term'));
 }
 
 /** 打错命令时拿来比的真命令（命令名 + 几个常用的整句） */
 const SUGGEST = COMMANDS.concat(['cd blog', 'cd curio', 'cd daymark', 'cd wild', 'sudo ' + ROOT_COMMAND, 'sudo ' + ADMIN_COMMAND, 'cat daymark/today']);
-/* ---- 以下两个函数抄自 shell/suggest.js（这个文件不 import；单测 suggest.test.mjs 核对两份一样） ---- */
-/** 编辑距离（Levenshtein） @param {string} a @param {string} b @returns {number} */
-function lev(a, b) {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  let prev = [];
-  for (let j = 0; j <= b.length; j++) prev[j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
-    for (let j = 1; j <= b.length; j++) {
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    }
-    prev = cur;
-  }
-  return prev[b.length];
-}
-
 /**
- * 最近的真命令：整行和每个命令比，第一个词也和每个命令的第一个词比（`sudo stryigx` → `sudo styrigx`，`hepl` → `help`）。
- * 距离 ≤ 2 且不超过较长那个的一半才算像；一样近取列表里靠前的。没有像的 → ''
- * @param {string} raw @param {string[]} cands @returns {string}
- */
-function suggest(raw, cands) {
-  const x = String(raw || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!x) return '';
-  const w = x.split(' ')[0];
-  let best = '';
-  let bd = Infinity;
-  for (const c of cands) {
-    let d = lev(x, c);
-    let ok = d <= 2 && d * 2 <= Math.max(x.length, c.length);
-    if (c.indexOf(' ') === -1 && w !== x) {
-      const d2 = lev(w, c);
-      if (d2 <= 2 && d2 * 2 <= Math.max(w.length, c.length) && d2 < d) { d = d2; ok = true; }
-    }
-    if (ok && d > 0 && d < bd) { bd = d; best = c; }
-  }
-  return best;
-}
-
-/** 按键提示行的英文底（= shell/keyhint.js KH_EN 里这里用到的几句；这个文件不 import，抄一份） */
-const KH_EN = { cmdHome: 'enter run · ^C cancel · ^L clear', cmdDrawer: 'tab complete · enter run · esc close', back: '‹ back', backAria: 'Back' };
-/**
- * 页面字符串表的 kh 节叠在英文上
+ * 页面字符串表的 kh 节叠在英文上（英文底 = shell/term/core/strings.js KH_EN）
  * @param {Document} [doc] @returns {Record<string, string>}
  */
 function khStrings(doc) {
-  /** @type {Record<string, string>} */
-  let page = {};
-  try {
-    const d = doc || document;
-    const el = d.getElementById('sgx-i18n-shell');
-    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
-    if (o && o.kh && typeof o.kh === 'object') page = o.kh;
-  } catch (e) {}
-  return Object.assign({}, KH_EN, page);
+  return Object.assign({}, KH_EN, shellSection(doc, 'kh'));
 }
 
 /**

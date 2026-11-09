@@ -4,52 +4,21 @@
  * 触屏不显示按键（没有键盘），改成一个「‹ 返回」按钮，按下 = 这个状态的退出路径（同 esc）——每个终端状态都要有出口（Gray 2026-11-09）。
  *
  * 用在锁屏、盾牌（shell/space/term.js 的宿主）和账号下拉（shell/account/term.js）。主页 / 抽屉终端（shell/terminal.js）和 AI 窗口（shell/ai-panel.js）
- * 是不 import 的共享外壳组件，各自内联同样的几行，文案同一张表：#sgx-i18n-shell 的 kh 节（data/sgx-shell-i18n/<语言>.yaml，缺键回退下面的英文）。
+ * 只许 import shell/term/**，各自画几行，英文底同用 shell/term/core/strings.js 的 KH_EN；文案同一张表：#sgx-i18n-shell 的 kh 节（data/sgx-shell-i18n/<语言>.yaml，缺键回退英文）。
  *
  * 读屏：按键文字是装饰（aria-hidden），「‹ 返回」是真按钮（有名字，读屏能点）。
  */
+import { KH_EN, shellSection } from './term/core/strings.js';
 
-/** 英文底（源文本）；页面上以 #sgx-i18n-shell 的 kh 节为准。键名 = 状态 */
-export const KH_EN = Object.freeze({
-  /** 窗口里的命令行（盾牌 / 账号下拉首层、抽屉终端）：esc 关窗口 */
-  cmd: 'enter run · esc close',
-  /** 窗口里的下一层命令行：esc 回上一层 */
-  cmdLayer: 'enter run · esc back',
-  /** 锁屏命令行（进站之前没有别处可去） */
-  cmdEntry: 'enter run · ↑↓ history · ^L clear',
-  /** 主页嵌入的终端（标题栏已有 tab / ↑ / Ctrl K） */
-  cmdHome: 'enter run · ^C cancel · ^L clear',
-  /** 抽屉终端 */
-  cmdDrawer: 'tab complete · enter run · esc close',
-  /** 选择 [1] [2] … */
-  pick: '[n] pick · enter default · esc back · ^C quit',
-  /** 不回显的秘密输入 */
-  secret: 'enter submit · hidden input · esc back · ^C quit',
-  /** 起名（通行密钥名字，可空） */
-  name: 'enter save · esc back · ^C quit',
-  /** 等待中、能中断（通行密钥） */
-  busy: '^C cancel',
-  /** AI 窗口 */
-  ai: 'enter send · shift+enter newline · esc close',
-  /** 触屏的出口按钮 */
-  back: '‹ back',
-  backAria: 'Back',
-});
+/** 英文底（源文本）：终端统一 T1 起放在 shell/term/core/strings.js，这里转出 */
+export { KH_EN };
 
 /**
  * #sgx-i18n-shell 的 kh 节叠在英文上
  * @param {Document} [doc] @returns {Record<string, string>}
  */
 export function khStrings(doc) {
-  /** @type {Record<string, string>} */
-  let page = {};
-  try {
-    const d = doc || document;
-    const el = d.getElementById('sgx-i18n-shell');
-    const j = el && el.textContent ? JSON.parse(el.textContent) : null;
-    if (j && j.kh && typeof j.kh === 'object') page = j.kh;
-  } catch (e) {}
-  return Object.assign({}, KH_EN, page);
+  return Object.assign({}, KH_EN, shellSection(doc, 'kh'));
 }
 
 /**
