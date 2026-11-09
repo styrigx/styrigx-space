@@ -61,7 +61,7 @@ test('complete：参数补全（sudo r → sudo root；cd 目录；theme；cat d
   assert.deepEqual(complete('theme d'), { line: 'theme dark', options: [] });
   assert.deepEqual(complete('cat d'), { line: 'cat daymark/today', options: [] });
   assert.deepEqual(complete('cd blog x'), { line: 'cd blog x', options: [] });
-  assert.deepEqual(ARGS.cd, ['blog', 'curio', 'daymark', 'wild', '~', '..']);
+  assert.deepEqual(ARGS.cd, ['blog', 'curio', 'daymark', 'wild', 'account', 'shield', '~', '..']);
 });
 
 test('ghost：唯一候选时给出没打的那一截（sudo ro_ot；2026-11-08 sudo account → sudo root），多个 / 已完整 / 空行不给', () => {
@@ -124,7 +124,7 @@ test('help：cd 一行 + 八条命令（顺序同设计稿）；clear 清屏；�
   const nf = sh.exec('foo bar');
   assert.equal(text(nf.out[0]), 'command not found: foo · try help');
   assert.equal(nf.out[0].cls, 'err');
-  assert.deepEqual(COMMANDS, ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear', 'man']);
+  assert.deepEqual(COMMANDS, ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear', 'man', 'pwd', 'open', 'tty']);
 });
 
 test('cd：主页有这一节 → 滚动提示；没有 → 打开提示 + after 去跳转；坏目录报错、cwd 不变', () => {
@@ -142,10 +142,10 @@ test('cd：主页有这一节 → 滚动提示；没有 → 打开提示 + after
   assert.equal(sh.cwd(), 'curio');
 });
 
-test('ls：~ 下列 blog/ curio/ daymark/ wild/；daymark 下 today；坏目录报错', () => {
+test('ls：~ 下列 blog/ curio/ daymark/ wild/ account/ shield/（T6）；daymark 下 today；坏目录报错', () => {
   const { act } = fakeAct();
   const sh = createShell({ act, storage: mem() });
-  assert.equal(text(sh.exec('ls').out[0]).trim(), 'blog/  curio/  daymark/  wild/');
+  assert.equal(text(sh.exec('ls').out[0]).trim(), 'blog/  curio/  daymark/  wild/  account/  shield/');
   assert.equal(text(sh.exec('ls daymark').out[0]), 'today');
   assert.equal(text(sh.exec('ls x').out[0]), 'ls: no such directory: x');
 });
@@ -254,7 +254,7 @@ test('man（终端统一 T5）：索引列出每条命令；man cd 一页（NAME
   for (const o of idx.out.slice(1)) assert.ok(!/undefined/.test(text(o)), text(o));
   const cd = await sh.exec('man cd');
   assert.equal(cd.pager, true);
-  assert.deepEqual(cd.out.map(text), ['CD(1)', 'NAME', '    cd — move to a directory (on the home page, scroll to it)', 'SYNOPSIS', '    cd [blog | curio | daymark | wild | ~ | ..]', '(END)']);
+  assert.deepEqual(cd.out.map(text), ['CD(1)', 'NAME', '    cd — move to a directory (on the home page, scroll to it)', 'SYNOPSIS', '    cd [blog | curio | daymark | wild | account | shield | ~ | ..]', '(END)']);
   assert.equal(text((await sh.exec('man cls')).out[0]), 'CLEAR(1)');
   const no = await sh.exec('man nope');
   assert.equal(text(no.out[0]), 'No manual entry for nope');
@@ -272,4 +272,54 @@ test('man 节（en / zh）：键 = man 页的命令；英文表 = pages.js 英�
   assert.deepEqual(Object.keys(en).sort(), Object.keys(PAGES).sort());
   assert.deepEqual(Object.keys(zh).sort(), Object.keys(PAGES).sort());
   for (const k of Object.keys(PAGES)) assert.equal(en[k], PAGES[k].d, 'en.man.' + k);
+});
+
+test('T6 虚拟目录：cd account / shield 只改 cwd 不开下拉；cd 文件报不是目录；pwd；ls 各层；cat 用相对路径', () => {
+  const { act, calls } = fakeAct();
+  const sh = createShell({ act, storage: mem() });
+  assert.deepEqual(sh.exec('cd account/security').out, []);
+  assert.equal(sh.cwd(), 'account/security');
+  assert.match(sh.ps1(), /:~\/account\/security\$$/);
+  assert.equal(text(sh.exec('pwd').out[0]), '~/account/security');
+  assert.equal(text(sh.exec('ls').out[0]), 'nothing to list here · try cd ..');
+  sh.exec('cd ..');
+  assert.equal(sh.cwd(), 'account');
+  assert.equal(text(sh.exec('ls').out[0]).trim(), 'profile/  devices/  security/  apps/');
+  assert.equal(text(sh.exec('ls ~/shield').out[0]).trim(), 'keys/  tempkeys/  links/');
+  assert.equal(text(sh.exec('cd ~/daymark/today').out[0]), 'cd: not a directory: ~/daymark/today');
+  assert.equal(text(sh.exec('cd ../nope').out[0]), 'cd: no such directory: ../nope');
+  assert.deepEqual(calls, [], 'account / shield 下 cd 不调动作');
+  assert.equal(normDir('account/security', '../../blog'), 'blog');
+  assert.equal(normDir('~', 'daymark/today'), null);
+});
+
+test('T6 open：站点 = 主页滚动 / 别页跳转；account / shield 开对应下拉那一层（security → keys，apps → grants）；坏路径报错', () => {
+  const calls = [];
+  const { act } = fakeAct({ scroll: ['blog'] });
+  act.account = (l) => { calls.push(['account', l]); return { href: '~/account' + (l ? '/' + l : ''), go: () => calls.push(['go-acct', l]) }; };
+  act.shield = (l) => { calls.push(['shield', l]); return { href: '~/shield' + (l ? '/' + l : ''), go: () => calls.push(['go-sh', l]) }; };
+  const sh = createShell({ act, storage: mem() });
+  assert.equal(text(sh.exec('open blog').out[0]), '→ scrolled to [01] blog');
+  assert.equal(sh.cwd(), '~', 'open 不改 cwd');
+  const a = sh.exec('open ~/account/security');
+  assert.equal(text(a.out[0]), '→ opening ~/account/keys …');
+  a.after();
+  sh.exec('open account/apps').after();
+  sh.exec('open shield/tempkeys').after();
+  assert.deepEqual(calls, [['account', 'keys'], ['go-acct', 'keys'], ['account', 'grants'], ['go-acct', 'grants'], ['shield', 'tempkeys'], ['go-sh', 'tempkeys']]);
+  assert.equal(text(sh.exec('open nope').out[0]), 'open: no such directory: nope');
+  const n = sh.exec('open curio');
+  assert.equal(text(n.out[0]), '→ opening /curio/ …');
+});
+
+test('T6 tty：不带参数显示 tty2；tty 3/4/5 打开对应宿主（after）；tty 2 = 本终端；坏参数给用法', () => {
+  const { act } = fakeAct();
+  const got = [];
+  act.tty = (n) => ({ go: () => got.push(n) });
+  const sh = createShell({ act, storage: mem() });
+  assert.equal(text(sh.exec('tty').out[0]), 'tty2');
+  assert.equal(text(sh.exec('tty 2').out[0]), 'tty2');
+  for (const n of [3, 4, 5]) { const r = sh.exec('tty ' + n); assert.equal(text(r.out[0]), '→ opening tty' + n + ' …'); r.after(); }
+  assert.deepEqual(got, [3, 4, 5]);
+  assert.equal(text(sh.exec('tty 9').out[0]), TERM_EN.usageTty);
 });

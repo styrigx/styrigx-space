@@ -83,6 +83,8 @@ export const TERM_EN = {
   manIndex: 'manual pages · man <command> to read one',
   manNone: 'No manual entry for {x}',
   manPager: 'q or enter to quit',
+  notDir: '{c}: not a directory: {x}',
+  usageTty: 'usage: tty [2 | 3 | 4 | 5]',
 };
 
 /**
@@ -135,6 +137,9 @@ export function ghost(line) {
  * @property {(q: string) => void} ask
  * @property {() => Promise<{ text: string, by: string } | null>} today
  * @property {() => string} daymarkHref
+ * @property {(layer: string) => ({ href: string, go: () => void })} [account]  open ~/account[/层]（T6）
+ * @property {(layer: string) => ({ href: string, go: () => void })} [shield]  open ~/shield[/层]（T6）
+ * @property {(n: number) => ({ go: () => void })} [tty]  tty 3 / 4 / 5（T6）
  */
 
 /**

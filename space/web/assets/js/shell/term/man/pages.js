@@ -6,12 +6,15 @@
 export const PAGES = Object.freeze({
   help: { d: 'list the commands', syn: ['help', '?'] },
   man: { d: 'read a command’s manual page', syn: ['man', 'man <command>'] },
-  cd: { d: 'move to a directory (on the home page, scroll to it)', syn: ['cd [blog | curio | daymark | wild | ~ | ..]'] },
-  ls: { d: 'list a directory', syn: ['ls [blog | curio | daymark | wild]'] },
+  cd: { d: 'move to a directory (on the home page, scroll to it)', syn: ['cd [blog | curio | daymark | wild | account | shield | ~ | ..]'] },
+  ls: { d: 'list a directory', syn: ['ls [path]'] },
   cat: { d: 'print today’s daymark line', syn: ['cat daymark/today'] },
   sudo: { d: 'sign in to the account, or open site security', syn: ['sudo {root} [reauth | reset]', 'sudo {admin}'] },
   theme: { d: 'open the appearance panel, or set dark / light / auto', syn: ['theme', 'theme [dark | light | auto]'] },
   lock: { d: 'lock this device now', syn: ['lock'] },
   ask: { d: 'ask Gray AI a question', syn: ['ask <question>'] },
   clear: { d: 'clear the screen', syn: ['clear', 'cls'] },
+  pwd: { d: 'print the current directory', syn: ['pwd'] },
+  open: { d: 'open a path: a site, daymark/today, an account or shield layer', syn: ['open [path]', 'open ~/account/security', 'open ~/shield/keys'] },
+  tty: { d: 'show this terminal, or open another (3 shield · 4 AI · 5 account)', syn: ['tty', 'tty [2 | 3 | 4 | 5]'] },
 });

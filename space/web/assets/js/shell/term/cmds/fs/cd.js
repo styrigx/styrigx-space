@@ -1,18 +1,21 @@
-import { DIRS, normDir } from './tree.js';
+import { DIRS, resolvePath } from './tree.js';
 import { fill } from '../../core/out.js';
 
-/** cd：改 cwd；主页上滚到那一节，其他页跳到那个站（T6 改成不跳页） */
+/** cd：改 cwd 和提示符。四个站的目录：主页上滚到那一节，其他页跳到那个站（照旧）；account / shield 只改 cwd，不开下拉（要开用 open） */
 export default {
   name: 'cd',
-  args: DIRS.concat(['~', '..']),
+  args: DIRS.concat(['account', 'shield', '~', '..']),
   /** @param {any} p @param {any} x */
   run: function (p, x) {
-    const d = normDir(x.cwd(), p.args[0]);
-    if (d === null) return { out: [x.k.noDir('cd', p.args[0])] };
-    const r = x.act.cd(d);
+    const r = resolvePath(x.cwd(), p.args[0]);
+    if (!r) return { out: [x.k.noDir('cd', p.args[0])] };
+    if (!r.dir) return { out: [{ t: 'line', seg: fill(x.S.notDir, { c: ['', 'cd'], x: ['k', p.args[0]] }), cls: 'err' }] };
+    const d = r.path;
+    const site = d === '~' || DIRS.indexOf(d) >= 0;
+    const res = site ? x.act.cd(d) : null;
     x.setCwd(d);
-    if (r && r.kind === 'scroll') return { out: r.label ? [x.k.arrow(fill(x.S.scrolled, { x: ['', r.label] }))] : [] };
-    if (r && r.kind === 'nav') return { out: [x.k.arrow(fill(x.S.opening, { x: ['k', r.href] }))], after: r.go };
+    if (res && res.kind === 'scroll') return { out: res.label ? [x.k.arrow(fill(x.S.scrolled, { x: ['', res.label] }))] : [] };
+    if (res && res.kind === 'nav') return { out: [x.k.arrow(fill(x.S.opening, { x: ['k', res.href] }))], after: res.go };
     return { out: [] };
   },
 };
