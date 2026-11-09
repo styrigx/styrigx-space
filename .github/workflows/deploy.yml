@@ -1512,8 +1512,12 @@ jobs:
           check /healthz 200 || ok=1
           check /MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs 200 || ok=1
           check /MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs 200 || ok=1
+          # 自有仓 styrigx/mihomo-rules 的 dist 分支
+          check /styrigx/mihomo-rules/dist/geosite/samsung.mrs 200 || ok=1
+          check /styrigx/mihomo-rules/dist/geoip/cn.mrs 200 || ok=1
           # 白名单外不转发
           check /MetaCubeX/meta-rules-dat/meta/README.md 404 || ok=1
+          check /styrigx/mihomo-rules/dist/manifest.json 404 || ok=1
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)

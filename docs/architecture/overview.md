@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-ARCH-001 |
-| 版本 | 2.0 |
+| 版本 | 2.1 |
 | 日期 | 2026-11-09 |
 | 状态 | 现行 |
 | 取代 | `docs/architecture.md`（2026-11-06） |
@@ -60,7 +60,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 | `styrigx-status` | 站点监测（每分钟）、Cloudflare 用量（每小时） | 服务绑定 `STATUS` |
 | `styrigx-curio-core` | 奇趣数据接口 | 路由 `styrigx.com/curio/api/*` |
 | `styrigx-daymark-core` | 日刻数据接口 | 路由 `styrigx.com/daymark/api/*` |
-| `styrigx-proxy-rules` | 规则集加速反代 | 自定义域名 `proxy-rules.styrigx.com` |
+| `styrigx-proxy-rules` | 规则集加速反代（来源：MetaCubeX/meta-rules-dat、自有仓 styrigx/mihomo-rules） | 自定义域名 `proxy-rules.styrigx.com` |
 
 绑定、数据库与 Secret 名见 SGX-OPS-002；每个 Worker 的细节见 `workers/<名字>/README.md`。
 
