@@ -176,7 +176,7 @@ test.describe('NAVIGATE「分享本页」按钮', () => {
             between: logo.right <= acts.left + 0.5, shown,
             overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 };
         });
-        expect(r.bar).toEqual([0, w, 64]);
+        expect(r.bar).toEqual([0, w, 56]); /* 手机布局顶栏高 56（2026-11-09 fix/mobile-topbar-56，原 64） */
         expect(r.logoL, home + ' 字标左缘 = 页边距 12 − 4（2026-11 对齐 PR-B：手机页边距 16 → 12，照设计稿 m=1 的 --pad）').toBe(8);
         expect(r.actsR, home + ' 图标组右缘 = 宽 − 12').toBe(w - 12);
         expect(r.kids).toEqual(['sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'sgx-tb-av']);
