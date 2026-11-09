@@ -29,8 +29,8 @@ test.beforeEach(async ({ page }) => {
 const PAGES = [
   { name: 'home', path: '/blog/zh/' },
   { name: 'home-en', path: '/blog/' },
-  { name: 'article', path: '/blog/zh/post/2026-10-07-muse-playbook/' },
-  { name: 'article-en', path: '/blog/post/2026-10-07-muse-playbook/' },
+  { name: 'article', path: '/blog/zh/post/2026-09-27-invite-board/' },
+  { name: 'article-en', path: '/blog/post/2026-09-27-invite-board/' },
   { name: 'tag', path: '/blog/zh/tags/ai' },
   { name: 'not-found', path: '/blog/zh/404.html' },
 ];
@@ -68,7 +68,7 @@ test('悬浮顶栏不遮挡首个标题（布局断言）', async ({ page }) => 
     } catch {}
   });
   // 首页 + 文章页：页面顶部时，首个可见标题的 top 必须 ≥ 顶栏 bottom（对齐 PR-C：首页是页头 .sgx-ph 的大标题「博客_」）
-  for (const path of ['/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/']) {
+  for (const path of ['/blog/zh/', '/blog/zh/post/2026-09-27-invite-board/']) {
     await page.goto(path, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => document.fonts.ready);
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -104,7 +104,7 @@ test.describe('顶栏 v3 布局', () => {
     const w = page.viewportSize().width;
     const m = w < 600 ? 12 /* 对齐 PR-B：手机页边距 12 */ : Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
     const pad = Math.max(m, (w - 1080) / 2);
-    for (const path of ['/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/']) {
+    for (const path of ['/blog/zh/', '/blog/zh/post/2026-09-27-invite-board/']) {
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       const r = await page.evaluate(() => {
         const box = (el) => el.getBoundingClientRect();
