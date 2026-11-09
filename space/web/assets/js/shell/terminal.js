@@ -130,7 +130,7 @@ export function ghost(line) {
  * @typedef {{ t: 'line', seg: Seg, cls?: string } | { t: 'help', head: Seg, rows: Array<[string, string]> }} Out
  * @typedef {{ out: Out[], clear?: boolean, after?: () => void, pager?: boolean }} Result  pager = 显示完进 pager（man；提示符 `:`，q / enter 回命令行）
  * @typedef {Object} TermAct
- * @property {(dir: string) => ({ kind: 'scroll', label: string } | { kind: 'nav', href: string, go: () => void })} cd
+ * @property {(dir: string) => ({ kind: 'scroll', label: string } | { kind: 'nav', href: string, go: () => void })} cd  open 的站点目录：主页滚到那一节、别页去那个站（T6b 起 cd 命令不再调它）
  * @property {(which: string, sub?: string) => ({ href: string, go: () => void })} sudo  which = ROOT_COMMAND（账号终端，sub = '' | reauth | reset）| ADMIN_COMMAND（盾牌）
  * @property {(mode: string) => void} theme  '' = 打开外观面板；dark / light / auto = 设定
  * @property {() => void} lock

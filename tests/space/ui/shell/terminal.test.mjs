@@ -127,16 +127,14 @@ test('help：cd 一行 + 八条命令（顺序同设计稿）；clear 清屏；�
   assert.deepEqual(COMMANDS, ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear', 'man', 'pwd', 'open', 'tty']);
 });
 
-test('cd：主页有这一节 → 滚动提示；没有 → 打开提示 + after 去跳转；坏目录报错、cwd 不变', () => {
+test('cd（T6b）：只改 cwd / 提示符，不调动作、没有输出（滚动 / 跳转交给 open）；坏目录报错、cwd 不变', () => {
   const { act, calls } = fakeAct({ scroll: ['blog'] });
   const sh = createShell({ act, storage: mem() });
-  const r = sh.exec('cd blog');
-  assert.equal(text(r.out[0]), '→ scrolled to [01] blog');
-  assert.equal(r.after, undefined);
-  const n = sh.exec('cd curio');
-  assert.equal(text(n.out[0]), '→ opening /curio/ …');
-  n.after();
-  assert.deepEqual(calls, [['cd', 'blog'], ['cd', 'curio'], ['go', 'curio']]);
+  assert.deepEqual(sh.exec('cd blog'), { out: [] });
+  assert.equal(sh.cwd(), 'blog');
+  assert.deepEqual(sh.exec('cd curio'), { out: [] });
+  assert.equal(sh.cwd(), 'curio');
+  assert.deepEqual(calls, []);
   const bad = sh.exec('cd nowhere');
   assert.equal(text(bad.out[0]), 'cd: no such directory: nowhere');
   assert.equal(sh.cwd(), 'curio');
@@ -254,7 +252,7 @@ test('man（终端统一 T5）：索引列出每条命令；man cd 一页（NAME
   for (const o of idx.out.slice(1)) assert.ok(!/undefined/.test(text(o)), text(o));
   const cd = await sh.exec('man cd');
   assert.equal(cd.pager, true);
-  assert.deepEqual(cd.out.map(text), ['CD(1)', 'NAME', '    cd — move to a directory (on the home page, scroll to it)', 'SYNOPSIS', '    cd [blog | curio | daymark | wild | account | shield | ~ | ..]', '(END)']);
+  assert.deepEqual(cd.out.map(text), ['CD(1)', 'NAME', '    cd — change the current directory (use open to go there)', 'SYNOPSIS', '    cd [blog | curio | daymark | wild | account | shield | ~ | ..]', '(END)']);
   assert.equal(text((await sh.exec('man cls')).out[0]), 'CLEAR(1)');
   const no = await sh.exec('man nope');
   assert.equal(text(no.out[0]), 'No manual entry for nope');

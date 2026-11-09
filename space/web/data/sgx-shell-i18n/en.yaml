@@ -218,7 +218,7 @@ term:
 man:
   help: "list the commands"
   man: "read a command’s manual page"
-  cd: "move to a directory (on the home page, scroll to it)"
+  cd: "change the current directory (use open to go there)"
   ls: "list a directory"
   cat: "print today’s daymark line"
   sudo: "sign in to the account, or open site security"

@@ -6,7 +6,7 @@
 export const PAGES = Object.freeze({
   help: { d: 'list the commands', syn: ['help', '?'] },
   man: { d: 'read a command’s manual page', syn: ['man', 'man <command>'] },
-  cd: { d: 'move to a directory (on the home page, scroll to it)', syn: ['cd [blog | curio | daymark | wild | account | shield | ~ | ..]'] },
+  cd: { d: 'change the current directory (use open to go there)', syn: ['cd [blog | curio | daymark | wild | account | shield | ~ | ..]'] },
   ls: { d: 'list a directory', syn: ['ls [path]'] },
   cat: { d: 'print today’s daymark line', syn: ['cat daymark/today'] },
   sudo: { d: 'sign in to the account, or open site security', syn: ['sudo {root} [reauth | reset]', 'sudo {admin}'] },
