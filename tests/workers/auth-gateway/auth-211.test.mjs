@@ -107,15 +107,18 @@ function configuredKV(o) {
 /* ============ 2. 无 lock 会话 ============ */
 
 
-test('2.11 无 lock 会话：单用进站凭证进不了 lock-reauth（没进门 → 401 session，不比对、不计数）', async () => {
+test('2.11 v3 L1：恢复钥匙不签 reauth 票——purpose=lock-reauth 有没有会话都 → 400 purpose，不比对、不计数、不签票', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
-  const req = postReq('https://test.example.com/api/space-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' });
-  const res = await onRequestPost({ request: req, env });
-  /* 无会话：即使密钥正确也 401 session；不比对，所以不计数 */
-  assert.equal(res.status, 401);
-  assert.deepEqual(await res.json(), { ok: false, error: 'session' });
+  const cookie = 'sgx-lock-session=' + (await testLockSession(TEST_PRIV_PEM, 0, 'password'));
+  for (const h of [undefined, { Cookie: cookie }]) {
+    const res = await onRequestPost({ request: postReq('https://test.example.com/api/space-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' }, h), env });
+    assert.equal(res.status, 400);
+    assert.deepEqual(await res.json(), { ok: false, error: 'purpose' });
+    const sc = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [res.headers.get('set-cookie') || ''];
+    assert.ok(!sc.some((c) => c.startsWith('sgx-lock-reauth=')), '不签 LockReauthTicket');
+  }
   assert.equal(switchDb(kv).raw.prepare("SELECT COUNT(*) AS n FROM attempt_limit WHERE realm = 'lock' AND kind = 'spacekey'").get().n, 0);
 });
 
@@ -221,20 +224,6 @@ test('2.11 开关：有效时单锁屏凭证仍被拒（进站凭证优先，不
 
 /* ============ 5. 假入口 ============ */
 
-test('2.11 lock-reauth：临时钥匙进门的会话提交正确进站凭证 → 200 签 LockReauthTicket(by=space)；错误 → 401 auth（v1 会话假入口已删）', async () => {
-  const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
-  const env = baseEnv(configuredKV({ lock: true }));
-  const cookie = 'sgx-lock-session=' + (await testLockSession(TEST_PRIV_PEM, 0, 'tempkey'));
-  const ok = await onRequestPost({ request: postReq('https://test.example.com/api/space-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' }, { Cookie: cookie }), env });
-  assert.equal(ok.status, 200);
-  const sc = typeof ok.headers.getSetCookie === 'function' ? ok.headers.getSetCookie() : [ok.headers.get('set-cookie') || ''];
-  assert.ok(sc.some((c) => c.startsWith('sgx-lock-reauth=space.')), '签 LockReauthTicket，by=space');
-  assert.ok(!sc.some((c) => c.startsWith('sgx-lock-session=')), '不签会话');
-  const bad = await onRequestPost({ request: postReq('https://test.example.com/api/space-auth', { key: 'wrong-key', purpose: 'lock-reauth' }, { Cookie: cookie }), env });
-  assert.equal(bad.status, 401);
-  assert.deepEqual(await bad.json(), { ok: false, error: 'auth' });
-});
-
 test('2.11 假入口（只剩 lock-reset）：锁屏已设置时 lock-reset 提交正确进站凭证 → 401 auth，与错误密钥响应逐字节相同', async () => {
   const { onRequestPost } = await import(REPO + '/workers/auth-gateway/src/api/space-auth.js');
   const res1 = await onRequestPost({ request: postReq('https://test.example.com/api/space-auth', { key: 'test-root-key-12345', purpose: 'lock-reset' }), env: baseEnv(configuredKV({ lock: true })) });
@@ -327,12 +316,11 @@ test('2.11 限速：进站凭证各路径共用计数（space-auth 失败计入 
   }
   const lim = await checkSpaceLimit(env, ip);
   assert.equal(lim.limited, true);
-  /* 跨路径：space-auth（进门会话 lock-reauth 真比对）失败 3 次 + lock-reset 失败 2 次 → 同一行计到锁定 */
+  /* 跨路径：space-auth（锁屏已设置时 lock-reset 假入口，计单 IP）失败 3 次 + lock-reset 失败 2 次 → 同一行计到锁定 */
   const ip2 = '1.2.3.5';
   const h = { 'CF-Connecting-IP': ip2 };
-  const hs = { ...h, Cookie: 'sgx-lock-session=' + (await testLockSession(TEST_PRIV_PEM, 0, 'password')) };
   for (let i = 0; i < 3; i++) {
-    assert.equal((await spaceAuth({ request: postReq('https://test.example.com/api/space-auth', { key: 'wrong', purpose: 'lock-reauth' }, hs), env })).status, 401);
+    assert.equal((await spaceAuth({ request: postReq('https://test.example.com/api/space-auth', { key: 'wrong', purpose: 'lock-reset' }, h), env })).status, 401);
   }
   for (let i = 0; i < 2; i++) {
     assert.equal((await lockReset({ request: postReq('https://test.example.com/api/lock-reset', { action: 'verify', spaceKey: 'wrong' }, h), env })).status, 401);
