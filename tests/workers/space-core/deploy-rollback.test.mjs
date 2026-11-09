@@ -152,17 +152,20 @@ test('回滚下限：floor 文件里网关、账号、status 的绑定名和 wra
   assert.equal(floorFor('styrigx-auth-gateway'), null, '旧网关名不再有下限（新 Worker 从零开始）');
   assert.deepEqual(ac && ac.requireBindings, ['D1_ACCOUNT']);
   assert.deepEqual(st && st.requireBindings, ['AI_SERVICE']);
-  assert.equal(gw.notBefore, undefined, 'notBefore 等 Gray 删旧 Worker 后由下一个 PR 加');
+  /* 进站 v3 L3（旧库 styrigx-space-gateway 删了）：网关 / status / ai 不退到 L2b 切库之前的版本（它们绑着已删的旧库 / 旧 KV） */
+  for (const n of ['styrigx-space-core', 'styrigx-status', 'styrigx-ai']) assert.equal(floorFor(n) && floorFor(n).notBefore, '2026-11-09T04:16:00Z', n);
   // 要求的绑定当前 wrangler.toml 里确实有（否则每次部署都记不到目标）
   for (const [toml, f] of [[gwToml, gw], [acToml, ac], [stToml, st]]) {
-    for (const n of /** @type {any} */ (f).requireBindings) assert.match(toml, new RegExp('^binding = "' + n + '"$', 'm'));
+    for (const n of /** @type {any} */ (f).requireBindings || []) assert.match(toml, new RegExp('^binding = "' + n + '"$', 'm'));
   }
   assert.equal(floorFor('styrigx-chat'), null);
   assert.equal(floorFor('$comment'), null);
 });
 
 test('回滚下限：bindings 里的服务绑定 / Secrets Store 绑定也按名字认（拆分前的网关版本没有 ACCOUNT、P2-3 之前绑的是旧名 → 不满足）', () => {
-  const gw = floorFor('styrigx-space-core');
+  /* 这里只看绑定名（版本时间是假的）；notBefore 另测：L2b 切库之前创建的版本绑定齐全也不合格 */
+  const full = floorFor('styrigx-space-core');
+  const gw = { ...full, notBefore: undefined };
   const v = (list) => JSON.stringify({ id: V1, metadata: { created_on: 'Fri 2026-10-30 8:00 AM CST (UTC+08:00)' }, resources: { bindings: list } });
   const after = [{ type: 'd1', name: 'D1_SPACE' }, { type: 'service', name: 'ACCOUNT' }, { type: 'service', name: 'ACCOUNT_VERIFIER' }, { type: 'secrets_store_secret', name: 'SGX_SPACE_RECOVERY_KEY' }, { type: 'secrets_store_secret', name: 'SGX_SPACE_TEMPKEY_PEPPER' }, { type: 'service', name: 'AI_SERVICE' }];
   assert.equal(checkFloor(v(after), gw).ok, true);
@@ -175,6 +178,11 @@ test('回滚下限：bindings 里的服务绑定 / Secrets Store 绑定也按名
   assert.match(checkFloor(v(preP23), gw).reason, /missing binding\(s\) SGX_SPACE_RECOVERY_KEY$/);
   /* 进站 v3 L2 之前（临时钥匙码和解锁密码共用旧 pepper）的版本不是合格的回滚目标 */
   assert.match(checkFloor(v(after.filter((b) => b.name !== 'SGX_SPACE_TEMPKEY_PEPPER')), gw).reason, /missing binding\(s\) SGX_SPACE_TEMPKEY_PEPPER$/);
+  /* 进站 v3 L3：L2b 切库之前（D1_SPACE 指向已删的旧库）的版本绑定齐全也不合格 */
+  assert.match(checkFloor(v(after), full).reason, /^created /);
+  const at = (iso) => JSON.stringify({ id: V1, metadata: { created_on: iso }, resources: { bindings: after } });
+  assert.equal(checkFloor(at('2026-11-09T04:15:59Z'), full).ok, false);
+  assert.equal(checkFloor(at('2026-11-09T04:22:00Z'), full).ok, true);
 });
 
 test('回滚下限：checkFloor 缺绑定 / 太早 / 坏 JSON → 不满足', () => {
@@ -356,20 +364,15 @@ test('deploy.yml：部署顺序 ai → status → 账号 → styrigx-space-core 
   const migs = core.map((st, k) => [st, k]).filter(([st]) => st.with && /^d1 migrations apply D1_[A-Z_]+ --remote$/.test(String(st.with.command)));
   assert.deepEqual(migs.map(([st]) => st.with.command), ['d1 migrations apply D1_SPACE --remote']);
   for (const [, k] of migs) assert.ok(k < core.findIndex(isDeploy));
-  /* L2b 切绑定：resync 紧挨在部署之前；switched 标记在冒烟之后、失败回退步骤之前 */
-  const runIdx = (re) => core.findIndex((st) => typeof st.run === 'string' && re.test(st.run));
-  const resync = runIdx(/d1-cutover\.mjs resync$/), switched = runIdx(/d1-cutover\.mjs switched$/), smokeAt = runIdx(/check \/api\/share 401/);
-  assert.equal(resync, core.findIndex(isDeploy) - 1, 'resync 在部署前一步');
-  assert.ok(smokeAt > core.findIndex(isDeploy) && switched === smokeAt + 1, [smokeAt, switched].join(","));
-  assert.equal(core[switched].if, undefined, 'switched 只在前面全部成功时跑');
-  /* 第一次部署的路由接管：plan → 不带路由部署 → takeover → 带路由部署 → verify；失败时 restore 在版本回滚之前 */
+  /* 进站 v3 L3：旧 Worker、旧库已删，一次性的路由接管（route-takeover.mjs）和 resync / switched 步骤去掉；部署后只读核对路由（verify-core-routes.mjs） */
   const idx = (re) => core.findIndex((st) => typeof st.run === 'string' && re.test(st.run));
-  const plan = idx(/route-takeover\.mjs plan$/), bare = idx(/deploy --config wrangler\.noroutes\.toml/), take = idx(/route-takeover\.mjs takeover /), ver = idx(/route-takeover\.mjs verify$/), rest = idx(/route-takeover\.mjs restore /);
-  assert.ok(plan >= 0 && plan < bare && bare < take && take < core.findIndex(isDeploy) && core.findIndex(isDeploy) < ver && ver < rest && rest === core.length - 2, [plan, bare, take, ver, rest].join(','));
-  assert.equal(core[bare].if, "steps.routes.outputs.needed == 'true'");
-  assert.equal(core[take].if, "steps.routes.outputs.needed == 'true'");
-  assert.equal(core[rest].if, "failure() && steps.takeover.outputs.taken == 'true'");
-  for (const k of [plan, bare, take, ver, rest]) assert.equal(core[k].env.CLOUDFLARE_API_TOKEN, '${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}');
+  assert.equal(idx(/route-takeover|d1-cutover|wrangler\.noroutes\.toml/), -1, '没有路由接管 / 搬迁步骤');
+  const ver = idx(/verify-core-routes\.mjs$/);
+  assert.ok(ver > core.findIndex(isDeploy), 'verify 在部署之后');
+  assert.equal(core[ver].if, undefined);
+  assert.equal(core[ver].env.CLOUDFLARE_API_TOKEN, '${{ secrets.STYRIGX_SPACE_CORE_DEPLOY }}');
+  assert.ok(!Object.keys(wf.jobs).includes('d1-cutover-gate'), '没有搬迁闸门 job');
+  for (const j of Object.keys(wf.jobs)) assert.ok(!needs(j).includes('d1-cutover-gate') && !/d1-cutover-gate/.test(String(wf.jobs[j].if || '')), j);
   /* 两个子站接口 Worker：服务绑定 SPACE 指向 space-core，所以排在它之后 */
   for (const c of ['deploy-curio-core', 'deploy-daymark-core']) {
     assert.ok(needs(c).includes('deploy-status-worker'), c);
