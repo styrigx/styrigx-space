@@ -1,6 +1,18 @@
 /* 由 space/scripts/gen-shell.mjs 从 space/web/assets/css/input.css 的 @shell 标记段 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */
 /* 依赖 tokens.css 的 --sgx-* 角色；不进任何 @layer。 */
 /* ---- topbar-frame ---- */
+/* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：
+   同源跨文档跳转自动交叉淡化 180ms（渐进增强，不支持的浏览器忽略）；顶栏挂 view-transition-name 保持不动。
+   系统「减弱动效」时连 @view-transition 都不声明（完全不做过渡）；本站「减弱动效」开关（.reduced-motion）只能把动画清零。 */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}
+/* 名字挂在真正有尺寸的 .sgx-topbar 上：#site-nav 自身高度是 0（子元素都是 fixed），老一些的 Chromium（三星浏览器 31）截不到它的快照 */
+.sgx-topbar { view-transition-name: sgx-topbar; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
+::view-transition-group(sgx-topbar) { animation-duration: 180ms; }
+.reduced-motion::view-transition-group(*), .reduced-motion::view-transition-old(*), .reduced-motion::view-transition-new(*) { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 /* 顶栏 v3（2026-11 UI 重设计 PR-1，设计稿 tb4.html / tb-v3 / prog-v1；四个站同一套，标记来自共享外壳 shell-topbar.html）：
    通栏 .sgx-topbar（贴顶、全宽、底边 1px 线，毛玻璃材质）里 = [字标 .sgx-tb-logo ❯ styrigx :~$_] [.sgx-tb-pill 页名（v3 不显示）]
    [右边 .sgx-tb-acts：外观 .sgx-tb-quick · 盾牌 .sgx-tb-shield · 分隔 · >_ .sgx-tb-grid（NAVIGATE）· 头像 .sgx-tb-av]；
@@ -163,6 +175,8 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-foot-lang [aria-current="true"] { color: var(--sgx-text-primary); }
 :root:not([data-sgx-layout="desktop"]) .sgx-foot-lang { display: none; }
 .sgx-foot-2 { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; padding: 14px 0 18px; color: var(--sgx-text-tertiary); font-size: 11.5px; }
+.sgx-foot-build { color: inherit; text-decoration: none; }
+@media (hover: hover) and (pointer: fine) { .sgx-foot-build:hover { color: var(--sgx-primary); } }
 /* 分享磁贴生成短链时 aria-busy + .is-busy：图标呼吸，点了不理（share.js） */
 .is-busy[data-sgx-share] { cursor: progress; }
 .is-busy[data-sgx-share] svg { animation: sgx-share-busy .9s ease-in-out infinite alternate; }

@@ -11,43 +11,7 @@
      （主站 layout 层、顶栏三栏、快捷面板、头像裁剪、输入方式）。往这一段加规则前先确认确实要压过所有层。 ===== */
 @layer tw, reset, tokens, sgx-base, sgx-components, sgx-utilities, overrides;
 
-/* ===== 2.4.0 D：跨页 View Transitions =====
-   @view-transition { navigation: auto } 让同站跳转自动做过渡（渐进增强，
-   不支持的浏览器忽略）。 */
-@view-transition {
-  navigation: auto;
-}
-/* 切页流畅度：顶栏在切页时保持不动（共享元素过渡） */
-/* 名字挂在真正有尺寸的 .sgx-topbar 上：#site-nav 自身高度是 0（子元素都是 fixed），
-   老一些的 Chromium（如三星浏览器 31 / Chromium 148）截不到它的快照，切页时顶栏会消失一帧 */
-.sgx-topbar {
-  view-transition-name: sgx-topbar;
-}
-/* 整页切换：直接交叉淡化（浏览器默认的 plus-lighter 混合，两页相同的像素保持不变）。
-   原来是「先淡出到空白、再淡入并放大」：中间有一段两页都透明，露出浏览器白底，
-   壁纸和卡片整屏闪一下，加上 0.98 缩放让文字重新栅格化，手机上看起来一卡一卡。
-   现在壁纸、顶栏这些两页都有的东西在过渡中纹丝不动，只有内容在换。 */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 180ms;
-  animation-timing-function: cubic-bezier(.2, 0, 0, 1);
-}
-::view-transition-group(sgx-topbar) {
-  animation-duration: 180ms;
-}
-/* 尊重减弱动画：过渡退化为无动画（系统设置或本站「减弱动效」开关） */
-.reduced-motion::view-transition-group(*),
-.reduced-motion::view-transition-old(*),
-.reduced-motion::view-transition-new(*) {
-  animation: none !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none !important;
-  }
-}
+/* ===== 2.4.0 D：跨页 View Transitions —— 2026-11-09 搬进共享外壳 @shell topbar-frame（四站同一套，见那里） ===== */
 
 /* ===== reset 层：最小自定义重置 ===== */
 @layer reset {
@@ -7976,6 +7940,18 @@
   animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
   -webkit-mask-image: none; mask-image: none; contain: none; isolation: auto; }
 /* @shell:begin topbar-frame（共享外壳：space/scripts/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
+/* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：
+   同源跨文档跳转自动交叉淡化 180ms（渐进增强，不支持的浏览器忽略）；顶栏挂 view-transition-name 保持不动。
+   系统「减弱动效」时连 @view-transition 都不声明（完全不做过渡）；本站「减弱动效」开关（.reduced-motion）只能把动画清零。 */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}
+/* 名字挂在真正有尺寸的 .sgx-topbar 上：#site-nav 自身高度是 0（子元素都是 fixed），老一些的 Chromium（三星浏览器 31）截不到它的快照 */
+.sgx-topbar { view-transition-name: sgx-topbar; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
+::view-transition-group(sgx-topbar) { animation-duration: 180ms; }
+.reduced-motion::view-transition-group(*), .reduced-motion::view-transition-old(*), .reduced-motion::view-transition-new(*) { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 /* 顶栏 v3（2026-11 UI 重设计 PR-1，设计稿 tb4.html / tb-v3 / prog-v1；四个站同一套，标记来自共享外壳 shell-topbar.html）：
    通栏 .sgx-topbar（贴顶、全宽、底边 1px 线，毛玻璃材质）里 = [字标 .sgx-tb-logo ❯ styrigx :~$_] [.sgx-tb-pill 页名（v3 不显示）]
    [右边 .sgx-tb-acts：外观 .sgx-tb-quick · 盾牌 .sgx-tb-shield · 分隔 · >_ .sgx-tb-grid（NAVIGATE）· 头像 .sgx-tb-av]；
@@ -8138,6 +8114,8 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-foot-lang [aria-current="true"] { color: var(--sgx-text-primary); }
 :root:not([data-sgx-layout="desktop"]) .sgx-foot-lang { display: none; }
 .sgx-foot-2 { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; padding: 14px 0 18px; color: var(--sgx-text-tertiary); font-size: 11.5px; }
+.sgx-foot-build { color: inherit; text-decoration: none; }
+@media (hover: hover) and (pointer: fine) { .sgx-foot-build:hover { color: var(--sgx-primary); } }
 /* 分享磁贴生成短链时 aria-busy + .is-busy：图标呼吸，点了不理（share.js） */
 .is-busy[data-sgx-share] { cursor: progress; }
 .is-busy[data-sgx-share] svg { animation: sgx-share-busy .9s ease-in-out infinite alternate; }

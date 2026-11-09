@@ -15,6 +15,7 @@ import { esc } from '../../lib/util.js';
 import { toast } from '../../lib/toast.js';
 import { mountKeyHint, khKeyFor } from '../keyhint.js';
 import { paintPick } from '../term-pick.js';
+import { suggest } from '../suggest.js';
 import * as api from './api.js';
 import { CMD, PS_GUEST, PS_ROOT, PS_RESET, LAYERS, LAYER_PATH, normCmd, parseCmd, layerFromPath } from './commands.js';
 import { mountSession } from './session.js';
@@ -455,7 +456,12 @@ export function mountAccountTerm(o) {
       case 'passwd': C.cmdPasswd(true); return;
       case 'passkey-add': C.cmdPasskeyAdd(true); return;
       case 'cd': if (C.st === 'in' && !C.inReset) C.go(c.arg || 'home'); return;
-      default: C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
+      default: {
+        /* 打错了：给最近的真命令（Gray 2026-11-09） */
+        const sg = suggest(line, ['help', 'clear', CMD.session, CMD.reauth, CMD.reset, 'exit', 'passwd', 'passkey add', 'cd profile', 'cd devices', 'cd security', 'cd apps']);
+        if (sg) C.err(tf('common.didYouMean', { c: raw.trim().split(' ')[0] }), sg);
+        else C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
+      }
     }
   };
 

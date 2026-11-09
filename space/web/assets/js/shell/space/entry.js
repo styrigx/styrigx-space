@@ -20,6 +20,7 @@ import { setLang } from '../../lib/prefs.js';
 import { pageLang } from '../../lib/i18n.js';
 import * as api from './api.js';
 import { createTerm, shellTable } from './term.js';
+import { suggest } from '../suggest.js';
 import { CMD, PS_ENTRY, PS_RESET, ADMIN_COMMAND, normCmd, parseEntryCmd } from './commands.js';
 import { mountVerify } from './session.js';
 import { mountReset } from './reset.js';
@@ -234,7 +235,12 @@ export function showEntryScreen() {
         });
         return;
       case 'reset': C.cmdReset(); return;
-      default: C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
+      default: {
+        /* 打错了：给最近的真命令（Gray 2026-11-09） */
+        const sg = suggest(line, [ 'help', 'man ' + ADMIN_COMMAND, 'clear', CMD.session, CMD.reset, CMD.session + ' passkey', CMD.session + ' password', CMD.session + ' tempkey' ]);
+        if (sg) C.err(tf('common.didYouMean', { c: raw.trim().split(' ')[0] }), sg);
+        else C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
+      }
     }
   }
 

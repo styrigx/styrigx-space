@@ -1,0 +1,55 @@
+/**
+ * 打错命令时给最近的真命令（Gray 2026-11-09）：space/web/assets/js/shell/suggest.js，以及 shell/terminal.js 里抄的那一份。
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import yaml from 'js-yaml';
+import { lev, suggest } from '../../../../space/web/assets/js/shell/suggest.js';
+import { createShell } from '../../../../space/web/assets/js/shell/terminal.js';
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
+
+test('Levenshtein', () => {
+  assert.equal(lev('', 'abc'), 3);
+  assert.equal(lev('help', 'hepl'), 2);
+  assert.equal(lev('kitten', 'sitting'), 3);
+  assert.equal(lev('lock', 'lock'), 0);
+});
+
+test('最近的真命令：整行 / 第一个词；太远不猜', () => {
+  const entry = ['help', 'man styrigx', 'clear', 'sudo styrigx', 'sudo styrigx reset'];
+  assert.equal(suggest('hepl', entry), 'help');
+  assert.equal(suggest('sudo stryigx', entry), 'sudo styrigx');
+  assert.equal(suggest('sudo styrigx rest', entry), 'sudo styrigx reset');
+  assert.equal(suggest('clera', entry), 'clear');
+  assert.equal(suggest('whoami', entry), '');
+  assert.equal(suggest('ls', ['help', 'lock']), '');
+  assert.equal(suggest('', entry), '');
+  assert.equal(suggest('lokc now', ['help', 'lock']), 'lock');
+});
+
+test('站内终端：hepl → did you mean help（同一份算法）；不像就照旧 command not found · try help', () => {
+  const act = { cd: () => null, sudo: () => ({}), theme: () => {}, lock: () => {}, ask: () => {}, today: () => Promise.resolve(null), daymarkHref: () => '/daymark/' };
+  const sh = createShell({ act, storage: null });
+  const txt = (o) => o.seg.map((s) => s[1]).join('');
+  assert.equal(txt(sh.exec('hepl').out[0]), 'command not found: hepl — did you mean help?');
+  assert.equal(sh.exec('hepl').out[0].cls, 'err');
+  assert.equal(txt(sh.exec('xyzzy').out[0]), 'command not found: xyzzy · try help');
+  const src = read('space/web/assets/js/shell/terminal.js');
+  const lib = read('space/web/assets/js/shell/suggest.js');
+  const body = (s, name) => s.slice(s.indexOf('function ' + name + '('), s.indexOf('\n}\n', s.indexOf('function ' + name + '(')));
+  assert.equal(body(src, 'lev'), body(lib, 'lev'), 'terminal.js 抄的 lev 同 suggest.js');
+  assert.equal(body(src, 'suggest'), body(lib, 'suggest'), 'terminal.js 抄的 suggest 同 suggest.js');
+});
+
+test('文案：term / space.common / account.common 都有 didYouMean（en / zh）；锁屏 / 盾牌 / 账号接上', () => {
+  for (const l of ['en', 'zh']) {
+    const y = yaml.load(read(`space/web/data/sgx-shell-i18n/${l}.yaml`));
+    for (const t of [y.term.didYouMean, y.space.common.didYouMean, y.account.common.didYouMean]) assert.match(t, /command not found: \{c\} — .*\{x\}/);
+  }
+  for (const f of ['space/web/assets/js/shell/space/entry.js', 'space/web/assets/js/shell/space/shield.js', 'space/web/assets/js/shell/account/term.js']) assert.match(read(f), /notFoundLine\(|suggest\(/, f);
+});

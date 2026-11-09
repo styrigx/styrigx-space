@@ -61,6 +61,7 @@ export const TERM_EN = {
   dAsk: 'ask Gray AI',
   dClear: 'clear screen',
   notFound: 'command not found: {x} · try help',
+  didYouMean: 'command not found: {c} — did you mean {x}?',
   noDir: '{c}: no such directory: {x}',
   noFile: 'cat: {x}: no such file',
   lsEmpty: 'nothing to list here · try cd ..',
@@ -92,6 +93,49 @@ export function termStrings(doc) {
     if (o && o.term && typeof o.term === 'object') page = o.term;
   } catch (e) {}
   return Object.assign({}, TERM_EN, page);
+}
+
+/** 打错命令时拿来比的真命令（命令名 + 几个常用的整句） */
+const SUGGEST = COMMANDS.concat(['cd blog', 'cd curio', 'cd daymark', 'cd wild', 'sudo ' + ROOT_COMMAND, 'sudo ' + ADMIN_COMMAND, 'cat daymark/today']);
+/* ---- 以下两个函数抄自 shell/suggest.js（这个文件不 import；单测 suggest.test.mjs 核对两份一样） ---- */
+/** 编辑距离（Levenshtein） @param {string} a @param {string} b @returns {number} */
+function lev(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = [];
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/**
+ * 最近的真命令：整行和每个命令比，第一个词也和每个命令的第一个词比（`sudo stryigx` → `sudo styrigx`，`hepl` → `help`）。
+ * 距离 ≤ 2 且不超过较长那个的一半才算像；一样近取列表里靠前的。没有像的 → ''
+ * @param {string} raw @param {string[]} cands @returns {string}
+ */
+function suggest(raw, cands) {
+  const x = String(raw || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!x) return '';
+  const w = x.split(' ')[0];
+  let best = '';
+  let bd = Infinity;
+  for (const c of cands) {
+    let d = lev(x, c);
+    let ok = d <= 2 && d * 2 <= Math.max(x.length, c.length);
+    if (c.indexOf(' ') === -1 && w !== x) {
+      const d2 = lev(w, c);
+      if (d2 <= 2 && d2 * 2 <= Math.max(w.length, c.length) && d2 < d) { d = d2; ok = true; }
+    }
+    if (ok && d > 0 && d < bd) { bd = d; best = c; }
+  }
+  return best;
 }
 
 /** 按键提示行的英文底（= shell/keyhint.js KH_EN 里这里用到的几句；这个文件不 import，抄一份） */
@@ -374,8 +418,12 @@ export function createShell(o) {
         const q = p.rest;
         return { out: [arrow([['', S.asking]])], after: function () { act.ask(q); } };
       }
-      default:
+      default: {
+        /* 打错了：给最近的真命令（Gray 2026-11-09；输出区 aria-live，读屏照念）；不像任何命令就照旧 */
+        const sg = suggest(line, SUGGEST);
+        if (sg) return { out: [{ t: 'line', seg: fill(S.didYouMean, { c: ['', p.cmd], x: ['k', sg] }), cls: 'err' }] };
         return { out: [tpl('notFound', p.cmd, 'err')] };
+      }
     }
   }
 

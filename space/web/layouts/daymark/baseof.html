@@ -133,6 +133,7 @@ __sgxLayoutWatch(__applyLayout);
   "mainOrigin" "https://styrigx.com"
   "name" site.Data.profile.name
   "year" now.Year
+  "sha" (partial "sgx-build-sha.html" .)
   "email" $shellNav.me.email
   "rss" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/blog/rss.xml" "lang" .Lang))
 ) }}

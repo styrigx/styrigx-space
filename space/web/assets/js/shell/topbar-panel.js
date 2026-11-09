@@ -717,11 +717,64 @@ export function mountTopbar(o) {
   }
 
   mountProgress(doc);
+  mountPrefetch(doc);
   mountFootLift(doc);
   mountClock(doc);
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
   return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, sec: sec && sec.ms, openAccount: function (/** @type {any} */ x) { openAcct(x); }, openShield: function (/** @type {any} */ x) { openSec(x); }, term: termSheet, termShell: term, paint: paint, paintNav: paintNav };
+}
+
+/**
+ * 同源链接预取（Gray 2026-11-09）：鼠标停在链接上 65ms / 手指按下时，往 <head> 插一个 <link rel="prefetch">，点下去时页面多半已在缓存里
+ * （配合共享外壳 CSS 的跨页 View Transitions 淡入淡出）。只取同源 http(s) 的页面：不取 /api/、/s/（分享短链会消耗）、带下载 / 新窗口 / data-no-prefetch 的、
+ * 只差 #锚点的本页；省流量模式（Save-Data / prefers-reduced-data）不取，减弱动效照取；每个地址只取一次。不写内联脚本（CSP 不变）。
+ * @param {Document} [d]
+ */
+export function mountPrefetch(d) {
+  const doc = d || document;
+  try {
+    const c = /** @type {any} */ (navigator).connection;
+    if (c && (c.saveData || /(^|-)2g$/.test(String(c.effectiveType || '')))) return;
+    /* 系统「减少数据用量」也不取；「减弱动效」不影响预取 */
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-data: reduce)').matches) return;
+    const probe = doc.createElement('link');
+    if (!probe.relList || !probe.relList.supports || !probe.relList.supports('prefetch')) return;
+  } catch (e) { return; }
+  /** @type {Set<string>} */
+  const done = new Set([location.href.split('#')[0]]);
+  /** @type {number} */ let timer = 0;
+  /** @param {EventTarget|null} t @returns {HTMLAnchorElement|null} */
+  function linkOf(t) {
+    const el = /** @type {Element|null} */ (t && /** @type {any} */ (t).closest ? t : null);
+    const a = /** @type {HTMLAnchorElement|null} */ (el && el.closest('a[href]'));
+    if (!a || a.hasAttribute('download') || a.hasAttribute('data-no-prefetch') || (a.target && a.target !== '_self')) return null;
+    if (a.protocol !== location.protocol || a.host !== location.host) return null;
+    if (/^\/(api|s)\//.test(a.pathname)) return null;
+    return a;
+  }
+  /** @param {HTMLAnchorElement} a */
+  function go(a) {
+    const u = a.href.split('#')[0];
+    if (done.has(u)) return;
+    done.add(u);
+    const l = doc.createElement('link');
+    l.rel = 'prefetch';
+    l.href = u;
+    l.setAttribute('data-sgx-prefetch', '');
+    doc.head.appendChild(l);
+  }
+  doc.addEventListener('mouseover', function (e) {
+    const a = linkOf(e.target);
+    if (!a) return;
+    clearTimeout(timer);
+    timer = window.setTimeout(function () { go(a); }, 65);
+  }, { passive: true });
+  doc.addEventListener('mouseout', function () { clearTimeout(timer); }, { passive: true });
+  doc.addEventListener('touchstart', function (e) {
+    const a = linkOf(e.target);
+    if (a) go(a);
+  }, { passive: true });
 }
 
 /**

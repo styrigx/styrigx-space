@@ -14,6 +14,7 @@
  */
 import * as api from './api.js';
 import { createTerm, shellTable } from './term.js';
+import { suggest } from '../suggest.js';
 import { CMD, PS_ADMIN, SHIELD_LAYERS, REAUTH_LAYERS, normCmd, parseShieldCmd, shieldLayerFrom, hmm, mmss } from './commands.js';
 import { mountVerify } from './session.js';
 import { mountReauth } from './reauth.js';
@@ -64,8 +65,10 @@ export function mountShield(o) {
   const viewEl = q('data-sh-view');
   const ftEl = q('data-sh-ft');
 
+  /* let + 先 null：createTerm 里会先画一次按键提示行（kh.cmdKey 读 C），const 在那一刻还在暂时性死区 */
   /** @type {any} */
-  const C = createTerm({
+  let C = null;
+  C = createTerm({
     dom: {
       root: q('data-sh-term'),
       log: q('data-sh-log'),
@@ -257,7 +260,10 @@ export function mountShield(o) {
       default: break;
     }
     if (c.cmd === 'passwd' || c.cmd === 'passkey-add') { C.note(t('keys.onlyInLayer')); return; }
-    C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
+    /* 打错了：给最近的真命令（Gray 2026-11-09） */
+    const sg = suggest(normCmd(raw), ['help', 'clear', CMD.reauth, 'lock', 'exit', 'passwd', 'passkey add']);
+    if (sg) C.err(tf('common.didYouMean', { c: raw.trim().split(' ')[0] }), sg);
+    else C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
   }
 
   /** 立即锁屏（行 / lock 命令）：不验证，只锁本机（Gray 08:03） */
