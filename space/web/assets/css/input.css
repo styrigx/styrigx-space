@@ -8647,9 +8647,9 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before {
 .sgx-ai-mopt { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-family: var(--sgx-font-mono); font-size: 13px; text-align: left; color: var(--sgx-text-secondary); cursor: pointer; }
 .sgx-ai-mopt[aria-checked="true"] { background: var(--sgx-term-sel); color: var(--sgx-primary); }
 .sgx-ai-mopt[aria-checked="true"]::after { content: "✓"; margin-left: auto; }
-/* 空态的命令回显（设计稿 ask --help；提示符跟环境提示符规则，Gray 2026-11-09） */
-.sgx-ai-msg[data-greet]::before { content: "styrigx@space:~$ ask --help"; content: "styrigx@space:~$ ask --help" / ""; }
-html[data-sgx-account-session="in"] .sgx-ai-msg[data-greet]::before { content: "root@account:~# ask --help"; content: "root@account:~# ask --help" / ""; }
+/* 空态的命令回显：欢迎语是 AI 说的话，回显用 grayai 的 --reply，与普通回答行一致（原设计稿 ask --help 是提问者的；Gray 2026-11-09 改；只改文字，样式不变） */
+.sgx-ai-msg[data-greet]::before { content: "grayai@space:~$ --reply"; content: "grayai@space:~$ --reply" / ""; }
+html[data-sgx-account-session="in"] .sgx-ai-msg[data-greet]::before { content: "grayai@account:~# --reply"; content: "grayai@account:~# --reply" / ""; }
 /* 来源卡片 + 建议问题 */
 .sgx-ai-srcs { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .sgx-ai-src { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 12px; box-sizing: border-box; border: 1px solid var(--sgx-term-line); border-radius: 8px; color: var(--sgx-text-primary); text-decoration: none; font-size: 13px; }
