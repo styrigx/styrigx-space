@@ -16,6 +16,7 @@ import { toast } from '../../lib/toast.js';
 import { mountKeyHint, khKeyFor } from '../keyhint.js';
 import { paintPick } from '../term-pick.js';
 import { suggest } from '../suggest.js';
+import { flatStrings } from '../term/core/strings.js';
 import * as api from './api.js';
 import { CMD, PS_GUEST, PS_ROOT, PS_RESET, LAYERS, LAYER_PATH, normCmd, parseCmd, layerFromPath } from './commands.js';
 import { mountSession } from './session.js';
@@ -26,22 +27,8 @@ import { mountDevices } from './devices.js';
 import { mountGrants } from './grants.js';
 import { mountProfile } from './profile.js';
 
-/**
- * 嵌套字符串表 → 点号键（account.session.lead → 'session.lead'）
- * @param {any} tree @param {string} [pre] @param {Record<string, string>} [acc]
- * @returns {Record<string, string>}
- */
-export function flatStrings(tree, pre, acc) {
-  const out = acc || {};
-  if (!tree || typeof tree !== 'object') return out;
-  for (const k in tree) {
-    const v = tree[k];
-    const key = pre ? pre + '.' + k : k;
-    if (v && typeof v === 'object') flatStrings(v, key, out);
-    else if (typeof v === 'string') out[key] = v;
-  }
-  return out;
-}
+/** 嵌套字符串表 → 点号键：终端统一 T1 起在 shell/term/core/strings.js，这里转出 */
+export { flatStrings };
 
 /** 登录标记 cookie（账号 Worker 随 session 签发 / 清除，workers/account/src/core/config.js SIGNED_IN_MARKER）：只给首帧画提示符，鉴权只认 HttpOnly 的 session */
 export const SIGNED_IN_COOKIE = 'sgx-account-signed-in';

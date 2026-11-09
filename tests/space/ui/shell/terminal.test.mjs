@@ -231,9 +231,12 @@ test('文案：外壳字符串表 en / zh 都有 term 节，键和引擎英文�
   assert.equal(text(sh.exec('cd x').out[0]), 'cd: 没有这个目录：x');
 });
 
-test('共享外壳约束：terminal.js 不 import 任何东西、不写 innerHTML；四个顶栏入口都把它传给 mountTopbar', () => {
+test('共享外壳约束：terminal.js 只 import shell/term/**（终端统一 T1）、不写 innerHTML；四个顶栏入口都把它传给 mountTopbar', () => {
   const src = readFileSync(path.join(REPO, 'space/web/assets/js/shell/terminal.js'), 'utf8');
-  assert.doesNotMatch(src, /^\s*import\s/m);
+  const imports = src.match(/^\s*import\s[^;]*;/gm) || [];
+  assert.ok(imports.length > 0);
+  for (const l of imports) assert.match(l.trim(), /from '\.\/term\/[a-z/-]+\.js';$/, l);
+  assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /\bimport\s*\(/);
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /innerHTML/);
   for (const f of ['space/web/assets/js/shell/quick-panel.js', 'space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts']) {
     const s = readFileSync(path.join(REPO, f), 'utf8');

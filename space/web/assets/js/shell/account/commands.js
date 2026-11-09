@@ -2,11 +2,12 @@
  * @fileoverview 账号终端的命令（设计稿 acct-sec-redraw OPEN.md「账号命令体系 v3」）。纯函数，单测直接 import。
  *
  * root 只出现在用户看得见的地方（命令、提示符、help）；内部代码用 session / reauth / reset（NAMING-V2 §1「root 的规则」）。
- * 命令字只在这里：ROOT_COMMAND。
+ * 命令字只在这里：ROOT_COMMAND（终端统一 T1 起定义在 shell/term/core/parse.js，和站内终端共用一份，这里转出）。
  */
+import { ROOT_COMMAND, normCmd } from '../term/core/parse.js';
 
 /** `sudo root` 的命令字 */
-export const ROOT_COMMAND = 'root';
+export { ROOT_COMMAND };
 /** 三条账号命令（用户看得见的写法） */
 export const CMD = Object.freeze({
   session: 'sudo ' + ROOT_COMMAND,
@@ -32,13 +33,8 @@ const CD_DIRS = Object.freeze({ profile: 'profile', devices: 'devices', security
 /** 层 → 头部右边的路径 */
 export const LAYER_PATH = Object.freeze({ profile: '~/account/profile', devices: '~/account/devices', keys: '~/account/security', grants: '~/account/apps' });
 
-/**
- * 命令行解析：小写、空白归一。
- * @param {string} s
- */
-export function normCmd(s) {
-  return String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
-}
+/** 命令行解析（小写、空白归一）：终端统一 T1 起在 shell/term/core/parse.js，这里转出 */
+export { normCmd };
 
 /**
  * 命令 → 动作。

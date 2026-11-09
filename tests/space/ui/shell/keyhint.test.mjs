@@ -33,10 +33,12 @@ test('文案：外壳字符串表 en / zh 都有 kh 节，键和英文底一一�
   for (const k of Object.keys(KH_EN)) assert.equal(en[k], KH_EN[k], 'en.' + k);
   assert.equal(zh.back, '‹ 返回');
   assert.equal(zh.pick, '[n] 选择 · enter 默认项 · esc 返回 · ^C 退出');
-  /* terminal.js / ai-panel.js 不 import，各抄了用到的几句英文底：要和 KH_EN 一致 */
-  const term = read('space/web/assets/js/shell/terminal.js');
-  for (const k of ['cmdHome', 'cmdDrawer', 'back', 'backAria']) assert.ok(term.includes(k + ": '" + KH_EN[k] + "'"), 'terminal.js ' + k);
-  assert.ok(read('space/web/assets/js/shell/ai-panel.js').includes("ai: '" + KH_EN.ai + "'"), 'ai-panel.js ai');
+  /* 终端统一 T1：terminal.js / ai-panel.js 不再抄英文底，和 keyhint.js 同用 shell/term/core/strings.js 的 KH_EN */
+  for (const f of ['terminal.js', 'ai-panel.js']) {
+    const src = read('space/web/assets/js/shell/' + f);
+    assert.match(src, /^import \{ KH_EN, shellSection \} from '\.\/term\/core\/strings\.js';$/m, f + ' 用公共件');
+    assert.doesNotMatch(src, /cmdHome: '|ai: 'enter send/, f + ' 不再抄英文底');
+  }
 });
 
 test('每个终端窗口都有提示行：锁屏 / 盾牌 / 账号下拉 / 主页终端 / 抽屉 / AI 窗口', () => {

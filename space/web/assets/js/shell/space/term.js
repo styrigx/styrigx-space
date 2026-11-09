@@ -9,6 +9,7 @@
 import { esc } from '../../lib/util.js';
 import { mountKeyHint, khKeyFor } from '../keyhint.js';
 import { paintPick } from '../term-pick.js';
+import { flatStrings, shellSection } from '../term/core/strings.js';
 
 /**
  * @typedef {Object} TermDom
@@ -299,34 +300,14 @@ export function createTerm(o) {
   return C;
 }
 
-/**
- * 嵌套字符串表 → 点号键（space.session.lead → 'session.lead'）
- * @param {any} tree @param {string} [pre] @param {Record<string, string>} [acc]
- * @returns {Record<string, string>}
- */
-export function flatStrings(tree, pre, acc) {
-  const out = acc || {};
-  if (!tree || typeof tree !== 'object') return out;
-  for (const k in tree) {
-    const v = tree[k];
-    const key = pre ? pre + '.' + k : k;
-    if (v && typeof v === 'object') flatStrings(v, key, out);
-    else if (typeof v === 'string') out[key] = v;
-  }
-  return out;
-}
+/** 嵌套字符串表 → 点号键：终端统一 T1 起在 shell/term/core/strings.js，这里转出 */
+export { flatStrings };
 
 /**
  * 外壳字符串表（#sgx-i18n-shell，四站同一份，当前语言已叠在英文上）的一节 → 取文案函数（缺键回 ''）。
  * @param {Document} doc @param {string} sec 例如 'space' @returns {(k: string) => string}
  */
 export function shellTable(doc, sec) {
-  /** @type {Record<string, string>} */
-  let S = {};
-  try {
-    const el = doc.getElementById('sgx-i18n-shell');
-    const j = el && el.textContent ? JSON.parse(el.textContent) : null;
-    S = flatStrings(j && j[sec]);
-  } catch (e) {}
+  const S = flatStrings(shellSection(doc, sec));
   return function (k) { return S[k] || ''; };
 }

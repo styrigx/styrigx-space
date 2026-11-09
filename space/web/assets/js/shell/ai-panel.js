@@ -1,7 +1,7 @@
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
  * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/ai.js；窗口的开合 / 互斥由 topbar.js（主站 shell/topbar-panel.js）管，这里只管窗口里面。
- * 自成一体：不 import 任何东西。
+ * 只许 import shell/term/**（终端统一 T1，gen-shell 核对）：外壳字符串表读取、按键提示行英文底用 shell/term/core/strings.js。
  *
  * - 问：POST /api/ai（同源，credentials: same-origin）{ q, lang, history } → text/event-stream：event delta…（回答分段）→ done（2026-11-06 起不再有 event hits，不显示来源卡片：链接只出现在模型写的正文里）；
  *   出错时 event error。响应头 X-Styrigx-AI-Scope: private | public 只用来在底部小字说明「包含私密内容 / 仅公开内容」。
@@ -31,6 +31,7 @@
  *   长网址不当链接文字：同一条回答里有 [标题](同一地址) 就用那个标题，否则显示「域名/…」。
  *   event: sources（gemini 联网来源）→ 在回答末尾追加「来源」一段（- [标题](地址)），随回答存进历史。
  */
+import { KH_EN, shellSection } from './term/core/strings.js';
 
 export const AI_API = '/api/ai';
 export const HISTORY_KEY = 'sgx-ai-history';
@@ -76,14 +77,7 @@ const STR_EN = {
 };
 /** @param {Document} doc @returns {Record<string, string>} */
 function shellStr(doc) {
-  /** @type {Record<string, string>} */
-  let page = {};
-  try {
-    const el = doc && doc.getElementById ? doc.getElementById('sgx-i18n-shell') : null;
-    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
-    if (o && o.ai && typeof o.ai === 'object') page = o.ai;
-  } catch (e) {}
-  return Object.assign({}, STR_EN, page);
+  return Object.assign({}, STR_EN, shellSection(doc, 'ai'));
 }
 
 /** @typedef {{role: 'user'|'assistant', text: string, ts: number, error?: boolean, rate?: 'up'|'down'}} Msg */
@@ -459,17 +453,13 @@ export function mountAiChat(dlg, opts) {
     try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) { return false; }
   };
 
-  /* 按键提示行（Gray 2026-11-09 细节 1；同 shell/keyhint.js，这个文件不 import，内联几行）：桌面「enter 发送 · shift+enter 换行 · esc 关闭」，
+  /* 按键提示行（Gray 2026-11-09 细节 1；同 shell/keyhint.js，这里只画几行，英文底用 shell/term/core/strings.js 的 KH_EN）：桌面「enter 发送 · shift+enter 换行 · esc 关闭」，
      触屏换成「‹ 返回」按钮 = 关窗口（每个终端状态都有出口）。文案 #sgx-i18n-shell 的 kh 节 */
   (function () {
     const el = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-kh]'));
     if (!el) return;
     /** @type {Record<string, string>} */
-    let K = { ai: 'enter send · shift+enter newline · esc close', back: '‹ back', backAria: 'Back' };
-    try {
-      const j = JSON.parse((doc.getElementById('sgx-i18n-shell') || {}).textContent || '{}');
-      if (j && j.kh && typeof j.kh === 'object') K = Object.assign(K, j.kh);
-    } catch (e) {}
+    const K = Object.assign({ ai: KH_EN.ai, back: KH_EN.back, backAria: KH_EN.backAria }, shellSection(doc, 'kh'));
     el.textContent = '';
     if (coarse()) {
       if (!o.close) { el.hidden = true; return; }
