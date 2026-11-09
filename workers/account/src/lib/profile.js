@@ -26,15 +26,15 @@ const CTRL_RE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 /**
  * 字段表（顺序 = 资料页行顺序里除头像外的顺序）。
  * - id：字段名（接口 / KV / 前端同名）
- * - max：最大长度（按 Unicode 码点数）
+ * - max：最大长度（按 Unicode 码点数）；null = 不限长度（签名，Gray 2026-11-09 18:11「自己的网站肯定要随性一点」；仍受 PUT 请求体 4 KB 上限）
  * - required：true = 不能为空串（清空请传 null，回到默认值）
  * - kind：'text' 单行文字；'email' 邮箱格式
- * @type {ReadonlyArray<Readonly<{id:string, max:number, required:boolean, kind:'text'|'email'}>>}
+ * @type {ReadonlyArray<Readonly<{id:string, max:number|null, required:boolean, kind:'text'|'email'}>>}
  */
 export const PROFILE_FIELDS = Object.freeze([
   Object.freeze({ id: 'name', max: 40, required: true, kind: 'text' }),
   Object.freeze({ id: 'nickname', max: 32, required: true, kind: 'text' }),
-  Object.freeze({ id: 'motto', max: 120, required: false, kind: 'text' }),
+  Object.freeze({ id: 'motto', max: null, required: false, kind: 'text' }),
   Object.freeze({ id: 'email', max: 254, required: true, kind: 'email' }),
 ]);
 
@@ -61,7 +61,7 @@ export function checkField(id, value) {
   const v = value.trim();
   if (CTRL_RE.test(v)) return { ok: false, error: 'format' };
   if (!v) return f.required ? { ok: false, error: 'empty' } : { ok: true, value: '' };
-  if (len(v) > f.max) return { ok: false, error: 'too-long' };
+  if (f.max !== null && len(v) > f.max) return { ok: false, error: 'too-long' };
   if (f.kind === 'email' && !EMAIL_RE.test(v)) return { ok: false, error: 'format' };
   return { ok: true, value: v };
 }

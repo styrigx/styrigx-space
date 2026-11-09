@@ -27,12 +27,12 @@ export const PROFILE_EVENT = 'sgx-profile-changed';
 
 /**
  * 字段表（id / 最大长度（按字符）/ 必填 / 种类）。
- * @type {ReadonlyArray<Readonly<{id:string, max:number, required:boolean, kind:'text'|'email'}>>}
+ * @type {ReadonlyArray<Readonly<{id:string, max:number|null, required:boolean, kind:'text'|'email'}>>}
  */
 export const PROFILE_FIELDS = Object.freeze([
   Object.freeze({ id: 'name', max: 40, required: true, kind: 'text' }),
   Object.freeze({ id: 'nickname', max: 32, required: true, kind: 'text' }),
-  Object.freeze({ id: 'motto', max: 120, required: false, kind: 'text' }),
+  Object.freeze({ id: 'motto', max: null, required: false, kind: 'text' }),
   Object.freeze({ id: 'email', max: 254, required: true, kind: 'email' }),
 ]);
 
@@ -53,7 +53,7 @@ export function checkValue(id, raw) {
   const v = String(raw == null ? '' : raw).trim();
   if (CTRL_RE.test(v)) return 'format';
   if (!v) return f.required ? 'empty' : '';
-  if (Array.from(v).length > f.max) return 'too-long';
+  if (f.max !== null && Array.from(v).length > f.max) return 'too-long';
   if (f.kind === 'email' && !EMAIL_RE.test(v)) return 'format';
   return '';
 }

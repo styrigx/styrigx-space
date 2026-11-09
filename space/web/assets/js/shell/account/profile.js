@@ -1,5 +1,5 @@
 /**
- * @fileoverview 个人资料（P1–P8）：头像、姓名（40）、昵称（32）、签名（120）、邮箱（254，查格式）。
+ * @fileoverview 个人资料（P1–P8）：头像、姓名（40）、昵称（32）、签名（不限长度）、邮箱（254，查格式）。
  *
  * 行下展开 `> 值_` + 字数 + `esc 取消 / enter 保存`，每次只开一行（P2）；检查和失败原因在展开区（P3）；保存后全站跟着换（P4，lib/profile.js 派发事件）。
  * 头像那一行展开「选择照片… / 移除照片」（只有自定义头像时有移除，P5 / P6）→ avatar-edit.js 的全屏裁剪（O7：交互不变，只换成稿的样子）。
@@ -37,7 +37,7 @@ export function mountProfile(C) {
       const label = t('profile.' + f.id);
       h += C.row({ k: label, vHtml: v ? '<span translate="no" data-sgx-personal' + (isDef ? ' class="sgx-at-dim" data-at-default' : '') + '>' + esc(v) + '</span>' : '<span class="sgx-at-dim">' + esc(t('profile.notSet')) + '</span>', act: 'edit:' + f.id, chev: true, armed: ed === f.id });
       if (ed === f.id) {
-        h += '<div class="sgx-at-ed"><label class="sgx-at-eln"><span class="sgx-at-p" aria-hidden="true">&gt;</span><input class="sgx-at-ein" data-at-ein="' + f.id + '" type="' + (f.kind === 'email' ? 'email' : 'text') + '" maxlength="' + (f.max * 2) + '" value="' + esc(v) + '" aria-label="' + esc(label) + '" autocomplete="off" spellcheck="false"><span class="sgx-at-ct" data-at-ct>' + Array.from(v).length + '/' + f.max + '</span></label>' +
+        h += '<div class="sgx-at-ed"><label class="sgx-at-eln"><span class="sgx-at-p" aria-hidden="true">&gt;</span><input class="sgx-at-ein" data-at-ein="' + f.id + '" type="' + (f.kind === 'email' ? 'email' : 'text') + '"' + (f.max !== null ? ' maxlength="' + (f.max * 2) + '"' : '') + ' value="' + esc(v) + '" aria-label="' + esc(label) + '" autocomplete="off" spellcheck="false"><span class="sgx-at-ct" data-at-ct>' + Array.from(v).length + (f.max !== null ? '/' + f.max : '') + '</span></label>' +
           '<div class="sgx-at-ac"><button type="button" class="sgx-at-a2" data-at-act="ed-cancel"><kbd>esc</kbd>' + esc(t('common.cancel')) + '</button><button type="button" class="sgx-at-a" data-at-act="ed-save"><kbd>enter</kbd>' + esc(t('common.save')) + '</button></div>' +
           '<p class="sgx-at-ms" data-at-ems hidden></p></div>';
       }
@@ -47,7 +47,7 @@ export function mountProfile(C) {
     const ein = /** @type {HTMLInputElement|null} */ (viewEl.querySelector('[data-at-ein]'));
     if (ein) {
       const f = PROFILE_FIELDS.find(function (x) { return x.id === ed; });
-      ein.addEventListener('input', function () { const ct = viewEl.querySelector('[data-at-ct]'); if (ct && f) ct.textContent = Array.from(ein.value).length + '/' + f.max; });
+      ein.addEventListener('input', function () { const ct = viewEl.querySelector('[data-at-ct]'); if (ct && f) ct.textContent = Array.from(ein.value).length + (f.max !== null ? '/' + f.max : ''); });
       ein.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); saveField(); }
         else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); C.editing = ''; C.renderProfile(); }

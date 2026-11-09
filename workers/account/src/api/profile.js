@@ -11,7 +11,7 @@
  * PUT（JSON，任意几个字段：{ name?, nickname?, motto?, email? }）
  * - 进站会话 + 账号会话 + 作用域 profile.write（src/gate.js scopeDenial，同一份 core/authorize.js）；必须同源。
  *   没有进站会话 401 session；没账号会话 401 account；没作用域 403 scope。
- * - 每个字段按 lib/profile.js 的字段表校验：字符串去首尾空白；姓名 ≤40、昵称 ≤32、签名 ≤120、邮箱 ≤254 个字符；
+ * - 每个字段按 lib/profile.js 的字段表校验：字符串去首尾空白；姓名 ≤40、昵称 ≤32、签名不限长度（只受请求体 4 KB 上限）、邮箱 ≤254 个字符；
  *   单行（不收控制字符 / 换行）；姓名、昵称、邮箱不能为空串，签名可以为空；邮箱要像邮箱；值为 null = 清掉回默认值。
  *   不认识的字段、空对象、不是 JSON 对象 → 400；请求体超过 4 KB → 413。任何一个字段不合法整个请求不写。
  * - 与已存的合并后写回一个键 `profile`；回 { ok:true, profile, avatar, updatedAt }（同 GET）。

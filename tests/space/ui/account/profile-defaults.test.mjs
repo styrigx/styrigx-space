@@ -41,3 +41,15 @@ test('账号下拉头部：姓名 / 昵称只取 effectiveProfile 的结果，�
   assert.doesNotMatch(term, /p\.name \|\| 'Styrigx'|p\.nickname \|\| 'Styrigx'/);
   assert.match(term, /esc\(p\.name\)/);
 });
+
+test('签名不限长度（Gray 2026-11-09 18:11）：前端 checkValue 不拦长签名，其他字段上限照旧；资料编辑框对签名不写 maxlength、字数只显示个数', () => {
+  assert.equal(P.checkValue('motto', 'a'.repeat(121)), '');
+  assert.equal(P.checkValue('motto', '想'.repeat(1000)), '');
+  assert.equal(P.checkValue('motto', 'a\nb'), 'format', '仍是单行纯文本');
+  assert.equal(P.checkValue('name', '甲'.repeat(41)), 'too-long');
+  assert.equal(P.checkValue('nickname', 'x'.repeat(33)), 'too-long');
+  assert.equal(P.PROFILE_FIELDS.find((f) => f.id === 'motto').max, null);
+  const ed = rd('space/web/assets/js/shell/account/profile.js');
+  assert.match(ed, /f\.max !== null \? ' maxlength="' \+ \(f\.max \* 2\) \+ '"' : ''/);
+  assert.doesNotMatch(ed, /'\/' \+ f\.max(?! :)/, '计数 "/上限" 只在有上限时出现');
+});
