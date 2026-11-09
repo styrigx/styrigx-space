@@ -706,7 +706,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
   const sse = (hits, deltas) => (hits && hits.length ? ['event: hits\ndata: ' + JSON.stringify({ hits }) + '\n\n'] : [])
     .concat(deltas.map((t) => 'event: delta\ndata: ' + JSON.stringify({ text: t }) + '\n\n'), ['event: done\ndata: {}\n\n']).join('');
 
-  test('手机底部半屏面板（2026-11-09 起；开合过程见 ai-open.spec.js；非模态）：贴底全宽、高 max(50%, 360)；标题 Gray AI、开场白、新对话 / 历史 / 联系、输入框、范围小字', async ({ page }) => {
+  test('手机悬浮卡（2026-11-08 起从浮钮展开，展开过程见 ai-open.spec.js；非模态）：顶栏下 12、左右 12；标题 Gray AI、开场白、新对话 / 历史 / 联系、输入框、范围小字', async ({ page }) => {
     await go(page, '/wild/');
     await openAi(page);
     expect(await ai(page).evaluate((el) => el.open && !el.matches(':modal'))).toBe(true);
@@ -715,12 +715,10 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
       const sh = document.querySelector('#sgx-ai .sgx-qp-sheet').getBoundingClientRect();
       return { tbBottom: tb.bottom, top: sh.top, left: sh.left, right: sh.right, vw: window.innerWidth, bottom: sh.bottom, vh: window.innerHeight };
     });
-    /* 底部半屏面板（Gray 2026-11-09）：左右、下沿贴边，高 = max(视口一半, 360)，上沿在顶栏下面 */
-    expect(Math.abs(g.left)).toBeLessThanOrEqual(1);
-    expect(Math.abs(g.vw - g.right)).toBeLessThanOrEqual(1);
-    expect(Math.abs(g.vh - g.bottom)).toBeLessThanOrEqual(1);
-    expect(Math.abs((g.bottom - g.top) - Math.max(g.vh / 2, 360))).toBeLessThanOrEqual(1);
-    expect(g.top).toBeGreaterThan(g.tbBottom);
+    expect(Math.abs(g.top - g.tbBottom - 12)).toBeLessThanOrEqual(1);
+    expect(Math.abs(g.left - 12)).toBeLessThanOrEqual(1); /* 对齐 PR-B：手机页边距 12 */
+    expect(Math.abs(g.vw - g.right - 12)).toBeLessThanOrEqual(1);
+    expect(Math.abs(g.vh - g.bottom - 12)).toBeLessThanOrEqual(1); /* 悬浮卡下沿离底 12（盖住浮钮位置，浮钮淡出） */
     await expect(ai(page).locator('.sgx-ai-title')).toHaveText('Gray AI');
     /* 空态 = 开场白（助手气泡样式、不带操作行），没有旧的空态文案 */
     const greet = ai(page).locator('.sgx-ai-msg[data-greet]');
