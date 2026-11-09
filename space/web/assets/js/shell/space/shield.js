@@ -53,6 +53,7 @@ export function mountShield(o) {
     '<input id="sgx-sh-in" class="sgx-at-in" data-sh-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">' +
     '</form>' +
     '<p class="sgx-at-hint" data-sh-hint hidden></p>' +
+    '<p class="sgx-kh sgx-at-kh" data-sh-kh hidden></p>' +
     '<div class="sgx-at-live" data-sh-live role="status" aria-live="polite"></div>' +
     '</div>' +
     '<div class="sgx-at-ft" data-sh-ft></div>';
@@ -74,8 +75,15 @@ export function mountShield(o) {
       pmu: /** @type {HTMLInputElement} */ (q('data-sh-pmu')),
       hint: q('data-sh-hint'),
       live: q('data-sh-live'),
+      kh: q('data-sh-kh'),
     },
     p: 'sgx-at',
+    /* 按键提示行：首层 esc 关下拉、下一层 esc 回首层；触屏「‹ 返回」走同一条路（escBack，最外层关下拉） */
+    kh: {
+      cmdKey: function () { return C && C.layer && C.layer !== 'home' ? 'cmdLayer' : 'cmd'; },
+      canBackCmd: function () { return true; },
+      onBack: function () { if (!escBack()) o.ms.close(); },
+    },
     t: t,
     ps: function () { return PS_ADMIN; },
     ariaCmd: t('shield.cmdAria'),
@@ -264,11 +272,16 @@ export function mountShield(o) {
 
   /* ---------- 事件 ---------- */
   /* esc：先退出当前命令，再撤两步确认，再回主页，最外层才交给下拉关掉 */
+  /** esc / 触屏「‹ 返回」的同一条路：吃掉了回 true；最外层回 false（交给下拉关掉） */
+  function escBack() {
+    if (C.interrupt()) return true;
+    if (C.armed || C.editing) { C.armed = ''; C.editing = ''; C.render(); return true; }
+    if (C.layer !== 'home') { C.go('home'); return true; }
+    return false;
+  }
   dlg.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
-    if (C.interrupt()) { e.preventDefault(); return; }
-    if (C.armed || C.editing) { e.preventDefault(); C.armed = ''; C.editing = ''; C.render(); return; }
-    if (C.layer !== 'home') { e.preventDefault(); C.go('home'); }
+    if (escBack()) e.preventDefault();
   });
   root.addEventListener('click', function (e) {
     const tg = /** @type {Element|null} */ (e.target);

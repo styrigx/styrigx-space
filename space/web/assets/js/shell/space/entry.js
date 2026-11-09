@@ -96,6 +96,7 @@ export function showEntryScreen() {
     '<input type="text" class="sgx-entry-in" id="sgx-entry-cmd" name="cmd" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" maxlength="256">' +
     '</form>' +
     '<p class="sgx-entry-hint" id="sgx-entry-hint" hidden></p>' +
+    '<p class="sgx-kh sgx-entry-kh" id="sgx-entry-kh" hidden></p>' +
     '</div>' +
     '</div>' +
     '<p class="sgx-entry-sr" id="sgx-entry-live" role="status" aria-live="polite"></p>' +
@@ -149,8 +150,15 @@ export function showEntryScreen() {
       pmu: /** @type {HTMLInputElement} */ ($('sgx-entry-pmu')),
       hint: $('sgx-entry-hint'),
       live: $('sgx-entry-live'),
+      kh: $('sgx-entry-kh'),
     },
     p: 'sgx-entry',
+    /* 按键提示行：锁屏命令行（进站之前没别处可去）没有「‹ 返回」；reset 层的命令行 esc / ‹ 返回 = 离开 reset */
+    kh: {
+      cmdKey: function () { return C && C.inReset ? 'cmdLayer' : 'cmdEntry'; },
+      canBackCmd: function () { return !!(C && C.inReset); },
+      onBack: function () { C.refocus = true; C.interrupt(); },
+    },
     t: t,
     ps: function () { return C && C.inReset ? PS_RESET : PS_ENTRY; },
     ariaCmd: t('entry.cmdAria'),

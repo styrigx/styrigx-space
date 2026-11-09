@@ -13,6 +13,8 @@
  */
 import { esc } from '../../lib/util.js';
 import { toast } from '../../lib/toast.js';
+import { mountKeyHint, khKeyFor } from '../keyhint.js';
+import { paintPick } from '../term-pick.js';
 import * as api from './api.js';
 import { CMD, PS_GUEST, PS_ROOT, PS_RESET, LAYERS, LAYER_PATH, normCmd, parseCmd, layerFromPath } from './commands.js';
 import { mountSession } from './session.js';
@@ -113,6 +115,7 @@ export function mountAccountTerm(o) {
     '<input id="sgx-at-in" class="sgx-at-in" data-at-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">' +
     '</form>' +
     '<p class="sgx-at-hint" data-at-hint hidden></p>' +
+    '<p class="sgx-kh sgx-at-kh" data-at-kh hidden></p>' +
     '<div class="sgx-at-live" data-at-live role="status" aria-live="polite"></div>' +
     '</div>' +
     '<div class="sgx-at-ft" data-at-ft></div>';
@@ -211,6 +214,24 @@ export function mountAccountTerm(o) {
   };
   C.clearLog = function () { logEl.textContent = ''; };
 
+  /* ---------- 按键提示行（Gray 2026-11-09 细节 1；shell/keyhint.js） ---------- */
+  /** esc / 触屏「‹ 返回」的同一条路：先退出当前命令，再撤编辑 / 两步确认，再回首层；最外层回 false（交给下拉关掉） */
+  function escBack() {
+    if (C.interrupt()) return true;
+    if (C.editing) { C.editing = ''; C.render(); return true; }
+    if (C.armed) { C.armed = ''; C.render(); return true; }
+    if (C.st === 'in' && !C.inReset && C.layer !== 'home') { C.go('home'); return true; }
+    return false;
+  }
+  const kh = mountKeyHint(q('data-at-kh'), { onBack: function () { C.refocus = true; if (!escBack()) o.ms.close(); } });
+  /** 按当前模式 / 层重画提示行：首层 esc 关下拉、下一层和 reset 里 esc 回去；触屏一直有「‹ 返回」（最外层 = 关下拉） */
+  C.paintKh = function () {
+    const cmdKey = C.inReset || (C.st === 'in' && C.layer && C.layer !== 'home') ? 'cmdLayer' : 'cmd';
+    const key = khKeyFor(C.mode, cmdKey, !!C.busyCancel);
+    kh.set(key, C.mode === 'cmd' ? true : !!key);
+  };
+  C.paintKh();
+
   /* ---------- 输入行 ---------- */
   const isSecret = function (/** @type {string} */ m) { return m === 'pw' || m === 'rkey' || m === 'newpw' || m === 'newpw2'; };
   /** @param {string} m @param {{ps?: string, pm?: string, hint?: string}} [x] */
@@ -235,6 +256,9 @@ export function mountAccountTerm(o) {
       hintEl.hidden = false;
     } else hintEl.hidden = true;
     root.setAttribute('data-at-mode', m);
+    C.paintKh();
+    /* busyCancel 常在 setMode('busy') 之后才挂上：下一拍再画一次 */
+    if (m === 'busy') Promise.resolve().then(C.paintKh);
   };
   C.toCmd = function () {
     picks = {};
@@ -522,6 +546,10 @@ export function mountAccountTerm(o) {
   /* 手机输入法（三星键盘、Gboard 联想）在命令行（文本框）按 enter 时 keydown 常带 isComposing（字还在组合里），上面不提交，
      浏览器也不隐式提交（两个文本框），命令发不出去（Gray 22:12「命令行死了」的另一半；密码框不联想所以输密码正常）。
      keyup 补一次：这次 enter 之后还没提交过就提交 */
+  /* 选择时高亮跟着输入框里的字走（手机输入法的数字进了输入框；同 shell/space/term.js） */
+  input.addEventListener('input', function () {
+    if (C.mode === 'pick') paintPick(logEl, 'data-at-pick', input.value, Object.keys(picks), pickDefault);
+  });
   input.addEventListener('keyup', function (e) {
     if (e.key !== 'Enter' || enterAt < 0) return;
     const at = enterAt;
@@ -532,10 +560,7 @@ export function mountAccountTerm(o) {
   /* esc：先退出当前命令，再回上一层，最外层才交给下拉关掉（modalSheet 的 Esc 看 defaultPrevented） */
   dlg.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
-    if (C.interrupt()) { e.preventDefault(); return; }
-    if (C.editing) { e.preventDefault(); C.editing = ''; C.render(); return; }
-    if (C.armed) { e.preventDefault(); C.armed = ''; C.render(); return; }
-    if (C.st === 'in' && !C.inReset && C.layer !== 'home') { e.preventDefault(); C.go('home'); }
+    if (escBack()) e.preventDefault();
   });
   root.addEventListener('click', function (e) {
     const tg = /** @type {Element|null} */ (e.target);

@@ -5,7 +5,7 @@
    - #status       systemctl status space.target：服务状态（原 /status/）。六个 unit（同 NAVIGATE STATUS 六格的口径）+ 每个监测项近 90 天可用率条（点一格看那天）
                    + 免费额度 / 用量 / 近期故障 + 进站凭证使用记录（展开才取 /api/space-audit）。数据 GET /api/status，页面可见时每 60 秒刷新（apps/space-status.js），
                    外壳不另取（#st-root 在页里，接 sgx:status 事件）。
-   - #about        neofetch：版本 / 内核 / Hugo / Tailwind / 构建 / 构建时间（原 /about/），版本号唯一来源 data/version.yaml。
+   - #about        neofetch：版本 / 内核 / Uptime（自 2026-10-07）/ Hugo / Tailwind / 构建 / 构建时间（原 /about/），版本号唯一来源 data/version.yaml。
    旧地址 /status/ /about/ /wellbeing/（含 /zh/）在 static/_redirects 里 301 到这里对应的锚点。noindex（门内页，见 baseof）。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-wild.js" }}
@@ -130,6 +130,9 @@
             <div class="wild-info-r" aria-hidden="true"><dt></dt><dd class="wild-dim">─────────────</dd></div>
             <div><dt title="{{ $W.version }}">OS</dt><dd data-about="version">Styrigx UI {{ $ver.ui }}</dd></div>
             <div><dt title="{{ $W.kernel }}">Kernel</dt><dd data-about="kernel">SGX {{ $ver.sgx }}</dd></div>
+            {{- /* Uptime：从 2026-10-07（Styrigx 这个名字和站点的起点，Gray 2026-11-09 定）按北京时间数天；构建时先写一份，apps/space.js 打开时按当天重算 */}}
+            {{- $since := "2026-10-07" }}{{ $up := int (math.Floor (div (sub now.Unix ((time.AsTime (printf "%sT00:00:00+08:00" $since)).Unix)) 86400.0)) }}
+            <div><dt title="{{ $W.uptime }}">Uptime</dt><dd data-about="uptime" data-since="{{ $since }}">{{ $up }} {{ cond (eq $up 1) "day" "days" }}</dd></div>
             <div><dt>Host</dt><dd>Cloudflare Pages · Workers</dd></div>
             <div><dt>Hugo</dt><dd data-about="hugo">{{ hugo.Version }}</dd></div>
             <div><dt>CSS</dt><dd data-about="tailwind">Tailwind CSS {{ $twVer }}</dd></div>
@@ -143,6 +146,8 @@
       </div>
     </div>
   </section>
+  {{/* 页末（Gray 2026-11-09 细节 5）：旷野只看不设、以后还会加窗口 → 「› more soon_」+ 闪烁光标（装饰，读屏不念；减弱动效不闪） */}}
+  <p class="sgx-eof wild-eof" aria-hidden="true" translate="no">› more soon<span class="sgx-eof-cur"></span></p>
 </div>
 
 {{ partial "space-i18n.html" (dict "tr" $tr) }}

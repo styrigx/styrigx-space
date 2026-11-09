@@ -685,7 +685,7 @@ export function mountTopbar(o) {
         daymarkHref: function () { return hrefOf('daymark', '/daymark/'); },
       },
     });
-    if (homeTerm) homeView = T.mountTermView(homeTerm, term, { autoHelp: true });
+    if (homeTerm) homeView = T.mountTermView(homeTerm, term, { autoHelp: true, kh: 'cmdHome' });
     if (termDlg && !homeTerm && typeof termDlg.showModal === 'function') {
       const opener = navBtn || /** @type {HTMLElement} */ (doc.body);
       const coarse = function () { try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
@@ -693,7 +693,7 @@ export function mountTopbar(o) {
         ms: QP_MS,
         stateKey: 'sgxTerm',
         onOpen: function () {
-          if (!drawerView) drawerView = T.mountTermView(termDlg.querySelector('[data-sgx-term]') || termDlg, term, {});
+          if (!drawerView) drawerView = T.mountTermView(termDlg.querySelector('[data-sgx-term]') || termDlg, term, { kh: 'cmdDrawer', onBack: function () { if (termSheet) termSheet.close(); } });
           /* 触屏不直接聚焦输入框（会弹键盘 / 桌面版网站下放大），点一下输入行再打字 */
           if (drawerView && !coarse()) drawerView.focus();
         },

@@ -1,13 +1,13 @@
 {{- /* tmux 页脚（2026-11 UI 重设计 PR-1，设计稿 foot-v1；四站同一个，共享外壳：gen-shell 核对它只用参数）。
    第一行 = tmux 状态栏：会话 space · 窗口 0:home 1:blog 2:curio 3:daymark 4:wild（当前窗口带 *）· 右边 状态计数 / zh · en / CST 时钟；
-   第二行 = © 年份 Sloan Gray · styrigx · rss · github · x · 联系。手机布局只显示当前窗口、不显示语言（CSS 按 data-sgx-layout）。没有站点地图。
+   第二行 = © 年份 Sloan Gray · styrigx · rss · github · x（不放「联系」：Gray 2026-11-09，邮箱只在 AI 窗口底部）。手机布局只显示当前窗口、不显示语言（CSS 按 data-sgx-layout）。没有站点地图。
    状态计数没数据时是「–/6」，shell/topbar-panel.js mountStatus 取到 /api/status 后写成「● n/6」（2026-11 PR-A）；时钟由 shell/topbar-panel.js 按北京时间每 30 秒写一次（[data-sgx-clock]）。
    参数（dict）：
      tr        共享外壳字符串表（sgx-tr.html 的 .shell）
      lang      页面语言；langs [{code short}]（hugo.yaml languages）；here 本页地址；langHref 另一种语言的同一页
      nav       shell-nav.json（items：id path origin；links：github / x）；site 当前项 id；mainOrigin 主站项地址前缀（子站传 https://styrigx.com）
      name      版权行的名字（data/profile.yaml name，个人信息、不翻译）；year 年份
-     email     联系邮箱（mailto）；rss 博客 RSS 地址（当前语言） */ -}}
+     email     （不再使用，2026-11-09 页脚去掉「联系」；调用方仍可传）；rss 博客 RSS 地址（当前语言） */ -}}
 {{- $t := .tr -}}
 {{- $lang := .lang | default "en" -}}
 <footer class="sgx-foot" aria-label="{{ $t.foot.label }}">
@@ -33,7 +33,7 @@
   <div class="sgx-foot-2">
     <span>© {{ .year }} <span translate="no" data-sgx-personal data-sgx-profile="name">{{ .name }}</span> · <span translate="no">styrigx</span></span>
     <span class="sgx-foot-links">
-      <a href="{{ .rss }}" translate="no">rss</a> · <a href="{{ .nav.links.github }}" rel="me noopener" translate="no">github</a> · <a href="{{ .nav.links.x }}" rel="me noopener" translate="no">x</a> · <a href="mailto:{{ .email }}" data-sgx-profile="email" data-sgx-profile-attr="href">{{ $t.foot.contact }}</a>
+      <a href="{{ .rss }}" translate="no">rss</a> · <a href="{{ .nav.links.github }}" rel="me noopener" translate="no">github</a> · <a href="{{ .nav.links.x }}" rel="me noopener" translate="no">x</a>
     </span>
   </div>
 </footer>

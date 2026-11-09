@@ -138,6 +138,8 @@ function apply(){
   });
   pager.hidden = list.length === 0;
   if (countEl) countEl.textContent = countText(n, total, T.count);
+  /* 封面右上的位置计数「02 / 06」的总数（Gray 2026-11-09 细节 2；序号是 CSS 计数器，见共享外壳 .sgx-cc-im::after） */
+  grid.style.setProperty('--sgx-cc-n', '"' + (total < 10 ? '0' : '') + total + '"');
   pager.classList.toggle('is-done', n >= total);
   nomatch.classList.toggle('hidden', !(list.length && q.length && total === 0));
   if (mo) mo.observe(grid, { childList: true });

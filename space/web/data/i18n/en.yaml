@@ -465,6 +465,7 @@ wild:
   kernel: Kernel
   build: Build
   builtAt: Built at
+  uptime: Up since 2026-10-07
 sgxAccountCard:
   signedIn: Signed in
   changePhoto: Change photo

@@ -35,6 +35,8 @@
     <span class="sgx-pg-l"><b data-pg-less>-- less (1/1) --</b><span class="sgx-pg-hint">{{ i18n "pagerSpace" }}</span></span>
     <span class="sgx-pg-r" data-pg-nums></span>
   </nav>
+  {{- /* 列表到底（Gray 2026-11-09）：最后一页才显示（blog-list.js 按页切；不跑脚本时整份列表都在，照常显示） */}}
+  <p class="sgx-eof" data-blog-eof aria-hidden="true" translate="no">-- EOF --</p>
   {{- else }}
   <p class="empty-note">{{ i18n "emptyArchives" }}</p>
   {{- end }}
