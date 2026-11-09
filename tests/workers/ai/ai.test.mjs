@@ -82,7 +82,7 @@ async function events(res) {
   });
 }
 
-beforeEach(() => { R._resetCache(); M._resetModelsCache(); });
+beforeEach(() => { R._resetCache(); M._resetModelsCache(); G._resetGeminiState(); G.GEMINI_TIMING.backoffMs = [5, 5]; });
 
 /* ---------- 召回 ---------- */
 
@@ -385,7 +385,8 @@ test('wrangler.toml：没有公开地址、绑定 AI、索引 KV、Vectorize、�
   assert.doesNotMatch(toml, /qwen/i);
   const reg = M.parseModels(/^AI_MODELS = '(.+)'$/m.exec(toml)[1]);
   assert.equal(reg.def, '@cf/google/gemma-4-26b-a4b-it');
-  assert.deepEqual(reg.models.map((m) => [m.id, m.provider]), [['@cf/google/gemma-4-26b-a4b-it', 'workers-ai'], ['@cf/openai/gpt-oss-20b', 'workers-ai'], ['gemini-2.5-flash', 'gemini']]);
+  assert.deepEqual(reg.models.map((m) => [m.id, m.provider]), [['@cf/google/gemma-4-26b-a4b-it', 'workers-ai'], ['@cf/openai/gpt-oss-20b', 'workers-ai'], ['gemini-3.8-flash', 'gemini']]);
+  assert.equal(reg.models[2].label, 'Gemini 3.8 Flash', '2026-11-09：gemini-2.5-flash 对新用户已下线（404），换 3.8 Flash');
   assert.match(toml, /\[ai\]\s*\nbinding = "AI"/);
   assert.match(toml, /binding = "KV_SEARCH_INDEX"\s*\nid = "4bcdb84f205541b9b6c8d230bc2b106f"/);
   for (const v of ['AI_MODELS', 'AI_MAX_TOKENS = "1024"', 'AI_CONTEXT_HITS = "6"', 'AI_RECALL_MIN_SCORE = "0.42"', 'AI_GEMINI_SEARCH = "1"']) assert.ok(toml.includes(v), v);
@@ -502,7 +503,8 @@ test('外部模型（Gemini）：钥匙走头不进 URL；系统提示 + 上下�
   assert.equal(body.contents.at(-1).parts[0].text, '主题');
   assert.deepEqual(body.tools, [{ google_search: {} }], '2026-11：gemini 默认带 Google 搜索');
   assert.match(body.systemInstruction.parts[0].text, /Google 搜索/);
-  assert.equal(body.generationConfig.maxOutputTokens, 1024);
+  assert.equal(body.generationConfig.maxOutputTokens, 4096, '2026-11-09：外部模型的思考也算额度，至少 4096');
+  assert.equal(body.generationConfig.thinkingConfig, undefined, 'gemini-x 不是 3.x，不带 thinkingLevel');
 });
 
 test('外部模型：钥匙没绑 / 读不到 → 503 no_key（不调上游）；上游 404 → error model_unavailable，429 → rate_limited', async () => {
