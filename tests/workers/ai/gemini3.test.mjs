@@ -1,6 +1,7 @@
 /**
  * styrigx-ai 外部模型换 Gemini 3（2026-11-09，fix/ai-gemini-3）：
  * Workers Logs 2026-11-09 06:12 UTC 上游 404「gemini-2.5-flash no longer available to new users」，之前直接换 3.8 Flash 也不行。
+ * 第二轮（fix/ai-gemini-lite）：免费档 Flash-Lite 作主力、3.8 Flash 429 换 Lite 一次、Lite 也 429 → daily_limit、Lite 思考 minimal。
  * 这里覆盖：3.x 低思考 + 更大的输出额度；首字前 429 / 503 退避重试、首字超时、总时限；搜索被拒（任何 4xx，除地区 / 钥匙 / 404 / 429）
  * 不带工具重试一次并记住；空回答记 [ai] gemini empty（finishReason + usage）回 error empty；退役 id 换成当前 id；AQ. 钥匙脱敏。
  * 不调真实 Gemini：替换 globalThis.fetch。
@@ -80,21 +81,18 @@ test('3.x：thinkingConfig.thinkingLevel = low（不发 thinkingBudget），maxO
   assert.equal(G.geminiBody([{ role: 'user', content: 'x' }], 4096, { model: 'gemini-2.5-flash-lite' }).generationConfig.thinkingConfig, undefined);
 });
 
-test('首字前 503 / 429 退避重试，最多 2 次；第三次成功照常回答', async () => {
-  for (const first of [() => err(503, 'The model is overloaded. Please try again later.', 'UNAVAILABLE'), () => err(429, 'Resource has been exhausted', 'RESOURCE_EXHAUSTED')]) {
-    R._resetCache(); M._resetModelsCache();
-    let n = 0;
-    let ev;
-    const lines = await withConsole(() => withFetch(async () => (++n <= 2 ? first() : ok('在设置里')), async () => {
-      ev = await events(await ask({ q: '主题', lang: 'zh' }, gEnv()));
-    }));
-    assert.equal(n, 3);
-    assert.deepEqual(ev.map((e) => e.event), ['delta', 'done']);
-    assert.equal(lines.filter((l) => l.includes('[ai] gemini retry')).length, 2);
-  }
+test('首字前 503 退避重试，最多 2 次；第三次成功照常回答', async () => {
+  let n = 0;
+  let ev;
+  const lines = await withConsole(() => withFetch(async () => (++n <= 2 ? err(503, 'The model is overloaded. Please try again later.', 'UNAVAILABLE') : ok('在设置里')), async () => {
+    ev = await events(await ask({ q: '主题', lang: 'zh' }, gEnv()));
+  }));
+  assert.equal(n, 3);
+  assert.deepEqual(ev.map((e) => e.event), ['delta', 'done']);
+  assert.equal(lines.filter((l) => l.includes('[ai] gemini retry')).length, 2);
 });
 
-test('503 一直不好：重试 2 次后 error upstream（日志带 attempts=3、reason=server）；429 一直不好 → rate_limited', async () => {
+test('503 一直不好：重试 2 次后 error upstream（日志带 attempts=3、reason=server）', async () => {
   let n = 0;
   let ev;
   const lines = await withConsole(() => withFetch(async () => { n++; return err(503, 'overloaded', 'UNAVAILABLE'); }, async () => {
@@ -105,12 +103,79 @@ test('503 一直不好：重试 2 次后 error upstream（日志带 attempts=3�
   const log = lines.find((l) => l.includes('[ai] gemini upstream'));
   assert.match(log, /"attempts":3/);
   assert.match(log, /"reason":"server"/);
-  M._resetModelsCache(); R._resetCache(); n = 0;
-  await withConsole(() => withFetch(async () => { n++; return err(429, 'quota', 'RESOURCE_EXHAUSTED'); }, async () => {
+});
+
+const QUOTA_DAY = JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'You exceeded your current quota. Quota exceeded for metric: generate_content_free_tier_requests, limit: 20', details: [{ violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] }] } });
+const QUOTA_MIN = JSON.stringify({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded', details: [{ violations: [{ quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier' }] }] } });
+const modelOf = (u) => /\/models\/([^:]+):/.exec(String(u))[1];
+
+test('3.8 Flash 429 → 不等，换 3.5 Flash-Lite 一次（[ai] gemini fallback，Lite 用 minimal 思考）→ 正常回答', async () => {
+  const seen = [];
+  let ev;
+  const lines = await withConsole(() => withFetch(async (u, init) => {
+    seen.push({ model: modelOf(u), body: JSON.parse(init.body) });
+    return modelOf(u) === 'gemini-3.8-flash' ? new Response(QUOTA_DAY, { status: 429 }) : ok('好');
+  }, async () => {
     ev = await events(await ask({ q: '主题' }, gEnv()));
+  }));
+  assert.deepEqual(seen.map((x) => x.model), ['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+  assert.deepEqual(seen[0].body.generationConfig.thinkingConfig, { thinkingLevel: 'low' });
+  assert.deepEqual(seen[1].body.generationConfig.thinkingConfig, { thinkingLevel: 'minimal' });
+  assert.deepEqual(ev.map((e) => e.event), ['delta', 'done']);
+  const log = lines.find((l) => l.includes('[ai] gemini fallback'));
+  assert.ok(log, lines.join('\n'));
+  assert.match(log, /"from":"gemini-3.8-flash","to":"gemini-3.5-flash-lite"/);
+  assert.equal(lines.filter((l) => l.includes('[ai] gemini retry')).length, 0, '429 不退避');
+});
+
+test('3.8 Flash 429、Lite 也 429（每天额度）→ error daily_limit；只换一次', async () => {
+  const seen = [];
+  let ev;
+  const lines = await withConsole(() => withFetch(async (u) => { seen.push(modelOf(u)); return new Response(QUOTA_DAY, { status: 429 }); }, async () => {
+    ev = await events(await ask({ q: '主题' }, gEnv()));
+  }));
+  assert.deepEqual(seen, ['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
+  assert.deepEqual(ev, [{ event: 'error', data: { code: 'daily_limit' } }]);
+  assert.match(lines.find((l) => l.includes('[ai] gemini upstream')), /"model":"gemini-3.5-flash-lite","picked":"gemini-3.8-flash"/);
+});
+
+test('直接选 Lite：每天额度 429 → daily_limit 不重试；每分钟限额 429 → 退避重试，仍不行 → rate_limited', async () => {
+  const LITE = { default: 'gemini-3.5-flash-lite', models: [{ id: 'gemini-3.5-flash-lite', provider: 'gemini' }] };
+  let n = 0;
+  let ev;
+  await withConsole(() => withFetch(async () => { n++; return new Response(QUOTA_DAY, { status: 429 }); }, async () => {
+    ev = await events(await ask({ q: '主题' }, gEnv({}, LITE)));
+  }));
+  assert.equal(n, 1);
+  assert.equal(ev[0].data.code, 'daily_limit');
+  M._resetModelsCache(); R._resetCache(); n = 0;
+  await withConsole(() => withFetch(async () => { n++; return new Response(QUOTA_MIN, { status: 429 }); }, async () => {
+    ev = await events(await ask({ q: '主题' }, gEnv({}, LITE)));
   }));
   assert.equal(n, 3);
   assert.equal(ev[0].data.code, 'rate_limited');
+  M._resetModelsCache(); R._resetCache(); n = 0;
+  await withConsole(() => withFetch(async () => (++n === 1 ? new Response(QUOTA_MIN, { status: 429 }) : ok('好')), async () => {
+    ev = await events(await ask({ q: '主题' }, gEnv({}, LITE)));
+  }));
+  assert.deepEqual(ev.map((e) => e.event), ['delta', 'done']);
+});
+
+test('换模型 / 思考档的规则', () => {
+  assert.equal(G.quotaFallbackFor('gemini-3.8-flash'), 'gemini-3.5-flash-lite');
+  assert.equal(G.quotaFallbackFor('gemini-3.6-flash'), 'gemini-3.5-flash-lite');
+  assert.equal(G.quotaFallbackFor('gemini-3.5-flash-lite'), '');
+  assert.equal(G.quotaFallbackFor('gemini-3.1-flash-lite'), '');
+  assert.equal(G.quotaFallbackFor('gemini-2.5-flash-lite'), '');
+  assert.equal(G.quotaFallbackFor('gemini-x'), '');
+  assert.equal(G.thinkingLevelFor('gemini-3.5-flash-lite'), 'minimal');
+  assert.equal(G.thinkingLevelFor('gemini-3.1-flash-lite'), 'minimal');
+  assert.equal(G.thinkingLevelFor('gemini-3.8-flash'), 'low');
+  assert.equal(G.thinkingLevelFor('gemini-4-argon'), 'low');
+  assert.equal(G.thinkingLevelFor('gemini-2.5-flash-lite'), '');
+  assert.equal(G.perMinuteQuota(QUOTA_MIN), true);
+  assert.equal(G.perMinuteQuota(QUOTA_DAY), false);
+  assert.equal(G.perMinuteQuota('{}'), false, '说不清的按每天');
 });
 
 test('首字超时：每次尝试 firstByteMs 后放弃并重试；都超时 → error timeout，不挂到 60 秒', async () => {
@@ -156,13 +221,14 @@ test('搜索被拒：任何 4xx（不是 400 + tool 字样也算）→ 不带工
     await events(await ask({ q: '主题', lang: 'zh' }, gEnv()));
   }));
   assert.deepEqual(ev.map((e) => e.event), ['delta', 'done']);
-  assert.deepEqual(seen.map((b) => !!b.tools), [true, false, false], '第二次提问直接不带工具');
+  assert.deepEqual(seen.map((b) => !!b.tools), [true, false, false], '第二次提问直接不带工具（整把钥匙记 10 分钟，不分模型）');
   assert.match(seen[0].systemInstruction.parts[0].text, /Google 搜索/);
   assert.doesNotMatch(seen[1].systemInstruction.parts[0].text, /Google 搜索/);
   assert.ok(lines.some((l) => l.includes('[ai] gemini search tool rejected')));
   _resetAndCheck();
 });
 function _resetAndCheck() {
+  assert.equal(G.searchSuppressed('gemini-3.5-flash-lite'), true, '别的模型也不带');
   G._resetGeminiState();
   assert.equal(G.searchSuppressed(MODEL), false);
 }
@@ -227,21 +293,21 @@ test('404 模型不可用：不重试、不去工具 → model_unavailable（202
   assert.match(lines.find((l) => l.includes('[ai] gemini upstream')), /"reason":"model"/);
 });
 
-test('退役 id：KV 里还是 gemini-2.5-flash → 换成 gemini-3.8-flash（标签跟着换）；浏览器存的旧选择照样能用', async () => {
+test('退役 id：KV 里还是 gemini-2.5-flash → 展开成 3.5 Flash Lite（主力）+ 3.8 Flash；默认 / 浏览器存的旧选择按 Lite 认', async () => {
   const reg = M.parseModels({ default: 'gemini-2.5-flash', models: [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'gemini' }, { id: '@cf/google/gemma-4-26b-a4b-it', label: 'Gemma 4' }] });
-  assert.deepEqual(reg.models.map((m) => [m.id, m.label]), [['gemini-3.8-flash', 'Gemini 3.8 Flash'], ['@cf/google/gemma-4-26b-a4b-it', 'Gemma 4']]);
-  assert.equal(reg.def, 'gemini-3.8-flash');
-  assert.equal(M.parseModels({ models: [{ id: 'gemini-2.5-flash', label: '外部', provider: 'gemini' }] }).models[0].label, '外部', '自定义标签保留');
-  assert.equal(M.parseModels({ models: [{ id: 'gemini-2.5-flash', provider: 'gemini' }, { id: 'gemini-3.8-flash', provider: 'gemini' }] }).models.length, 1, '换完去重');
+  assert.deepEqual(reg.models.map((m) => [m.id, m.label]), [['gemini-3.5-flash-lite', 'Gemini 3.5 Flash Lite'], ['gemini-3.8-flash', 'Gemini 3.8 Flash'], ['@cf/google/gemma-4-26b-a4b-it', 'Gemma 4']]);
+  assert.equal(reg.def, 'gemini-3.5-flash-lite');
+  assert.equal(M.parseModels({ models: [{ id: 'gemini-2.5-flash', provider: 'gemini' }, { id: 'gemini-3.8-flash', provider: 'gemini' }] }).models.length, 2, '展开后去重');
   assert.deepEqual(M.pickModel(reg, 'gemini-2.5-flash', true), { ok: true, model: reg.models[0] });
+  assert.deepEqual(M.pickModel(reg, 'gemini-3.8-flash', true), { ok: true, model: reg.models[1] });
   assert.deepEqual(M.pickModel(reg, 'gemini-9', true), { ok: false });
   const urls = [];
   await withFetch(async (u) => { urls.push(String(u)); return ok('好'); }, async () => {
     const res = await ask({ q: '主题', model: 'gemini-2.5-flash' }, gEnv({}, { default: '@cf/google/gemma-4-26b-a4b-it', models: [{ id: '@cf/google/gemma-4-26b-a4b-it' }, { id: 'gemini-2.5-flash', provider: 'gemini' }] }), { headers: { 'X-Styrigx-Account-Session': '1' } });
-    assert.equal(res.headers.get('X-Styrigx-AI-Model'), 'gemini-3.8-flash');
+    assert.equal(res.headers.get('X-Styrigx-AI-Model'), 'gemini-3.5-flash-lite');
     await res.text();
   });
-  assert.match(urls[0], /\/models\/gemini-3\.8-flash:/);
+  assert.match(urls[0], /\/models\/gemini-3\.5-flash-lite:/);
 });
 
 test('redact：AQ. 格式的钥匙也遮掉；钥匙不进 URL', async () => {

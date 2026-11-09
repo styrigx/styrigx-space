@@ -22,6 +22,15 @@
  *   → searchRejected 放宽成：带工具时任何 4xx（除 429 / 404 / 地区 / 钥匙），不带工具重试一次，并在本 isolate 内 10 分钟不再带工具。
  * - 退役 id（gemini-2.5-flash 等）→ 当前 id（GEMINI_CURRENT）：KV ai:models 是手写的值，优先于 wrangler.toml，里面可能还是旧 id。
  * - 脱敏多认一种钥匙格式 AQ.…（新版 auth key）。
+ *
+ * 2026-11-09 第二轮（fix/ai-gemini-lite）：这把钥匙是免费档，AI Studio 配额页：3.8 / 3.6 / 3 Flash、2.5 Flash 每分钟 5 次、每天 20 次；
+ * 3.5 / 3.1 Flash-Lite 每分钟 15 次、每天 500 次（最宽）；Pro 免费额度 0。所以：
+ * - 主力外部模型改为 gemini-3.5-flash-lite（GEMINI_LITE），3.8 Flash（GEMINI_FLASH）留作第二选项；退役 id 换成这两条。
+ * - 思考档按模型：Flash-Lite 用 minimal（文档：3.5 Flash-Lite 默认就是 minimal，支持 minimal/low/medium/high；发 low 反而多想），
+ *   其余 3.x / 4.x 用 low（3.8 Flash 不支持 minimal）。
+ * - 3.x Flash（非 Lite）429 → 不再退避重试，直接换 Flash-Lite 一次（日志 [ai] gemini fallback）；Flash-Lite 也 429 → code daily_limit
+ *   （错误体明确是每分钟限额时才回 rate_limited，并按原节奏退避重试）。
+ * - 搜索被拒的记忆改为整把钥匙（免费档所有模型都没有搜索 grounding），不再按模型记。
  */
 
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
@@ -34,8 +43,11 @@ export const UPSTREAM_TIMEOUT_MS = 60 * 1000;
  */
 export const GEMINI_TIMING = { firstByteMs: 20 * 1000, backoffMs: [800, 2000], minAttemptMs: 3 * 1000 };
 
-/** 当前的外部模型（docs: https://ai.google.dev/gemini-api/docs/models ，2026-11-09 核对） */
-export const GEMINI_CURRENT = Object.freeze({ id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' });
+/** 外部模型（docs: https://ai.google.dev/gemini-api/docs/models ，2026-11-09 核对）。主力 Flash-Lite（免费档每天 500 次），第二选项 3.8 Flash（每天 20 次） */
+export const GEMINI_LITE = Object.freeze({ id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' });
+export const GEMINI_FLASH = Object.freeze({ id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' });
+/** 退役 id 换成的那条（主力） */
+export const GEMINI_CURRENT = GEMINI_LITE;
 /** 已退役 / 新用户不可用的 id → 换成 GEMINI_CURRENT（KV 里的旧登记、浏览器里存的旧选择都能接着用） */
 export const RETIRED_GEMINI = Object.freeze(['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro']);
 
@@ -47,6 +59,32 @@ export function currentGeminiId(id) {
 /** Gemini 3 及以后（3.x / 4.x…）：用 thinkingLevel 控思考 @param {any} id */
 export function isThinkingLevelModel(id) {
   return /^(?:models\/)?gemini-(?:[3-9]|[1-9]\d)(?:[.-]|$)/.test(String(id || ''));
+}
+
+/** Flash-Lite 系（不含出图的 -image） @param {any} id */
+export function isFlashLite(id) {
+  return /flash-lite(?!-image)/.test(String(id || ''));
+}
+
+/**
+ * 这个模型发什么思考档：Flash-Lite → minimal（它的默认、最省；文档 thinking?generate-content=true 表里 3.5 / 3.1 Flash-Lite 支持 minimal）；
+ * 其余 Gemini 3 / 4 → low（3.8 Flash、4 Argon 不支持 minimal，发了报错）；2.x 及别的 → ''（不发 thinkingConfig）。
+ * @param {any} id @returns {''|'minimal'|'low'}
+ */
+export function thinkingLevelFor(id) {
+  if (!isThinkingLevelModel(id)) return '';
+  return isFlashLite(id) ? 'minimal' : 'low';
+}
+
+/** 429 时换哪个模型（只换一次）：3.x / 4.x 的非 Lite → GEMINI_LITE；Lite 自己和别的 → '' @param {string} id */
+export function quotaFallbackFor(id) {
+  return isThinkingLevelModel(id) && !isFlashLite(id) && id !== GEMINI_LITE.id ? GEMINI_LITE.id : '';
+}
+
+/** 429 的错误体明确说是每分钟限额（等一会儿能好）；否则按每天额度处理 @param {string} text */
+export function perMinuteQuota(text) {
+  const t = String(text || '');
+  return /PerMinute|per[ _-]?minute|RPM\b/i.test(t) && !/PerDay|per[ _-]?day|RPD\b/i.test(t);
 }
 
 /** 外部模型的输出额度：思考也算在 maxOutputTokens 里，至少 4096，封顶 8192 @param {number} n */
@@ -156,16 +194,17 @@ export function retryableUpstream(status, text) {
   return status >= 500 && /UNAVAILABLE|overloaded|INTERNAL/i.test(String(text || ''));
 }
 
-/** 本 isolate 里搜索被拒过的模型 → 到期时间（ms）；期间不带工具，省掉每次先失败一回 */
+/** 本 isolate 里搜索被拒过 → 到期时间（ms）；期间不带工具，省掉每次先失败一回。免费档整把钥匙都没有搜索，所以不分模型（键固定 '*'） */
 const SEARCH_OFF_MS = 10 * 60 * 1000;
 /** @type {Map<string, number>} */
 const searchOff = new Map();
 /** @param {string} model */
 export function searchSuppressed(model) {
-  const until = searchOff.get(model);
+  void model;
+  const until = searchOff.get('*');
   if (until == null) return false;
   if (Date.now() < until) return true;
-  searchOff.delete(model);
+  searchOff.delete('*');
   return false;
 }
 /** 测试用 */
@@ -173,7 +212,7 @@ export function _resetGeminiState() { searchOff.clear(); }
 
 /**
  * core/prompt.js 的消息（system / user / assistant）→ Gemini 请求体。search = true 时带 Google 搜索工具。
- * opt.model 是 Gemini 3 及以后 → thinkingConfig.thinkingLevel = 'low'（不发 thinkingBudget：两者同发会 400）。
+ * opt.model 是 Gemini 3 及以后 → thinkingConfig.thinkingLevel = thinkingLevelFor(model)（Lite minimal，其余 low；不发 thinkingBudget：两者同发会 400）。
  * maxTokens 由调用方传 geminiMaxTokens(...) 之后的值。
  * @param {Array<{role: 'system'|'user'|'assistant', content: string}>} messages
  * @param {number} maxTokens
@@ -187,7 +226,8 @@ export function geminiBody(messages, maxTokens, opt) {
     systemInstruction: { parts: [{ text: sys }] },
     generationConfig: { maxOutputTokens: maxTokens },
   };
-  if (opt && isThinkingLevelModel(opt.model)) body.generationConfig.thinkingConfig = { thinkingLevel: 'low' };
+  const level = opt ? thinkingLevelFor(opt.model) : '';
+  if (level) body.generationConfig.thinkingConfig = { thinkingLevel: level };
   if (opt && opt.search) body.tools = [{ google_search: {} }];
   return body;
 }
@@ -286,7 +326,8 @@ function sleep(ms, signal) {
 
 /**
  * 发请求直到拿到第一段字节（首字前的重试都在这里）：
- * - 429 / 5xx / UNAVAILABLE → 退避重试（GEMINI_TIMING.backoffMs，最多 2 次）；
+ * - 5xx / UNAVAILABLE → 退避重试（GEMINI_TIMING.backoffMs，最多 2 次）；
+ * - 429：能换（quotaFallbackFor）→ 立即换 Flash-Lite 一次（[ai] gemini fallback）；不能换 → 每分钟限额才退避重试，最终 code daily_limit / rate_limited；
  * - 每次尝试首字超时 GEMINI_TIMING.firstByteMs（算重试）；总时限 deadline（调用方给，≤ 60 s）；
  * - 带搜索被拒（searchRejected）→ 不带工具重试一次（不占上面的次数），并在本 isolate 记 10 分钟；
  * - 调用方的 signal abort（浏览器断开 / 总时限）→ 立即停。
@@ -297,9 +338,12 @@ function sleep(ms, signal) {
  *   函数形式：按这次带不带搜索生成（系统提示里「联网来源」那句跟着走）
  * @param {number} maxTokens
  * @param {{ search?: boolean, signal?: AbortSignal, deadline?: number }} [opt]
- * @returns {Promise<{ ok: true, reader: any, search: boolean, attempts: number } | { ok: false, aborted?: boolean, d: any, attempts: number }>}
+ * @returns {Promise<{ ok: true, reader: any, search: boolean, attempts: number, model: string } | { ok: false, aborted?: boolean, d: any, attempts: number, model: string }>}
+ *   model：最后实际用的模型（换过 Flash-Lite 就是它）
  */
-export async function geminiOpen(env, key, model, messages, maxTokens, opt) {
+export async function geminiOpen(env, key, firstModel, messages, maxTokens, opt) {
+  let model = firstModel;
+  let fellBack = false;
   const o = opt || {};
   const outer = o.signal;
   const deadline = typeof o.deadline === 'number' ? o.deadline : Date.now() + UPSTREAM_TIMEOUT_MS;
@@ -310,10 +354,10 @@ export async function geminiOpen(env, key, model, messages, maxTokens, opt) {
   /** @type {any} */
   let last = null;
   for (;;) {
-    if (outer && outer.aborted) return { ok: false, aborted: true, d: { status: 0, code: 'upstream', reason: 'aborted', googleStatus: '', message: '' }, attempts };
+    if (outer && outer.aborted) return { ok: false, aborted: true, d: { status: 0, code: 'upstream', reason: 'aborted', googleStatus: '', message: '' }, attempts, model };
     const remaining = deadline - Date.now();
     if (remaining < GEMINI_TIMING.minAttemptMs) {
-      return { ok: false, d: last || { status: 0, code: 'timeout', reason: 'timeout', googleStatus: '', message: '' }, attempts };
+      return { ok: false, d: last || { status: 0, code: 'timeout', reason: 'timeout', googleStatus: '', message: '' }, attempts, model };
     }
     attempts++;
     const ac = new AbortController();
@@ -340,15 +384,15 @@ export async function geminiOpen(env, key, model, messages, maxTokens, opt) {
           releaseLock() { try { r.releaseLock(); } catch (e) {} },
         };
         opened = true; /* 流式期间调用方的 abort 仍要断上游：监听留着 */
-        return { ok: true, reader, search, attempts };
+        return { ok: true, reader, search, attempts, model };
       }
       status = res.status;
       text = res.ok ? '' : await errText(res);
       clearTimeout(timer);
-      if (res.ok) return { ok: false, d: { status, code: 'upstream', reason: 'no-body', googleStatus: '', message: '' }, attempts };
+      if (res.ok) return { ok: false, d: { status, code: 'upstream', reason: 'no-body', googleStatus: '', message: '' }, attempts, model };
     } catch (e) {
       clearTimeout(timer);
-      if (outer && outer.aborted) return { ok: false, aborted: true, d: { status: 0, code: 'upstream', reason: 'aborted', googleStatus: '', message: '' }, attempts };
+      if (outer && outer.aborted) return { ok: false, aborted: true, d: { status: 0, code: 'upstream', reason: 'aborted', googleStatus: '', message: '' }, attempts, model };
       status = 0;
       text = '';
       last = timedOut
@@ -361,9 +405,28 @@ export async function geminiOpen(env, key, model, messages, maxTokens, opt) {
     if (status && search && !toolRetried && searchRejected(status, text)) {
       toolRetried = true;
       search = false;
-      searchOff.set(model, Date.now() + SEARCH_OFF_MS);
+      searchOff.set('*', Date.now() + SEARCH_OFF_MS);
       console.error('[ai] gemini search tool rejected, retrying without it', JSON.stringify({ model, ...last }));
       continue;
+    }
+    if (status === 429) {
+      const to = fellBack ? '' : quotaFallbackFor(model);
+      if (to) {
+        /* 免费档 3.x Flash 每天只有 20 次：额度用完就换 Flash-Lite（每天 500 次），只换一次，不等 */
+        console.error('[ai] gemini fallback', JSON.stringify({ from: model, to, status, reason: last.reason, googleStatus: last.googleStatus }));
+        model = to;
+        fellBack = true;
+        retries = 0;
+        continue;
+      }
+      const perMinute = perMinuteQuota(text);
+      if (perMinute && retries < GEMINI_TIMING.backoffMs.length) {
+        const wait = GEMINI_TIMING.backoffMs[retries++];
+        console.error('[ai] gemini retry', JSON.stringify({ model, attempt: attempts, wait, status, reason: last.reason, googleStatus: last.googleStatus }));
+        await sleep(wait, outer);
+        continue;
+      }
+      return { ok: false, d: { ...last, code: perMinute ? 'rate_limited' : 'daily_limit' }, attempts, model };
     }
     const again = status ? retryableUpstream(status, text) : true; /* status 0：首字超时 / 网络错 */
     if (again && retries < GEMINI_TIMING.backoffMs.length) {
@@ -372,6 +435,6 @@ export async function geminiOpen(env, key, model, messages, maxTokens, opt) {
       await sleep(wait, outer);
       continue;
     }
-    return { ok: false, d: last, attempts };
+    return { ok: false, d: last, attempts, model };
   }
 }
