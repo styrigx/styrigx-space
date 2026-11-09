@@ -555,11 +555,11 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(rs).toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('NAVIGATE layout：Auto / Mobile / DeX 三档都能选；写 sgx-layout（auto / phone / desktop），即时套用', async ({ page }) => {
+  test('NAVIGATE layout：Mobile / Auto / DeX 三档都能选（2026-11-09 Auto 在中间）；写 sgx-layout（auto / phone / desktop），即时套用', async ({ page }) => {
     await go(page, '/wild/');
     await openNav(page);
     const seg = page.locator('#sgx-nav [data-qp-seg="layout"]');
-    await expect(seg.locator('button')).toHaveText(['Auto', 'Mobile', 'DeX']);
+    await expect(seg.locator('button')).toHaveText(['Mobile', 'Auto', 'DeX']);
     for (const v of ['phone', 'auto', 'desktop']) await expect(seg.locator(`[data-v="${v}"]`)).toBeEnabled();
     await expect(seg.locator('[data-v="dex"], [data-v="mobile"], [data-v="pc"]')).toHaveCount(0);
     await expect(seg.locator('[data-v="auto"]')).toHaveAttribute('aria-pressed', 'true');
@@ -604,14 +604,15 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'desktop'); /* 桌面 UA、宽 ≥ 720 → 自动 = 桌面 */
   });
 
-  test('NAVIGATE lang：EN / 中文 分段（语言名用它自己的写法）；选 EN 写 sgx-lang=en，关面板后去英文同一页，不在历史里多留一步', async ({ page }) => {
+  test('NAVIGATE lang：EN / Auto / 中文 分段（语言名用它自己的写法，Auto 在中间）；选 EN 写 sgx-lang=en，关面板后去英文同一页，不在历史里多留一步', async ({ page }) => {
     await go(page, '/');
     await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('.sgx-topbar')).toBeVisible();
     await openNav(page);
     const seg = page.locator('#sgx-nav [data-qp-langs]');
     await expect(seg).toHaveAttribute('role', 'radiogroup');
-    await expect(seg.locator('[role="radio"]')).toHaveText(['EN', '中文']);
+    await expect(seg.locator('[role="radio"]')).toHaveText(['EN', 'Auto', '中文']);
+    await expect(seg.locator('[role="radio"]').nth(1)).toHaveAttribute('data-qp-lang', 'system');
     await expect(seg.locator('[aria-checked="true"]')).toHaveAttribute('data-qp-lang', 'zh');
     /* 行内分段，不是底部弹出窗口 */
     await expect(page.locator('dialog[open]')).toHaveCount(1);
@@ -625,7 +626,7 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(page).toHaveURL(/localhost:\d+\/(zh\/)?$/);
   });
 
-  test('NAVIGATE lang：选和本页相同的语言 = 只保存、不跳页、面板不关；键盘 ← → 在两段间移动（不保存）', async ({ page }) => {
+  test('NAVIGATE lang：选和本页相同的语言 = 只保存、不跳页、面板不关；键盘 ← → 在三段间移动（不保存）', async ({ page }) => {
     await page.addInitScript(() => { try { if (!sessionStorage.getItem('qp-lang-seeded')) { localStorage.setItem('sgx-lang', 'zh'); sessionStorage.setItem('qp-lang-seeded', '1'); } } catch (e) {} });
     await blockExternalRequests(page);
     await freezeTime(page);
@@ -642,6 +643,8 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(seg.locator('[data-qp-lang="en"]')).toBeFocused();
     await page.keyboard.press('ArrowLeft');
     await expect(seg.locator('[data-qp-lang="zh"]')).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
+    await expect(seg.locator('[data-qp-lang="system"]')).toBeFocused();
     expect(await ls(page, 'sgx-lang')).toBe('zh');
     await expect(nav(page)).toHaveAttribute('data-state', 'open');
   });

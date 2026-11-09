@@ -3,7 +3,9 @@
  * - sgx-lang 未设置（system 模式）时，跟随 navigator.language
  * - 从 / 跳到 /zh/ 后不再跳回（无循环）
  * - 从 /zh/ 跳到 / 后不再跳回（无循环）
- * - 明确设置 sgx-lang=zh/en 时按偏好跳转
+ * - 明确设置 sgx-lang=zh/en 时按偏好跳转（每一页）
+ * - 2026-11-09 Auto：跟随系统只在从站外进主站首页时跳；深链 / 分享地址不跳；navigator.languages 里有 zh* 就是中文；
+ *   NAVIGATE 语言行 EN | Auto | 中文，没存过选择 = Auto 亮；在深链上选 Auto 只保存不跳
  * - 旧的 /en/… 不再是语言前缀：不跳转，直接 404（删除不 301）
  */
 const { test } = require('@playwright/test');
@@ -73,4 +75,61 @@ test('旧的 /en/… 删除不 301：静态站里不存在（线上 404，部署
     const r = await pg.request.get(p, { maxRedirects: 0 });
     expect(r.status(), p).toBe(404);
   }
+});
+
+test('Auto（system）：深链不跳——浏览器英文打开 /zh/wild/、浏览器中文打开 /wild/ 都停在原地', async ({ browser }) => {
+  for (const [locale, path] of [['en-US', '/zh/wild/'], ['zh-CN', '/wild/']]) {
+    const ctx = await browser.newContext({ locale, viewport: { width: 412, height: 915 } });
+    const pg = await ctx.newPage();
+    await blockExternalRequests(pg);
+    await clearLang(pg);
+    await pg.goto(path, { waitUntil: 'domcontentloaded' });
+    await pg.waitForTimeout(1500);
+    expect(new URL(pg.url()).pathname, locale + ' ' + path).toBe(path);
+    await ctx.close();
+  }
+});
+
+test('Auto（system）：navigator.languages 里有 zh*（不在第一位）也算中文，进 / 跳 /zh/ 且不循环', async ({ page: pg, context }) => {
+  await blockExternalRequests(pg);
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'language', { value: 'en-US', configurable: true });
+    Object.defineProperty(navigator, 'languages', { value: ['en-US', 'zh-CN'], configurable: true });
+  });
+  await clearLang(pg);
+  await pg.goto('/', { waitUntil: 'domcontentloaded' });
+  await pg.waitForURL((url) => url.pathname === '/zh/', { timeout: 10000 });
+  await pg.waitForFunction(() => window.location.pathname === '/zh/', { timeout: 3000, polling: 500 });
+});
+
+test('NAVIGATE 语言行：EN | Auto | 中文；深链上选 Auto 写 sgx-lang=system、不跳页，重新载入也不跳', async ({ page: pg }) => {
+  await blockExternalRequests(pg);
+  await pg.addInitScript(() => {
+    try { if (!sessionStorage.getItem('lf-seeded')) { localStorage.setItem('sgx-lang', 'zh'); sessionStorage.setItem('lf-seeded', '1'); } } catch (e) {}
+  });
+  await pg.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
+  await expect(pg.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
+  await pg.locator('.sgx-tb-grid').click();
+  await expect(pg.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
+  const seg = pg.locator('#sgx-nav [data-qp-langs]');
+  await expect(seg.locator('[role="radio"]')).toHaveText(['EN', 'Auto', '中文']);
+  await expect(seg.locator('[aria-checked="true"]')).toHaveAttribute('data-qp-lang', 'zh');
+  await seg.locator('[data-qp-lang="system"]').click();
+  await expect(seg.locator('[aria-checked="true"]')).toHaveAttribute('data-qp-lang', 'system');
+  expect(await pg.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('system');
+  await pg.waitForTimeout(800);
+  expect(new URL(pg.url()).pathname).toBe('/zh/wild/');
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await pg.waitForTimeout(1000);
+  expect(new URL(pg.url()).pathname).toBe('/zh/wild/');
+});
+
+test('NAVIGATE 语言行：没存过选择的访客打开面板 = Auto 亮', async ({ page: pg }) => {
+  await blockExternalRequests(pg);
+  await clearLang(pg);
+  await pg.goto('/wild/', { waitUntil: 'domcontentloaded' });
+  await expect(pg.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
+  await pg.locator('.sgx-tb-grid').click();
+  await expect(pg.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
+  await expect(pg.locator('#sgx-nav [data-qp-langs] [aria-checked="true"]')).toHaveAttribute('data-qp-lang', 'system');
 });

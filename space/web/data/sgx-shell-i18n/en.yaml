@@ -40,6 +40,7 @@ topbar:
   theme: Appearance
   security: Site security
   langKey: lang
+  langAuto: Follow system language
   layoutKey: layout
   shareKey: share
   lockKey: lock

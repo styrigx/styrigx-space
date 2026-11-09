@@ -36,7 +36,8 @@ test('顶栏 v3 控件（四站同一套）：外观面板 = MODE 三段 + PALET
   assert.doesNotMatch(qpHtml + navHtml, /\.tiles\b|\$tiles|\{\{ with \.layout \}\}/, '不按 tiles / layout 参数开关');
   assert.doesNotMatch(base, /\$tbTiles|"tiles"|"layout" \(index/, '主站不再传 tiles / layout');
   /* 语言包化（2026-11-07）：选项 = hugo.yaml languages 的每种语言（短名用它自己的写法、translate="no"），不写死 zh / en */
-  assert.match(navHtml, /\{\{- range sort \.langs "code" \}\}<button type="button" role="radio" data-qp-lang="\{\{ \.code \}\}" lang="\{\{ \.code \}\}"[^>]*translate="no">\{\{ \.short \| default \.name \}\}<\/button>/);
+  /* 2026-11-09：EN | Auto | 中文——Auto（data-qp-lang="system"，跟随浏览器语言）插在第一种语言后面，文字同 layout 行的 Auto（两种语言都是 Auto） */
+  assert.match(navHtml, /\{\{- range \$i, \$l := sort \.langs "code" \}\}\{\{ if eq \$i 1 \}\}<button type="button" role="radio" data-qp-lang="system" aria-checked="false" aria-label="\{\{ \$t\.topbar\.langAuto \}\}" translate="no">\{\{ \$t\.topbar\.auto \}\}<\/button>\{\{ end \}\}<button type="button" role="radio" data-qp-lang="\{\{ \$l\.code \}\}" lang="\{\{ \$l\.code \}\}"[^>]*translate="no">\{\{ \$l\.short \| default \$l\.name \}\}<\/button>/);
   assert.doesNotMatch(navHtml, /"v" "(zh|en)"/);
   assert.match(navHtml, /data-qp-seg="layout"/);
   assert.match(qpJs, /share: mountShare/, '主站也接分享本页');

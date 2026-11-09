@@ -144,20 +144,31 @@ export function langSwitch(want, loc) {
 }
 
 /**
- * 浏览器语言 → 配置里的语言（「跟随系统」用）：先看 navigator.language，再按 navigator.languages 的顺序，取第一个主语言子标签在列表里的（zh-CN → zh），
- * 都不在就是默认语言（英文）。
+ * 浏览器语言 → 配置里的语言（「跟随系统」/ 语言行的 Auto 用；Gray 2026-11-09：navigator.languages 里有任何 zh* 就是中文，否则英文）：
+ * 把 navigator.language 和 navigator.languages 合起来看，按顺序取第一个主语言子标签是「带前缀的语言」（默认语言以外，现在只有 zh）的（zh-CN / zh-TW → zh）；
+ * 一个都没有 = 默认语言（英文）。所以 ['en-US', 'zh-CN'] 也是中文。
  * @param {{ language?: string, userLanguage?: string, languages?: readonly string[] }} [nav]
  * @returns {string}
  */
 export function systemLang(nav) {
   try {
     const n = nav || /** @type {any} */ (typeof navigator !== 'undefined' ? navigator : {});
-    /* navigator.language（首选）在前，再按 navigator.languages 的顺序 */
     const list = [].concat(n.language || n.userLanguage || [], n.languages && n.languages.length ? Array.from(n.languages) : []);
+    const pre = prefixedLangs();
     for (const raw of list) {
       const base = String(raw || '').toLowerCase().split(/[-_]/)[0];
-      if (isLang(base)) return base;
+      if (pre.indexOf(base) >= 0) return base;
     }
   } catch (e) {}
   return DEFAULT_LANG;
+}
+
+/**
+ * 主站首页（/、/zh/ 这类：没有站前缀、去掉语言前缀后就是 /）。Auto（跟随系统）只在进主站首页时换语言，深链 / 子站 / 分享出去的地址都不动。
+ * @param {string} path
+ * @returns {boolean}
+ */
+export function isHomePath(path) {
+  const { site } = split(path);
+  return site === '' && stripLang(String(path || '/')) === '/';
 }

@@ -31,14 +31,14 @@ test('cookie × 主站契约夹具：首帧要的语言 = 夹具 read.lang（是
   assert.equal(cookieLangRaw('sgx-ui=' + enc({ v: 3, lang: 'en' })), '', '未知版本 = 没有 cookie');
 });
 
-test('本站每一页都跳（不只首页）：跟随系统 + 中文浏览器 → /daymark/zh/…；英文浏览器不跳；保留查询串和 #页签', () => {
+test('跟随系统（Auto）在子站不跳（2026-11-09：只在进主站首页 / ↔ /zh/ 时跳，深链 / 分享地址不动）；明确选择每页都跳、保留查询串和 #页签', () => {
   const zhNav = { nav: { language: 'zh-CN', languages: ['zh-CN', 'en'] } };
-  assert.equal(go('system', '/daymark/', { ...zhNav, hash: '#trove' }), '/daymark/zh/#trove');
-  assert.equal(go('system', '/daymark/404.html', zhNav), '/daymark/zh/404.html');
-  assert.equal(go('system', '/daymark/', { ...zhNav, search: '?a=1' }), '/daymark/zh/?a=1');
-  assert.equal(go('system', '/daymark/'), '', '英文浏览器');
-  assert.equal(go('system', '/daymark/zh/', zhNav), '');
-  assert.equal(go('en', '/daymark/zh/', { hash: '#flavors' }), '/daymark/#flavors');
+  assert.equal(go('system', '/daymark/', { ...zhNav, hash: '#x' }), '');
+  assert.equal(go('system', '/daymark/404.html', zhNav), '');
+  assert.equal(go('system', '/daymark/zh/'), '', '英文浏览器也不跳回');
+  assert.equal(go('zh', '/daymark/', { hash: '#x' }), '/daymark/zh/#x');
+  assert.equal(go('zh', '/daymark/', { search: '?a=1' }), '/daymark/zh/?a=1');
+  assert.equal(go('en', '/daymark/zh/', { hash: '#y' }), '/daymark/#y');
   assert.equal(go('en', '/daymark/zh'), '/daymark/');
   assert.equal(go('zh', '/daymark/', { ua: 'Googlebot/2.1' }), '', '爬虫不跳');
 });

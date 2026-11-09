@@ -5,7 +5,9 @@
  * 规则（每一页都一样，不只首页）：
  * 1. 偏好 = localStorage sgx-lang：配置里的语言（en / zh …）= 明确选择；'system' = 跟随系统；旧版存的空 / 没有 = 跟随系统（兼容）。
  *    localStorage 没有明确值时再看主站写的 sgx-ui cookie 的 lang（同一规则；cookie 的 'system' / '' / 没有都 = 跟随系统）。
- * 2. 跟随系统 → systemLang()（navigator.languages 里第一个配置过的语言，都没有 = 英文）。
+ * 2. 跟随系统（快捷面板语言行的 Auto；没存过选择的访客默认就是它）→ systemLang()（navigator.languages 里有 zh* = 中文，否则英文），
+ *    而且只在「从站外进主站首页」（/ ↔ /zh/，isHomePath；referrer 不是本站）时才跳（Gray 2026-11-09）：深链、分享出去的地址、站内点回首页都不跳，
+ *    跳过去的那一页语言已对上，不会来回跳。明确选了 EN / 中文的照旧：每一页都跳到所选语言。
  * 3. 要的语言和本页不同 → location.replace 到同一页的那种语言（保留查询串和 #），不产生历史。
  *    页面声明了自己的语言版本（<meta name="sgx-alt-<语言>" content="…">，博客文章有的只有一种语言）就只去声明过的地址；
  *    声明了但没有那种语言 → 不跳。没声明 → 按 lang-path.js 的 langSwitch 拼。
@@ -15,7 +17,7 @@
  *
  * 同时挂 window.SgxLang（lang-path.js 的函数），给页面里其他经典脚本用。
  */
-import { pathLang, stripLang, langPath, langSwitch, systemLang, langs, isLang } from './lang-path.js';
+import { pathLang, stripLang, langPath, langSwitch, systemLang, langs, isLang, isHomePath } from './lang-path.js';
 
 /** 爬虫 UA（和子站原来的一致） */
 export const BOT_RE = /bot|crawl|spider|slurp|mediapartners|baidu|bingpreview|facebookexternalhit|twitterbot|linkedinbot|embedly|quora|pinterest|slackbot|discordbot|telegrambot|whatsapp|applebot|duckduckbot|yandex|sogou|exabot|semrush|ahrefs/i;
@@ -58,11 +60,12 @@ export function readLangPref(stored, cookieLang) {
 
 /**
  * 首帧要跳去的地址；不跳 → ''。
- * @param {{ pref: string, nav?: any, loc: { pathname: string, search?: string, hash?: string }, alt?: (lang: string) => (string|null), declared?: boolean, ua?: string }} o
- *   alt：页面声明的某语言版本地址；declared：页面有没有声明语言版本
+ * @param {{ pref: string, nav?: any, loc: { pathname: string, search?: string, hash?: string }, alt?: (lang: string) => (string|null), declared?: boolean, ua?: string, internal?: boolean }} o
+ *   alt：页面声明的某语言版本地址；declared：页面有没有声明语言版本；internal：这次是站内点过来的（referrer 同源；跟随系统时不跳）
  */
 export function langBootTarget(o) {
   if (o.ua && BOT_RE.test(o.ua)) return '';
+  if (o.pref === 'system' && (!isHomePath(o.loc.pathname || '/') || o.internal)) return '';
   const want = o.pref === 'system' ? systemLang(o.nav) : o.pref;
   if (!isLang(want)) return '';
   const p = o.loc.pathname || '/';
@@ -85,8 +88,11 @@ export function bootLang(w) {
   try { stored = w.localStorage.getItem('sgx-lang'); } catch (e) {}
   const pref = readLangPref(stored, cookieLangRaw(d.cookie));
   const metas = d.querySelectorAll ? d.querySelectorAll('meta[name^="sgx-alt-"]') : [];
+  let internal = false;
+  try { internal = !!d.referrer && new URL(d.referrer).origin === w.location.origin; } catch (e) {}
   const go = langBootTarget({
     pref,
+    internal,
     nav: w.navigator,
     loc: w.location,
     ua: (w.navigator && w.navigator.userAgent) || '',
@@ -107,6 +113,6 @@ export function bootLang(w) {
 if (typeof window !== 'undefined' && typeof document !== 'undefined' && !(/** @type {any} */ (window)).__sgxLangBoot) {
   const w = /** @type {any} */ (window);
   w.__sgxLangBoot = 1;
-  w.SgxLang = { pathLang, stripLang, langPath, langSwitch, systemLang, langs, isLang, readLangPref };
+  w.SgxLang = { pathLang, stripLang, langPath, langSwitch, systemLang, langs, isLang, isHomePath, readLangPref };
   try { bootLang(w); } catch (e) {}
 }
