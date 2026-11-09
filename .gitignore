@@ -24,8 +24,6 @@ playwright-report/
 emulator-log/
 .wrangler/
 
-# KV 迁移备份（明文；脚本默认写到仓库外，这里兜底）
-kv-backup-*.json
 
 # 旧的拼树输出目录（合站前 space/scripts/assemble.mjs 写的 dist/site/，合站后不再生成）
 dist/
