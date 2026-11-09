@@ -20,7 +20,7 @@ CI 全绿 → PUT merge → 生产部署 run 全绿 → curl 冒烟测试（首�
 
 ## 队列（已停用，仅留作历史记录）
 
-> **2026-10-27 起本队列已停用，不再有定时任务推进。** 最后两项已结清：2.8.0 已合并（PR #39），3.0.0 已取消（PR #108 删除了应用商店）。核对：仓库里没有任何 workflow / cron 读取本文件（`.github/workflows/` 只有 `deploy.yml`：push main / PR / 手动触发；`update-snapshots.yml`：仅手动触发），全仓库也只有 `tests/workers/auth-gateway/old-names.test.mjs` 的注释提到本文件。之后的工作不再记在这里。
+> **2026-10-27 起本队列已停用，不再有定时任务推进。** 最后两项已结清：2.8.0 已合并（PR #39），3.0.0 已取消（PR #108 删除了应用商店）。核对：仓库里没有任何 workflow / cron 读取本文件（`.github/workflows/` 只有 `deploy.yml`：push main / PR / 手动触发；`update-snapshots.yml`：仅手动触发），全仓库也只有 `tests/workers/space-core/old-names.test.mjs` 的注释提到本文件。之后的工作不再记在这里。
 >
 > 以下为当时的推进规则（历史）：定时任务每 30 分钟一轮，取第一个没勾、没标「等用户」/「卡住」的项推进；规则见上方全局标准第 5 条；队列更新跟在对应项的 PR 里一起提交。
 

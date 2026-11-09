@@ -60,11 +60,11 @@ const SITE = ORIGIN + '/curio';
 /** 发请求并等完 waitUntil 里的活 */
 async function call(env, p, { who = 'owner', method = 'GET', body } = {}) {
   const pending = [];
-  const headers = { Cookie: 'sgx-lock-session=x', Origin: ORIGIN };
+  const headers = { Cookie: 'sgx-space-session=x', Origin: ORIGIN };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await worker.fetch(
     new Request(ORIGIN + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }),
-    { AUTH: auth(who), ...env },
+    { SPACE: auth(who), ...env },
     { waitUntil: (x) => pending.push(x) },
   );
   await Promise.all(pending);

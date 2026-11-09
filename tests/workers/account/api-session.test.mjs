@@ -23,9 +23,9 @@ before(keys);
 test('请求本身：跨站 Origin 403 origin；坏 JSON 400 body；非 POST 405；不认识的 action / 旧 action 名 400 action', async () => {
   const env = makeEnv();
   const { api } = await import('./_fixtures.mjs');
-  let r = await api.session.onRequestPost({ request: postReq('https://styrigx.com/api/account/session', { action: 'password' }, { 'X-Styrigx-Lock-Session': '1', Origin: 'https://evil.example' }), env });
+  let r = await api.session.onRequestPost({ request: postReq('https://styrigx.com/api/account/session', { action: 'password' }, { 'X-Styrigx-Space-Session': '1', Origin: 'https://evil.example' }), env });
   assert.equal(r.status, 403);
-  r = await api.session.onRequestPost({ request: new Request('https://styrigx.com/api/account/session', { method: 'POST', headers: { 'X-Styrigx-Lock-Session': '1', Origin: 'https://styrigx.com' }, body: '{' }), env });
+  r = await api.session.onRequestPost({ request: new Request('https://styrigx.com/api/account/session', { method: 'POST', headers: { 'X-Styrigx-Space-Session': '1', Origin: 'https://styrigx.com' }, body: '{' }), env });
   assert.equal((await r.json()).error, 'body');
   r = await api.session.onRequestPost({ request: new Request('https://styrigx.com/api/account/session', { method: 'GET' }), env });
   assert.equal(r.status, 405);
@@ -101,10 +101,10 @@ test('password 限速：同 IP 连错 5 次 → 429 cooldown（冷却中对的�
   assert.equal((await post(env, 'reauth', { action: 'password', password: 'right-password-1' }, await full())).status, 429, '同一 IP 在 reauth 也在冷却');
 });
 
-test('password：缺签名钥匙 503 config；缺账号密码 pepper 503 config（不用网关的 SGX_PW_PEPPER）；限速 D1 出错 503 server', async () => {
+test('password：缺签名钥匙 503 config；缺账号密码 pepper 503 config（不用网关的 SGX_SPACE_PASSWORD_PEPPER）；限速 D1 出错 503 server', async () => {
   let env = makeEnv({ SGX_ACCOUNT_PRIVATE: '' });
   assert.equal((await post(env, 'session', { action: 'password', password: 'x' })).status, 503);
-  env = makeEnv({ SGX_ACCOUNT_PASSWORD_PEPPER: '', SGX_PW_PEPPER: 'gateway-pepper' });
+  env = makeEnv({ SGX_ACCOUNT_PASSWORD_PEPPER: '', SGX_SPACE_PASSWORD_PEPPER: 'gateway-pepper' });
   const r = await post(env, 'session', { action: 'password', password: 'x' });
   assert.equal(r.status, 503);
   assert.equal((await r.json()).error, 'config');

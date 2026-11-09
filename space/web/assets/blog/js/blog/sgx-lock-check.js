@@ -3,7 +3,7 @@
  * 主站「立即锁定」后，已打开的 blog 标签页切回来时自动跳到锁屏。
  *
  * 原理：会话 Cookie 是 HttpOnly，子域名不同源，BroadcastChannel 收不到，
- * 只能由页面在变为可见时主动问服务器 /api/lock-session-check（主站网关 workers/auth-gateway/src/subsites.js 回答）：
+ * 只能由页面在变为可见时主动问服务器 /api/lock-session-check（主站网关 workers/space-core/src/subsites.js 回答）：
  * - 204：会话仍有效，什么都不做
  * - 401 {ok:false, why}：why 只有 no-cookie / invalid-session 两种（与网关页面 302 的 why 同一套）；
  *   跳主站锁屏 https://styrigx.com/?lock=1&why=<why>&return=<当前地址>（参数顺序同网关 lockRedirect）

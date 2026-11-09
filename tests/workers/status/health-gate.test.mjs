@@ -230,8 +230,8 @@ test('deploy.yml：status 部署核对后跑闸门（在最后的回滚步骤之
   assert.equal(g['continue-on-error'], undefined, '闸门失败要让 job 红');
   assert.equal(g.env.BASELINE_UNTIL, '${{ needs.deploy-ai-worker.outputs.started_at }}');
   assert.deepEqual(job.outputs, { health_verdict: '${{ steps.health.outputs.verdict }}', health_failed: '${{ steps.health.outputs.failed }}' });
-  /* 网关等 status：闸门红了网关 / Pages / 账号 / 分享都不部署 */
-  assert.ok(wf.jobs['deploy-auth-worker'].needs.includes('deploy-status-worker'));
+  /* space-core 等 status：闸门红了 space-core / Pages / 账号都不部署 */
+  assert.ok(wf.jobs['deploy-space-core'].needs.includes('deploy-status-worker'));
 });
 
 test('deploy.yml：ai 导出部署前版本和开始部署的时刻（在部署之前记）', () => {

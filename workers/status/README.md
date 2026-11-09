@@ -14,7 +14,7 @@
 
 | 入口 | 谁调 | 做什么 |
 |---|---|---|
-| `GET /summary` | 网关 `styrigx-auth-gateway` 的服务绑定 `STATUS`（浏览器请求 `/api/status`，网关先验会话） | 200 站点状态 + 用量 + 额度；库不可用 503 `{ ok:false, error:'db' }`；其他路径 404、方法不对 405 |
+| `GET /summary` | 网关 `styrigx-space-core` 的服务绑定 `STATUS`（浏览器请求 `/api/status`，网关先验会话） | 200 站点状态 + 用量 + 额度；库不可用 503 `{ ok:false, error:'db' }`；其他路径 404、方法不对 405 |
 | Cron `* * * * *` | Cloudflare | 每分钟一轮检查（`monitor.js runOnce`） |
 | Cron `41 * * * *` | Cloudflare | 每小时读一次 Cloudflare 用量（`usage.js runUsage`） |
 

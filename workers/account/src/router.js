@@ -30,7 +30,7 @@ import * as accountKeys from './api/account/keys.js';
 import * as accountDevices from './api/account/devices.js';
 import * as accountGrants from './api/account/grants.js';
 
-/** 接口路由表（只经 AccountService 用；网关转发表 workers/auth-gateway/src/router.js FORWARDING 里的 /api/* 路径与这里一一对应） */
+/** 接口路由表（只经 AccountService 用；网关转发表 workers/space-core/src/router.js FORWARDING 里的 /api/* 路径与这里一一对应） */
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([
   ['/api/account', accountStatus],

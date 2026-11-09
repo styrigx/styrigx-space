@@ -113,7 +113,7 @@ test('免费额度常量（2026-10-22 对过文档）：Workers 10 万次/天、
   assert.doesNotMatch(toml, /SGX_CF_USAGE_TOKEN\s*=/);
   assert.doesNotMatch(toml, /CF_ACCOUNT_ID\s*=/);
   /* token 走 Secrets Store：同鉴权网关的 store，secret_name 固定 */
-  const gw = readFileSync(new URL('../../../workers/auth-gateway/wrangler.toml', import.meta.url), 'utf8');
+  const gw = readFileSync(new URL('../../../workers/space-core/wrangler.toml', import.meta.url), 'utf8');
   const storeId = gw.match(/store_id = "([0-9a-f]+)"/)[1];
   assert.match(toml, new RegExp('\\[\\[secrets_store_secrets\\]\\]\\s*binding = "SGX_CF_USAGE_TOKEN"\\s*store_id = "' + storeId + '"\\s*secret_name = "SGX_CF_USAGE_TOKEN"'));
 });

@@ -6,7 +6,7 @@
  * - epoch：session 纪元（account_epoch name='session'；改钥匙、全部退出、reset finish 登出时 +1）
  * - authAt：本次登录验证时刻；纪元推进后重签时保留原值
  * - deviceId：本次登录的设备（core/devices.js；单独退出后 reason=revoked）
- * 与进站会话（sgx-lock-session）完全独立：进站会话从不被当作账号登录。
+ * 与进站会话（sgx-space-session）完全独立：进站会话从不被当作账号登录。
  *
  * 缺 SGX_ACCOUNT_PRIVATE / PUBLIC：签发 503 config（signingMissing），验证一律失败（no-pubkey）；只影响账号，网站其余部分不受影响。
  *

@@ -33,14 +33,14 @@
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node space/scripts/migrate-kv-to-d1.mjs --dry-run   读 KV、读 D1 的标记，打印计划（只有计数，不打印值）
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node space/scripts/migrate-kv-to-d1.mjs             建表（CREATE ... IF NOT EXISTS）+ 写入
  *   CF_API_TOKEN=… CF_ACCOUNT_ID=… node space/scripts/migrate-kv-to-d1.mjs --verify    核对：计划里的每一行都在 D1 里
- * 选项：--auth-kv <namespace id>（默认 b796097c…）、--auth-d1 <database id>（默认 workers/auth-gateway/wrangler.toml 的 D1_LOCK_AUTH，
+ * 选项：--auth-kv <namespace id>（默认 b796097c…）、--auth-d1 <database id>（默认 workers/space-core/wrangler.toml 的 D1_SPACE，
  *   即 styrigx-auth-gateway 6931d1da-…）；--preview：库 id 改读 space/web/wrangler.toml [env.preview]（测试专用库 styrigx-test-preview），
  *   这时 --auth-kv 必须显式给（预览网关不绑 KV，没有默认的源）。CF_API_BASE 可指向 tests/space/e2e/helpers/preview-emulator.cjs 本地跑。
  * Token 权限：Account → Workers KV Storage: Read（读 KV）+ D1: Edit（建表、写入；--dry-run / --verify 只读也要 D1 读）。
  */
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { SCHEMA } from '../../workers/auth-gateway/src/core/d1-state.js';
+import { SCHEMA } from '../../workers/space-core/src/core/d1-state.js';
 
 export const AUTH_KV_NAMESPACE = 'b796097c90104000992b7713f61e16ea';
 /** 账号会话 400 天（device 行的默认 expires_at，同 realms.js REALM_ACCOUNT.maxAge） */
@@ -365,9 +365,9 @@ async function main(argv) {
   if (!token || !account) throw new Error('CF_API_TOKEN and CF_ACCOUNT_ID are required');
   const ns = opt(argv, 'auth-kv') || (preview ? '' : AUTH_KV_NAMESPACE);
   if (!/^[0-9a-f]{32}$/.test(ns)) throw new Error('--auth-kv <namespace id> is required with --preview');
-  const toml = readFileSync(repo + (preview ? 'space/web/wrangler.toml' : 'workers/auth-gateway/wrangler.toml'), 'utf8');
-  const dbId = opt(argv, 'auth-d1') || d1IdOf(toml, 'D1_LOCK_AUTH');
-  if (!dbId) throw new Error('auth D1 database id not found (D1_LOCK_AUTH)');
+  const toml = readFileSync(repo + (preview ? 'space/web/wrangler.toml' : 'workers/space-core/wrangler.toml'), 'utf8');
+  const dbId = opt(argv, 'auth-d1') || d1IdOf(toml, 'D1_SPACE');
+  if (!dbId) throw new Error('auth D1 database id not found (D1_SPACE)');
   const api = cfApi({ base: (process.env.CF_API_BASE || 'https://api.cloudflare.com/client/v4').replace(/\/+$/, ''), token, account });
   console.log(`${mode}: KV ${ns} → D1 ${dbId}${preview ? ' (preview)' : ''}`);
   const kv = await readKv(api, ns);

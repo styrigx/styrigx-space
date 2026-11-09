@@ -1,10 +1,10 @@
 // workers/curio-core/src/api/_auth.js
 // 接口鉴权（方案 3.4 R14、4.6；P2-2）：本 Worker 不持任何钥匙，把浏览器带来的 Cookie 头交给主站鉴权网关，
-// 问一次结论（服务绑定 env.AUTH → styrigx-auth-gateway 的 RPC 入口 AuthVerifier 的 conclusion()）：
-//   { lock: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }
+// 问一次结论（服务绑定 env.SPACE → styrigx-space-core 的 RPC 入口 SpaceVerifier 的 conclusion()）：
+//   { space: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }
 // 网关先验门（进站会话），进了门再问账号 Worker（账号会话、作用域、要的话再看账号复验票），只回结论。
 // 本文件只认结论：
-//   - 进门：lock.ok（没进门 401 unauthorized，index.js 统一挡）
+//   - 进门：space.ok（没进门 401 unauthorized，index.js 统一挡）
 //   - 读私密：account.ok（canReadPrivate）
 //   - 写：account.ok + 作用域 curio.write（can / requireScope）；批量导入另要 account.reauth
 // 错误码（方案 4.6）：没进门 401 unauthorized；没账号会话 401 account；没作用域 403 scope（带 scope 字段）；
@@ -20,7 +20,7 @@ const SCOPE_RE = /^[a-z]+\.[a-z]+$/;
 const MAX_UA = 512;
 
 function gateway(env) {
-  const a = env && env.AUTH;
+  const a = env && env.SPACE;
   return a && typeof a.conclusion === 'function' ? a : null;
 }
 
@@ -37,24 +37,24 @@ function clientContextOf(request) {
 
 /** 没有任何权限的结论 */
 export const DENIED = Object.freeze({
-  lock: Object.freeze({ ok: false }),
+  space: Object.freeze({ ok: false }),
   account: Object.freeze({ ok: false, scopes: Object.freeze([]), reauth: false }),
 });
 
 /**
- * 网关回答 → 本 Worker 用的结论（白名单）：lock.ok / account.ok / account.reauth 只认 true；
- * scopes 只留合格式的字符串；lock.ok 不是 true 时账号部分一律当没有（进门是前置）。
+ * 网关回答 → 本 Worker 用的结论（白名单）：space.ok / account.ok / account.reauth 只认 true；
+ * scopes 只留合格式的字符串；space.ok 不是 true 时账号部分一律当没有（进门是前置）。
  * @param {any} r
- * @returns {{lock:{ok:boolean}, account:{ok:boolean, scopes:string[], reauth:boolean}}}
+ * @returns {{space:{ok:boolean}, account:{ok:boolean, scopes:string[], reauth:boolean}}}
  */
 export function normalizeConclusion(r) {
-  const lockOk = !!(r && r.lock && r.lock.ok === true);
+  const lockOk = !!(r && r.space && r.space.ok === true);
   if (!lockOk) return DENIED;
   const a = r.account;
   const accOk = !!(a && a.ok === true && Array.isArray(a.scopes));
-  if (!accOk) return { lock: { ok: true }, account: DENIED.account };
+  if (!accOk) return { space: { ok: true }, account: DENIED.account };
   const scopes = a.scopes.filter((s) => typeof s === 'string' && SCOPE_RE.test(s));
-  return { lock: { ok: true }, account: { ok: true, scopes, reauth: a.reauth === true } };
+  return { space: { ok: true }, account: { ok: true, scopes, reauth: a.reauth === true } };
 }
 
 /**
@@ -66,7 +66,7 @@ export function normalizeConclusion(r) {
 export async function askConclusion(request, env, opts) {
   const auth = gateway(env);
   if (!auth) {
-    console.error('[curio-auth] AUTH binding missing');
+    console.error('[curio-auth] SPACE binding missing');
     throw new Error('auth-binding-missing');
   }
   const want = { reauth: !!(opts && opts.reauth === true) };
@@ -94,7 +94,7 @@ export async function conclusionOf(context, opts) {
 
 /** 能看私密内容吗：账号会话有效 */
 export function canReadPrivate(c) {
-  return !!(c && c.lock && c.lock.ok === true && c.account && c.account.ok === true);
+  return !!(c && c.space && c.space.ok === true && c.account && c.account.ok === true);
 }
 
 /** 有这个作用域吗：账号会话有效 + 已授权该作用域 */
@@ -111,7 +111,7 @@ export function can(c, scope) {
  */
 export async function requireScope(context, scope, { reauth = false } = {}) {
   const c = await conclusionOf(context, { reauth });
-  if (!c.lock.ok) return { response: err('unauthorized', 401) };
+  if (!c.space.ok) return { response: err('unauthorized', 401) };
   if (!c.account.ok) return { response: err('account', 401) };
   if (!can(c, scope)) return { response: json({ ok: false, error: 'scope', scope }, 403) };
   if (reauth && c.account.reauth !== true) return { response: err('reauth', 401) };
@@ -124,7 +124,7 @@ export async function requireScope(context, scope, { reauth = false } = {}) {
  */
 export async function requireAccount(context) {
   const c = await conclusionOf(context);
-  if (!c.lock.ok) return { response: err('unauthorized', 401) };
+  if (!c.space.ok) return { response: err('unauthorized', 401) };
   if (!c.account.ok) return { response: err('account', 401) };
   return { response: null, conclusion: c };
 }

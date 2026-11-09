@@ -73,7 +73,7 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 flowchart LR
   V([浏览器]) --> GW
   subgraph CF[Cloudflare]
-    GW[styrigx-auth-gateway<br/>styrigx.com/*]
+    GW[styrigx-space-core<br/>styrigx.com/*]
     SH[styrigx-share<br/>/s/* · /api/share*]
     CC[styrigx-curio-core<br/>/curio/api/*]
     DC[styrigx-daymark-core<br/>/daymark/api/*]
@@ -91,7 +91,7 @@ flowchart LR
 
 | Worker | 职责 | 入口 |
 |---|---|---|
-| `styrigx-auth-gateway` | 进站会话的签发与校验、锁屏凭证与临时钥匙接口；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages | `styrigx.com/*` |
+| `styrigx-space-core` | 进站会话的签发与校验、锁屏凭证与临时钥匙接口；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages | `styrigx.com/*` |
 | `styrigx-account` | 账号系统：密码、通行密钥、设备、账号根密钥、头像、云同步、数字健康 | 只走网关服务绑定，无公开路由 |
 | `styrigx-share` | 分享短链与管理接口 | `styrigx.com/s/*`、`styrigx.com/api/share*` |
 | `styrigx-ai` | 站内对话助手：KV 索引召回 + 模型回答（Workers AI / Gemini），不存对话 | 只走网关服务绑定 |

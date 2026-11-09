@@ -24,8 +24,8 @@ let t; // { kv, env, origin, mintAuth, makeAttestationCredential, close }
 async function mintBrowserAuth(context, reauthBy) {
   const { sessionCookie, reauthCookie } = await t.mintAuth(reauthBy);
   await context.addCookies([
-    { name: 'sgx-lock-session', value: sessionCookie, domain: 'localhost', path: '/' },
-    { name: 'sgx-lock-reauth', value: reauthCookie, domain: 'localhost', path: '/' },
+    { name: 'sgx-space-session', value: sessionCookie, domain: 'localhost', path: '/' },
+    { name: 'sgx-space-reauth', value: reauthCookie, domain: 'localhost', path: '/' },
   ]);
 }
 
@@ -131,7 +131,7 @@ test.describe('credential APIs 真请求 e2e', () => {
     r = await apiFetch(page, '/api/account/session', { action: 'password', password: 'AccountPass-333' });
     expect(r.json.ok).toBe(true);
     // 锁屏凭证的门：账号 reauth 票不能开锁屏的门（去掉上面签的 LockReauthTicket 后 status valid=false）
-    await context.clearCookies({ name: 'sgx-lock-reauth' });
+    await context.clearCookies({ name: 'sgx-space-reauth' });
     r = await apiFetch(page, '/api/lock-reauth', { action: 'status' });
     expect(r.json.ok).toBe(true);
     expect(r.json.valid).toBe(false);

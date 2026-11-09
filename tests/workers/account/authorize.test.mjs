@@ -181,7 +181,7 @@ test('authorize：纪元变了 → epoch-changed（同一张票，账号库纪�
 test('authorize：没 cookie / 格式错 / 别的钥匙签 / 缺公钥 / 账号库出错 → 各自原因代号，不抛', async () => {
   const env = makeEnv();
   assert.deepEqual(await authz.authorize(env, reqWith({})), NO('no-cookie'));
-  assert.deepEqual(await authz.authorize(env, reqWith({ 'sgx-lock-session': 'x' })), NO('no-cookie'), '进站会话不算');
+  assert.deepEqual(await authz.authorize(env, reqWith({ 'sgx-space-session': 'x' })), NO('no-cookie'), '进站会话不算');
   assert.deepEqual(await authz.authorize(env, reqWith({ 'sgx-account-session': 'garbage' })), NO('bad-format'));
   assert.deepEqual(await authz.authorize(env, reqWith({ 'sgx-account-session': await accSession('password', 0, Date.now(), { priv: K.OTHER.priv }) })), NO('bad-sig'));
   assert.deepEqual(await authz.authorize(makeEnv({ SGX_ACCOUNT_PUBLIC: '' }), reqWith({ 'sgx-account-session': await accSession() })), NO('no-pubkey'));

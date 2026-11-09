@@ -11,7 +11,7 @@
  *
  * 模拟的东西：
  * - 网关 + 账号 Worker：组合入口 tests/space/e2e/helpers/preview-worker.js（和 CI 打成预览 _worker.js 的是同一个文件：网关
- *   workers/auth-gateway/src/app.js + 账号 workers/account/src/rpc/ 的 AccountService / AccountVerifier 实现，
+ *   workers/space-core/src/app.js + 账号 workers/account/src/rpc/ 的 AccountService / AccountVerifier 实现，
  *   网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器），SGX_ENV=preview，env.ASSETS 读 space/web/public（先 hugo 构建生产版）。
  *   cloudflare:workers 用 tests/workers/account/_cf-workers.mjs 的替身。
  * - KV：网关不再绑定 KV（2026-10-27 起认证状态全在 D1）。内存 KV 只留给 Cloudflare KV REST（space/scripts/migrate-kv-to-d1.mjs
@@ -19,8 +19,8 @@
  * - 「读到旧值」（--stale-ms N [--stale-keys 前缀,前缀]）：以前用来复现 KV 写后读不到；网关已经不读 KV，这个选项只对
  *   appKV（现在没人用）生效，保留是为了和以前的运行方式一致（staleReads 应为 0）。D1 强一致，不模拟旧值。
  * - D1：node:sqlite 内存库（预览测试库 styrigx-test-preview 的替身，只建网关的表），实现网关用到的 prepare().bind().run() / first() / all()
- *   和 batch()（一个事务，任何一条失败整批回滚，同 D1）。D1_LOCK_AUTH（网关）、D1_ACCOUNT（账号）绑同一个库（同预览 wrangler.toml）。
- *   启动时按文件名顺序先跑 workers/auth-gateway/migrations/*.sql、再跑 workers/account/migrations/*.sql（同 CI 的「Apply D1 migrations to preview」）；
+ *   和 batch()（一个事务，任何一条失败整批回滚，同 D1）。D1_SPACE（网关）、D1_ACCOUNT（账号）绑同一个库（同预览 wrangler.toml）。
+ *   启动时按文件名顺序先跑 workers/space-core/migrations/*.sql、再跑 workers/account/migrations/*.sql（同 CI 的「Apply D1 migrations to preview」）；
  *   --no-migrations 不跑，模拟正式网关（部署 job 不跑迁移，表由 d1-state.js 遇到 no such table 时自建）。
  *   /__kv/stats 的 d1 一栏按语句类型（select / insert / update / delete / other）记数。
  * - Cloudflare KV REST：/client/v4/accounts/<a>/storage/kv/namespaces/<id>/values/<key>（GET/PUT/DELETE）、/keys（列表，
@@ -32,8 +32,8 @@
  *
  * 运行：
  *   node tests/space/e2e/helpers/preview-emulator.cjs [--port 8788] [--state /tmp/pv-kv.json] [--space-key K] [--recovery-key R] [--pepper P] [--account-pepper Q] [--stale-ms N [--stale-keys …]] [--no-migrations]
- *   --space-key = 网关的进站凭证 SGX_LOCK_SPACE_KEY；--recovery-key = 账号 Worker 的恢复密钥 SGX_ACCOUNT_RECOVERY_KEY（两把不同）；
- *   --pepper = 网关锁屏密码的 SGX_PW_PEPPER；--account-pepper = 账号密码的 SGX_ACCOUNT_PASSWORD_PEPPER（命名 v2 起两个 pepper 分开）。
+ *   --space-key = 网关的进站凭证 SGX_SPACE_RECOVERY_KEY；--recovery-key = 账号 Worker 的恢复密钥 SGX_ACCOUNT_RECOVERY_KEY（两把不同）；
+ *   --pepper = 网关锁屏密码的 SGX_SPACE_PASSWORD_PEPPER；--account-pepper = 账号密码的 SGX_ACCOUNT_PASSWORD_PEPPER（命名 v2 起两个 pepper 分开）。
  *   --state：启动时从该文件恢复 KV 和 D1 全部表（模拟「上一次运行留下的预览 KV / D1」），退出（SIGINT/SIGTERM）时写回。
  *   然后：SGX_TEST_SUITE=passkey SGX_TEST_BASE=http://localhost:8788 SGX_TEST_SPACE_KEY=K SGX_TEST_RECOVERY_KEY=R \
  *         SGX_TEST_CF_API=http://127.0.0.1:8788/client/v4 SGX_TEST_CF_TOKEN=x SGX_TEST_CF_ACCOUNT=x SGX_TEST_PREVIEW_D1_ID=local CI=1 \
@@ -154,7 +154,7 @@ const appKV = {
 const { DatabaseSync } = require('node:sqlite');
 const db = new DatabaseSync(':memory:');
 /* 同 CI「Apply D1 migrations to preview」的顺序：网关（space/web/wrangler.toml）→ 账号（workers/account/wrangler.toml [env.preview]） */
-const MIGRATIONS = [path.join(REPO, 'workers/auth-gateway/migrations'), path.join(REPO, 'workers/account/migrations')];
+const MIGRATIONS = [path.join(REPO, 'workers/space-core/migrations'), path.join(REPO, 'workers/account/migrations')];
 function applyMigrations() {
   for (const dir of MIGRATIONS) {
     for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.sql')).sort()) db.exec(fs.readFileSync(path.join(dir, f), 'utf8'));
@@ -332,10 +332,10 @@ async function main() {
   const env = {
     SGX_ENV: 'preview', SGX_SITE: 'space', SGX_ORIGIN: origin, SGX_RP_ID: 'localhost',
     /* 不绑 KV（同预览 wrangler.toml）；两个 D1 绑定接同一个库。组合入口按绑定拆给网关 / 账号两半（preview-worker.js） */
-    D1_LOCK_AUTH: d1, D1_ACCOUNT: d1,
-    SGX_LOCK_PRIVATE: await pem(lkp.privateKey, 'pkcs8', 'PRIVATE KEY'), SGX_LOCK_PUBLIC: await pem(lkp.publicKey, 'spki', 'PUBLIC KEY'),
+    D1_SPACE: d1, D1_ACCOUNT: d1,
+    SGX_SPACE_PRIVATE: await pem(lkp.privateKey, 'pkcs8', 'PRIVATE KEY'), SGX_SPACE_PUBLIC: await pem(lkp.publicKey, 'spki', 'PUBLIC KEY'),
     SGX_ACCOUNT_PRIVATE: await pem(akp.privateKey, 'pkcs8', 'PRIVATE KEY'), SGX_ACCOUNT_PUBLIC: await pem(akp.publicKey, 'spki', 'PUBLIC KEY'),
-    SGX_LOCK_SPACE_KEY: SPACE_KEY, SGX_ACCOUNT_RECOVERY_KEY: RECOVERY_KEY, SGX_PW_PEPPER: PEPPER, SGX_ACCOUNT_PASSWORD_PEPPER: ACCOUNT_PEPPER,
+    SGX_SPACE_RECOVERY_KEY: SPACE_KEY, SGX_ACCOUNT_RECOVERY_KEY: RECOVERY_KEY, SGX_SPACE_PASSWORD_PEPPER: PEPPER, SGX_SPACE_TEMPKEY_PEPPER: PEPPER, SGX_ACCOUNT_PASSWORD_PEPPER: ACCOUNT_PEPPER,
     ASSETS: { fetch: (input, init) => assets(input instanceof Request ? input : new Request(input, init)) },
   };
 

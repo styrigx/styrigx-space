@@ -1,10 +1,10 @@
 /**
  * passkey-e2e 预览的组合入口（只给 CI 和本地模拟器用，绝不部署成正式 Worker；账号拆分 PR3）。
  *
- * 正式环境是两个 Worker：网关 styrigx-auth-gateway 经服务绑定 ACCOUNT（AccountService）/ ACCOUNT_VERIFIER（AccountVerifier）
+ * 正式环境是两个 Worker：网关 styrigx-space-core 经服务绑定 ACCOUNT（AccountService）/ ACCOUNT_VERIFIER（AccountVerifier）
  * 调账号 Worker styrigx-account。预览只有一个 Pages 项目（passkey-e2e.styrigx-space.pages.dev），它的 _worker.js 只能是一个脚本，
  * 所以这里把两边仓库里的真实代码装进同一个脚本：
- * - 网关那一半 = workers/auth-gateway/src/app.js 的 default.fetch（剥头、门、转发表、锁屏接口全是正式代码）；
+ * - 网关那一半 = workers/space-core/src/app.js 的 default.fetch（剥头、门、转发表、锁屏接口全是正式代码）；
  * - 账号那一半 = workers/account/src/rpc/account-service.js 的 serviceFetch（AccountService.fetch 的实现）和 rpc/account-verifier.js 的 checkAuthorize
  *   （AccountVerifier.authorize 的实现），包成和服务绑定同形状的进程内适配器，挂到网关 env 的 ACCOUNT / ACCOUNT_VERIFIER 上。
  *
@@ -19,7 +19,7 @@
  * 打包：deploy.yml「Bundle preview _worker.js」用 wrangler deploy --dry-run 打这个文件；本地模拟器 preview-emulator.cjs 直接 import。
  * cloudflare:workers 由 rpc/*.js 引入（WorkerEntrypoint，这里不用）；node 里由 tests/workers/account/_cf-workers.mjs 提供替身。
  */
-import gateway from '../../../../workers/auth-gateway/src/app.js';
+import gateway from '../../../../workers/space-core/src/app.js';
 import { serviceFetch } from '../../../../workers/account/src/rpc/account-service.js';
 import { checkAuthorize } from '../../../../workers/account/src/rpc/account-verifier.js';
 

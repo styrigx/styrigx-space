@@ -11,12 +11,12 @@
 import { wrap, testAccountSession } from './_auth.mjs';
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { testLockSession } from '../auth-gateway/_tickets.mjs';
+import { testLockSession } from '../space-core/_tickets.mjs';
 import { makeKV, genKeyPair, authD1For, forbiddenKV } from '../_harness.mjs';
 import { makeAccountD1, splitD1 } from './_d1.mjs';
 
 const PREFS = '../../../workers/account/src/api/prefs.js';
-const KERNEL = '../../../workers/auth-gateway/src/core/';
+const KERNEL = '../../../workers/space-core/src/core/';
 
 let LOCK, ACCOUNT, OTHER;
 const PEPPER = 'test-pepper-acc';
@@ -33,9 +33,9 @@ function envFor(kv, overrides = {}) {
   return {
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, /* 只给网关替身当认证库导入来源；账号 Worker 不读 */
     D1_ACCOUNT: accountD1For(kv), /* 账号 Worker：session、授权、settings_sync 同一个库 */
-    D1_LOCK_AUTH: authD1For(kv), /* 网关这一跳验进站会话 */
-    SGX_LOCK_PRIVATE: LOCK.priv,
-    SGX_LOCK_PUBLIC: LOCK.pub,
+    D1_SPACE: authD1For(kv), /* 网关这一跳验进站会话 */
+    SGX_SPACE_PRIVATE: LOCK.priv,
+    SGX_SPACE_PUBLIC: LOCK.pub,
     SGX_ACCOUNT_PRIVATE: ACCOUNT.priv,
     SGX_ACCOUNT_PUBLIC: ACCOUNT.pub,
     SGX_ACCOUNT_PASSWORD_PEPPER: PEPPER,
@@ -85,7 +85,7 @@ async function prefsCall(kv, method, body, cookieObj, origin, envOverrides) {
   return await m.onRequestPost({ request: req, env });
 }
 async function adminCo() {
-  return { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket() };
+  return { 'sgx-space-session': await adminSess(), 'sgx-account-session': await accTicket() };
 }
 
 /* 测试钥匙：before 里生成（不算一条用例，单独跑某条用例时也会先执行） */
@@ -103,21 +103,21 @@ test('进站会话 + 账号会话 + prefs.sync：没有进站会话 401 session�
   assert.equal(noLock.status, 401);
   assert.equal((await noLock.json()).error, 'session');
   const sess = await adminSess();
-  const r = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess });
+  const r = await prefsCall(kv, 'GET', null, { 'sgx-space-session': sess });
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');
   /* 账号票签名不对 → 401 account */
-  const bad = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess, 'sgx-account-session': await accTicket('password', Date.now(), 0, OTHER.priv) });
+  const bad = await prefsCall(kv, 'GET', null, { 'sgx-space-session': sess, 'sgx-account-session': await accTicket('password', Date.now(), 0, OTHER.priv) });
   assert.equal(bad.status, 401);
   assert.equal((await bad.json()).error, 'account');
   /* 过渡期：临时钥匙进站会话（网关 role 门 P2-3 前还会挡 /api/prefs）在账号 Worker 这一层只看进站会话 + 账号会话 */
   const vis = await visitorSess();
-  assert.equal((await prefsCall(kv, 'GET', null, { 'sgx-lock-session': vis, 'sgx-account-session': await accTicket() })).status, 200);
-  const ok = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': sess, 'sgx-account-session': await accTicket() });
+  assert.equal((await prefsCall(kv, 'GET', null, { 'sgx-space-session': vis, 'sgx-account-session': await accTicket() })).status, 200);
+  const ok = await prefsCall(kv, 'GET', null, { 'sgx-space-session': sess, 'sgx-account-session': await accTicket() });
   assert.equal(ok.status, 200);
   assert.deepEqual((await ok.json()).items, {});
   /* POST 同一道门 */
-  const pNo = await prefsCall(kv, 'POST', { changes: { 'sgx-theme': { v: 'dark', t: Date.now() - 1000 } } }, { 'sgx-lock-session': sess });
+  const pNo = await prefsCall(kv, 'POST', { changes: { 'sgx-theme': { v: 'dark', t: Date.now() - 1000 } } }, { 'sgx-space-session': sess });
   assert.equal(pNo.status, 401);
   assert.equal((await pNo.json()).error, 'account');
 });
@@ -144,7 +144,7 @@ test('没作用域 prefs.sync → 403 scope（gate.scopeDenial，带 scope 字�
 
 test('POST 合并：逐项新的赢；旧的不覆盖；非 sgx- key / 未来时间 / 超长值丢掉', async () => {
   const kv = makeKV();
-  const co = { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket() };
+  const co = { 'sgx-space-session': await adminSess(), 'sgx-account-session': await accTicket() };
   const now = Date.now();
   let r = await prefsCall(kv, 'POST', { changes: {
     'sgx-theme-mode': { v: 'dark', t: now - 1000 },
@@ -167,7 +167,7 @@ test('POST 合并：逐项新的赢；旧的不覆盖；非 sgx- key / 未来时
 
 test('POST 跨源 → 拒绝', async () => {
   const kv = makeKV();
-  const co = { 'sgx-lock-session': await adminSess(), 'sgx-account-session': await accTicket() };
+  const co = { 'sgx-space-session': await adminSess(), 'sgx-account-session': await accTicket() };
   const r = await prefsCall(kv, 'POST', { changes: {} }, co, 'https://evil.example');
   assert.equal(r.status, 403);
 });
@@ -176,7 +176,7 @@ test('被单独退出的设备（revoked）不能同步', async () => {
   const kv = makeKV();
   const t = await testAccountSession(ACCOUNT.priv, 'password', 0, Date.now(), undefined, 'AAAAAAAAAAAAAAAA');
   accountD1For(kv).raw.prepare("INSERT INTO account_device (device_id, record, last_seen, revoked_at, expires_at) VALUES ('AAAAAAAAAAAAAAAA', '{}', 0, 1, ?)").run(Date.now() + 86400000);
-  const r = await prefsCall(kv, 'GET', null, { 'sgx-lock-session': await adminSess(), 'sgx-account-session': t });
+  const r = await prefsCall(kv, 'GET', null, { 'sgx-space-session': await adminSess(), 'sgx-account-session': t });
   assert.equal(r.status, 401);
 });
 

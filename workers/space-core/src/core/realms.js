@@ -1,0 +1,180 @@
+/**
+ * 锁屏凭证域（realm='lock'）与三张锁屏票的配置：用哪把签名钥匙、发什么 cookie、数据在 D1 的哪一行（realm 列）。
+ *
+ * 账号拆分 PR3（方案第 2、6.2、8 节）：网关只管锁屏。账号密码 / 账号通行密钥、账号三张票（session / reauth / reset）、账号纪元、恢复密钥
+ * 全在账号 Worker styrigx-account（workers/account/src/core/config.js）；网关不读账号的表、不持账号钥匙。
+ * 原来的根域 REALM_ROOT 和 BY_ACCOUNT 删除：进站凭证并入 REALM_LOCK（spaceKey = 'SGX_SPACE_RECOVERY_KEY'，spaceIssues = 两张锁屏短票）。
+ *
+ * 钥匙概念名：
+ * - SpaceKey：进站凭证（SGX_SPACE_RECOVERY_KEY）：只用来比对，验过后签 LockReauthTicket / LockResetTicket，不拥有会话
+ * - LockKey：「安全与隐私 → 锁屏凭证」里存放的钥匙（解锁密码、锁屏通行密钥）
+ *
+ * 存储：D1 styrigx-space-gateway，只经 D1_SPACE 读写 realm='lock' 的行和恢复开关表 lock_reset_switch
+ * （方案 9.4 由 recovery_switch 改名；旧表已在 PR4 由 space/scripts/migrate-account-auth.mjs --cleanup --confirm DROP，预览库走 migrations/0009）。
+ * 表见 migrations/0005_lock_account_state.sql、0006_auth_state.sql、0008_lock_reset_switch.sql（读写入口 d1-state.js 与各 core/ 模块）。
+ * 进站凭证的限速（attempt_limit kind='spacekey'）和审计（audit）也是 realm='lock' 的行。
+ * 网关库里没有 realm='account' / realm='root' 的行（账号数据在账号 Worker 的 D1 styrigx-account；网关库的旧行 PR4 已由 --cleanup 删除）。
+ *
+ * 三张票（见 TICKETS），SGX_SPACE_* 签名，共用 Lock 纪元：
+ * - LockSessionTicket（进站会话；by 只作审计，不分等级）
+ * - LockResetTicket（重置锁屏，by ∈ space / password / passkey）
+ * - LockReauthTicket（进「安全与隐私 → 锁屏凭证」前再验一次，by ∈ password / passkey / space）
+ *
+ * 本文件几乎是叶子模块：只 import lib/ 里同为叶子的 http.js（错误响应）、cookies.js（COOKIE_EXPIRED），避免循环依赖。
+ */
+import { apiError } from '../lib/http.js';
+import { COOKIE_EXPIRED } from '../lib/cookies.js';
+
+/* 钥匙概念名（进站 v3 Q6，L2 起；密码管理器隐藏用户名 / WebAuthn user.name，前端镜像 space/web/assets/js/lib/key-names.js） */
+export const KEY_SPACE_PASSWORD = 'SpacePassword';
+export const KEY_SPACE_PASSKEY = 'SpacePasskey';
+export const KEY_SPACE_RECOVERY_KEY = 'SpaceRecoveryKey';
+
+/* 进站会话 cookie 的作用域：主站与子站（blog/daymark/curio）共享（子站要读） */
+const SHARED_SESSION_ATTRS = 'Domain=.styrigx.com; Path=/; HttpOnly; Secure; SameSite=Lax';
+/* 两张 reset / reauth 短票：只发主站、HttpOnly、Strict、3 分钟、不续期 */
+const SHORT_TICKET_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Strict';
+/* 清除 cookie 时追加的过期时间（值在 workers/space-core/src/lib/cookies.js，共享短票 tickets.js 也用它） */
+export { COOKIE_EXPIRED };
+
+/* lock-epoch：Lock 纪元（进站会话、LockReset、LockReauth 三张票共用）；D1 epoch 表 realm='lock' 那一行 */
+export const LOCK_EPOCH = 'lock-epoch';
+
+/* ---------- 三张票：cookie 名 ---------- */
+export const LOCK_SESSION_COOKIE = 'sgx-space-session';
+export const LOCK_RESET_COOKIE = 'sgx-space-reset';
+export const LOCK_REAUTH_COOKIE = 'sgx-space-reauth';
+
+/* ---------- 票里的 by（本次用什么验的） ---------- */
+export const BY_PASSWORD = 'password';
+export const BY_PASSKEY = 'passkey';
+export const BY_TEMPKEY = 'tempkey';
+export const BY_SPACE = 'space';
+
+/* ---------- 票名（代码类型名） ---------- */
+export const LOCK_SESSION_TICKET = 'LockSessionTicket';
+export const LOCK_RESET_TICKET = 'LockResetTicket';
+export const LOCK_REAUTH_TICKET = 'LockReauthTicket';
+
+/** reset / reauth 短票时长（秒）：3 分钟，不续期 */
+export const SHORT_TICKET_MAX_AGE = 180;
+
+/**
+ * 三张锁屏票总表：票名 → cookie → 私钥 → 公钥 → 时长 → cookie 属性 → 允许的 by → 纪元归哪个域（realm：lock）。
+ *
+ * 票内容都是点分，最后一段是签名；签名串 = "<cookie 名>|<票内容>"，同一把私钥签的票互相冒充不了。
+ * - LockSessionTicket     by.epoch.exp.tempkeyId（v2，lock-session.js；by=password / passkey 时 tempkeyId 段为空串）
+ * - 两张 reset / reauth   by.epoch.iat.exp（tickets.js 按本表通用签发 / 验证）
+ * 私钥、公钥是 Secrets Store 密钥名（不改名）。纪元按域存在 D1（d1-state.js readEpoch / bumpEpoch，每次验票都读主库，不缓存）。
+ */
+export const TICKETS = Object.freeze({
+  [LOCK_SESSION_TICKET]: Object.freeze({
+    cookie: LOCK_SESSION_COOKIE,
+    privateKey: 'SGX_SPACE_PRIVATE',
+    publicKey: 'SGX_SPACE_PUBLIC',
+    maxAge: 43200, /* 锁屏密码 / 通行密钥进门 12 小时；临时钥匙进门按钥匙剩余时间，上限同为 12 小时（lock-tempkey.js TEMPKEY_SESSION_MAX） */
+    cookieAttrs: SHARED_SESSION_ATTRS,
+    bys: Object.freeze([BY_PASSWORD, BY_PASSKEY, BY_TEMPKEY]),
+    realm: 'lock',
+  }),
+  [LOCK_RESET_TICKET]: Object.freeze({
+    cookie: LOCK_RESET_COOKIE,
+    privateKey: 'SGX_SPACE_PRIVATE',
+    publicKey: 'SGX_SPACE_PUBLIC',
+    maxAge: SHORT_TICKET_MAX_AGE,
+    cookieAttrs: SHORT_TICKET_ATTRS,
+    bys: Object.freeze([BY_SPACE, BY_PASSWORD, BY_PASSKEY]),
+    realm: 'lock',
+  }),
+  [LOCK_REAUTH_TICKET]: Object.freeze({
+    cookie: LOCK_REAUTH_COOKIE,
+    privateKey: 'SGX_SPACE_PRIVATE',
+    publicKey: 'SGX_SPACE_PUBLIC',
+    maxAge: SHORT_TICKET_MAX_AGE,
+    cookieAttrs: SHORT_TICKET_ATTRS,
+    bys: Object.freeze([BY_PASSWORD, BY_PASSKEY, BY_SPACE]),
+    realm: 'lock',
+  }),
+});
+
+/** 会话（锁屏解锁） */
+export const REALM_LOCK = Object.freeze({
+  id: 'lock',
+  keyName: KEY_SPACE_PASSKEY,
+  privateKey: 'SGX_SPACE_PRIVATE',
+  publicKey: 'SGX_SPACE_PUBLIC',
+  cookie: LOCK_SESSION_COOKIE,
+  cookieAttrs: SHARED_SESSION_ATTRS,
+  maxAge: TICKETS[LOCK_SESSION_TICKET].maxAge, /* 锁屏密码 / 通行密钥进门 12 小时；临时钥匙进门的时长见 lock-session.js */
+  pepper: 'SGX_SPACE_PASSWORD_PEPPER', /* 解锁密码哈希（进站 v3 L2：新随机值，旧记录验不过 → 解锁密码要经 reset 重设一次） */
+  tempkeyPepper: 'SGX_SPACE_TEMPKEY_PEPPER', /* 临时钥匙码哈希（进站 v3 L2 起单独一个；旧临时钥匙的码验不过 = 作废；分享链接的钥匙不靠码，不受影响） */
+  d1Binding: 'D1_SPACE', /* lock 的行 + 恢复开关 lock_reset_switch */
+  epoch: LOCK_EPOCH, /* 纪元名（票里的纪元归属；D1 epoch 表按 realm 存一行） */
+  /* challenge 表的 purpose（锁屏通行密钥注册 / 解锁，重置锁屏时验锁屏通行密钥）；5 分钟 */
+  challenge: Object.freeze({ register: 'register', auth: 'auth', reset: 'reset', ttl: 300 }),
+  /* 进站凭证（方案 6.2）：Secrets Store 名 SGX_SPACE_RECOVERY_KEY（后台新建一份，值等于原来的进站凭证；Secrets Store 不能直接改名，旧名已在 PR4 删除）；只比对、不签会话 */
+  spaceKey: 'SGX_SPACE_RECOVERY_KEY',
+  /* 进站凭证验过后能签的票（by=space） */
+  spaceIssues: Object.freeze([LOCK_REAUTH_TICKET, LOCK_RESET_TICKET]),
+});
+
+/** 全部凭证域（按 id 索引，供测试与通用代码遍历） */
+export const REALMS = Object.freeze({
+  lock: REALM_LOCK,
+});
+
+/**
+ * 读凭证域的签名私钥；缺失返回 ''（调用方 fail closed）。
+ * @param {any} env
+ * @param {{privateKey:string}} realm
+ * @returns {string}
+ */
+export function realmPrivateKey(env, realm) {
+  return (env && env[realm.privateKey]) || '';
+}
+
+/**
+ * 读凭证域的验签公钥；缺失返回 ''（调用方 fail closed）。
+ * @param {any} env
+ * @param {{publicKey:string}} realm
+ * @returns {string}
+ */
+export function realmPublicKey(env, realm) {
+  return (env && env[realm.publicKey]) || '';
+}
+
+/**
+ * Set-Cookie 值：<cookie>=<value>; <attrs>; Max-Age=<maxAge>
+ * @param {{cookie:string, cookieAttrs:string, maxAge:number}} realm
+ * @param {string} value
+ * @param {number} [maxAge] 默认 realm.maxAge
+ */
+export function realmCookie(realm, value, maxAge) {
+  return realm.cookie + '=' + value + '; ' + realm.cookieAttrs + '; Max-Age=' + (maxAge || realm.maxAge);
+}
+
+/**
+ * 清除 cookie 的 Set-Cookie 值：<cookie>=; <attrs>; Max-Age=0; Expires=1970
+ * @param {{cookie:string, cookieAttrs:string}} realm
+ */
+export function realmClearCookie(realm) {
+  return realm.cookie + '=; ' + realm.cookieAttrs + '; ' + COOKIE_EXPIRED;
+}
+
+/**
+ * WebAuthn 依赖方配置（SGX_RP_ID / SGX_ORIGIN）。必须设置环境变量，不回落。
+ * 缺失时返回 null，调用方返回统一的 503 config（见 rpConfigMissing）。
+ * @param {any} env
+ * @returns {{rpId:string, origin:string}|null}
+ */
+export function rpConfig(env) {
+  const rpId = env && env.SGX_RP_ID;
+  const origin = env && env.SGX_ORIGIN;
+  if (!rpId || !origin) return null;
+  return { rpId: rpId, origin: origin };
+}
+
+/** SGX_RP_ID / SGX_ORIGIN 缺失时的统一响应（503，前端据此禁用通行密钥入口） */
+export function rpConfigMissing() {
+  return apiError(503, 'config', { message: 'SGX_RP_ID / SGX_ORIGIN not configured' });
+}

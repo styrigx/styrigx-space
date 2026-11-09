@@ -13,7 +13,7 @@
  */
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { REALM_LOCK } from '../../workers/auth-gateway/src/core/realms.js';
+import { REALM_LOCK } from '../../workers/space-core/src/core/realms.js';
 
 /**
  * 一次 passkey-e2e 运行的用量估算（上限）。KV：网关和测试都不再碰 KV，全为 0。
@@ -56,12 +56,12 @@ export function d1DatabaseId(toml, binding) {
 }
 
 /**
- * 预览 D1 的库 id：space/web/wrangler.toml [env.preview] 的 D1_LOCK_AUTH，并断言它不是正式网关的库。
+ * 预览 D1 的库 id：space/web/wrangler.toml [env.preview] 的 D1_SPACE，并断言它不是正式网关的库。
  * @param {string} repo 仓库根目录
  */
 export function previewD1Id(repo) {
   const pv = d1DatabaseId(readFileSync(repo + '/space/web/wrangler.toml', 'utf8'), REALM_LOCK.d1Binding);
-  const prod = d1DatabaseId(readFileSync(repo + '/workers/auth-gateway/wrangler.toml', 'utf8'), REALM_LOCK.d1Binding);
+  const prod = d1DatabaseId(readFileSync(repo + '/workers/space-core/wrangler.toml', 'utf8'), REALM_LOCK.d1Binding);
   if (!pv || !prod || pv === prod) throw new Error('preview D1 id missing or equal to the production gateway D1');
   return pv;
 }

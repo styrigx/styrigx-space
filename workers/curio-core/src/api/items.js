@@ -14,7 +14,7 @@ const STATUS = { 'not-found': 404, mismatch: 409, limit: 409 };
 export async function onRequestGet(context) {
   const { env } = context;
   const c = await conclusionOf(context);
-  if (!c.lock.ok) return err('unauthorized', 401);
+  if (!c.space.ok) return err('unauthorized', 401);
   /* 设备 + 游戏一起读是跨两套数据的一个 batch：用主表 devices 的绑定 D1_DEVICES（见 _items.js listItems） */
   if (!env || !env.D1_DEVICES) return err('server', 503);
   await ensureItemSchema(env.D1_DEVICES);

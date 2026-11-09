@@ -4,8 +4,8 @@
  *
  * 从生产构建（hugo --minify -s space/web，产物在 space/web/public/）里找出主站所有会执行的内联 <script>（不含子站 /blog/ /curio/ /daymark/）
  * （没有 src，type 为空 / text/javascript / module；application/json 等数据块不算），算 sha256，写两处：
- *   1. 各 Worker 自己的 csp-hashes.js（网关 workers/auth-gateway/src/lib/、账号 workers/account/src/lib/、
- *      分享 workers/share/src/lib/，2026-10-30 起各自一份、内容相同）—— 各自 Report-Only CSP 用
+ *   1. 各 Worker 自己的 csp-hashes.js（站点核心 workers/space-core/src/lib/、账号 workers/account/src/lib/，
+ *      2026-10-30 起各自一份、内容相同；分享链接进站 v3 L2 并入 space-core）—— 各自 Report-Only CSP 用
  *   2. space/web/static/_headers 里 @gen-security-headers 那一段 —— Pages 静态响应的同一套安全头
  *      （值取自网关 src/lib/security-headers.js 的 mainSiteHeaderList()，两边不会不一致）
  * 同时检查：HTML 里不许有 on*="…" 事件属性和 javascript: 链接（CSP 没法用哈希放行它们）。
@@ -25,12 +25,11 @@ import { parseHeaders } from './lib/pages-headers.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const HASHES_FILES = Object.freeze([
-  path.join(REPO, 'workers/auth-gateway/src/lib/csp-hashes.js'),
+  path.join(REPO, 'workers/space-core/src/lib/csp-hashes.js'),
   path.join(REPO, 'workers/account/src/lib/csp-hashes.js'),
-  path.join(REPO, 'workers/share/src/lib/csp-hashes.js'),
 ]);
 export const HEADERS_FILE = path.join(REPO, 'space/web/static/_headers');
-const SECURITY = path.join(REPO, 'workers/auth-gateway/src/lib/security-headers.js');
+const SECURITY = path.join(REPO, 'workers/space-core/src/lib/security-headers.js');
 export const GEN_START = '# @gen-security-headers start';
 export const GEN_END = '# @gen-security-headers end';
 /* CF 文档：_headers 每行最多 2000 字符 */
@@ -134,7 +133,7 @@ export function renderHashesFile(hashes) {
  */
 export function renderHeadersBlock(list) {
   return [
-    GEN_START + '（space/scripts/gen-csp.mjs 按 workers/auth-gateway/src/lib/security-headers.js 生成，别手改）',
+    GEN_START + '（space/scripts/gen-csp.mjs 按 workers/space-core/src/lib/security-headers.js 生成，别手改）',
     '/*',
     ...list.map(([k, v]) => '  ' + k + ': ' + v),
     GEN_END,

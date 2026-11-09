@@ -2,13 +2,13 @@
  * @fileoverview styrigx-daymark-core：日刻接口 Worker（路由 styrigx.com/daymark/api/*，见 wrangler.toml）。
  *
  * 数据接口都在这里，D1（D1_QUOTES）只绑在本 Worker 上；Pages 只放静态文件。
- * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 AUTH，见 src/api/_auth.js）。
+ * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 SPACE，见 src/api/_auth.js）。
  *
  * 请求顺序（下面的 /api/* 都是去掉 /daymark 前缀后的路径，公开地址是 styrigx.com/daymark/api/*）：
  *   1. GET /api/today：今日一句，主站首页 / 锁屏跨站调用的公开只读接口（带 CORS），不验会话；只给北京时间的今天（?d= 别的日期 400），
  *      边缘缓存最多 60 秒、不跨过换天（见 api/today.js）；
  *      PUT /api/today（余响「设为今日」）和其他写接口一样先问网关，接口里再要账号会话 + daymark.write + 同源
- *   2. 其余 /api/*：先问网关要结论（AUTH.conclusion()，方案 4.6）；没进门 → 401 unauthorized（不 302，fetch 不跟跳转）。
+ *   2. 其余 /api/*：先问网关要结论（SPACE.conclusion()，方案 4.6）；没进门 → 401 unauthorized（不 302，fetch 不跟跳转）。
  *      结论放进 context.data.conclusion，handler 用 conclusionOf(context) 直接取，每个请求只问网关一次。
  *   3. 按路由表交给 src/api/<路径>.js；读私密（私密句子、随手一笔）要账号会话（account.ok），
  *      写要账号会话 + 作用域 daymark.write + 同源（_auth.js requireScope）
@@ -104,7 +104,7 @@ export async function handle(request, env, ctx) {
   let conclusion = null;
   if (!isPublic(path, request.method)) {
     conclusion = await askConclusion(request, env);
-    if (!conclusion.lock.ok) return json(401, { ok: false, error: 'unauthorized' });
+    if (!conclusion.space.ok) return json(401, { ok: false, error: 'unauthorized' });
   }
 
   const hit = resolve(path);

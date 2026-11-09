@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { jsDict, strings } from '../../../fixtures/strings.mjs';
 import { existsSync, readFileSync } from 'node:fs';
 import { renderAudit, AUDIT_MAX } from '../../../../space/web/assets/js/lib/status-view.js';
-import { AUDIT_SHOW } from '../../../../workers/auth-gateway/src/api/space-audit.js';
+import { AUDIT_SHOW } from '../../../../workers/space-core/src/api/space-audit.js';
 
 const read = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
 /* 文案读主站字符串表 js.status（语言包化 2026-11-07：partials/status-i18n.html 输出 $tr.js.status），和页面上一致 */

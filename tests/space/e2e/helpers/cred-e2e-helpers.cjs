@@ -4,13 +4,13 @@
  * - startCredentialTestServer(port)：启动本地测试服务器，/api/lock-password、/api/lock-passkey、/api/lock-reauth
  *   路由到网关 src/api/ 下的真实 handler（onRequestPost）；/api/account 走网关的转发（src/router.js forward：验进站会话、
  *   剥头、写身份头）→ 账号 Worker AccountService 的实现（workers/account/src/rpc/account-service.js serviceFetch），同正式的两跳（账号拆分 PR3）。
- *   网关 env 只绑正式网关有的（锁屏钥匙、SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER）；账号 env 自己一对钥匙、
+ *   网关 env 只绑正式网关有的（锁屏钥匙、SGX_SPACE_RECOVERY_KEY、pepper、D1_SPACE、ACCOUNT / ACCOUNT_VERIFIER）；账号 env 自己一对钥匙、
  *   恢复密钥、账号密码 pepper、D1_ACCOUNT。两边的 D1 绑定接同一个库（同预览共库 styrigx-test-preview：网关迁移 → 账号迁移，
  *   网关的表带 realm 列，账号的表叫 account_*）。观测：d1.password('lock') 等（网关）、account.password() / passkey(credId) / epoch()（账号）。
  *   返回 { kv, d1, account, env, accountEnv, close, mintAuth, … }。
  * - makeAttestationCredential：Node 端合成 WebAuthn 注册 attestation
  *   （UV=1；CDP 虚拟认证器开 UV 会抛 NotAllowedError，故不用浏览器仪式）。
- * - mintAuth(by)：按当前 Lock 纪元重签 进站会话 + LockReauthTicket（sgx-lock-reauth）
+ * - mintAuth(by)：按当前 Lock 纪元重签 进站会话 + LockReauthTicket（sgx-space-reauth）
  * - mintAccount(by, authAt)：账号 session（sgx-account-session，by 只能 password|passkey）；mintAccountReauth(by)：挂在这个 session 上的 reauth 票（sgx-account-reauth）；
  *   mintAccountReset()：reset 票（sgx-account-reset，by=recovery-key）。都用账号 Worker 的代码和账号钥匙签（workers/account/src/core/session.js / reauth.js / reset.js）
  *   （set/change/remove/register 会推进 epoch，每次鉴权操作前重签）。
@@ -145,7 +145,7 @@ async function startCredentialTestServer(port) {
   const dynImport = new Function('u', 'return ' + 'im' + 'port(u)');
   /* cloudflare:workers 替身：要在 import 账号 Worker 的 rpc/*.js 之前 */
   await dynImport(pathToFileURL(path.join(REPO, 'tests/workers/account/_cf-workers.mjs')).href);
-  const gwRouter = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/router.js')).href);
+  const gwRouter = await dynImport(pathToFileURL(path.join(REPO, 'workers/space-core/src/router.js')).href);
   const acctEntry = {
     ...(await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/rpc/account-service.js')).href)),
     ...(await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/rpc/account-verifier.js')).href)),
@@ -171,23 +171,23 @@ async function startCredentialTestServer(port) {
     SGX_RP_ID: 'localhost',
     SGX_ORIGIN: origin,
   };
-  /* 网关的 env（同 workers/auth-gateway/wrangler.toml：不绑任何账号钥匙 / 账号库） */
+  /* 网关的 env（同 workers/space-core/wrangler.toml：不绑任何账号钥匙 / 账号库） */
   const env = {
-    D1_LOCK_AUTH: d1, /* 网关只绑 D1（2026-10-27 起不绑 KV） */
-    SGX_PW_PEPPER: 'e2e-test-pepper',
-    SGX_LOCK_PRIVATE: privPem,
-    SGX_LOCK_PUBLIC: pubPem,
-    SGX_LOCK_SPACE_KEY: 'e2e-test-space-key',
+    D1_SPACE: d1, /* 网关只绑 D1（2026-10-27 起不绑 KV） */
+    SGX_SPACE_PASSWORD_PEPPER: 'e2e-test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'e2e-test-pepper',
+    SGX_SPACE_PRIVATE: privPem,
+    SGX_SPACE_PUBLIC: pubPem,
+    SGX_SPACE_RECOVERY_KEY: 'e2e-test-space-key',
     SGX_RP_ID: 'localhost',
     SGX_ORIGIN: origin,
     ACCOUNT: { fetch: (req) => acctEntry.serviceFetch(req, accountEnv, { waitUntil() {} }) },
     ACCOUNT_VERIFIER: { authorize: (c, m, o) => acctEntry.checkAuthorize(accountEnv, c, m, o) },
   };
-  const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-password.js')).href);
-  const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-passkey.js')).href);
-  const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/core/lock-session.js')).href);
-  const doorApi = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/api/lock-reauth.js')).href);
-  const ticketsMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/auth-gateway/src/core/tickets.js')).href);
+  const pwMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/space-core/src/api/lock-password.js')).href);
+  const pkMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/space-core/src/api/lock-passkey.js')).href);
+  const sessMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/space-core/src/core/lock-session.js')).href);
+  const doorApi = await dynImport(pathToFileURL(path.join(REPO, 'workers/space-core/src/api/lock-reauth.js')).href);
+  const ticketsMod = await dynImport(pathToFileURL(path.join(REPO, 'workers/space-core/src/core/tickets.js')).href);
   const acctSess = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/core/session.js')).href);
   const acctReauth = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/core/reauth.js')).href);
   const acctReset = await dynImport(pathToFileURL(path.join(REPO, 'workers/account/src/core/reset.js')).href);

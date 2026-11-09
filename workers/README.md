@@ -1,6 +1,6 @@
 # workers/：Worker 骨架契约
 
-本目录一个 Worker 一个子目录，目录名 = Cloudflare 上的 Worker 名去掉 `styrigx-` 前缀（`workers/auth-gateway/` ↔ `styrigx-auth-gateway`）。这份文件是 Worker 骨架的唯一出处：新 Worker 照它起步，大 Worker 照它对齐。各 Worker 自己的 `README.md` 只写本 Worker（职责 / 入口 / 路由 / 绑定 / 钥匙 / 数据与迁移），不复述这里。系统分层（L0–L6）、锁屏和账号的整体设计见 [`docs/architecture.md`](../docs/architecture.md)，这里不重复。
+本目录一个 Worker 一个子目录，目录名 = Cloudflare 上的 Worker 名去掉 `styrigx-` 前缀（`workers/space-core/` ↔ `styrigx-space-core`）。这份文件是 Worker 骨架的唯一出处：新 Worker 照它起步，大 Worker 照它对齐。各 Worker 自己的 `README.md` 只写本 Worker（职责 / 入口 / 路由 / 绑定 / 钥匙 / 数据与迁移），不复述这里。系统分层（L0–L6）、锁屏和账号的整体设计见 [`docs/architecture.md`](../docs/architecture.md)，这里不重复。
 
 ## 1. 骨架
 
@@ -19,13 +19,13 @@ workers/<name>/
    ├─ secrets.js      按需。读取 Secrets Store 绑定的地方
    ├─ api/            按需。一个接口一个文件，文件名 = 路径最后一段（/api/lock-entry ↔ api/lock-entry.js）；
    │                  最后一段是变量时用固定段加用途（/avatar/<尺寸>.webp ↔ api/avatar-file.js）
-   ├─ rpc/            按需。WorkerEntrypoint 类，一个类一个文件，文件名 = 类名转 kebab（AuthVerifier ↔ rpc/auth-verifier.js）
+   ├─ rpc/            按需。WorkerEntrypoint 类，一个类一个文件，文件名 = 类名转 kebab（SpaceVerifier ↔ rpc/space-verifier.js）
    ├─ core/           按需。业务逻辑：会话、身份、票据、存储、限流……
    └─ lib/            按需。和业务无关的通用工具：http、cookies、crypto、security-headers、csp-hashes……
 ```
 
 - 同一个 Worker 里，一个概念只有一个文件。不同 Worker 里同名的 `lib/*.js` 必须同名同义（安全头、CSP 由 `space/scripts/gen-csp.mjs` 生成或单测做同值核对）。
-- 单测在 `tests/workers/<name>/`。按骨架对齐的 Worker（网关、账号），单测 import `app.js`、`router.js`、`gate.js` 和 `api/ rpc/ core/ lib/` 里的文件，不 import `src/index.js`（入口只核对源码里的再导出，例如 `tests/workers/auth-gateway/verifier.test.mjs`）；还没对齐的小 Worker 逻辑在 `index.js` 里，单测直接 import 它。`rpc/` 里的类 import 了 `cloudflare:workers`，单测先装替身 `tests/workers/account/_cf-workers.mjs`。
+- 单测在 `tests/workers/<name>/`。按骨架对齐的 Worker（网关、账号），单测 import `app.js`、`router.js`、`gate.js` 和 `api/ rpc/ core/ lib/` 里的文件，不 import `src/index.js`（入口只核对源码里的再导出，例如 `tests/workers/space-core/verifier.test.mjs`）；还没对齐的小 Worker 逻辑在 `index.js` 里，单测直接 import 它。`rpc/` 里的类 import 了 `cloudflare:workers`，单测先装替身 `tests/workers/account/_cf-workers.mjs`。
 
 ## 2. 依赖链
 
@@ -72,6 +72,6 @@ index.js → app.js / rpc/* → router.js → gate.js → api/ → core/ → lib
 
 1. 建 `workers/<name>/`：`wrangler.toml`（`name = "styrigx-<name>"`、`main = "src/index.js"`、`workers_dev` / `preview_urls` 按需关）、`package.json`（上面三个键）、`README.md`（六个小节）、`src/index.js`。其余文件按需加。
 2. 有路由就写进它自己 `wrangler.toml` 的 `[[routes]]`，再在 `space/scripts/check-worker-routes.mjs` 里登记它的路径，确认不抢网关的路由；没有公开地址的 Worker 经网关的服务绑定进来，在网关 `wrangler.toml` 加 `[[services]]`。
-3. 绑 D1 就加 `migrations/0001_<名字>.sql`；预览 / 测试资源只用共用的 `styrigx-test-preview`（`tests/workers/auth-gateway/preview-resources.test.mjs` 守卫）。
+3. 绑 D1 就加 `migrations/0001_<名字>.sql`；预览 / 测试资源只用共用的 `styrigx-test-preview`（`tests/workers/space-core/preview-resources.test.mjs` 守卫）。
 4. 单测放 `tests/workers/<name>/*.test.mjs`；在 `.github/workflows/deploy.yml` 的 Unit tests 步骤加上这个目录，加一步 `wrangler deploy --dry-run` 打包检查和部署 job。
 5. 本地跑 `node space/scripts/check-layers.mjs`、`node space/scripts/check-worker-routes.mjs` 和单测。

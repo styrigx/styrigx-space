@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { testLockSession } from '../auth-gateway/_tickets.mjs';
+import { testLockSession } from '../space-core/_tickets.mjs';
 import { genKeyPair, authD1For } from '../_harness.mjs';
 import { makeAccountD1 } from './_d1.mjs';
 
@@ -26,7 +26,7 @@ const avatarApi = await import(REPO + '/workers/account/src/api/avatar.js');
 const onRequestPut = wrap(avatarApi.onRequestPut);
 const onRequestDelete = wrap(avatarApi.onRequestDelete);
 const { sniffImage, sizeOfFile } = await import(REPO + '/workers/account/src/lib/avatar.js');
-const { signLockSessionTicket } = await import(REPO + '/workers/auth-gateway/src/core/lock-session.js');
+const { signLockSessionTicket } = await import(REPO + '/workers/space-core/src/core/lock-session.js');
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 const ACC = await genKeyPair();
@@ -56,16 +56,16 @@ function makeKv(init = {}) {
 }
 function env(kv) {
   return {
-    SGX_LOCK_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: ACC.pub,
+    SGX_SPACE_PUBLIC: PUB, SGX_ACCOUNT_PUBLIC: ACC.pub,
     KV_LOCK_DOOR: kv, KV_ACCOUNT_LOGIN: kv, KV_PROFILE: kv,
-    D1_LOCK_AUTH: authD1For(kv), D1_ACCOUNT: makeAccountD1(),
+    D1_SPACE: authD1For(kv), D1_ACCOUNT: makeAccountD1(),
     ASSETS: { fetch: async (u) => new Response('DEFAULT:' + new URL(u).pathname, { status: 200 }) },
   };
 }
 /** 锁屏 cookie（role 为空 → 不带）+ 账号会话 cookie（acc 为真才带） @param {string|null} role @param {boolean} [acc] */
 async function cookie(role, acc) {
   const c = [];
-  if (role) c.push('sgx-lock-session=' + (await testLockSession(PRIV, 0, role)));
+  if (role) c.push('sgx-space-session=' + (await testLockSession(PRIV, 0, role)));
   if (acc) c.push(await testAccountSessionCookie(ACC.priv, 'password', 0, Date.now()));
   return c.join('; ');
 }

@@ -4,12 +4,12 @@
  * - 浏览器经本地 HTTP 代理（CONNECT）访问真实域名 https://styrigx.com（含子站 /blog/ /curio/ /daymark/，合并 PR3；旧图志域名的 301 已于 P4-3 PR-1 删除，不再接）；
  *   代理把 TLS 接到本机 HTTPS 服务（临时自签证书，
  *   Chromium 用 --ignore-certificate-errors-spki-list 信任它，页面是正常安全上下文，WebAuthn 可用）。
- * - 路由按 workers/auth-gateway/wrangler.toml、workers/account/wrangler.toml、workers/share/wrangler.toml 的 [[routes]]，用 space/scripts/lib/cf-routes.mjs
+ * - 路由按 workers/space-core/wrangler.toml、workers/account/wrangler.toml、workers/share/wrangler.toml 的 [[routes]]，用 space/scripts/lib/cf-routes.mjs
  *   （线上实测的匹配规则：不带 * 的规则遇到查询串不命中；多条命中取最具体的）决定这次请求走网关、短链 Worker 还是直达 Pages。
  *   账号 Worker 账号拆分 PR3 起没有路由（读到有就照样挂上，测试会因此红），只经网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 进来。
  *   这样「路由表漏了某种 URL」在本地也能复现，不再被 http-server + page.route 的 mock 掩盖。
- * - 网关 = 仓库里真实的 workers/auth-gateway/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
- *   （锁屏钥匙、SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
+ * - 网关 = 仓库里真实的 workers/space-core/src/app.js（真实验签、epoch、Set-Cookie 属性），env 只给正式网关绑的东西
+ *   （锁屏钥匙、SGX_SPACE_RECOVERY_KEY、pepper、D1_SPACE）；服务绑定 ACCOUNT / ACCOUNT_VERIFIER 接账号 Worker 命名入口的实现
  *   （workers/account/src/rpc/account-service.js serviceFetch / rpc/account-verifier.js checkAuthorize，AccountService / AccountVerifier 里跑的同一份代码）。
  *   账号 Worker 自己一对 Ed25519 钥匙、恢复密钥、账号密码 pepper 和自己的库（tests/workers/account/_d1.mjs：account_* 表 + 云同步），
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
@@ -135,22 +135,22 @@ function pagesFor(req) {
  */
 async function startEdge() {
   const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', '..', 'space/scripts/lib/cf-routes.mjs')).href);
-  const routes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/auth-gateway/wrangler.toml'), 'utf8'));
+  const routes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/space-core/wrangler.toml'), 'utf8'));
   const accountRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/account/wrangler.toml'), 'utf8'));
   const shareRoutes = readRoutes(fs.readFileSync(path.join(REPO, 'workers/share/wrangler.toml'), 'utf8'));
   const allRoutes = routes.concat(accountRoutes, shareRoutes);
   const OTHER_WORKER_ROUTES = OTHER_WORKER_TOMLS.flatMap((f) => readRoutes(fs.readFileSync(path.join(REPO, f), 'utf8')));
-  const gateway = (await mod('workers/auth-gateway/src/app.js')).default;
+  const gateway = (await mod('workers/space-core/src/app.js')).default;
   await mod('tests/workers/account/_cf-workers.mjs'); /* cloudflare:workers 替身，要在 import rpc/*.js 之前 */
   const accountEntry = { ...(await mod('workers/account/src/rpc/account-service.js')), ...(await mod('workers/account/src/rpc/account-verifier.js')) };
   const account = (await mod('workers/account/src/app.js')).default; /* 默认 fetch：一律 404（只在 toml 里还有路由时用到） */
-  const verifier = await mod('workers/auth-gateway/src/core/lock-session.js');
+  const verifier = await mod('workers/space-core/src/core/lock-session.js');
   const share = (await mod('workers/share/src/index.js')).default;
-  const issuer = await mod('workers/auth-gateway/src/core/link-keys.js');
+  const issuer = await mod('workers/space-core/src/core/link-keys.js');
   const { shareD1 } = await mod('tests/fixtures/share-d1.mjs');
-  const sessMod = await mod('workers/auth-gateway/src/core/lock-session.js');
-  const tempMod = await mod('workers/auth-gateway/src/core/lock-tempkey.js');
-  const ticketMod = await mod('workers/auth-gateway/src/core/tickets.js');
+  const sessMod = await mod('workers/space-core/src/core/lock-session.js');
+  const tempMod = await mod('workers/space-core/src/core/lock-tempkey.js');
+  const ticketMod = await mod('workers/space-core/src/core/tickets.js');
 
   const kv = makeKV();
   const d1 = makeAuthD1(); /* 网关 D1（全部认证状态） */
@@ -183,12 +183,12 @@ async function startEdge() {
   };
   const ACCOUNT_VERIFIER = { authorize: (c, m, o) => accountEntry.checkAuthorize(accountEnv, c, m, o) };
 
-  /* 网关：只绑正式网关 wrangler.toml 里有的（锁屏钥匙、进站凭证 SGX_LOCK_SPACE_KEY、pepper、D1_LOCK_AUTH、ACCOUNT / ACCOUNT_VERIFIER） */
+  /* 网关：只绑正式网关 wrangler.toml 里有的（锁屏钥匙、进站凭证 SGX_SPACE_RECOVERY_KEY、pepper、D1_SPACE、ACCOUNT / ACCOUNT_VERIFIER） */
   const env = {
     SGX_ENV: 'production', SGX_SITE: 'space', SGX_ORIGIN: 'https://styrigx.com', SGX_RP_ID: 'styrigx.com',
-    D1_LOCK_AUTH: d1, /* 网关只绑 D1（2026-10-27 起不绑 KV） */
-    SGX_LOCK_PRIVATE: privPem, SGX_LOCK_PUBLIC: pubPem,
-    SGX_LOCK_SPACE_KEY: 'edge-test-space-key-not-a-secret', SGX_PW_PEPPER: 'edge-test-pepper',
+    D1_SPACE: d1, /* 网关只绑 D1（2026-10-27 起不绑 KV） */
+    SGX_SPACE_PRIVATE: privPem, SGX_SPACE_PUBLIC: pubPem,
+    SGX_SPACE_RECOVERY_KEY: 'edge-test-space-key-not-a-secret', SGX_SPACE_PASSWORD_PEPPER: 'edge-test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'edge-test-pepper',
     ACCOUNT, ACCOUNT_VERIFIER,
     ASSETS: assets,
   };
@@ -291,7 +291,7 @@ async function startEdge() {
   await new Promise((r) => proxy.listen(PROXY_PORT, '127.0.0.1', r));
 
   async function seedPasskey() {
-    const pk = await mod('workers/auth-gateway/src/core/passkey-store.js');
+    const pk = await mod('workers/space-core/src/core/passkey-store.js');
     const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
     const jwk = kp.publicKey.export({ format: 'jwk' });
     const credId = nodeCrypto.randomBytes(32);
@@ -315,13 +315,13 @@ async function startEdge() {
   async function mintCookie(by) {
     const ep = await sessMod.getLockEpoch(env);
     if (by === 'tempkey') {
-      const r = await tempMod.createTempkey(env, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+      const r = await tempMod.createTempkey(env, env.SGX_SPACE_TEMPKEY_PEPPER, { name: 'edge', ms: 3600 * 1000 });
       return sessMod.signLockSessionTicket(privPem, { by: 'tempkey', epoch: ep, exp: Date.now() + 3600 * 1000, tempkeyId: r.key.id });
     }
     return sessMod.signLockSessionTicket(privPem, { by: by || 'password', epoch: ep, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
   }
 
-  /** 锁侧复验短票 sgx-lock-reauth 的值（by=password，当前 Lock 纪元，3 分钟）：测试里直接塞 cookie，省掉每次走一遍复验界面 */
+  /** 锁侧复验短票 sgx-space-reauth 的值（by=password，当前 Lock 纪元，3 分钟）：测试里直接塞 cookie，省掉每次走一遍复验界面 */
   async function mintReauth() {
     const ep = await sessMod.getLockEpoch(env);
     return ticketMod.signLockReauthTicket(privPem, 'password', ep);
@@ -329,7 +329,7 @@ async function startEdge() {
 
   /** 签发一把 1 小时的临时 LockKey，返回临时码（XXXX-XXXX-XXXX） */
   async function seedTempkey() {
-    const r = await tempMod.createTempkey(env, env.SGX_PW_PEPPER, { name: 'edge', ms: 3600 * 1000 });
+    const r = await tempMod.createTempkey(env, env.SGX_SPACE_TEMPKEY_PEPPER, { name: 'edge', ms: 3600 * 1000 });
     return r.code;
   }
 

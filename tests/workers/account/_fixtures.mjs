@@ -4,8 +4,8 @@
  * - keys()：一次生成 ACCOUNT / OTHER 两对 Ed25519 钥匙（before 里调）
  * - makeEnv(overrides?)：env：D1_ACCOUNT（node:sqlite 替身，跑过账号全部迁移）、签名钥匙、恢复密钥、账号密码 pepper、RP
  * - post(env, entry, body, ck?, o?) / get(env, ck?, o?)：POST /api/account/<entry>（session / reauth / reset / keys / devices / grants）、
- *   GET /api/account。默认带网关身份头（进站会话 X-Styrigx-Lock-Session: 1、by=password、客户端地址 10.9.9.9、CN / Shanghai；
- *   identity.role 写一条网关从不写的外来头 X-Styrigx-Lock-Level，用来验证账号 Worker 不看它）；identity:null = 不带身份头
+ *   GET /api/account。默认带网关身份头（进站会话 X-Styrigx-Space-Session: 1、by=password、客户端地址 10.9.9.9、CN / Shanghai；
+ *   identity.role 写一条网关从不写的外来头 X-Styrigx-Space-Level，用来验证账号 Worker 不看它）；identity:null = 不带身份头
  * - accSession / reauthTicket / resetTicket / full：按真实格式签三张票
  * - seedPassword / seedPasskey / setHandles / assertion / passkeyLogin
  * - raw / one / all / epochOf / setEpoch / setCookies / pickCookie / cookies
@@ -63,15 +63,15 @@ export function makeEnv(overrides = {}) {
   };
 }
 
-/** 网关写的身份头。identity === null → 不带任何身份头；identity.session = '' → 不带 X-Styrigx-Lock-Session（= 没有进站会话） */
+/** 网关写的身份头。identity === null → 不带任何身份头；identity.session = '' → 不带 X-Styrigx-Space-Session（= 没有进站会话） */
 export function idHeaders(identity) {
   if (identity === null) return {};
   const i = { session: '1', role: 'password', by: 'password', ip: IP, country: 'CN', city: 'Shanghai', ...(identity || {}) };
   const h = {};
-  if (i.session) h['X-Styrigx-Lock-Session'] = i.session;
-  if (i.role) h['X-Styrigx-Lock-Level'] = i.role;
-  if (i.by) h['X-Styrigx-Lock-By'] = i.by;
-  if (i.tempkeyId) h['X-Styrigx-Lock-Tempkey-Id'] = i.tempkeyId;
+  if (i.session) h['X-Styrigx-Space-Session'] = i.session;
+  if (i.role) h['X-Styrigx-Space-Level'] = i.role;
+  if (i.by) h['X-Styrigx-Space-By'] = i.by;
+  if (i.tempkeyId) h['X-Styrigx-Space-Tempkey-Id'] = i.tempkeyId;
   if (i.ip) h['X-Styrigx-Client-Address'] = i.ip;
   if (i.country) h['X-Styrigx-Client-Country'] = i.country;
   if (i.city) h['X-Styrigx-Client-City'] = i.city;

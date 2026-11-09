@@ -52,7 +52,7 @@ async function fullQuote(db, id) {
 export async function onRequestGet(context) {
   const { env } = context;
   const c = await conclusionOf(context);
-  if (!c.lock.ok) return err('unauthorized', 401);
+  if (!c.space.ok) return err('unauthorized', 401);
   await ensureSchema(env.D1_QUOTES);
   const showPrivate = canReadPrivate(c);
   const sql = showPrivate

@@ -67,7 +67,7 @@ test('secrets：四个名字 = 签名钥匙一对 + 恢复密钥 + 账号密码 
   assert.deepEqual([...SECRET_NAMES], ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_RECOVERY_KEY', 'SGX_ACCOUNT_PASSWORD_PEPPER']);
 });
 
-test('wrangler.toml：正式段恰好这四个 Secrets Store 绑定，binding = secret_name，store 同网关；预览不绑；不再绑 SGX_PW_PEPPER / SGX_ACCOUNT_ROOT_KEY', () => {
+test('wrangler.toml：正式段恰好这四个 Secrets Store 绑定，binding = secret_name，store 同网关；预览不绑；不再绑 SGX_SPACE_PASSWORD_PEPPER / SGX_ACCOUNT_ROOT_KEY', () => {
   const toml = readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8');
   const code = toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
   const [prod, preview] = code.split(/^\[env\.preview\]$/m);
@@ -77,7 +77,7 @@ test('wrangler.toml：正式段恰好这四个 Secrets Store 绑定，binding = 
     assert.equal(b.binding, b.name);
     assert.equal(b.store, 'a5a984f365424401bad5ad6ddcd44479');
   }
-  assert.doesNotMatch(code, /SGX_PW_PEPPER|SGX_ACCOUNT_ROOT_KEY/);
+  assert.doesNotMatch(code, /SGX_SPACE_PASSWORD_PEPPER|SGX_ACCOUNT_ROOT_KEY/);
   assert.doesNotMatch(preview, /secrets_store_secrets|SGX_ACCOUNT_/);
 });
 
@@ -85,11 +85,11 @@ test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不�
   _resetSecretCache();
   const store = (v) => ({ get: async () => v });
   const d = makeAccountD1();
-  const out = await resolveSecrets({ SGX_ACCOUNT_PRIVATE: store('A'), SGX_ACCOUNT_PASSWORD_PEPPER: 'P', D1_ACCOUNT: d, SGX_LOCK_PRIVATE: store('L') }, 0);
+  const out = await resolveSecrets({ SGX_ACCOUNT_PRIVATE: store('A'), SGX_ACCOUNT_PASSWORD_PEPPER: 'P', D1_ACCOUNT: d, SGX_SPACE_PRIVATE: store('L') }, 0);
   assert.equal(out.SGX_ACCOUNT_PRIVATE, 'A');
   assert.equal(out.SGX_ACCOUNT_PASSWORD_PEPPER, 'P');
   assert.equal(out.D1_ACCOUNT, d);
-  assert.equal(typeof out.SGX_LOCK_PRIVATE, 'object', '不是自己的名字不换');
+  assert.equal(typeof out.SGX_SPACE_PRIVATE, 'object', '不是自己的名字不换');
   assert.equal('SGX_ACCOUNT_RECOVERY_KEY' in out, false, '没绑的不出现');
   _resetSecretCache();
   let n = 0;

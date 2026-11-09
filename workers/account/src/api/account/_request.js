@@ -2,7 +2,7 @@
  * /api/account/* 共用的请求处理：进站会话、同源、读 body、客户端地址、兜底 500。
  *
  * 身份只看网关写的规范身份头（lib/gateway.js，白名单校验），不验进站会话：
- * - 进站会话 = X-Styrigx-Lock-Session: 1（没有 → 401 session；各接口的 end 不要求进站会话）
+ * - 进站会话 = X-Styrigx-Space-Session: 1（没有 → 401 session；各接口的 end 不要求进站会话）
  * - X-Styrigx-Client-Address：输错限速分桶、审计 IP 前缀（没有 → 'unknown'）
  * 这些头只能由网关写：本 Worker 只经命名入口 AccountService 收请求（rpc/account-service.js），默认 fetch 一律 404。
  */

@@ -4,8 +4,8 @@
  *
  * 环境变量（CI 的 passkey-e2e job 注入；本地没配时整组跳过，CI 里缺了直接失败）：
  * - SGX_TEST_BASE：预览站地址（https://passkey-e2e.styrigx-space.pages.dev）
- * - SGX_TEST_SPACE_KEY：预览站的测试进站凭证（与预览网关的 SGX_LOCK_SPACE_KEY 相同，绝不是生产值；CI 每次运行现生成，
- *   连同 SGX_PW_PEPPER 一起写进预览，不存 GitHub Secrets）。/api/space-auth、/api/lock-reset 用它。
+ * - SGX_TEST_SPACE_KEY：预览站的测试进站凭证（与预览网关的 SGX_SPACE_RECOVERY_KEY 相同，绝不是生产值；CI 每次运行现生成，
+ *   连同 SGX_SPACE_PASSWORD_PEPPER 一起写进预览，不存 GitHub Secrets）。/api/space-auth、/api/lock-reset 用它。
  * - SGX_TEST_RECOVERY_KEY：预览站的测试恢复密钥（与预览账号那一半的 SGX_ACCOUNT_RECOVERY_KEY 相同，值与进站凭证不同，
  *   同样每次现生成）。POST /api/account/reset { action:'recovery-key', key } 用它（只换 reset 票）。
  * - SGX_TEST_CF_TOKEN / SGX_TEST_CF_ACCOUNT / SGX_TEST_PREVIEW_D1_ID：写预览 D1（打开重置开关、清进站凭证限速计数；D1 REST query）
@@ -13,12 +13,12 @@
  *
  * 用量：2026-10-27 起网关不再用 KV（认证状态全在 D1），这里也不碰 KV。D1 免费计划按行读写计（额度远大于 KV 的写 / 删 / 列），
  * 仍尽量少写：会话 / LockReauthTicket 缓存后先用只读接口确认（见 state），不再每个用例重新密码解锁 / 再验证。
- * 进站 v3 L1：恢复钥匙（SGX_LOCK_SPACE_KEY）一把就签 reset 票（/api/lock-reset verify），不再读重置开关；
+ * 进站 v3 L1：恢复钥匙（SGX_SPACE_RECOVERY_KEY）一把就签 reset 票（/api/lock-reset verify），不再读重置开关；
  * 恢复钥匙也不再签 reauth 票（/api/space-auth purpose:lock-reauth → 400），再验证用解锁密码（/api/lock-password verify reauth:true）。
  * 一次运行花多少可以用 preview-emulator.cjs 在本地量（/__kv/stats 的 d1 一栏）。
  *
  * 预览站上的 cookie：
- * - 进站会话 sgx-lock-session 固定带 Domain=.styrigx.com，浏览器在 *.pages.dev 上不会存。
+ * - 进站会话 sgx-space-session 固定带 Domain=.styrigx.com，浏览器在 *.pages.dev 上不会存。
  *   api() 每次都把响应里的 sgx-lock-* cookie 按预览主机名重新写进 context（Max-Age=0 → 删掉），
  *   这样纪元推进后服务端重签的会话 / 票也能接着用。
  * - reauth / reset 票本来就只发主机（不带 Domain），照样写一遍，无副作用。
@@ -33,7 +33,7 @@
  * 写后读：以前状态在 KV（最终一致，边缘缓存的读最长约 60 秒才看到新值）；2026-10-27 起网关的认证状态全部在 D1
  * （强一致），改凭证后下一个请求就能看到新值，下面这些轮询正常情况下第一次就满足；留着它们当兜底（只多花一次读）。
  * 写之后要马上读的地方先用只读接口轮询到服务端「看见」新值（KV_SETTLE，最多 75 秒），再做原来的断言：
- * - api() 收到服务端重签的 sgx-lock-session 时自动 settleSession（轮询 lock-session-check 到 200，只读）；
+ * - api() 收到服务端重签的 sgx-space-session 时自动 settleSession（轮询 lock-session-check 到 200，只读）；
  * - adminSession 的重置路径设完密码后，轮询 lock-reauth status 到「重置票有效且密码已设」再解锁；
  * - 其余在用例里就地 expect.poll（waitLockEntryPasskey、列表 / 凭证状态）。
  * 断言本身一条不放宽：轮询的是「最终必须成立」的同一个条件；只多花读，不多花写。
@@ -55,9 +55,9 @@ const HAS_CF = !!(CF_TOKEN && CF_ACCOUNT && D1_ID);
 const ORIGIN = BASE ? new URL(BASE).origin : '';
 const SECURE = ORIGIN.startsWith('https:');
 
-const SESSION = 'sgx-lock-session';
-const REAUTH = 'sgx-lock-reauth';
-const RESET = 'sgx-lock-reset';
+const SESSION = 'sgx-space-session';
+const REAUTH = 'sgx-space-reauth';
+const RESET = 'sgx-space-reset';
 const ACCOUNT_SESSION = 'sgx-account-session';
 const ACCOUNT_REAUTH = 'sgx-account-reauth';
 const ACCOUNT_RESET = 'sgx-account-reset';
@@ -272,7 +272,7 @@ async function lockResetTicket(page, test) {
   void test;
   const r = await api(page, '/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY });
   expect(r.status === 200 && r.json && r.json.ok, 'lock-reset verify: ' + r.status + ' ' + JSON.stringify(r.json)).toBe(true);
-  expect(setCookieLine(r.resp, RESET), '签了 sgx-lock-reset').toContain(RESET + '=');
+  expect(setCookieLine(r.resp, RESET), '签了 sgx-space-reset').toContain(RESET + '=');
   return r.resp;
 }
 
@@ -294,7 +294,7 @@ async function unlockWithPassword(page, password) {
 }
 
 /**
- * 让页面 context 拿到 进站会话（sgx-lock-session，按预览主机写入）。返回当前锁屏密码。
+ * 让页面 context 拿到 进站会话（sgx-space-session，按预览主机写入）。返回当前锁屏密码。
  * @param {import('@playwright/test').Page} page
  * @param {import('@playwright/test').TestType<any, any>} test
  */
@@ -328,7 +328,7 @@ async function adminSession(page, test) {
   r = await unlockWithPassword(page, pw);
   expect(r.json && r.json.ok, '锁屏密码解锁: ' + JSON.stringify(r.json)).toBe(true);
   const cookies = await page.context().cookies(ORIGIN);
-  expect(cookies.some((c) => c.name === SESSION), '解锁后 context 里有 sgx-lock-session').toBe(true);
+  expect(cookies.some((c) => c.name === SESSION), '解锁后 context 里有 sgx-space-session').toBe(true);
   return pw;
 }
 

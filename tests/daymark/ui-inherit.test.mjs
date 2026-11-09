@@ -26,7 +26,7 @@ test('cookie × 主站契约夹具：首帧要的语言 = 夹具 read.lang（是
   for (const c of fx.cases) {
     const lang = c.read && c.read.lang;
     const want = lang === 'zh' || lang === 'en' ? lang : 'system';
-    assert.equal(readLangPref(null, cookieLangRaw('sgx-lock-session=x; sgx-ui=' + c.cookie + '; other=1')), want, c.name);
+    assert.equal(readLangPref(null, cookieLangRaw('sgx-space-session=x; sgx-ui=' + c.cookie + '; other=1')), want, c.name);
   }
   assert.equal(cookieLangRaw('sgx-ui=' + enc({ v: 3, lang: 'en' })), '', '未知版本 = 没有 cookie');
 });

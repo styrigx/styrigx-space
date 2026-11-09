@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号 Worker：把 Secrets Store 绑定换成普通字符串（账号拆分 PR2，读法照搬网关 workers/auth-gateway/src/secrets.js）。
+ * @fileoverview 账号 Worker：把 Secrets Store 绑定换成普通字符串（账号拆分 PR2，读法照搬网关 workers/space-core/src/secrets.js）。
  *
  * Secrets Store 绑定是对象，要 `await env.X.get()` 才拿到值；账号鉴权代码按字符串读 `env.X`。
  * 在每个请求开始时统一取一次，换成字符串后再交给后面的代码。

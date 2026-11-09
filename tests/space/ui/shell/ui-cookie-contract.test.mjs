@@ -115,7 +115,7 @@ test('语言 lang：写端只写明确选的语言代码，跟随系统明确写
 for (const c of fx.cases) {
   test(`契约：${c.name}`, () => {
     for (const sys of ['light', 'dark']) {
-      const s = sandbox({ cookie: 'sgx-lock-session=x; sgx-ui=' + c.cookie + '; other=1', dark: sys === 'dark' });
+      const s = sandbox({ cookie: 'sgx-space-session=x; sgx-ui=' + c.cookie + '; other=1', dark: sys === 'dark' });
       assert.deepEqual(plain(s.U.read()), c.read, 'read');
       assert.deepEqual(plain(s.U.read('sgx-ui=' + c.cookie)), c.read, 'read(串)');
       assert.deepEqual(plain(s.U.resolve(s.U.read(), sys === 'dark')), c[sys].resolve, sys + ' resolve');

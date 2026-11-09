@@ -33,7 +33,7 @@ function fixture(files) {
   return root;
 }
 
-const GW = 'workers/auth-gateway/';
+const GW = 'workers/space-core/';
 
 /** 规则 19–21 要的骨架文件（README.md、带 name 的 package.json）：fixture 里的 Worker 目录有 wrangler.toml 时补上，免得干扰别的规则 @param {string} dir 如 'workers/account/' */
 const skeletonFiles = (dir) => ({ [dir + 'README.md']: '# x\n', [dir + 'package.json']: '{"name":"x","private":true,"type":"module"}' });
@@ -55,7 +55,7 @@ test('check-layers：网关禁止的 import（外部包、账号、其他 Worker
   const bad = [
     [GW + 'src/api/geo.js', "import x from 'some-package';", /只能 import 相对路径或 cloudflare:workers/],
     [GW + 'src/api/geo.js', "import { json } from '../../../account/src/lib/http.js';", /账号和网关互相不许 import/],
-    [GW + 'src/api/geo.js', "import { json } from '../../../share/src/lib/http.js';", /网关目录以外/],
+    [GW + 'src/api/geo.js', "import { json } from '../../../status/src/index.js';", /网关目录以外/],
   ];
   for (const [rel, code, re] of bad) {
     const errs = layers.checkFile(REPO, join(REPO, rel), code);
@@ -68,13 +68,13 @@ const AC = 'workers/account/';
 
 test('check-layers：layerOf 认每个 Worker 目录', () => {
   assert.deepEqual(layers.layerOf(REPO, join(REPO, AC + 'src/lib/http.js')), { area: 'worker', layer: 'account', rel: AC + 'src/lib/http.js', worker: 'account' });
-  assert.deepEqual(layers.layerOf(REPO, join(REPO, GW + 'src/lib/http.js')), { area: 'gateway', layer: 'src', rel: GW + 'src/lib/http.js', worker: 'auth-gateway' });
+  assert.deepEqual(layers.layerOf(REPO, join(REPO, GW + 'src/lib/http.js')), { area: 'gateway', layer: 'src', rel: GW + 'src/lib/http.js', worker: 'space-core' });
   assert.equal(layers.layerOf(REPO, join(REPO, 'workers/chat/src/index.js')).worker, 'chat');
 });
 
 test('check-layers：workers/ 下每个目录都是一个 Worker（有自己的 wrangler.toml，没有跨 Worker 的共享目录），扫描覆盖所有 Worker 目录', () => {
   const dirs = readdirSync(join(REPO, 'workers'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
-  assert.ok(dirs.includes('account') && dirs.includes('auth-gateway'));
+  assert.ok(dirs.includes('account') && dirs.includes('space-core'));
   for (const d of dirs) assert.ok(existsSync(join(REPO, 'workers', d, 'wrangler.toml')), d + ' 不是 Worker 目录');
   const root = fixture({
     [AC + 'src/a.js']: "import { b } from './lib/b.js';",
@@ -93,8 +93,8 @@ test('check-layers：workers/ 下每个目录都是一个 Worker（有自己的 
 
 test('check-layers：交叉 import 一律失败——账号 ↔ 网关（任何层）、Worker 之间、Worker 以外的公共目录', () => {
   const root = fixture({
-    [AC + 'src/x.js']: "import { a } from '../../auth-gateway/src/lib/http.js';",
-    [AC + 'src/y.js']: "export { s } from '../../auth-gateway/src/index.js';",
+    [AC + 'src/x.js']: "import { a } from '../../space-core/src/lib/http.js';",
+    [AC + 'src/y.js']: "export { s } from '../../space-core/src/index.js';",
     [GW + 'src/lib/http.js']: 'export const a = 1;',
     [GW + 'src/index.js']: 'export const s = 1;',
     [GW + 'src/core/k.js']: "import { b } from '../../../account/src/lib/b.js';",
@@ -126,7 +126,7 @@ test('check-layers：Worker 的非相对 import 只认 cloudflare:workers；注�
   const f = join(REPO, AC + 'src/rpc/account-service.js');
   assert.deepEqual(layers.checkFile(REPO, f, "import { WorkerEntrypoint } from 'cloudflare:workers';"), []);
   assert.match(layers.checkFile(REPO, f, "import x from 'some-package';")[0], /只能 import 相对路径或 cloudflare:workers/);
-  assert.deepEqual(layers.checkFile(REPO, f, "// import { a } from '../../auth-gateway/src/index.js';"), []);
+  assert.deepEqual(layers.checkFile(REPO, f, "// import { a } from '../../space-core/src/index.js';"), []);
   assert.match(layers.checkFile(REPO, f, "import { x } from './no-such-file.js';")[0], /import 的文件不存在/);
 });
 
@@ -165,7 +165,7 @@ test('check-layers：前端层方向', () => {
     [FE + 'auth/y.js']: 'export const y = 1;',
     [FE + 'shell/s.js']: "import { x } from '../auth/x.js';\nimport { b } from '../lib/b.js';\nimport { p } from '../apps/p.js';",
     [FE + 'apps/p.js']: "import { s } from '../shell/s.js';\nimport { x } from '../auth/x.js';\nimport { e } from '../entries/e.js';",
-    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../../workers/auth-gateway/src/core/k.js';",
+    [FE + 'entries/e.js']: "import { p } from '../apps/p.js';\nimport { k } from '../../../../../workers/space-core/src/core/k.js';",
     [GW + 'src/core/k.js']: 'export const k = 1;',
   });
   try {
@@ -205,7 +205,7 @@ test('check-layers：lib/ 不得包含鉴权逻辑（鉴权接口地址、naviga
 
 test('check-layers：前端 cookie 名 / sgx-lock-shown / storage 存解锁状态', () => {
   const f = join(REPO, FE + 'apps/chat.js');
-  assert.match(layers.checkFile(REPO, f, "document.cookie.includes('sgx-lock-session')")[0], /sgx-lock-session/);
+  assert.match(layers.checkFile(REPO, f, "document.cookie.includes('sgx-space-session')")[0], /sgx-space-session/);
   assert.deepEqual(layers.checkFile(REPO, f, "el.getAttribute('data-sgx-lock-session')"), []);
   assert.match(layers.checkFile(REPO, f, "sessionStorage.setItem('sgx-lock-shown', '1')").join('\n'), /sgx-lock-shown/);
   assert.match(layers.checkFile(REPO, f, "localStorage.setItem('unlocked', '1')")[0], /解锁状态/);
@@ -315,18 +315,18 @@ const ACCOUNT_AUTH_IDS = [
 ];
 
 test('规则 16：网关源码里出现任一账号鉴权标识都报错，信息带文件:行号、标识和规则号', () => {
-  const f = join(REPO, GW + 'src/rpc/auth-verifier.js');
+  const f = join(REPO, GW + 'src/rpc/space-verifier.js');
   for (const id of ACCOUNT_AUTH_IDS) {
     const errs = layers.checkFile(REPO, f, `const x = ${id};`);
     assert.equal(errs.length, 1, id + ' → ' + JSON.stringify(errs));
-    assert.equal(errs[0], `${GW}src/rpc/auth-verifier.js:1: 网关源码禁止出现账号鉴权标识 ${id}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.authorize() 拿结论）`);
+    assert.equal(errs[0], `${GW}src/rpc/space-verifier.js:1: 网关源码禁止出现账号鉴权标识 ${id}（规则 16：账号鉴权只在 workers/account/，网关只经 ACCOUNT_VERIFIER.authorize() 拿结论）`);
   }
   const cookie = layers.checkFile(REPO, join(REPO, GW + 'src/api/lock-now.js'), "clear('sgx-account-reauth');");
   assert.match(cookie[0], /账号鉴权标识 sgx-account-reauth/);
   /* 多行块注释之后，行号仍按原文 */
   const ln = layers.checkFile(REPO, join(REPO, GW + 'src/core/realms.js'), "/* a\n b\n */\nconst ok = 1;\nexport const r = env.SGX_ROOT_KEY;");
   assert.equal(ln.length, 1);
-  assert.match(ln[0], /^workers\/auth-gateway\/src\/core\/realms\.js:5: .*SGX_ROOT_KEY/);
+  assert.match(ln[0], /^workers\/space-core\/src\/core\/realms\.js:5: .*SGX_ROOT_KEY/);
 });
 
 test('规则 16：注释、ACCOUNT_VERIFIER.authorize()、首帧提示属性名不算；账号 Worker 自己用这些标识不算', () => {
@@ -355,19 +355,19 @@ test('规则 22：账号 Worker / 账号前端里出现退役旧名（含注释�
 
 test('规则 16：网关 wrangler.toml 去掉 # 注释后也查；checkRepo 会读它', () => {
   const rel = GW + 'wrangler.toml';
-  assert.deepEqual(layers.checkGatewayAccountAuth(rel, '# 原来的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH 两个绑定名删掉\nbinding = "D1_LOCK_AUTH" # 不是 SGX_ROOT_KEY', 'toml'), []);
+  assert.deepEqual(layers.checkGatewayAccountAuth(rel, '# 原来的 D1_ACCOUNT_AUTH / D1_ROOT_AUTH 两个绑定名删掉\nbinding = "D1_SPACE" # 不是 SGX_ROOT_KEY', 'toml'), []);
   const bad = layers.checkGatewayAccountAuth(rel, '[[secrets_store_secrets]]\nbinding = "SGX_ACCOUNT_PRIVATE"\nsecret_name = "SGX_ACCOUNT_PRIVATE" # 注释', 'toml');
   assert.equal(bad.length, 2, bad.join('\n'));
-  assert.match(bad[0], /^workers\/auth-gateway\/wrangler\.toml:2: 网关源码禁止出现账号鉴权标识 SGX_ACCOUNT_PRIVATE（规则 16/);
+  assert.match(bad[0], /^workers\/space-core\/wrangler\.toml:2: 网关源码禁止出现账号鉴权标识 SGX_ACCOUNT_PRIVATE（规则 16/);
   const root = fixture({
-    [GW + 'wrangler.toml']: 'name = "styrigx-auth-gateway"\nmain = "src/index.js"\n[[d1_databases]]\nbinding = "D1_ROOT_AUTH"\n',
-    [GW + 'src/index.js']: "export const k = 'SGX_LOCK_SPACE_KEY';",
+    [GW + 'wrangler.toml']: 'name = "styrigx-space-core"\nmain = "src/index.js"\n[[d1_databases]]\nbinding = "D1_ROOT_AUTH"\n',
+    [GW + 'src/index.js']: "export const k = 'SGX_SPACE_RECOVERY_KEY';",
     ...skeletonFiles(GW),
   });
   try {
     const { errors } = layers.checkRepo(root);
     assert.equal(errors.length, 1, errors.join('\n'));
-    assert.match(errors[0], /^workers\/auth-gateway\/wrangler\.toml:4: .*D1_ROOT_AUTH/);
+    assert.match(errors[0], /^workers\/space-core\/wrangler\.toml:4: .*D1_ROOT_AUTH/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -400,7 +400,7 @@ test('规则 17：账号 Worker 的 wrangler.toml 不许有路由（[[routes]]�
   const root = fixture({ [rel]: 'name = "styrigx-account"\nmain = "src/index.js"\n[[routes]]\npattern = "styrigx.com/avatar/*"\n', ...skeletonFiles(AC) });
   try {
     const { errors } = layers.checkRepo(root);
-    assert.deepEqual(errors, ['workers/account/wrangler.toml:3: 账号 Worker 不许有公开路由，发现「[[routes]]」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/auth-gateway/src/router.js 登记）']);
+    assert.deepEqual(errors, ['workers/account/wrangler.toml:3: 账号 Worker 不许有公开路由，发现「[[routes]]」（规则 17：账号请求只经网关服务绑定 ACCOUNT 进来，路径在 workers/space-core/src/router.js 登记）']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

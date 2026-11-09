@@ -70,7 +70,7 @@ async function call(p, { who = 'owner', db, kv = makeKV(), ctx = makeCtx(), meth
   const headers = { Cookie: 'x', Origin: ORIGIN };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const req = new Request(ORIGIN + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-  const env = { AUTH: auth(who), D1_QUOTES: db };
+  const env = { SPACE: auth(who), D1_QUOTES: db };
   if (kv) env.KV_SEARCH_INDEX = kv;
   const res = await worker.fetch(req, env, ctx);
   await ctx.flush();
@@ -176,7 +176,7 @@ test('重建在 waitUntil 里：响应不等它', async () => {
   const db = makeD1();
   const ctx = makeCtx();
   const kv = makeKV();
-  const env = { AUTH: auth('owner'), D1_QUOTES: db, KV_SEARCH_INDEX: kv };
+  const env = { SPACE: auth('owner'), D1_QUOTES: db, KV_SEARCH_INDEX: kv };
   const req = new Request(ORIGIN + '/daymark/api/quotes', { method: 'POST', headers: { Cookie: 'x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'x' }) });
   const res = await worker.fetch(req, env, ctx);
   assert.equal(res.status, 201);

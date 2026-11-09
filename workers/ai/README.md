@@ -18,7 +18,7 @@
 
 | 路径 | 谁调 | 结果 |
 |---|---|---|
-| `POST /ask` `{ q, lang, history, model? }`（`model` 只在有账号结论头时生效，不在登记里 400 `bad_model`） | 网关 `styrigx-auth-gateway` 的服务绑定 `AI_SERVICE`（浏览器请求 `POST /api/ai`，网关验同源、进门、过两档 AI 限流、写账号结论头后转进来） | 200 `text/event-stream`：`event: delta`（0 到多次，2026-11-06 起不再发 `event: hits`）→ `event: done`；已开始流后出错发 `event: error`。响应头 `X-Styrigx-AI-Scope: private\|public`。召回为空不调模型。400 `bad_request` / `too-long`（`q` 超 200 字）、413 `too-large`、503 `config`（选中自营模型但没绑 AI）/ `no_key`（选中外部模型但钥匙读不到）/ `index`。外部模型流中出错 `event: error` 的 code 可能是 `rate_limited` / `model_unavailable` / `upstream`。响应头 `X-Styrigx-AI-Model` 是这次用的模型 id |
+| `POST /ask` `{ q, lang, history, model? }`（`model` 只在有账号结论头时生效，不在登记里 400 `bad_model`） | 网关 `styrigx-space-core` 的服务绑定 `AI_SERVICE`（浏览器请求 `POST /api/ai`，网关验同源、进门、过两档 AI 限流、写账号结论头后转进来） | 200 `text/event-stream`：`event: delta`（0 到多次，2026-11-06 起不再发 `event: hits`）→ `event: done`；已开始流后出错发 `event: error`。响应头 `X-Styrigx-AI-Scope: private\|public`。召回为空不调模型。400 `bad_request` / `too-long`（`q` 超 200 字）、413 `too-large`、503 `config`（选中自营模型但没绑 AI）/ `no_key`（选中外部模型但钥匙读不到）/ `index`。外部模型流中出错 `event: error` 的 code 可能是 `rate_limited` / `model_unavailable` / `upstream`。响应头 `X-Styrigx-AI-Model` 是这次用的模型 id |
 | `GET /models` | 网关 `GET /api/ai`（进门即可，不计限流） | 200 `{ ok, default, models: [{ id, label, provider }], canChoose }`；`canChoose` = 有账号结论头 |
 | （Cron `41 * * * *`） | Cloudflare | 同步语义召回的向量（见上） |
 | `GET /healthz` | P4-2 起 `styrigx-status` 的服务绑定 `AI_SERVICE` | 有 AI 绑定且至少一个站的索引读得到 200 `{ ok, sites, missing }`；否则 503。不调模型 |
@@ -46,4 +46,4 @@
 
 ## 数据与迁移
 
-没有 D1、R2，没有 `migrations/`。Vectorize 索引 `styrigx-ai-recall` 需在 Cloudflare 先建好（`wrangler vectorize create styrigx-ai-recall --dimensions=1024 --metric=cosine` + `wrangler vectorize create-metadata-index styrigx-ai-recall --property-name=private --type=boolean`），否则部署失败。索引由各站 CI 写（本仓库 `deploy-search-worker` 写 `site:space`；P4-2 搬到这里的部署 job）。部署 job `deploy-ai-worker` 用 GitHub 环境 `STYRIGX_AI_DEPLOY` 的 token（Cloudflare 上 styrigx-ai-deploy，含 Secrets Store 编辑），排在网关之前（网关的服务绑定 `AI_SERVICE` 指向它）；首次部署若报 Workers AI 权限错，由 Gray 给 token 加权限后重跑。测试：`tests/workers/ai/`、`tests/workers/auth-gateway/ai-api.test.mjs`（网关的门、限流和转发）。
+没有 D1、R2，没有 `migrations/`。Vectorize 索引 `styrigx-ai-recall` 需在 Cloudflare 先建好（`wrangler vectorize create styrigx-ai-recall --dimensions=1024 --metric=cosine` + `wrangler vectorize create-metadata-index styrigx-ai-recall --property-name=private --type=boolean`），否则部署失败。索引由各站 CI 写（本仓库 `deploy-search-worker` 写 `site:space`；P4-2 搬到这里的部署 job）。部署 job `deploy-ai-worker` 用 GitHub 环境 `STYRIGX_AI_DEPLOY` 的 token（Cloudflare 上 styrigx-ai-deploy，含 Secrets Store 编辑），排在网关之前（网关的服务绑定 `AI_SERVICE` 指向它）；首次部署若报 Workers AI 权限错，由 Gray 给 token 加权限后重跑。测试：`tests/workers/ai/`、`tests/workers/space-core/ai-api.test.mjs`（网关的门、限流和转发）。

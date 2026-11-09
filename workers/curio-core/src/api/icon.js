@@ -84,7 +84,7 @@ function image(bytes, type, etag) {
 export async function onRequestGet(context) {
   const { request, env } = context;
   const c = await conclusionOf(context);
-  if (!c.lock.ok) return err('unauthorized', 401);
+  if (!c.space.ok) return err('unauthorized', 401);
   const id = idParam(request);
   if (!id) return err('bad-id', 400);
   const db = env && env.D1_FINDS;

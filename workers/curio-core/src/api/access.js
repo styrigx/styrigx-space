@@ -7,7 +7,7 @@ import { conclusionOf, visibility } from './_auth.js';
 
 export async function onRequestGet(context) {
   const c = await conclusionOf(context);
-  if (!c.lock.ok) return err('unauthorized', 401);
+  if (!c.space.ok) return err('unauthorized', 401);
   const v = visibility(c);
   return json({ ok: true, ...v, music: v.canWrite });
 }

@@ -52,7 +52,7 @@ test('session 票：篡改 deviceId / 别的钥匙签 → bad-sig；纪元不对
   assert.equal((await session.verifySession(reqWith({ 'sgx-account-session': 'password.0.1.2.sig' }), env)).reason, 'bad-format');
   const t0 = Date.now() - 500 * 86400000;
   assert.equal((await session.verifySession(reqWith({ 'sgx-account-session': await accSession('password', 0, t0, { now: t0 }) }), env)).reason, 'expired');
-  assert.equal((await session.verifySession(reqWith({ 'sgx-lock-session': good }), env)).reason, 'no-cookie', '进站会话 cookie 不算');
+  assert.equal((await session.verifySession(reqWith({ 'sgx-space-session': good }), env)).reason, 'no-cookie', '进站会话 cookie 不算');
   await devices.revokeDevice(env, TEST_DEVICE_ID);
   assert.equal((await session.verifySession(reqWith({ 'sgx-account-session': good }), env)).reason, 'revoked');
   assert.equal((await session.verifySession(reqWith({ 'sgx-account-session': good }), makeEnv({ SGX_ACCOUNT_PUBLIC: '' }))).reason, 'no-pubkey');

@@ -15,7 +15,7 @@ before(keys);
 const REPO = new URL('../../../', import.meta.url).pathname;
 
 test('wrangler.toml：账号和网关的 SGX_RP_ID / SGX_ORIGIN 钉死 styrigx.com', () => {
-  for (const f of ['workers/account/wrangler.toml', 'workers/auth-gateway/wrangler.toml']) {
+  for (const f of ['workers/account/wrangler.toml', 'workers/space-core/wrangler.toml']) {
     const toml = readFileSync(REPO + f, 'utf8');
     assert.match(toml, /^SGX_RP_ID = "styrigx\.com"$/m, f);
     assert.match(toml, /^SGX_ORIGIN = "https:\/\/styrigx\.com"$/m, f);

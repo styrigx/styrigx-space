@@ -2,10 +2,10 @@
  * 网关写的内部请求头：账号 Worker 读的一侧（本 Worker 自己一份，写的一侧在网关）。
  *
  * 进站会话：网关签发的那张凭证（cookie 由网关验），账号 Worker 只读网关验完写下的结论头，从不自己验。
- * 中文统一叫「进站会话」，和账号自己的 session（sudo root 登录）分开；跨 Worker 的头名 X-Styrigx-Lock-* 不变。
+ * 中文统一叫「进站会话」，和账号自己的 session（sudo root 登录）分开；跨 Worker 的头名 X-Styrigx-Space-* 不变。
  *
  * 只在命名入口 AccountService 的请求上读；头名大小写不敏感（Headers 会统一小写）。
- * - readLockIdentity(headers)：X-Styrigx-Lock-Session: 1（= 有进站会话）才算有身份，By / Tempkey-Id 白名单校验；没有 → null
+ * - readLockIdentity(headers)：X-Styrigx-Space-Session: 1（= 有进站会话）才算有身份，By / Tempkey-Id 白名单校验；没有 → null
  *   只有这一个结论；过了网关之后能做什么由账号 session + 作用域决定（core/authorize.js）。
  * - passedGateway(headers)：有没有进站会话（api/account/* 的门）
  * - readClientContext(headers)：读客户端上下文；格式不对的项当作没有（''）
@@ -15,9 +15,9 @@
 
 /** 进站会话的结论头：有效、凭什么进的站、临时钥匙 id */
 export const LOCK_IDENTITY_HEADERS = Object.freeze({
-  session: 'X-Styrigx-Lock-Session',
-  by: 'X-Styrigx-Lock-By',
-  tempkeyId: 'X-Styrigx-Lock-Tempkey-Id',
+  session: 'X-Styrigx-Space-Session',
+  by: 'X-Styrigx-Space-By',
+  tempkeyId: 'X-Styrigx-Space-Tempkey-Id',
 });
 
 /** 客户端上下文：地址、国家、城市 */
@@ -71,7 +71,7 @@ function normalizeLockIdentity(s) {
 }
 
 /**
- * 读网关写的锁屏身份（白名单校验）。没有 X-Styrigx-Lock-Session: 1 → null（= 没有进站会话 / 无会话）。
+ * 读网关写的锁屏身份（白名单校验）。没有 X-Styrigx-Space-Session: 1 → null（= 没有进站会话 / 无会话）。
  * session 只认 '1'；by 不认识 → ''；tempkeyId 只在 by=tempkey 时给。
  * @param {Headers|null|undefined} headers
  * @returns {{session:true, by:string, tempkeyId:string}|null}
@@ -100,7 +100,7 @@ export function readClientContext(headers) {
 }
 
 /**
- * 有没有进站会话（网关写的 X-Styrigx-Lock-Session: 1）。
+ * 有没有进站会话（网关写的 X-Styrigx-Space-Session: 1）。
  * @param {any} headers
  */
 export function passedGateway(headers) {
