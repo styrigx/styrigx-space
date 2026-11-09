@@ -148,6 +148,8 @@
   </section>
   {{/* 页末（Gray 2026-11-09 细节 5）：旷野只看不设、以后还会加窗口 → 「› more soon_」+ 闪烁光标（装饰，读屏不念；减弱动效不闪） */}}
   <p class="sgx-eof wild-eof" aria-hidden="true" translate="no">› more soon<span class="sgx-eof-cur"></span></p>
+  {{/* 页末结束标记（Gray 2026-11-09）：同博客列表最后一页的「-- EOF --」，终端文字样式（.sgx-eof），紧跟在 more soon 下面；装饰，读屏不念 */}}
+  <p class="sgx-eof wild-eof-end" data-wild-eof aria-hidden="true" translate="no">-- EOF --</p>
 </div>
 
 {{ partial "space-i18n.html" (dict "tr" $tr) }}
