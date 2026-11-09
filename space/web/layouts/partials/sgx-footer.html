@@ -26,7 +26,7 @@
     <span class="sgx-foot-rt">
       <span class="sgx-foot-st" data-sgx-status-count title="{{ $t.foot.status }}"><i aria-hidden="true">●</i> –/6</span>
       <span class="sgx-foot-lang" role="group" aria-label="{{ $t.foot.langs }}">
-        {{- range $k, $l := sort .langs "code" "desc" }}{{ if $k }}<span aria-hidden="true"> · </span>{{ end }}{{ if eq .code $lang }}<span lang="{{ .code }}" aria-current="true" translate="no">{{ .code }}</span>{{ else }}<a href="{{ $.langHref | default "/" }}" lang="{{ .code }}" hreflang="{{ .code }}" translate="no">{{ .code }}</a>{{ end }}{{ end -}}
+        {{- range $k, $l := sort .langs "code" "desc" }}{{ if $k }}<span aria-hidden="true"> · </span>{{ end }}{{ if eq .code $lang }}<span lang="{{ .code }}" aria-current="true" translate="no">{{ .code }}</span>{{ else }}<a href="{{ $.langHref | default "/" }}" data-sgx-lang-set lang="{{ .code }}" hreflang="{{ .code }}" translate="no">{{ .code }}</a>{{ end }}{{ end -}}
       </span>
       <span class="sgx-foot-clock" title="{{ $t.foot.clock }}" translate="no">CST <time data-sgx-clock>--:--</time></span>
     </span>

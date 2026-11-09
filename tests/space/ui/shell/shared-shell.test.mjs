@@ -217,7 +217,7 @@ test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layou
   assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '头 → 五项 → lang → layout → share → lock → STATUS → systemctl status → esc');
   assert.match(navd, /\{\{ printf "%02d\/%02d" \$cur \$n \}\}/, '01/05 计数');
   assert.match(navd, /<a class="sgx-nav-tile" href="\{\{ \$p \}\}" data-nav="\{\{ \.id \}\}"\{\{ if eq \.id \$\.site \}\} aria-current="page"\{\{ end \}\}><em class="sgx-nav-no"/);
-  assert.match(navd, /range slice \(dict "v" "auto" "t" \$t\.topbar\.auto\) \(dict "v" "phone" "t" \$t\.topbar\.phone\) \(dict "v" "desktop" "t" \$t\.topbar\.desktop\)/, 'Auto / Mobile / DeX');
+  assert.match(navd, /range slice \(dict "v" "phone" "t" \$t\.topbar\.phone\) \(dict "v" "auto" "t" \$t\.topbar\.auto\) \(dict "v" "desktop" "t" \$t\.topbar\.desktop\)/, 'Mobile / Auto / DeX（2026-11-09 Auto 在中间）');
   assert.match(navd, /range slice "space" "blog" "curio" "daymark" "gray-ai" "auth"/, 'STATUS 六个单元');
   const qpd = src.slice(src.indexOf('<dialog id="sgx-qp"'), src.indexOf('<dialog id="sgx-ai"'));
   assert.match(qpd, /range slice \(dict "v" "system" "t" \$t\.topbar\.followSystem\) \(dict "v" "dark" "t" \$t\.topbar\.schemeDark\) \(dict "v" "light" "t" \$t\.topbar\.schemeLight\)/);

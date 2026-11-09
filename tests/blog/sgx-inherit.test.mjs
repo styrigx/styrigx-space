@@ -344,20 +344,18 @@ test('lang：偏好和页面不同且有对应版本 → 跳过去（带 hash）
   assert.deepEqual(boot({ cookie: 'sgx-ui=' + enc({ lang: 'zh' }), navLang: 'en-US', path: '/blog/post/a/', alt: { zh: '/blog/zh/post/a/', en: '/blog/post/a/' } }).replaced, []);
 });
 
-test('lang：跟随系统（明确存 system，或旧版的空 / 没有）每页都按浏览器语言跳，不只首页；跳前记 sgx-lang-hop', () => {
+test('lang：跟随系统（明确存 system，或旧版的空 / 没有 = Auto）在博客不跳（2026-11-09：只在进主站首页时跳，深链 / 分享地址不动）；明确选择照旧跳、记 sgx-lang-hop', () => {
   const both = (p) => ({ zh: '/blog/zh' + p.slice(5), en: p });
   for (const local of [{}, { 'sgx-lang': 'system' }, { 'sgx-lang': '' }]) {
-    assert.deepEqual(boot({ local, path: '/blog/', alt: both('/blog/') }).replaced, ['/blog/zh/'], JSON.stringify(local));
-    const r = boot({ local, path: '/blog/post/a/', alt: both('/blog/post/a/') });
-    assert.deepEqual(r.replaced, ['/blog/zh/post/a/'], '文章页也跳');
-    assert.deepEqual(JSON.parse(r.session['sgx-lang-hop']), { go: '/blog/zh/post/a/', ref: '' });
-    assert.equal(r.w.__sgxLangGo, 1);
+    assert.deepEqual(boot({ local, path: '/blog/', alt: both('/blog/') }).replaced, [], JSON.stringify(local));
+    assert.deepEqual(boot({ local, path: '/blog/post/a/', alt: both('/blog/post/a/') }).replaced, [], '文章页不跳');
   }
-  assert.deepEqual(boot({ path: '/blog/', alt: both('/blog/'), navLang: 'en-US' }).replaced, []);
-  /* 明确选了英文：中文浏览器也不跳 */
+  const r = boot({ local: { 'sgx-lang': 'zh' }, path: '/blog/post/a/', alt: both('/blog/post/a/'), navLang: 'en-US' });
+  assert.deepEqual(r.replaced, ['/blog/zh/post/a/'], '明确选中文：文章页跳');
+  assert.deepEqual(JSON.parse(r.session['sgx-lang-hop']), { go: '/blog/zh/post/a/', ref: '' });
+  assert.equal(r.w.__sgxLangGo, 1);
   assert.deepEqual(boot({ local: { 'sgx-lang': 'en' }, path: '/blog/', alt: both('/blog/') }).replaced, []);
-  /* 旧的博客本地键不再读 */
-  assert.deepEqual(boot({ local: { 'styrigx-blog-lang': 'en' }, path: '/blog/', alt: both('/blog/') }).replaced, ['/blog/zh/']);
+  assert.deepEqual(boot({ local: { 'styrigx-blog-lang': 'en' }, path: '/blog/', alt: both('/blog/') }).replaced, []);
 });
 
 test('坏 cookie / 非法或未知调色板不抛错，回到主站默认 terra（不写 data-palette；2026-11 PR-A 前是 dustyblue）；lake / dustyblue 是普通色板；旧撞色 xlake → lake', () => {

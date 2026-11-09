@@ -124,8 +124,8 @@ test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字�
       assert.deepEqual(sk.nav, ['home', 'blog', 'curio', 'daymark', 'wild'], at);
       assert.deepEqual(sk.current, [CUR[site]], at + '：当前项高亮');
       assert.equal(sk.count, NO[CUR[site]] + '/05', at + '：计数');
-      assert.deepEqual(sk.langs, ['en', 'zh'], at + '：lang EN / 中文');
-      assert.deepEqual(sk.layout, ['auto', 'phone', 'desktop'], at + '：layout Auto / Mobile / DeX');
+      assert.deepEqual(sk.langs, ['en', 'system', 'zh'], at + '：lang EN / Auto / 中文（2026-11-09 Auto 在中间）');
+      assert.deepEqual(sk.layout, ['phone', 'auto', 'desktop'], at + '：layout Mobile / Auto / DeX（2026-11-09 Auto 在中间）');
       assert.deepEqual(sk.acts, ['share', 'lock', 'term'], at + '：share / lock / terminal（2026-11 PR-2）');
       assert.deepEqual(sk.status, ['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth'], at + '：STATUS 六个单元');
       assert.deepEqual(sk.modes, ['system', 'dark', 'light'], at + '：MODE');

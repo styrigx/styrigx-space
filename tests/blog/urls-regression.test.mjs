@@ -62,8 +62,8 @@ const URLS_200 = [
   '/blog/zh/',
   '/blog/tags/ai/',
   '/blog/zh/tags/ai/',
-  '/blog/post/2026-10-07-muse-playbook/',
-  '/blog/zh/post/2026-10-07-muse-playbook/',
+  '/blog/post/2026-09-27-invite-board/',
+  '/blog/zh/post/2026-09-27-invite-board/',
   '/blog/rss.xml',
   '/blog/zh/rss.xml',
   '/blog/sitemap-index.xml',
@@ -90,13 +90,13 @@ describe('网址回归（图志 /blog/ 下）', () => {
   }
 
   it('前缀外的地址（旧的根路径、/about/、/archives/）一律 404，不留兼容', async () => {
-    for (const url of ['/', '/zh/', '/post/2026-10-07-muse-playbook/', '/rss.xml', '/blog/about/', '/blog/archives/', '/blog/zh/about/']) {
+    for (const url of ['/', '/zh/', '/post/2026-09-27-invite-board/', '/rss.xml', '/blog/about/', '/blog/archives/', '/blog/zh/about/']) {
       assert.equal((await fetch(base + url)).status, 404, url);
     }
   });
 
   it('旧的 /blog/en/… 一律 404（PR-4c 删除不 301）', async () => {
-    for (const url of ['/blog/en/', '/blog/en/post/2026-10-07-muse-playbook/', '/blog/en/rss.xml', '/blog/en/tags/ai/']) {
+    for (const url of ['/blog/en/', '/blog/en/post/2026-09-27-invite-board/', '/blog/en/rss.xml', '/blog/en/tags/ai/']) {
       assert.equal((await fetch(base + url)).status, 404, url);
     }
   });
@@ -107,7 +107,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     const text = await res.text();
     assert.match(text, /<rss[^>]*>/, '应为 RSS 文档');
     assert.match(text, /<item>/, '应包含 <item> 条目');
-    assert.match(text, /muse-playbook/i, '应包含已知文章');
+    assert.match(text, /invite-board/i, '应包含已知文章');
   });
 
   it('/blog/zh/rss.xml 是 RSS 且包含条目', async () => {
@@ -119,7 +119,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
   });
 
   it('文章页包含 One UI 标记且正文完整', async () => {
-    const res = await fetch(base + '/blog/post/2026-10-07-muse-playbook/');
+    const res = await fetch(base + '/blog/post/2026-09-27-invite-board/');
     const html = await res.text();
     assert.match(html, /oui-article-paper/, '应有 One UI 文章纸面');
     assert.doesNotMatch(html, /pagefind/, '站内搜索已删除');
@@ -133,7 +133,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
 
   it('留言板撤了（2026-10-24）：/guestbook/、/en/guestbook/ 是 404，页面里没有留言板入口和 Giscus', async () => {
     for (const url of ['/blog/guestbook/', '/blog/zh/guestbook/']) assert.equal((await fetch(base + url)).status, 404, url);
-    for (const url of ['/blog/', '/blog/zh/', '/blog/zh/post/2026-10-07-muse-playbook/']) {
+    for (const url of ['/blog/', '/blog/zh/', '/blog/zh/post/2026-09-27-invite-board/']) {
       const html = await (await fetch(base + url)).text();
       assert.doesNotMatch(html, /guestbook|giscus|留言板/i, url);
     }
@@ -147,13 +147,13 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /styrigx@space:~\$<\/span><span class="?sgx-envps-r"? translate="?no"?>root@account:~#<\/span><\/span> ls -lt blog\//, '页头命令');
     assert.match(html, /<h1 class="?sgx-ph-title"?>博客<\/h1>/, '中文 h1「博客」（可见）');
     assert.match(await (await fetch(base + '/blog/')).text(), /<h1 class="?sgx-ph-title"?>Blog<\/h1>/, '英文 h1「Blog」');
-    assert.match(html, /写下来的东西。共 7 篇 · 最近更新 <span class=\"?sgx-nw\"?>\d{4}-\d{2}-\d{2}<\/span>/, '日期整段不折行（2026-11-09 细节 6）');
+    assert.match(html, /写下来的东西。共 5 篇 · 最近更新 <span class=\"?sgx-nw\"?>\d{4}-\d{2}-\d{2}<\/span>/, '日期整段不折行（2026-11-09 细节 6）');
     const chips = [...html.matchAll(/class="?sgx-chip"?[^>]*data-chip="?([^" >]*)"?/g)].map((m) => m[1]);
     assert.equal(chips[0], '', '第一个 chip = 全部');
     assert.ok(chips.length >= 2 && chips.length <= 7, '全部 + 至多 6 个分类：' + chips.length);
-    assert.match(html, /aria-current="?true"?[^>]*>全部 <i>7<\/i>|data-chip=""? aria-current="?true"?>全部 <i>7<\/i>/, '全部 7 是当前项');
+    assert.match(html, /aria-current="?true"?[^>]*>全部 <i>5<\/i>|data-chip=""? aria-current="?true"?>全部 <i>5<\/i>/, '全部 5 是当前项');
     assert.match(html, /class="?sgx-chip sgx-chip--more"? href="?\/blog\/zh\/tree\/"?/, 'tree blog/ → 目录页');
-    assert.equal((html.match(/data-post[ >]/g) || []).length, 7, '7 篇都在页里（不跑脚本也能看全）');
+    assert.equal((html.match(/data-post[ >]/g) || []).length, 5, '5 篇都在页里（不跑脚本也能看全）');
     assert.match(html, /<h2 class="?sgx-yr"? data-year="?2026"?>2026<\/h2>/, '按年分组');
     assert.match(html, /class="?sgx-pl-rt"?>\d+ 分钟</, '阅读分钟（中文单位，2026-11-09 细节 9）');
     assert.match(html, /class="?sgx-pl-ex"?>/, '摘要');
@@ -185,7 +185,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /class="?sgx-arch-m"?><span class="?sgx-arch-k"?>10 月<\/span>/, '月份行');
     assert.match(html, /<ul class="?sgx-tags2"?/);
     assert.match(html, /href="?\/blog\/zh\/\?tag=[^"]+"?><span class="?k"?>#/, '标签 → 首页筛选');
-    assert.match(html, /\d+ directories, 7 files/);
+    assert.match(html, /\d+ directories, 5 files/);
     assert.equal((await fetch(base + '/blog/tree/')).status, 200, '英文目录页');
   });
 
@@ -222,7 +222,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
   });
 
   it('文章页：长条只有页名（文章标题）+ 阅读进度（顶栏 v3 起不显示，读屏照读），没有页签；分享本页在 NAVIGATE；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
-    const html = await (await fetch(base + '/blog/zh/post/2026-10-07-muse-playbook/')).text();
+    const html = await (await fetch(base + '/blog/zh/post/2026-09-27-invite-board/')).text();
     const pill = html.match(/<div class="sgx-tb-pill[\s\S]*?<\/div>/)[0];
     assert.doesNotMatch(pill, /sgx-seg/);
     const title = html.match(/<h1[^>]*>([^<]+)<\/h1>/)[1].trim();
