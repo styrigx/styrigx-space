@@ -165,8 +165,8 @@ test.describe('外观面板：开合', () => {
   });
 
   test('顶栏 v3 不显示页名（页名胶囊标记还在，给子站脚本和锁屏顶栏用）；开面板也不改它', async ({ page }) => {
-    await go(page, '/security/');
-    await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText('安全');
+    await go(page, '/wild/'); /* 进站 v3 L1：/security/ 已删，用旷野页 */
+    await expect(page.locator('#site-nav .sgx-tb-title')).toHaveText('旷野');
     await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
     await openQp(page);
     await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
@@ -646,33 +646,20 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(nav(page)).toHaveAttribute('data-state', 'open');
   });
 
-  test('NAVIGATE lock：关面板后弹出与安全页相同的确认层，确认后调 /api/lock-now', async ({ page }) => {
-    let called = false;
+  test('NAVIGATE lock（进站 v3 L1）：一点就锁——关面板，不弹确认层，调 /api/lock-now 后到 /?entry=1', async ({ page }) => {
+    let called = 0;
     await go(page, '/', 'zh', false);
     await page.route('**/api/lock-now', async (route) => {
-      called = true;
-      await route.fulfill({ status: 200, body: '{}' });
+      called++;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     });
     await openNav(page);
     await expect(ctl(page, 'lock')).toHaveText('lock');
     await expect(ctl(page, 'lock')).toHaveAccessibleName('立即锁定');
     await ctl(page, 'lock').click();
-    await expectNavClosed(page);
-    const dlg = page.locator('#sec-locknow-confirm');
-    await expect(dlg).toBeVisible();
-    await expect(dlg).toContainText('立即锁定？');
-    /* 取消：不调接口 */
-    await dlg.locator('[data-act="cancel"]').click();
-    await expect(dlg).toBeHidden();
-    expect(called).toBe(false);
-    /* 防误触窗口（400ms）：lib/dialog-behavior.js 关弹层时记 window.__sgxLastDialogClosedAt（这个用例不冻结时间） */
-    await page.waitForFunction(() => Date.now() - (/** @type {any} */ (window).__sgxLastDialogClosedAt || 0) >= 400);
-    await openNav(page);
-    await ctl(page, 'lock').click();
-    await expect(dlg).toBeVisible();
-    await dlg.locator('[data-act="ok"]').click();
-    await expect(page).toHaveURL(/\?lock=1/);
-    expect(called).toBe(true);
+    await expect(page).toHaveURL(/[?&]entry=1/);
+    expect(called).toBe(1);
+    await expect(page.locator('#sec-locknow-confirm')).toHaveCount(0);
   });
 
   test('NAVIGATE share：主站也有分享本页（share.js 接手，读屏名「分享本页」）', async ({ page }) => {

@@ -1,6 +1,6 @@
 /**
  * 2.4.0 E：视觉回归测试。
- * 5 视口 × 中英 × 深浅色 × 主要页面（/ 旷野页、/security/ 等；P4-3 PR-4b 主页和设置合成旷野页，原设置首页那组截图删除（内容并进 /）；2026-10-22 /search/ 页删除（改成原地搜索层，见 baseline-search-open）；B2-2 删除 /store/，2026-10-19 删除 /files/，
+ * 5 视口 × 中英 × 深浅色 × 主要页面（/；进站 v3 L1 删了 /security/、/security/lock/、/security/tempkeys/，盾牌截图见 baseline-shield-open；P4-3 PR-4b 主页和设置合成旷野页，原设置首页那组截图删除（内容并进 /）；2026-10-22 /search/ 页删除（改成原地搜索层，见 baseline-search-open）；B2-2 删除 /store/，2026-10-19 删除 /files/，
  * 2026-10-20 /browser/ 拆成 /bookmarks/ + /search/，2026-10-21 主站书签下线（迁到 奇趣 Curio），/bookmarks/ 截图删除）
  * + F 的基准（弹层打开）+ 快捷面板打开（第 1 页导航 baseline-quick-panel-nav-open、第 2 页快捷设置 baseline-quick-panel-open）+ AI 窗口打开（baseline-ai-panel-open）。
  * 2026-11-04 P5-1（顶栏全大椭圆，方案 6.6）：全部重拍；baseline-drawer-open（导航抽屉删了）换成 baseline-quick-panel-nav-open；
@@ -27,7 +27,7 @@ const VIEWPORTS = {
 /* 安全与隐私：新页面加入视觉回归（先只报告，基线未生成前不阻塞） */
 /* 2026-11-08 账号 UI 改版：/account/ 整页（总览 / 账号安全 / 重置 / 应用授权）删除，账号在头像下拉的账号终端里，
    截图改拍终端各层（见下「账号终端」一组）；原 /account/* 四页 × 5 视口 × 中英 × 深浅、account-login-* 和 account-sub-devices 一并删除 */
-const PAGES = ['/', '/security/', '/security/lock/'];
+const PAGES = ['/']; /* 进站 v3 L1：安全页三页删除（盾牌命令行取代），截图 *_security_* / mobile-space-tempkeys-* 一并删除 */
 const fxGrants = require('../../../fixtures/app-grants.cjs');
 const fxStatus = require('../../../fixtures/status-summary.cjs');
 const LANGS = [
@@ -60,42 +60,6 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await blockExternalRequests(pg);
           /* 关掉动画，保证截图稳定（goto 之前设置，context 级生效） */
           await pg.emulateMedia({ reducedMotion: 'reduce' });
-          /* 定稿 #1：门内页探针需会话+票据都有效。视觉测试 mock 两者通过，
-             避免探针失败弹 toast 导致截图不稳定。 */
-          /* 安全页：GET /api/account 固定为「已设置、未登录账号」 */
-          if (page === '/security/') {
-            await pg.route('**/api/account**', async (route) => {
-              await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({ ok: true, signing: true, configured: { password: true, passkey: true }, session: null }),
-              });
-            });
-          }
-          if (page === '/security/lock/') {
-            await pg.route('**/api/lock-credentials', async (route) => {
-              await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({ ok: true, password: false, passkey: false }),
-              });
-            });
-            await pg.route('**/api/lock-reauth', async (route) => {
-              await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({ ok: true, valid: true }),
-              });
-            });
-            /* 门内列表 API：返回空列表，保证截图稳定 */
-            await pg.route('**/api/lock-passkey', async (route) => {
-              await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({ ok: true, keys: [] }),
-              });
-            });
-          }
           /* 预置主题 + 冻结时间，避免动态内容导致截图不稳定
              （锁屏由构建期 SGX_TEST_NO_LOCK=1 禁用，见 deploy.yml） */
           await pg.addInitScript((t) => {
@@ -167,6 +131,17 @@ test('baseline-quick-panel-nav-open', async ({ page: pg }) => {
   await shellShotPage(pg);
   await openNavPanel(pg);
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-nav-open.png', { animations: 'disabled' });
+});
+
+/* 盾牌下拉（进站 v3 L1）：styrigx@space:~# 主页——进站会话、三行要 reauth、立即锁屏 */
+test('baseline-shield-open', async ({ page: pg }) => {
+  await pg.route('**/api/lock-session-check**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: 4102444800000 }) }));
+  await pg.route('**/api/lock-reauth', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, valid: false, password: true, passkey: true }) }));
+  await shellShotPage(pg);
+  await pg.click('.sgx-tb-shield');
+  await expect(pg.locator('#sgx-sec')).toHaveAttribute('data-state', 'open');
+  await expect(pg.locator('#sgx-sec [data-sh-ps]')).toHaveText('styrigx@space:~#');
+  if (SHOTS) await expect(pg).toHaveScreenshot('baseline-shield-open.png', { animations: 'disabled', mask: [pg.locator('#sgx-sec .sgx-pop-row').first()] });
 });
 
 /* 外观面板（2026-11 PR-1：MODE + PALETTE；分享 / 立即锁定搬进 NAVIGATE，四站同一套，主站也有分享） */
@@ -287,10 +262,8 @@ const SUB_PAGES = [
   /* 对齐 PR-B：服务状态并进旷野 /wild/（截图名留 space-status，新基线在重设计最后一个 PR 重拍） */
   ['space-status', '/wild/', async (pg) => { await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 }); }],
   /* 账号子页（云同步 2026-11-08 删除；设备随 /account/ 整页 2026-11-08 删除，改拍账号终端 devices 层，见上「账号终端」） */
-  /* 2026-10-24 分享短链：临时钥匙页（临时钥匙 + 分享短链两张列表），数据见 tests/fixtures/share-links.cjs */
-  ['space-tempkeys', '/security/tempkeys/', async (pg) => { await expect(pg.locator('#acct-sl-list .sl-item')).toHaveCount(3, { timeout: 10000 }); await expect(pg.locator('#acct-tk-list .acct-dev-item')).toHaveCount(1); }],
+  /* 临时钥匙页 /security/tempkeys/ 随进站 v3 L1 删除（临时钥匙 / 分享链接在盾牌命令行里） */
 ];
-const fxShare = require('../../../fixtures/share-links.cjs');
 for (const lang of LANGS) {
   for (const theme of THEMES) {
     for (const [stem, path, ready] of SUB_PAGES) {
@@ -312,8 +285,6 @@ for (const lang of LANGS) {
         });
         await pg.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
           body: JSON.stringify(fxStatus.withUsage(fxStatus.normal(), fxStatus.usage())) }));
-        await pg.route('**/api/lock-tempkey', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, keys: fxShare.KEYS }) }));
-        await pg.route('**/api/share', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, links: fxShare.LINKS }) }));
         await pg.addInitScript(([t, ln]) => {
           try {
             if (t === 'dark') localStorage.setItem('sgx-theme-mode', 'dark');
