@@ -9,7 +9,7 @@
  * - 互斥：一个开着时点顶栏（含 AI 浮钮）上别的东西，先关这个（等哨兵出栈）再补点那一下。
  * - 点遮罩（面板以外）关闭；焦点打开时进面板，关上时还给按钮；Tab / Shift+Tab 圈在「按钮 + 面板控件」里。
  * - NAVIGATE：01 主页 … 05 旷野（当前项「开」态）；已在当前项那一页时点它只关面板，其余关完再跳（不留哨兵）。
- *   lang 分段（配置里的每种语言，选中即保存，换了语言就去另一种语言的同一页）、layout 分段（Auto / Mobile / DeX，模式规则见共享外壳 layout-mode.js）、
+ *   lang 分段 EN | Auto | 中文（选中即保存；明确的语言和本页不同就去另一种语言的同一页，Auto 只在主站首页换）、layout 分段（Mobile | Auto | DeX，模式规则见共享外壳 layout-mode.js）、
  *   share（share.js）/ lock（立即锁定）、STATUS（占位）、esc 关闭。
  * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
  * - 立即锁屏：只锁本机、不验证、点一下就锁（Gray 2026-11-09 08:03；原确认层 / 点两下确认删了）：调用方传 onLock 就用它，
@@ -280,15 +280,19 @@ export function mountTopbar(o) {
     };
     /** 语言分段上列出的语言（hugo.yaml languages） @returns {string[]} */
     const langCodes = function () {
-      return Array.prototype.map.call(navDlg.querySelectorAll('[data-qp-lang]'), function (/** @type {Element} */ x) { return x.getAttribute('data-qp-lang') || ''; }).filter(Boolean);
+      return Array.prototype.map.call(navDlg.querySelectorAll('[data-qp-lang]'), function (/** @type {Element} */ x) { return x.getAttribute('data-qp-lang') || ''; }).filter(function (/** @type {string} */ c) { return !!c && c !== 'system'; });
     };
-    /** 当前语言偏好落到哪一段：明确的某种语言 = 那一段；跟随系统 / 没存 = 按浏览器语言算出的那种（resolveLang） */
+    /** 当前语言偏好落到哪一段（EN | Auto | 中文，2026-11-09）：明确的某种语言 = 那一段；跟随系统 / 没存 = Auto（data-qp-lang="system"）。
+        分段上没有 Auto（旧标记）时退回按浏览器语言算出的那种（resolveLang） */
     const langShown = function () {
       const v = P.langPref ? P.langPref() : pageLang;
-      return resolveLang(v, (typeof navigator !== 'undefined' && navigator.language) || '', langCodes());
+      const codes = langCodes();
+      if (v && v !== 'system' && codes.indexOf(v) >= 0) return v;
+      if (navDlg.querySelector('[data-qp-lang="system"]')) return 'system';
+      return resolveLang(v, (typeof navigator !== 'undefined' && navigator.language) || '', codes);
     };
     paintNav = function () {
-      /* 布局：Auto / Mobile / DeX（值 auto / phone / desktop）；旧偏好 mobile / dex 按 phone / desktop 亮 */
+      /* 布局：Mobile / Auto / DeX（值 phone / auto / desktop）；旧偏好 mobile / dex 按 phone / desktop 亮 */
       const lp = P.layoutPref ? P.layoutPref() : 'auto';
       const v = lp === 'mobile' ? 'phone' : lp === 'dex' ? 'desktop' : lp;
       navDlg.querySelectorAll('[data-qp-seg="layout"] button').forEach(function (b) {
@@ -313,10 +317,18 @@ export function mountTopbar(o) {
       const ms = nav.ms;
       const shareBtn = ctl('share');
       if (shareBtn && o.share) o.share({ button: shareBtn });
-      /** 选了一种语言：保存；实际语言和本页不同就关面板去另一种语言的同一页 @param {string} v */
+      /** 选了一种语言：保存；实际语言和本页不同就关面板去另一种语言的同一页。
+          选 Auto（'system'）：只保存；只有在主站首页（/ ↔ /zh/，isHomePath）才按浏览器语言换过去，深链 / 子页不动（Gray 2026-11-09） @param {string} v */
       const pickLang = function (v) {
         const url = P.setLang(/** @type {any} */ (v)) || '';
         paintNav();
+        if (v === 'system') {
+          /* 本文件不 import：用首帧 lang-boot.js 挂的 window.SgxLang（四站都有）；没有就只保存不跳 */
+          const SL = /** @type {any} */ (window).SgxLang;
+          const ag = SL && SL.isHomePath && SL.isHomePath(location.pathname) ? SL.langSwitch(SL.systemLang(), location) || '' : '';
+          if (ag) ms.close(function () { replace(ag); });
+          return;
+        }
         const here = location.pathname + location.search + location.hash;
         const go = url ? (url !== here ? url : '') : v !== pageLang ? (langSeg && langSeg.getAttribute('data-href')) || '' : '';
         if (go) ms.close(function () { replace(go); });

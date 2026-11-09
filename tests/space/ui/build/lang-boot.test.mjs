@@ -12,7 +12,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLangPref, langBootTarget, bootLang, cookieLangRaw } from '../../../../space/web/assets/js/lib/lang-boot.js';
-import { setLangs, langPath, systemLang, langs } from '../../../../space/web/assets/js/lib/lang-path.js';
+import { setLangs, langPath, systemLang, langs, isHomePath } from '../../../../space/web/assets/js/lib/lang-path.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const rd = (/** @type {string} */ p) => readFileSync(path.join(REPO, p), 'utf8');
@@ -48,30 +48,59 @@ test('偏好：明确存 system；旧版的空 / 没有 = 跟随系统（兼容�
   assert.equal(cookieLangRaw('sgx-ui=' + b64({ v: 2, lang: 'system' })), 'system');
 });
 
-test('跟随系统每页都跳（主站 / 子站同一规则），爬虫不跳；明确选择优先', () => {
+test('跟随系统（Auto）只在从站外进主站首页时跳（/ ↔ /zh/），深链 / 子站 / 站内点回首页不跳；明确选择每页都跳；爬虫不跳', () => {
   const zh = { language: 'zh-CN', languages: ['zh-CN'] };
-  const t = (pref, pathname, nav = zh) => langBootTarget({ pref, nav, loc: { pathname, search: '', hash: '' }, ua: 'Mozilla/5.0' });
-  for (const p of ['/', '/about/', '/blog/', '/curio/', '/daymark/', '/security/lock/']) assert.equal(t('system', p), langPath(p, 'zh'), p);
-  assert.equal(t('system', '/about/', { language: 'en-US' }), '');
-  assert.equal(t('en', '/zh/about/'), '/about/');
+  const en = { language: 'en-US', languages: ['en-US'] };
+  const t = (pref, pathname, nav = zh, internal = false) => langBootTarget({ pref, nav, internal, loc: { pathname, search: '?q=1', hash: '#x' }, ua: 'Mozilla/5.0' });
+  assert.equal(t('system', '/'), '/zh/?q=1#x');
+  assert.equal(t('system', '/zh/', en), '/?q=1#x');
+  assert.equal(t('system', '/zh/'), '');
+  assert.equal(t('system', '/', en), '');
+  assert.equal(t('system', '/', zh, true), '', '站内点回首页不跳');
+  for (const p of ['/about/', '/zh/about/', '/blog/', '/blog/zh/', '/curio/', '/daymark/', '/security/lock/', '/blog/post/x/']) {
+    assert.equal(t('system', p), '', p);
+    assert.equal(t('system', p, en), '', p + ' en');
+  }
+  assert.equal(t('en', '/zh/about/'), '/about/?q=1#x');
+  assert.equal(t('zh', '/about/', en), '/zh/about/?q=1#x');
+  assert.equal(t('zh', '/blog/post/x/', en, true), '/blog/zh/post/x/?q=1#x');
   assert.equal(t('zh', '/zh/about/'), '');
   assert.equal(langBootTarget({ pref: 'system', nav: zh, loc: { pathname: '/' }, ua: 'Googlebot' }), '');
+  assert.equal(readLangPref('auto', ''), 'system');
+  assert.equal(readLangPref(null, ''), 'system');
+  assert.equal(readLangPref(null, 'zh'), 'zh');
+});
+
+test('isHomePath：只认主站首页 / 和 /<语言>/', () => {
+  for (const p of ['/', '/zh/', '/zh', '']) assert.equal(isHomePath(p), true, p);
+  for (const p of ['/about/', '/zh/about/', '/blog/', '/blog/zh/', '/curio/', '/daymark/zh/', '/en/']) assert.equal(isHomePath(p), false, p);
 });
 
 test('bootLang：跳前记 sgx-lang-hop {go, ref}（navhistory 还原「直接打开子页」，返回一次回主页）', () => {
-  const session = {};
-  const replaced = [];
-  const w = {
-    localStorage: { getItem: () => null },
-    sessionStorage: { setItem: (k, v) => (session[k] = v) },
-    navigator: { userAgent: 'Mozilla/5.0', language: 'zh-CN', languages: ['zh-CN'] },
-    location: { pathname: '/about/', search: '?x=1', hash: '#a', replace: (u) => replaced.push(u) },
-    document: { cookie: '', referrer: 'https://example.com/', querySelectorAll: () => [], querySelector: () => null },
+  const mk = (pathname, referrer, stored = null) => {
+    const session = {};
+    const replaced = [];
+    const w = {
+      localStorage: { getItem: () => stored },
+      sessionStorage: { setItem: (k, v) => (session[k] = v) },
+      navigator: { userAgent: 'Mozilla/5.0', language: 'en-US', languages: ['en-US', 'zh-CN'] },
+      location: { origin: 'https://styrigx.com', pathname, search: '?x=1', hash: '#a', replace: (u) => replaced.push(u) },
+      document: { cookie: '', referrer, querySelectorAll: () => [], querySelector: () => null },
+    };
+    return { w, session, replaced };
   };
-  assert.equal(bootLang(w), '/zh/about/?x=1#a');
-  assert.deepEqual(replaced, ['/zh/about/?x=1#a']);
-  assert.deepEqual(JSON.parse(session['sgx-lang-hop']), { go: '/zh/about/?x=1#a', ref: 'https://example.com/' });
-  assert.equal(w.__sgxLangGo, 1);
+  const a = mk('/', 'https://example.com/');
+  assert.equal(bootLang(a.w), '/zh/?x=1#a');
+  assert.deepEqual(a.replaced, ['/zh/?x=1#a']);
+  assert.deepEqual(JSON.parse(a.session['sgx-lang-hop']), { go: '/zh/?x=1#a', ref: 'https://example.com/' });
+  assert.equal(a.w.__sgxLangGo, 1);
+  const b = mk('/', 'https://styrigx.com/zh/blog/');
+  assert.equal(bootLang(b.w), '');
+  assert.deepEqual(b.replaced, []);
+  assert.equal(bootLang(mk('/about/', 'https://example.com/').w), '');
+  const d = mk('/about/', 'https://example.com/', 'zh');
+  assert.equal(bootLang(d.w), '/zh/about/?x=1#a');
+  assert.deepEqual(JSON.parse(d.session['sgx-lang-hop']), { go: '/zh/about/?x=1#a', ref: 'https://example.com/' });
 });
 
 test('语言列表来自配置：加一种语言不用改 lang-path / lang-boot', () => {
@@ -81,7 +110,8 @@ test('语言列表来自配置：加一种语言不用改 lang-path / lang-boot'
     assert.equal(langPath('/blog/post/x/', 'ja'), '/blog/ja/post/x/');
     assert.equal(langPath('/ja/about/', 'zh'), '/zh/about/');
     assert.equal(systemLang({ languages: ['ja-JP', 'en'] }), 'ja');
-    assert.equal(langBootTarget({ pref: 'system', nav: { languages: ['ja'] }, loc: { pathname: '/curio/' }, ua: '' }), '/curio/ja/');
+    assert.equal(langBootTarget({ pref: 'system', nav: { languages: ['ja'] }, loc: { pathname: '/' }, ua: '' }), '/ja/');
+    assert.equal(langBootTarget({ pref: 'ja', nav: {}, loc: { pathname: '/curio/' }, ua: '' }), '/curio/ja/');
     assert.equal(readLangPref('ja', ''), 'ja');
   } finally {
     setLangs(null);

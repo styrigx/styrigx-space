@@ -60,6 +60,10 @@ test('systemLang：zh 开头 = 中文，其余（含取不到）= 英文', () =>
   assert.equal(systemLang({ language: 'en-US' }), 'en');
   assert.equal(systemLang({ language: 'ja' }), 'en');
   assert.equal(systemLang({}), 'en');
+  /* Gray 2026-11-09：navigator.languages 里有任何 zh* 就是中文（不只看第一个） */
+  assert.equal(systemLang({ language: 'en-US', languages: ['en-US', 'zh-CN'] }), 'zh');
+  assert.equal(systemLang({ languages: ['fr-FR', 'zh-TW'] }), 'zh');
+  assert.equal(systemLang({ languages: ['en-GB', 'fr'] }), 'en');
 });
 
 test('共享外壳：lang-path.js / lang-path.html 只有主站一份（2026-11 合站后子站直接用，没有副本）', () => {
