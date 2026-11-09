@@ -74,7 +74,7 @@ test('文章页隐藏时上报 post:<slug>', async ({ page }) => {
     body = r.request().postData();
     await r.fulfill({ status: 204 });
   });
-  await page.goto('/blog/zh/post/2026-09-27-invite-board/');
+  await page.goto('/blog/zh/post/2026-10-11-agent-collaboration-whitepaper-v2/');
   await page.mouse.click(5, 300);
   await page.waitForTimeout(5600);
   await page.mouse.click(5, 300);
@@ -84,7 +84,7 @@ test('文章页隐藏时上报 post:<slug>', async ({ page }) => {
   });
   await expect.poll(() => body, { timeout: 5000 }).not.toBeNull();
   const b = JSON.parse(body);
-  expect(b.s[0].k).toBe('post:2026-09-27-invite-board');
+  expect(b.s[0].k).toBe('post:2026-10-11-agent-collaboration-whitepaper-v2');
   expect(b.s[0].sec).toBeGreaterThanOrEqual(5);
   expect(b.s[0].t).toBeTruthy();
 });
