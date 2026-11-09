@@ -6,7 +6,7 @@
 
 - `/daymark/api/*` 的全部数据接口；页面是静态文件（`space/web/` 下的 `<目录>/daymark/`，和主站同一个 Hugo 站），会话检查在主站鉴权网关。
 - `/daymark/api/today` 公开（主站首页小组件和锁屏读，CORS 只放 `https://styrigx.com`）；其余接口要进门，写操作要账号会话 + 作用域 `daymark.write`（见「鉴权」）。
-- 写接口成功后重建全站搜索索引里本站那一条（KV `site:daymark`），Cron 每小时兜底。
+- 写接口成功后重建全站搜索索引里本站那一条（KV `site:daymark`），每小时兜底（2026-11-10 起由 styrigx-status 的 Cron 经服务绑定 `JOB_DAYMARK` 调命名入口 `HourlyJob`，`rpc/hourly-job.js`；本 Worker 不自带 Cron）。
 
 ## 入口
 

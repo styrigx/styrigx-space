@@ -397,7 +397,7 @@ test('wrangler.toml：没有公开地址、绑定 AI、索引 KV、Vectorize、�
   assert.doesNotMatch(toml, /styrigx-account|AccountService|AccountVerifier/);
   assert.match(toml, /\[placement\]\s*\nregion = "gcp:us-east4"/);
   assert.doesNotMatch(toml, /^mode = "smart"/m, 'region 和 smart 互斥');
-  assert.match(toml, /\[triggers\]\s*\ncrons = \["41 \* \* \* \*"\]/);
+  assert.match(toml, /^crons = \[\]$/m, '不自带 Cron：每小时同步由 status 经 JOB_AI 调 HourlyJob（2026-11-10）');
   assert.ok(toml.indexOf('[[secrets_store_secrets]]') > toml.indexOf('[[vectorize]]'), '钥匙段仍在文件最后（deploy.yml 退路整段删）');
   const idx = readFileSync(new URL(W + 'index.js', import.meta.url), 'utf8');
   assert.match(idx, /export \{ default \} from '\.\/app\.js';/);

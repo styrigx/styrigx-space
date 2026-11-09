@@ -16,7 +16,7 @@
 |---|---|---|
 | `GET /summary` | 网关 `styrigx-space-core` 的服务绑定 `STATUS`（浏览器请求 `/api/status`，网关先验会话） | 200 站点状态 + 用量 + 额度；库不可用 503 `{ ok:false, error:'db' }`；其他路径 404、方法不对 405 |
 | Cron `* * * * *` | Cloudflare | 每分钟一轮检查（`monitor.js runOnce`） |
-| Cron `41 * * * *` | Cloudflare | 每小时读一次 Cloudflare 用量（`usage.js runUsage`） |
+| Cron `41 * * * *` | Cloudflare | 每小时读一次 Cloudflare 用量（`usage.js runUsage`）；同一轮经服务绑定 `JOB_DAYMARK`、`JOB_CURIO`（并行）再 `JOB_AI` 叫三个 Worker 的 `HourlyJob.run()`（`hourly.js`，2026-11-10：免费账号只有 5 个 Cron，全账号现用 3 个） |
 
 ## 绑定
 

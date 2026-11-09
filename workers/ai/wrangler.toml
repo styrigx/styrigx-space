@@ -24,9 +24,11 @@ head_sampling_rate = 1
 [placement]
 region = "gcp:us-east4"
 
-# 每小时同步一次语义召回的向量（core/vector-sync.js）：在 daymark-core（17 分）、curio-core（23 分）重建 KV 索引之后
+# 每小时同步一次语义召回的向量（core/vector-sync.js）：由 status 在 daymark-core、curio-core 重建 KV 索引之后调
 [triggers]
-crons = ["41 * * * *"]
+# 2026-11-10：免费账号整个账号只有 5 个 Cron Trigger，本 Worker 的每小时任务并进 styrigx-status 的 "41 * * * *"，
+# 由 status 经服务绑定调命名入口 HourlyJob.run()。crons = [] 是显式清掉线上已有的 Cron（不写 [triggers] 会保留旧的）。
+crons = []
 
 # Workers AI（计费见方案 5.6；单次封顶靠下面的变量）
 [ai]

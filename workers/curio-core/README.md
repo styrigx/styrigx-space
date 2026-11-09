@@ -5,7 +5,7 @@
 ## 职责
 
 - `/curio/api/*` 的全部数据接口；页面是静态文件（`space/web/` 下的 `<目录>/curio/`，和主站同一个 Hugo 站），会话检查在主站鉴权网关。
-- 写接口成功后重建全站搜索索引里本站那一条（KV `site:curio`），Cron 每小时兜底；每天一轮清扫 R2 里没人引用的照片。
+- 写接口成功后重建全站搜索索引里本站那一条（KV `site:curio`），每小时兜底（2026-11-10 起由 styrigx-status 的 Cron 经服务绑定 `JOB_CURIO` 调命名入口 `HourlyJob`，`rpc/hourly-job.js`；本 Worker 不自带 Cron）；每天一轮清扫 R2 里没人引用的照片。
 
 ## 入口
 

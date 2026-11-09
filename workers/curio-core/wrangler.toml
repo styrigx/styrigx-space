@@ -84,4 +84,6 @@ id = "4bcdb84f205541b9b6c8d230bc2b106f"
 
 # Cron：每小时第 23 分重建一次搜索索引（首次部署后也靠它填上）；UTC 19:23（北京 03:23）那轮顺带清扫 R2 photos/ 里没人引用的照片。
 [triggers]
-crons = ["23 * * * *"]
+# 2026-11-10：免费账号整个账号只有 5 个 Cron Trigger，本 Worker 的每小时任务并进 styrigx-status 的 "41 * * * *"，
+# 由 status 经服务绑定调命名入口 HourlyJob.run()。crons = [] 是显式清掉线上已有的 Cron（不写 [triggers] 会保留旧的）。
+crons = []

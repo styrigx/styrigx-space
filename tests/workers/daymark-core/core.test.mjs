@@ -11,6 +11,7 @@
 // - wrangler.toml：不开 workers.dev，只挂 styrigx.com/daymark/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），服务绑定网关，不持钥匙
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。
 // 运行：node --test tests/workers/core.test.mjs
+import '../account/_cf-workers.mjs'; /* cloudflare:workers 替身：index.js 再导出 HourlyJob（WorkerEntrypoint） */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';

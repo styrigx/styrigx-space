@@ -55,7 +55,7 @@
 
 3.2 除日刻 `/api/today` 的 GET 外，所有接口 MUST 先经服务绑定 `SPACE`（`SpaceVerifier.conclusion()`）问站点核心：没有进站会话即拒绝；写操作再看账号结论里的作用域。
 
-3.3 搜索索引：写接口成功后重建、每小时 Cron 兜底，写 KV `KV_SEARCH_INDEX` 的 `site:curio` / `site:daymark`（内容没变不写；私密条目标 `private`）。
+3.3 搜索索引：写接口成功后重建、每小时兜底（2026-11-10 起由 styrigx-status 的 41 分 Cron 经服务绑定调各自的 `HourlyJob`），写 KV `KV_SEARCH_INDEX` 的 `site:curio` / `site:daymark`（内容没变不写；私密条目标 `private`）。
 
 3.4 奇趣另有 RPC 入口 `CurioReader`（`src/rpc/reader.js`），给 `styrigx-ai` 做只读固定查询（最近电影、专辑曲目等），模型不写 SQL。
 
