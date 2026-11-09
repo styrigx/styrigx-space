@@ -124,7 +124,7 @@ test('help：cd 一行 + 八条命令（顺序同设计稿）；clear 清屏；�
   const nf = sh.exec('foo bar');
   assert.equal(text(nf.out[0]), 'command not found: foo · try help');
   assert.equal(nf.out[0].cls, 'err');
-  assert.deepEqual(COMMANDS, ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear']);
+  assert.deepEqual(COMMANDS, ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear', 'man']);
 });
 
 test('cd：主页有这一节 → 滚动提示；没有 → 打开提示 + after 去跳转；坏目录报错、cwd 不变', () => {
@@ -243,4 +243,33 @@ test('共享外壳约束：terminal.js 只 import shell/term/**（终端统一 T
     assert.match(s, /import \* as terminal from '[./]+(js\/shell\/)?terminal\.js';/, f);
     assert.match(s, /\n\s+terminal,\n/, f);
   }
+});
+
+test('man（终端统一 T5）：索引列出每条命令；man cd 一页（NAME / SYNOPSIS / (END)）进 pager；别名能查；没有的报错；help 不变', async () => {
+  const { act } = fakeAct();
+  const sh = createShell({ act, storage: mem() });
+  const idx = await sh.exec('man');
+  assert.equal(text(idx.out[0]), TERM_EN.manIndex);
+  assert.deepEqual(idx.out.slice(1).map((o) => o.seg[0][1]), COMMANDS);
+  for (const o of idx.out.slice(1)) assert.ok(!/undefined/.test(text(o)), text(o));
+  const cd = await sh.exec('man cd');
+  assert.equal(cd.pager, true);
+  assert.deepEqual(cd.out.map(text), ['CD(1)', 'NAME', '    cd — move to a directory (on the home page, scroll to it)', 'SYNOPSIS', '    cd [blog | curio | daymark | wild | ~ | ..]', '(END)']);
+  assert.equal(text((await sh.exec('man cls')).out[0]), 'CLEAR(1)');
+  const no = await sh.exec('man nope');
+  assert.equal(text(no.out[0]), 'No manual entry for nope');
+  assert.equal(no.pager, undefined);
+  for (const c of COMMANDS) assert.equal(text((await sh.exec('man ' + c)).out[0]), c.toUpperCase() + '(1)', '每条命令都有 man 页：' + c);
+  assert.equal(sh.exec('help').out[0].rows.length, 8, 'help 不加 man 那一行（主页首屏自动 help 在视觉基线里）');
+  assert.deepEqual(complete('man c'), { line: 'man c', options: ['cd', 'cat', 'clear'] });
+  assert.deepEqual(complete('m'), { line: 'man ', options: [] });
+});
+
+test('man 节（en / zh）：键 = man 页的命令；英文表 = pages.js 英文底', async () => {
+  const { PAGES } = await import('../../../../space/web/assets/js/shell/term/man/pages.js');
+  const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/en.yaml'), 'utf8')).man;
+  const zh = yaml.load(readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/zh.yaml'), 'utf8')).man;
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(PAGES).sort());
+  assert.deepEqual(Object.keys(zh).sort(), Object.keys(PAGES).sort());
+  for (const k of Object.keys(PAGES)) assert.equal(en[k], PAGES[k].d, 'en.man.' + k);
 });

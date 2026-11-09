@@ -50,7 +50,7 @@ test('shellSection：读一节；没有元素 / 坏 JSON / 不是对象 → {}',
   assert.equal(P.normCmd('  Sudo   ROOT '), 'sudo root');
 });
 
-test('gen-shell：terminal.js / ai-panel.js 过检；term/** 之外的 import、动态 import、term/** 里再往外 import 都拒', () => {
+test('gen-shell：terminal.js / ai-panel.js 过检；term/** 之外的 import（含 import()）、非字面量 import()、term/** 里再往外 import 都拒', () => {
   checkTermImports(path.join(REPO, 'space/web/assets/js/shell/terminal.js'), 'terminal.js');
   checkTermImports(path.join(REPO, 'space/web/assets/js/shell/ai-panel.js'), 'ai-panel.js');
   const root = mkdtempSync(path.join(tmpdir(), 'sgx-t1-'));
@@ -61,7 +61,9 @@ test('gen-shell：terminal.js / ai-panel.js 过检；term/** 之外的 import、
     w('term/core/ok.js', 'export const ok = 1;\n');
     checkTermImports(w('good.js', "import { ok } from './term/core/ok.js';\nexport function g() { return ok; }\n"), 'good.js', term);
     assert.throws(() => checkTermImports(w('a.js', "import { esc } from '../lib/util.js';\nexport function x() {}\n"), 'a.js', term), /只能 import shell\/term/);
-    assert.throws(() => checkTermImports(w('b.js', "export function x() { return import('./term/core/ok.js'); }\n"), 'b.js', term), /动态 import/);
+    checkTermImports(w('b.js', "export function x() { return import('./term/core/ok.js'); }\n"), 'b.js', term);
+    assert.throws(() => checkTermImports(w('b2.js', "export function x() { return import('../lib/x.js'); }\n"), 'b2.js', term), /只能 import shell\/term/);
+    assert.throws(() => checkTermImports(w('b3.js', "export function x(p) { return import(p); }\n"), 'b3.js', term), /非字面量/);
     w('term/core/bad.js', "import { t } from '../../lib/toast.js';\nexport const c = 1;\n");
     assert.throws(() => checkTermImports(w('d.js', "import { c } from './term/core/bad.js';\nexport function y() { return c; }\n"), 'd.js', term), /只能 import shell\/term/);
     assert.throws(() => checkTermImports(w('e.js', "import { c } from './term/core/nope.js';\nexport function y() {}\n"), 'e.js', term), /不存在/);

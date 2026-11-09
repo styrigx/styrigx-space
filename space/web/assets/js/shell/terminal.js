@@ -80,6 +80,9 @@ export const TERM_EN = {
   locking: 'locking …',
   asking: 'asking Gray AI …',
   fetching: 'fetching {x}…',
+  manIndex: 'manual pages · man <command> to read one',
+  manNone: 'No manual entry for {x}',
+  manPager: 'q or enter to quit',
 };
 
 /**
@@ -123,7 +126,7 @@ export function ghost(line) {
 /**
  * @typedef {Array<[string, string, string?]>} Seg 一行：[类, 文字, 链接?]
  * @typedef {{ t: 'line', seg: Seg, cls?: string } | { t: 'help', head: Seg, rows: Array<[string, string]> }} Out
- * @typedef {{ out: Out[], clear?: boolean, after?: () => void }} Result
+ * @typedef {{ out: Out[], clear?: boolean, after?: () => void, pager?: boolean }} Result  pager = 显示完进 pager（man；提示符 `:`，q / enter 回命令行）
  * @typedef {Object} TermAct
  * @property {(dir: string) => ({ kind: 'scroll', label: string } | { kind: 'nav', href: string, go: () => void })} cd
  * @property {(which: string, sub?: string) => ({ href: string, go: () => void })} sudo  which = ROOT_COMMAND（账号终端，sub = '' | reauth | reset）| ADMIN_COMMAND（盾牌）
@@ -168,6 +171,10 @@ export function createShell(o) {
     cwd: function () { return cwd; },
     /** @param {string} d */
     setCwd: function (d) { cwd = d; emit(); },
+    /** 这个 tty 的命令名（man 索引） */
+    names: function () { return COMMANDS; },
+    /** 名字或别名 → 命令名（不认识 → ''） @param {string} n */
+    resolve: function (n) { const c = REG.get(n, 'tty2'); return c ? c.name : ''; },
   };
   const engine = createEngine({
     registry: REG,
@@ -244,8 +251,10 @@ export function mountTermView(root, sh, opts) {
   const inp = input;
   const outEl = out;
 
+  /** man 显示完进 pager：提示符 `:`，q / enter 回命令行（终端统一 T5） */
+  let pager = false;
   function paintPrompt() {
-    if (ps) ps.textContent = sh.ps1();
+    if (ps) ps.textContent = pager ? ':' : sh.ps1();
     if (titleEl) titleEl.textContent = sh.title();
   }
   /* 账号登录 / 退出（账号终端改 <html data-sgx-account-session>）：提示符跟着换（环境提示符规则） */
@@ -327,6 +336,8 @@ export function mountTermView(root, sh, opts) {
   function finish(r) {
     if (r.clear) outEl.textContent = '';
     print(r.out || []);
+    pager = !!r.pager;
+    if (pager) print([{ t: 'line', seg: [['', '# ' + String(sh.str.manPager || TERM_EN.manPager)]], cls: 'o' }]);
     paintPrompt();
     if (r.after) r.after();
   }
@@ -353,8 +364,15 @@ export function mountTermView(root, sh, opts) {
     } else finish(/** @type {Result} */ (r));
   }
 
+  function quitPager() {
+    pager = false;
+    inp.value = '';
+    paintGhost();
+    paintPrompt();
+  }
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+    if (pager) { quitPager(); return; }
     const v = inp.value;
     inp.value = '';
     paintGhost();
@@ -365,6 +383,7 @@ export function mountTermView(root, sh, opts) {
   inp.addEventListener('click', paintGhost);
   inp.addEventListener('keydown', function (e) {
     if (e.isComposing) return;
+    if (pager && (e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); quitPager(); return; }
     if (e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
       /* 空行时 Tab 照常移焦点（不把键盘用户困在输入框里）；有字时才补全 */
       if (!inp.value.trim()) return;

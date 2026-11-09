@@ -3,6 +3,7 @@
  */
 import help from './base/help.js';
 import clear from './base/clear.js';
+import man from './base/man.js';
 import cd from './fs/cd.js';
 import ls from './fs/ls.js';
 import cat from './fs/cat.js';
@@ -11,4 +12,6 @@ import theme from './ui/theme.js';
 import lock from './ui/lock.js';
 import ask from './ui/ask.js';
 
-export const TTY2_CMDS = [help, cd, ls, cat, sudo, theme, lock, ask, clear];
+export const TTY2_CMDS = [help, cd, ls, cat, sudo, theme, lock, ask, clear, man];
+/* man 的参数补全 = 这张表的命令名 */
+man.args = TTY2_CMDS.map(function (c) { return c.name; });
