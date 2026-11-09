@@ -1,8 +1,8 @@
 /**
  * 锁屏凭证 E2E：预览站上的真实网关（passkey-e2e.styrigx-space.pages.dev）+ CDP WebAuthn 虚拟认证器。
  *
- * 覆盖：锁屏凭证页添加 / 命名通行密钥（真实页面）、锁屏通行密钥解锁（真实页面）、伪造会话 cookie、
- * 通行密钥删除 / 重命名 / UV=0 拒绝、锁屏密码删除 / 修改后旧会话失效、重置开关单次有效、
+ * 覆盖：盾牌进站凭证层 passkey add（真实页面，进站 v3 L1 安全页删了）、锁屏 sudo styrigx passkey 解锁（真实页面）、伪造会话 cookie、
+ * 通行密钥删除 / 重命名 / UV=0 拒绝、锁屏密码删除 / 修改后旧会话失效、恢复钥匙一把签 reset 票（L1）且不签 reauth 票、
  * LockResetTicket 的权限边界、会话 cookie 属性、退出所有设备推进纪元、进站凭证单 IP 限速。
  *
  * 预览站 SGX_ENV=preview：网关只在正式域名上拦页面、注入会话标记，预览上页面不拦；
@@ -32,34 +32,29 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
   /* 这一组几乎每条都写状态（注册 / 删除推进纪元），写后读的等待最长 75 秒 */
   test.describe.configure({ timeout: h.KV_TEST_TIMEOUT });
 
-  test('锁屏凭证页：添加通行密钥 → 命名 → 列表里出现', async ({ page }) => {
+  test('盾牌 → 进站凭证层：passkey add → 先问名字 → 注册 → 列表里出现（真实页面 + 真实网关）', async ({ page }) => {
     await h.adminSession(page, test);
     await h.lockReauth(page);
     const va = await h.addVirtualAuth(page, { uv: true });
     const name = 'E2E-UI-' + Date.now();
     try {
-      await page.goto(BASE + '/security/lock/');
-      await expect(page.locator('#lockmgr')).toBeVisible({ timeout: 15000 });
-      await expect(page.locator('#lockmgr-pkadd')).toBeVisible({ timeout: 15000 });
-      await page.click('#lockmgr-pkadd');
-      /* 注册成功后弹命名弹层 */
-      await expect(page.locator('#lockpkname-dlg')).toBeVisible({ timeout: 20000 });
-      await page.fill('#lockpkname-input', name);
-      await page.click('#lockpkname-save');
-      await expect(page.locator('#lockpkname-dlg')).toBeHidden({ timeout: 10000 });
-      /* 页面命名后就地刷新列表（原来就等 15 秒）；列表以前经 KV 索引读（现在在 D1，强一致），就地刷新可能拿到旧列表：
-         15 秒内只看就地刷新的结果，之后每次重载页面再看（写后读，再多等最长 h.KV_SETTLE.timeout） */
-      const t0 = Date.now();
-      await expect.poll(async () => {
-        if (Date.now() - t0 > 15000) {
-          await page.reload();
-          await expect(page.locator('#lockmgr-pkadd')).toBeVisible({ timeout: 15000 });
-        }
-        return page.locator('.lockmgr-pkitem input[type="text"]')
-          .evaluateAll((els) => els.map((e) => /** @type {HTMLInputElement} */ (e).value));
-      }, { timeout: 15000 + h.KV_SETTLE.timeout, intervals: [500, 1000, 2000, 5000] }).toContain(name);
-      const keys = await h.listPasskeys(page);
-      expect(keys.map((k) => k.name)).toContain(name);
+      /* 预览站不注入页面会话标记：页面先画锁屏、立刻问服务端，会话有效就原地收掉，再点盾牌。
+         test-no-local-bypass：模拟器在 localhost 上，不加的话锁屏走本地回退（不问服务端） */
+      await page.goto(BASE + '/wild/?test-no-local-bypass=1#sec=keys');
+      await expect(page.locator('#sgx-entry')).toHaveCount(0, { timeout: 20000 });
+      const sec = page.locator('#sgx-sec');
+      if ((await sec.getAttribute('data-state')) !== 'open') {
+        await page.locator('.sgx-tb-shield').click();
+        await sec.locator('[data-sh-act="keys"]').click();
+      }
+      await expect(sec.locator('.sgx-sh')).toHaveAttribute('data-sh-layer', 'keys', { timeout: 15000 });
+      await sec.locator('[data-sh-act="passkey-add"]').click();
+      await expect(sec.locator('[data-sh-form]')).toHaveAttribute('data-mode', 'pkname');
+      await page.locator('#sgx-sh-in').fill(name);
+      await page.locator('#sgx-sh-in').press('Enter');
+      await expect(sec.locator('[data-sh-log]')).toContainText('✓', { timeout: 20000 });
+      await expect.poll(async () => (await h.listPasskeys(page)).map((k) => k.name), { timeout: h.KV_SETTLE.timeout, intervals: [500, 1000, 2000, 5000] }).toContain(name);
+      await expect(sec).toContainText(name, { timeout: 15000 });
     } finally {
       await h.deleteAllPasskeys(page);
       await va.remove();
@@ -79,18 +74,17 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
 
       /* 去掉会话，回到锁屏 */
       await page.context().clearCookies({ name: SESSION });
-      await page.goto(BASE + '/?lock=1');
-      const lock = page.locator('#sgx-lock');
+      await page.goto(BASE + '/?entry=1');
+      const lock = page.locator('#sgx-entry');
       await expect(lock).toBeVisible({ timeout: 15000 });
-      /* lock-v10 命令解锁：passkey 快捷键（只在 lock-entry 说 passkey:true 时显示）+ passkey 命令 */
-      await expect(page.locator('#sgx-lock-k-pk'), '锁屏终端有 passkey 快捷键').toBeVisible({ timeout: 5000 });
+      await expect(page.locator('#sgx-entry-cmd')).toBeEditable({ timeout: 15000 });
 
       /* 读 auth 接口的原始响应头：预览域名存不下 Domain=.styrigx.com 的 cookie，只能看头 */
       const authResp = page.waitForResponse((r) => {
         if (!r.url().includes('/api/lock-passkey') || r.request().method() !== 'POST') return false;
         try { return JSON.parse(r.request().postData() || '{}').action === 'auth'; } catch (e) { return false; }
       }, { timeout: 30000 });
-      await lockCmd(page, 'passkey');
+      await lockCmd(page, 'sudo styrigx passkey');
       const resp = await authResp;
       expect(resp.status()).toBe(200);
       expect((await resp.json()).ok).toBe(true);
@@ -119,8 +113,8 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     expect(sc.status).toBe(401);
     const cred = await h.apiGet(page, '/api/lock-credentials');
     expect(cred.status).toBe(401);
-    await page.goto(BASE + '/?lock=1');
-    await expect(page.locator('#sgx-lock')).toBeVisible({ timeout: 15000 });
+    await page.goto(BASE + '/?entry=1');
+    await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
   });
 
   test('两把通行密钥删一把：删掉的那把 unknown-key，另一把仍能解锁', async ({ page }) => {
@@ -292,23 +286,21 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     }
   });
 
-  test('重置开关：计时内签一次 LockResetTicket，同一个值第二次不再签', async ({ page }) => {
-    h.requireCf(test);
-    /* 在 D1 插一行新开关（不在 finally 里删：签过一次就标了已用，永不再生效），见 preview-helpers.cjs resetTicketViaSwitch */
-    await h.armResetSwitch();
-    let first = null;
-    await expect.poll(async () => {
-      const r = await h.api(page, '/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY });
-      if (r.status === 200 && r.json && r.json.ok && !r.json.needLock) { first = r; return 'ticket'; }
-      return r.status + ' ' + JSON.stringify(r.json);
-    }, { timeout: 90000, intervals: [3000, 10000, 15000, 20000] }).toBe('ticket');
-    expect(h.setCookieLine(first.resp, 'sgx-lock-reset')).toContain('sgx-lock-reset=');
-
-    /* 已用过：锁屏凭证已设置 → 200 needLock（再验锁屏凭证）；都没设置 → 401 auth。两种都不签票（账号拆分 PR3 起网关不读账号凭证） */
-    const again = await h.api(page, '/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY });
-    expect(h.setCookieLine(again.resp, 'sgx-lock-reset')).toBe('');
-    if (again.status === 200) expect(again.json.needLock).toBe(true);
-    else expect(again.status).toBe(401);
+  test('恢复钥匙（L1）：一把就签 LockResetTicket（不签会话、不读重置开关）；错的 401 auth；恢复钥匙签不了 reauth 票（400 purpose）', async ({ page }) => {
+    await h.adminSession(page, test);
+    const ok = await h.api(page, '/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY });
+    expect(ok.status, JSON.stringify(ok.json)).toBe(200);
+    expect(ok.json).toEqual({ ok: true });
+    expect(h.setCookieLine(ok.resp, 'sgx-lock-reset')).toContain('sgx-lock-reset=');
+    expect(h.setCookieLine(ok.resp, SESSION)).toBe('');
+    await page.context().clearCookies({ name: 'sgx-lock-reset' });
+    const bad = await h.api(page, '/api/lock-reset', { action: 'verify', spaceKey: 'wrong-' + h.rand() });
+    expect(bad.status).toBe(401);
+    expect(h.setCookieLine(bad.resp, 'sgx-lock-reset')).toBe('');
+    const ra = await h.api(page, '/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reauth' });
+    expect(ra.status).toBe(400);
+    expect(ra.json.error).toBe('purpose');
+    expect(h.setCookieLine(ra.resp, REAUTH)).toBe('');
   });
 
   test('LockResetTicket：能读锁屏凭证状态，但不是会话', async ({ page }) => {

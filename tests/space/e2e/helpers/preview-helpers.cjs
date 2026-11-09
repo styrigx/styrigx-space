@@ -12,8 +12,9 @@
  * - SGX_TEST_CF_API：只在模拟预览站（preview-emulator.cjs：本地，或 CI 里 pull_request 的运行）时设，把 Cloudflare REST 指到本机
  *
  * 用量：2026-10-27 起网关不再用 KV（认证状态全在 D1），这里也不碰 KV。D1 免费计划按行读写计（额度远大于 KV 的写 / 删 / 列），
- * 仍尽量少写：会话 / LockReauthTicket 缓存后先用只读接口确认（见 state），不再每个用例重新密码解锁 / space-auth；
- * 重置开关行不删（签过的行在 D1 标了已用，见 resetTicketViaSwitch）。
+ * 仍尽量少写：会话 / LockReauthTicket 缓存后先用只读接口确认（见 state），不再每个用例重新密码解锁 / 再验证。
+ * 进站 v3 L1：恢复钥匙（SGX_LOCK_SPACE_KEY）一把就签 reset 票（/api/lock-reset verify），不再读重置开关；
+ * 恢复钥匙也不再签 reauth 票（/api/space-auth purpose:lock-reauth → 400），再验证用解锁密码（/api/lock-password verify reauth:true）。
  * 一次运行花多少可以用 preview-emulator.cjs 在本地量（/__kv/stats 的 d1 一栏）。
  *
  * 预览站上的 cookie：
@@ -25,9 +26,9 @@
  * 预览站用同一个 D1。CI 每次开跑前清掉预览 D1 里的密码、通行密钥和输错计数
  * （space/scripts/kv-budget.mjs reset-preview；根密钥、pepper 每次都换，旧的密码哈希没用了），
  * 本地跑也不一定清，所以 helper 仍不假设起始状态：
- * - adminSession：先用本次运行设过的锁屏密码解锁；不行就拿 LockResetTicket（锁屏未设置时 space-auth
- *   purpose:lock-reset；已设置时在 D1 插一行新的重置开关，轮询 /api/lock-reset），设一个新密码再解锁。
- * - 进站凭证正确时服务端会清掉本 IP 的失败计数，所以轮询重置开关不会把自己锁住。
+ * - adminSession：先用本次运行设过的锁屏密码解锁；不行就用恢复钥匙拿 LockResetTicket（/api/lock-reset verify，L1 起一把就签），
+ *   设一个新密码再解锁。
+ * - 恢复钥匙正确时服务端会清掉本 IP 的失败计数，所以不会把自己锁住。
  *
  * 写后读：以前状态在 KV（最终一致，边缘缓存的读最长约 60 秒才看到新值）；2026-10-27 起网关的认证状态全部在 D1
  * （强一致），改凭证后下一个请求就能看到新值，下面这些轮询正常情况下第一次就满足；留着它们当兜底（只多花一次读）。
@@ -250,12 +251,6 @@ async function d1Query(sql, params) {
   const j = await r.json();
   return (j && j.result && j.result[0]) || {};
 }
-/** 打开重置开关：插一行还没见过的开关（first_seen = 0，同 Sloan 在后台控制台手动插的那条，见网关 src/core/lock-reset-switch.js）。
- *  先 CREATE ... IF NOT EXISTS（同代码兜底的那句）：库没跑过迁移（模拟器 --no-migrations）时网关还没读过开关、表还没建。 */
-async function armResetSwitch() {
-  await d1Query('CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
-  await d1Query('INSERT INTO lock_reset_switch (hash, first_seen, used) VALUES (?, 0, 0)', ['e2e-' + rand()]);
-}
 /** 清掉进站凭证的单 IP 限速计数（D1 attempt_limit realm='lock'、kind='spacekey'，账号拆分 PR3 起网关的根密钥计数归锁屏域；
  *  全局窗口不动）。表还没建（没跑迁移、网关还没记过数）= 没有可清的。 */
 async function clearSpaceLimits() {
@@ -267,40 +262,18 @@ async function clearSpaceLimits() {
 }
 
 /**
- * 用重置开关拿 LockResetTicket：在 D1 插一行新开关，轮询 /api/lock-reset verify 直到签票
- * （D1 强一致，正常第一次就签）。每次轮询进站凭证都正确，服务端先清本 IP 的失败计数，不会自锁。
+ * 拿 LockResetTicket（写进 context）：进站 v3 L1 起恢复钥匙一把就签（/api/lock-reset verify），锁屏设没设置都一样；
+ * 不再读重置开关（lock_reset_switch，L3 删表）。原锁屏未设置时的 /api/space-auth purpose:lock-reset 前端不再用。
  * @param {import('@playwright/test').Page} page
+ * @param {import('@playwright/test').TestType<any, any>} [test]
  * @returns {Promise<import('@playwright/test').APIResponse>} 签票的那次响应
  */
-async function resetTicketViaSwitch(page) {
-  await armResetSwitch();
-  let hit = null;
-  await expect.poll(async () => {
-    const r = await api(page, '/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY });
-    if (r.status === 200 && r.json && r.json.ok && !r.json.needLock) {
-      hit = r.resp;
-      return 'ticket';
-    }
-    return r.status + ' ' + JSON.stringify(r.json);
-  }, { message: '重置开关签 LockResetTicket', timeout: 90000, intervals: [3000, 10000, 15000, 20000] }).toBe('ticket');
-  /* 不删开关行：签过票的行在 D1 里标了已用，永不再生效；下次要用时再插一行。万一没签成（轮询超时），
-     这一行也只对本次运行现生成的预览进站凭证有用，24 小时后过期。lock-reset-switch.js：已用 / 过期的行永不重新生效。 */
-  return /** @type {any} */ (hit);
-}
-
-/**
- * 拿 LockResetTicket（写进 context）：锁屏未设置 → space-auth purpose:lock-reset；已设置 → 重置开关。
- * @param {import('@playwright/test').Page} page
- * @param {import('@playwright/test').TestType<any, any>} test
- */
 async function lockResetTicket(page, test) {
-  const r = await api(page, '/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reset' });
-  if (r.status === 200 && r.json && r.json.ok) return 'space-auth';
-  /* 锁屏已设置时 space-auth 的 lock-reset 是假入口，固定 401 */
-  expect(r.status, 'space-auth lock-reset: ' + JSON.stringify(r.json)).toBe(401);
-  requireCf(test);
-  await resetTicketViaSwitch(page);
-  return 'switch';
+  void test;
+  const r = await api(page, '/api/lock-reset', { action: 'verify', spaceKey: SPACE_KEY });
+  expect(r.status === 200 && r.json && r.json.ok, 'lock-reset verify: ' + r.status + ' ' + JSON.stringify(r.json)).toBe(true);
+  expect(setCookieLine(r.resp, RESET), '签了 sgx-lock-reset').toContain(RESET + '=');
+  return r.resp;
 }
 
 /**
@@ -381,7 +354,8 @@ function rememberPassword(pw) {
 }
 
 /**
- * 进锁屏凭证的门：space-auth purpose:lock-reauth → LockReauthTicket（要 进门会话）。
+ * 再验证：解锁密码 verify reauth:true → LockReauthTicket（要进门会话；进站 v3 L1 起恢复钥匙不签 reauth 票，reauth 只认解锁密码 / 通行密钥）。
+ * 先调 adminSession（它设好 / 记下本次运行的解锁密码）。
  * @param {import('@playwright/test').Page} page
  */
 async function lockReauth(page) {
@@ -391,8 +365,9 @@ async function lockReauth(page) {
   })) {
     return;
   }
-  const r = await api(page, '/api/space-auth', { key: SPACE_KEY, purpose: 'lock-reauth' });
-  expect(r.json && r.json.ok, 'space-auth lock-reauth: ' + JSON.stringify(r.json)).toBe(true);
+  expect(state.password, 'lockReauth 要先 adminSession（本次运行的解锁密码）').toBeTruthy();
+  const r = await api(page, '/api/lock-password', { action: 'verify', password: state.password, reauth: true });
+  expect(r.json && r.json.ok, 'lock-password verify reauth: ' + JSON.stringify(r.json)).toBe(true);
 }
 
 /** @param {import('@playwright/test').Page} page */
@@ -557,9 +532,7 @@ module.exports = {
   settleSession,
   waitLockEntryPasskey,
   d1Query,
-  armResetSwitch,
   clearSpaceLimits,
-  resetTicketViaSwitch,
   lockResetTicket,
   unlockWithPassword,
   adminSession,
