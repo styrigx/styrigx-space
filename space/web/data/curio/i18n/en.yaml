@@ -195,6 +195,7 @@ js:
     saved: Saved.
     deleted: Deleted.
     failed: Something went wrong. Please try again.
+    loadFail: "error: couldn't load the list  # refresh to retry"
     needUrl: Enter a valid web address.
     needName: Give it a name.
     needCat: Pick a category.
@@ -266,6 +267,7 @@ js:
     noScope: Curio doesn’t have account access.
     badDate: Check the dates.
     failed: Something went wrong. Please try again.
+    loadFail: "error: couldn't load the list  # refresh to retry"
     saved: Saved.
     deleted: Deleted.
     photoFail: Saved, but the photo didn't upload.
@@ -322,6 +324,7 @@ js:
     saved: Saved.
     deleted: Deleted.
     failed: Something went wrong. Please try again.
+    loadFail: "error: couldn't load the list  # refresh to retry"
     photoFail: Saved, but the poster didn't upload.
     del: Delete
     delMovie: Delete this movie?
@@ -338,6 +341,7 @@ js:
     tracks: '{n} tracks'
     tracks_one: '{n} track'
     failed: Something went wrong. Please try again.
+    loadFail: "error: couldn't load the list  # refresh to retry"
     saved: Uploaded.
     deleted: Deleted.
     needName: Give the album a name.

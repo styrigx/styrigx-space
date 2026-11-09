@@ -114,7 +114,6 @@ foot:
   status: "服务状态"
   clock: "北京时间"
   langs: "语言"
-  contact: "联系"
 # 外观弹层里的色板名（2026-11 PR-A 照设计稿 tb4.html：等宽小写英文，所有语言都用这一份，中文表照抄同一份）
 paletteTerm:
   dustyblue: "dusty-blue"
@@ -186,6 +185,7 @@ term:
   dAsk: "问 Gray AI"
   dClear: "清屏"
   notFound: "command not found: {x} · 试试 help"
+  didYouMean: "command not found: {c} — 你是想输 {x} 吗？"
   noDir: "{c}: 没有这个目录：{x}"
   noFile: "cat: {x}: 没有这个文件"
   lsEmpty: "这里没有可列的 · 试试 cd .."
@@ -200,6 +200,21 @@ term:
   themeOpen: "已打开外观面板"
   locking: "正在锁屏 …"
   asking: "正在问 Gray AI …"
+  fetching: "正在取 {x}…"
+# 终端窗口底部的按键提示行（Gray 2026-11-09 细节 1）：键名同英文表
+kh:
+  cmd: "enter 执行 · esc 关闭"
+  cmdLayer: "enter 执行 · esc 返回"
+  cmdEntry: "enter 执行 · ↑↓ 历史 · ^L 清屏"
+  cmdHome: "enter 执行 · ^C 中断 · ^L 清屏"
+  cmdDrawer: "tab 补全 · enter 执行 · esc 关闭"
+  pick: "[n] 选择 · enter 默认项 · esc 返回 · ^C 退出"
+  secret: "enter 确认 · 输入不显示 · esc 返回 · ^C 退出"
+  name: "enter 保存 · esc 返回 · ^C 退出"
+  busy: "^C 取消"
+  ai: "enter 发送 · shift+enter 换行 · esc 关闭"
+  back: "‹ 返回"
+  backAria: "返回"
 account:
   keys:
     unprotected: "未设置"
@@ -259,6 +274,7 @@ account:
     tooMany: "sudo: too many attempts · try again in 15 min"
     pkNoSupport: "此设备不支持通行密钥"
     notFound: "command not found: {x} · 试试 help"
+    didYouMean: "command not found: {c} — 你是想输 {x} 吗？"
     cancel: "取消"
     save: "保存"
     saved: "已保存"
@@ -436,6 +452,7 @@ space:
     noOption: "没有这个选项"
     cancelled: "已取消"
     notFound: "command not found: {x} · try help"
+    didYouMean: "command not found: {c} — 你是想输 {x} 吗？"
     tooMany: "sudo: 尝试次数太多"
     retrySec: "{n} 秒后可再试"
     retryMin: "{n} 分钟后可再试"

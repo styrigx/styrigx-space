@@ -98,7 +98,8 @@ test('顶栏标题（节点）：静止「锁定屏幕」→ 密码态「解锁�
 test('不触发双击放大：html touch-action = manipulation；触屏上输入框字号 ≥ 16px', async ({ page }) => {
   await openPwByTouch(page);
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).touchAction)).toBe('manipulation');
-  const sizes = await page.evaluate(() => Array.from(document.querySelectorAll('input:not([type=hidden])'))
+  /* 只看锁屏里的输入框：主页首屏终端的输入行 2026-11-09 起（Gray 细节 3）跟输出同字号，16px 只留给 iOS（@supports -webkit-touch-callout），锁屏底下那个不算 */
+  const sizes = await page.evaluate(() => Array.from(document.querySelectorAll('#sgx-entry input:not([type=hidden])'))
     .filter((el) => el.getClientRects().length && getComputedStyle(el).opacity !== '0')
     .map((el) => parseFloat(getComputedStyle(el).fontSize)));
   expect(sizes.length).toBeGreaterThan(0);

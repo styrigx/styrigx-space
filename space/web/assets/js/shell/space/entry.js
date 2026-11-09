@@ -20,6 +20,7 @@ import { setLang } from '../../lib/prefs.js';
 import { pageLang } from '../../lib/i18n.js';
 import * as api from './api.js';
 import { createTerm, shellTable } from './term.js';
+import { suggest } from '../suggest.js';
 import { CMD, PS_ENTRY, PS_RESET, ADMIN_COMMAND, normCmd, parseEntryCmd } from './commands.js';
 import { mountVerify } from './session.js';
 import { mountReset } from './reset.js';
@@ -86,7 +87,7 @@ export function showEntryScreen() {
     '<span class="sgx-entry-gsep" aria-hidden="true"> · </span>' +
     '<span class="sgx-entry-sub">' + esc(t('entry.goodToSee')) + '</span></p>' +
     '<div class="sgx-entry-term" id="sgx-entry-term">' +
-    '<div class="sgx-entry-term-bar" aria-hidden="true"><span translate="no"><b>$</b> ENTRY · tty1</span><span id="sgx-entry-tty" translate="no">entry</span></div>' +
+    '<div class="sgx-entry-term-bar" aria-hidden="true"><span translate="no"><b>$</b> ENTRY · tty1</span><span id="sgx-entry-tty" translate="no"></span></div>' +
     '<div class="sgx-entry-tbody" id="sgx-entry-tbody">' +
     '<div class="sgx-entry-log" id="sgx-entry-log" data-term-log aria-hidden="true"></div>' +
     /* 命令输入行：真的 <input>。输凭证时 type=password（不回显），隐藏用户名给密码管理器 */
@@ -96,6 +97,7 @@ export function showEntryScreen() {
     '<input type="text" class="sgx-entry-in" id="sgx-entry-cmd" name="cmd" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" maxlength="256">' +
     '</form>' +
     '<p class="sgx-entry-hint" id="sgx-entry-hint" hidden></p>' +
+    '<p class="sgx-kh sgx-entry-kh" id="sgx-entry-kh" hidden></p>' +
     '</div>' +
     '</div>' +
     '<p class="sgx-entry-sr" id="sgx-entry-live" role="status" aria-live="polite"></p>' +
@@ -149,8 +151,15 @@ export function showEntryScreen() {
       pmu: /** @type {HTMLInputElement} */ ($('sgx-entry-pmu')),
       hint: $('sgx-entry-hint'),
       live: $('sgx-entry-live'),
+      kh: $('sgx-entry-kh'),
     },
     p: 'sgx-entry',
+    /* 按键提示行：锁屏命令行（进站之前没别处可去）没有「‹ 返回」；reset 层的命令行 esc / ‹ 返回 = 离开 reset */
+    kh: {
+      cmdKey: function () { return C && C.inReset ? 'cmdLayer' : 'cmdEntry'; },
+      canBackCmd: function () { return !!(C && C.inReset); },
+      onBack: function () { C.refocus = true; C.interrupt(); },
+    },
     t: t,
     ps: function () { return C && C.inReset ? PS_RESET : PS_ENTRY; },
     ariaCmd: t('entry.cmdAria'),
@@ -177,7 +186,7 @@ export function showEntryScreen() {
   C.cfg = null;
   const cfgReady = api.entryConfig().then(function (c) { C.cfg = c; return c; });
   C.authErr = function () { return false; };
-  C.setBar = function (/** @type {string} */ s) { const el = $('sgx-entry-tty'); if (el) el.textContent = s || 'entry'; };
+  C.setBar = function (/** @type {string} */ s) { const el = $('sgx-entry-tty'); if (el) el.textContent = s || ''; }; /* 平时空（标题已有 ENTRY，右边不再重复）；reset 层写倒计时 */
   C.setStatus = function (/** @type {string} */ s) { chip(s === 'reset' ? 'reset' : 'locked'); };
   const baseErr = C.err;
   C.err = function (/** @type {string} */ txt, /** @type {string} */ x) { chip('denied'); return baseErr(txt, x); };
@@ -226,7 +235,12 @@ export function showEntryScreen() {
         });
         return;
       case 'reset': C.cmdReset(); return;
-      default: C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
+      default: {
+        /* 打错了：给最近的真命令（Gray 2026-11-09） */
+        const sg = suggest(line, [ 'help', 'man ' + ADMIN_COMMAND, 'clear', CMD.session, CMD.reset, CMD.session + ' passkey', CMD.session + ' password', CMD.session + ' tempkey' ]);
+        if (sg) C.err(tf('common.didYouMean', { c: raw.trim().split(' ')[0] }), sg);
+        else C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
+      }
     }
   }
 

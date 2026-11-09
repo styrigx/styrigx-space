@@ -119,7 +119,6 @@ foot:
   status: "Service status"
   clock: "Beijing time"
   langs: "Language"
-  contact: "contact"
 # 外观弹层里的色板名（2026-11 PR-A 照设计稿 tb4.html：等宽小写英文，所有语言都用这一份，中文表照抄同一份）
 paletteTerm:
   dustyblue: "dusty-blue"
@@ -193,6 +192,7 @@ term:
   dAsk: "ask Gray AI"
   dClear: "clear screen"
   notFound: "command not found: {x} · try help"
+  didYouMean: "command not found: {c} — did you mean {x}?"
   noDir: "{c}: no such directory: {x}"
   noFile: "cat: {x}: no such file"
   lsEmpty: "nothing to list here · try cd .."
@@ -207,6 +207,21 @@ term:
   themeOpen: "appearance panel opened"
   locking: "locking …"
   asking: "asking Gray AI …"
+  fetching: "fetching {x}…"
+# 终端窗口底部的按键提示行（Gray 2026-11-09 细节 1；shell/keyhint.js KH_EN 是英文底）：键名 = 终端状态；触屏只显示 back（「‹ 返回」按钮）
+kh:
+  cmd: "enter run · esc close"
+  cmdLayer: "enter run · esc back"
+  cmdEntry: "enter run · ↑↓ history · ^L clear"
+  cmdHome: "enter run · ^C cancel · ^L clear"
+  cmdDrawer: "tab complete · enter run · esc close"
+  pick: "[n] pick · enter default · esc back · ^C quit"
+  secret: "enter submit · hidden input · esc back · ^C quit"
+  name: "enter save · esc back · ^C quit"
+  busy: "^C cancel"
+  ai: "enter send · shift+enter newline · esc close"
+  back: "‹ back"
+  backAria: "Back"
 account:
   keys:
     unprotected: "Not set up"
@@ -266,6 +281,7 @@ account:
     tooMany: "sudo: too many attempts · try again in 15 min"
     pkNoSupport: "passkeys aren’t supported on this device"
     notFound: "command not found: {x} · try help"
+    didYouMean: "command not found: {c} — did you mean {x}?"
     cancel: "cancel"
     save: "save"
     saved: "saved"
@@ -443,6 +459,7 @@ space:
     noOption: "no such option"
     cancelled: "cancelled"
     notFound: "command not found: {x} · try help"
+    didYouMean: "command not found: {c} — did you mean {x}?"
     tooMany: "sudo: too many attempts"
     retrySec: "try again in {n}s"
     retryMin: "try again in {n} min"

@@ -171,7 +171,7 @@ test.describe('NAVIGATE「分享本页」按钮', () => {
           const shown = [...document.querySelectorAll('#site-nav .sgx-tb-pill > *')].filter((e) => e.getBoundingClientRect().width > 0).length;
           return { bar: [Math.round(bar.left), Math.round(bar.right), Math.round(bar.height)],
             logoL: Math.round(logo.left), actsR: Math.round(acts.right),
-            kids: [...document.querySelectorAll('.sgx-tb-acts > *')].map((e) => e.className.split(' ').pop()),
+            kids: [...document.querySelectorAll('.sgx-tb-acts > *')].map((e) => e.className.split(' ').filter((c) => !c.startsWith('is-')).pop()) /* 去掉状态类：头像加载中带 .is-busy（2026-11-09 头像外圈） */,
             btns: [...document.querySelectorAll('.sgx-tb-acts > .sgx-tb-btn, .sgx-tb-acts > .sgx-tb-av')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }),
             between: logo.right <= acts.left + 0.5, shown,
             overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 };

@@ -456,6 +456,7 @@ wild:
   kernel: 内核
   build: 构建
   builtAt: 构建时间
+  uptime: 自 2026-10-07 起运行
 sgxAccountCard:
   signedIn: 已登录
   changePhoto: 更换头像

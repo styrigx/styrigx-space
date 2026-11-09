@@ -2,7 +2,7 @@
  * 触屏滚动 + AI 浮钮让位（2026-11-08 PR-A）：
  * - 手机从终端窗（旷野三窗 / 主页可输入终端）起划，页面照样往下滚（.sgx-term-body 纵向不再 overscroll-behavior: contain）；
  *   模态抽屉（Ctrl K）纵向仍收住，见 input.css。
- * - 滚到底时 AI 浮钮不压 tmux 页脚（状态栏 + 「联系」那一行）：mountFootLift 把页脚露出的高度写到 --sgx-foot-lift，浮钮停在页脚上沿之上。
+ * - 滚到底时 AI 浮钮不压 tmux 页脚（状态栏 + rss · github · x 那一行）：mountFootLift 把页脚露出的高度写到 --sgx-foot-lift，浮钮停在页脚上沿之上。
  * 手势用 CDP Input.dispatchTouchEvent 一帧一帧发（headless shell 里 synthesizeScrollGesture 的 touch 手势不滚页面），走的是浏览器真实的触摸滚动链。
  */
 const { test } = require('@playwright/test');
@@ -81,7 +81,7 @@ test.describe('触屏：从终端窗起划滚页面', () => {
 
 test.describe('AI 浮钮给页脚让位', () => {
   for (const path of ['/wild/', '/']) {
-    test(`滚到底：浮钮不压页脚状态栏和「联系」（${path}）`, async ({ page }) => {
+    test(`滚到底：浮钮不压页脚状态栏和链接行（${path}）`, async ({ page }) => {
       await go(page, path);
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
       await scrolledTo(page);

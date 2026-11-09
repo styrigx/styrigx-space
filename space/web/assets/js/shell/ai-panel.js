@@ -459,6 +459,39 @@ export function mountAiChat(dlg, opts) {
     try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) { return false; }
   };
 
+  /* 按键提示行（Gray 2026-11-09 细节 1；同 shell/keyhint.js，这个文件不 import，内联几行）：桌面「enter 发送 · shift+enter 换行 · esc 关闭」，
+     触屏换成「‹ 返回」按钮 = 关窗口（每个终端状态都有出口）。文案 #sgx-i18n-shell 的 kh 节 */
+  (function () {
+    const el = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-kh]'));
+    if (!el) return;
+    /** @type {Record<string, string>} */
+    let K = { ai: 'enter send · shift+enter newline · esc close', back: '‹ back', backAria: 'Back' };
+    try {
+      const j = JSON.parse((doc.getElementById('sgx-i18n-shell') || {}).textContent || '{}');
+      if (j && j.kh && typeof j.kh === 'object') K = Object.assign(K, j.kh);
+    } catch (e) {}
+    el.textContent = '';
+    if (coarse()) {
+      if (!o.close) { el.hidden = true; return; }
+      const b = doc.createElement('button');
+      b.type = 'button';
+      b.className = 'sgx-kh-b';
+      b.setAttribute('data-kh-back', '');
+      b.setAttribute('aria-label', K.backAria);
+      b.textContent = K.back;
+      b.addEventListener('click', function (e) { e.preventDefault(); if (o.close) o.close(); });
+      el.appendChild(b);
+    } else {
+      const k = doc.createElement('span');
+      k.className = 'sgx-kh-k';
+      k.setAttribute('aria-hidden', 'true');
+      k.setAttribute('translate', 'no');
+      k.textContent = K.ai;
+      el.appendChild(k);
+    }
+    el.hidden = false;
+  })();
+
   /** 从 data 取当前对话（cur 不在列表里 = 新对话，空） */
   function pickCurrent() {
     cur = data.cur || newChatId();
@@ -764,6 +797,8 @@ export function mountAiChat(dlg, opts) {
     if (histBtn) histBtn.setAttribute('aria-expanded', String(v));
   }
   function setBusy(/** @type {boolean} */ v) {
+    /* 顶栏头像外圈的弧转快一档（等回答时；topbar-panel.js mountAvBusy 收 sgx-busy 事件，2026-11-09） */
+    if (v !== busy) { try { doc.dispatchEvent(new CustomEvent('sgx-busy', { detail: v })); } catch (e) {} }
     busy = v;
     if (send) {
       send.disabled = false;
@@ -815,7 +850,8 @@ export function mountAiChat(dlg, opts) {
     render();
     const liveEl = /** @type {HTMLElement|null} */ (list.querySelector('[data-live] .sgx-ai-msg'));
     const liveText = /** @type {HTMLElement|null} */ (liveEl && liveEl.firstChild);
-    if (liveText) liveText.textContent = t.thinking;
+    /* 等第一段回答时一行输出式的提示「› 正在查站内内容…」（Gray 2026-11-09 细节 3；消息区是 aria-live，读屏照念） */
+    if (liveText) liveText.textContent = '› ' + t.thinking;
     ctl = typeof AbortController === 'function' ? new AbortController() : null;
     let failed = '';
     /** @type {Record<string, any>} */

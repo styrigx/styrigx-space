@@ -11,43 +11,7 @@
      （主站 layout 层、顶栏三栏、快捷面板、头像裁剪、输入方式）。往这一段加规则前先确认确实要压过所有层。 ===== */
 @layer tw, reset, tokens, sgx-base, sgx-components, sgx-utilities, overrides;
 
-/* ===== 2.4.0 D：跨页 View Transitions =====
-   @view-transition { navigation: auto } 让同站跳转自动做过渡（渐进增强，
-   不支持的浏览器忽略）。 */
-@view-transition {
-  navigation: auto;
-}
-/* 切页流畅度：顶栏在切页时保持不动（共享元素过渡） */
-/* 名字挂在真正有尺寸的 .sgx-topbar 上：#site-nav 自身高度是 0（子元素都是 fixed），
-   老一些的 Chromium（如三星浏览器 31 / Chromium 148）截不到它的快照，切页时顶栏会消失一帧 */
-.sgx-topbar {
-  view-transition-name: sgx-topbar;
-}
-/* 整页切换：直接交叉淡化（浏览器默认的 plus-lighter 混合，两页相同的像素保持不变）。
-   原来是「先淡出到空白、再淡入并放大」：中间有一段两页都透明，露出浏览器白底，
-   壁纸和卡片整屏闪一下，加上 0.98 缩放让文字重新栅格化，手机上看起来一卡一卡。
-   现在壁纸、顶栏这些两页都有的东西在过渡中纹丝不动，只有内容在换。 */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 180ms;
-  animation-timing-function: cubic-bezier(.2, 0, 0, 1);
-}
-::view-transition-group(sgx-topbar) {
-  animation-duration: 180ms;
-}
-/* 尊重减弱动画：过渡退化为无动画（系统设置或本站「减弱动效」开关） */
-.reduced-motion::view-transition-group(*),
-.reduced-motion::view-transition-old(*),
-.reduced-motion::view-transition-new(*) {
-  animation: none !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none !important;
-  }
-}
+/* ===== 2.4.0 D：跨页 View Transitions —— 2026-11-09 搬进共享外壳 @shell topbar-frame（四站同一套，见那里） ===== */
 
 /* ===== reset 层：最小自定义重置 ===== */
 @layer reset {
@@ -7455,9 +7419,11 @@
   /* 整组在整屏里上下居中（锁屏没有顶栏，上下等距；顶部让开刘海安全区） */
   .sgx-entry-stage {
     position: relative; z-index: 1; margin: 0 auto; flex: 1 0 auto; max-width: 560px; justify-content: center;
-    padding: calc(env(safe-area-inset-top, 0px) + 24px) 18px calc(env(safe-area-inset-bottom, 0px) + 24px);
+    padding: calc(env(safe-area-inset-top, 0px) + 24px) 18px 0;
   }
   #sgx-entry .sgx-entry-user { text-align: center; }
+  /* 底部那一行在舞台最后、贴底（margin-top:auto）；头像组也 margin-top:auto，剩余空间上下平分 → 头像组仍大致居中（横屏矮屏那条把它改回 0） */
+  .sgx-entry-stage > .sgx-entry-user { margin-top: auto; }
   /* 头像 92px（设计稿）：只是图，不可点、没有光环（解锁在终端里敲命令） */
   #sgx-entry-avatar { width: 92px; height: 92px; }
   #sgx-entry-avatar img, #sgx-entry .sgx-entry-fb { width: 92px; height: 92px; margin: 0; }
@@ -7467,7 +7433,7 @@
   .sgx-entry-st {
     display: inline-flex; align-items: center; gap: 8px; margin: 18px 0 0; padding: 5px 13px;
     border: 1px solid var(--sgx-term-line); border-radius: 999px;
-    font-size: 11px; letter-spacing: 2px; line-height: 1.4; color: var(--sgx-text-secondary); white-space: nowrap;
+    font-size: 11px; letter-spacing: .06em; line-height: 1.4; color: var(--sgx-text-secondary); white-space: nowrap;
     i { width: 7px; height: 7px; border-radius: 50%; background: var(--sgx-primary); flex: none; }
     &[data-st="sudo"] i, &[data-st="verifying"] i { background: var(--sgx-warning); }
     &[data-st="denied"] i { background: var(--sgx-danger); }
@@ -7487,12 +7453,14 @@
   .dark .sgx-entry-term { box-shadow: 0 30px 70px rgba(0,0,0,.4); }
   .sgx-entry-term-bar {
     display: flex; justify-content: space-between; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--sgx-term-line);
-    background: var(--sgx-surface-container-low); font-size: 11px; letter-spacing: 3px; line-height: 1.3; color: var(--sgx-text-secondary);
+    background: var(--sgx-surface-container-low); font-size: 11px; letter-spacing: .06em; line-height: 1.3; color: var(--sgx-text-secondary);
     b { font-weight: 500; color: var(--sgx-primary); }
   }
   .sgx-entry-log { overflow-wrap: anywhere; }
   /* 进站 v3 L1：终端输出行（shell/space/term.js，类名 = sgx-entry + 后缀，和盾牌 / 账号下拉的 .sgx-at-* 一一对应） */
-  .sgx-entry-l { white-space: pre-wrap; }
+  /* 折行的输出行悬挂缩进 2ch，续行不像一条新命令；行高收到 1.55（原来跟 tbody 1.95，手机上折行像空行）（2026-11-09 细节 2） */
+  .sgx-entry-l { white-space: pre-wrap; padding-left: 2ch; text-indent: -2ch; line-height: 1.55; margin: .2em 0; }
+  .sgx-entry-l--opts { text-indent: 0; padding-left: 0; }
   .sgx-entry-l--d { color: var(--sgx-text-tertiary); }
   .sgx-entry-l--er { color: var(--sgx-danger); }
   .sgx-entry-l--warn { color: var(--sgx-warning); }
@@ -7520,10 +7488,14 @@
     .reduced-motion & { animation: none; }
   }
   .sgx-entry-tcur { width: 7px; height: 2px; vertical-align: 0; background: var(--sgx-text-tertiary); }
+  /* 终端里正在输入（尤其输密码时前面已有方块光标）时，底部 `~/styrigx` 后面的装饰光标藏起，屏上只有一个光标（2026-11-09 Gray 细节） */
+  #sgx-entry:has(.sgx-entry-in:focus, .sgx-entry-line:is([data-mode="pw"], [data-mode="temp"], [data-mode="rkey"], [data-mode="newpw"], [data-mode="newpw2"])) .sgx-entry-tcur { visibility: hidden; }
 
   /* 命令解锁（2026-11-08）：输出 + 真的命令输入行在同一块里（设计稿 K1–K4）；输凭证时 type=password 且不回显（字和光标透明，前面画方块光标） */
   .sgx-entry-tbody { min-height: 150px; padding: 14px 16px 6px; box-sizing: border-box; font-size: 13px; line-height: 1.95; color: var(--sgx-text-primary); cursor: text; }
   #sgx-entry .sgx-entry-log { min-height: 0; padding: 0; max-height: 40vh; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+  /* 输出多了（往上顶）时第一行别贴着窗口标题栏：上面留 12px（2026-11-09 细节 15） */
+  #sgx-entry .sgx-entry-log { padding-top: 12px; scroll-padding-top: 12px; }
 
   .sgx-entry-line {
     position: relative; display: flex; align-items: baseline; margin: 0; min-width: 0;
@@ -7556,8 +7528,10 @@
   /* 快捷键一行（password / passkey，只显示已配置的）：点了替你把命令敲进输入行再回车 */
 
   /* 底部 `~/styrigx_ · zh · en`：字标是装饰；语言是按钮（同快捷面板语言行） */
+  /* 2026-11-09（Gray 手机截图）：原来 absolute 贴在锁屏底边，终端变高（reset 的三选一 + 触屏 # [^C] 那一行）时压在终端最后一行上、没有间距；
+     改成锁屏 flex 列里自己的一行（在舞台下面，舞台高了就跟着往下、整页可滚），上下留白；舞台底部留白相应收小，居中位置基本不变 */
   .sgx-entry-tail {
-    position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); margin: 0;
+    position: relative; z-index: 1; flex: none; align-self: stretch; margin: auto 0 0; padding: 16px 0 calc(env(safe-area-inset-bottom, 0px) + 10px);
     display: flex; justify-content: center; align-items: center;
     font-size: 11px; letter-spacing: 1px; color: var(--sgx-text-tertiary);
   }
@@ -7579,6 +7553,7 @@
   @media (orientation:landscape) and (max-width:1023.5px) and (max-height:600px) {
     .sgx-entry-stage { flex-direction: column; padding-top: 8px; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
     .sgx-entry-user { flex: none; }
+    .sgx-entry-stage > .sgx-entry-user { margin-top: 0; }
     .sgx-entry-term { margin-top: 20px; }
     .sgx-entry-tbody { min-height: 0; }
     .sgx-entry-tail { display: none; }
@@ -7787,6 +7762,7 @@
 :root[data-sgx-layout="desktop"] .sgx-ph-title { font-size: 64px; }
 .sgx-ph-title::after { content: "_" / ""; color: var(--sgx-primary); }
 .sgx-ph-desc { margin: 0; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.9; color: var(--sgx-text-secondary); }
+.sgx-ph-desc .sgx-nw { white-space: nowrap; }
 :root[data-sgx-layout="desktop"] .sgx-ph-desc { font-size: 16px; }
 /* ---- 终端风子页件（2026-11 UI 重设计 PR-3，设计稿 s-blog / s-tree / s-post / s-curio / s-citem / s-day，Gray 已批）：三个子站共用 ----
    --sgx-col-w   内容栏宽 = 顶栏内容宽（min(--sgx-content-w 1080, 100% − 2 × 页边距)），子站页面外框按它对齐字标 / 图标组（同主页首屏终端）。
@@ -7797,7 +7773,7 @@
 .sgx-crumb { margin: 0; padding-top: 28px; font-family: var(--sgx-font-mono); font-size: 13px; line-height: 1.6; color: var(--sgx-text-tertiary); overflow-wrap: anywhere; letter-spacing: 0; }
 :root[data-sgx-layout="desktop"] .sgx-crumb { padding-top: 40px; }
 .sgx-crumb .sgx-pr { margin-right: 6px; }
-.sgx-yr { display: flex; align-items: center; gap: 12px; margin: 30px 0 0; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.4; letter-spacing: 2px; color: var(--sgx-text-tertiary); }
+.sgx-yr { display: flex; align-items: center; gap: 12px; margin: 30px 0 0; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.4; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-tertiary); }
 .sgx-yr::after { content: ""; flex: 1; height: 1px; background: var(--sgx-term-line); }
 :root .sgx-term.sgx-term--static { box-shadow: none; }
 .sgx-term--static .sgx-term-body { overflow: visible; }
@@ -7823,6 +7799,13 @@
 .sgx-chip[aria-current="true"] { border-color: var(--sgx-primary); color: var(--sgx-primary); background: color-mix(in oklab, var(--sgx-primary) 8%, transparent); }
 .sgx-chip--more { margin-left: auto; border-style: dashed; }
 .sgx-chip:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+/* 404（2026-11-09 细节 4）：大字 404 = 主色等宽；标题 / 说明跟全站正文色；两个按钮 = .sgx-chip（返回主页亮着主色），版式不变 */
+.sgx-404-code { margin: 0; font-family: var(--sgx-font-mono); font-weight: 500; line-height: 1; letter-spacing: -.02em; color: var(--sgx-primary); }
+.sgx-404-h { font-family: var(--sgx-font-mono); font-weight: 500; letter-spacing: 0; color: var(--sgx-text-primary); }
+.sgx-404-p { color: var(--sgx-text-secondary); }
+.sgx-404-a { min-height: 36px; padding: 0 14px; font-size: 13px; color: var(--sgx-text-primary); text-decoration: none; }
+.sgx-404-a--main { border-color: var(--sgx-primary); color: var(--sgx-primary); background: color-mix(in oklab, var(--sgx-primary) 8%, transparent); }
+@media (hover: hover) and (pointer: fine) { .sgx-404-a:hover { border-color: var(--sgx-primary); color: var(--sgx-primary); } }
 @media (hover: hover) and (pointer: fine) { .sgx-chip:hover { border-color: var(--sgx-primary); color: var(--sgx-primary); } }
 .sgx-pl { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto 60px; gap: 4px 18px; align-items: baseline; margin: 0; padding: 12px 0; border-bottom: 1px dashed var(--sgx-term-line);
   font-family: var(--sgx-font-mono); list-style: none; }
@@ -7848,6 +7831,13 @@
 @media (hover: hover) and (pointer: fine) { .sgx-pg-r a:hover { color: var(--sgx-primary); } }
 :root:not([data-sgx-layout="desktop"]) .sgx-pg { flex-direction: column; }
 :root:not([data-sgx-layout="desktop"]) .sgx-pg-hint { display: none; }
+/* 列表到底（Gray 2026-11-09 细节 5）：博客列表最后一页「-- EOF --」，旷野页末「› more soon_」带闪烁光标；装饰，读屏不念；减弱动效光标不闪 */
+.sgx-eof { margin: 28px 0 0; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.6; letter-spacing: .04em; text-align: center; color: var(--sgx-text-tertiary); }
+.sgx-eof[hidden] { display: none; }
+.sgx-eof-cur { display: inline-block; width: .6em; height: 2px; margin-left: 2px; vertical-align: -1px; background: var(--sgx-primary); animation: sgx-eof-blink 1.05s steps(1) infinite; }
+@keyframes sgx-eof-blink { 50% { opacity: 0; } }
+.reduced-motion .sgx-eof-cur { animation: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-eof-cur { animation: none; } }
 .sgx-tw { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; align-items: start; margin-top: 26px; }
 :root[data-sgx-layout="desktop"] .sgx-tw { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: stretch; }
 .sgx-seg2 { display: inline-flex; margin-left: auto; border: 1px solid var(--sgx-term-line); border-radius: 8px; overflow: hidden; flex: none; }
@@ -7858,7 +7848,8 @@
 .sgx-tl-gap { margin-top: 1.85em; }
 .sgx-tl a { color: inherit; text-decoration: none; }
 .sgx-tl .tp { color: var(--sgx-text-secondary); }
-.sgx-tl .td { display: inline-block; min-width: 22ch; }
+/* 名字栏：至少 22ch；目录名更长时按页面算好的 --sgx-td（最长名 + "/" + 2 格，tree.html）放宽，数字列仍对齐（2026-11-09 细节 7） */
+.sgx-tl .td { display: inline-block; min-width: max(22ch, var(--sgx-td, 0ch)); }
 .sgx-tl .tf { color: var(--sgx-text-primary); }
 .sgx-tl:target { background: var(--sgx-term-sel); }
 @media (hover: hover) and (pointer: fine) { .sgx-tl a:hover, .sgx-tags2 a:hover { color: var(--sgx-primary); text-decoration: underline; text-underline-offset: 3px; } }
@@ -7918,6 +7909,11 @@
   background: linear-gradient(135deg, var(--sgx-surface-container-high), var(--sgx-surface-container-lowest)); color: var(--sgx-text-tertiary); font-family: var(--sgx-font-mono); font-size: 11px; }
 :root[data-sgx-layout="desktop"] .sgx-cc-im { height: 150px; }
 .sgx-cc-im img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* 位置计数（Gray 2026-11-09 细节 2）：封面右上「02 / 06」，等宽小字。序号 = CSS 计数器（隐藏的卡不算），总数 = curio-list.js 写到网格上的 --sgx-cc-n（"06"，含 grep 过滤）；没写总数就不显示 */
+.sgx-cgrid { counter-reset: sgx-cc; }
+.sgx-cc:not([hidden]) { counter-increment: sgx-cc; }
+.sgx-cc-im::after { content: counter(sgx-cc, decimal-leading-zero) " / " var(--sgx-cc-n); position: absolute; top: 8px; right: 8px; z-index: 2; padding: 0 6px; border-radius: 6px; pointer-events: none;
+  background: color-mix(in srgb, var(--sgx-surface) 82%, transparent); font-family: var(--sgx-font-mono); font-size: 10.5px; line-height: 1.6; color: var(--sgx-text-tertiary); }
 .sgx-cc-ci { display: flex; flex-direction: column; min-width: 0; padding: 12px 14px; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.6; color: var(--sgx-text-tertiary); }
 .sgx-cc-m { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sgx-cc-t { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 2px 0 3px; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 14.5px; font-weight: 500; line-height: 1.45; color: var(--sgx-text-primary); }
@@ -7959,6 +7955,18 @@
   animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
   -webkit-mask-image: none; mask-image: none; contain: none; isolation: auto; }
 /* @shell:begin topbar-frame（共享外壳：space/scripts/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
+/* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：
+   同源跨文档跳转自动交叉淡化 180ms（渐进增强，不支持的浏览器忽略）；顶栏挂 view-transition-name 保持不动。
+   系统「减弱动效」时连 @view-transition 都不声明（完全不做过渡）；本站「减弱动效」开关（.reduced-motion）只能把动画清零。 */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}
+/* 名字挂在真正有尺寸的 .sgx-topbar 上：#site-nav 自身高度是 0（子元素都是 fixed），老一些的 Chromium（三星浏览器 31）截不到它的快照 */
+.sgx-topbar { view-transition-name: sgx-topbar; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
+::view-transition-group(sgx-topbar) { animation-duration: 180ms; }
+.reduced-motion::view-transition-group(*), .reduced-motion::view-transition-old(*), .reduced-motion::view-transition-new(*) { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 /* 顶栏 v3（2026-11 UI 重设计 PR-1，设计稿 tb4.html / tb-v3 / prog-v1；四个站同一套，标记来自共享外壳 shell-topbar.html）：
    通栏 .sgx-topbar（贴顶、全宽、底边 1px 线，毛玻璃材质）里 = [字标 .sgx-tb-logo ❯ styrigx :~$_] [.sgx-tb-pill 页名（v3 不显示）]
    [右边 .sgx-tb-acts：外观 .sgx-tb-quick · 盾牌 .sgx-tb-shield · 分隔 · >_ .sgx-tb-grid（NAVIGATE）· 头像 .sgx-tb-av]；
@@ -7966,7 +7974,8 @@
    等宽字体 --sgx-font-mono（系统等宽，不额外下载字体）。 */
 /* 顶栏尺寸 token：--sgx-tb-h 顶栏高（通栏，不含刘海安全区）；--sgx-tb-inset / --sgx-tb-btn 是旧胶囊的上边距 / 高，v3 只当「悬浮圆钮」尺寸用（博客回到顶部等）；
    --sgx-tb-ic / --sgx-tb-icw 顶栏按钮高 / 宽 */
-:root { --sgx-tb-h: 64px; --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; --sgx-tb-icw: 40px;
+:root { --sgx-track-label: .08em; /* 标签字距统一一个值（[01] // BLOG、年份、状态胶囊、面板小标题；2026-11-09 细节 11） */
+  --sgx-tb-h: 64px; --sgx-tb-inset: 16px; --sgx-tb-btn: 52px; --sgx-tb-gap: 8px; --sgx-tb-ic: 40px; --sgx-tb-icw: 40px;
   --sgx-content-w: 1080px;
   --sgx-font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace; }
 /* 顶栏标签 / 子站分段的常驻衬底：导航选中色 45%（段式标签、页名胶囊仍在用） */
@@ -8061,11 +8070,27 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-tb-sep { flex: none; width: 1px; height: 22px; margin: 0 6px; background: var(--sgx-term-line); }
 .sgx-tb-av { flex: none; display: inline-grid; place-items: center; width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); border-radius: 999px; -webkit-tap-highlight-color: transparent; }
 .sgx-tb-avatar { display: block; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--sgx-surface-container-high); }
+/* 头像外圈（Gray 2026-11-09，参考 mahmad.me）：照片外一圈 2px 浅色环（表面色 + 1px 细线），环外一段约 90° 的深色弧（两头渐隐、略虚）绕着转：
+   平时 2.4 秒一圈，.is-busy（加载 / 取数据 / AI 回答中，topbar-panel.js mountAvBusy）0.9 秒一圈。都是阴影 / 伪元素，不占位，头像 30px 不变；
+   弧用正文色（亮色主题是深色弧，暗色主题跟着变浅，才看得见）。系统或本站「减弱动效」时弧停住不转。::after 留给触屏点击区。 */
+.sgx-tb-av { position: relative; }
+.sgx-tb-av > .sgx-tb-avatar { position: relative; z-index: 1; box-shadow: 0 0 0 2px var(--sgx-surface), 0 0 0 3px var(--sgx-term-line); }
+.sgx-tb-av::before { content: ""; position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0deg, color-mix(in srgb, var(--sgx-text-primary) 80%, transparent) 45deg, transparent 90deg, transparent 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), var(--sgx-text-primary) calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), var(--sgx-text-primary) calc(100% - 2px));
+  filter: blur(.4px); animation: sgx-av-orbit 2.4s linear infinite; }
+.sgx-tb-av.is-busy::before { animation-duration: .9s; }
+@keyframes sgx-av-orbit { to { transform: rotate(1turn); } }
+.reduced-motion .sgx-tb-av::before { animation: none; }
+@media (prefers-reduced-motion: reduce) { .sgx-tb-av::before { animation: none; } }
 :root:not([data-sgx-layout="desktop"]) .sgx-tb-sep { margin: 0 2px; }
 @media (hover: hover) and (pointer: fine) {
   .sgx-tb-btn:hover, .sgx-tb-logo:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); color: var(--sgx-text-primary); }
 }
 .sgx-tb-btn:active, .sgx-tb-logo:active { background-image: linear-gradient(var(--sgx-state-pressed-bg), var(--sgx-state-pressed-bg)); }
+/* 按下态（Gray 2026-11-09 细节 4）：顶栏命令钮按下时内容下沉 1px、阴影收起；只用 transform，不占位、不挪版面（AI 浮钮有自己的展开动效，不在这里） */
+.sgx-tb-acts .sgx-tb-btn:active > svg, .sgx-tb-logo:active > *, .sgx-tb-av:active > .sgx-tb-avatar { transform: translateY(1px); }
+.sgx-tb-acts .sgx-tb-btn:active, .sgx-tb-logo:active, .sgx-tb-av:active { box-shadow: none; }
 .sgx-tb-btn:focus-visible, .sgx-tb-logo:focus-visible, .sgx-tb-av:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .reduced-motion .sgx-tb-btn, .reduced-motion .sgx-tb-logo { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-btn, .sgx-tb-logo { transition: none; } }
@@ -8118,6 +8143,8 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-foot-lang [aria-current="true"] { color: var(--sgx-text-primary); }
 :root:not([data-sgx-layout="desktop"]) .sgx-foot-lang { display: none; }
 .sgx-foot-2 { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; padding: 14px 0 18px; color: var(--sgx-text-tertiary); font-size: 11.5px; }
+.sgx-foot-build { color: inherit; text-decoration: none; }
+@media (hover: hover) and (pointer: fine) { .sgx-foot-build:hover { color: var(--sgx-primary); } }
 /* 分享磁贴生成短链时 aria-busy + .is-busy：图标呼吸，点了不理（share.js） */
 .is-busy[data-sgx-share] { cursor: progress; }
 .is-busy[data-sgx-share] svg { animation: sgx-share-busy .9s ease-in-out infinite alternate; }
@@ -8133,6 +8160,19 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-share-toast.show { opacity: 1; transform: translate(-50%, 0); }
 .reduced-motion .sgx-share-toast { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-share-toast { transition: none; } }
+/* 触屏点击区 ≥ 44 × 44（2026-11-09 细节 12）：看得见的样子不变，只在元素上叠一块透明的 ::after，比 44 小的方向向两边各撑到 22px（大于 44 的方向不动）。
+   顶栏图标 / 头像、博客文章标签、目录行、目录「分类 / 按年」切换、旷野 $ Retry、主页「cd curio/ →」等、页脚链接与语言、锁屏 zh / en。
+   目录行 .sgx-tl 横向照旧裁成省略号，纵向改为不裁（不然撑出来的点击区被行框裁掉）；切换组的圆角改到两端按钮自己身上，同理。 */
+@media (pointer: coarse) {
+  :is(.sgx-tb-acts .sgx-tb-btn, .sgx-tb-av, .tag-list .tag, .sgx-tl a, .sgx-seg2 button, .st-btn, .home-sec-more, .sgx-foot-links a, .sgx-foot-lang :is(a, button), .sgx-entry-lang) { position: relative; }
+  :is(.sgx-tb-acts .sgx-tb-btn, .sgx-tb-av, .tag-list .tag, .sgx-tl a, .sgx-seg2 button, .st-btn, .home-sec-more, .sgx-foot-links a, .sgx-foot-lang :is(a, button), .sgx-entry-lang)::after {
+    content: ""; position: absolute; z-index: 1;
+    top: min(0px, calc(50% - 22px)); bottom: min(0px, calc(50% - 22px)); left: min(0px, calc(50% - 22px)); right: min(0px, calc(50% - 22px)); }
+  .sgx-tl { overflow-x: clip; overflow-y: visible; }
+  .sgx-seg2 { overflow: visible; }
+  .sgx-seg2 button:first-child { border-radius: 7px 0 0 7px; }
+  .sgx-seg2 button:last-child { border-radius: 0 7px 7px 0; }
+}
 /* @shell:end topbar-frame */
 /* 主站 layout 层（2026-10-23 PR-D，只在主站，不进共享外壳）：外壳框最宽 Mobile 640（宽竖屏内容栏）、桌面通栏（宽屏平铺 PR）—— 由共享外壳 topbar-frame 段按
    <html data-sgx-layout> 统一定（P4-3 顶栏长度统一，四站同一处，这里不再按 html.layout-* 另写一遍）。
@@ -8156,7 +8196,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
   overflow: hidden; margin-left: calc(-1 * var(--sgx-wide-pad)); margin-right: calc(-1 * var(--sgx-wide-pad)); }
 :root[data-sgx-layout="desktop"] .sgx-wide-cols > * { min-width: 0; box-sizing: border-box; padding: 24px var(--sgx-wide-pad); box-shadow: -1px 0 0 0 var(--sgx-wide-line), 0 -1px 0 0 var(--sgx-wide-line); }
 :root[data-sgx-layout="desktop"] .sgx-wide-h { margin: 0; padding: 0 0 12px; border-bottom: 1px solid var(--sgx-wide-line);
-  font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--sgx-text-secondary); }
+  font-size: 12px; font-weight: 700; letter-spacing: var(--sgx-track-label); text-transform: uppercase; color: var(--sgx-text-secondary); }
 /* @shell:end wide */
 /* 底部停靠栏高度（main 底部留白用；原地搜索层已在 P4-2 删除） */
 :root { --sgx-bottom-dock-h: 56px; }
@@ -8311,7 +8351,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 :root[data-sgx-layout="desktop"] .sgx-nav .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 44px); width: min(360px, var(--sgx-tb-w)); }
 :root[data-sgx-layout="desktop"] .sgx-theme .sgx-qp-sheet { right: calc((100% - var(--sgx-tb-w)) / 2 + 92px); width: min(260px, var(--sgx-tb-w)); }
 /* NAVIGATE 头：$ NAVIGATE · 01/05（字距 3px、次要色）；下面一条线 */
-.sgx-nav-h, .sgx-nav-f { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; font-size: 12px; letter-spacing: 3px; color: var(--sgx-text-secondary); }
+.sgx-nav-h, .sgx-nav-f { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 20px; font-size: 12px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-secondary); }
 .sgx-nav-h { border-bottom: 1px solid var(--sgx-term-line); }
 .sgx-nav-h b { font-weight: 400; color: var(--sgx-primary); }
 /* 五项：编号 · 名字（正文字体 17px）· 终端路径提示；当前项 = 左边 3px 主题色竖线 + 主题色渐变衬底 + 主题色字 */
@@ -8343,7 +8383,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 @media (hover: hover) and (pointer: fine) { .sgx-nav-btn:hover { color: var(--sgx-text-primary); } }
 /* STATUS：六个单元两列（点 · 名 · 延迟）；没数据 = 灰点、延迟空着（2026-11 PR-A 接 /api/status，见 topbar-panel.js mountStatus） */
 .sgx-nav-st { padding: 12px 20px 13px; border-top: 1px solid var(--sgx-term-line); font-size: 12px; }
-.sgx-nav-st-h { display: flex; justify-content: space-between; margin-bottom: 9px; font-size: 11px; letter-spacing: 3px; color: var(--sgx-text-tertiary); }
+.sgx-nav-st-h { display: flex; justify-content: space-between; margin-bottom: 9px; font-size: 11px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-tertiary); }
 .sgx-nav-st-h b { font-weight: 400; letter-spacing: 0; color: var(--sgx-text-tertiary); }
 .sgx-nav-st[data-state="up"] .sgx-nav-st-h b { color: var(--sgx-success); }
 .sgx-nav-st[data-state="partial"] .sgx-nav-st-h b { color: var(--sgx-warning); }
@@ -8359,7 +8399,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-nav-close { padding: 0; border: 0; background: transparent; font: inherit; letter-spacing: 0; color: inherit; cursor: pointer; border-radius: 4px; }
 @media (hover: hover) and (pointer: fine) { .sgx-nav-flink:hover, .sgx-nav-close:hover { color: var(--sgx-text-primary); } }
 /* 外观面板（MODE / PALETTE）：小标题字距 2px；模式三段；色板列表（两块色 · 名字 · 当前 ✓），列表太长时面板内滚动 */
-.sgx-th-h { margin: 0; padding: 6px 8px; font-size: 11px; letter-spacing: 2px; color: var(--sgx-text-tertiary); }
+.sgx-th-h { margin: 0; padding: 6px 8px; font-size: 11px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-tertiary); }
 .sgx-th-hrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-right: 4px; }
 .sgx-th-reset { padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; font: inherit; font-size: 11px; letter-spacing: 1px; color: var(--sgx-primary); cursor: pointer; }
 .sgx-th-reset[aria-disabled="true"] { color: var(--sgx-text-tertiary); opacity: .6; cursor: default; }
@@ -8465,7 +8505,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 @supports (backdrop-filter: blur(1px)) {
   .sgx-ai .sgx-qp-sheet, .sgx-pop .sgx-qp-sheet { backdrop-filter: none; }
 }
-/* AI 窗口：头部 G 徽标 · Gray AI / 副标题 · 新对话 · 历史 · 头像 · ×；消息区每条回答前一行 gray@space:~$ 提示符（装饰，读屏不念）；输入框 ask › 前缀 + 方形发送 */
+/* AI 窗口：头部 G 徽标 · Gray AI / 副标题 · 新对话 · 历史 · 头像 · ×；消息区每条回答前一行命令回显（提示符跟环境提示符规则 + gray --reply；装饰，读屏不念）；输入框 ask › 前缀 + 方形发送 */
 .sgx-ai .sgx-qp-sheet { gap: 0; padding: 0; }
 .sgx-ai-head { gap: 0; padding: 10px 8px 10px 14px; border-bottom-color: var(--sgx-term-line); }
 .sgx-ai-badge { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px;
@@ -8486,10 +8526,11 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-ai-msg { border-radius: 10px; }
 .sgx-ai-msg[data-role="user"] { padding: 9px 13px; background: var(--sgx-surface-container-high); color: var(--sgx-text-primary); box-shadow: inset 0 0 0 1px var(--sgx-term-line); border-bottom-right-radius: 10px; }
 .sgx-ai-msg[data-role="assistant"] { max-width: 100%; padding: 0; background: transparent; box-shadow: none; border-radius: 0; }
-/* 用户那一行的提示符跟环境提示符规则（进站 v3 L1）：账号没登录 styrigx@space:~$，已登录 root@account:~#（gray@space 那一行是 AI 自己，不动） */
+/* 用户那一行的提示符跟环境提示符规则（进站 v3 L1）：账号没登录 styrigx@space:~$，已登录 root@account:~#；回答前的命令回显同一规则（Gray 2026-11-09）：styrigx@space:~$ gray --reply / root@account:~# gray --reply */
 .sgx-ai-msg[data-role="user"]::before { content: "styrigx@space:~$"; content: "styrigx@space:~$" / ""; display: block; margin-bottom: 2px; font-family: var(--sgx-font-mono); font-size: 11px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
 html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { content: "root@account:~#"; content: "root@account:~#" / ""; }
-.sgx-ai-msg[data-role="assistant"]::before { content: "gray@space:~$"; content: "gray@space:~$" / ""; display: block; margin-bottom: 4px; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
+.sgx-ai-msg[data-role="assistant"]::before { content: "styrigx@space:~$ gray --reply"; content: "styrigx@space:~$ gray --reply" / ""; display: block; margin-bottom: 4px; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
+html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before { content: "root@account:~# gray --reply"; content: "root@account:~# gray --reply" / ""; }
 .sgx-ai-msg[data-greet] > span { color: var(--sgx-text-secondary); }
 .sgx-ai-msg[data-state="error"] { padding: 9px 13px; border-radius: 10px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sgx-danger) 45%, transparent); }
 .sgx-ai-turn { max-width: 100%; align-self: stretch; }
@@ -8534,7 +8575,7 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { cont
   .sgx-pop-row:hover, .sgx-pop-me-a:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); }
   .sgx-pop-edit:hover { color: var(--sgx-text-primary); }
 }
-.sgx-pop-g { margin: 0; padding: 12px 20px 2px; font-size: 11px; letter-spacing: 2px; color: var(--sgx-text-tertiary); }
+.sgx-pop-g { margin: 0; padding: 12px 20px 2px; font-size: 11px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-tertiary); }
 .sgx-pop-g--line { border-top: 1px solid var(--sgx-term-line); }
 .sgx-pop-login { padding: 14px 20px 10px; border-bottom: 1px solid var(--sgx-term-line); line-height: 1.7; color: var(--sgx-text-secondary); }
 .sgx-pop-login[hidden], .sgx-pop-list[hidden], .sgx-pop-edit[hidden], .sgx-pop-me[hidden], .sgx-nav-h[hidden], [data-sec-open][hidden], .sgx-ai-model[hidden], .sgx-ai-models[hidden] { display: none; }
@@ -8588,8 +8629,9 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { cont
 .sgx-ai-mopt { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-family: var(--sgx-font-mono); font-size: 13px; text-align: left; color: var(--sgx-text-secondary); cursor: pointer; }
 .sgx-ai-mopt[aria-checked="true"] { background: var(--sgx-term-sel); color: var(--sgx-primary); }
 .sgx-ai-mopt[aria-checked="true"]::after { content: "✓"; margin-left: auto; }
-/* 空态提示符同设计稿：gray@space:~$ ask --help */
-.sgx-ai-msg[data-greet]::before { content: "gray@space:~$ ask --help"; content: "gray@space:~$ ask --help" / ""; }
+/* 空态的命令回显（设计稿 ask --help；提示符跟环境提示符规则，Gray 2026-11-09） */
+.sgx-ai-msg[data-greet]::before { content: "styrigx@space:~$ ask --help"; content: "styrigx@space:~$ ask --help" / ""; }
+html[data-sgx-account-session="in"] .sgx-ai-msg[data-greet]::before { content: "root@account:~# ask --help"; content: "root@account:~# ask --help" / ""; }
 /* 来源卡片 + 建议问题 */
 .sgx-ai-srcs { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .sgx-ai-src { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 12px; box-sizing: border-box; border: 1px solid var(--sgx-term-line); border-radius: 8px; color: var(--sgx-text-primary); text-decoration: none; font-size: 13px; }
@@ -8614,7 +8656,7 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { cont
 .sgx-pop-dim { color: var(--sgx-text-tertiary); font-size: 12px; }
 .sgx-pop-login { border-bottom: 0; padding-bottom: 16px; }
 .sgx-pop-gh + .sgx-pop-me + .sgx-pop-login, .sgx-nav-h + .sgx-pop-login { border-top: 0; }
-.sgx-pop-hv { letter-spacing: 2px; color: var(--sgx-text-tertiary); }
+.sgx-pop-hv { letter-spacing: var(--sgx-track-label); color: var(--sgx-text-tertiary); }
 .sgx-pop-hv[data-live] { letter-spacing: 0; color: var(--sgx-primary); }
 .sgx-pop-list--line { border-top: 1px solid var(--sgx-term-line); }
 /* 账号终端（头像下拉，2026-11-08 账号 UI 改版，shell/account/term.js；设计稿 acct-sec-redraw mock v3）：
@@ -8720,7 +8762,7 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-avc-stage:active { cursor: grabbing; }
 .sgx-avc-img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; user-select: none; -webkit-user-drag: none; pointer-events: none; }
 .sgx-avc-ring { position: absolute; left: 50%; top: 50%; border-radius: 999px; pointer-events: none; transform: translate(-50%,-50%); box-shadow: 0 0 0 9999px color-mix(in srgb, var(--sgx-background) 70%, transparent); outline: 2px solid var(--sgx-primary); }
-.sgx-avc-title { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 8px; height: calc(52px + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) 20px 0; box-sizing: border-box; border-bottom: 1px solid var(--sgx-term-line); background: var(--sgx-mat-solid); font-size: 12px; letter-spacing: 2px; color: var(--sgx-text-secondary); }
+.sgx-avc-title { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 8px; height: calc(52px + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) 20px 0; box-sizing: border-box; border-bottom: 1px solid var(--sgx-term-line); background: var(--sgx-mat-solid); font-size: 12px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-secondary); }
 .sgx-avc-title b { font-weight: 400; color: var(--sgx-primary); }
 .sgx-avc-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: flex-end; gap: 20px; padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--sgx-term-line); background: var(--sgx-mat-solid); }
 .sgx-avc-btn { min-height: 40px; padding: 0 4px; border: 0; background: transparent; font: inherit; font-size: 13px; color: var(--sgx-text-secondary); cursor: pointer; }
@@ -8746,6 +8788,8 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-title { margin-left: 10px; font-weight: 400; color: var(--sgx-text-secondary); white-space: nowrap; }
 .sgx-term-hint { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; font-size: 11px; color: var(--sgx-text-tertiary); white-space: nowrap; }
 .sgx-term-hint-s { display: none; }
+/* 标题和右边提示（11px，中文落到 CJK 后备字体时度量不同）按基线对齐，不再高出约 3px；三个圆点仍居中（2026-11-09 细节 13） */
+.sgx-term-title, .sgx-term-hint { align-self: baseline; line-height: 1.2; }
 :root:not([data-sgx-layout="desktop"]) .sgx-term-hint-l { display: none; }
 :root:not([data-sgx-layout="desktop"]) .sgx-term-hint-s { display: inline; }
 /* 触屏滚动（2026-11-08 PR-A）：窗内只在横向收住（长行横划到头不触发浏览器左右滑返回），纵向不收——
@@ -8779,6 +8823,10 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-in:disabled { opacity: .6; }
 /* 触屏：输入行 16px（输入框字号 < 16 时 iOS / 三星浏览器聚焦会放大页面；锁屏 lock-mobile 用例同一条规则） */
 @media (pointer: coarse) { .sgx-term-line { font-size: 16px; } }
+/* 主页首屏终端（2026-11-09 细节 3）：提示符 + 输入行跟输出同字号（12.5 / 14px），不再一行突然变大；
+   只有 iOS（-webkit-touch-callout 只有 WebKit iOS 认）聚焦 < 16px 的输入框会放大页面，那里照旧 16px。抽屉 / 弹层里的终端不动（仍 16px） */
+@media (pointer: coarse) { .sgx-term--home .sgx-term-line { font-size: inherit; } }
+@supports (-webkit-touch-callout: none) { @media (pointer: coarse) { .sgx-term--home .sgx-term-line { font-size: 16px; } } }
 .sgx-term-line:focus-within .sgx-term-ps { text-decoration: underline; text-decoration-color: var(--sgx-focus-ring); text-underline-offset: 4px; }
 .sgx-term-ghost { position: absolute; top: 0; pointer-events: none; white-space: pre; color: var(--sgx-text-tertiary); }
 .sgx-term-ghost[hidden] { display: none; }
@@ -8795,6 +8843,23 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 /* 环境提示符（进站 v3 L1，SPACE-V3「环境提示符规则」）：模板里静态的提示符两种都写（.sgx-envps-g 账号没登录 styrigx@space:~$ / .sgx-envps-r 已登录 root@account:~#），
    按 <html data-sgx-account-session>（layout-mode.js __sgxAccountPs 首帧前写好）只显示一种，首帧不闪。JS 拼的提示符（站内终端、AI 窗）读同一个属性。 */
 html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-session="in"]) .sgx-envps-r { display: none; }
+/* 按键提示行（Gray 2026-11-09 细节 1；shell/keyhint.js，主页 / 抽屉终端和 AI 窗口内联同一套）：终端窗口最底一行淡灰等宽小字，随状态换；
+   触屏换成「‹ 返回」按钮（每个终端状态都有出口）。不加高度以外的东西：一行 10.5px，左对齐，超长省略 */
+.sgx-kh { margin: 8px 0 0; font-family: var(--sgx-font-mono); font-size: 10.5px; line-height: 1.5; letter-spacing: 0; color: var(--sgx-text-tertiary); opacity: .85;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sgx-kh[hidden], .sgx-kh-b[hidden] { display: none; }
+.sgx-kh-b { display: inline-flex; align-items: center; min-height: 32px; margin: 0 0 0 -8px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent;
+  font: inherit; font-size: 12px; color: var(--sgx-text-secondary); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.sgx-kh-b:active { background: var(--sgx-state-pressed-bg); }
+.sgx-kh-b:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
+/* 主页 / 抽屉终端：在窗口最底（输出区下面，不随输出滚走），左右同终端正文 */
+.sgx-term-kh { margin: 0; padding: 0 18px 10px; }
+:root:not([data-sgx-layout="desktop"]) .sgx-term-kh { padding: 0 14px 8px; }
+/* AI 窗口：输入框和底部小字之间，左右同底部小字 */
+.sgx-ai-kh { margin: 0; padding: 4px 14px 0; }
+/* 一行输出式的加载提示（Gray 2026-11-09 细节 3）：「› fetching daymark…」，同锁屏「› booting space…」的写法；› 是装饰 */
+.sgx-wait { margin: 0; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.7; color: var(--sgx-text-tertiary); }
+.sgx-wait[hidden] { display: none; }
 /* @shell:end terminal */
 
 /* 主页（2026-11 UI 重设计 PR-2 首屏终端；对齐 PR-B 按设计稿 tb4.html 主页默认 / m=1；只在主站）：内容宽对齐顶栏内容（--sgx-content-w 1080，左右同 --sgx-tb-pad）。
@@ -8803,6 +8868,7 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
    数值照稿：桌面 hero 顶距 70（+ 稿 body 40 − 本站正文顶距 16 = 94）、胶囊→whoami 28、名字 64（行高同稿 1.9）、副标题 22；手机 36（→ 60）/ 40 / 16；节间 56 + 顶部细线；卡片圆角 12。 */
 .home-wrap.home-term-wrap { width: min(var(--sgx-content-w), 100% - 2 * max(var(--sgx-page-m), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))); font-family: var(--sgx-font-mono); }
 .home-pr { color: var(--sgx-primary); }
+.home-wait { margin-top: 6px; }
 .home-hero { text-align: center; padding-top: 94px; }
 :root:not([data-sgx-layout="desktop"]) .home-hero { padding-top: 60px; }
 /* 手机 / 平板：首屏（hero + 终端）至少撑到一屏，[01] 起始线落在首屏折线以下——否则矮终端时 [01] 标题正好落进
@@ -8810,7 +8876,7 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
    多出来的空白留在终端下面；横屏 / 矮视口算出来是负数就不起作用。 */
 :root:not([data-sgx-layout="desktop"]) .home-hero { min-height: calc(100svh - var(--sgx-content-top) - 56px); }
 .home-pill { display: inline-flex; align-items: center; gap: 10px; margin: 0; padding: 6px 16px; border: 1px solid var(--sgx-term-line); border-radius: 999px;
-  font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--sgx-text-secondary); }
+  font-size: 12px; letter-spacing: var(--sgx-track-label); text-transform: uppercase; color: var(--sgx-text-secondary); }
 .home-pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--sgx-success); box-shadow: 0 0 8px var(--sgx-success); }
 .home-pill i[data-up="0"] { background: var(--sgx-warning); box-shadow: 0 0 8px var(--sgx-warning); }
 .home-id { margin-top: 28px; }
@@ -8822,6 +8888,8 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 .home-cur { display: inline-block; width: .6em; height: 3px; margin-left: 3px; vertical-align: -2px; background: var(--sgx-primary); animation: sgx-tb-blink 1.05s steps(1) infinite; }
 .reduced-motion .home-cur { animation: none; }
 @media (prefers-reduced-motion: reduce) { .home-cur { animation: none; } }
+/* 首屏标语 / 说明折行时两行均匀，不留孤字（2026-11-09 细节 10；不支持的浏览器照常折行） */
+.home-role, .home-intro { text-wrap: balance; }
 .home-intro { max-width: 620px; margin: 18px auto 0; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.9; color: var(--sgx-text-secondary); }
 /* 嵌入终端：稿 820 宽、高度随内容——首帧自动打一条 help（terminal.js autoHelp），min-height 先留出 欢迎行 + help 回显 的高度（不跳版面），
    之后再敲命令往下长，到 max-height 才在窗里滚动 */
@@ -8832,7 +8900,7 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 /* 分节 */
 .home-sec { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--sgx-term-line); scroll-margin-top: 0; }
 .home-sec-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.home-sec-k { margin: 0; font-size: 12px; letter-spacing: 2px; color: var(--sgx-text-tertiary); }
+.home-sec-k { margin: 0; font-size: 12px; letter-spacing: var(--sgx-track-label); color: var(--sgx-text-tertiary); }
 .home-sec-t { margin: 2px 0 0; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 20px; font-weight: 500; color: var(--sgx-text-primary); }
 .home-sec-more { flex: none; font-size: 13px; color: var(--sgx-primary); text-decoration: none; border-radius: 4px; }
 .home-sec-more:focus-visible, .home-post:focus-visible, .home-dir:focus-visible, .home-qt:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
@@ -8860,6 +8928,8 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 /* [04] 旷野小卡：等宽小字，一行一条（稿 .wild .dir，行高 1.9） */
 .home-mini { font-size: 12px; line-height: 1.9; }
 .home-mini .home-dir-n { display: block; }
+/* 小卡右上的位置计数「01 / 03」（Gray 2026-11-09 细节 2；同奇趣卡右上的计数位，装饰，读屏不念） */
+.home-mini-n { float: right; font-size: 11px; line-height: calc(14px * 1.9); color: var(--sgx-text-tertiary); }
 .home-mini-row, .home-mini-none { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .home-mini-none[hidden] { display: none; }
 .home-mini .wb-cbar b { font-weight: 400; color: var(--sgx-primary); }
@@ -8895,7 +8965,8 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 .wild-y { color: var(--sgx-warning); }
 .wild-a { color: var(--sgx-primary); }
 /* screen-time：区域 · 字符条 · 时长 · 占比（· 最常看的一项） */
-.wild-grid { display: grid; grid-template-columns: 10ch 16ch 7ch 5ch minmax(0, 1fr); column-gap: 1ch; align-items: baseline; white-space: nowrap; }
+/* 桌面：区域列随窗宽伸（最小 10ch），表占满整个窗宽，不再只用三分之一（2026-11-09 细节 14） */
+.wild-grid { display: grid; grid-template-columns: minmax(10ch, 1fr) 16ch 7ch 5ch minmax(0, 1.4fr); column-gap: 1ch; align-items: baseline; white-space: nowrap; }
 .wild-st-row > span:nth-child(2):not(.wb-cbar) { grid-column: 2 / 4; }
 .wild-st-row .wild-st-pct, .wild-st-row .wb-p { text-align: right; }
 .wild-st-row .wb-t { text-align: right; }
@@ -8905,7 +8976,9 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 .wb-cbar b { font-weight: 400; color: var(--sgx-primary); }
 .wb-cbar i { font-style: normal; color: var(--sgx-primary); opacity: .35; }
 .wild-st-none[hidden] { display: none; }
-.wild-body .wild-rule { height: 0; margin: 4px 0; border-top: 1px solid var(--sgx-term-line); max-width: 40ch; }
+/* 分隔线和表同宽（原 max-width 40ch 只有表头一半）；没有记录时随 total 行收起（wb-view.js）（2026-11-09 细节 14） */
+.wild-body .wild-rule { height: 0; margin: 4px 0; border-top: 1px solid var(--sgx-term-line); }
+[data-wb-totalrow][hidden] { display: none; }
 :root:not([data-sgx-layout="desktop"]) .wild-grid { grid-template-columns: 8ch 16ch 6ch 4ch; }
 :root:not([data-sgx-layout="desktop"]) .wild-st-row .wb-it { display: none; }
 /* about：neofetch（图标 + 键值） */

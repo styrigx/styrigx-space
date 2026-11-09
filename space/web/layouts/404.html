@@ -4,13 +4,14 @@
 {{/* 第二个按钮去子站 奇趣 Curio（书签在那里） */}}
 {{ $curio := (partial "sgx-lang-path.html" (dict "path" "/curio/" "lang" ($tr.notFound.en))) }}
 
+{{/* 2026-11-09 细节 4：跟全站一致——主色 + 等宽 404、.sgx-chip 按钮（无蓝色光晕），版式不变 */}}
 <section class="sgx-404 py-24 sm:py-32 text-center">
-  <p class="text-7xl sm:text-8xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight">404</p>
-  <h1 class="mt-6 text-2xl sm:text-3xl font-bold">{{ $tr.notFound.pageNotFound }}</h1>
-  <p class="mt-3 text-gray-500 dark:text-gray-400">{{ $tr.notFound.theLinkYouFollowed }}</p>
+  <p class="sgx-404-code text-7xl sm:text-8xl" translate="no">404</p>
+  <h1 class="sgx-404-h mt-6 text-2xl sm:text-3xl">{{ $tr.notFound.pageNotFound }}</h1>
+  <p class="sgx-404-p mt-3">{{ $tr.notFound.theLinkYouFollowed }}</p>
   <div class="mt-8 flex items-center justify-center gap-3">
-    <a href="{{ $home }}" class="inline-flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 shadow-lg shadow-blue-600/25 hover:shadow-xl hover:-translate-y-0.5 transition-all">{{ $tr.notFound.backHome }}</a>
-    <a href="{{ $curio }}" class="inline-flex items-center justify-center rounded-full border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 font-semibold px-6 py-2.5 hover:-translate-y-0.5 transition-all">{{ $tr.notFound.curio }}</a>
+    <a href="{{ $home }}" class="sgx-chip sgx-404-a sgx-404-a--main">{{ $tr.notFound.backHome }}</a>
+    <a href="{{ $curio }}" class="sgx-chip sgx-404-a">{{ $tr.notFound.curio }}</a>
   </div>
 </section>
 {{ end }}

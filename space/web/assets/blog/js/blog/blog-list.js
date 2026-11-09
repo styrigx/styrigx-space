@@ -112,6 +112,7 @@ export function initBlogList() {
   const pager = /** @type {HTMLElement | null} */ (root.querySelector('[data-blog-pager]'));
   const less = /** @type {HTMLElement | null} */ (root.querySelector('[data-pg-less]'));
   const nums = /** @type {HTMLElement | null} */ (root.querySelector('[data-pg-nums]'));
+  const eof = /** @type {HTMLElement | null} */ (root.querySelector('[data-blog-eof]'));
   const chipKey = root.dataset.catField === 'categories' ? 'cat' : 'tag';
   /** @type {ListState} */
   let st = parseListQuery(location.search);
@@ -150,6 +151,8 @@ export function initBlogList() {
         noteText.textContent = (noteText.dataset.tpl || '{label} · {n}').split('{label}').join(label).split('{n}').join(String(hit.length));
       }
     }
+    /* 「-- EOF --」只在最后一页（后面没有了） */
+    if (eof) eof.hidden = st.page < pages;
     if (pager && less && nums) {
       pager.hidden = false;
       less.textContent = `-- less (${st.page}/${pages}) --`;

@@ -405,6 +405,6 @@ req('GET', '/curio/api/music').then(function(j){
     $('#mu-denied').classList.remove('hidden');
     return;
   }
-  var p = doc.querySelector('.it-loading'); if (p) { p.textContent = T.failed; p.classList.remove('hidden'); }
+  var p = doc.querySelector('.it-loading'); if (p) { p.textContent = (T.loadFail || T.failed); p.classList.remove('hidden'); }
 });
 })();

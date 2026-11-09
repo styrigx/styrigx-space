@@ -241,6 +241,7 @@ __sgxLayoutWatch(__applyLayout);
   "site" $navSite
   "name" site.Data.profile.name
   "year" now.Year
+  "sha" (partial "sgx-build-sha.html" .)
   "email" site.Data.profile.email
   "rss" (partial "sgx-lang-path.html" (dict "path" "/blog/rss.xml" "lang" $pageLang))
 ) }}

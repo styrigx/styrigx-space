@@ -110,6 +110,8 @@ export function renderWbTerm(root, data, o) {
   }
   const none = /** @type {HTMLElement|null} */ (root.querySelector('[data-wb="none"]'));
   if (none) none.hidden = rows.length > 0;
+  /* 没有记录时 total 行（和它上面的分隔线）一起收起：不再「今天还没有记录」下面又来一行 total <1m（2026-11-09 细节 14） */
+  root.querySelectorAll('[data-wb-totalrow]').forEach(function (el) { /** @type {HTMLElement} */ (el).hidden = !rows.length; });
   const t = root.querySelector('[data-wb="total"]');
   if (t) t.textContent = fmtShort(Number(data.total) || 0);
   const scope = root.querySelector('[data-wb="scope"]');

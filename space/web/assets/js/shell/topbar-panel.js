@@ -685,7 +685,7 @@ export function mountTopbar(o) {
         daymarkHref: function () { return hrefOf('daymark', '/daymark/'); },
       },
     });
-    if (homeTerm) homeView = T.mountTermView(homeTerm, term, { autoHelp: true });
+    if (homeTerm) homeView = T.mountTermView(homeTerm, term, { autoHelp: true, kh: 'cmdHome' });
     if (termDlg && !homeTerm && typeof termDlg.showModal === 'function') {
       const opener = navBtn || /** @type {HTMLElement} */ (doc.body);
       const coarse = function () { try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
@@ -693,7 +693,7 @@ export function mountTopbar(o) {
         ms: QP_MS,
         stateKey: 'sgxTerm',
         onOpen: function () {
-          if (!drawerView) drawerView = T.mountTermView(termDlg.querySelector('[data-sgx-term]') || termDlg, term, {});
+          if (!drawerView) drawerView = T.mountTermView(termDlg.querySelector('[data-sgx-term]') || termDlg, term, { kh: 'cmdDrawer', onBack: function () { if (termSheet) termSheet.close(); } });
           /* 触屏不直接聚焦输入框（会弹键盘 / 桌面版网站下放大），点一下输入行再打字 */
           if (drawerView && !coarse()) drawerView.focus();
         },
@@ -717,11 +717,89 @@ export function mountTopbar(o) {
   }
 
   mountProgress(doc);
+  mountPrefetch(doc);
+  mountAvBusy(doc);
   mountFootLift(doc);
   mountClock(doc);
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
   return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, sec: sec && sec.ms, openAccount: function (/** @type {any} */ x) { openAcct(x); }, openShield: function (/** @type {any} */ x) { openSec(x); }, term: termSheet, termShell: term, paint: paint, paintNav: paintNav };
+}
+
+/**
+ * 顶栏头像外圈的弧（Gray 2026-11-09，参考 mahmad.me）：平时 2.4 秒一圈；页面还在加载、终端在取数据（› fetching…）、Gray AI 在回答时
+ * 头像按钮加 .is-busy，CSS 把一圈改成 0.9 秒。各处发 document 上的 `sgx-busy` 事件（detail = true / false），这里按计数合并（几件事同时等也只算一次忙）。
+ * @param {Document} [d]
+ */
+export function mountAvBusy(d) {
+  const doc = d || document;
+  let n = 0;
+  let loading = doc.readyState !== 'complete';
+  function paint() {
+    const on = n > 0 || loading;
+    doc.querySelectorAll('.sgx-tb-av').forEach(function (a) { a.classList.toggle('is-busy', on); });
+  }
+  doc.addEventListener('sgx-busy', function (e) {
+    n = Math.max(0, n + (/** @type {CustomEvent} */ (e).detail ? 1 : -1));
+    paint();
+  });
+  if (loading) {
+    const w = doc.defaultView || window;
+    w.addEventListener('load', function () { loading = false; paint(); }, { once: true });
+  }
+  paint();
+}
+
+/**
+ * 同源链接预取（Gray 2026-11-09）：鼠标停在链接上 65ms / 手指按下时，往 <head> 插一个 <link rel="prefetch">，点下去时页面多半已在缓存里
+ * （配合共享外壳 CSS 的跨页 View Transitions 淡入淡出）。只取同源 http(s) 的页面：不取 /api/、/s/（分享短链会消耗）、带下载 / 新窗口 / data-no-prefetch 的、
+ * 只差 #锚点的本页；省流量模式（Save-Data / prefers-reduced-data）不取，减弱动效照取；每个地址只取一次。不写内联脚本（CSP 不变）。
+ * @param {Document} [d]
+ */
+export function mountPrefetch(d) {
+  const doc = d || document;
+  try {
+    const c = /** @type {any} */ (navigator).connection;
+    if (c && (c.saveData || /(^|-)2g$/.test(String(c.effectiveType || '')))) return;
+    /* 系统「减少数据用量」也不取；「减弱动效」不影响预取 */
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-data: reduce)').matches) return;
+    const probe = doc.createElement('link');
+    if (!probe.relList || !probe.relList.supports || !probe.relList.supports('prefetch')) return;
+  } catch (e) { return; }
+  /** @type {Set<string>} */
+  const done = new Set([location.href.split('#')[0]]);
+  /** @type {number} */ let timer = 0;
+  /** @param {EventTarget|null} t @returns {HTMLAnchorElement|null} */
+  function linkOf(t) {
+    const el = /** @type {Element|null} */ (t && /** @type {any} */ (t).closest ? t : null);
+    const a = /** @type {HTMLAnchorElement|null} */ (el && el.closest('a[href]'));
+    if (!a || a.hasAttribute('download') || a.hasAttribute('data-no-prefetch') || (a.target && a.target !== '_self')) return null;
+    if (a.protocol !== location.protocol || a.host !== location.host) return null;
+    if (/^\/(api|s)\//.test(a.pathname)) return null;
+    return a;
+  }
+  /** @param {HTMLAnchorElement} a */
+  function go(a) {
+    const u = a.href.split('#')[0];
+    if (done.has(u)) return;
+    done.add(u);
+    const l = doc.createElement('link');
+    l.rel = 'prefetch';
+    l.href = u;
+    l.setAttribute('data-sgx-prefetch', '');
+    doc.head.appendChild(l);
+  }
+  doc.addEventListener('mouseover', function (e) {
+    const a = linkOf(e.target);
+    if (!a) return;
+    clearTimeout(timer);
+    timer = window.setTimeout(function () { go(a); }, 65);
+  }, { passive: true });
+  doc.addEventListener('mouseout', function () { clearTimeout(timer); }, { passive: true });
+  doc.addEventListener('touchstart', function (e) {
+    const a = linkOf(e.target);
+    if (a) go(a);
+  }, { passive: true });
 }
 
 /**
