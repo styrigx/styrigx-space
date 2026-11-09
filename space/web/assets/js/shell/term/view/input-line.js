@@ -12,6 +12,7 @@
 import { esc } from '../../../lib/util.js';
 import { mountKeyHint, khKeyFor } from '../../keyhint.js';
 import { paintPick } from '../../term-pick.js';
+import { createHistory } from '../core/history.js';
 
 /** 输入不回显的模式：解锁密码、临时钥匙、恢复钥匙、新密码两次 */
 export const SECRET_MODES = Object.freeze(['pw', 'temp', 'rkey', 'newpw', 'newpw2']);
@@ -46,7 +47,9 @@ export const SECRET_MODES = Object.freeze(['pw', 'temp', 'rkey', 'newpw', 'newpw
  * @property {any} [ctx] 挂到这个对象上（账号下拉的共享上下文）；缺省新建
  * @property {'term'|'at'} [attr] 选项 / ^C 的属性名：data-<attr>-pick、data-<attr>-cc（缺省 term）
  * @property {readonly string[]} [secretModes] 缺省 SECRET_MODES
- * @property {boolean} [history] 命令行 ↑↓ 历史（内存；缺省 true）
+ * @property {boolean} [history] 命令行 ↑↓ 历史（缺省 true；终端统一 T4 起有草稿，同站内终端）
+ * @property {string} [histKey] 历史落 sessionStorage 的键（tty3 sgx-term-hist-3、tty5 sgx-term-hist-5）；缺省只在内存（锁屏 tty1）
+ * @property {(line: string) => {line: string, options: string[]}} [complete] 命令行 Tab 补全（终端统一 T4）
  * @property {boolean} [ctrlL] Ctrl+L 清屏（缺省 true）
  * @property {boolean} [inputmode] 写 inputmode 属性（缺省 true）
  * @property {(m: string, secret: boolean) => string} [aria] 输入框读屏名（缺省：秘密 common.secretAria、命名 keys.nameAria、其余 ariaCmd / common.termAria）
@@ -80,8 +83,7 @@ export function createInputLine(o) {
   const CC = 'data-' + attr + '-cc';
   const secretModes = o.secretModes || SECRET_MODES;
   const useHist = o.history !== false;
-  /** @type {string[]} */ const hist = [];
-  let histIdx = 0;
+  const hist = createHistory({ storage: o.histKey ? safeSession() : null, key: o.histKey || '' });
   /** pick 模式的选项 { key → fn } */ let picks = /** @type {Record<string, () => void>} */ ({});
   let pickDefault = '';
 
@@ -269,11 +271,8 @@ export function createInputLine(o) {
       return;
     }
     input.value = '';
-    if (useHist) {
-      const shown = v.replace(/\s+/g, ' ').trim();
-      if (shown && hist[hist.length - 1] !== shown) hist.push(shown);
-      histIdx = hist.length;
-    }
+    /* 只有命令行的输入进历史（秘密 / 选择 / 命名都在上面返回了） */
+    if (useHist) hist.push(v.replace(/\s+/g, ' '));
     o.onCmd(v);
   });
   const submit = function () {
@@ -287,6 +286,17 @@ export function createInputLine(o) {
       if (e.isComposing) return;
       e.preventDefault();
       submit();
+      return;
+    }
+    /* Tab 补全（终端统一 T4）：空行照常移焦点（不把键盘用户困在输入框里）；多个候选且补不动时列出来 */
+    if (e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && o.complete && C.mode === 'cmd' && input.value.trim()) {
+      e.preventDefault();
+      const c = o.complete(input.value);
+      if (c.options.length > 1 && c.line === input.value) {
+        C.echo(input.value);
+        C.out(c.options.map(function (k) { return C.k(k); }).join('  '));
+      }
+      input.value = c.line;
       return;
     }
     if (o.ctrlC === 'at') {
@@ -315,10 +325,12 @@ export function createInputLine(o) {
       return;
     }
     if (C.mode !== 'cmd' || !useHist) return;
-    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && hist.length) {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      const h = e.key === 'ArrowUp' ? hist.prev(input.value) : hist.next();
+      if (h === null) return;
       e.preventDefault();
-      histIdx = Math.max(0, Math.min(hist.length, histIdx + (e.key === 'ArrowUp' ? -1 : 1)));
-      input.value = hist[histIdx] || '';
+      input.value = h;
+      try { input.setSelectionRange(h.length, h.length); } catch (err) {}
     }
   });
   /* 选择时高亮跟着输入框里的字走（手机输入法的数字进了输入框、不走上面的单键直选；Gray 2026-11-09 截图：打了 2 还亮着 [1]） */
@@ -350,4 +362,9 @@ export function createInputLine(o) {
 
   C.paintKh();
   return C;
+}
+
+/** @returns {Storage|null} */
+function safeSession() {
+  try { return window.sessionStorage; } catch (e) { return null; }
 }
