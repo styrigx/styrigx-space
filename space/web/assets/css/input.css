@@ -8909,12 +8909,20 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 :root:not([data-sgx-layout="desktop"]) .home-name { font-size: 40px; }
 .home-role { margin: 0; font-size: 22px; line-height: 1.9; color: var(--sgx-text-primary); }
 :root:not([data-sgx-layout="desktop"]) .home-role { font-size: 16px; }
+/* 打字轮播（apps/home-typer.js）：保留词间空格；整句删空时 $ 和光标还在，行高不变 */
+.home-typer { white-space: pre-wrap; }
 .home-cur { display: inline-block; width: .6em; height: 3px; margin-left: 3px; vertical-align: -2px; background: var(--sgx-primary); animation: sgx-tb-blink 1.05s steps(1) infinite; }
 .reduced-motion .home-cur { animation: none; }
 @media (prefers-reduced-motion: reduce) { .home-cur { animation: none; } }
 /* 首屏标语 / 说明折行时两行均匀，不留孤字（2026-11-09 细节 10；不支持的浏览器照常折行） */
-.home-role, .home-intro { text-wrap: balance; }
+.home-role { text-wrap: balance; }
 .home-intro { max-width: 620px; margin: 18px auto 0; font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.9; color: var(--sgx-text-secondary); }
+/* # 行签名（个人资料 motto，填什么显示什么；Gray 2026-11-09 17:49）：长签名折行时续行悬挂缩进，跟「# 」后的首字对齐，不回到 # 下面；
+   一行放得下时整体仍居中（签名盒按内容收缩）。pretty 不支持的浏览器照常折行；anywhere 防超长单词 / 网址撑破。 */
+.home-intro { display: flex; justify-content: center; align-items: baseline; column-gap: .3em; }
+.home-intro[hidden] { display: none; }
+.home-intro > .home-pr { flex: none; }
+.home-motto { min-width: 0; text-align: start; text-wrap: pretty; overflow-wrap: anywhere; }
 /* 嵌入终端：稿 820 宽、高度随内容——首帧自动打一条 help（terminal.js autoHelp），min-height 先留出 欢迎行 + help 回显 的高度（不跳版面），
    之后再敲命令往下长，到 max-height 才在窗里滚动 */
 .sgx-term--home { max-width: 820px; margin: 42px auto 0; }

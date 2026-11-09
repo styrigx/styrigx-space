@@ -153,8 +153,9 @@ test('个人信息节点中英输出相同：主站首页名片（名字、签�
   assert.deepEqual(zh, en);
   for (const n of en) assert.match(n, /translate="?no"?/);
   assert.ok(en.some((n) => n.includes('home-name')), '名字在个人信息节点里');
-  /* 对齐 PR-B（设计稿 tb4.html）：hero 不再有头像和签名（头像在顶栏右上、签名只在账号下拉） */
-  assert.ok(!en.some((n) => /home-motto|home-av\b/.test(n)), '主页 hero 没有签名 / 头像节点');
+  /* 对齐 PR-B：hero 没有头像（头像在顶栏右上）；2026-11-09 签名回到 hero 的 # 行（个人资料 motto，中英同值） */
+  assert.ok(!en.some((n) => /home-av\b/.test(n)), '主页 hero 没有头像节点');
+  assert.ok(en.some((n) => n.includes('home-motto') && /data-sgx-profile="?motto"?/.test(n)), '签名在个人信息节点里');
 });
 
 test('标签页标题（Gray 2026-11-07）：四站「页名 | 站名」，站名走字符串表；页名就是站名时只显示站名', { skip: !built && '没构建' }, () => {
