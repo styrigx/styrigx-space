@@ -102,4 +102,39 @@ test.describe('账号安全（keys，有 reauth 票）', () => {
     expect(calls.filter((c) => c.action === 'keys/passkey-add')).toHaveLength(1);
     expect(calls.filter((c) => c.action === 'keys/passkey-rename')).toHaveLength(0);
   });
+
+  test('passkey add 等系统窗口时 ^C（Ctrl+C / esc 都行，2026-11-09）：收起系统窗口（abort），回命令行，不提交 keys/passkey-add、不报错', async ({ page }) => {
+    await T.fakePasskey(page, { hang: true });
+    const calls = await mockAccount(page, {
+      status: STATUS({ session: SESSION(), reauth: REAUTH(), passkey: false }),
+      handlers: {
+        'keys/passkey-add-challenge': [200, { ok: true, challenge: 'Y2hhbA', cid: 'c2', rpId: 'localhost', user: { id: 'dQ', name: 'AccountPasskey', displayName: 'Styrigx' } }],
+        'keys/passkey-add': [200, { ok: true, credId: 'k9' }],
+      },
+    });
+    await T.goPage(page);
+    const d = await openTerm(page);
+    await typeLine(page, 'cd security');
+    await layer(page, 'keys');
+    await typeLine(page, 'passkey add');
+    await mode(page, 'busy');
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__pkWaiting)).toBe(1);
+    await page.keyboard.press('Control+c');
+    await mode(page, 'cmd');
+    await expect(log(page).locator('.sgx-at-l').last()).toHaveText('^C');
+    expect(await page.evaluate(() => /** @type {any} */ (window).__pkAborted)).toBe(1);
+    await page.waitForTimeout(300);
+    await expect(log(page)).not.toContainText('已取消');
+    await expect(d.locator('.sgx-at-l--er')).toHaveCount(0);
+    await mode(page, 'cmd');
+    /* esc 一样 */
+    await typeLine(page, 'passkey add');
+    await mode(page, 'busy');
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__pkWaiting)).toBe(2);
+    await page.keyboard.press('Escape');
+    await mode(page, 'cmd');
+    await expect(d).toHaveAttribute('data-state', 'open');
+    expect(await page.evaluate(() => /** @type {any} */ (window).__pkAborted)).toBe(2);
+    expect(calls.filter((c) => c.action === 'keys/passkey-add')).toHaveLength(0);
+  });
 });

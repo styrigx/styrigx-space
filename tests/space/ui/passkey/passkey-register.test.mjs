@@ -111,6 +111,35 @@ test('鉴权失败交给页面处理（返回 true 不再提示）；challenge �
   assert.deepEqual(d.log.toasts, ['NOSUPPORT']);
 });
 
+test('调用方放弃（stale，终端里 ^C，2026-11-09）：不开系统窗口 / 不提交注册 / 不提示；signal 交给系统窗口；不传时请求里没有 signal', async () => {
+  /* 拿 challenge 前就放弃：不开系统窗口 */
+  const before = created.length;
+  const a = harness({ stale: () => true });
+  createImpl = async () => fakeCred();
+  await registerPasskey(a.o);
+  assert.equal(created.length, before);
+  assert.deepEqual(a.log.toasts, []);
+  assert.deepEqual(a.log.bodies, []);
+  /* 系统窗口开着时放弃：窗口回来的结果（成功也好、AbortError 也好）都不提交、不提示 */
+  let stop = false;
+  const ac = new AbortController();
+  const b = harness({ stale: () => stop, signal: ac.signal });
+  createImpl = async (o) => { assert.equal(o.signal, ac.signal); stop = true; return fakeCred(); };
+  await registerPasskey(b.o);
+  assert.deepEqual(b.log.bodies, []);
+  assert.deepEqual(b.log.toasts, []);
+  stop = false;
+  const c = harness({ stale: () => stop, signal: ac.signal });
+  createImpl = async () => { stop = true; throw Object.assign(new Error('aborted'), { name: 'AbortError' }); };
+  await registerPasskey(c.o);
+  assert.deepEqual(c.log.toasts, []);
+  /* 不传 stale / signal：照旧，请求里没有 signal 键 */
+  const d = harness();
+  createImpl = async (o) => { assert.ok(!('signal' in o)); return fakeCred(); };
+  await registerPasskey(d.o);
+  assert.equal(d.log.registered.length, 1);
+});
+
 test('creationOptions：服务端没给用户名时用页面兜底；预填名兜底 / 名字清理', () => {
   const pk = creationOptions({ challenge: 'AQID', rpId: 'x', user: { id: 'dXNlcg' } }, { name: 'SpacePasskey', displayName: 'Sloan Gray' });
   assert.equal(pk.user.name, 'SpacePasskey');

@@ -410,6 +410,8 @@ account:
   reset:
     recoveryKeyAria: "Recovery key"
     lead: "Reset sign-in · verify with your recovery key (does not sign you in)"
+    back: "back"
+    backAria: "leave reset and go back (^C)"
     ok: "reset ticket 3 min · no account session"
     cooldown: "5 wrong recovery keys lock it for 15 min"
     group: "Reset account password / passkeys"

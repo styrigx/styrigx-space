@@ -110,8 +110,12 @@ async function layer(page, l) {
  * 通行密钥替身：navigator.credentials.get 直接回一个假断言（或按 cancel 抛 NotAllowedError）。create 同理。
  * @param {import('@playwright/test').Page} page @param {{cancel?: boolean}} [o]
  */
+/**
+ * 假的 WebAuthn：默认立即成功；cancel → NotAllowedError（用户取消系统窗口）；hang → 系统窗口一直开着，直到调用方 abort（signal）→ AbortError。
+ * window.__pkWaiting：系统窗口（hang）开过几次；window.__pkAborted：被 abort 过几次。
+ */
 async function fakePasskey(page, o = {}) {
-  await page.addInitScript((cancel) => {
+  await page.addInitScript(({ cancel, hang }) => {
     const buf = (s) => new TextEncoder().encode(s).buffer;
     const fake = (kind) => ({
       id: 'Y3JlZA', rawId: buf('cred'), type: 'public-key', authenticatorAttachment: 'platform',
@@ -124,9 +128,16 @@ async function fakePasskey(page, o = {}) {
     if (!window.PublicKeyCredential) /** @type {any} */ (window).PublicKeyCredential = function () {};
     const cc = navigator.credentials;
     const deny = () => Promise.reject(new DOMException('cancel', 'NotAllowedError'));
-    cc.get = (/** @type {any} */ opts) => (opts && opts.publicKey ? (cancel ? deny() : Promise.resolve(fake('get'))) : Promise.resolve(null));
-    cc.create = (/** @type {any} */ opts) => (opts && opts.publicKey ? (cancel ? deny() : Promise.resolve(fake('create'))) : Promise.resolve(null));
-  }, !!o.cancel);
+    /** @type {any} */ (window).__pkAborted = 0;
+    /** @type {any} */ (window).__pkWaiting = 0;
+    const wait = (/** @type {any} */ opts) => new Promise((res, rej) => {
+      /** @type {any} */ (window).__pkWaiting++;
+      if (opts && opts.signal) opts.signal.addEventListener('abort', () => { /** @type {any} */ (window).__pkAborted++; rej(new DOMException('aborted', 'AbortError')); });
+    });
+    const answer = (/** @type {any} */ opts, kind) => (hang ? wait(opts) : cancel ? deny() : Promise.resolve(fake(kind)));
+    cc.get = (/** @type {any} */ opts) => (opts && opts.publicKey ? answer(opts, 'get') : Promise.resolve(null));
+    cc.create = (/** @type {any} */ opts) => (opts && opts.publicKey ? answer(opts, 'create') : Promise.resolve(null));
+  }, { cancel: !!o.cancel, hang: !!o.hang });
 }
 
 module.exports = { json, SESSION, REAUTH, STATUS, mockAccount, zh, goPage, openTerm, log, termIn, ps, typeLine, mode, layer, fakePasskey };
