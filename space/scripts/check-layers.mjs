@@ -25,6 +25,7 @@
  * 所有 Worker（workers/<名字>/，2026-10-30 起没有共享目录，每个 Worker 各自实现）：
  * 14. 每个 Worker 只能相对 import 自己目录 workers/<名字>/ 下的文件；账号（workers/account/）和网关（workers/space-core/）
  *     互相不许 import，别的 Worker 之间也一样，没有任何例外；非相对 import 只认 cloudflare:workers
+ *     （唯一的按文件例外 EXTERNAL_BY_FILE：proxy-rules 的 age 加密要 node:crypto 的 chacha20-poly1305，WebCrypto 没有；2026-11-10）
  * 15. 不许有 workers/shared（2026-10-30 删除，账号拆分 PR3a）：目录本身存在就失败，任何文件 import workers/shared/ 也失败
  *
  * Worker 边界（账号拆分 PR3e，按 PR3d 之后的事实）：
@@ -162,6 +163,8 @@ const FRONTEND_ALLOWED = {
 const LIB_AUTH_RE = /\/api\/(?:lock-|space-|account\b)|navigator\s*\.\s*credentials/;
 
 const EXTERNAL_OK = new Set(['cloudflare:workers']);
+/** 规则 14 的按文件例外（只此一处）：proxy-rules 的 age 加密（wrangler.toml 开 nodejs_compat） */
+export const EXTERNAL_BY_FILE = Object.freeze({ 'workers/proxy-rules/src/lib/age.js': Object.freeze(['node:crypto']) });
 
 /* 规则 15 */
 export const SHARED_DIR = 'workers/shared';
@@ -331,7 +334,7 @@ export function checkFile(root, abs, srcOverride) {
     if (!spec.startsWith('.')) {
       if (self.area === 'gateway' && !EXTERNAL_OK.has(spec)) {
         errors.push(`${r}: 网关只能 import 相对路径或 cloudflare:workers，发现 ${spec}`);
-      } else if (self.area === 'worker' && !EXTERNAL_OK.has(spec)) {
+      } else if (self.area === 'worker' && !EXTERNAL_OK.has(spec) && !(EXTERNAL_BY_FILE[r] || []).includes(spec)) {
         errors.push(`${r}: Worker 只能 import 相对路径或 cloudflare:workers，发现 ${spec}`);
       }
       continue;

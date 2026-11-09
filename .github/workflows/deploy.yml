@@ -1455,10 +1455,12 @@ jobs:
         run: node "$GITHUB_WORKSPACE/space/scripts/deploy-rollback.mjs" worker-rollback --to "$PREVIOUS"
 
   deploy-proxy-rules-worker:
-    # 规则集反代 styrigx-proxy-rules（workers/proxy-rules）：独立部署，不等也不挡网关和 Pages。
+    # 规则集反代 + 代理订阅 styrigx-proxy-rules（workers/proxy-rules）：独立部署，不等也不挡网关和 Pages。
     # 公开地址只有自定义域名 proxy-rules.styrigx.com（wrangler.toml 的 routes，custom_domain）。
     # token：Cloudflare 上 styrigx-proxy-rules-deploy = GitHub 环境 STYRIGX_PROXY_RULES_DEPLOY 里的同名密钥，
-    # 权限 Workers Scripts 编辑 + Account Settings 读取 + styrigx.com 的 Workers Routes 编辑；环境只允许 main。
+    # 权限 Workers Scripts 编辑 + D1 编辑（styrigx-proxy 迁移）+ Secrets Store 编辑（SGX_PROXY_DB_KEY 绑定）+ styrigx.com 的 Workers Routes 编辑；环境只允许 main。
+    # 步骤：D1 迁移（migrations/；已迁过的跳过，失败要让 job 红）→ 记录线上版本 → 部署 → 冒烟 → 失败回滚（只回代码，不回迁移）。
+    # account 的 /api/account/proxy 经服务绑定 PROXY 调本 Worker 的 ProxyAdmin；两边各自部署，本 Worker 没部署完的那一两分钟 account 回 503 upstream。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e]
@@ -1473,6 +1475,15 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Apply D1 migrations (proxy-rules → styrigx-proxy)
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.STYRIGX_PROXY_RULES_DEPLOY }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: workers/proxy-rules
+          wranglerVersion: ${{ env.WRANGLER_VERSION }}
+          command: d1 migrations apply styrigx-proxy --remote
 
       - name: Record live Worker version (rollback target)
         # 部署前记下线上 100% 流量的版本（space/scripts/deploy-rollback.mjs）。灰度中 / 记录失败 → 记成空，
@@ -1512,12 +1523,17 @@ jobs:
           check /healthz 200 || ok=1
           check /MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs 200 || ok=1
           check /MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs 200 || ok=1
-          # 自有仓 styrigx/mihomo-rules 的 dist 分支
-          check /styrigx/mihomo-rules/dist/geosite/samsung.mrs 200 || ok=1
-          check /styrigx/mihomo-rules/dist/geoip/cn.mrs 200 || ok=1
+          # 自有仓 styrigx/mihomo-rules 的 release 分支（dist 分支已删）
+          check /styrigx/mihomo-rules/release/geosite/samsung.mrs 200 || ok=1
+          check /styrigx/mihomo-rules/release/geoip/cn.mrs 200 || ok=1
           # 白名单外不转发
           check /MetaCubeX/meta-rules-dat/meta/README.md 404 || ok=1
-          check /styrigx/mihomo-rules/dist/manifest.json 404 || ok=1
+          check /styrigx/mihomo-rules/release/manifest.json 404 || ok=1
+          check /styrigx/mihomo-rules/dist/geosite/samsung.mrs 404 || ok=1
+          # 代理订阅：错令牌 404；公网没有管理 / 刷新入口
+          check /s/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/smoke 404 || ok=1
+          check /api/proxy 404 || ok=1
+          check /internal/refresh 404 || ok=1
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)

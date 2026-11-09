@@ -60,7 +60,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 | `styrigx-status` | 站点监测（每分钟）、Cloudflare 用量（每小时） | 服务绑定 `STATUS` |
 | `styrigx-curio-core` | 奇趣数据接口 | 路由 `styrigx.com/curio/api/*` |
 | `styrigx-daymark-core` | 日刻数据接口 | 路由 `styrigx.com/daymark/api/*` |
-| `styrigx-proxy-rules` | 规则集加速反代（来源：MetaCubeX/meta-rules-dat、自有仓 styrigx/mihomo-rules） | 自定义域名 `proxy-rules.styrigx.com` |
+| `styrigx-proxy-rules` | 规则集加速反代（来源：MetaCubeX/meta-rules-dat、自有仓 styrigx/mihomo-rules release）+ 代理订阅（`/s/<令牌>/<来源名>`，age 加密；管理经 account `/api/account/proxy` → 服务绑定 ProxyAdmin） | 自定义域名 `proxy-rules.styrigx.com` |
 
 绑定、数据库与 Secret 名见 SGX-OPS-002；每个 Worker 的细节见 `workers/<名字>/README.md`。
 

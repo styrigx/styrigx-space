@@ -1,12 +1,15 @@
-# styrigx-proxy-rules：规则集加速反代（CI 部署；只干一件事——转发规则集文件，现在的来源是 MetaCubeX/meta-rules-dat 和自有仓 styrigx/mihomo-rules；名字不绑内核和上游，换了只改代码，来源登记在 src/core/sources.js）
+# styrigx-proxy-rules：规则集加速反代 + 代理订阅（CI 部署）。
+# - 规则集：转发登记过的来源（MetaCubeX/meta-rules-dat、自有仓 styrigx/mihomo-rules release 分支），来源登记在 src/core/sources.js。
+# - 代理订阅（设计稿 v1.7）：GET /s/<令牌>/<来源名> 只回 age 密文；每 6 小时刷新（crons）；管理只经服务绑定调命名入口 ProxyAdmin（account Worker 的 PROXY）。
 #
-# 公开地址只有自定义域名 proxy-rules.styrigx.com；不开 workers.dev、不开预览地址。
-# 没有绑定、没有变量和密钥，不过鉴权网关（规则集本来就是公开文件，客户端也带不了会话）。
+# 公开地址只有自定义域名 proxy-rules.styrigx.com；不开 workers.dev、不开预览地址。不过鉴权网关（规则集是公开文件，订阅靠令牌 + age）。
 # 旧的后台手写 Worker mihomo-mrs（mihomo-mrs.styrigx.com）过渡期继续在线，客户端订阅换完后连同 DNS 一起删。
 
 name = "styrigx-proxy-rules"
 main = "src/index.js"
 compatibility_date = "2026-10-09"
+# age 加密用 node:crypto 的 chacha20-poly1305、Buffer（src/lib/age.js）
+compatibility_flags = ["nodejs_compat"]
 workers_dev = false
 preview_urls = false
 
@@ -14,6 +17,36 @@ routes = [
   { pattern = "proxy-rules.styrigx.com", custom_domain = true },
 ]
 
+# 代理订阅每 6 小时刷新一次（UTC 整点）
+[triggers]
+crons = ["0 */6 * * *"]
+
 [observability]
 enabled = true
 head_sampling_rate = 1
+
+# D1 styrigx-proxy：代理订阅的公钥、令牌哈希、来源、成品、刷新锁（migrations/）。只绑本 Worker。
+[[d1_databases]]
+binding = "D1_PROXY"
+database_name = "styrigx-proxy"
+database_id = "12cf8498-307f-4596-b900-8203c401decb"
+migrations_dir = "migrations"
+
+# 库内字段加密钥匙（AES-256-GCM，base64 的 32 字节；Gray 在 Secrets Store 建，Hark 不碰值）。只绑本 Worker。
+# 部署 token 要有 Secrets Store 编辑权限（带 Secrets Store 绑定部署必须 Edit，否则报 10021）。
+[[secrets_store_secrets]]
+binding = "SGX_PROXY_DB_KEY"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_PROXY_DB_KEY"
+
+# 自己绑自己：刷新时每个源各走一次调用（命名入口 ProxyRefresher），各算各的 CPU（免费档每次 10 ms）。
+[[services]]
+binding = "SELF"
+service = "styrigx-proxy-rules"
+entrypoint = "ProxyRefresher"
+
+# 下载 /s/ 的兜底限流（按 IP，错令牌也计数）：每 60 秒 30 次。外层还有 styrigx.com 的 WAF 限流规则。
+[[ratelimits]]
+name = "RL_SUB"
+namespace_id = "1101"
+simple = { limit = 30, period = 60 }
