@@ -10,7 +10,10 @@
  *
  * 谁能选：只有带账号结论头（X-Styrigx-Account-Session: 1）的请求，body.model 才生效；进站（没有账号会话）一律默认模型。
  * 读 KV 带 60 秒 isolate 内缓存（同索引），不多吃读额度。
+ * 2026-11-09：gemini 的退役 id（gemini-2.5-flash 等，core/gemini.js RETIRED_GEMINI）在解析时换成当前 id（GEMINI_CURRENT），
+ * 标签是旧版本号的一并换掉；浏览器里存的旧选择（sgx-ai-model）在 pickModel 也按新 id 认，不报 bad_model。
  */
+import { currentGeminiId, GEMINI_CURRENT } from './gemini.js';
 
 export const MODELS_KEY = 'ai:models';
 export const MAX_MODELS = 8;
@@ -47,12 +50,15 @@ export function parseModels(raw) {
     const provider = m.provider === 'gemini' ? 'gemini' : m.provider === 'workers-ai' || m.provider == null ? 'workers-ai' : null;
     if (!provider) continue;
     if (provider === 'workers-ai' && !m.id.startsWith('@cf/')) continue;
-    if (models.some((x) => x.id === m.id)) continue;
-    const label = typeof m.label === 'string' && m.label.trim() ? m.label.trim().slice(0, 40) : m.id;
-    models.push({ id: m.id, label, provider });
+    const id = provider === 'gemini' ? currentGeminiId(m.id) : m.id;
+    if (models.some((x) => x.id === id)) continue;
+    let label = typeof m.label === 'string' && m.label.trim() ? m.label.trim().slice(0, 40) : id;
+    if (id !== m.id && (label === m.id || /gemini\s*[12]\./i.test(label))) label = GEMINI_CURRENT.label;
+    models.push({ id, label, provider });
   }
   if (!models.length) return null;
-  const def = typeof v.default === 'string' && models.some((x) => x.id === v.default) ? v.default : models[0].id;
+  const wantDef = typeof v.default === 'string' ? currentGeminiId(v.default) : '';
+  const def = wantDef && models.some((x) => x.id === wantDef) ? wantDef : models[0].id;
   return { def, models };
 }
 
@@ -91,7 +97,7 @@ export function pickModel(reg, want, canChoose) {
   const byId = (/** @type {string} */ id) => reg.models.find((m) => m.id === id);
   if (!canChoose || want === undefined || want === null || want === '') return { ok: true, model: byId(reg.def) || reg.models[0] };
   if (typeof want !== 'string') return { ok: false };
-  const m = byId(want);
+  const m = byId(want) || byId(currentGeminiId(want));
   return m ? { ok: true, model: m } : { ok: false };
 }
 

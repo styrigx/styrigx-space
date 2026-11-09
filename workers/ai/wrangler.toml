@@ -52,9 +52,10 @@ binding = "KV_SEARCH_INDEX"
 id = "4bcdb84f205541b9b6c8d230bc2b106f"
 
 [vars]
-# 模型登记的退路（KV ai:models 没有 / 坏时用）：自营 Gemma 4（默认）+ GPT-OSS 20B，走 Workers AI；外部 Gemini 2.5 Flash 走 Gemini API。
+# 模型登记的退路（KV ai:models 没有 / 坏时用）：自营 Gemma 4（默认）+ GPT-OSS 20B，走 Workers AI；外部 Gemini 3.8 Flash 走 Gemini API
+# （2026-11-09 由 gemini-2.5-flash 换来：上游 404「no longer available to new users」；KV 里还是旧 id 也会在 core/models.js 换成新的）。
 # 默认模型以真实站内内容的中文能力实测为准（Gray 实测后改 KV 的 default）。
-AI_MODELS = '{"default":"@cf/google/gemma-4-26b-a4b-it","models":[{"id":"@cf/google/gemma-4-26b-a4b-it","label":"Gemma 4","provider":"workers-ai"},{"id":"@cf/openai/gpt-oss-20b","label":"GPT-OSS 20B","provider":"workers-ai"},{"id":"gemini-2.5-flash","label":"Gemini 2.5 Flash","provider":"gemini"}]}'
+AI_MODELS = '{"default":"@cf/google/gemma-4-26b-a4b-it","models":[{"id":"@cf/google/gemma-4-26b-a4b-it","label":"Gemma 4","provider":"workers-ai"},{"id":"@cf/openai/gpt-oss-20b","label":"GPT-OSS 20B","provider":"workers-ai"},{"id":"gemini-3.8-flash","label":"Gemini 3.8 Flash","provider":"gemini"}]}'
 AI_MAX_TOKENS = "1024"
 AI_CONTEXT_HITS = "6"
 # 语义召回的最低相似度（余弦）；Gray 实测后可调

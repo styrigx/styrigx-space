@@ -19,7 +19,7 @@ const F = await import(W + 'core/fixed.js');
 const G = await import(W + 'core/gemini.js');
 const ASK = await import(W + 'api/ask.js');
 
-beforeEach(() => { R._resetCache(); M._resetModelsCache(); });
+beforeEach(() => { R._resetCache(); M._resetModelsCache(); G._resetGeminiState(); });
 
 /** 假嵌入：按文本里有没有几个关键字给出 1024 维向量（余弦相似度可控） */
 const KEYS = ['主题', '锁屏', '电影', '账号', 'theme'];
