@@ -37,15 +37,15 @@
 
 ## 数据与迁移
 
-2026-11 D1 合库起，数据在主站共用的 D1 `styrigx-space-gateway`（网关、短链、监测三个 Worker 各自独立、共用一个库；账号 `styrigx-account` 仍单独）。
+进站 v3 L2b（2026-11-09）起，数据在自己的 D1 `styrigx-status`（之前和站点核心共用 `styrigx-space-gateway`，L3 已删；账号 `styrigx-account` 单独）。
 本 Worker 的表一律带 `status_` 前缀，迁移记录表 `d1_migrations_status`。部署 job `deploy-status-worker` 先在 `workers/status` 跑
-`d1 migrations apply styrigx-space-gateway --remote`，再核对搬迁标记（`d1_cutover` 里有 `status`），再部署。
+D1 迁移（`--remote`，已迁过的跳过），再部署。
 
 | 迁移 | 内容 |
 |---|---|
 | `migrations/0001_baseline.sql` | 基线：`status_checks`（每次检查一行，留 7 天）、`status_daily`、`status_hourly`、`status_state`、`status_incidents`、`status_usage`（一行）、`status_quota`（一行）及索引 `status_checks_at`、`status_incidents_site` |
 
-旧库 `styrigx-status` 的迁移历史（0001_init … 0005_retire_sites）移到 `migrations-archive/`，只留史、不再跑；存量数据由
-`.github/workflows/d1-cutover.yml` 一次性搬进新库（表名加 `status_`），旧库合并稳定后删除（删前 Gray 确认）。
+旧库 `styrigx-status` 的迁移历史（0001_init … 0005_retire_sites）移到 `migrations-archive/`，只留史、不再跑；存量数据 2026-11 合库时
+搬进新表（表名加 `status_`），L2b 再原样搬进 `styrigx-status`；两个旧库都已删除。
 
 部署排在 AI Worker（`deploy-ai-worker`）之后、网关之前；部署后的健康闸门见 `space/scripts/health-gate.mjs`。测试：`tests/workers/status/`。
