@@ -2,22 +2,18 @@
 
 中文 | [English](README.en.md)
 
-# Styrigx's Space
+# Styrigx
 
-**拆开世界是为了了解它，再把它装回去是为了相信它。**
+**A Personal Digital Space**
 
-Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整个站点家族的鉴权网关。
+Sloan Gray（styrigx）的个人数字空间：一个终端风格的个人网站，带博客、奇趣、日刻、旷野几个子站。
 
-[styrigx.com](https://styrigx.com) · [博客 styrigx.com/blog/zh/](https://styrigx.com/blog/zh/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
+[styrigx.com](https://styrigx.com/zh/) · [博客](https://styrigx.com/blog/zh/) · [GitHub @styrigx](https://github.com/styrigx) · [X @styrigx](https://x.com/styrigx)
 
+![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?branch=main&style=flat-square&label=Deploy&color=2563eb)
 ![Hugo](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/.github/actions/setup-hugo/action.yml&query=%24..HUGO_VERSION&label=Hugo&style=flat-square&color=2563eb&logo=hugo)
-![Tailwind CSS](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/package-lock.json&query=%24.packages%5B%27node_modules%2Ftailwindcss%27%5D.version&label=Tailwind%20CSS&style=flat-square&color=2563eb&logo=tailwindcss)
 ![Styrigx UI](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.ui&label=Styrigx%20UI&style=flat-square&color=2563eb)
 ![SGX](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/data/version.yaml&query=%24.sgx&label=SGX&style=flat-square&color=2563eb)
-![博客](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.blog.version&label=%E5%8D%9A%E5%AE%A2&style=flat-square&color=2563eb)
-![奇趣](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.curio.version&label=%E5%A5%87%E8%B6%A3&style=flat-square&color=2563eb)
-![日刻](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/styrigx/styrigx-space/main/space/web/hugo.yaml&query=%24.params.daymark.version&label=%E6%97%A5%E5%88%BB&style=flat-square&color=2563eb)
-![Deploy](https://img.shields.io/github/actions/workflow/status/styrigx/styrigx-space/deploy.yml?branch=main&style=flat-square&label=Deploy&color=2563eb)
 ![License](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)
 
 </div>
@@ -26,146 +22,155 @@ Sloan Gray 的个人门户：主页、聊天、设置与账号，以及守住整
 
 ## 目录
 
-- [概览](#概览)
-- [预览](#预览)
-- [应用](#应用)
+- [简介](#简介)
+- [截图](#截图)
+- [站点与功能](#站点与功能)
+- [技术栈](#技术栈)
 - [架构](#架构)
-- [安全模型](#安全模型)
-- [Styrigx UI](#styrigx-ui)
-- [本地开发](#本地开发)
-- [测试与 CI](#测试与-ci)
 - [仓库结构](#仓库结构)
-- [站点家族](#站点家族)
+- [本地开发](#本地开发)
+- [测试](#测试)
+- [部署](#部署)
+- [文档](#文档)
 - [许可](#许可)
 
-## 概览
+## 简介
 
-这是 styrigx.com 的源码仓库，也是整个站点家族的「系统仓库」：
+本仓库是 [styrigx.com](https://styrigx.com) 的全部源码：一个 Hugo 站点（主站 + 三个子站）加上一组 Cloudflare Worker。
 
-- **门户**：主页、聊天、设置、账号四个应用，中英双语。
-- **鉴权网关**：主站和子站（博客、奇趣、日刻，在 `styrigx.com/<站>/`）的每个页面、每个接口都先经过它。全站上锁是设计本身，对外分享只用带临时钥匙的短链。
-- **共享外壳**：顶栏、快捷面板、AI 窗口等四站共用；子站和主站是同一个 Hugo 站，直接用同一份模板和脚本，没有副本。
-- **共享 CI**：Hugo、Node、Playwright 的安装步骤以 composite action 形式发布（`v*` tag），图志按 tag 引用。
+- **终端风格**：首页、锁屏、盾牌、账号、AI 窗都用「提示符 + 命令 + 输出」的形式交互，没有弹层；任意页 `Ctrl K` 打开终端抽屉。
+- **一个站，一次构建**：主站和 `/blog/`、`/curio/`、`/daymark/` 是同一个 Hugo 站、同一个 Cloudflare Pages 项目，共用同一套外壳（顶栏、导航面板、快捷面板、终端、AI 窗）。
+- **默认上锁**：网站不公开。没有进站会话时任何页面都先出锁屏；拥有者用解锁密码或通行密钥（passkey）进站，访客只能凭临时钥匙或分享链接进入。
+- **中英双语**：英文为默认语言（`/`），中文在 `/zh/`；浅色 / 深色跟随系统，22 套调色板可选。
 
-界面是自研的 **Styrigx UI**，版本号与 One UI 对齐；内核 **SGX** 管登录与会话。手机、平板和 DeX 都能用，体验接近一台三星手机。
+## 截图
 
-## 预览
+新版界面的截图会在后续 PR 中补到 [`docs/assets/screenshots/`](docs/assets/screenshots/)。
 
-| ![手机主页](docs/assets/screenshots/home-mobile.jpg) | ![设置](docs/assets/screenshots/settings-mobile.jpg) |
-|:---:|:---:|
-| 手机旷野页（上） | 旷野页分类入口 |
+## 站点与功能
 
-![DeX](docs/assets/screenshots/home-dex.jpg)
-<p align="center">DeX</p>
-
-## 应用
-
-| 应用 | 路径 | 说明 |
+| 站点 | 地址 | 内容 |
 |---|---|---|
-| 主页 | `/zh/`（英文 `/`，默认） | 主站首页：居中 hero（名字、副标题）+ 嵌入终端，下面四节——[01] 博客最新 3 篇、[02] 奇趣三个目录（finds / devices / games）、[03] 日刻「今日一句」、[04] 旷野三张小卡。安全 `/zh/security/`（锁屏凭证 `/zh/security/lock/`、临时钥匙 `/zh/security/tempkeys/`）从顶栏盾牌进入；风格 `/zh/theme/` 暂留。 |
-| 旷野 | `/zh/wild/`（英文 `/wild/`） | 只看不设的三个终端窗：`#screen-time` 网站屏幕时间（本机，登录账号后所有设备）、`#status` 服务状态（六个 unit、各监测项 90 天可用率、免费额度 / 用量 / 近期故障、进站凭证使用记录）、`#about` neofetch 版本信息。旧地址 `/status/` `/about/` `/wellbeing/`（含 `/zh/`）301 到对应锚点。系统设置存在本地，登录账号后可云同步；临时钥匙含分享短链，新建、作废前要锁侧复验。 |
-| AI 助手 | 顶栏 AI 按钮 | 站内对话助手：先在全站索引里召回，再交给模型（自营 Gemma 4 / GPT-OSS 20B，或外部 Gemini）流式回答（召回只作模型上下文，不显示来源卡片，链接只出现在回答正文里）；对话只存在本地。 |
-| 账号 | `/zh/account/` | 从导航抽屉头的头像进入：账号登录、云同步、设备、账号安全。 |
+| 主页 | [`/zh/`](https://styrigx.com/zh/)（英文 `/`） | hero（`$ whoami`、名字、打字轮播的标语、个人签名）+ 内嵌终端；下面四节：博客最新 3 篇、奇趣目录、日刻今日一句、旷野小卡 |
+| 旷野 | `/zh/wild/`（英文 `/wild/`） | 三个只读终端窗：`#screen-time` 屏幕时间、`#status` 服务状态与用量、`#about` 版本信息 |
+| 博客 | [`/blog/zh/`](https://styrigx.com/blog/zh/)（英文 `/blog/`） | 文章、专题树形目录、标签、RSS |
+| 奇趣 | `/curio/zh/`（英文 `/curio/`） | 发现、设备、游戏、电影、音乐 |
+| 日刻 | `/daymark/zh/`（英文 `/daymark/`） | 句子收藏与「今日一句」 |
+
+四站共用的外壳：
+
+- **AI 浮窗（Gray AI）**：右下浮钮打开，手机上是悬浮卡。先在站内索引里召回（关键词 + 语义向量 + 奇趣只读查询），再交给模型流式回答，Markdown 渲染；对话只存在本地。默认模型是 Workers AI 上的 Gemma 4，已登录账号可改选 GPT-OSS 20B 或 Gemini（[ADR-0004](docs/decisions/ADR-0004-ai-models.md)）。
+- **锁屏（进站 V3）**：终端锁屏 `entry@space:~$`，命令 `sudo styrigx`，用解锁密码或通行密钥进站；也接受临时钥匙与分享链接。顶栏盾牌管理进站凭证、临时钥匙、分享链接和立即锁屏。
+- **账号（V3）**：顶栏头像打开账号终端，账号密码 / 账号通行密钥登录；负责授权（写奇趣、日刻、设置云同步、头像与个人资料等），和进站是两套独立的票据——「门归网站，账号管授权」（[SGX-SEC-001](docs/security/account-v3.md)）。
+
+## 技术栈
+
+| 层 | 用到的 |
+|---|---|
+| 网站 | [Hugo](https://gohugo.io/) extended（版本见 [`setup-hugo`](.github/actions/setup-hugo/action.yml)）、Tailwind CSS 4、原生 ES 模块（Hugo `js.Batch` 打包） |
+| 托管 | Cloudflare Pages（只放静态文件） |
+| 后端 | Cloudflare Workers（7 个），服务绑定 + RPC 互相调用 |
+| 存储 | Cloudflare D1、KV、R2、Vectorize、Secrets Store |
+| AI | Workers AI（Gemma 4、GPT-OSS 20B、bge-m3 向量）、Google Gemini API |
+| 测试 | `node:test`（含 `node:sqlite` 跑真实 SQL）、Playwright、Lighthouse CI、stylelint |
+| CI / CD | GitHub Actions、Renovate |
 
 ## 架构
 
-```mermaid
-flowchart LR
-  V([浏览器]) --> GW
-  subgraph CF[Cloudflare]
-    GW[styrigx-space-core<br/>styrigx.com/*]
-    CC[styrigx-curio-core<br/>/curio/api/*]
-    DC[styrigx-daymark-core<br/>/daymark/api/*]
-    GW --> P1[(Pages<br/>styrigx-space<br/>主站 + /blog/ /curio/ /daymark/)]
-    GW -. 服务绑定 .-> AC[styrigx-account]
-    GW -. 服务绑定 .-> AI[styrigx-ai]
-    GW -. 服务绑定 .-> ST[styrigx-status]
-    PR[styrigx-proxy-rules<br/>proxy-rules.styrigx.com]
-  end
-  V --> CC
-  V --> DC
-  V --> PR
+```
+浏览器 ──► styrigx.com/*            styrigx-space-core   进站会话、页面关口、分享链接、接口路由
+                                       ├─ Pages  styrigx-space（主站 + /blog/ /curio/ /daymark/）
+                                       ├─ 服务绑定 → styrigx-account   账号与授权（无公开路由）
+                                       ├─ 服务绑定 → styrigx-ai        站内 AI 对话
+                                       └─ 服务绑定 → styrigx-status    监测与用量
+       ──► styrigx.com/curio/api/*   styrigx-curio-core    奇趣接口（D1 + R2）
+       ──► styrigx.com/daymark/api/* styrigx-daymark-core  日刻接口（D1）
+       ──► proxy-rules.styrigx.com   styrigx-proxy-rules   规则集加速反代
 ```
 
-| Worker | 职责 | 入口 |
-|---|---|---|
-| `styrigx-space-core` | 进站会话的签发与校验、锁屏凭证与临时钥匙接口、分享链接（`/s/*`、`/api/share`，原 `styrigx-share` 并入）；所有页面（含 `/blog/`、`/curio/`、`/daymark/` 子站）验完会话再回源 Pages | `styrigx.com/*` |
-| `styrigx-account` | 账号系统：密码、通行密钥、设备、账号根密钥、头像、云同步、数字健康 | 只走网关服务绑定，无公开路由 |
-| `styrigx-ai` | 站内对话助手：KV 索引召回 + 模型回答（Workers AI / Gemini），不存对话 | 只走网关服务绑定 |
-| `styrigx-status` | 每分钟监测，每小时读取用量（D1） | 只走网关服务绑定 |
-| `styrigx-proxy-rules` | 规则集加速反代，仅放行指定上游 | `proxy-rules.styrigx.com`（不经网关） |
-| `styrigx-curio-core` | 奇趣接口（D1 + R2） | `styrigx.com/curio/api/*`（比网关更具体） |
-| `styrigx-daymark-core` | 日刻接口（D1） | `styrigx.com/daymark/api/*`（同上） |
+请求路径、Worker 分工、前后端分层和 CI 守住的边界规则见 [系统总览 SGX-ARCH-001](docs/architecture/overview.md)；cookie 与进站状态机见 [SGX-SPEC-001](docs/specs/auth-state-machine.md)。
 
-子站和主站是同一个 Hugo 站（`space/web/`，一次构建），产物是一棵树（主站在根上，三站在 `/blog/`、`/curio/`、`/daymark/`），同一个 Pages 项目一次部署。
+## 仓库结构
 
-## 安全模型
+```
+styrigx-space/
+├─ space/
+│  ├─ web/       唯一的 Hugo 站：主站 + 子站（子站按 <目录>/<站>/ 分开），产物 space/web/public/
+│  └─ scripts/   构建、生成、静态检查脚本（子站自己的在 scripts/<站>/）
+├─ workers/      全部 Worker，一个目录一个（目录名 = Worker 名去掉 styrigx-）
+├─ tests/        全部测试，按对象分目录
+├─ docs/         规范书与 ADR（入口 docs/README.md）
+└─ .github/      CI 工作流、共享 composite action、Renovate 配置
+```
 
-- **默认上锁**：页面和接口都先验进站会话；未登录的页面请求 302 到锁屏，接口返回 401。
-- **职责分离**：锁屏（网关）和账号（account Worker）各有独立的存储、钥匙和根密钥，代码互不引用（`check-layers` 在 CI 里强制）。
-- **最小暴露**：账号、聊天、搜索、监测没有公开路由，只能经网关的服务绑定进入；网关会剥掉外部伪造的身份头。
-- **钥匙管理**：密钥只放在 Cloudflare Secrets Store 和各 Worker 的 secret 中，仓库里一把都没有；每个 Worker 一把最小权限的部署令牌，放在 GitHub 环境里，只允许 main 使用。
-- **浏览器侧**：严格 CSP（内联脚本按哈希放行，由 `gen-csp` 生成并在 CI 校验）、HSTS、`nosniff`。
-- **分享**：只能通过带时限的短链（背后是一把临时钥匙），生成前要锁侧复验，可随时作废。
-
-设计细节见 [docs/architecture/overview.md](docs/architecture/overview.md)、[docs/specs/auth-state-machine.md](docs/specs/auth-state-machine.md)、[docs/security/account-v3.md](docs/security/account-v3.md)。
-
-## Styrigx UI
-
-- 布局分 Mobile、Auto、DeX 三档：Auto 时，横屏且宽 ≥ 840、高 ≥ 500 用 DeX，其余用 Mobile（只看视口，不判断设备）。
-- 宽屏下尺寸连续变化：页边距和顶栏按钮随宽度平滑放大；顶栏与页面共用一个外框（DeX 最宽 1440，宽竖屏 Mobile 640），首页卡片 2～3 列，每列不窄于 320。
-- 浅色 / 深色默认跟随系统。
-- 全站同一条顶栏：九宫格（导航抽屉）、只显示当前页名的长条、快捷面板；主页 / 聊天 / 设置三页的长条变成这三页的标签。
-- 中文 / English 两套完整页面。
+完整说明见 [SGX-ARCH-002 仓库结构](docs/architecture/repo-structure.md)。
 
 ## 本地开发
 
-环境：Node.js ≥ 22，Hugo extended（版本以 [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml) 为准）。
+需要 Node.js 22（`node:sqlite`）和 Hugo extended（版本以 [`.github/actions/setup-hugo/action.yml`](.github/actions/setup-hugo/action.yml) 为准）。
 
 ```bash
 git clone https://github.com/styrigx/styrigx-space.git
 cd styrigx-space
 npm ci
 npm run build:css
-hugo server -s space/web          # http://localhost:1313
+hugo server -s space/web     # http://localhost:1313 ，主站与 /blog/ /curio/ /daymark/ 一起
 ```
 
-生产构建：`hugo --minify -s space/web`，产物在 `space/web/public/`。各 Worker 的本地运行方式见各自目录下的 README。
+本地没有站点核心注入进站状态，页面会停在锁屏；只看界面时用测试开关关掉锁屏（只用于本地与 CI 测试构建，生产构建绝不设置）：
 
-## 测试与 CI
+```bash
+SGX_TEST_NO_LOCK=1 hugo server -s space/web
+```
 
-| 层 | 内容 |
+生产构建：`npm run build`（CSS + 一次 Hugo），产物在 `space/web/public/`。各 Worker 的路由、绑定与数据见 `workers/<名字>/README.md`，骨架约定见 [`workers/README.md`](workers/README.md)。
+
+## 测试
+
+在仓库根目录运行：
+
+```bash
+# 单元测试（Worker + 主站前端），先 npm run build:css
+node --test tests/workers/space-core/*.test.mjs tests/workers/account/*.test.mjs tests/workers/ai/*.test.mjs \
+  tests/workers/status/*.test.mjs tests/workers/proxy-rules/*.test.mjs "tests/space/ui/**/*.test.mjs"
+
+npm run build && npm run test:sites                                   # 子站单测（先构建）
+npx playwright test --config=tests/config/playwright.config.js        # 主站 e2e 与视觉回归
+npx playwright test --config=tests/blog/config/playwright.config.js   # 子站 e2e（curio / daymark 同理）
+
+space/scripts/ci-local.sh                     # 按 CI 分组跑一遍（不含 lighthouse）
+space/scripts/ci-local.sh unit build          # 只跑指定分组
+```
+
+`ci-local.sh` 不连 Cloudflare，passkey 组走本地模拟器。
+
+## 部署
+
+GitHub Actions（[`deploy.yml`](.github/workflows/deploy.yml)）：
+
+- **PR**：`unit`、`build`（含生成物 `--check`、分层与路由检查）、`e2e-lock`、`e2e-sites`、`visual`、`lighthouse`，汇总为 `quality`；另有 `passkey-e2e`。两项都绿、分支与 `main` 同步后才能合并，只允许 squash。
+- **main**：按依赖顺序部署 Worker（AI、监测、账号 → 站点核心 → 奇趣 / 日刻接口；规则集反代并行），最后部署 Pages；每一步都有部署后核对与冒烟，失败自动回滚到部署前的版本。
+- 每个部署作业使用各自最小权限的部署令牌，放在只允许 `main` 使用的 GitHub environment 里；仓库里没有任何密钥。
+
+细节见 [SGX-OPS-001 CI 与部署](docs/operations/deploy.md)。
+
+## 文档
+
+规范书在 [`docs/`](docs/README.md)，索引见 [docs/README.md](docs/README.md)。常用入口：
+
+| 文档 | 内容 |
 |---|---|
-| 单元测试 | `node --test`：全部 Worker 与前端模块；认证相关用 `node:sqlite` 跑真实 SQL |
-| 页面测试 | Playwright：锁屏、凭证、账号、导航、布局等端到端流程，以及视觉回归基线 |
-| 静态检查 | 生成物一致性（外壳、CSP、配色、cookie 契约）、Worker 路由登记、前端分层、样式检查 |
-| passkey-e2e | 在预览环境用真实 Worker 跑通行密钥全流程 |
-
-PR 必须通过 `quality` 和 `passkey-e2e` 才能合并（只允许 squash，线性历史）。合并到 main 后自动部署 Pages 与 9 个 Worker，顺序是接口 Worker（含奇趣、日刻）→ 网关 → Pages；每一步部署后都有冒烟检查，失败即自动回滚到上一个版本；搜索、聊天另有基于监测数据的健康门禁。依赖由 Renovate 每周一更新。
-
-## 仓库结构
-
-```
-styrigx-space/
-├─ space/      网站 + 基建：web/ 一个 Hugo 站（主站 + 博客 / 奇趣 / 日刻，子站按 <目录>/<站>/ 分开，由 Cloudflare Pages 发布），scripts/ 构建、生成、静态检查脚本（子站自己的在 scripts/<站>/）
-├─ workers/    全部 Worker，一个目录一个
-├─ tests/      测试，按对象分目录
-├─ docs/       规范书：架构、规范、设计、安全、运维、贡献、ADR（入口索引 docs/README.md）
-└─ .github/    CI 工作流与共享 composite action
-```
-
-完整说明见 [docs/architecture/repo-structure.md](docs/architecture/repo-structure.md)。
-
-## 站点家族
-
-| 仓库 | 地址 | 内容 |
-|---|---|---|
-| **styrigx-space**（本仓库） | [styrigx.com](https://styrigx.com) | 门户与鉴权网关；子站 [博客](https://styrigx.com/blog/zh/)、[奇趣](https://styrigx.com/curio/zh/)、[日刻](https://styrigx.com/daymark/zh/)（2026-11 从 styrigx-atlas 并入） |
-
-旧图志域名的 301 跳转已于 2026-11（P4-3 PR-1）删除，该域名下线。
+| [术语表](docs/glossary.md) | 站点、进站、账号相关术语 |
+| [系统总览](docs/architecture/overview.md) | 请求路径、Worker 分工、分层规则 |
+| [主站](docs/architecture/sites/space.md) · [博客](docs/architecture/sites/blog.md) · [奇趣与日刻](docs/architecture/sites/curio-daymark.md) | 各站页面与代码位置 |
+| [进站与账号安全模型 V3](docs/security/account-v3.md) | 凭证、会话时长、reauth / reset |
+| [终端风格 UI 系统](docs/design/ui-system.md) · [调色板](docs/design/palette.md) | 界面规则 |
+| [CI 与部署](docs/operations/deploy.md) | 检查作业、部署顺序、回滚 |
+| [PR 与提交](docs/contributing/pr-and-commits.md) · [写博客](docs/contributing/blog-writing.md) | 贡献约定 |
+| [ADR-0001](docs/decisions/ADR-0001-one-repo-one-site.md) · [ADR-0002](docs/decisions/ADR-0002-lock-screen.md) · [ADR-0003](docs/decisions/ADR-0003-account-v3.md) · [ADR-0004](docs/decisions/ADR-0004-ai-models.md) | 合站、锁屏、账号 V3、AI 模型的决策记录 |
 
 ## 许可
 
 代码以 [MIT](LICENSE) 许可发布；文章、图片、头像等个人内容保留所有权利。
 
-<p align="center">© 2020–2026 Sloan Gray · Powered by Styrigx UI</p>
+<p align="center">© 2020–2026 Sloan Gray</p>
