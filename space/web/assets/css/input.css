@@ -8070,15 +8070,19 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-tb-sep { flex: none; width: 1px; height: 22px; margin: 0 6px; background: var(--sgx-term-line); }
 .sgx-tb-av { flex: none; display: inline-grid; place-items: center; width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); border-radius: 999px; -webkit-tap-highlight-color: transparent; }
 .sgx-tb-avatar { display: block; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--sgx-surface-container-high); }
-/* 头像外圈（Gray 2026-11-09，参考 mahmad.me）：照片外一圈 2px 浅色环（表面色 + 1px 细线），环外一段约 90° 的深色弧（两头渐隐、略虚）绕着转：
-   平时 2.4 秒一圈，.is-busy（加载 / 取数据 / AI 回答中，topbar-panel.js mountAvBusy）0.9 秒一圈。都是阴影 / 伪元素，不占位，头像 30px 不变；
-   弧用正文色（亮色主题是深色弧，暗色主题跟着变浅，才看得见）。系统或本站「减弱动效」时弧停住不转。::after 留给触屏点击区。 */
+/* 头像外圈（Gray 2026-11-09，参考 mahmad.me；13:41 返工：弧压在白环外沿线上，不再是环外另一圈）：
+   照片 30px → 外面 2.5px 表面色实心环 → 环外沿 0.5px 浅灰细线（外径 36px）→ 整个圆盘下一层柔和投影（遮罩色 --sgx-scrim，亮暗主题都是暗影）；
+   深色弧 = 1.5px 细线，外径 = 环外径（36px，压住细线，没有空隙），约 80°：顺时针转，前端最深、尾巴渐隐，外侧带一点虚影。
+   平时 2 秒一圈，.is-busy（加载 / 取数据 / AI 回答中，topbar-panel.js mountAvBusy）0.9 秒一圈。都是阴影 / 伪元素，不占位，按钮 40px、照片 30px 不变；
+   弧用正文色（亮色主题是深色弧，暗色主题跟着变浅，才看得见），弧叠在照片环之上（z-index 2）。系统或本站「减弱动效」时弧停住不转。::after 留给触屏点击区。 */
 .sgx-tb-av { position: relative; }
-.sgx-tb-av > .sgx-tb-avatar { position: relative; z-index: 1; box-shadow: 0 0 0 2px var(--sgx-surface), 0 0 0 3px var(--sgx-term-line); }
-.sgx-tb-av::before { content: ""; position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; pointer-events: none;
-  background: conic-gradient(from 0deg, transparent 0deg, color-mix(in srgb, var(--sgx-text-primary) 80%, transparent) 45deg, transparent 90deg, transparent 360deg);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), var(--sgx-text-primary) calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), var(--sgx-text-primary) calc(100% - 2px));
-  filter: blur(.4px); animation: sgx-av-orbit 2.4s linear infinite; }
+.sgx-tb-av > .sgx-tb-avatar { position: relative; z-index: 1;
+  box-shadow: 0 0 0 2.5px var(--sgx-surface), 0 0 0 3px var(--sgx-term-line), 0 1.5px 3px 3px color-mix(in srgb, var(--sgx-scrim) 45%, transparent); }
+.sgx-tb-av::before { content: ""; position: absolute; z-index: 2; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0deg, color-mix(in srgb, var(--sgx-text-primary) 18%, transparent) 30deg, color-mix(in srgb, var(--sgx-text-primary) 92%, transparent) 80deg, transparent 80.5deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 16.3px, var(--sgx-text-primary) 16.7px, var(--sgx-text-primary) 18px, color-mix(in srgb, var(--sgx-text-primary) 30%, transparent) 18.4px, transparent 19px);
+  mask: radial-gradient(closest-side, transparent 16.3px, var(--sgx-text-primary) 16.7px, var(--sgx-text-primary) 18px, color-mix(in srgb, var(--sgx-text-primary) 30%, transparent) 18.4px, transparent 19px);
+  animation: sgx-av-orbit 2s linear infinite; }
 .sgx-tb-av.is-busy::before { animation-duration: .9s; }
 @keyframes sgx-av-orbit { to { transform: rotate(1turn); } }
 .reduced-motion .sgx-tb-av::before { animation: none; }
