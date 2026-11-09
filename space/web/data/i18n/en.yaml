@@ -101,96 +101,11 @@ js:
     qpOff: 'Off'
     qpLangTo: 'Language: English. Tap to switch to 中文'
     qpLargeOnly: Large screens only
-    lockLockScreen: Lock screen
-    lockLockScreen2: Lock screen
     lockWelcomeBack: Welcome back
-    lockGoodToSeeYou: Good to see you again
-    lockTermHint: "# Don't want to type? Tap to auto-fill"
-    lockTermCmdAria: "Unlock terminal: type a command, for example help"
-    lockTermSecretHint: input is hidden, paste works
-    lockTermBack: to go back
-    lockTermHelpTitle: "Available commands:"
-    lockTermDescPw: unlock with password
-    lockTermDescPk: unlock with passkey
-    lockTermDescTemp: enter with a temporary key
-    lockTermDescReset: "can't sign in? reset sign-in"
-    lockTermDescClear: clear the screen
-    lockTermDescHelp: show available commands
-    lockManTitle: "Lock terminal manual"
-    lockManName: "the styrigx space lock terminal: unlock by typing commands"
-    lockManDescBack: "go back (same as Ctrl+C)"
-    lockManQuit: "Press q to quit"
-    lockTermPkUnavailable: "Passkey isn't set up or isn't supported on this device"
-    lockTermPick: choose
-    lockTermPickBad: Type one of the listed numbers
-    lockTermResetOk: verified
-    lockTermToLockPage: Opening lock credentials…
-    lockTermWaitPk: waiting for passkey…
-    lockUnlockScreen: Unlock screen
-    lockTemporaryKey: Temporary key
-    lockUsePasskey: Use passkey
-    lockPassword: Password
-    lockUsePassword: Use password
     lockCantSignIn: Can’t sign in?
-    lockFormatXxxxXxxxXxxx: Format XXXX-XXXX-XXXX, case doesn’t matter
-    lockEnterTheTemporaryKey2: Enter the temporary key
-    lockServerError: Server error
-    lockTooManyAttempts: Too many attempts
-    lockInvalidOrExpiredKey: Invalid or expired key
-    lockNetworkError: Network error
-    lockEnterPassword2: Enter password
-    lockNoPasswordSetYet: No password set yet
-    lockWrongPassword: Wrong password
-    lockVerificationFailed: Verification failed
-    lockWrongSpaceCredential: Wrong space credential
-    lockFailedToStart: Failed to start
-    lockCancelledYouCanSelect: Cancelled, you can select again
-    lockPasskeyFailed: Passkey failed
-    lockVerifying: Verifying
-    lockBootUnlocked: Unlocked
     lockCannotReturnToThe: Cannot return to the subsite, please try again
     lockBackToMainSite: Back to main site
     lockReload: Reload
-    lockCouldntLockThisDevice: Couldn’t lock this device. Check your connection and try again.
-    lockLockNow: Lock now?
-    lockThisDeviceWillReturn: This device will return to the lock screen.
-    lockCancel: Cancel
-    lockLock: Lock
-    authShowPassword: Show password
-    authHidePassword: Hide password
-    rfTitle: "Reset sign-in"
-    rfNext: "Continue"
-    rfStep2: "Now verify your lock credential"
-    rfNoLock: "No lock credential is set, so it can’t be used to verify."
-    rfRecover: "Lock credential unavailable too? Enable one-time recovery in the site dashboard, valid for 24 hours."
-    rfMPasskey: "Lock passkey"
-    rfMPasskeySub: "Use fingerprint or device screen lock"
-    rfMPassword: "Unlock password"
-    rfMPasswordSub: "Enter unlock password"
-    rfVerifyBtn: "Verify"
-    rfEnterCred: "Enter credential"
-    rfPasskeyBusy: "Opening passkey…"
-    rfErrVerify: "Verification failed, please retry"
-    rfSessionLost: "Session expired, restart"
-    lrTitle: "Verify lock screen credential"
-    lrMPasskey: "Lock screen passkey"
-    lrMPasskeySub: "Use fingerprint or device screen lock"
-    lrMPassword: "Unlock password"
-    lrMPasswordSub: "Enter unlock password"
-    lrMSpace: "Space credential"
-    lrMSpaceSub: "Paste or enter space credential"
-    lrVerifyBtn: "Verify"
-    lrEnterCred: "Enter credential"
-    lrPasskeyBusy: "Opening passkey…"
-    lrErrWrongPw: "Wrong password"
-    lrErrWrongSpace: "Incorrect space credential"
-    lrErrWrongRoot: "Incorrect space credential"
-    lrErrLocked: "Too many attempts, please try again later"
-    lrErrConfig: "Server misconfigured"
-    lrErrVerify: "Verification failed"
-    lrErrNetwork: "Network connection failed, please retry"
-    lrPkNoSupport: "Not supported on this device"
-    lrErrSession: "Session expired. Unlock again from the lock screen"
     avTitle: "Profile photo"
     avPick: "Choose photo…"
     avRemove: "Remove photo"
@@ -202,44 +117,6 @@ js:
     avFailed: "Couldn’t save the photo. Try again."
     avBadFile: "This file can’t be opened as an image."
     avNoScope: "Avatar doesn’t have account access"
-    gateErrAccountConfigured: "Account credentials are set; please sign in to your account first"
-    gateExpiredSessionTitle: "Session expired"
-    gateExpiredReauthTitle: "Verification expired"
-    gateExpiredSessionDesc: "Please go back to the lock screen to unlock again."
-    gateExpiredReauthDesc: "Verify again to continue on this page."
-    gateExpiredSessionBtn: "Go to lock screen"
-    gateExpiredReauthBtn: "Verify again"
-    gateReauthCountdownExpired: "Expired"
-    gateReauthCountdown: "Verification remaining {m}"
-    gateProbeFailTitle: "Cannot enter"
-    gateProbeFailApi: "API"
-    gateProbeFailStatus: "Status"
-    gateProbeFailReason: "Reason"
-    gateProbeFailBack: "Back to Security"
-    rfRootLead: "First, verify with your root credential"
-    rfRootPh: "Root credential"
-    rfRootEmpty: "Enter root credential"
-    sheetClose: "Close"
-    lockSessionNotRecognized: "The session was not recognized. Please try again."
-    lockRetryMin: "Try again in {n} min"
-    lockRetrySec: "Try again in {n}s"
-    rfSpaceLead: "First, verify with your space credential"
-    rfSpacePh: "Space credential"
-    rfSpaceEmpty: "Enter space credential"
-    codeWrap: " ({c})"
-    labelSep: ": "
-  security:
-    okTitle: All good
-    okSub: Unlock password and passkeys are set
-    warnTitle: Action suggested
-    missPw: Unlock password not set
-    missPk: No lock screen passkeys registered
-    lockSubBoth: Password, passkeys
-    lockSubPw: Password
-    lockSubPk: Passkeys
-    lockSubNone: Not set
-    securiSomethingWentWrongPlease: Something went wrong, please retry
-    listSep: ", "
   space:
     homeStatusUp: "STATUS: ONLINE · {up}/{n} ACTIVE"
     homeStatusDown: "STATUS: DEGRADED · {up}/{n} ACTIVE"
@@ -356,99 +233,6 @@ js:
     site_proxy-rules: "Proxy rules"
     site_ai: "AI"
     nameSep: ", "
-  lockmgr:
-    eyeShow: Show password
-    eyeHide: Hide password
-    pwSet: Set
-    pwUnset: Not set
-    pwMin8: Minimum 8 characters
-    pwMismatch: Passwords do not match
-    pwSaved: Saved
-    pwChanged: Changed
-    pwDeleted: Password deleted
-    pwDelAsk: Tap again to delete password
-    pwDelWarnLock: After deletion the lock screen can only be set up again via Reset lock screen. Tap again to confirm
-    lastKeyConfirmTitle: Delete the last unlock key
-    lastKeyConfirmDesc: After deletion, the lock screen can only be set up again via Reset lock screen.
-    lastKeyConfirmCancel: Cancel
-    lastKeyConfirmDelete: Delete
-    pkRegistered: Registered
-    pkDeleted: Deleted
-    pkDelManual: Please delete this passkey manually in Samsung Pass
-    pkRenamed: Renamed
-    pkUnnamed: Passkey
-    pkDel: Delete
-    pkDelAsk: Tap again to delete
-    pkRetryLater: Please try again later
-    pkNeverUsed: Not used yet
-    created: 'Created '
-    lastUsed: 'Last used '
-    pkProv_samsung_pass: Samsung Pass
-    pkProv_google_password_manager: Google Password Manager
-    pkProv_apple_passwords: Apple Passwords
-    pkProv_icloud_keychain: iCloud Keychain
-    pkProv_microsoft_password_manager: Microsoft Password Manager
-    pkProv_windows_hello: Windows Hello
-    pkProv_1password: 1Password
-    pkProv_bitwarden: Bitwarden
-    pkNameEmpty: Name cannot be empty
-    pkRenameResetNo: Naming is not available during reset; you can rename it after unlocking
-    pkAlready: Already registered on this device
-    pkNoSupport: Not supported on this device
-    pkFailed: Registration failed
-    mPasskey: Lock screen passkey
-    mPasskeySub: Use fingerprint or device screen lock
-    mPassword: Unlock password
-    mPasswordSub: Enter unlock password
-    mSpace: Space credential
-    mSpaceSub: Paste or enter space credential
-    verifyBtn: Verify
-    enterCred: Enter credential
-    passkeyBusy: Opening passkey…
-    errWrongSpace: Incorrect space credential
-    outAllTitle: Sign out of all devices?
-    outAllDesc: Every device, this one included, returns to the lock screen and must unlock again.
-    outAllBtn: Sign out
-    setTitle: Set unlock password
-    changeTitle: Change unlock password
-    sessExp: Session expired, verify again
-    errReauthExpired: Verification expired, please verify again
-    errNetwork: Network connection failed, please retry
-    errParse: Bad server response, please retry
-    gateNetErr: Network error
-    pkListFail: Couldn’t load passkeys. Refresh to try again
-    errParams: Bad request
-    errNotFound: Key not found
-    errLastKey: This is the last unlock key; set an unlock password first
-    errRetry: Please try again later
-    errServer: Service temporarily unavailable
-    errChallenge: Verification setup failed
-    errVerify: Verification failed
-    errUvRequired: Device unlock required
-    errWrongPw: Wrong password
-    errShort: Minimum 8 characters
-    gateSrvErr: Server misconfigured
-    gateCancelled: Cancelled
-    errExists: Already set
-    errNotSet: Not set
-    errLocked: Too many attempts, please try again later
-    errConfig: Server misconfigured
-    errCancelled: Cancelled
-    errUnknown: Unknown error, please try again later
-    errSameAsLock: Can't be the same as the unlock password
-    errSameAsAccount: Can't be the same as the account password
-    reauthCountdown: Verification remaining {m}
-    reauthCountdownExpired: Expired
-    expiredReauthTitle: Verification expired
-    expiredReauthDesc: Verify again to continue on this page.
-    expiredReauthBtn: Verify again
-    expiredSessionTitle: Session expired
-    expiredSessionDesc: Please go back to the lock screen to unlock again.
-    expiredSessionBtn: Go to lock screen
-    securiSomethingWentWrongPlease: Something went wrong, please retry
-    securiSetupComplete: Setup complete
-    securiSetupDoneDesc: "Unlock method is set. Please go back to the lock screen to unlock."
-    securiExpiredStartOver: "Please go back to the lock screen to start over."
   account:
     pfEdit: Edit
     pfSave: Save
@@ -663,77 +447,6 @@ baseof:
   close: Close
   space: Space
   pageNotFound: Page not found
-securityLock:
-  verifyItsYou: Verify it's you
-  changingLockScreenCredentials: Changing lock screen credentials is a security action. Verify to continue; it lasts 3 minutes and ends as soon as you leave this page.
-  unlockPassword: Unlock password
-  loading: Loading…
-  deletePassword: Delete password
-  usedToUnlockFrom: Used to unlock from the lock screen. Minimum 8 characters.
-  passkeys: Passkeys
-  loadingPasskeys: Loading passkeys…
-  noPasskeysYet: No passkeys yet.
-  plus: +
-  addPasskey: Add passkey
-  unlockWithFingerprintFace: Unlock with fingerprint, face, or device passcode. Tap a device name to rename it.
-  sessions: Sessions
-  signOutOfAll: Sign out of all devices
-  everyDeviceThisOne: Every device, this one included, goes back to the lock screen
-  close: Close
-  nameThisPasskey: Name this passkey
-  giveItAName: Give it a name so you can tell your passkeys apart.
-  skip: Skip
-  save: Save
-  setUnlockPassword: Set unlock password
-  newPassword: New password
-  newPasswordMin8: New password (min 8)
-  showPassword: Show password
-  confirmPassword: Confirm password
-securityTempkeys:
-  hourOne: hour
-  hourMany: hours
-  newTemporaryKey: New temporary key
-  forSomeoneElseTo: For someone else to get past the lock screen
-  newShareLink: New share link
-  aLinkToSend: A link to send, session optional
-  activeKeys: Active keys
-  noTemporaryKeysYet: No temporary keys yet.
-  enterTheKeyAt: Enter the key at “Temporary key” on the lock screen. It gets you past the lock screen; the account still needs its own sign-in. Revoking a key locks out everyone who came in with it right away.
-  shareLinks: Share links
-  noShareLinksYet: No share links yet.
-  aLinkWithA: A link with a temporary session lets whoever opens it past the lock screen for the session length you chose, no key needed. A plain link just opens the page, so anyone not unlocked still sees the lock screen. Revoking a link ends its sessions right away.
-  close: Close
-  nameOnlyYouCan: Name (only you can see it)
-  nameOptionalOnlyYou: Name (optional, only you see it)
-  validFor: Valid for
-  hours: Hours
-  days: Days
-  days2: days
-  create: Create
-  thisKeyIsShown: This key is shown only once. Copy it and send it to the person you’re letting in.
-  copy: Copy
-  linkValidFor: Link valid for
-  opens: Opens
-  homePageOrBlog: Home page (or /blog/, or a subsite link)
-  withTemporarySession: With temporary session
-  sessionLength: Session length
-  n30Minutes: 30 minutes
-  n1Hour: 1 hour
-  n3Hours: 3 hours
-  n12Hours: 12 hours
-  n1Day: 1 day
-  n3Days: 3 days
-  n7Days: 7 days
-  copyLink: Copy link
-security:
-  security: Security
-  lockScreenCredentials: Lock screen credentials
-  passwordPasskeysSessions: Password, passkeys, sessions
-  temporaryKeys: Temporary keys
-  letOthersPastThe: Let others past the lock screen, share links
-  lockNow: Lock now
-  clearThisSessionAnd: Clear this session and return to the lock screen
-  securityStatusIsRead: Security status is read from this device only.
 status:
   loading: Loading…
   noDataYet: No data yet
