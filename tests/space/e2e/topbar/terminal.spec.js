@@ -132,7 +132,7 @@ test('未知命令：command not found · 试试 help（出错色）；坏目录
 test('历史：↑ / ↓ 翻命令，到底回到正在打的字；clear 清屏', async ({ page }) => {
   await go(page, '/zh/');
   await run(page, 'ls');
-  await expect(lastLine(home(page))).toHaveText('blog/  curio/  daymark/  wild/  account/  shield/');
+  await expect(lastLine(home(page))).toHaveText('blog/  curio/  daymark/  wild/  account/  shield/  proxy/');
   await run(page, 'theme dark');
   const i = input(page);
   await i.fill('he');
