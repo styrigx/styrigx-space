@@ -189,7 +189,7 @@ npx playwright test --config=tests/config/playwright.config.js
 
 | 位置 | 是什么 |
 |---|---|
-| `space/scripts/` | 基建脚本（全仓共用，CI 调用）：`build-css.cjs`（主站 CSS，顺带三个子站）、`gen-shell.mjs`（共享外壳的派生文件）、`gen-palettes.mjs`、`gen-ui-cookie-contract.mjs`、`gen-csp.mjs`（只算主站页面的内联脚本，子站目录不计）、`build-search-index.mjs`、`check-layers.mjs`、`check-frontend.mjs`、`check-worker-routes.mjs`（读 `space/web/public/`，子站页面在 `/<站>/` 下）、`health-gate.mjs`、`kv-budget.mjs`、`deploy-rollback.mjs`、`migrate-*.mjs`、`lib/`、`ci-local.sh`（本地按 CI 顺序跑） |
+| `space/scripts/` | 基建脚本（全仓共用，CI 调用）：`build-css.cjs`（主站 CSS，顺带三个子站）、`gen-shell.mjs`（共享外壳的派生文件）、`gen-palettes.mjs`、`gen-ui-cookie-contract.mjs`、`gen-csp.mjs`（只算主站页面的内联脚本，子站目录不计）、`build-search-index.mjs`、`check-layers.mjs`、`check-frontend.mjs`、`check-worker-routes.mjs`（读 `space/web/public/`，子站页面在 `/<站>/` 下）、`health-gate.mjs`、`kv-budget.mjs`、`deploy-rollback.mjs`、`migrate-kv-to-d1.mjs`（一次性 KV → D1 导入，单测和预览模拟器还读它）、`lib/`、`ci-local.sh`（本地按 CI 顺序跑） |
 | `space/scripts/blog/` | 博客：`build-css.mjs`、`build-search-index.mjs`（KV `site:blog`）、`gen-code-tokens.mjs`、`serve-static.mjs`（模拟 Pages 的静态服务器，子站 e2e 用，默认目录 `space/web/public`） |
 | `space/scripts/curio/` | 奇趣：`gen-seed-sql.mjs`（`data/seed.json` → `workers/curio-core/migrations/0002_seed.sql`） |
 | `space/scripts/daymark/` | 日刻：`gen-seed-sql.mjs` |
