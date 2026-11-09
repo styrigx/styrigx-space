@@ -3,9 +3,10 @@
  * 每个改动之后自动刷新一次（由调用方 waitUntil 或直接 await）。回给 account 的只有状态，不回链接和节点内容。
  */
 import { NAME_RE, MAX_SOURCES, MAX_BYTES, MAX_URL } from './config.js';
-import { getMeta, setMeta, listSources, getSourceFull, countSources, insertSource, updateAirportUrl, updateFileNodes, setEnabled as dbSetEnabled, deleteSource, clearAllArmor } from './store.js';
+import { getMeta, setMeta, listSources, getSourceFull, countSources, insertSource, replaceAirport, renameSource, updateFileNodes, setEnabled as dbSetEnabled, deleteSource, clearAllArmor } from './store.js';
 import { busy } from './lock.js';
-import { airportHost } from './airport.js';
+import { airportHost, fetchAirport } from './airport.js';
+import { userAgent } from './ua.js';
 import { extractProxies } from './parse.js';
 import { aad } from './pipeline.js';
 import { importDbKey, seal } from '../../lib/aes.js';
@@ -57,8 +58,12 @@ async function dbKey(env) {
   try { return await importDbKey(await readDbKey(env)); } catch (e) { return null; }
 }
 
-/** 加机场 / 同名改链接 @param {any} env @param {unknown} name @param {unknown} url @param {number} [now] */
-export async function addAirport(env, name, url, now = Date.now()) {
+/**
+ * 加机场 / 同名改链接。改链接先试拉（设计稿 v1.10 §5）：新链接只在内存里拉一次、抽 proxies（同刷新的超时、体积、每源上限），
+ * 成功才一条语句换链接和节点，回 id 给调用方只为这个源重出成品（不再重拉）；失败什么都不换、不写 last_error，回 { ok:false, error, kept:true }。
+ * @param {any} env @param {unknown} name @param {unknown} url @param {number} [now] @param {typeof fetch} [fetchFn]
+ */
+export async function addAirport(env, name, url, now = Date.now(), fetchFn = fetch) {
   if (typeof name !== 'string' || !NAME_RE.test(name)) return fail('name');
   if (typeof url !== 'string' || url.length > MAX_URL) return fail('url');
   const host = airportHost(url);
@@ -68,8 +73,13 @@ export async function addAirport(env, name, url, now = Date.now()) {
   const old = await getSourceFull(env, name);
   if (old && old.type !== 'airport') return fail('type');
   if (old) {
-    await updateAirportUrl(env, old.id, host, await seal(key, aad(old.id, 'url'), url.trim()));
-    return { ok: true, updated: true, oldHost: old.host || '', host };
+    const got = await fetchAirport(url.trim(), await userAgent(env, now, fetchFn), fetchFn);
+    if (!got.ok) return { ok: false, error: got.error, kept: true, oldHost: old.host || '', host };
+    const ex = extractProxies(got.text);
+    if (!ex.ok) return { ok: false, error: ex.error, kept: true, oldHost: old.host || '', host };
+    await replaceAirport(env, old.id, host, await seal(key, aad(old.id, 'url'), url.trim()),
+      await seal(key, aad(old.id, 'nodes'), JSON.stringify(ex.proxies)), ex.proxies.length, now);
+    return { ok: true, updated: true, oldHost: old.host || '', host, nodes: ex.proxies.length, id: old.id };
   }
   if ((await countSources(env)) >= MAX_SOURCES) return fail('too-many-sources');
   const id = crypto.randomUUID();
@@ -109,4 +119,13 @@ export async function setEnabled(env, name, on) {
 export async function remove(env, name) {
   if (typeof name !== 'string' || !NAME_RE.test(name)) return fail('name');
   return (await deleteSource(env, name)) ? { ok: true } : fail('not-found');
+}
+
+/** 改名（sub-mv）：只改名、不刷新；新名已存在 exists、旧名不存在 not-found、新旧相同不动作 @param {any} env @param {unknown} from @param {unknown} to */
+export async function rename(env, from, to) {
+  if (typeof from !== 'string' || !NAME_RE.test(from) || typeof to !== 'string' || !NAME_RE.test(to)) return fail('name');
+  if (from === to) return { ok: true, same: true };
+  if (!(await getSourceFull(env, from))) return fail('not-found');
+  if (await getSourceFull(env, to)) return fail('exists');
+  return (await renameSource(env, from, to)) ? { ok: true } : fail('exists');
 }

@@ -8,9 +8,9 @@ import { refreshSourceById } from '../core/sub/pipeline.js';
 import { dbReady } from '../core/sub/store.js';
 
 export class ProxyRefresher extends WorkerEntrypoint {
-  /** @param {string} id @param {string} owner @param {number} now @param {string} ua */
-  async refreshSource(id, owner, now, ua) {
+  /** @param {string} id @param {string} owner @param {number} now @param {string} ua @param {boolean} [noFetch] */
+  async refreshSource(id, owner, now, ua, noFetch) {
     if (!dbReady(this.env)) return { ok: false, error: 'config' };
-    return refreshSourceById(this.env, String(id), String(owner), Number(now), String(ua));
+    return refreshSourceById(this.env, String(id), String(owner), Number(now), String(ua), fetch, noFetch === true);
   }
 }

@@ -29,6 +29,7 @@ function fakeProxy() {
     upload: rec('upload', { ok: true, nodes: 1 }),
     setEnabled: rec('setEnabled', { ok: true }),
     remove: rec('remove', { ok: false, error: 'not-found' }),
+    rename: rec('rename', { ok: true }),
     refresh: rec('refresh', { ok: true, sources: [] }),
   };
 }
@@ -50,13 +51,14 @@ test('门卫：没进站会话 401；没账号 session 401 account；都不调 P
   assert.deepEqual(proxy.calls, []);
 });
 
-test('会话就够的：status / add / upload / on / off / rm / refresh 原样转给 ProxyAdmin', async () => {
+test('会话就够的：status / add / upload / mv / on / off / rm / refresh 原样转给 ProxyAdmin', async () => {
   const { env, proxy } = makeEnv();
   const ck = await acc();
   for (const [body, name] of [
     [{ action: 'status' }, 'status'],
     [{ action: 'add', name: 'Linkcube', url: 'https://sub.example.com/x' }, 'addAirport'],
     [{ action: 'upload', name: 'F', text: 'proxies: []' }, 'upload'],
+    [{ action: 'mv', from: 'F', to: 'G' }, 'rename'],
     [{ action: 'on', name: 'F' }, 'setEnabled'],
     [{ action: 'off', name: 'F' }, 'setEnabled'],
     [{ action: 'refresh' }, 'refresh'],
@@ -68,6 +70,8 @@ test('会话就够的：status / add / upload / on / off / rm / refresh 原样�
   }
   assert.deepEqual(proxy.calls.filter((c) => c[0] === 'setEnabled').map((c) => c[2]), [true, false]);
   assert.deepEqual(proxy.calls.find((c) => c[0] === 'addAirport').slice(1), ['Linkcube', 'https://sub.example.com/x']);
+  assert.deepEqual(proxy.calls.find((c) => c[0] === 'rename').slice(1), ['F', 'G']);
+  assert.equal((await post(env, { action: 'mv', from: 'F' }, ck)).status, 400, 'mv 少参数 400 params');
   const rm = await post(env, { action: 'rm', name: 'Nope' }, ck);
   assert.equal(rm.status, 422);
   assert.deepEqual(await rm.json(), { ok: false, error: 'not-found' });

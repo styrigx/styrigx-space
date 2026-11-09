@@ -6,6 +6,7 @@
  * { action }（同源）：
  * - status → 状态（公钥头尾、链接有没有、各源）
  * - key { pubkey }（reauth）→ 换公钥（只收 age1… X25519），自动重加密
+ * - mv { from, to } → 改名，不刷新（P2）
  * - link（reauth）→ 新下载令牌（只回这一次）+ base；下载地址 = base + 令牌 + '/' + 来源名
  * - add { name, url } → 加机场 / 同名改链接（回新旧域名，不回链接）
  * - upload { name, text } → 上传文件 / 同名覆盖（只抽 proxies）
@@ -22,7 +23,7 @@ export const SUB_BASE = 'https://proxy-rules.styrigx.com/s/';
 const MAX_TEXT = 2 * 1024 * 1024;
 
 const REAUTH = new Set(['key', 'link']);
-const ACTIONS = new Set(['status', 'key', 'link', 'add', 'upload', 'on', 'off', 'rm', 'refresh']);
+const ACTIONS = new Set(['status', 'key', 'link', 'add', 'upload', 'mv', 'on', 'off', 'rm', 'refresh']);
 
 /** @param {any} env */
 const proxyReady = (env) => !!(env && env.PROXY && typeof env.PROXY.status === 'function');
@@ -73,6 +74,12 @@ export const onRequestPost = guarded(async function (context) {
         const name = str(body.name, 32);
         if (!name) return apiError(400, 'params');
         r = await P.setEnabled(name, action === 'on');
+        break;
+      }
+      case 'mv': {
+        const from = str(body.from, 32); const to = str(body.to, 32);
+        if (!from || !to) return apiError(400, 'params');
+        r = await P.rename(from, to);
         break;
       }
       case 'rm': {

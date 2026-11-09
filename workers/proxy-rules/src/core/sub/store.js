@@ -66,9 +66,16 @@ export async function insertSource(env, row) {
 }
 
 /** 同名更新机场链接：换链接、清上次节点和成品（旧节点属于旧链接） @param {any} env */
-export async function updateAirportUrl(env, id, host, urlEnc) {
-  await db(env).prepare("UPDATE sources SET host = ?, url_enc = ?, last_nodes_enc = NULL, node_count = 0, last_ok_at = NULL, last_error = NULL, armor = '' WHERE id = ? AND type = 'airport'")
-    .bind(host, urlEnc, id).run();
+export async function replaceAirport(env, id, host, urlEnc, nodesEnc, count, now) {
+  /* 改机场链接（P2，设计稿 v1.10 §5）：新链接试拉成功后一条语句换链接和节点；成品不清（紧接着只为这个源重出一次） */
+  await db(env).prepare("UPDATE sources SET host = ?, url_enc = ?, last_nodes_enc = ?, node_count = ?, last_ok_at = ?, last_error = NULL WHERE id = ? AND type = 'airport'")
+    .bind(host, urlEnc, nodesEnc, count, now, id).run();
+}
+
+/** 改名（sub-mv）：只改 name，id、成品、节点、开关都不动 @param {any} env @param {string} from @param {string} to @returns {Promise<boolean>} */
+export async function renameSource(env, from, to) {
+  const r = await db(env).prepare('UPDATE sources SET name = ? WHERE name = ? AND NOT EXISTS (SELECT 1 FROM sources WHERE name = ?)').bind(to, from, to).run();
+  return Number(r.meta && r.meta.changes) > 0;
 }
 
 /** 同名覆盖上传文件 @param {any} env */
