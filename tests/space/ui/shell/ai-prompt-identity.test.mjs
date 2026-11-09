@@ -1,6 +1,7 @@
 /**
  * 2026-11-09 AI 窗口提示符身份（fix/ai-prompt-identity）：用户那一行 = 提问者提示符 + --ask，回答前一行 = grayai 提示符 + --reply；
  * 没登录 styrigx@space:~$ / grayai@space:~$，已登录 root@account:~# / grayai@account:~#；原来的「gray --reply」里的 gray 去掉。只改文字，样式不变。
+ * 2026-11-09 fix/ai-greet-prompt：空态欢迎语（data-greet）的回显也改成 grayai … --reply（原 styrigx@space:~$ ask --help / root@account:~# ask --help）。
  * 运行：node --test tests/space/ui/shell/ai-prompt-identity.test.mjs
  */
 import { test } from 'node:test';
@@ -30,5 +31,14 @@ for (const f of ['space/web/assets/css/input.css', 'space/web/assets/css/shell/s
     assert.equal(contentOf(s, '.sgx-ai-msg[data-role="assistant"]::before'), 'grayai@space:~$ --reply');
     assert.equal(contentOf(s, 'html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before'), 'grayai@account:~# --reply');
     assert.doesNotMatch(s, /gray --reply/);
+  });
+  test(`${f}：空态欢迎语是 AI 说的话 → 回显 grayai … --reply（与普通回答行一致），不再是提问者的 ask --help`, () => {
+    const s = read(f);
+    assert.equal(contentOf(s, '.sgx-ai-msg[data-greet]::before'), 'grayai@space:~$ --reply');
+    assert.equal(contentOf(s, 'html[data-sgx-account-session="in"] .sgx-ai-msg[data-greet]::before'), 'grayai@account:~# --reply');
+    assert.equal(contentOf(s, '.sgx-ai-msg[data-greet]::before'), contentOf(s, '.sgx-ai-msg[data-role="assistant"]::before'));
+    assert.equal(contentOf(s, 'html[data-sgx-account-session="in"] .sgx-ai-msg[data-greet]::before'),
+      contentOf(s, 'html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before'));
+    assert.doesNotMatch(s, /content: "[^"]*ask --help/);
   });
 }
