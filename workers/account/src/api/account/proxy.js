@@ -11,7 +11,7 @@
  * - add { name, url } → 加机场 / 同名改链接（先试拉，回新旧域名，不回链接）
  * - upload { name, text } → 上传文件 / 同名覆盖（只抽 proxies）
  * - mv { from, to } → 改名，不刷新
- * - on / off / rm { name }
+ * - on / off / rm { name }（终端的 sub enable / sub disable / sub rm）
  * 改动类都在 ProxyAdmin 里自动刷新一次，回的结果里带 refresh。ProxyAdmin 的业务失败原样回（422，{ ok:false, error }）。
  */
 import { json, apiError } from '../../lib/http.js';

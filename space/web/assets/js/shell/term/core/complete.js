@@ -15,10 +15,10 @@ export function commonPrefix(list) {
 }
 
 /**
- * tab 补全：只补最后一个词（第一个词补命令名，第二个词按命令补参数）。
+ * tab 补全：只补最后一个词（第一个词补命令名，第二个词按命令补参数，第三个词按「命令 参数」补，比如 sub token → reset，S9）。
  * 唯一候选 → 补全并在带参数的命令名后加空格；多个 → 补到公共前缀，options 列出全部；没有 → 原样。
  * @param {string} line
- * @param {{ names: string[], argsOf: (cmd: string) => string[], takesArgs: (cmd: string) => boolean }} src
+ * @param {{ names: string[], argsOf: (cmd: string) => string[], takesArgs: (cmd: string) => boolean, subArgsOf?: (cmd: string, arg: string) => string[] }} src
  * @returns {{line: string, options: string[]}}
  */
 export function completeLine(line, src) {
@@ -31,6 +31,7 @@ export function completeLine(line, src) {
   const idx = words.length - 1;
   if (idx === 0) pool = src.names;
   else if (idx === 1) pool = src.argsOf(words[0].toLowerCase());
+  else if (idx === 2 && src.subArgsOf) pool = src.subArgsOf(words[0].toLowerCase(), words[1].toLowerCase());
   else pool = [];
   const word = words[idx];
   const hits = pool.filter(function (c) { return c.indexOf(word) === 0; });
@@ -38,7 +39,8 @@ export function completeLine(line, src) {
   const head = pad + words.slice(0, idx).join(' ') + (idx ? ' ' : '');
   if (hits.length === 1) {
     const one = hits[0];
-    return { line: head + one + (idx === 0 && src.takesArgs(one) ? ' ' : ''), options: [] };
+    const more = idx === 0 ? src.takesArgs(one) : idx === 1 && !!src.subArgsOf && src.subArgsOf(words[0].toLowerCase(), one).length > 0;
+    return { line: head + one + (more ? ' ' : ''), options: [] };
   }
   return { line: head + commonPrefix(hits), options: hits };
 }

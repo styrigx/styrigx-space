@@ -37,7 +37,7 @@
 | 终端 | `#sgx-term`，`shell/terminal.js` + `shell/term/` | 全站唯一终端（v5 S5）：顶栏 `>_`、`Ctrl / ⌘ K`、盾牌、上锁部件打开；桌面居中大窗、手机整块卡片；钥匙层 `shell/space/layer.js`、账号层 `shell/account/cmd/layer.js` 共用输入行（ADR-0005） |
 | AI 窗 | `#sgx-ai`，`shell/ai-panel.js` | 右下浮钮展开；手机是悬浮卡；未进站时模型小矩形是锁标，点击打开终端 |
 | 盾牌 | `.sgx-tb-shield` | 不开窗口：访客点 → 终端预填 `sudo styrigx`；已进站点 → 终端问「退出进站会话 [y/N]」 |
-| 账号窗口 | `#sgx-acct`，`shell/account/window.js` | 头像打开（只在已进站时；访客态头像是死按钮） |
+| 账号卡片 | `#sgx-acct`，`shell/account/window.js` | 头像打开（只在已进站时；访客态头像是死按钮）；S9 起只展示，点一行 = 终端预填命令 |
 | 进站守卫 | `shell/space/guard.js` | 已进站页面的自动回锁；见 SGX-SPEC-001 |
 | 页脚 | `layouts/partials/sgx-footer.html` | rss / github / x 与构建号 |
 

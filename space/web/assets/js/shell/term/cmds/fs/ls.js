@@ -8,7 +8,7 @@ function lsProxy(x) {
     if (!ls.length) return { out: [x.k.plain(x.S.lsEmpty)] };
     return {
       out: ls.map(function (s) {
-        const st = !s.enabled ? 'off' : s.error ? s.error : 'on';
+        const st = !s.enabled ? 'disabled' : s.error ? s.error : 'enabled';
         return { t: 'line', seg: [['k', s.name], ['', '  ' + (s.type === 'airport' ? s.host : 'file') + '  ' + s.nodes + '  ' + st]], cls: '' };
       }),
     };

@@ -60,7 +60,8 @@ test('访客（nobody）：man 列 find 不列 ask；进站后列 ask 不列 fin
   for (const n of guest.concat(entered)) assert.ok(COMMANDS.includes(n), n);
   /* man find 一页 */
   const pg = await shell().sh.exec('man find');
-  assert.deepEqual(pg.out.map(text), ['FIND(1)', 'NAME', '    find — search the four sites’ public pages by keyword', 'SYNOPSIS', '    find <keyword>', '(END)']);
+  assert.equal(pg.pager, 'FIND(1)', 'S9：交给全屏阅读页，页名在状态栏');
+  assert.deepEqual(pg.out.map(text), ['NAME', '    find — search the four sites’ public pages by keyword', '', 'SYNOPSIS', '    find <keyword>']);
 });
 
 test('访客敲 ask：不开 AI，提示先 sudo styrigx、搜关键词用 find（中文照 Gray 定的句子）', () => {

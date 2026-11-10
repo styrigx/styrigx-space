@@ -1,11 +1,23 @@
 /**
- * @fileoverview 设备（D1–D9）的终端命令（v5 S5：账号窗口的「设备」照旧，这里是命令行版）。
+ * @fileoverview 设备（D1–D9）的终端命令（v5 S5；S9 起账号卡片只展示、只有这一处）。
  *
  * - device：列表（[n] 名字 · 在线 / 上次活动 · 浏览器 · 地点 · 登录方式，本机标「此设备」）
  * - device rm <n>：[y/N] 退出那一台（本机用 exit）· device rm --all：退出其他所有设备（要 sudo root reauth，O8）
  */
 
-import { agoText } from '../devices.js';
+/**
+ * 「上次活动」相对时间。
+ * @param {(k: string) => string} t @param {number} ts @param {number} [now]
+ */
+export function agoText(t, ts, now) {
+  const diff = Math.max(0, (now || Date.now()) - (ts || 0));
+  const min = Math.floor(diff / 60000);
+  if (min < 2) return t('devices.justNow');
+  if (min < 60) return t('devices.minAgo').replace('{n}', String(min));
+  const h = Math.floor(min / 60);
+  if (h < 24) return t('devices.hourAgo').replace('{n}', String(h));
+  return t('devices.dayAgo').replace('{n}', String(Math.floor(h / 24)));
+}
 
 /** @param {any} C 账号层上下文（./layer.js） */
 export function mountDevices(C) {

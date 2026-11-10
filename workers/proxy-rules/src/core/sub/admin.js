@@ -1,7 +1,7 @@
 /**
  * 管理操作（RPC ProxyAdmin 调；鉴权在 account Worker：会话 / reauth）。
  * 每个改动之后自动刷新一次（由调用方 waitUntil 或直接 await）。回给 account 的只有状态，不回机场链接和节点内容；
- * 下载令牌只在 showToken（sub show）/ rotateToken（sub token）回原文，两者在 account 那边都要 reauth。
+ * 下载令牌只在 showToken（sub show）/ rotateToken（sub token reset）回原文，两者在 account 那边都要 reauth。
  */
 import { NAME_RE, MAX_SOURCES, MAX_BYTES, MAX_URL } from './config.js';
 import { getMeta, setMeta, setToken, listSources, getSourceFull, countSources, insertSource, replaceAirport, renameSource, updateFileNodes, setEnabled as dbSetEnabled, deleteSource, clearAllArmor } from './store.js';
@@ -48,7 +48,7 @@ export async function setKey(env, pub) {
 }
 
 /**
- * 令牌状态：none 没生成过；sealed 能用 sub show 重印；hash-only 只有哈希（封存上线前生成的，下载照常，要重印就 sub token 换一个）
+ * 令牌状态：none 没生成过；sealed 能用 sub show 重印；hash-only 只有哈希（封存上线前生成的，下载照常，要重印就 sub token reset 换一个）
  * @param {any} env @returns {Promise<'none'|'sealed'|'hash-only'>}
  */
 async function tokenState(env) {
@@ -60,7 +60,7 @@ async function dbKey(env) {
   try { return await importDbKey(await readDbKey(env)); } catch (e) { return null; }
 }
 
-/** 换下载令牌（sub token）：旧令牌的所有链接立即失效；回新令牌原文 @param {any} env */
+/** 换下载令牌（sub token reset）：旧令牌的所有链接立即失效；回新令牌原文 @param {any} env */
 export async function rotateToken(env) {
   const key = await dbKey(env);
   if (!key) return fail('config');

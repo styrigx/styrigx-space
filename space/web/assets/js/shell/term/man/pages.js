@@ -1,8 +1,10 @@
 /**
- * @fileoverview 终端的 man 页（终端统一 T5，设计稿 v1.5 §4 / §6.3；v5 S5 一张表）：man.js 用 import() 懒加载，不进首包。
- * 格式同锁屏 `man styrigx`：<NAME>(1) / NAME / SYNOPSIS / (END)。d 是 NAME 说明的英文底，页面上以 #sgx-i18n-shell 的 man 节为准（键 = 命令名）；命令写法不翻译。
+ * @fileoverview 终端的 man 页（终端统一 T5；v5 S5 一张表）：man.js 用 import() 懒加载，不进首包。
+ * 格式：<NAME>(1) / NAME / SYNOPSIS / DESCRIPTION / AUTH / NOTES，在终端里的全屏阅读页显示（S9，less 式）。
+ * 这里的文字是英文底：页面上 NAME 说明以 #sgx-i18n-shell 的 man 节为准（键 = 命令名），DESCRIPTION / AUTH / NOTES 以 manBody 节为准
+ * （键 = 命令名，{ desc: [], auth: '', notes: [] }，行数和这里一一对应；中文页每一页都要有，tests/space/ui/shell/man-i18n.test.mjs 查）。命令写法不翻译。
  */
-/** 命令 → { d: NAME 说明（英文底）, desc?/auth?/notes?/see?: 代理订阅页多的几节（英文）, syn: SYNOPSIS 各行（{root} / {admin} 由 man.js 换成命令字；这个文件不 import，懒加载 chunk 不牵出共享代码） } */
+/** 命令 → { d: NAME 说明, syn: SYNOPSIS 各行, desc? / auth? / notes?: 正文（{root} / {admin} 由 man.js 换成命令字；这个文件不 import，懒加载 chunk 不牵出共享代码） } */
 export const PAGES = Object.freeze({
   man: { d: 'read a command’s manual page', syn: ['man', 'man <command>'] },
   cd: { d: 'change the current directory (use open to go there)', syn: ['cd [blog | curio | daymark | wild | account | proxy | ~ | ..]'] },
@@ -23,7 +25,7 @@ export const PAGES = Object.freeze({
   find: { d: 'search the four sites’ public pages by keyword', syn: ['find <keyword>'] },
   clear: { d: 'clear the screen', syn: ['clear', 'cls'] },
   pwd: { d: 'print the current directory', syn: ['pwd'] },
-  open: { d: 'open a path: a site, daymark/today or an account layer', syn: ['open [path]', 'open ~/account/profile'] },
+  open: { d: 'open a path: a site, daymark/today or the account card', syn: ['open [path]', 'open ~/account'] },
   history: { d: 'list this session’s commands', syn: ['history'] },
   exit: { d: 'leave the current layer, sign out of the account, or close the terminal', syn: ['exit'], desc: ['In reset: leave reset. As root@account: sign out and go back to {admin}@space. Otherwise: close the terminal.'] },
   share: {
@@ -34,26 +36,35 @@ export const PAGES = Object.freeze({
   passwd: { d: 'change the account password', syn: ['passwd'], auth: 'signed in (sudo {root}); reauth' },
   passkey: { d: 'list, add or remove account passkeys', syn: ['passkey', 'passkey add', 'passkey rm <n>'], auth: 'signed in (sudo {root}); reauth' },
   device: { d: 'list signed-in devices, or sign one out', syn: ['device', 'device rm <n>', 'device rm --all'], auth: 'signed in (sudo {root}); --all needs reauth' },
-  app: { d: 'list app access, or remove it', syn: ['app', 'app rm <n>'], auth: 'signed in (sudo {root})' },
-  /* 代理订阅（sub v3.1）：一条 sub + 子命令，账号命令（sudo root 之后）。DESCRIPTION / AUTH / NOTES 英文 */
+  app: {
+    d: 'list app access, allow or deny an app', syn: ['app', 'app allow <n>', 'app deny <n>'],
+    desc: ['app: every app with its scopes, when and on which device it was allowed.', 'allow: give an app access again. deny: take it away (asks y/N); the app can still read, it just can’t change anything.'],
+    auth: 'signed in (sudo {root}); allow needs reauth (sudo -v)',
+  },
+  profile: {
+    d: 'show or change your profile and photo', syn: ['profile', 'profile set name | nick | sign | email <value>', 'profile avatar'],
+    desc: ['profile: name, nickname, signature and email (a site default shows when you haven’t set one).', 'set: change one field; the whole site follows at once. Name up to 40, nickname up to 32, email checked for format.', 'avatar: pick a photo and crop it, or remove yours.'],
+    auth: 'signed in (sudo {root})',
+  },
+  /* 代理订阅（sub v3.1）：一条 sub + 子命令，账号命令（sudo root 之后） */
   sub: {
     d: 'proxy subscription: status, urls, sources, key and token',
-    syn: ['sub', 'sub show [name]', 'sub add <name>', 'sub upload <name>', 'sub mv <old> <new>', 'sub rm <name>', 'sub on | off <name>', 'sub key', 'sub token'],
+    syn: ['sub', 'sub show [name]', 'sub add <name>', 'sub upload <name>', 'sub mv <old> <new>', 'sub rm <name>', 'sub enable | disable <name>', 'sub key', 'sub token reset'],
     desc: [
-      'sub: the public key (head and tail), the token state and each source: name · airport host or file · nodes · on / off / error.',
+      'sub: the public key (head and tail), the token state and each source: name · airport host or file · nodes · enabled / disabled / error.',
       'show: print the token and every source url (or just one), each with copy; works any time.',
       'add: asks for the airport link (hidden). The same name again changes the link: it is fetched once first and replaces the old one only if that works.',
       'upload: pick a local YAML file; only proxies: is kept. The same name again overwrites it.',
       'mv: rename only, nothing is refreshed; the old path 404s at once. rm: asks y/N, then deletes link, nodes and output.',
-      'on / off: an off source 404s; its link or file and output are kept.',
+      'enable / disable: a disabled source 404s; its link or file and output are kept.',
       'key: paste an age1… X25519 public key; every source is re-encrypted right after.',
-      'token: asks y/N, then makes a new token; every old url stops working at once.',
+      'token reset: makes a new token (asks y/N when one exists); every old url stops working at once.',
     ],
-    auth: 'signed in (sudo {root}); show, key and token need reauth (sudo -v)',
+    auth: 'signed in (sudo {root}); show, key and token reset need reauth (sudo -v)',
     notes: [
       'Urls are https://proxy-rules.styrigx.com/s/<token>/<name>; every output is age-encrypted to your public key.',
       'The server keeps the token sealed with its own key, so sub show can print it again.',
-      'Adding, uploading, switching, removing or changing the key refreshes once automatically; airports also refresh every 6 hours.',
+      'Adding, uploading, enabling, disabling, removing or changing the key refreshes once automatically; airports also refresh every 6 hours.',
       'Names use A–Z a–z 0–9 _ - (1–32). At most 20 sources, 2 MB per file. Post-quantum keys (age1pq1…) are not supported yet.',
     ],
   },

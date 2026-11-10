@@ -90,7 +90,7 @@
 | 已进站且账号已登录 | `root@account:~#` |
 | 进站 reset / 账号 reset | `reset@space:~#` / `reset@account:~#` |
 
-首页 about 卡的提示符跟同一个身份（`[data-sgx-ps]`）。账号窗口另有自己的命令行（`login@account:~$` / `root@account:~#`）。
+首页 about 卡的提示符跟同一个身份（`[data-sgx-ps]`）。账号窗口（S9 起叫账号卡片）只展示、没有命令行：点一行 = 打开全站终端、预填对应命令（`profile` / `device` / `passkey` / `app` / `exit`）。
 
 7.2 **环境提示符**：其余装饰性提示符（首页 hero、子页窗口与标题行、旷野小卡、AI 提问行）按账号登录状态二选一：
 

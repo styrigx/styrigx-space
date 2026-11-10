@@ -1,5 +1,5 @@
 import { gate, layer, notHere, FLOW } from '../keys/gate.js';
-import { SUB_ARGS } from './args.js';
+import { SUB_ARGS, subSubArgs } from './args.js';
 
 /**
  * sub（代理订阅 v3.1）：一条命令 + 子命令（show / add / upload / mv / rm / on / off / key / token），账号命令，要 sudo root。
@@ -9,6 +9,7 @@ import { SUB_ARGS } from './args.js';
 export const SUB_CMD = {
   name: 'sub',
   args: SUB_ARGS.slice(),
+  subArgs: subSubArgs,
   audience: /** @type {any} */ (['root']),
   /** @param {any} p @param {any} x @param {string} line */
   run: function (p, x, line) {

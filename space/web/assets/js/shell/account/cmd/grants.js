@@ -1,11 +1,12 @@
 /**
- * @fileoverview 应用授权（G1–G7）的终端命令（v5 S5；账号窗口的「应用授权」（搜索 / 标签 / 开关）和奇趣 / 日刻的授权同意照旧在窗口里，../grants.js）。
+ * @fileoverview 应用授权（G1–G7）+ 奇趣 / 日刻的授权同意（A17，O6）的终端命令（S9：账号卡片只展示，授权都在终端里）。
  *
  * - app：列表（[n] 名字 · scope · 授权时间和设备 / 已取消授权；敏感操作另要验证的标出来）
- * - app rm <n>：[y/N] 取消授权（不用验证）。重新授权在账号窗口的开关或奇趣 / 日刻的授权同意里（要 reauth）
+ * - app allow <n>：重新授权（要 sudo root reauth，有效期内不再问）· app deny <n>：[y/N] 取消授权（不用验证；只禁改，不禁看）
+ * - 授权同意（奇趣 / 日刻的 sudo root 入口，C.consent）：登录后判授权，已授权直接回原页；没授权 → `[y] 允许 [n] 拒绝`（拒绝不写记录），选完收起终端、重新载入
  * 设置同步（prefs）的授权留着（O9）。
  */
-import { mmdd } from '../keys.js';
+import { mmdd } from './keys.js';
 
 /** @param {any} C 账号层上下文（./layer.js） */
 export function mountGrants(C) {
@@ -24,7 +25,7 @@ export function mountGrants(C) {
   /** @returns {Promise<any[]|null>} */
   C.loadGrants = function () {
     return api.grants.list().then(function (/** @type {any} */ res) {
-      if (res.j && res.j.ok) { C.grants = res.j.grants || []; C.paintGrantCount(); return C.grants; }
+      if (res.j && res.j.ok) { C.grants = res.j.grants || []; return C.grants; }
       C.authErr(res);
       return null;
     }, function () { return null; });
@@ -52,13 +53,19 @@ export function mountGrants(C) {
     });
   };
 
-  /** app rm <n>：取消授权 @param {number} n */
-  C.appRm = function (n) {
+  /** 第 n 个应用（没有 → 报错、提示先列出来） @param {number} n @param {(g: any, name: string) => void} then */
+  function nthApp(n, then) {
     load(function (ok) {
       if (!ok) return;
       const g = (C.grants || [])[n - 1];
       if (!g) { C.err(t('grants.noSuch')); C.note('grants.lsFirst', 'app'); return; }
-      const name = appName(g.app);
+      then(g, appName(g.app));
+    });
+  }
+
+  /** app deny <n>：取消授权（[y/N]，不用验证） @param {number} n */
+  C.appDeny = function (n) {
+    nthApp(n, function (g, name) {
       if (!g.granted) { C.note('grants.alreadyOff'); return; }
       C.out(esc(tf('grants.rmAsk', { v: name })) + ' [y/N]');
       C.pick({
@@ -67,12 +74,63 @@ export function mountGrants(C) {
           C.setMode('busy');
           api.grants.revoke(g.app).then(function (/** @type {any} */ res) {
             C.toCmd();
-            if (res.j && res.j.ok) { C.grants = res.j.grants || C.grants; C.paintGrantCount(); C.out('<span class="sgx-at-ok">✓</span> ' + esc(tf('grants.revoked', { v: name }))); return; }
+            if (res.j && res.j.ok) { C.grants = res.j.grants || C.grants; C.out('<span class="sgx-at-ok">✓</span> ' + esc(tf('grants.revoked', { v: name }))); return; }
             if (!C.authErr(res)) C.apiErr(res);
           }, function () { C.netErr(); C.toCmd(); });
         },
         n: function () { C.echoPick('n'); C.toCmd(); },
       }, 'n', { ps: '[y/N]' });
+    });
+  };
+
+  /**
+   * 重新授权：first = 先 sudo root reauth（app allow，同原来窗口的开关）；否则直接试（授权同意，同原来），服务端要 reauth 再验证后重做
+   * @param {string} app @param {boolean} first @param {(ok: boolean) => void} done
+   */
+  function allow(app, first, done) {
+    const name = appName(app);
+    const add = function () {
+      C.setMode('busy');
+      api.grants.add(app).then(function (/** @type {any} */ res) {
+        C.toCmd();
+        if (res.j && res.j.ok) { C.grants = res.j.grants || C.grants; C.out('<span class="sgx-at-ok">✓</span> ' + esc(tf('grants.regranted', { v: name }))); done(true); return; }
+        if (api.isErr(res, api.ERR.reauth)) { C.reauthExp = 0; C.withReauth(add, t('reauth.lead.grants')); return; }
+        if (!C.authErr(res)) C.apiErr(res);
+        done(false);
+      }, function () { C.netErr(); C.toCmd(); done(false); });
+    };
+    if (first) C.withReauth(add, t('reauth.lead.grants'));
+    else add();
+  }
+
+  /** app allow <n>：重新授权（要 reauth） @param {number} n */
+  C.appAllow = function (n) {
+    nthApp(n, function (g) {
+      if (g.granted) { C.note('grants.alreadyOn'); return; }
+      allow(g.app, true, function () {});
+    });
+  };
+
+  /* ----- 授权同意（奇趣 / 日刻，O6）：选完（或本来就授权了）收起终端，重新载入回到原页 ----- */
+  C.askConsent = function () {
+    const app = C.consent ? C.consent.app : '';
+    const finish = function () { C.consent = null; C.loginChanged = true; C.finished(); };
+    (C.grants ? Promise.resolve(C.grants) : C.loadGrants()).then(function (/** @type {any} */ gs) {
+      const g = (gs || []).find(function (/** @type {any} */ x) { return x.app === app; });
+      if (!g || g.granted) { finish(); return; }
+      const name = appName(app);
+      C.out('<span class="sgx-at-w">' + esc(tf('grants.consent.ask', { v: name })) + '</span>');
+      C.out(esc(tf('grants.consent.sub', { v: name })));
+      C.out('<span class="sgx-at-dim">·</span> ' + esc(t('grants.desc.' + app)));
+      const sens = sensText(g);
+      if (sens) C.out('<span class="sgx-at-dim">·</span> <span class="sgx-at-y">' + esc(sens) + '</span>');
+      C.opts([['y', t('grants.consent.allow')], ['n', t('grants.consent.deny')]]);
+      C.out('# ' + esc(tf('grants.consent.hint', { v: name })), 'd');
+      C.pick({
+        y: function () { C.echoPick('y'); allow(app, false, function () { finish(); }); },
+        n: function () { C.echoPick('n'); C.toCmd(); finish(); },
+      });
+      C.focusIn();
     });
   };
 }

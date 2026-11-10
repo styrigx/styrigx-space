@@ -10,6 +10,7 @@ import { listedFor } from './who.js';
  * @property {string} name
  * @property {string[]} [aliases]
  * @property {string[]} [args] 第二个词的补全候选
+ * @property {(arg: string) => string[]} [subArgs] 第二个词 → 第三个词的补全候选（sub token → reset、profile set → name …，S9）
  * @property {boolean} [takesArgs] 没有候选也带参数（补全命令名后加空格）
  * @property {import('./who.js').Who[]} [audience] man 索引只给这些身份列（缺省都列）
  * @property {(p: {cmd: string, args: string[], rest: string}, x: any, line: string) => any} run

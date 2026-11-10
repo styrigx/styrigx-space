@@ -1,8 +1,8 @@
 /**
  * @fileoverview `sudo root reauth`：3 分钟再验证（进账号安全、重新授权应用、退出其他所有设备前用，类比 sudo -v）。
  *
- * 只收 account passkey / account password（恢复密钥不能再验证）。提示符不变（root@account:~#），顶部显示 `reauth · 02:41`。
- * 3 分钟到期、关掉下拉、离开页面即结束（O12）。也管 reset 票的倒计时（reset.js 用同一个 tick）。
+ * 只收 account passkey / account password（恢复密钥不能再验证）。提示符不变（root@account:~#）。
+ * 3 分钟到期、关掉终端、离开页面即结束（O12）。也管 reset 票的到期（reset.js 用同一个 tick）。
  */
 import { CMD } from './commands.js';
 
@@ -14,7 +14,7 @@ export function mountReauth(C) {
   /** @param {() => void} [then] @param {string} [lead] */
   C.cmdReauth = function (then, lead) {
     if (C.st !== 'in') { C.err(t('session.notSignedIn'), CMD.session); return; }
-    C.verify({ reauth: true, lead: lead || t('reauth.lead.keys'), done: function () { C.render(); if (then) then(); } });
+    C.verify({ reauth: true, lead: lead || t('reauth.lead.keys'), done: function () { if (then) then(); } });
   };
   /** 要 reauth 才能做的事：有效期内直接做，没有就在终端里 sudo root reauth（应用重新授权、退出其他所有设备，O8 / G5） @param {() => void} run @param {string} lead */
   C.withReauth = function (run, lead) {
@@ -27,23 +27,15 @@ export function mountReauth(C) {
   C.startTick = function () {
     C.stopTick();
     tick = window.setInterval(function () {
-      const cd = C.root.querySelector('[data-at-cd]');
       if (C.inReset) {
-        if (!C.resetLeft()) { C.stopTick(); C.endReset(true); return; }
-        if (cd) cd.textContent = 'reset · ' + C.mmss(C.resetLeft());
+        if (!C.resetLeft()) { C.stopTick(); C.endReset(true); }
         return;
       }
-      if (!C.reauthLeft()) {
-        C.stopTick();
-        if (cd) cd.textContent = '';
-        if (C.layer === 'keys') { C.err(t('reauth.expired')); C.render(); }
-        return;
-      }
-      if (cd) cd.textContent = 'reauth · ' + C.mmss(C.reauthLeft());
+      if (!C.reauthLeft()) C.stopTick();
     }, 1000);
   };
   C.stopTick = function () { if (tick) { window.clearInterval(tick); tick = 0; } };
-  /** 结束 reauth（关下拉 / 离开页面，O12） */
+  /** 结束 reauth（关终端 / 离开页面，O12） */
   C.endReauth = function () {
     if (!C.reauthExp && !C.resetExp) return;
     C.reauthExp = 0;

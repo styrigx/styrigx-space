@@ -47,10 +47,11 @@ test('站内终端：hsitory → did you mean history（同一份算法）；不
   assert.match(read('space/web/assets/js/shell/suggest.js'), /export \{ lev, suggest \} from '\.\/term\/core\/suggest\.js';/);
 });
 
-test('文案：term / space.common / account.common 都有 didYouMean（en / zh）；锁屏 / 盾牌 / 账号接上', () => {
+test('文案：term / space.common 都有 didYouMean（en / zh）；锁屏 / 盾牌接上（S9：账号卡片没有命令行，account.common.didYouMean 删了）', () => {
   for (const l of ['en', 'zh']) {
     const y = yaml.load(read(`space/web/data/sgx-shell-i18n/${l}.yaml`));
-    for (const t of [y.term.didYouMean, y.space.common.didYouMean, y.account.common.didYouMean]) assert.match(t, /command not found: \{c\} — .*\{x\}/);
+    for (const t of [y.term.didYouMean, y.space.common.didYouMean]) assert.match(t, /command not found: \{c\} — .*\{x\}/);
+    assert.equal(y.account.common.didYouMean, undefined);
   }
   /* v5 S5：一个终端（引擎 engine.js 给 did you mean）；钥匙的 reset 层自己解析，也接上 */
   for (const f of ['space/web/assets/js/shell/term/core/engine.js', 'space/web/assets/js/shell/space/reset.js']) assert.match(read(f), /notFoundLine\(|suggest\(/, f);

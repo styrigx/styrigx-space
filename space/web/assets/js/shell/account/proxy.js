@@ -1,6 +1,6 @@
 /**
  * @fileoverview 代理订阅的 sub 指令（v3.1，Gray 2026-11-10 定）：一条 `sub` + 子命令，在终端里原地做完——reauth、y/N、遮挡输入、选文件、复制。
- * 终端命令表里的 sub（shell/term/cmds/sub/index.js）和账号窗口的命令行都把原样的一行交给这里（C.cmdSub）。
+ * 终端命令表里的 sub（shell/term/cmds/sub/index.js）把原样的一行交给这里（C.cmdSub）。
  * 后端：POST /api/account/proxy（api.proxy）；鉴权在服务端，show / token / key 要 reauth 票。令牌由服务端封存，sub show 随时重印。
  */
 import { CMD } from './commands.js';
@@ -15,11 +15,11 @@ export const AGE_RE = /^age1[02-9ac-hj-np-z]{58}$/;
 export const MAX_FILE = 2 * 1024 * 1024;
 
 /** 每个子命令的名字参数个数 [最少, 最多] */
-const ARITY = /** @type {Record<string, [number, number]>} */ ({ '': [0, 0], 'show': [0, 1], 'add': [1, 1], 'upload': [1, 1], 'mv': [2, 2], 'rm': [1, 1], 'on': [1, 1], 'off': [1, 1], 'key': [0, 0], 'token': [0, 0] });
+const ARITY = /** @type {Record<string, [number, number]>} */ ({ '': [0, 0], 'show': [0, 1], 'add': [1, 1], 'upload': [1, 1], 'mv': [2, 2], 'rm': [1, 1], 'enable': [1, 1], 'disable': [1, 1], 'key': [0, 0] });
 /** 用法行 */
 export const USAGE = /** @type {Record<string, string>} */ ({
   '': 'sub', 'show': 'sub show [name]', 'add': 'sub add <name>', 'upload': 'sub upload <name>', 'mv': 'sub mv <old> <new>',
-  'rm': 'sub rm <name>', 'on': 'sub on <name>', 'off': 'sub off <name>', 'key': 'sub key', 'token': 'sub token',
+  'rm': 'sub rm <name>', 'enable': 'sub enable <name>', 'disable': 'sub disable <name>', 'key': 'sub key', 'token': 'sub token reset',
 });
 
 /**
@@ -38,6 +38,8 @@ export function parseSub(raw) {
  * @param {{sub: string, args: string[]}} p @returns {null | {usage: string} | {badName: true}}
  */
 export function checkSub(p) {
+  /* sub token reset（S9，同 sudo root reset 的写法）：只认这一种；单 sub token 给用法 */
+  if (p.sub === 'token') return p.args.length === 1 && p.args[0].toLowerCase() === 'reset' ? null : { usage: USAGE.token };
   const n = ARITY[p.sub];
   if (!n) return { usage: SUB_ARGS.map(function (s) { return USAGE[s]; }).join(' | ') };
   if (p.args.length < n[0] || p.args.length > n[1]) return { usage: USAGE[p.sub] };
@@ -111,7 +113,7 @@ export function mountProxy(C) {
   const find = function (s, name) { return (s.sources || []).find(function (/** @type {any} */ x) { return x.name === name; }); };
 
   /** 令牌状态 → [文案键, 文案里的命令] */
-  const TOKEN_LINE = /** @type {Record<string, [string, string]>} */ ({ sealed: ['proxy.tokenSealed', 'sub show'], 'hash-only': ['proxy.tokenHashOnly', 'sub token'], none: ['proxy.tokenNone', 'sub token'] });
+  const TOKEN_LINE = /** @type {Record<string, [string, string]>} */ ({ sealed: ['proxy.tokenSealed', 'sub show'], 'hash-only': ['proxy.tokenHashOnly', 'sub token reset'], none: ['proxy.tokenNone', 'sub token reset'] });
 
   /** sub：状态 @param {any} s */
   function printStatus(s) {
@@ -123,7 +125,7 @@ export function mountProxy(C) {
     if (!list.length) { C.out('# ' + esc(tf('proxy.none', { x: '' })).replace(/^\s+/, '') + C.k('sub add <name>'), 'd'); return; }
     for (const x of list) {
       const where = x.type === 'airport' ? x.host : t('proxy.file');
-      const state = !x.enabled ? t('proxy.off') : x.error ? (t('proxy.err.' + x.error) || x.error) : t('proxy.on');
+      const state = !x.enabled ? t('proxy.disabled') : x.error ? (t('proxy.err.' + x.error) || x.error) : t('proxy.enabled');
       C.out('<span class="sgx-at-w" translate="no">' + esc(x.name) + '</span> <span class="sgx-at-dim">· ' + esc(where) + ' · ' + esc(tf('proxy.nodes', { n: x.nodes })) + ' ·</span> ' +
         (x.error && x.enabled ? '<span class="sgx-at-y">' + esc(state) + '</span>' : esc(state)));
     }
@@ -171,7 +173,7 @@ export function mountProxy(C) {
     });
   }
 
-  /** sub token：已有令牌先 y/N（旧链接全部失效）→ reauth → 换新 → 印新地址 */
+  /** sub token reset：已有令牌先 y/N（旧链接全部失效）→ reauth → 换新 → 印新地址 */
   function cmdToken() {
     withStatus(function (s) {
       const make = function () {
@@ -270,11 +272,11 @@ export function mountProxy(C) {
     });
   }
 
-  /** sub on / sub off <名称> @param {string} name @param {boolean} on */
+  /** sub enable / sub disable <名称> @param {string} name @param {boolean} on */
   function cmdToggle(name, on) {
     dim(t('proxy.refreshing'));
     call(function () { return P.toggle(name, on); }, function (j) {
-      C.ok('✓ ' + tf('proxy.switched', { v: name, s: t(on ? 'proxy.on' : 'proxy.off') }));
+      C.ok('✓ ' + tf('proxy.switched', { v: name, s: t(on ? 'proxy.enabled' : 'proxy.disabled') }));
       printRefresh(j.refresh);
     });
   }
@@ -297,8 +299,8 @@ export function mountProxy(C) {
     'upload': function (a) { cmdUpload(a[0]); },
     'mv': function (a) { cmdMv(a[0], a[1]); },
     'rm': function (a) { cmdRm(a[0]); },
-    'on': function (a) { cmdToggle(a[0], true); },
-    'off': function (a) { cmdToggle(a[0], false); },
+    'enable': function (a) { cmdToggle(a[0], true); },
+    'disable': function (a) { cmdToggle(a[0], false); },
     'key': function () { cmdKey(); },
     'token': function () { cmdToken(); },
   });
@@ -327,6 +329,6 @@ export function mountProxy(C) {
     } catch (e) {}
     return true;
   };
-  /** 关下拉：印过的地址不留在内存里 */
+  /** 关终端：印过的地址不留在内存里 */
   C.forgetProxy = function () { urls = []; };
 }

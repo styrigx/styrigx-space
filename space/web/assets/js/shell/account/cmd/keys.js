@@ -1,5 +1,5 @@
 /**
- * @fileoverview 账号钥匙（account password、account passkey）的终端命令（账号命令体系 v3；v5 S5 起在同一个终端里：账号窗口的「账号安全」照旧，这里是同一件事的命令行版）。
+ * @fileoverview 账号钥匙（account password、account passkey）的终端命令（账号命令体系 v3；v5 S5 起在同一个终端里，S9 起账号卡片只展示、只有这一处）。
  *
  * - passwd：New / Retype（不回显、可粘贴，最短 8 位，S4）
  * - passkey：列表（[n] 名字 · 保存在哪 · 创建日期 · 上次使用，S6）· passkey add：系统窗口 → 终端里命名（默认设备名，可 skip，S7）· passkey rm <n>：[y/N]（S9 提示去 Samsung Pass 手动删）
@@ -8,7 +8,14 @@
 import { registerPasskey, genPkPrefillName, cleanPasskeyName } from '../../../auth/passkey-register.js';
 import { normCmd } from '../commands.js';
 import { signalPasskeyName } from '../passkey-signal.js';
-import { mmdd } from '../keys.js';
+
+/** MM-DD @param {number} ts */
+export function mmdd(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const p = function (/** @type {number} */ n) { return (n < 10 ? '0' : '') + n; };
+  return p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
 
 /** @param {any} C 账号层上下文（./layer.js） */
 export function mountKeys(C) {
