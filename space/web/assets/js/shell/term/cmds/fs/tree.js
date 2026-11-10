@@ -1,6 +1,6 @@
 /**
  * @fileoverview 虚拟目录树（终端统一 T6，设计稿 v1.5 §8.3）。路径写成 '~'、'blog'、'account/security'；只读、不跨站。
- * ~ 下：四个站的目录（cd 在主页滚到那一节、在别的页去那个站）+ account（tty5 账号下拉的层）+ shield（tty3 盾牌下拉的层）。
+ * ~ 下：四个站的目录 + account（tty5 账号下拉的层）+ shield（tty3 盾牌下拉的层）+ proxy（代理订阅 P2：ls 列来源、open 进代理订阅）。
  */
 
 /** 四个站的目录（cd 的头一行、help 的 cd 那一行） */
@@ -8,7 +8,7 @@ export const DIRS = ['blog', 'curio', 'daymark', 'wild'];
 
 /** 目录 → 里面的东西（目录带 /）；不在表里的目录是空的 */
 const TREE = /** @type {Record<string, string[]>} */ ({
-  '~': ['blog/', 'curio/', 'daymark/', 'wild/', 'account/', 'shield/'],
+  '~': ['blog/', 'curio/', 'daymark/', 'wild/', 'account/', 'shield/', 'proxy/'],
   daymark: ['today'],
   account: ['profile/', 'devices/', 'security/', 'apps/'],
   shield: ['keys/', 'tempkeys/', 'links/'],

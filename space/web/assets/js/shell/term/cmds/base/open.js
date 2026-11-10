@@ -10,7 +10,7 @@ const ACCT = /** @type {Record<string, string>} */ ({ profile: 'profile', device
  */
 export default {
   name: 'open',
-  args: DIRS.concat(['account', 'shield', 'daymark/today', '~']),
+  args: DIRS.concat(['account', 'shield', 'proxy', 'daymark/today', '~']),
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const r = resolvePath(x.cwd(), p.args[0] || '.');
@@ -19,7 +19,8 @@ export default {
     const sub = r.path.indexOf('/') > 0 ? r.path.slice(r.path.indexOf('/') + 1) : '';
     /** @type {any} */
     let res = null;
-    if (t === 'account' && x.act.account) res = x.act.account(ACCT[sub] || '');
+    if (t === 'proxy' && x.act.sub) res = x.act.sub('sub');
+    else if (t === 'account' && x.act.account) res = x.act.account(ACCT[sub] || '');
     else if (t === 'shield' && x.act.shield) res = x.act.shield(sub);
     else if (t === '~' || DIRS.indexOf(t) >= 0) res = x.act.cd(t);
     if (res && res.kind === 'scroll') return { out: res.label ? [x.k.arrow(fill(x.S.scrolled, { x: ['', res.label] }))] : [] };

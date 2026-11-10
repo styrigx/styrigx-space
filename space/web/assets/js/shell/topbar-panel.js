@@ -518,6 +518,11 @@ export function mountTopbar(o) {
         if (acct.ms.isOpen()) { if (acctTerm) { acctTerm.onOpen(acctNext || undefined); acctNext = null; } return; }
         acct.ms.open();
       };
+      /* 盾牌（tty3）里打的 sub-*：到账号终端去跑（代理订阅 P2） */
+      doc.addEventListener('sgx-acct-run', function (e) {
+        const line = String(/** @type {any} */ (e).detail || '');
+        if (line) closeAll(function () { openAcct({ run: line }); });
+      });
       /* 页面上的入口：[data-acct-open="<层>"]（可带 data-acct-app="curio|daymark"，奇趣 / 日刻的 sudo root：登录 → 判授权 → [y]/[n]，O1 / O6） */
       doc.addEventListener('click', function (e) {
         const tg = /** @type {Element|null} */ (e.target);
@@ -650,6 +655,18 @@ export function mountTopbar(o) {
             return { href: '~/account', go: function () { closeAll(function () { openAcct(sub === 'reset' ? { reset: true } : sub === 'reauth' ? { layer: acctLayer('security').layer } : {}); }); } };
           }
           return { href: '~/space', go: function () { closeAll(function () { if (sec) openSec(); }); } };
+        },
+        /** ls ~/proxy：来源列表（POST /api/account/proxy status；没登录 / 读不到 → null） @returns {Promise<any[]|null>} */
+        proxyList: function () {
+          const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
+          if (!f) return Promise.resolve(null);
+          return f('/api/account/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status' }), credentials: 'same-origin' })
+            .then(function (/** @type {Response} */ r) { return r.ok ? r.json() : null; })
+            .then(function (/** @type {any} */ j) { return j && j.ok ? j.sources || [] : null; }, function () { return null; });
+        },
+        sub: function (/** @type {string} */ line) {
+          /* sub-*（代理订阅 P2）：到账号终端（tty5）去跑，同 sudo root 切窗口、不跳页 */
+          return { href: '~/account', go: function () { closeAll(function () { openAcct({ run: line }); }); } };
         },
         theme: function (/** @type {string} */ mode) {
           if (!mode) { closeAll(function () { if (qp) qp.ms.open(); }); return; }

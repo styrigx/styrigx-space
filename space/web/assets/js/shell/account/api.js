@@ -178,6 +178,25 @@ export const grants = Object.freeze({
   revoke: function (app) { return post('grants', 'revoke', { app: app }); },
 });
 
+/** 代理订阅（P2，设计稿 v1.10 §7）：POST /api/account/proxy { action }；key / link 要 reauth 票 */
+export const proxy = Object.freeze({
+  status: function () { return post('proxy', 'status'); },
+  /** @param {string} pubkey */
+  key: function (pubkey) { return post('proxy', 'key', { pubkey: pubkey }); },
+  link: function () { return post('proxy', 'link'); },
+  /** @param {string} name @param {string} url */
+  add: function (name, url) { return post('proxy', 'add', { name: name, url: url }); },
+  /** @param {string} name @param {string} text */
+  upload: function (name, text) { return post('proxy', 'upload', { name: name, text: text }); },
+  /** @param {string} from @param {string} to */
+  mv: function (from, to) { return post('proxy', 'mv', { from: from, to: to }); },
+  /** @param {string} name @param {boolean} on */
+  toggle: function (name, on) { return post('proxy', on ? 'on' : 'off', { name: name }); },
+  /** @param {string} name */
+  rm: function (name) { return post('proxy', 'rm', { name: name }); },
+  refresh: function () { return post('proxy', 'refresh'); },
+});
+
 /** 错误码 → 文案（common.err*，同 auth/post-json.js） */
 export { apiErrText as errText };
 

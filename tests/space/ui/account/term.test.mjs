@@ -142,7 +142,7 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
 
 test('后端名字只在 api.js：入口、action 名、请求字段、状态字段、密码管理器隐藏用户名（NAMING-V2 P2 已切到按入口的新接口）', () => {
   const files = readdirSync(path.join(REPO, DIR)).filter((f) => f.endsWith('.js'));
-  assert.deepEqual(files.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'devices.js', 'grants.js', 'keys.js', 'passkey-signal.js', 'profile.js', 'reauth.js', 'reset.js', 'session.js', 'term.js']);
+  assert.deepEqual(files.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'devices.js', 'grants.js', 'keys.js', 'passkey-signal.js', 'profile.js', 'proxy.js', 'reauth.js', 'reset.js', 'session.js', 'term.js']);
   const api = strip(rd(DIR + 'api.js'));
   /* NAMING-V2 P2：POST /api/account/<入口> { action }，入口和 action 都只在 api.js 里写 */
   for (const [e, acts] of Object.entries({ session: ['passkey-challenge', 'passkey', 'password', 'end'], reauth: ['passkey-challenge', 'passkey', 'password'],
