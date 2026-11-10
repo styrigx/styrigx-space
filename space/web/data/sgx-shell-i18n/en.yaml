@@ -10,14 +10,10 @@ topbar:
   sys: Follow system
   home: Styrigx home
   sites: Navigate
-  quick: Quick settings
   askAi: Ask AI
   dark: Dark mode
   followSystem: Follow system
   share: Share this page
-  shareSub: Short link, 24 h
-  lock: Lock now
-  lockBack: Back to lock screen
   language: Language
   palette: Color palette
   reset: Reset
@@ -35,7 +31,6 @@ topbar:
   contact: Contact me
   "on": "On"
   "off": "Off"
-  lockFail: Couldn’t lock. Check your connection.
   # 顶栏 v3（2026-11 UI 重设计 PR-1）：外观 / 盾牌按钮名，NAVIGATE 面板里的终端风短标签（lang / layout / share / lock），外观面板 MODE / PALETTE
   theme: Appearance
   security: Site security
@@ -45,7 +40,6 @@ topbar:
   langAuto: Follow system language
   layoutKey: layout
   shareKey: share
-  lockKey: lock
   schemeKey: MODE
   schemeDark: Dark
   schemeLight: Light
@@ -250,8 +244,6 @@ man:
 kh:
   cmd: "enter run · esc close"
   cmdLayer: "enter run · esc back"
-  cmdEntry: "enter run · ↑↓ history · ^L clear"
-  cmdHome: "enter run · ^C cancel · ^L clear"
   cmdDrawer: "tab complete · enter run · esc close"
   pick: "[n] pick · enter default · esc back · ^C quit"
   secret: "enter submit · hidden input · esc back · ^C quit"
@@ -569,7 +561,7 @@ account:
       pq-unsupported: "post-quantum keys (age1pq1…) aren’t supported yet"
       no-token: "no download token yet · run sub token"
       token-unsealed: "this token was stored as a hash only · run sub token for one that can be reprinted"
-# 进站系统（进站 v3 L1，SPACE-V3 §3.4）：锁屏 entry@space:~$、reset@space:~#、盾牌 styrigx@space:~#（shell/space/*）。命令 / 提示符 / 方式名（passkey / password / tempkey）不翻译。{x} {k} {n} {t} {d} 是占位。
+# 进站系统（进站 v3 L1，SPACE-V3 §3.4）：锁屏 entry@space:~$、reset@space:~#、盾牌 styrigx@space:~#（shell/space/*）。命令 / 提示符 / 方式名（passkey / password）不翻译。{x} {k} {n} {t} {d} 是占位。
 space:
   common:
     errLink: "a share-link session can’t do this"
@@ -623,7 +615,6 @@ space:
     kind:
       passkey: "passkey = space passkey"
       password: "password = unlock password"
-      tempkey: "tempkey = temporary key"
     notSet: "{k}: not set"
     noCred: "no space credential yet · {x}"
     passkeyWait: "waiting for passkey…"

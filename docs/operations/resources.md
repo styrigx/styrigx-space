@@ -43,7 +43,7 @@
 
 | 数据库 | 绑定（Worker） | 内容 |
 |---|---|---|
-| `styrigx-space-core` | `D1_SPACE`（space-core） | 进站：纪元、解锁密码、通行密钥、user handle、challenge、输错计数、临时钥匙、恢复钥匙审计；分享链接 `share_*`；AI 全站限流计数。迁移表 `d1_migrations_core` |
+| `styrigx-space-core` | `D1_SPACE`（space-core） | 进站：纪元、解锁密码、通行密钥、user handle、challenge、输错计数、恢复钥匙审计；分享链接 `share_*`；AI 全站限流计数。迁移表 `d1_migrations_core` |
 | `styrigx-account` | `D1_ACCOUNT`（account） | `account_*` 表、`settings_sync`、`wb_daily` |
 | `styrigx-status` | `D1_UPTIME_MONITOR`、`D1_CLOUDFLARE_USAGE`（status） | `status_*` 表。迁移表 `d1_migrations_status` |
 | `styrigx-curio-core` | `D1_FINDS`、`D1_DEVICES`、`D1_GAMES`、`D1_MOVIES`、`D1_MUSIC`（curio-core） | 收藏、设备、游戏、电影、音乐 |

@@ -22,7 +22,7 @@ export function khStrings(doc) {
 }
 
 /**
- * 输入行模式 → 提示键（space/term.js、account/term.js 的 mode）。cmd 由宿主按层给（cmd / cmdLayer / cmdEntry），返回 '' = 不显示
+ * 输入行模式 → 提示键（space/term.js、account/term.js 的 mode）。cmd 由宿主按层给（cmd / cmdLayer / cmdDrawer），返回 '' = 不显示
  * @param {string} mode @param {string} cmdKey @param {boolean} [busyCancel] @returns {string}
  */
 export function khKeyFor(mode, cmdKey, busyCancel) {

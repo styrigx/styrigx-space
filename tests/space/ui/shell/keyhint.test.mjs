@@ -15,7 +15,7 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const read = (p) => readFileSync(path.join(REPO, p), 'utf8');
 
 test('状态 → 提示键：命令行由宿主给；选择 / 秘密 / 起名 / 能中断的等待各一句；不能中断的等待和进站完成不显示', () => {
-  assert.equal(khKeyFor('cmd', 'cmdEntry'), 'cmdEntry');
+  assert.equal(khKeyFor('cmd', 'cmdDrawer'), 'cmdDrawer');
   assert.equal(khKeyFor('cmd', 'cmdLayer'), 'cmdLayer');
   assert.equal(khKeyFor('pick', 'cmd'), 'pick');
   for (const m of ['pw', 'temp', 'rkey', 'newpw', 'newpw2']) assert.equal(khKeyFor(m, 'cmd'), 'secret', m);

@@ -1029,7 +1029,7 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 :root[data-sgx-layout="desktop"] .sgx-wide-h { margin: 0; padding: 0 0 12px; border-bottom: 1px solid var(--sgx-wide-line);
   font-size: 12px; font-weight: 700; letter-spacing: var(--sgx-track-label); text-transform: uppercase; color: var(--sgx-text-secondary); }
 /* ---- terminal ---- */
-/* 窗口 .sgx-term = 标题栏（三个圆点 · guest@space: ~ · 右边按键提示）+ 输出区（aria-live）+ 一行真输入框；主页首屏嵌入 .sgx-term--home，全站抽屉 #sgx-term 里是 .sgx-term--drawer。
+/* 窗口 .sgx-term = 标题栏（三个圆点 · guest@space: ~ · 右边按键提示）+ 输出区（aria-live）+ 一行真输入框；全站抽屉 #sgx-term 里是 .sgx-term--drawer，页面里的静态窗（主页 about、旷野、博客 tree、日刻）是 .sgx-term--static。
    引擎 / 视图 assets/js/shell/terminal.js；输出的类：-k 关键字、-o 次要、-ok 箭头、-err 出错、-dir 目录、-q 引文、-a 链接、-pp 提示符。 */
 .sgx-term { box-sizing: border-box; text-align: left; border: 1px solid var(--sgx-term-line); border-radius: 14px; overflow: hidden;
   background: var(--sgx-surface-container-lowest); color: var(--sgx-text-primary); font-family: var(--sgx-font-mono); letter-spacing: 0;
@@ -1077,10 +1077,6 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-in:disabled { opacity: .6; }
 /* 触屏：输入行 16px（输入框字号 < 16 时 iOS / 三星浏览器聚焦会放大页面；锁屏 lock-mobile 用例同一条规则） */
 @media (pointer: coarse) { .sgx-term-line { font-size: 16px; } }
-/* 主页首屏终端（2026-11-09 细节 3）：提示符 + 输入行跟输出同字号（12.5 / 14px），不再一行突然变大；
-   只有 iOS（-webkit-touch-callout 只有 WebKit iOS 认）聚焦 < 16px 的输入框会放大页面，那里照旧 16px。抽屉 / 弹层里的终端不动（仍 16px） */
-@media (pointer: coarse) { .sgx-term--home .sgx-term-line { font-size: inherit; } }
-@supports (-webkit-touch-callout: none) { @media (pointer: coarse) { .sgx-term--home .sgx-term-line { font-size: 16px; } } }
 .sgx-term-line:focus-within .sgx-term-ps { text-decoration: underline; text-decoration-color: var(--sgx-focus-ring); text-underline-offset: 4px; }
 .sgx-term-ghost { position: absolute; top: 0; pointer-events: none; white-space: pre; color: var(--sgx-text-tertiary); }
 .sgx-term-ghost[hidden] { display: none; }

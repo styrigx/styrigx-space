@@ -44,10 +44,6 @@ export const KH_EN = Object.freeze({
   cmd: 'enter run · esc close',
   /** 窗口里的下一层命令行：esc 回上一层 */
   cmdLayer: 'enter run · esc back',
-  /** 锁屏命令行（进站之前没有别处可去） */
-  cmdEntry: 'enter run · ↑↓ history · ^L clear',
-  /** 主页嵌入的终端（标题栏已有 tab / ↑ / Ctrl K） */
-  cmdHome: 'enter run · ^C cancel · ^L clear',
   /** 抽屉终端 */
   cmdDrawer: 'tab complete · enter run · esc close',
   /** 选择 [1] [2] … */

@@ -215,6 +215,10 @@ jobs:
         # 页面（网址、模板、锁屏同步、外观继承、共享外壳副本）+ 接口 Worker（node:sqlite 真跑 D1 的 SQL）+ 博客搜索索引
         run: npm run test:sites
 
+      - name: Built-page unit tests (unit 组里要读构建产物的用例；unit job 不构建，这几份在那里 skip「没构建」)
+        # v5 S8：#370 的中文标签漏翻（lang-pack「中文页没有漏翻」）在 unit job 里一直是 skip，CI 没拦住；这里对生产构建再跑一遍
+        run: node --test tests/space/ui/build/lang-pack.test.mjs tests/space/ui/build/one-site.test.mjs tests/space/ui/build/search-index.test.mjs tests/space/ui/build/space-entries.test.mjs tests/space/ui/build/space-merge.test.mjs tests/space/ui/home/home-typer.test.mjs tests/space/ui/topbar/topbar-four-sites.test.mjs
+
       - name: Check site tree (根文件只在域名根、三站都在、子站 /js/ 带指纹、/curio/ /daymark/ 和根上没有多余图片)
         # 2026-11 合站前这一步查拼好的 dist/site；合站后同样的断言直接查生产构建 space/web/public
         run: |

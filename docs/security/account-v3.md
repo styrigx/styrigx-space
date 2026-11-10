@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SEC-001 |
-| 版本 | 1.0 |
-| 日期 | 2026-11-09 |
+| 版本 | 1.1 |
+| 日期 | 2026-11-11 |
 | 状态 | 现行 |
 | 依据 | 进站 v3（L0–L3，#334 #335 #337 #338 #340）、账号命名 v2（#328 #329）、#357（账号会话 30 天滑动）；决策见 ADR-0002、ADR-0003 |
 
@@ -18,7 +18,7 @@
 
 2.2 **一次验证只签一张票**。登录只签会话；reauth 只签 reauth 票；恢复只签 reset 票。
 
-2.3 **reauth 只认长期凭证**。reauth MUST 只接受解锁密码 / 通行密钥（进站侧）或账号密码 / 账号通行密钥（账号侧）。临时钥匙、分享链接、恢复钥匙 / 恢复密钥 MUST NOT 签出 reauth 票。
+2.3 **reauth 只认长期凭证**。reauth MUST 只接受解锁密码 / 通行密钥（进站侧）或账号密码 / 账号通行密钥（账号侧）。分享链接会话、恢复钥匙 / 恢复密钥 MUST NOT 签出 reauth 票（临时钥匙 v5 已删除）。
 
 2.4 **恢复只开 reset**。恢复钥匙 / 恢复密钥只能换取 3 分钟的 reset 票；reset 票只能重设凭证，MUST NOT 签发会话。
 
@@ -47,8 +47,7 @@
 | 票 | 时长 | 续期 |
 |---|---|---|
 | 进站会话（解锁密码 / 通行密钥） | 12 小时 | 不续期 |
-| 进站会话（临时钥匙） | min(钥匙剩余, 12 小时) | 不续期 |
-| 进站会话（分享链接） | min(链接会话档位, 钥匙剩余)；档位 30 min / 1 h / 3 h / 12 h / 1 d / 3 d / 7 d | 不续期 |
+| 进站会话（分享链接，by=link） | min(链接会话档位, 链接剩余)；档位 30 min / 1 h / 3 h / 12 h / 1 d / 3 d / 7 d | 不续期 |
 | 进站 reauth | 3 分钟 | 不续期 |
 | 进站 reset | 3 分钟 | 不续期 |
 | 账号会话 | 30 天 | **滑动**：剩余不到 15 天时，账号接口的响应重签；30 天不用自然过期 |
@@ -57,21 +56,22 @@
 
 4.1 2026-11-09 之前签发的 400 天账号会话在第一次使用时重签为 30 天；`lastSeen` 超过 30 天的旧设备视为过期一次（#357）。
 
-4.2 临时钥匙有效期：1–24 小时，或 3 / 7 / 15 / 30 天；同时有效最多 20 把。分享链接有效期同档，同时有效最多 20 条。
+4.2 分享链接有效期（终端 `share add` 提供的档位）：1 小时、24 小时、3 / 7 / 30 天，不能延期；同时有效最多 20 条。过期或作废满 7 天的行由每日任务清理。临时钥匙 v5 已删除（ADR-0005）。
 
-## 5. 进站侧操作矩阵（盾牌 `styrigx@space:~#`）
+## 5. 进站侧操作矩阵（终端钥匙层 `styrigx@space:~#`，ADR-0005）
 
 | 操作 | 接口 | 服务端要求 | 界面 |
 |---|---|---|---|
-| 浏览四站页面 | — | 进站会话（任意 by） | — |
-| 立即锁屏 | `POST /api/lock-now` | 无；**只锁当前设备**（清本机进站会话、reauth、reset 票） | 不验证 |
+| 浏览四站页面 | — | 无（v5 S3 整站公开） | — |
+| AI、听歌播放、旷野监控卡 | `/api/ai`、播放令牌 / 音频、`/api/status` | 进站会话（任意 by，含 link） | 没进站 → 终端预填 `sudo styrigx` |
+| 立即锁屏 | `POST /api/lock-now` | 无；**只锁当前设备**（清本机进站会话、reauth、reset 票） | `lock`，或已进站点盾牌答 y；不验证 |
 | 新建分享链接（含快捷面板「分享本页」） | `POST /api/share { create }` | 进站会话（不收分享链接进来的会话：by=link → 403 link） | 不验证 |
-| 分享链接列表 / 作废 | `POST /api/share { list \| revoke }` | 进站会话 + reauth | 进层前 `sudo styrigx reauth` |
-| 解锁密码设 / 改 / 删 | `POST /api/lock-password` | 进站会话 + reauth（或 reset 票） | 进站凭证层，进层前 reauth |
-| 通行密钥增 / 改名 / 删 | `POST /api/lock-passkey` | 进站会话 + reauth（或 reset 票；reset 下不能改名） | 同上 |
-| 所有设备回锁屏 | `POST /api/lock-all-devices` | 进站会话 + reauth | 同上 |
-| reauth | `/api/lock-password` / `/api/lock-passkey` 带 `reauth:true` | 进站会话；**只认解锁密码或通行密钥** | `sudo styrigx reauth [passkey\|password]` |
-| reset | `POST /api/lock-reset { verify }` | 恢复钥匙（无需会话） | 锁屏 `sudo styrigx reset` |
+| 分享链接列表 / 作废 | `POST /api/share { list \| revoke }` | 进站会话 + reauth | `share` / `share rm <n>` / `share rm --all`，要 `sudo -v` |
+| 解锁密码设 / 改 / 删 | `POST /api/lock-password` | 进站会话 + reauth（或 reset 票） | `lock passwd`，要 `sudo -v` |
+| 通行密钥增 / 改名 / 删 | `POST /api/lock-passkey` | 进站会话 + reauth（或 reset 票；reset 下不能改名） | `lock passkey [add \| rm <n>]`，要 `sudo -v` |
+| 所有设备回访客 | `POST /api/lock-all-devices` | 进站会话 + reauth | `lock --all`，要 `sudo -v` |
+| reauth | `/api/lock-password` / `/api/lock-passkey` 带 `reauth:true` | 进站会话；**只认解锁密码或通行密钥**（link 会话不能） | `sudo -v` |
+| reset | `POST /api/lock-reset { verify }` | 恢复钥匙（无需会话） | 终端 `sudo styrigx reset` |
 
 5.1 用 reauth 票改了进站凭证（改 / 删密码、删通行密钥）时，进站纪元 +1：**其他设备回锁屏**，本机的会话与 reauth 票按新纪元重签，不掉线。
 
@@ -79,7 +79,7 @@
 
 5.3 最后一把进站凭证 MUST NOT 被删除。
 
-5.4 临时钥匙的明文码只在创建时返回一次，服务端只存哈希；作废后用它进站的会话在下一个请求即失效。分享链接的钥匙没有码。
+5.4 分享链接里只有码、不含票；带会话的链接点开时由服务端签 by=link 的进站会话，每次验证查 `share_link` 这一行，作废后用它进站的会话在下一个请求即失效。
 
 5.5 限速：解锁密码每连错 5 次冷却一轮（30 秒起翻倍，封顶 1 小时）；恢复钥匙单 IP 连错 5 次锁 15 分钟，全局只减速不封锁；无会话的写接口经 `ANON_LIMITER`（每分钟 20 次），绑定缺失时 MUST fail closed（503）。
 

@@ -7,14 +7,10 @@ topbar:
   sys: 跟随系统
   home: Styrigx 首页
   sites: 导航
-  quick: 快捷设置
   askAi: AI 助手
   dark: 深色模式
   followSystem: 跟随系统
   share: 分享本页
-  shareSub: 短链，24 小时
-  lock: 立即锁定
-  lockBack: 回到锁屏
   language: 语言
   palette: 调色板
   reset: 恢复默认
@@ -32,7 +28,6 @@ topbar:
   contact: 联系我
   "on": 开
   "off": 关
-  lockFail: 锁定失败，请检查网络后重试
   theme: 外观
   security: 站点安全
   # v5 S6 顶栏 E：终端按钮（盾牌 · 外观 · 四格 | >_ · 头像）
@@ -41,7 +36,6 @@ topbar:
   langAuto: 跟随系统语言
   layoutKey: layout
   shareKey: share
-  lockKey: lock
   schemeKey: MODE
   schemeDark: 深
   schemeLight: 浅
@@ -243,8 +237,6 @@ man:
 kh:
   cmd: "enter 执行 · esc 关闭"
   cmdLayer: "enter 执行 · esc 返回"
-  cmdEntry: "enter 执行 · ↑↓ 历史 · ^L 清屏"
-  cmdHome: "enter 执行 · ^C 中断 · ^L 清屏"
   cmdDrawer: "tab 补全 · enter 执行 · esc 关闭"
   pick: "[n] 选择 · enter 默认项 · esc 返回 · ^C 退出"
   secret: "enter 确认 · 输入不显示 · esc 返回 · ^C 退出"
@@ -616,7 +608,6 @@ space:
     kind:
       passkey: "passkey = 进站通行密钥"
       password: "password = 解锁密码"
-      tempkey: "tempkey = 临时钥匙"
     notSet: "{k}：未设置"
     noCred: "还没有进站凭证 · {x}"
     passkeyWait: "正在唤起通行密钥…"
