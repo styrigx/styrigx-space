@@ -385,10 +385,11 @@ test('deploy.yml：部署顺序 ai → status → 账号 → styrigx-space-core 
     assert.match(smoke, new RegExp('https://styrigx\\.com/' + c.replace('deploy-', '').replace('-core', '') + '/api/'), c + ': smoke hits the main-domain route');
     assert.doesNotMatch(smoke, /atlas\.styrigx\.com/, c + ': P4-3 PR-1 起旧图志域名的过渡期路由已删，冒烟不再测它');
   }
-  /* 网关冒烟：子站前缀 302（子站格式）；旧图志域名的 301 已于 P4-3 PR-1 删除，不再测 */
+  /* 网关冒烟：v5 S3 整站放开，子站页面没进站也 200 访客态（网关注入 locked 标记），不再 302 踢回锁屏；旧图志域名的 301 已于 P4-3 PR-1 删除，不再测 */
   const gw = wf.jobs['deploy-space-core'].steps.find((st) => /^Smoke test/.test(st.name)).run;
   assert.doesNotMatch(gw, /atlas\.styrigx\.com/);
-  assert.match(gw, /why=no-cookie&return=https%3A%2F%2Fstyrigx\.com%2F\$s%2F/);
+  assert.doesNotMatch(gw, /why=no-cookie/);
+  assert.match(gw, /check \/wild\/ 200/);
   /* 网关冒烟：伪造身份头必须 401（或旧路由残留时账号默认 fetch 404），头像带账号运行时标记 */
   const smoke = wf.jobs['deploy-space-core'].steps.find((s) => /^Smoke test/.test(s.name)).run;
   assert.match(smoke, /X-Styrigx-Space-Session: 1/);

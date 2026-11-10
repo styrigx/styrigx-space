@@ -272,15 +272,16 @@ test('P2-3 带 v1 cookie 打开旷野子页 /wild/ 和子站内页 → 访客态
   page.on('response', (r) => { if (/sgx-space-session=;/.test(r.headers()['set-cookie'] || '')) clears.push(r.url()); });
   for (const [target, ret] of [[MAIN + '/wild/', '/wild/'], [BLOG + '/post/hello/', BLOG + '/post/hello/']]) {
     const navs = [];
-    const h = (f) => { if (f === page.mainFrame()) navs.push(f.url()); };
-    page.on('framenavigated', h);
+    /* 只数真正取新文档的导航请求（含 302）：navhistory.js 插主页历史条目的 replaceState / pushState 是同文档的，不算跳 */
+    const h = (r) => { if (r.isNavigationRequest() && r.frame() === page.mainFrame()) navs.push(r.url()); };
+    page.on('request', h);
     const resp = await page.goto(target);
     expect(resp && resp.status()).toBe(200);
     expect(page.url()).toBe(target);
     await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
     await page.waitForTimeout(800);
     expect(navs.length, '不来回跳：' + navs.join(' → ')).toBeLessThanOrEqual(1);
-    page.off('framenavigated', h);
+    page.off('request', h);
     expect(await sessionBy(page)).toBe(null);
     expect(await page.evaluate(() => fetch('/api/status', { cache: 'no-store' }).then((r) => r.status))).toBe(401);
     await page.goto(MAIN + '/?entry=1&return=' + encodeURIComponent(ret));
