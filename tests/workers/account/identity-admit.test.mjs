@@ -100,3 +100,21 @@ test('身份审计：白名单、90 天、IP 前缀、uid 可空；不认识的�
   assert.equal(await UA.writeUserAudit(env, { uid: 0, command: long }), true);
   assert.equal(all(env, "SELECT MAX(LENGTH(command)) AS n FROM account_user_audit")[0].n, 200);
 });
+
+test('P2c：admit 先拒不认识的档，再做 root 快速放行（同 permits 第 0 步）——root / 救援 / 访客碰到不认识的档一律拒', async () => {
+  const root = { uid: 0, name: 'root', groups: [], rescue: false };
+  const rescue = { uid: 0, name: 'root', groups: [], rescue: true };
+  const sty = { uid: 1000, name: 'styrigx', groups: ['wheel', 'sudoers'], rescue: false };
+  for (const lv of ['nope', '', null, undefined, 'ROOT', 'wheel ']) {
+    for (const who of [root, rescue, sty, null]) {
+      assert.equal(A.admitDecision(who, /** @type {any} */ (lv), { rescue: true }), false, String(lv) + ' ' + (who ? who.name : 'guest'));
+    }
+  }
+  /* 认识的档：照旧救援 → root → 按档 */
+  assert.equal(A.admitDecision(root, 'root', {}), true);
+  assert.equal(A.admitDecision(rescue, 'public', { rescue: false }), false, '救援先判：不在白名单即使 public 也拒');
+  assert.equal(A.admitDecision(rescue, 'root', { rescue: true }), true);
+  assert.equal(A.admitDecision(sty, 'root', {}), false);
+  assert.equal(A.admitDecision(sty, 'wheel', {}), true);
+  assert.equal(A.admitDecision(null, 'public', {}), true);
+});

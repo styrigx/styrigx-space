@@ -331,10 +331,17 @@ test('userdel：拒删 root、styrigx；删别人连同会话、身份栈、密�
   assert.equal((await id(env, { action: 'userdel', name: 'ghost' }, tok)).status, 404);
   const r = await id(env, { action: 'userdel', name: 'alice' }, tok);
   assert.equal(r.status, 200);
-  for (const t of ['account_users', 'account_user_groups', 'account_user_password', 'account_user_passkey', 'account_sessions']) {
+  for (const t of ['account_user_groups', 'account_user_password', 'account_user_passkey', 'account_sessions']) {
     assert.equal(rows(env, 'SELECT * FROM ' + t + ' WHERE uid = 1001').length, 0, t);
   }
+  /* P2c：用户行留墓碑，uid 永不复用（按 uid 存的头像 / 偏好 / 数字健康不会被新用户继承）；名字可再用 */
+  assert.deepEqual(rows(env, 'SELECT name, disabled, expires_at FROM account_users WHERE uid = 1001'), [{ name: '#deleted-1001', disabled: 1, expires_at: 0 }]);
   assert.equal((await id(env, { action: 'whoami' }, at)).json.user, null);
+  assert.equal((await id(env, { action: 'userdel', name: '#deleted-1001' }, tok)).status, 404, '墓碑查不到');
+  assert.equal((await id(env, { action: 'su', user: '#deleted-1001', password: PW.alice }, undefined, freshIp())).status, 401);
+  const again = await id(env, { action: 'useradd', name: 'alice' }, tok);
+  assert.equal(again.status, 200);
+  assert.ok(again.json.user.uid > 1002, 'uid 不复用');
 });
 
 test('passwd <名>：root 发一次性密码，该用户会话全部作废；目标是 root → root-creds', async () => {
@@ -749,4 +756,148 @@ test('Muse v5 注意点 1：GET /api/wellbeing 公开，明细只给本人——
   await suRoot(env, st);
   assert.equal((await get(st)).json.detail, true, 'root 也有');
   assert.equal((await get('A'.repeat(43))).json.detail, false, '坏 cookie = 访客');
+});
+
+/* ---------------- P2c：名片 GET 公开 ---------------- */
+
+test('P2c 名片 GET /api/profile 公开（定稿 v5 §五）：访客 / 坏令牌 / 救援会话都 200，只回四个公开字段；PUT 照旧站长 + root', async () => {
+  const env = await setup();
+  env.KV_PROFILE.m.set('profile', JSON.stringify({ v: 1, nickname: 'Sty', private_note: 'nope', updatedAt: 7 }));
+  for (const cookie of [undefined, 'bogus-token', await rescueToken(env)]) {
+    const g = await call(env, 'GET', '/api/profile', { cookie });
+    assert.equal(g.status, 200, String(cookie));
+    assert.deepEqual(Object.keys(g.json.profile).sort(), ['email', 'motto', 'name', 'nickname']);
+    assert.equal(g.json.profile.nickname, 'Sty');
+    assert.ok(!JSON.stringify(g.json).includes('nope'), '存的别的键不回');
+  }
+  assert.equal(RA.levelOf('GET', '/api/profile'), 'public');
+  assert.ok((await call(env, 'PUT', '/api/profile', { body: { nickname: 'x' } })).status >= 400, '访客 PUT 被拒');
+});
+
+/* ---------------- P2c：到期满宽限期自动删除 ---------------- */
+
+const expiry = await import(SRC + 'core/user-expiry.js');
+const { AccountJanitor } = await import(SRC + 'rpc/account-janitor.js');
+
+test('P2c 到期自动删除：到期满 30 天（一个常量）的用户连同会话 / 身份栈 / 凭据 / 组删掉，同 userdel；宽限期内的、没期限的、root、styrigx 不动；写审计 expire', async () => {
+  assert.equal(expiry.EXPIRED_USER_GRACE_MS, 30 * 86400000, '宽限期 30 天');
+  const env = await setup();
+  const raw = env.D1_ACCOUNT.raw;
+  const now = Date.now();
+  const tt = await login(env, 'temp');
+  /* temp 到期 31 天；再造一个宽限期内的（到期 29 天） */
+  raw.prepare("INSERT INTO account_users (uid, name, avatar, expires_at, epoch, disabled, created_at) VALUES (1003, 'bob', '', ?, 0, 0, 1)").run(now - 29 * 86400000);
+  raw.prepare("INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1003, 'listen', 1)").run();
+  raw.prepare('UPDATE account_users SET expires_at = ? WHERE uid = 1002').run(now - 31 * 86400000);
+  raw.prepare("INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1002, 'listen', 1)").run();
+  raw.prepare("INSERT INTO account_user_passkey (credential_id, uid, user_handle, legacy_handle, record) VALUES ('ct', 1002, 'h', '', '{}')").run();
+  /* root / styrigx 即使库里被写了期限也永不删 */
+  raw.prepare('UPDATE account_users SET expires_at = ? WHERE uid IN (0, 1000)').run(now - 365 * 86400000);
+  assert.equal((await id(env, { action: 'whoami' }, tt)).json.user, null, '到期即作废会话（P2 已有）');
+  const r = await expiry.purgeExpiredUsers(env, now);
+  assert.deepEqual(r.deleted, ['temp']);
+  for (const t of ['account_user_groups', 'account_user_password', 'account_user_passkey', 'account_sessions']) {
+    assert.equal(rows(env, 'SELECT * FROM ' + t + ' WHERE uid = 1002').length, 0, t);
+  }
+  assert.deepEqual(rows(env, 'SELECT name, disabled FROM account_users WHERE uid = 1002'), [{ name: '#deleted-1002', disabled: 1 }], '墓碑，同 userdel');
+  assert.deepEqual(rows(env, "SELECT uid FROM account_users WHERE disabled = 0 ORDER BY uid").map((x) => x.uid), [0, 1000, 1001, 1003]);
+  assert.ok(rows(env, 'SELECT command, uid FROM account_user_audit').some((x) => x.command === 'expire userdel temp' && x.uid === null));
+  /* 再跑一遍什么都不删；bob 满 30 天后才删 */
+  assert.deepEqual((await expiry.purgeExpiredUsers(env, now)).deleted, []);
+  assert.deepEqual((await expiry.purgeExpiredUsers(env, now + 2 * 86400000)).deleted, ['bob']);
+  assert.deepEqual(rows(env, "SELECT uid FROM account_users WHERE disabled = 0 ORDER BY uid").map((x) => x.uid), [0, 1000, 1001]);
+});
+
+test('P2c 到期自动删除的触发：AccountJanitor.purgeExpiredUsers（status 每日一轮经 JOB_ACCOUNT 调）只回个数、出错不抛；useradd 前懒清理（同名的过期用户不挡新建）', async () => {
+  const env = await setup();
+  env.D1_ACCOUNT.raw.prepare('UPDATE account_users SET expires_at = ? WHERE uid = 1002').run(Date.now() - 40 * 86400000);
+  const j = new AccountJanitor({}, env);
+  assert.deepEqual(await j.purgeExpiredUsers(Date.now()), { ok: true, deleted: 1 });
+  const broken = new AccountJanitor({}, {});
+  const e = console.error; console.error = () => {};
+  try { assert.deepEqual(await broken.purgeExpiredUsers(Date.now()), { ok: false, deleted: 0 }); } finally { console.error = e; }
+  /* 懒清理：alice 到期满 30 天 → root useradd alice 成功（旧的先被删掉，uid 换新） */
+  env.D1_ACCOUNT.raw.prepare('UPDATE account_users SET expires_at = ? WHERE uid = 1001').run(Date.now() - 31 * 86400000);
+  const tok = await login(env, 'styrigx');
+  await suRoot(env, tok);
+  const r = await id(env, { action: 'useradd', name: 'alice' }, tok);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.ok(r.json.user.uid > 1002, 'uid 不复用');
+  assert.equal(rows(env, 'SELECT * FROM account_user_groups WHERE uid = 1001').length, 0, '旧 alice 的组跟着删了');
+});
+
+/* ---------------- P2c：sudo 借 root 执行任何一条（账号 Worker 内） ---------------- */
+
+test('P2c sudo <任意 root 档接口>：sudoers 非站长用户 sudo PUT /api/profile → 200（每次验自己的凭据、不发票据、不压栈）；审计记真正执行的人', async () => {
+  const env = await setup();
+  env.D1_ACCOUNT.raw.prepare("INSERT INTO account_user_groups (uid, grp, added_at) VALUES (1001, 'sudoers', 1)").run();
+  const at = await login(env, 'alice');
+  const direct = await call(env, 'PUT', '/api/profile', { cookie: at, body: { nickname: 'A' } });
+  assert.ok(direct.status === 401 || direct.status === 403, 'alice 不是站长，直接改被拒');
+  const cmd = { method: 'PUT', path: '/api/profile', body: { nickname: 'Alice via sudo' } };
+  const bad = await id(env, { action: 'sudo', password: PW.root, command: cmd }, at, freshIp());
+  assert.equal(bad.status, 401, '输的是自己的凭据');
+  const r = await id(env, { action: 'sudo', password: PW.alice, command: cmd }, at, freshIp());
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.profile.nickname, 'Alice via sudo');
+  assert.equal(rows(env, 'SELECT * FROM account_session_stack').length, 0, '不压栈');
+  assert.equal((await id(env, { action: 'whoami' }, at)).json.user.root, false, '不发票据');
+  assert.ok((await call(env, 'PUT', '/api/profile', { cookie: at, body: { nickname: 'B' } })).status >= 400, '下一条照样被拒');
+  const au = rows(env, 'SELECT command, uid, ok FROM account_user_audit');
+  assert.ok(au.some((x) => x.command === 'sudo PUT /api/profile' && x.uid === 1001 && x.ok === 1), JSON.stringify(au));
+  assert.ok(au.some((x) => x.command === 'profile set nickname via sudo' && x.uid === 1001), 'root 的特权内容操作留痕：记真正执行的人');
+  for (const a of au) assert.ok(!a.command.includes(PW.alice));
+  /* 不在 sudoers → 403；临时用户 → 403 */
+  const sty = await login(env, 'styrigx');
+  env.D1_ACCOUNT.raw.prepare("DELETE FROM account_user_groups WHERE uid = 1001 AND grp = 'sudoers'").run();
+  const at2 = await login(env, 'alice');
+  assert.equal((await id(env, { action: 'sudo', password: PW.alice, command: cmd }, at2, freshIp())).status, 403);
+  assert.ok(sty);
+});
+
+test('P2c sudo 的目标：root 凭据接口（/api/account/keys、reset）403 root-creds；身份接口本身 / 旧 session / reauth 400 action；别的 Worker 的接口 400 not-here；查不到档 400；GET 带 body 400；旧写法（command.action）照旧', async () => {
+  const env = await setup();
+  const tok = await login(env, 'styrigx');
+  const sudo = (command) => id(env, { action: 'sudo', password: PW.styrigx, command }, tok, freshIp());
+  for (const [command, status, error] of [
+    [{ method: 'POST', path: '/api/account/keys', body: { action: 'password-set' } }, 403, 'root-creds'],
+    [{ method: 'POST', path: '/api/account/keys/', body: { action: 'passkey-add' } }, 403, 'root-creds'],
+    [{ method: 'POST', path: '/api/account/reset', body: { action: 'password-set' } }, 403, 'root-creds'],
+    [{ method: 'POST', path: '/api/identity', body: { action: 'passwd' } }, 400, 'action'],
+    [{ method: 'POST', path: '/api/account/session', body: { action: 'password' } }, 400, 'action'],
+    [{ method: 'POST', path: '/api/account/reauth' }, 400, 'action'],
+    [{ method: 'GET', path: '/curio/api/export' }, 400, 'not-here'],
+    [{ method: 'DELETE', path: '/daymark/api/collections' }, 400, 'not-here'],
+    [{ method: 'GET', path: '/api/space-audit' }, 400, 'not-here'],
+    [{ method: 'GET', path: '/api/nope' }, 400, 'action'],
+    [{ method: 'POST', path: '/api/account/proxy', body: { action: 'nope' } }, 400, 'action'],
+    [{ method: 'PATCH', path: '/api/profile' }, 400, 'action'],
+    [{ method: 'GET', path: '//evil.example/api/profile' }, 400, 'action'],
+    [{ method: 'GET', path: '/api/profile', body: { a: 1 } }, 400, 'body'],
+  ]) {
+    const r = await sudo(command);
+    assert.equal(r.status, status, JSON.stringify(command) + ' ' + JSON.stringify(r.json));
+    assert.equal(r.json.error, error, JSON.stringify(command));
+  }
+  assert.equal(rows(env, "SELECT * FROM account_user_audit WHERE command LIKE 'sudo %'").length, 0, '目标不合法：不验凭据、不执行、不记 sudo');
+  /* 旧写法照旧：身份命令 */
+  assert.equal((await sudo({ action: 'useradd', name: 'zed' })).status, 200);
+  assert.equal((await sudo({ action: 'passwd', password: 'x-new-pass-123' })).json.error, 'root-creds');
+  /* 账号 Worker 内认 v6 的接口都能借：GET /api/profile、POST /api/account/devices list（借来的 root 只看 root 自己的会话，不越权） */
+  const g = await sudo({ method: 'GET', path: '/api/profile' });
+  assert.equal(g.status, 200);
+  const d = await sudo({ method: 'POST', path: '/api/account/devices', body: { action: 'list' } });
+  assert.equal(d.status, 200, JSON.stringify(d.json));
+});
+
+test('P2c sudo 不能动 root 的凭据（栈顶必须是 root）：sudo 下 identity passwd / passkey、keys、reset 全拒；su root 后（栈顶 root）passwd 改 root 才行', async () => {
+  const env = await setup();
+  const tok = await login(env, 'styrigx');
+  for (const command of [{ action: 'passwd', password: 'n-e-w-pass-1' }, { action: 'passkey-add' }, { method: 'POST', path: '/api/account/keys', body: { action: 'password-set', password: 'n-e-w-pass-1' } }]) {
+    const r = await id(env, { action: 'sudo', password: PW.styrigx, command }, tok, freshIp());
+    assert.equal(r.json.error, 'root-creds', JSON.stringify(command));
+  }
+  await suRoot(env, tok);
+  const p = await id(env, { action: 'passwd', current: PW.root, password: 'root-pass-02x' }, tok, freshIp());
+  assert.equal(p.status, 200, JSON.stringify(p.json));
 });

@@ -46,7 +46,7 @@ test('runDailyJobs：03:41 CST 调一次 purgeShareLinks(at)、at 原样传；�
   for (let h = 0; h < 24; h++) {
     const at = cst(2026, 11, 11, h);
     const out = await runDailyJobs(env, at);
-    if (h === 3) { assert.deepEqual(out, { JOB_SPACE: 'ok' }); hit++; } else assert.deepEqual(out, { JOB_SPACE: 'not-now' }, 'CST ' + h);
+    if (h === 3) { assert.deepEqual(out, { JOB_SPACE: 'ok', JOB_ACCOUNT: 'skipped' }); hit++; } else assert.deepEqual(out, { JOB_SPACE: 'not-now', JOB_ACCOUNT: 'not-now' }, 'CST ' + h);
   }
   assert.equal(hit, 1);
   assert.deepEqual(log, ['purge:' + cst(2026, 11, 11, 3)], '一天只调一次');
@@ -55,12 +55,36 @@ test('runDailyJobs：03:41 CST 调一次 purgeShareLinks(at)、at 原样传；�
 test('runDailyJobs：抛错 / 回 { ok:false } 只记 failed 不抛；没配绑定就跳过', async () => {
   const at = cst(2026, 11, 11, 3);
   await quiet(async () => {
-    assert.deepEqual(await runDailyJobs({ JOB_SPACE: janitor([], { throws: true }) }, at), { JOB_SPACE: 'failed' });
-    assert.deepEqual(await runDailyJobs({ JOB_SPACE: janitor([], { fail: true }) }, at), { JOB_SPACE: 'failed' });
+    assert.deepEqual(await runDailyJobs({ JOB_SPACE: janitor([], { throws: true }) }, at), { JOB_SPACE: 'failed', JOB_ACCOUNT: 'skipped' });
+    assert.deepEqual(await runDailyJobs({ JOB_SPACE: janitor([], { fail: true }) }, at), { JOB_SPACE: 'failed', JOB_ACCOUNT: 'skipped' });
   });
-  assert.deepEqual(await runDailyJobs({}, at), { JOB_SPACE: 'skipped' });
-  assert.deepEqual(await runDailyJobs({ JOB_SPACE: {} }, at), { JOB_SPACE: 'skipped' });
-  assert.deepEqual(await runDailyJobs(undefined, at), { JOB_SPACE: 'skipped' });
+  assert.deepEqual(await runDailyJobs({}, at), { JOB_SPACE: 'skipped', JOB_ACCOUNT: 'skipped' });
+  assert.deepEqual(await runDailyJobs({ JOB_SPACE: {}, JOB_ACCOUNT: {} }, at), { JOB_SPACE: 'skipped', JOB_ACCOUNT: 'skipped' });
+  assert.deepEqual(await runDailyJobs(undefined, at), { JOB_SPACE: 'skipped', JOB_ACCOUNT: 'skipped' });
+});
+
+/** 账号 Worker 的 AccountJanitor 替身 @param {string[]} log @param {{throws?:boolean, fail?:boolean}} [o] */
+function accountJanitor(log, o = {}) {
+  return {
+    async purgeExpiredUsers(at) {
+      log.push('expire:' + at);
+      if (o.throws) throw new Error('boom');
+      return o.fail ? { ok: false, deleted: 0 } : { ok: true, deleted: 1 };
+    },
+  };
+}
+
+test('runDailyJobs（v6 P2c）：03:41 CST 同一轮另调 JOB_ACCOUNT.purgeExpiredUsers(at)；两个任务互不挡（一个失败另一个照跑）；别的小时不调', async () => {
+  const at = cst(2026, 11, 11, 3);
+  for (const [sp, ac, want] of [[{}, {}, { JOB_SPACE: 'ok', JOB_ACCOUNT: 'ok' }], [{ throws: true }, {}, { JOB_SPACE: 'failed', JOB_ACCOUNT: 'ok' }], [{}, { throws: true }, { JOB_SPACE: 'ok', JOB_ACCOUNT: 'failed' }], [{}, { fail: true }, { JOB_SPACE: 'ok', JOB_ACCOUNT: 'failed' }]]) {
+    const log = [];
+    const out = await quiet(() => runDailyJobs({ JOB_SPACE: janitor(log, sp), JOB_ACCOUNT: accountJanitor(log, ac) }, at));
+    assert.deepEqual(out, want, JSON.stringify([sp, ac]));
+    assert.deepEqual(log.slice().sort(), ['expire:' + at, 'purge:' + at]);
+  }
+  const log = [];
+  assert.deepEqual(await runDailyJobs({ JOB_ACCOUNT: accountJanitor(log) }, cst(2026, 11, 11, 4)), { JOB_SPACE: 'not-now', JOB_ACCOUNT: 'not-now' });
+  assert.deepEqual(log, []);
 });
 
 function hourlySvc(log, name) {
@@ -105,6 +129,11 @@ test('wrangler：不加 Cron；status 绑 JOB_SPACE → styrigx-space-core 的 S
   assert.match(st, /\[\[services\]\]\nbinding = "JOB_SPACE"\nservice = "styrigx-space-core"\nentrypoint = "ShareJanitor"/);
   assert.match(R('workers/space-core/src/index.js'), /^export \{ ShareJanitor \} from '\.\/rpc\/share-janitor\.js';$/m);
   assert.match(R('workers/space-core/src/rpc/share-janitor.js'), /class ShareJanitor extends WorkerEntrypoint/);
+  /* v6 P2c：账号到期清理挂同一轮，不加 Cron */
+  assert.match(st, /\[\[services\]\]\nbinding = "JOB_ACCOUNT"\nservice = "styrigx-account"\nentrypoint = "AccountJanitor"/);
+  assert.match(R('workers/account/src/index.js'), /^export \{ AccountJanitor \} from '\.\/rpc\/account-janitor\.js';$/m);
+  assert.match(R('workers/account/src/rpc/account-janitor.js'), /class AccountJanitor extends WorkerEntrypoint/);
+  assert.doesNotMatch(R('workers/account/wrangler.toml'), /^\[triggers\]/m, '账号 Worker 不自带 Cron');
 });
 
 /* ---------------- ShareJanitor.purgeShareLinks（space-core 那一头，真 SQL / 内存两种） ---------------- */

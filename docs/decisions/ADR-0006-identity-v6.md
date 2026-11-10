@@ -105,6 +105,15 @@
 - 数据按 uid：头像在 KV 按键前缀分（styrigx 键不变）；偏好 / 数字健康 / 旧设备表的 uid 列在 `workers/account/migrations-pending/0007_v6_uid_columns.sql`，**不在 `migrations_dir`、部署不执行**，待 Gray 批准；代码两种表结构都能跑（`lib/uid-schema.js`），迁移前别的 uid 读到空、写被拒 / 丢弃。v6 的「设备」= 自己的 `account_sessions`。
 - 审计加 root 改名片（`profile`）；批量 / 结构删除在奇趣 / 日刻接口 Worker，它们接上新会话（P3 / P4）时再写 `rm-bulk`。
 
+### 2.14 P2c 对齐定稿 v5（2026-11-11）
+
+- 名片 `GET /api/profile` 真正公开（§五）：网关访问表与账号 `PUBLIC_API` 都列为 public，接口不再要任何会话；只回名片四项 + 头像版本号 + 时间。PUT 不变（站长 + root）。
+- `sudo <命令>`（§六）：除身份命令外，`command = { method, path, body? }` 可借 root 执行**账号 Worker 内**任何一条路由表里的接口（`api/sudo-route.js`，同进程直接调处理函数，这一次调用里 v6 结论是 root、`sudoBy` = 真正执行的人）。仍是每次验自己的凭据、不发票据、不压栈。拒绝：`/api/identity` 本身、`/api/account/keys` / `reset`（root 凭据，`root-creds`；sudo 不能动 root 的凭据，栈顶必须是 root）、`/api/account/session` / `reauth`（旧登录 / 复验票）。别的 Worker 的接口（站点核心、奇趣、日刻）不在账号 Worker，sudo 够不到（`not-here`）；它们和 `/api/account/grants`、`/proxy` 还只认旧会话，割接时接上 v6 后 sudo 才对它们生效。
+- 到期（§八）：到期满 **30 天**宽限期（`core/user-expiry.js` 的 `EXPIRED_USER_GRACE_MS`，定稿没给数，Hark 定）自动删除，删法同 userdel；永不删 root / styrigx。不加 Cron：styrigx-status 每日一轮（03:41 CST）经服务绑定 `JOB_ACCOUNT` 调 `AccountJanitor.purgeExpiredUsers`，另在 useradd 前懒清理一次。
+- userdel / 到期删除的用户行改留墓碑（`#deleted-<uid>`、禁用）：**uid 永不复用**，免得新用户继承旧 uid 下的头像 / 偏好 / 数字健康数据；名字可再 useradd。
+- 审计（§十）：sudo 借 root 的每一条写 `sudo <方法> <路径> [action]`（uid = 真正执行的人）；root 改名片写 `profile set …`（sudo 借来的记执行人并标 `via sudo`）；到期删除写 `expire userdel <名>`（uid null）。
+- admit 先拒不认识的档，再做 root 快速放行（与 permits 第 0 步一致，`core/admit.js admitDecision`）。
+
 ## 3. 分阶段（分步割接，不是兼容层）
 
 新旧并存跑、救援跑通再删旧；不做新旧格式互转，不加开关。
@@ -124,6 +133,8 @@
 |---|---|---|
 | 2026-11-11 | P1：身份表、组与路由盘点、admit 新路径、epoch、审计、迁移脚本与对照表、STEPUP / APP 映射；路由盘点 17 条存疑 Gray 定稿（`GET /curio/api/export` 改 root）；§2.12 P2 硬要求 | #395 |
 | 2026-11-11 | P2a：permits 三步顺序（救援 → root → 档）、owner 档（名片 PUT）、`/api/identity`（su / sudo / exit / idle / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>）、身份栈写操作、两维限流、防枚举、pepper 绑定、数据按 uid（迁移待批）；§2.13 | P2a |
+| 2026-11-11 | P2b：身份命令进全站终端、提示符与头像跟 v6 身份 | #398 |
+| 2026-11-11 | P2c：名片 GET 公开、sudo 借 root 执行账号 Worker 内任一接口、到期满 30 天自动删除（墓碑、uid 不复用）、root 特权内容操作审计、admit 先拒未知档；§2.14 | P2c |
 
 ## 5. 后果
 

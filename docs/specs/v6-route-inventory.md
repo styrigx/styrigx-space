@@ -36,11 +36,16 @@
 | daymark-write | 6 |
 | owner | 1 |
 | root | 10 |
-| **合计** | **78**（另有 11 个只经服务绑定 / RPC 的入口） |
+| **合计** | **78**（另有 12 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor） |
 
 按 Worker：站点核心 21、账号 18、奇趣 20、日刻 13、代理 6。割接后要删的旧入口 20 条（P3 / P4）。有 action 另定档的接口 6 个（lock-password、lock-passkey、account/session、account/reset、curio music、identity）。
 
 P2 变更（2026-11-11）：`PUT /api/profile` root → **owner**（站长 styrigx + root，其余拒）；新增 `POST /api/identity`（v6 身份命令，public 入口，每个 action 一档，救援只放 whoami / exit / lock / passwd / passkey-* / groups）。
+
+P2c 变更（2026-11-11，对齐定稿 v5）：
+- `GET /api/profile` 真正公开：账号 Worker 不再要进站 / v6 会话，网关访问表（`workers/space-core/src/gate.js`）与账号 `PUBLIC_API` 都加了这一条；只回名片四项 + 头像版本号 + 时间。档本来就是 public，表不变。
+- `sudo`（`POST /api/identity` action `sudo`）的 `command` 可以是 `{ method, path, body? }`：借 root 执行**账号 Worker 内**任何一条表里的接口（`api/sudo-route.js`）。拒绝：`/api/identity` 本身、`/api/account/keys` 与 `/api/account/reset`（root 凭据，403 root-creds）、`/api/account/session` 与 `/api/account/reauth`（旧登录 / 复验票）。别的 Worker 的接口 sudo 够不到（400 not-here）。
+- 新的只经服务绑定入口 `AccountJanitor.purgeExpiredUsers`（到期满 30 天自动删除，styrigx-status 每日一轮经 JOB_ACCOUNT 调）。
 
 ### 已定（Gray 2026-11-11）
 
@@ -184,5 +189,6 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | account | `AccountVerifier.authorize / admit` | space-core（ACCOUNT_VERIFIER） | 旧授权结论 / v6 新会话判定（只读） |
 | space-core | `SpaceVerifier.session / conclusion` | curio-core、daymark-core（SPACE） | 旧进站会话结论（P4 后改问账号） |
 | space-core | `ShareJanitor.purgeShareLinks` | styrigx-status 每日一轮（JOB_SPACE） | 清过期分享链接（P4 随分享删） |
+| account | `AccountJanitor.purgeExpiredUsers` | styrigx-status 每日一轮（JOB_ACCOUNT） | 到期满 30 天的用户自动删除（v6 P2c，定稿 v5 §八） |
 | proxy-rules | `ProxyAdmin.*` | account POST /api/account/proxy（PROXY） | 代理订阅管理（root 档在调用方） |
 | curio-core / daymark-core / ai | `HourlyJob.run` | styrigx-status 每小时一轮 | 搜索索引 / 照片清理等定时任务 |

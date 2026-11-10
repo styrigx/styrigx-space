@@ -15,7 +15,7 @@
  * | /api/prefs*     | ACCOUNT | 账号会话 + prefs.sync 在账号 Worker 里查                                    |
  * | /api/avatar*    | ACCOUNT | PUT / DELETE 在账号 Worker 里查账号会话 + avatar.write                      |
  * | /api/wellbeing* | ACCOUNT | GET 公开（合计；明细要账号会话）；POST 要进站（账号未登录时 204）            |
- * | /api/profile*   | ACCOUNT | GET 不要账号会话，PUT 在账号 Worker 里查账号会话 + profile.write             |
+ * | /api/profile*   | ACCOUNT | GET 公开（v6 P2c），PUT 在账号 Worker 里查账号会话 + profile.write / v6 站长 + root |
  * | /api/identity   | ACCOUNT | v6 身份命令（P2）：公开入口，每个 action 的档在账号 Worker 判（permits）       |
  * | /avatar/*       | ACCOUNT | 页面路径，公开                                                              |
  *

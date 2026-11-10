@@ -18,6 +18,8 @@
  * | who                      | user    | 会话与身份路径（root via styrigx）；普通用户只看自己，root 看全部 |
  * | sudo-challenge / sudo    | sudoers | 每次输自己的凭据，借 root 执行一条（useradd / userdel / usermod / passwd <名> / groups <名> / who）；不发票据、不压栈；
  * |                          |         | 不能动 root 的凭据（passwd / passkey 一律拒） |
+ * | （sudo，P2c）            | sudoers | command = { method, path, body? }：借 root 执行账号 Worker 里任何一条接口（api/sudo-route.js）；
+ * |                          |         | 同样每次验自己的凭据、不发票据、不压栈；root 的凭据接口（/api/account/keys、reset）与身份接口本身拒绝 |
  * | useradd / userdel / usermod / passwd-user | root | 用户管理（core/user-admin.js） |
  *
  * uid 只取服务端会话（ADR-0006 §2.12 (a)）：请求体里的 uid / user 只当命令参数（目标用户名），从不当「我是谁」。
@@ -36,6 +38,7 @@ import { issueSession, pushRootLayer, popRootLayer, hasRootLayer, endSession, en
 import { useradd, userdel, usermod, passwdReset, groupsOf, whoList, userByName } from '../core/user-admin.js';
 import { V6_PURPOSE, v6AssertionChallenge, v6CheckAssertion, v6RegistrationChallenge, v6AddPasskey, v6PasskeyViews, v6DeletePasskey } from '../core/identity-passkey.js';
 import { rpConfig, rpConfigMissing } from '../core/config.js';
+import { sudoTarget, runSudoRoute } from './sudo-route.js';
 
 const PATH = '/api/identity';
 const BODY_MAX = 16 * 1024;
@@ -189,7 +192,7 @@ export async function onRequestPost(context) {
     }
     const ip = clientIp(request);
     const audit = (command, okFlag, uid) => writeUserAudit(env, { uid: uid === undefined ? (identity ? identity.uid : null) : uid, command, ok: okFlag, ip });
-    return await dispatch({ env, request, body, action, adm, identity, token, ip, audit });
+    return await dispatch({ env, request, body, action, adm, identity, token, ip, audit, context });
   } catch (e) {
     console.error('[api/identity] unhandled: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
     return apiError(500, 'internal');
@@ -198,7 +201,7 @@ export async function onRequestPost(context) {
 
 /**
  * @param {{env:any, request:Request, body:any, action:string, adm:any, identity:any, token:string, ip:string,
- *   audit:(command:string, ok:boolean, uid?:number|null)=>Promise<boolean>}} c
+ *   audit:(command:string, ok:boolean, uid?:number|null)=>Promise<boolean>, context:any}} c
  */
 async function dispatch(c) {
   const { env, body, action, adm, identity, token, ip, audit } = c;
@@ -355,6 +358,16 @@ async function dispatch(c) {
 
     case 'sudo': {
       const cmd = body.command && typeof body.command === 'object' ? body.command : {};
+      if (typeof cmd.path === 'string' || typeof cmd.method === 'string') {
+        /* P2c：sudo 借 root 执行账号 Worker 里任何一条接口（api/sudo-route.js）；同样每次验自己的凭据、不发票据、不压栈 */
+        const tg = sudoTarget(cmd, c.context && c.context.routes);
+        if (!tg.ok) return apiError(tg.status, tg.error);
+        const v = await verifyCreds(env, ip, body, { uid: identity.uid }, V6_PURPOSE.sudo);
+        if (!v.ok) { await audit('login-fail sudo', false); return credError(v.error); }
+        const res = await runSudoRoute(c.context, tg, { uid: identity.uid, name: identity.name }, adm.sessionId);
+        await audit('sudo ' + tg.method + ' ' + tg.path.replace(/[^a-z0-9/\-]/gi, '').slice(0, 64) + (tg.action ? ' ' + arg(tg.action) : ''), res.status < 400);
+        return res;
+      }
       const sub = typeof cmd.action === 'string' ? cmd.action : '';
       if (sub === 'passwd' || sub.startsWith('passkey')) return apiError(403, 'root-creds'); /* sudo 不能动 root 的凭据 */
       if (SUDO_COMMANDS.indexOf(sub) === -1) return apiError(400, 'action');

@@ -166,6 +166,7 @@ export const SERVICE_ONLY = Object.freeze([
   { worker: 'account', entry: 'AccountVerifier.authorize / admit', caller: 'space-core（ACCOUNT_VERIFIER）', why: '旧授权结论 / v6 新会话判定（只读）' },
   { worker: 'space-core', entry: 'SpaceVerifier.session / conclusion', caller: 'curio-core、daymark-core（SPACE）', why: '旧进站会话结论（P4 后改问账号）' },
   { worker: 'space-core', entry: 'ShareJanitor.purgeShareLinks', caller: 'styrigx-status 每日一轮（JOB_SPACE）', why: '清过期分享链接（P4 随分享删）' },
+  { worker: 'account', entry: 'AccountJanitor.purgeExpiredUsers', caller: 'styrigx-status 每日一轮（JOB_ACCOUNT）', why: '到期满 30 天的用户自动删除（v6 P2c）' },
   { worker: 'proxy-rules', entry: 'ProxyAdmin.*', caller: 'account POST /api/account/proxy（PROXY）', why: '代理订阅管理（root 档在调用方）' },
   { worker: 'curio-core / daymark-core / ai', entry: 'HourlyJob.run', caller: 'styrigx-status 每小时一轮', why: '搜索索引 / 照片清理等定时任务' },
 ]);

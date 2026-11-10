@@ -9,7 +9,7 @@
  * 只 import core/。
  */
 import { levelOf, ruleOf, rescueOf } from './route-access.js';
-import { permits, precedence, ACCESS, ROOT_UID } from './groups.js';
+import { permits, precedence, ACCESS, ACCESS_LEVELS, ROOT_UID } from './groups.js';
 import { admitRequest } from './identity-session.js';
 
 /**
@@ -20,6 +20,20 @@ import { admitRequest } from './identity-session.js';
 /** @param {Partial<AdmitConclusion>} o @returns {AdmitConclusion} */
 function conclusion(o) {
   return Object.assign({ allowed: false, reason: 'denied', level: null, uid: null, name: '', groups: [], root: false, rescue: false, via: '', renew: false }, o);
+}
+
+/**
+ * admit 的放行判断（纯函数，单测直接测）。顺序同 permits（定稿 v5 §三）：
+ * 0. 不认识的档 → 拒（P2c：先于 root 快速放行，和 permits 第 0 步一样，root 也不例外）
+ * 1–2. root 快速放行：和 permits 共用 groups.js precedence（救援先判，root 后放），不另写判断
+ * 3. 其余按档 permits
+ * @param {import('./groups.js').Identity|null} identity @param {string|null} level @param {{rescue?:boolean}} ropts
+ * @returns {boolean}
+ */
+export function admitDecision(identity, level, ropts) {
+  if (typeof level !== 'string' || ACCESS_LEVELS.indexOf(level) === -1) return false;
+  const pre = precedence(identity, ropts);
+  return pre !== null ? pre : permits(identity, level, ropts);
 }
 
 /**
@@ -38,9 +52,7 @@ export async function admitRoute(env, request, method, pathname, now, opts) {
     const adm = await admitRequest(env, request, now);
     const identity = adm.ok ? adm.identity : null;
     const ropts = { rescue: rescueOf(method, pathname, q) };
-    /* root 快速放行：和 permits 共用 groups.js precedence（救援先判，root 后放），不另写判断 */
-    const pre = precedence(identity, ropts);
-    const allowed = pre !== null ? pre : permits(identity, level, ropts);
+    const allowed = admitDecision(identity, level, ropts);
     if (!adm.ok) return conclusion({ allowed, level, reason: allowed ? 'ok' : adm.reason });
     return conclusion({
       allowed, level, reason: allowed ? 'ok' : (level === ACCESS.ROOT ? 'need-root' : 'need-' + level),
