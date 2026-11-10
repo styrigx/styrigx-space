@@ -9,6 +9,8 @@
  * - account_password(id=1, record)、account_passkey(credential_id, record)、account_user_handle(id=1, handle, legacy_handle)
  * - account_challenge(id, purpose, challenge, expires_at)、account_attempt_limit(kind, bucket, …)
  * - account_device(device_id, …)、account_audit(id, ts, ip_prefix, ok, event, expires_at)、account_grant(app, record, granted_at)
+ * - v6 身份表（IDENTITY_SCHEMA = migrations/0006_identity.sql）：account_users / user_groups / user_password / user_passkey / sessions /
+ *   session_stack / user_audit / recovery_key
  * 同一个库里的 settings_sync（api/prefs.js）、wb_daily（api/wellbeing.js）也经 D1_ACCOUNT，表由 0001 / 0002 建。
  *
  * 出错一律抛（D1 未绑定、查询失败）；调用方按 fail closed 处理（签发 503、验票无效）。
@@ -37,6 +39,26 @@ export const ACCOUNT_SCHEMA = Object.freeze([
   'CREATE TABLE IF NOT EXISTS account_grant (app TEXT PRIMARY KEY, record TEXT NOT NULL, granted_at INTEGER NOT NULL)',
 ]);
 
+/**
+ * v6 身份表（migrations/0006_identity.sql 原样，tests/workers/account/identity-schema.test.mjs 核对两边逐条一致）：
+ * account_users、account_user_groups、account_user_password、account_user_passkey、account_sessions、account_session_stack、
+ * account_user_audit、account_recovery_key。P1 只建表；读写在 core/users.js、core/identity-session.js、core/user-audit.js。
+ */
+export const IDENTITY_SCHEMA = Object.freeze([
+  "CREATE TABLE IF NOT EXISTS account_users (uid INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, avatar TEXT NOT NULL DEFAULT '', expires_at INTEGER NOT NULL DEFAULT 0, epoch INTEGER NOT NULL DEFAULT 0, disabled INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0)",
+  'CREATE TABLE IF NOT EXISTS account_user_groups (uid INTEGER NOT NULL, grp TEXT NOT NULL, added_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (uid, grp))',
+  "CREATE TABLE IF NOT EXISTS account_user_password (uid INTEGER PRIMARY KEY, record TEXT NOT NULL, pepper_id TEXT NOT NULL DEFAULT 'account', must_change INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL DEFAULT 0)",
+  "CREATE TABLE IF NOT EXISTS account_user_passkey (credential_id TEXT PRIMARY KEY, uid INTEGER NOT NULL, user_handle TEXT NOT NULL, legacy_handle TEXT NOT NULL DEFAULT '', record TEXT NOT NULL)",
+  'CREATE INDEX IF NOT EXISTS account_user_passkey_uid ON account_user_passkey (uid)',
+  'CREATE TABLE IF NOT EXISTS account_sessions (id TEXT PRIMARY KEY, uid INTEGER NOT NULL, epoch INTEGER NOT NULL, rescue INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, renewed_at INTEGER NOT NULL DEFAULT 0)',
+  'CREATE INDEX IF NOT EXISTS account_sessions_uid ON account_sessions (uid)',
+  'CREATE TABLE IF NOT EXISTS account_session_stack (session_id TEXT NOT NULL, depth INTEGER NOT NULL CHECK (depth = 1), uid INTEGER NOT NULL, epoch INTEGER NOT NULL, pushed_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY (session_id, depth))',
+  'CREATE TABLE IF NOT EXISTS account_user_audit (id TEXT PRIMARY KEY, ts INTEGER NOT NULL, uid INTEGER, command TEXT NOT NULL, ok INTEGER NOT NULL, ip_prefix TEXT NOT NULL, expires_at INTEGER NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS account_user_audit_ts ON account_user_audit (ts)',
+  'CREATE TABLE IF NOT EXISTS account_recovery_key (id TEXT PRIMARY KEY, record TEXT NOT NULL, created_at INTEGER NOT NULL, used_at INTEGER NOT NULL DEFAULT 0)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS account_recovery_key_active ON account_recovery_key (used_at) WHERE used_at = 0',
+]);
+
 /** 账号库是否绑好（缺 → 调用方 500 config） @param {any} env */
 export function dbReady(env) {
   return !!(env && env[DB_BINDING]);
@@ -53,7 +75,7 @@ export function db(env) {
 }
 
 /**
- * 跑一次操作；遇到「no such table」就按 ACCOUNT_SCHEMA 建表再整次重试一次（建表前没有任何写入成功，可以安全重试）。
+ * 跑一次操作；遇到「no such table」就按 ACCOUNT_SCHEMA + IDENTITY_SCHEMA 建表再整次重试一次（建表前没有任何写入成功，可以安全重试）。
  * @template T @param {any} d @param {() => Promise<T>} fn @returns {Promise<T>}
  */
 export async function withSchema(d, fn) {
@@ -61,7 +83,7 @@ export async function withSchema(d, fn) {
     return await fn();
   } catch (e) {
     if (!/no such table/i.test(String((e && e.message) || e))) throw e;
-    for (const sql of ACCOUNT_SCHEMA) await d.prepare(sql).run();
+    for (const sql of ACCOUNT_SCHEMA.concat(IDENTITY_SCHEMA)) await d.prepare(sql).run();
     return await fn();
   }
 }
@@ -76,7 +98,7 @@ export function onDb(env, fn) {
 }
 
 /** 带 expires_at、可以顺手清过期行的表 */
-const SWEEPABLE = /^account_(challenge|attempt_limit|device|audit)$/;
+const SWEEPABLE = /^account_(challenge|attempt_limit|device|audit|sessions|user_audit)$/;
 
 /**
  * 顺手清掉某表已过期的行（尽力而为，出错吞掉；读路径本来就不认过期行）。

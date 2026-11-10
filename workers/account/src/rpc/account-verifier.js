@@ -3,6 +3,8 @@
  * - （命名 v2 删掉 session()：唯一的调用方网关首帧提示随旧账号整页一起删了；临时钥匙管理、短链只认进站会话 + 锁侧复验）
  * - authorize(cookieHeader, clientContext, opts)：授权结论 { ok, reason, deviceId, scopes, reauth }（逻辑在 core/authorize.js）。
  *   P2-1 只新增：网关 core/account-rpc.js askAuthorize 会问它，但网关里还没有调用方（P2-2 起子站接口经 SpaceVerifier.conclusion() 间接用）。
+ * - admit(cookieHeader, method, pathname)：v6 新会话的放行结论（P1 新增，逻辑在 core/admit.js；只读，一次 D1 查询）。
+ *   网关只在请求带新会话 cookie（sgx-session）、旧进站会话又不成立时问；旧会话判定不经这里。
  * 不签发任何东西。
  * cloudflare:workers 只在 Workers 里有：node 单测用 tests/workers/account/_cf-workers.mjs 的替身。
  */
@@ -11,6 +13,7 @@ import { MAX_COOKIE_HEADER } from '../lib/cookies.js';
 import { CLIENT_CONTEXT_HEADERS } from '../lib/gateway.js';
 import { resolveSecrets } from '../secrets.js';
 import { authorize } from '../core/authorize.js';
+import { admitRoute } from '../core/admit.js';
 
 const MAX_UA = 512;
 
@@ -49,6 +52,20 @@ export async function checkAuthorize(env, cookieHeader, clientContext, opts) {
   }
 }
 
+/**
+ * AccountVerifier.admit 的实现：参数只认字符串（RPC 传来的别的东西当空），永不抛错。
+ * @param {Record<string, any>} env @param {string} cookieHeader @param {string} method @param {string} pathname
+ */
+export async function checkAdmit(env, cookieHeader, method, pathname) {
+  const m = typeof method === 'string' ? method.slice(0, 10) : '';
+  const p = typeof pathname === 'string' ? pathname.slice(0, 2048) : '';
+  try {
+    return await admitRoute(env || {}, verifierRequest(cookieHeader), m, p);
+  } catch (e) {
+    return { allowed: false, reason: 'error', level: null, uid: null, name: '', groups: [], root: false, rescue: false, via: '', renew: false };
+  }
+}
+
 /** 授权结论（服务绑定 ACCOUNT_VERIFIER：只有网关） */
 export class AccountVerifier extends WorkerEntrypoint {
   /**
@@ -60,5 +77,13 @@ export class AccountVerifier extends WorkerEntrypoint {
    */
   async authorize(cookieHeader, clientContext, opts) {
     return checkAuthorize(this.env, cookieHeader, clientContext, opts);
+  }
+
+  /**
+   * v6 新会话的放行结论（core/admit.js）：{ allowed, reason, level, uid, name, groups, root, rescue, via, renew }。
+   * @param {string} cookieHeader @param {string} method @param {string} pathname
+   */
+  async admit(cookieHeader, method, pathname) {
+    return checkAdmit(this.env, cookieHeader, method, pathname);
   }
 }

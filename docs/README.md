@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-DOC-000 |
-| 版本 | 2.1 |
+| 版本 | 2.2 |
 | 日期 | 2026-11-11 |
 | 状态 | 现行 |
 
@@ -46,6 +46,9 @@
 | SGX-SPEC-001 | [`specs/auth-state-machine.md`](specs/auth-state-machine.md) | 规范 | 进站 / 锁屏 / 回跳状态机与 cookie 表 |
 | SGX-SPEC-002 | [`specs/status-apis.md`](specs/status-apis.md) | 规范 | 只读状态接口分工 |
 | SGX-SPEC-003 | [`specs/ui-cookie.md`](specs/ui-cookie.md) | 规范 | 外观 cookie `sgx-ui` 契约（含博客读端） |
+| SGX-SPEC-004 | [`specs/v6-route-inventory.md`](specs/v6-route-inventory.md) | 草案 | v6 路由全量盘点：每条路由的档（public / user / 组 / root） |
+| SGX-SPEC-005 | [`specs/v6-identity-migration.md`](specs/v6-identity-migration.md) | 草案 | v6 数据迁移对照表：凭据 → root / styrigx、pepper 来源、userHandle |
+| SGX-SPEC-006 | [`specs/v6-stepup-app-map.md`](specs/v6-stepup-app-map.md) | 草案 | v6 STEPUP / APP 调用点与去向 |
 | SGX-DES-001 | [`design/palette.md`](design/palette.md) | 规范 | 调色板与色彩角色 token |
 | SGX-DES-002 | [`design/ui-system.md`](design/ui-system.md) | 规范 | 终端风格 UI 系统：顶栏、AI 窗、Auto 控件、提示符规则 |
 | SGX-SEC-001 | [`security/account-v3.md`](security/account-v3.md) | 规范 | 进站 / 账号安全模型 V3 |
@@ -59,6 +62,7 @@
 | ADR-0003 | [`decisions/ADR-0003-account-v3.md`](decisions/ADR-0003-account-v3.md) | 决策 | 账号与进站 V3：门归网站、账号管授权 |
 | ADR-0004 | [`decisions/ADR-0004-ai-models.md`](decisions/ADR-0004-ai-models.md) | 决策 | AI 模型选择：Gemma 4 默认，Gemini 3.5 Flash Lite / 3.8 Flash |
 | ADR-0005 | [`decisions/ADR-0005-terminal-entry-v5.md`](decisions/ADR-0005-terminal-entry-v5.md) | 决策 | v5 终端与进站：一个终端、唯一入口 `sudo styrigx`、三处上锁、提示符按 by |
+| ADR-0006 | [`decisions/ADR-0006-identity-v6.md`](decisions/ADR-0006-identity-v6.md) | 决策 | v6 身份统一：account worker 唯一签发者、root / 普通用户、权限 = 组、服务端身份栈 |
 | — | [`assets/screenshots/`](assets/screenshots/) | 资源 | 根 README 用的截图 |
 
 ## 4. 其他文档的位置

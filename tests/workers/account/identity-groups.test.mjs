@@ -1,0 +1,73 @@
+/**
+ * v6 组模型与集中权限判断（workers/account/src/core/groups.js）：
+ * - 组、特权组、写组、styrigx 默认组钉死（定稿 §三）
+ * - permits：public 谁都行；访客只有 public；user = 任一已登录身份；root 只有 uid 0；组名：root 全过、普通用户要在组里；不认识的档拒绝
+ * - 救援会话：只放标了 rescue 的路由，其余一律拒绝（即使是 root）
+ * - canJoinGroup：临时用户进不了 wheel / sudoers / 写组；root 不进组；不认识的组拒绝
+ * - 档的取值不和组名重名
+ *
+ * 运行：node --test tests/workers/account/identity-groups.test.mjs
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { groups as G } from './_identity.mjs';
+
+const styrigx = { uid: 1000, name: 'styrigx', groups: [...G.STYRIGX_DEFAULT_GROUPS], rescue: false };
+const alice = { uid: 1001, name: 'alice', groups: ['listen'], rescue: false };
+const nobody = { uid: 1002, name: 'temp', groups: [], rescue: false };
+const root = { uid: 0, name: 'root', groups: [], rescue: false };
+const rescue = { uid: 0, name: 'root', groups: [], rescue: true };
+
+test('组与默认组钉死', () => {
+  assert.equal(G.ROOT_UID, 0);
+  assert.equal(G.STYRIGX_UID, 1000);
+  assert.equal(G.FIRST_USER_UID, 1001);
+  assert.deepEqual([...G.GROUPS], ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write']);
+  assert.deepEqual([...G.PRIVILEGED_GROUPS], ['wheel', 'sudoers']);
+  assert.deepEqual([...G.WRITE_GROUPS], ['curio-write', 'daymark-write']);
+  assert.deepEqual([...G.STYRIGX_DEFAULT_GROUPS], ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write']);
+  assert.ok(Object.isFrozen(G.GROUPS) && Object.isFrozen(G.ACCESS_LEVELS));
+  for (const v of Object.values(G.ACCESS)) assert.ok(!G.GROUPS.includes(v), v + ' 不许是组名');
+  assert.ok(!G.GROUPS.includes('delete'), '删除不做组');
+});
+
+test('permits：public / 访客 / user / root / 组', () => {
+  for (const id of [null, undefined, styrigx, alice, root]) assert.equal(G.permits(id, 'public'), true);
+  for (const lv of ['user', 'root', 'ai', 'wheel']) assert.equal(G.permits(null, lv), false, '访客 ' + lv);
+  assert.equal(G.permits({ uid: '1000', groups: ['ai'] }, 'ai'), false, 'uid 不是整数 = 不是身份');
+  assert.equal(G.permits(nobody, 'user'), true, '无组的临时用户也是已登录身份');
+  assert.equal(G.permits(nobody, 'listen'), false);
+  assert.equal(G.permits(alice, 'listen'), true);
+  assert.equal(G.permits(alice, 'ai'), false);
+  for (const g of G.GROUPS) assert.equal(G.permits(styrigx, g), true, 'styrigx ' + g);
+  assert.equal(G.permits(styrigx, 'root'), false, 'styrigx 不是 root（要 su / sudo）');
+  for (const lv of G.ACCESS_LEVELS) assert.equal(G.permits(root, lv), true, 'root ' + lv);
+  for (const bad of ['entry', 'music', 'admin', '', 'ROOT', 'curio.write']) assert.equal(G.permits(root, bad), false, '不认识的档 ' + bad);
+});
+
+test('救援会话：只放 rescue 路由；不是 rescue 的路由一律拒绝（即使 root 档）', () => {
+  assert.equal(G.permits(rescue, 'root'), false);
+  assert.equal(G.permits(rescue, 'curio-write'), false);
+  assert.equal(G.permits(rescue, 'user'), false);
+  assert.equal(G.permits(rescue, 'root', { rescue: true }), true);
+  assert.equal(G.permits(rescue, 'public'), true);
+  assert.equal(G.permits(root, 'root', { rescue: true }), true, '普通 root 会话不受 rescue 标记影响');
+  assert.deepEqual([...G.RESCUE_COMMANDS], ['passwd', 'passkey', 'recovery-key', 'whoami', 'groups', 'exit', 'lock']);
+  for (const c of ['useradd', 'usermod', 'userdel', 'sudo', 'su']) assert.ok(!G.RESCUE_COMMANDS.includes(c), '救援不建用户不改组 ' + c);
+});
+
+test('canJoinGroup：临时用户不进特权组 / 写组；root 不进组；不认识的组拒绝', () => {
+  const temp = { uid: 1001, expiresAt: Date.now() + 86400000 };
+  const perm = { uid: 1001, expiresAt: 0 };
+  for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) assert.deepEqual(G.canJoinGroup(temp, g), { ok: false, reason: 'temporary' }, g);
+  for (const g of ['listen', 'ai', 'status']) assert.deepEqual(G.canJoinGroup(temp, g), { ok: true }, g);
+  for (const g of G.GROUPS) assert.deepEqual(G.canJoinGroup(perm, g), { ok: true }, g);
+  assert.deepEqual(G.canJoinGroup({ uid: 0, expiresAt: 0 }, 'wheel'), { ok: false, reason: 'root' });
+  assert.deepEqual(G.canJoinGroup(perm, 'admin'), { ok: false, reason: 'unknown-group' });
+  assert.deepEqual(G.canJoinGroup(perm, 'root'), { ok: false, reason: 'unknown-group' });
+});
+
+test('用户名规则', () => {
+  for (const ok of ['styrigx', 'alice', 'a1', 'guest-2026']) assert.match(ok, G.USER_NAME_RE);
+  for (const bad of ['', 'A', 'Alice', '1abc', 'a', 'a_b', 'a'.repeat(33), 'root ']) assert.doesNotMatch(bad, G.USER_NAME_RE);
+});

@@ -2,7 +2,7 @@
 
 | 项 | 值 |
 |---|---|
-| 状态 | 已采纳（已实施） |
+| 状态 | 已采纳（已实施）；§2.2.3–§2.2.4 的 sudo 段已被 ADR-0006 取代 |
 | 日期 | 2026-11-11（v5 S8 合并） |
 | 决策者 | Sloan Gray |
 | 关联 | ADR-0002（锁屏方案演进）、ADR-0003（门归网站、账号管授权）；SGX-SPEC-001、SGX-SEC-001、SGX-DES-002 |
@@ -31,9 +31,9 @@
 
 2.2.2 解锁流程：上锁部件（或盾牌）→ 打开终端并预填 `sudo styrigx`（不替人回车）→ 验证通过 → 终端自动收起 → 播原进站开机动画（保留不改）→ 回到原页面。旧地址 `?entry=…`（分享链接失效时网关回的 `/?entry=1`、旧书签）同样打开终端预填；`?entry=sudo` 直接执行。
 
-2.2.3 钥匙命令（命令字不变）：`sudo styrigx` 进站；`lock` 只锁本机；`lock --all` 所有设备回访客；`sudo -v` 再验证 3 分钟（reauth 只认解锁密码 / 通行密钥）；`sudo styrigx reset` 进 reset 层（恢复钥匙，`reset@space:~#`，不变）。解锁凭据管理：`lock passwd`、`lock passkey [add | rm <n>]`（与账号的 `passwd` / `passkey` 区分）。
+2.2.3 **〔sudo 段已被 ADR-0006 取代：`sudo -v` 删除，复验改为 `sudo <命令>` 每次重验；`sudo styrigx reset` 由救援入口取代；进站凭据并入 styrigx 的 `passwd` / `passkey`〕** 钥匙命令（命令字不变）：`sudo styrigx` 进站；`lock` 只锁本机；`lock --all` 所有设备回访客；`sudo -v` 再验证 3 分钟（reauth 只认解锁密码 / 通行密钥）；`sudo styrigx reset` 进 reset 层（恢复钥匙，`reset@space:~#`，不变）。解锁凭据管理：`lock passwd`、`lock passkey [add | rm <n>]`（与账号的 `passwd` / `passkey` 区分）。
 
-2.2.4 账号是第二层，在钥匙之后：`sudo root` 登录账号；`passwd`、`passkey [add | rm <n>]`、`device [rm <n> | rm --all]`、`app [rm <n>]`、`sub …`；`exit` 登出回上一层。
+2.2.4 **〔已被 ADR-0006 取代：`sudo root` → `su root`（仅 wheel，输 root 的凭据）；身份栈存服务端，`exit` 弹一层〕** 账号是第二层，在钥匙之后：`sudo root` 登录账号；`passwd`、`passkey [add | rm <n>]`、`device [rm <n> | rm --all]`、`app [rm <n>]`、`sub …`；`exit` 登出回上一层。
 
 ### 2.3 提示符按身份（`by`），服务端说了算
 

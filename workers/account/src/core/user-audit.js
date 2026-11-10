@@ -1,0 +1,44 @@
+/**
+ * v6 身份统一（P1）：身份审计（account_user_audit 表）——只追加，保留 90 天。
+ *
+ * 记什么（定稿 §八）：useradd / userdel / usermod / passwd、su、sudo、救援、登录失败。每行：做事的 uid（登录失败可能是 null）、
+ * 命令、结果、时间、IP 前缀（不存完整 IP）。命令只记命令字和非秘密参数（用户名、组名、日期）；密码、一次性密码、恢复钥匙、
+ * 令牌一律不进审计——调用方负责，这里再按命令字白名单拦一道、截长。
+ * 旧的 account_audit（core/audit.js，30 天）原样不动，并存到 P4。
+ *
+ * P1 只提供写入函数和单测，还没有调用方（P2 / P3 的命令接上）。写入尽力而为：返回是否写进去，从不抛错。
+ * 只 import lib/db.js 和 core/audit.js（ipPrefix 同一份）。
+ */
+import { onDb, sweepExpired } from '../lib/db.js';
+import { ipPrefix } from './audit.js';
+
+/** 保留期：90 天（Muse 复盘 5） */
+export const USER_AUDIT_TTL_MS = 90 * 24 * 3600 * 1000;
+/** 命令字白名单（审计行 command 的第一个词） */
+export const USER_AUDIT_COMMANDS = Object.freeze(['useradd', 'userdel', 'usermod', 'passwd', 'passkey', 'su', 'sudo', 'exit', 'lock', 'rescue', 'recovery-key', 'login-fail', 'expire']);
+/** command 最长字符数 */
+export const USER_AUDIT_COMMAND_MAX = 200;
+
+/**
+ * 写一条身份审计。命令字不在白名单 → 不写（返回 false）。
+ * @param {any} env
+ * @param {{ uid: number|null, command: string, ok?: boolean, ip?: string }} entry
+ * @returns {Promise<boolean>}
+ */
+export async function writeUserAudit(env, entry) {
+  const command = entry && typeof entry.command === 'string' ? entry.command.trim().slice(0, USER_AUDIT_COMMAND_MAX) : '';
+  if (USER_AUDIT_COMMANDS.indexOf(command.split(/\s+/)[0]) === -1) return false;
+  const uid = entry && Number.isInteger(entry.uid) ? entry.uid : null;
+  try {
+    const now = Date.now();
+    const id = now + ':' + Math.random().toString(36).slice(2, 10);
+    await onDb(env, async (d) => {
+      await d.prepare('INSERT INTO account_user_audit (id, ts, uid, command, ok, ip_prefix, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(id, now, uid, command, entry.ok === false ? 0 : 1, ipPrefix(entry.ip || ''), now + USER_AUDIT_TTL_MS).run();
+      await sweepExpired(d, 'account_user_audit', now);
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}

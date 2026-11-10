@@ -14,7 +14,7 @@
 |---|---|---|
 | `default` | `src/app.js` | 默认 fetch 一律 404（第二道保险：即使线上残留公开路由，伪造的头也碰不到任何接口） |
 | `AccountService` | `src/rpc/account-service.js` | 网关经服务绑定 `ACCOUNT` 转发来的请求：`serviceFetch` → `gate.js` → `router.js` |
-| `AccountVerifier` | `src/rpc/account-verifier.js` | 只读 RPC，不签任何东西，调用方只有网关（服务绑定 `ACCOUNT_VERIFIER`）：`authorize(cookieHeader, clientContext, opts)` → 授权结论（见下文「结论」）。命名 v2 删了 `session()`（唯一的调用方是网关给旧账号整页的首帧提示，整页 #327 已删） |
+| `AccountVerifier` | `src/rpc/account-verifier.js` | 只读 RPC，不签任何东西，调用方只有网关（服务绑定 `ACCOUNT_VERIFIER`）：`authorize(cookieHeader, clientContext, opts)` → 授权结论（见下文「结论」）；`admit(cookieHeader, method, pathname)` → v6 新会话的放行结论（P1，见「v6 身份」）。命名 v2 删了 `session()`（唯一的调用方是网关给旧账号整页的首帧提示，整页 #327 已删） |
 
 - `src/gate.js`：只有 `AccountService` 读身份头——网关写的 `X-Styrigx-Space-*`（Session / By / Link-Id；By、Link-Id 只作审计）、`X-Styrigx-Client-*`（Address / Country / City），`src/lib/gateway.js` 白名单校验（`passedGateway`：有没有进站会话）。纵深防御：没有进站会话的 `/api/*` → 401；之后 `/api/prefs`、`/api/avatar`、`/api/profile` PUT 要账号 session + 作用域（`gate.js scopeDenial`：401 account / 403 scope）；`/api/account/*` 各入口自己验票。
 - `src/router.js`：接口路由表 `API_ROUTES` 和头像文件 `/avatar/<尺寸>.webp`。
@@ -28,6 +28,22 @@
 | `src/lib/` | `ticket.js`（签 / 验票）、`db.js`（D1_ACCOUNT、兜底建表）、`webauthn.js`、`gateway.js`、`attempt-limit.js`、`crypto.js`、`cookies.js`、`http.js`、`avatar.js`、`profile.js`、`security-headers.js`、`csp-hashes.js` |
 
 不 import 网关或任何别的 Worker（`space/scripts/check-layers.mjs` 规则 14）；退役的旧名字一个都不许出现（规则 22，名单在 `space/scripts/retired-names.json`）。
+
+## v6 身份（P1，分步割接中）
+
+ADR-0006。P1 只加新路径，旧会话 / 旧入口 / 旧命令全部不动；还没有签发入口（P2 做 `su`）。
+
+| 文件 | 做什么 |
+|---|---|
+| `migrations/0006_identity.sql` | 8 张身份表：`account_users`、`account_user_groups`、`account_user_password`（含 `pepper_id`）、`account_user_passkey`、`account_sessions`、`account_session_stack`、`account_user_audit`、`account_recovery_key`；与 `src/lib/db.js` `IDENTITY_SCHEMA` 逐条一致 |
+| `src/core/groups.js` | uid（root 0、styrigx 1000）、组、styrigx 默认组、临时用户不进特权 / 写组（`canJoinGroup`）、**唯一的权限判断 `permits(identity, level, { rescue })`** |
+| `src/core/route-access.js` | 全站路由访问表 v6（public / user / 组名 / root，未列入拒绝；盘点文档 `docs/specs/v6-route-inventory.md`） |
+| `src/core/identity-session.js` | 新会话判定 `admitSession`：一次 D1 查询、只读；会话时长常量与续期节流 `shouldRenew` |
+| `src/core/users.js` | epoch bump（自改续命 / root 重置全作废）、加删组、期限（`expiryFromDate`：该日 00:00 Asia/Shanghai 起失效） |
+| `src/core/user-audit.js` | 身份审计（90 天） |
+| `src/core/admit.js` | 放行结论 = 路由档 + 新会话身份 + `permits`；`AccountVerifier.admit(cookieHeader, method, pathname)` 调它 |
+
+数据迁移（凭据 → root / styrigx）只有脚本 `space/scripts/v6-identity-migrate.mjs` 和对照表 `docs/specs/v6-identity-migration.md`，P1 不对生产执行。
 
 ## 账号接口
 
@@ -100,7 +116,7 @@ Secrets Store（`src/secrets.js` 换成字符串，60 秒缓存）：
 
 ## 数据与迁移
 
-D1 `styrigx-account`，迁移在 `migrations/`：`0001_wellbeing.sql`、`0002_settings_sync.sql`、`0003_account_auth.sql`、`0004_app_grant.sql`（历史，不动）、`0005_account_tables.sql`（命名 v2：账号行搬进 `account_*`、去掉 realm 列；`user_handle`、通行密钥的 `credential_id` / 公钥逐字节照抄；账号密码换新 pepper 后不复制，要重设一次；旧表只删 `realm='account'` 的行——预览库里网关的锁屏行也在这些表里）。部署 job `deploy-account-worker` 先跑 `d1 migrations apply styrigx-account --remote`，再部署，再冒烟。
+D1 `styrigx-account`，迁移在 `migrations/`：`0001_wellbeing.sql`、`0002_settings_sync.sql`、`0003_account_auth.sql`、`0004_app_grant.sql`（历史，不动）、`0006_identity.sql`（v6 P1：8 张身份表，只建表）、`0005_account_tables.sql`（命名 v2：账号行搬进 `account_*`、去掉 realm 列；`user_handle`、通行密钥的 `credential_id` / 公钥逐字节照抄；账号密码换新 pepper 后不复制，要重设一次；旧表只删 `realm='account'` 的行——预览库里网关的锁屏行也在这些表里）。部署 job `deploy-account-worker` 先跑 `d1 migrations apply styrigx-account --remote`，再部署，再冒烟。
 
 - 部署顺序：搜索、聊天 → 监测 → **账号** ∥ 短链 → 网关 → Pages。回滚下限：`space/scripts/deploy-rollback-floor.json` 要求目标版本带 `D1_ACCOUNT`（不退回读旧表的版本）。
 - 预览：不部署单独的预览 Worker。`[env.preview]` 只登记测试资源（`styrigx-test-preview`，迁移记录表 `d1_migrations_account`）；预览里的账号代码由组合入口 `tests/space/e2e/helpers/preview-worker.js` 在进程内跑。
