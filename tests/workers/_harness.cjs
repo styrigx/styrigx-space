@@ -94,7 +94,7 @@ function makeKV(seed, opts) {
 const AUTH_MIGRATIONS = path.join(__dirname, '..', '..', 'workers/space-core/migrations');
 
 /** 每张表属于导入计划的哪一类（space/scripts/migrate-kv-to-d1.mjs planAuthImport 的 family 名去掉 realm 前缀） */
-const IMPORT_FAMILY_OF_TABLE = { epoch: 'epoch', password: 'password', passkey: 'passkey', user_handle: 'user-handle', device: 'device', tempkey: 'tempkey' };
+const IMPORT_FAMILY_OF_TABLE = { epoch: 'epoch', password: 'password', passkey: 'passkey', user_handle: 'user-handle', device: 'device' };
 
 /**
  * 网关 D1 替身（D1_SPACE / D1_ACCOUNT_AUTH / D1_ROOT_AUTH 同一个库）：node:sqlite 内存库，
@@ -127,7 +127,7 @@ function makeAuthD1(opts) {
   }
   if (!opts || opts.migrations !== false) {
     /* v5 S1：by=link 的测试会话（tests/workers/space-core/_tickets.mjs TEST_LINK_ID）验票时查 share_link 这一行——预置一条有效的 */
-    raw.prepare("INSERT INTO share_link (id, code, name, target, session_sec, key_id, created_at, expires_at) VALUES (?, ?, '', '/', 3600, '', ?, ?)")
+    raw.prepare("INSERT INTO share_link (id, code, name, target, session_sec, created_at, expires_at) VALUES (?, ?, '', '/', 3600, ?, ?)")
       .run(TEST_LINK_ID, 'testtesttesttesttest01', Date.now(), Date.now() + 365 * 86400e3);
   }
   for (const [name, value] of Object.entries((opts && opts.epochs) || {})) {

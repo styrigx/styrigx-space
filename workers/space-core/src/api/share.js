@@ -9,8 +9,7 @@
  * - create { name?, hours? | days?, to?, session? } → { link: view }
  *     有效期：hours 1–24 或 days 3 / 7 / 15 / 30；to 站内相对路径或 https://styrigx.com 的地址（默认 /，core/share-links.js cleanTarget）；
  *     session = 短链进门会话秒数（0 / 不传 = 普通短链，不发会话），只收 1800 / 3600 / 10800 / 43200 / 86400 / 259200 / 604800，
- *     且不超过有效期；同时有效最多 20 条（409 full）。带会话的不再签「短链钥匙」：点开时直接按这一行签 by=link 的会话（core/share-open.js）；
- *     key_id 列写 ''（列在后面的收尾 PR 删）。
+ *     且不超过有效期；同时有效最多 20 条（409 full）。带会话的不签「短链钥匙」：点开时直接按这一行签 by=link 的会话（core/share-open.js）。
  * - create 加 reuse:true（顶栏分享按钮用）：已有同一目标（规范化后）、同一会话档位、同一有效期、没作废、还剩 ≥ 12 小时的短链
  *     → 直接返回它（{ link, reused:true }），不新建、不占名额；名字超过 24 字截断（按钮拿页面标题当名字）。
  * - 只收同源（Origin 必须是 styrigx.com 本身）：跨源或不带 Origin 一律 403 origin。
@@ -116,8 +115,7 @@ async function handle(context) {
     const id = newId();
     const code = newCode();
     try {
-      /* key_id 写 ''：v5 S1 起不签短链钥匙（列在后面的收尾 PR 删） */
-      await run(db, SQL.insert, id, code, name, to, session, '', now, expiresAt);
+      await run(db, SQL.insert, id, code, name, to, session, now, expiresAt);
     } catch (e) {
       return apiError(503, 'server');
     }

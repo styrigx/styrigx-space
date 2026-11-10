@@ -316,7 +316,7 @@ async function startEdge() {
     const id = links.newId();
     const code = links.newCode();
     const now = Date.now();
-    await links.run(d1, links.SQL.insert, id, code, 'edge', q.to || '/', q.sessionSec || 0, '', now, now + (q.ms || 3600 * 1000));
+    await links.run(d1, links.SQL.insert, id, code, 'edge', q.to || '/', q.sessionSec || 0, now, now + (q.ms || 3600 * 1000));
     return { id, code, path: '/s/' + code };
   }
 

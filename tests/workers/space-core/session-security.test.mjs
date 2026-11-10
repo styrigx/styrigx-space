@@ -184,7 +184,7 @@ test('纪元接口已删除：路由表里没有，文件也不在', async () =>
 test('password verify 通过：Set-Cookie 带 Domain=.styrigx.com（Ed25519 格式）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PRIVATE: TEST_PRIV_PEM, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper' };
+  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PRIVATE: TEST_PRIV_PEM, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper' };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
@@ -203,7 +203,7 @@ test('password verify：读 lock-epoch（D1）出错 → 503（不签发会话�
   await seedPassword(kv);
   /* 只让纪元的查询抛错 */
   authD1For(kv).failOn = (sql) => /FROM epoch|INTO epoch/.test(sql);
-  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PRIVATE: TEST_PRIV_PEM, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper' };
+  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PRIVATE: TEST_PRIV_PEM, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper' };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 503);
   assert.equal(r.headers.get('Set-Cookie'), null);
@@ -212,7 +212,7 @@ test('password verify：读 lock-epoch（D1）出错 → 503（不签发会话�
 test('password verify：密码错误 → 403（不签发）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PRIVATE: TEST_PRIV_PEM, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper' };
+  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PRIVATE: TEST_PRIV_PEM, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper' };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'nope-nope-nope' }), env });
   assert.equal(r.status, 403);
   assert.equal(r.headers.get('Set-Cookie'), null);
@@ -537,7 +537,7 @@ function assertSessionCookieAttrs(sc, maxAge) {
 test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/SameSite=Lax）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PRIVATE: TEST_PRIV_PEM, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper' };
+  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PRIVATE: TEST_PRIV_PEM, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper' };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
@@ -704,7 +704,7 @@ test('diag: issueLockSession 正常 → null 且 Set-Cookie 已设置', async ()
 test('diag: password verify 无 SGX_SPACE_PRIVATE → 500 no-session-key（不是 ok:true）', async () => {
   const kv = makeKV();
   await seedPassword(kv);
-  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper' };
+  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PASSWORD_PEPPER: 'test-pepper' };
   const r = await pwPost({ request: postReq('https://styrigx.com/api/lock-password', { action: 'verify', password: 'test-pass-12345' }), env });
   assert.equal(r.status, 500);
   assert.deepEqual(await r.json(), { ok: false, error: 'no-session-key' });

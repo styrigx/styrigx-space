@@ -26,7 +26,7 @@
 
 | 名字 | 签发方 | 作用域 | 属性 | 寿命 | 内容与用途 |
 |---|---|---|---|---|---|
-| `sgx-space-session` | 站点核心（`SGX_SPACE_PRIVATE`） | `Domain=.styrigx.com; Path=/` | HttpOnly, Secure, SameSite=Lax | 解锁密码 / 通行密钥 12 h；临时钥匙 min(钥匙剩余, 12 h)；分享链接 min(链接会话档位, 钥匙剩余)，档位 30 min / 1 h / 3 h / 12 h / 1 d / 3 d / 7 d | LockSessionTicket `by.epoch.exp.tempkeyId.sig`；by ∈ `password` / `passkey` / `tempkey`（分享链接也记为 `tempkey`）；by=tempkey 时带钥匙 id，其余为空串 |
+| `sgx-space-session` | 站点核心（`SGX_SPACE_PRIVATE`） | `Domain=.styrigx.com; Path=/` | HttpOnly, Secure, SameSite=Lax | 解锁密码 / 通行密钥 12 h；分享链接 min(链接会话档位, 链接剩余)，档位 30 min / 1 h / 3 h / 12 h / 1 d / 3 d / 7 d | LockSessionTicket `by.epoch.exp.linkId.sig`；by ∈ `password` / `passkey` / `link`（v5 起；by=tempkey 的旧票不认）；by=link 时带 `share_link.id`，其余为空串 |
 | （同名清除） | 站点核心 | host-only `Path=/` | Max-Age=0 | — | 每次签发 / 清除都附带，清掉历史上的 host-only 同名 cookie |
 | `sgx-space-reauth` | 站点核心 | host-only | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockReauthTicket `by.epoch.iat.exp.sig`；只能由解锁密码 / 通行密钥签出（`/api/lock-password`、`/api/lock-passkey` 带 `reauth:true`，要求已进站） |
 | `sgx-space-reset` | 站点核心 | host-only | HttpOnly, Secure, SameSite=Strict | 180 s，不续期 | LockResetTicket `by.epoch.iat.exp.sig`；由恢复钥匙经 `/api/lock-reset { verify }` 签出，by=`space` |
@@ -40,7 +40,7 @@
 
 3.2 进站侧三张票共用进站纪元（`lock-epoch`，D1 `epoch` 表）；票内纪元与库中不等即失效。每次验票 MUST 读 D1 主库，不缓存。
 
-3.3 by=tempkey 的会话在每次验证时查钥匙是否已作废；作废后下一个请求即失效。
+3.3 by=link 的会话在每次验证时查 `share_link` 这一行（作废 / 到期 / 已清理 → 失效）；作废后下一个请求即失效。
 
 3.4 票表在 `workers/space-core/src/core/realms.js`（`TICKETS`）与 `workers/account/src/core/config.js`（`TICKET`）。站点核心 MUST NOT 签发或验证账号票。
 

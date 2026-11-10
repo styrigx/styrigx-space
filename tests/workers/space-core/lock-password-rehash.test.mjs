@@ -16,7 +16,7 @@ const PEPPER = 'test-pepper';
 async function setup() {
   const db = authD1For(makeKV());
   db.setEpoch('lock', 0);
-  const env = { D1_SPACE: db, SGX_SPACE_PRIVATE: PRIV, SGX_SPACE_PUBLIC: PUB, SGX_SPACE_PASSWORD_PEPPER: PEPPER, SGX_SPACE_TEMPKEY_PEPPER: PEPPER, SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN };
+  const env = { D1_SPACE: db, SGX_SPACE_PRIVATE: PRIV, SGX_SPACE_PUBLIC: PUB, SGX_SPACE_PASSWORD_PEPPER: PEPPER, SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN };
   /* 旧记录：无 pepper 哈希、没有 peppered 标记 */
   const legacy = await makePasswordRecord('old-lock-pass-1', '');
   delete legacy.peppered;

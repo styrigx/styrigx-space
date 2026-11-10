@@ -32,7 +32,7 @@ const { priv: PRIV, pub: PUB } = await genKeyPair();
 
 const IP = '198.51.100.20';
 /* 三个 D1 绑定同一个库（同正式部署）；网关不绑 KV */
-const envOf = (db) => ({ D1_SPACE: db, SGX_SPACE_PASSWORD_PEPPER: PEPPER, SGX_SPACE_TEMPKEY_PEPPER: PEPPER, SGX_SPACE_PRIVATE: PRIV, SGX_SPACE_PUBLIC: PUB });
+const envOf = (db) => ({ D1_SPACE: db, SGX_SPACE_PASSWORD_PEPPER: PEPPER, SGX_SPACE_PRIVATE: PRIV, SGX_SPACE_PUBLIC: PUB });
 function verify(db, password, ip = IP) {
   return lockPassword({
     request: new Request('https://styrigx.com/api/lock-password', {

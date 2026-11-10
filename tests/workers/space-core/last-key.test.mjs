@@ -21,7 +21,7 @@ const envFor = (kv, extra = {}) => ({
   SGX_SPACE_PUBLIC: LOCK_PUB,
   SGX_RP_ID: 'styrigx.com',
   SGX_ORIGIN: 'https://styrigx.com',
-  SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper',
+  SGX_SPACE_PASSWORD_PEPPER: 'test-pepper',
   ...extra,
 });
 

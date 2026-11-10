@@ -55,7 +55,7 @@ test('验票：有效链接 → ok（by=link、linkId）；作废 / 到期 / 行
   const v = await testLockSession(LOCK.priv, 0, 'link');
   let r = await LS.verifyLockSession(req(v), e);
   assert.deepEqual([r.ok, r.by, r.linkId], [true, 'link', TEST_LINK_ID]);
-  const put = (id, exp, rev) => db.raw.prepare("INSERT INTO share_link (id, code, name, target, session_sec, key_id, created_at, expires_at, revoked_at) VALUES (?, ?, '', '/', 3600, '', ?, ?, ?)")
+  const put = (id, exp, rev) => db.raw.prepare("INSERT INTO share_link (id, code, name, target, session_sec, created_at, expires_at, revoked_at) VALUES (?, ?, '', '/', 3600, ?, ?, ?)")
     .run(id, id + 'xxxxxx', Date.now(), exp, rev);
   put('lkrevokedrevoked', Date.now() + 3600e3, Date.now());
   put('lkexpiredexpired', Date.now() - 1, null);

@@ -53,15 +53,15 @@ test('路由表与 src/api/*.js 一一对应（/api/share 例外：分享链接�
   assert.deepEqual([...API_ROUTES.keys()].sort(), files.filter((f) => f !== SHARE_API_PATH));
 });
 
-test('wrangler.toml：不开 workers.dev、生产模式、5 个 SGX_SPACE_* 密钥全走 Secrets Store、填了真实 store_id；账号钥匙不绑', () => {
+test('wrangler.toml：不开 workers.dev、生产模式、4 个 SGX_SPACE_* 密钥全走 Secrets Store（v5 收尾删了临时钥匙 pepper）、填了真实 store_id；账号钥匙不绑', () => {
   const toml = readFileSync(REPO + '/workers/space-core/wrangler.toml', 'utf8');
   assert.match(toml, /^workers_dev = false$/m);
   assert.match(toml, /^SGX_ENV = "production"$/m);
   for (const n of SECRET_NAMES) {
     assert.match(toml, new RegExp(`binding = "${n}"\\nstore_id = "[^"]+"\\nsecret_name = "${n}"`));
   }
-  assert.deepEqual([...SECRET_NAMES].sort(), ['SGX_SPACE_PASSWORD_PEPPER', 'SGX_SPACE_PRIVATE', 'SGX_SPACE_PUBLIC', 'SGX_SPACE_RECOVERY_KEY', 'SGX_SPACE_TEMPKEY_PEPPER']);
-  assert.doesNotMatch(toml.replace(/^\s*#.*$/gm, ''), /SGX_LOCK_|SGX_PW_PEPPER|D1_LOCK_AUTH/, '旧名不再绑定');
+  assert.deepEqual([...SECRET_NAMES].sort(), ['SGX_SPACE_PASSWORD_PEPPER', 'SGX_SPACE_PRIVATE', 'SGX_SPACE_PUBLIC', 'SGX_SPACE_RECOVERY_KEY']);
+  assert.doesNotMatch(toml.replace(/^\s*#.*$/gm, ''), /SGX_LOCK_|SGX_PW_PEPPER|D1_LOCK_AUTH|SGX_SPACE_TEMPKEY_PEPPER/, '旧名不再绑定');
   /* 账号拆分 PR3：账号钥匙、账号根密钥只绑在账号 Worker；进站凭证后台改名为 SGX_SPACE_RECOVERY_KEY（旧名 SGX_ROOT_KEY 不再绑定） */
   const code = toml.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
   assert.doesNotMatch(code, /SGX_ACCOUNT_|SGX_ROOT_KEY|D1_ACCOUNT_AUTH|D1_ROOT_AUTH/);
@@ -96,7 +96,7 @@ test('routeKey / pickHandler 与 Pages 一致', () => {
 test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不动', async () => {
   _resetSecretCache();
   const kv = makeKv();
-  const env = { SGX_SPACE_PRIVATE: store('L'), SGX_SPACE_PASSWORD_PEPPER: 'P', SGX_SPACE_TEMPKEY_PEPPER: 'P', KV_LOCK_DOOR: kv, D1_SPACE: authD1For(kv), KV_ACCOUNT_LOGIN: kv, SGX_SITE: 'space' };
+  const env = { SGX_SPACE_PRIVATE: store('L'), SGX_SPACE_PASSWORD_PEPPER: 'P', KV_LOCK_DOOR: kv, D1_SPACE: authD1For(kv), KV_ACCOUNT_LOGIN: kv, SGX_SITE: 'space' };
   const out = await resolveSecrets(env, 1000);
   assert.equal(out.SGX_SPACE_PRIVATE, 'L');
   assert.equal(out.SGX_SPACE_PASSWORD_PEPPER, 'P');

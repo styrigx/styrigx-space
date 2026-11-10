@@ -40,17 +40,15 @@ function legacyAuthKv() {
     ['account-device:DEV0000000000002', e(JSON.stringify({ deviceId: 'DEV0000000000002', by: 'passkey', lastSeen: 6 }), S0 + 86400)],
     ['account-device-revoked:DEV0000000000002', e('1', S0 + 3600)],
     ['account-device:DEVEXPIRED000001', e(JSON.stringify({ deviceId: 'DEVEXPIRED000001' }), S0 - 1)],
+    /* 临时钥匙：v5 收尾删了 tempkey 表，这一类不再导（键照样在 KV 里，不读） */
     ['lock-tempkey:TKID0000000000a1', e(JSON.stringify({ id: 'TKID0000000000a1', name: 'guest', h: 'CODEHASH1', createdAt: T0 - 1000, expiresAt: T0 + 3600e3 }))],
-    ['lock-tempkey:TKLINK000000000b', e(JSON.stringify({ id: 'TKLINK000000000b', name: '', link: true, createdAt: T0 - 1000, expiresAt: T0 + 3600e3 }))],
-    ['lock-tempkey:TKOLD0000000000c', e(JSON.stringify({ id: 'TKOLD0000000000c', name: 'old', h: 'CODEHASH3', createdAt: 1, expiresAt: T0 - 1 }))],
-    ['lock-tempkey:TKREV0000000000d', e(JSON.stringify({ id: 'TKREV0000000000d', name: 'rev', h: 'CODEHASH4', createdAt: 1, expiresAt: T0 + 3600e3 }))],
     ['lock-tempkey-revoked:TKREV0000000000d', e('1', S0 + 3600)],
   ]);
 }
-/** 不该导入的键（计数、challenge、已配置标记、重置开关、审计、临时码索引） */
+/** 不该导入的键（计数、challenge、已配置标记、重置开关、审计、临时钥匙一类（v5 收尾起）） */
 const NOT_IMPORTED = ['lock-password-fail:1.2.3.4', 'lock-password-cooldown:1.2.3.4', 'account-password-fail-global', 'lock-tempkey-fail:1.2.3.4',
   'root-fail:1.2.3.4', 'root-fail-global', 'lock-passkey-challenge:c1', 'account-passkey-challenge:c2', 'lock-reset-challenge:c3',
-  'lock-configured', 'account-configured', 'lock-reset-switch', 'root-audit:1:x', 'lock-tempkey-code:abc'];
+  'lock-configured', 'account-configured', 'lock-reset-switch', 'root-audit:1:x', 'lock-tempkey-code:abc', 'lock-tempkey:x', 'lock-tempkey-revoked:x'];
 
 /**
  * runPlan 用的 D1 REST 替身：node:sqlite（makeAuthD1 的 raw，不跑迁移 = 正式库上线前的状态，只有 0001 的表也没有）。
@@ -74,7 +72,7 @@ function restD1() {
 }
 const tableNames = (db) => db.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name);
 const count = (db, t) => (tableNames(db).includes(t) ? db.raw.prepare('SELECT COUNT(*) AS n FROM ' + t).get().n : 0);
-const AUTH_TABLES = ['epoch', 'password', 'passkey', 'user_handle', 'device', 'tempkey', 'kv_migration', 'challenge', 'attempt_limit', 'audit'];
+const AUTH_TABLES = ['epoch', 'password', 'passkey', 'user_handle', 'device', 'kv_migration', 'challenge', 'attempt_limit', 'audit'];
 const snapshot = (db) => Object.fromEntries(AUTH_TABLES.map((t) => [t, tableNames(db).includes(t) ? db.raw.prepare('SELECT * FROM ' + t + ' ORDER BY 1, 2').all().map((r) => ({ ...r })) : null]));
 
 test('migrate-kv-to-d1 --dry-run：一行不写、不建表；只发 SELECT；输出只有计数，不打印任何值', async () => {
@@ -99,15 +97,16 @@ test('migrate-kv-to-d1 --dry-run：一行不写、不建表；只发 SELECT；�
   assert.match(again.lines.join('\n'), /lock-password: 1 row\(s\) planned \(already imported: will be skipped\)/);
 });
 
-test('migrate-kv-to-d1 apply：建表（同 SCHEMA）并导入；纪元 = KV + 1（没有 → 1）；设备 / 临时钥匙保留作废状态、跳过过期；计数 / challenge / 标记不导', async () => {
+test('migrate-kv-to-d1 apply：建表（同 SCHEMA）并导入；纪元 = KV + 1（没有 → 1）；设备保留作废状态、跳过过期；计数 / challenge / 标记 / 临时钥匙不导', async () => {
   const kv = legacyAuthKv();
   for (const k of NOT_IMPORTED) kv.set(k, { value: '1', expiration: S0 + 3600 });
   const { db, api } = restD1();
   const res = await runPlan(api, planAuthImport(kv, T0), { mode: 'apply' });
   assert.equal(res.ok, true);
-  for (const t of ['epoch', 'password', 'passkey', 'user_handle', 'device', 'tempkey', 'kv_migration', 'challenge', 'attempt_limit', 'audit']) {
+  for (const t of ['epoch', 'password', 'passkey', 'user_handle', 'device', 'kv_migration', 'challenge', 'attempt_limit', 'audit']) {
     assert.ok(tableNames(db).includes(t), '建了表 ' + t);
   }
+  assert.ok(!tableNames(db).includes('tempkey'), 'v5 收尾：不再建 tempkey 表');
   const rows = (t) => db.raw.prepare('SELECT * FROM ' + t).all().map((r) => ({ ...r }));
   assert.deepEqual(Object.fromEntries(rows('epoch').map((r) => [r.realm, r.value])), { lock: 7, account: 1 }, '上线后旧会话 / 票全部失效一次');
   const pw = Object.fromEntries(rows('password').map((r) => [r.realm, JSON.parse(r.record).hash]));
@@ -122,22 +121,13 @@ test('migrate-kv-to-d1 apply：建表（同 SCHEMA）并导入；纪元 = KV + 1
   assert.equal(dev.DEV0000000000001.expires_at, (S0 + 86400) * 1000, 'expires_at 沿用 KV 的过期时间');
   assert.ok(dev.DEV0000000000002.revoked_at > 0, '已单独退出的设备导成已退出（它的票照样拒）');
   for (const r of rows('device')) assert.equal(r.realm, 'account');
-  const tk = Object.fromEntries(rows('tempkey').map((r) => [r.id, r]));
-  assert.deepEqual(Object.keys(tk).sort(), ['TKID0000000000a1', 'TKLINK000000000b', 'TKREV0000000000d'], '过期的临时钥匙不导');
-  assert.equal(tk.TKID0000000000a1.code_hash, 'CODEHASH1');
-  assert.equal(tk.TKID0000000000a1.revoked_at, 0);
-  assert.equal(tk.TKLINK000000000b.link, 1);
-  assert.equal(tk.TKLINK000000000b.code_hash, null);
-  assert.ok(tk.TKREV0000000000d.revoked_at > 0, '已作废的临时钥匙导成已作废');
-  assert.equal(tk.TKREV0000000000d.code_hash, null, '已作废的不带码哈希（输不进来）');
-  for (const r of rows('tempkey')) assert.equal(r.realm, 'lock');
   assert.equal(count(db, 'challenge'), 0);
   assert.equal(count(db, 'attempt_limit'), 0);
   assert.equal(count(db, 'audit'), 0);
-  assert.deepEqual(rows('kv_migration').map((r) => r.name).sort(), ['account-device', 'account-passkey', 'account-password', 'lock-passkey', 'lock-password', 'lock-tempkey']);
+  assert.deepEqual(rows('kv_migration').map((r) => r.name).sort(), ['account-device', 'account-passkey', 'account-password', 'lock-passkey', 'lock-password']);
   /* 只读 KV 里计划要的键：计数 / challenge / 标记一律不取值 */
   for (const k of NOT_IMPORTED) assert.equal(wantedKey(k), false, k);
-  for (const k of ['lock-password', 'account-passkey:x', 'lock-passkey-index', 'lock-user-id', 'account-epoch', 'account-device:x', 'account-device-revoked:x', 'lock-tempkey:x', 'lock-tempkey-revoked:x']) {
+  for (const k of ['lock-password', 'account-passkey:x', 'lock-passkey-index', 'lock-user-id', 'account-epoch', 'account-device:x', 'account-device-revoked:x']) {
     assert.equal(wantedKey(k), true, k);
   }
 });

@@ -35,8 +35,8 @@
 | 进站凭证 | — | 解锁密码与进站通行密钥的统称（界面曾叫「锁屏凭证」） |
 | 解锁密码 | unlock password，`/api/lock-password` | 进站凭证之一；哈希用 pepper `SGX_SPACE_PASSWORD_PEPPER` |
 | 通行密钥 | passkey（WebAuthn） | 进站凭证之一（`/api/lock-passkey`）；账号侧另有一套账号通行密钥，两者互不相通 |
-| 临时钥匙 | tempkey，`/api/lock-tempkey` | 拥有者签发、形如 `XXXX-XXXX-XXXX` 的一次性明文码，可在锁屏换取有期限的进站会话（by=tempkey） |
-| 分享链接 | share link，`/s/<码>`、`/api/share` | 指向站内页面的短链；可选择附带一把「链接钥匙」，点开即获得进站会话 |
+| 临时钥匙 | tempkey | 已删除（v5）：原先拥有者签发的明文码，可在锁屏换进站会话；接口、表、pepper 都已删，by=tempkey 的旧票不认 |
+| 分享链接 | share link，`/s/<码>`、`/api/share` | 指向站内页面的短链；可选带会话，点开即获得进站会话（by=link，按 `share_link` 这一行验，作废 / 到期即失效） |
 | 链接钥匙 | link key | 分享链接自动签发的临时钥匙（`link=1`）：没有明文码、不出现在临时钥匙列表 |
 | 恢复钥匙 | recovery key，`SGX_SPACE_RECOVERY_KEY` | 进站侧唯一的恢复手段，只能换取 reset 票；不能进站、不能 reauth。旧称「进站凭证」「SpaceKey」 |
 | 盾牌 | shield，提示符 `styrigx@space:~#` | 顶栏盾牌图标打开的下拉：进站凭证、临时钥匙、分享链接、立即锁屏 |
@@ -63,7 +63,7 @@
 | reauth | 再验证 | 在已有会话上再证明一次身份，换取 3 分钟的短票；进站侧 `sgx-space-reauth`，账号侧 `sgx-account-reauth` |
 | reset | 重置 | 用恢复钥匙 / 恢复密钥换取 3 分钟的 reset 票，只能重设凭证，不签会话 |
 | 纪元 | epoch | 存在 D1 的计数器；票里的纪元与库里不等即失效。用于「让所有设备掉线」 |
-| by | — | 票里记录的验证方式：`password`、`passkey`、`tempkey`、`space`、`recovery-key` |
+| by | — | 票里记录的验证方式：`password`、`passkey`、`link`、`space`、`recovery-key` |
 | fail closed | — | 读取失败、配置缺失时按「拒绝 / 已配置」处理，绝不按放行处理 |
 | pepper | — | 密码哈希时额外拼入的服务端秘密（Secrets Store），不与盐同存 |
 

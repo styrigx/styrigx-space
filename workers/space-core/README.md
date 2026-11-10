@@ -75,20 +75,19 @@
 
 ## 钥匙
 
-5 个 `SGX_SPACE_*`（进站 v3 Q18），都在 Secrets Store（`src/secrets.js` 是唯一读取的地方）：
+4 个 `SGX_SPACE_*`（进站 v3 Q18；临时钥匙 pepper `SGX_SPACE_TEMPKEY_PEPPER` v5 收尾删除），都在 Secrets Store（`src/secrets.js` 是唯一读取的地方）：
 
 | 名字 | 用途 |
 |---|---|
 | `SGX_SPACE_PRIVATE` / `SGX_SPACE_PUBLIC` | 进站会话和两张锁屏短票的签名钥匙对 |
 | `SGX_SPACE_RECOVERY_KEY` | 恢复钥匙（`/api/lock-reset` 比对，只签 reset 票；`/api/space-auth` 只剩 `purpose:'lock-reset'`，前端不再调用） |
 | `SGX_SPACE_PASSWORD_PEPPER` | 解锁密码的哈希 pepper；账号密码用账号 Worker 自己的 `SGX_ACCOUNT_PASSWORD_PEPPER` |
-| `SGX_SPACE_TEMPKEY_PEPPER` | 原临时钥匙码的哈希 pepper：v5 S1 删掉临时钥匙后没有代码读它，绑定和密钥在收尾 PR 删 |
 
 账号钥匙 `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC`、恢复密钥 `SGX_ACCOUNT_RECOVERY_KEY`、账号密码 pepper `SGX_ACCOUNT_PASSWORD_PEPPER` 只绑在账号 Worker；外部模型钥匙 `SGX_CHAT_API_KEY` 只绑在 `styrigx-ai`（P4-2a 起；之前在 `styrigx-chat`）。换钥只在 Cloudflare 后台改，不用改代码或重新部署（最多 60 秒生效）。
 
 ## 数据与迁移
 
-认证状态全部在 D1 `styrigx-space-core`（强一致，不绑 KV），只有一个绑定名 `D1_SPACE`（凭证域 `core/realms.js` 的 `REALM_LOCK`）：纪元、锁屏密码 / 通行密钥、user handle、challenge、密码 / 临时码 / 进站凭证输错计数、临时钥匙、恢复钥匙审计（都是 `realm='lock'`）。基线里还有恢复开关表 `lock_reset_switch`，进站 v3 L1 起没有运行时代码读它（`core/lock-reset-switch.js` 只剩测试引用）。
+认证状态全部在 D1 `styrigx-space-core`（强一致，不绑 KV），只有一个绑定名 `D1_SPACE`（凭证域 `core/realms.js` 的 `REALM_LOCK`）：纪元、锁屏密码 / 通行密钥、user handle、challenge、密码 / 进站凭证输错计数、恢复钥匙审计（都是 `realm='lock'`）。基线里还有恢复开关表 `lock_reset_switch`，进站 v3 L1 起没有运行时代码读它（`core/lock-reset-switch.js` 只剩测试引用）。
 
 | 迁移 | 内容 |
 |---|---|
@@ -101,7 +100,7 @@
 | `0008_lock_reset_switch.sql` | 恢复开关表 `lock_reset_switch`，并拷过旧表的行 |
 | `0009_drop_recovery_switch.sql` | 删旧表 `recovery_switch`（只对走迁移的预览库生效；正式库已由 `--cleanup` 删） |
 
-没有 0002。以上是旧迁移，L2b 起在 `migrations-archive/` 只留史；正式部署 job（`deploy-space-core`）只跑一份基线 `migrations/0001_baseline.sql`（`D1_SPACE` → `d1_migrations_core`）；代码在第一次遇到「no such table」时按 `core/d1-state.js` 的 SCHEMA 建表（幂等，单测核对与迁移文件一致）。
+没有 0002。以上是旧迁移，L2b 起在 `migrations-archive/` 只留史；正式部署 job（`deploy-space-core`）跑 `migrations/`（`D1_SPACE` → `d1_migrations_core`）：基线 `0001_baseline.sql`，加 v5 收尾的 `0002_drop_tempkey.sql`（删 `tempkey` 表、`share_link.key_id` 列和 `attempt_limit` 里 `kind='tempkey'` 的旧行）；代码在第一次遇到「no such table」时按 `core/d1-state.js` 的 SCHEMA 建表（幂等，单测核对与迁移文件一致）。
 
 部署和回滚（`.github/workflows/deploy.yml` 的 `deploy-space-core`，环境 / token `STYRIGX_SPACE_CORE_DEPLOY`）：ai → 监测 → 账号 → **站点核心** → 奇趣接口 ∥ 日刻接口 → Pages（两个接口 Worker 的服务绑定 `SPACE` 要它先在）；冒烟通过后才部署 Pages。部署后 `space/scripts/verify-core-routes.mjs` 只读核对路由（L2 第一次部署时的一次性路由接管和旧 Worker 已于 L3 删除，见 git 历史）。Pages 上已经没有后端代码，不能靠删路由回滚；main 部署冒烟失败时 CI 自动 `wrangler rollback` 到部署前的版本（`space/scripts/deploy-rollback.mjs`，只换代码版本，D1 数据和路由都不回滚；回滚下限见 `space/scripts/deploy-rollback-floor.json`）。预览（passkey-e2e）用组合入口 `tests/space/e2e/helpers/preview-worker.js`，预览资源只用一个 `styrigx-test-preview`。
 
