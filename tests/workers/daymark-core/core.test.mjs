@@ -26,7 +26,8 @@ const worker = (await import(W + '/src/index.js')).default;
 const { API_ROUTES } = await import(W + '/src/routes.js');
 const Q = await import(W + '/src/api/_quotes.js');
 const TD = await import(W + '/src/api/_today.js');
-const { isPublic } = await import(W + '/src/index.js');
+const { ROUTE_ACCESS, accessOf } = await import(W + '/src/routes.js');
+const { GUARDS } = await import(W + '/src/api/_auth.js');
 
 /** node:sqlite 包成 D1 的样子（batch 和 D1 一样是一个事务，每条回 { meta: { changes } }） */
 function makeD1(db = new DatabaseSync(':memory:')) {
@@ -72,16 +73,52 @@ test('路由表与 src/api 接口文件一一对应', () => {
   assert.deepEqual([...API_ROUTES.keys()].sort(), files);
 });
 
-test('未登录读 /api/quotes → 401，带运行标记；不存在 404；网关挂了 500', async () => {
-  const r = await call('/daymark/api/quotes');
-  assert.equal(r.status, 401);
-  assert.equal(r.headers.get('X-Daymark-Runtime'), 'worker');
+test('访问表（v5 S3）快照：一档一个守卫，方法 + 路径精确匹配；改表必须改这里', () => {
+  assert.deepEqual(ROUTE_ACCESS.map((r) => r.method + ' ' + r.path + ' → ' + r.access), [
+    'GET /api/today → public',
+    'HEAD /api/today → public',
+    'OPTIONS /api/today → public',
+    'PUT /api/today → entry',
+    'GET /api/quotes → public',
+    'POST /api/quotes → entry',
+    'PUT /api/quotes → entry',
+    'DELETE /api/quotes → entry',
+    'GET /api/collections → public',
+    'POST /api/collections → entry',
+    'PUT /api/collections → entry',
+    'DELETE /api/collections → entry',
+    'GET /api/days → public',
+  ]);
+  for (const r of ROUTE_ACCESS) assert.ok(API_ROUTES.has(r.path), r.path);
+  for (const [p, mod] of API_ROUTES) {
+    for (const k of Object.keys(mod)) {
+      const m = /^onRequest(Get|Post|Put|Delete|Head)$/.exec(k);
+      if (m) assert.ok(ROUTE_ACCESS.some((r) => r.path === p && r.method === m[1].toUpperCase()), p + ' ' + m[1]);
+    }
+  }
+  assert.equal(accessOf('GET', '/api/today/'), 'public');
+  assert.equal(accessOf('GET', '/api/quotes/x'), 'entry');
+  assert.equal(accessOf('PATCH', '/api/quotes'), 'entry');
+  assert.equal(accessOf('GET', '/api/nope'), 'entry');
+  assert.deepEqual(Object.keys(GUARDS).sort(), ['entry', 'public']);
+});
+
+test('访客（没进门）：读公开、写 401，带运行标记；不存在的路径没进门 401、进了门 404；网关挂了 500', async () => {
+  for (const p of ['/daymark/api/quotes', '/daymark/api/collections', '/daymark/api/days', '/daymark/api/today']) {
+    const r = await call(p);
+    assert.equal(r.status, 200, p);
+    assert.equal(r.headers.get('X-Daymark-Runtime'), 'worker');
+  }
+  for (const [p, method] of [['/daymark/api/quotes', 'POST'], ['/daymark/api/collections', 'DELETE'], ['/daymark/api/today', 'PUT'], ['/daymark/api/nope', 'GET'], ['/daymark/api/quotes/x', 'GET']]) {
+    assert.equal((await call(p, { method, body: method === 'GET' ? undefined : {} })).status, 401, method + ' ' + p);
+  }
   assert.equal((await call('/daymark/api/nope', { who: 'owner' })).status, 404);
   assert.equal((await call('/daymark/api/quotes', { throws: true })).status, 500);
 });
 
 test('网关回答：只认 SpaceVerifier.conclusion 的结论；看不懂的当没进门，只有旧的 lockSession / session 方法当绑定缺失', async () => {
-  assert.equal((await call('/daymark/api/quotes', { who: 'garbage' })).status, 401);
+  assert.equal((await call('/daymark/api/quotes', { who: 'garbage', method: 'POST', body: {} })).status, 401);
+  assert.equal((await (await call('/daymark/api/quotes', { who: 'garbage' })).json()).showPrivate, false);
   assert.equal((await call('/daymark/api/quotes', { who: 'owner' })).status, 200);
   assert.equal((await call('/daymark/api/quotes', { who: 'lock' })).status, 200);
   /* 锁屏复查是网关的 /api/lock-session-check（图志根路径），不归本 Worker：本站前缀外的路径一律 404 */
@@ -390,7 +427,7 @@ test('百味专题：新建校验、写操作只给账号已登录（可写） +
   assert.equal((await call('/daymark/api/collections', { who: 'lock', db, method: 'POST', body: { name: 'x' } })).status, 401);
   assert.equal((await call('/daymark/api/collections', { who: 'owner', db, method: 'POST', body: { name: 'x' }, origin: 'https://evil.com' })).status, 403);
   assert.equal((await call('/daymark/api/collections', { db, method: 'POST', body: { name: 'x' } })).status, 401);
-  assert.equal((await call('/daymark/api/collections', { db })).status, 401);
+  assert.equal((await call('/daymark/api/collections', { db })).status, 200, '读公开（v5 S3）');
   const a = await addC(db, { name: '  晨读  ', intro: '早上读的' });
   const b = await addC(db, { name: '电影台词' });
   assert.equal(a.name, '晨读');
@@ -696,9 +733,9 @@ test('设为今日：账号会话 + daymark.write + 同源；没进门 401、没
   assert.equal((await call('/daymark/api/today', { db, method: 'PUT', body: { id: target }, throws: true })).status, 500);
   assert.equal((await getToday(db)).quote.id, before, '没设成就不变');
   assert.equal(pickRow(db).set_by, 'auto');
-  assert.equal(isPublic('/api/today', 'GET'), true);
-  assert.equal(isPublic('/api/today/', 'OPTIONS'), true);
-  assert.equal(isPublic('/api/today', 'PUT'), false);
+  assert.equal(accessOf('GET', '/api/today'), 'public');
+  assert.equal(accessOf('OPTIONS', '/api/today/'), 'public');
+  assert.equal(accessOf('PUT', '/api/today'), 'entry');
   assert.equal((await call('/daymark/api/today', { db, method: 'DELETE', who: 'owner' })).status, 405);
 });
 
@@ -876,7 +913,7 @@ test('边缘缓存：设为今日、改句子（改私密 / 删）之后清掉�
 /* ---------- /api/days（2026-11 对齐 PR-C2：日刻日期条 / 前后日卡 / 余响窗） ---------- */
 const DY = await import(W + '/src/api/days.js');
 
-test('/api/days：进门才给（没进门 401，不是公开接口）；只读已记下的日子、只出公开句子、新→旧；不写库', async () => {
+test('/api/days：公开（v5 S3）；只读已记下的日子、只出公开句子、新→旧；不写库', async () => {
   const db = makeD1();
   const a = await add(db, { text: '甲', author: '某' });
   const b = await add(db, { text: '乙' });
@@ -884,10 +921,9 @@ test('/api/days：进门才给（没进门 401，不是公开接口）；只读�
   const today = Q.dayInShanghai();
   const d1 = DY.addDays(today, -1), d2 = DY.addDays(today, -2), d3 = DY.addDays(today, -3);
   for (const [d, id] of [[d1, a.id], [d2, b.id], [d3, c.id]]) db.raw.prepare("INSERT INTO daily_pick (day, quote_id, set_by, set_at) VALUES (?, ?, 'auto', 0)").run(d, id);
-  assert.equal(isPublic('/api/days', 'GET'), false);
-  assert.equal((await call('/daymark/api/days', { db })).status, 401);
+  assert.equal(accessOf('GET', '/api/days'), 'public');
   const before = db.raw.prepare('SELECT COUNT(*) AS n FROM daily_pick').get().n;
-  for (const who of ['lock', 'owner']) {
+  for (const who of [null, 'lock', 'owner']) {
     const j = await (await call('/daymark/api/days', { db, who })).json();
     assert.equal(j.ok, true);
     assert.equal(j.today, today);

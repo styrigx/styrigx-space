@@ -1,8 +1,10 @@
 // workers/curio-core/src/api/_music.js
 // 奇趣「音乐」私人子页（/curio/music/）的数据层：表结构、权限、校验、读写、播放令牌、Range。下划线开头：不是接口。
 //
-// 仅本人可见：读写都要 进门 + 账号会话 + 作用域 curio.write（requireMusic；与电影的写权限同一套检查，不新造作用域）。
-//   没进门 401 unauthorized（index.js 统一挡）、没账号会话 401 account、没作用域 403 scope；写另要同源（403 origin）。
+// 三层（v5 S3；档在 routes.js ROUTE_ACCESS，守卫在 _auth.js，app.js 套用）：
+//   歌单 / 封面 public（GET /api/music 只回元数据：专辑名、艺术家、年份、有没有封面、曲目号 / 名 / 时长；没有任何音频地址、R2 key、令牌）；
+//   听 entry（进站即可，含分享链接进来的 by=link：POST /api/music-play 签令牌、GET /api/music-stream 取音频）；
+//   上传 / 管理 music（进站 + 账号会话 + curio.write，与其他写接口同一套作用域）。写另要同源（403 origin）。
 // 表（D1 styrigx-curio-core，绑定 D1_MUSIC；迁移 migrations/0004_movies_music.sql，MUSIC_SCHEMA 只兜底全新的库，两边一致，测试核对）：
 //   music_albums  专辑：名、艺术家、年份、封面（R2_MUSIC 的 key）、排序
 //   music_tracks  曲目：专辑、曲序、名、时长（秒）、音频（R2_MUSIC 的 key、类型、字节数）、可选歌词 LRC
@@ -12,7 +14,6 @@
 //   不在 photos/ 下，照片清扫（photo-sweep.js）不碰；删专辑 / 删曲目时当场删。
 // 不进全站搜索索引 / AI 召回、不进站点地图（search-index.js 不读这些表；页面 noindex）。
 import { err, isSameOrigin } from './_lib.js';
-import { requireScope, SCOPE_WRITE } from './_auth.js';
 
 export const MUSIC_SCHEMA = [
   "CREATE TABLE IF NOT EXISTS music_albums (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, artist TEXT NOT NULL DEFAULT '', year INTEGER NOT NULL DEFAULT 0, cover TEXT NOT NULL DEFAULT '', pos INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0)",
@@ -37,15 +38,9 @@ export const AUDIO_TYPES = Object.freeze({
   'audio/ogg': 'ogg', 'audio/opus': 'opus', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/webm': 'webm',
 });
 
-/** 读写的权限：账号会话 + curio.write（没进门 401 unauthorized、没账号 401 account、没作用域 403 scope）；通过返回 null */
-export async function requireMusic(context) {
-  const { response } = await requireScope(context, SCOPE_WRITE);
-  return response;
-}
-/** 写：先同源（403 origin），再同上 */
-export async function guardMusicWrite(context) {
-  if (!isSameOrigin(context.request)) return err('origin', 403);
-  return requireMusic(context);
+/** 写（音乐的上传 / 管理 / 签播放令牌）：同源，否则 403 origin；通过返回 null。权限档在 app.js 按 routes.js ROUTE_ACCESS 套过了 */
+export function musicOrigin(context) {
+  return isSameOrigin(context.request) ? null : err('origin', 403);
 }
 
 const schemaDone = new WeakSet();
@@ -132,19 +127,21 @@ export function parseMusicOp(b) {
 }
 
 /**
- * 全部专辑（按添加顺序，新的在后；封面横滑从第一张开始）和各自的曲目（按曲序）。歌词只给有没有，正文在签播放令牌时给。
- * @param {any} db
+ * 全部专辑（按添加顺序，新的在后；封面横滑从第一张开始）和各自的曲目（按曲序）。只有元数据，从不带音频地址 / R2 key。
+ * full（管理的人：账号 + curio.write）多给 size / type / 有没有歌词；歌词正文在签播放令牌时给。
+ * @param {any} db @param {boolean} [full]
  */
-export async function listAlbums(db) {
+export async function listAlbums(db, full = false) {
   const [as, ts] = await db.batch([
-    db.prepare('SELECT * FROM music_albums ORDER BY pos, id'),
+    db.prepare('SELECT id, title, artist, year, cover FROM music_albums ORDER BY pos, id'),
     db.prepare('SELECT id, album_id, no, title, duration, size, type, length(lrc) AS lrc_len FROM music_tracks ORDER BY album_id, no, id'),
   ]);
   /** @type {Map<number, any[]>} */
   const by = new Map();
   for (const t of ts.results || []) {
     if (!by.has(t.album_id)) by.set(t.album_id, []);
-    by.get(t.album_id).push({ id: t.id, no: t.no, title: t.title, duration: t.duration, size: t.size, type: t.type, lrc: (t.lrc_len || 0) > 0 });
+    const row = { id: t.id, no: t.no, title: t.title, duration: t.duration };
+    by.get(t.album_id).push(full ? { ...row, size: t.size, type: t.type, lrc: (t.lrc_len || 0) > 0 } : row);
   }
   return (as.results || []).map((a) => ({ id: a.id, title: a.title, artist: a.artist, year: a.year, cover: !!a.cover, tracks: by.get(a.id) || [] }));
 }

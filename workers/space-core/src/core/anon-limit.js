@@ -15,7 +15,7 @@
  */
 import { apiError, clientIp } from '../lib/http.js';
 
-/** 不要会话、每次会写 D1 的接口（都在 gate.js 的 API_WHITELIST 里） */
+/** 不要会话、每次会写 D1 的接口（都是 gate.js 访问表 ROUTE_ACCESS 里的 public 条目） */
 export const ANON_LIMITED_APIS = Object.freeze([
   '/api/lock-passkey',
   '/api/lock-reset',

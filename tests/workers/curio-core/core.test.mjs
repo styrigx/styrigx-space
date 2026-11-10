@@ -1,5 +1,5 @@
 // styrigx-curio-core（workers/core）：
-// - 路由表与 src/api 接口文件一一对应；没有公开接口，全部先问网关要结论（SPACE.conclusion，每个请求一次）；网关出错 → 500 不是 401
+// - 路由表与 src/api 接口文件一一对应；访问表 ROUTE_ACCESS（v5 S3）：读公开，写 / 导出 / 预览要进门，每个请求最多问网关一次；网关出错 → 500 不是 401
 // - 鉴权（方案 4.6，P2-2）：没进门 401 unauthorized、没账号会话 401 account、没作用域 403 scope、导入没复验 401 reauth
 // - 收藏：没登录账号只看公开（私密分类 / 私密收藏 / 空分类都不给），账号已登录看全部；写：非同源 403、校验、增改删排序
 // - 导入：先备份原文到 R2（R2 不可用就不导入）、文件夹 → 分类、按网址去重、默认私密、超上限一条不写、记录 imports
@@ -20,7 +20,8 @@ import { conclusionAuth } from '../_conclusion.mjs';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const W = REPO + '/workers/curio-core';
 const worker = (await import(W + '/src/app.js')).default;
-const { API_ROUTES } = await import(W + '/src/routes.js');
+const { API_ROUTES, ROUTE_ACCESS, accessOf } = await import(W + '/src/routes.js');
+const { GUARDS } = await import(W + '/src/api/_auth.js');
 const S = await import(W + '/src/api/_store.js');
 const N = await import(W + '/src/api/_netscape.js');
 const P = await import(W + '/src/api/_preview.js');
@@ -93,20 +94,69 @@ test('路由表与 src/api 接口文件一一对应', () => {
   assert.deepEqual([...API_ROUTES.keys()].sort(), files);
 });
 
-test('没有公开接口：未登录一律 401，带运行标记；不存在 404；网关挂了 500', async () => {
-  for (const p of ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/export', '/curio/api/preview?url=https://a.com']) {
+test('访问表（v5 S3）快照：一档一个守卫，方法 + 路径精确匹配；改表必须改这里', () => {
+  assert.deepEqual(ROUTE_ACCESS.map((r) => r.method + ' ' + r.path + ' → ' + r.access), [
+    'GET /api/items → public',
+    'POST /api/items → entry',
+    'GET /api/links → public',
+    'POST /api/links → entry',
+    'GET /api/movies → public',
+    'POST /api/movies → entry',
+    'GET /api/photo → public',
+    'POST /api/photo → entry',
+    'DELETE /api/photo → entry',
+    'GET /api/icon → public',
+    'GET /api/preview → entry',
+    'GET /api/export → entry',
+    'POST /api/import → entry',
+    'GET /api/music → public',
+    'POST /api/music → music',
+    'GET /api/music-cover → public',
+    'POST /api/music-play → entry',
+    'GET /api/music-stream → entry',
+    'HEAD /api/music-stream → entry',
+    'POST /api/music-upload → music',
+  ]);
+  /* 表里的每条都是路由表里真有的接口；每个接口的每个处理方法都在表里（不会有方法漏成默认档还没人发现） */
+  for (const r of ROUTE_ACCESS) assert.ok(API_ROUTES.has(r.path), r.path);
+  for (const [p, mod] of API_ROUTES) {
+    for (const k of Object.keys(mod)) {
+      const m = /^onRequest(Get|Post|Put|Delete|Head)$/.exec(k);
+      if (m) assert.ok(ROUTE_ACCESS.some((r) => r.path === p && r.method === m[1].toUpperCase()), p + ' ' + m[1]);
+    }
+  }
+  /* 不在表里 = entry：换方法、多一段、编码绕法都不算 public */
+  assert.equal(accessOf('GET', '/api/music'), 'public');
+  assert.equal(accessOf('GET', '/api/music/'), 'public');
+  assert.equal(accessOf('GET', '/api/music/x'), 'entry');
+  assert.equal(accessOf('PUT', '/api/music'), 'entry');
+  assert.equal(accessOf('GET', '/api/music-streamx'), 'entry');
+  assert.equal(accessOf('GET', '/api/%6dusic'), 'entry');
+  assert.equal(accessOf('GET', '/api/nope'), 'entry');
+  assert.deepEqual(Object.keys(GUARDS).sort(), ['entry', 'music', 'public']);
+});
+
+test('访客（没进门）：public 的读 200、其余 401，带运行标记；不存在的路径没进门 401、进了门 404；网关挂了 500', async () => {
+  for (const p of ['/curio/api/links', '/curio/api/items']) {
+    const r = await call(p, { db: makeD1() });
+    assert.ok(r.status < 500 && r.status !== 401 && r.status !== 403, p + ' ' + r.status);
+    assert.equal(r.headers.get('X-Curio-Runtime'), 'worker');
+  }
+  for (const p of ['/curio/api/export', '/curio/api/preview?url=https://a.com', '/curio/api/music-stream?t=x&id=1', '/curio/api/nope', '/curio/api/access']) {
     const r = await call(p);
     assert.equal(r.status, 401, p);
     assert.equal(r.headers.get('X-Curio-Runtime'), 'worker');
   }
   assert.equal((await call('/curio/api/import', { method: 'POST', body: 'x' })).status, 401);
+  assert.equal((await call('/curio/api/links', { method: 'POST', body: { op: 'cat.add', name: 'x' } })).status, 401);
   assert.equal((await call('/curio/api/nope', { who: 'owner' })).status, 404);
-  assert.equal((await call('/curio/api/links', { throws: true })).status, 500);
+  assert.equal((await call('/curio/api/export', { throws: true })).status, 500);
   // 锁屏复查是网关的 /api/lock-session-check（图志根路径），不归本 Worker：本站前缀外的路径一律 404
   assert.equal((await call('/api/lock-session-check', { who: 'lock' })).status, 404);
   assert.equal((await call('/api/links', { who: 'owner' })).status, 404);
-  // 网关回了看不懂的结论（比如旧的 {ok, role} 形状）一律当没进门
-  assert.equal((await call('/curio/api/links', { who: 'garbage' })).status, 401);
+  // 网关回了看不懂的结论（比如旧的 {ok, role} 形状）一律当没进门：要进门的 401，公开读只给公开的
+  assert.equal((await call('/curio/api/export', { who: 'garbage' })).status, 401);
+  assert.equal((await (await call('/curio/api/links', { who: 'garbage' })).json()).showPrivate, false);
 });
 
 test('每个接口请求只问网关一次（index.js 问到的结论经 context.data.conclusion 传给 handler）；只有导入那一问带 reauth', async () => {
@@ -598,7 +648,7 @@ test('图标：抓不到存「没有」标记，7 天内不再抓；账号未登
   assert.equal((await I.onRequestGet({ request: new Request(ORIGIN + '/curio/api/icon?id=x'), env: env('owner') })).status, 400);
 });
 
-test('图标：图片一律要过会话——private, no-cache + ETag，304 只在会话和可见性都过了才给', async () => {
+test('图标：公开（v5 S3）——private, no-cache + ETag，304 只在可见性过了才给', async () => {
   const db = makeD1();
   const r2 = makeR2();
   await op(db, { op: 'cat.add', name: 'x' });
@@ -621,11 +671,9 @@ test('图标：图片一律要过会话——private, no-cache + ETag，304 只�
   assert.equal((await nm.arrayBuffer()).byteLength, 0);
   assert.equal((await get(1, 'owner', 'W/' + etag + ', "zzz"')).status, 304, '弱比较、多个值');
   assert.equal((await get(1, 'owner', '"other"')).status, 200, 'ETag 不对回整张图');
-  /* 没会话：带对的 ETag 也只有 401，不给 304、不给图 */
-  const no = await get(1, null, etag);
-  assert.equal(no.status, 401);
-  assert.equal(no.headers.get('Cache-Control'), 'private, no-store');
-  assert.equal(no.headers.get('ETag'), null);
+  /* 访客（没进门）：公开收藏的图标照给（304 / 200）；私密的下面照样 404 */
+  assert.equal((await get(1, null, etag)).status, 304);
+  assert.equal((await get(2, null, etag)).status, 404);
   /* 私密分类下的收藏和公开的同域名共用一份图标缓存：账号未登录带着同一个 ETag 也是 404 */
   assert.equal((await get(2, 'lock', etag)).status, 404);
   assert.equal((await get(2, 'owner', etag)).status, 304);

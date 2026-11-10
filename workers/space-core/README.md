@@ -21,7 +21,7 @@
 请求在 `src/` 里的走向：
 
 - `app.js` 第一步剥掉入站请求里所有 `x-styrigx-*` 和旧前缀 `x-sgx-*` 头（下游只认网关自己写的）；主站静态资源（`/css/ /js/ /fonts/ /fav/ /images/` 和根目录几张公开图）原样回源，不验会话、不打 `X-SGX-Runtime`。
-- `gate.js`：主站关口 `onRequest`（会话、角色、白名单、no-store、锁屏瘦身、HTML 会话标记）和子站关口 `handleSubsite`（`styrigx.com/blog/`、`/curio/`、`/daymark/` 按路径前缀）。旧图志域名的 301（`atlasRedirect`）已于 P4-3 PR-1 删除。
+- `gate.js`：访问表 `ROUTE_ACCESS`（v5 S3：页面一律公开；接口只有表里逐条写出的「方法 + 路径」不要进站会话，其余默认要）、主站关口 `onRequest`（域名、会话、no-store、HTML 会话标记）和子站关口 `handleSubsite`（`styrigx.com/blog/`、`/curio/`、`/daymark/` 按路径前缀），两边同一个放行函数 `admit`。旧图志域名的 301（`atlasRedirect`）已于 P4-3 PR-1 删除。
 - `router.js`：分享链接 `/s/<码>`、`/api/share` 在关口之前由 `routeShare` 接走（`core/share-open.js` 打开短链、`api/share.js` 管理接口，`/s/<码>` 谁都能开，`/api/share` 要进站会话、list / revoke 另要 reauth）；主站关口放行后，转发表 `FORWARDING` → `/api/*` 路由表 `API_ROUTES`（`api/<名字>.js`）→ 回源。新增接口：加 `src/api/<名字>.js`，在 `API_ROUTES` 登记一行（单测核对两边一一对应）。
 - `core/` 业务（会话、票据、凭证、D1 状态、限流、转发帮手、问账号 Worker 的 `account-rpc.js`、组装结论的 `conclusion.js`），`lib/` 通用件，`secrets.js` 把 Secrets Store 绑定换成字符串。
 

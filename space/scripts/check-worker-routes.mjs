@@ -46,9 +46,8 @@ const MUST_ROUTE = ['/api/geo', '/api/lock-session-check',
 /* 账号路径：必须归网关、在转发表里转给 ACCOUNT（账号 Worker styrigx-account 没有路由） */
 const ACCOUNT_MUST = ['/api/account', '/api/account?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24', '/api/profile', '/api/profile/',
   '/avatar/32.webp', '/avatar/96.webp', '/avatar/192.webp?v=abc', '/avatar/512.webp'];
-/* 转发表允许的绑定、门 */
+/* 转发表允许的绑定 */
 const FORWARD_BINDINGS = new Set(['ACCOUNT']);
-const FORWARD_GATES = new Set(['session', 'public']);
 /* 分享短链：进站 v3 L2 起归 styrigx-space-core（并在 MUST_ROUTE 里一起核对） */
 const SHARE_MUST = ['/s/AAAAAAAAAAAAAAAAAAAAAA', '/s/AAAAAAAAAAAAAAAAAAAAAA/', '/s/AAAAAAAAAAAAAAAAAAAAAA?x=1', '/s/', '/api/share', '/api/share/', '/api/share?x=1'];
 /* 子站（合并 PR3）：主域名下的前缀，三站产物都按 /<站>/ 登记 */
@@ -201,7 +200,7 @@ export function checkCores(gateway, cores, gatewayApis, pagePaths) {
  * @param {string[]} account 账号 Worker 的路由（必须为空）
  * @param {string[]} gatewayApis 网关路由表里的接口
  * @param {string[]} pagePaths 主站页面
- * @param {ReadonlyArray<{path:string, binding:string, gate:string}>} [forwarding] 转发表，默认 src/router.js 的 FORWARDING
+ * @param {ReadonlyArray<{path:string, binding:string}>} [forwarding] 转发表，默认 src/router.js 的 FORWARDING
  */
 export function checkAccount(gateway, account, gatewayApis, pagePaths, forwarding = FORWARDING) {
   const errors = [];
@@ -213,7 +212,6 @@ export function checkAccount(gateway, account, gatewayApis, pagePaths, forwardin
     if (seen.has(r.path)) errors.push('转发表重复：' + r.path);
     seen.add(r.path);
     if (!FORWARD_BINDINGS.has(r.binding)) errors.push('转发表绑定不认识：' + r.path + ' → ' + r.binding);
-    if (!FORWARD_GATES.has(r.gate)) errors.push('转发表门不认识：' + r.path + ' → ' + r.gate);
     if (!r.path.startsWith('/')) errors.push('转发表路径要以 / 开头：' + r.path);
     for (const a of gatewayApis) if (ruleFor(a) === r) errors.push('转发表路径同时在网关路由表 src/router.js API_ROUTES 里：' + a);
   }

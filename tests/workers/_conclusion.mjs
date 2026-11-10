@@ -3,7 +3,8 @@
  *
  * 几种「谁」：
  * - null / ''      没进门（space.ok=false，账号部分 no-space）
- * - 'lock'         进门了，账号没登录（account.ok=false）——临时钥匙进门、或主人没登录账号
+ * - 'lock'         进门了，账号没登录（account.ok=false）——密码进门、主人没登录账号
+ * - 'link'         分享链接进门（by=link），账号没登录；链接作废以后网关回的就是 null 那种（没进门）
  * - 'owner'        进门 + 账号会话 + 全部作用域；问复验（opts.reauth）时 reauth=true
  * - 'noscope'      进门 + 账号会话，但一个作用域都没有（第 3 件取消授权后的样子）
  * - 'noreauth'     进门 + 账号会话 + 全部作用域，但没有账号复验票（问复验也回 reauth=false）
@@ -22,8 +23,9 @@ export const ALL_SCOPES = Object.freeze(['avatar.write', 'curio.write', 'daymark
 export function conclusionFor(who, opts) {
   if (who === 'garbage') return { ok: true, junk: 1 };
   const no = (/** @type {string} */ reason) => ({ ok: false, deviceId: '', scopes: [], reauth: false, reason });
-  if (!who) return { space: { ok: false, by: '', tempkeyId: '', reason: 'no-cookie' }, account: no('no-space') };
-  const lock = { ok: true, by: who === 'lock' ? 'tempkey' : 'passkey', tempkeyId: who === 'lock' ? 'tk_1' : '', reason: 'ok' };
+  if (!who) return { space: { ok: false, by: '', linkId: '', reason: 'no-cookie' }, account: no('no-space') };
+  if (who === 'link') return { space: { ok: true, by: 'link', linkId: 'ln_1', reason: 'ok' }, account: no('no-cookie') };
+  const lock = { ok: true, by: who === 'lock' ? 'password' : 'passkey', linkId: '', reason: 'ok' };
   if (who === 'lock') return { space: lock, account: no('no-cookie') };
   const scopes = who === 'noscope' ? [] : ALL_SCOPES.slice();
   const reauth = !!(opts && opts.reauth === true) && who !== 'noreauth';

@@ -1,6 +1,6 @@
 // /api/collections —— 百味里的自建专题（主人建的句子合集）。
 //
-// GET    /api/collections            进门即可。按 sort、created_at 排好。
+// GET    /api/collections            公开（v5 S3）。按 sort、created_at 排好。
 //                                    返回 {ok:true, canWrite, showPrivate, collections:[{id,name,intro,created_at,sort,quote_ids:[…按专题内顺序]}]}
 //                                    没登录账号：quote_ids 只含公开句子；一句公开句子都没有的专题不返回。
 // POST   /api/collections            账号会话 + 作用域 daymark.write + 同源：新建。body {name, intro?}；排到最后
@@ -42,7 +42,6 @@ async function one(db, id) {
 export async function onRequestGet(context) {
   const { env } = context;
   const c = await conclusionOf(context);
-  if (!c.space.ok) return err('unauthorized', 401);
   await ensureSchema(env.D1_QUOTES);
   const showPrivate = canReadPrivate(c);
   const { results } = await env.D1_QUOTES.prepare(`SELECT ${COLS} FROM collections ORDER BY sort, created_at, id`).all();

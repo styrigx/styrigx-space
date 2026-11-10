@@ -188,14 +188,17 @@ test('网关·锁屏首页（未登录 /、/zh/）：200 锁屏态 + 全套安�
   });
 });
 
-test('网关·未登录内页 → 302 锁屏，带全套安全头', async () => {
+test('网关·未登录内页 → 200 页面（v5 S3 不 302），带全套安全头；要进站的接口 401 也带', async () => {
   _resetSecretCache();
   await withOrigin(PAGE, async (calls) => {
     const res = await worker.fetch(new Request('https://styrigx.com/chat/'), baseEnv(), CTX);
-    assert.equal(res.status, 302);
-    assert.equal(res.headers.get('Location'), 'https://styrigx.com/?lock=1&return=%2Fchat%2F');
-    assertMainHeaders(res, '302 lock');
-    assert.equal(calls.length, 0);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('Location'), null);
+    assertMainHeaders(res, 'locked page');
+    assert.equal(calls.length, 1);
+    const api = await worker.fetch(new Request('https://styrigx.com/api/status'), baseEnv(), CTX);
+    assert.equal(api.status, 401);
+    assertMainHeaders(api, 'entry 401');
   });
 });
 
@@ -303,15 +306,15 @@ test('网关·预览（Pages 的 _worker.js，env.ASSETS）：锁屏首页同样
 
 /* ---------------- 网关：子站 ---------------- */
 
-test('网关·子站：302 到锁屏、401、会话有效的页面都带子站那组安全头，不套主站完整 CSP / Permissions-Policy', async () => {
+test('网关·子站：访客页面、401、会话有效的页面都带子站那组安全头，不套主站完整 CSP / Permissions-Policy', async () => {
   _resetSecretCache();
   const pw = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'password'));
   await withOrigin('<html><head></head><body>blog</body></html>', async () => {
     for (const host of ['styrigx.com/blog', 'styrigx.com/daymark', 'styrigx.com/curio']) {
       const lock = await worker.fetch(new Request('https://' + host + '/posts/x/'), baseEnv(), CTX);
-      assert.equal(lock.status, 302, host);
+      assert.equal(lock.status, 200, host);
       assert.equal(lock.headers.get('Strict-Transport-Security'), SH.HSTS);
-      assertSubsiteHeaders(lock, host + ' 302');
+      assertSubsiteHeaders(lock, host + ' visitor page');
       const api = await worker.fetch(new Request('https://' + host + '/api/whatever'), baseEnv(), CTX); /* 漏到网关的 /<站>/api/* */
       assert.equal(api.status, 401);
       assert.equal(api.headers.get('Strict-Transport-Security'), SH.HSTS);

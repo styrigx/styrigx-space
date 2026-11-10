@@ -69,18 +69,26 @@ export async function scopeDenial(auth, scope, headers) {
 }
 
 /**
+ * 不要进站会话的接口（方法 + 路径，精确匹配）。必须是网关访问表（workers/space-core/src/gate.js ROUTE_ACCESS）里
+ * 转发到本 Worker 的 public 条目的同一份；tests/workers/account/service.test.mjs 核对两边一致。
+ */
+export const PUBLIC_API = Object.freeze(['GET /api/wellbeing']);
+
+/**
  * 按网关写的锁屏身份（readLockIdentity 的结论）算出这个请求该被拒的响应；放行 → null。
- * 纵深防御的最小门（门本身在网关 src/gate.js，结论相同）：/api/* 没有进站会话（没有 X-Styrigx-Space-Session: 1）→ 401 {ok:false}。
+ * 纵深防御的最小门（门本身在网关 src/gate.js 访问表，结论相同）：/api/* 没有进站会话（没有 X-Styrigx-Space-Session: 1）→ 401 {ok:false}，
+ * PUBLIC_API 里的除外（接口自己只给公开部分）。
  * 有进站会话之后的判断在各接口（/api/account/* 自己验账号会话 / reauth / reset 票；/api/prefs、/api/avatar 要账号会话 + 作用域）；头像文件 /avatar/* 不要身份。
- * 不按进站方式拦（P2-3 起网关也不再分等级）：有进站会话之后能做什么由账号会话 + 作用域决定。
  * 只看身份头、不看 cookie，也不验任何会话（进站会话网关已验过）。
  * @param {Request} request
- * @param {{session:true, by:string, tempkeyId:string}|null} identity readLockIdentity(request.headers)
+ * @param {{session:true, by:string, linkId?:string}|null} identity readLockIdentity(request.headers)
  * @returns {Response|null}
  */
 export function lockIdentityDenial(request, identity) {
   const pathname = new URL(request.url).pathname;
   if (!pathname.startsWith('/api/')) return null;
-  if (!identity || identity.session !== true) return json(401, { ok: false });
-  return null;
+  if (identity && identity.session === true) return null;
+  const p = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  if (PUBLIC_API.includes(String(request.method || 'GET').toUpperCase() + ' ' + p)) return null;
+  return json(401, { ok: false });
 }

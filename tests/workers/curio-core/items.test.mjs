@@ -68,9 +68,11 @@ const get = async (e, who) => (await call('/curio/api/items', { ...e, who })).js
 const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x10, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20]);
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1]);
 
-test('没进门 401；写：非同源 403、没登录账号 401 account、没作用域 403 scope；坏 JSON 400', async () => {
+test('读公开（v5 S3）；写：没进门 401、非同源 403、没登录账号 401 account、没作用域 403 scope；坏 JSON 400', async () => {
   const e = env();
-  for (const p of ['/curio/api/items', '/curio/api/photo?kind=device&id=1']) assert.equal((await call(p, e)).status, 401, p);
+  assert.equal((await call('/curio/api/items', e)).status, 200);
+  assert.equal((await call('/curio/api/photo?kind=device&id=1', e)).status, 404, '访客读照片：不存在 404（不是 401）');
+  assert.equal((await call('/curio/api/items', { ...e, method: 'POST', body: { op: 'device.add', name: 'S24' } })).status, 401);
   const body = { op: 'device.add', name: 'S24' };
   assert.equal((await call('/curio/api/items', { ...e, who: 'owner', method: 'POST', body, origin: 'https://evil.com' })).status, 403);
   const na = await post(e, body, 'lock');
@@ -186,7 +188,7 @@ test('照片：只收 webp/jpeg/png、≤ 3 MB；换照片删旧的；没登录�
   assert.equal((await get(e, 'owner')).games[0].cover, true);
 });
 
-test('照片：图片一律要过会话——private, no-cache + ETag；304 排在会话和可见性之后；换照片换 ETag', async () => {
+test('照片：公开（v5 S3）——private, no-cache + ETag；304 排在可见性之后；换照片换 ETag', async () => {
   const e = env();
   const id = (await (await post(e, { op: 'device.add', name: 'S24' })).json()).id;
   const pid = (await (await post(e, { op: 'device.add', name: '私', private: true })).json()).id;
@@ -211,10 +213,9 @@ test('照片：图片一律要过会话——private, no-cache + ETag；304 排�
   assert.equal(nm.headers.get('Cache-Control'), 'private, no-cache');
   assert.equal(reads, 0);
   e.r2.get = realGet;
-  /* 没会话：同一个 ETag 只有 401 */
-  const no = await call('/curio/api/photo?kind=device&id=' + id, { ...e, inm: etag });
-  assert.equal(no.status, 401);
-  assert.equal(no.headers.get('Cache-Control'), 'private, no-store');
+  /* 访客（没进门）：公开条目的照片照给；私密条目 404 */
+  assert.equal((await call('/curio/api/photo?kind=device&id=' + id, { ...e, inm: etag })).status, 304);
+  assert.equal((await call('/curio/api/photo?kind=device&id=' + pid, { ...e })).status, 404);
   /* 私密条目：账号未登录带上账号已登录时拿到的 ETag 也是 404 */
   const pe = (await call('/curio/api/photo?kind=device&id=' + pid, { ...e, who: 'owner' })).headers.get('ETag');
   assert.equal((await call('/curio/api/photo?kind=device&id=' + pid, { ...e, who: 'lock', inm: pe })).status, 404);
