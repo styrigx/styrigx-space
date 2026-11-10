@@ -548,6 +548,8 @@ export function mountTopbar(o) {
     if (termSheet.isShown() && !sheets.some(function (x) { return x.ms.isOpen(); })) { then(); return; }
     closeAll(function () { openDrawer(); then(); });
   };
+  /** NAVIGATE 页脚「Ctrl K 终端 ›」：打开终端（主页聚焦首屏那个，其他页开终端窗口） */
+  const openTerm = function () { showTerm(); };
   /** 收起终端窗口，然后 after（主页首屏的终端收不起：直接 after） @param {() => void} [after] */
   const closeTerm = function (after) {
     const f = after || function () {};
@@ -767,7 +769,14 @@ export function mountTopbar(o) {
       window.setTimeout(function () { showTerm(function () { if (ent === 'sudo') view.run(SUDO_LINE); else view.prefill(SUDO_LINE); }); }, 0);
     }
     /* 盾牌：v5 S5 起没有盾牌窗口（S6 改成吉祥物）。点它 = 打开终端；没进站预填 sudo styrigx。旧地址 #sec[=<层>] / [data-sec-open] 同 */
-    const openShield = function () { showTerm(function () { if (view && (!who || who.get() === 'nobody')) view.prefill(SUDO_LINE); }); };
+    const openShield = function () {
+      showTerm(function () {
+        if (!view) return;
+        /* 身份以服务端为准：问过再决定预填不预填（首帧的页面标记可能还是访客） */
+        const w = who ? who.refresh() : Promise.resolve('nobody');
+        w.then(function (/** @type {string} */ x) { if (x === 'nobody' && !view.input.value) view.prefill(SUDO_LINE); });
+      });
+    };
     if (secBtn) {
       secBtn.addEventListener('click', function (e) {
         const me2 = /** @type {MouseEvent} */ (e);

@@ -248,7 +248,7 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-topbar a[href$="' + '/' + 'settings' + '/' + '"]')).toHaveCount(0);
   });
 
-  test('盾牌 / 头像的链接（盾牌 /zh/#sec——进站 v3 L1 安全页删了；PR-5 起普通点击开下拉；头像没 JS 时去 /zh/account/ → 301 首页 #acct，2026-11-08）、字标回首页', async ({ page }) => {
+  test('盾牌 / 头像的链接（盾牌 /zh/#sec——进站 v3 L1 安全页删了；v5 S5 起普通点击打开终端；头像没 JS 时去 /zh/account/ → 301 首页 #acct，2026-11-08）、字标回首页', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/wild/');
     await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('href', '/zh/#sec');
@@ -256,11 +256,11 @@ test.describe('390×844 行为', () => {
     await expect(page.locator('.sgx-tb-av')).toHaveAttribute('href', '/zh/account/');
     await expect(page.locator('.sgx-tb-av')).toHaveAccessibleName('账号');
     await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/zh/');
+    /* v5 S5：盾牌下拉删了，普通点击打开终端（钥匙命令见 shield.spec.js） */
+    await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('aria-controls', 'sgx-term');
     await page.locator('.sgx-tb-shield').click();
-    await expect(page.locator('#sgx-sec')).toHaveAttribute('open', '');
-    await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('aria-expanded', 'true');
-    /* 下拉里没有去安全页的链接（命令行各层见 shield.spec.js） */
-    await expect(page.locator('#sgx-sec a[href*="/security/"]')).toHaveCount(0);
+    await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
+    await expect(page.locator('#sgx-sec')).toHaveCount(0);
   });
 
   for (const path of ['/', '/404.html', '/wild/']) { /* 进站 v3 L1：/security/ 已删 */

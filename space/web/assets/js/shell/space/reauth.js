@@ -56,7 +56,13 @@ export function mountReauth(C) {
   /** 要 reauth 才能做的事：有效期内直接做，没有就先验证 @param {() => void} run @param {string} [lead] */
   C.withReauth = function (run, lead) {
     if (C.reauthLeft()) { run(); return; }
-    C.cmdReauth(run, lead);
+    /* 本页还没问过票：服务端说票还在（同一会话别处刚验过）就直接做 */
+    C.setMode('busy');
+    C.loadReauth().then(function (st) {
+      C.toCmd();
+      if (st === 'ok' && C.reauthLeft()) { run(); return; }
+      C.cmdReauth(run, lead);
+    });
   };
   /** 结束 reauth（关掉终端窗口 / 离开页面） */
   C.endReauth = function () {

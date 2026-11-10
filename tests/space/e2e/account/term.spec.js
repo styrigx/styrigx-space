@@ -65,24 +65,30 @@ test.describe('账号下拉 = 账号终端 #sgx-acct（2026-11-08 账号 UI 改�
     await expect(page).toHaveURL(/\/zh\/$/);
   });
 
-  test('主页终端 sudo root → 打开账号终端；sudo root reset → 直接要恢复密钥', async ({ page }) => {
+  test('主页终端 sudo root（v5 S5 终端合一）：在终端里原地登录，不开账号窗口；访客先要 sudo styrigx；sudo root reset → 终端里直接要恢复密钥', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/', { account: { ok: true, signing: true, configured: { password: true, passkey: true }, session: null } });
+    let entered = false;
+    const route = (pg) => pg.route('**/api/lock-session-check**', (r) => r.fulfill(entered ? json({ ok: true, by: 'password' }) : { status: 401, contentType: 'application/json', body: '{"ok":false}' }));
+    await go(page, '/zh/', { route, account: { ok: true, signing: true, configured: { password: true, passkey: true }, session: null } });
+    const t = page.locator('#home-term');
     const inp = page.locator('#home-term-in');
     await inp.fill('sudo root');
     await inp.press('Enter');
-    const d = page.locator('#sgx-acct');
-    await expect(d).toHaveAttribute('data-state', 'open');
-    await expect(d.locator('.sgx-at')).toHaveAttribute('data-at-layer', 'guest');
-    await settled(page, 'sgx-acct');
-    await page.keyboard.press('Escape');
-    await page.keyboard.press('Escape');
-    await expect(d).toBeHidden();
+    await expect(t.locator('[data-term-out] > *').last()).toHaveText('还没进站 · 先 sudo styrigx');
+    entered = true;
+    await page.reload({ waitUntil: 'load' });
+    await expect(t.locator('[data-term-ps]')).toHaveText('styrigx@space:~#');
+    await inp.fill('sudo root');
+    await inp.press('Enter');
+    await expect(t.locator('[data-term-form]')).toHaveAttribute('data-mode', 'pick');
+    await expect(page.locator('#sgx-acct')).toBeHidden();
+    await inp.press('Control+c');
+    await expect(t.locator('[data-term-form]')).toHaveAttribute('data-mode', 'cmd');
     await inp.fill('sudo root reset');
     await inp.press('Enter');
-    await expect(d).toHaveAttribute('data-state', 'open');
-    await expect(d.locator('.sgx-at')).toHaveAttribute('data-at-mode', 'rkey');
-    await expect(d.locator('[data-at-ps]')).toHaveText('[sudo] recovery key:');
+    await expect(t.locator('[data-term-form]')).toHaveAttribute('data-mode', 'rkey');
+    await expect(t.locator('[data-term-ps]')).toHaveText('[sudo] recovery key:');
+    await expect(page.locator('#sgx-acct')).toBeHidden();
   });
 
   test('Ctrl+K 开全站终端时账号下拉不叠开（同时只开一个）', async ({ page }) => {
