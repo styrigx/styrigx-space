@@ -760,6 +760,8 @@ export function mountTopbar(o) {
     if (who && (homeTerm || who.get() !== 'nobody')) who.refresh();
     /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 sudo styrigx（不替人回车） */
     doc.addEventListener(SUDO_EVENT, function () {
+      /* 页面标记跟着改成 locked（AI 窗口锁、听歌等按它画访客态） */
+      doc.documentElement.setAttribute('data-sgx-lock-session', 'locked');
       if (who) who.drop();
       showTerm(function () { if (view) view.prefill(SUDO_LINE); });
     });
