@@ -2039,8 +2039,12 @@ jobs:
           }
           ok=0
           check /api/prefs || ok=1
-          check /api/wellbeing || ok=1
           check /api/avatar || ok=1
+          # 数字健康合计（v5 S3 访问表 public）：伪造头也只能拿到合计——200 + detail=false + items 为空
+          wb=$(curl -sS -H 'X-Styrigx-Space-Session: 1' -H 'X-Styrigx-Space-By: password' "https://styrigx.com/api/wellbeing?smoke=$GITHUB_RUN_ID" || true)
+          echo "forged /api/wellbeing -> $(printf '%s' "$wb" | jq -c '{ok,detail,items:(.items|length)}' 2>/dev/null || echo unparsable)"
+          printf '%s' "$wb" | jq -e '.ok == true and .detail == false and (.items | length) == 0' >/dev/null \
+            || { echo "::error::forged identity headers on /api/wellbeing must only yield public totals"; ok=1; }
           # 网关的接口和页面没被抢走
           for p in /api/lock-session-check; do
             code=$(curl -sS -o /dev/null -w '%{http_code}' "https://styrigx.com$p" || true)
