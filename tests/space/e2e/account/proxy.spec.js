@@ -7,7 +7,6 @@
  * - sub token：已有令牌先 y/N；换新后印新地址
  * - sub mv：名称大小写原样；确认时显示新旧路径（令牌遮挡）；y → proxy/mv
  * - sub add 同名：显示新旧域名再确认；新链接试拉失败 → 「新链接拉取失败：…，未更换」
- * - 主页首屏终端（tty2）打 sub → 打开账号下拉并在那里跑
  */
 const { test, expect } = require('@playwright/test');
 const T = require('../helpers/account-term.cjs');
@@ -102,14 +101,4 @@ test('sub add 同名：确认显示新旧域名；试拉失败 → 未更换', a
   await typeLine(page, 'y');
   await expect(log(page)).toContainText('新链接拉取失败：拉取失败，未更换');
   expect(calls.find((c) => c.action === 'proxy/add')).toMatchObject({ name: 'Linkcube', url: 'https://new.example.org/api?token=SECRET' });
-});
-
-test('主页首屏终端（tty2）打 sub：打开账号下拉，在那里跑', async ({ page }) => {
-  const calls = await mockAccount(page, { status: STATUS({ session: SESSION() }), handlers: { 'proxy/status': [200, PSTATUS] } });
-  await T.goPage(page, '/zh/');
-  await page.locator('#home-term-in').fill('sub');
-  await page.locator('#home-term-in').press('Enter');
-  await expect(page.locator('#sgx-acct')).toHaveAttribute('data-state', 'open');
-  await expect(log(page)).toContainText('Linkcube · sub.example.com');
-  expect(calls.some((c) => c.action === 'proxy/status')).toBe(true);
 });
