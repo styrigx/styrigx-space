@@ -21,7 +21,17 @@ export class ProxyAdmin extends WorkerEntrypoint {
 
   async newLink() { return dbReady(this.env) ? admin.newLink(this.env) : NOT_READY; }
 
-  async addAirport(name, url) { return this.#changed(() => admin.addAirport(this.env, name, url)); }
+  /** 新机场：整轮刷新；同名改链接：试拉成功后只为这个源重出成品（不再拉一次） */
+  async addAirport(name, url) {
+    if (!dbReady(this.env)) return NOT_READY;
+    const r = await admin.addAirport(this.env, name, url);
+    if (!r.ok) return r;
+    const { id, ...out } = r;
+    return { ...out, refresh: await runRefresh(this.env, id ? { ids: [id], noFetch: true } : {}) };
+  }
+
+  /** 改名：不刷新（来源名不写进成品，原成品就是新路径的内容） */
+  async rename(from, to) { return dbReady(this.env) ? admin.rename(this.env, from, to) : NOT_READY; }
   async upload(name, text) { return this.#changed(() => admin.upload(this.env, name, text)); }
   async setEnabled(name, on) { return this.#changed(() => admin.setEnabled(this.env, name, on)); }
   async remove(name) { return this.#changed(() => admin.remove(this.env, name)); }
