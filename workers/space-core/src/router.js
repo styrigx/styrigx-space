@@ -39,8 +39,6 @@ import * as lockPassword from './api/lock-password.js';
 import * as lockReauth from './api/lock-reauth.js';
 import * as lockReset from './api/lock-reset.js';
 import * as lockSessionCheck from './api/lock-session-check.js';
-import * as lockTempkey from './api/lock-tempkey.js';
-import * as lockTempkeyUnlock from './api/lock-tempkey-unlock.js';
 import * as spaceAudit from './api/space-audit.js';
 import * as spaceAuth from './api/space-auth.js';
 import * as status from './api/status.js';
@@ -61,8 +59,6 @@ export const API_ROUTES = new Map([
   ['/api/lock-reauth', lockReauth],
   ['/api/lock-reset', lockReset],
   ['/api/lock-session-check', lockSessionCheck],
-  ['/api/lock-tempkey', lockTempkey],
-  ['/api/lock-tempkey-unlock', lockTempkeyUnlock],
   ['/api/space-audit', spaceAudit],
   ['/api/space-auth', spaceAuth],
   ['/api/status', status],

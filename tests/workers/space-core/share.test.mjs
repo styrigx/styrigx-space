@@ -6,12 +6,14 @@
  * 跑真代码：styrigx-space-core 的 default.fetch（app.js → router.js routeShare）；env 用临时 Ed25519 钥匙 + 进站 D1 替身（makeAuthD1）+ 分享 D1。
  * D1：有 node:sqlite 时真 SQL（migrations/0001_baseline.sql + core/share-links.js 的语句）和内存替身各跑一遍；Node 20 只跑内存替身。
  *
- * - 规则：码 128 位、目标只收站内相对路径（防开放重定向）、有效期 / 会话档位和临时钥匙一致、会话不超过有效期
- * - 生成：带会话 → 签一把 link 钥匙（不在临时钥匙列表、不占 20 把）；普通 → 不签；再验一次进站会话（不问账号会话）
- * - 点开：带会话 → 临时钥匙进门的会话（by=tempkey，票里带 tempkeyId）（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；已进门的人点开不降级；
- *   预取 / HEAD 不发会话；不存在 / 过期 / 作废 / 格式不对 → 同一个响应；限速
- * - 作废：带会话的连钥匙一起作废，已发出的临时会话下一个请求就进不来
- * - 权限：只认进站会话（不问账号会话）；管理（list / revoke）另要锁侧复验（401 reauth）、没会话 401、跨源 403
+ * - 规则：码 128 位、目标只收站内相对路径（防开放重定向）、有效期 / 会话档位、会话不超过有效期
+ * - 生成（v5 S1）：不签任何钥匙（tempkey 表不再读写，key_id 写 ''）；要进门且不是分享链接进来的会话（不问账号会话）
+ * - 点开：带会话 → 签 by=link 的进站会话（票里 linkId = share_link.id）（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；
+ *   已进门的人点开不降级；预取 / HEAD 不发会话；不存在 / 过期 / 作废 / 格式不对 → 同一个响应；限速
+ * - 作废：写 share_link.revoked_at（rm / rm --all），已发出的链接会话下一个请求就进不来；链接到期同样；纪元推进同样
+ * - 权限：只认进站会话（不问账号会话）；管理（list / revoke）另要锁侧复验（401 reauth）；by=link 的会话新建 / 管理一律 403 link；
+ *   没会话 401、跨源 403
+ * - 清理入口 purgeDeadLinks：只删过期 / 作废满 7 天的行，一条 DELETE
  * - 路由：/s/*、/api/share 在 styrigx-space-core 的 styrigx.com/* 里；没有单独的短链 Worker
  */
 import { test } from 'node:test';
@@ -27,18 +29,26 @@ const links = await import(REPO + 'workers/space-core/src/core/share-links.js');
 const { _resetMem, _setRandom } = await import(REPO + 'workers/space-core/src/core/share-open.js');
 const issuerMod = await import(REPO + 'workers/space-core/src/core/link-keys.js');
 const { signLockSessionTicket } = await import(REPO + 'workers/space-core/src/core/lock-session.js');
-const TL = await import(REPO + 'workers/space-core/src/core/lock-tempkey.js');
-const { onRequestPost: tempPost } = await import(REPO + 'workers/space-core/src/api/lock-tempkey.js');
 const { verifyLockSession } = await import(REPO + 'workers/space-core/src/core/lock-session.js');
 
 const LOCK = await genKeyPair();
 const H = 3600e3;
 
-/** 网关 D1 里某把钥匙的 tempkey 行（realm=lock） */
-const tkRow = (authDb, id) => authDb.rows('tempkey').find((r) => r.realm === 'lock' && r.id === id) || null;
+/** v5 S1：tempkey 表不再读写——每个用例都核对它一直是空的 */
+const tempkeyRows = (authDb) => authDb.rows('tempkey').length;
 
-/** 进站 D1（authDb）里的 link 钥匙（分享链接签的）：原来按服务绑定调用计数，并入后按 D1 里的钥匙核对 */
-const linkKeys = (authDb) => authDb.rows('tempkey').filter((r) => r.realm === 'lock' && r.link);
+/** 改分享替身里的一行（sqlite / 内存两种） @param {any} db @param {string} id @param {Record<string, any>} patch */
+function patchLink(db, id, patch) {
+  if (db.raw) {
+    for (const [k, v] of Object.entries(patch)) db.raw.prepare('UPDATE share_link SET ' + k + ' = ? WHERE id = ?').run(v, id);
+  } else Object.assign(db._links.get(id), patch);
+}
+
+/** 让分享替身的某类语句出错 @param {any} db @param {RegExp} re */
+function failShareOn(db, re) {
+  const prep = db.prepare.bind(db);
+  db.prepare = (sql) => { if (re.test(sql)) throw new Error('d1 down'); return prep(sql); };
+}
 
 /**
  * 进站 v3 L2b：进站和分享链接同一个库、同一个绑定 D1_SPACE。测试里两半还是各一份替身（分享那半要跑 sqlite / 内存两种），
@@ -53,7 +63,7 @@ function spaceD1(authDb, shareDb) {
 
 /** 一个 env（styrigx-space-core 自己的绑定）：D1_SPACE（进站 + 分享）+ 5 个 SGX_SPACE_* 测试值 */
 function setup(d1opts) {
-  const authDb = makeAuthD1(); /* 进站那半：纪元、临时钥匙（含 link 钥匙）都在这里 */
+  const authDb = makeAuthD1(); /* 进站那半：纪元等（share_link / share_fail 走分享那半） */
   const db = shareD1(d1opts);
   const env = {
     D1_SPACE: spaceD1(authDb, db),
@@ -176,10 +186,14 @@ test('目标：站内相对路径或 https://styrigx.com 的地址（一律存�
   }
 });
 
-test('有效期、会话档位和网关一致；会话不超过有效期；名字最多 24 字', () => {
-  for (const p of [{ hours: 1 }, { hours: 24 }, { hours: 25 }, { hours: 0 }, { days: 3 }, { days: 30 }, { days: 2 }, { hours: 1, days: 3 }, { hours: '1' }, {}]) {
-    assert.equal(links.durationMs(p), TL.durationMs(p), JSON.stringify(p));
-  }
+test('有效期（1–24 小时、3 / 7 / 15 / 30 天）、会话档位和 link-keys 一致；会话不超过有效期；名字最多 24 字；isLinkId 单独一个校验', () => {
+  const want = [[{ hours: 1 }, H], [{ hours: 24 }, 24 * H], [{ hours: 25 }, 0], [{ hours: 0 }, 0], [{ days: 3 }, 72 * H], [{ days: 7 }, 168 * H], [{ days: 15 }, 360 * H],
+    [{ days: 30 }, 720 * H], [{ days: 2 }, 0], [{ hours: 1, days: 3 }, 0], [{ hours: '1' }, 0], [{}, 0]];
+  for (const [p, ms] of want) assert.equal(links.durationMs(p), ms, JSON.stringify(p));
+  assert.deepEqual([...links.DAYS], [3, 7, 15, 30]);
+  assert.ok(links.isLinkId(links.newId()));
+  for (const bad of ['', 'x', 'A'.repeat(15), 'A'.repeat(17), 'AAAA AAAAAAAAAAA', null, 1]) assert.equal(links.isLinkId(bad), false, String(bad));
+  assert.notEqual(links.isLinkId, links.isId, '票的格式校验不和管理接口的参数校验共用一个函数');
   assert.deepEqual([...links.SESSION_OPTS], [...issuerMod.LINK_SESSION_OPTS]);
   assert.equal(links.sessionSeconds(undefined, H), 0);
   assert.equal(links.sessionSeconds(3600, H), 3600);
@@ -203,7 +217,10 @@ test('并入 styrigx-space-core：workers/share 不在了；core 的 wrangler.to
   assert.doesNotMatch(pv.replace(/^\s*#.*$/gm, ''), /D1_SHARE_LINK|migrations-share/);
 });
 
-test('分享链接的文件不带签名逻辑：api/share.js、core/share-open.js、core/share-links.js 里不出现私钥 / pepper / 签名函数（签钥匙、签会话只在 core/link-keys.js → lock-tempkey / lock-session）', () => {
+test('分享链接的文件不带签名逻辑：api/share.js、core/share-open.js、core/share-links.js 里不出现私钥 / pepper / 签名函数（签会话只在 core/link-keys.js → lock-session）；临时钥匙代码已删', () => {
+  for (const f of ['core/lock-tempkey.js', 'api/lock-tempkey.js', 'api/lock-tempkey-unlock.js']) assert.equal(existsSync(REPO + 'workers/space-core/src/' + f), false, f + ' 已删');
+  const lk = readFileSync(REPO + 'workers/space-core/src/core/link-keys.js', 'utf8');
+  assert.doesNotMatch(lk, /createLinkKey|revokeLinkKey|lock-tempkey/, 'link-keys 不再签 / 作废短链钥匙');
   for (const f of ['api/share.js', 'core/share-open.js', 'core/share-links.js']) {
     const src = readFileSync(REPO + 'workers/space-core/src/' + f, 'utf8');
     assert.doesNotMatch(src, /_PRIVATE|PEPPER|ed25519|signTk|issueLockSession|lock-tempkey|crypto\.subtle\.sign/i, f);
@@ -230,7 +247,7 @@ for (const K of KINDS) {
   const T = (title, fn) => test('[' + K.name + '] ' + title, fn);
   const mk = () => setup({ memory: !!K.memory });
 
-  T('带会话：生成 → 网关签 link 钥匙（不在临时钥匙列表）→ 别人点开拿到会话、302 到干净目标（不带码）', async () => {
+  T('带会话：生成（不签钥匙，key_id 为空）→ 别人点开拿到 by=link 的会话（linkId = share_link.id）、302 到干净目标（不带码）', async () => {
     const { env, db, authDb, gwEnv } = mk();
     const r = await api(env, { action: 'create', name: '小明', hours: 24, to: '/blog/?a=1#x', session: 3 * 3600 });
     assert.equal(r.s, 200, JSON.stringify(r.j));
@@ -239,18 +256,10 @@ for (const K of KINDS) {
     assert.equal(link.session, 3 * 3600);
     assert.equal(link.to, '/blog/?a=1#x');
     assert.match(link.path, /^\/s\/[A-Za-z0-9_-]{22}$/);
-    assert.equal(linkKeys(authDb).length, 1, '签了一把 link 钥匙');
     const row = db.rows()[0];
-    assert.ok(TL.isTempkeyId(row.key_id));
-    const key = tkRow(authDb, row.key_id);
-    assert.ok(key, '网关 D1 tempkey 表里有这把钥匙');
-    assert.equal(key.link, 1);
-    assert.equal(key.code_hash, null, 'link 钥匙没有临时码');
-    assert.equal(key.revoked_at, 0);
-    assert.equal(row.expires_at, key.expires_at, '短链到期 = 钥匙到期');
-    /* 临时钥匙页看不到这把钥匙 */
-    const lt = await tempPost({ request: new Request('https://styrigx.com/api/lock-tempkey', { method: 'POST', headers: { Origin: 'https://styrigx.com', Cookie: await adminCookie() }, body: JSON.stringify({ action: 'list' }) }), env: gwEnv });
-    assert.deepEqual((await lt.json()).keys, []);
+    assert.equal(row.key_id, '', 'v5 S1：不再签短链钥匙');
+    assert.ok(row.expires_at > Date.now() + 24 * H - 5000 && row.expires_at <= Date.now() + 24 * H);
+    assert.equal(tempkeyRows(authDb), 0, 'tempkey 表一行都没写');
 
     const res = await open(env, link.path);
     assert.equal(res.status, 302);
@@ -260,41 +269,42 @@ for (const K of KINDS) {
     assert.equal(res.headers.get('Referrer-Policy'), 'no-referrer');
     assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
     const ck = cookiesFrom(res);
-    assert.match(ck, new RegExp('sgx-space-session=tempkey\\.\\d+\\.\\d+\\.' + row.key_id + '\\.'), 'v2 票：by.epoch.exp.tempkeyId.sig');
+    assert.match(ck, new RegExp('sgx-space-session=link\\.\\d+\\.\\d+\\.' + row.id + '\\.'), 'v2 票：by.epoch.exp.linkId.sig');
     assert.doesNotMatch(ck, /sgx-tk=/);
     const ma = age(res, 'sgx-space-session');
     assert.ok(ma <= 3 * 3600 && ma > 3 * 3600 - 5, 'Max-Age = 会话时长');
     const v = await verifyLockSession(new Request('https://styrigx.com/', { headers: { Cookie: ck } }), gwEnv);
     assert.equal(v.ok, true);
-    assert.equal(v.by, 'tempkey', '和锁屏输临时码进门完全一样');
-    assert.equal(v.tempkeyId, row.key_id);
+    assert.equal(v.by, 'link');
+    assert.equal(v.linkId, row.id);
+    assert.equal(tempkeyRows(authDb), 0);
     /* 被打开的记录 */
     const l2 = await api(env, { action: 'list' });
     assert.equal(l2.j.links[0].opens, 1);
     assert.ok(l2.j.links[0].sessionLeft > 3 * 3600 - 5 && l2.j.links[0].sessionLeft <= 3 * 3600);
   });
 
-  T('会话时长不超过钥匙剩余时间；网关只认 link 钥匙、只认档位', async () => {
-    const { env, db, authDb, gwEnv } = mk();
+  T('会话时长不超过链接剩余时间；openLinkSession 只认档位、只认合法 id、过期不签', async () => {
+    const { env, db, gwEnv } = mk();
     const r = await api(env, { action: 'create', hours: 1, session: 3600 });
     const row = db.rows()[0];
-    authDb.raw.prepare('UPDATE tempkey SET expires_at = ? WHERE realm = ? AND id = ?').run(Date.now() + 600e3, 'lock', row.key_id);
+    patchLink(db, row.id, { expires_at: Date.now() + 600e3 });
     const res = await open(env, r.j.link.path);
     const ma = age(res, 'sgx-space-session');
-    assert.ok(ma <= 600 && ma > 590, 'min(会话, 钥匙剩余) = ' + ma);
-    /* 普通临时钥匙（有临时码）不能经短链换会话 */
-    const plainKey = await TL.createTempkey(gwEnv, 'share-test-pepper', { name: '', ms: H });
-    assert.deepEqual(await issuerMod.openLinkSession(plainKey.key.id, 3600, gwEnv), { ok: false });
-    assert.deepEqual(await issuerMod.openLinkSession(row.key_id, 60, gwEnv), { ok: false }, '不在档位');
-    assert.deepEqual(await issuerMod.openLinkSession('x', 3600, gwEnv), { ok: false });
+    assert.ok(ma <= 600 && ma > 590, 'min(会话, 链接剩余) = ' + ma);
+    const exp = Date.now() + H;
+    assert.deepEqual(await issuerMod.openLinkSession(row.id, 60, exp, gwEnv), { ok: false }, '不在档位');
+    assert.deepEqual(await issuerMod.openLinkSession('x', 3600, exp, gwEnv), { ok: false });
+    assert.deepEqual(await issuerMod.openLinkSession(row.id, 3600, Date.now() - 1, gwEnv), { ok: false }, '已到期');
+    assert.deepEqual(await issuerMod.openLinkSession(row.id, 3600, NaN, gwEnv), { ok: false });
   });
 
-  T('普通短链：不签钥匙、不发会话，302 到目标（没解锁的人由网关照常送去锁屏）', async () => {
+  T('普通短链：不发会话，302 到目标（没解锁的人由网关照常送去锁屏）', async () => {
     const { env, authDb } = mk();
     const r = await api(env, { action: 'create', days: 3, to: '/display/' });
     assert.equal(r.s, 200);
     assert.equal(r.j.link.session, 0);
-    assert.equal(authDb.rows('tempkey').length, 0, '网关一把钥匙都没签');
+    assert.equal(tempkeyRows(authDb), 0);
     const res = await open(env, r.j.link.path + '/');
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('Location'), 'https://styrigx.com/display/');
@@ -309,7 +319,7 @@ for (const K of KINDS) {
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('Location'), 'https://styrigx.com/');
     assert.equal(res.headers.getSetCookie().length, 0);
-    assert.equal(linkKeys(authDb).length, 1);
+    assert.equal(tempkeyRows(authDb), 0);
   });
 
   T('预取不发会话（503，不缓存）；HEAD 只 302 不发会话', async () => {
@@ -347,8 +357,8 @@ for (const K of KINDS) {
     for (const p of paths) assert.deepEqual(await failShape(await open(env, p, { ip: '10.0.0.' + (ip++) })), FAIL, p);
   });
 
-  T('作废带会话的短链：钥匙一起作废，已发出去的临时会话下一个请求就进不来；再点开也是失败响应', async () => {
-    const { env, gwEnv, db, authDb } = mk();
+  T('作废带会话的短链（share rm）：写 revoked_at，已发出去的链接会话下一个请求就进不来；再点开也是失败响应', async () => {
+    const { env, gwEnv, db } = mk();
     const l = (await api(env, { action: 'create', days: 7, session: 86400 })).j.link;
     const ck = cookiesFrom(await open(env, l.path));
     const req = () => new Request('https://styrigx.com/blog/', { headers: { Cookie: ck } });
@@ -357,8 +367,11 @@ for (const K of KINDS) {
     assert.equal(rv.s, 200);
     const v = await verifyLockSession(req(), gwEnv);
     assert.equal(v.ok, false);
-    assert.equal(v.reason, 'tempkey-revoked');
-    assert.ok(tkRow(authDb, db.rows()[0].key_id).revoked_at > 0, '网关 D1 里钥匙记了 revoked_at');
+    assert.equal(v.reason, 'link-revoked');
+    assert.ok(db.rows()[0].revoked_at > 0, 'share_link 记了 revoked_at');
+    /* 整条网关：链接会话进门内页 → 302 锁屏 */
+    const page = await worker.fetch(new Request('https://styrigx.com/display/', { headers: { Cookie: ck } }), env, ctx);
+    assert.equal(page.status, 302);
     assert.deepEqual(await failShape(await open(env, l.path, { ip: '9.9.9.9' })), FAIL);
     const list = (await api(env, { action: 'list' })).j.links;
     assert.equal(list[0].status, 'revoked');
@@ -368,11 +381,71 @@ for (const K of KINDS) {
     assert.equal((await api(env, { action: 'revoke', id: links.newId() })).s, 404);
   });
 
-  T('作废钥匙失败 → 503，D1 不改（可重试，不会显示成已作废而钥匙还在）', async () => {
-    const { env, db, authDb } = mk();
+  T('share rm --all（revoke all:true）：一次作废全部还没作废的，所有链接会话下一个请求都进不来；带 id 一起传 → 400', async () => {
+    const { env, gwEnv, db } = mk();
+    const a = (await api(env, { action: 'create', hours: 3, session: 3600 })).j.link;
+    const b = (await api(env, { action: 'create', days: 15, session: 86400 })).j.link;
+    const c = (await api(env, { action: 'create', hours: 3 })).j.link;
+    const cks = [cookiesFrom(await open(env, a.path)), cookiesFrom(await open(env, b.path, { ip: '7.7.7.8' }))];
+    for (const ck of cks) assert.equal((await verifyLockSession(new Request('https://styrigx.com/', { headers: { Cookie: ck } }), gwEnv)).ok, true);
+    assert.equal((await api(env, { action: 'revoke', all: true, id: a.id })).s, 400);
+    assert.equal((await api(env, { action: 'revoke', all: true })).s, 200);
+    assert.ok(db.rows().every((r) => r.revoked_at > 0), JSON.stringify(db.rows().map((r) => r.revoked_at)));
+    for (const ck of cks) {
+      const v = await verifyLockSession(new Request('https://styrigx.com/', { headers: { Cookie: ck } }), gwEnv);
+      assert.equal(v.ok, false);
+      assert.equal(v.reason, 'link-revoked');
+    }
+    for (const l of [a, b, c]) assert.deepEqual(await failShape(await open(env, l.path, { ip: '9.9.9.' + l.id.length })), FAIL);
+    assert.equal((await api(env, { action: 'revoke', all: true })).s, 200, '再来一次也 ok');
+  });
+
+  T('链接到期（行还在）：已发出的链接会话下一个请求进不来；行被清理掉也一样（按失效算）；纪元推进同样让它失效', async () => {
+    const { env, gwEnv, db, authDb } = mk();
+    const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
+    const ck = cookiesFrom(await open(env, l.path));
+    const req = () => new Request('https://styrigx.com/', { headers: { Cookie: ck } });
+    assert.equal((await verifyLockSession(req(), gwEnv)).ok, true);
+    patchLink(db, l.id, { expires_at: Date.now() - 1000 });
+    let v = await verifyLockSession(req(), gwEnv);
+    assert.equal(v.ok, false);
+    assert.equal(v.reason, 'link-revoked');
+    /* 行已被清理 */
+    const l2 = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
+    const ck2 = cookiesFrom(await open(env, l2.path, { ip: '7.7.7.9' }));
+    const req2 = () => new Request('https://styrigx.com/', { headers: { Cookie: ck2 } });
+    assert.equal((await verifyLockSession(req2(), gwEnv)).ok, true);
+    if (db.raw) db.raw.prepare('DELETE FROM share_link WHERE id = ?').run(l2.id); else db._links.delete(l2.id);
+    v = await verifyLockSession(req2(), gwEnv);
+    assert.equal(v.ok, false);
+    assert.equal(v.reason, 'link-revoked');
+    /* 纪元推进（退出所有设备 / 改密码 / 删通行密钥）：有效链接的会话也失效 */
+    const l3 = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
+    const ck3 = cookiesFrom(await open(env, l3.path, { ip: '7.7.7.10' }));
+    const req3 = () => new Request('https://styrigx.com/', { headers: { Cookie: ck3 } });
+    assert.equal((await verifyLockSession(req3(), gwEnv)).ok, true);
+    authDb.setEpoch('lock', (authDb.epoch('lock') || 0) + 1);
+    v = await verifyLockSession(req3(), gwEnv);
+    assert.equal(v.ok, false);
+    assert.equal(v.reason, 'epoch-low');
+  });
+
+  T('验链接会话时 D1 出错 → 无效（d1-error，fail closed）', async () => {
+    const { env, gwEnv, db } = mk();
+    const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
+    const ck = cookiesFrom(await open(env, l.path));
+    failShareOn(db, /SELECT revoked_at, expires_at FROM share_link/);
+    const v = await verifyLockSession(new Request('https://styrigx.com/', { headers: { Cookie: ck } }), gwEnv);
+    assert.equal(v.ok, false);
+    assert.equal(v.reason, 'd1-error');
+  });
+
+  T('作废写 D1 失败 → 503，行不变（可重试）', async () => {
+    const { env, db } = mk();
     const l = (await api(env, { action: 'create', hours: 3, session: 3600 })).j.link;
-    failOn(authDb, /^UPDATE tempkey SET revoked_at/);
+    failShareOn(db, /^UPDATE share_link SET revoked_at/);
     assert.equal((await api(env, { action: 'revoke', id: l.id })).s, 503);
+    assert.equal((await api(env, { action: 'revoke', all: true })).s, 503);
     assert.equal(db.rows()[0].revoked_at, null);
   });
 
@@ -398,65 +471,59 @@ for (const K of KINDS) {
     assert.equal((await api(env, { action: 'create', hours: 1 })).s, 200);
   });
 
-  T('link 钥匙在网关 D1 里已过期（行还没清掉）：短链再点开换不到会话（已发出的临时会话靠票自己的 exp，不晚于钥匙到期）', async () => {
-    const { env, db, authDb, gwEnv } = mk();
-    const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
-    const ck = cookiesFrom(await open(env, l.path));
-    const keyId = db.rows()[0].key_id;
-    assert.equal((await verifyLockSession(new Request('https://styrigx.com/', { headers: { Cookie: ck } }), gwEnv)).ok, true);
-    authDb.raw.prepare('UPDATE tempkey SET expires_at = ? WHERE realm = ? AND id = ?').run(Date.now() - 1000, 'lock', keyId);
-    assert.ok(tkRow(authDb, keyId), '行还在');
-    assert.equal(tkRow(authDb, keyId).revoked_at, 0);
-    assert.deepEqual(await issuerMod.openLinkSession(keyId, 1800, gwEnv), { ok: false });
-    assert.equal(await TL.getTempkey(gwEnv, keyId), null);
-  });
-
-  T('link 钥匙不占临时钥匙的 20 把上限', async () => {
-    const { env, gwEnv } = mk();
-    for (let i = 0; i < 20; i++) await TL.createTempkey(gwEnv, 'share-test-pepper', { name: '', ms: H });
-    await assert.rejects(TL.createTempkey(gwEnv, 'share-test-pepper', { name: '', ms: H }), /full/, '普通钥匙已满');
-    const r = await api(env, { action: 'create', hours: 1, session: 1800 });
-    assert.equal(r.s, 200, JSON.stringify(r.j));
-  });
-
-  T('权限（进站 v3 Q3 定稿 08:00）：新建（含 reuse、普通短链）只要进门——短链 / 临时钥匙进门也能发；管理（list / revoke）要锁侧复验，没有 → 401 reauth；没会话 401、跨源 403；网关 ShareIssuer 自己也验', async () => {
+  T('权限（v5 S1）：新建（含 reuse、普通短链）要进门且不是 by=link；管理（list / revoke / rm --all）另要锁侧复验（401 reauth）；分享链接进来的会话新建 / 管理一律 403 link（带着 reauth 票也不行）；没会话 401、跨源 403', async () => {
     const { env, gwEnv, db, authDb } = mk();
     const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
-    const viaLink = cookiesFrom(await open(env, l.path)); /* 短链进门的会话（by=tempkey） */
+    const viaLink = cookiesFrom(await open(env, l.path)); /* 短链进门的会话（by=link） */
+    assert.equal((await verifyLockSession(new Request('https://styrigx.com/', { headers: { Cookie: viaLink } }), gwEnv)).by, 'link');
+    const before = db.rows().length;
+    const linkWithReauth = viaLink + '; sgx-space-reauth=' + (await testTicket(LOCK.priv, 'LockReauthTicket', 'password', 0));
     let r;
-    for (const cookie of [viaLink, await inCookie('password'), await inCookie('tempkey')]) {
+    for (const cookie of [viaLink, linkWithReauth]) {
+      for (const body of [{ action: 'create', hours: 1, session: 1800 }, { action: 'create', hours: 1 }, { action: 'create', hours: 2, session: 1800, reuse: true },
+        { action: 'list' }, { action: 'revoke', id: l.id }, { action: 'revoke', all: true }]) {
+        r = await api(env, body, cookie);
+        assert.equal(r.s, 403, JSON.stringify(body) + ' ' + JSON.stringify(r.j));
+        assert.equal(r.j.error, 'link', JSON.stringify(body));
+      }
+    }
+    assert.equal(db.rows().length, before, '链接会话一条都没建成');
+    for (const cookie of [await inCookie('password'), await inCookie('passkey')]) {
       for (const body of [{ action: 'create', hours: 1, session: 1800 }, { action: 'create', hours: 1 }, { action: 'create', hours: 2, session: 1800, reuse: true }]) {
         r = await api(env, body, cookie);
         assert.equal(r.s, 200, JSON.stringify(body) + ' ' + JSON.stringify(r.j));
       }
-      for (const body of [{ action: 'list' }, { action: 'revoke', id: l.id }]) {
+      for (const body of [{ action: 'list' }, { action: 'revoke', id: l.id }, { action: 'revoke', all: true }]) {
         r = await api(env, body, cookie);
         assert.equal(r.s, 401, JSON.stringify(body));
         assert.equal(r.j.error, 'reauth', JSON.stringify(body));
       }
     }
-    assert.ok(linkKeys(authDb).every((k) => !k.revoked_at), '没复验时一把钥匙都没废');
     assert.ok(db.rows().every((x) => !x.revoked_at), '没复验时一条都没作废');
+    assert.equal(tempkeyRows(authDb), 0);
     assert.equal((await api(env, { action: 'list' }, '')).s, 401);
     assert.equal((await api(env, { action: 'create', hours: 1 }, '')).s, 401);
     assert.equal((await api(env, { action: 'list' }, undefined, 'https://evil.com')).s, 403);
-    /* 直接调网关内部接口：没进门 → session；进门就能签（含短链进门）；作废 / checkLinkReauth 没复验 → reauth */
-    assert.deepEqual(await issuerMod.createLinkKey('', { hours: 1 }, gwEnv), { ok: false, error: 'session' });
-    assert.equal((await issuerMod.createLinkKey(viaLink, { hours: 1 }, gwEnv)).ok, true, '新建只要进门');
-    assert.deepEqual(await issuerMod.revokeLinkKey(viaLink, 'A'.repeat(16), gwEnv), { ok: false, error: 'reauth' });
-    assert.deepEqual(await issuerMod.checkLinkReauth(viaLink, gwEnv), { ok: false, error: 'reauth' });
+    /* 直接调内部门槛 */
+    assert.deepEqual(await issuerMod.checkLinkCreate('', gwEnv), { ok: false, error: 'session' });
+    assert.deepEqual(await issuerMod.checkLinkCreate(viaLink, gwEnv), { ok: false, error: 'link' });
+    assert.deepEqual(await issuerMod.checkLinkCreate(await inCookie('password'), gwEnv), { ok: true });
+    assert.deepEqual(await issuerMod.checkLinkReauth(viaLink, gwEnv), { ok: false, error: 'link' });
+    assert.deepEqual(await issuerMod.checkLinkReauth(linkWithReauth, gwEnv), { ok: false, error: 'link' });
+    assert.deepEqual(await issuerMod.checkLinkReauth(await inCookie('password'), gwEnv), { ok: false, error: 'reauth' });
     assert.deepEqual(await issuerMod.checkLinkReauth('', gwEnv), { ok: false, error: 'session' });
     const owner = await adminCookie();
     assert.deepEqual(await issuerMod.checkLinkReauth(owner, gwEnv), { ok: true });
     assert.equal((await api(env, { action: 'list' }, owner)).s, 200, '复验过能看列表');
-    assert.deepEqual(await issuerMod.createLinkKey(owner, { hours: 25 }, gwEnv), { ok: false, error: 'duration' });
+    assert.deepEqual(await issuerMod.checkLinkCreate(owner, { D1_SPACE: undefined }), { ok: false, error: 'config' });
     /* 别的钥匙签的复验票不算 */
     const other = await genKeyPair();
     const forged = (await inCookie('password')) + '; sgx-space-reauth=' + (await testTicket(other.priv, 'LockReauthTicket', 'password', 0));
     assert.deepEqual(await issuerMod.checkLinkReauth(forged, gwEnv), { ok: false, error: 'reauth' });
-    /* 普通临时钥匙不能经短链接口作废 */
-    const plain = await TL.createTempkey(gwEnv, 'share-test-pepper', { name: '', ms: H });
-    assert.deepEqual(await issuerMod.revokeLinkKey(owner, plain.key.id, gwEnv), { ok: false, error: 'params' });
+    /* v5 S1 前的 by=tempkey 旧票：格式不认 → 没进门 */
+    const p = await (await import(REPO + 'workers/space-core/src/lib/crypto.js')).ed25519Sign(LOCK.priv, 'sgx-space-session|tempkey.0.' + (Date.now() + H) + '.tktesttesttest01');
+    const oldTk = 'sgx-space-session=tempkey.0.' + (Date.now() + H) + '.tktesttesttest01.' + p;
+    assert.deepEqual(await issuerMod.checkLinkCreate(oldTk, gwEnv), { ok: false, error: 'session' });
     /* GET / 别的接口路径 */
     const g = await worker.fetch(new Request('https://styrigx.com/api/share', { headers: { Cookie: owner } }), env, ctx);
     assert.equal(g.status, 405);
@@ -464,8 +531,8 @@ for (const K of KINDS) {
     assert.equal(o2.status, 404);
   });
 
-  T('进门 + 锁侧复验、没有账号会话（两边绑了一碰就抛的 ACCOUNT_VERIFIER 也不问）：能签带会话的短链，也能作废；网关 ShareIssuer 直接签 / 废也行', async () => {
-    const { env, gwEnv, authDb } = mk();
+  T('进门 + 锁侧复验、没有账号会话（两边绑了一碰就抛的 ACCOUNT_VERIFIER 也不问）：能建带会话的短链，也能作废', async () => {
+    const { env, gwEnv, db } = mk();
     let asked = 0;
     const trap = { accountSession() { asked++; throw new Error('不该问账号会话'); }, authorize() { asked++; throw new Error('不该问账号'); } };
     env.ACCOUNT_VERIFIER = trap;
@@ -473,14 +540,9 @@ for (const K of KINDS) {
     const lockOnly = await adminCookie();
     const c = await api(env, { action: 'create', hours: 2, session: 1800 }, lockOnly);
     assert.equal(c.s, 200, JSON.stringify(c.j));
-    const keyId = authDb.rows('tempkey').find((r) => r.realm === 'lock' && r.link)?.id;
-    assert.ok(keyId, '网关签了 link 钥匙');
     const rv = await api(env, { action: 'revoke', id: c.j.link.id }, lockOnly);
     assert.equal(rv.s, 200);
-    assert.ok(tkRow(authDb, keyId).revoked_at > 0);
-    const k = await issuerMod.createLinkKey(lockOnly, { hours: 1 }, gwEnv);
-    assert.equal(k.ok, true);
-    assert.deepEqual(await issuerMod.revokeLinkKey(lockOnly, k.key.id, gwEnv), { ok: true });
+    assert.ok(db.rows()[0].revoked_at > 0);
     assert.equal(asked, 0);
   });
 
@@ -541,17 +603,40 @@ for (const K of KINDS) {
     assert.equal(r4.res.headers.get('Cache-Control'), 'private, no-store');
   });
 
-  T('进站 D1 出错：带会话的点开走失败响应，生成带会话的 503；分享 D1 没绑：点开失败响应', async () => {
-    const { env, authDb, db } = mk();
+  T('进站 D1 出错：带会话的点开走失败响应（签不出会话）；分享 D1 没绑：点开失败响应', async () => {
+    const { env, db } = mk();
     const l = (await api(env, { action: 'create', hours: 2, session: 1800 })).j.link;
     const broken = makeAuthD1();
-    failOn(broken, /tempkey/);
+    failOn(broken, /FROM epoch/);
     const e2 = Object.assign({}, env, { D1_SPACE: spaceD1(broken, db) });
     assert.deepEqual(await failShape(await open(e2, l.path)), FAIL);
-    failOn(authDb, /INSERT INTO tempkey/);
-    assert.equal((await api(env, { action: 'create', hours: 1, session: 1800 })).s, 503);
     const e4 = Object.assign({}, env, { D1_SPACE: undefined });
     assert.deepEqual(await failShape(await open(e4, l.path)), FAIL);
+  });
+
+  T('清理入口 purgeDeadLinks（v5 S1，S2 由 styrigx-status 每日 Cron 经服务绑定调）：只删过期 / 作废满 7 天的行，一条 DELETE；有效的、刚死不到 7 天的都留着', async () => {
+    const { env, db } = mk();
+    const mkL = async (n) => (await api(env, { action: 'create', hours: 1, name: n })).j.link.id;
+    const now = Date.now();
+    const D = 86400e3;
+    const ids = {};
+    for (const n of ['live', 'exp6', 'exp8', 'rev6', 'rev8', 'rev8live']) ids[n] = await mkL(n);
+    patchLink(db, ids.exp6, { expires_at: now - 6 * D });
+    patchLink(db, ids.exp8, { expires_at: now - 8 * D });
+    patchLink(db, ids.rev6, { revoked_at: now - 6 * D });
+    patchLink(db, ids.rev8, { revoked_at: now - 8 * D });
+    patchLink(db, ids.rev8live, { revoked_at: now - 8 * D, expires_at: now + 30 * D });
+    let deletes = 0;
+    const prep = db.prepare.bind(db);
+    db.prepare = (sql) => { if (/^DELETE/i.test(sql)) deletes++; return prep(sql); };
+    const n = await links.purgeDeadLinks(db, now);
+    db.prepare = prep;
+    assert.equal(deletes, 1, '一条 DELETE');
+    assert.equal(n, 3);
+    assert.deepEqual(db.rows().map((r) => r.name).sort(), ['exp6', 'live', 'rev6']);
+    assert.equal(await links.purgeDeadLinks(db, now), 0, '再跑一次没东西可删');
+    await assert.rejects(links.purgeDeadLinks(null, now));
+    assert.equal(links.KEEP_DEAD_MS, 7 * D);
   });
 
   T('列表：新到旧；过期 / 作废的标状态、不给码；超过 7 天的删掉', async () => {
@@ -597,7 +682,7 @@ for (const K of KINDS) {
     }
   });
 
-  T('复用（reuse:true）：同目标 + 同档位 + 剩 ≥ 12 小时 → 返回同一条，不签新钥匙；目标 / 档位不同、剩不到 12 小时、作废了 → 新建', async () => {
+  T('复用（reuse:true）：同目标 + 同档位 + 剩 ≥ 12 小时 → 返回同一条，不新建；目标 / 档位不同、剩不到 12 小时、作废了 → 新建', async () => {
     const { env, db, authDb } = mk();
     const q = { action: 'create', reuse: true, name: '一篇很长很长很长很长很长很长很长很长很长很长的文章标题 · 博客', hours: 24, session: 43200,
       to: 'https://styrigx.com/blog/post/a/' };
@@ -609,7 +694,7 @@ for (const K of KINDS) {
     assert.equal(b.j.reused, true);
     assert.equal(b.j.link.id, a.j.link.id);
     assert.equal(b.j.link.path, a.j.link.path);
-    assert.equal(linkKeys(authDb).length, 1, '复用不签新钥匙');
+    assert.equal(tempkeyRows(authDb), 0);
     assert.equal(db.rows().length, 1);
     /* 没 reuse 标记 = 照旧每次新建 */
     const c = await api(env, { action: 'create', hours: 24, session: 43200, to: '/blog/post/a/' });

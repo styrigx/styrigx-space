@@ -48,7 +48,8 @@ export const LOCK_REAUTH_COOKIE = 'sgx-space-reauth';
 /* ---------- 票里的 by（本次用什么验的） ---------- */
 export const BY_PASSWORD = 'password';
 export const BY_PASSKEY = 'passkey';
-export const BY_TEMPKEY = 'tempkey';
+/* 分享链接带的进站会话（v5 S1，取代 tempkey）：票里 linkId = share_link.id；不能新建 / 管理分享、不能 reauth、不能动解锁凭据 */
+export const BY_LINK = 'link';
 export const BY_SPACE = 'space';
 
 /* ---------- 票名（代码类型名） ---------- */
@@ -63,7 +64,7 @@ export const SHORT_TICKET_MAX_AGE = 180;
  * 三张锁屏票总表：票名 → cookie → 私钥 → 公钥 → 时长 → cookie 属性 → 允许的 by → 纪元归哪个域（realm：lock）。
  *
  * 票内容都是点分，最后一段是签名；签名串 = "<cookie 名>|<票内容>"，同一把私钥签的票互相冒充不了。
- * - LockSessionTicket     by.epoch.exp.tempkeyId（v2，lock-session.js；by=password / passkey 时 tempkeyId 段为空串）
+ * - LockSessionTicket     by.epoch.exp.linkId（v2，lock-session.js；by=password / passkey 时 linkId 段为空串；v5 S1 起 by=tempkey 不认）
  * - 两张 reset / reauth   by.epoch.iat.exp（tickets.js 按本表通用签发 / 验证）
  * 私钥、公钥是 Secrets Store 密钥名（不改名）。纪元按域存在 D1（d1-state.js readEpoch / bumpEpoch，每次验票都读主库，不缓存）。
  */
@@ -72,9 +73,9 @@ export const TICKETS = Object.freeze({
     cookie: LOCK_SESSION_COOKIE,
     privateKey: 'SGX_SPACE_PRIVATE',
     publicKey: 'SGX_SPACE_PUBLIC',
-    maxAge: 43200, /* 锁屏密码 / 通行密钥进门 12 小时；临时钥匙进门按钥匙剩余时间，上限同为 12 小时（lock-tempkey.js TEMPKEY_SESSION_MAX） */
+    maxAge: 43200, /* 锁屏密码 / 通行密钥进门 12 小时；分享链接进门按链接的会话档位，不超过链接剩余时间（core/link-keys.js） */
     cookieAttrs: SHARED_SESSION_ATTRS,
-    bys: Object.freeze([BY_PASSWORD, BY_PASSKEY, BY_TEMPKEY]),
+    bys: Object.freeze([BY_PASSWORD, BY_PASSKEY, BY_LINK]),
     realm: 'lock',
   }),
   [LOCK_RESET_TICKET]: Object.freeze({
@@ -105,9 +106,8 @@ export const REALM_LOCK = Object.freeze({
   publicKey: 'SGX_SPACE_PUBLIC',
   cookie: LOCK_SESSION_COOKIE,
   cookieAttrs: SHARED_SESSION_ATTRS,
-  maxAge: TICKETS[LOCK_SESSION_TICKET].maxAge, /* 锁屏密码 / 通行密钥进门 12 小时；临时钥匙进门的时长见 lock-session.js */
+  maxAge: TICKETS[LOCK_SESSION_TICKET].maxAge, /* 锁屏密码 / 通行密钥进门 12 小时；分享链接进门的时长见 core/link-keys.js */
   pepper: 'SGX_SPACE_PASSWORD_PEPPER', /* 解锁密码哈希（进站 v3 L2：新随机值，旧记录验不过 → 解锁密码要经 reset 重设一次） */
-  tempkeyPepper: 'SGX_SPACE_TEMPKEY_PEPPER', /* 临时钥匙码哈希（进站 v3 L2 起单独一个；旧临时钥匙的码验不过 = 作废；分享链接的钥匙不靠码，不受影响） */
   d1Binding: 'D1_SPACE', /* lock 的行 + 恢复开关 lock_reset_switch */
   epoch: LOCK_EPOCH, /* 纪元名（票里的纪元归属；D1 epoch 表按 realm 存一行） */
   /* challenge 表的 purpose（锁屏通行密钥注册 / 解锁，重置锁屏时验锁屏通行密钥）；5 分钟 */

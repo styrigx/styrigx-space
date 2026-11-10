@@ -4,7 +4,7 @@
  * 覆盖：
  * 1. 锁屏按锁屏凭证配置显示入口（临时钥匙 / 通行密钥 / 密码 / 无法登录？），不含进站凭证
  * 2. 安全页 DOM 结构对所有进门的人一致（无角色条件渲染）
- * 3. space-auth lock-reauth 要先进门（任何 by，含临时钥匙）；进门后走真比对（计数、审计），没进门 401 session 不比对
+ * 3. space-auth lock-reauth 要先进门（任何 by，含分享链接）；进门后走真比对（计数、审计），没进门 401 session 不比对
  * 4. 锁屏凭证弹层四种配置下按钮正确（未设置/仅通行密钥/仅密码/两者都有）
  * 5. 三类通行密钥注册 options 的 name/displayName 正确
  *    （owner→AccountKey，lock→LockKey，app→<aud小写>key；displayName 一律 Sloan Gray）
@@ -101,7 +101,7 @@ test('认证入口（L1 sudo styrigx）：锁屏能列哪些方式按 /api/lock-
 /* ============ 2. 安全页 DOM 一致 ============ */
 
 
-/* ============ 3. 认证入口：临时钥匙进门也走真比对（v1 的假入口已删） ============ */
+/* ============ 3. 认证入口：分享链接进门也走真比对（v1 的假入口已删） ============ */
 
 const setCk = (res) => (typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [res.headers.get('set-cookie') || '']);
 
@@ -288,7 +288,7 @@ test('补充七：进门会话缺 purpose → 400 purpose，不比对、不写�
   const { onRequestPost } = await import(REPO + '/workers/space-core/src/api/space-auth.js');
   const kv = configuredKV({ lock: true });
   const env = baseEnv(kv);
-  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'tempkey');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'link');
   for (const key of ['whatever', '', 'test-root-key-12345']) {
     const req = postReq('https://test.example.com/api/space-auth', { key }, { 'Cookie': 'sgx-space-session=' + sessCv });
     const res = await onRequestPost({ request: req, env });
@@ -329,9 +329,9 @@ test('行为：lockreset 记失败计数写 D1 出错 → 503', async () => {
   assert.deepEqual(await res.json(), { ok: false, error: 'server' });
 });
 
-test('行为（v3 L1）：进门会话（含临时钥匙进门）下 space-auth lock-reauth → 400 purpose，正确恢复钥匙也不签 LockReauthTicket（reauth 只认解锁密码 / 通行密钥）', async () => {
+test('行为（v3 L1）：进门会话（含分享链接进门）下 space-auth lock-reauth → 400 purpose，正确恢复钥匙也不签 LockReauthTicket（reauth 只认解锁密码 / 通行密钥）', async () => {
   const { onRequestPost } = await import(REPO + '/workers/space-core/src/api/space-auth.js');
-  for (const by of ['tempkey', 'password']) {
+  for (const by of ['link', 'password']) {
     const kv = configuredKV({ lock: true });
     const sessCv = await testLockSession(TEST_PRIV_PEM, 0, by);
     const req = postReq('https://test.example.com/api/space-auth', { key: 'test-root-key-12345', purpose: 'lock-reauth' }, { 'Cookie': 'sgx-space-session=' + sessCv });
@@ -343,10 +343,10 @@ test('行为（v3 L1）：进门会话（含临时钥匙进门）下 space-auth 
   }
 });
 
-test('行为：锁屏未配置 + 临时钥匙 cookie：lock-reset 走真路径（by=space）；lock-reauth → 400 purpose', async () => {
+test('行为：锁屏未配置 + 分享链接会话 cookie：lock-reset 走真路径（by=space）；lock-reauth → 400 purpose', async () => {
   const { onRequestPost } = await import(REPO + '/workers/space-core/src/api/space-auth.js');
   const env = baseEnv(makeKV({}));
-  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'tempkey');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'link');
   const ok = await onRequestPost({ request: postReq('https://test.example.com/api/space-auth', { key: 'test-root-key-12345', purpose: 'lock-reset' }, { 'Cookie': 'sgx-space-session=' + sessCv }), env });
   assert.equal(ok.status, 200);
   assert.ok(setCk(ok).some((c) => c.startsWith('sgx-space-reset=space.')), 'lock-reset：by=space');
@@ -398,11 +398,11 @@ test('行为：/api/lock-credentials 无鉴权 → 401', async () => {
   assert.equal(res.status, 401, '无会话无票据应 401');
 });
 
-test('行为：/api/lock-credentials 临时钥匙进门的会话 → 200（进门即可，只读两个布尔）', async () => {
+test('行为：/api/lock-credentials 分享链接进门的会话 → 200（进门即可，只读两个布尔）', async () => {
   const { onRequestGet } = await import(REPO + '/workers/space-core/src/api/lock-credentials.js');
   const kv = makeKV({});
   const env = baseEnv(kv);
-  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'tempkey');
+  const sessCv = await testLockSession(TEST_PRIV_PEM, 0, 'link');
   const res = await onRequestGet({
     request: getReq('https://test.example.com/api/lock-credentials', { 'Cookie': 'sgx-space-session=' + sessCv }),
     env,

@@ -21,7 +21,7 @@
  */
 import { verifyLockSession } from '../core/lock-session.js';
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
-import { REALM_LOCK, LOCK_REAUTH_TICKET, LOCK_RESET_TICKET } from '../core/realms.js';
+import { REALM_LOCK, LOCK_REAUTH_TICKET, LOCK_RESET_TICKET, BY_LINK } from '../core/realms.js';
 import { verifyTicket, clearTicket } from '../core/tickets.js';
 import { getPasskeys, PASSKEY_LOCK } from '../core/passkey-store.js';
 import { hasPassword } from '../core/password.js';
@@ -39,7 +39,7 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_SPACE（纪元、临时钥匙都在这里）：没绑 → 500 config */
+  const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_SPACE（纪元、分享链接都在这里）：没绑 → 500 config */
   if (request.method !== 'POST') {
     return apiError(405, 'method');
   }
@@ -63,8 +63,8 @@ async function handlePost(context) {
     let tv = await verifyTicket(request, env, LOCK_REAUTH_TICKET);
     const sess = await verifyLockSession(request, env);
     const inside = sess.ok;
-    /* LockReauthTicket 必须配进门会话；LockResetTicket 本来就没有会话 */
-    if (tv.ok && inside) ticket = LOCK_REAUTH_TICKET;
+    /* LockReauthTicket 必须配进门会话（不认分享链接进来的 by=link，v5 S1）；LockResetTicket 本来就没有会话 */
+    if (tv.ok && inside && sess.by !== BY_LINK) ticket = LOCK_REAUTH_TICKET;
     if (!ticket) {
       const rv = await verifyTicket(request, env, LOCK_RESET_TICKET);
       if (rv.ok) {

@@ -187,8 +187,8 @@ async function wbCookie(role, acc) {
 }
 const body = () => JSON.stringify({ d: new Date().toISOString().slice(0, 10), s: [{ k: 'home', sec: 30 }] });
 
-test('POST：有进站会话、没账号会话 → 204 丢弃不写（锁屏密码 / 临时钥匙进站一样）；进站会话 + 账号会话 → 写入', async () => {
-  for (const role of ['password', 'tempkey']) {
+test('POST：有进站会话、没账号会话 → 204 丢弃不写（锁屏密码 / 分享链接进站一样）；进站会话 + 账号会话 → 写入', async () => {
+  for (const role of ['password', 'link']) {
     const db = wbDb();
     const r = await onRequestPost({ request: new Request('https://styrigx.com/api/wellbeing', { method: 'POST', body: body(), headers: { Cookie: await wbCookie(role, false) } }), env: wbEnv(db) });
     assert.equal(r.status, 204);
@@ -207,7 +207,7 @@ test('GET：没账号会话 detail:false 只有合计；有账号会话 detail:t
   assert.equal(ja.detail, false);
   assert.equal(ja.total, 90);
   assert.deepEqual(ja.items, []);
-  const b = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('tempkey', true) } }), env: wbEnv(wbDb()) });
+  const b = await onRequestGet({ request: new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: await wbCookie('link', true) } }), env: wbEnv(wbDb()) });
   const jb = await b.json();
   assert.equal(jb.detail, true);
   assert.equal(jb.items[0].t, '三体');

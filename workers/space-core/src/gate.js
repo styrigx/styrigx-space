@@ -125,7 +125,6 @@ const API_WHITELIST = [
   '/api/lock-entry',
   '/api/lock-reauth',
   '/api/lock-session-check',
-  '/api/lock-tempkey-unlock', /* 临时钥匙进门 */
   '/api/geo',
 ];
 const STATIC_RE = /\.(css|js|woff2|woff|ttf|png|svg|ico|json|xml|webmanifest)$/i;
@@ -365,7 +364,7 @@ async function handleRequest(context) {
       return json(401, { ok: false });
     }
     /* 未验证：302 到首页锁屏，return 带站内路径（设计文档 §2.3）。
-       首页有完整锁屏 UI（密码/通行密钥/临时钥匙），解锁后跳回原内页。
+       首页有完整锁屏 UI（密码/通行密钥），解锁后跳回原内页。
        no-store：绝不缓存这个跳转。X-Robots-Tag: noindex：不被搜索引擎收录。 */
     const dest = 'https://styrigx.com/?lock=1&return=' + encodeURIComponent(url.pathname + url.search);
     return new Response(null, {

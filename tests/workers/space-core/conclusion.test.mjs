@@ -2,7 +2,7 @@
  * 网关结论（workers/space-core/src/core/conclusion.js、core/account-rpc.js askAuthorize；方案 2.3、4.3，P2-1）：
  * - conclusionFor：先验门；space.ok=false 时不调账号（account.reason = no-space）；进了门才问 ACCOUNT_VERIFIER.authorize()
  * - 账号绑定缺失 / 没有 authorize 方法 / RPC 抛错 / 回了垃圾 → account.ok=false（fail closed）
- * - 白名单：lock.by、tempkeyId（只给 tempkey）；deviceId 格式；作用域格式（不合格的丢掉，去重排序）；reauth 只认 true；原因代号
+ * - 白名单：lock.by、linkId（只给 link，v5 S1 起取代 tempkeyId）；deviceId 格式；作用域格式（不合格的丢掉，去重排序）；reauth 只认 true；原因代号
  * - 结论头：writeAccountConclusion 只写白名单值，没有就不写；先剥掉已有的 X-Styrigx-Account-*
  * - 浏览器带来的 X-Styrigx-Account-* 在网关第一步被剥掉，不会转到账号 Worker
  * - 规则 16：新代码里没有账号票名（只用 account.reauth 这类字段名）
@@ -12,7 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { testLockSession, TEST_TEMPKEY_ID } from './_tickets.mjs';
+import { testLockSession, TEST_LINK_ID } from './_tickets.mjs';
 import { genKeyPair, makeAuthD1, authD1For, makeKV } from '../_harness.mjs';
 
 const GW = '../../../workers/space-core/src/';
@@ -80,7 +80,7 @@ test('conclusionFor：进门 + 账号会话有效 → lock / account 两段结�
   const ck = (await lockCookie('passkey')) + '; ' + ACC_COOKIE;
   const r = await conclusionFor(env({ ACCOUNT_VERIFIER: v }), ck, { ua: 'UA', country: 'JP', city: 'Tokyo', role: 'password', ip: '1.2.3.4' });
   assert.deepEqual(r, {
-    space: { ok: true, by: 'passkey', tempkeyId: '', reason: 'ok' },
+    space: { ok: true, by: 'passkey', linkId: '', reason: 'ok' },
     account: { ok: true, deviceId: DEV, scopes: ALL, reauth: false, reason: 'ok' },
   });
   assert.equal(v.calls.length, 1);
@@ -99,10 +99,10 @@ test('conclusionFor：opts.reauth === true 才向账号要复验结论；别的�
   assert.deepEqual(v.calls.map((c) => c[2]), [{ reauth: true }, { reauth: false }, { reauth: false }, { reauth: false }, { reauth: false }, { reauth: false }]);
 });
 
-test('conclusionFor：临时钥匙进门 → lock.by=tempkey、带 tempkeyId', async () => {
+test('conclusionFor：分享链接进门 → lock.by=link、带 linkId（v5 S1）', async () => {
   const v = verifier(OK());
-  const r = await conclusionFor(env({ ACCOUNT_VERIFIER: v }), await lockCookie('tempkey'), {});
-  assert.deepEqual(r.space, { ok: true, by: 'tempkey', tempkeyId: TEST_TEMPKEY_ID, reason: 'ok' });
+  const r = await conclusionFor(env({ ACCOUNT_VERIFIER: v }), await lockCookie('link'), {});
+  assert.deepEqual(r.space, { ok: true, by: 'link', linkId: TEST_LINK_ID, reason: 'ok' });
 });
 
 test('conclusionFor：space.ok=false（没 cookie / 只有账号会话 / 别的钥匙签 / 纪元旧了）→ 不调账号，account.reason = no-space', async () => {
@@ -118,7 +118,7 @@ test('conclusionFor：space.ok=false（没 cookie / 只有账号会话 / 别的�
   for (const [ck, reason] of cases) {
     const r = await conclusionFor(e, /** @type {any} */ (ck), {}, { reauth: true });
     assert.deepEqual(r, {
-      space: { ok: false, by: '', tempkeyId: '', reason },
+      space: { ok: false, by: '', linkId: '', reason },
       account: { ok: false, deviceId: '', scopes: [], reauth: false, reason: 'no-space' },
     }, String(ck));
   }
@@ -215,12 +215,14 @@ test('askAuthorize：没 cookie 不问；超长 cookie 截到 8192；clientConte
 
 /* ---------------- 白名单函数 ---------------- */
 
-test('normalizeLockConclusion：by 只认 password / passkey / tempkey；tempkeyId 只给 tempkey 且合格式', () => {
-  assert.deepEqual(normalizeLockConclusion({ ok: true, role: 'password', by: 'password', tempkeyId: 'tk1' }), { ok: true, by: 'password', tempkeyId: '', reason: 'ok' });
-  assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'space' }), { ok: true, by: '', tempkeyId: '', reason: 'ok' });
-  assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'tempkey', tempkeyId: 'bad id!' }), { ok: true, by: 'tempkey', tempkeyId: '', reason: 'ok' });
-  assert.deepEqual(normalizeLockConclusion({ ok: false, reason: 'expired' }), { ok: false, by: '', tempkeyId: '', reason: 'expired' });
-  assert.deepEqual(normalizeLockConclusion(null), { ok: false, by: '', tempkeyId: '', reason: 'no-session' });
+test('normalizeLockConclusion：by 只认 password / passkey / link（v5 S1：tempkey 不认）；linkId 只给 link 且合格式', () => {
+  assert.deepEqual(normalizeLockConclusion({ ok: true, role: 'password', by: 'password', linkId: 'lk1' }), { ok: true, by: 'password', linkId: '', reason: 'ok' });
+  assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'space' }), { ok: true, by: '', linkId: '', reason: 'ok' });
+  assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'tempkey', tempkeyId: 'tk1', linkId: 'tk1' }), { ok: true, by: '', linkId: '', reason: 'ok' });
+  assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'link', linkId: 'bad id!' }), { ok: true, by: 'link', linkId: '', reason: 'ok' });
+  assert.deepEqual(normalizeLockConclusion({ ok: true, by: 'link', linkId: 'lk_01' }), { ok: true, by: 'link', linkId: 'lk_01', reason: 'ok' });
+  assert.deepEqual(normalizeLockConclusion({ ok: false, reason: 'expired' }), { ok: false, by: '', linkId: '', reason: 'expired' });
+  assert.deepEqual(normalizeLockConclusion(null), { ok: false, by: '', linkId: '', reason: 'no-session' });
 });
 
 test('normalizeScopes / normalizeAccountConclusion：非数组 → null / bad-reply；最多 32 个', () => {

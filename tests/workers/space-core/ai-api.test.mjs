@@ -20,7 +20,7 @@ const CTX = { waitUntil() {} };
 
 const { priv: PRIV, pub: PUB } = await genKeyPair();
 const PW_SESS = await testLockSession(PRIV, 0, 'password');
-const TEMPKEY = await testLockSession(PRIV, 0, 'tempkey');
+const LINK_SESS = await testLockSession(PRIV, 0, 'link');
 
 function kv() {
   const m = new Map();
@@ -125,8 +125,8 @@ test('门：跨源 403 origin；没进门 401 unauthorized；都不转发、不�
   assert.deepEqual(rows(e) || [], []);
 });
 
-test('进门就行、不要账号会话：锁屏密码 / 临时钥匙进门都转发；没账号会话不写结论头（只召回公开）', async () => {
-  for (const cookie of [PW_SESS, TEMPKEY]) {
+test('进门就行、不要账号会话：锁屏密码 / 分享链接进门都转发；没账号会话不写结论头（只召回公开）', async () => {
+  for (const cookie of [PW_SESS, LINK_SESS]) {
     const e = env();
     const r = await call(req({ cookie }), e);
     assert.equal(r.status, 200);

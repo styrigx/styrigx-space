@@ -12,7 +12,7 @@ import {
   LOCK_IDENTITY_HEADERS, CLIENT_CONTEXT_HEADERS, INTERNAL_HEADER_PREFIX, stripInternalHeaders, writeLockIdentity,
 } from '../../../workers/space-core/src/core/lock-identity.js';
 import { FORWARDING, matchForwarding } from '../../../workers/space-core/src/router.js';
-import { testLockSession } from './_tickets.mjs';
+import { testLockSession, TEST_LINK_ID } from './_tickets.mjs';
 import { genKeyPair, authD1For, makeKV } from '../_harness.mjs';
 
 const worker = (await import('../../../workers/space-core/src/app.js')).default;
@@ -28,7 +28,7 @@ test('头名逐字固定', () => {
   assert.deepEqual({ ...LOCK_IDENTITY_HEADERS }, {
     session: 'X-Styrigx-Space-Session',
     by: 'X-Styrigx-Space-By',
-    tempkeyId: 'X-Styrigx-Space-Tempkey-Id',
+    linkId: 'X-Styrigx-Space-Link-Id',
   });
   assert.deepEqual({ ...CLIENT_CONTEXT_HEADERS }, {
     address: 'X-Styrigx-Client-Address',
@@ -58,15 +58,16 @@ test('stripInternalHeaders：任意大小写的 x-styrigx-* 和旧前缀 x-sgx-*
   assert.deepEqual([...h.keys()].sort(), ['cookie', 'x-other']);
 });
 
-test('writeLockIdentity：先剥再写；进门（by 只作审计，tempkeyId 只在 by=tempkey 时写）；ok 不是 true → 不写身份头；上下文不合规的项不写', () => {
+test('writeLockIdentity：先剥再写；进门（by 只作审计，linkId 只在 by=link 时写；v5 S1 起 by=tempkey 不认）；ok 不是 true → 不写身份头；上下文不合规的项不写', () => {
   const w = (s, c, init) => Object.fromEntries([...writeLockIdentity(new Headers(init || {}), s, c)]);
-  assert.deepEqual(w({ ok: true, by: 'password', tempkeyId: 'tk1' }, { address: '1.2.3.4', country: 'JP', city: 'Tokyo' }, { 'X-Styrigx-Space-By': 'tempkey' }), {
+  assert.deepEqual(w({ ok: true, by: 'password', linkId: 'lk1' }, { address: '1.2.3.4', country: 'JP', city: 'Tokyo' }, { 'X-Styrigx-Space-By': 'link' }), {
     'x-styrigx-space-session': '1', 'x-styrigx-space-by': 'password',
     'x-styrigx-client-address': '1.2.3.4', 'x-styrigx-client-country': 'JP', 'x-styrigx-client-city': 'Tokyo',
   });
-  assert.deepEqual(w({ ok: true, by: 'tempkey', tempkeyId: 'tk_01' }, {}), {
-    'x-styrigx-space-session': '1', 'x-styrigx-space-by': 'tempkey', 'x-styrigx-space-tempkey-id': 'tk_01',
+  assert.deepEqual(w({ ok: true, by: 'link', linkId: 'lk_01' }, {}), {
+    'x-styrigx-space-session': '1', 'x-styrigx-space-by': 'link', 'x-styrigx-space-link-id': 'lk_01',
   });
+  assert.deepEqual(w({ ok: true, by: 'tempkey', tempkeyId: 'tk_01', linkId: 'tk_01' }, {}), { 'x-styrigx-space-session': '1' }, 'v5 S1：by=tempkey 不在白名单，不写 By / Link-Id');
   assert.deepEqual(w({ ok: true, by: 'owner' }, {}, { 'X-Styrigx-Space-Session': '1' }), { 'x-styrigx-space-session': '1' }, '不认识的 by 不写 By，进门照写');
   assert.deepEqual(w({ ok: 'yes', by: 'password' }, {}, { 'X-Styrigx-Space-Session': '1' }), {}, '外来的头剥掉，ok 不是 true 不写');
   assert.deepEqual(w({ ok: false, by: 'password' }, {}, { 'x-styrigx-space-session': '1' }), {}, 'ok:false → 也不写 Lock-Session');
@@ -116,7 +117,7 @@ test('进门会话：转发原样带 URL / 方法 / 正文 / Cookie / Origin；�
   const ck = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'passkey'));
   const req = new Request('https://styrigx.com/api/account?x=1', {
     method: 'POST',
-    headers: { ...FORGED, 'X-Styrigx-Space-By': 'tempkey', Cookie: ck, Origin: 'https://styrigx.com', 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.9' },
+    headers: { ...FORGED, 'X-Styrigx-Space-By': 'link', Cookie: ck, Origin: 'https://styrigx.com', 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.9' },
     body: '{"action":"device-list"}',
   });
   Object.defineProperty(req, 'cf', { value: { country: 'JP', city: 'Osaka' } });
@@ -137,13 +138,13 @@ test('进门会话：转发原样带 URL / 方法 / 正文 / Cookie / Origin；�
   assert.equal(f.headers['x-styrigx-client-country'], 'JP');
   assert.equal(f.headers['x-styrigx-client-city'], 'Osaka');
   assert.deepEqual(Object.keys(f.headers).filter((k) => k.startsWith('x-sgx-')), []);
-  assert.equal(f.headers['x-styrigx-space-tempkey-id'], undefined);
+  assert.equal(f.headers['x-styrigx-space-link-id'], undefined);
 });
 
-test('临时钥匙进门：/api/prefs、/api/account、/api/wellbeing 都照常转发（网关不再按等级拦，进门之后由账号 Worker 看账号会话）；身份头 by=tempkey + tempkeyId', async () => {
+test('分享链接进门（by=link）：/api/prefs、/api/account、/api/wellbeing 都照常转发（网关不按等级拦，进门之后由账号 Worker 看账号会话）；身份头 by=link + linkId', async () => {
   _resetSecretCache();
   const acct = fakeAccount();
-  const ck = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'tempkey'));
+  const ck = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'link'));
   const e = env({ ACCOUNT: acct });
   for (const p of ['/api/prefs', '/api/account', '/api/wellbeing?d=2026-10-30']) {
     const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: ck, ...FORGED } }), e, CTX);
@@ -152,8 +153,8 @@ test('临时钥匙进门：/api/prefs、/api/account、/api/wellbeing 都照常�
   assert.equal(acct.seen.length, 3);
   for (const s of acct.seen) {
     assert.equal(s.headers['x-styrigx-space-session'], '1');
-    assert.equal(s.headers['x-styrigx-space-by'], 'tempkey');
-    assert.equal(s.headers['x-styrigx-space-tempkey-id'], 'tktesttesttest01');
+    assert.equal(s.headers['x-styrigx-space-by'], 'link');
+    assert.equal(s.headers['x-styrigx-space-link-id'], TEST_LINK_ID);
   }
 });
 

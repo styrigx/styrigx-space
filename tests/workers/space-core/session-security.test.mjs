@@ -6,7 +6,7 @@
  * - getLockEpoch：D1 出错 / 没绑抛错；新库当 0；每次读 D1 不缓存；bump 出错绝不写入；没有 KV 回落
  * - 纪元接口已删除（第 6 层）
  * - /api/lock-all-devices（2.8.0 独立 L2 API）：进门会话 → epoch+1、清 cookie 带 Domain、
- *   KV 出错 → 503 且不写入；临时钥匙进门的会话 → 403；无会话 → 401；旧三段式 cookie 无效
+ *   KV 出错 → 503 且不写入；分享链接进门的会话 → 403；无会话 → 401；旧三段式 cookie 无效
  * - gate.js：缺 SGX_SPACE_PUBLIC 时生产环境 fail closed（只放白名单）；
  *   过期 cookie 被拒；旧 epoch cookie 被拒；伪造签名被拒；
  *   未验证的非白名单路径 302 到 https://styrigx.com/?lock=1&return=<站内路径>
@@ -37,7 +37,7 @@ import { b64urlEnc, ed25519Sign } from '../../../workers/space-core/src/lib/cryp
 import { onRequestPost as pwPost } from '../../../workers/space-core/src/api/lock-password.js';
 import { onRequestPost as lockAllPost } from '../../../workers/space-core/src/api/lock-all-devices.js';
 import { onRequest as mw } from '../../../workers/space-core/src/gate.js';
-import { testLockSession } from './_tickets.mjs';
+import { testLockSession, TEST_LINK_ID } from './_tickets.mjs';
 import { makeKV, genKeyPair, postReq, authD1For, forbiddenKV } from '../_harness.mjs';
 
 /* ---------- mock KV ---------- */
@@ -223,16 +223,16 @@ test('password verify：密码错误 → 403（不签发）', async () => {
  * ================================================================ */
 
 
-test('lock-all-devices：临时钥匙进门、没有锁侧复验 → 403 reauth（epoch 不变；进门会话本身不算复验）', async () => {
+test('lock-all-devices：分享链接进门（by=link）→ 403 link（v5 S1：链接会话动不了锁屏凭证；epoch 不变）', async () => {
   const kv = kvWithEpoch(2);
-  const cookie = await testLockSession(TEST_PRIV_PEM, 2, 'tempkey');
+  const cookie = await testLockSession(TEST_PRIV_PEM, 2, 'link');
   const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PUBLIC: TEST_PUB_PEM };
   const r = await lockAllPost({
     request: postReq('https://styrigx.com/api/lock-all-devices', {}, { 'Cookie': 'sgx-space-session=' + cookie }),
     env,
   });
   assert.equal(r.status, 403);
-  assert.equal((await r.json()).error, 'reauth');
+  assert.equal((await r.json()).error, 'link');
   assert.equal(lockEpochOf(kv), 2);
 });
 
@@ -558,7 +558,7 @@ test('middleware：无有效会话访问内页 → 302 到首页锁屏（return 
  * /api/lock-session-check（2.4.1 防循环）
  * ================================================================ */
 
-/* lock-session-check 的 200 / 401 契约（锁屏密码进门、临时钥匙进门、无会话、旧三段式坏票）2026-10-26 并进
+/* lock-session-check 的 200 / 401 契约（锁屏密码进门、分享链接进门、无会话、旧三段式坏票）2026-10-26 并进
  * auth-flow-2026-10-21.test.mjs 的 B 段（经真实网关入口，断言逐条保留），这里不再重复。 */
 
 /* ================================================================
@@ -573,7 +573,7 @@ function assertSessionCookieAttrs(sc, maxAge) {
   assert.match(sc, /HttpOnly/);
   assert.match(sc, /SameSite=Lax/);
   assert.match(sc, /Domain=\.styrigx\.com/);
-  /* 2.8.0：锁屏密码 / 通行密钥进门 43200，临时钥匙进门按钥匙剩余时间 */
+  /* 2.8.0：锁屏密码 / 通行密钥进门 43200；分享链接进门按会话档位和链接剩余时间（v5 S1） */
   const expected = maxAge || '43200';
   assert.match(sc, new RegExp('Max-Age=' + expected));
 }
@@ -588,26 +588,32 @@ test('password verify 通过：Set-Cookie 属性齐全（Path/Secure/HttpOnly/Sa
   assertSessionCookieAttrs(r.headers.get('Set-Cookie'));
 });
 
-test('临时 LockKey 进门通过：Set-Cookie 属性齐全（v2 进站会话 by=tempkey、带 tempkeyId，Max-Age = 剩余时间封顶 12 小时；没有 sgx-tk）', async () => {
-  const { onRequestPost: tkPost } = await import('../../../workers/space-core/src/api/lock-tempkey-unlock.js');
-  const { createTempkey } = await import('../../../workers/space-core/src/core/lock-tempkey.js');
+test('分享链接进门（v5 S1，openLinkSession）：Set-Cookie 属性齐全（v2 进站会话 by=link、带 linkId，Max-Age = min(会话档位, 链接剩余)）；签发时不读 D1', async () => {
+  const { openLinkSession } = await import('../../../workers/space-core/src/core/link-keys.js');
   const kv = makeKV();
-  const { code } = await createTempkey(stores(kv), 'test-pepper', { name: '', ms: 30 * 24 * 3600 * 1000 });
-  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PRIVATE: TEST_PRIV_PEM, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper' };
-  const r = await tkPost({ request: postReq('https://styrigx.com/api/lock-tempkey-unlock', { code }), env });
-  assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true });
-  const all = r.headers.getSetCookie();
-  const sc = all.find((c) => c.startsWith('sgx-space-session=') && c.includes('Domain='));
-  assertSessionCookieAttrs(sc, '43200');
-  /* LockSessionTicket v2：by.epoch.exp.tempkeyId.sig */
+  const db = authD1For(kv);
+  const env = { D1_SPACE: db, SGX_SPACE_PRIVATE: TEST_PRIV_PEM };
+  const before = db.calls.filter((q) => /share_link/.test(q)).length;
+  const r = await openLinkSession(TEST_LINK_ID, 3600, Date.now() + 30 * 86400e3, env);
+  assert.equal(r.ok, true);
+  assert.equal(db.calls.filter((q) => /share_link/.test(q)).length, before, '签发时不再读 share_link（share-open 刚读过）');
+  const sc = r.cookies.find((c) => c.startsWith('sgx-space-session=') && c.includes('Domain='));
+  assertSessionCookieAttrs(sc, '3600');
+  /* LockSessionTicket v2：by.epoch.exp.linkId.sig */
   const parts = sc.split(';')[0].slice('sgx-space-session='.length).split('.');
   assert.equal(parts.length, 5);
-  assert.equal(parts[0], 'tempkey');
+  assert.equal(parts[0], 'link');
   assert.match(parts[1], /^\d+$/, 'epoch');
   assert.match(parts[2], /^\d+$/, 'exp');
-  assert.match(parts[3], /^[A-Za-z0-9_-]{16}$/, 'tempkeyId');
-  assert.ok(!all.some((c) => c.startsWith('sgx-tk=')), '钥匙票已并入会话');
+  assert.equal(parts[3], TEST_LINK_ID, 'linkId = share_link.id');
+  /* 剩余时间比档位短：Max-Age 取剩余 */
+  const r2 = await openLinkSession(TEST_LINK_ID, 86400, Date.now() + 600e3, env);
+  assert.equal(r2.ok, true);
+  assert.ok(r2.maxAge <= 600 && r2.maxAge >= 598, String(r2.maxAge));
+  /* 档位外 / id 格式不对 / 已到期 → 不签 */
+  assert.equal((await openLinkSession(TEST_LINK_ID, 1234, Date.now() + 86400e3, env)).ok, false);
+  assert.equal((await openLinkSession('bad id', 3600, Date.now() + 86400e3, env)).ok, false);
+  assert.equal((await openLinkSession(TEST_LINK_ID, 3600, Date.now() - 1, env)).ok, false);
 });
 
 test('passkey auth 通过：Set-Cookie 属性齐全', async () => {
@@ -749,16 +755,11 @@ test('diag: password verify 无 SGX_SPACE_PRIVATE → 500 no-session-key（不�
   assert.equal(r.headers.get('Set-Cookie'), null);
 });
 
-test('diag: 临时 LockKey 进门 无 SGX_SPACE_PRIVATE → 500 no-session-key，不下发 cookie', async () => {
-  const { onRequestPost: tkPost } = await import('../../../workers/space-core/src/api/lock-tempkey-unlock.js');
-  const { createTempkey } = await import('../../../workers/space-core/src/core/lock-tempkey.js');
+test('diag: 分享链接进门 无 SGX_SPACE_PRIVATE → 不签发、不下发 cookie（v5 S1，openLinkSession fail closed）', async () => {
+  const { openLinkSession } = await import('../../../workers/space-core/src/core/link-keys.js');
   const kv = makeKV();
-  const { code } = await createTempkey(stores(kv), 'test-pepper', { name: '', ms: 3600 * 1000 });
-  const env = { D1_SPACE: authD1For(kv), SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper' };
-  const r = await tkPost({ request: postReq('https://styrigx.com/api/lock-tempkey-unlock', { code }), env });
-  assert.equal(r.status, 500);
-  assert.deepEqual(await r.json(), { ok: false, error: 'no-session-key' });
-  assert.equal(r.headers.get('Set-Cookie'), null);
+  const r = await openLinkSession(TEST_LINK_ID, 3600, Date.now() + 3600e3, { D1_SPACE: authD1For(kv) });
+  assert.deepEqual(r, { ok: false });
 });
 
 /* 构造一次有效的 passkey auth 请求体（WebAuthn 断言在测试内真实生成） */
@@ -856,7 +857,7 @@ test('diag: 写入/读取对账：signLockSessionTicket 签发的 cookie 能被 
   const { LOCK_SESSION_COOKIE } = await import('../../../workers/space-core/src/core/lock-session.js');
   assert.equal(LOCK_SESSION_COOKIE, 'sgx-space-session');
   const cv = await testLockSession(TEST_PRIV_PEM, 0, 'password');
-  /* LockSessionTicket v2：by.epoch.exp.tempkeyId.sig（不是临时钥匙进门时 tempkeyId 为空串） */
+  /* LockSessionTicket v2：by.epoch.exp.linkId.sig（不是分享链接进门时 linkId 为空串） */
   assert.equal(cv.split('.').length, 5);
   assert.ok(cv.startsWith('password.0.'));
   assert.equal(cv.split('.')[3], '');
@@ -1048,13 +1049,13 @@ test('2.8.0：未验证 302 带 X-Robots-Tag: noindex', async () => {
  * 2.8.0 会话角色分离
  * ================================================================ */
 
-async function tempkeyCookie(epoch = 0) {
+async function linkCookie(epoch = 0) {
   const { signLockSessionTicket } = await import('../../../workers/space-core/src/core/lock-session.js');
-  return await testLockSession(TEST_PRIV_PEM, epoch, 'tempkey');
+  return await testLockSession(TEST_PRIV_PEM, epoch, 'link');
 }
 
-test('进门二值：临时钥匙进门的人可以访问桌面（/）、设置（/display/）、文件（/files/）、安全总览和锁屏凭证页（中英），页面上没有等级标记', async () => {
-  const vCookie = await tempkeyCookie(0);
+test('进门二值：分享链接进门的人可以访问桌面（/）、设置（/display/）、文件（/files/）、安全总览和锁屏凭证页（中英），页面上没有等级标记', async () => {
+  const vCookie = await linkCookie(0);
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -1070,7 +1071,7 @@ test('进门二值：临时钥匙进门的人可以访问桌面（/）、设置�
   assert.ok(!/data-sgx-role|data-sgx-upgrade/.test(html), '不再注入等级 / 升级标记'); // old-name guard
   for (const p of ['/display/', '/files/', '/display/', '/zh/display/', '/security/', '/zh/security/', '/security/lock/', '/zh/security/lock/']) {
     const r = await mw(mwCtx('https://styrigx.com' + p, { cookie: vCookie, env: PROD_ENV() }));
-    assert.equal(r.status, 200, '临时钥匙进门访问 ' + p + ' 应 200');
+    assert.equal(r.status, 200, '分享链接进门访问 ' + p + ' 应 200');
   }
 });
 
@@ -1107,8 +1108,8 @@ test('LockResetTicket 只放行 /security/lock/，不开总览；LockReauthTicke
   r = await mw(ctx('https://styrigx.com/security/lock/', lockTicket));
   assert.equal(r.status, 302);
 });
-test('进门二值：临时钥匙进门的人首页带 return=锁屏凭证页 → 直接 302 回原页（不再有升级验证层）', async () => {
-  const vCookie = await tempkeyCookie(0);
+test('进门二值：分享链接进门的人首页带 return=锁屏凭证页 → 直接 302 回原页（不再有升级验证层）', async () => {
+  const vCookie = await linkCookie(0);
   const htmlNext = async () => new Response('<html lang="zh"><head></head><body></body></html>', {
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -1122,9 +1123,9 @@ test('进门二值：临时钥匙进门的人首页带 return=锁屏凭证页 �
   assert.equal(r.headers.get('Location'), '/security/lock/');
 });
 
-test('进门二值：关口不再按角色拦锁屏凭证接口——临时钥匙进门的 POST 都交给接口（调 next），由接口自己要复验', async () => {
-  const vCookie = await tempkeyCookie(0);
-  for (const api of ['/api/lock-passkey', '/api/lock-password', '/api/lock-all-devices', '/api/lock-reauth', '/api/lock-tempkey']) {
+test('进门二值：关口不再按角色拦锁屏凭证接口——分享链接进门的 POST 都交给接口（调 next），由接口自己要复验', async () => {
+  const vCookie = await linkCookie(0);
+  for (const api of ['/api/lock-passkey', '/api/lock-password', '/api/lock-all-devices', '/api/lock-reauth', '/api/share']) {
     let reached = false;
     const ctx = {
       request: new Request('https://styrigx.com' + api, {
@@ -1160,8 +1161,8 @@ test('2.9.3：无会话调非白名单 API 是 401', async () => {
   }
 });
 
-test('2.9.3：middleware 放行临时钥匙进门的 POST /api/lock-now（调 next）', async () => {
-  const vCookie = await tempkeyCookie(0);
+test('2.9.3：middleware 放行分享链接进门的 POST /api/lock-now（调 next）', async () => {
+  const vCookie = await linkCookie(0);
   let nextCalled = false;
   const ctx = {
     request: new Request('https://styrigx.com/api/lock-now', {
@@ -1175,13 +1176,13 @@ test('2.9.3：middleware 放行临时钥匙进门的 POST /api/lock-now（调 ne
     env: PROD_ENV(),
   };
   const r = await mw(ctx);
-  assert.ok(nextCalled, '临时钥匙进门调 /api/lock-now 应调用 next()');
+  assert.ok(nextCalled, '分享链接进门调 /api/lock-now 应调用 next()');
   assert.equal(await r.text(), 'PASSED-TO-HANDLER', '应返回 handler 的响应');
 });
 
 test('2.9.3：POST /api/lock-now handler 返回 200 并清除 sgx-verified', async () => {
   const { onRequestPost } = await import('../../../workers/space-core/src/api/lock-now.js');
-  const vCookie = await tempkeyCookie(0);
+  const vCookie = await linkCookie(0);
   for (const cookie of [vCookie, null]) {
     const r = await onRequestPost({
       request: new Request('https://styrigx.com/api/lock-now', {
@@ -1190,7 +1191,7 @@ test('2.9.3：POST /api/lock-now handler 返回 200 并清除 sgx-verified', asy
       }),
       env: PROD_ENV(),
     });
-    assert.equal(r.status, 200, (cookie ? 'tempkey' : '无会话') + ' 调 handler 应 200');
+    assert.equal(r.status, 200, (cookie ? 'link' : '无会话') + ' 调 handler 应 200');
     assert.deepEqual(await r.json(), { ok: true });
     const setCookie = r.headers.get('Set-Cookie') || '';
     assert.ok(setCookie.includes('sgx-space-session=') && setCookie.includes('Max-Age=0'),

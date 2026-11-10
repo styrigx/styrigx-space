@@ -27,7 +27,7 @@ export async function onRequestGet(context) {
 /** @param {any} context */
 async function handleGet(context) {
   const { request, env } = context;
-  const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_SPACE（纪元、临时钥匙都在这里）：没绑 → 500 config */
+  const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_SPACE（纪元、分享链接都在这里）：没绑 → 500 config */
   if (!lockDb) {
     /* 未绑 D1：会话/票据校验本身也读 D1 纪元，直接按配置错误处理（fail closed）。
        注意：实际请求中 verifyLockSession/verifyLockResetTicket 无 D1 时均返回

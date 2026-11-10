@@ -62,6 +62,8 @@ function memoryD1() {
         return 1;
       },
     },
+    [SQL.revokeAll]: { run: ([at]) => { let n = 0; for (const r of links.values()) if (r.revoked_at == null) { r.revoked_at = at; n++; } return n; } },
+    [SQL.linkState]: { first: ([id]) => { const r = links.get(id); return r ? { revoked_at: r.revoked_at, expires_at: r.expires_at } : null; } },
     [SQL.revoke]: { run: ([id, at]) => { const r = links.get(id); if (r && r.revoked_at == null) { r.revoked_at = at; return 1; } return 0; } },
     [SQL.opened]: { run: ([id, at]) => { const r = links.get(id); if (r) { r.opens++; r.last_open_at = at; return 1; } return 0; } },
     [SQL.purge]: {

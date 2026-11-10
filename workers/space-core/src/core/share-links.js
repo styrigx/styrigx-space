@@ -1,9 +1,12 @@
 /**
  * @fileoverview 分享短链的规则和存储（D1 styrigx-space-core 的 share_* 表，绑定 D1_SPACE；表结构见 migrations/0001_baseline.sql）。
  *
- * - 码：16 字节随机数 → 22 位 base64url（128 位），不可枚举。存 D1（临时钥匙页的列表里复制要用），只经 /api/share 的 list 给进门的人看。
- * - 有效期：1–24 小时任选，或 3 / 7 / 15 / 30 天（和网关临时钥匙同一张表；带会话的短链以网关签回的钥匙到期时间为准）。
- * - 会话时长：30 分钟、1 / 3 / 12 小时、1 / 3 / 7 天，且不超过有效期（网关 src/share-issuer.js 再验一次）。
+ * - 码：16 字节随机数 → 22 位 base64url（128 位），不可枚举。存 D1（分享列表里复制要用），只经 /api/share 的 list 给进门的人看。
+ * - 有效期：1–24 小时任选，或 3 / 7 / 15 / 30 天。
+ * - 会话时长：30 分钟、1 / 3 / 12 小时、1 / 3 / 7 天，且不超过有效期（core/link-keys.js LINK_SESSION_OPTS 同一张表）。
+ * - 带会话的短链（v5 S1）：点开时签进站会话 by=link、linkId = 这一行的 id（core/link-keys.js openLinkSession）；
+ *   验会话时查这一行（isLinkLive）：作废 / 过期 / 已清理 → 会话失效。不再签「短链钥匙」（tempkey 表、key_id 列不再读写，
+ *   新行 key_id 写 ''；表和列的删除在后面单独的收尾 PR）。
  * - 目标：站内相对路径（/ 开头），或 https 绝对地址且主机正好是 styrigx.com（合并 PR3 起各站都在 styrigx.com/<站>/ 下）
  *   （不能带端口、用户名密码，不能 // 开头，不含控制字符 / 空白 / 反斜杠）。规范化：一律存成相对路径；
  *   去掉锁屏 / 回跳 / 分享参数（lock、why、return、share）；不能指向 /s/（自己）和任何 /api/、/<站>/api/。默认 /。点开时再验一次（防开放重定向）。
@@ -25,6 +28,7 @@ export const DAYS = Object.freeze([3, 7, 15, 30]);
 export const SHARE_PATH_RE = /^\/s\/([^/]*)\/?$/;
 const CODE_RE = /^[A-Za-z0-9_-]{22}$/;
 const ID_RE = /^[A-Za-z0-9_-]{16}$/;
+const LINK_ID_RE = /^[A-Za-z0-9_-]{16}$/;
 
 /** @param {Uint8Array} b */
 function b64url(b) {
@@ -46,9 +50,15 @@ export function newId() { return rand(12); }
 export function isCode(s) { return typeof s === 'string' && CODE_RE.test(s); }
 /** @param {any} s */
 export function isId(s) { return typeof s === 'string' && ID_RE.test(s); }
+/**
+ * 进站会话票里的 linkId（by=link，v5 S1）：就是 share_link.id。和 isId 同一个格式，但单独一个校验函数——
+ * 票的格式校验（core/lock-session.js validCombo）只认它，不和管理接口的参数校验共用，以后两边各改各的。
+ * @param {any} s
+ */
+export function isLinkId(s) { return typeof s === 'string' && LINK_ID_RE.test(s); }
 
 /**
- * 有效期参数 → 毫秒；不合法返回 0（与网关临时钥匙的有效期同规则，单测核对）。
+ * 有效期参数 → 毫秒；不合法返回 0。
  * @param {{hours?:any, days?:any}} p
  */
 export function durationMs(p) {
@@ -149,6 +159,10 @@ export const SQL = Object.freeze({
     'AND expires_at - created_at BETWEEN ?4 AND ?5 ORDER BY expires_at DESC LIMIT 1',
   insert: 'INSERT INTO share_link (id, code, name, target, session_sec, key_id, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)',
   revoke: 'UPDATE share_link SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL',
+  /* share rm --all：把所有还没作废的一次作废（已过期的也写上，列表里显示「已作废」，7 天后一起清） */
+  revokeAll: 'UPDATE share_link SET revoked_at = ?1 WHERE revoked_at IS NULL',
+  /* 验 by=link 的进站会话：这条链接还在不在、作废没有、到期没有（core/lock-session.js；每个请求读一次主库，不缓存） */
+  linkState: 'SELECT revoked_at, expires_at FROM share_link WHERE id = ?1',
   opened: 'UPDATE share_link SET opens = opens + 1, last_open_at = ?2 WHERE id = ?1',
   purge: 'DELETE FROM share_link WHERE expires_at < ?1 OR revoked_at < ?1',
   failGet: 'SELECT count, window_start, locked_until FROM share_fail WHERE ip = ?1',
@@ -172,6 +186,40 @@ export async function run(db, sql, ...args) {
 }
 
 /**
+ * 清理入口（v5 S1）：删掉过期或作废满 KEEP_DEAD_MS（7 天）的行，一条 DELETE。返回删掉的行数（D1 meta.changes，拿不到就 0）。
+ * 命名导出给 styrigx-status 的每日 Cron 经服务绑定调用（S2 接线；S1 只加入口）；/api/share list 前也顺手调一次。
+ * 删的都是早已失效的行：作废 / 过期的那一刻 by=link 的会话就验不过了（core/lock-session.js 查 linkState），行在不在都一样（不在也按失效算）。
+ * D1 出错抛错（调用方决定吞掉还是 503）。
+ * @param {any} db D1_SPACE
+ * @param {number} [now] 毫秒，默认现在
+ * @returns {Promise<number>}
+ */
+export async function purgeDeadLinks(db, now) {
+  if (!db) throw new Error('purgeDeadLinks: no db');
+  const t = (typeof now === 'number' && Number.isFinite(now) ? now : Date.now()) - KEEP_DEAD_MS;
+  const r = await run(db, SQL.purge, t);
+  const n = r && r.meta && r.meta.changes;
+  return typeof n === 'number' ? n : 0;
+}
+
+/**
+ * 链接会话还能不能用（core/lock-session.js 验 by=link 的票时调）：行在、没作废、没到期 → true；
+ * 行不在（已清理）/ 作废 / 到期 → false。D1 出错抛错（调用方 fail closed）。不缓存，每次读主库。
+ * @param {any} db D1_SPACE
+ * @param {string} id share_link.id
+ * @param {number} [now]
+ * @returns {Promise<boolean>}
+ */
+export async function isLinkLive(db, id, now) {
+  if (!db) throw new Error('isLinkLive: no db');
+  if (!isLinkId(id)) return false;
+  const row = await first(db, SQL.linkState, id);
+  if (!row) return false;
+  if (row.revoked_at) return false;
+  return row.expires_at > (typeof now === 'number' ? now : Date.now());
+}
+
+/**
  * 状态：active / expired / revoked。
  * @param {any} row @param {number} now
  */
@@ -182,7 +230,7 @@ export function statusOf(row, now) {
 }
 
 /**
- * 列表里的一条（不含钥匙 id）。
+ * 列表里的一条（不含 key_id 列）。
  * sessionLeft：带会话的短链，最近一次点开发出去的临时会话最多还剩几秒（没人点开过 / 已过期 / 已作废 = 0）。
  * openFor：现在点开能看多久（秒）= min(会话时长, 短链剩余)；普通短链 0。
  * @param {any} row @param {number} now
