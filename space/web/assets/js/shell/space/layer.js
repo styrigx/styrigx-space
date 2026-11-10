@@ -134,6 +134,16 @@ export function mountSpace(line, o) {
     });
   };
 
+  /** 已进站点盾牌（v5 S6，Gray 16:36）：问「退出进站会话 [y/N]」——y = lock（同上，只锁本机），回车 / n 不动。
+      [y/N] 只在问句里出一次，输入行用选择的默认提示符 `>`（同账号 sub 的 y/N；原来问句、提示符各一个 [y/N]，Gray 2026-11-11） */
+  C.lockAsk = function () {
+    C.out(esc(t('shield.exitAsk')) + ' [y/N]');
+    C.pick({
+      y: function () { C.echoPick('y'); C.lockNow(); },
+      n: function () { C.echoPick('n'); C.toCmd(); },
+    }, 'n');
+  };
+
   /** 终端窗口关上：结束 reauth；钥匙 reset 里关窗口 = 离开 reset */
   C.onTermClosed = function () {
     if (C.inReset) C.leaveReset();

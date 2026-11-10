@@ -100,7 +100,7 @@ test.describe('顶栏 v3 布局', () => {
     });
   });
 
-  test('通栏（贴顶、全宽、高 64，手机布局 56）：字标 · 外观 · 盾牌 · | · >_ · 头像，按钮 40；内容收进居中的 max(页边距, (宽 − 1080) / 2)；不显示页名；没有右圆分享', async ({ page }) => {
+  test('通栏（贴顶、全宽、高 64，手机布局 56）：字标 · 盾牌 · 调色盘 · 四格 · | · >_ · 头像，按钮 40；内容收进居中的 max(页边距, (宽 − 1080) / 2)；不显示页名；没有右圆分享', async ({ page }) => {
     const w = page.viewportSize().width;
     const m = w < 600 ? 12 /* 对齐 PR-B：手机页边距 12 */ : Math.min(48, Math.max(16, 5.333 + 0.022222 * w));
     const pad = Math.max(m, (w - 1080) / 2);
@@ -121,7 +121,7 @@ test.describe('顶栏 v3 布局', () => {
         };
       });
       expect(r.bar).toEqual([0, r.vw, r.phone ? 56 : 64]); /* 手机布局 56（2026-11-09 fix/mobile-topbar-56） */
-      expect(r.btns).toEqual([[40, 40], [40, 40], [40, 40], [40, 40]]);
+      expect(r.btns).toEqual([[40, 40], [40, 40], [40, 40], [40, 40], [40, 40]]); /* v5 S6 顶栏 E：盾牌 · 调色盘 · 四格 · >_ · 头像 */
       expect(Math.abs(r.logoL - (pad - 4)), `${path} 字标左 ${r.logoL}`).toBeLessThanOrEqual(1);
       expect(Math.abs(r.actsR - (w - pad)), `${path} 图标组右 ${r.actsR}`).toBeLessThanOrEqual(1);
       expect(r.between).toBe(true);

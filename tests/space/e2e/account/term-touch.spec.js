@@ -18,13 +18,13 @@ test.beforeEach(async ({ page }) => { await T.zh(page); });
 
 /** 提示行里的 ^C 按钮 @param {import('@playwright/test').Page} page */
 const cc = (page) => page.locator('#sgx-acct [data-at-hint] [data-at-cc]');
-/** 命令行是活的：有焦点，敲 help 能出 help @param {import('@playwright/test').Page} page */
+/** 命令行是活的：有焦点，敲 man 能出命令表（v5：man 取代 help） @param {import('@playwright/test').Page} page */
 async function liveCmd(page, prompt) {
   await mode(page, 'cmd');
   await expect(ps(page)).toHaveText(prompt);
   await expect(termIn(page)).toBeFocused();
   const n = await log(page).locator('.sgx-at-l').count();
-  await typeLine(page, 'help');
+  await typeLine(page, 'man');
   await expect(log(page)).toContainText('sudo root reauth — ');
   expect(await log(page).locator('.sgx-at-l').count()).toBeGreaterThan(n);
 }
@@ -118,7 +118,7 @@ test.describe('sudo root（未登录）', () => {
     await mode(page, 'pick');
     await cc(page).tap();
     await mode(page, 'cmd');
-    await termIn(page).fill('help');
+    await termIn(page).fill('man');
     await termIn(page).evaluate((el) => {
       el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true }));
       el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true, cancelable: true }));
@@ -127,7 +127,7 @@ test.describe('sudo root（未登录）', () => {
     /* 正常 enter 不会提交两次 */
     await typeLine(page, 'clear');
     await expect(log(page).locator('.sgx-at-l')).toHaveCount(0);
-    await typeLine(page, 'help');
+    await typeLine(page, 'man');
     await expect(log(page)).toContainText('sudo root reauth — ');
     await expect(log(page).locator('.sgx-at-l--echo')).toHaveCount(1);
   });

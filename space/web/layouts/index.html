@@ -2,11 +2,12 @@
 {{ .Scratch.Set "sgx-entry" "entry-space.js" }}
 {{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 {{ $profile := site.Data.profile }}
+{{ $ver := site.Data.version }}
 
 {{/* 主页（2026-11 对齐计划 PR-B，设计稿 tb4.html 主页默认 / m=1；Gray 10:43 / 10:45：功能一个不少，形式照稿）：
-   首屏 = 居中 hero（状态胶囊 · $ whoami · 名字 · $ 标语打字轮播 + 闪烁光标 · # 签名）+ 嵌入的真终端（引擎 shell/terminal.js，同全站抽屉一个实例）。
+   首屏 = 居中 hero（状态胶囊 · $ whoami · 名字 · $ 标语打字轮播 + 闪烁光标 · # 签名）+ neofetch about 卡（v5 S7；原嵌入终端，终端挪到顶栏 >_）。
    头像只在顶栏右上；签名 2026-11-09 回到 hero 的 # 行；名字、签名都由 /api/profile 覆盖（data-sgx-profile）。
-   下面四节「[0n] // 名字」：[01] 博客 最新 3 篇 · [02] 奇趣 三个目录卡 · [03] 日刻 今日一句（强调线引言）· [04] 旷野 三张小终端卡（screen-time / status / about，点进 /wild/）。
+   下面四节「[0n] // 名字」：[01] 博客 最新 3 篇 · [02] 奇趣 三个目录卡 · [03] 日刻 今日一句（强调线引言）· [04] 旷野 两张小终端卡（screen-time / status，点进 /wild/）。
    各节带 data-term-dir（终端 cd 的落点）和 data-term-label（落点提示）。内容宽 = 顶栏内容宽（--sgx-content-w 1080）。 */}}
 {{ $h := $tr.home }}
 <div class="home-wrap home-term-wrap">
@@ -27,19 +28,46 @@
       <p class="home-intro" data-home-motto-line{{ if not $profile.motto }} hidden{{ end }}><span class="home-pr" aria-hidden="true">#</span> <span class="home-motto" translate="no" data-sgx-personal data-sgx-profile="motto">{{ $profile.motto }}</span></p>
     </div>
 
-    {{/* 嵌入终端（v5 S5：主页上它就是全站终端，同一个会话；S7 换成 neofetch）：真输入框 + 输出区；同一套标记见 shell-topbar.html #sgx-term */}}
-    <div id="home-term" class="sgx-term sgx-term--home" data-sgx-term="home">
-      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><b class="sgx-term-title" data-term-title translate="no">nobody@space: ~</b><em class="sgx-term-hint" aria-hidden="true"><span class="sgx-term-hint-l">{{ $tr.shell.term.hint }}</span><span class="sgx-term-hint-s">{{ $tr.shell.term.hintShort }}</span></em></div>
-      <div class="sgx-term-body" data-term-body>
-        <div class="sgx-term-out" data-term-out role="log" aria-live="polite" aria-label="{{ $tr.shell.term.output }}"><div class="sgx-term-ln sgx-term-o">{{ replace (replace (htmlEscape $tr.shell.term.welcome) "{help}" `<span class="sgx-term-k" translate="no">man</span>`) "{cd}" `<span class="sgx-term-k" translate="no">open blog</span>` | safeHTML }}</div></div>
-        <form class="sgx-term-line" data-term-form data-mode="cmd" autocomplete="off" novalidate>
-          <input type="text" class="sgx-at-pmu" data-term-pmu name="username" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
-          <label class="sgx-term-ps" for="home-term-in" data-term-ps translate="no">nobody@space:~$</label>
-          <span class="sgx-term-field"><input id="home-term-in" class="sgx-term-in" data-term-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="{{ $tr.shell.term.input }}" aria-keyshortcuts="Control+K Meta+K"><span class="sgx-term-ghost" data-term-ghost aria-hidden="true" hidden></span></span>
-        </form>
-        <p class="sgx-at-hint sgx-term-hint2" data-term-hint hidden></p>
+    {{/* about（v5 S7，已批截图 home-nf；Gray 16:42 / 16:48）：主页首屏不再嵌终端（终端在顶栏 >_），这一位换成原旷野页的 neofetch about 卡，旷野页那张删除、只在这里。
+       间距同原嵌入终端；提示符跟当前身份（shell/topbar-panel.js 按终端身份重画 [data-sgx-ps]：nobody@space:~$ / nobody@space:~# / styrigx@space:~# / root@account:~#），路径 ~。
+       版本号唯一来源 data/version.yaml；Uptime 构建时先写一份，apps/space.js 打开时按当天重算；旧地址 /about/ 301 到 /#about。 */}}
+    {{ $W := $tr.wild }}
+    {{ if not $ver.ui }}{{ errorf "data/version.yaml 缺少 ui 字段" }}{{ end }}
+    {{ if not $ver.sgx }}{{ errorf "data/version.yaml 缺少 sgx 字段" }}{{ end }}
+    {{ $twVer := "4.x" }}
+    {{/* data/tailwind.json 由 space/scripts/build-css.cjs 从根目录 package-lock.json 生成（不进仓库） */}}
+    {{ with site.Data.tailwind }}{{ with .version }}{{ $twVer = . }}{{ end }}{{ end }}
+    {{ $commit := getenv "GITHUB_SHA" }}{{ $commitShort := "local" }}
+    {{ if gt (len $commit) 7 }}{{ $commitShort = slicestr $commit 0 7 }}{{ else if ne $commit "" }}{{ $commitShort = $commit }}{{ end }}
+    <div id="about" class="sgx-term sgx-term--static wild-term home-about" role="group" aria-labelledby="home-ab-h">
+      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><h2 class="sgx-term-title" id="home-ab-h" translate="no">about</h2></div>
+      <div class="sgx-term-body wild-body">
+        <p class="wild-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp" data-sgx-ps>nobody@space:~$</span> neofetch</p>
+        <div class="wild-neo">
+          <pre class="wild-logo" aria-hidden="true" translate="no">.--------.
+| &gt;_     |
+|        |
+'--------'
+ _|____|_ </pre>
+          <dl class="wild-info" translate="no">
+            <div class="wild-info-h"><dt class="sr-only">user</dt><dd><span class="wild-a">styrigx</span>@<span class="wild-a">space</span></dd></div>
+            <div class="wild-info-r" aria-hidden="true"><dt></dt><dd class="wild-dim">─────────────</dd></div>
+            <div><dt title="{{ $W.version }}">OS</dt><dd data-about="version">Styrigx UI {{ $ver.ui }}</dd></div>
+            <div><dt title="{{ $W.kernel }}">Kernel</dt><dd data-about="kernel">SGX {{ $ver.sgx }}</dd></div>
+            {{- /* Uptime：从 2026-10-07（Styrigx 这个名字和站点的起点，Gray 2026-11-09 定）按北京时间数天 */}}
+            {{- $since := "2026-10-07" }}{{ $up := int (math.Floor (div (sub now.Unix ((time.AsTime (printf "%sT00:00:00+08:00" $since)).Unix)) 86400.0)) }}
+            <div><dt title="{{ $W.uptime }}">Uptime</dt><dd data-about="uptime" data-since="{{ $since }}">{{ $up }} {{ cond (eq $up 1) "day" "days" }}</dd></div>
+            <div><dt>Host</dt><dd>Cloudflare Pages · Workers</dd></div>
+            <div><dt>Hugo</dt><dd data-about="hugo">{{ hugo.Version }}</dd></div>
+            <div><dt>CSS</dt><dd data-about="tailwind">Tailwind CSS {{ $twVer }}</dd></div>
+            <div><dt title="{{ $W.build }}">Build</dt><dd data-about="build">{{ $commitShort }}</dd></div>
+            <div><dt title="{{ $W.builtAt }}">Built</dt><dd data-about="built">{{ now.Format "2006-01-02 15:04" }}</dd></div>
+            <div><dt>AI</dt><dd>Gray AI</dd></div>
+            <div><dt>Repo</dt><dd><a class="wild-link" href="https://github.com/styrigx/styrigx-space" rel="noopener" target="_blank">github.com/styrigx</a></dd></div>
+            <div class="wild-info-sw" aria-hidden="true"><dt></dt><dd><i class="wild-sw1"></i><i class="wild-sw2"></i><i class="wild-sw3"></i><i class="wild-sw4"></i><i class="wild-sw5"></i></dd></div>
+          </dl>
+        </div>
       </div>
-      <p class="sgx-kh sgx-term-kh" data-term-kh hidden></p>
     </div>
   </section>
 
@@ -96,36 +124,29 @@
     {{ end }}{{/* /日刻 */}}
   </section>
 
-  {{/* [04] 旷野（设计稿 [04] // WILD：top -n1 · systemctl status · uname + 三张小终端卡），点进 /wild/ 对应的窗：
+  {{/* [04] 旷野（设计稿 [04] // WILD：top -n1 · systemctl status · uname + 两张小终端卡），点进 /wild/ 对应的窗：
      screen-time = /api/wellbeing 今天各区域（lib/wb-view.js 字符条，data-wb-root 不带 data-wb-detail = 区域合计照画）；
-     status = 外壳取到的 /api/status（shell/topbar-panel.js mountStatus 发 sgx:status-cells，本页不另取）；about = 构建期常量。
-     每张卡右上一个位置计数「01 / 03」（Gray 2026-11-09 细节 2）。 */}}
+     status = 外壳取到的 /api/status（shell/topbar-panel.js mountStatus 发 sgx:status-cells，本页不另取）。
+     原第三张 about 小卡（指回首屏 #about）已删（Gray 2026-11-11 00:39；about 只在首屏 neofetch），桌面两栏铺满分节。
+     每张卡右上一个位置计数「01 / 02」（Gray 2026-11-09 细节 2）。 */}}
   {{ $w := $h.wild }}
   {{ $wildUrl := partial "sgx-lang-path.html" (dict "path" "/wild/" "lang" $pageLang) }}
-  {{ $ver := site.Data.version }}
   <section class="home-sec" id="wild" data-term-dir="wild" data-term-label="{{ $h.wildLabel }}" aria-labelledby="home-wild-h">
     <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[04] // WILD</p><h2 class="home-sec-t" id="home-wild-h">{{ $w.title }}</h2></div><a class="home-sec-more" href="{{ $wildUrl }}" translate="no">cd wild/ →</a></div>
     <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> top -n1 · systemctl status · uname</p>
     <ul class="home-wild" role="list">
       <li><a class="home-dir home-mini" href="{{ $wildUrl }}#screen-time" id="w-screen" data-wb-root data-wb-term="mini">
-        <span class="home-mini-n" aria-hidden="true" translate="no">01 / 03</span>
+        <span class="home-mini-n" aria-hidden="true" translate="no">01 / 02</span>
         <span class="home-dir-n" translate="no">screen-time</span>
         <span class="home-mini-rows" data-wb="rows">{{ range seq 3 }}<span class="home-mini-row" data-wb-row>&nbsp;</span>{{ end }}</span>
         <span class="home-mini-none" data-wb="none" hidden>{{ $w.screenNone }}</span>
       </a></li>
       <li><a class="home-dir home-mini" href="{{ $wildUrl }}#status" data-home-st>
-        <span class="home-mini-n" aria-hidden="true" translate="no">02 / 03</span>
+        <span class="home-mini-n" aria-hidden="true" translate="no">02 / 02</span>
         <span class="home-dir-n" translate="no">status</span>
         <span class="home-mini-row"><i class="home-st-dot" data-home-st-dot aria-hidden="true">●</i> <span translate="no"><b class="home-st-sum" data-home-st-sum>–/6</b> active</span></span>
         <span class="home-mini-row" translate="no">avg <b class="home-st-sum" data-home-st-avg>—</b></span>
         <span class="home-mini-row" translate="no">checked <b class="home-st-sum" data-home-st-at>—</b></span>
-      </a></li>
-      <li><a class="home-dir home-mini" href="{{ $wildUrl }}#about">
-        <span class="home-mini-n" aria-hidden="true" translate="no">03 / 03</span>
-        <span class="home-dir-n" translate="no">about</span>
-        <span class="home-mini-row" translate="no">Styrigx UI {{ $ver.ui }}</span>
-        <span class="home-mini-row" translate="no">hugo · workers</span>
-        <span class="home-mini-row" translate="no">github.com/styrigx</span>
       </a></li>
     </ul>
   </section>

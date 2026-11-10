@@ -1,26 +1,16 @@
 {{/* 旷野（/wild/，中文 /zh/wild/；2026-11 对齐计划 PR-B，设计稿 tb4.html pg=wild / m=1）：只看，不设。
-   页头 = 终端风标题带（$ cd wild · 旷野_ · 一句话），下面三个全宽终端窗，各有锚点（主页 [04] 三张小卡、NAVIGATE「systemctl status ›」、旧地址 301 都指过来）：
+   页头 = 终端风标题带（$ cd wild · 旷野_ · 一句话），下面两个全宽终端窗（v5 S7 删了第三个 about，neofetch 只在主页首屏 /#about），各有锚点（主页 [04] 三张小卡、NAVIGATE「systemctl status ›」、旧地址 301 都指过来）：
    - #screen-time  screen-time --today：网站数字健康（原 /wellbeing/）。先画本机记录（apps/space.js，sgx-well-v），账号已登录时 /api/wellbeing 回 detail:true 换成所有设备（lib/wb-view.js，data-wb-detail）。
                    15 分钟提醒开关按 Gray 04:01「数字健康不做设置，做成展示页」删除。
    - #status       systemctl status space.target：服务状态（原 /status/）。六个 unit（同 NAVIGATE STATUS 六格的口径）+ 每个监测项近 90 天可用率条（点一格看那天）
                    + 免费额度 / 用量 / 近期故障 + 进站凭证使用记录（展开才取 /api/space-audit）。数据 GET /api/status，页面可见时每 60 秒刷新（apps/space-status.js），
                    外壳不另取（#st-root 在页里，接 sgx:status 事件）。
-   - #about        neofetch：版本 / 内核 / Uptime（自 2026-10-07）/ Hugo / Tailwind / 构建 / 构建时间（原 /about/），版本号唯一来源 data/version.yaml。
-   旧地址 /status/ /about/ /wellbeing/（含 /zh/）在 static/_redirects 里 301 到这里对应的锚点。noindex（门内页，见 baseof）。 */}}
+   旧地址 /status/ /wellbeing/（含 /zh/）在 static/_redirects 里 301 到这里对应的锚点；/about/ 301 到主页 /#about（v5 S7）。noindex（门内页，见 baseof）。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-wild.js" }}
 {{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 {{ $W := $tr.wild }}
 {{ $ps := partial "sgx-envps.html" "~/wild" }}
-{{ $ver := site.Data.version }}
-{{/* 版本号唯一来源 data/version.yaml；缺字段时构建直接失败，禁止静默兜底旧版本 */}}
-{{ if not $ver.ui }}{{ errorf "data/version.yaml 缺少 ui 字段" }}{{ end }}
-{{ if not $ver.sgx }}{{ errorf "data/version.yaml 缺少 sgx 字段" }}{{ end }}
-{{ $twVer := "4.x" }}
-{{/* data/tailwind.json 由 space/scripts/build-css.cjs 从根目录 package-lock.json 生成（不进仓库） */}}
-{{ with site.Data.tailwind }}{{ with .version }}{{ $twVer = . }}{{ end }}{{ end }}
-{{ $commit := getenv "GITHUB_SHA" }}{{ $commitShort := "local" }}
-{{ if gt (len $commit) 7 }}{{ $commitShort = slicestr $commit 0 7 }}{{ else if ne $commit "" }}{{ $commitShort = $commit }}{{ end }}
 
 <div class="wild-wrap">
 {{ partial "sgx-ph.html" (dict "cmd" "cd wild" "title" .Title "desc" .Description "path" .File.Path) }}
@@ -124,39 +114,6 @@
     </div>
   </section>
 
-  {{/* ③ about：neofetch（版本 / 内核 / Hugo / Tailwind / 构建 / 构建时间；原 /about/ 的六行） */}}
-  <section class="wild-sec" id="about" aria-labelledby="wild-ab-h">
-    <div class="sgx-term sgx-term--static wild-term" id="sg-about">
-      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><h2 class="sgx-term-title" id="wild-ab-h" translate="no">about</h2></div>
-      <div class="sgx-term-body wild-body">
-        <p class="wild-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> neofetch</p>
-        <div class="wild-neo">
-          <pre class="wild-logo" aria-hidden="true" translate="no">.--------.
-| &gt;_     |
-|        |
-'--------'
- _|____|_ </pre>
-          <dl class="wild-info" translate="no">
-            <div class="wild-info-h"><dt class="sr-only">user</dt><dd><span class="wild-a">styrigx</span>@<span class="wild-a">space</span></dd></div>
-            <div class="wild-info-r" aria-hidden="true"><dt></dt><dd class="wild-dim">─────────────</dd></div>
-            <div><dt title="{{ $W.version }}">OS</dt><dd data-about="version">Styrigx UI {{ $ver.ui }}</dd></div>
-            <div><dt title="{{ $W.kernel }}">Kernel</dt><dd data-about="kernel">SGX {{ $ver.sgx }}</dd></div>
-            {{- /* Uptime：从 2026-10-07（Styrigx 这个名字和站点的起点，Gray 2026-11-09 定）按北京时间数天；构建时先写一份，apps/space.js 打开时按当天重算 */}}
-            {{- $since := "2026-10-07" }}{{ $up := int (math.Floor (div (sub now.Unix ((time.AsTime (printf "%sT00:00:00+08:00" $since)).Unix)) 86400.0)) }}
-            <div><dt title="{{ $W.uptime }}">Uptime</dt><dd data-about="uptime" data-since="{{ $since }}">{{ $up }} {{ cond (eq $up 1) "day" "days" }}</dd></div>
-            <div><dt>Host</dt><dd>Cloudflare Pages · Workers</dd></div>
-            <div><dt>Hugo</dt><dd data-about="hugo">{{ hugo.Version }}</dd></div>
-            <div><dt>CSS</dt><dd data-about="tailwind">Tailwind CSS {{ $twVer }}</dd></div>
-            <div><dt title="{{ $W.build }}">Build</dt><dd data-about="build">{{ $commitShort }}</dd></div>
-            <div><dt title="{{ $W.builtAt }}">Built</dt><dd data-about="built">{{ now.Format "2006-01-02 15:04" }}</dd></div>
-            <div><dt>AI</dt><dd>Gray AI</dd></div>
-            <div><dt>Repo</dt><dd><a class="wild-link" href="https://github.com/styrigx/styrigx-space" rel="noopener" target="_blank">github.com/styrigx</a></dd></div>
-            <div class="wild-info-sw" aria-hidden="true"><dt></dt><dd><i class="wild-sw1"></i><i class="wild-sw2"></i><i class="wild-sw3"></i><i class="wild-sw4"></i><i class="wild-sw5"></i></dd></div>
-          </dl>
-        </div>
-      </div>
-    </div>
-  </section>
   {{/* 页末（Gray 2026-11-09 细节 5）：旷野只看不设、以后还会加窗口 → 「› more soon_」+ 闪烁光标（装饰，读屏不念；减弱动效不闪） */}}
   <p class="sgx-eof wild-eof" aria-hidden="true" translate="no">› more soon<span class="sgx-eof-cur"></span></p>
   {{/* 页末结束标记（Gray 2026-11-09）：同博客列表最后一页的「-- EOF --」，终端文字样式（.sgx-eof），紧跟在 more soon 下面；装饰，读屏不念 */}}

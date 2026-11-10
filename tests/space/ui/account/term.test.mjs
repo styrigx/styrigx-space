@@ -26,7 +26,7 @@ const D = await import('../../../../' + DIR + 'devices.js');
 const R = await import('../../../../' + DIR + 'reset.js');
 const SE = await import('../../../../' + DIR + 'session.js');
 
-test('命令：三条账号命令 + exit / passwd / passkey add / cd / help / clear；别的 command not found', () => {
+test('命令：三条账号命令 + exit / passwd / passkey add / cd / man / clear；别的 command not found（v5：man 取代 help）', () => {
   const p = (/** @type {string} */ s) => C.parseCmd(C.normCmd(s));
   assert.equal(C.ROOT_COMMAND, 'root');
   assert.deepEqual(C.CMD, { session: 'sudo root', reauth: 'sudo root reauth', reset: 'sudo root reset' });
@@ -42,7 +42,9 @@ test('命令：三条账号命令 + exit / passwd / passkey add / cd / help / cl
   assert.deepEqual(p('cd security'), { cmd: 'cd', arg: 'keys' });
   assert.deepEqual(p('cd ~/account/apps/'), { cmd: 'cd', arg: 'grants' });
   assert.deepEqual(p('cd ..'), { cmd: 'cd', arg: 'home' });
-  assert.equal(p('help').cmd, 'help');
+  assert.equal(p('man').cmd, 'help', 'man = 命令表（内部仍叫 help）');
+  assert.equal(p('help').cmd, 'unknown', 'v5：help 不再是命令（man 取代）');
+  assert.ok(C.WINDOW_TABLE.names.includes('man') && !C.WINDOW_TABLE.names.includes('help'), '补全表：man 进、help 出');
   assert.equal(p('clear').cmd, 'clear');
   assert.equal(p('sudo login').cmd, 'unknown', 'v3：sudo login 不再认');
   assert.equal(p('sudo account').cmd, 'unknown');

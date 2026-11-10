@@ -95,8 +95,10 @@ test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 
   /* P4-3 PR-4c：/en/… 旧地址删除不 301，_redirects 里没有 /en/ 开头的规则 */
   assert.doesNotMatch(red, /^\/en\//m);
   assert.ok(!red.includes(OLD_PATH), '_redirects 里没有旧设置层');
-  /* 对齐 PR-B：旧的三页 301 到旷野对应的锚点（中英） */
-  for (const [old, anchor] of [['status', 'status'], ['about', 'about'], ['wellbeing', 'screen-time']]) {
+  /* 对齐 PR-B：旧的三页 301 到旷野对应的锚点（中英）；v5 S7：about 卡挪到主页首屏，/about/ → /#about */
+  assert.match(red, /^\/about\/\s+\/#about\s+301$/m, '/about/ → /#about');
+  assert.match(red, /^\/zh\/about\/\s+\/zh\/#about\s+301$/m, '/zh/about/ → /zh/#about');
+  for (const [old, anchor] of [['status', 'status'], ['wellbeing', 'screen-time']]) {
     assert.match(red, new RegExp(`^/${old}/\\s+/wild/#${anchor}\\s+301$`, 'm'), `/${old}/ → /wild/#${anchor}`);
     assert.match(red, new RegExp(`^/zh/${old}/\\s+/zh/wild/#${anchor}\\s+301$`, 'm'), `/zh/${old}/ → /zh/wild/#${anchor}`);
   }

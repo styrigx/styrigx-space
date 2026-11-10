@@ -15,7 +15,7 @@
 
 | 地址 | 模板 | 入口脚本 | 内容 |
 |---|---|---|---|
-| `/`、`/zh/` | `layouts/index.html` | `entries/entry-space.js` | 首页：hero（状态胶囊 · `$ whoami` · 名字 · `$` 标语 · `#` 签名）+ 内嵌终端；下面四节 `[01]` 博客最新 3 篇、`[02]` 奇趣目录卡、`[03]` 日刻今日一句、`[04]` 旷野三张小终端卡 |
+| `/`、`/zh/` | `layouts/index.html` | `entries/entry-space.js` | 首页：hero（状态胶囊 · `$ whoami` · 名字 · `$` 标语 · `#` 签名）+ 内嵌终端；下面四节 `[01]` 博客最新 3 篇、`[02]` 奇趣目录卡、`[03]` 日刻今日一句、`[04]` 旷野两张小终端卡（screen-time / status） |
 | `/wild/`、`/zh/wild/` | `layouts/_default/wild.html` | `entries/entry-space-wild.js` | 旷野：`#screen-time`（数字健康）、`#status`（服务状态，读 `/api/status`；页底进站凭证使用记录读 `/api/space-audit`）、`#about`（关于，版本号读 `data/version.yaml`） |
 | `/404.html` | `layouts/404.html` | — | 404 |
 

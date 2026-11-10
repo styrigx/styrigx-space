@@ -37,7 +37,7 @@ export function mountSpace() {
      风格页 /theme/ 的调色板网格 2026-11 对齐 PR-C 退役（功能在顶栏外观弹层，共享外壳 quick-panel.js），这里只剩这一步。 */
   syncAccent();
 
-  /* ---- 旷野 › about 窗 neofetch 的 Uptime（自 2026-10-07，Gray 2026-11-09）：构建时写过一份，这里按今天重算（页面可能是几天前构建的） ---- */
+  /* ---- 主页首屏 about 卡（v5 S7，原旷野 › about 窗）neofetch 的 Uptime（自 2026-10-07，Gray 2026-11-09）：构建时写过一份，这里按今天重算（页面可能是几天前构建的） ---- */
   (function () {
     const up = document.querySelector('[data-about="uptime"][data-since]');
     if (up) up.textContent = uptimeText(uptimeDays(up.getAttribute('data-since') || '', Date.now()));

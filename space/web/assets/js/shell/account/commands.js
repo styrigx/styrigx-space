@@ -1,7 +1,7 @@
 /**
  * @fileoverview 账号终端的命令（设计稿 acct-sec-redraw OPEN.md「账号命令体系 v3」）。纯函数，单测直接 import。
  *
- * root 只出现在用户看得见的地方（命令、提示符、help）；内部代码用 session / reauth / reset（NAMING-V2 §1「root 的规则」）。
+ * root 只出现在用户看得见的地方（命令、提示符、man）；内部代码用 session / reauth / reset（NAMING-V2 §1「root 的规则」）。
  * 命令字只在这里：ROOT_COMMAND（终端统一 T1 起定义在 shell/term/core/parse.js，和站内终端共用一份，这里转出）。
  */
 import { ROOT_COMMAND, normCmd } from '../term/core/parse.js';
@@ -44,7 +44,8 @@ export { normCmd };
  */
 export function parseCmd(line) {
   if (!line) return { cmd: '' };
-  if (line === 'help' || line === '?' || line === 'man' || line === 'ls') return { cmd: 'help' };
+  /* v5：man 取代 help（help 不再是命令，打了给「did you mean man」） */
+  if (line === 'man' || line === '?' || line === 'ls') return { cmd: 'help' };
   if (line === 'clear' || line === 'cls') return { cmd: 'clear' };
   if (line === CMD.session || line === 'sudo -i' || line === 'su' || line === 'login') return { cmd: 'session' };
   if (line === CMD.reauth || line === 'sudo -v') return { cmd: 'reauth' };
@@ -80,6 +81,6 @@ export function layerFromPath(name) {
  * 分发仍由 parseCmd；sub（代理订阅 v3.1）由 proxy.js。
  */
 export const WINDOW_TABLE = Object.freeze({
-  names: ['help', 'sudo', 'su', 'login', 'passwd', 'passkey', 'cd', 'exit', 'clear', 'sub'],
+  names: ['man', 'sudo', 'su', 'login', 'passwd', 'passkey', 'cd', 'exit', 'clear', 'sub'],
   args: { sudo: ['root', '-i', '-v'], passkey: ['add'], cd: ['profile', 'devices', 'security', 'apps', '~', '..'], sub: SUB_ARGS.slice() },
 });

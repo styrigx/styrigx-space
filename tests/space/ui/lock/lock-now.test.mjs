@@ -46,5 +46,7 @@ test('没有确认层；旧 auth/lock-now.js（confirmLockNow / doLock）删了�
   assert.match(layer, /C\.relocked = function \(\) \{\s*o\.who\.drop\(\);\s*C\.setMode\('done'\);\s*o\.close\(o\.reload\);/);
   const tp = readFileSync(path.join(REPO, 'space/web/assets/js/shell/topbar-panel.js'), 'utf8');
   assert.ok(!tp.includes('ENTRY_URL') && !tp.includes("'/?entry=1'"), '没有锁屏地址了');
-  assert.match(tp, /if \(r && r\.ok\) replace\(cleanHere\(\)\);\s*else if \(lockState\) lockState\.textContent = t\.lockFail;/);
+  /* v5 S6：NAVIGATE 的 lock 按钮删了，顶栏不再自己 POST /api/lock-now；已进站点盾牌 = 钥匙层 lockAsk（[y/N]，y = 同一个 lockNow） */
+  assert.ok(!tp.includes('LOCK_NOW_API') && !tp.includes('lockState'), '顶栏不再自带立即锁屏');
+  assert.match(layer, /C\.lockAsk = function \(\) \{\s*C\.out\(esc\(t\('shield\.exitAsk'\)\) \+ ' \[y\/N\]'\);\s*C\.pick\(\{\s*y: function \(\) \{ C\.echoPick\('y'\); C\.lockNow\(\); \},/);
 });

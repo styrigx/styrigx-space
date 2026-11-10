@@ -40,7 +40,7 @@ for (const vp of PCS) {
         const logo = box(document.querySelector('#site-nav .sgx-tb-logo'));
         const acts = box(document.querySelector('#site-nav .sgx-tb-acts'));
         return { vw: innerWidth, wrap: box(document.querySelector('.home-wrap')), logo, acts,
-          hero: box(document.getElementById('home-hero')), term: box(document.getElementById('home-term')),
+          hero: box(document.getElementById('home-hero')), term: box(document.getElementById('about')), /* v5 S7：首屏终端位换成 neofetch about 卡（同宽同位） */
           secs: [...document.querySelectorAll('.home-sec')].map((e) => [e.id, box(e)]),
           cards: [['w-daymark', document.getElementById('w-daymark')], ['curio-dirs', document.querySelector('#curio .home-dirs')], ['wild-cards', document.querySelector('#wild .home-wild')]].map(([id, e]) => [id, box(e)]),
           rows: ['#curio .home-dirs', '#wild .home-wild'].map((s) => { const ul = document.querySelector(s); return [s, box(ul.firstElementChild), box(ul.lastElementChild)]; }),

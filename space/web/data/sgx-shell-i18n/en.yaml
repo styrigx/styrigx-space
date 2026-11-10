@@ -39,6 +39,8 @@ topbar:
   # 顶栏 v3（2026-11 UI 重设计 PR-1）：外观 / 盾牌按钮名，NAVIGATE 面板里的终端风短标签（lang / layout / share / lock），外观面板 MODE / PALETTE
   theme: Appearance
   security: Site security
+  # v5 S6 顶栏 E：终端按钮（盾牌 · 外观 · 四格 | >_ · 头像）
+  terminal: Terminal
   langKey: lang
   langAuto: Follow system language
   layoutKey: layout
@@ -319,7 +321,7 @@ account:
     cancelled: "cancelled"
     tooMany: "sudo: too many attempts · try again in 15 min"
     pkNoSupport: "passkeys aren’t supported on this device"
-    notFound: "command not found: {x} · try help"
+    notFound: "command not found: {x} · try man"
     didYouMean: "command not found: {c} — did you mean {x}?"
     cancel: "cancel"
     save: "save"
@@ -579,7 +581,7 @@ space:
     interruptAria: "quit the current command (^C)"
     noOption: "no such option"
     cancelled: "cancelled"
-    notFound: "command not found: {x} · try help"
+    notFound: "command not found: {x} · try man"
     didYouMean: "command not found: {c} — did you mean {x}?"
     tooMany: "sudo: too many attempts"
     retrySec: "try again in {n}s"
@@ -719,6 +721,8 @@ space:
   shield:
     locking: "locking …"
     lockFail: "couldn’t lock · check your connection"
+    # v5 S6：已进站时点盾牌 = 问一句再上锁（y = lock，回车 / n = 不动）
+    exitAsk: "exit the entry session?"
   help:
     session: "enter"
     reset: "reset space credentials"

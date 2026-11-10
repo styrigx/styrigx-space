@@ -158,24 +158,24 @@ for (const w of [719, 720, 721]) {
       await expect(page.locator('html')).toHaveClass(new RegExp('\\blayout-' + want + '\\b'));
       await expect(page.locator('#home-hero')).toBeVisible();
       /* 2026-11 PR-2：首页各块（hero、终端、分节）都铺满内容栏，不会窄到 320 以下；
-         对齐 PR-B：[02] 目录卡 / [04] 旷野小卡桌面三栏、手机一栏，每张 ≥ 200（720 宽桌面三栏约 218） */
+         对齐 PR-B：[02] 目录卡 / [04] 旷野两张小卡（2026-11-11 删 about）桌面两栏、手机一栏，每张 ≥ 200（720 宽桌面三栏约 218） */
       const m = await page.evaluate(() => ({ sw: document.scrollingElement.scrollWidth, iw: innerWidth,
-        cards: [...document.querySelectorAll('#home-hero, #home-term, .home-sec')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]),
+        cards: [...document.querySelectorAll('#home-hero, #about, .home-sec')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]),
         minis: [...document.querySelectorAll('.home-dirs > li, .home-wild > li')].map((e) => e.getBoundingClientRect().width) }));
       expect(m.sw).toBeLessThanOrEqual(m.iw);
       expect(m.cards.length).toBeGreaterThan(0);
       for (const [id, cw] of m.cards) expect(cw, `${id} 宽 ${cw}`).toBeGreaterThanOrEqual(320);
-      expect(m.minis.length).toBe(6);
+      expect(m.minis.length).toBe(5); /* 奇趣 3 + 旷野 2 */
       for (const cw of m.minis) expect(cw, `小卡宽 ${cw}`).toBeGreaterThanOrEqual(200);
     });
   }
 }
 
 /* ----- 首页（2026-11 PR-2 首屏终端；原「首页栅格」「栅格退列」用例随小组件网格删除）：日刻有 / 没数据都不留空白——
-   有数据引言铺满 [03] 日刻分节；没数据（.hidden）分节只剩标题和命令行，下一节紧接着；[04] 旷野三张小卡铺满分节（对齐 PR-B） ----- */
+   有数据引言铺满 [03] 日刻分节；没数据（.hidden）分节只剩标题和命令行，下一节紧接着；[04] 旷野两张小卡铺满分节（对齐 PR-B；about 小卡 2026-11-11 删） ----- */
 for (const [w, h] of [[1920, 950], [1280, 760], [841, 673]]) {
   for (const dm of [true, false]) {
-    test(`首页分节 ${w}×${h}：日刻${dm ? '有' : '无'}数据，卡片铺满分节、没有空白；旷野三卡铺满`, async ({ page }) => {
+    test(`首页分节 ${w}×${h}：日刻${dm ? '有' : '无'}数据，卡片铺满分节、没有空白；旷野两卡铺满`, async ({ page }) => {
       await go(page, { width: w, height: h }, '/');
       await expect(page.locator('html')).toHaveClass(/\blayout-dex\b/);
       await expect(page.locator('#home-hero')).toBeVisible();
@@ -188,7 +188,7 @@ for (const [w, h] of [[1920, 950], [1280, 760], [841, 673]]) {
           st: box(document.querySelector('#wild .home-wild')), screen: box(document.getElementById('w-screen')), last: box(document.querySelector('#wild .home-wild > li:last-child')) };
       });
       expect(Math.abs(m.screen.l - m.st.l), '屏幕时间小卡在第一栏').toBeLessThanOrEqual(1);
-      expect(Math.abs(m.last.r - m.st.r), '旷野三卡铺满').toBeLessThanOrEqual(1);
+      expect(Math.abs(m.last.r - m.st.r), '旷野两卡铺满').toBeLessThanOrEqual(1);
       if (dm) {
         expect(m.dmShown).toBe(true);
         expect(Math.abs(m.dm.l - m.sec.l)).toBeLessThanOrEqual(1);
@@ -210,7 +210,7 @@ test('首页收窄：容器 700 / 600 / 330 → 各块跟着收、终端不超�
       const g = document.querySelector('.home-wrap');
       g.style.width = v + 'px';
       const gr = g.getBoundingClientRect();
-      const over = [...g.querySelectorAll('#home-term, .home-sec, #w-daymark, #w-screen, .home-dir')].filter((e) => e.offsetParent !== null)
+      const over = [...g.querySelectorAll('#about, .home-sec, #w-daymark, #w-screen, .home-dir')].filter((e) => e.offsetParent !== null)
         .filter((e) => { const r = e.getBoundingClientRect(); return r.left < gr.left - 1 || r.right > gr.right + 1; }).map((e) => e.id);
       return { over, sw: document.scrollingElement.scrollWidth, iw: innerWidth };
     }, px);

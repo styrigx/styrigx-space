@@ -1,6 +1,7 @@
 /**
  * 盾牌 + 钥匙命令（v5 S5 终端合一：盾牌窗口 #sgx-sec 删了，钥匙那一套在全站终端里，term-design-v5「钥匙」）。
- * - 盾牌 = 打开终端（S6 前）：已进站不预填；访客预填 sudo styrigx（不替人回车）；旧地址 #sec[=层] 同；Ctrl 点盾牌照旧按链接走（/#sec）
+ * - 盾牌（v5 S6 顶栏 E）= 打开终端：访客预填 sudo styrigx（不替人回车）；已进站问「退出进站会话 [y/N]」（n / 回车不动，y = lock）；旧地址 #sec[=层] 只打开终端、不问；Ctrl 点盾牌照旧按链接走（/#sec）
+ * - 顶栏 >_（v5 S6）= 打开终端（已进站的钥匙命令用例都从它进）
  * - 已进站：提示符 styrigx@space:~/wild#；man 列 lock / share / ask
  * - sudo -v：终端里选方式（只列 passkey / password）→ 验证（reauth:true）→ ✓
  * - lock：只锁本机、不验证 → POST /api/lock-now → 重新取这一页；失败报「锁屏失败」、留在终端
@@ -68,11 +69,12 @@ async function type(page, text) {
 const REAUTH_OK = () => ({ ok: true, valid: true, ticket: 'lock-reauth', expiresAt: Date.now() + 170000, password: true, passkey: false });
 
 test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
-  test('已进站：点盾牌打开终端（不预填），提示符 styrigx@space:~/wild#；man 列 lock / share / ask；没有盾牌窗口了', async ({ page }) => {
+  test('已进站：顶栏 >_ 打开终端（不预填），提示符 styrigx@space:~/wild#；man 列 lock / share / ask；没有盾牌窗口了', async ({ page }) => {
     await go(page);
     await expect(page.locator('#sgx-sec')).toHaveCount(0);
-    await page.locator('.sgx-tb-shield').click();
+    await page.locator('.sgx-tb-term').click();
     await expect(term(page)).toHaveAttribute('open', '');
+    await expect(page.locator('.sgx-tb-term')).toHaveAttribute('aria-expanded', 'true');
     await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
     await expect(tIn(page)).toHaveValue('');
     await type(page, 'man');
@@ -82,6 +84,30 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
     for (const n of ['ask', 'sudo', 'lock', 'share']) expect(names).toContain(n);
     expect(names).not.toContain('find');
     expect(names).not.toContain('passwd');
+  });
+
+  test('已进站：点盾牌 = 终端问「退出进站会话 [y/N]」；n 什么都不做，y 一次 POST /api/lock-now 后重新取这一页', async ({ page }) => {
+    const calls = await go(page);
+    await page.locator('.sgx-tb-shield').click();
+    await expect(term(page)).toHaveAttribute('open', '');
+    await expect(mode(page)).toHaveAttribute('data-mode', 'pick');
+    await expect(tOut(page)).toContainText('退出进站会话？ [y/N]');
+    /* [y/N] 只出一次：问句里有，输入行提示符是选择的默认 `>`（2026-11-11 修：原来提示符又是一个 [y/N]） */
+    await expect(ps(page)).toHaveText('>');
+    expect(((await page.locator('#sgx-term').innerText()).match(/\[y\/N\]/g) || []).length).toBe(1);
+    await expect(tIn(page)).toHaveValue('');
+    await type(page, 'n');
+    await expect(mode(page)).toHaveAttribute('data-mode', 'cmd');
+    expect(calls.filter((c) => c[0] === '/api/lock-now')).toHaveLength(0);
+    await page.keyboard.press('Escape');
+    await expect(term(page)).not.toHaveAttribute('open', '');
+    await page.locator('.sgx-tb-shield').click();
+    await expect(mode(page)).toHaveAttribute('data-mode', 'pick');
+    const nav = page.waitForEvent('framenavigated');
+    await type(page, 'y');
+    await nav;
+    expect(new URL(page.url()).pathname).toBe('/zh/wild/');
+    expect(calls.filter((c) => c[0] === '/api/lock-now')).toHaveLength(1);
   });
 
   test('访客：点盾牌打开终端、预填 sudo styrigx（不替人回车）', async ({ page }) => {
@@ -96,7 +122,7 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
   test('sudo -v：只列 passkey / password（没有 tempkey），选 password 输密码 → POST /api/lock-password { reauth: true } → ✓', async ({ page }) => {
     let valid = false;
     const calls = await go(page, { reauth: () => (valid ? REAUTH_OK() : { ok: true, valid: false, password: true, passkey: false }), password: () => { valid = true; return [200, { ok: true }]; } });
-    await page.locator('.sgx-tb-shield').click();
+    await page.locator('.sgx-tb-term').click();
     await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
     await type(page, 'sudo -v');
     await expect(mode(page)).toHaveAttribute('data-mode', 'pick');
@@ -114,7 +140,7 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
 
   test('lock：不验证、没有确认层，一次 POST /api/lock-now 后重新取这一页（不去锁屏）', async ({ page }) => {
     const calls = await go(page);
-    await page.locator('.sgx-tb-shield').click();
+    await page.locator('.sgx-tb-term').click();
     await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
     const nav = page.waitForEvent('framenavigated');
     await type(page, 'lock');
@@ -126,7 +152,7 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
 
   test('lock 失败：终端里报「锁屏失败」，不跳页', async ({ page }) => {
     await go(page, { lockNow: [500, { ok: false, error: 'server' }] });
-    await page.locator('.sgx-tb-shield').click();
+    await page.locator('.sgx-tb-term').click();
     await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
     await type(page, 'lock');
     await expect(tOut(page).locator('.sgx-at-l--er').last()).toHaveText('锁屏失败 · 检查网络');
@@ -154,7 +180,7 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
         return Promise.resolve({ id: 'new-1', rawId: new Uint8Array([1, 2, 3]).buffer, type: 'public-key', response: { clientDataJSON: new Uint8Array([4]).buffer, attestationObject: new Uint8Array([7]).buffer, getTransports: () => [] } });
       };
     });
-    await page.locator('.sgx-tb-shield').click();
+    await page.locator('.sgx-tb-term').click();
     await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
     await type(page, 'lock passkey add');
     await expect(mode(page)).toHaveAttribute('data-mode', 'pkname');
@@ -179,7 +205,7 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
   test('lock --all：[y/N]（默认 n 什么都不做）；y 之后 POST /api/lock-all-devices，本机也重新取这一页', async ({ page }) => {
     const calls = await go(page, { reauth: REAUTH_OK });
     await page.route('**/api/lock-all-devices', async (r) => { calls.push(['/api/lock-all-devices', {}]); await r.fulfill(json({ ok: true })); });
-    await page.locator('.sgx-tb-shield').click();
+    await page.locator('.sgx-tb-term').click();
     await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
     await type(page, 'lock --all');
     await expect(mode(page)).toHaveAttribute('data-mode', 'pick');
@@ -204,5 +230,31 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
     const u = new URL(np.url());
     expect(u.pathname + u.hash).toMatch(/^\/zh\/(#sec)?$/);
     await expect(term(page)).not.toHaveAttribute('open', '');
+  });
+  test('头像（v5 S6，Gray 17:23）：网关标了 locked（访客）= 死按钮（aria-disabled，点了不开账号窗、不跳页）；标了 valid 且服务端说已进站 = 开账号窗', async ({ page }) => {
+    for (const st of ['locked', 'valid']) {
+      await go(page, { visitor: st === 'locked' });
+      /* 测试构建没有网关：自己给页面打上网关的标记（后注册的 route 优先），再取一次 */
+      await page.route('**/zh/wild/', async (r) => {
+        const res = await r.fetch();
+        const body = (await res.text()).replace(/<html /, '<html data-sgx-lock-session="' + st + '" ');
+        await r.fulfill({ response: res, body });
+      });
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', st);
+      await page.waitForFunction(() => document.documentElement.hasAttribute('data-sgx-layout'));
+      const av = page.locator('.sgx-tb-av');
+      if (st === 'locked') {
+        await expect(av).toHaveAttribute('aria-disabled', 'true');
+        await av.click({ force: true });
+        await page.waitForTimeout(300);
+        await expect(page.locator('#sgx-acct')).not.toHaveAttribute('data-state', 'open');
+        expect(new URL(page.url()).pathname).toBe('/zh/wild/');
+      } else {
+        await page.waitForFunction(() => !document.querySelector('.sgx-tb-av').hasAttribute('aria-disabled'));
+        await av.click();
+        await expect(page.locator('#sgx-acct')).toHaveAttribute('data-state', 'open');
+      }
+    }
   });
 });

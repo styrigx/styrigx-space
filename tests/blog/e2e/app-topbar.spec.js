@@ -69,7 +69,7 @@ test.describe('顶栏', () => {
       if (!/\/zh\//.test(path)) await preferLang(page, 'en');
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-prog']);
-      expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'sgx-tb-av']);
+      expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.split(' ').filter((c) => c !== 'sgx-tb-btn')[0]))).toEqual(['sgx-tb-shield', 'sgx-tb-quick', 'sgx-tb-grid', 'sgx-tb-sep', 'sgx-tb-term', 'sgx-tb-av'] /* v5 S6 顶栏 E */);
       await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
       await expect(page.locator('#site-nav > .sgx-tb-ai')).toHaveCount(1);
       await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', path.startsWith('/blog/zh/') ? '/blog/zh/' : '/blog/');
