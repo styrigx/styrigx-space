@@ -5,8 +5,8 @@
  * - 有效期：1–24 小时任选，或 3 / 7 / 15 / 30 天。
  * - 会话时长：30 分钟、1 / 3 / 12 小时、1 / 3 / 7 天，且不超过有效期（core/link-keys.js LINK_SESSION_OPTS 同一张表）。
  * - 带会话的短链（v5 S1）：点开时签进站会话 by=link、linkId = 这一行的 id（core/link-keys.js openLinkSession）；
- *   验会话时查这一行（isLinkLive）：作废 / 过期 / 已清理 → 会话失效。不再签「短链钥匙」（tempkey 表、key_id 列不再读写，
- *   新行 key_id 写 ''；表和列的删除在后面单独的收尾 PR）。
+ *   验会话时查这一行（isLinkLive）：作废 / 过期 / 已清理 → 会话失效。不签「短链钥匙」（v5 收尾 migrations/0002_drop_tempkey.sql
+ *   删了 tempkey 表和 share_link.key_id 列）。
  * - 目标：站内相对路径（/ 开头），或 https 绝对地址且主机正好是 styrigx.com（合并 PR3 起各站都在 styrigx.com/<站>/ 下）
  *   （不能带端口、用户名密码，不能 // 开头，不含控制字符 / 空白 / 反斜杠）。规范化：一律存成相对路径；
  *   去掉锁屏 / 回跳 / 分享参数（lock、why、return、share）；不能指向 /s/（自己）和任何 /api/、/<站>/api/。默认 /。点开时再验一次（防开放重定向）。
@@ -157,7 +157,7 @@ export const SQL = Object.freeze({
   /* 复用：同目标、同会话档位、没作废、到期 ≥ ?3、有效期（到期 − 生成）在 [?4, ?5] 里；剩得最久的那条 */
   reusable: 'SELECT * FROM share_link WHERE target = ?1 AND session_sec = ?2 AND revoked_at IS NULL AND expires_at >= ?3 ' +
     'AND expires_at - created_at BETWEEN ?4 AND ?5 ORDER BY expires_at DESC LIMIT 1',
-  insert: 'INSERT INTO share_link (id, code, name, target, session_sec, key_id, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)',
+  insert: 'INSERT INTO share_link (id, code, name, target, session_sec, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)',
   revoke: 'UPDATE share_link SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL',
   /* share rm --all：把所有还没作废的一次作废（已过期的也写上，列表里显示「已作废」，7 天后一起清） */
   revokeAll: 'UPDATE share_link SET revoked_at = ?1 WHERE revoked_at IS NULL',
@@ -230,7 +230,7 @@ export function statusOf(row, now) {
 }
 
 /**
- * 列表里的一条（不含 key_id 列）。
+ * 列表里的一条（不含 code 列；有效的才给 path）。
  * sessionLeft：带会话的短链，最近一次点开发出去的临时会话最多还剩几秒（没人点开过 / 已过期 / 已作废 = 0）。
  * openFor：现在点开能看多久（秒）= min(会话时长, 短链剩余)；普通短链 0。
  * @param {any} row @param {number} now

@@ -31,7 +31,7 @@ function authEnv(kv, overrides = {}) {
     SGX_SPACE_RECOVERY_KEY,
     SGX_SPACE_PRIVATE: LOCK_PRIV,
     SGX_SPACE_PUBLIC: LOCK_PUB,
-    SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper',
+    SGX_SPACE_PASSWORD_PEPPER: 'test-pepper',
     SGX_RP_ID: 'styrigx.com',
     SGX_ORIGIN: 'https://styrigx.com',
     ...overrides,

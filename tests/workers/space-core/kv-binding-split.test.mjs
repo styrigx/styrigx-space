@@ -112,7 +112,7 @@ test('网关只经 D1_SPACE 读写 realm=lock 的行；已删的 D1_ACCOUNT_AUTH
     KV_LOCK_DOOR: forbiddenKV('KV_LOCK_DOOR', touched), KV_ACCOUNT_LOGIN: forbiddenKV('KV_ACCOUNT_LOGIN', touched),
     D1_ACCOUNT_AUTH: forbiddenKV('D1_ACCOUNT_AUTH', touched), D1_ROOT_AUTH: forbiddenKV('D1_ROOT_AUTH', touched),
     D1_SPACE: d1.lock,
-    SGX_SPACE_RECOVERY_KEY: SPACE_KEY, SGX_SPACE_PASSWORD_PEPPER: PEPPER, SGX_SPACE_TEMPKEY_PEPPER: PEPPER,
+    SGX_SPACE_RECOVERY_KEY: SPACE_KEY, SGX_SPACE_PASSWORD_PEPPER: PEPPER,
     SGX_SPACE_PRIVATE: LOCK.priv, SGX_SPACE_PUBLIC: LOCK.pub,
     SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: 'https://styrigx.com', SGX_ENV: 'production',
     /* space-audit 要进门 + 账号会话（askAuthorize）：账号侧只给个替身，D1 一行不碰 */

@@ -130,7 +130,7 @@ test('AccountService：没有 X-Styrigx-Space-Session: 1 一律当作没有进�
 
 test('AccountService：不看外来的 X-Styrigx-Space-Level——进站会话（Session: 1）+ 任意 Level 也照常走到账号判断（/api/prefs 没账号会话 401 account、/api/account 读状态 200）', async () => {
   const { env } = makeEnv();
-  const h = idHeaders({ role: 'tempkey', by: 'tempkey', tempkeyId: 'tk1' });
+  const h = idHeaders({ role: 'guest', by: 'link', linkId: 'lktesttesttest01' });
   let r = await service(env).fetch(req('/api/prefs', { headers: h }));
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');

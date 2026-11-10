@@ -1,7 +1,7 @@
 // workers/curio-core/src/api/_auth.js
 // 接口鉴权（方案 3.4 R14、4.6；P2-2）：本 Worker 不持任何钥匙，把浏览器带来的 Cookie 头交给主站鉴权网关，
 // 问一次结论（服务绑定 env.SPACE → styrigx-space-core 的 RPC 入口 SpaceVerifier 的 conclusion()）：
-//   { space: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }
+//   { space: { ok, by, linkId, reason }, account: { ok, deviceId, scopes, reauth, reason } }
 // 网关先验门（进站会话），进了门再问账号 Worker（账号会话、作用域、要的话再看账号复验票），只回结论。
 // 本文件只认结论：
 //   - 三档守卫（v5 S3，GUARDS；app.js 按 routes.js ROUTE_ACCESS 套用，每个请求只套一次）：

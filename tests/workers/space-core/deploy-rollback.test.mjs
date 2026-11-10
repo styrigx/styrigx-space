@@ -146,9 +146,9 @@ test('回滚下限：floor 文件里网关、账号、status 的绑定名和 wra
   const st = floorFor(workerNameFromToml(stToml));
   /* 账号拆分 PR3：网关要有转发绑定 ACCOUNT，账号要有账号库 D1_ACCOUNT（命名 v2：自动回滚不退过 0005 换表那一版）。
      P2-3 放宽：不再要求进站凭证的绑定名（P2-3 之前的版本绑的是旧名，P2-3 部署失败时要能回到它） */
-  /* 进站 v3 L2：键 styrigx-space-core；要 SGX_SPACE_RECOVERY_KEY / SGX_SPACE_TEMPKEY_PEPPER（不退到读旧 pepper 的版本） */
+  /* 进站 v3 L2：键 styrigx-space-core；要 SGX_SPACE_RECOVERY_KEY（不退到读旧 pepper 的版本）；v5 收尾删了 SGX_SPACE_TEMPKEY_PEPPER 绑定，不再要求 */
   assert.equal(workerNameFromToml(gwToml), 'styrigx-space-core');
-  assert.deepEqual(gw && gw.requireBindings, ['D1_SPACE', 'ACCOUNT', 'SGX_SPACE_RECOVERY_KEY', 'SGX_SPACE_TEMPKEY_PEPPER', 'AI_SERVICE']);
+  assert.deepEqual(gw && gw.requireBindings, ['D1_SPACE', 'ACCOUNT', 'SGX_SPACE_RECOVERY_KEY', 'AI_SERVICE']);
   assert.equal(floorFor('styrigx-auth-gateway'), null, '旧网关名不再有下限（新 Worker 从零开始）');
   assert.deepEqual(ac && ac.requireBindings, ['D1_ACCOUNT']);
   assert.deepEqual(st && st.requireBindings, ['AI_SERVICE']);
@@ -167,17 +167,17 @@ test('回滚下限：bindings 里的服务绑定 / Secrets Store 绑定也按名
   const full = floorFor('styrigx-space-core');
   const gw = { ...full, notBefore: undefined };
   const v = (list) => JSON.stringify({ id: V1, metadata: { created_on: 'Fri 2026-10-30 8:00 AM CST (UTC+08:00)' }, resources: { bindings: list } });
-  const after = [{ type: 'd1', name: 'D1_SPACE' }, { type: 'service', name: 'ACCOUNT' }, { type: 'service', name: 'ACCOUNT_VERIFIER' }, { type: 'secrets_store_secret', name: 'SGX_SPACE_RECOVERY_KEY' }, { type: 'secrets_store_secret', name: 'SGX_SPACE_TEMPKEY_PEPPER' }, { type: 'service', name: 'AI_SERVICE' }];
+  const after = [{ type: 'd1', name: 'D1_SPACE' }, { type: 'service', name: 'ACCOUNT' }, { type: 'service', name: 'ACCOUNT_VERIFIER' }, { type: 'secrets_store_secret', name: 'SGX_SPACE_RECOVERY_KEY' }, { type: 'service', name: 'AI_SERVICE' }];
   assert.equal(checkFloor(v(after), gw).ok, true);
+  /* v5 收尾：还绑着临时钥匙 pepper 的版本（删绑定之前）照样合格 */
+  assert.equal(checkFloor(v([...after, { type: 'secrets_store_secret', name: 'SGX_SPACE_TEMPKEY_PEPPER' }]), gw).ok, true);
   /* P4-2b：P4-1 之前（没有 AI_SERVICE）的网关版本不再是合格的回滚目标 */
   assert.match(checkFloor(v(after.filter((b) => b.name !== 'AI_SERVICE')), gw).reason, /missing binding\(s\) AI_SERVICE$/);
   const before = [{ type: 'd1', name: 'D1_SPACE' }, { type: 'd1', name: 'D1_ACCOUNT_AUTH' }, { type: 'd1', name: 'D1_ROOT_AUTH' }, { type: 'secrets_store_secret', name: 'SGX_ROOT_KEY' }];
-  assert.match(checkFloor(v(before), gw).reason, /missing binding\(s\) ACCOUNT, SGX_SPACE_RECOVERY_KEY, SGX_SPACE_TEMPKEY_PEPPER, AI_SERVICE$/);
+  assert.match(checkFloor(v(before), gw).reason, /missing binding\(s\) ACCOUNT, SGX_SPACE_RECOVERY_KEY, AI_SERVICE$/);
   /* P4-1 起：P2-3 之前的版本（进站凭证绑的是旧名，旧名 secret 已由 Gray 删除）不再是合格的回滚目标 */
   const preP23 = [{ type: 'd1', name: 'D1_SPACE' }, { type: 'service', name: 'ACCOUNT' }, { type: 'secrets_store_secret', name: 'SGX_OLD_LOCK_KEY_NAME' }, { type: 'secrets_store_secret', name: 'SGX_SPACE_TEMPKEY_PEPPER' }, { type: 'service', name: 'AI_SERVICE' }];
   assert.match(checkFloor(v(preP23), gw).reason, /missing binding\(s\) SGX_SPACE_RECOVERY_KEY$/);
-  /* 进站 v3 L2 之前（临时钥匙码和解锁密码共用旧 pepper）的版本不是合格的回滚目标 */
-  assert.match(checkFloor(v(after.filter((b) => b.name !== 'SGX_SPACE_TEMPKEY_PEPPER')), gw).reason, /missing binding\(s\) SGX_SPACE_TEMPKEY_PEPPER$/);
   /* 进站 v3 L3：L2b 切库之前（D1_SPACE 指向已删的旧库）的版本绑定齐全也不合格 */
   assert.match(checkFloor(v(after), full).reason, /^created /);
   const at = (iso) => JSON.stringify({ id: V1, metadata: { created_on: iso }, resources: { bindings: after } });

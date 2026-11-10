@@ -885,7 +885,6 @@ jobs:
               "SGX_SPACE_RECOVERY_KEY": secret(space_key),
               "SGX_ACCOUNT_RECOVERY_KEY": secret(recovery_key),
               "SGX_SPACE_PASSWORD_PEPPER": secret(pepper),
-              "SGX_SPACE_TEMPKEY_PEPPER": secret(pepper),
               "SGX_ACCOUNT_PASSWORD_PEPPER": secret(account_pepper),
               "SGX_SPACE_PRIVATE": secret(lock_priv),
               "SGX_ACCOUNT_PRIVATE": secret(acct_priv),
@@ -1789,9 +1788,11 @@ jobs:
           out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute D1_SPACE --remote --json --command "SELECT 'core:' || name AS n FROM d1_migrations_core UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table'")
           echo "$out"
           ok=0
-          for need in '"core:0001_baseline.sql"' '"table:share_link"' '"table:share_fail"' '"table:passkey"' '"table:password"' '"table:user_handle"' '"table:lock_reset_switch"'; do
+          for need in '"core:0001_baseline.sql"' '"table:share_link"' '"table:share_fail"' '"table:passkey"' '"table:password"' '"table:user_handle"' '"table:lock_reset_switch"' '"core:0002_drop_tempkey.sql"'; do
             if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-space-core 里没有 $need"; ok=1; fi
           done
+          # v5 收尾 0002_drop_tempkey.sql：临时钥匙表应已删
+          if printf '%s' "$out" | grep -q '"table:tempkey"'; then echo "::error::D1 styrigx-space-core 里还有 tempkey 表"; ok=1; fi
           exit $ok
 
       - name: Record live Worker version (rollback target)

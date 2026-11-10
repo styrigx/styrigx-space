@@ -1,5 +1,5 @@
 {
-  "_doc": "退役名单（账号命名 v2，2026-11-08）：这些旧名字只在这里出现一次。account = 账号 Worker（workers/account/src、wrangler.toml）、账号前端（space/web/assets/js/shell/account/）不许再出现；legacy = 全仓 Worker / 脚本 / 前端源码不许再出现（进站 v3 L2 起加上锁屏旧名：SGX_LOCK_* / SGX_PW_PEPPER / D1_LOCK_AUTH / X-Styrigx-Lock-* / AuthVerifier / ShareIssuer / 旧部署环境名）（deploy.yml「Assert no legacy secret / variable names」读它）；html = 生产构建的主站 HTML 不许出现的后端名字（deploy.yml「前端技术名词检查」读它）。检查：tests/workers/account/config.test.mjs、space/scripts/check-layers.mjs 规则 22。",
+  "_doc": "退役名单（账号命名 v2，2026-11-08）：这些旧名字只在这里出现一次。account = 账号 Worker（workers/account/src、wrangler.toml）、账号前端（space/web/assets/js/shell/account/）不许再出现；legacy = 全仓 Worker / 脚本 / 前端源码不许再出现（进站 v3 L2 起加上锁屏旧名：SGX_LOCK_* / SGX_PW_PEPPER / D1_LOCK_AUTH / X-Styrigx-Lock-* / AuthVerifier / ShareIssuer / 旧部署环境名；v5 收尾加上临时钥匙的 pepper 名和身份头）（deploy.yml「Assert no legacy secret / variable names」读它）；html = 生产构建的主站 HTML 不许出现的后端名字（deploy.yml「前端技术名词检查」读它）。检查：tests/workers/account/config.test.mjs、space/scripts/check-layers.mjs 规则 22。",
   "account": [
     "SGX_ROOT_KEY", "SGX_ACCOUNT_ROOT_KEY", "SGX_PW_PEPPER",
     "D1_ROOT_AUTH", "D1_ACCOUNT_AUTH", "D1_SETTINGS_SYNC", "D1_WELLBEING",
@@ -19,6 +19,6 @@
     "lock-identity", "hasLockSession", "deferRotate", "soAll", "soOthers", "soNone"
   ],
   "legacy": ["SGX_ED25519_", "SGX_STEPUP_KEY", "OWNER_KEY", "SGX_ACCOUNT_ROOT_KEY", "D1_ACCOUNT_AUTH",
-    "SGX_LOCK_PRIVATE", "SGX_LOCK_PUBLIC", "SGX_LOCK_SPACE_KEY", "SGX_PW_PEPPER", "D1_LOCK_AUTH", "X-Styrigx-Lock-", "AuthVerifier", "ShareIssuer", "STYRIGX_AUTH_GATEWAY_DEPLOY", "STYRIGX_SHARE_DEPLOY"],
+    "SGX_LOCK_PRIVATE", "SGX_LOCK_PUBLIC", "SGX_LOCK_SPACE_KEY", "SGX_PW_PEPPER", "D1_LOCK_AUTH", "X-Styrigx-Lock-", "AuthVerifier", "ShareIssuer", "STYRIGX_AUTH_GATEWAY_DEPLOY", "STYRIGX_SHARE_DEPLOY", "SGX_SPACE_TEMPKEY_PEPPER", "X-Styrigx-Space-Tempkey-Id"],
   "html": ["OWNER_KEY", "SESSION_SECRET", "SGX_ROOT_KEY", "SGX_LOCK_SPACE_KEY", "SGX_ACCOUNT_ROOT_KEY", "SGX_ACCOUNT_RECOVERY_KEY", "SGX_ACCOUNT_PASSWORD_PEPPER", "SGX_PW_PEPPER", "TURNSTILE_SECRET", "SGX_SPACE_PRIVATE", "SGX_SPACE_RECOVERY_KEY", "SGX_SPACE_PASSWORD_PEPPER", "SGX_SPACE_TEMPKEY_PEPPER"]
 }

@@ -20,7 +20,7 @@
  * 都是小写 snake_case 名词、都有 realm 列（网关只读写 'lock'）。本文件管 epoch / passkey / password / user_handle；
  * challenge（passkey-verify.js）、attempt_limit（attempt-limit.js）、
  * audit（space-audit.js）的 SQL 在各自模块里，经这里的 authDb / withSchema 访问。kv_migration 只有导入脚本写。
- * tempkey 表（临时钥匙）v5 S1 起没有代码读写；表和 SCHEMA 里的建表语句留到删表的收尾 PR（分享链接的会话查 share_link，见 share-links.js）。
+ * 临时钥匙（tempkey 表）v5 收尾删除（migrations/0002_drop_tempkey.sql 删表；分享链接的会话查 share_link，见 share-links.js）。
  * 绑定按域：realm.d1Binding（网关只有 lock → D1_SPACE）。
  * 恢复开关表 lock_reset_switch 也经 D1_SPACE（lock-reset-switch.js，迁移 migrations/0008_lock_reset_switch.sql）。
  *
@@ -33,7 +33,7 @@ import { REALM_LOCK } from './realms.js';
 
 
 /**
- * 与 migrations/0001_baseline.sql 进站段相同的建表语句（按文件顺序；d1-state.test.mjs 核对）。L2b 起 user_handle 带上 legacy_handle 列（旧 0007 加的，网关不读写），
+ * 与 migrations/ 跑完后的进站段相同的建表语句（0001_baseline.sql 按文件顺序，去掉 0002_drop_tempkey.sql 删的 tempkey；d1-state.test.mjs 核对）。L2b 起 user_handle 带上 legacy_handle 列（旧 0007 加的，网关不读写），
  * 和正式库一致。
  * 全部 IF NOT EXISTS：代码兜底建表和迁移重复跑都不出错。
  */
@@ -45,8 +45,6 @@ export const SCHEMA = Object.freeze([
   'CREATE TABLE IF NOT EXISTS user_handle (realm TEXT PRIMARY KEY, handle TEXT NOT NULL, legacy_handle TEXT NOT NULL DEFAULT \'\')',
   'CREATE TABLE IF NOT EXISTS challenge (realm TEXT NOT NULL, id TEXT NOT NULL, purpose TEXT NOT NULL, challenge TEXT NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY (realm, id))',
   'CREATE TABLE IF NOT EXISTS attempt_limit (realm TEXT NOT NULL, kind TEXT NOT NULL, bucket TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, strikes INTEGER NOT NULL DEFAULT 0, locked_until INTEGER NOT NULL DEFAULT 0, window_start INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL, PRIMARY KEY (realm, kind, bucket))',
-  'CREATE TABLE IF NOT EXISTS tempkey (realm TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL DEFAULT \'\', code_hash TEXT, link INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, revoked_at INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL, PRIMARY KEY (realm, id))',
-  'CREATE UNIQUE INDEX IF NOT EXISTS tempkey_code ON tempkey (realm, code_hash)',
   'CREATE TABLE IF NOT EXISTS device (realm TEXT NOT NULL, device_id TEXT NOT NULL, record TEXT NOT NULL, last_seen INTEGER NOT NULL DEFAULT 0, revoked_at INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL, PRIMARY KEY (realm, device_id))',
   'CREATE TABLE IF NOT EXISTS audit (realm TEXT NOT NULL, id TEXT NOT NULL, ts INTEGER NOT NULL, ip_prefix TEXT NOT NULL, ok INTEGER NOT NULL, decoy INTEGER NOT NULL DEFAULT 0, via TEXT NOT NULL DEFAULT \'\', path TEXT NOT NULL DEFAULT \'\', expires_at INTEGER NOT NULL, PRIMARY KEY (realm, id))',
   'CREATE INDEX IF NOT EXISTS audit_ts ON audit (realm, ts)',
@@ -112,10 +110,10 @@ export function onAuthDb(env, realm, fn) {
 
 /**
  * 顺手清掉某表某域已过期的行（尽力而为，出错吞掉；读路径本来就不认过期行）。
- * @param {any} db @param {'challenge'|'attempt_limit'|'tempkey'|'device'|'audit'} table @param {string} realmId @param {number} [now]
+ * @param {any} db @param {'challenge'|'attempt_limit'|'device'|'audit'} table @param {string} realmId @param {number} [now]
  */
 export async function sweepExpired(db, table, realmId, now) {
-  if (!/^(challenge|attempt_limit|tempkey|device|audit)$/.test(table)) throw new Error('sweep: bad table ' + table);
+  if (!/^(challenge|attempt_limit|device|audit)$/.test(table)) throw new Error('sweep: bad table ' + table);
   try {
     await db.prepare('DELETE FROM ' + table + ' WHERE realm = ? AND expires_at <= ?').bind(realmId, now || Date.now()).run();
   } catch (e) {}

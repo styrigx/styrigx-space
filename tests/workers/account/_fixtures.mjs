@@ -71,7 +71,7 @@ export function idHeaders(identity) {
   if (i.session) h['X-Styrigx-Space-Session'] = i.session;
   if (i.role) h['X-Styrigx-Space-Level'] = i.role;
   if (i.by) h['X-Styrigx-Space-By'] = i.by;
-  if (i.tempkeyId) h['X-Styrigx-Space-Tempkey-Id'] = i.tempkeyId;
+  if (i.linkId) h['X-Styrigx-Space-Link-Id'] = i.linkId;
   if (i.ip) h['X-Styrigx-Client-Address'] = i.ip;
   if (i.country) h['X-Styrigx-Client-Country'] = i.country;
   if (i.city) h['X-Styrigx-Client-City'] = i.city;
