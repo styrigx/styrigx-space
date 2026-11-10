@@ -11,7 +11,7 @@
  */
 import { esc } from '../core/out.js';
 import { mountKeyHint, khKeyFor } from './keyhint.js';
-import { paintPick } from './pick.js';
+import { paintPick, pickInputMode } from './pick.js';
 import { createHistory } from '../core/history.js';
 
 /** 输入不回显的模式：解锁密码、临时钥匙、恢复钥匙、新密码两次 */
@@ -161,7 +161,10 @@ export function createInputLine(o) {
     input.readOnly = false;
     input.type = secret ? 'password' : 'text';
     input.setAttribute('autocomplete', m === 'pw' || m === 'rkey' ? 'current-password' : m === 'newpw' || m === 'newpw2' ? 'new-password' : 'off');
-    if (o.inputmode !== false) input.setAttribute('inputmode', (x && x.inputmode) || (m === 'pick' ? 'numeric' : 'text'));
+    /* 隐藏用户名只在秘密输入时给密码管理器认（Gray 2026-11-11 三星实机：[y/N] 时 Samsung Pass 弹「账号和密码」自动填充） */
+    d.pmu.setAttribute('autocomplete', secret ? 'username' : 'off');
+    /* 选择的键盘按选项定：全是数字才弹数字键盘，[y/N] 等字母选项用文字键盘（同上：数字键盘打不出 y，只能回车 = 默认 N） */
+    if (o.inputmode !== false) input.setAttribute('inputmode', (x && x.inputmode) || (m === 'pick' ? pickInputMode(Object.keys(picks)) : 'text'));
     input.setAttribute('aria-label', (x && x.aria) || aria(m, secret));
     if (o.pmDefault != null) d.pmu.value = (x && x.pm) || o.pmDefault;
     else if (x && x.pm) d.pmu.value = x.pm;
