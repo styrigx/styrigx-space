@@ -7575,6 +7575,8 @@
   @media (min-width: 768px) { .sgx-entry-bout { left: 50%; right: auto; width: min(560px, calc(100% - 48px)); transform: translateX(-50%); } }
   .sgx-entry-bh { color: var(--sgx-primary); }
   .sgx-entry-bok { color: var(--sgx-success); }
+  /* v5 S5：没有锁屏了，终端里 sudo styrigx 通过后只放这段开机动画（shell/space/unlock.js）：外层透明，开机层自己淡入 */
+  #sgx-entry.sgx-entry-anim { background: transparent; }
   #sgx-entry.sgx-entry-booted {
     opacity: 0; transition: opacity .5s ease;
     .sgx-entry-bout { opacity: 0; filter: blur(2px); }
@@ -8865,7 +8867,8 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-line:focus-within .sgx-term-ps { text-decoration: underline; text-decoration-color: var(--sgx-focus-ring); text-underline-offset: 4px; }
 .sgx-term-ghost { position: absolute; top: 0; pointer-events: none; white-space: pre; color: var(--sgx-text-tertiary); }
 .sgx-term-ghost[hidden] { display: none; }
-/* 抽屉：模态 <dialog>，从顶栏下方落下（宽 min(820, 100% − 2 × 页边距)，居中），遮罩点了关；减弱动效不滑 */
+/* 终端窗口（v5 S5 终端合一，#sgx-term）：模态 <dialog>，遮罩点了关；减弱动效不滑。手机 / 平板整块卡片（宽 min(820, 100% − 2 × 页边距)，从顶栏下方落下）；
+   桌面居中大窗（Gray 16:48，截图 pc-center）：宽 min(1040px, 86vw)、高 72vh，和顶栏之间留出一截（10vh，24–96px） */
 .sgx-term-dlg { position: fixed; inset: 0; box-sizing: border-box; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: calc(var(--sgx-tb-h) + env(safe-area-inset-top, 0px) + 12px) var(--sgx-page-m) 0;
   border: 0; background: transparent; color: var(--sgx-text-primary); overflow: hidden; }
 .sgx-term-dlg::backdrop { background: var(--sgx-scrim, rgba(0,0,0,.5)); opacity: 0; transition: opacity .24s ease; }
@@ -8873,6 +8876,14 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-dlg .sgx-term { width: min(820px, 100%); margin: 0 auto; opacity: 0; transform: translateY(-12px); transition: opacity .24s ease, transform .24s ease; }
 .sgx-term-dlg.is-open .sgx-term { opacity: 1; transform: none; }
 .sgx-term--drawer .sgx-term-body { height: min(56vh, 460px); overscroll-behavior: contain; }
+:root[data-sgx-layout="desktop"] .sgx-term-dlg { padding-top: calc(var(--sgx-tb-h) + env(safe-area-inset-top, 0px) + max(24px, min(96px, 10vh))); }
+:root[data-sgx-layout="desktop"] .sgx-term-dlg .sgx-term { display: flex; flex-direction: column; width: min(1040px, 86vw); height: 72vh; }
+:root[data-sgx-layout="desktop"] .sgx-term--drawer .sgx-term-body { flex: 1 1 auto; height: auto; min-height: 0; }
+/* 输入行在等待 / 完成时收起（input-line.js 写 hidden）；秘密输入（解锁 / 账号密码、恢复钥匙、新密码、机场链接）不回显，同真 sudo */
+.sgx-term-line[hidden] { display: none; }
+.sgx-term-line:is([data-mode="pw"], [data-mode="rkey"], [data-mode="newpw"], [data-mode="newpw2"], [data-mode="suburl"]) .sgx-term-in { color: transparent; -webkit-text-fill-color: transparent; }
+.sgx-term-line:is([data-mode="pw"], [data-mode="rkey"], [data-mode="newpw"], [data-mode="newpw2"], [data-mode="suburl"]) .sgx-term-in::selection { background: transparent; }
+.sgx-term-hint2 { margin: 2px 0 0; }
 .reduced-motion .sgx-term-dlg .sgx-term, .reduced-motion .sgx-term-dlg::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-term-dlg .sgx-term, .sgx-term-dlg::backdrop { transition: none; } }
 /* 环境提示符（进站 v3 L1，SPACE-V3「环境提示符规则」）：模板里静态的提示符两种都写（.sgx-envps-g 账号没登录 styrigx@space:~$ / .sgx-envps-r 已登录 root@account:~#），

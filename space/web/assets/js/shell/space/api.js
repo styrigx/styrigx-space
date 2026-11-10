@@ -1,7 +1,7 @@
 /**
- * @fileoverview 进站终端调后端的唯一地方（锁屏 / reset 终端 / 盾牌；进站 v3 L1，SPACE-V3 §6 L1：界面改版、用现有接口）。
+ * @fileoverview 钥匙层调后端的唯一地方（进站 / reset 层 / 解锁凭据 / 分享；进站 v3 L1，v5 S5 起都在终端里）。
  *
- * 面板代码只用这里导出的对象（按入口分：session / reauth / reset / keys / tempkeys / links，写法照 shell/account/api.js），
+ * 命令流程只用这里导出的对象（按入口分：session / reauth / reset / keys / links，写法照 shell/account/api.js），
  * 不直接写接口地址、action 名、请求字段、密码管理器隐藏用户名。地址在 paths.js。L2 换成 /api/space/* 时只改这里和 paths.js。
  *
  * 每个调用都回 Promise<{ s: number, j: any }>（同 auth/post-json.js postJSON；网络失败 reject）。
@@ -68,6 +68,7 @@ export const ERR_KEY = Object.freeze({
   'same-as-account': 'errSameAsAccount',
   'reset': 'errReset',
   'full': 'errFull',
+  'link': 'errLink',
 });
 /** 这几个码不进文案：终端按码回锁屏 / 重跑 sudo styrigx reauth */
 export const NEED_VERIFY_CODES = ['session', 'reauth', 'scope'];
@@ -106,16 +107,6 @@ export function entryConfig() {
     if (j && j.ok) return { password: !!j.password, passkey: !!j.passkey };
     return { password: true, passkey: true };
   }, function () { return { password: true, passkey: true }; });
-}
-
-/**
- * 本机进站会话（盾牌头部：方式 + 剩余）。没有 → null。
- * @returns {Promise<{by: string, exp: number}|null>}
- */
-export function sessionInfo() {
-  return getJSON(API.sessionCheck).then(function (r) {
-    return r.j && r.j.ok ? { by: String(r.j.by || ''), exp: Number(r.j.exp || 0) } : null;
-  }, function () { return null; });
 }
 
 /**
@@ -158,21 +149,19 @@ function passkeyAssert(reauth, t, stale) {
   });
 }
 
-/** sudo styrigx：进站会话（锁屏） */
+/** sudo styrigx：进站会话 */
 export const session = Object.freeze({
   /** @param {string} pw */
   password: function (pw) { return postJSON(API.password, { action: 'verify', password: pw }); },
   /** @param {(k: string) => string} t @param {() => boolean} [stale] */
   passkey: function (t, stale) { return passkeyAssert(false, t, stale); },
-  /** @param {string} code */
-  tempkey: function (code) { return postJSON(API.tempkeyUnlock, { code: code }); },
   /** 立即锁屏（本机）：清 session + reauth + reset */
   end: function () { return postJSON(API.lockNow, {}); },
   /** 所有设备回锁屏（要 reauth） */
   endAll: function () { return postJSON(API.lockAll, {}); },
 });
 
-/** sudo styrigx reauth：3 分钟再验证（盾牌；只认解锁密码 / 通行密钥） */
+/** sudo -v：3 分钟再验证（只认解锁密码 / 通行密钥） */
 export const reauth = Object.freeze({
   /** @param {string} pw */
   password: function (pw) { return postJSON(API.password, { action: 'verify', password: pw, reauth: true }); },
@@ -180,7 +169,7 @@ export const reauth = Object.freeze({
   passkey: function (t, stale) { return passkeyAssert(true, t, stale); },
   /** { valid, by, expiresAt, password, passkey }（reauth 票；没有会话 → 401 session） */
   status: function () { return postJSON(API.reauth, { action: 'status' }); },
-  /** 关盾牌 / 离开页面（keepalive，不等结果；只清 reauth） */
+  /** 关终端窗口 / 离开页面（keepalive，不等结果；只清 reauth） */
   end: function () {
     try {
       fetch(API.reauth, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear' }), credentials: 'same-origin', keepalive: true }).catch(function () {});
@@ -188,7 +177,7 @@ export const reauth = Object.freeze({
   },
 });
 
-/** 进站凭证的写操作（同一组接口：reauth 票 = 盾牌进站凭证层，reset 票 = reset 终端；服务端先认 reauth 再认 reset） */
+/** 进站凭证的写操作（同一组接口：reauth 票 = lock passwd / lock passkey，reset 票 = reset 层；服务端先认 reauth 再认 reset） */
 const keyOps = {
   /** @param {string} pw */
   passwordSet: function (pw) { return postJSON(API.password, { action: 'change', password: pw }); },
@@ -210,23 +199,14 @@ export const reset = Object.freeze(Object.assign({
   end: function () { return postJSON(API.reset, { action: 'end' }); },
 }, keyOps));
 
-/** 进站凭证层（reauth 票） */
+/** 解锁凭据（reauth 票） */
 export const keys = Object.freeze(Object.assign({
   passwordRemove: function () { return postJSON(API.password, { action: 'remove' }); },
   /** @param {string} id @param {string} name */
   passkeyRename: function (id, name) { return postJSON(API.passkey, { action: 'rename', credId: id, name: name }); },
 }, keyOps));
 
-/** 临时钥匙（新建 / 列表 / 作废都在要 reauth 的层里） */
-export const tempkeys = Object.freeze({
-  list: function () { return postJSON(API.tempkey, { action: 'list' }); },
-  /** @param {string} name @param {{hours?: number, days?: number}} dur */
-  create: function (name, dur) { return postJSON(API.tempkey, Object.assign({ action: 'create', name: name }, dur)); },
-  /** @param {string} id */
-  revoke: function (id) { return postJSON(API.tempkey, { action: 'revoke', id: id }); },
-});
-
-/** 分享链接（share Worker）：新建只要进站会话；列表 / 作废要 reauth（Q3 定稿） */
+/** 分享链接（share Worker）：新建只要进站会话；列表 / 作废要 reauth（Q3 定稿）；分享链接进来的会话都不行（403 link） */
 export const links = Object.freeze({
   list: function () { return postJSON(API.share, { action: 'list' }); },
   /** @param {{name?: string, to?: string, session?: number, hours?: number, days?: number}} p */

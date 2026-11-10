@@ -1,10 +1,10 @@
 /**
- * @fileoverview `sudo styrigx reset`：锁屏上的 reset 终端（提示符 reset@space:~#，SPACE-V3 §2.2 B；只在锁屏上）。
+ * @fileoverview `sudo styrigx reset`：钥匙的 reset 层（提示符 reset@space:~#，SPACE-V3 §2.2 B；v5 S5 起在同一个终端里，层不变）。
  *
  * `[sudo] recovery key:`（不回显）→ 恢复钥匙一把就签 3 分钟 reset 票（Gray B，没有第二次验证），不签进站会话。
- * reset 里：passwd（new / retype，≥ 8 位）· passkey ls · passkey add（先问名字，Q9）· passkey rm <n>（[y/N]）· help · clear · exit。
+ * reset 里：passwd（new / retype，≥ 8 位）· passkey ls · passkey add（先问名字，Q9）· passkey rm <n>（[y/N]）· man · clear · exit。
  * 第一次改动后问一次「其他设备怎么办？ [1] 全部回锁屏（默认，回车） [2] 不动」（Q1 两选）→ finish；finish 后 reset 票失效（Q2），
- * 回锁屏命令行，用新的密码 / 通行密钥 sudo styrigx 进站。有改动没选就离开（exit / ^C / esc）= 不动，并提示一行。
+ * 回命令行，用新的密码 / 通行密钥 sudo styrigx 进站。有改动没选就离开（exit / ^C / esc）= 不动，并提示一行。
  * 写入都不推纪元（服务端 L8）。不跳 /security/lock/（那一页已删）。
  */
 import { registerPasskey, genPkPrefillName, cleanPasskeyName } from '../../auth/passkey-register.js';
@@ -16,7 +16,7 @@ export const RESET_MS = 180000;
 /** 两选：键 → signOut */
 export const SIGN_OUT_CHOICES = Object.freeze([['1', 'all'], ['2', 'none']]);
 
-/** @param {any} C 锁屏终端上下文（entry.js） */
+/** @param {any} C 钥匙层上下文（shell/space/layer.js） */
 export function mountReset(C) {
   const t = C.t;
   const tf = C.tf;
@@ -122,7 +122,7 @@ export function mountReset(C) {
     C.echo(raw.trim());
     const c = parseResetCmd(line);
     switch (c.cmd) {
-      case 'help': help(); return;
+      case 'man': man(); return;
       case 'clear': C.clearLog(); return;
       case 'exit': C.leaveReset(); return;
       case 'passwd': passwd(); return;
@@ -131,14 +131,14 @@ export function mountReset(C) {
       case 'passkey-rm': removeKey(c.arg || ''); return;
       default: {
         /* 打错了：给最近的真命令（Gray 2026-11-09） */
-        const sg = suggest(line, ['help', 'clear', 'exit', 'passwd', 'passkey ls', 'passkey add', 'passkey rm']);
+        const sg = suggest(line, ['man', 'clear', 'exit', 'passwd', 'passkey ls', 'passkey add', 'passkey rm']);
         if (sg) C.err(tf('common.didYouMean', { c: raw.trim().split(' ')[0] }), sg);
         else C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
       }
     }
   };
-  function help() {
-    const rows = [['passwd', t('reset.help.passwd')], ['passkey ls', t('reset.help.ls')], ['passkey add', t('reset.help.add')], ['passkey rm <n>', t('reset.help.rm')], ['exit', t('reset.help.exit')], ['clear', t('help.clear')]];
+  function man() {
+    const rows = [['passwd', t('reset.help.passwd')], ['passkey ls', t('reset.help.ls')], ['passkey add', t('reset.help.add')], ['passkey rm <n>', t('reset.help.rm')], ['exit', t('reset.help.exit')], ['clear', t('reset.help.clear')]];
     rows.forEach(function (r) { C.out('<span class="' + C.p + '-w">' + esc(r[0]) + '</span> — ' + esc(r[1])); });
     C.note(t('reset.help.note'));
   }

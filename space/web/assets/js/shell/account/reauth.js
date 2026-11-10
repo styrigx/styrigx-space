@@ -1,8 +1,8 @@
 /**
- * @fileoverview `sudo root reauth`：3 分钟再验证（进账号安全、重新授权应用、退出其他所有设备前用，类比 sudo -v）。
+ * @fileoverview `sudo root reauth` / root@account 下的 `sudo -v`：3 分钟再验证（passwd、passkey、重新授权应用、退出其他所有设备前用）。
  *
- * 只收 account passkey / account password（恢复密钥不能再验证）。提示符不变（root@account:~#），顶部显示 `reauth · 02:41`。
- * 3 分钟到期、关掉下拉、离开页面即结束（O12）。也管 reset 票的倒计时（reset.js 用同一个 tick）。
+ * 只收 account passkey / account password（恢复密钥不能再验证）。提示符不变（root@account:~#）。
+ * 3 分钟到期、关掉终端窗口、离开页面即结束（O12）。也管 reset 票的倒计时（reset.js 用同一个 tick）。
  */
 import { CMD } from './commands.js';
 
@@ -36,7 +36,6 @@ export function mountReauth(C) {
       if (!C.reauthLeft()) {
         C.stopTick();
         if (cd) cd.textContent = '';
-        if (C.layer === 'keys') { C.err(t('reauth.expired')); C.render(); }
         return;
       }
       if (cd) cd.textContent = 'reauth · ' + C.mmss(C.reauthLeft());

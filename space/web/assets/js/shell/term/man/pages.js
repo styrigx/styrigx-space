@@ -1,24 +1,41 @@
 /**
- * @fileoverview tty2 的 man 页（终端统一 T5，设计稿 v1.5 §4 / §6.3）：man.js 用 import() 懒加载，不进首包。
+ * @fileoverview 终端的 man 页（终端统一 T5，设计稿 v1.5 §4 / §6.3；v5 S5 一张表）：man.js 用 import() 懒加载，不进首包。
  * 格式同锁屏 `man styrigx`：<NAME>(1) / NAME / SYNOPSIS / (END)。d 是 NAME 说明的英文底，页面上以 #sgx-i18n-shell 的 man 节为准（键 = 命令名）；命令写法不翻译。
  */
 /** 命令 → { d: NAME 说明（英文底）, desc?/auth?/notes?/see?: 代理订阅页多的几节（英文）, syn: SYNOPSIS 各行（{root} / {admin} 由 man.js 换成命令字；这个文件不 import，懒加载 chunk 不牵出共享代码） } */
 export const PAGES = Object.freeze({
-  help: { d: 'list the commands', syn: ['help', '?'] },
   man: { d: 'read a command’s manual page', syn: ['man', 'man <command>'] },
-  cd: { d: 'change the current directory (use open to go there)', syn: ['cd [blog | curio | daymark | wild | account | shield | ~ | ..]'] },
+  cd: { d: 'change the current directory (use open to go there)', syn: ['cd [blog | curio | daymark | wild | account | proxy | ~ | ..]'] },
   ls: { d: 'list a directory', syn: ['ls [path]'] },
   cat: { d: 'print today’s daymark line', syn: ['cat daymark/today'] },
-  sudo: { d: 'sign in to the account, or open site security', syn: ['sudo {root} [reauth | reset]', 'sudo {admin}'] },
+  sudo: {
+    d: 'enter the site (sudo styrigx), sign in to the account (sudo root), or verify again (sudo -v)', syn: ['sudo {admin}', 'sudo {admin} reset', 'sudo {root} [reauth | reset]', 'sudo -v'],
+    desc: ['sudo {admin}: verify with the unlock password or a passkey right here; the terminal closes and the space boots.', 'sudo -v: verify again for 3 min (as root@account it verifies the account).', 'reset: use a recovery key to reset passwords and passkeys.'],
+    notes: ['A share-link session (nobody@space:~#) can’t verify again, share or change keys.'],
+  },
   theme: { d: 'open the appearance panel, or set dark / light / auto', syn: ['theme', 'theme [dark | light | auto]'] },
-  lock: { d: 'lock this device now', syn: ['lock'] },
+  lock: {
+    d: 'lock now, or manage the unlock password and passkeys', syn: ['lock', 'lock passwd', 'lock passkey [add | rm <n>]', 'lock --all'],
+    desc: ['lock: lock this device now (no verification).', 'passwd / passkey: the keys that enter the site (not the account ones).', '--all: send every device back to visitor.'],
+    auth: 'entered; passwd, passkey and --all need reauth (sudo -v)',
+  },
   ask: { d: 'ask Gray AI a question', syn: ['ask <question>'] },
   find: { d: 'search the four sites’ public pages by keyword', syn: ['find <keyword>'] },
   clear: { d: 'clear the screen', syn: ['clear', 'cls'] },
   pwd: { d: 'print the current directory', syn: ['pwd'] },
-  open: { d: 'open a path: a site, daymark/today, an account or shield layer', syn: ['open [path]', 'open ~/account/security', 'open ~/shield/keys'] },
-  tty: { d: 'show this terminal, or open another (3 shield · 4 AI · 5 account)', syn: ['tty', 'tty [2 | 3 | 4 | 5]'] },
-  /* 代理订阅（P2，设计稿 v1.10 §8.3）：sub-* 在账号终端（tty5）里跑，别的终端转过去。DESCRIPTION / AUTH / NOTES / SEE ALSO 英文 */
+  open: { d: 'open a path: a site, daymark/today or an account layer', syn: ['open [path]', 'open ~/account/profile'] },
+  history: { d: 'list this session’s commands', syn: ['history'] },
+  exit: { d: 'leave the current layer, sign out of the account, or close the terminal', syn: ['exit'], desc: ['In reset: leave reset. As root@account: sign out and go back to {admin}@space. Otherwise: close the terminal.'] },
+  share: {
+    d: 'list, create or revoke share links', syn: ['share', 'share add', 'share rm <n>', 'share rm --all'],
+    desc: ['share add: name, page, how long the link lasts, and whether it carries a session.'],
+    auth: 'entered with your own key; listing and revoking need reauth (sudo -v)',
+  },
+  passwd: { d: 'change the account password', syn: ['passwd'], auth: 'signed in (sudo {root}); reauth' },
+  passkey: { d: 'list, add or remove account passkeys', syn: ['passkey', 'passkey add', 'passkey rm <n>'], auth: 'signed in (sudo {root}); reauth' },
+  device: { d: 'list signed-in devices, or sign one out', syn: ['device', 'device rm <n>', 'device rm --all'], auth: 'signed in (sudo {root}); --all needs reauth' },
+  app: { d: 'list app access, or remove it', syn: ['app', 'app rm <n>'], auth: 'signed in (sudo {root})' },
+  /* 代理订阅（P2，设计稿 v1.10 §8.3）：sub-* 是账号命令（sudo root 之后）。DESCRIPTION / AUTH / NOTES / SEE ALSO 英文 */
   sub: {
     d: 'show the proxy subscription: key, link and sources', syn: ['sub'],
     desc: ['Prints the public key (head and tail), whether a download token exists, and each source:', 'name · airport host or file · nodes · on / off / error.'],

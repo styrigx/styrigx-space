@@ -1,4 +1,4 @@
-import { cwdPath } from '../../core/prompt.js';
+import { cwdPath } from '../../core/who.js';
 
 /** pwd：当前目录 */
 export default {

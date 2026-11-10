@@ -9,9 +9,9 @@
  * 选项 / ^C 按钮的属性名由 attr 决定（锁屏 / 盾牌 data-term-pick / data-term-cc，账号下拉 data-at-pick / data-at-cc）。
  * 两边原有的细小差别（账号下拉没有历史、^C 回显、选择里敲命令等）用参数保留，产出的 DOM 和行为与 T2 之前逐字一致；T4 再统一。
  */
-import { esc } from '../../../lib/util.js';
-import { mountKeyHint, khKeyFor } from '../../keyhint.js';
-import { paintPick } from '../../term-pick.js';
+import { esc } from '../core/out.js';
+import { mountKeyHint, khKeyFor } from './keyhint.js';
+import { paintPick } from './pick.js';
 import { createHistory } from '../core/history.js';
 
 /** 输入不回显的模式：解锁密码、临时钥匙、恢复钥匙、新密码两次 */

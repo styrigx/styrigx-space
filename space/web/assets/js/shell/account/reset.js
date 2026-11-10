@@ -16,17 +16,6 @@ export function mountReset(C) {
   const api = C.api;
   const esc = C.esc;
 
-  C.renderReset = function () {
-    C.barHead(C.resetLeft() ? 'reset · ' + C.mmss(C.resetLeft()) : 'reset');
-    const has = !!(C.status && C.status.configured.password);
-    C.viewEl.innerHTML = '<div class="sgx-pop-list">' + C.grp(t('reset.group'), true) +
-      C.row({ k: t('keys.password.title'), sub: 'account password', v: has ? t('keys.password.set') : t('keys.password.unset'), act: 'passwd', chev: true }) +
-      C.grp(t('keys.passkey.title'), true) + C.keyRows(false) + '</div>' +
-      /* 底部「^C 返回」（Gray 2026-11-09）：同 Ctrl+C / esc——命令行时离开 reset，正在输入 / 选择时先退出那一步；终端文字样式 */
-      '<p class="sgx-at-rcc"><button type="button" data-at-cc data-at-reset-cc translate="no" aria-label="' + esc(t('reset.backAria')) + '"><b>^C</b> ' + esc(t('reset.back')) + '</button></p>';
-    C.foot('reset.ft');
-  };
-
   C.cmdReset = function () {
     C.tries = 0;
     C.out(esc(t('reset.lead')));
@@ -44,9 +33,8 @@ export function mountReset(C) {
             C.resetPending = false;
             C.keyList = [];
             C.toCmd();
-            C.render();
+            C.note('reset.cmds');
             C.startTick();
-            C.loadKeys();
           });
         }
         if (res.s === 429) { C.err(t('common.tooMany')); C.toCmd(); return; }

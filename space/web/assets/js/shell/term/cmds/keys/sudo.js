@@ -1,0 +1,48 @@
+import { ROOT_COMMAND, ADMIN_COMMAND } from '../../core/parse.js';
+import { gate, layer, notHere, line, FLOW } from './gate.js';
+
+/**
+ * sudo（v5 S5，term-design-v5「钥匙」「账号」）：
+ * - sudo styrigx：进站（终端里验证：解锁密码 / 通行密钥 → 终端收起 → 原进站动画 → 回原页）；已进站就提示 sudo -v
+ * - sudo styrigx reset：恢复钥匙 → reset 层（reset@space:~#，不变）
+ * - sudo root：登录账号（要先进站）；sudo root reset：账号恢复密钥 → reset@account:~#；sudo root reauth：账号再验证（原样保留）
+ * - sudo -v：再验证当前这一层（root@account → 账号，styrigx@space → 钥匙；分享链接进来的不能 reauth）
+ */
+export default {
+  name: 'sudo',
+  args: [ADMIN_COMMAND, ROOT_COMMAND, '-v'],
+  /** @param {any} p @param {any} x */
+  run: function (p, x) {
+    const a0 = (p.args[0] || '').toLowerCase();
+    const a1 = (p.args[1] || '').toLowerCase();
+    const w = x.who();
+    if (p.args.length > 2 || (a0 === '-v' && a1)) return { out: [x.k.plain(x.S.usageSudo)] };
+    if (a0 === ADMIN_COMMAND && (a1 === '' || a1 === 'reset')) {
+      const S = layer(x, 'space');
+      if (!S) return notHere(x, 'sudo ' + ADMIN_COMMAND);
+      if (a1 === 'reset') { S.cmdReset(); return FLOW; }
+      if (w !== 'nobody') return { out: [line(x, 'alreadyIn', 'sudo -v')] };
+      S.unlock();
+      return FLOW;
+    }
+    if (a0 === ROOT_COMMAND && (a1 === '' || a1 === 'reset' || a1 === 'reauth')) {
+      const no = gate(x, 'entered');
+      if (no) return no;
+      const A = layer(x, 'acct');
+      if (!A) return notHere(x, 'sudo ' + ROOT_COMMAND);
+      if (a1 === 'reset') A.cmdReset();
+      else if (a1 === 'reauth') A.cmdReauth();
+      else A.cmdSession();
+      return FLOW;
+    }
+    if (a0 === '-v') {
+      const no = gate(x, 'keys');
+      if (no) return no;
+      const R = layer(x, w === 'root' ? 'acct' : 'space');
+      if (!R) return notHere(x, 'sudo -v');
+      R.cmdReauth();
+      return FLOW;
+    }
+    return { out: [x.k.plain(x.S.usageSudo)] };
+  },
+};

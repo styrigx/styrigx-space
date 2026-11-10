@@ -5,8 +5,6 @@ const MODES = ['dark', 'light', 'auto'];
 export default {
   name: 'theme',
   args: MODES,
-  /** @param {any} x */
-  help: function (x) { return [['theme', x.S.dTheme]]; },
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const a0 = (p.args[0] || '').toLowerCase();

@@ -27,15 +27,17 @@
       <p class="home-intro" data-home-motto-line{{ if not $profile.motto }} hidden{{ end }}><span class="home-pr" aria-hidden="true">#</span> <span class="home-motto" translate="no" data-sgx-personal data-sgx-profile="motto">{{ $profile.motto }}</span></p>
     </div>
 
-    {{/* 嵌入终端：真输入框 + aria-live 输出区；同一套标记见 shell-topbar.html #sgx-term */}}
+    {{/* 嵌入终端（v5 S5：主页上它就是全站终端，同一个会话；S7 换成 neofetch）：真输入框 + 输出区；同一套标记见 shell-topbar.html #sgx-term */}}
     <div id="home-term" class="sgx-term sgx-term--home" data-sgx-term="home">
-      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><b class="sgx-term-title" data-term-title translate="no"><span class="sgx-envps-g">styrigx@space: ~</span><span class="sgx-envps-r">root@account: ~</span></b><em class="sgx-term-hint" aria-hidden="true"><span class="sgx-term-hint-l">{{ $tr.shell.term.hint }}</span><span class="sgx-term-hint-s">{{ $tr.shell.term.hintShort }}</span></em></div>
+      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><b class="sgx-term-title" data-term-title translate="no">nobody@space: ~</b><em class="sgx-term-hint" aria-hidden="true"><span class="sgx-term-hint-l">{{ $tr.shell.term.hint }}</span><span class="sgx-term-hint-s">{{ $tr.shell.term.hintShort }}</span></em></div>
       <div class="sgx-term-body" data-term-body>
-        <div class="sgx-term-out" data-term-out role="log" aria-live="polite" aria-label="{{ $tr.shell.term.output }}"><div class="sgx-term-ln sgx-term-o">{{ replace (replace (htmlEscape $tr.shell.term.welcome) "{help}" `<span class="sgx-term-k" translate="no">help</span>`) "{cd}" `<span class="sgx-term-k" translate="no">open blog</span>` | safeHTML }}</div></div>
-        <form class="sgx-term-line" data-term-form autocomplete="off">
-          <label class="sgx-term-ps" for="home-term-in" data-term-ps translate="no">{{ partial "sgx-envps.html" "~" }}</label>
+        <div class="sgx-term-out" data-term-out role="log" aria-live="polite" aria-label="{{ $tr.shell.term.output }}"><div class="sgx-term-ln sgx-term-o">{{ replace (replace (htmlEscape $tr.shell.term.welcome) "{help}" `<span class="sgx-term-k" translate="no">man</span>`) "{cd}" `<span class="sgx-term-k" translate="no">open blog</span>` | safeHTML }}</div></div>
+        <form class="sgx-term-line" data-term-form data-mode="cmd" autocomplete="off" novalidate>
+          <input type="text" class="sgx-at-pmu" data-term-pmu name="username" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
+          <label class="sgx-term-ps" for="home-term-in" data-term-ps translate="no">nobody@space:~$</label>
           <span class="sgx-term-field"><input id="home-term-in" class="sgx-term-in" data-term-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="{{ $tr.shell.term.input }}" aria-keyshortcuts="Control+K Meta+K"><span class="sgx-term-ghost" data-term-ghost aria-hidden="true" hidden></span></span>
         </form>
+        <p class="sgx-at-hint sgx-term-hint2" data-term-hint hidden></p>
       </div>
       <p class="sgx-kh sgx-term-kh" data-term-kh hidden></p>
     </div>
