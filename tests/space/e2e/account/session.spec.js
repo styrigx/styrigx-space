@@ -302,6 +302,8 @@ test.describe('通行密钥按钮反馈', () => {
       navigator.credentials.get = () => new Promise((_, reject) => { window.__sgxRejectGet = reject; });
     });
     await sudoRoot(pg);
+    /* 先等选项列出来（pick）再按 1：sudo root 要先等 GET /api/account 读状态，CI 慢时按键会落在读状态那段 busy 里被吞掉 */
+    await mode(pg, 'pick');
     await termIn(pg).press('1');
     await mode(pg, 'busy');
     await expect(log(pg)).toContainText('正在唤起通行密钥…');
