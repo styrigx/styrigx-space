@@ -14,6 +14,7 @@ import { verifyLockSession } from './core/lock-session.js';
 import { withNoStore, json, apiError } from './lib/http.js';
 import { resolveReturn } from './core/return.js';
 import { anonLimit } from './core/anon-limit.js';
+import { newSessionAdmits } from './core/identity-admit.js';
 
 /* ================= HTML 会话标记（原 _kernel/html.js） ================= */
 
@@ -197,16 +198,18 @@ async function retiredEnNotFound(request, next, prefix, state) {
 
 /**
  * 主站和子站共用的放行：
- * - 接口（isApiPath）：有进站会话或 accessOf = public → 交给 next；否则 401 {ok:false}（不 302，fetch 不跟跳转）
+ * - 接口（isApiPath）：有进站会话或 accessOf = public → 交给 next；否则（v6 P1 新路径，并存）请求带新会话 cookie 时问账号 Worker
+ *   这个新会话够不够这条路由的档（core/identity-admit.js，一次 D1 查询在账号侧）→ 够就交给 next；都不成立 401 {ok:false}（不 302，fetch 不跟跳转）
  * - 页面 / 静态文件：一律回源，HTML 注入会话状态（valid / locked）
  * @param {Request} request
  * @param {{ok:boolean}} sess
  * @param {(req?: Request) => Promise<Response>} next
+ * @param {Record<string, any>} env
  */
-async function admit(request, sess, next) {
+async function admit(request, sess, next, env) {
   const pathname = new URL(request.url).pathname;
   if (isApiPath(pathname)) {
-    if (!sess.ok && accessOf(request.method, pathname) !== ACCESS.PUBLIC) return json(401, { ok: false });
+    if (!sess.ok && accessOf(request.method, pathname) !== ACCESS.PUBLIC && !(await newSessionAdmits(env, request))) return json(401, { ok: false });
     return next();
   }
   return injectSessionState(await next(), sess.ok ? 'valid' : 'locked');
@@ -302,7 +305,7 @@ async function handleRequest(context) {
     });
   }
 
-  return admit(request, sess, next);
+  return admit(request, sess, next, env);
 }
 
 /* ================= 子站关口（原 src/subsites.js；合并 PR3 起按主域名路径前缀） ================= */
@@ -412,5 +415,5 @@ export async function handleSubsite(request, env, origin) {
   if (enPrefix === null && isStaticAsset(url.pathname)) return origin(request);
   const sess = await verifyLockSession(request, env);
   if (enPrefix !== null) return retiredEnNotFound(request, origin, enPrefix, sess.ok ? 'valid' : 'locked');
-  return admit(request, sess, () => origin(request));
+  return admit(request, sess, () => origin(request), env);
 }

@@ -2,7 +2,7 @@
 
 | 项 | 值 |
 |---|---|
-| 状态 | 已采纳（已实施） |
+| 状态 | 已采纳（已实施）；§2.3 已被 ADR-0006 取代 |
 | 日期 | 2026-11-09（#357 合并） |
 | 决策者 | Sloan Gray |
 | 规范 | SGX-SEC-001 |
@@ -19,7 +19,7 @@
 
 2.2 **授权由账号回答、网关转交结论**。下游（接口 Worker、AI）只信站点核心交来的结论（RPC `SpaceVerifier.conclusion()` 或 `X-Styrigx-Account-*` 头）；作用域按应用授予，存在 `account_grant`，取消即时生效。
 
-2.3 **一个概念一个词，一次验证一张票**（账号命名 v2）：`sudo root` 只签 session；`sudo root reauth` 只签 reauth（绑定本机设备）；`sudo root reset` 只用恢复密钥换 reset 票。三把账号钥匙：账号密码、账号通行密钥、恢复密钥；恢复密钥不能登录、不能 reauth。
+2.3 **〔已被 ADR-0006 取代（v6 身份统一）：三把账号钥匙合成 root 的凭据 + 一把恢复钥匙；`sudo root` → `su root`，`sudo root reauth` 删除，改为 sudo 每次重验；`sudo root reset` → 救援入口〕** **一个概念一个词，一次验证一张票**（账号命名 v2）：`sudo root` 只签 session；`sudo root reauth` 只签 reauth（绑定本机设备）；`sudo root reset` 只用恢复密钥换 reset 票。三把账号钥匙：账号密码、账号通行密钥、恢复密钥；恢复密钥不能登录、不能 reauth。
 
 2.4 **reset 完成后三选一登出**：`all` / `others` / `none`，界面默认 `others`；reset 下的写操作不碰会话。
 

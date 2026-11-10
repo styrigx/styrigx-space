@@ -1,7 +1,7 @@
 /**
  * 账号 Worker 的命名与配置（core/config.js、lib/db.js ACCOUNT_SCHEMA、secrets.js、wrangler.toml 的 Secrets Store / D1 绑定）：
  * - 三张票、两个纪元、by、challenge 用途、Secrets 名钉死字面量（命名 v2）
- * - ACCOUNT_SCHEMA 与 migrations/0005_account_tables.sql 建出的表逐列一致
+ * - ACCOUNT_SCHEMA + IDENTITY_SCHEMA 与 migrations（0005 账号表、0006 v6 身份表）建出的表逐列一致
  * - secrets：四个名字；wrangler.toml 正式段恰好这四个 Secrets Store 绑定（binding = secret_name，store 同网关），预览不绑
  * - resolveSecrets：绑定 → 字符串、60 秒缓存、取值失败留空且不缓存
  * - 退役名单（space/scripts/retired-names.json）里的旧名不出现在账号 Worker 源码里
@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { makeAccountD1, ACCOUNT_TABLES } from './_d1.mjs';
+import { makeAccountD1, ACCOUNT_TABLES, IDENTITY_TABLES } from './_d1.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const SRC = REPO + 'workers/account/src/';
@@ -52,15 +52,16 @@ test('rpConfig / rpConfigMissing：两个都在才给；缺 → 503 config', asy
   assert.equal((await r.json()).error, 'config');
 });
 
-test('ACCOUNT_SCHEMA（兜底建表）与 0005 建出的 account_* 表逐列一致；每条都 IF NOT EXISTS', () => {
+test('ACCOUNT_SCHEMA + IDENTITY_SCHEMA（兜底建表）与迁移建出的 account_* 表逐列一致；每条都 IF NOT EXISTS', () => {
   const a = new DatabaseSync(':memory:');
-  for (const s of db.ACCOUNT_SCHEMA) { assert.match(s, /IF NOT EXISTS/); a.exec(s); }
+  for (const s of db.ACCOUNT_SCHEMA.concat(db.IDENTITY_SCHEMA)) { assert.match(s, /IF NOT EXISTS/); a.exec(s); }
   const b = makeAccountD1().raw;
+  const all = [...ACCOUNT_TABLES, ...IDENTITY_TABLES];
   const cols = (d, t) => d.prepare('PRAGMA table_info(' + t + ')').all().map((c) => [c.name, c.type, c.notnull, c.pk, c.dflt_value]);
-  for (const t of ACCOUNT_TABLES) assert.deepEqual(cols(a, t), cols(b, t), t);
+  for (const t of all) assert.deepEqual(cols(a, t), cols(b, t), t);
   const names = (d) => d.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'account_%' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(names(a), [...ACCOUNT_TABLES].sort());
-  assert.deepEqual(names(b), [...ACCOUNT_TABLES].sort());
+  assert.deepEqual(names(a), [...all].sort());
+  assert.deepEqual(names(b), [...all].sort());
 });
 
 test('secrets：四个名字 = 签名钥匙一对 + 恢复密钥 + 账号密码 pepper', () => {

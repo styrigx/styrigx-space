@@ -22,6 +22,11 @@ export const ACCOUNT_MIGRATION = '0005_account_tables.sql';
 export const ACCOUNT_SQL = readFileSync(MIG + ACCOUNT_MIGRATION, 'utf8');
 export const ACCOUNT_TABLES = Object.freeze(['account_epoch', 'account_password', 'account_passkey', 'account_user_handle', 'account_challenge',
   'account_attempt_limit', 'account_device', 'account_audit', 'account_grant']);
+/** v6 身份表（P1，0006_identity.sql；src/lib/db.js IDENTITY_SCHEMA） */
+export const IDENTITY_MIGRATION = '0006_identity.sql';
+export const IDENTITY_SQL = readFileSync(MIG + IDENTITY_MIGRATION, 'utf8');
+export const IDENTITY_TABLES = Object.freeze(['account_users', 'account_user_groups', 'account_user_password', 'account_user_passkey',
+  'account_sessions', 'account_session_stack', 'account_user_audit', 'account_recovery_key']);
 /** 所有迁移文件（按文件名顺序） */
 export const MIGRATION_FILES = Object.freeze(readdirSync(MIG).filter((n) => n.endsWith('.sql')).sort());
 /** 读某个迁移文件 @param {string} f */
