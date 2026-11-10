@@ -45,7 +45,7 @@
 | `workers/space-core/src/api/lock-password.js`（`verify { reauth:true }`、`set` / `change` / `remove`） | 签复验票、改进站密码 | 签票部分 P4 删；改密码 → `passwd`（styrigx 自己） |
 | `workers/space-core/src/api/lock-passkey.js`（`auth { reauth:true }`、`register` / `list` / `rename` / `delete`） | 同上（通行密钥） | → `passkey`（styrigx 自己） |
 | `workers/space-core/src/api/lock-reauth.js` | 票状态 / 清票 | P4 删（`sudo -v` 删除） |
-| `workers/space-core/src/api/lock-all-devices.js` | `lock --all`（要复验） | → 作废自己的会话（user 档；存疑：要不要 sudo） |
+| `workers/space-core/src/api/lock-all-devices.js` | `lock --all`（要复验） | → 作废自己的会话（user 档；Gray 2026-11-11 定：不要 sudo） |
 | `workers/space-core/src/api/share.js` + `core/link-keys.js` `checkLinkReauth` | 分享链接 list / revoke 要复验 | P4 随分享整套删（root `useradd -e` 取代） |
 | `workers/space-core/src/api/lock-now.js` | 上锁时清复验票 | P4 删；v6 `lock` 清栈并删服务端会话行 |
 | 前端 `space/web/assets/js/shell/space/reauth.js`、`api.js`、`keys.js`、`links.js`、`layer.js`、`session.js`、`paths.js`、`term/cmds/keys/sudo.js`（`sudo -v`）、`auth/passkey-assert.js`、`auth/post-json.js`（`reauthExpired`） | 终端里的复验流程与 403 reauth 重试 | P2 改：复验 → `sudo <命令>` 每次输自己的凭据；P4 删旧流程 |
@@ -60,7 +60,7 @@
 | `workers/account/src/api/account/keys.js` | 改账号（= root）钥匙要 reauth | → root 档（救援可用），sudo 每次重验 |
 | `workers/account/src/api/account/devices.js`（`revoke-all`） | 退出其他设备要 reauth | → 作废自己的会话（user 档） |
 | `workers/account/src/api/account/grants.js`（`add`） | 重新授权要 reauth | → `usermod -aG`（root） |
-| `workers/account/src/api/account/proxy.js`（`show` / `token` / `key`） | 代理订阅敏感读要 reauth | → root 档（存疑：要不要给 styrigx 一个组） |
+| `workers/account/src/api/account/proxy.js`（`show` / `token` / `key`） | 代理订阅敏感读要 reauth | → root 档（Gray 2026-11-11 定：root，不加新组） |
 | `workers/curio-core/src/app.js` `REAUTH_ROUTES`（`POST /api/import`）、`api/_auth.js` | 批量导入要账号复验 | → root 档（sudo） |
 | `workers/daymark-core/src/api/_auth.js` | 读结论里的 reauth 位（当前没有接口要它） | P4 删字段 |
 | 前端 `space/web/assets/js/shell/account/reauth.js`、`api.js`（`reauth`、`ERR.reauth`）、`cmd/layer.js`（`withReauth`、只做再验证、`sgx-account-reauthed` 事件给奇趣导入）、`cmd/keys.js`、`cmd/devices.js`、`cmd/grants.js`、`proxy.js`、`session.js`、`topbar-panel.js`（`#acct=reauth`）、`term/man/pages.js` | 403 reauth → 弹复验 → 自动重试一次 | P2 改：403 → 提示 `sudo` 重验后重试；P4 删旧流程 |
@@ -85,7 +85,7 @@
 | `workers/account/src/gate.js` `scopeDenial`（avatar / prefs / profile）、`api/wellbeing.js` | 账号数据写要作用域 | P2 改按路由表的档（见盘点） |
 | `workers/space-core/src/core/conclusion.js`、`rpc/space-verifier.js` `conclusion()` | 子站接口 Worker 问结论（scopes） | P2 改：结论带 uid + 组（来自 `AccountVerifier.admit`） |
 | `workers/curio-core/src/api/_auth.js`（`requireScope`、`SCOPE_WRITE`）、`_write.js` `guardWrite`、`preview.js`、`music.js` | 写要 `curio.write` | P2 改：写组 `curio-write`；结构删除 root |
-| `workers/daymark-core/src/api/_auth.js`、`_write.js` | 写要 `daymark.write` | P2 改：`daymark-write`；删专题见盘点存疑 |
+| `workers/daymark-core/src/api/_auth.js`、`_write.js` | 写要 `daymark.write` | P2 改：`daymark-write`；删专题定 root（Gray 2026-11-11，结构删除） |
 | 前端 `space/web/assets/js/shell/account/cmd/grants.js`（`app allow|deny`）、`cmd/layer.js` `entry({ app })` / `topbar-panel.js`（奇趣 / 日刻的 `sudo root &app=…` 入口）、`space/web/layouts/partials/curio/signin.html`、`space/web/layouts/daymark/section.html` | 子应用「去授权」入口 | P2 改：缺组时提示 `su`（或请 root 加组）；外观改动先截图给 Gray |
 
 ## 4. 数字

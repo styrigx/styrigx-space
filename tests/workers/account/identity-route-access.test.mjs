@@ -149,9 +149,13 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
 test('摘要快照：各档路由数（改表必须改这里）', () => {
   const count = {};
   for (const r of RA.ROUTE_ACCESS) count[r.level] = (count[r.level] || 0) + 1;
-  assert.deepEqual(count, { public: 37, ai: 2, status: 1, root: 10, user: 9, 'curio-write': 9, listen: 3, 'daymark-write': 6 });
+  assert.deepEqual(count, { public: 37, ai: 2, status: 1, root: 11, user: 9, 'curio-write': 8, listen: 3, 'daymark-write': 6 });
   assert.equal(RA.ROUTE_ACCESS.length, 77);
-  assert.equal(RA.ROUTE_ACCESS.filter((r) => r.doubt).length, 17);
+  assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 17, 'Gray 2026-11-11 定稿的 17 条');
+  assert.equal(RA.ROUTE_ACCESS.filter((r) => 'doubt' in r).length, 0, '不再有存疑');
+  assert.equal(RA.levelOf('GET', '/curio/api/export'), 'root', '导出含私密 → root（Gray 2026-11-11）');
+  assert.equal(RA.levelOf('PUT', '/api/profile'), 'root', '站长名片只有一份');
+  assert.equal(RA.levelOf('GET', '/api/profile'), 'public', '主页名片公开');
 });
 
 test('盘点文档 docs/specs/v6-route-inventory.md 与表一致（每一行的方法、路径、档）', () => {

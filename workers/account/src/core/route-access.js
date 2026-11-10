@@ -11,7 +11,7 @@
  * 4. 删除两级（定稿 §十一、Muse 复盘 4）：单条内容删除（del: 'item'）归写组；批量 / 结构删除（del: 'bulk'）只属 root。
  * 5. 原来要再验证（reauth / sudo -v / sudo root reauth，即 STEPUP 的继任者）的操作，v6 一律改成 sudo 每次重验 = root 档。
  * 6. retire：v6 割接后要删的旧入口（P3 / P4）；它们在 P1–P3 照旧按老规则跑（旧会话判定不变），这里写的是新会话的档。
- * 7. doubt：盘点时拿不准、需要 Gray 定的条目（docs/specs/v6-route-inventory.md 汇总）。
+ * 7. decided：盘点时拿不准、由 Gray 定稿的条目（2026-11-11；docs/specs/v6-route-inventory.md「已定」汇总）。
  *
  * 判断不在这里：这张表只回答「要哪一档」，够不够由 core/groups.js permits() 判断（全站唯一一处）。
  * 没有公开地址、只经服务绑定 / RPC 进来的入口不进表，列在 SERVICE_ONLY（盘点用）。
@@ -27,7 +27,7 @@ export const PROXY_HOST = 'proxy-rules.styrigx.com';
 
 /**
  * @typedef {{ host?: string, method: string, path: string, level: string, worker: string, why: string,
- *   actions?: Readonly<Record<string, string>>, rescue?: boolean, del?: 'item'|'bulk', retire?: string, doubt?: string }} RouteRule
+ *   actions?: Readonly<Record<string, string>>, rescue?: boolean, del?: 'item'|'bulk', retire?: string, decided?: string }} RouteRule
  */
 
 /** @param {RouteRule} r */
@@ -53,7 +53,7 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'GET', path: '/api/lock-credentials', level: 'user', worker: 'space-core', why: '列进站凭证是否已设置', rescue: true, retire: 'P4' }),
   R({ method: 'POST', path: '/api/lock-reauth', level: 'user', worker: 'space-core', why: 'sudo -v 的票状态 / 清票', retire: 'P4（sudo -v 删除）' }),
   R({ method: 'POST', path: '/api/lock-all-devices', level: 'user', worker: 'space-core', why: 'lock --all：自己的全部会话回访客', retire: 'P4（v6：lock / 改密码作废其他会话）',
-    doubt: '旧接口要 sudo -v；v6 只作废自己的会话，按 user 档。若要保留复验就改 root（sudo）' }),
+    decided: 'Gray 2026-11-11 定 user：v6 只作废自己的会话，不保留复验' }),
   R({ method: 'POST', path: '/api/lock-reset', level: 'public', worker: 'space-core', why: '恢复钥匙换 reset 票（sudo styrigx reset）', retire: 'P3（恢复钥匙合一 + 救援入口）' }),
   R({ method: 'POST', path: '/api/space-auth', level: 'public', worker: 'space-core', why: '进站恢复钥匙校验（前端已不用）', retire: 'P3' }),
 
@@ -75,35 +75,35 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'POST', path: '/api/account/keys', level: 'root', worker: 'account', why: '账号钥匙 = root 的密码 / 通行密钥（v6 迁为 root 凭据）', rescue: true,
     actions: { 'passkey-list': 'root', 'password-set': 'root', 'passkey-add-challenge': 'root', 'passkey-add': 'root', 'passkey-delete': 'root', 'passkey-rename': 'root' } }),
   R({ method: 'POST', path: '/api/account/devices', level: 'user', worker: 'account', why: '已登录设备 = 自己的会话（v6 who 只看自己）',
-    actions: { list: 'user', revoke: 'user', 'revoke-all': 'user' }, doubt: 'v5 的设备是账号（root）会话；v6 迁移对照表里设备归 styrigx，按 user 档管自己的会话；root 看全部由 who 做（P2）' }),
+    actions: { list: 'user', revoke: 'user', 'revoke-all': 'user' }, decided: 'Gray 2026-11-11 定 user：管自己的会话；root 看全部由 who 做（P2）' }),
   R({ method: 'POST', path: '/api/account/grants', level: 'root', worker: 'account', why: '应用授权 app allow | deny（归 root，定稿 §十）',
     actions: { list: 'root', add: 'root', revoke: 'root' }, retire: 'P2 起子应用权限改由组表达（curio-write / daymark-write …）' }),
   R({ method: 'POST', path: '/api/account/proxy', level: 'root', worker: 'account', why: '代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥）',
     actions: { status: 'root', show: 'root', token: 'root', key: 'root', add: 'root', mv: 'root', on: 'root', off: 'root', upload: 'root', rm: 'root' },
-    doubt: '旧规则 show / token / key 要 reauth、其余只要账号会话；v6 全放 root 最严。若要 styrigx 日常用，需新组（如 proxy）' }),
-  R({ method: 'PUT', path: '/api/avatar', level: 'user', worker: 'account', why: '换自己的头像（v6 头像 = whoami，按 uid）', doubt: 'KV 里现在只有一份头像（归 styrigx）；P2 按 uid 分之前新会话也没有签发入口' }),
-  R({ method: 'DELETE', path: '/api/avatar', level: 'user', worker: 'account', why: '删自己的头像（回默认）', del: 'item', doubt: '同上' }),
+    decided: 'Gray 2026-11-11 定 root，不加新组' }),
+  R({ method: 'PUT', path: '/api/avatar', level: 'user', worker: 'account', why: '换自己的头像（v6 头像 = whoami，按 uid）', decided: 'Gray 2026-11-11 定 user：P2 按 uid 分（uid 只取服务端会话，ADR-0006 P2 硬要求）' }),
+  R({ method: 'DELETE', path: '/api/avatar', level: 'user', worker: 'account', why: '删自己的头像（回默认）', del: 'item', decided: 'Gray 2026-11-11 定 user：同上' }),
   R({ method: 'GET', path: '/avatar/:file', level: 'public', worker: 'account', why: '头像图片（页面路径）' }),
-  R({ method: 'GET', path: '/api/profile', level: 'public', worker: 'account', why: '站点个人资料（公开数据）', doubt: 'v5 要进站会话；资料本身是公开数据（KV_PROFILE 只放公开数据），v6 拟 public' }),
-  R({ method: 'PUT', path: '/api/profile', level: 'root', worker: 'account', why: '改站点个人资料（站长资料，不是每个用户一份）', doubt: '若要 styrigx 日常改：加组（如 profile-write）或给 styrigx 的写组' }),
-  R({ method: 'GET', path: '/api/prefs', level: 'user', worker: 'account', why: '读自己的设置云同步（偏好归 styrigx，按 uid）', doubt: 'settings_sync 现在没有 uid（单份，归 styrigx）；P2 加 uid' }),
-  R({ method: 'POST', path: '/api/prefs', level: 'user', worker: 'account', why: '写自己的设置云同步', doubt: '同上' }),
-  R({ method: 'POST', path: '/api/wellbeing', level: 'user', worker: 'account', why: '数字健康上报（只记自己的）', doubt: 'wb_daily 没有 uid；P2 前 handler 只收 styrigx 的上报（或加 uid 列）' }),
-  R({ method: 'GET', path: '/api/wellbeing', level: 'public', worker: 'account', why: '区域合计公开；明细（书名 / 文章名）只给本人', doubt: '明细给谁：v5 = 账号会话；v6 拟只给 styrigx 本人（按 uid，不按组）' }),
+  R({ method: 'GET', path: '/api/profile', level: 'public', worker: 'account', why: '站点个人资料（公开数据）', decided: 'Gray 2026-11-11 定 public：资料是公开数据（KV_PROFILE 只放公开数据）' }),
+  R({ method: 'PUT', path: '/api/profile', level: 'root', worker: 'account', why: '改站点个人资料（站长资料，不是每个用户一份）', decided: 'Gray 2026-11-11 定 root：站长名片只有一份，user 档会让临时用户改名片' }),
+  R({ method: 'GET', path: '/api/prefs', level: 'user', worker: 'account', why: '读自己的设置云同步（偏好归 styrigx，按 uid）', decided: 'Gray 2026-11-11 定 user：P2 加 uid（uid 只取服务端会话）' }),
+  R({ method: 'POST', path: '/api/prefs', level: 'user', worker: 'account', why: '写自己的设置云同步', decided: 'Gray 2026-11-11 定 user：同上' }),
+  R({ method: 'POST', path: '/api/wellbeing', level: 'user', worker: 'account', why: '数字健康上报（只记自己的）', decided: 'Gray 2026-11-11 定 user：P2 加 uid 列（uid 只取服务端会话）' }),
+  R({ method: 'GET', path: '/api/wellbeing', level: 'public', worker: 'account', why: '区域合计公开；明细（书名 / 文章名）只给本人', decided: 'Gray 2026-11-11 定 public：合计公开，明细只给本人（按 uid，不按组）' }),
 
   /* ---------- 奇趣接口 styrigx-curio-core（styrigx.com/curio/api/*，不经网关；workers/curio-core/src/routes.js） ---------- */
-  R({ method: 'GET', path: '/curio/api/items', level: 'public', worker: 'curio-core', why: '设备 / 游戏列表（私密行只给写组，见 doubt）', doubt: '读私密行：v5 = 账号会话；v6 拟 curio-write（写组成员可见私密）' }),
+  R({ method: 'GET', path: '/curio/api/items', level: 'public', worker: 'curio-core', why: '设备 / 游戏列表（私密行只给 curio-write，见 decided）', decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
   R({ method: 'POST', path: '/curio/api/items', level: 'curio-write', worker: 'curio-core', why: 'device.* / game.*：add / edit / order；del 是单条', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/links', level: 'public', worker: 'curio-core', why: '收藏列表（私密行同上）', doubt: '同 items' }),
+  R({ method: 'GET', path: '/curio/api/links', level: 'public', worker: 'curio-core', why: '收藏列表（私密行同上）', decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
   R({ method: 'POST', path: '/curio/api/links', level: 'curio-write', worker: 'curio-core', why: 'cat.* / link.*；link.del 单条；cat.del 只删空分类（非空 409），按单条算', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/movies', level: 'public', worker: 'curio-core', why: '电影列表', doubt: '同 items' }),
+  R({ method: 'GET', path: '/curio/api/movies', level: 'public', worker: 'curio-core', why: '电影列表', decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
   R({ method: 'POST', path: '/curio/api/movies', level: 'curio-write', worker: 'curio-core', why: 'movie.add / edit / del（单条）', del: 'item' }),
   R({ method: 'GET', path: '/curio/api/photo', level: 'public', worker: 'curio-core', why: '设备照片 / 海报' }),
   R({ method: 'POST', path: '/curio/api/photo', level: 'curio-write', worker: 'curio-core', why: '上传照片 / 海报' }),
   R({ method: 'DELETE', path: '/curio/api/photo', level: 'curio-write', worker: 'curio-core', why: '删一张照片', del: 'item' }),
   R({ method: 'GET', path: '/curio/api/icon', level: 'public', worker: 'curio-core', why: '网站图标缓存' }),
   R({ method: 'GET', path: '/curio/api/preview', level: 'curio-write', worker: 'curio-core', why: '添加收藏时抓标题 / 图标（算在写里）' }),
-  R({ method: 'GET', path: '/curio/api/export', level: 'curio-write', worker: 'curio-core', why: '导出全部收藏（含私密）', doubt: 'v5 = 账号会话（读私密）；v6 拟 curio-write，或改 root' }),
+  R({ method: 'GET', path: '/curio/api/export', level: 'root', worker: 'curio-core', why: '导出全部收藏（含私密）', decided: 'Gray 2026-11-11 定 root：导出全部收藏含私密' }),
   R({ method: 'POST', path: '/curio/api/import', level: 'root', worker: 'curio-core', why: '批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root）' }),
   R({ method: 'GET', path: '/curio/api/music', level: 'public', worker: 'curio-core', why: '歌单（不含音频地址）' }),
   R({ method: 'POST', path: '/curio/api/music', level: 'curio-write', worker: 'curio-core', why: 'album.add / edit、track.edit / del（单条）；album.del 连曲目一起删 = 结构删除',
@@ -119,7 +119,7 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'HEAD', path: '/daymark/api/today', level: 'public', worker: 'daymark-core', why: '同上' }),
   R({ method: 'OPTIONS', path: '/daymark/api/today', level: 'public', worker: 'daymark-core', why: 'CORS 预检' }),
   R({ method: 'PUT', path: '/daymark/api/today', level: 'daymark-write', worker: 'daymark-core', why: '设为今日' }),
-  R({ method: 'GET', path: '/daymark/api/quotes', level: 'public', worker: 'daymark-core', why: '句子列表（私密句子只给写组，见 doubt）', doubt: '读私密：v5 = 账号会话；v6 拟 daymark-write' }),
+  R({ method: 'GET', path: '/daymark/api/quotes', level: 'public', worker: 'daymark-core', why: '句子列表（私密句子只给 daymark-write，见 decided）', decided: 'Gray 2026-11-11 定 public：私密句子只给 daymark-write' }),
   R({ method: 'POST', path: '/daymark/api/quotes', level: 'daymark-write', worker: 'daymark-core', why: '新增句子' }),
   R({ method: 'PUT', path: '/daymark/api/quotes', level: 'daymark-write', worker: 'daymark-core', why: '改句子' }),
   R({ method: 'DELETE', path: '/daymark/api/quotes', level: 'daymark-write', worker: 'daymark-core', why: '删一句（日记条目）', del: 'item' }),
@@ -127,7 +127,7 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'POST', path: '/daymark/api/collections', level: 'daymark-write', worker: 'daymark-core', why: '新建专题' }),
   R({ method: 'PUT', path: '/daymark/api/collections', level: 'daymark-write', worker: 'daymark-core', why: '改专题 / 重排专题里的句子' }),
   R({ method: 'DELETE', path: '/daymark/api/collections', level: 'root', worker: 'daymark-core', why: '删整个专题（句子本身不删）= 结构删除', del: 'bulk',
-    doubt: '专题删了句子还在，破坏力小；若按单条算就改 daymark-write' }),
+    decided: 'Gray 2026-11-11 定 root：删整个专题 = 结构删除' }),
   R({ method: 'GET', path: '/daymark/api/days', level: 'public', worker: 'daymark-core', why: '按日浏览' }),
 
   /* ---------- 代理订阅 / 规则集 styrigx-proxy-rules（proxy-rules.styrigx.com，不经网关；workers/proxy-rules/src/router.js） ---------- */

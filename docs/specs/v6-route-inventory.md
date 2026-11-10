@@ -1,14 +1,14 @@
-# v6 路由全量盘点（P1 交付物，待 Gray 过目）
+# v6 路由全量盘点（P1 交付物）
 
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-004 |
-| 版本 | 0.1 |
+| 版本 | 0.2 |
 | 日期 | 2026-11-11 |
-| 状态 | 草案（v6 P1，待 Gray 过目） |
+| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑） |
 
 
-> 状态：P1 草案（2026-11-11），基线 main 05abe443。机器可读的唯一来源是 `workers/account/src/core/route-access.js` 的 `ROUTE_ACCESS`；
+> 状态：P1 定稿（2026-11-11，Gray 已定 17 条存疑），基线 main 05abe443。机器可读的唯一来源是 `workers/account/src/core/route-access.js` 的 `ROUTE_ACCESS`；
 > 本页由它生成，`tests/workers/account/identity-route-access.test.mjs` 核对两边一致、并核对每个 Worker 的路由表都在表里（漏一条 CI 红）。
 > 相关：ADR-0006（v6 身份统一）、`docs/specs/v6-identity-migration.md`、`docs/specs/v6-stepup-app-map.md`。
 
@@ -31,30 +31,34 @@
 | ai | 2 |
 | status | 1 |
 | listen | 3 |
-| curio-write | 9 |
+| curio-write | 8 |
 | daymark-write | 6 |
-| root | 10 |
+| root | 11 |
 | **合计** | **77**（另有 11 个只经服务绑定 / RPC 的入口） |
 
 按 Worker：站点核心 21、账号 17、奇趣 20、日刻 13、代理 6。割接后要删的旧入口 20 条（P3 / P4）。有 action 另定档的接口 5 个（lock-password、lock-passkey、account/session、account/reset、curio music）。
 
-### 存疑（17 条，请 Gray 定）
+### 已定（Gray 2026-11-11）
 
-| 路由 | 拟定 | 问题 |
+盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致。只有一处改了档：`GET /curio/api/export` 由 curio-write 改为 **root**；其余按原拟定值定稿。
+
+| 路由 | 定稿 | 理由 |
 |---|---|---|
-| `POST /api/lock-all-devices` | user | 旧接口要 sudo -v；v6 只作废自己的会话。要保留复验就改 root |
-| `POST /api/account/devices` | user | v5 的设备是账号（root）会话；对照表里设备归 styrigx，按 user 管自己的会话；看全部由 root 的 who 做（P2） |
-| `POST /api/account/proxy` | root | 旧规则 show / token / key 要 reauth、其余只要账号会话；v6 全放 root 最严。styrigx 要日常用就加组（如 proxy） |
-| `PUT` / `DELETE /api/avatar` | user | KV 里现在只有一份头像（归 styrigx）；P2 按 uid 分（P1 新会话没有签发入口，无风险） |
-| `GET /api/profile` | public | v5 要进站会话；资料本身是公开数据 |
-| `PUT /api/profile` | root | 站长资料不是每人一份；styrigx 要日常改就加组（如 profile-write） |
-| `GET` / `POST /api/prefs` | user | settings_sync 没有 uid（单份，归 styrigx）；P2 加 uid |
-| `POST /api/wellbeing` | user | wb_daily 没有 uid；P2 前只收 styrigx 的上报或加 uid 列 |
-| `GET /api/wellbeing` | public | 合计公开；明细（书名 / 文章名）拟只给 styrigx 本人（按 uid，不按组） |
-| `GET /curio/api/items` / `links` / `movies` | public | 私密行给谁：v5 = 账号会话；v6 拟 curio-write |
-| `GET /curio/api/export` | curio-write | 导出含私密；或改 root |
-| `GET /daymark/api/quotes` | public | 私密句子给谁：拟 daymark-write |
-| `DELETE /daymark/api/collections` | root | 删专题、句子还在，破坏力小；按单条算就改 daymark-write |
+| `POST /api/lock-all-devices` | user | v6 只作废自己的会话，不保留复验 |
+| `POST /api/account/devices` | user | 管自己的会话；root 看全部由 who 做（P2） |
+| `POST /api/account/proxy` | root | 全放 root，不加新组 |
+| `PUT` / `DELETE /api/avatar` | user | P2 按 uid 分 |
+| `GET /api/profile` | public | 资料本身是公开数据（主页名片） |
+| `PUT /api/profile` | root | 站长名片只有一份，user 档会让临时用户改名片 |
+| `GET` / `POST /api/prefs` | user | P2 加 uid |
+| `POST /api/wellbeing` | user | P2 加 uid 列 |
+| `GET /api/wellbeing` | public | 合计公开；明细只给本人（按 uid，不按组） |
+| `GET /curio/api/items` / `links` / `movies` | public | 私密行只给写组 curio-write |
+| `GET /curio/api/export` | **root**（原拟 curio-write） | 导出全部收藏含私密 |
+| `GET /daymark/api/quotes` | public | 私密句子只给写组 daymark-write |
+| `DELETE /daymark/api/collections` | root | 删整个专题 = 结构删除 |
+
+user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只取服务端会话，绝不取客户端参数 / 请求体；P2 每条 user 路由都要有「传他人 uid 被拒 / 被忽略」的测试。
 
 另外两处定义性偏离：多了一档 **user**（定稿只写 public / 组名 / root；无组的临时用户也要能 passwd 改自己的密码、读自己的会话，不加这一档就只能给它一个组）；`/api/account/session` 的登录 action 记为 **wheel**（它就是 v5 的 `sudo root`，v6 = `su root`）。
 
@@ -62,7 +66,7 @@
 
 ### 站点核心 styrigx-space-core（网关自己的接口、分享短链）
 
-| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 存疑 |
+| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
 | POST | `/api/ai` | **ai** |  |  | 保留 | AI 对话（转 styrigx-ai /ask） |  |
 | GET | `/api/ai` | **ai** |  |  | 保留 | AI 可选模型列表（转 styrigx-ai /models） |  |
@@ -78,7 +82,7 @@
 | POST | `/api/lock-passkey` | **public** | `register` → user；`list` → user；`rename` → user；`delete` → user |  | P4（v6：su styrigx / passkey） | 进站通行密钥：challenge / auth 公开（登录）；增删改列的是 styrigx 自己的通行密钥 |  |
 | GET | `/api/lock-credentials` | **user**（救援可用） |  |  | P4 | 列进站凭证是否已设置 |  |
 | POST | `/api/lock-reauth` | **user** |  |  | P4（sudo -v 删除） | sudo -v 的票状态 / 清票 |  |
-| POST | `/api/lock-all-devices` | **user** |  |  | P4（v6：lock / 改密码作废其他会话） | lock --all：自己的全部会话回访客 | 旧接口要 sudo -v；v6 只作废自己的会话，按 user 档。若要保留复验就改 root（sudo） |
+| POST | `/api/lock-all-devices` | **user** |  |  | P4（v6：lock / 改密码作废其他会话） | lock --all：自己的全部会话回访客 | Gray 2026-11-11 定 user：v6 只作废自己的会话，不保留复验 |
 | POST | `/api/lock-reset` | **public** |  |  | P3（恢复钥匙合一 + 救援入口） | 恢复钥匙换 reset 票（sudo styrigx reset） |  |
 | POST | `/api/space-auth` | **public** |  |  | P3 | 进站恢复钥匙校验（前端已不用） |  |
 | GET | `/s/:code` | **public** |  |  | P4（整套删；删后一段 404，两段仍走代理订阅） | 分享短链：码就是凭证（一段） |  |
@@ -88,42 +92,42 @@
 
 ### 账号 styrigx-account（经网关 FORWARDING 转发）
 
-| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 存疑 |
+| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
 | GET | `/api/account` | **public** |  |  | 保留 | 账号终端状态（访客也要读提示符状态） |  |
 | POST | `/api/account/session` | **public** | `passkey-challenge` → wheel；`passkey` → wheel；`password` → wheel |  | P4（v6 su / exit） | 旧 sudo root 登录；v6 = su root（wheel + root 凭据），root 不能从访客直接登录 |  |
 | POST | `/api/account/reauth` | **root** |  |  | P4（sudo root reauth 删除，改 sudo 每次重验） | sudo root reauth（3 分钟票） |  |
 | POST | `/api/account/reset` | **public**（救援可用） | `password-set` → root；`passkey-list` → root；`passkey-add-challenge` → root；`passkey-add` → root；`passkey-delete` → root；`finish` → root |  | P3（救援入口直接签 15 分钟一次性 root 会话） | 恢复密钥换 reset 票；之后的写只在救援会话里 |  |
 | POST | `/api/account/keys` | **root**（救援可用） |  |  | 保留 | 账号钥匙 = root 的密码 / 通行密钥（v6 迁为 root 凭据） |  |
-| POST | `/api/account/devices` | **user** |  |  | 保留 | 已登录设备 = 自己的会话（v6 who 只看自己） | v5 的设备是账号（root）会话；v6 迁移对照表里设备归 styrigx，按 user 档管自己的会话；root 看全部由 who 做（P2） |
+| POST | `/api/account/devices` | **user** |  |  | 保留 | 已登录设备 = 自己的会话（v6 who 只看自己） | Gray 2026-11-11 定 user：管自己的会话；root 看全部由 who 做（P2） |
 | POST | `/api/account/grants` | **root** |  |  | P2 起子应用权限改由组表达（curio-write / daymark-write …） | 应用授权 app allow \| deny（归 root，定稿 §十） |  |
-| POST | `/api/account/proxy` | **root** |  |  | 保留 | 代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥） | 旧规则 show / token / key 要 reauth、其余只要账号会话；v6 全放 root 最严。若要 styrigx 日常用，需新组（如 proxy） |
-| PUT | `/api/avatar` | **user** |  |  | 保留 | 换自己的头像（v6 头像 = whoami，按 uid） | KV 里现在只有一份头像（归 styrigx）；P2 按 uid 分之前新会话也没有签发入口 |
-| DELETE | `/api/avatar` | **user** |  | 单条 → 写组 | 保留 | 删自己的头像（回默认） | 同上 |
+| POST | `/api/account/proxy` | **root** |  |  | 保留 | 代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥） | Gray 2026-11-11 定 root，不加新组 |
+| PUT | `/api/avatar` | **user** |  |  | 保留 | 换自己的头像（v6 头像 = whoami，按 uid） | Gray 2026-11-11 定 user：P2 按 uid 分（uid 只取服务端会话，ADR-0006 P2 硬要求） |
+| DELETE | `/api/avatar` | **user** |  | 单条 → 写组 | 保留 | 删自己的头像（回默认） | Gray 2026-11-11 定 user：同上 |
 | GET | `/avatar/:file` | **public** |  |  | 保留 | 头像图片（页面路径） |  |
-| GET | `/api/profile` | **public** |  |  | 保留 | 站点个人资料（公开数据） | v5 要进站会话；资料本身是公开数据（KV_PROFILE 只放公开数据），v6 拟 public |
-| PUT | `/api/profile` | **root** |  |  | 保留 | 改站点个人资料（站长资料，不是每个用户一份） | 若要 styrigx 日常改：加组（如 profile-write）或给 styrigx 的写组 |
-| GET | `/api/prefs` | **user** |  |  | 保留 | 读自己的设置云同步（偏好归 styrigx，按 uid） | settings_sync 现在没有 uid（单份，归 styrigx）；P2 加 uid |
-| POST | `/api/prefs` | **user** |  |  | 保留 | 写自己的设置云同步 | 同上 |
-| POST | `/api/wellbeing` | **user** |  |  | 保留 | 数字健康上报（只记自己的） | wb_daily 没有 uid；P2 前 handler 只收 styrigx 的上报（或加 uid 列） |
-| GET | `/api/wellbeing` | **public** |  |  | 保留 | 区域合计公开；明细（书名 / 文章名）只给本人 | 明细给谁：v5 = 账号会话；v6 拟只给 styrigx 本人（按 uid，不按组） |
+| GET | `/api/profile` | **public** |  |  | 保留 | 站点个人资料（公开数据） | Gray 2026-11-11 定 public：资料是公开数据（KV_PROFILE 只放公开数据） |
+| PUT | `/api/profile` | **root** |  |  | 保留 | 改站点个人资料（站长资料，不是每个用户一份） | Gray 2026-11-11 定 root：站长名片只有一份，user 档会让临时用户改名片 |
+| GET | `/api/prefs` | **user** |  |  | 保留 | 读自己的设置云同步（偏好归 styrigx，按 uid） | Gray 2026-11-11 定 user：P2 加 uid（uid 只取服务端会话） |
+| POST | `/api/prefs` | **user** |  |  | 保留 | 写自己的设置云同步 | Gray 2026-11-11 定 user：同上 |
+| POST | `/api/wellbeing` | **user** |  |  | 保留 | 数字健康上报（只记自己的） | Gray 2026-11-11 定 user：P2 加 uid 列（uid 只取服务端会话） |
+| GET | `/api/wellbeing` | **public** |  |  | 保留 | 区域合计公开；明细（书名 / 文章名）只给本人 | Gray 2026-11-11 定 public：合计公开，明细只给本人（按 uid，不按组） |
 
 ### 奇趣接口 styrigx-curio-core（styrigx.com/curio/api/*，不经网关）
 
-| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 存疑 |
+| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
-| GET | `/curio/api/items` | **public** |  |  | 保留 | 设备 / 游戏列表（私密行只给写组，见 doubt） | 读私密行：v5 = 账号会话；v6 拟 curio-write（写组成员可见私密） |
+| GET | `/curio/api/items` | **public** |  |  | 保留 | 设备 / 游戏列表（私密行只给 curio-write，见 decided） | Gray 2026-11-11 定 public：私密行只给 curio-write |
 | POST | `/curio/api/items` | **curio-write** |  | 单条 → 写组 | 保留 | device.* / game.*：add / edit / order；del 是单条 |  |
-| GET | `/curio/api/links` | **public** |  |  | 保留 | 收藏列表（私密行同上） | 同 items |
+| GET | `/curio/api/links` | **public** |  |  | 保留 | 收藏列表（私密行同上） | Gray 2026-11-11 定 public：私密行只给 curio-write |
 | POST | `/curio/api/links` | **curio-write** |  | 单条 → 写组 | 保留 | cat.* / link.*；link.del 单条；cat.del 只删空分类（非空 409），按单条算 |  |
-| GET | `/curio/api/movies` | **public** |  |  | 保留 | 电影列表 | 同 items |
+| GET | `/curio/api/movies` | **public** |  |  | 保留 | 电影列表 | Gray 2026-11-11 定 public：私密行只给 curio-write |
 | POST | `/curio/api/movies` | **curio-write** |  | 单条 → 写组 | 保留 | movie.add / edit / del（单条） |  |
 | GET | `/curio/api/photo` | **public** |  |  | 保留 | 设备照片 / 海报 |  |
 | POST | `/curio/api/photo` | **curio-write** |  |  | 保留 | 上传照片 / 海报 |  |
 | DELETE | `/curio/api/photo` | **curio-write** |  | 单条 → 写组 | 保留 | 删一张照片 |  |
 | GET | `/curio/api/icon` | **public** |  |  | 保留 | 网站图标缓存 |  |
 | GET | `/curio/api/preview` | **curio-write** |  |  | 保留 | 添加收藏时抓标题 / 图标（算在写里） |  |
-| GET | `/curio/api/export` | **curio-write** |  |  | 保留 | 导出全部收藏（含私密） | v5 = 账号会话（读私密）；v6 拟 curio-write，或改 root |
+| GET | `/curio/api/export` | **root** |  |  | 保留 | 导出全部收藏（含私密） | Gray 2026-11-11 定 root：导出全部收藏含私密 |
 | POST | `/curio/api/import` | **root** |  |  | 保留 | 批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root） |  |
 | GET | `/curio/api/music` | **public** |  |  | 保留 | 歌单（不含音频地址） |  |
 | POST | `/curio/api/music` | **curio-write** | `album.del` → root | 单条 → 写组 | 保留 | album.add / edit、track.edit / del（单条）；album.del 连曲目一起删 = 结构删除 |  |
@@ -135,25 +139,25 @@
 
 ### 日刻接口 styrigx-daymark-core（styrigx.com/daymark/api/*，不经网关）
 
-| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 存疑 |
+| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
 | GET | `/daymark/api/today` | **public** |  |  | 保留 | 今日一句（首页 / 锁屏跨站读） |  |
 | HEAD | `/daymark/api/today` | **public** |  |  | 保留 | 同上 |  |
 | OPTIONS | `/daymark/api/today` | **public** |  |  | 保留 | CORS 预检 |  |
 | PUT | `/daymark/api/today` | **daymark-write** |  |  | 保留 | 设为今日 |  |
-| GET | `/daymark/api/quotes` | **public** |  |  | 保留 | 句子列表（私密句子只给写组，见 doubt） | 读私密：v5 = 账号会话；v6 拟 daymark-write |
+| GET | `/daymark/api/quotes` | **public** |  |  | 保留 | 句子列表（私密句子只给 daymark-write，见 decided） | Gray 2026-11-11 定 public：私密句子只给 daymark-write |
 | POST | `/daymark/api/quotes` | **daymark-write** |  |  | 保留 | 新增句子 |  |
 | PUT | `/daymark/api/quotes` | **daymark-write** |  |  | 保留 | 改句子 |  |
 | DELETE | `/daymark/api/quotes` | **daymark-write** |  | 单条 → 写组 | 保留 | 删一句（日记条目） |  |
 | GET | `/daymark/api/collections` | **public** |  |  | 保留 | 百味专题列表 |  |
 | POST | `/daymark/api/collections` | **daymark-write** |  |  | 保留 | 新建专题 |  |
 | PUT | `/daymark/api/collections` | **daymark-write** |  |  | 保留 | 改专题 / 重排专题里的句子 |  |
-| DELETE | `/daymark/api/collections` | **root** |  | 结构 → root | 保留 | 删整个专题（句子本身不删）= 结构删除 | 专题删了句子还在，破坏力小；若按单条算就改 daymark-write |
+| DELETE | `/daymark/api/collections` | **root** |  | 结构 → root | 保留 | 删整个专题（句子本身不删）= 结构删除 | Gray 2026-11-11 定 root：删整个专题 = 结构删除 |
 | GET | `/daymark/api/days` | **public** |  |  | 保留 | 按日浏览 |  |
 
 ### 代理订阅 / 规则集 styrigx-proxy-rules（proxy-rules.styrigx.com，不经网关）
 
-| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 存疑 |
+| 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
 | GET | `/s/:token/:source` | **public** |  |  | 保留 | 代理订阅下载：令牌 + age 密文就是凭证（两段，保留） |  |
 | HEAD | `/s/:token/:source` | **public** |  |  | 保留 | 同上 |  |

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS account_user_groups (uid INTEGER NOT NULL, grp TEXT N
 
 -- 密码：每用户一行；record = 现有格式的 JSON（salt、hash、iterations、peppered、updatedAt），哈希沿用加盐 + pepper。
 -- pepper_id：这条哈希用的是哪把 pepper——'account' = SGX_ACCOUNT_PASSWORD_PEPPER（默认）、'space' = SGX_SPACE_PASSWORD_PEPPER（从进站密码迁来的 styrigx）。
--- 方案 a（未决，Hark 倾向）：登录成功时用账号 pepper 重算并改成 'account'，全部重算后 P4 删 space pepper。
+-- 方案 a（Gray 2026-11-11 定稿，ADR-0006 §2.12）：按 pepper_id 取 pepper 验证；登录成功用账号 pepper 重算并改成 'account'；活跃用户全部迁完后 P4 删 space pepper。
 -- must_change：1 = 一次性密码，首登强制改；expires_at：一次性密码到期（UTC 毫秒，0 = 不是一次性密码）。
 CREATE TABLE IF NOT EXISTS account_user_password (uid INTEGER PRIMARY KEY, record TEXT NOT NULL, pepper_id TEXT NOT NULL DEFAULT 'account', must_change INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL DEFAULT 0);
 

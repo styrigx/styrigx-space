@@ -46,7 +46,7 @@
 | 现在 | → v6 归属 | P1 动作 |
 |---|---|---|
 | 头像 KV_PROFILE `avatar:*` | styrigx（`account_users.avatar = 'avatar:'`） | 不动数据；P2 头像 = whoami 时按 uid 分键 |
-| 个人资料 KV_PROFILE `profile` | 站点资料（站长），PUT 拟 root（见盘点存疑） | 不动 |
+| 个人资料 KV_PROFILE `profile` | 站点资料（站长），PUT 定 root（Gray 2026-11-11：站长名片只有一份） | 不动 |
 | 设置云同步 `settings_sync` | styrigx | 不动；P2 加 uid |
 | 已登录设备 `account_device` | styrigx（v6 的设备 = 自己的会话） | 不动；旧账号会话照旧用到 P4 |
 | 数字健康 `wb_daily` | styrigx | 不动；P2 加 uid 或只收 styrigx 的上报 |
@@ -68,12 +68,13 @@
 - 浏览器选钥匙时分得清：P2 注册新钥匙时显示名区分 `styrigx` / `root`。
 - 迁后实测（P2 / P3 执行迁移时）：用旧钥匙各走一次 su styrigx、su root，确认验得过。
 
-## 4. 两把 pepper（未决，二选一）
+## 4. 两把 pepper（方案 a，Gray 2026-11-11 定稿）
 
-迁到 styrigx 的进站密码哈希是 `SGX_SPACE_PASSWORD_PEPPER` 做的，账号 Worker 现在只绑 `SGX_ACCOUNT_PASSWORD_PEPPER`。`account_user_password.pepper_id` 记每条哈希的来源。
+迁到 styrigx 的进站密码哈希是 `SGX_SPACE_PASSWORD_PEPPER` 做的，账号 Worker 现在只绑 `SGX_ACCOUNT_PASSWORD_PEPPER`。`account_user_password.pepper_id` 记每条哈希的来源。实现要求见 ADR-0006 §2.12 (b)：
 
-- **a）（Hark 倾向）** 账号 Worker 加绑 space pepper（只加绑定，值不动）；`pepper_id = 'space'` 的密码登录成功时用账号 pepper 重算哈希、改成 `'account'`；全部重算后（可查 `SELECT COUNT(*) … WHERE pepper_id = 'space'` = 0）P4 删 space pepper。
-- **b）** 两把 pepper 长期并存。
+- 验证按记录的 `pepper_id` 取 pepper（不认识 / 缺失 → fail closed）；`pepper_id = 'space'` 的密码登录成功时用账号 pepper 重算哈希、同一次写入改成 `'account'`。
+- 账号 Worker 加绑 space pepper（只加绑定，值不动）——**P2 随 su 验密一起加**（P1 没有 v6 密码验证，用不到）。
+- 旧 space pepper 保留到所有活跃用户迁完（`SELECT COUNT(*) … WHERE pepper_id = 'space'` 对活跃用户 = 0），**P4 才删**。
 
 ## 5. 签名钥匙与密钥的终局（P4）
 

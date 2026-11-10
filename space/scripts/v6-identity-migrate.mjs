@@ -22,8 +22,8 @@
  *   user handle 逐字节照抄。通行密钥用普通 INSERT（不是 OR IGNORE）：凭据 ID 撞了宁可整批失败，也不悄悄丢一把钥匙。
  *   给了 --account 导出时脚本先比对两边的凭据 ID，撞了直接报错、不出 SQL。
  * 密码：哈希原样复制（加盐 + pepper，不换算法）。两把 pepper：root 的哈希是 SGX_ACCOUNT_PASSWORD_PEPPER 做的，styrigx 的（进站密码）
- *   是 SGX_SPACE_PASSWORD_PEPPER 做的，记在 account_user_password.pepper_id。未决（二选一，Hark 倾向 a）：
- *   a) 登录成功时用账号 pepper 重算哈希、pepper_id 改成 'account'，全部重算后 P4 删 space pepper；b) 两把 pepper 并存。
+ *   是 SGX_SPACE_PASSWORD_PEPPER 做的，记在 account_user_password.pepper_id。方案 a 定稿（Gray 2026-11-11，ADR-0006 §2.12）：
+ *   按 pepper_id 取 pepper 验证；登录成功时用账号 pepper 重算哈希、pepper_id 改成 'account'；活跃用户全部迁完后 P4 删 space pepper。
  * 幂等：用户、组用 INSERT OR IGNORE；密码只在该用户还没有密码行时写；通行密钥按「这把已挂在这个 uid 上」跳过（WHERE NOT EXISTS），
  *   再跑一遍什么都不变；挂在另一个 uid 上的同一凭据 ID 会让 INSERT 撞主键失败（不悄悄丢）。
  *

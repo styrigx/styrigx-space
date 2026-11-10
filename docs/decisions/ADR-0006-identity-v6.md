@@ -65,6 +65,7 @@
 - 访客走救援入口，输恢复钥匙后直接签 **15 分钟一次性 root 会话**（单用户模式），不续期；会话带 rescue 标志，命令分发器白名单只放 `passwd`、`passkey`、恢复钥匙命令、`whoami`、`groups`、`exit`、`lock`；救援栈只有 root 一层，**exit 直接回访客**。
 - 用后钥匙作废，终端强制生成新钥匙；重置后相关用户 epoch +1；救援入口单独限流（渐进延迟）+ 审计。
 - 普通用户忘密码由 root 重置。
+- 未决（Gray 与 Muse 讨论中）：恢复钥匙存放方案（D1 哈希 vs Secrets Store）。P1 只建空表 `account_recovery_key`，P3 前定，可能改回 Secrets Store（届时空表随 P3 / P4 处理）。
 
 ### 2.9 安全细节
 
@@ -83,8 +84,18 @@
 - LOCK（进站）：并入账号 Worker 会话，P4 删站点核心的签发。
 - STEPUP、APP：本体已删（v3 / 账号拆分）；继任者（锁侧复验、账号复验、重置票、应用授权）按 SGX-SPEC-006 逐条处理。子应用权限由组表达（app allow | deny → `usermod -aG|-rG`）。
 - 签名钥匙：v6 会话不需签名。目标只留 `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC` 一对（若 curio / daymark 子应用令牌仍需签名），**P4 删 `SGX_SPACE_PRIVATE` / `SGX_SPACE_PUBLIC` 与两把 `*_RECOVERY_KEY`**。
-- pepper 两把（`SGX_SPACE_PASSWORD_PEPPER`、`SGX_ACCOUNT_PASSWORD_PEPPER`）：迁到 styrigx 的进站密码哈希是 space pepper 做的（`pepper_id = 'space'`）。二选一未决：a) 登录成功时用账号 pepper 重算，全部重算后 P4 删 space pepper（倾向）；b) 两把并存。
+- pepper 两把（`SGX_SPACE_PASSWORD_PEPPER`、`SGX_ACCOUNT_PASSWORD_PEPPER`）：迁到 styrigx 的进站密码哈希是 space pepper 做的（`pepper_id = 'space'`）。**方案 a 定稿（Gray 2026-11-11）**，实现要求见 §2.12 (b)。
 - 分享短链 `/s/<码>`（一段）整套删除，给别人权限改为 root 建带期限的普通用户；代理订阅 `/s/<令牌>/<来源名>`（两段，另一个主机）保留。删前盘点 `share_link` 有效链接逐个处理。
+
+### 2.12 P2 硬要求（Gray 2026-11-11）
+
+**(a) user 档的 uid 只取服务端会话。** 所有 user 档 handler（SGX-SPEC-004 里档为 `user` 的路由，以及 action 另定为 `user` 的 action）要操作「自己」的数据时，uid **只取 admit 返回的服务端会话结论**，绝不取客户端参数、查询串、请求头或请求体里的 uid / 用户名。P2 每条 user 路由都要有一条测试：请求里带他人 uid（参数 / body 各一）→ 被拒或被忽略（仍只作用于会话本人），不能读写到他人的数据。
+
+**(b) pepper 方案 a 定稿。**
+- 每条密码哈希记 `pepper_id`（`account` = `SGX_ACCOUNT_PASSWORD_PEPPER`，`space` = `SGX_SPACE_PASSWORD_PEPPER`）；验证时**按这条记录的 `pepper_id` 取对应 pepper**，不猜、不两把轮流试；`pepper_id` 不认识或对应 pepper 缺失 → fail closed。
+- 登录成功且 `pepper_id = 'space'` 时，用账号 pepper 重算哈希，同一次写入把 `pepper_id` 改成 `account`。
+- 旧 space pepper 保留到**所有活跃用户都已迁完**（库里不再有 `pepper_id = 'space'` 的活跃用户）为止，**P4 才删**（先核代码与绑定）。
+- 账号 Worker 需加绑 `SGX_SPACE_PASSWORD_PEPPER`（Secrets Store 绑定，只加绑定、不碰值）。P1 没有 v6 用户的密码验证（新会话没有签发入口，admit 只读），用不到这把 pepper，所以**绑定放在 P2**，随 `su` 验密一起加进 `workers/account/wrangler.toml`。
 
 ## 3. 分阶段（分步割接，不是兼容层）
 
@@ -103,7 +114,7 @@
 
 | 日期 | 变更 | PR |
 |---|---|---|
-| 2026-11-11 | P1：身份表、组与路由盘点、admit 新路径、epoch、审计、迁移脚本与对照表、STEPUP / APP 映射 | （本 PR） |
+| 2026-11-11 | P1：身份表、组与路由盘点、admit 新路径、epoch、审计、迁移脚本与对照表、STEPUP / APP 映射；路由盘点 17 条存疑 Gray 定稿（`GET /curio/api/export` 改 root）；§2.12 P2 硬要求 | #395 |
 
 ## 5. 后果
 
