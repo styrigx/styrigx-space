@@ -16,7 +16,7 @@
  *   Pages = 单树：space/web/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
  *   cloudflare:workers（rpc/*.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。
  * - 分享链接进门的会话（v5 S1 起取代临时钥匙）：mintCookie('link') 用 makeAuthD1 预置的那条有效 share_link（TEST_LINK_ID）。
- * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
+ * - seedPasskey()：登记一把进站通行密钥（终端 sudo styrigx → passkey 用；v5 S5 起没有锁屏界面），返回 CDP WebAuthn.addCredential 用的参数。
  * - 分享链接（进站 v3 L2 起并入站点核心 Worker）：/s/*、/api/share 走同一个 workers/space-core/src/app.js（router.js routeShare），
  *   分享链接表和进站同一个 D1_SPACE（L2b）；会话、链接钥匙都是 core 内的直接函数调用（没有服务绑定）。
  *   日志里这两类请求记成 'share'，方便断言「真的进了分享链接那一段」。

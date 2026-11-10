@@ -133,15 +133,17 @@ test('baseline-quick-panel-nav-open', async ({ page: pg }) => {
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-nav-open.png', { animations: 'disabled' });
 });
 
-/* 盾牌下拉（进站 v3 L1）：styrigx@space:~# 主页——进站会话、三行要 reauth、立即锁屏 */
+/* 盾牌（v5 S5：盾牌窗口删了，点盾牌 = 打开全站终端；S6 前的过渡）：已进站，styrigx@space 提示符的终端窗口（顶栏终端打开的样子） */
 test('baseline-shield-open', async ({ page: pg }) => {
+  await shellShotPage(pg);
+  /* 替身挂在 shellShotPage（blockExternalRequests）之后：后挂的先匹配 */
   await pg.route('**/api/lock-session-check**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: 4102444800000 }) }));
   await pg.route('**/api/lock-reauth', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, valid: false, password: true, passkey: true }) }));
-  await shellShotPage(pg);
   await pg.click('.sgx-tb-shield');
-  await expect(pg.locator('#sgx-sec')).toHaveAttribute('data-state', 'open');
-  await expect(pg.locator('#sgx-sec [data-sh-ps]')).toHaveText('styrigx@space:~#');
-  if (SHOTS) await expect(pg).toHaveScreenshot('baseline-shield-open.png', { animations: 'disabled', mask: [pg.locator('#sgx-sec .sgx-pop-row').first()] });
+  await expect(pg.locator('#sgx-term')).toHaveAttribute('open', '');
+  await expect(pg.locator('#sgx-term [data-term-ps]')).toHaveText(/^styrigx@space:~.*#$/);
+  await expect(pg.locator('#sgx-sec')).toHaveCount(0);
+  if (SHOTS) await expect(pg).toHaveScreenshot('baseline-shield-open.png', { animations: 'disabled', caret: 'hide' });
 });
 
 /* 外观面板（2026-11 PR-1：MODE + PALETTE；分享 / 立即锁定搬进 NAVIGATE，四站同一套，主站也有分享） */

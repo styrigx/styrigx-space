@@ -68,7 +68,15 @@ test.describe('账号下拉 = 账号终端 #sgx-acct（2026-11-08 账号 UI 改�
   test('主页终端 sudo root（v5 S5 终端合一）：在终端里原地登录，不开账号窗口；访客先要 sudo styrigx；sudo root reset → 终端里直接要恢复密钥', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     let entered = false;
-    const route = (pg) => pg.route('**/api/lock-session-check**', (r) => r.fulfill(entered ? json({ ok: true, by: 'password' }) : { status: 401, contentType: 'application/json', body: '{"ok":false}' }));
+    /* 线上每页都过网关、带 <html data-sgx-lock-session>（访客 locked / 进站 valid），终端首帧按它、标了 valid 再问服务端 */
+    const route = async (pg) => {
+      await pg.route('**/api/lock-session-check**', (r) => r.fulfill(entered ? json({ ok: true, by: 'password' }) : { status: 401, contentType: 'application/json', body: '{"ok":false}' }));
+      await pg.route((u) => u.pathname === '/zh/', async (r) => {
+        const res = await r.fetch();
+        const html = (await res.text()).replace(/<html(\s|>)/, '<html data-sgx-lock-session="' + (entered ? 'valid' : 'locked') + '"$1');
+        await r.fulfill({ response: res, body: html, headers: { ...res.headers(), 'content-type': 'text/html; charset=utf-8' } });
+      });
+    };
     await go(page, '/zh/', { route, account: { ok: true, signing: true, configured: { password: true, passkey: true }, session: null } });
     const t = page.locator('#home-term');
     const inp = page.locator('#home-term-in');

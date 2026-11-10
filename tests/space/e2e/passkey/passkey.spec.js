@@ -1,7 +1,7 @@
 /**
  * 锁屏凭证 E2E：预览站上的真实网关（passkey-e2e.styrigx-space.pages.dev）+ CDP WebAuthn 虚拟认证器。
  *
- * 覆盖：盾牌进站凭证层 passkey add（真实页面，进站 v3 L1 安全页删了）、锁屏 sudo styrigx passkey 解锁（真实页面）、伪造会话 cookie、
+ * 覆盖：终端 lock passkey add（真实页面，v5 S5 盾牌窗口并进全站终端）、终端 sudo styrigx → passkey 解锁（真实页面，v5 S5 锁屏界面删了）、伪造会话 cookie、
  * 通行密钥删除 / 重命名 / UV=0 拒绝、锁屏密码删除 / 修改后旧会话失效、恢复钥匙一把签 reset 票（L1）且不签 reauth 票、
  * LockResetTicket 的权限边界、会话 cookie 属性、退出所有设备推进纪元、进站凭证单 IP 限速。
  *
@@ -21,7 +21,7 @@
  *   npx playwright test --config=tests/config/playwright.config.js
  * 本地没配 SGX_TEST_BASE / SGX_TEST_SPACE_KEY / SGX_TEST_RECOVERY_KEY 时跳过；CI（CI=true）里缺了直接失败。
  */
-const { lockCmd } = require('../helpers/lock-term.cjs');
+const { SEL, gotoLockTerm, lockCmd, lockMode } = require('../helpers/lock-term.cjs');
 const { test, expect } = require('@playwright/test');
 const h = require('../helpers/preview-helpers.cjs');
 
@@ -32,61 +32,56 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
   /* 这一组几乎每条都写状态（注册 / 删除推进纪元），写后读的等待最长 75 秒 */
   test.describe.configure({ timeout: h.KV_TEST_TIMEOUT });
 
-  test('盾牌 → 进站凭证层：passkey add → 先问名字 → 注册 → 列表里出现（真实页面 + 真实网关）', async ({ page }) => {
+  test('终端 lock passkey add：先问名字 → 注册 → 列表里出现（真实页面 + 真实网关；v5 S5 盾牌窗口并进全站终端）', async ({ page }) => {
     await h.adminSession(page, test);
     await h.lockReauth(page);
     const va = await h.addVirtualAuth(page, { uv: true });
     const name = 'E2E-UI-' + Date.now();
     try {
-      /* 预览站不注入页面会话标记：页面先画锁屏、立刻问服务端，会话有效就原地收掉，再点盾牌。
-         test-no-local-bypass：模拟器在 localhost 上，不加的话锁屏走本地回退（不问服务端） */
-      await page.goto(BASE + '/wild/?test-no-local-bypass=1#sec=keys');
-      await expect(page.locator('#sgx-entry')).toHaveCount(0, { timeout: 20000 });
-      const sec = page.locator('#sgx-sec');
-      /* #sec=keys 会自己打开盾牌（可能还在开的过程中）：先等它开，开不了再点顶栏盾牌（a.sgx-tb-shield；页里还有个装饰用的 span 同名） */
-      const opened = await expect(sec).toHaveAttribute('data-state', 'open', { timeout: 8000 }).then(() => true, () => false);
-      if (!opened) {
-        await page.locator('a.sgx-tb-shield').first().click();
-        await sec.locator('[data-sh-act="keys"]').click();
-      }
-      await expect(sec.locator('.sgx-sh')).toHaveAttribute('data-sh-layer', 'keys', { timeout: 15000 });
-      await sec.locator('[data-sh-act="passkey-add"]').click();
-      await expect(sec.locator('[data-sh-form]')).toHaveAttribute('data-mode', 'pkname');
-      await page.locator('#sgx-sh-in').fill(name);
-      await page.locator('#sgx-sh-in').press('Enter');
-      await expect(sec.locator('[data-sh-log]')).toContainText('✓', { timeout: 20000 });
+      /* 预览站不注入页面会话标记：#sec 打开终端，盾牌入口问服务端（GET /api/lock-session-check）后提示符变 styrigx@space。
+         test-no-local-bypass：模拟器在 localhost 上，不加的话进站走本地回退（不问服务端） */
+      await page.goto(BASE + '/wild/?test-no-local-bypass=1#sec');
+      await expect(page.locator(SEL.dlg)).toHaveAttribute('open', '', { timeout: 20000 });
+      await expect(page.locator(SEL.ps)).toHaveText(/^styrigx@space:~.*#$/, { timeout: 20000 });
+      await lockCmd(page, 'lock passkey add');
+      await lockMode(page, 'pkname', 15000);
+      await lockCmd(page, name);
+      await expect(page.locator(SEL.out)).toContainText('✓', { timeout: 20000 });
       await expect.poll(async () => (await h.listPasskeys(page)).map((k) => k.name), { timeout: h.KV_SETTLE.timeout, intervals: [500, 1000, 2000, 5000] }).toContain(name);
-      await expect(sec).toContainText(name, { timeout: 15000 });
+      await lockMode(page, 'cmd', 15000);
+      await lockCmd(page, 'lock passkey');
+      await expect(page.locator(SEL.out)).toContainText(name, { timeout: 15000 });
     } finally {
       await h.deleteAllPasskeys(page);
       await va.remove();
     }
   });
 
-  test('锁屏：通行密钥解锁，Set-Cookie 带 Domain=.styrigx.com 等属性', async ({ page }) => {
+  test('终端 sudo styrigx → passkey 解锁，Set-Cookie 带 Domain=.styrigx.com 等属性', async ({ page }) => {
     await h.adminSession(page, test);
     await h.lockReauth(page);
     const va = await h.addVirtualAuth(page, { uv: true });
     try {
       const reg = await h.registerPasskey(page, { name: 'E2E-unlock' });
       expect(reg.json && reg.json.ok, JSON.stringify(reg.json)).toBe(true);
-      /* 锁屏只在 GET /api/lock-entry 说 passkey:true 时才放「通行密钥」选项（lock.js）；
-         它读通行密钥（D1，强一致；以前是 KV 索引，刚注册完边缘可能还是旧的）：等它看见再去锁屏 */
+      /* sudo styrigx 只在 GET /api/lock-entry 说 passkey:true 时才列「passkey」选项（shell/space/session.js）；
+         它读通行密钥（D1，强一致；以前是 KV 索引，刚注册完边缘可能还是旧的）：等它看见再去敲 */
       await h.waitLockEntryPasskey(page, true);
 
-      /* 去掉会话，回到锁屏 */
+      /* 去掉会话，回到访客；旧锁屏地址 ?entry=1 = 打开终端、预填 sudo styrigx */
       await page.context().clearCookies({ name: SESSION });
-      await page.goto(BASE + '/?entry=1');
-      const lock = page.locator('#sgx-entry');
-      await expect(lock).toBeVisible({ timeout: 15000 });
-      await expect(page.locator('#sgx-entry-cmd')).toBeEditable({ timeout: 15000 });
+      await gotoLockTerm(page, BASE + '/wild/?entry=1&test-no-local-bypass=1');
+      await expect(page.locator(SEL.in)).toHaveValue('sudo styrigx');
+      await expect(page.locator(SEL.ps)).toHaveText('nobody@space:~/wild$');
 
       /* 读 auth 接口的原始响应头：预览域名存不下 Domain=.styrigx.com 的 cookie，只能看头 */
       const authResp = page.waitForResponse((r) => {
         if (!r.url().includes('/api/lock-passkey') || r.request().method() !== 'POST') return false;
         try { return JSON.parse(r.request().postData() || '{}').action === 'auth'; } catch (e) { return false; }
       }, { timeout: 30000 });
-      await lockCmd(page, 'sudo styrigx passkey');
+      await lockCmd(page, 'sudo styrigx');
+      await lockMode(page, 'pick', 15000);
+      await lockCmd(page, 'passkey');
       const resp = await authResp;
       expect(resp.status()).toBe(200);
       expect((await resp.json()).ok).toBe(true);
@@ -106,8 +101,8 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     }
   });
 
-  test('伪造 sgx-space-session=1 不算会话，首页仍是锁屏', async ({ page }) => {
-    /* 预览站 SGX_ENV=preview：网关不拦页面、不注入会话标记（只有正式域名才拦），这里只验接口和前端锁屏 */
+  test('伪造 sgx-space-session=1 不算会话，终端仍是访客（nobody）', async ({ page }) => {
+    /* 预览站 SGX_ENV=preview：网关不拦页面、不注入会话标记（只有正式域名才拦），这里只验接口和前端终端身份 */
     await page.context().addCookies([
       { name: SESSION, value: '1', url: ORIGIN + '/', httpOnly: true, secure: ORIGIN.startsWith('https:'), sameSite: 'Lax' },
     ]);
@@ -115,8 +110,10 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     expect(sc.status).toBe(401);
     const cred = await h.apiGet(page, '/api/lock-credentials');
     expect(cred.status).toBe(401);
-    await page.goto(BASE + '/?entry=1');
-    await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
+    await gotoLockTerm(page, BASE + '/wild/?entry=1&test-no-local-bypass=1');
+    await expect(page.locator(SEL.ps)).toHaveText('nobody@space:~/wild$');
+    await lockCmd(page, 'share');
+    await expect(page.locator(SEL.out)).toContainText('sudo styrigx', { timeout: 15000 });
   });
 
   test('两把通行密钥删一把：删掉的那把 unknown-key，另一把仍能解锁', async ({ page }) => {

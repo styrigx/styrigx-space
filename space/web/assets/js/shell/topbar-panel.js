@@ -757,7 +757,9 @@ export function mountTopbar(o) {
         },
       });
     }
-    if (who && (homeTerm || who.get() !== 'nobody')) who.refresh();
+    /* 首帧身份按网关注入的页面标记；标了进站（valid）才问服务端细分 link / styrigx / root。标了访客（locked）不用问；
+       没有标记 = 页面没经过网关（本地 / 测试构建），不在加载时问（没有接口，只会多一条 404），等 sudo / 盾牌 / 401 时再问 */
+    if (who && who.get() !== 'nobody') who.refresh();
     /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 sudo styrigx（不替人回车） */
     doc.addEventListener(SUDO_EVENT, function () {
       /* 页面标记跟着改成 locked（AI 窗口锁、听歌等按它画访客态） */
