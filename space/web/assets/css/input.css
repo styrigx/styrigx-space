@@ -7661,7 +7661,7 @@
   @keyframes st-pulse { 50% { opacity: .45; } }
   .reduced-motion .st-skel-line, .reduced-motion .st-skel-bar, .reduced-motion .st-banner-active { animation: none; }
   @media (prefers-reduced-motion: reduce) { .st-skel-line, .st-skel-bar, .st-banner-active { animation: none; } }
-  /* 第一次失败 / 空：一行红点标题 + 一行说明 + 命令样式的按钮（重试 / 重新解锁） */
+  /* 第一次失败 / 空：一行红点标题 + 一行说明 + 命令样式的按钮（重试） */
   .st-msg { margin-top: 4px; }
   .st-msg-title { margin: 0; color: var(--sgx-text-primary); }
   #st-error .st-dot { color: var(--sgx-danger); }
@@ -7671,6 +7671,12 @@
   .st-btn::before { content: "$ "; color: var(--sgx-text-tertiary); }
   @media (hover: hover) and (pointer: fine) { .st-btn:hover { border-color: var(--sgx-primary); } }
   .st-btn:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+  /* 没进站（v5 S3 三处上锁之一）：圆底锁标 + Permission denied / 一行说明 / sudo styrigx；进站凭证使用记录也不露 */
+  .st-locked:not([hidden]) { display: flex; gap: 12px; align-items: flex-start; margin-top: 6px; }
+  .st-locked-ic { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 999px;
+    background: var(--sgx-surface-container-high); color: var(--sgx-on-surface-variant); }
+  .st-locked-tx { min-width: 0; }
+  .st-wrap[data-state="locked"] .st-audit-wrap { display: none; }
   /* 近期故障：每条一行（站名 · 状态 · 原因 · 开始 / 恢复 / 持续） */
   .st-inc-list, .st-audit-list, .st-usage { list-style: none; margin: 0; padding: 0; }
   .st-inc { padding: 2px 0; }
@@ -7956,14 +7962,12 @@
   background: transparent; border: 0; box-shadow: none; padding: 0;
   animation: none; backdrop-filter: none; -webkit-backdrop-filter: none;
   -webkit-mask-image: none; mask-image: none; contain: none; isolation: auto; }
-/* 锁屏态不画页面顶栏（2026-11-09 Gray 报：三星浏览器刷新 / 切语言时锁屏上闪一下顶栏）。
-   data-sgx-lock-session="locked" 是网关在 HTML 里直接写的（workers/space-core/src/gate.js injectSessionState），首帧前就在；
-   锁屏层 #sgx-entry 要等 JS 才盖上来，这之前顶栏会先画出来。这里只用 CSS 藏：首帧就不画、不可点、不进读屏，
+/* 锁屏界面开着时不画页面顶栏（2026-11-09 Gray 报：三星浏览器刷新 / 切语言时锁屏上闪一下顶栏）：不可点、不进读屏，
    也不挂 view-transition-name（跨页过渡会把带名字的顶栏单独画在整页快照之上，压过锁屏）。
-   原地开锁（防循环 / 子站失败兜底，正常解锁是换地址重取 valid 页）时 entry.js 给 <html> 加 .sgx-entry-off 放回顶栏。
-   放在 @layer 外：要压过同样不分层的 .sgx-topbar { view-transition-name }。只主站（子站页面不带会话标记），不进共享外壳。 */
-html[data-sgx-lock-session="locked"]:not(.sgx-entry-off) #site-nav { visibility: hidden; }
-html[data-sgx-lock-session="locked"]:not(.sgx-entry-off) #site-nav .sgx-topbar { view-transition-name: none; }
+   v5 S3 起页面不再按会话状态上锁：只看锁屏界面本身（entry.js 给 <body> 加 .sgx-entry，开锁滑出前去掉）。
+   放在 @layer 外：要压过同样不分层的 .sgx-topbar { view-transition-name }。只主站（锁屏只在主站），不进共享外壳。 */
+body.sgx-entry #site-nav { visibility: hidden; }
+body.sgx-entry #site-nav .sgx-topbar { view-transition-name: none; }
 /* @shell:begin topbar-frame（共享外壳：space/scripts/gen-shell.mjs 原样抽到 space/web/shared/shell/shell.css，子站 atlas/scripts/<站>/sync-shell.mjs 同步；只用 --sgx-* 角色，不写死颜色） */
 /* 跨页 View Transitions（2.4.0 D；2026-11-09 Gray 批：搬进共享外壳，四站同站跳转都做，只淡入淡出）：
    同源跨文档跳转自动交叉淡化 180ms（渐进增强，不支持的浏览器忽略）；顶栏挂 view-transition-name 保持不动。
@@ -8645,6 +8649,11 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before {
 .sgx-ai-model[aria-disabled="true"] { cursor: default; }
 .sgx-ai-model[aria-disabled="true"] i { display: none; }
 .sgx-ai-model[aria-expanded="true"] { border-color: var(--sgx-primary); color: var(--sgx-primary); }
+/* 没进站（v5 S3）：同一个小矩形里只放锁标（ai-panel.js setLocked） */
+.sgx-ai-model [data-ai-model-lock] { display: none; }
+.sgx-ai-model.is-locked { cursor: pointer; }
+.sgx-ai-model.is-locked [data-ai-model-lock] { display: inline-flex; }
+.sgx-ai-model.is-locked [data-ai-model-name], .sgx-ai-model.is-locked i { display: none; }
 .sgx-ai-models { display: flex; flex-direction: column; padding: 6px; border-bottom: 1px solid var(--sgx-term-line); }
 .sgx-ai-mopt { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-family: var(--sgx-font-mono); font-size: 13px; text-align: left; color: var(--sgx-text-secondary); cursor: pointer; }
 .sgx-ai-mopt[aria-checked="true"] { background: var(--sgx-term-sel); color: var(--sgx-primary); }

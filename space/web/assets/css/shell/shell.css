@@ -654,6 +654,11 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before {
 .sgx-ai-model[aria-disabled="true"] { cursor: default; }
 .sgx-ai-model[aria-disabled="true"] i { display: none; }
 .sgx-ai-model[aria-expanded="true"] { border-color: var(--sgx-primary); color: var(--sgx-primary); }
+/* 没进站（v5 S3）：同一个小矩形里只放锁标（ai-panel.js setLocked） */
+.sgx-ai-model [data-ai-model-lock] { display: none; }
+.sgx-ai-model.is-locked { cursor: pointer; }
+.sgx-ai-model.is-locked [data-ai-model-lock] { display: inline-flex; }
+.sgx-ai-model.is-locked [data-ai-model-name], .sgx-ai-model.is-locked i { display: none; }
 .sgx-ai-models { display: flex; flex-direction: column; padding: 6px; border-bottom: 1px solid var(--sgx-term-line); }
 .sgx-ai-mopt { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-family: var(--sgx-font-mono); font-size: 13px; text-align: left; color: var(--sgx-text-secondary); cursor: pointer; }
 .sgx-ai-mopt[aria-checked="true"] { background: var(--sgx-term-sel); color: var(--sgx-primary); }

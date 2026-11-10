@@ -5,7 +5,7 @@
  *
  * - 问：POST /api/ai（同源，credentials: same-origin）{ q, lang, history } → text/event-stream：event delta…（回答分段）→ done（2026-11-06 起不再有 event hits，不显示来源卡片：链接只出现在模型写的正文里）；
  *   出错时 event error。响应头 X-Styrigx-AI-Scope: private | public 只用来在底部小字说明「包含私密内容 / 仅公开内容」。
- *   网关的错误码（P4-1）：401 unauthorized（锁屏会话失效）· 429 cooldown / busy · 400 too-long · 413 too-large · 502 / 503 upstream。
+ *   网关的错误码（P4-1）：401 unauthorized（没进站）· 429 cooldown / busy · 400 too-long · 413 too-large · 502 / 503 upstream。
  * - 历史只存本地 localStorage sgx-ai-history（P4-3 后续 §3.3：{v:2, cur, chats:[{id, title, time, msgs:[{role, text, ts, rate?}]}]}，多份对话，每份最多 50 条，
  *   最多 20 份、超了删最旧的；title = 首问前 20 字；cur = 当前对话 id。读到 v1 {v:1, msgs} 包成一份对话写回 v2；旧记录里可能还带 hits，读出来不渲染）；
  *   四站同源所以同一台设备上是同一份（同源带来的，不是同步）；
@@ -48,6 +48,10 @@ export const PROFILE_KEY = 'sgx-profile';
 /** 邮箱格式（与主站 lib/profile.js EMAIL_RE 同一条） */
 const EMAIL_RE = /^[^\s@<>()",;:\\]+@[^\s@<>()",;:\\]+\.[^\s@<>()",;:\\.]{2,}$/;
 
+/** 请人进站（= lib/sudo.js SUDO_EVENT；本文件只许 import shell/term/**，抄一份）：顶栏终端预填 sudo styrigx（topbar-panel.js 接） @param {Document} doc */
+function askSudo(doc) {
+  try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {}
+}
 /** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-shell 的 ai 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
 const STR_EN = {
   greet: "Hi, I'm Gray's AI assistant. Ask about this site, or talk through whatever you're working on.",
@@ -61,7 +65,8 @@ const STR_EN = {
   thinking: "Searching this site…",
   scopePublic: "Public content only",
   scopePrivate: "Includes private content",
-  unauthorized: "Your session has expired. Unlock again to ask",
+  unauthorized: "Gray AI opens after you enter the space: sudo styrigx",
+  locked: "Locked. Enter the space with sudo styrigx to use Gray AI",
   cooldown: "Too many questions. Try again in a minute",
   busy: "Lots of people are asking right now. Try again shortly",
   tooLong: "That question is too long (200 characters max)",
@@ -804,6 +809,8 @@ export function mountAiChat(dlg, opts) {
     if (scope) scope.textContent = s === 'private' ? t.scopePrivate : t.scopePublic;
   }
 
+  /** 没进站（接口 401）：模型胶囊换锁标、不发问（见下面「模型」一节 setLocked） */
+  let locked = false;
   /**
    * 问一句。redo = 重试：替换这条回答（不追加），历史只带它前面那条提问之前的对话。
    * @param {string} q @param {Msg} [redo]
@@ -812,6 +819,8 @@ export function mountAiChat(dlg, opts) {
     if (busy) return;
     q = q.trim();
     if (!q) return;
+    /* 没进站（v5 S3 三处上锁之一）：不发问，打开终端预填 sudo styrigx；输入框里的问题留着 */
+    if (locked) { askSudo(doc); return; }
     if (histOpen) showHist(false);
     if ([...q].length > Q_MAX) {
       msgs.push({ role: 'assistant', text: t.tooLong, ts: Date.now(), error: true });
@@ -888,6 +897,7 @@ export function mountAiChat(dlg, opts) {
     } finally {
       ctl = null;
     }
+    if (failed === 'unauthorized') setLocked(true);
     if (failed) {
       if (ans.text) ans.text += '\n\n' + /** @type {any} */ (t)[failed];
       else { ans.text = /** @type {any} */ (t)[failed]; ans.error = true; }
@@ -1055,12 +1065,14 @@ export function mountAiChat(dlg, opts) {
   }
   /* ---------- 模型（设计稿 ai-v1 头部「Gemma 4 ▾」）：GET /api/ai → { default, models, canChoose }（同账号页 AI 模型一行）；
      显示当前生效的模型；canChoose（有账号会话）时点开在头部下面展开单选，选中写 sgx-ai-model 并派发 sgx-settings-changed（云同步跟着走）；
-     不能选时只显示、点了不展开；读不到就不显示 ---------- */
+     不能选时只显示、点了不展开；读不到就不显示。
+     没进站（GET / POST /api/ai 回 401；v5 S3 三处上锁之一）：同一个小矩形里换成锁标（.is-locked），点了 / 发问都发 sgx:sudo ---------- */
   const mBtn = /** @type {HTMLButtonElement|null} */ (dlg.querySelector('[data-ai-model]'));
   const mName = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-model-name]'));
   const mList = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-models]'));
   /** @type {any} */
   let models = null;
+  const modelLabel = mBtn ? mBtn.getAttribute('aria-label') || '' : '';
   const store = function () { return o.store || window.localStorage; };
   function curModel() {
     if (!models) return null;
@@ -1095,9 +1107,23 @@ export function mountAiChat(dlg, opts) {
       mList.appendChild(b);
     }
   }
+  /** @param {boolean} v */
+  function setLocked(v) {
+    locked = v;
+    if (!mBtn) return;
+    mBtn.classList.toggle('is-locked', v);
+    if (v) {
+      mBtn.hidden = false;
+      mBtn.removeAttribute('aria-disabled');
+      mBtn.setAttribute('aria-label', t.locked);
+      showModels(false);
+    } else {
+      mBtn.setAttribute('aria-label', modelLabel);
+    }
+  }
   function paintModel() {
     const c = curModel();
-    if (!mBtn || !mName || !c) return;
+    if (!mBtn || !mName || !c || locked) return;
     mName.textContent = String(c.label || c.id);
     mBtn.hidden = false;
     if (models.canChoose) mBtn.removeAttribute('aria-disabled'); else mBtn.setAttribute('aria-disabled', 'true');
@@ -1105,7 +1131,11 @@ export function mountAiChat(dlg, opts) {
   function loadModels() {
     if (!mBtn) return;
     Promise.resolve().then(function () { return doFetch('/api/ai', { method: 'GET', credentials: 'same-origin' }); })
-      .then(function (r) { return r && r.ok ? r.json() : null; })
+      .then(function (r) {
+        if (r && r.status === 401) { setLocked(true); return null; }
+        if (r && r.ok) setLocked(false);
+        return r && r.ok ? r.json() : null;
+      })
       .then(function (j) {
         if (!j || !Array.isArray(j.models) || !j.models.length) return;
         models = j;
@@ -1114,6 +1144,7 @@ export function mountAiChat(dlg, opts) {
   }
   if (mBtn) {
     mBtn.addEventListener('click', function () {
+      if (locked) { askSudo(doc); return; }
       if (!models || !models.canChoose) return;
       showModels(mList ? mList.hidden : false);
     });

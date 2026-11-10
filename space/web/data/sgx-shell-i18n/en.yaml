@@ -63,7 +63,8 @@ ai:
   thinking: Searching this site…
   scopePublic: Public content only
   scopePrivate: Includes private content
-  unauthorized: Your session has expired. Unlock again to ask
+  unauthorized: "Gray AI opens after you enter the space: sudo styrigx"
+  locked: Locked. Enter the space with sudo styrigx to use Gray AI
   cooldown: Too many questions. Try again in a minute
   busy: Lots of people are asking right now. Try again shortly
   tooLong: That question is too long (200 characters max)

@@ -94,7 +94,7 @@ test('首页（2026-11 对齐 PR-C2，设计稿 pg=curio）：就是「发现」
   assert.match(head, /range \(slice "finds" "devices" "games" "movies" "music"\)/, '五个 tab，音乐最后');
   assert.match(head, /href="\{\{ partial "sgx-lang-path\.html" \(dict "path" \(printf "\/curio\/%s\/" \.\) "lang" \$lang\) \}\}"/, 'tab 地址走 sgx-lang-path');
   const css = read('space/web/assets/curio/css/input.css');
-  assert.match(css, /html:not\(\.cu-music-ok\) #cu-tabs \[data-ctab="music"\]:not\(\[aria-current\]\) \{ display: none; \}/);
+  assert.doesNotMatch(css, /cu-music-ok|mu-denied/, 'v5 S3：音乐歌单公开，tab 不按权限藏，没有「仅本人可见」卡');
   assert.doesNotMatch(css, /\.cu-fab|\.it-view|\.cu-tile|\.it-card|\.sgx-ent|#cu-segs/, '旧浮动按钮 / 详情弹层 / 格子 / 旧卡片 / 入口 / 段式标签样式删除');
   /* 子页内容：中英各一份，layout 指到 _default/<分区>.html */
   for (const id of ['finds', 'devices', 'games', 'movies', 'music']) {
@@ -152,21 +152,22 @@ test('设备 / 游戏子页：各自只有自己的面板和编辑弹层；条�
   }
 });
 
-test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js → curio-list.js → curio-items.js（借裁剪 / 条目文案）→ curio-movies.js；音乐 curio.js → curio-music.js，有「仅本人可见」和上传上限说明，上传是页头命令', () => {
+test('电影 / 音乐子页：部件都在；电影条目页 + 脚本 curio.js → curio-list.js → curio-items.js（借裁剪 / 条目文案）→ curio-movies.js；音乐 curio.js → curio-music.js，只看模式的锁标、上传上限说明，上传是页头命令', () => {
   for (const id of ['mv-list', 'mv-empty', 'mv-fab', 'mv-edit-wrap', 'mv-photo', 'mv-photo-prev', 'mv-title', 'mv-original', 'mv-year', 'mv-director', 'mv-watched', 'mv-rating', 'mv-review', 'mv-del', 'mv-save']) {
     assert.ok(hasId(movies, id), id);
   }
   assert.match(movies, /partial "curio\/item-page\.html"/);
   const a = movies.indexOf('js/curio.js'), l = movies.indexOf('js/curio-list.js'), b = movies.indexOf('js/curio-items.js'), c = movies.indexOf('js/curio-movies.js');
   assert.ok(a > 0 && a < l && l < b && b < c);
-  for (const id of ['cu-pane-music', 'mu-denied', 'mu-app', 'mu-upload', 'mu-covers', 'mu-tracks', 'mu-play-all', 'mu-player', 'mu-lyrics', 'mu-seek', 'mu-speed', 'mu-prev', 'mu-toggle', 'mu-next', 'mu-audio',
+  for (const id of ['cu-pane-music', 'mu-app', 'mu-upload', 'mu-covers', 'mu-tracks', 'mu-play-all', 'mu-player', 'mu-lyrics', 'mu-seek', 'mu-speed', 'mu-prev', 'mu-toggle', 'mu-next', 'mu-audio',
     'mu-up-wrap', 'mu-up-name', 'mu-up-artist', 'mu-up-year', 'mu-up-audio', 'mu-up-cover', 'mu-up-lrc', 'mu-up-go']) {
     assert.ok(hasId(music, id), id);
   }
   assert.match(music, /"grep" false "cmds" \(slice \(dict "id" "mu-upload"/);
   assert.match(music, /id="mu-up-audio"[^>]*multiple/);
   assert.match(music, /95 MB/);
-  assert.match(music, /id="mu-denied" class="mu-denied hidden"/);
+  assert.ok(!hasId(music, 'mu-denied'), 'v5 S3：没有「仅本人可见」卡');
+  assert.equal((music.match(/class="mu-ic-lock"/g) || []).length, 2, '播放整张 / 播放键各带一个锁标（只看模式）');
   assert.match(music, /id="mu-app" class="hidden"/);
   assert.ok(music.indexOf('js/curio.js') < music.indexOf('js/curio-music.js'));
 });

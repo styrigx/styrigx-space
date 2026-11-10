@@ -105,17 +105,15 @@ test('锁屏按需加载（frontend-js #6；进站 v3 L1 起在 shell/space/）�
   assert.deepEqual(staticImports, ['../../lib/diag-jumptrace.js', './state.js', '../../lib/i18n.js', './paths.js'], '守卫只静态依赖 diag-jumptrace、state、i18n（字符串表读取）、paths（接口地址常量）');
   assert.ok(!/from '\.\/(api|entry|session|reset|shield)\.js'/.test(guard), '守卫不带 api / 通行密钥代码');
   assert.ok(guard.includes("import('./entry.js')") && !guard.includes("import('./upgrade.js')"), '界面按需 import()；没有升级层');
-  /* fail closed：先同步盖遮罩再 import，加载失败遮罩不撤 */
+  /* v5 S3：页面不上锁，守卫不盖遮罩；锁屏只在地址带 ?entry（或旧 ?lock）时按需 import，加载失败只给一张重新加载卡 */
+  assert.ok(!guard.includes('sgx-entry-cover') && !guard.includes('showEntryCover'), '没有全页遮罩');
   const open = guard.slice(guard.indexOf('function openLockScreen()'));
-  assert.ok(open.indexOf('showEntryCover()') < open.indexOf("import('./entry.js')"), '先盖遮罩再加载');
-  assert.ok(/\.catch\(function \(\) \{ entryLoadFailed\(cover\); \}\)/.test(open), '加载失败只换成重新加载按钮');
-  const fail = guard.slice(guard.indexOf('function entryLoadFailed('), guard.indexOf('function openLockScreen()'));
-  assert.ok(!/remove\(|hidden = true|display ?= ?'none'/.test(fail), '加载失败不撤遮罩');
-  /* initLock 不再直接画锁屏 */
-  const init = guard.slice(guard.indexOf('export function initLock()'), guard.indexOf('function showEntryCover()'));
+  assert.ok(/\.catch\(entryLoadFailed\)/.test(open), '加载失败只给重新加载卡');
+  const init = guard.slice(guard.indexOf('export function initLock()'), guard.indexOf('function entryLoadFailed('));
   assert.ok(!init.includes('showEntryScreen'), 'initLock 不直接调锁屏界面');
+  assert.ok(/if \(wantsEntry\(\)\) openLockScreen\(\);/.test(init), '只有 ?entry / ?lock 才开锁屏');
   const entry = rd('space/web/assets/js/shell/space/entry.js');
-  assert.ok(entry.includes('export function showEntryScreen()') && entry.includes("getElementById('sgx-entry-cover')"), '锁屏画上后撤掉遮罩');
+  assert.ok(entry.includes('export function showEntryScreen()') && !entry.includes('sgx-entry-cover'), '锁屏界面不再管遮罩');
   assert.ok(!existsSync(join(root, 'space/web/assets/js/shell/upgrade.js')) && !guard.includes('initUpgrade'), 'P2-3：升级层整个删除');
 });
 

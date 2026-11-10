@@ -71,7 +71,7 @@ function count(tab, n){
 }
 G.SgxCurioList = { count: count };
 
-/* 其余分区的计数：页面空下来以后各问一次（同源读接口，401 = 锁定交给 sgxLockSync，这里只吞掉） */
+/* 其余分区的计数：页面空下来以后各问一次（同源读接口，公开；失败只吞掉） */
 function fetchJSON(url){
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
 }

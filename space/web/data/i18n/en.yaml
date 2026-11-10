@@ -173,10 +173,7 @@ js:
     stale: Couldn't refresh; showing data from {time}
     errTitle: Status unavailable
     errSub: The monitor didn't respond. Try again shortly.
-    errAuth: Session expired
-    errAuthSub: Unlock again to see the status.
     retry: Retry
-    unlock: Unlock
     uWorkers: Workers requests (today)
     uWorkersSub: Resets at 00:00 UTC (08:00 Beijing time)
     uD1: D1 databases (total)
@@ -446,6 +443,8 @@ baseof:
   space: Space
   pageNotFound: Page not found
 status:
+  lockedHint: visible after sudo styrigx
+  lockedSub: "Service status, uptime and usage are only open to visitors who have entered."
   loading: Loading…
   noDataYet: No data yet
   resultsShowUpAfter: Results show up after the first round of checks, in about a minute.

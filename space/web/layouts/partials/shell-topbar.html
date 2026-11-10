@@ -113,8 +113,9 @@
     <div class="sgx-ai-head">
       <span class="sgx-ai-badge" aria-hidden="true" translate="no">G</span>
       <span class="sgx-ai-tt"><p class="sgx-ai-title" translate="no">Gray AI</p><small class="sgx-ai-sub">{{ $t.topbar.aiSub }}</small></span>
-      {{- /* 模型（设计稿 ai-v1 的「Gemma 4 ▾」）：显示当前生效的模型；登了账号（canChoose）点开在头部下面展开单选，选中写 sgx-ai-model（同账号页 AI 模型一行） */}}
-      <button type="button" class="sgx-ai-model" data-ai-model aria-expanded="false" aria-controls="sgx-ai-models" aria-label="{{ $t.topbar.model }}" hidden><span data-ai-model-name translate="no"></span><i aria-hidden="true">▾</i></button>
+      {{- /* 模型（设计稿 ai-v1 的「Gemma 4 ▾」）：显示当前生效的模型；登了账号（canChoose）点开在头部下面展开单选，选中写 sgx-ai-model（同账号页 AI 模型一行）；
+         没进站（v5 S3）：同一个矩形只显示锁标 data-ai-model-lock（.is-locked，ai-panel.js setLocked） */}}
+      <button type="button" class="sgx-ai-model" data-ai-model aria-expanded="false" aria-controls="sgx-ai-models" aria-label="{{ $t.topbar.model }}" hidden><span data-ai-model-lock aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span data-ai-model-name translate="no"></span><i aria-hidden="true">▾</i></button>
       <button type="button" class="sgx-ai-hbtn" data-ai-clear aria-label="{{ $t.topbar.newChat }}" title="{{ $t.topbar.newChat }}">{{ index $i "tb-newchat" | safeHTML }}</button>
       <button type="button" class="sgx-ai-hbtn" data-ai-history aria-expanded="false" aria-label="{{ $t.topbar.history }}" title="{{ $t.topbar.history }}">{{ index $i "tb-history" | safeHTML }}</button>
       <button type="button" class="sgx-ai-hbtn sgx-ai-x" data-ai-close aria-label="{{ $t.topbar.close }}" title="{{ $t.topbar.close }}"><span aria-hidden="true">×</span></button>

@@ -1,5 +1,6 @@
 /**
- * @fileoverview 锁屏（进站）界面：全屏终端，提示符 entry@space:~$（进站 v3 L1，SPACE-V3 §2.2 A）。由 shell/space/guard.js 在 locked / unknown 时 import()。
+ * @fileoverview 锁屏（进站）界面：全屏终端，提示符 entry@space:~$（进站 v3 L1，SPACE-V3 §2.2 A）。由 shell/space/guard.js 在地址带 ?entry 时 import()
+ * （v5 S3：页面本身不再上锁；顶栏终端里访客敲 sudo styrigx → /?entry=sudo&return=<原页>，进来自动跑一次 sudo styrigx）。
  *
  * 锁屏上没有任何弹层 / 底部弹层 / 快捷键按钮（Gray C「NO popups」）：进站就是在终端里敲
  * - `sudo styrigx` → [pick] 只列设了的 [1] passkey [2] password，tempkey 一直在；`sudo styrigx passkey|password|tempkey` 直达（session.js）
@@ -26,7 +27,7 @@ import { suggest } from '../suggest.js';
 import { CMD, PS_ENTRY, PS_RESET, ADMIN_COMMAND, normCmd, parseEntryCmd } from './commands.js';
 import { mountVerify } from './session.js';
 import { mountReset } from './reset.js';
-import { isLocalDev, pageState, askServer, proceed, bindAutoLock } from './guard.js';
+import { isLocalDev, pageState, askServer, proceed, bindAutoLock, qp } from './guard.js';
 
 /** 锁屏头像的替代文字 / 欢迎名 = 个人资料的姓名（构建期默认值 ← 本机缓存里改过的）；只是显示用的文字，和会话判断无关 */
 function entryName() {
@@ -108,9 +109,6 @@ export function showEntryScreen() {
     '</div>';
   document.body.appendChild(ov);
   document.body.classList.add('sgx-entry');
-  /* 守卫先盖的遮罩（guard.js showEntryCover）：锁屏已经画上，撤掉 */
-  const cover = document.getElementById('sgx-entry-cover');
-  if (cover && cover.parentNode) cover.parentNode.removeChild(cover);
   document.documentElement.style.overflow = 'hidden';
   document.body.style.overflow = 'hidden';
 
@@ -440,8 +438,6 @@ export function showEntryScreen() {
   /* 开锁动画：显示桌面 */
   function doUnlockAnimation() {
     grantedLines();
-    /* 锁屏态页面原地开锁：放回 CSS 藏起来的页面顶栏（input.css「锁屏态不画页面顶栏」）；锁屏层还盖着，随滑出一起露出 */
-    document.documentElement.classList.add('sgx-entry-off');
     if (bootEl && !reducedMotion()) {
       document.body.classList.remove('sgx-entry');
       ov.classList.add('sgx-entry-booted');
@@ -462,6 +458,8 @@ export function showEntryScreen() {
   /* ---------- 开机 ---------- */
   boot();
   C.setMode('cmd');
+  /* 从顶栏终端敲 sudo styrigx 过来（?entry=sudo）：接着跑这一条，不用再敲一遍 */
+  if (qp('entry') === 'sudo') runCmd(CMD.session);
   /* 电脑上直接把光标放进命令行；触屏不自动聚焦（不一进来就弹键盘） */
   try { if (!window.matchMedia('(pointer: coarse)').matches) input.focus({ preventScroll: true }); } catch (e) {}
 

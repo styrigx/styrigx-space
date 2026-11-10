@@ -59,7 +59,8 @@ ai:
   thinking: 正在查站内内容…
   scopePublic: 仅公开内容
   scopePrivate: 包含私密内容
-  unauthorized: 锁屏会话已失效，请重新解锁后再问
+  unauthorized: 进站后才能问：sudo styrigx
+  locked: 已上锁，sudo styrigx 进站后可用
   cooldown: 问得太快了，请一分钟后再试
   busy: 现在问的人太多，请稍后再试
   tooLong: 问题太长了，最多 200 字
