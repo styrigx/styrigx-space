@@ -153,7 +153,9 @@ test('回滚下限：floor 文件里网关、账号、status 的绑定名和 wra
   assert.deepEqual(ac && ac.requireBindings, ['D1_ACCOUNT']);
   assert.deepEqual(st && st.requireBindings, ['AI_SERVICE']);
   /* 进站 v3 L3（旧库 styrigx-space-gateway 删了）：网关 / status / ai 不退到 L2b 切库之前的版本（它们绑着已删的旧库 / 旧 KV） */
-  for (const n of ['styrigx-space-core', 'styrigx-status', 'styrigx-ai']) assert.equal(floorFor(n) && floorFor(n).notBefore, '2026-11-09T04:16:00Z', n);
+  for (const n of ['styrigx-status', 'styrigx-ai']) assert.equal(floorFor(n) && floorFor(n).notBefore, '2026-11-09T04:16:00Z', n);
+  /* v5 删临时钥匙（#387）：space-core 不退到迁移 0002 之前的版本（INSERT 还写已删的 share_link.key_id） */
+  assert.equal(floorFor('styrigx-space-core') && floorFor('styrigx-space-core').notBefore, '2026-11-10T13:35:00Z');
   // 要求的绑定当前 wrangler.toml 里确实有（否则每次部署都记不到目标）
   for (const [toml, f] of [[gwToml, gw], [acToml, ac], [stToml, st]]) {
     for (const n of /** @type {any} */ (f).requireBindings || []) assert.match(toml, new RegExp('^binding = "' + n + '"$', 'm'));
@@ -182,7 +184,10 @@ test('回滚下限：bindings 里的服务绑定 / Secrets Store 绑定也按名
   assert.match(checkFloor(v(after), full).reason, /^created /);
   const at = (iso) => JSON.stringify({ id: V1, metadata: { created_on: iso }, resources: { bindings: after } });
   assert.equal(checkFloor(at('2026-11-09T04:15:59Z'), full).ok, false);
-  assert.equal(checkFloor(at('2026-11-09T04:22:00Z'), full).ok, true);
+  /* v5 删临时钥匙（#387）：L2b 之后、0002 迁移之前的版本也不合格 */
+  assert.equal(checkFloor(at('2026-11-09T04:22:00Z'), full).ok, false);
+  assert.equal(checkFloor(at('2026-11-10T13:34:00Z'), full).ok, false);
+  assert.equal(checkFloor(at('2026-11-10T13:36:00Z'), full).ok, true);
 });
 
 test('回滚下限：checkFloor 缺绑定 / 太早 / 坏 JSON → 不满足', () => {
