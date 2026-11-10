@@ -15,12 +15,14 @@
  * 不在路由表里的路径 → 404；方法不支持 → 405。
  *
  * 全站搜索索引（src/search-index.js）：写接口成功后用 ctx.waitUntil 重建 KV site:daymark；
- * Cron（wrangler.toml [triggers]）每小时兜底重建，内容没变不写 KV。重建出错只打日志，不影响接口响应。
+ * 每小时兜底重建（2026-11-10 起本 Worker 不自带 Cron：styrigx-status 的 Cron 经服务绑定 JOB_DAYMARK 调命名入口 HourlyJob，rpc/hourly-job.js），内容没变不写 KV。重建出错只打日志，不影响接口响应。
  */
 import { API_ROUTES } from './routes.js';
 import { askConclusion } from './api/_auth.js';
 import { rebuildSearchIndex, isMutation } from './search-index.js';
 import { purgeTodayCache } from './api/today.js';
+
+export { HourlyJob } from './rpc/hourly-job.js';
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 const NO_STORE = 'private, no-store';
@@ -148,7 +150,7 @@ export default {
   },
 
   /**
-   * Cron 兜底：每小时重建一次搜索索引（首次部署后也靠它填上）；内容和 KV 里那份一样就不写（省账号共享的 KV 写额度）。
+   * Cron 入口（保留给手动触发；每小时那次由 HourlyJob 跑）：每小时重建一次搜索索引（首次部署后也靠它填上）；内容和 KV 里那份一样就不写（省账号共享的 KV 写额度）。
    * @param {any} controller
    * @param {Record<string, any>} env
    * @param {{ waitUntil(p: Promise<any>): void }} ctx

@@ -33,10 +33,12 @@ test('文案：外壳字符串表 en / zh 都有 kh 节，键和英文底一一�
   for (const k of Object.keys(KH_EN)) assert.equal(en[k], KH_EN[k], 'en.' + k);
   assert.equal(zh.back, '‹ 返回');
   assert.equal(zh.pick, '[n] 选择 · enter 默认项 · esc 返回 · ^C 退出');
-  /* terminal.js / ai-panel.js 不 import，各抄了用到的几句英文底：要和 KH_EN 一致 */
-  const term = read('space/web/assets/js/shell/terminal.js');
-  for (const k of ['cmdHome', 'cmdDrawer', 'back', 'backAria']) assert.ok(term.includes(k + ": '" + KH_EN[k] + "'"), 'terminal.js ' + k);
-  assert.ok(read('space/web/assets/js/shell/ai-panel.js').includes("ai: '" + KH_EN.ai + "'"), 'ai-panel.js ai');
+  /* 终端统一 T1：terminal.js / ai-panel.js 不再抄英文底，和 keyhint.js 同用 shell/term/core/strings.js 的 KH_EN */
+  for (const f of ['terminal.js', 'ai-panel.js']) {
+    const src = read('space/web/assets/js/shell/' + f);
+    assert.match(src, /^import \{ KH_EN, shellSection \} from '\.\/term\/core\/strings\.js';$/m, f + ' 用公共件');
+    assert.doesNotMatch(src, /cmdHome: '|ai: 'enter send/, f + ' 不再抄英文底');
+  }
 });
 
 test('每个终端窗口都有提示行：锁屏 / 盾牌 / 账号下拉 / 主页终端 / 抽屉 / AI 窗口', () => {
@@ -68,8 +70,12 @@ test('选择的高亮跟着输入走（Gray 2026-11-09 手机截图：打了 2 �
   assert.equal(pickKeyOf(' [2] ', ['1', '2'], '1'), '2');
   assert.equal(pickKeyOf('9', ['1', '2'], '1'), '');
   assert.equal(pickKeyOf('', ['1', '2'], ''), '');
-  assert.match(read('space/web/assets/js/shell/space/term.js'), /if \(C\.mode === 'pick'\) paintPick\(d\.log, 'data-term-pick', input\.value, Object\.keys\(picks\), pickDefault\);/);
-  assert.match(read('space/web/assets/js/shell/account/term.js'), /if \(C\.mode === 'pick'\) paintPick\(logEl, 'data-at-pick', input\.value, Object\.keys\(picks\), pickDefault\);/);
+  /* 终端统一 T2：锁屏 / 盾牌 / 账号下拉同一个输入行（shell/term/view/input-line.js），属性名按 attr 取（data-term-pick / data-at-pick） */
+  const il = read('space/web/assets/js/shell/term/view/input-line.js');
+  assert.match(il, /if \(C\.mode === 'pick'\) paintPick\(d\.log, PICK, input\.value, Object\.keys\(picks\), pickDefault\);/);
+  assert.match(il, /const PICK = 'data-' \+ attr \+ '-pick';/);
+  assert.match(read('space/web/assets/js/shell/space/term.js'), /return createInputLine\(o\);/);
+  assert.match(read('space/web/assets/js/shell/account/term.js'), /attr: 'at',/);
 });
 
 test('锁屏底部 ~/styrigx · zh · en 是舞台里自己的一行（不再 absolute 压在终端最后一行上）', () => {

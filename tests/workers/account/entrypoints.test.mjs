@@ -78,8 +78,8 @@ test('index.js：默认导出就是 app.js 的 default；AccountService / Accoun
   assert.equal(ep.AccountVerifier.prototype.fetch, undefined);
 });
 
-test('路由表：AccountService = /api/account + 六个入口子路径 + 四个账号数据接口（router.js API_ROUTES 同一张表）', () => {
-  assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account', '/api/account/devices', '/api/account/grants', '/api/account/keys', '/api/account/reauth',
+test('路由表：AccountService = /api/account + 七个入口子路径 + 四个账号数据接口（router.js API_ROUTES 同一张表）', () => {
+  assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account', '/api/account/devices', '/api/account/grants', '/api/account/keys', '/api/account/proxy', '/api/account/reauth',
     '/api/account/reset', '/api/account/session', '/api/avatar', '/api/prefs', '/api/profile', '/api/wellbeing']);
   assert.equal(ep.SERVICE_API_ROUTES, index.API_ROUTES);
 });

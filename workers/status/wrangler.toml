@@ -3,6 +3,7 @@
 # 没有公开地址：不开 workers.dev、不挂路由、不挂域名。
 #   - 定时：Cron 每分钟一次（src/index.js scheduled），检查 src/targets.js 里的 4 个地址，10 秒超时，
 #     连续 3 次失败开一条故障，恢复后自动关。
+#   - 每小时任务（2026-11-10）：同一条 41 分 Cron 经服务绑定 JOB_DAYMARK / JOB_CURIO / JOB_AI 叫三个 Worker 的 HourlyJob.run()（src/hourly.js）。
 #   - 用量：Cron 每小时 41 分一次（src/usage.js），用只读 token 读 Cloudflare API（D1 / R2 / KV 存储、今天的 Workers 请求数），
 #     最新快照存 D1 表 status_usage（migrations/0001_baseline.sql）。
 #   - 免费额度（今天的操作次数：Workers + Pages Functions 请求、KV 读写删列、D1 读写行；R2 A/B 类本月）：不走 Cron，
@@ -33,8 +34,9 @@ preview_urls = false
 mode = "smart"
 
 [triggers]
-# 第一条：每分钟检查各站；第二条：每小时 41 分收一次用量（index.js 按 event.cron 分流）。
-# 注意：免费账号整个账号最多 5 个 Cron Trigger（https://developers.cloudflare.com/workers/platform/limits/），这里占 2 个。
+# 第一条：每分钟检查各站；第二条：每小时 41 分收一次用量，同一轮叫 daymark-core、curio-core、ai 的每小时任务（index.js 按 event.cron 分流，src/hourly.js）。
+# 注意：免费账号整个账号最多 5 个 Cron Trigger（https://developers.cloudflare.com/workers/platform/limits/），这里占 2 个；
+# 2026-11-10 起另外三个 Worker 不自带 Cron（让出名额给 proxy-rules），全账号共 3 个：这里 2 个 + proxy-rules 1 个。
 crons = ["* * * * *", "41 * * * *"]
 
 [observability]
@@ -62,6 +64,23 @@ database_id = "38719f10-fdff-43fd-bcbb-387a6b734f55"
 [[services]]
 binding = "AI_SERVICE"
 service = "styrigx-ai"
+
+# 每小时任务（2026-11-10，src/hourly.js）：三个 Worker 的命名入口 HourlyJob，只有 run(at)，公网进不来。
+# 绑定要求对方 Worker 已存在（都早已存在）；入口要等对方新版部署后才有，这之前那一轮只打日志。
+[[services]]
+binding = "JOB_DAYMARK"
+service = "styrigx-daymark-core"
+entrypoint = "HourlyJob"
+
+[[services]]
+binding = "JOB_CURIO"
+service = "styrigx-curio-core"
+entrypoint = "HourlyJob"
+
+[[services]]
+binding = "JOB_AI"
+service = "styrigx-ai"
+entrypoint = "HourlyJob"
 
 # 用量 token：Secrets Store 绑定，代码里 await env.SGX_CF_USAGE_TOKEN.get()。store_id 同 workers/space-core/wrangler.toml（是存储编号，不是密值）。
 # 部署这个 Worker 的 token（styrigx-status-deploy）因此要多一项 Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）。

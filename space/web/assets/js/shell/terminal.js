@@ -8,17 +8,24 @@
  *   主页首屏嵌入的那一个（layouts/index.html，data-sgx-term="home"）和全站抽屉（共享外壳 shell-topbar.html 的 #sgx-term）用同一个引擎实例。
  * - 文案：#sgx-i18n-shell 的 term 节（data/sgx-shell-i18n/<语言>.yaml，缺键回退下面的英文）。
  *
- * 共享外壳组件：不 import 任何东西（gen-shell 核对）；输出只用 textContent 拼，不写 innerHTML。
+ * 共享外壳组件：只许 import shell/term/**（终端统一 T1，gen-shell 核对）；输出只用 textContent 拼，不写 innerHTML。
+ * 终端统一 T3：引擎、注册表、补全、历史、提示符在 shell/term/core/，命令在 shell/term/cmds/（tty2 表 index-tty2.js）；这里是 tty2 的宿主 + 视图，原有导出照旧。
  */
+import { ROOT_COMMAND, ADMIN_COMMAND, ENV_GUEST, ENV_ROOT, parse } from './term/core/parse.js';
+import { KH_EN, shellSection } from './term/core/strings.js';
+import { createRegistry } from './term/core/registry.js';
+import { completeLine, ghostOf } from './term/core/complete.js';
+import { createHistory } from './term/core/history.js';
+import { cwdPath, envPs1, envTitle } from './term/core/prompt.js';
+import { fill, outKit } from './term/core/out.js';
+import { createEngine } from './term/core/engine.js';
+import { DIRS, normDir } from './term/cmds/fs/tree.js';
+import { TTY2_CMDS } from './term/cmds/index-tty2.js';
 
-/** 目录（ls 的结果，cd 的目标；wild = 旷野） */
-export const DIRS = ['blog', 'curio', 'daymark', 'wild'];
-/** 账号终端的命令字（= shell/account/commands.js ROOT_COMMAND）、进站的命令字（= shell/space/commands.js ADMIN_COMMAND）；这个文件不 import 任何东西，只能抄一份 */
-const ROOT_COMMAND = 'root';
-const ADMIN_COMMAND = 'styrigx';
-/** 环境提示符（= shell/space/commands.js ENV_GUEST / ENV_ROOT）：账号没登录 / 已登录 */
-export const ENV_GUEST = 'styrigx@space';
-export const ENV_ROOT = 'root@account';
+/** 目录（ls 的结果，cd 的目标；wild = 旷野）：shell/term/cmds/fs/tree.js */
+export { DIRS, normDir, cwdPath, fill, parse };
+/** 环境提示符（shell/term/core/parse.js，和 shell/space/commands.js 同一份）：账号没登录 / 已登录 */
+export { ENV_GUEST, ENV_ROOT };
 
 /**
  * 账号登录了没有：读 <html data-sgx-account-session="in|out">（首帧由 layout-mode.js __sgxAccountPs 按登录标记写好，账号终端登录 / 退出时改）。
@@ -30,18 +37,14 @@ export function accountSignedIn(doc) {
     return d.documentElement.getAttribute('data-sgx-account-session') === 'in';
   } catch (e) { return false; }
 }
+/** tty2 的命令表 */
+const REG = createRegistry(TTY2_CMDS);
 /** 命令（help 的顺序 = 补全的顺序） */
-export const COMMANDS = ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear'];
+export const COMMANDS = REG.names('tty2');
 /** 各命令参数的候选 */
-export const ARGS = {
-  cd: ['blog', 'curio', 'daymark', 'wild', '~', '..'],
-  ls: ['blog', 'curio', 'daymark', 'wild'],
-  cat: ['daymark/today'],
-  sudo: [ROOT_COMMAND, ADMIN_COMMAND],
-  theme: ['dark', 'light', 'auto'],
-};
+export const ARGS = /** @type {Record<string, string[]>} */ ({});
+REG.list('tty2').forEach(function (c) { if (c.args) ARGS[c.name] = c.args; });
 const HIST_KEY = 'sgx-term-hist';
-const HIST_MAX = 50;
 
 /** 英文底（源文本）；页面上以 #sgx-i18n-shell 的 term 节为准 */
 export const TERM_EN = {
@@ -77,6 +80,11 @@ export const TERM_EN = {
   locking: 'locking …',
   asking: 'asking Gray AI …',
   fetching: 'fetching {x}…',
+  manIndex: 'manual pages · man <command> to read one',
+  manNone: 'No manual entry for {x}',
+  manPager: 'q or enter to quit',
+  notDir: '{c}: not a directory: {x}',
+  usageTty: 'usage: tty [2 | 3 | 4 | 5]',
 };
 
 /**
@@ -84,130 +92,29 @@ export const TERM_EN = {
  * @param {Document} [doc] @returns {Record<string, string>}
  */
 export function termStrings(doc) {
-  /** @type {Record<string, string>} */
-  let page = {};
-  try {
-    const d = doc || document;
-    const el = d.getElementById('sgx-i18n-shell');
-    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
-    if (o && o.term && typeof o.term === 'object') page = o.term;
-  } catch (e) {}
-  return Object.assign({}, TERM_EN, page);
+  return Object.assign({}, TERM_EN, shellSection(doc, 'term'));
 }
 
 /** 打错命令时拿来比的真命令（命令名 + 几个常用的整句） */
 const SUGGEST = COMMANDS.concat(['cd blog', 'cd curio', 'cd daymark', 'cd wild', 'sudo ' + ROOT_COMMAND, 'sudo ' + ADMIN_COMMAND, 'cat daymark/today']);
-/* ---- 以下两个函数抄自 shell/suggest.js（这个文件不 import；单测 suggest.test.mjs 核对两份一样） ---- */
-/** 编辑距离（Levenshtein） @param {string} a @param {string} b @returns {number} */
-function lev(a, b) {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  let prev = [];
-  for (let j = 0; j <= b.length; j++) prev[j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
-    for (let j = 1; j <= b.length; j++) {
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    }
-    prev = cur;
-  }
-  return prev[b.length];
-}
-
 /**
- * 最近的真命令：整行和每个命令比，第一个词也和每个命令的第一个词比（`sudo stryigx` → `sudo styrigx`，`hepl` → `help`）。
- * 距离 ≤ 2 且不超过较长那个的一半才算像；一样近取列表里靠前的。没有像的 → ''
- * @param {string} raw @param {string[]} cands @returns {string}
- */
-function suggest(raw, cands) {
-  const x = String(raw || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!x) return '';
-  const w = x.split(' ')[0];
-  let best = '';
-  let bd = Infinity;
-  for (const c of cands) {
-    let d = lev(x, c);
-    let ok = d <= 2 && d * 2 <= Math.max(x.length, c.length);
-    if (c.indexOf(' ') === -1 && w !== x) {
-      const d2 = lev(w, c);
-      if (d2 <= 2 && d2 * 2 <= Math.max(w.length, c.length) && d2 < d) { d = d2; ok = true; }
-    }
-    if (ok && d > 0 && d < bd) { bd = d; best = c; }
-  }
-  return best;
-}
-
-/** 按键提示行的英文底（= shell/keyhint.js KH_EN 里这里用到的几句；这个文件不 import，抄一份） */
-const KH_EN = { cmdHome: 'enter run · ^C cancel · ^L clear', cmdDrawer: 'tab complete · enter run · esc close', back: '‹ back', backAria: 'Back' };
-/**
- * 页面字符串表的 kh 节叠在英文上
+ * 页面字符串表的 kh 节叠在英文上（英文底 = shell/term/core/strings.js KH_EN）
  * @param {Document} [doc] @returns {Record<string, string>}
  */
 function khStrings(doc) {
-  /** @type {Record<string, string>} */
-  let page = {};
-  try {
-    const d = doc || document;
-    const el = d.getElementById('sgx-i18n-shell');
-    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
-    if (o && o.kh && typeof o.kh === 'object') page = o.kh;
-  } catch (e) {}
-  return Object.assign({}, KH_EN, page);
-}
-
-/**
- * 一行命令 → 命令名 + 参数（按空白切；空行 → null）
- * @param {string} line @returns {{cmd: string, args: string[], rest: string} | null}
- */
-export function parse(line) {
-  const s = String(line == null ? '' : line).trim();
-  if (!s) return null;
-  const m = /^(\S+)\s*([\s\S]*)$/.exec(s);
-  if (!m) return null;
-  const rest = m[2].trim();
-  return { cmd: m[1].toLowerCase(), args: rest ? rest.split(/\s+/) : [], rest: rest };
-}
-
-/** 一组字符串的公共前缀 @param {string[]} list */
-function commonPrefix(list) {
-  if (!list.length) return '';
-  let p = list[0];
-  for (const s of list) {
-    let i = 0;
-    while (i < p.length && i < s.length && p[i] === s[i]) i++;
-    p = p.slice(0, i);
-  }
-  return p;
+  return Object.assign({}, KH_EN, shellSection(doc, 'kh'));
 }
 
 /**
  * tab 补全：只补最后一个词（第一个词补命令名，第二个词按命令补参数）。
- * 唯一候选 → 补全并在命令名后加空格；多个 → 补到公共前缀，options 列出全部；没有 → 原样。
- * @param {string} line
- * @returns {{line: string, options: string[]}}
+ * @param {string} line @returns {{line: string, options: string[]}}
  */
 export function complete(line) {
-  const src = String(line == null ? '' : line);
-  const lead = src.replace(/^\s+/, '');
-  const pad = src.slice(0, src.length - lead.length);
-  const words = lead.split(/\s+/);
-  /** @type {string[]} */
-  let pool;
-  let idx = words.length - 1;
-  if (idx === 0) pool = COMMANDS;
-  else if (idx === 1) pool = /** @type {Record<string, string[]>} */ (ARGS)[words[0].toLowerCase()] || [];
-  else pool = [];
-  const word = words[idx];
-  const hits = pool.filter(function (c) { return c.indexOf(word) === 0; });
-  if (!hits.length) return { line: src, options: [] };
-  const head = pad + words.slice(0, idx).join(' ') + (idx ? ' ' : '');
-  if (hits.length === 1) {
-    const one = hits[0];
-    const takesArgs = idx === 0 && Object.prototype.hasOwnProperty.call(ARGS, one) || one === 'ask';
-    return { line: head + one + (takesArgs ? ' ' : ''), options: [] };
-  }
-  return { line: head + commonPrefix(hits), options: hits };
+  return completeLine(line, {
+    names: COMMANDS,
+    argsOf: function (c) { return ARGS[c] || []; },
+    takesArgs: function (c) { const x = REG.get(c, 'tty2'); return !!x && (!!x.args || !!x.takesArgs); },
+  });
 }
 
 /**
@@ -215,220 +122,87 @@ export function complete(line) {
  * @param {string} line @returns {string}
  */
 export function ghost(line) {
-  const src = String(line == null ? '' : line);
-  if (!src.trim()) return '';
-  const c = complete(src);
-  if (c.options.length || c.line === src) return '';
-  const full = c.line.replace(/\s+$/, '');
-  return full.indexOf(src) === 0 ? full.slice(src.length) : '';
-}
-
-/**
- * cd 的参数 → 目标目录（'~' 或 DIRS 之一）；不认识 → null
- * @param {string} cwd 当前目录（'~' 或 DIRS 之一） @param {string} [arg]
- * @returns {string|null}
- */
-export function normDir(cwd, arg) {
-  let a = String(arg == null ? '' : arg).trim();
-  if (!a || a === '~' || a === '/' || a === '~/') return '~';
-  a = a.replace(/^~\//, '').replace(/^\.\//, '').replace(/\/+$/, '');
-  if (a === '..' || a === '.') return a === '.' ? (cwd || '~') : '~';
-  const up = /^\.\.\/(.+)$/.exec(a);
-  if (up) a = up[1];
-  a = a.toLowerCase();
-  return DIRS.indexOf(a) >= 0 ? a : null;
-}
-
-/** 提示符里的路径 @param {string} cwd */
-export function cwdPath(cwd) {
-  return !cwd || cwd === '~' ? '~' : '~/' + cwd;
-}
-
-/**
- * 文案里的 {x} / {help} 等占位换成片段：返回 [[类, 文字], …]
- * @param {string} s @param {Record<string, [string, string]>} map 占位名 → [类, 文字]
- * @returns {Array<[string, string]>}
- */
-export function fill(s, map) {
-  /** @type {Array<[string, string]>} */
-  const out = [];
-  const re = /\{(\w+)\}/g;
-  let last = 0;
-  let m;
-  const str = String(s || '');
-  while ((m = re.exec(str))) {
-    if (m.index > last) out.push(['', str.slice(last, m.index)]);
-    const v = map[m[1]];
-    out.push(v ? v : ['', m[0]]);
-    last = m.index + m[0].length;
-  }
-  if (last < str.length) out.push(['', str.slice(last)]);
-  return out;
+  return ghostOf(line, complete);
 }
 
 /**
  * @typedef {Array<[string, string, string?]>} Seg 一行：[类, 文字, 链接?]
  * @typedef {{ t: 'line', seg: Seg, cls?: string } | { t: 'help', head: Seg, rows: Array<[string, string]> }} Out
- * @typedef {{ out: Out[], clear?: boolean, after?: () => void }} Result
+ * @typedef {{ out: Out[], clear?: boolean, after?: () => void, pager?: boolean }} Result  pager = 显示完进 pager（man；提示符 `:`，q / enter 回命令行）
  * @typedef {Object} TermAct
- * @property {(dir: string) => ({ kind: 'scroll', label: string } | { kind: 'nav', href: string, go: () => void })} cd
+ * @property {(dir: string) => ({ kind: 'scroll', label: string } | { kind: 'nav', href: string, go: () => void })} cd  open 的站点目录：主页滚到那一节、别页去那个站（T6b 起 cd 命令不再调它）
  * @property {(which: string, sub?: string) => ({ href: string, go: () => void })} sudo  which = ROOT_COMMAND（账号终端，sub = '' | reauth | reset）| ADMIN_COMMAND（盾牌）
  * @property {(mode: string) => void} theme  '' = 打开外观面板；dark / light / auto = 设定
  * @property {() => void} lock
  * @property {(q: string) => void} ask
  * @property {() => Promise<{ text: string, by: string } | null>} today
  * @property {() => string} daymarkHref
+ * @property {(layer: string) => ({ href: string, go: () => void })} [account]  open ~/account[/层]（T6）
+ * @property {(layer: string) => ({ href: string, go: () => void })} [shield]  open ~/shield[/层]（T6）
+ * @property {(n: number) => ({ go: () => void })} [tty]  tty 3 / 4 / 5（T6）
  */
 
 /**
- * @param {{ str?: Record<string, string>, act: TermAct, cwd?: string, storage?: Storage | null, signedIn?: () => boolean }} o
+ * @param {{ str?: Record<string, string>, act: TermAct, cwd?: string, storage?: Storage | null, signedIn?: () => boolean, histKey?: string, tty?: string }} o histKey 缺省 sgx-term-hist（tty2）；tty 缺省 tty2（AI 窗口里的 $ 命令是 tty4，T6c）
  */
 export function createShell(o) {
   const S = Object.assign({}, TERM_EN, o.str || {});
   const act = o.act;
   const signedIn = o.signedIn || function () { return accountSignedIn(); };
   let cwd = o.cwd && DIRS.indexOf(o.cwd) >= 0 ? o.cwd : '~';
-  const store = o.storage === undefined ? safeSession() : o.storage;
-  /** @type {string[]} */
-  let hist = [];
-  try {
-    const raw = store ? store.getItem(HIST_KEY) : null;
-    const arr = raw ? JSON.parse(raw) : [];
-    if (Array.isArray(arr)) hist = arr.filter(function (x) { return typeof x === 'string'; }).slice(-HIST_MAX);
-  } catch (e) {}
-  let hi = hist.length;
-  let draft = '';
+  const hist = createHistory({ storage: o.storage === undefined ? safeSession() : o.storage, key: o.histKey || HIST_KEY });
   /** @type {Array<() => void>} */
   const subs = [];
-
-  function saveHist() {
-    try { if (store) store.setItem(HIST_KEY, JSON.stringify(hist.slice(-HIST_MAX))); } catch (e) {}
+  function emit() {
+    subs.forEach(function (f) { try { f(); } catch (e) {} });
   }
-  /** @param {string} line */
-  function push(line) {
-    const s = line.trim();
-    if (s && hist[hist.length - 1] !== s) {
-      hist.push(s);
-      if (hist.length > HIST_MAX) hist = hist.slice(-HIST_MAX);
-      saveHist();
-    }
-    hi = hist.length;
-    draft = '';
-  }
-  /** @param {string} s @returns {Out} */
-  const plain = function (s, cls) { return { t: 'line', seg: [['', s]], cls: cls || 'o' }; };
-  /** @param {string} key @param {string} x @param {string} [cls] @param {string} [href] @returns {Out} */
-  const tpl = function (key, x, cls, href) { return { t: 'line', seg: fill(S[key], { x: [href ? 'a' : 'k', x, href || ''] }), cls: cls || 'o' }; };
-  /** @param {string} c @param {string} x @returns {Out} */
-  const noDir = function (c, x) { return { t: 'line', seg: fill(S.noDir, { c: ['', c], x: ['k', x] }), cls: 'err' }; };
-  /** @param {Seg} seg @returns {Out} */
-  const arrow = function (seg) { return { t: 'line', seg: /** @type {Seg} */ ([['ok', '→ ']]).concat(seg), cls: 'o' }; };
 
   function helpOut() {
     /** @type {Out} */
     const h = {
       t: 'help',
       head: [['k', 'cd'], ['', ' blog · curio · daymark · wild · ~']],
-      rows: [
-        ['ls', S.dLs],
-        ['cat', S.dCat],
-        ['sudo ' + ROOT_COMMAND, S.dAccount],
-        ['sudo ' + ADMIN_COMMAND, S.dSecurity],
-        ['theme', S.dTheme],
-        ['lock', S.dLock],
-        ['ask', S.dAsk],
-        ['clear', S.dClear],
-      ],
+      rows: [],
     };
+    REG.list('tty2').forEach(function (c) { if (c.help) h.rows = h.rows.concat(c.help(x)); });
     return h;
   }
+  /** 命令拿到的上下文 */
+  const x = {
+    S: S,
+    act: act,
+    k: outKit(S),
+    help: helpOut,
+    cwd: function () { return cwd; },
+    /** @param {string} d */
+    setCwd: function (d) { cwd = d; emit(); },
+    /** 这个 tty 的命令名（man 索引） */
+    names: function () { return COMMANDS; },
+    /** 这个终端是哪个 tty（tty 命令显示） */
+    tty: o.tty || 'tty2',
+    /** 名字或别名 → 命令名（不认识 → ''） @param {string} n */
+    resolve: function (n) { const c = REG.get(n, 'tty2'); return c ? c.name : ''; },
+  };
+  const engine = createEngine({
+    registry: REG,
+    tty: 'tty2',
+    x: x,
+    suggestions: SUGGEST,
+    empty: function () { return { out: [] }; },
+    /* 打错了：给最近的真命令（Gray 2026-11-09；输出区 aria-live，读屏照念）；不像任何命令就照旧 */
+    notFound: function (p, sg) {
+      if (sg) return { out: [{ t: 'line', seg: fill(S.didYouMean, { c: ['', p.cmd], x: ['k', sg] }), cls: 'err' }] };
+      return { out: [x.k.tpl('notFound', p.cmd, 'err')] };
+    },
+  });
 
   /**
    * 执行一行。返回输出（today 是异步的，返回 Promise）
    * @param {string} line @returns {Result | Promise<Result>}
    */
   function exec(line) {
-    push(line);
-    const p = parse(line);
-    if (!p) return { out: [] };
-    const a0 = (p.args[0] || '').toLowerCase();
-    switch (p.cmd) {
-      case 'help':
-      case '?':
-        return { out: [helpOut()] };
-      case 'clear':
-      case 'cls':
-        return { out: [], clear: true };
-      case 'ls': {
-        const d = p.args.length ? normDir(cwd, p.args[0]) : cwd;
-        if (d === null) return { out: [noDir('ls', p.args[0])] };
-        if (d === '~') return { out: [{ t: 'line', seg: DIRS.map(function (x, i) { return /** @type {[string, string]} */ (['dir', x + '/' + (i < DIRS.length - 1 ? '  ' : '')]); }), cls: '' }] };
-        if (d === 'daymark') return { out: [{ t: 'line', seg: [['', 'today']], cls: '' }] };
-        return { out: [plain(S.lsEmpty)] };
-      }
-      case 'cd': {
-        const d = normDir(cwd, p.args[0]);
-        if (d === null) return { out: [noDir('cd', p.args[0])] };
-        const r = act.cd(d);
-        cwd = d;
-        emit();
-        if (r && r.kind === 'scroll') return { out: r.label ? [arrow(fill(S.scrolled, { x: ['', r.label] }))] : [] };
-        if (r && r.kind === 'nav') return { out: [arrow(fill(S.opening, { x: ['k', r.href] }))], after: r.go };
-        return { out: [] };
-      }
-      case 'cat': {
-        const f = (p.args[0] || '').replace(/^~\//, '').replace(/^\.\//, '');
-        const ok = f === 'daymark/today' || (cwd === 'daymark' && f === 'today') || f === '../daymark/today';
-        if (!f) return { out: [plain(S.usageCat)] };
-        if (!ok) return { out: [tpl('noFile', p.args[0], 'err')] };
-        const href = act.daymarkHref();
-        /** @type {any} */
-        const pr = act.today().then(function (q) {
-          if (q && q.text) {
-            /** @type {Out[]} */
-            const out = [{ t: 'line', seg: [['q', '“' + q.text + '”']], cls: '' }];
-            if (q.by) out.push(plain(q.by));
-            return { out: out };
-          }
-          return { out: [tpl('todayNone', href, 'o', href)] };
-        }, function () {
-          return { out: [tpl('todayFail', href, 'o', href)] };
-        });
-        /* 等的时候视图先打一行「› fetching daymark…」（Gray 2026-11-09 细节 3） */
-        pr.pending = 'daymark';
-        return pr;
-      }
-      case 'sudo': {
-        /* sudo root [reauth|reset]：账号终端（2026-11-08 账号命令体系 v3）；sudo styrigx：盾牌（进站 v3 L1；原 sudo security） */
-        const a1 = (p.args[1] || '').toLowerCase();
-        const okRoot = a0 === ROOT_COMMAND && (a1 === '' || a1 === 'reauth' || a1 === 'reset') && p.args.length <= 2;
-        if (!okRoot && !(a0 === ADMIN_COMMAND && p.args.length === 1)) return { out: [plain(S.usageSudo)] };
-        const r = act.sudo(a0, a1);
-        return { out: [arrow(fill(S.opening, { x: ['k', r.href] }))], after: r.go };
-      }
-      case 'theme': {
-        if (!a0) return { out: [arrow([['', S.themeOpen]])], after: function () { act.theme(''); } };
-        if (ARGS.theme.indexOf(a0) < 0) return { out: [plain(S.usageTheme)] };
-        act.theme(a0);
-        return { out: [arrow(fill(S.themeSet, { x: ['k', a0] }))] };
-      }
-      case 'lock':
-        return { out: [arrow([['', S.locking]])], after: function () { act.lock(); } };
-      case 'ask': {
-        const q = p.rest;
-        return { out: [arrow([['', S.asking]])], after: function () { act.ask(q); } };
-      }
-      default: {
-        /* 打错了：给最近的真命令（Gray 2026-11-09；输出区 aria-live，读屏照念）；不像任何命令就照旧 */
-        const sg = suggest(line, SUGGEST);
-        if (sg) return { out: [{ t: 'line', seg: fill(S.didYouMean, { c: ['', p.cmd], x: ['k', sg] }), cls: 'err' }] };
-        return { out: [tpl('notFound', p.cmd, 'err')] };
-      }
-    }
-  }
-
-  function emit() {
-    subs.forEach(function (f) { try { f(); } catch (e) {} });
+    hist.push(line);
+    return engine.exec(line);
   }
 
   return {
@@ -436,26 +210,17 @@ export function createShell(o) {
     exec: exec,
     help: helpOut,
     /** 提示符（环境提示符规则）：styrigx@space:~$ / styrigx@space:~/blog$；账号已登录 root@account:~# / root@account:~/blog# */
-    ps1: function () { const r = signedIn(); return (r ? ENV_ROOT : ENV_GUEST) + ':' + cwdPath(cwd) + (r ? '#' : '$'); },
+    ps1: function () { return envPs1(signedIn(), cwd); },
     /** 标题栏：styrigx@space: ~ / root@account: ~ */
-    title: function () { return (signedIn() ? ENV_ROOT : ENV_GUEST) + ': ' + cwdPath(cwd); },
+    title: function () { return envTitle(signedIn(), cwd); },
     cwd: function () { return cwd; },
     /** @param {() => void} f */
     onChange: function (f) { subs.push(f); },
     /** ↑：上一条（第一次按先存下正在打的草稿） @param {string} cur */
-    prev: function (cur) {
-      if (!hist.length) return null;
-      if (hi === hist.length) draft = cur;
-      if (hi > 0) hi--;
-      return hist[hi];
-    },
+    prev: function (cur) { return hist.prev(cur); },
     /** ↓：下一条；到底回到草稿 */
-    next: function () {
-      if (hi >= hist.length) return null;
-      hi++;
-      return hi === hist.length ? draft : hist[hi];
-    },
-    history: function () { return hist.slice(); },
+    next: function () { return hist.next(); },
+    history: function () { return hist.list(); },
   };
 }
 
@@ -493,8 +258,10 @@ export function mountTermView(root, sh, opts) {
   const inp = input;
   const outEl = out;
 
+  /** man 显示完进 pager：提示符 `:`，q / enter 回命令行（终端统一 T5） */
+  let pager = false;
   function paintPrompt() {
-    if (ps) ps.textContent = sh.ps1();
+    if (ps) ps.textContent = pager ? ':' : sh.ps1();
     if (titleEl) titleEl.textContent = sh.title();
   }
   /* 账号登录 / 退出（账号终端改 <html data-sgx-account-session>）：提示符跟着换（环境提示符规则） */
@@ -576,6 +343,8 @@ export function mountTermView(root, sh, opts) {
   function finish(r) {
     if (r.clear) outEl.textContent = '';
     print(r.out || []);
+    pager = !!r.pager;
+    if (pager) print([{ t: 'line', seg: [['', '# ' + String(sh.str.manPager || TERM_EN.manPager)]], cls: 'o' }]);
     paintPrompt();
     if (r.after) r.after();
   }
@@ -602,8 +371,15 @@ export function mountTermView(root, sh, opts) {
     } else finish(/** @type {Result} */ (r));
   }
 
+  function quitPager() {
+    pager = false;
+    inp.value = '';
+    paintGhost();
+    paintPrompt();
+  }
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+    if (pager) { quitPager(); return; }
     const v = inp.value;
     inp.value = '';
     paintGhost();
@@ -614,6 +390,7 @@ export function mountTermView(root, sh, opts) {
   inp.addEventListener('click', paintGhost);
   inp.addEventListener('keydown', function (e) {
     if (e.isComposing) return;
+    if (pager && (e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); quitPager(); return; }
     if (e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
       /* 空行时 Tab 照常移焦点（不把键盘用户困在输入框里）；有字时才补全 */
       if (!inp.value.trim()) return;

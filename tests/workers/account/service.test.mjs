@@ -63,7 +63,7 @@ const CTX = { waitUntil() {} };
 const call = (req, env) => serviceCall(req, env, CTX);
 async function sess(role) { return 'sgx-space-session=' + (await testLockSession(PRIV, 0, role)); }
 
-test('wrangler.toml：styrigx-account、不开公开地址、没有路由、没有服务绑定（不回调网关）、D1_ACCOUNT → 账号库、不绑网关认证库', () => {
+test('wrangler.toml：styrigx-account、不开公开地址、没有路由、唯一服务绑定 PROXY（不回调网关）、D1_ACCOUNT → 账号库、不绑网关认证库', () => {
   const toml = readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8');
   const code = toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
   const [prod, preview] = code.split(/^\[env\.preview\]$/m);
@@ -73,7 +73,10 @@ test('wrangler.toml：styrigx-account、不开公开地址、没有路由、没�
   assert.match(prod, /^preview_urls = false$/m);
   assert.match(prod, /^SGX_ENV = "production"$/m);
   assert.doesNotMatch(code, /\[\[routes\]\]|^pattern = /m, '账号 Worker 一条路由都没有（方案第 4 节）');
-  assert.doesNotMatch(code, /\[\[(env\.preview\.)?services\]\]|styrigx-space-core|SpaceVerifier/, '不绑网关、不回调网关');
+  assert.doesNotMatch(code, /styrigx-space-core|SpaceVerifier|\[\[env\.preview\.services\]\]/, '不绑网关、不回调网关；预览不绑服务');
+  /* 唯一的服务绑定：PROXY → styrigx-proxy-rules 的 ProxyAdmin（代理订阅管理，设计稿 v1.7 §7） */
+  assert.equal([...code.matchAll(/^\[\[services\]\]$/gm)].length, 1);
+  assert.match(prod, /\[\[services\]\]\s*binding = "PROXY"\s*service = "styrigx-proxy-rules"\s*entrypoint = "ProxyAdmin"/);
   /* 一个库一个绑定（命名 v2）：D1_ACCOUNT；旧的三个名字都没了 */
   assert.deepEqual([...code.matchAll(/^binding = "(D1_[A-Z0-9_]+)"/gm)].map((m) => m[1]), ['D1_ACCOUNT', 'D1_ACCOUNT']);
   assert.doesNotMatch(code, /D1_WELLBEING|D1_SETTINGS_SYNC|D1_ACCOUNT_AUTH/);
@@ -116,8 +119,8 @@ test('迁移：wb_daily 在账号库；网关的迁移目录不再建它', async
   assert.equal(readdirSync(REPO + 'workers/space-core/migrations').some((f) => /wellbeing/.test(f)), false);
 });
 
-test('路由表：/api/account（状态）+ 六个入口子路径 + 四个账号数据接口；网关转发表按前缀转（/api/account 一条覆盖子路径）', async () => {
-  const ACCOUNT = ['/api/account', '/api/account/devices', '/api/account/grants', '/api/account/keys', '/api/account/reauth', '/api/account/reset', '/api/account/session'];
+test('路由表：/api/account（状态）+ 七个入口子路径 + 四个账号数据接口；网关转发表按前缀转（/api/account 一条覆盖子路径）', async () => {
+  const ACCOUNT = ['/api/account', '/api/account/devices', '/api/account/grants', '/api/account/keys', '/api/account/proxy', '/api/account/reauth', '/api/account/reset', '/api/account/session'];
   assert.deepEqual([...API_ROUTES.keys()].sort(), [...ACCOUNT, '/api/avatar', '/api/prefs', '/api/profile', '/api/wellbeing'].sort());
   const { FORWARDING, matchForwarding } = await import(REPO + 'workers/space-core/src/router.js');
   const top = [...API_ROUTES.keys()].filter((k) => !k.startsWith('/api/account/'));

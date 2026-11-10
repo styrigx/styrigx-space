@@ -1,7 +1,7 @@
 /**
  * @fileoverview AI 窗口的内容（2026-11-04 P5-1，第 4 件前端，方案 5.5）：站内对话助手，四个站同一份。
  * 共享外壳组件：gen-shell 原样复制成 space/web/shared/shell/ai.js；窗口的开合 / 互斥由 topbar.js（主站 shell/topbar-panel.js）管，这里只管窗口里面。
- * 自成一体：不 import 任何东西。
+ * 只许 import shell/term/**（终端统一 T1，gen-shell 核对）：外壳字符串表读取、按键提示行英文底用 shell/term/core/strings.js。
  *
  * - 问：POST /api/ai（同源，credentials: same-origin）{ q, lang, history } → text/event-stream：event delta…（回答分段）→ done（2026-11-06 起不再有 event hits，不显示来源卡片：链接只出现在模型写的正文里）；
  *   出错时 event error。响应头 X-Styrigx-AI-Scope: private | public 只用来在底部小字说明「包含私密内容 / 仅公开内容」。
@@ -31,6 +31,7 @@
  *   长网址不当链接文字：同一条回答里有 [标题](同一地址) 就用那个标题，否则显示「域名/…」。
  *   event: sources（gemini 联网来源）→ 在回答末尾追加「来源」一段（- [标题](地址)），随回答存进历史。
  */
+import { KH_EN, shellSection } from './term/core/strings.js';
 
 export const AI_API = '/api/ai';
 export const HISTORY_KEY = 'sgx-ai-history';
@@ -76,14 +77,7 @@ const STR_EN = {
 };
 /** @param {Document} doc @returns {Record<string, string>} */
 function shellStr(doc) {
-  /** @type {Record<string, string>} */
-  let page = {};
-  try {
-    const el = doc && doc.getElementById ? doc.getElementById('sgx-i18n-shell') : null;
-    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
-    if (o && o.ai && typeof o.ai === 'object') page = o.ai;
-  } catch (e) {}
-  return Object.assign({}, STR_EN, page);
+  return Object.assign({}, STR_EN, shellSection(doc, 'ai'));
 }
 
 /** @typedef {{role: 'user'|'assistant', text: string, ts: number, error?: boolean, rate?: 'up'|'down'}} Msg */
@@ -459,17 +453,13 @@ export function mountAiChat(dlg, opts) {
     try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) { return false; }
   };
 
-  /* 按键提示行（Gray 2026-11-09 细节 1；同 shell/keyhint.js，这个文件不 import，内联几行）：桌面「enter 发送 · shift+enter 换行 · esc 关闭」，
+  /* 按键提示行（Gray 2026-11-09 细节 1；同 shell/keyhint.js，这里只画几行，英文底用 shell/term/core/strings.js 的 KH_EN）：桌面「enter 发送 · shift+enter 换行 · esc 关闭」，
      触屏换成「‹ 返回」按钮 = 关窗口（每个终端状态都有出口）。文案 #sgx-i18n-shell 的 kh 节 */
   (function () {
     const el = /** @type {HTMLElement|null} */ (dlg.querySelector('[data-ai-kh]'));
     if (!el) return;
     /** @type {Record<string, string>} */
-    let K = { ai: 'enter send · shift+enter newline · esc close', back: '‹ back', backAria: 'Back' };
-    try {
-      const j = JSON.parse((doc.getElementById('sgx-i18n-shell') || {}).textContent || '{}');
-      if (j && j.kh && typeof j.kh === 'object') K = Object.assign(K, j.kh);
-    } catch (e) {}
+    const K = Object.assign({ ai: KH_EN.ai, back: KH_EN.back, backAria: KH_EN.backAria }, shellSection(doc, 'kh'));
     el.textContent = '';
     if (coarse()) {
       if (!o.close) { el.hidden = true; return; }
@@ -915,10 +905,65 @@ export function mountAiChat(dlg, opts) {
     ask(msgs[i - 1].text, m);
   }
 
+  /* ---------- tty4（终端统一 T6c，设计稿 v1.5 §2.3 / §8.4）：以 $ 开头的输入是命令，走站内终端同一张命令表 ----------
+     命令和输出只在窗口里显示，不进 AI 对话、不存 sgx-ai-history；命令自己的历史在 sgx-term-hist-4（↑↓ 只在输入以 $ 开头时翻它）。
+     输出是临时的：下一次问 AI、换对话时整份重画就没了。 */
+  const CMD_RE = /^\s*\$/;
+  /** 去掉开头的 $ @param {string} v */
+  const cmdPart = function (v) { return v.replace(/^\s*\$\s?/, ''); };
+  /** @returns {any} */
+  const t4 = function () { return typeof o.term === 'function' ? o.term() : null; };
+  /** 一条输出 → 几行纯文字 @param {any} x @returns {string[]} */
+  function outLines(x) {
+    const segs = function (/** @type {any[]} */ sg) { return sg.map(function (z) { return z[1]; }).join(''); };
+    if (x.t === 'help') return [segs(x.head)].concat(x.rows.map(function (/** @type {any[]} */ r) { return r[0] + '  ' + r[1]; }));
+    return [segs(x.seg)];
+  }
+  /** 往对话列表里加一块（在建议问题那排前面） @param {string} role @param {string[]} lines */
+  function termBlock(role, lines) {
+    const el = doc.createElement('div');
+    el.className = 'sgx-ai-msg';
+    el.setAttribute('data-role', role);
+    el.setAttribute('data-term', '');
+    el.setAttribute('translate', 'no');
+    const tx = doc.createElement('span');
+    lines.forEach(function (l) { const d = doc.createElement('div'); d.textContent = l; tx.appendChild(d); });
+    el.appendChild(tx);
+    list.insertBefore(el, list.querySelector('.sgx-ai-sugs'));
+    list.scrollTop = list.scrollHeight;
+  }
+  /** @param {string} line 去掉 $ 后的命令 */
+  function runCmd(line) {
+    const T = t4();
+    if (!T || !T.shell) return;
+    if (histOpen) showHist(false);
+    termBlock('user', ['$ ' + line.trim()]);
+    /** @param {any} r */
+    const done = function (r) {
+      if (!r) return;
+      if (r.clear) list.querySelectorAll('[data-term]').forEach(function (n) { n.remove(); });
+      else {
+        /** @type {string[]} */
+        let ls = [];
+        (r.out || []).forEach(function (/** @type {any} */ x) { ls = ls.concat(outLines(x)); });
+        if (ls.length) termBlock('assistant', ls);
+      }
+      if (r.after) r.after();
+    };
+    const r = T.shell.exec(line);
+    if (r && typeof r.then === 'function') r.then(done, function () {});
+    else done(r);
+  }
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     if (busy) return;
     const q = input.value;
+    if (CMD_RE.test(q) && t4()) {
+      input.value = '';
+      if (cmdPart(q).trim()) runCmd(cmdPart(q));
+      return;
+    }
     input.value = '';
     /* 发出去之后：触屏收键盘看回答；桌面焦点回输入框接着问（鼠标点发送时焦点在按钮上）。空的不算发 */
     if (q.trim()) {
@@ -960,6 +1005,26 @@ export function mountAiChat(dlg, opts) {
   }
   /* 回车发送，Shift+回车换行（输入法组字中不算）；回答进行中回车不发、也不中断 */
   input.addEventListener('keydown', function (e) {
+    /* tty4：输入以 $ 开头时 ↑↓ 翻命令历史、Tab 补全；其余照旧 */
+    if (!e.isComposing && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && CMD_RE.test(input.value) && t4()) {
+      const T = t4();
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const v = e.key === 'ArrowUp' ? T.shell.prev(cmdPart(input.value)) : T.shell.next();
+        if (v !== null) {
+          e.preventDefault();
+          input.value = '$ ' + v;
+          try { input.setSelectionRange(input.value.length, input.value.length); } catch (err) {}
+        }
+        return;
+      }
+      if (e.key === 'Tab' && cmdPart(input.value).trim() && T.complete) {
+        e.preventDefault();
+        const c = T.complete(cmdPart(input.value));
+        if (c.options.length > 1 && c.line === cmdPart(input.value)) termBlock('assistant', [c.options.join('  ')]);
+        input.value = '$ ' + c.line;
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       if (busy) return;

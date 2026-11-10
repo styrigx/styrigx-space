@@ -61,7 +61,7 @@ test('complete：参数补全（sudo r → sudo root；cd 目录；theme；cat d
   assert.deepEqual(complete('theme d'), { line: 'theme dark', options: [] });
   assert.deepEqual(complete('cat d'), { line: 'cat daymark/today', options: [] });
   assert.deepEqual(complete('cd blog x'), { line: 'cd blog x', options: [] });
-  assert.deepEqual(ARGS.cd, ['blog', 'curio', 'daymark', 'wild', '~', '..']);
+  assert.deepEqual(ARGS.cd, ['blog', 'curio', 'daymark', 'wild', 'account', 'shield', 'proxy', '~', '..']);
 });
 
 test('ghost：唯一候选时给出没打的那一截（sudo ro_ot；2026-11-08 sudo account → sudo root），多个 / 已完整 / 空行不给', () => {
@@ -124,28 +124,27 @@ test('help：cd 一行 + 八条命令（顺序同设计稿）；clear 清屏；�
   const nf = sh.exec('foo bar');
   assert.equal(text(nf.out[0]), 'command not found: foo · try help');
   assert.equal(nf.out[0].cls, 'err');
-  assert.deepEqual(COMMANDS, ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear']);
+  assert.deepEqual(COMMANDS, ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear', 'man', 'pwd', 'open', 'tty',
+    'sub', 'sub-key', 'sub-link', 'sub-add', 'sub-upload', 'sub-mv', 'sub-on', 'sub-off', 'sub-rm', 'sub-refresh']);
 });
 
-test('cd：主页有这一节 → 滚动提示；没有 → 打开提示 + after 去跳转；坏目录报错、cwd 不变', () => {
+test('cd（T6b）：只改 cwd / 提示符，不调动作、没有输出（滚动 / 跳转交给 open）；坏目录报错、cwd 不变', () => {
   const { act, calls } = fakeAct({ scroll: ['blog'] });
   const sh = createShell({ act, storage: mem() });
-  const r = sh.exec('cd blog');
-  assert.equal(text(r.out[0]), '→ scrolled to [01] blog');
-  assert.equal(r.after, undefined);
-  const n = sh.exec('cd curio');
-  assert.equal(text(n.out[0]), '→ opening /curio/ …');
-  n.after();
-  assert.deepEqual(calls, [['cd', 'blog'], ['cd', 'curio'], ['go', 'curio']]);
+  assert.deepEqual(sh.exec('cd blog'), { out: [] });
+  assert.equal(sh.cwd(), 'blog');
+  assert.deepEqual(sh.exec('cd curio'), { out: [] });
+  assert.equal(sh.cwd(), 'curio');
+  assert.deepEqual(calls, []);
   const bad = sh.exec('cd nowhere');
   assert.equal(text(bad.out[0]), 'cd: no such directory: nowhere');
   assert.equal(sh.cwd(), 'curio');
 });
 
-test('ls：~ 下列 blog/ curio/ daymark/ wild/；daymark 下 today；坏目录报错', () => {
+test('ls：~ 下列 blog/ curio/ daymark/ wild/ account/ shield/（T6）；daymark 下 today；坏目录报错', () => {
   const { act } = fakeAct();
   const sh = createShell({ act, storage: mem() });
-  assert.equal(text(sh.exec('ls').out[0]).trim(), 'blog/  curio/  daymark/  wild/');
+  assert.equal(text(sh.exec('ls').out[0]).trim(), 'blog/  curio/  daymark/  wild/  account/  shield/  proxy/');
   assert.equal(text(sh.exec('ls daymark').out[0]), 'today');
   assert.equal(text(sh.exec('ls x').out[0]), 'ls: no such directory: x');
 });
@@ -231,13 +230,127 @@ test('文案：外壳字符串表 en / zh 都有 term 节，键和引擎英文�
   assert.equal(text(sh.exec('cd x').out[0]), 'cd: 没有这个目录：x');
 });
 
-test('共享外壳约束：terminal.js 不 import 任何东西、不写 innerHTML；四个顶栏入口都把它传给 mountTopbar', () => {
+test('共享外壳约束：terminal.js 只 import shell/term/**（终端统一 T1）、不写 innerHTML；四个顶栏入口都把它传给 mountTopbar', () => {
   const src = readFileSync(path.join(REPO, 'space/web/assets/js/shell/terminal.js'), 'utf8');
-  assert.doesNotMatch(src, /^\s*import\s/m);
+  const imports = src.match(/^\s*import\s[^;]*;/gm) || [];
+  assert.ok(imports.length > 0);
+  for (const l of imports) assert.match(l.trim(), /from '\.\/term\/[a-z0-9/-]+\.js';$/, l);
+  assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /\bimport\s*\(/);
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /innerHTML/);
   for (const f of ['space/web/assets/js/shell/quick-panel.js', 'space/web/assets/curio/js/sgx/topbar-host.js', 'space/web/assets/daymark/js/sgx/topbar-host.js', 'space/web/assets/blog/js/entries/topnav.ts']) {
     const s = readFileSync(path.join(REPO, f), 'utf8');
     assert.match(s, /import \* as terminal from '[./]+(js\/shell\/)?terminal\.js';/, f);
     assert.match(s, /\n\s+terminal,\n/, f);
   }
+});
+
+test('man（终端统一 T5）：索引列出每条命令；man cd 一页（NAME / SYNOPSIS / (END)）进 pager；别名能查；没有的报错；help 不变', async () => {
+  const { act } = fakeAct();
+  const sh = createShell({ act, storage: mem() });
+  const idx = await sh.exec('man');
+  assert.equal(text(idx.out[0]), TERM_EN.manIndex);
+  assert.deepEqual(idx.out.slice(1).map((o) => o.seg[0][1]), COMMANDS);
+  for (const o of idx.out.slice(1)) assert.ok(!/undefined/.test(text(o)), text(o));
+  const cd = await sh.exec('man cd');
+  assert.equal(cd.pager, true);
+  assert.deepEqual(cd.out.map(text), ['CD(1)', 'NAME', '    cd — change the current directory (use open to go there)', 'SYNOPSIS', '    cd [blog | curio | daymark | wild | account | shield | ~ | ..]', '(END)']);
+  assert.equal(text((await sh.exec('man cls')).out[0]), 'CLEAR(1)');
+  const no = await sh.exec('man nope');
+  assert.equal(text(no.out[0]), 'No manual entry for nope');
+  assert.equal(no.pager, undefined);
+  for (const c of COMMANDS) assert.equal(text((await sh.exec('man ' + c)).out[0]), c.toUpperCase() + '(1)', '每条命令都有 man 页：' + c);
+  assert.equal(sh.exec('help').out[0].rows.length, 8, 'help 不加 man 那一行（主页首屏自动 help 在视觉基线里）');
+  assert.deepEqual(complete('man c'), { line: 'man c', options: ['cd', 'cat', 'clear'] });
+  assert.deepEqual(complete('m'), { line: 'man ', options: [] });
+});
+
+test('man 节（en / zh）：键 = man 页的命令；英文表 = pages.js 英文底', async () => {
+  const { PAGES } = await import('../../../../space/web/assets/js/shell/term/man/pages.js');
+  const en = yaml.load(readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/en.yaml'), 'utf8')).man;
+  const zh = yaml.load(readFileSync(path.join(REPO, 'space/web/data/sgx-shell-i18n/zh.yaml'), 'utf8')).man;
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(PAGES).sort());
+  assert.deepEqual(Object.keys(zh).sort(), Object.keys(PAGES).sort());
+  for (const k of Object.keys(PAGES)) assert.equal(en[k], PAGES[k].d, 'en.man.' + k);
+});
+
+test('T6 虚拟目录：cd account / shield 只改 cwd 不开下拉；cd 文件报不是目录；pwd；ls 各层；cat 用相对路径', () => {
+  const { act, calls } = fakeAct();
+  const sh = createShell({ act, storage: mem() });
+  assert.deepEqual(sh.exec('cd account/security').out, []);
+  assert.equal(sh.cwd(), 'account/security');
+  assert.match(sh.ps1(), /:~\/account\/security\$$/);
+  assert.equal(text(sh.exec('pwd').out[0]), '~/account/security');
+  assert.equal(text(sh.exec('ls').out[0]), 'nothing to list here · try cd ..');
+  sh.exec('cd ..');
+  assert.equal(sh.cwd(), 'account');
+  assert.equal(text(sh.exec('ls').out[0]).trim(), 'profile/  devices/  security/  apps/');
+  assert.equal(text(sh.exec('ls ~/shield').out[0]).trim(), 'keys/  tempkeys/  links/');
+  assert.equal(text(sh.exec('cd ~/daymark/today').out[0]), 'cd: not a directory: ~/daymark/today');
+  assert.equal(text(sh.exec('cd ../nope').out[0]), 'cd: no such directory: ../nope');
+  assert.deepEqual(calls, [], 'account / shield 下 cd 不调动作');
+  assert.equal(normDir('account/security', '../../blog'), 'blog');
+  assert.equal(normDir('~', 'daymark/today'), null);
+});
+
+test('T6 open：站点 = 主页滚动 / 别页跳转；account / shield 开对应下拉那一层（security → keys，apps → grants）；坏路径报错', () => {
+  const calls = [];
+  const { act } = fakeAct({ scroll: ['blog'] });
+  act.account = (l) => { calls.push(['account', l]); return { href: '~/account' + (l ? '/' + l : ''), go: () => calls.push(['go-acct', l]) }; };
+  act.shield = (l) => { calls.push(['shield', l]); return { href: '~/shield' + (l ? '/' + l : ''), go: () => calls.push(['go-sh', l]) }; };
+  const sh = createShell({ act, storage: mem() });
+  assert.equal(text(sh.exec('open blog').out[0]), '→ scrolled to [01] blog');
+  assert.equal(sh.cwd(), '~', 'open 不改 cwd');
+  const a = sh.exec('open ~/account/security');
+  assert.equal(text(a.out[0]), '→ opening ~/account/keys …');
+  a.after();
+  sh.exec('open account/apps').after();
+  sh.exec('open shield/tempkeys').after();
+  assert.deepEqual(calls, [['account', 'keys'], ['go-acct', 'keys'], ['account', 'grants'], ['go-acct', 'grants'], ['shield', 'tempkeys'], ['go-sh', 'tempkeys']]);
+  assert.equal(text(sh.exec('open nope').out[0]), 'open: no such directory: nope');
+  const n = sh.exec('open curio');
+  assert.equal(text(n.out[0]), '→ opening /curio/ …');
+});
+
+test('T6 tty：不带参数显示 tty2；tty 3/4/5 打开对应宿主（after）；tty 2 = 本终端；坏参数给用法', () => {
+  const { act } = fakeAct();
+  const got = [];
+  act.tty = (n) => ({ go: () => got.push(n) });
+  const sh = createShell({ act, storage: mem() });
+  assert.equal(text(sh.exec('tty').out[0]), 'tty2');
+  assert.equal(text(sh.exec('tty 2').out[0]), 'tty2');
+  for (const n of [3, 4, 5]) { const r = sh.exec('tty ' + n); assert.equal(text(r.out[0]), '→ opening tty' + n + ' …'); r.after(); }
+  assert.deepEqual(got, [3, 4, 5]);
+  assert.equal(text(sh.exec('tty 9').out[0]), TERM_EN.usageTty);
+});
+
+test('T6c tty4：createShell 可换历史键和 tty 名（AI 窗口里的 $ 命令）', () => {
+  const st = mem();
+  const { act } = fakeAct();
+  const sh = createShell({ act, storage: st, histKey: 'sgx-term-hist-4', tty: 'tty4' });
+  assert.equal(text(sh.exec('tty').out[0]), 'tty4');
+  assert.equal(text(sh.exec('tty 4').out[0]), 'tty4');
+  sh.exec('pwd');
+  assert.deepEqual(JSON.parse(st.getItem('sgx-term-hist-4')), ['tty', 'tty 4', 'pwd']);
+  assert.equal(st.getItem('sgx-term-hist'), null);
+});
+
+test('代理订阅 P2：sub-* 在 tty2 转到账号终端（原样的一行，来源名大小写不变）；open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示', async () => {
+  const { act, calls } = fakeAct();
+  act.sub = (line) => { calls.push(['sub', line]); return { href: '~/account', go: () => calls.push(['go-sub', line]) }; };
+  act.proxyList = () => Promise.resolve([{ name: 'Linkcube', type: 'airport', host: 'sub.example.com', nodes: 3, enabled: true, error: '' }, { name: 'Cloady', type: 'file', host: '', nodes: 1, enabled: false, error: '' }]);
+  const sh = createShell({ act, storage: mem() });
+  const r = sh.exec('sub-mv Linkcube LinkCube2');
+  assert.equal(text(r.out[0]), '→ opening ~/account …');
+  r.after();
+  assert.deepEqual(calls, [['sub', 'sub-mv Linkcube LinkCube2'], ['go-sub', 'sub-mv Linkcube LinkCube2']]);
+  sh.exec('open ~/proxy');
+  assert.deepEqual(calls.at(-1), ['sub', 'sub']);
+  const ls = await sh.exec('ls ~/proxy');
+  assert.deepEqual(ls.out.map(text), ['Linkcube  sub.example.com  3  on', 'Cloady  file  1  off']);
+  act.proxyList = () => Promise.resolve(null);
+  assert.equal(text((await sh.exec('ls proxy')).out[0]), '# sub · ~/account');
+  assert.equal(sh.exec('help').out[0].rows.length, 8, 'sub-* 不进 help（主页首屏 help 在视觉基线里）');
+  const man = await sh.exec('man sub-mv');
+  assert.deepEqual(man.out.map(text).slice(0, 5), ['SUB-MV(1)', 'NAME', '    sub-mv — rename a source', 'SYNOPSIS', '    sub-mv <old> <new>']);
+  assert.ok(man.out.map(text).includes('AUTH'));
 });

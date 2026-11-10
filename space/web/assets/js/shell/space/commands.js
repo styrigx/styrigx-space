@@ -9,10 +9,12 @@
  * - 进站 reset `reset@space:~#`（↔ reset@account:~#）：passwd、passkey ls|add|rm <n>
  * - 盾牌 `styrigx@space:~#`（↔ root@account:~#）：sudo styrigx reauth [passkey|password]、lock、exit
  * 其余命令行 / 装饰提示符按账号登录状态：未登录 `styrigx@space:~$`、已登录 `root@account:~#`（envPrompt，见文件末尾）。
+ * 终端统一 T1：ADMIN_COMMAND、ENV_GUEST / ENV_ROOT、normCmd 定义在 shell/term/core/parse.js（和站内终端共用一份），这里转出。
  */
+import { ADMIN_COMMAND, ENV_GUEST, ENV_ROOT, normCmd } from '../term/core/parse.js';
 
 /** `sudo styrigx` 的命令字（↔ shell/account/commands.js ROOT_COMMAND） */
-export const ADMIN_COMMAND = 'styrigx';
+export { ADMIN_COMMAND };
 /** 三条进站命令（用户看得见的写法） */
 export const CMD = Object.freeze({
   session: 'sudo ' + ADMIN_COMMAND,
@@ -46,13 +48,8 @@ export const SHIELD_LAYERS = Object.freeze(['home', 'keys', 'tempkeys', 'links']
 /** 要 reauth 才能进的层（Q3 定稿 08:00：进站凭证、临时钥匙「新建 + 管理」都 reauth；分享链接「管理」reauth） */
 export const REAUTH_LAYERS = Object.freeze(['keys', 'tempkeys', 'links']);
 
-/**
- * 命令行解析：小写、空白归一。
- * @param {string} s
- */
-export function normCmd(s) {
-  return String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
-}
+/** 命令行解析（小写、空白归一）：终端统一 T1 起在 shell/term/core/parse.js，这里转出 */
+export { normCmd };
 
 /**
  * 锁屏命令 → 动作（SPACE-V3 §2.2 A）。旧别名（password / pw / passkey / pk / tempkey / key / reset / forgot、sudo spacekey …、
@@ -141,8 +138,7 @@ export function shieldLayerFrom(name) {
 /* ---------- 环境提示符规则（Gray 2026-11-08 21:57 定、2026-11-09 08:14 确认；SPACE-V3「环境提示符规则」） ---------- */
 
 /** 账号没登录 / 已登录时，全站命令行 / 装饰提示符的身份与主机 */
-export const ENV_GUEST = 'styrigx@space';
-export const ENV_ROOT = 'root@account';
+export { ENV_GUEST, ENV_ROOT };
 
 /**
  * 按账号登录状态给提示符：没登录 `styrigx@space:<路径>$`，已登录 `root@account:<路径>#`。

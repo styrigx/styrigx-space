@@ -178,10 +178,50 @@ export function renderShare() {
   return src;
 }
 
-/** 自成一体的 JS 组件：原样复制（不能 import；必须导出 exportName） @param {string} file @param {string} label @param {string} exportName */
-export function renderStandalone(file, label, exportName) {
+/** 终端公共件目录（终端统一 T1）：terminal.js、ai-panel.js 只许 import 这里面的文件 */
+export const TERM_DIR = path.join(REPO, 'space/web/assets/js/shell/term');
+
+/**
+ * 一份源码的 import 路径（去掉注释后）：静态 import + 字面量路径的 import()（终端统一 T5：man 页懒加载）；import() 的参数不是字符串字面量就报错
+ * @param {string} code @param {string} label
+ */
+function staticImports(code, label) {
+  const dyn = [...code.matchAll(/\bimport\s*\(\s*'([^']+)'\s*\)/g)].map((m) => m[1]);
+  if ((code.match(/\bimport\s*\(/g) || []).length !== dyn.length) throw new Error(label + ' 不能动态 import() 非字面量路径');
+  return (code.match(/^\s*import\s[^;]*;/gm) || []).map((l) => {
+    const m = /from\s+'([^']+)';$/.exec(l.trim()) || /^import\s+'([^']+)';$/.exec(l.trim());
+    if (!m) throw new Error(label + ' 的 import 写法认不出：' + l.trim());
+    return m[1];
+  }).concat(dyn);
+}
+
+/**
+ * 核对 import（含字面量 import()）只落在 shell/term/** 里，并顺着 term/** 里的文件往下查（它们也只许互相 import）
+ * @param {string} file @param {string} label @param {string} [termDir] 单测换成临时目录 @param {Set<string>} [seen]
+ */
+export function checkTermImports(file, label, termDir = TERM_DIR, seen = new Set()) {
+  if (seen.has(file)) return;
+  seen.add(file);
+  const code = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const spec of staticImports(code, label)) {
+    const to = path.resolve(path.dirname(file), spec);
+    if (!spec.startsWith('.') || !to.startsWith(termDir + path.sep) || !to.endsWith('.js')) {
+      throw new Error(label + ' 只能 import shell/term/** 里的 .js（终端统一 T1）：' + spec);
+    }
+    if (!existsSync(to)) throw new Error(label + ' import 的文件不存在：' + spec);
+    checkTermImports(to, path.relative(REPO, to), termDir, seen);
+  }
+}
+
+/**
+ * 自成一体的 JS 组件：原样复制（不能 import；必须导出 exportName）。
+ * opts.term：只许 import shell/term/**（终端统一 T1 起 terminal.js、ai-panel.js；同一次 Hugo 构建打包，子站没有原样副本）
+ * @param {string} file @param {string} label @param {string} exportName @param {{term?: boolean}} [opts]
+ */
+export function renderStandalone(file, label, exportName, opts = {}) {
   const src = readFileSync(file, 'utf8');
-  if (/^\s*import\s/m.test(src) || /\bimport\s*\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, ''))) throw new Error(label + ' 不能 import 任何东西（子站原样复制）');
+  if (opts.term) checkTermImports(file, label);
+  else if (/^\s*import\s/m.test(src) || /\bimport\s*\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, ''))) throw new Error(label + ' 不能 import 任何东西（子站原样复制）');
   if (!new RegExp('^export (async )?function ' + exportName + '\\(', 'm').test(src)) throw new Error(label + ' 必须导出 ' + exportName);
   return src;
 }
@@ -298,9 +338,9 @@ export function renderAll() {
   renderPageHeader();
   renderFooter();
   renderStandalone(SRC.topbarJs, 'topbar-panel.js', 'mountTopbar');
-  renderStandalone(SRC.terminal, 'terminal.js', 'createShell');
+  renderStandalone(SRC.terminal, 'terminal.js', 'createShell', { term: true });
   renderStandalone(SRC.modalSheet, 'modal-sheet.js', 'modalSheet');
-  renderStandalone(SRC.ai, 'ai-panel.js', 'mountAiChat');
+  renderStandalone(SRC.ai, 'ai-panel.js', 'mountAiChat', { term: true });
   renderStandalone(SRC.vk, 'vk.js', 'onKeyboardHeight');
   renderStandalone(SRC.prefsWrite, 'prefs-write.js', 'syncUiCookie');
   renderStandalone(SRC.langPath, 'lang-path.js', 'langPath');

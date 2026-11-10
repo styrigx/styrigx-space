@@ -14,6 +14,8 @@
  */
 import * as api from './api.js';
 import { createTerm, shellTable } from './term.js';
+import { completerOf } from '../term/core/complete.js';
+import { TTY3_TABLE } from '../term/cmds/index-tty3.js';
 import { suggest } from '../suggest.js';
 import { CMD, PS_ADMIN, SHIELD_LAYERS, REAUTH_LAYERS, normCmd, parseShieldCmd, shieldLayerFrom, hmm, mmss } from './commands.js';
 import { mountVerify } from './session.js';
@@ -92,6 +94,9 @@ export function mountShield(o) {
     ariaCmd: t('shield.cmdAria'),
     isShown: function () { return o.ms.isShown(); },
     onCmd: function (raw) { runCmd(raw); },
+    /* tty3：Tab 补全 + 历史落 sessionStorage（终端统一 T4） */
+    complete: completerOf(TTY3_TABLE),
+    histKey: 'sgx-term-hist-3',
     onReveal: reveal,
     onMode: function (m) { root.setAttribute('data-sh-mode', m); },
   });
@@ -248,6 +253,12 @@ export function mountShield(o) {
     const line = normCmd(raw);
     if (!line) return;
     C.echo(raw.trim());
+    /* sub-*（代理订阅 P2）：转到账号终端（tty5）去跑（来源名大小写敏感，传原样的一行；topbar-panel 收 sgx-acct-run） */
+    if (/^sub(-[a-z]+)?(\s|$)/.test(line)) {
+      C.out('<span class="sgx-at-dim">→</span> <span class="sgx-at-y" translate="no">~/account</span>');
+      doc.dispatchEvent(new CustomEvent('sgx-acct-run', { detail: raw.trim() }));
+      return;
+    }
     const c = parseShieldCmd(line);
     switch (c.cmd) {
       case 'help': help(); return;
