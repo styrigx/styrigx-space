@@ -3,17 +3,14 @@
  * v5 S3（整站放开）起页面对所有人都是同一份内容，守卫不再盖遮罩：
  * - 读网关注入的 <html data-sgx-lock-session>（valid / locked；没有 = 页面没经过网关，按没进站算，不画锁屏）
  * - valid：绑自动回锁（切回前台问服务端，401 → 重载，服务端画访客态页面）
- * - 锁屏界面（shell/space/entry.js）只在地址带 ?entry（旧 ?lock 兼容读一版）时 import()：顶栏终端里访客敲 sudo styrigx、
- *   以及立即锁屏之后都走这个地址（?entry=sudo 进来锁屏自动跑一次 sudo styrigx，见 entry.js）
+ * - v5 S5 起没有锁屏界面了：进站是在终端里 sudo styrigx（shell/space/layer.js）。旧地址 ?entry=…（分享链接失效时网关回的 /?entry=1、旧书签）
+ *   由终端接（topbar-panel.js：打开终端、预填 sudo styrigx；?entry=sudo 直接跑），守卫只负责已解锁页面的自动回锁
  * 进门二值（P2-3）：没有等级；进门之后的事（锁侧复验、账号）由各接口自己要。
- * 去处判定（askServer / proceed）和本地开发判断放这里，锁屏界面从这里 import，两边是同一份。
+ * 去处判定（askServer / proceed）和本地开发判断放这里，终端的钥匙层从这里 import，两边是同一份。
  */
 import { sgxReplace, sgxReload } from '../../lib/diag-jumptrace.js';
 import { spaceState } from './state.js';
-import { i18nTable } from '../../lib/i18n.js';
 import { API } from './paths.js';
-/** 界面文案：页面字符串表 #sgx-i18n-core（语言包化 2026-11-07；当前语言已叠在英文上） */
-const tx = i18nTable('core');
 
 /**
  * 是否本地开发（无 Functions 后端）。
@@ -33,7 +30,7 @@ export function isLocalDev() {
    - 服务端回答 askServer()：GET /api/lock-session-check[?return=]：{ok, by, exp, next}。
      next 是服务端校验过的去处（与首页 302 同一个 resolveReturn）；前端不做白名单，只照着跳。
      by（进门方式）只用于展示，记进 spaceState.by；不分等级。
-   - 解锁成功 / 锁屏显示期间切回标签页 / bfcache 恢复 / 首帧对账，都走同一个 proceed(answer)：
+   - 终端里解锁成功走 proceed(answer)：
        next 是别处  → location.replace(next)（站内原页面或子站）
        没有 next    → 页面是 locked 就换到干净地址重新取一次（服务端画 valid，上锁的部件按进站态重画），
                       valid / unknown 就原地开锁并把地址里的 entry/lock/why/return 去掉
@@ -116,7 +113,7 @@ function reloadGuardOk(url) {
 /**
  * 服务端已确认会话有效后的唯一去处判定。
  * @param {{next?:string|null}} ans
- * @param {() => void} unlockInPlace 原地开锁（锁屏态时是开锁动画；valid 页面是空操作）
+ * @param {() => void} unlockInPlace 原地开锁（收掉开机动画）
  * @returns {'navigate'|'in-place'}
  */
 export function proceed(ans, unlockInPlace) {
@@ -138,13 +135,12 @@ export function proceed(ans, unlockInPlace) {
 }
 
 /* 已解锁页面：切回前台 / bfcache 恢复 / 转屏时向服务端确认，401 → 重载（服务端画访客态页面）。
-   节流 5 秒；网络错误不跳转，下次再查。页面正显示锁屏时不查（锁屏有自己的对账）。 */
+   节流 5 秒；网络错误不跳转，下次再查。 */
 let lastLockCheck = 0;
 function checkSessionForAutoLock() {
   const now = Date.now();
   if (now - lastLockCheck < 5000) return;
   lastLockCheck = now;
-  if (document.getElementById('sgx-entry')) return;
   fetch(API.sessionCheck, { credentials: 'same-origin', cache: 'no-store' })
     .then(function (r) {
       if (r.status === 401) sgxReload();
@@ -171,13 +167,8 @@ export function bindAutoLock() {
   });
 }
 
-/** 地址要不要锁屏：?entry=…（旧 ?lock=1 兼容读一版） */
-function wantsEntry() {
-  return !!(qp('entry') || qp('lock'));
-}
-
 /**
- * 初始化（主站每页；子站不加载守卫，访客在子站敲 sudo styrigx 去主站锁屏地址，见 topbar-panel.js）。
+ * 初始化（主站每页；子站不加载守卫）。
  */
 export function initLock() {
   /* Hark：CI 测试构建禁用锁屏（构建期 define，线上无绕过） */
@@ -187,32 +178,5 @@ export function initLock() {
   try {
     window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: state === 'valid' } }));
   } catch (e) {}
-  if (state === 'valid') {
-    bindAutoLock();
-    return;
-  }
-  if (wantsEntry()) openLockScreen();
-}
-
-/* ============================================================
-   按需加载锁屏界面（frontend-js #6）
-   ============================================================ */
-
-/** 锁屏界面脚本没取到（断网 / 部署换代）：页面照常可看，只在底部给一张「重新加载」卡 */
-function entryLoadFailed() {
-  if (document.getElementById('sgx-entry-failed')) return;
-  const el = document.createElement('div');
-  el.id = 'sgx-entry-failed';
-  el.className = 'sgx-card';
-  el.style.cssText = 'position:fixed;bottom:24px;left:16px;right:16px;z-index:10001;padding:16px;text-align:center;';
-  el.innerHTML = '<button type="button" class="sgx-credential-btn-primary" id="sgx-entry-failed-retry">' + tx('lockReload') + '</button>';
-  document.body.appendChild(el);
-  const btn = document.getElementById('sgx-entry-failed-retry');
-  if (btn) btn.addEventListener('click', function () { sgxReload(); });
-}
-
-function openLockScreen() {
-  import('./entry.js')
-    .then(function (m) { m.showEntryScreen(); })
-    .catch(entryLoadFailed);
+  if (state === 'valid') bindAutoLock();
 }

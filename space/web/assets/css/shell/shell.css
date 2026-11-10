@@ -216,11 +216,11 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .reduced-motion .sgx-share-toast { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-share-toast { transition: none; } }
 /* 触屏点击区 ≥ 44 × 44（2026-11-09 细节 12）：看得见的样子不变，只在元素上叠一块透明的 ::after，比 44 小的方向向两边各撑到 22px（大于 44 的方向不动）。
-   顶栏图标 / 头像、博客文章标签、目录行、目录「分类 / 按年」切换、旷野 $ Retry、主页「cd curio/ →」等、页脚链接与语言、锁屏 zh / en。
+   顶栏图标 / 头像、博客文章标签、目录行、目录「分类 / 按年」切换、旷野 $ Retry、主页「cd curio/ →」等、页脚链接与语言。
    目录行 .sgx-tl 横向照旧裁成省略号，纵向改为不裁（不然撑出来的点击区被行框裁掉）；切换组的圆角改到两端按钮自己身上，同理。 */
 @media (pointer: coarse) {
-  :is(.sgx-tb-acts .sgx-tb-btn, .sgx-tb-av, .tag-list .tag, .sgx-tl a, .sgx-seg2 button, .st-btn, .home-sec-more, .sgx-foot-links a, .sgx-foot-lang :is(a, button), .sgx-entry-lang) { position: relative; }
-  :is(.sgx-tb-acts .sgx-tb-btn, .sgx-tb-av, .tag-list .tag, .sgx-tl a, .sgx-seg2 button, .st-btn, .home-sec-more, .sgx-foot-links a, .sgx-foot-lang :is(a, button), .sgx-entry-lang)::after {
+  :is(.sgx-tb-acts .sgx-tb-btn, .sgx-tb-av, .tag-list .tag, .sgx-tl a, .sgx-seg2 button, .st-btn, .home-sec-more, .sgx-foot-links a, .sgx-foot-lang :is(a, button)) { position: relative; }
+  :is(.sgx-tb-acts .sgx-tb-btn, .sgx-tb-av, .tag-list .tag, .sgx-tl a, .sgx-seg2 button, .st-btn, .home-sec-more, .sgx-foot-links a, .sgx-foot-lang :is(a, button))::after {
     content: ""; position: absolute; z-index: 1;
     top: min(0px, calc(50% - 22px)); bottom: min(0px, calc(50% - 22px)); left: min(0px, calc(50% - 22px)); right: min(0px, calc(50% - 22px)); }
   .sgx-tl { overflow-x: clip; overflow-y: visible; }
@@ -1080,7 +1080,8 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-line:focus-within .sgx-term-ps { text-decoration: underline; text-decoration-color: var(--sgx-focus-ring); text-underline-offset: 4px; }
 .sgx-term-ghost { position: absolute; top: 0; pointer-events: none; white-space: pre; color: var(--sgx-text-tertiary); }
 .sgx-term-ghost[hidden] { display: none; }
-/* 抽屉：模态 <dialog>，从顶栏下方落下（宽 min(820, 100% − 2 × 页边距)，居中），遮罩点了关；减弱动效不滑 */
+/* 终端窗口（v5 S5 终端合一，#sgx-term）：模态 <dialog>，遮罩点了关；减弱动效不滑。手机 / 平板整块卡片（宽 min(820, 100% − 2 × 页边距)，从顶栏下方落下）；
+   桌面居中大窗（Gray 16:48，截图 pc-center）：宽 min(1040px, 86vw)、高 72vh，和顶栏之间留出一截（10vh，24–96px） */
 .sgx-term-dlg { position: fixed; inset: 0; box-sizing: border-box; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: calc(var(--sgx-tb-h) + env(safe-area-inset-top, 0px) + 12px) var(--sgx-page-m) 0;
   border: 0; background: transparent; color: var(--sgx-text-primary); overflow: hidden; }
 .sgx-term-dlg::backdrop { background: var(--sgx-scrim, rgba(0,0,0,.5)); opacity: 0; transition: opacity .24s ease; }
@@ -1088,6 +1089,14 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-dlg .sgx-term { width: min(820px, 100%); margin: 0 auto; opacity: 0; transform: translateY(-12px); transition: opacity .24s ease, transform .24s ease; }
 .sgx-term-dlg.is-open .sgx-term { opacity: 1; transform: none; }
 .sgx-term--drawer .sgx-term-body { height: min(56vh, 460px); overscroll-behavior: contain; }
+:root[data-sgx-layout="desktop"] .sgx-term-dlg { padding-top: calc(var(--sgx-tb-h) + env(safe-area-inset-top, 0px) + max(24px, min(96px, 10vh))); }
+:root[data-sgx-layout="desktop"] .sgx-term-dlg .sgx-term { display: flex; flex-direction: column; width: min(1040px, 86vw); height: 72vh; }
+:root[data-sgx-layout="desktop"] .sgx-term--drawer .sgx-term-body { flex: 1 1 auto; height: auto; min-height: 0; }
+/* 输入行在等待 / 完成时收起（input-line.js 写 hidden）；秘密输入（解锁 / 账号密码、恢复钥匙、新密码、机场链接）不回显，同真 sudo */
+.sgx-term-line[hidden] { display: none; }
+.sgx-term-line:is([data-mode="pw"], [data-mode="rkey"], [data-mode="newpw"], [data-mode="newpw2"], [data-mode="suburl"]) .sgx-term-in { color: transparent; -webkit-text-fill-color: transparent; }
+.sgx-term-line:is([data-mode="pw"], [data-mode="rkey"], [data-mode="newpw"], [data-mode="newpw2"], [data-mode="suburl"]) .sgx-term-in::selection { background: transparent; }
+.sgx-term-hint2 { margin: 2px 0 0; }
 .reduced-motion .sgx-term-dlg .sgx-term, .reduced-motion .sgx-term-dlg::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-term-dlg .sgx-term, .sgx-term-dlg::backdrop { transition: none; } }
 /* 环境提示符（进站 v3 L1，SPACE-V3「环境提示符规则」）：模板里静态的提示符两种都写（.sgx-envps-g 账号没登录 styrigx@space:~$ / .sgx-envps-r 已登录 root@account:~#），

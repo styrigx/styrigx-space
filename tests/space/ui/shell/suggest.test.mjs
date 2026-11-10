@@ -32,13 +32,14 @@ test('最近的真命令：整行 / 第一个词；太远不猜', () => {
   assert.equal(suggest('lokc now', ['help', 'lock']), 'lock');
 });
 
-test('站内终端：hepl → did you mean help（同一份算法）；不像就照旧 command not found · try help', () => {
+test('站内终端：hsitory → did you mean history（同一份算法）；不像就照旧 command not found · try man', () => {
   const act = { cd: () => null, sudo: () => ({}), theme: () => {}, lock: () => {}, ask: () => {}, today: () => Promise.resolve(null), daymarkHref: () => '/daymark/' };
   const sh = createShell({ act, storage: null });
   const txt = (o) => o.seg.map((s) => s[1]).join('');
-  assert.equal(txt(sh.exec('hepl').out[0]), 'command not found: hepl — did you mean help?');
-  assert.equal(sh.exec('hepl').out[0].cls, 'err');
-  assert.equal(txt(sh.exec('xyzzy').out[0]), 'command not found: xyzzy · try help');
+  assert.equal(txt(sh.exec('hsitory').out[0]), 'command not found: hsitory — did you mean history?');
+  assert.equal(sh.exec('hsitory').out[0].cls, 'err');
+  /* v5 S5：help 删了（man 取代）；不像就照旧 · try man */
+  assert.equal(txt(sh.exec('xyzzy').out[0]), 'command not found: xyzzy · try man');
   /* 终端统一 T1：只有一份实现（shell/term/core/suggest.js）；terminal.js 不再抄，shell/suggest.js 只转出 */
   const src = read('space/web/assets/js/shell/terminal.js');
   assert.match(read('space/web/assets/js/shell/term/core/engine.js'), /^import \{ suggest \} from '\.\/suggest\.js';$/m, '站内终端的引擎用公共件（T3）');
@@ -51,5 +52,6 @@ test('文案：term / space.common / account.common 都有 didYouMean（en / zh�
     const y = yaml.load(read(`space/web/data/sgx-shell-i18n/${l}.yaml`));
     for (const t of [y.term.didYouMean, y.space.common.didYouMean, y.account.common.didYouMean]) assert.match(t, /command not found: \{c\} — .*\{x\}/);
   }
-  for (const f of ['space/web/assets/js/shell/space/entry.js', 'space/web/assets/js/shell/space/shield.js', 'space/web/assets/js/shell/account/term.js']) assert.match(read(f), /notFoundLine\(|suggest\(/, f);
+  /* v5 S5：一个终端（引擎 engine.js 给 did you mean）；钥匙的 reset 层自己解析，也接上 */
+  for (const f of ['space/web/assets/js/shell/term/core/engine.js', 'space/web/assets/js/shell/space/reset.js']) assert.match(read(f), /notFoundLine\(|suggest\(/, f);
 });

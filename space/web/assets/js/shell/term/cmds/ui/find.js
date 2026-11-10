@@ -3,12 +3,12 @@ import { fill } from '../../core/out.js';
 /**
  * find <词>：关键词搜索四个站的公开页面（v5 S4；GET /api/find，不走模型、谁都能用）。
  * 异步（返回 Promise，pending = 搜的词，视图先打「› fetching …」）；每条结果一行：标题 · 站 · 路径（链接）。
- * audience nobody：只在访客的 man 里列（进站后搜索走 ask；find 照常能用，只是不列）。不进 help（help 行在主页首屏视觉基线里）。
+ * 只在访客（nobody）的 man 里列（进站后搜索走 ask；find 照常能用，只是不列）。
  */
 export default {
   name: 'find',
   takesArgs: true,
-  audience: 'nobody',
+  audience: /** @type {any} */ (['nobody']),
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const q = p.rest;

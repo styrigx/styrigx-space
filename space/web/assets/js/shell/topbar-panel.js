@@ -12,14 +12,13 @@
  *   lang 分段 EN | Auto | 中文（选中即保存；明确的语言和本页不同就去另一种语言的同一页，Auto 只在主站首页换）、layout 分段（Mobile | Auto | DeX，模式规则见共享外壳 layout-mode.js）、
  *   share（share.js）/ lock（立即锁定）、STATUS（占位）、esc 关闭。
  * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
- * - 立即锁屏：只锁本机、不验证、点一下就锁（Gray 2026-11-09 08:03；原确认层 / 点两下确认删了）：调用方传 onLock 就用它，
- *   不传 = POST /api/lock-now（同源网关）后回到锁屏 /?entry=1。
- * - 盾牌（进站 v3 L1）：调用方传 shield（shell/space/shield.js mountShield；本文件仍不 import），#sgx-sec 打开时挂上；旧地址 #sec[=<层>] 打开对应那一层。
- * - 终端（2026-11 UI 重设计 PR-2）：调用方传 terminal（shell/terminal.js 整个模块；本文件仍不 import）。每页一个引擎实例，接两处视图：
- *   主页首屏嵌入的 [data-sgx-term="home"] 和全站抽屉 #sgx-term（模态 <dialog>，Esc / 点遮罩关）。
- *   Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」：主页上聚焦首屏终端，其他页开合抽屉。命令的动作（滚动 / 跳转 / 外观 / 锁屏 / AI）都在这里接。
+ * - 立即锁屏（NAVIGATE 里的 lock）：只锁本机、不验证、点一下就锁（Gray 2026-11-09 08:03）：调用方传 onLock 就用它，
+ *   不传 = POST /api/lock-now（同源网关）后重新取这一页（服务端画访客态）。
+ * - 终端（v5 S5 终端合一）：调用方传 terminal（shell/terminal.js 整个模块）、space（钥匙层 shell/space/layer.js mountSpace）、accountTerm（终端里的账号层
+ *   shell/account/cmd/layer.js mountAccountLayer）、account（账号窗口 shell/account/window.js mountAccountWindow，照旧）；本文件仍不 import。每页一个终端：主页首屏嵌入的 [data-sgx-term="home"]，其他页 #sgx-term（桌面居中大窗、手机整块卡片）。
+ *   Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌（S6 前）也打开它。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
  * - 上锁的地方（v5 S3：AI 窗口、旷野 status 卡、奇趣音乐的播放，以及各处接口回 401）都只发 document 上的 `sgx:sudo` 事件（SUDO_EVENT），
- *   这里是唯一接它的地方：打开终端、输入行预填 `sudo styrigx`（不替人回车）。访客回车后 sudo styrigx 去锁屏（ENTRY_SUDO_URL，带 return 回原页）。
+ *   这里是唯一接它的地方：打开终端、输入行预填 `sudo styrigx`（不替人回车）；回车后在终端里验证。
  */
 
 const QP_MS = 240;
@@ -65,25 +64,16 @@ function shellStr(doc) {
   } catch (e) {}
   return Object.assign({}, STR_EN, page);
 }
-/** 立即锁屏的接口（同源网关；= shell/space/paths.js API.lockNow，本文件不 import 任何东西，只能抄一份）和锁屏地址（?entry=1；旧 ?lock=1 守卫兼容读一版） */
+/** 立即锁屏的接口（同源网关；= shell/space/paths.js API.lockNow，本文件不 import 任何东西，只能抄一份） */
 const LOCK_NOW_API = '/api/lock-now';
 /** 关键词搜索（v5 S4，网关 GET /api/find，公开） */
 const FIND_API = '/api/find';
-const ENTRY_URL = '/?entry=1';
-/** 访客敲 sudo styrigx：主站锁屏自动跑这一条（entry.js），进站后回 return（服务端 resolveReturn 校验） */
-const ENTRY_SUDO_URL = '/?entry=sudo&return=';
+/** 有没有进站会话（同源网关；= shell/space/paths.js API.sessionCheck）：终端身份的来源 */
+const SESSION_CHECK_API = '/api/lock-session-check';
 /** 上锁的地方要人进站时发的事件（= lib/sudo.js SUDO_EVENT，本文件不 import，抄一份） */
 export const SUDO_EVENT = 'sgx:sudo';
 /** 进站的命令（= term/core/parse.js ADMIN_COMMAND，本文件不 import） */
 const SUDO_LINE = 'sudo styrigx';
-
-/**
- * 这一页是不是访客（网关注入的 <html data-sgx-lock-session="locked">；没有标记的页面不算访客，接口 401 时 SUDO_EVENT 会改成 locked）。
- * @param {Document} doc
- */
-export function isVisitor(doc) {
-  return doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
-}
 
 /**
  * 语言偏好 → 实际语言（跟随系统看浏览器语言；语言列表第一项是默认语言 = 英文）
@@ -125,6 +115,11 @@ export function resolveLang(v, nav, langs) {
  *   keyboard?: (cb: (h: number) => void) => () => void,
  *   share?: (cfg: { button: Element }) => any,
  *   terminal?: any,
+ *   space?: (line: any, o: any) => any,
+ *   account?: (o: any) => any,
+ *   accountTerm?: (o: any) => any,
+ *   accountLayer?: (n: string) => { layer: string, reset: boolean, reauth: boolean },
+ *   pmUser?: string,
  *   subscribe?: (repaint: () => void) => void,
  *   reload?: () => void,
  *   doc?: Document,
@@ -326,7 +321,7 @@ export function mountTopbar(o) {
       const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
       if (!f) return;
       f(LOCK_NOW_API, { method: 'POST', credentials: 'include' }).then(function (r) {
-        if (r && r.ok) replace(ENTRY_URL);
+        if (r && r.ok) replace(cleanHere());
         else if (lockState) lockState.textContent = t.lockFail;
       }, function () { if (lockState) lockState.textContent = t.lockFail; });
     };
@@ -508,39 +503,108 @@ export function mountTopbar(o) {
       return j && j[sec] && typeof j[sec] === 'object' ? j[sec] : {};
     } catch (e) { return {}; }
   };
-  /* ---------------- 账号下拉 = 账号终端（2026-11-08 账号 UI 改版：没有 /account/ 整页了，登录 / 重置 / 资料 / 设备 / 账号安全 / 应用授权都在这里一层层进；shell/account/term.js） ---------------- */
+  /* ---------------- 终端（v5 S5 终端合一：锁屏 tty1、主页 tty2、盾牌 tty3、账号 tty5 合成一个；shell/terminal.js） ----------------
+     一个会话、一份历史；提示符按身份（nobody / link / styrigx / root，服务端说了算）。桌面是居中大窗、手机整块卡片（#sgx-term）；
+     主页上首屏嵌入的那一个就是终端（S7 换成 neofetch）。钥匙层（o.space：shell/space/layer.js）和账号层（o.account：shell/account/window.js）共用它的输入行。 */
+  const T = o.terminal;
+  const termDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-term'));
+  const homeTerm = doc.querySelector('[data-sgx-term="home"]');
   const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
   const acctDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-acct'));
-  /** 层名（旧地址 #acct=<子页>、[data-acct-open]、sudo root reauth）→ 面板的层：o.accountLayer = shell/account/commands.js layerFromPath
-   * @param {string} n @returns {{layer: string, reset: boolean, reauth: boolean}} */
-  const acctLayer = function (n) { return o.accountLayer ? o.accountLayer(n) : { layer: '', reset: n === 'reset', reauth: false }; };
-  /** @type {{onOpen: (x?: any) => void, onClose: () => void}|null} */
-  let acctTerm = null;
-  /** 下一次打开要直接进的层（旧地址 #acct=… / 奇趣日刻的 sudo root 入口） @type {any} */
-  let acctNext = null;
+  const secBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-shield'));
+  /** @type {any} */
+  let termSheet = null;
+  /** @type {any} */
+  let view = null;
+  /** @type {any} */
+  let term = null;
+  /** @type {any} */
+  let acctWin = null;
   /** @type {any} */
   let acct = null;
+  const reducedM = function () {
+    try { return doc.documentElement.classList.contains('reduced-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  };
+  const fetchFn = function () { return o.fetch || (typeof fetch === 'function' ? fetch : null); };
+  /** 先关掉开着的顶栏窗口 / 终端，再做 f（放到下一个任务里：哨兵出栈的 popstate 还要派给别的窗口，同一个事件里开新窗口会被当成「系统返回」关掉，同上面的互斥） */
+  const closeAll = function (/** @type {() => void} */ f) {
+    const later = function () { window.setTimeout(f, 0); };
+    if (termSheet && termSheet.isOpen()) { termSheet.close(later); return; }
+    const open = sheets.find(function (x) { return x.ms.isOpen(); });
+    if (open) { open.ms.close(later); return; }
+    f();
+  };
+  /** 开终端窗口；正在滑出收起（哨兵还没出栈）时等它收完再开（最多约 1 秒） @param {number} [n] */
+  const openDrawer = function (n) {
+    if (!termSheet) return;
+    if (!termSheet.isOpen()) { termSheet.open(); return; }
+    const left = typeof n === 'number' ? n : 16;
+    if (!termSheet.isShown() && left > 0) window.setTimeout(function () { openDrawer(left - 1); }, 60);
+  };
+  /** 打开终端（主页：首屏那一个滚进视野；其他页：终端窗口），然后 f @param {() => void} [f] */
+  const showTerm = function (f) {
+    const then = function () { if (f) f(); if (view) view.focus({ scroll: !!homeTerm }); };
+    if (homeTerm || !termSheet) { closeAll(then); return; }
+    if (termSheet.isShown() && !sheets.some(function (x) { return x.ms.isOpen(); })) { then(); return; }
+    closeAll(function () { openDrawer(); then(); });
+  };
+  /** NAVIGATE 页脚「Ctrl K 终端 ›」：打开终端（主页聚焦首屏那个，其他页开终端窗口） */
+  const openTerm = function () { showTerm(); };
+  /** 收起终端窗口，然后 after（主页首屏的终端收不起：直接 after） @param {() => void} [after] */
+  const closeTerm = function (after) {
+    const f = after || function () {};
+    if (termSheet && termSheet.isOpen()) termSheet.close(f);
+    else f();
+  };
+  /** 当前地址去掉锁屏 / 回跳参数（上锁之后重新取这一页，服务端画访客态） */
+  const cleanHere = function () {
+    try {
+      const u = new URL(location.href);
+      ['entry', 'lock', 'why', 'return'].forEach(function (k) { u.searchParams.delete(k); });
+      return u.pathname + (u.search && u.search !== '?' ? u.search : '') + u.hash;
+    } catch (e) { return location.pathname; }
+  };
+  /** 地址参数 @param {string} k */
+  const qparam = function (k) { try { return new URLSearchParams(location.search).get(k) || ''; } catch (e) { return ''; } };
+
+  /* 终端身份：首帧按网关注入的页面标记，问服务端（GET /api/lock-session-check）后以回答为准 */
+  /** @type {any} */
+  const who = T && typeof T.createWho === 'function' ? T.createWho({
+    check: function () {
+      const f = fetchFn();
+      if (!f) return Promise.resolve(null);
+      return f(SESSION_CHECK_API, { credentials: 'same-origin', cache: 'no-store' }).then(function (/** @type {Response} */ r) {
+        return r && r.ok ? r.json() : null;
+      }).then(function (/** @type {any} */ j) { return j && j.ok === true ? { ok: true, by: String(j.by || '') } : null; }, function () { return null; });
+    },
+    page: function () { const v = doc.documentElement.getAttribute('data-sgx-lock-session'); return v === 'valid' || v === 'locked' ? v : 'unknown'; },
+    accountHint: function () { return doc.documentElement.getAttribute('data-sgx-account-session') === 'in'; },
+  }) : null;
+  /** 终端那一头（给终端里的账号层：登出后收起终端） */
+  const termLink = { close: closeTerm };
+
+  /* ---------------- 账号窗口（头像，shell/account/window.js）：v5 S5 不动，外观 / 各层 / 自带命令行照旧；第一次打开时画 ---------------- */
+  /** 层名（旧地址 #acct=<子页>、[data-acct-open]）→ 怎么开：o.accountLayer = shell/account/commands.js layerFromPath
+   * @param {string} n @returns {{layer: string, reset: boolean, reauth: boolean}} */
+  const acctLayer = function (n) { return o.accountLayer ? o.accountLayer(n) : { layer: '', reset: n === 'reset', reauth: false }; };
+  /** 下一次打开要直接进的层（旧地址 #acct=… / 奇趣日刻的 sudo root 入口） @type {any} */
+  let acctNext = null;
   /** @type {(x?: any) => void} */
   let openAcct = function () {};
   if (acctBtn && acctDlg && o.account) {
     acct = wire(acctBtn, acctDlg, 'sgxAcct', function () {
-      if (!acctTerm) acctTerm = o.account({ dlg: acctDlg, ms: acct.ms, S: trSec('account'), replace: replace, reload: o.reload });
+      if (!acctWin) acctWin = o.account({ dlg: acctDlg, ms: acct.ms, S: trSec('account'), replace: replace, reload: o.reload, who: who });
       const x = acctNext;
       acctNext = null;
-      acctTerm.onOpen(x || undefined);
-    }, undefined, function () { if (acctTerm) acctTerm.onClose(); });
+      acctWin.onOpen(x || undefined);
+    }, undefined, function () { if (acctWin) acctWin.onClose(); });
     if (acct) {
-      /** 打开账号终端（指定层 / 应用）。已开着就按新参数重来一次 @param {any} x */
+      /** 打开账号窗口（指定层 / 应用）。已开着就按新参数重来一次 @param {any} x */
       openAcct = function (x) {
         acctNext = x || null;
-        if (acct.ms.isOpen()) { if (acctTerm) { acctTerm.onOpen(acctNext || undefined); acctNext = null; } return; }
-        acct.ms.open();
+        if (acct.ms.isOpen()) { if (acctWin) { acctWin.onOpen(acctNext || undefined); acctNext = null; } return; }
+        closeAll(function () { acct.ms.open(); });
       };
-      /* 盾牌（tty3）里打的 sub-*：到账号终端去跑（代理订阅 P2） */
-      doc.addEventListener('sgx-acct-run', function (e) {
-        const line = String(/** @type {any} */ (e).detail || '');
-        if (line) closeAll(function () { openAcct({ run: line }); });
-      });
       /* 页面上的入口：[data-acct-open="<层>"]（可带 data-acct-app="curio|daymark"，奇趣 / 日刻的 sudo root：登录 → 判授权 → [y]/[n]，O1 / O6） */
       doc.addEventListener('click', function (e) {
         const tg = /** @type {Element|null} */ (e.target);
@@ -561,268 +625,195 @@ export function mountTopbar(o) {
         const lay = acctLayer(m[1] || '');
         window.setTimeout(function () { openAcct({ layer: lay.layer, reset: lay.reset, reauth: lay.reauth, app: m[2] || '' }); }, 0);
       };
-      fromHash();
+      window.setTimeout(fromHash, 0);
       window.addEventListener('hashchange', fromHash);
     }
   }
 
-  /* ---------------- 盾牌下拉 = 进站命令行（进站 v3 L1：styrigx@space:~#，shell/space/shield.js；原安全页 /security/* 删了） ---------------- */
-  const secBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-shield'));
-  const secDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-sec'));
-  /** @type {{onOpen: (x?: any) => void, onClose: () => void}|null} */
-  let secTerm = null;
-  /** 下一次打开要直接进的层（旧地址 #sec=<层>） @type {any} */
-  let secNext = null;
-  /** @type {any} */
-  let sec = null;
-  /** @type {(x?: any) => void} */
-  let openSec = function () {};
-  if (secBtn && secDlg && o.shield) {
-    sec = wire(secBtn, secDlg, 'sgxSec', function () {
-      if (!secTerm) secTerm = o.shield({ dlg: secDlg, ms: sec.ms, replace: replace });
-      const x = secNext;
-      secNext = null;
-      secTerm.onOpen(x || undefined);
-    }, undefined, function () { if (secTerm) secTerm.onClose(); });
-    if (sec) {
-      openSec = function (x) {
-        secNext = x || null;
-        if (sec.ms.isOpen()) { if (secTerm) { secTerm.onOpen(secNext || undefined); secNext = null; } return; }
-        sec.ms.open();
-      };
-      /* 页面上的入口：[data-sec-open="<层>"] */
-      doc.addEventListener('click', function (e) {
-        const tg = /** @type {Element|null} */ (e.target);
-        const a = tg && /** @type {HTMLElement|null} */ (tg.closest('[data-sec-open]'));
-        if (!a || secDlg.contains(a)) return;
-        const me2 = /** @type {MouseEvent} */ (e);
-        if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
-        e.preventDefault();
-        e.stopPropagation();
-        openSec({ layer: a.getAttribute('data-sec-open') || '' });
-      });
-      /* 旧地址 /security/、/security/lock/、/security/tempkeys/、/owner/ 301 到这里带 #sec[=<层>]：打开盾牌那一层，去掉 hash */
-      const secHash = function () {
-        const m = /^#sec(?:=([a-z]*))?$/.exec(location.hash || '');
-        if (!m) return;
-        try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
-        window.setTimeout(function () { openSec({ layer: m[1] || '' }); }, 0);
-      };
-      secHash();
-      window.addEventListener('hashchange', secHash);
-    }
-  }
-
-  /* ---------------- 终端（2026-11 PR-2） ---------------- */
-  /** @type {any} */
-  let termSheet = null;
-  /** @type {any} */
-  let homeView = null;
-  /** @type {any} */
-  let drawerView = null;
-  /** @type {any} */
-  let term = null;
-  const T = o.terminal;
-  const termDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-term'));
-  const homeTerm = doc.querySelector('[data-sgx-term="home"]');
-  const reducedM = function () {
-    try { return doc.documentElement.classList.contains('reduced-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
-  };
-  /** 先关掉开着的顶栏窗口 / 抽屉，再做 f（放到下一个任务里：哨兵出栈的 popstate 还要派给别的窗口，同一个事件里开新窗口会被当成「系统返回」关掉，同上面的互斥） */
-  const closeAll = function (/** @type {() => void} */ f) {
-    const later = function () { window.setTimeout(f, 0); };
-    if (termSheet && termSheet.isOpen()) { termSheet.close(later); return; }
-    const open = sheets.find(function (x) { return x.ms.isOpen(); });
-    if (open) { open.ms.close(later); return; }
-    f();
-  };
-  /** 开抽屉；正在滑出收起（哨兵还没出栈）时等它收完再开（最多约 1 秒） */
-  const openDrawer = function (/** @type {number} */ n) {
-    if (!termSheet) return;
-    if (!termSheet.isOpen()) { termSheet.open(); return; }
-    const left = typeof n === 'number' ? n : 16;
-    if (!termSheet.isShown() && left > 0) window.setTimeout(function () { openDrawer(left - 1); }, 60);
-  };
-  /** 打开终端：主页聚焦首屏那个（滚到视野里），其他页开抽屉 */
-  const openTerm = function () {
-    if (homeView) { homeView.focus({ scroll: true }); return; }
-    openDrawer();
-  };
   if (T && typeof T.createShell === 'function' && (homeTerm || termDlg)) {
     const tile = function (/** @type {string} */ id) { return /** @type {HTMLAnchorElement|null} */ (navDlg ? navDlg.querySelector('a.sgx-nav-tile[data-nav="' + id + '"]') : null); };
     const hrefOf = function (/** @type {string} */ id, /** @type {string} */ dflt) { const a = tile(id); return a ? a.href : dflt; };
     const cur = navDlg ? navDlg.querySelector('a.sgx-nav-tile[aria-current="page"]') : null;
     const curId = cur ? cur.getAttribute('data-nav') || '' : '';
-    /** 命令的动作（tty2 站内终端和 tty4 AI 窗口里的 $ 命令共用） @type {any} */
+    /** 命令的动作（终端和 AI 窗口里的 $ 命令共用） @type {any} */
     const act = {
-        cd: function (/** @type {string} */ dir) {
-          /* 主页上有这一节（[data-term-dir]）就滚过去；~ 回到首屏终端；其余去那个站 */
-          if (homeTerm) {
-            const sec = dir === '~' ? doc.getElementById('home-hero') : doc.querySelector('[data-term-dir="' + dir + '"]');
-            if (sec) {
-              try { sec.scrollIntoView({ behavior: reducedM() ? 'auto' : 'smooth', block: 'start' }); } catch (e) {}
-              return { kind: 'scroll', label: dir === '~' ? '' : sec.getAttribute('data-term-label') || dir };
-            }
+      cd: function (/** @type {string} */ dir) {
+        /* 主页上有这一节（[data-term-dir]）就滚过去；~ 回到首屏终端；其余去那个站 */
+        if (homeTerm) {
+          const sec = dir === '~' ? doc.getElementById('home-hero') : doc.querySelector('[data-term-dir="' + dir + '"]');
+          if (sec) {
+            try { sec.scrollIntoView({ behavior: reducedM() ? 'auto' : 'smooth', block: 'start' }); } catch (e) {}
+            return { kind: 'scroll', label: dir === '~' ? '' : sec.getAttribute('data-term-label') || dir };
           }
-          const href = hrefOf(dir === '~' ? 'home' : dir, '/');
-          return { kind: 'nav', href: href, go: function () { closeAll(function () { navigate(href); }); } };
-        },
-        sudo: function (/** @type {string} */ which, /** @type {string} */ sub) {
-          /* sudo root [reauth|reset]：打开账号终端；sudo styrigx：打开盾牌（进站 v3 L1；锁屏上的 sudo styrigx 在锁屏终端里） */
-          if (which === 'root') {
-            return { href: '~/account', go: function () { closeAll(function () { openAcct(sub === 'reset' ? { reset: true } : sub === 'reauth' ? { layer: acctLayer('security').layer } : {}); }); } };
-          }
-          /* 访客：去主站锁屏跑 sudo styrigx（四站同一条路，进站后回到这一页）；已进站：盾牌 */
-          if (isVisitor(doc)) {
-            const back = location.pathname + location.search + location.hash;
-            return { href: '~/space', go: function () { closeAll(function () { navigate(ENTRY_SUDO_URL + encodeURIComponent(back)); }); } };
-          }
-          return { href: '~/space', go: function () { closeAll(function () { if (sec) openSec(); }); } };
-        },
-        /** ls ~/proxy：来源列表（POST /api/account/proxy status；没登录 / 读不到 → null） @returns {Promise<any[]|null>} */
-        proxyList: function () {
-          const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
-          if (!f) return Promise.resolve(null);
-          return f('/api/account/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status' }), credentials: 'same-origin' })
-            .then(function (/** @type {Response} */ r) { return r.ok ? r.json() : null; })
-            .then(function (/** @type {any} */ j) { return j && j.ok ? j.sources || [] : null; }, function () { return null; });
-        },
-        sub: function (/** @type {string} */ line) {
-          /* sub-*（代理订阅 P2）：到账号终端（tty5）去跑，同 sudo root 切窗口、不跳页 */
-          return { href: '~/account', go: function () { closeAll(function () { openAcct({ run: line }); }); } };
-        },
-        theme: function (/** @type {string} */ mode) {
-          if (!mode) { closeAll(function () { if (qp) qp.ms.open(); }); return; }
-          P.setTheme(/** @type {any} */ (mode === 'auto' ? 'system' : mode));
-          paint();
-        },
-        lock: function () {
-          closeAll(function () {
-            if (o.onLock) o.onLock();
-            else {
-              const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
-              if (f) f(LOCK_NOW_API, { method: 'POST', credentials: 'include' }).then(function (r) { if (r && r.ok) replace(ENTRY_URL); }, function () {});
-            }
-          });
-        },
-        ask: function (/** @type {string} */ q) {
-          closeAll(function () {
-            if (!ai || !aiDlg) return;
-            if (!ai.ms.isOpen()) ai.ms.open();
-            if (!q) return;
-            window.setTimeout(function () {
-              const inp = /** @type {HTMLTextAreaElement|null} */ (aiDlg.querySelector('[data-ai-in]'));
-              const fm = /** @type {HTMLFormElement|null} */ (aiDlg.querySelector('[data-ai-form]'));
-              if (!inp || !fm) return;
-              inp.value = q.slice(0, inp.maxLength > 0 ? inp.maxLength : 200);
-              inp.dispatchEvent(new Event('input', { bubbles: true }));
-              if (fm.requestSubmit) fm.requestSubmit();
-              else fm.dispatchEvent(new Event('submit', { cancelable: true }));
-            }, 0);
-          });
-        },
-        today: function () {
-          const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
-          if (!f) return Promise.reject(new Error('no fetch'));
-          return f('/daymark/api/today', { credentials: 'same-origin' }).then(function (r) {
-            if (!r || !r.ok) throw new Error('http');
-            return r.json();
-          }).then(function (/** @type {any} */ j) {
-            const q = j && j.quote;
-            if (!q || !q.text) return null;
-            const by = [q.author, q.source].filter(Boolean).join(' · ');
-            return { text: String(q.text), by: by ? '— ' + by : '' };
-          });
-        },
-        /** find <词>（v5 S4）：GET /api/find（公开，不走模型）。429 → { limited }；别的失败 → { degraded }（终端打一行固定文案） */
-        find: function (/** @type {string} */ q) {
-          const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
-          if (!f) return Promise.resolve({ degraded: true });
-          const lang = /^zh/i.test(doc.documentElement.lang || '') ? 'zh' : 'en';
-          return f(FIND_API + '?q=' + encodeURIComponent(q) + '&lang=' + lang, { credentials: 'same-origin' }).then(function (/** @type {Response} */ r) {
-            if (r && r.status === 429) return { limited: true };
-            if (!r || !r.ok) return { degraded: true };
-            return r.json();
-          }).then(function (/** @type {any} */ j) { return j && (j.ok || j.limited) ? j : { degraded: true }; }, function () { return { degraded: true }; });
-        },
-        daymarkHref: function () { return hrefOf('daymark', '/daymark/'); },
-        /* open ~/account[/层]、open ~/shield[/层]（终端统一 T6）：打开对应下拉的那一层，不跳页 */
-        account: function (/** @type {string} */ layer) {
-          return { href: '~/account' + (layer ? '/' + layer : ''), go: function () { closeAll(function () { openAcct(layer ? { layer: layer } : {}); }); } };
-        },
-        shield: function (/** @type {string} */ layer) {
-          return { href: '~/shield' + (layer ? '/' + layer : ''), go: function () { closeAll(function () { if (sec) openSec(layer ? { layer: layer } : undefined); }); } };
-        },
-        /* tty <n>：3 盾牌、4 AI 窗口、5 账号下拉（2 = 本终端，不进这里） */
-        tty: function (/** @type {number} */ n) {
-          return {
-            go: function () {
-              closeAll(function () {
-                if (n === 2) openTerm();
-                else if (n === 3) { if (sec) openSec(); }
-                else if (n === 5) openAcct({});
-                else if (n === 4) { if (ai && !ai.ms.isOpen()) ai.ms.open(); }
-              });
-            },
-          };
-        },
+        }
+        const href = hrefOf(dir === '~' ? 'home' : dir, '/');
+        return { kind: 'nav', href: href, go: function () { closeAll(function () { navigate(href); }); } };
+      },
+      /** ls ~/proxy：来源列表（POST /api/account/proxy status；没登录 / 读不到 → null） @returns {Promise<any[]|null>} */
+      proxyList: function () {
+        const f = fetchFn();
+        if (!f) return Promise.resolve(null);
+        return f('/api/account/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status' }), credentials: 'same-origin' })
+          .then(function (/** @type {Response} */ r) { return r.ok ? r.json() : null; })
+          .then(function (/** @type {any} */ j) { return j && j.ok ? j.sources || [] : null; }, function () { return null; });
+      },
+      theme: function (/** @type {string} */ mode) {
+        if (!mode) { closeAll(function () { if (qp) qp.ms.open(); }); return; }
+        P.setTheme(/** @type {any} */ (mode === 'auto' ? 'system' : mode));
+        paint();
+      },
+      ask: function (/** @type {string} */ q) {
+        closeAll(function () {
+          if (!ai || !aiDlg) return;
+          if (!ai.ms.isOpen()) ai.ms.open();
+          if (!q) return;
+          window.setTimeout(function () {
+            const inp = /** @type {HTMLTextAreaElement|null} */ (aiDlg.querySelector('[data-ai-in]'));
+            const fm = /** @type {HTMLFormElement|null} */ (aiDlg.querySelector('[data-ai-form]'));
+            if (!inp || !fm) return;
+            inp.value = q.slice(0, inp.maxLength > 0 ? inp.maxLength : 200);
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            if (fm.requestSubmit) fm.requestSubmit();
+            else fm.dispatchEvent(new Event('submit', { cancelable: true }));
+          }, 0);
+        });
+      },
+      today: function () {
+        const f = fetchFn();
+        if (!f) return Promise.reject(new Error('no fetch'));
+        return f('/daymark/api/today', { credentials: 'same-origin' }).then(function (r) {
+          if (!r || !r.ok) throw new Error('http');
+          return r.json();
+        }).then(function (/** @type {any} */ j) {
+          const q = j && j.quote;
+          if (!q || !q.text) return null;
+          const by = [q.author, q.source].filter(Boolean).join(' · ');
+          return { text: String(q.text), by: by ? '— ' + by : '' };
+        });
+      },
+      /** find <词>（v5 S4）：GET /api/find（公开，不走模型）。429 → { limited }；别的失败 → { degraded }（终端打一行固定文案） */
+      find: function (/** @type {string} */ q) {
+        const f = fetchFn();
+        if (!f) return Promise.resolve({ degraded: true });
+        const lang = /^zh/i.test(doc.documentElement.lang || '') ? 'zh' : 'en';
+        return f(FIND_API + '?q=' + encodeURIComponent(q) + '&lang=' + lang, { credentials: 'same-origin' }).then(function (/** @type {Response} */ r) {
+          if (r && r.status === 429) return { limited: true };
+          if (!r || !r.ok) return { degraded: true };
+          return r.json();
+        }).then(function (/** @type {any} */ j) { return j && (j.ok || j.limited) ? j : { degraded: true }; }, function () { return { degraded: true }; });
+      },
+      daymarkHref: function () { return hrefOf('daymark', '/daymark/'); },
+      /* open ~/account[/层]：打开账号窗口（终端统一 T6） */
+      account: function (/** @type {string} */ layer) {
+        return { href: '~/account' + (layer ? '/' + layer : ''), go: function () { closeAll(function () { openAcct(layer ? { layer: layer } : {}); }); } };
+      },
+      /* exit：收起终端窗口 */
+      close: function () { closeTerm(); },
     };
     term = T.createShell({
       str: T.termStrings(doc),
       cwd: homeTerm ? '~' : ['blog', 'curio', 'daymark', 'wild'].indexOf(curId) >= 0 ? curId : '~',
       act: act,
+      who: who,
     });
-    /* tty4：AI 窗口里以 $ 开头的输入走同一张命令表；自己的 cwd、自己的历史 sgx-term-hist-4（终端统一 T6c） */
+    /* tty4：AI 窗口里以 $ 开头的输入走同一张命令表；自己的 cwd、自己的历史 sgx-term-hist-4（终端统一 T6c；要输入 / 验证的命令提示去终端跑） */
     /** @type {any} */
     let t4 = null;
     term4Of = function () {
-      if (!t4) t4 = { shell: T.createShell({ str: T.termStrings(doc), act: act, histKey: 'sgx-term-hist-4', tty: 'tty4' }), complete: T.complete };
+      if (!t4) t4 = { shell: T.createShell({ str: T.termStrings(doc), act: act, histKey: 'sgx-term-hist-4', who: who }), complete: T.complete };
       return t4;
     };
-    if (homeTerm) homeView = T.mountTermView(homeTerm, term, { autoHelp: true, kh: 'cmdHome' });
+    const coarse = function () { try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
+    const termEl = homeTerm || (termDlg ? termDlg.querySelector('[data-sgx-term]') || termDlg : null);
     if (termDlg && !homeTerm && typeof termDlg.showModal === 'function') {
       const opener = navBtn || /** @type {HTMLElement} */ (doc.body);
-      const coarse = function () { try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
       termSheet = o.modalSheet(termDlg, opener, {
         ms: QP_MS,
         stateKey: 'sgxTerm',
         onOpen: function () {
-          if (!drawerView) drawerView = T.mountTermView(termDlg.querySelector('[data-sgx-term]') || termDlg, term, { kh: 'cmdDrawer', onBack: function () { if (termSheet) termSheet.close(); } });
+          if (who) who.refresh();
           /* 触屏不直接聚焦输入框（会弹键盘 / 桌面版网站下放大），点一下输入行再打字 */
-          if (drawerView && !coarse()) drawerView.focus();
+          if (view && !coarse()) view.focus();
         },
         onClosed: function () {
+          if (view) view.closed();
           const a = doc.activeElement;
           if (!a || a === doc.body || termDlg.contains(a)) { try { opener.focus({ preventScroll: true }); } catch (e) {} }
         },
       });
-      /* 点遮罩（抽屉外）关 */
+      /* 点遮罩（窗口外）关 */
       termDlg.addEventListener('click', function (e) { if (e.target === termDlg && termSheet) termSheet.close(); });
     }
-    /* 上锁的地方要进站（SUDO_EVENT）：打开终端、预填 sudo styrigx。发事件的都是服务端说了没进站（页面标记 locked 或接口 401），
-       页面标记跟着改成 locked，回车时 sudo styrigx 走访客那条路 */
-    doc.addEventListener(SUDO_EVENT, function () {
-      doc.documentElement.setAttribute('data-sgx-lock-session', 'locked');
-      closeAll(function () {
-        if (!homeView) openDrawer();
-        const fill = function (/** @type {number} */ n) {
-          const v = homeView || (termSheet && termSheet.isShown() ? drawerView : null);
-          if (!v) { if (n > 0) window.setTimeout(function () { fill(n - 1); }, 60); return; }
-          v.input.value = SUDO_LINE;
-          v.input.dispatchEvent(new Event('input', { bubbles: true }));
-          v.focus({ scroll: !!homeView });
-        };
-        fill(16);
+    if (termEl) {
+      view = T.mountTerminal(termEl, term, {
+        kh: homeTerm ? 'cmdHome' : 'cmdDrawer',
+        onBack: homeTerm ? undefined : function () { if (termSheet) termSheet.close(); },
+        isShown: function () { return homeTerm ? true : !!(termSheet && termSheet.isShown()); },
+        pmUser: o.pmUser || '',
+        layers: function (/** @type {any} */ line) {
+          const space = o.space && who ? o.space(line, { who: who, close: closeTerm, reload: function () { replace(cleanHere()); } }) : null;
+          const acctTerm = o.accountTerm && who ? o.accountTerm({ S: trSec('account'), line: line, who: who, term: termLink, replace: replace, reload: o.reload }) : null;
+          return { space: space, acct: acctTerm };
+        },
       });
+    }
+    /* 首帧身份按网关注入的页面标记；标了进站（valid）才问服务端细分 link / styrigx / root。标了访客（locked）不用问；
+       没有标记 = 页面没经过网关（本地 / 测试构建），不在加载时问（没有接口，只会多一条 404），等 sudo / 盾牌 / 401 时再问 */
+    if (who && who.get() !== 'nobody') who.refresh();
+    /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 sudo styrigx（不替人回车） */
+    doc.addEventListener(SUDO_EVENT, function () {
+      /* 页面标记跟着改成 locked（AI 窗口锁、听歌等按它画访客态） */
+      doc.documentElement.setAttribute('data-sgx-lock-session', 'locked');
+      if (who) who.drop();
+      showTerm(function () { if (view) view.prefill(SUDO_LINE); });
     });
-    /* Ctrl / ⌘ K：主页聚焦首屏终端；其他页开合抽屉（输入法组字时不理） */
+    /* 旧地址 ?entry=…（分享链接失效时网关回的 /?entry=1、旧书签；v5 S5 起没有锁屏界面）：没进站就打开终端、预填 sudo styrigx；?entry=sudo 直接跑 */
+    const ent = qparam('entry') || qparam('lock');
+    if (ent && view && (!who || who.get() === 'nobody')) {
+      window.setTimeout(function () { showTerm(function () { if (ent === 'sudo') view.run(SUDO_LINE); else view.prefill(SUDO_LINE); }); }, 0);
+    }
+    /* 盾牌：v5 S5 起没有盾牌窗口（S6 改成吉祥物）。点它 = 打开终端；没进站预填 sudo styrigx。旧地址 #sec[=<层>] / [data-sec-open] 同 */
+    const openShield = function () {
+      showTerm(function () {
+        if (!view) return;
+        /* 身份以服务端为准：问过再决定预填不预填（首帧的页面标记可能还是访客） */
+        const w = who ? who.refresh() : Promise.resolve('nobody');
+        w.then(function (/** @type {string} */ x) { if (x === 'nobody' && !view.input.value) view.prefill(SUDO_LINE); });
+      });
+    };
+    if (secBtn) {
+      secBtn.addEventListener('click', function (e) {
+        const me2 = /** @type {MouseEvent} */ (e);
+        if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openShield();
+      });
+    }
+    doc.addEventListener('click', function (e) {
+      const tg = /** @type {Element|null} */ (e.target);
+      const a = tg && tg.closest('[data-sec-open]');
+      if (!a) return;
+      const me2 = /** @type {MouseEvent} */ (e);
+      if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
+      e.preventDefault();
+      openShield();
+    });
+    const secHash = function () {
+      if (!/^#sec(?:=[a-z]*)?$/.test(location.hash || '')) return;
+      try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+      window.setTimeout(openShield, 0);
+    };
+    secHash();
+    window.addEventListener('hashchange', secHash);
+    /* Ctrl / ⌘ K（全站，桌面）：主页聚焦首屏终端；其他页开合终端窗口（输入法组字时不理） */
     doc.addEventListener('keydown', function (e) {
       if (e.isComposing || e.altKey || e.shiftKey || !(e.ctrlKey || e.metaKey) || (e.key !== 'k' && e.key !== 'K')) return;
       e.preventDefault();
-      if (homeView) { closeAll(function () { homeView.focus({ scroll: true }); }); return; }
+      if (homeTerm) { showTerm(); return; }
       if (!termSheet) return;
       if (termSheet.isShown()) termSheet.close();
-      else closeAll(openDrawer);
+      else showTerm();
     });
   }
 
@@ -833,7 +824,7 @@ export function mountTopbar(o) {
   mountClock(doc);
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
-  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, sec: sec && sec.ms, openAccount: function (/** @type {any} */ x) { openAcct(x); }, openShield: function (/** @type {any} */ x) { openSec(x); }, term: termSheet, termShell: term, paint: paint, paintNav: paintNav };
+  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, openAccount: function (/** @type {any} */ x) { openAcct(x); }, term: termSheet, termShell: term, termView: view, who: who, paint: paint, paintNav: paintNav };
 }
 
 /**

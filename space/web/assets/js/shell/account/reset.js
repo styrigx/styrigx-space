@@ -44,8 +44,10 @@ export function mountReset(C) {
             C.resetPending = false;
             C.keyList = [];
             C.toCmd();
-            C.render();
             C.startTick();
+            /* 全站终端（v5 S5，C.inTerm）：没有窗口里的行，提示能敲的命令；账号窗口照旧画 reset 层、列通行密钥 */
+            if (C.inTerm) { C.note('reset.cmds'); return; }
+            C.render();
             C.loadKeys();
           });
         }

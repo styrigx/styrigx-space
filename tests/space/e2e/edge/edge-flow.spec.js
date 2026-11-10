@@ -2,23 +2,23 @@
  * 三站锁屏 / 解锁 / 回跳的端到端回归（真实网关 + 线上路由规则 + 真实域名 + 虚拟认证器）。
  * 测试台见 edge-harness.cjs。每条对应一次真实的用户报告（2026-10-21，三星浏览器录屏）：
  * v5 S3（整站放开）：页面对没进站的人也照常给（网关只注入 data-sgx-lock-session="locked"，不 302 锁屏）；
- *  锁屏只在 /?entry（旧 ?lock）上出现，进站后按 return 回原页。下面各条按这个改写（R1 / P2-3 不再断言 302）。
+ *  v5 S5（终端合一）：锁屏界面删了，旧锁屏地址 /?entry（旧 ?lock）= 打开终端、预填 sudo styrigx；在终端里 sudo styrigx → passkey，
+ *  进站后按 return 回原页。下面「锁屏出现」= 终端输入行被预填了 sudo styrigx（访客入口），「锁屏不出现」= 一次都没预填。
  *
  *  R1 直接打开 blog / daymark → 主站锁屏（带 return）→ 通行密钥 / 分享链接（v5 S1 起取代临时钥匙）都进不去、回不到子站
  *  R2 主站解锁后刷新又出现锁屏
  *  R3 切到别的标签页再切回，主站自己解锁（cookie 一直有效，锁屏是假的）
- *  R4 （P2-3 改写；进站 v3 L1 安全页删了）分享链接进门的人在盾牌里点「进站凭证」→ 命令行 sudo styrigx reauth，只列 passkey / password；全局锁屏不闪
+ *  R4 （P2-3 改写；v5 S5 盾牌并进终端）分享链接进门的人点盾牌 → 终端 nobody@space:~#，钥匙命令先拦一句（不能 reauth / 改凭据）；进站入口不闪
  *  R5 已登录账号点顶栏头像 → 账号页先画「欢迎回来」登录区约 0.5 秒再换成总览；分享链接进门的人打开账号页看到登录页
  *     （2026-11-08 账号 UI 改版：/account/ 301 → 首页 #acct，改验账号终端：已登录直接主页、不出登录选项）
  *  P2-3：带 v1（6 段）cookie 打开任意页 → 访客态（v5 S3 前是 302 锁屏）、不报错、不循环 → 锁屏解锁后回到原页，过程中不清 cookie；
  *        子站分享：新建要锁屏密码 / 通行密钥进的门（分享链接进来的 403 link，v5 S1），列表要 reauth（L1，Q3）。
- *  v5 S1：临时钥匙删除（锁屏 tempkey 入口、盾牌临时钥匙层的前端在 S5 / S8 删，这里不再测它们）；分享链接带的会话 by=link。
+ *  v5 S1：临时钥匙删除（前端入口 S5 删了）；分享链接带的会话 by=link。
  *  另外：立即锁定之后刷新、去子站都必须仍是锁着的；锁定后已打开的已解锁页面切回来要上锁。
  *
  * 运行：SGX_TEST_SUITE=edge npx playwright test --config=tests/config/playwright.config.js
  * （需要先 hugo --minify -s space/web 生产构建；需要 openssl）
  */
-const { lockCmd, lockMode } = require('../helpers/lock-term.cjs');
 const { test, expect } = require('@playwright/test');
 const { startEdge, LAUNCH } = require('../helpers/edge-harness.cjs');
 const { addVirtualAuth } = require('../helpers/preview-helpers.cjs');
@@ -52,13 +52,13 @@ test.beforeEach(async ({ context }) => {
     edge.log.length = 0;
   }
   await context.route((url) => !/^https:\/\/([a-z]+\.)?styrigx\.com\//.test(url.href), (route) => route.abort());
-  /* 记下锁屏有没有出现过（哪怕只闪一下）：R4 要求一次都不能出现 */
+  /* 记下进站入口有没有出现过（哪怕只闪一下）：v5 S5 起 = 终端输入行被预填 sudo styrigx（输入框的值不触发 MutationObserver，轮询看）；R4 要求一次都不能出现 */
   await context.addInitScript(() => {
     window.__sawLock = false;
     window.__sawLogin = false;
     window.__sawMain = false;
     const seen = () => {
-      if (document.getElementById('sgx-entry')) window.__sawLock = true;
+      if (sudoPrefilled()) window.__sawLock = true;
       /* 登录区：节点出现就算（不论是否 hidden）；文案出现也算 */
       /* 只看可见文字：<script> 里的页面字符串表（#sgx-i18n-core 有锁屏的「欢迎回来」，语言包化 2026-11-07）不算 */
       const visibleText = () => {
@@ -73,7 +73,9 @@ test.beforeEach(async ({ context }) => {
       const m = document.getElementById('acct-main');
       if ((m && !m.hidden) || document.querySelector('#sgx-acct .sgx-at[data-at-layer="home"]')) window.__sawMain = true;
     };
+    const sudoPrefilled = () => Array.prototype.some.call(document.querySelectorAll('[data-term-in]'), (el) => el.value === 'sudo styrigx');
     new MutationObserver(seen).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'data-at-layer'] });
+    setInterval(() => { if (sudoPrefilled()) window.__sawLock = true; }, 50);
   });
 });
 
@@ -90,23 +92,47 @@ async function setSession(context, by) {
   await context.addCookies(c);
 }
 
-/* 进站 v3 L1：锁屏 = entry@space 终端，没有方式弹层，等终端输入行可用 */
+/** 当前页的全站终端（v5 S5）：主页是首屏那个 #home-term，其他页是顶栏打开的窗口 #sgx-term */
+const termIn = (page) => page.locator('#home-term-in, #sgx-term[open] #sgx-term-in').first();
+const termOut = (page) => page.locator('#home-term [data-term-out], #sgx-term[open] [data-term-out]').first();
+const termPs = (page) => page.locator('#home-term [data-term-ps], #sgx-term[open] [data-term-ps]').first();
+const termMode = (page) => page.locator('#home-term [data-term-form], #sgx-term[open] [data-term-form]').first();
+
+/* v5 S5：旧锁屏地址 = 打开终端、预填 sudo styrigx（不替人回车），等输入行可用 */
 async function openMethods(page) {
-  await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
-  await expect(page.locator('#sgx-entry-cmd')).toBeEditable({ timeout: 15000 });
+  await expect(termIn(page)).toHaveValue('sudo styrigx', { timeout: 15000 });
+  await expect(termIn(page)).toBeEditable({ timeout: 15000 });
+  await expect(page.locator('#sgx-entry')).toHaveCount(0);
 }
 
-/** 盾牌下拉（styrigx@space:~#）：点顶栏盾牌，等打开 */
+/** 终端里进站：sudo styrigx → [pick] passkey（虚拟认证器） */
+async function unlockPasskey(page) {
+  const inp = termIn(page);
+  await inp.fill('sudo styrigx');
+  await inp.press('Enter');
+  await expect(termMode(page)).toHaveAttribute('data-mode', 'pick', { timeout: 15000 });
+  await inp.fill('passkey');
+  await inp.press('Enter');
+}
+
+/** 盾牌（v5 S5：= 打开终端）：点顶栏盾牌，等终端窗口打开 */
 async function openShield(page) {
   await page.locator('.sgx-tb-shield').click();
-  await expect(page.locator('#sgx-sec')).toHaveAttribute('data-state', 'open', { timeout: 10000 });
+  await expect(page.locator('#sgx-term')).toHaveAttribute('open', '', { timeout: 10000 });
+}
+/** @param {import('@playwright/test').Page} page @param {string} text */
+async function termCmd(page, text) {
+  const inp = termIn(page);
+  await expect(inp).toBeEditable({ timeout: 10000 });
+  await inp.fill(text);
+  await inp.press('Enter');
 }
 
 async function lockShownWithin(page, ms) {
-  // TODO(C8): 「ms 内锁屏一次都没出现」是静默窗口：锁屏由 shell/lock-guard.js 异步向真实网关确认后才决定（自动锁检查还有 5 秒节流），
-  // 「确认完、不上锁」在页面上没有可观察的状态；要确定性就得在生产代码里加完成标记（如 <html data-sgx-lock-checked>）。保留原等待。
+  // TODO(C8): 「ms 内进站入口一次都没出现」是静默窗口：终端身份异步向真实网关确认（自动锁检查还有 5 秒节流），
+  // 「确认完、不预填」在页面上没有可观察的状态；要确定性就得在生产代码里加完成标记。保留原等待。
   await page.waitForTimeout(ms);
-  return page.evaluate(() => window.__sawLock === true || !!document.getElementById('sgx-entry'));
+  return page.evaluate(() => window.__sawLock === true || Array.prototype.some.call(document.querySelectorAll('[data-term-in]'), (el) => el.value === 'sudo styrigx'));
 }
 
 /** 当前锁屏会话的进门方式（/api/lock-session-check 的 by；没进门 = null） */
@@ -119,7 +145,7 @@ async function setReauth(context) {
   await context.addCookies([{ name: 'sgx-space-reauth', value: await edge.mintReauth(), url: MAIN + '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
 }
 
-test('R1 blog 直接打开（v5 S3：公开，网关注入 locked）→ 主站锁屏（?entry=1&return=原页）→ 通行密钥 → 回到 blog 原地址', async ({ page }) => {
+test('R1 blog 直接打开（v5 S3：公开，网关注入 locked）→ 旧锁屏地址（?entry=1&return=原页）= 终端预填 sudo styrigx → 通行密钥 → 回到 blog 原地址', async ({ page }) => {
   await addAuthenticator(page);
   await page.goto(BLOG + '/post/hello/');
   expect(page.url()).toBe(BLOG + '/post/hello/');
@@ -129,7 +155,7 @@ test('R1 blog 直接打开（v5 S3：公开，网关注入 locked）→ 主站�
   await page.goto(MAIN + '/?entry=1&return=' + encodeURIComponent(BLOG + '/post/hello/'));
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
   await openMethods(page);
-  await lockCmd(page, 'sudo styrigx passkey');
+  await unlockPasskey(page);
   await page.waitForURL(BLOG + '/post/hello/', { timeout: 20000 });
   await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT blog');
 });
@@ -166,9 +192,9 @@ test('R2 主站解锁（通行密钥）→ 刷新仍是解锁的', async ({ page
   await addAuthenticator(page);
   await page.goto(MAIN + '/?lock=1');
   await openMethods(page);
-  await lockCmd(page, 'sudo styrigx passkey');
+  await unlockPasskey(page);
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid', { timeout: 20000 });
-  await expect(page.locator('#sgx-entry')).toHaveCount(0);
+  await expect(page.locator('#sgx-entry')).toHaveCount(0, { timeout: 10000 });
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   await page.evaluate(() => { window.__sawLock = false; });
@@ -210,40 +236,45 @@ test('R3 已解锁页面：别的标签页立即锁定后，切回来要上锁�
   await expect(page.locator('#sgx-entry')).toHaveCount(0);
 });
 
-test('立即锁定（盾牌，一点就锁、没有确认层）→ /?entry=1 锁屏 → 刷新仍锁定；子站是访客态（v5 S3：公开，标记 locked）', async ({ page, context }) => {
+test('立即锁定（终端 lock，一敲就锁、没有确认层）→ 同一页重新取（访客态）→ 刷新仍锁定；子站是访客态（v5 S3：公开，标记 locked）', async ({ page, context }) => {
   await setSession(context, 'password');
   await page.goto(MAIN + '/wild/');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'valid');
   await openShield(page);
-  await page.locator('#sgx-sec [data-sh-act="lock"]').click();
-  await page.waitForURL((u) => u.pathname === '/' && u.searchParams.get('entry') === '1', { timeout: 10000 });
-  await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 10000 });
-  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
+  await expect(termPs(page)).toHaveText('styrigx@space:~/wild#', { timeout: 10000 });
+  await termCmd(page, 'lock');
+  await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked', { timeout: 10000 });
+  expect(new URL(page.url()).pathname).toBe('/wild/');
+  expect(await sessionBy(page)).toBe(null);
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
-  await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 10000 });
+  await openShield(page);
+  await expect(termIn(page)).toHaveValue('sudo styrigx', { timeout: 10000 });
   await page.goto(BLOG + '/');
   expect(page.url()).toBe(BLOG + '/');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
   expect(await sessionBy(page)).toBe(null);
 });
 
-test('R4 分享链接进门的人在盾牌点「进站凭证」→ 命令行 sudo styrigx reauth，只列 passkey / password；不出全局锁屏', async ({ page, context }) => {
+test('R4 分享链接进门的人点盾牌 → 终端 nobody@space:~/wild#；sudo -v / lock passkey 先拦一句（不能 reauth / 改凭据）；进站入口不闪', async ({ page, context }) => {
   await setSession(context, 'link');
   await page.goto(MAIN + '/wild/');
   expect(await page.locator('html').getAttribute('data-sgx-role')).toBe(null); // old-name guard
   await openShield(page);
-  await page.locator('#sgx-sec [data-sh-act="keys"]').click();
-  const log = page.locator('#sgx-sec [data-sh-log]');
-  await expect(log).toContainText('sudo styrigx reauth', { timeout: 10000 });
-  await expect(log.locator('[data-term-pick]', { hasText: 'tempkey' })).toHaveCount(0);
-  await expect(page.locator('#sgx-sec .sgx-sh')).toHaveAttribute('data-sh-layer', 'home');
+  await expect(termPs(page)).toHaveText('nobody@space:~/wild#', { timeout: 10000 });
+  for (const c of ['sudo -v', 'lock passkey']) {
+    await termCmd(page, c);
+    await expect(termOut(page).locator('.sgx-term-err').last()).toHaveText('a share-link session can’t do this · enter with your own key', { timeout: 10000 });
+  }
+  await expect(termOut(page).locator('[data-term-pick]')).toHaveCount(0);
   expect(await lockShownWithin(page, 300)).toBe(false);
   await expect(page.locator('#sgx-upgrade-overlay')).toHaveCount(0);
   expect(await sessionBy(page)).toBe('link');
-  /* 旧地址 /security/lock/ → 301 /#sec=keys，同样开盾牌那一层（先 reauth） */
+  /* 旧地址 /security/lock/ → 301 /#sec=keys：打开终端（主页上是首屏那个），hash 去掉，同样不预填 */
   await page.goto(MAIN + '/security/lock/');
-  await expect(page.locator('#sgx-sec')).toHaveAttribute('data-state', 'open', { timeout: 10000 });
+  await expect(page.locator('#home-term [data-term-ps]')).toHaveText('nobody@space:~#', { timeout: 10000 });
   expect(new URL(page.url()).pathname).toBe('/');
+  expect(new URL(page.url()).hash).toBe('');
   expect(await lockShownWithin(page, 300)).toBe(false);
 });
 
@@ -286,7 +317,7 @@ test('P2-3 带 v1 cookie 打开旷野子页 /wild/ 和子站内页 → 访客态
     expect(await page.evaluate(() => fetch('/api/status', { cache: 'no-store' }).then((r) => r.status))).toBe(401);
     await page.goto(MAIN + '/?entry=1&return=' + encodeURIComponent(ret));
     await openMethods(page);
-    await lockCmd(page, 'sudo styrigx passkey');
+    await unlockPasskey(page);
     await page.waitForURL(target, { timeout: 20000 });
     expect(await sessionBy(page)).toBe('passkey');
     await putV1();
@@ -351,9 +382,9 @@ test('R5 对照：进门但没有账号会话 → 账号终端是未登录的 su
 
 test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / 数字健康 / 云同步经网关转发到 styrigx-account，页面和其他接口仍走网关', async ({ page, context }) => {
   edge.log.length = 0;
-  /* 锁着：锁屏头像照常出来（公开），网关转发、由账号 Worker 回（X-SGX-Runtime 保留 account） */
+  /* 锁着（旧锁屏地址 = 终端预填 sudo styrigx）：头像照常出来（公开），网关转发、由账号 Worker 回（X-SGX-Runtime 保留 account） */
   await page.goto(MAIN + '/?entry=1');
-  await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
+  await openMethods(page);
   const av = await page.evaluate(() => fetch('/avatar/96.webp', { cache: 'no-store' }).then((r) => [r.status, r.headers.get('x-sgx-runtime'), r.headers.get('etag')]));
   expect(av).toEqual([200, 'account', '"d-96"']);
   /* 没会话：数字健康合计公开（v5 S3 访问表 public，转发给账号 Worker）；云同步不在表里 → 网关的门先拒，不转发 */
@@ -453,7 +484,7 @@ test.describe('R9 分享短链', () => {
     expect(await sessionBy(page)).toBe(null);
   });
 
-  test('R9 作废 / 过期 / 不存在：同一个结果（锁屏 /?entry=1）；作废带会话的短链后，已进来的人下一页就被锁在外面', async ({ page, context }) => {
+  test('R9 作废 / 过期 / 不存在：同一个结果（旧锁屏地址 /?entry=1 → 终端预填 sudo styrigx）；作废带会话的短链后，已进来的人下一页就被锁在外面', async ({ page, context }) => {
     const live = await makeLink(page, context, { hours: 3, session: 1800 });
     await page.goto(MAIN + live.path);
     expect(await sessionBy(page)).toBe('link');
@@ -480,7 +511,7 @@ test.describe('R9 分享短链', () => {
       page.on('response', h);
       await page.goto(MAIN + p);
       page.off('response', h);
-      await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
+      await openMethods(page);
       finals.push([page.url(), resp.join('|')]);
     }
     for (const f of finals) expect(f).toEqual([MAIN + '/?entry=1', '302 https://styrigx.com/?entry=1 private, no-store']);
@@ -515,7 +546,7 @@ test.describe('R9 分享短链', () => {
 });
 
 /* P4-3 PR-4c：中文浏览器。默认语言的锁屏地址 /?entry=1，首帧语言跳转再换成 /zh/?entry=1（查询串原样带着）；
-   中文地址也要过网关（锁屏页带 data-sgx-lock-session），解锁后照样回到原地址 */
+   中文地址也要过网关（页面带 data-sgx-lock-session），终端里进站后照样回到原地址 */
 test.describe('中文浏览器（首帧语言跳转到 /zh/）', () => {
   test.use({ locale: 'zh-CN' });
 
@@ -526,19 +557,18 @@ test.describe('中文浏览器（首帧语言跳转到 /zh/）', () => {
     expect(new URL(page.url()).searchParams.get('return')).toBe(BLOG + '/post/hello/');
     await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
     await openMethods(page);
-    await lockCmd(page, 'sudo styrigx passkey');
+    await unlockPasskey(page);
     await page.waitForURL(BLOG + '/post/hello/', { timeout: 20000 });
     await expect(page.locator('#sub-content')).toContainText('SUBSITE-CONTENT blog');
   });
 
-  test('R4 分享链接进门的人在 /zh/wild/ 盾牌点「进站凭证」→ sudo styrigx reauth（没有 tempkey 选项），不出全局锁屏', async ({ page, context }) => {
+  test('R4 分享链接进门的人在 /zh/wild/ 点盾牌 → 终端 nobody@space:~/wild#，sudo -v 先拦一句（中文），进站入口不闪', async ({ page, context }) => {
     await setSession(context, 'link');
     await page.goto(MAIN + '/zh/wild/');
     await openShield(page);
-    await page.locator('#sgx-sec [data-sh-act="keys"]').click();
-    const log = page.locator('#sgx-sec [data-sh-log]');
-    await expect(log).toContainText('sudo styrigx reauth', { timeout: 10000 });
-    await expect(log.locator('[data-term-pick]', { hasText: 'tempkey' })).toHaveCount(0);
+    await expect(termPs(page)).toHaveText('nobody@space:~/wild#', { timeout: 10000 });
+    await termCmd(page, 'sudo -v');
+    await expect(termOut(page).locator('.sgx-term-err').last()).toHaveText('分享链接进来的会话不能这样做 · 用自己的钥匙进站', { timeout: 10000 });
     expect(await lockShownWithin(page, 300)).toBe(false);
     expect(await sessionBy(page)).toBe('link');
   });

@@ -1,128 +1,141 @@
 /**
- * Hark：锁屏专用测试（与视觉回归/Lighthouse 分离）。
- * 进站 v3 L1（SPACE-V3 §2.2 A / B，2026-11-09）：锁屏 = 全屏终端 entry@space:~$，没有弹层、没有快捷键按钮。
- * - `sudo styrigx` → [pick] 只列设了的 passkey / password，tempkey 一直在；`sudo styrigx passkey|password|tempkey` 直达
- * - `sudo styrigx reset` → `[sudo] recovery key:` → reset 终端 reset@space:~#（passwd / passkey ls|add|rm / exit），第一次改动后两选
- * - help / man styrigx / clear；不认识的（含旧别名 password / tempkey / reset / cd ..）→ command not found
- * - 三次规则：输错 `Sorry, try again.` 再问；第 3 次 `sudo: 3 incorrect password attempts` 回命令行
- * DOM 是 entry：#sgx-entry*、.sgx-entry-*（shell/space/entry.js、term.js）。接口照旧（/api/lock-*，L2 换 /api/space/*）。
- *
- * 注意：这些测试需要锁屏启用的构建（生产构建）；CI 的 visual/Lighthouse
- * 用 SGX_TEST_NO_LOCK=1 的构建，两者分离。
+ * 进站测试（与视觉回归 / Lighthouse 分离；生产构建，锁屏启用）。
+ * v5 S5 终端合一（term-design-v5「解锁流程」）：锁屏界面 #sgx-entry 删了，进站 = 全站终端里敲 `sudo styrigx`：
+ * - 旧地址 ?entry=1 / ?lock=1：打开终端、预填 sudo styrigx（不替人回车）；?entry=sudo 直接跑；上锁的地方发 sgx:sudo 同样预填
+ * - `sudo styrigx` → [pick] 只列设了的 [1] passkey [2] password（没有 tempkey，也没有 `sudo styrigx password` 直达）
+ * - 验过 → 向服务端确认（/api/lock-session-check）→ 终端收起 → 原进站开机动画 → 回原页（next / 访客态页面重新取一次 / 原地）
+ * - 三次规则：输错 `Sorry, try again.` 再问；第 3 次 `sudo: 3 incorrect password attempts` 回命令行；服务端冷却 → 倒计时行
+ * - `sudo styrigx reset` → `[sudo] recovery key:` → reset@space:~#（passwd / passkey ls|add|rm / man / exit），第一次改动后两选
+ * - 分享链接进来的会话（by=link）：提示符 nobody@space:~#，钥匙命令先拦一句；服务端 403 link → 同一句
+ * 后端都是 page.route 替身；localhost 本地回退（不问服务端）用 ?test-no-local-bypass=1 关掉。
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
-const { ENTRY_URL, gotoLockTerm, lockCmd, lockMode, lockPick, badLine, lastLine } = require('../helpers/lock-term.cjs');
-/* 2026-11 UI 重设计 PR-1：旧截图基线已删除（普通提交，不改历史），新精简基线在重设计最后一个 PR 重拍；
-   在那之前不比截图（SHOTS = false），同一用例里的布局 / 行为断言照跑。重拍时改回 true。 */
-const SHOTS = false;
+const { ENTRY_URL, SEL, gotoLockTerm, lockCmd, lockMode, lockPick, badLine, lastLine } = require('../helpers/lock-term.cjs');
 
-/* Hark：CI 里 networkidle 可能永远等不到，改用 domcontentloaded + 等锁屏元素出现 */
-async function gotoLock(page) {
-  await gotoLockTerm(page, ENTRY_URL);
-}
+/* 截图基线：锁屏截图 2026-11 UI 重设计 PR-1 起不比，v5 S5 也不新拍（终端截图在 visual.spec.js 的顶栏 / 主页那几张） */
+const SHOTS = false;
 const NOBYPASS = ENTRY_URL + '&test-no-local-bypass=1';
-const log = (page) => page.locator('#sgx-entry-log');
-/** 锁屏上不许出现任何弹层（底部弹层、验证对话框、<dialog>） */
+const out = (page) => page.locator(SEL.out);
+const input = (page) => page.locator(SEL.in);
+const ps = (page) => page.locator(SEL.ps);
+/** 进站时不许出现任何别的弹层（底部弹层、验证对话框、终端以外的 <dialog>） */
 async function expectNoPopups(page) {
-  /* 页面自己的抽屉（导航 / 快捷面板 / AI 的 <dialog>）不算：它们在锁屏下面、打不开 */
-  await expect(page.locator('#sgx-method-sheet, .sgx-verify-dlg, .sgx-sheet-backdrop, #sgx-entry dialog, dialog[open]')).toHaveCount(0);
+  await expect(page.locator('#sgx-method-sheet, .sgx-verify-dlg, .sgx-sheet-backdrop, dialog[open]:not(#sgx-term)')).toHaveCount(0);
 }
-/* 只在没选过语言时写 zh（测试里点底部 en 换语言后，下一次导航不再被改回去） */
 const zh = async (page) => page.addInitScript(() => { try { if (!localStorage.getItem('sgx-lang')) localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
 const json = (o, status = 200) => ({ status, contentType: 'application/json', body: JSON.stringify(o) });
+const ENTRY_CFG = (page, cfg = { ok: true, passkey: true, password: true }) => page.route('**/api/lock-entry', (r) => r.fulfill(json(cfg)));
+/** 访客页（网关标记 locked）：页面照常，只在 <html> 上加标记 */
+const asVisitor = (page, path) => page.route((u) => u.pathname === path, async (route) => {
+  const res = await route.fetch();
+  const html = (await res.text()).replace(/<html(\s|>)/, '<html data-sgx-lock-session="locked"$1');
+  await route.fulfill({ response: res, body: html, headers: { ...res.headers(), 'content-type': 'text/html; charset=utf-8' } });
+});
+/** 已进站页（网关标记 valid） */
+const asEntered = (page, path) => page.route((u) => u.pathname === path, async (route) => {
+  const res = await route.fetch();
+  const html = (await res.text()).replace(/<html(\s|>)/, '<html data-sgx-lock-session="valid"$1');
+  await route.fulfill({ response: res, body: html, headers: { ...res.headers(), 'content-type': 'text/html; charset=utf-8' } });
+});
+/** sudo styrigx → [pick] → password → 密码态 @param {import('@playwright/test').Page} page */
+async function toPassword(page) {
+  await lockCmd(page, 'sudo styrigx');
+  await lockMode(page, 'pick');
+  await lockCmd(page, '2');
+  await lockMode(page, 'pw');
+}
 
-test.describe('lock screen', () => {
+test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
+    await zh(page);
   });
 
-  test('?entry=1 forces lock screen on any page', async ({ page }) => {
+  test('?entry=1：不画锁屏，打开终端、预填 sudo styrigx（不替人回车）；提示符 nobody@space:~/wild$，顶栏照常', async ({ page }) => {
     await freezeTime(page);
-    await gotoLock(page);
-    const box = await page.locator('#sgx-entry').boundingBox();
-    expect(box.width).toBeGreaterThan(300);
-    await expect(page.locator('#sgx-entry-ps')).toHaveText('entry@space:~$');
+    let posted = 0;
+    await page.route('**/api/lock-password', (r) => { posted++; return r.fulfill(json({ ok: true })); });
+    await gotoLockTerm(page);
+    await expect(page.locator('#sgx-entry, #sgx-entry-cover')).toHaveCount(0);
+    await expect(input(page)).toHaveValue('sudo styrigx');
+    await expect(input(page)).toBeFocused();
+    await expect(ps(page)).toHaveText('nobody@space:~/wild$');
+    await expect(ps(page)).toHaveAttribute('translate', 'no');
+    await expect(lockMode(page, 'cmd')).resolves.toBeUndefined();
+    await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible();
+    await expectNoPopups(page);
+    expect(posted).toBe(0);
   });
 
-  /* v5 S3 整站放开：访客页（网关标记 locked）内容照常、顶栏照常，不画锁屏；锁屏只在 ?entry 时出现 */
-  const asVisitor = (page, path) => page.route((u) => u.pathname === path, async (route) => {
-    const res = await route.fetch();
-    const html = (await res.text()).replace(/<html(\s|>)/, '<html data-sgx-lock-session="locked"$1');
-    await route.fulfill({ response: res, body: html, headers: { ...res.headers(), 'content-type': 'text/html; charset=utf-8' } });
+  /* 2026-11 UI 重设计 PR-1 起锁屏截图基线不比（SHOTS = false）；CI「Lock screen baseline screenshot」那一步按名字跑这条 */
+  test('entry terminal baseline screenshot', async ({ page }) => {
+    await freezeTime(page);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await gotoLockTerm(page);
+    await expect(input(page)).toHaveValue('sudo styrigx');
+    if (SHOTS) await expect(page).toHaveScreenshot('entry-terminal.png', { animations: 'disabled' });
+  });
+
+  test('?entry=sudo：直接跑 sudo styrigx → [pick]', async ({ page }) => {
+    await ENTRY_CFG(page);
+    await gotoLockTerm(page, '/wild/?entry=sudo');
+    await lockMode(page, 'pick');
+    await expect(out(page)).toContainText('sudo styrigx');
+    await expect(out(page).locator('[data-term-pick]')).toHaveText(['[1] passkey', '[2] password']);
+  });
+
+  test('旧 ?lock=1 也认（旧书签）', async ({ page }) => {
+    await gotoLockTerm(page, '/wild/?lock=1');
+    await expect(input(page)).toHaveValue('sudo styrigx');
+  });
+
+  test('主页 /?entry=1：首屏终端就是全站终端，预填在它的输入行', async ({ page }) => {
+    await page.goto('/?entry=1', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#home-term-in')).toHaveValue('sudo styrigx', { timeout: 15000 });
+    await expect(page.locator('#sgx-entry')).toHaveCount(0);
   });
 
   test('v5 S3：访客页面不画锁屏（没有遮罩、顶栏可见、内容可读）', async ({ page }) => {
-    await asVisitor(page, '/wild/');
-    await page.goto('/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await asVisitor(page, '/zh/wild/');
+    await page.goto('/zh/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
     await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#screen-time')).toBeVisible();
     await expect(page.locator('#sgx-entry, #sgx-entry-cover')).toHaveCount(0);
+    await expect(page.locator(SEL.dlg)).not.toHaveAttribute('open', '');
   });
 
-  test('v5 S3：访客在顶栏终端敲 sudo styrigx → 锁屏（?entry=sudo&return=原页）自动接着跑 sudo styrigx', async ({ page }) => {
-    await zh(page);
+  test('上锁的地方发 sgx:sudo → 终端预填 sudo styrigx → 回车就在这个终端里选方式（不跳锁屏地址）', async ({ page }) => {
     await asVisitor(page, '/zh/wild/');
-    await page.route('**/api/lock-entry', (r) => r.fulfill(json({ ok: true, passkey: true, password: true })));
+    await ENTRY_CFG(page);
     await page.route('**/api/lock-session-check*', (r) => r.fulfill(json({ ok: false }, 401)));
     await page.goto('/zh/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 15000 });
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('sgx:sudo')));
-    const inp = page.locator('#sgx-term [data-term-in]');
-    await expect(inp).toHaveValue('sudo styrigx', { timeout: 8000 });
-    await inp.press('Enter');
-    await page.waitForURL((u) => u.searchParams.get('entry') === 'sudo', { timeout: 10000 });
-    expect(new URL(page.url()).searchParams.get('return')).toBe('/zh/wild/?test-no-local-bypass=1');
-    await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
+    await expect(input(page)).toHaveValue('sudo styrigx', { timeout: 8000 });
+    await input(page).press('Enter');
     await lockMode(page, 'pick');
-    await expect(log(page)).toContainText('sudo styrigx');
+    const u = new URL(page.url());
+    expect(u.pathname + u.search).toBe('/zh/wild/?test-no-local-bypass=1');
   });
+});
 
-  test('lock screen baseline screenshot', async ({ page }) => {
-    await freezeTime(page);
-    await page.setViewportSize({ width: 412, height: 915 });
-    await gotoLock(page);
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    if (SHOTS) await expect(page).toHaveScreenshot('lock-screen.png', { animations: 'disabled' });
-  });
-
-  test('sudo styrigx tempkey on localhost unlocks (local fallback)', async ({ page }) => {
-    await freezeTime(page);
-    /* localhost 本地回退：tempkey 直接进站（本地没有后端，不输临时钥匙） */
-    await gotoLock(page);
-    await lockCmd(page, 'sudo styrigx tempkey');
-    await expect(page.locator('#sgx-entry')).toBeHidden({ timeout: 5000 });
-  });
-
-  test('sudo styrigx password: the same input line becomes `[sudo] password for …:` (masked, password-manager friendly), no popups', async ({ page }) => {
-    await freezeTime(page);
-    await gotoLock(page);
-    const input = page.locator('#sgx-entry-cmd');
-    await expect(input).toHaveAttribute('type', 'text');
-    await expect(input).toHaveAttribute('aria-label', /.+/);
-    await lockCmd(page, 'sudo styrigx password');
-    await lockMode(page, 'pw');
-    await expect(input).toHaveAttribute('type', 'password');
-    await expect(input).toHaveAttribute('autocomplete', 'current-password');
-    await expect(input).toBeFocused();
-    await expect(page.locator('#sgx-entry-pmu')).toHaveAttribute('autocomplete', 'username');
-    await expect(page.locator('#sgx-entry-pmu')).toHaveValue('SpacePassword');
-    await expect(page.locator('#sgx-entry-ps')).toHaveText(/^\[sudo\] password for \S+:\s?$/);
-    await expect(page.locator('#sgx-entry-hint')).toBeVisible();
-    await expect(log(page)).toContainText('entry@space:~$ sudo styrigx password');
-    await expectNoPopups(page);
-  });
-
-  test('sudo styrigx: [pick] lists passkey / password / tempkey as clickable options; picking 2 asks for the password', async ({ page }) => {
+test.describe('sudo styrigx：选方式 / 密码 / 三次规则 / 冷却', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
     await zh(page);
-    await page.route('**/api/lock-entry', (r) => r.fulfill(json({ ok: true, passkey: true, password: true })));
-    await gotoLock(page);
+    await ENTRY_CFG(page);
+  });
+
+  test('[pick] 列出 passkey / password（可点）；不在选项里的说一声接着选；点 2 问密码', async ({ page }) => {
+    await gotoLockTerm(page);
     await lockCmd(page, 'sudo styrigx');
     await lockMode(page, 'pick');
-    await expect(log(page).locator('[data-term-pick]')).toHaveText(['[1] passkey', '[2] password', '[3] tempkey']);
-    await expect(page.locator('#sgx-entry-ps')).toHaveText('选择方式 [1/2/3]:');
-    /* 不在选项里的：说一声、接着选 */
+    await expect(out(page).locator('[data-term-pick]')).toHaveText(['[1] passkey', '[2] password']);
+    await expect(out(page)).not.toContainText('tempkey');
+    await expect(ps(page)).toHaveText('选择方式 [1/2]:');
     await lockCmd(page, '9');
     await expect(badLine(page)).toHaveText('没有这个选项');
     await lockMode(page, 'pick');
@@ -130,7 +143,27 @@ test.describe('lock screen', () => {
     await lockMode(page, 'pw');
   });
 
-  test('wrong password: `Sorry, try again.` and re-prompts; 3rd → `sudo: 3 incorrect password attempts` (mocked API)', async ({ page }) => {
+  test('密码：同一个输入行变成 `[sudo] password for …:`（遮住、密码管理器认得），没有弹层；旧直达 sudo styrigx password → 用法', async ({ page }) => {
+    await freezeTime(page);
+    await gotoLockTerm(page);
+    await expect(input(page)).toHaveAttribute('type', 'text');
+    await expect(input(page)).toHaveAttribute('aria-label', /.+/);
+    await lockCmd(page, 'sudo styrigx password');
+    await expect(lastLine(page)).toContainText('用法：sudo styrigx [reset]');
+    await lockMode(page, 'cmd');
+    await toPassword(page);
+    await expect(input(page)).toHaveAttribute('type', 'password');
+    await expect(input(page)).toHaveAttribute('autocomplete', 'current-password');
+    await expect(input(page)).toBeFocused();
+    await expect(page.locator(SEL.pmu)).toHaveAttribute('autocomplete', 'username');
+    await expect(page.locator(SEL.pmu)).toHaveValue('SpacePassword');
+    await expect(ps(page)).toHaveText(/^\[sudo\] password for \S+:\s?$/);
+    await expect(page.locator(SEL.hint)).toBeVisible();
+    await expect(out(page)).toContainText('nobody@space:~/wild$ sudo styrigx');
+    await expectNoPopups(page);
+  });
+
+  test('输错：`Sorry, try again.` 再问；第 3 次 `sudo: 3 incorrect password attempts` 回命令行；密码不进输出', async ({ page }) => {
     await freezeTime(page);
     let n = 0;
     await page.route('**/api/lock-password', async (route) => {
@@ -138,15 +171,12 @@ test.describe('lock screen', () => {
       if (body.action === 'verify') { n++; await route.fulfill(json({ ok: false, error: 'wrong' }, 403)); } else await route.continue();
     });
     await gotoLockTerm(page, NOBYPASS);
-    await lockCmd(page, 'sudo styrigx password');
-    await lockMode(page, 'pw');
+    await toPassword(page);
     await lockCmd(page, 'wrongpassword123');
     await expect(badLine(page)).toHaveText('Sorry, try again.', { timeout: 10000 });
-    /* 像 sudo 一样再问一次：还在密码态，输入行清空；密码从不出现在终端输出里 */
     await lockMode(page, 'pw');
-    await expect(page.locator('#sgx-entry-cmd')).toHaveValue('');
-    await expect(log(page)).not.toContainText('wrongpassword123');
-    await expect(page.locator('#sgx-entry-st')).toHaveAttribute('data-st', 'sudo');
+    await expect(input(page)).toHaveValue('');
+    await expect(out(page)).not.toContainText('wrongpassword123');
     await lockCmd(page, 'wrong2');
     await expect(badLine(page)).toHaveText('Sorry, try again.');
     await lockMode(page, 'pw');
@@ -154,230 +184,193 @@ test.describe('lock screen', () => {
     await expect(badLine(page)).toHaveText('sudo: 3 incorrect password attempts');
     await lockMode(page, 'cmd');
     expect(n).toBe(3);
-    /* 读屏区域播报同样的出错文字 */
-    await expect(page.locator('#sgx-entry-live')).toContainText('incorrect password attempts');
+    /* 输出区本身是 role=log：读屏会念出错那一行 */
+    await expect(out(page)).toHaveAttribute('role', 'log');
+    await expect(page.locator(SEL.dlg)).toHaveAttribute('open', '');
   });
 
-  /* 临时钥匙：test-no-local-bypass 让 localhost 也走线上逻辑 */
-  test('sudo styrigx tempkey — empty re-asks, wrong key `Sorry, try again.`, right key unlocks (mocked API)', async ({ page }) => {
-    await freezeTime(page);
-    const seen = [];
-    await page.route('**/api/lock-tempkey-unlock', async (route) => {
-      const body = JSON.parse(route.request().postData() || '{}');
-      seen.push(body.code);
-      const ok = body.code === 'abcd-efgh-jkmn';
-      await route.fulfill(json(ok ? { ok: true } : { ok: false, error: 'wrong' }, ok ? 200 : 403));
-    });
-    await zh(page);
+  test('空密码回车：不发请求，还在密码态', async ({ page }) => {
+    let posted = 0;
+    await page.route('**/api/lock-password', (r) => { posted++; return r.fulfill(json({ ok: false, error: 'wrong' })); });
     await gotoLockTerm(page, NOBYPASS);
-    await lockCmd(page, 'sudo styrigx tempkey');
-    await lockMode(page, 'temp');
-    const input = page.locator('#sgx-entry-cmd');
-    await expect(input).toHaveAttribute('type', 'password');
-    await expect(page.locator('#sgx-entry-ps')).toHaveText('tempkey:');
-    await expect(page.locator('#sgx-entry-hint')).toContainText('XXXX-XXXX-XXXX');
-    /* 空着回车：不发请求，还在 tempkey: */
-    await input.press('Enter');
-    await lockMode(page, 'temp');
-    expect(seen).toEqual([]);
-    await lockCmd(page, 'AAAA-BBBB-CCCC');
-    await expect(badLine(page)).toHaveText('Sorry, try again.', { timeout: 10000 });
-    await lockMode(page, 'temp');
-    await expect(input).toHaveValue('');
-    await lockCmd(page, 'abcd-efgh-jkmn');
-    await expect.poll(() => seen.length).toBe(2);
-    await expect(log(page)).not.toContainText('AAAA-BBBB-CCCC');
+    await toPassword(page);
+    await input(page).press('Enter');
+    await lockMode(page, 'pw');
+    await expect(input(page)).toBeFocused();
+    expect(posted).toBe(0);
   });
 
-  test('tempkey cooldown (429): `sudo: 尝试次数太多` + countdown line, back to the prompt (mocked API)', async ({ page }) => {
-    await freezeTime(page);
-    await page.route('**/api/lock-tempkey-unlock', (route) => route.fulfill(json({ ok: false, error: 'cooldown' }, 429)));
-    await zh(page);
-    await gotoLockTerm(page, NOBYPASS);
-    await lockCmd(page, 'sudo styrigx tempkey');
-    await lockCmd(page, 'AAAA-BBBB-CCCC');
-    await expect(log(page)).toContainText('sudo: 尝试次数太多', { timeout: 10000 });
-    await expect(log(page).locator('.sgx-entry-l--d').last()).toHaveText(/› 15 分钟后可再试/);
-    await lockMode(page, 'cmd');
-    await expect(page.locator('#sgx-entry-st')).toHaveAttribute('data-st', 'denied');
-  });
-
-  test('password cooldown (429 retryAfter 30) → countdown in seconds (mocked API)', async ({ page }) => {
+  test('冷却（429 retryAfter 30）→ `sudo: 尝试次数太多` + 秒数倒计时，回命令行', async ({ page }) => {
     await freezeTime(page);
     await page.route('**/api/lock-password', (route) => route.fulfill(json({ ok: false, error: 'cooldown', retryAfter: 30 }, 429)));
-    await zh(page);
     await gotoLockTerm(page, NOBYPASS);
-    await lockCmd(page, 'sudo styrigx password');
+    await toPassword(page);
     await lockCmd(page, 'whatever');
-    await expect(log(page).locator('.sgx-entry-l--d').last()).toHaveText(/› (30|29) 秒后可再试/, { timeout: 10000 });
+    await expect(out(page)).toContainText('sudo: 尝试次数太多', { timeout: 10000 });
+    await expect(out(page).locator('.sgx-at-l--d').last()).toHaveText(/› (30|29) 秒后可再试/, { timeout: 10000 });
     await lockMode(page, 'cmd');
   });
 
-  /* 带 return 进站后，前端问 /api/lock-session-check?return=，照服务端给的 next 跳 */
-  test('unlock with ?return= goes to server-provided next (no reload of the lock URL)', async ({ page }) => {
+  test('凭证清空（lock-entry 全 false）：sudo styrigx 说没设、提示 sudo styrigx reset，回命令行', async ({ page }) => {
+    await page.unroute('**/api/lock-entry');
+    await ENTRY_CFG(page, { ok: true, passkey: false, password: false });
+    await gotoLockTerm(page);
+    await lockCmd(page, 'sudo styrigx');
+    await expect(badLine(page)).toHaveText('还没设解锁密码或通行密钥');
+    await expect(out(page)).toContainText('还没有进站凭证 · sudo styrigx reset');
+    await lockMode(page, 'cmd');
+    await expect(out(page).locator('[data-term-pick]')).toHaveCount(0);
+  });
+});
+
+test.describe('验过之后：服务端确认 → 回原页', () => {
+  test.beforeEach(async ({ page }) => {
+    await blockExternalRequests(page);
+    await zh(page);
+    await ENTRY_CFG(page);
+  });
+
+  test('带 ?return=：问 /api/lock-session-check?return=，照服务端给的 next 跳', async ({ page }) => {
     await freezeTime(page);
     let unlocked = false;
     const checks = [];
-    await page.route('**/api/lock-password', async (route) => {
-      unlocked = true;
-      await route.fulfill(json({ ok: true }));
-    });
+    await page.route('**/api/lock-password', async (route) => { unlocked = true; await route.fulfill(json({ ok: true })); });
     await page.route('**/api/lock-session-check*', async (route) => {
       checks.push(route.request().url());
       if (!unlocked) return route.fulfill(json({ ok: false }, 401));
-      await route.fulfill(json({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/wild/' }));
+      await route.fulfill(json({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: '/blog/' }));
     });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await gotoLockTerm(page, ENTRY_URL + '&return=' + encodeURIComponent('/wild/') + '&test-no-local-bypass=1');
-    await lockCmd(page, 'sudo styrigx password');
-    await lockMode(page, 'pw');
+    await gotoLockTerm(page, ENTRY_URL + '&return=' + encodeURIComponent('/blog/') + '&test-no-local-bypass=1');
+    await toPassword(page);
     await lockCmd(page, 'correctpassword');
-    await page.waitForURL(/\/wild\/$/, { timeout: 10000 });
-    expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/wild/')))).toBe(true);
+    await page.waitForURL((u) => u.pathname.startsWith('/blog/'), { timeout: 10000 });
+    expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/blog/')))).toBe(true);
   });
 
-  test('old ?lock=1 is still read by the guard (old bookmarks)', async ({ page }) => {
-    await page.route('**/api/lock-session-check*', (route) => route.fulfill(json({ ok: false }, 401)));
-    await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
+  test('访客页上进站（没有 next）：终端收起，同一页重新取一次（服务端画进站态），地址去掉 entry', async ({ page }) => {
+    let unlocked = false;
+    await asVisitor(page, '/zh/wild/');
+    await page.route('**/api/lock-password', async (route) => { unlocked = true; await route.fulfill(json({ ok: true })); });
+    await page.route('**/api/lock-session-check*', (route) => (unlocked ? route.fulfill(json({ ok: true, by: 'password', exp: Date.now() + 43200e3, next: null })) : route.fulfill(json({ ok: false }, 401))));
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await gotoLockTerm(page, '/zh/wild/?entry=1&test-no-local-bypass=1');
+    await toPassword(page);
+    await lockCmd(page, 'correctpassword');
+    await page.waitForURL((u) => !u.searchParams.has('entry'), { timeout: 10000 });
+    const u = new URL(page.url());
+    expect(u.pathname + u.search).toBe('/zh/wild/?test-no-local-bypass=1');
   });
 
-  test('lock screen rechecks session on focus (401 keeps lock)', async ({ page }) => {
+  test('服务端没确认（session-check 401，fail-closed）：报错、留在终端、不跳页', async ({ page }) => {
     await freezeTime(page);
-    let fetchCount = 0;
-    await page.route('**/api/lock-session-check*', async (route) => {
-      fetchCount++;
-      await route.fulfill(json({ ok: false }));
-    });
-    const ret = encodeURIComponent('/wild/');
-    await page.goto(ENTRY_URL + '&return=' + ret + '&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
-    /* dispatch focus → recheckSession → fetch → 401 → 锁屏保持 */
-    await page.evaluate(() => window.dispatchEvent(new FocusEvent('focus')));
-    await page.waitForFunction(() => new Promise((resolve) => setTimeout(resolve, 1500)), null, { timeout: 10000 });
-    expect(fetchCount).toBeGreaterThan(0);
-    await expect(page.locator('#sgx-entry')).toBeVisible();
-  });
-
-  test('session-check 401 keeps lock screen (fail-closed): error printed, back to the prompt', async ({ page }) => {
-    await freezeTime(page);
-    await zh(page);
     await page.route('**/api/lock-password', (route) => route.fulfill(json({ ok: true })));
     await page.route('**/api/lock-session-check*', (route) => route.fulfill(json({ ok: false }, 401)));
     await gotoLockTerm(page, NOBYPASS);
-    await lockCmd(page, 'sudo styrigx password');
+    const before = page.url();
+    await toPassword(page);
     await lockCmd(page, 'correctpassword');
     await expect(badLine(page)).toHaveText('会话没有生效，请再试一次', { timeout: 10000 });
-    await expect(page.locator('#sgx-entry')).toBeVisible();
     await lockMode(page, 'cmd');
-    await expect(page.locator('#sgx-entry-st')).toHaveAttribute('data-st', 'denied');
+    await expect(page.locator(SEL.dlg)).toHaveAttribute('open', '');
+    await expect(page.locator('#sgx-entry')).toHaveCount(0);
+    expect(page.url()).toBe(before);
+  });
+
+  test('已进站页面切回前台：问服务端，401 → 重新取这一页（服务端画访客态）', async ({ page }) => {
+    let checks = 0;
+    await asEntered(page, '/zh/wild/');
+    await page.route('**/api/lock-session-check*', async (route) => { checks++; await route.fulfill(json({ ok: false }, 401)); });
+    await page.goto('/zh/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 15000 });
+    const nav = page.waitForEvent('framenavigated', { timeout: 10000 });
+    await page.evaluate(() => window.dispatchEvent(new FocusEvent('focus')));
+    await nav;
+    expect(checks).toBeGreaterThan(0);
+  });
+
+  test('本地回退（localhost，不问服务端）：验过 → 终端收起 → 开机动画放完收掉', async ({ page }) => {
+    await page.route('**/api/lock-password', (route) => route.fulfill(json({ ok: true })));
+    await gotoLockTerm(page);
+    await toPassword(page);
+    await lockCmd(page, 'pw');
+    await expect(out(page)).toContainText('✓ access granted');
+    await expect(page.locator(SEL.dlg)).not.toHaveAttribute('open', '', { timeout: 5000 });
+    await expect(page.locator('#sgx-entry')).toHaveCount(0, { timeout: 8000 });
   });
 });
 
-test.describe('锁屏终端：help / man styrigx / 不认识的命令 / clear / 历史 / ^C / esc', () => {
+test.describe('终端：man / 不认识的命令 / clear / 历史 / ^C / esc', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
     await zh(page);
     await freezeTime(page);
-    await page.route('**/api/lock-entry', (r) => r.fulfill(json({ ok: true, passkey: true, password: true })));
+    await ENTRY_CFG(page);
   });
 
-  test('开屏两行；help 列出 sudo styrigx / sudo styrigx reset / man styrigx；旧别名 → command not found；clear 回到开屏', async ({ page }) => {
-    await gotoLock(page);
-    await expect(log(page).locator('> div')).toHaveText(['styrigx space os 1.0 tty1', '# 输入 sudo styrigx 进站 · help 查看全部命令']);
+  test('访客 man 列 sudo / find，不列 ask / lock / passwd；help 已删 → command not found；clear 清屏', async ({ page }) => {
+    await gotoLockTerm(page);
+    await lockCmd(page, 'man');
+    await expect(out(page)).toContainText('手册页');
+    const lines = await out(page).locator('.sgx-term-ln').allTextContents();
+    const names = lines.filter((l) => / — /.test(l) && !/^space os/.test(l)).map((l) => l.split(' — ')[0].trim());
+    for (const n of ['sudo', 'find', 'man']) expect(names).toContain(n);
+    for (const n of ['ask', 'lock', 'passwd', 'help']) expect(names).not.toContain(n);
+    await input(page).press('q');
     await lockCmd(page, 'help');
-    await expect(log(page).locator('.sgx-entry-w')).toHaveText(['help', 'sudo styrigx', 'sudo styrigx reset', 'man styrigx', 'clear']);
-    await expect(log(page)).toContainText('恢复钥匙只用于 sudo styrigx reset');
-    for (const old of ['password', 'tempkey', 'reset', 'sudo spacekey password', 'cd ..', 'foo bar']) {
-      await lockCmd(page, old);
-      await expect(badLine(page)).toHaveText('command not found: ' + old.split(' ')[0] + ' · try help');
-    }
+    await expect(badLine(page)).toContainText('help');
     await lockCmd(page, 'clear');
-    await expect(log(page).locator('> div')).toHaveText(['styrigx space os 1.0 tty1', '# 输入 sudo styrigx 进站 · help 查看全部命令']);
+    await expect(out(page).locator('> div')).toHaveCount(0);
     await expectNoPopups(page);
   });
 
-  test('man styrigx：STYRIGX(1) NAME / SYNOPSIS（三条命令）/ (END)', async ({ page }) => {
-    await gotoLock(page);
-    await lockCmd(page, 'man styrigx');
-    await expect(log(page)).toContainText('STYRIGX(1)');
-    await expect(log(page)).toContainText('sudo styrigx [passkey | password | tempkey]');
-    await expect(log(page)).toContainText('sudo styrigx reauth [passkey | password]');
-    await expect(lastLine(page)).toHaveText('(END)');
-    await lockMode(page, 'cmd');
+  test('man sudo：SYNOPSIS 有 sudo styrigx / sudo styrigx reset / sudo -v', async ({ page }) => {
+    await gotoLockTerm(page);
+    await lockCmd(page, 'man sudo');
+    await expect(out(page)).toContainText('SUDO(1)');
+    await expect(out(page)).toContainText('sudo styrigx reset');
+    await expect(out(page)).toContainText('sudo -v');
   });
 
-  test('↑ / ↓ 历史；^C 从密码态回到命令行（打印 ^C、标题回「锁定屏幕」）；esc 退出 recovery key', async ({ page }) => {
-    await gotoLock(page);
-    const input = page.locator('#sgx-entry-cmd');
-    await lockCmd(page, 'help');
+  test('↑ / ↓ 历史；^C 从密码态回到命令行（打印 ^C）；esc 退出 recovery key', async ({ page }) => {
+    await gotoLockTerm(page);
+    await lockCmd(page, 'pwd');
     await lockCmd(page, 'clear');
-    await input.press('ArrowUp');
-    await expect(input).toHaveValue('clear');
-    await input.press('ArrowUp');
-    await expect(input).toHaveValue('help');
-    await input.press('ArrowDown');
-    await expect(input).toHaveValue('clear');
-    await input.fill('');
-    await lockCmd(page, 'sudo styrigx password');
-    await lockMode(page, 'pw');
-    await expect(page.locator('#sgx-entry-title')).toHaveText('解锁屏幕');
-    await input.press('Control+c');
+    await input(page).press('ArrowUp');
+    await expect(input(page)).toHaveValue('clear');
+    await input(page).press('ArrowUp');
+    await expect(input(page)).toHaveValue('pwd');
+    await input(page).press('ArrowDown');
+    await expect(input(page)).toHaveValue('clear');
+    await input(page).fill('');
+    await toPassword(page);
+    await input(page).press('Control+c');
     await lockMode(page, 'cmd');
     await expect(lastLine(page)).toContainText('^C');
-    await expect(page.locator('#sgx-entry-title')).toHaveText('锁定屏幕');
     await lockCmd(page, 'sudo styrigx reset');
     await lockMode(page, 'rkey');
-    await input.press('Escape');
+    await input(page).press('Escape');
     await lockMode(page, 'cmd');
+    await expect(page.locator(SEL.dlg)).toHaveAttribute('open', '');
   });
 
-  test('触屏 ^C 键（输入行下面；只在粗指针上显示）= 退出当前命令', async ({ page }) => {
-    await gotoLock(page);
-    await lockCmd(page, 'sudo styrigx password');
-    await lockMode(page, 'pw');
-    await expect(page.locator('#sgx-entry-hint [data-term-cc]')).toBeAttached();
-    await page.locator('#sgx-entry-hint [data-term-cc]').dispatchEvent('click');
-    await lockMode(page, 'cmd');
-  });
-
-  test('焦点不在输入框时直接打字也进输入行', async ({ page }) => {
-    await gotoLock(page);
-    await page.locator('#sgx-entry-cmd').blur();
-    await page.keyboard.type('help');
-    await expect(page.locator('#sgx-entry-cmd')).toBeFocused();
-    await expect(page.locator('#sgx-entry-cmd')).toHaveValue('help');
-  });
-});
-
-test.describe('进站凭证清空态 / 启动站', () => {
-  test('凭证清空（lock-entry 全 false）：sudo styrigx 只列 tempkey + 提示 reset；sudo styrigx password → 未设置 + 可用方式', async ({ page }) => {
-    await blockExternalRequests(page);
-    await zh(page);
-    await freezeTime(page);
-    await page.route('**/api/lock-entry', (route) => route.fulfill(json({ ok: true, passkey: false, password: false })));
-    await gotoLock(page);
-    await lockCmd(page, 'sudo styrigx');
-    await lockMode(page, 'pick');
-    await expect(log(page)).toContainText('还没有进站凭证 · sudo styrigx reset');
-    await expect(log(page).locator('[data-term-pick]')).toHaveText(['[1] tempkey']);
-    await page.locator('#sgx-entry-cmd').press('Control+c');
-    await lockMode(page, 'cmd');
-    await lockCmd(page, 'sudo styrigx password');
-    await expect(badLine(page)).toHaveText('password：未设置');
-    await expect(log(page)).toContainText('可用：sudo styrigx tempkey');
+  test('触屏 ^C 键（输入行下面的注释里）= 退出当前命令', async ({ page }) => {
+    await gotoLockTerm(page);
+    await toPassword(page);
+    await expect(page.locator(SEL.hint + ' [data-term-cc]')).toBeAttached();
+    await page.locator(SEL.hint + ' [data-term-cc]').dispatchEvent('click');
     await lockMode(page, 'cmd');
   });
 });
 
-test.describe('sudo styrigx reset：恢复钥匙 → reset@space:~# → 改 → 两选 → 回锁屏', () => {
+test.describe('sudo styrigx reset：恢复钥匙 → reset@space:~# → 改 → 两选 → 回 nobody', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
     await zh(page);
     await freezeTime(page);
   });
 
-  test('恢复钥匙（SpaceRecoveryKey，不回显）错 → Sorry, try again.；对 → reset@space:~#（不签进站会话）；passwd 两次 → 两选 [1] 全部回锁屏 → finish all → 回 entry@space', async ({ page }) => {
+  test('恢复钥匙（SpaceRecoveryKey，不回显）错 → Sorry, try again.；对 → reset@space:~#；passwd 两次 → 两选 [1] 全部回访客 → finish all → 回 nobody@space', async ({ page }) => {
     const resetBodies = [];
     const pwBodies = [];
     await page.route('**/api/lock-reset', async (route) => {
@@ -390,33 +383,31 @@ test.describe('sudo styrigx reset：恢复钥匙 → reset@space:~# → 改 → 
       pwBodies.push(JSON.parse(route.request().postData() || '{}'));
       await route.fulfill(json({ ok: true }));
     });
-    await gotoLock(page);
+    await gotoLockTerm(page);
     await lockCmd(page, 'sudo styrigx reset');
     await lockMode(page, 'rkey');
-    await expect(page.locator('#sgx-entry-pmu')).toHaveValue('SpaceRecoveryKey');
-    await expect(page.locator('#sgx-entry-cmd')).toHaveAttribute('type', 'password');
-    await expect(page.locator('#sgx-entry-ps')).toHaveText('[sudo] recovery key:');
+    await expect(page.locator(SEL.pmu)).toHaveValue('SpaceRecoveryKey');
+    await expect(input(page)).toHaveAttribute('type', 'password');
+    await expect(ps(page)).toHaveText('[sudo] recovery key:');
     await lockCmd(page, 'sk-wrong');
     await expect(badLine(page)).toHaveText('Sorry, try again.');
     await lockMode(page, 'rkey');
     await lockCmd(page, 'sk-right');
-    await expect(log(page)).toContainText('✓ verified');
+    await expect(out(page)).toContainText('✓ verified');
     await lockMode(page, 'cmd');
-    await expect(page.locator('#sgx-entry-ps')).toHaveText('reset@space:~#');
-    await expect(page.locator('#sgx-entry-st')).toHaveAttribute('data-st', 'reset');
-    await expect(page.locator('#sgx-entry-tty')).toHaveText(/^reset · [23]:\d\d$/);
-    await expect(log(page)).not.toContainText('sk-right');
+    await expect(ps(page)).toHaveText('reset@space:~#');
+    await expect(out(page)).not.toContainText('sk-right');
     await lockCmd(page, 'passwd');
     await lockMode(page, 'newpw');
     await lockCmd(page, 'new-pass-123');
     await lockMode(page, 'newpw2');
     await lockCmd(page, 'new-pass-123');
     await lockMode(page, 'pick');
-    await expect(log(page).locator('[data-term-pick]').last()).toHaveText('[2] 不动');
-    await page.locator('#sgx-entry-cmd').press('Enter'); /* 回车 = [1] 全部回锁屏 */
-    await expect(log(page)).toContainText('所有设备都回锁屏了');
+    await expect(out(page).locator('[data-term-pick]').last()).toHaveText('[2] 不动');
+    await input(page).press('Enter'); /* 回车 = [1] 全部回访客 */
+    await expect(out(page)).toContainText('所有设备都回锁屏了');
     await lockMode(page, 'cmd');
-    await expect(page.locator('#sgx-entry-ps')).toHaveText('entry@space:~$');
+    await expect(ps(page)).toHaveText('nobody@space:~/wild$');
     expect(resetBodies).toEqual([
       { action: 'verify', spaceKey: 'sk-wrong' },
       { action: 'verify', spaceKey: 'sk-right' },
@@ -426,125 +417,55 @@ test.describe('sudo styrigx reset：恢复钥匙 → reset@space:~# → 改 → 
     await expectNoPopups(page);
   });
 
-  test('reset 里没改就 exit → reset end，回锁屏命令行', async ({ page }) => {
+  test('reset 里 man 列 passkey rm <n>；没改就 exit → reset end，回 nobody 命令行', async ({ page }) => {
     const bodies = [];
     await page.route('**/api/lock-reset', async (route) => {
       bodies.push(JSON.parse(route.request().postData() || '{}'));
       await route.fulfill(json({ ok: true }));
     });
-    await gotoLock(page);
+    await gotoLockTerm(page);
     await lockCmd(page, 'sudo styrigx reset');
     await lockCmd(page, 'sk');
-    await expect(page.locator('#sgx-entry-ps')).toHaveText('reset@space:~#');
-    await lockCmd(page, 'help');
-    await expect(log(page)).toContainText('passkey rm <n>');
+    await expect(ps(page)).toHaveText('reset@space:~#');
+    await lockCmd(page, 'man');
+    await expect(out(page)).toContainText('passkey rm <n>');
     await lockCmd(page, 'exit');
-    await expect(page.locator('#sgx-entry-ps')).toHaveText('entry@space:~$');
+    await expect(ps(page)).toHaveText('nobody@space:~/wild$');
     await expect.poll(() => bodies.map((b) => b.action)).toEqual(['verify', 'end']);
   });
 });
 
-test.describe('锁屏版面（头像 → 状态 → 名字 → 欢迎语 → 终端 → 底部 zh · en）', () => {
+test.describe('分享链接进来的会话（by=link）', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
     await zh(page);
   });
 
-  test('版面（锁屏没有顶栏）：头像（不可点）→ 欢迎回来 / 很高兴再次见到你 → 终端（命令输入行）；没有解锁按钮、弹层、时钟', async ({ page }) => {
-    await page.setViewportSize({ width: 412, height: 915 });
-    await gotoLock(page);
-    const lock = page.locator('#sgx-entry');
-    await expect(lock.locator('.sgx-glass-bg')).toHaveCount(1);
-    /* 标题节点还在（entry.js 照写「锁定屏幕 / 解锁屏幕」），但整条顶栏不显示 */
-    await expect(page.locator('#sgx-entry-title')).toHaveText('锁定屏幕');
-    await expect(lock.locator('.sgx-entry-tb')).toBeHidden();
-    await expect(lock.locator('.sgx-wordmark:visible, .sgx-tb-logo:visible, .sgx-tb-btn:visible')).toHaveCount(0);
-    await expect(lock.locator('.sgx-entry-welcome')).toHaveText('欢迎回来');
-    await expect(lock.locator('.sgx-entry-sub')).toHaveText('很高兴再次见到你');
-    await expect(page.locator('#sgx-entry-st')).toHaveAttribute('data-st', 'locked');
-    await expect(lock.locator('button#sgx-entry-avatar, #sgx-entry-avatar[role="button"]')).toHaveCount(0);
-    await expect(lock.locator('[id*="clock"], #sgx-lock')).toHaveCount(0);
-    await expectNoPopups(page);
-    await page.locator('#sgx-entry-avatar').click({ force: true });
-    await expectNoPopups(page);
-    const u = await page.locator('#sgx-entry-avatar').boundingBox();
-    const t = await page.locator('#sgx-entry-term').boundingBox();
-    expect(u.y).toBeGreaterThan(0);
-    expect(u.y + u.height).toBeLessThan(t.y);
-    await expect(page.locator('.sgx-entry-lang')).toHaveText(['zh', 'en']);
-    await expect(page.locator('.sgx-entry-lang[data-lang="zh"]')).toHaveAttribute('aria-current', 'true');
-    /* 提示符不翻译 */
-    await expect(page.locator('#sgx-entry-ps')).toHaveAttribute('translate', 'no');
-  });
-
-  test('英文：Lock screen / Good to see you again / 输入行英文标签', async ({ page }) => {
-    await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
-    await page.goto(ENTRY_URL, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-entry-title')).toHaveText('Lock screen');
-    await expect(page.locator('#sgx-entry .sgx-entry-sub')).toHaveText('Good to see you again');
-    await expect(page.locator('#sgx-entry-cmd')).toHaveAttribute('aria-label', /^Lock screen terminal/);
-  });
-
-  test('底部 zh · en：点 en 写语言偏好并换到英文同一页（entry / return 原样）', async ({ page }) => {
-    await page.goto('/zh/?entry=1&return=' + encodeURIComponent('/wild/'), { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-entry-cmd')).toBeVisible({ timeout: 15000 });
-    await page.click('.sgx-entry-lang[data-lang="en"]');
-    await page.waitForURL((u) => u.pathname === '/' && u.searchParams.get('entry') === '1' && u.searchParams.get('return') === '/wild/', { timeout: 10000 });
-    expect(await page.evaluate(() => localStorage.getItem('sgx-lang'))).toBe('en');
-    await expect(page.locator('#sgx-entry-title')).toHaveText('Lock screen');
-  });
-
-  test('锁定时 NAVIGATE / 外观 / AI 按钮点不到（锁屏盖住整页；AI 浮钮被挤出视口也算点不到）', async ({ page }) => {
-    await page.setViewportSize({ width: 412, height: 915 });
-    await gotoLock(page);
-    await expect(page.locator('#sgx-entry .sgx-entry-tb button, #sgx-entry .sgx-entry-tb a')).toHaveCount(0);
-    for (const sel of ['[aria-controls="sgx-nav"]', '[aria-controls="sgx-qp"]', '[aria-controls="sgx-ai"]', '[aria-controls="sgx-sec"]']) {
-      const btn = page.locator(sel).first();
-      expect(await btn.count()).toBeGreaterThan(0);
-      const box = await btn.boundingBox();
-      if (!box) continue;
-      const hit = await page.evaluate(([x, y]) => {
-        const el = document.elementFromPoint(x, y);
-        return !el || !!el.closest('#sgx-entry');
-      }, [box.x + box.width / 2, box.y + box.height / 2]);
-      expect(hit, sel).toBe(true);
+  test('提示符 nobody@space:~#；sudo -v / share / lock passwd 先拦一句；sudo styrigx 说已进站', async ({ page }) => {
+    await page.route('**/api/lock-session-check*', (r) => r.fulfill(json({ ok: true, by: 'link', exp: Date.now() + 3600e3 })));
+    await gotoLockTerm(page, '/wild/?test-no-local-bypass=1#sec');
+    await expect(ps(page)).toHaveText('nobody@space:~/wild#');
+    for (const c of ['sudo -v', 'share', 'lock passwd']) {
+      await lockCmd(page, c);
+      await expect(badLine(page)).toHaveText('分享链接进来的会话不能这样做 · 用自己的钥匙进站');
     }
+    await lockCmd(page, 'sudo styrigx');
+    await expect(badLine(page)).toContainText('sudo -v');
   });
 
-  test('锁屏底 = 纯色 --sgx-bg-1 + 44px 网格，没有主题色光晕', async ({ page }) => {
-    await page.setViewportSize({ width: 412, height: 915 });
-    await gotoLock(page);
-    const bg = await page.evaluate(() => {
-      const L = document.getElementById('sgx-entry'), g = L.querySelector('.sgx-glass-bg');
-      const probe = document.createElement('div'); probe.style.background = 'var(--sgx-bg-1)'; document.body.appendChild(probe);
-      const bg1 = getComputedStyle(probe).backgroundColor; probe.remove();
-      const before = getComputedStyle(g, '::before'), after = getComputedStyle(g, '::after');
-      return { lock: getComputedStyle(L).backgroundColor, glass: getComputedStyle(g).backgroundColor, bg1,
-        img: before.backgroundImage, size: before.backgroundSize, after: after.content === 'none' || after.content === '' ? 'none' : after.backgroundImage };
-    });
-    expect(bg.lock).toBe(bg.bg1);
-    expect(bg.glass).toBe(bg.bg1);
-    expect(bg.img).toContain('linear-gradient');
-    expect(bg.img).not.toContain('radial-gradient');
-    expect(bg.size).toContain('44px');
-    expect(bg.after).toBe('none');
+  test('服务端回 403 link（前端以为是自己的钥匙）：share 报「分享链接进来的会话不能这样做」', async ({ page }) => {
+    await page.route('**/api/lock-session-check*', (r) => r.fulfill(json({ ok: true, by: 'password', exp: Date.now() + 3600e3 })));
+    await page.route('**/api/lock-reauth', (r) => r.fulfill(json({ ok: true, valid: true, ticket: 'lock-reauth', expiresAt: Date.now() + 170000, password: true, passkey: false })));
+    await page.route('**/api/share', (r) => r.fulfill(json({ ok: false, error: 'link' }, 403)));
+    await gotoLockTerm(page, '/wild/?test-no-local-bypass=1#sec');
+    await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
+    await lockCmd(page, 'share');
+    await expect(badLine(page)).toHaveText('分享链接进来的会话不能这样做');
+    await lockMode(page, 'cmd');
   });
-
-  for (const theme of ['light', 'dark']) {
-    test(`lock screen glass baseline screenshot (${theme})`, async ({ page }) => {
-      await freezeTime(page);
-      await page.setViewportSize({ width: 412, height: 915 });
-      await page.addInitScript((t) => {
-        try { localStorage.setItem('sgx-lang', 'zh'); localStorage.setItem('sgx-theme-mode', t); } catch (e) {}
-      }, theme);
-      await gotoLock(page);
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      if (SHOTS) await expect(page).toHaveScreenshot(`lock-screen-glass-${theme}.png`, { animations: 'disabled' });
-    });
-  }
 });
 
-test.describe('sudo styrigx passkey（mock WebAuthn）', () => {
+test.describe('sudo styrigx → passkey（mock WebAuthn）', () => {
   test.beforeEach(async ({ page }) => {
     await blockExternalRequests(page);
   });
@@ -553,9 +474,8 @@ test.describe('sudo styrigx passkey（mock WebAuthn）', () => {
 
   /** @param {import('@playwright/test').Page} page @param {'zh'|'en'} lang */
   async function setupUnlockMocks(page, lang) {
-    await page.addInitScript((l) => {
-      try { localStorage.setItem('sgx-lang', l); } catch (e) {}
-    }, lang);
+    await page.addInitScript((l) => { try { localStorage.setItem('sgx-lang', l); } catch (e) {} }, lang);
+    await ENTRY_CFG(page);
     await page.route('**/api/lock-passkey', async (route) => {
       let body = {};
       try { body = route.request().postDataJSON() || {}; } catch (e) {}
@@ -583,54 +503,52 @@ test.describe('sudo styrigx passkey（mock WebAuthn）', () => {
   }
 
   for (const lang of ['zh', 'en']) {
-    test(`等待通行密钥（busy + ^C）/ timeout 30000+signal / NotAllowedError →「${lang === 'zh' ? '已取消' : 'cancelled'}」/ 回命令行可重试 [${lang}]`, async ({ page }) => {
+    test(`等待通行密钥（busy + ^C）/ timeout 30000+signal / NotAllowedError →「${lang === 'zh' ? '已取消' : 'cancelled'}」/ 回到选择可改用密码 [${lang}]`, async ({ page }) => {
       const T = lang === 'zh' ? { cancelled: '已取消', wait: '正在唤起通行密钥' } : { cancelled: 'cancelled', wait: 'waiting for passkey' };
-      /* 注意：不能 freezeTime——cancelled 判定依赖 Date.now() 的真实流逝（elapsed≥2s） */
+      /* 不能 freezeTime：cancelled 判定依赖 Date.now() 的真实流逝（elapsed≥2s） */
       await setupUnlockMocks(page, lang);
-      await gotoLock(page);
+      await gotoLockTerm(page);
       await stubWebauthnHang(page);
-      await lockCmd(page, 'sudo styrigx passkey');
+      await lockCmd(page, 'sudo styrigx');
+      await lockMode(page, 'pick');
+      await lockCmd(page, '1');
       await page.waitForFunction(() => !!window.__pkArgs, null, { timeout: 8000 });
-      /* ① get 进行中：终端显示等待，输入行收起（busy），状态 VERIFYING，^C 键在；没有任何弹层 */
+      /* ① get 进行中：终端显示等待，输入行收起（busy），^C 键在；没有任何弹层 */
       await lockMode(page, 'busy');
-      await expect(log(page)).toContainText(T.wait);
-      await expect(page.locator('#sgx-entry-st')).toHaveAttribute('data-st', 'verifying');
-      await expect(page.locator('#sgx-entry-hint [data-term-cc]')).toBeAttached(); /* 触屏才显示（pointer: coarse） */
+      await expect(out(page)).toContainText(T.wait);
+      await expect(page.locator(SEL.hint + ' [data-term-cc]')).toBeAttached();
       await expectNoPopups(page);
       /* ② 传给 get 的 timeout 是 30000，并且顶层带了 signal（不在 publicKey 里） */
       const args = await page.evaluate(() => window.__pkArgs);
       expect(args.timeout, 'timeout 应为 30000').toBe(30000);
       expect(args.hasSignal, '顶层应带 AbortSignal').toBe(true);
       expect(args.signalInPublicKey, 'publicKey 里不应有 signal').toBe(false);
-      /* ③ 2.5s 后抛 NotAllowedError（elapsed≥2s → kind cancelled） */
-      await page.evaluate(() => {
-        setTimeout(() => { window.__pkReject(new DOMException('User cancelled', 'NotAllowedError')); }, 2500);
-      });
-      await expect(log(page)).toContainText(T.cancelled, { timeout: 10000 });
-      /* ④ 直达（sudo styrigx passkey）失败回命令行：可以再敲 sudo styrigx password */
-      await lockMode(page, 'cmd');
-      await lockCmd(page, 'sudo styrigx password');
+      /* ③ 2.5s 后抛 NotAllowedError（elapsed≥2s → cancelled） */
+      await page.evaluate(() => { setTimeout(() => { window.__pkReject(new DOMException('User cancelled', 'NotAllowedError')); }, 2500); });
+      await expect(out(page)).toContainText(T.cancelled, { timeout: 10000 });
+      /* ④ 从选择进来的：失败回到选择（还在这一轮），可以改选 password */
+      await lockMode(page, 'pick');
+      await lockCmd(page, '2');
       await lockMode(page, 'pw');
     });
   }
 });
 
-/* 解锁后开机动画（设计稿 entry-v2/boot.html?from=1）：逐行打印 → 淡入主页；减少动态效果不放；按键 / 点击跳过；没敲凭证（首帧对账）不放。
+/* 解锁后开机动画（原锁屏那一段，v5 S5 起在终端收起之后放）：逐行打印 → 收掉；减少动态效果不放；按键 / 点击跳过；没敲凭证不放。
    这组不冻结时钟：会话时长 = 接口 exp − 页面 Date.now()。 */
 test.describe('解锁后开机动画（unlock boot）', () => {
   const H12 = 12 * 3600e3;
   /** @param {import('@playwright/test').Page} page @param {{by?:string, ttl?:number, valid?:boolean}} [o] */
   async function mockUnlock(page, o = {}) {
     const st = { unlocked: !!o.valid };
-    const ok = (route) => route.fulfill(json({ ok: true }));
-    await page.route('**/api/lock-password', async (r) => { st.unlocked = true; await ok(r); });
-    await page.route('**/api/lock-tempkey-unlock', async (r) => { st.unlocked = true; await ok(r); });
+    await ENTRY_CFG(page);
+    await page.route('**/api/lock-password', async (r) => { st.unlocked = true; await r.fulfill(json({ ok: true })); });
     await page.route('**/api/lock-session-check*', async (route) => {
       if (!st.unlocked) return route.fulfill(json({ ok: false }, 401));
       await route.fulfill(json({ ok: true, by: o.by || 'password', exp: Date.now() + (o.ttl || H12), next: null }));
     });
   }
-  /** 记下开机层出现过几次、每次的行数序列（解锁后锁屏整块会被移除，事后查 DOM 查不到） @param {import('@playwright/test').Page} page */
+  /** 记下开机层出现过几次、每次的行数序列（放完整块会被移除，事后查 DOM 查不到） @param {import('@playwright/test').Page} page */
   async function watchBoot(page) {
     await page.addInitScript(() => {
       /** @type {any} */ (window).__boot = { seen: 0, lines: [], text: '' };
@@ -652,16 +570,16 @@ test.describe('解锁后开机动画（unlock boot）', () => {
     await watchBoot(page);
   });
 
-  test('密码进站 → ✓ access granted → 开机层逐行打印（真实方式与会话时长）→ 淡入主页，焦点回到页面', async ({ page }) => {
+  test('密码进站 → ✓ access granted → 终端收起 → 开机层逐行打印（真实方式与会话时长）→ 收掉', async ({ page }) => {
     await mockUnlock(page, { by: 'password' });
     await gotoLockTerm(page, NOBYPASS);
-    await lockCmd(page, 'sudo styrigx password');
-    await lockMode(page, 'pw');
+    await toPassword(page);
     await lockCmd(page, 'correctpassword');
+    await expect(out(page)).toContainText('✓ access granted');
     const layer = page.locator('#sgx-entry-boot');
     await expect(layer).toBeAttached({ timeout: 10000 });
-    await expect(layer).toHaveAttribute('aria-hidden', 'true');
-    await expect(log(page)).toContainText('✓ access granted');
+    await expect(page.locator('#sgx-entry')).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.locator(SEL.dlg)).not.toHaveAttribute('open', '');
     await expect(page.locator('#sgx-entry')).toHaveCount(0, { timeout: 8000 });
     const rec = await boot(page);
     for (const l of ['> styrigx space os — styrigx@space', '> password verified · session 12h', '> mounting /space/blog ... ok',
@@ -669,42 +587,26 @@ test.describe('解锁后开机动画（unlock boot）', () => {
       expect(rec.text).toContain(l);
     }
     await expect(page.locator('body')).not.toHaveClass(/sgx-entry/);
-    await expect(page.locator('main')).toBeVisible();
     expect(rec.lines.slice(0, 9)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(await page.evaluate(() => document.activeElement === document.body || !!(document.activeElement && document.activeElement.isConnected))).toBe(true);
-    await page.keyboard.press('Tab');
-    expect(await page.evaluate(() => !!document.activeElement && document.activeElement !== document.body && !document.activeElement.closest('#sgx-entry'))).toBe(true);
   });
 
-  test('临时钥匙：写 tempkey verified 和接口给的剩余时长', async ({ page }) => {
-    await mockUnlock(page, { by: 'tempkey', ttl: 2 * 3600e3 });
-    await gotoLockTerm(page, NOBYPASS);
-    await lockCmd(page, 'sudo styrigx tempkey');
-    await lockMode(page, 'temp');
-    await lockCmd(page, 'abcd-efgh-jkmn');
-    await expect(page.locator('#sgx-entry-boot')).toBeAttached({ timeout: 10000 });
-    await expect(page.locator('#sgx-entry')).toHaveCount(0, { timeout: 8000 });
-    expect((await boot(page)).text).toContain('> tempkey verified · session 2h');
-  });
-
-  test('减少动态效果：不出开机层、不逐行，直接短淡出', async ({ page }) => {
+  test('减少动态效果：不出开机层', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await mockUnlock(page);
     await gotoLockTerm(page, NOBYPASS);
-    await lockCmd(page, 'sudo styrigx password');
-    await lockMode(page, 'pw');
+    await toPassword(page);
     await lockCmd(page, 'correctpassword');
+    await expect(page.locator(SEL.dlg)).not.toHaveAttribute('open', '', { timeout: 5000 });
     await expect(page.locator('#sgx-entry')).toHaveCount(0, { timeout: 5000 });
     expect((await boot(page)).seen).toBe(0);
     await expect(page.locator('body')).not.toHaveClass(/sgx-entry/);
   });
 
   for (const how of ['key', 'click']) {
-    test(`动画期间${how === 'key' ? '按任意键' : '点击'}跳过：立刻打完并进主页`, async ({ page }) => {
+    test(`动画期间${how === 'key' ? '按任意键' : '点击'}跳过：立刻打完并收掉`, async ({ page }) => {
       await mockUnlock(page);
       await gotoLockTerm(page, NOBYPASS);
-      await lockCmd(page, 'sudo styrigx password');
-      await lockMode(page, 'pw');
+      await toPassword(page);
       await lockCmd(page, 'correctpassword');
       await page.waitForFunction(() => {
         const b = document.getElementById('sgx-entry-boot');
@@ -723,10 +625,15 @@ test.describe('解锁后开机动画（unlock boot）', () => {
     });
   }
 
-  test('进站前不放：会话本来有效（首帧对账直接通过，没敲凭证）→ 不出开机层', async ({ page }) => {
+  test('会话本来有效（没敲凭证）→ 不出开机层', async ({ page }) => {
     await mockUnlock(page, { valid: true });
-    await page.goto(NOBYPASS, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-entry')).toHaveCount(0, { timeout: 10000 });
+    let checked = 0;
+    await page.route('**/api/lock-session-check*', async (route) => { checked++; await route.fallback(); });
+    await page.goto('/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 10000 });
+    await page.locator('.sgx-tb-shield').click();
+    await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
+    expect(checked).toBeGreaterThan(0);
     expect((await boot(page)).seen).toBe(0);
   });
 });

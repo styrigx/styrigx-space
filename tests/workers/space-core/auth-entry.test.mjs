@@ -68,25 +68,21 @@ const spaceRows = (db) => ({
 
 /* ============ 1. 锁屏入口按配置显示（补充定稿七.1） ============ */
 
-test('认证入口（L1 sudo styrigx）：锁屏能列哪些方式按 /api/lock-entry；只列已配置的密码 / 通行密钥，临时钥匙一直在；读失败按都设了；reset = sudo styrigx reset', async () => {
+test('认证入口（L1 sudo styrigx → v5 S5 终端里）：能列哪些方式按 /api/lock-entry；只列已配置的密码 / 通行密钥（没有临时钥匙了）；读失败按都设了；reset = sudo styrigx reset', async () => {
   const cmds = await import(REPO + '/space/web/assets/js/shell/space/commands.js');
   const paths = fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/paths.js'), 'utf8');
   const api = fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/api.js'), 'utf8');
   /* 配置以服务端 /api/lock-entry 为准，读失败按都设了（fail closed） */
   assert.ok(paths.includes("entry: '/api/lock-entry'"));
   assert.match(api, /export function entryConfig\(\)[\s\S]*?return \{ password: true, passkey: true \};/);
-  assert.deepEqual(cmds.availableKinds({ password: true, passkey: false }, true, true), ['password', 'tempkey']);
-  assert.deepEqual(cmds.availableKinds({ password: false, passkey: true }, true, true), ['passkey', 'tempkey']);
-  assert.deepEqual(cmds.availableKinds({ password: false, passkey: true }, false, true), ['tempkey'], '本机不支持通行密钥不列');
-  assert.deepEqual(cmds.availableKinds(null, true, true), ['passkey', 'password', 'tempkey'], '读不到按都设了');
-  assert.deepEqual(cmds.availableKinds(null, true, false), ['passkey', 'password'], 'reauth 不给临时钥匙');
-  /* 命令：sudo styrigx [passkey|password|tempkey]、sudo styrigx reset；旧别名一律不认 */
-  assert.deepEqual(cmds.parseEntryCmd('sudo styrigx'), { cmd: 'session' });
-  for (const k of ['passkey', 'password', 'tempkey']) assert.deepEqual(cmds.parseEntryCmd('sudo styrigx ' + k), { cmd: 'session', arg: k });
-  assert.deepEqual(cmds.parseEntryCmd('sudo styrigx reset'), { cmd: 'reset' });
-  for (const old of ['reset', 'forgot', 'password', 'pk', 'tempkey', 'sudo spacekey', 'sudo reset', 'cd ..']) {
-    assert.deepEqual(cmds.parseEntryCmd(old), { cmd: 'unknown' }, old);
-  }
+  assert.deepEqual(cmds.availableKinds({ password: true, passkey: false }, true), ['password']);
+  assert.deepEqual(cmds.availableKinds({ password: false, passkey: true }, true), ['passkey']);
+  assert.deepEqual(cmds.availableKinds({ password: false, passkey: true }, false), [], '本机不支持通行密钥不列');
+  assert.deepEqual(cmds.availableKinds(null, true), ['passkey', 'password'], '读不到按都设了');
+  /* 命令：sudo styrigx、sudo styrigx reset（全站终端的 sudo，term/cmds/keys/sudo.js）；锁屏自己的命令解析删了 */
+  assert.equal(cmds.parseEntryCmd, undefined);
+  assert.equal(cmds.CMD.session, 'sudo styrigx');
+  assert.equal(cmds.CMD.reset, 'sudo styrigx reset');
   /* 启动站（什么都没设）也只走 sudo styrigx reset → /api/lock-reset，不再走 /api/space-auth lock-reset；root-session 早删了 */
   const dir = path.join(REPO, 'space/web/assets/js/shell/space');
   for (const f of fs.readdirSync(dir)) {
@@ -168,7 +164,7 @@ test('认证入口：重置锁屏 status 始终可用（不暴露锁屏凭证是
 });
 
 test('认证入口（L1）：reset 终端不再有「重置不可用」，进 reset 不先调 status（恢复钥匙那一行直接出来）', () => {
-  for (const f of ['reset.js', 'entry.js']) {
+  for (const f of ['reset.js', 'layer.js']) {
     const src = fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/space', f), 'utf8');
     assert.ok(!src.includes('重置锁屏不可用') && !src.includes('Reset is not available'), f);
   }

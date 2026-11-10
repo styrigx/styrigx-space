@@ -18,9 +18,7 @@ function lsProxy(x) {
 /** ls [路径]：列目录（目录带 /）；文件就打它的名字 */
 export default {
   name: 'ls',
-  args: ['blog', 'curio', 'daymark', 'wild', 'account', 'shield', 'proxy'],
-  /** @param {any} x */
-  help: function (x) { return [['ls', x.S.dLs]]; },
+  args: ['blog', 'curio', 'daymark', 'wild', 'account', 'proxy'],
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const r = p.args.length ? resolvePath(x.cwd(), p.args[0]) : { path: x.cwd(), dir: true };

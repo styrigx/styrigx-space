@@ -187,13 +187,13 @@ test('9c：lock-passkey 缺 Origin → 403', async () => {
 
 /* ============ 1：管理密钥入口静态检查 ============ */
 
-test('1a（L1）：锁屏是 entry@space 终端，没有方式弹层；配置读 /api/lock-entry；进站 / reset 都是 sudo styrigx 命令', async () => {
-  const entry = fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/entry.js'), 'utf8');
+test('1a（L1 → v5 S5）：没有锁屏界面（进站在全站终端里 sudo styrigx）、没有方式弹层；配置读 /api/lock-entry；进站 / reset 都是 sudo styrigx 命令；没有临时钥匙', async () => {
+  assert.equal(fs.existsSync(path.join(REPO, 'space/web/assets/js/shell/space/entry.js')), false, 'v5 S5：锁屏界面删了');
+  const layer = fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/layer.js'), 'utf8');
   const cmds = await import(path.join(REPO, 'space/web/assets/js/shell/space/commands.js'));
-  assert.ok(!entry.includes('sgx-mopt-'), '锁屏没有方式弹层的行');
-  assert.equal(cmds.PS_ENTRY, 'entry@space:~$');
+  assert.ok(!layer.includes('sgx-mopt-'), '没有方式弹层的行');
   assert.equal(cmds.CMD.session, 'sudo styrigx');
   assert.equal(cmds.CMD.reset, 'sudo styrigx reset');
   assert.ok(fs.readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/paths.js'), 'utf8').includes('/api/lock-entry'), '应从 /api/lock-entry 读取配置');
-  assert.deepEqual(cmds.SESSION_KINDS, ['passkey', 'password', 'tempkey']);
+  assert.deepEqual(cmds.SESSION_KINDS, ['passkey', 'password']);
 });

@@ -1,13 +1,12 @@
 /**
- * @fileoverview 盾牌 → 分享链接（管理页）。Q3 定稿（Gray 2026-11-09 08:00）：「新建」只要进站会话（临时钥匙、分享链接进来的人也能发，
- * 快捷面板「分享本页」不验证）；进管理页一律 reauth（reauth 只认解锁密码 / 通行密钥）——所以这一层要 reauth。原 /security/tempkeys/ 的分享链接一节删了。
+ * @fileoverview 分享链接的终端命令（v5 S5，term-design-v5「分享」：原盾牌「分享链接」层搬进终端）。后端经 api.links.*（/api/share）。
  *
- * - 列表：名字 · 打开的页面 · 剩余 · 带不带会话；作废一条（两步）· 全部作废（两步）
- * - 新建：名字（可空）→ 打开哪一页（回车 = 当前页）→ 链接有效期 → 带不带会话（不超过有效期）→ 链接 + 复制
- * 后端经 api.links.*（share Worker /api/share）。
+ * - share：还有效的链接（[n] 名字 · 页面 · 剩余 · 带不带会话；要 reauth）
+ * - share add：名字（可空）→ 打开哪一页（回车 = 当前页）→ 链接有效期 → 会话档（不超过有效期）→ 链接 + 复制（只要进站会话，不要 reauth）
+ * - share rm <n>：[y/N] 作废一条 · share rm --all：[y/N] 全部作废（都要 reauth）
+ * 分享链接进来的会话（by=link）不能发、不能管：服务端 403 link，终端按身份先拦一句（term/cmds/keys/gate.js）。有效期档保留，不做延期（Gray 16:02–16:03）。
  */
 import { cleanPasskeyName } from '../../auth/passkey-register.js';
-import { shortLeft, copyText } from './tempkeys.js';
 
 /** 链接有效期：[键, 请求, 显示, 毫秒] */
 export const LINK_DURATIONS = Object.freeze([
@@ -18,6 +17,22 @@ export const LINK_DURATIONS = Object.freeze([
 export const LINK_SESSIONS = Object.freeze([['0', 0, 'none'], ['1', 1800, '30m'], ['2', 3600, '1h'], ['3', 12 * 3600, '12h'], ['4', 86400, '1d'], ['5', 7 * 86400, '7d']]);
 const ORIGIN = 'https://styrigx.com';
 
+/** 剩余时间的短写法：12d / 5h / 30m @param {number} ms */
+export function shortLeft(ms) {
+  if (!(ms > 0)) return '0m';
+  if (ms >= 864e5) return Math.floor(ms / 864e5) + 'd';
+  if (ms >= 36e5) return Math.floor(ms / 36e5) + 'h';
+  return Math.max(1, Math.ceil(ms / 6e4)) + 'm';
+}
+
+/** 复制到剪贴板（失败回 false） @param {string} s @returns {Promise<boolean>} */
+export function copyText(s) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(s).then(function () { return true; }, function () { return false; });
+  } catch (e) {}
+  return Promise.resolve(false);
+}
+
 /** 当前页（去掉锁屏 / 回跳 / 分享自己的参数） */
 export function currentTarget() {
   try {
@@ -27,52 +42,54 @@ export function currentTarget() {
   } catch (e) { return '/'; }
 }
 
-/** @param {any} C 盾牌上下文 */
+/** @param {any} C 钥匙层上下文（shell/space/layer.js） */
 export function mountLinks(C) {
   const t = C.t;
   const tf = C.tf;
   const esc = C.esc;
   const api = C.api;
-  /** @type {any[]|null} */ let list = null;
+  /** 最近一次列出的有效链接（rm <n> 的编号对着它） @type {any[]} */
+  let live = [];
 
-  C.renderLinks = function () {
-    C.subHead(t('links.title'));
-    if (!C.reauthLeft()) { C.viewEl.innerHTML = ''; C.foot('reauth.ft'); return; }
-    let h = '<div class="sgx-pop-list">' + C.grp(t('links.listTitle'));
-    const live = (list || []).filter(function (/** @type {any} */ l) { return l.status === 'active'; });
-    if (list === null) h += C.noteP(t('common.loading'));
-    else if (!live.length) h += C.noteP(t('links.none'));
-    else live.forEach(function (/** @type {any} */ l) {
-      const a = C.armed === 'ln:' + l.id;
-      const sub = [l.to, tf('links.left', { t: shortLeft(l.expiresAt - Date.now()) }), l.session ? t('links.withSession') : t('links.plain')].join(' · ');
-      h += C.row({
-        k: l.name || l.to,
-        kHtml: '<span translate="no" data-sgx-personal>' + esc(l.name || l.to) + '</span>',
-        sub: sub,
-        vHtml: (l.path ? '<button type="button" class="sgx-at-acc sgx-at-del" data-sh-act="ln-copy:' + esc(l.id) + '">' + esc(t('common.copy')) + '</button> ' : '') +
-          '<button type="button" class="sgx-at-acc sgx-at-del" data-sh-act="ln:' + esc(l.id) + '">' + esc(a ? t('links.revokeAsk') : t('links.revoke')) + '</button>',
-        armed: a,
-      });
-    });
-    h += C.row({ k: t('links.add'), v: 'share new', act: 'ln-new', cls: 'sgx-pop-row--acc' });
-    if (live.length) {
-      const aa = C.armed === 'ln-all';
-      h += '</div><div class="sgx-pop-list sgx-pop-list--line">' + C.row({ k: t('links.revokeAll'), v: aa ? t('links.revokeAsk') : 'share revoke --all', act: 'ln-all', cls: 'sgx-pop-row--acc', armed: aa });
-    }
-    h += '</div>';
-    C.viewEl.innerHTML = h;
-    C.foot('links.ft');
-  };
-  C.enterLinks = function () { list = null; C.render(); load(); C.startTick(); };
-  function load() {
-    return api.links.list().then(function (/** @type {any} */ res) {
-      if (res.j && res.j.ok) { list = res.j.links || []; if (C.layer === 'links') C.render(); return; }
-      if (!C.authErr(res)) C.err(api.errText(t, res.j && res.j.error, res.s));
-    }, function () { C.err(t('common.errNetwork')); });
+  /** @param {any} res */
+  function fail(res) {
+    if (C.authErr(res)) return;
+    C.err(api.isErr(res, api.ERR.full) ? t('links.full') : api.errText(t, res.j && res.j.error, res.s));
+  }
+  const netErr = function () { C.err(t('common.errNetwork')); C.toCmd(); };
+
+  /** 取有效的链接（不打印） @param {(ok: boolean) => void} then */
+  function load(then) {
+    C.setMode('busy');
+    api.links.list().then(function (/** @type {any} */ res) {
+      C.toCmd();
+      if (res.j && res.j.ok) {
+        live = (res.j.links || []).filter(function (/** @type {any} */ l) { return l.status === 'active'; });
+        then(true);
+        return;
+      }
+      fail(res);
+      then(false);
+    }, function () { netErr(); then(false); });
   }
 
-  function create() {
-    C.echo('share new');
+  /** share：列出 */
+  C.shareList = function () {
+    C.withReauth(function () {
+      load(function (ok) {
+        if (!ok) return;
+        if (!live.length) { C.note(t('links.none')); return; }
+        live.forEach(function (/** @type {any} */ l, /** @type {number} */ i) {
+          const sub = [l.to, tf('links.left', { t: shortLeft(l.expiresAt - Date.now()) }), l.session ? t('links.withSession') : t('links.plain')].join(' · ');
+          C.out('<span class="sgx-at-p">[' + (i + 1) + ']</span> <span translate="no" data-sgx-personal>' + esc(l.name || l.to) + '</span> <span class="sgx-at-dim">· ' + esc(sub) + '</span>' +
+            (l.path ? ' <span class="sgx-at-w" translate="no">' + esc(ORIGIN + l.path) + '</span>' : ''));
+        });
+      });
+    }, t('reauth.lead.links'));
+  };
+
+  /** share add：名字 → 页面 → 有效期 → 会话档 → 新建 */
+  C.shareAdd = function () {
     const here = currentTarget();
     C.out(esc(t('links.nameAsk')) + ':');
     C.ask('pkname', function (/** @type {string} */ v) {
@@ -102,14 +119,10 @@ export function mountLinks(C) {
                     C.ok('✓ ' + t('links.created'));
                     C.out('<span class="sgx-at-w" translate="no">' + esc(url) + '</span>');
                     copyText(url).then(function (ok) { if (ok) C.note(t('common.copied')); });
-                    list = null;
-                    C.render();
-                    load();
                     return;
                   }
-                  if (C.authErr(res)) return;
-                  C.err(api.isErr(res, api.ERR.full) ? t('links.full') : api.errText(t, res.j && res.j.error, res.s));
-                }, function () { C.err(t('common.errNetwork')); C.toCmd(); });
+                  fail(res);
+                }, netErr);
               };
             });
             C.pick(ps, '0');
@@ -118,51 +131,57 @@ export function mountLinks(C) {
         C.pick(pd, '2');
       }, { ps: '>', hint: t('links.toHint') });
     }, { ps: '>', hint: t('links.nameHint') });
-  }
-  /** @param {string} id */
-  function revoke(id) {
-    const a = 'ln:' + id;
-    if (C.armed !== a) { C.armed = a; C.render(); return; }
-    C.armed = '';
-    api.links.revoke(id).then(function (/** @type {any} */ res) {
-      if (res.j && res.j.ok) { C.ok('✓ ' + t('links.revoked')); list = null; C.render(); load(); return; }
-      if (C.authErr(res)) return;
-      C.err(api.errText(t, res.j && res.j.error, res.s));
-      C.render();
-    }, function () { C.err(t('common.errNetwork')); });
-  }
-  function revokeAll() {
-    if (C.armed !== 'ln-all') { C.armed = 'ln-all'; C.render(); return; }
-    C.armed = '';
-    const ids = (list || []).filter(function (/** @type {any} */ l) { return l.status === 'active'; }).map(function (/** @type {any} */ l) { return l.id; });
-    C.echo('share revoke --all');
-    C.setMode('busy');
-    /** 一条一条作废（L2 加 revoke-all 动作） @param {number} i @param {number} n */
-    const next = function (i, n) {
-      if (i >= ids.length) { C.toCmd(); C.ok('✓ ' + tf('links.revokedAll', { n: n })); list = null; C.render(); load(); return; }
-      api.links.revoke(ids[i]).then(function (/** @type {any} */ res) {
-        if (res.j && res.j.ok) { next(i + 1, n + 1); return; }
-        C.toCmd();
-        if (C.authErr(res)) return;
-        C.err(api.errText(t, res.j && res.j.error, res.s));
-        list = null;
-        load();
-      }, function () { C.toCmd(); C.err(t('common.errNetwork')); });
-    };
-    next(0, 0);
+  };
+
+  /** [y/N]（回车 = N） @param {string} ask @param {() => void} yes */
+  function yn(ask, yes) {
+    C.out(esc(ask) + ' [y/N]');
+    C.pick({
+      y: function () { C.echoPick('y'); yes(); },
+      n: function () { C.echoPick('n'); C.toCmd(); },
+    }, 'n', { ps: '[y/N]' });
   }
 
-  /** @param {string} a @returns {boolean} */
-  C.actLinks = function (a) {
-    if (C.layer !== 'links') return false;
-    if (a === 'ln-new') { create(); return true; }
-    if (a === 'ln-all') { revokeAll(); return true; }
-    if (a.indexOf('ln-copy:') === 0) {
-      const l = (list || []).find(function (/** @type {any} */ x) { return x.id === a.slice(8); });
-      if (l && l.path) copyText(ORIGIN + l.path).then(function (ok) { if (ok) C.ok('✓ ' + t('common.copied')); else C.err(t('common.copyFail')); });
-      return true;
-    }
-    if (a.indexOf('ln:') === 0) { revoke(a.slice(3)); return true; }
-    return false;
+  /** share rm <n> @param {number} n */
+  C.shareRm = function (n) {
+    C.withReauth(function () {
+      load(function (ok) {
+        if (!ok) return;
+        const l = live[n - 1];
+        if (!l) { C.err(t('links.noSuch')); C.note(t('links.lsFirst'), 'share'); return; }
+        yn(tf('links.rmAsk', { n: l.name || l.to }), function () {
+          C.setMode('busy');
+          api.links.revoke(l.id).then(function (/** @type {any} */ res) {
+            if (res.j && res.j.ok) { C.ok('✓ ' + t('links.revoked')); live = []; C.toCmd(); return; }
+            fail(res);
+            C.toCmd();
+          }, netErr);
+        });
+      });
+    }, t('reauth.lead.links'));
+  };
+
+  /** share rm --all：一条一条作废 */
+  C.shareRmAll = function () {
+    C.withReauth(function () {
+      load(function (ok) {
+        if (!ok) return;
+        if (!live.length) { C.note(t('links.none')); return; }
+        const ids = live.map(function (/** @type {any} */ l) { return l.id; });
+        yn(tf('links.rmAllAsk', { n: ids.length }), function () {
+          C.setMode('busy');
+          /** @param {number} i @param {number} k */
+          const next = function (i, k) {
+            if (i >= ids.length) { C.toCmd(); C.ok('✓ ' + tf('links.revokedAll', { n: k })); live = []; return; }
+            api.links.revoke(ids[i]).then(function (/** @type {any} */ res) {
+              if (res.j && res.j.ok) { next(i + 1, k + 1); return; }
+              C.toCmd();
+              fail(res);
+            }, netErr);
+          };
+          next(0, 0);
+        });
+      });
+    }, t('reauth.lead.links'));
   };
 }

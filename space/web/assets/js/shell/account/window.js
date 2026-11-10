@@ -1,5 +1,7 @@
 /**
- * @fileoverview 账号终端外壳（头像下拉，2026-11-08 账号 UI 改版，设计稿 acct-sec-redraw mock v3 / OPEN.md O1–O22 / acct-naming PROPOSAL §1.1）。
+ * @fileoverview 账号窗口（头像下拉，2026-11-08 账号 UI 改版，设计稿 acct-sec-redraw mock v3 / OPEN.md O1–O22 / acct-naming PROPOSAL §1.1）。
+ * v5 S5（终端合一）不动这个窗口：外观、各层、自带的命令行都照旧；全站终端里另有同一套账号命令（cmd/layer.js，共用 session / reauth / reset / api），
+ * 两边的登录状态经 who（终端身份）同步。
  *
  * 没有 /account/ 整页了（O1）：账号总览、登录、重置、个人资料、设备、账号安全、应用授权、奇趣 / 日刻的授权同意，都在这一张下拉里一层层进（O2，‹ 返回）。
  * 每一层底下是同一个终端：一行真输入框 + 输出区（同锁屏的写法：输入不回显、可粘贴，没有显示密码的小眼睛，O10）。
@@ -17,9 +19,8 @@ import { suggest } from '../suggest.js';
 import { flatStrings } from '../term/core/strings.js';
 import { createInputLine } from '../term/view/input-line.js';
 import { completerOf } from '../term/core/complete.js';
-import { TTY5_TABLE } from '../term/cmds/index-tty5.js';
 import * as api from './api.js';
-import { CMD, PS_GUEST, PS_ROOT, PS_RESET, LAYERS, LAYER_PATH, normCmd, parseCmd, layerFromPath } from './commands.js';
+import { CMD, PS_GUEST, PS_ROOT, PS_RESET, LAYERS, LAYER_PATH, WINDOW_TABLE, normCmd, parseCmd, layerFromPath } from './commands.js';
 import { mountSession } from './session.js';
 import { mountReauth } from './reauth.js';
 import { mountReset } from './reset.js';
@@ -75,9 +76,10 @@ export { layerFromPath };
  *   S: any,
  *   replace: (href: string) => void,
  *   reload?: () => void,
- * }} o S = 外壳字符串表的 account 节（嵌套）
+ *   who?: { setAccount: (on: boolean) => void } | null,
+ * }} o S = 外壳字符串表的 account 节（嵌套）；who = 全站终端的身份（登录状态变了同步提示符，没有终端的页面不传）
  */
-export function mountAccountTerm(o) {
+export function mountAccountWindow(o) {
   const dlg = o.dlg;
   const doc = dlg.ownerDocument || document;
   const S = flatStrings(o.S || {});
@@ -199,7 +201,7 @@ export function mountAccountTerm(o) {
     },
     secretModes: ['pw', 'rkey', 'newpw', 'newpw2', 'suburl'],
     /* tty5：Tab 补全 + 历史落 sessionStorage（终端统一 T4；以前没有历史） */
-    complete: completerOf(TTY5_TABLE),
+    complete: completerOf(WINDOW_TABLE),
     histKey: 'sgx-term-hist-5',
     ctrlL: false,
     inputmode: false,
@@ -246,6 +248,7 @@ export function mountAccountTerm(o) {
     C.st = s;
     dlg.setAttribute('data-acct-state', s);
     try { doc.documentElement.setAttribute('data-sgx-account-session', s === 'in' ? 'in' : 'out'); } catch (e) {}
+    if (s && o.who) o.who.setAccount(s === 'in');
     if (C.mode === 'cmd') psEl.textContent = C.ps();
   };
   C.reauthLeft = function () { return C.reauthExp > Date.now() ? C.reauthExp - Date.now() : 0; };

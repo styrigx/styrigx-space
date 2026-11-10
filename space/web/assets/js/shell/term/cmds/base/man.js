@@ -8,7 +8,7 @@ import { ROOT_COMMAND, ADMIN_COMMAND } from '../../core/parse.js';
  */
 export default {
   name: 'man',
-  /** 补全候选由宿主在登记后填（= 这个 tty 的命令名） */
+  /** 补全候选由命令表登记后填（cmds/index.js：全部命令名） */
   args: /** @type {string[]} */ ([]),
   /** @param {any} p @param {any} x */
   run: function (p, x) {

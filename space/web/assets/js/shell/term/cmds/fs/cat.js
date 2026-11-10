@@ -4,8 +4,6 @@ import { resolvePath } from './tree.js';
 export default {
   name: 'cat',
   args: ['daymark/today'],
-  /** @param {any} x */
-  help: function (x) { return [['cat', x.S.dCat]]; },
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     if (!p.args[0]) return { out: [x.k.plain(x.S.usageCat)] };

@@ -8,7 +8,6 @@ import { suggest } from './suggest.js';
 /**
  * @param {{
  *   registry: ReturnType<typeof import('./registry.js').createRegistry>,
- *   tty?: string,
  *   x: any,
  *   suggestions: string[],
  *   notFound: (p: {cmd: string, args: string[], rest: string}, sg: string) => any,
@@ -21,7 +20,7 @@ export function createEngine(o) {
     exec: function (line) {
       const p = parse(line);
       if (!p) return o.empty();
-      const c = o.registry.get(p.cmd, o.tty);
+      const c = o.registry.get(p.cmd);
       if (c) return c.run(p, o.x, line);
       return o.notFound(p, suggest(line, o.suggestions));
     },

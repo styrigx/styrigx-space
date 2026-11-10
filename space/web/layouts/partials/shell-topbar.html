@@ -18,9 +18,9 @@
      mainOrigin  主站项（origin 为 styrigx.com、不是子站的项）地址前缀：主站不传（同源相对 /）；子站传 https://styrigx.com
      icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term tb-chat lock tb-undo share tb-send tb-newchat tb-history
      wordmark    字标 SVG（partials/shell-wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
-     security    盾牌链接（没 JS / 中键时的去处：主站首页 #sec，当前语言；普通点击打开盾牌下拉 #sgx-sec）
+     security    盾牌链接（没 JS / 中键时的去处：主站首页 #sec，当前语言；普通点击打开终端 #sgx-term，v5 S5 起没有盾牌下拉）
      status      NAVIGATE 底部「systemctl status」链接：主站服务状态页（当前语言）
-     acct        头像链接（没 JS / 中键时的去处：/account/ → 301 首页 #acct；普通点击打开账号终端 #sgx-acct）；avatar 头像图片地址（顶栏头像 + AI 窗口头部 + 账号下拉）
+     acct        头像链接（没 JS / 中键时的去处：/account/ → 301 首页 #acct；普通点击打开账号窗口 #sgx-acct，没登录时在终端里 sudo root）；avatar 头像图片地址（顶栏头像 + AI 窗口头部 + 账号下拉）
      name / nick 账号下拉头部的姓名 / 昵称默认值（data/profile.yaml；运行时 topbar.js 再用本机缓存 sgx-profile 覆盖）
      email       对外联系邮箱（AI 窗口底部「联系我」的 mailto；主站传 data/profile.yaml 的 email，子站传 nav.json 的 me.email；
                  运行时 ai.js 再用本机缓存 sgx-profile 里改过的邮箱覆盖）
@@ -36,8 +36,8 @@
     <div class="sgx-tb-pill{{ with .pillClass }} {{ . }}{{ end }}">{{ .center | safeHTML }}</div>
     <div class="sgx-tb-acts">
       <button type="button" class="sgx-tb-btn sgx-tb-quick" aria-label="{{ $t.topbar.theme }}" title="{{ $t.topbar.theme }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ index $i "tb-palette" | safeHTML }}</button>
-      {{- /* 盾牌 / 头像：仍是链接（没 JS、中键 / Ctrl 点去首页 #sec / #acct）；普通点击由 topbar-panel.js 改成开下拉面板 #sgx-sec / #sgx-acct */}}
-      <a class="sgx-tb-btn sgx-tb-shield" href="{{ .security }}" aria-label="{{ $t.topbar.security }}" title="{{ $t.topbar.security }}" aria-haspopup="dialog" aria-controls="sgx-sec" aria-expanded="false">{{ index $i "tb-shield" | safeHTML }}</a>
+      {{- /* 盾牌 / 头像：仍是链接（没 JS、中键 / Ctrl 点去首页 #sec / #acct）；普通点击由 topbar-panel.js 接：盾牌打开终端 #sgx-term（v5 S5），头像开账号窗口 #sgx-acct */}}
+      <a class="sgx-tb-btn sgx-tb-shield" href="{{ .security }}" aria-label="{{ $t.topbar.security }}" title="{{ $t.topbar.security }}" aria-haspopup="dialog" aria-controls="sgx-term">{{ index $i "tb-shield" | safeHTML }}</a>
       <span class="sgx-tb-sep" aria-hidden="true"></span>
       <button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="{{ $t.topbar.sites }}" title="{{ $t.topbar.sites }}" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">{{ index $i "tb-term" | safeHTML }}</button>
       <a class="sgx-tb-av" href="{{ .acct }}" aria-label="{{ $t.topbar.account }}" title="{{ $t.topbar.account }}" aria-haspopup="dialog" aria-controls="sgx-acct" aria-expanded="false"><img src="{{ .avatar }}" alt="" width="30" height="30" class="sgx-tb-avatar" data-sgx-avatar="192"></a>
@@ -132,9 +132,9 @@
     <p class="sgx-ai-foot"><span><span class="sgx-ai-err">{{ $t.topbar.mayErr }}</span><span class="sgx-ai-dot" aria-hidden="true"> · </span><span class="sgx-ai-scope" data-ai-scope>{{ $t.topbar.publicOnly }}</span></span><a class="sgx-ai-contact" data-ai-contact title="{{ $t.topbar.contact }}"{{ with .email }} href="mailto:{{ . }}"{{ end }}>{{ with .email }}<span data-ai-email translate="no" data-sgx-personal>{{ . }}</span>{{ else }}{{ $t.topbar.contact }}{{ end }}</a></p>
   </div>
 </dialog>
-{{- /* 账号下拉 = 账号终端（2026-11-08 账号 UI 改版，设计稿 acct-sec-redraw mock v3）：头像点开。没有 /account/ 整页了（OPEN O1），
-   登录（sudo root）/ 再验证（sudo root reauth）/ 重置（sudo root reset）/ 个人资料 / 设备 / 账号安全 / 应用授权 / 奇趣日刻授权同意都在这张下拉里一层层进。
-   内容全由 shell/account/term.js 第一次打开时画（文案在 .shell.account，四站同一份）；这里只放面板骨架和没 JS 时的一行字。
+{{- /* 账号窗口（头像点开；v5 S5 起它自带的终端并进全站终端 #sgx-term）：已登录时的总览（个人资料 › · 设备 · 账号安全 · 应用授权 · 退出登录）和个人资料编辑，
+   设备 / 账号安全 / 应用授权 / 退出登录点了跳终端跑 device / passkey / app / exit；没登录点头像 = 终端里 sudo root。
+   内容由 shell/account/window.js 画（文案在 .shell.account，四站同一份）；这里只放面板骨架和没 JS 时的一行字。
    旧地址 /account/* 由 static/_redirects 301 到本语言首页 #acct=<层>，topbar-panel.js 打开对应那一层。 */ -}}
 <dialog id="sgx-acct" class="sgx-qp sgx-pop sgx-acct" aria-label="{{ $t.topbar.account }}" data-acct-state="">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
@@ -145,25 +145,19 @@
      shell/account/grants.js 按 data-app 取；template 不渲染、不占位 */}}
   <template data-acct-app-icons>{{ range slice "curio" "daymark" }}<i data-app="{{ . }}">{{ index $i (printf "nav-%s" .) | safeHTML }}</i>{{ end }}</template>
 </dialog>
-{{- /* 盾牌下拉 = 进站命令行（进站 v3 L1，SPACE-V3 §2.2 C）：盾牌点开。提示符 styrigx@space:~#、sudo styrigx reauth；
-   行：进站凭证 › · 临时钥匙 › · 分享链接 ›（都要 reauth）· 立即锁屏（不验证）。内容全由 shell/space/shield.js 第一次打开时画（文案在 .shell.space）；
-   这里只放面板骨架和没 JS 时的一行字。旧地址 /security/* 由 static/_redirects 301 到本语言首页 #sec[=<层>]，topbar-panel.js 打开对应那一层。 */ -}}
-<dialog id="sgx-sec" class="sgx-qp sgx-pop sgx-sec" aria-label="{{ $t.topbar.security }}">
-  <div class="sgx-qp-sheet" tabindex="-1" autofocus>
-    <div class="sgx-nav-h sgx-pop-gh"><span translate="no"><b aria-hidden="true">$</b> SECURITY</span><span translate="no">styrigx@space</span></div>
-    <p class="sgx-pop-dim">{{ $t.space.common.opening }}</p>
-  </div>
-</dialog>
-{{- /* 全站终端抽屉（2026-11 PR-2，设计稿 term-v1）：Ctrl / ⌘ K 或 NAVIGATE 页脚的「Ctrl K 终端 ›」打开，Esc 关；引擎 shell/terminal.js（主页首屏嵌入的终端用同一套标记、同一个引擎实例） */}}
+{{- /* 全站终端（v5 S5 终端合一：原锁屏 / 主页 / 盾牌 / 账号的终端合成这一个；桌面居中大窗、手机整块卡片）：Ctrl / ⌘ K、NAVIGATE 页脚的「Ctrl K 终端 ›」、盾牌打开，Esc 关；
+   引擎 shell/terminal.js（主页首屏嵌入的终端用同一套标记）。提示符首帧写访客，JS 按身份（服务端说的）重画；输入行带给密码管理器的隐藏用户名（输解锁 / 账号密码时用） */}}
 <dialog id="sgx-term" class="sgx-term-dlg" aria-label="{{ $t.term.drawer }}">
   <div class="sgx-term sgx-term--drawer" data-sgx-term="drawer">
-    <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><b class="sgx-term-title" data-term-title translate="no"><span class="sgx-envps-g">styrigx@space: ~</span><span class="sgx-envps-r">root@account: ~</span></b><em class="sgx-term-hint" aria-hidden="true">{{ $t.term.hintShort }}</em></div>
+    <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><b class="sgx-term-title" data-term-title translate="no">nobody@space: ~</b><em class="sgx-term-hint" aria-hidden="true">{{ $t.term.hintShort }}</em></div>
     <div class="sgx-term-body" data-term-body>
-      <div class="sgx-term-out" data-term-out role="log" aria-live="polite" aria-label="{{ $t.term.output }}"><div class="sgx-term-ln sgx-term-o">{{ replace (replace (htmlEscape $t.term.welcome) "{help}" `<span class="sgx-term-k" translate="no">help</span>`) "{cd}" `<span class="sgx-term-k" translate="no">open blog</span>` | safeHTML }}</div></div>
-      <form class="sgx-term-line" data-term-form autocomplete="off">
-        <label class="sgx-term-ps" for="sgx-term-in" data-term-ps translate="no"><span class="sgx-envps-g">styrigx@space:~$</span><span class="sgx-envps-r">root@account:~#</span></label>
+      <div class="sgx-term-out" data-term-out role="log" aria-live="polite" aria-label="{{ $t.term.output }}"><div class="sgx-term-ln sgx-term-o">{{ replace (replace (htmlEscape $t.term.welcome) "{help}" `<span class="sgx-term-k" translate="no">man</span>`) "{cd}" `<span class="sgx-term-k" translate="no">open blog</span>` | safeHTML }}</div></div>
+      <form class="sgx-term-line" data-term-form data-mode="cmd" autocomplete="off" novalidate>
+        <input type="text" class="sgx-at-pmu" data-term-pmu name="username" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
+        <label class="sgx-term-ps" for="sgx-term-in" data-term-ps translate="no">nobody@space:~$</label>
         <span class="sgx-term-field"><input id="sgx-term-in" class="sgx-term-in" data-term-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="{{ $t.term.input }}" autofocus><span class="sgx-term-ghost" data-term-ghost aria-hidden="true" hidden></span></span>
       </form>
+      <p class="sgx-at-hint sgx-term-hint2" data-term-hint hidden></p>
     </div>
     <p class="sgx-kh sgx-term-kh" data-term-kh hidden></p>
   </div>
