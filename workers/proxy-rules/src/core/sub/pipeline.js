@@ -30,11 +30,11 @@ async function publish(env, row, proxies, pubkey, gen, owner) {
   return writeArmor(env, row.id, armor, gen, owner);
 }
 
-/** @param {any} env @param {any} row @param {CryptoKey} key @param {string} pubkey @param {number} now @param {string} owner @param {string} ua @param {typeof fetch} fetchFn */
-async function refreshOne(env, row, key, pubkey, now, owner, ua, fetchFn) {
+/** noFetch：机场源不拉，直接用 last_nodes_enc（改链接试拉成功后只重出成品） @param {any} env @param {any} row @param {CryptoKey} key @param {string} pubkey @param {number} now @param {string} owner @param {string} ua @param {typeof fetch} fetchFn @param {boolean} [noFetch] */
+async function refreshOne(env, row, key, pubkey, now, owner, ua, fetchFn, noFetch = false) {
   let proxies = null;
   let error = null;
-  if (row.type === 'airport') {
+  if (row.type === 'airport' && !noFetch) {
     let url = null;
     try { url = await open(key, aad(row.id, 'url'), row.url_enc); } catch (e) { error = ERR.config; }
     if (url) {
@@ -63,7 +63,7 @@ async function refreshOne(env, row, key, pubkey, now, owner, ua, fetchFn) {
  * 刷新一个源（ProxyRefresher.refreshSource 调，或协调者在本次调用里直接调）。锁必须还在 owner 手里，否则什么都不做。
  * @param {any} env @param {string} id @param {string} owner @param {number} now @param {string} ua @param {typeof fetch} [fetchFn]
  */
-export async function refreshSourceById(env, id, owner, now, ua, fetchFn = fetch) {
+export async function refreshSourceById(env, id, owner, now, ua, fetchFn = fetch, noFetch = false) {
   if (!(await holdsLock(env, owner, now))) return { ok: false, error: 'busy' };
   const row = await getSourceById(env, id);
   if (!row || Number(row.enabled) !== 1) return { ok: false, error: 'not-found' };
@@ -71,12 +71,12 @@ export async function refreshSourceById(env, id, owner, now, ua, fetchFn = fetch
   if (!pubkey) return { name: row.name, ok: false, error: ERR.noKey, nodes: 0 };
   let key;
   try { key = await importDbKey(await readDbKey(env)); } catch (e) { return { name: row.name, ok: false, error: ERR.config, nodes: 0 }; }
-  return refreshOne(env, row, key, pubkey, now, owner, ua, fetchFn);
+  return refreshOne(env, row, key, pubkey, now, owner, ua, fetchFn, noFetch);
 }
 
 /**
  * @param {any} env
- * @param {{ now?: number, fetchFn?: typeof fetch }} [opts]
+ * @param {{ now?: number, fetchFn?: typeof fetch, ids?: string[], noFetch?: boolean }} [opts] ids：只刷这几个源；noFetch：不拉机场（改链接试拉后用）
  * @returns {Promise<{ ok: boolean, error?: string, sources?: any[] }>}
  */
 export async function runRefresh(env, opts = {}) {
@@ -89,12 +89,13 @@ export async function runRefresh(env, opts = {}) {
     if (!pubkey) return { ok: false, error: ERR.noKey };
     let key;
     try { key = await importDbKey(await readDbKey(env)); } catch (e) { return { ok: false, error: ERR.config }; }
-    const rows = (await listSourcesFull(env)).filter((r) => Number(r.enabled) === 1);
-    const ua = rows.some((r) => r.type === 'airport') ? await userAgent(env, now, fetchFn) : '';
+    const noFetch = !!opts.noFetch;
+    const rows = (await listSourcesFull(env)).filter((r) => Number(r.enabled) === 1 && (!opts.ids || opts.ids.indexOf(r.id) >= 0));
+    const ua = !noFetch && rows.some((r) => r.type === 'airport') ? await userAgent(env, now, fetchFn) : '';
     const self = env.SELF && typeof env.SELF.refreshSource === 'function' ? env.SELF : null;
     const settled = await Promise.allSettled(rows.map((r) => (self
-      ? self.refreshSource(r.id, owner, now, ua)
-      : refreshOne(env, r, key, pubkey, now, owner, ua, fetchFn))));
+      ? self.refreshSource(r.id, owner, now, ua, noFetch)
+      : refreshOne(env, r, key, pubkey, now, owner, ua, fetchFn, noFetch))));
     const sources = settled.map((s, i) => (s.status === 'fulfilled' ? s.value : { name: rows[i].name, ok: false, error: ERR.config, nodes: 0 }));
     return { ok: true, sources };
   } finally {

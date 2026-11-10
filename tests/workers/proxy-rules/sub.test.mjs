@@ -75,11 +75,57 @@ test('机场：存链接只存密文和域名；状态不回链接；同名 = �
   assert.ok(!JSON.stringify(row).includes('SECRET123'));
   assert.equal(await open(await importDbKey(DB_KEY), row.id + ':url', row.url_enc), AIRPORT);
   assert.ok(!JSON.stringify(await admin.status(env)).includes('SECRET123'));
-  assert.deepEqual(await admin.addAirport(env, 'Linkcube', 'https://other.example.net/s'), { ok: true, updated: true, oldHost: 'sub.example.com', host: 'other.example.net' });
+  const up = await admin.addAirport(env, 'Linkcube', 'https://other.example.net/s');
+  assert.deepEqual({ ...up, id: undefined }, { ok: true, updated: true, oldHost: 'sub.example.com', host: 'other.example.net', nodes: 3, id: undefined });
+  assert.equal(up.id, row.id);
   assert.equal(env.D1_PROXY.rows('sources').length, 1);
   for (const bad of ['http://x.example.com/s', 'ftp://x', 'https://u:p@x.example.com/', 'not a url']) assert.deepEqual(await admin.addAirport(env, 'A', bad), { ok: false, error: 'url' });
   for (const bad of ['has space', 'a/b', '', 'x'.repeat(33), '中文']) assert.deepEqual(await admin.addAirport(env, bad, AIRPORT), { ok: false, error: 'name' });
   assert.deepEqual(await admin.upload(env, 'Linkcube', yamlOf(['X'])), { ok: false, error: 'type' });
+});
+
+test('P2 改机场链接先试拉：失败什么都不换（旧链接、旧节点、旧成品、last_error 原样），回 kept；成功一条语句换链接和节点，只为这个源重出成品、不再拉第二次', async () => {
+  const token = await setup();
+  const rpc = new ProxyAdmin({ waitUntil() {} }, env);
+  assert.equal((await rpc.addAirport('A', AIRPORT)).ok, true);
+  const before = { ...env.D1_PROXY.rows('sources')[0] };
+  const armor0 = await (await get(`/s/${token}/A`)).text();
+  airportBody = (u) => (u.includes('bad.example.org') ? new Response('nope', { status: 500 }) : yamlOf(['HK 01']));
+  const bad = await rpc.addAirport('A', 'https://bad.example.org/s');
+  assert.equal(bad.ok, false);
+  assert.equal(bad.kept, true);
+  assert.equal(bad.oldHost, 'sub.example.com');
+  assert.deepEqual({ ...env.D1_PROXY.rows('sources')[0] }, before);
+  assert.equal(await (await get(`/s/${token}/A`)).text(), armor0);
+  airportBody = () => yamlOf(['NEW 1', 'NEW 2']);
+  fetched = [];
+  const ok = await rpc.addAirport('A', 'https://good.example.org/s');
+  assert.equal(ok.ok, true);
+  assert.equal(ok.nodes, 2);
+  assert.equal(ok.id, undefined, 'id 不回给 account');
+  assert.equal(ok.refresh.ok, true);
+  assert.equal(fetched.filter((f) => f.url === 'https://good.example.org/s').length, 1, '只拉一次');
+  assert.match(await ageDecrypt(await (await get(`/s/${token}/A`)).text(), id), /NEW 2/);
+  assert.equal(env.D1_PROXY.rows('sources')[0].host, 'good.example.org');
+});
+
+test('P2 改名 sub-mv：只改名、不刷新，id 和成品沿用，旧路径 404、新路径同内容；新名已存在 exists、旧名不存在 not-found、相同不动作', async () => {
+  const token = await setup();
+  const rpc = new ProxyAdmin({ waitUntil() {} }, env);
+  await rpc.upload('F', yamlOf(['X']));
+  await rpc.upload('G', yamlOf(['Y']));
+  const idF = env.D1_PROXY.rows('sources').find((r) => r.name === 'F').id;
+  const armor = await (await get(`/s/${token}/F`)).text();
+  fetched = [];
+  assert.deepEqual(await rpc.rename('F', 'H'), { ok: true });
+  assert.equal(fetched.length, 0);
+  assert.equal(env.D1_PROXY.rows('sources').find((r) => r.name === 'H').id, idF);
+  assert.equal((await get(`/s/${token}/F`)).status, 404);
+  assert.equal(await (await get(`/s/${token}/H`)).text(), armor);
+  assert.deepEqual(await rpc.rename('H', 'G'), { ok: false, error: 'exists' });
+  assert.deepEqual(await rpc.rename('nope', 'Z'), { ok: false, error: 'not-found' });
+  assert.deepEqual(await rpc.rename('H', 'H'), { ok: true, same: true });
+  assert.deepEqual(await rpc.rename('H', 'a/b'), { ok: false, error: 'name' });
 });
 
 test('没有 DB_KEY 或钥匙长度不对 → config（fail closed，不存明文）', async () => {
