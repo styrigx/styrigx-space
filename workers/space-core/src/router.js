@@ -9,16 +9,16 @@
  * 转发表：
  * 放行后经服务绑定原样转给账号 Worker styrigx-account（ACCOUNT = AccountService），网关路由表 router.js 里不再有它们。
  *
- * | 路径            | 绑定    | 门（gate.js 先验）                                         |
- * |-----------------|---------|-------------------------------------------------------------------|
- * | /api/account    | ACCOUNT | 进门（logout / reauth-clear 账号 Worker 自己放行）；无会话 401         |
- * | /api/prefs*     | ACCOUNT | 进门；账号会话 + prefs.sync 在账号 Worker 里查                        |
- * | /api/avatar*    | ACCOUNT | 进门；PUT / DELETE 在账号 Worker 里查账号会话 + avatar.write          |
- * | /api/wellbeing* | ACCOUNT | 进门（账号未登录时 POST 204）                                        |
- * | /api/profile*   | ACCOUNT | 进门；GET 不要账号会话，PUT 在账号 Worker 里查账号会话 + profile.write |
- * | /avatar/*       | ACCOUNT | 公开（AVATAR_FILE_RE 已在白名单）                                    |
+ * | 路径            | 绑定    | 进门之后（要不要进站会话只看 gate.js 的访问表 ROUTE_ACCESS）              |
+ * |-----------------|---------|---------------------------------------------------------------------------|
+ * | /api/account    | ACCOUNT | logout / reauth-clear 账号 Worker 自己放行；其余要账号会话                  |
+ * | /api/prefs*     | ACCOUNT | 账号会话 + prefs.sync 在账号 Worker 里查                                    |
+ * | /api/avatar*    | ACCOUNT | PUT / DELETE 在账号 Worker 里查账号会话 + avatar.write                      |
+ * | /api/wellbeing* | ACCOUNT | GET 公开（合计；明细要账号会话）；POST 要进站（账号未登录时 204）            |
+ * | /api/profile*   | ACCOUNT | GET 不要账号会话，PUT 在账号 Worker 里查账号会话 + profile.write             |
+ * | /avatar/*       | ACCOUNT | 页面路径，公开                                                              |
  *
- * 匹配：/api/* 条目 = 路径本身或其子路径（p 或 p + '/…'，与 gate.js 白名单同一规则，门和转发永远对得上；
+ * 匹配（只决定转给谁，不决定能不能进）：/api/* 条目 = 路径本身或其子路径（p 或 p + '/…'；
  * /api/prefsX 这类不转发，落到网关路由表 → 404）；/avatar/ = 前缀。
  * 转发时用浏览器的原请求构造（URL 仍是 styrigx.com、Origin / Cookie 原样，账号侧 isSameOrigin 成立），见 core/forward.js forwardToService。
  * 表里的路径只转发：没绑定 ACCOUNT 或绑定出错 → 503 upstream（router.js forward），不落回网关路由表、不回源静态文件。
@@ -44,6 +44,7 @@ import * as spaceAuth from './api/space-auth.js';
 import * as status from './api/status.js';
 import * as share from './api/share.js';
 import { SHARE_PATH_RE } from './core/share-links.js';
+import { accessOf, ACCESS } from './gate.js';
 import { openShare, failResponse as shareFailResponse } from './core/share-open.js';
 
 /** @type {Map<string, Record<string, Function>>} */
@@ -64,16 +65,16 @@ export const API_ROUTES = new Map([
   ['/api/status', status],
 ]);
 
-/** @typedef {{path:string, binding:string, gate:'session'|'public'}} ForwardRule */
+/** @typedef {{path:string, binding:string}} ForwardRule */
 
 /** @type {ReadonlyArray<Readonly<ForwardRule>>} */
 export const FORWARDING = Object.freeze([
-  Object.freeze({ path: '/api/account', binding: 'ACCOUNT', gate: 'session' }),
-  Object.freeze({ path: '/api/prefs', binding: 'ACCOUNT', gate: 'session' }),
-  Object.freeze({ path: '/api/avatar', binding: 'ACCOUNT', gate: 'session' }),
-  Object.freeze({ path: '/api/wellbeing', binding: 'ACCOUNT', gate: 'session' }),
-  Object.freeze({ path: '/api/profile', binding: 'ACCOUNT', gate: 'session' }),
-  Object.freeze({ path: '/avatar/', binding: 'ACCOUNT', gate: 'public' }),
+  Object.freeze({ path: '/api/account', binding: 'ACCOUNT' }),
+  Object.freeze({ path: '/api/prefs', binding: 'ACCOUNT' }),
+  Object.freeze({ path: '/api/avatar', binding: 'ACCOUNT' }),
+  Object.freeze({ path: '/api/wellbeing', binding: 'ACCOUNT' }),
+  Object.freeze({ path: '/api/profile', binding: 'ACCOUNT' }),
+  Object.freeze({ path: '/avatar/', binding: 'ACCOUNT' }),
 ]);
 
 /**
@@ -180,8 +181,8 @@ export function isSharePath(pathname) {
  * 分享链接的整段流程（原 styrigx-share 的 index.js + gate.js，行为不变）：
  * - OPTIONS /api/share：不接受跨源，预检一律 403、不带任何 Allow 头（不查会话）
  * - 生产只认 styrigx.com：别的域名 /api/* → 403，其他 → 301 到 styrigx.com
- * - /s/<码>：谁都能打开，core/share-open.js（出错也只回统一的失败响应，不露 500）
- * - /api/share：要进站会话（没有 → 401 {ok:false}）；list / revoke 另要锁侧复验（api/share.js）；响应 no-store
+ * - 访问表（gate.js accessOf）：GET / HEAD /s/<码> 谁都能打开，core/share-open.js（出错也只回统一的失败响应，不露 500）；
+ *   /api/share 和 /s/<码> 的其他方法要进站会话（没有 → 401 {ok:false}）；/api/share list / revoke 另要锁侧复验（api/share.js）；响应 no-store
  * 会话判断：core/lock-session.js checkLockSession（同一请求只验一次；原来经服务绑定 AUTH.lockSession）。
  * @param {Request} request
  * @param {Record<string, any>} env 已换好密钥字符串的 env
@@ -206,11 +207,12 @@ export async function routeShare(request, env, ctx) {
     /** @type {Promise<{ok:boolean, reason:string}>|null} */
     let sessP = null;
     const auth = { session: () => (sessP || (sessP = checkLockSession(cookie, env).catch(() => ({ ok: false, reason: 'error' })))) };
-    if (m) return await openShare(request, env, ctx, auth, m[1]);
-    if (isProd) {
+    /* 要不要进站会话：同一张访问表（gate.js ROUTE_ACCESS：GET / HEAD /s/:code 公开，/api/share 默认 entry） */
+    if (isProd && accessOf(request.method, pathname) !== ACCESS.PUBLIC) {
       const sess = await auth.session();
       if (!sess.ok) return withNoStore(json(401, { ok: false }));
     }
+    if (m) return await openShare(request, env, ctx, auth, m[1]);
     const handler = pickHandler(share, request.method);
     if (!handler) return withNoStore(apiError(405, 'method'));
     const res = await handler({ request, env, auth, params: {}, data: {}, functionPath: SHARE_API_PATH,

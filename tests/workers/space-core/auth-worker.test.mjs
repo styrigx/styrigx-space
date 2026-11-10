@@ -132,20 +132,21 @@ async function withOrigin(html, fn, init = {}) {
   };
   try { return await fn(calls); } finally { globalThis.fetch = orig; }
 }
-const PAGE = '<!DOCTYPE html><html lang="zh"><body><!-- SGX-DESKTOP-START -->desk<!-- SGX-DESKTOP-END -->x</body></html>';
+const PAGE = '<!DOCTYPE html><html lang="zh"><body><div id="desk">desk</div>x</body></html>';
 
-test('页面：未登录访问内页 → 302 到锁屏，不回源', async () => {
+test('页面（v5 S3）：未登录访问内页 → 回源 200、标 locked，不 302', async () => {
   _resetSecretCache();
   await withOrigin(PAGE, async (calls) => {
     const res = await worker.fetch(new Request('https://styrigx.com/display/'), baseEnv(), CTX);
-    assert.equal(res.status, 302);
-    assert.equal(res.headers.get('Location'), 'https://styrigx.com/?lock=1&return=%2Fdisplay%2F');
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('Location'), null);
     assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
-    assert.equal(calls.length, 0);
+    assert.match(await res.text(), /<html data-sgx-lock-session="locked" lang="zh"><body><div id="desk">desk<\/div>/);
+    assert.equal(calls.length, 1);
   });
 });
 
-test('页面：未登录首页 → 回源、锁屏态、去掉桌面内容，会话标记只出现一次', async () => {
+test('页面：未登录首页 → 回源、锁屏态、内容原样（v5 S3 不再瘦身），会话标记只出现一次', async () => {
   _resetSecretCache();
   /* 回源拿到的页面 Pages 已注入过一次 */
   const fromPages = PAGE.replace('<html lang="zh">', '<html data-sgx-lock-session="locked" lang="zh">');
@@ -157,7 +158,7 @@ test('页面：未登录首页 → 回源、锁屏态、去掉桌面内容，会
     const html = await res.text();
     assert.equal((html.match(/data-sgx-lock-session=/g) || []).length, 1);
     assert.match(html, /<html data-sgx-lock-session="locked" lang="zh">/);
-    assert.doesNotMatch(html, /desk/);
+    assert.match(html, /desk/);
     assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
     assert.equal(res.headers.get('X-SGX-Runtime'), 'worker');
   });
@@ -203,7 +204,7 @@ test('stripSessionAttrs：只清网关会写的会话标记，保留构建标记
 test('页面：锁屏首页保留 <head> 里的分享卡片 meta 和 <html> 上的构建标记', async () => {
   _resetSecretCache();
   const head = '<head><meta property="og:image" content="https://styrigx.com/og.png"><meta name="twitter:card" content="summary_large_image"><link rel="icon" type="image/svg+xml" href="/favicon.svg"></head>';
-  const page = '<!DOCTYPE html><html lang="zh" data-sgx-build="abc1234" data-sgx-lock-session="locked">' + head + '<body><!-- SGX-DESKTOP-START -->desk<!-- SGX-DESKTOP-END -->x</body></html>';
+  const page = '<!DOCTYPE html><html lang="zh" data-sgx-build="abc1234" data-sgx-lock-session="locked">' + head + '<body>desk x</body></html>';
   await withOrigin(page, async () => {
     const res = await worker.fetch(new Request('https://styrigx.com/'), baseEnv(), CTX);
     assert.equal(res.status, 200);
@@ -211,7 +212,7 @@ test('页面：锁屏首页保留 <head> 里的分享卡片 meta 和 <html> 上�
     assert.match(html, /<html data-sgx-lock-session="locked" lang="zh" data-sgx-build="abc1234">/);
     assert.equal((html.match(/data-sgx-lock-session=/g) || []).length, 1);
     assert.ok(html.includes(head), '<head> 原样保留');
-    assert.doesNotMatch(html, /desk/);
+    assert.match(html, /desk x/);
   });
 });
 
@@ -227,12 +228,12 @@ test('锁着也公开：标签页图标 / 分享卡片图（Pages 中间件放�
     assert.equal(called, 1, p);
     assert.equal(await res.text(), 'img', p);
   }
-  /* 对照：未登录的内页仍跳锁屏 */
+  /* 对照：要进站的接口没会话 401 */
   const res = await pagesMw.onRequest({
-    request: new Request('https://styrigx.com/display/'), env: baseEnv(), params: {}, data: {}, waitUntil() {},
-    next: async () => new Response('page'),
+    request: new Request('https://styrigx.com/api/status'), env: baseEnv(), params: {}, data: {}, waitUntil() {},
+    next: async () => new Response('api'),
   });
-  assert.equal(res.status, 302);
+  assert.equal(res.status, 401);
 });
 
 test('所有响应带 X-SGX-Runtime: worker，且不改动原有头和正文', async () => {
@@ -336,7 +337,7 @@ test('Pages 静态 _worker.js：pages.dev 地址 301 到 styrigx.com，styrigx.c
   assert.deepEqual(seen, ['https://styrigx.com/css/main.css']);
 });
 
-test('头像 /avatar/<尺寸>.webp：未登录放行，转给账号 Worker（ACCOUNT，不带身份头）；尺寸不对 → 302 锁屏', async () => {
+test('头像 /avatar/*：页面路径公开，转给账号 Worker（ACCOUNT，不带身份头；尺寸对不对由账号 Worker 判）', async () => {
   _resetSecretCache();
   const seen = [];
   const env = Object.assign(baseEnv(), {
@@ -350,9 +351,8 @@ test('头像 /avatar/<尺寸>.webp：未登录放行，转给账号 Worker（ACC
     assert.equal(seen.length, 1);
     assert.equal(seen[0].url, 'https://styrigx.com/avatar/96.webp?v=3');
     assert.equal(seen[0].headers.get('X-Styrigx-Space-Level'), null, '没有进站会话不写身份头');
-    const bad = await worker.fetch(new Request('https://styrigx.com/avatar/100.webp'), env, CTX);
-    assert.equal(bad.status, 302);
-    assert.equal(seen.length, 1, '门没过的不转发');
+    await worker.fetch(new Request('https://styrigx.com/avatar/100.webp'), env, CTX);
+    assert.equal(seen.length, 2, '同样转给账号 Worker');
     assert.equal(calls.length, 0, '不回源');
   });
 });

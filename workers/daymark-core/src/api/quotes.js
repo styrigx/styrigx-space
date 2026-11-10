@@ -1,6 +1,6 @@
 // /api/quotes —— 句子的读和写。
 //
-// GET    /api/quotes             进门即可：账号已登录拿全部，没登录只拿公开的。按添加时间倒序。
+// GET    /api/quotes             公开（v5 S3）：账号已登录拿全部，没登录只拿公开的。按添加时间倒序。
 //                                返回 {ok:true, canWrite, showPrivate, quotes:[{id,text,trans,author,source,source_type,tags,visibility,created_at,updated_at}]}
 //                                showPrivate 时每句另带 note（随手一笔）和 collections（所在百味专题 id）；没登录账号的响应里没有这两个键。
 // POST   /api/quotes             账号会话 + 作用域 daymark.write + 同源：新增。body {text, trans?, author?, source?, source_type?, tags?, visibility?, note?, collections?}
@@ -52,7 +52,6 @@ async function fullQuote(db, id) {
 export async function onRequestGet(context) {
   const { env } = context;
   const c = await conclusionOf(context);
-  if (!c.space.ok) return err('unauthorized', 401);
   await ensureSchema(env.D1_QUOTES);
   const showPrivate = canReadPrivate(c);
   const sql = showPrivate

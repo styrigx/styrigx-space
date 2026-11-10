@@ -1,5 +1,5 @@
 // workers/core/src/api/links.js
-// GET  /api/links   进门即可：账号已登录拿全部（含私密），没登录只拿公开的（私密分类 / 私密收藏 / 空分类都不给）。
+// GET  /api/links   公开（v5 S3）：账号已登录拿全部（含私密），没登录只拿公开的（私密分类 / 私密收藏 / 空分类都不给）。
 //                   返回 {ok:true, canWrite, showPrivate, cats:[{id, name:{zh,en}, private, links:[{id, url, name, desc, icon, private}]}]}
 // POST /api/links   账号会话 + 作用域 curio.write + 同源：body {op, ...}（操作见 _store.js 的 parseOp）。
 //                   成功 → {ok:true, canWrite:true, showPrivate:true, cats:[...]}（直接带回最新的全部收藏，前端整页重画）
@@ -18,7 +18,6 @@ function db(env) {
 export async function onRequestGet(context) {
   const { env } = context;
   const c = await conclusionOf(context);
-  if (!c.space.ok) return err('unauthorized', 401);
   const d = db(env);
   if (!d) return err('server', 503);
   await ensureSchema(d);

@@ -128,9 +128,6 @@ movies:
   save: Save
 music:
   music: Music
-  onlyMe: Only me
-  thisPageIsPrivate: This page is private. Sign in to your account, with Curio allowed, to open it.
-  account: Account
   uploadAlbum: + Upload album
   albums: Albums
   playAlbum: Play album
@@ -338,6 +335,8 @@ js:
     title: Movie
     editCmd: edit
   curioMusic:
+    viewOnly: "not entered, browse only"
+    locked: Enter the space to listen
     tracks: '{n} tracks'
     tracks_one: '{n} track'
     failed: Something went wrong. Please try again.

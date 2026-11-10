@@ -98,8 +98,6 @@ js:
     qpLargeOnly: 仅在大屏生效
     lockWelcomeBack: 欢迎回来
     lockCantSignIn: 无法登录？
-    lockCannotReturnToThe: 无法回到子站，请重试
-    lockBackToMainSite: 回到主站
     lockReload: 重新加载
     avTitle: "头像"
     avPick: "选择照片…"
@@ -170,10 +168,7 @@ js:
     stale: 刷新失败，显示的是 {time} 的数据
     errTitle: 暂时拿不到状态
     errSub: 监测服务没有响应，稍后再试。
-    errAuth: 会话已过期
-    errAuthSub: 重新解锁后再看状态。
     retry: 重试
-    unlock: 重新解锁
     uWorkers: Workers 请求（今天）
     uWorkersSub: 按 UTC 零点重置（北京时间 08:00）
     uD1: D1 数据库（合计）
@@ -438,6 +433,8 @@ baseof:
   space: 旷野
   pageNotFound: 页面不存在
 status:
+  lockedHint: sudo styrigx 进站后可见
+  lockedSub: 服务状态、可用率和用量只对进站后的访客开放。
   loading: 正在加载…
   noDataYet: 还没有监测数据
   resultsShowUpAfter: 第一轮检查完成后（约 1 分钟）这里会显示结果。

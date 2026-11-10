@@ -1,21 +1,15 @@
 {{ define "main" }}
 {{ $lang := .Lang }}{{ $tr := partialCached "sgx-tr.html" (dict "lang" $lang "ns" "curio") (printf "curio-%s" $lang) }}
-{{/* 奇趣 › 音乐（/curio/music/，中文 /curio/zh/music/；P4-3 奇趣拆页新增）：私人数字专辑，仅本人可见，curio-music.js 画。
-   权限：/curio/api/music* 都要 账号会话 + curio.write（同电影的写权限，不新造作用域）；没权限时这页只显示 #mu-denied（接口 401 account / 403 scope），
-   首页入口也藏着（curio-home.js）。noindex（baseof），不进站点地图 / 全站搜索 / AI 召回。
+{{/* 奇趣 › 音乐（/curio/music/，中文 /curio/zh/music/；P4-3 奇趣拆页新增）：数字专辑，curio-music.js 画。
+   三层（v5 S3；接口档在 workers/curio-core/src/routes.js ROUTE_ACCESS）：歌单 / 封面谁都能看（GET /curio/api/music 不带任何音频地址）；
+   听要进站（没进站 = 只看模式：播放键是锁、播放条只显示专辑，点播放发 sgx:sudo，顶栏终端预填 sudo styrigx）；
+   上传 / 删除要账号会话 + curio.write（接口回 canWrite 才显示）。noindex（baseof），不进站点地图 / 全站搜索 / AI 召回。
    播放器交互借 jojo.best/music 的思路（只借交互）：封面横滑切专辑、整张按曲序播放、歌词跟着滚、倍速 0.75 / 1 / 1.25 / 1.5 / 2。
    播放走短链：/curio/api/music-play 签一枚随机令牌（10 分钟），<audio> 的地址是 /curio/api/music-stream?t=…&id=…（支持 Range，拖进度）。
    上传：「上传专辑」弹层，多个音频 + 可选封面 + 可选 .lrc 歌词，浏览器直传（单个音频 ≤ 95 MB）。 */}}
 <main id="cu-main" class="cu-wrap mu-wrap" data-cu-page="music">
 {{ partial "curio/page-head.html" (dict "page" . "id" "music" "tr" $tr "lang" $lang "grep" false "cmds" (slice (dict "id" "mu-upload" "k" "cp *.flac curio/music/ +" "d" $tr.cmd.upload))) }}
   <section id="cu-pane-music" class="cu-pane" aria-label="{{ $tr.music.music }}">
-    <div id="mu-denied" class="mu-denied hidden">
-      <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-      <p class="mu-denied-title">{{ $tr.music.onlyMe }}</p>
-      <p class="mu-denied-text">{{ $tr.music.thisPageIsPrivate }}</p>
-      {{/* 2026-11-08 账号 UI 改版：打开顶栏账号终端（data-acct-open；没登录 → 登录 + 奇趣授权同意；curio-music.js 在 403 scope 时改成应用授权那一层） */}}
-      <a id="mu-denied-link" class="mu-denied-link" data-acct-open="" data-acct-app="curio" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}#acct&amp;app=curio">{{ $tr.music.account }}</a>
-    </div>
     <div id="mu-app" class="hidden">
       <div id="mu-covers" class="mu-covers" role="list" aria-label="{{ $tr.music.albums }}"></div>
       <div id="mu-dots" class="mu-dots" aria-hidden="true"></div>
@@ -24,7 +18,7 @@
           <h2 id="mu-album-title" class="mu-album-title"></h2>
           <p id="mu-album-sub" class="mu-album-sub"></p>
         </div>
-        <button id="mu-play-all" type="button" class="mu-play-all" aria-label="{{ $tr.music.playAlbum }}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></button>
+        <button id="mu-play-all" type="button" class="mu-play-all" aria-label="{{ $tr.music.playAlbum }}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg><svg class="mu-ic-lock" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
       </div>
       <ol id="mu-tracks" class="mu-tracks" aria-label="{{ $tr.music.tracks }}"></ol>
       <div class="mu-album-acts"><button id="mu-album-del" type="button" class="cu-btn-text mu-del-btn">{{ $tr.music.deleteAlbum }}</button></div>
@@ -47,7 +41,7 @@
     <div class="mu-ctrl">
       <button id="mu-speed" type="button" class="mu-speed" aria-label="{{ $tr.music.playbackSpeed }}">1×</button>
       <button id="mu-prev" type="button" class="mu-cbtn" aria-label="{{ $tr.music.previous }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M7 6v12M18 6.5v11L9.5 12z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
-      <button id="mu-toggle" type="button" class="mu-cbtn mu-toggle" aria-label="{{ $tr.music.play }}" data-l-play="{{ $tr.music.play }}" data-l-pause="{{ $tr.music.pause }}"><svg class="mu-ic-play" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg><svg class="mu-ic-pause" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg></button>
+      <button id="mu-toggle" type="button" class="mu-cbtn mu-toggle" aria-label="{{ $tr.music.play }}" data-l-play="{{ $tr.music.play }}" data-l-pause="{{ $tr.music.pause }}"><svg class="mu-ic-play" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg><svg class="mu-ic-pause" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg><svg class="mu-ic-lock" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
       <button id="mu-next" type="button" class="mu-cbtn" aria-label="{{ $tr.music.next }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M17 6v12M6 6.5v11l8.5-5.5z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
       <span class="mu-ctrl-pad" aria-hidden="true"></span>
     </div>

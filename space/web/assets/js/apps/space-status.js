@@ -3,11 +3,12 @@
  * 页面可见时每 60 秒刷新。2026-11 对齐 PR-B：原 /status/ 页（卡片形式）并进旷野页，改成设计稿的终端窗；数据和行为不变（旧地址 301 到 /wild/#status）。
  * 2026-10-24 PR4 前是顶栏三栏的「状态」页，之后挪进账号页、再搬到设置。
  *
- * - 门内页：页面只认锁屏进门会话；进站凭证使用记录（/api/space-audit）另要账号会话。
- * - 同源 cookie（credentials: 'same-origin'），no-store；网关验锁屏会话（进门即可），没会话 401。
+ * - v5 S3：旷野页对所有人公开，这张卡是三处上锁之一。/api/status 要进站会话（网关访问表 entry）；进站凭证使用记录（/api/space-audit）另要账号会话。
+ * - 同源 cookie（credentials: 'same-origin'），no-store；没进站 401 → 锁卡（data-state=locked，#st-locked：Permission denied + 一行说明 +
+ *   sudo styrigx 按钮，点了发 sgx:sudo，顶栏终端预填 sudo styrigx）。锁了就不再自动重试；进站后页面会重新取（guard.js proceed）。
  * - 首帧（2026-10-24 PR3）：本机存着上次成功拿到的数据（localStorage sgx-status-cache，24 小时内）就先直接画出来，
  *   页脚是那份数据的「更新于 hh:mm」，同时照常请求，回来再换成新数据；没有缓存才出骨架。401 时清掉缓存。
- * - 第一次就失败 → 错误卡（401 = 会话过期，按钮重新载入页面走锁屏；其他 = 重试）；
+ * - 第一次就失败（非 401）→ 错误卡，按钮重试；
  *   已经有数据后刷新失败 → 保留旧数据，页脚说「刷新失败，显示的是 hh:mm 的数据」。
  * - 接口通了但所有站都还没检查过 → 空状态卡。
  * - 点可用率条上的某一天 → 卡片底部显示那天的可用率 / 检查次数 / 平均延迟。
@@ -20,6 +21,7 @@
  * 渲染全在 lib/status-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
  */
 import { on } from '../lib/events.js';
+import { askSudo } from '../lib/sudo.js';
 import { loadI18n, pageLang } from '../lib/i18n.js';
 import { visibleInterval } from '../lib/scheduler.js';
 import { bannerInfo, bjDay, buildSlots, esc, fmtBjTime, isEmptySummary, renderAudit, renderIncidents, renderQuota, renderSite, renderUnits, renderUsage, slotText, unitList } from '../lib/status-view.js';
@@ -76,6 +78,7 @@ function init() {
   const quotaEl = $('st-quota');
   const incEl = $('st-inc');
   const errEl = $('st-error');
+  const lockedEl = $('st-locked');
   const emptyEl = $('st-empty');
   const foot = $('st-foot');
   /** @type {any} */
@@ -86,26 +89,26 @@ function init() {
   /** @type {number|null} */
   let rtt = null;
   let busy = false;
-  /** 会话过期（401）：不再自动重试，等用户点「重新解锁」 */
-  let authErr = false;
-  /** @type {'loading'|'ready'|'empty'|'error'} */
+  /** @type {'loading'|'ready'|'empty'|'error'|'locked'} */
   let state = 'loading';
 
-  /** @param {'loading'|'ready'|'empty'|'error'} s */
+  /** @param {'loading'|'ready'|'empty'|'error'|'locked'} s */
   function setState(s) {
     state = s;
+    const none = s === 'error' || s === 'empty' || s === 'locked';
     root.setAttribute('data-state', s);
     root.setAttribute('aria-busy', s === 'loading' ? 'true' : 'false');
     errEl.hidden = s !== 'error';
     emptyEl.hidden = s !== 'empty';
-    banner.hidden = s === 'error' || s === 'empty';
-    sitesEl.hidden = s === 'error' || s === 'empty';
-    if (uptimeEl) uptimeEl.hidden = s === 'error' || s === 'empty';
-    if (unitsEl) unitsEl.hidden = s === 'error' || s === 'empty' || s === 'loading';
+    if (lockedEl) lockedEl.hidden = s !== 'locked';
+    banner.hidden = none;
+    sitesEl.hidden = none;
+    if (uptimeEl) uptimeEl.hidden = none;
+    if (unitsEl) unitsEl.hidden = none || s === 'loading';
     incWrap.hidden = s !== 'ready';
     usageWrap.hidden = s !== 'ready';
     quotaWrap.hidden = s !== 'ready' || !data || data.quota === undefined;
-    if (s === 'error' || s === 'empty') {
+    if (none) {
       foot.textContent = '';
       if (checkedEl) checkedEl.textContent = '';
     }
@@ -134,15 +137,12 @@ function init() {
     foot.textContent = fmt('updated', { time: fmtBjTime(gotAt, lang, bjDay(now)) });
   }
 
-  /** @param {number} status */
-  function showError(status) {
-    const auth = status === 401;
-    authErr = auth;
-    /** @type {HTMLElement} */ (errEl.querySelector('[data-st="err-title"]')).textContent = t(auth ? 'errAuth' : 'errTitle');
-    /** @type {HTMLElement} */ (errEl.querySelector('[data-st="err-sub"]')).textContent = t(auth ? 'errAuthSub' : 'errSub');
+  function showError() {
+    /** @type {HTMLElement} */ (errEl.querySelector('[data-st="err-title"]')).textContent = t('errTitle');
+    /** @type {HTMLElement} */ (errEl.querySelector('[data-st="err-sub"]')).textContent = t('errSub');
     const btn = /** @type {HTMLElement} */ (errEl.querySelector('[data-st="err-btn"]'));
-    btn.textContent = t(auth ? 'unlock' : 'retry');
-    btn.setAttribute('data-action', auth ? 'reload' : 'retry');
+    btn.textContent = t('retry');
+    btn.setAttribute('data-action', 'retry');
     setState('error');
   }
 
@@ -168,12 +168,16 @@ function init() {
         render();
       }
     } catch (e) {
-      if (status === 401) dropCache();
-      if (data && !isEmptySummary(data) && status !== 401) {
+      if (status === 401) {
+        /* 没进站：清缓存、只剩锁卡（服务端说了算；缓存里的旧数据也不再显示） */
+        dropCache();
+        data = null;
+        setState('locked');
+      } else if (data && !isEmptySummary(data)) {
         /* 已经有数据：保留，页脚提示 */
         foot.textContent = fmt('stale', { time: fmtBjTime(gotAt, lang, bjDay(Date.now())) });
       } else {
-        showError(status);
+        showError();
       }
     } finally {
       busy = false;
@@ -183,11 +187,6 @@ function init() {
   on(errEl, 'click', (e) => {
     const btn = /** @type {HTMLElement} */ (e.target).closest('[data-action]');
     if (!btn) return;
-    if (btn.getAttribute('data-action') === 'reload') {
-      location.reload();
-      return;
-    }
-    authErr = false;
     setState('loading');
     load();
   });
@@ -264,9 +263,13 @@ function init() {
     render();
   }
 
-  /* 可见时每 60 秒刷新（切到后台停，回到前台立即刷一次）；第一次失败后的错误卡也照样每分钟自动再试，只有会话过期不试 */
+  if (lockedEl) on(lockedEl, 'click', (e) => {
+    if (/** @type {HTMLElement} */ (e.target).closest('[data-st="sudo"]')) askSudo(document);
+  });
+
+  /* 可见时每 60 秒刷新（切到后台停，回到前台立即刷一次）；第一次失败后的错误卡也照样每分钟自动再试，锁了不试 */
   visibleInterval(() => {
-    if (!authErr) load();
+    if (state !== 'locked') load();
   }, REFRESH_MS);
 }
 

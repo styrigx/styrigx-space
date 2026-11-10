@@ -1,6 +1,6 @@
 // /api/days —— 往前几天的「今日一句」（日刻日期条 / 前后日卡 / 余响窗，2026-11 对齐 PR-C2，设计稿 tb4.html pg=day）。
 //
-// GET /api/days?from=YYYY-MM-DD&to=YYYY-MM-DD   进门即可（和 /api/quotes 一样先问网关；不是公开接口，陌生人遍历不了）。
+// GET /api/days?from=YYYY-MM-DD&to=YYYY-MM-DD   公开（v5 S3，同 /api/quotes 的公开句子；from..to 最多 31 天，不全表扫）。
 //   只读 daily_pick 里已经记下的那几天（北京时间，to 最多到今天；from..to 最多 31 天），不替没记录的日子现挑（不写库、不全表扫）；
 //   那句被删了或改成私密了 → 那天不出。今天这句照旧走 /api/today（会锁定）。
 //   不给 from / to：默认今天往前 13 天到今天。

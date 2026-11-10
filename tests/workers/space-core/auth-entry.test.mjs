@@ -355,19 +355,6 @@ test('行为：锁屏未配置 + 分享链接会话 cookie：lock-reset 走真�
   assert.ok(!setCk(no).some((c) => c.startsWith('sgx-space-reauth=')), 'lock-reauth：不签票');
 });
 
-/* ============ 复审 §1：lockreset 票据页注入 lockreset 状态 ============ */
-
-test('行为：injectSessionState 注入 lockreset 状态（瘦身 + noindex，与 locked 一致）', async () => {
-  const { injectSessionState } = await import(REPO + '/workers/space-core/src/gate.js');
-  const html = '<html><head></head><body><!-- SGX-DESKTOP-START --><div>desktop</div><!-- SGX-DESKTOP-END --><p>lock page</p></body></html>';
-  const res = new Response(html, { headers: { 'Content-Type': 'text/html' } });
-  const out = await injectSessionState(res, 'lock-reset', null);
-  const text = await out.text();
-  assert.ok(text.includes('data-sgx-lock-session="lock-reset"'), '应注入 lockreset 状态');
-  assert.ok(!text.includes('desktop'), 'lockreset 页应瘦身（不下发桌面内容）');
-  assert.equal(out.headers.get('X-Robots-Tag'), 'noindex', 'lockreset 页不应被收录');
-});
-
 test('行为：injectSessionState locked 状态保持不变', async () => {
   const { injectSessionState } = await import(REPO + '/workers/space-core/src/gate.js');
   const html = '<html><head></head><body><p>home</p></body></html>';

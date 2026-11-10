@@ -7,7 +7,7 @@
  *   宽屏（≥ 600）长条在屏幕正中，手机上长条在 logo 和右边三个按钮之间伸缩（胶囊顶栏，方案 6.2）。
  * - 入口：旷野页分类入口「服务状态」一行（独立页面）→ /status/；账号页没有入口。
  * - 服务状态页：横幅（全部正常 / 有 1 个故障）、每站一张卡（主站 / 规则集 / AI 助手，正常 / 故障、延迟、90 格可用率条 + 百分比）、
- *   近期故障（北京时间）；加载中骨架、空状态、错误（503 重试 / 401 会话过期）；同源请求带 cookie；页面可见时每 60 秒刷新；点色块看当天说明。
+ *   近期故障（北京时间）；加载中骨架、空状态、错误（503 重试）/ 没进站（401 锁卡）；同源请求带 cookie；页面可见时每 60 秒刷新；点色块看当天说明。
  * - 用量（PR3）：站点卡下面「用量」卡（Workers / D1 / R2 / KV：值 / 上限 / 百分比 / 进度条，> 70% 琥珀、> 90% 红，「更新于 N 分钟前」）；
  *   usage = null → 「用量未配置」；加载中 / 出错 / 空状态不显示。
  * - 手机 412×915（三星）和桌面 1280×800 都跑；手机不横向溢出。
@@ -203,11 +203,19 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('.st-card')).toHaveCount(3);
     });
 
-    test('会话过期（401）：错误卡「会话已过期」+「重新解锁」', async ({ page }) => {
+    test('没进站（401，v5 S3 三处上锁之一）：锁卡 Permission denied + 一行说明 + sudo styrigx；不显示横幅 / 卡片 / 凭证记录；点按钮打开终端预填 sudo styrigx', async ({ page }) => {
       await go(page, '/zh/wild/', { api: { status: 401, body: { ok: false, error: 'unauthorized' } } });
-      await expect(page.locator('#st-error [data-st="err-title"]')).toHaveText('会话已过期');
-      await expect(page.locator('#st-error .st-btn')).toHaveText('重新解锁');
-      await expect(page.locator('#st-error .st-btn')).toHaveAttribute('data-action', 'reload');
+      await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'locked');
+      await expect(page.locator('#st-locked')).toBeVisible();
+      await expect(page.locator('#st-locked .st-msg-title')).toHaveText('Permission denied — sudo styrigx 进站后可见');
+      await expect(page.locator('#st-locked .st-msg-sub')).toHaveText('服务状态、可用率和用量只对进站后的访客开放。');
+      await expect(page.locator('#st-error')).toBeHidden();
+      await expect(page.locator('#st-banner')).toBeHidden();
+      await expect(page.locator('.st-audit-wrap')).toBeHidden();
+      await page.locator('#st-locked [data-st="sudo"]').click();
+      await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
+      await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('sudo styrigx');
+      await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
     });
 
     test('加载中：骨架 + 「正在加载…」，aria-busy', async ({ page }) => {
@@ -442,7 +450,7 @@ test.describe('首帧缓存', () => {
     }
   });
 
-  test('没有缓存：成功后写入缓存；401 会话过期：清掉缓存、出错误卡（不显示缓存的旧数据）', async ({ page }) => {
+  test('没有缓存：成功后写入缓存；401 没进站：清掉缓存、出锁卡（不显示缓存的旧数据）', async ({ page }) => {
     await go(page, '/zh/wild/', { api: fx.normal() });
     await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'ready');
     expect(JSON.parse(await readKey(page)).at).toBe(fx.NOW);
@@ -450,8 +458,8 @@ test.describe('首帧缓存', () => {
     await page.unroute('**/api/status');
     await page.route('**/api/status', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"unauthorized"}' }));
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'error');
-    await expect(page.locator('#st-error [data-st="err-title"]')).toHaveText('会话已过期');
+    await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'locked');
+    await expect(page.locator('#st-locked')).toBeVisible();
     expect(await readKey(page)).toBeNull();
   });
 });

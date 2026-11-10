@@ -1,7 +1,7 @@
-# 公开页面白名单（搜索收录）
-# 未登录也能返回 200 的页面，可进 sitemap。
-# sitemap.xml（Hugo）和网关（workers/space-core/src/gate.js PUBLIC_PAGE_PATHS）共用此数据源，
-# tests/workers/space-core/sitemap.test.mjs 验证两者同步。
+# 站点地图收录的页面（/sitemap.xml，layouts/index.sitemappublic.xml 只从这里取）。
+# v5 S3 起整站对所有人开放（网关不再有「公开页」清单，见 workers/space-core/src/gate.js 访问表）；
+# 这里只列想让搜索引擎收录的页（其余主站页的模板自带 noindex，子站各有自己的站点地图）。
+# tests/workers/space-core/sitemap.test.mjs 核对：只列这两页、模板只从这里取。
 pages:
   - /
   - /zh/

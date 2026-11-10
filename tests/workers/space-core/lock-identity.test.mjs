@@ -76,7 +76,7 @@ test('writeLockIdentity：先剥再写；进门（by 只作审计，linkId 只�
 
 test('转发表：六条（2026-11-07 加个人资料 /api/profile）都转给 ACCOUNT；/api/* 只认路径本身或子路径（/api/prefsX 不转）；页面不转', () => {
   assert.deepEqual(FORWARDING.map((r) => r.path), ['/api/account', '/api/prefs', '/api/avatar', '/api/wellbeing', '/api/profile', '/avatar/']);
-  assert.equal(matchForwarding('/api/profile').gate, 'session', '个人资料要进门（锁屏前不开放）');
+  for (const r of FORWARDING) assert.deepEqual(Object.keys(r).sort(), ['binding', 'path'], '转发表只管转给谁；要不要进站只看 gate.js 访问表');
   assert.equal(matchForwarding('/account/profile/'), null, '个人资料页面不转发');
   for (const r of FORWARDING) assert.equal(r.binding, 'ACCOUNT');
   assert.equal(matchForwarding('/api/prefs/x').path, '/api/prefs');
@@ -101,14 +101,18 @@ function fakeAccount() {
 }
 const FORGED = { 'X-Styrigx-Space-Level': 'password', 'X-Styrigx-Space-Session': '1', 'x-styrigx-space-by': 'password', 'X-Styrigx-Client-Address': '6.6.6.6', 'X-Sgx-Legacy': 'password' };
 
-test('伪造身份头、没有进站会话：/api/prefs、/api/account → 网关 401，账号 Worker 一次都没被调', async () => {
+test('伪造身份头、没有进站会话：/api/prefs、/api/account、/api/profile、POST /api/wellbeing → 网关 401，账号 Worker 一次都没被调；GET /api/wellbeing 公开，转发时伪造的身份头剥掉', async () => {
   _resetSecretCache();
   const acct = fakeAccount();
-  for (const p of ['/api/prefs', '/api/account', '/api/wellbeing']) {
-    const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: FORGED }), env({ ACCOUNT: acct }), CTX);
-    assert.equal(res.status, 401, p);
+  for (const [p, method] of [['/api/prefs', 'GET'], ['/api/account', 'GET'], ['/api/account', 'POST'], ['/api/profile', 'GET'], ['/api/wellbeing', 'POST'], ['/api/wellbeing/x', 'GET']]) {
+    const res = await worker.fetch(new Request('https://styrigx.com' + p, { method, headers: FORGED }), env({ ACCOUNT: acct }), CTX);
+    assert.equal(res.status, 401, method + ' ' + p);
   }
   assert.equal(acct.seen.length, 0);
+  const wb = await worker.fetch(new Request('https://styrigx.com/api/wellbeing', { headers: FORGED }), env({ ACCOUNT: acct }), CTX);
+  assert.equal(wb.status, 200);
+  assert.equal(acct.seen.length, 1);
+  assert.equal(acct.seen[0].headers['x-styrigx-space-session'], undefined, '没进站：不写进站身份头（伪造的也剥了）');
 });
 
 test('进门会话：转发原样带 URL / 方法 / 正文 / Cookie / Origin；外来身份头剥掉，按验过的会话重写；客户端上下文取自 CF-Connecting-IP / cf', async () => {

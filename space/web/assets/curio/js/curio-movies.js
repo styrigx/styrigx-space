@@ -78,8 +78,7 @@ function toast(m){ if (UI) UI.toast(m); }
 function posterUrl(id){ return '/curio/api/photo?kind=movie&id=' + id + (ver[id] ? '&v=' + ver[id] : ''); }
 function find(id){ return movies.filter(function(m){ return m.id === id; })[0] || null; }
 function getJSON(url){
-  var f = G.sgxLockSync ? G.sgxLockSync.apiFetch : function(u, o){ return fetch(u, o); };
-  return f(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 }
 function op(body){
   return PH.send('POST', '/curio/api/movies', body).then(function(j){ movies = j.movies || []; render(); return j; });

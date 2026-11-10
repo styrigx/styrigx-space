@@ -3,7 +3,6 @@
  * 2026-11 对齐 PR-C2 起奇趣首页 /curio/ 就是「发现」（设计稿 pg=curio：ls curio/，默认 finds/ tab），分区切换是页头的下划线 tab。
  * 拆页前首页用 hash 分区：#devices、#games 转到设备 / 游戏子页（客户端 location.replace，不是 301，不留历史）；
  * #c/<分类 id> 现在就在首页生效（curio.js 认这个 hash），不用跳。目标地址取页头 tab 上已经按语言算好的 href（模板 sgx-lang-path.html），本文件不手写语言前缀。
- * 音乐 tab 的显隐在 curio.js（问 /curio/api/access）。
  */
 (function(){
 "use strict";

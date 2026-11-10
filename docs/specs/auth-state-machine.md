@@ -46,24 +46,19 @@
 
 ## 4. 路由与关口
 
-4.1 站点核心只登记 `styrigx.com/*`；`/curio/api/*`、`/daymark/api/*` 归接口 Worker。子站页面也归站点核心（`gate.js` 的 `handleSubsite`）。
+4.1 站点核心只登记 `styrigx.com/*`；`/curio/api/*`、`/daymark/api/*` 归接口 Worker。子站页面也归站点核心（`gate.js` 的 `handleSubsite`，只注入会话标记，不拦）。
 
 4.2 静态资源（主站 `/css/ /js/ /fonts/ /fav/ /images/`，子站前缀下的静态后缀）第一行原样回源，不验会话。
 
-4.3 主站页面判定（`gate.js` `onRequest`）：
+4.3 访问判定（v5 S3 整站放开）：`gate.js` 的 `ROUTE_ACCESS` 是站点核心唯一决定「要不要进站会话」的地方，主站（`onRequest`）与子站页面（`handleSubsite`）共用同一个放行函数 `admit`。规则：
+- 页面与静态文件（不在 `/api/`、`/<子站>/api/` 下）一律公开：200，网关注入 `data-sgx-lock-session="valid|locked"`，两态页面内容相同，no-store。不再 302 去锁屏、不再剥掉桌面内容、没有路径白名单。
+- `/api/*`：只有表里逐条写出的「方法 + 路径」公开（锁屏进站要用的接口、`/s/:code`、`/api/geo`、`/api/wellbeing` 合计等）；其余一律要进站会话，没有即 401 JSON（fail closed，精确匹配，从不按前缀）。
+- 表在 `tests/workers/space-core/route-access.test.mjs` 里整张快照，改表即改谁能不进站调接口。
+- 子站接口（`/curio/api/*`、`/daymark/api/*`）归各自 Worker，各有自己的 `ROUTE_ACCESS`（`src/routes.js`）。
 
-| 会话 | 路径 | 结果 |
-|---|---|---|
-| 无效 | `/`、`/zh/`（任意查询串） | 200，`data-sgx-lock-session="locked"`，剥掉桌面内容，no-store |
-| 无效 | 其他页面 | 302 `/?lock=1&return=<站内路径>` |
-| 无效 | `/api/*` 白名单外 | 401 JSON |
-| 有效 | 首页带 `return`、不带 `why` | 302 到 `resolveReturn(return)` |
-| 有效 | 首页带 `why`（子站踢回） | 200 valid，不 302（防两站来回跳） |
-| 有效 | 其他页面 | 200 valid，no-store |
+4.4 首页带 `return` 且会话有效时仍 302 到 `resolveReturn(return)`（解锁后回原页）；其余情况不跳转。旧地址里的 `why`（S3 前子站踢回带的）前端读到即从地址栏去掉。
 
-4.4 子站页面判定（`handleSubsite`）：有效 → 回源 + no-store；无效 → 302 `https://styrigx.com/?lock=1&why=<no-cookie|invalid-session>&return=<完整地址>`。
-
-4.5 无会话可调的 `/api/*` 白名单（`gate.js` `API_WHITELIST`）：`/api/space-auth`、`/api/lock-reset`、`/api/space-audit`、`/api/lock-password`、`/api/lock-passkey`、`/api/lock-credentials`、`/api/lock-entry`、`/api/lock-reauth`、`/api/lock-session-check`、`/api/lock-tempkey-unlock`、`/api/geo`。白名单只表示关口放行，各接口 MUST 自行校验所需的票。
+4.5 上锁的只剩三处部件（页面本身公开）：旷野状态卡（`/api/status` 要进站）、奇趣音乐的播放（歌单公开且不含音频地址，播放令牌 / 音频流要进站）、AI 窗口。这些地方（以及任何接口回 401 没进站）都只派发 `document` 上的 `sgx:sudo` 事件（`lib/sudo.js`），`shell/topbar-panel.js` 接住：打开顶栏终端并预填 `sudo styrigx`；回车后去主站带 `?entry` 的地址打开锁屏。解锁后页面重新取一次（访客态 → valid）。
 
 4.6 `resolveReturn(return)` 是回跳地址的唯一实现（首页 302 与 session-check 共用）：只接受站内路径（不许 `//`、`/\`、`/lock/`）或 `https://*.styrigx.com`（无用户名密码、无反斜杠、不含已下线子域），否则回首页。
 
@@ -73,23 +68,22 @@
 
 ```
             ┌──────────── unknown / locked ─────────────────────┐
- page load ─┤  同步盖遮罩（fail closed）→ import 锁屏 entry.js     │
-            │  立刻 askServer()：ok → proceed()；401 → 保持锁屏      │
+ page load ─┤  不盖遮罩，页面照常可看；上锁的部件自己画成锁       │
+            │  地址带 ?entry（旧 ?lock 兼容读一版）才 import 锁屏   │
             │  sudo styrigx 成功 → askServer() → proceed()          │
-            │  切回前台 / focus / bfcache → askServer()             │
             └──────────────────────────────────────────────────────┘
             ┌──────────── valid ───────────────────────────────────┐
-            │  不画锁屏；带 why + return → askServer() → proceed()   │
+            │  不画锁屏；绑自动回锁：                                │
             │  切回前台 / focus / bfcache / 转屏：                    │
-            │  lock-session-check 401 → 重载（服务端画锁屏）          │
+            │  lock-session-check 401 → 重载（服务端画访客态）        │
             └──────────────────────────────────────────────────────┘
 ```
 
-5.1 `askServer()` = `GET /api/lock-session-check[?return=]`；`proceed(answer)`：`next` 是别处 → `location.replace(next)`（带 `why` 时 20 秒内同目标只跳一次，触发即出失败卡）；无 `next` 且页面是 `locked` → 换到去掉 `lock/why/return` 的地址重新取（10 秒内同地址一次）；`valid` / `unknown` → 原地开锁并改地址栏。前端 MUST NOT 「重载同一个锁屏地址等服务端 302」。
+5.1 `askServer()` = `GET /api/lock-session-check[?return=]`；`proceed(answer)`：`next` 是别处 → `location.replace(next)`；无 `next` 且页面是 `locked` → 换到去掉 `entry/lock/why/return` 的地址重新取（10 秒内同地址一次）；`valid` / `unknown` → 原地开锁并改地址栏。前端 MUST NOT 「重载同一个锁屏地址等服务端 302」。
 
 5.2 实现：`space/web/assets/js/shell/space/guard.js`（判定，在每页 core chunk 中）、`entry.js` / `term.js`（锁屏终端）、`reset.js`（reset 终端）。
 
-5.3 子站切回前台时用 `sgx-lock-sync.js` / `sgx-lock-check.js` 复查；401 即跳主站锁屏。
+5.3 子站不加载守卫（v5 S3 删除了子站的 `sgx-lock-sync.js` / `sgx-lock-check.js` 与踢回防循环）：子站页面本身公开，没进站的写 / 播放由接口回 401，前端发 `sgx:sudo`。
 
 ## 6. 锁屏终端（`entry@space:~$`）
 

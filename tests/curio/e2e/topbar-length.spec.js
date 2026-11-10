@@ -77,7 +77,8 @@ async function settled(page) {
 
 async function open(page, p) {
   await page.goto(p, { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('.sgx-topbar').first()).toBeVisible({ timeout: 15000 });
+  /* 页面：看得见的顶栏；?entry 锁屏：页面顶栏藏起（body.sgx-entry），锁屏没有顶栏（2026-11 PR-A）→ 等锁屏本身（insets 断言看不到顶栏） */
+  await expect(page.locator('.sgx-topbar:visible, #sgx-entry').first()).toBeVisible({ timeout: 15000 });
   await settled(page);
 }
 

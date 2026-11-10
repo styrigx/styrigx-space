@@ -1,6 +1,11 @@
 /* assets/js/curio-music.js —— 奇趣「音乐」私人子页（P4-3 奇趣拆页：/curio/music/；浏览器 IIFE；node 测试时导出纯函数）。
  *
- * 仅本人可见：GET /curio/api/music 回 401 account / 403 scope 时只显示 #mu-denied（点了打开顶栏账号终端）；401 unauthorized = 锁了 → 刷新去锁屏。
+ * 三层（v5 S3；接口档在 workers/curio-core/src/routes.js ROUTE_ACCESS）：
+ *   - 看：GET /curio/api/music 谁都能调（只有专辑 / 曲目元数据，没有音频地址）；回 canWrite（账号 + curio.write）才显示上传 / 删除专辑。
+ *   - 听：要进站。没进站（网关标记 <html data-sgx-lock-session="locked">，或签令牌回 401）= 只看模式（html.mu-view-only）：
+ *     播放整张 / 播放键是锁，播放条显示当前专辑和「未进站，仅可浏览」，上一首 / 下一首 / 倍速 / 进度不可用；
+ *     点播放、点曲目都发 sgx:sudo（经 curio.js SgxCurioUI.sudo；= js/lib/sudo.js SUDO_EVENT），顶栏终端预填 sudo styrigx。
+ *   - 写的接口 401 unauthorized 同样按没进站处理（401 account / reauth 是账号的事，只报错）。
  * 播放器（交互借 jojo.best/music 的思路，只借交互）：
  *   - 封面横滑切专辑（scroll-snap，停下来的那张是当前专辑；点封面也能切），下面是这张的曲目（按曲序）。
  *   - 「播放整张」从第 1 首按曲序放到最后一首；点某一首从那首开始，放完接下一首。
@@ -132,16 +137,21 @@ var speed = 1;
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function toast(m){ if (UI) UI.toast(m); }
-/** 本页接口：401 unauthorized = 锁了（刷新去锁屏）；其它错误带 code 抛出 */
+/** 只看模式：没进站（网关标记；签令牌 401 时改成 true） */
+var viewOnly = doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
+/** 写的权限（GET /api/music 回的 canWrite：账号 + curio.write） */
+var canWrite = false;
+/** 请人进站：顶栏终端预填 sudo styrigx（curio.js SgxCurioUI.sudo → sgx:sudo，shell/topbar-panel.js 接） */
+function askSudo(){ if (UI && UI.sudo) UI.sudo(); }
+/** 本页接口：401 unauthorized = 没进站（切到只看模式 + 请人进站，抛 sgxLocked，调用方不再报错）；其它错误带 code 抛出 */
 function req(method, url, body, type){
   return fetch(url, {
-    method: method, credentials: 'same-origin', redirect: 'manual', cache: 'no-store',
+    method: method, credentials: 'same-origin', cache: 'no-store',
     headers: body === undefined ? {} : { 'Content-Type': type || 'application/json' },
     body: body === undefined ? undefined : type ? body : JSON.stringify(body),
   }).then(function(r){
-    if (r.type === 'opaqueredirect') { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
     return r.json().catch(function(){ return {}; }).then(function(j){
-      if (r.status === 401 && j.error !== 'account' && j.error !== 'reauth') { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      if (r.status === 401 && j.error !== 'account' && j.error !== 'reauth') { setViewOnly(true); askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
       if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error, status: r.status });
       return j;
     });
@@ -163,8 +173,9 @@ function renderAlbum(){
   $('#mu-empty').classList.toggle('hidden', albums.length > 0);
   ['#mu-covers', '#mu-dots'].forEach(function(s){ $(s).classList.toggle('hidden', !albums.length); });
   doc.querySelector('.mu-head').classList.toggle('hidden', !a);
-  doc.querySelector('.mu-album-acts').classList.toggle('hidden', !a);
+  doc.querySelector('.mu-album-acts').classList.toggle('hidden', !a || !canWrite);
   $('#mu-tracks').innerHTML = '';
+  if (viewOnly) paintViewOnly(a);
   if (!a) return;
   $('#mu-album-title').textContent = a.title;
   $('#mu-album-sub').textContent = [a.artist, a.year ? String(a.year) : '', T.tracks(a.tracks.length)].filter(Boolean).join(' · ');
@@ -197,6 +208,31 @@ function select(i, scroll){
   }, { passive: true });
   box.addEventListener('click', function(e){ var b = e.target.closest('.mu-cover'); if (b) select(Number(b.dataset.i), true); });
 })();
+
+/* ---------- 只看模式（没进站） ---------- */
+/** 播放条停在当前专辑：标题 / 「艺术家 · 未进站，仅可浏览」，时间 --:-- @param {any} a */
+function paintViewOnly(a){
+  var pl = $('#mu-player');
+  pl.classList.toggle('hidden', !a);
+  if (!a) return;
+  $('#mu-now-title').textContent = a.title;
+  $('#mu-now-sub').textContent = [a.artist, T.viewOnly].filter(Boolean).join(' · ');
+  $('#mu-time').textContent = '--:--'; $('#mu-dur').textContent = '--:--';
+  $('#mu-seek').value = '0';
+}
+/** 切到 / 离开只看模式（离开只在本页不会发生：进站后页面重新取） @param {boolean} v */
+function setViewOnly(v){
+  viewOnly = v;
+  doc.documentElement.classList.toggle('mu-view-only', v);
+  ['#mu-prev', '#mu-next', '#mu-speed', '#mu-seek'].forEach(function(s){ $(s).disabled = v; });
+  ['#mu-play-all', '#mu-toggle'].forEach(function(s){
+    var b = $(s);
+    if (v) { b.setAttribute('aria-disabled', 'true'); b.setAttribute('aria-label', T.locked); }
+    else b.removeAttribute('aria-disabled');
+  });
+  if (v) { audio.pause(); audio.removeAttribute('src'); play.i = -1; doc.documentElement.classList.remove('mu-playing'); }
+  renderAlbum();
+}
 
 /* ---------- 播放 ---------- */
 function session(a){
@@ -247,9 +283,10 @@ function syncToggle(){
   b.classList.toggle('is-playing', on);
   b.setAttribute('aria-label', on ? b.dataset.lPause : b.dataset.lPlay);
 }
-$('#mu-play-all').addEventListener('click', function(){ var a = album(); if (a && a.tracks.length) playFrom(a, 0); });
-$('#mu-tracks').addEventListener('click', function(e){ var b = e.target.closest('[data-t]'); var a = album(); if (b && a) playFrom(a, Number(b.dataset.t)); });
+$('#mu-play-all').addEventListener('click', function(){ if (viewOnly) return askSudo(); var a = album(); if (a && a.tracks.length) playFrom(a, 0); });
+$('#mu-tracks').addEventListener('click', function(e){ var b = e.target.closest('[data-t]'); var a = album(); if (!b || !a) return; if (viewOnly) return askSudo(); playFrom(a, Number(b.dataset.t)); });
 $('#mu-toggle').addEventListener('click', function(){
+  if (viewOnly) return askSudo();
   if (play.i < 0) { var a = album(); if (a && a.tracks.length) playFrom(a, 0); return; }
   if (audio.paused) { var p = audio.play(); if (p && p.catch) p.catch(function(){}); } else audio.pause();
 });
@@ -392,19 +429,14 @@ $('#mu-up-go').addEventListener('click', function(){
 function done(){ doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); }); }
 req('GET', '/curio/api/music').then(function(j){
   albums = j.albums || [];
+  canWrite = !!j.canWrite;
   done();
   $('#mu-app').classList.remove('hidden');
-  $('#mu-upload').classList.remove('hidden');
-  renderCovers(); renderAlbum();
-}).catch(function(e){
-  if (e && e.sgxLocked) return;
+  $('#mu-upload').classList.toggle('hidden', !canWrite);
+  renderCovers();
+  if (viewOnly) setViewOnly(true); else renderAlbum();
+}).catch(function(){
   done();
-  if (e && (e.code === 'account' || e.code === 'scope')) {
-    var l = $('#mu-denied-link');
-    if (l && e.code === 'scope') { l.setAttribute('data-acct-open', 'apps'); l.removeAttribute('data-acct-app'); l.setAttribute('href', (l.getAttribute('href') || '').replace(/#.*$/, '') + '#acct=apps'); }
-    $('#mu-denied').classList.remove('hidden');
-    return;
-  }
   var p = doc.querySelector('.it-loading'); if (p) { p.textContent = (T.loadFail || T.failed); p.classList.remove('hidden'); }
 });
 })();

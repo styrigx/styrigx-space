@@ -334,7 +334,8 @@ for (const K of KINDS) {
     const hd = await open(env, r.j.link.path, { method: 'HEAD' });
     assert.equal(hd.status, 302);
     assert.equal(hd.headers.getSetCookie().length, 0);
-    assert.equal((await open(env, r.j.link.path, { method: 'POST' })).status, 405);
+    /* 访问表：/s/:code 只有 GET / HEAD 公开，其他方法没进站 401（进了站才轮到 405） */
+    assert.equal((await open(env, r.j.link.path, { method: 'POST' })).status, 401);
   });
 
   T('不存在 / 格式不对 / 过期 / 作废（两种）/ 目标被改坏：同一个响应', async () => {

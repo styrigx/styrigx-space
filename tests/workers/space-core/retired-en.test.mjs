@@ -123,7 +123,7 @@ for (const [site, paths] of Object.entries(SUB_EN)) {
         const html = await r.text();
         assert.match(html, new RegExp(site + ' page not found'), p + ' 应是该站自己的 404');
         assert.doesNotMatch(html, /old english|77ce4d6|stale\(\)/, p + ' 不许出旧页');
-        assert.doesNotMatch(html, /data-sgx-lock-session/, p + ' 子站页面不带会话标记');
+        assert.match(html, new RegExp('<html data-sgx-lock-session="' + (withSession ? 'valid' : 'locked') + '"'), p + ' 子站和主站同一套会话标记（v5 S3）');
         assert.deepEqual(e.seen, ['/' + site + NOT_FOUND_PROBE_PATH], p + ' 回源只取该站的 404 探针：' + e.seen.join(','));
       }
     });
@@ -146,7 +146,7 @@ test('子站：回源拿到的不是 HTML（或是跳转、或抛错）→ 纯�
   }
 });
 
-test('子站误伤反例：/blog/english-post/、/curio/enx/、/daymark/zh/、/blog/post/en/ 照常走子站关口（有会话 200 正文，没会话 302 锁屏），静态后缀照常直通', async () => {
+test('子站误伤反例：/blog/english-post/、/curio/enx/、/daymark/zh/、/blog/post/en/ 照常走子站关口（有没有会话都 200 正文），静态后缀照常直通', async () => {
   const c = await sessionCookie();
   for (const p of ['/blog/english-post/', '/blog/post/en/', '/curio/enx/', '/curio/zh/', '/daymark/zh/', '/daymark/entries/', '/blog/tags/en/']) {
     const e = env();
@@ -155,8 +155,8 @@ test('子站误伤反例：/blog/english-post/、/curio/enx/、/daymark/zh/、/b
     assert.match(await r.text(), /-page">/, p);
     assert.deepEqual(e.seen, [p], p + ' 回源原地址');
     const r2 = await get(env(), p);
-    assert.equal(r2.status, 302, p + ' 没会话 302 锁屏');
-    assert.match(r2.headers.get('Location') || '', /^https:\/\/styrigx\.com\/\?lock=1&why=no-cookie&return=/, p);
+    assert.equal(r2.status, 200, p + ' 没会话也 200（v5 S3）');
+    assert.match(await r2.text(), /data-sgx-lock-session="locked"/, p);
   }
   const e = env();
   const js = await get(e, '/blog/english.js');
@@ -219,13 +219,15 @@ test('回源拿到的不是 HTML（或是跳转）→ 纯文本 404，仍然不�
   }
 });
 
-test('不受影响：/ 和 /zh/ 照常 200，/enx/ 这类普通路径照常过会话（没会话 302 锁屏）', async () => {
+test('不受影响：/ 和 /zh/ 照常 200，/enx/ 这类普通路径照常回源（v5 S3：没会话也不 302）', async () => {
   const c = await sessionCookie();
   const e = env();
   const home = await get(e, '/', c);
   assert.equal(home.status, 200);
   assert.match(await home.text(), /home-widgets/);
-  const r = await get(env(), '/enx/');
-  assert.equal(r.status, 302);
-  assert.match(r.headers.get('Location') || '', /\/\?lock=1&return=%2Fenx%2F$/);
+  const e2 = env();
+  const r = await get(e2, '/enx/');
+  assert.equal(r.status, 404, '/enx/ 不存在：原样回源拿 Pages 的 404（不是前缀规则的探针）');
+  assert.equal(r.headers.get('Location'), null);
+  assert.deepEqual(e2.seen, ['/enx/']);
 });

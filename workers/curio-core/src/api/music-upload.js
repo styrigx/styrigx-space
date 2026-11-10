@@ -1,14 +1,14 @@
 // workers/curio-core/src/api/music-upload.js
 // POST /api/music-upload?album=N&kind=track&no=K&title=…&duration=S   body = 音频本身（浏览器直传，不分片）
 // POST /api/music-upload?album=N&kind=cover                           body = 封面图片（浏览器先缩到 1600、转 webp）
-// 权限：同源 + 账号会话 + curio.write（_music.js guardMusicWrite）。
+// 权限：music 档（进站 + 账号会话 + curio.write，app.js 守卫）+ 同源（_music.js musicOrigin）。
 // 上限：音频单文件 95 MB（MUSIC_LIMITS.trackBytes；Workers 请求体上限 100 MB），要带 Content-Length（没有 411）；封面 3 MB。
 // 音频类型看 Content-Type（AUDIO_TYPES 白名单，回放原样带回 + nosniff）；封面看头几个字节（webp / jpeg / png）。
 // R2_MUSIC：music/<专辑>/<曲序>-<时间>.<扩展名>、music/<专辑>/cover-<时间>.<扩展名>；换封面删旧的。
 // → 曲目 {ok:true, id}；封面 {ok:true}。400 参数不对 / 不是音频图片；404 专辑不在；409 曲目满了；413 太大
 import { err, json, methodNotAllowed } from './_lib.js';
 import { sniffImage } from './_image.js';
-import { guardMusicWrite, ensureMusicSchema, MUSIC_LIMITS, AUDIO_TYPES, trackKey } from './_music.js';
+import { musicOrigin, ensureMusicSchema, MUSIC_LIMITS, AUDIO_TYPES, trackKey } from './_music.js';
 
 const IMG_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 
@@ -20,7 +20,7 @@ function intParam(sp, name, min, max) {
 }
 
 export async function onRequestPost(context) {
-  const denied = await guardMusicWrite(context);
+  const denied = musicOrigin(context);
   if (denied) return denied;
   const { request, env } = context;
   if (!env || !env.D1_MUSIC || !env.R2_MUSIC) return err('server', 503);

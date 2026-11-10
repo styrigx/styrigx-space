@@ -1,13 +1,11 @@
 // workers/curio-core/src/api/music-cover.js
-// GET /api/music-cover?album=N   专辑封面（仅本人：账号会话 + curio.write，_music.js requireMusic）。没封面 404。
-// 缓存同照片（_image.js）：private, no-cache + ETag（由 R2 key 算，换封面换 key）+ Vary: Cookie；304 排在权限检查之后。
+// GET /api/music-cover?album=N   专辑封面，public（v5 S3：和歌单同档；封面走这条，和音频 /api/music-stream 分开）。没封面 404。
+// 缓存同照片（_image.js）：private, no-cache + ETag（由 R2 key 算，换封面换 key）+ Vary: Cookie。
 import { err, methodNotAllowed } from './_lib.js';
-import { requireMusic, ensureMusicSchema } from './_music.js';
+import { ensureMusicSchema } from './_music.js';
 import { etagMatches, etagOf, imageResponse, notModified } from './_image.js';
 
 export async function onRequestGet(context) {
-  const denied = await requireMusic(context);
-  if (denied) return denied;
   const { request, env } = context;
   if (!env || !env.D1_MUSIC || !env.R2_MUSIC) return err('server', 503);
   const id = Number(new URL(request.url).searchParams.get('album') || '');

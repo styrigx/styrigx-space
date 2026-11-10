@@ -1,6 +1,6 @@
 // workers/core/src/api/photo.js
 // 设备照片 / 游戏封面 / 电影海报（R2 R2_PHOTOS：photos/<device|game|movie>/<id>-<时间>.<webp|jpg|png>）。
-//   GET    /api/photo?kind=device|game|movie&id=N   进门即可；没登录账号拿不到私密条目的图（404，同不存在；电影没有私密）。没照片 404。
+//   GET    /api/photo?kind=device|game|movie&id=N   公开（v5 S3）；没登录账号拿不到私密条目的图（404，同不存在；电影没有私密）。没照片 404。
 //   POST   /api/photo?kind=…&id=N             账号会话 + 作用域 curio.write + 同源；body 是图片本身（Content-Type image/webp|jpeg|png，看头几个字节核对），≤ 3 MB。
 //                                             换照片：先写新的、再改 D1、最后删旧的。→ {ok:true}
 //   DELETE /api/photo?kind=…&id=N             账号会话 + 作用域 curio.write + 同源；删照片并清空 D1 里的 key。→ {ok:true}
@@ -41,7 +41,6 @@ async function ensureKind(db, kind) {
 export async function onRequestGet(context) {
   const { request, env } = context;
   const c = await conclusionOf(context);
-  if (!c.space.ok) return err('unauthorized', 401);
   const t = target(request);
   if (!t) return err('bad-id', 400);
   const db = photoDb(env, t.kind); // 设备 → D1_DEVICES，游戏 → D1_GAMES，电影 → D1_MOVIES

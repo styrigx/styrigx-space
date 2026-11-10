@@ -1,13 +1,14 @@
 /**
  * @fileoverview 进站守卫（core chunk 里只有这一小块；原 shell/lock-guard.js，进站 v3 L1 搬进 shell/space/）。
- * - 读网关注入的 <html data-sgx-lock-session> 判断页面状态（属性名 L2 随网关改）；valid 页只绑自动锁屏（切回前台问服务端，401 → 重载）
- * - locked / unknown：先同步盖一层不透明遮罩（fail closed），再 import() 锁屏界面（shell/space/entry.js）；
- *   界面加载失败时遮罩不撤，只给「重新加载」按钮——绝不因为脚本没取到而露出页面
- * 锁屏界面、终端、passkey-assert 这些只在锁屏时用的模块因此不在每页的 core 里。
- * 进门二值（P2-3）：没有等级、没有升级验证层；进门之后的事（锁侧复验、账号）由各页自己要。
+ * v5 S3（整站放开）起页面对所有人都是同一份内容，守卫不再盖遮罩：
+ * - 读网关注入的 <html data-sgx-lock-session>（valid / locked；没有 = 页面没经过网关，按没进站算，不画锁屏）
+ * - valid：绑自动回锁（切回前台问服务端，401 → 重载，服务端画访客态页面）
+ * - 锁屏界面（shell/space/entry.js）只在地址带 ?entry（旧 ?lock 兼容读一版）时 import()：顶栏终端里访客敲 sudo styrigx、
+ *   以及立即锁屏之后都走这个地址（?entry=sudo 进来锁屏自动跑一次 sudo styrigx，见 entry.js）
+ * 进门二值（P2-3）：没有等级；进门之后的事（锁侧复验、账号）由各接口自己要。
  * 去处判定（askServer / proceed）和本地开发判断放这里，锁屏界面从这里 import，两边是同一份。
  */
-import { sgxNavigate, sgxReplace, sgxReload } from '../../lib/diag-jumptrace.js';
+import { sgxReplace, sgxReload } from '../../lib/diag-jumptrace.js';
 import { spaceState } from './state.js';
 import { i18nTable } from '../../lib/i18n.js';
 import { API } from './paths.js';
@@ -26,27 +27,24 @@ export function isLocalDev() {
 }
 
 /* ============================================================
-   锁屏状态机（2026-10-21 重写判定部分；界面不变）。唯一状态源：服务端。
-   - 页面状态 pageState()：网关注入的 <html data-sgx-lock-session>：
-       valid / locked / lock-reset；没有这个属性 = unknown（页面没经过网关，例如路由漏了这种 URL，
-       或缓存/测试环境）。unknown 一律先画锁屏（fail closed），并立刻问服务端。
+   进站状态机。唯一状态源：服务端。
+   - 页面状态 pageState()：网关注入的 <html data-sgx-lock-session>：valid / locked；没有这个属性 = unknown
+     （页面没经过网关：本地开发、测试构建、缓存）。unknown 不画锁屏，各部件照常调接口，接口 401 再按没进站处理。
    - 服务端回答 askServer()：GET /api/lock-session-check[?return=]：{ok, by, exp, next}。
      next 是服务端校验过的去处（与首页 302 同一个 resolveReturn）；前端不做白名单，只照着跳。
-     by（进门方式）只用于展示，记进 lib/lock-state.js 的 lockState.lockBy（方案 3.7）；不分等级。
-   - 解锁成功 / 切回标签页 / bfcache 恢复 / 首帧对账，都走同一个 proceed(answer)：
-       next 是别处  → location.replace(next)（子站或站内原页面）
-       没有 next    → 页面是 locked（锁屏态被瘦身过）就换到干净地址重新取一次（服务端画 valid），
-                      valid / unknown 就原地开锁并把地址里的 lock/why/return 去掉
-     每一条都不会「重载同一个地址再等服务端 302」——那依赖锁屏页本身过网关，线上曾经不成立，
-     结果就是解锁后又回到锁屏（2026-10-21 用户报告）。
-   - 已解锁页面切回前台：问服务端，401 → 重载（服务端画锁屏）。立即锁定 = 服务端清 cookie。
+     by（进门方式）只用于展示，记进 spaceState.by；不分等级。
+   - 解锁成功 / 锁屏显示期间切回标签页 / bfcache 恢复 / 首帧对账，都走同一个 proceed(answer)：
+       next 是别处  → location.replace(next)（站内原页面或子站）
+       没有 next    → 页面是 locked 就换到干净地址重新取一次（服务端画 valid，上锁的部件按进站态重画），
+                      valid / unknown 就原地开锁并把地址里的 entry/lock/why/return 去掉
+   - 已解锁页面切回前台：问服务端，401 → 重载（服务端画访客态）。立即锁定 = 服务端清 cookie。
    - 本地 sessionStorage 只记「刚跳过哪里」防死循环，从不记解锁状态。
    ============================================================ */
 
-/** @returns {'valid'|'locked'|'lock-reset'|'unknown'} */
+/** @returns {'valid'|'locked'|'unknown'} */
 export function pageState() {
   const s = document.documentElement.dataset.sgxLockSession;
-  return s === 'valid' || s === 'locked' || s === 'lock-reset' ? s : 'unknown';
+  return s === 'valid' || s === 'locked' ? s : 'unknown';
 }
 
 /** @param {string} k */
@@ -78,63 +76,7 @@ export function askServer() {
     .catch(function () { return { ok: false }; });
 }
 
-/* 本页是不是浏览器「重载 / 前进后退」打开的（不是一次新的跳转）。
-   三星浏览器（Chromium）切「桌面版网站 / 手机版网站」= 换 UA 后按原始请求地址重载当前条目：锁屏地址 /?lock=1&why=…&return=子站
-   会被原样再取一次。这不是子站又把人踢回来了（子站踢回是网关 302，导航类型是 navigate），不能算进死循环。 */
-function isReloadNav() {
-  try {
-    const e = performance.getEntriesByType('navigation')[0];
-    return !!e && (e.type === 'reload' || e.type === 'back_forward');
-  } catch (e) {
-    return false;
-  }
-}
-
-/* B1-8：子站回跳死循环判定（20 秒窗口）。只在子站踢回（带 ?why=）时用：
-   20 秒内同一 target 第二次被踢回 → 失败卡（One UI 样式，不显示原因码），不再跳。
-   记录 { target, at } 在真正跳之前写入。
-   例外（2026-11-07 Gray 录屏：奇趣锁屏 → 通行密钥解锁 → 切桌面版网站 → 主站「无法回到子站」）：本页是重载 / 前进后退打开的
-   （isReloadNav）→ 不算被踢回，照常回跳，也不刷新窗口起点（真被网关来回踢时仍按第一次的时间算）。 */
-function checkSubsiteLoop(target) {
-  try {
-    const raw = sessionStorage.getItem('sgx-subsite-jump');
-    const now = Date.now();
-    if (raw) {
-      const rec = JSON.parse(raw);
-      if (rec.target === target && (now - rec.at) < 20000) {
-        if (isReloadNav()) return false;
-        return true; /* 死循环 */
-      }
-    }
-    sessionStorage.setItem('sgx-subsite-jump', JSON.stringify({ target: target, at: now }));
-  } catch (e) {}
-  return false;
-}
-function showSubsiteFailure() {
-  let el = document.getElementById('sgx-subsite-failure');
-  if (!el) {
-    const isEn = document.documentElement.lang === 'en';
-    const msg = tx('lockCannotReturnToThe');
-    const homeText = tx('lockBackToMainSite');
-    el = document.createElement('div');
-    el.id = 'sgx-subsite-failure';
-    el.className = 'sgx-card';
-    el.style.cssText = 'position:fixed;bottom:24px;left:16px;right:16px;z-index:10001;padding:16px;text-align:center;';
-    el.innerHTML =
-      '<p style="margin:0 0 12px;font-size:15px;">' + msg + '</p>' +
-      '<button type="button" class="sgx-credential-btn-primary" id="sgx-subsite-home">' + homeText + '</button>';
-    document.body.appendChild(el);
-    const btn = document.getElementById('sgx-subsite-home');
-    if (btn) {
-      btn.addEventListener('click', function () {
-        sgxNavigate('/');
-      });
-    }
-  }
-  el.hidden = false;
-}
-
-/** 当前地址去掉 entry / lock（旧参数，兼容读一版）/ why / return（其余参数、hash 原样） */
+/** 当前地址去掉 entry / lock（旧参数，兼容读一版）/ why（v5 S3 前网关踢回带的，旧书签）/ return（其余参数、hash 原样） */
 function cleanUrl() {
   try {
     const u = new URL(window.location.href);
@@ -175,16 +117,10 @@ function reloadGuardOk(url) {
  * 服务端已确认会话有效后的唯一去处判定。
  * @param {{next?:string|null}} ans
  * @param {() => void} unlockInPlace 原地开锁（锁屏态时是开锁动画；valid 页面是空操作）
- * @returns {'navigate'|'in-place'|'failure'}
+ * @returns {'navigate'|'in-place'}
  */
 export function proceed(ans, unlockInPlace) {
-  const why = qp('why');
   if (ans.next) {
-    if (why && checkSubsiteLoop(ans.next)) {
-      unlockInPlace();
-      showSubsiteFailure();
-      return 'failure';
-    }
     if (!sameAsCurrent(ans.next)) {
       sgxReplace(ans.next);
       return 'navigate';
@@ -192,7 +128,7 @@ export function proceed(ans, unlockInPlace) {
   }
   const clean = cleanUrl();
   if (pageState() === 'locked' && reloadGuardOk(clean)) {
-    /* 锁屏态页面是瘦身过的（没有桌面内容）：重新取一次，服务端会画 valid */
+    /* 访客态页面（上锁的部件画成了锁）：重新取一次，服务端会画 valid */
     sgxReplace(clean);
     return 'navigate';
   }
@@ -201,7 +137,7 @@ export function proceed(ans, unlockInPlace) {
   return 'in-place';
 }
 
-/* 已解锁页面：切回前台 / bfcache 恢复 / 转屏时向服务端确认，401 → 重载（服务端画锁屏）。
+/* 已解锁页面：切回前台 / bfcache 恢复 / 转屏时向服务端确认，401 → 重载（服务端画访客态页面）。
    节流 5 秒；网络错误不跳转，下次再查。页面正显示锁屏时不查（锁屏有自己的对账）。 */
 let lastLockCheck = 0;
 function checkSessionForAutoLock() {
@@ -235,66 +171,48 @@ export function bindAutoLock() {
   });
 }
 
+/** 地址要不要锁屏：?entry=…（旧 ?lock=1 兼容读一版） */
+function wantsEntry() {
+  return !!(qp('entry') || qp('lock'));
+}
+
 /**
- * 初始化锁屏（全站）。
+ * 初始化（主站每页；子站不加载守卫，访客在子站敲 sudo styrigx 去主站锁屏地址，见 topbar-panel.js）。
  */
 export function initLock() {
   /* Hark：CI 测试构建禁用锁屏（构建期 define，线上无绕过） */
   if (SGX_TEST_NO_LOCK) return;
   if (!SGX_FEAT_LOCK_GATE) return;
-  if (isLocalDev()) {
-    /* 本地开发没有后端，直接显示锁屏 */
-    openLockScreen();
-    return;
-  }
   const state = pageState();
   try {
     window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: state === 'valid' } }));
   } catch (e) {}
-  if (state === 'lock-reset') return; /* 网关给 reset 票页面的状态（L2 删）：不盖锁屏 */
   if (state === 'valid') {
     bindAutoLock();
-    /* 子站踢回（带 why）但主站会话有效：问服务端 next，回子站（20 秒窗口防死循环） */
-    if (qp('why') && qp('return')) {
-      askServer().then(function (ans) {
-        if (ans.ok) proceed(ans, function () {});
-      });
-    }
     return;
   }
-  /* locked / unknown：先盖遮罩再按需加载锁屏（fail closed），锁屏里立刻对账 */
-  openLockScreen();
+  if (wantsEntry()) openLockScreen();
 }
 
 /* ============================================================
    按需加载锁屏界面（frontend-js #6）
    ============================================================ */
 
-/** 锁屏界面加载前的遮罩：不透明、盖住整页、挡住点击和读屏（fail closed） */
-function showEntryCover() {
-  let c = document.getElementById('sgx-entry-cover');
-  if (c) return c;
-  c = document.createElement('div');
-  c.id = 'sgx-entry-cover';
-  c.setAttribute('aria-busy', 'true');
-  c.style.cssText = 'position:fixed;inset:0;z-index:301;background:var(--m-surface,#000);display:flex;align-items:center;justify-content:center;';
-  document.body.appendChild(c);
-  document.body.classList.add('sgx-entry');
-  return c;
-}
-
-/** 锁屏界面脚本没取到（断网 / 部署换代）：遮罩不撤，给一个重新加载按钮 @param {HTMLElement} cover */
-function entryLoadFailed(cover) {
-  cover.removeAttribute('aria-busy');
-  cover.innerHTML = '<button type="button" class="sgx-credential-btn-primary" id="sgx-entry-cover-retry">' +
-    (tx('lockReload')) + '</button>';
-  const btn = document.getElementById('sgx-entry-cover-retry');
+/** 锁屏界面脚本没取到（断网 / 部署换代）：页面照常可看，只在底部给一张「重新加载」卡 */
+function entryLoadFailed() {
+  if (document.getElementById('sgx-entry-failed')) return;
+  const el = document.createElement('div');
+  el.id = 'sgx-entry-failed';
+  el.className = 'sgx-card';
+  el.style.cssText = 'position:fixed;bottom:24px;left:16px;right:16px;z-index:10001;padding:16px;text-align:center;';
+  el.innerHTML = '<button type="button" class="sgx-credential-btn-primary" id="sgx-entry-failed-retry">' + tx('lockReload') + '</button>';
+  document.body.appendChild(el);
+  const btn = document.getElementById('sgx-entry-failed-retry');
   if (btn) btn.addEventListener('click', function () { sgxReload(); });
 }
 
 function openLockScreen() {
-  const cover = showEntryCover();
   import('./entry.js')
     .then(function (m) { m.showEntryScreen(); })
-    .catch(function () { entryLoadFailed(cover); });
+    .catch(entryLoadFailed);
 }

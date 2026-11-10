@@ -12,8 +12,8 @@
  *   - 只记账号会话 + 作用域 wellbeing.write（方案 3.4 R12）：没登录账号 / 没作用域直接 204 丢弃，不进主人的数字健康；没有进站会话 401
  *   - 写入 D1（D1_ACCOUNT）wb_daily，同一天同一键原子累加，跨设备天然合并
  * GET /api/wellbeing?d=YYYY-MM-DD  读取某天汇总（默认服务器 UTC 今天）
- *   - 有进站会话就能读（首页小组件没登录账号也能看到区域合计，和原来的静态数据一致）
- *   - 明细（书名 / 文章名）只给账号会话；没登录账号只拿到区域合计（items 为空）
+ *   - 公开（v5 S3）：谁都能读区域合计
+ *   - 明细（书名 / 文章名）只给进站 + 账号会话；没登录账号只拿到区域合计（items 为空）
  *   - 返回 {ok, d, detail, total, sections:[{k,sec}], items:[{k,t,sec}]}；detail = 这次有没有给明细（前端旷野 › 数字健康卡按它显示）
  *
  * 不涉及任何密钥 / 会话签发；未绑定 D1_ACCOUNT（本地）时 POST 204、GET 返回空。
@@ -151,13 +151,12 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { request, env } = context;
+  /* v5 S3：合计公开（网关访问表 GET /api/wellbeing = public，gate.js PUBLIC_API 同一条）；明细只给进站 + 账号会话（读私密 = 账号会话，不要作用域；方案 4.2） */
   const sess = await context.auth.gateway(); /* 进站会话：网关写的身份头（src/gate.js headerAuth） */
-  if (!sess.ok) return json(401, { ok: false }, NO_STORE);
   const url = new URL(request.url);
   const qd = url.searchParams.get('d') || '';
   const d = dayOk(qd) ? qd : utcDay(new Date());
-  /* 明细只给账号会话（读私密 = 账号会话，不要作用域；方案 4.2） */
-  const detail = (await context.auth.authorize()).ok === true;
+  const detail = sess.ok === true && (await context.auth.authorize()).ok === true;
   const empty = { ok: true, d, detail, total: 0, sections: [], items: [] };
   const db = env && env.D1_ACCOUNT;
   if (!db) return json(200, empty, NO_STORE);

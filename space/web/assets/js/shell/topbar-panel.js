@@ -18,6 +18,8 @@
  * - 终端（2026-11 UI 重设计 PR-2）：调用方传 terminal（shell/terminal.js 整个模块；本文件仍不 import）。每页一个引擎实例，接两处视图：
  *   主页首屏嵌入的 [data-sgx-term="home"] 和全站抽屉 #sgx-term（模态 <dialog>，Esc / 点遮罩关）。
  *   Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」：主页上聚焦首屏终端，其他页开合抽屉。命令的动作（滚动 / 跳转 / 外观 / 锁屏 / AI）都在这里接。
+ * - 上锁的地方（v5 S3：AI 窗口、旷野 status 卡、奇趣音乐的播放，以及各处接口回 401）都只发 document 上的 `sgx:sudo` 事件（SUDO_EVENT），
+ *   这里是唯一接它的地方：打开终端、输入行预填 `sudo styrigx`（不替人回车）。访客回车后 sudo styrigx 去锁屏（ENTRY_SUDO_URL，带 return 回原页）。
  */
 
 const QP_MS = 240;
@@ -66,6 +68,20 @@ function shellStr(doc) {
 /** 立即锁屏的接口（同源网关；= shell/space/paths.js API.lockNow，本文件不 import 任何东西，只能抄一份）和锁屏地址（?entry=1；旧 ?lock=1 守卫兼容读一版） */
 const LOCK_NOW_API = '/api/lock-now';
 const ENTRY_URL = '/?entry=1';
+/** 访客敲 sudo styrigx：主站锁屏自动跑这一条（entry.js），进站后回 return（服务端 resolveReturn 校验） */
+const ENTRY_SUDO_URL = '/?entry=sudo&return=';
+/** 上锁的地方要人进站时发的事件（= lib/sudo.js SUDO_EVENT，本文件不 import，抄一份） */
+export const SUDO_EVENT = 'sgx:sudo';
+/** 进站的命令（= term/core/parse.js ADMIN_COMMAND，本文件不 import） */
+const SUDO_LINE = 'sudo styrigx';
+
+/**
+ * 这一页是不是访客（网关注入的 <html data-sgx-lock-session="locked">；没有标记的页面不算访客，接口 401 时 SUDO_EVENT 会改成 locked）。
+ * @param {Document} doc
+ */
+export function isVisitor(doc) {
+  return doc.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
+}
 
 /**
  * 语言偏好 → 实际语言（跟随系统看浏览器语言；语言列表第一项是默认语言 = 英文）
@@ -654,6 +670,11 @@ export function mountTopbar(o) {
           if (which === 'root') {
             return { href: '~/account', go: function () { closeAll(function () { openAcct(sub === 'reset' ? { reset: true } : sub === 'reauth' ? { layer: acctLayer('security').layer } : {}); }); } };
           }
+          /* 访客：去主站锁屏跑 sudo styrigx（四站同一条路，进站后回到这一页）；已进站：盾牌 */
+          if (isVisitor(doc)) {
+            const back = location.pathname + location.search + location.hash;
+            return { href: '~/space', go: function () { closeAll(function () { navigate(ENTRY_SUDO_URL + encodeURIComponent(back)); }); } };
+          }
           return { href: '~/space', go: function () { closeAll(function () { if (sec) openSec(); }); } };
         },
         /** ls ~/proxy：来源列表（POST /api/account/proxy status；没登录 / 读不到 → null） @returns {Promise<any[]|null>} */
@@ -765,6 +786,22 @@ export function mountTopbar(o) {
       /* 点遮罩（抽屉外）关 */
       termDlg.addEventListener('click', function (e) { if (e.target === termDlg && termSheet) termSheet.close(); });
     }
+    /* 上锁的地方要进站（SUDO_EVENT）：打开终端、预填 sudo styrigx。发事件的都是服务端说了没进站（页面标记 locked 或接口 401），
+       页面标记跟着改成 locked，回车时 sudo styrigx 走访客那条路 */
+    doc.addEventListener(SUDO_EVENT, function () {
+      doc.documentElement.setAttribute('data-sgx-lock-session', 'locked');
+      closeAll(function () {
+        if (!homeView) openDrawer();
+        const fill = function (/** @type {number} */ n) {
+          const v = homeView || (termSheet && termSheet.isShown() ? drawerView : null);
+          if (!v) { if (n > 0) window.setTimeout(function () { fill(n - 1); }, 60); return; }
+          v.input.value = SUDO_LINE;
+          v.input.dispatchEvent(new Event('input', { bubbles: true }));
+          v.focus({ scroll: !!homeView });
+        };
+        fill(16);
+      });
+    });
     /* Ctrl / ⌘ K：主页聚焦首屏终端；其他页开合抽屉（输入法组字时不理） */
     doc.addEventListener('keydown', function (e) {
       if (e.isComposing || e.altKey || e.shiftKey || !(e.ctrlKey || e.metaKey) || (e.key !== 'k' && e.key !== 'K')) return;

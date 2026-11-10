@@ -3,10 +3,6 @@
 {{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
 {{ $profile := site.Data.profile }}
 
-{{/* 2.8.0 锁屏瘦身：SGX-DESKTOP markers 之间的内容在锁屏态由 L1 middleware 剥离，不下发。
-   必须用 safeHTML 输出：Go 的 html/template 会删掉模板里的 HTML 注释，以前这两个标记根本没进页面，
-   锁屏态也整份下发了桌面（2026-10-21 查到）。解锁后前端换到干净地址重新取页面（lock.js proceed）。 */}}
-{{ "<!-- SGX-DESKTOP-START -->" | safeHTML }}
 {{/* 主页（2026-11 对齐计划 PR-B，设计稿 tb4.html 主页默认 / m=1；Gray 10:43 / 10:45：功能一个不少，形式照稿）：
    首屏 = 居中 hero（状态胶囊 · $ whoami · 名字 · $ 标语打字轮播 + 闪烁光标 · # 签名）+ 嵌入的真终端（引擎 shell/terminal.js，同全站抽屉一个实例）。
    头像只在顶栏右上；签名 2026-11-09 回到 hero 的 # 行；名字、签名都由 /api/profile 覆盖（data-sgx-profile）。
@@ -135,7 +131,6 @@
 </div>
 
 
-{{ "<!-- SGX-DESKTOP-END -->" | safeHTML }}
 {{/* 脚本入口 entry-space.js（主页四节：日刻今日一句、奇趣计数、旷野小卡） */}}
 {{ partial "space-i18n.html" (dict "tr" $tr) }}
 {{ end }}
