@@ -20,7 +20,7 @@ const WRITE_RE = /^\s*(INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER)\b/i;
 function setup() {
   const db = authD1For(makeKV());
   db.setEpoch('lock', 0); /* 纪元行先摆好：读纪元时的懒建行（INSERT OR IGNORE）不混进「写入」的观测 */
-  const env = { D1_SPACE: db, SGX_SPACE_PRIVATE: PRIV, SGX_SPACE_PUBLIC: PUB, SGX_SPACE_PASSWORD_PEPPER: PEPPER, SGX_SPACE_TEMPKEY_PEPPER: PEPPER, SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN };
+  const env = { D1_SPACE: db, SGX_SPACE_PRIVATE: PRIV, SGX_SPACE_PUBLIC: PUB, SGX_SPACE_PASSWORD_PEPPER: PEPPER, SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN };
   return { db, env };
 }
 

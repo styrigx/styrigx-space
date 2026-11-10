@@ -80,7 +80,7 @@ function baseEnv(kv, overrides) {
     SGX_SPACE_RECOVERY_KEY: 'test-root-key-12345',
     SGX_SPACE_PRIVATE: TEST_PRIV_PEM,
     SGX_SPACE_PUBLIC: TEST_PUB_PEM,
-    SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper',
+    SGX_SPACE_PASSWORD_PEPPER: 'test-pepper',
     SGX_RP_ID: 'test.example.com',
     SGX_ORIGIN: 'https://test.example.com',
   }, overrides || {});

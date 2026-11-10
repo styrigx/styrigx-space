@@ -33,25 +33,50 @@ function statements(sql) {
   return sql.split('\n').map((l) => l.replace(/--.*$/, '')).join(' ').split(';').map((x) => x.replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').trim()).filter(Boolean);
 }
 
-test('SCHEMA 与 L2b 基线 migrations/0001_baseline.sql 的进站段逐条一致（按文件顺序）；基线 = SCHEMA + lock_reset_switch + 分享链接；全部幂等；只有一个迁移文件', async () => {
+test('SCHEMA 与 migrations/ 跑完后的进站段逐条一致：0001_baseline.sql（按文件顺序）去掉 0002_drop_tempkey.sql 删的 tempkey；基线 = SCHEMA + tempkey + lock_reset_switch + 分享链接；全部幂等；两个迁移文件', async () => {
   const { CREATE_SQL } = await import('../../../workers/space-core/src/core/lock-reset-switch.js');
-  const base = statements(readFileSync(new URL('0001_baseline.sql', MIG_DIR), 'utf8'));
+  const base = statements(readFileSync(new URL('0001_baseline.sql', MIG_DIR), 'utf8'))
+    .filter((s) => !/^CREATE (UNIQUE )?(TABLE|INDEX) IF NOT EXISTS tempkey/.test(s) && !/ ON tempkey \(/.test(s));
   const n = SCHEMA.length;
   assert.deepEqual(base.slice(0, n), SCHEMA.map((s) => statements(s)[0]));
   assert.equal(base[n], CREATE_SQL);
   assert.deepEqual(base.slice(n + 1).map((s) => s.replace(/\(.*$/, '').trim()),
     ['CREATE TABLE IF NOT EXISTS share_link', 'CREATE INDEX IF NOT EXISTS share_link_created ON share_link', 'CREATE TABLE IF NOT EXISTS share_fail']);
   for (const s of SCHEMA) assert.match(s, /^CREATE (UNIQUE )?(TABLE|INDEX) IF NOT EXISTS /, '幂等：代码兜底建表和迁移重复跑都不出错');
-  assert.deepEqual(readdirSync(MIG_DIR).filter((f) => f.endsWith('.sql')), ['0001_baseline.sql']);
+  assert.deepEqual(readdirSync(MIG_DIR).filter((f) => f.endsWith('.sql')).sort(), ['0001_baseline.sql', '0002_drop_tempkey.sql']);
+  for (const s of SCHEMA) assert.doesNotMatch(s, /tempkey/, 'v5 收尾：代码兜底不再建 tempkey');
   /* 0006 的六张表都有 realm 列 */
   const db = makeAuthD1();
-  for (const t of ['user_handle', 'challenge', 'attempt_limit', 'tempkey', 'device', 'audit', 'epoch', 'passkey', 'password']) {
+  for (const t of ['user_handle', 'challenge', 'attempt_limit', 'device', 'audit', 'epoch', 'passkey', 'password']) {
     const cols = db.raw.prepare('PRAGMA table_info(' + t + ')').all().map((c) => c.name);
     assert.ok(cols.includes('realm'), t + ' 缺 realm 列');
   }
   /* 不再有「已配置」表：configured 由凭证推出，不存 */
   const tables = db.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name);
   assert.ok(!tables.some((n) => /configured/.test(n)), tables.join(','));
+});
+
+test('v5 收尾 0002_drop_tempkey.sql：在装了 0001 且有数据的库上跑——删 tempkey 表和索引、删 share_link.key_id 列（其余列和行原样）、清 attempt_limit 里 kind=tempkey 的行', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const raw = new DatabaseSync(':memory:');
+  raw.exec(readFileSync(new URL('0001_baseline.sql', MIG_DIR), 'utf8'));
+  raw.prepare("INSERT INTO tempkey (realm, id, name, code_hash, link, created_at, expires_at) VALUES ('lock', 'tk1', 'guest', 'h', 0, 1, 9e15)").run();
+  raw.prepare("INSERT INTO share_link (id, code, name, target, session_sec, key_id, created_at, expires_at, opens) VALUES ('L1', 'C1', 'n', '/x', 3600, 'tk2', 5, 9e15, 2)").run();
+  for (const [kind, bucket] of [['tempkey', '1.2.3'], ['tempkey', '*'], ['password', '1.2.3'], ['spacekey', '*']]) {
+    raw.prepare("INSERT INTO attempt_limit (realm, kind, bucket, count, expires_at) VALUES ('lock', ?, ?, 1, 9e15)").run(kind, bucket);
+  }
+  raw.exec(readFileSync(new URL('0002_drop_tempkey.sql', MIG_DIR), 'utf8'));
+  const names = raw.prepare("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')").all().map((r) => r.name);
+  assert.ok(!names.includes('tempkey') && !names.includes('tempkey_code'), names.join(','));
+  const cols = raw.prepare('PRAGMA table_info(share_link)').all().map((c) => c.name);
+  assert.deepEqual(cols, ['id', 'code', 'name', 'target', 'session_sec', 'created_at', 'expires_at', 'revoked_at', 'opens', 'last_open_at']);
+  assert.deepEqual({ ...raw.prepare('SELECT id, code, target, session_sec, created_at, opens FROM share_link').get() }, { id: 'L1', code: 'C1', target: '/x', session_sec: 3600, created_at: 5, opens: 2 });
+  assert.ok(names.includes('share_link_created'), '分享链接的索引还在');
+  assert.deepEqual(raw.prepare('SELECT kind, bucket FROM attempt_limit ORDER BY kind, bucket').all().map((r) => r.kind + ':' + r.bucket), ['password:1.2.3', 'spacekey:*']);
+  /* 新代码的 INSERT（core/share-links.js SQL.insert，不带 key_id）在迁移后的表上能跑 */
+  const { SQL } = await import('../../../workers/space-core/src/core/share-links.js');
+  raw.prepare(SQL.insert.replace(/\?\d/g, '?')).run('L2', 'C2', '', '/', 0, 6, 9e15);
+  assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM share_link').get().n, 2);
 });
 
 test('表不存在（正式网关的部署不跑迁移）：第一次查询自建表，读写照常', async () => {
@@ -62,7 +87,7 @@ test('表不存在（正式网关的部署不跑迁移）：第一次查询自�
   await putPasskeyRecord(env, REALM_LOCK, { credId: 'c1', publicKey: 'pk' });
   assert.deepEqual((await listPasskeyRecords(env, REALM_LOCK)).map((r) => r.credId), ['c1']);
   const tables = db.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(tables, ['attempt_limit', 'audit', 'challenge', 'device', 'epoch', 'kv_migration', 'passkey', 'password', 'tempkey', 'user_handle']);
+  assert.deepEqual(tables, ['attempt_limit', 'audit', 'challenge', 'device', 'epoch', 'kv_migration', 'passkey', 'password', 'user_handle']);
 });
 
 test('纪元：每次都读 D1（不缓存）——D1 里改了，下一次读就是新值；新库从 0 起步', async () => {

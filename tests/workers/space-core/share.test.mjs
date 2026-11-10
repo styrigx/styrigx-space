@@ -7,7 +7,7 @@
  * D1：有 node:sqlite 时真 SQL（migrations/0001_baseline.sql + core/share-links.js 的语句）和内存替身各跑一遍；Node 20 只跑内存替身。
  *
  * - 规则：码 128 位、目标只收站内相对路径（防开放重定向）、有效期 / 会话档位、会话不超过有效期
- * - 生成（v5 S1）：不签任何钥匙（tempkey 表不再读写，key_id 写 ''）；要进门且不是分享链接进来的会话（不问账号会话）
+ * - 生成（v5 S1）：不签任何钥匙（v5 收尾删了 tempkey 表和 share_link.key_id 列）；要进门且不是分享链接进来的会话（不问账号会话）
  * - 点开：带会话 → 签 by=link 的进站会话（票里 linkId = share_link.id）（Max-Age = min(会话, 剩余)），302 到干净目标；普通 → 只 302；
  *   已进门的人点开不降级；预取 / HEAD 不发会话；不存在 / 过期 / 作废 / 格式不对 → 同一个响应；限速
  * - 作废：写 share_link.revoked_at（rm / rm --all），已发出的链接会话下一个请求就进不来；链接到期同样；纪元推进同样
@@ -34,8 +34,8 @@ const { verifyLockSession } = await import(REPO + 'workers/space-core/src/core/l
 const LOCK = await genKeyPair();
 const H = 3600e3;
 
-/** v5 S1：tempkey 表不再读写——每个用例都核对它一直是空的 */
-const tempkeyRows = (authDb) => authDb.rows('tempkey').length;
+/** v5 收尾：tempkey 表已删（migrations/0002_drop_tempkey.sql）——每个用例都核对它不在 */
+const tempkeyRows = (authDb) => authDb.raw.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'tempkey'").get().n;
 
 /** 改分享替身里的一行（sqlite / 内存两种） @param {any} db @param {string} id @param {Record<string, any>} patch */
 function patchLink(db, id, patch) {
@@ -61,14 +61,14 @@ function spaceD1(authDb, shareDb) {
   };
 }
 
-/** 一个 env（styrigx-space-core 自己的绑定）：D1_SPACE（进站 + 分享）+ 5 个 SGX_SPACE_* 测试值 */
+/** 一个 env（styrigx-space-core 自己的绑定）：D1_SPACE（进站 + 分享）+ 4 个 SGX_SPACE_* 测试值 */
 function setup(d1opts) {
   const authDb = makeAuthD1(); /* 进站那半：纪元等（share_link / share_fail 走分享那半） */
   const db = shareD1(d1opts);
   const env = {
     D1_SPACE: spaceD1(authDb, db),
     SGX_SPACE_PRIVATE: LOCK.priv, SGX_SPACE_PUBLIC: LOCK.pub,
-    SGX_SPACE_RECOVERY_KEY: 'share-test-recovery', SGX_SPACE_PASSWORD_PEPPER: 'share-test-password-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'share-test-pepper',
+    SGX_SPACE_RECOVERY_KEY: 'share-test-recovery', SGX_SPACE_PASSWORD_PEPPER: 'share-test-password-pepper',
     SGX_ENV: 'production', SGX_SITE: 'space',
   };
   _resetMem();
@@ -247,7 +247,7 @@ for (const K of KINDS) {
   const T = (title, fn) => test('[' + K.name + '] ' + title, fn);
   const mk = () => setup({ memory: !!K.memory });
 
-  T('带会话：生成（不签钥匙，key_id 为空）→ 别人点开拿到 by=link 的会话（linkId = share_link.id）、302 到干净目标（不带码）', async () => {
+  T('带会话：生成（不签钥匙，没有 key_id 列）→ 别人点开拿到 by=link 的会话（linkId = share_link.id）、302 到干净目标（不带码）', async () => {
     const { env, db, authDb, gwEnv } = mk();
     const r = await api(env, { action: 'create', name: '小明', hours: 24, to: '/blog/?a=1#x', session: 3 * 3600 });
     assert.equal(r.s, 200, JSON.stringify(r.j));
@@ -257,9 +257,9 @@ for (const K of KINDS) {
     assert.equal(link.to, '/blog/?a=1#x');
     assert.match(link.path, /^\/s\/[A-Za-z0-9_-]{22}$/);
     const row = db.rows()[0];
-    assert.equal(row.key_id, '', 'v5 S1：不再签短链钥匙');
+    assert.equal('key_id' in row, false, 'v5 收尾：share_link 没有 key_id 列');
     assert.ok(row.expires_at > Date.now() + 24 * H - 5000 && row.expires_at <= Date.now() + 24 * H);
-    assert.equal(tempkeyRows(authDb), 0, 'tempkey 表一行都没写');
+    assert.equal(tempkeyRows(authDb), 0, 'tempkey 表不在');
 
     const res = await open(env, link.path);
     assert.equal(res.status, 302);
@@ -817,7 +817,7 @@ test('安全头：/s/<码> 失败跳转保留 Referrer-Policy: no-referrer，其
 
 test('migrations/0001_baseline（L2b）：只建表建索引，没有种子 / 删数据；= 旧库两套迁移（migrations-archive/gateway、share）跑完的表结构（逐列一致：搬来的行原样插得进）；分享链接的代码不兜底建表', { skip: !HAS_SQLITE }, async () => {
   const { DatabaseSync } = await import('node:sqlite');
-  assert.deepEqual(readdirSync(REPO + 'workers/space-core/migrations').sort(), ['0001_baseline.sql']);
+  assert.deepEqual(readdirSync(REPO + 'workers/space-core/migrations').sort(), ['0001_baseline.sql', '0002_drop_tempkey.sql']);
   assert.equal(existsSync(REPO + 'workers/space-core/migrations-share'), false);
   assert.deepEqual(readdirSync(REPO + 'workers/space-core/migrations-archive/share').sort(), ['0001_share_links.sql', '0002_drop_atlas_targets.sql', '0003_baseline_space_gateway.sql']);
   const sql = readFileSync(REPO + 'workers/space-core/migrations/0001_baseline.sql', 'utf8').replace(/--[^\n]*/g, '');

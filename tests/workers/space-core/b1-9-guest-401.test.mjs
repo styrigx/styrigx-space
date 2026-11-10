@@ -42,7 +42,7 @@ function post(path, body, cookie, ip = '203.0.113.9') {
   if (cookie) headers.Cookie = cookie;
   return new Request('https://styrigx.com' + path, { method: 'POST', headers, body: JSON.stringify(body) });
 }
-const env = (db) => ({ SGX_SPACE_PUBLIC: PUB, SGX_SPACE_PRIVATE: PRIV, SGX_SPACE_RECOVERY_KEY: SPACE_KEY, D1_SPACE: db, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper', ...RP });
+const env = (db) => ({ SGX_SPACE_PUBLIC: PUB, SGX_SPACE_PRIVATE: PRIV, SGX_SPACE_RECOVERY_KEY: SPACE_KEY, D1_SPACE: db, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', ...RP });
 const sessCookie = async (by) => 'sgx-space-session=' + (await testLockSession(PRIV, 0, by));
 const pick = (res, name) => {
   for (const c of res.headers.getSetCookie()) if (c.startsWith(name + '=')) return c.slice(name.length + 1).split(';')[0];

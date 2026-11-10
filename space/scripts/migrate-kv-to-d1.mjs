@@ -6,7 +6,7 @@
  *
  * 必须在部署「网关不绑 KV」的版本之前跑（顺序：本脚本 --dry-run → 本脚本 → 本脚本 --verify → 部署网关）。
  * 不跑就部署：锁屏 / 账号密码、通行密钥都读不到（锁屏、账号都按「未设置」处理，根凭证可以代开），
- * 通行密钥的 user handle 会重新生成（已注册的通行密钥校验 userHandle 失败），已登录设备、临时钥匙全部丢失。
+ * 通行密钥的 user handle 会重新生成（已注册的通行密钥校验 userHandle 失败），已登录设备全部丢失。
  *
  * 读（KV namespace，默认认证库 b796097c90104000992b7713f61e16ea，以前的 KV_LOCK_DOOR / KV_ACCOUNT_LOGIN）：
  *   lock-password / account-password                   → password (realm, record)
@@ -17,10 +17,9 @@
  *                                                          上线后所有锁屏 / 账号会话和票失效一次（每个人重新解锁 / 登录一次），
  *                                                          旧的、本该已吊销的票不会因为纪元对上了而复活
  *   account-device:<id>（+ account-device-revoked:<id>）→ device (realm='account', ...)；已退出的导成 revoked_at > 0 的行
- *   lock-tempkey:<id>（+ lock-tempkey-revoked:<id>）     → tempkey (realm='lock', ...)（code_hash = 记录里的 h；跳过已过期的，
- *                                                          已作废的导成 revoked_at > 0 的行）
- * 不导入（只是计数 / 一次性的，过期就没用）：*-password-fail*、*-password-cooldown:*、lock-tempkey-fail*、root-fail*、
- *   *-challenge:*、lock-tempkey-code:*（由 tempkey.code_hash 代替）、
+ *   （lock-tempkey:* 当时导进 tempkey 表；v5 收尾删了临时钥匙和这张表，这一类随之从脚本里删掉。）
+ * 不导入（只是计数 / 一次性的，过期就没用）：*-password-fail*、*-password-cooldown:*、lock-tempkey*（v5 收尾起）、root-fail*、
+ *   *-challenge:*、
  *   *-configured（「已配置」由凭证推出）、lock-reset-switch（开关改在 D1，当时的表 recovery_switch，方案 9.4 起 lock_reset_switch；要用时在控制台插一行）、
  *   root-audit:*（7 天审计，KV 里的旧记录留在 KV 自然过期）。
  *
@@ -52,8 +51,6 @@ export const LEGACY_KV = Object.freeze({
   account: Object.freeze({ password: 'account-password', passkeyPrefix: 'account-passkey:', passkeyIndex: 'account-passkey-index', userHandle: 'account-user-id', epoch: 'account-epoch' }),
   devicePrefix: 'account-device:',
   deviceRevokedPrefix: 'account-device-revoked:',
-  tempkeyPrefix: 'lock-tempkey:',
-  tempkeyRevokedPrefix: 'lock-tempkey-revoked:',
 });
 
 /** 计划要读的键：精确键 + 前缀（只为这些键取值；计数类、challenge 一律不读） */
@@ -61,8 +58,7 @@ export function wantedKey(name) {
   for (const r of [LEGACY_KV.lock, LEGACY_KV.account]) {
     if (name === r.password || name === r.passkeyIndex || name === r.userHandle || name === r.epoch || name.startsWith(r.passkeyPrefix)) return true;
   }
-  return name.startsWith(LEGACY_KV.devicePrefix) || name.startsWith(LEGACY_KV.deviceRevokedPrefix)
-    || name.startsWith(LEGACY_KV.tempkeyPrefix) || name.startsWith(LEGACY_KV.tempkeyRevokedPrefix);
+  return name.startsWith(LEGACY_KV.devicePrefix) || name.startsWith(LEGACY_KV.deviceRevokedPrefix);
 }
 
 /** @param {any} v */
@@ -182,38 +178,6 @@ export function planAuthImport(kv, now, opts) {
     families.push(fam);
   }
 
-  /* 临时钥匙（只导还有效、没作废的；code_hash 冲突时 INSERT OR IGNORE 跳过） */
-  {
-    const marker = 'lock-tempkey';
-    const fam = { name: marker, marker, rows: [], statements: [] };
-    const cols = ['realm', 'id', 'name', 'code_hash', 'link', 'created_at', 'revoked_at', 'expires_at'];
-    const revoked = new Map();
-    for (const k of kv.keys()) {
-      if (!k.startsWith(LEGACY_KV.tempkeyRevokedPrefix)) continue;
-      const id = k.slice(LEGACY_KV.tempkeyRevokedPrefix.length);
-      const e = kv.get(k).expiration;
-      const exp = e ? Number(e) * 1000 : t + 30 * 24 * 3600 * 1000; /* 没有过期时间：按最长有效期 30 天留 */
-      if (id && exp > t) revoked.set(id, exp);
-    }
-    for (const k of [...kv.keys()].filter((n) => n.startsWith(LEGACY_KV.tempkeyPrefix)).sort()) {
-      const v = parseJson(val(k));
-      const id = k.slice(LEGACY_KV.tempkeyPrefix.length);
-      if (!v || v.id !== id || !(Number(v.expiresAt) > t) || revoked.has(id)) continue;
-      if (!v.link && !v.h) continue; /* 普通钥匙没有码哈希：输不进来，不导 */
-      fam.rows.push({ table: 'tempkey', key: { realm: 'lock', id: id } });
-      fam.statements.push({
-        sql: guarded('tempkey', cols),
-        params: ['lock', id, String(v.name || ''), v.link ? null : String(v.h), v.link ? 1 : 0, Number(v.createdAt) || t, 0, Number(v.expiresAt), marker],
-      });
-    }
-    /* 已作废的：导成 revoked_at > 0 的行（留到原来的到期时间），拿它签过的访客会话照样拒 */
-    for (const [id, exp] of [...revoked.entries()].sort()) {
-      fam.rows.push({ table: 'tempkey', key: { realm: 'lock', id: id } });
-      fam.statements.push({ sql: guarded('tempkey', cols), params: ['lock', id, '', null, 0, 0, t, exp, marker] });
-    }
-    fam.statements.push({ sql: MARK, params: [marker, t] });
-    families.push(fam);
-  }
   return { families };
 }
 

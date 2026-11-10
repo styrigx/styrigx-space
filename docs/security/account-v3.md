@@ -30,8 +30,7 @@
 |---|---|---|---|
 | 进站 | 解锁密码 | D1 `styrigx-space-core`；pepper `SGX_SPACE_PASSWORD_PEPPER` | 进站、reauth |
 | 进站 | 通行密钥（WebAuthn） | D1 `styrigx-space-core` | 进站、reauth |
-| 进站 | 临时钥匙 | D1（只存码的哈希，pepper `SGX_SPACE_TEMPKEY_PEPPER`） | 只能进站 |
-| 进站 | 分享链接 / 链接钥匙 | D1 `share_*` 表 + 一把无码的链接钥匙 | 点开即进站（可选） |
+| 进站 | 分享链接 | D1 `share_*` 表（会话按 `share_link` 这一行验，by=link） | 点开即进站（可选） |
 | 进站 | 恢复钥匙 | Secrets Store `SGX_SPACE_RECOVERY_KEY` | 只换 reset 票 |
 | 进站 | 签名钥匙对 | `SGX_SPACE_PRIVATE` / `SGX_SPACE_PUBLIC` | 签 / 验三张进站票 |
 | 账号 | 账号密码 | D1 `styrigx-account`；pepper `SGX_ACCOUNT_PASSWORD_PEPPER` | 登录、reauth |
@@ -66,10 +65,8 @@
 |---|---|---|---|
 | 浏览四站页面 | — | 进站会话（任意 by） | — |
 | 立即锁屏 | `POST /api/lock-now` | 无；**只锁当前设备**（清本机进站会话、reauth、reset 票） | 不验证 |
-| 新建分享链接（含快捷面板「分享本页」） | `POST /api/share { create }` | 进站会话（任意 by，含临时钥匙 / 分享链接进来的会话） | 不验证 |
+| 新建分享链接（含快捷面板「分享本页」） | `POST /api/share { create }` | 进站会话（不收分享链接进来的会话：by=link → 403 link） | 不验证 |
 | 分享链接列表 / 作废 | `POST /api/share { list \| revoke }` | 进站会话 + reauth | 进层前 `sudo styrigx reauth` |
-| 临时钥匙新建 / 作废 | `POST /api/lock-tempkey { create \| revoke }` | 进站会话 + reauth | 进层前 reauth |
-| 临时钥匙列表 | `POST /api/lock-tempkey { list }` | 进站会话 | 进层前 reauth（界面比服务端更严） |
 | 解锁密码设 / 改 / 删 | `POST /api/lock-password` | 进站会话 + reauth（或 reset 票） | 进站凭证层，进层前 reauth |
 | 通行密钥增 / 改名 / 删 | `POST /api/lock-passkey` | 进站会话 + reauth（或 reset 票；reset 下不能改名） | 同上 |
 | 所有设备回锁屏 | `POST /api/lock-all-devices` | 进站会话 + reauth | 同上 |

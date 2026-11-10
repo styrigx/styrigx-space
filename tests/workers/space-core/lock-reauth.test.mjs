@@ -43,7 +43,7 @@ const envFor = (kv, extra = {}) => ({
   D1_SPACE: authD1For(kv),
   SGX_SPACE_PRIVATE: LOCK.priv,
   SGX_SPACE_PUBLIC: LOCK.pub,
-  SGX_SPACE_PASSWORD_PEPPER: PEPPER, SGX_SPACE_TEMPKEY_PEPPER: PEPPER,
+  SGX_SPACE_PASSWORD_PEPPER: PEPPER,
   SGX_SPACE_RECOVERY_KEY: SPACE_KEY,
   SGX_RP_ID: 'styrigx.com',
   SGX_ORIGIN: 'https://styrigx.com',

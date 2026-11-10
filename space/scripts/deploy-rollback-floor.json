@@ -1,12 +1,11 @@
 {
   "$comment": "自动回滚的下限（space/scripts/deploy-rollback.mjs 读）。键 = Worker 名（wrangler.toml 的 name）。部署前线上的版本不满足这里的条件，就不记成回滚目标，这次部署失败也不自动回滚（job 照样红，线上留在新版本，人工处理）。requireBindings：目标版本必须带这些绑定名；notBefore（可选，ISO 时间）：目标版本的创建时间不能早于它。存储改成旧代码读不懂的格式时在这里加一行；以后放宽只能删条件，不要改成更早的时间。",
   "styrigx-space-core": {
-    "why": "进站 v3 L2（2026-11-09）：styrigx-auth-gateway 改名 styrigx-space-core 并入分享链接，新 Worker 从零开始。要 D1_SPACE（原 D1_LOCK_AUTH）、ACCOUNT（账号拆分 PR3）、AI_SERVICE（P4-2b）、SGX_SPACE_RECOVERY_KEY / SGX_SPACE_TEMPKEY_PEPPER（新密钥名、解锁密码和临时钥匙换了 pepper：退回读旧 pepper 的版本，解锁密码又验不过）。L3：notBefore = L2b 切库那次部署开始（2026-11-09 12:16 CST，run 42560887373）——更早的版本 D1_SPACE 指向已删的旧库 styrigx-space-gateway",
+    "why": "进站 v3 L2（2026-11-09）：styrigx-auth-gateway 改名 styrigx-space-core 并入分享链接，新 Worker 从零开始。要 D1_SPACE（原 D1_LOCK_AUTH）、ACCOUNT（账号拆分 PR3）、AI_SERVICE（P4-2b）、SGX_SPACE_RECOVERY_KEY（新密钥名、解锁密码换了 pepper：退回读旧 pepper 的版本，解锁密码又验不过；v5 收尾删了临时钥匙 pepper 绑定，不再要求它）。L3：notBefore = L2b 切库那次部署开始（2026-11-09 12:16 CST，run 42560887373）——更早的版本 D1_SPACE 指向已删的旧库 styrigx-space-gateway",
     "requireBindings": [
       "D1_SPACE",
       "ACCOUNT",
       "SGX_SPACE_RECOVERY_KEY",
-      "SGX_SPACE_TEMPKEY_PEPPER",
       "AI_SERVICE"
     ],
     "notBefore": "2026-11-09T04:16:00Z"

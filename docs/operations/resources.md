@@ -93,7 +93,6 @@
 | `SGX_SPACE_PRIVATE` / `SGX_SPACE_PUBLIC` | space-core | 进站票签名钥匙对 |
 | `SGX_SPACE_RECOVERY_KEY` | space-core | 恢复钥匙 |
 | `SGX_SPACE_PASSWORD_PEPPER` | space-core | 解锁密码 pepper |
-| `SGX_SPACE_TEMPKEY_PEPPER` | space-core | 临时钥匙码 pepper |
 | `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC` | account | 账号票签名钥匙对 |
 | `SGX_ACCOUNT_RECOVERY_KEY` | account | 恢复密钥 |
 | `SGX_ACCOUNT_PASSWORD_PEPPER` | account | 账号密码 pepper |

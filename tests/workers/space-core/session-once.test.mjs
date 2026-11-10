@@ -28,7 +28,7 @@ function env(over = {}) {
   db.setEpoch('lock', 0); /* 纪元行先摆好：每验一次会话恰好一条 SELECT */
   return {
     SGX_ENV: 'production', SGX_SITE: 'space',
-    SGX_SPACE_PRIVATE: PRIV, SGX_SPACE_PUBLIC: PUB, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper', SGX_SPACE_TEMPKEY_PEPPER: 'test-pepper',
+    SGX_SPACE_PRIVATE: PRIV, SGX_SPACE_PUBLIC: PUB, SGX_SPACE_PASSWORD_PEPPER: 'test-pepper',
     SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN,
     D1_SPACE: db, D1_ACCOUNT_AUTH: db, D1_ROOT_AUTH: db,
     AI_SERVICE: okJson(), STATUS: okJson(),

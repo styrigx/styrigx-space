@@ -119,7 +119,7 @@ for (const K of KINDS) {
     let i = 0;
     const add = async (name, expires) => {
       i++;
-      await db.prepare(SQL.insert).bind('id' + i, 'code' + String(i).padStart(18, '0'), name, '/', 0, '', now - 40 * D, expires).run();
+      await db.prepare(SQL.insert).bind('id' + i, 'code' + String(i).padStart(18, '0'), name, '/', 0, now - 40 * D, expires).run();
       return 'id' + i;
     };
     await add('live', now + D);
