@@ -52,7 +52,7 @@
 
 4.3 访问判定（v5 S3 整站放开）：`gate.js` 的 `ROUTE_ACCESS` 是站点核心唯一决定「要不要进站会话」的地方，主站（`onRequest`）与子站页面（`handleSubsite`）共用同一个放行函数 `admit`。规则：
 - 页面与静态文件（不在 `/api/`、`/<子站>/api/` 下）一律公开：200，网关注入 `data-sgx-lock-session="valid|locked"`，两态页面内容相同，no-store。不再 302 去锁屏、不再剥掉桌面内容、没有路径白名单。
-- `/api/*`：只有表里逐条写出的「方法 + 路径」公开（锁屏进站要用的接口、`/s/:code`、`/api/geo`、`/api/wellbeing` 合计等）；其余一律要进站会话，没有即 401 JSON（fail closed，精确匹配，从不按前缀）。
+- `/api/*`：只有表里逐条写出的「方法 + 路径」公开（锁屏进站要用的接口、`/s/:code`、`/api/geo`、`/api/wellbeing` 合计、v5 S4 关键词搜索 `GET /api/find` 等）；其余一律要进站会话，没有即 401 JSON（fail closed，精确匹配，从不按前缀）。
 - 表在 `tests/workers/space-core/route-access.test.mjs` 里整张快照，改表即改谁能不进站调接口。
 - 子站接口（`/curio/api/*`、`/daymark/api/*`）归各自 Worker，各有自己的 `ROUTE_ACCESS`（`src/routes.js`）。
 

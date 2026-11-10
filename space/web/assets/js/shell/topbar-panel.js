@@ -67,6 +67,8 @@ function shellStr(doc) {
 }
 /** 立即锁屏的接口（同源网关；= shell/space/paths.js API.lockNow，本文件不 import 任何东西，只能抄一份）和锁屏地址（?entry=1；旧 ?lock=1 守卫兼容读一版） */
 const LOCK_NOW_API = '/api/lock-now';
+/** 关键词搜索（v5 S4，网关 GET /api/find，公开） */
+const FIND_API = '/api/find';
 const ENTRY_URL = '/?entry=1';
 /** 访客敲 sudo styrigx：主站锁屏自动跑这一条（entry.js），进站后回 return（服务端 resolveReturn 校验） */
 const ENTRY_SUDO_URL = '/?entry=sudo&return=';
@@ -731,6 +733,17 @@ export function mountTopbar(o) {
             const by = [q.author, q.source].filter(Boolean).join(' · ');
             return { text: String(q.text), by: by ? '— ' + by : '' };
           });
+        },
+        /** find <词>（v5 S4）：GET /api/find（公开，不走模型）。429 → { limited }；别的失败 → { degraded }（终端打一行固定文案） */
+        find: function (/** @type {string} */ q) {
+          const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
+          if (!f) return Promise.resolve({ degraded: true });
+          const lang = /^zh/i.test(doc.documentElement.lang || '') ? 'zh' : 'en';
+          return f(FIND_API + '?q=' + encodeURIComponent(q) + '&lang=' + lang, { credentials: 'same-origin' }).then(function (/** @type {Response} */ r) {
+            if (r && r.status === 429) return { limited: true };
+            if (!r || !r.ok) return { degraded: true };
+            return r.json();
+          }).then(function (/** @type {any} */ j) { return j && (j.ok || j.limited) ? j : { degraded: true }; }, function () { return { degraded: true }; });
         },
         daymarkHref: function () { return hrefOf('daymark', '/daymark/'); },
         /* open ~/account[/层]、open ~/shield[/层]（终端统一 T6）：打开对应下拉的那一层，不跳页 */

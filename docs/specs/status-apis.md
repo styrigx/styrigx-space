@@ -45,3 +45,5 @@
 5.1 `GET` / `POST /api/prefs`（账号 Worker）：设置云同步，要进站会话 + 账号会话 + `prefs.sync`；存 D1 `styrigx-account` 的 `settings_sync`，逐项 `{ v, t }` 新的赢；只同步 `sgx-` 开头、在 `lib/cloud-sync.js` 白名单里的键。
 
 5.2 `GET /api/geo`：Cloudflare 提供的城市 / 坐标 / 时区，无需会话。
+
+5.3 `GET /api/find?q=&lang=`（v5 S4）：关键词搜索，无需会话（访客也能用），不走模型。站点核心按 IP 限流后转给 `styrigx-ai` 的 `GET /find`，读四站 KV 索引；只回公开页面的 `{ title, url, site, snippet }`，私密条目、监测数据、音频、账号数据都不在里面。索引读不了时 200 `degraded: true`（空结果），不回 5xx；超限 429 `cooldown`。终端命令 `find <词>`（访客 `man` 里列它；进站后搜索走 `ask`）。

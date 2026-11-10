@@ -208,6 +208,11 @@ term:
   manPager: "q 或 enter 退出"
   notDir: "{c}: 不是目录：{x}"
   usageTty: "用法：tty [2 | 3 | 4 | 5]"
+  usageFind: "用法：find <关键词>"
+  findNone: "find: 没有找到 {x}"
+  findDown: "find: 搜索暂时不可用 · 稍后再试"
+  findLimited: "find: 搜得太频繁了 · 一分钟后再试"
+  askLocked: "AI 已上锁，先 {s}；搜关键词用 {f}"
 # 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/js/shell/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
 man:
   help: "列出命令"
@@ -219,6 +224,7 @@ man:
   theme: "打开外观面板，或设为 dark / light / auto"
   lock: "立即锁定这台设备"
   ask: "问 Gray AI 一个问题"
+  find: "按关键词搜四个站的公开页面"
   clear: "清屏"
   pwd: "显示当前目录"
   open: "打开一个路径：站点、daymark/today、账号或盾牌的某一层"

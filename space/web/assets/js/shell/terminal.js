@@ -2,7 +2,7 @@
  * @fileoverview 站内终端（2026-11 UI 重设计 PR-2，设计稿 term-v1 / tb4.html）：一个模块，四站共用。
  *
  * - 引擎 createShell()：提示符按账号登录状态（环境提示符规则：没登录 styrigx@space:~$、已登录 root@account:~#；cd 之后 ~/blog$ / ~/blog#）、历史（↑ / ↓，sessionStorage 跨页保留）、tab 补全、clear；
- *   命令 help · cd · ls · cat · sudo · theme · lock · ask · clear，真正的动作（滚动 / 跳转 / 开面板 / 锁屏 / 问 AI）由调用方经 act 传进来。
+ *   命令 help · cd · ls · cat · sudo · theme · lock · ask · find · clear，真正的动作（滚动 / 跳转 / 开面板 / 锁屏 / 问 AI）由调用方经 act 传进来。
  * - 解析 / 补全 parse()、complete()、normDir() 是纯函数（单测 tests/space/ui/shell/terminal.test.mjs）。
  * - 视图 mountTermView()：把一个终端窗口标记（[data-sgx-term]：标题栏 + 输出区 + 一行真 <input>）接到引擎上。
  *   主页首屏嵌入的那一个（layouts/index.html，data-sgx-term="home"）和全站抽屉（共享外壳 shell-topbar.html 的 #sgx-term）用同一个引擎实例。
@@ -35,6 +35,17 @@ export function accountSignedIn(doc) {
   try {
     const d = doc || document;
     return d.documentElement.getAttribute('data-sgx-account-session') === 'in';
+  } catch (e) { return false; }
+}
+/**
+ * 这一页是不是访客 nobody（网关注入的 <html data-sgx-lock-session="locked">；没有标记的页面不算访客，同 topbar-panel.js isVisitor）。
+ * 决定 man 列 find 还是 ask（v5 S4，term/core/registry.js listedFor）和访客敲 ask 的提示。
+ * @param {Document} [doc] @returns {boolean}
+ */
+export function visitorPage(doc) {
+  try {
+    const d = doc || document;
+    return d.documentElement.getAttribute('data-sgx-lock-session') === 'locked';
   } catch (e) { return false; }
 }
 /** tty2 的命令表 */
@@ -85,6 +96,11 @@ export const TERM_EN = {
   manPager: 'q or enter to quit',
   notDir: '{c}: not a directory: {x}',
   usageTty: 'usage: tty [2 | 3 | 4 | 5]',
+  usageFind: 'usage: find <keyword>',
+  findNone: 'find: no matches for {x}',
+  findDown: 'find: search is unavailable right now · try again later',
+  findLimited: 'find: too many searches · try again in a minute',
+  askLocked: 'AI is locked · run {s} first; use {f} to search by keyword',
 };
 
 /**
@@ -135,6 +151,7 @@ export function ghost(line) {
  * @property {(mode: string) => void} theme  '' = 打开外观面板；dark / light / auto = 设定
  * @property {() => void} lock
  * @property {(q: string) => void} ask
+ * @property {(q: string) => Promise<{ results?: Array<{ title: string, url: string, site: string, snippet?: string }>, degraded?: boolean, limited?: boolean }>} find  find <词>（v5 S4，GET /api/find）
  * @property {() => Promise<{ text: string, by: string } | null>} today
  * @property {() => string} daymarkHref
  * @property {(layer: string) => ({ href: string, go: () => void })} [account]  open ~/account[/层]（T6）
@@ -143,12 +160,13 @@ export function ghost(line) {
  */
 
 /**
- * @param {{ str?: Record<string, string>, act: TermAct, cwd?: string, storage?: Storage | null, signedIn?: () => boolean, histKey?: string, tty?: string }} o histKey 缺省 sgx-term-hist（tty2）；tty 缺省 tty2（AI 窗口里的 $ 命令是 tty4，T6c）
+ * @param {{ str?: Record<string, string>, act: TermAct, cwd?: string, storage?: Storage | null, signedIn?: () => boolean, visitor?: () => boolean, histKey?: string, tty?: string }} o histKey 缺省 sgx-term-hist（tty2）；tty 缺省 tty2（AI 窗口里的 $ 命令是 tty4，T6c）；visitor 缺省读页面标记（visitorPage）
  */
 export function createShell(o) {
   const S = Object.assign({}, TERM_EN, o.str || {});
   const act = o.act;
   const signedIn = o.signedIn || function () { return accountSignedIn(); };
+  const visitor = o.visitor || function () { return visitorPage(); };
   let cwd = o.cwd && DIRS.indexOf(o.cwd) >= 0 ? o.cwd : '~';
   const hist = createHistory({ storage: o.storage === undefined ? safeSession() : o.storage, key: o.histKey || HIST_KEY });
   /** @type {Array<() => void>} */
@@ -176,8 +194,10 @@ export function createShell(o) {
     cwd: function () { return cwd; },
     /** @param {string} d */
     setCwd: function (d) { cwd = d; emit(); },
-    /** 这个 tty 的命令名（man 索引） */
-    names: function () { return COMMANDS; },
+    /** 这一页是不是访客 nobody（每次现读） */
+    visitor: function () { return visitor(); },
+    /** 这个 tty 在当前进站状态下列出的命令名（man 索引；访客列 find 不列 ask，进站后反过来：registry.js listedFor） */
+    names: function () { return REG.listed('tty2', visitor()); },
     /** 这个终端是哪个 tty（tty 命令显示） */
     tty: o.tty || 'tty2',
     /** 名字或别名 → 命令名（不认识 → ''） @param {string} n */

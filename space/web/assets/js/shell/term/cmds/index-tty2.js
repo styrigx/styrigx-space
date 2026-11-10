@@ -14,8 +14,9 @@ import sudo from './ui/sudo.js';
 import theme from './ui/theme.js';
 import lock from './ui/lock.js';
 import ask from './ui/ask.js';
+import find from './ui/find.js';
 import { SUB_CMDS } from './sub/index.js';
 
-export const TTY2_CMDS = [help, cd, ls, cat, sudo, theme, lock, ask, clear, man, pwd, open, tty].concat(SUB_CMDS);
+export const TTY2_CMDS = [help, cd, ls, cat, sudo, theme, lock, ask, find, clear, man, pwd, open, tty].concat(SUB_CMDS);
 /* man 的参数补全 = 这张表的命令名 */
 man.args = TTY2_CMDS.map(function (c) { return c.name; });

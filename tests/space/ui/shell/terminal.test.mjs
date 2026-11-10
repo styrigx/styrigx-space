@@ -124,7 +124,7 @@ test('help：cd 一行 + 八条命令（顺序同设计稿）；clear 清屏；�
   const nf = sh.exec('foo bar');
   assert.equal(text(nf.out[0]), 'command not found: foo · try help');
   assert.equal(nf.out[0].cls, 'err');
-  assert.deepEqual(COMMANDS, ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'clear', 'man', 'pwd', 'open', 'tty',
+  assert.deepEqual(COMMANDS, ['help', 'cd', 'ls', 'cat', 'sudo', 'theme', 'lock', 'ask', 'find', 'clear', 'man', 'pwd', 'open', 'tty',
     'sub', 'sub-key', 'sub-link', 'sub-add', 'sub-upload', 'sub-mv', 'sub-on', 'sub-off', 'sub-rm', 'sub-refresh']);
 });
 
@@ -249,7 +249,8 @@ test('man（终端统一 T5）：索引列出每条命令；man cd 一页（NAME
   const sh = createShell({ act, storage: mem() });
   const idx = await sh.exec('man');
   assert.equal(text(idx.out[0]), TERM_EN.manIndex);
-  assert.deepEqual(idx.out.slice(1).map((o) => o.seg[0][1]), COMMANDS);
+  /* node 里没有 document → 不算访客：列 ask 不列 find（v5 S4，见下面 find 那几条） */
+  assert.deepEqual(idx.out.slice(1).map((o) => o.seg[0][1]), COMMANDS.filter((c) => c !== 'find'));
   for (const o of idx.out.slice(1)) assert.ok(!/undefined/.test(text(o)), text(o));
   const cd = await sh.exec('man cd');
   assert.equal(cd.pager, true);
