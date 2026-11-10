@@ -25,7 +25,7 @@
 | 接口 | 回答方 | 鉴权 | 返回 | 调用方 |
 |---|---|---|---|---|
 | `GET /api/lock-entry` | 站点核心 | 无（公开） | `{ ok, passkey, password }`：解锁密码 / 进站通行密钥是否设置；读失败按都已设置 | `shell/space/api.js`（锁屏 `sudo styrigx` 列可选方式） |
-| `GET /api/lock-session-check[?return=]` | 站点核心 | 无（自检） | 有效：200 `{ ok:true, by, exp, next }`（`next` 为 `resolveReturn` 校验后的去处，不带 `return` 时为 `null`）；无效：401 `{ ok:false }`。子站页面请求的是主域名根上的同一个接口 | `shell/space/guard.js`；子站 `sgx-lock-sync.js` / `sgx-lock-check.js` |
+| `GET /api/lock-session-check[?return=]` | 站点核心 | 无（自检） | 有效：200 `{ ok:true, by, exp, next }`（`next` 为 `resolveReturn` 校验后的去处，不带 `return` 时为 `null`）；无效：401 `{ ok:false }`。子站页面请求的是主域名根上的同一个接口 | `shell/space/guard.js`（主站；v5 S3 起子站页面公开，不再有自己的复查脚本） |
 | `POST /api/lock-reauth { action:'status' }` | 站点核心 | 进站会话，或有效 reset 票 | `{ ok, valid, ticket?, by?, expiresAt?, password, passkey }`：当前有效的是 `lock-reauth` 还是 `lock-reset` 票、到期时刻（ms），以及进站凭证是否设置 | `shell/space/api.js`（盾牌头部 reauth 倒计时、进站凭证层） |
 | `GET /api/lock-credentials` | 站点核心 | 进站会话，或有效 reset 票 | `{ ok, password, passkey }`；读失败 503 | 当前前端无调用方（接口保留） |
 | `GET /api/space-audit` | 站点核心 | 进站会话 + 账号会话（缺前者 401 `session`，缺后者 401 `account`）；不要 reauth | `{ ok, items:[{ ts, ipPrefix, ok }] }`：恢复钥匙最近的使用记录，新的在前，最多 50 条 | `apps/space-status.js`（旷野 `#status` 页底折叠区，展开时才请求） |

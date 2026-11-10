@@ -37,19 +37,19 @@ src/photo-sweep.js   R2 photos/ 清扫
 
 ## 鉴权（P2-2，方案 3.4 R14、4.6）
 
-每个 `/curio/api/*` 请求只问网关一次 `SPACE.conclusion(cookie, clientContext, { reauth })`，结论放 `context.data.conclusion`（`src/api/_auth.js`）；
-`POST /curio/api/import` 这一问带 `reauth: true`（`src/app.js` 的 `REAUTH_ROUTES`）。
+访问档在 `src/routes.js` 的 `ROUTE_ACCESS`（v5 S3 起本 Worker 唯一的访问表；方法 + 路径精确匹配，表里没有的一律 entry，fail closed；`tests/workers/curio-core/core.test.mjs` 整张快照）。`src/app.js` 按档套一个守卫（`src/api/_auth.js` `GUARDS`）：
+`public` 不拒绝（要私密行 / `canWrite` 时才问网关结论）；`entry` 要进站会话；`music` 要进站 + 账号会话 + `curio.write`。
+需要结论时只问网关一次 `SPACE.conclusion(cookie, clientContext, { reauth })`，结论放 `context.data.conclusion`；`POST /curio/api/import` 这一问带 `reauth: true`（`REAUTH_ROUTES`）。
 
-| 接口 | 进门 | 账号会话 | 作用域 | 账号复验 |
+| 接口 | 档 | 账号会话 | 作用域 | 账号复验 |
 |---|---|---|---|---|
-| `GET /api/links`、`/api/items`、`/api/icon`、`/api/photo` | 是 | 有则含私密 | — | — |
-| `GET /api/export`（含私密） | 是 | 是 | — | — |
-| `POST /api/links`、`POST /api/items`、`POST` / `DELETE /api/photo`、`GET /api/preview` | 是 | 是 | `curio.write` | — |
-| `POST /api/import` | 是 | 是 | `curio.write` | 是 |
-| `GET /api/access`（首页私人入口用，只回布尔）、`GET /api/movies` | 是 | 有则 `canWrite` | — | — |
-| `POST /api/movies`、`POST` / `DELETE /api/photo?kind=movie` | 是 | 是 | `curio.write` | — |
-| `GET` / `POST /api/music`、`POST /api/music-upload`、`POST /api/music-play`、`GET /api/music-cover`（私人音乐，仅本人） | 是 | 是 | `curio.write` | — |
-| `GET` / `HEAD /api/music-stream?t=&id=`（播放短链） | 是 | — | — | —（认 D1 `music_tokens` 里的随机令牌，10 分钟，支持 Range） |
+| `GET /api/links`、`/api/items`、`/api/movies`、`/api/icon`、`/api/photo` | public | 有则含私密 / `canWrite` | — | — |
+| `GET /api/music`、`/api/music-cover`（歌单 / 封面，只有元数据，不含音频地址） | public | 有则 `canWrite` | — | — |
+| `POST /api/music-play`、`GET` / `HEAD /api/music-stream?t=&id=`（听） | entry | — | — | —（流认 D1 `music_tokens` 里的随机令牌，短时有效，支持 Range，no-store） |
+| `GET /api/export`、`GET /api/preview` | entry | 是 | — / `curio.write` | — |
+| `POST /api/links`、`POST /api/items`、`POST /api/movies`、`POST` / `DELETE /api/photo` | entry | 是 | `curio.write` | — |
+| `POST /api/import` | entry | 是 | `curio.write` | 是 |
+| `POST /api/music`、`POST /api/music-upload`（管理 / 上传） | music | 是 | `curio.write` | — |
 
 - 错误码：没进门 `401 unauthorized`；没账号会话 `401 account`；没作用域 `403 scope`（带 `scope` 字段）；要复验没复验 `401 reauth`；非同源 `403 origin`。
 - 读接口回 `canWrite`（有 `curio.write`）、`showPrivate`（账号会话有效）两个布尔，代替以前的等级字段（P2-2）。
@@ -59,7 +59,7 @@ src/photo-sweep.js   R2 photos/ 清扫
 
 - 绑定（同库同桶，各绑一个名字）：`D1_MOVIES`、`D1_MUSIC` → D1 `styrigx-curio-core`；`R2_MUSIC` → R2 `styrigx-curio-core`（`music/<专辑>/…`）。迁移 `0004_movies_music.sql`（deploy.yml 的 `d1 migrations apply styrigx-curio-core --remote` 会跑）。
 - 电影：进门可读，写要 `curio.write`；海报走 `/api/photo?kind=movie`（`photos/movie/…`，参与照片清扫）。
-- 音乐：读写都要账号会话 + `curio.write`；音频单文件 ≤ 95 MB（浏览器直传，要 Content-Length）、封面 ≤ 3 MB；播放令牌 = `crypto.getRandomValues` 32 字节，存 D1，10 分钟，不用 HMAC、不要 secret。
+- 音乐：歌单 / 封面公开（不含音频地址），听要进站，上传 / 管理要账号会话 + `curio.write`；音频单文件 ≤ 95 MB（浏览器直传，要 Content-Length）、封面 ≤ 3 MB；播放令牌 = `crypto.getRandomValues` 32 字节，存 D1，短时有效，不用 HMAC、不要 secret。
 - 电影、音乐不进全站搜索索引 / AI 召回（`search-index.js` 不读这些表、写它们不触发重建），页面 noindex、不进 `/curio/sitemap.xml`。
 
 ## 钥匙

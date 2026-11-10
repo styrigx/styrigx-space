@@ -36,7 +36,7 @@
 
 3.3 博客页面没有自己的语言、深浅色、配色开关；这些由主站设置并经 `sgx-ui` cookie 首帧读取（`layouts/partials/blog/sgx-inherit.html`，细节见 SGX-SPEC-003 §9）。博客 MUST NOT 写 `sgx-ui`。
 
-3.4 进站：博客页面经站点核心 `handleSubsite` 验进站会话；切回前台时 `assets/blog/js/blog/sgx-lock-check.js` 复查 `/api/lock-session-check`，401 即刷新去主站锁屏。
+3.4 进站：博客页面公开（v5 S3 整站放开）。站点核心 `handleSubsite` 只注入 `data-sgx-lock-session` 标记、不拦；原 `sgx-lock-check.js` 已删除。访客在顶栏终端敲 `sudo styrigx` 去主站锁屏。
 
 3.5 带 `private: true` 的页面不进站点地图。
 
