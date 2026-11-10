@@ -92,6 +92,7 @@ export const ROUTE_ACCESS = Object.freeze([
   /* 公开的数据 */
   { method: 'GET', path: '/api/geo', access: 'public', why: '只回调用者自己的城市 / 时区' },
   { method: 'GET', path: '/api/wellbeing', access: 'public', why: '屏幕时间合计（明细接口内另要账号会话）' },
+  { method: 'GET', path: '/api/find', access: 'public', why: '关键词搜索（v5 S4）：只回公开页面元数据，接口内按 IP 限流（FIND_LIMITER）' },
 ].map((r) => Object.freeze(r)));
 
 /** /s/:code 的码：一段，不含 /（同 SHARE_PATH_RE） */

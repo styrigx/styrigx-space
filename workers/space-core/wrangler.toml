@@ -74,6 +74,7 @@ service = "styrigx-status"
 # 站内对话助手（P4-1，方案 5.3；P4-2 起 chat 的外部模型并入它，SEARCH / CHAT 绑定删除）：POST /api/ai 由 src/api/ai.js 验同源、进门、
 # 过两档 AI 限流、写账号结论头，再转给 styrigx-ai 的 POST /ask；GET /api/ai（可选模型列表）转给 GET /models，不计限流。
 # styrigx-ai 没有公开地址（workers_dev / preview_urls 关、没有路由），唯一入口是这个绑定。
+# v5 S4：GET /api/find（关键词搜索，公开）由 src/api/find.js 过 FIND_LIMITER 后转给 styrigx-ai 的 GET /find（不调模型、不写账号结论头）。
 # 部署顺序：deploy.yml 里 deploy-ai-worker 先于本 Worker。
 [[services]]
 binding = "AI_SERVICE"
@@ -94,6 +95,13 @@ simple = { limit = 20, period = 60 }
 name = "AI_LIMITER"
 namespace_id = "2802"
 simple = { limit = 6, period = 60 }
+
+# /api/find（v5 S4 关键词搜索，访客也能用）：每 IP 每 60 秒 10 次；超了 429 cooldown。代码见 core/find-limit.js（绑定缺失 / 出错时放行）。
+# 自己的 namespace，不和 ANON_LIMITER / AI_LIMITER 共用；跳过上一个号（P4-1 已删的 AI 全站总闸用过，tests/workers/space-core/ai-api.test.mjs 核对它不再出现）。
+[[ratelimits]]
+name = "FIND_LIMITER"
+namespace_id = "2804"
+simple = { limit = 10, period = 60 }
 
 # ---- 数据绑定（正式 D1）----
 # 进站 v3 L2b（2026-11-09）：新库 styrigx-space-core（1354c898-…），一套迁移（migrations/0001_baseline.sql）、一张迁移记录表 d1_migrations_core、

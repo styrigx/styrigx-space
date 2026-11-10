@@ -4,6 +4,7 @@
 #
 # 没有公开地址：不开 workers.dev、不挂路由、不挂域名。唯一入口是鉴权网关 styrigx-space-core 的服务绑定 AI_SERVICE：
 #   POST /api/ai 由网关验进门、过两档 AI 限流、写账号结论头（X-Styrigx-Account-Session）后转进来（POST /ask）。
+#   GET /api/find（v5 S4 关键词搜索，公开）由网关过 FIND_LIMITER 后转进来（GET /find）：只读 KV 索引、只回公开条目，不调模型。
 # 所以这里不验 cookie、不持任何钥匙；结论头只可能是网关写的。
 # 不存对话；没有 D1、R2。KV 只在 Cron 同步向量时写状态键 ai:recall:<站名>（站点内容变了的那一轮才写）。
 # 联网搜索只对 gemini 模型（Google 搜索工具）。外部模型的钥匙在 Secrets Store（文件末尾）。
