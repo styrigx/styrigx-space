@@ -88,7 +88,7 @@ test('2026-11-08：云同步子页删除——模板 / 入口 / 页面脚本 / c
   assert.doesNotMatch(rd('space/web/layouts/_default/baseof.html'), /account-sync/);
   assert.equal(ex('space/web/layouts/_default/account.html'), false);
   assert.doesNotMatch(rd('space/web/layouts/partials/shell-topbar.html'), /"sync\/"|data-acct-v="sync"/);
-  assert.doesNotMatch(rd('space/web/assets/js/shell/account/term.js'), /sync/i);
+  assert.doesNotMatch(rd('space/web/assets/js/shell/account/window.js'), /sync/i);
   /* 后台自动同步照旧：外壳 core.js 照常起同步（账号终端登录后清拉取时刻，见 cloud-sync-throttle.test.mjs） */
   assert.match(rd('space/web/assets/js/shell/core.js'), /initCloudSync\(\)\.catch/);
 });

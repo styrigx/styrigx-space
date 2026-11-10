@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { checkTermImports } from '../../../../space/scripts/gen-shell.mjs';
 import * as S from '../../../../space/web/assets/js/shell/term/core/strings.js';
 import * as P from '../../../../space/web/assets/js/shell/term/core/parse.js';
-import * as KH from '../../../../space/web/assets/js/shell/keyhint.js';
+import * as KH from '../../../../space/web/assets/js/shell/term/view/keyhint.js';
 import * as SC from '../../../../space/web/assets/js/shell/space/commands.js';
 import * as AC from '../../../../space/web/assets/js/shell/account/commands.js';
 import * as T from '../../../../space/web/assets/js/shell/terminal.js';

@@ -1,5 +1,5 @@
 /**
- * 终端窗口底部的按键提示行（Gray 2026-11-09 细节 1，space/web/assets/js/shell/keyhint.js）+ 一行输出式的加载提示（细节 3，站内终端 cat daymark/today）。
+ * 终端窗口底部的按键提示行（Gray 2026-11-09 细节 1，space/web/assets/js/shell/term/view/keyhint.js）+ 一行输出式的加载提示（细节 3，站内终端 cat daymark/today）。
  * 运行：node --test tests/space/ui/shell/keyhint.test.mjs
  */
 import { test } from 'node:test';
@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { KH_EN, khKeyFor } from '../../../../space/web/assets/js/shell/keyhint.js';
+import { KH_EN, khKeyFor } from '../../../../space/web/assets/js/shell/term/view/keyhint.js';
 import { createShell } from '../../../../space/web/assets/js/shell/terminal.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
@@ -36,22 +36,21 @@ test('文案：外壳字符串表 en / zh 都有 kh 节，键和英文底一一�
   /* 终端统一 T1：terminal.js / ai-panel.js 不再抄英文底，和 keyhint.js 同用 shell/term/core/strings.js 的 KH_EN */
   for (const f of ['terminal.js', 'ai-panel.js']) {
     const src = read('space/web/assets/js/shell/' + f);
-    assert.match(src, /^import \{ KH_EN, shellSection \} from '\.\/term\/core\/strings\.js';$/m, f + ' 用公共件');
+    assert.match(src, /^import \{ KH_EN, shellSection(, flatStrings)? \} from '\.\/term\/core\/strings\.js';$/m, f + ' 用公共件');
     assert.doesNotMatch(src, /cmdHome: '|ai: 'enter send/, f + ' 不再抄英文底');
   }
 });
 
-test('每个终端窗口都有提示行：锁屏 / 盾牌 / 账号下拉 / 主页终端 / 抽屉 / AI 窗口', () => {
-  assert.match(read('space/web/assets/js/shell/space/entry.js'), /<p class="sgx-kh sgx-entry-kh" id="sgx-entry-kh" hidden><\/p>/);
-  assert.match(read('space/web/assets/js/shell/space/shield.js'), /<p class="sgx-kh sgx-at-kh" data-sh-kh hidden><\/p>/);
-  assert.match(read('space/web/assets/js/shell/account/term.js'), /<p class="sgx-kh sgx-at-kh" data-at-kh hidden><\/p>/);
+test('每个终端窗口都有提示行（v5 S5：锁屏 / 盾牌 / 账号的终端并进全站终端）：主页终端 / 终端窗口 / AI 窗口', () => {
+  for (const f of ['space/entry.js', 'space/shield.js']) assert.ok(!existsSync(path.join(REPO, 'space/web/assets/js/shell', f)), f + ' 删了');
+  assert.doesNotMatch(read('space/web/assets/js/shell/account/window.js'), /data-at-kh/, '账号窗口不再自带终端');
   assert.match(read('space/web/layouts/index.html'), /<p class="sgx-kh sgx-term-kh" data-term-kh hidden><\/p>/);
   const tb = read('space/web/layouts/partials/shell-topbar.html');
   assert.match(tb, /<p class="sgx-kh sgx-term-kh" data-term-kh hidden><\/p>\n  <\/div>\n<\/dialog>/);
   assert.match(tb, /<p class="sgx-kh sgx-ai-kh" data-ai-kh hidden><\/p>\n    <p class="sgx-ai-foot">/);
-  /* 出口：盾牌 / 账号下拉的「‹ 返回」= esc 同一条路，最外层关下拉 */
-  assert.match(read('space/web/assets/js/shell/space/shield.js'), /onBack: function \(\) \{ if \(!escBack\(\)\) o\.ms\.close\(\); \}/);
-  assert.match(read('space/web/assets/js/shell/account/term.js'), /if \(!escBack\(\)\) o\.ms\.close\(\);/);
+  /* 出口：终端窗口的「‹ 返回」= esc 同一条路（先退出当前命令 / reset 层），最外层关窗口 */
+  const tj = read('space/web/assets/js/shell/terminal.js');
+  assert.match(tj, /onBack: function \(\) \{ C\.refocus = true; if \(!C\.interrupt\(\) && o\.onBack\) o\.onBack\(\); \}/);
 });
 
 test('站内终端 cat daymark/today：返回的 Promise 带 pending = daymark（视图先打「› fetching daymark…」）', async () => {
@@ -64,7 +63,7 @@ test('站内终端 cat daymark/today：返回的 Promise 带 pending = daymark�
 });
 
 test('选择的高亮跟着输入走（Gray 2026-11-09 手机截图：打了 2 还亮着 [1]）：空 = 默认项、打了哪项亮哪项、不是选项都不亮；锁屏 / 盾牌 / 账号都接 input 事件', async () => {
-  const { pickKeyOf } = await import('../../../../space/web/assets/js/shell/term-pick.js');
+  const { pickKeyOf } = await import('../../../../space/web/assets/js/shell/term/view/pick.js');
   assert.equal(pickKeyOf('', ['1', '2'], '1'), '1');
   assert.equal(pickKeyOf('2', ['1', '2'], '1'), '2');
   assert.equal(pickKeyOf(' [2] ', ['1', '2'], '1'), '2');
@@ -75,7 +74,7 @@ test('选择的高亮跟着输入走（Gray 2026-11-09 手机截图：打了 2 �
   assert.match(il, /if \(C\.mode === 'pick'\) paintPick\(d\.log, PICK, input\.value, Object\.keys\(picks\), pickDefault\);/);
   assert.match(il, /const PICK = 'data-' \+ attr \+ '-pick';/);
   assert.match(read('space/web/assets/js/shell/space/term.js'), /return createInputLine\(o\);/);
-  assert.match(read('space/web/assets/js/shell/account/term.js'), /attr: 'at',/);
+  assert.match(read('space/web/assets/js/shell/account/window.js'), /attr: 'at',/);
 });
 
 test('锁屏底部 ~/styrigx · zh · en 是舞台里自己的一行（不再 absolute 压在终端最后一行上）', () => {

@@ -464,6 +464,7 @@ account:
       deny: "deny"
       hint: "you go back to {v} either way; deny writes nothing"
   reset:
+    cmds: "in reset: passwd · passkey [add | rm <n>] · exit"
     recoveryKeyAria: "Recovery key"
     lead: "Reset sign-in · verify with your recovery key (does not sign you in)"
     back: "back"

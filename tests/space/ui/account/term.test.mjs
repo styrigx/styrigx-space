@@ -85,15 +85,12 @@ test('入口名 → 层（旧地址 #acct=<子页>、[data-acct-open]、sudo roo
   assert.deepEqual([...C.LAYERS], ['home', 'profile', 'devices', 'keys', 'grants']);
 });
 
-test('应用授权：grep 中英文名 + 全部 / 已授权 / 已取消授权', () => {
+test('应用授权（v5 S5 起在终端 app / app rm <n>）：没有窗口里的 grep / 标签了；应用表照旧', () => {
   const t = (/** @type {string} */ k) => ({ 'grants.app.curio': '奇趣', 'grants.app.daymark': '日刻' })[k] || '';
   const gs = [{ app: 'curio', granted: true }, { app: 'daymark', granted: false }, { app: 'prefs', granted: true, name: 'Settings sync' }];
-  assert.deepEqual(G.filterGrants(gs, 'all', '', t).map((g) => g.app), ['curio', 'daymark', 'prefs']);
-  assert.deepEqual(G.filterGrants(gs, 'on', '', t).map((g) => g.app), ['curio', 'prefs']);
-  assert.deepEqual(G.filterGrants(gs, 'off', '', t).map((g) => g.app), ['daymark']);
-  assert.deepEqual(G.filterGrants(gs, 'all', '奇', t).map((g) => g.app), ['curio']);
-  assert.deepEqual(G.filterGrants(gs, 'all', 'SYNC', t).map((g) => g.app), ['prefs']);
-  assert.deepEqual(G.filterGrants(gs, 'all', 'day', t).map((g) => g.app), ['daymark'], '应用 id 也比');
+  /* v5 S5：应用授权在终端里（app / app rm <n>），窗口里的 grep / 标签没有了 */
+  void t; void gs;
+  assert.equal(G.filterGrants, undefined);
   assert.deepEqual([...G.APP_IDS], ['curio', 'daymark', 'prefs', 'wellbeing', 'avatar', 'profile'], '设置同步的授权还在（O9）');
 });
 
@@ -142,7 +139,7 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
 
 test('后端名字只在 api.js：入口、action 名、请求字段、状态字段、密码管理器隐藏用户名（NAMING-V2 P2 已切到按入口的新接口）', () => {
   const files = readdirSync(path.join(REPO, DIR)).filter((f) => f.endsWith('.js'));
-  assert.deepEqual(files.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'devices.js', 'grants.js', 'keys.js', 'passkey-signal.js', 'profile.js', 'proxy.js', 'reauth.js', 'reset.js', 'session.js', 'term.js']);
+  assert.deepEqual(files.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'devices.js', 'grants.js', 'keys.js', 'passkey-signal.js', 'profile.js', 'proxy.js', 'reauth.js', 'reset.js', 'session.js', 'window.js']);
   const api = strip(rd(DIR + 'api.js'));
   /* NAMING-V2 P2：POST /api/account/<入口> { action }，入口和 action 都只在 api.js 里写 */
   for (const [e, acts] of Object.entries({ session: ['passkey-challenge', 'passkey', 'password', 'end'], reauth: ['passkey-challenge', 'passkey', 'password'],

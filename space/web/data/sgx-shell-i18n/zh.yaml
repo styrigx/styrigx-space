@@ -457,6 +457,7 @@ account:
       deny: "拒绝"
       hint: "选完回到{v}；拒绝不写记录"
   reset:
+    cmds: "reset 里能用：passwd · passkey [add | rm <n>] · exit"
     recoveryKeyAria: "恢复密钥"
     lead: "重置登录 · 用恢复密钥验证（不登录账号）"
     back: "返回"

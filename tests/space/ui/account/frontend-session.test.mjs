@@ -19,9 +19,9 @@ import { dirname, join } from 'node:path';
 import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../../workers/space-core/src/api/lock-now.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
-/* 2026-10-26（frontend-js #6）：锁屏拆成守卫（core 里）+ 界面（按需加载）；进站 v3 L1 起是 shell/space/guard.js + shell/space/entry.js，两份合起来查 */
+/* 2026-10-26（frontend-js #6）：锁屏拆成守卫（core 里）+ 界面（按需加载）；v5 S5 起是守卫 shell/space/guard.js + 终端里的钥匙层 shell/space/layer.js / unlock.js，合起来查 */
 const SP = join(root, 'space/web/assets/js/shell/space');
-const lockJs = readFileSync(join(SP, 'guard.js'), 'utf8') + '\n' + readFileSync(join(SP, 'entry.js'), 'utf8');
+const lockJs = readFileSync(join(SP, 'guard.js'), 'utf8') + '\n' + readFileSync(join(SP, 'layer.js'), 'utf8') + '\n' + readFileSync(join(SP, 'unlock.js'), 'utf8');
 
 test('lock.js：不再读写 sgx-lock-shown', () => {
   assert.ok(!lockJs.includes('sgx-lock-shown'), 'lock.js 不应再出现 sgx-lock-shown');
@@ -112,13 +112,13 @@ test('lock.js：有 return 时直接 location.replace（不做前端白名单校
   assert.ok(!lockJs.includes("ret.charAt(0) === '/'"), '不应再有前端站内路径校验');
 });
 
-test('lock.js：锁屏显示期间监听 visibilitychange/focus/pageshow 重查会话', () => {
+test('lock.js：v5 S5 起没有锁屏界面；已解锁页面在 visibilitychange/focus/pageshow 时重查会话（自动回锁，节流）', () => {
   assert.ok(lockJs.includes("addEventListener('visibilitychange'"), '应监听 visibilitychange');
   assert.ok(lockJs.includes("addEventListener('focus'"), '应监听 focus');
   assert.ok(lockJs.includes("addEventListener('pageshow'"), '应监听 pageshow');
-  assert.ok(lockJs.includes('recheckSession'), '应有 recheckSession 函数');
-  /* 节流至少 1 秒 */
-  assert.ok(lockJs.includes('lastRecheck'), '应有节流时间戳');
+  assert.ok(lockJs.includes('checkSessionForAutoLock'), '应有 checkSessionForAutoLock');
+  assert.ok(!lockJs.includes('recheckSession'), '锁屏期间的 recheckSession 随锁屏删了');
+  assert.ok(lockJs.includes('lastLockCheck'), '应有节流时间戳');
   /* pageshow 只在 bfcache 恢复时重查，避免 reload 循环 */
   assert.ok(lockJs.includes('persisted'), 'pageshow 应检查 persisted');
 });

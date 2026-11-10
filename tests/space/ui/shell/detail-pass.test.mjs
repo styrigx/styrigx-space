@@ -54,7 +54,6 @@ test('字距：标签统一 --sgx-track-label .08em；锁屏标题栏 / 状态�
   }
   const bar = css.slice(css.indexOf('.sgx-entry-term-bar {'), css.indexOf('}', css.indexOf('.sgx-entry-term-bar {')));
   assert.match(bar, /letter-spacing: \.06em;/);
-  assert.match(read('space/web/assets/js/shell/space/entry.js'), /<span id="sgx-entry-tty" translate="no"><\/span>/);
 });
 
 test('主页终端输入行跟输出同字号，16px 只给 iOS；锁屏输出悬挂缩进、上留 12px', () => {

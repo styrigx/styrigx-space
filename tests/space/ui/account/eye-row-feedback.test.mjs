@@ -127,7 +127,7 @@ test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-of
 
 test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案为显示密码/隐藏密码', () => {
   const spaceDir = 'space/web/assets/js/shell/space';
-  const files = ['space/web/assets/js/shell/account/term.js', 'space/web/assets/js/shell/account/keys.js']
+  const files = ['space/web/assets/js/shell/account/window.js', 'space/web/assets/js/shell/account/keys.js']
     .concat(readdirSync(join(ROOT, spaceDir)).filter((f) => f.endsWith('.js')).map((f) => spaceDir + '/' + f));
   for (const f of files) {
     const src = read(f);
@@ -144,7 +144,7 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
   assert.deepEqual(d.eyeHide, { en: 'Hide password', zh: '隐藏密码' }, 'account eyeHide 应为隐藏密码');
   /* 锁屏 sudo styrigx reset 走 /api/lock-reset（paths.js 唯一一处地址）；没有底部弹层 / 验证对话框 */
   assert.ok(read(spaceDir + '/paths.js').includes("reset: '/api/lock-reset'"), 'reset 走 /api/lock-reset');
-  for (const f of ['entry.js', 'reset.js', 'session.js']) {
+  for (const f of ['layer.js', 'reset.js', 'session.js']) {
     assert.ok(!/createMethodSheet|createVerifyDialog|mountResetFlow/.test(read(spaceDir + '/' + f)), f + ' 不用底部弹层 / 验证对话框');
   }
   /* P2-3：升级验证层（shell/upgrade.js）已删除 */
