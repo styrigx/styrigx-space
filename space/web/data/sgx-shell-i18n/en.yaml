@@ -213,6 +213,12 @@ term:
   usageDevice: "usage: device [rm <n> | rm --all]"
   usageApp: "usage: app [allow <n> | deny <n>]"
   usageProfile: "usage: profile [set name | nick | sign | email <value> | avatar]"
+  usageSu: "usage: su <user> | su root"
+  usageGroups: "usage: groups [user]"
+  usageWho: "usage: who"
+  usageUseradd: "usage: useradd <name> [-e YYYY-MM-DD] [-G group,group]"
+  usageUserdel: "usage: userdel <name>"
+  usageUsermod: "usage: usermod -aG | -rG <group[,group]> <name>"
   needEntry: "not entered · run {x} first"
   needRoot: "not signed in to the account · run {x} first"
   linkDenied: "a share-link session can’t do this · enter with your own key"
@@ -242,6 +248,13 @@ man:
   app: "list app access, allow or deny an app"
   profile: "show or change your profile and photo"
   sub: "proxy subscription: status, urls, sources, key and token"
+  whoami: "print who you are (v6 identity)"
+  su: "switch user: sign in as a user, or become root (wheel)"
+  groups: "list a user’s groups"
+  who: "list signed-in sessions with their identity path"
+  useradd: "create a user (one-time password, shown once)"
+  userdel: "delete a user with its sessions, keys and groups"
+  usermod: "add a user to groups or remove it from them"
 # 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；= assets/js/shell/term/man/pages.js 的英文底，行数一一对应，tests/space/ui/shell/man-i18n.test.mjs 查两边一致）。
 manBody:
   sudo:
@@ -297,6 +310,38 @@ manBody:
       - "The server keeps the token sealed with its own key, so sub show can print it again."
       - "Adding, uploading, enabling, disabling, removing or changing the key refreshes once automatically; airports also refresh every 6 hours."
       - "Names use A–Z a–z 0–9 _ - (1–32). At most 20 sources, 2 MB per file. Post-quantum keys (age1pq1…) are not supported yet."
+  whoami:
+    desc:
+      - "Prints the current user; after su root it also shows the path, e.g. root via styrigx."
+  su:
+    desc:
+      - "su <user>: sign in as that user with its password or a passkey; a new user sets a new password on first sign-in."
+      - "su root: only members of wheel; asks for root’s credentials; at most 1 h, and 15 min idle in the foreground goes back."
+      - "exit leaves one layer; lock signs everything out."
+    notes:
+      - "root never signs in directly from visitor. While signed in as a user, exit first before su to another user."
+  groups:
+    auth: "signed in; another user’s groups need root"
+  who:
+    desc:
+      - "Each session’s identity path (root via styrigx) and when it started; you see only your own unless you are root."
+  useradd:
+    desc:
+      - "-e: the account stops working at 00:00 (Beijing time) on that date. -G: groups, comma separated."
+      - "Prints a one-time password once (expires in 24 h); the user must change it at first sign-in."
+    auth: "root, or sudo useradd (sudoers)"
+    notes:
+      - "A user with an expiry can’t join wheel, sudoers or the write groups."
+  userdel:
+    auth: "root, or sudo userdel (sudoers)"
+    notes:
+      - "root and styrigx can’t be deleted."
+  usermod:
+    desc:
+      - "-aG adds the groups, -rG removes them; the user’s sessions end and it signs in again."
+    auth: "root, or sudo usermod (sudoers)"
+    notes:
+      - "Removing the last member of wheel or sudoers asks first."
 # 终端窗口底部的按键提示行（Gray 2026-11-09 细节 1；shell/keyhint.js KH_EN 是英文底）：键名 = 终端状态；触屏只显示 back（「‹ 返回」按钮）
 kh:
   cmd: "enter run · esc close"
@@ -734,3 +779,61 @@ space:
     reauth: "verify again (3 min)"
     clear: "clear the screen"
     exit: "close"
+# 终端里的 v6 身份层（P2b，shell/identity/layer.js）：su / sudo / exit / lock / whoami / groups / who / useradd / userdel / usermod / passwd。提示符、命令写法不翻译。
+identity:
+  pwPrompt: "Password:"
+  pwFor: "[sudo] password for {u}:"
+  currentPw: "Current password:"
+  newPw: "New password:"
+  newPw2: "Retype new password:"
+  hidden: "input is hidden"
+  kindPassword: "password"
+  kindPasskey: "passkey"
+  passkeyWait: "waiting for your passkey…"
+  cancelled: "cancelled"
+  authFail: "Authentication failure"
+  cooldown: "too many attempts · try again later"
+  mustChange: "first sign-in: set a new password"
+  mismatch: "the passwords don’t match"
+  weak: "too weak: at least 8 characters, not the user name or the old password"
+  exitFirst: "signed in as {u} · exit first"
+  alreadyRoot: "already root"
+  notWheel: "su root: you are not in wheel"
+  notSudoers: "{u} is not in the sudoers file"
+  notSignedIn: "not signed in · su <user> first"
+  permission: "{c}: Permission denied"
+  trySudo: "sudoers can run it with {x}"
+  rootCreds: "sudo can’t change root’s password or passkeys · su root first"
+  temporary: "a user with an expiry can’t join {g}"
+  group: "unknown group: {g}"
+  expiry: "the date must be a future YYYY-MM-DD"
+  name: "invalid user name (a–z, 0–9, -; 2–32, starts with a letter; root and styrigx are reserved)"
+  exists: "that user already exists"
+  notFound: "no such user"
+  protected: "root and styrigx can’t be deleted"
+  unknown: "failed ({c})"
+  network: "network error · try again"
+  signedIn: "✓ signed in as {u}"
+  rootOn: "✓ root"
+  rootLimit: "1 h at most · 15 min idle goes back"
+  back: "✓ back to {u}"
+  signedOut: "✓ signed out · visitor"
+  locked: "✓ locked · visitor"
+  idleBack: "root idle for 15 min · back to {u}"
+  via: "{p}"
+  current: "this session"
+  created: "✓ user created"
+  reset: "✓ password reset"
+  otp: "one-time password: {p}"
+  otpNote: "shown only once · valid 24 h · must be changed at first sign-in"
+  deleted: "✓ user deleted"
+  changed: "✓ groups updated · that user signs in again"
+  noChange: "nothing changed"
+  lastMember: "this removes the last member of {g} · continue?"
+  lastWarn: "warning: that group has no members now"
+  againSudo: "run it again as root (su root) to confirm"
+  yes: "yes"
+  no: "no"
+  passwdDone: "✓ password changed · other sessions signed out"
+  usageSudo: "usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who"
+  usageSu: "usage: su <user> | su root"

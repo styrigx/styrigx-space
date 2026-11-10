@@ -119,6 +119,7 @@ test('su styrigx：访客 → 普通用户；cookie HttpOnly / Secure / SameSite
   assert.equal(r.json.user.owner, true);
   const c = r.cookies.find((x) => x.startsWith('sgx-session='));
   assert.match(c, /^sgx-session=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000$/);
+  assert.ok(r.cookies.includes('sgx-id=1; Path=/; Secure; SameSite=Lax; Max-Age=2592000'), '登录标记（非 HttpOnly、值固定 1，P2b）');
   assert.equal(rows(env, 'SELECT pepper_id FROM account_user_password WHERE uid = 1000')[0].pepper_id, 'account', '登录成功用账号 pepper 重算');
   const s = rows(env, 'SELECT uid, rescue FROM account_sessions');
   assert.deepEqual(s, [{ uid: 1000, rescue: 0 }]);
@@ -206,6 +207,7 @@ test('su root：仅 wheel；压 root 层（≤ 1 小时）；who 路径 root via
   const e2 = await id(env, { action: 'exit' }, tok);
   assert.equal(e2.json.user, null);
   assert.ok(e2.cookies.some((c) => c.startsWith('sgx-session=;')));
+  assert.ok(e2.cookies.some((c) => c.startsWith('sgx-id=;')), '回访客时登录标记一起清');
   assert.equal((await id(env, { action: 'whoami' }, tok)).json.user, null);
   const audits = rows(env, 'SELECT command FROM account_user_audit').map((x) => x.command);
   for (const c of ['su root', 'exit root', 'exit', 'login-fail su root']) assert.ok(audits.includes(c), c);

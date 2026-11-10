@@ -59,7 +59,7 @@ test('子站布局 / 语言写端（prefs-write.js）：四个入口都把 langP
 test('v5 S6 顶栏 E：头像没进站是死按钮（有网关标记才判）、>_ 开合终端、盾牌分两态；v5 S7 主页 neofetch 提示符跟身份', () => {
   const js = rd('space/web/assets/js/shell/topbar-panel.js');
   /* 头像：同步看终端身份；页面没有网关标记（本地 / 测试构建）不判死；捕获阶段拦下（不开窗、不按链接走） */
-  assert.match(js, /const avDead = function \(\) \{\s*if \(!who\) return false;\s*const pg = doc\.documentElement\.getAttribute\('data-sgx-lock-session'\);\s*if \(pg !== 'valid' && pg !== 'locked'\) return false;\s*const w = who\.get\(\);\s*return w !== 'styrigx' && w !== 'root';\s*\};/);
+  assert.match(js, /const avDead = function \(\) \{\s*if \(!who\) return false;\s*const pg = doc\.documentElement\.getAttribute\('data-sgx-lock-session'\);\s*if \(pg !== 'valid' && pg !== 'locked'\) return false;\s*const w = who\.get\(\);\s*if \(w\.indexOf\('u:'\) === 0\) return false;\s*return w !== 'styrigx' && w !== 'root';\s*\};/, 'v6 P2b：v6 普通用户（u:<名>）不判死');
   assert.match(js, /e\.preventDefault\(\);\s*e\.stopImmediatePropagation\(\);\s*\}, true\);/);
   assert.match(js, /if \(avDead\(\)\) acctBtn\.setAttribute\('aria-disabled', 'true'\);/);
   /* >_：开合终端（同 Ctrl / ⌘ K）；终端窗口的 opener 是它 */

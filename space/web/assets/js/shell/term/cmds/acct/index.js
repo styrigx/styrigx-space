@@ -20,9 +20,12 @@ const ROOT = /** @type {any} */ (['root']);
 
 const passwd = {
   name: 'passwd',
-  audience: ROOT,
+  audience: /** @type {any} */ (['root', 'user', 'root6']),
   /** @param {any} p @param {any} x */
   run: function (p, x) {
+    /* v6（P2b）：有 v6 新会话时 passwd = 改自己的密码（先输当前密码）、passwd <名> = root 发一次性密码（身份层） */
+    const I = layer(x, /** @type {any} */ ('ident'));
+    if (I && I.hasSession() && p.args.length <= 1) { I.cmdPasswd(p.args[0] || ''); return FLOW; }
     if (p.args.length) return { out: [x.k.plain(x.S.usagePasswd)] };
     const no = acctGate(x, true);
     if (no) return no;

@@ -28,11 +28,11 @@ import { isSameOrigin, originDenied, json, apiError, clientIp } from '../lib/htt
 import { readCookie } from '../lib/cookies.js';
 import { levelOf, rescueOf } from '../core/route-access.js';
 import { permits, ROOT_UID, STYRIGX_UID, USER_NAME_RE, ACCESS } from '../core/groups.js';
-import { admitRequest, SESSION_COOKIE, ROOT_IDLE_MS } from '../core/identity-session.js';
+import { admitRequest, SESSION_COOKIE, ROOT_IDLE_MS, SESSION_TTL_MS } from '../core/identity-session.js';
 import { getUser, getGroups, isUserActive, credentialsChanged } from '../core/users.js';
 import { writeUserAudit } from '../core/user-audit.js';
 import { verifyUserPassword, savePasswordFor, passwordAcceptable } from '../core/identity-auth.js';
-import { issueSession, pushRootLayer, popRootLayer, hasRootLayer, endSession, endSessionByToken, clearSessionCookie, renewSession } from '../core/identity-stack.js';
+import { issueSession, pushRootLayer, popRootLayer, hasRootLayer, endSession, endSessionByToken, clearSessionCookie as clearSid, renewSession, markerCookie, clearMarkerCookie } from '../core/identity-stack.js';
 import { useradd, userdel, usermod, passwdReset, groupsOf, whoList, userByName } from '../core/user-admin.js';
 import { V6_PURPOSE, v6AssertionChallenge, v6CheckAssertion, v6RegistrationChallenge, v6AddPasskey, v6PasskeyViews, v6DeletePasskey } from '../core/identity-passkey.js';
 import { rpConfig, rpConfigMissing } from '../core/config.js';
@@ -60,6 +60,12 @@ function view(adm) {
     owner: id.uid === STYRIGX_UID, wheel: id.groups.indexOf('wheel') !== -1, sudoers: id.groups.indexOf('sudoers') !== -1,
     layerExpiresAt: adm.layerExpiresAt, idleMs: adm.via ? ROOT_IDLE_MS : 0,
   };
+}
+
+/** 清会话 cookie + 登录标记 @param {Headers} h */
+function clearAll(h) {
+  h.append('Set-Cookie', clearSid());
+  h.append('Set-Cookie', clearMarkerCookie());
 }
 
 /** @param {any} body @param {Headers} [h] */
@@ -202,9 +208,9 @@ async function dispatch(c) {
       const h = new Headers();
       if (adm.ok && adm.renew) {
         const ck = await renewSession(env, adm.sessionId, token, now);
-        if (ck) h.append('Set-Cookie', ck);
-      } else if (token && !adm.ok) {
-        h.append('Set-Cookie', clearSessionCookie()); /* 失效的令牌顺手清掉 */
+        if (ck) { h.append('Set-Cookie', ck); h.append('Set-Cookie', markerCookie(SESSION_TTL_MS.user / 1000)); }
+      } else if (!adm.ok && (token || /(?:^|;\s*)sgx-id=/.test(c.request.headers.get('Cookie') || ''))) {
+        clearAll(h); /* 失效的令牌 / 残留的标记顺手清掉 */
       }
       return ok({ user: view(adm) }, h);
     }
@@ -251,6 +257,7 @@ async function dispatch(c) {
       await audit('su ' + arg(target), true, u.uid);
       const h = new Headers();
       h.append('Set-Cookie', s.cookie);
+      h.append('Set-Cookie', markerCookie(SESSION_TTL_MS.user / 1000));
       const groups = await getGroups(env, u.uid);
       return ok({ user: view({ ok: true, identity: { uid: u.uid, name: u.name, groups, rescue: false }, via: null, layerExpiresAt: s.expiresAt }) }, h);
     }
@@ -258,7 +265,7 @@ async function dispatch(c) {
     case 'exit': {
       const h = new Headers();
       if (!adm.ok) {
-        if (token) h.append('Set-Cookie', clearSessionCookie());
+        if (token) clearAll(h);
         return ok({ user: null }, h);
       }
       if (!identity.rescue && (await hasRootLayer(env, adm.sessionId))) {
@@ -267,7 +274,7 @@ async function dispatch(c) {
         return ok({ user: view(await admitRequest(env, c.request)) });
       }
       await endSession(env, adm.sessionId);
-      h.append('Set-Cookie', clearSessionCookie());
+      clearAll(h);
       await audit('exit', true);
       return ok({ user: null }, h);
     }
@@ -285,8 +292,8 @@ async function dispatch(c) {
       const h = new Headers();
       if (token) {
         await endSessionByToken(env, token);
-        h.append('Set-Cookie', clearSessionCookie());
       }
+      clearAll(h);
       if (identity) await audit('lock', true);
       return ok({ user: null }, h);
     }

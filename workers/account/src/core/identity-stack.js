@@ -21,6 +21,19 @@ import { SESSION_COOKIE, SESSION_TTL_MS, sessionIdOf } from './identity-session.
 /** 新会话 cookie 的属性（主机级：不写 Domain） */
 export const SESSION_COOKIE_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Lax';
 
+/**
+ * 登录标记（P2b）：值固定 1、非 HttpOnly、不含任何秘密，只给前端首帧决定要不要问 whoami（同 v5 的 sgx-account-signed-in）。
+ * 鉴权从不读它；随 sgx-session 签发 / 续期 / 清除。
+ */
+export const V6_MARKER_COOKIE = 'sgx-id';
+/** @param {number} maxAgeSec */
+export function markerCookie(maxAgeSec) {
+  return V6_MARKER_COOKIE + '=1; Path=/; Secure; SameSite=Lax; Max-Age=' + Math.max(0, Math.floor(maxAgeSec));
+}
+export function clearMarkerCookie() {
+  return V6_MARKER_COOKIE + '=; Path=/; Secure; SameSite=Lax; ' + COOKIE_EXPIRED;
+}
+
 /** 新令牌：32 字节随机数的 base64url（43 字符，同 SESSION_TOKEN_RE） */
 export function newToken() {
   const b = crypto.getRandomValues(new Uint8Array(32));

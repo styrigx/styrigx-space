@@ -206,6 +206,12 @@ term:
   usageDevice: "用法：device [rm <n> | rm --all]"
   usageApp: "用法：app [allow <n> | deny <n>]"
   usageProfile: "用法：profile [set name | nick | sign | email <值> | avatar]"
+  usageSu: "用法：su <用户> | su root"
+  usageGroups: "用法：groups [用户]"
+  usageWho: "用法：who"
+  usageUseradd: "用法：useradd <名字> [-e YYYY-MM-DD] [-G 组,组]"
+  usageUserdel: "用法：userdel <名字>"
+  usageUsermod: "用法：usermod -aG | -rG <组[,组]> <名字>"
   needEntry: "还没进站 · 先 {x}"
   needRoot: "还没登录账号 · 先 {x}"
   linkDenied: "分享链接进来的会话不能这样做 · 用自己的钥匙进站"
@@ -235,6 +241,13 @@ man:
   app: "列出应用授权，允许或拒绝某个应用"
   profile: "查看或修改个人资料和头像"
   sub: "代理订阅：状态、地址、来源、公钥、令牌"
+  whoami: "显示当前身份（v6）"
+  su: "切换用户：以某个用户登录，或切到 root（wheel 组）"
+  groups: "列出用户所在的组"
+  who: "列出登录中的会话和身份路径"
+  useradd: "新建用户（一次性密码，只显示一次）"
+  userdel: "删除用户，连同会话、钥匙和组"
+  usermod: "把用户加进组或移出组"
 # 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；英文底在 assets/js/shell/term/man/pages.js，行数一一对应）。{root} / {admin} 换成命令字；命令写法、提示符不翻译。
 # 中文页每一页都要有（tests/space/ui/shell/man-i18n.test.mjs 查）。
 manBody:
@@ -291,6 +304,38 @@ manBody:
       - "服务端用自己的密钥封存令牌，所以 sub show 能再印出来。"
       - "添加、上传、启用、停用、删除或换公钥后自动刷新一次；机场另外每 6 小时刷新。"
       - "名称用 A–Z a–z 0–9 _ -（1–32 位）。最多 20 个来源，每个文件 2 MB。暂不支持后量子公钥（age1pq1…）。"
+  whoami:
+    desc:
+      - "显示当前用户；su root 之后还显示路径，比如 root via styrigx。"
+  su:
+    desc:
+      - "su <用户>：用这个用户的密码或通行密钥登录；新用户第一次登录要设新密码。"
+      - "su root：只有 wheel 组能用，输 root 的凭据；最多 1 小时，前台空闲 15 分钟自动退回。"
+      - "exit 退一层；lock 全部退出。"
+    notes:
+      - "root 不能从访客直接登录。已经以某个用户登录时，要先 exit 才能 su 到另一个用户。"
+  groups:
+    auth: "已登录；看别人的组要 root"
+  who:
+    desc:
+      - "每个会话的身份路径（root via styrigx）和开始时间；不是 root 只看到自己的。"
+  useradd:
+    desc:
+      - "-e：到那一天 00:00（北京时间）起账号失效。-G：组，用逗号隔开。"
+      - "印出一次性密码，只显示一次（24 小时内有效）；用户第一次登录必须改掉。"
+    auth: "root，或 sudo useradd（sudoers）"
+    notes:
+      - "有期限的用户不能进 wheel、sudoers 和写组。"
+  userdel:
+    auth: "root，或 sudo userdel（sudoers）"
+    notes:
+      - "root 和 styrigx 不能删。"
+  usermod:
+    desc:
+      - "-aG 加进这些组，-rG 移出；用户的会话作废，要重新登录。"
+    auth: "root，或 sudo usermod（sudoers）"
+    notes:
+      - "移除 wheel 或 sudoers 的最后一个成员会先问一次。"
 # 终端窗口底部的按键提示行（Gray 2026-11-09 细节 1）：键名同英文表
 kh:
   cmd: "enter 执行 · esc 关闭"
@@ -728,3 +773,61 @@ space:
     reauth: "再验证（3 分钟）"
     clear: "清屏"
     exit: "关闭"
+# 终端里的 v6 身份层（P2b，shell/identity/layer.js）：su / sudo / exit / lock / whoami / groups / who / useradd / userdel / usermod / passwd。提示符、命令写法不翻译。
+identity:
+  pwPrompt: "Password:"
+  pwFor: "[sudo] password for {u}:"
+  currentPw: "当前密码："
+  newPw: "新密码："
+  newPw2: "再输一次新密码："
+  hidden: "输入不显示"
+  kindPassword: "密码"
+  kindPasskey: "通行密钥"
+  passkeyWait: "等待通行密钥…"
+  cancelled: "已取消"
+  authFail: "认证失败"
+  cooldown: "尝试太多次 · 稍后再试"
+  mustChange: "首次登录：请设一个新密码"
+  mismatch: "两次输入的密码不一样"
+  weak: "太弱：至少 8 位，不能是用户名或旧密码"
+  exitFirst: "已经以 {u} 登录 · 先 exit"
+  alreadyRoot: "已经是 root"
+  notWheel: "su root：你不在 wheel 组"
+  notSudoers: "{u} 不在 sudoers 里"
+  notSignedIn: "没有登录 · 先 su <用户>"
+  permission: "{c}：权限不够"
+  trySudo: "sudoers 可以用 {x}"
+  rootCreds: "sudo 不能改 root 的密码或通行密钥 · 先 su root"
+  temporary: "有期限的用户不能进 {g}"
+  group: "没有这个组：{g}"
+  expiry: "日期要是将来的 YYYY-MM-DD"
+  name: "用户名不合法（a–z、0–9、-；2–32 位、字母开头；root 和 styrigx 保留）"
+  exists: "这个用户已经有了"
+  notFound: "没有这个用户"
+  protected: "root 和 styrigx 不能删"
+  unknown: "失败（{c}）"
+  network: "网络出错 · 再试一次"
+  signedIn: "✓ 已以 {u} 登录"
+  rootOn: "✓ root"
+  rootLimit: "最多 1 小时 · 前台空闲 15 分钟自动退回"
+  back: "✓ 回到 {u}"
+  signedOut: "✓ 已退出 · 访客"
+  locked: "✓ 已全部退出 · 访客"
+  idleBack: "root 空闲 15 分钟 · 已回到 {u}"
+  via: "{p}"
+  current: "本会话"
+  created: "✓ 用户已建好"
+  reset: "✓ 密码已重置"
+  otp: "一次性密码：{p}"
+  otpNote: "只显示这一次 · 24 小时内有效 · 首次登录必须改掉"
+  deleted: "✓ 用户已删除"
+  changed: "✓ 组已更新 · 该用户要重新登录"
+  noChange: "没有变化"
+  lastMember: "这会移除 {g} 的最后一个成员 · 继续？"
+  lastWarn: "注意：这个组现在没有成员了"
+  againSudo: "要确认，请 su root 后再跑一次"
+  yes: "是"
+  no: "否"
+  passwdDone: "✓ 密码已改 · 其他会话已退出"
+  usageSudo: "用法：sudo useradd | userdel | usermod | passwd <名字> | groups [名字] | who"
+  usageSu: "用法：su <用户> | su root"
