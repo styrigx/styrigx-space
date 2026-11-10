@@ -1,7 +1,7 @@
 /**
  * B1-9 的会话假入口（v1：凭会话等级写死 401）随 P2-3 进门二值删除（方案 3.3、定案第 6 条）。这里验收删除之后的行为：
- * 1. /api/lock-reset 不看进站会话：没有会话、锁屏密码进门、临时钥匙进门 → 一律真比对进站凭证（错了 401 auth，计数、写审计）
- * 2. 进站 v3 L1：恢复钥匙不签 reauth 票。/api/space-auth purpose=lock-reauth 已删，任何会话下（没进门 / 临时钥匙 /
+ * 1. /api/lock-reset 不看进站会话：没有会话、锁屏密码进门、分享链接进门 → 一律真比对进站凭证（错了 401 auth，计数、写审计）
+ * 2. 进站 v3 L1：恢复钥匙不签 reauth 票。/api/space-auth purpose=lock-reauth 已删，任何会话下（没进门 / 分享链接 /
  *    密码 / 通行密钥进门）都 → 400 purpose，不比对、不计数、不写审计、不签票；reauth 只认解锁密码 / 通行密钥
  * 3. v1 的 6 段票按 bad-format 处理，等于没有会话（verifyLockSession）
  *
@@ -49,9 +49,9 @@ const pick = (res, name) => {
   return '';
 };
 
-test('lock-reset：没有会话 / 锁屏密码进门 / 临时钥匙进门 → 一律真比对进站凭证（错了 401 auth，计数、写审计）', async () => {
+test('lock-reset：没有会话 / 锁屏密码进门 / 分享链接进门 → 一律真比对进站凭证（错了 401 auth，计数、写审计）', async () => {
   let n = 0;
-  for (const cookie of ['', await sessCookie('password'), await sessCookie('tempkey')]) {
+  for (const cookie of ['', await sessCookie('password'), await sessCookie('link')]) {
     const kv = makeStore(CONFIGURED);
     const ip = '198.51.100.' + (10 + n++);
     const res = await lockResetPost({ request: post('/api/lock-reset', { action: 'verify', spaceKey: 'wrong' }, cookie, ip), env: env(kv) });
@@ -67,7 +67,7 @@ test('lock-reset：没有会话 / 锁屏密码进门 / 临时钥匙进门 → �
 
 test('space-auth lock-reauth（v3 L1 已删）：没进门 / 任何进门方式 → 400 purpose，不比对、不计数、不写审计、不签票', async () => {
   for (const seed of [false, CONFIGURED]) {
-    for (const by of ['', 'tempkey', 'password', 'passkey']) {
+    for (const by of ['', 'link', 'password', 'passkey']) {
       const kv = makeStore(seed);
       const cookie = by ? await sessCookie(by) : '';
       const before = snapshot(kv);
@@ -87,6 +87,6 @@ test('v1 的 6 段进站会话票按 bad-format 处理：verifyLockSession 等�
   const kv = makeStore(CONFIGURED);
   const r = await verifyLockSession(post('/api/space-auth', {}, v1), env(kv));
   assert.equal(r.ok, false);
-  const good = await verifyLockSession(post('/api/space-auth', {}, await sessCookie('tempkey')), env(kv));
+  const good = await verifyLockSession(post('/api/space-auth', {}, await sessCookie('link')), env(kv));
   assert.equal(good.ok, true, '对照：现行票有效');
 });

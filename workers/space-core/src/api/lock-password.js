@@ -28,7 +28,7 @@ import {
 } from '../core/lock-session.js';
 import { checkLockManage } from '../core/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../core/tickets.js';
-import { LOCK_REAUTH_TICKET, BY_PASSWORD } from '../core/realms.js';
+import { LOCK_REAUTH_TICKET, BY_PASSWORD, BY_LINK } from '../core/realms.js';
 import { verifyLockSession } from '../core/lock-session.js';
 import { getPasskeys, PASSKEY_LOCK } from '../core/passkey-store.js';
 import { isSameOrigin, originDenied, json, apiError, clientIp } from '../lib/http.js';
@@ -78,11 +78,15 @@ async function handlePost(context) {
   /* 只认锁屏密码；账号密码不能解锁（各层凭证不互相替代）。 */
   if (action === 'verify') {
     const toReauth = !!(body && body.reauth === true);
-    /* 再验证：要先进门（任何进门方式；临时钥匙进门的会话本身不算复验，复验靠这里验锁屏密码）；没进门 → 401 session */
+    /* 再验证：要先进门（锁屏密码 / 通行密钥进的门）；没进门 → 401 session；
+       分享链接进来的会话（by=link）不能 reauth（v5 S1）→ 403 link，不比对密码、不计数 */
     if (toReauth) {
       const reauthSess = await verifyLockSession(request, env);
       if (!reauthSess.ok) {
         return apiError(401, 'session');
+      }
+      if (reauthSess.by === BY_LINK) {
+        return apiError(403, 'link');
       }
     }
     let cooling = false;

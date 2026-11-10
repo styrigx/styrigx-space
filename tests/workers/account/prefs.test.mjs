@@ -55,7 +55,7 @@ async function adminSess(epoch = 0) {
 }
 async function visitorSess() {
   const { signLockSessionTicket } = await import(KERNEL + 'lock-session.js');
-  return await testLockSession(LOCK.priv, 0, 'tempkey');
+  return await testLockSession(LOCK.priv, 0, 'link');
 }
 async function accTicket(by = 'password', authAt = Date.now(), epoch = 0, priv) {
   return await testAccountSession(priv || ACCOUNT.priv, by, epoch, authAt);
@@ -93,7 +93,7 @@ before(async () => {
   LOCK = await genKeyPair(); ACCOUNT = await genKeyPair(); OTHER = await genKeyPair();
 });
 
-test('进站会话 + 账号会话 + prefs.sync：没有进站会话 401 session、没账号 401 account；临时钥匙进站会话 + 账号会话也放行（P2-2 起账号 Worker 不看 role）', async () => {
+test('进站会话 + 账号会话 + prefs.sync：没有进站会话 401 session、没账号 401 account；分享链接进站会话 + 账号会话也放行（P2-2 起账号 Worker 不看 role）', async () => {
   const kv = makeKV();
   const none = await prefsCall(kv, 'GET', null, {});
   assert.equal(none.status, 401);
@@ -110,7 +110,7 @@ test('进站会话 + 账号会话 + prefs.sync：没有进站会话 401 session�
   const bad = await prefsCall(kv, 'GET', null, { 'sgx-space-session': sess, 'sgx-account-session': await accTicket('password', Date.now(), 0, OTHER.priv) });
   assert.equal(bad.status, 401);
   assert.equal((await bad.json()).error, 'account');
-  /* 过渡期：临时钥匙进站会话（网关 role 门 P2-3 前还会挡 /api/prefs）在账号 Worker 这一层只看进站会话 + 账号会话 */
+  /* 过渡期：分享链接进站会话（原临时钥匙）（网关 role 门 P2-3 前还会挡 /api/prefs）在账号 Worker 这一层只看进站会话 + 账号会话 */
   const vis = await visitorSess();
   assert.equal((await prefsCall(kv, 'GET', null, { 'sgx-space-session': vis, 'sgx-account-session': await accTicket() })).status, 200);
   const ok = await prefsCall(kv, 'GET', null, { 'sgx-space-session': sess, 'sgx-account-session': await accTicket() });

@@ -157,7 +157,7 @@ function seeded() {
 }
 
 test('space-audit：进门（任何进门方式）+ 账号会话（没有 sgx-space-reauth）→ 200 列表', async () => {
-  for (const by of ['password', 'tempkey']) {
+  for (const by of ['password', 'link']) {
     const db = seeded();
     const res = await onRequestGet({ request: reqWith((await testLockSessionCookie(PRIV, 0, by)) + '; ' + TEST_ACCOUNT_COOKIE), env: envOf(db) });
     assert.equal(res.status, 200, by);
@@ -172,7 +172,7 @@ test('space-audit：没进门 / 坏会话 → 401 session；进门但账号未�
     ['sgx-space-session=1.2.3; ' + TEST_ACCOUNT_COOKIE, 'session'],
     [TEST_ACCOUNT_COOKIE, 'session'],
     [await testLockSessionCookie(PRIV, 0, 'password'), 'account'],
-    [(await testLockSessionCookie(PRIV, 0, 'tempkey')) + '; ' + (await testTicketCookie(PRIV, LOCK_REAUTH_TICKET, 'password', 0)), 'account'],
+    [(await testLockSessionCookie(PRIV, 0, 'link')) + '; ' + (await testTicketCookie(PRIV, LOCK_REAUTH_TICKET, 'password', 0)), 'account'],
   ];
   for (const [cookie, error] of cases) {
     const db = seeded();

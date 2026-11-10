@@ -31,7 +31,9 @@ test('realms：REALM_LOCK 线上格式逐字相同；进站凭证 spaceKey = SGX
   assert.equal(REALM_LOCK.privateKey, 'SGX_SPACE_PRIVATE');
   assert.equal(REALM_LOCK.publicKey, 'SGX_SPACE_PUBLIC');
   assert.equal(REALM_LOCK.pepper, 'SGX_SPACE_PASSWORD_PEPPER', '解锁密码 pepper（进站 v3 L2：新值，和账号的分开）');
-  assert.equal(REALM_LOCK.tempkeyPepper, 'SGX_SPACE_TEMPKEY_PEPPER', '临时钥匙码 pepper（进站 v3 L2 起单独一个）');
+  assert.equal(REALM_LOCK.tempkeyPepper, undefined, 'v5 S1：临时钥匙删除，REALM_LOCK 不再指向临时钥匙 pepper（绑定留到收尾 PR）');
+  assert.equal(R.BY_LINK, 'link');
+  assert.equal(R.BY_TEMPKEY, undefined, 'v5 S1：by=tempkey 删除');
   assert.deepEqual([R.KEY_SPACE_PASSWORD, R.KEY_SPACE_PASSKEY, R.KEY_SPACE_RECOVERY_KEY], ['SpacePassword', 'SpacePasskey', 'SpaceRecoveryKey']);
   assert.equal(R.KEY_LOCK, undefined);
   assert.equal(R.KEY_SPACE, undefined);
@@ -62,7 +64,7 @@ test('realms：三张锁屏票总表（cookie / 钥匙 / 时长 / 属性 / by / 
   assert.equal(session.LOCK_SESSION_MAX_AGE, 43200);
   const T = R.TICKETS;
   const want = {
-    LockSessionTicket: ['sgx-space-session', 43200, ['password', 'passkey', 'tempkey']],
+    LockSessionTicket: ['sgx-space-session', 43200, ['password', 'passkey', 'link']],
     LockResetTicket: ['sgx-space-reset', 180, ['space', 'password', 'passkey']],
     LockReauthTicket: ['sgx-space-reauth', 180, ['password', 'passkey', 'space']],
   };
@@ -91,7 +93,7 @@ test('realms：Secrets Store 5 个 SGX_SPACE_*（进站 v3 Q18：PRIVATE / PUBLI
 
 test('realms：钥匙名符合 SGX_<PURPOSE>_PRIVATE/PUBLIC，且都在 SECRET_NAMES 与 wrangler.toml 里', () => {
   const toml = readFileSync(REPO + 'workers/space-core/wrangler.toml', 'utf8');
-  for (const n of [REALM_LOCK.privateKey, REALM_LOCK.publicKey, REALM_LOCK.spaceKey, REALM_LOCK.pepper, REALM_LOCK.tempkeyPepper]) {
+  for (const n of [REALM_LOCK.privateKey, REALM_LOCK.publicKey, REALM_LOCK.spaceKey, REALM_LOCK.pepper]) {
     assert.ok(SECRET_NAMES.includes(n), n + ' 应在 src/secrets.js 的 SECRET_NAMES 里');
     assert.ok(toml.includes('binding = "' + n + '"'), n + ' 应在 wrangler.toml 的 Secrets Store 绑定里');
   }

@@ -34,7 +34,7 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 async function handlePost(context) {
   const { request, env } = context;
-  const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_SPACE（纪元、临时钥匙都在这里）：没绑 → 500 config */
+  const lockDb = env && env[REALM_LOCK.d1Binding]; /* D1_SPACE（纪元、分享链接都在这里）：没绑 → 500 config */
   if (!lockDb) {
     return apiError(500, 'config');
   }

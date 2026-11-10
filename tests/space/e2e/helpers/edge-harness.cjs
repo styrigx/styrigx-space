@@ -15,7 +15,7 @@
  *   头像 KV_PROFILE 用内存 KV。转发到账号的每一跳在 log 里另记一条 'account'。
  *   Pages = 单树：space/web/public（主站，Cache-Control 照 _headers 的 /*）+ /blog/ /curio/ /daymark/ 下子站的固定页面。
  *   cloudflare:workers（rpc/*.js 引入）用 tests/workers/account/_cf-workers.mjs 的替身。
- * - 临时钥匙用临时钥匙：seedTempkey() 在 KV 里签发一把，返回临时码（2026-10-23 取代 Turnstile）。
+ * - 分享链接进门的会话（v5 S1 起取代临时钥匙）：mintCookie('link') 用 makeAuthD1 预置的那条有效 share_link（TEST_LINK_ID）。
  * - seedPasskey()：在 KV 里登记一把锁屏通行密钥，返回 CDP WebAuthn.addCredential 用的参数。
  * - 分享链接（进站 v3 L2 起并入站点核心 Worker）：/s/*、/api/share 走同一个 workers/space-core/src/app.js（router.js routeShare），
  *   分享链接表和进站同一个 D1_SPACE（L2b）；会话、链接钥匙都是 core 内的直接函数调用（没有服务绑定）。
@@ -31,7 +31,7 @@ const nodeCrypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 /* 内存 KV、DER→PEM：和 Worker 单测同一份（tests/workers/_harness.cjs） */
-const { makeKV, makeAuthD1, derToPem } = require('../../../workers/_harness.cjs');
+const { makeKV, makeAuthD1, derToPem, TEST_LINK_ID } = require('../../../workers/_harness.cjs');
 
 const REPO = process.env.SGX_EDGE_REPO || path.join(__dirname, '..', '..', '..', '..');
 const PROXY_PORT = Number(process.env.SGX_EDGE_PROXY_PORT || 8941);
@@ -131,7 +131,7 @@ function pagesFor(req) {
 
 /**
  * 启动测试台。
- * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedTempkey:()=>Promise<string>, mintCookie:(by:string)=>Promise<string>, mintReauth:()=>Promise<string>}>}
+ * @returns {Promise<{kv:any, env:any, log:string[], close:()=>Promise<void>, seedPasskey:()=>Promise<any>, seedShareLink:(o?:any)=>Promise<{id:string, code:string, path:string}>, mintCookie:(by:string)=>Promise<string>, mintReauth:()=>Promise<string>}>}
  */
 async function startEdge() {
   const { readRoutes, pickRoute } = await dynImport(pathToFileURL(path.join(__dirname, '..', '..', '..', '..', 'space/scripts/lib/cf-routes.mjs')).href);
@@ -145,7 +145,6 @@ async function startEdge() {
   const account = (await mod('workers/account/src/app.js')).default; /* 默认 fetch：一律 404（只在 toml 里还有路由时用到） */
   const { isSharePath } = await mod('workers/space-core/src/router.js');
   const sessMod = await mod('workers/space-core/src/core/lock-session.js');
-  const tempMod = await mod('workers/space-core/src/core/lock-tempkey.js');
   const ticketMod = await mod('workers/space-core/src/core/tickets.js');
 
   const kv = makeKV();
@@ -292,14 +291,13 @@ async function startEdge() {
     };
   }
 
-  /** 按当前 Lock 纪元签一个 v2 进站会话 cookie 值（by=password | passkey；by=tempkey 时先登记一把 1 小时临时钥匙，带它的 tempkeyId） */
+  /** 按当前 Lock 纪元签一个 v2 进站会话 cookie 值（by=password | passkey | link；by=link 时 linkId = 测试库预置的有效分享链接 TEST_LINK_ID） */
   async function mintCookie(by) {
     const ep = await sessMod.getLockEpoch(env);
-    if (by === 'tempkey') {
-      const r = await tempMod.createTempkey(env, env.SGX_SPACE_TEMPKEY_PEPPER, { name: 'edge', ms: 3600 * 1000 });
-      return sessMod.signLockSessionTicket(privPem, { by: 'tempkey', epoch: ep, exp: Date.now() + 3600 * 1000, tempkeyId: r.key.id });
+    if (by === 'link') {
+      return sessMod.signLockSessionTicket(privPem, { by: 'link', epoch: ep, exp: Date.now() + 3600 * 1000, linkId: TEST_LINK_ID });
     }
-    return sessMod.signLockSessionTicket(privPem, { by: by || 'password', epoch: ep, exp: Date.now() + 12 * 3600 * 1000, tempkeyId: '' });
+    return sessMod.signLockSessionTicket(privPem, { by: by || 'password', epoch: ep, exp: Date.now() + 12 * 3600 * 1000, linkId: '' });
   }
 
   /** 锁侧复验短票 sgx-space-reauth 的值（by=password，当前 Lock 纪元，3 分钟）：测试里直接塞 cookie，省掉每次走一遍复验界面 */
@@ -308,10 +306,18 @@ async function startEdge() {
     return ticketMod.signLockReauthTicket(privPem, 'password', ep);
   }
 
-  /** 签发一把 1 小时的临时钥匙，返回临时码（XXXX-XXXX-XXXX） */
-  async function seedTempkey() {
-    const r = await tempMod.createTempkey(env, env.SGX_SPACE_TEMPKEY_PEPPER, { name: 'edge', ms: 3600 * 1000 });
-    return r.code;
+  /**
+   * 直接往测试库写一条分享链接（v5 S1：不经 /api/share，省掉进门 + 复验），返回 { id, code, path }。
+   * @param {{to?:string, sessionSec?:number, ms?:number}} [o]
+   */
+  async function seedShareLink(o) {
+    const links = await mod('workers/space-core/src/core/share-links.js');
+    const q = o || {};
+    const id = links.newId();
+    const code = links.newCode();
+    const now = Date.now();
+    await links.run(d1, links.SQL.insert, id, code, 'edge', q.to || '/', q.sessionSec || 0, '', now, now + (q.ms || 3600 * 1000));
+    return { id, code, path: '/s/' + code };
   }
 
   /** 账号 session cookie 值（sgx-account-session，by=passkey，账号 Worker 当前的 session 纪元，账号钥匙签） */
@@ -336,7 +342,7 @@ async function startEdge() {
     await new Promise((r) => proxy.close(() => r()));
   }
 
-  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedTempkey, mintCookie, mintReauth, mintAccount };
+  return { kv, env, accountKv, accountEnv, shareDb, shareEnv, log, close, resetShareLimit, seedPasskey, seedShareLink, mintCookie, mintReauth, mintAccount };
 }
 
 module.exports = { startEdge, LAUNCH, PROXY_PORT, REPO };

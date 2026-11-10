@@ -45,7 +45,7 @@ function env(epoch = '0') {
   };
 }
 
-async function cookie(role = 'tempkey', epoch = 0) {
+async function cookie(role = 'link', epoch = 0) {
   const v = await testLockSession(PRIV, epoch, role);
   return 'sgx-space-session=' + v;
 }
@@ -126,7 +126,7 @@ for (const site of ['blog', 'daymark', 'curio']) {
   });
 
   test(site + '：任何进门方式都回源，HTML 加 private, no-store，<html> 不标等级（进门二值）', async () => {
-    for (const by of ['tempkey', 'password', 'passkey']) {
+    for (const by of ['link', 'password', 'passkey']) {
       const e = env();
       const res = await worker.fetch(req(base + '/', await cookie(by)), e, CTX);
       assert.equal(res.status, 200);
@@ -175,7 +175,7 @@ for (const site of ['blog', 'daymark', 'curio']) {
       assert.equal(res.status, 302, p);
       assert.deepEqual(e.seen, [], p);
       const ok = env();
-      const r2 = await worker.fetch(req(base + p, await cookie('tempkey')), ok, CTX);
+      const r2 = await worker.fetch(req(base + p, await cookie('link')), ok, CTX);
       assert.equal(r2.status, 200, p);
       assert.deepEqual(ok.seen, [host + '/' + site + p]);
     }
@@ -196,7 +196,7 @@ test('绕法：编码 / 大小写 / 多斜杠 / .. / 反斜杠拼出来的子站
 });
 
 test('主域名根上的 /api/lock-session-check（子站前端问的）：有效 200 {ok:true}、无效 401 {ok:false}——blog 只对 401 跳锁屏，curio / daymark 只认 401', async () => {
-  const c = await cookie('tempkey');
+  const c = await cookie('link');
   let res = await worker.fetch(req('https://styrigx.com/api/lock-session-check', c), env(), CTX);
   assert.equal(res.status, 200);
   assert.equal((await res.json()).ok, true);
@@ -243,9 +243,9 @@ test('子站页面：页面源码里混进的旧会话标记（等级 / 升级�
 
 for (const site of ['blog', 'daymark', 'curio']) {
   const host = 'styrigx.com/' + site;
-  test(site + '：临时钥匙进门、锁屏密码进门拿到的页面一样，头像都可点、没有旧会话标记', async () => {
+  test(site + '：分享链接进门、锁屏密码进门拿到的页面一样，头像都可点、没有旧会话标记', async () => {
     const page = (e) => { e.ASSETS.fetch = async () => new Response(DRAWER, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }); return e; };
-    const a = await (await worker.fetch(req('https://' + host + '/', await cookie('tempkey')), page(env()), CTX)).text();
+    const a = await (await worker.fetch(req('https://' + host + '/', await cookie('link')), page(env()), CTX)).text();
     const b = await (await worker.fetch(req('https://' + host + '/', await cookie('password')), page(env()), CTX)).text();
     assert.equal(a, b);
     assert.match(a, /<a class="sgx-drawer-me" href="https:\/\/styrigx.com\/account\/"/);

@@ -15,7 +15,7 @@
 | `default` | `src/app.js` | 公网请求的总流程：剥头 → 静态资源直通 → 取密钥 → 关口 → 路由 |
 | `SpaceVerifier` | `src/rpc/space-verifier.js` | RPC `session(cookieHeader)` → `{ ok, reason }`（逻辑在 `core/lock-session.js` `checkLockSession`）；`conclusion(cookieHeader, clientContext, opts)` → 结论（见下文「结论」，逻辑在 `core/conclusion.js`）。调用方：`styrigx-daymark-core`、`styrigx-curio-core`（只用 `conclusion()`）；调用方写 `[[services]] binding = "SPACE"`、`service = "styrigx-space-core"`、`entrypoint = "SpaceVerifier"` |
 
-分享链接（原 `styrigx-share`）没有 RPC 入口了：签 / 作废短链钥匙、点开时换临时会话都是 `core/link-keys.js` 的内部函数。
+分享链接（原 `styrigx-share`）没有 RPC 入口了：点开时签链接会话（v5 S1：`by=link`，票里 `linkId` = `share_link.id`，验票时每次查这一行）、新建 / 管理的门槛都是 `core/link-keys.js` 的内部函数；作废直接写 `share_link.revoked_at`。清理入口 `core/share-links.js` `purgeDeadLinks`（S2 由 styrigx-status 每日 Cron 经服务绑定调）。
 
 请求在 `src/` 里的走向：
 
@@ -31,14 +31,14 @@
 - **RPC 结论** `SpaceVerifier.conclusion(cookieHeader, clientContext, opts)`（`core/conclusion.js` `conclusionFor`）：
 
   ```
-  { space:   { ok, by, tempkeyId, reason },
+  { space:   { ok, by, linkId, reason },
     account: { ok, deviceId, scopes: string[], reauth, reason } }
   // opts: { reauth?: boolean }  只有需要账号复验结论的接口才传 true（账号侧多读一张票）
   ```
 
   - `space.ok=false` 时不问账号：`account = { ok:false, reason:'no-space' }`（进门是前置；进站 v3 Q17 前是 `lock` / `no-lock`）。
   - 账号绑定没配（`no-verifier`）、RPC 抛错（`rpc-error`）、回了看不懂的东西（`bad-reply`）→ `account.ok=false`（fail closed）。
-  - 白名单：`space.by` 只认 `password` / `passkey` / `tempkey`，`tempkeyId` 只在 `by=tempkey` 时有；`deviceId` 只认 `[A-Za-z0-9_-]{8,32}`；作用域只认 `<应用>.<动作>`（`[a-z.]`），不合格式的丢掉，去重、按字母排序；`reauth` 只认 `true`。
+  - 白名单：`space.by` 只认 `password` / `passkey` / `link`，`linkId` 只在 `by=link` 时有；`deviceId` 只认 `[A-Za-z0-9_-]{8,32}`；作用域只认 `<应用>.<动作>`（`[a-z.]`），不合格式的丢掉，去重、按字母排序；`reauth` 只认 `true`。
   - 下游写法（P2-2 起）：要作用域 = `account.ok && account.scopes.includes('<站>.write')`；读私密 = `account.ok`；敏感 = 再加 `account.reauth`。
 - **HTTP 结论头**：`core/conclusion.js` `writeAccountConclusion(headers, account)` 先剥掉所有 `X-Styrigx-Account-*`，再只写白名单值，某一项没有就不写（不写 `0`）。表见 `docs/architecture/overview.md`「网关结论」。浏览器带来的同名头在 `app.js` 第一步（剥所有 `x-styrigx-*`）就没了。
 - **锁侧转发头**：`core/lock-identity.js` 转发给账号 Worker 时，有锁屏身份就写 `X-Styrigx-Space-Session: 1`（和进门方式 `X-Styrigx-Space-By`）；P2-3 起没有等级头。
@@ -55,7 +55,7 @@
 | `styrigx.com/*` | 主站整站，含子站 `/blog/`、`/curio/`、`/daymark/`（同一个 Pages、一棵树；按路径前缀走子站关口 `handleSubsite`，子站页面用的 `/api/lock-session-check` 就是主站根上的同一个接口）。分享链接 `/s/*`、`/api/share` 也在这条里（原 `styrigx-share` 的两条更具体路由 L2 第一次部署时删除；部署后 `space/scripts/verify-core-routes.mjs` 核对它们不再出现）；接口 Worker 的 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*` 更具体，不进本 Worker |
 
 - 账号路径（转发表 `src/router.js` 的 `FORWARDING`）：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/api/profile*`、`/avatar/*`。关口先验（`/api/account`、`/api/prefs*`、`/api/profile*` 要进门；`/api/avatar*`、`/api/wellbeing*` 要有会话；`/avatar/*` 公开），放行后经 `ACCOUNT`（entrypoint `AccountService`）原样转给账号 Worker，按验过的进站会话写 `X-Styrigx-Space-*` / `X-Styrigx-Client-*`。没绑定或绑定出错 → 503 upstream，不落回网关路由表、不回源。转发回来的响应保留 `X-SGX-Runtime: account`。
-- 网关自己的接口：`src/router.js` 的 `API_ROUTES`（锁屏、锁屏凭证、进站凭证、临时钥匙、`geo`，以及只做门再转出去的 `ai`、`status`；`chat`、`search` 在 P4-2b 删除，回 404）。接口分工见 `docs/specs/status-apis.md`。
+- 网关自己的接口：`src/router.js` 的 `API_ROUTES`（锁屏、锁屏凭证、进站凭证、`geo`，以及只做门再转出去的 `ai`、`status`；`chat`、`search` 在 P4-2b 删除，回 404）。接口分工见 `docs/specs/status-apis.md`。
 - 路由按域名整站通配，新增页面目录不用加路由。
 
 ## 绑定
@@ -80,7 +80,7 @@
 | `SGX_SPACE_PRIVATE` / `SGX_SPACE_PUBLIC` | 进站会话和两张锁屏短票的签名钥匙对 |
 | `SGX_SPACE_RECOVERY_KEY` | 恢复钥匙（`/api/lock-reset` 比对，只签 reset 票；`/api/space-auth` 只剩 `purpose:'lock-reset'`，前端不再调用） |
 | `SGX_SPACE_PASSWORD_PEPPER` | 解锁密码的哈希 pepper；账号密码用账号 Worker 自己的 `SGX_ACCOUNT_PASSWORD_PEPPER` |
-| `SGX_SPACE_TEMPKEY_PEPPER` | 临时钥匙码的哈希 pepper（分享链接的钥匙没有码，不用它） |
+| `SGX_SPACE_TEMPKEY_PEPPER` | 原临时钥匙码的哈希 pepper：v5 S1 删掉临时钥匙后没有代码读它，绑定和密钥在收尾 PR 删 |
 
 账号钥匙 `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC`、恢复密钥 `SGX_ACCOUNT_RECOVERY_KEY`、账号密码 pepper `SGX_ACCOUNT_PASSWORD_PEPPER` 只绑在账号 Worker；外部模型钥匙 `SGX_CHAT_API_KEY` 只绑在 `styrigx-ai`（P4-2a 起；之前在 `styrigx-chat`）。换钥只在 Cloudflare 后台改，不用改代码或重新部署（最多 60 秒生效）。
 

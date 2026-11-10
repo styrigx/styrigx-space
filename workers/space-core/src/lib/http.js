@@ -53,7 +53,8 @@ export const ERROR_CODES = Object.freeze({
   account: [401],
   reset: [401], /* 账号 reset 票无效或过期（命名 v2：/api/account/reset，不再借用 account） */
   scope: [403], /* 账号作用域不够（P2-2：/api/avatar、/api/prefs；带 scope 字段） */
-  reauth: [403, 401], /* 403：锁屏凭证管理（checkLockManage）；401：临时钥匙 create / revoke、分享链接 list / revoke 没有 reauth */
+  reauth: [403, 401], /* 403：锁屏凭证管理（checkLockManage）；401：分享链接 list / revoke 没有 reauth */
+  link: [403], /* v5 S1：分享链接进来的会话（by=link）不能新建 / 管理分享、不能 reauth、不能管锁屏凭证 */
   challenge: [403],
   /* 凭证 */
   auth: [401],
@@ -66,8 +67,7 @@ export const ERROR_CODES = Object.freeze({
   password: [400],
   cooldown: [429],
   busy: [429], /* /api/ai 全站总闸（P4-1；D1 出错也回它，fail closed） */
-  /* 临时钥匙 / 账号设备 */
-  code: [400],
+  /* 分享链接 / 账号设备 */
   name: [400],
   duration: [400],
   full: [409],

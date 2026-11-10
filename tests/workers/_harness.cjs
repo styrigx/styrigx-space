@@ -100,6 +100,7 @@ const IMPORT_FAMILY_OF_TABLE = { epoch: 'epoch', password: 'password', passkey: 
  * 网关 D1 替身（D1_SPACE / D1_ACCOUNT_AUTH / D1_ROOT_AUTH 同一个库）：node:sqlite 内存库，
  * 实现 prepare().bind().first() / all() / run() 和 batch()（一个事务，任何一条失败整批回滚，同 D1）。
  * - opts.migrations === false：不跑迁移（模拟正式网关：表由 d1-state.js 遇到 no such table 时自建）
+ * - 跑了迁移时预置一条有效的 share_link（id = TEST_LINK_ID），by=link 的测试会话（_tickets.mjs）验票能查到（v5 S1）
  * - opts.epochs：{ lock: 3, account: 1 }（也认 'lock-epoch' 这种旧名）直接写进 epoch 表
  * - opts.legacyKv：一份「上线前的 KV」（makeKV）。模拟「部署前跑过 space/scripts/migrate-kv-to-d1.mjs」：某张表第一次被网关读写之前，
  *   用导入脚本的同一个 planAuthImport 把这份 KV 里对应的那一类导进来（每类只导一次，同脚本的 kv_migration 标记）。
@@ -112,6 +113,9 @@ const IMPORT_FAMILY_OF_TABLE = { epoch: 'epoch', password: 'password', passkey: 
  * 故障：failOn = (sql) => boolean，返回 true 的语句抛错（batch 里任何一条命中 → 整批回滚）
  * @param {{migrations?: boolean, epochs?: Record<string, number>, legacyKv?: any}} [opts]
  */
+/** by=link 测试会话默认的分享链接 id（同 tests/workers/space-core/_tickets.mjs TEST_LINK_ID） */
+const TEST_LINK_ID = 'lktesttesttest01';
+
 function makeAuthD1(opts) {
   const { DatabaseSync } = require('node:sqlite');
   const raw = new DatabaseSync(':memory:');
@@ -120,6 +124,11 @@ function makeAuthD1(opts) {
     for (const f of fs.readdirSync(AUTH_MIGRATIONS).filter((x) => x.endsWith('.sql')).sort()) {
       raw.exec(fs.readFileSync(path.join(AUTH_MIGRATIONS, f), 'utf8'));
     }
+  }
+  if (!opts || opts.migrations !== false) {
+    /* v5 S1：by=link 的测试会话（tests/workers/space-core/_tickets.mjs TEST_LINK_ID）验票时查 share_link 这一行——预置一条有效的 */
+    raw.prepare("INSERT INTO share_link (id, code, name, target, session_sec, key_id, created_at, expires_at) VALUES (?, ?, '', '/', 3600, '', ?, ?)")
+      .run(TEST_LINK_ID, 'testtesttesttesttest01', Date.now(), Date.now() + 365 * 86400e3);
   }
   for (const [name, value] of Object.entries((opts && opts.epochs) || {})) {
     raw.prepare('INSERT OR REPLACE INTO epoch (realm, value) VALUES (?, ?)').run(realmName(name), value);
@@ -248,4 +257,4 @@ function makeAuthD1(opts) {
   return db;
 }
 
-module.exports = { derToPem, makeKV, makeAuthD1 };
+module.exports = { derToPem, makeKV, makeAuthD1, TEST_LINK_ID };

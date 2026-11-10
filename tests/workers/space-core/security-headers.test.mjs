@@ -217,7 +217,7 @@ test('网关·域名跳转：www 301、别的域名 301 / 403、styrigx-space.pa
 test('网关·进门的人打开门内页 / 账号区 200、?return= 302，都带安全头（进门二值：没有按角色的 302、没有升级态）', async () => {
   _resetSecretCache();
   const pw = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'password'));
-  const tk = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'tempkey'));
+  const tk = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'link'));
   await withOrigin(PAGE, async () => {
     const cases = [
       ['/security/lock/', pw, 200],
@@ -248,7 +248,7 @@ test('网关·Pages 自己的跳转（补尾斜杠 308）经网关交回时也�
 
 test('网关·/api/*：401、进门但没账号会话的 401 account、404 都带安全头，Cache-Control 不被安全头改掉', async () => {
   _resetSecretCache();
-  const tk = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'tempkey'));
+  const tk = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'link'));
   const r1 = await worker.fetch(new Request('https://styrigx.com/api/lock-session-check'), baseEnv(), CTX);
   assert.equal(r1.status, 401);
   assertMainHeaders(r1, '401');

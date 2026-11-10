@@ -163,8 +163,8 @@ test('页面：未登录首页 → 回源、锁屏态、去掉桌面内容，会
   });
 });
 
-test('页面：进门的人（锁屏密码 / 临时钥匙进门都一样）访问门内页 → 回源、valid，带 cookie 回源，页面上没有等级标记', async () => {
-  for (const by of ['password', 'tempkey']) {
+test('页面：进门的人（锁屏密码 / 分享链接进门都一样）访问门内页 → 回源、valid，带 cookie 回源，页面上没有等级标记', async () => {
+  for (const by of ['password', 'link']) {
     _resetSecretCache();
     const cookie = 'sgx-space-session=' + (await testLockSession(PRIV, 0, by));
     await withOrigin(PAGE, async (calls) => {
@@ -277,12 +277,12 @@ async function same(makeReq, role) {
 test('一致性：GET /api/lock-session-check 无会话 / 所有进门的人', async () => {
   const mk = (h) => new Request('https://styrigx.com/api/lock-session-check', { headers: h });
   assert.equal((await same(mk)).status, 401);
-  assert.equal((await same(mk, 'tempkey')).status, 200);
+  assert.equal((await same(mk, 'link')).status, 200);
   assert.equal((await same(mk, 'password')).status, 200);
 });
 
 test('一致性：无会话调非白名单接口', async () => {
-  await same((h) => new Request('https://styrigx.com/api/lock-all-devices', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: '{}' }), 'tempkey');
+  await same((h) => new Request('https://styrigx.com/api/lock-all-devices', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: '{}' }), 'link');
   await same((h) => new Request('https://styrigx.com/api/geo-nope', { headers: h }));
 });
 

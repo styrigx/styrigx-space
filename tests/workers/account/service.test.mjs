@@ -145,9 +145,9 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-sto
   assert.equal(page.status, 404, '网关只转发表里的路径；别的路径不在这里出页面');
 });
 
-test('AccountService：临时钥匙进站会话（网关写 Session: 1 + By: tempkey）在账号 Worker 只算有进站会话——没有账号会话 → /api/prefs 401 account、/api/account/devices 401 account', async () => {
+test('AccountService：分享链接进站会话（网关写 Session: 1 + By: link）在账号 Worker 只算有进站会话——没有账号会话 → /api/prefs 401 account、/api/account/devices 401 account', async () => {
   const { env } = setup();
-  const ck = await sess('tempkey');
+  const ck = await sess('link');
   let r = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: ck } }), env);
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');
@@ -165,7 +165,7 @@ test('有进站会话但没登录账号：PUT /api/avatar 401 account、数字�
     batch: async () => { touched += 100; },
   };
   const { env } = setup({ D1_WELLBEING: db });
-  const ck = await sess('tempkey');
+  const ck = await sess('link');
   const put = await call(new Request('https://styrigx.com/api/avatar', { method: 'PUT', headers: { Cookie: ck, Origin: 'https://styrigx.com' }, body: new FormData() }), env);
   assert.equal(put.status, 401);
   assert.equal((await put.json()).error, 'account');

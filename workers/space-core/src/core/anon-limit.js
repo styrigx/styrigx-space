@@ -8,7 +8,7 @@
  * 每个 IP 60 秒 20 次；计数在 Cloudflare 边缘，不占存储、不收费）。只管「没有有效进站会话 + POST + 下面这几个接口」；
  * 有会话的、GET 的都不限。超过 → 429 { error: 'cooldown' }（前端已有的「太频繁」文案）+ Retry-After: 60，不进端点，不写 D1。
  *
- * 这只是防刷的总闸，不是安全门：真正的门槛仍是各端点自己的输错锁定（password-limit / space-limit / lock-tempkey）。
+ * 这只是防刷的总闸，不是安全门：真正的门槛仍是各端点自己的输错锁定（password-limit / space-limit）。
  * 绑定缺失 = 部署配错（wrangler.toml 漏了 [[ratelimits]]）：fail-closed，503 config + console.error（2026-11-09；以前放行，配错了没人知道）。
  * Pages 预览 / 本地测试台不支持这个绑定，由测试入口（tests/space/e2e/helpers/preview-worker.js、edge-harness）塞一个放行的桩。
  * 限流器调用本身出错（边缘偶发）仍放行，只打日志：别因为它把锁屏整个关掉。
@@ -21,7 +21,6 @@ export const ANON_LIMITED_APIS = Object.freeze([
   '/api/lock-reset',
   '/api/lock-password',
   '/api/space-auth',
-  '/api/lock-tempkey-unlock',
 ]);
 
 /** 和 wrangler.toml 里 [[ratelimits]] simple.period 一致（秒） */

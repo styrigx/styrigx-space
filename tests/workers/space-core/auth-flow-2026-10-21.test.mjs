@@ -156,16 +156,16 @@ test('B session-check?return：不合法 return → 首页；退役子站 → �
 });
 
 test('B session-check：进门二值——任何 by 带门内页 return 都回原页（不再有 upgrade / 安全总览改道）；by 原样回给前端只作展示', async () => {
-  for (const by of ['password', 'passkey', 'tempkey']) {
+  for (const by of ['password', 'passkey', 'link']) {
     const r = await check('?return=' + encodeURIComponent('/security/lock/'), await lockCookie(by));
     assert.equal(r.status, 200, by);
     assert.deepEqual(body(r.j), { ok: true, by, next: '/security/lock/' }, by);
   }
-  const s = await check('?return=' + encodeURIComponent('https://proxy-rules.styrigx.com/security/lock/'), await lockCookie('tempkey'));
+  const s = await check('?return=' + encodeURIComponent('https://proxy-rules.styrigx.com/security/lock/'), await lockCookie('link'));
   assert.equal(s.j.next, 'https://proxy-rules.styrigx.com/security/lock/');
-  const vp = await check('', await lockCookie('tempkey'));
+  const vp = await check('', await lockCookie('link'));
   assert.equal(vp.status, 200);
-  assert.deepEqual(body(vp.j), { ok: true, by: 'tempkey', next: null });
+  assert.deepEqual(body(vp.j), { ok: true, by: 'link', next: null });
   assert.ok(!('role' in vp.j) && !('upgrade' in vp.j));
 });
 
@@ -182,16 +182,16 @@ test('B session-check：没有会话 / 坏会话 → 401 no-store', async () => 
 });
 
 /* ---------------- C. 进门的人打开门内页 ---------------- */
-test('C 临时钥匙进门的人直接打开锁屏凭证页（中英）→ 200 回源、valid，没有升级 / 等级标记（复验由页面自己要）', async () => {
+test('C 分享链接进门的人直接打开锁屏凭证页（中英）→ 200 回源、valid，没有升级 / 等级标记（复验由页面自己要）', async () => {
   for (const p of ['/security/lock/', '/zh/security/lock/']) {
-    const res = await get('https://styrigx.com' + p, await lockCookie('tempkey'));
+    const res = await get('https://styrigx.com' + p, await lockCookie('link'));
     assert.equal(res.status, 200, p);
     const html = await res.text();
     assert.match(html, /data-sgx-lock-session="valid"/);
     assert.doesNotMatch(html, /data-sgx-upgrade|data-sgx-role/); // old-name guard
   }
   /* 首页带 return：进门的人直接 302 回原页 */
-  const home = await get('https://styrigx.com/?return=' + encodeURIComponent('/security/lock/'), await lockCookie('tempkey'));
+  const home = await get('https://styrigx.com/?return=' + encodeURIComponent('/security/lock/'), await lockCookie('link'));
   assert.equal(home.status, 302);
   assert.equal(home.headers.get('Location'), '/security/lock/');
 });
@@ -227,12 +227,12 @@ test('E 账号页模板随 2026-11-08 账号 UI 改版删除（账号在顶栏�
 /* ---------------- F. 内容索引 ---------------- */
 test('F /files-index.json 要先解锁（无会话 302，有会话 200）', async () => {
   assert.equal((await get('https://styrigx.com/files-index.json')).status, 302);
-  assert.equal((await get('https://styrigx.com/files-index.json', await lockCookie('tempkey'))).status, 200);
+  assert.equal((await get('https://styrigx.com/files-index.json', await lockCookie('link'))).status, 200);
 });
 test('F RSS（Hugo 生成的 */index.xml，列着全站页面标题和地址）要先解锁；sitemap.xml / opensearch.xml 照旧公开', async () => {
   for (const p of ['/index.xml', '/zh/index.xml', '/tags/index.xml', '/zh/categories/index.xml', '/INDEX.XML']) {
     assert.equal((await get('https://styrigx.com' + p)).status, 302, p + ' 无会话');
-    assert.equal((await get('https://styrigx.com' + p, await lockCookie('tempkey'))).status, 200, p + ' 有会话');
+    assert.equal((await get('https://styrigx.com' + p, await lockCookie('link'))).status, 200, p + ' 有会话');
   }
   for (const p of ['/sitemap.xml', '/opensearch.xml', '/zh/sitemap.xml']) {
     assert.equal((await get('https://styrigx.com' + p)).status, 200, p + ' 公开');
