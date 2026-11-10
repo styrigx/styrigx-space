@@ -1,8 +1,8 @@
 /**
  * @fileoverview 全站终端里的账号层（v5 S5 终端合一：账号命令搬进同一个终端；账号窗口 shell/account/window.js 照旧，外观和功能不变）。
  *
- * 终端里的账号命令（shell/term/cmds/acct、keys/sudo.js 的 sudo root …、sub-*）调这里挂在 C 上的流程：sudo root（../session.js）、sudo root reauth（../reauth.js）、
- * sudo root reset（../reset.js，reset@account:~#）、passwd / passkey（./keys.js）、device（./devices.js）、app（./grants.js）、sub-*（../proxy.js）、exit。
+ * 终端里的账号命令（shell/term/cmds/acct、keys/sudo.js 的 sudo root …、sub）调这里挂在 C 上的流程：sudo root（../session.js）、sudo root reauth（../reauth.js）、
+ * sudo root reset（../reset.js，reset@account:~#）、passwd / passkey（./keys.js）、device（./devices.js）、app（./grants.js）、sub（../proxy.js）、exit。
  * 登录 / 再验证 / 重置的流程和账号窗口是同一份（C.inTerm 分开两处不一样的收尾）；列表 + rm <n> 是终端自己的（./keys.js / devices.js / grants.js）。
  * 要输入、选择、验证的都在终端里原地做完；输出 / 输入模式走终端的输入行（shell/term/view/layer-ctx.js）。后端只在 ../api.js。
  *

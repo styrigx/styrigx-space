@@ -28,7 +28,12 @@ export function makeProxyD1() {
     async run() { return exec1(sql, params); },
     async first(col) { const row = exec1(sql, params).results[0]; if (!row) return null; return col ? row[col] : row; },
   });
-  return { raw, prepare: (sql) => stmt(sql), rows: (t) => raw.prepare('SELECT * FROM ' + t).all() };
+  /* batch：同 D1，一个事务里按顺序跑，任一条失败整批回滚 */
+  const batch = async (list) => {
+    raw.exec('BEGIN');
+    try { const out = []; for (const s of list) out.push(await s.run()); raw.exec('COMMIT'); return out; } catch (e) { raw.exec('ROLLBACK'); throw e; }
+  };
+  return { raw, prepare: (sql) => stmt(sql), batch, rows: (t) => raw.prepare('SELECT * FROM ' + t).all() };
 }
 
 const CH = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';

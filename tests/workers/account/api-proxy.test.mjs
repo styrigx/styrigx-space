@@ -1,8 +1,8 @@
 /**
- * POST /api/account/proxy（代理订阅管理，经 AccountService 命名入口；设计稿 v1.7 §7）：
- * - 进站会话（401 session）+ 账号 session（401 account）；key / link 再要本机 reauth 票（403 reauth）
+ * POST /api/account/proxy（代理订阅管理，经 AccountService 命名入口；终端 sub 指令 v3.1）：
+ * - 进站会话（401 session）+ 账号 session（401 account）；show / token / key 再要本机 reauth 票（403 reauth）
  * - 门卫通过才调服务绑定 PROXY（styrigx-proxy-rules 的 ProxyAdmin），参数不对 400 params、没绑 503 config、RPC 抛错 503 upstream
- * - ProxyAdmin 的业务失败原样回 422；link 回令牌 + 下载地址前缀
+ * - ProxyAdmin 的业务失败原样回 422；show / token 回令牌 + 下载地址前缀；sub-refresh 取消后没有 refresh 动作
  * 运行：node --test tests/workers/account/api-proxy.test.mjs
  */
 import './_cf-workers.mjs';
@@ -24,13 +24,13 @@ function fakeProxy() {
     calls,
     status: rec('status', { ok: true, sources: [] }),
     setKey: rec('setKey', (k) => (k.startsWith('age1pq1') ? { ok: false, error: 'pq-unsupported' } : { ok: true })),
-    newLink: rec('newLink', { ok: true, token: 'T'.repeat(43) }),
+    showToken: rec('showToken', { ok: true, token: 'S'.repeat(43) }),
+    rotateToken: rec('rotateToken', { ok: true, token: 'T'.repeat(43) }),
     addAirport: rec('addAirport', { ok: true, host: 'sub.example.com' }),
     upload: rec('upload', { ok: true, nodes: 1 }),
     setEnabled: rec('setEnabled', { ok: true }),
     remove: rec('remove', { ok: false, error: 'not-found' }),
     rename: rec('rename', { ok: true }),
-    refresh: rec('refresh', { ok: true, sources: [] }),
   };
 }
 function makeEnv(proxy = fakeProxy()) {
@@ -51,7 +51,7 @@ test('门卫：没进站会话 401；没账号 session 401 account；都不调 P
   assert.deepEqual(proxy.calls, []);
 });
 
-test('会话就够的：status / add / upload / mv / on / off / rm / refresh 原样转给 ProxyAdmin', async () => {
+test('会话就够的：status / add / upload / mv / on / off / rm 原样转给 ProxyAdmin', async () => {
   const { env, proxy } = makeEnv();
   const ck = await acc();
   for (const [body, name] of [
@@ -61,7 +61,6 @@ test('会话就够的：status / add / upload / mv / on / off / rm / refresh 原
     [{ action: 'mv', from: 'F', to: 'G' }, 'rename'],
     [{ action: 'on', name: 'F' }, 'setEnabled'],
     [{ action: 'off', name: 'F' }, 'setEnabled'],
-    [{ action: 'refresh' }, 'refresh'],
   ]) {
     const r = await post(env, body, ck);
     assert.equal(r.status, 200, body.action);
@@ -77,19 +76,23 @@ test('会话就够的：status / add / upload / mv / on / off / rm / refresh 原
   assert.deepEqual(await rm.json(), { ok: false, error: 'not-found' });
 });
 
-test('key / link 要 reauth（403 reauth）；有 reauth 才转；link 回令牌和下载地址前缀；PQ 公钥 422', async () => {
+test('show / token / key 要 reauth（403 reauth）；有 reauth 才转；show / token 回令牌和下载地址前缀；PQ 公钥 422', async () => {
   const { env, proxy } = makeEnv();
   const ck = await acc();
-  for (const body of [{ action: 'key', pubkey: 'age1abc' }, { action: 'link' }]) {
+  for (const body of [{ action: 'key', pubkey: 'age1abc' }, { action: 'show' }, { action: 'token' }]) {
     const r = await post(env, body, ck);
     assert.equal(r.status, 403, body.action);
     assert.equal((await r.json()).error, 'reauth');
   }
   assert.deepEqual(proxy.calls, []);
   const both = ck + '; ' + (await reauth());
-  const l = await post(env, { action: 'link' }, both);
-  assert.equal(l.status, 200);
-  assert.deepEqual(await l.json(), { ok: true, token: 'T'.repeat(43), base: 'https://proxy-rules.styrigx.com/s/' });
+  const sh = await post(env, { action: 'show' }, both);
+  assert.equal(sh.status, 200);
+  assert.deepEqual(await sh.json(), { ok: true, token: 'S'.repeat(43), base: 'https://proxy-rules.styrigx.com/s/' });
+  const tk = await post(env, { action: 'token' }, both);
+  assert.equal(tk.status, 200);
+  assert.deepEqual(await tk.json(), { ok: true, token: 'T'.repeat(43), base: 'https://proxy-rules.styrigx.com/s/' });
+  assert.deepEqual(proxy.calls.map((c) => c[0]), ['showToken', 'rotateToken']);
   assert.equal((await post(env, { action: 'key', pubkey: 'age1abc' }, both)).status, 200);
   assert.equal((await post(env, { action: 'key', pubkey: 'age1pq1abc' }, both)).status, 422);
 });
@@ -97,7 +100,7 @@ test('key / link 要 reauth（403 reauth）；有 reauth 才转；link 回令牌
 test('参数和配置：不认识的 action 400；缺参数 400 params；没绑 PROXY 503 config；RPC 抛错 503 upstream', async () => {
   const { env } = makeEnv();
   const ck = await acc();
-  assert.equal((await (await post(env, { action: 'nuke' }, ck)).json()).error, 'action');
+  for (const action of ['nuke', 'link', 'refresh']) assert.equal((await (await post(env, { action }, ck)).json()).error, 'action', action);
   for (const body of [{ action: 'add', name: 'A' }, { action: 'upload', name: 'A' }, { action: 'on' }, { action: 'rm', name: '' }]) {
     const r = await post(env, body, ck);
     assert.equal(r.status, 400, JSON.stringify(body));

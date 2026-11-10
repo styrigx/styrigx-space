@@ -18,8 +18,8 @@ import sudo from './keys/sudo.js';
 import lock from './keys/lock.js';
 import share from './keys/share.js';
 import { ACCOUNT_CMDS } from './acct/index.js';
-import { SUB_CMDS } from './sub/index.js';
+import { SUB_CMD } from './sub/index.js';
 
-export const CMDS = [man, open, cd, ls, cat, clear, history, exit, pwd, theme, find, ask, sudo, lock, share].concat(ACCOUNT_CMDS, SUB_CMDS);
+export const CMDS = [man, open, cd, ls, cat, clear, history, exit, pwd, theme, find, ask, sudo, lock, share].concat(ACCOUNT_CMDS, [SUB_CMD]);
 /* man 的参数补全 = 这张表的命令名 */
 man.args = CMDS.map(function (c) { return c.name; });

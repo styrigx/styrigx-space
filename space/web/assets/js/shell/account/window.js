@@ -363,7 +363,7 @@ export function mountAccountWindow(o) {
     const line = normCmd(raw);
     if (!line) return;
     C.echo(raw.trim());
-    /* sub-*（代理订阅 P2）：来源名大小写敏感，拿原样的一行 */
+    /* sub（代理订阅 v3.1）：来源名大小写敏感，拿原样的一行 */
     if (parseSub(raw)) { C.cmdSub(raw); return; }
     const c = parseCmd(line);
     switch (c.cmd) {
@@ -449,7 +449,7 @@ export function mountAccountWindow(o) {
   /* ---------- 开 / 关 ---------- */
   /**
    * 打开时（topbar-panel 的 onOpen）。x.layer：旧地址跳来（O1）或站内入口要直接进的那一层；x.app：奇趣 / 日刻的授权同意；x.reset：sudo root reset；x.reauth：只再验证。
-   * x.run：别的终端转来的一条命令（sub-*，P2）：登录了就在这里跑；没登录先 sudo root。
+   * x.run：别的终端转来的一条命令（sub，v3.1）：登录了就在这里跑；没登录先 sudo root。
    * @param {{layer?: string, app?: string, reset?: boolean, reauth?: boolean, run?: string}} [x]
    */
   function onOpen(x) {
