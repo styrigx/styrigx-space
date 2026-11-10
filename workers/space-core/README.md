@@ -14,8 +14,9 @@
 |---|---|---|
 | `default` | `src/app.js` | 公网请求的总流程：剥头 → 静态资源直通 → 取密钥 → 关口 → 路由 |
 | `SpaceVerifier` | `src/rpc/space-verifier.js` | RPC `session(cookieHeader)` → `{ ok, reason }`（逻辑在 `core/lock-session.js` `checkLockSession`）；`conclusion(cookieHeader, clientContext, opts)` → 结论（见下文「结论」，逻辑在 `core/conclusion.js`）。调用方：`styrigx-daymark-core`、`styrigx-curio-core`（只用 `conclusion()`）；调用方写 `[[services]] binding = "SPACE"`、`service = "styrigx-space-core"`、`entrypoint = "SpaceVerifier"` |
+| `ShareJanitor` | `src/rpc/share-janitor.js` | RPC `purgeShareLinks(at)` → `{ ok:true, deleted }` / `{ ok:false }`（不抛错；逻辑在 `core/share-links.js` `purgeDeadLinks`）。v5 S2：只给 `styrigx-status` 的服务绑定 `JOB_SPACE`，每天 03:41 CST 那轮调一次；单独一个入口，不挂在 SpaceVerifier 上（那个绑给了奇趣、日刻） |
 
-分享链接（原 `styrigx-share`）没有 RPC 入口了：点开时签链接会话（v5 S1：`by=link`，票里 `linkId` = `share_link.id`，验票时每次查这一行）、新建 / 管理的门槛都是 `core/link-keys.js` 的内部函数；作废直接写 `share_link.revoked_at`。清理入口 `core/share-links.js` `purgeDeadLinks`（S2 由 styrigx-status 每日 Cron 经服务绑定调）。
+分享链接（原 `styrigx-share`）没有新建 / 管理的 RPC 入口（只有上面那个清理入口）：点开时签链接会话（v5 S1：`by=link`，票里 `linkId` = `share_link.id`，验票时每次查这一行）、新建 / 管理的门槛都是 `core/link-keys.js` 的内部函数；作废直接写 `share_link.revoked_at`。清理入口 `core/share-links.js` `purgeDeadLinks`（v5 S2 起由 styrigx-status 每日 03:41 CST 那轮经服务绑定 `JOB_SPACE` 调命名入口 `ShareJanitor`）。
 
 请求在 `src/` 里的走向：
 

@@ -187,7 +187,7 @@ export async function run(db, sql, ...args) {
 
 /**
  * 清理入口（v5 S1）：删掉过期或作废满 KEEP_DEAD_MS（7 天）的行，一条 DELETE。返回删掉的行数（D1 meta.changes，拿不到就 0）。
- * 命名导出给 styrigx-status 的每日 Cron 经服务绑定调用（S2 接线；S1 只加入口）；/api/share list 前也顺手调一次。
+ * 每日由 styrigx-status 的 Cron（03:00 CST 那轮）经服务绑定 JOB_SPACE 调命名入口 ShareJanitor.purgeShareLinks（rpc/share-janitor.js，v5 S2）；/api/share list 前也顺手调一次。
  * 删的都是早已失效的行：作废 / 过期的那一刻 by=link 的会话就验不过了（core/lock-session.js 查 linkState），行在不在都一样（不在也按失效算）。
  * D1 出错抛错（调用方决定吞掉还是 503）。
  * @param {any} db D1_SPACE

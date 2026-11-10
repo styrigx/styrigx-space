@@ -56,12 +56,13 @@ test('checkLockSession：任何进门方式都有效，只回 { ok, reason }（�
 
 
 
-test('部署入口只导出 default 和 SpaceVerifier（进站 v3 L2：ShareIssuer 删了，分享链接并入本 Worker），wrangler main 指向它', () => {
+test('部署入口导出 default、SpaceVerifier 和 ShareJanitor（进站 v3 L2：ShareIssuer 删了，分享链接并入本 Worker；v5 S2 加每日清理入口），wrangler main 指向它', () => {
   const toml = readFileSync(REPO + '/workers/space-core/wrangler.toml', 'utf8');
   assert.match(toml, /^main = "src\/index\.js"$/m);
   const src = readFileSync(REPO + '/workers/space-core/src/index.js', 'utf8');
   assert.match(src, /export \{ default \} from '\.\/app\.js'/);
   assert.match(src, /export \{ SpaceVerifier \} from '\.\/rpc\/space-verifier\.js'/);
+  assert.match(src, /export \{ ShareJanitor \} from '\.\/rpc\/share-janitor\.js'/);
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /ShareIssuer|share-issuer/);
   assert.equal(existsSync(REPO + '/workers/space-core/src/rpc/share-issuer.js'), false);
   assert.equal(existsSync(REPO + '/workers/space-core/src/rpc/auth-verifier.js'), false);
@@ -69,6 +70,8 @@ test('部署入口只导出 default 和 SpaceVerifier（进站 v3 L2：ShareIssu
   assert.match(av, /class SpaceVerifier extends WorkerEntrypoint/);
   /* SpaceVerifier 只有验票，签钥匙 / 发会话不在 RPC 上 */
   assert.doesNotMatch(av, /createLinkKey|revokeLinkKey|openLinkSession/);
+  /* v5 S2：删数据的清理方法在单独的 ShareJanitor 上，不挂在奇趣 / 日刻绑定的 SpaceVerifier 上 */
+  assert.doesNotMatch(av, /purge/i);
 });
 
 /* ---------------- SpaceVerifier.conclusion（P2-1） ---------------- */
