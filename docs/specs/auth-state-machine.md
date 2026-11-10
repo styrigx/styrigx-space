@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-001 |
-| 版本 | 2.0 |
-| 日期 | 2026-11-09 |
+| 版本 | 2.1 |
+| 日期 | 2026-11-11 |
 | 状态 | 现行 |
 | 取代 | `docs/auth-state-machine.md`（2026-11-06） |
 
@@ -58,18 +58,18 @@
 
 4.4 首页带 `return` 且会话有效时仍 302 到 `resolveReturn(return)`（解锁后回原页）；其余情况不跳转。旧地址里的 `why`（S3 前子站踢回带的）前端读到即从地址栏去掉。
 
-4.5 上锁的只剩三处部件（页面本身公开）：旷野状态卡（`/api/status` 要进站）、奇趣音乐的播放（歌单公开且不含音频地址，播放令牌 / 音频流要进站）、AI 窗口。这些地方（以及任何接口回 401 没进站）都只派发 `document` 上的 `sgx:sudo` 事件（`lib/sudo.js`），`shell/topbar-panel.js` 接住：打开顶栏终端并预填 `sudo styrigx`；回车后去主站带 `?entry` 的地址打开锁屏。解锁后页面重新取一次（访客态 → valid）。
+4.5 上锁的只剩三处部件（页面本身公开）：旷野状态卡（`/api/status` 要进站）、奇趣音乐的播放（歌单公开且不含音频地址，播放令牌 / 音频流要进站）、AI 窗口。这些地方（以及任何接口回 401 没进站）都只派发 `document` 上的 `sgx:sudo` 事件（`lib/sudo.js`），`shell/topbar-panel.js` 接住：打开顶栏终端并预填 `sudo styrigx`（不替人回车）；回车后在终端里验证（v5 S5，没有锁屏界面）。通过后终端收起、播开机动画、回原页（页面重新取一次，访客态 → valid）。
 
 4.6 `resolveReturn(return)` 是回跳地址的唯一实现（首页 302 与 session-check 共用）：只接受站内路径（不许 `//`、`/\`、`/lock/`）或 `https://*.styrigx.com`（无用户名密码、无反斜杠、不含已下线子域），否则回首页。
 
 ## 5. 前端状态机
 
-页面状态取自 `data-sgx-lock-session`：`valid` / `locked` / `lock-reset`；没有该属性 = `unknown`（页面没经过站点核心）。
+页面状态取自 `data-sgx-lock-session`：`valid` / `locked`；没有该属性 = `unknown`（页面没经过站点核心）。
 
 ```
             ┌──────────── unknown / locked ─────────────────────┐
  page load ─┤  不盖遮罩，页面照常可看；上锁的部件自己画成锁       │
-            │  地址带 ?entry（旧 ?lock 兼容读一版）才 import 锁屏   │
+            │  地址带 ?entry / ?lock → 打开终端预填 sudo styrigx    │
             │  sudo styrigx 成功 → askServer() → proceed()          │
             └──────────────────────────────────────────────────────┘
             ┌──────────── valid ───────────────────────────────────┐
@@ -81,13 +81,13 @@
 
 5.1 `askServer()` = `GET /api/lock-session-check[?return=]`；`proceed(answer)`：`next` 是别处 → `location.replace(next)`；无 `next` 且页面是 `locked` → 换到去掉 `entry/lock/why/return` 的地址重新取（10 秒内同地址一次）；`valid` / `unknown` → 原地开锁并改地址栏。前端 MUST NOT 「重载同一个锁屏地址等服务端 302」。
 
-5.2 实现：`space/web/assets/js/shell/space/guard.js`（判定，在每页 core chunk 中）、`entry.js` / `term.js`（锁屏终端）、`reset.js`（reset 终端）。
+5.2 实现：`space/web/assets/js/shell/space/guard.js`（判定与自动回锁，在每页 core chunk 中）；终端里的钥匙层 `shell/space/layer.js`（`session.js` 验证、`unlock.js` 开机动画、`reset.js` reset 层）；终端身份 `shell/term/core/who.js`。
 
 5.3 子站不加载守卫（v5 S3 删除了子站的 `sgx-lock-sync.js` / `sgx-lock-check.js` 与踢回防循环）：子站页面本身公开，没进站的写 / 播放由接口回 401，前端发 `sgx:sudo`。
 
-## 6. 锁屏终端（`entry@space:~$`）
+## 6. 终端里的进站（v5，ADR-0005）
 
-6.1 命令：`sudo styrigx` 列出已设置的方式（`[1] passkey` `[2] password`；`tempkey` 始终可选）；`sudo styrigx passkey|password|tempkey` 直接进入对应方式；`sudo styrigx reset` 进入恢复流程；`help`、`clear`。其他输入回 `command not found`。
+6.1 终端只有一个（顶栏 `>_`）。提示符按身份：`nobody@space:~$`（访客）、`nobody@space:~#`（分享链接会话，by=link）、`styrigx@space:~#`（解锁密码 / 通行密钥进站）、`root@account:~#`（再 `sudo root` 登录账号）。命令：`sudo styrigx` 列出已设置的方式（`[1] passkey` `[2] password`）；`sudo styrigx passkey|password` 直接进入对应方式；`sudo styrigx reset` 进入恢复流程；`man`、`clear`。`help` 已删（回 `command not found: help · try man`）。
 
 6.2 一轮最多错 3 次（`sudo: 3 incorrect password attempts`）；取消系统通行密钥窗口回到选择；触屏 `^C` 回命令行。服务端限速：解锁密码每连错 5 次冷却一轮（30 秒起逐轮翻倍，封顶 1 小时，429 `cooldown`）。
 

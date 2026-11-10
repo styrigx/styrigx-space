@@ -36,3 +36,17 @@ test('readLockIdentity：没有 Session: 1 → null', () => {
   assert.equal(readLockIdentity(H({ 'X-Styrigx-Space-Session': '0', 'X-Styrigx-Space-By': 'link' })), null);
   assert.equal(readLockIdentity(null), null);
 });
+
+test('by 白名单 = 网关进站会话票允许的 by（v5 S8 核对）：password / passkey / link 都认；space / recovery-key / tempkey / 空 / 大小写变体都不认', async () => {
+  const { TICKETS, LOCK_SESSION_TICKET } = await import('../../../workers/space-core/src/core/realms.js');
+  const bys = [...TICKETS[LOCK_SESSION_TICKET].bys].sort();
+  assert.deepEqual(bys, ['link', 'passkey', 'password']);
+  for (const by of bys) {
+    const id = readLockIdentity(H({ 'X-Styrigx-Space-Session': '1', 'X-Styrigx-Space-By': by, 'X-Styrigx-Space-Link-Id': 'lktesttesttest01' }));
+    assert.equal(id && id.by, by, by);
+  }
+  for (const by of ['space', 'recovery-key', 'tempkey', '', 'Link', 'PASSWORD', 'link ', 'root']) {
+    const id = readLockIdentity(H({ 'X-Styrigx-Space-Session': '1', 'X-Styrigx-Space-By': by }));
+    assert.equal(id && id.by, by.trim() === 'link' ? 'link' : '', JSON.stringify(by));
+  }
+});

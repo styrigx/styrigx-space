@@ -132,7 +132,8 @@ test('英文页没有中文：四站英文页的可见文字和读屏文字里�
 /* 对齐 PR-C（设计稿 tb4.html pg=blog / tree）：博客的终端输出中英都照稿写英文——阅读分钟「6 min」、less 分页条「-- less (1/6) --」、
    tree 的「blog/」「… 12 more」「4 directories, 36 files」、chip「tree blog/ →」；tree 分类目录名是标签名加「/」（如「Cloudflare/」） */
 /* 2026-11-09 四篇新文章：标签 Gemini、Workers AI 是技术名，放行 */
-const ZH_ALLOW = /^(\d+ min|-- less \(\d+\/\d+\) --|blog\/|tree blog\/ →|… \d+ more|\d+ directories, \d+ files|#?(AI|Astro|Cloudflare|Ed25519|GitHub|Muse|Passkey|Hugo|Gemini|Workers AI|Tailwind CSS|Styrigx( UI( [0-9.]+)?)?|Gray AI)\/?|SGX [0-9.]+|[0-9.:\- x]+|https:\/\/|NAVIGATE|STATUS|MODE|PALETTE|lang|layout|share|lock|Auto|Mobile|DeX)$/;
+/* 2026-11-10 代理订阅一文（#370）：标签 age（加密工具名，小写）、Mihomo（代理内核）、Workers（Cloudflare 产品名）是技术名，放行（v5 S8） */
+const ZH_ALLOW = /^(\d+ min|-- less \(\d+\/\d+\) --|blog\/|tree blog\/ →|… \d+ more|\d+ directories, \d+ files|#?(AI|Astro|Cloudflare|Ed25519|GitHub|Muse|Passkey|Hugo|Gemini|Workers AI|Workers|Mihomo|age|Tailwind CSS|Styrigx( UI( [0-9.]+)?)?|Gray AI)\/?|SGX [0-9.]+|[0-9.:\- x]+|https:\/\/|NAVIGATE|STATUS|MODE|PALETTE|lang|layout|share|lock|Auto|Mobile|DeX)$/;
 
 test('中文页没有漏翻：四站中文页的可见文字里没有成句的英文（白名单：Gray AI、Styrigx、技术名、个人信息节点）', { skip: !built && '没构建' }, () => {
   const bad = [];

@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-DOC-000 |
-| 版本 | 2.0 |
-| 日期 | 2026-11-09 |
+| 版本 | 2.1 |
+| 日期 | 2026-11-11 |
 | 状态 | 现行 |
 
 ## 1. 范围
@@ -51,12 +51,14 @@
 | SGX-SEC-001 | [`security/account-v3.md`](security/account-v3.md) | 规范 | 进站 / 账号安全模型 V3 |
 | SGX-OPS-001 | [`operations/deploy.md`](operations/deploy.md) | 规范 | CI 与部署 |
 | SGX-OPS-002 | [`operations/resources.md`](operations/resources.md) | 参考 | Cloudflare 资源清单（只有名字） |
+| SGX-OPS-003 | [`operations/v5-smoke.md`](operations/v5-smoke.md) | 清单 | v5（S1–S7 + sub v3.1）真机冒烟清单 |
 | SGX-CON-001 | [`contributing/pr-and-commits.md`](contributing/pr-and-commits.md) | 规范 | 分支、提交、PR、合并 |
 | SGX-CON-002 | [`contributing/blog-writing.md`](contributing/blog-writing.md) | 规范 | 写博客 |
 | ADR-0001 | [`decisions/ADR-0001-one-repo-one-site.md`](decisions/ADR-0001-one-repo-one-site.md) | 决策 | 子站并入一个仓库、一个 Hugo 站 |
 | ADR-0002 | [`decisions/ADR-0002-lock-screen.md`](decisions/ADR-0002-lock-screen.md) | 决策 | 锁屏方案演进：Turnstile → 临时钥匙 → 命令行进站 |
 | ADR-0003 | [`decisions/ADR-0003-account-v3.md`](decisions/ADR-0003-account-v3.md) | 决策 | 账号与进站 V3：门归网站、账号管授权 |
 | ADR-0004 | [`decisions/ADR-0004-ai-models.md`](decisions/ADR-0004-ai-models.md) | 决策 | AI 模型选择：Gemma 4 默认，Gemini 3.5 Flash Lite / 3.8 Flash |
+| ADR-0005 | [`decisions/ADR-0005-terminal-entry-v5.md`](decisions/ADR-0005-terminal-entry-v5.md) | 决策 | v5 终端与进站：一个终端、唯一入口 `sudo styrigx`、三处上锁、提示符按 by |
 | — | [`assets/screenshots/`](assets/screenshots/) | 资源 | 根 README 用的截图 |
 
 ## 4. 其他文档的位置

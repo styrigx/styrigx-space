@@ -45,26 +45,6 @@ function aiOrigin(btn, dlg, sheet) {
     sheet.style.setProperty('--sgx-ai-oy', Math.round(bottom - (b.top + b.height / 2)) + 'px');
   } catch (e) {}
 }
-/** 英文底（源文本，没有页面字符串表时用）；页面上以 #sgx-i18n-shell 的 topbar 节为准——已是「英文 ← 页面语言」的合并，缺键回退英文（语言包化 2026-11-07） */
-const STR_EN = {
-  on: "On",
-  off: "Off",
-  auto: "Auto",
-  phone: "Mobile",
-  desktop: "DeX",
-  sys: "Follow system"
-};
-/** @param {Document} doc @returns {Record<string, string>} */
-function shellStr(doc) {
-  /** @type {Record<string, string>} */
-  let page = {};
-  try {
-    const el = doc && doc.getElementById ? doc.getElementById('sgx-i18n-shell') : null;
-    const o = el && el.textContent ? JSON.parse(el.textContent) : null;
-    if (o && o.topbar && typeof o.topbar === 'object') page = o.topbar;
-  } catch (e) {}
-  return Object.assign({}, STR_EN, page);
-}
 /** 关键词搜索（v5 S4，网关 GET /api/find，公开） */
 const FIND_API = '/api/find';
 /** 有没有进站会话（同源网关；= shell/space/paths.js API.sessionCheck）：终端身份的来源 */
@@ -133,7 +113,6 @@ export function mountTopbar(o) {
   const qpDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-qp'));
   const aiBtn = /** @type {HTMLElement|null} */ (doc.querySelector('.sgx-tb-ai'));
   const aiDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-ai'));
-  const t = shellStr(doc);
   const navigate = o.navigate || function (/** @type {string} */ u) { location.href = u; };
   const replace = o.replace || function (/** @type {string} */ u) { location.replace(u); };
   /** @type {any[]} */
@@ -481,10 +460,9 @@ export function mountTopbar(o) {
   };
   /* ---------------- 终端（v5 S5 终端合一：锁屏 tty1、主页 tty2、盾牌 tty3、账号 tty5 合成一个；shell/terminal.js） ----------------
      一个会话、一份历史；提示符按身份（nobody / link / styrigx / root，服务端说了算）。桌面是居中大窗、手机整块卡片（#sgx-term）；
-     主页首屏嵌入终端的代码路径还在（[data-sgx-term="home"]），v5 S7 起主页首屏是 neofetch、不再嵌终端，四站都用 #sgx-term（S8 清死代码）。钥匙层（o.space：shell/space/layer.js）和账号层（o.account：shell/account/window.js）共用它的输入行。 */
+     v5 S7 起主页首屏是 neofetch、不再嵌终端，四站都用 #sgx-term（S8 删了主页嵌入终端的代码路径）。钥匙层（o.space：shell/space/layer.js）和账号层（o.account：shell/account/window.js）共用它的输入行。 */
   const T = o.terminal;
   const termDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-term'));
-  const homeTerm = doc.querySelector('[data-sgx-term="home"]');
   const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
   const acctDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-acct'));
   const secBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-shield'));
@@ -519,14 +497,14 @@ export function mountTopbar(o) {
     const left = typeof n === 'number' ? n : 16;
     if (!termSheet.isShown() && left > 0) window.setTimeout(function () { openDrawer(left - 1); }, 60);
   };
-  /** 打开终端（主页：首屏那一个滚进视野；其他页：终端窗口），然后 f @param {() => void} [f] */
+  /** 打开终端窗口，然后 f @param {() => void} [f] */
   const showTerm = function (f) {
-    const then = function () { if (f) f(); if (view) view.focus({ scroll: !!homeTerm }); };
-    if (homeTerm || !termSheet) { closeAll(then); return; }
+    const then = function () { if (f) f(); if (view) view.focus(); };
+    if (!termSheet) { closeAll(then); return; }
     if (termSheet.isShown() && !sheets.some(function (x) { return x.ms.isOpen(); })) { then(); return; }
     closeAll(function () { openDrawer(); then(); });
   };
-  /** NAVIGATE 页脚「Ctrl K 终端 ›」：打开终端（主页聚焦首屏那个，其他页开终端窗口） */
+  /** NAVIGATE 页脚「Ctrl K 终端 ›」：打开终端窗口 */
   const openTerm = function () { showTerm(); };
   /** 收起终端窗口，然后 after（主页首屏的终端收不起：直接 after） @param {() => void} [after] */
   const closeTerm = function (after) {
@@ -636,7 +614,7 @@ export function mountTopbar(o) {
     }
   }
 
-  if (T && typeof T.createShell === 'function' && (homeTerm || termDlg)) {
+  if (T && typeof T.createShell === 'function' && termDlg) {
     const tile = function (/** @type {string} */ id) { return /** @type {HTMLAnchorElement|null} */ (navDlg ? navDlg.querySelector('a.sgx-nav-tile[data-nav="' + id + '"]') : null); };
     const hrefOf = function (/** @type {string} */ id, /** @type {string} */ dflt) { const a = tile(id); return a ? a.href : dflt; };
     const cur = navDlg ? navDlg.querySelector('a.sgx-nav-tile[aria-current="page"]') : null;
@@ -649,7 +627,7 @@ export function mountTopbar(o) {
         const sec = dir === '~' ? doc.getElementById('home-hero') : doc.querySelector('[data-term-dir="' + dir + '"]');
         if (sec) {
           const scroll = function () { try { sec.scrollIntoView({ behavior: reducedM() ? 'auto' : 'smooth', block: 'start' }); } catch (e) {} };
-          if (!homeTerm && termSheet && termSheet.isOpen()) termSheet.close(scroll);
+          if (termSheet && termSheet.isOpen()) termSheet.close(scroll);
           else scroll();
           return { kind: 'scroll', label: dir === '~' ? '' : sec.getAttribute('data-term-label') || dir };
         }
@@ -719,7 +697,7 @@ export function mountTopbar(o) {
     };
     term = T.createShell({
       str: T.termStrings(doc),
-      cwd: homeTerm ? '~' : ['blog', 'curio', 'daymark', 'wild'].indexOf(curId) >= 0 ? curId : '~',
+      cwd: ['blog', 'curio', 'daymark', 'wild'].indexOf(curId) >= 0 ? curId : '~',
       act: act,
       who: who,
     });
@@ -731,8 +709,8 @@ export function mountTopbar(o) {
       return t4;
     };
     const coarse = function () { try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
-    const termEl = homeTerm || (termDlg ? termDlg.querySelector('[data-sgx-term]') || termDlg : null);
-    if (termDlg && !homeTerm && typeof termDlg.showModal === 'function') {
+    const termEl = termDlg ? termDlg.querySelector('[data-sgx-term]') || termDlg : null;
+    if (termDlg && typeof termDlg.showModal === 'function') {
       const opener = termBtn || navBtn || /** @type {HTMLElement} */ (doc.body);
       termSheet = o.modalSheet(termDlg, opener, {
         ms: QP_MS,
@@ -753,9 +731,9 @@ export function mountTopbar(o) {
     }
     if (termEl) {
       view = T.mountTerminal(termEl, term, {
-        kh: homeTerm ? 'cmdHome' : 'cmdDrawer',
-        onBack: homeTerm ? undefined : function () { if (termSheet) termSheet.close(); },
-        isShown: function () { return homeTerm ? true : !!(termSheet && termSheet.isShown()); },
+        kh: 'cmdDrawer',
+        onBack: function () { if (termSheet) termSheet.close(); },
+        isShown: function () { return !!(termSheet && termSheet.isShown()); },
         pmUser: o.pmUser || '',
         layers: function (/** @type {any} */ line) {
           const space = o.space && who ? o.space(line, { who: who, close: closeTerm, reload: function () { replace(cleanHere()); } }) : null;
@@ -817,7 +795,6 @@ export function mountTopbar(o) {
     if (termBtn) {
       termBtn.addEventListener('click', function (e) {
         e.preventDefault();
-        if (homeTerm) { showTerm(); return; }
         if (!termSheet) return;
         if (termSheet.isShown()) termSheet.close();
         else showTerm();
@@ -846,11 +823,10 @@ export function mountTopbar(o) {
     };
     secHash();
     window.addEventListener('hashchange', secHash);
-    /* Ctrl / ⌘ K（全站，桌面）：主页聚焦首屏终端；其他页开合终端窗口（输入法组字时不理） */
+    /* Ctrl / ⌘ K（全站，桌面）：开合终端窗口（输入法组字时不理） */
     doc.addEventListener('keydown', function (e) {
       if (e.isComposing || e.altKey || e.shiftKey || !(e.ctrlKey || e.metaKey) || (e.key !== 'k' && e.key !== 'K')) return;
       e.preventDefault();
-      if (homeTerm) { showTerm(); return; }
       if (!termSheet) return;
       if (termSheet.isShown()) termSheet.close();
       else showTerm();

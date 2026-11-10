@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-ARCH-001 |
-| 版本 | 2.1 |
-| 日期 | 2026-11-09 |
+| 版本 | 2.2 |
+| 日期 | 2026-11-11 |
 | 状态 | 现行 |
 | 取代 | `docs/architecture.md`（2026-11-06） |
 
@@ -14,7 +14,7 @@
 
 ## 2. 模型
 
-2.1 主站（`/`）相当于操作系统的桌面与系统设置；子站 `/blog/`、`/curio/`、`/daymark/` 相当于其中的应用。进站（锁屏）属于系统层，管住所有站点。
+2.1 主站（`/`）相当于操作系统的桌面与系统设置；子站 `/blog/`、`/curio/`、`/daymark/` 相当于其中的应用。进站属于系统层：v5 起页面对所有人公开，进站会话只管 AI、听歌、监控三处部件与要进站的接口（ADR-0005）。
 
 2.2 **门归网站，账号管授权**。「能不能进来」只由进站会话回答；「能不能写、能不能读私密内容」只由账号 Worker 回答。两者是两套独立的票据（SGX-SEC-001）。
 
@@ -30,10 +30,11 @@ styrigx-space-core（路由 styrigx.com/*）
   ├─ 静态资源（/css/ /js/ /fonts/ /fav/ /images/、子站静态后缀）→ 原样回源 Pages
   ├─ /api/csp-report → 只记日志，204
   ├─ /s/<码>、/api/share → 分享链接
-  ├─ 子站页面 /blog/ /curio/ /daymark/ → handleSubsite：验进站会话 → 回源 Pages 或 302 主站锁屏
-  ├─ 主站页面 → onRequest：验进站会话、注入 data-sgx-lock-session、no-store → 回源 Pages
+  ├─ 子站页面 /blog/ /curio/ /daymark/ → handleSubsite：页面公开，注入 data-sgx-lock-session → 回源 Pages
+  ├─ 主站页面 → onRequest：页面公开，注入 data-sgx-lock-session、no-store → 回源 Pages
   └─ /api/*
-       ├─ API_ROUTES（锁屏、临时钥匙、geo、status、ai …）→ 本 Worker 处理
+       ├─ 访问表 ROUTE_ACCESS（gate.js）：公开清单之外一律要进站会话，否则 401
+       ├─ API_ROUTES（进站凭证、分享、find、geo、status、ai …）→ 本 Worker 处理
        ├─ FORWARDING（/api/account* /api/prefs* /api/avatar* /api/wellbeing* /api/profile*、/avatar/*）
        │     → 服务绑定 ACCOUNT（AccountService）→ styrigx-account
        ├─ /api/ai → 服务绑定 AI_SERVICE → styrigx-ai（SSE 原样流回）
@@ -54,10 +55,10 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 
 | Worker | 管什么 | 进入方式 |
 |---|---|---|
-| `styrigx-space-core` | 进站会话、锁屏凭证、reauth / reset 票、临时钥匙、分享链接、页面关口、接口路由与转发、安全响应头、CSP 报告 | 路由 `styrigx.com/*` |
+| `styrigx-space-core` | 进站会话、进站凭证、reauth / reset 票、分享链接（含链接会话）、关键词搜索 `/api/find`、访问表与接口路由转发、安全响应头、CSP 报告 | 路由 `styrigx.com/*` |
 | `styrigx-account` | 账号密码 / 通行密钥、账号 session / reauth / reset、已登录设备、应用授权、头像与个人资料、设置云同步、数字健康 | 服务绑定 `ACCOUNT`（AccountService）、`ACCOUNT_VERIFIER`（AccountVerifier.authorize） |
 | `styrigx-ai` | 站内对话：召回（关键词 + Vectorize 语义 + 奇趣只读查询）+ 模型流式回答 | 服务绑定 `AI_SERVICE` |
-| `styrigx-status` | 站点监测（每分钟）、Cloudflare 用量（每小时） | 服务绑定 `STATUS` |
+| `styrigx-status` | 站点监测（每分钟）、Cloudflare 用量（每小时）、每日任务（经服务绑定 `JOB_SPACE` 清理过期 / 作废的分享链接） | 服务绑定 `STATUS` |
 | `styrigx-curio-core` | 奇趣数据接口 | 路由 `styrigx.com/curio/api/*` |
 | `styrigx-daymark-core` | 日刻数据接口 | 路由 `styrigx.com/daymark/api/*` |
 | `styrigx-proxy-rules` | 规则集加速反代（来源：MetaCubeX/meta-rules-dat、自有仓 styrigx/mihomo-rules release）+ 代理订阅（`/s/<令牌>/<来源名>`，age 加密；管理经 account `/api/account/proxy` → 服务绑定 ProxyAdmin） | 自定义域名 `proxy-rules.styrigx.com` |
@@ -70,18 +71,17 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 |---|---|---|
 | 入口 | `src/index.js` → `src/app.js`、`src/rpc/*` | 只接线；`SpaceVerifier` 是给接口 Worker 的 RPC 入口 |
 | 路由 | `src/router.js` | `API_ROUTES`、`FORWARDING`、`routeShare` |
-| 关口（L1） | `src/gate.js` | 页面与 `/api/*` 进门时判断会话的唯一位置；主站 `onRequest`、子站 `handleSubsite` 都调 L0 的同一个 `verifyLockSession` |
+| 关口（L1） | `src/gate.js` | 访问表 `ROUTE_ACCESS` 与放行函数 `admit`：判断「要不要进站会话」的唯一位置；主站 `onRequest`、子站 `handleSubsite`、分享链接共用，都调 L0 的同一个 `verifyLockSession` |
 | 接口（L2） | `src/api/*.js` | 一个接口一个文件；可以按需再验（如 reauth 票），但 MUST 使用 `core/` 的同一份实现 |
-| 内核（L0） | `src/core/` | 票据、会话、凭证、限流、临时钥匙、分享链接、账号 RPC |
+| 内核（L0） | `src/core/` | 票据、会话、凭证、限流、分享链接与链接会话、账号 RPC |
 | 通用件 | `src/lib/` | crypto、cookies、http、security-headers、csp-hashes |
 
 5.1 依赖 MUST 沿 `index → app/rpc → router → gate → api → core → lib` 单向进行，可以跳层，不可反向。Worker 内部方向不进 CI，靠评审守住；骨架契约见 `workers/README.md`。
 
-5.2 关口规则（`src/gate.js`）：
-- 首页 `/`、`/zh/` 始终返回页面，并注入 `<html data-sgx-lock-session="valid|locked">`；`locked` 时剥掉 `SGX-DESKTOP` 标记之间的桌面内容。
-- 其余页面无会话时 302 到 `/?lock=1&return=<站内路径>`；子站页面 302 时另带 `why`，主站见到 `why` 不再自动回跳，防止两站来回跳。
-- 无会话的 `/api/*` 只有白名单可调，其余回 401 JSON。
-- 受保护页面 MUST 带 `Cache-Control: private, no-store`。
+5.2 关口规则（`src/gate.js`，v5 S3 整站放开）：
+- 页面与静态文件一律公开，注入 `<html data-sgx-lock-session="valid|locked">`（两态内容相同），HTML 带 `Cache-Control: private, no-store`。
+- `/api/*` 只有访问表里逐条写出的「方法 + 路径」公开；其余一律要进站会话，没有回 401 JSON（fail closed，精确匹配，从不按前缀）。表在 `tests/workers/space-core/route-access.test.mjs` 里整张快照。
+- 首页带 `return` 且会话有效时 302 到 `resolveReturn(return)`；其余情况不跳转。
 
 ## 6. 前端分层
 
@@ -91,7 +91,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 |---|---|---|
 | lib | `lib/` | `lib/` |
 | auth | `auth/`（`passkey-assert.js`、`passkey-register.js`、`post-json.js`） | `lib/`、`auth/` |
-| shell | `shell/`（含 `shell/space/` 进站终端与盾牌、`shell/account/` 账号终端） | `lib/`、`auth/`、`shell/` |
+| shell | `shell/`（含 `shell/term/` 终端引擎与命令表、`shell/space/` 钥匙层、`shell/account/` 账号层与账号窗口） | `lib/`、`auth/`、`shell/` |
 | apps | `apps/` | 以上全部，`apps/` |
 | entries | `entries/` | 以上全部 |
 
@@ -99,7 +99,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 
 6.2 `lib/` MUST NOT 含鉴权逻辑：不得出现 `/api/lock-*`、`/api/space-*`、`/api/account` 与 `navigator.credentials`（规则 6）。
 
-6.3 进站守卫 `shell/space/guard.js` 在每页的 core chunk 里，只读网关注入的 `data-sgx-lock-session`：`locked` / 无属性时先同步盖不透明遮罩（fail closed），再按需 `import()` 锁屏界面 `shell/space/entry.js`；加载失败时遮罩不撤。
+6.3 进站守卫 `shell/space/guard.js` 在每页的 core chunk 里，只读网关注入的 `data-sgx-lock-session`：`valid` 时绑自动回锁（切回前台问服务端，401 → 重载）；不盖遮罩、没有锁屏界面。进站在顶栏终端里 `sudo styrigx`（钥匙层 `shell/space/layer.js`，ADR-0005）；上锁部件与接口 401 派发 `sgx:sudo`，`shell/topbar-panel.js` 打开终端预填。
 
 6.4 进站与账号的接口调用各只有一处：`shell/space/api.js`（地址表 `shell/space/paths.js`）、`shell/account/api.js`。
 
@@ -145,11 +145,11 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 
 ## 9. 一致性规则
 
-9.1 没有有效进站会话时，打开主站或任一子站的任意页面 MUST 先出锁屏；子站 302 到主站锁屏并保留完整 return 地址。
+9.1 主站与子站的任意页面 MUST 对所有人返回同一份内容；没有进站会话时，只有三处上锁部件（AI 窗口、听歌播放、旷野监控卡）与要进站的接口不可用，它们 MUST 由服务端拒绝（401），前端遮罩只是外观。
 
-9.2 有效时，主站与子站的任意页面、新标签页、刷新 MUST 直接进入。
+9.2 有效时，四站上锁部件与接口 MUST 直接可用；新标签页、刷新不再要求进站。
 
-9.3 同一浏览器同一时刻 MUST NOT 出现一个站要进站、另一个站直接进入的情况。
+9.3 同一浏览器同一时刻 MUST NOT 出现一个站认为已进站、另一个站认为未进站的情况（四站同一个 cookie、同一份验签）。
 
 9.4 会话过期时间对所有站点一致，由站点核心签发时决定；子站只验签，不延长。
 

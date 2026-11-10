@@ -8566,7 +8566,7 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 /* topbar v2.0 end */
 
 /* @shell:begin terminal（站内终端，2026-11 UI 重设计 PR-2，设计稿 term-v1；共享外壳：gen-shell 抽到 shell.css，四站同一套；只用 --sgx-* 角色，不写死颜色） */
-/* 窗口 .sgx-term = 标题栏（三个圆点 · guest@space: ~ · 右边按键提示）+ 输出区（aria-live）+ 一行真输入框；主页首屏嵌入 .sgx-term--home，全站抽屉 #sgx-term 里是 .sgx-term--drawer。
+/* 窗口 .sgx-term = 标题栏（三个圆点 · guest@space: ~ · 右边按键提示）+ 输出区（aria-live）+ 一行真输入框；全站抽屉 #sgx-term 里是 .sgx-term--drawer，页面里的静态窗（主页 about、旷野、博客 tree、日刻）是 .sgx-term--static。
    引擎 / 视图 assets/js/shell/terminal.js；输出的类：-k 关键字、-o 次要、-ok 箭头、-err 出错、-dir 目录、-q 引文、-a 链接、-pp 提示符。 */
 .sgx-term { box-sizing: border-box; text-align: left; border: 1px solid var(--sgx-term-line); border-radius: 14px; overflow: hidden;
   background: var(--sgx-surface-container-lowest); color: var(--sgx-text-primary); font-family: var(--sgx-font-mono); letter-spacing: 0;
@@ -8614,10 +8614,6 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 .sgx-term-in:disabled { opacity: .6; }
 /* 触屏：输入行 16px（输入框字号 < 16 时 iOS / 三星浏览器聚焦会放大页面；锁屏 lock-mobile 用例同一条规则） */
 @media (pointer: coarse) { .sgx-term-line { font-size: 16px; } }
-/* 主页首屏终端（2026-11-09 细节 3）：提示符 + 输入行跟输出同字号（12.5 / 14px），不再一行突然变大；
-   只有 iOS（-webkit-touch-callout 只有 WebKit iOS 认）聚焦 < 16px 的输入框会放大页面，那里照旧 16px。抽屉 / 弹层里的终端不动（仍 16px） */
-@media (pointer: coarse) { .sgx-term--home .sgx-term-line { font-size: inherit; } }
-@supports (-webkit-touch-callout: none) { @media (pointer: coarse) { .sgx-term--home .sgx-term-line { font-size: 16px; } } }
 .sgx-term-line:focus-within .sgx-term-ps { text-decoration: underline; text-decoration-color: var(--sgx-focus-ring); text-underline-offset: 4px; }
 .sgx-term-ghost { position: absolute; top: 0; pointer-events: none; white-space: pre; color: var(--sgx-text-tertiary); }
 .sgx-term-ghost[hidden] { display: none; }
@@ -8702,12 +8698,6 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 /* 手机 / 平板：# 行左右各收进 14px（= 手机终端正文 .sgx-term-body 左右内边距），# 落在和终端正文同一列、不贴页边；
    续行仍对齐「# 」后的首字，长网址仍在收窄后的宽度里折行。content-box：平板上 620 的正文宽不变；桌面不动。 */
 :root:not([data-sgx-layout="desktop"]) .home-intro { padding-inline: 14px; }
-/* 嵌入终端：稿 820 宽、高度随内容——首帧自动打一条 help（terminal.js autoHelp），min-height 先留出 欢迎行 + help 回显 的高度（不跳版面），
-   之后再敲命令往下长，到 max-height 才在窗里滚动 */
-.sgx-term--home { max-width: 820px; margin: 42px auto 0; }
-.sgx-term--home .sgx-term-body { min-height: 228px; max-height: 420px; }
-:root:not([data-sgx-layout="desktop"]) .sgx-term--home { margin-top: 32px; }
-:root:not([data-sgx-layout="desktop"]) .sgx-term--home .sgx-term-body { min-height: 262px; max-height: 380px; }
 /* 主页首屏 about（v5 S7，已批截图 home-nf）：原嵌入终端的位置换成 neofetch 卡，间距同原终端（820 宽居中，上距桌面 42 / 手机 32）；hero 居中，卡内照旷野窗左对齐 */
 .home-about { max-width: 820px; margin: 42px auto 0; text-align: left; }
 :root:not([data-sgx-layout="desktop"]) .home-about { margin-top: 32px; }

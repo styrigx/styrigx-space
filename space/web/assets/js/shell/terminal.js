@@ -7,7 +7,7 @@
  * - 视图 mountTerminal()：把一个终端窗口标记（[data-sgx-term]）接到引擎上。输入行用 shell/term/view/input-line.js（秘密输入 / 选择 / 等待 / ^C 都在那里），
  *   要输入、选择、验证的命令（sudo、lock、share、账号命令、sub）交给调用方给的两层上下文去跑（layers：钥匙层 shell/space/layer.js、
  *   账号层 shell/account/cmd/layer.js），它们共用这一个输入行（shell/term/view/layer-ctx.js）。账号窗口（头像，shell/account/window.js）照旧，有自己的命令行。
- *   桌面是居中大窗（#sgx-term 抽屉），手机整块卡片；主页首屏嵌入的那一个（data-sgx-term="home"，S7 换成 neofetch）在主页上就是这个终端。
+ *   桌面是居中大窗（#sgx-term 抽屉），手机整块卡片；四站只有这一个（v5 S7 起主页首屏是 neofetch，不再嵌终端）。
  * - 文案：#sgx-i18n-shell 的 term 节（data/sgx-shell-i18n/<语言>.yaml，缺键回退下面的英文）。
  *
  * 共享外壳组件：只许 import shell/term/**（终端统一 T1，gen-shell 核对）。
@@ -228,7 +228,7 @@ const ACCT_RESET_OK = ['passwd', 'passkey', 'exit', 'clear', 'man', 'history'];
 const SECRET = ['pw', 'rkey', 'newpw', 'newpw2', 'suburl'];
 
 /**
- * 把一个终端窗口标记接到引擎上。标记（主页 layouts/index.html、抽屉 shell-topbar.html 同一套）：
+ * 把一个终端窗口标记接到引擎上。标记（抽屉 shell-topbar.html）：
  *   [data-sgx-term] > .sgx-term-bar [data-term-title] … ；.sgx-term-body [data-term-body] > [data-term-out] + form[data-term-form]
  *   > input[data-term-pmu] + label[data-term-ps] + .sgx-term-field > input[data-term-in] + [data-term-ghost]；p[data-term-hint]；p[data-term-kh]
  * @param {Element} root
@@ -487,13 +487,7 @@ export function mountTerminal(root, sh, opts) {
       inp.value = s;
       inp.dispatchEvent(new Event('input', { bubbles: true }));
     },
-    /** @param {{ scroll?: boolean }} [o2] */
-    focus: function (o2) {
-      if (o2 && o2.scroll) {
-        try { root.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'center' }); } catch (e) {}
-      }
-      C.focusIn(true);
-    },
+    focus: function () { C.focusIn(true); },
     /** 窗口关上：各层收尾（reauth / reset 票、印过的明文） */
     closed: function () {
       if (C.mode !== 'cmd' && C.mode !== 'done') C.interrupt();

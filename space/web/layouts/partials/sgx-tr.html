@@ -1,7 +1,7 @@
 {{- /* 字符串表（语言包化 2026-11-07）：四站界面文案的唯一取值处。主站是来源，gen-shell 复制成共享外壳 tr.html，三站 sync-shell 同步成 partials/sgx-tr.html。
    参数：语言代码（主站页面语言用 sgx-page-lang.html）；子站（2026-11 合站后同一个 Hugo 站）传 dict "lang" .Lang "ns" "<站>"，本站表换成 data/<站>/i18n/。
    用 partialCached 调，按语言（子站按 站-语言）缓存：
-     {{ $tr := partialCached "sgx-tr.html" $lang $lang }} → {{ $tr.account.title }}、{{ $tr.shell.topbar.lock }}
+     {{ $tr := partialCached "sgx-tr.html" $lang $lang }} → {{ $tr.account.title }}、{{ $tr.shell.topbar.share }}
      {{ $tr := partialCached "sgx-tr.html" (dict "lang" .Lang "ns" "curio") (printf "curio-%s" .Lang) }}
    返回：本站表 data/i18n/<语言>.yaml（子站 data/<站>/i18n/<语言>.yaml）叠在英文表上（深合并，缺的键回退英文，不回退中文）；
    共享外壳表 data/sgx-shell-i18n/<语言>.yaml 同样叠在英文上，放在 .shell 下。

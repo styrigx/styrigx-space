@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-DES-002 |
-| 版本 | 1.0 |
-| 日期 | 2026-11-09 |
+| 版本 | 1.1 |
+| 日期 | 2026-11-11 |
 | 状态 | 现行 |
 
 ## 1. 范围
@@ -13,12 +13,12 @@
 
 ## 2. 原则
 
-2.1 **终端风格**。交互以命令行与「提示符 + 命令 + 输出」的形式呈现：锁屏、盾牌、账号下拉、首页 hero、旷野小卡、AI 窗的消息回显都遵循同一套提示符规则（§7）。等宽字体用 `--sgx-font-mono`。
+2.1 **终端风格**。交互以命令行与「提示符 + 命令 + 输出」的形式呈现：全站终端、账号窗口、首页 hero 与 about 卡、旷野小卡、AI 窗的消息回显都遵循同一套提示符规则（§7）。等宽字体用 `--sgx-font-mono`。
 
 2.2 **没有弹层**。验证、确认、选择都在命令行或行内完成：
 - MUST NOT 使用原生 `alert` / `confirm` / `prompt`（`space/scripts/check-frontend.mjs` 规则 1）。
 - 底部弹层 `openSheet(` 只许出现在白名单（`SHEET_ALLOW`，现只有 `shell/sheet.js`），新调用一律拦下（规则 3）；选项改行内展开单选。
-- 每个终端状态（锁屏、reset、盾牌、账号）MUST 有退出路径（`^C`、`exit`、`‹ 返回`）。
+- 每个终端状态（终端各层、reset、账号窗口）MUST 有退出路径（`^C`、`exit`、`‹ 返回`）。
 
 2.3 **外观改动需要单独确认**。布局、配色、字体、窗口形态的改动 MUST 单独给拥有者看设计，不得夹在一组修复里合并（2026-11-09 手机 AI 底部半屏卡 #351 上线后撤回 #358 的教训）。
 
@@ -38,23 +38,22 @@
 
 ## 4. 顶栏
 
-4.1 贴顶通栏（`position: fixed; top: 0`），三列网格：字标（`❯` + wordmark + 光标）· 中间 · 图标组（调色盘 · 盾牌 │ `>_` · 头像）。底边是滑页进度条 `.sgx-tb-prog`。内容宽与页面内容宽一致（`--sgx-content-w` 1080）。
+4.1 贴顶通栏（`position: fixed; top: 0`），顶栏 E（v5 S6）：盾牌 · 调色 · 导航四格 │ `>_` 终端 · 头像。盾牌不开窗口（访客点 → 终端预填 `sudo styrigx`；已进站点 → 终端问退出 [y/N]）；访客态头像是死按钮。底边是滑页进度条 `.sgx-tb-prog`。内容宽与页面内容宽一致（`--sgx-content-w` 1080）。
 
 4.2 高度 token `--sgx-tb-h`：桌面 **64px**，手机布局 **56px**（`html[data-sgx-layout="phone"]`，#349）。只收上下留白：图标 40px、头像 30px（外圈 38px）不变。正文偏移 `--nav-h`、面板顶距跟随 `--sgx-tb-h`，MUST NOT 另写死高度。
 
 4.3 头像带白环与绕圈暗光弧，平时慢转（2 秒一圈）、加载 / AI 回答时变快；减弱动效时静止。
 
-4.4 锁屏态（`data-sgx-lock-session="locked"`）首帧 MUST 隐藏页面顶栏 `#site-nav`，由锁屏层接管（#359）。
+4.4 v5 起没有锁屏层：未进站时顶栏照常显示。
 
 ## 5. 面板
 
 | 面板 | 打开方式 | 内容 |
 |---|---|---|
-| 导航面板 `#sgx-nav` | 顶栏 `>_` | 站点导航（四站）、**语言**与**布局**两行 Auto 控件、分享本页、立即锁屏 |
-| 快捷面板 `#sgx-qp` | 顶栏调色盘 | 深浅色、调色板 |
-| 终端抽屉 | 任意页 `Ctrl K` | 与首页内嵌终端同一个实例；Tab 补全、↑ 历史、`Ctrl L` 清屏、`Ctrl C` 中断 |
-| 盾牌下拉 | 顶栏盾牌 | SGX-SEC-001 §5 |
-| 账号下拉 | 顶栏头像 | SGX-SEC-001 §6 |
+| 导航面板 `#sgx-nav` | 顶栏四格 | 站点导航（四站）、**语言**与**布局**两行 Auto 控件、分享本页 |
+| 快捷面板 `#sgx-qp` | 顶栏调色 | 深浅色、调色板 |
+| 终端 `#sgx-term` | 顶栏 `>_`、`Ctrl / ⌘ K`、盾牌、上锁部件 | 全站唯一终端（ADR-0005）；桌面居中大窗、手机整块卡片；Tab 补全、↑ 历史、`Ctrl L` 清屏、`Ctrl C` 中断 |
+| 账号窗口 | 顶栏头像（已进站） | SGX-SEC-001 §6 |
 
 三个顶栏窗口（导航、快捷、AI）是非模态 `<dialog>`，互相排斥。
 
@@ -81,18 +80,19 @@
 
 ## 7. 提示符规则
 
-7.1 三个进站终端与账号终端各有固定提示符，不随环境变化：
+7.1 全站终端的提示符按身份（服务端说了算，`shell/term/core/who.js`；ADR-0005 §2.3）：
 
-| 终端 | 状态 | 提示符 |
-|---|---|---|
-| 锁屏 | 未进站 | `entry@space:~$` |
-| 进站 reset | 恢复钥匙验过之后 | `reset@space:~#` |
-| 盾牌 | 已进站 | `styrigx@space:~#` |
-| 账号下拉 | 未登录 | `login@account:~$` |
-| 账号下拉 | 已登录（reauth 期间不变） | `root@account:~#` |
-| 账号 reset | reset 期间 | `reset@account:~#` |
+| 身份 | 提示符 |
+|---|---|
+| 访客（nobody） | `nobody@space:~$` |
+| 分享链接会话（by=link） | `nobody@space:~#` |
+| 已进站（by=password / passkey） | `styrigx@space:~#` |
+| 已进站且账号已登录 | `root@account:~#` |
+| 进站 reset / 账号 reset | `reset@space:~#` / `reset@account:~#` |
 
-7.2 **环境提示符**：其余所有提示符（首页 hero 与内嵌终端、终端抽屉、子页窗口与标题行、旷野小卡、AI 提问行）按账号登录状态二选一：
+首页 about 卡的提示符跟同一个身份（`[data-sgx-ps]`）。账号窗口另有自己的命令行（`login@account:~$` / `root@account:~#`）。
+
+7.2 **环境提示符**：其余装饰性提示符（首页 hero、子页窗口与标题行、旷野小卡、AI 提问行）按账号登录状态二选一：
 
 | 账号 | 提示符 |
 |---|---|
@@ -103,7 +103,7 @@
 
 7.4 AI 回答行的身份恒为 `grayai`，主机与符号跟随 §7.2：`grayai@space:~$ --reply` / `grayai@account:~# --reply`。
 
-7.5 实现：`shell/space/commands.js`（`PS_ENTRY`、`PS_ADMIN`、`PS_RESET`、`ENV_GUEST`、`ENV_ROOT`、`envPrompt`）、`shell/account/commands.js`（`PS_GUEST`、`PS_ROOT`、`PS_RESET`）、`layouts/partials/sgx-envps.html`、`input.css` 的 `.sgx-ai-msg::before`。
+7.5 实现：`shell/term/core/who.js`（`PS_USER`、`PS_RESET`、`ps1`）、`shell/space/commands.js`（`PS_RESET`、`ENV_GUEST`、`ENV_ROOT`、`envPrompt`）、`shell/account/commands.js`（`PS_GUEST`、`PS_ROOT`、`PS_RESET`）、`layouts/partials/sgx-envps.html`、`input.css` 的 `.sgx-ai-msg::before`。
 
 ## 8. 细节约定
 

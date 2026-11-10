@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-ARCH-010 |
-| 版本 | 1.0 |
-| 日期 | 2026-11-09 |
+| 版本 | 1.1 |
+| 日期 | 2026-11-11 |
 | 状态 | 现行 |
 
 ## 1. 范围
@@ -15,13 +15,13 @@
 
 | 地址 | 模板 | 入口脚本 | 内容 |
 |---|---|---|---|
-| `/`、`/zh/` | `layouts/index.html` | `entries/entry-space.js` | 首页：hero（状态胶囊 · `$ whoami` · 名字 · `$` 标语 · `#` 签名）+ 内嵌终端；下面四节 `[01]` 博客最新 3 篇、`[02]` 奇趣目录卡、`[03]` 日刻今日一句、`[04]` 旷野两张小终端卡（screen-time / status） |
-| `/wild/`、`/zh/wild/` | `layouts/_default/wild.html` | `entries/entry-space-wild.js` | 旷野：`#screen-time`（数字健康）、`#status`（服务状态，读 `/api/status`；页底进站凭证使用记录读 `/api/space-audit`）、`#about`（关于，版本号读 `data/version.yaml`） |
+| `/`、`/zh/` | `layouts/index.html` | `entries/entry-space.js` | 首页：hero（状态胶囊 · `$ whoami` · 名字 · `$` 标语 · `#` 签名）+ about 卡（neofetch 风格，`#about`，提示符跟身份，v5 S7；首页不再嵌终端）；下面几节 `[01]` 博客最新 3 篇、`[02]` 奇趣目录卡、`[03]` 日刻今日一句 |
+| `/wild/`、`/zh/wild/` | `layouts/_default/wild.html` | `entries/entry-space-wild.js` | 旷野：`#screen-time`（数字健康）、`#status`（服务状态，读 `/api/status`，要进站；页底进站凭证使用记录读 `/api/space-audit`）。about 卡 v5 S7 起只在首页 |
 | `/404.html` | `layouts/404.html` | — | 404 |
 
 2.1 首页 `$` 行只打字轮播英文标语 `hugo.yaml` 的 `params.tagline`（中英页面相同，不翻译；`apps/home-typer.js`，减弱动效时静止）。`#` 行显示账号个人资料的签名 motto：首帧用 `data/profile.yaml` 的默认值，随后 `lib/profile.js` 以 `/api/profile` 覆盖；空值时整行隐藏，不截断、不翻译。
 
-2.2 首页在锁屏态由站点核心剥掉 `<!-- SGX-DESKTOP-START -->` 与 `<!-- SGX-DESKTOP-END -->` 之间的内容。模板 MUST 用 `safeHTML` 输出这两个标记（Go 模板会删掉普通 HTML 注释）。
+2.2 v5 S3 起页面两态内容相同，站点核心不再剥掉任何内容（`SGX-DESKTOP` 标记已从模板删除）。
 
 2.3 已退役的页面由 `static/_redirects` 301：`/status/`、`/about/`、`/wellbeing/` → `/wild/#…`；`/theme/` → `/`；`/account/*` → `/#acct=<层>`；`/security/*` → `/#sec…`；`/owner/` → `/#sec=keys`；`/chat/`、`/search/`、`/browser/*`、`/files/*` → `/`。
 
@@ -31,14 +31,14 @@
 
 | 组件 | 代码 | 说明 |
 |---|---|---|
-| 顶栏 | `layouts/partials/shell-topbar.html`、`assets/css/shell/` | 贴顶通栏；字标（`❯` + wordmark）· 图标组（调色盘 · 盾牌 │ `>_` · 头像）；底边滑页进度条 |
-| 导航面板 | `#sgx-nav`，`shell/topbar-panel.js` | 顶栏 `>_` 打开；站点导航、语言与布局两行 Auto 控件、分享本页、立即锁屏 |
-| 快捷面板 | `#sgx-qp`，`shell/quick-panel.js` | 调色盘打开；深浅色、调色板 |
-| 终端抽屉 | `shell/terminal.js` | 任意页 `Ctrl K` 打开；首页内嵌同一个实例 |
-| AI 窗 | `#sgx-ai`，`shell/ai-panel.js` | 右下浮钮展开；手机是悬浮卡 |
-| 盾牌下拉 | `shell/space/shield.js` | 进站凭证、临时钥匙、分享链接、立即锁屏 |
-| 账号下拉 | `shell/account/term.js` | 头像打开；`sudo root` / `reauth` / `reset`、个人资料、设备、应用授权 |
-| 锁屏 | `shell/space/guard.js` → `entry.js`、`term.js`、`reset.js` | 见 SGX-SPEC-001 |
+| 顶栏 | `layouts/partials/shell-topbar.html`、`assets/css/shell/` | 顶栏 E（v5 S6）：盾牌 · 调色 · 导航四格 │ `>_` 终端 · 头像；底边滑页进度条 |
+| 导航面板 | `#sgx-nav`，`shell/topbar-panel.js` | 顶栏四格打开；站点导航、语言与布局两行 Auto 控件、分享本页（v5 S6 去掉 lock 按钮） |
+| 快捷面板 | `#sgx-qp`，`shell/quick-panel.js` | 调色打开；深浅色、调色板 |
+| 终端 | `#sgx-term`，`shell/terminal.js` + `shell/term/` | 全站唯一终端（v5 S5）：顶栏 `>_`、`Ctrl / ⌘ K`、盾牌、上锁部件打开；桌面居中大窗、手机整块卡片；钥匙层 `shell/space/layer.js`、账号层 `shell/account/cmd/layer.js` 共用输入行（ADR-0005） |
+| AI 窗 | `#sgx-ai`，`shell/ai-panel.js` | 右下浮钮展开；手机是悬浮卡；未进站时模型小矩形是锁标，点击打开终端 |
+| 盾牌 | `.sgx-tb-shield` | 不开窗口：访客点 → 终端预填 `sudo styrigx`；已进站点 → 终端问「退出进站会话 [y/N]」 |
+| 账号窗口 | `#sgx-acct`，`shell/account/window.js` | 头像打开（只在已进站时；访客态头像是死按钮） |
+| 进站守卫 | `shell/space/guard.js` | 已进站页面的自动回锁；见 SGX-SPEC-001 |
 | 页脚 | `layouts/partials/sgx-footer.html` | rss / github / x 与构建号 |
 
 3.1 子站直接使用主站的这些 partial 与 JS（`space/web/layouts/<站>/baseof.html` 引用），MUST NOT 复制。

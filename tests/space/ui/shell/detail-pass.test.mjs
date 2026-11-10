@@ -55,8 +55,9 @@ test('字距：标签统一 --sgx-track-label .08em（v5 S5：锁屏标题栏 / 
   assert.ok(!css.includes('.sgx-entry-term-bar') && !css.includes('.sgx-entry-st '), '锁屏的样式删干净');
 });
 
-test('主页终端输入行跟输出同字号，16px 只给 iOS（v5 S5：锁屏输出的样式随锁屏删了）', () => {
-  assert.match(css, /@media \(pointer: coarse\) \{ \.sgx-term--home \.sgx-term-line \{ font-size: inherit; \} \}\n@supports \(-webkit-touch-callout: none\) \{ @media \(pointer: coarse\) \{ \.sgx-term--home \.sgx-term-line \{ font-size: 16px; \} \} \}/);
+test('主页嵌入终端的样式删了（v5 S8：S7 起主页首屏是 neofetch）；触屏输入行 16px；锁屏输出的样式随锁屏删了（v5 S5）', () => {
+  assert.ok(!css.includes('.sgx-term--home'), '主页嵌入终端 .sgx-term--home 删干净');
+  assert.match(css, /@media \(pointer: coarse\) \{ \.sgx-term-line \{ font-size: 16px; \} \}/);
   assert.ok(!/\.sgx-entry-(l|log|line|in|ps|term|tail|lang)\b/.test(css), '锁屏终端的样式删干净');
   /* 开机动画（终端里 sudo styrigx 通过后，shell/space/unlock.js）的样式还在 */
   for (const k of ['.sgx-entry-boot {', '.sgx-entry-bout {', '.sgx-entry-cur {', '#sgx-entry.sgx-entry-anim {', '#sgx-entry.sgx-entry-booted {']) assert.ok(css.includes(k), k);
