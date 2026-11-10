@@ -1207,6 +1207,8 @@ jobs:
     # SGX_CF_USAGE_TOKEN，部署必须 Edit，Read 报 10021，同鉴权网关）；环境只允许 main。
     # 服务绑定 AI_SERVICE（P4-2 起取代 SEARCH / CHAT，每分钟测 ai 的 /healthz）：排在 ai 之后，
     # 免得新监测先上线、测到还没部署好的版本，误开故障。
+    # 服务绑定 JOB_SPACE（v5 S2，入口 ShareJanitor）指向 styrigx-space-core：它绑 STATUS、排在本 job 之后，没法反过来排；
+    # Worker 早已存在，绑定照样能部署，新入口等本次 deploy-space-core 上线后才有，这之前只有 03:41 CST 那轮会打一条失败日志。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e, deploy-ai-worker]
