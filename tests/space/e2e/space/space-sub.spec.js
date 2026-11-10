@@ -60,12 +60,13 @@ test('home (mobile, 对齐 PR-B): hero, then [01] blog · [02] curio · [03] day
   const ys = [];
   for (const id of ['#home-hero', '#blog', '#curio', '#daymark', '#wild']) ys.push((await pg.locator(id).boundingBox()).y);
   expect([...ys].sort((a, b) => a - b)).toEqual(ys);
-  // [02] 奇趣三个目录、[04] 旷野三张小卡（手机一栏）
+  // [02] 奇趣三个目录、[04] 旷野两张小卡（手机一栏；about 小卡 2026-11-11 删，about 只在首屏 #about）
   const dirs = pg.locator('#curio a.home-dir');
   expect(await dirs.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/zh/finds/', '/curio/zh/devices/', '/curio/zh/games/']);
   const mini = pg.locator('#wild a.home-mini');
-  expect(await mini.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/zh/wild/#screen-time', '/zh/wild/#status', '#about']); /* v5 S7：about 卡只在主页首屏，小卡指回 #about */
-  await expect(mini.locator('.home-dir-n')).toHaveText(['screen-time', 'status', 'about']);
+  expect(await mini.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/zh/wild/#screen-time', '/zh/wild/#status']);
+  await expect(mini.locator('.home-dir-n')).toHaveText(['screen-time', 'status']);
+  await expect(mini.locator('.home-mini-n')).toHaveText(['01 / 02', '02 / 02']);
   expect(await pg.locator('#wild .home-wild').evaluate((ul) => getComputedStyle(ul).gridTemplateColumns.split(' ').length)).toBe(1);
   // 删掉的分类（含显示页、并进旷野的三页）不再有链接；页面上没有任何指向旧设置层的链接
   for (const gone of ['display', 'manage', 'accessibility', 'goodlock', 'advanced', 'apps', 'wellbeing', 'status', 'about']) await expect(pg.locator(`a[href="/${gone}/"], a[href="/zh/${gone}/"]`), gone).toHaveCount(0);
@@ -74,21 +75,22 @@ test('home (mobile, 对齐 PR-B): hero, then [01] blog · [02] curio · [03] day
   await expect(pg.locator('#sg-display, #sg-theme, #sg-wellbeing, #sg-about, #set-cat-nav, .set-col-r')).toHaveCount(0);
 });
 
-/* [02] 奇趣目录 / [04] 旷野小卡：手机布局一栏，桌面布局三栏、同一行顶边对齐（对齐 PR-B，设计稿 tb4.html） */
+/* [02] 奇趣目录（3 张）/ [04] 旷野小卡（2 张，about 小卡 2026-11-11 删）：手机布局一栏，桌面布局三栏 / 两栏、同一行顶边对齐（对齐 PR-B，设计稿 tb4.html） */
 for (const [w, h, cols] of [[412, 900, 1], [1100, 900, 3], [1366, 768, 3]]) {
   test(`home dirs / wild cards: ${w}px wide → ${cols} column(s)`, async ({ page: pg }) => {
     await pg.setViewportSize({ width: w, height: h });
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/zh/');
-    for (const sel of ['#curio .home-dirs', '#wild .home-wild']) {
+    for (const [sel, n] of [['#curio .home-dirs', 3], ['#wild .home-wild', 2]]) {
+      const c = Math.min(cols, n);
       const info = await pg.locator(sel).evaluate((ul) => ({
         cols: getComputedStyle(ul).gridTemplateColumns.split(' ').length,
         tops: [...ul.children].map((li) => Math.round(li.getBoundingClientRect().top)),
         n: ul.children.length,
       }));
-      expect(info.n, sel).toBe(3);
-      expect(info.cols, sel).toBe(cols);
-      expect(new Set(info.tops.slice(0, cols)).size, sel + ' 第一行同一高度').toBe(1);
+      expect(info.n, sel).toBe(n);
+      expect(info.cols, sel).toBe(c);
+      expect(new Set(info.tops.slice(0, c)).size, sel + ' 第一行同一高度').toBe(1);
     }
   });
 }
@@ -96,13 +98,12 @@ for (const [w, h, cols] of [[412, 900, 1], [1100, 900, 3], [1366, 768, 3]]) {
 test.describe('home (dex)', () => {
   test.use({ viewport: { width: 1366, height: 768 } });
 
-  test('single page: [04] about card links back to the home neofetch (#about, v5 S7), no two-pane', async ({ page: pg }) => {
+  test('single page: about only in the hero neofetch (#about, v5 S7), no [04] about mini card (2026-11-11), no two-pane', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/zh/');
     await expect(pg.locator('#set-cat-nav, .set-dex-cols, #set-panes')).toHaveCount(0);
-    await pg.locator('#wild a.home-mini[href="#about"]').click();
-    await pg.waitForURL('**/zh/#about', { timeout: 10000 });
-    await expect(pg.locator('#home-hero #about')).toBeInViewport();
+    await expect(pg.locator('#wild a[href="#about"]')).toHaveCount(0);
+    await expect(pg.locator('#home-hero #about')).toHaveCount(1);
   });
 });
 
@@ -114,7 +115,7 @@ test('home (en): title Home, sections, wild cards to /wild/#…', async ({ page:
   await expect(pg.locator('.sgx-tb-title')).toHaveText('Home');
   await expect(pg.locator('#space-entries')).toHaveCount(0);
   await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // CURIO', '[03] // DAYMARK', '[04] // WILD']);
-  expect(await pg.locator('#wild a.home-mini').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/wild/#screen-time', '/wild/#status', '#about']);
+  expect(await pg.locator('#wild a.home-mini').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/wild/#screen-time', '/wild/#status']);
   expect(await pg.locator('#curio a.home-dir').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/finds/', '/curio/devices/', '/curio/games/']);
   await expect(pg.locator('a[href="/display/"]')).toHaveCount(0);
 });

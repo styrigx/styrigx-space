@@ -92,6 +92,9 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
     await expect(term(page)).toHaveAttribute('open', '');
     await expect(mode(page)).toHaveAttribute('data-mode', 'pick');
     await expect(tOut(page)).toContainText('退出进站会话？ [y/N]');
+    /* [y/N] 只出一次：问句里有，输入行提示符是选择的默认 `>`（2026-11-11 修：原来提示符又是一个 [y/N]） */
+    await expect(ps(page)).toHaveText('>');
+    expect(((await page.locator('#sgx-term').innerText()).match(/\[y\/N\]/g) || []).length).toBe(1);
     await expect(tIn(page)).toHaveValue('');
     await type(page, 'n');
     await expect(mode(page)).toHaveAttribute('data-mode', 'cmd');

@@ -8664,7 +8664,7 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 
 /* 主页（2026-11 UI 重设计 PR-2 首屏终端；对齐 PR-B 按设计稿 tb4.html 主页默认 / m=1；只在主站）：内容宽对齐顶栏内容（--sgx-content-w 1080，左右同 --sgx-tb-pad）。
    hero 居中：状态胶囊 → $ whoami → 名字 → $ 副标题 + 闪烁光标 → # 介绍 → 嵌入终端（头像只在顶栏、签名只在账号下拉）；
-   下面四节「[0n] // 名字」+ 一行命令 + 内容：[01] 博客列表 · [02] 奇趣三个目录卡 · [03] 日刻强调线引言 · [04] 旷野三张小终端卡。
+   下面四节「[0n] // 名字」+ 一行命令 + 内容：[01] 博客列表 · [02] 奇趣三个目录卡 · [03] 日刻强调线引言 · [04] 旷野两张小终端卡。
    数值照稿：桌面 hero 顶距 70（+ 稿 body 40 − 本站正文顶距 16 = 94）、胶囊→whoami 28、名字 64（行高同稿 1.9）、副标题 22；手机 36（→ 60）/ 40 / 16；节间 56 + 顶部细线；卡片圆角 12。 */
 .home-wrap.home-term-wrap { width: min(var(--sgx-content-w), 100% - 2 * max(var(--sgx-page-m), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))); font-family: var(--sgx-font-mono); }
 .home-pr { color: var(--sgx-primary); }
@@ -8728,8 +8728,9 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 .home-post i { font-style: normal; color: var(--sgx-text-tertiary); }
 @media (hover: hover) and (pointer: fine) { .home-post:hover b { color: var(--sgx-primary); } }
 :root:not([data-sgx-layout="desktop"]) .home-post { grid-template-columns: 78px minmax(0, 1fr) auto; gap: 10px; }
-/* [02] 奇趣 / [04] 旷野：三张细线目录卡（稿 .dir：名字强调色 · 右上计数 · 下面一条），桌面三栏、手机一栏 */
+/* [02] 奇趣三张 / [04] 旷野两张细线目录卡（稿 .dir：名字强调色 · 右上计数 · 下面一条），桌面三栏 / 两栏、手机一栏（旷野 about 小卡 2026-11-11 删） */
 .home-dirs, .home-wild { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.home-wild { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 :root:not([data-sgx-layout="desktop"]) .home-dirs, :root:not([data-sgx-layout="desktop"]) .home-wild { grid-template-columns: minmax(0, 1fr); }
 .home-dir { display: block; box-sizing: border-box; height: 100%; padding: 16px; border: 1px solid var(--sgx-term-line); border-radius: 12px;
   background: color-mix(in srgb, var(--sgx-surface-container-low) 70%, transparent); color: var(--sgx-text-secondary); text-decoration: none; transition: border-color .15s ease; }
@@ -8742,7 +8743,7 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 /* [04] 旷野小卡：等宽小字，一行一条（稿 .wild .dir，行高 1.9） */
 .home-mini { font-size: 12px; line-height: 1.9; }
 .home-mini .home-dir-n { display: block; }
-/* 小卡右上的位置计数「01 / 03」（Gray 2026-11-09 细节 2；同奇趣卡右上的计数位，装饰，读屏不念） */
+/* 小卡右上的位置计数「01 / 02」（Gray 2026-11-09 细节 2；同奇趣卡右上的计数位，装饰，读屏不念） */
 .home-mini-n { float: right; font-size: 11px; line-height: calc(14px * 1.9); color: var(--sgx-text-tertiary); }
 .home-mini-row, .home-mini-none { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .home-mini-none[hidden] { display: none; }

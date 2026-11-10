@@ -85,15 +85,16 @@ function files(dir) {
   return out;
 }
 
-test('构建产物：中英主页四节 [01]–[04]、没有分类入口；[04] 小卡 screen-time / status 指向旷野锚点、about 指向主页 #about（v5 S7）；旷野页两个窗', { skip: !BUILT && '没构建 space/web/public' }, () => {
+test('构建产物：中英主页四节 [01]–[04]、没有分类入口；[04] 两张小卡 screen-time / status 指向旷野锚点（about 小卡 2026-11-11 删，about 只在首屏 #about）；旷野页两个窗', { skip: !BUILT && '没构建 space/web/public' }, () => {
   for (const [lang, file, pre] of [['en', 'index.html', '/'], ['zh', 'zh/index.html', '/zh/']]) {
     const html = readFileSync(path.join(REPO, 'space/web/public', file), 'utf8');
     assert.doesNotMatch(html, /class="?sgx-ents/, lang + '：主页没有入口区块');
     const ks = [...html.matchAll(/home-sec-k"? aria-hidden="?true"? translate="?no"?>([^<]+)</g)].map((m) => m[1]);
     assert.deepEqual(ks, ['[01] // BLOG', '[02] // CURIO', '[03] // DAYMARK', '[04] // WILD'], lang + '：四节顺序');
     for (const a of ['screen-time', 'status']) assert.ok(html.includes(`href="${pre}wild/#${a}"`) || html.includes(`href=${pre}wild/#${a}`), `${lang}：小卡 ${a} → ${pre}wild/#${a}`);
-    /* v5 S7：neofetch about 卡搬到主页首屏（id=about），[04] 的 about 小卡指向本页 #about */
-    assert.ok(/href="?#about"?/.test(html), `${lang}：小卡 about → #about`);
+    /* v5 S7：neofetch about 卡搬到主页首屏（id=about）；[04] 的 about 小卡删了（Gray 2026-11-11），只剩两张 */
+    assert.doesNotMatch(html, /href="?#about"?/, `${lang}：没有指回 #about 的小卡`);
+    assert.equal((html.match(/class="?home-dir home-mini/g) || []).length, 2, `${lang}：旷野两张小卡`);
     assert.match(html, /<div id="?about"? class="?sgx-term sgx-term--static wild-term home-about/, `${lang}：主页有 about 卡`);
     const cu = lang === 'zh' ? '/curio/zh/' : '/curio/';
     for (const d of ['finds', 'devices', 'games']) assert.match(html, new RegExp(`href="?${cu}${d}/"? data-curio="?${d}"?`), `${lang}：奇趣 ${d}/`);
