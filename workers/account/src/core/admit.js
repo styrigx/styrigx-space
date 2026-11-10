@@ -9,7 +9,7 @@
  * 只 import core/。
  */
 import { levelOf, ruleOf, rescueOf } from './route-access.js';
-import { permits, ACCESS, ROOT_UID } from './groups.js';
+import { permits, precedence, ACCESS, ROOT_UID } from './groups.js';
 import { admitRequest } from './identity-session.js';
 
 /**
@@ -24,7 +24,7 @@ function conclusion(o) {
 
 /**
  * 新会话能不能走这条路由（opts.action 给了 → 按那个 action 的档和救援白名单；网关只传路由，按路由这一档）。
- * 判断只经 permits（顺序：救援 → root → 档）；这里没有任何 root 快速放行。
+ * 判断只经 groups.js：root 快速放行 = precedence（救援 → root，和 permits 同一个函数），其余 permits 按档。
  * @param {any} env @param {Request} request 只读 Cookie 头 @param {string} method @param {string} pathname @param {number} [now]
  * @param {{action?: string}} [opts]
  * @returns {Promise<AdmitConclusion>}
@@ -37,7 +37,10 @@ export async function admitRoute(env, request, method, pathname, now, opts) {
     if (!rule || !level) return conclusion({ reason: 'not-listed' });
     const adm = await admitRequest(env, request, now);
     const identity = adm.ok ? adm.identity : null;
-    const allowed = permits(identity, level, { rescue: rescueOf(method, pathname, q) });
+    const ropts = { rescue: rescueOf(method, pathname, q) };
+    /* root 快速放行：和 permits 共用 groups.js precedence（救援先判，root 后放），不另写判断 */
+    const pre = precedence(identity, ropts);
+    const allowed = pre !== null ? pre : permits(identity, level, ropts);
     if (!adm.ok) return conclusion({ allowed, level, reason: allowed ? 'ok' : adm.reason });
     return conclusion({
       allowed, level, reason: allowed ? 'ok' : (level === ACCESS.ROOT ? 'need-root' : 'need-' + level),

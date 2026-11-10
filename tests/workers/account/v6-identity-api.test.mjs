@@ -722,3 +722,29 @@ test('pepper 方案 a：按 pepper_id 取 pepper；不认识的 id → 验不过
   assert.equal((await id(noS, { action: 'su', user: 'styrigx', password: PW.styrigx }, undefined, freshIp())).status, 401);
   _resetSecretCache();
 });
+
+test('Muse v5 注意点 1：GET /api/wellbeing 公开，明细只给本人——访客 / 别的用户 / 临时用户只拿合计（items 空、detail false），站长与 root 有明细；塞 uid 不认', async () => {
+  const env = await setup();
+  const day = new Date().toISOString().slice(0, 10);
+  env.D1_ACCOUNT.raw.prepare("INSERT INTO wb_daily (day, k, t, sec) VALUES (?, 'book:abc', 'Secret Book', 120), (?, 'blog', '', 30)").run(day, day);
+  const get = (tok) => call(env, 'GET', '/api/wellbeing?d=' + day + '&uid=1000', { cookie: tok, headers: EVIL });
+  const guest = await get(undefined);
+  assert.equal(guest.status, 200);
+  assert.equal(guest.json.total, 150);
+  assert.equal(guest.json.detail, false);
+  assert.deepEqual(guest.json.items, []);
+  assert.ok(!JSON.stringify(guest.json).includes('Secret Book'), '访客拿不到明细');
+  for (const u of ['alice', 'temp']) {
+    const r = await get(await login(env, u));
+    assert.equal(r.json.total, 150, u + ' 拿公开合计');
+    assert.equal(r.json.detail, false, u);
+    assert.ok(!JSON.stringify(r.json).includes('Secret Book'), u + ' 拿不到明细');
+  }
+  const st = await login(env, 'styrigx');
+  const s = await get(st);
+  assert.equal(s.json.detail, true);
+  assert.equal(s.json.items[0].t, 'Secret Book');
+  await suRoot(env, st);
+  assert.equal((await get(st)).json.detail, true, 'root 也有');
+  assert.equal((await get('A'.repeat(43))).json.detail, false, '坏 cookie = 访客');
+});
