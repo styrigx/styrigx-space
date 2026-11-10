@@ -100,3 +100,4 @@
 
 - `useradd -e YYYY-MM-DD`：按 Linux 语义，**该日 00:00（Asia/Shanghai）起失效**（可用到前一天结束），存 UTC 毫秒（`core/users.js expiryFromDate`；例：`2026-12-01` → `2026-11-30T16:00:00Z`）。
 - 会话：styrigx 层 30 天滑动续期（只在剩余不到一半时续写，每会话每天至多一次；admit 只读）；root 层 ≤ 1 小时、前台空闲 15 分钟弹回；救援 15 分钟、不续期。
+- 到期之后（P2c）：到期即禁用、会话作废；**到期满 30 天**（`core/user-expiry.js` `EXPIRED_USER_GRACE_MS`）自动删除，删法同 userdel（会话、身份栈、凭据、组；用户行留墓碑 `#deleted-<uid>`，uid 不复用）。每日 03:41 CST 一轮（styrigx-status → `JOB_ACCOUNT`），useradd 前另懒清理一次。宽限期内用户行、凭据、组都还在（只是登不上）。

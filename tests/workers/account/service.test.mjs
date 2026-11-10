@@ -133,13 +133,15 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-sto
   const pub = await call(new Request('https://styrigx.com/api/wellbeing?d=2000-01-01'), env);
   assert.equal(pub.status, 200);
   assert.equal((await pub.json()).detail, false);
-  for (const [m, p] of [['POST', '/api/wellbeing'], ['GET', '/api/wellbeing/x'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['DELETE', '/api/avatar'], ['GET', '/api/prefs/x'], ['GET', '/api/profile'], ['PUT', '/api/profile']]) {
+  for (const [m, p] of [['POST', '/api/wellbeing'], ['GET', '/api/wellbeing/x'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['DELETE', '/api/avatar'], ['GET', '/api/prefs/x'], ['PUT', '/api/profile']]) {
     const r = await call(new Request('https://styrigx.com' + p, { method: m, headers: { Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{}' }), env);
     assert.equal(r.status, 401, m + ' ' + p);
     assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
     assert.equal(r.headers.get('X-SGX-Runtime'), 'account');
     assert.deepEqual(await r.json(), { ok: false });
   }
+  const prof = await call(new Request('https://styrigx.com/api/profile'), env);
+  assert.equal(prof.status, 200, '名片 GET 公开（v6 P2c）');
   const av = await call(new Request('https://styrigx.com/avatar/32.webp'), env);
   assert.equal(av.status, 200);
   const bad = await call(new Request('https://styrigx.com/avatar/100.webp?x=1'), env);

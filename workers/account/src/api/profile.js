@@ -1,12 +1,13 @@
 /**
  * GET / PUT /api/profile —— 个人资料（2026-11-07 Gray 定）：姓名、昵称、签名、对外联系邮箱 + 头像版本号。
  *
- * GET（有进站会话即可，不要账号会话）
+ * GET（公开，v6 P2c，定稿 v5 §五：谁都能读，不要进站会话、不要账号会话、不要 v6 会话；只读）
  * - 回 { ok:true, profile:{ name, nickname, motto, email }, avatar:<版本号|''>, updatedAt }。
- *   只回这五项里可公开的；没改过的字段是 null，前端回退构建期默认值（space/web/data/profile.yaml）。
+ *   只回字段表 PROFILE_FIELD_IDS 里的四项（名片本来就是对外展示的：姓名、昵称、签名、对外联系邮箱）+ 头像版本号 + 改动时间；
+ *   KV 里别的键（头像二进制、元数据）一概不读不回。没改过的字段是 null，前端回退构建期默认值（space/web/data/profile.yaml）。
  *   KV 没绑 / 读不到 / 坏 JSON → 全是 null（照样 200），页面显示默认值。
- * - 门在网关（转发表 gate='session'：没有进站会话 401）；本 Worker 的 lockIdentityDenial 同样要进站会话。锁屏前不开放
- *   （锁屏头像的替代文字用构建期默认值 + 本机上次进站时缓存的资料，前端 lib/profile.js）。
+ * - 网关访问表（workers/space-core/src/gate.js ROUTE_ACCESS）与本 Worker 的 PUBLIC_API 都把 GET /api/profile 列为 public。
+ *   前端（lib/profile.js）仍只在已进站的页面请求（锁屏头像替代文字用构建期默认值 + 本机缓存），接口本身不再挡。
  *
  * PUT（JSON，任意几个字段：{ name?, nickname?, motto?, email? }）
  * - 进站会话 + 账号会话 + 作用域 profile.write（src/gate.js scopeDenial，同一份 core/authorize.js）；必须同源。
@@ -18,7 +19,7 @@
  *
  * v6（P2，定稿 v4 §五）：PUT 的档是 owner——站长（styrigx）+ root（root 由 permits 放行），其余 uid 一律拒（v6 新会话按
  * core/route-access.js 判；旧会话照旧要账号会话 + profile.write）。root 改名片写身份审计（profile，root 的特权内容操作都留痕）。
- * GET：有进站会话，或有一个有效的 v6 新会话，即可读。
+ * GET：公开（P2c 起，见上）。
  */
 import { isSameOrigin, originDenied, json, apiError, clientIp } from '../lib/http.js';
 import { KEY_VER, NO_STORE } from '../lib/avatar.js';
@@ -48,11 +49,6 @@ async function view(kv, stored, updatedAt) {
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { env } = context;
-  const lock = await context.auth.gateway();
-  if (!lock.ok) {
-    const v = context.auth.hasV6 ? await context.auth.v6() : null;
-    if (!(v && v.allowed === true && Number.isInteger(v.uid))) return apiError(401, 'session', undefined, NO_STORE);
-  }
   const kv = profileKv(env);
   const { stored, updatedAt } = await readStored(kv);
   return json(200, await view(kv, stored, updatedAt), NO_STORE);
@@ -102,7 +98,9 @@ export async function onRequestPut(context) {
     await writeStored(kv, stored, now);
     const v = context.auth.hasV6 ? await context.auth.v6() : null;
     if (v && v.allowed === true && v.uid === ROOT_UID) {
-      await writeUserAudit(env, { uid: ROOT_UID, command: 'profile set ' + Object.keys(changes).join(','), ok: true, ip: clientIp(request) });
+      /* root 改名片留痕；sudo 借来的 root 记真正执行的人（sudoBy）并标 via sudo（P2c） */
+      const sudo = v.sudo === true && Number.isInteger(v.sudoBy);
+      await writeUserAudit(env, { uid: sudo ? v.sudoBy : ROOT_UID, command: 'profile set ' + Object.keys(changes).join(',') + (sudo ? ' via sudo' : ''), ok: true, ip: clientIp(request) });
     }
     return json(200, await view(kv, stored, Object.keys(stored).length ? now : 0), NO_STORE);
   } catch (e) {

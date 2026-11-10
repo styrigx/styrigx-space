@@ -14,7 +14,7 @@
  * 只 import lib/db.js 和 core/groups.js。
  */
 import { onDb } from '../lib/db.js';
-import { canJoinGroup, PRIVILEGED_GROUPS, WRITE_GROUPS, ROOT_UID } from './groups.js';
+import { canJoinGroup, PRIVILEGED_GROUPS, WRITE_GROUPS, ROOT_UID, STYRIGX_UID } from './groups.js';
 
 /** Asia/Shanghai 相对 UTC 的偏移（毫秒；中国不实行夏令时） */
 export const SHANGHAI_OFFSET_MS = 8 * 3600 * 1000;
@@ -169,4 +169,27 @@ export async function setUserExpiry(env, uid, expiresAt) {
     await d.batch([d.prepare('UPDATE account_users SET expires_at = ? WHERE uid = ?').bind(expiresAt, uid)].concat(bumpAndRevokeAll(d, uid)));
     return { ok: true, changed: true };
   });
+}
+
+/**
+ * 删一个用户的全部身份数据（userdel 与到期自动删除共用，core/user-expiry.js）：会话、身份栈、密码、通行密钥、组，一个 batch；
+ * 用户行改成墓碑（见下，uid 永不复用）。
+ * root（0）与 styrigx（1000）在这里再拦一道（调用方已拦）：拒绝 → false，不删任何东西。
+ * @param {any} env @param {number} uid
+ * @returns {Promise<boolean>}
+ */
+export async function deleteUserRows(env, uid) {
+  if (!Number.isInteger(uid) || uid === ROOT_UID || uid === STYRIGX_UID) return false;
+  await onDb(env, (d) => d.batch([
+    d.prepare('DELETE FROM account_session_stack WHERE uid = ?').bind(uid),
+    d.prepare('DELETE FROM account_session_stack WHERE session_id IN (SELECT id FROM account_sessions WHERE uid = ?)').bind(uid),
+    d.prepare('DELETE FROM account_sessions WHERE uid = ?').bind(uid),
+    d.prepare('DELETE FROM account_user_password WHERE uid = ?').bind(uid),
+    d.prepare('DELETE FROM account_user_passkey WHERE uid = ?').bind(uid),
+    d.prepare('DELETE FROM account_user_groups WHERE uid = ?').bind(uid),
+    /* 用户行不删、留墓碑（P2c）：uid 永不复用——头像 / 偏好 / 数字健康按 uid 存，复用 uid 的新用户会继承旧用户的数据。
+       墓碑：名字改成 #deleted-<uid>（USER_NAME_RE 不认 #，谁都登不上、查不到），禁用、无期限、epoch +1；名字因此可以再 useradd。 */
+    d.prepare("UPDATE account_users SET name = '#deleted-' || uid, avatar = '', expires_at = 0, disabled = 1, epoch = epoch + 1 WHERE uid = ?").bind(uid),
+  ]));
+  return true;
 }

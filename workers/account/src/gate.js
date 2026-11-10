@@ -118,7 +118,7 @@ export async function scopeDenial(auth, scope, headers) {
  * 不要进站会话的接口（方法 + 路径，精确匹配）。必须是网关访问表（workers/space-core/src/gate.js ROUTE_ACCESS）里
  * 转发到本 Worker 的 public 条目的同一份；tests/workers/account/service.test.mjs 核对两边一致。
  */
-export const PUBLIC_API = Object.freeze(['POST /api/identity', 'GET /api/wellbeing']);
+export const PUBLIC_API = Object.freeze(['POST /api/identity', 'GET /api/wellbeing', 'GET /api/profile']);
 
 /**
  * 按网关写的锁屏身份（readLockIdentity 的结论）算出这个请求该被拒的响应；放行 → null。

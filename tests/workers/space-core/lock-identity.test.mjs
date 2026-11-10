@@ -101,10 +101,10 @@ function fakeAccount() {
 }
 const FORGED = { 'X-Styrigx-Space-Level': 'password', 'X-Styrigx-Space-Session': '1', 'x-styrigx-space-by': 'password', 'X-Styrigx-Client-Address': '6.6.6.6', 'X-Sgx-Legacy': 'password' };
 
-test('伪造身份头、没有进站会话：/api/prefs、/api/account、/api/profile、POST /api/wellbeing → 网关 401，账号 Worker 一次都没被调；GET /api/wellbeing 公开，转发时伪造的身份头剥掉', async () => {
+test('伪造身份头、没有进站会话：/api/prefs、/api/account、PUT /api/profile、POST /api/wellbeing → 网关 401，账号 Worker 一次都没被调；GET /api/wellbeing 公开，转发时伪造的身份头剥掉', async () => {
   _resetSecretCache();
   const acct = fakeAccount();
-  for (const [p, method] of [['/api/prefs', 'GET'], ['/api/account', 'GET'], ['/api/account', 'POST'], ['/api/profile', 'GET'], ['/api/wellbeing', 'POST'], ['/api/wellbeing/x', 'GET']]) {
+  for (const [p, method] of [['/api/prefs', 'GET'], ['/api/account', 'GET'], ['/api/account', 'POST'], ['/api/profile', 'PUT'], ['/api/wellbeing', 'POST'], ['/api/wellbeing/x', 'GET']]) {
     const res = await worker.fetch(new Request('https://styrigx.com' + p, { method, headers: FORGED }), env({ ACCOUNT: acct }), CTX);
     assert.equal(res.status, 401, method + ' ' + p);
   }

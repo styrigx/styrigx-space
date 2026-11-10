@@ -91,11 +91,13 @@ function withAssets(env) {
   });
 }
 
-function makeContext(request, env, ctx, auth, functionPath, params) {
+function makeContext(request, env, ctx, auth, functionPath, params, routes) {
   return {
     request,
     env,
     auth,
+    /* 接口路由表（v6 P2c：sudo 借 root 在本 Worker 里调另一条接口用，api/sudo-route.js；不 import 本文件免得循环依赖） */
+    routes: routes || API_ROUTES,
     params: params || {},
     data: {},
     functionPath,
@@ -115,7 +117,7 @@ export async function route(request, env, ctx, auth, routes = API_ROUTES) {
     if (!mod) return apiError(404, 'not-found');
     const handler = pickHandler(mod, request.method);
     if (!handler) return apiError(405, 'method');
-    return handler(makeContext(request, env, ctx, auth, key));
+    return handler(makeContext(request, env, ctx, auth, key, undefined, routes));
   }
   const m = AVATAR_PATH_RE.exec(url.pathname);
   if (m) {

@@ -62,12 +62,13 @@ const accCookie = async (o) => 'sgx-account-session=' + (await accSession('passw
 
 /* ---------------- 导出 ---------------- */
 
-test('index.js：默认导出就是 app.js 的 default；AccountService / AccountVerifier 是 WorkerEntrypoint 子类', () => {
+test('index.js：默认导出就是 app.js 的 default；AccountService / AccountVerifier / AccountJanitor 是 WorkerEntrypoint 子类', () => {
   const entry = readFileSync(new URL(SRC + 'index.js', import.meta.url), 'utf8');
   assert.match(entry, /export \{ default \} from '\.\/app\.js'/);
   assert.match(entry, /export \{ AccountService \} from '\.\/rpc\/account-service\.js'/);
   assert.match(entry, /export \{ AccountVerifier \} from '\.\/rpc\/account-verifier\.js'/);
-  assert.equal((entry.match(/^export /gm) || []).length, 3, '只接线：三条再导出');
+  assert.match(entry, /export \{ AccountJanitor \} from '\.\/rpc\/account-janitor\.js'/);
+  assert.equal((entry.match(/^export /gm) || []).length, 4, '只接线：四条再导出（v6 P2c 加 AccountJanitor）');
   assert.ok(new ep.AccountService(CTX, {}) instanceof WorkerEntrypoint);
   assert.ok(new ep.AccountVerifier(CTX, {}) instanceof WorkerEntrypoint);
   assert.equal(typeof ep.AccountService.prototype.fetch, 'function');
@@ -287,11 +288,13 @@ test('lockIdentityDenial：只按身份头的结论拒；/api/* 没有进站会�
   const byPassword = { session: true, by: 'password', linkId: '' };
   const byLink = { session: true, by: 'link', linkId: 'lktesttesttest01' };
   assert.equal(deny('/avatar/96.webp', null), null, '头像文件公开');
-  assert.deepEqual([...ep.PUBLIC_API], ['POST /api/identity', 'GET /api/wellbeing'], 'v6 身份命令公开入口（每个 action 的档在接口里判）');
+  assert.deepEqual([...ep.PUBLIC_API], ['POST /api/identity', 'GET /api/wellbeing', 'GET /api/profile'], 'v6 身份命令公开入口（每个 action 的档在接口里判）；名片 GET 公开（P2c）');
+  assert.equal(deny('/api/profile', null), null, '名片 GET 公开（v6 P2c，定稿 v5 §五）');
+  assert.equal(deny('/api/profile', null, 'PUT').status, 401, '名片 PUT 照旧要进门');
   assert.equal(deny('/api/identity', null, 'POST'), null);
   assert.equal(deny('/api/wellbeing', null), null, '屏幕时间合计公开（v5 S3）');
   assert.equal(deny('/api/wellbeing/', null), null);
-  for (const [p, m] of [['/api/wellbeing', 'POST'], ['/api/wellbeing/x', 'GET'], ['/api/prefs', 'GET'], ['/api/account', 'GET'], ['/api/avatar', 'GET'], ['/api/profile', 'GET']]) {
+  for (const [p, m] of [['/api/wellbeing', 'POST'], ['/api/wellbeing/x', 'GET'], ['/api/prefs', 'GET'], ['/api/account', 'GET'], ['/api/avatar', 'GET'], ['/api/profile', 'PUT']]) {
     const r401 = deny(p, null, m);
     assert.equal(r401.status, 401, m + ' ' + p);
     assert.deepEqual(await r401.json(), { ok: false });
@@ -334,7 +337,7 @@ test('headerAuth：gateway() 只看进站会话；authorize 用 core/authorize.j
 /** POST /api/account/grants 经 AccountService @param {any} env @param {any} body @param {string} [cookie] */
 const grantPost = (env, body, cookie) => service(env).fetch(postReq(ORIGIN + '/api/account/grants', body, { ...idHeaders(), ...(cookie ? { Cookie: cookie } : {}) }));
 
-test('个人资料（2026-11-07，经 AccountService）：GET /api/profile 有进站会话即可（没账号会话也 200）；PUT 要 profile.write，取消后 403 scope、GET 照旧', async () => {
+test('个人资料（2026-11-07，经 AccountService）：GET /api/profile 公开（v6 P2c；有没有进站会话都 200）；PUT 要 profile.write，取消后 403 scope、GET 照旧', async () => {
   const kvm = new Map();
   const kv = { get: async (k) => (kvm.has(k) ? kvm.get(k) : null), getWithMetadata: async () => ({ value: null, metadata: null }), put: async (k, v) => { kvm.set(k, v); }, delete: async (k) => { kvm.delete(k); } };
   const { env } = makeEnv({ KV_PROFILE: kv });
@@ -353,7 +356,8 @@ test('个人资料（2026-11-07，经 AccountService）：GET /api/profile 有�
   r = await service(env).fetch(req('/api/profile', { headers: idHeaders() }));
   assert.equal((await r.json()).profile.nickname, 'Gray', '没写进去，GET 照旧');
   r = await service(env).fetch(req('/api/profile', {}));
-  assert.equal(r.status, 401, '没有进站会话 → 401（最小门）');
+  assert.equal(r.status, 200, '没有进站会话也能读（公开，v6 P2c）');
+  assert.deepEqual(Object.keys(await r.json()).sort(), ['avatar', 'ok', 'profile', 'updatedAt'], '只回公开字段');
 });
 
 test('取消授权后的写接口（经 AccountService，同一份 core/authorize.js）：prefs.sync → GET /api/prefs 403 scope；avatar.write → PUT /api/avatar 403 scope；wellbeing.write → POST /api/wellbeing 204 丢弃；账号会话本身不受影响', async () => {

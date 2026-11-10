@@ -131,7 +131,7 @@ test('GET 回退：KV 没绑 / 读出错 / 坏 JSON / 存了不合法的字段 �
   assert.equal('extra' in j.profile, false, '只回字段表里的公开字段');
 });
 
-test('GET：有进站会话即可，不要账号会话（分享链接进站也行）；没有进站会话 401 session', async () => {
+test('GET：公开（v6 P2c，定稿 v5 §五）——进站与否、有没有账号会话都 200；只回名片四项 + 头像版本号 + 时间，KV 里别的键不回', async () => {
   const kv = makeKv({ profile: JSON.stringify({ v: 1, nickname: 'Styrigx', updatedAt: 5 }) });
   for (const role of ['password', 'passkey', 'link']) {
     const res = await onGet({ request: await getReq(role, false), env: env(kv) });
@@ -140,9 +140,17 @@ test('GET：有进站会话即可，不要账号会话（分享链接进站也�
     assert.equal(j.profile.nickname, 'Styrigx');
     assert.equal(j.updatedAt, 5);
   }
-  const res = await onGet({ request: await getReq(null, true), env: env(kv) });
-  assert.equal(res.status, 401);
-  assert.equal((await res.json()).error, 'session');
+  kv.m.set('profile', JSON.stringify({ v: 1, nickname: 'Styrigx', secret: 'x', updatedAt: 5 }));
+  kv.m.set('avatar:192', 'BINARY');
+  for (const req of [await getReq(null, true), await getReq(null, false), new Request('https://styrigx.com/api/profile')]) {
+    const res = await onGet({ request: req, env: env(kv) });
+    assert.equal(res.status, 200, '访客也能读');
+    const j = await res.json();
+    assert.deepEqual(Object.keys(j).sort(), ['avatar', 'ok', 'profile', 'updatedAt']);
+    assert.deepEqual(Object.keys(j.profile).sort(), ['email', 'motto', 'name', 'nickname'], '只回字段表里的四项，存的别的键不回');
+    assert.equal(j.profile.nickname, 'Styrigx');
+    assert.equal(res.headers.get('Cache-Control'), 'private, no-store');
+  }
 });
 
 /* ---------------- PUT 权限 ---------------- */

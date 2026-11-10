@@ -5,7 +5,8 @@
  * - useradd：名字合法且没人用、不叫 root；uid 从 1001 起递增；-e 日期按 Linux 语义（该日 00:00 Asia/Shanghai 起失效，存 UTC），
  *   必须是将来；-G 每个组先过 canJoinGroup（临时用户进 wheel / sudoers / 写组一律拒绝，整条命令不执行）；
  *   生成一次性密码（只回一次、库里只存哈希），首登强制改，24 小时过期。
- * - userdel：拒删 root、拒删 styrigx（站长，名片属主）；连同会话、身份栈、密码、通行密钥、组一起删（一个 batch）。
+ * - userdel：拒删 root、拒删 styrigx（站长，名片属主）；连同会话、身份栈、密码、通行密钥、组一起删（一个 batch，deleteUserRows）。
+ * - 到期：到期即禁用、会话作废（admit 判 expires_at）；满宽限期自动删除（core/user-expiry.js，同 deleteUserRows）。useradd 前顺手清一次。
  * - usermod -aG / -rG：加组过 canJoinGroup；减掉最后一个 wheel / sudoers 成员时先回 last-member 警告，调用方带 force 才执行。
  * - passwd <名>：发一次性密码（同 useradd），该用户会话全部作废（epoch +1）。不能对 root 用：root 的凭据只能在
  *   su root 或救援会话里用 passwd 自己改（sudo 夺不走 root，定稿 v4 §十）。
@@ -15,11 +16,13 @@
  */
 import { onDb } from '../lib/db.js';
 import { ROOT_UID, STYRIGX_UID, FIRST_USER_UID, USER_NAME_RE, GROUPS, PRIVILEGED_GROUPS, canJoinGroup } from './groups.js';
-import { expiryFromDate, getUser, getGroups, addToGroup, removeFromGroup, credentialsChanged } from './users.js';
+import { expiryFromDate, getUser, getGroups, addToGroup, removeFromGroup, credentialsChanged, deleteUserRows } from './users.js';
 import { oneTimePassword, savePasswordFor, ONE_TIME_TTL_MS } from './identity-auth.js';
+import { purgeExpiredUsers } from './user-expiry.js';
 
-/** 用户名 → 用户（没有 → null）。出错抛错。 @param {any} env @param {string} name */
+/** 用户名 → 用户（没有 → null；root 也查得到）。出错抛错。 @param {any} env @param {string} name */
 export async function userByName(env, name) {
+  if (typeof name !== 'string' || !USER_NAME_RE.test(name)) return null; /* 墓碑（#deleted-<uid>）与任何不合法的名字都查不到 */
   const row = await onDb(env, (d) => d.prepare('SELECT uid FROM account_users WHERE name = ?').bind(String(name)).first());
   return row ? getUser(env, Number(row.uid)) : null;
 }
@@ -45,6 +48,8 @@ export async function useradd(env, q, now) {
     const c = canJoinGroup({ uid: FIRST_USER_UID, expiresAt }, g);
     if (!c.ok) return { ok: false, error: c.reason === 'temporary' ? 'temporary' : 'group', group: g };
   }
+  /* 到期满宽限期的用户顺手删掉（core/user-expiry.js；每日一轮之外的懒清理），同名的过期用户不挡 useradd */
+  try { await purgeExpiredUsers(env, t); } catch (e) {}
   if (await userByName(env, name)) return { ok: false, error: 'exists' };
   const password = oneTimePassword();
   const uid = await onDb(env, async (d) => {
@@ -69,15 +74,7 @@ export async function userdel(env, name) {
   if (!u) return { ok: false, error: 'no-user' };
   if (u.uid === ROOT_UID) return { ok: false, error: 'protected-root' };
   if (u.uid === STYRIGX_UID) return { ok: false, error: 'protected-owner' };
-  await onDb(env, (d) => d.batch([
-    d.prepare('DELETE FROM account_session_stack WHERE uid = ?').bind(u.uid),
-    d.prepare('DELETE FROM account_session_stack WHERE session_id IN (SELECT id FROM account_sessions WHERE uid = ?)').bind(u.uid),
-    d.prepare('DELETE FROM account_sessions WHERE uid = ?').bind(u.uid),
-    d.prepare('DELETE FROM account_user_password WHERE uid = ?').bind(u.uid),
-    d.prepare('DELETE FROM account_user_passkey WHERE uid = ?').bind(u.uid),
-    d.prepare('DELETE FROM account_user_groups WHERE uid = ?').bind(u.uid),
-    d.prepare('DELETE FROM account_users WHERE uid = ?').bind(u.uid),
-  ]));
+  await deleteUserRows(env, u.uid);
   return { ok: true, uid: u.uid };
 }
 

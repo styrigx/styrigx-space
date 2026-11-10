@@ -64,16 +64,20 @@ test('访问表快照：改了这张表，这里必须跟着改', () => {
     'HEAD /s/:code → public',
     'GET /api/geo → public',
     'GET /api/wellbeing → public',
+    'GET /api/profile → public',
     'GET /api/find → public',
   ]);
   assert.ok(Object.isFrozen(ROUTE_ACCESS) && ROUTE_ACCESS.every((r) => Object.isFrozen(r)));
   for (const r of ROUTE_ACCESS) assert.ok(typeof r.why === 'string' && r.why.length > 0, r.path + ' 要写为什么公开');
   /* 表里只有 public：entry 是默认值，不用写；三处上锁的接口一条都不在表里 */
   assert.ok(ROUTE_ACCESS.every((r) => r.access === ACCESS.PUBLIC));
-  for (const p of ['/api/ai', '/api/status', '/api/space-audit', '/api/account', '/api/prefs', '/api/avatar', '/api/profile', '/api/share', '/api/lock-now', '/api/lock-reauth', '/api/lock-all-devices']) {
+  for (const p of ['/api/ai', '/api/status', '/api/space-audit', '/api/account', '/api/prefs', '/api/avatar', '/api/share', '/api/lock-now', '/api/lock-reauth', '/api/lock-all-devices']) {
     assert.ok(!ROUTE_ACCESS.some((r) => r.path === p), p + ' 不许出现在访问表里');
     for (const m of ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS']) assert.equal(accessOf(m, p), ACCESS.ENTRY, m + ' ' + p);
   }
+  /* 名片：只有 GET 公开（v6 P2c，定稿 v5 §五），PUT 等照旧要进门 */
+  assert.equal(accessOf('GET', '/api/profile'), ACCESS.PUBLIC);
+  for (const m of ['POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS']) assert.equal(accessOf(m, '/api/profile'), ACCESS.ENTRY, m + ' /api/profile');
   /* 表里的接口都真有处理的地方（网关路由表、账号转发表或分享链接） */
   for (const r of ROUTE_ACCESS) {
     const known = API_ROUTES.has(r.path) || FORWARDING.some((f) => f.path === r.path) || r.path === '/s/:code';
@@ -113,7 +117,7 @@ test('访客：/wild/、/blog/、/curio/、/daymark/ 页面 200 HTML（标 locke
 });
 
 test('访客：三处上锁的数据接口 401（AI 窗口、旷野 status 卡、进站凭证记录）；账号接口 401；屏幕时间合计公开', async () => {
-  for (const [p, m] of [['/api/ai', 'GET'], ['/api/ai', 'POST'], ['/api/status', 'GET'], ['/api/space-audit', 'GET'], ['/api/account', 'GET'], ['/api/account', 'POST'], ['/api/prefs', 'GET'], ['/api/profile', 'GET'], ['/api/lock-now', 'POST'], ['/api/geo/x', 'GET'], ['/api/wellbeing/x', 'GET']]) {
+  for (const [p, m] of [['/api/ai', 'GET'], ['/api/ai', 'POST'], ['/api/status', 'GET'], ['/api/space-audit', 'GET'], ['/api/account', 'GET'], ['/api/account', 'POST'], ['/api/prefs', 'GET'], ['/api/profile', 'PUT'], ['/api/lock-now', 'POST'], ['/api/geo/x', 'GET'], ['/api/wellbeing/x', 'GET']]) {
     const e = env();
     const r = await get(e, p, { method: m });
     assert.equal(r.status, 401, m + ' ' + p);
@@ -125,6 +129,10 @@ test('访客：三处上锁的数据接口 401（AI 窗口、旷野 status 卡�
   const wb = await get(e, '/api/wellbeing');
   assert.equal(wb.status, 200);
   assert.deepEqual(e.seen, ['ACCOUNT /api/wellbeing']);
+  const e2 = env();
+  const pf = await get(e2, '/api/profile');
+  assert.notEqual(pf.status, 401, '名片 GET 公开（v6 P2c）');
+  assert.deepEqual(e2.seen, ['ACCOUNT /api/profile']);
 });
 
 test('账号 Worker 的纵深防御表和网关访问表一致：转给 ACCOUNT 的 public 条目 = account/src/gate.js PUBLIC_API', () => {
