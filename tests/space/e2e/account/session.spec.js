@@ -4,7 +4,7 @@
  * - 密码登录：`[sudo] password for root:` 不回显（O10：type=password、current-password、没有小眼睛，隐藏用户名框给密码管理器）；输错 Sorry, try again.，3 次结束这一轮；
  *   429 → too many attempts；自动填充（不触发 input）直接回车照样提交（原 B1-12 守护）；成功 → POST session/password，✓ 已登录，主页；关下拉重新载入
  * - 通行密钥：选了立即 busy，只发一次 session/passkey-challenge；取消 → 「已取消」；成功 → session/passkey
- * - 已登录主页：help / clear / 未知命令 / Ctrl+C、cd 各层、esc 逐层退、exit（POST logout）
+ * - 已登录主页：man（v5 取代 help）/ clear / 未知命令 / Ctrl+C、cd 各层、esc 逐层退、exit（POST logout）
  *
  * 静态构建 + /api/account 替身（helpers/account-term.cjs），无需真实后端。2026-11-08 账号 UI 改版：没有 /account/ 整页了，账号在头像下拉 #sgx-acct 的账号终端（shell/account/*）。
  */
@@ -213,13 +213,16 @@ test.describe('通行密钥登录', () => {
 });
 
 test.describe('已登录：主页 / 命令', () => {
-  test('help / clear / 未知命令 / Ctrl+C；sudo root 已登录 → 提示用 reauth', async ({ page }) => {
+  test('man / clear / 未知命令 / Ctrl+C；help 不再是命令（v5：man 取代）；sudo root 已登录 → 提示用 reauth', async ({ page }) => {
     await mockAccount(page, { status: STATUS({ session: SESSION() }) });
     await T.goPage(page);
     await openTerm(page);
     await layer(page, 'home');
-    await expect(log(page)).toContainText('输入 help 查看账号命令');
+    await expect(log(page)).toContainText('输入 man 查看账号命令');
     await typeLine(page, 'help');
+    await expect(log(page)).toContainText('command not found: help');
+    await expect(log(page)).not.toContainText('恢复密钥只给 reset 用');
+    await typeLine(page, 'man');
     await expect(log(page)).toContainText('sudo root reauth');
     await expect(log(page)).toContainText('sudo root reset');
     await expect(log(page)).toContainText('恢复密钥只给 reset 用');

@@ -92,7 +92,7 @@ async function setSession(context, by) {
   await context.addCookies(c);
 }
 
-/** 当前页的全站终端（v5 S5）：主页是首屏那个 #home-term，其他页是顶栏打开的窗口 #sgx-term */
+/** 当前页的全站终端（v5 S5；v5 S7 起主页也是顶栏打开的窗口 #sgx-term，#home-term 选择器留着无害） */
 const termIn = (page) => page.locator('#home-term-in, #sgx-term[open] #sgx-term-in').first();
 const termOut = (page) => page.locator('#home-term [data-term-out], #sgx-term[open] [data-term-out]').first();
 const termPs = (page) => page.locator('#home-term [data-term-ps], #sgx-term[open] [data-term-ps]').first();
@@ -115,9 +115,9 @@ async function unlockPasskey(page) {
   await inp.press('Enter');
 }
 
-/** 盾牌（v5 S5：= 打开终端）：点顶栏盾牌，等终端窗口打开 */
+/** 打开终端（v5 S6：顶栏 >_；盾牌在已进站时会先问退出 [y/N]，这里不用它）：等终端窗口打开 */
 async function openShield(page) {
-  await page.locator('.sgx-tb-shield').click();
+  await page.locator('.sgx-tb-term').click();
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '', { timeout: 10000 });
 }
 /** @param {import('@playwright/test').Page} page @param {string} text */
@@ -270,9 +270,9 @@ test('R4 分享链接进门的人点盾牌 → 终端 nobody@space:~/wild#；sud
   expect(await lockShownWithin(page, 300)).toBe(false);
   await expect(page.locator('#sgx-upgrade-overlay')).toHaveCount(0);
   expect(await sessionBy(page)).toBe('link');
-  /* 旧地址 /security/lock/ → 301 /#sec=keys：打开终端（主页上是首屏那个），hash 去掉，同样不预填 */
+  /* 旧地址 /security/lock/ → 301 /#sec=keys：打开终端窗口（v5 S7 主页首屏不再嵌终端），hash 去掉，同样不预填 */
   await page.goto(MAIN + '/security/lock/');
-  await expect(page.locator('#home-term [data-term-ps]')).toHaveText('nobody@space:~#', { timeout: 10000 });
+  await expect(page.locator('#sgx-term[open] [data-term-ps]')).toHaveText('nobody@space:~#', { timeout: 10000 });
   expect(new URL(page.url()).pathname).toBe('/');
   expect(new URL(page.url()).hash).toBe('');
   expect(await lockShownWithin(page, 300)).toBe(false);

@@ -21,7 +21,7 @@
  * 右边三颗圆按钮 40 × 40、图标 20px、间距 6px，没有公共底：九宫格 / 快捷 平时透明、打开浅一档（primary-container）；
  * AI 平时浅一档、打开深一档（primary-fill）。360 / 384 / 412 / 1280 / 1920 都不溢出。
  * 顶栏 v3（2026-11 UI 重设计 PR-1，Gray 定稿设计稿 tb4 / tb-v3 / prog-v1 / nav-v2）：贴顶通栏（高 64、底边 1px 线、毛玻璃），内容收在居中的 1080 里（--sgx-content-w）：
- * [字标 ❯ styrigx :~$_（光标 1.05s 闪）] … [外观（调色盘）· 盾牌（安全页）· 分隔 · >_（NAVIGATE）· 头像（账号页）]；底边滑页进度条；右下角 AI 浮钮。
+ * [字标 ❯ styrigx :~$_（光标 1.05s 闪）] … [盾牌 · 外观（调色盘）· 四格（NAVIGATE）· 分隔 · >_（终端）· 头像（账号窗口）]（v5 S6 顶栏 E）；底边滑页进度条；右下角 AI 浮钮。
  * 页名胶囊标记还在但顶栏不显示（锁屏顶栏照旧用它当标题）。NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻 05 旷野 + lang / layout + share / lock + STATUS。
  */
 
@@ -84,25 +84,25 @@ for (const dark of [false, true]) {
     test.use({ viewport: { width: 390, height: 844 } });
 
     for (const path of ['/', '/wild/', '/404.html']) { /* 进站 v3 L1：/security/ 已删，短页换 404 */
-      test(`${path}：贴顶通栏（字标 · 外观 · 盾牌 · | · >_ · 头像；不显示页名），按钮 40 × 40；AI 浮钮右下角；按钮颜色按状态`, async ({ page }) => {
+      test(`${path}：贴顶通栏（v5 S6 顶栏 E：字标 · 盾牌 · 外观 · 四格 · | · >_ · 头像；不显示页名），按钮 40 × 40；AI 浮钮右下角；按钮颜色按状态`, async ({ page }) => {
         await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
         await go(page, path, { dark });
         /* 390 宽、桌面 UA、自动：视口 < 720 → 手机布局 */
         await expect(page.locator('html')).toHaveAttribute('data-sgx-layout', 'phone');
-        const [bar, logo, q, sh, g, av, ai] = await Promise.all(['.sgx-topbar', '.sgx-tb-logo', '.sgx-tb-quick', '.sgx-tb-shield', '.sgx-tb-grid', '.sgx-tb-av', '.sgx-tb-ai'].map((s) => box(page, s)));
+        const [bar, logo, q, sh, g, tm, av, ai] = await Promise.all(['.sgx-topbar', '.sgx-tb-logo', '.sgx-tb-quick', '.sgx-tb-shield', '.sgx-tb-grid', '.sgx-tb-term', '.sgx-tb-av', '.sgx-tb-ai'].map((s) => box(page, s)));
         /* 通栏：贴顶、全宽；手机布局高 56（2026-11-09 fix/mobile-topbar-56，原 64；只收上下留白） */
         expect(near(bar.x, 0) && near(bar.width, 390), `顶栏 x ${bar.x} 宽 ${bar.width}`).toBe(true);
         expect(near(bar.y, 0) && near(bar.height, 56), `顶栏 y ${bar.y} 高 ${bar.height}`).toBe(true);
         /* 字标 / 按钮 40 高、上下居中；按钮 40 宽；字标左缘贴页边距（12 − 4 内缩）、头像右缘贴页边距 12（对齐 PR-B） */
-        for (const b of [logo, q, sh, g, av]) {
+        for (const b of [logo, q, sh, g, tm, av]) {
           expect(near(b.height, 40), `高 ${b.height}`).toBe(true);
           expect(near(b.y + b.height / 2, bar.y + bar.height / 2), `垂直居中 ${b.y}`).toBe(true);
         }
-        for (const b of [q, sh, g, av]) expect(near(b.width, 40), `按钮宽 ${b.width}`).toBe(true);
+        for (const b of [q, sh, g, tm, av]) expect(near(b.width, 40), `按钮宽 ${b.width}`).toBe(true);
         expect(near(logo.x, 8), `logo 左 ${logo.x}`).toBe(true);
         expect(near(av.x + av.width, 390 - 12), `头像右 ${av.x + av.width}`).toBe(true);
-        expect(q.x < sh.x && sh.x < g.x && g.x < av.x, '外观 → 盾牌 → >_ → 头像').toBe(true);
-        expect(logo.x + logo.width).toBeLessThanOrEqual(q.x + 0.5);
+        expect(sh.x < q.x && q.x < g.x && g.x < tm.x && tm.x < av.x, '盾牌 → 外观 → 四格 → >_ → 头像').toBe(true);
+        expect(logo.x + logo.width).toBeLessThanOrEqual(sh.x + 0.5);
         expect(logo.width, `字标宽 ${logo.width}`).toBeGreaterThan(80);
         /* 2026-11 PR-2（Gray）：❯ + SVG 字标（手机 20px 高，和 ❯、光标上下居中）+ 光标；没有 :~$、窄屏不收 */
         await expect(page.locator('.sgx-tb-logo .sgx-tb-name svg.sgx-wordmark')).toHaveCount(1);
@@ -116,11 +116,11 @@ for (const dark of [false, true]) {
         }
         await expect(page.locator('.sgx-tb-back, [data-go-back], .sgx-tb-more, .sgx-tb-search, #sgx-tb-search, .sgx-tb-nav, .sgx-tb-end, #sgx-drawer')).toHaveCount(0);
         expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-prog']);
-        expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.replace(/\s*\bis-busy\b/, '')))).toEqual([ /* 去掉 .is-busy：加载中头像外圈转快（2026-11-09） */'sgx-tb-btn sgx-tb-quick', 'sgx-tb-btn sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-btn sgx-tb-grid', 'sgx-tb-av']);
+        expect(await page.locator('.sgx-tb-acts > *').evaluateAll((els) => els.map((e) => e.className.replace(/\s*\bis-busy\b/, '')))).toEqual([ /* 去掉 .is-busy：加载中头像外圈转快（2026-11-09） */'sgx-tb-btn sgx-tb-shield', 'sgx-tb-btn sgx-tb-quick', 'sgx-tb-btn sgx-tb-grid', 'sgx-tb-sep', 'sgx-tb-btn sgx-tb-term', 'sgx-tb-av']);
         /* 页名胶囊：标记在、只放页名，顶栏不显示 */
         expect(await page.locator('#site-nav .sgx-tb-pill > *').evaluateAll((els) => els.map((e) => e.className))).toEqual(['sgx-tb-title']);
         await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
-        for (const s of ['.sgx-tb-quick', '.sgx-tb-shield', '.sgx-tb-grid']) {
+        for (const s of ['.sgx-tb-quick', '.sgx-tb-shield', '.sgx-tb-grid', '.sgx-tb-term']) {
           await expect(page.locator(s + ' svg')).toHaveCount(1);
           const sv = await box(page, s + ' svg');
           expect(near(sv.width, 20) && near(sv.height, 20), `${s} 图标 20px`).toBe(true);
@@ -145,6 +145,7 @@ for (const dark of [false, true]) {
         const cont = await roleColor(page, '--sgx-primary-container');
         expect(await bg(page, '.sgx-tb-grid')).toBe('rgba(0, 0, 0, 0)');
         expect(await bg(page, '.sgx-tb-quick')).toBe('rgba(0, 0, 0, 0)');
+        expect(await bg(page, '.sgx-tb-term')).toBe('rgba(0, 0, 0, 0)');
         expect(await bg(page, '.sgx-tb-ai')).toBe(fill);
         await page.locator('.sgx-tb-quick').click();
         await expect(page.locator('.sgx-tb-quick')).toHaveAttribute('aria-expanded', 'true');
@@ -279,7 +280,7 @@ test.describe('390×844 行为', () => {
 
   test('滚动时顶栏不动（没有 sgx-stuck 切换）；底边进度条跟着滚动变长：顶上不显示、到底整宽', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-    await go(page, '/zh/wild/'); /* 旷野页够长（三窗），手机上能滚；对齐 PR-C 前是风格页 */
+    await go(page, '/zh/'); /* 主页够长（首屏 + 四节），手机上能滚；v5 S7 旷野页只剩两窗、不够长（对齐 PR-C 前是风格页） */
     const prog = page.locator('#site-nav .sgx-tb-prog');
     await expect(prog).toHaveAttribute('data-empty', '');
     const before = await Promise.all(['.sgx-tb-quick', '.sgx-tb-logo', '.sgx-tb-grid', '.sgx-tb-ai'].map((s) => box(page, s)));
@@ -362,7 +363,7 @@ test.describe('390×844 行为', () => {
   });
 
 
-  test('>_ 打开 NAVIGATE：$ NAVIGATE 01/05 · 五项（编号 · 名字 · 路径提示，当前项「开」态）· lang / layout · share / lock · STATUS · systemctl status / esc 关闭', async ({ page }) => {
+  test('四格打开 NAVIGATE（v5 S6）：$ NAVIGATE 01/05 · 五项（编号 · 名字 · 路径提示，当前项「开」态）· lang / layout · share · STATUS · systemctl status / esc 关闭', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/');
     await page.locator('.sgx-tb-grid').click();
@@ -385,12 +386,12 @@ test.describe('390×844 行为', () => {
     const other = await nav.locator('.sgx-nav-tile[data-nav="curio"]').evaluate((el) => getComputedStyle(el).color);
     expect(cur.c).not.toBe(other);
     expect(cur.sh).toContain('inset');
-    /* 顺序：五项 → lang / layout → share / lock → STATUS → 底行 */
+    /* 顺序：五项 → lang / layout → share → STATUS → 底行 */
     const order = await nav.locator('.sgx-qp-sheet > *').evaluateAll((els) => els.map((e) => e.className));
     expect(order).toEqual(['sgx-nav-h', '', 'sgx-nav-pf', 'sgx-nav-act', 'sgx-nav-st', 'sgx-nav-f']);
     await expect(nav.locator('.sgx-nav-pfk')).toHaveText(['lang', 'layout']);
-    /* 2026-11 PR-A 照稿：只有 share / lock 两颗；终端（PR-2 的功能）挪到页脚一行「Ctrl K 终端 ›」 */
-    await expect(nav.locator('.sgx-nav-act button')).toHaveText(['share', 'lock']);
+    /* 2026-11 PR-A 照稿：share / lock 两颗；v5 S6 去掉 lock（上锁走终端 lock / 已进站点盾牌）；终端（PR-2 的功能）在页脚一行「Ctrl K 终端 ›」，顶栏另有 >_ */
+    await expect(nav.locator('.sgx-nav-act button')).toHaveText(['share']);
     await expect(nav.locator('.sgx-nav-f [data-qp="term"]')).toHaveText('Ctrl K 终端 ›');
     await expect(nav.locator('.sgx-nav-f [data-qp="term"]')).toHaveAccessibleName('终端');
     await expect(nav.locator('[data-st]')).toHaveCount(6);

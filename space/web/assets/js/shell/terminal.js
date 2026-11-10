@@ -24,7 +24,7 @@ import { DIRS, normDir } from './term/cmds/fs/tree.js';
 import { CMDS } from './term/cmds/index.js';
 import { createInputLine } from './term/view/input-line.js';
 
-export { DIRS, normDir, cwdPath, fill, parse, createWho };
+export { DIRS, normDir, cwdPath, fill, parse, createWho, ps1 };
 
 /** 命令表 */
 const REG = createRegistry(CMDS);

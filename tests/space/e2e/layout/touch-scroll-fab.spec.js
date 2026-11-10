@@ -55,11 +55,11 @@ async function startPoint(page, sel, n) {
 }
 
 test.describe('触屏：从终端窗起划滚页面', () => {
-  test('旷野三窗：在窗里上划，页面 scrollY 增加', async ({ page }) => {
+  test('旷野两窗（v5 S7 删了 about）：在窗里上划，页面 scrollY 增加', async ({ page }) => {
     await go(page, '/wild/');
     const sel = '.wild-term .sgx-term-body';
     const n = await page.locator(sel).count();
-    expect(n).toBeGreaterThanOrEqual(3);
+    expect(n).toBeGreaterThanOrEqual(2);
     for (let i = 0; i < n; i++) {
       const p = await startPoint(page, sel, i);
       const y0 = await page.evaluate(() => window.scrollY);
@@ -68,9 +68,9 @@ test.describe('触屏：从终端窗起划滚页面', () => {
     }
   });
 
-  test('主页可输入终端：窗没满时上划直接滚页面', async ({ page }) => {
+  test('主页首屏 about 卡（v5 S7，原可输入终端的位置）：上划直接滚页面', async ({ page }) => {
     await go(page, '/');
-    const sel = '#home-term .sgx-term-body';
+    const sel = '#about .sgx-term-body';
     await expect(page.locator(sel)).toBeVisible();
     const p = await startPoint(page, sel, 0);
     const y0 = await page.evaluate(() => window.scrollY);

@@ -91,9 +91,9 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
     await expect(input(page)).toHaveValue('sudo styrigx');
   });
 
-  test('主页 /?entry=1：首屏终端就是全站终端，预填在它的输入行', async ({ page }) => {
+  test('主页 /?entry=1：打开终端窗口（v5 S7 首屏不再嵌终端），预填在它的输入行', async ({ page }) => {
     await page.goto('/?entry=1', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#home-term-in')).toHaveValue('sudo styrigx', { timeout: 15000 });
+    await expect(page.locator('#sgx-term-in')).toHaveValue('sudo styrigx', { timeout: 15000 });
     await expect(page.locator('#sgx-entry')).toHaveCount(0);
   });
 
@@ -631,7 +631,7 @@ test.describe('解锁后开机动画（unlock boot）', () => {
     await page.route('**/api/lock-session-check*', async (route) => { checked++; await route.fallback(); });
     await page.goto('/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 10000 });
-    await page.locator('.sgx-tb-shield').click();
+    await page.locator('.sgx-tb-term').click();
     await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
     expect(checked).toBeGreaterThan(0);
     expect((await boot(page)).seen).toBe(0);

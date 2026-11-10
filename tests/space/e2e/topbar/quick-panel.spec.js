@@ -649,22 +649,12 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(nav(page)).toHaveAttribute('data-state', 'open');
   });
 
-  test('NAVIGATE lock（进站 v3 L1）：一点就锁——关面板，不弹确认层，调 /api/lock-now 后重新取这一页（v5 S5 没有锁屏了）', async ({ page }) => {
-    let called = 0;
+  test('NAVIGATE 没有 lock 了（v5 S6）：只剩 share；上锁走终端 lock / 已进站点盾牌', async ({ page }) => {
     await go(page, '/', 'zh', false);
-    await page.route('**/api/lock-now', async (route) => {
-      called++;
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
-    });
     await openNav(page);
-    await expect(ctl(page, 'lock')).toHaveText('lock');
-    await expect(ctl(page, 'lock')).toHaveAccessibleName('立即锁定');
-    const nav = page.waitForEvent('framenavigated');
-    await ctl(page, 'lock').click();
-    await nav;
-    await expect(page).not.toHaveURL(/[?&]entry=/);
-    expect(called).toBe(1);
-    await expect(page.locator('#sec-locknow-confirm')).toHaveCount(0);
+    await expect(ctl(page, 'lock')).toHaveCount(0);
+    await expect(page.locator('#sgx-nav [data-qp-lock-state]')).toHaveCount(0);
+    await expect(page.locator('#sgx-nav .sgx-nav-act button')).toHaveText(['share']);
   });
 
   test('NAVIGATE share：主站也有分享本页（share.js 接手，读屏名「分享本页」）', async ({ page }) => {

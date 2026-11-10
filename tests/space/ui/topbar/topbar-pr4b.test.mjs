@@ -19,8 +19,8 @@ test('语言偏好 → 实际语言：zh / en 原样；跟随系统看浏览器�
   assert.equal(resolveLang('', ''), 'en');
 });
 
-test('NAVIGATE #sgx-nav（顶栏 v3）：>_ 按钮（类名照旧 sgx-tb-grid）控制它；五项「编号 · 名字 · 路径提示」，当前项 aria-current；JS 接 lang / layout / share / lock / esc', () => {
-  assert.match(tb, /<button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="\{\{ \$t\.topbar\.sites \}\}" title="\{\{ \$t\.topbar\.sites \}\}" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">\{\{ index \$i "tb-term" \| safeHTML \}\}<\/button>/);
+test('NAVIGATE #sgx-nav（顶栏 v3；v5 S6 顶栏 E）：四格按钮（类名照旧 sgx-tb-grid，图标 tb-grid）控制它；五项「编号 · 名字 · 路径提示」，当前项 aria-current；JS 接 lang / layout / share / esc', () => {
+  assert.match(tb, /<button type="button" class="sgx-tb-btn sgx-tb-grid" aria-label="\{\{ \$t\.topbar\.sites \}\}" title="\{\{ \$t\.topbar\.sites \}\}" aria-haspopup="dialog" aria-controls="sgx-nav" aria-expanded="false">\{\{ index \$i "tb-grid" \| safeHTML \}\}<\/button>/);
   const nav = tb.slice(tb.indexOf('<dialog id="sgx-nav"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-nav"')));
   assert.match(nav, /<ul class="sgx-nav-list">/);
   assert.match(nav, /<a class="sgx-nav-tile" href="\{\{ \$p \}\}" data-nav="\{\{ \.id \}\}"\{\{ if eq \.id \$\.site \}\} aria-current="page"\{\{ end \}\}><em class="sgx-nav-no" aria-hidden="true">\{\{ printf "%02d" \(add \$k 1\) \}\}<\/em><span class="sgx-nav-name">\{\{ \(index \$t\.nav \.id\)\.title \}\}<\/span><span class="sgx-nav-hint" aria-hidden="true" translate="no">\{\{ \.hint \}\}<\/span><\/a>/);
@@ -35,13 +35,11 @@ test('NAVIGATE #sgx-nav（顶栏 v3）：>_ 按钮（类名照旧 sgx-tb-grid）
   assert.match(js, /if \(id === 'term'\) \{ ms\.close\(function \(\) \{ window\.setTimeout\(openTerm, 0\); \}\); return; \}/);
 });
 
-test('立即锁屏（进站 v3 L1，Gray 2026-11-09 08:03）：只锁本机、不验证、点一下就锁（原点两下确认 / 确认层删了）；POST /api/lock-now 成功后重新取这一页（v5 S5）；四站都用 topbar-panel 自带的', () => {
+test('立即锁屏（v5 S6）：NAVIGATE 的 lock 按钮删了，顶栏不再自己 POST /api/lock-now；上锁走终端 lock、已进站点盾牌（[y/N]）；四站同一套', () => {
   const js = rd('space/web/assets/js/shell/topbar-panel.js');
-  assert.doesNotMatch(js, /LOCK_ARM_MS/);
-  assert.match(js, /const LOCK_NOW_API = '\/api\/lock-now';/);
-  assert.match(js, /f\(LOCK_NOW_API, \{ method: 'POST', credentials: 'include' \}\)/);
-  /* v5 S5：没有锁屏界面了，锁上后重新取这一页（服务端画访客态） */
-  assert.match(js, /if \(r && r\.ok\) replace\(cleanHere\(\)\);/);
+  assert.doesNotMatch(js, /LOCK_ARM_MS|LOCK_NOW_API|lockState|onLock/);
+  /* 盾牌：已进站问退出（钥匙层 lockAsk），没进站预填 sudo styrigx */
+  assert.match(js, /if \(x === 'styrigx' \|\| x === 'root'\) \{\s*const sp = view\.layers\(\)\.space;\s*if \(sp && typeof sp\.lockAsk === 'function' && view\.line\.mode === 'cmd'\) sp\.lockAsk\(\);/);
   assert.doesNotMatch(js, /ENTRY_URL/);
   assert.doesNotMatch(rd('space/web/assets/js/shell/quick-panel.js'), /confirmLockNow/);
   for (const s of ['curio', 'daymark']) assert.doesNotMatch(rd(`space/web/assets/${s}/js/sgx/topbar-host.js`), /onLock:/, s);
@@ -56,4 +54,27 @@ test('子站布局 / 语言写端（prefs-write.js）：四个入口都把 langP
     for (const k of ['langPref', 'layoutPref', 'setLayout']) assert.match(s, new RegExp(k + ': prefs\\.' + k), f + ' ' + k);
     assert.doesNotMatch(s, /layoutNarrow/, f);
   }
+});
+
+test('v5 S6 顶栏 E：头像没进站是死按钮（有网关标记才判）、>_ 开合终端、盾牌分两态；v5 S7 主页 neofetch 提示符跟身份', () => {
+  const js = rd('space/web/assets/js/shell/topbar-panel.js');
+  /* 头像：同步看终端身份；页面没有网关标记（本地 / 测试构建）不判死；捕获阶段拦下（不开窗、不按链接走） */
+  assert.match(js, /const avDead = function \(\) \{\s*if \(!who\) return false;\s*const pg = doc\.documentElement\.getAttribute\('data-sgx-lock-session'\);\s*if \(pg !== 'valid' && pg !== 'locked'\) return false;\s*const w = who\.get\(\);\s*return w !== 'styrigx' && w !== 'root';\s*\};/);
+  assert.match(js, /e\.preventDefault\(\);\s*e\.stopImmediatePropagation\(\);\s*\}, true\);/);
+  assert.match(js, /if \(avDead\(\)\) acctBtn\.setAttribute\('aria-disabled', 'true'\);/);
+  /* >_：开合终端（同 Ctrl / ⌘ K）；终端窗口的 opener 是它 */
+  assert.match(js, /const termBtn = \/\*\* @type \{HTMLElement\|null\} \*\/ \(doc\.querySelector\('#site-nav \.sgx-tb-term'\)\);/);
+  assert.match(js, /const opener = termBtn \|\| navBtn \|\|/);
+  /* 盾牌：没进站预填 sudo styrigx；旧地址 #sec / [data-sec-open] 走 openShield（不问退出） */
+  assert.match(js, /if \(!view\.input\.value\) view\.prefill\(SUDO_LINE\);\s*\}\);\s*\}\);\s*\};/);
+  assert.match(js, /window\.setTimeout\(openShield, 0\);/);
+  /* 主页 neofetch 的提示符：[data-sgx-ps] = ps1(身份, '~') */
+  assert.match(js, /el\.textContent = T\.ps1\(who\.get\(\), '~'\);/);
+  assert.match(rd('space/web/assets/js/shell/terminal.js'), /export \{ DIRS, normDir, cwdPath, fill, parse, createWho, ps1 \};/);
+  const home = rd('space/web/layouts/index.html');
+  assert.match(home, /<div id="about" class="sgx-term sgx-term--static wild-term home-about"/);
+  assert.match(home, /<span class="sgx-term-pp" data-sgx-ps>nobody@space:~\$<\/span> neofetch/);
+  assert.doesNotMatch(home, /data-sgx-term="home"/, '主页不再嵌终端');
+  /* 子站图标表（nav.json）里有 tb-grid */
+  assert.match(rd('space/web/data/shell/nav.json'), /"tb-grid": "<svg/);
 });

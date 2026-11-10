@@ -47,7 +47,8 @@ test('每个终端窗口都有提示行（v5 S5：锁屏 / 盾牌的终端并进
   const aw = read('space/web/assets/js/shell/account/window.js');
   assert.match(aw, /<p class="sgx-kh sgx-at-kh" data-at-kh hidden><\/p>/);
   assert.match(aw, /if \(!escBack\(\)\) o\.ms\.close\(\);/);
-  assert.match(read('space/web/layouts/index.html'), /<p class="sgx-kh sgx-term-kh" data-term-kh hidden><\/p>/);
+  /* v5 S7：主页首屏不再嵌终端（换成 neofetch about 卡），主页也用终端窗口 #sgx-term */
+  assert.doesNotMatch(read('space/web/layouts/index.html'), /data-sgx-term="home"|data-term-kh/);
   const tb = read('space/web/layouts/partials/shell-topbar.html');
   assert.match(tb, /<p class="sgx-kh sgx-term-kh" data-term-kh hidden><\/p>\n  <\/div>\n<\/dialog>/);
   assert.match(tb, /<p class="sgx-kh sgx-ai-kh" data-ai-kh hidden><\/p>\n    <p class="sgx-ai-foot">/);

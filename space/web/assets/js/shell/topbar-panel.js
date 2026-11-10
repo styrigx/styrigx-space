@@ -1,5 +1,5 @@
 /**
- * @fileoverview 顶栏的三个弹出窗口（2026-11-04 P5-1；2026-11 UI 重设计 PR-1 顶栏 v3）：NAVIGATE #sgx-nav（>_ 按钮）、外观 #sgx-qp（调色盘按钮）、AI 窗口 #sgx-ai（右下角浮钮），
+ * @fileoverview 顶栏的三个弹出窗口（2026-11-04 P5-1；2026-11 UI 重设计 PR-1 顶栏 v3；v5 S6 顶栏 E：盾牌 · 外观 · 四格 | >_ · 头像）：NAVIGATE #sgx-nav（四格按钮）、外观 #sgx-qp（调色盘按钮）、AI 窗口 #sgx-ai（右下角浮钮），
  * 外加顶栏底边的滑页进度条 .sgx-tb-prog 和 tmux 页脚的 CST 时钟。
  * 共享外壳组件：四个站共用这一份（主站 shell/quick-panel.js 调它，子站入口脚本调它）。
  * 自成一体：不 import 任何东西；状态机（modal-sheet.js）、外观 setter（主站 lib/prefs.js / 子站 prefs-write.js）、AI 内容（ai.js）、
@@ -10,13 +10,16 @@
  * - 点遮罩（面板以外）关闭；焦点打开时进面板，关上时还给按钮；Tab / Shift+Tab 圈在「按钮 + 面板控件」里。
  * - NAVIGATE：01 主页 … 05 旷野（当前项「开」态）；已在当前项那一页时点它只关面板，其余关完再跳（不留哨兵）。
  *   lang 分段 EN | Auto | 中文（选中即保存；明确的语言和本页不同就去另一种语言的同一页，Auto 只在主站首页换）、layout 分段（Mobile | Auto | DeX，模式规则见共享外壳 layout-mode.js）、
- *   share（share.js）/ lock（立即锁定）、STATUS（占位）、esc 关闭。
+ *   share（share.js；v5 S6 去掉 lock 按钮，上锁走终端 lock / 已进站点盾牌）、STATUS、esc 关闭。
  * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
- * - 立即锁屏（NAVIGATE 里的 lock）：只锁本机、不验证、点一下就锁（Gray 2026-11-09 08:03）：调用方传 onLock 就用它，
- *   不传 = POST /api/lock-now（同源网关）后重新取这一页（服务端画访客态）。
+ * - 盾牌（v5 S6）：不开窗口，吉祥物兼状态标志。没进站（访客 / 分享链接会话）点 = 打开终端预填 sudo styrigx；已进站（styrigx / root）点 = 打开终端问「退出进站会话 [y/N]」，
+ *   y = 钥匙层 lock（只锁本机，POST /api/lock-now 后重新取这一页）。旧地址 #sec / [data-sec-open] 只打开终端（没进站预填），不问。
+ * - 头像（v5 S6，Gray 17:23）：已进站点了开账号窗口；没进站（页面标记 locked，或服务端说是访客 / 分享链接会话）是死按钮（aria-disabled，不开窗、不跳终端）。
+ *   页面没有网关标记（本地 / 测试构建）不判死。
+ * - >_ 终端按钮（v5 S6）：开合全站终端（同 Ctrl / ⌘ K）。
  * - 终端（v5 S5 终端合一）：调用方传 terminal（shell/terminal.js 整个模块）、space（钥匙层 shell/space/layer.js mountSpace）、accountTerm（终端里的账号层
  *   shell/account/cmd/layer.js mountAccountLayer）、account（账号窗口 shell/account/window.js mountAccountWindow，照旧）；本文件仍不 import。每页一个终端：主页首屏嵌入的 [data-sgx-term="home"]，其他页 #sgx-term（桌面居中大窗、手机整块卡片）。
- *   Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌（S6 前）也打开它。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
+ *   顶栏 >_、Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌也打开它（v5 S6：访客预填 sudo styrigx、已进站问退出）。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
  * - 上锁的地方（v5 S3：AI 窗口、旷野 status 卡、奇趣音乐的播放，以及各处接口回 401）都只发 document 上的 `sgx:sudo` 事件（SUDO_EVENT），
  *   这里是唯一接它的地方：打开终端、输入行预填 `sudo styrigx`（不替人回车）；回车后在终端里验证。
  */
@@ -49,9 +52,7 @@ const STR_EN = {
   auto: "Auto",
   phone: "Mobile",
   desktop: "DeX",
-  sys: "Follow system",
-  lockBack: "Back to lock screen",
-  lockFail: "Couldn’t lock. Check your connection."
+  sys: "Follow system"
 };
 /** @param {Document} doc @returns {Record<string, string>} */
 function shellStr(doc) {
@@ -64,8 +65,6 @@ function shellStr(doc) {
   } catch (e) {}
   return Object.assign({}, STR_EN, page);
 }
-/** 立即锁屏的接口（同源网关；= shell/space/paths.js API.lockNow，本文件不 import 任何东西，只能抄一份） */
-const LOCK_NOW_API = '/api/lock-now';
 /** 关键词搜索（v5 S4，网关 GET /api/find，公开） */
 const FIND_API = '/api/find';
 /** 有没有进站会话（同源网关；= shell/space/paths.js API.sessionCheck）：终端身份的来源 */
@@ -107,7 +106,6 @@ export function resolveLang(v, nav, langs) {
  * @param {{
  *   modalSheet: Function,
  *   prefs: TopbarPrefs,
- *   onLock?: () => void,
  *   fetch?: typeof fetch,
  *   navigate?: (url: string) => void,
  *   replace?: (url: string) => void,
@@ -284,13 +282,6 @@ export function mountTopbar(o) {
     /** @param {string} id */
     const ctl = function (id) { return /** @type {HTMLElement|null} */ (navDlg.querySelector('[data-qp="' + id + '"]')); };
     const langSeg = /** @type {HTMLElement|null} */ (navDlg.querySelector('[data-qp-langs]'));
-    const lockBtn = ctl('lock');
-    const lockState = /** @type {HTMLElement|null} */ (navDlg.querySelector('[data-qp-lock-state]'));
-    const lockLabel = lockState ? lockState.textContent : '';
-    const disarm = function () {
-      if (lockBtn) lockBtn.removeAttribute('data-armed');
-      if (lockState) lockState.textContent = lockLabel;
-    };
     /** 语言分段上列出的语言（hugo.yaml languages） @returns {string[]} */
     const langCodes = function () {
       return Array.prototype.map.call(navDlg.querySelectorAll('[data-qp-lang]'), function (/** @type {Element} */ x) { return x.getAttribute('data-qp-lang') || ''; }).filter(function (/** @type {string} */ c) { return !!c && c !== 'system'; });
@@ -316,16 +307,7 @@ export function mountTopbar(o) {
         b.setAttribute('aria-checked', b.getAttribute('data-qp-lang') === lv ? 'true' : 'false');
       });
     };
-    /** 立即锁屏（只锁本机，不验证；Gray 2026-11-09 08:03）：POST 同源网关清会话 → 锁屏 */
-    const lockNow = function () {
-      const f = o.fetch || (typeof fetch === 'function' ? fetch : null);
-      if (!f) return;
-      f(LOCK_NOW_API, { method: 'POST', credentials: 'include' }).then(function (r) {
-        if (r && r.ok) replace(cleanHere());
-        else if (lockState) lockState.textContent = t.lockFail;
-      }, function () { if (lockState) lockState.textContent = t.lockFail; });
-    };
-    nav = wire(navBtn, navDlg, 'sgxNav', function () { disarm(); paintNav(); });
+    nav = wire(navBtn, navDlg, 'sgxNav', function () { paintNav(); });
     if (nav) {
       const ms = nav.ms;
       const shareBtn = ctl('share');
@@ -363,22 +345,16 @@ export function mountTopbar(o) {
         }
         if (tg.closest('[data-nav-close]')) { ms.close(); return; }
         const opt = /** @type {HTMLElement|null} */ (tg.closest('[data-qp-lang]'));
-        if (opt) { disarm(); pickLang(opt.getAttribute('data-qp-lang') || 'system'); return; }
+        if (opt) { pickLang(opt.getAttribute('data-qp-lang') || 'system'); return; }
         const c = /** @type {HTMLElement|null} */ (tg.closest('[data-qp]'));
         if (c) {
           const id = c.getAttribute('data-qp');
           if (id === 'share') return; /* share.js 自己接这一下 */
           if (id === 'term') { ms.close(function () { window.setTimeout(openTerm, 0); }); return; }
-          if (id === 'lock') {
-            /* 立即锁屏只锁本机、不验证、没有确认层（Gray C / 08:03）：点一下就锁 */
-            disarm();
-            ms.close(o.onLock || lockNow);
-          }
           return;
         }
         const sb = /** @type {HTMLButtonElement|null} */ (tg.closest('[data-qp-seg="layout"] button'));
         if (sb && !sb.disabled) {
-          disarm();
           if (P.setLayout) P.setLayout(sb.getAttribute('data-v') || '');
           /* 手机屏切进 / 切出「DeX」：共享外壳 layout-mode.js 把 viewport 换成 980 宽（或还原）。
              2026-11-07 Gray 真机：以前一律整页重载，三星浏览器 / X 应用内浏览器都白闪一下。现在先原地生效（viewportInPlace），
@@ -505,13 +481,15 @@ export function mountTopbar(o) {
   };
   /* ---------------- 终端（v5 S5 终端合一：锁屏 tty1、主页 tty2、盾牌 tty3、账号 tty5 合成一个；shell/terminal.js） ----------------
      一个会话、一份历史；提示符按身份（nobody / link / styrigx / root，服务端说了算）。桌面是居中大窗、手机整块卡片（#sgx-term）；
-     主页上首屏嵌入的那一个就是终端（S7 换成 neofetch）。钥匙层（o.space：shell/space/layer.js）和账号层（o.account：shell/account/window.js）共用它的输入行。 */
+     主页首屏嵌入终端的代码路径还在（[data-sgx-term="home"]），v5 S7 起主页首屏是 neofetch、不再嵌终端，四站都用 #sgx-term（S8 清死代码）。钥匙层（o.space：shell/space/layer.js）和账号层（o.account：shell/account/window.js）共用它的输入行。 */
   const T = o.terminal;
   const termDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-term'));
   const homeTerm = doc.querySelector('[data-sgx-term="home"]');
   const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
   const acctDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-acct'));
   const secBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-shield'));
+  /** 顶栏 >_ 终端按钮（v5 S6 顶栏 E） */
+  const termBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-term'));
   /** @type {any} */
   let termSheet = null;
   /** @type {any} */
@@ -591,6 +569,34 @@ export function mountTopbar(o) {
   let acctNext = null;
   /** @type {(x?: any) => void} */
   let openAcct = function () {};
+  /* 头像（v5 S6，Gray 17:23）：已进站（styrigx / root）才开账号窗口；没进站（访客 / 分享链接会话）是死按钮——不开窗、不跳终端、不按链接走。
+     判断同步看终端身份（首帧 = 网关注入的页面标记，问过服务端以回答为准）；页面没有网关标记（本地 / 测试构建）不判死。
+     捕获阶段挂在头像自己身上：比 wire 的冒泡监听先到，拦下就到此为止 */
+  const avDead = function () {
+    if (!who) return false;
+    const pg = doc.documentElement.getAttribute('data-sgx-lock-session');
+    if (pg !== 'valid' && pg !== 'locked') return false;
+    const w = who.get();
+    return w !== 'styrigx' && w !== 'root';
+  };
+  const paintAv = function () {
+    if (!acctBtn) return;
+    if (avDead()) acctBtn.setAttribute('aria-disabled', 'true');
+    else acctBtn.removeAttribute('aria-disabled');
+  };
+  if (acctBtn) {
+    acctBtn.addEventListener('click', function (e) {
+      if (!avDead()) return;
+      const me2 = /** @type {MouseEvent} */ (e);
+      if (me2.button !== 0 && me2.button !== 1) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }, true);
+    /* 中键 / 辅助键点（auxclick）也不按链接走 */
+    acctBtn.addEventListener('auxclick', function (e) { if (avDead()) e.preventDefault(); }, true);
+    paintAv();
+    if (who) who.on(paintAv);
+  }
   if (acctBtn && acctDlg && o.account) {
     acct = wire(acctBtn, acctDlg, 'sgxAcct', function () {
       if (!acctWin) acctWin = o.account({ dlg: acctDlg, ms: acct.ms, S: trSec('account'), replace: replace, reload: o.reload, who: who });
@@ -638,13 +644,14 @@ export function mountTopbar(o) {
     /** 命令的动作（终端和 AI 窗口里的 $ 命令共用） @type {any} */
     const act = {
       cd: function (/** @type {string} */ dir) {
-        /* 主页上有这一节（[data-term-dir]）就滚过去；~ 回到首屏终端；其余去那个站 */
-        if (homeTerm) {
-          const sec = dir === '~' ? doc.getElementById('home-hero') : doc.querySelector('[data-term-dir="' + dir + '"]');
-          if (sec) {
-            try { sec.scrollIntoView({ behavior: reducedM() ? 'auto' : 'smooth', block: 'start' }); } catch (e) {}
-            return { kind: 'scroll', label: dir === '~' ? '' : sec.getAttribute('data-term-label') || dir };
-          }
+        /* 主页上有这一节（[data-term-dir]）就滚过去；~ 回到首屏；其余去那个站。
+           v5 S7：主页首屏不再嵌终端，终端是窗口——先收起窗口再滚（窗口开着时页面滚不动） */
+        const sec = dir === '~' ? doc.getElementById('home-hero') : doc.querySelector('[data-term-dir="' + dir + '"]');
+        if (sec) {
+          const scroll = function () { try { sec.scrollIntoView({ behavior: reducedM() ? 'auto' : 'smooth', block: 'start' }); } catch (e) {} };
+          if (!homeTerm && termSheet && termSheet.isOpen()) termSheet.close(scroll);
+          else scroll();
+          return { kind: 'scroll', label: dir === '~' ? '' : sec.getAttribute('data-term-label') || dir };
         }
         const href = hrefOf(dir === '~' ? 'home' : dir, '/');
         return { kind: 'nav', href: href, go: function () { closeAll(function () { navigate(href); }); } };
@@ -726,7 +733,7 @@ export function mountTopbar(o) {
     const coarse = function () { try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
     const termEl = homeTerm || (termDlg ? termDlg.querySelector('[data-sgx-term]') || termDlg : null);
     if (termDlg && !homeTerm && typeof termDlg.showModal === 'function') {
-      const opener = navBtn || /** @type {HTMLElement} */ (doc.body);
+      const opener = termBtn || navBtn || /** @type {HTMLElement} */ (doc.body);
       termSheet = o.modalSheet(termDlg, opener, {
         ms: QP_MS,
         stateKey: 'sgxTerm',
@@ -772,7 +779,7 @@ export function mountTopbar(o) {
     if (ent && view && (!who || who.get() === 'nobody')) {
       window.setTimeout(function () { showTerm(function () { if (ent === 'sudo') view.run(SUDO_LINE); else view.prefill(SUDO_LINE); }); }, 0);
     }
-    /* 盾牌：v5 S5 起没有盾牌窗口（S6 改成吉祥物）。点它 = 打开终端；没进站预填 sudo styrigx。旧地址 #sec[=<层>] / [data-sec-open] 同 */
+    /* 旧地址 #sec[=<层>] / [data-sec-open]：打开终端；没进站预填 sudo styrigx（不问退出） */
     const openShield = function () {
       showTerm(function () {
         if (!view) return;
@@ -781,14 +788,47 @@ export function mountTopbar(o) {
         w.then(function (/** @type {string} */ x) { if (x === 'nobody' && !view.input.value) view.prefill(SUDO_LINE); });
       });
     };
+    /* 盾牌（v5 S6 顶栏 E，Gray 16:36：一来一回对应）：不开窗口，打开终端——没进站（访客 / 分享链接会话）预填 sudo styrigx；
+       已进站（styrigx / root）问「退出进站会话 [y/N]」（钥匙层 lockAsk：y = lock，回车 / n 不动）。身份以服务端为准：问过再决定 */
+    const shieldClick = function () {
+      showTerm(function () {
+        if (!view) return;
+        const w = who ? who.refresh() : Promise.resolve('nobody');
+        w.then(function (/** @type {string} */ x) {
+          if (x === 'styrigx' || x === 'root') {
+            const sp = view.layers().space;
+            if (sp && typeof sp.lockAsk === 'function' && view.line.mode === 'cmd') sp.lockAsk();
+            return;
+          }
+          if (!view.input.value) view.prefill(SUDO_LINE);
+        });
+      });
+    };
     if (secBtn) {
       secBtn.addEventListener('click', function (e) {
         const me2 = /** @type {MouseEvent} */ (e);
         if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
         e.preventDefault();
         e.stopPropagation();
-        openShield();
+        shieldClick();
       });
+    }
+    /* >_ 终端按钮（v5 S6）：开合终端（同 Ctrl / ⌘ K） */
+    if (termBtn) {
+      termBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (homeTerm) { showTerm(); return; }
+        if (!termSheet) return;
+        if (termSheet.isShown()) termSheet.close();
+        else showTerm();
+      });
+    }
+    /* 主页 neofetch（v5 S7）的提示符跟身份：[data-sgx-ps]（nobody@space:~$ / nobody@space:~# / styrigx@space:~# / root@account:~#，路径 ~） */
+    const psEls = Array.prototype.slice.call(doc.querySelectorAll('[data-sgx-ps]'));
+    if (psEls.length && who && typeof T.ps1 === 'function') {
+      const paintPs = function () { psEls.forEach(function (/** @type {HTMLElement} */ el) { el.textContent = T.ps1(who.get(), '~'); }); };
+      paintPs();
+      who.on(paintPs);
     }
     doc.addEventListener('click', function (e) {
       const tg = /** @type {Element|null} */ (e.target);

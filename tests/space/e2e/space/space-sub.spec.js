@@ -64,7 +64,7 @@ test('home (mobile, 对齐 PR-B): hero, then [01] blog · [02] curio · [03] day
   const dirs = pg.locator('#curio a.home-dir');
   expect(await dirs.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/zh/finds/', '/curio/zh/devices/', '/curio/zh/games/']);
   const mini = pg.locator('#wild a.home-mini');
-  expect(await mini.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/zh/wild/#screen-time', '/zh/wild/#status', '/zh/wild/#about']);
+  expect(await mini.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/zh/wild/#screen-time', '/zh/wild/#status', '#about']); /* v5 S7：about 卡只在主页首屏，小卡指回 #about */
   await expect(mini.locator('.home-dir-n')).toHaveText(['screen-time', 'status', 'about']);
   expect(await pg.locator('#wild .home-wild').evaluate((ul) => getComputedStyle(ul).gridTemplateColumns.split(' ').length)).toBe(1);
   // 删掉的分类（含显示页、并进旷野的三页）不再有链接；页面上没有任何指向旧设置层的链接
@@ -96,13 +96,13 @@ for (const [w, h, cols] of [[412, 900, 1], [1100, 900, 3], [1366, 768, 3]]) {
 test.describe('home (dex)', () => {
   test.use({ viewport: { width: 1366, height: 768 } });
 
-  test('single page: [04] about card is a plain link to /zh/wild/#about, no two-pane', async ({ page: pg }) => {
+  test('single page: [04] about card links back to the home neofetch (#about, v5 S7), no two-pane', async ({ page: pg }) => {
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/zh/');
     await expect(pg.locator('#set-cat-nav, .set-dex-cols, #set-panes')).toHaveCount(0);
-    await pg.locator('#wild a.home-mini[href="/zh/wild/#about"]').click();
-    await pg.waitForURL('**/zh/wild/#about', { timeout: 10000 });
-    await expect(pg.locator('#sg-about')).toBeVisible();
+    await pg.locator('#wild a.home-mini[href="#about"]').click();
+    await pg.waitForURL('**/zh/#about', { timeout: 10000 });
+    await expect(pg.locator('#home-hero #about')).toBeInViewport();
   });
 });
 
@@ -114,7 +114,7 @@ test('home (en): title Home, sections, wild cards to /wild/#…', async ({ page:
   await expect(pg.locator('.sgx-tb-title')).toHaveText('Home');
   await expect(pg.locator('#space-entries')).toHaveCount(0);
   await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // CURIO', '[03] // DAYMARK', '[04] // WILD']);
-  expect(await pg.locator('#wild a.home-mini').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/wild/#screen-time', '/wild/#status', '/wild/#about']);
+  expect(await pg.locator('#wild a.home-mini').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/wild/#screen-time', '/wild/#status', '#about']);
   expect(await pg.locator('#curio a.home-dir').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/finds/', '/curio/devices/', '/curio/games/']);
   await expect(pg.locator('a[href="/display/"]')).toHaveCount(0);
 });
@@ -146,12 +146,12 @@ test('old settings layer is gone: home and every subpage 404, no redirect', asyn
 });
 
 const SUBCHECKS = {
-  /* 对齐 PR-B：旷野页 = 屏幕时间 / 服务状态 / 关于本站三窗 */
-  wild: ['#wb-card', '#st-root', '#sg-about'],
+  /* 对齐 PR-B：旷野页 = 屏幕时间 / 服务状态（v5 S7：关于本站挪到主页首屏 #about，旷野只剩两窗） */
+  wild: ['#wb-card', '#st-root'],
 };
 /* 2026-10-23 PR-E / 对齐 PR-B：删掉的设置项（15 分钟提醒随「数字健康不做设置」删除） */
 const GONE = {
-  wild: ['#well-v-total', '#row-welltip', '#row-reset', '#sg-wellbeing'],
+  wild: ['#well-v-total', '#row-welltip', '#row-reset', '#sg-wellbeing', '#sg-about', '#about'],
 };
 
 for (const c of CATS) {
@@ -198,16 +198,18 @@ test('subpage: system back returns to the space page', async ({ page: pg }) => {
   await pg.waitForURL((u) => u.pathname === '/zh/', { timeout: 10000 });
 });
 
-test('wild #about: neofetch rows (对齐 PR-B，原 /about/ 的版本行)', async ({ page: pg }) => {
+test('home #about: neofetch rows (v5 S7 从旷野页挪到主页首屏；对齐 PR-B，原 /about/ 的版本行)；旷野页没有 about 了', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/zh/wild/');
+  await expect(pg.locator('#about, #sg-about, [data-about]')).toHaveCount(0);
+  await gotoSettings(pg, '/zh/');
   /* 2.8.0：版本号从 data/version.yaml（唯一来源）读取，不再硬编码，版本推进时测试自动跟随 */
   const fs = require('fs');
   const path = require('path');
   const vy = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'version.yaml'), 'utf8');
   const ui = (vy.match(/^ui:\s*"([^"]+)"/m) || [])[1];
   const sgx = (vy.match(/^sgx:\s*"([^"]+)"/m) || [])[1];
-  const body = pg.locator('#sg-about');
+  const body = pg.locator('#home-hero #about');
   await expect(body.locator('[data-about="version"]')).toHaveText(`Styrigx UI ${ui}`);
   await expect(body.locator('[data-about="kernel"]')).toHaveText(`SGX ${sgx}`);
   await expect(body.locator('[data-about="hugo"]')).not.toBeEmpty();

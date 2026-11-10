@@ -81,7 +81,8 @@ const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'ind
 function skeleton(html) {
   const h = html.replace(/"/g, '');
   const hdr = h.slice(h.indexOf('<header id=site-nav'), h.indexOf('</header>'));
-  const order = ['sgx-topbar', 'sgx-tb-logo', 'sgx-tb-cu', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'sgx-tb-av', 'sgx-tb-prog', 'sgx-tb-ai'];
+  /* 2026-11 v5 S6：右侧 盾牌 · 调色盘 · 九宫格 · | · >_ · 头像 */
+  const order = ['sgx-topbar', 'sgx-tb-logo', 'sgx-tb-cu', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-shield', 'sgx-tb-quick', 'sgx-tb-grid', 'sgx-tb-sep', 'sgx-tb-term', 'sgx-tb-av', 'sgx-tb-prog', 'sgx-tb-ai'];
   const pos = order.map((c) => hdr.search(new RegExp(`class=[^>]*\\b${c}\\b`)));
   order.forEach((c, n) => assert.ok(pos[n] >= 0, '顶栏有 ' + c));
   const qp = h.slice(h.indexOf('<dialog id=sgx-qp'), h.indexOf('</dialog>', h.indexOf('<dialog id=sgx-qp')));
@@ -111,7 +112,7 @@ function skeleton(html) {
   };
 }
 
-test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字标 · 外观 · 盾牌 · | · >_ · 头像 · 进度条 · AI 浮钮；NAVIGATE 五项同序且当前项「开」态；外观面板同一套；tmux 页脚当前窗口', (t) => {
+test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字标 · 盾牌 · 调色盘 · 九宫格 · | · >_ · 头像 · 进度条 · AI 浮钮；NAVIGATE 五项同序且当前项「开」态；外观面板同一套；tmux 页脚当前窗口', (t) => {
   if (!built) { t.skip('还没构建（先 npm run build）'); return; }
   const CUR = { atlas: 'home', blog: 'blog', curio: 'curio', daymark: 'daymark' };
   const NO = { home: '01', blog: '02', curio: '03', daymark: '04' };
@@ -126,7 +127,7 @@ test('真实构建：四站首页（中英）顶栏 v3 骨架一致 —— 字�
       assert.equal(sk.count, NO[CUR[site]] + '/05', at + '：计数');
       assert.deepEqual(sk.langs, ['en', 'system', 'zh'], at + '：lang EN / Auto / 中文（2026-11-09 Auto 在中间）');
       assert.deepEqual(sk.layout, ['phone', 'auto', 'desktop'], at + '：layout Mobile / Auto / DeX（2026-11-09 Auto 在中间）');
-      assert.deepEqual(sk.acts, ['share', 'lock', 'term'], at + '：share / lock / terminal（2026-11 PR-2）');
+      assert.deepEqual(sk.acts, ['share', 'term'], at + '：share / terminal（v5 S6 去掉 lock：上锁走终端 lock / 盾牌）');
       assert.deepEqual(sk.status, ['space', 'blog', 'curio', 'daymark', 'gray-ai', 'auth'], at + '：STATUS 六个单元');
       assert.deepEqual(sk.modes, ['system', 'dark', 'light'], at + '：MODE');
       assert.equal(sk.swatches, 22, at + '：22 套色板');

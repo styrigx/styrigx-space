@@ -156,7 +156,7 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
   assert.match(files['tokens.css'], /--sgx-tag-bg: var\(--sgx-fg-4-tint\);/);
 });
 
-test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽屉）：通栏 [字标 ❯ Styrigx_][页名（不显示）][外观 · 盾牌 · | · >_ · 头像] + 进度条 + AI 浮钮；同一份标记四站共用', () => {
+test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽屉；v5 S6 顶栏 E）：通栏 [字标 ❯ Styrigx_][页名（不显示）][盾牌 · 外观 · 四格 · | · >_ · 头像] + 进度条 + AI 浮钮；同一份标记四站共用', () => {
   assert.deepEqual(SHELL_REGIONS, ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal']);
   const s = files['shell.css'];
   // 贴顶通栏：top 0、left 0 / right 0、底边 1px 线、毛玻璃材质；内容宽一个 token（1080）
@@ -187,8 +187,11 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   assert.equal(files['topbar.html'], src);
   assert.doesNotMatch(src.replace(/\{\{-? \/\*[\s\S]*?\*\/ -?\}\}/g, ''), /\bpartial |site\.Data|hugo\.Data|resources\.Get/, '只用参数，不调别的 partial / 数据');
   const header = src.slice(src.indexOf('<header id="site-nav" class='), src.indexOf('</header>'));
-  const order = ['class="sgx-tb-logo"', 'sgx-tb-ps', 'sgx-tb-name', 'sgx-tb-cu', 'class="sgx-tb-pill', 'sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'class="sgx-tb-av"', 'sgx-tb-prog', 'sgx-tb-ai'].map((k) => header.indexOf(k));
-  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '字标（❯ SVG 字标 光标）→ 页名 → 外观 → 盾牌 → 分隔 → >_ → 头像 → 进度条 → AI 浮钮');
+  const order = ['class="sgx-tb-logo"', 'sgx-tb-ps', 'sgx-tb-name', 'sgx-tb-cu', 'class="sgx-tb-pill', 'sgx-tb-shield', 'sgx-tb-quick', 'sgx-tb-grid', 'sgx-tb-sep', 'sgx-tb-term', 'class="sgx-tb-av"', 'sgx-tb-prog', 'sgx-tb-ai'].map((k) => header.indexOf(k));
+  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '字标（❯ SVG 字标 光标）→ 页名 → 盾牌 → 外观 → 四格 → 分隔 → >_ → 头像 → 进度条 → AI 浮钮（v5 S6 顶栏 E）');
+  /* 四格 = NAVIGATE（tb-grid 图标），>_ = 终端（tb-term 图标，开 #sgx-term） */
+  assert.match(header, /class="sgx-tb-btn sgx-tb-grid"[^>]*aria-controls="sgx-nav"[^>]*>\{\{ index \$i "tb-grid" \| safeHTML \}\}/);
+  assert.match(header, /class="sgx-tb-btn sgx-tb-term"[^>]*aria-controls="sgx-term"[^>]*>\{\{ index \$i "tb-term" \| safeHTML \}\}/);
   /* PR-2（Gray 2026-11-08）：等宽文字 styrigx :~$ 换成 ❯ + SVG 字标（参数 .wordmark）+ 光标；没有 :~$、没有副标题 */
   assert.match(header, /<span class="sgx-tb-ps" aria-hidden="true">❯<\/span><span class="sgx-tb-name" aria-hidden="true" translate="no">\{\{ \.wordmark \| safeHTML \}\}<\/span><span class="sgx-tb-cu" aria-hidden="true"><\/span>/);
   assert.doesNotMatch(header, /sgx-tb-tl|:~\$|<small/, '没有 :~$、没有副标题');
@@ -210,11 +213,12 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/topbar-end.html')), 'topbar-end.html 已删');
 });
 
-test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layout 分段 + share / lock + STATUS 占位 + systemctl status · esc 关闭；外观 MODE 三段 + PALETTE 列表；tmux 页脚', () => {
+test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layout 分段 + share（v5 S6 去掉 lock）+ STATUS 占位 + systemctl status · esc 关闭；外观 MODE 三段 + PALETTE 列表；tmux 页脚', () => {
   const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');
   const navd = src.slice(src.indexOf('<dialog id="sgx-nav"'), src.indexOf('<dialog id="sgx-qp"'));
-  const order = ['sgx-nav-h', 'class="sgx-nav-list"', 'data-qp-langs', 'data-qp-seg="layout"', 'data-qp="share" data-sgx-share', 'data-qp="lock"', 'data-nav-status', 'sgx-nav-flink', 'data-nav-close'].map((k) => navd.indexOf(k));
-  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '头 → 五项 → lang → layout → share → lock → STATUS → systemctl status → esc');
+  const order = ['sgx-nav-h', 'class="sgx-nav-list"', 'data-qp-langs', 'data-qp-seg="layout"', 'data-qp="share" data-sgx-share', 'data-nav-status', 'sgx-nav-flink', 'data-nav-close'].map((k) => navd.indexOf(k));
+  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '头 → 五项 → lang → layout → share → STATUS → systemctl status → esc');
+  assert.doesNotMatch(navd, /data-qp="lock"|data-qp-lock-state/, 'v5 S6：NAVIGATE 没有 lock 按钮（上锁走终端 lock / 已进站点盾牌）');
   assert.match(navd, /\{\{ printf "%02d\/%02d" \$cur \$n \}\}/, '01/05 计数');
   assert.match(navd, /<a class="sgx-nav-tile" href="\{\{ \$p \}\}" data-nav="\{\{ \.id \}\}"\{\{ if eq \.id \$\.site \}\} aria-current="page"\{\{ end \}\}><em class="sgx-nav-no"/);
   assert.match(navd, /range slice \(dict "v" "phone" "t" \$t\.topbar\.phone\) \(dict "v" "auto" "t" \$t\.topbar\.auto\) \(dict "v" "desktop" "t" \$t\.topbar\.desktop\)/, 'Mobile / Auto / DeX（2026-11-09 Auto 在中间）');

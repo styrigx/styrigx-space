@@ -160,7 +160,7 @@ for (const w of [719, 720, 721]) {
       /* 2026-11 PR-2：首页各块（hero、终端、分节）都铺满内容栏，不会窄到 320 以下；
          对齐 PR-B：[02] 目录卡 / [04] 旷野小卡桌面三栏、手机一栏，每张 ≥ 200（720 宽桌面三栏约 218） */
       const m = await page.evaluate(() => ({ sw: document.scrollingElement.scrollWidth, iw: innerWidth,
-        cards: [...document.querySelectorAll('#home-hero, #home-term, .home-sec')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]),
+        cards: [...document.querySelectorAll('#home-hero, #about, .home-sec')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]),
         minis: [...document.querySelectorAll('.home-dirs > li, .home-wild > li')].map((e) => e.getBoundingClientRect().width) }));
       expect(m.sw).toBeLessThanOrEqual(m.iw);
       expect(m.cards.length).toBeGreaterThan(0);
@@ -210,7 +210,7 @@ test('首页收窄：容器 700 / 600 / 330 → 各块跟着收、终端不超�
       const g = document.querySelector('.home-wrap');
       g.style.width = v + 'px';
       const gr = g.getBoundingClientRect();
-      const over = [...g.querySelectorAll('#home-term, .home-sec, #w-daymark, #w-screen, .home-dir')].filter((e) => e.offsetParent !== null)
+      const over = [...g.querySelectorAll('#about, .home-sec, #w-daymark, #w-screen, .home-dir')].filter((e) => e.offsetParent !== null)
         .filter((e) => { const r = e.getBoundingClientRect(); return r.left < gr.left - 1 || r.right > gr.right + 1; }).map((e) => e.id);
       return { over, sw: document.scrollingElement.scrollWidth, iw: innerWidth };
     }, px);

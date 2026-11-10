@@ -326,7 +326,7 @@ export function mountAccountWindow(o) {
       C.row({ k: t('grants.title'), v: C.grantCount(), act: 'grants', chev: true, attrs: ' data-at-v="grants"' }) +
       '</div><div class="sgx-pop-list sgx-pop-list--line">' + C.row({ k: t('common.signOut'), v: 'exit', act: 'exit', cls: 'sgx-pop-row--acc' }) + '</div>';
     C.foot('');
-    if (!logEl.childNodes.length) C.note('common.typeHelp', 'help');
+    if (!logEl.childNodes.length) C.note('common.typeHelp', 'man');
   };
 
   /** 服务端说没会话 / 票过期：401 account → 回登录；401 reset → 结束 reset；403 reauth → 回门口；401 session → 锁屏 @param {{s:number, j:any}} res @returns {boolean} */
@@ -378,7 +378,7 @@ export function mountAccountWindow(o) {
       case 'cd': if (C.st === 'in' && !C.inReset) C.go(c.arg || 'home'); return;
       default: {
         /* 打错了：给最近的真命令（Gray 2026-11-09） */
-        const sg = suggest(line, ['help', 'clear', CMD.session, CMD.reauth, CMD.reset, 'exit', 'passwd', 'passkey add', 'cd profile', 'cd devices', 'cd security', 'cd apps']);
+        const sg = suggest(line, ['man', 'clear', CMD.session, CMD.reauth, CMD.reset, 'exit', 'passwd', 'passkey add', 'cd profile', 'cd devices', 'cd security', 'cd apps']);
         if (sg) C.err(tf('common.didYouMean', { c: raw.trim().split(' ')[0] }), sg);
         else C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
       }

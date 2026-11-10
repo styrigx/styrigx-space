@@ -65,7 +65,7 @@ test.describe('账号下拉 = 账号终端 #sgx-acct（2026-11-08 账号 UI 改�
     await expect(page).toHaveURL(/\/zh\/$/);
   });
 
-  test('主页终端 sudo root（v5 S5 终端合一）：在终端里原地登录，不开账号窗口；访客先要 sudo styrigx；sudo root reset → 终端里直接要恢复密钥', async ({ page }) => {
+  test('主页终端（顶栏 >_ 打开；v5 S7 首屏不再嵌终端）sudo root（v5 S5 终端合一）：在终端里原地登录，不开账号窗口；访客先要 sudo styrigx；sudo root reset → 终端里直接要恢复密钥', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     let entered = false;
     /* 线上每页都过网关、带 <html data-sgx-lock-session>（访客 locked / 进站 valid），终端首帧按它、标了 valid 再问服务端 */
@@ -78,13 +78,17 @@ test.describe('账号下拉 = 账号终端 #sgx-acct（2026-11-08 账号 UI 改�
       });
     };
     await go(page, '/zh/', { route, account: { ok: true, signing: true, configured: { password: true, passkey: true }, session: null } });
-    const t = page.locator('#home-term');
-    const inp = page.locator('#home-term-in');
+    const t = page.locator('#sgx-term');
+    const inp = page.locator('#sgx-term-in');
+    await page.locator('#site-nav .sgx-tb-term').click();
+    await expect(t).toHaveAttribute('open', '');
     await inp.fill('sudo root');
     await inp.press('Enter');
     await expect(t.locator('[data-term-out] > *').last()).toHaveText('还没进站 · 先 sudo styrigx');
     entered = true;
     await page.reload({ waitUntil: 'load' });
+    await page.locator('#site-nav .sgx-tb-term').click();
+    await expect(t).toHaveAttribute('open', '');
     await expect(t.locator('[data-term-ps]')).toHaveText('styrigx@space:~#');
     await inp.fill('sudo root');
     await inp.press('Enter');

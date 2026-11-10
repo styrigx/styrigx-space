@@ -7735,7 +7735,7 @@ body.sgx-entry #site-nav .sgx-topbar { view-transition-name: none; }
 @media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 /* 顶栏 v3（2026-11 UI 重设计 PR-1，设计稿 tb4.html / tb-v3 / prog-v1；四个站同一套，标记来自共享外壳 shell-topbar.html）：
    通栏 .sgx-topbar（贴顶、全宽、底边 1px 线，毛玻璃材质）里 = [字标 .sgx-tb-logo ❯ styrigx :~$_] [.sgx-tb-pill 页名（v3 不显示）]
-   [右边 .sgx-tb-acts：外观 .sgx-tb-quick · 盾牌 .sgx-tb-shield · 分隔 · >_ .sgx-tb-grid（NAVIGATE）· 头像 .sgx-tb-av]；
+   [右边 .sgx-tb-acts（v5 S6 顶栏 E）：盾牌 .sgx-tb-shield · 外观 .sgx-tb-quick · 四格 .sgx-tb-grid（NAVIGATE）· 分隔 · >_ .sgx-tb-term（终端）· 头像 .sgx-tb-av]；
    底边 .sgx-tb-prog 滑页进度条；右下角 AI 浮钮 .sgx-tb-ai。内容宽只有一个 token：--sgx-content-w（1080）。
    等宽字体 --sgx-font-mono（系统等宽，不额外下载字体）。 */
 /* 顶栏尺寸 token：--sgx-tb-h 顶栏高（通栏，不含刘海安全区）；--sgx-tb-inset / --sgx-tb-btn 是旧胶囊的上边距 / 高，v3 只当「悬浮圆钮」尺寸用（博客回到顶部等）；
@@ -7829,7 +7829,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-tb-title { display: block; min-width: 0; max-width: 100%; box-sizing: border-box; height: 36px; padding: 0 20px; border-radius: 999px; text-align: center;
   font-family: Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif; font-size: 15px; font-weight: 700; line-height: 36px; letter-spacing: normal;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background-color: var(--sgx-nav-selected); color: var(--sgx-on-nav-selected); }
-/* 右边：外观 · 盾牌 · 分隔 · >_ · 头像。图标按钮 40 × 40、圆角 10、图标 20px；平时次要色，打开（aria-expanded）= 浅主题衬底 + 主题色。头像 30px 圆，最右 */
+/* 右边（v5 S6 顶栏 E）：盾牌 · 外观 · 四格 · 分隔 · >_ · 头像。图标按钮 40 × 40、圆角 10、图标 20px；平时次要色，打开（aria-expanded）= 浅主题衬底 + 主题色。头像 30px 圆，最右 */
 .sgx-tb-acts { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 2px; }
 .sgx-tb-btn { width: var(--sgx-tb-icw); height: var(--sgx-tb-ic); flex-shrink: 0; padding: 0; margin: 0; border: 0; border-radius: 10px; box-sizing: border-box;
   background-color: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--sgx-text-secondary); cursor: pointer;
@@ -7845,6 +7845,8 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
    平时 2 秒一圈，.is-busy（加载 / 取数据 / AI 回答中，topbar-panel.js mountAvBusy）0.9 秒一圈。都是阴影 / 伪元素，不占位，按钮 40px、照片 30px 不变；
    弧用正文色（亮色主题是深色弧，暗色主题跟着变浅，才看得见），弧叠在照片环之上（z-index 2）。系统或本站「减弱动效」时弧停住不转。::after 留给触屏点击区。 */
 .sgx-tb-av { position: relative; }
+/* 没进站时头像是死按钮（v5 S6，aria-disabled，纯吉祥物）：外观不变，只是不当链接用 */
+.sgx-tb-av[aria-disabled="true"] { cursor: default; }
 .sgx-tb-av > .sgx-tb-avatar { position: relative; z-index: 1;
   box-shadow: 0 0 0 2.5px var(--sgx-surface), 0 0 0 3px var(--sgx-term-line), 0 1.5px 3px 3px color-mix(in srgb, var(--sgx-scrim) 45%, transparent); }
 .sgx-tb-av::before { content: ""; position: absolute; z-index: 2; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; pointer-events: none;
@@ -7857,6 +7859,8 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .reduced-motion .sgx-tb-av::before { animation: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-av::before { animation: none; } }
 :root:not([data-sgx-layout="desktop"]) .sgx-tb-sep { margin: 0 2px; }
+/* v5 S6 顶栏 E 多了一颗 >_：窄于 380 的手机（360 / 375）图标间距收成 0，字标和六个控件才放得下（412 及以上照已批截图，间距 2px 不变） */
+@media (max-width: 379.98px) { :root:not([data-sgx-layout="desktop"]) .sgx-tb-acts { gap: 0; } }
 @media (hover: hover) and (pointer: fine) {
   .sgx-tb-btn:hover, .sgx-tb-logo:hover { background-image: linear-gradient(var(--sgx-state-hover-bg), var(--sgx-state-hover-bg)); color: var(--sgx-text-primary); }
 }
@@ -8704,6 +8708,9 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 .sgx-term--home .sgx-term-body { min-height: 228px; max-height: 420px; }
 :root:not([data-sgx-layout="desktop"]) .sgx-term--home { margin-top: 32px; }
 :root:not([data-sgx-layout="desktop"]) .sgx-term--home .sgx-term-body { min-height: 262px; max-height: 380px; }
+/* 主页首屏 about（v5 S7，已批截图 home-nf）：原嵌入终端的位置换成 neofetch 卡，间距同原终端（820 宽居中，上距桌面 42 / 手机 32）；hero 居中，卡内照旷野窗左对齐 */
+.home-about { max-width: 820px; margin: 42px auto 0; text-align: left; }
+:root:not([data-sgx-layout="desktop"]) .home-about { margin-top: 32px; }
 /* 分节 */
 .home-sec { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--sgx-term-line); scroll-margin-top: 0; }
 .home-sec-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }

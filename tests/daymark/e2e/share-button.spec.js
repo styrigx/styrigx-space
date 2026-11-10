@@ -158,7 +158,7 @@ test.describe('NAVIGATE「分享本页」按钮', () => {
     await expect(page.locator('[data-sgx-share]')).toHaveCount(1);
     await expect(page.locator('.sgx-topbar [data-sgx-share], .sgx-tb-end, .sgx-tb-share')).toHaveCount(0);
     /* 2026-11 PR-1：NAVIGATE = 站点列表 → lang / layout 分段 → share / lock → STATUS；外观面板只有 MODE + PALETTE */
-    expect(await page.locator('#sgx-nav [data-qp]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp')))).toEqual(['share', 'lock', 'term']); /* 2026-11 PR-2：加「$ terminal」 */
+    expect(await page.locator('#sgx-nav [data-qp]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp')))).toEqual(['share', 'term']); /* v5 S6 去掉 lock */ /* 2026-11 PR-2：加「$ terminal」 */
     await expect(page.locator('#sgx-nav [data-qp-seg="layout"]')).toHaveCount(1);
     await expect(page.locator('#sgx-nav [data-qp-langs]')).toHaveCount(1);
     await expect(page.locator('#sgx-qp [data-qp], #sgx-qp [role="tab"], #sgx-qp [data-nav]')).toHaveCount(0);
@@ -185,8 +185,8 @@ test.describe('NAVIGATE「分享本页」按钮', () => {
         expect(r.bar).toEqual([0, w, 56]); /* 手机布局顶栏高 56（2026-11-09 fix/mobile-topbar-56，原 64） */
         expect(r.logoL, home + ' 字标左缘 = 页边距 12 − 4（2026-11 对齐 PR-B：手机页边距 16 → 12，照设计稿 m=1 的 --pad）').toBe(8);
         expect(r.actsR, home + ' 图标组右缘 = 宽 − 12').toBe(w - 12);
-        expect(r.kids).toEqual(['sgx-tb-quick', 'sgx-tb-shield', 'sgx-tb-sep', 'sgx-tb-grid', 'sgx-tb-av']);
-        expect(r.btns).toEqual([[40, 40], [40, 40], [40, 40], [40, 40]]);
+        expect(r.kids).toEqual(['sgx-tb-shield', 'sgx-tb-quick', 'sgx-tb-grid', 'sgx-tb-sep', 'sgx-tb-term', 'sgx-tb-av'] /* v5 S6 顶栏 E */);
+        expect(r.btns).toEqual([[40, 40], [40, 40], [40, 40], [40, 40], [40, 40]]);
         expect(r.between, home + ' 字标在按钮组左边、不重叠').toBe(true);
         expect(r.shown, home + ' 不显示页名 / 分区页签').toBe(0);
         expect(r.overflow).toBe(false);

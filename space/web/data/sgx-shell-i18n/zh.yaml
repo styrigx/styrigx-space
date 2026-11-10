@@ -35,6 +35,8 @@ topbar:
   lockFail: 锁定失败，请检查网络后重试
   theme: 外观
   security: 站点安全
+  # v5 S6 顶栏 E：终端按钮（盾牌 · 外观 · 四格 | >_ · 头像）
+  terminal: 终端
   langKey: lang
   langAuto: 跟随系统语言
   layoutKey: layout
@@ -312,7 +314,7 @@ account:
     cancelled: "已取消"
     tooMany: "sudo: too many attempts · try again in 15 min"
     pkNoSupport: "此设备不支持通行密钥"
-    notFound: "command not found: {x} · 试试 help"
+    notFound: "command not found: {x} · 试试 man"
     didYouMean: "command not found: {c} — 你是想输 {x} 吗？"
     cancel: "取消"
     save: "保存"
@@ -572,7 +574,7 @@ space:
     interruptAria: "退出当前命令（^C）"
     noOption: "没有这个选项"
     cancelled: "已取消"
-    notFound: "command not found: {x} · try help"
+    notFound: "command not found: {x} · 试试 man"
     didYouMean: "command not found: {c} — 你是想输 {x} 吗？"
     tooMany: "sudo: 尝试次数太多"
     retrySec: "{n} 秒后可再试"
@@ -712,6 +714,8 @@ space:
   shield:
     locking: "正在上锁 …"
     lockFail: "锁屏失败 · 检查网络"
+    # v5 S6：已进站时点盾牌 = 问一句再上锁（y = lock，回车 / n = 不动）
+    exitAsk: "退出进站会话？"
   help:
     session: "进站"
     reset: "重置进站凭证"
