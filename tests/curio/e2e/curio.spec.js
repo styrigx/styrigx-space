@@ -32,7 +32,6 @@ async function mock(page, signedIn) {
     ? JSON.parse(JSON.stringify(CATS))
     : JSON.parse(JSON.stringify(CATS)).filter((c) => !c.private).map((c) => ({ ...c, links: c.links.filter((l) => !l.private) })).filter((c) => c.links.length);
   const calls = [];
-  await page.route('**/api/access', (r) => r.fulfill({ json: { ok: true, canWrite: signedIn, showPrivate: signedIn, music: signedIn } }));
   await page.route('**/avatar/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>' }));
   await page.route('**/api/lock-session-check', (r) => r.fulfill({ json: { ok: true } }));
   await page.route('**/api/icon**', (r) => (new URL(r.request().url()).searchParams.get('id') === '11'
@@ -89,11 +88,10 @@ async function mock(page, signedIn) {
 test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab 藏着）；没有收藏 / 管理分类 / 导入 / 导出命令、只看公开、图标取不到显示首字母；快捷面板导航页同主站', async ({ page }) => {
   await mock(page, false);
   await page.goto('/curio/zh/');
-  /* 对齐 PR-C2：首页 = ls curio/，下划线 tab finds/ devices/ games/ movies/（music/ 仅本人可见，没权限藏着），当前 finds/ */
+  /* 对齐 PR-C2：首页 = ls curio/，下划线 tab finds/ devices/ games/ movies/ music/（v5 S3 起音乐歌单公开，没登录也显示），当前 finds/ */
   await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/', { useInnerText: true });
   await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveCount(5);
-  await expect(page.locator('#cu-tabs .sgx-ctab-a:visible')).toHaveText([/^finds\/\s*2$/, /^devices\/\s*2$/, /^games\/\s*2$/, /^movies\//]);
-  await expect(page.locator('#cu-tabs [data-ctab="music"]')).toBeHidden();
+  await expect(page.locator('#cu-tabs .sgx-ctab-a:visible')).toHaveText([/^finds\/\s*2$/, /^devices\/\s*2$/, /^games\/\s*2$/, /^movies\//, /^music\//]);
   await expect(page.locator('#cu-tabs [data-ctab="finds"]')).toHaveAttribute('aria-current', 'page');
   for (const [id, href] of [['finds', '/curio/zh/finds/'], ['devices', '/curio/zh/devices/'], ['games', '/curio/zh/games/'], ['movies', '/curio/zh/movies/'], ['music', '/curio/zh/music/']]) {
     await expect(page.locator(`#cu-tabs [data-ctab="${id}"]`)).toHaveAttribute('href', href);
@@ -366,7 +364,6 @@ test('英文页：tab 提示、分类名、命令说明用英文（英文空时�
   expect(await page.locator('#cu-tabs .sgx-ctab-a').evaluateAll((els) => els.map((e) => e.getAttribute('title')))).toEqual(['Finds', 'Devices', 'Games', 'Movies', 'Music']);
   await expect(page.locator('.sgx-tb-title')).toHaveText('Curio');
   await expect(page.locator('#cu-tabs [data-ctab="finds"]')).toHaveAttribute('href', '/curio/finds/');
-  /* 有权限（/curio/api/access music）：音乐 tab 露出来 */
   await expect(page.locator('#cu-tabs [data-ctab="music"]')).toBeVisible();
   await page.goto('/curio/finds/');
   await expect(page.locator('.sgx-tb-title')).toHaveText('Finds');

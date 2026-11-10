@@ -101,8 +101,6 @@ js:
     qpLargeOnly: Large screens only
     lockWelcomeBack: Welcome back
     lockCantSignIn: Can’t sign in?
-    lockCannotReturnToThe: Cannot return to the subsite, please try again
-    lockBackToMainSite: Back to main site
     lockReload: Reload
     avTitle: "Profile photo"
     avPick: "Choose photo…"

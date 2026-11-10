@@ -8,7 +8,7 @@
  * 进门二值（P2-3）：没有等级；进门之后的事（锁侧复验、账号）由各接口自己要。
  * 去处判定（askServer / proceed）和本地开发判断放这里，锁屏界面从这里 import，两边是同一份。
  */
-import { sgxNavigate, sgxReplace, sgxReload } from '../../lib/diag-jumptrace.js';
+import { sgxReplace, sgxReload } from '../../lib/diag-jumptrace.js';
 import { spaceState } from './state.js';
 import { i18nTable } from '../../lib/i18n.js';
 import { API } from './paths.js';
@@ -76,63 +76,7 @@ export function askServer() {
     .catch(function () { return { ok: false }; });
 }
 
-/* 本页是不是浏览器「重载 / 前进后退」打开的（不是一次新的跳转）。
-   三星浏览器（Chromium）切「桌面版网站 / 手机版网站」= 换 UA 后按原始请求地址重载当前条目：锁屏地址 /?lock=1&why=…&return=子站
-   会被原样再取一次。这不是子站又把人踢回来了（子站踢回是网关 302，导航类型是 navigate），不能算进死循环。 */
-function isReloadNav() {
-  try {
-    const e = performance.getEntriesByType('navigation')[0];
-    return !!e && (e.type === 'reload' || e.type === 'back_forward');
-  } catch (e) {
-    return false;
-  }
-}
-
-/* B1-8：子站回跳死循环判定（20 秒窗口）。只在子站踢回（带 ?why=）时用：
-   20 秒内同一 target 第二次被踢回 → 失败卡（One UI 样式，不显示原因码），不再跳。
-   记录 { target, at } 在真正跳之前写入。
-   例外（2026-11-07 Gray 录屏：奇趣锁屏 → 通行密钥解锁 → 切桌面版网站 → 主站「无法回到子站」）：本页是重载 / 前进后退打开的
-   （isReloadNav）→ 不算被踢回，照常回跳，也不刷新窗口起点（真被网关来回踢时仍按第一次的时间算）。 */
-function checkSubsiteLoop(target) {
-  try {
-    const raw = sessionStorage.getItem('sgx-subsite-jump');
-    const now = Date.now();
-    if (raw) {
-      const rec = JSON.parse(raw);
-      if (rec.target === target && (now - rec.at) < 20000) {
-        if (isReloadNav()) return false;
-        return true; /* 死循环 */
-      }
-    }
-    sessionStorage.setItem('sgx-subsite-jump', JSON.stringify({ target: target, at: now }));
-  } catch (e) {}
-  return false;
-}
-function showSubsiteFailure() {
-  let el = document.getElementById('sgx-subsite-failure');
-  if (!el) {
-    const isEn = document.documentElement.lang === 'en';
-    const msg = tx('lockCannotReturnToThe');
-    const homeText = tx('lockBackToMainSite');
-    el = document.createElement('div');
-    el.id = 'sgx-subsite-failure';
-    el.className = 'sgx-card';
-    el.style.cssText = 'position:fixed;bottom:24px;left:16px;right:16px;z-index:10001;padding:16px;text-align:center;';
-    el.innerHTML =
-      '<p style="margin:0 0 12px;font-size:15px;">' + msg + '</p>' +
-      '<button type="button" class="sgx-credential-btn-primary" id="sgx-subsite-home">' + homeText + '</button>';
-    document.body.appendChild(el);
-    const btn = document.getElementById('sgx-subsite-home');
-    if (btn) {
-      btn.addEventListener('click', function () {
-        sgxNavigate('/');
-      });
-    }
-  }
-  el.hidden = false;
-}
-
-/** 当前地址去掉 entry / lock（旧参数，兼容读一版）/ why / return（其余参数、hash 原样） */
+/** 当前地址去掉 entry / lock（旧参数，兼容读一版）/ why（v5 S3 前网关踢回带的，旧书签）/ return（其余参数、hash 原样） */
 function cleanUrl() {
   try {
     const u = new URL(window.location.href);
@@ -173,16 +117,10 @@ function reloadGuardOk(url) {
  * 服务端已确认会话有效后的唯一去处判定。
  * @param {{next?:string|null}} ans
  * @param {() => void} unlockInPlace 原地开锁（锁屏态时是开锁动画；valid 页面是空操作）
- * @returns {'navigate'|'in-place'|'failure'}
+ * @returns {'navigate'|'in-place'}
  */
 export function proceed(ans, unlockInPlace) {
-  const why = qp('why');
   if (ans.next) {
-    if (why && checkSubsiteLoop(ans.next)) {
-      unlockInPlace();
-      showSubsiteFailure();
-      return 'failure';
-    }
     if (!sameAsCurrent(ans.next)) {
       sgxReplace(ans.next);
       return 'navigate';
@@ -251,12 +189,6 @@ export function initLock() {
   } catch (e) {}
   if (state === 'valid') {
     bindAutoLock();
-    /* 子站踢回（带 why）但主站会话有效：问服务端 next，回子站（20 秒窗口防死循环） */
-    if (qp('why') && qp('return')) {
-      askServer().then(function (ans) {
-        if (ans.ok) proceed(ans, function () {});
-      });
-    }
     return;
   }
   if (wantsEntry()) openLockScreen();

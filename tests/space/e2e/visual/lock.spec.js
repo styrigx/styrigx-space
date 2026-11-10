@@ -45,6 +45,40 @@ test.describe('lock screen', () => {
     await expect(page.locator('#sgx-entry-ps')).toHaveText('entry@space:~$');
   });
 
+  /* v5 S3 整站放开：访客页（网关标记 locked）内容照常、顶栏照常，不画锁屏；锁屏只在 ?entry 时出现 */
+  const asVisitor = (page, path) => page.route((u) => u.pathname === path, async (route) => {
+    const res = await route.fetch();
+    const html = (await res.text()).replace(/<html(\s|>)/, '<html data-sgx-lock-session="locked"$1');
+    await route.fulfill({ response: res, body: html, headers: { ...res.headers(), 'content-type': 'text/html; charset=utf-8' } });
+  });
+
+  test('v5 S3：访客页面不画锁屏（没有遮罩、顶栏可见、内容可读）', async ({ page }) => {
+    await asVisitor(page, '/wild/');
+    await page.goto('/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
+    await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#screen-time')).toBeVisible();
+    await expect(page.locator('#sgx-entry, #sgx-entry-cover')).toHaveCount(0);
+  });
+
+  test('v5 S3：访客在顶栏终端敲 sudo styrigx → 锁屏（?entry=sudo&return=原页）自动接着跑 sudo styrigx', async ({ page }) => {
+    await zh(page);
+    await asVisitor(page, '/zh/wild/');
+    await page.route('**/api/lock-entry', (r) => r.fulfill(json({ ok: true, passkey: true, password: true })));
+    await page.route('**/api/lock-session-check*', (r) => r.fulfill(json({ ok: false }, 401)));
+    await page.goto('/zh/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 15000 });
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('sgx:sudo')));
+    const inp = page.locator('#sgx-term [data-term-in]');
+    await expect(inp).toHaveValue('sudo styrigx', { timeout: 8000 });
+    await inp.press('Enter');
+    await page.waitForURL((u) => u.searchParams.get('entry') === 'sudo', { timeout: 10000 });
+    expect(new URL(page.url()).searchParams.get('return')).toBe('/zh/wild/?test-no-local-bypass=1');
+    await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });
+    await lockMode(page, 'pick');
+    await expect(log(page)).toContainText('sudo styrigx');
+  });
+
   test('lock screen baseline screenshot', async ({ page }) => {
     await freezeTime(page);
     await page.setViewportSize({ width: 412, height: 915 });
@@ -202,7 +236,7 @@ test.describe('lock screen', () => {
     expect(checks.some((u) => u.includes('return=' + encodeURIComponent('/wild/')))).toBe(true);
   });
 
-  test('old ?lock=1 is still read by the guard (gate.js sends it until L2)', async ({ page }) => {
+  test('old ?lock=1 is still read by the guard (old bookmarks)', async ({ page }) => {
     await page.route('**/api/lock-session-check*', (route) => route.fulfill(json({ ok: false }, 401)));
     await page.goto('/?lock=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-entry')).toBeVisible({ timeout: 15000 });

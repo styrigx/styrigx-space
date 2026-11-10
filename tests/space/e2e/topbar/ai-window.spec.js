@@ -44,6 +44,32 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     await expect(page.locator('.sgx-tb-ai')).toBeFocused();
   });
 
+  test('没进站（v5 S3 三处上锁之一）：GET /api/ai 401 → 模型矩形只显示锁标；点锁 / 发问都不问 AI，打开终端预填 sudo styrigx', async ({ page }) => {
+    let posts = 0;
+    await go(page, '/zh/wild/');
+    await page.route('**/api/ai', (r) => {
+      if (r.request().method() !== 'GET') posts++;
+      return r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"unauthorized"}' });
+    });
+    await page.locator('.sgx-tb-ai').click();
+    const ai = page.locator('#sgx-ai');
+    const chip = ai.locator('[data-ai-model]');
+    await expect(chip).toHaveClass(/is-locked/);
+    await expect(chip.locator('[data-ai-model-lock] svg')).toBeVisible();
+    await expect(chip.locator('[data-ai-model-name]')).toBeHidden();
+    await expect(chip).toHaveAttribute('aria-label', '已上锁，sudo styrigx 进站后可用');
+    await chip.click();
+    await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
+    await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('sudo styrigx');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#sgx-term')).not.toHaveAttribute('open', '');
+    await page.locator('.sgx-tb-ai').click();
+    await ai.locator('[data-ai-in]').fill('你好');
+    await ai.locator('[data-ai-in]').press('Enter');
+    await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('sudo styrigx');
+    expect(posts).toBe(0);
+  });
+
   test('模型胶囊：登了账号能在窗口里换（写 sgx-ai-model，发问带上）；回答下站内链接成来源卡片、建议问题点了就问', async ({ page }) => {
     let body = null;
     await go(page, '/zh/wild/');

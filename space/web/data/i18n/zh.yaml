@@ -98,8 +98,6 @@ js:
     qpLargeOnly: 仅在大屏生效
     lockWelcomeBack: 欢迎回来
     lockCantSignIn: 无法登录？
-    lockCannotReturnToThe: 无法回到子站，请重试
-    lockBackToMainSite: 回到主站
     lockReload: 重新加载
     avTitle: "头像"
     avPick: "选择照片…"
