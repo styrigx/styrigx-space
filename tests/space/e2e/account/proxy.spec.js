@@ -1,10 +1,10 @@
 /**
- * 账号终端 › 代理订阅 sub 指令（v3.1）：shell/account/proxy.js。后端 /api/account/proxy 全用替身。
+ * 账号 › 代理订阅 sub 指令（v3.1）：shell/account/proxy.js，在全站终端 #sgx-term 的账号层里跑。后端 /api/account/proxy 全用替身。
  *
  * 覆盖：
  * - sub：公钥头尾、令牌状态、每个来源一行（名称 · 域名或文件 · 节点数 · 状态）
  * - sub show [名称]：有 reauth 票直接印令牌和地址（各带复制）；给了名称只印那一个；随时可重印
- * - sub token：已有令牌先 y/N；换新后印新地址
+ * - sub token reset（S9）：已有令牌先 y/N；换新后印新地址；单 sub token 给用法
  * - sub mv：名称大小写原样；确认时显示新旧路径（令牌遮挡）；y → proxy/mv
  * - sub add 同名：显示新旧域名再确认；新链接试拉失败 → 「新链接拉取失败：…，未更换」
  */
@@ -29,8 +29,8 @@ test('sub：公钥头尾、令牌、每个来源一行', async ({ page }) => {
   await typeLine(page, 'sub');
   await expect(log(page)).toContainText('age1abcdef…uvwxyz');
   await expect(log(page)).toContainText('已生成 · 地址用 sub show');
-  await expect(log(page)).toContainText('Linkcube · sub.example.com · 3 个节点 · 开');
-  await expect(log(page)).toContainText('Cloady · 文件 · 1 个节点 · 关');
+  await expect(log(page)).toContainText('Linkcube · sub.example.com · 3 个节点 · 启用');
+  await expect(log(page)).toContainText('Cloady · 文件 · 1 个节点 · 停用');
   await mode(page, 'cmd');
 });
 
@@ -57,7 +57,7 @@ test('sub show：有 reauth 票直接印令牌和全部地址；sub show <名称
   await expect(log(page)).toContainText('没有这个来源：Nope');
 });
 
-test('sub token：已有令牌先 y/N；y → proxy/token，印新地址', async ({ page }) => {
+test('sub token reset：已有令牌先 y/N；y → proxy/token，印新地址；单 sub token 只给用法', async ({ page }) => {
   const calls = await mockAccount(page, {
     status: STATUS({ session: SESSION(), reauth: REAUTH() }),
     handlers: { 'proxy/status': [200, PSTATUS], 'proxy/token': [200, { ok: true, token: TK, base: BASE }] },
@@ -65,6 +65,9 @@ test('sub token：已有令牌先 y/N；y → proxy/token，印新地址', async
   await T.goPage(page);
   await openTerm(page);
   await typeLine(page, 'sub token');
+  await expect(log(page)).toContainText('用法：sub token reset');
+  expect(calls.some((c) => c.action === 'proxy/token')).toBe(false);
+  await typeLine(page, 'sub token reset');
   await mode(page, 'pick');
   await expect(log(page)).toContainText('换新后全部 2 个来源的旧链接立即失效');
   await typeLine(page, 'y');
@@ -94,11 +97,34 @@ test('sub add 同名：确认显示新旧域名；试拉失败 → 未更换', a
   await openTerm(page);
   await typeLine(page, 'sub add Linkcube');
   await mode(page, 'suburl');
-  await expect(page.locator('#sgx-acct [data-at-in]')).toHaveAttribute('type', 'password');
+  await expect(T.termIn(page)).toHaveAttribute('type', 'password');
   await typeLine(page, 'https://new.example.org/api?token=SECRET');
   await expect(log(page)).not.toContainText('SECRET');
   await expect(log(page)).toContainText('把 Linkcube 的链接从 sub.example.com 换成 new.example.org？');
   await typeLine(page, 'y');
   await expect(log(page)).toContainText('新链接拉取失败：拉取失败，未更换');
   expect(calls.find((c) => c.action === 'proxy/add')).toMatchObject({ name: 'Linkcube', url: 'https://new.example.org/api?token=SECRET' });
+});
+
+test('sub enable | disable <名称>（S9，取代 on / off）：proxy/on、proxy/off；sub on 不再认', async ({ page }) => {
+  const calls = await mockAccount(page, {
+    status: STATUS({ session: SESSION() }),
+    handlers: { 'proxy/status': [200, PSTATUS], 'proxy/on': [200, { ok: true }], 'proxy/off': [200, { ok: true }] },
+  });
+  await T.goPage(page);
+  await openTerm(page);
+  await typeLine(page, 'sub disable Linkcube');
+  await expect(log(page)).toContainText('Linkcube 已停用');
+  await mode(page, 'cmd');
+  await typeLine(page, 'sub enable Cloady');
+  await expect(log(page)).toContainText('Cloady 已启用');
+  await mode(page, 'cmd');
+  expect(calls.filter((c) => c.action === 'proxy/off' || c.action === 'proxy/on')).toEqual([
+    { action: 'proxy/off', name: 'Linkcube' },
+    { action: 'proxy/on', name: 'Cloady' },
+  ]);
+  await typeLine(page, 'clear');
+  await typeLine(page, 'sub on Cloady');
+  await expect(log(page)).toContainText('sub enable <name> | sub disable <name>');
+  expect(calls.filter((c) => c.action === 'proxy/on')).toHaveLength(1);
 });

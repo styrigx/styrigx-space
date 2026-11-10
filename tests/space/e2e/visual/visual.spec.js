@@ -169,10 +169,10 @@ test('baseline-ai-panel-open', async ({ page: pg }) => {
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-ai-panel-open.png', { animations: 'disabled' });
 });
 
-/* ===== 账号终端（头像下拉 #sgx-acct，2026-11-08 账号 UI 改版，设计稿 acct-sec-redraw mock v3）=====
- * 手机 412×915 / 桌面 1920×1080 × 中英 × 深浅 × 七层：guest（未登录，sudo root 选方式）/ pw-error（密码输错一次）/ home（已登录主页）/
- * keys（账号安全，有 reauth 票，一把通行密钥）/ devices（两台）/ grants（5 个应用都已授权）/ reset（sudo root reset 恢复密钥输入）。
- * 截图名 <视口>-acct-<层>-<语言>-<主题>；倒计时（reauth · mm:ss / reset · mm:ss）遮罩。行为断言见 account/*.spec.js。 */
+/* ===== 账号（S9，Gray 2026-11-11：头像点开的账号卡片 #sgx-acct 只展示，账号的操作都在全站终端 #sgx-term 的账号层里）=====
+ * 手机 412×915 / 桌面 1920×1080 × 中英 × 深浅 × 七个状态：guest（卡片：未登录）/ home（卡片：已登录，应用授权 5）——卡片；
+ * pw-error（终端 sudo root 密码输错一次）/ keys（passkey，有 reauth 票，一把通行密钥）/ devices（device，两台）/ grants（app，5 个应用）/ reset（sudo root reset 恢复密钥输入）——终端。
+ * 截图名 <视口>-acct-<状态>-<语言>-<主题>（SHOTS 关着，只跑布局 / 行为断言）。行为细节见 account/*.spec.js。 */
 const ACCT_VPS = { mobile: VIEWPORTS.mobile, desktop: VIEWPORTS.desktop };
 const ACCT_STATES = ['guest', 'pw-error', 'home', 'keys', 'devices', 'grants', 'reset'];
 const FAR = 4102444800000;
@@ -217,40 +217,63 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
             content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
           });
           await freezeTime(pg);
-          const hash = state === 'reset' ? '#acct=reset' : state === 'keys' ? '#acct=security' : state === 'devices' ? '#acct=devices' : state === 'grants' ? '#acct=apps' : '#acct';
-          await pg.goto(lang.prefix + '/wild/' + hash, { waitUntil: 'domcontentloaded' });
+          const card = state === 'guest' || state === 'home';
+          /* 终端的身份：已进站（styrigx），账号会话看 GET /api/account */
+          await pg.route('**/api/lock-session-check**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password' }) }));
+          if (signedIn) await pg.addInitScript(() => { try { document.cookie = 'sgx-account-signed-in=1; Path=/'; } catch (e) {} });
+          await pg.goto(lang.prefix + '/wild/' + (card ? '#acct' : ''), { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
-          const d = pg.locator('#sgx-acct');
-          await expect(d).toHaveAttribute('data-state', 'open', { timeout: 10000 });
-          const at = d.locator('.sgx-at');
-          if (state === 'guest' || state === 'pw-error') {
-            await expect(at).toHaveAttribute('data-at-mode', 'pick', { timeout: 10000 });
-            if (state === 'pw-error') {
-              await d.locator('[data-at-pick="2"]').click();
-              await d.locator('[data-at-in]').fill('wrong-value');
-              await d.locator('[data-at-in]').press('Enter');
-              await expect(d.locator('.sgx-at-l--er')).toHaveCount(1, { timeout: 8000 });
-            }
-          } else if (state === 'reset') {
-            await expect(at).toHaveAttribute('data-at-mode', 'rkey', { timeout: 10000 });
+          /** 截图 / 溢出检查的面板：卡片的 sheet，或终端窗口 */
+          let sheet = '#sgx-acct .sgx-qp-sheet';
+          if (card) {
+            const d = pg.locator('#sgx-acct');
+            await expect(d).toHaveAttribute('data-state', 'open', { timeout: 10000 });
+            await expect(d).toHaveAttribute('data-acct-state', state === 'home' ? 'in' : 'guest', { timeout: 10000 });
+            await expect(d.locator('.sgx-at')).toHaveAttribute('data-at-layer', state, { timeout: 10000 });
+            /* 只展示：卡片里没有命令行 */
+            await expect(d.locator('input')).toHaveCount(0);
+            if (state === 'home') {
+              await expect(d.locator('[data-at-v="grants"] .sgx-pop-v')).toHaveText('5');
+              await expect(d.locator('[data-at-run]')).toHaveCount(7);
+            } else await expect(d.locator('.sgx-pop-list [data-at-run]')).toHaveAttribute('data-at-run', 'sudo root');
           } else {
-            await expect(at).toHaveAttribute('data-at-layer', state, { timeout: 10000 });
-            if (state === 'keys') await expect(d.locator('.sgx-at-nm')).toHaveCount(1, { timeout: 10000 });
-            if (state === 'devices') await expect(d.locator('.sgx-at-hv')).not.toHaveText('');
-            if (state === 'grants') await expect(d.locator('.sgx-at-app')).toHaveCount(5, { timeout: 10000 });
-            if (state === 'home') await expect(d.locator('[data-at-v="grants"] .sgx-pop-v')).toHaveText('5');
+            sheet = '#sgx-term';
+            const t = pg.locator('#sgx-term');
+            const inp = pg.locator('#sgx-term-in');
+            const form = pg.locator('#sgx-term [data-term-form]');
+            const out = pg.locator('#sgx-term [data-term-out]');
+            await pg.locator('#site-nav .sgx-tb-term').click();
+            await expect(t).toHaveAttribute('open', '');
+            await expect(pg.locator('#sgx-term [data-term-ps]')).toHaveText(signedIn ? /^root@account/ : /^styrigx@space/, { timeout: 10000 });
+            const run = async (line) => { await inp.fill(line); await inp.press('Enter'); };
+            if (state === 'pw-error') {
+              await run('sudo root');
+              await expect(form).toHaveAttribute('data-mode', 'pick', { timeout: 10000 });
+              await inp.press('2');
+              await expect(form).toHaveAttribute('data-mode', 'pw');
+              await inp.fill('wrong-value');
+              await inp.press('Enter');
+              await expect(out.locator('.sgx-at-l--er')).toHaveCount(1, { timeout: 8000 });
+            } else if (state === 'reset') {
+              await run('sudo root reset');
+              await expect(form).toHaveAttribute('data-mode', 'rkey', { timeout: 10000 });
+            } else {
+              await run(state === 'keys' ? 'passkey' : state === 'devices' ? 'device' : 'app');
+              await expect(out.locator('.sgx-at-p')).toHaveCount(state === 'keys' ? 1 : state === 'devices' ? 2 : 5, { timeout: 10000 });
+              await expect(form).toHaveAttribute('data-mode', 'cmd');
+            }
           }
           await pg.evaluate(() => { const a = /** @type {HTMLElement|null} */ (document.activeElement); if (a) a.blur(); });
           /* 面板在视口里、不横向溢出 */
-          const m = await pg.evaluate(() => {
+          const m = await pg.evaluate((sel) => {
             const de = document.documentElement;
-            const r = document.querySelector('#sgx-acct .sgx-qp-sheet').getBoundingClientRect();
+            const r = document.querySelector(sel).getBoundingClientRect();
             return { overflow: de.scrollWidth - de.clientWidth, l: r.left, r: r.right, vw: innerWidth };
-          });
+          }, sheet);
           if (m.overflow > 1) throw new Error(`横向溢出 ${m.overflow}px on ${name}`);
           expect(m.l).toBeGreaterThanOrEqual(-1);
           expect(m.r).toBeLessThanOrEqual(m.vw + 1);
-          if (SHOTS) await expect(pg).toHaveScreenshot(`${name}.png`, { animations: 'disabled', caret: 'hide', mask: [d.locator('[data-at-cd]')] });
+          if (SHOTS) await expect(pg).toHaveScreenshot(`${name}.png`, { animations: 'disabled', caret: 'hide' });
         });
       }
     }

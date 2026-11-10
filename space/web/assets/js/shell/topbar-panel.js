@@ -14,11 +14,12 @@
  * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
  * - 盾牌（v5 S6）：不开窗口，吉祥物兼状态标志。没进站（访客 / 分享链接会话）点 = 打开终端预填 sudo styrigx；已进站（styrigx / root）点 = 打开终端问「退出进站会话 [y/N]」，
  *   y = 钥匙层 lock（只锁本机，POST /api/lock-now 后重新取这一页）。旧地址 #sec / [data-sec-open] 只打开终端（没进站预填），不问。
- * - 头像（v5 S6，Gray 17:23）：已进站点了开账号窗口；没进站（页面标记 locked，或服务端说是访客 / 分享链接会话）是死按钮（aria-disabled，不开窗、不跳终端）。
+ * - 头像（v5 S6，Gray 17:23）：已进站点了开账号卡片（S9 起只展示，点一行 = 打开终端预填命令）；没进站（页面标记 locked，或服务端说是访客 / 分享链接会话）是死按钮（aria-disabled，不开窗、不跳终端）。
  *   页面没有网关标记（本地 / 测试构建）不判死。
  * - >_ 终端按钮（v5 S6）：开合全站终端（同 Ctrl / ⌘ K）。
  * - 终端（v5 S5 终端合一）：调用方传 terminal（shell/terminal.js 整个模块）、space（钥匙层 shell/space/layer.js mountSpace）、accountTerm（终端里的账号层
- *   shell/account/cmd/layer.js mountAccountLayer）、account（账号窗口 shell/account/window.js mountAccountWindow，照旧）；本文件仍不 import。每页一个终端：主页首屏嵌入的 [data-sgx-term="home"]，其他页 #sgx-term（桌面居中大窗、手机整块卡片）。
+ *   shell/account/cmd/layer.js mountAccountLayer）、account（账号卡片 shell/account/window.js mountAccountWindow，S9 起只展示）；本文件仍不 import。每页一个终端 #sgx-term（桌面居中大窗、手机整块卡片）。
+ *   每次打开终端都是干净的新会话（S9：view.fresh()，history 照旧）。页面上的账号入口（[data-acct-open]、旧地址 #acct=…）都去终端：子页 → 预填命令，reset / reauth / 奇趣日刻授权同意 → 账号层 entry。
  *   顶栏 >_、Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌也打开它（v5 S6：访客预填 sudo styrigx、已进站问退出）。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
  * - 上锁的地方（v5 S3：AI 窗口、旷野 status 卡、奇趣音乐的播放，以及各处接口回 401）都只发 document 上的 `sgx:sudo` 事件（SUDO_EVENT），
  *   这里是唯一接它的地方：打开终端、输入行预填 `sudo styrigx`（不替人回车）；回车后在终端里验证。
@@ -460,7 +461,7 @@ export function mountTopbar(o) {
   };
   /* ---------------- 终端（v5 S5 终端合一：锁屏 tty1、主页 tty2、盾牌 tty3、账号 tty5 合成一个；shell/terminal.js） ----------------
      一个会话、一份历史；提示符按身份（nobody / link / styrigx / root，服务端说了算）。桌面是居中大窗、手机整块卡片（#sgx-term）；
-     v5 S7 起主页首屏是 neofetch、不再嵌终端，四站都用 #sgx-term（S8 删了主页嵌入终端的代码路径）。钥匙层（o.space：shell/space/layer.js）和账号层（o.account：shell/account/window.js）共用它的输入行。 */
+     v5 S7 起主页首屏是 neofetch、不再嵌终端，四站都用 #sgx-term（S8 删了主页嵌入终端的代码路径）。钥匙层（o.space：shell/space/layer.js）和账号层（o.accountTerm：shell/account/cmd/layer.js）共用它的输入行。 */
   const T = o.terminal;
   const termDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-term'));
   const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
@@ -536,18 +537,20 @@ export function mountTopbar(o) {
     page: function () { const v = doc.documentElement.getAttribute('data-sgx-lock-session'); return v === 'valid' || v === 'locked' ? v : 'unknown'; },
     accountHint: function () { return doc.documentElement.getAttribute('data-sgx-account-session') === 'in'; },
   }) : null;
-  /** 终端那一头（给终端里的账号层：登出后收起终端） */
-  const termLink = { close: closeTerm };
+  /** 终端那一头（给终端里的账号层：登出 / 授权同意 / 只做再验证之后收起终端） */
+  const termLink = { close: closeTerm, shown: function () { return !!(termSheet && termSheet.isShown()); } };
 
-  /* ---------------- 账号窗口（头像，shell/account/window.js）：v5 S5 不动，外观 / 各层 / 自带命令行照旧；第一次打开时画 ---------------- */
-  /** 层名（旧地址 #acct=<子页>、[data-acct-open]）→ 怎么开：o.accountLayer = shell/account/commands.js layerFromPath
-   * @param {string} n @returns {{layer: string, reset: boolean, reauth: boolean}} */
-  const acctLayer = function (n) { return o.accountLayer ? o.accountLayer(n) : { layer: '', reset: n === 'reset', reauth: false }; };
-  /** 下一次打开要直接进的层（旧地址 #acct=… / 奇趣日刻的 sudo root 入口） @type {any} */
-  let acctNext = null;
-  /** @type {(x?: any) => void} */
+  /* ---------------- 账号卡片（头像，shell/account/window.js；S9 起只展示）：第一次打开时画 ---------------- */
+  /** 入口名（旧地址 #acct=<子页>、[data-acct-open]）→ 在终端里怎么开：o.accountLayer = shell/account/commands.js layerFromPath
+   * @param {string} n @returns {{cmd: string, reset: boolean, reauth: boolean}} */
+  const acctLayer = function (n) { return o.accountLayer ? o.accountLayer(n) : { cmd: '', reset: n === 'reset', reauth: false }; };
+  /** 打开账号卡片 */
   let openAcct = function () {};
-  /* 头像（v5 S6，Gray 17:23）：已进站（styrigx / root）才开账号窗口；没进站（访客 / 分享链接会话）是死按钮——不开窗、不跳终端、不按链接走。
+  /** 打开终端、输入行预填一条命令（账号卡片的行、页面入口的子页） @type {(cmd: string) => void} */
+  let termPrefill = function () {};
+  /** 页面入口要在终端的账号层里跑（reset / reauth / 授权同意） @type {(x: any) => void} */
+  let termEntry = function () {};
+  /* 头像（v5 S6，Gray 17:23）：已进站（styrigx / root）才开账号卡片；没进站（访客 / 分享链接会话）是死按钮——不开窗、不跳终端、不按链接走。
      判断同步看终端身份（首帧 = 网关注入的页面标记，问过服务端以回答为准）；页面没有网关标记（本地 / 测试构建）不判死。
      捕获阶段挂在头像自己身上：比 wire 的冒泡监听先到，拦下就到此为止 */
   const avDead = function () {
@@ -577,42 +580,43 @@ export function mountTopbar(o) {
   }
   if (acctBtn && acctDlg && o.account) {
     acct = wire(acctBtn, acctDlg, 'sgxAcct', function () {
-      if (!acctWin) acctWin = o.account({ dlg: acctDlg, ms: acct.ms, S: trSec('account'), replace: replace, reload: o.reload, who: who });
-      const x = acctNext;
-      acctNext = null;
-      acctWin.onOpen(x || undefined);
+      if (!acctWin) acctWin = o.account({ dlg: acctDlg, ms: acct.ms, S: trSec('account'), who: who, run: function (/** @type {string} */ c) { termPrefill(c); } });
+      acctWin.onOpen();
     }, undefined, function () { if (acctWin) acctWin.onClose(); });
     if (acct) {
-      /** 打开账号窗口（指定层 / 应用）。已开着就按新参数重来一次 @param {any} x */
-      openAcct = function (x) {
-        acctNext = x || null;
-        if (acct.ms.isOpen()) { if (acctWin) { acctWin.onOpen(acctNext || undefined); acctNext = null; } return; }
+      openAcct = function () {
+        if (acct.ms.isOpen()) return;
         closeAll(function () { acct.ms.open(); });
       };
-      /* 页面上的入口：[data-acct-open="<层>"]（可带 data-acct-app="curio|daymark"，奇趣 / 日刻的 sudo root：登录 → 判授权 → [y]/[n]，O1 / O6） */
-      doc.addEventListener('click', function (e) {
-        const tg = /** @type {Element|null} */ (e.target);
-        const a = tg && /** @type {HTMLElement|null} */ (tg.closest('[data-acct-open]'));
-        if (!a || acctDlg.contains(a)) return;
-        const me2 = /** @type {MouseEvent} */ (e);
-        if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const lay = acctLayer(a.getAttribute('data-acct-open') || '');
-        openAcct({ layer: lay.layer, reset: lay.reset, reauth: lay.reauth, app: a.getAttribute('data-acct-app') || '' });
-      });
-      /* 旧地址（/account/、/account/devices/ …）跳到这里带 #acct=<层>[&app=…]：打开对应的那一层，去掉 hash（O1） */
-      const fromHash = function () {
-        const m = /^#acct(?:=([a-z]*))?(?:&app=([a-z]+))?$/.exec(location.hash || '');
-        if (!m) return;
-        try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
-        const lay = acctLayer(m[1] || '');
-        window.setTimeout(function () { openAcct({ layer: lay.layer, reset: lay.reset, reauth: lay.reauth, app: m[2] || '' }); }, 0);
-      };
-      window.setTimeout(fromHash, 0);
-      window.addEventListener('hashchange', fromHash);
     }
   }
+  /** 页面入口 → 终端（子页预填命令；reset / reauth / 奇趣日刻授权同意交给账号层）或账号卡片（没指定） @param {string} name @param {string} app */
+  const acctEntry = function (name, app) {
+    const lay = acctLayer(name);
+    if (lay.reset || lay.reauth || app) { termEntry({ reset: lay.reset, reauth: lay.reauth, app: app }); return; }
+    if (lay.cmd) { termPrefill(lay.cmd); return; }
+    openAcct();
+  };
+  /* 页面上的入口：[data-acct-open="<名字>"]（可带 data-acct-app="curio|daymark"，奇趣 / 日刻的 sudo root：登录 → 判授权 → [y]/[n]，O1 / O6） */
+  doc.addEventListener('click', function (e) {
+    const tg = /** @type {Element|null} */ (e.target);
+    const a = tg && /** @type {HTMLElement|null} */ (tg.closest('[data-acct-open]'));
+    if (!a || (acctDlg && acctDlg.contains(a))) return;
+    const me2 = /** @type {MouseEvent} */ (e);
+    if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    acctEntry(a.getAttribute('data-acct-open') || '', a.getAttribute('data-acct-app') || '');
+  });
+  /* 旧地址（/account/、/account/devices/ …）跳到这里带 #acct=<名字>[&app=…]：同上，去掉 hash（O1） */
+  const fromHash = function () {
+    const m = /^#acct(?:=([a-z]*))?(?:&app=([a-z]+))?$/.exec(location.hash || '');
+    if (!m) return;
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
+    window.setTimeout(function () { acctEntry(m[1] || '', m[2] || ''); }, 0);
+  };
+  window.setTimeout(fromHash, 0);
+  window.addEventListener('hashchange', fromHash);
 
   if (T && typeof T.createShell === 'function' && termDlg) {
     const tile = function (/** @type {string} */ id) { return /** @type {HTMLAnchorElement|null} */ (navDlg ? navDlg.querySelector('a.sgx-nav-tile[data-nav="' + id + '"]') : null); };
@@ -688,9 +692,9 @@ export function mountTopbar(o) {
         }).then(function (/** @type {any} */ j) { return j && (j.ok || j.limited) ? j : { degraded: true }; }, function () { return { degraded: true }; });
       },
       daymarkHref: function () { return hrefOf('daymark', '/daymark/'); },
-      /* open ~/account[/层]：打开账号窗口（终端统一 T6） */
-      account: function (/** @type {string} */ layer) {
-        return { href: '~/account' + (layer ? '/' + layer : ''), go: function () { closeAll(function () { openAcct(layer ? { layer: layer } : {}); }); } };
+      /* open ~/account：打开账号卡片（S9 起只展示，没有层） */
+      account: function () {
+        return { href: '~/account', go: function () { closeAll(openAcct); } };
       },
       /* exit：收起终端窗口 */
       close: function () { closeTerm(); },
@@ -716,6 +720,8 @@ export function mountTopbar(o) {
         ms: QP_MS,
         stateKey: 'sgxTerm',
         onOpen: function () {
+          /* 每次打开都是干净的新会话（S9） */
+          if (view) view.fresh();
           if (who) who.refresh();
           /* 触屏不直接聚焦输入框（会弹键盘 / 桌面版网站下放大），点一下输入行再打字 */
           if (view && !coarse()) view.focus();
@@ -742,6 +748,13 @@ export function mountTopbar(o) {
         },
       });
     }
+    termPrefill = function (/** @type {string} */ c) { showTerm(function () { if (view) view.prefill(c); }); };
+    termEntry = function (/** @type {any} */ x) {
+      showTerm(function () {
+        const A = view && view.layers().acct;
+        if (A && typeof A.entry === 'function') A.entry(x);
+      });
+    };
     /* 首帧身份按网关注入的页面标记；标了进站（valid）才问服务端细分 link / styrigx / root。标了访客（locked）不用问；
        没有标记 = 页面没经过网关（本地 / 测试构建），不在加载时问（没有接口，只会多一条 404），等 sudo / 盾牌 / 401 时再问 */
     if (who && who.get() !== 'nobody') who.refresh();
@@ -840,7 +853,7 @@ export function mountTopbar(o) {
   mountClock(doc);
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
-  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, openAccount: function (/** @type {any} */ x) { openAcct(x); }, term: termSheet, termShell: term, termView: view, who: who, paint: paint, paintNav: paintNav };
+  return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, openAccount: function () { openAcct(); }, term: termSheet, termShell: term, termView: view, who: who, paint: paint, paintNav: paintNav };
 }
 
 /**

@@ -76,21 +76,41 @@ test('提示符按服务端身份（term-design-v5）：访客 nobody@space:~$�
   await expect(ps).toHaveText('nobody@space:~/blog$');
 });
 
-test('man：访客的索引只列通用命令 + find + sudo（不列 ask / lock / share / 账号命令）；man sudo 一页进 pager，q 回命令行；help 没有了', async ({ page }) => {
+test('man（S9 全屏阅读页，less 式）：访客的索引只列通用命令 + find + sudo；man sudo 中文正文；q / esc / ‹ 返回 退出，回到原来的命令行，滚动区不动；help 没有了', async ({ page }) => {
   await go(page, '/zh/', { term: true });
-  await run(page, 'man');
   const out = home(page).locator('[data-term-out]');
-  await expect(out).toContainText('手册页 · man <命令> 查看一页');
-  const lines = await out.locator('.sgx-term-ln').allTextContents();
-  const names = lines.filter((l) => / — /.test(l) && !/^space os/.test(l)).map((l) => l.split(' — ')[0]);
+  const man = home(page).locator('[data-term-man]');
+  const body = home(page).locator('[data-term-man-body]');
+  const before = await out.locator('.sgx-term-ln').count();
+  await run(page, 'man');
+  await expect(man).toBeVisible();
+  await expect(home(page).locator('[data-term-body]')).toBeHidden();
+  await expect(home(page).locator('[data-term-man-st]')).toContainText('MAN(1)');
+  await expect(body).toContainText('手册页 · man <命令> 查看一页');
+  const lines = await body.locator('.sgx-term-ln').allTextContents();
+  const names = lines.filter((l) => / — /.test(l)).map((l) => l.split(' — ')[0]);
   expect(names).toEqual(['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find', 'sudo']);
+  await page.keyboard.press('q');
+  await expect(man).toBeHidden();
+  await expect(input(page)).toBeVisible();
+  /* 滚动区只多了一行回显（man 的输出不进滚动区） */
+  await expect(out.locator('.sgx-term-ln')).toHaveCount(before + 1);
+  await expect(lastLine(home(page))).toHaveText('nobody@space:~$ man');
   const ps = home(page).locator('[data-term-ps]');
   await expect(ps).toHaveText('nobody@space:~$');
   await run(page, 'man sudo');
-  await expect(out).toContainText('SUDO(1)');
-  await expect(ps).toHaveText(':');
-  await input(page).press('q');
-  await expect(ps).toHaveText('nobody@space:~$');
+  await expect(home(page).locator('[data-term-man-st]')).toContainText('SUDO(1)');
+  await expect(body).toContainText('就在这里用解锁密码或通行密钥验证');
+  await expect(body).not.toContainText('verify with the unlock password');
+  /* esc 只退阅读页，不关终端窗口 */
+  await page.keyboard.press('Escape');
+  await expect(man).toBeHidden();
+  await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
+  await run(page, 'man sub');
+  await home(page).locator('[data-term-man-back]').click();
+  await expect(man).toBeHidden();
+  await expect(out.locator('.sgx-term-ln')).toHaveCount(before + 3);
+  await expect(out).not.toContainText('(END)');
   await run(page, 'help');
   await expect(lastLine(home(page))).toHaveText('command not found: help · 试试 man');
 });
@@ -113,15 +133,13 @@ test('cd blog：只改 cwd 和提示符 ~/blog$，不滚动（Gray 2026-11-10 02
   expect(await posts.count()).toBeGreaterThan(0);
   expect(await posts.count()).toBeLessThanOrEqual(3);
   await expect(posts.first()).toHaveAttribute('href', /^\/blog\/zh\/post\//);
-  /* open blog 收起了终端窗口（v5 S7）：再打开，cwd 还在 */
+  /* open blog 收起了终端窗口（v5 S7）：再打开是新会话（S9）——滚动区回到欢迎行、cwd 回到本页 */
   await expect(page.locator('#sgx-term')).not.toHaveAttribute('open', '');
   await openTerm(page);
-  await expect(home(page).locator('[data-term-ps]')).toHaveText('nobody@space:~/blog$');
+  await expect(home(page).locator('[data-term-ps]')).toHaveText('nobody@space:~$');
+  await expect(home(page).locator('[data-term-out] .sgx-term-ln')).toHaveCount(1);
   await run(page, 'open ~');
   await expect.poll(() => page.evaluate(() => scrollY), { timeout: 3000 }).toBeLessThan(80);
-  await openTerm(page);
-  await run(page, 'cd ..');
-  await expect(home(page).locator('[data-term-ps]')).toHaveText('nobody@space:~$');
 });
 
 test('open blog（不减弱动效）：平滑滚动，最后停在 [01] 博客', async ({ page }) => {
@@ -332,4 +350,42 @@ test('一个会话一份历史：主页终端窗口敲过的命令，/blog/ 的�
   await expect(inp).toBeFocused();
   await inp.press('ArrowUp');
   await expect(inp).toHaveValue('pwd');
+});
+
+test('每次打开终端都是干净的新会话（S9）：滚动区回到欢迎行、提示符重画、进行中的选择取消；history 照旧；没有标签栏', async ({ page }) => {
+  await go(page, '/zh/', { term: true });
+  const out = home(page).locator('[data-term-out]');
+  await run(page, 'cd blog');
+  await run(page, 'ls');
+  await run(page, 'sudo styrigx');
+  await expect(home(page).locator('[data-term-form]')).toHaveAttribute('data-mode', 'pick');
+  await page.keyboard.press('Control+k');
+  await expect(page.locator('#sgx-term')).not.toHaveAttribute('open', '');
+  await openTerm(page);
+  await expect(home(page).locator('[data-term-form]')).toHaveAttribute('data-mode', 'cmd');
+  await expect(out.locator('.sgx-term-ln, .sgx-at-l')).toHaveCount(1);
+  await expect(out).toContainText('space os 1.0');
+  await expect(home(page).locator('[data-term-ps]')).toHaveText('nobody@space:~$');
+  await expect(input(page)).toHaveValue('');
+  /* history 还在 */
+  await input(page).press('ArrowUp');
+  await expect(input(page)).toHaveValue('sudo styrigx');
+  await run(page, 'history');
+  await expect(out).toContainText('cd blog');
+  await expect(page.locator('#sgx-term [role="tablist"]')).toHaveCount(0);
+});
+
+test('Samsung Pass（S9）：空命令行 / [y/N] 时表单里没有用户名字段；输密码时才有（autocomplete=username），回命令行又拿掉', async ({ page }) => {
+  await go(page, '/zh/', { term: true });
+  const pmu = page.locator('#sgx-term [data-term-pmu]');
+  await expect(pmu).toHaveCount(0);
+  await expect(input(page)).toHaveAttribute('autocomplete', 'off');
+  await expect(input(page)).not.toHaveAttribute('name', /./);
+  await run(page, 'sudo styrigx');
+  await expect(home(page).locator('[data-term-form]')).toHaveAttribute('data-mode', 'pick');
+  await expect(pmu).toHaveCount(0);
+  await expect(page.locator('#sgx-term input[name="username"], #sgx-term input[autocomplete="username"]')).toHaveCount(0);
+  await page.keyboard.press('Control+c');
+  await expect(home(page).locator('[data-term-form]')).toHaveAttribute('data-mode', 'cmd');
+  await expect(pmu).toHaveCount(0);
 });

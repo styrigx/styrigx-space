@@ -1,6 +1,6 @@
 /**
- * @fileoverview 虚拟目录树（终端统一 T6，设计稿 v1.5 §8.3）。路径写成 '~'、'blog'、'account/security'；只读、不跨站。
- * ~ 下：四个站的目录 + account（账号窗口的几层）+ proxy（代理订阅 P2：ls 列来源、open 进代理订阅）。v5 S5：盾牌没有窗口了，shield/ 删掉。
+ * @fileoverview 虚拟目录树（终端统一 T6，设计稿 v1.5 §8.3）。路径写成 '~'、'blog'、'daymark/today'；只读、不跨站。
+ * ~ 下：四个站的目录 + account（账号卡片，S9 起没有层）+ proxy（代理订阅 P2：ls 列来源、open 进代理订阅）。v5 S5：盾牌没有窗口了，shield/ 删掉。
  */
 
 /** 四个站的目录（cd 的头一行、help 的 cd 那一行） */
@@ -10,7 +10,6 @@ export const DIRS = ['blog', 'curio', 'daymark', 'wild'];
 const TREE = /** @type {Record<string, string[]>} */ ({
   '~': ['blog/', 'curio/', 'daymark/', 'wild/', 'account/', 'proxy/'],
   daymark: ['today'],
-  account: ['profile/', 'devices/', 'security/', 'apps/'],
 });
 
 /** @param {string} p @returns {[string, string]} [父目录, 名字] */
@@ -62,7 +61,7 @@ function walk(cwd, arg) {
 }
 
 /**
- * cd 的参数 → 目标目录（'~'、'blog'、'account/security' …）；不存在或是文件 → null
+ * cd 的参数 → 目标目录（'~'、'blog'、'daymark/today' …）；不存在或是文件 → null
  * @param {string} cwd @param {string} [arg] @returns {string|null}
  */
 export function normDir(cwd, arg) {
@@ -75,7 +74,7 @@ export function listDir(p) {
   return (TREE[p] || []).slice();
 }
 
-/** 第一段（'account/security' → 'account'） @param {string} p */
+/** 第一段（'daymark/today' → 'daymark'） @param {string} p */
 export function top(p) {
   return p === '~' ? '~' : p.split('/')[0];
 }

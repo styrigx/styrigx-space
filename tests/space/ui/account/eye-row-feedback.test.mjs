@@ -127,7 +127,7 @@ test('眼睛：EYE_OFF_SVG 带斜线、EYE_SVG 不带；icon.html 有 eye/eye-of
 
 test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案为显示密码/隐藏密码', () => {
   const spaceDir = 'space/web/assets/js/shell/space';
-  const files = ['space/web/assets/js/shell/account/window.js', 'space/web/assets/js/shell/account/keys.js']
+  const files = ['space/web/assets/js/shell/account/window.js', 'space/web/assets/js/shell/account/cmd/keys.js']
     .concat(readdirSync(join(ROOT, spaceDir)).filter((f) => f.endsWith('.js')).map((f) => spaceDir + '/' + f));
   for (const f of files) {
     const src = read(f);

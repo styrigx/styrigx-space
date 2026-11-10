@@ -3,8 +3,10 @@ import { gate, layer, notHere, nth, FLOW } from '../keys/gate.js';
 /**
  * 账号命令（v5 S5，term-design-v5「账号」；要 sudo root 登录，账号的 reset 层里 passwd / passkey 也能用）：
  * - passwd：改账号密码 · passkey [add | rm <n>]：账号通行密钥（列表 / 添加 / 删除）
- * - device [rm <n> | rm --all]：登录的设备（列表 / 退出某一台 / 退出其他所有设备）· app [rm <n>]：应用授权（列表 / 取消授权）
- * 命令字和流程照账号那一套（shell/account/*），只是搬进同一个终端。
+ * - device [rm <n> | rm --all]：登录的设备（列表 / 退出某一台 / 退出其他所有设备）
+ * - app [allow <n> | deny <n>]：应用授权（列表 / 重新授权（要 reauth）/ 取消授权）
+ * - profile [set name | nick | sign | email <值> | avatar]：个人资料（S9，账号卡片只展示）
+ * 流程在账号层（shell/account/cmd/*）；这里只把门（root）、查参数。
  */
 
 /** 账号层能不能跑：root，或者正在账号 reset 层里（只给 passwd / passkey） @param {any} x @param {boolean} inReset */
@@ -49,25 +51,69 @@ const passkey = {
   },
 };
 
-/** device / app：列表 + rm <n>（+ rm --all） @param {string} name @param {string} usage @param {string} list @param {string} rm @param {string} [rmAll] */
-function listRm(name, usage, list, rm, rmAll) {
-  return {
-    name: name,
-    args: ['rm'],
-    audience: ROOT,
-    /** @param {any} p @param {any} x */
-    run: function (p, x) {
-      const a = p.args.map(function (s) { return s.toLowerCase(); });
-      const no = acctGate(x, false);
-      if (no) return no;
-      const A = layer(x, 'acct');
-      if (!A) return notHere(x, name);
-      if (!a.length) { A[list](); return FLOW; }
-      if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A[rm](nth(a[1])); return FLOW; }
-      if (rmAll && a[0] === 'rm' && a.length === 2 && a[1] === '--all') { A[rmAll](); return FLOW; }
-      return { out: [x.k.plain(x.S[usage])] };
-    },
-  };
+/** 账号层命令的共同开头：root 才能跑、要在终端窗口里 @param {any} x @param {string} name @returns {{ A: any, no: any }} */
+function acct(x, name) {
+  const no = acctGate(x, false);
+  if (no) return { A: null, no: no };
+  const A = layer(x, 'acct');
+  return A ? { A: A, no: null } : { A: null, no: notHere(x, name) };
 }
 
-export const ACCOUNT_CMDS = [passwd, passkey, listRm('device', 'usageDevice', 'deviceList', 'deviceRm', 'deviceRmAll'), listRm('app', 'usageApp', 'appList', 'appRm')];
+const device = {
+  name: 'device',
+  args: ['rm'],
+  audience: ROOT,
+  /** @param {any} p @param {any} x */
+  run: function (p, x) {
+    const a = p.args.map(function (s) { return s.toLowerCase(); });
+    const r = acct(x, 'device');
+    if (r.no) return r.no;
+    if (!a.length) { r.A.deviceList(); return FLOW; }
+    if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { r.A.deviceRm(nth(a[1])); return FLOW; }
+    if (a[0] === 'rm' && a.length === 2 && a[1] === '--all') { r.A.deviceRmAll(); return FLOW; }
+    return { out: [x.k.plain(x.S.usageDevice)] };
+  },
+};
+
+const app = {
+  name: 'app',
+  args: ['allow', 'deny'],
+  audience: ROOT,
+  /** @param {any} p @param {any} x */
+  run: function (p, x) {
+    const a = p.args.map(function (s) { return s.toLowerCase(); });
+    const r = acct(x, 'app');
+    if (r.no) return r.no;
+    if (!a.length) { r.A.appList(); return FLOW; }
+    if (a[0] === 'allow' && a.length === 2 && nth(a[1])) { r.A.appAllow(nth(a[1])); return FLOW; }
+    if (a[0] === 'deny' && a.length === 2 && nth(a[1])) { r.A.appDeny(nth(a[1])); return FLOW; }
+    return { out: [x.k.plain(x.S.usageApp)] };
+  },
+};
+
+/** profile set 的字段名（= shell/account/cmd/profile.js PROFILE_KEYS 的键） */
+const PROFILE_SET = ['name', 'nick', 'sign', 'email'];
+
+const profile = {
+  name: 'profile',
+  args: ['set', 'avatar'],
+  subArgs: function (/** @type {string} */ a) { return a === 'set' ? PROFILE_SET.slice() : []; },
+  audience: ROOT,
+  /** @param {any} p @param {any} x */
+  run: function (p, x) {
+    const a0 = (p.args[0] || '').toLowerCase();
+    const a1 = (p.args[1] || '').toLowerCase();
+    const r = acct(x, 'profile');
+    if (r.no) return r.no;
+    if (!p.args.length) { r.A.profileShow(); return FLOW; }
+    if (a0 === 'avatar' && p.args.length === 1) { r.A.profileAvatar(); return FLOW; }
+    /* 值原样（大小写、中间的空格；邮箱可以为空以外的任何写法，检查在账号层） */
+    if (a0 === 'set' && PROFILE_SET.indexOf(a1) >= 0 && p.args.length >= 3) {
+      r.A.profileSet(a1, p.rest.replace(/^\S+\s+\S+\s+/, ''));
+      return FLOW;
+    }
+    return { out: [x.k.plain(x.S.usageProfile)] };
+  },
+};
+
+export const ACCOUNT_CMDS = [passwd, passkey, device, app, profile];

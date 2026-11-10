@@ -6,7 +6,9 @@
  *   历史（↑↓，sessionStorage sgx-term-hist，全站一份）、Tab 补全、cd 的当前目录。真正的动作（跳页 / 外观 / AI / 打开账号窗口）由调用方经 act 传进来。
  * - 视图 mountTerminal()：把一个终端窗口标记（[data-sgx-term]）接到引擎上。输入行用 shell/term/view/input-line.js（秘密输入 / 选择 / 等待 / ^C 都在那里），
  *   要输入、选择、验证的命令（sudo、lock、share、账号命令、sub）交给调用方给的两层上下文去跑（layers：钥匙层 shell/space/layer.js、
- *   账号层 shell/account/cmd/layer.js），它们共用这一个输入行（shell/term/view/layer-ctx.js）。账号窗口（头像，shell/account/window.js）照旧，有自己的命令行。
+ *   账号层 shell/account/cmd/layer.js），它们共用这一个输入行（shell/term/view/layer-ctx.js）。账号窗口（头像，shell/account/window.js）只展示（S9），点一行 = 打开这个终端、预填命令。
+ * - man 的结果在终端窗口里的全屏阅读页显示（S9，shell/term/view/pager.js，less 式），不进滚动区。
+ * - 每次打开终端窗口都是干净的新会话（S9）：滚动区回到欢迎行、提示符重画、进行中的输入 / 选择取消、cwd 回到本页；history 照旧（sessionStorage）。
  *   桌面是居中大窗（#sgx-term 抽屉），手机整块卡片；四站只有这一个（v5 S7 起主页首屏是 neofetch，不再嵌终端）。
  * - 文案：#sgx-i18n-shell 的 term 节（data/sgx-shell-i18n/<语言>.yaml，缺键回退下面的英文）。
  *
@@ -23,6 +25,7 @@ import { createEngine } from './term/core/engine.js';
 import { DIRS, normDir } from './term/cmds/fs/tree.js';
 import { CMDS } from './term/cmds/index.js';
 import { createInputLine } from './term/view/input-line.js';
+import { createPager } from './term/view/pager.js';
 
 export { DIRS, normDir, cwdPath, fill, parse, createWho, ps1 };
 
@@ -61,14 +64,15 @@ export const TERM_EN = {
   usagePasswd: 'usage: passwd',
   usagePasskey: 'usage: passkey [add | rm <n>]',
   usageDevice: 'usage: device [rm <n> | rm --all]',
-  usageApp: 'usage: app [rm <n>]',
+  usageApp: 'usage: app [allow <n> | deny <n>]',
+  usageProfile: 'usage: profile [set name | nick | sign | email <value> | avatar]',
   themeSet: 'theme → {x}',
   themeOpen: 'appearance panel opened',
   asking: 'asking Gray AI …',
   fetching: 'fetching {x}…',
   manIndex: 'manual pages · man <command> to read one',
   manNone: 'No manual entry for {x}',
-  manPager: 'q or enter to quit',
+  manPager: 'q or esc to quit',
   notDir: '{c}: not a directory: {x}',
   usageFind: 'usage: find <keyword>',
   findNone: 'find: no matches for {x}',
@@ -104,6 +108,7 @@ export function complete(line, names) {
     names: names || COMMANDS,
     argsOf: function (c) { return ARGS[c] || []; },
     takesArgs: function (c) { const x = REG.get(c); return !!x && (!!x.args || !!x.takesArgs); },
+    subArgsOf: function (c, a) { const x = REG.get(c); return x && x.subArgs ? x.subArgs(a) : []; },
   });
 }
 
@@ -115,8 +120,8 @@ export function ghost(line) {
 /**
  * @typedef {Array<[string, string, string?]>} Seg 一行：[类, 文字, 链接?]
  * @typedef {{ t: 'line', seg: Seg, cls?: string }} Out
- * @typedef {{ out: Out[], clear?: boolean, after?: () => void, pager?: boolean, flow?: boolean }} Result
- *   pager = 显示完进 pager（man；提示符 `:`，q / enter 回命令行）；flow = 交给那一层去跑了（它自己打输出、换输入模式）
+ * @typedef {{ out: Out[], clear?: boolean, after?: () => void, pager?: string, flow?: boolean }} Result
+ *   pager = 输出交给全屏阅读页（man；值是页名，比如 SUB(1)），不进滚动区；flow = 交给那一层去跑了（它自己打输出、换输入模式）
  * @typedef {Object} TermAct
  * @property {(dir: string) => ({ kind: 'scroll', label: string } | { kind: 'nav', href: string, go: () => void })} cd  open 的站点目录
  * @property {(mode: string) => void} theme  '' = 打开外观面板；dark / light / auto = 设定
@@ -124,7 +129,7 @@ export function ghost(line) {
  * @property {(q: string) => Promise<any>} find  find <词>（v5 S4，GET /api/find）
  * @property {() => Promise<{ text: string, by: string } | null>} today
  * @property {() => string} daymarkHref
- * @property {(layer: string) => ({ href: string, go: () => void })} [account]  open ~/account[/层]
+ * @property {() => ({ href: string, go: () => void })} [account]  open ~/account：打开账号卡片
  * @property {() => Promise<any[]|null>} [proxyList]  ls ~/proxy
  * @property {() => void} [close]  exit：关掉终端窗口
  */
@@ -138,7 +143,8 @@ export function createShell(o) {
   const S = Object.assign({}, TERM_EN, o.str || {});
   const act = o.act;
   const who = o.who || { get: function () { return /** @type {any} */ ('nobody'); }, on: function () {} };
-  let cwd = o.cwd && DIRS.indexOf(o.cwd) >= 0 ? o.cwd : '~';
+  const cwd0 = o.cwd && DIRS.indexOf(o.cwd) >= 0 ? o.cwd : '~';
+  let cwd = cwd0;
   const hist = createHistory({ storage: o.storage === undefined ? safeSession() : o.storage, key: o.histKey || HIST_KEY });
   /** @type {Array<() => void>} */
   const subs = [];
@@ -204,6 +210,8 @@ export function createShell(o) {
     /** ↓：下一条；到底回到草稿 */
     next: function () { return hist.next(); },
     history: function () { return hist.list(); },
+    /** 新会话：cwd 回到本页（历史照旧） */
+    reset: function () { cwd = cwd0; emit(); },
     /** 这个身份的 Tab 补全（第一个词只补列出的命令） @param {string} line */
     complete: function (line) { return complete(line, REG.listed(who.get())); },
   };
@@ -230,7 +238,8 @@ const SECRET = ['pw', 'rkey', 'newpw', 'newpw2', 'suburl'];
 /**
  * 把一个终端窗口标记接到引擎上。标记（抽屉 shell-topbar.html）：
  *   [data-sgx-term] > .sgx-term-bar [data-term-title] … ；.sgx-term-body [data-term-body] > [data-term-out] + form[data-term-form]
- *   > input[data-term-pmu] + label[data-term-ps] + .sgx-term-field > input[data-term-in] + [data-term-ghost]；p[data-term-hint]；p[data-term-kh]
+ *   > label[data-term-ps] + .sgx-term-field > input[data-term-in] + [data-term-ghost]；p[data-term-hint]；p[data-term-kh]
+ *   （给密码管理器的隐藏用户名只在秘密输入时由 input-line 插进表单，S9）。阅读页（man）由 pager.js 插在正文后面。
  * @param {Element} root
  * @param {ReturnType<typeof createShell>} sh
  * @param {{ kh?: string, onBack?: () => void, isShown?: () => boolean, pmUser?: string,
@@ -244,24 +253,22 @@ export function mountTerminal(root, sh, opts) {
   const form = /** @type {HTMLFormElement|null} */ (root.querySelector('[data-term-form]'));
   const input = /** @type {HTMLInputElement|null} */ (root.querySelector('[data-term-in]'));
   const psEl = /** @type {HTMLElement|null} */ (root.querySelector('[data-term-ps]'));
-  const pmu = /** @type {HTMLInputElement|null} */ (root.querySelector('[data-term-pmu]'));
   const hint = /** @type {HTMLElement|null} */ (root.querySelector('[data-term-hint]'));
   const titleEl = root.querySelector('[data-term-title]');
   const gh = /** @type {HTMLElement|null} */ (root.querySelector('[data-term-ghost]'));
-  if (!out || !form || !input || !psEl || !pmu || !hint) return null;
+  if (!out || !form || !input || !psEl || !hint) return null;
   const inp = input;
   const outEl = out;
   const SP = flatStrings(shellSection(doc, 'space'));
   /** 输入行自己要的几句（秘密输入 / 命名的读屏名、^C、没有这个选项）：钥匙层那一节 @param {string} k */
   const t = function (k) { return SP[k] || ''; };
 
-  /** man 显示完进 pager：提示符 `:`，q / enter 回命令行（终端统一 T5） */
-  let pager = false;
   /** @type {{ space?: any, acct?: any }} */
   let R = {};
-  /** 当前提示符：pager `:`；reset 层各自的；其余按身份 */
+  /** 欢迎行（新会话回到它）：标记里首帧那几行 */
+  const welcome = Array.prototype.map.call(outEl.childNodes, function (/** @type {Node} */ n) { return n.cloneNode(true); });
+  /** 当前提示符：reset 层各自的；其余按身份 */
   function psNow() {
-    if (pager) return ':';
     if (R.space && R.space.inReset) return PS_RESET.space;
     if (R.acct && R.acct.inReset) return PS_RESET.account;
     return sh.ps1();
@@ -275,7 +282,6 @@ export function mountTerminal(root, sh, opts) {
       form: form,
       input: inp,
       ps: psEl,
-      pmu: pmu,
       hint: hint,
       /* 输出区本身是 role=log（读屏会念新行），不再另写一份 live */
       live: doc.createElement('div'),
@@ -295,7 +301,6 @@ export function mountTerminal(root, sh, opts) {
     },
     onMode: function (m) { root.setAttribute('data-term-mode', m); paint(); },
     onCmdInterrupt: function () {
-      if (pager) { quitPager(); return true; }
       if (R.space && R.space.inReset) { C.out('^C', 'd'); R.space.leaveReset(); return true; }
       if (R.acct && R.acct.inReset) { C.out('^C', 'd'); R.acct.leaveReset(); return true; }
       return false;
@@ -337,7 +342,7 @@ export function mountTerminal(root, sh, opts) {
   sh.onChange(paint);
   function paintGhost() {
     if (!gh) return;
-    const g = C.mode === 'cmd' && !pager && !inLayer() && inp.selectionStart === inp.value.length ? ghostOf(inp.value, sh.complete) : '';
+    const g = C.mode === 'cmd' && !inLayer() && inp.selectionStart === inp.value.length ? ghostOf(inp.value, sh.complete) : '';
     gh.textContent = g;
     gh.style.left = inp.value.length + 'ch';
     gh.hidden = !g;
@@ -371,12 +376,21 @@ export function mountTerminal(root, sh, opts) {
     });
     scrollEnd();
   }
+  const khS = shellSection(doc, 'kh');
+  /** 全屏阅读页（man）：盖住正文和按键提示行；退出后焦点还给输入行 */
+  const pg = createPager({
+    root: /** @type {HTMLElement} */ (root),
+    hide: /** @type {HTMLElement[]} */ ([body || outEl, root.querySelector('[data-term-kh]')].filter(Boolean)),
+    seg: segEl,
+    str: { quit: String(sh.str.manPager || TERM_EN.manPager), back: String(khS.back || KH_EN.back), backAria: String(khS.backAria || KH_EN.backAria), label: 'man' },
+    /* 退出后焦点还给输入行（触屏不强制，免得弹键盘） */
+    onClose: function () { scrollEnd(); paint(); C.focusIn(); },
+  });
   /** @param {Result} r */
   function finish(r) {
     if (r.clear) outEl.textContent = '';
-    print(r.out || []);
-    pager = !!r.pager;
-    if (pager) print([{ t: 'line', seg: [['', '# ' + String(sh.str.manPager || TERM_EN.manPager)]], cls: 'o' }]);
+    if (r.pager) pg.show(r.pager, r.out || []);
+    else print(r.out || []);
     paint();
     if (r.after) r.after();
   }
@@ -385,7 +399,6 @@ export function mountTerminal(root, sh, opts) {
 
   /** 命令行回车（input-line 只在命令模式调这里） @param {string} raw */
   function onCmd(raw) {
-    if (pager) { quitPager(); return; }
     /* 钥匙的 reset 层：命令解析在 shell/space/reset.js（层不变），它自己回显 */
     if (R.space && R.space.inReset) { R.space.runResetCmd(raw); paintGhost(); return; }
     const line = String(raw || '').replace(/\s+/g, ' ').trim();
@@ -414,25 +427,18 @@ export function mountTerminal(root, sh, opts) {
     finish(/** @type {Result} */ (r));
   }
 
-  function quitPager() {
-    pager = false;
-    inp.value = '';
-    paintGhost();
-    paint();
-  }
   inp.addEventListener('input', paintGhost);
   inp.addEventListener('keyup', paintGhost);
   inp.addEventListener('click', paintGhost);
   inp.addEventListener('keydown', function (e) {
     if (e.isComposing || C.mode !== 'cmd') return;
-    if (pager && (e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); quitPager(); return; }
     if (e.key === 'ArrowRight' && gh && !gh.hidden && inp.selectionStart === inp.value.length) {
       e.preventDefault();
       inp.value = inp.value + gh.textContent;
       paintGhost();
       return;
     }
-    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !pager) {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       const v = e.key === 'ArrowUp' ? sh.prev(inp.value) : sh.next();
       if (v === null) return;
       e.preventDefault();
@@ -462,7 +468,7 @@ export function mountTerminal(root, sh, opts) {
     /* 输出里的按钮（sub 的复制等）：交给账号层 */
     const ab = tg && tg.closest('[data-at-act]');
     if (ab && R.acct && R.acct.actLog) { e.preventDefault(); R.acct.actLog(ab.getAttribute('data-at-act') || ''); return; }
-    if (tg && tg.closest('a, button, input')) return;
+    if (tg && tg.closest('a, button, input, [data-term-man]')) return;
     const sel = doc.getSelection && doc.getSelection();
     if (sel && String(sel).length) return;
     C.focusIn(true);
@@ -491,9 +497,27 @@ export function mountTerminal(root, sh, opts) {
     /** 窗口关上：各层收尾（reauth / reset 票、印过的明文） */
     closed: function () {
       if (C.mode !== 'cmd' && C.mode !== 'done') C.interrupt();
-      if (pager) quitPager();
+      pg.close();
       [R.space, R.acct].forEach(function (r) { if (r && r.onTermClosed) r.onTermClosed(); });
     },
+    /**
+     * 新会话（S9，每次打开终端窗口）：进行中的输入 / 选择 / 等待取消、阅读页关上、滚动区回到欢迎行、cwd 回到本页、输入行清空。
+     * 各层的收尾（离开 reset、结束 reauth）在上一次关窗口时（closed）已经做了。history 照旧。
+     */
+    fresh: function () {
+      if (C.mode !== 'cmd' && C.mode !== 'done') C.interrupt();
+      if (C.mode !== 'cmd') C.toCmd();
+      pg.close();
+      outEl.textContent = '';
+      welcome.forEach(function (/** @type {Node} */ n) { outEl.appendChild(n.cloneNode(true)); });
+      sh.reset();
+      inp.value = '';
+      paintGhost();
+      paint();
+      scrollEnd();
+    },
+    /** 阅读页开着 */
+    paging: function () { return pg.isOpen(); },
   };
 }
 

@@ -18,7 +18,7 @@ test('状态 → 提示键：命令行由宿主给；选择 / 秘密 / 起名 / 
   assert.equal(khKeyFor('cmd', 'cmdDrawer'), 'cmdDrawer');
   assert.equal(khKeyFor('cmd', 'cmdLayer'), 'cmdLayer');
   assert.equal(khKeyFor('pick', 'cmd'), 'pick');
-  for (const m of ['pw', 'temp', 'rkey', 'newpw', 'newpw2']) assert.equal(khKeyFor(m, 'cmd'), 'secret', m);
+  for (const m of ['pw', 'rkey', 'newpw', 'newpw2', 'suburl']) assert.equal(khKeyFor(m, 'cmd'), 'secret', m);
   assert.equal(khKeyFor('pkname', 'cmd'), 'name');
   assert.equal(khKeyFor('busy', 'cmd', true), 'busy');
   assert.equal(khKeyFor('busy', 'cmd', false), '');
@@ -41,12 +41,10 @@ test('文案：外壳字符串表 en / zh 都有 kh 节，键和英文底一一�
   }
 });
 
-test('每个终端窗口都有提示行（v5 S5：锁屏 / 盾牌的终端并进全站终端；账号窗口照旧）：主页终端 / 终端窗口 / 账号窗口 / AI 窗口', () => {
+test('每个终端窗口都有提示行（v5 S5：锁屏 / 盾牌的终端并进全站终端；S9 账号卡片只展示、没有命令行）：终端窗口 / AI 窗口', () => {
   for (const f of ['space/entry.js', 'space/shield.js', 'space/term.js']) assert.ok(!existsSync(path.join(REPO, 'space/web/assets/js/shell', f)), f + ' 删了');
-  /* 账号窗口（头像）v5 S5 不动：自带的命令行和提示行照旧，‹ 返回 = esc 同一条路，最外层关窗口 */
   const aw = read('space/web/assets/js/shell/account/window.js');
-  assert.match(aw, /<p class="sgx-kh sgx-at-kh" data-at-kh hidden><\/p>/);
-  assert.match(aw, /if \(!escBack\(\)\) o\.ms\.close\(\);/);
+  assert.doesNotMatch(aw, /data-at-kh|createInputLine/, 'S9：账号卡片没有命令行和提示行');
   /* v5 S7：主页首屏不再嵌终端（换成 neofetch about 卡），主页也用终端窗口 #sgx-term */
   assert.doesNotMatch(read('space/web/layouts/index.html'), /data-sgx-term="home"|data-term-kh/);
   const tb = read('space/web/layouts/partials/shell-topbar.html');
@@ -73,11 +71,11 @@ test('选择的高亮跟着输入走（Gray 2026-11-09 手机截图：打了 2 �
   assert.equal(pickKeyOf(' [2] ', ['1', '2'], '1'), '2');
   assert.equal(pickKeyOf('9', ['1', '2'], '1'), '');
   assert.equal(pickKeyOf('', ['1', '2'], ''), '');
-  /* 终端统一 T2：锁屏 / 盾牌 / 账号下拉同一个输入行（shell/term/view/input-line.js），属性名按 attr 取（data-term-pick / data-at-pick） */
+  /* 终端统一 T2：锁屏 / 盾牌 / 账号同一个输入行（shell/term/view/input-line.js），属性名按 attr 取（data-term-pick / data-at-pick） */
   const il = read('space/web/assets/js/shell/term/view/input-line.js');
   assert.match(il, /if \(C\.mode === 'pick'\) paintPick\(d\.log, PICK, input\.value, Object\.keys\(picks\), pickDefault\);/);
   assert.match(il, /const PICK = 'data-' \+ attr \+ '-pick';/);
   /* v5 S5：全站终端（锁屏 / 主页 / 盾牌合一）用同一个输入行 */
   assert.match(read('space/web/assets/js/shell/terminal.js'), /createInputLine\(/);
-  assert.match(read('space/web/assets/js/shell/account/window.js'), /attr: 'at',/);
+  assert.doesNotMatch(read('space/web/assets/js/shell/account/window.js'), /createInputLine/);
 });

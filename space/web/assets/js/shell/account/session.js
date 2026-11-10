@@ -1,6 +1,6 @@
 /**
  * @fileoverview `sudo root`：登录会话（未登录提示符 login@account:~$）+ `exit` 退出登录（O17）。
- * 账号窗口（window.js）和全站终端里的账号层（cmd/layer.js，v5 S5；C.inTerm）共用这一份：终端里没登录是 styrigx@space:~#，登录后 root@account:~#。
+ * 在全站终端的账号层里跑（cmd/layer.js；S9 起账号卡片只展示）：没登录是 styrigx@space:~#，登录后 root@account:~#。
  *
  * 只收 [1] passkey（account passkey）[2] password（account password），不收恢复密钥（三钥匙三入口，Gray 17:42）。
  * 只列已设置的（同锁屏 L8：读不到状态两个都列）；一种都没设 → 提示 sudo root reset（A12 / A13）。
@@ -47,12 +47,6 @@ export function mountSession(C) {
   const api = C.api;
   const esc = C.esc;
 
-  C.renderGuest = function () {
-    C.barHead(C.consent ? C.consent.app : 'login');
-    C.viewEl.innerHTML = '';
-    C.foot(C.consent ? '' : 'session.ft');
-  };
-
   /**
    * 选方式 → 验证。
    * v.reauth：这是 sudo root reauth（已登录，再验证）；否则是 sudo root 登录。v.withReauth：登录完接着 sudo root reauth
@@ -67,7 +61,7 @@ export function mountSession(C) {
     if (!ks.length) { C.note('session.noMethod', CMD.reset); C.toCmd(); return; }
     /* 选项说明只列真的给了的方式（Gray 22:13）；账号密码没设：多一行怎么设 */
     C.out('# ' + esc(keyMapLine(ks, t)), 'd');
-    if (pwUnset(C.status)) C.out('# ' + esc(t(v.reauth ? 'reauth.pwUnset' : 'session.pwUnset')).replace('{x}', C.k('cd security')).replace('{y}', C.k(CMD.reset)), 'd');
+    if (pwUnset(C.status)) C.out('# ' + esc(t(v.reauth ? 'reauth.pwUnset' : 'session.pwUnset')).replace('{x}', C.k('passwd')).replace('{y}', C.k(CMD.reset)), 'd');
     C.note(v.reauth ? 'reauth.cantVerify' : 'session.cantSignIn', CMD.reset);
     offer(v, ks);
   };
@@ -163,11 +157,10 @@ export function mountSession(C) {
 
   C.cmdSession = function () {
     if (C.st === 'in') { C.out(esc(t('session.already')).replace('{x}', C.k(CMD.reauth)), 'warn'); return; }
-    C.verify({ lead: t('session.lead'), done: function () { if (C.consent) return C.askConsent(); C.layer = 'home'; C.render(); } });
+    C.verify({ lead: t('session.lead'), done: function () { if (C.consent) C.askConsent(); } });
   };
 
   C.cmdExit = function () {
-    if (C.st !== 'in' && !C.inTerm) { C.o.ms.close(); return; }
     C.setMode('busy');
     api.session.end().then(function (/** @type {any} */ res) {
       if (!(res.s >= 200 && res.s < 300)) throw new Error('http');
@@ -176,11 +169,11 @@ export function mountSession(C) {
       C.grants = null;
       C.devices = null;
       C.setSt('guest');
-      C.layer = 'home';
       C.toCmd();
-      /* 全站终端（v5 S5）：打一行、收起终端、重新载入（账号相关的部件按没登录重画）；账号窗口：关窗口后重新载入（照旧） */
-      if (C.inTerm) { C.ok('✓ ' + t('session.signedOut')); C.loginChanged = true; C.finished(); return; }
-      C.o.ms.close(function () { C.reload(); });
+      /* 打一行、收起终端、重新载入（账号相关的部件按没登录重画） */
+      C.ok('✓ ' + t('session.signedOut'));
+      C.loginChanged = true;
+      C.finished();
     }).catch(function () { C.err(t('common.signOutFail')); C.toCmd(); });
   };
 }

@@ -82,7 +82,7 @@
 
 ### 2.7 代理订阅 `sub`（sub v3.1）
 
-2.7.1 账号命令（`sudo root` 之后）一条 `sub` 加子命令：`sub`（状态）、`sub show [name]`、`sub add <name>`、`sub upload <name>`、`sub mv <old> <new>`、`sub rm <name>`、`sub on | off <name>`、`sub key`、`sub token`。`show` / `key` / `token` 要 reauth。
+2.7.1 账号命令（`sudo root` 之后）一条 `sub` 加子命令：`sub`（状态）、`sub show [name]`、`sub add <name>`、`sub upload <name>`、`sub mv <old> <new>`、`sub rm <name>`、`sub enable | disable <name>`、`sub key`、`sub token reset`（S9：原 `sub on | off`、`sub token` 改名，没有兼容）。`show` / `key` / `token reset` 要 reauth。
 
 2.7.2 后端 `styrigx-proxy-rules`：输出一律 age 加密到用户公钥；令牌由服务端用自己的钥匙封存，`sub show` 可重印；`sub add` 同名改链接时先试拉一次，成功才替换。机场源每 6 小时由该 Worker 自己的 Cron 刷新。
 

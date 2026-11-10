@@ -82,7 +82,7 @@ HEAD 不读也不写缓存。
 | age 公钥（`age1…` X25519；PQ 暂不开放） | D1 `meta.pubkey`（私钥只在手机 CMFA「Meta 特性 › Age 密钥」） | 下载成品 `sources.armor` |
 | `SGX_PROXY_DB_KEY`（base64 的 32 字节） | Secrets Store，只绑本 Worker | D1 里的机场链接 `url_enc`、各源节点 `last_nodes_enc`（AES-256-GCM，附加数据 = 行 id + 字段）、封存的下载令牌 `meta.token_sealed`（附加数据 `meta:token`） |
 
-下载令牌在 `meta` 存两份，同一次 batch 写：`token_hash`（SHA-256，下载只比它、常量时间，下载不读 DB_KEY）和 `token_sealed`（DB_KEY 封存的原文，终端 `sub show` 经 account reauth 后重印）。`sub token` 换新令牌，旧链接立即失效。
+下载令牌在 `meta` 存两份，同一次 batch 写：`token_hash`（SHA-256，下载只比它、常量时间，下载不读 DB_KEY）和 `token_sealed`（DB_KEY 封存的原文，终端 `sub show` 经 account reauth 后重印）。`sub token reset` 换新令牌，旧链接立即失效。
 
 ## 数据与迁移
 

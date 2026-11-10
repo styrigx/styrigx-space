@@ -16,17 +16,6 @@ export function mountReset(C) {
   const api = C.api;
   const esc = C.esc;
 
-  C.renderReset = function () {
-    C.barHead(C.resetLeft() ? 'reset · ' + C.mmss(C.resetLeft()) : 'reset');
-    const has = !!(C.status && C.status.configured.password);
-    C.viewEl.innerHTML = '<div class="sgx-pop-list">' + C.grp(t('reset.group'), true) +
-      C.row({ k: t('keys.password.title'), sub: 'account password', v: has ? t('keys.password.set') : t('keys.password.unset'), act: 'passwd', chev: true }) +
-      C.grp(t('keys.passkey.title'), true) + C.keyRows(false) + '</div>' +
-      /* 底部「^C 返回」（Gray 2026-11-09）：同 Ctrl+C / esc——命令行时离开 reset，正在输入 / 选择时先退出那一步；终端文字样式 */
-      '<p class="sgx-at-rcc"><button type="button" data-at-cc data-at-reset-cc translate="no" aria-label="' + esc(t('reset.backAria')) + '"><b>^C</b> ' + esc(t('reset.back')) + '</button></p>';
-    C.foot('reset.ft');
-  };
-
   C.cmdReset = function () {
     C.tries = 0;
     C.out(esc(t('reset.lead')));
@@ -45,10 +34,7 @@ export function mountReset(C) {
             C.keyList = [];
             C.toCmd();
             C.startTick();
-            /* 全站终端（v5 S5，C.inTerm）：没有窗口里的行，提示能敲的命令；账号窗口照旧画 reset 层、列通行密钥 */
-            if (C.inTerm) { C.note('reset.cmds'); return; }
-            C.render();
-            C.loadKeys();
+            C.note('reset.cmds');
           });
         }
         if (res.s === 429) { C.err(t('common.tooMany')); C.toCmd(); return; }
@@ -97,7 +83,7 @@ export function mountReset(C) {
     C.focusIn();
   };
 
-  /** 主动离开 reset（^C / esc / exit，触屏点 ^C）：同关掉下拉，没选登出方式 = [3] 不登出（提示一句）；不登出本机 */
+  /** 主动离开 reset（^C / esc / exit，触屏点 ^C）：同关掉终端，没选登出方式 = [3] 不登出（提示一句）；不登出本机 */
   C.leaveReset = function () {
     if (!C.inReset) return;
     if (C.resetPending) C.out(esc(t('reset.signOut.pending')), 'warn');
@@ -117,9 +103,7 @@ export function mountReset(C) {
     C.resetExp = 0;
     C.loadStatus().then(function () {
       if (C.st !== 'in') C.out('# ' + esc(t('reset.signOut.now')).replace('{x}', C.k(CMD.session)), 'd');
-      C.layer = 'home';
       C.toCmd();
-      C.render();
     });
   };
 }

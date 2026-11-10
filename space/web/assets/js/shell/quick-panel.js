@@ -4,7 +4,7 @@
  * 这里只把主站自己的东西传进去：
  * - 状态机 modal-sheet.js；外观 setter 是设置页同一套（lib/prefs.js，经 features.js 写同一个 localStorage key，面板和设置页互相即时同步）；
  * - 语言行（跟随系统 / 中文 / English）：lib/prefs.js setLang 写偏好、算目标语言的同一页地址，和本页不同就关面板后 replace 过去（不留历史）；
- * - 立即锁屏：只锁本机、不验证（topbar-panel.js 自带）；终端里的钥匙层 shell/space/layer.js、账号层 shell/account/cmd/layer.js、账号窗口 shell/account/window.js（照旧）（v5 S5 终端合一）；
+ * - 立即锁屏：只锁本机、不验证（topbar-panel.js 自带）；终端里的钥匙层 shell/space/layer.js、账号层 shell/account/cmd/layer.js、账号卡片 shell/account/window.js（S9 起只展示）（v5 S5 终端合一）；
  * - 布局行（手机 / 自动 / 桌面，P4-3 PR-4b；模式规则见 lib/layout-mode.js）；
  * - 分享本页 shell/share-button.js（共享外壳 share.js；PR-4b 起主站也有，四站快捷面板同一套）；
  * - AI 窗口内容 shell/ai-panel.js（共享外壳 ai.js），键盘高度订阅 shell/vk.js（共享外壳 vk.js，P4-3 PR-3）。

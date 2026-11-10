@@ -109,14 +109,14 @@
 
 | # | 做什么 | 应该看到 |
 |---|---|---|
-| 9.1 | `sub` | 公钥（头尾）、令牌状态、每个来源一行：名字 · 机场域名或 file · 节点数 · on / off / error |
+| 9.1 | `sub` | 公钥（头尾）、令牌状态、每个来源一行：名字 · 机场域名或 file · 节点数 · enabled / disabled / error |
 | 9.2 | `sub show`（要 `sudo -v`） | 印出令牌与每个来源的 url，每条带复制按钮 |
 | 9.3 | `sub add smoketest`，粘一个可用的机场链接（输入不回显） | 试拉成功才保存；`sub` 里出现 `smoketest` |
 | 9.4 | `sub upload smokefile`，选一个本地 YAML | 字符进度条走完；只保留 `proxies:` |
 | 9.5 | `sub mv smoketest smoke2` | 改名成功；旧名的 url 立即 404 |
-| 9.6 | `sub off smoke2` → `sub on smoke2` | off 时该 url 404；on 后恢复 |
+| 9.6 | `sub disable smoke2` → `sub enable smoke2` | 停用时该 url 404；启用后恢复 |
 | 9.7 | `sub rm smoke2`、`sub rm smokefile`（各答 y） | 删除成功 |
-| 9.8 | `sub key`、`sub token` | **只看提示，不要真的换**（换令牌会让手机里每条 url 失效；换公钥会重新加密全部来源），各自 `^C` 退出 |
+| 9.8 | `sub key`、`sub token reset` | **只看提示，不要真的换**（换令牌会让手机里每条 url 失效；换公钥会重新加密全部来源），各自 `^C` 退出 |
 
 ### 9.9 CPU 检查（wrangler tail）
 

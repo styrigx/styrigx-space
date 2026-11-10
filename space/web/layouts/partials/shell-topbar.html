@@ -134,28 +134,25 @@
     <p class="sgx-ai-foot"><span><span class="sgx-ai-err">{{ $t.topbar.mayErr }}</span><span class="sgx-ai-dot" aria-hidden="true"> · </span><span class="sgx-ai-scope" data-ai-scope>{{ $t.topbar.publicOnly }}</span></span><a class="sgx-ai-contact" data-ai-contact title="{{ $t.topbar.contact }}"{{ with .email }} href="mailto:{{ . }}"{{ end }}>{{ with .email }}<span data-ai-email translate="no" data-sgx-personal>{{ . }}</span>{{ else }}{{ $t.topbar.contact }}{{ end }}</a></p>
   </div>
 </dialog>
-{{- /* 账号窗口（头像点开；v5 S5 起它自带的终端并进全站终端 #sgx-term）：已登录时的总览（个人资料 › · 设备 · 账号安全 · 应用授权 · 退出登录）和个人资料编辑，
-   设备 / 账号安全 / 应用授权 / 退出登录点了跳终端跑 device / passkey / app / exit；没登录点头像 = 终端里 sudo root；v5 S6 起没进站（访客 / 分享链接会话）头像是死按钮。
+{{- /* 账号卡片（头像点开；S9 起只展示，没有命令行）：已登录 = 个人资料 › · 设备 › · 账号安全 › · 应用授权 › · 退出登录；没登录账号 = 一行 sudo root。
+   点一行 = 收起卡片、打开终端 #sgx-term、预填 profile / device / passkey / app / exit / sudo root；v5 S6 起没进站（访客 / 分享链接会话）头像是死按钮。
    内容由 shell/account/window.js 画（文案在 .shell.account，四站同一份）；这里只放面板骨架和没 JS 时的一行字。
-   旧地址 /account/* 由 static/_redirects 301 到本语言首页 #acct=<层>，topbar-panel.js 打开对应那一层。 */ -}}
+   旧地址 /account/* 由 static/_redirects 301 到本语言首页 #acct=<子页>，topbar-panel.js 在终端里预填对应命令。 */ -}}
 <dialog id="sgx-acct" class="sgx-qp sgx-pop sgx-acct" aria-label="{{ $t.topbar.account }}" data-acct-state="">
   <div class="sgx-qp-sheet" tabindex="-1" autofocus>
     <div class="sgx-nav-h sgx-pop-gh"><span translate="no"><b aria-hidden="true">$</b> ACCOUNT</span><span translate="no">login</span></div>
     <p class="sgx-pop-dim">{{ $t.account.common.opening }}</p>
   </div>
-  {{- /* 应用授权一行的应用图标（#327 偏离修复）：用导航已有的 nav-curio / nav-daymark（参数 icons 里本来就有：主站 baseof 按导航项收、子站是 nav.json icons），
-     shell/account/grants.js 按 data-app 取；template 不渲染、不占位 */}}
-  <template data-acct-app-icons>{{ range slice "curio" "daymark" }}<i data-app="{{ . }}">{{ index $i (printf "nav-%s" .) | safeHTML }}</i>{{ end }}</template>
 </dialog>
 {{- /* 全站终端（v5 S5 终端合一：原锁屏 / 主页 / 盾牌 / 账号的终端合成这一个；桌面居中大窗、手机整块卡片）：顶栏 >_（v5 S6）、Ctrl / ⌘ K、NAVIGATE 页脚的「Ctrl K 终端 ›」、盾牌打开，Esc 关；主页首屏 v5 S7 起是 neofetch，不再嵌终端；
-   引擎 shell/terminal.js（主页首屏嵌入的终端用同一套标记）。提示符首帧写访客，JS 按身份（服务端说的）重画；输入行带给密码管理器的隐藏用户名（输解锁 / 账号密码时用） */}}
+   引擎 shell/terminal.js。提示符首帧写访客，JS 按身份（服务端说的）重画。给密码管理器的隐藏用户名只在输解锁 / 账号密码时由 JS 插进表单（S9：常驻的 name="username" 字段让三星 Samsung Pass 在空命令行、[y/N] 也弹「账号和密码」）；
+   man 的全屏阅读页（S9）由 JS 插在正文后面。每次打开都是干净的新会话（S9）。 */}}
 <dialog id="sgx-term" class="sgx-term-dlg" aria-label="{{ $t.term.drawer }}">
   <div class="sgx-term sgx-term--drawer" data-sgx-term="drawer">
     <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><b class="sgx-term-title" data-term-title translate="no">nobody@space: ~</b><em class="sgx-term-hint" aria-hidden="true">{{ $t.term.hintShort }}</em></div>
     <div class="sgx-term-body" data-term-body>
       <div class="sgx-term-out" data-term-out role="log" aria-live="polite" aria-label="{{ $t.term.output }}"><div class="sgx-term-ln sgx-term-o">{{ replace (replace (htmlEscape $t.term.welcome) "{help}" `<span class="sgx-term-k" translate="no">man</span>`) "{cd}" `<span class="sgx-term-k" translate="no">open blog</span>` | safeHTML }}</div></div>
       <form class="sgx-term-line" data-term-form data-mode="cmd" autocomplete="off" novalidate>
-        <input type="text" class="sgx-at-pmu" data-term-pmu name="username" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
         <label class="sgx-term-ps" for="sgx-term-in" data-term-ps translate="no">nobody@space:~$</label>
         <span class="sgx-term-field"><input id="sgx-term-in" class="sgx-term-in" data-term-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="{{ $t.term.input }}" autofocus><span class="sgx-term-ghost" data-term-ghost aria-hidden="true" hidden></span></span>
       </form>

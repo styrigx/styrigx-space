@@ -1,8 +1,7 @@
 /**
- * 换头像 / 移除头像（2026-11-08 账号 UI 改版：账号卡和 /account/ 整页删除，入口在头像下拉 #sgx-acct › 个人资料 › 「头像」一行，
- * shell/account/profile.js + avatar-edit.js；O7：裁剪交互不变）。
+ * 换头像 / 移除头像（S9：账号卡片只展示，入口是全站终端账号层的 profile avatar，shell/account/cmd/profile.js + avatar-edit.js；O7：裁剪交互不变）。
  *
- * - 「头像」一行展开：选择照片…（没有自定义头像时只有这一项）/ 移除照片（ETag 不是默认图 "d-32" 时才有）
+ * - profile avatar：没有自定义头像 → 收起终端、直接打开系统选照片；有（ETag 不是默认图 "d-32"）→ [1] 选择照片… [2] 移除照片
  * - 选择照片 → 全屏裁剪（拖动、滚轮缩放）→ 完成：PUT /api/avatar 带 512 / 192 / 96 / 32 四张 WebP，页面上的头像换成带 ?v= 的新地址；取消不上传
  * - 移除照片：DELETE /api/avatar
  * 静态构建：/api/account、/api/avatar 用替身。
@@ -13,7 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const T = require('../helpers/account-term.cjs');
 
-const { SESSION, STATUS, mockAccount, layer } = T;
+const { SESSION, STATUS, mockAccount, openTerm, log, typeLine, picks } = T;
 
 test.use({ viewport: { width: 412, height: 915 } });
 test.beforeEach(async ({ page }) => { await T.zh(page); });
@@ -36,13 +35,18 @@ async function makePhoto(page) {
   return p;
 }
 
-/** 已登录，打开个人资料层，展开「头像」一行 @param {any} page */
-async function openPhotoRow(page) {
+/** 已登录，打开终端 @param {any} page */
+async function signedIn(page) {
   await mockAccount(page, { status: STATUS({ session: SESSION() }) });
-  await T.goPage(page, '/zh/#acct=profile');
-  await layer(page, 'profile');
-  await page.locator('#sgx-acct [data-at-act="photo"]').click();
-  await expect(page.locator('#sgx-acct [data-at-act="photo-pick"]')).toHaveText('选择照片…');
+  await T.goPage(page);
+  await openTerm(page);
+  await expect(T.ps(page)).toHaveText('root@account:~/wild#');
+}
+/** profile avatar（没有自定义头像）：收起终端、打开系统选照片 @param {any} page */
+async function pickPhoto(page) {
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), typeLine(page, 'profile avatar')]);
+  await expect(page.locator('#sgx-term')).not.toHaveAttribute('open', '');
+  return chooser;
 }
 
 test('选择照片 → 裁剪 → 完成：上传四个尺寸，页面头像换新地址', async ({ page }) => {
@@ -52,11 +56,10 @@ test('选择照片 → 裁剪 → 完成：上传四个尺寸，页面头像换�
     put = { method: route.request().method(), body: route.request().postDataBuffer() || Buffer.alloc(0) };
     await route.fulfill({ json: { ok: true, ver: 'abc' } });
   });
-  await openPhotoRow(page);
-  /* 没有自定义头像：只有「选择照片…」 */
-  await expect(page.locator('#sgx-acct [data-at-act="photo-rm"]')).toHaveCount(0);
+  await signedIn(page);
   const photo = await makePhoto(page);
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#sgx-acct [data-at-act="photo-pick"]').click()]);
+  /* 没有自定义头像：不问，直接选照片 */
+  const chooser = await pickPhoto(page);
   await chooser.setFiles(photo);
   await expect(page.locator('.sgx-avc')).toBeVisible();
 
@@ -80,9 +83,9 @@ test('选择照片 → 裁剪 → 完成：上传四个尺寸，页面头像换�
 test('裁剪时点取消，不上传', async ({ page }) => {
   let called = false;
   await page.route('**/api/avatar', async (route) => { called = true; await route.fulfill({ json: { ok: true, ver: 'x' } }); });
-  await openPhotoRow(page);
+  await signedIn(page);
   const photo = await makePhoto(page);
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#sgx-acct [data-at-act="photo-pick"]').click()]);
+  const chooser = await pickPhoto(page);
   await chooser.setFiles(photo);
   await expect(page.locator('.sgx-avc')).toBeVisible();
   await page.locator('[data-avc-cancel]').click();
@@ -90,14 +93,16 @@ test('裁剪时点取消，不上传', async ({ page }) => {
   expect(called).toBe(false);
 });
 
-test('有自定义头像（ETag 不是 "d-32"）：多一项「移除照片」→ DELETE /api/avatar', async ({ page }) => {
+test('有自定义头像（ETag 不是 "d-32"）：[1] 选择照片… [2] 移除照片；2 → DELETE /api/avatar', async ({ page }) => {
   await page.route('**/avatar/32.webp', (r) => r.fulfill({ status: 200, contentType: 'image/webp', headers: { ETag: '"abc-32"' }, body: Buffer.from('RIFF') }));
   let method = '';
   await page.route('**/api/avatar', async (route) => { method = route.request().method(); await route.fulfill({ json: { ok: true } }); });
-  await openPhotoRow(page);
-  const rm = page.locator('#sgx-acct [data-at-act="photo-rm"]');
-  await expect(rm).toHaveText('移除照片');
-  await rm.click();
+  await signedIn(page);
+  await typeLine(page, 'profile avatar');
+  await expect(picks(page)).toHaveText(['[1] 选择照片…', '[2] 移除照片']);
+  await T.mode(page, 'pick');
+  await T.termIn(page).press('2');
   await expect.poll(() => method).toBe('DELETE');
-  await expect(page.locator('#sgx-acct [data-at-act="photo-rm"]')).toHaveCount(0);
+  await expect(log(page)).toContainText('已移除头像');
+  await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
 });

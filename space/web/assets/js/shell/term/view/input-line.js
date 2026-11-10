@@ -14,8 +14,8 @@ import { mountKeyHint, khKeyFor } from './keyhint.js';
 import { paintPick, pickInputMode } from './pick.js';
 import { createHistory } from '../core/history.js';
 
-/** 输入不回显的模式：解锁密码、临时钥匙、恢复钥匙、新密码两次 */
-export const SECRET_MODES = Object.freeze(['pw', 'temp', 'rkey', 'newpw', 'newpw2']);
+/** 输入不回显的模式：解锁密码、恢复钥匙、新密码两次 */
+export const SECRET_MODES = Object.freeze(['pw', 'rkey', 'newpw', 'newpw2']);
 
 /**
  * @typedef {Object} TermDom
@@ -24,7 +24,6 @@ export const SECRET_MODES = Object.freeze(['pw', 'temp', 'rkey', 'newpw', 'newpw
  * @property {HTMLFormElement} form
  * @property {HTMLInputElement} input
  * @property {HTMLElement} ps 提示符（label）
- * @property {HTMLInputElement} pmu 给密码管理器的隐藏用户名
  * @property {HTMLElement} hint 输入行下面一行注释 + 触屏 ^C
  * @property {HTMLElement} live aria-live 区
  * @property {HTMLElement} [kh] 最底一行按键提示（shell/keyhint.js；可选）
@@ -53,7 +52,7 @@ export const SECRET_MODES = Object.freeze(['pw', 'temp', 'rkey', 'newpw', 'newpw
  * @property {boolean} [ctrlL] Ctrl+L 清屏（缺省 true）
  * @property {boolean} [inputmode] 写 inputmode 属性（缺省 true）
  * @property {(m: string, secret: boolean) => string} [aria] 输入框读屏名（缺省：秘密 common.secretAria、命名 keys.nameAria、其余 ariaCmd / common.termAria）
- * @property {string} [pmDefault] 每次切模式都把隐藏用户名重置成它（x.pm 优先）；缺省只在给了 x.pm 时写
+ * @property {string} [pmDefault] 秘密输入时隐藏用户名的值（x.pm 优先）
  * @property {() => boolean} [ccCmd] 命令行也显示触屏 ^C（账号 reset 层）
  * @property {'ps'|'plain'} [ccEcho] 秘密 / 选择时 ^C 的回显：「提示符 ^C」（缺省）还是只有「^C」
  * @property {(m: string) => ''|'span'|'plain'} [echoSecret] 秘密提交后回显提示符的写法（缺省：秘密模式带 span）
@@ -90,7 +89,7 @@ export function createInputLine(o) {
   /** @type {any} */
   const C = o.ctx || {};
   C.t = t; C.esc = esc; C.input = input; C.p = p;
-  /** @type {string} cmd · pick · pw · temp · rkey · newpw · newpw2 · pkname · busy · done */
+  /** @type {string} cmd · pick · pw · rkey · newpw · newpw2 · pkname · busy · done */
   if (C.mode == null) C.mode = 'cmd';
   /** 当前一轮的输错次数 */ if (C.tries == null) C.tries = 0;
   /** 秘密输入 / 命名的提交函数 */ if (C.onSecret === undefined) C.onSecret = null;
@@ -98,6 +97,28 @@ export function createInputLine(o) {
   /** 等待中（busy）也能 ^C 的那件事（通行密钥）：^C 时调它 */ if (C.busyCancel === undefined) C.busyCancel = null;
   /** 进 busy 时输入行有焦点：回命令行要把焦点还回来 */ if (C.refocus == null) C.refocus = false;
   const live = function (/** @type {string} */ s) { if (s) d.live.textContent = s; };
+  /**
+   * 给密码管理器的隐藏用户名（S9，Gray 三星实机：Samsung Internet + 三星键盘在空命令行、[y/N] 都弹「账号和密码」）：
+   * 只在秘密输入时插进表单（同一表单里有「用户名」字段，三星就把整张表单当登录表单、任何文本框都给填充建议），离开秘密输入就拿掉。
+   * @type {HTMLInputElement|null}
+   */
+  let pmu = null;
+  /** @param {boolean} on @param {string} v */
+  function paintPmu(on, v) {
+    if (!on) { if (pmu) { pmu.remove(); pmu = null; } return; }
+    if (!pmu) {
+      pmu = doc.createElement('input');
+      pmu.type = 'text';
+      pmu.className = 'sgx-at-pmu';
+      pmu.setAttribute('data-' + attr + '-pmu', '');
+      pmu.setAttribute('autocomplete', 'username');
+      pmu.setAttribute('tabindex', '-1');
+      pmu.setAttribute('aria-hidden', 'true');
+      pmu.readOnly = true;
+      form.insertBefore(pmu, form.firstChild);
+    }
+    pmu.value = v;
+  }
 
   /* ---------- 按键提示行（Gray 2026-11-09 细节 1） ---------- */
   const khOpt = o.kh;
@@ -161,13 +182,10 @@ export function createInputLine(o) {
     input.readOnly = false;
     input.type = secret ? 'password' : 'text';
     input.setAttribute('autocomplete', m === 'pw' || m === 'rkey' ? 'current-password' : m === 'newpw' || m === 'newpw2' ? 'new-password' : 'off');
-    /* 隐藏用户名只在秘密输入时给密码管理器认（Gray 2026-11-11 三星实机：[y/N] 时 Samsung Pass 弹「账号和密码」自动填充） */
-    d.pmu.setAttribute('autocomplete', secret ? 'username' : 'off');
+    paintPmu(secret, (x && x.pm) || o.pmDefault || '');
     /* 选择的键盘按选项定：全是数字才弹数字键盘，[y/N] 等字母选项用文字键盘（同上：数字键盘打不出 y，只能回车 = 默认 N） */
     if (o.inputmode !== false) input.setAttribute('inputmode', (x && x.inputmode) || (m === 'pick' ? pickInputMode(Object.keys(picks)) : 'text'));
     input.setAttribute('aria-label', (x && x.aria) || aria(m, secret));
-    if (o.pmDefault != null) d.pmu.value = (x && x.pm) || o.pmDefault;
-    else if (x && x.pm) d.pmu.value = x.pm;
     d.ps.textContent = (x && x.ps) || (m === 'pick' || m === 'pkname' ? '>' : o.ps());
     const hidden = m === 'busy' || m === 'done';
     form.hidden = hidden;
