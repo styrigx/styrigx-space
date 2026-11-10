@@ -308,15 +308,18 @@ test.describe('终端：man / 不认识的命令 / clear / 历史 / ^C / esc', (
     await ENTRY_CFG(page);
   });
 
-  test('访客 man 列 sudo / find，不列 ask / lock / passwd；help 已删 → command not found；clear 清屏', async ({ page }) => {
+  test('访客 man（S9 全屏阅读页）列 sudo / find，不列 ask / lock / passwd；help 已删 → command not found；clear 清屏', async ({ page }) => {
     await gotoLockTerm(page);
     await lockCmd(page, 'man');
-    await expect(out(page)).toContainText('手册页');
-    const lines = await out(page).locator('.sgx-term-ln').allTextContents();
-    const names = lines.filter((l) => / — /.test(l) && !/^space os/.test(l)).map((l) => l.split(' — ')[0].trim());
+    const body = page.locator('#sgx-term [data-term-man-body]');
+    await expect(body).toBeVisible();
+    await expect(body).toContainText('手册页');
+    const lines = await body.locator('.sgx-term-ln').allTextContents();
+    const names = lines.filter((l) => / — /.test(l)).map((l) => l.split(' — ')[0].trim());
     for (const n of ['sudo', 'find', 'man']) expect(names).toContain(n);
     for (const n of ['ask', 'lock', 'passwd', 'help']) expect(names).not.toContain(n);
-    await input(page).press('q');
+    await page.keyboard.press('q');
+    await expect(body).toBeHidden();
     await lockCmd(page, 'help');
     await expect(badLine(page)).toContainText('help');
     await lockCmd(page, 'clear');
@@ -327,9 +330,12 @@ test.describe('终端：man / 不认识的命令 / clear / 历史 / ^C / esc', (
   test('man sudo：SYNOPSIS 有 sudo styrigx / sudo styrigx reset / sudo -v', async ({ page }) => {
     await gotoLockTerm(page);
     await lockCmd(page, 'man sudo');
-    await expect(out(page)).toContainText('SUDO(1)');
-    await expect(out(page)).toContainText('sudo styrigx reset');
-    await expect(out(page)).toContainText('sudo -v');
+    const body = page.locator('#sgx-term [data-term-man-body]');
+    await expect(page.locator('#sgx-term [data-term-man-st]')).toContainText('SUDO(1)');
+    await expect(body).toContainText('sudo styrigx reset');
+    await expect(body).toContainText('sudo -v');
+    await page.keyboard.press('q');
+    await expect(body).toBeHidden();
   });
 
   test('↑ / ↓ 历史；^C 从密码态回到命令行（打印 ^C）；esc 退出 recovery key', async ({ page }) => {

@@ -1,5 +1,7 @@
 /**
- * 账号终端（头像下拉 #sgx-acct，2026-11-08 账号 UI 改版，shell/account/term.js）e2e 共用的小工具。
+ * 账号 e2e 共用的小工具。S9 起账号卡片（头像 #sgx-acct）只展示，账号的流程都在全站终端 #sgx-term 的账号层（shell/account/cmd/layer.js）里：
+ * openTerm 打开全站终端（顶栏 >_），log / termIn / ps / mode 都指向它；身份：/api/lock-session-check 替身回已进站（styrigx），
+ * 账号登录标记 cookie 首帧就有，账号层一加载就问 GET /api/account（有 session → root@account）。
  *
  * 测试构建是静态服务器（没有网关）：/api/account 等接口全用 page.route 替身；锁屏禁用（SGX_TEST_NO_LOCK）。
  * 没有 /account/ 整页了：旧地址由 static/_redirects 301 到首页 #acct=<层>（静态服务器不跑 _redirects，这里直接开 #acct=…）。
@@ -26,6 +28,9 @@ const STATUS = (x = {}) => Object.assign({ ok: true, signing: true, configured: 
  */
 async function mockAccount(page, o) {
   const calls = [];
+  /* 进站会话（终端身份 styrigx；账号会话由 GET /api/account 决定 root） */
+  await page.route('**/api/lock-session-check**', (r) => r.fulfill(json({ ok: true, by: 'password' })));
+  await page.addInitScript(() => { try { document.cookie = 'sgx-account-signed-in=1; Path=/'; } catch (e) {} });
   const defaults = {
     'grants/list': [200, { ok: true, grants: [] }],
     'devices/list': [200, { ok: true, devices: [] }],
@@ -69,8 +74,16 @@ async function goPage(page, path = '/zh/wild/') {
   await page.waitForFunction(() => document.documentElement.hasAttribute('data-sgx-layout'));
 }
 
-/** 点头像打开账号终端，等终端骨架画好 @param {import('@playwright/test').Page} page */
+/** 打开全站终端（顶栏 >_），等身份问完（提示符不是 nobody） @param {import('@playwright/test').Page} page */
 async function openTerm(page) {
+  await page.locator('#site-nav .sgx-tb-term').click();
+  const d = page.locator('#sgx-term');
+  await expect(d).toHaveAttribute('open', '');
+  await expect(page.locator('#sgx-term [data-term-ps]')).not.toHaveText(/^nobody/);
+  return d;
+}
+/** 点头像打开账号卡片（只展示） @param {import('@playwright/test').Page} page */
+async function openCard(page) {
   await page.locator('#site-nav .sgx-tb-av').click();
   const d = page.locator('#sgx-acct');
   await expect(d).toHaveAttribute('data-state', 'open');
@@ -79,11 +92,15 @@ async function openTerm(page) {
 }
 
 /** 终端输出区 @param {import('@playwright/test').Page} page */
-const log = (page) => page.locator('#sgx-acct [data-at-log]');
+const log = (page) => page.locator('#sgx-term [data-term-out]');
 /** 输入行 @param {import('@playwright/test').Page} page */
-const termIn = (page) => page.locator('#sgx-acct [data-at-in]');
+const termIn = (page) => page.locator('#sgx-term-in');
 /** 提示符 @param {import('@playwright/test').Page} page */
-const ps = (page) => page.locator('#sgx-acct [data-at-ps]');
+const ps = (page) => page.locator('#sgx-term [data-term-ps]');
+/** 选项按钮 @param {import('@playwright/test').Page} page */
+const picks = (page) => page.locator('#sgx-term [data-term-pick]');
+/** 输入行下面的注释 + 触屏 ^C @param {import('@playwright/test').Page} page */
+const hint = (page) => page.locator('#sgx-term [data-term-hint]');
 
 /**
  * 在输入行敲一行 + enter。
@@ -91,19 +108,14 @@ const ps = (page) => page.locator('#sgx-acct [data-at-ps]');
  */
 async function typeLine(page, s) {
   const i = termIn(page);
-  await expect(i).toBeEnabled();
+  await expect(i).toBeEditable();
   await i.fill(s);
   await i.press('Enter');
 }
 
 /** 等终端进入某个输入模式 @param {import('@playwright/test').Page} page @param {string} m */
 async function mode(page, m) {
-  await expect(page.locator('#sgx-acct .sgx-at')).toHaveAttribute('data-at-mode', m);
-}
-
-/** 当前层（guest / home / profile / devices / keys / grants / reset / consent） @param {import('@playwright/test').Page} page @param {string} l */
-async function layer(page, l) {
-  await expect(page.locator('#sgx-acct .sgx-at')).toHaveAttribute('data-at-layer', l);
+  await expect(page.locator('#sgx-term [data-term-form]')).toHaveAttribute('data-mode', m);
 }
 
 /**
@@ -140,4 +152,4 @@ async function fakePasskey(page, o = {}) {
   }, { cancel: !!o.cancel, hang: !!o.hang });
 }
 
-module.exports = { json, SESSION, REAUTH, STATUS, mockAccount, zh, goPage, openTerm, log, termIn, ps, typeLine, mode, layer, fakePasskey };
+module.exports = { json, SESSION, REAUTH, STATUS, mockAccount, zh, goPage, openTerm, openCard, log, termIn, ps, picks, hint, typeLine, mode, fakePasskey };

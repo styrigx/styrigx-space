@@ -68,8 +68,8 @@ test.beforeEach(async ({ context }) => {
         while (w.nextNode()) out += w.currentNode.nodeValue;
         return out;
       };
-      /* 2026-11-08 账号终端：登录 = sudo root 的选方式（[data-at-pick]）或旧登录区；主页 = 终端 home 层 */
-      if (document.getElementById('acct-login') || document.querySelector('#sgx-acct [data-at-pick]') || /欢迎回来|Welcome back/.test(visibleText())) window.__sawLogin = true;
+      /* 登录 = sudo root 的选方式（S9 起在全站终端 [data-term-pick]；之前在账号下拉 [data-at-pick]）或旧登录区；主页 = 账号卡片 home */
+      if (document.getElementById('acct-login') || document.querySelector('#sgx-acct [data-at-pick], #sgx-term [data-term-pick]') || /欢迎回来|Welcome back/.test(visibleText())) window.__sawLogin = true;
       const m = document.getElementById('acct-main');
       if ((m && !m.hidden) || document.querySelector('#sgx-acct .sgx-at[data-at-layer="home"]')) window.__sawMain = true;
     };
@@ -283,18 +283,16 @@ test('R4 分享链接进门的人点盾牌 → 终端 nobody@space:~/wild#；sud
   expect(await lockShownWithin(page, 300)).toBe(false);
 });
 
-test('R5 分享链接进门的人打开旧账号页 /account/：301 → /#acct，账号终端以未登录打开（sudo root），不 302 锁屏', async ({ page, context }) => {
+test('R5 分享链接进门的人打开旧账号页 /account/：301 → /#acct，账号卡片以未登录打开（一行 sudo root），不 302 锁屏', async ({ page, context }) => {
   await setSession(context, 'link');
   await page.goto(MAIN + '/account/');
-  /* 2026-11-08 账号 UI 改版：没有 /account/ 整页了（_redirects 301 → 首页 #acct），hash 打开后被去掉 */
+  /* 2026-11-08 账号 UI 改版：没有 /account/ 整页了（_redirects 301 → 首页 #acct），hash 打开后被去掉；S9 起卡片只展示 */
   await expect(page.locator('#sgx-acct')).toHaveAttribute('data-state', 'open', { timeout: 15000 });
   expect(new URL(page.url()).pathname).toBe('/');
   await expect(page.locator('#sgx-acct')).toHaveAttribute('data-acct-state', 'guest');
-  await expect(page.locator('#sgx-acct [data-at-log]')).toContainText('sudo root');
-  /* 测试台的账号库是空的（没设 account password / passkey）：sudo root 不列选项，提示用 sudo root reset 设第一把（session.js A12 / A13）；
-     列选项的那一支由默认组 session.spec.js（mock 状态）覆盖 */
-  await expect(page.locator('#sgx-acct [data-at-log]')).toContainText('sudo root reset');
-  await expect(page.locator('#sgx-acct [data-at-pick]')).toHaveCount(0);
+  await expect(page.locator('#sgx-acct .sgx-pop-list [data-at-run]')).toHaveAttribute('data-at-run', 'sudo root');
+  await expect(page.locator('#sgx-acct input')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__sawLogin)).toBe(false);
   expect(await sessionBy(page)).toBe('link');
 });
 
@@ -369,20 +367,28 @@ for (const role of ['password', 'link']) {
     /* 首帧：网关只在旧 /account/ 页注入账号登录态，首页没有，终端等 GET /api/account 再画（PR 正文「偏离」1）；
        但等的那一下不能出登录选项（sudo root / [1] passkey） */
     expect(await page.evaluate(() => window.__sawLogin)).toBe(false);
-    await expect(d.locator('[data-at-act="keys"]')).toBeVisible();
+    await expect(d.locator('[data-at-run="passkey"]')).toBeVisible();
   });
 }
 
-test('R5 对照：进门但没有账号会话 → 账号终端是未登录的 sudo root（空账号库 → 提示 sudo root reset），主页（四行）不出现', async ({ page, context }) => {
+test('R5 对照：进门但没有账号会话 → 账号卡片未登录（主页几行不出现）；点「登录」→ 终端预填 sudo root，回车（空账号库）→ 提示 sudo root reset', async ({ page, context }) => {
   await setSession(context, 'password');
   await page.goto(MAIN + '/account/');
   const d = page.locator('#sgx-acct');
   await expect(d).toHaveAttribute('data-state', 'open', { timeout: 15000 });
   await expect(d).toHaveAttribute('data-acct-state', 'guest');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-account-session', 'out');
-  /* 测试台账号库为空 → sudo root 走「还没有登录方式 · 输入 sudo root reset」那一支（同上一条 R5） */
-  await expect(d.locator('[data-at-log]')).toContainText('sudo root reset');
   expect(await page.evaluate(() => window.__sawMain)).toBe(false);
+  /* S9：卡片只展示，点「登录」= 收起卡片、终端预填 sudo root（不替人回车） */
+  await d.locator('.sgx-pop-list [data-at-run="sudo root"]').click();
+  await expect(d).toBeHidden();
+  const inp = page.locator('#sgx-term-in');
+  await expect(inp).toHaveValue('sudo root');
+  await inp.press('Enter');
+  /* 测试台账号库为空（没设 account password / passkey）→ sudo root 不列选项，走「还没有登录方式 · 输入 sudo root reset」那一支（session.js A12 / A13）；
+     列选项的那一支由默认组 session.spec.js（mock 状态）覆盖 */
+  await expect(page.locator('#sgx-term [data-term-out]')).toContainText('sudo root reset', { timeout: 10000 });
+  await expect(page.locator('#sgx-term [data-term-pick]')).toHaveCount(0);
 });
 
 test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / 数字健康 / 云同步经网关转发到 styrigx-account，页面和其他接口仍走网关', async ({ page, context }) => {

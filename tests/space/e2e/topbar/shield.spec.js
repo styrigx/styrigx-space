@@ -78,9 +78,10 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
     await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
     await expect(tIn(page)).toHaveValue('');
     await type(page, 'man');
-    await expect(tOut(page)).toContainText('手册页');
-    const lines = await tOut(page).locator('.sgx-term-ln').allTextContents();
-    const names = lines.filter((l) => / — /.test(l) && !/^space os/.test(l)).map((l) => l.split(' — ')[0]);
+    const man = page.locator('#sgx-term [data-term-man-body]');
+    await expect(man).toContainText('手册页');
+    const lines = await man.locator('.sgx-term-ln').allTextContents();
+    const names = lines.filter((l) => / — /.test(l)).map((l) => l.split(' — ')[0]);
     for (const n of ['ask', 'sudo', 'lock', 'share']) expect(names).toContain(n);
     expect(names).not.toContain('find');
     expect(names).not.toContain('passwd');
