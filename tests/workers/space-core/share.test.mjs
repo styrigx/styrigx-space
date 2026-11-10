@@ -370,9 +370,10 @@ for (const K of KINDS) {
     assert.equal(v.ok, false);
     assert.equal(v.reason, 'link-revoked');
     assert.ok(db.rows()[0].revoked_at > 0, 'share_link 记了 revoked_at');
-    /* 整条网关：链接会话进门内页 → 302 锁屏 */
-    const page = await worker.fetch(new Request('https://styrigx.com/display/', { headers: { Cookie: ck } }), env, ctx);
-    assert.equal(page.status, 302);
+    /* 整条网关（v5 S3 起页面一律公开，不再 302 锁屏）：作废后的链接会话调上锁的接口 → 401。
+       以前这里打 /display/ 断言 302：S3 后页面直接回源，测试里没有 ASSETS 就真的去请求线上，S3 上线后线上回 404，测试跟着红（v5 S4 修） */
+    const locked = await worker.fetch(new Request('https://styrigx.com/api/status', { headers: { Cookie: ck } }), env, ctx);
+    assert.equal(locked.status, 401);
     assert.deepEqual(await failShape(await open(env, l.path, { ip: '9.9.9.9' })), FAIL);
     const list = (await api(env, { action: 'list' })).j.links;
     assert.equal(list[0].status, 'revoked');

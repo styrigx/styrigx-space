@@ -72,6 +72,7 @@
 | Workers AI | `AI`（ai） |
 | Rate Limiting `ANON_LIMITER`（每 IP 每分钟 20 次） | space-core |
 | Rate Limiting `AI_LIMITER`（每 IP 每分钟 6 次） | space-core |
+| Rate Limiting `FIND_LIMITER`（`/api/find`，每 IP 每分钟 10 次） | space-core |
 
 ### 4.5 服务绑定
 

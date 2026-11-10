@@ -215,6 +215,11 @@ term:
   manPager: "q or enter to quit"
   notDir: "{c}: not a directory: {x}"
   usageTty: "usage: tty [2 | 3 | 4 | 5]"
+  usageFind: "usage: find <keyword>"
+  findNone: "find: no matches for {x}"
+  findDown: "find: search is unavailable right now · try again later"
+  findLimited: "find: too many searches · try again in a minute"
+  askLocked: "AI is locked · run {s} first; use {f} to search by keyword"
 # 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/js/shell/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
 man:
   help: "list the commands"
@@ -226,6 +231,7 @@ man:
   theme: "open the appearance panel, or set dark / light / auto"
   lock: "lock this device now"
   ask: "ask Gray AI a question"
+  find: "search the four sites’ public pages by keyword"
   clear: "clear the screen"
   pwd: "print the current directory"
   open: "open a path: a site, daymark/today, an account or shield layer"

@@ -117,8 +117,8 @@ test('wrangler.toml：[[ratelimits]] ANON_LIMITER 每 60 秒 20 次，周期和�
   assert.match(block, /^namespace_id = "\d+"$/m);
   assert.match(block, /^simple = \{ limit = 20, period = 60 \}$/m);
   assert.equal(ANON_LIMIT_PERIOD, 60);
-  /* P4-1 起还有 AI_LIMITER（namespace 2802，见 ai-api.test.mjs）；两个绑定不共用 namespace */
-  assert.equal((toml.match(/^\[\[ratelimits\]\]/gm) || []).length, 2);
+  /* P4-1 起还有 AI_LIMITER（namespace 2802，见 ai-api.test.mjs），v5 S4 起还有 FIND_LIMITER（见 find-api.test.mjs）；三个绑定不共用 namespace */
+  assert.equal((toml.match(/^\[\[ratelimits\]\]/gm) || []).length, 3);
   const ns = [...toml.matchAll(/^namespace_id = "(\d+)"$/gm)].map((m) => m[1]);
   assert.equal(new Set(ns).size, ns.length);
 });

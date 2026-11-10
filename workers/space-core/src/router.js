@@ -29,6 +29,7 @@ import { apiError, NO_STORE, json, withNoStore } from './lib/http.js';
 import { verifyLockSession, checkLockSession } from './core/lock-session.js';
 import { forwardToService, clientContextOf } from './core/forward.js';
 import * as ai from './api/ai.js';
+import * as find from './api/find.js';
 import * as geo from './api/geo.js';
 import * as lockAllDevices from './api/lock-all-devices.js';
 import * as lockCredentials from './api/lock-credentials.js';
@@ -50,6 +51,7 @@ import { openShare, failResponse as shareFailResponse } from './core/share-open.
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([
   ['/api/ai', ai],
+  ['/api/find', find],
   ['/api/geo', geo],
   ['/api/lock-all-devices', lockAllDevices],
   ['/api/lock-credentials', lockCredentials],

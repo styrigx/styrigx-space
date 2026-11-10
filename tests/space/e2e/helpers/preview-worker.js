@@ -15,7 +15,7 @@
  * 和真实服务绑定的差别（只影响预览）：请求 / 响应对象在同一个 isolate 里直接传，不经序列化；账号那一半没有自己的默认 fetch
  * （正式的默认 fetch 一律 404，预览里根本没有公网入口能到它）。
  * styrigx-ai（P4-1）：预览不调真实 Workers AI。网关 env 的 AI_SERVICE 换成桩 previewAiService：POST /ask 回固定 hits + 固定回答流
- * （有账号结论头 X-Styrigx-Account-Session: 1 时多一条私密来源，X-Styrigx-AI-Scope 同正式），GET /healthz 200。
+ * （有账号结论头 X-Styrigx-Account-Session: 1 时多一条私密来源，X-Styrigx-AI-Scope 同正式），GET /healthz 200，GET /find（v5 S4）回固定一条公开结果。
  * 打包：deploy.yml「Bundle preview _worker.js」用 wrangler deploy --dry-run 打这个文件；本地模拟器 preview-emulator.cjs 直接 import。
  * cloudflare:workers 由 rpc/*.js 引入（WorkerEntrypoint，这里不用）；node 里由 tests/workers/account/_cf-workers.mjs 提供替身。
  */
@@ -51,6 +51,11 @@ export async function previewAiService(req) {
   const enc = new TextEncoder();
   const ev = (/** @type {string} */ name, /** @type {any} */ data) => 'event: ' + name + '\ndata: ' + JSON.stringify(data) + '\n\n';
   if (url.pathname === '/healthz' && req.method === 'GET') return Response.json({ ok: true, sites: 1, missing: [], preview: true });
+  /* v5 S4：关键词搜索的桩（固定一条公开结果；不读 KV） */
+  if (url.pathname === '/find' && req.method === 'GET') {
+    const q = String(url.searchParams.get('q') || '').trim();
+    return Response.json({ ok: true, q, results: q ? [{ title: 'Palette', url: 'https://styrigx.com/wild/', site: 'space', snippet: 'preview' }] : [] });
+  }
   if (url.pathname !== '/ask') return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
   if (req.method !== 'POST') return Response.json({ ok: false, error: 'method' }, { status: 405 });
   let body;

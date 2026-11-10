@@ -362,15 +362,16 @@ test('/healthz：有 AI 且有索引 200；缺 AI / 一个索引都没有 503；
   assert.equal(r.status, 503);
 });
 
-test('路由：只有 POST /ask、GET /models、GET /healthz；没有 /search；方法不对 405', async () => {
+test('路由：只有 POST /ask、GET /find（v5 S4）、GET /models、GET /healthz；没有 /search；方法不对 405', async () => {
   const { ROUTES } = await import(W + 'router.js');
-  assert.deepEqual([...ROUTES.keys()].sort(), ['/ask', '/healthz', '/models']);
+  assert.deepEqual([...ROUTES.keys()].sort(), ['/ask', '/find', '/healthz', '/models']);
   for (const p of ['/search', '/', '/api/ai', '/ask/x']) {
     const r = await app.fetch(new Request('https://styrigx-ai' + p), { AI: fakeAI([]), KV_SEARCH_INDEX: KV });
     assert.equal(r.status, 404, p);
   }
   assert.equal((await app.fetch(new Request('https://styrigx-ai/ask'), {})).status, 405);
   assert.equal((await app.fetch(new Request('https://styrigx-ai/healthz', { method: 'POST' }), {})).status, 405);
+  assert.equal((await app.fetch(new Request('https://styrigx-ai/find?q=x', { method: 'POST' }), {})).status, 405);
 });
 
 test('wrangler.toml：没有公开地址、绑定 AI、索引 KV、Vectorize、奇趣只读入口、美国区 placement、每小时 Cron、外部模型钥匙（复用 SGX_CHAT_API_KEY）、变量；没有千问；入口只再导出', () => {

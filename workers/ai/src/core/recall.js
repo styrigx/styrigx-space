@@ -1,5 +1,5 @@
 /**
- * @fileoverview 站内召回（内部函数，不对外：没有 /search 端点，定案第 2 条）。两档过滤在这里（方案 5.4、风险 R-8）：
+ * @fileoverview 站内召回（/ask 的内部函数；读索引 loadIndexes 也给 v5 S4 的关键词搜索 GET /find 用，见 api/find.js）。两档过滤在这里（方案 5.4、风险 R-8）：
  * - 没有账号会话（网关没写 X-Styrigx-Account-Session: 1）→ 只召回公开条目；
  * - 有账号会话 → 公开 + 私密。
  * 过滤在召回阶段做，不靠提示词：私密条目进不了 hits，也进不了给模型的上下文。

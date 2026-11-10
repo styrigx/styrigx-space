@@ -63,6 +63,7 @@ test('访问表快照：改了这张表，这里必须跟着改', () => {
     'HEAD /s/:code → public',
     'GET /api/geo → public',
     'GET /api/wellbeing → public',
+    'GET /api/find → public',
   ]);
   assert.ok(Object.isFrozen(ROUTE_ACCESS) && ROUTE_ACCESS.every((r) => Object.isFrozen(r)));
   for (const r of ROUTE_ACCESS) assert.ok(typeof r.why === 'string' && r.why.length > 0, r.path + ' 要写为什么公开');
@@ -82,8 +83,10 @@ test('访问表快照：改了这张表，这里必须跟着改', () => {
 test('精确匹配：多一段、换方法、编码 / 大小写都不是 public；只把结尾一个 / 当同一条', () => {
   assert.equal(accessOf('GET', '/api/geo'), 'public');
   assert.equal(accessOf('GET', '/api/geo/'), 'public');
+  assert.equal(accessOf('GET', '/api/find'), 'public');
+  assert.equal(accessOf('GET', '/api/find/'), 'public');
   for (const [m, p] of [['GET', '/api/geo/x'], ['GET', '/api/geo//'], ['POST', '/api/geo'], ['GET', '/api/geox'], ['GET', '/API/geo'], ['GET', '/api/%67eo'],
-    ['GET', '/api/wellbeing/x'], ['POST', '/api/wellbeing'], ['GET', '/api/lock-entry/x'], ['POST', '/api/lock-entry'], ['GET', '/api/lock-password'],
+    ['GET', '/api/wellbeing/x'], ['POST', '/api/wellbeing'], ['POST', '/api/find'], ['HEAD', '/api/find'], ['GET', '/api/find/x'], ['GET', '/api/search'], ['GET', '/api/lock-entry/x'], ['POST', '/api/lock-entry'], ['GET', '/api/lock-password'],
     ['GET', '/api/lock-session-check/../ai'], ['POST', '/s/abc'], ['GET', '/api/unknown'], ['GET', '/curio/api/music'], ['GET', '/daymark/api/today']]) {
     assert.equal(accessOf(m, p), 'entry', m + ' ' + p);
   }

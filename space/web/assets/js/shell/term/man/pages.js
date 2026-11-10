@@ -13,6 +13,7 @@ export const PAGES = Object.freeze({
   theme: { d: 'open the appearance panel, or set dark / light / auto', syn: ['theme', 'theme [dark | light | auto]'] },
   lock: { d: 'lock this device now', syn: ['lock'] },
   ask: { d: 'ask Gray AI a question', syn: ['ask <question>'] },
+  find: { d: 'search the four sites’ public pages by keyword', syn: ['find <keyword>'] },
   clear: { d: 'clear the screen', syn: ['clear', 'cls'] },
   pwd: { d: 'print the current directory', syn: ['pwd'] },
   open: { d: 'open a path: a site, daymark/today, an account or shield layer', syn: ['open [path]', 'open ~/account/security', 'open ~/shield/keys'] },

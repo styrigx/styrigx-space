@@ -68,6 +68,7 @@
 | 服务绑定 | `AI_SERVICE` | `styrigx-ai`（P4-1）：没有公开地址；`POST /api/ai`（`src/api/ai.js`）验同源、进门、两档 AI 限流、写账号结论头后转给它的 `POST /ask`，SSE 原样流回 |
 | D1 | `D1_SPACE` | D1 `styrigx-space-core`：`realm='lock'` 的行、分享链接 `share_*`、AI 全站限流计数（`realm='ai'`）；基线里的恢复开关表 `lock_reset_switch` 已无运行时读者（进站 v3 L1 起 reset 只要恢复钥匙） |
 | 限流 | `ANON_LIMITER` | 无会话写接口按 IP 每 60 秒 20 次（`core/anon-limit.js`，绑定缺失时 fail-closed 503 `config`；限流器调用本身出错时放行并记日志） |
+| 限流 | `FIND_LIMITER`（namespace 2804） | `GET /api/find`（v5 S4 关键词搜索，公开）：每 IP 每 60 秒 10 次，超了 429 `cooldown` + `message`（`core/find-limit.js`，绑定缺失 / 出错时放行）；不和别的限流器共用 namespace |
 | 限流 | `AI_LIMITER`（namespace 2802） | `/api/ai` 第一档：每 IP 每 60 秒 6 次，超了 429 `cooldown`（`core/ai-limit.js`，绑定缺失时放行）。第二档全站总闸每分钟 60 次不用绑定：`D1_SPACE` 的 `attempt_limit` 里 `realm='ai'`、`kind='global'`、bucket = 当前分钟的一行，单条 upsert 判断 + 计数，超了或 D1 出错 429 `busy`（不改表结构、不加迁移） |
 
 明文变量：`SGX_ENV = "production"`、`SGX_SITE = "space"`、`SGX_ORIGIN`、`SGX_RP_ID`。不开 `*.workers.dev`、不开预览地址。

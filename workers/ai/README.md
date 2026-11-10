@@ -10,7 +10,7 @@
 
 ## 入口
 
-`src/index.js` 只再导出 `src/app.js` 的默认 handler；`src/router.js` 登记三个端点。逻辑：`api/ask.js`（请求校验、选模型、SSE）、`api/models.js`、`api/healthz.js`；`core/models.js`（模型登记：KV → vars → 内置）、`core/gemini.js`（外部模型调用，搬自 `workers/chat/src/chat.js`）；`core/recall.js`（读索引、60 秒内存缓存、两档过滤、正文截 600 字）、`core/rank.js`（拷自 `workers/search-index/src/rank.js`，Worker 之间不许 import）、`core/prompt.js`（系统提示、上下文、历史截断）、`core/think.js`（去掉模型的思考段）；`lib/http.js`。
+`src/index.js` 只再导出 `src/app.js` 的默认 handler；`src/router.js` 登记四个端点。逻辑：`api/ask.js`（请求校验、选模型、SSE）、`api/find.js`（v5 S4 关键词搜索）、`api/models.js`、`api/healthz.js`；`core/models.js`（模型登记：KV → vars → 内置）、`core/gemini.js`（外部模型调用，搬自 `workers/chat/src/chat.js`）；`core/recall.js`（读索引、60 秒内存缓存、两档过滤、正文截 600 字）、`core/rank.js`（拷自 `workers/search-index/src/rank.js`，Worker 之间不许 import）、`core/prompt.js`（系统提示、上下文、历史截断）、`core/think.js`（去掉模型的思考段）；`lib/http.js`。
 
 ## 路由
 
@@ -19,6 +19,7 @@
 | 路径 | 谁调 | 结果 |
 |---|---|---|
 | `POST /ask` `{ q, lang, history, model? }`（`model` 只在有账号结论头时生效，不在登记里 400 `bad_model`） | 网关 `styrigx-space-core` 的服务绑定 `AI_SERVICE`（浏览器请求 `POST /api/ai`，网关验同源、进门、过两档 AI 限流、写账号结论头后转进来） | 200 `text/event-stream`：`event: delta`（0 到多次，2026-11-06 起不再发 `event: hits`）→ `event: done`；已开始流后出错发 `event: error`。响应头 `X-Styrigx-AI-Scope: private\|public`。召回为空不调模型。400 `bad_request` / `too-long`（`q` 超 200 字）、413 `too-large`、503 `config`（选中自营模型但没绑 AI）/ `no_key`（选中外部模型但钥匙读不到）/ `index`。外部模型流中出错 `event: error` 的 code 可能是 `rate_limited` / `model_unavailable` / `upstream`。响应头 `X-Styrigx-AI-Model` 是这次用的模型 id |
+| `GET /find?q=&lang=`（v5 S4） | 网关 `GET /api/find`（公开，网关按 IP 限流 `FIND_LIMITER`） | 关键词搜索，不调模型：同一份 KV 索引读取（`core/recall.js loadIndexes`，60 秒缓存）+ `core/rank.js` 全命中打分；私密条目一律不回（不看账号结论头）。200 `{ ok, q, results: [{ title, url, site, snippet }] }`（最多 10 条，snippet = 副标题，正文不回）；KV 读不了 / 一个站都没有 200 `{ ok, q, results: [], degraded: true }`；400 `bad_request` / `too-long` |
 | `GET /models` | 网关 `GET /api/ai`（进门即可，不计限流） | 200 `{ ok, default, models: [{ id, label, provider }], canChoose }`；`canChoose` = 有账号结论头 |
 | （Cron `41 * * * *`） | Cloudflare | 同步语义召回的向量（见上） |
 | `GET /healthz` | P4-2 起 `styrigx-status` 的服务绑定 `AI_SERVICE` | 有 AI 绑定且至少一个站的索引读得到 200 `{ ok, sites, missing }`；否则 503。不调模型 |

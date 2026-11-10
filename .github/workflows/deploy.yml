@@ -1843,6 +1843,8 @@ jobs:
           check /api/lock-session-check 401 || ok=1
           # 全站搜索（P4-2 退役，路由表里没了）：没会话仍是 401（网关门先拦，默认拒绝）；有会话才是 404，冒烟测不到
           check '/api/search?q=a' 401 || ok=1
+          # v5 S4 关键词搜索：公开，没会话也 200（只回公开页面元数据；索引读不了也是 200 degraded）
+          check '/api/find?q=muse' 200 || ok=1
           # 站点监测：没会话 401
           check /api/status 401 || ok=1
           # 聊天（P4-2 退役，同上）：没会话 401
