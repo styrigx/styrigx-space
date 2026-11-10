@@ -28,3 +28,11 @@ export function paintPick(log, attr, value, keys, def) {
     b.classList.toggle('is-on', !!on && b.getAttribute(attr) === on);
   });
 }
+
+/**
+ * 选择时输入框的 inputmode：每个选项键都是数字才用 numeric（数字键盘），否则 text——[y/N] 在手机数字键盘上打不出 y（Gray 2026-11-11 三星实机）
+ * @param {string[]} keys @returns {'numeric'|'text'}
+ */
+export function pickInputMode(keys) {
+  return keys.length > 0 && keys.every(function (k) { return /^[0-9]+$/.test(k); }) ? 'numeric' : 'text';
+}
