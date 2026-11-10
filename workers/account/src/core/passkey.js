@@ -263,42 +263,11 @@ export async function registrationChallenge(env, rp, purpose) {
  * @returns {Promise<{ok:true, credId:string}|{ok:false, response:Response}>}
  */
 export async function addPasskey(env, rp, purpose, body) {
-  const cred = (body && body.credential) || {};
   const chRec = await consumeChallenge(env, purpose, (body && body.cid) || '');
   if (!chRec) return { ok: false, response: apiError(403, 'challenge') };
   try {
-    const clientData = JSON.parse(new TextDecoder().decode(b64urlDec(cred.response.clientDataJSON)));
-    if (clientData.type !== 'webauthn.create') throw new Error('type');
-    if (String(clientData.challenge || '').replace(/=+$/, '') !== String(chRec.challenge).replace(/=+$/, '')) throw new Error('challenge');
-    if (clientData.origin !== rp.origin) throw new Error('origin');
-    const attObj = cborDecode(b64urlDec(cred.response.attestationObject)).value;
-    if (!(attObj instanceof Map)) throw new Error('attestationObject');
-    const authData = attObj.get('authData');
-    if (!(authData instanceof Uint8Array)) throw new Error('authData');
-    const parsed = parseRegAuthData(authData, await rpIdHashOf(rp.rpId));
-    if (!parsed.uv) throw new Error('uv-required');
-    const jwk = coseToJwk(parsed.coseKey);
-    const credIdB64 = b64urlEnc(parsed.credId);
-    let aaguid = '';
-    try {
-      if (parsed.aaguid) {
-        const h = Array.from(parsed.aaguid, (b) => b.toString(16).padStart(2, '0')).join('');
-        aaguid = h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
-      }
-    } catch (e) {}
-    const item = {
-      /* 用户没起名就存空（不存显示文案），前端按页面语言显示默认名 */
-      name: cleanPasskeyName(body && body.name),
-      provider: providerOf(aaguid),
-      aaguid: aaguid,
-      createdAt: Date.now(),
-      lastUsedAt: 0,
-      credId: credIdB64,
-      publicKey: jwk,
-      signCount: parsed.signCount,
-      uv: 1,
-    };
-    const dup = await getPasskey(env, credIdB64);
+    const item = await verifyRegistration(rp, chRec.challenge, body);
+    const dup = await getPasskey(env, item.credId);
     if (dup) item.createdAt = dup.createdAt || item.createdAt;
     await savePasskey(env, item);
     return { ok: true, credId: item.credId };
@@ -307,4 +276,44 @@ export async function addPasskey(env, rp, purpose, body) {
     const code = (e && /** @type {any} */ (e).message === 'uv-required') ? 'uv-required' : 'verify';
     return { ok: false, response: json(403, { ok: false, error: code }) };
   }
+}
+
+/**
+ * 验一次注册（clientData / attestation，UV 必须），回要存的记录（不存）。账号通行密钥（addPasskey）和 v6 用户通行密钥
+ * （core/identity-passkey.js）共用。失败抛错（message = 原因；uv-required 单独认）。
+ * @param {{rpId:string, origin:string}} rp @param {string} challenge 已消费的 challenge @param {any} body { credential, name? }
+ */
+export async function verifyRegistration(rp, challenge, body) {
+  const cred = (body && body.credential) || {};
+  const clientData = JSON.parse(new TextDecoder().decode(b64urlDec(cred.response.clientDataJSON)));
+  if (clientData.type !== 'webauthn.create') throw new Error('type');
+  if (String(clientData.challenge || '').replace(/=+$/, '') !== String(challenge).replace(/=+$/, '')) throw new Error('challenge');
+  if (clientData.origin !== rp.origin) throw new Error('origin');
+  const attObj = cborDecode(b64urlDec(cred.response.attestationObject)).value;
+  if (!(attObj instanceof Map)) throw new Error('attestationObject');
+  const authData = attObj.get('authData');
+  if (!(authData instanceof Uint8Array)) throw new Error('authData');
+  const parsed = parseRegAuthData(authData, await rpIdHashOf(rp.rpId));
+  if (!parsed.uv) throw new Error('uv-required');
+  const jwk = coseToJwk(parsed.coseKey);
+  const credIdB64 = b64urlEnc(parsed.credId);
+  let aaguid = '';
+  try {
+    if (parsed.aaguid) {
+      const h = Array.from(parsed.aaguid, (b) => b.toString(16).padStart(2, '0')).join('');
+      aaguid = h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+    }
+  } catch (e) {}
+  return {
+    /* 用户没起名就存空（不存显示文案），前端按页面语言显示默认名 */
+    name: cleanPasskeyName(body && body.name),
+    provider: providerOf(aaguid),
+    aaguid: aaguid,
+    createdAt: Date.now(),
+    lastUsedAt: 0,
+    credId: credIdB64,
+    publicKey: jwk,
+    signCount: parsed.signCount,
+    uv: 1,
+  };
 }

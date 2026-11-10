@@ -78,9 +78,9 @@ test('index.js：默认导出就是 app.js 的 default；AccountService / Accoun
   assert.equal(ep.AccountVerifier.prototype.fetch, undefined);
 });
 
-test('路由表：AccountService = /api/account + 七个入口子路径 + 四个账号数据接口（router.js API_ROUTES 同一张表）', () => {
+test('路由表：AccountService = /api/account + 七个入口子路径 + 四个账号数据接口 + v6 身份命令 /api/identity（router.js API_ROUTES 同一张表）', () => {
   assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account', '/api/account/devices', '/api/account/grants', '/api/account/keys', '/api/account/proxy', '/api/account/reauth',
-    '/api/account/reset', '/api/account/session', '/api/avatar', '/api/prefs', '/api/profile', '/api/wellbeing']);
+    '/api/account/reset', '/api/account/session', '/api/avatar', '/api/identity', '/api/prefs', '/api/profile', '/api/wellbeing']);
   assert.equal(ep.SERVICE_API_ROUTES, index.API_ROUTES);
 });
 
@@ -287,7 +287,8 @@ test('lockIdentityDenial：只按身份头的结论拒；/api/* 没有进站会�
   const byPassword = { session: true, by: 'password', linkId: '' };
   const byLink = { session: true, by: 'link', linkId: 'lktesttesttest01' };
   assert.equal(deny('/avatar/96.webp', null), null, '头像文件公开');
-  assert.deepEqual([...ep.PUBLIC_API], ['GET /api/wellbeing']);
+  assert.deepEqual([...ep.PUBLIC_API], ['POST /api/identity', 'GET /api/wellbeing'], 'v6 身份命令公开入口（每个 action 的档在接口里判）');
+  assert.equal(deny('/api/identity', null, 'POST'), null);
   assert.equal(deny('/api/wellbeing', null), null, '屏幕时间合计公开（v5 S3）');
   assert.equal(deny('/api/wellbeing/', null), null);
   for (const [p, m] of [['/api/wellbeing', 'POST'], ['/api/wellbeing/x', 'GET'], ['/api/prefs', 'GET'], ['/api/account', 'GET'], ['/api/avatar', 'GET'], ['/api/profile', 'GET']]) {

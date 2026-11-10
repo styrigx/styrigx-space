@@ -8,13 +8,13 @@
  *
  * 只 import core/。
  */
-import { levelOf, ruleOf } from './route-access.js';
+import { levelOf, ruleOf, rescueOf } from './route-access.js';
 import { permits, ACCESS, ROOT_UID } from './groups.js';
 import { admitRequest } from './identity-session.js';
 
 /**
  * @typedef {{ allowed: boolean, reason: string, level: string|null, uid: number|null, name: string, groups: string[],
- *   root: boolean, rescue: boolean, via: string, renew: boolean }} AdmitConclusion
+ *   root: boolean, rescue: boolean, via: string, renew: boolean, sessionId?: string }} AdmitConclusion
  */
 
 /** @param {Partial<AdmitConclusion>} o @returns {AdmitConclusion} */
@@ -23,22 +23,26 @@ function conclusion(o) {
 }
 
 /**
+ * 新会话能不能走这条路由（opts.action 给了 → 按那个 action 的档和救援白名单；网关只传路由，按路由这一档）。
+ * 判断只经 permits（顺序：救援 → root → 档）；这里没有任何 root 快速放行。
  * @param {any} env @param {Request} request 只读 Cookie 头 @param {string} method @param {string} pathname @param {number} [now]
+ * @param {{action?: string}} [opts]
  * @returns {Promise<AdmitConclusion>}
  */
-export async function admitRoute(env, request, method, pathname, now) {
+export async function admitRoute(env, request, method, pathname, now, opts) {
   try {
+    const q = opts && typeof opts.action === 'string' ? { action: opts.action } : undefined;
     const rule = ruleOf(method, pathname);
-    const level = levelOf(method, pathname);
+    const level = levelOf(method, pathname, q);
     if (!rule || !level) return conclusion({ reason: 'not-listed' });
     const adm = await admitRequest(env, request, now);
     const identity = adm.ok ? adm.identity : null;
-    const allowed = permits(identity, level, { rescue: rule.rescue === true });
+    const allowed = permits(identity, level, { rescue: rescueOf(method, pathname, q) });
     if (!adm.ok) return conclusion({ allowed, level, reason: allowed ? 'ok' : adm.reason });
     return conclusion({
       allowed, level, reason: allowed ? 'ok' : (level === ACCESS.ROOT ? 'need-root' : 'need-' + level),
       uid: adm.identity.uid, name: adm.identity.name, groups: adm.identity.groups.slice(), root: adm.identity.uid === ROOT_UID,
-      rescue: adm.identity.rescue, via: adm.via ? adm.via.name : '', renew: adm.renew,
+      rescue: adm.identity.rescue, via: adm.via ? adm.via.name : '', renew: adm.renew, sessionId: adm.sessionId,
     });
   } catch (e) {
     return conclusion({ reason: 'error' });

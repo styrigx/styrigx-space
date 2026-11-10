@@ -42,6 +42,13 @@ ADR-0006。P1 只加新路径，旧会话 / 旧入口 / 旧命令全部不动；
 | `src/core/users.js` | epoch bump（自改续命 / root 重置全作废）、加删组、期限（`expiryFromDate`：该日 00:00 Asia/Shanghai 起失效） |
 | `src/core/user-audit.js` | 身份审计（90 天） |
 | `src/core/admit.js` | 放行结论 = 路由档 + 新会话身份 + `permits`；`AccountVerifier.admit(cookieHeader, method, pathname)` 调它 |
+| `src/api/identity.js`（P2） | `POST /api/identity`：whoami / su / sudo / exit / idle / lock / passwd / passkey-* / groups / who / useradd / userdel / usermod / passwd-user，每个 action 一档（`route-access.js`），判断只经 `permits` |
+| `src/core/identity-auth.js`（P2） | v6 用户密码：pepper 方案 a（按 `pepper_id` 取 pepper，验对后改用账号 pepper）、一次性密码（16 位以上、24 小时、首登强制改）、两维限流（IP 6 次 / 分钟；用户名 1s → 5s → 30s → 5min）、防枚举 |
+| `src/core/identity-stack.js`（P2） | 身份栈写操作：签发会话（拒签 root）、压 / 弹 root 层、清栈、滑动续写；救援会话签发函数（P3 才有调用方） |
+| `src/core/identity-passkey.js`（P2） | v6 用户通行密钥：可发现凭据断言（不按用户列钥匙）、注册（user.name = 用户名）、ls / rm |
+| `src/core/user-admin.js`（P2） | useradd / userdel / usermod / passwd <名> / groups / who（护栏：拒删 root 与 styrigx、临时用户不进特权 / 写组、最后一个 wheel / sudoers 先警告） |
+| `src/lib/uid-schema.js`（P2） | 数据表有没有 uid 列（`migrations-pending/0007` 跑没跑）：两种表结构都能跑，迁移前别的 uid 碰不到 styrigx 的数据 |
+| `migrations-pending/`（P2） | 待 Gray 批准的迁移（不在 `migrations_dir`，部署 job 不会跑）：`0007_v6_uid_columns.sql` |
 
 数据迁移（凭据 → root / styrigx）只有脚本 `space/scripts/v6-identity-migrate.mjs` 和对照表 `docs/specs/v6-identity-migration.md`，P1 不对生产执行。
 

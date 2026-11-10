@@ -17,8 +17,18 @@ export const KEY_VER = 'avatar:ver';
 export function avatarKv(env) {
   return (env && env.KV_PROFILE) || null;
 }
-/** @param {number} s */
-export const keyOf = (s) => 'avatar:' + s;
+/**
+ * v6（P2）：头像按 uid 分。styrigx（1000）沿用原来的 avatar:<尺寸> / avatar:ver（站点头像，迁移对照：头像归 styrigx）；
+ * 别的用户 avatar:u<uid>:<尺寸> / avatar:u<uid>:ver（KV 键，不用迁移）。uid 只取服务端会话。
+ * @param {number} [uid] 不给 = styrigx
+ */
+export function avatarPrefix(uid) {
+  return uid === undefined || uid === 1000 ? 'avatar:' : 'avatar:u' + uid + ':';
+}
+/** @param {number} s @param {number} [uid] */
+export const keyOf = (s, uid) => avatarPrefix(uid) + s;
+/** 版本号键 @param {number} [uid] */
+export const verKeyOf = (uid) => avatarPrefix(uid) + 'ver';
 export const PUBLIC_CACHE = 'public, max-age=300, stale-while-revalidate=2592000';
 export const NO_STORE = { 'Cache-Control': 'private, no-store' };
 
@@ -40,8 +50,17 @@ export function sniffImage(b) {
  * @param {string} file 例如 '96.webp'
  */
 export function sizeOfFile(file) {
-  const m = /^(\d+)\.webp$/.exec(String(file || ''));
-  const n = m ? parseInt(m[1], 10) : 0;
-  return AVATAR_SIZES.includes(n) ? n : 0;
+  return parseAvatarFile(file).size;
+}
+
+/**
+ * /avatar/<文件名>：'<尺寸>.webp'（styrigx，站点头像）或 'u<uid>-<尺寸>.webp'（v6 别的用户，P2）。不认识 → size 0。
+ * @param {string} file @returns {{size:number, uid:number}}
+ */
+export function parseAvatarFile(file) {
+  const m = /^(?:u(\d{1,9})-)?(\d+)\.webp$/.exec(String(file || ''));
+  const n = m ? parseInt(m[2], 10) : 0;
+  if (!m || !AVATAR_SIZES.includes(n)) return { size: 0, uid: 1000 };
+  return { size: n, uid: m[1] === undefined ? 1000 : parseInt(m[1], 10) };
 }
 

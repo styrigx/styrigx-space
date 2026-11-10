@@ -15,11 +15,17 @@
  *   单行（不收控制字符 / 换行）；姓名、昵称、邮箱不能为空串，签名可以为空；邮箱要像邮箱；值为 null = 清掉回默认值。
  *   不认识的字段、空对象、不是 JSON 对象 → 400；请求体超过 4 KB → 413。任何一个字段不合法整个请求不写。
  * - 与已存的合并后写回一个键 `profile`；回 { ok:true, profile, avatar, updatedAt }（同 GET）。
+ *
+ * v6（P2，定稿 v4 §五）：PUT 的档是 owner——站长（styrigx）+ root（root 由 permits 放行），其余 uid 一律拒（v6 新会话按
+ * core/route-access.js 判；旧会话照旧要账号会话 + profile.write）。root 改名片写身份审计（profile，root 的特权内容操作都留痕）。
+ * GET：有进站会话，或有一个有效的 v6 新会话，即可读。
  */
-import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
+import { isSameOrigin, originDenied, json, apiError, clientIp } from '../lib/http.js';
 import { KEY_VER, NO_STORE } from '../lib/avatar.js';
 import { PROFILE_FIELD_IDS, PROFILE_BODY_MAX, checkField, publicView, profileKv, readStored, writeStored } from '../lib/profile.js';
 import { scopeDenial } from '../gate.js';
+import { ROOT_UID } from '../core/groups.js';
+import { writeUserAudit } from '../core/user-audit.js';
 
 /** 本接口的作用域（core/scopes.js） */
 const SCOPE = 'profile.write';
@@ -43,7 +49,10 @@ async function view(kv, stored, updatedAt) {
 export async function onRequestGet(context) {
   const { env } = context;
   const lock = await context.auth.gateway();
-  if (!lock.ok) return apiError(401, 'session', undefined, NO_STORE);
+  if (!lock.ok) {
+    const v = context.auth.hasV6 ? await context.auth.v6() : null;
+    if (!(v && v.allowed === true && Number.isInteger(v.uid))) return apiError(401, 'session', undefined, NO_STORE);
+  }
   const kv = profileKv(env);
   const { stored, updatedAt } = await readStored(kv);
   return json(200, await view(kv, stored, updatedAt), NO_STORE);
@@ -91,6 +100,10 @@ export async function onRequestPut(context) {
     }
     const now = Date.now();
     await writeStored(kv, stored, now);
+    const v = context.auth.hasV6 ? await context.auth.v6() : null;
+    if (v && v.allowed === true && v.uid === ROOT_UID) {
+      await writeUserAudit(env, { uid: ROOT_UID, command: 'profile set ' + Object.keys(changes).join(','), ok: true, ip: clientIp(request) });
+    }
     return json(200, await view(kv, stored, Object.keys(stored).length ? now : 0), NO_STORE);
   } catch (e) {
     return apiError(500, 'server', undefined, NO_STORE);

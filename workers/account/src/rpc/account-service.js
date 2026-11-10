@@ -12,7 +12,10 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { API_ROUTES, route } from '../router.js';
 import { tagRuntime } from '../app.js';
-import { headerAuth, lockIdentityDenial } from '../gate.js';
+import { headerAuth, identityDenial } from '../gate.js';
+import { readCookie } from '../lib/cookies.js';
+import { SESSION_COOKIE } from '../core/identity-session.js';
+import { renewSession as renewV6Session } from '../core/identity-stack.js';
 import { withNoStore, apiError } from '../lib/http.js';
 import { resolveSecrets } from '../secrets.js';
 import { renewSession } from '../core/session.js';
@@ -33,9 +36,10 @@ export async function serviceFetch(request, env, ctx) {
     isApi = new URL(request.url).pathname.startsWith('/api/');
     const e = await resolveSecrets(env || {});
     const auth = headerAuth(request, e);
-    const denied = lockIdentityDenial(request, auth.identity);
+    const denied = await identityDenial(request, auth);
     let res = denied || (await route(request, e, ctx, auth, SERVICE_API_ROUTES));
     if (isApi && !denied) res = await withSessionRenewal(request, e, res);
+    if (isApi && !denied) res = await withV6Renewal(request, e, auth, res);
     return tagRuntime(isApi ? withNoStore(res) : res);
   } catch (err) {
     console.error('[sgx-account] service unhandled: ' + (err && /** @type {any} */ (err).name ? /** @type {any} */ (err).name : 'error'));
@@ -58,6 +62,27 @@ export async function withSessionRenewal(request, env, res) {
   if (!(await renewSession(request, env, add))) return res;
   const out = new Response(res.body, res);
   for (const c of add.getSetCookie()) out.headers.append('Set-Cookie', c);
+  return out;
+}
+
+/**
+ * v6 新会话的滑动续期（P2，定稿 v4 §六：admit 只读，剩余不足一半才续写，每会话每天至多一次；救援永不续）：
+ * 只在这次请求已经算过路由级 v6 结论、结论说该续（renew）时才写；响应自己设过 sgx-session（su / exit / lock）就不碰；5xx 不碰。
+ * @param {Request} request @param {Record<string, any>} env @param {any} auth @param {Response} res
+ * @returns {Promise<Response>}
+ */
+export async function withV6Renewal(request, env, auth, res) {
+  if (!res || res.status >= 500 || !auth || typeof auth.v6Computed !== 'function') return res;
+  const p = auth.v6Computed();
+  if (!p) return res;
+  const v = await p;
+  if (!v || v.allowed !== true || v.renew !== true || !v.sessionId) return res;
+  const sets = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [res.headers.get('Set-Cookie') || ''];
+  if (sets.some((c) => c.startsWith(SESSION_COOKIE + '='))) return res;
+  const cookie = await renewV6Session(env, v.sessionId, readCookie(request, SESSION_COOKIE));
+  if (!cookie) return res;
+  const out = new Response(res.body, res);
+  out.headers.append('Set-Cookie', cookie);
   return out;
 }
 

@@ -149,13 +149,30 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
 test('摘要快照：各档路由数（改表必须改这里）', () => {
   const count = {};
   for (const r of RA.ROUTE_ACCESS) count[r.level] = (count[r.level] || 0) + 1;
-  assert.deepEqual(count, { public: 37, ai: 2, status: 1, root: 11, user: 9, 'curio-write': 8, listen: 3, 'daymark-write': 6 });
-  assert.equal(RA.ROUTE_ACCESS.length, 77);
+  assert.deepEqual(count, { public: 38, ai: 2, status: 1, root: 10, owner: 1, user: 9, 'curio-write': 8, listen: 3, 'daymark-write': 6 });
+  assert.equal(RA.ROUTE_ACCESS.length, 78);
   assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 17, 'Gray 2026-11-11 定稿的 17 条');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => 'doubt' in r).length, 0, '不再有存疑');
   assert.equal(RA.levelOf('GET', '/curio/api/export'), 'root', '导出含私密 → root（Gray 2026-11-11）');
-  assert.equal(RA.levelOf('PUT', '/api/profile'), 'root', '站长名片只有一份');
+  assert.equal(RA.levelOf('PUT', '/api/profile'), 'owner', '站长名片只有一份：站长 + root（P2 定稿 v4）');
   assert.equal(RA.levelOf('GET', '/api/profile'), 'public', '主页名片公开');
+});
+
+test('/api/identity（P2）：每个 action 一档；救援白名单 = RESCUE_COMMANDS 对应的 action；rescueOf 只放列出的', () => {
+  const lv = (a) => RA.levelOf('POST', '/api/identity', { action: a });
+  for (const a of ['whoami', 'su-challenge', 'su', 'exit', 'idle', 'lock']) assert.equal(lv(a), 'public', a);
+  for (const a of ['passwd', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete', 'groups', 'who']) assert.equal(lv(a), 'user', a);
+  for (const a of ['sudo', 'sudo-challenge']) assert.equal(lv(a), 'sudoers', a);
+  for (const a of ['useradd', 'userdel', 'usermod', 'passwd-user']) assert.equal(lv(a), 'root', a);
+  assert.equal(lv('recovery-key'), null, '不认识的 action 拒绝');
+  const rescue = RA.ROUTE_ACCESS.find((r) => r.path === '/api/identity').rescueActions;
+  const cmdOf = (a) => a.split('-')[0];
+  assert.deepEqual([...new Set(rescue.map(cmdOf))].sort(), [...G.RESCUE_COMMANDS].sort(), '救援白名单 = passwd、passkey、whoami、groups、exit、lock');
+  for (const a of rescue) assert.equal(RA.rescueOf('POST', '/api/identity', { action: a }), true, a);
+  for (const a of ['su', 'sudo', 'useradd', 'userdel', 'usermod', 'passwd-user', 'who', 'idle']) assert.equal(RA.rescueOf('POST', '/api/identity', { action: a }), false, a);
+  assert.equal(RA.rescueOf('POST', '/api/identity'), false, '没给 action 不放');
+  assert.equal(RA.rescueOf('POST', '/api/account/keys'), true, '没有 rescueActions 的救援路由：整条');
+  assert.equal(RA.rescueOf('GET', '/api/status'), false);
 });
 
 test('盘点文档 docs/specs/v6-route-inventory.md 与表一致（每一行的方法、路径、档）', () => {

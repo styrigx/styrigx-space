@@ -60,7 +60,9 @@ export async function checkAdmit(env, cookieHeader, method, pathname) {
   const m = typeof method === 'string' ? method.slice(0, 10) : '';
   const p = typeof pathname === 'string' ? pathname.slice(0, 2048) : '';
   try {
-    return await admitRoute(env || {}, verifierRequest(cookieHeader), m, p);
+    const c = await admitRoute(env || {}, verifierRequest(cookieHeader), m, p);
+    delete c.sessionId; /* 会话行 id 不出账号 Worker */
+    return c;
   } catch (e) {
     return { allowed: false, reason: 'error', level: null, uid: null, name: '', groups: [], root: false, rescue: false, via: '', renew: false };
   }

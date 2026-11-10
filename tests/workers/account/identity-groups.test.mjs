@@ -1,8 +1,9 @@
 /**
  * v6 组模型与集中权限判断（workers/account/src/core/groups.js）：
  * - 组、特权组、写组、styrigx 默认组钉死（定稿 §三）
- * - permits：public 谁都行；访客只有 public；user = 任一已登录身份；root 只有 uid 0；组名：root 全过、普通用户要在组里；不认识的档拒绝
- * - 救援会话：只放标了 rescue 的路由，其余一律拒绝（即使是 root）
+ * - permits 顺序固定（P2，定稿 v4 §三）：救援 → root → 路由档；public 谁都行；访客只有 public；user = 任一已登录身份；
+ *   root 只有 uid 0；owner = 站长 styrigx（root 由第 2 步放行）；组名：root 全过、普通用户要在组里；不认识的档拒绝
+ * - 救援会话：只放标了 rescue 的路由，其余一律拒绝（即使是 root、即使是 public）
  * - canJoinGroup：临时用户进不了 wheel / sudoers / 写组；root 不进组；不认识的组拒绝
  * - 档的取值不和组名重名
  *
@@ -41,6 +42,11 @@ test('permits：public / 访客 / user / root / 组', () => {
   assert.equal(G.permits(alice, 'ai'), false);
   for (const g of G.GROUPS) assert.equal(G.permits(styrigx, g), true, 'styrigx ' + g);
   assert.equal(G.permits(styrigx, 'root'), false, 'styrigx 不是 root（要 su / sudo）');
+  assert.equal(G.permits(styrigx, 'owner'), true, '站长 = styrigx');
+  assert.equal(G.permits(root, 'owner'), true, 'root 由第 2 步放行');
+  assert.equal(G.permits(alice, 'owner'), false, '别的普通用户不是站长');
+  assert.equal(G.permits({ ...alice, groups: [...G.GROUPS] }, 'owner'), false, '组再全也不是站长（按 uid，不按组）');
+  assert.equal(G.permits(null, 'owner'), false);
   for (const lv of G.ACCESS_LEVELS) assert.equal(G.permits(root, lv), true, 'root ' + lv);
   for (const bad of ['entry', 'music', 'admin', '', 'ROOT', 'curio.write']) assert.equal(G.permits(root, bad), false, '不认识的档 ' + bad);
 });
@@ -50,10 +56,19 @@ test('救援会话：只放 rescue 路由；不是 rescue 的路由一律拒绝�
   assert.equal(G.permits(rescue, 'curio-write'), false);
   assert.equal(G.permits(rescue, 'user'), false);
   assert.equal(G.permits(rescue, 'root', { rescue: true }), true);
-  assert.equal(G.permits(rescue, 'public'), true);
+  assert.equal(G.permits(rescue, 'public'), false, '救援先判：public 路由不在白名单也拒（不往下走）');
+  assert.equal(G.permits(rescue, 'owner'), false);
+  assert.equal(G.permits(rescue, 'public', { rescue: true }), true);
   assert.equal(G.permits(root, 'root', { rescue: true }), true, '普通 root 会话不受 rescue 标记影响');
-  assert.deepEqual([...G.RESCUE_COMMANDS], ['passwd', 'passkey', 'recovery-key', 'whoami', 'groups', 'exit', 'lock']);
+  assert.deepEqual([...G.RESCUE_COMMANDS], ['passwd', 'passkey', 'whoami', 'groups', 'exit', 'lock'], '不含换钥匙（定稿 v4 §九）');
+  assert.ok(!G.RESCUE_COMMANDS.includes('recovery-key'));
   for (const c of ['useradd', 'usermod', 'userdel', 'sudo', 'su']) assert.ok(!G.RESCUE_COMMANDS.includes(c), '救援不建用户不改组 ' + c);
+});
+
+test('isTemporary：有期限 = 临时用户', () => {
+  assert.equal(G.isTemporary({ expiresAt: 1 }), true);
+  assert.equal(G.isTemporary({ expiresAt: 0 }), false);
+  assert.equal(G.isTemporary(null), false);
 });
 
 test('canJoinGroup：临时用户不进特权组 / 写组；root 不进组；不认识的组拒绝', () => {

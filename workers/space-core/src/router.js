@@ -16,6 +16,7 @@
  * | /api/avatar*    | ACCOUNT | PUT / DELETE 在账号 Worker 里查账号会话 + avatar.write                      |
  * | /api/wellbeing* | ACCOUNT | GET 公开（合计；明细要账号会话）；POST 要进站（账号未登录时 204）            |
  * | /api/profile*   | ACCOUNT | GET 不要账号会话，PUT 在账号 Worker 里查账号会话 + profile.write             |
+ * | /api/identity   | ACCOUNT | v6 身份命令（P2）：公开入口，每个 action 的档在账号 Worker 判（permits）       |
  * | /avatar/*       | ACCOUNT | 页面路径，公开                                                              |
  *
  * 匹配（只决定转给谁，不决定能不能进）：/api/* 条目 = 路径本身或其子路径（p 或 p + '/…'；
@@ -76,6 +77,7 @@ export const FORWARDING = Object.freeze([
   Object.freeze({ path: '/api/avatar', binding: 'ACCOUNT' }),
   Object.freeze({ path: '/api/wellbeing', binding: 'ACCOUNT' }),
   Object.freeze({ path: '/api/profile', binding: 'ACCOUNT' }),
+  Object.freeze({ path: '/api/identity', binding: 'ACCOUNT' }),
   Object.freeze({ path: '/avatar/', binding: 'ACCOUNT' }),
 ]);
 
