@@ -31,7 +31,7 @@
 - 组：`wheel`（可 su root）、`sudoers`（可 sudo）、`listen`、`ai`、`status`、`curio-write`、`daymark-write`（上传、编辑、单条内容删除）。删除不做组：**批量 / 结构删除只属 root**。
 - styrigx 默认：wheel、sudoers、listen、ai、status、curio-write、daymark-write。新用户默认无组。
 - **临时用户**（有期限）代码拒绝加入 wheel、sudoers、写组；已在这些组里的用户不能被设期限。
-- 访问档：`public` / `user`（任一已登录身份）/ 组名 / `root`；每条路由一档，未列入一律拒绝（SGX-SPEC-004）。判断全站只有一处：`workers/account/src/core/groups.js` `permits()`。
+- 访问档：`public` / `user`（任一已登录身份）/ 组名 / `owner`（站长 = styrigx，P2）/ `root`；每条路由一档，未列入一律拒绝（SGX-SPEC-004）。判断全站只有一处：`workers/account/src/core/groups.js` `permits()`，顺序固定（定稿 v4 §三，P2 实现）：① 救援会话只放白名单路由 / action，其余一律拒、不往下走；② root 一律放行；③ 按档。admit 没有任何绕过 `permits` 的 root 快速路径。
 - 原来要复验的操作一律改成 sudo 每次重验（= root 档）。
 
 ### 2.4 身份切换（P2 实现）
@@ -95,7 +95,15 @@
 - 每条密码哈希记 `pepper_id`（`account` = `SGX_ACCOUNT_PASSWORD_PEPPER`，`space` = `SGX_SPACE_PASSWORD_PEPPER`）；验证时**按这条记录的 `pepper_id` 取对应 pepper**，不猜、不两把轮流试；`pepper_id` 不认识或对应 pepper 缺失 → fail closed。
 - 登录成功且 `pepper_id = 'space'` 时，用账号 pepper 重算哈希，同一次写入把 `pepper_id` 改成 `account`。
 - 旧 space pepper 保留到**所有活跃用户都已迁完**（库里不再有 `pepper_id = 'space'` 的活跃用户）为止，**P4 才删**（先核代码与绑定）。
-- 账号 Worker 需加绑 `SGX_SPACE_PASSWORD_PEPPER`（Secrets Store 绑定，只加绑定、不碰值）。P1 没有 v6 用户的密码验证（新会话没有签发入口，admit 只读），用不到这把 pepper，所以**绑定放在 P2**，随 `su` 验密一起加进 `workers/account/wrangler.toml`。
+- 账号 Worker 需加绑 `SGX_SPACE_PASSWORD_PEPPER`（Secrets Store 绑定，只加绑定、不碰值）。P1 没有 v6 用户的密码验证（新会话没有签发入口，admit 只读），用不到这把 pepper，所以**绑定放在 P2**，随 `su` 验密一起加进 `workers/account/wrangler.toml`。（P2a 已加。）
+
+### 2.13 P2a 实现要点（2026-11-11）
+
+- 入口：`POST /api/identity`（网关 public、转发给账号；每个 action 一档，救援白名单 = whoami / passwd / passkey-* / groups / exit / lock）。
+- 会话 cookie `sgx-session`：`Path=/; HttpOnly; Secure; SameSite=Lax`，只发给 styrigx.com 本主机（不写 Domain：子站都在同一主机路径下）。
+- `su <用户>` 只签普通用户；`issueSession` 代码级拒签 uid 0；`su root` 只压栈（≤ 1 小时）；`idle` 只弹 root 层；`sudo` 每次验自己的凭据、不压栈、不发票据，只能借 root 跑 useradd / userdel / usermod / passwd <名> / groups / who，`passwd` / `passkey` 一律 `root-creds`。
+- 数据按 uid：头像在 KV 按键前缀分（styrigx 键不变）；偏好 / 数字健康 / 旧设备表的 uid 列在 `workers/account/migrations-pending/0007_v6_uid_columns.sql`，**不在 `migrations_dir`、部署不执行**，待 Gray 批准；代码两种表结构都能跑（`lib/uid-schema.js`），迁移前别的 uid 读到空、写被拒 / 丢弃。v6 的「设备」= 自己的 `account_sessions`。
+- 审计加 root 改名片（`profile`）；批量 / 结构删除在奇趣 / 日刻接口 Worker，它们接上新会话（P3 / P4）时再写 `rm-bulk`。
 
 ## 3. 分阶段（分步割接，不是兼容层）
 
@@ -115,6 +123,7 @@
 | 日期 | 变更 | PR |
 |---|---|---|
 | 2026-11-11 | P1：身份表、组与路由盘点、admit 新路径、epoch、审计、迁移脚本与对照表、STEPUP / APP 映射；路由盘点 17 条存疑 Gray 定稿（`GET /curio/api/export` 改 root）；§2.12 P2 硬要求 | #395 |
+| 2026-11-11 | P2a：permits 三步顺序（救援 → root → 档）、owner 档（名片 PUT）、`/api/identity`（su / sudo / exit / idle / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>）、身份栈写操作、两维限流、防枚举、pepper 绑定、数据按 uid（迁移待批）；§2.13 | P2a |
 
 ## 5. 后果
 

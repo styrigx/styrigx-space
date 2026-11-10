@@ -88,6 +88,7 @@ export const ROUTE_ACCESS = Object.freeze([
   { method: 'GET', path: '/api/lock-credentials', access: 'public', why: '重置票（不是进站会话）也要能列凭证；接口内要进站或重置票' },
   { method: 'POST', path: '/api/lock-reset', access: 'public', why: '恢复密钥换重置票' },
   { method: 'POST', path: '/api/space-auth', access: 'public', why: '恢复密钥校验' },
+  { method: 'POST', path: '/api/identity', access: 'public', why: 'v6 身份命令（P2：whoami / su 登录要在进站前用；每个 action 的档在账号 Worker 判，permits）' },
   { method: 'GET', path: '/s/:code', access: 'public', why: '分享链接：码就是凭证，打开即进站（by=link）' },
   { method: 'HEAD', path: '/s/:code', access: 'public', why: '同上（链接预览探测）' },
   /* 公开的数据 */

@@ -59,6 +59,7 @@ test('访问表快照：改了这张表，这里必须跟着改', () => {
     'GET /api/lock-credentials → public',
     'POST /api/lock-reset → public',
     'POST /api/space-auth → public',
+    'POST /api/identity → public',
     'GET /s/:code → public',
     'HEAD /s/:code → public',
     'GET /api/geo → public',

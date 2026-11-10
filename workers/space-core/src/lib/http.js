@@ -79,6 +79,19 @@ export const ERROR_CODES = Object.freeze({
   'too-large': [413],
   'bad-type': [415],
   target: [400],
+  /* v6 身份命令（P2，/api/identity） */
+  permission: [403], /* 档不够（带 need：要哪一档） */
+  'exit-first': [409], /* 普通用户态不能 su 到另一个普通用户，先 exit */
+  'already-root': [409],
+  'must-change': [403], /* 一次性密码首登：带 newPassword 再来一次 */
+  weak: [400], /* 新密码不合格（≥ 8 位、不等于用户名 / 旧密码） */
+  'root-creds': [403], /* sudo / passwd <名> 不能动 root 的凭据，只能在 su root 或救援会话里 passwd */
+  expiry: [400],
+  temporary: [400], /* 临时用户不能进 wheel / sudoers / 写组 */
+  group: [400],
+  protected: [403], /* userdel / usermod 不能动 root、styrigx（带 target） */
+  'last-member': [409], /* 减掉最后一个 wheel / sudoers 成员：带 force 再来一次 */
+  'not-ready': [409], /* 数据表还没加 uid 列（迁移待 Gray 批准）：别的用户暂时不能写（/api/prefs） */
   /* 服务端 / 配置 */
   server: [500, 503],
   config: [500, 503],

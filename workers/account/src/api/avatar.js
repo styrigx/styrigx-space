@@ -9,9 +9,12 @@
  *
  * DELETE
  * - 同 PUT：进站会话 + 账号会话 + avatar.write；必须同源。先删版本号（立刻回到默认图），再删四张图。
+ *
+ * v6（P2）：v6 新会话（sgx-session，档 user）也能进；头像按 uid 分（lib/avatar.js avatarPrefix）——uid 只取服务端会话
+ * （context.auth.dataUid()），请求里的任何 uid 都不认。旧会话 = styrigx（站点头像，键不变）。
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
-import { AVATAR_SIZES, AVATAR_MAX, KEY_VER, keyOf, sniffImage, NO_STORE, avatarKv } from '../lib/avatar.js';
+import { AVATAR_SIZES, AVATAR_MAX, keyOf, verKeyOf, sniffImage, NO_STORE, avatarKv } from '../lib/avatar.js';
 import { scopeDenial } from '../gate.js';
 
 /** 本接口的作用域（core/scopes.js） */
@@ -23,6 +26,8 @@ export async function onRequestPut(context) {
   if (!isSameOrigin(request)) return originDenied();
   const denied = await scopeDenial(context.auth, SCOPE, NO_STORE);
   if (denied) return denied;
+  const uid = await context.auth.dataUid();
+  if (uid === null) return apiError(401, 'unauthorized', undefined, NO_STORE);
   const kv = avatarKv(env);
   if (!kv) return apiError(500, 'server', undefined, NO_STORE);
   /** @type {FormData} */
@@ -46,9 +51,9 @@ export async function onRequestPut(context) {
     imgs.push({ s, buf, type });
   }
   try {
-    for (const it of imgs) await kv.put(keyOf(it.s), it.buf, { metadata: { type: it.type } });
+    for (const it of imgs) await kv.put(keyOf(it.s, uid), it.buf, { metadata: { type: it.type } });
     const ver = Date.now().toString(36);
-    await kv.put(KEY_VER, ver);
+    await kv.put(verKeyOf(uid), ver);
     return json(200, { ok: true, ver }, NO_STORE);
   } catch (e) {
     return apiError(500, 'server', undefined, NO_STORE);
@@ -61,11 +66,13 @@ export async function onRequestDelete(context) {
   if (!isSameOrigin(request)) return originDenied();
   const denied = await scopeDenial(context.auth, SCOPE, NO_STORE);
   if (denied) return denied;
+  const uid = await context.auth.dataUid();
+  if (uid === null) return apiError(401, 'unauthorized', undefined, NO_STORE);
   const kv = avatarKv(env);
   if (!kv) return apiError(500, 'server', undefined, NO_STORE);
   try {
-    await kv.delete(KEY_VER);
-    for (const s of AVATAR_SIZES) await kv.delete(keyOf(s));
+    await kv.delete(verKeyOf(uid));
+    for (const s of AVATAR_SIZES) await kv.delete(keyOf(s, uid));
     return json(200, { ok: true }, NO_STORE);
   } catch (e) {
     return apiError(500, 'server', undefined, NO_STORE);

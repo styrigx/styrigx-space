@@ -74,8 +74,8 @@ test('writeLockIdentity：先剥再写；进门（by 只作审计，linkId 只�
   assert.deepEqual(w(null, { address: 'evil; x', country: 'JAPAN', city: 'a\u0007b' }), {});
 });
 
-test('转发表：六条（2026-11-07 加个人资料 /api/profile）都转给 ACCOUNT；/api/* 只认路径本身或子路径（/api/prefsX 不转）；页面不转', () => {
-  assert.deepEqual(FORWARDING.map((r) => r.path), ['/api/account', '/api/prefs', '/api/avatar', '/api/wellbeing', '/api/profile', '/avatar/']);
+test('转发表：七条（2026-11-07 加个人资料 /api/profile；v6 P2 加身份命令 /api/identity）都转给 ACCOUNT；/api/* 只认路径本身或子路径（/api/prefsX 不转）；页面不转', () => {
+  assert.deepEqual(FORWARDING.map((r) => r.path), ['/api/account', '/api/prefs', '/api/avatar', '/api/wellbeing', '/api/profile', '/api/identity', '/avatar/']);
   for (const r of FORWARDING) assert.deepEqual(Object.keys(r).sort(), ['binding', 'path'], '转发表只管转给谁；要不要进站只看 gate.js 访问表');
   assert.equal(matchForwarding('/account/profile/'), null, '个人资料页面不转发');
   for (const r of FORWARDING) assert.equal(r.binding, 'ACCOUNT');

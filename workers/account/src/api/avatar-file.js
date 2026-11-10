@@ -8,13 +8,15 @@
  *   ETag = "<版本>-<尺寸>"，默认图是 "d-<尺寸>"；If-None-Match 命中回 304。
  *   设置页靠 ETag 是不是 "d-" 开头判断有没有自定义头像。
  * - 不认识的尺寸 → 404。
+ * - v6（P2）：/avatar/u<uid>-<尺寸>.webp = 那个用户的头像（KV avatar:u<uid>:*；没传过同样落到默认头像）；不带前缀的仍是站点头像（styrigx）。
  */
-import { sizeOfFile, keyOf, KEY_VER, PUBLIC_CACHE, NO_STORE, avatarKv } from '../lib/avatar.js';
+import { parseAvatarFile, keyOf, verKeyOf, PUBLIC_CACHE, NO_STORE, avatarKv } from '../lib/avatar.js';
 
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { request, env, params } = context;
-  const s = sizeOfFile(params && params.file);
+  const f = parseAvatarFile(params && params.file);
+  const s = f.size;
   if (!s) return new Response(null, { status: 404, headers: NO_STORE });
   const kv = avatarKv(env);
   let ver = '';
@@ -23,9 +25,9 @@ export async function onRequestGet(context) {
   let type = 'image/webp';
   if (kv) {
     try {
-      ver = (await kv.get(KEY_VER, { cacheTtl: 60 })) || '';
+      ver = (await kv.get(verKeyOf(f.uid), { cacheTtl: 60 })) || '';
       if (ver) {
-        const r = await kv.getWithMetadata(keyOf(s), { type: 'arrayBuffer', cacheTtl: 60 });
+        const r = await kv.getWithMetadata(keyOf(s, f.uid), { type: 'arrayBuffer', cacheTtl: 60 });
         if (r && r.value) {
           body = r.value;
           if (r.metadata && r.metadata.type) type = r.metadata.type;

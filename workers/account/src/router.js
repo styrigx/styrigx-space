@@ -9,6 +9,8 @@
  * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（进站会话 + 账号会话 + avatar.write）→ KV_PROFILE
  * - 个人资料（2026-11-07）：GET /api/profile（有进站会话即可）、PUT /api/profile（进站会话 + 账号会话 + profile.write）→ KV_PROFILE 的 profile 键
  * - 设置云同步：GET / POST /api/prefs（进站会话 + 账号会话 + prefs.sync）→ D1_ACCOUNT 的 settings_sync
+ * - v6 身份命令（P2）：POST /api/identity（whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod；
+ *   公开入口，每个 action 的档在 core/route-access.js，判断只经 core/groups.js permits）→ D1_ACCOUNT 的 account_users / account_sessions …
  * - 数字健康：POST /api/wellbeing（账号会话 + wellbeing.write 才记）/ GET（有进站会话即可；明细只给账号会话）→ D1_ACCOUNT 的 wb_daily
  *
  * 请求只经网关进来（浏览器 → 网关验锁屏、剥外部 x-styrigx-* 头、写规范身份头 → 服务绑定 ACCOUNT → 命名入口 AccountService，
@@ -23,6 +25,7 @@ import * as avatarFile from './api/avatar-file.js';
 import * as prefs from './api/prefs.js';
 import * as profile from './api/profile.js';
 import * as wellbeing from './api/wellbeing.js';
+import * as identity from './api/identity.js';
 import * as accountStatus from './api/account/status.js';
 import * as accountSession from './api/account/session.js';
 import * as accountReauth from './api/account/reauth.js';
@@ -47,6 +50,7 @@ export const API_ROUTES = new Map([
   ['/api/prefs', prefs],
   ['/api/profile', profile],
   ['/api/wellbeing', wellbeing],
+  ['/api/identity', identity],
 ]);
 
 /** /avatar/<文件名>（不认识的尺寸由处理函数回 404） */

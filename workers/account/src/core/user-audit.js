@@ -1,7 +1,7 @@
 /**
  * v6 身份统一（P1）：身份审计（account_user_audit 表）——只追加，保留 90 天。
  *
- * 记什么（定稿 §八）：useradd / userdel / usermod / passwd、su、sudo、救援、登录失败。每行：做事的 uid（登录失败可能是 null）、
+ * 记什么（定稿 v4 §十）：useradd / userdel / usermod / passwd、su、sudo、救援、登录失败，以及 root 的特权内容操作（root 改名片、批量 / 结构删除）。每行：做事的 uid（登录失败可能是 null）、
  * 命令、结果、时间、IP 前缀（不存完整 IP）。命令只记命令字和非秘密参数（用户名、组名、日期）；密码、一次性密码、恢复钥匙、
  * 令牌一律不进审计——调用方负责，这里再按命令字白名单拦一道、截长。
  * 旧的 account_audit（core/audit.js，30 天）原样不动，并存到 P4。
@@ -15,7 +15,9 @@ import { ipPrefix } from './audit.js';
 /** 保留期：90 天（Muse 复盘 5） */
 export const USER_AUDIT_TTL_MS = 90 * 24 * 3600 * 1000;
 /** 命令字白名单（审计行 command 的第一个词） */
-export const USER_AUDIT_COMMANDS = Object.freeze(['useradd', 'userdel', 'usermod', 'passwd', 'passkey', 'su', 'sudo', 'exit', 'lock', 'rescue', 'recovery-key', 'login-fail', 'expire']);
+export const USER_AUDIT_COMMANDS = Object.freeze(['useradd', 'userdel', 'usermod', 'passwd', 'passkey', 'su', 'sudo', 'exit', 'idle', 'lock', 'rescue', 'recovery-key', 'login-fail', 'expire',
+  /* root 的特权内容操作（定稿 v4 §十：root 干的事都留痕）：root 改名片 profile、批量 / 结构删除 rm-bulk（P2 起账号侧；子站接口 Worker 接上新会话后同样写） */
+  'profile', 'rm-bulk']);
 /** command 最长字符数 */
 export const USER_AUDIT_COMMAND_MAX = 200;
 

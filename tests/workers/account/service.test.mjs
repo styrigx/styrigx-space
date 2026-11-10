@@ -119,9 +119,9 @@ test('迁移：wb_daily 在账号库；网关的迁移目录不再建它', async
   assert.equal(readdirSync(REPO + 'workers/space-core/migrations').some((f) => /wellbeing/.test(f)), false);
 });
 
-test('路由表：/api/account（状态）+ 七个入口子路径 + 四个账号数据接口；网关转发表按前缀转（/api/account 一条覆盖子路径）', async () => {
+test('路由表：/api/account（状态）+ 七个入口子路径 + 四个账号数据接口 + v6 /api/identity；网关转发表按前缀转（/api/account 一条覆盖子路径）', async () => {
   const ACCOUNT = ['/api/account', '/api/account/devices', '/api/account/grants', '/api/account/keys', '/api/account/proxy', '/api/account/reauth', '/api/account/reset', '/api/account/session'];
-  assert.deepEqual([...API_ROUTES.keys()].sort(), [...ACCOUNT, '/api/avatar', '/api/prefs', '/api/profile', '/api/wellbeing'].sort());
+  assert.deepEqual([...API_ROUTES.keys()].sort(), [...ACCOUNT, '/api/avatar', '/api/identity', '/api/prefs', '/api/profile', '/api/wellbeing'].sort());
   const { FORWARDING, matchForwarding } = await import(REPO + 'workers/space-core/src/router.js');
   const top = [...API_ROUTES.keys()].filter((k) => !k.startsWith('/api/account/'));
   assert.deepEqual(FORWARDING.filter((r) => r.path.startsWith('/api/')).map((r) => r.path).sort(), top.sort());

@@ -12,6 +12,9 @@
  * 5. 原来要再验证（reauth / sudo -v / sudo root reauth，即 STEPUP 的继任者）的操作，v6 一律改成 sudo 每次重验 = root 档。
  * 6. retire：v6 割接后要删的旧入口（P3 / P4）；它们在 P1–P3 照旧按老规则跑（旧会话判定不变），这里写的是新会话的档。
  * 7. decided：盘点时拿不准、由 Gray 定稿的条目（2026-11-11；docs/specs/v6-route-inventory.md「已定」汇总）。
+ * 8. rescue：救援会话能走的路由（白名单）。一条路由有多个 action 时，rescueActions 列出救援能用的那几个（没列 = 整条都能用）；
+ *    判断用 rescueOf(method, path, { action })，结果交给 permits 的 opts.rescue（P2，定稿 v4 §三 / §九）。
+ * 9. owner：站长档（= styrigx 的 uid；名片属于站长），root 由 permits 第 2 步放行（P2）。
  *
  * 判断不在这里：这张表只回答「要哪一档」，够不够由 core/groups.js permits() 判断（全站唯一一处）。
  * 没有公开地址、只经服务绑定 / RPC 进来的入口不进表，列在 SERVICE_ONLY（盘点用）。
@@ -27,11 +30,12 @@ export const PROXY_HOST = 'proxy-rules.styrigx.com';
 
 /**
  * @typedef {{ host?: string, method: string, path: string, level: string, worker: string, why: string,
- *   actions?: Readonly<Record<string, string>>, rescue?: boolean, del?: 'item'|'bulk', retire?: string, decided?: string }} RouteRule
+ *   actions?: Readonly<Record<string, string>>, rescue?: boolean, rescueActions?: ReadonlyArray<string>, del?: 'item'|'bulk', retire?: string, decided?: string }} RouteRule
  */
 
 /** @param {RouteRule} r */
-const R = (r) => Object.freeze(Object.assign({ host: MAIN_HOST }, r, r.actions ? { actions: Object.freeze(r.actions) } : {}));
+const R = (r) => Object.freeze(Object.assign({ host: MAIN_HOST }, r, r.actions ? { actions: Object.freeze(r.actions) } : {},
+  r.rescueActions ? { rescueActions: Object.freeze(r.rescueActions.slice()) } : {}));
 
 /** @type {ReadonlyArray<Readonly<RouteRule>>} */
 export const ROUTE_ACCESS = Object.freeze([
@@ -66,6 +70,14 @@ export const ROUTE_ACCESS = Object.freeze([
 
   /* ---------- 账号 styrigx-account（网关 FORWARDING 转来；workers/account/src/router.js API_ROUTES） ---------- */
   R({ method: 'GET', path: '/api/account', level: 'public', worker: 'account', why: '账号终端状态（访客也要读提示符状态）' }),
+  R({ method: 'POST', path: '/api/identity', level: 'public', worker: 'account', why: 'v6 身份命令（P2）：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；每个 action 一档',
+    actions: {
+      whoami: 'public', 'su-challenge': 'public', su: 'public', exit: 'public', idle: 'public', lock: 'public',
+      passwd: 'user', 'passkey-list': 'user', 'passkey-add-challenge': 'user', 'passkey-add': 'user', 'passkey-delete': 'user', groups: 'user', who: 'user',
+      'sudo-challenge': 'sudoers', sudo: 'sudoers',
+      useradd: 'root', userdel: 'root', usermod: 'root', 'passwd-user': 'root',
+    },
+    rescue: true, rescueActions: ['whoami', 'exit', 'lock', 'passwd', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete', 'groups'] }),
   R({ method: 'POST', path: '/api/account/session', level: 'public', worker: 'account', why: '旧 sudo root 登录；v6 = su root（wheel + root 凭据），root 不能从访客直接登录',
     actions: { 'passkey-challenge': 'wheel', passkey: 'wheel', password: 'wheel', end: 'public' }, retire: 'P4（v6 su / exit）' }),
   R({ method: 'POST', path: '/api/account/reauth', level: 'root', worker: 'account', why: 'sudo root reauth（3 分钟票）', retire: 'P4（sudo root reauth 删除，改 sudo 每次重验）' }),
@@ -85,7 +97,8 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'DELETE', path: '/api/avatar', level: 'user', worker: 'account', why: '删自己的头像（回默认）', del: 'item', decided: 'Gray 2026-11-11 定 user：同上' }),
   R({ method: 'GET', path: '/avatar/:file', level: 'public', worker: 'account', why: '头像图片（页面路径）' }),
   R({ method: 'GET', path: '/api/profile', level: 'public', worker: 'account', why: '站点个人资料（公开数据）', decided: 'Gray 2026-11-11 定 public：资料是公开数据（KV_PROFILE 只放公开数据）' }),
-  R({ method: 'PUT', path: '/api/profile', level: 'root', worker: 'account', why: '改站点个人资料（站长资料，不是每个用户一份）', decided: 'Gray 2026-11-11 定 root：站长名片只有一份，user 档会让临时用户改名片' }),
+  R({ method: 'PUT', path: '/api/profile', level: 'owner', worker: 'account', why: '改站点个人资料（站长资料，不是每个用户一份）',
+    decided: 'Gray 2026-11-11 定稿 v4：站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长' }),
   R({ method: 'GET', path: '/api/prefs', level: 'user', worker: 'account', why: '读自己的设置云同步（偏好归 styrigx，按 uid）', decided: 'Gray 2026-11-11 定 user：P2 加 uid（uid 只取服务端会话）' }),
   R({ method: 'POST', path: '/api/prefs', level: 'user', worker: 'account', why: '写自己的设置云同步', decided: 'Gray 2026-11-11 定 user：同上' }),
   R({ method: 'POST', path: '/api/wellbeing', level: 'user', worker: 'account', why: '数字健康上报（只记自己的）', decided: 'Gray 2026-11-11 定 user：P2 加 uid 列（uid 只取服务端会话）' }),
@@ -206,9 +219,26 @@ export function levelOf(method, pathname, opts) {
   return Object.prototype.hasOwnProperty.call(r.actions, a) ? r.actions[a] : null;
 }
 
-/* 表本身的自检（模块加载时）：档都合法、没有重复键——表写错就让 Worker 起不来，CI 单测第一时间红 */
+/**
+ * 救援会话能不能走这一请求（白名单，交给 permits 的 opts.rescue）：路由没标 rescue → false；标了且有 rescueActions →
+ * 只有列出的 action（没给 action → false）；标了没有 rescueActions → 整条都行。
+ * @param {string} method @param {string} pathname @param {{host?: string, action?: string}} [opts]
+ * @returns {boolean}
+ */
+export function rescueOf(method, pathname, opts) {
+  const r = ruleOf(method, pathname, opts);
+  if (!r || r.rescue !== true) return false;
+  if (!r.rescueActions) return true;
+  const a = opts && typeof opts.action === 'string' ? opts.action : null;
+  return a !== null && r.rescueActions.indexOf(a) !== -1;
+}
+
+/* 表本身的自检（模块加载时）：档都合法、没有重复键、rescueActions 是 actions 的子集——表写错就让 Worker 起不来，CI 单测第一时间红 */
 for (const r of ROUTE_ACCESS) {
   const lv = [r.level].concat(r.actions ? Object.values(r.actions) : []);
   for (const l of lv) if (ACCESS_LEVELS.indexOf(l) === -1) throw new Error('route-access: bad level ' + l + ' for ' + r.method + ' ' + r.path);
+  for (const a of r.rescueActions || []) {
+    if (r.rescue !== true || !r.actions || !Object.prototype.hasOwnProperty.call(r.actions, a)) throw new Error('route-access: bad rescue action ' + a + ' for ' + r.path);
+  }
 }
 if (KEYS.size !== ROUTE_ACCESS.length) throw new Error('route-access: duplicate rule');

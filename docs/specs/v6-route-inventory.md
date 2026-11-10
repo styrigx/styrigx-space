@@ -3,9 +3,9 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-004 |
-| 版本 | 0.2 |
+| 版本 | 0.3 |
 | 日期 | 2026-11-11 |
-| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑） |
+| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity） |
 
 
 > 状态：P1 定稿（2026-11-11，Gray 已定 17 条存疑），基线 main 05abe443。机器可读的唯一来源是 `workers/account/src/core/route-access.js` 的 `ROUTE_ACCESS`；
@@ -14,7 +14,8 @@
 
 ## 规则
 
-1. 档（`core/groups.js` `ACCESS_LEVELS`）：**public**（谁都行）/ **user**（任一已登录身份，含无组的临时用户）/ **组名**（wheel、sudoers、listen、ai、status、curio-write、daymark-write）/ **root**。判断全站只有一处：`core/groups.js` `permits()`。
+1. 档（`core/groups.js` `ACCESS_LEVELS`）：**public**（谁都行）/ **user**（任一已登录身份，含无组的临时用户）/ **组名**（wheel、sudoers、listen、ai、status、curio-write、daymark-write）/ **owner**（站长 = styrigx 的 uid，P2）/ **root**。判断全站只有一处：`core/groups.js` `permits()`，顺序固定（P2，定稿 v4 §三）：① 救援会话只放标了「救援可用」的路由 / action，其余一律拒、不往下走；② root 一律放行；③ 按档。
+8. 救援白名单：路由标「救援可用」；一条路由多个 action 的，只放列出的那几个（`rescueActions`，判断用 `rescueOf()`）。
 2. 未列入的接口一律拒绝（fail closed）；页面与静态文件（不在 `/api/`、`/<子站>/api/` 下）一律 public，不进表。
 3. 路径参数只有三种：`/s/:code`（主站，一段 = 分享短链）、`/s/:token/:source`（代理主机，两段 = 代理订阅）、`/avatar/:file`。**/s/ 一段与两段分开列**：P4 删分享只动一段的那两行，两段的代理订阅不受影响。
 4. 一个接口多个 action 的，「档」是进接口的最低一档，「action 另定」列出更高的档，由接口读完 body 后按同一张表判断。网关 admit 只看路由这一档。
@@ -26,17 +27,20 @@
 
 | 档 | 路由数 |
 |---|---|
-| public | 37 |
+| public | 38 |
 | user | 9 |
 | ai | 2 |
 | status | 1 |
 | listen | 3 |
 | curio-write | 8 |
 | daymark-write | 6 |
-| root | 11 |
-| **合计** | **77**（另有 11 个只经服务绑定 / RPC 的入口） |
+| owner | 1 |
+| root | 10 |
+| **合计** | **78**（另有 11 个只经服务绑定 / RPC 的入口） |
 
-按 Worker：站点核心 21、账号 17、奇趣 20、日刻 13、代理 6。割接后要删的旧入口 20 条（P3 / P4）。有 action 另定档的接口 5 个（lock-password、lock-passkey、account/session、account/reset、curio music）。
+按 Worker：站点核心 21、账号 18、奇趣 20、日刻 13、代理 6。割接后要删的旧入口 20 条（P3 / P4）。有 action 另定档的接口 6 个（lock-password、lock-passkey、account/session、account/reset、curio music、identity）。
+
+P2 变更（2026-11-11）：`PUT /api/profile` root → **owner**（站长 styrigx + root，其余拒）；新增 `POST /api/identity`（v6 身份命令，public 入口，每个 action 一档，救援只放 whoami / exit / lock / passwd / passkey-* / groups）。
 
 ### 已定（Gray 2026-11-11）
 
@@ -49,7 +53,7 @@
 | `POST /api/account/proxy` | root | 全放 root，不加新组 |
 | `PUT` / `DELETE /api/avatar` | user | P2 按 uid 分 |
 | `GET /api/profile` | public | 资料本身是公开数据（主页名片） |
-| `PUT /api/profile` | root | 站长名片只有一份，user 档会让临时用户改名片 |
+| `PUT /api/profile` | **owner**（P2 定稿 v4；P1 为 root） | 站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长 |
 | `GET` / `POST /api/prefs` | user | P2 加 uid |
 | `POST /api/wellbeing` | user | P2 加 uid 列 |
 | `GET /api/wellbeing` | public | 合计公开；明细只给本人（按 uid，不按组） |
@@ -95,6 +99,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
 | GET | `/api/account` | **public** |  |  | 保留 | 账号终端状态（访客也要读提示符状态） |  |
+| POST | `/api/identity` | **public**（救援可用：`whoami`、`exit`、`lock`、`passwd`、`passkey-*`、`groups`） | `passwd` / `passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete` / `groups` / `who` → user；`sudo-challenge` / `sudo` → sudoers；`useradd` / `userdel` / `usermod` / `passwd-user` → root；`whoami` / `su-challenge` / `su` / `exit` / `idle` / `lock` → public |  | 保留（P2 新增） | v6 身份命令：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名> |  |
 | POST | `/api/account/session` | **public** | `passkey-challenge` → wheel；`passkey` → wheel；`password` → wheel |  | P4（v6 su / exit） | 旧 sudo root 登录；v6 = su root（wheel + root 凭据），root 不能从访客直接登录 |  |
 | POST | `/api/account/reauth` | **root** |  |  | P4（sudo root reauth 删除，改 sudo 每次重验） | sudo root reauth（3 分钟票） |  |
 | POST | `/api/account/reset` | **public**（救援可用） | `password-set` → root；`passkey-list` → root；`passkey-add-challenge` → root；`passkey-add` → root；`passkey-delete` → root；`finish` → root |  | P3（救援入口直接签 15 分钟一次性 root 会话） | 恢复密钥换 reset 票；之后的写只在救援会话里 |  |
@@ -106,7 +111,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | DELETE | `/api/avatar` | **user** |  | 单条 → 写组 | 保留 | 删自己的头像（回默认） | Gray 2026-11-11 定 user：同上 |
 | GET | `/avatar/:file` | **public** |  |  | 保留 | 头像图片（页面路径） |  |
 | GET | `/api/profile` | **public** |  |  | 保留 | 站点个人资料（公开数据） | Gray 2026-11-11 定 public：资料是公开数据（KV_PROFILE 只放公开数据） |
-| PUT | `/api/profile` | **root** |  |  | 保留 | 改站点个人资料（站长资料，不是每个用户一份） | Gray 2026-11-11 定 root：站长名片只有一份，user 档会让临时用户改名片 |
+| PUT | `/api/profile` | **owner** |  |  | 保留 | 改站点个人资料（站长资料，不是每个用户一份） | Gray 2026-11-11 定稿 v4：站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长 |
 | GET | `/api/prefs` | **user** |  |  | 保留 | 读自己的设置云同步（偏好归 styrigx，按 uid） | Gray 2026-11-11 定 user：P2 加 uid（uid 只取服务端会话） |
 | POST | `/api/prefs` | **user** |  |  | 保留 | 写自己的设置云同步 | Gray 2026-11-11 定 user：同上 |
 | POST | `/api/wellbeing` | **user** |  |  | 保留 | 数字健康上报（只记自己的） | Gray 2026-11-11 定 user：P2 加 uid 列（uid 只取服务端会话） |
@@ -175,7 +180,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | ai | `GET /models` | space-core GET /api/ai | 模型列表（ai 组） |
 | ai | `GET /healthz` | styrigx-status 监测 | 健康检查 |
 | status | `GET /summary` | space-core GET /api/status（STATUS） | 监测数据（status 组） |
-| account | `AccountService.fetch` | space-core FORWARDING（ACCOUNT） | 上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/wellbeing、/avatar/* |
+| account | `AccountService.fetch` | space-core FORWARDING（ACCOUNT） | 上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/wellbeing、/api/identity、/avatar/* |
 | account | `AccountVerifier.authorize / admit` | space-core（ACCOUNT_VERIFIER） | 旧授权结论 / v6 新会话判定（只读） |
 | space-core | `SpaceVerifier.session / conclusion` | curio-core、daymark-core（SPACE） | 旧进站会话结论（P4 后改问账号） |
 | space-core | `ShareJanitor.purgeShareLinks` | styrigx-status 每日一轮（JOB_SPACE） | 清过期分享链接（P4 随分享删） |

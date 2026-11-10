@@ -1,0 +1,42 @@
+-- 2026-11-11 v6 身份统一 P2：头像以外的三张数据表加 uid（头像在 KV，按键前缀分，不用迁移）。D1 styrigx-account。
+--
+-- !!! 待批准，不自动执行 !!!
+-- 本文件故意放在 migrations-pending/，不在 wrangler.toml 的 migrations_dir（migrations/）里：账号部署 job 的
+-- `d1 migrations apply styrigx-account --remote` 不会跑它，CI 的预览库也不会跑它。生产迁移要 Gray 批准（定稿 v4 §十一）：
+--   1. 记下 D1 Time Travel 的时间点（wrangler d1 time-travel info styrigx-account）；
+--   2. 把本文件挪进 migrations/（文件名保持 0007_…），走一个 PR，合并后由部署 job 执行；
+--   3. 代码不用跟着改：lib/uid-schema.js 发现有了 uid 列（最多 60 秒）就自动按 uid 读写。
+-- 迁移前代码照样能跑：没有 uid 列时这些表里的数据全当作 styrigx 的，只有 styrigx 能读写（别的 uid 读到空、写被拒 / 丢弃）。
+--
+-- 迁移对照（定稿 v4 §十一）：现有数据全部归 styrigx（uid 1000）。
+-- settings_sync / wb_daily 的主键要带上 uid，SQLite 改不了主键，所以「新表 → 复制 → 删旧表 → 改名」；account_device 只加一列。
+-- 数据量很小（settings_sync ≤ 160 行、wb_daily ≤ 35 天 × 十几个区域），一次跑完。
+
+-- 设置云同步：主键 (uid, k)
+CREATE TABLE settings_sync_v6 (
+  uid INTEGER NOT NULL DEFAULT 1000,
+  k TEXT NOT NULL,
+  v TEXT,
+  t INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (uid, k)
+);
+INSERT INTO settings_sync_v6 (uid, k, v, t, updated_at) SELECT 1000, k, v, t, updated_at FROM settings_sync;
+DROP TABLE settings_sync;
+ALTER TABLE settings_sync_v6 RENAME TO settings_sync;
+
+-- 数字健康：主键 (uid, day, k)
+CREATE TABLE wb_daily_v6 (
+  uid INTEGER NOT NULL DEFAULT 1000,
+  day TEXT NOT NULL,
+  k TEXT NOT NULL,
+  t TEXT NOT NULL DEFAULT '',
+  sec INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (uid, day, k)
+);
+INSERT INTO wb_daily_v6 (uid, day, k, t, sec) SELECT 1000, day, k, t, sec FROM wb_daily;
+DROP TABLE wb_daily;
+ALTER TABLE wb_daily_v6 RENAME TO wb_daily;
+
+-- 旧账号设备（account_device，v5 账号会话的设备记录）：归 styrigx。v6 的「设备」= account_sessions（本来就有 uid）。
+ALTER TABLE account_device ADD COLUMN uid INTEGER NOT NULL DEFAULT 1000;

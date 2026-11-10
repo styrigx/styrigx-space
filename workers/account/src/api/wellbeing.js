@@ -16,10 +16,15 @@
  *   - 明细（书名 / 文章名）只给进站 + 账号会话；没登录账号只拿到区域合计（items 为空）
  *   - 返回 {ok, d, detail, total, sections:[{k,sec}], items:[{k,t,sec}]}；detail = 这次有没有给明细（前端旷野 › 数字健康卡按它显示）
  *
+ * v6（P2）：按 uid 分（uid 只取服务端会话：v6 新会话 = 会话里的 uid，旧会话 = styrigx；请求里的 uid 一概不认）。
+ *   - POST：v6 新会话（档 user）也能记，记在自己的 uid 下；表还没 uid 列（迁移待批）时只记 styrigx 的，别的 uid 204 丢弃。
+ *   - GET：公开的合计 = 站长 styrigx 的数据；明细只给本人（styrigx，或 root；旧会话 = 进站 + 账号会话）。
  * 不涉及任何密钥 / 会话签发；未绑定 D1_ACCOUNT（本地）时 POST 204、GET 返回空。
  * 2026-10-24 起在账号 Worker styrigx-account（D1 styrigx-account，迁移在 workers/account/migrations/）。
  */
 import { json } from '../lib/http.js';
+import { hasUidColumn } from '../lib/uid-schema.js';
+import { STYRIGX_UID, ROOT_UID } from '../core/groups.js';
 
 const KEY_RE = /^(space|home|files|browser|settings|book|blog)$|^(book|post):[A-Za-z0-9_\-./%]{1,80}$/;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -111,13 +116,21 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' };
 /** @param {any} context */
 export async function onRequestPost(context) {
   const { request, env } = context;
-  const sess = await context.auth.gateway(); /* 进站会话：网关写的身份头（src/gate.js headerAuth） */
-  if (!sess.ok) return new Response(null, { status: 401, headers: NO_STORE });
-  /* 账号会话 + wellbeing.write 才记；否则 204 丢弃（不报错，sendBeacon 不看结果） */
-  const a = await context.auth.authorize();
-  if (!a.ok || !a.scopes.includes('wellbeing.write')) return new Response(null, { status: 204, headers: NO_STORE });
+  /* v6 新会话（档 user，permits 判过）：记在会话的 uid 下 */
+  const v = context.auth.hasV6 ? await context.auth.v6() : null;
+  let uid = v && v.allowed === true && Number.isInteger(v.uid) ? v.uid : null;
+  if (uid === null) {
+    const sess = await context.auth.gateway(); /* 进站会话：网关写的身份头（src/gate.js headerAuth） */
+    if (!sess.ok) return new Response(null, { status: 401, headers: NO_STORE });
+    /* 账号会话 + wellbeing.write 才记；否则 204 丢弃（不报错，sendBeacon 不看结果） */
+    const a = await context.auth.authorize();
+    if (!a.ok || !a.scopes.includes('wellbeing.write')) return new Response(null, { status: 204, headers: NO_STORE });
+    uid = STYRIGX_UID;
+  }
   const db = env && env.D1_ACCOUNT;
   if (!db) return new Response(null, { status: 204, headers: NO_STORE });
+  const byUid = await hasUidColumn(db, 'wb_daily');
+  if (!byUid && uid !== STYRIGX_UID) return new Response(null, { status: 204, headers: NO_STORE }); /* 迁移前只记站长的 */
   const raw = await request.text();
   if (raw.length > MAX_BODY) return new Response(null, { status: 413, headers: NO_STORE });
   let body;
@@ -130,11 +143,14 @@ export async function onRequestPost(context) {
   if (!rep) return new Response(null, { status: 400, headers: NO_STORE });
   try {
     await db.prepare(SCHEMA).run();
-    const up = db.prepare(
-      'INSERT INTO wb_daily (day, k, t, sec) VALUES (?1, ?2, ?3, ?4) ' +
-        "ON CONFLICT(day, k) DO UPDATE SET sec = MIN(sec + excluded.sec, 86400), t = CASE WHEN excluded.t <> '' THEN excluded.t ELSE t END"
-    );
-    const stmts = rep.s.map((e) => up.bind(rep.d, e.k, e.t, e.sec));
+    const up = byUid
+      ? db.prepare(
+        'INSERT INTO wb_daily (uid, day, k, t, sec) VALUES (?5, ?1, ?2, ?3, ?4) ' +
+          "ON CONFLICT(uid, day, k) DO UPDATE SET sec = MIN(sec + excluded.sec, 86400), t = CASE WHEN excluded.t <> '' THEN excluded.t ELSE t END")
+      : db.prepare(
+        'INSERT INTO wb_daily (day, k, t, sec) VALUES (?1, ?2, ?3, ?4) ' +
+          "ON CONFLICT(day, k) DO UPDATE SET sec = MIN(sec + excluded.sec, 86400), t = CASE WHEN excluded.t <> '' THEN excluded.t ELSE t END");
+    const stmts = rep.s.map((e) => (byUid ? up.bind(rep.d, e.k, e.t, e.sec, uid) : up.bind(rep.d, e.k, e.t, e.sec)));
     /* 偶尔清理 35 天前的数据（约每 50 次上报一次） */
     if (Math.random() < 0.02) {
       const cut = utcDay(new Date(Date.now() - KEEP_DAYS * 86400000));
@@ -156,13 +172,17 @@ export async function onRequestGet(context) {
   const url = new URL(request.url);
   const qd = url.searchParams.get('d') || '';
   const d = dayOk(qd) ? qd : utcDay(new Date());
-  const detail = sess.ok === true && (await context.auth.authorize()).ok === true;
+  const v = context.auth.hasV6 ? await context.auth.v6() : null;
+  const v6Owner = !!(v && v.allowed === true && (v.uid === STYRIGX_UID || v.uid === ROOT_UID));
+  const detail = v6Owner || (sess.ok === true && (await context.auth.authorize()).ok === true);
   const empty = { ok: true, d, detail, total: 0, sections: [], items: [] };
   const db = env && env.D1_ACCOUNT;
   if (!db) return json(200, empty, NO_STORE);
   try {
     await db.prepare(SCHEMA).run();
-    const { results } = await db.prepare('SELECT k, t, sec FROM wb_daily WHERE day = ?1').bind(d).all();
+    const byUid = await hasUidColumn(db, 'wb_daily');
+    const q = byUid ? db.prepare('SELECT k, t, sec FROM wb_daily WHERE day = ?1 AND uid = ?2').bind(d, STYRIGX_UID) : db.prepare('SELECT k, t, sec FROM wb_daily WHERE day = ?1').bind(d);
+    const { results } = await q.all();
     const sum = summarize(/** @type {any[]} */ (results || []), detail);
     return json(200, { ok: true, d, detail, ...sum }, NO_STORE);
   } catch (e) {

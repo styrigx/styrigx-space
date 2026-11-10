@@ -14,11 +14,17 @@
  * - 表不存在（"no such table"，还没跑 migration）时自己补建一次再重试，同数字健康的 CREATE TABLE IF NOT EXISTS 兜底
  * - 没绑 D1_ACCOUNT → 500 config（正式 / 预览的 wrangler.toml 都绑了；缺绑定只会是配置错误）
  *
+ * v6（P2）：按 uid 分（ADR-0006 §2.12 (a)：uid 只取服务端会话 context.auth.dataUid()；请求里的 uid 一概不认）。
+ * - 表有 uid 列（migrations-pending/0007 跑过）：一律 WHERE uid = ?；旧会话 = styrigx。
+ * - 还没有 uid 列：表里全是 styrigx 的，只有 styrigx 读写；别的 uid GET 回空、POST 409 not-ready（不碰 styrigx 的行）。
+ *
  * GET  /api/prefs → { ok, items, updatedAt }
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { scopeDenial } from '../gate.js';
+import { hasUidColumn } from '../lib/uid-schema.js';
+import { STYRIGX_UID } from '../core/groups.js';
 
 const KEY_RE = /^sgx-[a-z0-9-]{1,48}$/;
 const MAX_ITEMS = 80;
@@ -43,6 +49,24 @@ export const UPSERT_SQL =
   'ON CONFLICT(k) DO UPDATE SET v = excluded.v, t = excluded.t, updated_at = excluded.updated_at WHERE excluded.t > settings_sync.t';
 
 const SELECT_ALL = 'SELECT k, v, t, updated_at FROM settings_sync';
+
+/** 有 uid 列时的写法（?6 = uid；每个 uid 各自 160 项上限） */
+export const UPSERT_SQL_UID =
+  'INSERT INTO settings_sync (uid, k, v, t, updated_at) SELECT ?6, ?1, ?2, ?3, ?4 ' +
+  'WHERE EXISTS (SELECT 1 FROM settings_sync WHERE uid = ?6 AND k = ?1) OR (SELECT COUNT(*) FROM settings_sync WHERE uid = ?6) < ?5 ' +
+  'ON CONFLICT(uid, k) DO UPDATE SET v = excluded.v, t = excluded.t, updated_at = excluded.updated_at WHERE excluded.t > settings_sync.t';
+const SELECT_ALL_UID = 'SELECT k, v, t, updated_at FROM settings_sync WHERE uid = ?';
+
+/**
+ * 这次请求的读写方式：{ uid, byUid }；没有 uid（不该发生：门已过）→ null；表还没 uid 列且不是 styrigx → { uid, byUid:false, blocked:true }。
+ * @param {any} context @param {any} db
+ */
+async function scopeOf(context, db) {
+  const uid = await context.auth.dataUid();
+  if (!Number.isInteger(uid)) return null;
+  const byUid = await hasUidColumn(db, 'settings_sync');
+  return { uid, byUid, blocked: !byUid && uid !== STYRIGX_UID };
+}
 
 /**
  * 云同步存在 D1_ACCOUNT（D1 styrigx-account 的 settings_sync）；没绑 → 500 config。
@@ -139,9 +163,12 @@ export async function onRequestGet(context) {
     const g = await gate(context);
     if (g) return g;
     const db = prefsDb(env);
+    const sc = await scopeOf(context, db);
+    if (!sc) return apiError(401, 'unauthorized');
+    if (sc.blocked) return json(200, { ok: true, items: {}, updatedAt: 0 });
     let p;
     try {
-      p = rowsToPrefs((await withTable(db, () => db.prepare(SELECT_ALL).all())).results);
+      p = rowsToPrefs((await withTable(db, () => (sc.byUid ? db.prepare(SELECT_ALL_UID).bind(sc.uid) : db.prepare(SELECT_ALL)).all())).results);
     } catch (e) {
       console.error('[api/prefs] d1 error', e && /** @type {any} */ (e).message);
       return apiError(503, 'server');
@@ -166,15 +193,21 @@ export async function onRequestPost(context) {
     const changes = cleanChanges(body && body.changes, now);
     const keys = Object.keys(changes);
     const db = prefsDb(env);
+    const sc = await scopeOf(context, db);
+    if (!sc) return apiError(401, 'unauthorized');
+    if (sc.blocked) return apiError(409, 'not-ready');
+    const sel = () => (sc.byUid ? db.prepare(SELECT_ALL_UID).bind(sc.uid) : db.prepare(SELECT_ALL));
     let rows;
     try {
       rows = await withTable(db, async () => {
-        if (!keys.length) return (await db.prepare(SELECT_ALL).all()).results;
+        if (!keys.length) return (await sel().all()).results;
         /* 总项数上限：新键加上去超过 160 → 整单 413（SQL 里的 COUNT 条件再兜一次并发） */
-        const have = new Set(((await db.prepare('SELECT k FROM settings_sync').all()).results || []).map((r) => r.k));
+        const haveQ = sc.byUid ? db.prepare('SELECT k FROM settings_sync WHERE uid = ?').bind(sc.uid) : db.prepare('SELECT k FROM settings_sync');
+        const have = new Set(((await haveQ.all()).results || []).map((r) => r.k));
         if (have.size + keys.filter((k) => !have.has(k)).length > MAX_TOTAL) return null;
-        const up = db.prepare(UPSERT_SQL);
-        const res = await db.batch([...keys.map((k) => up.bind(k, changes[k].v, changes[k].t, now, MAX_TOTAL)), db.prepare(SELECT_ALL)]);
+        const up = db.prepare(sc.byUid ? UPSERT_SQL_UID : UPSERT_SQL);
+        const binds = (k) => (sc.byUid ? up.bind(k, changes[k].v, changes[k].t, now, MAX_TOTAL, sc.uid) : up.bind(k, changes[k].v, changes[k].t, now, MAX_TOTAL));
+        const res = await db.batch([...keys.map(binds), sel()]);
         return res[res.length - 1].results;
       });
     } catch (e) {
