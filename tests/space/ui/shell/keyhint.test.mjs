@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
@@ -41,9 +41,12 @@ test('文案：外壳字符串表 en / zh 都有 kh 节，键和英文底一一�
   }
 });
 
-test('每个终端窗口都有提示行（v5 S5：锁屏 / 盾牌 / 账号的终端并进全站终端）：主页终端 / 终端窗口 / AI 窗口', () => {
-  for (const f of ['space/entry.js', 'space/shield.js']) assert.ok(!existsSync(path.join(REPO, 'space/web/assets/js/shell', f)), f + ' 删了');
-  assert.doesNotMatch(read('space/web/assets/js/shell/account/window.js'), /data-at-kh/, '账号窗口不再自带终端');
+test('每个终端窗口都有提示行（v5 S5：锁屏 / 盾牌的终端并进全站终端；账号窗口照旧）：主页终端 / 终端窗口 / 账号窗口 / AI 窗口', () => {
+  for (const f of ['space/entry.js', 'space/shield.js', 'space/term.js']) assert.ok(!existsSync(path.join(REPO, 'space/web/assets/js/shell', f)), f + ' 删了');
+  /* 账号窗口（头像）v5 S5 不动：自带的命令行和提示行照旧，‹ 返回 = esc 同一条路，最外层关窗口 */
+  const aw = read('space/web/assets/js/shell/account/window.js');
+  assert.match(aw, /<p class="sgx-kh sgx-at-kh" data-at-kh hidden><\/p>/);
+  assert.match(aw, /if \(!escBack\(\)\) o\.ms\.close\(\);/);
   assert.match(read('space/web/layouts/index.html'), /<p class="sgx-kh sgx-term-kh" data-term-kh hidden><\/p>/);
   const tb = read('space/web/layouts/partials/shell-topbar.html');
   assert.match(tb, /<p class="sgx-kh sgx-term-kh" data-term-kh hidden><\/p>\n  <\/div>\n<\/dialog>/);
@@ -73,14 +76,7 @@ test('选择的高亮跟着输入走（Gray 2026-11-09 手机截图：打了 2 �
   const il = read('space/web/assets/js/shell/term/view/input-line.js');
   assert.match(il, /if \(C\.mode === 'pick'\) paintPick\(d\.log, PICK, input\.value, Object\.keys\(picks\), pickDefault\);/);
   assert.match(il, /const PICK = 'data-' \+ attr \+ '-pick';/);
-  assert.match(read('space/web/assets/js/shell/space/term.js'), /return createInputLine\(o\);/);
+  /* v5 S5：全站终端（锁屏 / 主页 / 盾牌合一）用同一个输入行 */
+  assert.match(read('space/web/assets/js/shell/terminal.js'), /createInputLine\(/);
   assert.match(read('space/web/assets/js/shell/account/window.js'), /attr: 'at',/);
-});
-
-test('锁屏底部 ~/styrigx · zh · en 是舞台里自己的一行（不再 absolute 压在终端最后一行上）', () => {
-  const css = read('space/web/assets/css/input.css');
-  const m = /\n  \.sgx-entry-tail \{([^}]*)\}/.exec(css);
-  assert.ok(m, '.sgx-entry-tail');
-  assert.doesNotMatch(m[1], /position: absolute/);
-  assert.match(m[1], /margin: auto 0 0; padding: 16px 0 calc\(env\(safe-area-inset-bottom, 0px\) \+ 10px\);/);
 });

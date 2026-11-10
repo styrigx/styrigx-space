@@ -1,21 +1,26 @@
 /**
- * @fileoverview 账号窗口（头像下拉 #sgx-acct）+ 终端里的账号层（v5 S5 终端合一：原账号下拉自带的终端 tty5 并进同一个终端）。
+ * @fileoverview 账号窗口（头像下拉，2026-11-08 账号 UI 改版，设计稿 acct-sec-redraw mock v3 / OPEN.md O1–O22 / acct-naming PROPOSAL §1.1）。
+ * v5 S5（终端合一）不动这个窗口：外观、各层、自带的命令行都照旧；全站终端里另有同一套账号命令（cmd/layer.js，共用 session / reauth / reset / api），
+ * 两边的登录状态经 who（终端身份）同步。
  *
- * 两件事，同一个上下文 C（以终端输入行为原型，shell/term/view/layer-ctx.js）：
- * - 终端里的账号命令（shell/term/cmds/acct、keys/sudo.js 的 sudo root …、sub-*）调这里挂在 C 上的流程：sudo root（session.js）、sudo root reauth（reauth.js）、
- *   sudo root reset（reset.js，reset@account:~#）、passwd / passkey（keys.js）、device（devices.js）、app + 奇趣 / 日刻授权同意（grants.js）、sub-*（proxy.js）、exit。
- *   要输入、选择、验证的都在终端里原地做完（Gray 15:22「只有 GUI 跳终端，终端不跳 GUI」）。
- * - 账号窗口（GUI）：已登录时的总览（头像 / 名字 · 个人资料 › · 设备 · 账号安全 · 应用授权 · 退出登录）和个人资料编辑（profile.js，纯 GUI）。
- *   设备 / 账号安全 / 应用授权 / 退出登录点了 = 跳终端跑对应命令（device / passkey / app / exit）；没登录时点头像 = 跳终端跑 sudo root。
+ * 没有 /account/ 整页了（O1）：账号总览、登录、重置、个人资料、设备、账号安全、应用授权、奇趣 / 日刻的授权同意，都在这一张下拉里一层层进（O2，‹ 返回）。
+ * 每一层底下是同一个终端：一行真输入框 + 输出区（同锁屏的写法：输入不回显、可粘贴，没有显示密码的小眼睛，O10）。
+ *
+ * 这个文件只管外壳：骨架、输出、输入行（模式 / 选项 / 秘密输入）、头部 / 页脚、层的切换、命令分发、开 / 关。
+ * 各功能在同目录：session.js（sudo root）、reauth.js（sudo root reauth）、reset.js（sudo root reset）、keys.js（账号安全）、
+ * devices.js、grants.js（应用授权 + 奇趣 / 日刻授权同意）、profile.js（个人资料 + 头像）。命令字在 commands.js，后端只在 api.js。
+ * 功能模块都拿同一个上下文 C（状态 + 外壳函数），把自己的函数挂回 C 上。
  *
  * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 account.*（sgx-shell-i18n），四个站同一份。
  */
 import { esc } from '../../lib/util.js';
 import { toast } from '../../lib/toast.js';
+import { suggest } from '../suggest.js';
 import { flatStrings } from '../term/core/strings.js';
-import { layerCtx } from '../term/view/layer-ctx.js';
+import { createInputLine } from '../term/view/input-line.js';
+import { completerOf } from '../term/core/complete.js';
 import * as api from './api.js';
-import { CMD, layerFromPath } from './commands.js';
+import { CMD, PS_GUEST, PS_ROOT, PS_RESET, LAYERS, LAYER_PATH, WINDOW_TABLE, normCmd, parseCmd, layerFromPath } from './commands.js';
 import { mountSession } from './session.js';
 import { mountReauth } from './reauth.js';
 import { mountReset } from './reset.js';
@@ -23,7 +28,7 @@ import { mountKeys } from './keys.js';
 import { mountDevices } from './devices.js';
 import { mountGrants } from './grants.js';
 import { mountProfile } from './profile.js';
-import { mountProxy } from './proxy.js';
+import { mountProxy, parseSub } from './proxy.js';
 
 /** 嵌套字符串表 → 点号键：终端统一 T1 起在 shell/term/core/strings.js，这里转出 */
 export { flatStrings };
@@ -63,31 +68,20 @@ export const REAUTH_HOLD_MS = 60000;
 /** 第一屏要显示的层（旧地址 / 站内入口给的名字，见 commands.layerFromPath） */
 export { layerFromPath };
 
-/** 账号窗口里的层 → 终端命令（设备 / 账号安全 / 应用授权都在终端里看、在终端里改） */
-export const LAYER_CMD = Object.freeze({ devices: 'device', keys: 'passkey', grants: 'app' });
-
 /**
- * @typedef {Object} TermLink 终端那一头（topbar-panel.js 给）
- * @property {(line: string) => void} run 收起账号窗口、打开终端、当作敲进来跑这一行
- * @property {(f: () => void) => void} show 收起账号窗口、打开终端，然后 f（流程自己往终端里写）
- * @property {(after?: () => void) => void} close 收起终端窗口（主页首屏的终端收不起：直接 after）
- */
-
-/**
+ * 挂到 #sgx-acct 上。
  * @param {{
- *   dlg: HTMLDialogElement|null,
+ *   dlg: HTMLDialogElement,
  *   ms: any,
  *   S: any,
- *   line: any,
- *   who: { setAccount: (on: boolean) => void, drop: () => void },
- *   term: TermLink,
  *   replace: (href: string) => void,
  *   reload?: () => void,
- * }} o S = 外壳字符串表的 account 节（嵌套）；line = 终端输入行（input-line 的 C）；dlg / ms 没有（页面没有账号窗口）时只挂终端那一层
+ *   who?: { setAccount: (on: boolean) => void } | null,
+ * }} o S = 外壳字符串表的 account 节（嵌套）；who = 全站终端的身份（登录状态变了同步提示符，没有终端的页面不传）
  */
-export function mountAccount(o) {
-  const doc = document;
+export function mountAccountWindow(o) {
   const dlg = o.dlg;
+  const doc = dlg.ownerDocument || document;
   const S = flatStrings(o.S || {});
   /** @param {string} k */
   const t = function (k) { return S[k] || ''; };
@@ -95,27 +89,48 @@ export function mountAccount(o) {
   const tf = function (k, v) { let s = t(k); for (const n in v) s = s.split('{' + n + '}').join(String(v[n])); return s; };
   /** auth/post-json.js errText 用的是旧的平铺键名：这里接到新表上 @param {string} k */
   const errT = function (k) { return k === 'reauthExpired' ? t('reauth.expired') : k === 'devCurrent' ? t('devices.currentHint') : t('common.' + k); };
+  const sheet = /** @type {HTMLElement} */ (dlg.querySelector('.sgx-qp-sheet'));
   const reload = o.reload || function () { try { location.reload(); } catch (e) {} };
 
-  /* ---------- 骨架（窗口只剩头部 / 内容 / 页脚；终端在顶栏的终端窗口里） ---------- */
-  const sheet = dlg ? /** @type {HTMLElement|null} */ (dlg.querySelector('.sgx-qp-sheet')) : null;
+  /* ---------- 骨架 ---------- */
+  sheet.innerHTML = '';
   const root = doc.createElement('div');
   root.className = 'sgx-at';
-  root.innerHTML = '<div class="sgx-at-head" data-at-head></div><div class="sgx-at-view" data-at-view></div><div class="sgx-at-ft" data-at-ft></div>';
-  if (sheet) { sheet.innerHTML = ''; sheet.appendChild(root); }
+  root.innerHTML =
+    '<div class="sgx-at-head" data-at-head></div>' +
+    '<div class="sgx-at-view" data-at-view></div>' +
+    '<div class="sgx-at-term" data-at-term>' +
+    '<div class="sgx-at-log" data-at-log aria-hidden="true"></div>' +
+    '<form class="sgx-at-line" data-at-form autocomplete="off" novalidate>' +
+    '<input type="text" class="sgx-at-pmu" data-at-pmu autocomplete="username" tabindex="-1" aria-hidden="true" value="' + esc(api.PM_USER.password) + '">' +
+    '<label class="sgx-at-ps" for="sgx-at-in" data-at-ps translate="no"></label>' +
+    '<input id="sgx-at-in" class="sgx-at-in" data-at-in type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">' +
+    '</form>' +
+    '<p class="sgx-at-hint" data-at-hint hidden></p>' +
+    '<p class="sgx-kh sgx-at-kh" data-at-kh hidden></p>' +
+    '<div class="sgx-at-live" data-at-live role="status" aria-live="polite"></div>' +
+    '</div>' +
+    '<div class="sgx-at-ft" data-at-ft></div>';
+  sheet.appendChild(root);
   /** @param {string} a */
   const q = function (a) { return /** @type {HTMLElement} */ (root.querySelector('[' + a + ']')); };
   const headEl = q('data-at-head');
   const viewEl = q('data-at-view');
+  const logEl = q('data-at-log');
+  const form = /** @type {HTMLFormElement} */ (q('data-at-form'));
+  const psEl = q('data-at-ps');
+  const input = /** @type {HTMLInputElement} */ (q('data-at-in'));
+  const pmu = /** @type {HTMLInputElement} */ (q('data-at-pmu'));
+  const hintEl = q('data-at-hint');
+  const liveEl = q('data-at-live');
   const ftEl = q('data-at-ft');
-  const ms = o.ms || { isShown: function () { return false; }, isOpen: function () { return false; }, close: function (/** @type {any} */ f) { if (f) f(); } };
 
   /**
-   * 账号层上下文：状态 + 窗口函数；功能模块读写它，并把自己的函数挂上来。输出 / 输入模式来自终端输入行（原型）。
+   * 共享上下文：状态 + 外壳函数。功能模块读写它，并把自己的函数挂上来。
    * @type {any}
    */
-  const C = layerCtx(o.line, {
-    o: { ms: ms, replace: o.replace }, doc: doc, dlg: dlg || root, root: root, viewEl: viewEl, headEl: headEl,
+  const C = {
+    o: o, doc: doc, dlg: dlg, root: root, viewEl: viewEl, headEl: headEl, input: input,
     t: t, tf: tf, errT: errT, esc: esc, api: api, toast: toast, reload: reload,
     /** '' 未知 · in · guest */ st: '',
     /** api.status() 的结果 */ status: null,
@@ -124,9 +139,90 @@ export function mountAccount(o) {
     /** reset 票下已改过凭证，还没选登出方式 */ resetPending: false,
     /** 当前在 sudo root reset 里 */ inReset: false,
     /** 奇趣 / 日刻要授权：{ app } */ consent: null,
-    tries: 0,
+    /** @type {'cmd'|'pick'|'pw'|'rkey'|'newpw'|'newpw2'|'pkname'|'busy'} */ mode: 'cmd',
+    /** 当前一轮的输错次数 */ tries: 0,
+    /** 秘密输入（密码 / 恢复密钥 / 新密码 / 通行密钥名字）的提交函数 */ onSecret: null,
+    onCancel: null,
+    /** 等待中（busy）也能 ^C 的那件事（通行密钥）：^C 时调它 */ busyCancel: null,
+    /** 进 busy 时输入行有焦点：回命令行要把焦点还回来（触屏键盘收起后命令行像死了，Gray 22:12） */ refocus: false,
     armed: '', editing: '',
-    /** 登录状态变了：收起终端时重新载入（账号相关的部件按新状态重画） */ loginChanged: false,
+    /** 这次打开期间登录状态变了：关下拉时重新载入 */ loginChanged: false,
+  };
+  C.ps = function () { return C.inReset ? PS_RESET : C.st === 'in' ? PS_ROOT : PS_GUEST; };
+
+  /**
+   * 新行滚进下拉自己的滚动区。不用 scrollIntoView：它连可视视口一起滚，三星「桌面版网站」放大时整页会平移到面板那边
+   * （popover-no-zoom.spec.js，同 modal-sheet.js showDialog 的 preventScroll）。
+   * @param {HTMLElement} el
+   */
+  function reveal(el) {
+    try {
+      for (let p = el.parentElement; p; p = p === dlg ? null : p.parentElement) {
+        if (p.scrollHeight <= p.clientHeight || !/(auto|scroll)/.test(getComputedStyle(p).overflowY)) continue;
+        const pr = p.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        if (r.bottom > pr.bottom) p.scrollTop += r.bottom - pr.bottom;
+        else if (r.top < pr.top) p.scrollTop -= pr.top - r.top;
+        return;
+      }
+    } catch (e) {}
+  }
+
+  /* ---------- 按键提示行（Gray 2026-11-09 细节 1；shell/keyhint.js） ---------- */
+  /** esc / 触屏「‹ 返回」的同一条路：先退出当前命令，再撤编辑 / 两步确认，再回首层；最外层回 false（交给下拉关掉） */
+  function escBack() {
+    if (C.interrupt()) return true;
+    if (C.editing) { C.editing = ''; C.render(); return true; }
+    if (C.armed) { C.armed = ''; C.render(); return true; }
+    if (C.st === 'in' && !C.inReset && C.layer !== 'home') { C.go('home'); return true; }
+    return false;
+  }
+
+  /* ---------- 输入行 + 输出（终端统一 T2：shell/term/view/input-line.js，和锁屏 / 盾牌同一份；这里的参数保留账号下拉原有的细节） ---------- */
+  const BACK_RE = /^cd\s*(\.\.|\/)\s*$/;
+  createInputLine({
+    ctx: C,
+    dom: { root: root, log: logEl, form: form, input: input, ps: psEl, pmu: pmu, hint: hintEl, live: liveEl, kh: q('data-at-kh') },
+    p: 'sgx-at',
+    attr: 'at',
+    t: t,
+    ps: function () { return C.ps(); },
+    onCmd: function (v) { C.runCmd(v); },
+    isShown: function () { return o.ms.isShown(); },
+    onReveal: reveal,
+    onMode: function (m) { root.setAttribute('data-at-mode', m); },
+    /* reset 层的命令行：^C / esc = 离开 reset（同关掉下拉：没选登出方式 = [3] 不登出），回 login@account / root@account */
+    onCmdInterrupt: function () { if (C.inReset) { C.out('^C', 'd'); C.leaveReset(); return true; } return false; },
+    /* 首层 esc 关下拉、下一层和 reset 里 esc 回去；触屏一直有「‹ 返回」（最外层 = 关下拉） */
+    kh: {
+      cmdKey: function () { return C.inReset || (C.st === 'in' && C.layer && C.layer !== 'home') ? 'cmdLayer' : 'cmd'; },
+      canBackCmd: function () { return true; },
+      onBack: function () { C.refocus = true; if (!escBack()) o.ms.close(); },
+    },
+    secretModes: ['pw', 'rkey', 'newpw', 'newpw2', 'suburl'],
+    /* tty5：Tab 补全 + 历史落 sessionStorage（终端统一 T4；以前没有历史） */
+    complete: completerOf(WINDOW_TABLE),
+    histKey: 'sgx-term-hist-5',
+    ctrlL: false,
+    inputmode: false,
+    aria: function (m, secret) { return secret ? (m === 'rkey' ? t('reset.recoveryKeyAria') : t('common.passwordAria')) : m === 'pkname' ? t('keys.passkey.nameAria') : t('common.termAria'); },
+    pmDefault: api.PM_USER.password,
+    /* 输入不显示的那几行和等通行密钥：提示行末尾一个能点的 ^C（触屏没有 Ctrl+C / esc，Gray 22:12）；reset 层的命令行也有 */
+    ccCmd: function () { return C.inReset; },
+    ccEcho: 'plain',
+    echoSecret: function (m) { return m === 'pw' || m === 'rkey' ? 'plain' : ''; },
+    secretBack: BACK_RE,
+    pknameEmptyToCmd: true,
+    /* 选项里没有的编号：说一声、接着选；是条命令就回命令行跑它（Gray 22:13） */
+    pickMiss: function (key, v) {
+      if (/^\[?\d+\]?$/.test(key)) { C.echoPick(key); C.err(t('common.noOption')); return; }
+      if (key && parseCmd(key).cmd !== 'unknown') { C.toCmd(); C.runCmd(v); }
+    },
+    ctrlC: 'at',
+    pickFocus: false,
+    pickClickRefocus: false,
+    focusZone: '[data-at-term]',
+    focusForce: false,
   });
   /** 注释行 `# …`（这里传文案键；{x} 换成黄色命令） @param {string} key @param {string} [x] */
   C.note = function (key, x) { C.out('# ' + esc(t(key)).replace('{x}', x ? C.k(x) : ''), 'd'); };
@@ -150,21 +246,25 @@ export function mountAccount(o) {
   /** @param {string} s */
   C.setSt = function (s) {
     C.st = s;
-    root.setAttribute('data-acct-state', s);
-    if (dlg) dlg.setAttribute('data-acct-state', s);
+    dlg.setAttribute('data-acct-state', s);
     try { doc.documentElement.setAttribute('data-sgx-account-session', s === 'in' ? 'in' : 'out'); } catch (e) {}
-    if (s) o.who.setAccount(s === 'in');
+    if (s && o.who) o.who.setAccount(s === 'in');
+    if (C.mode === 'cmd') psEl.textContent = C.ps();
   };
   C.reauthLeft = function () { return C.reauthExp > Date.now() ? C.reauthExp - Date.now() : 0; };
   C.resetLeft = function () { return C.resetExp > Date.now() ? C.resetExp - Date.now() : 0; };
-  /** @param {number} ms2 */
-  C.mmss = function (ms2) { const s = Math.ceil(ms2 / 1000); return (s < 600 ? '0' : '') + Math.floor(s / 60) + ':' + ((s % 60) < 10 ? '0' : '') + (s % 60); };
+  /** @param {number} ms */
+  C.mmss = function (ms) { const s = Math.ceil(ms / 1000); return (s < 600 ? '0' : '') + Math.floor(s / 60) + ':' + ((s % 60) < 10 ? '0' : '') + (s % 60); };
 
   /* ---------- 头部 / 页脚 / 行 ---------- */
   /** @param {string} title @param {string} right @param {boolean} [cd] */
   C.subHead = function (title, right, cd) {
     headEl.innerHTML = '<button type="button" class="sgx-at-bk" data-at-back aria-label="' + esc(t('common.backAria')) + '">‹</button><h2 class="sgx-at-h">' + esc(title) + '</h2>' +
       '<span class="sgx-at-hv"' + (cd ? ' data-at-cd data-live' : '') + ' translate="no">' + esc(right) + '</span>';
+  };
+  /** @param {string} right */
+  C.barHead = function (right) {
+    headEl.innerHTML = '<div class="sgx-nav-h sgx-at-bar"><span translate="no"><b aria-hidden="true">$</b> ACCOUNT</span><span translate="no" class="sgx-at-hv" data-at-cd>' + esc(right) + '</span></div>';
   };
   /** @param {string} key */
   C.foot = function (key) { ftEl.textContent = key ? t(key) : ''; ftEl.hidden = !key; };
@@ -177,14 +277,14 @@ export function mountAccount(o) {
       '<span class="sgx-pop-v">' + (r.vHtml != null ? r.vHtml : esc(r.v || '')) + '</span>' + (r.chev ? '<span class="sgx-pop-chev" aria-hidden="true">›</span>' : '') +
       '</' + end + '>';
   };
+  /** @param {string} txt @param {boolean} [line] */
+  C.grp = function (txt, line) { return '<p class="sgx-pop-g' + (line ? ' sgx-pop-g--line' : '') + '">' + esc(txt) + '</p>'; };
+  /** @param {string} txt */
+  C.noteP = function (txt) { return '<p class="sgx-at-note">' + esc(txt) + '</p>'; };
   /** 层的路径（头部右边） @param {string} layer */
-  C.path = function (layer) { return layer === 'profile' ? '~/account/profile' : ''; };
+  C.path = function (layer) { return /** @type {any} */ (LAYER_PATH)[layer] || ''; };
   /** 已授权应用数（主页「应用授权」右边，O14） */
   C.grantCount = function () { return C.grants ? String(C.grants.filter(function (/** @type {any} */ g) { return g.granted; }).length) : ''; };
-  C.paintGrantCount = function () {
-    const el = viewEl.querySelector('[data-at-v="grants"] .sgx-pop-v');
-    if (el) el.textContent = C.grantCount();
-  };
 
   /* ---------- 功能模块 ---------- */
   mountSession(C);
@@ -195,23 +295,15 @@ export function mountAccount(o) {
   mountGrants(C);
   mountProfile(C);
   mountProxy(C);
-  /** 终端输出里的按钮（sub 的复制）：终端窗口点到 [data-at-act] 时调 @param {string} a */
-  C.actLog = function (a) { return C.actProxy(a); };
-  /* 终端里的账号命令：账号状态还没问过（这一页第一次用）就先问一次再跑（命令要看 st / 票） */
-  ['cmdSession', 'cmdReauth', 'cmdReset', 'cmdExit', 'cmdPasswd', 'cmdPasskeyAdd', 'passkeyList', 'passkeyRm', 'deviceList', 'deviceRm', 'deviceRmAll', 'appList', 'appRm', 'cmdSub'].forEach(function (k) {
-    const f = C[k];
-    C[k] = function () {
-      const args = arguments;
-      if (C.status) return f.apply(C, args);
-      C.setMode('busy');
-      C.loadStatus().then(function () { C.toCmd(); f.apply(C, args); }, function () { C.toCmd(); f.apply(C, args); });
-    };
-  });
 
   C.render = function () {
-    root.setAttribute('data-at-layer', C.st === 'in' ? C.layer : 'guest');
-    if (C.st !== 'in') { headEl.innerHTML = ''; viewEl.innerHTML = ''; C.foot(''); return; }
+    root.setAttribute('data-at-layer', C.inReset ? 'reset' : C.consent && C.st !== 'in' ? 'consent' : C.st === 'in' ? C.layer : 'guest');
+    if (C.inReset) return C.renderReset();
+    if (C.st !== 'in') return C.renderGuest();
     if (C.layer === 'profile') return C.renderProfile();
+    if (C.layer === 'devices') return C.renderDevices();
+    if (C.layer === 'keys') return C.renderKeys();
+    if (C.layer === 'grants') return C.renderGrants();
     C.renderHome();
   };
 
@@ -229,16 +321,17 @@ export function mountAccount(o) {
       '<button type="button" class="sgx-pop-edit" data-at-act="profile">' + esc(t('common.edit')) + '</button></div>' +
       '<div class="sgx-pop-list">' +
       C.row({ k: t('profile.title'), v: t('profile.hint'), act: 'profile', chev: true }) +
-      C.row({ k: t('devices.title'), v: dev, sub: 'device', act: 'devices', chev: true }) +
-      C.row({ k: t('keys.title'), v: sec, sub: 'passkey', act: 'keys', chev: true }) +
-      C.row({ k: t('grants.title'), v: C.grantCount(), sub: 'app', act: 'grants', chev: true, attrs: ' data-at-v="grants"' }) +
+      C.row({ k: t('devices.title'), v: dev, act: 'devices', chev: true }) +
+      C.row({ k: t('keys.title'), v: sec, act: 'keys', chev: true }) +
+      C.row({ k: t('grants.title'), v: C.grantCount(), act: 'grants', chev: true, attrs: ' data-at-v="grants"' }) +
       '</div><div class="sgx-pop-list sgx-pop-list--line">' + C.row({ k: t('common.signOut'), v: 'exit', act: 'exit', cls: 'sgx-pop-row--acc' }) + '</div>';
     C.foot('');
+    if (!logEl.childNodes.length) C.note('common.typeHelp', 'help');
   };
 
-  /** 服务端说没会话 / 票过期：401 lock → 没进站；401 reset → 结束 reset；401 account → 回没登录；403 reauth → 重新验证 @param {{s:number, j:any}} res @returns {boolean} */
+  /** 服务端说没会话 / 票过期：401 account → 回登录；401 reset → 结束 reset；403 reauth → 回门口；401 session → 锁屏 @param {{s:number, j:any}} res @returns {boolean} */
   C.authErr = function (res) {
-    if (api.isErr(res, api.ERR.lock)) { C.err(t('common.sessExp')); o.who.drop(); return true; }
+    if (api.isErr(res, api.ERR.lock)) { C.err(t('common.sessExp')); return true; }
     if (api.isErr(res, api.ERR.reset)) { C.endReset(true); return true; }
     if (api.isErr(res, api.ERR.account)) {
       C.setSt('guest');
@@ -250,62 +343,87 @@ export function mountAccount(o) {
     if (api.isErr(res, api.ERR.reauth)) {
       C.reauthExp = 0;
       C.err(t('reauth.expired'));
+      C.render();
       return true;
     }
     return false;
   };
 
-  /** 登出 / 授权同意之后：收起终端（登录状态变了就重新载入） */
-  C.finished = function () {
-    o.term.close(function () { afterTerm(); });
-  };
-  function afterTerm() {
-    if (!C.loginChanged) return;
-    C.loginChanged = false;
-    /* 只做再验证时顺带登录了：等页面把复验的事做完再重新载入，不然重载会打断它 */
-    const h = holdReauth;
-    if (h) h.then(function () { window.setTimeout(reload, 0); });
-    else window.setTimeout(reload, 0);
+  /* ---------- 命令 ---------- */
+  function help() {
+    C.out('<span class="sgx-at-w">' + CMD.session + '</span> — ' + esc(t('help.session')) + ' · <span class="sgx-at-dim">passkey / password</span>');
+    C.out('<span class="sgx-at-w">' + CMD.reauth + '</span> — ' + esc(t('help.reauth')) + ' · <span class="sgx-at-dim">passkey / password</span>');
+    C.out('<span class="sgx-at-w">' + CMD.reset + '</span> — ' + esc(t('help.reset')) + ' · <span class="sgx-at-dim">recovery key</span>');
+    C.out('<span class="sgx-at-w">exit</span> — ' + esc(t('help.exit')) + ' · <span class="sgx-at-w">clear</span> — ' + esc(t('help.clear')));
+    C.note('help.keyMap');
+    C.out('# ' + esc(t('help.note')), 'd');
   }
-  /** 终端窗口关上：离开 reset（没选登出方式 = 不登出）、结束 reauth、忘掉印过的地址；登录状态变了就重新载入 */
-  C.onTermClosed = function () {
-    if (C.inReset) { if (C.resetPending) C.toast(t('reset.signOut.pending')); C.inReset = false; C.resetPending = false; C.resetExp = 0; C.stopTick(); }
-    C.forgetProxy();
-    const h = holdReauth;
-    holdReauth = null;
-    if (h) h.then(function () { C.endReauth(); });
-    else C.endReauth();
-    afterTerm();
+  /** @param {string} raw */
+  C.runCmd = function (raw) {
+    const line = normCmd(raw);
+    if (!line) return;
+    C.echo(raw.trim());
+    /* sub-*（代理订阅 P2）：来源名大小写敏感，拿原样的一行 */
+    if (parseSub(raw)) { C.cmdSub(raw); return; }
+    const c = parseCmd(line);
+    switch (c.cmd) {
+      case 'help': help(); return;
+      case 'clear': C.clearLog(); return;
+      case 'session': C.cmdSession(); return;
+      case 'reauth': C.cmdReauth(); return;
+      case 'reset': C.cmdReset(); return;
+      case 'exit': if (C.inReset) { C.leaveReset(); return; } C.cmdExit(); return;
+      case 'passwd': C.cmdPasswd(true); return;
+      case 'passkey-add': C.cmdPasskeyAdd(true); return;
+      case 'cd': if (C.st === 'in' && !C.inReset) C.go(c.arg || 'home'); return;
+      default: {
+        /* 打错了：给最近的真命令（Gray 2026-11-09） */
+        const sg = suggest(line, ['help', 'clear', CMD.session, CMD.reauth, CMD.reset, 'exit', 'passwd', 'passkey add', 'cd profile', 'cd devices', 'cd security', 'cd apps']);
+        if (sg) C.err(tf('common.didYouMean', { c: raw.trim().split(' ')[0] }), sg);
+        else C.err(tf('common.notFound', { x: raw.trim().split(' ')[0] }));
+      }
+    }
   };
 
-  /* ---------- 窗口的层 ---------- */
+  /* ---------- 层 ---------- */
   /** @param {string} to */
   C.go = function (to) {
-    C.layer = to === 'profile' ? 'profile' : 'home';
+    if (LAYERS.indexOf(to) === -1) to = 'home';
+    C.layer = to;
     C.editing = '';
+    C.clearLog();
+    C.toCmd();
     C.render();
-    if (C.layer === 'profile') C.enterProfile();
-    keepFocus();
+    if (to === 'devices') C.loadDevices();
+    if (to === 'grants') C.loadGrants();
+    if (to === 'profile') C.enterProfile();
+    if (to === 'keys') C.enterKeys();
+    C.keepFocus();
   };
-  /** 重画后焦点别丢到 body（不然 esc / 键盘都到不了窗口） */
-  function keepFocus() {
-    if (!dlg || !sheet) return;
+  /** 重画后焦点别丢到 body（不然 esc / 键盘都到不了下拉）：能聚焦输入行就聚焦，不能（触屏不弹键盘）就聚焦面板 */
+  C.keepFocus = function () {
     const ae = doc.activeElement;
     if (ae && ae !== doc.body && dlg.contains(ae) && ae.isConnected) return;
-    try { sheet.focus({ preventScroll: true }); } catch (e) {}
-  }
-  /** esc：先撤编辑，再回首层；最外层回 false（交给窗口关掉） */
-  function escBack() {
-    if (C.editing) { C.editing = ''; C.render(); return true; }
-    if (C.layer !== 'home') { C.go('home'); return true; }
-    return false;
-  }
-  if (dlg) {
-    dlg.addEventListener('keydown', function (e) {
-      if (e.key !== 'Escape' || e.defaultPrevented) return;
-      if (escBack()) e.preventDefault();
-    });
-  }
+    C.focusIn();
+    if (!dlg.contains(doc.activeElement)) { try { sheet.focus({ preventScroll: true }); } catch (e) {} }
+  };
+
+  /* ---------- 事件 ---------- */
+  /* esc：先退出当前命令，再回上一层，最外层才交给下拉关掉（modalSheet 的 Esc 看 defaultPrevented） */
+  /* 等通行密钥（busy）时输入行藏着、禁用，焦点掉到 body，键盘事件到不了下拉：在 document 上接 Ctrl+C / esc（2026-11-09），只中断等待、不关下拉；别的模式照旧 */
+  doc.addEventListener('keydown', function (e) {
+    if (C.mode !== 'busy' || !C.busyCancel || !o.ms.isShown() || e.defaultPrevented) return;
+    const ctrlC = e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'c' || e.key === 'C');
+    if (!ctrlC && e.key !== 'Escape') return;
+    e.preventDefault();
+    C.refocus = true;
+    C.interrupt();
+  }, true); /* 捕获阶段：先于 modal-sheet 在 document 上的 Esc 关闭（它看 defaultPrevented） */
+  dlg.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    if (escBack()) e.preventDefault();
+  });
+  /* 选项 / ^C / 点空白处聚焦输入行在 input-line.js 里接；这里只接头部返回和行上的动作 */
   root.addEventListener('click', function (e) {
     const tg = /** @type {Element|null} */ (e.target);
     if (!tg) return;
@@ -314,50 +432,62 @@ export function mountAccount(o) {
     if (!a) return;
     e.preventDefault();
     act(a.getAttribute('data-at-act') || '');
-    keepFocus();
+    C.keepFocus();
   });
-  /** 行上的动作：个人资料在窗口里；设备 / 账号安全 / 应用授权 / 退出登录 = 跳终端跑命令 @param {string} a */
+  /** 行上的动作：层名 = 进那一层；其余交给各模块的 act（认得就回 true） @param {string} a */
   function act(a) {
-    if (a === 'profile') { C.go('profile'); return; }
-    if (a === 'exit') { o.term.run('exit'); return; }
-    if (Object.prototype.hasOwnProperty.call(LAYER_CMD, a)) { o.term.run(/** @type {any} */ (LAYER_CMD)[a]); return; }
+    if (LAYERS.indexOf(a) !== -1) { C.go(a); return; }
+    if (a === 'exit') { C.echo('exit'); C.cmdExit(); return; }
     if (a === 'ed-cancel') { C.editing = ''; C.render(); return; }
-    C.actProfile(a);
+    if (C.actKeys(a) || C.actDevices(a) || C.actGrants(a) || C.actProfile(a) || C.actProxy(a)) return;
   }
+  try {
+    /* 离开页面：reauth 结束（O12） */
+    window.addEventListener('pagehide', function () { C.endReauth(); });
+  } catch (e) {}
 
   /* ---------- 开 / 关 ---------- */
   /**
-   * 打开账号窗口（topbar-panel 的 onOpen）。x.layer：旧地址跳来（O1）或站内入口要直接进的那一层；x.app：奇趣 / 日刻的授权同意；x.reset：sudo root reset；x.reauth：只再验证。
-   * x.run：别处转来的一条命令（终端里跑）。没登录：跳终端 sudo root（登录后再授权同意 / 回到这里）。
+   * 打开时（topbar-panel 的 onOpen）。x.layer：旧地址跳来（O1）或站内入口要直接进的那一层；x.app：奇趣 / 日刻的授权同意；x.reset：sudo root reset；x.reauth：只再验证。
+   * x.run：别的终端转来的一条命令（sub-*，P2）：登录了就在这里跑；没登录先 sudo root。
    * @param {{layer?: string, app?: string, reset?: boolean, reauth?: boolean, run?: string}} [x]
    */
   function onOpen(x) {
     const want = (x && x.layer) || '';
     C.consent = x && x.app ? { app: x.app } : null;
-    if (x && x.reset) { o.term.run(CMD.reset); return; }
-    if (x && x.run) { o.term.run(x.run); return; }
-    if (x && x.reauth) { onlyReauth(); return; }
-    if (Object.prototype.hasOwnProperty.call(LAYER_CMD, want)) { o.term.run(/** @type {any} */ (LAYER_CMD)[want]); return; }
-    /* 首帧按登录标记 cookie 画（A18：不闪），GET /api/account 回来后校正 */
+    C.clearLog();
+    C.toCmd();
+    /* 首帧按登录标记 cookie 画提示符（A18：不闪；网关命名 v2 起不再注入登录态），GET /api/account 回来后校正 */
     if (!C.st) {
       let ff = /** @type {'in'|'guest'|''} */ ('');
       try { ff = firstFrameState(doc.cookie); } catch (e) {}
       C.setSt(ff);
     }
-    C.layer = want === 'profile' ? 'profile' : 'home';
+    C.layer = LAYERS.indexOf(want) !== -1 ? want : 'home';
     C.render();
     C.loadStatus().then(function (s) {
       if (!s && !C.st) C.setSt('guest');
-      if (C.st !== 'in') { o.term.run(CMD.session); return; }
-      if (C.consent) { o.term.show(function () { C.askConsent(); }); return; }
-      if (!C.grants) C.loadGrants();
-      C.go(C.layer);
+      if (C.inReset && !C.resetLeft()) { C.inReset = false; C.resetPending = false; }
+      if (x && x.reset) { C.echo(CMD.reset); C.cmdReset(); C.render(); C.focusIn(); return; }
+      if (x && x.reauth) { onlyReauth(); return; }
+      if (C.st === 'in') {
+        if (C.consent) { C.render(); C.askConsent(); return; }
+        if (!C.grants) C.loadGrants();
+        C.go(C.layer);
+        if (x && x.run) { C.runCmd(x.run); C.focusIn(); }
+        return;
+      }
+      C.render();
+      C.echo(CMD.session);
+      C.cmdSession();
+      C.focusIn();
     });
   }
   /**
-   * 只做再验证（[data-acct-open="reauth"]，奇趣导入书签要复验）。和「关掉即失效」（O12）一致（#327 偏离修复）：
+   * 只做再验证（[data-acct-open="reauth"]，奇趣导入书签要复验）。和「关下拉 reauth 即失效」（O12）一致（#327 偏离修复）：
    * 验过后先在 document 上发 `sgx-account-reauthed`（detail.waitUntil(promise)），等它的页面在这一刻把要复验的事做完
-   * （奇趣：重发导入）；然后收起终端，等页面登记的事做完（最多 REAUTH_HOLD_MS）就 POST /reauth { end }。
+   * （奇趣：重发导入）；然后关面板，等页面登记的事做完（最多 REAUTH_HOLD_MS）就 POST /reauth { end }。
+   * 没人登记就关面板时立刻结束。离开页面（pagehide）照旧立刻结束。
    */
   /** @type {Promise<void>|null} */
   let holdReauth = null;
@@ -374,29 +504,31 @@ export function mountAccount(o) {
           new Promise(function (r) { window.setTimeout(r, REAUTH_HOLD_MS); }),
         ]).then(function () {});
       }
-      o.term.close();
+      o.ms.close();
     };
-    o.term.show(function () {
-      C.loadStatus().then(function () {
-        if (C.st === 'in') { C.echo(CMD.reauth); C.cmdReauth(done); }
-        else { C.echo(CMD.session); C.verify({ withReauth: true, lead: t('session.lead'), done: done }); }
-        C.focusIn();
-      });
-    });
+    C.render();
+    if (C.st === 'in') { C.echo(CMD.reauth); C.cmdReauth(done); }
+    else { C.echo(CMD.session); C.verify({ withReauth: true, lead: t('session.lead'), done: done }); }
+    C.focusIn();
   }
   function onClose() {
+    const h = holdReauth;
+    holdReauth = null;
+    if (C.resetPending) C.toast(t('reset.signOut.pending'));
+    if (C.loginChanged) {
+      C.loginChanged = false;
+      /* 只做再验证时顺带登录了：等页面把复验的事做完再重新载入，不然重载会打断它 */
+      if (h) h.then(function () { window.setTimeout(reload, 0); });
+      else window.setTimeout(reload, 0);
+    }
+    C.stopTick();
+    if (C.inReset) { C.inReset = false; C.resetPending = false; C.resetExp = 0; }
     C.editing = '';
     C.armed = '';
+    C.forgetProxy();
+    if (!h) { C.endReauth(); return; }
+    /* 页面还在用这张 reauth（奇趣导入）：做完再结束（离开页面时 pagehide 照旧立刻结束）；这期间又打开了面板就交给那一次的关闭去结束 */
+    h.then(function () { if (!o.ms.isShown()) C.endReauth(); });
   }
-
-  /* 首帧登录标记说登录了：问一次账号接口，终端提示符按服务端的回答（root@account / styrigx@space） */
-  try { if (firstFrameState(doc.cookie) === 'in') C.loadStatus(); } catch (e) {}
-
-  return {
-    /** 终端里的账号层 */
-    layer: C,
-    onOpen: onOpen,
-    onClose: onClose,
-    _state: function () { return { st: C.st, layer: C.layer, mode: C.mode, inReset: C.inReset, resetPending: C.resetPending }; },
-  };
+  return { onOpen: onOpen, onClose: onClose, _state: function () { return { st: C.st, layer: C.layer, mode: C.mode, inReset: C.inReset, resetPending: C.resetPending }; } };
 }

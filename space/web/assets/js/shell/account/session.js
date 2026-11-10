@@ -1,5 +1,6 @@
 /**
- * @fileoverview `sudo root`：登录会话 + `exit` 退出登录（O17）。v5 S5 起在同一个终端里：没登录是 styrigx@space:~#，登录后 root@account:~#。
+ * @fileoverview `sudo root`：登录会话（未登录提示符 login@account:~$）+ `exit` 退出登录（O17）。
+ * 账号窗口（window.js）和全站终端里的账号层（cmd/layer.js，v5 S5；C.inTerm）共用这一份：终端里没登录是 styrigx@space:~#，登录后 root@account:~#。
  *
  * 只收 [1] passkey（account passkey）[2] password（account password），不收恢复密钥（三钥匙三入口，Gray 17:42）。
  * 只列已设置的（同锁屏 L8：读不到状态两个都列）；一种都没设 → 提示 sudo root reset（A12 / A13）。
@@ -45,6 +46,12 @@ export function mountSession(C) {
   const t = C.t;
   const api = C.api;
   const esc = C.esc;
+
+  C.renderGuest = function () {
+    C.barHead(C.consent ? C.consent.app : 'login');
+    C.viewEl.innerHTML = '';
+    C.foot(C.consent ? '' : 'session.ft');
+  };
 
   /**
    * 选方式 → 验证。
@@ -155,12 +162,12 @@ export function mountSession(C) {
   }
 
   C.cmdSession = function () {
-    if (C.st === 'in') { C.out(esc(t('session.already')).replace('{x}', C.k(CMD.reauth)), 'warn'); if (C.consent) C.askConsent(); return; }
+    if (C.st === 'in') { C.out(esc(t('session.already')).replace('{x}', C.k(CMD.reauth)), 'warn'); return; }
     C.verify({ lead: t('session.lead'), done: function () { if (C.consent) return C.askConsent(); C.layer = 'home'; C.render(); } });
   };
 
-  /** exit（root@account）：退出账号登录，回 styrigx@space；页面重新载入（账号相关的部件按没登录重画） */
   C.cmdExit = function () {
+    if (C.st !== 'in' && !C.inTerm) { C.o.ms.close(); return; }
     C.setMode('busy');
     api.session.end().then(function (/** @type {any} */ res) {
       if (!(res.s >= 200 && res.s < 300)) throw new Error('http');
@@ -170,10 +177,10 @@ export function mountSession(C) {
       C.devices = null;
       C.setSt('guest');
       C.layer = 'home';
-      C.ok('✓ ' + t('session.signedOut'));
-      C.loginChanged = true;
       C.toCmd();
-      C.finished();
+      /* 全站终端（v5 S5）：打一行、收起终端、重新载入（账号相关的部件按没登录重画）；账号窗口：关窗口后重新载入（照旧） */
+      if (C.inTerm) { C.ok('✓ ' + t('session.signedOut')); C.loginChanged = true; C.finished(); return; }
+      C.o.ms.close(function () { C.reload(); });
     }).catch(function () { C.err(t('common.signOutFail')); C.toCmd(); });
   };
 }

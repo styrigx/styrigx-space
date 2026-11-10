@@ -14,8 +14,8 @@
  * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
  * - 立即锁屏（NAVIGATE 里的 lock）：只锁本机、不验证、点一下就锁（Gray 2026-11-09 08:03）：调用方传 onLock 就用它，
  *   不传 = POST /api/lock-now（同源网关）后重新取这一页（服务端画访客态）。
- * - 终端（v5 S5 终端合一）：调用方传 terminal（shell/terminal.js 整个模块）、space（钥匙层 shell/space/layer.js mountSpace）、account（账号窗口 + 账号层
- *   shell/account/window.js mountAccount）；本文件仍不 import。每页一个终端：主页首屏嵌入的 [data-sgx-term="home"]，其他页 #sgx-term（桌面居中大窗、手机整块卡片）。
+ * - 终端（v5 S5 终端合一）：调用方传 terminal（shell/terminal.js 整个模块）、space（钥匙层 shell/space/layer.js mountSpace）、accountTerm（终端里的账号层
+ *   shell/account/cmd/layer.js mountAccountLayer）、account（账号窗口 shell/account/window.js mountAccountWindow，照旧）；本文件仍不 import。每页一个终端：主页首屏嵌入的 [data-sgx-term="home"]，其他页 #sgx-term（桌面居中大窗、手机整块卡片）。
  *   Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌（S6 前）也打开它。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
  * - 上锁的地方（v5 S3：AI 窗口、旷野 status 卡、奇趣音乐的播放，以及各处接口回 401）都只发 document 上的 `sgx:sudo` 事件（SUDO_EVENT），
  *   这里是唯一接它的地方：打开终端、输入行预填 `sudo styrigx`（不替人回车）；回车后在终端里验证。
@@ -117,6 +117,7 @@ export function resolveLang(v, nav, langs) {
  *   terminal?: any,
  *   space?: (line: any, o: any) => any,
  *   account?: (o: any) => any,
+ *   accountTerm?: (o: any) => any,
  *   accountLayer?: (n: string) => { layer: string, reset: boolean, reauth: boolean },
  *   pmUser?: string,
  *   subscribe?: (repaint: () => void) => void,
@@ -577,16 +578,10 @@ export function mountTopbar(o) {
     page: function () { const v = doc.documentElement.getAttribute('data-sgx-lock-session'); return v === 'valid' || v === 'locked' ? v : 'unknown'; },
     accountHint: function () { return doc.documentElement.getAttribute('data-sgx-account-session') === 'in'; },
   }) : null;
-  /** 终端那一头（给账号窗口） */
-  const termLink = {
-    /** @param {string} line */
-    run: function (line) { showTerm(function () { if (view) view.run(line); }); },
-    /** @param {() => void} f */
-    show: function (f) { showTerm(f); },
-    close: closeTerm,
-  };
+  /** 终端那一头（给终端里的账号层：登出后收起终端） */
+  const termLink = { close: closeTerm };
 
-  /* ---------------- 账号窗口（头像，shell/account/window.js）：已登录时的总览 + 个人资料；其余都跳终端 ---------------- */
+  /* ---------------- 账号窗口（头像，shell/account/window.js）：v5 S5 不动，外观 / 各层 / 自带命令行照旧；第一次打开时画 ---------------- */
   /** 层名（旧地址 #acct=<子页>、[data-acct-open]）→ 怎么开：o.accountLayer = shell/account/commands.js layerFromPath
    * @param {string} n @returns {{layer: string, reset: boolean, reauth: boolean}} */
   const acctLayer = function (n) { return o.accountLayer ? o.accountLayer(n) : { layer: '', reset: n === 'reset', reauth: false }; };
@@ -595,19 +590,11 @@ export function mountTopbar(o) {
   /** @type {(x?: any) => void} */
   let openAcct = function () {};
   if (acctBtn && acctDlg && o.account) {
-    /* 没登录账号（首帧标记 / 账号接口说的）：点头像直接在终端里 sudo root，不先开一个空窗口 */
-    acctBtn.addEventListener('click', function (e) {
-      const me2 = /** @type {MouseEvent} */ (e);
-      if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
-      if (doc.documentElement.getAttribute('data-sgx-account-session') === 'in') return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      termLink.run('sudo root');
-    });
     acct = wire(acctBtn, acctDlg, 'sgxAcct', function () {
+      if (!acctWin) acctWin = o.account({ dlg: acctDlg, ms: acct.ms, S: trSec('account'), replace: replace, reload: o.reload, who: who });
       const x = acctNext;
       acctNext = null;
-      if (acctWin) acctWin.onOpen(x || undefined);
+      acctWin.onOpen(x || undefined);
     }, undefined, function () { if (acctWin) acctWin.onClose(); });
     if (acct) {
       /** 打开账号窗口（指定层 / 应用）。已开着就按新参数重来一次 @param {any} x */
@@ -763,8 +750,8 @@ export function mountTopbar(o) {
         pmUser: o.pmUser || '',
         layers: function (/** @type {any} */ line) {
           const space = o.space && who ? o.space(line, { who: who, close: closeTerm, reload: function () { replace(cleanHere()); } }) : null;
-          acctWin = o.account && who ? o.account({ dlg: acctDlg, ms: acct && acct.ms, S: trSec('account'), line: line, who: who, term: termLink, replace: replace, reload: o.reload }) : null;
-          return { space: space, acct: acctWin && acctWin.layer };
+          const acctTerm = o.accountTerm && who ? o.accountTerm({ S: trSec('account'), line: line, who: who, term: termLink, replace: replace, reload: o.reload }) : null;
+          return { space: space, acct: acctTerm };
         },
       });
     }

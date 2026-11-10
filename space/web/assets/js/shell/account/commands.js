@@ -73,3 +73,13 @@ export function layerFromPath(name) {
   else if (n === 'profile' || n === 'devices') r.layer = n;
   return r;
 }
+
+/**
+ * 账号窗口自带命令行的补全表（原 shell/term/cmds/index-tty5.js；v5 S5 起全站终端不再有 tty5，窗口照旧）：命令名和参数候选；
+ * 分发仍由 parseCmd；sub-*（代理订阅 P2）由 proxy.js。
+ */
+export const WINDOW_TABLE = Object.freeze({
+  names: ['help', 'sudo', 'su', 'login', 'passwd', 'passkey', 'cd', 'exit', 'clear',
+    'sub', 'sub-key', 'sub-link', 'sub-add', 'sub-upload', 'sub-mv', 'sub-on', 'sub-off', 'sub-rm', 'sub-refresh'],
+  args: { sudo: ['root', '-i', '-v'], passkey: ['add'], cd: ['profile', 'devices', 'security', 'apps', '~', '..'] },
+});

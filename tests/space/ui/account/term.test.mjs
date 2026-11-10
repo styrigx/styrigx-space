@@ -85,12 +85,15 @@ test('入口名 → 层（旧地址 #acct=<子页>、[data-acct-open]、sudo roo
   assert.deepEqual([...C.LAYERS], ['home', 'profile', 'devices', 'keys', 'grants']);
 });
 
-test('应用授权（v5 S5 起在终端 app / app rm <n>）：没有窗口里的 grep / 标签了；应用表照旧', () => {
+test('应用授权：grep 中英文名 + 全部 / 已授权 / 已取消授权', () => {
   const t = (/** @type {string} */ k) => ({ 'grants.app.curio': '奇趣', 'grants.app.daymark': '日刻' })[k] || '';
   const gs = [{ app: 'curio', granted: true }, { app: 'daymark', granted: false }, { app: 'prefs', granted: true, name: 'Settings sync' }];
-  /* v5 S5：应用授权在终端里（app / app rm <n>），窗口里的 grep / 标签没有了 */
-  void t; void gs;
-  assert.equal(G.filterGrants, undefined);
+  assert.deepEqual(G.filterGrants(gs, 'all', '', t).map((g) => g.app), ['curio', 'daymark', 'prefs']);
+  assert.deepEqual(G.filterGrants(gs, 'on', '', t).map((g) => g.app), ['curio', 'prefs']);
+  assert.deepEqual(G.filterGrants(gs, 'off', '', t).map((g) => g.app), ['daymark']);
+  assert.deepEqual(G.filterGrants(gs, 'all', '奇', t).map((g) => g.app), ['curio']);
+  assert.deepEqual(G.filterGrants(gs, 'all', 'SYNC', t).map((g) => g.app), ['prefs']);
+  assert.deepEqual(G.filterGrants(gs, 'all', 'day', t).map((g) => g.app), ['daymark'], '应用 id 也比');
   assert.deepEqual([...G.APP_IDS], ['curio', 'daymark', 'prefs', 'wellbeing', 'avatar', 'profile'], '设置同步的授权还在（O9）');
 });
 
@@ -118,7 +121,8 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
   assert.deepEqual(zk, ek);
   for (const g of ['common', 'session', 'reauth', 'reset', 'keys', 'devices', 'grants', 'profile', 'help']) assert.ok(TR.zh.account[g], 'account.' + g);
   const used = new Set();
-  for (const f of readdirSync(path.join(REPO, DIR))) {
+  /* v5 S5：终端里的账号层在 cmd/ 子目录，一起查 */
+  for (const f of readdirSync(path.join(REPO, DIR)).filter((x) => x.endsWith('.js')).concat(readdirSync(path.join(REPO, DIR, 'cmd')).map((x) => 'cmd/' + x))) {
     const src = strip(rd(DIR + f));
     for (const m of src.matchAll(/\b(?:t|tf|C\.t|C\.tf|C\.note|C\.foot)\('([a-z][A-Za-z]*\.[A-Za-z.]*[A-Za-z])'/g)) used.add(m[1]);
   }
@@ -138,8 +142,12 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
 });
 
 test('后端名字只在 api.js：入口、action 名、请求字段、状态字段、密码管理器隐藏用户名（NAMING-V2 P2 已切到按入口的新接口）', () => {
-  const files = readdirSync(path.join(REPO, DIR)).filter((f) => f.endsWith('.js'));
-  assert.deepEqual(files.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'devices.js', 'grants.js', 'keys.js', 'passkey-signal.js', 'profile.js', 'proxy.js', 'reauth.js', 'reset.js', 'session.js', 'window.js']);
+  const top = readdirSync(path.join(REPO, DIR)).filter((f) => f.endsWith('.js'));
+  assert.deepEqual(top.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'devices.js', 'grants.js', 'keys.js', 'passkey-signal.js', 'profile.js', 'proxy.js', 'reauth.js', 'reset.js', 'session.js', 'window.js']);
+  /* v5 S5：全站终端里的账号层（列表 + rm <n>），同样只经 api.js 调后端 */
+  const sub = readdirSync(path.join(REPO, DIR, 'cmd')).map((f) => 'cmd/' + f);
+  assert.deepEqual(sub.sort(), ['cmd/devices.js', 'cmd/grants.js', 'cmd/keys.js', 'cmd/layer.js']);
+  const files = top.concat(sub);
   const api = strip(rd(DIR + 'api.js'));
   /* NAMING-V2 P2：POST /api/account/<入口> { action }，入口和 action 都只在 api.js 里写 */
   for (const [e, acts] of Object.entries({ session: ['passkey-challenge', 'passkey', 'password', 'end'], reauth: ['passkey-challenge', 'passkey', 'password'],

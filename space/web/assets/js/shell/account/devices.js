@@ -1,8 +1,6 @@
 /**
- * @fileoverview 设备（D1–D9）的终端命令（v5 S5：原账号下拉「设备」层的行没有了）。
- *
- * - device：列表（[n] 名字 · 在线 / 上次活动 · 浏览器 · 地点 · 登录方式，本机标「此设备」）
- * - device rm <n>：[y/N] 退出那一台（本机用 exit）· device rm --all：退出其他所有设备（要 sudo root reauth，O8）
+ * @fileoverview 设备（D1–D9）：此设备（名字、在线 · 浏览器 · 地点、登录方式、退出账号）、其他设备（上次活动、单独退出两步）、
+ * 退出其他所有设备（要 sudo root reauth，O8）。
  */
 
 /**
@@ -19,14 +17,13 @@ export function agoText(t, ts, now) {
   return t('devices.dayAgo').replace('{n}', String(Math.floor(h / 24)));
 }
 
-/** @param {any} C 账号层上下文（shell/account/window.js） */
+/** @param {any} C */
 export function mountDevices(C) {
   const t = C.t;
-  const tf = C.tf;
   const esc = C.esc;
   const api = C.api;
-  /** 最近一次列出的设备（rm <n> 的编号对着它） @type {any[]} */
-  let list = [];
+  /** @type {any[]|null} */
+  C.devices = null;
 
   /** @param {any} d */
   function devSub(d) {
@@ -38,70 +35,62 @@ export function mountDevices(C) {
       try { place = new Intl.DisplayNames([C.doc.documentElement.lang || 'en'], { type: 'region' }).of(d.country) || d.country; } catch (e) {}
       parts.push(place);
     }
-    if (d.by) parts.push(d.by === 'passkey' ? t('devices.byPasskey') : t('devices.byPassword'));
     return parts.join(' · ');
   }
-  /** 取列表（不打印） @param {(ok: boolean) => void} then */
-  function load(then) {
-    C.setMode('busy');
-    api.devices.list().then(function (/** @type {any} */ res) {
-      C.toCmd();
-      if (res.j && res.j.ok) { list = res.j.devices || []; then(true); return; }
-      if (!C.authErr(res)) C.apiErr(res);
-      then(false);
-    }, function () { C.netErr(); C.toCmd(); then(false); });
-  }
-
-  /** device：列出 */
-  C.deviceList = function () {
-    load(function (ok) {
-      if (!ok) return;
-      list.forEach(function (/** @type {any} */ d, /** @type {number} */ i) {
-        C.out('<span class="sgx-at-p">[' + (i + 1) + ']</span> <span translate="no">' + esc(d.name || t('devices.unknown')) + '</span>' +
-          (d.current ? ' <span class="sgx-at-ok">' + esc(t('devices.current')) + '</span>' : '') + ' <span class="sgx-at-dim">· ' + esc(devSub(d)) + '</span>');
-      });
-      if (list.length < 2) C.note('devices.noOthers');
+  C.renderDevices = function () {
+    const list = C.devices || [];
+    C.subHead(t('devices.title'), C.devices ? C.tf('devices.nSessions', { n: list.length }) : '');
+    const me = list.find(function (/** @type {any} */ d) { return d.current; });
+    const others = list.filter(function (/** @type {any} */ d) { return !d.current; });
+    const by = (me && me.by) || (C.status && C.status.session && C.status.session.by) || '';
+    let h = C.grp(t('devices.this'));
+    if (me) h += C.row({ k: me.name || t('devices.unknown'), sub: devSub(me), vHtml: '<span class="sgx-at-acc">' + esc(t('devices.current')) + '</span>' });
+    h += C.row({ k: t('devices.by'), v: by === 'passkey' ? t('devices.byPasskey') : by ? t('devices.byPassword') : '' }) +
+      C.row({ k: t('devices.signOut'), v: 'exit', act: 'exit', cls: 'sgx-pop-row--acc' }) + C.noteP(t('devices.keepNote'));
+    h += C.grp(t('devices.others'), true);
+    if (C.devices && !others.length) h += C.noteP(t('devices.noOthers'));
+    others.forEach(function (/** @type {any} */ d) {
+      const a = C.armed === 'dev:' + d.deviceId;
+      h += C.row({ k: d.name || t('devices.unknown'), sub: devSub(d), vHtml: '<span class="sgx-at-acc">' + esc(a ? t('devices.outAsk') : t('devices.out')) + '</span>', act: 'dev:' + d.deviceId, armed: a });
     });
+    if (others.length) h += C.row({ k: t('devices.revokeAll'), v: C.reauthLeft() ? '' : t('reauth.need'), act: 'revoke-all', cls: 'sgx-pop-row--acc', armed: C.armed === 'revoke-all' });
+    C.viewEl.innerHTML = '<div class="sgx-pop-list">' + h + '</div>';
+    C.foot('devices.ft');
+  };
+  C.loadDevices = function () {
+    return api.devices.list().then(function (/** @type {any} */ res) {
+      if (res.j && res.j.ok) { C.devices = res.j.devices || []; if (C.layer === 'devices') C.renderDevices(); return; }
+      if (C.authErr(res)) return;
+      C.apiErr(res);
+    }, function () { C.netErr(); });
   };
 
-  /** [y/N] @param {string} ask @param {() => void} yes */
-  function yn(ask, yes) {
-    C.out(esc(ask) + ' [y/N]');
-    C.pick({
-      y: function () { C.echoPick('y'); yes(); },
-      n: function () { C.echoPick('n'); C.toCmd(); },
-    }, 'n', { ps: '[y/N]' });
-  }
-
-  /** device rm <n> @param {number} n */
-  C.deviceRm = function (n) {
-    load(function (ok) {
-      if (!ok) return;
-      const d = list[n - 1];
-      if (!d) { C.err(t('devices.noSuch')); C.note('devices.lsFirst', 'device'); return; }
-      if (d.current) { C.note('devices.currentHint', 'exit'); return; }
-      yn(tf('devices.rmAsk', { n: d.name || t('devices.unknown') }), function () {
-        C.setMode('busy');
-        api.devices.revoke(d.deviceId).then(function (/** @type {any} */ res) {
-          C.toCmd();
-          if (res.j && res.j.ok) { C.out('<span class="sgx-at-ok">✓</span> ' + esc(t('devices.outDone'))); list = []; return; }
-          if (!C.authErr(res)) C.apiErr(res);
-        }, function () { C.netErr(); C.toCmd(); });
-      });
-    });
-  };
-
-  /** device rm --all：退出其他所有设备（要 reauth） */
-  C.deviceRmAll = function () {
-    C.withReauth(function () {
-      yn(t('devices.revokeAllAsk'), function () {
-        C.setMode('busy');
+  /** @param {string} a @returns {boolean} */
+  C.actDevices = function (a) {
+    if (a.indexOf('dev:') === 0) {
+      const id = a.slice(4);
+      if (C.armed !== a) { C.armed = a; C.renderDevices(); return true; }
+      C.armed = '';
+      api.devices.revoke(id).then(function (/** @type {any} */ res) {
+        if (res.j && res.j.ok) { C.out('<span class="sgx-at-ok">✓</span> ' + esc(t('devices.outDone'))); C.devices = (C.devices || []).filter(function (/** @type {any} */ d) { return d.deviceId !== id; }); C.renderDevices(); return; }
+        if (C.authErr(res)) return;
+        C.apiErr(res);
+        C.renderDevices();
+      }, function () { C.netErr(); });
+      return true;
+    }
+    if (a === 'revoke-all') {
+      if (C.armed !== a) { C.armed = a; C.renderDevices(); return true; }
+      C.armed = '';
+      C.withReauth(function () {
         api.devices.revokeAll().then(function (/** @type {any} */ res) {
-          C.toCmd();
-          if (res.j && res.j.ok) { C.out('<span class="sgx-at-ok">✓</span> ' + esc(t('devices.revokeAllDone'))); list = []; C.loadStatus(); return; }
-          if (!C.authErr(res)) C.apiErr(res);
-        }, function () { C.netErr(); C.toCmd(); });
-      });
-    }, t('reauth.lead.devices'));
+          if (res.j && res.j.ok) { C.out('<span class="sgx-at-ok">✓</span> ' + esc(t('devices.revokeAllDone'))); C.loadStatus().then(C.loadDevices); return; }
+          if (C.authErr(res)) return;
+          C.apiErr(res);
+        }, function () { C.netErr(); });
+      }, t('reauth.lead.devices'));
+      return true;
+    }
+    return false;
   };
 }

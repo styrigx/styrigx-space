@@ -6,7 +6,7 @@
  *   历史（↑↓，sessionStorage sgx-term-hist，全站一份）、Tab 补全、cd 的当前目录。真正的动作（跳页 / 外观 / AI / 打开账号窗口）由调用方经 act 传进来。
  * - 视图 mountTerminal()：把一个终端窗口标记（[data-sgx-term]）接到引擎上。输入行用 shell/term/view/input-line.js（秘密输入 / 选择 / 等待 / ^C 都在那里），
  *   要输入、选择、验证的命令（sudo、lock、share、账号命令、sub-*）交给调用方给的两层上下文去跑（layers：钥匙层 shell/space/layer.js、
- *   账号层 shell/account/window.js），它们共用这一个输入行（shell/term/view/layer-ctx.js）。
+ *   账号层 shell/account/cmd/layer.js），它们共用这一个输入行（shell/term/view/layer-ctx.js）。账号窗口（头像，shell/account/window.js）照旧，有自己的命令行。
  *   桌面是居中大窗（#sgx-term 抽屉），手机整块卡片；主页首屏嵌入的那一个（data-sgx-term="home"，S7 换成 neofetch）在主页上就是这个终端。
  * - 文案：#sgx-i18n-shell 的 term 节（data/sgx-shell-i18n/<语言>.yaml，缺键回退下面的英文）。
  *
