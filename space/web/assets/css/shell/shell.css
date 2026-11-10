@@ -135,6 +135,9 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
   mask: radial-gradient(closest-side, transparent 16.3px, var(--sgx-text-primary) 16.7px, var(--sgx-text-primary) 18px, color-mix(in srgb, var(--sgx-text-primary) 30%, transparent) 18.4px, transparent 19px);
   animation: sgx-av-orbit 2s linear infinite; }
 .sgx-tb-av.is-busy::before { animation-duration: .9s; }
+/* 头像 = whoami（v6 P2b）：root 身份在头像右下角叠一个「#」（同提示符的 #）；只在有 v6 新会话且是 root 时由 topbar-panel.js 插入 */
+.sgx-tb-av-root { position: absolute; z-index: 3; right: 1px; bottom: 1px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; pointer-events: none;
+  font: 700 10px/14px var(--sgx-font-mono); text-align: center; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); box-shadow: 0 0 0 1.5px var(--sgx-surface); }
 @keyframes sgx-av-orbit { to { transform: rotate(1turn); } }
 .reduced-motion .sgx-tb-av::before { animation: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-av::before { animation: none; } }

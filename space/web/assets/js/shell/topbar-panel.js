@@ -536,6 +536,9 @@ export function mountTopbar(o) {
     },
     page: function () { const v = doc.documentElement.getAttribute('data-sgx-lock-session'); return v === 'valid' || v === 'locked' ? v : 'unknown'; },
     accountHint: function () { return doc.documentElement.getAttribute('data-sgx-account-session') === 'in'; },
+    /* v6（P2b）：POST /api/identity whoami；登录标记 cookie sgx-id 在才在首帧问 */
+    whoami: o.identityWhoami,
+    v6Hint: function () { return !!(o.identityMarker && o.identityMarker(doc)); },
   }) : null;
   /** 终端那一头（给终端里的账号层：登出 / 授权同意 / 只做再验证之后收起终端） */
   const termLink = { close: closeTerm, shown: function () { return !!(termSheet && termSheet.isShown()); } };
@@ -558,7 +561,41 @@ export function mountTopbar(o) {
     const pg = doc.documentElement.getAttribute('data-sgx-lock-session');
     if (pg !== 'valid' && pg !== 'locked') return false;
     const w = who.get();
+    if (w.indexOf('u:') === 0) return false;
     return w !== 'styrigx' && w !== 'root';
+  };
+  /* 头像 = whoami（v6 P2b，定稿 v4 §七）：有 v6 新会话时头像是当前身份——普通用户显示自己的头像（/avatar/u<uid>-<尺寸>.webp，styrigx 用站点头像），
+     root 叠一个「#」标记；点头像打开终端预填下一步：root → exit，wheel 组的普通用户 → su root，其余 → profile。
+     没有 v6 会话时头像照旧（访客的「su 」预填留到割接，旧入口 sudo styrigx 还在用）。 */
+  /** v6 头像该预填的命令（不是 v6 → ''） */
+  const avV6Cmd = function () {
+    const u = who && who.v6 ? who.v6() : null;
+    if (!u) return '';
+    if (u.root) return 'exit';
+    return u.wheel ? 'su root' : 'profile';
+  };
+  const paintAvV6 = function () {
+    if (!acctBtn) return;
+    const u = who && who.v6 ? who.v6() : null;
+    const img = /** @type {HTMLImageElement|null} */ (acctBtn.querySelector('img.sgx-tb-avatar'));
+    if (img) {
+      if (!img.hasAttribute('data-sgx-src0')) img.setAttribute('data-sgx-src0', img.getAttribute('src') || '');
+      const src0 = img.getAttribute('data-sgx-src0') || '';
+      const want = u && !u.root && u.uid !== 1000 ? '/avatar/u' + u.uid + '-192.webp' : src0;
+      if (img.getAttribute('src') !== want) img.setAttribute('src', want);
+    }
+    let mark = acctBtn.querySelector('.sgx-tb-av-root');
+    if (u && u.root) {
+      if (!mark) {
+        mark = doc.createElement('span');
+        mark.className = 'sgx-tb-av-root';
+        mark.setAttribute('aria-hidden', 'true');
+        mark.textContent = '#';
+        acctBtn.appendChild(mark);
+      }
+    } else if (mark) mark.remove();
+    if (u) acctBtn.setAttribute('data-sgx-v6', u.root ? 'root' : 'user');
+    else acctBtn.removeAttribute('data-sgx-v6');
   };
   const paintAv = function () {
     if (!acctBtn) return;
@@ -566,6 +603,16 @@ export function mountTopbar(o) {
     else acctBtn.removeAttribute('aria-disabled');
   };
   if (acctBtn) {
+    /* v6 身份在：点头像 = 打开终端预填下一步（不开账号卡片） */
+    acctBtn.addEventListener('click', function (e) {
+      const c = avV6Cmd();
+      if (!c) return;
+      const me2 = /** @type {MouseEvent} */ (e);
+      if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      termPrefill(c);
+    }, true);
     acctBtn.addEventListener('click', function (e) {
       if (!avDead()) return;
       const me2 = /** @type {MouseEvent} */ (e);
@@ -576,7 +623,8 @@ export function mountTopbar(o) {
     /* 中键 / 辅助键点（auxclick）也不按链接走 */
     acctBtn.addEventListener('auxclick', function (e) { if (avDead()) e.preventDefault(); }, true);
     paintAv();
-    if (who) who.on(paintAv);
+    paintAvV6();
+    if (who) { who.on(paintAv); who.on(paintAvV6); }
   }
   if (acctBtn && acctDlg && o.account) {
     acct = wire(acctBtn, acctDlg, 'sgxAcct', function () {
@@ -744,7 +792,8 @@ export function mountTopbar(o) {
         layers: function (/** @type {any} */ line) {
           const space = o.space && who ? o.space(line, { who: who, close: closeTerm, reload: function () { replace(cleanHere()); } }) : null;
           const acctTerm = o.accountTerm && who ? o.accountTerm({ S: trSec('account'), line: line, who: who, term: termLink, replace: replace, reload: o.reload }) : null;
-          return { space: space, acct: acctTerm };
+          const ident = o.identityTerm && who ? o.identityTerm({ S: trSec('identity'), line: line, who: who }) : null;
+          return { space: space, acct: acctTerm, ident: ident };
         },
       });
     }
@@ -757,7 +806,7 @@ export function mountTopbar(o) {
     };
     /* 首帧身份按网关注入的页面标记；标了进站（valid）才问服务端细分 link / styrigx / root。标了访客（locked）不用问；
        没有标记 = 页面没经过网关（本地 / 测试构建），不在加载时问（没有接口，只会多一条 404），等 sudo / 盾牌 / 401 时再问 */
-    if (who && who.get() !== 'nobody') who.refresh();
+    if (who && (who.get() !== 'nobody' || who.v6Hinted())) who.refresh();
     /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 sudo styrigx（不替人回车） */
     doc.addEventListener(SUDO_EVENT, function () {
       /* 页面标记跟着改成 locked（AI 窗口锁、听歌等按它画访客态） */

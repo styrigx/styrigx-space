@@ -1,5 +1,6 @@
 import { ROOT_COMMAND, ADMIN_COMMAND } from '../../core/parse.js';
 import { gate, layer, notHere, line, FLOW } from './gate.js';
+import { SUDO_CMDS } from '../../core/ident-args.js';
 
 /**
  * sudo（v5 S5，term-design-v5「钥匙」「账号」）：
@@ -7,6 +8,8 @@ import { gate, layer, notHere, line, FLOW } from './gate.js';
  * - sudo styrigx reset：恢复钥匙 → reset 层（reset@space:~#，不变）
  * - sudo root：登录账号（要先进站）；sudo root reset：账号恢复密钥 → reset@account:~#；sudo root reauth：账号再验证（原样保留）
  * - sudo -v：再验证当前这一层（root@account → 账号，styrigx@space → 钥匙；分享链接进来的不能 reauth）
+ * - v6（P2b）：sudo useradd | userdel | usermod | passwd <名> | groups [名] | who → 身份层（shell/identity/layer.js）：每次输自己的凭据、借 root 跑这一条、不压栈。
+ *   上面几种旧写法原样（分步割接），两套写法的第一个词不重叠。
  */
 export default {
   name: 'sudo',
@@ -16,6 +19,12 @@ export default {
     const a0 = (p.args[0] || '').toLowerCase();
     const a1 = (p.args[1] || '').toLowerCase();
     const w = x.who();
+    if (SUDO_CMDS.indexOf(a0) !== -1) {
+      const I = layer(x, /** @type {any} */ ('ident'));
+      if (!I) return notHere(x, 'sudo ' + p.args.join(' '));
+      I.cmdSudo([a0].concat(p.args.slice(1)));
+      return FLOW;
+    }
     if (p.args.length > 2 || (a0 === '-v' && a1)) return { out: [x.k.plain(x.S.usageSudo)] };
     if (a0 === ADMIN_COMMAND && (a1 === '' || a1 === 'reset')) {
       const S = layer(x, 'space');

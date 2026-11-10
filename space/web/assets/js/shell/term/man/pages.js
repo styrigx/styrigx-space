@@ -68,4 +68,26 @@ export const PAGES = Object.freeze({
       'Names use A–Z a–z 0–9 _ - (1–32). At most 20 sources, 2 MB per file. Post-quantum keys (age1pq1…) are not supported yet.',
     ],
   },
+  /* v6 身份命令（P2b）：只给 v6 身份列；正文译文在 manBody */
+  whoami: { d: 'print who you are (v6 identity)', syn: ['whoami'], desc: ['Prints the current user; after su root it also shows the path, e.g. root via styrigx.'] },
+  su: {
+    d: 'switch user: sign in as a user, or become root (wheel)', syn: ['su <user>', 'su root'],
+    desc: ['su <user>: sign in as that user with its password or a passkey; a new user sets a new password on first sign-in.', 'su root: only members of wheel; asks for root’s credentials; at most 1 h, and 15 min idle in the foreground goes back.', 'exit leaves one layer; lock signs everything out.'],
+    notes: ['root never signs in directly from visitor. While signed in as a user, exit first before su to another user.'],
+  },
+  groups: { d: 'list a user’s groups', syn: ['groups', 'groups <user>'], auth: 'signed in; another user’s groups need root' },
+  who: { d: 'list signed-in sessions with their identity path', syn: ['who'], desc: ['Each session’s identity path (root via styrigx) and when it started; you see only your own unless you are root.'] },
+  useradd: {
+    d: 'create a user (one-time password, shown once)', syn: ['useradd <name> [-e YYYY-MM-DD] [-G group,group]'],
+    desc: ['-e: the account stops working at 00:00 (Beijing time) on that date. -G: groups, comma separated.', 'Prints a one-time password once (expires in 24 h); the user must change it at first sign-in.'],
+    auth: 'root, or sudo useradd (sudoers)',
+    notes: ['A user with an expiry can’t join wheel, sudoers or the write groups.'],
+  },
+  userdel: { d: 'delete a user with its sessions, keys and groups', syn: ['userdel <name>'], auth: 'root, or sudo userdel (sudoers)', notes: ['root and styrigx can’t be deleted.'] },
+  usermod: {
+    d: 'add a user to groups or remove it from them', syn: ['usermod -aG <group[,group]> <name>', 'usermod -rG <group[,group]> <name>'],
+    desc: ['-aG adds the groups, -rG removes them; the user’s sessions end and it signs in again.'],
+    auth: 'root, or sudo usermod (sudoers)',
+    notes: ['Removing the last member of wheel or sudoers asks first.'],
+  },
 });

@@ -30,6 +30,8 @@ import { mountTopbar } from './topbar-panel.js';
 import { mountAiChat } from './ai-panel.js';
 import { mountAccountWindow, layerFromPath } from './account/window.js';
 import { mountAccountLayer } from './account/cmd/layer.js';
+import { mountIdentityLayer } from './identity/layer.js';
+import { whoami as identityWhoami, hasMarker as identityMarker } from './identity/api.js';
 import { mountSpace } from './space/layer.js';
 import { PM_USER } from './space/api.js';
 import { onKeyboardHeight } from './vk.js';
@@ -67,6 +69,10 @@ export function initQuickPanel() {
     account: mountAccountWindow,
     accountTerm: mountAccountLayer,
     accountLayer: layerFromPath,
+    /* v6 身份层（P2b）：su / sudo / exit / lock / whoami / groups / who / useradd / userdel / usermod / passwd */
+    identityTerm: mountIdentityLayer,
+    identityWhoami: identityWhoami,
+    identityMarker: identityMarker,
     /* 终端里的钥匙层：sudo styrigx / sudo -v / reset / lock … / share …（v5 S5） */
     space: mountSpace,
     pmUser: PM_USER.password,
