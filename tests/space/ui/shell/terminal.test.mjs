@@ -64,10 +64,10 @@ test('parse：空行 null；命令名小写；参数按空白切；rest 保留�
 });
 
 
-test('命令表（v5 S5）：一张表；help / tty / tempkey 没有了；sub-* 原样', () => {
-  assert.deepEqual(COMMANDS, ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find', 'ask', 'sudo', 'lock', 'share', 'passwd', 'passkey', 'device', 'app',
-    'sub', 'sub-key', 'sub-link', 'sub-add', 'sub-upload', 'sub-mv', 'sub-on', 'sub-off', 'sub-rm', 'sub-refresh']);
-  for (const gone of ['help', 'tty', 'tempkey']) assert.ok(!COMMANDS.includes(gone), gone);
+test('命令表（v5 S5 + sub v3.1）：一张表；help / tty / tempkey / sub-* 没有了；sub 一条带子命令', () => {
+  assert.deepEqual(COMMANDS, ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find', 'ask', 'sudo', 'lock', 'share', 'passwd', 'passkey', 'device', 'app', 'sub']);
+  for (const gone of ['help', 'tty', 'tempkey', 'sub-key', 'sub-link', 'sub-refresh', 'sub-mv']) assert.ok(!COMMANDS.includes(gone), gone);
+  assert.deepEqual(ARGS.sub, ['show', 'add', 'upload', 'mv', 'rm', 'on', 'off', 'key', 'token']);
   assert.deepEqual(ARGS.sudo, ['styrigx', 'root', '-v']);
   assert.deepEqual(ARGS.lock, ['passwd', 'passkey', '--all']);
   assert.deepEqual(ARGS.share, ['add', 'rm']);
@@ -171,7 +171,7 @@ test('createWho：首帧按页面标记，问服务端后以回答为准；分�
   assert.equal(createWho({ check: () => Promise.resolve(null), page: () => 'valid' }).get(), 'styrigx', '页面标记 valid = 已进站');
 });
 
-test('man 按身份列（唯一判断点 listedFor）：nobody 列 find 不列 ask、没有钥匙 / 账号命令；进站列 ask、lock、share；root 多账号命令和 sub-*', async () => {
+test('man 按身份列（唯一判断点 listedFor）：nobody 列 find 不列 ask、没有钥匙 / 账号命令；进站列 ask、lock、share；root 多账号命令和 sub', async () => {
   const { act } = fakeAct();
   const names = async (w) => (await run(createShell({ act, storage: mem(), who: fixedWho(w) }), 'man')).out.slice(1).map((o) => o.seg[0][1]);
   const base = ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme'];
@@ -180,7 +180,7 @@ test('man 按身份列（唯一判断点 listedFor）：nobody 列 find 不列 a
   assert.deepEqual(await names('styrigx'), base.concat(['ask', 'sudo', 'lock', 'share']));
   const root = await names('root');
   assert.deepEqual(root.slice(0, 18), base.concat(['ask', 'sudo', 'lock', 'share', 'passwd', 'passkey', 'device', 'app']));
-  assert.ok(root.includes('sub') && root.includes('sub-mv'), 'sub-* 只给 root 列');
+  assert.deepEqual(root.slice(18), ['sub'], 'sub 只给 root 列，只有一条');
   /* Tab 补全也只补这个身份列出的命令 */
   assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('nobody') }).complete('a'), { line: 'a', options: [] });
   assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('root') }).complete('a'), { line: 'a', options: ['ask', 'app'] });
@@ -279,7 +279,7 @@ test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访
   const need = 'not entered · run sudo styrigx first';
   for (const l of ['sudo root', 'sudo -v', 'lock', 'share', 'passwd', 'device', 'app rm 1', 'sub']) assert.equal(text(sh('nobody').exec(l, v).out[0]), need, l);
   for (const l of ['share', 'share add', 'sudo -v']) assert.equal(text(sh('link').exec(l, v).out[0]), TERM_EN.linkDenied, l);
-  for (const l of ['passwd', 'passkey', 'device', 'app', 'sub-mv a b']) assert.equal(text(sh('styrigx').exec(l, v).out[0]), 'not signed in to the account · run sudo root first', l);
+  for (const l of ['passwd', 'passkey', 'device', 'app', 'sub mv a b', 'sub show']) assert.equal(text(sh('styrigx').exec(l, v).out[0]), 'not signed in to the account · run sudo root first', l);
   assert.deepEqual(calls, [], '没过门槛的不进流程');
   assert.equal(text(sh('styrigx').exec('sudo styrigx', v).out[0]), 'already entered · sudo -v to verify again');
 });
@@ -307,9 +307,10 @@ test('要输入 / 验证的命令交给两层上下文（flow，输出和输入�
   flow('root', 'device rm --all');
   flow('root', 'app');
   flow('root', 'app rm 1');
-  flow('root', 'sub-mv Linkcube LinkCube2');
+  flow('root', 'sub mv Linkcube LinkCube2');
+  flow('root', 'SUB show Linkcube');
   assert.deepEqual(calls.splice(0), [['acct.cmdPasswd', true], ['acct.passkeyList'], ['acct.cmdPasskeyAdd', true], ['acct.passkeyRm', 2], ['acct.deviceList'], ['acct.deviceRm', 3], ['acct.deviceRmAll'],
-    ['acct.appList'], ['acct.appRm', 1], ['acct.cmdSub', 'sub-mv Linkcube LinkCube2']], 'sub-* 传原样的一行（来源名大小写不变）');
+    ['acct.appList'], ['acct.appRm', 1], ['acct.cmdSub', 'sub mv Linkcube LinkCube2'], ['acct.cmdSub', 'SUB show Linkcube']], 'sub 传原样的一行（来源名大小写不变）');
   assert.equal(text(sh('root').exec('device rm x', v).out[0]), TERM_EN.usageDevice);
   assert.equal(text(sh('root').exec('app rm --all', v).out[0]), TERM_EN.usageApp, 'app 没有 rm --all');
   assert.equal(text(sh('nobody').exec('sudo nope', v).out[0]), TERM_EN.usageSudo);
@@ -407,7 +408,7 @@ test('man 节（en / zh）：键 = man 页的命令；英文表 = pages.js 英�
   for (const k of Object.keys(PAGES)) assert.equal(en[k], PAGES[k].d, 'en.man.' + k);
 });
 
-test('代理订阅：open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示；man sub-mv 有 AUTH 节', async () => {
+test('代理订阅：open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示；man sub 一页列全部子命令、有 AUTH 节；man sub-mv 没有了', async () => {
   const { act } = fakeAct();
   act.proxyList = () => Promise.resolve([{ name: 'Linkcube', type: 'airport', host: 'sub.example.com', nodes: 3, enabled: true, error: '' }, { name: 'Cloady', type: 'file', host: '', nodes: 1, enabled: false, error: '' }]);
   const { v, calls } = fakeLayers();
@@ -418,7 +419,10 @@ test('代理订阅：open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示
   assert.deepEqual(ls.out.map(text), ['Linkcube  sub.example.com  3  on', 'Cloady  file  1  off']);
   act.proxyList = () => Promise.resolve(null);
   assert.equal(text((await run(sh, 'ls proxy')).out[0]), '# sub · ~/account');
-  const man = await run(sh, 'man sub-mv');
-  assert.deepEqual(man.out.map(text).slice(0, 5), ['SUB-MV(1)', 'NAME', '    sub-mv — rename a source', 'SYNOPSIS', '    sub-mv <old> <new>']);
+  const man = await run(sh, 'man sub');
+  assert.deepEqual(man.out.map(text).slice(0, 13), ['SUB(1)', 'NAME', '    sub — proxy subscription: status, urls, sources, key and token', 'SYNOPSIS',
+    '    sub', '    sub show [name]', '    sub add <name>', '    sub upload <name>', '    sub mv <old> <new>', '    sub rm <name>', '    sub on | off <name>', '    sub key', '    sub token']);
   assert.ok(man.out.map(text).includes('AUTH'));
+  assert.ok(!man.out.map(text).some((l) => /sub-refresh|sub-link|only this once/.test(l)), '没有旧命令、没有「只显示一次」');
+  assert.equal((await run(sh, 'man sub-mv')).out[0].cls, 'err');
 });

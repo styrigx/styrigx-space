@@ -29,7 +29,7 @@ src/
 │  ├─ rules.js              规则集：缓存 → 上游 → 写缓存
 │  └─ sub.js                订阅下载 /s/<令牌>/<来源名>
 ├─ rpc/
-│  ├─ proxy-admin.js        ProxyAdmin：状态、公钥、令牌、来源增删改、立即刷新（改动后自动刷新）
+│  ├─ proxy-admin.js        ProxyAdmin：状态、公钥、令牌（重印 / 换新）、来源增删改（改动后自动刷新；手动刷新入口随 sub-refresh 取消）
 │  └─ proxy-refresher.js    ProxyRefresher：刷新一个源（锁在调用方手里才做）
 ├─ core/
 │  ├─ sources.js            规则集来源登记表
@@ -68,7 +68,7 @@ HEAD 不读也不写缓存。
 
 | 绑定 | 资源 | 用途 |
 |---|---|---|
-| `D1_PROXY` | D1 `styrigx-proxy` | 公钥、令牌哈希、来源、成品、刷新锁 |
+| `D1_PROXY` | D1 `styrigx-proxy` | 公钥、令牌（哈希 + 封存）、来源、成品、刷新锁 |
 | `SGX_PROXY_DB_KEY` | Secrets Store | 库内字段加密钥匙 |
 | `SELF` | 本 Worker 的 `ProxyRefresher` | 刷新时一个源一次调用（免费档每次 CPU 10 ms） |
 | `RL_SUB` | Rate Limiting（30 次 / 60 秒 / IP） | `/s/` 兜底限流；外层还有 WAF 规则（150 次 / 10 秒 / IP，表达式已含本域名） |
@@ -80,9 +80,9 @@ HEAD 不读也不写缓存。
 | 钥匙 | 在哪 | 保护什么 |
 |---|---|---|
 | age 公钥（`age1…` X25519；PQ 暂不开放） | D1 `meta.pubkey`（私钥只在手机 CMFA「Meta 特性 › Age 密钥」） | 下载成品 `sources.armor` |
-| `SGX_PROXY_DB_KEY`（base64 的 32 字节） | Secrets Store，只绑本 Worker | D1 里的机场链接 `url_enc`、各源节点 `last_nodes_enc`（AES-256-GCM，附加数据 = 行 id + 字段） |
+| `SGX_PROXY_DB_KEY`（base64 的 32 字节） | Secrets Store，只绑本 Worker | D1 里的机场链接 `url_enc`、各源节点 `last_nodes_enc`（AES-256-GCM，附加数据 = 行 id + 字段）、封存的下载令牌 `meta.token_sealed`（附加数据 `meta:token`） |
 
-下载令牌只存 SHA-256；明文只在生成时经 account 回一次。
+下载令牌在 `meta` 存两份，同一次 batch 写：`token_hash`（SHA-256，下载只比它、常量时间，下载不读 DB_KEY）和 `token_sealed`（DB_KEY 封存的原文，终端 `sub show` 经 account reauth 后重印）。`sub token` 换新令牌，旧链接立即失效。
 
 ## 数据与迁移
 

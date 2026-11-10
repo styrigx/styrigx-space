@@ -32,13 +32,14 @@ test('钥匙 reset 层：补全只补 reset 里的命令；passkey a → passkey
   assert.deepEqual(parseResetCmd('passkey rm 2'), { cmd: 'passkey-rm', arg: '2' });
 });
 
-test('账号窗口（照旧）：自带命令行的补全表 = 原 tty5；补出来的每条分发都认得（sub-* 由 proxy.js）', () => {
+test('账号窗口（照旧）：自带命令行的补全表 = 原 tty5；补出来的每条分发都认得（sub 由 proxy.js）', () => {
   const a = completerOf(WINDOW_TABLE);
   assert.deepEqual(a('sudo r'), { line: 'sudo root', options: [] });
   assert.deepEqual(a('cd s'), { line: 'cd security', options: [] });
   assert.deepEqual(a('l'), { line: 'login', options: [] });
+  assert.deepEqual(a('sub t'), { line: 'sub token', options: [] }, 'sub 的子命令能补全');
   for (const n of WINDOW_TABLE.names) {
-    if (/^sub/.test(n)) { assert.ok(parseSub(n), n); continue; }
+    if (n === 'sub') { assert.ok(parseSub(n), n); continue; }
     assert.notEqual(parseCmd(n === 'sudo' ? 'sudo root' : n === 'passkey' ? 'passkey add' : n).cmd, 'unknown', n);
   }
 });

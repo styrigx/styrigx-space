@@ -1,9 +1,14 @@
 /**
- * 下载令牌：32 字节随机，base64url（43 位）。库里只存 SHA-256（hex）；比对用常量时间。
+ * 下载令牌：32 字节随机，base64url（43 位）。
+ * 库里存两份（meta 表，同一次 batch 写）：
+ * - token_hash：SHA-256（hex），下载时只比它，常量时间；下载不读 DB_KEY。
+ * - token_sealed：用 SGX_PROXY_DB_KEY 封存的原文（AES-256-GCM，附加数据 TOKEN_AAD），只给 sub show 重印地址用。
  */
 const te = new TextEncoder();
 
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
+/** 封存令牌的附加数据（防止把别处的密文搬来当令牌） */
+export const TOKEN_AAD = 'meta:token';
 
 export function newToken() {
   return Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString('base64url');

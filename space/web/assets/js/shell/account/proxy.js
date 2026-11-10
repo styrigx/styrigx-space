@@ -1,12 +1,12 @@
 /**
- * @fileoverview 代理订阅的 sub-* 命令（P2，设计稿 v1.10 §8.1）：在账号终端（tty5）里做完——reauth、y/N、遮挡输入、选文件、复制都在原地。
- * 站内终端（tty2）、盾牌（tty3）、AI（tty4）里打的 sub-* 由 topbar-panel 转到这里（同 sudo root：切到账号窗口，不跳页）。
- * 后端：POST /api/account/proxy（api.proxy）；鉴权在服务端，key / link 要 reauth 票。服务端只回状态，不回链接和节点内容。
+ * @fileoverview 代理订阅的 sub 指令（v3.1，Gray 2026-11-10 定）：一条 `sub` + 子命令，在终端里原地做完——reauth、y/N、遮挡输入、选文件、复制。
+ * 终端命令表里的 sub（shell/term/cmds/sub/index.js）和账号窗口的命令行都把原样的一行交给这里（C.cmdSub）。
+ * 后端：POST /api/account/proxy（api.proxy）；鉴权在服务端，show / token / key 要 reauth 票。令牌由服务端封存，sub show 随时重印。
  */
 import { CMD } from './commands.js';
+import { SUB_ARGS } from '../term/cmds/sub/args.js';
 
-/** 10 条命令（顺序 = 补全 / man 顺序） */
-export const SUB_CMDS = Object.freeze(['sub', 'sub-key', 'sub-link', 'sub-add', 'sub-upload', 'sub-mv', 'sub-on', 'sub-off', 'sub-rm', 'sub-refresh']);
+export { SUB_ARGS };
 /** 来源名（同服务端 NAME_RE）：它就是下载路径的最后一段，大小写敏感 */
 export const NAME_RE = /^[A-Za-z0-9_-]{1,32}$/;
 /** age X25519 公钥（bech32，age1 + 58 位） */
@@ -14,20 +14,36 @@ export const AGE_RE = /^age1[02-9ac-hj-np-z]{58}$/;
 /** 上传文件上限（同服务端 MAX_BYTES） */
 export const MAX_FILE = 2 * 1024 * 1024;
 
+/** 每个子命令的名字参数个数 [最少, 最多] */
+const ARITY = /** @type {Record<string, [number, number]>} */ ({ '': [0, 0], 'show': [0, 1], 'add': [1, 1], 'upload': [1, 1], 'mv': [2, 2], 'rm': [1, 1], 'on': [1, 1], 'off': [1, 1], 'key': [0, 0], 'token': [0, 0] });
+/** 用法行 */
+export const USAGE = /** @type {Record<string, string>} */ ({
+  '': 'sub', 'show': 'sub show [name]', 'add': 'sub add <name>', 'upload': 'sub upload <name>', 'mv': 'sub mv <old> <new>',
+  'rm': 'sub rm <name>', 'on': 'sub on <name>', 'off': 'sub off <name>', 'key': 'sub key', 'token': 'sub token',
+});
+
 /**
- * 原样的一行（来源名大小写敏感，不能走 normCmd）→ { cmd, args }；不是 sub 命令 → null
- * @param {string} raw @returns {{cmd: string, args: string[]} | null}
+ * 原样的一行（来源名大小写敏感，不能走 normCmd）→ { sub, args }；第一个词不是 sub → null。
+ * 子命令不分大小写；不认识的子命令原样放进 sub（cmdSub 报用法）。
+ * @param {string} raw @returns {{sub: string, args: string[]} | null}
  */
 export function parseSub(raw) {
-  const parts = String(raw || '').trim().split(/\s+/);
-  const c = (parts[0] || '').toLowerCase();
-  return SUB_CMDS.indexOf(c) >= 0 ? { cmd: c, args: parts.slice(1).filter(Boolean) } : null;
+  const parts = String(raw || '').trim().split(/\s+/).filter(Boolean);
+  if ((parts[0] || '').toLowerCase() !== 'sub') return null;
+  return { sub: (parts[1] || '').toLowerCase(), args: parts.slice(2) };
 }
 
-/** 每条命令要几个名字参数 */
-const ARITY = /** @type {Record<string, number>} */ ({ 'sub-add': 1, 'sub-upload': 1, 'sub-on': 1, 'sub-off': 1, 'sub-rm': 1, 'sub-mv': 2 });
-/** 用法行 */
-export const USAGE = /** @type {Record<string, string>} */ ({ 'sub-add': 'sub-add <name>', 'sub-upload': 'sub-upload <name>', 'sub-on': 'sub-on <name>', 'sub-off': 'sub-off <name>', 'sub-rm': 'sub-rm <name>', 'sub-mv': 'sub-mv <old> <new>' });
+/**
+ * 参数检查（唯一一处）：子命令认识、名字个数对、每个名字合法 → null；否则回错误 { usage } 或 { badName: true }
+ * @param {{sub: string, args: string[]}} p @returns {null | {usage: string} | {badName: true}}
+ */
+export function checkSub(p) {
+  const n = ARITY[p.sub];
+  if (!n) return { usage: SUB_ARGS.map(function (s) { return USAGE[s]; }).join(' | ') };
+  if (p.args.length < n[0] || p.args.length > n[1]) return { usage: USAGE[p.sub] };
+  for (const a of p.args) if (!NAME_RE.test(a)) return { badName: true };
+  return null;
+}
 
 /** @param {any} C */
 export function mountProxy(C) {
@@ -36,7 +52,7 @@ export function mountProxy(C) {
   const esc = C.esc;
   const api = C.api;
   const P = api.proxy;
-  /** sub-link 刚印出的地址（复制按钮按序号取；关下拉就清） @type {string[]} */
+  /** sub show / sub token 刚印出的令牌和地址（复制按钮按序号取；关终端就清） @type {string[]} */
   let urls = [];
 
   /** 错误类别 → 文案（没有就交给通用的） @param {any} res */
@@ -48,13 +64,6 @@ export function mountProxy(C) {
   }
   /** 一行：灰色的 # 注释 @param {string} s */
   const dim = function (s) { C.out('# ' + esc(s), 'd'); };
-  /** 名字参数检查；不合格就报错回 false @param {string} cmd @param {string[]} args */
-  function argsOk(cmd, args) {
-    const n = ARITY[cmd] || 0;
-    if (args.length !== n) { C.err(tf('proxy.usage', { x: USAGE[cmd] || cmd })); return false; }
-    for (const a of args) if (!NAME_RE.test(a)) { C.err(t('proxy.badName')); return false; }
-    return true;
-  }
   /**
    * 发请求：busy → 成功 ok(j) → 回命令行；reauth 票过期 → 重新 reauth 再来；没会话 → authErr；其余报错类别
    * @param {() => Promise<any>} req @param {(j: any) => void} ok @param {() => void} [again] reauth 过期时重做
@@ -101,13 +110,17 @@ export function mountProxy(C) {
   /** @param {any} s @param {string} name */
   const find = function (s, name) { return (s.sources || []).find(function (/** @type {any} */ x) { return x.name === name; }); };
 
+  /** 令牌状态 → [文案键, 文案里的命令] */
+  const TOKEN_LINE = /** @type {Record<string, [string, string]>} */ ({ sealed: ['proxy.tokenSealed', 'sub show'], 'hash-only': ['proxy.tokenHashOnly', 'sub token'], none: ['proxy.tokenNone', 'sub token'] });
+
   /** sub：状态 @param {any} s */
   function printStatus(s) {
-    C.out('<span class="sgx-at-dim">' + esc(t('proxy.key')) + '</span> ' + (s.hasKey ? '<span translate="no">' + esc(s.pubkey) + '</span>' : esc(tf('proxy.keyUnset', { x: '' })) + C.k('sub-key')));
-    C.out('<span class="sgx-at-dim">' + esc(t('proxy.link')) + '</span> ' + (s.hasLink ? esc(t('proxy.linkYes')) : esc(tf('proxy.linkNo', { x: '' })) + C.k('sub-link')));
+    C.out('<span class="sgx-at-dim">' + esc(t('proxy.key')) + '</span> ' + (s.hasKey ? '<span translate="no">' + esc(s.pubkey) + '</span>' : esc(tf('proxy.keyUnset', { x: '' })) + C.k('sub key')));
+    const tk = TOKEN_LINE[s.token] || TOKEN_LINE.none;
+    C.out('<span class="sgx-at-dim">' + esc(t('proxy.token')) + '</span> ' + esc(tf(tk[0], { x: '' })) + C.k(tk[1]));
     if (s.refreshing) C.out(esc(t('proxy.refreshing')), 'warn');
     const list = s.sources || [];
-    if (!list.length) { C.out('# ' + esc(tf('proxy.none', { x: '' })).replace(/^\s+/, '') + C.k('sub-add <name>'), 'd'); return; }
+    if (!list.length) { C.out('# ' + esc(tf('proxy.none', { x: '' })).replace(/^\s+/, '') + C.k('sub add <name>'), 'd'); return; }
     for (const x of list) {
       const where = x.type === 'airport' ? x.host : t('proxy.file');
       const state = !x.enabled ? t('proxy.off') : x.error ? (t('proxy.err.' + x.error) || x.error) : t('proxy.on');
@@ -116,7 +129,7 @@ export function mountProxy(C) {
     }
   }
 
-  /** sub-key：粘贴公钥 → reauth → 保存（自动重加密） */
+  /** sub key：粘贴公钥 → reauth → 保存（自动重加密） */
   function cmdKey() {
     const go = function () {
       C.ask('pkname', function (/** @type {string} */ v) {
@@ -132,35 +145,53 @@ export function mountProxy(C) {
     C.withReauth(go, t('proxy.lead.key'));
   }
 
-  /** sub-link：没有就生成，有就问替换；印出令牌和每个来源的完整地址（各带复制），只这一次 */
-  function cmdLink() {
+  /**
+   * 印令牌和地址（各带复制）：name 给了只印那一个来源
+   * @param {any} j 服务端回的 { token, base } @param {any[]} list 来源 @param {string} [name]
+   */
+  function printUrls(j, list, name) {
+    const base = String(j.base || '') + String(j.token || '') + '/';
+    urls = [String(j.token || '')];
+    C.out('<span class="sgx-at-dim">' + esc(t('proxy.tokenLabel')) + '</span> <span translate="no" data-sgx-personal>' + esc(urls[0]) + '</span> ' + copyBtn(0));
+    const show = name ? list.filter(function (/** @type {any} */ x) { return x.name === name; }) : list;
+    if (!show.length) { dim(t('proxy.showNoSrc')); C.out('<span translate="no" data-sgx-personal>' + esc(base) + '</span>'); return; }
+    for (const x of show) {
+      urls.push(base + x.name);
+      C.out('<span translate="no" data-sgx-personal>' + esc(base + x.name) + '</span> ' + copyBtn(urls.length - 1));
+    }
+  }
+
+  /** sub show [名称]：reauth → 服务端解封令牌 → 印地址（随时可重印） @param {string} [name] */
+  function cmdShow(name) {
+    withStatus(function (s) {
+      if (name && !find(s, name)) { C.err(tf('proxy.notFound', { v: name })); return; }
+      if (s.token !== 'sealed') { C.err(t(s.token === 'hash-only' ? 'proxy.err.token-unsealed' : 'proxy.err.no-token')); return; }
+      const send = function () { call(function () { return P.show(); }, function (j) { printUrls(j, s.sources || [], name); }, send); };
+      C.withReauth(send, t('proxy.lead.show'));
+    });
+  }
+
+  /** sub token：已有令牌先 y/N（旧链接全部失效）→ reauth → 换新 → 印新地址 */
+  function cmdToken() {
     withStatus(function (s) {
       const make = function () {
         const send = function () {
-          call(function () { return P.link(); }, function (j) {
-            const base = String(j.base || '') + String(j.token || '') + '/';
-            urls = [String(j.token || '')];
-            C.out('<span class="sgx-at-y">' + esc(t('proxy.linkOnce')) + '</span>', 'warn');
-            C.out('<span class="sgx-at-dim">' + esc(t('proxy.linkToken')) + '</span> <span translate="no" data-sgx-personal>' + esc(urls[0]) + '</span> ' + copyBtn(0));
-            const list = s.sources || [];
-            if (!list.length) { dim(t('proxy.linkNoSrc')); C.out('<span translate="no" data-sgx-personal>' + esc(base) + '</span>'); return; }
-            for (const x of list) {
-              urls.push(base + x.name);
-              C.out('<span translate="no" data-sgx-personal>' + esc(base + x.name) + '</span> ' + copyBtn(urls.length - 1));
-            }
+          call(function () { return P.rotate(); }, function (j) {
+            C.out('<span class="sgx-at-y">' + esc(tf('proxy.tokenNew', { x: 'sub show' })) + '</span>', 'warn');
+            printUrls(j, s.sources || []);
           }, send);
         };
-        C.withReauth(send, t('proxy.lead.link'));
+        C.withReauth(send, t('proxy.lead.token'));
       };
-      if (!s.hasLink) { make(); return; }
-      C.out(esc(tf('proxy.linkReplace', { n: (s.sources || []).length })), 'warn');
-      askYN(t('proxy.linkAsk'), make);
+      if (s.token === 'none') { make(); return; }
+      C.out(esc(tf('proxy.tokenReplace', { n: (s.sources || []).length })), 'warn');
+      askYN(t('proxy.tokenAsk'), make);
     });
   }
   /** @param {number} i */
   const copyBtn = function (i) { return '<button type="button" class="sgx-at-nm" data-at-act="sub-copy:' + i + '">' + esc(t('proxy.copy')) + '</button>'; };
 
-  /** sub-add <名称>：遮挡输入链接；同名即改链接（显示新旧域名再确认，先试拉成功才换） @param {string} name */
+  /** sub add <名称>：遮挡输入链接；同名即改链接（显示新旧域名再确认，先试拉成功才换） @param {string} name */
   function cmdAdd(name) {
     withStatus(function (s) {
       const old = find(s, name);
@@ -183,7 +214,7 @@ export function mountProxy(C) {
     });
   }
 
-  /** sub-upload <名称>：系统文件选择 → 读文本 → 字符进度条 → 上传（同名即覆盖） @param {string} name */
+  /** sub upload <名称>：系统文件选择 → 读文本 → 字符进度条 → 上传（同名即覆盖） @param {string} name */
   function cmdUpload(name) {
     const fi = C.doc.createElement('input');
     fi.type = 'file';
@@ -226,7 +257,7 @@ export function mountProxy(C) {
     fi.click();
   }
 
-  /** sub-mv <旧名> <新名>：只改名，不刷新；确认时显示新旧路径（令牌遮挡） @param {string} a @param {string} b */
+  /** sub mv <旧名> <新名>：只改名，不刷新；确认时显示新旧路径（令牌遮挡） @param {string} a @param {string} b */
   function cmdMv(a, b) {
     if (a === b) { dim(tf('proxy.moved', { a: a, b: b })); return; }
     const path = function (/** @type {string} */ n) { return '/s/••••/' + n; };
@@ -239,7 +270,7 @@ export function mountProxy(C) {
     });
   }
 
-  /** sub-on / sub-off <名称> @param {string} name @param {boolean} on */
+  /** sub on / sub off <名称> @param {string} name @param {boolean} on */
   function cmdToggle(name, on) {
     dim(t('proxy.refreshing'));
     call(function () { return P.toggle(name, on); }, function (j) {
@@ -248,7 +279,7 @@ export function mountProxy(C) {
     });
   }
 
-  /** sub-rm <名称>（y/N） @param {string} name */
+  /** sub rm <名称>（y/N） @param {string} name */
   function cmdRm(name) {
     withStatus(function (s) {
       if (!find(s, name)) { C.err(tf('proxy.notFound', { v: name })); return; }
@@ -258,32 +289,31 @@ export function mountProxy(C) {
     });
   }
 
+  /** 子命令 → 做什么（参数已由 checkSub 查过） */
+  const RUN = /** @type {Record<string, (a: string[]) => void>} */ ({
+    '': function () { withStatus(printStatus); },
+    'show': function (a) { cmdShow(a[0]); },
+    'add': function (a) { cmdAdd(a[0]); },
+    'upload': function (a) { cmdUpload(a[0]); },
+    'mv': function (a) { cmdMv(a[0], a[1]); },
+    'rm': function (a) { cmdRm(a[0]); },
+    'on': function (a) { cmdToggle(a[0], true); },
+    'off': function (a) { cmdToggle(a[0], false); },
+    'key': function () { cmdKey(); },
+    'token': function () { cmdToken(); },
+  });
+
   /**
-   * 跑一条 sub 命令（runCmd 已回显）。没登录：先 sudo root。
+   * 跑一行 sub（runCmd 已回显）。权限只在这里查一次：没登录账号 → 先 sudo root；然后查参数，再分发。
    * @param {string} raw 原样的一行
    */
   C.cmdSub = function (raw) {
     const p = parseSub(raw);
     if (!p) return;
     if (C.st !== 'in' || C.inReset) { C.err(t('session.notSignedIn'), CMD.session); return; }
-    if (p.cmd === 'sub' || p.cmd === 'sub-key' || p.cmd === 'sub-link' || p.cmd === 'sub-refresh') {
-      if (p.args.length) { C.err(tf('proxy.usage', { x: p.cmd })); return; }
-    } else if (!argsOk(p.cmd, p.args)) return;
-    const a = p.args;
-    switch (p.cmd) {
-      case 'sub': withStatus(printStatus); return;
-      case 'sub-key': cmdKey(); return;
-      case 'sub-link': cmdLink(); return;
-      case 'sub-add': cmdAdd(a[0]); return;
-      case 'sub-upload': cmdUpload(a[0]); return;
-      case 'sub-mv': cmdMv(a[0], a[1]); return;
-      case 'sub-on': cmdToggle(a[0], true); return;
-      case 'sub-off': cmdToggle(a[0], false); return;
-      case 'sub-rm': cmdRm(a[0]); return;
-      default:
-        dim(t('proxy.refreshing'));
-        call(function () { return P.refresh(); }, function (j) { C.out(esc(t('proxy.result')), 'd'); printRefresh(j); });
-    }
+    const bad = checkSub(p);
+    if (bad) { C.err('usage' in bad ? tf('proxy.usage', { x: bad.usage }) : t('proxy.badName')); return; }
+    RUN[p.sub](p.args);
   };
 
   /** 复制按钮 @param {string} a @returns {boolean} */

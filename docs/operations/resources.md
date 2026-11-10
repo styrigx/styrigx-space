@@ -48,7 +48,7 @@
 | `styrigx-status` | `D1_UPTIME_MONITOR`、`D1_CLOUDFLARE_USAGE`（status） | `status_*` 表。迁移表 `d1_migrations_status` |
 | `styrigx-curio-core` | `D1_FINDS`、`D1_DEVICES`、`D1_GAMES`、`D1_MOVIES`、`D1_MUSIC`（curio-core） | 收藏、设备、游戏、电影、音乐 |
 | `styrigx-daymark-core` | `D1_QUOTES`（daymark-core） | 句子、专题、`daily_pick` |
-| `styrigx-proxy` | `D1_PROXY`（proxy-rules） | 代理订阅：`meta`（公钥、令牌哈希、UA）、`sources`（机场链接与节点密文、成品 age 密文）、`lock` |
+| `styrigx-proxy` | `D1_PROXY`（proxy-rules） | 代理订阅：`meta`（公钥、令牌哈希与封存的令牌、UA）、`sources`（机场链接与节点密文、成品 age 密文）、`lock` |
 | `styrigx-test-preview` | 各 Worker 的 `env.preview` | 预览 / 测试共用 |
 
 ### 4.2 KV
