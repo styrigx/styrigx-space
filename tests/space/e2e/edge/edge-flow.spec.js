@@ -120,6 +120,11 @@ async function openShield(page) {
   await page.locator('.sgx-tb-term').click();
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '', { timeout: 10000 });
 }
+/** 点顶栏盾牌（v5 S6）：没进站 → 打开终端预填 sudo styrigx；已进站 → 问退出 [y/N] */
+async function clickShield(page) {
+  await page.locator('.sgx-tb-shield').click();
+  await expect(page.locator('#sgx-term')).toHaveAttribute('open', '', { timeout: 10000 });
+}
 /** @param {import('@playwright/test').Page} page @param {string} text */
 async function termCmd(page, text) {
   const inp = termIn(page);
@@ -248,7 +253,7 @@ test('立即锁定（终端 lock，一敲就锁、没有确认层）→ 同一�
   expect(await sessionBy(page)).toBe(null);
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
-  await openShield(page);
+  await clickShield(page);
   await expect(termIn(page)).toHaveValue('sudo styrigx', { timeout: 10000 });
   await page.goto(BLOG + '/');
   expect(page.url()).toBe(BLOG + '/');

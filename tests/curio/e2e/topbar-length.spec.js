@@ -80,6 +80,12 @@ async function open(page, p) {
   /* 页面：看得见的顶栏；?entry 锁屏：页面顶栏藏起（body.sgx-entry），锁屏没有顶栏（2026-11 PR-A）→ 等锁屏本身（insets 断言看不到顶栏） */
   await expect(page.locator('.sgx-topbar:visible, #sgx-entry').first()).toBeVisible({ timeout: 15000 });
   await settled(page);
+  /* v5 S7：主页首屏不再嵌终端，/?entry=1 打开顶栏的终端窗口（压暗、盖住顶栏）→ esc 关掉再量顶栏 */
+  if (p.includes('entry=') && (await page.locator('#sgx-term[open]').count())) {
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#sgx-term[open]')).toHaveCount(0);
+    await settled(page);
+  }
 }
 
 function check(got, want, label) {
