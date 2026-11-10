@@ -102,7 +102,8 @@ test('子站接入（对齐 PR-C2）：奇趣五个分区页同一个页头（�
   assert.match(head, /<i data-cu-count="\{\{ \. \}\}"><\/i>/);
   assert.match(head, /class="sgx-grep" data-cu-grep/);
   assert.match(head, /<div class="sgx-cmds" id="cu-cmds">/);
-  assert.match(rd('space/web/assets/curio/css/input.css'), /html:not\(\.cu-music-ok\) #cu-tabs \[data-ctab="music"\]:not\(\[aria-current\]\) \{ display: none; \}/);
+  /* v5 S3：音乐歌单公开，tab 不再按权限藏 */
+  assert.doesNotMatch(rd('space/web/assets/curio/css/input.css'), /cu-music-ok/);
   const dm = rd('space/web/layouts/daymark/section.html');
   assert.equal((dm.match(/partial "sgx-ph\.html"/g) || []).length, 2, 'daymark');
   for (const id of ['trove', 'flavors']) assert.match(dm, new RegExp(`partial "sgx-ph\\.html" \\(dict "cmd" "ls daymark/${id}/" .*"tag" "h2"\\) \\}\\}\\n\\s*<div class="sgx-cmds">`), 'daymark ' + id);

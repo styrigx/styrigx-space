@@ -42,7 +42,7 @@ beforeEach(async () => {
 const get = (path, headers) => app.fetch(new Request(BASE + path, { headers }), env, { waitUntil() {} });
 async function setup() {
   assert.equal((await admin.setKey(env, id.recipient)).ok, true);
-  const link = await admin.newLink(env);
+  const link = await admin.rotateToken(env);
   assert.equal(link.ok, true);
   return link.token;
 }
@@ -109,7 +109,7 @@ test('P2 改机场链接先试拉：失败什么都不换（旧链接、旧节�
   assert.equal(env.D1_PROXY.rows('sources')[0].host, 'good.example.org');
 });
 
-test('P2 改名 sub-mv：只改名、不刷新，id 和成品沿用，旧路径 404、新路径同内容；新名已存在 exists、旧名不存在 not-found、相同不动作', async () => {
+test('改名 sub mv：只改名、不刷新，id 和成品沿用，旧路径 404、新路径同内容；新名已存在 exists、旧名不存在 not-found、相同不动作', async () => {
   const token = await setup();
   const rpc = new ProxyAdmin({ waitUntil() {} }, env);
   await rpc.upload('F', yamlOf(['X']));
@@ -126,6 +126,58 @@ test('P2 改名 sub-mv：只改名、不刷新，id 和成品沿用，旧路径 
   assert.deepEqual(await rpc.rename('nope', 'Z'), { ok: false, error: 'not-found' });
   assert.deepEqual(await rpc.rename('H', 'H'), { ok: true, same: true });
   assert.deepEqual(await rpc.rename('H', 'a/b'), { ok: false, error: 'name' });
+});
+
+test('令牌（sub v3.1）：哈希 + 封存原文同一次写；sub show 随时重印同一个；sub token 换新、旧链接失效；库里没有明文', async () => {
+  assert.deepEqual(await admin.showToken(env), { ok: false, error: 'no-token' });
+  assert.equal((await admin.status(env)).token, 'none');
+  const t1 = await setup();
+  assert.equal((await admin.status(env)).token, 'sealed');
+  assert.deepEqual(await admin.showToken(env), { ok: true, token: t1 });
+  assert.deepEqual(await admin.showToken(env), { ok: true, token: t1 }, '可以反复重印');
+  const meta = Object.fromEntries(env.D1_PROXY.rows('meta').map((r) => [r.k, r.v]));
+  assert.ok(!JSON.stringify(meta).includes(t1), '库里没有令牌明文');
+  assert.match(meta.token_hash, /^[0-9a-f]{64}$/);
+  assert.match(meta.token_sealed, /^v1\./);
+  assert.equal(await open(await importDbKey(DB_KEY), 'meta:token', meta.token_sealed), t1);
+  await assert.rejects(open(await importDbKey(DB_KEY), 'x:url', meta.token_sealed), undefined, '附加数据绑死 meta:token');
+  await admin.upload(env, 'F', yamlOf(['X']));
+  await runRefresh(env, { fetchFn });
+  assert.equal((await get(`/s/${t1}/F`)).status, 200);
+  const t2 = (await admin.rotateToken(env)).token;
+  assert.notEqual(t2, t1);
+  assert.deepEqual(await admin.showToken(env), { ok: true, token: t2 });
+  assert.equal((await get(`/s/${t1}/F`)).status, 404, '换令牌后旧链接立即失效');
+  assert.equal((await get(`/s/${t2}/F`)).status, 200);
+  /* 下载只比哈希，不读 DB_KEY */
+  env.SGX_PROXY_DB_KEY = '';
+  assert.equal((await get(`/s/${t2}/F`)).status, 200, '下载不需要 DB_KEY');
+  assert.deepEqual(await admin.showToken(env), { ok: false, error: 'config' });
+  assert.deepEqual(await admin.rotateToken(env), { ok: false, error: 'config' });
+  assert.deepEqual(await admin.showToken({ ...env, SGX_PROXY_DB_KEY: Buffer.alloc(32, 9).toString('base64') }), { ok: false, error: 'config' }, '钥匙不对解不开 → config');
+});
+
+test('令牌只有哈希（封存上线前生成的）：下载照常；状态 hash-only；sub show 回 token-unsealed，换新后可重印', async () => {
+  await admin.setKey(env, id.recipient);
+  const old = 'o'.repeat(43);
+  const { hashToken } = await import('../../../workers/proxy-rules/src/lib/token.js');
+  env.D1_PROXY.raw.prepare("INSERT INTO meta (k, v) VALUES ('token_hash', ?)").run(await hashToken(old));
+  await admin.upload(env, 'F', yamlOf(['X']));
+  await runRefresh(env, { fetchFn });
+  assert.equal((await get(`/s/${old}/F`)).status, 200);
+  assert.equal((await admin.status(env)).token, 'hash-only');
+  assert.deepEqual(await admin.showToken(env), { ok: false, error: 'token-unsealed' });
+  const t = (await admin.rotateToken(env)).token;
+  assert.deepEqual(await admin.showToken(env), { ok: true, token: t });
+  assert.equal((await get(`/s/${old}/F`)).status, 404);
+});
+
+test('ProxyAdmin：没有 refresh / newLink（sub-refresh、sub-link 取消）；showToken / rotateToken 在', () => {
+  const p = ProxyAdmin.prototype;
+  assert.equal(typeof p.refresh, 'undefined');
+  assert.equal(typeof p.newLink, 'undefined');
+  assert.equal(typeof p.showToken, 'function');
+  assert.equal(typeof p.rotateToken, 'function');
 });
 
 test('没有 DB_KEY 或钥匙长度不对 → config（fail closed，不存明文）', async () => {
@@ -173,7 +225,7 @@ test('下载：错令牌 / 坏令牌 / 没生成链接 / 来源不存在 / 关�
   await admin.setEnabled(env, 'A', false);
   assert.equal((await get(`/s/${token}/A`)).status, 404, '关掉');
   await admin.setEnabled(env, 'A', true);
-  const token2 = (await admin.newLink(env)).token;
+  const token2 = (await admin.rotateToken(env)).token;
   assert.equal((await get(`/s/${token}/A`)).status, 404, '重置后旧链接立即失效');
   assert.equal((await get(`/s/${token2}/A`)).status, 200, '重置不动成品');
   assert.equal((await app.fetch(new Request(BASE + `/s/${token2}/A`, { method: 'POST' }), env, {})).status, 405);

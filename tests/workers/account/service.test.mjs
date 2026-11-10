@@ -128,9 +128,12 @@ test('路由表：/api/account（状态）+ 七个入口子路径 + 四个账号
   for (const k of ACCOUNT) assert.equal(matchForwarding(k).binding, 'ACCOUNT', k);
 });
 
-test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-store；头像文件公开；不认识的头像尺寸 → 404', async () => {
+test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-store（PUBLIC_API 的 GET /api/wellbeing 除外：200 合计）；头像文件公开；不认识的头像尺寸 → 404', async () => {
   const { env } = setup();
-  for (const [m, p] of [['GET', '/api/wellbeing'], ['POST', '/api/wellbeing'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['DELETE', '/api/avatar'], ['GET', '/api/prefs/x'], ['GET', '/api/profile'], ['PUT', '/api/profile']]) {
+  const pub = await call(new Request('https://styrigx.com/api/wellbeing?d=2000-01-01'), env);
+  assert.equal(pub.status, 200);
+  assert.equal((await pub.json()).detail, false);
+  for (const [m, p] of [['POST', '/api/wellbeing'], ['GET', '/api/wellbeing/x'], ['GET', '/api/prefs'], ['PUT', '/api/avatar'], ['DELETE', '/api/avatar'], ['GET', '/api/prefs/x'], ['GET', '/api/profile'], ['PUT', '/api/profile']]) {
     const r = await call(new Request('https://styrigx.com' + p, { method: m, headers: { Origin: 'https://styrigx.com' }, body: m === 'GET' ? undefined : '{}' }), env);
     assert.equal(r.status, 401, m + ' ' + p);
     assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
@@ -145,9 +148,9 @@ test('AccountService：没有身份头 → /api/* 401 {ok:false} private, no-sto
   assert.equal(page.status, 404, '网关只转发表里的路径；别的路径不在这里出页面');
 });
 
-test('AccountService：临时钥匙进站会话（网关写 Session: 1 + By: tempkey）在账号 Worker 只算有进站会话——没有账号会话 → /api/prefs 401 account、/api/account/devices 401 account', async () => {
+test('AccountService：分享链接进站会话（网关写 Session: 1 + By: link）在账号 Worker 只算有进站会话——没有账号会话 → /api/prefs 401 account、/api/account/devices 401 account', async () => {
   const { env } = setup();
-  const ck = await sess('tempkey');
+  const ck = await sess('link');
   let r = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: ck } }), env);
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');
@@ -165,7 +168,7 @@ test('有进站会话但没登录账号：PUT /api/avatar 401 account、数字�
     batch: async () => { touched += 100; },
   };
   const { env } = setup({ D1_WELLBEING: db });
-  const ck = await sess('tempkey');
+  const ck = await sess('link');
   const put = await call(new Request('https://styrigx.com/api/avatar', { method: 'PUT', headers: { Cookie: ck, Origin: 'https://styrigx.com' }, body: new FormData() }), env);
   assert.equal(put.status, 401);
   assert.equal((await put.json()).error, 'account');
@@ -199,7 +202,7 @@ test('有进站会话：未知子路径 404、不支持的方法 405；/api/pref
 test('身份头白名单：没有 X-Styrigx-Space-Session: 1（只有 Role / By、Session 不是 1、旧头名 X-Sgx-Legacy）→ 当作无会话（401）', async () => {
   const { env } = setup();
   for (const h of [{ 'X-Styrigx-Space-Level': 'password' }, { 'X-Styrigx-Space-Level': 'password', 'X-Styrigx-Space-By': 'passkey' }, { 'X-Styrigx-Space-By': 'password' }, { 'X-Styrigx-Space-Session': 'true' }, { 'X-Sgx-Legacy': 'password' }]) {
-    const r = await serviceFetch(new Request('https://styrigx.com/api/wellbeing', { headers: h }), env, CTX);
+    const r = await serviceFetch(new Request('https://styrigx.com/api/prefs', { headers: h }), env, CTX);
     assert.equal(r.status, 401, JSON.stringify(h));
     const del = await serviceFetch(new Request('https://styrigx.com/api/avatar', { method: 'DELETE', headers: { ...h, Origin: 'https://styrigx.com' } }), env, CTX);
     assert.equal(del.status, 401, JSON.stringify(h));
@@ -212,7 +215,7 @@ test('伪造 / 过期的锁屏 cookie：网关这一跳验签不过 → 不写�
   const { env } = setup();
   const { priv: otherPriv } = await genKeyPair();
   const forged = 'sgx-space-session=' + (await testLockSession(otherPriv, 0, 'password'));
-  const r = await call(new Request('https://styrigx.com/api/wellbeing', { headers: { Cookie: forged } }), env);
+  const r = await call(new Request('https://styrigx.com/api/prefs', { headers: { Cookie: forged } }), env);
   assert.equal(r.status, 401);
 });
 

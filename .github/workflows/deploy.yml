@@ -885,7 +885,6 @@ jobs:
               "SGX_SPACE_RECOVERY_KEY": secret(space_key),
               "SGX_ACCOUNT_RECOVERY_KEY": secret(recovery_key),
               "SGX_SPACE_PASSWORD_PEPPER": secret(pepper),
-              "SGX_SPACE_TEMPKEY_PEPPER": secret(pepper),
               "SGX_ACCOUNT_PASSWORD_PEPPER": secret(account_pepper),
               "SGX_SPACE_PRIVATE": secret(lock_priv),
               "SGX_ACCOUNT_PRIVATE": secret(acct_priv),
@@ -1086,7 +1085,7 @@ jobs:
           workingDirectory: space/web
           command: pages deploy public --project-name=styrigx-space --commit-dirty=true
 
-      - name: Smoke test Pages (pages.dev must redirect, pages still behind the gateway)
+      - name: Smoke test Pages (pages.dev must redirect, pages still go through the gateway)
         # 只发不带 cookie 的只读请求。pages.dev 地址不经过网关，必须 301 回 styrigx.com（或被 Access 拦在登录页），否则能绕过锁屏。
         run: |
           set -u
@@ -1105,12 +1104,13 @@ jobs:
             sleep 5
           done
           [ $ok = 0 ] || { echo "::error::pages.dev neither redirected to styrigx.com nor sat behind Access"; exit 1; }
+          # v5 S3：页面公开，网关照样接（X-SGX-Runtime: worker），/security/ 是 Pages _redirects 的 301 → /#sec
           hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' https://styrigx.com/security/ | tr -d '\r')
           code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
           rt=$(printf '%s' "$hdr" | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "styrigx.com /security/ -> $code runtime=${rt:-none}"
-          if [ "$code" != "302" ] || [ "$rt" != "worker" ]; then echo "::error::/security/ not locked by the gateway"; exit 1; fi
-          # 关键页：首页（未登录照常 200 锁屏，网关回源 Pages）带的是这次构建的短 SHA（<html data-sgx-build>，HTML 是 max-age=0）
+          if [ "$code" != "301" ] || [ "$rt" != "worker" ]; then echo "::error::/security/ not answered through the gateway (want 301 from _redirects, runtime worker)"; exit 1; fi
+          # 关键页：首页（未登录照常 200 访客态，网关回源 Pages）带的是这次构建的短 SHA（<html data-sgx-build>，HTML 是 max-age=0）
           short="${GITHUB_SHA:0:7}"
           for i in $(seq 1 12); do
             code=$(curl -sS -o "$RUNNER_TEMP/home.html" -w '%{http_code}' https://styrigx.com/ || true)
@@ -1120,13 +1120,13 @@ jobs:
           done
           echo "::error::styrigx.com/ does not serve build $short"; exit 1
 
-      - name: Smoke test single tree (subsites behind the gateway's subsite gate, static files direct, no images / feeds without a session)
-        # 合并 PR3：网关已按子站前缀验会话（deploy-space-core 先部署、先冒烟）。只发不带 cookie 的只读请求：
-        # - 三站产物里每个一级页面目录各抽一个页面：302 到 https://styrigx.com/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2F<站>…，
-        #   X-SGX-Runtime: worker（子站关口格式，带 why 和完整 return；新目录没被网关接管 → 红）
+      - name: Smoke test single tree (subsites open through the gateway, static files direct, no images)
+        # v5 S3（整站放开）：页面、RSS、站点地图对没进站的人也公开，但都要经网关（注入会话标记）。只发不带 cookie 的只读请求：
+        # - 三站产物里每个一级页面目录各抽一个页面：200 text/html、X-SGX-Runtime: worker、HTML 里有 data-sgx-lock-session="locked"
+        #   （网关接管且按访客注入；新目录没被网关接管 → 没有标记 → 红）
         # - 三站指纹 CSS：200 text/css，没有 X-SGX-Runtime（子站静态后缀直通回源 → 也证明这次部署的树里真的有 /<站>/）
         # - /curio/、/daymark/ 图片路径：不得拿到图片（网关直通回源 → _worker.js 404）
-        # - 三站 .xml（博客全文 RSS、站点地图）和编码 / 大小写 / 多斜杠绕法：302 到锁屏、worker，绝不出 xml（PR2 的 _worker.js 过渡 404 规则已删）
+        # - 三站 .xml（博客全文 RSS、站点地图）：200 xml、worker（公开）
         # - styrigx-space.pages.dev/blog/：301 到 https://styrigx.com/blog/（或同 /security/ 一样被 Access 拦在登录页）
         run: |
           set -u
@@ -1134,21 +1134,28 @@ jobs:
           hdr() { curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$1" | tr -d '\r' || true; }
           field() { printf '%s' "$1" | awk -F': ' -v h="$2" 'tolower($1)==h{print $2}' | tail -1; }
           code_of() { printf '%s' "$1" | sed -n 's/^HTTP_CODE://p'; }
-          locked() { # 路径：未登录必须 302 到子站格式的锁屏地址（return = 本站完整地址，按前缀比：页面路径可能含中文等编码字符），由网关回答
-            site=$(printf '%s' "$1" | cut -d/ -f2)
-            want="https://styrigx.com/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2F$site%2F"
+          visitor() { # 页面：没进站也 200 HTML、由网关回答、带访客标记
             for i in 1 2 3 4 5 6; do
-              h=$(hdr "https://styrigx.com$1"); code=$(code_of "$h"); rt=$(field "$h" x-sgx-runtime); loc=$(field "$h" location); ct=$(field "$h" content-type)
-              echo "styrigx.com$1 -> $code runtime=${rt:-none} location=${loc:-none} (try $i)"
-              case "$ct" in image/*|*xml*) echo "::error::styrigx.com$1 without session returned $ct"; return 1 ;; esac
-              case "$code $rt $loc" in "302 worker $want"*) return 0 ;; esac
+              h=$(curl -sS -o "$RUNNER_TEMP/v.html" -D - -w 'HTTP_CODE:%{http_code}\n' "https://styrigx.com$1" | tr -d '\r' || true)
+              code=$(code_of "$h"); rt=$(field "$h" x-sgx-runtime); ct=$(field "$h" content-type)
+              echo "styrigx.com$1 -> $code runtime=${rt:-none} ${ct:-no-type} (try $i)"
+              case "$code $rt $ct" in "200 worker text/html"*) grep -q 'data-sgx-lock-session="locked"' "$RUNNER_TEMP/v.html" && return 0 ;; esac
               sleep 5
             done
-            echo "::error::styrigx.com$1 expected 302 to $want… from the gateway"; return 1
+            echo "::error::styrigx.com$1 expected 200 text/html from the gateway with data-sgx-lock-session=\"locked\""; return 1
+          }
+          feed() { # .xml：公开，由网关回答
+            for i in 1 2 3 4 5 6; do
+              h=$(hdr "https://styrigx.com$1"); code=$(code_of "$h"); rt=$(field "$h" x-sgx-runtime); ct=$(field "$h" content-type)
+              echo "styrigx.com$1 -> $code runtime=${rt:-none} ${ct:-no-type} (try $i)"
+              case "$code $rt $ct" in "200 worker "*xml*) return 0 ;; esac
+              sleep 5
+            done
+            echo "::error::styrigx.com$1 expected 200 xml from the gateway"; return 1
           }
           for s in blog curio daymark; do
             paths=$(cd "space/web/public/$s" && find . -name '*.html' ! -name '404.html' | sed 's|^\.||; s|index\.html$||' | awk -F/ '{k=($2==""?"/":$2); if(!(k in seen)){seen[k]=1; print}}')
-            for p in $paths; do locked "/$s$p" || ok=1; done
+            for p in $paths; do visitor "/$s$p" || ok=1; done
             css=$(cd "space/web/public/$s" && find css -name '*.css' | head -1)
             if [ -z "$css" ]; then echo "::error::no css/*.css in the $s package"; ok=1; continue; fi
             pass=1
@@ -1160,18 +1167,11 @@ jobs:
             done
             [ $pass = 0 ] || { echo "::error::styrigx.com/$s/$css not served directly from this deployment"; ok=1; }
           done
-          for p in /blog/rss.xml /blog/zh/rss.xml /blog/sitemap-index.xml /curio/sitemap.xml /daymark/sitemap.xml; do locked "$p" || ok=1; done
-          # 绕法：编码 / 大小写 / 多斜杠，网关归一后同样按子站验会话（302 的 return 是原样的请求路径，这里只断言 302 + worker + 不出 xml）
-          for p in /%62log/rss.xml //blog/rss.xml /BLOG/rss.xml; do
-            h=$(hdr "https://styrigx.com$p"); code=$(code_of "$h"); rt=$(field "$h" x-sgx-runtime); ct=$(field "$h" content-type)
-            echo "styrigx.com$p -> $code runtime=${rt:-none} ${ct:-no-type}"
-            case "$code $rt" in "302 worker") ;; *) echo "::error::styrigx.com$p without session answered $code (runtime ${rt:-none})"; ok=1 ;; esac
-            case "$ct" in *xml*) echo "::error::styrigx.com$p without session returned $ct"; ok=1 ;; esac
-          done
+          for p in /blog/rss.xml /blog/zh/rss.xml /blog/sitemap-index.xml /curio/sitemap.xml /daymark/sitemap.xml; do feed "$p" || ok=1; done
           for p in /curio/sgx-image-probe.png /daymark/sgx-image-probe.png; do
             h=$(hdr "https://styrigx.com$p"); code=$(code_of "$h"); ct=$(field "$h" content-type)
             echo "styrigx.com$p -> $code ${ct:-no-type}"
-            case "$code" in 404|302) ;; *) echo "::error::styrigx.com$p without session answered $code"; ok=1 ;; esac
+            case "$code" in 404) ;; *) echo "::error::styrigx.com$p without session answered $code"; ok=1 ;; esac
             case "$ct" in image/*) echo "::error::styrigx.com$p without session returned $ct"; ok=1 ;; esac
           done
           pass=1
@@ -1207,6 +1207,8 @@ jobs:
     # SGX_CF_USAGE_TOKEN，部署必须 Edit，Read 报 10021，同鉴权网关）；环境只允许 main。
     # 服务绑定 AI_SERVICE（P4-2 起取代 SEARCH / CHAT，每分钟测 ai 的 /healthz）：排在 ai 之后，
     # 免得新监测先上线、测到还没部署好的版本，误开故障。
+    # 服务绑定 JOB_SPACE（v5 S2，入口 ShareJanitor）指向 styrigx-space-core：它绑 STATUS、排在本 job 之后，没法反过来排；
+    # Worker 早已存在，绑定照样能部署，新入口等本次 deploy-space-core 上线后才有，这之前只有 03:41 CST 那轮会打一条失败日志。
     # !failure() && !cancelled()：passkey-e2e 跳过用例时仍以成功结束；上游任何一个失败 / 取消就不部署
     if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [quality, passkey-e2e, deploy-ai-worker]
@@ -1627,9 +1629,11 @@ jobs:
             echo "::error::$1 expected $2 with X-Curio-Runtime: worker"; return 1
           }
           ok=0
-          check "https://styrigx.com/curio/api/links" 401 || ok=1
-          check "https://styrigx.com/curio/api/icon?id=1" 401 || ok=1
-          check "https://styrigx.com/curio/api/photo?kind=device&id=1" 401 || ok=1
+          # v5 S3 访问表（workers/curio-core/src/routes.js ROUTE_ACCESS）：读公开（歌单只有元数据）；听 / 导出要进站
+          check "https://styrigx.com/curio/api/links" 200 || ok=1
+          check "https://styrigx.com/curio/api/music" 200 || ok=1
+          check "https://styrigx.com/curio/api/music-stream?t=smoke&id=1" 401 || ok=1
+          check "https://styrigx.com/curio/api/export" 401 || ok=1
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)
@@ -1721,8 +1725,10 @@ jobs:
             echo "::error::$1 expected $2 with X-Daymark-Runtime: worker"; return 1
           }
           ok=0
-          check "https://styrigx.com/daymark/api/quotes" 401 || ok=1
+          # v5 S3 访问表（workers/daymark-core/src/routes.js ROUTE_ACCESS）：读公开；表里没有的路径一律要进站
+          check "https://styrigx.com/daymark/api/quotes" 200 || ok=1
           check "https://styrigx.com/daymark/api/today" 200 || ok=1
+          check "https://styrigx.com/daymark/api/no-such-endpoint" 401 || ok=1
           exit $ok
 
       - name: Roll back to the recorded version (deploy or post-deploy check failed)
@@ -1782,9 +1788,11 @@ jobs:
           out=$(npx --yes "wrangler@$WRANGLER_VERSION" d1 execute D1_SPACE --remote --json --command "SELECT 'core:' || name AS n FROM d1_migrations_core UNION ALL SELECT 'table:' || name FROM sqlite_master WHERE type = 'table'")
           echo "$out"
           ok=0
-          for need in '"core:0001_baseline.sql"' '"table:share_link"' '"table:share_fail"' '"table:passkey"' '"table:password"' '"table:user_handle"' '"table:lock_reset_switch"'; do
+          for need in '"core:0001_baseline.sql"' '"table:share_link"' '"table:share_fail"' '"table:passkey"' '"table:password"' '"table:user_handle"' '"table:lock_reset_switch"' '"core:0002_drop_tempkey.sql"'; do
             if ! printf '%s' "$out" | grep -q "$need"; then echo "::error::D1 styrigx-space-core 里没有 $need"; ok=1; fi
           done
+          # v5 收尾 0002_drop_tempkey.sql：临时钥匙表应已删
+          if printf '%s' "$out" | grep -q '"table:tempkey"'; then echo "::error::D1 styrigx-space-core 里还有 tempkey 表"; ok=1; fi
           exit $ok
 
       - name: Record live Worker version (rollback target)
@@ -1836,29 +1844,32 @@ jobs:
           check /api/lock-session-check 401 || ok=1
           # 全站搜索（P4-2 退役，路由表里没了）：没会话仍是 401（网关门先拦，默认拒绝）；有会话才是 404，冒烟测不到
           check '/api/search?q=a' 401 || ok=1
+          # v5 S4 关键词搜索：公开，没会话也 200（只回公开页面元数据；索引读不了也是 200 degraded）
+          check '/api/find?q=muse' 200 || ok=1
           # 站点监测：没会话 401
           check /api/status 401 || ok=1
           # 聊天（P4-2 退役，同上）：没会话 401
           check /api/chat 401 || ok=1
           # 未登录访问不存在的接口：middleware 先拦（默认拒绝），返回 401 而不是 404，这是预期。
           check /api/no-such-endpoint 401 || ok=1
-          # 页面：网关验会话后回源 Pages。首页未登录照常 200（锁屏），内页未登录 302 到锁屏
+          # 页面（v5 S3 整站放开）：网关回源 Pages，没进站也照常 200（访客态）；旧安全页是 Pages _redirects 的 301，同样经网关
           check / 200 || ok=1
-          # P4-3 PR-4c：英文在根、中文 /zh/；锁屏凭证页两种语言都过网关（无会话 302 到锁屏）
+          # P4-3 PR-4c：英文在根、中文 /zh/
           check /zh/ 200 || ok=1
-          check /security/lock/ 302 || ok=1
-          check /zh/security/lock/ 302 || ok=1
-          check /security/ 302 || ok=1
+          check /wild/ 200 || ok=1
+          check /security/lock/ 301 || ok=1
+          check /zh/security/lock/ 301 || ok=1
+          check /security/ 301 || ok=1
           # 旧 /en/…（P4-3 PR-4c 删除不 301；英文在根上是源，中文 /zh/ 是翻译层）：网关自己判 404，有没有会话都一样，不 302、不 301。
           # 2026-11-07 线上解锁会话打开 /en/ 拿到过 77ce4d6 的旧英文首页（回源链路上的旧副本），这里同时核对正文不是首页
           for p in /en/ /en /en/about/ /en/security/lock/ /EN/ /%65n/; do check "$p" 404 || ok=1; done
           enbody=$(curl -sS "https://styrigx.com/en/?smoke=$GITHUB_RUN_ID" || true)
           if printf '%s' "$enbody" | grep -q 'id="home-widgets"'; then echo "::error::/en/ served a home page"; ok=1; fi
-          # 四站同一条规则：子站旧 /<站>/en/… 也由网关直接 404（该站自己的 404 页），不 302 锁屏、不 301
+          # 四站同一条规则：子站旧 /<站>/en/… 也由网关直接 404（该站自己的 404 页），不 301
           for p in /blog/en/ /curio/en/ /daymark/en/ /blog/EN/ /curio/%65n/ /daymark/en/sitemap.xml; do check "$p" 404 || ok=1; done
-          # 旧搜索 / 聊天页（P4-2 起 _redirects 301 回首页）：没会话时网关先 302 到锁屏
-          check /browser/search/ 302 || ok=1
-          check /chat/ 302 || ok=1
+          # 旧搜索 / 聊天页（P4-2 起 _redirects 301 回首页）：v5 S3 起没会话也直接是 Pages 的 301（经网关）
+          check /browser/search/ 301 || ok=1
+          check /chat/ 301 || ok=1
           # 账号（账号拆分 PR3）：/api/account 没有账号 Worker 的旧路由，一定进网关——无会话 401；伪造身份头也一样 401（网关先剥头）
           check /api/account 401 || ok=1
           forged() { # 路径：带伪造的 X-Styrigx-Space-* 头，必须 401 且由网关回答（不许 200、不许进账号 Worker 的接口）
@@ -1876,7 +1887,17 @@ jobs:
           }
           forged /api/account || ok=1
           forged /api/prefs || ok=1
-          forged /api/wellbeing || ok=1
+          # 数字健康合计（v5 S3 访问表 public）：没会话 GET 也转发给账号 Worker，回 200（只合计），X-SGX-Runtime: account
+          wb_ok=1
+          for i in 1 2 3 4 5 6; do
+            hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Space-Session: 1' "https://styrigx.com/api/wellbeing?smoke=$GITHUB_RUN_ID" || true)
+            code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
+            rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
+            echo "/api/wellbeing (forged header) -> $code runtime=${rt:-none} (try $i)"
+            if [ "$code" = "200" ] && [ "$rt" = "account" ]; then wb_ok=0; break; fi
+            sleep 5
+          done
+          [ $wb_ok = 0 ] || { echo "::error::GET /api/wellbeing without session expected 200 from account (public totals)"; ok=1; }
           # 账号运行时标记：公开的头像文件经网关转发，响应保留账号 Worker 的 X-SGX-Runtime: account
           avatar_ok=1
           for i in 1 2 3 4 5 6; do
@@ -1889,7 +1910,7 @@ jobs:
             sleep 5
           done
           [ $avatar_ok = 0 ] || { echo "::error::/avatar/96.webp expected X-SGX-Runtime: account"; ok=1; }
-          # 子站（合并 PR3）：三站页面未登录 302 到主站锁屏（子站关口格式：why + 完整 return），由网关回答
+          # 子站（v5 S3）：三站页面没进站也 200，由网关回答
           redir() { # 地址 期望状态码 期望 Location（逐字）
             for i in 1 2 3 4 5 6; do
               hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' "$1" | tr -d '\r' || true)
@@ -1902,9 +1923,7 @@ jobs:
             done
             echo "::error::$1 expected $2 to $3 from worker"; return 1
           }
-          for s in blog curio daymark; do
-            redir "https://styrigx.com/$s/" 302 "https://styrigx.com/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2F$s%2F" || ok=1
-          done
+          for s in blog curio daymark; do check "/$s/" 200 || ok=1; done
           # 静态资源不过网关：不能带 worker 标记
           css=$(curl -sS -o /dev/null -D - https://styrigx.com/robots.txt | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
           echo "/robots.txt runtime=${css:-none}"
@@ -2021,8 +2040,12 @@ jobs:
           }
           ok=0
           check /api/prefs || ok=1
-          check /api/wellbeing || ok=1
           check /api/avatar || ok=1
+          # 数字健康合计（v5 S3 访问表 public）：伪造头也只能拿到合计——200 + detail=false + items 为空
+          wb=$(curl -sS -H 'X-Styrigx-Space-Session: 1' -H 'X-Styrigx-Space-By: password' "https://styrigx.com/api/wellbeing?smoke=$GITHUB_RUN_ID" || true)
+          echo "forged /api/wellbeing -> $(printf '%s' "$wb" | jq -c '{ok,detail,items:(.items|length)}' 2>/dev/null || echo unparsable)"
+          printf '%s' "$wb" | jq -e '.ok == true and .detail == false and (.items | length) == 0' >/dev/null \
+            || { echo "::error::forged identity headers on /api/wellbeing must only yield public totals"; ok=1; }
           # 网关的接口和页面没被抢走
           for p in /api/lock-session-check; do
             code=$(curl -sS -o /dev/null -w '%{http_code}' "https://styrigx.com$p" || true)

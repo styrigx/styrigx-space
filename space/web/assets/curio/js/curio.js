@@ -14,7 +14,7 @@
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
  *
  * 数据：GET /api/links；写：POST /api/links {op}、POST /api/import（原文）；GET /api/preview；导出是 /api/export 的下载链接。
- * 读请求走 sgxLockSync.apiFetch（401 = 锁定 → 刷新去锁屏）；写请求只有 401 unauthorized 才当锁定（401 account / reauth 是账号的事，不刷新）。纯函数导出给 tests/curio/curio.test.mjs。
+ * 读接口公开（v5 S3）；写请求回 401 unauthorized = 没进站 → 发 sgx:sudo（顶栏终端预填 sudo styrigx），401 account / reauth 是账号的事，照常提示。纯函数导出给 tests/curio/curio.test.mjs。
  */
 (function(){
 "use strict";
@@ -180,22 +180,22 @@ var toastTimer = null;
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
 }
+/** 请人进站：顶栏终端预填 sudo styrigx（shell/topbar-panel.js 接 sgx:sudo，= js/lib/sudo.js SUDO_EVENT）；子页经 SgxCurioUI.sudo 用同一个 */
+function askSudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
 function getJSON(url){
-  var f = G.sgxLockSync ? G.sgxLockSync.apiFetch : function(u, o){ return fetch(u, o); };
-  return f(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
+  return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   });
 }
 function send(url, body, type){
   return fetch(url, {
-    method: 'POST', credentials: 'same-origin', redirect: 'manual',
+    method: 'POST', credentials: 'same-origin',
     headers: { 'Content-Type': type || 'application/json' },
     body: type ? body : JSON.stringify(body),
   }).then(function(r){
-    if (r.type === 'opaqueredirect') { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
     return r.json().catch(function(){ return {}; }).then(function(j){
-      if (isLockedReply(r.status, j.error)) { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      if (isLockedReply(r.status, j.error)) { askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
       if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
       return j;
     });
@@ -340,13 +340,11 @@ function onItemRoute(fn){
     goItem(Number(a.getAttribute('data-item')) || 0);
   });
 }
-G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, openOverlay: openOverlay, closeOverlay: closeOverlay, signin: applySignin,
+G.SgxCurioUI = { ask: function(m, l, f){ ask(m, l, f); }, toast: function(m){ toast(m); }, sudo: askSudo, openOverlay: openOverlay, closeOverlay: closeOverlay, signin: applySignin,
   itemId: function(){ return itemIdOf(G.location.search); }, showItem: showItem, showList: showList, goItem: goItem, onItemRoute: onItemRoute, slug: slugOf };
-/* 页头 tab 的「音乐」仅本人可见，默认被 CSS 藏着；不在音乐页时问 /curio/api/access（进门即可，只回布尔），
-   music = true 才给 <html> 加 .cu-music-ok。没权限、出错都保持藏着。 */
 /* 直接打开 / 刷新条目页：列表先藏起来，等本页脚本拿到数据再画条目（免得先闪一下列表） */
 if (itemIdOf(G.location.search) && doc.getElementById('cu-item')) listParts().forEach(function(el){ el.hidden = true; });
-/* 页头 tab 放不下（手机）时右端给一个「›」：看得出后面还有（音乐露出来后多半就在屏外），点它滑到最后（2026-11-09 Gray 细节） */
+/* 页头 tab 放不下（手机）时右端给一个「›」：看得出后面还有（音乐多半就在屏外），点它滑到最后（2026-11-09 Gray 细节） */
 var tabsNav = doc.querySelector('#cu-tabs .sgx-ctab-tabs');
 var tabsMore = null;
 function paintTabsMore(){
@@ -368,14 +366,6 @@ if (tabsNav) {
   tabsNav.addEventListener('scroll', paintTabsMore, { passive: true });
   G.addEventListener('resize', paintTabsMore);
   paintTabsMore();
-}
-var musicSeg = doc.querySelector('#cu-tabs [data-ctab="music"]');
-if (musicSeg && !musicSeg.hasAttribute('aria-current') && typeof fetch === 'function') {
-  fetch('/curio/api/access', { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
-    return r.ok ? r.json() : null;
-  }).then(function(j){
-    if (j && j.ok && j.music === true) { doc.documentElement.classList.add('cu-music-ok'); paintTabsMore(); }
-  }).catch(function(){});
 }
 /* P4-3 奇趣拆页：下面是「发现」子页（/curio/finds/）自己的部件；别的子页只用上面的确认框 / 提示条 / 弹层开关 / 页底一行 */
 if (!doc.getElementById('cu-list')) return;

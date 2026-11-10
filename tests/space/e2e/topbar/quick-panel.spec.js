@@ -649,7 +649,7 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(nav(page)).toHaveAttribute('data-state', 'open');
   });
 
-  test('NAVIGATE lock（进站 v3 L1）：一点就锁——关面板，不弹确认层，调 /api/lock-now 后到 /?entry=1', async ({ page }) => {
+  test('NAVIGATE lock（进站 v3 L1）：一点就锁——关面板，不弹确认层，调 /api/lock-now 后重新取这一页（v5 S5 没有锁屏了）', async ({ page }) => {
     let called = 0;
     await go(page, '/', 'zh', false);
     await page.route('**/api/lock-now', async (route) => {
@@ -659,8 +659,10 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await openNav(page);
     await expect(ctl(page, 'lock')).toHaveText('lock');
     await expect(ctl(page, 'lock')).toHaveAccessibleName('立即锁定');
+    const nav = page.waitForEvent('framenavigated');
     await ctl(page, 'lock').click();
-    await expect(page).toHaveURL(/[?&]entry=1/);
+    await nav;
+    await expect(page).not.toHaveURL(/[?&]entry=/);
     expect(called).toBe(1);
     await expect(page.locator('#sec-locknow-confirm')).toHaveCount(0);
   });
@@ -739,7 +741,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     expect(await page.evaluate(() => document.getElementById('sgx-ai').contains(document.activeElement))).toBe(true);
   });
 
-  test('tty4（终端统一 T6c）：$ 开头 = 命令，走站内终端的命令表，不发 /api/ai、不进 AI 历史；↑ 翻命令历史（sgx-term-hist-4）；Tab 补全；clear 清掉命令输出', async ({ page }) => {
+  test('tty4（终端统一 T6c；v5 S5 AI 窗口不动）：$ 开头 = 命令，走终端的命令表，不发 /api/ai、不进 AI 历史；↑ 翻命令历史（sgx-term-hist-4）；Tab 补全；clear 清掉命令输出', async ({ page }) => {
     await go(page, '/wild/');
     let posts = 0;
     await page.route('**/api/ai', async (route) => { if (route.request().method() === 'POST') posts++; await route.fallback(); });
@@ -749,12 +751,13 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await inp.press('Enter');
     await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="user"]').last()).toHaveText('$ pwd');
     await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('~');
-    await inp.fill('$ tty');
+    /* 要输入 / 验证的命令（sudo …）在 AI 窗口里不跑，提示去终端 */
+    await inp.fill('$ sudo styrigx');
     await inp.press('Enter');
-    await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('tty4');
+    await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('sudo styrigx：请在终端里运行（Ctrl K）');
     await inp.fill('$');
     await inp.press('ArrowUp');
-    await expect(inp).toHaveValue('$ tty');
+    await expect(inp).toHaveValue('$ sudo styrigx');
     await inp.fill('$ pw');
     await inp.press('Tab');
     await expect(inp).toHaveValue('$ pwd');
@@ -763,7 +766,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ai(page).locator('[data-term]')).toHaveCount(0);
     expect(posts).toBe(0);
     const h = await page.evaluate(() => [sessionStorage.getItem('sgx-term-hist-4'), localStorage.getItem('sgx-ai-history')]);
-    expect(JSON.parse(h[0])).toEqual(['pwd', 'tty', 'clear']);
+    expect(JSON.parse(h[0])).toEqual(['pwd', 'sudo styrigx', 'clear']);
     expect(h[1] || '').not.toContain('pwd');
   });
 
@@ -878,7 +881,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     expect(JSON.stringify(h)).not.toContain('hits');
   });
 
-  for (const [status, err, want] of [[429, 'cooldown', '问得太快了，请一分钟后再试'], [429, 'busy', '现在问的人太多，请稍后再试'], [401, 'session', '锁屏会话已失效，请重新解锁后再问'], [502, 'upstream', '没能拿到回答，请稍后再试']]) {
+  for (const [status, err, want] of [[429, 'cooldown', '问得太快了，请一分钟后再试'], [429, 'busy', '现在问的人太多，请稍后再试'], [401, 'session', '进站后才能问：sudo styrigx'], [502, 'upstream', '没能拿到回答，请稍后再试']]) {
     test(`出错：${status} ${err} → 「${want}」，不进历史`, async ({ page }) => {
       await go(page, '/wild/');
       await page.route('**/api/ai', (r) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ ok: false, error: err }) }));

@@ -125,12 +125,12 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 | 头 | 值 | 写给 |
 |---|---|---|
 | `X-Styrigx-Space-Session` | `1` | 账号 Worker |
-| `X-Styrigx-Space-By` | `password` \| `passkey` \| `tempkey` | 账号 Worker（只作审计） |
-| `X-Styrigx-Space-Tempkey-Id` | 钥匙 id | 账号 Worker（只在 by=tempkey 时） |
+| `X-Styrigx-Space-By` | `password` \| `passkey` \| `link` | 账号 Worker（只作审计） |
+| `X-Styrigx-Space-Link-Id` | 分享链接 id | 账号 Worker（只在 by=link 时，只作审计） |
 | `X-Styrigx-Account-Session` / `-Device` / `-Scopes` / `-Reauth` | `1` / 设备 id / 作用域 / `1` | 只写给 `styrigx-ai` |
 | `X-Styrigx-Client-Address` / `-Country` / `-City` | — | 客户端上下文 |
 
-8.3 RPC 下游（接口 Worker）调 `SpaceVerifier.conclusion(cookie, clientContext, opts)`，得到 `{ lock: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }`；`lock.ok=false` 时不问账号；账号绑定缺失或 RPC 出错 → `account.ok=false`。
+8.3 RPC 下游（接口 Worker）调 `SpaceVerifier.conclusion(cookie, clientContext, opts)`，得到 `{ space: { ok, by, linkId, reason }, account: { ok, deviceId, scopes, reauth, reason } }`；`space.ok=false` 时不问账号；账号绑定缺失或 RPC 出错 → `account.ok=false`。
 
 8.4 作用域表（`workers/account/src/core/scopes.js`，数据在 `account_grant`）：
 

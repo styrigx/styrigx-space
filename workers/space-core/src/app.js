@@ -13,7 +13,7 @@
  *   3. Secrets Store 的私密值换成字符串（secrets.js）
  *   3b. 分享链接 /s/<码>、/api/share（router.js routeShare；原 styrigx-share Worker 的门和接口，进站 v3 L2 并入）
  *   4. 子站前缀的页面：gate.js handleSubsite（子站关口），Pages 不持钥匙
- *   5. 主站其余路径：先跑 gate.js onRequest（主站关口：会话、角色、白名单、no-store、锁屏瘦身），放行后交给 router.js route：
+ *   5. 主站其余路径：先跑 gate.js onRequest（主站关口：域名、会话、访问表 ROUTE_ACCESS、no-store），放行后交给 router.js route：
  *      转发表（账号路径经服务绑定 ACCOUNT 转给 styrigx-account，写全套身份头；账号的响应保留 X-SGX-Runtime: account）
  *      → /api/* 路由表（api/<名字>.js；不在表里 404、方法不支持 405）→ 其他（页面）回源取静态文件
  *

@@ -17,7 +17,7 @@
  *   归入百味（多选 + 就地新建）；标签（回车 / 逗号成块，推荐已有标签）；随手一笔（只有账号已登录看得到）；公开开关。
  *
  * 数据：GET /api/quotes、GET /api/collections、GET /api/today、GET /api/days（往前几天）；写：POST/PUT/DELETE /api/quotes、/api/collections、PUT /api/today（账号会话 + daymark.write + 同源）。
- * 读请求走 sgxLockSync.apiFetch（401 = 锁定 → 刷新去锁屏）；写请求只有 401 unauthorized 才当锁定（401 account 是账号的事，不刷新）。纯函数导出给 tests/daymark/daymark.test.mjs。
+ * 读接口公开（v5 S3）；写请求回 401 unauthorized = 没进站 → 发 sgx:sudo（顶栏终端预填 sudo styrigx），401 account 是账号的事，照常提示。纯函数导出给 tests/daymark/daymark.test.mjs。
  */
 (function(){
 "use strict";
@@ -315,22 +315,22 @@ function esc(s){
 function reduced(){
   return doc.documentElement.classList.contains('reduced-motion') || !!(G.matchMedia && G.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
+/** 请人进站：顶栏终端预填 sudo styrigx（shell/topbar-panel.js 接 sgx:sudo，= js/lib/sudo.js SUDO_EVENT） */
+function askSudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
 function getJSON(url){
-  var f = G.sgxLockSync ? G.sgxLockSync.apiFetch : function(u, o){ return fetch(u, o); };
-  return f(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
+  return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   });
 }
 function send(method, url, body){
   return fetch(url, {
-    method: method, credentials: 'same-origin', redirect: 'manual',
+    method: method, credentials: 'same-origin',
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
   }).then(function(r){
-    if (r.type === 'opaqueredirect') { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
     return r.json().catch(function(){ return {}; }).then(function(j){
-      if (isLockedReply(r.status, j.error)) { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      if (isLockedReply(r.status, j.error)) { askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
       if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
       return j;
     });

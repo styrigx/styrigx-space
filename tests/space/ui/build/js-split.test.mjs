@@ -94,28 +94,18 @@ test('core.js：入口加载成功清掉自动重试标记', () => {
   assert.ok(core.includes("sessionStorage.getItem('sgx-js-retry') === location.pathname"), 'core 初始化成功清标记');
 });
 
-test('锁屏按需加载（frontend-js #6；进站 v3 L1 起在 shell/space/）：core 只带守卫，界面和鉴权模块不进每页的 core；P2-3 起没有升级层', () => {
+test('守卫在 core 里（frontend-js #6）：只带守卫，钥匙层 / 鉴权模块不进每页的 core；v5 S5 起没有锁屏界面（进站在终端里）', () => {
   const core = rd('space/web/assets/js/shell/core.js');
   assert.ok(core.includes("import { initLock } from './space/guard.js';"), 'core 从 space/guard.js 取 initLock');
-  assert.ok(!/from '\.\/(lock|upgrade|lock-guard)\.js'/.test(core) && !/from '\.\/space\/entry\.js'/.test(core), 'core 不静态 import 锁屏界面');
+  assert.ok(!/from '\.\/(lock|upgrade|lock-guard)\.js'/.test(core) && !/from '\.\/space\/(entry|layer)\.js'/.test(core), 'core 不静态 import 钥匙层');
   assert.ok(!/initUpgrade/.test(core), '升级层入口已删');
-  for (const f of ['shell/lock.js', 'shell/lock-guard.js', 'lib/lock-state.js']) assert.ok(!existsSync(join(root, 'space/web/assets/js', f)), f + ' 已搬进 shell/space/');
+  for (const f of ['shell/lock.js', 'shell/lock-guard.js', 'lib/lock-state.js', 'shell/space/entry.js', 'shell/space/shield.js', 'shell/space/tempkeys.js']) assert.ok(!existsSync(join(root, 'space/web/assets/js', f)), f + ' 已删');
   const guard = rd('space/web/assets/js/shell/space/guard.js');
   const staticImports = [...guard.matchAll(/^import [^\n]* from '([^']+)';$/gm)].map((m) => m[1]);
-  assert.deepEqual(staticImports, ['../../lib/diag-jumptrace.js', './state.js', '../../lib/i18n.js', './paths.js'], '守卫只静态依赖 diag-jumptrace、state、i18n（字符串表读取）、paths（接口地址常量）');
-  assert.ok(!/from '\.\/(api|entry|session|reset|shield)\.js'/.test(guard), '守卫不带 api / 通行密钥代码');
-  assert.ok(guard.includes("import('./entry.js')") && !guard.includes("import('./upgrade.js')"), '界面按需 import()；没有升级层');
-  /* fail closed：先同步盖遮罩再 import，加载失败遮罩不撤 */
-  const open = guard.slice(guard.indexOf('function openLockScreen()'));
-  assert.ok(open.indexOf('showEntryCover()') < open.indexOf("import('./entry.js')"), '先盖遮罩再加载');
-  assert.ok(/\.catch\(function \(\) \{ entryLoadFailed\(cover\); \}\)/.test(open), '加载失败只换成重新加载按钮');
-  const fail = guard.slice(guard.indexOf('function entryLoadFailed('), guard.indexOf('function openLockScreen()'));
-  assert.ok(!/remove\(|hidden = true|display ?= ?'none'/.test(fail), '加载失败不撤遮罩');
-  /* initLock 不再直接画锁屏 */
-  const init = guard.slice(guard.indexOf('export function initLock()'), guard.indexOf('function showEntryCover()'));
-  assert.ok(!init.includes('showEntryScreen'), 'initLock 不直接调锁屏界面');
-  const entry = rd('space/web/assets/js/shell/space/entry.js');
-  assert.ok(entry.includes('export function showEntryScreen()') && entry.includes("getElementById('sgx-entry-cover')"), '锁屏画上后撤掉遮罩');
+  assert.deepEqual(staticImports, ['../../lib/diag-jumptrace.js', './state.js', './paths.js'], '守卫只静态依赖 diag-jumptrace、state、paths（接口地址常量）');
+  assert.ok(!/from '\.\/(api|entry|session|reset|shield|layer)\.js'/.test(guard), '守卫不带 api / 通行密钥代码');
+  assert.ok(!/\bimport\(/.test(guard.replace(/\/\*[\s\S]*?\*\//g, '')), '守卫不再按需加载锁屏界面');
+  assert.ok(!guard.includes('sgx-entry-cover') && !guard.includes('showEntryCover'), '没有全页遮罩');
   assert.ok(!existsSync(join(root, 'space/web/assets/js/shell/upgrade.js')) && !guard.includes('initUpgrade'), 'P2-3：升级层整个删除');
 });
 

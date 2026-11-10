@@ -5,7 +5,7 @@
  * 分享短链（原 styrigx-share 的 styrigx.com/s/*、/api/share*）进站 v3 L2 并入 styrigx-space-core，没有单独的路由了。
  * 路由匹配按线上实测的规则（space/scripts/lib/cf-routes.mjs）：不带 * 的规则遇到查询串不命中。
  * 以前这里写的是「不看查询串」，于是 styrigx.com/ 这类精确规则看着覆盖了首页，
- * 实际 /?lock=1&return=…（锁屏入口）和子站首页 /?utm=… 都绕过了网关（2026-10-21）。
+ * 实际 /?lock=1&return=…（锁屏入口，v5 S3 起 /?entry=…）和子站首页 /?utm=… 都绕过了网关（2026-10-21）。
  * 1. 主站每个 HTML 页面都被路由覆盖，带查询串（?x=1）也覆盖
  * 2. 接口和头像（/api/、/avatar/）被路由覆盖
  * 2b. 账号路径（/api/account、/api/avatar、/api/prefs、/api/wellbeing、/avatar/*，带查询串也算）归网关（方案第 4 节）：
@@ -15,7 +15,7 @@
  *     子站接口 Worker 不得抢走
  * 3. 路由不重复，只登记 styrigx.com（旧图志域名的 301 和接口 Worker 的旧路由已于 P4-3 PR-1 删除，别的域名一律报错）
  * 4. 子站（合并 PR3：styrigx.com/blog/ /curio/ /daymark/）必须登记的路径（含各站首页 + 查询串、RSS、站点地图）和三站产物里的每个页面
- *    都归网关（子站关口按路径前缀验会话）
+ *    都归网关（v5 S3 起页面公开，网关按路径前缀注入会话标记）
  * 5. 两个子站接口 Worker（workers/curio-core、workers/daymark-core 的 wrangler.toml）：styrigx.com/<站>/api/* 必须登记、归它们，
  *    只许登记这一条；网关不得有更具体的规则抢走，它们也不得抢走网关的接口、主站页面和子站页面
  * 6. 没有公开地址的 Worker（NO_ROUTE_WORKERS：P4-1 起 styrigx-ai）：wrangler.toml 一条路由都没有，workers_dev / preview_urls 关，
@@ -39,21 +39,20 @@ const HOST = 'styrigx.com';
 const PUBLIC_DIR = path.join(REPO, 'space/web/public');
 /* 不需要过网关的 HTML：Pages 对不存在的路径直接回 404.html，本来就没人拦 */
 const EXEMPT = new Set(['/404.html']);
-/* 必须过网关的非页面路径（含锁屏入口本身，带查询串） */
+/* 必须过网关的非页面路径（含锁屏入口本身，带查询串；v5 S3 起访客 sudo styrigx 落到 /?entry=sudo&return=原页） */
 const MUST_ROUTE = ['/api/geo', '/api/lock-session-check',
-  '/?lock=1', '/?lock=1&why=no-cookie&return=https%3A%2F%2Fstyrigx.com%2Fblog%2F', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
-  '/zh/?lock=1', '/files-index.json'];
+  '/?entry=1', '/?entry=sudo&return=%2Fcurio%2Fmusic%2F', '/?lock=1', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
+  '/zh/?entry=1', '/files-index.json'];
 /* 账号路径：必须归网关、在转发表里转给 ACCOUNT（账号 Worker styrigx-account 没有路由） */
 const ACCOUNT_MUST = ['/api/account', '/api/account?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24', '/api/profile', '/api/profile/',
   '/avatar/32.webp', '/avatar/96.webp', '/avatar/192.webp?v=abc', '/avatar/512.webp'];
-/* 转发表允许的绑定、门 */
+/* 转发表允许的绑定 */
 const FORWARD_BINDINGS = new Set(['ACCOUNT']);
-const FORWARD_GATES = new Set(['session', 'public']);
 /* 分享短链：进站 v3 L2 起归 styrigx-space-core（并在 MUST_ROUTE 里一起核对） */
 const SHARE_MUST = ['/s/AAAAAAAAAAAAAAAAAAAAAA', '/s/AAAAAAAAAAAAAAAAAAAAAA/', '/s/AAAAAAAAAAAAAAAAAAAAAA?x=1', '/s/', '/api/share', '/api/share/', '/api/share?x=1'];
 /* 子站（合并 PR3）：主域名下的前缀，三站产物都按 /<站>/ 登记 */
 export const SUBSITES = ['blog', 'curio', 'daymark'];
-/* 子站在主域名上必须归网关的路径（页面、RSS、站点地图都要会话，网关子站关口验） */
+/* 子站在主域名上必须归网关的路径（页面、RSS、站点地图；v5 S3 起都公开，但要经网关注入会话标记） */
 const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?a', '/blog/tags/x/', '/blog/zh/', '/blog/zh/?a', '/blog/zh/post/x/', '/blog/rss.xml', '/blog/rss.xml?a',
   '/curio/', '/curio/?x=1', '/curio/zh/', '/curio/sitemap.xml', '/curio/sitemap.xml?a',
   '/curio/finds/', '/curio/zh/devices/', '/curio/games/', '/curio/movies/', '/curio/zh/music/',
@@ -62,9 +61,9 @@ const SUBSITE_MUST = ['/blog/', '/blog/?utm=1', '/blog/post/x/', '/blog/post/x/?
 export const CORE_WORKERS = [
   { name: 'curio-core', label: '奇趣接口 Worker（styrigx-curio-core）', dir: 'workers/curio-core', site: 'curio',
     samples: ['/curio/api/links', '/curio/api/icon?id=1', '/curio/api/import', '/curio/api/export', '/curio/api/preview?url=x', '/curio/api/photo?kind=device&id=1',
-      '/curio/api/access', '/curio/api/movies', '/curio/api/music', '/curio/api/music-upload?album=1&kind=track', '/curio/api/music-play', '/curio/api/music-stream?t=x&id=1', '/curio/api/music-cover?album=1'] },
+      '/curio/api/movies', '/curio/api/music', '/curio/api/music-upload?album=1&kind=track', '/curio/api/music-play', '/curio/api/music-stream?t=x&id=1', '/curio/api/music-cover?album=1'] },
   { name: 'daymark-core', label: '日刻接口 Worker（styrigx-daymark-core）', dir: 'workers/daymark-core', site: 'daymark',
-    samples: ['/daymark/api/quotes', '/daymark/api/today', '/daymark/api/today?x=1'] },
+    samples: ['/daymark/api/quotes', '/daymark/api/today', '/daymark/api/today?x=1', '/daymark/api/collections', '/daymark/api/days'] },
 ];
 
 /** space/web/public 里的 a/b/index.html → /a/b/；其他 .html 原样 */
@@ -201,7 +200,7 @@ export function checkCores(gateway, cores, gatewayApis, pagePaths) {
  * @param {string[]} account 账号 Worker 的路由（必须为空）
  * @param {string[]} gatewayApis 网关路由表里的接口
  * @param {string[]} pagePaths 主站页面
- * @param {ReadonlyArray<{path:string, binding:string, gate:string}>} [forwarding] 转发表，默认 src/router.js 的 FORWARDING
+ * @param {ReadonlyArray<{path:string, binding:string}>} [forwarding] 转发表，默认 src/router.js 的 FORWARDING
  */
 export function checkAccount(gateway, account, gatewayApis, pagePaths, forwarding = FORWARDING) {
   const errors = [];
@@ -213,7 +212,6 @@ export function checkAccount(gateway, account, gatewayApis, pagePaths, forwardin
     if (seen.has(r.path)) errors.push('转发表重复：' + r.path);
     seen.add(r.path);
     if (!FORWARD_BINDINGS.has(r.binding)) errors.push('转发表绑定不认识：' + r.path + ' → ' + r.binding);
-    if (!FORWARD_GATES.has(r.gate)) errors.push('转发表门不认识：' + r.path + ' → ' + r.gate);
     if (!r.path.startsWith('/')) errors.push('转发表路径要以 / 开头：' + r.path);
     for (const a of gatewayApis) if (ruleFor(a) === r) errors.push('转发表路径同时在网关路由表 src/router.js API_ROUTES 里：' + a);
   }

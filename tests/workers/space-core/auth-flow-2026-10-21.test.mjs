@@ -7,9 +7,9 @@
  * B. /api/lock-session-check 以前只回 ok，前端解锁后只能「重载同一地址等首页 302」，锁屏入口不过网关时永远等不到。
  *    P2-3 起回 {ok, by, exp, next}（进门二值，没有 role / upgrade）。
  * C. （P2-3 改写）进门的人直接打开锁屏凭证页 → 200 回源（页面自己要锁侧复验），不再按角色 302。
- * D. 锁屏瘦身标记被 Go 模板删掉，锁屏态整份下发桌面。
+ * D. 锁屏瘦身标记被 Go 模板删掉，锁屏态整份下发桌面。（v5 S3 起整站放开，瘦身整个删了：D 改成断言首页照样下发桌面。）
  * E. 账号页首帧提示（网关注入 data-sgx-account-session）：命名 v2 起删掉（旧整页已删，账号终端自己读 GET /api/account）。
- * F. 内容索引 /files-index.json 被后缀白名单放行。
+ * F. 内容索引 /files-index.json 被后缀白名单放行。（v5 S3 起 RSS / files-index 公开，F 改成断言没会话也 200。）
  * G. 站内链接 prerender（Speculation Rules）启用的是旧会话状态的页面快照。
  *
  * 运行：node --test tests/workers/space-core/auth-flow-2026-10-21.test.mjs
@@ -113,9 +113,9 @@ test('A 静态资源进 Worker 后原样回源：不验会话、不 302', async 
   const css = await worker.fetch(new Request('https://styrigx.com/blog/css/main.abc.css'), env(), CTX);
   assert.equal(css.status, 200);
   assert.equal(css.headers.get('X-SGX-Runtime'), null, '子站 CI 冒烟要求静态资源 runtime=none');
-  /* 子站页面仍是网关回的 302 */
+  /* 子站页面是网关回的（v5 S3：没会话也 200，标 locked） */
   const pg = await worker.fetch(new Request('https://styrigx.com/blog/?utm=1'), env(), CTX);
-  assert.equal(pg.status, 302);
+  assert.equal(pg.status, 200);
   assert.equal(pg.headers.get('X-SGX-Runtime'), 'worker');
 });
 
@@ -156,16 +156,16 @@ test('B session-check?return：不合法 return → 首页；退役子站 → �
 });
 
 test('B session-check：进门二值——任何 by 带门内页 return 都回原页（不再有 upgrade / 安全总览改道）；by 原样回给前端只作展示', async () => {
-  for (const by of ['password', 'passkey', 'tempkey']) {
+  for (const by of ['password', 'passkey', 'link']) {
     const r = await check('?return=' + encodeURIComponent('/security/lock/'), await lockCookie(by));
     assert.equal(r.status, 200, by);
     assert.deepEqual(body(r.j), { ok: true, by, next: '/security/lock/' }, by);
   }
-  const s = await check('?return=' + encodeURIComponent('https://proxy-rules.styrigx.com/security/lock/'), await lockCookie('tempkey'));
+  const s = await check('?return=' + encodeURIComponent('https://proxy-rules.styrigx.com/security/lock/'), await lockCookie('link'));
   assert.equal(s.j.next, 'https://proxy-rules.styrigx.com/security/lock/');
-  const vp = await check('', await lockCookie('tempkey'));
+  const vp = await check('', await lockCookie('link'));
   assert.equal(vp.status, 200);
-  assert.deepEqual(body(vp.j), { ok: true, by: 'tempkey', next: null });
+  assert.deepEqual(body(vp.j), { ok: true, by: 'link', next: null });
   assert.ok(!('role' in vp.j) && !('upgrade' in vp.j));
 });
 
@@ -182,26 +182,25 @@ test('B session-check：没有会话 / 坏会话 → 401 no-store', async () => 
 });
 
 /* ---------------- C. 进门的人打开门内页 ---------------- */
-test('C 临时钥匙进门的人直接打开锁屏凭证页（中英）→ 200 回源、valid，没有升级 / 等级标记（复验由页面自己要）', async () => {
+test('C 分享链接进门的人直接打开锁屏凭证页（中英）→ 200 回源、valid，没有升级 / 等级标记（复验由页面自己要）', async () => {
   for (const p of ['/security/lock/', '/zh/security/lock/']) {
-    const res = await get('https://styrigx.com' + p, await lockCookie('tempkey'));
+    const res = await get('https://styrigx.com' + p, await lockCookie('link'));
     assert.equal(res.status, 200, p);
     const html = await res.text();
     assert.match(html, /data-sgx-lock-session="valid"/);
     assert.doesNotMatch(html, /data-sgx-upgrade|data-sgx-role/); // old-name guard
   }
   /* 首页带 return：进门的人直接 302 回原页 */
-  const home = await get('https://styrigx.com/?return=' + encodeURIComponent('/security/lock/'), await lockCookie('tempkey'));
+  const home = await get('https://styrigx.com/?return=' + encodeURIComponent('/security/lock/'), await lockCookie('link'));
   assert.equal(home.status, 302);
   assert.equal(home.headers.get('Location'), '/security/lock/');
 });
 
 /* ---------------- D. 锁屏瘦身 ---------------- */
-test('D 首页模板用 safeHTML 输出瘦身标记（Go 模板会删 HTML 注释）；锁屏态剥掉桌面、valid 保留', async () => {
+test('D（v5 S3）首页模板不再有瘦身标记；没进站也照样下发桌面', async () => {
   const tpl = fs.readFileSync(path.join(REPO, 'space/web/layouts/index.html'), 'utf8');
-  assert.match(tpl, /\{\{ "<!-- SGX-DESKTOP-START -->" \| safeHTML \}\}/);
-  assert.match(tpl, /\{\{ "<!-- SGX-DESKTOP-END -->" \| safeHTML \}\}/);
-  assert.doesNotMatch(await (await get('https://styrigx.com/?lock=1')).text(), /DESK/);
+  assert.doesNotMatch(tpl, /SGX-DESKTOP/);
+  assert.match(await (await get('https://styrigx.com/?lock=1')).text(), /DESK/);
   assert.match(await (await get('https://styrigx.com/', await lockCookie('password'))).text(), /DESK/);
 });
 
@@ -225,14 +224,14 @@ test('E 账号页模板随 2026-11-08 账号 UI 改版删除（账号在顶栏�
 });
 
 /* ---------------- F. 内容索引 ---------------- */
-test('F /files-index.json 要先解锁（无会话 302，有会话 200）', async () => {
-  assert.equal((await get('https://styrigx.com/files-index.json')).status, 302);
-  assert.equal((await get('https://styrigx.com/files-index.json', await lockCookie('tempkey'))).status, 200);
+test('F（v5 S3）/files-index.json 公开（无会话、有会话都 200）', async () => {
+  assert.equal((await get('https://styrigx.com/files-index.json')).status, 200);
+  assert.equal((await get('https://styrigx.com/files-index.json', await lockCookie('link'))).status, 200);
 });
-test('F RSS（Hugo 生成的 */index.xml，列着全站页面标题和地址）要先解锁；sitemap.xml / opensearch.xml 照旧公开', async () => {
+test('F（v5 S3）RSS（Hugo 生成的 */index.xml）、sitemap.xml / opensearch.xml 都公开', async () => {
   for (const p of ['/index.xml', '/zh/index.xml', '/tags/index.xml', '/zh/categories/index.xml', '/INDEX.XML']) {
-    assert.equal((await get('https://styrigx.com' + p)).status, 302, p + ' 无会话');
-    assert.equal((await get('https://styrigx.com' + p, await lockCookie('tempkey'))).status, 200, p + ' 有会话');
+    assert.equal((await get('https://styrigx.com' + p)).status, 200, p + ' 无会话');
+    assert.equal((await get('https://styrigx.com' + p, await lockCookie('link'))).status, 200, p + ' 有会话');
   }
   for (const p of ['/sitemap.xml', '/opensearch.xml', '/zh/sitemap.xml']) {
     assert.equal((await get('https://styrigx.com' + p)).status, 200, p + ' 公开');

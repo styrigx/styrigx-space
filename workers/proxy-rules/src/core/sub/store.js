@@ -1,5 +1,6 @@
 /**
  * D1 styrigx-proxy（绑定 D1_PROXY）读写。只放 SQL，不做加解密。
+ * meta 的键：pubkey（age 公钥）、token_hash（令牌 SHA-256，下载比对用）、token_sealed（DB_KEY 封存的令牌，sub show 重印用）、ua、ua_checked。
  */
 
 /** @param {any} env */
@@ -15,6 +16,12 @@ export async function getMeta(env, k) {
 /** @param {any} env @param {string} k @param {string} v */
 export async function setMeta(env, k, v) {
   await db(env).prepare('INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v').bind(k, v).run();
+}
+
+/** 换令牌：哈希和封存原文同一次 batch 写（不会出现只换了一半） @param {any} env @param {string} hash @param {string} sealed */
+export async function setToken(env, hash, sealed) {
+  const up = 'INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v';
+  await db(env).batch([db(env).prepare(up).bind('token_hash', hash), db(env).prepare(up).bind('token_sealed', sealed)]);
 }
 
 const COLS = 'id, name, type, enabled, host, node_count, last_ok_at, last_error, gen, created_at, (armor <> \'\') AS ready';
@@ -72,7 +79,7 @@ export async function replaceAirport(env, id, host, urlEnc, nodesEnc, count, now
     .bind(host, urlEnc, nodesEnc, count, now, id).run();
 }
 
-/** 改名（sub-mv）：只改 name，id、成品、节点、开关都不动 @param {any} env @param {string} from @param {string} to @returns {Promise<boolean>} */
+/** 改名（sub mv）：只改 name，id、成品、节点、开关都不动 @param {any} env @param {string} from @param {string} to @returns {Promise<boolean>} */
 export async function renameSource(env, from, to) {
   const r = await db(env).prepare('UPDATE sources SET name = ? WHERE name = ? AND NOT EXISTS (SELECT 1 FROM sources WHERE name = ?)').bind(to, from, to).run();
   return Number(r.meta && r.meta.changes) > 0;

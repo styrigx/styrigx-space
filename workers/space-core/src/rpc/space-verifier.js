@@ -24,7 +24,7 @@ export class SpaceVerifier extends WorkerEntrypoint {
   }
 
   /**
-   * 结论：{ space: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }。
+   * 结论：{ space: { ok, by, linkId, reason }, account: { ok, deviceId, scopes, reauth, reason } }。
    * space.ok=false 时不问账号（account.reason = 'no-space'）；账号绑定没配 / RPC 出错 / 回了看不懂的东西 → account.ok=false。
    * @param {string} cookieHeader 浏览器发来的 Cookie 头
    * @param {{ua?:string, country?:string, city?:string}} [clientContext]

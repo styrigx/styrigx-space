@@ -11,14 +11,14 @@
  * - 绝不打印密钥值。
  */
 
-/** 放在 Secrets Store 里的密钥（进站 v3 Q18：5 个 SGX_SPACE_*）：进站签名钥匙对、恢复钥匙、解锁密码 pepper、临时钥匙 pepper。
+/** 放在 Secrets Store 里的密钥（4 个 SGX_SPACE_*）：进站签名钥匙对、恢复钥匙、解锁密码 pepper
+ *  （临时钥匙的 pepper 随 v5 收尾删除，名字见 space/scripts/retired-names.json 的 legacy）。
  *  账号钥匙（SGX_ACCOUNT_*：签名钥匙、恢复密钥、账号密码 pepper）只绑在账号 Worker styrigx-account；外部模型钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-ai。本 Worker 都不碰。 */
 export const SECRET_NAMES = Object.freeze([
   'SGX_SPACE_PRIVATE',
   'SGX_SPACE_PUBLIC',
   'SGX_SPACE_RECOVERY_KEY',
   'SGX_SPACE_PASSWORD_PEPPER',
-  'SGX_SPACE_TEMPKEY_PEPPER',
 ]);
 
 const TTL_MS = 60 * 1000;

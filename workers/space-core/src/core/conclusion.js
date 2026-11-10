@@ -2,7 +2,7 @@
  * 网关结论（方案 2.3、4.3；P2-1 授权骨架）：网关验门、问账号 Worker，再把结论交给下游。
  *
  * - RPC 结论（方案 2.3.2）：conclusionFor(env, cookieHeader, clientContext, opts) →
- *     { space: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }（进站 v3 Q17：原 { lock, account }）
+ *     { space: { ok, by, linkId, reason }, account: { ok, deviceId, scopes, reauth, reason } }（进站 v3 Q17：原 { lock, account }）
  *   SpaceVerifier.conclusion()（rpc/space-verifier.js）就是它的薄包装。space.ok=false 时不问账号（account.reason = 'no-space'：进门是前置）；
  *   账号部分由 core/account-rpc.js askAuthorize 问 ACCOUNT_VERIFIER.authorize() 拿到，这里按白名单收下：
  *   deviceId 不合格式 / scopes 不是数组 → account.ok=false（bad-reply，fail closed）；不合格式的作用域丢掉，其余去重、按字母排序。
@@ -32,8 +32,8 @@ export const ACCOUNT_CONCLUSION_HEADERS = Object.freeze({
 export const ACCOUNT_CONCLUSION_PREFIX = 'x-styrigx-account-';
 
 /* 白名单 */
-const LOCK_BYS = Object.freeze(['password', 'passkey', 'tempkey']);
-const TEMPKEY_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const LOCK_BYS = Object.freeze(['password', 'passkey', 'link']);
+const LINK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 /** 账号设备 id（同账号 Worker core/account-devices.js isDeviceId） */
 export const DEVICE_ID_RE = /^[A-Za-z0-9_-]{8,32}$/;
 /** 作用域 id 格式：<应用>.<动作>，全小写，只用 [a-z.]（同账号 Worker core/scopes.js SCOPE_ID_RE） */
@@ -47,7 +47,7 @@ function reasonOf(r, fallback) {
 }
 
 /**
- * @typedef {{ ok: boolean, by: string, tempkeyId: string, reason: string }} LockConclusion
+ * @typedef {{ ok: boolean, by: string, linkId: string, reason: string }} LockConclusion
  * @typedef {{ ok: boolean, deviceId: string, scopes: string[], reauth: boolean, reason: string }} AccountConclusion
  * @typedef {{ space: LockConclusion, account: AccountConclusion }} Conclusion
  */
@@ -58,18 +58,18 @@ function accountDenied(reason) {
 }
 
 /**
- * 进站会话（verifyLockSession 的结论）→ lock 结论：by 只认白名单；tempkeyId 只在 by=tempkey 且格式合规时给。
+ * 进站会话（verifyLockSession 的结论）→ lock 结论：by 只认白名单（v5 S1：password / passkey / link）；linkId 只在 by=link 且格式合规时给。
  * @param {any} s
  * @returns {LockConclusion}
  */
 export function normalizeLockConclusion(s) {
   if (!s || typeof s !== 'object' || s.ok !== true) {
-    return { ok: false, by: '', tempkeyId: '', reason: reasonOf(s && s.reason, 'no-session') };
+    return { ok: false, by: '', linkId: '', reason: reasonOf(s && s.reason, 'no-session') };
   }
   const by = typeof s.by === 'string' && LOCK_BYS.indexOf(s.by) !== -1 ? s.by : '';
-  const tk = typeof s.tempkeyId === 'string' ? s.tempkeyId : '';
-  const tempkeyId = by === 'tempkey' && TEMPKEY_ID_RE.test(tk) ? tk : '';
-  return { ok: true, by, tempkeyId, reason: 'ok' };
+  const lk = typeof s.linkId === 'string' ? s.linkId : '';
+  const linkId = by === 'link' && LINK_ID_RE.test(lk) ? lk : '';
+  return { ok: true, by, linkId, reason: 'ok' };
 }
 
 /**
@@ -121,7 +121,7 @@ export async function conclusionFor(env, cookieHeader, clientContext, opts) {
     lock = normalizeLockConclusion(await verifyLockSession(cookieRequest(cookieHeader), env));
   } catch (e) {
     console.error('[sgx-space-core] conclusion space failed: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
-    lock = { ok: false, by: '', tempkeyId: '', reason: 'error' };
+    lock = { ok: false, by: '', linkId: '', reason: 'error' };
   }
   if (!lock.ok) return { space: lock, account: accountDenied('no-space') };
   const want = { reauth: !!(opts && typeof opts === 'object' && opts.reauth === true) };

@@ -4,6 +4,7 @@
 #   - 定时：Cron 每分钟一次（src/index.js scheduled），检查 src/targets.js 里的 4 个地址，10 秒超时，
 #     连续 3 次失败开一条故障，恢复后自动关。
 #   - 每小时任务（2026-11-10）：同一条 41 分 Cron 经服务绑定 JOB_DAYMARK / JOB_CURIO / JOB_AI 叫三个 Worker 的 HourlyJob.run()（src/hourly.js）。
+#   - 每日任务（v5 S2）：同一条 41 分 Cron，只在 03:00 CST（UTC 19 点）那一轮经 JOB_SPACE 叫 space-core 的 ShareJanitor.purgeShareLinks()（src/daily.js）。
 #   - 用量：Cron 每小时 41 分一次（src/usage.js），用只读 token 读 Cloudflare API（D1 / R2 / KV 存储、今天的 Workers 请求数），
 #     最新快照存 D1 表 status_usage（migrations/0001_baseline.sql）。
 #   - 免费额度（今天的操作次数：Workers + Pages Functions 请求、KV 读写删列、D1 读写行；R2 A/B 类本月）：不走 Cron，
@@ -34,7 +35,8 @@ preview_urls = false
 mode = "smart"
 
 [triggers]
-# 第一条：每分钟检查各站；第二条：每小时 41 分收一次用量，同一轮叫 daymark-core、curio-core、ai 的每小时任务（index.js 按 event.cron 分流，src/hourly.js）。
+# 第一条：每分钟检查各站；第二条：每小时 41 分收一次用量，同一轮叫 daymark-core、curio-core、ai 的每小时任务（index.js 按 event.cron 分流，src/hourly.js），
+# 03:41 CST 那一轮另清理过期分享链接（src/daily.js，v5 S2，不另加 Cron）。
 # 注意：免费账号整个账号最多 5 个 Cron Trigger（https://developers.cloudflare.com/workers/platform/limits/），这里占 2 个；
 # 2026-11-10 起另外三个 Worker 不自带 Cron（让出名额给 proxy-rules），全账号共 3 个：这里 2 个 + proxy-rules 1 个。
 crons = ["* * * * *", "41 * * * *"]
@@ -81,6 +83,14 @@ entrypoint = "HourlyJob"
 binding = "JOB_AI"
 service = "styrigx-ai"
 entrypoint = "HourlyJob"
+
+# 每日任务（v5 S2，src/daily.js）：space-core 的命名入口 ShareJanitor，只有 purgeShareLinks(at)，公网进不来。
+# styrigx-space-core 早已存在，绑定能部署；deploy.yml 里 status 排在 space-core 之前（space-core 绑 STATUS），
+# 所以入口要等同一次部署里 space-core 新版上线后才有，这之前那一轮（只在 03:41 CST）只打日志。
+[[services]]
+binding = "JOB_SPACE"
+service = "styrigx-space-core"
+entrypoint = "ShareJanitor"
 
 # 用量 token：Secrets Store 绑定，代码里 await env.SGX_CF_USAGE_TOKEN.get()。store_id 同 workers/space-core/wrangler.toml（是存储编号，不是密值）。
 # 部署这个 Worker 的 token（styrigx-status-deploy）因此要多一项 Secrets Store 编辑（带 Secrets Store 绑定部署必须 Edit，Read 报 10021）。

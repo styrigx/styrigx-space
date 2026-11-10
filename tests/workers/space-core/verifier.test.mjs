@@ -40,7 +40,7 @@ function env({ epoch = '0', kvThrows = false } = {}) {
 }
 
 test('checkLockSession：任何进门方式都有效，只回 { ok, reason }（进门二值，不回等级）；没有 cookie、伪造都无效', async () => {
-  for (const by of ['password', 'passkey', 'tempkey']) {
+  for (const by of ['password', 'passkey', 'link']) {
     const c = await testLockSession(LOCK.priv, 0, by);
     assert.deepEqual(await checkLockSession('a=1; sgx-space-session=' + c, env()), { ok: true, reason: 'ok' });
   }
@@ -56,12 +56,13 @@ test('checkLockSession：任何进门方式都有效，只回 { ok, reason }（�
 
 
 
-test('部署入口只导出 default 和 SpaceVerifier（进站 v3 L2：ShareIssuer 删了，分享链接并入本 Worker），wrangler main 指向它', () => {
+test('部署入口导出 default、SpaceVerifier 和 ShareJanitor（进站 v3 L2：ShareIssuer 删了，分享链接并入本 Worker；v5 S2 加每日清理入口），wrangler main 指向它', () => {
   const toml = readFileSync(REPO + '/workers/space-core/wrangler.toml', 'utf8');
   assert.match(toml, /^main = "src\/index\.js"$/m);
   const src = readFileSync(REPO + '/workers/space-core/src/index.js', 'utf8');
   assert.match(src, /export \{ default \} from '\.\/app\.js'/);
   assert.match(src, /export \{ SpaceVerifier \} from '\.\/rpc\/space-verifier\.js'/);
+  assert.match(src, /export \{ ShareJanitor \} from '\.\/rpc\/share-janitor\.js'/);
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /ShareIssuer|share-issuer/);
   assert.equal(existsSync(REPO + '/workers/space-core/src/rpc/share-issuer.js'), false);
   assert.equal(existsSync(REPO + '/workers/space-core/src/rpc/auth-verifier.js'), false);
@@ -69,6 +70,8 @@ test('部署入口只导出 default 和 SpaceVerifier（进站 v3 L2：ShareIssu
   assert.match(av, /class SpaceVerifier extends WorkerEntrypoint/);
   /* SpaceVerifier 只有验票，签钥匙 / 发会话不在 RPC 上 */
   assert.doesNotMatch(av, /createLinkKey|revokeLinkKey|openLinkSession/);
+  /* v5 S2：删数据的清理方法在单独的 ShareJanitor 上，不挂在奇趣 / 日刻绑定的 SpaceVerifier 上 */
+  assert.doesNotMatch(av, /purge/i);
 });
 
 /* ---------------- SpaceVerifier.conclusion（P2-1） ---------------- */
@@ -93,7 +96,7 @@ test('SpaceVerifier.conclusion：进门 + 账号会话有效 → { space, accoun
   const ck = 'sgx-space-session=' + (await testLockSession(LOCK.priv, 0, 'password')) + '; sgx-account-session=x';
   const r = await new SpaceVerifier({}, e).conclusion(ck, { ua: 'UA' }, { reauth: true });
   assert.deepEqual(r, {
-    space: { ok: true, by: 'password', tempkeyId: '', reason: 'ok' },
+    space: { ok: true, by: 'password', linkId: '', reason: 'ok' },
     account: { ok: true, deviceId: DEV, scopes: ['curio.write', 'daymark.write'], reauth: true, reason: 'ok' },
   });
   assert.deepEqual(v.calls, [[ck, { ua: 'UA' }, { reauth: true }]]);
@@ -108,10 +111,10 @@ test('SpaceVerifier.conclusion：没进门 → space.ok=false、account no-space
   assert.equal(r.account.reason, 'no-space');
   assert.equal(v.calls.length, 0);
   _resetSecretCache();
-  const ck = 'sgx-space-session=' + (await testLockSession(LOCK.priv, 0, 'tempkey'));
+  const ck = 'sgx-space-session=' + (await testLockSession(LOCK.priv, 0, 'link'));
   const r2 = await new SpaceVerifier({}, env()).conclusion(ck, {});
   assert.equal(r2.space.ok, true);
-  assert.equal(r2.space.by, 'tempkey');
+  assert.equal(r2.space.by, 'link');
   assert.deepEqual(r2.account, { ok: false, deviceId: '', scopes: [], reauth: false, reason: 'no-verifier' });
 });
 

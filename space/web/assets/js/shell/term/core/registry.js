@@ -1,26 +1,21 @@
 /**
- * @fileoverview 命令注册表（终端统一 T3，设计稿 v1.5 §2.1 / §3）：命令对象按登记顺序排（= help 顺序 = 补全顺序），别名指向同一个对象。
- * 命令对象：{ name, aliases?, tty?, args?, takesArgs?, help?, run(p, x) }。tty 缺省 'full'（tty2–5）；tty1 白名单写 ['tty1', 'full']（T4 起用）。
+ * @fileoverview 命令注册表（终端统一 T3；v5 S5 起只有一张表）：命令对象按登记顺序排（= man 索引顺序 = 补全顺序），别名指向同一个对象。
+ * 命令对象：{ name, aliases?, args?, takesArgs?, audience?, run(p, x, line) }。
+ * audience：man 索引给哪些身份列（core/who.js listedFor，唯一判断点）；缺省所有人。只管列不列，不管能不能跑。
  */
+import { listedFor } from './who.js';
 
 /**
  * @typedef {Object} Cmd
  * @property {string} name
  * @property {string[]} [aliases]
- * @property {string|string[]} [tty]
  * @property {string[]} [args] 第二个词的补全候选
  * @property {boolean} [takesArgs] 没有候选也带参数（补全命令名后加空格）
- * @property {(x: any) => Array<[string, string]>} [help] help 里的行 [命令, 说明]
+ * @property {import('./who.js').Who[]} [audience] man 索引只给这些身份列（缺省都列）
  * @property {(p: {cmd: string, args: string[], rest: string}, x: any, line: string) => any} run
  */
 
-/** @param {Cmd} c @param {string} [tty] */
-function onTty(c, tty) {
-  if (!tty) return true;
-  const t = c.tty || 'full';
-  const arr = Array.isArray(t) ? t : [t];
-  return arr.indexOf(tty) !== -1 || (tty !== 'tty1' && arr.indexOf('full') !== -1);
-}
+export { listedFor };
 
 /** @param {Cmd[]} cmds */
 export function createRegistry(cmds) {
@@ -30,13 +25,12 @@ export function createRegistry(cmds) {
     by[c.name] = c;
     (c.aliases || []).forEach(function (a) { by[a] = c; });
   });
-  /** @param {string} [tty] */
-  const list = function (tty) { return cmds.filter(function (c) { return onTty(c, tty); }); };
   return {
-    /** 名字或别名 → 命令（不在这个 tty → null） @param {string} n @param {string} [tty] */
-    get: function (n, tty) { const c = by[n]; return c && onTty(c, tty) ? c : null; },
-    list: list,
-    /** @param {string} [tty] */
-    names: function (tty) { return list(tty).map(function (c) { return c.name; }); },
+    /** 名字或别名 → 命令（没有 → null） @param {string} n */
+    get: function (n) { return by[n] || null; },
+    list: function () { return cmds.slice(); },
+    names: function () { return cmds.map(function (c) { return c.name; }); },
+    /** 这个身份在 man 索引里列出的命令名 @param {import('./who.js').Who} w */
+    listed: function (w) { return cmds.filter(function (c) { return listedFor(c, w); }).map(function (c) { return c.name; }); },
   };
 }

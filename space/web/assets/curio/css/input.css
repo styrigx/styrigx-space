@@ -327,8 +327,6 @@ html { scroll-padding-top: calc(var(--nav-h) + var(--sgx-content-gap)); }
 .cu-crop-btn:focus-visible { outline: 2px solid rgb(255 255 255); outline-offset: 2px; }
 
 /* ===== P4-3 奇趣拆页：首页入口、电影、私人音乐 ===== */
-/* 音乐仅本人可见：页头 tab 的「music/」不是当前页时默认藏起，curio.js 问过 /curio/api/access 有权限才给 <html> 加 .cu-music-ok */
-html:not(.cu-music-ok) #cu-tabs [data-ctab="music"]:not([aria-current]) { display: none; }
 /* 手机 tab 放不下时的「›」（curio.js paintTabsMore）：贴在 tab 条右端、渐隐带上面，点了滑到最后一项 */
 .cu-tabs-more { flex: none; align-self: center; margin: 0 0 0 -22px; padding: 0 6px; border: 0; background: transparent; font: inherit; color: var(--sgx-primary); cursor: pointer; }
 .cu-tabs-more[hidden] { display: none; }
@@ -366,11 +364,6 @@ html.mu-playing .mu-wrap { padding-bottom: 236px; }
 .mu-track:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: -2px; }
 .mu-album-acts { display: flex; justify-content: center; padding: 14px 0 4px; }
 .mu-del-btn { color: var(--sgx-danger); }
-.mu-denied { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 64px 16px; text-align: center; color: var(--sgx-text-secondary); }
-.mu-denied.hidden { display: none; }
-.mu-denied-title { margin: 6px 0 0; font-size: 18px; font-weight: 800; color: var(--sgx-text-primary, inherit); }
-.mu-denied-text { margin: 0; max-width: 28em; font-size: 14px; line-height: 1.6; }
-.mu-denied-link { margin-top: 8px; text-decoration: underline; text-underline-offset: 4px; font-size: 14px; }
 .mu-player { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; padding: 0 0 env(safe-area-inset-bottom, 0px); pointer-events: none; }
 .mu-player.hidden { display: none; }
 .mu-player-in { box-sizing: border-box; width: var(--sgx-shell-w); margin: 0 auto 12px; padding: 12px 16px 10px; border-radius: 1.5rem; pointer-events: auto;
@@ -396,6 +389,13 @@ html.mu-playing .mu-wrap { padding-bottom: 236px; }
 .mu-toggle .mu-ic-pause, .mu-toggle.is-playing .mu-ic-play { display: none; }
 .mu-toggle.is-playing .mu-ic-pause { display: block; }
 .mu-cbtn:focus-visible, .mu-speed:focus-visible, .mu-play-all:focus-visible { outline: 2px solid var(--sgx-focus-ring); outline-offset: 2px; }
+/* 只看模式（没进站，v5 S3）：播放整张 / 播放键换锁标、灰底；上一首 / 下一首 / 倍速 / 进度条变淡不可用；点播放、点曲目发 sgx:sudo（curio-music.js） */
+.mu-ic-lock { display: none; }
+html.mu-view-only .mu-play-all, html.mu-view-only .mu-toggle { background: var(--sgx-surface-container-high); color: var(--sgx-on-surface-variant); }
+html.mu-view-only .mu-play-all > svg:not(.mu-ic-lock), html.mu-view-only .mu-toggle > svg:not(.mu-ic-lock) { display: none; }
+html.mu-view-only .mu-ic-lock { display: block; }
+html.mu-view-only :is(#mu-prev, #mu-next, #mu-speed, #mu-seek) { opacity: .38; }
+html.mu-view-only .mu-lyrics { display: none; }
 
 /* ===== 页面外框 = 顶栏内容宽 --sgx-col-w（1080 居中，对齐字标 / 图标组），两种布局一样 ===== */
 :root .cu-wrap { width: var(--sgx-col-w); }

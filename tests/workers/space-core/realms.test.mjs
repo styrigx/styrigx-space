@@ -31,7 +31,9 @@ test('realms：REALM_LOCK 线上格式逐字相同；进站凭证 spaceKey = SGX
   assert.equal(REALM_LOCK.privateKey, 'SGX_SPACE_PRIVATE');
   assert.equal(REALM_LOCK.publicKey, 'SGX_SPACE_PUBLIC');
   assert.equal(REALM_LOCK.pepper, 'SGX_SPACE_PASSWORD_PEPPER', '解锁密码 pepper（进站 v3 L2：新值，和账号的分开）');
-  assert.equal(REALM_LOCK.tempkeyPepper, 'SGX_SPACE_TEMPKEY_PEPPER', '临时钥匙码 pepper（进站 v3 L2 起单独一个）');
+  assert.equal(REALM_LOCK.tempkeyPepper, undefined, 'v5 S1：临时钥匙删除，REALM_LOCK 不再指向临时钥匙 pepper（v5 收尾删了绑定）');
+  assert.equal(R.BY_LINK, 'link');
+  assert.equal(R.BY_TEMPKEY, undefined, 'v5 S1：by=tempkey 删除');
   assert.deepEqual([R.KEY_SPACE_PASSWORD, R.KEY_SPACE_PASSKEY, R.KEY_SPACE_RECOVERY_KEY], ['SpacePassword', 'SpacePasskey', 'SpaceRecoveryKey']);
   assert.equal(R.KEY_LOCK, undefined);
   assert.equal(R.KEY_SPACE, undefined);
@@ -62,7 +64,7 @@ test('realms：三张锁屏票总表（cookie / 钥匙 / 时长 / 属性 / by / 
   assert.equal(session.LOCK_SESSION_MAX_AGE, 43200);
   const T = R.TICKETS;
   const want = {
-    LockSessionTicket: ['sgx-space-session', 43200, ['password', 'passkey', 'tempkey']],
+    LockSessionTicket: ['sgx-space-session', 43200, ['password', 'passkey', 'link']],
     LockResetTicket: ['sgx-space-reset', 180, ['space', 'password', 'passkey']],
     LockReauthTicket: ['sgx-space-reauth', 180, ['password', 'passkey', 'space']],
   };
@@ -80,18 +82,18 @@ test('realms：三张锁屏票总表（cookie / 钥匙 / 时长 / 属性 / by / 
   assert.deepEqual(Object.keys(R).filter((k) => k.startsWith('ROLE_')), [], '进门二值：没有等级常量');
 });
 
-test('realms：Secrets Store 5 个 SGX_SPACE_*（进站 v3 Q18：PRIVATE / PUBLIC / RECOVERY_KEY / PASSWORD_PEPPER / TEMPKEY_PEPPER）；账号钥匙、旧 SGX_ROOT_KEY、旧 SGX_LOCK_* 都不绑', () => {
-  assert.deepEqual([...SECRET_NAMES].sort(), ['SGX_SPACE_PASSWORD_PEPPER', 'SGX_SPACE_PRIVATE', 'SGX_SPACE_PUBLIC', 'SGX_SPACE_RECOVERY_KEY', 'SGX_SPACE_TEMPKEY_PEPPER']);
+test('realms：Secrets Store 4 个 SGX_SPACE_*（PRIVATE / PUBLIC / RECOVERY_KEY / PASSWORD_PEPPER；v5 收尾删了 TEMPKEY_PEPPER）；账号钥匙、旧 SGX_ROOT_KEY、旧 SGX_LOCK_* 都不绑', () => {
+  assert.deepEqual([...SECRET_NAMES].sort(), ['SGX_SPACE_PASSWORD_PEPPER', 'SGX_SPACE_PRIVATE', 'SGX_SPACE_PUBLIC', 'SGX_SPACE_RECOVERY_KEY']);
   const toml = readFileSync(REPO + 'workers/space-core/wrangler.toml', 'utf8').split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
   assert.deepEqual([...toml.matchAll(/^binding = "(SGX_[A-Z_]+)"$/gm)].map((m) => m[1]).sort(), [...SECRET_NAMES].sort());
-  for (const n of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_ROOT_KEY', 'SGX_ROOT_KEY', 'SGX_STEPUP_PRIVATE', 'SGX_APP_PRIVATE', 'SGX_LOCK_', 'SGX_PW_PEPPER']) {
+  for (const n of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_ROOT_KEY', 'SGX_ROOT_KEY', 'SGX_STEPUP_PRIVATE', 'SGX_APP_PRIVATE', 'SGX_LOCK_', 'SGX_PW_PEPPER', 'SGX_SPACE_TEMPKEY_PEPPER']) {
     assert.ok(!toml.includes(n), n);
   }
 });
 
 test('realms：钥匙名符合 SGX_<PURPOSE>_PRIVATE/PUBLIC，且都在 SECRET_NAMES 与 wrangler.toml 里', () => {
   const toml = readFileSync(REPO + 'workers/space-core/wrangler.toml', 'utf8');
-  for (const n of [REALM_LOCK.privateKey, REALM_LOCK.publicKey, REALM_LOCK.spaceKey, REALM_LOCK.pepper, REALM_LOCK.tempkeyPepper]) {
+  for (const n of [REALM_LOCK.privateKey, REALM_LOCK.publicKey, REALM_LOCK.spaceKey, REALM_LOCK.pepper]) {
     assert.ok(SECRET_NAMES.includes(n), n + ' 应在 src/secrets.js 的 SECRET_NAMES 里');
     assert.ok(toml.includes('binding = "' + n + '"'), n + ' 应在 wrangler.toml 的 Secrets Store 绑定里');
   }
@@ -124,7 +126,7 @@ test('realms：rpConfig 缺变量 → null；rpConfigMissing 仍是 503 config',
 test('password：锁屏读 D1 password 表 realm=lock 那一行；库里遗留的账号行网关读不到（d1-state 只认 lock 域）', async () => {
   const pw = await import('../../../workers/space-core/src/core/password.js');
   const d1 = await import('../../../workers/space-core/src/core/d1-state.js');
-  assert.equal(pw.getPepper({ SGX_SPACE_PASSWORD_PEPPER: 'pep', SGX_SPACE_TEMPKEY_PEPPER: 'pep' }), 'pep');
+  assert.equal(pw.getPepper({ SGX_SPACE_PASSWORD_PEPPER: 'pep' }), 'pep');
   assert.equal(pw.getPepper(undefined), '');
   const rec = await pw.makePasswordRecord('lock-secret-1', 'pep');
   assert.equal(rec.peppered, true);

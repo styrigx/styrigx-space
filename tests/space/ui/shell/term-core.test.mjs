@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { checkTermImports } from '../../../../space/scripts/gen-shell.mjs';
 import * as S from '../../../../space/web/assets/js/shell/term/core/strings.js';
 import * as P from '../../../../space/web/assets/js/shell/term/core/parse.js';
-import * as KH from '../../../../space/web/assets/js/shell/keyhint.js';
+import * as KH from '../../../../space/web/assets/js/shell/term/view/keyhint.js';
 import * as SC from '../../../../space/web/assets/js/shell/space/commands.js';
 import * as AC from '../../../../space/web/assets/js/shell/account/commands.js';
 import * as T from '../../../../space/web/assets/js/shell/terminal.js';
@@ -19,19 +19,19 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const read = (f) => readFileSync(path.join(REPO, f), 'utf8');
 
 test('宿主转出的是同一份（同一个引用）', async () => {
-  const ST = await import('../../../../space/web/assets/js/shell/space/term.js').catch(() => null);
   assert.equal(KH.KH_EN, S.KH_EN);
   assert.equal(SC.normCmd, P.normCmd);
   assert.equal(AC.normCmd, P.normCmd);
   assert.equal(SC.ADMIN_COMMAND, 'styrigx');
   assert.equal(AC.ROOT_COMMAND, 'root');
-  assert.equal(SC.ENV_GUEST, T.ENV_GUEST);
-  assert.equal(SC.ENV_ROOT, T.ENV_ROOT);
-  if (ST) assert.equal(ST.flatStrings, S.flatStrings);
+  assert.equal(SC.ENV_GUEST, P.ENV_GUEST);
+  assert.equal(SC.ENV_ROOT, P.ENV_ROOT);
+  /* v5 S5：一个终端，身份 / 提示符只在 term/core/who.js；terminal.js 转出同一个 createWho */
+  assert.equal(typeof T.createWho, 'function');
 });
 
 test('没有残留的抄写：flatStrings / normCmd / lev 只定义在 term/core', () => {
-  const files = ['terminal.js', 'ai-panel.js', 'keyhint.js', 'suggest.js', 'space/term.js', 'account/term.js', 'space/commands.js', 'account/commands.js'];
+  const files = ['terminal.js', 'ai-panel.js', 'term/view/keyhint.js', 'suggest.js', 'space/layer.js', 'account/window.js', 'account/cmd/layer.js', 'space/commands.js', 'account/commands.js'];
   for (const f of files) {
     const src = read('space/web/assets/js/shell/' + f);
     assert.doesNotMatch(src, /function (flatStrings|normCmd|lev)\(/, f);

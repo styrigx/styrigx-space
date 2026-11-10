@@ -46,7 +46,7 @@ import {
 } from '../core/lock-session.js';
 import { checkLockManage, TICKET_IDS } from '../core/lock-manage.js';
 import { issueTicket, reissueTicketWithEpoch } from '../core/tickets.js';
-import { LOCK_REAUTH_TICKET, BY_PASSKEY } from '../core/realms.js';
+import { LOCK_REAUTH_TICKET, BY_PASSKEY, BY_LINK } from '../core/realms.js';
 import { isLockEffectivelyConfigured } from '../core/lock-configured.js';
 import { verifyLockSession } from '../core/lock-session.js';
 import { REALM_LOCK, KEY_SPACE_PASSKEY, rpConfig, rpConfigMissing } from '../core/realms.js';
@@ -260,13 +260,17 @@ async function handlePost(context) {
 
   /* ============ auth ============
      只认锁屏通行密钥；verify 时服务端再次校验分类（浏览器凭据选择器不是安全边界）。
-     reauth:true：安全与隐私 → 锁屏凭证，要先进门（任何进门方式），成功只签 3 分钟 LockReauthTicket（会话不动）。 */
+     reauth:true：安全与隐私 → 锁屏凭证，要先进门（锁屏密码 / 通行密钥进的门），成功只签 3 分钟 LockReauthTicket（会话不动）；
+     分享链接进来的会话（by=link）不能 reauth（v5 S1）→ 403 link，challenge 不消耗。 */
   if (action === 'auth') {
     const toReauth = !!(body && body.reauth === true);
     if (toReauth) {
       const ds = await verifyLockSession(request, env);
       if (!ds.ok) {
         return apiError(401, 'session');
+      }
+      if (ds.by === BY_LINK) {
+        return apiError(403, 'link');
       }
     }
     const cred = (body && body.credential) || {};

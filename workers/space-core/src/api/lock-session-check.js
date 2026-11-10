@@ -2,7 +2,7 @@
  * 会话自检接口：前端唯一的「现在是什么状态、接下来去哪」的来源。
  * GET /api/lock-session-check[?return=<url>]
  * - 有有效 sgx-space-session 会话（进门）→ 200 {ok:true, by, exp, next}
- *   - by：进门方式（password | passkey | tempkey），只用于展示（例如「你是用临时钥匙进来的」），不分等级（方案 3.7）
+ *   - by：进门方式（password | passkey | link），只用于展示（例如「你是用分享链接进来的」），不分等级（方案 3.7）
  *   - exp：会话到期（毫秒）
  *   - 带 return：next = 服务端校验后的去处（与首页 302 同一个 resolveReturn：站内路径或 *.styrigx.com 白名单，不合法回首页）
  *   - 不带 return：next = null

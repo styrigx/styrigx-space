@@ -40,27 +40,26 @@ test('头像外圈：表面色实心环 + 环外沿细线 + 投影；弧压在�
 });
 
 test('触屏点击区 ≥ 44：透明 ::after 撑到 22px 半径；目录行纵向不裁', () => {
-  /* 选择器列表里有嵌套 :is(a, button)，不能用 [^)]* 截；按行匹配到 .sgx-entry-lang)::after */
-  assert.match(css, /@media \(pointer: coarse\) \{\n  :is\(\.sgx-tb-acts \.sgx-tb-btn, \.sgx-tb-av, [^\n]*\.sgx-entry-lang\) \{ position: relative; \}\n  :is\(\.sgx-tb-acts \.sgx-tb-btn, \.sgx-tb-av, [^\n]*\.sgx-entry-lang\)::after \{\n    content: ""; position: absolute;[^}]*top: min\(0px, calc\(50% - 22px\)\)/);
+  /* 选择器列表里有嵌套 :is(a, button)，不能用 [^)]* 截；按行匹配到 .sgx-foot-lang :is(a, button))::after（v5 S5：锁屏 zh / en 随锁屏删了） */
+  assert.match(css, /@media \(pointer: coarse\) \{\n  :is\(\.sgx-tb-acts \.sgx-tb-btn, \.sgx-tb-av, [^\n]*\.sgx-foot-lang :is\(a, button\)\) \{ position: relative; \}\n  :is\(\.sgx-tb-acts \.sgx-tb-btn, \.sgx-tb-av, [^\n]*\.sgx-foot-lang :is\(a, button\)\)::after \{\n    content: ""; position: absolute;[^}]*top: min\(0px, calc\(50% - 22px\)\)/);
   assert.match(css, /\.sgx-tl \{ overflow-x: clip; overflow-y: visible; \}/);
 });
 
-test('字距：标签统一 --sgx-track-label .08em；锁屏标题栏 / 状态胶囊 .06em；锁屏右边不再重复 entry', () => {
+test('字距：标签统一 --sgx-track-label .08em（v5 S5：锁屏标题栏 / 状态胶囊随锁屏删了）', () => {
   assert.match(css, /--sgx-track-label: \.08em;/);
   for (const k of ['.home-sec-k', '.sgx-yr', '.sgx-nav-h, .sgx-nav-f', '.sgx-pop-g']) {
     const i = css.indexOf('\n' + k + ' {');
     assert.ok(i > 0, k);
     assert.match(css.slice(i, css.indexOf('}', i)), /letter-spacing: var\(--sgx-track-label\)/, k);
   }
-  const bar = css.slice(css.indexOf('.sgx-entry-term-bar {'), css.indexOf('}', css.indexOf('.sgx-entry-term-bar {')));
-  assert.match(bar, /letter-spacing: \.06em;/);
-  assert.match(read('space/web/assets/js/shell/space/entry.js'), /<span id="sgx-entry-tty" translate="no"><\/span>/);
+  assert.ok(!css.includes('.sgx-entry-term-bar') && !css.includes('.sgx-entry-st '), '锁屏的样式删干净');
 });
 
-test('主页终端输入行跟输出同字号，16px 只给 iOS；锁屏输出悬挂缩进、上留 12px', () => {
+test('主页终端输入行跟输出同字号，16px 只给 iOS（v5 S5：锁屏输出的样式随锁屏删了）', () => {
   assert.match(css, /@media \(pointer: coarse\) \{ \.sgx-term--home \.sgx-term-line \{ font-size: inherit; \} \}\n@supports \(-webkit-touch-callout: none\) \{ @media \(pointer: coarse\) \{ \.sgx-term--home \.sgx-term-line \{ font-size: 16px; \} \} \}/);
-  assert.match(css, /\.sgx-entry-l \{ white-space: pre-wrap; padding-left: 2ch; text-indent: -2ch; line-height: 1\.55;/);
-  assert.match(css, /#sgx-entry \.sgx-entry-log \{ padding-top: 12px; scroll-padding-top: 12px; \}/);
+  assert.ok(!/\.sgx-entry-(l|log|line|in|ps|term|tail|lang)\b/.test(css), '锁屏终端的样式删干净');
+  /* 开机动画（终端里 sudo styrigx 通过后，shell/space/unlock.js）的样式还在 */
+  for (const k of ['.sgx-entry-boot {', '.sgx-entry-bout {', '.sgx-entry-cur {', '#sgx-entry.sgx-entry-anim {', '#sgx-entry.sgx-entry-booted {']) assert.ok(css.includes(k), k);
 });
 
 test('文案：中文阅读时间「分钟」；奇趣加载失败是终端口吻（en / zh 各分区都有 loadFail）', () => {

@@ -126,9 +126,6 @@ movies:
   save: 保存
 music:
   music: 音乐
-  onlyMe: 仅本人可见
-  thisPageIsPrivate: 这一页是私人的。登录账号、并给奇趣授权后才能打开。
-  account: 去账号
   uploadAlbum: ＋ 上传专辑
   albums: 专辑
   playAlbum: 播放整张
@@ -331,6 +328,8 @@ js:
     title: 电影
     editCmd: 编辑
   curioMusic:
+    viewOnly: 未进站，仅可浏览
+    locked: 进站后可听
     tracks: '{n} 首'
     failed: 出了点问题，请再试一次。
     loadFail: "error: 列表没能加载  # 刷新重试"

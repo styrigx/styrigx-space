@@ -1,10 +1,10 @@
 // workers/daymark-core/src/api/_auth.js
 // 接口鉴权（方案 3.4 R14、4.6；P2-2）：本 Worker 不持任何钥匙，把浏览器带来的 Cookie 头交给主站鉴权网关，
 // 问一次结论（服务绑定 env.SPACE → styrigx-space-core 的 RPC 入口 SpaceVerifier 的 conclusion()）：
-//   { space: { ok, by, tempkeyId, reason }, account: { ok, deviceId, scopes, reauth, reason } }
+//   { space: { ok, by, linkId, reason }, account: { ok, deviceId, scopes, reauth, reason } }
 // 网关先验门（进站会话），进了门再问账号 Worker（账号会话、作用域、要的话再看账号复验票），只回结论。
 // 本文件只认结论：
-//   - 进门：space.ok（没进门 401 unauthorized，index.js 统一挡）
+//   - 两档守卫（v5 S3，GUARDS；index.js 按 routes.js ROUTE_ACCESS 套用）：publicRead（不拒绝）· requireEntry（space.ok，否则 401 unauthorized）
 //   - 读私密：account.ok（canReadPrivate）
 //   - 写：account.ok + 作用域 daymark.write（can / requireScope）；日刻没有要账号复验的接口（方案 4.2）
 // 错误码（方案 4.6）：没进门 401 unauthorized；没账号会话 401 account；没作用域 403 scope（带 scope 字段）；
@@ -122,3 +122,19 @@ export async function requireScope(context, scope, { reauth = false } = {}) {
 export function visibility(c) {
   return { canWrite: can(c, SCOPE_WRITE), showPrivate: canReadPrivate(c) };
 }
+
+/* ---------- 两档守卫（v5 S3；routes.js ROUTE_ACCESS 的 public / entry，index.js handle 套用） ---------- */
+
+/** public：谁都能调，不拒绝、不问网关（要私密行 / canWrite 的 handler 自己 conclusionOf） @returns {Promise<null>} */
+export async function publicRead() {
+  return null;
+}
+
+/** entry：要进站会话（password / passkey / link 任一种）；没进门 401 unauthorized @param {any} context */
+export async function requireEntry(context) {
+  const c = await conclusionOf(context);
+  return c.space.ok ? null : err('unauthorized', 401);
+}
+
+/** 档名 → 守卫 */
+export const GUARDS = Object.freeze({ public: publicRead, entry: requireEntry });

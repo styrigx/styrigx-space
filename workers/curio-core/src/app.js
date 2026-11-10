@@ -6,18 +6,18 @@
  * 本 Worker 不持任何钥匙：会话交给主站鉴权网关验（服务绑定 SPACE，见 src/api/_auth.js）。
  *
  * 请求顺序（下面的 /api/* 都是去掉 /curio 前缀后的路径，公开地址是 styrigx.com/curio/api/*）：
- *   1. 所有 /api/*：先问网关要结论（SPACE.conclusion()，方案 4.6）；没进门 → 401 unauthorized（不 302，fetch 不跟跳转）。没有公开接口。
- *      结论放进 context.data.conclusion，handler 用 conclusionOf(context) 直接取，每个请求只问网关一次
- *      （POST /api/import 这一问就带上 reauth: true，见 REAUTH_ROUTES）。
- *   2. 按路由表交给 src/api/<路径>.js；读私密要账号会话（account.ok），写要账号会话 + 作用域 curio.write + 同源；
- *      私人音乐（/api/music*）读也要账号会话 + curio.write，播放短链 /api/music-stream 另认 D1 里的随机令牌（见 api/_music.js），
- *      批量导入另要账号复验（_auth.js requireScope）
+ *   1. 访问档（v5 S3）：routes.js ROUTE_ACCESS 按「方法 + 路径」给出 public / entry / music（不在表里 = entry），
+ *      在这里套上那一档的守卫（api/_auth.js GUARDS：publicRead / requireEntry / requireMusic），entry / music 档在守卫里问网关（SPACE.conclusion()，方案 4.6；
+ *      POST /api/import 这一问带上 reauth: true，见 REAUTH_ROUTES），public 档要私密行 / canWrite 的 handler 自己问；每个请求最多问一次。没进门 → 401 unauthorized（不 302，fetch 不跟跳转）。
+ *      结论放进 context.data.conclusion，handler 用 conclusionOf(context) 直接取。
+ *   2. 按路由表交给 src/api/<路径>.js；读私密要账号会话（account.ok），写要账号会话 + 作用域 curio.write + 同源（handler 里查）；
+ *      音乐：歌单 / 封面公开（不含音频地址），听要进站（播放令牌 + /api/music-stream），上传 / 管理要 music 档，批量导入另要账号复验
  * 不在路由表里的路径 → 404；方法不支持 → 405。
  *
  * 全站搜索：改内容的写接口成功后 ctx.waitUntil 重建 KV site:curio；每小时兜底（status 的 Cron 经服务绑定调 rpc/hourly-job.js），见 src/search-index.js。
  */
-import { API_ROUTES } from './routes.js';
-import { askConclusion } from './api/_auth.js';
+import { API_ROUTES, accessOf } from './routes.js';
+import { GUARDS } from './api/_auth.js';
 import { rebuildSearchIndex, isContentMutation } from './search-index.js';
 import { sweepPhotos, isSweepHour } from './photo-sweep.js';
 
@@ -47,11 +47,6 @@ function json(status, body) {
   });
 }
 
-/** 公开接口（不验会话）：奇趣没有 */
-export function isPublic() {
-  return false;
-}
-
 /** 要账号复验结论的接口（网关那一问带 reauth: true，账号侧多读一张票）：方法 + 路由表路径 */
 export const REAUTH_ROUTES = new Set(['POST /api/import']);
 
@@ -67,12 +62,12 @@ export function resolve(pathname) {
   return mod ? { mod, params: {}, functionPath: key } : null;
 }
 
-function makeContext(request, env, ctx, params, functionPath, conclusion, reauth) {
+function makeContext(request, env, ctx, params, functionPath) {
   return {
     request,
     env,
     params,
-    data: conclusion ? { conclusion, conclusionReauth: reauth } : {},
+    data: {},
     functionPath,
     waitUntil: (p) => { if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p); },
     passThroughOnException: () => {},
@@ -108,18 +103,15 @@ export async function handle(request, env, ctx) {
   const path = apiPath(url.pathname);
   if (!path) return json(404, { ok: false, error: 'not-found' });
 
-  let conclusion = null;
-  const reauth = wantsReauth(path, request.method);
-  if (!isPublic(path)) {
-    conclusion = await askConclusion(request, env, { reauth });
-    if (!conclusion.space.ok) return json(401, { ok: false, error: 'unauthorized' });
-  }
-
   const hit = resolve(path);
+  const context = makeContext(request, env, ctx, hit ? hit.params : {}, hit ? hit.functionPath : path);
+  /* 先过访问档（不在路由表里的路径也是 entry：没进门 401，进了门才 404，不让陌生人探路由表） */
+  const denied = await GUARDS[accessOf(request.method, path)](context, { reauth: wantsReauth(path, request.method) });
+  if (denied) return denied;
   if (!hit) return json(404, { ok: false, error: 'not-found' });
   const handler = pickHandler(hit.mod, request.method);
   if (!handler) return json(405, { ok: false, error: 'method' });
-  const res = await handler(makeContext(request, env, ctx, hit.params, hit.functionPath, conclusion, reauth));
+  const res = await handler(context);
   if (res && isContentMutation(hit.functionPath, request.method, res.status) && ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(rebuildSearchIndex(env));
   }

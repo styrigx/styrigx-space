@@ -55,6 +55,12 @@ async function setup(page, { share = 'ok', api } = {}) {
 /** 打开页面 → NAVIGATE 面板（2026-11 PR-1 起分享 / 锁定在 NAVIGATE 里），等「分享本页」按钮可点 */
 async function go(page, path) {
   await page.goto(path, { waitUntil: 'domcontentloaded' });
+  /* v5 S5：旧锁屏参数（?lock= / ?entry=）= 打开全站终端、预填 sudo styrigx；先关掉终端再开 NAVIGATE */
+  if (/[?&](lock|entry)=/.test(path)) {
+    await expect(page.locator('#sgx-term')).toHaveAttribute('open', '', { timeout: 15000 });
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#sgx-term')).not.toHaveAttribute('open', '');
+  }
   await openShareTile(page);
 }
 async function openShareTile(page) {

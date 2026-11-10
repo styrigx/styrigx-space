@@ -1,6 +1,6 @@
 {{- /* 奇趣页头（2026-11 对齐 PR-C2，设计稿 tb4.html pg=curio）：五个分区页（发现 / 设备 / 游戏 / 电影 / 音乐）同一个页头——
    sgx-ph（「ls curio/<分区>/」· 奇趣_ · 站点一句话）→ 下划线文字 tab（.sgx-ctab：finds/ n · devices/ n · games/ n · movies/ n · music/，计数 curio-list.js 填；
-   当前分区服务端写 aria-current；音乐仅本人可见：默认藏起，curio.js 问 /curio/api/access 有权限才露出来）+ 最右「grep _」（点开成行内输入，就地过滤卡片）
+   当前分区服务端写 aria-current；v5 S3 起音乐歌单公开，五个 tab 都显示）+ 最右「grep _」（点开成行内输入，就地过滤卡片）
    → 一行命令链（.sgx-cmds：新增 / 管理分类 / 导入 / 导出，能编辑才显示；不能编辑时是「sudo root · 登录账号后可编辑」，#cu-signin）。
    取代旧的平铺入口、实心段式标签、右下角浮动按钮、「⋯」菜单和页底提示。
    参数（dict）：page（当前页）、id（当前分区 finds / devices / games / movies / music）、tr、lang、home（奇趣首页 = 发现，命令写 ls curio/）、

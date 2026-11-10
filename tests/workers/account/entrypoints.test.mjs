@@ -98,9 +98,9 @@ test('AccountService：进站会话身份头 → GET /api/account 200（X-SGX-Ru
   assert.deepEqual(calls, []);
 });
 
-test('AccountService：没有身份头 → /api/* 401 {ok:false}（最小门）；头像文件照旧公开', async () => {
+test('AccountService：没有身份头 → /api/* 401 {ok:false}（最小门，PUBLIC_API 的 GET /api/wellbeing 除外）；头像文件照旧公开', async () => {
   const { env, calls } = makeEnv();
-  for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/prefs'], ['GET', '/api/wellbeing'], ['PUT', '/api/avatar']]) {
+  for (const [m, p] of [['GET', '/api/account'], ['POST', '/api/account'], ['GET', '/api/prefs'], ['POST', '/api/wellbeing'], ['GET', '/api/wellbeing/x'], ['PUT', '/api/avatar']]) {
     const r = await service(env).fetch(req(p, { method: m, body: m === 'GET' ? undefined : '{}' }));
     assert.equal(r.status, 401, m + ' ' + p);
     assert.deepEqual(await r.json(), { ok: false });
@@ -130,7 +130,7 @@ test('AccountService：没有 X-Styrigx-Space-Session: 1 一律当作没有进�
 
 test('AccountService：不看外来的 X-Styrigx-Space-Level——进站会话（Session: 1）+ 任意 Level 也照常走到账号判断（/api/prefs 没账号会话 401 account、/api/account 读状态 200）', async () => {
   const { env } = makeEnv();
-  const h = idHeaders({ role: 'tempkey', by: 'tempkey', tempkeyId: 'tk1' });
+  const h = idHeaders({ role: 'guest', by: 'link', linkId: 'lktesttesttest01' });
   let r = await service(env).fetch(req('/api/prefs', { headers: h }));
   assert.equal(r.status, 401);
   assert.equal((await r.json()).error, 'account');
@@ -282,19 +282,22 @@ test('verifierRequest：只带 Cookie / User-Agent / 地点头，不带锁屏身
   assert.deepEqual([...r.headers.keys()].sort(), ['cookie', 'user-agent', 'x-styrigx-client-city', 'x-styrigx-client-country']);
 });
 
-test('lockIdentityDenial：只按身份头的结论拒；/api/* 没有进站会话 401；进了门（不管怎么进的）一律放行，后面由各接口按账号会话 / 作用域判断；/avatar/* 不在这里拒', async () => {
-  const deny = (p, id) => ep.lockIdentityDenial(new Request(ORIGIN + p), id);
-  const byPassword = { session: true, by: 'password', tempkeyId: '' };
-  const byTempkey = { session: true, by: 'tempkey', tempkeyId: 'tk1' };
+test('lockIdentityDenial：只按身份头的结论拒；/api/* 没有进站会话 401（PUBLIC_API 精确的方法 + 路径除外）；进了门（不管怎么进的）一律放行，后面由各接口按账号会话 / 作用域判断；/avatar/* 不在这里拒', async () => {
+  const deny = (p, id, method = 'GET') => ep.lockIdentityDenial(new Request(ORIGIN + p, { method }), id);
+  const byPassword = { session: true, by: 'password', linkId: '' };
+  const byLink = { session: true, by: 'link', linkId: 'lktesttesttest01' };
   assert.equal(deny('/avatar/96.webp', null), null, '头像文件公开');
-  for (const p of ['/api/wellbeing', '/api/prefs', '/api/account', '/api/avatar']) {
-    const r401 = deny(p, null);
-    assert.equal(r401.status, 401, p);
+  assert.deepEqual([...ep.PUBLIC_API], ['GET /api/wellbeing']);
+  assert.equal(deny('/api/wellbeing', null), null, '屏幕时间合计公开（v5 S3）');
+  assert.equal(deny('/api/wellbeing/', null), null);
+  for (const [p, m] of [['/api/wellbeing', 'POST'], ['/api/wellbeing/x', 'GET'], ['/api/prefs', 'GET'], ['/api/account', 'GET'], ['/api/avatar', 'GET'], ['/api/profile', 'GET']]) {
+    const r401 = deny(p, null, m);
+    assert.equal(r401.status, 401, m + ' ' + p);
     assert.deepEqual(await r401.json(), { ok: false });
-    assert.equal(deny(p, byPassword), null, p);
-    assert.equal(deny(p, byTempkey), null, p + '（用临时钥匙进站也算有进站会话）');
+    assert.equal(deny(p, byPassword, m), null, p);
+    assert.equal(deny(p, byLink, m), null, p + '（分享链接进站也算有进站会话）');
   }
-  assert.equal(deny('/api/prefs', { by: 'password', tempkeyId: '' }).status, 401, '没有 session: true 不算');
+  assert.equal(deny('/api/prefs', { by: 'password', linkId: '' }).status, 401, '没有 session: true 不算');
 });
 
 test('headerAuth：gateway() 只看进站会话；authorize 用 core/authorize.js（同一请求、同样的 reauth 只算一次）；scopeDenial 401 session / 401 account / 403 scope', async () => {

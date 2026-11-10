@@ -121,7 +121,8 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
   assert.deepEqual(zk, ek);
   for (const g of ['common', 'session', 'reauth', 'reset', 'keys', 'devices', 'grants', 'profile', 'help']) assert.ok(TR.zh.account[g], 'account.' + g);
   const used = new Set();
-  for (const f of readdirSync(path.join(REPO, DIR))) {
+  /* v5 S5：终端里的账号层在 cmd/ 子目录，一起查 */
+  for (const f of readdirSync(path.join(REPO, DIR)).filter((x) => x.endsWith('.js')).concat(readdirSync(path.join(REPO, DIR, 'cmd')).map((x) => 'cmd/' + x))) {
     const src = strip(rd(DIR + f));
     for (const m of src.matchAll(/\b(?:t|tf|C\.t|C\.tf|C\.note|C\.foot)\('([a-z][A-Za-z]*\.[A-Za-z.]*[A-Za-z])'/g)) used.add(m[1]);
   }
@@ -141,8 +142,12 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
 });
 
 test('后端名字只在 api.js：入口、action 名、请求字段、状态字段、密码管理器隐藏用户名（NAMING-V2 P2 已切到按入口的新接口）', () => {
-  const files = readdirSync(path.join(REPO, DIR)).filter((f) => f.endsWith('.js'));
-  assert.deepEqual(files.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'devices.js', 'grants.js', 'keys.js', 'passkey-signal.js', 'profile.js', 'proxy.js', 'reauth.js', 'reset.js', 'session.js', 'term.js']);
+  const top = readdirSync(path.join(REPO, DIR)).filter((f) => f.endsWith('.js'));
+  assert.deepEqual(top.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'devices.js', 'grants.js', 'keys.js', 'passkey-signal.js', 'profile.js', 'proxy.js', 'reauth.js', 'reset.js', 'session.js', 'window.js']);
+  /* v5 S5：全站终端里的账号层（列表 + rm <n>），同样只经 api.js 调后端 */
+  const sub = readdirSync(path.join(REPO, DIR, 'cmd')).map((f) => 'cmd/' + f);
+  assert.deepEqual(sub.sort(), ['cmd/devices.js', 'cmd/grants.js', 'cmd/keys.js', 'cmd/layer.js']);
+  const files = top.concat(sub);
   const api = strip(rd(DIR + 'api.js'));
   /* NAMING-V2 P2：POST /api/account/<入口> { action }，入口和 action 都只在 api.js 里写 */
   for (const [e, acts] of Object.entries({ session: ['passkey-challenge', 'passkey', 'password', 'end'], reauth: ['passkey-challenge', 'passkey', 'password'],

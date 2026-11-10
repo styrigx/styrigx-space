@@ -1,17 +1,18 @@
 /**
  * 管理操作（RPC ProxyAdmin 调；鉴权在 account Worker：会话 / reauth）。
- * 每个改动之后自动刷新一次（由调用方 waitUntil 或直接 await）。回给 account 的只有状态，不回链接和节点内容。
+ * 每个改动之后自动刷新一次（由调用方 waitUntil 或直接 await）。回给 account 的只有状态，不回机场链接和节点内容；
+ * 下载令牌只在 showToken（sub show）/ rotateToken（sub token）回原文，两者在 account 那边都要 reauth。
  */
 import { NAME_RE, MAX_SOURCES, MAX_BYTES, MAX_URL } from './config.js';
-import { getMeta, setMeta, listSources, getSourceFull, countSources, insertSource, replaceAirport, renameSource, updateFileNodes, setEnabled as dbSetEnabled, deleteSource, clearAllArmor } from './store.js';
+import { getMeta, setMeta, setToken, listSources, getSourceFull, countSources, insertSource, replaceAirport, renameSource, updateFileNodes, setEnabled as dbSetEnabled, deleteSource, clearAllArmor } from './store.js';
 import { busy } from './lock.js';
 import { airportHost, fetchAirport } from './airport.js';
 import { userAgent } from './ua.js';
 import { extractProxies } from './parse.js';
 import { aad } from './pipeline.js';
-import { importDbKey, seal } from '../../lib/aes.js';
+import { importDbKey, seal, open } from '../../lib/aes.js';
 import { isX25519Recipient } from '../../lib/age.js';
-import { newToken, hashToken } from '../../lib/token.js';
+import { newToken, hashToken, TOKEN_AAD } from '../../lib/token.js';
 import { readDbKey } from '../../secrets.js';
 
 const fail = (error) => ({ ok: false, error });
@@ -22,13 +23,12 @@ export const keyHint = (k) => (k ? k.slice(0, 10) + '…' + k.slice(-6) : '');
 /** @param {any} env @param {number} [now] */
 export async function status(env, now = Date.now()) {
   const pubkey = await getMeta(env, 'pubkey');
-  const token = await getMeta(env, 'token_hash');
   const rows = await listSources(env);
   return {
     ok: true,
     pubkey: keyHint(pubkey),
     hasKey: !!pubkey,
-    hasLink: !!token,
+    token: await tokenState(env),
     refreshing: await busy(env, now),
     sources: rows.map((r) => ({
       name: r.name, type: r.type, enabled: Number(r.enabled) === 1, host: r.type === 'airport' ? r.host : '',
@@ -47,15 +47,40 @@ export async function setKey(env, pub) {
   return { ok: true, pubkey: keyHint(k) };
 }
 
-/** 生成 / 替换下载令牌：明文只回这一次 @param {any} env */
-export async function newLink(env) {
-  const t = newToken();
-  await setMeta(env, 'token_hash', await hashToken(t));
-  return { ok: true, token: t };
+/**
+ * 令牌状态：none 没生成过；sealed 能用 sub show 重印；hash-only 只有哈希（封存上线前生成的，下载照常，要重印就 sub token 换一个）
+ * @param {any} env @returns {Promise<'none'|'sealed'|'hash-only'>}
+ */
+async function tokenState(env) {
+  if (!(await getMeta(env, 'token_hash'))) return 'none';
+  return (await getMeta(env, 'token_sealed')) ? 'sealed' : 'hash-only';
 }
 
 async function dbKey(env) {
   try { return await importDbKey(await readDbKey(env)); } catch (e) { return null; }
+}
+
+/** 换下载令牌（sub token）：旧令牌的所有链接立即失效；回新令牌原文 @param {any} env */
+export async function rotateToken(env) {
+  const key = await dbKey(env);
+  if (!key) return fail('config');
+  const t = newToken();
+  await setToken(env, await hashToken(t), await seal(key, TOKEN_AAD, t));
+  return { ok: true, token: t };
+}
+
+/** 重印令牌（sub show）：解封存的原文；没生成过 no-token，只有哈希 token-unsealed @param {any} env */
+export async function showToken(env) {
+  const state = await tokenState(env);
+  if (state === 'none') return fail('no-token');
+  if (state === 'hash-only') return fail('token-unsealed');
+  const key = await dbKey(env);
+  if (!key) return fail('config');
+  try {
+    return { ok: true, token: await open(key, TOKEN_AAD, await getMeta(env, 'token_sealed') || '') };
+  } catch (e) {
+    return fail('config');
+  }
 }
 
 /**
@@ -121,7 +146,7 @@ export async function remove(env, name) {
   return (await deleteSource(env, name)) ? { ok: true } : fail('not-found');
 }
 
-/** 改名（sub-mv）：只改名、不刷新；新名已存在 exists、旧名不存在 not-found、新旧相同不动作 @param {any} env @param {unknown} from @param {unknown} to */
+/** 改名（sub mv）：只改名、不刷新；新名已存在 exists、旧名不存在 not-found、新旧相同不动作 @param {any} env @param {unknown} from @param {unknown} to */
 export async function rename(env, from, to) {
   if (typeof from !== 'string' || !NAME_RE.test(from) || typeof to !== 'string' || !NAME_RE.test(to)) return fail('name');
   if (from === to) return { ok: true, same: true };

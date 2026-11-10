@@ -56,12 +56,14 @@ function memoryD1() {
     },
     [SQL.countActive]: { first: ([now]) => ({ n: [...links.values()].filter((r) => r.revoked_at == null && r.expires_at > now).length }) },
     [SQL.insert]: {
-      run: ([id, code, name, target, session, key, created, expires]) => {
+      run: ([id, code, name, target, session, created, expires]) => {
         if (links.has(id) || [...links.values()].some((r) => r.code === code)) throw new Error('UNIQUE constraint failed');
-        links.set(id, { id, code, name, target, session_sec: session, key_id: key, created_at: created, expires_at: expires, revoked_at: null, opens: 0, last_open_at: null });
+        links.set(id, { id, code, name, target, session_sec: session, created_at: created, expires_at: expires, revoked_at: null, opens: 0, last_open_at: null });
         return 1;
       },
     },
+    [SQL.revokeAll]: { run: ([at]) => { let n = 0; for (const r of links.values()) if (r.revoked_at == null) { r.revoked_at = at; n++; } return n; } },
+    [SQL.linkState]: { first: ([id]) => { const r = links.get(id); return r ? { revoked_at: r.revoked_at, expires_at: r.expires_at } : null; } },
     [SQL.revoke]: { run: ([id, at]) => { const r = links.get(id); if (r && r.revoked_at == null) { r.revoked_at = at; return 1; } return 0; } },
     [SQL.opened]: { run: ([id, at]) => { const r = links.get(id); if (r) { r.opens++; r.last_open_at = at; return 1; } return 0; } },
     [SQL.purge]: {

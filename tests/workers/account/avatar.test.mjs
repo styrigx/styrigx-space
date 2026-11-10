@@ -3,7 +3,7 @@
  * - GET /avatar/<尺寸>.webp：没上传过 → 默认图（ETag "d-<尺寸>"）；上传过 → KV 里的图（ETag "<版本>-<尺寸>"）；
  *   If-None-Match 命中 → 304；不认识的尺寸 → 404；公开缓存头。
  * - PUT /api/avatar（P2-2 起：进站会话 + 账号会话 + avatar.write，不看 role）：不同源 403；没有进站会话 401 session；
- *   有进站会话、没账号会话 401 account（临时钥匙进站同样）；缺尺寸 400；不是 WebP/PNG 415；太大 413；进站会话 + 账号会话 + 四张合法图 → 写四张 + 版本号。
+ *   有进站会话、没账号会话 401 account（分享链接进站同样）；缺尺寸 400；不是 WebP/PNG 415；太大 413；进站会话 + 账号会话 + 四张合法图 → 写四张 + 版本号。
  * - DELETE /api/avatar：同一道门；没账号会话 401 account；有 → 删版本号和四张。
  *
  * 账号 Worker styrigx-account（workers/account，2026-10-24 从网关搬来）；锁屏身份经网关这一跳写成身份头（_auth.mjs）。
@@ -116,8 +116,8 @@ test('PUT 不同源 → 403', async () => {
   assert.equal(res.status, 403);
 });
 
-test('PUT 没有进站会话 401 session；有进站会话、没账号会话 401 account（锁屏密码 / 临时钥匙进站一样），不写 KV', async () => {
-  for (const [role, acc, code] of [[null, false, 'session'], [null, true, 'session'], ['password', false, 'account'], ['tempkey', false, 'account']]) {
+test('PUT 没有进站会话 401 session；有进站会话、没账号会话 401 account（锁屏密码 / 分享链接进站一样），不写 KV', async () => {
+  for (const [role, acc, code] of [[null, false, 'session'], [null, true, 'session'], ['password', false, 'account'], ['link', false, 'account']]) {
     const kv = makeKv();
     const res = await onRequestPut({ request: await putReq({ role, acc, parts: ALL }), env: env(kv) });
     assert.equal(res.status, 401, String(role) + '/' + acc);

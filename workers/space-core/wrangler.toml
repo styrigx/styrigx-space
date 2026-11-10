@@ -74,6 +74,7 @@ service = "styrigx-status"
 # 站内对话助手（P4-1，方案 5.3；P4-2 起 chat 的外部模型并入它，SEARCH / CHAT 绑定删除）：POST /api/ai 由 src/api/ai.js 验同源、进门、
 # 过两档 AI 限流、写账号结论头，再转给 styrigx-ai 的 POST /ask；GET /api/ai（可选模型列表）转给 GET /models，不计限流。
 # styrigx-ai 没有公开地址（workers_dev / preview_urls 关、没有路由），唯一入口是这个绑定。
+# v5 S4：GET /api/find（关键词搜索，公开）由 src/api/find.js 过 FIND_LIMITER 后转给 styrigx-ai 的 GET /find（不调模型、不写账号结论头）。
 # 部署顺序：deploy.yml 里 deploy-ai-worker 先于本 Worker。
 [[services]]
 binding = "AI_SERVICE"
@@ -95,18 +96,25 @@ name = "AI_LIMITER"
 namespace_id = "2802"
 simple = { limit = 6, period = 60 }
 
+# /api/find（v5 S4 关键词搜索，访客也能用）：每 IP 每 60 秒 10 次；超了 429 cooldown。代码见 core/find-limit.js（绑定缺失 / 出错时放行）。
+# 自己的 namespace，不和 ANON_LIMITER / AI_LIMITER 共用；跳过上一个号（P4-1 已删的 AI 全站总闸用过，tests/workers/space-core/ai-api.test.mjs 核对它不再出现）。
+[[ratelimits]]
+name = "FIND_LIMITER"
+namespace_id = "2804"
+simple = { limit = 10, period = 60 }
+
 # ---- 数据绑定（正式 D1）----
-# 进站 v3 L2b（2026-11-09）：新库 styrigx-space-core（1354c898-…），一套迁移（migrations/0001_baseline.sql）、一张迁移记录表 d1_migrations_core、
+# 进站 v3 L2b（2026-11-09）：新库 styrigx-space-core（1354c898-…），一套迁移（migrations/，起点 0001_baseline.sql）、一张迁移记录表 d1_migrations_core、
 # 一个绑定 D1_SPACE（L2 的第二个绑定 D1_SHARE_LINK 并掉）。数据由 L2b 的一次性搬迁（d1-cutover，见 git 历史 PR #338）从旧库原样搬来；
 # 旧库已于 L3（2026-11-09）删除。监测表在自己的库 styrigx-status（workers/status/wrangler.toml），本 Worker 不碰。
 # 进站的认证状态全部在 D1（强一致），不绑定任何 KV。
-# - 进站的行（realm='lock'：纪元、解锁密码 / 通行密钥、user handle、challenge、输错计数、临时钥匙、审计）和 lock_reset_switch；
+# - 进站的行（realm='lock'：纪元、解锁密码 / 通行密钥、user handle、challenge、输错计数、审计）和 lock_reset_switch；
 #   AI 全站总闸（attempt_limit realm='ai'，core/ai-limit.js）。
 # - 分享链接 share_link + share_fail（原 styrigx-share）。
-# 迁移由 deploy.yml 的 deploy-space-core 自己跑（token styrigx-space-core-deploy 有 D1 编辑）：
+# 迁移（0001_baseline.sql + v5 收尾 0002_drop_tempkey.sql：删 tempkey 表、share_link.key_id 列）由 deploy.yml 的 deploy-space-core 自己跑（token styrigx-space-core-deploy 有 D1 编辑）：
 #   cd workers/space-core && wrangler d1 migrations apply D1_SPACE --remote
 # 代码兜底建表（src/core/d1-state.js SCHEMA，遇到「no such table」时按同一份语句建，幂等）保留；分享链接不兜底（表只由迁移建）。
-# 安全读（纪元、吊销、challenge、计数、临时钥匙）只读主库：代码不开 read replication / withSession。
+# 安全读（纪元、吊销、challenge、计数、分享链接状态）只读主库：代码不开 read replication / withSession。
 [[d1_databases]]
 binding = "D1_SPACE"
 database_name = "styrigx-space-core"
@@ -114,11 +122,10 @@ database_id = "1354c898-aacd-4122-92de-0ae39a3fcc1a"
 migrations_dir = "migrations"
 migrations_table = "d1_migrations_core"
 
-# ---- 密钥：Secrets Store（进站 v3 Q18：5 个 SGX_SPACE_*，Gray 2026-11-09 建好；本仓库只按名字绑定，不碰值）----
+# ---- 密钥：Secrets Store（进站 v3 Q18 建的 SGX_SPACE_*，v5 收尾去掉临时钥匙 pepper 后 4 个；本仓库只按名字绑定，不碰值）----
 # - SGX_SPACE_PRIVATE / SGX_SPACE_PUBLIC：进站三张票（session / reauth / reset）的 Ed25519 签名钥匙对
 # - SGX_SPACE_RECOVERY_KEY：恢复钥匙（sudo styrigx reset；新值）
 # - SGX_SPACE_PASSWORD_PEPPER：解锁密码哈希的 pepper（新随机值：旧记录验不过，解锁密码要经 reset 重设一次）
-# - SGX_SPACE_TEMPKEY_PEPPER：临时钥匙码哈希的 pepper（新随机值：已有临时钥匙作废；分享链接的钥匙不靠码，照常能用）
 # 外部模型钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-ai；账号钥匙（SGX_ACCOUNT_*）只绑在 styrigx-account。
 # 旧的四个锁屏密钥（名单见 space/scripts/retired-names.json 的 legacy）部署核对后由 Hark 在 Secrets Store 删除（Gray 2026-11-09 08:33）。
 # 换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。store_id 是存储的编号，不是密值。
@@ -141,8 +148,3 @@ secret_name = "SGX_SPACE_RECOVERY_KEY"
 binding = "SGX_SPACE_PASSWORD_PEPPER"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_SPACE_PASSWORD_PEPPER"
-
-[[secrets_store_secrets]]
-binding = "SGX_SPACE_TEMPKEY_PEPPER"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_SPACE_TEMPKEY_PEPPER"

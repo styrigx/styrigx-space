@@ -27,9 +27,8 @@
 |---|---|---|
 | 内容 | `content/curio/`：首页 + 五个子页 `finds`、`devices`、`games`、`movies`、`music`（中文 `<名>.zh.md`） | `content/daymark/`：首页 |
 | 模板 | `layouts/curio/`（每个子页一个模板）+ `layouts/partials/curio/` | `layouts/daymark/` + `layouts/partials/daymark/` |
-| 脚本 | `assets/curio/js/`：`curio-home.js`（首页，私人入口按 `/api/access` 显示）、`curio.js`（发现）、`curio-items.js`（设备 / 游戏）、`curio-list.js`、`curio-movies.js`、`curio-music.js` | `assets/daymark/js/daymark.js`（余响 · 拾录 · 百味三栏、记一句、日期条） |
+| 脚本 | `assets/curio/js/`：`curio-home.js`（首页）、`curio.js`（发现）、`curio-items.js`（设备 / 游戏）、`curio-list.js`、`curio-movies.js`、`curio-music.js` | `assets/daymark/js/daymark.js`（余响 · 拾录 · 百味三栏、记一句、日期条） |
 | 继承主站外观 | `assets/curio/js/sgx/`（`ui-inherit-run.js`、`shell-accent.js`、`topbar-host.js`） | `assets/daymark/js/sgx/` |
-| 进站复查 | `assets/curio/js/sgx-lock-sync.js` | `assets/daymark/js/sgx-lock-sync.js` |
 | 字符串表 | `data/curio/i18n/` | `data/daymark/i18n/` |
 
 2.1 两站都 MUST 使用主站的共享外壳（顶栏、导航面板、调色板 token、`ui-cookie-read.js`、`lang-boot.js`），MUST NOT 复制。样式表 `@import` 主站 `assets/css/shell/*.css`。
@@ -42,18 +41,20 @@
 
 | 奇趣 `/curio/api/*` | 鉴权 |
 |---|---|
-| `links`、`items`、`movies` | GET：进站即可读公开条目，账号已登录读全部；写：同源 + 账号会话 + `curio.write` |
-| `music`、`music-cover`、`music-play`、`music-stream`、`music-upload` | 私人：账号会话 + `curio.write` |
-| `photo`、`icon`、`preview`、`import`、`export` | 照片读写、图标缓存、网页预览、书签导入导出 |
-| `access` | 私人入口的权限探针（只回布尔） |
+| `links`、`items`、`movies` | GET 公开（访客只有公开条目，账号已登录读全部）；写：进站 + 同源 + 账号会话 + `curio.write` |
+| `music`、`music-cover` | GET 公开：歌单 / 封面只有元数据，不含任何音频地址；`POST /api/music` 管理：进站 + 账号会话 + `curio.write` |
+| `music-play`、`music-stream` | 听：要进站（签播放令牌、取音频，no-store） |
+| `music-upload` | 进站 + 账号会话 + `curio.write` |
+| `photo`、`icon` | GET 公开；照片写要进站 + 账号 + `curio.write` |
+| `preview`、`import`、`export` | 要进站（网页预览、书签导入导出；导入另要账号复验） |
 
 | 日刻 `/daymark/api/*` | 鉴权 |
 |---|---|
 | `today` | GET 公开（CORS 只给 `https://styrigx.com`）；PUT 设为今日：同源 + 账号会话 + `daymark.write` |
-| `days` | GET 进站即可：往前几天的「今日一句」（只读 `daily_pick`，最多 31 天） |
-| `quotes`、`collections` | GET 进站即可（未登录账号只有公开句子）；写：同源 + 账号会话 + `daymark.write` |
+| `days` | GET 公开：往前几天的「今日一句」（只读 `daily_pick`，最多 31 天） |
+| `quotes`、`collections` | GET 公开（未登录账号只有公开句子）；写：进站 + 同源 + 账号会话 + `daymark.write` |
 
-3.2 除日刻 `/api/today` 的 GET 外，所有接口 MUST 先经服务绑定 `SPACE`（`SpaceVerifier.conclusion()`）问站点核心：没有进站会话即拒绝；写操作再看账号结论里的作用域。
+3.2 访问档（v5 S3）：每个 Worker 的 `src/routes.js` 有自己的 `ROUTE_ACCESS`（方法 + 路径精确匹配，表里没有的一律要进站，fail closed；单测对整张表快照）。要进站的接口经服务绑定 `SPACE`（`SpaceVerifier.conclusion()`）问站点核心，没有进站会话 401；写操作再看账号结论里的作用域。公开读不拒绝，只在要私密行 / `canWrite` 时问结论。
 
 3.3 搜索索引：写接口成功后重建、每小时兜底（2026-11-10 起由 styrigx-status 的 41 分 Cron 经服务绑定调各自的 `HourlyJob`），写 KV `KV_SEARCH_INDEX` 的 `site:curio` / `site:daymark`（内容没变不写；私密条目标 `private`）。
 

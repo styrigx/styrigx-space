@@ -3,8 +3,9 @@
  *
  * - 目标是 styrigx.com 的站内路径（lib/links.js cleanTarget；点开时再验一次，存坏了 / 指向已下线的旧图志也只走失败响应）。
  * - 普通短链：302 到目标，不签钥匙、不发会话；没解锁的人到了目标页由网关照常送去锁屏。
- * - 带临时会话：已有有效进门会话（任何进门方式）→ 只 302，不重签；否则用这条短链的钥匙签进站会话
- *   （core/link-keys.js openLinkSession，by=tempkey），Set-Cookie 原样放进这次 302。点开的人不用在锁屏输入任何东西。
+ * - 带临时会话（session_sec > 0）：已有有效进门会话（任何进门方式）→ 只 302，不重签；否则签进站会话 by=link、linkId = 这一行的 id
+ *   （core/link-keys.js openLinkSession，v5 S1 起不再经临时钥匙；刚读过的这一行已确认有效，签发时不再读 D1），
+ *   Set-Cookie 原样放进这次 302。点开的人不用在锁屏输入任何东西。
  *   会话只发给发起这次 GET 的浏览器：响应 private, no-store（任何缓存都不能存、不能转给别人）；HEAD 和浏览器预取
  *   （Sec-Purpose / Purpose: prefetch）不发会话——预取直接 503（浏览器丢掉预取、真点开时再走一遍），HEAD 只 302。
  * - 码只出现在 /s/<码> 这一跳：Location 是干净的目标地址（不带码），Referrer-Policy: no-referrer，
@@ -140,7 +141,7 @@ export async function openShare(request, env, ctx, auth, code) {
   const mark = () => {
     try { ctx.waitUntil(run(db, SQL.opened, row.id, Date.now()).catch(() => {})); } catch (e) {}
   };
-  if (!row.session_sec || !row.key_id) {
+  if (!row.session_sec) {
     if (request.method === 'GET') mark();
     return redirect(dest);
   }
@@ -150,7 +151,7 @@ export async function openShare(request, env, ctx, auth, code) {
 
   let r;
   try {
-    r = await openLinkSession(row.key_id, row.session_sec, env);
+    r = await openLinkSession(row.id, row.session_sec, row.expires_at, env);
   } catch (e) {
     console.error('[sgx-space-core] share open session failed: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
     return failResponse();

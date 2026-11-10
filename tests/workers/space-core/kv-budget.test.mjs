@@ -27,7 +27,7 @@ test('kv-budget.mjs 只管 D1：不再导出 KV 清理（selectResetKeys / RESET
 
 test('清预览 D1：只清网关和账号的 passkey / password / attempt_limit（「是否已设置」和输错计数）；纪元、审计、重置开关等不清', () => {
   assert.deepEqual([...RESET_D1_TABLES], ['passkey', 'password', 'attempt_limit', 'account_passkey', 'account_password', 'account_attempt_limit']);
-  for (const t of ['epoch', 'kv_migration', 'lock_reset_switch', 'recovery_switch', 'user_handle', 'audit', 'challenge', 'tempkey', 'device', 'account_epoch', 'account_user_handle', 'account_audit', 'account_grant']) {
+  for (const t of ['epoch', 'kv_migration', 'lock_reset_switch', 'recovery_switch', 'user_handle', 'audit', 'challenge', 'device', 'account_epoch', 'account_user_handle', 'account_audit', 'account_grant']) {
     assert.ok(!RESET_D1_TABLES.includes(t), t + ' 不清');
   }
   /* 每张要清的表都真的在迁移里（不会清错表名） */

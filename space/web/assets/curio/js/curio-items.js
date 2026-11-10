@@ -243,19 +243,17 @@ function toast(m){ if (UI) UI.toast(m); }
 function open(id){ if (UI) UI.openOverlay(id); }
 function close(id){ if (UI) UI.closeOverlay(id); }
 function getJSON(url){
-  var f = G.sgxLockSync ? G.sgxLockSync.apiFetch : function(u, o){ return fetch(u, o); };
-  return f(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 }
 function send(method, url, body, type){
   return fetch(url, {
-    method: method, credentials: 'same-origin', redirect: 'manual',
+    method: method, credentials: 'same-origin',
     headers: body === undefined ? {} : { 'Content-Type': type || 'application/json' },
     body: body === undefined ? undefined : type ? body : JSON.stringify(body),
   }).then(function(r){
-    if (r.type === 'opaqueredirect') { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
     return r.json().catch(function(){ return {}; }).then(function(j){
       /* 只有 401 unauthorized（没进门）当锁定；401 account / reauth 是账号的事（同 curio.js isLockedReply） */
-      if (r.status === 401 && j.error !== 'account' && j.error !== 'reauth') { G.location.reload(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      if (r.status === 401 && j.error !== 'account' && j.error !== 'reauth') { if (UI && UI.sudo) UI.sudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
       if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
       return j;
     });

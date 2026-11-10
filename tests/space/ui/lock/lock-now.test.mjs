@@ -37,13 +37,14 @@ test('网络错误：回 false，不抛', async () => {
   assert.equal(await lockNow(fakeApi(async () => { throw new TypeError('Failed to fetch'); })), false);
 });
 
-test('没有确认层；旧 auth/lock-now.js（confirmLockNow / doLock）删了；盾牌成功后去 /?entry=1，失败报 shield.lockFail', () => {
+test('没有确认层；旧 auth/lock-now.js（confirmLockNow / doLock）删了；终端 lock 成功后重新取这一页（v5 S5），失败报 shield.lockFail', () => {
   assert.equal(existsSync(path.join(REPO, 'space/web/assets/js/auth/lock-now.js')), false);
   const src = readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/lock-now.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.doesNotMatch(src, /dialog|confirm/i);
-  const shield = readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/shield.js'), 'utf8');
-  assert.match(shield, /lockNow\(api\)\.then\(function \(ok\) \{\s*if \(ok\) \{ o\.ms\.close\(function \(\) \{ o\.replace\('\/\?entry=1'\); \}\); return; \}\s*C\.err\(t\('shield\.lockFail'\)\);/);
+  const layer = readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/layer.js'), 'utf8');
+  assert.match(layer, /lockNow\(api\)\.then\(function \(ok\) \{\s*if \(ok\) \{ C\.relocked\(\); return; \}\s*C\.err\(t\('shield\.lockFail'\)\);/);
+  assert.match(layer, /C\.relocked = function \(\) \{\s*o\.who\.drop\(\);\s*C\.setMode\('done'\);\s*o\.close\(o\.reload\);/);
   const tp = readFileSync(path.join(REPO, 'space/web/assets/js/shell/topbar-panel.js'), 'utf8');
-  assert.ok(tp.includes("const ENTRY_URL = '/?entry=1';"));
-  assert.match(tp, /if \(r && r\.ok\) replace\(ENTRY_URL\);\s*else if \(lockState\) lockState\.textContent = t\.lockFail;/);
+  assert.ok(!tp.includes('ENTRY_URL') && !tp.includes("'/?entry=1'"), '没有锁屏地址了');
+  assert.match(tp, /if \(r && r\.ok\) replace\(cleanHere\(\)\);\s*else if \(lockState\) lockState\.textContent = t\.lockFail;/);
 });

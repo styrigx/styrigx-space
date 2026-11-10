@@ -131,9 +131,9 @@ test('GET 回退：KV 没绑 / 读出错 / 坏 JSON / 存了不合法的字段 �
   assert.equal('extra' in j.profile, false, '只回字段表里的公开字段');
 });
 
-test('GET：有进站会话即可，不要账号会话（临时钥匙进站也行）；没有进站会话 401 session', async () => {
+test('GET：有进站会话即可，不要账号会话（分享链接进站也行）；没有进站会话 401 session', async () => {
   const kv = makeKv({ profile: JSON.stringify({ v: 1, nickname: 'Styrigx', updatedAt: 5 }) });
-  for (const role of ['password', 'passkey', 'tempkey']) {
+  for (const role of ['password', 'passkey', 'link']) {
     const res = await onGet({ request: await getReq(role, false), env: env(kv) });
     assert.equal(res.status, 200, role);
     const j = await res.json();
@@ -147,12 +147,12 @@ test('GET：有进站会话即可，不要账号会话（临时钥匙进站也�
 
 /* ---------------- PUT 权限 ---------------- */
 
-test('PUT 不同源 → 403 origin；没有进站会话 401 session；有进站会话、没账号会话 401 account（临时钥匙进站同样）；都不写', async () => {
+test('PUT 不同源 → 403 origin；没有进站会话 401 session；有进站会话、没账号会话 401 account（分享链接进站同样）；都不写', async () => {
   const kv = makeKv();
   let res = await onPut({ request: await putReq({ name: 'A' }, { origin: 'https://evil.example' }), env: env(kv) });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).error, 'origin');
-  for (const [role, acc, code] of [[null, true, 'session'], ['password', false, 'account'], ['tempkey', false, 'account']]) {
+  for (const [role, acc, code] of [[null, true, 'session'], ['password', false, 'account'], ['link', false, 'account']]) {
     res = await onPut({ request: await putReq({ name: 'A' }, { role, acc }), env: env(kv) });
     assert.equal(res.status, 401, String(role));
     assert.equal((await res.json()).error, code);

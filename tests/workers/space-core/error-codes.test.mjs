@@ -17,8 +17,9 @@
  * KNOWN_FIXED 说明：
  * - auth：lockreset 401，lock.js 按 HTTP 状态 + 固定文案处理
  * - purpose：/api/space-auth 缺 purpose / purpose 不认识（前端总是带四个固定值之一，只在请求被篡改时出现）
- * - code / no-session-key：/api/lock-tempkey-unlock，lock.js submitTemp 按码显示固定文案（无效或已过期 / 服务器错误）
- * - duration / name / full：/api/lock-tempkey create，security-tempkeys.js 显示固定文案（名字太长 / 已满 20 把；duration 只在下拉被篡改时出现）
+ * - no-session-key：签进站会话缺私钥，前端显示「服务器错误」
+ * - duration / name / full：/api/share create（名字太长 / 已满 20 条；duration 只在下拉被篡改时出现）
+ * - link：v5 S1 分享链接进来的会话被拒（403），S5 终端合一时接固定文案
  * - bad-form / missing / bad-type / too-large：/api/avatar 换头像，avatar-edit.js 只看 ok，失败一律固定文案
  * - account：账号会话缺失（/api/account 管理），账号页按码跳回账号登录，不进 apiErrorText
  * - reauth：reauth 票缺失/过期（/api/account 管理、锁屏凭证管理），页面按码回到验证入口重新验证，不进 apiErrorText
@@ -40,13 +41,13 @@ const KNOWN_FIXED = new Set([
   'auth',
   'purpose', /* /api/space-auth：前端总是带固定 purpose */
   'denied',
-  'code', /* /api/lock-tempkey-unlock：lock.js 显示「临时钥匙无效或已过期」 */
-  'no-session-key', /* /api/lock-tempkey-unlock：lock.js 显示「服务器错误」 */
-  'duration', /* /api/lock-tempkey create：只在下拉值被篡改时出现，落到通用文案 */
-  'name', /* /api/lock-tempkey create：security-tempkeys.js → tkNameLong */
-  'full', /* /api/lock-tempkey create：security-tempkeys.js → tkFull */
+  'no-session-key', /* 签进站会话缺 SGX_SPACE_PRIVATE（issueLockSession）：前端显示「服务器错误」 */
+  'duration', /* /api/share create：只在下拉值被篡改时出现，落到通用文案 */
+  'name', /* /api/share create：名字太长 */
+  'full', /* /api/share create：已满 20 条 */
   'target', /* /api/share create（进站 v3 L2 并入 space-core）：目标由前端按当前页 / 固定值给，只在请求被篡改时出现，分享层显示固定失败文案 */
   'reauth',
+  'link', /* v5 S1：分享链接进来的会话（by=link）不能新建 / 管理分享、reauth、管锁屏凭证（403 link）；S5 终端合一时按码显示固定文案，在那之前落到通用失败文案 */
   'bad-form',
   'missing',
   'bad-type',
