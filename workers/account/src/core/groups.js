@@ -66,6 +66,22 @@ export function canJoinGroup(user, group) {
  */
 
 /**
+ * 「救援 → root」两步的唯一实现（Muse 审查 v5 注意点 2）：permits() 和任何 root 快速放行（core/admit.js）都只调这里，不各写一份。
+ * - 救援会话：opts.rescue === true（白名单路由 / action）→ true，否则 false（一律拒，不往下走）
+ * - root（uid 0，非救援）→ true
+ * - 其余 → null（交给按档判断）
+ * @param {Identity|null|undefined} identity @param {{rescue?:boolean}} [opts]
+ * @returns {boolean|null}
+ */
+export function precedence(identity, opts) {
+  const id = identity && typeof identity === 'object' && Number.isInteger(identity.uid) ? identity : null;
+  if (!id) return null;
+  if (id.rescue === true) return !!(opts && opts.rescue === true);
+  if (id.uid === ROOT_UID) return true;
+  return null;
+}
+
+/**
  * 这个身份够不够这一档（全站唯一的判断）。顺序固定（定稿 v4 §三）：
  * 0. 不认识的档：拒绝（fail closed）
  * 1. 救援会话（identity.rescue === true）：只放 opts.rescue === true 的路由 / action（白名单在路由表里标），其余一律拒绝，
@@ -80,8 +96,8 @@ export function canJoinGroup(user, group) {
 export function permits(identity, level, opts) {
   if (ACCESS_LEVELS.indexOf(level) === -1) return false;
   const id = identity && typeof identity === 'object' && Number.isInteger(identity.uid) ? identity : null;
-  if (id && id.rescue === true) return !!(opts && opts.rescue === true);
-  if (id && id.uid === ROOT_UID) return true;
+  const pre = precedence(id, opts);
+  if (pre !== null) return pre;
   if (level === ACCESS.PUBLIC) return true;
   if (!id) return false;
   if (level === ACCESS.USER) return true;

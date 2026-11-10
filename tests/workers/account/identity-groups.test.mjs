@@ -86,3 +86,31 @@ test('用户名规则', () => {
   for (const ok of ['styrigx', 'alice', 'a1', 'guest-2026']) assert.match(ok, G.USER_NAME_RE);
   for (const bad of ['', 'A', 'Alice', '1abc', 'a', 'a_b', 'a'.repeat(33), 'root ']) assert.doesNotMatch(bad, G.USER_NAME_RE);
 });
+
+test('Muse v5 注意点 2：「救援 → root」只写一处——precedence() 是唯一实现，permits 与 admit 的 root 快速放行都调它', async () => {
+  const { readFileSync } = await import('node:fs');
+  const SRC = new URL('../../../workers/account/src/core/', import.meta.url).pathname;
+  assert.equal(G.precedence(rescue, { rescue: true }), true);
+  assert.equal(G.precedence(rescue, {}), false, '救援先判');
+  assert.equal(G.precedence(root, {}), true);
+  assert.equal(G.precedence(root, { rescue: true }), true);
+  assert.equal(G.precedence(styrigx, {}), null);
+  assert.equal(G.precedence(null, {}), null);
+  const groupsSrc = readFileSync(SRC + 'groups.js', 'utf8');
+  const permitsBody = groupsSrc.slice(groupsSrc.indexOf('export function permits('));
+  assert.match(permitsBody.slice(0, permitsBody.indexOf('\n}\n')), /precedence\(id, opts\)/, 'permits 调 precedence');
+  assert.doesNotMatch(permitsBody.slice(0, permitsBody.indexOf('\n}\n')), /\.rescue === true|uid === ROOT_UID/, 'permits 里不再自写救援 / root 判断');
+  const admitSrc = readFileSync(SRC + 'admit.js', 'utf8');
+  assert.match(admitSrc, /precedence\(identity, ropts\)/, 'admit 的 root 快速放行调同一个函数');
+  assert.doesNotMatch(admitSrc, /rescue === true|uid === ROOT_UID \?|=== ROOT_UID\)\s*return/, 'admit 里没有自写的救援 / root 放行');
+  /* 两条路结论一致：每种身份 × 每一档 × 救援标记 */
+  for (const id of [null, styrigx, alice, nobody, root, rescue]) {
+    for (const lv of G.ACCESS_LEVELS) {
+      for (const rs of [false, true]) {
+        const pre = G.precedence(id, { rescue: rs });
+        const viaFast = pre !== null ? pre : G.permits(id, lv, { rescue: rs });
+        assert.equal(viaFast, G.permits(id, lv, { rescue: rs }), JSON.stringify([id && id.name, lv, rs]));
+      }
+    }
+  }
+});

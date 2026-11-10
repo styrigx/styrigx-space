@@ -172,9 +172,11 @@ export async function onRequestGet(context) {
   const url = new URL(request.url);
   const qd = url.searchParams.get('d') || '';
   const d = dayOk(qd) ? qd : utcDay(new Date());
+  /* 明细只给本人（Muse 审查 v5 注意点 1）：按服务端会话的 uid 分支——有 v6 身份就只看它（站长 styrigx / root 给明细，别人只给合计）；
+     没有 v6 身份才看旧会话（进站 + 账号会话 = 站长）；访客只有合计。请求里的任何 uid 都不认 */
   const v = context.auth.hasV6 ? await context.auth.v6() : null;
-  const v6Owner = !!(v && v.allowed === true && (v.uid === STYRIGX_UID || v.uid === ROOT_UID));
-  const detail = v6Owner || (sess.ok === true && (await context.auth.authorize()).ok === true);
+  const v6uid = v && v.allowed === true && Number.isInteger(v.uid) ? v.uid : null;
+  const detail = v6uid !== null ? (v6uid === STYRIGX_UID || v6uid === ROOT_UID) : (sess.ok === true && (await context.auth.authorize()).ok === true);
   const empty = { ok: true, d, detail, total: 0, sections: [], items: [] };
   const db = env && env.D1_ACCOUNT;
   if (!db) return json(200, empty, NO_STORE);
