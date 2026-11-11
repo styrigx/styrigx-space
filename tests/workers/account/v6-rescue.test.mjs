@@ -7,7 +7,7 @@
  * - 白名单（precedence() 一处）：whoami / passwd / passkey-* / groups / exit / lock 可用，其余命令拒；救援会话调别的 root 接口（admit）拒；
  *   救援里再 rescue 拒；救援中 exit 直接回访客
  * - 已登录（普通用户）走 rescue → exit-first；没绑钥匙 → 503 config
- * - 限流：单独的计数（不影响 su）；渐进退避 1s → 5s → 30s → 5min；按 IP 每分钟 6 次失败硬上限
+ * - 限流：单独的计数（不影响 su）；按 uid 渐进退避 1s → 5s → 30s → 5min（第一次失败就等 1s）；按 IP 每分钟 6 次失败硬上限
  * - 审计：rescue / login-fail rescue（不含钥匙值）
  * - 重置后 epoch +1（救援里 passwd 改 root 密码 → root 在别处的会话层作废）
  * - 15 分钟到期：到期后 whoami 回访客；whoami 不续写
@@ -97,8 +97,9 @@ test('钥匙错 → 401 auth（不签会话、记审计 login-fail rescue、不�
   assert.equal(bad.json.error, 'auth');
   assert.equal(tokenOf(bad), '');
   assert.equal(rows(env, 'SELECT * FROM account_sessions').length, 0);
+  assert.equal((await call(env, { action: 'rescue', key: KEY })).status, 429, '第一次失败就进入退避：码对也不验');
+  unblock(env);
   assert.equal((await call(env, { action: 'rescue', key: '' })).status, 401, '空钥匙拒');
-  assert.equal((await call(env, { action: 'rescue', key: KEY })).status, 429, '连错后进入退避：码对也不验');
   unblock(env);
   /* 去空白后比对（同已上线恢复密钥 normalizeRecoveryKey：粘贴多行） */
   const { r, tok } = await rescueOk(env, KEY.slice(0, 10) + '\n ' + KEY.slice(10));
@@ -252,14 +253,13 @@ test('15 分钟到期不续期：whoami 不续写；到期后回访客', async (
   assert.equal((await call(env, { action: 'passwd', password: 'root-rescued-pass-01' }, tok)).status, 401);
 });
 
-test('限流：单独计数（不影响 su）；渐进退避 1s → 5s → 30s → 5min，不硬锁；按 IP 每分钟 6 次失败硬上限', async () => {
+test('限流：单独计数（不影响 su）；按 uid 渐进退避 1s → 5s → 30s → 5min（第一次失败就等 1s），不硬锁；按 IP 每分钟 6 次失败硬上限', async () => {
   assert.deepEqual([...R.RESCUE_BACKOFF.table], [1000, 5000, 30000, 300000]);
+  assert.equal(R.RESCUE_BACKOFF.bucket, 'uid:0', '按 uid 分桶（目标只有 root）');
   assert.deepEqual({ ...R.RESCUE_IP_LIMIT }, { kind: 'v6-rescue-ip', max: 6, windowMs: 60000 });
   const env = await setup();
-  const lock = () => { const r = rows(env, "SELECT locked_until - (expires_at - 86400000) AS d FROM account_attempt_limit WHERE kind = 'v6-rescue' AND bucket = 'root'")[0]; return r ? r.d : null; };
-  /* 同 §十 用户名退避的现有实现（lib/attempt-limit.js recordAttempt max 1 + lockTable）：首次失败只记数，之后每次失败按轮次 1s → 5s → 30s → 5min */
-  assert.equal((await call(env, { action: 'rescue', key: 'bad-first' })).status, 401);
-  assert.equal(rows(env, "SELECT locked_until FROM account_attempt_limit WHERE kind = 'v6-rescue' AND bucket = 'root'")[0].locked_until, 0, '首次失败只记数');
+  const lock = () => { const r = rows(env, "SELECT locked_until - (expires_at - 86400000) AS d FROM account_attempt_limit WHERE kind = 'v6-rescue' AND bucket = 'uid:0'")[0]; return r ? r.d : null; };
+  /* 定稿 §十 L104：每次失败按轮次 1s → 5s → 30s → 5min，第一次失败也等 1s */
   const want = [1000, 5000, 30000, 300000, 300000];
   for (let i = 0; i < want.length; i++) {
     const r = await call(env, { action: 'rescue', key: 'bad-' + i });

@@ -4,7 +4,7 @@
 // - 账号没登录（canWrite=false）：命令链里没有「收藏 / 管理分类 / 导入 / 导出」，只有「su · su 登录后可编辑」打开顶栏终端预填 su （2c，v6 割接）；封面卡点开新标签页；图标取不到显示首字母
 // - 分类 chips 筛选 + hash；grep 行内过滤；排序；分页条；旧 hash 地址（#devices、#games）在首页转到子页（#c/<分类> 就地生效）；左右滑切分区已删
 // - 设备 / 游戏：账号没登录只读；条目页 ?id=（取代详情弹层：面包屑、spec 表、换代互链、cd .. / cd ../next）；能编辑时新建（照片缩图后上传）、条目页里编辑、删除；使用天数
-// - 能编辑（canWrite + showPrivate）：私密带锁；没有「su 登录后可编辑」；写接口回 401 account 不刷新页面、提示登录；收藏 → 填网址自动补全 → 保存发 link.add；长按卡片编辑、删除要确认；管理分类；导入发原文
+// - 能编辑（canWrite + showPrivate）：私密带锁；没有「su 登录后可编辑」；收藏 → 填网址自动补全 → 保存发 link.add；长按卡片编辑、删除要确认；管理分类；导入发原文
 // - 英文页
 const { test, expect } = require('@playwright/test');
 
@@ -89,7 +89,7 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await mock(page, false);
   await page.goto('/curio/zh/');
   /* 对齐 PR-C2：首页 = ls curio/，下划线 tab finds/ devices/ games/ movies/ music/（v5 S3 起音乐歌单公开，没登录也显示），当前 finds/ */
-  await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/', { useInnerText: true });
+  await expect(page.locator('.sgx-ph-cmd')).toHaveText('nobody@space:~$ ls curio/', { useInnerText: true });
   await expect(page.locator('#cu-tabs .sgx-ctab-a')).toHaveCount(5);
   await expect(page.locator('#cu-tabs .sgx-ctab-a:visible')).toHaveText([/^finds\/\s*2$/, /^devices\/\s*2$/, /^games\/\s*2$/, /^movies\//, /^music\//]);
   await expect(page.locator('#cu-tabs [data-ctab="finds"]')).toHaveAttribute('aria-current', 'page');
@@ -106,7 +106,7 @@ test('账号未登录：首页就是发现（页头 tab 带计数、音乐 tab �
   await page.locator('#cu-tabs [data-ctab="finds"]').click();
   await expect(page).toHaveURL(/\/curio\/zh\/finds\/$/);
   await expect(page.locator('.sgx-tb-title')).toHaveText('发现');
-  await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls curio/finds/', { useInnerText: true });
+  await expect(page.locator('.sgx-ph-cmd')).toHaveText('nobody@space:~$ ls curio/finds/', { useInnerText: true });
   await expect(page.locator('#cu-pane-finds')).toBeVisible();
   await expect(page.locator('#cu-q')).toHaveCount(0);
   await expect(page.locator('#cu-chips [data-cat]')).toHaveText([/^全部\s*2$/, /^开发与云\s*1$/, /^网络检测\s*1$/]);
@@ -301,61 +301,6 @@ test('账号已登录（可写）：管理分类新建；导入把文件原文�
   expect(imp.body).toBe(html);
   expect(imp.url).not.toContain('private=0');
   await expect(page.locator('.cu-cc[data-id="91"]')).toHaveCount(1);
-});
-
-test('写接口回 401 account（账号会话刚过期）不刷新页面、提示登录账号；导入回 401 reauth 提示去账号页验证（带链接）', async ({ page }) => {
-  await mock(page, true);
-  /* 后注册的路由先匹配：写请求改成账号侧的 401 */
-  await page.route('**/api/links**', (r) => (r.request().method() === 'POST'
-    ? r.fulfill({ status: 401, json: { ok: false, error: 'account' } })
-    : r.fallback()));
-  let reauthed = false;
-  let imports = 0;
-  await page.route('**/api/import**', (r) => {
-    imports++;
-    return reauthed
-      ? r.fulfill({ json: { ok: true, found: 1, added: 1, skipped: 0, invalid: 0, cats_added: 0, canWrite: true, showPrivate: true, cats: [] } })
-      : r.fulfill({ status: 401, json: { ok: false, error: 'reauth' } });
-  });
-  let reloads = 0;
-  page.on('framenavigated', (f) => { if (f === page.mainFrame()) reloads++; });
-  await page.goto('/curio/zh/finds/');
-  await expect(page.locator('#cu-fab')).toBeVisible();
-  const before = reloads;
-  await page.locator('#cu-fab').click();
-  /* 与「收藏」用例同一路径：等编辑框打开，用「自动填」带出名字（手机视口下直接 fill #f-name 不稳） */
-  await expect(page.locator('#edit-wrap')).toHaveClass(/open/);
-  await page.locator('#f-url').fill('mdn.dev');
-  await page.locator('#f-fill').click();
-  await expect(page.locator('#f-name')).toHaveValue('MDN Web Docs');
-  await page.locator('#edit-save').click();
-  await expect(page.locator('#edit-err')).toHaveText('su 登录后可编辑。');
-  await page.locator('#edit-wrap button[data-close="edit"]').click();
-
-  await page.locator('#menu-import').click();
-  const html = '<!DOCTYPE NETSCAPE-Bookmark-file-1><DL><p><DT><A HREF="https://t.example/">T</A></DL>';
-  await page.locator('#imp-file').setInputFiles({ name: 'bookmarks.html', mimeType: 'text/html', buffer: Buffer.from(html) });
-  await page.locator('#imp-go').click();
-  await expect(page.locator('#imp-msg')).toContainText('导入要再验证一次账号');
-  /* 打开顶栏账号终端只做 sudo root reauth；验过后终端发 sgx-account-reauthed，奇趣当场重发导入并 waitUntil 登记，
-     终端等它做完再 POST /reauth { end }（关下拉 reauth 即失效，#327 偏离修复） */
-  await expect(page.locator('#imp-msg a')).toHaveAttribute('href', 'https://styrigx.com/zh/#acct=reauth');
-  await expect(page.locator('#imp-msg a')).toHaveAttribute('data-acct-open', 'reauth');
-  await expect(page.locator('#imp-go')).toBeEnabled();
-  expect(reloads).toBe(before);
-  expect(imports).toBe(1);
-  reauthed = true;
-  const waited = await page.evaluate(() => {
-    let n = 0;
-    document.dispatchEvent(new CustomEvent('sgx-account-reauthed', { detail: { waitUntil(p) { n++; return p; } } }));
-    return n;
-  });
-  expect(waited).toBe(1);
-  await expect(page.locator('#imp-msg')).toContainText('新增 1 条');
-  expect(imports).toBe(2);
-  /* 导入做完后再发一次（别的页面复验）：不重复导入 */
-  await page.evaluate(() => { document.dispatchEvent(new CustomEvent('sgx-account-reauthed', { detail: { waitUntil() {} } })); });
-  expect(imports).toBe(2);
 });
 
 test('英文页：tab 提示、分类名、命令说明用英文（英文空时退回中文）', async ({ page }) => {

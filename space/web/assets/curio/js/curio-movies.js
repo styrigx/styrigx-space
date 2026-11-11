@@ -202,7 +202,7 @@ $('#mv-del').addEventListener('click', function(){
 getJSON('/curio/api/movies').then(function(j){
   canWrite = !!j.canWrite; showPrivate = !!j.showPrivate; movies = j.movies || []; loaded = true;
   $('#mv-fab').classList.toggle('hidden', !canWrite);
-  if (UI && UI.signin) UI.signin(canWrite, showPrivate);
+  if (UI && UI.signin) UI.signin(canWrite);
   doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); });
   render();
 }).catch(function(e){

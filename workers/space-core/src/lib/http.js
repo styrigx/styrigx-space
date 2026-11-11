@@ -53,7 +53,7 @@ export const ERROR_CODES = Object.freeze({
   /* 凭证 */
   auth: [401],
   wrong: [403],
-  'unknown-key': [403],
+  verify: [403], /* 通行密钥签名没过（passkey add） */
   'not-set': [403],
   exists: [403],
   short: [400],
@@ -82,7 +82,6 @@ export const ERROR_CODES = Object.freeze({
   protected: [403], /* userdel / usermod 不能动 root、styrigx（带 target） */
   'last-member': [409], /* 减掉最后一个 wheel / sudoers 成员：带 force 再来一次 */
   forbidden: [403], /* 2b：网关 / 子站接口，有 v6 身份但路由档不够（未登录仍是 401） */
-  'not-ready': [409], /* 数据表还没加 uid 列（迁移待 Gray 批准）：别的用户暂时不能写（/api/prefs） */
   /* 服务端 / 配置 */
   server: [500, 503],
   config: [500, 503],

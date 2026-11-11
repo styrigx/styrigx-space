@@ -7,14 +7,10 @@
  * - 每项记一个本机修改时间（localStorage sgx-sync-meta），和云端（/api/prefs）逐项比，新的赢。
  * - 时机（2026-10-24 拉取节流）：只在锁屏已解锁的页面（<html data-sgx-lock-session="valid">）请求；不看锁屏进门方式，
  *   2b 起纯 v6 登录（su styrigx / su root）的页面网关也标 valid，数据按 v6 会话的 uid 归属（服务端 dataUid）；
- *   能不能同步直接按 /api/prefs 的结果：401 account（没登录账号）→ 记下来，之后不再请求，直到账号页重新登录；
- *   其他 401 / 403（锁屏会话过期、没有 prefs.sync 作用域）→ 这次不同步，不记 out。
- *   403 scope（P3-1：在 账号 › 应用授权 取消了「设置同步」）→ 另记一个本页内的标记（scopeDenied()），设置照常只存本机；
- *   账号页「云同步」一行和云同步页显示「设置同步未获账号授权，只存本机」。下一次拉取成功就清掉。
- *   - 普通拉取（每页加载 shell/core.js、页面回到前台）最多每 5 分钟一次：上次成功拉取 / 推送的时刻按账号记在
- *     localStorage sgx-sync-pull（{ <账号>: 毫秒 }），没过 5 分钟就不发 GET /api/prefs。
+ *   能不能同步直接按 /api/prefs 的结果：401 / 403 → 这次不同步。
+ *   - 普通拉取（每页加载 shell/core.js、页面回到前台）最多每 5 分钟一次：上次成功拉取 / 推送的时刻记在
+ *     localStorage sgx-sync-pull（毫秒），没过 5 分钟就不发 GET /api/prefs。
  *   - 强制拉取不受节流（force）：刚登录、进账号页 /account/（云同步子页和总开关 2026-11-08 删除，只留后台自动同步）。
- *   - 登出 / 401 清掉这个时刻（clearPullStamp），重新登录后第一次一定拉。
  *   本页改了设置（sgx-settings-changed）→ 记时间、1.5 秒防抖后推上去（不受节流）；推送成功也刷新上面的时刻；
  *   离开页面前也比一次。
  * - 拉下来的值和本机不同 → 写进 localStorage、刷新 sgx-ui cookie 镜像，就地生效（2026-10-28 起不再刷新页面）：
@@ -33,18 +29,8 @@ export const SWITCH_KEY = 'sgx-cloud-sync';
 export const META_KEY = 'sgx-sync-meta';
 /** 上次成功同步的时刻（账号页副标题用） */
 export const LAST_KEY = 'sgx-sync-last';
-/** 账号会话状态：'out' = 服务端说没登录账号（停止请求）；其他 = 正常 */
-export const AUTH_KEY = 'sgx-sync-auth';
-/** 以前「同步后刷新一次」的防循环标记（2026-10-28 起不再刷新）；开机顺手清掉旧值 */
-const OLD_RELOAD_FLAG = 'sgx-sync-reloaded';
-/** 上次成功拉取（或推送）的时刻，按账号：{ <账号>: 毫秒 }。普通拉取的节流依据 */
+/** 上次成功拉取（或推送）的时刻（毫秒）。普通拉取的节流依据 */
 export const PULL_KEY = 'sgx-sync-pull';
-/** 本页最近一次拉取是不是 403 scope（没有 prefs.sync：只存本机）。只在内存里，不进 localStorage（sgx- 键会被同步） */
-let noScope = false;
-/** 设置同步是不是被取消了授权（本页最近一次拉取回 403 scope） */
-export function scopeDenied() {
-  return noScope;
-}
 /** 普通拉取最短间隔 */
 export const PULL_INTERVAL = 5 * 60 * 1000;
 /** 推送防抖 */
@@ -128,40 +114,15 @@ function call(method, body) {
   });
 }
 
-/**
- * 有没有 v6 登录标记（2b：服务端随 sgx-session 写的 sgx-id=1；非 HttpOnly、不含秘密，只用来决定行为，身份 / uid 仍只由服务端会话定）。
- * @returns {boolean}
- */
-export function v6Marked() {
-  try { return /(?:^|;\s*)sgx-id=1(?:;|$)/.test(document.cookie || ''); } catch (e) { return false; }
-}
-
-/**
- * 节流按哪个账号记。页面上拿不到 uid（数据归谁由服务端会话定：v6 新会话 → 会话里的 uid，否则旧会话 → styrigx）；
- * 旧会话记在 'account'，有 v6 登录标记记在 'v6'，两种身份的节流时刻互不影响。登出 / 401 / 换账号登录都会清掉或强制刷新这个时刻。
- * @returns {string}
- */
-function accountScope() {
-  return v6Marked() ? 'v6' : 'account';
-}
-
-/** @returns {number} 当前账号上次成功拉取 / 推送的时刻（没有 = 0） */
+/** @returns {number} 上次成功拉取 / 推送的时刻（没有 = 0） */
 export function lastPullAt() {
-  const m = getJSON(PULL_KEY, {}) || {};
-  const t = Number(m[accountScope()]);
+  const t = Number(sget(PULL_KEY));
   return Number.isFinite(t) && t > 0 ? t : 0;
 }
 
 /** @param {number} t */
 function markPulled(t) {
-  const m = getJSON(PULL_KEY, {}) || {};
-  m[accountScope()] = t;
-  setJSON(PULL_KEY, m);
-}
-
-/** 登出 / 401：清掉节流时刻（下次登录后第一次一定拉） */
-export function clearPullStamp() {
-  sset(PULL_KEY, null);
+  sset(PULL_KEY, String(t));
 }
 
 /**
@@ -180,16 +141,6 @@ let inflight = null;
 /** 本页上次成功拉取的时刻 */
 let okAt = 0;
 
-/** 服务端说「没登录账号」吗（401 account；P2-2 起 /api/prefs 的唯一一种 out） @param {{s:number, j:any}} res */
-function saysAccountOut(res) {
-  return res.s === 401 && !!res.j && res.j.error === 'account';
-}
-
-function onAuthOut() {
-  sset(AUTH_KEY, 'out');
-  clearPullStamp();
-}
-
 function flush() {
   if (!st) return;
   const s = st;
@@ -199,7 +150,6 @@ function flush() {
   s.pending = {};
   if (!Object.keys(changes).length || !syncEnabled()) return;
   call('POST', { changes: changes }).then(function (res) {
-    if (saysAccountOut(res)) { onAuthOut(); return; }
     if (res.j && res.j.ok) {
       const now = Date.now();
       sset(LAST_KEY, String(now));
@@ -264,19 +214,9 @@ function pull() {
   const stored = getJSON(META_KEY, {}) || {};
   for (const k of Object.keys(stored)) if ((Number(stored[k]) || 0) > (s.meta[k] || 0)) s.meta[k] = Number(stored[k]);
   return call('GET').then(function (res) {
-    if (saysAccountOut(res)) {
-      onAuthOut();
-      return 'out';
-    }
-    /* 别的 401 / 403（锁屏过期、没作用域）：这次不同步，也不标 out（之后有了作用域照常拉） */
-    if (res.s === 403 && res.j && res.j.error === 'scope') {
-      noScope = true;
-      return 'skip';
-    }
+    /* 401 / 403：这次不同步 */
     if (res.s === 401 || res.s === 403) return 'skip';
-    noScope = false;
     if (!(res.j && res.j.ok)) return 'error';
-    sset(AUTH_KEY, 'in');
     const now = Date.now();
     okAt = now;
     markPulled(now);
@@ -327,19 +267,16 @@ export function bindSessionSync() {
 
 /**
  * 主站每页调用一次（shell/core.js），页面回到前台再调；账号页 / 云同步页 / 登录 / 打开开关时 force。
- * 锁屏已解锁 + 开关开 + 没被标「没登录账号」才动（不看锁屏进门方式，按 /api/prefs 的结果）；普通调用 5 分钟内拉过就不拉（'fresh'）。
- * @param {{force?: boolean}} [opts] force：忽略节流和 'out' 标记（刚登录 / 打开开关 / 进账号页、云同步页）
- * @returns {Promise<string>} 'off' | 'skip' | 'out' | 'fresh' | 'ok' | 'error'
+ * 锁屏已解锁 + 开关开才动（不看锁屏进门方式，按 /api/prefs 的结果）；普通调用 5 分钟内拉过就不拉（'fresh'）。
+ * @param {{force?: boolean}} [opts] force：忽略节流（刚登录 / 打开开关 / 进账号页、云同步页）
+ * @returns {Promise<string>} 'off' | 'skip' | 'fresh' | 'ok' | 'error'
  */
 export function initCloudSync(opts) {
   const force = !!(opts && opts.force);
   if (document.documentElement.getAttribute('data-sgx-lock-session') !== 'valid') return Promise.resolve('skip');
   if (!syncEnabled()) return Promise.resolve('off');
-  /* 'out' 是旧账号会话的结论（401 account）；有 v6 登录标记时服务端按 v6 会话判，不受它挡（2b） */
-  if (!force && sget(AUTH_KEY) === 'out' && !v6Marked()) return Promise.resolve('out');
 
   if (!st) {
-    try { sessionStorage.removeItem(OLD_RELOAD_FLAG); } catch (e) {}
     const keys = syncKeys();
     st = { keys: keys, last: snapshot(keys), meta: getJSON(META_KEY, {}) || {}, pending: {}, timer: 0 };
     window.addEventListener('sgx-settings-changed', diff);

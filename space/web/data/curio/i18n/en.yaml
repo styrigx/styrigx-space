@@ -219,11 +219,7 @@ js:
     makePublic: Visible to visitors
     up: Move up
     down: Move down
-    needAccount: Sign in with su to edit.
-    needReauth: 'Verify your account again to import: verify in the account terminal and the import runs right away.'
     signin: Sign in with su to edit
-    noScopeErr: Curio doesn’t have account access.
-    verifyNow: Verify now
     impAdded: Added {n} links
     impCats: ', {n} new categories'
     impSkipped: ; {n} already here
@@ -260,8 +256,6 @@ js:
     empty: Nothing here yet.
     noMatch: Nothing in this filter.
     needName: Give it a name.
-    needAccount: Sign in with su to edit.
-    noScope: Curio doesn’t have account access.
     badDate: Check the dates.
     failed: Something went wrong. Please try again.
     loadFail: "error: couldn't load the list  # refresh to retry"

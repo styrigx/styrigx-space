@@ -133,7 +133,7 @@
   {{ $wildUrl := partial "sgx-lang-path.html" (dict "path" "/wild/" "lang" $pageLang) }}
   <section class="home-sec" id="wild" data-term-dir="wild" data-term-label="{{ $h.wildLabel }}" aria-labelledby="home-wild-h">
     <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[04] // WILD</p><h2 class="home-sec-t" id="home-wild-h">{{ $w.title }}</h2></div><a class="home-sec-more" href="{{ $wildUrl }}" translate="no">cd wild/ →</a></div>
-    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> top -n1 · systemctl status · uname</p>
+    <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> systemctl status</p>
     <ul class="home-wild" role="list">
       <li><a class="home-dir home-mini" href="{{ $wildUrl }}#status" data-home-st>
         <span class="home-mini-n" aria-hidden="true" translate="no">01 / 01</span>

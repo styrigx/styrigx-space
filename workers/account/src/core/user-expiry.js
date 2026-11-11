@@ -3,7 +3,7 @@
  *
  * - 到期（account_users.expires_at > 0 且 ≤ 现在）：admit 已经不认（core/identity-session.js 判 expires_at；会话作废、登录被拒），
  *   这里不管。
- * - 宽限期 EXPIRED_USER_GRACE_MS = 30 天（定稿没给数，Hark 定，改这一个常量即可）：到期满 30 天 → 删除，删法与 userdel 相同
+ * - 宽限期 EXPIRED_USER_GRACE_MS = 30 天（定稿 §八，改这一个常量即可）：到期满 30 天 → 删除，删法与 userdel 相同
  *   （core/users.js deleteUserRows：会话、身份栈、密码、通行密钥、组；用户行留墓碑 #deleted-<uid>，uid 不复用）。宽限期内用户行、凭据、组都还在（只是登不上）。
  * - 永不删 root（uid 0）与 styrigx（uid 1000）：SQL 排除 + deleteUserRows 再拦一道（两者本来也不能有期限）。
  * - 每删一个写一条身份审计 `expire userdel <名>`（uid = null：系统做的，不是谁的命令）。

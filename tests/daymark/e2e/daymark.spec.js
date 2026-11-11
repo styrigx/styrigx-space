@@ -5,7 +5,7 @@
 // - 分区：默认余响，#trove / #flavors 直达，点窗标题改 hash，拾录 / 百味「cd ..」回余响；#d/<日期> 看那天；英文页 Echo / Trove / Flavors
 // - 余响：今日一句；shuf -n1 再抽一句 → cat today 回到今日；长按复制；账号已登录（可写）抽到公开句子 → set today 设为今日（PUT /api/today）→ 回到今日状态 + toast；账号未登录没有设为今日
 // - 日期条 / 前后日：/api/days 记下的日子能点（看那天的句子、地址 #d/<日期>），还没到的灰掉；明天是「明天见」
-// - 拾录：全部句子新的在前；账号没登录没有「记一句」、命令链「su · su 登录后可编辑」；能编辑时有，私密句子带锁；写接口 401 account 不刷新、提示登录
+// - 拾录：全部句子新的在前；账号没登录没有「记一句」、命令链「su · su 登录后可编辑」；能编辑时有，私密句子带锁
 // - 百味：自建专题在前（可写时有「＋ 新建」），再是人物（每位作者一组）；点进分组、页内返回；可写时上移 / 移出
 // - 记一句：预览、加译文、作者补全 + 最近作者、出处类型 + 名字补全、归入百味（含就地新建）、标签块、随手一笔、公开；
 //   保存 → 已拾录；编辑时删除要确认
@@ -157,7 +157,7 @@ test('分区：点窗标题改 hash、胶囊换分区名；cd .. / hash 回余�
   await expect(page.locator('#dm-pane-trove')).toBeVisible();
   await expect(page.locator('#dm-pane-echo')).toBeHidden();
   await expect(page.locator('.sgx-tb-title')).toHaveText('拾录');
-  await expect(page.locator('#dm-pane-trove .sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls daymark/trove/', { useInnerText: true });
+  await expect(page.locator('#dm-pane-trove .sgx-ph-cmd')).toHaveText('nobody@space:~$ ls daymark/trove/', { useInnerText: true });
   /* cd .. 回余响 */
   await page.locator('#dm-pane-trove .sgx-cmds a[href="#"]').click();
   await expect(page.locator('#dm-pane-echo')).toBeVisible();
@@ -291,23 +291,6 @@ test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；�
     await expect(page.locator(id)).not.toHaveAttribute('data-acct-app', /./);
   }
   await expect(page.locator('#dm-signin-trove .sgx-cmd-k')).toHaveText('su');
-});
-
-test('拾录 · 写接口回 401 account（账号会话刚过期）：不刷新页面，编辑弹层提示登录账号', async ({ page }) => {
-  await mock(page, true);
-  await page.route('**/api/quotes**', (r) => (r.request().method() === 'PUT'
-    ? r.fulfill({ status: 401, json: { ok: false, error: 'account' } })
-    : r.fallback()));
-  let navs = 0;
-  page.on('framenavigated', (f) => { if (f === page.mainFrame()) navs++; });
-  await page.goto('/daymark/zh/#trove');
-  await expect(page.locator('#dm-signin')).toBeHidden();
-  const before = navs;
-  await page.locator('#dm-list .dm-card').first().click();
-  await expect(page.locator('#edit-wrap')).toHaveClass(/open/);
-  await page.locator('#edit-save').click();
-  await expect(page.locator('#edit-err')).toHaveText('su 登录后可编辑。');
-  expect(navs).toBe(before);
 });
 
 test('拾录 · 账号已登录（可写）：新的在前、私密带锁、右下角记一句；点句子进入编辑，删除要确认', async ({ page }) => {

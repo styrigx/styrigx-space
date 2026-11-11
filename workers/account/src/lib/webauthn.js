@@ -10,10 +10,9 @@
  * - checkAssertAuthData：断言时校验 authenticatorData
  * - verifyAssertion：完整断言验证（clientData + authData + signCount + 签名 + UV）
  * - randB64：challenge 随机数
- * - rpIdHashOf / issueChallenge / consumeChallenge / findStoredKey：各断言入口共用的小步骤
+ * - rpIdHashOf / issueChallenge / consumeChallenge：各断言入口共用的小步骤
  *
- * challenge 存账号库 account_challenge 表（purpose + expires_at；db.js，主库）。用途按入口分开（core/config.js CHALLENGE_PURPOSE：
- * session / reauth / keys-add / reset-add）：一个入口签的 challenge，别的入口用不了。
+ * challenge 存账号库 account_challenge 表（purpose + expires_at；db.js，主库）。用途按入口分开（core/identity-passkey.js）：一个入口签的 challenge，别的入口用不了。
  */
 import { b64urlEnc } from './crypto.js';
 import { onDb, sweepExpired } from './db.js';
@@ -269,7 +268,7 @@ export async function rpIdHashOf(rpId) {
 /**
  * 存一个一次性 challenge（account_challenge 表），返回 cid（16 字节随机，base64url）。顺手清掉已过期的。出错抛错。
  * @param {any} env
- * @param {string} purpose 用途（core/config.js CHALLENGE_PURPOSE 的值）
+ * @param {string} purpose 用途（core/identity-passkey.js 的入口用途）
  * @param {string} challenge 下发给浏览器的 challenge
  * @param {number} ttlSec 有效秒数
  * @returns {Promise<string>} cid
@@ -305,17 +304,4 @@ export async function consumeChallenge(env, purpose, cid) {
   } catch (e) {
     return null;
   }
-}
-
-/**
- * 按 rawId（base64url，与存储的 credId 相同编码）在钥匙列表里找对应记录。
- * @param {Array<{credId:string}>} keys
- * @param {string} rawIdB64
- * @returns {any} 找到的记录或 null
- */
-export function findStoredKey(keys, rawIdB64) {
-  for (let i = 0; i < keys.length; i++) {
-    if (keys[i].credId === rawIdB64) return keys[i];
-  }
-  return null;
 }

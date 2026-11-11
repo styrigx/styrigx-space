@@ -21,7 +21,7 @@ const accountD1ByKv = new WeakMap();
 function accountD1For(kv) {
   let d = accountD1ByKv.get(kv);
   if (!d) {
-    d = makeAccountD1({ migrations: 'pre-uid' }); /* 迁移前（0006）的表：本文件测无 uid 列的写法；有 uid 列见 v6-identity-api.test.mjs */
+    d = makeAccountD1();
     seedV6(d);
     seedV6(d, { uid: 1001, name: 'alice', groups: ['listen'], token: V6_TOKEN_ALICE });
     accountD1ByKv.set(kv, d);
@@ -125,8 +125,8 @@ test('存在 D1 settings_sync：一项一行；updatedAt = 最后一次真正写
 
 test('原子新的赢：旧 t 被拒、相等 t 不动、更新的 t 覆盖（直接打 SQL，没有先读后写）', async () => {
   const { UPSERT_SQL, MAX_TOTAL } = await import(PREFS);
-  const db = makeAccountD1({ migrations: 'pre-uid' });
-  const up = (k, v, t) => db.prepare(UPSERT_SQL).bind(k, v, t, 1, MAX_TOTAL).run();
+  const db = makeAccountD1();
+  const up = (k, v, t) => db.prepare(UPSERT_SQL).bind(k, v, t, 1, MAX_TOTAL, 1000).run();
   assert.equal((await up('sgx-a', 'new', 200)).meta.changes, 1);
   assert.equal((await up('sgx-a', 'stale', 100)).meta.changes, 0, '旧设备的旧值写不进');
   assert.equal((await up('sgx-a', 'same', 200)).meta.changes, 0, '相等不动');
@@ -176,7 +176,7 @@ test('总项数上限 160：超过整单 413、什么都不写；已有的项照
   assert.equal((await ok.json()).items['sgx-k0'].t, now + 1);
   /* SQL 条件兜底：绕过预检直接插第 161 项也插不进 */
   const { UPSERT_SQL, MAX_TOTAL } = await import(PREFS);
-  const res = await accountD1For(kv).prepare(UPSERT_SQL).bind('sgx-race', 'x', now, now, MAX_TOTAL).run();
+  const res = await accountD1For(kv).prepare(UPSERT_SQL).bind('sgx-race', 'x', now, now, MAX_TOTAL, 1000).run();
   assert.equal(res.meta.changes, 0);
 });
 
@@ -201,21 +201,7 @@ test('不碰 KV：KV_SETTINGS_SYNC / KV_PROFILE 换成一碰就抛错的替身�
   assert.deepEqual(touched, []);
 });
 
-test('表不存在（还没跑 migration）：自己补建一次，GET 返回空、POST 写得进', async () => {
-  const kv = makeKV();
-  const co = await adminCo();
-  const db = makeAccountD1({ migrations: false });
-  const over = { D1_ACCOUNT: splitD1(accountD1For(kv), db, /settings_sync/) };
-  let r = await prefsCall(kv, 'GET', null, co, undefined, over);
-  assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, items: {}, updatedAt: 0 });
-  const db2 = makeAccountD1({ migrations: false });
-  r = await prefsCall(kv, 'POST', { changes: { 'sgx-palette': { v: 'mint', t: Date.now() } } }, co, undefined, { D1_ACCOUNT: splitD1(accountD1For(kv), db2, /settings_sync/) });
-  assert.equal(r.status, 200);
-  assert.equal(db2.rows('settings_sync').length, 1);
-});
-
-test('D1 出错（不是缺表）→ 503，不自愈也不回落', async () => {
+test('D1 出错 → 503，不回落', async () => {
   const kv = makeKV();
   const co = await adminCo();
   const broken = { prepare() { return { bind() { return this; }, async all() { throw new Error('D1_ERROR: network'); }, async run() { throw new Error('should not create'); } }; }, async batch() { throw new Error('D1_ERROR'); } };
@@ -225,14 +211,3 @@ test('D1 出错（不是缺表）→ 503，不自愈也不回落', async () => {
   assert.equal(p.status, 503);
 });
 
-test('迁移文件 0002_settings_sync.sql 和代码里的 SCHEMA 是同一张表', async () => {
-  const { SCHEMA } = await import(PREFS);
-  const { readFileSync } = await import('node:fs');
-  const sql = readFileSync(new URL('../../../workers/account/migrations/0002_settings_sync.sql', import.meta.url), 'utf8');
-  assert.match(sql, /CREATE TABLE IF NOT EXISTS settings_sync/);
-  const a = makeAccountD1({ migrations: false });
-  a.raw.exec(SCHEMA);
-  const b = makeAccountD1({ migrations: 'pre-uid' }); /* SCHEMA = 兜底建表，迁移前（0007 之前）的结构 */
-  const cols = (d) => d.raw.prepare('PRAGMA table_info(settings_sync)').all().map((c) => [c.name, c.type, c.notnull, c.pk]);
-  assert.deepEqual(cols(a), cols(b));
-});

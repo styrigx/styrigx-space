@@ -32,7 +32,6 @@ const { makePasswordRecord } = await import(SRC + 'core/password.js');
 const stack = await import(SRC + 'core/identity-stack.js');
 const auth = await import(SRC + 'core/identity-auth.js');
 const users = await import(SRC + 'core/users.js');
-const { _resetUidSchemaCache } = await import(SRC + 'lib/uid-schema.js');
 
 const ORIGIN = 'https://styrigx.com';
 const PEP_A = 'pepper-account-test';
@@ -58,7 +57,7 @@ async function setup() {
   const env = {
     SGX_ENV: 'production', SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN,
     SGX_ACCOUNT_PASSWORD_PEPPER: PEP_A,
-    D1_ACCOUNT: makeAccountD1({ migrations: 'pre-uid' }), KV_PROFILE: makeKv(), /* 迁移前的表；用例里自己 exec 0007 测迁移后 */
+    D1_ACCOUNT: makeAccountD1(), KV_PROFILE: makeKv(),
     ASSETS: { fetch: async () => new Response('DEFAULT', { status: 200 }) },
   };
   const raw = env.D1_ACCOUNT.raw;
@@ -494,34 +493,16 @@ test('名片 PUT /api/profile：styrigx 能改、root 能改（写审计 profile
 
 const EVIL = { 'X-Styrigx-Uid': '1000', 'X-Uid': '1000' };
 
-test('P4-3 prefs（表还没 uid 列）：一份配置归站长；styrigx 写、alice 读到同一份（只能看）、写 403；请求里塞 uid 一概不认（定稿 v5.5 §五 / §七）', async () => {
-  const env = await setup();
-  _resetUidSchemaCache(env.D1_ACCOUNT);
-  const st = await login(env, 'styrigx');
-  const now = Date.now();
-  const w = await call(env, 'POST', '/api/prefs', { cookie: st, body: { changes: { 'sgx-theme': { v: 'dark', t: now } } } });
-  assert.equal(w.status, 200, JSON.stringify(w.json));
-  const at = await login(env, 'alice');
-  const g = await call(env, 'GET', '/api/prefs?uid=1001', { cookie: at, headers: EVIL });
-  assert.equal(g.status, 200);
-  assert.deepEqual(g.json.items, { 'sgx-theme': { v: 'dark', t: now } }, '普通用户看到的就是站长那一份');
-  const p = await call(env, 'POST', '/api/prefs?uid=1001', { cookie: at, headers: EVIL, body: { uid: 1001, changes: { 'sgx-theme': { v: 'light', t: now + 1 } } } });
-  assert.equal(p.status, 401, '普通用户只能看：账号 Worker 的纵深防御门（gate.js identityDenial）拒，正式环境网关先回 403 forbidden');
-  assert.deepEqual(rows(env, 'SELECT k, v FROM settings_sync'), [{ k: 'sgx-theme', v: 'dark' }], '站长那份没被动');
-});
-
-test('P4-3 prefs（迁移 0007 之后，有 uid 列）：root 写的也落到站长那份（uid 1000）；alice 写 403；P2 期间别的 uid 的行不再读写', async () => {
+test('P4-3 prefs：一份配置归站长（uid 1000）；alice 只能读、写被拒，请求里塞 uid 一概不认；root 写的也落到站长那份；别的 uid 的行不再读写（定稿 v5.5 §五 / §七）', async () => {
   const env = await setup();
   const raw = env.D1_ACCOUNT.raw;
-  raw.prepare("INSERT INTO settings_sync (k, v, t, updated_at) VALUES ('sgx-old', 'kept', 1, 1)").run();
-  raw.exec(readFileSync(REPO + 'workers/account/migrations/0007_v6_uid_columns.sql', 'utf8'));
-  _resetUidSchemaCache(env.D1_ACCOUNT);
+  raw.prepare("INSERT INTO settings_sync (uid, k, v, t, updated_at) VALUES (1000, 'sgx-old', 'kept', 1, 1)").run();
   raw.prepare("INSERT INTO settings_sync (uid, k, v, t, updated_at) VALUES (1001, 'sgx-p2', 'alice-p2', 1, 1)").run();
   const now = Date.now();
   const at = await login(env, 'alice');
-  const p = await call(env, 'POST', '/api/prefs', { cookie: at, body: { changes: { 'sgx-old': { v: 'hacked', t: now } } } });
+  const p = await call(env, 'POST', '/api/prefs?uid=1001', { cookie: at, headers: EVIL, body: { uid: 1001, changes: { 'sgx-old': { v: 'hacked', t: now } } } });
   assert.equal(p.status, 401, '纵深防御门拒（网关先 403）');
-  const ga = await call(env, 'GET', '/api/prefs', { cookie: at });
+  const ga = await call(env, 'GET', '/api/prefs?uid=1001', { cookie: at, headers: EVIL });
   assert.deepEqual(ga.json.items, { 'sgx-old': { v: 'kept', t: 1 } }, 'alice 读的是站长那份，P2 时自己那份不再读');
   const st = await login(env, 'styrigx');
   await suRoot(env, st);
@@ -565,7 +546,7 @@ test('P4-3 devices：list owner（站长直读、全站视图）；revoke / revo
   assert.equal((await dv(a1, { action: 'list' })).status, 401, '普通用户看不到设备列表（纵深防御门拒；网关先 403）');
   const l = await dv(st, { action: 'list' });
   assert.equal(l.status, 200, JSON.stringify(l.json));
-  assert.equal(l.json.devices.length, 3, '全站会话（迁移前没有设备列，每个会话各算一台）');
+  assert.equal(l.json.devices.length, 3, '全站会话（各自 su、没带设备标记，每个会话各算一台）');
   assert.deepEqual(l.json.devices.map((d) => d.path), ['styrigx', 'alice', 'alice']);
   assert.deepEqual(Object.keys(l.json.devices[0]).sort(), ['current', 'expiresAt', 'n', 'path', 'since']);
   assert.ok(l.json.devices[0].current);
@@ -590,9 +571,8 @@ test('P4-3 devices：list owner（站长直读、全站视图）；revoke / revo
 test('P4-3 2g 设备标记：su 发 sgx-device（HttpOnly / Secure / SameSite=Lax / 400 天），同一台设备沿用；有设备列后写入，设备列表按它合并同一台设备的会话；老会话留空各算一台', async () => {
   const env = await setup();
   const raw = env.D1_ACCOUNT.raw;
-  const old = await login(env, 'alice'); /* 迁移前签的老会话：没有设备列 */
-  raw.exec(readFileSync(REPO + 'docs/ops/v6-p4-2g-device-column.sql', 'utf8'));
-  _resetUidSchemaCache(env.D1_ACCOUNT);
+  const old = await login(env, 'alice');
+  raw.prepare('UPDATE account_sessions SET device = NULL').run(); /* 当作 2g 之前签的老会话：设备列留空 */
   const suWith = (user, cookie) => serviceFetch(new Request(ORIGIN + '/api/identity', { method: 'POST', headers: Object.assign({ Origin: ORIGIN, 'CF-Connecting-IP': freshIp(), 'Content-Type': 'application/json' }, cookie ? { Cookie: cookie } : {}), body: JSON.stringify({ action: 'su', user, password: PW[user] }) }), env, { waitUntil() {} });
   const r1 = await suWith('styrigx');
   const dc = r1.headers.getSetCookie().find((c) => c.startsWith('sgx-device='));

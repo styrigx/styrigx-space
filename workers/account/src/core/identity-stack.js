@@ -17,7 +17,6 @@ import { COOKIE_EXPIRED } from '../lib/cookies.js';
 import { b64urlEnc } from '../lib/crypto.js';
 import { ROOT_UID } from './groups.js';
 import { SESSION_COOKIE, SESSION_TTL_MS, sessionIdOf } from './identity-session.js';
-import { sessionsHaveDevice } from './device-mark.js';
 
 /** 新会话 cookie 的属性（主机级：不写 Domain） */
 export const SESSION_COOKIE_ATTRS = 'Path=/; HttpOnly; Secure; SameSite=Lax';
@@ -52,7 +51,7 @@ export function clearSessionCookie() {
 
 /**
  * 签发普通用户会话（su <用户> 成功后）。uid 是 root → 抛错（root 代码级禁止公开登录）。出错抛错。
- * 2g（定稿 v5.5 §十一）：opts.device = 这台设备的标记（core/device-mark.js）；account_sessions 有设备列（迁移跑过）才写，没有照旧。
+ * 2g（定稿 v5.5 §十一）：opts.device = 这台设备的标记（core/device-mark.js）；写进 account_sessions.device（没有标记写 NULL）。
  * @param {any} env @param {{uid:number, epoch:number}} user @param {number} [now] @param {{device?: string}} [opts]
  * @returns {Promise<{token:string, id:string, expiresAt:number, cookie:string}>}
  */
@@ -64,12 +63,8 @@ export async function issueSession(env, user, now, opts) {
   const expiresAt = t + SESSION_TTL_MS.user;
   const device = opts && typeof opts.device === 'string' && opts.device ? opts.device : '';
   await onDb(env, async (d) => {
-    if (device && (await sessionsHaveDevice(d))) {
-      return d.prepare('INSERT INTO account_sessions (id, uid, epoch, rescue, created_at, expires_at, renewed_at, device) VALUES (?, ?, ?, 0, ?, ?, 0, ?)')
-        .bind(id, user.uid, user.epoch, t, expiresAt, device).run();
-    }
-    return d.prepare('INSERT INTO account_sessions (id, uid, epoch, rescue, created_at, expires_at, renewed_at) VALUES (?, ?, ?, 0, ?, ?, 0)')
-      .bind(id, user.uid, user.epoch, t, expiresAt).run();
+    return d.prepare('INSERT INTO account_sessions (id, uid, epoch, rescue, created_at, expires_at, renewed_at, device) VALUES (?, ?, ?, 0, ?, ?, 0, ?)')
+      .bind(id, user.uid, user.epoch, t, expiresAt, device || null).run();
   });
   return { token, id, expiresAt, cookie: sessionCookie(token, SESSION_TTL_MS.user / 1000) };
 }

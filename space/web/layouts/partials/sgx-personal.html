@@ -1,6 +1,6 @@
 {{- /* 个人信息类（不走语言组，语言清理 2026-11-07）：名字、昵称、用户名、邮箱、头像替代文字里的名字、个人简介 / 签名、
    用户自起的通行密钥名、自定义标签等用户设置 / 账号数据，原样输出，不进字符串表、不按语言分两份。
-   统一标记 translate="no" + data-sgx-personal：浏览器翻译、以后的「翻译此页」、串语言 / 漏翻检测都跳过。JS 侧同一标记见 assets/js/lib/personal.js。
+   统一标记 translate="no" + data-sgx-personal：浏览器翻译、以后的「翻译此页」、串语言 / 漏翻检测都跳过。
    用法：{{ partial "sgx-personal.html" $value }} → <span translate="no" data-sgx-personal>值</span>；
    已有元素直接写属性 translate="no" data-sgx-personal。 */ -}}
 <span translate="no" data-sgx-personal>{{ . }}</span>

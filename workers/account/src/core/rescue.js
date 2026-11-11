@@ -9,7 +9,7 @@
  *   哈希 = SHA-256(域前缀 + 钥匙)：要按值查「用过没有」，所以不加随机盐；钥匙本身 ≥ 32 位随机（§九），SHA-256 不可逆推。
  * - 规范化：比对前两边都去掉全部空白（沿用已上线恢复密钥的 normalizeRecoveryKey：Samsung Pass 粘贴多行），去空白后为空一律拒。
  * - 限流（§九「单独限流（渐进延迟）」）：沿用 §十 已定的两维参数，单独的计数 kind（不和 su / 密码共用）：
- *   按 IP 硬上限（每分钟 6 次失败）；按救援入口本身（目标只有 root）渐进退避 1s → 5s → 30s → 5min，不硬锁。只有失败才写计数。
+ *   按 IP 硬上限（每分钟 6 次失败）；按 uid 渐进退避（目标只有 root，uid 0 一个桶）1s → 5s → 30s → 5min，第一次失败就等 1s，不硬锁。只有失败才写计数。
  * - 审计（§九 / §十）：account_user_audit——成功 `rescue`（uid 0），失败 `login-fail rescue`（钥匙错 / 同值复用 / 指纹写失败分开记）。
  *   钥匙值一律不进审计、不进日志。
  * - 防枚举（§十）：钥匙错与同值复用回同一个错误（401 auth）；只在审计里区分。
@@ -41,8 +41,8 @@ export function normalizeRecoveryKey(s) {
 
 /** 救援入口的计数（单独的 kind，不和 su / 旧恢复密钥共用）：IP 维度 */
 export const RESCUE_IP_LIMIT = Object.freeze({ kind: 'v6-rescue-ip', max: IP_LIMIT.max, windowMs: IP_LIMIT.windowMs });
-/** 救援入口的计数：渐进退避（目标只有 root，一个桶） */
-export const RESCUE_BACKOFF = Object.freeze({ kind: 'v6-rescue', bucket: 'root', table: NAME_BACKOFF_MS });
+/** 救援入口的计数：按 uid 渐进退避（定稿 §十；目标只有 root，uid 0 一个桶） */
+export const RESCUE_BACKOFF = Object.freeze({ kind: 'v6-rescue', bucket: 'uid:' + ROOT_UID, table: NAME_BACKOFF_MS });
 const BACKOFF_TTL_MS = 24 * 3600 * 1000;
 
 /** 指纹的域前缀（别的哈希撞不上） */
@@ -66,7 +66,7 @@ async function inCooldown(env, ip) {
 /** 记一次失败（两维，原子）。出错抛错。 @param {any} env @param {string} ip */
 async function recordFail(env, ip) {
   await recordAttempt(env, RESCUE_IP_LIMIT.kind, ipBucket(ip), { max: RESCUE_IP_LIMIT.max, ttlMs: RESCUE_IP_LIMIT.windowMs, lockMs: RESCUE_IP_LIMIT.windowMs });
-  await recordAttempt(env, RESCUE_BACKOFF.kind, RESCUE_BACKOFF.bucket, { max: 1, ttlMs: BACKOFF_TTL_MS, lockTable: RESCUE_BACKOFF.table.slice() });
+  await recordAttempt(env, RESCUE_BACKOFF.kind, RESCUE_BACKOFF.bucket, { max: 1, ttlMs: BACKOFF_TTL_MS, lockTable: RESCUE_BACKOFF.table.slice(), lockFromFirst: true });
 }
 
 /** 这把钥匙用过没有（指纹在表里）。出错抛错。 @param {any} env @param {string} fp */

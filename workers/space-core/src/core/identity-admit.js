@@ -154,7 +154,7 @@ export async function newSessionSignedIn(env, request) {
 }
 
 /** 别的 Worker 能记的 root 特权操作命令字（同账号 Worker REMOTE_AUDIT_COMMANDS） */
-const AUDIT_RE = /^(?:rm-bulk|import|export|share)(?:\s[\x20-\x7e]{0,190})?$/;
+const AUDIT_RE = /^(?:rm-bulk|import|export)(?:\s[\x20-\x7e]{0,190})?$/;
 
 /**
  * root 的特权内容操作留痕：经 ACCOUNT_VERIFIER.auditRoot 写账号侧身份审计（账号 Worker 重新判会话，只认真 root）。尽力而为，从不抛错。

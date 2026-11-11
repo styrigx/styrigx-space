@@ -15,7 +15,6 @@
  * 只 import lib/ 和 core/。
  */
 import { onDb } from '../lib/db.js';
-import { sessionsHaveDevice } from './device-mark.js';
 import { ROOT_UID, STYRIGX_UID, FIRST_USER_UID, USER_NAME_RE, GROUPS, PRIVILEGED_GROUPS, canJoinGroup } from './groups.js';
 import { expiryFromDate, getUser, getGroups, addToGroup, removeFromGroup, credentialsChanged, deleteUserRows } from './users.js';
 import { oneTimePassword, savePasswordFor, ONE_TIME_TTL_MS } from './identity-auth.js';
@@ -159,7 +158,7 @@ export async function whoList(env, q) {
   const t = typeof q.now === 'number' ? q.now : Date.now();
   const only = Number.isInteger(q.onlyUid) ? q.onlyUid : null;
   const rows = await onDb(env, async (d) => {
-    const dev = q.withDevice === true && (await sessionsHaveDevice(d));
+    const dev = q.withDevice === true;
     const sql = 'SELECT s.id, s.uid, s.rescue, s.created_at, s.expires_at, u.name, k.expires_at AS k_exp' + (dev ? ', s.device' : '') +
       ' FROM account_sessions s JOIN account_users u ON u.uid = s.uid LEFT JOIN account_session_stack k ON k.session_id = s.id AND k.depth = 1' +
       ' WHERE s.expires_at > ?' + (only === null ? '' : ' AND s.uid = ?') + ' ORDER BY s.created_at';
@@ -178,7 +177,7 @@ export async function whoList(env, q) {
 
 /**
  * 设备列表（定稿 v5.5 §五「列表为全站视图、列出全站会话」；§十一 2g「设备列表按 sgx-device 合并同一台设备的会话」）：
- * 全站会话按设备标记（account_sessions.device）归成一台台设备；没有设备标记的会话（2g 之前签的老会话、迁移前）各算一台。
+ * 全站会话按设备标记（account_sessions.device）归成一台台设备；没有设备标记的会话（2g 之前签的老会话）各算一台。
  * 每台：{ n, path（这台上各会话的身份路径，按开始时间，逗号分隔）, since（最早开始）, expiresAt（最晚到期）, current（含本会话） }。
  * 设备标记本身不出接口（只用来归并）。另回 ids：第 n 台的会话 id（踢出用，不出接口）。
  * @param {any} env @param {{current?: string, now?: number}} q

@@ -89,12 +89,9 @@ test('设为今日：能编辑（canWrite）、抽过、公开、不是今天这
   assert.equal(D.canSetToday(true, true, null, today), false);
 });
 
-test('isLockedReply：写请求只有 401 unauthorized（或没码的 401）才当锁定；401 account / reauth 不刷新（P2-2）', () => {
-  assert.equal(D.isLockedReply(401, 'unauthorized'), true);
-  assert.equal(D.isLockedReply(401, ''), true);
-  assert.equal(D.isLockedReply(401, 'account'), false);
-  assert.equal(D.isLockedReply(401, 'reauth'), false);
-  assert.equal(D.isLockedReply(403, 'scope'), false);
+test('isLockedReply：写请求 401 当锁定；其余不是', () => {
+  assert.equal(D.isLockedReply(401), true);
+  assert.equal(D.isLockedReply(403), false);
 });
 
 test('moveItem：上移 / 下移，越界不动', () => {

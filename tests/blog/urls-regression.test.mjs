@@ -143,8 +143,8 @@ describe('网址回归（图志 /blog/ 下）', () => {
     const res = await fetch(base + '/blog/zh/');
     const html = await res.text();
     assert.match(html, /<header class="?sgx-ph"? data-sgx-ph>/, '页头');
-    /* 环境提示符规则（进站 v3 L1）：两种都写，CSS 按账号登录状态只显示一种 */
-    assert.match(html, /styrigx@space:~\$<\/span><span class="?sgx-envps-r"? translate="?no"?>root@account:~#<\/span><\/span> ls -lt blog\//, '页头命令');
+    /* 环境提示符规则（进站 v3 L1）：三种都写（谁登录显示谁），CSS 按登录身份只显示一种 */
+    assert.match(html, /nobody@space:~\$<\/span><span class="?sgx-envps-g sgx-envps-u"? translate="?no"?>styrigx<\/span><span class="?sgx-envps-g"? translate="?no"?>@space:~\$<\/span><span class="?sgx-envps-r"? translate="?no"?>root@space:~#<\/span><\/span> ls -lt blog\//, '页头命令');
     assert.match(html, /<h1 class="?sgx-ph-title"?>博客<\/h1>/, '中文 h1「博客」（可见）');
     assert.match(await (await fetch(base + '/blog/')).text(), /<h1 class="?sgx-ph-title"?>Blog<\/h1>/, '英文 h1「Blog」');
     assert.match(html, /写下来的东西。共 9 篇 · 最近更新 <span class=\"?sgx-nw\"?>\d{4}-\d{2}-\d{2}<\/span>/, '日期整段不折行（2026-11-09 细节 6）');

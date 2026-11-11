@@ -5,13 +5,10 @@
  * - cookie sgx-device：12 字节随机（base64url 16 字符，同旧 account_device 的 deviceId 格式，core/devices.js isDeviceId / newDeviceId），
  *   HttpOnly、Secure、SameSite=Lax、Path=/，Max-Age 400 天；不是凭据（只用来把同一台设备的会话归在一起），鉴权从不读它。
  * - su <用户> 签发会话时：请求带合法的 sgx-device 就沿用（同一台设备），没有就新发；写进 account_sessions.device，并把 cookie 续到 400 天。
- * - 设备列（account_sessions.device）的迁移 docs/ops/v6-p4-2g-device-column.sql 部署绿后才执行：迁移前没有这一列，
- *   签发照旧不写、列表不合并（lib/uid-schema.js hasColumn 判断，最多 60 秒切过去）。
  *
  * 只 import lib/ 与 core/。
  */
 import { readCookie } from '../lib/cookies.js';
-import { hasColumn } from '../lib/uid-schema.js';
 import { isDeviceId, newDeviceId } from './devices.js';
 
 /** cookie 名（定稿 v5.5 §十一） */
@@ -35,7 +32,3 @@ export function deviceCookie(mark) {
   return DEVICE_COOKIE + '=' + mark + '; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=' + DEVICE_MAX_AGE;
 }
 
-/** account_sessions 有没有设备列（迁移跑没跑） @param {any} d D1 绑定 */
-export function sessionsHaveDevice(d) {
-  return hasColumn(d, 'account_sessions', 'device');
-}

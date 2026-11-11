@@ -378,7 +378,7 @@ account:
     errWrongPw: "密码不正确"
     errNotSet: "尚未设置"
     errWrongRoot: "恢复密钥不正确"
-    sessExp: "会话已失效 · 重新 sudo styrigx"
+    sessExp: "会话已失效 · 重新 su"
     opening: "正在打开账号…"
   # 割接：v6 root 直接做的 sub / app 撞到服务端 401 / 403 forbidden（同身份层 notSignedIn、终端 needRoot6）
   v6:
@@ -507,8 +507,7 @@ account:
       pq-unsupported: "暂不支持后量子公钥（age1pq1…）"
       no-token: "还没有下载令牌 · 用 sub token reset"
       token-unsealed: "这个令牌只存了哈希 · 用 sub token reset 换一个能重印的"
-# 进站系统（进站 v3 L1，SPACE-V3 §3.4）：锁屏 entry@space:~$、reset@space:~#、盾牌 styrigx@space:~#（shell/space/*）。命令 / 提示符 / 方式名不翻译。
-# 站内终端输入行（terminal.js → term/view/input-line.js）只读这五句；其余进站旧文案 v6 P4-2 删了
+# 站内终端输入行（terminal.js → term/view/input-line.js）只读这几句。命令 / 提示符不翻译。
 space:
   common:
     termAria: "进站终端输入"

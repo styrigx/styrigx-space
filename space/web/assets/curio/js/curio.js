@@ -10,11 +10,10 @@
  * - 不能编辑（canWrite=false）：命令链里只有一条（#cu-signin，signinHint）：
  *   没登录 →「su · su 登录后可编辑」，点了打开顶栏终端、预填 su （2c，v6 割接；data-sec-open）；
  *   已以 v6 用户登录但不在 curio-write → 无权限句「当前用户没有这个权限。」（「未获账号授权 → 应用授权」那一层随应用授权删除，v6 P4）。
- *   写接口回 401 account / 403 scope 时也提示这一句；导入回 401 reauth（要账号复验）时给「去验证」：打开账号终端只做 sudo root reauth，验过后当场重发导入，关下拉 reauth 即失效（#327 偏离修复）。
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
  *
  * 数据：GET /api/links；写：POST /api/links {op}、POST /api/import（原文）；GET /api/preview；导出是 /api/export 的下载链接。
- * 读接口公开（v5 S3）；写请求回 401 unauthorized = 没进站 → 发 sgx:sudo（顶栏终端预填 sudo styrigx），401 account / reauth 是账号的事，照常提示。纯函数导出给 tests/curio/curio.test.mjs。
+ * 读接口公开（v5 S3）；写请求回 401 = 没进站 → 发 sgx:sudo（顶栏终端预填 su ）。纯函数导出给 tests/curio/curio.test.mjs。
  */
 (function(){
 "use strict";
@@ -110,11 +109,11 @@ function normalizeUrl(s){
 }
 
 /**
- * 写请求的 401 是不是「锁定了」（要刷新去锁屏）：401 account（没登录账号）/ 401 reauth（要账号复验）不是，其余 401 都是。
- * @param {number} status @param {string} code
+ * 写请求的 401 是不是「锁定了」（要刷新去锁屏）：401 都是。
+ * @param {number} status
  */
-function isLockedReply(status, code){
-  return status === 401 && code !== 'account' && code !== 'reauth';
+function isLockedReply(status){
+  return status === 401;
 }
 
 /** 导入结果的一句话（文案在字符串表 js.curio.imp*） @param {{added:number, cats_added:number, skipped:number}} r @param {(k:string, v?:object)=>string} tr */
@@ -180,7 +179,7 @@ var toastTimer = null;
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
 }
-/** 请人进站：顶栏终端预填 sudo styrigx（shell/topbar-panel.js 接 sgx:sudo，= js/lib/sudo.js SUDO_EVENT）；子页经 SgxCurioUI.sudo 用同一个 */
+/** 请人进站：顶栏终端预填 su （shell/topbar-panel.js 接 sgx:sudo，= js/lib/sudo.js SUDO_EVENT）；子页经 SgxCurioUI.sudo 用同一个 */
 function askSudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
 function getJSON(url){
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
@@ -195,7 +194,7 @@ function send(url, body, type){
     body: type ? body : JSON.stringify(body),
   }).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){
-      if (isLockedReply(r.status, j.error)) { askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      if (isLockedReply(r.status)) { askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
       if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
       return j;
     });
@@ -213,38 +212,23 @@ function errText(e){
   var c = e && e.code;
   return c === 'duplicate' ? T.dup : c === 'not-empty' ? T.notEmpty : c === 'bad-url' ? T.needUrl : c === 'bad-name' ? T.needName
     : c === 'not-bookmarks' ? T.notBookmarks : c === 'empty' ? T.emptyFile : c === 'too-large' ? T.tooLarge : c === 'limit' ? T.limit : c === 'backup' ? T.backup
-    : c === 'account' ? T.needAccount : c === 'scope' ? T.noScopeErr : c === 'reauth' ? T.needReauth
     : c === 'forbidden' ? (T.noPermission || T.failed) : T.failed; /* 2b：v6 身份档不够（403 forbidden） */
 }
 
 /**
  * 不能编辑时那一条（2c 起是 su 入口，data-sec-open）：没登录 → su；已以 v6 用户登录但不在写组 → 无权限句，仍是 su。
- * 「未获账号授权 → #acct=apps」那一支随应用授权整套删除（v6 P4，定稿 v5.5 §十二）。
- * @returns {{text: string, open: string, app: string}}
+ * @returns {string} 说明文字
  */
 function signinHint(){
   /* 2d：已经以 v6 用户登录（登录标记 sgx-id=1，同 shell/identity/api.js hasMarker）、只是不在写组 → 命令仍是 su（v6-stepup-app-map：缺组时提示 su），
      文字换成站内已上线的无权限句 noPermission「当前用户没有这个权限。」，不再说「su 登录后可编辑」 */
-  if (v6SignedIn() && T.noPermission) return { text: T.noPermission, open: '', app: '', su: true };
-  /* 2c（v6 割接）：没登录 → 指向 su（打开顶栏终端，data-sec-open：没登录预填 su ） */
-  return { text: T.signin, open: '', app: '', su: true };
+  if (v6SignedIn() && T.noPermission) return T.noPermission;
+  /* 2c（v6 割接）：没登录 → 「su 登录后可编辑」（入口 su / data-sec-open / #sec 在模板里） */
+  return T.signin;
 }
 /** 有没有 v6 登录标记（服务端随 sgx-session 写的 sgx-id=1；不含秘密） */
 function v6SignedIn(){
   try { return /(?:^|;\s*)sgx-id=1(?:;|$)/.test(doc.cookie || ''); } catch (e) { return false; }
-}
-/** 入口链接：su（data-sec-open，退路 #sec；旧账号入口 #acct…&app= 随应用授权删除，v6 P4） @param {Element} a @param {{open: string, app: string, su?: boolean}} h */
-function setAcctOpen(a, h){
-  var base = (a.getAttribute('href') || '/').replace(/#.*$/, '');
-  var k = a.querySelector('.sgx-cmd-k');
-  if (h.su) {
-    /* 2c：su 入口——data-sec-open（顶栏终端，没登录预填 su ），退路 本语言首页 #sec */
-    a.removeAttribute('data-acct-open');
-    a.removeAttribute('data-acct-app');
-    a.setAttribute('data-sec-open', '');
-    a.setAttribute('href', base + '#sec');
-    if (k) k.textContent = 'su';
-  }
 }
 
 /** 长按（≈550ms，手指不挪）触发 fn；触发后吞掉随后的那次点击（不打开网址） */
@@ -287,14 +271,13 @@ $('#confirm-cancel').addEventListener('click', function(){ confirmFn = null; clo
 $('#confirm-ok').addEventListener('click', function(){ var f = confirmFn; confirmFn = null; closeOverlay('confirm-wrap'); if (f) f(); });
 /* 设备 / 游戏页签（curio-items.js）共用确认框、提示条、弹层开关 */
 /** 页底那一行（#cu-signin）：能编辑就藏起来；不能编辑时按有没有账号会话换字和链接（各子页共用，curio-items.js / curio-movies.js 也调） */
-function applySignin(can, loggedIn){
+function applySignin(can){
   var hint = $('#cu-signin');
   if (!hint) return;
   hint.classList.toggle('hidden', !!can);
   if (!can) {
-    var h = signinHint(), t = hint.querySelector('[data-signin-text]');
-    if (t) t.textContent = h.text;
-    setAcctOpen(hint, h);
+    var t = hint.querySelector('[data-signin-text]');
+    if (t) t.textContent = signinHint();
   }
 }
 
@@ -595,21 +578,11 @@ $('#cats-add').addEventListener('click', function(){
 });
 
 var impFile = null;
-function impMsg(text, bad, link){
+function impMsg(text, bad){
   var el = $('#imp-msg');
   el.textContent = text || '';
-  if (text && link) {
-    /* 要账号复验（401 reauth）：提示后面带一个去账号页的链接（P3-1 前的简版） */
-    var a = doc.createElement('a');
-    a.href = link.href; a.textContent = link.label; a.className = 'underline font-bold ml-1';
-    if (link.open) a.setAttribute('data-acct-open', link.open);
-    el.appendChild(a);
-  }
   el.classList.toggle('hidden', !text); el.classList.toggle('text-m-error', !!bad);
 }
-/** 账号再验证（2026-11-08：打开顶栏账号终端只做 sudo root reauth）。验过后终端发 sgx-account-reauthed，这里当场重发导入；
- *  关下拉后 reauth 即失效（#327 偏离修复，和 O12 一致），所以不靠「3 分钟内再点一次导入」 */
-function reauthLink(){ var el = doc.getElementById('cu-signin'); return { href: ((el && el.getAttribute('href')) || '/').replace(/#.*$/, '') + '#acct=reauth', open: 'reauth', label: T.verifyNow }; }
 function resetImport(){
   impFile = null;
   $('#imp-file').value = '';
@@ -627,14 +600,11 @@ $('#imp-file').addEventListener('change', function(){
   $('#imp-go').disabled = !impFile;
   impMsg('');
 });
-/* 导入回了 401 reauth、还没复验：账号终端只做 reauth 验过后（sgx-account-reauthed）当场重发这一次导入 */
-var impNeedsReauth = false;
 /** @returns {Promise<void>} */
 function runImport(){
   if (!impFile) return Promise.resolve();
   var btn = $('#imp-go');
   btn.disabled = true;
-  impNeedsReauth = false;
   impMsg(T.importing);
   return impFile.text().then(function(text){
     return send('/curio/api/import' + ($('#imp-private').checked ? '' : '?private=0'), text, 'text/html');
@@ -645,18 +615,11 @@ function runImport(){
     impFile = null;
   }).catch(function(e){
     if (e.sgxLocked) return;
-    impNeedsReauth = e.code === 'reauth';
-    impMsg(errText(e), true, impNeedsReauth ? reauthLink() : null);
+    impMsg(errText(e), true);
     btn.disabled = false;
   });
 }
 $('#imp-go').addEventListener('click', function(){ runImport(); });
-doc.addEventListener('sgx-account-reauthed', function(ev){
-  if (!impNeedsReauth || !impFile) return;
-  var p = runImport();
-  var d = /** @type {any} */ (ev).detail;
-  if (d && typeof d.waitUntil === 'function') d.waitUntil(p);
-});
 
 /* ---------- 启动 ---------- */
 function boot(){
@@ -668,7 +631,7 @@ function boot(){
     loaded = true;
     doc.documentElement.classList.toggle('cu-can-write', canWrite);
     ['#cu-fab', '#menu-cats', '#menu-import', '#menu-export'].forEach(function(id){ $(id).classList.toggle('hidden', !canWrite); });
-    applySignin(canWrite, showPrivate);
+    applySignin(canWrite);
     $('#cu-loading').classList.add('hidden');
     render();
   }).catch(function(e){

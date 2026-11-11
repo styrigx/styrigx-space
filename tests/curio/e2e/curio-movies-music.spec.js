@@ -55,7 +55,7 @@ async function mockMovies(page, can) {
   await page.route('**/api/movies', async (r) => {
     const req = r.request();
     if (req.method() === 'GET') return r.fulfill({ json: { ok: true, canWrite: can, showPrivate: can, movies } });
-    if (!can) return r.fulfill({ status: 403, json: { ok: false, error: 'scope', scope: 'curio.write' } });
+    if (!can) return r.fulfill({ status: 403, json: { ok: false, error: 'forbidden' } });
     const b = req.postDataJSON();
     calls.push(b);
     let id;
@@ -175,7 +175,7 @@ async function mockMusic(page, who) {
   await base(page, can);
   const calls = [];
   let albums = JSON.parse(JSON.stringify(ALBUMS));
-  const deny = (r) => r.fulfill({ status: 403, json: { ok: false, error: 'scope', scope: 'curio.write' } });
+  const deny = (r) => r.fulfill({ status: 403, json: { ok: false, error: 'forbidden' } });
   await page.route('**/api/music-cover**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
   await page.route('**/api/music', async (r) => {
     const req = r.request();

@@ -111,7 +111,7 @@
 - 入口：`POST /api/identity`（网关 public、转发给账号；每个 action 一档，救援白名单 = whoami / passwd / passkey-* / groups / exit / lock）。
 - 会话 cookie `sgx-session`：`Path=/; HttpOnly; Secure; SameSite=Lax`，只发给 styrigx.com 本主机（不写 Domain：子站都在同一主机路径下）。
 - `su <用户>` 只签普通用户；`issueSession` 代码级拒签 uid 0；`su root` 只压栈（≤ 1 小时）；`idle` 只弹 root 层；`sudo` 每次验自己的凭据、不压栈、不发票据，只能借 root 跑 useradd / userdel / usermod / passwd <名> / groups / who，`passwd` / `passkey` 一律 `root-creds`。
-- 数据按 uid：头像在 KV 按键前缀分（styrigx 键不变）；偏好 / 数字健康（v6 P4 随数字健康整套删除，定稿 v5.5 §四）/ 旧设备表的 uid 列在 `workers/account/migrations/0007_v6_uid_columns.sql`（2026-11-11 Gray 批准，从 `migrations-pending/` 挪入，部署 job 执行）；代码两种表结构都能跑（`lib/uid-schema.js`），迁移前别的 uid 读到空、写被拒 / 丢弃。v6 的「设备」= 自己的 `account_sessions`。
+- 数据按 uid：头像在 KV 按键前缀分（styrigx 键不变）；偏好 / 数字健康（v6 P4 随数字健康整套删除，定稿 v5.5 §四）/ 旧设备表的 uid 列在 `workers/account/migrations/0007_v6_uid_columns.sql`（2026-11-11 Gray 批准，部署 job 执行）；代码一律按 uid 读写。v6 的「设备」= 自己的 `account_sessions`。
 - 审计加 root 改名片（`profile`）；批量 / 结构删除在奇趣 / 日刻接口 Worker，它们接上新会话（割接，§2.15）时写 `rm-bulk`。
 
 ### 2.14 P2c 对齐定稿 v5（2026-11-11）

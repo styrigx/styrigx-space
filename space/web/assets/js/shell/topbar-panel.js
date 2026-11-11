@@ -645,11 +645,24 @@ export function mountTopbar(o) {
     paintShield();
     if (who) who.on(paintShield);
   }
-  /* 环境提示符 / AI 窗标签（<html data-sgx-account-session>，layout-mode.js 首帧写 out）：v6 P4 起按 whoami——root（u:root）= in（root@account 那组），
-     其余（访客 / 普通用户）= out（styrigx@space 那组）；只在服务端回答变了时改（网络错不动） */
-  if (who) who.on(function (/** @type {string} */ w) {
-    try { doc.documentElement.setAttribute('data-sgx-account-session', w === 'u:root' ? 'in' : 'out'); } catch (e) {}
-  });
+  /* 环境提示符 / AI 窗提问行（<html data-sgx-account-session>，layout-mode.js 首帧写 nobody / out）：谁登录显示谁，和终端提示符一致（Gray 11-11 22:46）——
+     访客 = nobody（nobody@space），普通用户 / 站长 = out（<名>@space：名字写进 .sgx-envps-u 和 --sgx-ps-user），root（u:root）= in（root@space）。
+     身份变了就改；首帧有登录标记的，whoami 回答后按回答再画一次（回答是访客时 who.on 不会触发） */
+  if (who) {
+    const paintEnvPs = function (/** @type {string} */ w) {
+      try {
+        const de = doc.documentElement;
+        const nm = w.indexOf('u:') === 0 ? w.slice(2) : '';
+        de.setAttribute('data-sgx-account-session', !nm ? 'nobody' : nm === 'root' ? 'in' : 'out');
+        if (nm && nm !== 'root' && /^[a-z][a-z0-9-]{0,31}$/.test(nm)) {
+          de.style.setProperty('--sgx-ps-user', '"' + nm + '"');
+          doc.querySelectorAll('.sgx-envps-u').forEach(function (el) { el.textContent = nm; });
+        } else de.style.removeProperty('--sgx-ps-user');
+      } catch (e) {}
+    };
+    who.on(paintEnvPs);
+    if (who.v6Hinted()) who.refresh().then(function () { paintEnvPs(who.get()); }, function () {});
+  }
   /* 首帧（AI 窗随页面恢复打开时）：有 v6 登录标记、whoami 还没回答前，AI 窗的消息列表（带 in / out 标签）先不显示，
      免得 root 先看到 out 那组标签；whoami 回答后（上面按结果设好 in / out）再显示，出错也照常显示（Gray 11-11 19:47） */
   if (who && aiDlg && who.v6Hinted()) {

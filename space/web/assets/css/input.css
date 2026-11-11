@@ -8301,11 +8301,13 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .sgx-ai-msg[data-role="user"] { padding: 9px 13px; background: var(--sgx-surface-container-high); color: var(--sgx-text-primary); box-shadow: inset 0 0 0 1px var(--sgx-term-line); border-bottom-right-radius: 10px; }
 .sgx-ai-msg[data-role="assistant"] { max-width: 100%; padding: 0; background: transparent; box-shadow: none; border-radius: 0; }
 /* 用户那一行 = 提问者的提示符 + --ask，回答前一行 = grayai 的提示符 + --reply（Gray 2026-11-09 第二版；只改文字，样式不变）：
-   账号没登录 styrigx@space:~$ --ask / grayai@space:~$ --reply；已登录 root@account:~# --ask / grayai@account:~# --reply */
-.sgx-ai-msg[data-role="user"]::before { content: "styrigx@space:~$ --ask"; content: "styrigx@space:~$ --ask" / ""; display: block; margin-bottom: 2px; font-family: var(--sgx-font-mono); font-size: 11px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
-html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { content: "root@account:~# --ask"; content: "root@account:~# --ask" / ""; }
+   提问行谁登录显示谁，和终端提示符一致（Gray 2026-11-11 22:46，定稿 §十三「AI 窗口标签改读 v6 登录状态」）：
+   访客 nobody@space:~$ --ask；普通用户 / 站长 <名>@space:~$ --ask（名字在 --sgx-ps-user，shell/topbar-panel.js 按 whoami 写）；root root@space:~# --ask。
+   回答行始终 grayai@space:~$ --reply */
+.sgx-ai-msg[data-role="user"]::before { content: "nobody@space:~$ --ask"; content: "nobody@space:~$ --ask" / ""; display: block; margin-bottom: 2px; font-family: var(--sgx-font-mono); font-size: 11px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
+html[data-sgx-account-session="out"] .sgx-ai-msg[data-role="user"]::before { content: var(--sgx-ps-user, "styrigx") "@space:~$ --ask"; content: var(--sgx-ps-user, "styrigx") "@space:~$ --ask" / ""; }
+html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="user"]::before { content: "root@space:~# --ask"; content: "root@space:~# --ask" / ""; }
 .sgx-ai-msg[data-role="assistant"]::before { content: "grayai@space:~$ --reply"; content: "grayai@space:~$ --reply" / ""; display: block; margin-bottom: 4px; font-family: var(--sgx-font-mono); font-size: 12px; line-height: 1.4; white-space: nowrap; color: var(--sgx-primary); }
-html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before { content: "grayai@account:~# --reply"; content: "grayai@account:~# --reply" / ""; }
 .sgx-ai-msg[data-greet] > span { color: var(--sgx-text-secondary); }
 .sgx-ai-msg[data-state="error"] { padding: 9px 13px; border-radius: 10px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sgx-danger) 45%, transparent); }
 .sgx-ai-turn { max-width: 100%; align-self: stretch; }
@@ -8411,7 +8413,6 @@ html[data-sgx-account-session="in"] .sgx-ai-msg[data-role="assistant"]::before {
 .sgx-ai-mopt[aria-checked="true"]::after { content: "✓"; margin-left: auto; }
 /* 空态的命令回显：欢迎语是 AI 说的话，回显用 grayai 的 --reply，与普通回答行一致（原设计稿 ask --help 是提问者的；Gray 2026-11-09 改；只改文字，样式不变） */
 .sgx-ai-msg[data-greet]::before { content: "grayai@space:~$ --reply"; content: "grayai@space:~$ --reply" / ""; }
-html[data-sgx-account-session="in"] .sgx-ai-msg[data-greet]::before { content: "grayai@account:~# --reply"; content: "grayai@account:~# --reply" / ""; }
 /* 来源卡片 + 建议问题 */
 .sgx-ai-srcs { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .sgx-ai-src { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 12px; box-sizing: border-box; border: 1px solid var(--sgx-term-line); border-radius: 8px; color: var(--sgx-text-primary); text-decoration: none; font-size: 13px; }
@@ -8582,9 +8583,11 @@ button.sgx-at-r { color: var(--sgx-text-tertiary); }
 @media (pointer: coarse) { .sgx-term-man-q { display: none; } }
 .reduced-motion .sgx-term-dlg .sgx-term, .reduced-motion .sgx-term-dlg::backdrop { transition: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-term-dlg .sgx-term, .sgx-term-dlg::backdrop { transition: none; } }
-/* 环境提示符（进站 v3 L1，SPACE-V3「环境提示符规则」）：模板里静态的提示符两种都写（.sgx-envps-g 账号没登录 styrigx@space:~$ / .sgx-envps-r 已登录 root@account:~#），
-   按 <html data-sgx-account-session>（layout-mode.js __sgxAccountPs 首帧前写好）只显示一种，首帧不闪。JS 拼的提示符（站内终端、AI 窗）读同一个属性。 */
-html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-session="in"]) .sgx-envps-r { display: none; }
+/* 环境提示符（进站 v3 L1，SPACE-V3「环境提示符规则」）：模板里静态的提示符三种都写——谁登录显示谁，和终端提示符一致（Gray 2026-11-11 22:46）：
+   .sgx-envps-n 访客 nobody@space:~$ / .sgx-envps-g 普通用户、站长 <名>@space:~$（名字 .sgx-envps-u，shell/topbar-panel.js 按 whoami 写）/ .sgx-envps-r root root@space:~#；
+   按 <html data-sgx-account-session>（nobody / out / in；layout-mode.js __sgxAccountPs 首帧前写好）只显示一种。AI 窗提问行读同一个属性。 */
+html[data-sgx-account-session="out"] .sgx-envps-n, html[data-sgx-account-session="in"] .sgx-envps-n,
+html:not([data-sgx-account-session="out"]) .sgx-envps-g, html:not([data-sgx-account-session="in"]) .sgx-envps-r { display: none; }
 /* 按键提示行（Gray 2026-11-09 细节 1；shell/keyhint.js，主页 / 抽屉终端和 AI 窗口内联同一套）：终端窗口最底一行淡灰等宽小字，随状态换；
    触屏换成「‹ 返回」按钮（每个终端状态都有出口）。不加高度以外的东西：一行 10.5px，左对齐，超长省略 */
 .sgx-kh { margin: 8px 0 0; font-family: var(--sgx-font-mono); font-size: 10.5px; line-height: 1.5; letter-spacing: 0; color: var(--sgx-text-tertiary); opacity: .85;
