@@ -77,9 +77,6 @@
         {{- range slice (dict "v" "phone" "t" $t.topbar.phone) (dict "v" "auto" "t" $t.topbar.auto) (dict "v" "desktop" "t" $t.topbar.desktop) }}<button type="button" data-v="{{ .v }}" aria-pressed="false">{{ .t }}</button>{{ end }}
       </div>
     </div>
-    <div class="sgx-nav-act">
-      <button type="button" class="sgx-nav-btn" data-qp="share" data-sgx-share aria-label="{{ $t.topbar.share }}">{{ index $i "share" | safeHTML }}<span>{{ $t.topbar.shareKey }}</span></button>
-    </div>
     {{- /* STATUS（2026-11 PR-A 接真数据，设计稿 nav-v2「● 全部在线」+ 各服务延迟）：topbar-panel.js mountStatus 取 GET /api/status（主站监测，进门会话）——
        space / blog / curio / daymark 同一个 Pages、同一条网关链路 = 主站那一项；gray-ai = AI 那一项；auth = 网关自己（这一问的往返时间）。
        拿不到（没进门 / 出错）：点是灰的、延迟空着，头部写 statusPending。数据也写进 tmux 页脚的 ● n/6。 */}}

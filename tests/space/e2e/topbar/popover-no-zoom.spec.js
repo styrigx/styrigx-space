@@ -24,7 +24,7 @@ async function desktopSite(page) {
   });
 }
 
-/** Esc 关弹层。账号终端未登录打开时停在 sudo root 选方式（pick），Esc 先退出当前命令（^C）、再按才关（term.js），所以最多按 3 次 */
+/** Esc 关弹层。终端停在某个输入模式时 Esc 先退出当前命令（^C）、再按才关（term.js），所以最多按 3 次 */
 async function escClose(page, dlg) {
   for (let i = 0; i < 3 && await page.locator(dlg).isVisible(); i++) {
     await page.keyboard.press('Escape');

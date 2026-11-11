@@ -2,9 +2,9 @@
  * @fileoverview 应用授权（G1–G7）+ 奇趣 / 日刻的授权同意（A17，O6）的终端命令（S9：账号卡片只展示，授权都在终端里）。
  *
  * - app：列表（[n] 名字 · scope · 授权时间和设备 / 已取消授权；敏感操作另要验证的标出来）
- * - app allow <n>：重新授权（要 sudo root reauth，有效期内不再问）· app deny <n>：[y/N] 取消授权（不用验证；只禁改，不禁看）
- * - 授权同意（奇趣 / 日刻的 sudo root 入口，C.consent）：登录后判授权，已授权直接回原页；没授权 → `[y] 允许 [n] 拒绝`（拒绝不写记录），选完收起终端、重新载入
- * 设置同步（prefs）的授权留着（O9）。
+ * - app allow <n>：重新授权 · app deny <n>：[y/N] 取消授权（只禁改，不禁看）
+ * v6（路由表 POST /api/account/grants = root 档）：只有 v6 root 能跑（终端 cmds/acct 把门），不再跑旧的 sudo root reauth。
+ * v6 P4 起奇趣 / 日刻的旧授权同意入口（sudo root &app=…，C.consent）随旧账号会话删除。
  */
 import { mmdd } from './keys.js';
 
@@ -30,7 +30,7 @@ export function mountGrants(C) {
     return api.grants.list().then(function (/** @type {any} */ res) {
       if (res.j && res.j.ok) { C.grants = res.j.grants || []; return C.grants; }
       const told = C.authErrFor(o, res);
-      return o && o.direct && told ? false : null;
+      return told ? false : null;
     }, function () { return null; });
   };
 
@@ -92,54 +92,28 @@ export function mountGrants(C) {
   };
 
   /**
-   * 重新授权：first = 先 sudo root reauth（app allow，同原来窗口的开关）；否则直接试（授权同意，同原来），服务端要 reauth 再验证后重做
-   * 割接：o.direct（v6 root）→ 不跑旧的 reauth（C.gated），服务端 401 / 403 按 v6 提示。
-   * @param {string} app @param {boolean} first @param {(ok: boolean) => void} done @param {{direct?: boolean}} [o]
+   * 重新授权（v6 root 直接做），服务端 401 / 403 按 v6 提示。
+   * @param {string} app @param {(ok: boolean) => void} done @param {{direct?: boolean}} [o]
    */
-  function allow(app, first, done, o) {
+  function allow(app, done, o) {
     const name = appName(app);
     const add = function () {
       C.setMode('busy');
       api.grants.add(app).then(function (/** @type {any} */ res) {
         C.toCmd();
         if (res.j && res.j.ok) { C.grants = res.j.grants || C.grants; C.out('<span class="sgx-at-ok">✓</span> ' + esc(tf('grants.regranted', { v: name }))); done(true); return; }
-        if (!(o && o.direct) && api.isErr(res, api.ERR.reauth)) { C.reauthExp = 0; C.withReauth(add, t('reauth.lead.grants')); return; }
         if (!C.authErrFor(o, res)) C.apiErr(res);
         done(false);
       }, function () { C.netErr(); C.toCmd(); done(false); });
     };
-    if (first) C.gated(o, add, t('reauth.lead.grants'));
-    else add();
+    add();
   }
 
-  /** app allow <n>：重新授权（旧会话要 reauth；v6 root 直接做） @param {number} n @param {{direct?: boolean}} [o] */
+  /** app allow <n>：重新授权（v6 root 直接做） @param {number} n @param {{direct?: boolean}} [o] */
   C.appAllow = function (n, o) {
     nthApp(n, function (g) {
       if (g.granted) { C.note('grants.alreadyOn'); return; }
-      allow(g.app, true, function () {}, o);
+      allow(g.app, function () {}, o);
     }, o);
-  };
-
-  /* ----- 授权同意（奇趣 / 日刻，O6）：选完（或本来就授权了）收起终端，重新载入回到原页 ----- */
-  C.askConsent = function () {
-    const app = C.consent ? C.consent.app : '';
-    const finish = function () { C.consent = null; C.loginChanged = true; C.finished(); };
-    (C.grants ? Promise.resolve(C.grants) : C.loadGrants()).then(function (/** @type {any} */ gs) {
-      const g = (gs || []).find(function (/** @type {any} */ x) { return x.app === app; });
-      if (!g || g.granted) { finish(); return; }
-      const name = appName(app);
-      C.out('<span class="sgx-at-w">' + esc(tf('grants.consent.ask', { v: name })) + '</span>');
-      C.out(esc(tf('grants.consent.sub', { v: name })));
-      C.out('<span class="sgx-at-dim">·</span> ' + esc(t('grants.desc.' + app)));
-      const sens = sensText(g);
-      if (sens) C.out('<span class="sgx-at-dim">·</span> <span class="sgx-at-y">' + esc(sens) + '</span>');
-      C.opts([['y', t('grants.consent.allow')], ['n', t('grants.consent.deny')]]);
-      C.out('# ' + esc(tf('grants.consent.hint', { v: name })), 'd');
-      C.pick({
-        y: function () { C.echoPick('y'); allow(app, false, function () { finish(); }); },
-        n: function () { C.echoPick('n'); C.toCmd(); finish(); },
-      });
-      C.focusIn();
-    });
   };
 }

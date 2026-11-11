@@ -13,7 +13,7 @@
 const { test, expect } = require('@playwright/test');
 const T = require('../helpers/account-term.cjs');
 
-const { SESSION, STATUS, mockAccount, openTerm, openCard, log, termIn, ps, typeLine, mode } = T;
+const { mockAccount, openTerm, openCard, log, termIn, ps, typeLine, mode } = T;
 
 test.use({ viewport: { width: 412, height: 915 } });
 test.beforeEach(async ({ page }) => { await T.zh(page); });
@@ -41,7 +41,7 @@ async function mockProfile(page, o = {}) {
 
 test('卡片头部：姓名 · 昵称 · ✓ 已登录；本机缓存盖住默认值；「编辑」→ 终端预填 profile；profile 列出五项', async ({ page }) => {
   await page.addInitScript(() => { try { localStorage.setItem('sgx-profile', JSON.stringify({ v: 1, p: { name: 'Test Name', nickname: 'tnick' }, t: 1 })); } catch (e) {} });
-  await mockAccount(page, { status: STATUS({ session: SESSION() }) });
+  await mockAccount(page, { user: T.V6_USER('styrigx') });
   await mockProfile(page);
   await T.goPage(page);
   const d = await openCard(page);
@@ -76,13 +76,13 @@ test('卡片头部：姓名 · 昵称 · ✓ 已登录；本机缓存盖住默�
 });
 
 test('profile set：空 / 太长 / 邮箱格式报错不发请求；保存只 PUT 这一项；旧地址 #acct=profile → 终端预填 profile', async ({ page }) => {
-  await mockAccount(page, { status: STATUS({ session: SESSION() }) });
+  await mockAccount(page, { user: T.V6_USER('styrigx') });
   const puts = await mockProfile(page);
   await T.goPage(page, '/zh/#acct=profile');
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
   await expect(termIn(page)).toHaveValue('profile');
   await expect(page).toHaveURL(/\/zh\/$/);
-  await expect(ps(page)).toHaveText('root@account:~#');
+  await expect(ps(page)).toHaveText('styrigx@space:~$');
 
   /* 没给值 → 用法 */
   await typeLine(page, 'profile set name');
@@ -111,7 +111,7 @@ test('profile set：空 / 太长 / 邮箱格式报错不发请求；保存只 PU
 });
 
 test('接口错误（没授权 profile.write）：报在终端里', async ({ page }) => {
-  await mockAccount(page, { status: STATUS({ session: SESSION() }) });
+  await mockAccount(page, { user: T.V6_USER('styrigx') });
   await mockProfile(page, { putReply: () => [403, { ok: false, error: 'scope' }] });
   await T.goPage(page);
   await openTerm(page);
@@ -120,14 +120,14 @@ test('接口错误（没授权 profile.write）：报在终端里', async ({ pag
   await mode(page, 'cmd');
 });
 
-test('没登录账号：profile 要 sudo root', async ({ page }) => {
-  await mockAccount(page, { status: STATUS({ session: null }) });
+test('访客：profile 提示先 su <用户>，不发请求（v6 P4 旧 sudo root 删了）', async ({ page }) => {
+  await mockAccount(page, { user: null });
   const puts = await mockProfile(page);
   await T.goPage(page);
-  await openTerm(page);
-  await expect(ps(page)).toHaveText('styrigx@space:~/wild#');
+  await page.locator('#site-nav .sgx-tb-term').click();
+  await expect(ps(page)).toHaveText('nobody@space:~/wild$');
   await typeLine(page, 'profile set nick x');
-  await expect(log(page)).toContainText('sudo root');
+  await expect(log(page)).toContainText('su <用户>');
   expect(puts).toHaveLength(0);
 });
 
@@ -135,7 +135,7 @@ test('没登录账号：profile 要 sudo root', async ({ page }) => {
    profile 显示默认值（标「默认」），不是「未填写」。子站以前没有 #sgx-profile-default，默认值全空 → 回退写死的 Styrigx。 */
 test('没填过资料：卡片头部 Sloan Gray / Styrigx；profile 显示默认值（标「默认」），不是「未填写」', async ({ page }) => {
   await page.addInitScript(() => { try { localStorage.setItem('sgx-profile', JSON.stringify({ v: 1, p: { motto: '' }, t: 1 })); } catch (e) {} });
-  await mockAccount(page, { status: STATUS({ session: SESSION() }) });
+  await mockAccount(page, { user: T.V6_USER('styrigx') });
   await mockProfile(page, { stored: { name: null, nickname: null, motto: '', email: null } });
   await T.goPage(page);
   const d = await openCard(page);

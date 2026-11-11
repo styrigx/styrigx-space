@@ -53,6 +53,6 @@ test('文案：term / space.common 都有 didYouMean（en / zh）；锁屏 / 盾
     for (const t of [y.term.didYouMean, y.space.common.didYouMean]) assert.match(t, /command not found: \{c\} — .*\{x\}/);
     assert.equal(y.account.common.didYouMean, undefined);
   }
-  /* v5 S5：一个终端（引擎 engine.js 给 did you mean）；钥匙的 reset 层自己解析，也接上 */
-  for (const f of ['space/web/assets/js/shell/term/core/engine.js', 'space/web/assets/js/shell/space/reset.js']) assert.match(read(f), /notFoundLine\(|suggest\(/, f);
+  /* v5 S5：一个终端（引擎 engine.js 给 did you mean）；v6 P4 起钥匙的 reset 层删了 */
+  for (const f of ['space/web/assets/js/shell/term/core/engine.js']) assert.match(read(f), /notFoundLine\(|suggest\(/, f);
 });

@@ -21,7 +21,8 @@ import { onRequestPost as lockPost, onRequestGet as lockGet } from '../../../../
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /* 2026-10-26（frontend-js #6）：锁屏拆成守卫（core 里）+ 界面（按需加载）；v5 S5 起是守卫 shell/space/guard.js + 终端里的钥匙层 shell/space/layer.js / unlock.js，合起来查 */
 const SP = join(root, 'space/web/assets/js/shell/space');
-const lockJs = readFileSync(join(SP, 'guard.js'), 'utf8') + '\n' + readFileSync(join(SP, 'layer.js'), 'utf8') + '\n' + readFileSync(join(SP, 'unlock.js'), 'utf8');
+/* v6 P4：钥匙层（layer.js / unlock.js / lock-now.js …）随旧进站会话删了，只剩守卫 */
+const lockJs = readFileSync(join(SP, 'guard.js'), 'utf8');
 
 test('lock.js：不再读写 sgx-lock-shown', () => {
   assert.ok(!lockJs.includes('sgx-lock-shown'), 'lock.js 不应再出现 sgx-lock-shown');
@@ -41,20 +42,16 @@ test('lock.js：会话有效时分发 sgx:session 事件', () => {
   assert.ok(lockJs.includes("CustomEvent('sgx:session'"), '应分发 sgx:session 事件');
 });
 
-test('立即锁屏（shell/space/lock-now.js）：只锁本机、不验证、没有确认层；调 api.session.end → POST /api/lock-now；锁所有设备是 /api/lock-all-devices', () => {
-  const lockNowJs = readFileSync(join(SP, 'lock-now.js'), 'utf8');
-  const api = readFileSync(join(SP, 'api.js'), 'utf8');
-  const paths = readFileSync(join(SP, 'paths.js'), 'utf8');
-  assert.ok(!lockNowJs.includes('sgx-lock-shown'), '不应再出现 sgx-lock-shown');
-  assert.ok(lockNowJs.includes('api.session.end()'), '走 api.session.end');
-  assert.ok(!/confirm|dialog/i.test(lockNowJs.replace(/\/\*[\s\S]*?\*\//g, '')), '没有确认层');
-  assert.ok(/end: function \(\) \{ return postJSON\(API\.lockNow, \{\}\); \}/.test(api), 'session.end = POST lockNow');
-  assert.ok(paths.includes("lockNow: '/api/lock-now'") && paths.includes("lockAll: '/api/lock-all-devices'"));
-  for (const f of ['auth/lock-now.js', 'apps/security.js']) {
+test('v6 P4：旧的立即锁屏（shell/space/lock-now.js → POST /api/lock-now）删了；lock = v6 身份层清栈（POST /api/identity lock）', () => {
+  for (const f of ['shell/space/lock-now.js', 'shell/space/api.js', 'shell/space/paths.js', 'auth/lock-now.js', 'apps/security.js']) {
     let gone = false;
     try { readFileSync(join(root, 'space/web/assets/js', f), 'utf8'); } catch (e) { gone = true; }
     assert.ok(gone, f + ' 已删');
   }
+  const code = lockJs.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!code.includes('/api/lock-session-check') && !code.includes('/api/lock-now'), '守卫不再问旧接口');
+  const lockCmd = readFileSync(join(root, 'space/web/assets/js/shell/term/cmds/keys/lock.js'), 'utf8');
+  assert.ok(lockCmd.includes('I.cmdLock()'), 'lock 走身份层');
 });
 
 test('2026-11-08 账号 UI 改版：账号卡 sgx-account-card.html 和账号页一起删了；旷野页 / 子页也不放账号卡', () => {
@@ -103,13 +100,6 @@ test('/api/lock-now：POST 下发 Set-Cookie 清除头（锁屏会话 + LockReau
 test('/api/lock-now：GET 返回 405', async () => {
   const res = await lockGet({ request: new Request('https://styrigx.com/api/lock-now'), env: {} });
   assert.equal(res.status, 405);
-});
-
-test('lock.js：有 return 时直接 location.replace（不做前端白名单校验）', () => {
-  /* 2.4.1：return 校验只归 L1，前端删掉重复的白名单校验 */
-  assert.ok(lockJs.includes('location.replace('), '有 return 时应 location.replace');
-  assert.ok(!lockJs.includes('retOk'), '不应再有前端 return 白名单校验（retOk）');
-  assert.ok(!lockJs.includes("ret.charAt(0) === '/'"), '不应再有前端站内路径校验');
 });
 
 test('lock.js：v5 S5 起没有锁屏界面；已解锁页面在 visibilitychange/focus/pageshow 时重查会话（自动回锁，节流）', () => {

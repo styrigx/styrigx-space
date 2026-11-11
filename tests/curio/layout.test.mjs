@@ -42,9 +42,10 @@ test('顶栏（2026-11-04 P5-1，四站同一个）：共享外壳 shell-topbar.
   assert.doesNotMatch(base, /"tiles" /);
   const host = read('space/web/assets/curio/js/sgx/topbar-host.js');
   /* 合站：直接引主站的共享外壳源文件（没有 js/sgx/shell/ 副本） */
-  for (const m of ['../../../js/shell/topbar-panel.js', '../../../js/shell/modal-sheet.js', '../../../js/shell/ai-panel.js', '../../../js/shell/vk.js', '../../../js/lib/prefs-write.js', '../../../js/shell/share-button.js']) {
+  for (const m of ['../../../js/shell/topbar-panel.js', '../../../js/shell/modal-sheet.js', '../../../js/shell/ai-panel.js', '../../../js/shell/vk.js', '../../../js/lib/prefs-write.js']) {
     assert.match(host, new RegExp("from '" + m.replace(/[.\/]/g, '\\$&') + "'"), m);
   }
+  assert.doesNotMatch(host, /share-button|mountShare/, 'v6 P4：分享本页磁贴拿掉');
 });
 
 test('没有版权页脚（© / Powered by），样式也删干净', () => {

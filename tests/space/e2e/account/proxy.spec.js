@@ -3,7 +3,7 @@
  *
  * 覆盖：
  * - sub：公钥头尾、令牌状态、每个来源一行（名称 · 域名或文件 · 节点数 · 状态）
- * - sub show [名称]：有 reauth 票直接印令牌和地址（各带复制）；给了名称只印那一个；随时可重印
+ * - sub show [名称]：v6 root 直接印令牌和地址（各带复制）；给了名称只印那一个；随时可重印
  * - sub token reset（S9）：已有令牌先 y/N；换新后印新地址；单 sub token 给用法
  * - sub mv：名称大小写原样；确认时显示新旧路径（令牌遮挡）；y → proxy/mv
  * - sub add 同名：显示新旧域名再确认；新链接试拉失败 → 「新链接拉取失败：…，未更换」
@@ -11,7 +11,7 @@
 const { test, expect } = require('@playwright/test');
 const T = require('../helpers/account-term.cjs');
 
-const { SESSION, REAUTH, STATUS, mockAccount, openTerm, log, typeLine, mode } = T;
+const { mockAccount, openTerm, log, typeLine, mode } = T;
 
 test.use({ viewport: { width: 1280, height: 900 } });
 test.beforeEach(async ({ page }) => { await T.zh(page); });
@@ -23,7 +23,7 @@ const SOURCES = [
 const PSTATUS = { ok: true, pubkey: 'age1abcdef…uvwxyz', hasKey: true, token: 'sealed', refreshing: false, sources: SOURCES };
 
 test('sub：公钥头尾、令牌、每个来源一行', async ({ page }) => {
-  await mockAccount(page, { status: STATUS({ session: SESSION() }), handlers: { 'proxy/status': [200, PSTATUS] } });
+  await mockAccount(page, { handlers: { 'proxy/status': [200, PSTATUS] } });
   await T.goPage(page);
   await openTerm(page);
   await typeLine(page, 'sub');
@@ -37,9 +37,8 @@ test('sub：公钥头尾、令牌、每个来源一行', async ({ page }) => {
 const TK = 'T'.repeat(43);
 const BASE = 'https://proxy-rules.styrigx.com/s/';
 
-test('sub show：有 reauth 票直接印令牌和全部地址；sub show <名称> 只印那一个；可以反复印', async ({ page }) => {
+test('sub show：v6 root 直接印令牌和全部地址；sub show <名称> 只印那一个；可以反复印', async ({ page }) => {
   const calls = await mockAccount(page, {
-    status: STATUS({ session: SESSION(), reauth: REAUTH() }),
     handlers: { 'proxy/status': [200, PSTATUS], 'proxy/show': [200, { ok: true, token: TK, base: BASE }] },
   });
   await T.goPage(page);
@@ -59,7 +58,6 @@ test('sub show：有 reauth 票直接印令牌和全部地址；sub show <名称
 
 test('sub token reset：已有令牌先 y/N；y → proxy/token，印新地址；单 sub token 只给用法', async ({ page }) => {
   const calls = await mockAccount(page, {
-    status: STATUS({ session: SESSION(), reauth: REAUTH() }),
     handlers: { 'proxy/status': [200, PSTATUS], 'proxy/token': [200, { ok: true, token: TK, base: BASE }] },
   });
   await T.goPage(page);
@@ -77,7 +75,7 @@ test('sub token reset：已有令牌先 y/N；y → proxy/token，印新地址�
 });
 
 test('sub mv：名称大小写原样；确认显示新旧路径（令牌遮挡）；y → proxy/mv', async ({ page }) => {
-  const calls = await mockAccount(page, { status: STATUS({ session: SESSION() }), handlers: { 'proxy/status': [200, PSTATUS], 'proxy/mv': [200, { ok: true }] } });
+  const calls = await mockAccount(page, { handlers: { 'proxy/status': [200, PSTATUS], 'proxy/mv': [200, { ok: true }] } });
   await T.goPage(page);
   await openTerm(page);
   await typeLine(page, 'sub mv Linkcube LinkCube2');
@@ -90,7 +88,6 @@ test('sub mv：名称大小写原样；确认显示新旧路径（令牌遮挡�
 
 test('sub add 同名：确认显示新旧域名；试拉失败 → 未更换', async ({ page }) => {
   const calls = await mockAccount(page, {
-    status: STATUS({ session: SESSION() }),
     handlers: { 'proxy/status': [200, PSTATUS], 'proxy/add': [422, { ok: false, error: 'fetch', kept: true, oldHost: 'sub.example.com', host: 'new.example.org' }] },
   });
   await T.goPage(page);
@@ -108,7 +105,6 @@ test('sub add 同名：确认显示新旧域名；试拉失败 → 未更换', a
 
 test('sub enable | disable <名称>（S9，取代 on / off）：proxy/on、proxy/off；sub on 不再认', async ({ page }) => {
   const calls = await mockAccount(page, {
-    status: STATUS({ session: SESSION() }),
     handlers: { 'proxy/status': [200, PSTATUS], 'proxy/on': [200, { ok: true }], 'proxy/off': [200, { ok: true }] },
   });
   await T.goPage(page);

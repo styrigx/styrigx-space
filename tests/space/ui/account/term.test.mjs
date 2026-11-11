@@ -27,21 +27,14 @@ const W = await import('../../../../' + DIR + 'window.js');
 const ACM = await import('../../../../space/web/assets/js/shell/term/cmds/acct/index.js');
 /** 应用 → 显示顺序（同 workers/account/src/core/scopes.js） */
 const APP_IDS = ['curio', 'daymark', 'prefs', 'wellbeing', 'avatar', 'profile'];
-const R = await import('../../../../' + DIR + 'reset.js');
-const SE = await import('../../../../' + DIR + 'session.js');
 
-test('命令字：三条账号命令、输密码 / 恢复密钥那一行（同锁屏）；卡片没有命令行了（S9：parseCmd / WINDOW_TABLE / 卡片提示符删了）', () => {
-  assert.equal(C.ROOT_COMMAND, 'root');
-  assert.deepEqual(C.CMD, { session: 'sudo root', reauth: 'sudo root reauth', reset: 'sudo root reset' });
-  assert.equal(C.PS_PASSWORD, '[sudo] password for root:');
-  assert.equal(C.PS_RECOVERY_KEY, '[sudo] recovery key:');
-  assert.equal(C.TRY_AGAIN, 'Sorry, try again.');
-  assert.equal(C.TRIES_OVER, 'sudo: 3 incorrect password attempts');
-  for (const gone of ['parseCmd', 'WINDOW_TABLE', 'LAYERS', 'LAYER_PATH', 'PS_GUEST', 'PS_ROOT', 'PS_RESET']) assert.equal(/** @type {any} */ (C)[gone], undefined, gone);
+test('v6 P4：旧账号会话的命令字（sudo root / reauth / reset）和输密码 / 恢复密钥那一行删了；卡片没有命令行', () => {
+  for (const gone of ['ROOT_COMMAND', 'CMD', 'PS_PASSWORD', 'PS_RECOVERY_KEY', 'TRY_AGAIN', 'TRIES_OVER', 'MAX_TRIES', 'parseCmd', 'WINDOW_TABLE', 'LAYERS', 'LAYER_PATH', 'PS_GUEST', 'PS_ROOT', 'PS_RESET']) assert.equal(/** @type {any} */ (C)[gone], undefined, gone);
+  for (const f of ['session.js', 'reauth.js', 'reset.js', 'passkey-signal.js']) assert.equal(existsSync(path.join(REPO, DIR, f)), false, f + ' 已删（v6 P4）');
 });
 
 test('账号卡片的行 → 终端预填的命令（S9）；profile set 的字段名', () => {
-  assert.deepEqual({ ...W.CARD_CMDS }, { profile: 'profile', devices: 'device', keys: 'passkey', grants: 'app', exit: 'exit', login: 'sudo root' });
+  assert.deepEqual({ ...W.CARD_CMDS }, { profile: 'profile', devices: 'device', keys: 'passkey', grants: 'app', exit: 'exit', login: 'su root' }, '登录行 sudo root → su root（Gray 11-11 17:51）');
   assert.deepEqual({ ...C.PROFILE_KEYS }, { name: 'name', nick: 'nickname', sign: 'motto', email: 'email' });
   const prof = ACM.ACCOUNT_CMDS.find((c) => c.name === 'profile');
   assert.deepEqual(prof.subArgs('set'), Object.keys(C.PROFILE_KEYS), '补全表和字段表一致');
@@ -50,42 +43,26 @@ test('账号卡片的行 → 终端预填的命令（S9）；profile set 的字�
   assert.match(w, /data-at-run=/);
 });
 
-test('sudo root 选项说明只列给了的方式；账号密码没设才多一行（Gray 22:13）', () => {
-  const zh = TR.zh.account.session.kind;
-  const tt = (/** @type {string} */ k) => (k.startsWith('session.kind.') ? zh[k.slice(13)] : k);
-  assert.deepEqual(SE.verifyKinds({ configured: { passkey: true, password: false } }), ['passkey']);
-  assert.equal(SE.keyMapLine(['passkey'], tt), 'passkey = 账号通行密钥');
-  assert.equal(SE.keyMapLine(['passkey', 'password'], tt), 'passkey = 账号通行密钥 · password = 账号密码');
-  assert.equal(SE.keyMapLine(['password'], tt), 'password = 账号密码');
-  assert.equal(SE.pwUnset({ configured: { passkey: true, password: false } }), true);
-  assert.equal(SE.pwUnset({ configured: { passkey: true, password: true } }), false);
-  assert.equal(SE.pwUnset({ configured: { passkey: false, password: false } }), false, '一种都没设走 noMethod');
-  assert.equal(SE.pwUnset(null), false, '读不到状态不算');
-  assert.equal(TR.zh.account.session.keyMap, undefined, '旧的整行 keyMap 删了');
-  assert.match(TR.zh.account.session.pwUnset, /账号密码未设置/);
-  assert.equal(TR.zh.account.common.noOption, '没有这个选项');
-});
-
-test('入口名 → 在终端里怎么开（旧地址 #acct=<子页>、[data-acct-open]；S9：子页 = 预填命令，reset / reauth 在终端里跑）', () => {
-  assert.deepEqual(C.layerFromPath(''), { cmd: '', reset: false, reauth: false });
-  assert.deepEqual(C.layerFromPath('profile'), { cmd: 'profile', reset: false, reauth: false });
-  assert.deepEqual(C.layerFromPath('devices'), { cmd: 'device', reset: false, reauth: false });
-  assert.deepEqual(C.layerFromPath('security'), { cmd: 'passkey', reset: false, reauth: false });
-  assert.deepEqual(C.layerFromPath('apps'), { cmd: 'app', reset: false, reauth: false });
-  assert.deepEqual(C.layerFromPath('reset'), { cmd: '', reset: true, reauth: false });
-  assert.deepEqual(C.layerFromPath('reauth'), { cmd: '', reset: false, reauth: true });
-  assert.deepEqual(C.layerFromPath('sync'), { cmd: '', reset: false, reauth: false }, '云同步子页删了，开卡片');
+test('入口名 → 在终端里怎么开（旧地址 #acct=<子页>、[data-acct-open]；子页 = 预填命令；v6 P4：旧 reset / reauth 入口删了，开卡片）', () => {
+  assert.deepEqual(C.layerFromPath(''), { cmd: '' });
+  assert.deepEqual(C.layerFromPath('profile'), { cmd: 'profile' });
+  assert.deepEqual(C.layerFromPath('devices'), { cmd: 'device' });
+  assert.deepEqual(C.layerFromPath('security'), { cmd: 'passkey' });
+  assert.deepEqual(C.layerFromPath('apps'), { cmd: 'app' });
+  assert.deepEqual(C.layerFromPath('reset'), { cmd: '' }, '旧 /account/reset/ 删了（Gray 11-11 17:47）：不预填');
+  assert.deepEqual(C.layerFromPath('reauth'), { cmd: '' });
+  assert.deepEqual(C.layerFromPath('sync'), { cmd: '' }, '云同步子页删了，开卡片');
   assert.equal(W.layerFromPath, C.layerFromPath);
 });
 
-test('设备「上次活动」相对时间；reset 三选一默认 [2]', () => {
+test('设备「上次活动」相对时间；会话开始时间', () => {
   const t = (/** @type {string} */ k) => ({ 'devices.justNow': 'now', 'devices.minAgo': '{n}m', 'devices.hourAgo': '{n}h', 'devices.dayAgo': '{n}d' })[k];
   const now = 1e12;
   assert.equal(D.agoText(t, now - 30e3, now), 'now');
   assert.equal(D.agoText(t, now - 5 * 60e3, now), '5m');
   assert.equal(D.agoText(t, now - 3 * 3600e3, now), '3h');
   assert.equal(D.agoText(t, now - 50 * 3600e3, now), '2d');
-  assert.deepEqual(R.SIGN_OUT_CHOICES.map((c) => c[1]), ['all', 'others', 'none']);
+  assert.equal(D.sinceText(Date.UTC(2026, 10, 11, 8, 5)), '2026-11-11 08:05');
   assert.equal(K.mmdd(new Date(2026, 10, 9).getTime()), '11-09');
   assert.equal(K.mmdd(0), '');
 });
@@ -128,20 +105,18 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
 test('后端名字只在 api.js：入口、action 名、请求字段、状态字段、密码管理器隐藏用户名（NAMING-V2 P2 已切到按入口的新接口）', () => {
   const top = readdirSync(path.join(REPO, DIR)).filter((f) => f.endsWith('.js'));
   /* S9：卡片只展示，窗口那一套（keys / devices / grants / profile 层）删了，只剩终端的账号层 cmd/ */
-  assert.deepEqual(top.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'passkey-signal.js', 'proxy.js', 'reauth.js', 'reset.js', 'session.js', 'window.js']);
+  assert.deepEqual(top.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'proxy.js', 'window.js']);
   const sub = readdirSync(path.join(REPO, DIR, 'cmd')).map((f) => 'cmd/' + f);
   /* 割接：cmd/v6-direct.js = v6 root 直接做的 sub / app 的门（C.gated / C.authErrFor） */
   assert.deepEqual(sub.sort(), ['cmd/devices.js', 'cmd/grants.js', 'cmd/keys.js', 'cmd/layer.js', 'cmd/profile.js', 'cmd/v6-direct.js']);
   const files = top.concat(sub);
   const api = strip(rd(DIR + 'api.js'));
-  /* NAMING-V2 P2：POST /api/account/<入口> { action }，入口和 action 都只在 api.js 里写 */
-  for (const [e, acts] of Object.entries({ session: ['passkey-challenge', 'passkey', 'password', 'end'], reauth: ['passkey-challenge', 'passkey', 'password'],
-    reset: ['recovery-key', 'finish', 'end'], keys: ['passkey-rename'], devices: ['list', 'revoke', 'revoke-all'], grants: ['list', 'add', 'revoke'] })) {
-    for (const a of acts) assert.ok(api.includes("post('" + e + "', '" + a + "'") || (a === 'passkey-challenge' || a === 'passkey'), e + '/' + a);
+  /* NAMING-V2 P2：POST /api/account/<入口> { action }，入口和 action 都只在 api.js 里写；v6 P4 起旧会话的 session / reauth / reset / keys 入口删了 */
+  for (const [e, acts] of Object.entries({ devices: ['list', 'revoke', 'revoke-all'], grants: ['list', 'add', 'revoke'] })) {
+    for (const a of acts) assert.ok(api.includes("post('" + e + "', '" + a + "'"), e + '/' + a);
   }
-  for (const a of ['password-set', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete']) assert.ok(api.includes("post(entry, '" + a + "'"), a);
-  assert.ok(api.includes("post(entry, 'passkey-challenge')") && api.includes("post(entry, 'passkey',"), 'session / reauth 的通行密钥断言');
-  assert.ok(api.includes("ACCOUNT_API + '/reauth'") && api.includes("action: 'end'"), 'reauth end（keepalive）');
+  for (const e of ['session', 'reauth', 'reset', 'keys']) assert.ok(!api.includes("post('" + e + "'") && !api.includes("ACCOUNT_API + '/" + e + "'"), '旧入口 ' + e + ' 删了');
+  for (const a of ['passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete']) assert.ok(api.includes("action: '" + a + "'"), 'v6 ' + a);
   /* 旧单入口 action 一个都不剩 */
   for (const a of ['login-challenge', 'login-passkey', 'login-password', 'logout', 'reauth-clear', 'root-reset', 'reset-finish', 'password-change',
     'passkey-register', 'device-list', 'device-revoke', 'grant-list', 'grant-add', 'grant-revoke', 'reauth: true', 'j.ready', 'j.password', 'j.passkey']) {
@@ -155,7 +130,7 @@ test('后端名字只在 api.js：入口、action 名、请求字段、状态字
   }
 });
 
-test('旧账号整页删干净；/account/* 都 301 到本语言首页 #acct=<层>；奇趣 / 日刻入口指向 su（2c）', () => {
+test('旧账号整页删干净；/account/*（reset 除外）都 301 到本语言首页 #acct=<层>；奇趣 / 日刻入口指向 su（2c）', () => {
   for (const p of ['layouts/_default/account.html', 'layouts/_default/account-security.html', 'layouts/_default/account-devices.html', 'layouts/_default/account-apps.html',
     'layouts/_default/account-profile.html', 'layouts/_default/account-reset.html', 'content/account.md', 'content/zh/account.md', 'assets/js/apps/account.js',
     'assets/js/apps/account-security.js', 'assets/js/entries/entry-account.js', 'assets/js/shell/account-term.js', 'layouts/partials/sgx-account-card.html']) {
@@ -163,9 +138,11 @@ test('旧账号整页删干净；/account/* 都 301 到本语言首页 #acct=<�
   }
   const red = rd('space/web/static/_redirects');
   for (const [pre, sub, h] of [['', '', '#acct'], ['', 'profile/', '#acct=profile'], ['', 'devices/', '#acct=devices'], ['', 'security/', '#acct=security'], ['', 'apps/', '#acct=apps'],
-    ['', 'reset/', '#acct=reset'], ['/zh', '', '#acct'], ['/zh', 'security/', '#acct=security'], ['/zh', 'reset/', '#acct=reset']]) {
+    ['/zh', '', '#acct'], ['/zh', 'security/', '#acct=security']]) {
     assert.match(red, new RegExp('^' + pre + '/account/' + sub + '\\s+' + pre + '/' + h + '\\s+301$', 'm'), pre + '/account/' + sub);
   }
+  /* v6 P4（定稿 §十三，Gray 11-11 17:47）：旧地址 /account/reset/ 直接删——不跳转、不预填，同任何不存在的路径 404 */
+  assert.doesNotMatch(red, /^(?:\/zh)?\/account\/reset\//m, '/account/reset/ 不再 301');
   const tp = rd('space/web/assets/js/shell/topbar-panel.js');
   assert.match(tp, /\/\^#acct\(\?:=\(\[a-z\]\*\)\)\?\(\?:&app=\(\[a-z\]\+\)\)\?\$\//, '#acct=<层>&app=<应用>');
   assert.match(tp, /closest\('\[data-acct-open\]'\)/);

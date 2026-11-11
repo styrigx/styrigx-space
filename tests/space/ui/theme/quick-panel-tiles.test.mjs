@@ -28,11 +28,11 @@ const setJs = rd('space/web/assets/js/apps/space.js');
 const css = rd('space/web/assets/css/input.css');
 const feats = rd('space/web/data/features.yaml');
 
-test('顶栏 v3 控件（四站同一套）：外观面板 = MODE 三段 + PALETTE；NAVIGATE = lang / layout 分段 + share / terminal（v5 S6 去掉 lock）；没有按站开关、没有减弱动效和字体大小', () => {
+test('顶栏 v3 控件（四站同一套）：外观面板 = MODE 三段 + PALETTE；NAVIGATE = lang / layout 分段 + terminal（v5 S6 去掉 lock；v6 P4 拿掉 share）；没有按站开关、没有减弱动效和字体大小', () => {
   assert.deepEqual([...qpHtml.matchAll(/data-qp-mode="([a-z]+)"|data-qp-mode="\{\{ \.v \}\}"/g)].length, 1, '模式三段由一处 range 输出');
   assert.match(qpHtml, /data-qp-seg="mode"/);
   /* 2026-11 PR-2：加「$ terminal」（打开全站终端抽屉） */
-  assert.deepEqual([...navHtml.matchAll(/data-qp="([a-z]+)"/g)].map((m) => m[1]), ['share', 'term']);
+  assert.deepEqual([...navHtml.matchAll(/data-qp="([a-z]+)"/g)].map((m) => m[1]), ['term'], 'v6 P4：分享磁贴拿掉（Gray 11-11 17:47）');
   assert.doesNotMatch(qpHtml + navHtml, /\.tiles\b|\$tiles|\{\{ with \.layout \}\}/, '不按 tiles / layout 参数开关');
   assert.doesNotMatch(base, /\$tbTiles|"tiles"|"layout" \(index/, '主站不再传 tiles / layout');
   /* 语言包化（2026-11-07）：选项 = hugo.yaml languages 的每种语言（短名用它自己的写法、translate="no"），不写死 zh / en */
@@ -40,7 +40,7 @@ test('顶栏 v3 控件（四站同一套）：外观面板 = MODE 三段 + PALET
   assert.match(navHtml, /\{\{- range \$i, \$l := sort \.langs "code" \}\}\{\{ if eq \$i 1 \}\}<button type="button" role="radio" data-qp-lang="system" aria-checked="false" aria-label="\{\{ \$t\.topbar\.langAuto \}\}" translate="no">\{\{ \$t\.topbar\.auto \}\}<\/button>\{\{ end \}\}<button type="button" role="radio" data-qp-lang="\{\{ \$l\.code \}\}" lang="\{\{ \$l\.code \}\}"[^>]*translate="no">\{\{ \$l\.short \| default \$l\.name \}\}<\/button>/);
   assert.doesNotMatch(navHtml, /"v" "(zh|en)"/);
   assert.match(navHtml, /data-qp-seg="layout"/);
-  assert.match(qpJs, /share: mountShare/, '主站也接分享本页');
+  assert.doesNotMatch(qpJs, /mountShare|share-button/, 'v6 P4：分享本页删了');
   assert.ok(!(qpHtml + navHtml).includes('reduced-motion'));
   assert.ok(!(qpHtml + navHtml).includes('font-size'));
   assert.ok(!/setReducedMotion|setFontSize|reducedMotionPref|fontSize\(/.test(qpJs + tbJs));

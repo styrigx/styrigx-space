@@ -30,18 +30,18 @@ async function openNav(page) {
   await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
 }
 
-test('四站页面都有「分享本页」（在 NAVIGATE 里；主站也有，构建产物里就有）；子站点开 NAVIGATE 就看得到', async ({ page }) => {
+test('v6 P4：四站页面都没有「分享本页」磁贴（Gray 11-11 17:47；构建产物里也没有）', async ({ page }) => {
   for (const p of MAIN) {
     await page.goto(p, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-nav')).toHaveCount(1);
-    await expect(page.locator('#sgx-nav [data-qp="share"][data-sgx-share]'), p).toHaveCount(1);
+    await expect(page.locator('#sgx-nav [data-qp="share"], [data-sgx-share]'), p).toHaveCount(0);
     const html = await (await page.request.get(p)).text();
-    expect(html, p).toMatch(/data-qp="?share\b/);
+    expect(html, p).not.toMatch(/data-qp="?share\b|data-sgx-share/);
   }
   for (const p of SUB) {
     await page.goto(p, { waitUntil: 'domcontentloaded' });
     await openNav(page);
-    await expect(page.locator('#sgx-nav [data-qp="share"][data-sgx-share]'), p).toBeVisible();
+    await expect(page.locator('#sgx-nav [data-qp="share"], [data-sgx-share]'), p).toHaveCount(0);
   }
 });
 

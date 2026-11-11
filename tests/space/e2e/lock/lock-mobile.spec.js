@@ -1,6 +1,6 @@
 /**
- * 进站 · 手机触屏回归（v5 S5 终端合一：锁屏界面删了，进站 = 全站终端里敲 sudo styrigx）。
- * - 旧锁屏地址 ?entry=1 打开终端（手机上整块卡片）、预填 su ；选项（[1] passkey …）可以点；^C 是输入行下面的按钮（触屏显示）
+ * 登录 · 手机触屏回归（v5 S5 终端合一：锁屏界面删了；v6 P4 起登录 = 全站终端里 su <用户>，旧 sudo styrigx 删了）。
+ * - 旧锁屏地址 ?entry=1 打开终端（手机上整块卡片）、预填 su ；选项（[1] password [2] passkey）可以点；^C 是输入行下面的按钮（触屏显示）
  * - 要输秘密时输入行聚焦；空密码回车不发请求、还在密码态
  * - ^C 从密码态 / 等通行密钥时都能退出
  * - 不触发双击放大（html touch-action = manipulation），触屏上终端输入框字号 ≥ 16px
@@ -17,23 +17,21 @@ test.use({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true
 test.beforeEach(async ({ page }) => {
   await blockExternalRequests(page);
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
-  await page.route('**/api/lock-entry', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"passkey":true,"password":true}' }));
 });
 
-/** 打开终端 → 点输入行 → 回车跑预填的 sudo styrigx → 点选项 [2] password → 密码态 */
+/** 打开终端 → 点输入行 → su styrigx（v6 身份层）→ 点选项 [1] password → 密码态 */
 async function openPwByTouch(page) {
   await gotoLockTerm(page);
   await expect(page.locator(SEL.in)).toHaveValue('su ');
   await page.tap(SEL.in);
-  /* 割接：访客预填 su （v6）；这里测旧入口 sudo styrigx（P4 删） */
-  await page.locator(SEL.in).fill('sudo styrigx');
+  await page.locator(SEL.in).fill('su styrigx');
   await page.locator(SEL.in).press('Enter');
   await lockMode(page, 'pick');
-  await page.tap(SEL.out + ' [data-term-pick="2"]');
+  await page.tap(SEL.out + ' [data-term-pick="1"]');
   await lockMode(page, 'pw');
 }
 
-test('手机：?entry=1 打开终端卡片（在视口里）；sudo styrigx → 点选项 [2] password → 焦点在输入行（密码态），^C 键可见；没有弹层', async ({ page }) => {
+test('手机：?entry=1 打开终端卡片（在视口里）；su styrigx → 点选项 [1] password → 焦点在输入行（密码态），^C 键可见；没有弹层', async ({ page }) => {
   await openPwByTouch(page);
   const box = await page.locator('#sgx-term .sgx-term').boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
@@ -45,7 +43,13 @@ test('手机：?entry=1 打开终端卡片（在视口里）；sudo styrigx → 
 
 test('空密码回车：不发请求，还在密码态，焦点留在输入行', async ({ page }) => {
   let posted = 0;
-  await page.route('**/api/lock-password', (r) => { posted++; return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false,"error":"wrong"}' }); });
+  /* 只数凭证请求（su）；whoami 是问身份，不算 */
+  await page.route('**/api/identity', (r) => {
+    const a = (r.request().postDataJSON() || {}).action;
+    if (a === 'whoami') return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"user":null}' });
+    posted++;
+    return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false,"error":"denied"}' });
+  });
   await openPwByTouch(page);
   const input = page.locator(SEL.in);
   await input.press('Enter');
@@ -58,11 +62,11 @@ test('点 ^C：密码态回命令行；等通行密钥时 ^C 也能退出', asyn
   await openPwByTouch(page);
   await page.tap(SEL.hint + ' [data-term-cc]');
   await lockMode(page, 'cmd');
-  await page.route('**/api/lock-passkey', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"challenge":"dGVzdA","cid":"c1","allowCredentials":[]}' }));
+  await page.route('**/api/identity', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"challenge":"dGVzdA","rpId":"localhost","allowCredentials":[]}' }));
   await page.evaluate(() => { window.__pkCalled = false; navigator.credentials.get = () => { window.__pkCalled = true; return new Promise(() => {}); }; });
-  await lockCmd(page, 'sudo styrigx');
+  await lockCmd(page, 'su styrigx');
   await lockMode(page, 'pick');
-  await page.tap(SEL.out + ' [data-term-pick="1"]');
+  await page.tap(SEL.out + ' [data-term-pick="2"]');
   await page.waitForFunction(() => window.__pkCalled === true, null, { timeout: 8000 });
   await lockMode(page, 'busy');
   await page.tap(SEL.hint + ' [data-term-cc]');

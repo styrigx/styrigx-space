@@ -274,8 +274,8 @@ test.describe('九宫格导航面板 #sgx-nav（P4-3 PR-4b，四站同一个）'
     expect(Math.abs(sheet.y - (bar.y + bar.height))).toBeLessThanOrEqual(1);
     expect(Math.abs(sheet.x - 12)).toBeLessThanOrEqual(1);
     expect(Math.abs(sheet.x + sheet.width - (412 - 12))).toBeLessThanOrEqual(1);
-    /* 分享 / 锁定在 NAVIGATE；外观面板没有页签、导航列表、分享 */
-    await expect(page.locator('#sgx-nav [data-qp="share"][data-sgx-share]')).toBeVisible();
+    /* v6 P4：NAVIGATE 没有分享本页了（Gray 11-11 17:47）；外观面板没有页签、导航列表、分享 */
+    await expect(page.locator('#sgx-nav [data-qp="share"], #sgx-nav [data-sgx-share]')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(nav(page)).toBeHidden();
     await page.locator('.sgx-topbar .sgx-tb-quick').click();

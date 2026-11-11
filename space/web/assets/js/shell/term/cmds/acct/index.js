@@ -1,79 +1,57 @@
-import { gate, layer, notHere, nth, v6RootGate, v6SelfGate, FLOW } from '../keys/gate.js';
+import { layer, notHere, nth, v6RootGate, v6SelfGate, FLOW } from '../keys/gate.js';
 
 /**
- * 账号命令（v5 S5，term-design-v5「账号」；要 sudo root 登录，账号的 reset 层里 passwd / passkey 也能用）：
- * - passwd：改账号密码 · passkey [add | rm <n>]：账号通行密钥（列表 / 添加 / 删除）
- * - device [rm <n> | rm --all]：登录的设备（列表 / 退出某一台 / 退出其他所有设备）
- * - app [allow <n> | deny <n>]：应用授权（列表 / 重新授权（要 reauth）/ 取消授权）
- * - profile [set name | nick | sign | email <值> | avatar]：个人资料（S9，账号卡片只展示）
- * 流程在账号层（shell/account/cmd/*）；这里只把门（root）、查参数。
+ * 账号命令（v6，v6-commands「自己的账号（普通用户与 root 各管各的）」「授权与订阅（root，或 sudo）」）：
+ * - passwd：改自己的密码（先输当前密码）/ passwd <名>：root 发一次性密码（身份层 shell/identity/layer.js）
+ * - passkey [ls | add | rm <n>]：自己的通行密钥（POST /api/identity passkey-*，user 档）
+ * - device [rm <n> | rm --all]：自己的登录会话（POST /api/account/devices，user 档；v6 不要复验）
+ * - app [allow <n> | deny <n>]：应用授权（root 档）
+ * - profile [set name | nick | sign | email <值> | avatar]：个人资料（PUT /api/profile 站长 + root；头像按 uid）
+ * 流程在账号层（shell/account/cmd/*）；这里只把门、查参数。v6 P4 起旧账号会话（sudo root）与 reset 层删除，一律按 v6 身份。
  */
 
-/** 账号层能不能跑：root，或者正在账号 reset 层里（只给 passwd / passkey） @param {any} x @param {boolean} inReset */
-function acctGate(x, inReset) {
-  const A = layer(x, 'acct');
-  if (inReset && A && A.inReset) return null;
-  return gate(x, 'root');
-}
-
-const ROOT = /** @type {any} */ (['root']);
+const V6 = /** @type {any} */ (['user', 'root6']);
 
 const passwd = {
   name: 'passwd',
-  audience: /** @type {any} */ (['root', 'user', 'root6']),
+  audience: V6,
   /** @param {any} p @param {any} x */
   run: function (p, x) {
-    /* v6（P2b）：有 v6 新会话时 passwd = 改自己的密码（先输当前密码）、passwd <名> = root 发一次性密码（身份层） */
+    if (p.args.length > 1) return { out: [x.k.plain(x.S.usagePasswd)] };
     const I = layer(x, /** @type {any} */ ('ident'));
-    if (I && I.hasSession() && p.args.length <= 1) { I.cmdPasswd(p.args[0] || ''); return FLOW; }
-    if (p.args.length) return { out: [x.k.plain(x.S.usagePasswd)] };
-    const no = acctGate(x, true);
-    if (no) return no;
-    const A = layer(x, 'acct');
-    if (!A) return notHere(x, 'passwd');
-    A.cmdPasswd(true);
+    if (!I) return notHere(x, 'passwd');
+    I.cmdPasswd(p.args[0] || '');
     return FLOW;
   },
 };
 
 /**
- * passkey：割接（定稿 §八「普通用户用 passwd、passkey 改自己的凭据；通行密钥自带 WebAuthn 验证」；v6-commands「自己的账号（普通用户与 root 各管各的）」
- * passkey ls / add / rm <n>；§九 救援白名单含 passkey）：有 v6 会话（普通用户 / su root / 救援）→ 账号层 { direct: true }，管栈顶那个用户自己的
- * （POST /api/identity passkey-*，user 档），不要 root、不跑旧 sudo root reauth；访客 → 先 su <用户>（gate）。
- * 账号 reset 层里、没有 v6 会话 → 旧路径原样（P4 删）。sudo passkey（借 root 改 root 的通行密钥）在 keys/sudo.js 拒（定稿 §十）。
+ * passkey（定稿 §八「普通用户用 passwd、passkey 改自己的凭据；通行密钥自带 WebAuthn 验证」；§九 救援白名单含 passkey）：
+ * 有 v6 会话（普通用户 / su root / 救援）→ 管栈顶那个用户自己的（POST /api/identity passkey-*，user 档）；访客 → 先 su <用户>。
+ * sudo passkey（借 root 改 root 的通行密钥）在 keys/sudo.js 拒（定稿 §十）。
  */
 const passkey = {
   name: 'passkey',
   args: ['add', 'rm'],
-  audience: /** @type {any} */ (['root', 'user', 'root6']),
+  audience: V6,
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const a = p.args.map(function (s) { return s.toLowerCase(); });
     const v6 = v6SelfGate(x);
-    if (v6) {
-      const A6 = layer(x, 'acct');
-      if (!A6) return notHere(x, 'passkey');
-      if (!a.length || (a[0] === 'ls' && a.length === 1)) { A6.passkeyList(v6); return FLOW; }
-      if (a[0] === 'add' && a.length === 1) { A6.cmdPasskeyAdd(true, v6); return FLOW; }
-      if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A6.passkeyRm(nth(a[1]), v6); return FLOW; }
-      /* v6 的用法行带 ls（v6-commands「passkey ls / add / rm <n>」）；旧路径的 usagePasskey 不动 */
-      return { out: [x.k.plain(x.S.usagePasskey6)] };
-    }
-    const no = acctGate(x, true);
-    if (no) return no;
+    if ('out' in v6) return v6;
     const A = layer(x, 'acct');
     if (!A) return notHere(x, 'passkey');
-    if (!a.length) { A.passkeyList(); return FLOW; }
-    if (a[0] === 'add' && a.length === 1) { A.cmdPasskeyAdd(true); return FLOW; }
-    if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A.passkeyRm(nth(a[1])); return FLOW; }
-    return { out: [x.k.plain(x.S.usagePasskey)] };
+    if (!a.length || (a[0] === 'ls' && a.length === 1)) { A.passkeyList(v6); return FLOW; }
+    if (a[0] === 'add' && a.length === 1) { A.cmdPasskeyAdd(true, v6); return FLOW; }
+    if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A.passkeyRm(nth(a[1]), v6); return FLOW; }
+    return { out: [x.k.plain(x.S.usagePasskey6)] };
   },
 };
 
-/** 账号层命令的共同开头：root 才能跑、要在终端窗口里 @param {any} x @param {string} name @returns {{ A: any, no: any }} */
+/** 账号层命令的共同开头：有 v6 会话、要在终端窗口里 @param {any} x @param {string} name @returns {{ A: any, no: any }} */
 function acct(x, name) {
-  const no = acctGate(x, false);
-  if (no) return { A: null, no: no };
+  const v6 = v6SelfGate(x);
+  if ('out' in v6) return { A: null, no: v6 };
   const A = layer(x, 'acct');
   return A ? { A: A, no: null } : { A: null, no: notHere(x, name) };
 }
@@ -81,7 +59,7 @@ function acct(x, name) {
 const device = {
   name: 'device',
   args: ['rm'],
-  audience: ROOT,
+  audience: V6,
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const a = p.args.map(function (s) { return s.toLowerCase(); });
@@ -94,26 +72,22 @@ const device = {
   },
 };
 
-/**
- * app：割接（v6-commands「授权与订阅（root，或 sudo）」；路由表 POST /api/account/grants = root 档，#401 接了 v6）：
- * 有 v6 会话时同 sub——v6 root 直接做（allow 不跑旧的 sudo root reauth），v6 普通用户提示先 su root，访客先 su <用户>；没有 v6 会话旧路径原样（P4 删）。
- */
+/** app（v6-commands「授权与订阅（root，或 sudo）」；路由表 POST /api/account/grants = root 档）：v6 root 直接做，普通用户提示先 su root，访客先 su <用户> */
 const app = {
   name: 'app',
   args: ['allow', 'deny'],
-  audience: /** @type {any} */ (['root', 'root6']),
+  audience: /** @type {any} */ (['root6']),
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const a = p.args.map(function (s) { return s.toLowerCase(); });
     const v6 = v6RootGate(x);
-    if (v6 && 'out' in v6) return v6;
-    const r = v6 ? { A: layer(x, 'acct'), no: null } : acct(x, 'app');
-    if (r.no) return r.no;
-    if (!r.A) return notHere(x, 'app');
-    const o = { direct: !!v6 };
-    if (!a.length) { r.A.appList(o); return FLOW; }
-    if (a[0] === 'allow' && a.length === 2 && nth(a[1])) { r.A.appAllow(nth(a[1]), o); return FLOW; }
-    if (a[0] === 'deny' && a.length === 2 && nth(a[1])) { r.A.appDeny(nth(a[1]), o); return FLOW; }
+    if ('out' in v6) return v6;
+    const A = layer(x, 'acct');
+    if (!A) return notHere(x, 'app');
+    const o = { direct: true };
+    if (!a.length) { A.appList(o); return FLOW; }
+    if (a[0] === 'allow' && a.length === 2 && nth(a[1])) { A.appAllow(nth(a[1]), o); return FLOW; }
+    if (a[0] === 'deny' && a.length === 2 && nth(a[1])) { A.appDeny(nth(a[1]), o); return FLOW; }
     return { out: [x.k.plain(x.S.usageApp)] };
   },
 };
@@ -125,7 +99,7 @@ const profile = {
   name: 'profile',
   args: ['set', 'avatar'],
   subArgs: function (/** @type {string} */ a) { return a === 'set' ? PROFILE_SET.slice() : []; },
-  audience: ROOT,
+  audience: V6,
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const a0 = (p.args[0] || '').toLowerCase();

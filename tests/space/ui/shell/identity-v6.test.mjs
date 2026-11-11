@@ -1,6 +1,7 @@
 /**
  * v6 身份统一 P2b（终端）：提示符 user@space:path、身份合成（v6 先于旧身份）、man 只给 v6 身份列新命令、命令分流
  * （sudo <管理命令> / exit / lock / passwd 有 v6 会话时转身份层，旧写法原样）、参数解析、前台空闲计时、头像 = whoami 的接线。
+ * v6 P4（定稿 v5.2 §十三）起旧身份（link / styrigx / root@account）和旧写法（sudo styrigx / sudo root / sudo -v、lock passwd …）删了，只剩 v6。
  * 运行：node --test tests/space/ui/shell/identity-v6.test.mjs
  */
 import { test } from 'node:test';
@@ -23,62 +24,62 @@ function layers(session) {
   const rec = (n, ret) => (...a) => { calls.push([n, ...a]); return ret; };
   const ident = { hasSession: () => session, cmdWhoami: rec('whoami'), cmdSu: rec('su'), cmdGroups: rec('groups'), cmdWho: rec('who'), cmdAdmin: rec('admin'),
     cmdSudo: rec('sudo'), cmdExit: rec('exit', session), cmdLock: rec('lock'), cmdPasswd: rec('passwd'), cmdRescue: rec('rescue') };
-  const space = { inReset: false, unlock: rec('space.unlock'), lockNow: rec('space.lockNow'), cmdReauth: rec('space.cmdReauth') };
-  const acct = { inReset: false, cmdSession: rec('acct.cmdSession'), cmdExit: rec('acct.cmdExit'), cmdPasswd: rec('acct.cmdPasswd') };
-  return { v: { space, acct, ident }, calls };
+  const acct = {};
+  return { v: { acct, ident }, calls };
 }
 const run = async (sh, line, v) => { const r = sh.exec(line, v); return r && typeof r.then === 'function' ? await r : r; };
 
-test('提示符（定稿 v4 §七）：v6 普通用户 <名>@space:<路径>$，v6 root root@space:<路径>#；旧四种不变', () => {
+test('提示符（定稿 v4 §七）：v6 普通用户 <名>@space:<路径>$，v6 root root@space:<路径>#；访客 nobody@space:~$（v6 P4 起旧身份删了）', () => {
   assert.equal(ps1('u:styrigx', '~'), 'styrigx@space:~$');
   assert.equal(ps1('u:alice', 'blog'), 'alice@space:~/blog$');
   assert.equal(ps1('u:root', 'curio'), 'root@space:~/curio#');
   assert.equal(title('u:root', '~'), 'root@space: ~');
   assert.equal(ps1('nobody', '~'), 'nobody@space:~$');
-  assert.equal(ps1('styrigx', '~'), 'styrigx@space:~#', '旧进站身份不变');
-  assert.equal(ps1('root', '~'), 'root@account:~#', '旧账号身份不变');
   assert.equal(kindOf('u:alice'), 'user');
   assert.equal(kindOf('u:root'), 'root6');
-  assert.equal(kindOf('styrigx'), 'styrigx');
+  assert.equal(kindOf('nobody'), 'nobody');
   assert.ok(isV6('u:x') && !isV6('root'));
 });
 
-test('createWho：whoami 回了 user 就以它为准（先于旧身份）；setV6(null) 回到旧身份；首帧标记 v6Hinted', async () => {
+test('createWho（v6 P4：只有 v6）：首帧访客，refresh 问 whoami 以回答为准；setV6(null) 回访客；whoami 出错不改；首帧标记 v6Hinted', async () => {
   let user = { name: 'styrigx', root: false };
-  const w = createWho({ check: () => Promise.resolve({ ok: true, by: 'password' }), page: () => 'valid', whoami: () => Promise.resolve(user), v6Hint: () => true });
-  assert.equal(w.get(), 'nobody', '2b：页面 valid 但有 v6 登录标记 → 首帧不猜旧进站身份，等 refresh');
-  assert.equal(createWho({ check: () => Promise.resolve(null), page: () => 'valid' }).get(), 'styrigx', '没有 v6 标记：首帧按页面标记');
+  const w = createWho({ whoami: () => Promise.resolve(user), v6Hint: () => true });
+  assert.equal(w.get(), 'nobody', '首帧不猜，等 refresh');
   assert.equal(w.v6Hinted(), true);
   assert.equal(await w.refresh(), 'u:styrigx');
   w.setV6({ name: 'root', root: true, via: 'styrigx' });
   assert.equal(w.get(), 'u:root');
   w.setV6(null);
-  assert.equal(w.get(), 'styrigx', '没有 v6 会话 → 旧身份');
+  assert.equal(w.get(), 'nobody', '没有 v6 会话 → 访客');
   user = null;
-  assert.equal(await w.refresh(), 'styrigx');
+  assert.equal(await w.refresh(), 'nobody');
   /* whoami 出错（undefined）不改 v6 状态 */
   w.setV6({ name: 'alice' });
-  const w2 = createWho({ check: () => Promise.resolve(null), page: () => 'locked', whoami: () => Promise.reject(new Error('x')) });
+  const w2 = createWho({ whoami: () => Promise.reject(new Error('x')) });
   assert.equal(await w2.refresh(), 'nobody');
-  assert.equal(createWho({ check: () => Promise.resolve(null) }).v6Hinted(), false);
+  const w3 = createWho({ whoami: () => Promise.resolve(undefined) });
+  w3.setV6({ name: 'alice' });
+  assert.equal(await w3.refresh(), 'u:alice', '没问到不改');
+  assert.equal(createWho({}).v6Hinted(), false);
+  w.drop();
+  assert.equal(w.get(), 'nobody', 'drop 回访客');
 });
 
-test('man：旧四种身份列的命令不变（新命令不列）；v6 普通用户列 whoami / su / groups / who / lock / passwd；v6 root 再列 useradd / userdel / usermod', async () => {
+test('man：访客不列 v6 身份命令；v6 普通用户列 whoami / su / groups / who / lock / passwd；v6 root 再列 useradd / userdel / usermod', async () => {
   const names = async (w) => (await run(createShell({ act, storage: mem(), who: fixedWho(w) }), 'man')).out.slice(1).map((o) => o.seg[0][1]);
-  for (const w of ['nobody', 'link', 'styrigx', 'root']) {
-    const n = await names(w);
-    for (const c of ['whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod']) assert.ok(!n.includes(c), w + ' 不列 ' + c);
-  }
+  const n0 = await names('nobody');
+  for (const c of ['whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'lock', 'passwd', 'passkey', 'device', 'profile', 'app', 'sub', 'share']) assert.ok(!n0.includes(c), 'nobody 不列 ' + c);
   const u = await names('u:alice');
-  /* 割接 2e：passkey 管自己的（定稿 §八），v6 普通用户也列 */
-  for (const c of ['whoami', 'su', 'groups', 'who', 'lock', 'passwd', 'passkey', 'sudo', 'exit']) assert.ok(u.includes(c), 'user 列 ' + c);
-  for (const c of ['useradd', 'userdel', 'usermod', 'device', 'sub']) assert.ok(!u.includes(c), 'user 不列 ' + c);
+  /* 割接 2e：passkey 管自己的（定稿 §八），v6 普通用户也列；v6 P4：device / profile 接 v6，普通用户也列 */
+  for (const c of ['whoami', 'su', 'groups', 'who', 'lock', 'passwd', 'passkey', 'device', 'profile', 'sudo', 'exit']) assert.ok(u.includes(c), 'user 列 ' + c);
+  for (const c of ['useradd', 'userdel', 'usermod', 'sub', 'app', 'share']) assert.ok(!u.includes(c), 'user 不列 ' + c);
   const r = await names('u:root');
-  for (const c of ['whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'passwd', 'lock']) assert.ok(r.includes(c), 'root6 列 ' + c);
+  for (const c of ['whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'passwd', 'lock', 'sub', 'app', 'device', 'profile']) assert.ok(r.includes(c), 'root6 列 ' + c);
   assert.ok(!r.includes('su'), 'root 不再列 su');
+  assert.ok(!r.includes('share'), 'v6 P4：share 删了');
 });
 
-test('命令分流：sudo <管理命令> → 身份层（每次验自己的凭据）；sudo styrigx / sudo root / sudo -v 旧写法原样', async () => {
+test('命令分流：sudo <管理命令> → 身份层（每次验自己的凭据）；v6 P4：sudo styrigx / sudo root 旧写法删了 → 用法', async () => {
   const sh = createShell({ act, storage: mem(), who: fixedWho('u:styrigx') });
   const L = layers(true);
   assert.equal((await run(sh, 'sudo useradd bob -e 2099-12-01 -G listen', L.v)).flow, true);
@@ -89,16 +90,22 @@ test('命令分流：sudo <管理命令> → 身份层（每次验自己的凭�
   assert.deepEqual(L.calls.at(-1), ['sudo', ['who']]);
   const old = createShell({ act, storage: mem(), who: fixedWho('nobody') });
   const L2 = layers(false);
-  await run(old, 'sudo styrigx', L2.v);
-  assert.deepEqual(L2.calls.at(-1), ['space.unlock']);
-  const ent = createShell({ act, storage: mem(), who: fixedWho('styrigx') });
-  await run(ent, 'sudo root', L2.v);
-  assert.deepEqual(L2.calls.at(-1), ['acct.cmdSession']);
+  for (const line of ['sudo styrigx', 'sudo styrigx reset', 'sudo']) {
+    const r = await run(old, line, L2.v);
+    assert.ok(r.out.length && !r.flow, line + ' → 用法');
+    assert.match(r.out[0].seg.map((x) => x[1]).join(''), /sudo useradd/, line + ' 的用法行是 v6 写法');
+  }
+  /* 访客输 sudo root …：同 main 的门，先提示 su */
+  for (const line of ['sudo root', 'sudo root reset']) {
+    const r = await run(old, line, L2.v);
+    assert.match(r.out[0].seg.map((x) => x[1]).join(''), /^not signed in · su <user> first$/, line);
+  }
+  assert.equal(L2.calls.length, 0, '旧写法不进任何层');
   /* AI 窗口（没有层）：要在终端里跑 */
   assert.equal((await run(sh, 'sudo who')).flow, undefined);
 });
 
-test('命令分流：exit / lock / passwd 有 v6 会话转身份层，没有照旧；su / whoami / groups / who / useradd / userdel / usermod 查参数', async () => {
+test('命令分流：exit / lock / passwd 转身份层；su / whoami / groups / who / useradd / userdel / usermod 查参数', async () => {
   const sh = createShell({ act, storage: mem(), who: fixedWho('u:alice') });
   const L = layers(true);
   await run(sh, 'exit', L.v);
@@ -125,15 +132,16 @@ test('命令分流：exit / lock / passwd 有 v6 会话转身份层，没有照�
     assert.ok(r.out.length && !r.flow, bad + ' → usage');
   }
   assert.equal(L.calls.length, n, '参数不对不进身份层');
-  /* 没有 v6 会话：exit / lock / passwd 走旧的 */
-  const old = createShell({ act, storage: mem(), who: fixedWho('root') });
+  /* 访客：exit 关终端；lock 提示先 su；passwd 交给身份层（身份层回没有登录） */
+  const old = createShell({ act, storage: mem(), who: fixedWho('nobody') });
   const L2 = layers(false);
-  await run(old, 'exit', L2.v);
-  assert.deepEqual(L2.calls.slice(-1)[0], ['acct.cmdExit']);
+  const ex = await run(old, 'exit', L2.v);
+  assert.deepEqual(L2.calls.slice(-1)[0], ['exit'], '先问身份层');
+  assert.equal(typeof ex.after, 'function', '没有 v6 会话 → 关终端');
+  const lk = await run(old, 'lock', L2.v);
+  assert.ok(!lk.flow && lk.out.length, 'lock：访客先 su');
   await run(old, 'passwd', L2.v);
-  assert.deepEqual(L2.calls.at(-1), ['acct.cmdPasswd', true]);
-  await run(old, 'lock', L2.v);
-  assert.deepEqual(L2.calls.at(-1), ['space.lockNow']);
+  assert.deepEqual(L2.calls.at(-1), ['passwd', '']);
 });
 
 test('P3 rescue（定稿 v5.2 §九）：访客敲 rescue → 身份层（输恢复钥匙由身份层问、判断在服务端）；带参数 → 用法；man rescue 有页、索引不列', async () => {
@@ -147,7 +155,7 @@ test('P3 rescue（定稿 v5.2 §九）：访客敲 rescue → 身份层（输恢
   assert.equal(L.calls.length, 1, '参数不对不进身份层');
   const pg = await run(sh, 'man rescue');
   assert.equal(pg.pager, 'RESCUE(1)');
-  for (const w of ['nobody', 'link', 'styrigx', 'root', 'u:alice', 'u:root']) {
+  for (const w of ['nobody', 'u:alice', 'u:root']) {
     const n = (await run(createShell({ act, storage: mem(), who: fixedWho(w) }), 'man')).out.slice(1).map((o) => o.seg[0][1]);
     assert.ok(!n.includes('rescue'), w + ' 索引不列 rescue');
   }
@@ -197,13 +205,14 @@ test('前台空闲计时（Page Visibility）：可见时累计、隐藏不计�
   assert.equal(fired, 2);
 });
 
-test('接线：头像 = whoami（v6 才接管；root → exit、wheel → su root、其余 → profile；root 叠 # 标记）；身份层进终端的 layers；登录标记首帧问 whoami', () => {
+test('接线：头像 = whoami（访客 → su ；已登录（普通用户 / root）→ 账号卡片，定稿 §七 58–61；root 叠 # 标记）；身份层进终端的 layers；登录标记首帧问 whoami', () => {
   const tp = rd('space/web/assets/js/shell/topbar-panel.js');
-  assert.match(tp, /if \(u\.root\) return 'exit';\n\s*return u\.wheel \? 'su root' : 'profile';/);
+  assert.match(tp, /if \(!u\) return avGuest\(\) \? GUEST_LINE : '';\n\s*return '';/);
+  assert.doesNotMatch(tp, /return u\.wheel \? 'su root' : 'profile'/);
   assert.match(tp, /'\/avatar\/u' \+ u\.uid \+ '-192\.webp'/);
   assert.match(tp, /mark\.className = 'sgx-tb-av-root';/);
-  assert.match(tp, /return \{ space: space, acct: acctTerm, ident: ident \};/);
-  assert.match(tp, /who\.get\(\) !== 'nobody' \|\| who\.v6Hinted\(\)/);
+  assert.match(tp, /return \{ acct: acctTerm, ident: ident \};/);
+  assert.match(tp, /if \(who && who\.v6Hinted\(\)\) who\.refresh\(\);/);
   const qp = rd('space/web/assets/js/shell/quick-panel.js');
   assert.match(qp, /identityTerm: mountIdentityLayer,/);
   assert.match(rd('space/web/assets/css/input.css'), /\.sgx-tb-av-root \{/);

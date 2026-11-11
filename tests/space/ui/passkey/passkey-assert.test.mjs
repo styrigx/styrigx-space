@@ -57,13 +57,13 @@ test('assertionOptions / assertionToJSON / isPasskeyCancel', () => {
 
 test('全站的通行密钥断言都经 getPasskeyAssertion + assertionToJSON：没有别处手写 credentials.get / 断言序列化', () => {
   /* 共享外壳的 shell/share-button.js 不在其列：子站原样复制、不能 import（gen-shell 强制），最小复验步骤只好自带一份断言 */
-  /* 进站 v3 L1：锁屏 / reset / 盾牌 reauth 都经 shell/space/api.js 一个 passkeyAssert（原 shell/lock.js、auth/lock-reauth.js、apps/security-lock.js 删了） */
+  /* v6 P4：旧进站（shell/space/api.js）和旧账号登录 / 再验证（shell/account/api.js）的断言随旧会话删了；只剩 v6 su / sudo（shell/identity/api.js passkeyProof） */
   const dir = join(ROOT, 'space/web/assets/js/shell/space');
   for (const f of readdirSync(dir)) {
     const src = readFileSync(join(dir, f), 'utf8');
     assert.ok(!src.includes('navigator.credentials.get'), f + ' 不直接调 credentials.get');
   }
-  const files = ['space/web/assets/js/shell/space/api.js', 'space/web/assets/js/shell/account/api.js'];
+  const files = ['space/web/assets/js/shell/identity/api.js'];
   let flows = 0;
   for (const f of files) {
     const src = readFileSync(join(ROOT, f), 'utf8');
@@ -72,6 +72,6 @@ test('全站的通行密钥断言都经 getPasskeyAssertion + assertionToJSON：
     flows += (src.match(/getPasskeyAssertion\(assertionOptions\(/g) || []).length;
     assert.ok(/assertionToJSON\((r\.)?cred\)/.test(src), f + ' 用 assertionToJSON');
   }
-  /* 进站（锁屏 sudo styrigx passkey + 盾牌 sudo styrigx reauth passkey 同一个 passkeyAssert）、账号登录 / 再验证（账号终端 shell/account/api.js） */
-  assert.equal(flows, 2);
+  /* v6 su / sudo 同一个 passkeyProof */
+  assert.equal(flows, 1);
 });
