@@ -5,7 +5,7 @@
  *
  * - v5 S3：旷野页对所有人公开，这张卡是三处上锁之一。/api/status 要进站会话（网关访问表 entry）；进站凭证使用记录（/api/space-audit）另要账号会话。
  * - 同源 cookie（credentials: 'same-origin'），no-store；没进站 401 → 锁卡（data-state=locked，#st-locked：Permission denied + 一行说明 +
- *   sudo styrigx 按钮，点了发 sgx:sudo，顶栏终端预填 sudo styrigx）。锁了就不再自动重试；进站后页面会重新取（guard.js proceed）。
+ *   su 按钮（v6 割接），点了发 sgx:sudo，顶栏终端预填 su ）。锁了就不再自动重试；进站后页面会重新取（guard.js proceed）。
  * - 首帧（2026-10-24 PR3）：本机存着上次成功拿到的数据（localStorage sgx-status-cache，24 小时内）就先直接画出来，
  *   页脚是那份数据的「更新于 hh:mm」，同时照常请求，回来再换成新数据；没有缓存才出骨架。401 时清掉缓存。
  * - 第一次就失败（非 401）→ 错误卡，按钮重试；

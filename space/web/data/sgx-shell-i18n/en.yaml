@@ -59,8 +59,8 @@ ai:
   thinking: Searching this site…
   scopePublic: Public content only
   scopePrivate: Includes private content
-  unauthorized: "Gray AI opens after you enter the space: sudo styrigx"
-  locked: Locked. Enter the space with sudo styrigx to use Gray AI
+  unauthorized: "Gray AI opens after you sign in: su"
+  locked: Locked. Sign in with su to use Gray AI
   cooldown: Too many questions. Try again in a minute
   busy: Lots of people are asking right now. Try again shortly
   tooLong: That question is too long (200 characters max)

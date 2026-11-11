@@ -32,3 +32,78 @@ export async function newSessionAdmits(env, request) {
     return false;
   }
 }
+
+/* ---------------- 割接（v6 cutover）：网关自己的接口与子站接口 Worker 也认新会话 ---------------- */
+
+/** RPC 里 action 的写法（同账号 Worker rpc/account-verifier.js ACTION_RE） */
+const ACTION_RE = /^[a-z0-9.-]{1,32}$/;
+
+/** 没有 v6 身份的结论（normalizeAdmit 的 fail-closed 默认） */
+export const V6_DENIED = Object.freeze({ allowed: false, signedIn: false, uid: null, root: false });
+
+/**
+ * 账号 Worker 回的放行结论 → 网关 / 子站用的四项（白名单）：
+ * - allowed：allowed === true 且有 uid（坏 cookie 走 public 档不算进门）；问了 action 的还要回答里带回同一个 action
+ *   （账号 Worker 旧版本不认 action 时回的是路由档，不能当 action 的结论）
+ * - signedIn：有一个 v6 身份（档不够时回 403 而不是 401 用）
+ * - root：当前身份是 root（非救援），给审计用
+ * @param {any} r @param {string} [action]
+ */
+export function normalizeAdmit(r, action) {
+  if (!r || typeof r !== 'object') return V6_DENIED;
+  const uid = Number.isInteger(r.uid) ? r.uid : null;
+  const same = action ? r.action === action : !r.action;
+  const allowed = r.allowed === true && uid !== null && same;
+  return Object.freeze({ allowed, signedIn: uid !== null, uid, root: allowed && r.root === true && r.rescue !== true });
+}
+
+/**
+ * 问账号 Worker：这个新会话能不能走这条路由（给了 action 就按那个 action 的档）。原样回账号 Worker 的结论；没绑定 / 出错 → null。
+ * 子站接口 Worker 经 SpaceVerifier.admit 转来，网关自己的接口（/api/share、/api/space-audit）经 newSessionConclusion。
+ * @param {Record<string, any>} env @param {string} cookieHeader @param {string} method @param {string} pathname @param {string} [action]
+ */
+export async function askAdmit(env, cookieHeader, method, pathname, action) {
+  const v = env && env.ACCOUNT_VERIFIER;
+  if (!v || typeof v.admit !== 'function') return null;
+  if (action !== undefined && (typeof action !== 'string' || !ACTION_RE.test(action))) return null;
+  const cookie = typeof cookieHeader === 'string' ? cookieHeader.slice(0, MAX_COOKIE_HEADER) : '';
+  if (!/(?:^|;\s*)sgx-session=[^;]+/.test(cookie)) return null;
+  try {
+    const m = typeof method === 'string' ? method.toUpperCase().slice(0, 10) : '';
+    const p = typeof pathname === 'string' ? pathname.slice(0, 2048) : '';
+    return await (action ? v.admit(cookie, m, p, { action }) : v.admit(cookie, m, p));
+  } catch (e) {
+    console.error('[sgx-auth] account admit rpc failed: ' + (e && /** @type {any} */ (e).name ? /** @type {any} */ (e).name : 'error'));
+    return null;
+  }
+}
+
+/**
+ * 网关自己的接口用：这个请求的新会话结论（normalizeAdmit 的四项）。没 cookie → V6_DENIED（不问）。
+ * @param {Record<string, any>} env @param {Request} request @param {string} [action]
+ */
+export async function newSessionConclusion(env, request, action) {
+  if (!request || !readCookie(request, NEW_SESSION_COOKIE)) return V6_DENIED;
+  const r = await askAdmit(env, request.headers.get('Cookie') || '', String(request.method || 'GET'), new URL(request.url).pathname, action);
+  return normalizeAdmit(r, action);
+}
+
+/** 别的 Worker 能记的 root 特权操作命令字（同账号 Worker REMOTE_AUDIT_COMMANDS） */
+const AUDIT_RE = /^(?:rm-bulk|import|export|share)(?:\s[\x20-\x7e]{0,190})?$/;
+
+/**
+ * root 的特权内容操作留痕：经 ACCOUNT_VERIFIER.auditRoot 写账号侧身份审计（账号 Worker 重新判会话，只认真 root）。尽力而为，从不抛错。
+ * @param {Record<string, any>} env @param {string} cookieHeader @param {string} command @param {string} address 客户端 IP
+ * @returns {Promise<boolean>}
+ */
+export async function auditRoot(env, cookieHeader, command, address) {
+  const v = env && env.ACCOUNT_VERIFIER;
+  if (!v || typeof v.auditRoot !== 'function') return false;
+  if (typeof command !== 'string' || !AUDIT_RE.test(command)) return false;
+  try {
+    const cookie = typeof cookieHeader === 'string' ? cookieHeader.slice(0, MAX_COOKIE_HEADER) : '';
+    return (await v.auditRoot(cookie, command, typeof address === 'string' ? address.slice(0, 64) : '')) === true;
+  } catch (e) {
+    return false;
+  }
+}

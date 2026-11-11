@@ -9,6 +9,7 @@
 import { isSameOrigin, originDenied, apiError } from '../../lib/http.js';
 import { dbReady } from '../../lib/db.js';
 import { passedGateway as passedGatewayHeaders, readClientContext } from '../../lib/gateway.js';
+import { ROOT_UID } from '../../core/groups.js';
 
 /** 有没有进站会话（网关写的结论头） @param {any} request */
 export function passedGateway(request) {
@@ -56,4 +57,21 @@ export function guarded(fn) {
       return apiError(500, 'server');
     }
   };
+}
+
+/**
+ * 这个请求走不走 v6：有 v6 新会话且路由档够（auth.v6() 判过）→ 结论；否则 null（走旧会话）。
+ * @param {any} context @returns {Promise<any|null>}
+ */
+export async function v6Admitted(context) {
+  const a = context && context.auth;
+  if (!a || !a.hasV6 || typeof a.v6 !== 'function') return null;
+  const v = await a.v6();
+  return v && v.allowed === true && Number.isInteger(v.uid) ? v : null;
+}
+
+/** v6 结论 → 审计里记谁（sudo 借来的 root 记真正执行的人） @param {any} v */
+export function auditActor(v) {
+  const sudo = v.sudo === true && Number.isInteger(v.sudoBy);
+  return { uid: sudo ? v.sudoBy : (Number.isInteger(v.uid) ? v.uid : ROOT_UID), suffix: sudo ? ' via sudo' : '' };
 }

@@ -6,11 +6,11 @@
 // POST   /api/collections            账号会话 + 作用域 daymark.write + 同源：新建。body {name, intro?}；排到最后
 // PUT    /api/collections?id=<id>    账号会话 + daymark.write + 同源：改 name / intro / sort；给 quote_ids 就按它重设专题里的句子和顺序
 //                                    （排序、移出都走这里；不存在的句子 id 忽略）
-// DELETE /api/collections?id=<id>    账号会话 + daymark.write + 同源：删专题（句子本身不删）
+// DELETE /api/collections?id=<id>    账号会话 + daymark.write + 同源：删专题（句子本身不删）；v6 新会话要 root（结构删除，留痕）
 // 写操作成功返回 {ok:true, collection}（删除返回 {ok:true}）。
 // 错误：400 bad-json / bad-body / bad-name / bad-sort / bad-quote-ids / nothing / bad-id；401 account；403 origin / scope；404 not-found；409 limit；413 too-large
 import { json, err, methodNotAllowed } from './_lib.js';
-import { conclusionOf, canReadPrivate, visibility } from './_auth.js';
+import { readAccess, auditRootOp } from './_auth.js';
 import { readBody, guardWrite, idParam } from './_write.js';
 import { ensureSchema, parseCollection, newId, LIMITS } from './_quotes.js';
 
@@ -41,14 +41,14 @@ async function one(db, id) {
 
 export async function onRequestGet(context) {
   const { env } = context;
-  const c = await conclusionOf(context);
+  const vis = await readAccess(context);
   await ensureSchema(env.D1_QUOTES);
-  const showPrivate = canReadPrivate(c);
+  const showPrivate = vis.showPrivate;
   const { results } = await env.D1_QUOTES.prepare(`SELECT ${COLS} FROM collections ORDER BY sort, created_at, id`).all();
   const by = await members(env.D1_QUOTES, !showPrivate);
   let list = (results || []).map((r) => rowToCollection(r, by[r.id] || []));
   if (!showPrivate) list = list.filter((x) => x.quote_ids.length > 0);
-  return json({ ok: true, ...visibility(c), collections: list });
+  return json({ ok: true, ...vis, collections: list });
 }
 
 export async function onRequestPost(context) {
@@ -109,6 +109,8 @@ export async function onRequestDelete(context) {
   const res = await env.D1_QUOTES.prepare('DELETE FROM collections WHERE id = ?1').bind(id).run();
   if (!res.meta || !res.meta.changes) return err('not-found', 404);
   await env.D1_QUOTES.prepare('DELETE FROM collection_quotes WHERE collection_id = ?1').bind(id).run();
+  /* 割接：经 v6 放进来的 root 删整个专题（结构删除）留痕 */
+  await auditRootOp(context, 'rm-bulk daymark collection ' + id);
   return json({ ok: true });
 }
 

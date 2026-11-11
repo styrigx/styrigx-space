@@ -47,6 +47,7 @@ import * as status from './api/status.js';
 import * as share from './api/share.js';
 import { SHARE_PATH_RE } from './core/share-links.js';
 import { accessOf, ACCESS } from './gate.js';
+import { newSessionConclusion, V6_DENIED } from './core/identity-admit.js';
 import { openShare, failResponse as shareFailResponse } from './core/share-open.js';
 
 /** @type {Map<string, Record<string, Function>>} */
@@ -210,11 +211,18 @@ export async function routeShare(request, env, ctx) {
     const cookie = (request.headers.get('Cookie') || '').slice(0, 8192);
     /** @type {Promise<{ok:boolean, reason:string}>|null} */
     let sessP = null;
-    const auth = { session: () => (sessP || (sessP = checkLockSession(cookie, env).catch(() => ({ ok: false, reason: 'error' })))) };
-    /* 要不要进站会话：同一张访问表（gate.js ROUTE_ACCESS：GET / HEAD /s/:code 公开，/api/share 默认 entry） */
+    /** @type {Promise<any>|null} */
+    let v6P = null;
+    const auth = {
+      session: () => (sessP || (sessP = checkLockSession(cookie, env).catch(() => ({ ok: false, reason: 'error' })))),
+      /* 割接：v6 新会话对这条路由的结论（账号 Worker 判档；没 sgx-session 不问） */
+      v6: () => (v6P || (v6P = newSessionConclusion(env, request).catch(() => V6_DENIED))),
+    };
+    /* 要不要进站会话：同一张访问表（gate.js ROUTE_ACCESS：GET / HEAD /s/:code 公开，/api/share 默认 entry）；
+       割接起旧进站会话不成立时，v6 新会话的档够（/api/share = root）也放行 */
     if (isProd && accessOf(request.method, pathname) !== ACCESS.PUBLIC) {
       const sess = await auth.session();
-      if (!sess.ok) return withNoStore(json(401, { ok: false }));
+      if (!sess.ok && !(await auth.v6()).allowed) return withNoStore(json(401, { ok: false }));
     }
     if (m) return await openShare(request, env, ctx, auth, m[1]);
     const handler = pickHandler(share, request.method);

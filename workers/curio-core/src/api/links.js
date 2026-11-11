@@ -5,7 +5,7 @@
 //                   成功 → {ok:true, canWrite:true, showPrivate:true, cats:[...]}（直接带回最新的全部收藏，前端整页重画）
 //                   400 参数不对；401 account；403 origin / scope；404 不存在；409 not-empty / mismatch / limit / duplicate
 import { json, err, methodNotAllowed } from './_lib.js';
-import { conclusionOf, canReadPrivate, visibility } from './_auth.js';
+import { readAccess } from './_auth.js';
 import { readBody, guardWrite } from './_write.js';
 import { ensureSchema, listAll, parseOp, applyOp } from './_store.js';
 
@@ -17,11 +17,11 @@ function db(env) {
 
 export async function onRequestGet(context) {
   const { env } = context;
-  const c = await conclusionOf(context);
+  const vis = await readAccess(context);
   const d = db(env);
   if (!d) return err('server', 503);
   await ensureSchema(d);
-  return json({ ok: true, ...visibility(c), cats: await listAll(d, canReadPrivate(c)) });
+  return json({ ok: true, ...vis, cats: await listAll(d, vis.showPrivate) });
 }
 
 export async function onRequestPost(context) {

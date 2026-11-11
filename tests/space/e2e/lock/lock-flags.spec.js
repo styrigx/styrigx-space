@@ -1,5 +1,5 @@
 /**
- * 2.8.0：legacy-lock-screen 已彻底删除，只剩 lock-gate 一个开关。v5 S5 起没有锁屏界面：lock-gate 开时旧锁屏地址 ?entry=1 打开终端、预填 sudo styrigx。
+ * 2.8.0：legacy-lock-screen 已彻底删除，只剩 lock-gate 一个开关。v5 S5 起没有锁屏界面：lock-gate 开时旧锁屏地址 ?entry=1 打开终端、预填 su 。
  * - SGX_TEST_FLAGS=gate-off  → 构建：LOCK_GATE=false（守卫不跑：不绑自动回锁）
  * - 默认构建（LOCK_GATE=true）→ ?entry=1 打开终端
  * CI 里各用一次对应构建来跑；其他构建下跳过。
@@ -15,7 +15,7 @@ test.describe('lock feature flag (lock-gate)', () => {
     await page.goto('/wild/?entry=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-term')).toHaveAttribute('open', '', { timeout: 15000 });
     await expect(page.locator('#sgx-term-in')).toBeEditable({ timeout: 5000 });
-    await expect(page.locator('#sgx-term-in')).toHaveValue('sudo styrigx');
+    await expect(page.locator('#sgx-term-in')).toHaveValue('su ');
     await expect(page.locator('#sgx-entry')).toHaveCount(0);
   });
 

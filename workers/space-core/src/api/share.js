@@ -16,10 +16,15 @@
  * - revoke { id } → 作废这一条（写 share_link.revoked_at）；revoke { all:true } → 作废全部还没作废的（share rm --all）。
  *     拿它进门的人下一个请求验票时就过不去（core/lock-session.js 查 share_link）。
  * 数据：D1 styrigx-space-core 的 share_* 表（绑定 D1_SPACE，表结构见 migrations/0001_baseline.sql）。
+ *
+ * v6（割接）：旧进站会话不成立、v6 新会话的档够（/api/share 各 action 都是 root，账号 Worker 判）→ 不要锁侧复验、不看 by=link
+ * （v6 的「每次重验」就是 su root）；新建 / 作废在账号侧身份审计记 share create|revoke（core/identity-admit.js auditRoot）。
+ * 旧会话照旧（新旧并存；整套分享 P4 删）。
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { checkLinkCreate, checkLinkReauth } from '../core/link-keys.js';
 import { shareCookieOf } from '../core/share-open.js';
+import { auditRoot } from '../core/identity-admit.js';
 import {
   SQL, SHARE_MAX, NAME_MAX, REUSE_MIN_LEFT_MS, REUSE_SLACK_MS, durationMs, cleanName, cleanTarget, sessionSeconds,
   newCode, newId, isId, view, first, all, run, purgeDeadLinks,
@@ -53,7 +58,11 @@ async function handle(context) {
   const { request, env, auth } = context;
   if (!isSameOrigin(request)) return originDenied();
   const sess = await auth.session();
-  if (!sess.ok) return apiError(401, 'session');
+  const v6 = !sess.ok && typeof auth.v6 === 'function' ? await auth.v6() : null;
+  const viaV6 = !!(v6 && v6.allowed === true);
+  if (!sess.ok && !viaV6) return apiError(401, 'session');
+  /** 审计（只 v6 的 root；旧会话的分享照旧不进身份审计） @param {string} cmd */
+  const audit = (cmd) => (viaV6 ? auditRoot(env, request.headers.get('Cookie') || '', cmd, request.headers.get('CF-Connecting-IP') || '') : Promise.resolve(false));
   const db = env && env.D1_SPACE;
   if (!db) return apiError(500, 'config');
   const cookie = shareCookieOf(request);
@@ -67,7 +76,7 @@ async function handle(context) {
   const now = Date.now();
 
   /* 管理（列表 / 作废）：进门 + 锁侧复验；新建：进门。两种都不认分享链接进来的会话（v5 S1，by=link → 403 link） */
-  if (action === 'list' || action === 'revoke' || action === 'create') {
+  if (!viaV6 && (action === 'list' || action === 'revoke' || action === 'create')) {
     let g;
     try {
       g = action === 'create' ? await checkLinkCreate(cookie, env) : await checkLinkReauth(cookie, env);
@@ -120,6 +129,7 @@ async function handle(context) {
       return apiError(503, 'server');
     }
     const row = await first(db, SQL.byId, id);
+    await audit('share create');
     return json(200, reuse ? { ok: true, link: view(row, Date.now()), reused: false } : { ok: true, link: view(row, Date.now()) });
   }
 
@@ -132,6 +142,7 @@ async function handle(context) {
       } catch (e) {
         return apiError(503, 'server');
       }
+      await audit('share revoke --all');
       return json(200, { ok: true });
     }
     const id = body.id;
@@ -149,6 +160,7 @@ async function handle(context) {
     } catch (e) {
       return apiError(503, 'server');
     }
+    await audit('share revoke');
     return json(200, { ok: true });
   }
 

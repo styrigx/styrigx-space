@@ -5,7 +5,7 @@
 //                    无权限：没登录账号 401 account、没作用域 403 scope、非同源 403 origin；400 参数不对；404 不存在；409 limit
 // 不进全站搜索索引（src/search-index.js 的 CONTENT_ROUTES 不含本接口，索引也不读 movies 表）。
 import { json, err, methodNotAllowed } from './_lib.js';
-import { conclusionOf, visibility } from './_auth.js';
+import { readAccess } from './_auth.js';
 import { readBody, guardWrite } from './_write.js';
 import { ensureMovieSchema, listMovies, parseMovieOp, applyMovieOp } from './_movies.js';
 
@@ -13,10 +13,10 @@ const STATUS = { 'not-found': 404, limit: 409 };
 
 export async function onRequestGet(context) {
   const { env } = context;
-  const c = await conclusionOf(context);
+  const vis = await readAccess(context);
   if (!env || !env.D1_MOVIES) return err('server', 503);
   await ensureMovieSchema(env.D1_MOVIES);
-  return json({ ok: true, ...visibility(c), movies: await listMovies(env.D1_MOVIES) });
+  return json({ ok: true, ...vis, movies: await listMovies(env.D1_MOVIES) });
 }
 
 export async function onRequestPost(context) {

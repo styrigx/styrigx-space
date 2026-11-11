@@ -117,7 +117,8 @@ export function mountIdentityLayer(o) {
       if (!u) { C.err(t('notSignedIn')); return; }
       if (u.root) { C.warn(t('alreadyRoot')); return; }
       if (!u.wheel) { C.err(t('notWheel')); return; }
-      proofOf(t('pwFor', { u: 'root' }), 'su-challenge', function (proof) {
+      /* su 输的是目标用户（root）的凭据：提示同 Linux su 的「Password:」；「[sudo] password for <自己>:」只给 sudo（割接） */
+      proofOf(t('pwPrompt'), 'su-challenge', function (proof) {
         C.setMode('busy');
         api.post('su', Object.assign({ user: 'root' }, proof)).then(function (r) {
           if (r.j && r.j.ok) { setUser(r.j.user); C.ok(t('rootOn'), t('rootLimit')); C.toCmd(); return; }

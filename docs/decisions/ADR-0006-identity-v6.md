@@ -103,7 +103,7 @@
 - 会话 cookie `sgx-session`：`Path=/; HttpOnly; Secure; SameSite=Lax`，只发给 styrigx.com 本主机（不写 Domain：子站都在同一主机路径下）。
 - `su <用户>` 只签普通用户；`issueSession` 代码级拒签 uid 0；`su root` 只压栈（≤ 1 小时）；`idle` 只弹 root 层；`sudo` 每次验自己的凭据、不压栈、不发票据，只能借 root 跑 useradd / userdel / usermod / passwd <名> / groups / who，`passwd` / `passkey` 一律 `root-creds`。
 - 数据按 uid：头像在 KV 按键前缀分（styrigx 键不变）；偏好 / 数字健康 / 旧设备表的 uid 列在 `workers/account/migrations/0007_v6_uid_columns.sql`（2026-11-11 Gray 批准，从 `migrations-pending/` 挪入，部署 job 执行）；代码两种表结构都能跑（`lib/uid-schema.js`），迁移前别的 uid 读到空、写被拒 / 丢弃。v6 的「设备」= 自己的 `account_sessions`。
-- 审计加 root 改名片（`profile`）；批量 / 结构删除在奇趣 / 日刻接口 Worker，它们接上新会话（P3 / P4）时再写 `rm-bulk`。
+- 审计加 root 改名片（`profile`）；批量 / 结构删除在奇趣 / 日刻接口 Worker，它们接上新会话（割接，§2.15）时写 `rm-bulk`。
 
 ### 2.14 P2c 对齐定稿 v5（2026-11-11）
 
@@ -113,6 +113,17 @@
 - userdel / 到期删除的用户行改留墓碑（`#deleted-<uid>`、禁用）：**uid 永不复用**，免得新用户继承旧 uid 下的头像 / 偏好 / 数字健康数据；名字可再 useradd。
 - 审计（§十）：sudo 借 root 的每一条写 `sudo <方法> <路径> [action]`（uid = 真正执行的人）；root 改名片写 `profile set …`（sudo 借来的记执行人并标 `via sudo`）；到期删除写 `expire userdel <名>`（uid null）。
 - admit 先拒不认识的档，再做 root 快速放行（与 permits 第 0 步一致，`core/admit.js admitDecision`）。
+
+### 2.15 割接（2026-11-11）
+
+- 入口改 su（§七）：访客头像点了预填 `su `（不再是死按钮）；盾牌、上锁的地方（`sgx:sudo`）、旧锁屏地址 `?entry=1` / `#sec` 同一行；访客入口文案（旷野锁卡按钮、lockedHint、AI 窗口锁着的提示）跟着写 su。`?entry=sudo` 照旧直接跑旧的 `sudo styrigx`。su（含 su root）的密码提示同 Linux su：`Password:`；sudo 仍是 `[sudo] password for <自己>:`。
+- 别的 Worker 的接口接上 v6：判断仍只在账号 Worker（`ROUTE_ACCESS` + `permits` / `precedence`），别处只传方法、公开地址路径和 action。
+  - 网关自己的 `/api/share`（root）、`/api/space-audit`（root）：旧进站会话不成立时问 `newSessionConclusion`（经 `ACCOUNT_VERIFIER.admit`）；v6 root 不要锁侧复验。
+  - 账号 `/api/account/grants`、`/api/account/proxy`（root）：v6 放行时不要旧账号 session / reauth 票；sudo 借来的 root 也算（sudo 对它们自动生效）。
+  - 奇趣 / 日刻接口 Worker：守卫（entry / music）与写门槛（requireScope / requireAccount）在旧会话不够时经网关 `SpaceVerifier.admit(cookie, method, path, {action}?)` 问；有 v6 身份但档不够 → 403 `forbidden`，没有 → 照旧 401。`album.del`（root）按 op 再问一次；公开读的私密行 / canWrite 按路由表新加的 action `private`（= 本站写组）。
+  - `AccountVerifier.admit` 收 action：路由必须真列了这个 action 才按它判（`levelOf` 对没有 actions 的路由会退回路由档，RPC 这里不许退），回答带回 action，调用方核对（旧版本不认 action 时不会被当成 action 的结论）。
+- root 的特权内容操作留痕：奇趣导出 / 导入（`export` / `import`）、删整张专辑 / 整个专题（`rm-bulk`）、分享新建 / 作废（`share`）经 `AccountVerifier.auditRoot` 写 `account_user_audit`（账号侧重新判会话，只认真 root 层、救援不算，命令字白名单）；应用授权 `app allow|deny`、代理订阅 `sub <action>` 在账号 Worker 直接写（sudo 记真正执行的人 + `via sudo`）。
+- 新旧并存：旧会话的判定与规则原样（有旧会话够用时不问 v6）；旧 `sudo styrigx` / `sudo root` / `sudo -v` 都还在，P4 删。
 
 ## 3. 分阶段（分步割接，不是兼容层）
 
@@ -135,6 +146,7 @@
 | 2026-11-11 | P2a：permits 三步顺序（救援 → root → 档）、owner 档（名片 PUT）、`/api/identity`（su / sudo / exit / idle / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>）、身份栈写操作、两维限流、防枚举、pepper 绑定、数据按 uid（迁移待批）；§2.13 | P2a |
 | 2026-11-11 | P2b：身份命令进全站终端、提示符与头像跟 v6 身份 | #398 |
 | 2026-11-11 | P2c：名片 GET 公开、sudo 借 root 执行账号 Worker 内任一接口、到期满 30 天自动删除（墓碑、uid 不复用）、root 特权内容操作审计、admit 先拒未知档；§2.14 | P2c |
+| 2026-11-11 | 割接：访客入口改 su（头像 / 盾牌 / 上锁处预填 `su `）、su 的提示 `Password:`；网关 / 账号 / 奇趣 / 日刻其余路由接 v6 会话（admit 带 action、`private` action）、root 特权内容操作经 `auditRoot` 留痕；§2.15 | 割接 |
 
 ## 5. 后果
 

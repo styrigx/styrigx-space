@@ -68,10 +68,10 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
          它读通行密钥（D1，强一致；以前是 KV 索引，刚注册完边缘可能还是旧的）：等它看见再去敲 */
       await h.waitLockEntryPasskey(page, true);
 
-      /* 去掉会话，回到访客；旧锁屏地址 ?entry=1 = 打开终端、预填 sudo styrigx */
+      /* 去掉会话，回到访客；旧锁屏地址 ?entry=1 = 打开终端、预填 su  */
       await page.context().clearCookies({ name: SESSION });
       await gotoLockTerm(page, BASE + '/wild/?entry=1&test-no-local-bypass=1');
-      await expect(page.locator(SEL.in)).toHaveValue('sudo styrigx');
+      await expect(page.locator(SEL.in)).toHaveValue('su ');
       await expect(page.locator(SEL.ps)).toHaveText('nobody@space:~/wild$');
 
       /* 读 auth 接口的原始响应头：预览域名存不下 Domain=.styrigx.com 的 cookie，只能看头 */
