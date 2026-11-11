@@ -187,7 +187,8 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('data-sgx-tier', 'user');
     await expect(av).toHaveAttribute('aria-disabled', 'true');
     await expect(av.locator('img')).not.toHaveAttribute('src', /\/avatar\/u\d+-/);
-    await av.click();
+    /* aria-disabled 的元素 Playwright 视为不可点，force 跳过可操作性等待 */
+    await av.click({ force: true });
     await page.waitForTimeout(300);
     await expect(page.locator('#sgx-acct')).not.toHaveAttribute('data-state', 'open');
     await expect(term(page)).not.toHaveAttribute('open', '');

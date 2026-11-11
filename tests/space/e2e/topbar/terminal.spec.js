@@ -76,7 +76,7 @@ test('提示符按服务端身份（term-design-v5）：访客 nobody@space:~$�
   await expect(ps).toHaveText('nobody@space:~/blog$');
 });
 
-test('man（S9 全屏阅读页，less 式）：访客的索引只列通用命令 + find + sudo；man sudo 中文正文；q / esc / ‹ 返回 退出，回到原来的命令行，滚动区不动；help 没有了', async ({ page }) => {
+test('man（S9 全屏阅读页，less 式）：访客的索引只列通用命令 + find（P4-3 §四 分段，访客层无 sudo）；man sudo 中文正文；q / esc / ‹ 返回 退出，回到原来的命令行，滚动区不动；help 没有了', async ({ page }) => {
   await go(page, '/zh/', { term: true });
   const out = home(page).locator('[data-term-out]');
   const man = home(page).locator('[data-term-man]');
@@ -89,7 +89,7 @@ test('man（S9 全屏阅读页，less 式）：访客的索引只列通用命令
   await expect(body).toContainText('手册页 · man <命令> 查看一页');
   const lines = await body.locator('.sgx-term-ln').allTextContents();
   const names = lines.filter((l) => / — /.test(l)).map((l) => l.split(' — ')[0]);
-  expect(names).toEqual(['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find', 'sudo']);
+  expect(names).toEqual(['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find']);
   await page.keyboard.press('q');
   await expect(man).toBeHidden();
   await expect(input(page)).toBeVisible();

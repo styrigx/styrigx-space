@@ -115,7 +115,7 @@ test.describe('终端：man / 不认识的命令 / clear / 历史 / ^C / esc', (
     await freezeTime(page);
   });
 
-  test('访客 man（S9 全屏阅读页）列 sudo / find，不列 su / ask / lock / passwd（同 tests/space/ui/shell/terminal.test.mjs 访客索引）；help 已删 → command not found；clear 清屏', async ({ page }) => {
+  test('访客 man（S9 全屏阅读页）列 find，不列 sudo / su / ask / lock / passwd（P4-3 §四 分段）（同 tests/space/ui/shell/terminal.test.mjs 访客索引）；help 已删 → command not found；clear 清屏', async ({ page }) => {
     await gotoLockTerm(page);
     await lockCmd(page, 'man');
     const body = page.locator('#sgx-term [data-term-man-body]');
@@ -123,8 +123,8 @@ test.describe('终端：man / 不认识的命令 / clear / 历史 / ^C / esc', (
     await expect(body).toContainText('手册页');
     const lines = await body.locator('.sgx-term-ln').allTextContents();
     const names = lines.filter((l) => / — /.test(l)).map((l) => l.split(' — ')[0].trim());
-    for (const n of ['sudo', 'find', 'man']) expect(names).toContain(n);
-    for (const n of ['su', 'ask', 'lock', 'passwd', 'help']) expect(names).not.toContain(n);
+    for (const n of ['find', 'man']) expect(names).toContain(n);
+    for (const n of ['sudo', 'su', 'ask', 'lock', 'passwd', 'help']) expect(names).not.toContain(n);
     await page.keyboard.press('q');
     await expect(body).toBeHidden();
     await lockCmd(page, 'help');

@@ -22,10 +22,26 @@ const DEVICES = () => [
 ];
 
 test.describe('设备（v6 会话）', () => {
-  test('device 列表；device rm 1（此会话）→ 提示用 exit；device rm 2 [y/N] → devices/revoke { n }；device rm --all [y/N] 不要复验', async ({ page }) => {
-    let devs = DEVICES();
+  test('站长（P4-3，定稿 v5.5 §五、§七）：device 列表直读；device rm 属 root 档 → 提示先 sudo，不发 revoke', async ({ page }) => {
     const calls = await mockAccount(page, {
       user: T.V6_USER('styrigx'),
+      handlers: { 'devices/list': () => [200, { ok: true, devices: DEVICES() }] },
+    });
+    await T.goPage(page);
+    await openTerm(page);
+    await expect(ps(page)).toHaveText('styrigx@space:~/wild$');
+    await typeLine(page, 'device');
+    await expect(log(page)).toContainText('[1] styrigx 当前 · 2026-11-11 08:30');
+    await mode(page, 'cmd');
+    await typeLine(page, 'device rm 2');
+    await expect(log(page)).toContainText('先 sudo device rm 2');
+    expect(calls.some((c) => /^devices\/revoke/.test(c.action))).toBe(false);
+  });
+
+  test('root：device 列表；device rm 1（此会话）→ 提示用 exit；device rm 2 [y/N] → devices/revoke { n }；device rm --all [y/N] 不要复验', async ({ page }) => {
+    let devs = DEVICES();
+    const calls = await mockAccount(page, {
+      user: T.V6_USER('root'),
       handlers: {
         'devices/list': () => [200, { ok: true, devices: devs }],
         'devices/revoke': (b) => { devs = devs.filter((x) => x.n !== b.n); return [200, { ok: true }]; },
@@ -34,7 +50,7 @@ test.describe('设备（v6 会话）', () => {
     });
     await T.goPage(page);
     await openTerm(page);
-    await expect(ps(page)).toHaveText('styrigx@space:~/wild$');
+    await expect(ps(page)).toHaveText(/^root@space/);
     await typeLine(page, 'device');
     await expect(log(page)).toContainText('[1] styrigx 当前 · 2026-11-11 08:30');
     await expect(log(page)).toContainText('[2] styrigx · 2026-11-10 08:30');
