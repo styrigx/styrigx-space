@@ -609,6 +609,11 @@ export function mountTopbar(o) {
     paintAvV6();
     if (who) { who.on(paintAv); who.on(paintAvV6); }
   }
+  /* 环境提示符 / AI 窗标签（<html data-sgx-account-session>，layout-mode.js 首帧写 out）：v6 P4 起按 whoami——root（u:root）= in（root@account 那组），
+     其余（访客 / 普通用户）= out（styrigx@space 那组）；只在服务端回答变了时改（网络错不动） */
+  if (who) who.on(function (/** @type {string} */ w) {
+    try { doc.documentElement.setAttribute('data-sgx-account-session', w === 'u:root' ? 'in' : 'out'); } catch (e) {}
+  });
   if (acctBtn && acctDlg && o.account) {
     acct = wire(acctBtn, acctDlg, 'sgxAcct', function () {
       if (!acctWin) acctWin = o.account({ dlg: acctDlg, ms: acct.ms, S: trSec('account'), who: who, run: function (/** @type {string} */ c) { termPrefill(c); } });

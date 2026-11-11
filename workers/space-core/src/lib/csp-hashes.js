@@ -8,5 +8,5 @@ export const INLINE_SCRIPT_HASHES = Object.freeze([
   'sha256-LEyUD+QpBJGQuguZ7duNA1niRnvHFSc+poR8PASgVWQ=', // 404.html（6 页）: (()=>{var S=Object.freeze(["en","zh"]),_=["blog","curio","da
   'sha256-h5JNOR4zPHT8YecFgkGto7igIre3DOn8RLzWyBX/4IQ=', // 404.html（6 页）: addEventListener('pagereveal',function(e){window.__sgxReveal
   'sha256-i1XMiEvbVUtdwdw3UvJJ8q9wEIV5cxYfeWksDFT51NY=', // 404.html（6 页）: function __layoutMode(){ try{ if(new URLSearchParams(l
-  'sha256-op3CP/1k6TQKGdurIATw2nTR/PE3++UTTQgtKCtXkEA=', // 404.html（6 页）: function __sgxUaMobile(){try{var t=navigator,e=t.userAgentDa
+  'sha256-lc1Qp/6LZS7E+VID0IXYz2z8iIsM09e36UJDCC9copc=', // 404.html（6 页）: function __sgxUaMobile(){try{var t=navigator,e=t.userAgentDa
 ]);
