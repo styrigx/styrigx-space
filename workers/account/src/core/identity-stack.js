@@ -51,17 +51,21 @@ export function clearSessionCookie() {
 
 /**
  * 签发普通用户会话（su <用户> 成功后）。uid 是 root → 抛错（root 代码级禁止公开登录）。出错抛错。
- * @param {any} env @param {{uid:number, epoch:number}} user @param {number} [now]
+ * 2g（定稿 v5.5 §十一）：opts.device = 这台设备的标记（core/device-mark.js）；写进 account_sessions.device（没有标记写 NULL）。
+ * @param {any} env @param {{uid:number, epoch:number}} user @param {number} [now] @param {{device?: string}} [opts]
  * @returns {Promise<{token:string, id:string, expiresAt:number, cookie:string}>}
  */
-export async function issueSession(env, user, now) {
+export async function issueSession(env, user, now, opts) {
   if (!user || !Number.isInteger(user.uid) || user.uid === ROOT_UID) throw new Error('root-login-forbidden');
   const t = typeof now === 'number' ? now : Date.now();
   const token = newToken();
   const id = /** @type {string} */ (await sessionIdOf(token));
   const expiresAt = t + SESSION_TTL_MS.user;
-  await onDb(env, (d) => d.prepare('INSERT INTO account_sessions (id, uid, epoch, rescue, created_at, expires_at, renewed_at) VALUES (?, ?, ?, 0, ?, ?, 0)')
-    .bind(id, user.uid, user.epoch, t, expiresAt).run());
+  const device = opts && typeof opts.device === 'string' && opts.device ? opts.device : '';
+  await onDb(env, async (d) => {
+    return d.prepare('INSERT INTO account_sessions (id, uid, epoch, rescue, created_at, expires_at, renewed_at, device) VALUES (?, ?, ?, 0, ?, ?, 0, ?)')
+      .bind(id, user.uid, user.epoch, t, expiresAt, device || null).run();
+  });
   return { token, id, expiresAt, cookie: sessionCookie(token, SESSION_TTL_MS.user / 1000) };
 }
 

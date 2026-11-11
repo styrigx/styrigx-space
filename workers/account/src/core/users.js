@@ -8,7 +8,7 @@
  * 每次变更是一个 batch（一个事务）：+1 和删会话要么都成、要么都不成。
  *
  * 期限：useradd -e YYYY-MM-DD 按 Linux 语义，该日 00:00（Asia/Shanghai）起失效、可用到前一天结束；存 UTC 毫秒（expiryFromDate）。
- * 临时用户（expires_at > 0）永不进 wheel、sudoers、写组：加组先过 core/groups.js canJoinGroup；给已在这些组里的用户设期限也拒绝。
+ * 普通用户（uid 1001 起，含临时用户；定稿 v5.5 §四）永不进 wheel、sudoers、写组：加组先过 core/groups.js canJoinGroup；给已在这些组里的用户设期限也拒绝。
  *
  * P1 只提供这些函数和单测，还没有调用方（useradd / usermod / passwd <名> 是 P2 的终端命令）。
  * 只 import lib/db.js 和 core/groups.js。
@@ -115,7 +115,7 @@ export async function credentialsChanged(env, uid, opts) {
 }
 
 /**
- * 加组（useradd -G / usermod -aG）。先过 canJoinGroup（不认识的组、root、临时用户进特权 / 写组都拒绝）；
+ * 加组（useradd -G / usermod -aG）。先过 canJoinGroup（不认识的组、root、普通用户进特权 / 写组都拒绝）；
  * 已在组里 → { ok:true, changed:false }（不动 epoch）；加进去 → epoch +1、该用户会话全部作废。
  * @param {any} env @param {number} uid @param {string} group @param {number} [now]
  * @returns {Promise<{ok:true, changed:boolean}|{ok:false, reason:string}>}

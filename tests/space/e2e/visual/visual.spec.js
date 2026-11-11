@@ -143,7 +143,8 @@ test('baseline-shield-open', async ({ page: pg }) => {
   await pg.click('.sgx-tb-shield');
   await expect(pg.locator('#sgx-term')).toHaveAttribute('open', '');
   await expect(pg.locator('#sgx-term [data-term-ps]')).toHaveText(/^styrigx@space/, { timeout: 10000 });
-  await expect(pg.locator('#sgx-term-in')).toHaveValue('');
+  /* P4-3（定稿 v5.5 §七）：站长点徽章预填「su root」 */
+  await expect(pg.locator('#sgx-term-in')).toHaveValue('su root');
   await expect(pg.locator('#sgx-sec')).toHaveCount(0);
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-shield-open.png', { animations: 'disabled', caret: 'hide' });
 });
@@ -226,7 +227,8 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
             await expect(d.locator('input')).toHaveCount(0);
             if (state === 'home') {
               await expect(d.locator('[data-at-v="grants"]')).toHaveCount(0);
-              await expect(d.locator('[data-at-run]')).toHaveCount(6);
+              /* P4-3（定稿 v5.5 §七）：账号安全行删了 */
+              await expect(d.locator('[data-at-run]')).toHaveCount(5);
             } else await expect(d.locator('.sgx-pop-list [data-at-run]')).toHaveAttribute('data-at-run', 'su root');
           } else {
             sheet = '#sgx-term';

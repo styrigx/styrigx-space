@@ -177,13 +177,16 @@ test('createWho（v6 P4）：只看 v6 whoami；没有旧进站 / 账号身份�
   assert.equal(w.get(), 'nobody');
 });
 
-test('man 按身份列（唯一判断点 listedFor）：nobody 列 find 不列 ask、没有账号命令；v6 用户列自己的账号命令；root 多 ask / sub 和用户管理', async () => {
+test('man 按身份列（P4-3，定稿 v5.5 §四：root → 站长 → 普通用户 → 访客分段，各人看自己这一层及以下，root 看全部）', async () => {
   const { act } = fakeAct();
   const names = async (w) => (await run(createShell({ act, storage: mem(), who: fixedWho(w) }), 'man')).out.slice(1).map((o) => o.seg[0][1]);
   const base = ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme'];
-  assert.deepEqual(await names('nobody'), base.concat(['find', 'sudo']));
-  assert.deepEqual(await names('u:alice'), base.concat(['sudo', 'lock', 'passwd', 'passkey', 'device', 'profile', 'whoami', 'su', 'groups', 'who']));
-  assert.deepEqual(await names('u:root'), base.concat(['ask', 'sudo', 'lock', 'passwd', 'passkey', 'device', 'profile', 'sub', 'whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod']));
+  assert.deepEqual(await names('nobody'), base.concat(['find']));
+  /* 普通用户（没有 whoami 回答 = 不知道组：ask / sudo 不列） */
+  assert.deepEqual(await names('u:alice'), ['lock', 'passwd', 'profile', 'whoami', 'su', 'groups', 'who', ''].concat(base, ['find']));
+  /* 站长（按保留名 styrigx 认）：站长层 passkey / device 在前 */
+  assert.deepEqual(await names('u:styrigx'), ['passkey', 'device', '', 'lock', 'passwd', 'profile', 'whoami', 'su', 'groups', 'who', ''].concat(base, ['find']));
+  assert.deepEqual(await names('u:root'), ['sub', 'useradd', 'userdel', 'usermod', '', 'sudo', 'passkey', 'device', '', 'ask', 'lock', 'passwd', 'profile', 'whoami', 'su', 'groups', 'who', ''].concat(base, ['find']));
   /* Tab 补全也只补这个身份列出的命令 */
   assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('nobody') }).complete('a'), { line: 'a', options: [] });
   assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('u:root') }).complete('a'), { line: 'ask ', options: [] });
@@ -278,13 +281,16 @@ test('theme / ask / open：先打印再动（after）；访客 ask 不开 AI；o
   assert.equal(g.after, undefined);
 });
 
-test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访客要先 su <用户>；v6 普通用户的 root 档命令（sub）提示先 su root', () => {
+test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访客要先 su <用户>；非 root 的 root 档命令（sub、device rm）提示先 su root（文案同 main；sudoers 另可 sudo <命令>，keys/sudo.js）', () => {
   const { act } = fakeAct();
   const { v, calls } = fakeLayers();
   const sh = (w) => createShell({ act, storage: mem(), who: fixedWho(w) });
   const need = 'not signed in · su <user> first';
   for (const l of ['lock', 'passkey', 'device', 'profile', 'sub']) assert.equal(text(sh('nobody').exec(l, v).out[0]), need, l);
   for (const l of ['sub mv a b', 'sub show']) assert.equal(text(sh('u:alice').exec(l, v).out[0]), 'permission denied · run su root first', l);
+  /* P4-3：站长（sudoers）的 sub 与 device rm（root 档，定稿 v5.5 §五）提示同 main 的「先 su root」，不另出 sudo <这一行> 提示 */
+  const owner = () => createShell({ act, storage: mem(), who: Object.assign(fixedWho('u:styrigx'), { v6: () => ({ name: 'styrigx', owner: true, sudoers: true, groups: ['sudoers'] }) }) });
+  for (const l of ['sub mv a b', 'sub show', 'device rm 2', 'device rm --all']) assert.equal(text(owner().exec(l, v).out[0]), 'permission denied · run su root first', l);
   assert.deepEqual(calls, [], '没过门槛的不进流程');
 });
 

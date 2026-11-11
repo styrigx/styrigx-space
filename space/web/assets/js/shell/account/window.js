@@ -1,10 +1,13 @@
 /**
  * @fileoverview 账号卡片（头像点开，S9，Gray 2026-11-11：只展示）。
  *
- * 已登录（v6 身份，非救援）：头像 · 姓名 · 昵称 · 已登录，下面几行——个人资料 › · 设备 › · 账号安全 › · 退出登录（行和外观同 v5 卡片，GUI 不改；应用授权行随应用授权删除，定稿 v5.3 §十二）。
+ * 已登录（v6 身份，非救援；站长与 root 才打得开，普通用户头像不可点，定稿 v5.5 §七）：头像 · 姓名 · 昵称 · 已登录，下面几行——
+ *   个人资料 › · 设备 › · 退出登录 lock（定稿 v5.5 §七「账号页只留个人信息卡、设备卡、一个退出按钮 lock（回访客、清整栈）……沿用现有账号页，去掉账号安全卡，
+ *   原 exit 按钮改成 lock」，Gray 2026-11-11 20:10 / 20:20；行和外观同 v5 卡片；应用授权行随应用授权删除，定稿 v5.3 §十二）。
  * 没登录：头像（灰）· 未登录，一行「登录 su root」（v5 卡片，命令改 su root，Gray 11-11 17:51）。
  * 卡片里没有命令行：点一行（或头像 / 编辑）= 收起卡片、打开全站终端、输入行预填对应的命令（不替人回车）：
- *   个人资料 → profile · 设备 → device · 账号安全 → passkey · 退出登录 → exit · 登录 → su root。
+ *   个人资料 → profile · 设备 → device（站长直读，定稿 v5.5 §七）· 退出登录 → lock · 登录 → su root。
+ *   密码与通行密钥只走终端 passwd、passkey（定稿 v5.5 §七，不做账号安全卡）。
  * v6 P4（定稿 v5.2 §七「访客点击预填 su 」、§十三 删旧会话）起登录状态只看终端的 v6 身份（who.v6()），不再问旧的 GET /api/account、
  * 不再读写旧登录标记 cookie sgx-account-signed-in。
  *
@@ -21,8 +24,9 @@ export { flatStrings };
 /** 页面入口给的名字 → 怎么开（commands.js；topbar-panel.js 的 accountLayer） */
 export { layerFromPath };
 
-/** 卡片的行 → 终端里预填的命令（行和外观同 v5 卡片；「登录」行 sudo root → su root，Gray 11-11 17:51，定稿 §十三 P4） */
-export const CARD_CMDS = Object.freeze({ profile: 'profile', devices: 'device', keys: 'passkey', exit: 'exit', login: 'su root' });
+/** 卡片的行 → 终端里预填的命令（行和外观同 v5 卡片；「登录」行 sudo root → su root，Gray 11-11 17:51，定稿 §十三 P4；
+ * P4-3：账号安全行删除、退出行 exit → lock，定稿 v5.5 §七） */
+export const CARD_CMDS = Object.freeze({ profile: 'profile', devices: 'device', lock: 'lock', login: 'su root' });
 
 /**
  * 挂到 #sgx-acct 上。
@@ -86,8 +90,7 @@ export function mountAccountWindow(o) {
       '<div class="sgx-pop-list">' +
       row({ k: t('profile.title'), v: t('profile.hint'), run: CARD_CMDS.profile, chev: true }) +
       row({ k: t('devices.title'), v: t('devices.this'), run: CARD_CMDS.devices, chev: true }) +
-      row({ k: t('keys.title'), v: t('keys.hint'), run: CARD_CMDS.keys, chev: true }) +
-      '</div><div class="sgx-pop-list sgx-pop-list--line">' + row({ k: t('common.signOut'), v: CARD_CMDS.exit, run: CARD_CMDS.exit, cls: 'sgx-pop-row--acc' }) + '</div>';
+      '</div><div class="sgx-pop-list sgx-pop-list--line">' + row({ k: t('common.signOut'), v: CARD_CMDS.lock, run: CARD_CMDS.lock, cls: 'sgx-pop-row--acc' }) + '</div>';
   }
 
   root.addEventListener('click', function (e) {

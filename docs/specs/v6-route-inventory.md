@@ -75,6 +75,8 @@ P3 变更（2026-11-11，定稿 v5.2 §九；路由档不变）：
 
 P4 变更（2026-11-11，定稿 v5.3 §十三 P4 行）：删旧入口 20 条——进站接口 `lock-now`（GET / POST）、`lock-entry`、`lock-session-check`、`lock-password`、`lock-passkey`、`lock-credentials`、`lock-reauth`、`lock-all-devices`、`lock-reset`、`space-auth`；分享短链 `/s/:code`（GET / HEAD）与 `/api/share`（GET / POST）；旧账号会话 `GET /api/account`、`/api/account/session`、`/api/account/reauth`、`/api/account/reset`、`/api/account/keys`。`/s/` 只剩代理主机两段的订阅。`GET /api/space-audit` 保留（档 root 不变）。只经服务绑定的入口删 `AccountVerifier.authorize`、`SpaceVerifier.session`、`ShareJanitor.purgeShareLinks`。下文 P1–2e 各节与「已定」一节的旧路由是当时的记录。
 
+P4-3 变更（2026-11-11，定稿 v5.5 §五、§七）：`PUT` / `DELETE /api/avatar`、`POST /api/prefs` user → **owner**（全站一份配置，归站长，读写都落到 styrigx 那份）；`POST /api/identity` 的 `passkey-*` user → **owner**；`POST /api/account/devices` user → **owner**（`list` owner 站长直读、`revoke` / `revoke-all` root，站长 `sudo device rm …`），列表改为全站视图并按 2g 设备标记 `sgx-device` 合并同一台设备。路由数不变。
+
 P4 收尾（2026-11-11，定稿 v5.3 §十二，Gray 19:41）：应用授权整套删除——`POST /api/account/grants`（app allow | deny）删去（58 → 57 条，root 6 → 5）；奇趣 / 日刻写入只按 v6 会话加组判定，`SpaceVerifier.conclusion()` 一并删除。
 
 P4-2（2026-11-11，定稿 v5.5 §四、§五）：数字健康整套删除——`POST /api/wellbeing`、`GET /api/wellbeing` 删去（57 → 55 条，public 25 → 24、user 6 → 5），网关访问表与账号 `PUBLIC_API` 的 `GET /api/wellbeing`、转发表 `/api/wellbeing` 一并删；无身份访问 `/api/wellbeing` 现按未列入的 `/api/*` 处理。
@@ -85,12 +87,12 @@ P4-2（2026-11-11，定稿 v5.5 §四、§五）：数字健康整套删除—�
 
 | 路由 | 定稿 | 理由 |
 |---|---|---|
-| `POST /api/account/devices` | user | 管自己的会话；root 看全部由 who 做（P2） |
+| `POST /api/account/devices` | user → **owner**（P4-3：list owner、revoke / revoke-all root） | P2：管自己的会话；P4-3 按定稿 v5.5 §五 / §七改为后台控制、全站视图 |
 | `POST /api/account/proxy` | root | 全放 root，不加新组 |
-| `PUT` / `DELETE /api/avatar` | user | P2 按 uid 分 |
+| `PUT` / `DELETE /api/avatar` | user → **owner**（P4-3） | P2 按 uid 分；P4-3 按定稿 v5.5 §五 / §七改为一份配置、写入 owner |
 | `GET /api/profile` | public | 资料本身是公开数据（主页名片） |
 | `PUT /api/profile` | **owner**（P2 定稿 v4；P1 为 root） | 站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长 |
-| `GET` / `POST /api/prefs` | user | P2 加 uid |
+| `GET` / `POST /api/prefs` | user；POST → **owner**（P4-3） | P2 加 uid；P4-3 按定稿 v5.5 §五 / §七改为一份配置、写入 owner，普通用户只能看 |
 | `GET /curio/api/items` / `links` / `movies` | public | 私密行只给写组 curio-write |
 | `GET /curio/api/export` | **root**（原拟 curio-write） | 导出全部收藏含私密 |
 | `GET /daymark/api/quotes` | public | 私密句子只给写组 daymark-write |
@@ -117,16 +119,16 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
-| POST | `/api/identity` | **public**（救援可用：`whoami`、`exit`、`lock`、`passwd`、`passkey-*`、`groups`） | `passwd` / `passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete` / `groups` / `who` → user；`sudo-challenge` / `sudo` → sudoers；`useradd` / `userdel` / `usermod` / `passwd-user` → root；`whoami` / `su-challenge` / `su` / `exit` / `idle` / `lock` / `rescue` → public |  | 保留（P2 新增） | v6 身份命令：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue |  |
-| POST | `/api/account/devices` | **user** |  |  | 保留 | 已登录设备 = 自己的会话（v6 who 只看自己） | Gray 2026-11-11 定 user：管自己的会话；root 看全部由 who 做（P2） |
+| POST | `/api/identity` | **public**（救援可用：`whoami`、`exit`、`lock`、`passwd`、`passkey-*`、`groups`） | `passwd` / `groups` / `who` → user；`passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete` → owner（P4-3）；`sudo-challenge` / `sudo` → sudoers；`useradd` / `userdel` / `usermod` / `passwd-user` → root；`whoami` / `su-challenge` / `su` / `exit` / `idle` / `lock` / `rescue` → public |  | 保留（P2 新增） | v6 身份命令：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue |  |
+| POST | `/api/account/devices` | **owner** | `list` → owner；`revoke` / `revoke-all` → root（P4-3） |  | 保留 | 设备会话（全站视图：列出全站会话，2g 按 sgx-device 合并同一台设备） | 定稿 v5.5 §五：列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图；§七：站长打开账号页时设备卡列表直接可读 → list owner、revoke / revoke-all root |
 | POST | `/api/account/proxy` | **root** |  |  | 保留 | 代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥） | Gray 2026-11-11 定 root，不加新组 |
-| PUT | `/api/avatar` | **user** |  |  | 保留 | 换自己的头像（v6 头像 = whoami，按 uid） | Gray 2026-11-11 定 user：P2 按 uid 分（uid 只取服务端会话，ADR-0006 P2 硬要求） |
-| DELETE | `/api/avatar` | **user** |  | 单条 → 写组 | 保留 | 删自己的头像（回默认） | Gray 2026-11-11 定 user：同上 |
+| PUT | `/api/avatar` | **owner** |  |  | 保留 | 换站点头像（全站一份配置，归站长 styrigx） | 定稿 v5.5 §五：avatar、prefs 写入 owner（站长 + root）；§七：全站只有一份配置 |
+| DELETE | `/api/avatar` | **owner** |  | 单条 → 写组 | 保留 | 删站点头像（回默认） | 定稿 v5.5 §五：同上 |
 | GET | `/avatar/:file` | **public** |  |  | 保留 | 头像图片（页面路径） |  |
 | GET | `/api/profile` | **public** |  |  | 保留 | 站点个人资料（公开数据） | Gray 2026-11-11 定 public：资料是公开数据（KV_PROFILE 只放公开数据） |
 | PUT | `/api/profile` | **owner** |  |  | 保留 | 改站点个人资料（站长资料，不是每个用户一份） | Gray 2026-11-11 定稿 v4：站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长 |
-| GET | `/api/prefs` | **user** |  |  | 保留 | 读自己的设置云同步（偏好归 styrigx，按 uid） | Gray 2026-11-11 定 user：P2 加 uid（uid 只取服务端会话） |
-| POST | `/api/prefs` | **user** |  |  | 保留 | 写自己的设置云同步 | Gray 2026-11-11 定 user：同上 |
+| GET | `/api/prefs` | **user** |  |  | 保留 | 读设置云同步（全站一份配置，归站长 styrigx；普通用户只能看） | Gray 2026-11-11 定 user：P2 加 uid（uid 只取服务端会话） |
+| POST | `/api/prefs` | **owner** |  |  | 保留 | 写设置云同步（全站一份配置） | 定稿 v5.5 §五：avatar、prefs 写入 owner（站长 + root） |
 
 ### 奇趣接口 styrigx-curio-core（styrigx.com/curio/api/*，不经网关）
 

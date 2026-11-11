@@ -1,9 +1,10 @@
 /**
  * @fileoverview 设备（D1–D9）的终端命令（v5 S5；S9 起账号卡片只展示、只有这一处）。
  *
- * v6（路由表 POST /api/account/devices = user 档，Gray 2026-11-11 定：「设备」= 自己的 v6 会话，uid 只取服务端会话）：
- * - device：列表（[n] 身份路径 · 开始时间，本会话标「此设备」；行的写法同身份层 who）
- * - device rm <n>：[y/N] 退出那一个会话（本会话用 exit）· device rm --all：退出自己的其他所有会话（v6 不要复验）
+ * v6 P4-3（定稿 v5.5 §五「设备会话的列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图」；§七 站长直读；§十一 2g 按 sgx-device 合并）：
+ * - device：全站设备列表（[n] 身份路径 · 开始时间；同一台设备的几个会话合成一行，身份路径逗号分隔；含本会话的标「此设备」）；站长直读
+ * - device rm <n>：[y/N] 踢出那一台设备的全部会话（含本会话的用 exit）· device rm --all：踢出除本会话外的全站会话；
+ *   root 直接做，站长 sudo device rm …（这一条的接口经 POST /api/identity sudo，shell/account/api.js setSudo）
  */
 
 /**
@@ -48,7 +49,7 @@ export function mountDevices(C) {
     }, function () { C.netErr(); C.toCmd(); then(false); });
   }
 
-  /** device：列出自己的会话（[n] 身份路径 · 开始时间，本会话标「此设备」；同 who 的一行） */
+  /** device：全站设备（[n] 身份路径 · 开始时间，含本会话的标「此设备」） */
   C.deviceList = function () {
     load(function (ok) {
       if (!ok) return;
@@ -87,7 +88,7 @@ export function mountDevices(C) {
     });
   };
 
-  /** device rm --all：退出自己的其他所有会话（v6 不要复验，同 lock-all-devices 定稿 user 档） */
+  /** device rm --all：踢出除本会话外的全站会话（root 档；站长 sudo device rm --all） */
   C.deviceRmAll = function () {
     yn(t('devices.revokeAllAsk'), function () {
       C.setMode('busy');

@@ -10,12 +10,14 @@
  * DELETE
  * - 同 PUT；必须同源。先删版本号（立刻回到默认图），再删四张图。
  *
- * v6（P2）：v6 新会话（sgx-session，档 user）也能进；头像按 uid 分（lib/avatar.js avatarPrefix）——uid 只取服务端会话
- * （context.auth.dataUid()），请求里的任何 uid 都不认。
+ * v6 P4-3（定稿 v5.5 §七「全站只有一份配置（头像、偏好、名片等），归站长 styrigx；root 与站长共同持有；普通用户只能看」）：
+ * 写的永远是站长那一份（lib/avatar.js avatarPrefix(1000) = 原来的 avatar:*，站点头像），不再按会话 uid 分；
+ * root 直接写、站长直接写（路由档 owner），普通用户 403。P2 期间别的 uid 写下的 avatar:u<uid>:* 不再读写（留在 KV，删不删见 PR 未决）。
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { AVATAR_SIZES, AVATAR_MAX, keyOf, verKeyOf, sniffImage, NO_STORE, avatarKv } from '../lib/avatar.js';
 import { scopeDenial } from '../gate.js';
+import { STYRIGX_UID } from '../core/groups.js';
 
 /** 本接口的作用域名（只作标注：scopeDenial 只看 v6 身份；作用域表 core/scopes.js 随应用授权删除，定稿 v5.3 §十二） */
 const SCOPE = 'avatar.write';
@@ -26,8 +28,8 @@ export async function onRequestPut(context) {
   if (!isSameOrigin(request)) return originDenied();
   const denied = await scopeDenial(context.auth, SCOPE, NO_STORE);
   if (denied) return denied;
-  const uid = await context.auth.dataUid();
-  if (uid === null) return apiError(401, 'unauthorized', undefined, NO_STORE);
+  if ((await context.auth.dataUid()) === null) return apiError(401, 'unauthorized', undefined, NO_STORE);
+  const uid = STYRIGX_UID; /* 一份配置，归站长（定稿 v5.5 §七） */
   const kv = avatarKv(env);
   if (!kv) return apiError(500, 'server', undefined, NO_STORE);
   /** @type {FormData} */
@@ -66,8 +68,8 @@ export async function onRequestDelete(context) {
   if (!isSameOrigin(request)) return originDenied();
   const denied = await scopeDenial(context.auth, SCOPE, NO_STORE);
   if (denied) return denied;
-  const uid = await context.auth.dataUid();
-  if (uid === null) return apiError(401, 'unauthorized', undefined, NO_STORE);
+  if ((await context.auth.dataUid()) === null) return apiError(401, 'unauthorized', undefined, NO_STORE);
+  const uid = STYRIGX_UID; /* 一份配置，归站长（定稿 v5.5 §七） */
   const kv = avatarKv(env);
   if (!kv) return apiError(500, 'server', undefined, NO_STORE);
   try {

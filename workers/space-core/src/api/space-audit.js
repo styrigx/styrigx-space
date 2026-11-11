@@ -1,5 +1,8 @@
 /**
- * 旧进站凭证使用审计列表（v6 P4 起只读、不再有新行）：旷野 → 服务状态页（/status/）底部的「进站凭证使用记录」折叠区展开时才请求（apps/space-status.js；
+ * 进站凭证使用审计列表（v6 P4-3 起恢复写入：定稿 v5.5 §四「进站审计接口与状态页审计卡保留，恢复写入：记录 v6 的 su / sudo，字段按第十节审计条」）：
+ * 新行 = 账号侧身份审计（account_user_audit）里的 su / sudo（不含登录失败），经 ACCOUNT_VERIFIER.auditList 读（会话在账号 Worker 重新判，root 档）；
+ * 旧行 = 旧进站审计（D1 audit realm='lock'，不再有新行，7 天内自然过期），两者按时间合成一张表、新的在前、最多 AUDIT_SHOW 条。
+ * 以下是旧说明：旷野 → 服务状态页（/status/）底部的「进站凭证使用记录」折叠区展开时才请求（apps/space-status.js；
  * 前端同时请求账号 Worker 的 audit-list，合成一张表并标注「锁屏 / 账号」，方案 5.2）。
  *
  * GET /api/space-audit
@@ -39,8 +42,36 @@ async function handleGet(context) {
   const v6 = await newSessionConclusion(env, request);
   if (!v6.allowed) return v6.signedIn ? apiError(403, 'forbidden') : apiError(401, 'session');
   try {
-    return json(200, { ok: true, items: await listSpaceAudit(env, AUDIT_SHOW) });
+    const fresh = await v6AuditItems(env, request);
+    if (fresh === null) return apiError(503, 'server');
+    const old = await listSpaceAudit(env, AUDIT_SHOW);
+    return json(200, { ok: true, items: mergeAudit(fresh, old, AUDIT_SHOW) });
   } catch (e) {
     return apiError(503, 'server');
   }
+}
+
+/**
+ * v6 的 su / sudo 审计（账号 Worker AccountVerifier.auditList）。没绑定 / 旧版本没有 auditList → []（只显示旧行）；读失败 → null。
+ * @param {any} env @param {Request} request
+ * @returns {Promise<Array<{ts:number, ipPrefix:string, ok:boolean, uid:number|null, command:string}>|null>}
+ */
+async function v6AuditItems(env, request) {
+  const v = env && env.ACCOUNT_VERIFIER;
+  if (!v || typeof v.auditList !== 'function') return [];
+  try {
+    const r = await v.auditList(request.headers.get('Cookie') || '');
+    if (!r || r.ok !== true || !Array.isArray(r.items)) return null;
+    return r.items;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * 新旧两份按时间合成（新的在前），截到 max 条。
+ * @param {any[]} a @param {any[]} b @param {number} max
+ */
+export function mergeAudit(a, b, max) {
+  return a.concat(b).filter((x) => x && Number.isFinite(Number(x.ts))).sort((x, y) => Number(y.ts) - Number(x.ts)).slice(0, max);
 }

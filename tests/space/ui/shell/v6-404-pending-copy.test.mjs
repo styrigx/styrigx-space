@@ -1,6 +1,6 @@
 /**
  * 割接 2f：#404 未决项文案（Gray 11-11 15:37 / 15:39 定稿，Muse 草稿 v6-404-pending-copy；Hark 调整：lock passkey 指向 passkey 命令、device / profile 不在本 PR）——
- * - 第 2 项：sudo sub → sudoNotYet「sudo {x} 暂不支持 · 先 su root，再直接用 {x}」（sudo app 随 app 命令删除，定稿 v5.3 §十二：落到 sudo 用法行）
+ * - 第 2 项：sudo sub（P4-3 起 sudo sub / sudo device 接通，定稿 v5.5 §四；没有调用的 sudoNotYet 键与文案删除，Gray 11-11 22:46；sudo app 随 app 命令删除，落到 sudo 用法行）
  * - 第 3 项：v6 身份输 sudo -v / sudo root reauth / lock passwd | passkey | --all → 「已移除 · v6 做法」一行（不落 notHere）；旧身份照旧（P4 删）
  * - 第 4 项：man lock / share / passwd / sub 的 AUTH 行（app 页随应用授权删除）按 v6 改写（pages.js / zh / en 同步）
  * - 第 7 项：ask 进 root6 的 man，不进普通用户（user）的
@@ -38,19 +38,23 @@ function layers() {
 }
 
 test('文案：新键 en / zh / TERM_EN 都有，en 与 TERM_EN 一致', () => {
-  for (const k of ['sudoNotYet', 'goneSudoV', 'goneSudoReauth', 'goneLockPasswd', 'goneLockPasskey', 'goneLockAll', 'usagePasskey6']) {
+  for (const k of ['goneSudoV', 'goneSudoReauth', 'goneLockPasswd', 'goneLockPasskey', 'goneLockAll', 'usagePasskey6']) {
     assert.equal(EN.term[k], TERM_EN[k], 'en.' + k);
     assert.ok(typeof ZH.term[k] === 'string' && ZH.term[k] && ZH.term[k] !== TERM_EN[k], 'zh.' + k);
   }
 });
 
-test('第 2 项：sudo sub → 暂不支持 · 先 su root，再直接用（中英；不落 usage）；sudo app 随应用授权删除，落到用法行', () => {
+test('第 2 项（P4-3）：sudo sub 接通——交给身份层先验自己的凭据，再在账号层借 root 跑这一行；sudoNotYet 键与文案删除（Gray 11-11 22:46）；sudo app 落到用法行', () => {
+  assert.equal('sudoNotYet' in TERM_EN, false);
+  assert.equal('sudoNotYet' in ZH.term, false);
+  assert.equal('sudoNotYet' in EN.term, false);
   for (const w of ['u:styrigx', 'u:root']) {
+    const calls = [];
+    const v = { ident: { hasSession: () => true, sudoProof: (done) => { calls.push('proof'); done(null); } }, acct: { sudo: (via) => calls.push(['sudo', via]), cmdSub: (l, g) => calls.push(['sub', l, g]) } };
+    assert.equal(sh(w).exec('sudo sub show Foo', v).flow, true, w);
+    assert.deepEqual(calls, ['proof', ['sudo', null], ['sub', 'sub show Foo', { direct: true }]], w + '：来源名大小写原样');
     const L = layers();
-    assert.equal(text(sh(w).exec('sudo sub', L.v).out[0]), 'sudo sub isn’t supported yet · su root first, then run sub', w);
     assert.equal(text(sh(w).exec('sudo app allow 1', L.v).out[0]), TERM_EN.usageSudo, w);
-    assert.equal(text(sh(w, ZH.term).exec('sudo sub', L.v).out[0]), 'sudo sub 暂不支持 · 先 su root，再直接用 sub', w);
-    assert.equal(L.calls.length, 0);
   }
 });
 
@@ -132,5 +136,5 @@ test('第 7 项：ask 进 root6 的 man（带一行 Gray AI 权限说明），�
   assert.ok(!(await names('nobody')).includes('ask'), '访客不列 ask');
   assert.equal(PAGES.ask.desc.length, 1);
   assert.equal(EN.manBody.ask.desc[0], PAGES.ask.desc[0]);
-  assert.equal(ZH.manBody.ask.desc[0], 'ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 styrigx 和 root 开放。');
+  assert.equal(ZH.manBody.ask.desc[0], 'ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 ai 组开放。');
 });

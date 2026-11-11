@@ -13,17 +13,19 @@
  * - updatedAt = 服务器最后一次真正写入的时间（MAX(updated_at)），没有数据为 0
  * - 没绑 D1_ACCOUNT → 500 config（正式 / 预览的 wrangler.toml 都绑了；缺绑定只会是配置错误）
  *
- * v6（P2）：按 uid 分（ADR-0006 §2.12 (a)：uid 只取服务端会话 context.auth.dataUid()；请求里的 uid 一概不认），一律 WHERE uid = ?。
+ * v6 P4-3（定稿 v5.5 §七「全站只有一份配置（头像、偏好、名片等），归站长 styrigx；root 与站长共同持有；普通用户只能看」）：
+ * 读写的永远是站长那一份（WHERE uid = 1000）。写（POST）路由档 owner（站长 + root），普通用户只能读。
  *
  * GET  /api/prefs → { ok, items, updatedAt }
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { scopeDenial } from '../gate.js';
+import { STYRIGX_UID } from '../core/groups.js';
 
 const KEY_RE = /^sgx-[a-z0-9-]{1,48}$/;
 const MAX_ITEMS = 80;
-/** 总项数上限（每个 uid） */
+/** 总项数上限 */
 export const MAX_TOTAL = MAX_ITEMS * 2;
 const MAX_VALUE = 600;
 const SKEW_MS = 60 * 1000;
@@ -39,10 +41,9 @@ export const UPSERT_SQL =
   'ON CONFLICT(uid, k) DO UPDATE SET v = excluded.v, t = excluded.t, updated_at = excluded.updated_at WHERE excluded.t > settings_sync.t';
 const SELECT_ALL = 'SELECT k, v, t, updated_at FROM settings_sync WHERE uid = ?';
 
-/** 这次请求的 uid（只取服务端会话）；没有（不该发生：门已过）→ null @param {any} context */
+/** 这次请求读写的 uid：恒为站长 1000（一份配置，归站长，定稿 v5.5 §七）；没有身份（不该发生：门已过）→ null @param {any} context */
 async function uidOf(context) {
-  const uid = await context.auth.dataUid();
-  return Number.isInteger(uid) ? uid : null;
+  return Number.isInteger(await context.auth.dataUid()) ? STYRIGX_UID : null;
 }
 
 /**

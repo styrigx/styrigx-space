@@ -12,9 +12,9 @@
  *   lang 分段 EN | Auto | 中文（选中即保存；明确的语言和本页不同就去另一种语言的同一页，Auto 只在主站首页换）、layout 分段（Mobile | Auto | DeX，模式规则见共享外壳 layout-mode.js）、
  *   STATUS（v6 P4 起「分享本页」磁贴随分享短链删除，Gray 11-11 17:47）、esc 关闭。
  * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
- * - 盾牌（v5 S6）：不开窗口，吉祥物兼状态标志。访客点 = 打开终端预填 `su `（v6，GUEST_LINE）；已登录（v6 身份）点 = 只打开终端。
+ * - 盾牌（v5 S6；v6 P4-3 起 = 身份徽章四档，定稿 v5.5 §七）：不开窗口，打开终端按身份预填——访客 `su `（GUEST_LINE）、普通用户 `exit`、站长 `su root`、root `exit`（只预填、回车才生效）。
  *   旧地址 #sec / [data-sec-open] 同样只打开终端（访客预填）。v6 P4 起旧的「退出进站会话 [y/N]」（钥匙层 lock）随旧会话删除。
- * - 头像 = whoami（v6，定稿 §七）：访客点 = 打开终端预填 `su `；普通用户 → profile（wheel 组 → su root）；root → exit。
+ * - 头像 = whoami（定稿 v5.5 §七）：访客点 = 打开终端预填 `su `；站长与 root 点 = 打开账号页；普通用户（uid 1001 起）的头像只作装饰、不可点；头像一份，归站长。
  *   页面没有网关标记（本地 / 测试构建）且没有 v6 身份时点了开账号卡片（只展示，点一行 = 打开终端预填命令）。
  * - >_ 终端按钮（v5 S6）：开合全站终端（同 Ctrl / ⌘ K）。
  * - 终端（v5 S5 终端合一）：调用方传 terminal（shell/terminal.js 整个模块）、identityTerm（v6 身份层 shell/identity/layer.js）、accountTerm（终端里的账号层
@@ -557,9 +557,30 @@ export function mountTopbar(o) {
     if (pg !== 'valid' && pg !== 'locked') return false;
     return who.get().indexOf('u:') !== 0;
   };
-  /* 头像 = whoami（定稿 v5.2 §七 58–61）：有 v6 会话时头像是当前身份——普通用户显示自己的头像（/avatar/u<uid>-<尺寸>.webp，styrigx 用站点头像），
-     root 叠一个「#」标记；已登录（普通用户 / root）点头像打开账号卡片（v5 卡片，Gray 11-11 17:44）；访客点头像 = 预填「su 」。 */
-  /** 头像该预填的命令：只有访客预填 su （已登录 → ''，交给账号卡片） */
+  /**
+   * 徽章四档（定稿 v5.5 §七）：root（含救援）· owner 站长 styrigx · user 普通用户 · guest 访客（页面有网关标记、没有 v6 身份）；
+   * 都不是（本地 / 测试构建没有网关标记、还没问到身份）→ ''。
+   * @returns {''|'guest'|'user'|'owner'|'root'}
+   */
+  const tierOf = function () {
+    const u = who && who.v6 ? who.v6() : null;
+    if (u) return u.root ? 'root' : u.owner === true ? 'owner' : 'user';
+    return avGuest() ? 'guest' : '';
+  };
+  /** 徽章点击预填（按还能晋升到哪一档；到顶就 exit） @param {string} t */
+  const shieldCmd = function (t) {
+    if (t === 'owner') return 'su root';
+    if (t === 'user' || t === 'root') return 'exit';
+    return t === 'guest' || !who || who.get() === 'nobody' ? GUEST_LINE : '';
+  };
+  /* 头像 = whoami（定稿 v5.5 §七）：全站只有一份配置，头像归站长——谁登录都显示站点头像（不再按 uid 取 /avatar/u<uid>-*），root 叠一个「#」标记；
+     站长与 root 点头像打开账号页；普通用户（uid 1001 起）的头像只作装饰、不可点击；访客点头像 = 预填「su 」。 */
+  /** 普通用户（不是站长、不是 root）：头像不可点（定稿 v5.5 §七） */
+  const avDecor = function () {
+    const u = who && who.v6 ? who.v6() : null;
+    return !!(u && !u.root && u.owner !== true);
+  };
+  /** 头像该预填的命令：只有访客预填 su （已登录 → ''，交给账号页） */
   const avV6Cmd = function () {
     const u = who && who.v6 ? who.v6() : null;
     if (!u) return avGuest() ? GUEST_LINE : '';
@@ -572,8 +593,7 @@ export function mountTopbar(o) {
     if (img) {
       if (!img.hasAttribute('data-sgx-src0')) img.setAttribute('data-sgx-src0', img.getAttribute('src') || '');
       const src0 = img.getAttribute('data-sgx-src0') || '';
-      const want = u && !u.root && u.uid !== 1000 ? '/avatar/u' + u.uid + '-192.webp' : src0;
-      if (img.getAttribute('src') !== want) img.setAttribute('src', want);
+      if (img.getAttribute('src') !== src0) img.setAttribute('src', src0);
     }
     let mark = acctBtn.querySelector('.sgx-tb-av-root');
     if (u && u.root) {
@@ -590,11 +610,15 @@ export function mountTopbar(o) {
   };
   const paintAv = function () {
     if (!acctBtn) return;
-    acctBtn.removeAttribute('aria-disabled');
+    /* 普通用户：纯装饰（同访客时代的死按钮写法 aria-disabled，外观不变） */
+    if (avDecor()) acctBtn.setAttribute('aria-disabled', 'true');
+    else acctBtn.removeAttribute('aria-disabled');
   };
   if (acctBtn) {
     /* 访客：点头像 = 打开终端预填 su （不开账号卡片）；已登录不拦，冒泡给账号卡片 */
     acctBtn.addEventListener('click', function (e) {
+      /* 普通用户的头像不可点（定稿 v5.5 §七）：什么都不开，也不按链接走 */
+      if (avDecor()) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       const c = avV6Cmd();
       if (!c) return;
       const me2 = /** @type {MouseEvent} */ (e);
@@ -604,10 +628,22 @@ export function mountTopbar(o) {
       termPrefill(c);
     }, true);
     /* 访客的中键 / 辅助键点（auxclick）不按链接走（账号卡片只给已进站的人） */
-    acctBtn.addEventListener('auxclick', function (e) { if (avGuest() && !(who && who.v6 && who.v6())) e.preventDefault(); }, true);
+    acctBtn.addEventListener('auxclick', function (e) { if ((avGuest() && !(who && who.v6 && who.v6())) || avDecor()) e.preventDefault(); }, true);
     paintAv();
     paintAvV6();
     if (who) { who.on(paintAv); who.on(paintAvV6); }
+  }
+  /* 盾牌身份徽章（定稿 v5.5 §七）：四档图形（CSS 按 data-sgx-tier 换部件与颜色，partials/icon.html tb-shield）。
+     没有 v6 身份且页面不是网关标记的访客（本地 / 测试构建）→ 不写档，原样 */
+  const paintShield = function () {
+    if (!secBtn) return;
+    const t = tierOf();
+    if (t) secBtn.setAttribute('data-sgx-tier', t);
+    else secBtn.removeAttribute('data-sgx-tier');
+  };
+  if (secBtn) {
+    paintShield();
+    if (who) who.on(paintShield);
   }
   /* 环境提示符 / AI 窗提问行（<html data-sgx-account-session>，layout-mode.js 首帧写 nobody / out）：谁登录显示谁，和终端提示符一致（Gray 11-11 22:46）——
      访客 = nobody（nobody@space），普通用户 / 站长 = out（<名>@space：名字写进 .sgx-envps-u 和 --sgx-ps-user），root（u:root）= in（root@space）。
@@ -833,13 +869,15 @@ export function mountTopbar(o) {
         w.then(function (/** @type {string} */ x) { if (x === 'nobody' && !view.input.value) view.prefill(GUEST_LINE); });
       });
     };
-    /* 盾牌（v5 S6 顶栏 E）：不开窗口，打开终端——访客预填 su ；v6 已登录（u:<名>）不预填（要换人先 exit，定稿 §六）。身份以服务端为准：问过再决定 */
+    /* 盾牌 = 身份徽章（定稿 v5.5 §七，Gray 2026-11-11 20:03 / 20:10）：不开窗口，打开终端，按当前身份还能晋升到哪一档预填（只预填、回车才生效）——
+       访客「su 」（往上进站）、普通用户「exit」（进站已到顶）、站长「su root」（往上晋升 root）、root「exit」（弹回站长）。身份以服务端为准：问过再决定 */
     const shieldClick = function () {
       showTerm(function () {
         if (!view) return;
         const w = who ? who.refresh() : Promise.resolve('nobody');
-        w.then(function (/** @type {string} */ x) {
-          if (!view.input.value && x.indexOf('u:') !== 0) view.prefill(GUEST_LINE);
+        w.then(function () {
+          const c = shieldCmd(tierOf());
+          if (c && !view.input.value) view.prefill(c);
         });
       });
     };

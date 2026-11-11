@@ -9,7 +9,7 @@
  * 只 import lib/、auth/、shell/（check-layers 规则 3）。文案在外壳字符串表 identity 节（sgx-shell-i18n），四个站同一份。
  */
 import { esc } from '../../lib/util.js';
-import { flatStrings } from '../term/core/strings.js';
+import { flatStrings, shellSection } from '../term/core/strings.js';
 import { layerCtx } from '../term/view/layer-ctx.js';
 import * as api from './api.js';
 import { USER_NAME_RE, sudoCommand } from '../term/core/ident-args.js';
@@ -69,8 +69,10 @@ export function mountIdentityLayer(o) {
       'root-creds': t('rootCreds'), temporary: t('temporary', { g: j.group || '' }), group: t('group', { g: j.group || '' }), expiry: t('expiry'),
       name: t('name'), exists: t('exists'), 'not-found': t('notFound'), protected: t('protected'), weak: t('weak'), unauthorized: t('notSignedIn'),
       permission: j.need === 'wheel' ? t('notWheel') : t('permission', { c: cmd || '' }),
+      /* 未知命令（服务端 action）= 终端现成的「找不到命令」（term.notFound；普通用户进 wheel / sudoers / 写组同样报它，Gray 11-11 22:36） */
+      action: String(shellSection(doc, 'term').notFound || 'command not found: {x} · try man'),
     };
-    C.err(/** @type {any} */ (map)[e] || t('unknown', { c: e || String(r && r.s) }));
+    C.err(/** @type {any} */ (map)[e] || t('unknown', { c: e || String(r && r.s) }), e === 'action' ? String(cmd || '').split(' ')[0] : undefined);
     if (e === 'permission' && j.need === 'root' && cmd) C.note(t('trySudo'), 'sudo ' + cmd);
   }
   function net() { C.err(t('network')); C.toCmd(); }
@@ -261,6 +263,27 @@ export function mountIdentityLayer(o) {
     if (u.root) { runAdmin(cmd, null, argv.join(' ')); return; }
     if (!u.sudoers) { C.err(t('notSudoers', { u: u.name })); return; }
     proofOf(t('pwFor', { u: u.name }), 'sudo-challenge', function (proof) { runAdmin(cmd, proof, argv.join(' ')); });
+  };
+
+  /**
+   * sudo 借 root 跑一条账号命令（sudo device … / sudo sub …；定稿 v5.5 §四、§七）：root 不用 sudo → done(null)；
+   * 不是 sudoers → 一行红字；否则先验自己的凭据（同 sudo <命令> 的「[sudo] password for <自己>:」），done(via)：
+   * via() 每次回一份证明（密码这一条命令里沿用同一个；通行密钥第一次用刚拿到的，之后每次重新验，challenge 一次一用）。
+   * @param {(via: null | (() => Promise<any>)) => void} done
+   */
+  C.sudoProof = function (done) {
+    const u = me();
+    if (!u) { C.err(t('notSignedIn')); return; }
+    if (u.root) { done(null); return; }
+    if (!u.sudoers) { C.err(t('notSudoers', { u: u.name })); return; }
+    proofOf(t('pwFor', { u: u.name }), 'sudo-challenge', function (proof) {
+      let first = proof;
+      done(function () {
+        if (proof && typeof proof.password === 'string') return Promise.resolve({ password: proof.password });
+        if (first) { const p = first; first = null; return Promise.resolve(p); }
+        return api.passkeyProof('sudo-challenge');
+      });
+    });
   };
 
   /* ---------- passwd ---------- */

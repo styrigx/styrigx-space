@@ -27,12 +27,36 @@ export function v6Root(w) {
   return v6Name(w) === 'root';
 }
 /**
- * man 索引 / 命令 audience 用的类别：访客 = 'nobody'，v6 普通用户 = 'user'，v6 root = 'root6'。
- * @param {Who} w @returns {string}
+ * man 索引 / 命令 audience 用的类别：访客 = 'nobody'，v6 普通用户（uid 1001 起）= 'user'，站长 styrigx = 'owner'，v6 root = 'root6'。
+ * 站长按 whoami 的 owner 标记（服务端 view：uid 1000）；没有服务端回答时按用户名 styrigx（保留名）。
+ * @param {Who} w @param {any} [u] whoami 的 user（可省）
+ * @returns {string}
  */
-export function kindOf(w) {
+export function kindOf(w, u) {
   if (!isV6(w)) return 'nobody';
-  return v6Root(w) ? 'root6' : 'user';
+  if (v6Root(w)) return 'root6';
+  if (u && typeof u === 'object' && u.name === v6Name(w)) return u.owner === true ? 'owner' : 'user';
+  return v6Name(w) === 'styrigx' ? 'owner' : 'user';
+}
+
+/**
+ * 权限层级（定稿 v5.5 §四「权限层级 = man 索引顺序：root → 站长 styrigx → 普通用户 → 访客，自上而下递减」）：数字越大层越高。
+ * man 索引按这四层分段（高的在前），各人只看到自己这一层及以下的命令，root 看全部（Gray 2026-11-11 19:59）。
+ */
+export const TIERS = Object.freeze(['nobody', 'user', 'owner', 'root6']);
+/** @param {string} k */
+export function tierRank(k) {
+  return TIERS.indexOf(k);
+}
+/**
+ * 一条命令属于哪一层：audience 里最低的那一层（缺省 = 访客层）。audience 空数组 = 不进索引（rescue）。
+ * @param {{ audience?: string[] }} c @returns {number} -1 = 不进索引
+ */
+export function tierOf(c) {
+  if (!c.audience) return 0;
+  let t = -1;
+  c.audience.forEach(function (k) { const r = tierRank(k); if (r !== -1 && (t === -1 || r < t)) t = r; });
+  return t;
 }
 
 /** 访客的提示符（定稿 §二：未登录提示符保持现状） */
@@ -69,12 +93,20 @@ export function whoOf(v6) {
 }
 
 /**
- * 一条命令在这个身份下列不列（man 索引；唯一判断点）。命令的 audience：缺省所有人；数组 = 只给这些类别（kindOf）列。
+ * 一条命令在这个身份下列不列（man 索引 / 补全；唯一判断点）。定稿 v5.5 §四：各人只看到自己这一层及以下的命令，root 看全部。
+ * - 命令的层 = tierOf（audience 里最低的那一层；缺省访客层；空数组不进索引）
+ * - group：只给这个组的成员列（ask = ai 组，定稿 v5.5 §四「ai 组成员的 man 都列出 ask」；sudo = sudoers）；root 不看组
  * 只管列不列，不管能不能跑（能不能跑由命令自己 / 服务端回答）。
- * @param {{ audience?: string[] }} c @param {Who} w
+ * @param {{ audience?: string[], group?: string }} c @param {Who} w @param {any} [u] whoami 的 user（组、owner 标记；可省）
  */
-export function listedFor(c, w) {
-  return !c.audience || c.audience.indexOf(kindOf(w)) !== -1;
+export function listedFor(c, w, u) {
+  const t = tierOf(c);
+  if (t === -1) return false;
+  const k = kindOf(w, u);
+  if (k === 'root6') return true;
+  if (tierRank(k) < t) return false;
+  if (c.group) return !!u && Array.isArray(u.groups) && u.groups.indexOf(c.group) !== -1;
+  return true;
 }
 
 /**
