@@ -249,7 +249,7 @@ man:
 manBody:
   ask:
     desc:
-      - "ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 styrigx 和 root 开放。"
+      - "ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 ai 组开放。"
   lock:
     auth: "不用验证"
   exit:

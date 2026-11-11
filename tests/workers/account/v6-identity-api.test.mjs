@@ -567,6 +567,7 @@ test('P4-3 devices：list owner（站长直读、全站视图）；revoke / revo
   assert.equal(l.status, 200, JSON.stringify(l.json));
   assert.equal(l.json.devices.length, 3, '全站会话（迁移前没有设备列，每个会话各算一台）');
   assert.deepEqual(l.json.devices.map((d) => d.path), ['styrigx', 'alice', 'alice']);
+  assert.deepEqual(Object.keys(l.json.devices[0]).sort(), ['current', 'expiresAt', 'n', 'path', 'since']);
   assert.ok(l.json.devices[0].current);
   assert.ok(l.json.devices.every((d) => !('_id' in d) && !('device' in d)), '会话 id / 设备标记不出接口');
   const rv = await dv(st, { action: 'revoke', n: 2 });
@@ -578,9 +579,11 @@ test('P4-3 devices：list owner（站长直读、全站视图）；revoke / revo
   assert.equal((await id(env, { action: 'whoami' }, a2)).json.user.name, 'alice');
   assert.equal((await id(env, { action: 'sudo', password: PW.styrigx, command: { method: 'POST', path: '/api/account/devices', body: { action: 'revoke', n: 1 } } }, st)).json.error, 'current', '本会话（执行 sudo 的会话）踢不了');
   assert.ok(rows(env, "SELECT command FROM account_user_audit WHERE command LIKE 'lock device%'").some((r) => r.command === 'lock device 2 via sudo'), '审计命令字沿用 main 的 lock device <n>；记真正执行的人 + via sudo（auditActor，同 profile）');
+  const st2 = await login(env, 'styrigx');
   await suRoot(env, st);
   assert.equal((await dv(st, { action: 'revoke-all' })).status, 200, 'su root 后直接踢');
-  assert.equal((await id(env, { action: 'whoami' }, a2)).json.user, null);
+  assert.equal((await id(env, { action: 'whoami' }, st2)).json.user, null, '自己（styrigx）的其他会话被踢');
+  assert.equal((await id(env, { action: 'whoami' }, a2)).json.user.name, 'alice', 'rm --all 范围同 main：别人的会话不动（Gray 11-11 22:35）');
   assert.equal((await id(env, { action: 'whoami' }, st)).json.user.name, 'root', '本会话保留');
 });
 
@@ -604,10 +607,10 @@ test('P4-3 2g 设备标记：su 发 sgx-device（HttpOnly / Secure / SameSite=La
   const l = await call(env, 'POST', '/api/account/devices', { cookie: t1, body: { action: 'list' } });
   assert.equal(l.status, 200, JSON.stringify(l.json));
   assert.equal(l.json.devices.length, 3, '4 个会话 = 老会话 1 台 + 同一台设备合并成 1 台 + 新标记 1 台');
-  const merged = l.json.devices.find((d) => d.sessions === 2);
+  const merged = l.json.devices.find((d) => d.path.indexOf(', ') !== -1);
   assert.ok(merged && merged.current, '合并的那台含本会话');
   assert.equal(merged.path, 'styrigx, alice');
-  assert.equal(l.json.devices.find((d) => d.path === 'alice' && d.sessions === 1 && !d.current) !== undefined, true);
+  assert.equal(l.json.devices.find((d) => d.path === 'alice' && !d.current) !== undefined, true);
   void old;
 });
 
@@ -618,11 +621,11 @@ test('P4-3 权限收紧：永久普通用户（alice）同样进不了 wheel / s
   for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) {
     const r = await id(env, { action: 'usermod', op: '-aG', groups: [g], name: 'alice' }, st);
     assert.equal(r.status, 400, g);
-    assert.equal(r.json.error, 'temporary', g);
+    assert.equal(r.json.error, 'action', g + '：报找不到命令（同未知命令，Gray 11-11 22:36）');
   }
   assert.equal((await id(env, { action: 'usermod', op: '-aG', groups: ['ai', 'status'], name: 'alice' }, st)).status, 200, '只读组照常');
   const ua = await id(env, { action: 'useradd', name: 'bob', groups: ['curio-write'] }, st);
-  assert.equal(ua.json.error, 'temporary', 'useradd -G 写组同样拒（没有期限也一样）');
+  assert.equal(ua.json.error, 'action', 'useradd -G 写组同样拒（没有期限 → 找不到命令）');
   const at = await login(env, 'alice');
   for (const a of ['passkey-list', 'passkey-add-challenge', 'passkey-delete']) {
     const r = await id(env, { action: a, n: 1 }, at);
@@ -633,7 +636,7 @@ test('P4-3 权限收紧：永久普通用户（alice）同样进不了 wheel / s
   assert.equal(pw.status, 200, '普通用户只能 passwd 改自己的密码');
 });
 
-test('P4-3 审计卡恢复写入（定稿 v5.5 §四、§十）：AccountVerifier.auditList 只给 root 读最近 7 天的 su / sudo（含登录失败），字段 ts / ipPrefix / ok / uid / command', async () => {
+test('P4-3 审计卡恢复写入（定稿 v5.5 §四、§十）：AccountVerifier.auditList 只给 root 读最近 7 天的 su / sudo（不含登录失败），字段 ts / ipPrefix / ok / uid / command', async () => {
   const env = await setup();
   const { checkAuditList } = await import(SRC + 'rpc/account-verifier.js');
   const st = await login(env, 'styrigx');
@@ -644,9 +647,8 @@ test('P4-3 审计卡恢复写入（定稿 v5.5 §四、§十）：AccountVerifie
   env.D1_ACCOUNT.raw.prepare("INSERT INTO account_user_audit (id, ts, uid, command, ok, ip_prefix, expires_at) VALUES ('old', ?, 1000, 'su styrigx', 1, 'x', ?)").run(Date.now() - 8 * 86400000, Date.now() + 86400000);
   const r = await checkAuditList(env, 'sgx-session=' + st);
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual(r.items.map((x) => x.command), ['su root', 'sudo who', 'login-fail su root', 'su styrigx'], '新的在前；只有 su / sudo；8 天前的不给');
+  assert.deepEqual(r.items.map((x) => x.command), ['su root', 'sudo who', 'su styrigx'], '新的在前；只有 su / sudo（不读登录失败行，Gray 11-11 22:35）；8 天前的不给');
   assert.deepEqual(Object.keys(r.items[0]).sort(), ['command', 'ipPrefix', 'ok', 'ts', 'uid']);
-  assert.equal(r.items[2].ok, false);
   assert.equal(r.items[1].uid, 1000);
   const at = await login(env, 'alice');
   assert.deepEqual(await checkAuditList(env, 'sgx-session=' + at), { ok: false, error: 'forbidden' });

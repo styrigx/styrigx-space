@@ -253,7 +253,7 @@ man:
 manBody:
   ask:
     desc:
-      - "opens the Gray AI window with your question. Gray AI is only for styrigx and root."
+      - "opens the Gray AI window with your question. Gray AI is for the ai group."
   lock:
     auth: "no verification"
   exit:

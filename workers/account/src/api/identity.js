@@ -162,6 +162,7 @@ function adminError(r) {
     case 'expiry': return apiError(400, 'expiry', extra);
     case 'temporary': return apiError(400, 'temporary', extra);
     case 'group': return apiError(400, 'group', extra);
+    case 'action': return apiError(400, 'action');
     case 'params': return apiError(400, 'params', extra);
     case 'exists': return apiError(403, 'exists', extra);
     case 'no-user': return apiError(404, 'not-found', extra);

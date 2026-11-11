@@ -48,8 +48,8 @@ export async function writeUserAudit(env, entry) {
   }
 }
 
-/** 状态页审计卡读的命令（定稿 v5.5 §四「进站审计接口与状态页审计卡保留，恢复写入：记录 v6 的 su / sudo」）：su、sudo 及其登录失败 */
-const SU_SUDO_WHERE = "(command = 'su' OR command LIKE 'su %' OR command = 'sudo' OR command LIKE 'sudo %' OR command LIKE 'login-fail su%')";
+/** 状态页审计卡读的命令（定稿 v5.5 §四「进站审计接口与状态页审计卡保留，恢复写入：记录 v6 的 su / sudo」）：su、sudo（定稿 §四 第 39 行；不读登录失败行，Gray 11-11 22:35）*/
+const SU_SUDO_WHERE = "(command = 'su' OR command LIKE 'su %' OR command = 'sudo' OR command LIKE 'sudo %')";
 
 /**
  * 状态页审计卡（GET /api/space-audit，网关经 AccountVerifier.auditList 读）：最近的 v6 su / sudo 审计，新的在前。

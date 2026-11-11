@@ -135,5 +135,5 @@ test('第 7 项：ask 进 root6 的 man（带一行 Gray AI 权限说明），�
   assert.ok(!(await names('nobody')).includes('ask'), '访客不列 ask');
   assert.equal(PAGES.ask.desc.length, 1);
   assert.equal(EN.manBody.ask.desc[0], PAGES.ask.desc[0]);
-  assert.equal(ZH.manBody.ask.desc[0], 'ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 styrigx 和 root 开放。');
+  assert.equal(ZH.manBody.ask.desc[0], 'ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 ai 组开放。');
 });

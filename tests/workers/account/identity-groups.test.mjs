@@ -71,12 +71,12 @@ test('isTemporary：有期限 = 临时用户', () => {
   assert.equal(G.isTemporary(null), false);
 });
 
-test('canJoinGroup：普通用户（uid 1001 起，临时 / 永久都算）不进特权组 / 写组；站长不受限；root 不进组；不认识的组拒绝', () => {
+test('canJoinGroup：普通用户（uid 1001 起）不进特权组 / 写组（有期限 → temporary，无期限 → action 找不到命令，Gray 11-11 22:36）；站长不受限；root 不进组；不认识的组拒绝', () => {
   const temp = { uid: 1001, expiresAt: Date.now() + 86400000 };
   const perm = { uid: 1001, expiresAt: 0 };
   const owner = { uid: 1000, expiresAt: 0 };
   for (const u of [temp, perm, { uid: 1042, expiresAt: 0 }]) {
-    for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) assert.deepEqual(G.canJoinGroup(u, g), { ok: false, reason: 'temporary' }, u.uid + ' ' + g);
+    for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) assert.deepEqual(G.canJoinGroup(u, g), { ok: false, reason: u.expiresAt > 0 ? 'temporary' : 'action' }, u.uid + ' ' + g);
     for (const g of ['listen', 'ai', 'status']) assert.deepEqual(G.canJoinGroup(u, g), { ok: true }, u.uid + ' ' + g);
   }
   for (const g of G.GROUPS) assert.deepEqual(G.canJoinGroup(owner, g), { ok: true }, g);

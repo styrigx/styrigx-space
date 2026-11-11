@@ -47,7 +47,7 @@ export async function useradd(env, q, now) {
   const groups = Array.from(new Set(list.map((g) => String(g).trim()).filter(Boolean)));
   for (const g of groups) {
     const c = canJoinGroup({ uid: FIRST_USER_UID, expiresAt }, g);
-    if (!c.ok) return { ok: false, error: c.reason === 'temporary' ? 'temporary' : 'group', group: g };
+    if (!c.ok) return { ok: false, error: c.reason === 'temporary' || c.reason === 'action' ? c.reason : 'group', group: g };
   }
   /* 到期满宽限期的用户顺手删掉（core/user-expiry.js；每日一轮之外的懒清理），同名的过期用户不挡 useradd */
   try { await purgeExpiredUsers(env, t); } catch (e) {}
@@ -99,11 +99,11 @@ export async function usermod(env, q, now) {
   if (op === 'add') {
     for (const g of groups) {
       const c = canJoinGroup(u, g);
-      if (!c.ok) return { ok: false, error: c.reason === 'temporary' ? 'temporary' : 'group', group: g };
+      if (!c.ok) return { ok: false, error: c.reason === 'temporary' || c.reason === 'action' ? c.reason : 'group', group: g };
     }
     for (const g of groups) {
       const r = await addToGroup(env, u.uid, g, now);
-      if (!r.ok) return { ok: false, error: r.reason === 'temporary' ? 'temporary' : 'group', group: g };
+      if (!r.ok) return { ok: false, error: r.reason === 'temporary' || r.reason === 'action' ? r.reason : 'group', group: g };
       changed = changed || r.changed;
     }
     return { ok: true, changed };
@@ -179,10 +179,10 @@ export async function whoList(env, q) {
 /**
  * 设备列表（定稿 v5.5 §五「列表为全站视图、列出全站会话」；§十一 2g「设备列表按 sgx-device 合并同一台设备的会话」）：
  * 全站会话按设备标记（account_sessions.device）归成一台台设备；没有设备标记的会话（2g 之前签的老会话、迁移前）各算一台。
- * 每台：{ n, path（这台上各会话的身份路径，按开始时间，逗号分隔）, since（最早开始）, expiresAt（最晚到期）, current（含本会话）, sessions（会话数） }。
+ * 每台：{ n, path（这台上各会话的身份路径，按开始时间，逗号分隔）, since（最早开始）, expiresAt（最晚到期）, current（含本会话） }。
  * 设备标记本身不出接口（只用来归并）。另回 ids：第 n 台的会话 id（踢出用，不出接口）。
  * @param {any} env @param {{current?: string, now?: number}} q
- * @returns {Promise<{devices: Array<{n:number, path:string, since:number, expiresAt:number, current:boolean, sessions:number}>, ids: string[][]}>}
+ * @returns {Promise<{devices: Array<{n:number, path:string, since:number, expiresAt:number, current:boolean}>, ids: string[][]}>}
  */
 export async function deviceList(env, q) {
   const list = await whoList(env, { onlyUid: null, current: q.current || '', now: q.now, withDevice: true });
@@ -200,7 +200,7 @@ export async function deviceList(env, q) {
     n++;
     devices.push({
       n, path: g.map((s) => s.path).join(', '), since: Math.min(...g.map((s) => s.since)), expiresAt: Math.max(...g.map((s) => s.expiresAt)),
-      current: g.some((s) => s.current), sessions: g.length,
+      current: g.some((s) => s.current),
     });
     ids.push(g.map((s) => s._id));
   }

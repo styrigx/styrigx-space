@@ -1,6 +1,6 @@
 /**
  * 进站凭证使用审计列表（v6 P4-3 起恢复写入：定稿 v5.5 §四「进站审计接口与状态页审计卡保留，恢复写入：记录 v6 的 su / sudo，字段按第十节审计条」）：
- * 新行 = 账号侧身份审计（account_user_audit）里的 su / sudo（含登录失败），经 ACCOUNT_VERIFIER.auditList 读（会话在账号 Worker 重新判，root 档）；
+ * 新行 = 账号侧身份审计（account_user_audit）里的 su / sudo（不含登录失败），经 ACCOUNT_VERIFIER.auditList 读（会话在账号 Worker 重新判，root 档）；
  * 旧行 = 旧进站审计（D1 audit realm='lock'，不再有新行，7 天内自然过期），两者按时间合成一张表、新的在前、最多 AUDIT_SHOW 条。
  * 以下是旧说明：旷野 → 服务状态页（/status/）底部的「进站凭证使用记录」折叠区展开时才请求（apps/space-status.js；
  * 前端同时请求账号 Worker 的 audit-list，合成一张表并标注「锁屏 / 账号」，方案 5.2）。

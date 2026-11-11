@@ -48,16 +48,19 @@ export function isTemporary(user) {
  * 某组能不能加给这个用户（usermod -aG / useradd -G 都先过这里）。
  * - 不认识的组 → unknown-group
  * - root 不进组（root 本来就是全部权限）→ root
- * - 普通用户（uid 1001 起，含临时用户）进特权组或写组 → temporary（错误码沿用 P2 的名字，含义按定稿 v5.5 §四扩到全部普通用户：
- *   「普通用户只给只读组 listen、ai、status，代码拒绝加入 wheel、sudoers、写组」）；站长 styrigx（1000）不受限
+ * - 临时用户（expiresAt > 0）进特权组或写组 → temporary
+ * - 其余普通用户（uid 1001 起，无期限）进特权组或写组 → action（定稿 v5.5 §四「代码拒绝加入 wheel、sudoers、写组」；
+ *   自上而下按 man：报找不到命令，同未知命令的错误码 action，Gray 11-11 22:36）；站长 styrigx（1000）不受限
  * @param {{uid:number, expiresAt:number}} user @param {string} group
- * @returns {{ok:true}|{ok:false, reason:'unknown-group'|'root'|'temporary'}}
+ * @returns {{ok:true}|{ok:false, reason:'unknown-group'|'root'|'temporary'|'action'}}
  */
 export function canJoinGroup(user, group) {
   if (GROUPS.indexOf(group) === -1) return { ok: false, reason: 'unknown-group' };
   if (!user || user.uid === ROOT_UID) return { ok: false, reason: 'root' };
-  const regular = Number.isInteger(user.uid) ? user.uid >= FIRST_USER_UID : Number(user.expiresAt) > 0;
-  if (regular && (PRIVILEGED_GROUPS.indexOf(group) !== -1 || WRITE_GROUPS.indexOf(group) !== -1)) return { ok: false, reason: 'temporary' };
+  const guarded = PRIVILEGED_GROUPS.indexOf(group) !== -1 || WRITE_GROUPS.indexOf(group) !== -1;
+  const temporary = Number(user.expiresAt) > 0;
+  if (temporary && guarded) return { ok: false, reason: 'temporary' };
+  if (guarded && Number.isInteger(user.uid) && user.uid >= FIRST_USER_UID) return { ok: false, reason: 'action' };
   return { ok: true };
 }
 

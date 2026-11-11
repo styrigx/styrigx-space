@@ -95,7 +95,7 @@ test('space-audit（P4-3 恢复写入，定稿 v5.5 §四）：账号侧 v6 su /
   putAudit(db, { id: 'o1', ts: now - 5000, ip_prefix: 'old', ok: true });
   const env = envOf(db);
   const seen = [];
-  env.ACCOUNT_VERIFIER.auditList = async (cookie) => { seen.push(cookie); return { ok: true, items: [{ ts: now - 1000, ipPrefix: 'v6', ok: true, uid: 1000, command: 'su root' }, { ts: now - 9000, ipPrefix: 'v6b', ok: false, uid: null, command: 'login-fail su' }] }; };
+  env.ACCOUNT_VERIFIER.auditList = async (cookie) => { seen.push(cookie); return { ok: true, items: [{ ts: now - 1000, ipPrefix: 'v6', ok: true, uid: 1000, command: 'su root' }, { ts: now - 9000, ipPrefix: 'v6b', ok: false, uid: 1000, command: 'sudo who' }] }; };
   const res = await onRequestGet({ request: await req(), env });
   assert.equal(res.status, 200);
   const { items } = await res.json();
