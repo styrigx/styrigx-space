@@ -19,7 +19,7 @@ import { on as featOn } from '../lib/features.js';
 import { normPalette, DEFAULT_PALETTE } from '../lib/prefs.js';
 import { toast } from '../lib/toast.js';
 import { syncUiCookie } from '../lib/ui-cookie.js';
-import { initCloudSync } from '../lib/cloud-sync.js';
+import { initCloudSync, bindSessionSync } from '../lib/cloud-sync.js';
 import { initWbTrack } from '../lib/wb-track.js';
 import { loadWb } from '../lib/wb-view.js';
 import { wbAreaOf } from '../lib/wb-area.js';
@@ -77,6 +77,8 @@ export function initCore() {
   /* 账号云同步：登录了账号，设置项跨设备同步（lib/cloud-sync.js；锁屏没解锁不请求，没登录账号 401 account 后不再请求；
      普通拉取最多 5 分钟一次，回到前台也按这个节流，账号页 / 云同步页 / 登录 / 打开开关时强制） */
   initCloudSync().catch(function () {});
+  /* 2c：v6 su 之后页面标记就地切成 valid → 立即强制拉一次；exit / lock 回访客 → 丢掉没推的改动 */
+  bindSessionSync();
 
   /* B2-7：网站数字健康——本页计时上报；页面上有数字健康卡片就拉今天的数据。
      区域键每次现取（P4-3 PR-4b 起主站只有旷野一页，没有页内切换） */

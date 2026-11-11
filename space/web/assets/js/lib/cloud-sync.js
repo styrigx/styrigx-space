@@ -218,6 +218,8 @@ function diff() {
   const s = st;
   const now = Date.now();
   const cur = snapshot(s.keys);
+  /* 2c：v6 exit / lock 就地切回访客（页面标记 locked）后本机改的设置不排队推（没有会话，推了也是 401） */
+  if (document.documentElement.getAttribute('data-sgx-lock-session') !== 'valid') { s.last = cur; return; }
   let any = false;
   for (const k of s.keys) {
     if (cur[k] !== s.last[k]) {
@@ -301,6 +303,28 @@ function pull() {
   });
 }
 
+let sessionBound = false;
+/**
+ * 2c：页面标记就地切了（v6 su / exit / lock 之后顶栏发 window 'sgx:session'，detail { ok, live: true }；守卫首帧那次没有 live，不管）。
+ * - 切成 valid（刚 su 登录）→ 立即强制拉一次（忽略节流、旧 out 标记和 FORCE_REUSE_MS：可能刚换了身份）
+ * - 切成 locked（exit / lock 回访客）→ 丢掉还没推的改动（属于刚退出的身份；没有会话推了也是 401）
+ * shell/core.js 调一次（幂等）。
+ */
+export function bindSessionSync() {
+  if (sessionBound) return;
+  sessionBound = true;
+  window.addEventListener('sgx:session', function (/** @type {any} */ e) {
+    const d = e && e.detail;
+    if (!d || !d.live) return;
+    if (d.ok) {
+      okAt = 0;
+      initCloudSync({ force: true }).catch(function () {});
+      return;
+    }
+    if (st) { window.clearTimeout(st.timer); st.timer = 0; st.pending = {}; }
+  });
+}
+
 /**
  * 主站每页调用一次（shell/core.js），页面回到前台再调；账号页 / 云同步页 / 登录 / 打开开关时 force。
  * 锁屏已解锁 + 开关开 + 没被标「没登录账号」才动（不看锁屏进门方式，按 /api/prefs 的结果）；普通调用 5 分钟内拉过就不拉（'fresh'）。
@@ -347,4 +371,5 @@ export function _resetForTest() {
   st = null;
   inflight = null;
   okAt = 0;
+  sessionBound = false;
 }

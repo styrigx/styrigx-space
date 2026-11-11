@@ -28,7 +28,7 @@ index:
   collections: 自建专题
   people: 人物
   delete: 删除专题
-  signInToYour: 登录账号后可编辑
+  signInToYour: su 登录后可编辑
   saveALine: 记一句
   close: 关闭
   preview: 预览
@@ -99,8 +99,8 @@ js:
     up: 上移
     down: 下移
     remove: 移出专题
-    needAccount: 登录账号后可编辑。
-    signin: 登录账号后可编辑
+    needAccount: su 登录后可编辑。
+    signin: su 登录后可编辑
     noScope: 日刻未获账号授权
     noScopeErr: 日刻未获账号授权。
     del: 删除

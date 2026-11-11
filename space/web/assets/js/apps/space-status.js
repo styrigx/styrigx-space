@@ -269,6 +269,19 @@ function init() {
     if (/** @type {HTMLElement} */ (e.target).closest('[data-st="sudo"]')) askSudo(document);
   });
 
+  /* 2c：v6 su / exit / lock 之后页面标记就地切（window 'sgx:session'，detail.live）：登录了当场重取（锁卡换成数据），
+     回访客当场换锁卡、清缓存；凭据记录作废上次的结论（展开着就重取）。守卫首帧那次没有 live，不管 */
+  window.addEventListener('sgx:session', (/** @type {any} */ e) => {
+    const d = e && e.detail;
+    if (!d || !d.live) return;
+    auditState = 'idle';
+    if (auditEl && auditEl.open) loadAudit();
+    if (d.ok) { load(); return; }
+    dropCache();
+    data = null;
+    setState('locked');
+  });
+
   /* 可见时每 60 秒刷新（切到后台停，回到前台立即刷一次）；第一次失败后的错误卡也照样每分钟自动再试，锁了不试 */
   visibleInterval(() => {
     if (state !== 'locked') load();

@@ -11,6 +11,7 @@
  * - styrigx  uid 1000，默认七组（wheel、sudoers、listen、ai、status、curio-write、daymark-write）
  * - alice    uid 1001，只有 listen
  * - temp     uid 1002，无组（临时用户）
+ * - bob      uid 1003，只有 ai（2c：能用 AI，但不是站长，看不到私密召回）
  * - 其他值   坏 / 过期令牌（没有身份）
  *
  * v6Space(base, { calls, audits }) → 在 base（conclusionAuth 那种 { conclusion }）上加 admit / auditRoot；calls 记每次 admit 的参数，audits 记 auditRoot。
@@ -26,6 +27,7 @@ export const IDENTITIES = Object.freeze({
   styrigx: { uid: 1000, name: 'styrigx', groups: [...G.STYRIGX_DEFAULT_GROUPS], rescue: false },
   alice: { uid: 1001, name: 'alice', groups: ['listen'], rescue: false },
   temp: { uid: 1002, name: 'temp', groups: [], rescue: false },
+  bob: { uid: 1003, name: 'bob', groups: ['ai'], rescue: false },
 });
 
 /** @param {string} cookie */

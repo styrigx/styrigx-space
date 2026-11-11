@@ -5,7 +5,7 @@
 // - 分区：默认余响，#trove / #flavors 直达，点窗标题改 hash，拾录 / 百味「cd ..」回余响；#d/<日期> 看那天；英文页 Echo / Trove / Flavors
 // - 余响：今日一句；shuf -n1 再抽一句 → cat today 回到今日；长按复制；账号已登录（可写）抽到公开句子 → set today 设为今日（PUT /api/today）→ 回到今日状态 + toast；账号未登录没有设为今日
 // - 日期条 / 前后日：/api/days 记下的日子能点（看那天的句子、地址 #d/<日期>），还没到的灰掉；明天是「明天见」
-// - 拾录：全部句子新的在前；账号没登录没有「记一句」、命令链「sudo root · 登录账号后可编辑」；能编辑时有，私密句子带锁；写接口 401 account 不刷新、提示登录
+// - 拾录：全部句子新的在前；账号没登录没有「记一句」、命令链「su · su 登录后可编辑」；能编辑时有，私密句子带锁；写接口 401 account 不刷新、提示登录
 // - 百味：自建专题在前（可写时有「＋ 新建」），再是人物（每位作者一组）；点进分组、页内返回；可写时上移 / 移出
 // - 记一句：预览、加译文、作者补全 + 最近作者、出处类型 + 名字补全、归入百味（含就地新建）、标签块、随手一笔、公开；
 //   保存 → 已拾录；编辑时删除要确认
@@ -276,22 +276,21 @@ test('余响 · 账号未登录：再抽一句后没有设为今日；英文页�
   await expect(page.locator('#dm-set-today')).toBeHidden();
 });
 
-test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；命令链「sudo root · 登录账号后可编辑」打开顶栏账号终端（登录 + 日刻授权同意）', async ({ page }) => {
+test('拾录 · 账号没登录：只有公开句子、没有记一句和锁；命令链「su · su 登录后可编辑」打开顶栏终端预填 su （2c，v6 割接）', async ({ page }) => {
   await mock(page, false);
   await page.goto('/daymark/zh/#trove');
   await expect(page.locator('#dm-list .dm-card')).toHaveCount(3);
   await expect(page.locator('#dm-fab')).toBeHidden();
   await expect(page.locator('.dm-lock')).toHaveCount(0);
   await expect(page.locator('#dm-signin-trove')).toBeVisible();
-  await expect(page.locator('#dm-signin-trove [data-signin-text]')).toHaveText('登录账号后可编辑');
-  /* 2026-11-08 账号 UI 改版：点了打开顶栏账号终端（data-acct-open + data-acct-app=daymark，登录 → 判授权 → 关面板回本页）；
-     href 是没 JS 的退路（主站本语言首页 #acct&app=daymark）；余响那条同一个入口 */
+  await expect(page.locator('#dm-signin-trove [data-signin-text]')).toHaveText('su 登录后可编辑');
+  /* 2c：点了打开顶栏终端（data-sec-open：没登录预填 su ）；href 是没 JS 的退路（主站本语言首页 #sec）；余响那条同一个入口 */
   for (const id of ['#dm-signin-trove', '#dm-signin']) {
-    await expect(page.locator(id)).toHaveAttribute('href', 'https://styrigx.com/zh/#acct&app=daymark');
-    await expect(page.locator(id)).toHaveAttribute('data-acct-open', '');
-    await expect(page.locator(id)).toHaveAttribute('data-acct-app', 'daymark');
+    await expect(page.locator(id)).toHaveAttribute('href', 'https://styrigx.com/zh/#sec');
+    await expect(page.locator(id)).toHaveAttribute('data-sec-open', '');
+    await expect(page.locator(id)).not.toHaveAttribute('data-acct-app', /./);
   }
-  await expect(page.locator('#dm-signin-trove .sgx-cmd-k')).toHaveText('sudo root');
+  await expect(page.locator('#dm-signin-trove .sgx-cmd-k')).toHaveText('su');
 });
 
 test('拾录 · 写接口回 401 account（账号会话刚过期）：不刷新页面，编辑弹层提示登录账号', async ({ page }) => {
@@ -307,7 +306,7 @@ test('拾录 · 写接口回 401 account（账号会话刚过期）：不刷新�
   await page.locator('#dm-list .dm-card').first().click();
   await expect(page.locator('#edit-wrap')).toHaveClass(/open/);
   await page.locator('#edit-save').click();
-  await expect(page.locator('#edit-err')).toHaveText('登录账号后可编辑。');
+  await expect(page.locator('#edit-err')).toHaveText('su 登录后可编辑。');
   expect(navs).toBe(before);
 });
 

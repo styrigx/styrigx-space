@@ -114,6 +114,25 @@ export async function entryOrV6(context, sess) {
   return v.signedIn ? 'forbidden' : 'unauthorized';
 }
 
+/* ---------------- 2c：AI 回答的私密范围按 v6 身份 ---------------- */
+
+/**
+ * AI 私密范围问的路由 + action（ROUTE_ACCESS POST /api/ai 的 actions.private）。GET /api/ai（模型列表的 canChoose）也问这一条：
+ * styrigx-ai 用同一个结论头决定私密召回和能不能切模型，两边得一致。判断只在账号 Worker 的 ROUTE_ACCESS + permits()。
+ */
+export const AI_PRIVATE = Object.freeze({ method: 'POST', path: '/api/ai', action: 'private' });
+
+/**
+ * 这个请求的 v6 身份能不能看 AI 的私密召回（AI_PRIVATE 放行，回答带回同一个 action）。没 sgx-session 不问；出错 / 看不懂 → false。
+ * @param {Record<string, any>} env @param {Request} request
+ * @returns {Promise<boolean>}
+ */
+export async function v6AiPrivate(env, request) {
+  if (!request || !readCookie(request, NEW_SESSION_COOKIE)) return false;
+  const r = await askAdmit(env, request.headers.get('Cookie') || '', AI_PRIVATE.method, AI_PRIVATE.path, AI_PRIVATE.action);
+  return normalizeAdmit(r, AI_PRIVATE.action).allowed;
+}
+
 /* ---------------- 2b：页面状态（data-sgx-lock-session）也认 v6 新会话 ---------------- */
 
 /**

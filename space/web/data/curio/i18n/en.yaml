@@ -158,7 +158,7 @@ curioItemView:
   edit: Edit
   close: Close
 curioSignin:
-  signInToYour: Sign in to your account to edit
+  signInToYour: Sign in with su to edit
 list:
   grep: Filter
   grepPh: name or #tag
@@ -219,9 +219,9 @@ js:
     makePublic: Visible to visitors
     up: Move up
     down: Move down
-    needAccount: Sign in to your account to edit.
+    needAccount: Sign in with su to edit.
     needReauth: 'Verify your account again to import: verify in the account terminal and the import runs right away.'
-    signin: Sign in to your account to edit
+    signin: Sign in with su to edit
     noScope: Curio doesn’t have account access
     noScopeErr: Curio doesn’t have account access.
     verifyNow: Verify now
@@ -261,7 +261,7 @@ js:
     empty: Nothing here yet.
     noMatch: Nothing in this filter.
     needName: Give it a name.
-    needAccount: Sign in to your account to edit.
+    needAccount: Sign in with su to edit.
     noScope: Curio doesn’t have account access.
     badDate: Check the dates.
     failed: Something went wrong. Please try again.

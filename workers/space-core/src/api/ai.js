@@ -6,8 +6,9 @@
  *   1. 只接受同源 POST（lib/http.js isSameOrigin）→ 否则 403 origin；别的方法 405 method（router 的 pickHandler）
  *   2. 要进门（进站会话，不分进门方式）→ 否则 401 unauthorized。不要账号会话：没有账号会话也能问，只是只召回公开内容
  *   3. AI 限流（core/ai-limit.js）：每 IP 每分钟 6 次 → 429 cooldown；全站总闸每分钟 60 次 → 429 busy（D1 出错也 busy）
- *   4. 问账号 Worker 要授权结论（core/account-rpc.js askAuthorizeFor），写账号结论头（core/conclusion.js writeAccountConclusion：
- *      有账号会话才写 X-Styrigx-Account-Session: 1 等；没有 / 出错 → 不写 = 只给公开内容）
+ *   4. 私密范围（aiConclusionHeaders，2c）：先按 v6 身份——问账号 Worker POST /api/ai 的 action private（ROUTE_ACCESS = owner，permits() 判），
+ *      够就写 X-Styrigx-Account-Session: 1（core/conclusion.js writeV6PrivateConclusion）；否则回退旧账号会话：问授权结论（core/account-rpc.js
+ *      askAuthorizeFor），写账号结论头（writeAccountConclusion：有账号会话才写 X-Styrigx-Account-Session: 1 等）；都没有 / 出错 → 不写 = 只给公开内容
  *   5. 转给 AI_SERVICE：新建的请求只带 Content-Type 和结论头，不转 cookie、不转浏览器的任何别的头（浏览器伪造的
  *      X-Styrigx-Account-* 在 app.js 第一步已剥掉，这里也不会带过去）；带上浏览器请求的 signal，断开时一起取消
  * 请求体最多 BODY_MAX 字节（超了 413 too-large；styrigx-ai 自己再校验 q / history）。
@@ -15,15 +16,27 @@
  *   503 upstream（没绑 AI_SERVICE）· 502 upstream（调 styrigx-ai 抛错）。
  *
  * GET /api/ai（P4-2）：可选模型列表 → styrigx-ai GET /models，JSON 原样回（{ ok, default, models, canChoose }）。
- *   要进门（否则 401）；不计 AI 限流（只读 KV，不调模型）；同样写账号结论头（canChoose 跟它走：只有账号会话能切模型）。
+ *   要进门（否则 401）；不计 AI 限流（只读 KV，不调模型）；同样写结论头（aiConclusionHeaders；canChoose 跟它走，和 POST 的私密范围同一个结论）。
  *   POST 的 body.model 由 styrigx-ai 只在有账号结论头时采纳（进站一律默认模型）。
  */
 import { lockSessionOf } from '../core/lock-session.js';
-import { entryOrV6 } from '../core/identity-admit.js';
+import { entryOrV6, v6AiPrivate } from '../core/identity-admit.js';
 import { askAuthorizeFor } from '../core/account-rpc.js';
-import { writeAccountConclusion } from '../core/conclusion.js';
+import { writeAccountConclusion, writeV6PrivateConclusion } from '../core/conclusion.js';
 import { aiIpLimit, aiGlobalGate } from '../core/ai-limit.js';
 import { isSameOrigin, originDenied, apiError, NO_STORE } from '../lib/http.js';
+
+/**
+ * 给 styrigx-ai 的结论头（2c）：私密范围先按 v6 身份判（ROUTE_ACCESS POST /api/ai 的 action private，经账号 Worker permits()），
+ * 够 → 只写 X-Styrigx-Account-Session: 1；不够 / 没有 v6 会话 → 回退旧账号会话（askAuthorizeFor + writeAccountConclusion，P4 删）；都没有 = 只给公开内容。
+ * @param {Request} request @param {any} env @param {Headers} headers
+ * @returns {Promise<Headers>}
+ */
+export async function aiConclusionHeaders(request, env, headers) {
+  if (await v6AiPrivate(env, request)) return writeV6PrivateConclusion(headers);
+  const account = await askAuthorizeFor(request, env);
+  return writeAccountConclusion(headers, account);
+}
 
 /** 服务绑定的地址：主机名只用来拼 URL，路径是 styrigx-ai 认的 */
 const AI_BASE = 'https://styrigx-ai';
@@ -53,8 +66,7 @@ export async function onRequestPost(context) {
   const busy = await aiGlobalGate(env);
   if (busy) return busy;
 
-  const account = await askAuthorizeFor(request, env);
-  const headers = writeAccountConclusion(new Headers({ 'Content-Type': 'application/json' }), account);
+  const headers = await aiConclusionHeaders(request, env, new Headers({ 'Content-Type': 'application/json' }));
   let res;
   try {
     res = await svc.fetch(new Request(AI_BASE + '/ask', { method: 'POST', headers, body, signal: request.signal }));
@@ -77,8 +89,7 @@ export async function onRequestGet(context) {
   if (gate !== 'ok') return apiError(401, 'unauthorized');
   const svc = env && env.AI_SERVICE;
   if (!svc || typeof svc.fetch !== 'function') return apiError(503, 'upstream');
-  const account = await askAuthorizeFor(request, env);
-  const headers = writeAccountConclusion(new Headers(), account);
+  const headers = await aiConclusionHeaders(request, env, new Headers());
   let res;
   try {
     res = await svc.fetch(new Request(AI_BASE + '/models', { method: 'GET', headers }));

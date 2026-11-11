@@ -39,7 +39,7 @@
 | root | 10 |
 | **合计** | **78**（另有 12 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor） |
 
-按 Worker：站点核心 21、账号 18、奇趣 20、日刻 13、代理 6。割接后要删的旧入口 20 条（P3 / P4）。有 action 另定档的接口 14 个（lock-password、lock-passkey、account/session、account/reset、curio music、identity；割接加的 `private`：curio items / links / movies / photo / icon / music、daymark quotes / collections 的 GET）。
+按 Worker：站点核心 21、账号 18、奇趣 20、日刻 13、代理 6。割接后要删的旧入口 20 条（P3 / P4）。有 action 另定档的接口 15 个（lock-password、lock-passkey、account/session、account/reset、curio music、identity；割接加的 `private`：curio items / links / movies / photo / icon / music、daymark quotes / collections 的 GET；2c 加 `POST /api/ai` 的 `private`）。
 
 P2 变更（2026-11-11）：`PUT /api/profile` root → **owner**（站长 styrigx + root，其余拒）；新增 `POST /api/identity`（v6 身份命令，public 入口，每个 action 一档，救援只放 whoami / exit / lock / passwd / passkey-* / groups）。
 
@@ -57,6 +57,11 @@ P2c 变更（2026-11-11，对齐定稿 v5）：
 2b 变更（2026-11-11，割接后续；档不变）：
 - 页面状态 `data-sgx-lock-session`：旧进站会话有效，**或** v6 新会话有效 → `valid`（网关 `gate.js pageStateOf`；v6 判定经 `AccountVerifier.admit` 问 `GET /api/prefs` 这条 user 档路由，救援会话不算）。云同步、名片等只在 valid 页面跑的逻辑对纯 v6 登录照常跑。
 - 网关关口、`/api/share`、`/api/status`、`/api/ai`、`/api/space-audit`：有 v6 身份但档不够 → **403 forbidden**（同子站接口 Worker）；没有身份仍 401。`/api/status`（status）、`/api/ai`（ai）接口本身也认 v6（之前只认旧进站会话）。
+
+2c 变更（2026-11-11，割接后续；路由档不变）：
+- `POST /api/ai` 加 action `private` = **owner**（站长 styrigx + root，permits 第 2 步放行 root）：AI 回答召回私密条目、能切模型。网关 `api/ai.js aiConclusionHeaders` 先按 v6 问这一条（`core/identity-admit.js AI_PRIVATE` / `v6AiPrivate`），够就只写 `X-Styrigx-Account-Session: 1`；不够回退旧账号会话（P4 删）。`GET /api/ai`（模型列表的 canChoose）问同一条，与 POST 一致。私密内容跨奇趣 / 日刻 / 博客，对应旧「账号会话」（= 站长本人），所以定 owner 而不是某一个写组。
+- 前端：当前页 `su` 成功（含 su 成任何 v6 用户）→ 页面标记就地切成 `valid`（终端身份 `who.onV6` → 顶栏 `switchPageSession`，发 window `sgx:session { ok, live: true }`），云同步强制拉一次、名片重取、AI 窗口解锁、服务状态卡重取、NAVIGATE STATUS 重取、守卫补绑自动回锁；`exit` / `lock` 回访客（或只剩救援会话）就地切回 `locked`。不整页刷新。规则同网关 `pageStateOf`（旧进站会话或非救援 v6 身份）。
+- 奇趣 / 日刻「登录账号后可编辑」改「su 登录后可编辑」（中英文），入口改成 `su`（`data-sec-open`，打开终端预填 su ）。
 
 ### 已定（Gray 2026-11-11）
 
@@ -88,7 +93,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
-| POST | `/api/ai` | **ai** |  |  | 保留 | AI 对话（转 styrigx-ai /ask） |  |
+| POST | `/api/ai` | **ai** | `private` → owner |  | 保留 | AI 对话（转 styrigx-ai /ask）；私密召回与切模型只给 owner（2c） |  |
 | GET | `/api/ai` | **ai** |  |  | 保留 | AI 可选模型列表（转 styrigx-ai /models） |  |
 | GET | `/api/find` | **public** |  |  | 保留 | 关键词搜索，只回公开页面元数据（IP 限流） |  |
 | GET | `/api/geo` | **public** |  |  | 保留 | 只回调用者自己的城市 / 时区 |  |

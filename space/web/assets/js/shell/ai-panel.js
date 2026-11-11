@@ -1145,6 +1145,14 @@ export function mountAiChat(dlg, opts) {
         paintModel();
       }, function () {});
   }
+  /* 2c：v6 su / exit / lock 之后页面标记就地切（window 'sgx:session'，detail.live）：登录了当场解锁、重取模型（不在 ai 组的问了再回 403 forbidden 文案）；
+     回访客当场上锁。守卫首帧那次没有 live，不管 */
+  const win = doc.defaultView || window;
+  win.addEventListener('sgx:session', function (/** @type {any} */ e) {
+    const d = e && e.detail;
+    if (!d || !d.live) return;
+    if (d.ok) { setLocked(false); loadModels(); } else setLocked(true);
+  });
   if (mBtn) {
     mBtn.addEventListener('click', function () {
       if (locked) { askSudo(doc); return; }

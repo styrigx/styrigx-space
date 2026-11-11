@@ -96,6 +96,16 @@ export function listedFor(c, w) {
 }
 
 /**
+ * 页面标记（<html data-sgx-lock-session>）该是什么（2c：v6 命令之后就地切换用；同网关 gate.js pageStateOf 的规则）：
+ * 旧进站会话在，或有一个非救援的 v6 身份 → valid；否则 locked。救援会话只做白名单命令，页面不算登录（网关的 user 档拒救援）。
+ * @param {boolean} lockOk 旧进站会话在（lock-session-check 回了 ok） @param {any} v6 whoami 的 user（null = 没有）
+ * @returns {'valid'|'locked'}
+ */
+export function pageStateFor(lockOk, v6) {
+  return lockOk || (!!v6 && typeof v6.name === 'string' && !!v6.name && v6.rescue !== true) ? 'valid' : 'locked';
+}
+
+/**
  * 身份状态：首帧用网关注入的页面标记（<html data-sgx-lock-session="valid|locked">，服务端写的）+ 账号登录标记猜一个画提示符，
  * refresh() 问服务端后以回答为准；回答变了通知订阅者（提示符重画）。
  * v6（P2b）：o.whoami 给了就一起问（POST /api/identity whoami），回了 user 就以它为准；o.v6Hint（登录标记 cookie sgx-id）首帧先猜在。
@@ -114,6 +124,8 @@ export function createWho(o) {
   if (pg === 'valid' && !(o.v6Hint && o.v6Hint())) lock = { ok: true, by: '' };
   /** @type {Array<(w: Who) => void>} */
   const subs = [];
+  /** v6 命令（su / exit / lock / idle）改了身份之后的订阅者：拿到页面标记该是什么（pageStateFor） @type {Array<(s: 'valid'|'locked') => void>} */
+  const v6Subs = [];
   let cur = whoOf(lock, account, v6);
   function emit() {
     const w = whoOf(lock, account, v6);
@@ -144,7 +156,15 @@ export function createWho(o) {
     /** v6 新会话的身份（whoami 的 user；null = 没有） */
     v6: function () { return v6; },
     /** v6 命令（su / exit / lock / idle）回来的 user（null = 回到访客 / 旧身份） @param {any} u */
-    setV6: function (u) { v6 = u && u.name ? u : null; emit(); },
+    setV6: function (u) {
+      v6 = u && u.name ? u : null;
+      emit();
+      /* 2c：su / exit / lock 之后页面标记就地切（宿主 topbar-panel 订阅）；只在 v6 命令之后，不在 refresh 里（网络错不误锁） */
+      const st = pageStateFor(!!(lock && lock.ok), v6);
+      v6Subs.forEach(function (f) { try { f(st); } catch (e) {} });
+    },
+    /** 订阅 v6 命令之后的页面标记 @param {(s: 'valid'|'locked') => void} f */
+    onV6: function (f) { v6Subs.push(f); },
     /** 首帧有 v6 登录标记：要问一次 whoami */
     v6Hinted: function () { return !!(o.v6Hint && o.v6Hint()); },
     /** 账号层的回答（GET /api/account 之后）。账号接口在钥匙之后（没进站回 401 lock），回了会话就说明钥匙层也在 @param {boolean} on */

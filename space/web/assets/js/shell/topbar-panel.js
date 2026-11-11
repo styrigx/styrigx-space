@@ -52,6 +52,26 @@ const FIND_API = '/api/find';
 const SESSION_CHECK_API = '/api/lock-session-check';
 /** 上锁的地方要人进站时发的事件（= lib/sudo.js SUDO_EVENT，本文件不 import，抄一份） */
 export const SUDO_EVENT = 'sgx:sudo';
+/** 页面标记变了的事件（window 上；= shell/space/guard.js SESSION_EVENT，本文件不 import，抄一份）。detail { ok, live }：
+ *  守卫首帧发的没有 live；2c 起 v6 命令就地切标记时发 live: true（云同步、名片、AI 窗口、服务状态页、守卫各自接） */
+export const SESSION_EVENT = 'sgx:session';
+
+/**
+ * 2c：就地切页面标记 <html data-sgx-lock-session>（v6 su / exit / lock 之后，不整页刷新）。
+ * 只在网关注入过标记（valid / locked）时切：没有标记 = 页面没经过网关（本地 / 测试构建），不动；没变不发事件。
+ * @param {Document} doc @param {'valid'|'locked'} state @returns {boolean} 切了没有
+ */
+export function switchPageSession(doc, state) {
+  const el = doc.documentElement;
+  const cur = el.getAttribute('data-sgx-lock-session');
+  if (cur !== 'valid' && cur !== 'locked') return false;
+  if (state !== 'valid' && state !== 'locked') return false;
+  if (cur === state) return false;
+  el.setAttribute('data-sgx-lock-session', state);
+  const w = doc.defaultView || (typeof window !== 'undefined' ? window : null);
+  try { if (w) w.dispatchEvent(new CustomEvent(SESSION_EVENT, { detail: { ok: state === 'valid', live: true } })); } catch (e) {}
+  return true;
+}
 /** 旧进站命令（= term/core/parse.js ADMIN_COMMAND，本文件不 import）：只剩旧地址 ?entry=sudo 直接跑它（旧入口 P4 删） */
 const SUDO_LINE = 'sudo styrigx';
 /** 访客入口预填（v6 割接，定稿 §七：访客头像点击预填「su 」；盾牌、上锁的地方、旧锁屏地址同一行；用户名由人敲） */
@@ -897,6 +917,12 @@ export function mountTopbar(o) {
   mountClock(doc);
   const status = mountStatus(doc);
   if (status && navBtn) navBtn.addEventListener('click', function () { status(); });
+  /* 2c：v6 命令（su / exit / lock / 空闲弹回）之后页面标记就地切；登录了顺手重取 NAVIGATE STATUS（之前 401 是灰的） */
+  if (who && typeof who.onV6 === 'function') {
+    who.onV6(function (/** @type {'valid'|'locked'} */ st) {
+      if (switchPageSession(doc, st) && st === 'valid' && status) status();
+    });
+  }
   return { nav: nav && nav.ms, qp: qp && qp.ms, ai: ai && ai.ms, acct: acct && acct.ms, openAccount: function () { openAcct(); }, term: termSheet, termShell: term, termView: view, who: who, paint: paint, paintNav: paintNav };
 }
 

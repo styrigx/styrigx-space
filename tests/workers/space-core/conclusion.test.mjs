@@ -50,11 +50,11 @@ const lockCookie = async (by = 'password', priv = LOCK.priv, epoch = 0) => 'sgx-
 
 /* ---------------- 导出与头名 ---------------- */
 
-test('导出：结论头常量、前缀、conclusionFor / writeAccountConclusion / stripAccountConclusion 和三个白名单函数', () => {
+test('导出：结论头常量、前缀、conclusionFor / writeAccountConclusion / stripAccountConclusion / writeV6PrivateConclusion（2c）和三个白名单函数', () => {
   assert.deepEqual(Object.keys(mod).sort(), [
     'ACCOUNT_CONCLUSION_HEADERS', 'ACCOUNT_CONCLUSION_PREFIX', 'DEVICE_ID_RE', 'SCOPE_FORMAT_RE',
     'conclusionFor', 'normalizeAccountConclusion', 'normalizeLockConclusion', 'normalizeScopes',
-    'stripAccountConclusion', 'writeAccountConclusion',
+    'stripAccountConclusion', 'writeAccountConclusion', 'writeV6PrivateConclusion',
   ]);
 });
 

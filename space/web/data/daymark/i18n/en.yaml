@@ -30,7 +30,7 @@ index:
   collections: Collections
   people: People
   delete: Delete
-  signInToYour: Sign in to your account to edit
+  signInToYour: Sign in with su to edit
   saveALine: Save a line
   close: Close
   preview: Preview
@@ -102,8 +102,8 @@ js:
     up: Move up
     down: Move down
     remove: Remove from collection
-    needAccount: Sign in to your account to edit.
-    signin: Sign in to your account to edit
+    needAccount: Sign in with su to edit.
+    signin: Sign in with su to edit
     noScope: Daymark doesn’t have account access
     noScopeErr: Daymark doesn’t have account access.
     del: Delete
