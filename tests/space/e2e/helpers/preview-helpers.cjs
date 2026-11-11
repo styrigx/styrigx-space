@@ -99,12 +99,6 @@ function cookieValue(line) {
   return pair.split('=').slice(1).join('=');
 }
 
-/** @param {string} line */
-function cookieValue(line) {
-  const pair = (line || '').split(';')[0];
-  return pair.split('=').slice(1).join('=');
-}
-
 /**
  * 同源 GET JSON（cookie 用页面 context 的）。
  * @param {import('@playwright/test').Page} page

@@ -28,7 +28,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readRoutes, routeMatches, pickRoute } from './lib/cf-routes.mjs';
-import { FORWARDING, matchForwarding } from '../../workers/space-core/src/router.js';
+import { API_ROUTES, FORWARDING, matchForwarding } from '../../workers/space-core/src/router.js';
 
 export { readRoutes, routeMatches };
 
@@ -287,8 +287,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.error('check-worker-routes.mjs: space/web/public 里没有 HTML，先构建网站');
     process.exit(1);
   }
-  if (gatewayApis.length < 10) {
-    console.error('check-worker-routes.mjs: 没读到网关路由表（workers/space-core/src/router.js）');
+  /* v6 P4 起网关自己的接口只剩 5 个（ai / find / geo / space-audit / status）：不再按「至少 10 条」判，改成源码读到的条数 = 运行时 API_ROUTES 的条数 */
+  if (!gatewayApis.length || gatewayApis.length !== API_ROUTES.size) {
+    console.error('check-worker-routes.mjs: 没读到网关路由表（workers/space-core/src/router.js）：读到 ' + gatewayApis.length + ' 条，API_ROUTES 有 ' + API_ROUTES.size + ' 条');
     process.exit(1);
   }
   const allPages = pages.concat(subPages);
