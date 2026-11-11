@@ -71,8 +71,8 @@ test('index.js：默认导出就是 app.js 的 default；AccountService / Accoun
   assert.equal(ep.checkAuthorize, undefined);
 });
 
-test('路由表（v6 P4）：/api/account/devices、grants、proxy + 四个账号数据接口 + /api/identity；/api/account 状态与 session / reauth / reset / keys 删除', () => {
-  assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account/devices', '/api/account/grants', '/api/account/proxy',
+test('路由表（v6 P4）：/api/account/devices、proxy + 四个账号数据接口 + /api/identity；/api/account 状态与 session / reauth / reset / keys、应用授权 grants 删除', () => {
+  assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account/devices', '/api/account/proxy',
     '/api/avatar', '/api/identity', '/api/prefs', '/api/profile', '/api/wellbeing']);
   assert.equal(ep.SERVICE_API_ROUTES, index.API_ROUTES);
 });
@@ -94,7 +94,7 @@ test('AccountService：没有 v6 身份 → /api/* 401 {ok:false}（最小门，
 test('AccountService（v6 P4）：旧进站身份头、旧账号会话 cookie 一律不算 → 401', async () => {
   const env = makeEnv();
   for (const headers of [OLD_HEADERS, { ...OLD_HEADERS, Cookie: 'sgx-account-session=password.0.1.2.dev.sig' }, { Cookie: 'sgx-space-session=password.0.9999999999999.sig' }]) {
-    for (const [m, p] of [['GET', '/api/prefs'], ['POST', '/api/account/devices'], ['POST', '/api/account/grants']]) {
+    for (const [m, p] of [['GET', '/api/prefs'], ['POST', '/api/account/devices'], ['POST', '/api/account/proxy']]) {
       const r = await service(env).fetch(req(p, { method: m, headers, body: m === 'GET' ? undefined : '{"action":"list"}' }));
       assert.equal(r.status, 401, m + ' ' + p + ' ' + JSON.stringify(headers));
     }

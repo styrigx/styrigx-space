@@ -8,9 +8,8 @@
  * - 目标只认路由表（core/route-access.js）里 worker = account 的行；方法 + 路径 + body.action 必须查得到一档（levelOf），
  *   查不到 → 400 action。别的 Worker 的接口（space-core / curio-core / daymark-core）不在本 Worker，sudo 够不到 → 400 not-here。
  * - 拒绝（SUDO_ROUTE_DENY）：
- *   · /api/identity：身份命令走 command.action 的写法（api/identity.js SUDO_COMMANDS），不能套娃；
- *   · /api/account/keys、/api/account/reset：root 的凭据（密码 / 通行密钥 / 恢复），sudo 夺不走 root（定稿 v5 §十）→ 403 root-creds；
- *   · /api/account/session、/api/account/reauth：旧 sudo root 登录 / 复验票，sudo 本身就是它们的继任者，不借 → 400 action。
+ *   · /api/identity：身份命令走 command.action 的写法（api/identity.js SUDO_COMMANDS），不能套娃。
+ *   （v6 P4 删除的旧账号接口 /api/account/keys、/reset、/session、/reauth 不在路由表里，查不到档 → 400 action。）
  * - 处理函数自己的判断照旧（同源、参数、作用域……）；它认不认 v6 会话由它自己决定（还只认旧账号会话的接口在 v6 下本来就进不去，
  *   sudo 也一样进不去——割接时那些接口接上 v6，sudo 自动生效）。
  *
@@ -27,10 +26,6 @@ const METHODS = Object.freeze(['GET', 'POST', 'PUT', 'DELETE']);
 /** 不借的接口 → 错误码 */
 export const SUDO_ROUTE_DENY = Object.freeze({
   '/api/identity': 'action',
-  '/api/account/keys': 'root-creds',
-  '/api/account/reset': 'root-creds',
-  '/api/account/session': 'action',
-  '/api/account/reauth': 'action',
 });
 
 /**

@@ -283,21 +283,17 @@ test('构建产物：奇趣 / 日刻中文页的页面文案表是中文、英�
   }
 });
 
-test('Worker 名字（语言包化第二部分）：服务状态站名、授权应用名接口只回英文原文，中文层在主站字符串表；每个站 / 应用两种语言都有', async () => {
+test('Worker 名字（语言包化第二部分）：服务状态站名接口只回英文原文，中文层在主站字符串表；每个站两种语言都有（授权应用名随应用授权删除）', async () => {
   const { TARGETS } = await import('../../../../workers/status/src/targets.js');
-  const { SCOPES } = await import('../../../../workers/account/src/core/scopes.js');
   const en = strings('space', 'en').js, zh = rawTable('space', 'zh').js;
   for (const t of TARGETS) {
     assert.equal(typeof t.name, 'string', 'targets.js ' + t.site + ' name 是英文字符串');
     assert.doesNotMatch(t.name, /[\u3400-\u9fff]/, 'targets.js ' + t.site + ' 英文原文');
     assert.ok(en.status['site_' + t.site] && zh.status['site_' + t.site], 'js.status.site_' + t.site + ' 两种语言都有');
   }
-  for (const s of SCOPES) {
-    assert.equal(typeof s.name, 'string', 'scopes.js ' + s.id + ' name 是英文字符串');
-    assert.doesNotMatch(s.name, /[\u3400-\u9fff]/, 'scopes.js ' + s.id + ' 英文原文');
-    assert.equal(en.account['app_' + s.app], s.name, 'js.account.app_' + s.app + ' 英文 = 接口原文');
-    assert.ok(zh.account['app_' + s.app], 'js.account.app_' + s.app + ' 有中文');
-  }
+  /* 授权应用名（js.account.app_*）随应用授权与 core/scopes.js 一起删除（定稿 v5.3 §十二） */
+  assert.equal(Object.keys(en.account).filter((k) => k.startsWith('app_')).length, 0);
+  assert.equal(Object.keys(zh.account).filter((k) => k.startsWith('app_')).length, 0);
   /* 数字健康区域（对齐 PR-B 起终端字符条形式）：行首直接显示区域键（space / blog / book …，等宽、不翻译），旧的本语言区域名 wbArea_* 和彩色圆点 COLORS 删除 */
   const wb = rd('space/web/assets/js/lib/wb-view.js');
   assert.doesNotMatch(wb, /const COLORS|wbArea_/);

@@ -1,5 +1,5 @@
 // styrigx-curio-core 的「设备」「游戏」两栏（/api/items、/api/photo）：
-// - 没进门 401；写：非同源 403、没登录账号 401 account、没作用域 403 scope
+// - 没有 v6 身份 401；写：非同源 403、档不够（没写组）403 forbidden
 // - 校验：名字必填、类型 / 状态 / 评分 / 日期只收合法值、关联设备必须存在、不能「换成」自己
 // - 读：没登录账号看不到私密条目；指向私密设备的 replaced_by / device_id 对没登录账号置 0
 // - 增改删排序；删设备时别人指向它的都清零；删条目连 R2 照片一起删
@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { conclusionAuth } from '../_conclusion.mjs';
+import { whoAuth } from '../_v6who.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -49,12 +49,12 @@ function makeR2() {
     async delete(key) { m.delete(key); },
   };
 }
-/* 网关结论替身（../_conclusion.mjs）：null 没进门、'lock' 进门没登录账号、'owner' 账号已登录、'noscope' 没作用域 */
-const auth = (who) => conclusionAuth(who);
+/* 网关 v6 替身（../_v6who.mjs）：null 访客、'lock' 有身份没组、'owner' root、'noscope' 只有 listen */
+const auth = (who) => whoAuth(who);
 const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/curio';
 function call(p, { who = null, db, r2, method = 'GET', body, origin = ORIGIN, type, inm } = {}) {
-  const headers = { Cookie: 'sgx-space-session=x' };
+  const headers = { Cookie: 'sgx-session=x' };
   if (inm) headers['If-None-Match'] = inm;
   if (origin) headers.Origin = origin;
   if (body !== undefined) headers['Content-Type'] = type || 'application/json';
@@ -68,7 +68,7 @@ const get = async (e, who) => (await call('/curio/api/items', { ...e, who })).js
 const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x10, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20]);
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1]);
 
-test('读公开（v5 S3）；写：没进门 401、非同源 403、没登录账号 401 account、没作用域 403 scope；坏 JSON 400', async () => {
+test('读公开（v5 S3）；写：没有身份 401、非同源 403、档不够 403 forbidden；坏 JSON 400', async () => {
   const e = env();
   assert.equal((await call('/curio/api/items', e)).status, 200);
   assert.equal((await call('/curio/api/photo?kind=device&id=1', e)).status, 404, '访客读照片：不存在 404（不是 401）');
@@ -76,13 +76,13 @@ test('读公开（v5 S3）；写：没进门 401、非同源 403、没登录账�
   const body = { op: 'device.add', name: 'S24' };
   assert.equal((await call('/curio/api/items', { ...e, who: 'owner', method: 'POST', body, origin: 'https://evil.com' })).status, 403);
   const na = await post(e, body, 'lock');
-  assert.equal(na.status, 401);
-  assert.equal((await na.json()).error, 'account');
+  assert.equal(na.status, 403);
+  assert.equal((await na.json()).error, 'forbidden');
   const ns = await post(e, body, 'noscope');
   assert.equal(ns.status, 403);
-  assert.deepEqual(await ns.json(), { ok: false, error: 'scope', scope: 'curio.write' });
+  assert.deepEqual(await ns.json(), { ok: false, error: 'forbidden' });
   assert.equal((await call('/curio/api/items', { ...e, who: 'owner', method: 'POST', body: '{x', type: 'application/json' })).status, 400);
-  assert.equal((await call('/curio/api/photo?kind=device&id=1', { ...e, who: 'lock', method: 'POST', body: WEBP, type: 'image/webp' })).status, 401);
+  assert.equal((await call('/curio/api/photo?kind=device&id=1', { ...e, who: 'lock', method: 'POST', body: WEBP, type: 'image/webp' })).status, 403);
   assert.equal((await call('/curio/api/photo?kind=device&id=1', { ...e, who: 'noscope', method: 'DELETE' })).status, 403);
 });
 
@@ -213,7 +213,7 @@ test('照片：公开（v5 S3）——private, no-cache + ETag；304 排在可�
   assert.equal(nm.headers.get('Cache-Control'), 'private, no-cache');
   assert.equal(reads, 0);
   e.r2.get = realGet;
-  /* 访客（没进门）：公开条目的照片照给；私密条目 404 */
+  /* 访客（没有 v6 身份）：公开条目的照片照给；私密条目 404 */
   assert.equal((await call('/curio/api/photo?kind=device&id=' + id, { ...e, inm: etag })).status, 304);
   assert.equal((await call('/curio/api/photo?kind=device&id=' + pid, { ...e })).status, 404);
   /* 私密条目：账号未登录带上账号已登录时拿到的 ETag 也是 404 */
@@ -248,7 +248,7 @@ test('绑定：设备走 D1_DEVICES、游戏走 D1_GAMES（同一个库）；wra
     return { ...d, prepare: (sql) => { note(sql); return d.prepare(sql); } };
   };
   const envOf = (who) => ({ SPACE: auth(who), D1_FINDS: tag('D1_FINDS'), D1_DEVICES: tag('D1_DEVICES'), D1_GAMES: tag('D1_GAMES'), R2_PHOTOS: makeR2() });
-  const req = (p, method = 'GET', body) => new Request(ORIGIN + p, { method, headers: { Cookie: 'sgx-space-session=x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
+  const req = (p, method = 'GET', body) => new Request(ORIGIN + p, { method, headers: { Cookie: 'sgx-session=x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
   const E = envOf('owner');
   assert.equal((await worker.fetch(req('/curio/api/items', 'POST', { op: 'device.add', name: 'S24' }), E, { waitUntil() {} })).status, 200);
   assert.equal((await worker.fetch(req('/curio/api/items', 'POST', { op: 'game.add', title: 'Zelda' }), E, { waitUntil() {} })).status, 200);

@@ -92,7 +92,6 @@ hugo server -s space/web   # /、/blog/、/curio/、/daymark/ 一起
 | `verify-core-routes.mjs` | 部署后线上路由核对 |
 | `health-gate.mjs`、`kv-budget.mjs` | 部署后健康检查、KV 写额度守卫 |
 | `deploy-rollback.mjs`、`deploy-rollback-floor.json` | 部署失败自动回滚与回滚下限 |
-| `migrate-kv-to-d1.mjs` | 一次性 KV → D1 导入（单测与预览模拟器仍读它） |
 | `retired-names.json` | 退役名单（规则 22） |
 | `ci-local.sh` | 本地按 CI 顺序跑 |
 | `blog/` | 博客：`build-css.mjs`、`build-search-index.mjs`、`gen-code-tokens.mjs`、`serve-static.mjs` |

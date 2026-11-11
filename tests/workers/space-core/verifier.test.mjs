@@ -1,7 +1,7 @@
 /**
  * 服务绑定 RPC 入口 SpaceVerifier（workers/space-core/src/rpc/space-verifier.js）：
  * - wrangler 入口导出 default 和 SpaceVerifier（v6 P4 起 ShareJanitor 随分享短链删除）
- * - v6 P4（定稿 v5.2 §十三）起进站会话删除：session() 没了；conclusion() 一律 denied（奇趣 / 日刻的旧路径不成立，走 admit()）
+ * - v6 P4（定稿 v5.2 §十三）起进站会话删除：session() 没了；conclusion() 随应用授权删除（定稿 v5.3 §十二，奇趣 / 日刻只走 admit()）
  * - admit() / auditRoot() 见 v6-cutover.test.mjs
  *
  * 运行：node --test tests/workers/space-core/verifier.test.mjs
@@ -31,21 +31,10 @@ test('部署入口只导出 default 和 SpaceVerifier（v6 P4：ShareJanitor 随
   assert.doesNotMatch(av, /createLinkKey|revokeLinkKey|openLinkSession|purge|checkLockSession|resolveSecrets/i);
 });
 
-test('SpaceVerifier：conclusion / admit / auditRoot，没有 session（v6 P4）、没有 fetch', () => {
+test('SpaceVerifier：admit / auditRoot，没有 session（v6 P4）、conclusion（应用授权删除）、fetch', () => {
   assert.equal(SpaceVerifier.prototype.session, undefined);
   assert.equal(SpaceVerifier.prototype.lockSession, undefined);
-  for (const m of ['conclusion', 'admit', 'auditRoot']) assert.equal(typeof SpaceVerifier.prototype[m], 'function', m);
+  assert.equal(SpaceVerifier.prototype.conclusion, undefined);
+  for (const m of ['admit', 'auditRoot']) assert.equal(typeof SpaceVerifier.prototype[m], 'function', m);
   assert.equal(SpaceVerifier.prototype.fetch, undefined);
-});
-
-test('SpaceVerifier.conclusion（v6 P4）：一律 denied，不问账号 Worker', async () => {
-  let asked = 0;
-  const e = { ACCOUNT_VERIFIER: { async authorize() { asked++; return { ok: true }; } } };
-  for (const ck of ['', 'sgx-space-session=password.0.9999999999999.; sgx-account-session=x', 'sgx-session=root']) {
-    assert.deepEqual(await new SpaceVerifier({}, e).conclusion(ck, { ua: 'UA' }, { reauth: true }), {
-      space: { ok: false, by: '', linkId: '', reason: 'no-session' },
-      account: { ok: false, deviceId: '', scopes: [], reauth: false, reason: 'no-space' },
-    });
-  }
-  assert.equal(asked, 0);
 });

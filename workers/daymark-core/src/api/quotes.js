@@ -8,7 +8,7 @@
 // DELETE /api/quotes?id=<id>     账号会话 + daymark.write + 同源：删除（连同它在百味专题里的位置）
 // 写操作成功返回 {ok:true, quote}（删除返回 {ok:true}）。
 // 错误：400 bad-json / bad-body / bad-text / bad-visibility / bad-source-type / bad-collections / nothing / bad-id；
-//       401 account；403 origin / scope；404 not-found；409 limit；413 too-large
+//       401 unauthorized；403 origin / forbidden；404 not-found；409 limit；413 too-large
 import { json, err, methodNotAllowed } from './_lib.js';
 import { readAccess } from './_auth.js';
 import { readBody, guardWrite, idParam } from './_write.js';

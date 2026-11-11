@@ -18,7 +18,7 @@ export function needSu(x) {
 }
 
 /**
- * v6 的 root 档命令（v6-commands「授权与订阅（root，或 sudo）」；路由表 /api/account/proxy、/grants 是 root 档）：
+ * v6 的 root 档命令（v6-commands「授权与订阅（root，或 sudo）」；路由表 /api/account/proxy 是 root 档）：
  * v6 root → { direct: true }；v6 普通用户 → 一条「当前用户没有这个权限 · 先 su root」；访客 → 先 su <用户>。
  * @param {any} x @returns {{direct: true}|{out: any[]}}
  */

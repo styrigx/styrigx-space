@@ -14,8 +14,8 @@
  *   workers/space-core/src/app.js + 账号 workers/account/src/rpc/ 的 AccountService / AccountVerifier 实现，
  *   网关的服务绑定 ACCOUNT / ACCOUNT_VERIFIER 换成进程内适配器），SGX_ENV=preview，env.ASSETS 读 space/web/public（先 hugo 构建生产版）。
  *   cloudflare:workers 用 tests/workers/account/_cf-workers.mjs 的替身。
- * - KV：网关不再绑定 KV（2026-10-27 起认证状态全在 D1）。内存 KV 只留给 Cloudflare KV REST（space/scripts/migrate-kv-to-d1.mjs
- *   本地对着它跑），支持 expirationTtl / expiration，列表结果带 expiration（和 Cloudflare REST 一样）。
+ * - KV：网关不再绑定 KV（2026-10-27 起认证状态全在 D1）。内存 KV 只留给 Cloudflare KV REST（一次性导入脚本 migrate-kv-to-d1.mjs
+ *   v6 P4 收尾已删），支持 expirationTtl / expiration，列表结果带 expiration（和 Cloudflare REST 一样）。
  * - 「读到旧值」（--stale-ms N [--stale-keys 前缀,前缀]）：以前用来复现 KV 写后读不到；网关已经不读 KV，这个选项只对
  *   appKV（现在没人用）生效，保留是为了和以前的运行方式一致（staleReads 应为 0）。D1 强一致，不模拟旧值。
  * - D1：node:sqlite 内存库（预览测试库 styrigx-test-preview 的替身，只建网关的表），实现网关用到的 prepare().bind().run() / first() / all()
@@ -25,8 +25,7 @@
  *   /__kv/stats 的 d1 一栏按语句类型（select / insert / update / delete / other）记数。
  * - Cloudflare KV REST：/client/v4/accounts/<a>/storage/kv/namespaces/<id>/values/<key>（GET/PUT/DELETE）、/keys（列表，
  *   prefix / cursor / limit）、/bulk/delete（POST，按 Cloudflare 的计费口径每个键算一次删除）；D1 REST 只有
- *   /client/v4/accounts/<a>/d1/database/<id>/query（POST { sql, params }：space/scripts/kv-budget.mjs 清预览 D1、
- *   space/scripts/migrate-kv-to-d1.mjs 导入、e2e helper 打开重置开关 / 清进站凭证限速用）。测试进程用
+ *   /client/v4/accounts/<a>/d1/database/<id>/query（POST { sql, params }：space/scripts/kv-budget.mjs 清预览 D1、e2e helper 清限速用）。测试进程用
  *   SGX_TEST_CF_API=http://127.0.0.1:<port>/client/v4 指过来。
  * - /__kv/stats（GET）：当前计数；/__kv/stats/reset（POST）清零计数（不清数据）；/__kv/dump（GET）：全部键和过期时间。
  *
@@ -209,9 +208,8 @@ function loadState() {
   if (!STATE || !fs.existsSync(STATE)) return;
   const s = JSON.parse(fs.readFileSync(STATE, 'utf8'));
   for (const [k, e] of Object.entries(s.kv || {})) store.set(k, e);
-  /* 旧格式（只有 recovery_switch 一个键）也认：那些是开关行，方案 9.4 起载入 lock_reset_switch */
-  const tables = s.d1 || (s.recovery_switch ? { lock_reset_switch: s.recovery_switch } : {});
-  if (tables.lock_reset_switch) db.exec('CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)');
+  /* 只恢复库里有的表（旧状态文件里的旧进站表 lock_reset_switch 等不再建回，v6 P4 收尾） */
+  const tables = s.d1 || {};
   const have = new Set(d1Tables());
   for (const [t, rows] of Object.entries(tables)) {
     if (!have.has(t) || !/^[a-z_]+$/.test(t)) continue; /* --no-migrations 时表还没建：交给网关自建，不恢复 */
@@ -263,7 +261,7 @@ function cfJson(result, extra) {
 }
 async function cfRest(req) {
   const u = new URL(req.url);
-  /* D1 REST（space/scripts/kv-budget.mjs reset-preview 清 passkey / password 表）：POST .../d1/database/<id>/query { sql, params? } */
+  /* D1 REST（space/scripts/kv-budget.mjs reset-preview 清 RESET_D1_TABLES）：POST .../d1/database/<id>/query { sql, params? } */
   if (/^\/client\/v4\/accounts\/[^/]+\/d1\/database\/[^/]+\/query$/.test(u.pathname) && req.method === 'POST') {
     const q = await req.json();
     try {
@@ -318,17 +316,11 @@ async function main() {
   loadState();
   await mod('tests/workers/account/_cf-workers.mjs'); /* cloudflare:workers 替身，要在 import 组合入口之前 */
   const worker = (await mod('tests/space/e2e/helpers/preview-worker.js')).default;
-  const akp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
-  const pem = async (k, kind, label) => {
-    const b64 = Buffer.from(await crypto.subtle.exportKey(kind, k)).toString('base64');
-    return `-----BEGIN ${label}-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END ${label}-----\n`;
-  };
   const origin = 'http://localhost:' + PORT;
   const env = {
     SGX_ENV: 'preview', SGX_SITE: 'space', SGX_ORIGIN: origin, SGX_RP_ID: 'localhost',
     /* 不绑 KV（同预览 wrangler.toml）；三个 D1 绑定接同一个库。组合入口按绑定拆给网关 / 账号两半（preview-worker.js） */
     D1_SPACE: d1, D1_ACCOUNT: d1,
-    SGX_ACCOUNT_PRIVATE: await pem(akp.privateKey, 'pkcs8', 'PRIVATE KEY'), SGX_ACCOUNT_PUBLIC: await pem(akp.publicKey, 'spki', 'PUBLIC KEY'),
     SGX_ACCOUNT_PASSWORD_PEPPER: ACCOUNT_PEPPER,
     ASSETS: { fetch: (input, init) => assets(input instanceof Request ? input : new Request(input, init)) },
   };

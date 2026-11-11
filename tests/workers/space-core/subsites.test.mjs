@@ -22,9 +22,9 @@ const worker = (await import(REPO + '/workers/space-core/src/app.js')).default;
 const { isStaticAsset, subsiteOf, siteOf, normPath, stripSessionAttrs } = await import(REPO + '/workers/space-core/src/gate.js');
 
 const CTX = { waitUntil() {} };
-function env(epoch = '0') {
+function env() {
   const seen = [];
-  const d1 = makeAuthD1({ epochs: { 'lock-epoch': Number(epoch) } }); /* 纪元在 D1 */
+  const d1 = makeAuthD1();
   return {
     seen,
     SGX_ENV: 'production', SGX_SITE: 'space', ACCOUNT_VERIFIER: v6Space({}),

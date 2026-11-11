@@ -70,7 +70,7 @@ bucket_name = "styrigx-curio-core"
 binding = "R2_MUSIC"
 bucket_name = "styrigx-curio-core"
 
-# 鉴权：主站鉴权网关的 RPC 入口 SpaceVerifier（conclusion：网关验门、问账号 Worker，回结论；见 src/api/_auth.js）。
+# 鉴权：主站鉴权网关的 RPC 入口 SpaceVerifier（admit / auditRoot：转给账号 Worker 判 v6 会话；见 src/api/_auth.js）。
 [[services]]
 binding = "SPACE"
 service = "styrigx-space-core"

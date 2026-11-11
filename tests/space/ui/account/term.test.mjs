@@ -25,8 +25,6 @@ const D = await import('../../../../' + DIR + 'cmd/devices.js');
 const K = await import('../../../../' + DIR + 'cmd/keys.js');
 const W = await import('../../../../' + DIR + 'window.js');
 const ACM = await import('../../../../space/web/assets/js/shell/term/cmds/acct/index.js');
-/** 应用 → 显示顺序（同 workers/account/src/core/scopes.js） */
-const APP_IDS = ['curio', 'daymark', 'prefs', 'wellbeing', 'avatar', 'profile'];
 
 test('v6 P4：旧账号会话的命令字（sudo root / reauth / reset）和输密码 / 恢复密钥那一行删了；卡片没有命令行', () => {
   for (const gone of ['ROOT_COMMAND', 'CMD', 'PS_PASSWORD', 'PS_RECOVERY_KEY', 'TRY_AGAIN', 'TRIES_OVER', 'MAX_TRIES', 'parseCmd', 'WINDOW_TABLE', 'LAYERS', 'LAYER_PATH', 'PS_GUEST', 'PS_ROOT', 'PS_RESET']) assert.equal(/** @type {any} */ (C)[gone], undefined, gone);
@@ -34,7 +32,7 @@ test('v6 P4：旧账号会话的命令字（sudo root / reauth / reset）和输�
 });
 
 test('账号卡片的行 → 终端预填的命令（S9）；profile set 的字段名', () => {
-  assert.deepEqual({ ...W.CARD_CMDS }, { profile: 'profile', devices: 'device', keys: 'passkey', grants: 'app', exit: 'exit', login: 'su root' }, '登录行 sudo root → su root（Gray 11-11 17:51）');
+  assert.deepEqual({ ...W.CARD_CMDS }, { profile: 'profile', devices: 'device', keys: 'passkey', exit: 'exit', login: 'su root' }, '登录行 sudo root → su root（Gray 11-11 17:51）；应用授权行随应用授权删除（定稿 v5.3 §十二）');
   assert.deepEqual({ ...C.PROFILE_KEYS }, { name: 'name', nick: 'nickname', sign: 'motto', email: 'email' });
   const prof = ACM.ACCOUNT_CMDS.find((c) => c.name === 'profile');
   assert.deepEqual(prof.subArgs('set'), Object.keys(C.PROFILE_KEYS), '补全表和字段表一致');
@@ -48,7 +46,7 @@ test('入口名 → 在终端里怎么开（旧地址 #acct=<子页>、[data-acc
   assert.deepEqual(C.layerFromPath('profile'), { cmd: 'profile' });
   assert.deepEqual(C.layerFromPath('devices'), { cmd: 'device' });
   assert.deepEqual(C.layerFromPath('security'), { cmd: 'passkey' });
-  assert.deepEqual(C.layerFromPath('apps'), { cmd: 'app' });
+  assert.deepEqual(C.layerFromPath('apps'), { cmd: '' }, '应用授权删了（定稿 v5.3 §十二）：旧 #acct=apps 开卡片');
   assert.deepEqual(C.layerFromPath('reset'), { cmd: '' }, '旧 /account/reset/ 删了（Gray 11-11 17:47）：不预填');
   assert.deepEqual(C.layerFromPath('reauth'), { cmd: '' });
   assert.deepEqual(C.layerFromPath('sync'), { cmd: '' }, '云同步子页删了，开卡片');
@@ -79,7 +77,8 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
   const zk = keysOf(TR.zh.account).sort();
   const ek = keysOf(TR.en.account).sort();
   assert.deepEqual(zk, ek);
-  for (const g of ['common', 'session', 'reauth', 'reset', 'keys', 'devices', 'grants', 'profile']) assert.ok(TR.zh.account[g], 'account.' + g);
+  for (const g of ['common', 'keys', 'devices', 'profile']) assert.ok(TR.zh.account[g], 'account.' + g);
+  for (const g of ['reset', 'grants']) assert.equal(TR.zh.account[g], undefined, 'account.' + g + ' 删了（定稿 v5.4 §十三 P4 收尾）');
   assert.equal(TR.zh.account.help, undefined, 'S9：卡片的 help 删了（man 在终端里）');
   const used = new Set();
   /* v5 S5：终端里的账号层在 cmd/ 子目录，一起查 */
@@ -93,8 +92,7 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
     assert.ok(ek.includes(k), 'en 缺 account.' + k);
   }
   /* 动态拼的键 */
-  for (const pre of ['reset.signOut.all', 'reset.signOut.others', 'reset.signOut.none', 'profile.name', 'profile.nickname', 'profile.motto', 'profile.email']) assert.ok(zk.includes(pre), pre);
-  for (const app of APP_IDS) { assert.ok(zk.includes('grants.app.' + app), app); assert.ok(zk.includes('grants.desc.' + app), app); }
+  for (const pre of ['profile.name', 'profile.nickname', 'profile.motto', 'profile.email']) assert.ok(zk.includes(pre), pre);
   /* 头像裁剪退到外壳表 account.profile.avatar.* */
   for (const k of ['title', 'pick', 'remove', 'crop', 'cancel', 'done', 'saved', 'removed', 'failed', 'badFile', 'noScope']) assert.ok(zk.includes('profile.avatar.' + k), k);
   /* auth/post-json.js errText 用的旧平铺键都接得上（term.js errT） */
@@ -107,15 +105,15 @@ test('后端名字只在 api.js：入口、action 名、请求字段、状态字
   /* S9：卡片只展示，窗口那一套（keys / devices / grants / profile 层）删了，只剩终端的账号层 cmd/ */
   assert.deepEqual(top.sort(), ['api.js', 'avatar-edit.js', 'commands.js', 'proxy.js', 'window.js']);
   const sub = readdirSync(path.join(REPO, DIR, 'cmd')).map((f) => 'cmd/' + f);
-  /* 割接：cmd/v6-direct.js = v6 root 直接做的 sub / app 的门（C.gated / C.authErrFor） */
-  assert.deepEqual(sub.sort(), ['cmd/devices.js', 'cmd/grants.js', 'cmd/keys.js', 'cmd/layer.js', 'cmd/profile.js', 'cmd/v6-direct.js']);
+  /* 割接：cmd/v6-direct.js = v6 root 直接做的 sub 的门（C.gated / C.authErrFor） */
+  assert.deepEqual(sub.sort(), ['cmd/devices.js', 'cmd/keys.js', 'cmd/layer.js', 'cmd/profile.js', 'cmd/v6-direct.js']);
   const files = top.concat(sub);
   const api = strip(rd(DIR + 'api.js'));
   /* NAMING-V2 P2：POST /api/account/<入口> { action }，入口和 action 都只在 api.js 里写；v6 P4 起旧会话的 session / reauth / reset / keys 入口删了 */
-  for (const [e, acts] of Object.entries({ devices: ['list', 'revoke', 'revoke-all'], grants: ['list', 'add', 'revoke'] })) {
+  for (const [e, acts] of Object.entries({ devices: ['list', 'revoke', 'revoke-all'] })) {
     for (const a of acts) assert.ok(api.includes("post('" + e + "', '" + a + "'"), e + '/' + a);
   }
-  for (const e of ['session', 'reauth', 'reset', 'keys']) assert.ok(!api.includes("post('" + e + "'") && !api.includes("ACCOUNT_API + '/" + e + "'"), '旧入口 ' + e + ' 删了');
+  for (const e of ['session', 'reauth', 'reset', 'keys', 'grants']) assert.ok(!api.includes("post('" + e + "'") && !api.includes("ACCOUNT_API + '/" + e + "'"), '旧入口 ' + e + ' 删了');
   for (const a of ['passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete']) assert.ok(api.includes("action: '" + a + "'"), 'v6 ' + a);
   /* 旧单入口 action 一个都不剩 */
   for (const a of ['login-challenge', 'login-passkey', 'login-password', 'logout', 'reauth-clear', 'root-reset', 'reset-finish', 'password-change',

@@ -1,6 +1,6 @@
 /**
- * 网关结论（workers/space-core/src/core/conclusion.js；方案 2.3、4.3，P2-1）。v6 P4（定稿 v5.2 §十三）起进站会话与旧账号会话删除：
- * - conclusionFor：一律 denied（space.ok=false reason no-session、account.ok=false reason no-space），不问账号 Worker，参数一律不读
+ * 网关结论头（workers/space-core/src/core/conclusion.js；方案 2.3、4.3，P2-1）。v6 P4（定稿 v5.2 §十三）起进站会话与旧账号会话删除；
+ * 旧 RPC 结论 conclusionFor / SpaceVerifier.conclusion() 随应用授权删除（定稿 v5.3 §十二）：
  * - 结论头只剩 X-Styrigx-Account-Session（writeV6PrivateConclusion 先剥再写 1；stripAccountConclusion 只剥 x-styrigx-account-*）
  * - 浏览器带来的 X-Styrigx-Account-* 在网关第一步被剥掉，不会转到账号 Worker
  * - 规则 16：网关源码里没有账号票名
@@ -14,17 +14,12 @@ import { authD1For, makeKV } from '../_harness.mjs';
 
 const GW = '../../../workers/space-core/src/';
 const mod = await import(GW + 'core/conclusion.js');
-const { ACCOUNT_CONCLUSION_HEADERS, ACCOUNT_CONCLUSION_PREFIX, conclusionFor, stripAccountConclusion, writeV6PrivateConclusion } = mod;
+const { ACCOUNT_CONCLUSION_HEADERS, ACCOUNT_CONCLUSION_PREFIX, stripAccountConclusion, writeV6PrivateConclusion } = mod;
 const layers = await import('../../../space/scripts/check-layers.mjs');
 
-const DENIED = {
-  space: { ok: false, by: '', linkId: '', reason: 'no-session' },
-  account: { ok: false, deviceId: '', scopes: [], reauth: false, reason: 'no-space' },
-};
-
-test('导出：结论头常量、前缀、conclusionFor / stripAccountConclusion / writeV6PrivateConclusion（v6 P4 起旧账号结论的白名单函数删除）', () => {
+test('导出：结论头常量、前缀、stripAccountConclusion / writeV6PrivateConclusion（v6 P4 起旧账号结论的白名单函数删除，conclusionFor 随应用授权删除）', () => {
   assert.deepEqual(Object.keys(mod).sort(), [
-    'ACCOUNT_CONCLUSION_HEADERS', 'ACCOUNT_CONCLUSION_PREFIX', 'conclusionFor', 'stripAccountConclusion', 'writeV6PrivateConclusion',
+    'ACCOUNT_CONCLUSION_HEADERS', 'ACCOUNT_CONCLUSION_PREFIX', 'stripAccountConclusion', 'writeV6PrivateConclusion',
   ]);
 });
 
@@ -32,16 +27,6 @@ test('结论头名逐字固定，冻结，以 x-styrigx-account- 开头（app.js
   assert.deepEqual({ ...ACCOUNT_CONCLUSION_HEADERS }, { session: 'X-Styrigx-Account-Session' });
   assert.ok(Object.isFrozen(ACCOUNT_CONCLUSION_HEADERS));
   assert.equal(ACCOUNT_CONCLUSION_PREFIX, 'x-styrigx-account-');
-});
-
-test('conclusionFor（v6 P4）：任何输入都回 denied，不问账号 Worker', async () => {
-  let asked = 0;
-  const env = { ACCOUNT_VERIFIER: { async authorize() { asked++; return { ok: true }; }, async admit() { asked++; return { allowed: true }; } } };
-  for (const ck of ['', 'sgx-space-session=password.0.9999999999999.', 'sgx-account-session=x', 'sgx-session=root']) {
-    assert.deepEqual(await conclusionFor(env, ck, { ua: 'UA' }, { reauth: true }), DENIED, ck);
-  }
-  assert.deepEqual(await conclusionFor(), DENIED);
-  assert.equal(asked, 0);
 });
 
 test('writeV6PrivateConclusion：先剥掉已有的 x-styrigx-account-*，只写 Session: 1', () => {

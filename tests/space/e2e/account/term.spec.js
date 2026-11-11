@@ -2,7 +2,7 @@
  * 账号的入口（S9，Gray 2026-11-11：账号卡片只展示，账号的操作都在全站终端里）：
  * 头像（非模态卡片、没 JS 时的链接）、卡片一行 → 终端预填命令（不替人回车）、旧地址 #acct=<层>、和全站终端互斥。
  * v6 P4（定稿 v5.2 §七、§十三 P4）起登录状态只看终端的 v6 身份（POST /api/identity whoami），旧的 GET /api/account、sudo root [reset] 删了。
- * 终端里的流程见同目录 keys / devices / grants / profile / proxy.spec.js。
+ * 终端里的流程见同目录 keys / devices / profile / proxy.spec.js（应用授权 grants.spec.js 随应用授权删除，定稿 v5.3 §十二）。
  */
 const { test } = require('@playwright/test');
 const A = require('../helpers/account-term.cjs');
@@ -55,11 +55,14 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
     await expect(av).toBeFocused();
   });
 
-  test('已登录（v6 root）：个人资料 / 设备 / 账号安全 / 应用授权 / 退出登录；点一行 = 收起卡片、打开终端、预填对应命令（不替人回车）', async ({ page }) => {
+  test('已登录（v6 root）：个人资料 / 设备 / 账号安全 / 退出登录（应用授权行删了，定稿 v5.3 §十二）；点一行 = 收起卡片、打开终端、预填对应命令（不替人回车）', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await go(page, '/zh/wild/', { route: (pg) => A.mockAccount(pg) });
     const d = page.locator('#sgx-acct');
-    const rows = [['个人资料', 'profile'], ['设备', 'device'], ['账号安全', 'passkey'], ['应用授权', 'app'], ['退出登录', 'exit']];
+    const rows = [['个人资料', 'profile'], ['设备', 'device'], ['账号安全', 'passkey'], ['退出登录', 'exit']];
+    await A.openCard(page);
+    await expect(d.locator('.sgx-at-r').filter({ hasText: '应用授权' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     for (const [label, cmd] of rows) {
       await A.openCard(page);
       await expect(d).toHaveAttribute('data-acct-state', 'in');
@@ -89,7 +92,7 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
     const d = page.locator('#sgx-acct');
     await A.openCard(page);
     await expect(d).toHaveAttribute('data-acct-state', 'in');
-    await expect(d.locator('.sgx-at-r')).toHaveCount(5);
+    await expect(d.locator('.sgx-at-r')).toHaveCount(4); // 个人资料 · 设备 · 账号安全 · 退出登录（应用授权行删了，定稿 v5.3 §十二）
     await page.keyboard.press('Escape');
     await expect(d).toBeHidden();
     await settled(page, 'sgx-acct');

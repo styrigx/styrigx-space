@@ -1,6 +1,6 @@
 /**
  * src/core/d1-state.js 与 D1 上的网关状态（2026-10-27 全部从 KV 搬来；网关不再绑定 KV，运行时不读 KV、没有回落）。
- * - 建表语句（SCHEMA）与 migrations/0001_baseline.sql 逐条一致（v6 P4 起运行时只读写 attempt_limit 与 audit，SCHEMA 与旧表原样保留）
+ * - 建表语句（SCHEMA）只剩运行时读写的 attempt_limit 与 audit，每条与 migrations/0001_baseline.sql 一致（旧进站 8 张表的建表语句 v6 P4 收尾删除）
  * - 正式网关不跑迁移：表不存在时第一次查询自建，再整次重试
  * - 出错一律抛（D1 没绑）；网关只有锁屏域：只经 D1_SPACE，'account' / 'root' 一律 bad realm
  * - 源码扫描：网关和共享模块 workers/space-core/src/lib/ 任何源码都不用 withSession（安全读只走主库）
@@ -26,22 +26,25 @@ function statements(sql) {
   return sql.split('\n').map((l) => l.replace(/--.*$/, '')).join(' ').split(';').map((x) => x.replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').trim()).filter(Boolean);
 }
 
-test('SCHEMA 与 migrations/ 跑完后的进站段逐条一致：0001_baseline.sql（按文件顺序）去掉 0002_drop_tempkey.sql 删的 tempkey；基线 = SCHEMA + tempkey + lock_reset_switch + 分享链接；全部幂等；两个迁移文件', async () => {
-  /* lock_reset_switch 的建表语句（原 core/lock-reset-switch.js CREATE_SQL；v6 P4 进站签发删除后模块删了，表与数据不动） */
-  const CREATE_SQL = 'CREATE TABLE IF NOT EXISTS lock_reset_switch (hash TEXT PRIMARY KEY, first_seen INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0)';
-  const base = statements(readFileSync(new URL('0001_baseline.sql', MIG_DIR), 'utf8'))
-    .filter((s) => !/^CREATE (UNIQUE )?(TABLE|INDEX) IF NOT EXISTS tempkey/.test(s) && !/ ON tempkey \(/.test(s));
-  const n = SCHEMA.length;
-  assert.deepEqual(base.slice(0, n), SCHEMA.map((s) => statements(s)[0]));
-  assert.equal(base[n], CREATE_SQL);
-  assert.deepEqual(base.slice(n + 1).map((s) => s.replace(/\(.*$/, '').trim()),
-    ['CREATE TABLE IF NOT EXISTS share_link', 'CREATE INDEX IF NOT EXISTS share_link_created ON share_link', 'CREATE TABLE IF NOT EXISTS share_fail']);
+/** 旧进站 8 张表（定稿 v5.4 §十一：建表语句删了，生产在部署绿后由 docs/ops/v6-p4-drop-space-legacy.sql drop） */
+const LEGACY8 = ['epoch', 'passkey', 'password', 'user_handle', 'challenge', 'device', 'kv_migration', 'lock_reset_switch'];
+
+test('SCHEMA 只剩运行时读写的 attempt_limit 与 audit（含索引），每条与 migrations/0001_baseline.sql 里的同一条一致；旧进站 8 张表、tempkey、分享表都不在代码兜底里；全部幂等；两个迁移文件', async () => {
+  const base = statements(readFileSync(new URL('0001_baseline.sql', MIG_DIR), 'utf8'));
+  const mine = SCHEMA.map((s) => statements(s)[0]);
+  assert.deepEqual(mine.map((s) => s.replace(/\(.*$/, '').trim()),
+    ['CREATE TABLE IF NOT EXISTS attempt_limit', 'CREATE TABLE IF NOT EXISTS audit', 'CREATE INDEX IF NOT EXISTS audit_ts ON audit']);
+  for (const s of mine) assert.ok(base.includes(s), '和基线逐字一致：' + s);
   for (const s of SCHEMA) assert.match(s, /^CREATE (UNIQUE )?(TABLE|INDEX) IF NOT EXISTS /, '幂等：代码兜底建表和迁移重复跑都不出错');
   assert.deepEqual(readdirSync(MIG_DIR).filter((f) => f.endsWith('.sql')).sort(), ['0001_baseline.sql', '0002_drop_tempkey.sql']);
-  for (const s of SCHEMA) assert.doesNotMatch(s, /tempkey/, 'v5 收尾：代码兜底不再建 tempkey');
-  /* 0006 的六张表都有 realm 列 */
+  for (const s of SCHEMA) assert.doesNotMatch(s, /tempkey|share_link|share_fail/, '代码兜底不建 tempkey / 分享表');
+  for (const t of LEGACY8) for (const s of SCHEMA) assert.doesNotMatch(s, new RegExp('EXISTS ' + t + ' '), 'v6 P4 收尾：代码兜底不再建 ' + t + '（Gray 11-11 19:52、20:11）');
+  /* drop SQL 文件列着这 8 张 */
+  const drop = statements(readFileSync(new URL('../../../docs/ops/v6-p4-drop-space-legacy.sql', import.meta.url), 'utf8'));
+  assert.deepEqual(drop, LEGACY8.map((t) => 'DROP TABLE IF EXISTS ' + t));
+  /* 运行时两张表都有 realm 列 */
   const db = makeAuthD1();
-  for (const t of ['user_handle', 'challenge', 'attempt_limit', 'device', 'audit', 'epoch', 'passkey', 'password']) {
+  for (const t of ['attempt_limit', 'audit']) {
     const cols = db.raw.prepare('PRAGMA table_info(' + t + ')').all().map((c) => c.name);
     assert.ok(cols.includes('realm'), t + ' 缺 realm 列');
   }
@@ -78,7 +81,7 @@ test('表不存在（正式网关的部署不跑迁移）：第一次查询自�
   const n = await onAuthDb(env, REALM_LOCK, async (d) => (await d.prepare('SELECT COUNT(*) AS n FROM audit').first()).n);
   assert.equal(Number(n), 0);
   const tables = db.raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(tables, ['attempt_limit', 'audit', 'challenge', 'device', 'epoch', 'kv_migration', 'passkey', 'password', 'user_handle']);
+  assert.deepEqual(tables, ['attempt_limit', 'audit'], '兜底只建运行时的两张，旧进站表不会被建回来');
 });
 
 test('绑定按域：网关只有锁屏域，只经 D1_SPACE；account / root / 别的 realm 一律拒（账号拆分 PR3）', async () => {
@@ -89,7 +92,7 @@ test('绑定按域：网关只有锁屏域，只经 D1_SPACE；account / root / 
   for (const bad of ['account', 'root', { id: 'app' }, { id: 'account', d1Binding: 'D1_SPACE' }]) {
     assert.throws(() => realmOf(bad), /bad realm/, JSON.stringify(bad));
   }
-  await assert.rejects(sweepExpired(lockDb, 'epoch', 'lock'), /bad table/);
+  for (const t of ['epoch', 'device']) await assert.rejects(sweepExpired(lockDb, t, 'lock'), /bad table/, t);
 });
 
 test('没有 KV：env 里的 KV 碰一下就抛错，D1 读写照常', async () => {
@@ -141,7 +144,7 @@ test('0007（user_handle 加 legacy_handle，预览共库兼容；L2b 起在 mig
   assert.deepEqual(statements(sql), ["ALTER TABLE user_handle ADD COLUMN legacy_handle TEXT NOT NULL DEFAULT ''"]);
   const db = makeAuthD1();
   assert.deepEqual(db.raw.prepare('PRAGMA table_info(user_handle)').all().map((c) => c.name), ['realm', 'handle', 'legacy_handle']);
-  /* v6 P4：进站签发删除，网关源码不再读写 user_handle（只有 SCHEMA 的建表语句带它，和正式库表结构一致） */
+  /* v6 P4：进站签发删除，网关源码不再读写 user_handle（收尾起 SCHEMA 也不再建它，源码里没有 legacy_handle） */
   const gwSrc = (d) => readdirSync(d).flatMap((f) => { const p = path.join(d, f); return statSync(p).isDirectory() ? gwSrc(p) : p.endsWith('.js') ? [readFileSync(p, 'utf8')] : []; });
   assert.ok(!gwSrc(GATEWAY).some((s) => s.replace(/CREATE TABLE IF NOT EXISTS user_handle \([^)]*\)/g, '').replace(/^\s*\*.*$/gm, '').includes('legacy_handle')));
 });

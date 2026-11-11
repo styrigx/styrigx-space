@@ -30,8 +30,7 @@ test('challenge 用途 / Secrets 名 / 显示名钉死（API 值一律小写连�
   assert.deepEqual({ ...config.CHALLENGE_PURPOSE }, { session: 'session', reauth: 'reauth', keysAdd: 'keys-add', resetAdd: 'reset-add' });
   for (const v of Object.values(config.CHALLENGE_PURPOSE)) assert.match(v, /^[a-z]+(-[a-z]+)*$/);
   assert.equal(config.CHALLENGE_TTL, 300);
-  assert.equal(config.SIGNING_PRIVATE, 'SGX_ACCOUNT_PRIVATE');
-  assert.equal(config.SIGNING_PUBLIC, 'SGX_ACCOUNT_PUBLIC');
+  for (const gone of ['SIGNING_PRIVATE', 'SIGNING_PUBLIC']) assert.equal(gone in config, false, gone + '（签名钥匙对删除，定稿 v5.3 §十二）');
   assert.equal(config.PASSWORD_PEPPER_SECRET, 'SGX_ACCOUNT_PASSWORD_PEPPER');
   assert.equal(config.RESCUE_KEY_SECRET, 'SGX_ACCOUNT_RESCUE_KEY');
   assert.equal(config.KEY_ACCOUNT_PASSKEY, 'AccountPasskey');
@@ -47,26 +46,29 @@ test('rpConfig / rpConfigMissing：两个都在才给；缺 → 503 config', asy
   assert.equal((await r.json()).error, 'config');
 });
 
-test('ACCOUNT_SCHEMA + IDENTITY_SCHEMA（兜底建表）与迁移建出的 account_* 表逐列一致（到 0006 为止）；0007 只给 account_device 加 uid；每条都 IF NOT EXISTS', () => {
+test('ACCOUNT_SCHEMA + IDENTITY_SCHEMA（兜底建表）与迁移建出的 account_* 表逐列一致（到 0006 为止，account_grant 除外：兜底不建）；0007 只给 account_device 加 uid；每条都 IF NOT EXISTS', () => {
   const a = new DatabaseSync(':memory:');
   for (const s of db.ACCOUNT_SCHEMA.concat(db.IDENTITY_SCHEMA)) { assert.match(s, /IF NOT EXISTS/); a.exec(s); }
   /* 兜底建表是迁移前（0006）的结构：uid-schema.js 两种结构都能跑；0007 之后的 account_device 多一列 uid（默认 1000），别的 account_* 不变 */
   const b = makeAccountD1({ migrations: 'pre-uid' }).raw;
   const c = makeAccountD1().raw;
   const all = [...ACCOUNT_TABLES, ...IDENTITY_TABLES];
+  /* account_grant 只由历史迁移 0005 建，兜底不建（应用授权删除，定稿 v5.4 §十一：部署绿后 drop，不得被建回） */
+  const fallback = all.filter((t) => t !== 'account_grant');
+  for (const s of db.ACCOUNT_SCHEMA) assert.doesNotMatch(s, /account_grant/);
   const cols = (d, t) => d.prepare('PRAGMA table_info(' + t + ')').all().map((c) => [c.name, c.type, c.notnull, c.pk, c.dflt_value]);
-  for (const t of all) assert.deepEqual(cols(a, t), cols(b, t), t);
+  for (const t of fallback) assert.deepEqual(cols(a, t), cols(b, t), t);
   for (const t of all) assert.deepEqual(cols(c, t), t === 'account_device' ? cols(b, t).concat([['uid', 'INTEGER', 1, 0, '1000']]) : cols(b, t), '0007 后 ' + t);
   const names = (d) => d.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'account_%' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(names(a), [...all].sort());
+  assert.deepEqual(names(a), [...fallback].sort());
   assert.deepEqual(names(b), [...all].sort());
 });
 
-test('secrets：四个名字 = 签名钥匙一对 + 账号密码 pepper + 救援钥匙（v6 P4 删旧恢复密钥与进站密码 pepper，定稿 v5.3 §九 / §十三）', () => {
-  assert.deepEqual([...SECRET_NAMES], ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'SGX_ACCOUNT_RESCUE_KEY']);
+test('secrets：两个名字 = 账号密码 pepper + 救援钥匙（v6 P4 删旧恢复密钥与进站密码 pepper，应用授权删除时删签名钥匙对，定稿 v5.3 §九 / §十二 / §十三）', () => {
+  assert.deepEqual([...SECRET_NAMES], ['SGX_ACCOUNT_PASSWORD_PEPPER', 'SGX_ACCOUNT_RESCUE_KEY']);
 });
 
-test('wrangler.toml：正式段恰好这四个 Secrets Store 绑定，binding = secret_name，store 同网关；预览不绑；不再绑 SGX_ACCOUNT_ROOT_KEY / SGX_ACCOUNT_RECOVERY_KEY / SGX_SPACE_PASSWORD_PEPPER', () => {
+test('wrangler.toml：正式段恰好这两个 Secrets Store 绑定，binding = secret_name，store 同网关；预览不绑；不再绑 SGX_ACCOUNT_ROOT_KEY / SGX_ACCOUNT_RECOVERY_KEY / SGX_SPACE_PASSWORD_PEPPER', () => {
   const toml = readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8');
   const code = toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
   const [prod, preview] = code.split(/^\[env\.preview\]$/m);
@@ -77,7 +79,7 @@ test('wrangler.toml：正式段恰好这四个 Secrets Store 绑定，binding = 
     assert.equal(b.store, 'a5a984f365424401bad5ad6ddcd44479');
   }
   assert.doesNotMatch(code, /SGX_ACCOUNT_ROOT_KEY/);
-  assert.doesNotMatch(code, /SGX_ACCOUNT_RECOVERY_KEY|SGX_SPACE_PASSWORD_PEPPER|SGX_SPACE_/);
+  assert.doesNotMatch(code, /SGX_ACCOUNT_RECOVERY_KEY|SGX_SPACE_PASSWORD_PEPPER|SGX_SPACE_|SGX_ACCOUNT_PRIVATE|SGX_ACCOUNT_PUBLIC/);
   assert.doesNotMatch(preview, /secrets_store_secrets|SGX_ACCOUNT_/);
 });
 
@@ -85,9 +87,9 @@ test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不�
   _resetSecretCache();
   const store = (v) => ({ get: async () => v });
   const d = makeAccountD1();
-  const out = await resolveSecrets({ SGX_ACCOUNT_PRIVATE: store('A'), SGX_ACCOUNT_PASSWORD_PEPPER: 'P', D1_ACCOUNT: d, SGX_SPACE_PRIVATE: store('L') }, 0);
-  assert.equal(out.SGX_ACCOUNT_PRIVATE, 'A');
-  assert.equal(out.SGX_ACCOUNT_PASSWORD_PEPPER, 'P');
+  const out = await resolveSecrets({ SGX_ACCOUNT_PASSWORD_PEPPER: store('A'), D1_ACCOUNT: d, SGX_SPACE_PRIVATE: store('L'), SGX_ACCOUNT_PRIVATE: store('K') }, 0);
+  assert.equal(out.SGX_ACCOUNT_PASSWORD_PEPPER, 'A');
+  assert.equal(typeof out.SGX_ACCOUNT_PRIVATE, 'object', '删掉的签名钥匙名不再换');
   assert.equal(out.D1_ACCOUNT, d);
   assert.equal(typeof out.SGX_SPACE_PRIVATE, 'object', '不是自己的名字不换');
   assert.equal('SGX_ACCOUNT_RESCUE_KEY' in out, false, '没绑的不出现');

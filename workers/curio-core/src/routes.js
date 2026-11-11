@@ -37,9 +37,9 @@ export const API_ROUTES = new Map([
 
 /**
  * 访问档（v5 S3，一档一个守卫，见 api/_auth.js GUARDS；app.js handle 是唯一套用它们的地方）：
- * - public：谁都能调（publicRead：照样问一次网关结论，只用来决定给不给私密行 / canWrite，从不拒绝）
- * - entry：要进站会话（requireEntry：password / passkey / link 任一种进门；没进门 401 unauthorized）；写接口在 handler 里另要账号 + 作用域 + 同源
- * - music：要进站 + 账号会话 + curio.write（requireMusic：音乐的上传 / 管理，与其他写接口同一套作用域）
+ * - public：谁都能调（publicRead：不拒绝；要私密行 / canWrite 的 handler 自己 readAccess）
+ * - entry：按账号 Worker 路由表的档问 v6（requireEntry：没有身份 401 unauthorized，档不够 403 forbidden）；写接口在 handler 里另要同源
+ * - music：同 entry（requireMusic：音乐的上传 / 管理，档同其他写接口）
  * 精确匹配「方法 + 路由表路径」（结尾一个 / 当同一条）；表里没有的方法 / 路径一律 entry（fail closed）。
  * 改这张表 = 改谁能调接口：tests/workers/curio-core/core.test.mjs 对整张表做快照。
  * @type {ReadonlyArray<Readonly<{method: string, path: string, access: 'public'|'entry'|'music'}>>}

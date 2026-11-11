@@ -11,7 +11,7 @@
 ## 入口
 
 ```
-src/index.js         入口：先问网关结论（SPACE.conclusion，today 的读除外）→ 按路由表分发；scheduled（搜索索引）
+src/index.js         入口：按访问档问网关（SPACE.admit，v6 会话；today 的读除外）→ 按路由表分发；scheduled（搜索索引）
 src/routes.js        路由表（去掉 /daymark 前缀后的 /api/*）
 src/api/*.js         一个接口一个文件；_ 开头的是接口共用的内部模块
 src/search-index.js  KV site:daymark 的索引
@@ -28,24 +28,18 @@ src/search-index.js  KV site:daymark 的索引
 ## 绑定
 
 - D1 `styrigx-daymark-core`：`D1_QUOTES`。
-- 服务绑定 `SPACE` → `styrigx-space-core` 的 `SpaceVerifier`（`conclusion()`：网关验门，再问账号 Worker，回结论）。
+- 服务绑定 `SPACE` → `styrigx-space-core` 的 `SpaceVerifier`（`admit()` / `auditRoot()`：原样转给账号 Worker 判 v6 会话 / 记 root 留痕）。
 - KV `KV_SEARCH_INDEX`（`styrigx-space-core`，进站 v3 L2b 前是 `styrigx-space-gateway`；只写 `site:daymark`）。
 - Cron `17 * * * *`。
 
-## 鉴权（P2-2，方案 3.4 R14、4.6）
+## 鉴权（v6，ADR-0006；定稿 v5.3 §十二）
 
-每个 `/daymark/api/*` 请求（`GET /api/today` 除外）只问网关一次 `SPACE.conclusion(cookie, clientContext, { reauth: false })`，结论放 `context.data.conclusion`（`src/api/_auth.js`）。
+访问档在 `src/routes.js` 的 `ROUTE_ACCESS`；`entry` 档和写接口经网关 `SPACE.admit(cookie, method, path)` 问 v6 会话（`sgx-session`）够不够这条路由的档（档只在账号 Worker 路由表 `workers/account/src/core/route-access.js`：写 = `daymark-write`，删整个专题 = root）；
+公开读要私密句子 / 随手一笔时问 action `private` 的档。旧的进站 / 账号结论（`SPACE.conclusion()`、作用域）随应用授权删除。
 
-| 接口 | 进门 | 账号会话 | 作用域 |
-|---|---|---|---|
-| `GET /api/today` | 否（公开） | — | — |
-| `GET /api/quotes`、`/api/collections` | 是 | 有则含私密句子和随手一笔 | — |
-| `GET /api/days?from=&to=`（往前几天已记下的今日一句，只出公开句子，最多 31 天，不现挑不写库；日刻日期条 / 前后日卡） | 是 | — | — |
-| `POST` / `PUT` / `DELETE /api/quotes`、`/api/collections`，`PUT /api/today` | 是 | 是 | `daymark.write` |
-
-- 错误码：没进门 `401 unauthorized`；没账号会话 `401 account`；没作用域 `403 scope`（带 `scope` 字段）；非同源 `403 origin`。日刻没有要账号复验的接口。
-- 读接口回 `canWrite`（有 `daymark.write`）、`showPrivate`（账号会话有效）两个布尔，代替以前的等级字段（P2-2）。
-- 网关绑定缺失 / 出错 → 500（不回 401，免得前端当成锁定去刷新）。
+- 错误码：没有 v6 身份 `401 unauthorized`；有身份但档不够 `403 forbidden`；非同源 `403 origin`。
+- 读接口回 `canWrite`、`showPrivate` 两个布尔（v6 action `private` 的档够就都为 true）。
+- 网关没有 `admit` / 出错 → 当没有 v6 身份（fail closed）。
 
 ## 钥匙
 

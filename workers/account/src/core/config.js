@@ -3,7 +3,7 @@
  *
  * v6 P4（定稿 v5.2 §十三）起旧账号会话删除：三张票（sgx-account-session / -reauth / -reset）、两个纪元、登录标记 sgx-account-signed-in、
  * 账号侧旧恢复密钥都删了；身份只由 v6 会话（core/identity-session.js / identity-stack.js）承担。
- * - 签名钥匙一对 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC：保留绑定（定稿 §五：APP 子应用令牌用），现在没有签发方。
+ * - 账号签名钥匙对删除（定稿 v5.3 §十二：v6 会话不签名，APP 令牌已删；旧名见 space/scripts/retired-names.json）。
  * - 账号密码 pepper SGX_ACCOUNT_PASSWORD_PEPPER（v6 唯一的密码 pepper）、救援钥匙 SGX_ACCOUNT_RESCUE_KEY：只绑在账号 Worker（Secrets Store）。
  * - 通行密钥 challenge 的用途按入口分开（CHALLENGE_PURPOSE）。
  *
@@ -19,8 +19,6 @@ export const TICKET_MAX_AGE = Object.freeze({
 export const LEGACY_SESSION_MAX_AGE = 34560000;
 
 /* ---------- Secrets Store 里的名字（wrangler.toml secrets_store_secrets，binding = secret_name；secrets.js 换成字符串） ---------- */
-export const SIGNING_PRIVATE = 'SGX_ACCOUNT_PRIVATE';
-export const SIGNING_PUBLIC = 'SGX_ACCOUNT_PUBLIC';
 export const PASSWORD_PEPPER_SECRET = 'SGX_ACCOUNT_PASSWORD_PEPPER';
 /** v6 P3 救援钥匙（定稿 v5.2 §九；Gray 05:21 定名、已在现有 Store 建好）：只读 get()，代码不出现 Store 写 / 删 */
 export const RESCUE_KEY_SECRET = 'SGX_ACCOUNT_RESCUE_KEY';

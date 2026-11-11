@@ -25,9 +25,9 @@ test('kv-budget.mjs 只管 D1：不再导出 KV 清理（selectResetKeys / RESET
   assert.match(src, /\/d1\/database\//);
 });
 
-test('清预览 D1：只清网关和账号的 passkey / password / attempt_limit（「是否已设置」和输错计数）；纪元、审计、重置开关等不清', () => {
-  assert.deepEqual([...RESET_D1_TABLES], ['passkey', 'password', 'attempt_limit', 'account_passkey', 'account_password', 'account_attempt_limit']);
-  for (const t of ['epoch', 'kv_migration', 'lock_reset_switch', 'recovery_switch', 'user_handle', 'audit', 'challenge', 'device', 'account_epoch', 'account_user_handle', 'account_audit', 'account_grant']) {
+test('清预览 D1：只清网关 attempt_limit 和账号的 passkey / password / attempt_limit（「是否已设置」和输错计数）；审计与网关旧进站表不清', () => {
+  assert.deepEqual([...RESET_D1_TABLES], ['attempt_limit', 'account_passkey', 'account_password', 'account_attempt_limit']);
+  for (const t of ['passkey', 'password', 'epoch', 'kv_migration', 'lock_reset_switch', 'recovery_switch', 'user_handle', 'audit', 'challenge', 'device', 'account_epoch', 'account_user_handle', 'account_audit', 'account_grant']) {
     assert.ok(!RESET_D1_TABLES.includes(t), t + ' 不清');
   }
   /* 每张要清的表都真的在迁移里（不会清错表名） */
@@ -137,7 +137,7 @@ test('deploy.yml：PR → 本地模拟器（不用 Cloudflare secret、不部署
   for (const s of usesSecrets) assert.ok(String(s.if).includes(NOT_PR), s.name + ': ' + s.if);
   /* 真实预览那条路的步骤：只在 main / 手动运行 */
   for (const n of ['Require Cloudflare secrets', 'Reset preview D1', 'Bundle preview _worker.js',
-    'Generate Ed25519 test key pairs', "Put this run's public keys", 'Set preview test secrets', 'Apply D1 migrations to preview',
+    'Set preview test secrets', 'Apply D1 migrations to preview',
     'Deploy to preview', PREVIEW_RUN, 'Guard - no private vars on Pages production']) {
     assert.ok(String(step(n).if).includes(NOT_PR), n);
   }

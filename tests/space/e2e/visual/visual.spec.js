@@ -29,7 +29,6 @@ const VIEWPORTS = {
 /* 2026-11-08 账号 UI 改版：/account/ 整页（总览 / 账号安全 / 重置 / 应用授权）删除，账号在头像下拉的账号终端里，
    截图改拍终端各层（见下「账号终端」一组）；原 /account/* 四页 × 5 视口 × 中英 × 深浅、account-login-* 和 account-sub-devices 一并删除 */
 const PAGES = ['/']; /* 进站 v3 L1：安全页三页删除（盾牌命令行取代），截图 *_security_* / mobile-space-tempkeys-* 一并删除 */
-const fxGrants = require('../../../fixtures/app-grants.cjs');
 const fxStatus = require('../../../fixtures/status-summary.cjs');
 const LANGS = [
   /* P4-3 PR-4c：英文无前缀、中文 /zh/（截图名不变） */
@@ -172,12 +171,13 @@ test('baseline-ai-panel-open', async ({ page: pg }) => {
 });
 
 /* ===== 账号（S9，Gray 2026-11-11：头像点开的账号卡片 #sgx-acct 只展示，账号的操作都在全站终端 #sgx-term 里）=====
- * 手机 412×915 / 桌面 1920×1080 × 中英 × 深浅 × 七个状态：guest（卡片：未登录）/ home（卡片：root 已登录，应用授权 5）——卡片；
- * pw-error（styrigx 敲 su root 密码输错一次）/ keys（passkey，一把通行密钥）/ devices（device，两个 v6 会话）/ grants（app，5 个应用）/ reset（访客 rescue 恢复钥匙输入）——终端。
+ * 手机 412×915 / 桌面 1920×1080 × 中英 × 深浅 × 六个状态：guest（卡片：未登录）/ home（卡片：root 已登录）——卡片；
+ * pw-error（styrigx 敲 su root 密码输错一次）/ keys（passkey，一把通行密钥）/ devices（device，两个 v6 会话）/ reset（访客 rescue 恢复钥匙输入）——终端。
+ * 应用授权（卡片「应用授权」行与 grants 状态）随应用授权整套删除（定稿 v5.3 §十二）。
  * v6 P4（定稿 v5.2 §十三 P4）起身份只看 POST /api/identity whoami（替身 helpers/account-term.cjs），旧 /api/lock-session-check、GET /api/account、sudo root 删了。
  * 截图名 <视口>-acct-<状态>-<语言>-<主题>（照旧；SHOTS 关着，只跑布局 / 行为断言）。行为细节见 account/*.spec.js。 */
 const ACCT_VPS = { mobile: VIEWPORTS.mobile, desktop: VIEWPORTS.desktop };
-const ACCT_STATES = ['guest', 'pw-error', 'home', 'keys', 'devices', 'grants', 'reset'];
+const ACCT_STATES = ['guest', 'pw-error', 'home', 'keys', 'devices', 'reset'];
 const ACCT_SINCE = fxStatus.NOW - 3 * 3600 * 1000;
 const ACCT_DEVICES = [
   { n: 1, path: 'root via styrigx', since: ACCT_SINCE, expiresAt: ACCT_SINCE + 3600000, current: true },
@@ -198,7 +198,6 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
             user,
             handlers: {
               'identity/su': [401, { ok: false, error: 'auth' }],
-              'grants/list': () => [200, { ok: true, grants: fxGrants.grants() }],
               'devices/list': [200, { ok: true, devices: ACCT_DEVICES }],
               'identity/passkey-list': [200, { ok: true, passkeys: [{ n: 1, name: 'Galaxy S26 Ultra', provider: 'samsung-pass', createdAt: 1760000000000, lastUsedAt: 1760000000000 }] }],
             },
@@ -226,8 +225,8 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
             /* 只展示：卡片里没有命令行 */
             await expect(d.locator('input')).toHaveCount(0);
             if (state === 'home') {
-              await expect(d.locator('[data-at-v="grants"] .sgx-pop-v')).toHaveText('5');
-              await expect(d.locator('[data-at-run]')).toHaveCount(7);
+              await expect(d.locator('[data-at-v="grants"]')).toHaveCount(0);
+              await expect(d.locator('[data-at-run]')).toHaveCount(6);
             } else await expect(d.locator('.sgx-pop-list [data-at-run]')).toHaveAttribute('data-at-run', 'su root');
           } else {
             sheet = '#sgx-term';
@@ -251,8 +250,8 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
               await run('rescue');
               await expect(form).toHaveAttribute('data-mode', 'pw', { timeout: 10000 });
             } else {
-              await run(state === 'keys' ? 'passkey' : state === 'devices' ? 'device' : 'app');
-              await expect(out.locator('.sgx-at-p')).toHaveCount(state === 'keys' ? 1 : state === 'devices' ? 2 : 5, { timeout: 10000 });
+              await run(state === 'keys' ? 'passkey' : 'device');
+              await expect(out.locator('.sgx-at-p')).toHaveCount(state === 'keys' ? 1 : 2, { timeout: 10000 });
               await expect(form).toHaveAttribute('data-mode', 'cmd');
             }
           }

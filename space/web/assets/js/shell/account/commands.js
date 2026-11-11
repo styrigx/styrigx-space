@@ -11,7 +11,7 @@ export { normCmd };
 
 /**
  * 页面入口给的名字（旧地址 /account/<子页>/ → #acct=<子页>，O1；页面上的 [data-acct-open="<名字>"]）→ 在终端里怎么开（账号卡片只展示，入口都去终端）。
- * 子页名 = 输入行预填对应的命令（profile / device / passkey / app，同账号卡片的行）；其余（空）= 打开账号卡片。
+ * 子页名 = 输入行预填对应的命令（profile / device / passkey，同账号卡片的行）；其余（空）= 打开账号卡片。
  * 旧的 reset / reauth 入口随旧账号会话删除（定稿 §十三 P4；旧地址 /account/reset/ 直接删，不跳转、不预填，Gray 11-11 17:47）。
  * @param {string} name
  * @returns {{cmd: string}}
@@ -20,7 +20,6 @@ export function layerFromPath(name) {
   const n = String(name || '').toLowerCase();
   const r = { cmd: '' };
   if (n === 'security' || n === 'keys') r.cmd = 'passkey';
-  else if (n === 'apps' || n === 'grants') r.cmd = 'app';
   else if (n === 'devices') r.cmd = 'device';
   else if (n === 'profile') r.cmd = 'profile';
   return r;

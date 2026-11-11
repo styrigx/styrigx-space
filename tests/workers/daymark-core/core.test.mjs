@@ -1,12 +1,12 @@
 // styrigx-daymark-core（workers/core）：
 // - 路由表与 src/api 接口文件一一对应
-// - /api/today 公开（CORS 只给 styrigx.com），其余先问网关要结论（SPACE.conclusion，每个请求一次）；网关出错 → 500 不是 401
-// - 鉴权（方案 4.6，P2-2）：没进门 401 unauthorized、没账号会话 401 account、没作用域 403 scope（daymark.write）
-// - 读：没登录账号只看公开，账号已登录看全部；写：非同源 403、校验、增改删
+// - /api/today 公开（CORS 只给 styrigx.com），其余按 v6 路由档问网关（SPACE.admit，每个请求每个 action 最多一次）；网关出错当没有 v6
+// - 鉴权（v6，定稿 v5.3 §十二）：没有身份 401 unauthorized、档不够 403 forbidden（写 = daymark-write，删整个专题 = root）
+// - 读：没有写组只看公开，有写组看全部；写：非同源 403、校验、增改删
 // - 今日一句：只从公开里挑，同一天固定，按北京时间换天；当天第一次请求锁进 daily_pick（加句子不变）；
 //   GET 只给今天（?d= 别的日期 / 格式不对 400）；缓存不跨过北京时间零点；边缘缓存键只认当天，写操作后清掉；
-//   记下的那句被删 / 改私密就重挑；PUT /api/today 设为今日要账号会话 + daymark.write + 同源（没进门 401、没登录账号 401 account、私密 409）
-// - 三页签：出处类型、随手一笔（没登录账号和 /api/today 永不返回）、百味专题的增删改、归属与排序、没登录账号只见公开
+//   记下的那句被删 / 改私密就重挑；PUT /api/today 设为今日要 v6 写组 + 同源（没有身份 401、档不够 403 forbidden、私密 409）
+// - 三页签：出处类型、随手一笔（没有写组和 /api/today 永不返回）、百味专题的增删改、归属与排序、没有写组只见公开
 // - 迁移 0001 + 0002 依次跑在 SQLite 上，接口照常工作
 // - wrangler.toml：不开 workers.dev，只挂 styrigx.com/daymark/api/*（旧图志域名的过渡期路由 P4-3 PR-1 删除），服务绑定网关，不持钥匙
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。
@@ -18,7 +18,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { conclusionAuth } from '../_conclusion.mjs';
+import { whoAuth } from '../_v6who.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const W = REPO + '/workers/daymark-core';
@@ -54,13 +54,13 @@ function makeD1(db = new DatabaseSync(':memory:')) {
     },
   };
 }
-/* 网关结论替身：who = null（没进门）/ 'lock'（进门、账号没登录）/ 'owner'（账号已登录、全部作用域）/ 'noscope' / 'garbage'（见 ../_conclusion.mjs） */
-const auth = (who = null, throws = false) => conclusionAuth(who, { throws });
+/* 网关 v6 替身：who = null（访客）/ 'lock'（temp，有身份没组）/ 'owner'（root）/ 'styrigx' / 'noscope'（alice，只有 listen）/ 'garbage'（见 ../_v6who.mjs） */
+const auth = (who = null, throws = false) => whoAuth(who, { throws });
 const CTX = { waitUntil() {} };
 const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/daymark';
 function call(p, { who = null, db = makeD1(), method = 'GET', body, origin = ORIGIN, throws = false } = {}) {
-  const headers = { Cookie: 'sgx-space-session=x' };
+  const headers = { Cookie: 'sgx-session=x' };
   if (origin) headers.Origin = origin;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const req = new Request(ORIGIN + p, { method, headers, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) });
@@ -103,7 +103,7 @@ test('访问表（v5 S3）快照：一档一个守卫，方法 + 路径精确匹
   assert.deepEqual(Object.keys(GUARDS).sort(), ['entry', 'public']);
 });
 
-test('访客（没进门）：读公开、写 401，带运行标记；不存在的路径没进门 401、进了门 404；网关挂了 500', async () => {
+test('访客：读公开、写 401，带运行标记；不存在的路径一律 401（路由表里没有，v6 不放行）；网关挂了当没有 v6', async () => {
   for (const p of ['/daymark/api/quotes', '/daymark/api/collections', '/daymark/api/days', '/daymark/api/today']) {
     const r = await call(p);
     assert.equal(r.status, 200, p);
@@ -112,11 +112,12 @@ test('访客（没进门）：读公开、写 401，带运行标记；不存在�
   for (const [p, method] of [['/daymark/api/quotes', 'POST'], ['/daymark/api/collections', 'DELETE'], ['/daymark/api/today', 'PUT'], ['/daymark/api/nope', 'GET'], ['/daymark/api/quotes/x', 'GET']]) {
     assert.equal((await call(p, { method, body: method === 'GET' ? undefined : {} })).status, 401, method + ' ' + p);
   }
-  assert.equal((await call('/daymark/api/nope', { who: 'owner' })).status, 404);
-  assert.equal((await call('/daymark/api/quotes', { throws: true })).status, 500);
+  assert.equal((await call('/daymark/api/nope', { who: 'owner' })).status, 401, '路由表里没有的路径：有身份也不放行');
+  assert.equal((await call('/daymark/api/quotes', { throws: true })).status, 200, '公开读：网关出错只给公开的');
+  assert.equal((await call('/daymark/api/quotes', { throws: true, method: 'POST', body: {} })).status, 401, '网关出错：当没有 v6（fail closed）');
 });
 
-test('网关回答：只认 SpaceVerifier.conclusion 的结论；看不懂的当没进门，只有旧的 lockSession / session 方法当绑定缺失', async () => {
+test('网关回答：只认 SpaceVerifier.admit 的 v6 结论；看不懂的、只有旧方法（session / lockSession / conclusion）的绑定当没有 v6', async () => {
   assert.equal((await call('/daymark/api/quotes', { who: 'garbage', method: 'POST', body: {} })).status, 401);
   assert.equal((await (await call('/daymark/api/quotes', { who: 'garbage' })).json()).showPrivate, false);
   assert.equal((await call('/daymark/api/quotes', { who: 'owner' })).status, 200);
@@ -124,12 +125,16 @@ test('网关回答：只认 SpaceVerifier.conclusion 的结论；看不懂的当
   /* 锁屏复查是网关的 /api/lock-session-check（图志根路径），不归本 Worker：本站前缀外的路径一律 404 */
   assert.equal((await call('/api/lock-session-check', { who: 'lock' })).status, 404);
   assert.equal((await call('/api/quotes', { who: 'owner' })).status, 404);
-  const req = new Request(ORIGIN + '/daymark/api/quotes', { headers: { Cookie: 'sgx-space-session=x' } });
+  const req = new Request(ORIGIN + '/daymark/api/quotes', { headers: { Cookie: 'sgx-session=x' } });
   const errs = console.error;
   console.error = () => {};
   try {
-    for (const legacy of [{ async session() { return { ok: true, who: 'owner' }; } }, { async lockSession() { return { ok: true, who: 'owner' }; } }]) {
-      assert.equal((await worker.fetch(req, { SPACE: legacy, D1_QUOTES: makeD1(), KV_SEARCH_INDEX: { async put() {} } }, CTX)).status, 500);
+    for (const legacy of [{ async session() { return { ok: true, who: 'owner' }; } }, { async lockSession() { return { ok: true, who: 'owner' }; } }, { async conclusion() { return { space: { ok: true }, account: { ok: true, scopes: ['daymark.write'] } }; } }]) {
+      const r = await worker.fetch(req, { SPACE: legacy, D1_QUOTES: makeD1(), KV_SEARCH_INDEX: { async put() {} } }, CTX);
+      assert.equal(r.status, 200);
+      assert.equal((await r.json()).showPrivate, false);
+      const w = new Request(ORIGIN + '/daymark/api/quotes', { method: 'POST', headers: { Cookie: 'sgx-session=x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: '{"text":"x"}' });
+      assert.equal((await worker.fetch(w, { SPACE: legacy, D1_QUOTES: makeD1(), KV_SEARCH_INDEX: { async put() {} } }, CTX)).status, 401);
     }
   } finally {
     console.error = errs;
@@ -145,13 +150,13 @@ test('/daymark/api/today 公开：不验会话，CORS 只给 styrigx.com，空�
   assert.equal(o.status, 204);
 });
 
-test('每个接口请求只问网关一次（index.js 问到的结论经 context.data.conclusion 传给 handler）；公开的 GET /api/today 不问；不问复验', async () => {
+test('每个接口请求最多问网关一次（守卫问到的 v6 结论经 context.data.v6 传给 handler）；公开的 GET /api/today 不问；cookie 原样转给 admit', async () => {
   const calls = [];
   const db = makeD1();
-  const env = (who) => ({ SPACE: conclusionAuth(who, { calls }), D1_QUOTES: db, KV_SEARCH_INDEX: { async put() {} } });
+  const env = (who) => ({ SPACE: whoAuth(who, { calls }), D1_QUOTES: db, KV_SEARCH_INDEX: { async put() {} } });
   const req = (p, method = 'GET', body) => new Request(ORIGIN + p, {
     method,
-    headers: { Cookie: 'sgx-space-session=x; sgx-account-session=y', Origin: ORIGIN, 'User-Agent': 'UA/2', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { Cookie: 'sgx-session=x', Origin: ORIGIN, 'User-Agent': 'UA/2', ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const go = async (who, p, method, body) => {
@@ -162,9 +167,9 @@ test('每个接口请求只问网关一次（index.js 问到的结论经 context
   let r = await go('owner', '/daymark/api/quotes', 'POST', { text: '一句' });
   assert.equal(r.res.status, 201);
   assert.equal(r.n, 1);
-  assert.deepEqual(calls[0].opts, { reauth: false });
-  assert.equal(calls[0].cookie, 'sgx-space-session=x; sgx-account-session=y');
-  assert.equal(calls[0].ctx.ua, 'UA/2');
+  assert.equal(calls[0].opts, undefined);
+  assert.equal(calls[0].cookie, 'sgx-session=x');
+  assert.equal(calls[0].path, '/daymark/api/quotes');
   const id = (await r.res.json()).quote.id;
   for (const [who, p, method, body] of [
     ['owner', '/daymark/api/quotes'],
@@ -180,11 +185,10 @@ test('每个接口请求只问网关一次（index.js 问到的结论经 context
     r = await go(who, p, method, body);
     assert.ok(r.res.status < 500, p + ' ' + r.res.status);
     assert.equal(r.n, 1, who + ' ' + (method || 'GET') + ' ' + p);
-    assert.deepEqual(calls[0].opts, { reauth: false });
   }
   r = await go('lock', '/daymark/api/quotes?id=' + id, 'DELETE');
-  assert.equal(r.res.status, 401);
-  assert.equal((await r.res.json()).error, 'account');
+  assert.equal(r.res.status, 403);
+  assert.equal((await r.res.json()).error, 'forbidden');
   assert.equal(r.n, 1);
   r = await go('owner', '/daymark/api/quotes?id=' + id, 'DELETE');
   assert.equal(r.res.status, 200);
@@ -192,21 +196,17 @@ test('每个接口请求只问网关一次（index.js 问到的结论经 context
   r = await go(null, '/daymark/api/today');
   assert.equal(r.res.status, 200);
   assert.equal(r.n, 0);
-  /* handler 被直接调用（没有 context.data.conclusion）时仍自己问网关，问到的放回 context.data */
+  /* 同一个 context 同一个 action 只问一次；旧结论的接口随应用授权删除（定稿 v5.3 §十二） */
   const A = await import(W + '/src/api/_auth.js');
   calls.length = 0;
-  const data = {};
-  const c = await A.conclusionOf({ request: req('/daymark/api/quotes'), env: env('owner'), data });
-  assert.equal(c.account.ok, true);
+  const ctx = { request: req('/daymark/api/quotes'), env: env('owner'), data: {} };
+  assert.deepEqual(await A.readAccess(ctx), { canWrite: true, showPrivate: true });
+  await A.readAccess(ctx);
   assert.equal(calls.length, 1);
-  assert.equal(data.conclusion, c);
-  await A.conclusionOf({ request: req('/daymark/api/quotes'), env: env('owner'), data });
-  assert.equal(calls.length, 1);
-  assert.deepEqual(A.visibility(c), { canWrite: true, showPrivate: true });
-  assert.equal(A.can(A.normalizeConclusion({ space: { ok: true }, account: { ok: true, scopes: ['curio.write'] } }), 'daymark.write'), false);
+  for (const gone of ['conclusionOf', 'askConclusion', 'normalizeConclusion', 'canReadPrivate', 'can', 'visibility', 'DENIED', 'SCOPE_WRITE']) assert.equal(gone in A, false, gone);
 });
 
-test('写接口四种情况（方案 4.6）：没进门 401 unauthorized、没账号 401 account、没作用域 403 scope、都有 2xx', async () => {
+test('写接口（v6 路由档）：没有身份 401 unauthorized、有身份没写组 403 forbidden、有档 2xx', async () => {
   const seed = makeD1();
   const q = await add(seed, { text: '种子' });
   const c = (await (await call('/daymark/api/collections', { who: 'owner', db: seed, method: 'POST', body: { name: '种子专题' } })).json()).collection;
@@ -224,12 +224,11 @@ test('写接口四种情况（方案 4.6）：没进门 401 unauthorized、没�
     let r = await call(p, { db: seed, method, body });
     assert.equal(r.status, 401, tag);
     assert.equal((await r.json()).error, 'unauthorized', tag);
-    r = await call(p, { who: 'lock', db: seed, method, body });
-    assert.equal(r.status, 401, tag);
-    assert.equal((await r.json()).error, 'account', tag);
-    r = await call(p, { who: 'noscope', db: seed, method, body });
-    assert.equal(r.status, 403, tag);
-    assert.deepEqual(await r.json(), { ok: false, error: 'scope', scope: 'daymark.write' }, tag);
+    for (const who of ['lock', 'noscope']) {
+      r = await call(p, { who, db: seed, method, body });
+      assert.equal(r.status, 403, tag + ' ' + who);
+      assert.deepEqual(await r.json(), { ok: false, error: 'forbidden' }, tag + ' ' + who);
+    }
     r = await call(p, { who: 'owner', db: seed, method, body });
     assert.equal(r.status, okStatus, tag);
   }
@@ -264,7 +263,7 @@ test('写：非同源 403、没 Origin 403、没写权限 403、未登录 401', 
   const body = { text: 'x' };
   assert.equal((await call('/daymark/api/quotes', { who: 'owner', method: 'POST', body, origin: 'https://evil.com' })).status, 403);
   assert.equal((await call('/daymark/api/quotes', { who: 'owner', method: 'POST', body, origin: null })).status, 403);
-  assert.equal((await call('/daymark/api/quotes', { who: 'lock', method: 'POST', body })).status, 401);
+  assert.equal((await call('/daymark/api/quotes', { who: 'lock', method: 'POST', body })).status, 403);
   assert.equal((await call('/daymark/api/quotes', { method: 'POST', body })).status, 401);
 });
 
@@ -281,7 +280,7 @@ test('新增：校验与规整；坏 JSON 400；空句子 400', async () => {
   assert.equal((await call('/daymark/api/quotes', { who: 'owner', db, method: 'POST', body: { text: 'x', visibility: 'secret' } })).status, 400);
 });
 
-test('读：没登录账号只拿公开，账号已登录拿全部；响应是 canWrite / showPrivate，没有旧等级字段', async () => {
+test('读：没有写组只拿公开，有写组（v6 action private）拿全部；响应是 canWrite / showPrivate，没有旧等级字段', async () => {
   const db = makeD1();
   await add(db, { text: '公开' });
   await add(db, { text: '私密', visibility: 'private' });
@@ -295,9 +294,11 @@ test('读：没登录账号只拿公开，账号已登录拿全部；响应是 c
   assert.equal(o.showPrivate, true);
   assert.equal('admin' in o, false); // old-name guard
   assert.equal(o.quotes.length, 2);
-  /* 账号已登录但没有 daymark.write：私密照看（含随手一笔键），不能写 */
+  /* 有身份但没有写组（alice 只有 listen）：只拿公开、不能写 */
   const n = await (await call('/daymark/api/quotes', { who: 'noscope', db })).json();
-  assert.deepEqual([n.canWrite, n.showPrivate, n.quotes.length, 'note' in n.quotes[0]], [false, true, 2, true]);
+  assert.deepEqual([n.canWrite, n.showPrivate, n.quotes.length], [false, false, 1]);
+  const st = await (await call('/daymark/api/quotes', { who: 'styrigx', db })).json();
+  assert.deepEqual([st.canWrite, st.showPrivate, st.quotes.length, 'note' in st.quotes[0]], [true, true, 2, true]);
 });
 
 test('改、删：只改给的字段；id 不对 400；不存在 404', async () => {
@@ -312,7 +313,7 @@ test('改、删：只改给的字段；id 不对 400；不存在 404', async () 
   assert.equal((await call('/daymark/api/quotes?id=zz', { who: 'owner', db, method: 'PUT', body: { text: 'y' } })).status, 400);
   assert.equal((await call('/daymark/api/quotes?id=000000000000', { who: 'owner', db, method: 'PUT', body: { text: 'y' } })).status, 404);
   assert.equal((await call('/daymark/api/quotes?id=' + q.id, { who: 'owner', db, method: 'PUT', body: {} })).status, 400);
-  assert.equal((await call('/daymark/api/quotes?id=' + q.id, { who: 'lock', db, method: 'DELETE' })).status, 401);
+  assert.equal((await call('/daymark/api/quotes?id=' + q.id, { who: 'lock', db, method: 'DELETE' })).status, 403);
   assert.equal((await call('/daymark/api/quotes?id=' + q.id, { who: 'owner', db, method: 'DELETE' })).status, 200);
   assert.equal((await call('/daymark/api/quotes?id=' + q.id, { who: 'owner', db, method: 'DELETE' })).status, 404);
 });
@@ -424,7 +425,7 @@ test('随手一笔不外泄：账号未登录的列表、专题、/api/today 都
 test('百味专题：新建校验、写操作只给账号已登录（可写） + 同源', async () => {
   const db = makeD1();
   assert.equal((await call('/daymark/api/collections', { who: 'owner', db, method: 'POST', body: { name: ' ' } })).status, 400);
-  assert.equal((await call('/daymark/api/collections', { who: 'lock', db, method: 'POST', body: { name: 'x' } })).status, 401);
+  assert.equal((await call('/daymark/api/collections', { who: 'lock', db, method: 'POST', body: { name: 'x' } })).status, 403);
   assert.equal((await call('/daymark/api/collections', { who: 'owner', db, method: 'POST', body: { name: 'x' }, origin: 'https://evil.com' })).status, 403);
   assert.equal((await call('/daymark/api/collections', { db, method: 'POST', body: { name: 'x' } })).status, 401);
   assert.equal((await call('/daymark/api/collections', { db })).status, 200, '读公开（v5 S3）');
@@ -477,7 +478,7 @@ test('百味专题：归入（句子的 collections）、排序和移出（专�
   assert.equal((await call('/daymark/api/collections?id=000000000000', { who: 'owner', db, method: 'PUT', body: { name: 'y' } })).status, 404);
   assert.equal((await call('/daymark/api/collections?id=zz', { who: 'owner', db, method: 'DELETE' })).status, 400);
   /* 删专题：句子还在，归属没了 */
-  assert.equal((await call('/daymark/api/collections?id=' + c.id, { who: 'lock', db, method: 'DELETE' })).status, 401);
+  assert.equal((await call('/daymark/api/collections?id=' + c.id, { who: 'lock', db, method: 'DELETE' })).status, 403);
   assert.equal((await call('/daymark/api/collections?id=' + c.id, { who: 'owner', db, method: 'DELETE' })).status, 200);
   assert.equal((await call('/daymark/api/collections?id=' + c.id, { who: 'owner', db, method: 'DELETE' })).status, 404);
   const left = (await (await call('/daymark/api/quotes', { who: 'owner', db })).json()).quotes;
@@ -717,26 +718,26 @@ test('锁定：resolveDay 同时首挑以先写进去的为准；persist=false �
   assert.equal((await TD.resolveDay(db, day, { persist: true })).id, other);
 });
 
-test('设为今日：账号会话 + daymark.write + 同源；没进门 401、没登录账号 401 account、没作用域 403 scope、非同源 / 没 Origin 403；GET 才公开', async () => {
+test('设为今日：v6 写组 + 同源；没有身份 401、档不够 403 forbidden、非同源 / 没 Origin 403；GET 才公开', async () => {
   const db = makeD1();
   for (let i = 0; i < 6; i++) await add(db, { text: '句' + i });
   const before = (await getToday(db)).quote.id;
   const target = db.raw.prepare('SELECT id FROM quotes WHERE id != ? ORDER BY id').get(before).id;
   assert.equal((await setToday(db, target, { who: null })).status, 401);
   const na = await setToday(db, target, { who: 'lock' });
-  assert.equal(na.status, 401);
-  assert.equal((await na.json()).error, 'account');
+  assert.equal(na.status, 403);
+  assert.equal((await na.json()).error, 'forbidden');
   assert.equal((await setToday(db, target, { who: 'noscope' })).status, 403);
   assert.equal((await setToday(db, target, { origin: 'https://sub.styrigx.com' })).status, 403); /* 接口在主域名：别的子域名源算跨源 */
   assert.equal((await setToday(db, target, { origin: 'https://evil.com' })).status, 403);
   assert.equal((await setToday(db, target, { origin: null })).status, 403);
-  assert.equal((await call('/daymark/api/today', { db, method: 'PUT', body: { id: target }, throws: true })).status, 500);
+  assert.equal((await call('/daymark/api/today', { db, method: 'PUT', body: { id: target }, throws: true })).status, 401, '网关出错：当没有 v6');
   assert.equal((await getToday(db)).quote.id, before, '没设成就不变');
   assert.equal(pickRow(db).set_by, 'auto');
   assert.equal(accessOf('GET', '/api/today'), 'public');
   assert.equal(accessOf('OPTIONS', '/api/today/'), 'public');
   assert.equal(accessOf('PUT', '/api/today'), 'entry');
-  assert.equal((await call('/daymark/api/today', { db, method: 'DELETE', who: 'owner' })).status, 405);
+  assert.equal((await call('/daymark/api/today', { db, method: 'DELETE', who: 'owner' })).status, 401, '路由表里没有的方法：v6 不放行（守卫在 405 之前）');
 });
 
 test('设为今日：账号已登录（可写）时改写当天这一句；所有人的 GET 跟着变；之后加句子也不变；校验 / 404 / 私密 409', async () => {
@@ -820,7 +821,7 @@ async function withCaches(fn) {
 async function callWait(p, o = {}) {
   const pending = [];
   const ctx = { waitUntil: (x) => pending.push(x) };
-  const headers = { Cookie: 'sgx-space-session=x', Origin: 'origin' in o ? o.origin : ORIGIN };
+  const headers = { Cookie: 'sgx-session=x', Origin: 'origin' in o ? o.origin : ORIGIN };
   if (o.body !== undefined) headers['Content-Type'] = 'application/json';
   const req = new Request(ORIGIN + p, { method: o.method || 'GET', headers, body: o.body === undefined ? undefined : JSON.stringify(o.body) });
   const res = await worker.fetch(req, { SPACE: auth(o.who || null), D1_QUOTES: o.db, KV_SEARCH_INDEX: { async put() {} } }, ctx);
@@ -905,7 +906,7 @@ test('边缘缓存：设为今日、改句子（改私密 / 删）之后清掉�
     assert.notEqual((await (await callWait('/daymark/api/today', { db })).json()).quote.id, target);
     /* 没成功的写（没登录账号 401 account）不清 */
     log.del.length = 0;
-    assert.equal((await callWait('/daymark/api/quotes?id=' + target, { db, method: 'DELETE', who: 'lock' })).status, 401);
+    assert.equal((await callWait('/daymark/api/quotes?id=' + target, { db, method: 'DELETE', who: 'lock' })).status, 403);
     assert.deepEqual(log.del, []);
   });
 });
@@ -934,7 +935,7 @@ test('/api/days：公开（v5 S3）；只读已记下的日子、只出公开句
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM daily_pick').get().n, before, '只读不写');
   const r = await (await call('/daymark/api/days?from=' + d2 + '&to=' + d2, { db, who: 'lock' })).json();
   assert.deepEqual(r.days.map((x) => x.day), [d2]);
-  assert.equal((await call('/daymark/api/days', { db, who: 'owner', method: 'POST', body: {} })).status, 405);
+  assert.equal((await call('/daymark/api/days', { db, who: 'owner', method: 'POST', body: {} })).status, 401, '路由表里没有的方法：v6 不放行');
 });
 
 test('/api/days 区间：默认今天往前 13 天；to 截到今天；坏日期 / from 晚于 to / 超过 31 天 → 400 bad-day', async () => {

@@ -80,7 +80,6 @@ account:
   accountSettings: 账号设置
   devices: 设备
   accountSecurity: 账号安全
-  appAccess: 应用授权
   sync: 同步
   cloudSync: 云同步
   aiModel: AI 模型
@@ -372,35 +371,6 @@ js:
     slDays: '{n} 天'
     slWhen: '{d} {t}'
     sessExp: 会话已失效，请回到锁屏重新解锁
-    gaRow: 应用授权
-    gaSearch: 按名称搜索
-    gaAll: 全部
-    gaOn: 已授权
-    gaOff: 已取消授权
-    gaNone: 没有符合条件的应用。
-    gaScopeLabel: 作用域
-    gaAtLabel: 授权时间
-    gaDevLabel: 授权时的设备
-    gaDevGone: 已退出的设备
-    gaDevUnknown: 未知设备
-    gaSensitive: '{v}另要验证账号'
-    gaRevoke: 取消授权
-    gaRevoked: 已取消{v}的授权
-    gaRegrant: 重新授权
-    gaRegranted: 已重新授权{v}
-    gaVerifyTitle: 验证账号后重新授权
-    gaDesc-curio: 添加、修改、删除奇趣里的收藏、设备和游戏（含照片）
-    gaDesc-daymark: 添加、修改、删除日刻的句子和合集，设定今日
-    gaDesc-prefs: 把设置同步到账号，在其他设备上取回
-    gaDesc-wellbeing: 记录数字健康的使用时长
-    gaDesc-avatar: 更换或移除账号头像
-    gaDesc-profile: 修改姓名、昵称、签名和联系邮箱
-    gaSens-curio: 批量导入书签
-    gaNoScope: '{v}未获账号授权'
-    gaConsentTitle: 允许{v}使用你的账号？
-    gaConsentSub: 授权后，{v}可以：
-    gaAllow: 授权
-    gaDeny: 拒绝
     syncNoScope: 设置同步未获账号授权，只存本机
     accounPasskey: 通行密钥
     accounSignInWithPasskey: 使用通行密钥登录
@@ -413,15 +383,8 @@ js:
     accounRetry: 重试
     accounUsePassword: 使用密码
     accounSomethingWentWrongPlease: 出错了，请重试
-    gaSensSep: ；
     securiNewTemporaryKey: 新建临时钥匙
     securiTemporaryKey: 临时钥匙
-    app_curio: "奇趣"
-    app_daymark: "日刻"
-    app_prefs: "设置同步"
-    app_wellbeing: "数字健康"
-    app_avatar: "头像"
-    app_profile: "个人资料"
 filesIndex:
   app:
     settings:

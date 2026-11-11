@@ -1,0 +1,14 @@
+-- v6 P4 收尾：应用授权整套删除（定稿 v6-identity-final.md v5.4 §十一、§十二「应用授权整套删除」；Gray 2026-11-11 19:41 批准，19:59、20:04 定为部署绿后直接 drop）。
+--
+-- 部署绿后执行：等本 PR 那次账号 Worker 部署（deploy-account-worker）变绿之后再执行；不进 workers/account/migrations/，CI 不会自动跑。
+-- 执行前确认 D1 Time Travel 时间点：
+--   npx wrangler d1 execute styrigx-account --remote --file docs/ops/v6-p4-drop-account-grant.sql
+--
+-- account_grant（app, record, granted_at；只有主键，没有单独的索引）：
+-- - 读写它的只有 workers/account/src/core/grants.js（listGrants / addGrant / revokeGrant），本 PR 随 /api/account/grants 一起删除；
+--   删后 workers/ space/ 的运行代码里没有任何 SELECT / INSERT / UPDATE / DELETE account_grant。
+-- - 本 PR 同时从 workers/account/src/lib/db.js ACCOUNT_SCHEMA（兜底建表清单）里删了它的建表语句：drop 之后不会被兜底建回。
+-- - 仍提到表名的只有历史迁移 workers/account/migrations/0005_account_tables.sql（不改）。
+--
+-- 不动：account_audit（仍有写入方 workers/account/src/core/password.js 的 password-cooldown）。
+DROP TABLE IF EXISTS account_grant;

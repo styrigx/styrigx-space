@@ -7,7 +7,7 @@
 // SQL 用 node:sqlite 真跑（CI 用 Node 22）。运行：node --test tests/workers/search-index.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { conclusionAuth } from '../_conclusion.mjs';
+import { whoAuth } from '../_v6who.mjs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,15 +52,15 @@ function makeR2() {
   const m = new Map();
   return { m, async put(k, v) { m.set(k, v); }, async get(k) { return m.has(k) ? { body: m.get(k), httpMetadata: {} } : null; }, async delete(k) { m.delete(k); } };
 }
-/* 网关结论替身（../_conclusion.mjs）：'owner' 账号已登录、'lock' 进门没登录账号 */
-const auth = (who) => conclusionAuth(who);
+/* 网关 v6 替身（../_v6who.mjs）：'owner' root、'lock' 有身份没组 */
+const auth = (who) => whoAuth(who);
 const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/curio';
 
 /** 发请求并等完 waitUntil 里的活 */
 async function call(env, p, { who = 'owner', method = 'GET', body } = {}) {
   const pending = [];
-  const headers = { Cookie: 'sgx-space-session=x', Origin: ORIGIN };
+  const headers = { Cookie: 'sgx-session=x', Origin: ORIGIN };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await worker.fetch(
     new Request(ORIGIN + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }),
@@ -175,7 +175,7 @@ test('改收藏成功后 waitUntil 重建并 put site:curio；读接口、失败
   r = await call(env, '/curio/api/links', { method: 'POST', body: { op: 'link.del', id: 999 } });
   assert.equal(r.res.status, 404);
   r = await call(env, '/curio/api/links', { who: 'lock', method: 'POST', body: { op: 'cat.add', name: { zh: 'x' } } });
-  assert.equal(r.res.status, 401); /* 没登录账号：401 account，不重建 */
+  assert.equal(r.res.status, 403); /* 档不够：403 forbidden，不重建 */
   assert.equal(env.KV_SEARCH_INDEX.puts, 2);
 });
 

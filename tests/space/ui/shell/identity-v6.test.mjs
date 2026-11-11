@@ -74,7 +74,8 @@ test('man：访客不列 v6 身份命令；v6 普通用户列 whoami / su / grou
   for (const c of ['whoami', 'su', 'groups', 'who', 'lock', 'passwd', 'passkey', 'device', 'profile', 'sudo', 'exit']) assert.ok(u.includes(c), 'user 列 ' + c);
   for (const c of ['useradd', 'userdel', 'usermod', 'sub', 'app', 'share']) assert.ok(!u.includes(c), 'user 不列 ' + c);
   const r = await names('u:root');
-  for (const c of ['whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'passwd', 'lock', 'sub', 'app', 'device', 'profile']) assert.ok(r.includes(c), 'root6 列 ' + c);
+  for (const c of ['whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'passwd', 'lock', 'sub', 'device', 'profile']) assert.ok(r.includes(c), 'root6 列 ' + c);
+  assert.ok(!r.includes('app'), '应用授权删了（定稿 v5.3 §十二）：root6 也不列 app');
   assert.ok(!r.includes('su'), 'root 不再列 su');
   assert.ok(!r.includes('share'), 'v6 P4：share 删了');
 });

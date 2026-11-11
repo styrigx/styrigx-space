@@ -205,13 +205,13 @@ test('白名单只在 precedence() 一处：救援会话 whoami / groups / passk
   for (const action of ['whoami', 'groups', 'passkey-list']) assert.equal((await call(env, { action }, tok)).status, 200, action);
   for (const body of [{ action: 'useradd', name: 'x1' }, { action: 'userdel', name: 'styrigx' }, { action: 'usermod', op: '-aG', groups: ['ai'], name: 'styrigx' },
     { action: 'passwd-user', name: 'styrigx' }, { action: 'who' }, { action: 'su', user: 'styrigx', password: PW.styrigx }, { action: 'idle' },
-    { action: 'sudo', password: PW.root, command: { action: 'who' } }, { action: 'sudo', password: PW.root, command: { method: 'POST', path: '/api/account/grants', body: { action: 'list' } } }]) {
+    { action: 'sudo', password: PW.root, command: { action: 'who' } }, { action: 'sudo', password: PW.root, command: { method: 'POST', path: '/api/account/proxy', body: { action: 'status' } } }]) {
     const r = await call(env, body, tok);
     assert.equal(r.status, 403, JSON.stringify(body));
     assert.equal(r.json.error, 'permission');
   }
   const req = new Request(ORIGIN + '/', { headers: { Cookie: 'sgx-session=' + tok } });
-  for (const [m, p] of [['GET', '/curio/api/export'], ['POST', '/api/account/grants'], ['POST', '/api/account/proxy'], ['POST', '/curio/api/import'],
+  for (const [m, p] of [['GET', '/curio/api/export'], ['POST', '/api/account/proxy'], ['POST', '/curio/api/import'],
     ['DELETE', '/daymark/api/collections'], ['GET', '/api/space-audit'], ['PUT', '/api/profile'], ['GET', '/api/prefs'], ['POST', '/api/ai']]) {
     const c = await AD.admitRoute(env, req, m, p);
     assert.equal(c.allowed, false, m + ' ' + p);

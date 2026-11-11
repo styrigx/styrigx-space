@@ -8,7 +8,7 @@
 // 响应头：Cache-Control private, no-cache + ETag + Vary: Cookie（_image.js）：浏览器每次用前都回来验会话，内容没变回 304。
 //   ETag 由 R2 key 算（key 带时间，换照片 = 换 key = 换 ETag），304 不用读 R2。前端 ?v= 照旧用来换地址。
 import { err, json, methodNotAllowed } from './_lib.js';
-import { conclusionOf, canReadPrivate, readAccess } from './_auth.js';
+import { readAccess } from './_auth.js';
 import { guardWrite, idParam } from './_write.js';
 import { ensureItemSchema, KINDS, itemDb } from './_items.js';
 import { ensureMovieSchema, MOVIE_KIND } from './_movies.js';
@@ -40,7 +40,6 @@ async function ensureKind(db, kind) {
 
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const c = await conclusionOf(context);
   const t = target(request);
   if (!t) return err('bad-id', 400);
   const db = photoDb(env, t.kind); // 设备 → D1_DEVICES，游戏 → D1_GAMES，电影 → D1_MOVIES
@@ -48,7 +47,7 @@ export async function onRequestGet(context) {
   await ensureKind(db, t.kind);
   const row = await db.prepare(`SELECT ${t.K.photo} AS photo, ${t.K.hasPrivate === false ? '0' : 'private'} AS private FROM ${t.K.table} WHERE id = ?1`).bind(t.id).first();
   if (!row || !row.photo) return err('not-found', 404);
-  if (row.private && !canReadPrivate(c) && !(await readAccess(context)).showPrivate) return err('not-found', 404);
+  if (row.private && !(await readAccess(context)).showPrivate) return err('not-found', 404);
   /* 会话（index.js）和可见性（上一行）都过了才看缓存 */
   const etag = await etagOf(row.photo);
   if (etagMatches(request, etag)) return notModified(etag);

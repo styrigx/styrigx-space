@@ -17,7 +17,7 @@ import harness from './_harness.cjs';
 export const derToPem = harness.derToPem;
 /** @type {(seed?: Record<string, any>, opts?: {throwOn?: ((k: string) => boolean) | null}) => any} */
 export const makeKV = harness.makeKV;
-/** @type {(opts?: {migrations?: boolean, epochs?: Record<string, number>, legacyKv?: any}) => any} */
+/** @type {(opts?: {migrations?: boolean}) => any} */
 export const makeAuthD1 = harness.makeAuthD1;
 
 /** 同一个 KV 替身对应同一个 D1 替身（测试里常常对同一份 kv 多次拼 env，状态要跟着走） */
@@ -25,8 +25,7 @@ const d1ByKv = new WeakMap();
 
 /**
  * 给网关 env 补上 D1 绑定（D1_SPACE / D1_ACCOUNT_AUTH / D1_ROOT_AUTH，正式与预览都绑同一个库），返回同一个 env。
- * db 不给：按 env.KV_LOCK_DOOR（测试里那份「上线前的 KV」）取：第一次新建一个跑过迁移的库，并把这份 KV 当作导入脚本的来源
- * （makeAuthD1 legacyKv：模拟部署前跑过 space/scripts/migrate-kv-to-d1.mjs）；同一份 kv 拿到同一个库。网关代码本身不读 env 里的 KV。
+ * db 不给：按 env.KV_LOCK_DOOR 取：第一次新建一个跑过迁移的库，同一份 kv 拿到同一个库。网关代码本身不读 env 里的 KV。
  * @param {any} env @param {any} [db]
  */
 export function withAuthD1(env, db) {
@@ -47,7 +46,7 @@ export function withAuthD1(env, db) {
  */
 export function authD1For(kv) {
   let d = d1ByKv.get(kv);
-  if (!d) { d = makeAuthD1({ legacyKv: kv }); d1ByKv.set(kv, d); }
+  if (!d) { d = makeAuthD1(); d1ByKv.set(kv, d); }
   return d;
 }
 /**

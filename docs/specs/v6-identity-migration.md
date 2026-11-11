@@ -1,5 +1,7 @@
 # v6 身份统一：数据迁移对照表（P1）
 
+> 2026-11-11 v6 P4 收尾：生成脚本 `space/scripts/v6-identity-migrate.mjs` 及其单测已删除（Gray 20:11 批准）；下文提到的脚本用法是当时的记录。旧进站表 password / passkey / user_handle 等的 drop 见 `docs/ops/v6-p4-drop-space-legacy.sql`。
+
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-005 |

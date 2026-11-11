@@ -7,10 +7,9 @@
  * 请求顺序（下面的 /api/* 都是去掉 /daymark 前缀后的路径，公开地址是 styrigx.com/daymark/api/*）：
  *   1. 访问档（v5 S3）：routes.js ROUTE_ACCESS 按「方法 + 路径」给出 public / entry（不在表里 = entry），在这里套上那一档的守卫
  *      （api/_auth.js GUARDS）。public：今日一句（主站首页跨站调用，带 CORS，只给北京时间的今天，边缘缓存最多 60 秒，见 api/today.js）、
- *      句子 / 专题 / 往日的读（没登录账号只拿公开的）。entry：没进门 → 401 unauthorized（不 302，fetch 不跟跳转）。
- *      结论放进 context.data.conclusion，handler 用 conclusionOf(context) 直接取，每个请求最多问网关一次。
- *   2. 按路由表交给 src/api/<路径>.js；读私密（私密句子、随手一笔）要账号会话（account.ok），
- *      写要账号会话 + 作用域 daymark.write + 同源（_auth.js requireScope）
+ *      句子 / 专题 / 往日的读（没有 v6 档只拿公开的）。entry：经网关 SpaceVerifier.admit 问 v6 会话的档，没有身份 → 401 unauthorized（不 302，fetch 不跟跳转）。
+ *   2. 按路由表交给 src/api/<路径>.js；读私密（私密句子、随手一笔）按 v6 action 'private' 的档（_auth.js readAccess），
+ *      写按路由表的档 + 同源（_auth.js requireScope）
  * 不在路由表里的路径 → 404；方法不支持 → 405。
  *
  * 全站搜索索引（src/search-index.js）：写接口成功后用 ctx.waitUntil 重建 KV site:daymark；

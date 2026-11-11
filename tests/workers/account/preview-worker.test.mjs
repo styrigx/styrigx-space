@@ -25,11 +25,11 @@ test('preview-worker：网关那一半没有任何账号钥匙 / 账号库，有
   assert.equal(typeof g.ACCOUNT_VERIFIER.auditRoot, 'function');
 });
 
-test('preview-worker：账号那一半只拿账号的绑定，没有网关的库；v6 P4 起 SGX_SPACE_* 与两把旧恢复钥匙都不在 env 键表里', () => {
+test('preview-worker：账号那一半只拿账号的绑定，没有网关的库；v6 P4 起 SGX_SPACE_* 与两把旧恢复钥匙、账号签名钥匙对都不在 env 键表里', () => {
   const a = pw.accountEnvOf({ ...FULL, SGX_SPACE_PRIVATE: 'x', SGX_ACCOUNT_RECOVERY_KEY: 'y' });
-  for (const k of ['SGX_SPACE_PRIVATE', 'SGX_ACCOUNT_RECOVERY_KEY', 'D1_SPACE']) assert.equal(a[k], undefined, k);
-  for (const k of ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'D1_ACCOUNT', 'ASSETS']) assert.equal(a[k], FULL[k], k);
-  assert.deepEqual(pw.ACCOUNT_ENV_KEYS.filter((k) => /SGX_SPACE_|RECOVERY_KEY/.test(k)), []);
+  for (const k of ['SGX_SPACE_PRIVATE', 'SGX_ACCOUNT_RECOVERY_KEY', 'D1_SPACE', 'SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC']) assert.equal(a[k], undefined, k);
+  for (const k of ['SGX_ACCOUNT_PASSWORD_PEPPER', 'D1_ACCOUNT', 'ASSETS']) assert.equal(a[k], FULL[k], k);
+  assert.deepEqual(pw.ACCOUNT_ENV_KEYS.filter((k) => /SGX_SPACE_|RECOVERY_KEY|SGX_ACCOUNT_PRIVATE|SGX_ACCOUNT_PUBLIC/.test(k)), []);
 });
 
 test('preview-worker：ACCOUNT.fetch 只认 v6 会话；没有的 /api/* → 401，响应带 X-SGX-Runtime: account', async () => {

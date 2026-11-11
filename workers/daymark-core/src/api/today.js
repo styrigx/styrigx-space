@@ -10,7 +10,7 @@
 //   边缘用 caches.default 存一份（键带当天日期，换天自然失效），锁屏 / 首页的匿名流量大多不碰 D1。
 //   主人改了今日（或增删改了句子）后，本机房的边缘缓存当场清掉；别的机房和浏览器最多一分钟跟上（和以前的 max-age=60 一样）。
 // PUT（账号会话 + 作用域 daymark.write + 同源，同其他写接口）：余响「设为今日」。body {id}，改写北京时间今天的那一句，返回同 GET 的形状。
-//   错误：400 bad-json / bad-id；401 unauthorized（没进门）/ account（没登录账号）；403 origin / scope；404 not-found；409 private（私密句子不能设为今日）。
+//   错误：400 bad-json / bad-id；401 unauthorized（没有 v6 身份）；403 origin / forbidden；404 not-found；409 private（私密句子不能设为今日）。
 import { json, err } from './_lib.js';
 import { ensureSchema, dayInShanghai, ID_RE } from './_quotes.js';
 import { resolveDay, setPick, publicQuote } from './_today.js';

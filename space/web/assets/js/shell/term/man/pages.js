@@ -23,11 +23,6 @@ export const PAGES = Object.freeze({
   passwd: { d: 'change the account password', syn: ['passwd'], auth: 'signed in; asks your current password first' },
   passkey: { d: 'list, add or remove account passkeys', syn: ['passkey', 'passkey add', 'passkey rm <n>'], auth: 'signed in' },
   device: { d: 'list signed-in devices, or sign one out', syn: ['device', 'device rm <n>', 'device rm --all'], auth: 'signed in' },
-  app: {
-    d: 'list app access, allow or deny an app', syn: ['app', 'app allow <n>', 'app deny <n>'],
-    desc: ['app: every app with its scopes, when and on which device it was allowed.', 'allow: give an app access again. deny: take it away (asks y/N); the app can still read, it just can’t change anything.'],
-    auth: 'root only; allow needs no reauth',
-  },
   profile: {
     d: 'show or change your profile and photo', syn: ['profile', 'profile set name | nick | sign | email <value>', 'profile avatar'],
     desc: ['profile: name, nickname, signature and email (a site default shows when you haven’t set one).', 'set: change one field; the whole site follows at once. Name up to 40, nickname up to 32, email checked for format.', 'avatar: pick a photo and crop it, or remove yours.'],

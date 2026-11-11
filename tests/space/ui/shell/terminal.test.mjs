@@ -43,7 +43,7 @@ function fakeLayers() {
   const calls = [];
   const rec = (n) => (...a) => calls.push([n, ...a]);
   const acct = { passkeyList: rec('acct.passkeyList'), cmdPasskeyAdd: rec('acct.cmdPasskeyAdd'), passkeyRm: rec('acct.passkeyRm'),
-    deviceList: rec('acct.deviceList'), deviceRm: rec('acct.deviceRm'), deviceRmAll: rec('acct.deviceRmAll'), appList: rec('acct.appList'), appAllow: rec('acct.appAllow'), appDeny: rec('acct.appDeny'),
+    deviceList: rec('acct.deviceList'), deviceRm: rec('acct.deviceRm'), deviceRmAll: rec('acct.deviceRmAll'), 
     profileShow: rec('acct.profileShow'), profileSet: rec('acct.profileSet'), profileAvatar: rec('acct.profileAvatar'), cmdSub: rec('acct.cmdSub') };
   const ident = { hasSession: () => true, cmdExit: (...a) => { calls.push(['ident.cmdExit', ...a]); return ident.session; }, session: false, cmdLock: rec('ident.cmdLock'), cmdPasswd: rec('ident.cmdPasswd'), cmdSudo: rec('ident.cmdSudo') };
   return { v: { acct, ident }, calls };
@@ -63,11 +63,11 @@ test('parse：空行 null；命令名小写；参数按空白切；rest 保留�
 
 
 test('命令表（v5 S5 + sub v3.1 + S9 profile）：一张表；help / tty / tempkey / sub-* 没有了；sub 一条带子命令', () => {
-  assert.deepEqual(COMMANDS, ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find', 'ask', 'sudo', 'lock', 'passwd', 'passkey', 'device', 'app', 'profile', 'sub',
-    'whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'rescue'], 'v6 身份命令（P2b）排最后；P3 救援入口 rescue；v6 P4 删 share');
-  for (const gone of ['help', 'tty', 'tempkey', 'sub-key', 'sub-link', 'sub-refresh', 'sub-mv', 'share']) assert.ok(!COMMANDS.includes(gone), gone);
+  assert.deepEqual(COMMANDS, ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find', 'ask', 'sudo', 'lock', 'passwd', 'passkey', 'device', 'profile', 'sub',
+    'whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'rescue'], 'v6 身份命令（P2b）排最后；P3 救援入口 rescue；v6 P4 删 share；应用授权删 app（定稿 v5.3 §十二）');
+  for (const gone of ['help', 'tty', 'tempkey', 'sub-key', 'sub-link', 'sub-refresh', 'sub-mv', 'share', 'app']) assert.ok(!COMMANDS.includes(gone), gone);
   assert.deepEqual(ARGS.sub, ['show', 'add', 'upload', 'mv', 'rm', 'enable', 'disable', 'key', 'token']);
-  assert.deepEqual(ARGS.app, ['allow', 'deny']);
+  assert.equal(ARGS.app, undefined);
   assert.deepEqual(ARGS.profile, ['set', 'avatar']);
   assert.deepEqual(ARGS.sudo, [], 'v6 P4：旧写法 styrigx / root / -v 的补全删了（v6 写法的补全不在本 PR 加）');
   assert.equal(ARGS.lock, undefined, 'v6 P4：lock 没有参数了');
@@ -108,8 +108,6 @@ test('complete：第三个词（S9）：sub token → reset、profile set → �
   assert.deepEqual(complete('profile s'), { line: 'profile set ', options: [] });
   assert.deepEqual(complete('profile set n'), { line: 'profile set n', options: ['name', 'nick'] });
   assert.deepEqual(complete('profile set e'), { line: 'profile set email', options: [] });
-  assert.deepEqual(complete('app a'), { line: 'app allow', options: [] });
-  assert.deepEqual(complete('app d'), { line: 'app deny', options: [] });
   assert.deepEqual(complete('passkey add x'), { line: 'passkey add x', options: [] });
 });
 
@@ -179,16 +177,16 @@ test('createWho（v6 P4）：只看 v6 whoami；没有旧进站 / 账号身份�
   assert.equal(w.get(), 'nobody');
 });
 
-test('man 按身份列（唯一判断点 listedFor）：nobody 列 find 不列 ask、没有账号命令；v6 用户列自己的账号命令；root 多 ask / app / sub 和用户管理', async () => {
+test('man 按身份列（唯一判断点 listedFor）：nobody 列 find 不列 ask、没有账号命令；v6 用户列自己的账号命令；root 多 ask / sub 和用户管理', async () => {
   const { act } = fakeAct();
   const names = async (w) => (await run(createShell({ act, storage: mem(), who: fixedWho(w) }), 'man')).out.slice(1).map((o) => o.seg[0][1]);
   const base = ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme'];
   assert.deepEqual(await names('nobody'), base.concat(['find', 'sudo']));
   assert.deepEqual(await names('u:alice'), base.concat(['sudo', 'lock', 'passwd', 'passkey', 'device', 'profile', 'whoami', 'su', 'groups', 'who']));
-  assert.deepEqual(await names('u:root'), base.concat(['ask', 'sudo', 'lock', 'passwd', 'passkey', 'device', 'app', 'profile', 'sub', 'whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod']));
+  assert.deepEqual(await names('u:root'), base.concat(['ask', 'sudo', 'lock', 'passwd', 'passkey', 'device', 'profile', 'sub', 'whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod']));
   /* Tab 补全也只补这个身份列出的命令 */
   assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('nobody') }).complete('a'), { line: 'a', options: [] });
-  assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('u:root') }).complete('a'), { line: 'a', options: ['ask', 'app'] });
+  assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('u:root') }).complete('a'), { line: 'ask ', options: [] });
   assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('nobody') }).complete('pr'), { line: 'pr', options: [] }, 'profile 访客不列');
 });
 
@@ -280,13 +278,13 @@ test('theme / ask / open：先打印再动（after）；访客 ask 不开 AI；o
   assert.equal(g.after, undefined);
 });
 
-test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访客要先 su <用户>；v6 普通用户的 root 档命令（app / sub）提示先 su root', () => {
+test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访客要先 su <用户>；v6 普通用户的 root 档命令（sub）提示先 su root', () => {
   const { act } = fakeAct();
   const { v, calls } = fakeLayers();
   const sh = (w) => createShell({ act, storage: mem(), who: fixedWho(w) });
   const need = 'not signed in · su <user> first';
-  for (const l of ['lock', 'passkey', 'device', 'app deny 1', 'profile', 'sub']) assert.equal(text(sh('nobody').exec(l, v).out[0]), need, l);
-  for (const l of ['app', 'sub mv a b', 'sub show']) assert.equal(text(sh('u:alice').exec(l, v).out[0]), 'permission denied · run su root first', l);
+  for (const l of ['lock', 'passkey', 'device', 'profile', 'sub']) assert.equal(text(sh('nobody').exec(l, v).out[0]), need, l);
+  for (const l of ['sub mv a b', 'sub show']) assert.equal(text(sh('u:alice').exec(l, v).out[0]), 'permission denied · run su root first', l);
   assert.deepEqual(calls, [], '没过门槛的不进流程');
 });
 
@@ -302,9 +300,6 @@ test('要输入 / 验证的命令交给两层上下文（flow，输出和输入�
   flow('u:root', 'device');
   flow('u:root', 'device rm 3');
   flow('u:root', 'device rm --all');
-  flow('u:root', 'app');
-  flow('u:root', 'app allow 2');
-  flow('u:root', 'app deny 1');
   flow('u:root', 'profile');
   flow('u:root', 'profile set sign  Stay  Hungry ');
   flow('u:root', 'profile SET Nick Styrigx');
@@ -313,11 +308,12 @@ test('要输入 / 验证的命令交给两层上下文（flow，输出和输入�
   flow('u:root', 'SUB show Linkcube');
   const D = { direct: true };
   assert.deepEqual(calls.splice(0), [['ident.cmdPasswd', ''], ['acct.passkeyList', D], ['acct.cmdPasskeyAdd', true, D], ['acct.passkeyRm', 2, D], ['acct.deviceList'], ['acct.deviceRm', 3], ['acct.deviceRmAll'],
-    ['acct.appList', D], ['acct.appAllow', 2, D], ['acct.appDeny', 1, D], ['acct.profileShow'], ['acct.profileSet', 'sign', 'Stay  Hungry'], ['acct.profileSet', 'nick', 'Styrigx'], ['acct.profileAvatar'],
+    ['acct.profileShow'], ['acct.profileSet', 'sign', 'Stay  Hungry'], ['acct.profileSet', 'nick', 'Styrigx'], ['acct.profileAvatar'],
     ['acct.cmdSub', 'sub mv Linkcube LinkCube2', D], ['acct.cmdSub', 'SUB show Linkcube', D]], 'sub 传原样的一行（来源名大小写不变）；profile set 的值原样');
   assert.equal(text(sh('u:root').exec('device rm x', v).out[0]), TERM_EN.usageDevice);
-  /* S9：app rm 换成 deny，没有兼容 */
-  for (const l of ['app rm 1', 'app rm --all', 'app allow', 'app deny x']) assert.equal(text(sh('u:root').exec(l, v).out[0]), TERM_EN.usageApp, l);
+  /* 应用授权删了（定稿 v5.3 §十二）：app 不再是命令 */
+  assert.equal(TERM_EN.usageApp, undefined);
+  for (const l of ['app', 'app allow 1', 'app deny 1']) assert.equal(text(sh('u:root').exec(l, v).out[0]), 'command not found: app · try man', l);
   for (const l of ['profile set', 'profile set name', 'profile set age 3', 'profile avatar x', 'profile x']) assert.equal(text(sh('u:root').exec(l, v).out[0]), TERM_EN.usageProfile, l);
   assert.deepEqual(calls, []);
   assert.equal(text(sh('nobody').exec('sudo nope', v).out[0]), TERM_EN.usageSudo);

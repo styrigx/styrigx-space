@@ -25,7 +25,7 @@ const V6_USER = (name = 'root') => {
  * v6 替身：POST /api/identity { action } → whoami 回 o.user（默认 root；null = 访客，不写登录标记），其他 action 按 handlers['identity/<action>']；
  * POST /api/account/<入口> { action } 按 handlers['<入口>/<action>'] 回（[状态码, JSON] 或 (body) => [状态码, JSON]）。
  * 记下的请求体里 action 写成 '<入口>/<action>'（比如 'devices/revoke'、'identity/passkey-delete'；whoami 不记）。
- * 没写的：grants/list、devices/list、identity/passkey-list 回空列表，其余 400。
+ * 没写的：devices/list、identity/passkey-list 回空列表，其余 400。
  * @param {import('@playwright/test').Page} page
  * @param {{user?: any, handlers?: Record<string, any>}} [o]
  * @returns {Promise<Array<any>>} 记录的 POST 请求体
@@ -35,7 +35,6 @@ async function mockAccount(page, o = {}) {
   const user = o.user === undefined ? V6_USER('root') : o.user;
   if (user) await page.addInitScript(() => { try { document.cookie = 'sgx-id=1; Path=/'; } catch (e) {} });
   const defaults = {
-    'grants/list': [200, { ok: true, grants: [] }],
     'devices/list': [200, { ok: true, devices: [] }],
     'identity/passkey-list': [200, { ok: true, passkeys: [] }],
   };
