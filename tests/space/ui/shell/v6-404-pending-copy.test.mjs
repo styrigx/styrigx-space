@@ -1,8 +1,8 @@
 /**
  * 割接 2f：#404 未决项文案（Gray 11-11 15:37 / 15:39 定稿，Muse 草稿 v6-404-pending-copy；Hark 调整：lock passkey 指向 passkey 命令、device / profile 不在本 PR）——
- * - 第 2 项：sudo sub / sudo app → sudoNotYet「sudo {x} 暂不支持 · 先 su root，再直接用 {x}」
+ * - 第 2 项：sudo sub → sudoNotYet「sudo {x} 暂不支持 · 先 su root，再直接用 {x}」（sudo app 随 app 命令删除，定稿 v5.3 §十二：落到 sudo 用法行）
  * - 第 3 项：v6 身份输 sudo -v / sudo root reauth / lock passwd | passkey | --all → 「已移除 · v6 做法」一行（不落 notHere）；旧身份照旧（P4 删）
- * - 第 4 项：man lock / share / passwd / app / sub 的 AUTH 行按 v6 改写（pages.js / zh / en 同步）
+ * - 第 4 项：man lock / share / passwd / sub 的 AUTH 行（app 页随应用授权删除）按 v6 改写（pages.js / zh / en 同步）
  * - 第 7 项：ask 进 root6 的 man，不进普通用户（user）的
  * - #406 未决 3：v6 路径的 passkey 用法行带 ls（v6-commands「passkey ls / add / rm <n>」）
  * v6 P4：旧身份和旧命令本身删了——「已移除」那几行对所有身份都印；share 的 man 页删了；device / profile 的 AUTH 改成「已登录」。
@@ -44,15 +44,14 @@ test('文案：新键 en / zh / TERM_EN 都有，en 与 TERM_EN 一致', () => {
   }
 });
 
-test('第 2 项：sudo sub / sudo app → 暂不支持 · 先 su root，再直接用（中英；不落 usage）', () => {
+test('第 2 项：sudo sub → 暂不支持 · 先 su root，再直接用（中英；不落 usage）；sudo app 随应用授权删除，落到用法行', () => {
   for (const w of ['u:styrigx', 'u:root']) {
     const L = layers();
     assert.equal(text(sh(w).exec('sudo sub', L.v).out[0]), 'sudo sub isn’t supported yet · su root first, then run sub', w);
-    assert.equal(text(sh(w).exec('sudo app allow 1', L.v).out[0]), 'sudo app isn’t supported yet · su root first, then run app', w);
+    assert.equal(text(sh(w).exec('sudo app allow 1', L.v).out[0]), TERM_EN.usageSudo, w);
     assert.equal(text(sh(w, ZH.term).exec('sudo sub', L.v).out[0]), 'sudo sub 暂不支持 · 先 su root，再直接用 sub', w);
     assert.equal(L.calls.length, 0);
   }
-  assert.equal(text(sh('u:root', ZH.term).exec('sudo app', layers().v).out[0]), 'sudo app 暂不支持 · 先 su root，再直接用 app');
 });
 
 test('第 3 项：v6 身份输已移除的 sudo -v / sudo root reauth / lock passwd | passkey | --all → 一行 v6 做法，不跑旧层', () => {
@@ -101,11 +100,10 @@ test('#406 未决 3：passkey 用法行带 ls（v6 P4 起只有这一种）', ()
   assert.equal(TERM_EN.usagePasskey, undefined, '旧用法行删了');
 });
 
-test('第 4 项：man lock / passwd / app / sub 的 AUTH 行按 v6 改写（pages.js / en / zh 同步）；v6 P4：share 页删了，device / profile = 已登录', () => {
+test('第 4 项：man lock / passwd / sub 的 AUTH 行按 v6 改写（pages.js / en / zh 同步）；v6 P4：share 页删了，device / profile = 已登录；app 页随应用授权删了', () => {
   const want = {
     lock: ['no verification', '不用验证'],
     passwd: ['signed in; asks your current password first', '已登录；先输当前密码'],
-    app: ['root only; allow needs no reauth', '只有 root；allow 不用再验证'],
     sub: ['root only; show, key and token reset need no reauth', '只有 root；show、key 和 token reset 不用再验证'],
   };
   for (const [c, [en, zh]] of Object.entries(want)) {
@@ -115,6 +113,9 @@ test('第 4 项：man lock / passwd / app / sub 的 AUTH 行按 v6 改写（page
   }
   assert.equal(PAGES.passkey.auth, 'signed in');
   assert.equal(PAGES.share, undefined);
+  assert.equal(PAGES.app, undefined);
+  assert.equal(EN.manBody.app, undefined);
+  assert.equal(ZH.manBody.app, undefined);
   assert.equal(EN.manBody.share, undefined);
   assert.equal(ZH.manBody.share, undefined);
   for (const c of ['device', 'profile']) {

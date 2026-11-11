@@ -36,8 +36,8 @@
 | curio-write | 8 |
 | daymark-write | 6 |
 | owner | 1 |
-| root | 6 |
-| **合计** | **58**（另有 11 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor，P4 删 ShareJanitor） |
+| root | 5 |
+| **合计** | **57**（另有 11 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor，P4 删 ShareJanitor） |
 
 按 Worker：站点核心 6、账号 13、奇趣 20、日刻 13、代理 6（P4 删旧入口 20 条后）。有 action 另定档的接口 11 个（curio music、identity；割接加的 `private`：curio items / links / movies / photo / icon / music、daymark quotes / collections 的 GET；2c 加 `POST /api/ai` 的 `private`）。
 
@@ -74,6 +74,8 @@ P3 变更（2026-11-11，定稿 v5.2 §九；路由档不变）：
 - 前端终端 `passkey` / `passkey ls` / `passkey add` / `passkey rm <n>` 接 v6：有 v6 会话（普通用户 / su root / 救援）→ `POST /api/identity` 的 `passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete`（user 档，按服务端会话 uid 管栈顶那个用户自己的；定稿 v5.2 §八、§九白名单）；不要 root、不跑旧 `sudo root reauth`。`sudo passkey …` 前端直接回 rootCreds（服务端 sudo 本来就回 403 root-creds，定稿 §十）。旧会话路径不变（P4 删）。
 
 P4 变更（2026-11-11，定稿 v5.3 §十三 P4 行）：删旧入口 20 条——进站接口 `lock-now`（GET / POST）、`lock-entry`、`lock-session-check`、`lock-password`、`lock-passkey`、`lock-credentials`、`lock-reauth`、`lock-all-devices`、`lock-reset`、`space-auth`；分享短链 `/s/:code`（GET / HEAD）与 `/api/share`（GET / POST）；旧账号会话 `GET /api/account`、`/api/account/session`、`/api/account/reauth`、`/api/account/reset`、`/api/account/keys`。`/s/` 只剩代理主机两段的订阅。`GET /api/space-audit` 保留（档 root 不变）。只经服务绑定的入口删 `AccountVerifier.authorize`、`SpaceVerifier.session`、`ShareJanitor.purgeShareLinks`。下文 P1–2e 各节与「已定」一节的旧路由是当时的记录。
+
+P4 收尾（2026-11-11，定稿 v5.3 §十二，Gray 19:41）：应用授权整套删除——`POST /api/account/grants`（app allow | deny）删去（58 → 57 条，root 6 → 5）；奇趣 / 日刻写入只按 v6 会话加组判定，`SpaceVerifier.conclusion()` 一并删除。
 
 ### 已定（Gray 2026-11-11）
 
@@ -117,7 +119,6 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 |---|---|---|---|---|---|---|---|
 | POST | `/api/identity` | **public**（救援可用：`whoami`、`exit`、`lock`、`passwd`、`passkey-*`、`groups`） | `passwd` / `passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete` / `groups` / `who` → user；`sudo-challenge` / `sudo` → sudoers；`useradd` / `userdel` / `usermod` / `passwd-user` → root；`whoami` / `su-challenge` / `su` / `exit` / `idle` / `lock` / `rescue` → public |  | 保留（P2 新增） | v6 身份命令：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue |  |
 | POST | `/api/account/devices` | **user** |  |  | 保留 | 已登录设备 = 自己的会话（v6 who 只看自己） | Gray 2026-11-11 定 user：管自己的会话；root 看全部由 who 做（P2） |
-| POST | `/api/account/grants` | **root** |  |  | P2 起子应用权限改由组表达（curio-write / daymark-write …） | 应用授权 app allow \| deny（归 root，定稿 §十） |  |
 | POST | `/api/account/proxy` | **root** |  |  | 保留 | 代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥） | Gray 2026-11-11 定 root，不加新组 |
 | PUT | `/api/avatar` | **user** |  |  | 保留 | 换自己的头像（v6 头像 = whoami，按 uid） | Gray 2026-11-11 定 user：P2 按 uid 分（uid 只取服务端会话，ADR-0006 P2 硬要求） |
 | DELETE | `/api/avatar` | **user** |  | 单条 → 写组 | 保留 | 删自己的头像（回默认） | Gray 2026-11-11 定 user：同上 |
@@ -194,7 +195,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | status | `GET /summary` | space-core GET /api/status（STATUS） | 监测数据（status 组） |
 | account | `AccountService.fetch` | space-core FORWARDING（ACCOUNT） | 上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/wellbeing、/api/identity、/avatar/* |
 | account | `AccountVerifier.admit / auditRoot` | space-core（ACCOUNT_VERIFIER） | v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除） |
-| space-core | `SpaceVerifier.conclusion / admit / auditRoot` | curio-core、daymark-core（SPACE） | conclusion 自 v6 P4 起一律 denied；admit / auditRoot 原样转给账号 Worker（v6 P4 起 session 与 ShareJanitor 删除） |
+| space-core | `SpaceVerifier.admit / auditRoot` | curio-core、daymark-core（SPACE） | admit / auditRoot 原样转给账号 Worker（v6 P4 起 session、ShareJanitor、conclusion 删除） |
 | account | `AccountJanitor.purgeExpiredUsers` | styrigx-status 每日一轮（JOB_ACCOUNT） | 到期满 30 天的用户自动删除（v6 P2c，定稿 v5 §八） |
 | proxy-rules | `ProxyAdmin.*` | account POST /api/account/proxy（PROXY） | 代理订阅管理（root 档在调用方） |
 | curio-core / daymark-core / ai | `HourlyJob.run` | styrigx-status 每小时一轮 | 搜索索引 / 照片清理等定时任务 |

@@ -1,5 +1,5 @@
 /**
- * 割接（v6 cutover）：奇趣接口 Worker 认 v6 新会话（新旧并存，旧会话照旧）。
+ * 割接（v6 cutover）：奇趣接口 Worker 认 v6 会话（旧进站 / 账号结论随应用授权删除，定稿 v5.3 §十二）。
  * 判断经网关 SpaceVerifier.admit 问账号 Worker（这里的替身 ../_v6admit.mjs 用真的 ROUTE_ACCESS + permits）：
  * - 每条新接上的路由：v6 身份在对的档放行、访客 / 档不够被拒（401 / 403 forbidden）
  * - export / import / album.del = root（styrigx 也被拒，要 su root）；root 的这些操作经 auditRoot 留痕
@@ -12,7 +12,6 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { conclusionAuth } from '../_conclusion.mjs';
 import { v6Space } from '../_v6admit.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -42,17 +41,16 @@ function bench() {
   const calls = []; const audits = [];
   return { db, calls, audits, r2: makeR2(), r2m: makeR2() };
 }
-/** @param {any} b @param {string} p @param {{v6?: string, old?: string|null, method?: string, body?: any, type?: string, throws?: boolean}} [o] */
+/** @param {any} b @param {string} p @param {{v6?: string, method?: string, body?: any, type?: string, throws?: boolean}} [o] */
 function call(b, p, o = {}) {
   const h = { Origin: ORIGIN };
   const ck = [];
-  if (o.old) ck.push('sgx-space-session=x');
   if (o.v6) ck.push('sgx-session=' + o.v6);
   if (ck.length) h.Cookie = ck.join('; ');
   if (o.body !== undefined) h['Content-Type'] = o.type || 'application/json';
   h['CF-Connecting-IP'] = '203.0.113.9';
   const body = o.body === undefined ? undefined : typeof o.body === 'string' ? o.body : JSON.stringify(o.body);
-  const SPACE = v6Space(conclusionAuth(o.old || null), { calls: b.calls, audits: b.audits, throws: o.throws });
+  const SPACE = v6Space({}, { calls: b.calls, audits: b.audits, throws: o.throws });
   const env = { SPACE, D1_FINDS: b.db, D1_DEVICES: b.db, D1_GAMES: b.db, D1_MOVIES: b.db, D1_MUSIC: b.db, R2_PHOTOS: b.r2, R2_MUSIC: b.r2m, KV_SEARCH_INDEX: { async put() {}, async get() { return null; } } };
   return worker.fetch(new Request(ORIGIN + p, { method: o.method || 'GET', headers: h, body }), env, { waitUntil() {} });
 }
@@ -95,9 +93,6 @@ test('导出 GET /curio/api/export = root：root 200 并留痕 export；styrigx�
   assert.equal((await call(b, '/curio/api/export', { v6: 'styrigx' })).status, 403);
   assert.equal((await call(b, '/curio/api/export', {})).status, 401);
   assert.equal(b.audits.length, 1, '没放行的不留痕');
-  /* 旧会话照旧（账号会话即可，不留身份审计） */
-  assert.equal((await call(b, '/curio/api/export', { old: 'owner' })).status, 200);
-  assert.equal(b.audits.length, 1);
 });
 
 test('导入 POST /curio/api/import = root（v6 的「每次重验」= su root，不要旧 reauth 票）：root 过了守卫；styrigx 403；成功时留痕 import', async () => {
@@ -110,8 +105,6 @@ test('导入 POST /curio/api/import = root（v6 的「每次重验」= su root�
   const ok = await j(await call(b, '/curio/api/import', { v6: 'root', method: 'POST', body: html, type: 'text/html' }));
   assert.equal(ok.status, 200, JSON.stringify(ok.json));
   assert.deepEqual(b.audits.map((a) => a.command), ['import curio bookmarks']);
-  /* 旧会话照旧要 reauth 票 */
-  assert.equal((await call(b, '/curio/api/import', { old: 'noreauth', method: 'POST', body: html, type: 'text/html' })).status, 401);
 });
 
 test('音乐：album.del = root（结构删除，留痕 rm-bulk）；album.add / track.* = curio-write；听歌 = listen（alice 有、临时用户没有）', async () => {
@@ -126,10 +119,6 @@ test('音乐：album.del = root（结构删除，留痕 rm-bulk）；album.add /
   assert.equal((await call(b, '/curio/api/music', { v6: 'alice', method: 'POST', body: { op: 'album.add', title: 'B' } })).status, 403);
   assert.equal((await del('root')).status, 200);
   assert.deepEqual(b.audits.map((a) => a.command), ['rm-bulk curio album ' + id]);
-  /* 旧会话（作用域 curio.write）照旧能删（旧规则，P4 删） */
-  const a2 = await j(await call(b, '/curio/api/music', { old: 'owner', method: 'POST', body: { op: 'album.add', title: 'C' } }));
-  assert.equal((await call(b, '/curio/api/music', { old: 'owner', method: 'POST', body: { op: 'album.del', id: a2.json.id } })).status, 200);
-  assert.equal(b.audits.length, 1);
   /* 听歌：listen */
   assert.notEqual((await call(b, '/curio/api/music-play', { v6: 'alice', method: 'POST', body: { track: 1 } })).status, 401);
   assert.notEqual((await call(b, '/curio/api/music-play', { v6: 'alice', method: 'POST', body: { track: 1 } })).status, 403);
@@ -163,11 +152,10 @@ test('公开读：私密行与 canWrite 按 action private（= curio-write）—
   assert.ok(asked.length > 0 && asked.every((c) => c.opts && c.opts.action === 'private'));
 });
 
-test('没带 sgx-session 不问 admit；旧会话够用时也不问；网关出错 / 回答里 action 对不上 → 当没有 v6（不抛错、不 500）', async () => {
+test('没带 sgx-session 不问 admit；网关出错 / 回答里 action 对不上 → 当没有 v6（不抛错、不 500）', async () => {
   const b = bench();
   await call(b, '/curio/api/links');
   await call(b, '/curio/api/links', { method: 'POST', body: { op: 'cat.add', name: 'x' } });
-  await call(b, '/curio/api/links', { old: 'owner', v6: 'styrigx', method: 'POST', body: { op: 'cat.add', name: 'y' } });
   assert.equal(b.calls.length, 0);
   const down = await call(b, '/curio/api/links', { v6: 'styrigx', method: 'POST', body: { op: 'cat.add', name: 'z' }, throws: true });
   assert.equal(down.status, 401);

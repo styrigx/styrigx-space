@@ -8,7 +8,7 @@
 //                                    （排序、移出都走这里；不存在的句子 id 忽略）
 // DELETE /api/collections?id=<id>    账号会话 + daymark.write + 同源：删专题（句子本身不删）；v6 新会话要 root（结构删除，留痕）
 // 写操作成功返回 {ok:true, collection}（删除返回 {ok:true}）。
-// 错误：400 bad-json / bad-body / bad-name / bad-sort / bad-quote-ids / nothing / bad-id；401 account；403 origin / scope；404 not-found；409 limit；413 too-large
+// 错误：400 bad-json / bad-body / bad-name / bad-sort / bad-quote-ids / nothing / bad-id；401 unauthorized；403 origin / forbidden；404 not-found；409 limit；413 too-large
 import { json, err, methodNotAllowed } from './_lib.js';
 import { readAccess, auditRootOp } from './_auth.js';
 import { readBody, guardWrite, idParam } from './_write.js';

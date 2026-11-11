@@ -295,7 +295,7 @@ async function handleRequest(context) {
  *   - /<站>/api/*（正常归接口 Worker，漏到网关时）：访问表默认 entry，没进站 401 JSON
  *   - 静态资源后缀（js/css/字体/图片）直接回源，不验会话；/curio/、/daymark/ 下像图片的回答由 Pages 的 _worker.js 404
  * 写操作和私密内容（daymark 记句子、curio 改收藏 / 导入）由子站自己的接口 Worker
- * 问网关要结论（服务绑定 SpaceVerifier.conclusion：进门 + 账号会话 + 作用域）。
+ * 经网关 SpaceVerifier.admit 问账号 Worker 判 v6 会话的档。
  */
 /** 子站所在的主机（主域名） */
 const MAIN_HOST = 'styrigx.com';

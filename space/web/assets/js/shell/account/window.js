@@ -1,10 +1,10 @@
 /**
  * @fileoverview 账号卡片（头像点开，S9，Gray 2026-11-11：只展示）。
  *
- * 已登录（v6 身份，非救援）：头像 · 姓名 · 昵称 · 已登录，下面几行——个人资料 › · 设备 › · 账号安全 › · 应用授权 › · 退出登录（行和外观同 v5 卡片，GUI 不改）。
+ * 已登录（v6 身份，非救援）：头像 · 姓名 · 昵称 · 已登录，下面几行——个人资料 › · 设备 › · 账号安全 › · 退出登录（行和外观同 v5 卡片，GUI 不改；应用授权行随应用授权删除，定稿 v5.3 §十二）。
  * 没登录：头像（灰）· 未登录，一行「登录 su root」（v5 卡片，命令改 su root，Gray 11-11 17:51）。
  * 卡片里没有命令行：点一行（或头像 / 编辑）= 收起卡片、打开全站终端、输入行预填对应的命令（不替人回车）：
- *   个人资料 → profile · 设备 → device · 账号安全 → passkey · 应用授权 → app · 退出登录 → exit · 登录 → su root。
+ *   个人资料 → profile · 设备 → device · 账号安全 → passkey · 退出登录 → exit · 登录 → su root。
  * v6 P4（定稿 v5.2 §七「访客点击预填 su 」、§十三 删旧会话）起登录状态只看终端的 v6 身份（who.v6()），不再问旧的 GET /api/account、
  * 不再读写旧登录标记 cookie sgx-account-signed-in。
  *
@@ -13,7 +13,6 @@
 import { esc } from '../../lib/util.js';
 import { readCache, effectiveProfile, profileDefaults, PROFILE_EVENT } from '../../lib/profile.js';
 import { flatStrings } from '../term/core/strings.js';
-import * as api from './api.js';
 import { layerFromPath } from './commands.js';
 
 /** 嵌套字符串表 → 点号键：终端统一 T1 起在 shell/term/core/strings.js，这里转出 */
@@ -23,7 +22,7 @@ export { flatStrings };
 export { layerFromPath };
 
 /** 卡片的行 → 终端里预填的命令（行和外观同 v5 卡片；「登录」行 sudo root → su root，Gray 11-11 17:51，定稿 §十三 P4） */
-export const CARD_CMDS = Object.freeze({ profile: 'profile', devices: 'device', keys: 'passkey', grants: 'app', exit: 'exit', login: 'su root' });
+export const CARD_CMDS = Object.freeze({ profile: 'profile', devices: 'device', keys: 'passkey', exit: 'exit', login: 'su root' });
 
 /**
  * 挂到 #sgx-acct 上。
@@ -48,8 +47,6 @@ export function mountAccountWindow(o) {
   sheet.appendChild(root);
   /** '' 未知 · in · guest */
   let st = '';
-  /** 已授权应用数（主页「应用授权」右边，O14）；没取到 → '' */
-  let grantN = '';
 
   /** @param {string} s */
   function setSt(s) {
@@ -90,17 +87,7 @@ export function mountAccountWindow(o) {
       row({ k: t('profile.title'), v: t('profile.hint'), run: CARD_CMDS.profile, chev: true }) +
       row({ k: t('devices.title'), v: t('devices.this'), run: CARD_CMDS.devices, chev: true }) +
       row({ k: t('keys.title'), v: t('keys.hint'), run: CARD_CMDS.keys, chev: true }) +
-      row({ k: t('grants.title'), v: grantN, run: CARD_CMDS.grants, chev: true, attrs: ' data-at-v="grants"' }) +
       '</div><div class="sgx-pop-list sgx-pop-list--line">' + row({ k: t('common.signOut'), v: CARD_CMDS.exit, run: CARD_CMDS.exit, cls: 'sgx-pop-row--acc' }) + '</div>';
-  }
-
-  function loadGrants() {
-    api.grants.list().then(function (/** @type {any} */ res) {
-      if (!(res.j && res.j.ok)) return;
-      grantN = String((res.j.grants || []).filter(function (/** @type {any} */ g) { return g.granted; }).length);
-      const el = root.querySelector('[data-at-v="grants"] .sgx-pop-v');
-      if (el) el.textContent = grantN;
-    }, function () {});
   }
 
   root.addEventListener('click', function (e) {
@@ -116,12 +103,11 @@ export function mountAccountWindow(o) {
   /* 终端身份问完服务端（whoami）晚于卡片打开时（首帧、旧地址 #acct）：开着就按新身份重画（同 main 里 GET /api/account 回来后校正） */
   if (o.who && typeof o.who.on === 'function') o.who.on(function () { if (o.ms.isShown()) onOpen(); });
 
-  /** 打开时（topbar-panel 的 onOpen）：按终端的 v6 身份画（数据源从旧 GET /api/account 改接 v6，外观不变）；root 另取已授权应用数（grants 接口是 root 档） */
+  /** 打开时（topbar-panel 的 onOpen）：按终端的 v6 身份画（数据源从旧 GET /api/account 改接 v6，外观不变） */
   function onOpen() {
     const u = me();
     setSt(u ? 'in' : 'guest');
     render();
-    if (u && u.root) loadGrants();
   }
   return { onOpen: onOpen, onClose: function () {}, _state: function () { return { st: st }; } };
 }

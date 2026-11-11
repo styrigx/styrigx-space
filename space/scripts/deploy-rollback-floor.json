@@ -10,10 +10,11 @@
     "notBefore": "2026-11-10T13:35:00Z"
   },
   "styrigx-account": {
-    "why": "命名 v2（P2）：账号库只绑 D1_ACCOUNT、表换成 account_*（0005 清了旧表里的账号行），更早的版本读旧表、绑旧名，退回去账号全空；账号拆分 PR3 / #226 的下限随之被覆盖",
+    "why": "命名 v2（P2）：账号库只绑 D1_ACCOUNT、表换成 account_*（0005 清了旧表里的账号行），更早的版本读旧表、绑旧名，退回去账号全空；账号拆分 PR3 / #226 的下限随之被覆盖。应用授权删除（定稿 v5.3 §十二，Gray 11-11 19:41 / 19:43）：本 PR 删了签名钥匙对 SGX_ACCOUNT_PRIVATE / SGX_ACCOUNT_PUBLIC 的绑定，部署绿后 Gray 删除这两个 secret，更早的版本绑着它们、退回去部署不了。notBefore = #410（da117121）那次 main 部署的账号 Worker 版本之后（deploy-account-worker 2026-11-11 19:48 CST 完成，run 43014222657），即回滚下限为本 PR 的部署；若本 PR 合并前还有别的 account 部署，把 notBefore 挪到本 PR 那次部署开始时间",
     "requireBindings": [
       "D1_ACCOUNT"
-    ]
+    ],
+    "notBefore": "2026-11-11T11:55:00Z"
   },
   "styrigx-status": {
     "why": "P4-2b：监测从 SEARCH / CHAT 两个服务绑定换成 AI_SERVICE；更早的版本绑着冒烟后会被 Gray 删除的 styrigx-search-index / styrigx-chat，退回去部署不了。notBefore 等 Gray 删旧 Worker 后由下一个碰 status 的 PR 加。L3：notBefore = L2b 切库那次部署开始（2026-11-09 12:16 CST）——更早的版本绑着已删的旧库 styrigx-space-gateway",

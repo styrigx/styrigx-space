@@ -1,8 +1,8 @@
 /**
  * @fileoverview 账号终端调后端的唯一地方（2026-11-08 账号 UI 改版；NAMING-V2 P2 起按入口拆开）。
  *
- * 面板代码只用这里导出的对象（按入口分：v6keys / devices / grants / proxy），不直接写接口地址、action 名、请求字段。
- * 后端：POST /api/account/<入口> { action }（入口 = devices / grants / proxy，见 workers/account/src/api/account/）、
+ * 面板代码只用这里导出的对象（按入口分：v6keys / devices / proxy），不直接写接口地址、action 名、请求字段。
+ * 后端：POST /api/account/<入口> { action }（入口 = devices / proxy，见 workers/account/src/api/account/）、
  * POST /api/identity passkey-*（自己的通行密钥）。v6 P4 起旧账号会话的入口（session / reauth / reset / keys、GET /api/account 状态）删除。
  *
  * 每个调用都回 Promise<{ s: number, j: any }>（同 auth/post-json.js postJSON；网络失败 reject）。
@@ -24,7 +24,7 @@ export const ERR = Object.freeze({
 });
 
 /**
- * @param {string} entry 入口（devices / grants / proxy）
+ * @param {string} entry 入口（devices / proxy）
  * @param {string} action @param {object} [fields]
  */
 function post(entry, action, fields) { return postJSON(ACCOUNT_API + '/' + entry, Object.assign({ action: action }, fields || {})); }
@@ -54,15 +54,6 @@ export const devices = Object.freeze({
   /** @param {number} n 服务端列表里的编号 */
   revoke: function (n) { return post('devices', 'revoke', { n: n }); },
   revokeAll: function () { return post('devices', 'revoke-all'); },
-});
-
-/** 应用授权 */
-export const grants = Object.freeze({
-  list: function () { return post('grants', 'list'); },
-  /** @param {string} app */
-  add: function (app) { return post('grants', 'add', { app: app }); },
-  /** @param {string} app */
-  revoke: function (app) { return post('grants', 'revoke', { app: app }); },
 });
 
 /** 代理订阅（sub v3.1）：POST /api/account/proxy { action }（root 档） */

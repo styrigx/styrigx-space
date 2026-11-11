@@ -83,7 +83,6 @@ account:
   accountSettings: Account settings
   devices: Devices
   accountSecurity: Account security
-  appAccess: App access
   sync: Sync
   cloudSync: Cloud sync
   aiModel: AI model
@@ -379,35 +378,6 @@ js:
     slDays: '{n} days'
     slWhen: '{d}, {t}'
     sessExp: Session expired, please unlock again from the lock screen
-    gaRow: App access
-    gaSearch: Search by name
-    gaAll: All
-    gaOn: Allowed
-    gaOff: Access removed
-    gaNone: No matching apps.
-    gaScopeLabel: Scope
-    gaAtLabel: Allowed on
-    gaDevLabel: Allowed from
-    gaDevGone: Signed-out device
-    gaDevUnknown: Unknown device
-    gaSensitive: '{v} also needs account verification'
-    gaRevoke: Remove access
-    gaRevoked: Removed access for {v}
-    gaRegrant: Allow again
-    gaRegranted: '{v} has access again'
-    gaVerifyTitle: Verify to allow again
-    gaDesc-curio: Add, edit and delete Curio links, devices and games (with photos)
-    gaDesc-daymark: Add, edit and delete Daymark quotes and collections, and set today’s pick
-    gaDesc-prefs: Sync your settings to the account and restore them on other devices
-    gaDesc-wellbeing: Record Digital wellbeing screen time
-    gaDesc-avatar: Change or remove the account photo
-    gaDesc-profile: Change your name, nickname, motto and contact email
-    gaSens-curio: Importing bookmarks
-    gaNoScope: '{v} doesn’t have account access'
-    gaConsentTitle: Allow {v} to use your account?
-    gaConsentSub: 'With access, {v} can:'
-    gaAllow: Allow
-    gaDeny: Deny
     syncNoScope: Settings sync doesn’t have account access; saved on this device only
     accounPasskey: Passkey
     accounSignInWithPasskey: Sign in with passkey
@@ -420,15 +390,8 @@ js:
     accounRetry: Retry
     accounUsePassword: Use password
     accounSomethingWentWrongPlease: Something went wrong, please retry
-    gaSensSep: '. '
     securiNewTemporaryKey: New temporary key
     securiTemporaryKey: Temporary key
-    app_curio: "Curio"
-    app_daymark: "Daymark"
-    app_prefs: "Settings sync"
-    app_wellbeing: "Digital wellbeing"
-    app_avatar: "Avatar"
-    app_profile: "Profile"
 filesIndex:
   app:
     settings:

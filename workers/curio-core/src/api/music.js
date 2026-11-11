@@ -4,7 +4,7 @@
 //                   canWrite（账号 + curio.write）时曲目另带 size / type / lrc（有没有歌词），前端据此显示上传 / 删除。
 // POST /api/music   music 档 + 同源：body {op:'album.add'|'album.edit'|'album.del'|'track.edit'|'track.del', ...}（校验见 _music.js parseMusicOp）
 //                   成功 → {ok:true, canWrite:true, id?, albums}；删专辑 / 曲目连 R2_MUSIC 里的音频、封面一起删（删失败只记日志）。
-// 无权限（app.js 守卫）：没进门 401 unauthorized、没账号会话 401 account、没作用域 403 scope；写非同源 403 origin。
+// 无权限（app.js 守卫）：没有 v6 身份 401 unauthorized、档不够 403 forbidden；写非同源 403 origin。
 import { json, err, methodNotAllowed } from './_lib.js';
 import { readBody } from './_write.js';
 import { readAccess, viaV6, v6Of, auditRootOp } from './_auth.js';

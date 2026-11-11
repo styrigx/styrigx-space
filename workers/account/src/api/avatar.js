@@ -17,7 +17,7 @@ import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { AVATAR_SIZES, AVATAR_MAX, keyOf, verKeyOf, sniffImage, NO_STORE, avatarKv } from '../lib/avatar.js';
 import { scopeDenial } from '../gate.js';
 
-/** 本接口的作用域（core/scopes.js） */
+/** 本接口的作用域名（只作标注：scopeDenial 只看 v6 身份；作用域表 core/scopes.js 随应用授权删除，定稿 v5.3 §十二） */
 const SCOPE = 'avatar.write';
 
 /** @param {any} context */

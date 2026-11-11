@@ -27,7 +27,7 @@ import { checkAdmit, checkAuditRoot } from '../../../../workers/account/src/rpc/
 /** 账号那一半能看到的 env 键（同 workers/account/wrangler.toml 的绑定 / 变量；预览不绑账号资料库，有就带上） */
 export const ACCOUNT_ENV_KEYS = Object.freeze([
   'SGX_ENV', 'SGX_SITE', 'SGX_RP_ID', 'SGX_ORIGIN',
-  'SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_PASSWORD_PEPPER',
+  'SGX_ACCOUNT_PASSWORD_PEPPER',
   'D1_ACCOUNT', 'KV_PROFILE',
   'ASSETS',
 ]);

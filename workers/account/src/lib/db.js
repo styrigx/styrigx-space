@@ -8,7 +8,8 @@
  * - account_epoch(name, value)：纪元，两行 session（管 session 和 reauth 票）/ reset（只管 reset 票）
  * - account_password(id=1, record)、account_passkey(credential_id, record)、account_user_handle(id=1, handle, legacy_handle)
  * - account_challenge(id, purpose, challenge, expires_at)、account_attempt_limit(kind, bucket, …)
- * - account_device(device_id, …)、account_audit(id, ts, ip_prefix, ok, event, expires_at)、account_grant(app, record, granted_at)
+ * - account_device(device_id, …)、account_audit(id, ts, ip_prefix, ok, event, expires_at)
+ * - account_grant 不在兜底里（应用授权删除，定稿 v5.4 §十一 / §十二：部署绿后由 docs/ops/v6-p4-drop-account-grant.sql drop，不得被兜底建回）
  * - v6 身份表（IDENTITY_SCHEMA = migrations/0006_identity.sql）：account_users / user_groups / user_password / user_passkey / sessions /
  *   session_stack / user_audit / recovery_key
  * 同一个库里的 settings_sync（api/prefs.js）、wb_daily（api/wellbeing.js）也经 D1_ACCOUNT，表由 0001 / 0002 建。
@@ -23,7 +24,7 @@
 export const DB_BINDING = 'D1_ACCOUNT';
 
 /**
- * 与 migrations/0005_account_tables.sql 相同的表结构（兜底建表用；全部 IF NOT EXISTS）。
+ * 与 migrations/0005_account_tables.sql 相同的表结构（兜底建表用；全部 IF NOT EXISTS），去掉已删的 account_grant。
  * 0005 自己用的是不带 IF NOT EXISTS 的同样语句（外加搬数据），tests/workers/account 逐条核对列。
  */
 export const ACCOUNT_SCHEMA = Object.freeze([
@@ -36,7 +37,6 @@ export const ACCOUNT_SCHEMA = Object.freeze([
   'CREATE TABLE IF NOT EXISTS account_device (device_id TEXT PRIMARY KEY, record TEXT NOT NULL, last_seen INTEGER NOT NULL DEFAULT 0, revoked_at INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS account_audit (id TEXT PRIMARY KEY, ts INTEGER NOT NULL, ip_prefix TEXT NOT NULL, ok INTEGER NOT NULL, event TEXT NOT NULL, expires_at INTEGER NOT NULL)',
   'CREATE INDEX IF NOT EXISTS account_audit_ts ON account_audit (ts)',
-  'CREATE TABLE IF NOT EXISTS account_grant (app TEXT PRIMARY KEY, record TEXT NOT NULL, granted_at INTEGER NOT NULL)',
 ]);
 
 /**

@@ -3,7 +3,7 @@
 //                   返回 {ok:true, canWrite, showPrivate, cats:[{id, name:{zh,en}, private, links:[{id, url, name, desc, icon, private}]}]}
 // POST /api/links   账号会话 + 作用域 curio.write + 同源：body {op, ...}（操作见 _store.js 的 parseOp）。
 //                   成功 → {ok:true, canWrite:true, showPrivate:true, cats:[...]}（直接带回最新的全部收藏，前端整页重画）
-//                   400 参数不对；401 account；403 origin / scope；404 不存在；409 not-empty / mismatch / limit / duplicate
+//                   400 参数不对；401 unauthorized；403 origin / forbidden；404 不存在；409 not-empty / mismatch / limit / duplicate
 import { json, err, methodNotAllowed } from './_lib.js';
 import { readAccess } from './_auth.js';
 import { readBody, guardWrite } from './_write.js';

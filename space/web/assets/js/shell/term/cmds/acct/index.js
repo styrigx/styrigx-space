@@ -1,11 +1,10 @@
-import { layer, notHere, nth, v6RootGate, v6SelfGate, FLOW } from '../keys/gate.js';
+import { layer, notHere, nth, v6SelfGate, FLOW } from '../keys/gate.js';
 
 /**
  * 账号命令（v6，v6-commands「自己的账号（普通用户与 root 各管各的）」「授权与订阅（root，或 sudo）」）：
  * - passwd：改自己的密码（先输当前密码）/ passwd <名>：root 发一次性密码（身份层 shell/identity/layer.js）
  * - passkey [ls | add | rm <n>]：自己的通行密钥（POST /api/identity passkey-*，user 档）
  * - device [rm <n> | rm --all]：自己的登录会话（POST /api/account/devices，user 档；v6 不要复验）
- * - app [allow <n> | deny <n>]：应用授权（root 档）
  * - profile [set name | nick | sign | email <值> | avatar]：个人资料（PUT /api/profile 站长 + root；头像按 uid）
  * 流程在账号层（shell/account/cmd/*）；这里只把门、查参数。v6 P4 起旧账号会话（sudo root）与 reset 层删除，一律按 v6 身份。
  */
@@ -72,26 +71,6 @@ const device = {
   },
 };
 
-/** app（v6-commands「授权与订阅（root，或 sudo）」；路由表 POST /api/account/grants = root 档）：v6 root 直接做，普通用户提示先 su root，访客先 su <用户> */
-const app = {
-  name: 'app',
-  args: ['allow', 'deny'],
-  audience: /** @type {any} */ (['root6']),
-  /** @param {any} p @param {any} x */
-  run: function (p, x) {
-    const a = p.args.map(function (s) { return s.toLowerCase(); });
-    const v6 = v6RootGate(x);
-    if ('out' in v6) return v6;
-    const A = layer(x, 'acct');
-    if (!A) return notHere(x, 'app');
-    const o = { direct: true };
-    if (!a.length) { A.appList(o); return FLOW; }
-    if (a[0] === 'allow' && a.length === 2 && nth(a[1])) { A.appAllow(nth(a[1]), o); return FLOW; }
-    if (a[0] === 'deny' && a.length === 2 && nth(a[1])) { A.appDeny(nth(a[1]), o); return FLOW; }
-    return { out: [x.k.plain(x.S.usageApp)] };
-  },
-};
-
 /** profile set 的字段名（= shell/account/cmd/profile.js PROFILE_KEYS 的键） */
 const PROFILE_SET = ['name', 'nick', 'sign', 'email'];
 
@@ -117,4 +96,4 @@ const profile = {
   },
 };
 
-export const ACCOUNT_CMDS = [passwd, passkey, device, app, profile];
+export const ACCOUNT_CMDS = [passwd, passkey, device, profile];

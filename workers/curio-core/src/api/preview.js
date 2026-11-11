@@ -1,15 +1,15 @@
 // workers/core/src/api/preview.js
-// GET /api/preview?url=<网址>  —— 添加收藏时自动填名字、简介、图标。账号会话 + 作用域 curio.write（方案 4.2，算在收藏的写里）；必须同站（同源 GET 浏览器常不带 Origin，见 _lib.js 的 isSameSite）。
+// GET /api/preview?url=<网址>  —— 添加收藏时自动填名字、简介、图标。v6 路由档 curio-write（算在收藏的写里）；必须同站（同源 GET 浏览器常不带 Origin，见 _lib.js 的 isSameSite）。
 // 抓取规则和安全限制见 _preview.js（只抓公网 http/https、6 秒、256 KB、最多 3 次跳转）。
 // 返回 200 {ok:true, url, title, desc, icon}（url 是跳转后的最终地址）；抓不到 → 200 {ok:false, error}；网址不合格 → 400。
 import { json, err, methodNotAllowed, isSameSite } from './_lib.js';
-import { requireScope, SCOPE_WRITE } from './_auth.js';
+import { requireScope } from './_auth.js';
 import { cleanUrl } from './_store.js';
 import { fetchPreview } from './_preview.js';
 
 export async function onRequestGet(context) {
   if (!isSameSite(context.request)) return err('origin', 403);
-  const { response } = await requireScope(context, SCOPE_WRITE);
+  const { response } = await requireScope(context);
   if (response) return response;
   const url = cleanUrl(new URL(context.request.url).searchParams.get('url'));
   if (!url) return err('bad-url', 400);

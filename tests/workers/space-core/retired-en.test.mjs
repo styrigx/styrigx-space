@@ -41,7 +41,7 @@ function env() {
     seen,
     SGX_ENV: 'production', SGX_SITE: 'space', ACCOUNT_VERIFIER: v6Space({}),
     KV_LOCK_DOOR: { async get() { return null; }, async put() {}, async delete() {} },
-    D1_SPACE: makeAuthD1({ epochs: { 'lock-epoch': 0 } }),
+    D1_SPACE: makeAuthD1(),
     ASSETS: {
       /* 回源桩：/en/… 还能拿到旧首页（线上那份旧副本）；/ 是当前首页；其余不存在的地址 = Pages 的 404.html（状态 404） */
       async fetch(req) {

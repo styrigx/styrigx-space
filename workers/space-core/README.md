@@ -13,7 +13,7 @@
 | 导出 | 文件 | 做什么 |
 |---|---|---|
 | `default` | `src/app.js` | 公网请求的总流程：剥头 → 静态资源直通 → 取密钥 → 关口 → 路由 |
-| `SpaceVerifier` | `src/rpc/space-verifier.js` | RPC `session(cookieHeader)` → `{ ok, reason }`（逻辑在 `core/lock-session.js` `checkLockSession`）；`conclusion(cookieHeader, clientContext, opts)` → 结论（见下文「结论」，逻辑在 `core/conclusion.js`）。调用方：`styrigx-daymark-core`、`styrigx-curio-core`（只用 `conclusion()`）；调用方写 `[[services]] binding = "SPACE"`、`service = "styrigx-space-core"`、`entrypoint = "SpaceVerifier"` |
+| `SpaceVerifier` | `src/rpc/space-verifier.js` | RPC `admit(cookieHeader, method, path, opts)` / `auditRoot(cookieHeader, command, address)`：原样转给账号 Worker `AccountVerifier`（v6 会话判定 / root 留痕）。调用方：`styrigx-daymark-core`、`styrigx-curio-core`；调用方写 `[[services]] binding = "SPACE"`、`service = "styrigx-space-core"`、`entrypoint = "SpaceVerifier"` |
 | `ShareJanitor` | `src/rpc/share-janitor.js` | RPC `purgeShareLinks(at)` → `{ ok:true, deleted }` / `{ ok:false }`（不抛错；逻辑在 `core/share-links.js` `purgeDeadLinks`）。v5 S2：只给 `styrigx-status` 的服务绑定 `JOB_SPACE`，每天 03:41 CST 那轮调一次；单独一个入口，不挂在 SpaceVerifier 上（那个绑给了奇趣、日刻） |
 
 分享链接（原 `styrigx-share`）没有新建 / 管理的 RPC 入口（只有上面那个清理入口）：点开时签链接会话（v5 S1：`by=link`，票里 `linkId` = `share_link.id`，验票时每次查这一行）、新建 / 管理的门槛都是 `core/link-keys.js` 的内部函数；作废直接写 `share_link.revoked_at`。清理入口 `core/share-links.js` `purgeDeadLinks`（v5 S2 起由 styrigx-status 每日 03:41 CST 那轮经服务绑定 `JOB_SPACE` 调命名入口 `ShareJanitor`）。
@@ -23,29 +23,14 @@
 - `app.js` 第一步剥掉入站请求里所有 `x-styrigx-*` 和旧前缀 `x-sgx-*` 头（下游只认网关自己写的）；主站静态资源（`/css/ /js/ /fonts/ /fav/ /images/` 和根目录几张公开图）原样回源，不验会话、不打 `X-SGX-Runtime`。
 - `gate.js`：访问表 `ROUTE_ACCESS`（v5 S3：页面一律公开；接口只有表里逐条写出的「方法 + 路径」不要进站会话，其余默认要）、主站关口 `onRequest`（域名、会话、no-store、HTML 会话标记）和子站关口 `handleSubsite`（`styrigx.com/blog/`、`/curio/`、`/daymark/` 按路径前缀），两边同一个放行函数 `admit`。v6 P1 起 `admit` 多一条并存的新路径：接口没有旧进站会话、又不在 public 档时，若请求带新会话 cookie `sgx-session`，经 `ACCOUNT_VERIFIER.admit()` 问账号 Worker 这个新会话够不够这条路由的档（`core/identity-admit.js`；没有这个 cookie 不问，判断在账号侧，ADR-0006）。旧图志域名的 301（`atlasRedirect`）已于 P4-3 PR-1 删除。
 - `router.js`：分享链接 `/s/<码>`、`/api/share` 在关口之前由 `routeShare` 接走（`core/share-open.js` 打开短链、`api/share.js` 管理接口，`/s/<码>` 谁都能开，`/api/share` 要进站会话、list / revoke 另要 reauth）；主站关口放行后，转发表 `FORWARDING` → `/api/*` 路由表 `API_ROUTES`（`api/<名字>.js`）→ 回源。新增接口：加 `src/api/<名字>.js`，在 `API_ROUTES` 登记一行（单测核对两边一一对应）。
-- `core/` 业务（会话、票据、凭证、D1 状态、限流、转发帮手、问账号 Worker 的 `account-rpc.js`、组装结论的 `conclusion.js`），`lib/` 通用件，`secrets.js` 把 Secrets Store 绑定换成字符串。
+- `core/` 业务（会话、票据、凭证、D1 状态、限流、转发帮手、写 AI 结论头的 `conclusion.js`），`lib/` 通用件，`secrets.js` 把 Secrets Store 绑定换成字符串。
 
-## 结论
+## 结论头
 
-授权骨架（P2-1，设计方案 2.3、4.3）：网关验门；需要授权时经 `ACCOUNT_VERIFIER` 问账号 Worker（`core/account-rpc.js` `askAuthorize` → `AccountVerifier.authorize()`）；再把结论交给下游——RPC 调用回结论对象，HTTP 转发写结论头。下游只信结论。网关不读账号库、不持账号钥匙，作用域只认字符串格式，不 import 账号的作用域表（规则 14、16）。
+旧的 RPC 结论 `SpaceVerifier.conclusion()`（进站会话 + 账号作用域）已随应用授权删除（定稿 v5.3 §十二）；奇趣、日刻只经 `SpaceVerifier.admit()` / `auditRoot()` 问账号 Worker 判 v6 会话。
 
-- **RPC 结论** `SpaceVerifier.conclusion(cookieHeader, clientContext, opts)`（`core/conclusion.js` `conclusionFor`）：
-
-  ```
-  { space:   { ok, by, linkId, reason },
-    account: { ok, deviceId, scopes: string[], reauth, reason } }
-  // opts: { reauth?: boolean }  只有需要账号复验结论的接口才传 true（账号侧多读一张票）
-  ```
-
-  - `space.ok=false` 时不问账号：`account = { ok:false, reason:'no-space' }`（进门是前置；进站 v3 Q17 前是 `lock` / `no-lock`）。
-  - 账号绑定没配（`no-verifier`）、RPC 抛错（`rpc-error`）、回了看不懂的东西（`bad-reply`）→ `account.ok=false`（fail closed）。
-  - 白名单：`space.by` 只认 `password` / `passkey` / `link`，`linkId` 只在 `by=link` 时有；`deviceId` 只认 `[A-Za-z0-9_-]{8,32}`；作用域只认 `<应用>.<动作>`（`[a-z.]`），不合格式的丢掉，去重、按字母排序；`reauth` 只认 `true`。
-  - 下游写法（P2-2 起）：要作用域 = `account.ok && account.scopes.includes('<站>.write')`；读私密 = `account.ok`；敏感 = 再加 `account.reauth`。
-- **HTTP 结论头**：`core/conclusion.js` `writeAccountConclusion(headers, account)` 先剥掉所有 `X-Styrigx-Account-*`，再只写白名单值，某一项没有就不写（不写 `0`）。表见 `docs/architecture/overview.md`「网关结论」。浏览器带来的同名头在 `app.js` 第一步（剥所有 `x-styrigx-*`）就没了。
-- **锁侧转发头**：`core/lock-identity.js` 转发给账号 Worker 时，有锁屏身份就写 `X-Styrigx-Space-Session: 1`（和进门方式 `X-Styrigx-Space-By`）；P2-3 起没有等级头。
-- 命名：网关代码里只用 `account.reauth` / `X-Styrigx-Account-Reauth` 这类字段名，不出现账号票名（`space/scripts/check-layers.mjs` 规则 16）。
-- 现状（P2-1）：只新增，没有调用方，现有判断一行没改。P2-2 起子站接口 Worker 改调 `conclusion()`；结论头只写给 `styrigx-ai`（第 4 件；P4-2b 起 search-index 退役）。
-- 测试：`tests/workers/space-core/conclusion.test.mjs`、`verifier.test.mjs`、`lock-identity.test.mjs`。
+- **HTTP 结论头**（`core/conclusion.js`）：只剩 `X-Styrigx-Account-Session`。`writeV6PrivateConclusion(headers)` 先剥掉所有 `X-Styrigx-Account-*` 再写 `1`（v6 身份够得上 AI 私密档时，`api/ai.js`）；`stripAccountConclusion(headers)` 只剥。浏览器带来的同名头在 `app.js` 第一步（剥所有 `x-styrigx-*`）就没了。
+- 命名：网关代码里不出现账号票名（`space/scripts/check-layers.mjs` 规则 16）。
 
 ## 路由
 
@@ -63,7 +48,7 @@
 
 | 类别 | 名字 | 说明 |
 |---|---|---|
-| 服务绑定 | `ACCOUNT`（AccountService）、`ACCOUNT_VERIFIER`（AccountVerifier） | 账号 Worker `styrigx-account`：转发 / 只读授权结论 RPC `authorize()`（`core/account-rpc.js`，`core/conclusion.js` 组装结论时用）；命名 v2 删了账号页首帧提示（`data-sgx-account-session`、`askSessionFor`），网关不问账号 session |
+| 服务绑定 | `ACCOUNT`（AccountService）、`ACCOUNT_VERIFIER`（AccountVerifier） | 账号 Worker `styrigx-account`：转发 / 只读 RPC `admit()`、`auditRoot()`（`core/identity-admit.js`）；命名 v2 删了账号页首帧提示（`data-sgx-account-session`、`askSessionFor`），网关不问账号 session |
 | 服务绑定 | `STATUS`、`AI_SERVICE` | `styrigx-status`、`styrigx-ai`：都没有公开地址，网关先验会话再转（`/api/ai` 验同源 + 进门 + 两档限流，回答原样流回）；`SEARCH`、`CHAT` 已在 P4-2b 删除 |
 | 服务绑定 | `AI_SERVICE` | `styrigx-ai`（P4-1）：没有公开地址；`POST /api/ai`（`src/api/ai.js`）验同源、进门、两档 AI 限流、写账号结论头后转给它的 `POST /ask`，SSE 原样流回 |
 | D1 | `D1_SPACE` | D1 `styrigx-space-core`：`realm='lock'` 的行、分享链接 `share_*`、AI 全站限流计数（`realm='ai'`）；基线里的恢复开关表 `lock_reset_switch` 已无运行时读者（进站 v3 L1 起 reset 只要恢复钥匙） |

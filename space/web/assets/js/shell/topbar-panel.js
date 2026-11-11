@@ -614,6 +614,16 @@ export function mountTopbar(o) {
   if (who) who.on(function (/** @type {string} */ w) {
     try { doc.documentElement.setAttribute('data-sgx-account-session', w === 'u:root' ? 'in' : 'out'); } catch (e) {}
   });
+  /* 首帧（AI 窗随页面恢复打开时）：有 v6 登录标记、whoami 还没回答前，AI 窗的消息列表（带 in / out 标签）先不显示，
+     免得 root 先看到 out 那组标签；whoami 回答后（上面按结果设好 in / out）再显示，出错也照常显示（Gray 11-11 19:47） */
+  if (who && aiDlg && who.v6Hinted()) {
+    const aiList = /** @type {HTMLElement|null} */ (aiDlg.querySelector('[data-ai-list]'));
+    if (aiList) {
+      aiList.style.visibility = 'hidden';
+      const showList = function () { aiList.style.visibility = ''; };
+      who.refresh().then(showList, showList);
+    }
+  }
   if (acctBtn && acctDlg && o.account) {
     acct = wire(acctBtn, acctDlg, 'sgxAcct', function () {
       if (!acctWin) acctWin = o.account({ dlg: acctDlg, ms: acct.ms, S: trSec('account'), who: who, run: function (/** @type {string} */ c) { termPrefill(c); } });

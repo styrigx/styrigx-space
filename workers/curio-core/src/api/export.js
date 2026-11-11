@@ -1,7 +1,7 @@
 // workers/core/src/api/export.js
 // GET /api/export[?lang=en]  —— 导出全部收藏为浏览器书签文件（Netscape HTML，Chrome / 三星浏览器都能导入）。
-// 要账号会话（含私密，方案 4.2：读私密 = 账号会话，不要作用域）；必须同站（_lib.js 的 isSameSite：直接点链接下载时浏览器只带 Sec-Fetch-Site）。
-// 没进门 401 unauthorized；没账号会话 401 account。私密的也导出。
+// v6 路由档 root（含私密）；必须同站（_lib.js 的 isSameSite：直接点链接下载时浏览器只带 Sec-Fetch-Site）。
+// 没有 v6 身份 401 unauthorized；档不够 403 forbidden。私密的也导出。
 import { err, methodNotAllowed, isSameSite } from './_lib.js';
 import { requireAccount, auditRootOp } from './_auth.js';
 import { ensureSchema } from './_store.js';

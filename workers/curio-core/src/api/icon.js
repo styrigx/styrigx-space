@@ -8,7 +8,7 @@
 // 响应：200 图片，Cache-Control private, no-cache + ETag（R2 的 httpEtag）+ Vary: Cookie（_image.js）：
 //   浏览器每次用前都回来验会话，图标没变回 304（不重传）；会话失效 / 收藏改私密后本地副本不会再被直接拿出来用。
 import { err, methodNotAllowed } from './_lib.js';
-import { conclusionOf, canReadPrivate, readAccess } from './_auth.js';
+import { readAccess } from './_auth.js';
 import { idParam } from './_write.js';
 import { previewAllowed } from './_preview.js';
 import { etagMatches, imageResponse, notModified, r2Etag } from './_image.js';
@@ -83,7 +83,6 @@ function image(bytes, type, etag) {
 
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const c = await conclusionOf(context);
   const id = idParam(request);
   if (!id) return err('bad-id', 400);
   const db = env && env.D1_FINDS;
@@ -94,8 +93,8 @@ export async function onRequestGet(context) {
     .bind(id)
     .first();
   if (!link) return err('not-found', 404);
-  /* 私密收藏：旧会话看不到时再问 v6（action private，只在这一行是私密的时候问） */
-  if ((link.lp || link.cp) && !canReadPrivate(c) && !(await readAccess(context)).showPrivate) return err('not-found', 404);
+  /* 私密收藏：问 v6（action private，只在这一行是私密的时候问） */
+  if ((link.lp || link.cp) && !(await readAccess(context)).showPrivate) return err('not-found', 404);
   const plan = await iconPlan(link);
   if (!plan.key) return err('not-found', 404);
 

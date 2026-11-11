@@ -1,8 +1,8 @@
 // styrigx-curio-core 奇趣拆页（P4-3）新增的两个子页接口：
-// - 电影 /api/movies：公开读（v5 S3；canWrite 按 curio.write）；写要同源 + 账号会话 + curio.write（401 account / 403 scope / 403 origin）；
+// - 电影 /api/movies：公开读（v5 S3；canWrite 按 v6 写组）；写要同源 + v6 写组（401 unauthorized / 403 forbidden / 403 origin）；
 //   增改删、校验（片名必填、评分 0–5、年份、观看日期）、排序（最近看的在前）；海报走 /api/photo?kind=movie（3 MB、看字节），删电影连海报删；照片清扫认 movies.poster
-// - 私人音乐三层（v5 S3）：歌单 / 封面公开（只有元数据，没有任何音频地址）；听（签令牌、取音频）要进门（含分享链接 by=link）；
-//   上传 / 管理要 账号会话 + curio.write（没进门 401、没登录账号 401 account、无权限 403 scope）；
+// - 私人音乐三层（v5 S3）：歌单 / 封面公开（只有元数据，没有任何音频地址）；听（签令牌、取音频）要 v6 listen 组；
+//   上传 / 管理要 v6 写组（没有身份 401、档不够 403 forbidden）；
 //   上传（音频类型白名单、要 Content-Length、单文件 95 MB 上限、封面看字节）；播放短链（随机令牌存 D1、10 分钟过期、篡改 / 过期 / 别的专辑的曲目 403、
 //   Range 206 / 416、整文件 200）；删专辑连 R2 一起删
 // - 索引排除：搜索索引（= AI 召回读的 KV site:curio）不含电影 / 音乐；写电影 / 音乐不触发重建；站点地图模板不列 music / movies
@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { conclusionAuth } from '../_conclusion.mjs';
+import { whoAuth } from '../_v6who.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const W = REPO + '/workers/curio-core';
@@ -69,14 +69,14 @@ function makeEnv() {
   return { db, r2p: makeR2(), r2m: makeR2(), kv: { puts: 0, async put() { this.puts++; }, async get() { return null; } } };
 }
 function call(e, p, { who = null, method = 'GET', body, origin = ORIGIN, type, headers = {}, length } = {}) {
-  const h = { Cookie: 'sgx-space-session=x', ...headers };
+  const h = { Cookie: 'sgx-session=x', ...headers };
   if (origin) h.Origin = origin;
   if (body !== undefined) h['Content-Type'] = type || 'application/json';
   const b = body === undefined ? undefined : body instanceof Uint8Array || typeof body === 'string' ? body : JSON.stringify(body);
   if (length !== undefined) h['Content-Length'] = String(length);
   else if (b instanceof Uint8Array) h['Content-Length'] = String(b.length);
   const waits = [];
-  const env = { SPACE: conclusionAuth(who), D1_FINDS: e.db, D1_DEVICES: e.db, D1_GAMES: e.db, D1_MOVIES: e.db, D1_MUSIC: e.db, R2_PHOTOS: e.r2p, R2_MUSIC: e.r2m, KV_SEARCH_INDEX: e.kv };
+  const env = { SPACE: whoAuth(who), D1_FINDS: e.db, D1_DEVICES: e.db, D1_GAMES: e.db, D1_MOVIES: e.db, D1_MUSIC: e.db, R2_PHOTOS: e.r2p, R2_MUSIC: e.r2m, KV_SEARCH_INDEX: e.kv };
   return worker.fetch(new Request(ORIGIN + p, { method, headers: h, body: b }), env, { waitUntil(x) { waits.push(x); } }).then((r) => { r.waits = waits; return r; });
 }
 const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x10, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x20]);
@@ -84,7 +84,7 @@ const AUDIO = new Uint8Array(Array.from({ length: 1000 }, (_, i) => i % 256));
 
 /* ================= 电影 ================= */
 
-test('电影：访客能读（v5 S3）；写没进门 401、没登录账号 401 account；没作用域 403 scope；非同源 403；有权限 200', async () => {
+test('电影：访客能读（v5 S3）；写没有身份 401、档不够 403 forbidden；非同源 403；有权限 200', async () => {
   const e = makeEnv();
   assert.deepEqual(await (await call(e, '/curio/api/movies')).json(), { ok: true, canWrite: false, showPrivate: false, movies: [] });
   assert.equal((await call(e, '/curio/api/movies', { method: 'POST', body: { op: 'movie.add', title: 'x' } })).status, 401);
@@ -93,12 +93,12 @@ test('电影：访客能读（v5 S3）；写没进门 401、没登录账号 401 
   assert.deepEqual(await r.json(), { ok: true, canWrite: false, showPrivate: false, movies: [] });
   const add = { op: 'movie.add', title: '花样年华' };
   const na = await call(e, '/curio/api/movies', { who: 'lock', method: 'POST', body: add });
-  assert.equal(na.status, 401);
-  assert.equal((await na.json()).error, 'account');
+  assert.equal(na.status, 403);
+  assert.equal((await na.json()).error, 'forbidden');
   const ns = await call(e, '/curio/api/movies', { who: 'noscope', method: 'POST', body: add });
   assert.equal(ns.status, 403);
-  assert.deepEqual(await ns.json(), { ok: false, error: 'scope', scope: 'curio.write' });
-  assert.equal((await call(e, '/curio/api/movies', { who: 'noscope' })).status, 200, '没作用域也能读');
+  assert.deepEqual(await ns.json(), { ok: false, error: 'forbidden' });
+  assert.equal((await call(e, '/curio/api/movies', { who: 'noscope' })).status, 200, '没写组也能读');
   assert.equal((await (await call(e, '/curio/api/movies', { who: 'noscope' })).json()).canWrite, false);
   assert.equal((await call(e, '/curio/api/movies', { who: 'owner', method: 'POST', body: add, origin: 'https://evil.com' })).status, 403);
   const ok = await call(e, '/curio/api/movies', { who: 'owner', method: 'POST', body: add });
@@ -140,7 +140,7 @@ test('电影 CRUD：校验、排序（最近看的在前，没日期的在后）
   const pic = await call(e, '/curio/api/photo?kind=movie&id=' + c.id, { who: 'lock' });
   assert.equal(pic.status, 200);
   assert.equal(pic.headers.get('Content-Type'), 'image/webp');
-  assert.equal((await call(e, '/curio/api/photo?kind=movie&id=' + c.id, { who: 'lock', method: 'POST', body: WEBP, type: 'image/webp' })).status, 401);
+  assert.equal((await call(e, '/curio/api/photo?kind=movie&id=' + c.id, { who: 'lock', method: 'POST', body: WEBP, type: 'image/webp' })).status, 403);
   assert.equal((await call(e, '/curio/api/photo?kind=movie&id=' + c.id, { who: 'owner', method: 'POST', body: new Uint8Array(20), type: 'image/webp' })).status, 400);
   list = (await (await call(e, '/curio/api/movies', { who: 'lock' })).json()).movies;
   assert.equal(list[0].poster, true);
@@ -158,24 +158,23 @@ test('电影 CRUD：校验、排序（最近看的在前，没日期的在后）
 
 /* ================= 音乐：权限 ================= */
 
-test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听要进门（含 by=link）；上传 / 管理要账号 + curio.write；写非同源 403', async () => {
+test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听要 listen 组；上传 / 管理要写组；写非同源 403', async () => {
   const e = makeEnv();
-  /* 管理：没进门 401 unauthorized、没登录账号 401 account、没作用域 403 scope、非同源 403 */
+  /* 管理：没有身份 401 unauthorized、档不够 403 forbidden、非同源 403 */
   const manage = [
     ['/curio/api/music', 'POST', { op: 'album.add', title: 'A' }],
     ['/curio/api/music-upload?album=1&kind=cover', 'POST', WEBP],
   ];
   for (const [p, method, body] of manage) {
     const opt = { method, body, type: body instanceof Uint8Array ? 'image/webp' : undefined };
-    for (const who of [null, 'link']) {
-      const r = await call(e, p, { ...opt, who });
-      assert.equal(r.status, 401, p + ' ' + who);
-      assert.equal((await r.json()).error, who ? 'account' : 'unauthorized', p);
+    const r = await call(e, p, { ...opt, who: null });
+    assert.equal(r.status, 401, p);
+    assert.equal((await r.json()).error, 'unauthorized', p);
+    for (const who of ['lock', 'noscope']) {
+      const s = await call(e, p, { ...opt, who });
+      assert.equal(s.status, 403, p + ' ' + who);
+      assert.equal((await s.json()).error, 'forbidden', p);
     }
-    assert.equal((await (await call(e, p, { ...opt, who: 'lock' })).json()).error, 'account', p);
-    const s = await call(e, p, { ...opt, who: 'noscope' });
-    assert.equal(s.status, 403, p);
-    assert.equal((await s.json()).error, 'scope', p);
     assert.equal((await call(e, p, { ...opt, who: 'owner', origin: 'https://evil.com' })).status, 403, p);
   }
   /* 有专辑、有曲目、有歌词、有封面时，访客的歌单只有元数据 */
@@ -183,7 +182,7 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
   const tid = (await (await call(e, `/curio/api/music-upload?album=${id}&kind=track&no=1&title=Intro&duration=22`, { who: 'owner', method: 'POST', body: AUDIO, type: 'audio/mpeg' })).json()).id;
   await call(e, '/curio/api/music', { who: 'owner', method: 'POST', body: { op: 'track.edit', id: tid, lrc: '[00:01.00]x' } });
   assert.equal((await call(e, `/curio/api/music-upload?album=${id}&kind=cover`, { who: 'owner', method: 'POST', body: WEBP, type: 'image/webp' })).status, 200);
-  for (const who of [null, 'link', 'lock', 'noscope']) {
+  for (const who of [null, 'lock', 'noscope']) {
     const r = await call(e, '/curio/api/music', { who });
     assert.equal(r.status, 200, String(who));
     const text = await r.clone().text();
@@ -197,10 +196,11 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
   const cv = await call(e, `/curio/api/music-cover?album=${id}`);
   assert.equal(cv.status, 200);
   assert.equal(cv.headers.get('Content-Type'), 'image/webp');
-  /* 听：访客签不了令牌、取不了音频；进门（密码 / 分享链接）都能听；非同源 403 */
+  /* 听：访客签不了令牌、取不了音频；没有 listen 组 403；有 listen（alice）、站长都能听；非同源 403 */
   assert.equal((await call(e, '/curio/api/music-play', { method: 'POST', body: { album: id } })).status, 401);
-  assert.equal((await call(e, '/curio/api/music-play', { who: 'link', method: 'POST', body: { album: id }, origin: 'https://evil.com' })).status, 403);
-  for (const who of ['link', 'lock']) {
+  assert.equal((await call(e, '/curio/api/music-play', { who: 'lock', method: 'POST', body: { album: id } })).status, 403);
+  assert.equal((await call(e, '/curio/api/music-play', { who: 'noscope', method: 'POST', body: { album: id }, origin: 'https://evil.com' })).status, 403);
+  for (const who of ['noscope', 'styrigx']) {
     const play = await (await call(e, '/curio/api/music-play', { who, method: 'POST', body: { album: id } })).json();
     assert.equal(play.ok, true, who);
     const src = play.tracks[0].src;
@@ -208,7 +208,7 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
     assert.equal(r.status, 200, who);
     assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
     assert.equal(r.headers.get('CDN-Cache-Control'), 'no-store');
-    /* 拿着有效令牌，但没进门（分享链接作废 / 回锁之后网关回的就是没进门）→ 401，不给音频 */
+    /* 拿着有效令牌，但没有 v6 身份（lock / exit 之后）→ 401，不给音频 */
     const gone = await call(e, src, { origin: null });
     assert.equal(gone.status, 401, who);
     assert.equal(gone.headers.get('Content-Type'), 'application/json');
@@ -218,8 +218,8 @@ test('音乐三层（v5 S3）：歌单 / 封面公开且不带音频地址；听
   assert.equal((await call(e, '/curio/api/music/x')).status, 401);
   assert.equal((await call(e, '/curio/api/music-cover/x?album=' + id)).status, 401);
   assert.equal((await call(e, '/curio/api/music', { method: 'PUT', body: {} })).status, 401);
-  assert.equal((await call(e, '/curio/api/access')).status, 401, '/api/access 已删（没进门 401，进了门 404）');
-  assert.equal((await call(e, '/curio/api/access', { who: 'owner' })).status, 404);
+  assert.equal((await call(e, '/curio/api/access')).status, 401, '/api/access 已删（路由表里没有：一律 401）');
+  assert.equal((await call(e, '/curio/api/access', { who: 'owner' })).status, 401);
 });
 
 /* ================= 音乐：上传 ================= */
@@ -293,9 +293,9 @@ test('播放短链：随机令牌（43 字符 base64url，存 D1）、整文件 
   const play2 = await (await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: id } })).json();
   assert.notEqual(new URL(ORIGIN + play2.tracks[0].src).searchParams.get('t'), tok);
 
-  /* 播放只要进门 + 令牌（<audio> 也带锁屏 cookie）；没进门 401（守卫在 app.js，令牌之前） */
+  /* 播放要 listen 组 + 令牌（<audio> 也带 sgx-session）；没有身份 401（守卫在 app.js，令牌之前） */
   assert.equal((await call(e, src)).status, 401);
-  const full = await call(e, src, { who: 'lock', origin: null });
+  const full = await call(e, src, { who: 'noscope', origin: null });
   assert.equal(full.status, 200);
   assert.equal(full.headers.get('Accept-Ranges'), 'bytes');
   assert.equal(full.headers.get('Content-Length'), '1000');
@@ -303,31 +303,31 @@ test('播放短链：随机令牌（43 字符 base64url，存 D1）、整文件 
   assert.equal(full.headers.get('Content-Type'), 'audio/mpeg');
   assert.deepEqual(new Uint8Array(await full.arrayBuffer()), AUDIO);
   for (const [range, from, to] of [['bytes=0-99', 0, 99], ['bytes=900-', 900, 999], ['bytes=-10', 990, 999], ['bytes=500-5000', 500, 999]]) {
-    const r = await call(e, src, { who: 'lock', origin: null, headers: { Range: range } });
+    const r = await call(e, src, { who: 'noscope', origin: null, headers: { Range: range } });
     assert.equal(r.status, 206, range);
     assert.equal(r.headers.get('Content-Range'), `bytes ${from}-${to}/1000`, range);
     assert.equal(r.headers.get('Content-Length'), String(to - from + 1), range);
     assert.deepEqual(new Uint8Array(await r.arrayBuffer()), AUDIO.slice(from, to + 1), range);
   }
   for (const range of ['bytes=1000-', 'bytes=5-2', 'items=0-1', 'bytes=0-1,5-6']) {
-    const r = await call(e, src, { who: 'lock', origin: null, headers: { Range: range } });
+    const r = await call(e, src, { who: 'noscope', origin: null, headers: { Range: range } });
     assert.equal(r.status, 416, range);
     assert.equal(r.headers.get('Content-Range'), 'bytes */1000');
   }
-  const head = await call(e, src, { who: 'lock', origin: null, method: 'HEAD', headers: { Range: 'bytes=0-9' } });
+  const head = await call(e, src, { who: 'noscope', origin: null, method: 'HEAD', headers: { Range: 'bytes=0-9' } });
   assert.equal(head.status, 206);
   assert.equal(head.headers.get('Content-Length'), '10');
   /* 篡改：改一个字符 / 截短 / 别的专辑的曲目 → 403 token */
   const flip = tok.slice(0, -1) + (tok.endsWith('A') ? 'B' : 'A');
   for (const p of [src.replace(tok, flip), src.replace(tok, tok.slice(1)), src.replace('id=' + t1, 'id=' + t2), '/curio/api/music-stream?id=' + t1, src.replace('id=' + t1, 'id=abc')]) {
-    const r = await call(e, p, { who: 'lock', origin: null });
+    const r = await call(e, p, { who: 'noscope', origin: null });
     assert.equal(r.status, 403, p);
     assert.equal((await r.json()).error, 'token', p);
   }
   /* 过期：把令牌过期时间拨到过去 → 403；签新令牌时顺手删掉过期的 */
   e.db.raw.prepare('UPDATE music_tokens SET expires_at = ?1').run(Date.now() - 1);
-  assert.equal((await call(e, src, { who: 'lock', origin: null })).status, 403);
-  assert.equal((await call(e, src, { who: 'lock', origin: null, headers: { Range: 'bytes=0-1' } })).status, 403);
+  assert.equal((await call(e, src, { who: 'noscope', origin: null })).status, 403);
+  assert.equal((await call(e, src, { who: 'noscope', origin: null, headers: { Range: 'bytes=0-1' } })).status, 403);
   await call(e, '/curio/api/music-play', { who: 'owner', method: 'POST', body: { album: other } });
   assert.equal(e.db.raw.prepare('SELECT COUNT(*) AS n FROM music_tokens').get().n, 1);
   /* 纯函数 */

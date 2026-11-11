@@ -63,7 +63,6 @@ export const TERM_EN = {
   usagePasswd: 'usage: passwd',
   usagePasskey6: 'usage: passkey [ls | add | rm <n>]',
   usageDevice: 'usage: device [rm <n> | rm --all]',
-  usageApp: 'usage: app [allow <n> | deny <n>]',
   usageProfile: 'usage: profile [set name | nick | sign | email <value> | avatar]',
   usageSu: 'usage: su <user> | su root',
   usageGroups: 'usage: groups [user]',

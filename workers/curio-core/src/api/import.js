@@ -1,8 +1,8 @@
 // workers/core/src/api/import.js
 // POST /api/import[?private=0]   body：浏览器导出的书签文件原文（.html，最多 8 MB，按 UTF-8 字节计）
 //
-// 账号会话 + 作用域 curio.write + 账号复验（sgx-account-reauth，批量写入、原文进 R2，方案 4.2 的敏感操作）；必须同源。
-// 没进门 401 unauthorized；没账号会话 401 account；没作用域 403 scope；没复验 401 reauth（前端引导去账号页复验）。步骤：
+// v6 路由档 root（批量写入、原文进 R2）；必须同源。
+// 没有 v6 身份 401 unauthorized；档不够 403 forbidden。步骤：
 //   1. 先把原始文件原样存进 R2：imports/<UTC 时间>-<sha256 前 12 位>.html（存不进去就整个不导入：备份优先，书签不能再丢）
 //   2. 解析（_netscape.js）：文件夹路径 → 分类名；已有同名分类就并进去，没有就新建
 //   3. 网址已经收藏过的跳过（库里按网址去重；同一个文件里重复的也只留一个）
@@ -33,7 +33,7 @@ export function backupKey(now, hash) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
-  const denied = await guardWrite(context, { reauth: true });
+  const denied = await guardWrite(context);
   if (denied) return denied;
   const db = env && env.D1_FINDS;
   const r2 = env && env.R2_PHOTOS;

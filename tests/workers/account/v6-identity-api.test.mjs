@@ -442,7 +442,7 @@ test('救援会话：白名单 whoami / passwd / passkey / groups / exit / lock 
   }
   assert.equal(rows(env, "SELECT * FROM account_users WHERE name = 'x1'").length, 0);
   const req = new Request(ORIGIN + '/', { headers: { Cookie: 'sgx-session=' + rt } });
-  for (const [m, p] of [['GET', '/curio/api/export'], ['POST', '/api/account/grants'], ['POST', '/curio/api/import'], ['DELETE', '/daymark/api/collections'],
+  for (const [m, p] of [['GET', '/curio/api/export'], ['POST', '/api/account/proxy'], ['POST', '/curio/api/import'], ['DELETE', '/daymark/api/collections'],
     ['GET', '/api/space-audit'], ['POST', '/api/ai'], ['PUT', '/api/profile'], ['GET', '/api/find'], ['GET', '/api/profile']]) {
     const c = await AD.admitRoute(env, req, m, p);
     assert.equal(c.allowed, false, m + ' ' + p);
@@ -860,14 +860,14 @@ test('P2c sudo <任意 root 档接口>：sudoers 非站长用户 sudo PUT /api/p
   assert.ok(sty);
 });
 
-test('P2c sudo 的目标：root 凭据接口（/api/account/keys、reset）403 root-creds；身份接口本身 / 旧 session / reauth 400 action；别的 Worker 的接口 400 not-here；查不到档 400；GET 带 body 400；旧写法（command.action）照旧', async () => {
+test('P2c sudo 的目标：身份接口本身 400 action；v6 P4 删掉的旧接口（/api/account/keys、reset、session、reauth）不在路由表 → 400 action；别的 Worker 的接口 400 not-here；查不到档 400；GET 带 body 400；旧写法（command.action）照旧', async () => {
   const env = await setup();
   const tok = await login(env, 'styrigx');
   const sudo = (command) => id(env, { action: 'sudo', password: PW.styrigx, command }, tok, freshIp());
   for (const [command, status, error] of [
-    [{ method: 'POST', path: '/api/account/keys', body: { action: 'password-set' } }, 403, 'root-creds'],
-    [{ method: 'POST', path: '/api/account/keys/', body: { action: 'passkey-add' } }, 403, 'root-creds'],
-    [{ method: 'POST', path: '/api/account/reset', body: { action: 'password-set' } }, 403, 'root-creds'],
+    [{ method: 'POST', path: '/api/account/keys', body: { action: 'password-set' } }, 400, 'action'],
+    [{ method: 'POST', path: '/api/account/keys/', body: { action: 'passkey-add' } }, 400, 'action'],
+    [{ method: 'POST', path: '/api/account/reset', body: { action: 'password-set' } }, 400, 'action'],
     [{ method: 'POST', path: '/api/identity', body: { action: 'passwd' } }, 400, 'action'],
     [{ method: 'POST', path: '/api/account/session', body: { action: 'password' } }, 400, 'action'],
     [{ method: 'POST', path: '/api/account/reauth' }, 400, 'action'],
@@ -895,13 +895,14 @@ test('P2c sudo 的目标：root 凭据接口（/api/account/keys、reset）403 r
   assert.equal(d.status, 200, JSON.stringify(d.json));
 });
 
-test('P2c sudo 不能动 root 的凭据（栈顶必须是 root）：sudo 下 identity passwd / passkey、keys、reset 全拒；su root 后（栈顶 root）passwd 改 root 才行', async () => {
+test('P2c sudo 不能动 root 的凭据（栈顶必须是 root）：sudo 下 identity passwd / passkey 全拒（旧 keys / reset 接口已删，400 action）；su root 后（栈顶 root）passwd 改 root 才行', async () => {
   const env = await setup();
   const tok = await login(env, 'styrigx');
-  for (const command of [{ action: 'passwd', password: 'n-e-w-pass-1' }, { action: 'passkey-add' }, { method: 'POST', path: '/api/account/keys', body: { action: 'password-set', password: 'n-e-w-pass-1' } }]) {
+  for (const command of [{ action: 'passwd', password: 'n-e-w-pass-1' }, { action: 'passkey-add' }]) {
     const r = await id(env, { action: 'sudo', password: PW.styrigx, command }, tok, freshIp());
     assert.equal(r.json.error, 'root-creds', JSON.stringify(command));
   }
+  assert.equal((await id(env, { action: 'sudo', password: PW.styrigx, command: { method: 'POST', path: '/api/account/keys', body: { action: 'password-set', password: 'n-e-w-pass-1' } } }, tok, freshIp())).json.error, 'action');
   await suRoot(env, tok);
   const p = await id(env, { action: 'passwd', current: PW.root, password: 'root-pass-02x' }, tok, freshIp());
   assert.equal(p.status, 200, JSON.stringify(p.json));

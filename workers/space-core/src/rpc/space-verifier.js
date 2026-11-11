@@ -4,23 +4,13 @@
  * entrypoint = "SpaceVerifier"），公网路由进不来。
  * 调用方：styrigx-curio-core、styrigx-daymark-core（workers/curio-core、workers/daymark-core 两个接口 Worker）：
  * - admit() / auditRoot()：v6 会话的放行结论与 root 特权操作留痕，原样转给账号 Worker ACCOUNT_VERIFIER，判断不在这里。
- * - conclusion()：v6 P4（定稿 v5.2 §十三）起进站会话删除，一律回 denied（core/conclusion.js conclusionFor）；
- *   调用方的旧路径因此不成立、走 admit()。方法留着：调用方的代码不在本 PR 改（RPC 签名不变）。
+ * - conclusion()（旧进站 / 账号结论）随应用授权删除（定稿 v5.3 §十二）；调用方只走 admit()。
  * v6 P4：session()（进站会话检查）随进站签发删除。
  */
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { conclusionFor } from '../core/conclusion.js';
 import { askAdmit, auditRoot } from '../core/identity-admit.js';
 
 export class SpaceVerifier extends WorkerEntrypoint {
-  /**
-   * 结论：v6 P4 起一律 { space: { ok:false, reason:'no-session' }, account: { ok:false, reason:'no-space' } }（denied）。
-   * 参数留着（RPC 签名不变），不读。
-   */
-  async conclusion() {
-    return conclusionFor();
-  }
-
   /**
    * v6 新会话的放行结论（割接）：转给账号 Worker AccountVerifier.admit（路由表 + permits 只在那里）。
    * 回 { allowed, uid, root, rescue, action, … }；没 sgx-session / 绑定没配 / 出错 → { allowed:false }。

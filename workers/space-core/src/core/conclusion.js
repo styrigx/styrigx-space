@@ -1,9 +1,5 @@
 /**
- * 网关结论（方案 2.3、4.3；P2-1 授权骨架）。v6 P4（定稿 v5.2 §十三）起进站会话与旧账号会话都删了：
- *
- * - RPC 结论 conclusionFor()：SpaceVerifier.conclusion()（rpc/space-verifier.js）的实现。没有进站会话可验了，一律回
- *   { space: { ok:false, reason:'no-session' }, account: { ok:false, reason:'no-space' } }（denied）。
- *   调用方 curio-core / daymark-core 的 _auth.js 仍先问它、不成立再走 v6（SpaceVerifier.admit）；形状不变，它们不用改。
+ * 网关写给 styrigx-ai 的结论头。旧的 RPC 结论（SpaceVerifier.conclusion / conclusionFor）随应用授权删除（定稿 v5.3 §十二）。
  * - HTTP 结论头：只剩 X-Styrigx-Account-Session（styrigx-ai 只看这一个头决定私密召回 / 能不能切模型）：
  *   writeV6PrivateConclusion(headers) 先剥再写 1；stripAccountConclusion(headers) 只剥。浏览器带来的同名头在 app.js 第一步
  *   （core/lock-identity.js stripInternalHeaders，剥所有 x-styrigx-*）就已经剥掉，写之前这里再剥一次。
@@ -18,24 +14,6 @@ export const ACCOUNT_CONCLUSION_HEADERS = Object.freeze({
 
 /** 账号结论头的公共前缀（小写） */
 export const ACCOUNT_CONCLUSION_PREFIX = 'x-styrigx-account-';
-
-/**
- * @typedef {{ ok: boolean, by: string, linkId: string, reason: string }} LockConclusion
- * @typedef {{ ok: boolean, deviceId: string, scopes: string[], reauth: boolean, reason: string }} AccountConclusion
- * @typedef {{ space: LockConclusion, account: AccountConclusion }} Conclusion
- */
-
-/**
- * 网关结论（SpaceVerifier.conclusion 的实现）：v6 P4 起一律 denied（没有进站会话可验，也不问账号）。永不抛错。
- * 参数留着（RPC 签名不变）：cookieHeader、clientContext、opts 都不读。
- * @returns {Promise<Conclusion>}
- */
-export async function conclusionFor() {
-  return {
-    space: { ok: false, by: '', linkId: '', reason: 'no-session' },
-    account: { ok: false, deviceId: '', scopes: [], reauth: false, reason: 'no-space' },
-  };
-}
 
 /** 这个头名是账号结论头吗（大小写不敏感） @param {string} name */
 function isAccountConclusionHeader(name) {

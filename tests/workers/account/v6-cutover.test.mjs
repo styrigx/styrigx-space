@@ -1,6 +1,6 @@
 /**
  * 割接（v6 cutover）：账号 Worker 这一侧——
- * - POST /api/account/grants、/api/account/proxy 认 v6 新会话（root 档）：su root 放行、不要旧 reauth 票；styrigx / 访客被拒；
+ * - POST /api/account/proxy 认 v6 新会话（root 档）：su root 放行、不要旧 reauth 票；styrigx / 访客被拒；
  *   sudo 借来的 root 也放行（sudo 自动生效），审计记真正执行的人 + via sudo
  * - AccountVerifier.admit 带 action（子站接口 Worker 经网关转来）：按那个 action 的档判、回答带回 action；路由没列这个 action → 拒（不退回路由档）
  * - 公开读接口的 action private = 本站写组
@@ -73,26 +73,6 @@ async function rootToken(env) {
 }
 const rows = (env, sql, ...p) => env.D1_ACCOUNT.raw.prepare(sql).all(...p).map((r) => ({ ...r }));
 
-test('grants（root 档）：su root 后 list / add（不要旧 reauth 票）/ revoke 200，身份审计记 app allow|deny；styrigx、alice、访客被拒', async () => {
-  const env = await setup();
-  const sty = await login(env, 'styrigx');
-  assert.equal((await call(env, 'POST', '/api/account/grants', { cookie: sty, body: { action: 'list' } })).status, 401, 'styrigx 不是 root');
-  assert.equal((await call(env, 'POST', '/api/account/grants', { body: { action: 'list' } })).status, 401, '访客');
-  const rt = await rootToken(env);
-  const list = await call(env, 'POST', '/api/account/grants', { cookie: rt, body: { action: 'list' } });
-  assert.equal(list.status, 200, JSON.stringify(list.json));
-  assert.ok(Array.isArray(list.json.grants));
-  const add = await call(env, 'POST', '/api/account/grants', { cookie: rt, body: { action: 'add', app: 'curio' } });
-  assert.equal(add.status, 200, JSON.stringify(add.json));
-  assert.equal(add.json.grants.find((g) => g.app === 'curio').granted, true);
-  assert.equal(add.json.grants.find((g) => g.app === 'curio').by, 'root');
-  const rv = await call(env, 'POST', '/api/account/grants', { cookie: rt, body: { action: 'revoke', app: 'curio' } });
-  assert.equal(rv.status, 200);
-  const au = rows(env, "SELECT uid, command FROM account_user_audit WHERE command LIKE 'app %' ORDER BY ts");
-  assert.deepEqual(au.map((a) => [a.uid, a.command]), [[0, 'app allow curio'], [0, 'app deny curio']]);
-  assert.equal((await call(env, 'POST', '/api/account/grants', { cookie: rt, body: { action: 'nope' } })).status, 400);
-});
-
 test('proxy（root 档）：su root 后 status / show / rm 直接到 ProxyAdmin（不要 reauth 票），除 status 外审计 sub <action> [源名]（不记令牌 / 链接）；styrigx 401', async () => {
   const env = await setup();
   const sty = await login(env, 'styrigx');
@@ -111,17 +91,14 @@ test('proxy（root 档）：su root 后 status / show / rm 直接到 ProxyAdmin�
   for (const c of au) assert.ok(!c.includes('SECRET') && !c.includes('S'.repeat(10)));
 });
 
-test('sudo 借 root 执行 grants / proxy（割接后 sudo 自动生效）：每次验自己的凭据；审计记真正执行的人 + via sudo', async () => {
+test('sudo 借 root 执行 proxy（割接后 sudo 自动生效）：每次验自己的凭据；审计记真正执行的人 + via sudo', async () => {
   const env = await setup();
   const at = await login(env, 'alice');
-  assert.equal((await call(env, 'POST', '/api/account/grants', { cookie: at, body: { action: 'list' } })).status, 401, 'alice 直接调被拒');
-  const r = await id(env, { action: 'sudo', password: PW.alice, command: { method: 'POST', path: '/api/account/grants', body: { action: 'add', app: 'daymark' } } }, at);
-  assert.equal(r.status, 200, JSON.stringify(r.json));
-  assert.equal(r.json.grants.find((g) => g.app === 'daymark').granted, true);
+  assert.equal((await call(env, 'POST', '/api/account/proxy', { cookie: at, body: { action: 'status' } })).status, 401, 'alice 直接调被拒');
   const p = await id(env, { action: 'sudo', password: PW.alice, command: { method: 'POST', path: '/api/account/proxy', body: { action: 'on', name: 'jc' } } }, at);
   assert.equal(p.status, 200, JSON.stringify(p.json));
-  const au = rows(env, "SELECT uid, command FROM account_user_audit WHERE command LIKE 'app %' OR command LIKE 'sub %' ORDER BY ts");
-  assert.deepEqual(au.map((a) => [a.uid, a.command]), [[1001, 'app allow daymark via sudo'], [1001, 'sub on jc via sudo']]);
+  const au = rows(env, "SELECT uid, command FROM account_user_audit WHERE command LIKE 'sub %' ORDER BY ts");
+  assert.deepEqual(au.map((a) => [a.uid, a.command]), [[1001, 'sub on jc via sudo']]);
 });
 
 test('AccountVerifier.admit 带 action：按 action 的档、回答带回 action；路由没列这个 action / 写法不对 → 拒（不退回路由档）；不带 action 时 action 为空', async () => {

@@ -64,8 +64,6 @@ export const ROUTE_ACCESS = Object.freeze([
   /* v6 P4：旧账号会话（GET /api/account、/session、/reauth、/reset、/keys）删除 */
   R({ method: 'POST', path: '/api/account/devices', level: 'user', worker: 'account', why: '已登录设备 = 自己的会话（v6 who 只看自己）',
     actions: { list: 'user', revoke: 'user', 'revoke-all': 'user' }, decided: 'Gray 2026-11-11 定 user：管自己的会话；root 看全部由 who 做（P2）' }),
-  R({ method: 'POST', path: '/api/account/grants', level: 'root', worker: 'account', why: '应用授权 app allow | deny（归 root，定稿 §十）',
-    actions: { list: 'root', add: 'root', revoke: 'root' }, retire: 'P2 起子应用权限改由组表达（curio-write / daymark-write …）' }),
   R({ method: 'POST', path: '/api/account/proxy', level: 'root', worker: 'account', why: '代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥）',
     actions: { status: 'root', show: 'root', token: 'root', key: 'root', add: 'root', mv: 'root', on: 'root', off: 'root', upload: 'root', rm: 'root' },
     decided: 'Gray 2026-11-11 定 root，不加新组' }),
@@ -140,7 +138,7 @@ export const SERVICE_ONLY = Object.freeze([
   { worker: 'status', entry: 'GET /summary', caller: 'space-core GET /api/status（STATUS）', why: '监测数据（status 组）' },
   { worker: 'account', entry: 'AccountService.fetch', caller: 'space-core FORWARDING（ACCOUNT）', why: '上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/wellbeing、/avatar/*' },
   { worker: 'account', entry: 'AccountVerifier.admit / auditRoot', caller: 'space-core（ACCOUNT_VERIFIER）', why: 'v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除）' },
-  { worker: 'space-core', entry: 'SpaceVerifier.conclusion / admit / auditRoot', caller: 'curio-core、daymark-core（SPACE）', why: 'conclusion 自 v6 P4 起一律 denied；admit / auditRoot 原样转给账号 Worker（v6 P4 起 session 与 ShareJanitor 删除）' },
+  { worker: 'space-core', entry: 'SpaceVerifier.admit / auditRoot', caller: 'curio-core、daymark-core（SPACE）', why: 'admit / auditRoot 原样转给账号 Worker（v6 P4 起 session、ShareJanitor、conclusion 删除）' },
   { worker: 'account', entry: 'AccountJanitor.purgeExpiredUsers', caller: 'styrigx-status 每日一轮（JOB_ACCOUNT）', why: '到期满 30 天的用户自动删除（v6 P2c）' },
   { worker: 'proxy-rules', entry: 'ProxyAdmin.*', caller: 'account POST /api/account/proxy（PROXY）', why: '代理订阅管理（root 档在调用方）' },
   { worker: 'curio-core / daymark-core / ai', entry: 'HourlyJob.run', caller: 'styrigx-status 每小时一轮', why: '搜索索引 / 照片清理等定时任务' },

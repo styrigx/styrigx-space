@@ -1,7 +1,7 @@
 // workers/core/src/api/_write.js
 // 写接口共用：读 JSON body（限大小）、写操作门槛（同源 + 账号会话 + 作用域 daymark.write）、?id= 参数。下划线开头：不是接口。
 import { err, isSameOrigin } from './_lib.js';
-import { requireScope, SCOPE_WRITE } from './_auth.js';
+import { requireScope } from './_auth.js';
 import { ID_RE } from './_quotes.js';
 
 const MAX_BODY = 65536; // 专题排序一次带全部句子 id（最多 2000 × 15 字节）
@@ -18,13 +18,12 @@ export async function readBody(request) {
 }
 
 /**
- * 写操作：先看同源（非同源 403 origin），再要作用域 daymark.write（没进门 401 unauthorized、没账号会话 401 account、
- * 没作用域 403 scope）；通过返回 null。
+ * 写操作：先看同源（非同源 403 origin），再按路由表的档问 v6（没有身份 401 unauthorized、档不够 403 forbidden）；通过返回 null。
  * @param {any} context
  */
 export async function guardWrite(context) {
   if (!isSameOrigin(context.request)) return err('origin', 403);
-  const { response } = await requireScope(context, SCOPE_WRITE);
+  const { response } = await requireScope(context);
   return response;
 }
 

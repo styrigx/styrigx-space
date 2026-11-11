@@ -1,6 +1,7 @@
 /**
  * 账号已登录设备（account_device 表）。v6 P4（定稿 v5.2 §十三）起旧账号会话删除，不再写新行；/api/account/devices 只管 v6 会话。
- * 留下的读法只给应用授权列表显示「授权时的设备」（api/account/grants.js grantListView：getDevice / deviceView）。
+ * 应用授权（定稿 v5.3 §十二）删除后，只服务授权列表的 deviceView 一并删除；本模块其余导出（getDevice 仍被同文件 recordLogin 调用）
+ * 现在没有外部调用方，是否整体删除等 Gray 定（v6 P4 收尾 PR 未决）。
  * 以下是旧账号会话时的记录方式（只作数据说明）：
  *
  * 每次账号登录（通行密钥 / 密码）在 session 票里带一个随机 deviceId，并在 account_device 记一行：
@@ -229,25 +230,4 @@ export async function pruneOtherDevices(env, keepDeviceId) {
     await onDb(env, (d) => d.prepare('DELETE FROM account_device WHERE device_id <> ? AND revoked_at = 0')
       .bind(String(keepDeviceId || '')).run());
   } catch (e) { /* 删不掉就算了：设备页也只多显示几台，它们的票已随纪元失效 */ }
-}
-
-/**
- * 给前端的设备视图。
- * @param {object} d @param {string} currentDeviceId
- */
-export function deviceView(d, currentDeviceId) {
-  return {
-    deviceId: d.deviceId,
-    current: d.deviceId === currentDeviceId,
-    name: modelName(d.model) || d.platform || '',
-    model: d.model || '',
-    platform: d.platform || '',
-    platformVersion: d.platformVersion || '',
-    browser: d.browser || '',
-    country: d.country || '',
-    city: d.city || '',
-    by: d.by || '',
-    createdAt: d.createdAt || 0,
-    lastSeen: d.lastSeen || 0,
-  };
 }

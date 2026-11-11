@@ -9,7 +9,7 @@
 import '../account/_cf-workers.mjs'; /* cloudflare:workers 替身：index.js 再导出 HourlyJob（WorkerEntrypoint） */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { conclusionAuth } from '../_conclusion.mjs';
+import { whoAuth } from '../_v6who.mjs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,11 +64,11 @@ function makeCtx() {
   return { pending, waitUntil(p) { pending.push(p); }, flush: () => Promise.all(pending) };
 }
 /* 网关结论替身（../_conclusion.mjs）：'owner' 账号已登录、'lock' 进门没登录账号 */
-const auth = (who) => conclusionAuth(who);
+const auth = (who) => whoAuth(who);
 const ORIGIN = 'https://styrigx.com';
 const SITE = ORIGIN + '/daymark';
 async function call(p, { who = 'owner', db, kv = makeKV(), ctx = makeCtx(), method = 'GET', body } = {}) {
-  const headers = { Cookie: 'x', Origin: ORIGIN };
+  const headers = { Cookie: 'sgx-session=x', Origin: ORIGIN };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const req = new Request(ORIGIN + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const env = { SPACE: auth(who), D1_QUOTES: db };
@@ -178,7 +178,7 @@ test('重建在 waitUntil 里：响应不等它', async () => {
   const ctx = makeCtx();
   const kv = makeKV();
   const env = { SPACE: auth('owner'), D1_QUOTES: db, KV_SEARCH_INDEX: kv };
-  const req = new Request(ORIGIN + '/daymark/api/quotes', { method: 'POST', headers: { Cookie: 'x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'x' }) });
+  const req = new Request(ORIGIN + '/daymark/api/quotes', { method: 'POST', headers: { Cookie: 'sgx-session=x', Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'x' }) });
   const res = await worker.fetch(req, env, ctx);
   assert.equal(res.status, 201);
   assert.equal(ctx.pending.length, 1);

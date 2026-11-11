@@ -7,7 +7,7 @@
  * - reset-recovery-key（恢复密钥换 reset 票，成功失败都记）、reset-password-set、reset-passkey-add、reset-passkey-delete、
  *   reset-finish-all / reset-finish-others / reset-finish-none（sudo root reset 最后一步的登出选择）
  * - keys-password-set、keys-passkey-add、keys-passkey-delete、keys-passkey-rename
- * - devices-revoke、devices-revoke-all、grants-add、grants-revoke
+ * - devices-revoke、devices-revoke-all
  *
  * 没有读接口（命名 v2 Q3 删了列表接口）：要看就直接查 D1。写入尽力而为：返回是否写进去，从不抛错；
  * 只有恢复密钥换票这一处据此 fail closed（写不进审计就不签 reset 票，见 core/reset.js）。
@@ -25,7 +25,6 @@ export const AUDIT_EVENTS = Object.freeze([
   'reset-finish-all', 'reset-finish-others', 'reset-finish-none',
   'keys-password-set', 'keys-passkey-add', 'keys-passkey-delete', 'keys-passkey-rename',
   'devices-revoke', 'devices-revoke-all',
-  'grants-add', 'grants-revoke',
 ]);
 
 /** 保留期 */

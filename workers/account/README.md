@@ -51,7 +51,7 @@ ADR-0006。P1 只加新路径，旧会话 / 旧入口 / 旧命令全部不动；
 | `src/lib/uid-schema.js`（P2） | 数据表有没有 uid 列（`migrations/0007` 跑没跑）：两种表结构都能跑，迁移前别的 uid 碰不到 styrigx 的数据 |
 | `migrations-pending/`（P2） | 待 Gray 批准的迁移（不在 `migrations_dir`，部署 job 不会跑）；`0007_v6_uid_columns.sql` 已于 2026-11-11 获批挪进 `migrations/` |
 
-数据迁移（凭据 → root / styrigx）只有脚本 `space/scripts/v6-identity-migrate.mjs` 和对照表 `docs/specs/v6-identity-migration.md`，P1 不对生产执行。
+数据迁移（凭据 → root / styrigx）的对照表见 `docs/specs/v6-identity-migration.md`；生成脚本 `space/scripts/v6-identity-migrate.mjs` 已于 v6 P4 收尾删除（Gray 2026-11-11 20:11）。
 
 ## 账号接口
 

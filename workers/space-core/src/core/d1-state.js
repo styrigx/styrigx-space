@@ -4,7 +4,8 @@
  * 只按形状校验（realmShape；字符串只认锁屏域的 id 'lock'）。AI 全站总闸（ai-limit.js）、审计（space-audit.js）经这里访问自己的表。
  *
  * v6 P4（定稿 v5.2 §十三）起进站签发删除：纪元、锁屏通行密钥、解锁密码、user handle、challenge、设备的读写都删了，
- * 运行时只剩 attempt_limit（AI 全站总闸）与 audit 有读写；SCHEMA 与库里的旧表原样保留（不删表，见下）。
+ * 运行时只剩 attempt_limit（AI 全站总闸）与 audit 有读写。旧进站 8 张表的建表语句也删了（定稿 v5.4 §十一，Gray 11-11 19:52、20:11），
+ * 生产库里的表由 docs/ops/v6-p4-drop-space-legacy.sql 在部署绿后 drop。
  *
  * 读主库（安全读的硬性要求）：网关不开 D1 read replication，也不用 D1 session API。
  * （tests/workers/space-core/d1-state.test.mjs 扫网关源码核对：任何地方出现 session API 调用就失败。）
@@ -16,20 +17,13 @@ import { REALM_LOCK } from './realms.js';
 
 
 /**
- * 与 migrations/ 跑完后的进站段相同的建表语句（0001_baseline.sql 按文件顺序，去掉 0002_drop_tempkey.sql 删的 tempkey；d1-state.test.mjs 核对）。
- * v6 P4 起运行时只读写 attempt_limit（AI 全站总闸）与 audit；epoch / passkey / password / user_handle / challenge / device / kv_migration
- * 的语句保留不动（迁移基线与一次性导入脚本 space/scripts/migrate-kv-to-d1.mjs 用同一份；库里旧表与数据不动，是否删表由 Gray 定）。
+ * 运行时还在读写的两张表（attempt_limit、audit）的建表语句，与 migrations/0001_baseline.sql 里这两张逐条一致（d1-state.test.mjs 核对）。
+ * 旧进站 8 张表（epoch、passkey、password、user_handle、challenge、device、kv_migration、lock_reset_switch）的语句删了：
+ * 否则兜底建表会在 drop 后把空表建回来（定稿 v5.4 §十一）。
  * 全部 IF NOT EXISTS：代码兜底建表和迁移重复跑都不出错。
  */
 export const SCHEMA = Object.freeze([
-  'CREATE TABLE IF NOT EXISTS epoch (realm TEXT PRIMARY KEY, value INTEGER NOT NULL)',
-  'CREATE TABLE IF NOT EXISTS passkey (realm TEXT NOT NULL, credential_id TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY (realm, credential_id))',
-  'CREATE TABLE IF NOT EXISTS password (realm TEXT PRIMARY KEY, record TEXT NOT NULL)',
-  'CREATE TABLE IF NOT EXISTS kv_migration (name TEXT PRIMARY KEY, migrated_at INTEGER NOT NULL)',
-  'CREATE TABLE IF NOT EXISTS user_handle (realm TEXT PRIMARY KEY, handle TEXT NOT NULL, legacy_handle TEXT NOT NULL DEFAULT \'\')',
-  'CREATE TABLE IF NOT EXISTS challenge (realm TEXT NOT NULL, id TEXT NOT NULL, purpose TEXT NOT NULL, challenge TEXT NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY (realm, id))',
   'CREATE TABLE IF NOT EXISTS attempt_limit (realm TEXT NOT NULL, kind TEXT NOT NULL, bucket TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, strikes INTEGER NOT NULL DEFAULT 0, locked_until INTEGER NOT NULL DEFAULT 0, window_start INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL, PRIMARY KEY (realm, kind, bucket))',
-  'CREATE TABLE IF NOT EXISTS device (realm TEXT NOT NULL, device_id TEXT NOT NULL, record TEXT NOT NULL, last_seen INTEGER NOT NULL DEFAULT 0, revoked_at INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL, PRIMARY KEY (realm, device_id))',
   'CREATE TABLE IF NOT EXISTS audit (realm TEXT NOT NULL, id TEXT NOT NULL, ts INTEGER NOT NULL, ip_prefix TEXT NOT NULL, ok INTEGER NOT NULL, decoy INTEGER NOT NULL DEFAULT 0, via TEXT NOT NULL DEFAULT \'\', path TEXT NOT NULL DEFAULT \'\', expires_at INTEGER NOT NULL, PRIMARY KEY (realm, id))',
   'CREATE INDEX IF NOT EXISTS audit_ts ON audit (realm, ts)',
 ]);
@@ -92,10 +86,10 @@ export function onAuthDb(env, realm, fn) {
 
 /**
  * 顺手清掉某表某域已过期的行（尽力而为，出错吞掉；读路径本来就不认过期行）。
- * @param {any} db @param {'challenge'|'attempt_limit'|'device'|'audit'} table @param {string} realmId @param {number} [now]
+ * @param {any} db @param {'attempt_limit'|'audit'} table @param {string} realmId @param {number} [now]
  */
 export async function sweepExpired(db, table, realmId, now) {
-  if (!/^(challenge|attempt_limit|device|audit)$/.test(table)) throw new Error('sweep: bad table ' + table);
+  if (!/^(attempt_limit|audit)$/.test(table)) throw new Error('sweep: bad table ' + table);
   try {
     await db.prepare('DELETE FROM ' + table + ' WHERE realm = ? AND expires_at <= ?').bind(realmId, now || Date.now()).run();
   } catch (e) {}

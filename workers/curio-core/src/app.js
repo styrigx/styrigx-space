@@ -7,11 +7,10 @@
  *
  * 请求顺序（下面的 /api/* 都是去掉 /curio 前缀后的路径，公开地址是 styrigx.com/curio/api/*）：
  *   1. 访问档（v5 S3）：routes.js ROUTE_ACCESS 按「方法 + 路径」给出 public / entry / music（不在表里 = entry），
- *      在这里套上那一档的守卫（api/_auth.js GUARDS：publicRead / requireEntry / requireMusic），entry / music 档在守卫里问网关（SPACE.conclusion()，方案 4.6；
- *      POST /api/import 这一问带上 reauth: true，见 REAUTH_ROUTES），public 档要私密行 / canWrite 的 handler 自己问；每个请求最多问一次。没进门 → 401 unauthorized（不 302，fetch 不跟跳转）。
- *      结论放进 context.data.conclusion，handler 用 conclusionOf(context) 直接取。
- *   2. 按路由表交给 src/api/<路径>.js；读私密要账号会话（account.ok），写要账号会话 + 作用域 curio.write + 同源（handler 里查）；
- *      音乐：歌单 / 封面公开（不含音频地址），听要进站（播放令牌 + /api/music-stream），上传 / 管理要 music 档，批量导入另要账号复验
+ *      在这里套上那一档的守卫（api/_auth.js GUARDS：publicRead / requireEntry / requireMusic），entry / music 档在守卫里经网关 SpaceVerifier.admit 问 v6 会话的档，
+ *      public 档要私密行 / canWrite 的 handler 自己问（readAccess）；每个请求每个 action 最多问一次。没有 v6 身份 → 401 unauthorized（不 302，fetch 不跟跳转），档不够 → 403 forbidden。
+ *   2. 按路由表交给 src/api/<路径>.js；写要同源（handler 里查）；
+ *      音乐：歌单 / 封面公开（不含音频地址），听要 listen 档（播放令牌 + /api/music-stream），上传 / 管理要 music 档
  * 不在路由表里的路径 → 404；方法不支持 → 405。
  *
  * 全站搜索：改内容的写接口成功后 ctx.waitUntil 重建 KV site:curio；每小时兜底（status 的 Cron 经服务绑定调 rpc/hourly-job.js），见 src/search-index.js。
@@ -45,14 +44,6 @@ function json(status, body) {
     status,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': NO_STORE },
   });
-}
-
-/** 要账号复验结论的接口（网关那一问带 reauth: true，账号侧多读一张票）：方法 + 路由表路径 */
-export const REAUTH_ROUTES = new Set(['POST /api/import']);
-
-/** 这个请求要不要复验结论 */
-export function wantsReauth(pathname, method) {
-  return REAUTH_ROUTES.has(String(method || 'GET').toUpperCase() + ' ' + routeKey(pathname));
 }
 
 /** 找处理模块：{ mod, params, functionPath } 或 null */
@@ -105,8 +96,8 @@ export async function handle(request, env, ctx) {
 
   const hit = resolve(path);
   const context = makeContext(request, env, ctx, hit ? hit.params : {}, hit ? hit.functionPath : path);
-  /* 先过访问档（不在路由表里的路径也是 entry：没进门 401，进了门才 404，不让陌生人探路由表） */
-  const denied = await GUARDS[accessOf(request.method, path)](context, { reauth: wantsReauth(path, request.method) });
+  /* 先过访问档（不在路由表里的路径也是 entry：没有身份 401，有身份才看 404，不让陌生人探路由表） */
+  const denied = await GUARDS[accessOf(request.method, path)](context);
   if (denied) return denied;
   if (!hit) return json(404, { ok: false, error: 'not-found' });
   const handler = pickHandler(hit.mod, request.method);

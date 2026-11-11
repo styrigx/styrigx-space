@@ -2,9 +2,10 @@
  * @fileoverview styrigx-account 的路由（AccountService 放行之后的去向）：接口路由表 API_ROUTES 与头像文件 /avatar/<尺寸>.webp。
  *
  * 管站点账号的全部身份和数据：
- * - 账号（api/account/，一个入口一个文件；子路径就是入口名）：POST /api/account/devices（自己的 v6 会话）、/grants（应用授权）、
+ * - 账号（api/account/，一个入口一个文件；子路径就是入口名）：POST /api/account/devices（自己的 v6 会话）、
  *   /proxy（代理订阅管理：经服务绑定 PROXY 转给 styrigx-proxy-rules 的 ProxyAdmin）。v6 P4（定稿 v5.2 §十三）起旧账号会话的
- *   GET /api/account（状态）、/session（sudo root 登录）、/reauth、/reset（旧恢复密钥）、/keys 删除。
+ *   GET /api/account（状态）、/session（sudo root 登录）、/reauth、/reset（旧恢复密钥）、/keys 删除；
+ *   应用授权 /grants 删除（定稿 v5.3 §十二）。
  * - 头像：GET /avatar/<尺寸>.webp（公开）、PUT / DELETE /api/avatar（v6 会话，档见 core/route-access.js）→ KV_PROFILE
  * - 个人资料（2026-11-07）：GET /api/profile（公开）、PUT /api/profile（v6 会话，owner 档）→ KV_PROFILE 的 profile 键
  * - 设置云同步：GET / POST /api/prefs（v6 会话）→ D1_ACCOUNT 的 settings_sync
@@ -26,14 +27,12 @@ import * as profile from './api/profile.js';
 import * as wellbeing from './api/wellbeing.js';
 import * as identity from './api/identity.js';
 import * as accountDevices from './api/account/devices.js';
-import * as accountGrants from './api/account/grants.js';
 import * as accountProxy from './api/account/proxy.js';
 
 /** 接口路由表（只经 AccountService 用；网关转发表 workers/space-core/src/router.js FORWARDING 里的 /api/* 路径与这里一一对应） */
 /** @type {Map<string, Record<string, Function>>} */
 export const API_ROUTES = new Map([
   ['/api/account/devices', accountDevices],
-  ['/api/account/grants', accountGrants],
   ['/api/account/proxy', accountProxy],
   ['/api/avatar', avatar],
   ['/api/prefs', prefs],

@@ -23,7 +23,6 @@ const curio = await import(W + 'curio-core/src/routes.js');
 const daymark = await import(W + 'daymark-core/src/routes.js');
 const proxy = await import(W + 'proxy-rules/src/router.js');
 const ai = await import(W + 'ai/src/router.js');
-const curioOld = await import(W + 'curio-core/src/app.js');
 
 const METHODS = ['Get', 'Post', 'Put', 'Delete', 'Head', 'Patch', 'Options'];
 /** 模块显式导出的方法（onRequest<Method>） @param {Record<string, any>} mod */
@@ -63,10 +62,7 @@ test('全量：每个处理函数的方法都在表里；表里主站的每一�
 test('奇趣、日刻：旧访问表（v5）里的每一条在 v6 表里都有', () => {
   for (const r of curio.ROUTE_ACCESS) assert.ok(RA.ruleOf(r.method, '/curio' + r.path), 'curio ' + r.method + ' ' + r.path);
   for (const r of daymark.ROUTE_ACCESS) assert.ok(RA.ruleOf(r.method, '/daymark' + r.path), 'daymark ' + r.method + ' ' + r.path);
-  for (const k of curioOld.REAUTH_ROUTES) {
-    const [m, p] = k.split(' ');
-    assert.equal(RA.levelOf(m, '/curio' + p), 'root', '原来要账号复验的 ' + k + ' → sudo = root');
-  }
+  assert.equal(RA.levelOf('POST', '/curio/api/import'), 'root', '原来要账号复验的导入 → sudo = root（旧结论的 REAUTH_ROUTES 随 conclusion() 删除）');
 });
 
 test('代理主机：订阅两段、规则集、健康检查；ai / status 只经服务绑定，在 SERVICE_ONLY', () => {
@@ -108,7 +104,7 @@ test('action：源码里出现的 action / op 都在表里；没写 action 用�
     return new Set([...src.matchAll(/action (?:===|!==) '([a-z0-9-]+)'/g)].map((m) => m[1]));
   };
   const files = {
-    '/api/account/devices': 'account/src/api/account/devices.js', '/api/account/grants': 'account/src/api/account/grants.js',
+    '/api/account/devices': 'account/src/api/account/devices.js',
     '/api/account/proxy': 'account/src/api/account/proxy.js',
   };
   for (const [p, f] of Object.entries(files)) {
@@ -135,7 +131,7 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
     assert.ok(typeof r.why === 'string' && r.why.length > 0);
   }
   assert.equal(RA.levelOf('POST', '/curio/api/import'), 'root');
-  for (const p of ['/api/account/session', '/api/account/reauth', '/api/account/reset', '/api/account/keys']) assert.equal(RA.ruleOf('POST', p), null, p + '（v6 P4 删）');
+  for (const p of ['/api/account/session', '/api/account/reauth', '/api/account/reset', '/api/account/keys', '/api/account/grants']) assert.equal(RA.ruleOf('POST', p), null, p + '（v6 P4 删）');
   assert.equal(RA.levelOf('POST', '/api/identity', { action: 'su' }), 'public', 'su root 的 wheel 要求在接口内（身份命令），不在路由档');
   assert.equal(RA.levelOf('DELETE', '/daymark/api/quotes'), 'daymark-write');
   assert.equal(RA.levelOf('DELETE', '/curio/api/photo'), 'curio-write');
@@ -144,8 +140,8 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
 test('摘要快照：各档路由数（改表必须改这里）', () => {
   const count = {};
   for (const r of RA.ROUTE_ACCESS) count[r.level] = (count[r.level] || 0) + 1;
-  assert.deepEqual(count, { public: 25, ai: 2, status: 1, root: 6, owner: 1, user: 6, 'curio-write': 8, listen: 3, 'daymark-write': 6 });
-  assert.equal(RA.ROUTE_ACCESS.length, 58, 'v6 P4 删旧入口 20 条（78 → 58）');
+  assert.deepEqual(count, { public: 25, ai: 2, status: 1, root: 5, owner: 1, user: 6, 'curio-write': 8, listen: 3, 'daymark-write': 6 });
+  assert.equal(RA.ROUTE_ACCESS.length, 57, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57）');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 16, 'Gray 2026-11-11 定稿的 17 条，P4 删 lock-all-devices 后 16 条');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => 'doubt' in r).length, 0, '不再有存疑');
   assert.equal(RA.levelOf('GET', '/curio/api/export'), 'root', '导出含私密 → root（Gray 2026-11-11）');

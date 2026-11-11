@@ -28,7 +28,7 @@ import { scopeDenial } from '../gate.js';
 import { ROOT_UID } from '../core/groups.js';
 import { writeUserAudit } from '../core/user-audit.js';
 
-/** 本接口的作用域（core/scopes.js） */
+/** 本接口的作用域名（只作标注：scopeDenial 只看 v6 身份；作用域表 core/scopes.js 随应用授权删除，定稿 v5.3 §十二） */
 const SCOPE = 'profile.write';
 
 /** @param {any} kv */
