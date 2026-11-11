@@ -98,8 +98,8 @@ test('complete：参数补全（passkey；第三个词不补；v6 P4 起 sudo st
   assert.deepEqual(complete('passkey a'), { line: 'passkey add', options: [] });
   assert.deepEqual(complete('device '), { line: 'device rm', options: [] });
   assert.deepEqual(complete('cd b'), { line: 'cd blog', options: [] });
-  assert.deepEqual(complete('theme du'), { line: 'theme dusty', options: ['dustyblue', 'dustyrose'] });
-  assert.deepEqual(complete('theme te'), { line: 'theme te', options: ['teal', 'terra'] });
+  assert.deepEqual(complete('theme du'), { line: 'theme dusty', options: ['dustyrose', 'dustyblue'] });
+  assert.deepEqual(complete('theme te'), { line: 'theme te', options: ['terra', 'teal'] });
   assert.deepEqual(complete('theme gr'), { line: 'theme graphite', options: [] });
   assert.deepEqual(ARGS.theme, PAL, 'theme 补全 = 22 个调色板 id');
   assert.equal(PAL.length, 22);

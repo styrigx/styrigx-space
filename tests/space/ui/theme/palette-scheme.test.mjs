@@ -35,8 +35,9 @@ test('22 套七色调色板、每套一个模式：108 个角色 + 31 个色调 
   assert.equal(DATA.schema, 'styrigx-palette/3');
   assert.equal(DATA.custom, undefined);
   assert.equal(ids.length, 22);
-  assert.equal(ids[0], 'dustyblue');
-  assert.equal(DEFAULT_ID, 'terra'); // 2026-11 PR-A 照设计稿：默认赤陶（之前 dustyblue；列表顺序不变，dustyblue 仍排第一）
+  /* 2026-11-12 选择器排序（Gray）：先深后浅、段内按色相（底色只有深 L≈0.20 / 浅 L≈0.955 两档，只跳一次是唯一单调排法） */
+  assert.deepEqual(ids, ['cherry', 'tangerine', 'terra', 'amber', 'matcha', 'forest', 'teal', 'lake', 'indigo', 'violet', 'orchid', 'berry', 'rose', 'graphite', 'dustyrose', 'coral', 'cream', 'champagne', 'mustard', 'sage', 'glacier', 'dustyblue']);
+  assert.equal(DEFAULT_ID, 'terra'); // 2026-11 PR-A 照设计稿：默认赤陶（之前 dustyblue；2026-11-12 起列表先深后浅，cherry 第一）
   for (const id of ids) {
     const p = DATA.presets[id];
     assert.deepEqual(Object.keys(p).filter((k) => /light|dark/i.test(k)), [], id + ' 没有亮 / 暗两套');
@@ -49,7 +50,7 @@ test('22 套七色调色板、每套一个模式：108 个角色 + 31 个色调 
 
 test('浅套 / 深套由底色决定（OKLCH L ≥ 0.6 = 浅套）：8 浅 14 深，默认 terra 是深套', () => {
   const light = Object.keys(DATA.presets).filter((id) => DATA.presets[id].mode === 'light');
-  assert.deepEqual(light, ['dustyblue', 'glacier', 'sage', 'coral', 'mustard', 'champagne', 'dustyrose', 'cream']);
+  assert.deepEqual(light, ['dustyrose', 'coral', 'cream', 'champagne', 'mustard', 'sage', 'glacier', 'dustyblue']);
   assert.equal(Object.keys(DATA.presets).length - light.length, 14);
   assert.equal(DATA.presets.terra.mode, 'dark');
   for (const [id, p] of Object.entries(DATA.presets)) {

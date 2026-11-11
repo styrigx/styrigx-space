@@ -150,7 +150,7 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 / 
   assert.equal(p.default, 'terra');
   assert.equal(p.rulesVersion, 'palette-rules-2');
   assert.equal(p.schemeVersion, undefined, 'v4：没有自定义色，也就没有引擎版本');
-  assert.equal(p.presets[0].id, 'dustyblue');
+  assert.equal(p.presets[0].id, 'cherry'); /* 2026-11-12 先深后浅、段内按色相 */
   for (const { id, seed } of p.presets) {
     const sel = id === 'terra' ? ':root,\n:root[data-palette="terra"] {' : `:root[data-palette="${id}"] {`;
     assert.ok(files['tokens.css'].includes(`${sel}\n  --sgx-seed: ${seed};`), id);
