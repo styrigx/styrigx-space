@@ -6,7 +6,7 @@ export const INLINE_SCRIPT_HASHES = Object.freeze([
   'sha256-3cnYCRXIA6PvNuskoomZSRzThARfCNNwL5rAwESJLec=', // 404.html（6 页）: addEventListener('error',function(e){var t=e.target;if(!t||t
   'sha256-EXXy0XPvXTtUhwj3HaX4YeIspqPULX4vksSB4X+ltm4=', // 404.html（6 页）: document.documentElement.classList.add('no-module');
   'sha256-LEyUD+QpBJGQuguZ7duNA1niRnvHFSc+poR8PASgVWQ=', // 404.html（6 页）: (()=>{var S=Object.freeze(["en","zh"]),_=["blog","curio","da
-  'sha256-dWX7llggJ1ieXDSmp5pTp52Ab67DQjXIc/EcKteBQx4=', // 404.html（6 页）: addEventListener('pagereveal',function(e){window.__sgxReveal
   'sha256-i1XMiEvbVUtdwdw3UvJJ8q9wEIV5cxYfeWksDFT51NY=', // 404.html（6 页）: function __layoutMode(){ try{ if(new URLSearchParams(l
+  'sha256-oStaI+SCpztrTvpu76JwoFJ7DEY6oy8vfft6K4XH8DA=', // 404.html（6 页）: addEventListener('pagereveal',function(e){window.__sgxReveal
   'sha256-u0UQ8eqzOSQxaZ3lGg4qm0PxSps4NSK+5FHpIfTsONI=', // 404.html（6 页）: function __sgxUaMobile(){try{var t=navigator,e=t.userAgentDa
 ]);

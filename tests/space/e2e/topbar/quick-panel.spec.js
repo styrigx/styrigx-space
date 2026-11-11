@@ -337,7 +337,7 @@ test.describe('外观面板：开合', () => {
 });
 
 test.describe('外观面板：内容', () => {
-  test('中文：PALETTE 22 套色板 + 恢复默认（调色板 v4：没有 MODE 三段）；默认 terra（深套）', async ({ page }) => {
+  test('中文：PALETTE 25 套色板 + 恢复默认（调色板 v4：没有 MODE 三段）；默认 terra（深套）', async ({ page }) => {
     await go(page, '/');
     await openQp(page);
     await expect(page.locator('#sgx-qp .sgx-th-h')).toHaveText(['PALETTE']);
@@ -345,9 +345,9 @@ test.describe('外观面板：内容', () => {
     /* 减弱动效、字体大小已删除（2026-10-23 PR-E） */
     await expect(page.locator('#sgx-qp [data-qp="motion"], #sgx-nav [data-qp="motion"]')).toHaveCount(0);
     await expect(page.locator('[data-qp-seg="font-size"]')).toHaveCount(0);
-    /* 22 套七色调色板一个列表（含默认 terra 和普通色板 lake），每行 6 个前景色圆点（f1–f6，2026-11 PR-2 恢复）+ 名字（2026-11-12 起跟页面语言：中文页 zh、英文页 en；读屏同名） */
+    /* 25 套七色调色板一个列表（含默认 terra 和普通色板 lake），每行 6 个前景色圆点（f1–f6，2026-11 PR-2 恢复）+ 名字（2026-11-12 起跟页面语言：中文页 zh、英文页 en；读屏同名） */
     await expect(page.locator('#sgx-qp [data-qp-palette]')).toHaveCount(25);
-    await expect(page.locator('#sgx-qp .sgx-th-pal .sgx-th-sw u')).toHaveCount(132);
+    await expect(page.locator('#sgx-qp .sgx-th-pal .sgx-th-sw u')).toHaveCount(150);
     {
       const sw = await page.locator('#sgx-qp [data-qp-palette="lake"] .sgx-th-sw u').evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
       expect(sw).toHaveLength(6);
