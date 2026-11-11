@@ -1,5 +1,5 @@
 // 代码块（render-codeblock.html + assets/css/blog/code.css）验收，不截图：
-// - 一个容器（surface-container-high），里面没有框中框、没有逐行背景；
+// - 一个容器（固定代码主题底色 --blog-code-surface，不跟调色板），里面没有框中框、没有逐行背景；
 // - 标题栏：语言 · 复制；
 // - 行号槽：每行行号和代码同一基线，横向滚动时行号贴住左边；
 // - 不换行，长行横向滚动；
@@ -23,7 +23,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('一个容器：圆角 + 代码面底色，内部 pre / code / 行没有自己的背景和边框', async ({ page }) => {
+test('一个容器：圆角 + 固定代码主题底色，内部 pre / code / 行没有自己的背景和边框', async ({ page }) => {
   await page.goto(POST, { waitUntil: 'domcontentloaded' });
   const blocks = page.locator('.article-content figure.code-block');
   expect(await blocks.count()).toBeGreaterThan(0);
@@ -36,7 +36,7 @@ test('一个容器：圆角 + 代码面底色，内部 pre / code / 行没有自
   const st = await first.evaluate((fig) => {
     const cs = (el) => getComputedStyle(el);
     const probe = document.createElement('div');
-    probe.style.background = 'var(--sgx-surface-container-high)';
+    probe.style.background = 'var(--blog-code-surface)';
     fig.appendChild(probe);
     const surface = cs(probe).backgroundColor;
     probe.remove();
