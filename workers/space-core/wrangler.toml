@@ -12,7 +12,7 @@
 # 安全：
 # - workers_dev = false，不开 *.workers.dev 地址（它连的是正式 D1，不能有未鉴权的入口）。
 # - SGX_ENV = "production"：middleware 按生产规则执行，非 styrigx.com 的 /api 请求一律 403。
-# - 私密值只在 Secrets Store（见文件末尾），不进仓库。
+# - v6 P4 起本 Worker 不绑 Secrets Store 私密值（见文件末尾），私密值不进仓库。
 
 name = "styrigx-space-core"
 main = "src/index.js"

@@ -17,15 +17,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { testLockSession } from './_tickets.mjs';
-import { genKeyPair, makeAuthD1 } from '../_harness.mjs';
+import { v6Space } from '../_v6admit.mjs';
+import { makeAuthD1 } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../../..');
 const worker = (await import(REPO + '/workers/space-core/src/app.js')).default;
 const { isRetiredEnPath, retiredEnSitePrefix, NOT_FOUND_PROBE_PATH } = await import(REPO + '/workers/space-core/src/gate.js');
 
-const { priv: PRIV, pub: PUB } = await genKeyPair();
 const CTX = { waitUntil() {} };
 
 const STALE_EN_HOME = '<!DOCTYPE html><html lang="en" data-sgx-build="77ce4d6"><head><title>Space | Styrigx</title></head><body><div id="home-widgets">Sloan Gray</div></body></html>';
@@ -40,7 +39,7 @@ function env() {
   const seen = [];
   return {
     seen,
-    SGX_ENV: 'production', SGX_SITE: 'space', SGX_SPACE_PUBLIC: PUB,
+    SGX_ENV: 'production', SGX_SITE: 'space', ACCOUNT_VERIFIER: v6Space({}),
     KV_LOCK_DOOR: { async get() { return null; }, async put() {}, async delete() {} },
     D1_SPACE: makeAuthD1({ epochs: { 'lock-epoch': 0 } }),
     ASSETS: {
@@ -66,8 +65,9 @@ function env() {
   };
 }
 
+/** v6 会话（v6 P4 起页面状态只认 sgx-session；身份见 tests/workers/_v6admit.mjs） */
 async function sessionCookie() {
-  return 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'password'));
+  return 'sgx-session=styrigx';
 }
 
 const get = (e, p, cookie) => worker.fetch(new Request('https://styrigx.com' + p, { headers: cookie ? { Cookie: cookie } : {} }), e, CTX);

@@ -4,8 +4,8 @@
 #   - 定时：Cron 每分钟一次（src/index.js scheduled），检查 src/targets.js 里的 4 个地址，10 秒超时，
 #     连续 3 次失败开一条故障，恢复后自动关。
 #   - 每小时任务（2026-11-10）：同一条 41 分 Cron 经服务绑定 JOB_DAYMARK / JOB_CURIO / JOB_AI 叫三个 Worker 的 HourlyJob.run()（src/hourly.js）。
-#   - 每日任务（v5 S2）：同一条 41 分 Cron，只在 03:00 CST（UTC 19 点）那一轮经 JOB_SPACE 叫 space-core 的 ShareJanitor.purgeShareLinks()（src/daily.js）；
-#     v6 P2c 起同一轮另经 JOB_ACCOUNT 叫账号 Worker 的 AccountJanitor.purgeExpiredUsers()（到期满 30 天的用户自动删除）。
+#   - 每日任务（v6 P2c）：同一条 41 分 Cron，只在 03:00 CST（UTC 19 点）那一轮经 JOB_ACCOUNT 叫账号 Worker 的 AccountJanitor.purgeExpiredUsers()
+#     （到期满 30 天的用户自动删除，src/daily.js）。v6 P4 起分享短链整套删除，原 JOB_SPACE（space-core ShareJanitor）绑定一并删。
 #   - 用量：Cron 每小时 41 分一次（src/usage.js），用只读 token 读 Cloudflare API（D1 / R2 / KV 存储、今天的 Workers 请求数），
 #     最新快照存 D1 表 status_usage（migrations/0001_baseline.sql）。
 #   - 免费额度（今天的操作次数：Workers + Pages Functions 请求、KV 读写删列、D1 读写行；R2 A/B 类本月）：不走 Cron，
@@ -84,14 +84,6 @@ entrypoint = "HourlyJob"
 binding = "JOB_AI"
 service = "styrigx-ai"
 entrypoint = "HourlyJob"
-
-# 每日任务（v5 S2，src/daily.js）：space-core 的命名入口 ShareJanitor，只有 purgeShareLinks(at)，公网进不来。
-# styrigx-space-core 早已存在，绑定能部署；deploy.yml 里 status 排在 space-core 之前（space-core 绑 STATUS），
-# 所以入口要等同一次部署里 space-core 新版上线后才有，这之前那一轮（只在 03:41 CST）只打日志。
-[[services]]
-binding = "JOB_SPACE"
-service = "styrigx-space-core"
-entrypoint = "ShareJanitor"
 
 # 每日任务（v6 P2c，src/daily.js）：账号 Worker 的命名入口 AccountJanitor，只有 purgeExpiredUsers(at)（到期满 30 天的用户自动删除），公网进不来。
 # styrigx-account 早已存在，绑定能部署；deploy.yml 里 status 排在 account 之前（account 不绑 status，space-core 绑两者），

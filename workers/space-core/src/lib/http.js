@@ -34,8 +34,8 @@ export function apiError(status, code, extra, headers) {
 }
 
 /**
- * 全仓 error 码登记表：站点核心（含分享链接）/ 账号 Worker 返回的全部 error 码和各自用到的 HTTP 状态（只登记，不改写）。
- * 账号 / 分享 Worker 的 lib/http.js 各有一份副本；tests/workers/space-core/error-codes.test.mjs 只按这一份核对。
+ * 全仓 error 码登记表：站点核心 / 账号 Worker 返回的全部 error 码和各自用到的 HTTP 状态（只登记，不改写）。
+ * 账号 Worker 的 lib/http.js 有一份副本；tests/workers/space-core/error-codes.test.mjs 只按这一份核对。
  * 新加一个码要在这里登记；前端怎么显示见 tests/workers/space-core/error-codes.test.mjs。
  */
 export const ERROR_CODES = Object.freeze({
@@ -45,16 +45,10 @@ export const ERROR_CODES = Object.freeze({
   params: [400],
   action: [400],
   origin: [403],
-  purpose: [400],
   bad_request: [400],
   /* 会话 / 票 */
-  session: [401, 400], /* 400：分享 Worker 的 session（有效天数）参数不对 */
+  session: [401],
   unauthorized: [401],
-  account: [401],
-  reset: [401], /* 账号 reset 票无效或过期（命名 v2：/api/account/reset，不再借用 account） */
-  scope: [403], /* 账号作用域不够（P2-2：/api/avatar、/api/prefs；带 scope 字段） */
-  reauth: [403, 401], /* 403：锁屏凭证管理（checkLockManage）；401：分享链接 list / revoke 没有 reauth */
-  link: [403], /* v5 S1：分享链接进来的会话（by=link）不能新建 / 管理分享、不能 reauth、不能管锁屏凭证 */
   challenge: [403],
   /* 凭证 */
   auth: [401],
@@ -62,18 +56,14 @@ export const ERROR_CODES = Object.freeze({
   'unknown-key': [403],
   'not-set': [403],
   exists: [403],
-  'last-key': [403],
   short: [400],
-  password: [400],
   cooldown: [429],
   busy: [429], /* /api/ai 全站总闸（P4-1；D1 出错也回它，fail closed） */
-  /* 分享链接 / 账号设备 */
+  /* 账号设备 */
   name: [400],
-  duration: [400],
-  full: [409],
   current: [400],
   'not-found': [404],
-  /* 账号 Worker 头像、分享 Worker 短链 */
+  /* 账号 Worker 头像 */
   'bad-form': [400],
   missing: [400],
   'too-large': [413],
@@ -96,13 +86,8 @@ export const ERROR_CODES = Object.freeze({
   /* 服务端 / 配置 */
   server: [500, 503],
   config: [500, 503],
-  epoch: [503],
   internal: [500],
   upstream: [502, 503],
-  'sign-failed': [500],
-  'session-sign-failed': [500],
-  'invalid-by': [500],
-  'no-session-key': [500],
 });
 
 /**
