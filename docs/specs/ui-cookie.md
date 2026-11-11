@@ -3,14 +3,14 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-003 |
-| 版本 | 2.0 |
-| 日期 | 2026-11-09 |
+| 版本 | 3.0 |
+| 日期 | 2026-11-12 |
 | 状态 | 现行 |
 | 取代 | `docs/ui-cookie-contract.md`、`docs/blog/sgx-ui-cookie.md` |
 
 ## 1. 范围
 
-`sgx-ui` 把主站的外观与语言偏好镜像给子站，使子站首帧（`<head>` 同步脚本）就能落下与主站一致的深浅色、调色板、主题色和语言，不闪屏。
+`sgx-ui` 把主站的外观与语言偏好镜像给子站，使子站首帧（`<head>` 同步脚本）就能落下与主站一致的调色板（深浅随调色板）和语言，不闪屏。
 
 真源头是代码，本文与代码冲突时以代码为准：
 
@@ -25,7 +25,7 @@
 
 2.1 `sgx-ui` MUST 只含 UI 设置，MUST NOT 含任何凭证或会话信息（会话 cookie 见 SGX-SPEC-001）。
 
-2.2 偏好的唯一来源是同源 localStorage（`sgx-theme-mode`、`sgx-palette`、`sgx-accent`、`sgx-lang` 等）；cookie 只是镜像。主站首帧读 localStorage，不读 cookie。
+2.2 偏好的唯一来源是同源 localStorage（`sgx-palette`、`sgx-lang` 等；3.0 起 `sgx-theme-mode`、`sgx-accent` 删除，首帧清掉旧值）；cookie 只是镜像。主站首帧读 localStorage，不读 cookie。
 
 2.3 四站共用一个写端：主站在启动、`sgx-settings-changed`、云同步拉取之后写；子站只在快捷面板改外观时写（先写 localStorage，再写 cookie）。值没变时 MUST NOT 重写。
 
@@ -49,42 +49,38 @@ sgx-ui=<base64url(UTF-8 JSON)>; Domain=styrigx.com; Path=/; Max-Age=34560000; Sa
 | `v` | 内容 |
 |---|---|
 | `1` | 早期版本，只有时钟 / 天气字段，没有外观 |
-| `2` | **写端当前版本**（`SgxUI.V = 2`）：外观 `mode` / `pal` / `accent` / `fs` / `rm` / `mat` + 语言 `lang` |
+| `2` | **写端当前版本**（`SgxUI.V = 2`）：外观 `pal` / `fs` / `rm` + 语言 `lang`（3.0 起不再写 `mode` / `accent` / `mat`） |
 
-4.1 读端只认 `SgxUI.VERSIONS = [1, 2]`，且 `v` 必须是数字；否则 `read()` 返回 `null`（默认 dustyblue + 跟随系统）。
+4.1 读端只认 `SgxUI.VERSIONS = [1, 2]`，且 `v` 必须是数字；否则 `read()` 返回 `null`（默认 terra，深套）。
 
-4.2 v2 内部的兼容演进（加 `accent`、`lang`，`fs` / `rm` 固定默认，撞色 id 合并）没有升版本：读端逐字段校验。
+4.2 v2 内部的兼容演进（加 `accent`、`lang`，`fs` / `rm` 固定默认，撞色 id 合并，3.0 删 `mode` / `accent` / `mat`）没有升版本：读端逐字段校验，旧字段忽略。
 
 ## 5. 字段（v2）
 
 | 字段 | 写端写什么 | 读端接受 | 默认 |
 |---|---|---|---|
-| `mode` | `sgx-theme-mode` ∈ `system` / `light` / `dark` | 同左 | `system` |
-| `pal` | `sgx-palette` 经 `normPal()`（旧撞色 `x<id>` → `<id>`，不认识 → `dustyblue`） | 已知预设 id（22 套） | `dustyblue` |
-| `accent` | 当前主题色种子 `#rrggbb`，小写：自定义 `sgx-accent` 优先，否则 `<html>` 的 `--sgx-seed` | 严格 `^#[0-9a-f]{6}$` | `''` |
+| `pal` | `sgx-palette` 经 `normPal()`（旧撞色 `x<id>` → `<id>`，不认识 → `terra`） | 已知预设 id（22 套） | `terra` |
 | `fs` | 固定 `standard`（字体大小设置已删） | `standard` \| `small` \| `large` | `standard` |
 | `rm` | 固定 `0`（减弱动效跟系统 `prefers-reduced-motion`） | 只有数字 `1` 算开 | `0` |
-| `mat` | `mode` 最近一次变化的毫秒时间戳 | 有限、≥ 0 的数字 | `0` |
 | `lang` | `sgx-lang` 是已配置的语言（`en` / `zh`）时原样写，否则写 `system` | `^[a-z]{2,3}$` | `system` |
 
-5.1 `accent` 与预设种子比较（`SgxUI.resolve()`）：等于 `PRESETS[pal]` 或 `LEGACY_SEEDS[pal]` → 用预设，只设 `data-palette`；否则为自定义主题色：`--sgx-seed` 内联到 `<html>`，整套角色由 `palette-scheme.js` 的 `rolesCss(seed)` 计算，写进 `<style id="sgx-accent-roles">`，缓存在子站自己的 localStorage `sgx-shell-accent-css`。
+5.1 旧 cookie 里的 `mode`、`accent`、`mat`（3.0 之前写端写过）读端一律忽略：深浅只看 `pal` 是浅套还是深套（`SgxUI.DARK`），不内联 `--sgx-seed`、不插 `<style id="sgx-accent-roles">`；`apply()` 顺手删掉旧版插的 `<style>` 和子站缓存 `sgx-shell-accent-css`。
 
 5.2 早期 v1 的时钟 / 天气字段（`tz1`、`tz2`、`h12`、`clock`、`wx`、`unit`、`loc`、`city`、`precise`）自 P4-2c（2026-11-05）起写端不再写，读端忽略。
 
 5.3 未知字段（含旧博客契约的 `theme` 别名）读端忽略。
 
-## 6. 读端落到 `<html>` 的状态（`SgxUI.apply(root, opts)`）
+## 6. 读端落到 `<html>` 的状态（`SgxUI.apply(root)` / `SgxUI.paint(pal, root)`）
 
 | 状态 | 规则 |
 |---|---|
-| `class="dark"`、`data-dark` | `mode === 'dark'`，或 `system` 且系统深色 |
-| `data-theme-mode` | `mode` |
+| `class="dark"`、`data-dark` | `pal` 是深套（14 套；8 套浅套不加） |
+| `<meta name="color-scheme">` / `<meta name="theme-color">` | 该套的 `light` / `dark` 与底色 |
 | `style.fontSize`、`data-font-size` | `large` → 112.5%，`small` → 87.5%，`standard` 不设 |
-| `data-palette` | `pal`；默认 dustyblue 不写 |
-| 内联 `--sgx-seed` + `<style id="sgx-accent-roles">` | 只在自定义主题色时 |
+| `data-palette` | `pal`；默认 terra 不写 |
 | `class="reduced-motion"`、`data-reduced-motion` | `rm === 1` |
 
-跟随系统时读端挂一次 `prefers-color-scheme` 监听。`apply()` 返回 `{ mode, dark, pal, fs, rm, seed }`，站点自己的样式钩子用它补。
+读端不读 `prefers-color-scheme`、不挂监听。`apply()` 返回 `{ dark, pal, fs, rm }`，站点自己的样式钩子用它补；四站换调色板都走 `paint()`，之后派发 `sgx-theme-changed`。
 
 ## 7. 语言
 
@@ -122,15 +118,21 @@ node --test tests/space/ui/shell/ui-cookie-contract.test.mjs
 ### 8.3 禁止
 
 - MUST NOT 手改生成物：`tests/fixtures/ui-cookie-contract.json`、`space/web/data/shell/`、`space/web/assets/css/shell/`、`ui-cookie-read.js` 的 `@ui-cookie-presets` 段。
-- MUST NOT 修改 `LEGACY_SEEDS`。
 - 色板改名 MUST 在 `normPal()` 里迁移旧 id 并补夹具用例。
 
 ## 9. 子站读端
 
 9.1 子站模板直接内联主站读端（`resources.Get "js/lib/ui-cookie-read.js"`），没有副本。各站在读端后面加的一小段：博客 `layouts/partials/blog/sgx-inherit.html`，奇趣 / 日刻 `assets/<站>/js/sgx/ui-inherit-run.js`。
 
-9.2 博客 `sgx-inherit.html` 有三个 `<script>`：① `lang-boot.js`；② `ui-cookie-read.js`；③ 博客胶水（只管外观）。另外 `assets/blog/js/entries/inherit.ts` 在自定义主题色没有缓存时按需 import `palette-scheme.js`。
+9.2 博客 `sgx-inherit.html` 有三个 `<script>`：① `lang-boot.js`；② `ui-cookie-read.js`；③ 博客胶水（只管外观）。（3.0 起 `entries/inherit.ts` 删除，子站不再加载 `palette-scheme.js`。）
 
-9.3 博客自己加的：`<html data-theme="light|dark">` 与 `color-scheme`（博客 `one-ui.css` 的样式钩子）；每次加载删除旧本地键 `navfolio-theme`、`sgx-theme-at`。博客的强调色 `--sgx-accent` / `--sgx-on-accent` 用于分段滑块指示器、抽屉当前项、阅读进度线、目录当前节、选中芯片与系列徽标。
+9.3 博客自己加的：`<html data-theme="light|dark">` 与 `color-scheme`（博客 `one-ui.css` 的样式钩子）；每次加载删除旧本地键 `navfolio-theme`、`sgx-theme-at`、`sgx-theme-mode`、`sgx-accent`、`sgx-accent-css`；收到 `sgx-theme-changed` 时重落。博客的强调色 `--sgx-accent` / `--sgx-on-accent` 用于分段滑块指示器、抽屉当前项、阅读进度线、目录当前节、选中芯片与系列徽标。
 
-9.4 测试：`tests/blog/sgx-inherit.test.mjs` 用共享夹具逐条跑「共享读端 + 博客胶水」，浅色 / 深色下 `<html>` 状态都要与夹具一致；e2e `tests/blog/e2e/sgx-inherit.spec.js`、`app-topbar.spec.js`；主站 `tests/space/e2e/topbar/ui-cookie-reader.spec.js`。
+9.4 测试：`tests/blog/sgx-inherit.test.mjs` 用共享夹具逐条跑「共享读端 + 博客胶水」，系统浅色 / 深色两遍 `<html>` 状态都要与夹具一致（且两遍相同）；e2e `tests/blog/e2e/sgx-inherit.spec.js`、`app-topbar.spec.js`；主站 `tests/space/e2e/topbar/ui-cookie-reader.spec.js`。
+
+## 10. 修订记录
+
+| 版本 | 日期 | 内容 |
+|---|---|---|
+| 3.0 | 2026-11-12 | 删 `mode` / `accent` / `mat`；深浅随调色板；默认 terra；`paint()`；首帧清旧键与旧缓存 |
+| 2.0 | 2026-11-09 | 合站后整理 |

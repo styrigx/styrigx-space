@@ -35,7 +35,8 @@ const REG = createRegistry(CMDS);
 export const COMMANDS = REG.names();
 /** 各命令参数的候选 */
 export const ARGS = /** @type {Record<string, string[]>} */ ({});
-REG.list().forEach(function (c) { if (c.args) ARGS[c.name] = c.args; });
+/* 取值时现读（theme 的参数 = 调色板 id，来自共享读端 SgxUI，命令表加载时它可能还没挂上） */
+REG.list().forEach(function (c) { if (c.args) Object.defineProperty(ARGS, c.name, { enumerable: true, get: function () { return c.args; } }); });
 const HIST_KEY = 'sgx-term-hist';
 
 /** 英文底（源文本）；页面上以 #sgx-i18n-shell 的 term 节为准 */
@@ -57,7 +58,7 @@ export const TERM_EN = {
   todayNone: 'no line for today yet · {x}',
   todayFail: 'couldn’t load today’s line · {x}',
   usageSudo: 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who',
-  usageTheme: 'usage: theme [dark | light | auto]',
+  usageTheme: 'usage: theme [palette id] · press Tab for the list',
   usageCat: 'usage: cat daymark/today',
   usageLock: 'usage: lock',
   usagePasswd: 'usage: passwd',

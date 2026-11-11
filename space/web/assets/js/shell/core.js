@@ -8,14 +8,13 @@ import { SGX } from '../lib/sgx.js';
 import { getScheduler, visibleInterval } from '../lib/scheduler.js';
 import { initNavHistory } from './navhistory.js';
 import { initHeadButtons } from './head-buttons.js';
-import { initThemeListener } from '../lib/theme.js';
-import { applyTheme, setThemeMode } from '../lib/theme.js';
 import { initNav } from './nav.js';
 import { initScrollFx } from './scrollfx.js';
 /* 锁屏 / 升级只放守卫进 core；界面在 space/guard.js 里按需 import()（frontend-js #6） */
 import { initLock } from './space/guard.js';
 import { on as featOn } from '../lib/features.js';
-import { normPalette, DEFAULT_PALETTE } from '../lib/prefs.js';
+import { normPalette } from '../lib/prefs.js';
+import { paintPalette } from '../lib/prefs-write.js';
 import { toast } from '../lib/toast.js';
 import { syncUiCookie } from '../lib/ui-cookie.js';
 import { initCloudSync, bindSessionSync } from '../lib/cloud-sync.js';
@@ -30,14 +29,9 @@ let inited = false;
  * 2.4.0-G。
  */
 function initFeatSync() {
-  const d = document.documentElement;
-  featOn('theme-mode', function () {
-    applyTheme();
-  });
+  /* 调色板 v4（2026-11-12）：深浅只由调色板决定，换调色板 = 换深浅（SgxUI.paint） */
   featOn('palette', function (v) {
-    const p = normPalette(v);
-    if (p === DEFAULT_PALETTE) d.removeAttribute('data-palette');
-    else d.setAttribute('data-palette', p);
+    paintPalette(normPalette(v));
   });
   /* 字体大小、减弱动效两个开关 2026-10-23 删除（减弱动效只跟系统，baseof 内联脚本监听 prefers-reduced-motion） */
   featOn('layout', function () {
@@ -55,13 +49,12 @@ export function initCore() {
   const S = getScheduler();
   initNavHistory();
   initHeadButtons();
-  initThemeListener();
   initNav(S);
   initScrollFx(S);
   initFeatSync();
   /* Hark：CI 测试构建禁用锁屏（构建期摇掉，线上无残留） */
   if (!SGX_TEST_NO_LOCK) initLock();
-  /* 标签页图标跟主题色（换色板 / 自定义色 / 深浅色时换 SVG 图标的底色） */
+  /* 标签页图标跟调色板（换调色板时换 SVG 图标的底色） */
   initFavicon();
   /* 2026-11-07 个人资料：页面上有 [data-sgx-profile]（首页名片、账号卡、关于页页脚）才动：先画本机缓存，已进门再问 /api/profile（lib/profile.js） */
   initProfile();
@@ -80,8 +73,6 @@ export function initCore() {
     toast,
     openSheet,
     closeSheet,
-    applyTheme,
-    setThemeMode,
     scheduler: S,
     visibleInterval,
   });

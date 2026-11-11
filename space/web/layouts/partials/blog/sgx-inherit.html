@@ -1,18 +1,16 @@
-{{- /* 博客跟随主站设置（博客没有自己的语言 / 深浅色开关，设置在共享外壳的导航面板（语言 / 布局）和快捷面板（深浅色 / 调色板））。
+{{- /* 博客跟随主站设置（博客没有自己的语言 / 外观开关，设置在共享外壳的导航面板（语言 / 布局）和快捷面板（调色板））。
 外观 + 语言（内联脚本，渲染前同步执行）：读主站写的 sgx-ui cookie。契约以主站为准（docs/specs/ui-cookie.md，
 博客这边的补充见同一文档 §9）。
-- 第一个 <script>：主站共享外壳的只读解析器 ui-cookie-read.js 原样内联（space/web/assets/js/lib/ui-cookie-read.js，
-  合站后四站同一份、没有副本），挂 window.SgxUI。校验 v（只认 1 / 2）、mode、pal（旧撞色 x<id> → <id>，不认识 → terra）、
-  accent（只认小写 #rrggbb；等于预设当前种子或 LEGACY_SEEDS 旧种子 = 预设色板）、fs、rm；不认 theme 别名。
-  SgxUI.apply 落到 <html>：class dark、data-theme-mode、data-dark、font-size、data-font-size、data-palette（默认 terra 不写）、
-  自定义色时内联 --sgx-seed + <style id="sgx-accent-roles">（有缓存首帧直接插；没缓存先按预设，entries/inherit.ts 按需 import 引擎算好再插）、
-  class reduced-motion、data-reduced-motion。
-- 第二个 <script>：博客自己的部分
-  - data-theme（light | dark）和 color-scheme：博客 one-ui.css 的样式钩子，按 SgxUI.apply 的返回值补；跟随系统时系统一变就重落一遍。
-  - 语言不在这里：首帧语言跳转是四站同一份共享外壳 lang-boot.js（下面第一个 <script>；语言清理 2026-11-07）。
-    偏好 sgx-lang 明确语言 → 每页都跳到那种语言；跟随系统（Auto）/ 旧版的空 → 浏览器语言，只在从站外进主站首页时跳。博客文章有的只有一种语言：
-    本页用 <meta name="sgx-alt-<语言>"> 声明有哪些版本，lang-boot 只去声明过的地址，没有就不跳。旧的 styrigx-blog-lang 本地键不再读。
-  - 博客原来的主题开关已删除：旧的 navfolio-theme / sgx-theme-at 本地键清掉，避免盖过主站设置。
+- 第一个 <script>：首帧语言跳转 lang-boot.js（四站同一份共享外壳；语言清理 2026-11-07）。
+  偏好 sgx-lang 明确语言 → 每页都跳到那种语言；跟随系统（Auto）/ 旧版的空 → 浏览器语言，只在从站外进主站首页时跳。博客文章有的只有一种语言：
+  本页用 <meta name="sgx-alt-<语言>"> 声明有哪些版本，lang-boot 只去声明过的地址，没有就不跳。
+- 第二个 <script>：主站共享外壳的只读解析器 ui-cookie-read.js 原样内联（space/web/assets/js/lib/ui-cookie-read.js，
+  合站后四站同一份、没有副本），挂 window.SgxUI。校验 v（只认 1 / 2）、pal（旧撞色 x<id> → <id>，不认识 → terra）、fs、rm；旧 cookie 的 mode / accent 忽略。
+  SgxUI.apply 落到 <html>：class dark（= 当前是深套）、data-dark、font-size、data-font-size、data-palette（默认 terra 不写）、
+  color-scheme / theme-color meta、class reduced-motion、data-reduced-motion。2026-11-12 调色板 v4：深浅只由调色板决定，不读 prefers-color-scheme。
+- 第三个 <script>：博客自己的部分
+  - data-theme（light | dark）和 color-scheme：博客 one-ui.css 的样式钩子，按 SgxUI.apply 的返回值补；快捷面板换调色板（sgx-theme-changed）时重落一遍。
+  - 博客原来的主题开关已删除：旧的 navfolio-theme / sgx-theme-at 本地键清掉；v4 起 sgx-theme-mode / sgx-accent / sgx-accent-css 也清掉（四站同源，和主站 baseof 同一批）。
 参数：.alt = dict "zh" "/..." "en" "/..."（只在真的有对应版本时给） */ -}}
 {{- $reader := resources.Get "js/lib/ui-cookie-read.js" | minify -}}
 {{- /* 本页有哪些语言版本（lang-boot 只去这里声明过的地址）；没传 .alt 的页面（标签页、404）声明「没有别的版本」，不跳 */ -}}
@@ -23,27 +21,25 @@
 (function () {
   const UI = window.SgxUI;
   const root = document.documentElement;
-  /* 外观：共享读端落契约里的状态，博客只补 data-theme / color-scheme；系统深浅色监听由下面统一挂（watch: false） */
-  const apply = () => {
-    try {
-      const a = UI.apply(root, { watch: false });
-      root.setAttribute('data-theme', a.dark ? 'dark' : 'light');
-      root.style.colorScheme = a.dark ? 'dark' : 'light';
-    } catch {}
+  /* 外观：共享读端落契约里的状态（含 dark 类），博客只补 data-theme / color-scheme */
+  const sync = () => {
+    const dark = root.classList.contains('dark');
+    root.setAttribute('data-theme', dark ? 'dark' : 'light');
+    root.style.colorScheme = dark ? 'dark' : 'light';
   };
   try {
-    localStorage.removeItem('navfolio-theme');
-    localStorage.removeItem('sgx-theme-at');
+    ['navfolio-theme', 'sgx-theme-at', 'sgx-theme-mode', 'sgx-accent', 'sgx-accent-css'].forEach((k) => localStorage.removeItem(k));
   } catch {}
   /* lang-boot 已经决定要跳就不再落外观（页面马上换掉） */
   if (window.__sgxLangGo) return;
-  apply();
+  try {
+    UI.apply(root);
+  } catch {}
+  sync();
   if (!window.__sgxInheritInit) {
     window.__sgxInheritInit = true;
-    /* 跟系统：系统深浅色变了再应用一次（cookie 指定了 light/dark 时 apply 会保持原样） */
-    try {
-      window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', apply);
-    } catch {}
+    /* 快捷面板换了调色板（深浅可能跟着变）：prefs-write 派发 sgx-theme-changed */
+    window.addEventListener('sgx-theme-changed', sync);
   }
 })();
 </script>

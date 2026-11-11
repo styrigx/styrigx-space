@@ -22,7 +22,7 @@
 | RSS / 站点地图 | `layouts/blog/section.blogrss.xml`、`section.blogsitemap*.xml` |
 | 片段 | `layouts/partials/blog/` |
 | 样式 | `assets/blog/css/`（`blog/one-ui.css` 等），由 `build-css.cjs` 顺带构建 |
-| 脚本 | `assets/blog/js/entries/`（`home.ts`、`article.js`、`tree.ts`、`toc-card.ts`、`topnav.ts`、`scroll-top.ts`、`inherit.ts`）与 `assets/blog/js/blog/` |
+| 脚本 | `assets/blog/js/entries/`（`home.ts`、`article.js`、`tree.ts`、`toc-card.ts`、`topnav.ts`、`scroll-top.ts`；`inherit.ts` 2026-11-12 删除）与 `assets/blog/js/blog/` |
 | 字符串表 | `space/web/i18n/` |
 | 静态文件 | `static/blog/`（字体、manifest 等） |
 | 脚本 | `space/scripts/blog/`（搜索索引、代码高亮 token、静态服务器） |

@@ -12,7 +12,6 @@ topbar:
   sites: Navigate
   askAi: Ask AI
   dark: Dark mode
-  followSystem: Follow system
   language: Language
   palette: Color palette
   reset: Reset
@@ -38,9 +37,6 @@ topbar:
   langKey: lang
   langAuto: Follow system language
   layoutKey: layout
-  schemeKey: MODE
-  schemeDark: Dark
-  schemeLight: Light
   paletteKey: PALETTE
 ai:
   sug3: "What devices do you use?"
@@ -182,7 +178,7 @@ term:
   todayNone: "no line for today yet · {x}"
   todayFail: "couldn’t load today’s line · {x}"
   usageSudo: "usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who"
-  usageTheme: "usage: theme [dark | light | auto]"
+  usageTheme: "usage: theme [palette id] · press Tab for the list"
   usageCat: "usage: cat daymark/today"
   themeSet: "theme → {x}"
   themeOpen: "appearance panel opened"

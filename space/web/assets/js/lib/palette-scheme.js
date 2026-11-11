@@ -1,10 +1,9 @@
 /**
- * @fileoverview 主题色引擎（PR3 色彩角色 token 的运行时一半）：自定义 #rrggbb 种子 → 整套亮 / 暗色彩角色。
- * 移植自色板设计稿的 scheme.js（OKLCH 色阶、角色构建、对比度审计 + 自动修正、自定义种子派生）；预设 2026-10-23 PR-G 起是七色调色板 22 套
- * （1 背景色 + 6 前景撞色，定稿 palette-v0.3，见下面 THEMES），规格由 themeSpec() 从背景 / 前景算出，不再手写：
- * 22 个预设用同一条管线算出来的结果就是 space/web/data/palette-roles.json（space/scripts/gen-palettes.mjs 把它生成进 input.css）；
- * 单测 tests/space/ui/theme/palette-scheme.test.mjs 逐项核对本文件重算出的预设 / 校验种子与 JSON 一致。
- * 不依赖 DOM：rolesFor(seed) 返回 { light, dark } 角色表，rolesCss(seed) 返回可以直接塞进 <style> 的 CSS 文本。
+ * @fileoverview 调色板引擎（构建期）：22 套七色调色板 → 每套一组色彩角色（单一模式，深浅由底色决定，见 SEVEN）。
+ * 移植自色板设计稿的 scheme.js（OKLCH 色阶、角色构建、对比度审计 + 自动修正）；预设是七色调色板 22 套（见 THEMES），规格由 themeSpec() 算出。
+ * 22 个预设算出来的结果就是 space/web/data/palette-roles.json（space/scripts/gen-palettes.mjs 把它生成进 input.css）；
+ * 单测 tests/space/ui/theme/palette-scheme.test.mjs 逐项核对本文件重算出的预设与 JSON 一致。
+ * 2026-11-12 调色板 v4：删除深浅模式和自定义主题色（rolesFor / rolesCss / deriveSpec 已删），语义四色固定（SEM）。
  */
 // @ts-nocheck
 
@@ -120,6 +119,12 @@ function fillPair(fill) {
 }
 // 固定语义状态色：和 danger 一样不随主题变（亮 / 暗各一套，审计核对）。success = 状态页正常、设置安全状态「已开启」；
 // warning（琥珀）/ info（蓝）先只出 token，组件按需接（2026-10-23 PR-G 修订）
+/* 语义四色（2026-11-12 调色板 v4，Gray 定稿深档 B 加饱和版）：浅 / 深各 4 个值，写死。
+   审计只校验、不挪这 8 个值（见 audit 的 SEM 锁定），不达标由单测 / CI 报红。on-* 和 *-container 仍按下面 STATUS 的固定色阶出。 */
+const SEM = {
+  light: { success: '#097334', danger: '#be2423', warning: '#864e00', info: '#1666aa' },
+  dark: { success: '#39e175', danger: '#ff6f69', warning: '#ffa521', info: '#5aa5ff' },
+};
 const STATUS = {
   success: { h: 150, light: { s: [0.50, 0.13], on: [0.99, 0.006], sc: [0.93, 0.05], onSc: [0.32, 0.10] },
     dark: { s: [0.80, 0.13], on: [0.29, 0.07], sc: [0.37, 0.07], onSc: [0.93, 0.045] } },
@@ -166,8 +171,10 @@ function build(spec, mode) {
   r['on-danger'] = oklch(t.onDanger, D ? 0.09 : 0.006, Dg.h);
   r['danger-container'] = oklch(t.dc, D ? 0.09 : 0.045, Dg.h);
   r['on-danger-container'] = oklch(t.onDc, D ? 0.04 : 0.12, Dg.h);
+  Object.assign(r, SEM[mode]);
   // neutrals — tinted by the scheme's neutral hue
   const nc = k => N.c * k;
+  const SV = spec.seven && spec.seven.mode === mode ? spec.seven : null;
   r['background'] = oklch(t.bg, nc(D ? 1.2 : 1), N.h);
   r['surface-dim'] = oklch(t.dim, nc(D ? 1.1 : 1.3), N.h);
   r['surface'] = oklch(t.surface, nc(D ? 1.2 : 0.9), N.h);
@@ -184,6 +191,7 @@ function build(spec, mode) {
   r['disabled-container'] = rgba(r['text-primary'], 0.12);
   r['outline'] = oklch(t.outline, nc(D ? 2.2 : 3.0), N.h);
   r['outline-variant'] = oklch(t.outlineVar, nc(D ? 2.0 : 2.2), N.h);
+  if (SV) Object.assign(r, sevenNeutrals(SV, D));
   if (pin && pin.roles) {
     Object.assign(r, pin.roles);
     if (pin.roles['primary-fill']) r['on-primary-fill'] = fillPair(pin.roles['primary-fill']).on;
@@ -224,6 +232,9 @@ function build(spec, mode) {
   { const nk = spec.night || 't', F = nk === 'p' ? { h: pH, c: P.c } : nk === 't' ? Te : S;
     r['night-card'] = oklch(D ? 0.30 : 0.905, Math.min(F.c * (D ? 0.45 : 0.35), D ? 0.05 : 0.045), F.h);
     r['on-night-card'] = oklch(D ? 0.93 : 0.27, Math.min(F.c * 0.5, 0.07), F.h); }
+  // 七色（v4）表面比旧阶梯亮：深套夜间卡和 surface 至少拉开 1.25:1，不够就同色相往亮挪（字随后由审计保证 ≥ 7:1）
+  if (D && SV) { const o = hexToOklch(r['night-card']); let L = o.l;
+    for (let i = 0; i < 40 && contrast(r['night-card'], r['surface']) < 1.25; i++) { L += 0.005; r['night-card'] = oklch(L, Math.min(o.c, 0.05), o.h); } }
   if (pin && pin.roles) Object.assign(r, pin.roles); // 后面才算的角色（night-card 等）也按钉死值
   Object.defineProperty(r, '__dark', { value: D, enumerable: false });
   applyAliases(r, spec);
@@ -371,7 +382,8 @@ function audit(r, spec, mode, fix = true) {
       let target = sourceOf(fgK), against = bg, moveFg = true;
       if (fgK === 'slider-thumb' && bgK === 'slider-inactive') { target = sourceOf('slider-inactive'); against = r['slider-thumb']; moveFg = false; }
       if (target === 'primary' && mode === 'light') { target = null; }
-      if (target === 'primary-fill') { target = null; } // 填充档 = 前景本色，锁定（fillPair 已保证上面的字够）
+      if (target === 'primary-fill') { target = null; }
+      if (target && SEM[mode][target]) { target = null; } // 语义四色写死，只校验 // 填充档 = 前景本色，锁定（fillPair 已保证上面的字够）
       if (fgK === 'on-primary' && false) target = null;
       if (!target || !r[target] || !r[target].startsWith('#')) continue;
       const o = hexToOklch(r[target]); const refL = hexToOklch(against).l;
@@ -387,51 +399,6 @@ function audit(r, spec, mode, fix = true) {
   return { fixes, rows };
 }
 
-/* ---------- custom seed derivation ---------- */
-// Strategy: find the hand-tuned preset nearest to the seed in OKLCH (hue weighted by chroma), copy its
-// *relationships* (hue offsets / chroma ratios of secondary, tertiary, neutral, blobs, danger), re-anchor
-// them on the seed, then run the same tone ladders + contrast fixer used by the presets.
-function nearestPreset(seed, presets) {
-  const s = hexToOklch(seed);
-  let best = null, bd = 1e9;
-  for (const p of presets) {
-    const q = hexToOklch(p.seed);
-    const chromaW = Math.min(s.c, q.c) / 0.08; // hue matters only when both are chromatic
-    const d = Math.min(1, chromaW) * hueDist(s.h, q.h) / 30 + Math.abs(s.c - q.c) / 0.04 + Math.abs(s.l - q.l) / 0.25;
-    if (d < bd) { bd = d; best = p; }
-  }
-  return best;
-}
-function deriveSpec(seed, presets) {
-  const s = hexToOklch(seed);
-  const ref = nearestPreset(seed, presets);
-  const q = hexToOklch(ref.seed);
-  const mono = s.c < 0.03;
-  const k = mono ? 1 : Math.max(0.7, Math.min(1.3, s.c / Math.max(q.c, 0.01)));
-  const shift = mono || q.c < 0.03 ? 0 : s.h - q.h; // rotate relations with the seed
-  const rot = x => ({ h: wrap(x.h + shift), c: x.c * (x === ref.spec.n ? 1 : k) });
-  // primary (light): keep the seed if it reaches 4.5:1 on white and the lightest surfaces; else walk L down.
-  // primary (light): keep the seed if it holds 4.5:1 on the darkest surface primary text sits on
-  // (surface-container-high of the derived neutral); else walk L down at constant H/C (gamut-mapped).
-  // Very dark seeds are lifted to L 0.34 so the primary stays distinguishable from body text.
-  const worstSurface = oklch(T.light.high, 0.012, s.h);
-  const ok = h => contrast(h, worstSurface) >= 4.6;
-  let L = s.l, prim = seed;
-  if (L < 0.34) { L = 0.34; prim = oklch(L, s.c, s.h); }
-  while (!ok(prim) && L > 0.2) { L -= 0.005; prim = oklch(L, s.c, s.h); }
-  const sp = ref.spec;
-  return {
-    seed, seedPrimary: prim, derivedFrom: ref.id,
-    p: { h: s.h, c: s.c, hd: sp.p.hd != null ? wrap(sp.p.hd + shift) : undefined, cd: sp.p.cd != null && !(q.c < 0.03 && !mono) ? sp.p.cd * k : undefined },
-    pc: sp.pc && !(q.c < 0.03 && !mono) ? { h: sp.pc.h != null ? wrap(sp.pc.h + shift) : undefined, c: sp.pc.c != null ? sp.pc.c * k : undefined } : undefined,
-    s: rot(sp.s), t: mono ? { ...sp.t } : rot(sp.t), n: mono ? { ...sp.n } : { h: wrap(sp.n.h + shift), c: sp.n.c },
-    d: ref.spec.d, // danger stays in the red family; nearest preset already moved it away from the seed if needed
-    blobs: sp.blobs.map(b => mono ? { ...b } : { h: wrap(b.h + shift), c: b.c }),
-    accent: sp.accent, slider: sp.slider, night: sp.night, state: sp.state, tune: sp.tune,
-  };
-}
-
-
 /* ---------- 七色调色板（2026-10-23 PR-G，定稿 palette-v0.3）：22 套 = 1 个背景色 + 6 个前景撞色 ---------- */
 // 三层（上层怎么取色见 input.css「调色板三层」注释）：
 //   背景层 = 背景色派生的 7 档深浅（bgTones，--sgx-bg-1..7），只给光晕 / 页面底用；
@@ -439,6 +406,48 @@ function deriveSpec(seed, presets) {
 //   主题色层 = 6 个前景色（fgTones，--sgx-fg-1..6 + -tint / -ink），按顺序：主交互 / 辅助强调 / 标题图标 / 标签装饰 / 图表装饰 / 低频点缀。
 // 接进原来的角色引擎（现 94 个）（组件照旧只用语义角色）：primary ← 前景 1（浅色按对比度压深，p.fit），secondary ← 前景 2，tertiary ← 前景 3，
 // neutral = 背景色相 + 小彩度，背景三团 blob = 背景色，danger 固定红色族（不随主题变）。
+/* ---------- 七色调色板（2026-11-12，去掉深浅色模式）----------
+   每套 = 7 个颜色，整站颜色只由它们决定：底（页面底）/ 面（卡片、顶栏）/ 字（正文）/ 主色 / 辅色 / 第三色 / 点缀（标签、图表）。
+   深浅由调色板自己决定：背景色 OKLCH L ≥ SEVEN.lightMin 的是浅色套，其余是深色套（不再跟系统，也没有开关）。
+   边线、次要 / 三级文字、容器阶梯 = 底 → 字 按固定比例在 OKLab 里混出来；卡片 = 面；危险 / 成功 / 警告 / 信息色固定，不在七色里。
+   混完照旧过对比度审计（audit），不够的自动挪亮度。 */
+const SEVEN = {
+  lightMin: 0.6,
+  light: { bg: [0.955, 0.25, 0.035], face: [0.993, 0.05, 0.006], text: [0.22, 0.2, 0.025] },
+  dark: { bg: [0.2, 0.6, 0.065], face: [0.25, 0.5, 0.055], text: [0.94, 0.1, 0.014] }, // 2026-11-12 Gray：深色底调浓，带各自色相（湖蓝 = 蓝底），但够暗
+  // 底 → 字 的混合比例（0 = 底，1 = 字），亮度上对齐旧的 T 阶梯
+  mixLight: { 'surface-dim': 0.084, 'surface-container-low': 0.008, 'surface-container': 0.037, 'surface-container-high': 0.062,
+    'surface-container-highest': 0.088, 'text-secondary': 0.75, 'text-tertiary': 0.6, outline: 0.52, 'outline-variant': 0.167 },
+  mixDark: { 'surface-container-low': 0.074, 'surface-container': 0.108, 'surface-container-high': 0.145,
+    'surface-container-highest': 0.183, 'text-secondary': 0.818, 'text-tertiary': 0.675, outline: 0.591, 'outline-variant': 0.279 },
+};
+const toLab = (hex) => linToOklab(hexRgb(hex).map(s2l));
+const fromLab = (lab) => { const o = Math.hypot(lab[1], lab[2]); return oklch(lab[0], o, (Math.atan2(lab[2], lab[1]) * 180 / Math.PI + 360) % 360); };
+/** OKLab 里按比例混合：k = 0 → a，k = 1 → b */
+function mixLab(a, b, k) { const A = toLab(a), B = toLab(b); return fromLab(A.map((v, i) => v + (B[i] - v) * k)); }
+/** 背景色 → 本套是浅色还是深色 @param {string} bgHex @returns {'light'|'dark'} */
+export function paletteMode(bgHex) { return hexToOklch(bgHex).l >= SEVEN.lightMin ? 'light' : 'dark'; }
+/** 背景色 + 前景 1–4 → 七色 @param {{bg:string, fg:string[]}} th */
+export function sevenFor(th) {
+  const mode = paletteMode(th.bg), B = hexToOklch(th.bg), S = SEVEN[mode];
+  const h = B.c < 0.01 ? 250 : B.h, c0 = B.c < 0.01 ? 0.02 : B.c;
+  const pick = ([L, k, cap]) => oklch(L, Math.min(c0 * k, cap), h);
+  const acc = th.fg.slice(0, 4).map((x) => fgTones(x, mode).base);
+  return { mode, bg: pick(S.bg), face: pick(S.face), text: pick(S.text), primary: acc[0], secondary: acc[1], tertiary: acc[2], accent: acc[3] };
+}
+/** 七色 → 中性角色（底 / 面 / 字 + 混出来的容器、边线、次要文字） */
+function sevenNeutrals(sv, D) {
+  const r = {}, M = D ? SEVEN.mixDark : SEVEN.mixLight;
+  r['background'] = sv.bg;
+  r['surface-container-lowest'] = sv.face;
+  r['surface'] = mixLab(sv.bg, sv.face, 0.5);
+  r['surface-bright'] = D ? mixLab(sv.face, sv.text, 0.12) : mixLab(sv.face, '#ffffff', 0.5);
+  if (D) r['surface-dim'] = mixLab(sv.bg, '#000000', 0.15);
+  r['text-primary'] = sv.text;
+  for (const [k, v] of Object.entries(M)) r[k] = mixLab(sv.bg, sv.text, v);
+  return r;
+}
+
 // 前景色池：浅色模式色值（深色模式按 fgTones 提亮）
 const FG_POOL = {
   兰紫: '#a77bd6', 冰川蓝: '#72c7e8', 珊瑚: '#f17f72', 琥珀: '#e3a93b', 极光青: '#42cdbb', 蔷薇: '#d4628f',
@@ -476,6 +485,14 @@ export function tonesFor(th, mode) {
     // 本色当填充时上面的字（fill / on-fill，2026-10-23 PR-G 修订；同 primary-fill 的 fillPair 规则，子站按需取）
     out['fg-' + (i + 1) + '-on'] = fillPair(t.base).on;
   });
+  if (th.seven && th.seven.mode === mode) {
+    // 七色：页面底 = 底；前景 5 / 6 不再单独选色——5 = 背景色相的中间调，6 = 底→字 混出的中性灰（只给图表 / 色块）
+    out['bg-1'] = th.seven.bg;
+    const B = hexToOklch(th.bg);
+    const extra = [displayTone({ h: B.c < 0.01 ? 250 : B.h, c: Math.max(B.c, 0.07) }), mixLab(th.seven.bg, th.seven.text, 0.55)];
+    extra.forEach((hex, j) => { const i = 5 + j, t = fgTones(hex, mode);
+      out['fg-' + i] = mode === 'dark' ? t.base : hex; out['fg-' + i + '-tint'] = t.tint; out['fg-' + i + '-ink'] = t.ink; out['fg-' + i + '-on'] = fillPair(out['fg-' + i]).on; });
+  }
   const pt = th.pin && th.pin[mode] && th.pin[mode].tones;
   if (pt) for (const [k, v] of Object.entries(pt)) { out[k] = v; if (/^fg-\d$/.test(k)) out[k + '-on'] = fillPair(v).on; }
   return out;
@@ -530,7 +547,7 @@ const PINS = {
       n: { h: 67.5, c: 0.005 },
       roles: {
         primary: '#de7a58', 'primary-fill': '#de7a58',
-        background: '#161412', surface: '#1d1b19', 'surface-container-lowest': '#12100f', 'surface-container-low': '#1a1816', 'surface-container-high': '#2a2522',
+        // 七色（2026-11-12）：底 #161412 / 面 #1d1b19 / 字 #ece6dc 走 seven（见 PRESETS），容器阶梯由底→字混出，不再逐个钉
         'outline-variant': '#2c2825', 'text-primary': '#ece6dc', 'text-secondary': '#8f877d', 'text-tertiary': '#5e5851',
         // 首页夜间时钟卡：卡面 #1d1b19 比公式的 surface 亮，公式值 #42232e 对卡面不到 1.25:1，这里同色相提一档
         'night-card': '#472932',
@@ -561,9 +578,11 @@ const PRESETS = THEMES.map(([id, zh, en, group, bg, names]) => {
   const fg = names.map((nm) => FG_POOL[nm]);
   const th = { bg, fg, group };
   const pin = PINS[id];
-  return { id, zh, en, group, bg, fgNames: names, fg, seed: fg[0], pin,
+  const seven = sevenFor(th);
+  if (id === 'terra') Object.assign(seven, { bg: '#161412', face: '#1d1b19', text: '#ece6dc' }); // 设计稿 tb4.html（见 PINS）
+  return { id, zh, en, group, bg, fgNames: names, fg, seed: fg[0], pin, mode: seven.mode, seven,
     mood: { zh: `背景${zh}；前景 ${names.join(' / ')}`, en: `${en} background with six foreground accents` },
-    spec: Object.assign(themeSpec(th), pin ? { pin } : {}) };
+    spec: Object.assign(themeSpec(th), { seven }, pin ? { pin } : {}) };
 });
 
 /* ---------- site glue ---------- */
@@ -571,7 +590,8 @@ const PRESETS = THEMES.map(([id, zh, en, group, bg, names]) => {
  *  彩度用 spec.p.lc（压深后略提一点，免得发灰）。其余预设的浅色主色 = 种子原样。 */
 function fitPrimary(seed, spec) {
   if (!spec.p.fit) return seed;
-  const s = hexToOklch(seed), worst = oklch(T.light.high, spec.n.c * 1.4, spec.n.h);
+  const sv = spec.seven && spec.seven.mode === 'light' ? spec.seven : null;
+  const s = hexToOklch(seed), worst = sv ? mixLab(sv.bg, sv.text, SEVEN.mixLight['surface-container-high']) : oklch(T.light.high, spec.n.c * 1.4, spec.n.h);
   const C = spec.p.lc != null ? spec.p.lc : s.c;
   let L = s.l, prim = oklch(L, C, s.h);
   while (contrast(prim, worst) < 4.6 && L > 0.2) { L -= 0.005; prim = oklch(L, C, s.h); }
@@ -628,34 +648,30 @@ function buildMode(spec, mode) {
   return { ...r };
 }
 
-/** 自定义种子的色调 token：最近预设的背景色 + 6 前景整体转到种子色相（和 deriveSpec 转 s / t / n 同一个角度），前景 1 = 种子本身。
- *  @param {string} seed @param {any} spec deriveSpec 的结果 @returns {{bg:string, fg:string[]}} */
-function customTheme(seed, spec) {
-  const ref = PRESET_LIST.find((x) => x.id === spec.derivedFrom);
-  const s = hexToOklch(seed), q = hexToOklch(ref.seed);
-  const shift = s.c < 0.03 || q.c < 0.03 ? 0 : s.h - q.h;
-  const rot = (hex) => { if (!shift) return hex; const o = hexToOklch(hex); return o.c < 0.01 ? hex : oklch(o.l, o.c, wrap(o.h + shift)); };
-  return { bg: rot(ref.bg), fg: [seed, ...ref.fg.slice(1).map(rot)] };
-}
-
-/** @param {string} seed #rrggbb @returns {{light:Object<string,any>, dark:Object<string,any>, lightState:any, darkState:any, lightTones:Object<string,string>, darkTones:Object<string,string>, derivedFrom:string, seedPrimary:string}} */
-export function rolesFor(seed) {
-  const spec = deriveSpec(seed, PRESET_LIST);
-  const th = customTheme(seed, spec);
-  const lightTones = tonesFor(th, "light"), darkTones = tonesFor(th, "dark");
-  return { light: addCharts(buildMode(spec, "light"), lightTones), dark: addCharts(buildMode(spec, "dark"), darkTones),
-    lightState: spec.state.light, darkState: spec.state.dark,
-    lightTones, darkTones,
-    derivedFrom: spec.derivedFrom, seedPrimary: spec.seedPrimary };
-}
-
-/** 预设 id → 角色表 + 色调 token（单测用来和 JSON 对照） */
+/** 预设 id → 本套（单一模式）的角色表 + 状态层 + 色调 token（单测用来和 JSON 对照）
+ *  @param {string} id @returns {{mode:'light'|'dark', seven:any, roles:Object<string,any>, state:any, tones:Object<string,string>}|null} */
 export function presetRoles(id) {
   const p = PRESET_LIST.find((x) => x.id === id);
   if (!p) return null;
-  const lightTones = tonesFor(p, "light"), darkTones = tonesFor(p, "dark");
-  return { light: addCharts(buildMode(p.spec, "light"), lightTones), dark: addCharts(buildMode(p.spec, "dark"), darkTones),
-    lightState: p.spec.state.light, darkState: p.spec.state.dark, lightTones, darkTones };
+  const roles = buildMode(p.spec, p.mode);
+  const tones = fitInks(tonesFor(p, p.mode), roles, p.mode);
+  return { mode: p.mode, seven: p.seven, roles: addCharts(roles, tones), state: p.spec.state[p.mode], tones };
+}
+
+/** ink 档（文字 / 图标 / 标签字）在本套所有正文表面上 ≥ 4.5:1：七色（v4）混出的容器比旧阶梯深 / 亮一点，不够就同色相往远离表面的方向挪
+ *  （同时保证 -tint 上的字更清楚）。 @param {Object<string,string>} tones @param {Object<string,any>} r @param {'light'|'dark'} mode */
+const INK_SURF = ['background', 'surface', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high'];
+function fitInks(tones, r, mode) {
+  const dir = mode === 'dark' ? 1 : -1;
+  for (let i = 1; i <= 6; i++) {
+    const k = 'fg-' + i + '-ink';
+    if (!tones[k]) continue;
+    const o = hexToOklch(tones[k]); let L = o.l, c = tones[k];
+    const worst = () => Math.min(...INK_SURF.map((s) => contrast(c, r[s])));
+    for (let n = 0; n < 60 && worst() < 4.5; n++) { L += dir * 0.005; c = oklch(L, o.c, o.h); }
+    tones[k] = c;
+  }
+  return tones;
 }
 
 /** 色调 token → CSS 声明（--sgx-bg-1..7、--sgx-fg-1..6、--sgx-fg-N-tint / -ink） @param {Object<string,string>} tones @returns {string[]} */
@@ -682,14 +698,4 @@ export function roleDecls(roles, state) {
   return out;
 }
 
-/**
- * 自定义种子 → <style> 文本。用 html:root（不进 @layer，盖过 tokens 层里各预设的 :root[data-palette]）。
- * @param {string} seed #rrggbb @returns {string}
- */
-export function rolesCss(seed) {
-  const r = rolesFor(seed);
-  return `html:root{--sgx-seed: ${seed};${roleDecls(r.light, r.lightState).join("")}${toneDecls(r.lightTones).join("")}}` +
-    `html:root.dark{${roleDecls(r.dark, r.darkState).join("")}${toneDecls(r.darkTones).join("")}}`;
-}
-
-export { mixHex, PRESETS, PINS, GROUPS, DEFAULT_ID, FG_POOL, FG_ROLES, deriveSpec, build, audit, contrast, hexToOklch };
+export { mixHex, PRESETS, PINS, GROUPS, DEFAULT_ID, FG_POOL, FG_ROLES, SEM, build, audit, checks, contrast, hexToOklch };

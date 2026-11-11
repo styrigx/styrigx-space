@@ -28,9 +28,8 @@ const setJs = rd('space/web/assets/js/apps/space.js');
 const css = rd('space/web/assets/css/input.css');
 const feats = rd('space/web/data/features.yaml');
 
-test('顶栏 v3 控件（四站同一套）：外观面板 = MODE 三段 + PALETTE；NAVIGATE = lang / layout 分段 + terminal（v5 S6 去掉 lock；v6 P4 拿掉 share）；没有按站开关、没有减弱动效和字体大小', () => {
-  assert.deepEqual([...qpHtml.matchAll(/data-qp-mode="([a-z]+)"|data-qp-mode="\{\{ \.v \}\}"/g)].length, 1, '模式三段由一处 range 输出');
-  assert.match(qpHtml, /data-qp-seg="mode"/);
+test('顶栏 v3 控件（四站同一套）：外观面板 = PALETTE（2026-11-12 调色板 v4 删 MODE 三段）；NAVIGATE = lang / layout 分段 + terminal（v5 S6 去掉 lock；v6 P4 拿掉 share）；没有按站开关、没有减弱动效和字体大小', () => {
+  assert.doesNotMatch(qpHtml, /data-qp-mode|data-qp-seg="mode"|sgx-th-mode|sgx-th-seg/, 'v4：没有 MODE 段');
   /* 2026-11 PR-2：加「$ terminal」（打开全站终端抽屉） */
   assert.deepEqual([...navHtml.matchAll(/data-qp="([a-z]+)"/g)].map((m) => m[1]), ['term'], 'v6 P4：分享磁贴拿掉（Gray 11-11 17:47）');
   assert.doesNotMatch(qpHtml + navHtml, /\.tiles\b|\$tiles|\{\{ with \.layout \}\}/, '不按 tiles / layout 参数开关');
@@ -44,7 +43,7 @@ test('顶栏 v3 控件（四站同一套）：外观面板 = MODE 三段 + PALET
   assert.ok(!(qpHtml + navHtml).includes('reduced-motion'));
   assert.ok(!(qpHtml + navHtml).includes('font-size'));
   assert.ok(!/setReducedMotion|setFontSize|reducedMotionPref|fontSize\(/.test(qpJs + tbJs));
-  assert.match(tbJs, /P\.setTheme\(/, 'MODE 走 setTheme（system / dark / light）');
+  assert.doesNotMatch(tbJs + qpJs, /setTheme|themeMode|toggleFollowSystem|hasAccent|prefers-color-scheme/, 'v4：深浅模式 / 自定义色删了');
   /* 2026-10-23 PR-E：设置本身也删了 */
   assert.doesNotMatch(feats, /- id: reduced-motion/);
   assert.doesNotMatch(feats, /- id: font-size/);
@@ -63,7 +62,7 @@ test('七色调色板（PR-G）：外观面板 22 行色板 / 设置页 22 个 .
   assert.doesNotMatch(setJs, /palette-reset|pal-tile|setPalette/);
   /* 快捷面板的逻辑在 topbar-panel.js（四站共用，依赖由 quick-panel.js 传入） */
   assert.match(tbJs, /P\.setPalette\(P\.DEFAULT_PALETTE\)/);
-  assert.match(tbJs, /=== P\.DEFAULT_PALETTE && !P\.hasAccent\(\)/);
+  assert.match(tbJs, /p === P\.DEFAULT_PALETTE \? 'true' : 'false'/);
   assert.match(qpJs, /DEFAULT_PALETTE,/);
   for (const js of [qpJs, tbJs, setJs]) assert.doesNotMatch(js, /'lake'/);
 });
@@ -91,7 +90,7 @@ test('PR4：外观面板没有齿轮 / 页签；读屏名字在 dialog 的 aria-
   assert.doesNotMatch(open, /aria-labelledby/);
   assert.doesNotMatch(qpHtml, /sgx-qp-head|sgx-qp-title|"gear"/);
   assert.doesNotMatch(qpHtml, /class="sgx-qp-set"/);
-  assert.match(qpHtml, /<div class="sgx-qp-sheet" tabindex="-1" autofocus>\s*<p class="sgx-th-h"/);
+  assert.match(qpHtml, /<div class="sgx-qp-sheet" tabindex="-1" autofocus>\s*(\{\{-[^}]*\}\}\s*)*<div class="sgx-th-hrow">\s*<p class="sgx-th-h"/);
   assert.doesNotMatch(qpHtml, /role="tab"|role="tabpanel"|data-qp-tab|data-qp-page|sgx-qp-nav/);
   assert.doesNotMatch(tbJs, /data-qp-tab|data-qp-pages|scrollend/);
   assert.doesNotMatch(css, /\.sgx-qp-(head|title|set)\b/);

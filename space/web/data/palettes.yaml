@@ -1,5 +1,5 @@
-# 调色板配置（色板列表的单数据源）。2026-10-23 PR-G 七色调色板：22 套，每套 = 1 个背景色（c，7 档深浅 → 光晕）+ 6 个前景撞色；
-# 原来的单色 / 撞色两组合并，x* 撞色 id 删除（旧值 x<id> 迁到 <id>）。默认 dustyblue（雾霾蓝）。
+# 调色板配置（色板列表的单数据源）。22 套，2026-11-12 调色板 v4 起每套七色（底、面、字、主、辅、第三、点缀），每套只有一个模式
+# （底色 OKLCH L ≥ 0.6 为浅套：8 浅 14 深）；没有深浅模式和自定义主题色。x* 撞色 id 删除（旧值 x<id> 迁到 <id>）。默认 terra（陶土，深套）。
 # group = 设置风格页的分组（cool 冷调 / nature 自然 / warm 暖调 / floral 花色 / neutral 中性），顺序 = 网格顺序。
 # 加颜色：这里加一项，在 space/web/assets/js/lib/palette-scheme.js 的 THEMES 加同 id、同 group、同背景色的一行（6 个前景从 FG_POOL 里挑），
 # 再跑 node space/scripts/gen-palettes.mjs --roles（重建 space/web/data/palette-roles.json 并写进 input.css）和 node space/scripts/gen-shell.mjs；space/web/data/features.yaml 的 palette 选项同步加。
@@ -7,7 +7,7 @@
 # 单一数据源：颜色值只在 palette-scheme.js 的 THEMES / FG_POOL；这里的 c / zh / en / group 是副本，单测（palette-scheme.test.mjs）逐项核对，不一致就红。
 #   色块 / 预览卡的颜色从生成的 data/palette-roles.json 取（palette-tile-vars.html），和页面角色同一份数据。
 # 档位用法（硬规则，详见 docs/design/palette.md）：
-#   - 背景 7 档（--sgx-bg-1..7）：每个模式各一条阶梯，只给光晕和页面底（bg-1）；不当大面积内容表面，不放在文字底下。
+#   - 背景 7 档（--sgx-bg-1..7）：每套一条阶梯，只给页面底（bg-1，2026-11 PR-A 起没有光晕）；不当大面积内容表面，不放在文字底下。
 #   - 前景 tint = 浅底（chip / 标签 / 选中底）；base = 填充（按钮 / 开关 / 进度 / 选中分段，上面的字由引擎自动挑 on-primary-fill）；ink = 文字 / 图标。
 #   - 前景 5–6 只给图表和设置页色块 / 预览。
 #   - 深色 / 饱和的档位永远不当大面积底色铺在文字下面。

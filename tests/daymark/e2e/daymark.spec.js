@@ -440,7 +440,7 @@ test('百味 · 账号未登录：没有新建；专题里只显示看得到的�
   await expect(page.locator('#dm-col-new')).toHaveCount(0);
 });
 
-test('主题跟主站 sgx-ui cookie：pal 换预设；accent 是自定义种子 → 按需加载共享外壳引擎算整套角色，第二次首帧直接用缓存', async ({ page, context, baseURL }) => {
+test('主题跟主站 sgx-ui cookie：pal 换预设（深浅跟着调色板）；旧 cookie 的 accent 忽略（自定义主题色 2026-11-12 删除）', async ({ page, context, baseURL }) => {
   await mock(page, false);
   const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const set = (ui) => context.addCookies([{ name: 'sgx-ui', value: enc(ui), url: baseURL }]);
@@ -454,19 +454,14 @@ test('主题跟主站 sgx-ui cookie：pal 换预设；accent 是自定义种子 
   await expect(page.locator('html')).toHaveClass(/dark/);
   await expect(page.locator('#sgx-accent-roles')).toHaveCount(0);
   expect(await ind()).not.toBe(base);
+  /* 调色板 v4：旧 cookie 的自定义色忽略，按调色板（lake，深套）渲染；旧 mode=light 也不影响 */
   await set({ v: 2, mode: 'light', pal: 'lake', accent: '#ff8800' });
   await page.reload();
-  /* 自定义色的种子内联在 --sgx-seed（共享读端；不再用 data-sgx-seed） */
-  expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--sgx-seed'))).toBe('#ff8800');
-  await expect(page.locator('html')).not.toHaveAttribute('data-sgx-seed', /./);
-  await expect(page.locator('#sgx-accent-roles')).toHaveCount(1);
-  const custom = await ind();
-  expect(custom).not.toBe(base);
-  /* 第二次：缓存命中，不再加载引擎脚本 */
-  await page.reload();
-  await expect(page.locator('#sgx-accent-roles')).toHaveCount(1);
-  await expect(page.locator('#sgx-accent-js')).toHaveCount(0);
-  expect(await ind()).toBe(custom);
+  await expect(page.locator('html')).toHaveAttribute('data-palette', 'lake');
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--sgx-seed'))).toBe('');
+  await expect(page.locator('#sgx-accent-roles, #sgx-accent-js')).toHaveCount(0);
+  expect(await ind()).not.toBe(base);
 });
 
 test('余响 · 日期条 / 前后日（/api/days）：记下的日子能点，看那天的句子（地址 #d/<日期>、命令行换日期）；cat today / 点今天格回来；那天没记下的灰掉；余响窗列最近几天', async ({ page }) => {
