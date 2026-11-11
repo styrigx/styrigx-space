@@ -281,16 +281,16 @@ test('theme / ask / open：先打印再动（after）；访客 ask 不开 AI；o
   assert.equal(g.after, undefined);
 });
 
-test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访客要先 su <用户>；非 root 的 root 档命令（sub、device rm）：sudoers 提示先 sudo <这一行>，其余提示 su root', () => {
+test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访客要先 su <用户>；非 root 的 root 档命令（sub、device rm）提示先 su root（文案同 main；sudoers 另可 sudo <命令>，keys/sudo.js）', () => {
   const { act } = fakeAct();
   const { v, calls } = fakeLayers();
   const sh = (w) => createShell({ act, storage: mem(), who: fixedWho(w) });
   const need = 'not signed in · su <user> first';
   for (const l of ['lock', 'passkey', 'device', 'profile', 'sub']) assert.equal(text(sh('nobody').exec(l, v).out[0]), need, l);
   for (const l of ['sub mv a b', 'sub show']) assert.equal(text(sh('u:alice').exec(l, v).out[0]), 'permission denied · run su root first', l);
-  /* P4-3（定稿 v5.5 §四「站长用 sudo 提权」）：在 sudoers 里的非 root：sub 与 device rm 提示 sudo <这一行> */
+  /* P4-3：站长（sudoers）的 sub 与 device rm（root 档，定稿 v5.5 §五）提示同 main 的「先 su root」，不另出 sudo <这一行> 提示 */
   const owner = () => createShell({ act, storage: mem(), who: Object.assign(fixedWho('u:styrigx'), { v6: () => ({ name: 'styrigx', owner: true, sudoers: true, groups: ['sudoers'] }) }) });
-  for (const l of ['sub mv a b', 'sub show', 'device rm 2', 'device rm --all']) assert.equal(text(owner().exec(l, v).out[0]), 'permission denied · run sudo ' + l + ' first', l);
+  for (const l of ['sub mv a b', 'sub show', 'device rm 2', 'device rm --all']) assert.equal(text(owner().exec(l, v).out[0]), 'permission denied · run su root first', l);
   assert.deepEqual(calls, [], '没过门槛的不进流程');
 });
 

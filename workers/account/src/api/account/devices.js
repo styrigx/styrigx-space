@@ -35,14 +35,14 @@ async function v6Devices(context, body, action, v) {
       d.prepare('DELETE FROM account_session_stack WHERE session_id = ?').bind(id),
       d.prepare('DELETE FROM account_sessions WHERE id = ?').bind(id),
     ])));
-    await writeUserAudit(env, { uid: who.uid, command: 'device rm ' + n + who.suffix, ok: true, ip });
+    await writeUserAudit(env, { uid: who.uid, command: 'lock device ' + n + who.suffix, ok: true, ip });
     return json(200, { ok: true });
   }
   await onDb(env, (d) => d.batch([
     d.prepare('DELETE FROM account_session_stack WHERE session_id IN (SELECT id FROM account_sessions WHERE id <> ?)').bind(current),
     d.prepare('DELETE FROM account_sessions WHERE id <> ?').bind(current),
   ]));
-  await writeUserAudit(env, { uid: who.uid, command: 'device rm --all' + who.suffix, ok: true, ip });
+  await writeUserAudit(env, { uid: who.uid, command: 'lock devices --all' + who.suffix, ok: true, ip });
   return json(200, { ok: true });
 }
 

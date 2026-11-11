@@ -22,7 +22,7 @@ const DEVICES = () => [
 ];
 
 test.describe('设备（v6 会话）', () => {
-  test('站长（P4-3，定稿 v5.5 §五、§七）：device 列表直读；device rm 属 root 档 → 提示先 sudo，不发 revoke', async ({ page }) => {
+  test('站长（P4-3，定稿 v5.5 §五、§七）：device 列表直读；device rm 属 root 档 → 提示先 su root（同 main 的 needRoot6），不发 revoke', async ({ page }) => {
     const calls = await mockAccount(page, {
       user: T.V6_USER('styrigx'),
       handlers: { 'devices/list': () => [200, { ok: true, devices: DEVICES() }] },
@@ -34,7 +34,7 @@ test.describe('设备（v6 会话）', () => {
     await expect(log(page)).toContainText('[1] styrigx 当前 · 2026-11-11 08:30');
     await mode(page, 'cmd');
     await typeLine(page, 'device rm 2');
-    await expect(log(page)).toContainText('先 sudo device rm 2');
+    await expect(log(page)).toContainText('当前用户没有这个权限 · 先 su root');
     expect(calls.some((c) => /^devices\/revoke/.test(c.action))).toBe(false);
   });
 

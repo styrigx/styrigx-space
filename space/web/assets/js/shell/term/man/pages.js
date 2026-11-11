@@ -10,7 +10,7 @@ export const PAGES = Object.freeze({
   cd: { d: 'change the current directory (use open to go there)', syn: ['cd [blog | curio | daymark | wild | account | proxy | ~ | ..]'] },
   ls: { d: 'list a directory', syn: ['ls [path]'] },
   cat: { d: 'print today’s daymark line', syn: ['cat daymark/today'] },
-  sudo: { d: 'run one command as root with your own credentials (sudoers only; no ticket kept)', syn: ['sudo useradd | userdel | usermod | passwd <name> | groups [name] | who', 'sudo device [rm <n> | rm --all]', 'sudo sub …'] },
+  sudo: { d: 'run one command as root with your own credentials (sudoers only; no ticket kept)', syn: ['sudo useradd | userdel | usermod | passwd <name> | groups [name] | who'] },
   theme: { d: 'open the appearance panel, or set dark / light / auto', syn: ['theme', 'theme [dark | light | auto]'] },
   lock: { d: 'sign everything out and go back to visitor', syn: ['lock'], auth: 'no verification' },
   ask: { d: 'ask Gray AI a question', syn: ['ask <question>'], desc: ['opens the Gray AI window with your question. Gray AI is only for styrigx and root.'] },

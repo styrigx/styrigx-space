@@ -1,4 +1,4 @@
-import { layer, notHere, nth, v6SelfGate, line, canSudo, FLOW } from '../keys/gate.js';
+import { layer, notHere, nth, v6SelfGate, line, FLOW } from '../keys/gate.js';
 import { v6Root } from '../../core/who.js';
 
 /**
@@ -6,7 +6,7 @@ import { v6Root } from '../../core/who.js';
  * - passwd：改自己的密码（先输当前密码）/ passwd <名>：root 发一次性密码（身份层 shell/identity/layer.js）；普通用户层
  * - passkey [ls | add | rm <n>]：站长与 root 自己的通行密钥（POST /api/identity passkey-*，owner 档；普通用户不能管通行密钥，§八）
  * - device：设备列表（POST /api/account/devices list，owner 档，全站视图）；device rm <n> | rm --all：踢出（root 档）——
- *   root 直接做；站长提示 sudo device rm …（keys/sudo.js 借 root 跑）
+ *   root 直接做；别的身份提示先 su root（同 sub）；sudoers 可 sudo device rm …（keys/sudo.js 借 root 跑）
  * - profile [set name | nick | sign | email <值> | avatar]：个人资料（PUT /api/profile 站长 + root；头像一份，归站长）；普通用户只能看
  * 流程在账号层（shell/account/cmd/*）；这里只把门、查参数。v6 P4 起旧账号会话（sudo root）与 reset 层删除，一律按 v6 身份。
  */
@@ -71,8 +71,8 @@ const device = {
     const r = acct(x, 'device');
     if (r.no) return r.no;
     if (!a.length) { r.A.deviceList(); return FLOW; }
-    /* 踢出是 root 档（定稿 v5.5 §五）：不是 root → 先 sudo device rm …（站长用 sudo 提权，§四） */
-    if (a[0] === 'rm' && a.length === 2 && (nth(a[1]) || a[1] === '--all') && !v6Root(x.who())) return { out: [line(x, 'needRoot6', canSudo(x) ? 'sudo device rm ' + a[1] : 'su root')] };
+    /* 踢出是 root 档（定稿 v5.5 §五）：不是 root → 同 sub 的提示「先 su root」（needRoot6，main 现有文案）；sudoers 可 sudo device rm …（keys/sudo.js） */
+    if (a[0] === 'rm' && a.length === 2 && (nth(a[1]) || a[1] === '--all') && !v6Root(x.who())) return { out: [line(x, 'needRoot6', 'su root')] };
     if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { r.A.deviceRm(nth(a[1])); return FLOW; }
     if (a[0] === 'rm' && a.length === 2 && a[1] === '--all') { r.A.deviceRmAll(); return FLOW; }
     return { out: [x.k.plain(x.S.usageDevice)] };

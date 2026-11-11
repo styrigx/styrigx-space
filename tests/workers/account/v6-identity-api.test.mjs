@@ -577,7 +577,7 @@ test('P4-3 devices：list owner（站长直读、全站视图）；revoke / revo
   assert.equal((await id(env, { action: 'whoami' }, a1)).json.user, null, 'sudo device rm 2 踢掉了 alice 的第一个会话');
   assert.equal((await id(env, { action: 'whoami' }, a2)).json.user.name, 'alice');
   assert.equal((await id(env, { action: 'sudo', password: PW.styrigx, command: { method: 'POST', path: '/api/account/devices', body: { action: 'revoke', n: 1 } } }, st)).json.error, 'current', '本会话（执行 sudo 的会话）踢不了');
-  assert.ok(rows(env, "SELECT command FROM account_user_audit WHERE command LIKE 'device rm%'").some((r) => r.command === 'device rm 2 via sudo'), '审计记真正执行的人 + via sudo');
+  assert.ok(rows(env, "SELECT command FROM account_user_audit WHERE command LIKE 'lock device%'").some((r) => r.command === 'lock device 2 via sudo'), '审计命令字沿用 main 的 lock device <n>；记真正执行的人 + via sudo（auditActor，同 profile）');
   await suRoot(env, st);
   assert.equal((await dv(st, { action: 'revoke-all' })).status, 200, 'su root 后直接踢');
   assert.equal((await id(env, { action: 'whoami' }, a2)).json.user, null);

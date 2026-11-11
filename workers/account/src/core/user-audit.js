@@ -16,8 +16,6 @@ import { ipPrefix } from './audit.js';
 export const USER_AUDIT_TTL_MS = 90 * 24 * 3600 * 1000;
 /** 命令字白名单（审计行 command 的第一个词） */
 export const USER_AUDIT_COMMANDS = Object.freeze(['useradd', 'userdel', 'usermod', 'passwd', 'passkey', 'su', 'sudo', 'exit', 'idle', 'lock', 'rescue', 'recovery-key', 'login-fail', 'expire',
-  /* v6 P4-3：设备会话踢出 device rm <n> / --all（定稿 v5.5 §五，root 档；站长经 sudo，行尾记 via sudo） */
-  'device',
   /* root 的特权内容操作（定稿 v4 §十：root 干的事都留痕）：root 改名片 profile、批量 / 结构删除 rm-bulk（P2 起账号侧；子站接口 Worker 接上新会话后同样写） */
   'profile', 'rm-bulk',
   /* 割接（v6 cutover）：root 的其他特权操作——代理订阅 sub、分享链接 share（网关）、奇趣导入 / 导出 import / export（子站经 AccountVerifier.auditRoot）；
