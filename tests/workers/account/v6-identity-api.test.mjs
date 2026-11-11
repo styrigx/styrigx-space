@@ -58,7 +58,7 @@ async function setup() {
   const env = {
     SGX_ENV: 'production', SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN,
     SGX_ACCOUNT_PASSWORD_PEPPER: PEP_A, SGX_SPACE_PASSWORD_PEPPER: PEP_S,
-    D1_ACCOUNT: makeAccountD1(), KV_PROFILE: makeKv(),
+    D1_ACCOUNT: makeAccountD1({ migrations: 'pre-uid' }), KV_PROFILE: makeKv(), /* 迁移前的表；用例里自己 exec 0007 测迁移后 */
     ASSETS: { fetch: async () => new Response('DEFAULT', { status: 200 }) },
   };
   const raw = env.D1_ACCOUNT.raw;
@@ -512,7 +512,7 @@ test('prefs（迁移 0007 之后，有 uid 列）：各读写各的；alice 塞 
   const env = await setup();
   const raw = env.D1_ACCOUNT.raw;
   raw.prepare("INSERT INTO settings_sync (k, v, t, updated_at) VALUES ('sgx-old', 'kept', 1, 1)").run();
-  raw.exec(readFileSync(REPO + 'workers/account/migrations-pending/0007_v6_uid_columns.sql', 'utf8'));
+  raw.exec(readFileSync(REPO + 'workers/account/migrations/0007_v6_uid_columns.sql', 'utf8'));
   _resetUidSchemaCache(env.D1_ACCOUNT);
   assert.deepEqual(rows(env, 'SELECT uid, k, v FROM settings_sync'), [{ uid: 1000, k: 'sgx-old', v: 'kept' }], '现有数据归 styrigx');
   const now = Date.now();
@@ -542,7 +542,7 @@ test('wellbeing：alice 上报（塞 uid=1000）不进站长的数据；GET 合�
   const gs = await call(env, 'GET', '/api/wellbeing?d=' + day, { cookie: st });
   assert.equal(gs.json.detail, true);
   /* 迁移后：alice 记在 1001，站长合计不变 */
-  env.D1_ACCOUNT.raw.exec(readFileSync(REPO + 'workers/account/migrations-pending/0007_v6_uid_columns.sql', 'utf8'));
+  env.D1_ACCOUNT.raw.exec(readFileSync(REPO + 'workers/account/migrations/0007_v6_uid_columns.sql', 'utf8'));
   _resetUidSchemaCache(env.D1_ACCOUNT);
   assert.equal((await call(env, 'POST', '/api/wellbeing', { cookie: at, headers: EVIL, body: rep(500) })).status, 204);
   assert.deepEqual(rows(env, 'SELECT uid, sec FROM wb_daily ORDER BY uid'), [{ uid: 1000, sec: 30 }, { uid: 1001, sec: 500 }]);

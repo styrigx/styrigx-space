@@ -25,7 +25,7 @@ const PEPPER = 'test-pepper-acc';
 const accountD1ByKv = new WeakMap();
 function accountD1For(kv) {
   let d = accountD1ByKv.get(kv);
-  if (!d) { d = makeAccountD1(); accountD1ByKv.set(kv, d); }
+  if (!d) { d = makeAccountD1({ migrations: 'pre-uid' }); accountD1ByKv.set(kv, d); } /* 迁移前（0006）的表：本文件测无 uid 列的写法；有 uid 列见 v6-identity-api.test.mjs */
   return d;
 }
 
@@ -201,7 +201,7 @@ test('存在 D1 settings_sync：一项一行；updatedAt = 最后一次真正写
 
 test('原子新的赢：旧 t 被拒、相等 t 不动、更新的 t 覆盖（直接打 SQL，没有先读后写）', async () => {
   const { UPSERT_SQL, MAX_TOTAL } = await import(PREFS);
-  const db = makeAccountD1();
+  const db = makeAccountD1({ migrations: 'pre-uid' });
   const up = (k, v, t) => db.prepare(UPSERT_SQL).bind(k, v, t, 1, MAX_TOTAL).run();
   assert.equal((await up('sgx-a', 'new', 200)).meta.changes, 1);
   assert.equal((await up('sgx-a', 'stale', 100)).meta.changes, 0, '旧设备的旧值写不进');
@@ -308,7 +308,7 @@ test('迁移文件 0002_settings_sync.sql 和代码里的 SCHEMA 是同一张表
   assert.match(sql, /CREATE TABLE IF NOT EXISTS settings_sync/);
   const a = makeAccountD1({ migrations: false });
   a.raw.exec(SCHEMA);
-  const b = makeAccountD1();
+  const b = makeAccountD1({ migrations: 'pre-uid' }); /* SCHEMA = 兜底建表，迁移前（0007 之前）的结构 */
   const cols = (d) => d.raw.prepare('PRAGMA table_info(settings_sync)').all().map((c) => [c.name, c.type, c.notnull, c.pk]);
   assert.deepEqual(cols(a), cols(b));
 });

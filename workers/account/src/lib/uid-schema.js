@@ -1,5 +1,5 @@
 /**
- * v6 身份统一（P2）：数据表有没有 uid 列（迁移 migrations-pending/0007_v6_uid_columns.sql 跑没跑）。
+ * v6 身份统一（P2）：数据表有没有 uid 列（迁移 migrations/0007_v6_uid_columns.sql 跑没跑）。
  *
  * 头像 / 偏好 / 设备 / 数字健康按 uid 分（ADR-0006 §2.12 (a)：uid 只取服务端会话）。加 uid 列的迁移要 Gray 批准后才对生产执行，
  * 所以代码两种表结构都要能跑：

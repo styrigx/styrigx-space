@@ -47,7 +47,7 @@
 |---|---|---|
 | 头像 KV_PROFILE `avatar:*` | styrigx（`account_users.avatar = 'avatar:'`） | 不动数据；P2a 已按 uid 分键：styrigx 沿用 `avatar:*`，别的用户 `avatar:u<uid>:*`（KV，不用迁移） |
 | 个人资料 KV_PROFILE `profile` | 站点资料（站长），PUT 定 root（Gray 2026-11-11：站长名片只有一份） | 不动 |
-| 设置云同步 `settings_sync` | styrigx | P2a：`workers/account/migrations-pending/0007_v6_uid_columns.sql` 加 uid 进主键、现有行归 1000（**待 Gray 批准，部署不执行**）；迁移前只有 styrigx 能读写 |
+| 设置云同步 `settings_sync` | styrigx | P2a：`workers/account/migrations/0007_v6_uid_columns.sql` 加 uid 进主键、现有行归 1000（2026-11-11 Gray 批准，挪进 `migrations/`，部署 job 执行）；迁移前只有 styrigx 能读写 |
 | 已登录设备 `account_device` | styrigx（v6 的设备 = 自己的会话） | P2a：0007 加 uid 列（默认 1000，待批）；v6 新会话的设备管理直接按 `account_sessions.uid`；旧账号会话照旧用到 P4 |
 | 数字健康 `wb_daily` | styrigx | P2a：同一份 0007 加 uid 进主键（待批）；迁移前只收 styrigx 的上报，公开合计 = 站长的 |
 | 应用授权 `account_grant`（app allow / deny） | root | 不动；子应用权限改由组表达（P2） |
