@@ -1,52 +1,61 @@
 #!/usr/bin/env node
 /**
- * 代码高亮配色：从主站色彩角色生成 Chroma 的 class 配色（space/web/assets/blog/css/blog/code-tokens.css），不用固定的 Chroma 主题。
- *
- * 每类记号 = 一个角色（primary / secondary / tertiary / danger / text-secondary）往 text-primary 方向混一点：
- *   color-mix(in srgb, var(--sgx-<角色>) <p>%, var(--sgx-text-primary))
- * p 取「所有调色板下都够对比度」的最大值：13 套预设 × 亮 / 暗（shared shell 的 presetRoles）+ 一批随机自定义种子（rolesFor），
- * 背景同时算代码面（--blog-code-surface = surface-container-high）和高亮行（surface-container-high 上叠 primary 14%）。
- * 记号文字 ≥ 4.6:1（WCAG AA 4.5 留一点余量）；行号是装饰，≥ 3:1。
+ * 代码高亮配色：固定主题，浅底 / 深底各一档，不跟调色板（2026-11 调色板 v3 定稿）。
+ * 输出 Chroma 的 class 配色 space/web/assets/blog/css/blog/code-tokens.css：
+ *   :root 下是浅档，:root.dark 下是深档；代码块底色、正文、标题栏文字、记号、行号、高亮行全部固定。
+ * 对比度（WCAG AA）：记号和标题栏文字 ≥ 4.6:1（4.5 留余量），代码正文 ≥ 7:1，行号 ≥ 3:1；
+ * 背景同时算代码面和高亮行（高亮行上的行号改用关键字色，不按行号色算）。
  *
  * 用法：node space/scripts/blog/gen-code-tokens.mjs           重新生成
  *       node space/scripts/blog/gen-code-tokens.mjs --check   只核对（不一致 exit 1，CI 用）
- * tests/code-contrast.test.mjs 用同一套函数逐个调色板复算，低于门槛就失败。
+ * tests/blog/code-contrast.test.mjs 用 audit() 复算，低于门槛就失败。
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/* 仓库根是 REPO；2026-11 合站后博客资源在 space/web/assets/blog/，配色引擎直接用主站的 palette-scheme.js */
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 export const OUT = path.join(REPO, 'space/web/assets/blog/css/blog/code-tokens.css');
-const SCHEME = path.join(REPO, 'space/web/assets/js/lib/palette-scheme.js');
 
 export const TEXT_MIN = 4.6;
+export const FG_MIN = 7;
 export const GUTTER_MIN = 3;
-/** 高亮行：代码面上叠 primary 的比例 */
-export const HL_PCT = 14;
 
-/** 记号分组：Chroma class → 角色 + 字形 */
+/**
+ * 两档固定配色。surface 代码面 · hl 高亮行 · fg 代码正文 · muted 标题栏 / 次要 · line 标题栏分隔线（装饰）
+ * 记号：kw 关键字 · fn 函数 / 类型 · str 字符串 · num 数字 / 常量 · cm 注释 · op 运算符 / 标点 · hd 标题 · ln 行号
+ */
+export const THEMES = {
+  light: {
+    surface: '#f6f7f9', hl: '#fdf3c8', fg: '#1f2328', muted: '#59636e', line: '#d8dde3',
+    kw: '#cf222e', fn: '#7340d0', str: '#0a3069', num: '#0550ae', cm: '#59636e', op: '#59636e', hd: '#0550ae', ln: '#818b97',
+  },
+  dark: {
+    surface: '#18191c', hl: '#2f2b1f', fg: '#e6edf3', muted: '#9aa2ab', line: '#30343a',
+    kw: '#ff7b72', fn: '#d2a8ff', str: '#a5d6ff', num: '#79c0ff', cm: '#9aa2ab', op: '#9aa2ab', hd: '#79c0ff', ln: '#6e7681',
+  },
+};
+
+/** 记号分组：Chroma class → 颜色键 + 字形 */
 export const GROUPS = [
-  { id: 'kw', role: 'primary', label: '关键字', cls: ['k', 'kc', 'kd', 'kn', 'kp', 'kr', 'kt', 'ow', 'nt'], style: 'font-weight: 600' },
-  { id: 'fn', role: 'secondary', label: '函数 / 类型 / 属性', cls: ['nf', 'fm', 'nc', 'nn', 'nd', 'ne', 'nb', 'bp', 'na', 'py'], style: '' },
-  { id: 'str', role: 'tertiary', label: '字符串', cls: ['s', 's1', 's2', 'sa', 'sb', 'sc', 'dl', 'sd', 'sh', 'si', 'sx', 'gi'], style: '' },
-  { id: 'num', role: 'danger', label: '数字 / 常量 / 转义 / 正则', cls: ['m', 'mb', 'mf', 'mh', 'mi', 'il', 'mo', 'l', 'ld', 'se', 'sr', 'ss', 'no', 'vc', 'gd', 'gr', 'gt', 'err'], style: '' },
-  { id: 'cm', role: 'text-secondary', label: '注释', cls: ['c', 'ch', 'cm', 'c1', 'cs', 'cp', 'cpf'], style: 'font-style: italic' },
-  { id: 'op', role: 'text-secondary', label: '运算符 / 标点 / 提示符 / 输出', cls: ['o', 'p', 'gp', 'go'], style: '' },
-  { id: 'hd', role: 'primary', label: '标题', cls: ['gh', 'gu'], style: 'font-weight: 700' },
+  { id: 'kw', label: '关键字', cls: ['k', 'kc', 'kd', 'kn', 'kp', 'kr', 'kt', 'ow', 'nt'], style: 'font-weight: 600' },
+  { id: 'fn', label: '函数 / 类型 / 属性', cls: ['nf', 'fm', 'nc', 'nn', 'nd', 'ne', 'nb', 'bp', 'na', 'py'], style: '' },
+  { id: 'str', label: '字符串', cls: ['s', 's1', 's2', 'sa', 'sb', 'sc', 'dl', 'sd', 'sh', 'si', 'sx', 'gi'], style: '' },
+  { id: 'num', label: '数字 / 常量 / 转义 / 正则', cls: ['m', 'mb', 'mf', 'mh', 'mi', 'il', 'mo', 'l', 'ld', 'se', 'sr', 'ss', 'no', 'vc', 'gd', 'gr', 'gt', 'err'], style: '' },
+  { id: 'cm', label: '注释', cls: ['c', 'ch', 'cm', 'c1', 'cs', 'cp', 'cpf'], style: 'font-style: italic' },
+  { id: 'op', label: '运算符 / 标点 / 提示符 / 输出', cls: ['o', 'p', 'gp', 'go'], style: '' },
+  { id: 'hd', label: '标题', cls: ['gh', 'gu'], style: 'font-weight: 700' },
 ];
-/** 行号：装饰，安静一点 */
-export const GUTTER = { id: 'ln', role: 'text-tertiary' };
+/** 写成 CSS 变量的键（--blog-code-<键>） */
+export const VARS = ['surface', 'hl', 'fg', 'muted', 'line', ...GROUPS.map((g) => g.id), 'ln'];
 
-/* ---------- 颜色计算（color-mix in srgb = 在 gamma 编码的 sRGB 上线性插值） ---------- */
+/* ---------- 对比度 ---------- */
 export function hex(h) {
   const m = /^#?([0-9a-f]{6})$/i.exec(h.trim());
   if (!m) throw new Error('bad hex ' + h);
   const n = parseInt(m[1], 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
-export const mix = (a, b, p) => a.map((v, i) => v * p + b[i] * (1 - p));
 function lum([r, g, b]) {
   const f = (v) => {
     v /= 255;
@@ -55,91 +64,36 @@ function lum([r, g, b]) {
   return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
 }
 export function contrast(a, b) {
-  const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+  const [x, y] = [lum(hex(a)), lum(hex(b))].sort((m, n) => n - m);
   return (x + 0.05) / (y + 0.05);
 }
 
-/** 一个调色板（亮或暗）里算法要用到的颜色 */
-export function paletteColors(roles) {
-  const surface = hex(roles['surface-container-high']);
-  const primary = hex(roles.primary);
-  return {
-    surface,
-    hl: mix(primary, surface, HL_PCT / 100),
-    text: hex(roles['text-primary']),
-    role: (r) => hex(roles[r]),
-  };
-}
-
-/** 所有要核对的调色板：13 套预设 × 亮 / 暗 + 随机自定义种子 × 亮 / 暗 */
-export async function allPalettes({ seeds = 48 } = {}) {
-  const scheme = await import(SCHEME + '?v=' + Date.now());
-  const ids = scheme.PRESETS.map((p) => p.id);
-  const out = [];
-  for (const id of ids) {
-    const r = scheme.presetRoles(id);
-    out.push({ name: `${id}/light`, roles: r.light }, { name: `${id}/dark`, roles: r.dark });
-  }
-  /* 固定随机序列（结果可复现）：均匀撒在色相环上，饱和度 / 亮度各档都有 */
-  let s = 20261021;
-  const rnd = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
-  for (let i = 0; i < seeds; i++) {
-    const seed = '#' + [0, 0, 0].map(() => Math.floor(rnd() * 256).toString(16).padStart(2, '0')).join('');
-    const r = scheme.rolesFor(seed);
-    out.push({ name: `${seed}/light`, roles: r.light, custom: true }, { name: `${seed}/dark`, roles: r.dark, custom: true });
-  }
-  return { presets: ids, palettes: out };
-}
-
-/** 某个分组在比例 p 下、所有调色板里的最低对比度 */
-export function minContrast(palettes, role, p) {
-  let min = Infinity;
-  let at = '';
-  for (const pal of palettes) {
-    const c = paletteColors(pal.roles);
-    const fg = mix(c.role(role), c.text, p / 100);
-    for (const bg of [c.surface, c.hl]) {
-      const v = contrast(fg, bg);
-      if (v < min) {
-        min = v;
-        at = pal.name;
-      }
+/** 全部检查项：[{ mode, what, on, ratio, min }] */
+export function audit(themes = THEMES) {
+  const rows = [];
+  for (const [mode, t] of Object.entries(themes)) {
+    rows.push({ mode, what: 'muted', on: 'surface', ratio: contrast(t.muted, t.surface), min: TEXT_MIN });
+    for (const on of ['surface', 'hl']) {
+      rows.push({ mode, what: 'fg', on, ratio: contrast(t.fg, t[on]), min: FG_MIN });
+      for (const g of GROUPS) rows.push({ mode, what: g.id, on, ratio: contrast(t[g.id], t[on]), min: TEXT_MIN });
     }
+    rows.push({ mode, what: 'ln', on: 'surface', ratio: contrast(t.ln, t.surface), min: GUTTER_MIN });
   }
-  return { min, at };
+  return rows;
 }
 
-/** 每个分组取够对比度的最大比例（100 → 0，步长 5） */
-export function solve(palettes) {
-  const res = {};
-  for (const g of [...GROUPS, GUTTER]) {
-    const need = g === GUTTER ? GUTTER_MIN : TEXT_MIN;
-    let pick = 0;
-    for (let p = 100; p >= 0; p -= 5) {
-      if (minContrast(palettes, g.role, p).min >= need) {
-        pick = p;
-        break;
-      }
-    }
-    res[g.id] = { p: pick, ...minContrast(palettes, g.role, pick) };
-  }
-  return res;
+function block(sel, t) {
+  return [`${sel} {`, ...VARS.map((k) => `  --blog-code-${k}: ${t[k]};`), '}'];
 }
 
-const v = (g, p) => (p >= 100 ? `var(--sgx-${g.role})` : p <= 0 ? 'var(--sgx-text-primary)' : `color-mix(in srgb, var(--sgx-${g.role}) ${p}%, var(--sgx-text-primary))`);
-
-export function render(sol) {
+export function render(themes = THEMES) {
+  const worst = Math.min(...audit(themes).filter((r) => r.min === TEXT_MIN).map((r) => r.ratio));
   const lines = [
-    '/* 由 space/scripts/blog/gen-code-tokens.mjs 生成，勿手改。代码高亮配色 = 主站色彩角色往 text-primary 混一点，',
-    `   比例按 13 套预设 × 亮 / 暗 + 随机自定义种子都 ≥ ${TEXT_MIN}:1 算出（行号 ≥ ${GUTTER_MIN}:1），背景含代码面和高亮行。 */`,
-    ':root {',
-    `  --blog-code-hl: color-mix(in srgb, var(--sgx-primary) ${HL_PCT}%, var(--blog-code-surface));`,
+    '/* 由 space/scripts/blog/gen-code-tokens.mjs 生成，勿手改。代码高亮是固定主题（浅 / 深两档，按 html.dark 取），不跟调色板。',
+    `   记号 ≥ ${TEXT_MIN}:1（实测最低 ${worst.toFixed(2)}:1），正文 ≥ ${FG_MIN}:1，行号 ≥ ${GUTTER_MIN}:1；背景含代码面和高亮行。 */`,
+    ...block(':root', themes.light),
+    ...block(':root.dark', themes.dark),
   ];
-  for (const g of [...GROUPS, GUTTER]) {
-    lines.push(`  /* ${g.label || '行号'}：${g.role} ${sol[g.id].p}%（最低 ${sol[g.id].min.toFixed(2)}:1 @ ${sol[g.id].at}） */`);
-    lines.push(`  --blog-code-${g.id}: ${v(g, sol[g.id].p)};`);
-  }
-  lines.push('}');
   for (const g of GROUPS) {
     const sel = g.cls.map((c) => `.chroma .${c}`).join(', ');
     lines.push(`${sel} { color: var(--blog-code-${g.id});${g.style ? ' ' + g.style + ';' : ''} }`);
@@ -150,11 +104,15 @@ export function render(sol) {
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const { palettes } = await allPalettes();
-  const css = render(solve(palettes));
+  const bad = audit().filter((r) => r.ratio < r.min);
+  if (bad.length) {
+    for (const r of bad) console.error(`${r.mode} ${r.what} on ${r.on}: ${r.ratio.toFixed(2)} < ${r.min}`);
+    process.exit(1);
+  }
+  const css = render();
   if (process.argv.includes('--check')) {
     if (!existsSync(OUT) || readFileSync(OUT, 'utf8') !== css) {
-      console.error('code-tokens.css 和色彩角色不一致：运行 node space/scripts/blog/gen-code-tokens.mjs');
+      console.error('code-tokens.css 和 gen-code-tokens.mjs 不一致：运行 node space/scripts/blog/gen-code-tokens.mjs');
       process.exit(1);
     }
     console.log('code tokens in sync');
