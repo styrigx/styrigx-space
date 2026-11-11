@@ -281,7 +281,7 @@ manBody:
   passwd:
     auth: "已登录账号（sudo {root}）；要再验证"
   passkey:
-    auth: "已登录账号（sudo {root}）；要再验证"
+    auth: "已登录"
   device:
     auth: "已登录账号（sudo {root}）；--all 要再验证"
   app:

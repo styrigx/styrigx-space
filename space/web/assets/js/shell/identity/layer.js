@@ -253,6 +253,8 @@ export function mountIdentityLayer(o) {
   C.cmdSudo = function (argv) {
     const u = me();
     if (!u) { C.err(t('notSignedIn')); return; }
+    /* sudo passkey …：借 root 动 root 的通行密钥，一律拒（定稿 §十；服务端同样回 root-creds），提示同 sudo passwd */
+    if (argv[0] === 'passkey') { C.err(t('rootCreds')); return; }
     const cmd = sudoCommand(argv);
     if (!cmd) { C.out(esc(t('usageSudo'))); return; }
     if (cmd.action === 'passwd') { C.err(t('rootCreds')); return; }

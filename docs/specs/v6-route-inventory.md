@@ -70,6 +70,9 @@ P3 变更（2026-11-11，定稿 v5.2 §九；路由档不变）：
 - 前端终端 `sub`、`app`（`POST /api/account/proxy`、`/api/account/grants`，root 档）接 v6：v6 root 直接做（不看旧账号会话、不跑旧 `sudo root reauth`）；v6 普通用户提示「当前用户没有这个权限 · 先 su root」；访客（所有要身份的命令）提示「没有登录 · 先 su <用户>」。旧会话路径不变（P4 删）。
 - 奇趣 / 日刻 / 博客的全站终端挂 v6 身份层（su / su root / sudo / exit / lock / whoami …），同主站。
 
+2e 变更（2026-11-11，割接后续；路由档不变，服务端不改）：
+- 前端终端 `passkey` / `passkey ls` / `passkey add` / `passkey rm <n>` 接 v6：有 v6 会话（普通用户 / su root / 救援）→ `POST /api/identity` 的 `passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete`（user 档，按服务端会话 uid 管栈顶那个用户自己的；定稿 v5.2 §八、§九白名单）；不要 root、不跑旧 `sudo root reauth`。`sudo passkey …` 前端直接回 rootCreds（服务端 sudo 本来就回 403 root-creds，定稿 §十）。旧会话路径不变（P4 删）。
+
 ### 已定（Gray 2026-11-11）
 
 盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **owner** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。

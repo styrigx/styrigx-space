@@ -21,7 +21,8 @@ export default {
     const a0 = (p.args[0] || '').toLowerCase();
     const a1 = (p.args[1] || '').toLowerCase();
     const w = x.who();
-    if (SUDO_CMDS.indexOf(a0) !== -1) {
+    /* 割接（定稿 §十「sudo 不能动 root 的凭据：为 root 增删通行密钥一律拒」）：v6 会话里 sudo passkey … 交给身份层回 rootCreds（同 sudo passwd） */
+    if (SUDO_CMDS.indexOf(a0) !== -1 || (a0 === 'passkey' && isV6(w))) {
       const I = layer(x, /** @type {any} */ ('ident'));
       if (!I) return notHere(x, 'sudo ' + p.args.join(' '));
       I.cmdSudo([a0].concat(p.args.slice(1)));

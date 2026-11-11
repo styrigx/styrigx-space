@@ -15,6 +15,8 @@ import { deviceHints } from '../../lib/device-hints.js';
 
 /** 账号接口：GET 状态；POST 到 /api/account/<入口> */
 const ACCOUNT_API = '/api/account';
+/** v6 身份接口（自己的通行密钥走这里；同 shell/identity/api.js IDENTITY_API） */
+const IDENTITY_API = '/api/identity';
 
 /** 密码管理器里的隐藏用户名：账号密码（登录 / 再验证 / 新密码）、恢复密钥（K2） */
 export const PM_USER = Object.freeze({ password: KEY_ACCOUNT_PASSWORD, recoveryKey: KEY_RECOVERY_KEY });
@@ -160,6 +162,27 @@ export const keys = Object.freeze(Object.assign({
   /** @param {string} id @param {string} name */
   passkeyRename: function (id, name) { return post('keys', 'passkey-rename', { credId: id, name: name }); },
 }, keyOps('keys')));
+
+/**
+ * 割接：v6 用户自己的通行密钥（定稿 §八「普通用户用 passwd、passkey 改自己的凭据；通行密钥自带 WebAuthn 验证」）。
+ * 后端 POST /api/identity passkey-list | passkey-add-challenge | passkey-add | passkey-delete（user 档，按服务端会话的 uid，
+ * 栈顶是谁就是谁的：su root 后是 root 的，救援白名单也有）。回的形状对齐 keys（列表 keys[]），终端 passkey 的流程不用分两套。
+ * 没有改名接口（v6 加的时候带上预填名）。
+ */
+export const v6keys = Object.freeze({
+  /** @returns {Promise<{s: number, j: any}>} j.keys = 自己的钥匙（每把带服务端编号 n） */
+  passkeyList: function () {
+    return postJSON(IDENTITY_API, { action: 'passkey-list' }).then(function (r) {
+      const got = r && r.j && r.j.ok ? r.j : null;
+      return got ? { s: r.s, j: { ok: true, keys: got.passkeys || [] } } : r;
+    });
+  },
+  passkeyAddChallenge: function () { return postJSON(IDENTITY_API, { action: 'passkey-add-challenge' }); },
+  /** @param {any} body registerPasskey 给的注册结果 @param {string} handle challenge 里的 user.id（服务端用它对上这次 challenge） */
+  passkeyAdd: function (body, handle) { return postJSON(IDENTITY_API, Object.assign({ action: 'passkey-add' }, body, { handle: handle })); },
+  /** @param {number} n 服务端列表里的编号 */
+  passkeyDelete: function (n) { return postJSON(IDENTITY_API, { action: 'passkey-delete', n: n }); },
+});
 
 /** 设备 */
 export const devices = Object.freeze({
