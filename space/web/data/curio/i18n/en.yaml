@@ -222,7 +222,6 @@ js:
     needAccount: Sign in with su to edit.
     needReauth: 'Verify your account again to import: verify in the account terminal and the import runs right away.'
     signin: Sign in with su to edit
-    noScope: Curio doesn’t have account access
     noScopeErr: Curio doesn’t have account access.
     verifyNow: Verify now
     impAdded: Added {n} links

@@ -14,7 +14,6 @@
  * | /api/account    | ACCOUNT | logout / reauth-clear 账号 Worker 自己放行；其余要账号会话                  |
  * | /api/prefs*     | ACCOUNT | 账号会话 + prefs.sync 在账号 Worker 里查                                    |
  * | /api/avatar*    | ACCOUNT | PUT / DELETE 在账号 Worker 里查账号会话 + avatar.write                      |
- * | /api/wellbeing* | ACCOUNT | GET 公开（合计；明细要账号会话）；POST 要进站（账号未登录时 204）            |
  * | /api/profile*   | ACCOUNT | GET 公开（v6 P2c），PUT 在账号 Worker 里查账号会话 + profile.write / v6 站长 + root |
  * | /api/identity   | ACCOUNT | v6 身份命令（P2）：公开入口，每个 action 的档在账号 Worker 判（permits）       |
  * | /avatar/*       | ACCOUNT | 页面路径，公开                                                              |
@@ -50,7 +49,6 @@ export const FORWARDING = Object.freeze([
   Object.freeze({ path: '/api/account', binding: 'ACCOUNT' }),
   Object.freeze({ path: '/api/prefs', binding: 'ACCOUNT' }),
   Object.freeze({ path: '/api/avatar', binding: 'ACCOUNT' }),
-  Object.freeze({ path: '/api/wellbeing', binding: 'ACCOUNT' }),
   Object.freeze({ path: '/api/profile', binding: 'ACCOUNT' }),
   Object.freeze({ path: '/api/identity', binding: 'ACCOUNT' }),
   Object.freeze({ path: '/avatar/', binding: 'ACCOUNT' }),

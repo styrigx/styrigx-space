@@ -635,17 +635,3 @@ test('账号已登录（可写）：游戏封面「移动和缩放」——框�
   await page.locator('#cu-item [data-item-edit]').click();
   await expect(page.locator('#gm-photo-prev')).toBeDisabled();
 });
-
-test('P3-1 账号已登录但奇趣未获授权（canWrite=false、showPrivate=true）：命令链「sudo root · 奇趣未获账号授权」打开账号终端的应用授权层；写接口 403 scope 提示同一句', async ({ page }) => {
-  await mock(page, true);
-  await page.route('**/api/links**', (r) => (r.request().method() === 'GET'
-    ? r.fulfill({ json: { ok: true, canWrite: false, showPrivate: true, cats: [] } })
-    : r.fulfill({ status: 403, json: { ok: false, error: 'scope', scope: 'curio.write' } })));
-  await page.goto('/curio/zh/finds/');
-  await expect(page.locator('#cu-signin')).toBeVisible();
-  await expect(page.locator('#cu-signin [data-signin-text]')).toHaveText('奇趣未获账号授权');
-  await expect(page.locator('#cu-signin')).toHaveAttribute('href', 'https://styrigx.com/zh/#acct=apps');
-  await expect(page.locator('#cu-signin')).toHaveAttribute('data-acct-open', 'apps');
-  await expect(page.locator('#cu-signin')).not.toHaveAttribute('data-acct-app', /./);
-  await expect(page.locator('#cu-fab')).toBeHidden();
-});

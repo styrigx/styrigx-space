@@ -12,7 +12,7 @@
  * - passwd：改自己的要先输当前密码（救援会话免）；自己改 → 当前会话续命、其他会话作废；passwd <名> → 该用户会话全部作废
  * - 救援会话：只放白名单（whoami / passwd / passkey / groups / exit / lock）；调别的 root 接口一律拒（即使 public 档）
  * - 名片 PUT：styrigx 能改、root 能改（写审计）、别的 uid 被拒
- * - 每条 user 路由「传他人 uid 被拒 / 被忽略」：prefs（两种表结构）、wellbeing、avatar、devices、passwd、groups、who
+ * - 每条 user 路由「传他人 uid 被拒 / 被忽略」：prefs（两种表结构）、avatar、devices、passwd、groups、who
  * - 审计：不含密码 / 一次性密码
  *
  * 运行：node --test tests/workers/account/v6-identity-api.test.mjs
@@ -529,29 +529,6 @@ test('prefs（迁移 0007 之后，有 uid 列）：各读写各的；alice 塞 
   assert.deepEqual(g.json.items, { 'sgx-old': { v: 'kept', t: 1 } });
 });
 
-test('wellbeing：alice 上报（塞 uid=1000）不进站长的数据；GET 合计 = 站长的、明细只给本人（styrigx / root）；迁移后按 uid 记', async () => {
-  const env = await setup();
-  _resetUidSchemaCache(env.D1_ACCOUNT);
-  const day = new Date().toISOString().slice(0, 10);
-  const rep = (sec) => ({ uid: 1000, d: day, s: [{ k: 'book:abc', t: 'Book', sec }] });
-  const st = await login(env, 'styrigx');
-  assert.equal((await call(env, 'POST', '/api/wellbeing', { cookie: st, body: rep(30) })).status, 204);
-  const at = await login(env, 'alice');
-  assert.equal((await call(env, 'POST', '/api/wellbeing?uid=1000', { cookie: at, headers: EVIL, body: rep(500) })).status, 204);
-  assert.deepEqual(rows(env, 'SELECT sec FROM wb_daily'), [{ sec: 30 }], '迁移前 alice 的上报丢弃，不加到站长头上');
-  const ga = await call(env, 'GET', '/api/wellbeing?d=' + day, { cookie: at });
-  assert.equal(ga.json.total, 30);
-  assert.equal(ga.json.detail, false, '明细只给本人');
-  const gs = await call(env, 'GET', '/api/wellbeing?d=' + day, { cookie: st });
-  assert.equal(gs.json.detail, true);
-  /* 迁移后：alice 记在 1001，站长合计不变 */
-  env.D1_ACCOUNT.raw.exec(readFileSync(REPO + 'workers/account/migrations/0007_v6_uid_columns.sql', 'utf8'));
-  _resetUidSchemaCache(env.D1_ACCOUNT);
-  assert.equal((await call(env, 'POST', '/api/wellbeing', { cookie: at, headers: EVIL, body: rep(500) })).status, 204);
-  assert.deepEqual(rows(env, 'SELECT uid, sec FROM wb_daily ORDER BY uid'), [{ uid: 1000, sec: 30 }, { uid: 1001, sec: 500 }]);
-  assert.equal((await call(env, 'GET', '/api/wellbeing?d=' + day, { cookie: at })).json.total, 30);
-});
-
 test('avatar：alice 换头像（塞 uid=1000）只写 avatar:u1001:*，站点头像 avatar:* 不动；GET /avatar/u1001-96.webp 读得到', async () => {
   const env = await setup();
   const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9]);
@@ -737,33 +714,6 @@ test('pepper：按 pepper_id 取 pepper；v6 P4 起只有 account（space 删除
   _resetSecretCache();
 });
 
-test('Muse v5 注意点 1：GET /api/wellbeing 公开，明细只给本人——访客 / 别的用户 / 临时用户只拿合计（items 空、detail false），站长与 root 有明细；塞 uid 不认', async () => {
-  const env = await setup();
-  const day = new Date().toISOString().slice(0, 10);
-  env.D1_ACCOUNT.raw.prepare("INSERT INTO wb_daily (day, k, t, sec) VALUES (?, 'book:abc', 'Secret Book', 120), (?, 'blog', '', 30)").run(day, day);
-  const get = (tok) => call(env, 'GET', '/api/wellbeing?d=' + day + '&uid=1000', { cookie: tok, headers: EVIL });
-  const guest = await get(undefined);
-  assert.equal(guest.status, 200);
-  assert.equal(guest.json.total, 150);
-  assert.equal(guest.json.detail, false);
-  assert.deepEqual(guest.json.items, []);
-  assert.ok(!JSON.stringify(guest.json).includes('Secret Book'), '访客拿不到明细');
-  for (const u of ['alice', 'temp']) {
-    const r = await get(await login(env, u));
-    assert.equal(r.json.total, 150, u + ' 拿公开合计');
-    assert.equal(r.json.detail, false, u);
-    assert.ok(!JSON.stringify(r.json).includes('Secret Book'), u + ' 拿不到明细');
-  }
-  const st = await login(env, 'styrigx');
-  const s = await get(st);
-  assert.equal(s.json.detail, true);
-  assert.equal(s.json.items[0].t, 'Secret Book');
-  await suRoot(env, st);
-  assert.equal((await get(st)).json.detail, true, 'root 也有');
-  assert.equal((await get('A'.repeat(43))).json.detail, false, '坏 cookie = 访客');
-});
-
-/* ---------------- P2c：名片 GET 公开 ---------------- */
 
 test('P2c 名片 GET /api/profile 公开（定稿 v5 §五）：访客 / 坏令牌 / 救援会话都 200，只回四个公开字段；PUT 照旧站长 + root', async () => {
   const env = await setup();

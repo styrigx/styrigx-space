@@ -1,10 +1,12 @@
 # styrigx-space-core
 
+> 已被 v6 定稿取代（见 `docs/decisions/ADR-0006-identity-v6.md`）。
+
 ## 职责
 
 站点核心 Worker（进站 v3 L2 起，原鉴权网关 `styrigx-auth-gateway`；分享链接 Worker `styrigx-share` 并入）：进站会话、锁屏凭证和分享链接的全部后端代码在这里。承接 `styrigx.com` 整站请求（含子站 `/blog/`、`/curio/`、`/daymark/`，按路径前缀走子站关口）：先验进站会话，页面验完回源 Pages 取静态文件，接口在本 Worker 回答或经服务绑定转给内部 Worker。Pages 本身只放静态文件（配置见 `space/web/wrangler.toml`）。
 
-**账号不在这里**（账号拆分 PR3 起）：账号密码 / 账号通行密钥 / 已登录设备 / 账号 session / 恢复密钥、头像、设置云同步、数字健康都在账号 Worker `styrigx-account`（`workers/account/`）。浏览器的账号请求一律先进网关，网关验门后经服务绑定 `ACCOUNT` 转发。网关源码里没有任何账号鉴权代码、账号绑定或账号钥匙（`space/scripts/check-layers.mjs` 规则 16 核对）。
+**账号不在这里**（账号拆分 PR3 起）：账号密码 / 账号通行密钥 / 已登录设备 / 账号 session / 恢复密钥、头像、设置云同步都在账号 Worker `styrigx-account`（`workers/account/`）。浏览器的账号请求一律先进网关，网关验门后经服务绑定 `ACCOUNT` 转发。网关源码里没有任何账号鉴权代码、账号绑定或账号钥匙（`space/scripts/check-layers.mjs` 规则 16 核对）。
 
 ## 入口
 
@@ -40,7 +42,7 @@
 |---|---|
 | `styrigx.com/*` | 主站整站，含子站 `/blog/`、`/curio/`、`/daymark/`（同一个 Pages、一棵树；按路径前缀走子站关口 `handleSubsite`，子站页面用的 `/api/lock-session-check` 就是主站根上的同一个接口）。分享链接 `/s/*`、`/api/share` 也在这条里（原 `styrigx-share` 的两条更具体路由 L2 第一次部署时删除；部署后 `space/scripts/verify-core-routes.mjs` 核对它们不再出现）；接口 Worker 的 `styrigx.com/curio/api/*`、`styrigx.com/daymark/api/*` 更具体，不进本 Worker |
 
-- 账号路径（转发表 `src/router.js` 的 `FORWARDING`）：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/wellbeing*`、`/api/profile*`、`/avatar/*`。关口先验（`/api/account`、`/api/prefs*`、`/api/profile*` 要进门；`/api/avatar*`、`/api/wellbeing*` 要有会话；`/avatar/*` 公开），放行后经 `ACCOUNT`（entrypoint `AccountService`）原样转给账号 Worker，按验过的进站会话写 `X-Styrigx-Space-*` / `X-Styrigx-Client-*`。没绑定或绑定出错 → 503 upstream，不落回网关路由表、不回源。转发回来的响应保留 `X-SGX-Runtime: account`。
+- 账号路径（转发表 `src/router.js` 的 `FORWARDING`）：`/api/account`、`/api/prefs*`、`/api/avatar*`、`/api/profile*`、`/avatar/*`。关口先验（`/api/account`、`/api/prefs*`、`/api/profile*` 要进门；`/api/avatar*`、`/api/wellbeing*` 要有会话；`/avatar/*` 公开），放行后经 `ACCOUNT`（entrypoint `AccountService`）原样转给账号 Worker，按验过的进站会话写 `X-Styrigx-Space-*` / `X-Styrigx-Client-*`。没绑定或绑定出错 → 503 upstream，不落回网关路由表、不回源。转发回来的响应保留 `X-SGX-Runtime: account`。
 - 网关自己的接口：`src/router.js` 的 `API_ROUTES`（锁屏、锁屏凭证、进站凭证、`geo`，以及只做门再转出去的 `ai`、`status`；`chat`、`search` 在 P4-2b 删除，回 404）。接口分工见 `docs/specs/status-apis.md`。
 - 路由按域名整站通配，新增页面目录不用加路由。
 

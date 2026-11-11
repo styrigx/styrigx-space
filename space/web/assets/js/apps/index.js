@@ -3,7 +3,6 @@
  * - [02] 奇趣 三个目录卡：计数 + 最近收藏 / 在用 / 在玩（/curio/api/links、/curio/api/items，进门即可读，私密的服务端不给）
  * - [03] 日刻 今日一句（lib/daymark-today.js，/daymark/api/today 公开只读）
  * - [04] 旷野 status 小卡 + 首屏状态胶囊：接外壳 shell/topbar-panel.js mountStatus 发的 sgx:status-cells（同一份 /api/status，不另取）
- * - [04] 旷野 screen-time 小卡由 core 的 loadWb()（lib/wb-view.js）画，这里不管
  * - hero：$ 行标语打字轮播（apps/home-typer.js）；# 行签名 motto 空值时整行隐藏（跟 sgx-profile-changed）
  * mountHome() 由 entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
  */

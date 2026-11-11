@@ -135,14 +135,17 @@ test('旧账号整页删干净；/account/*（reset 除外）都 301 到本语�
     assert.equal(existsSync(path.join(REPO, 'space/web', p)), false, p);
   }
   const red = rd('space/web/static/_redirects');
-  for (const [pre, sub, h] of [['', '', '#acct'], ['', 'profile/', '#acct=profile'], ['', 'devices/', '#acct=devices'], ['', 'security/', '#acct=security'], ['', 'apps/', '#acct=apps'],
+  for (const [pre, sub, h] of [['', '', '#acct'], ['', 'profile/', '#acct=profile'], ['', 'devices/', '#acct=devices'], ['', 'security/', '#acct=security'],
     ['/zh', '', '#acct'], ['/zh', 'security/', '#acct=security']]) {
     assert.match(red, new RegExp('^' + pre + '/account/' + sub + '\\s+' + pre + '/' + h + '\\s+301$', 'm'), pre + '/account/' + sub);
   }
+  /* v6 P4（定稿 v5.5 §十二 应用授权整套删除）：/account/apps/ 跳转删除 */
+  assert.doesNotMatch(red, /^(?:\/zh)?\/account\/apps\//m, '/account/apps/ 不再 301');
   /* v6 P4（定稿 §十三，Gray 11-11 17:47）：旧地址 /account/reset/ 直接删——不跳转、不预填，同任何不存在的路径 404 */
   assert.doesNotMatch(red, /^(?:\/zh)?\/account\/reset\//m, '/account/reset/ 不再 301');
   const tp = rd('space/web/assets/js/shell/topbar-panel.js');
-  assert.match(tp, /\/\^#acct\(\?:=\(\[a-z\]\*\)\)\?\(\?:&app=\(\[a-z\]\+\)\)\?\$\//, '#acct=<层>&app=<应用>');
+  assert.match(tp, /\/\^#acct\(\?:=\(\[a-z\]\*\)\)\?\$\//, '#acct=<层>（&app= 随应用授权删除，v6 P4）');
+  assert.doesNotMatch(tp, /&app=\(/);
   assert.match(tp, /closest\('\[data-acct-open\]'\)/);
   /* 2c（v6 割接）：奇趣 / 日刻「su 登录后可编辑」入口改指向 su（data-sec-open，打开终端预填 su ）；旧账号授权同意那层只剩「未获授权」分支（JS 换回 data-acct-open） */
   const cu = rd('space/web/layouts/partials/curio/signin.html');

@@ -185,7 +185,7 @@ for (const w of [360, 384, 412, 1280, 1920]) {
     await page.setViewportSize({ width: w, height: w > 1000 ? 900 : 860 });
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     /* P4-3 PR-4c：中文 /zh/…，英文无前缀 */
-    for (const path of ['/zh/', '/zh/wild/', '/404.html', '/wild/']) { /* 进站 v3 L1：/zh/security/tempkeys/ 已删 */ /* 对齐 PR-B：旷野 /wild/ 取代 /wellbeing/ /status/ */
+    for (const path of ['/zh/', '/zh/wild/', '/404.html', '/wild/']) { /* 进站 v3 L1：/zh/security/tempkeys/ 已删 */ /* 对齐 PR-B：旷野 /wild/ 取代 /status/ */
       if (!path.startsWith('/zh/')) await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'en'); } catch (e) {} });
       await go(page, path);
       const m = await page.evaluate(() => {

@@ -7,7 +7,7 @@
 | 文档编号 | SGX-SPEC-005 |
 | 版本 | 0.1 |
 | 日期 | 2026-11-11 |
-| 状态 | 草案（v6 P1，待 Gray 过目） |
+| 状态 | 已执行（迁移已跑完，脚本已删）；与定稿冲突处以定稿 v5.5 为准（见下文各处标注） |
 
 
 > 状态：P1（2026-11-11），基线 main 05abe443。**P1 只写脚本与文档，不对任何生产 D1 做数据写入**；什么时候执行由 Gray 在 P2 / P3 批准。
@@ -51,8 +51,8 @@
 | 个人资料 KV_PROFILE `profile` | 站点资料（站长），PUT 定 root（Gray 2026-11-11：站长名片只有一份） | 不动 |
 | 设置云同步 `settings_sync` | styrigx | P2a：`workers/account/migrations/0007_v6_uid_columns.sql` 加 uid 进主键、现有行归 1000（2026-11-11 Gray 批准，挪进 `migrations/`，部署 job 执行）；迁移前只有 styrigx 能读写 |
 | 已登录设备 `account_device` | styrigx（v6 的设备 = 自己的会话） | P2a：0007 加 uid 列（默认 1000，待批）；v6 新会话的设备管理直接按 `account_sessions.uid`；旧账号会话照旧用到 P4 |
-| 数字健康 `wb_daily` | styrigx | P2a：同一份 0007 加 uid 进主键（待批）；迁移前只收 styrigx 的上报，公开合计 = 站长的 |
-| 应用授权 `account_grant`（app allow / deny） | root | 不动；子应用权限改由组表达（P2） |
+| 数字健康 `wb_daily` | styrigx（v6 P4 随数字健康整套删除，定稿 v5.5 §四；drop 见 `docs/ops/v6-p4-drop-wellbeing.sql`） | P2a：同一份 0007 加 uid 进主键；迁移前只收 styrigx 的上报，公开合计 = 站长的（P4 删） |
+| 应用授权 `account_grant`（app allow / deny） | root | 不动；v6 P4 应用授权整套删除、表部署绿后 drop（定稿 v5.5 §十二，不转成组） |
 
 ### 2.3 用户与组
 
@@ -76,14 +76,14 @@
 
 - 验证按记录的 `pepper_id` 取 pepper（不认识 / 缺失 → fail closed）；`pepper_id = 'space'` 的密码登录成功时用账号 pepper 重算哈希、同一次写入改成 `'account'`。
 - 账号 Worker 加绑 space pepper（只加绑定，值不动）——**P2 随 su 验密一起加**（P1 没有 v6 密码验证，用不到）。
-- 旧 space pepper 保留到所有活跃用户迁完（`SELECT COUNT(*) … WHERE pepper_id = 'space'` 对活跃用户 = 0），**P4 才删**。
+- 旧 space pepper 保留到所有活跃用户迁完（`SELECT COUNT(*) … WHERE pepper_id = 'space'` 对活跃用户 = 0），**P4 才删**。定稿 v5.5 §十：全站只留 `SGX_ACCOUNT_PASSWORD_PEPPER` 一把，旧 space pepper P4 连代码、绑定一并删。
 
 ## 5. 签名钥匙与密钥的终局（P4）
 
 | 现在 | v6 |
 |---|---|
 | `SGX_SPACE_PRIVATE` / `SGX_SPACE_PUBLIC`（进站会话、锁屏短票） | v6 会话是 D1 里的不透明 id，不需要签名 → **P4 删** |
-| `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC`（账号三张票） | 若 curio / daymark 的子应用令牌仍要签名就**只留这一对**，否则也删 |
+| `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC`（账号三张票） | APP 子应用令牌已删，**P4 一并删**，站内不再有签名钥匙（定稿 v5.5 §十二） |
 | `SGX_SPACE_RECOVERY_KEY`、`SGX_ACCOUNT_RECOVERY_KEY` | 换成 Secrets Store 里的一把 `SGX_ACCOUNT_RESCUE_KEY`（P3 绑定）→ 两把旧 Secret **P4 删** |
 | `SGX_SPACE_PASSWORD_PEPPER`、`SGX_ACCOUNT_PASSWORD_PEPPER` | 见 §4 |
 

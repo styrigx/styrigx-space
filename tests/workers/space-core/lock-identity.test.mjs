@@ -60,8 +60,8 @@ test('writeClientContext：先剥再写；只写客户端上下文头（v6 P4 �
   assert.deepEqual(w(null), {});
 });
 
-test('转发表：七条（2026-11-07 加个人资料 /api/profile；v6 P2 加身份命令 /api/identity）都转给 ACCOUNT；/api/* 只认路径本身或子路径（/api/prefsX 不转）；页面不转', () => {
-  assert.deepEqual(FORWARDING.map((r) => r.path), ['/api/account', '/api/prefs', '/api/avatar', '/api/wellbeing', '/api/profile', '/api/identity', '/avatar/']);
+test('转发表：六条（2026-11-07 加个人资料 /api/profile；v6 P2 加身份命令 /api/identity；v6 P4 删数字健康 /api/wellbeing）都转给 ACCOUNT；/api/* 只认路径本身或子路径（/api/prefsX 不转）；页面不转', () => {
+  assert.deepEqual(FORWARDING.map((r) => r.path), ['/api/account', '/api/prefs', '/api/avatar', '/api/profile', '/api/identity', '/avatar/']);
   for (const r of FORWARDING) assert.deepEqual(Object.keys(r).sort(), ['binding', 'path'], '转发表只管转给谁；要不要进站只看 gate.js 访问表');
   assert.equal(matchForwarding('/account/profile/'), null, '个人资料页面不转发');
   for (const r of FORWARDING) assert.equal(r.binding, 'ACCOUNT');
@@ -87,14 +87,14 @@ function fakeAccount() {
 }
 const FORGED = { 'X-Styrigx-Space-Level': 'password', 'X-Styrigx-Space-Session': '1', 'x-styrigx-space-by': 'password', 'X-Styrigx-Client-Address': '6.6.6.6', 'X-Sgx-Legacy': 'password' };
 
-test('伪造身份头、没有 v6 会话：/api/prefs、/api/account、PUT /api/profile、POST /api/wellbeing → 网关 401，账号 Worker 一次都没被调；GET /api/wellbeing 公开，转发时伪造的身份头剥掉', async () => {
+test('伪造身份头、没有 v6 会话：/api/prefs、/api/account、PUT /api/profile、/api/wellbeing（v6 P4 删除）→ 网关 401，账号 Worker 一次都没被调；GET /api/profile 公开，转发时伪造的身份头剥掉', async () => {
   const acct = fakeAccount();
-  for (const [p, method] of [['/api/prefs', 'GET'], ['/api/account', 'GET'], ['/api/account/devices', 'POST'], ['/api/profile', 'PUT'], ['/api/wellbeing', 'POST'], ['/api/wellbeing/x', 'GET']]) {
+  for (const [p, method] of [['/api/prefs', 'GET'], ['/api/account', 'GET'], ['/api/account/devices', 'POST'], ['/api/profile', 'PUT'], ['/api/wellbeing', 'POST'], ['/api/wellbeing', 'GET']]) {
     const res = await worker.fetch(new Request('https://styrigx.com' + p, { method, headers: FORGED }), env({ ACCOUNT: acct }), CTX);
     assert.equal(res.status, 401, method + ' ' + p);
   }
   assert.equal(acct.seen.length, 0);
-  const wb = await worker.fetch(new Request('https://styrigx.com/api/wellbeing', { headers: FORGED }), env({ ACCOUNT: acct }), CTX);
+  const wb = await worker.fetch(new Request('https://styrigx.com/api/profile', { headers: FORGED }), env({ ACCOUNT: acct }), CTX);
   assert.equal(wb.status, 200);
   assert.equal(acct.seen.length, 1);
   assert.equal(acct.seen[0].headers['x-styrigx-space-session'], undefined, '不写进站身份头（伪造的也剥了）');

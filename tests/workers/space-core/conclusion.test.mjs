@@ -52,7 +52,7 @@ test('浏览器带来的 X-Styrigx-Account-*：网关第一步就剥掉，转到
     'X-Styrigx-Account-Scopes': 'curio.write daymark.write',
     'x-styrigx-account-reauth': '1',
   };
-  const res = await worker.fetch(new Request('https://styrigx.com/api/wellbeing?d=2026-11-04', { headers: forged }), e, { waitUntil() {} });
+  const res = await worker.fetch(new Request('https://styrigx.com/api/profile', { headers: forged }), e, { waitUntil() {} });
   assert.equal(res.status, 200);
   assert.equal(seen.length, 1);
   for (const k of Object.keys(seen[0])) assert.ok(!k.startsWith('x-styrigx-account-'), k);

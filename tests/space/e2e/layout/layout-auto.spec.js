@@ -185,10 +185,10 @@ for (const [w, h] of [[1920, 950], [1280, 760], [841, 673]]) {
         const sec = document.getElementById('daymark');
         const head = sec.querySelector('.home-sec-cmd');
         return { sec: box(sec), head: box(head), dm: box(document.getElementById('w-daymark')), dmShown: !document.getElementById('w-daymark').classList.contains('hidden'),
-          st: box(document.querySelector('#wild .home-wild')), screen: box(document.getElementById('w-screen')), last: box(document.querySelector('#wild .home-wild > li:last-child')) };
+          st: box(document.querySelector('#wild .home-wild')), first: box(document.querySelector('#wild .home-wild > li:first-child')) };
       });
-      expect(Math.abs(m.screen.l - m.st.l), '屏幕时间小卡在第一栏').toBeLessThanOrEqual(1);
-      expect(Math.abs(m.last.r - m.st.r), '旷野两卡铺满').toBeLessThanOrEqual(1);
+      /* v6 P4：屏幕时间小卡随数字健康删除（定稿 v5.5 §四），status 小卡前移到第一栏 */
+      expect(Math.abs(m.first.l - m.st.l), '旷野第一张小卡在第一栏').toBeLessThanOrEqual(1);
       if (dm) {
         expect(m.dmShown).toBe(true);
         expect(Math.abs(m.dm.l - m.sec.l)).toBeLessThanOrEqual(1);
@@ -210,7 +210,7 @@ test('首页收窄：容器 700 / 600 / 330 → 各块跟着收、终端不超�
       const g = document.querySelector('.home-wrap');
       g.style.width = v + 'px';
       const gr = g.getBoundingClientRect();
-      const over = [...g.querySelectorAll('#about, .home-sec, #w-daymark, #w-screen, .home-dir')].filter((e) => e.offsetParent !== null)
+      const over = [...g.querySelectorAll('#about, .home-sec, #w-daymark, .home-dir')].filter((e) => e.offsetParent !== null)
         .filter((e) => { const r = e.getBoundingClientRect(); return r.left < gr.left - 1 || r.right > gr.right + 1; }).map((e) => e.id);
       return { over, sw: document.scrollingElement.scrollWidth, iw: innerWidth };
     }, px);

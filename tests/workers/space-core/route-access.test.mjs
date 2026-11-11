@@ -51,7 +51,6 @@ test('访问表快照：改了这张表，这里必须跟着改', () => {
   assert.deepEqual(ROUTE_ACCESS.map((r) => r.method + ' ' + r.path + ' → ' + r.access), [
     'POST /api/identity → public',
     'GET /api/geo → public',
-    'GET /api/wellbeing → public',
     'GET /api/profile → public',
     'GET /api/find → public',
   ]);
@@ -80,7 +79,7 @@ test('精确匹配：多一段、换方法、编码 / 大小写都不是 public�
   assert.equal(accessOf('GET', '/api/find'), 'public');
   assert.equal(accessOf('GET', '/api/find/'), 'public');
   for (const [m, p] of [['GET', '/api/geo/x'], ['GET', '/api/geo//'], ['POST', '/api/geo'], ['GET', '/api/geox'], ['GET', '/API/geo'], ['GET', '/api/%67eo'],
-    ['GET', '/api/wellbeing/x'], ['POST', '/api/wellbeing'], ['POST', '/api/find'], ['HEAD', '/api/find'], ['GET', '/api/find/x'], ['GET', '/api/search'], ['GET', '/api/lock-entry/x'], ['POST', '/api/lock-entry'], ['GET', '/api/lock-password'],
+    ['GET', '/api/wellbeing'], ['GET', '/api/wellbeing/x'], ['POST', '/api/wellbeing'], ['POST', '/api/find'], ['HEAD', '/api/find'], ['GET', '/api/find/x'], ['GET', '/api/search'], ['GET', '/api/lock-entry/x'], ['POST', '/api/lock-entry'], ['GET', '/api/lock-password'],
     ['GET', '/api/lock-session-check/../ai'], ['GET', '/api/unknown'], ['GET', '/curio/api/music'], ['GET', '/daymark/api/today']]) {
     assert.equal(accessOf(m, p), 'entry', m + ' ' + p);
   }
@@ -107,8 +106,8 @@ test('访客：/wild/、/blog/、/curio/、/daymark/ 页面 200 HTML（标 locke
   }
 });
 
-test('访客：三处上锁的数据接口 401（AI 窗口、旷野 status 卡、进站凭证记录）；账号接口 401；屏幕时间合计公开', async () => {
-  for (const [p, m] of [['/api/ai', 'GET'], ['/api/ai', 'POST'], ['/api/status', 'GET'], ['/api/space-audit', 'GET'], ['/api/account', 'GET'], ['/api/account', 'POST'], ['/api/prefs', 'GET'], ['/api/profile', 'PUT'], ['/api/lock-now', 'POST'], ['/api/geo/x', 'GET'], ['/api/wellbeing/x', 'GET']]) {
+test('访客：三处上锁的数据接口 401（AI 窗口、旷野 status 卡、进站凭证记录）；账号接口 401；数字健康 /api/wellbeing v6 P4 删除后同样 401', async () => {
+  for (const [p, m] of [['/api/ai', 'GET'], ['/api/ai', 'POST'], ['/api/status', 'GET'], ['/api/space-audit', 'GET'], ['/api/account', 'GET'], ['/api/account', 'POST'], ['/api/prefs', 'GET'], ['/api/profile', 'PUT'], ['/api/lock-now', 'POST'], ['/api/geo/x', 'GET'], ['/api/wellbeing', 'GET'], ['/api/wellbeing', 'POST']]) {
     const e = env();
     const r = await get(e, p, { method: m });
     assert.equal(r.status, 401, m + ' ' + p);
@@ -116,10 +115,6 @@ test('访客：三处上锁的数据接口 401（AI 窗口、旷野 status 卡�
     assert.match(r.headers.get('Cache-Control') || '', /no-store/);
     assert.deepEqual(e.seen, [], m + ' ' + p + ' 没转发、没回源');
   }
-  const e = env();
-  const wb = await get(e, '/api/wellbeing');
-  assert.equal(wb.status, 200);
-  assert.deepEqual(e.seen, ['ACCOUNT /api/wellbeing']);
   const e2 = env();
   const pf = await get(e2, '/api/profile');
   assert.notEqual(pf.status, 401, '名片 GET 公开（v6 P2c）');

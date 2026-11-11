@@ -8,7 +8,7 @@
  * 实际 /?lock=1&return=…（锁屏入口，v5 S3 起 /?entry=…）和子站首页 /?utm=… 都绕过了网关（2026-10-21）。
  * 1. 主站每个 HTML 页面都被路由覆盖，带查询串（?x=1）也覆盖
  * 2. 接口和头像（/api/、/avatar/）被路由覆盖
- * 2b. 账号路径（/api/account/*、/api/avatar、/api/prefs、/api/wellbeing、/avatar/*，带查询串也算）归网关（方案第 4 节）：
+ * 2b. 账号路径（/api/account/*、/api/avatar、/api/prefs、/avatar/*，带查询串也算）归网关（方案第 4 节）：
  *     都被网关路由覆盖，且都在网关转发表 src/router.js FORWARDING 里、转给 ACCOUNT；转发表的路径不在网关路由表 API_ROUTES 里（不两处处理）；
  *     账号 Worker 没有任何路由（wrangler.toml 无 [[routes]]）
  * 3. 路由不重复，只登记 styrigx.com（旧图志域名的 301 和接口 Worker 的旧路由已于 P4-3 PR-1 删除，别的域名一律报错）
@@ -42,7 +42,7 @@ const MUST_ROUTE = ['/api/geo',
   '/?entry=1', '/?entry=sudo&return=%2Fcurio%2Fmusic%2F', '/?lock=1', '/?return=%2Fsettings%2Fsecurity%2Flock%2F',
   '/zh/?entry=1', '/files-index.json'];
 /* 账号路径：必须归网关、在转发表里转给 ACCOUNT（账号 Worker styrigx-account 没有路由） */
-const ACCOUNT_MUST = ['/api/account/devices', '/api/account/devices?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/wellbeing', '/api/wellbeing?d=2026-10-24', '/api/profile', '/api/profile/',
+const ACCOUNT_MUST = ['/api/account/devices', '/api/account/devices?x=1', '/api/avatar', '/api/prefs', '/api/prefs/', '/api/profile', '/api/profile/',
   '/avatar/32.webp', '/avatar/96.webp', '/avatar/192.webp?v=abc', '/avatar/512.webp'];
 /* 转发表允许的绑定 */
 const FORWARD_BINDINGS = new Set(['ACCOUNT']);

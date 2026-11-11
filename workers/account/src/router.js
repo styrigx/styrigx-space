@@ -11,7 +11,7 @@
  * - 设置云同步：GET / POST /api/prefs（v6 会话）→ D1_ACCOUNT 的 settings_sync
  * - v6 身份命令（P2）：POST /api/identity（whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod；
  *   公开入口，每个 action 的档在 core/route-access.js，判断只经 core/groups.js permits）→ D1_ACCOUNT 的 account_users / account_sessions …
- * - 数字健康：POST /api/wellbeing（v6 会话）/ GET（公开合计；明细只给站长 / root）→ D1_ACCOUNT 的 wb_daily
+ * - 数字健康（/api/wellbeing）v6 P4 随数字健康整套删除（定稿 v5.5 §四）。
  *
  * 请求只经网关进来（浏览器 → 网关剥外部 x-styrigx-* 头、写客户端上下文头 → 服务绑定 ACCOUNT → 命名入口 AccountService，
  * 见 rpc/account-service.js）。默认 fetch（app.js）一律 404，不经这里。
@@ -24,7 +24,6 @@ import * as avatar from './api/avatar.js';
 import * as avatarFile from './api/avatar-file.js';
 import * as prefs from './api/prefs.js';
 import * as profile from './api/profile.js';
-import * as wellbeing from './api/wellbeing.js';
 import * as identity from './api/identity.js';
 import * as accountDevices from './api/account/devices.js';
 import * as accountProxy from './api/account/proxy.js';
@@ -37,7 +36,6 @@ export const API_ROUTES = new Map([
   ['/api/avatar', avatar],
   ['/api/prefs', prefs],
   ['/api/profile', profile],
-  ['/api/wellbeing', wellbeing],
   ['/api/identity', identity],
 ]);
 

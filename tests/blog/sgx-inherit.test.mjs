@@ -388,9 +388,6 @@ test('共享外壳副本含 22 套预设（亮 / 暗）和顶栏 / 快捷面板�
   assert.doesNotMatch(shell, /\.sgx-drawer-item/);
 });
 
-test('数字健康：文章页 post:<slug>，其他页 blog，上报主站', () => {
-  assert.match(inheritModule, /key: 'post:' \+ m\[1\]/);
-  assert.match(inheritModule, /key: 'blog'/);
-  assert.match(inheritModule, /https:\/\/styrigx\.com\/api\/wellbeing/);
-  assert.match(inheritModule, /idleMs: 180000/);
+test('数字健康上报 v6 P4 整套删除（定稿 v5.5 §四）：博客不再上报 /api/wellbeing', () => {
+  assert.doesNotMatch(inheritModule, /api\/wellbeing|initWbTrack|wb-track/);
 });

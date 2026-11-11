@@ -5,11 +5,19 @@
 | 文档编号 | SGX-SPEC-006 |
 | 版本 | 0.1 |
 | 日期 | 2026-11-11 |
-| 状态 | 草案（v6 P1，待 Gray 过目） |
+| 状态 | P4 已按本表删除；P1 时的「去向」与定稿冲突处以下文「P4 结果」与定稿 v5.5 为准 |
 
 
 > 状态：P1（2026-11-11），基线 main 05abe443。**P1 不删任何东西**，只列清单；删除在 P4，删前再 grep 一遍、干净才删。
 > 相关：ADR-0006、`docs/specs/v6-route-inventory.md`。
+
+## 0. P4 结果（定稿 v5.5 §九、§十二）
+
+- 安全设置类 → sudo 每次重验；改自己的凭据走 `passwd` / `passkey`（指向 root 时须栈顶 root，定稿 §十）。`sudo -v`、`sudo root reauth`、锁侧 / 账号复验票删除。
+- lockreset → root 重置；恢复只剩救援 `rescue`：钥匙 `SGX_ACCOUNT_RESCUE_KEY` 放 Cloudflare Secrets Store，D1 `account_recovery_key` 只记指纹（定稿 §九）。两把旧恢复钥匙删除。
+- `/api/root-auth` → 删（不恢复）。
+- 子应用（APP 的继任）：**应用授权整套删除**——`app allow|deny`、账号页应用授权卡、授权接口与判定代码、APP 子应用令牌、`account_grant` 表；不转换成 `usermod`，子站写接口只按路由档（curio-write / daymark-write）拦；奇趣 / 日刻 `_auth.js` 只留 v6 判定，`conclusion()` 删除（定稿 §十二）。
+- 签名钥匙 `SGX_ACCOUNT`、`SGX_SPACE` 两对删除，站内不再有签名钥匙（定稿 §十二）。
 
 ## 1. 结论先行
 
@@ -70,7 +78,7 @@
 | 位置 | 用途 | v6 去向 |
 |---|---|---|
 | `workers/space-core/src/api/lock-reset.js`、`api/space-auth.js`、`core/space-check.js`、`core/lock-reset-switch.js`（只剩测试引用）、`api/lock-credentials.js`（reset 票可读）、`core/lock-manage.js`（`allowReset`） | `sudo styrigx reset`：进站恢复钥匙换 reset 票 | P3 救援入口（恢复钥匙直接签 15 分钟一次性 root 会话）取代；styrigx 忘密码 → root `passwd styrigx`；P4 删 |
-| `workers/account/src/core/reset.js`、`api/account/reset.js`、`core/recovery-key.js` | `sudo root reset`：账号恢复密钥换 reset 票 | 同上（恢复钥匙合一，存 D1 `account_recovery_key`） |
+| `workers/account/src/core/reset.js`、`api/account/reset.js`、`core/recovery-key.js` | `sudo root reset`：账号恢复密钥换 reset 票 | 同上（恢复钥匙合一：救援钥匙 `SGX_ACCOUNT_RESCUE_KEY` 放 Secrets Store，D1 `account_recovery_key` 只记指纹，定稿 v5.5 §九） |
 | 前端 `space/web/assets/js/shell/space/reset.js`、`account/` 里的 reset 层 | 重置终端层 | P3 改为救援入口；P4 删 |
 
 ### D. root 代开（`/api/root-auth`）——删
@@ -81,8 +89,8 @@
 
 | 位置 | 用途 | v6 去向 |
 |---|---|---|
-| `workers/account/src/core/scopes.js`、`core/grants.js`、`api/account/grants.js` | 作用域表、app allow / deny | P2：子应用权限改由组表达（`curio-write`、`daymark-write`；listen / ai / status 同理）；`app allow|deny` → root `usermod -aG|-rG`；P4 删 `account_grant` |
-| `workers/account/src/gate.js` `scopeDenial`（avatar / prefs / profile）、`api/wellbeing.js` | 账号数据写要作用域 | P2 改按路由表的档（见盘点） |
+| `workers/account/src/core/scopes.js`、`core/grants.js`、`api/account/grants.js` | 作用域表、app allow / deny | P2：子应用权限改由组表达（`curio-write`、`daymark-write`；listen / ai / status 同理）；`app allow|deny` 随应用授权整套删除（定稿 v5.5 §十二，不转成 `usermod`）；P4 删 `account_grant` |
+| `workers/account/src/gate.js` `scopeDenial`（avatar / prefs / profile）、`api/wellbeing.js`（数字健康 v6 P4 整套删除，定稿 v5.5 §四） | 账号数据写要作用域 | P2 改按路由表的档（见盘点） |
 | `workers/space-core/src/core/conclusion.js`、`rpc/space-verifier.js` `conclusion()` | 子站接口 Worker 问结论（scopes） | P2 改：结论带 uid + 组（来自 `AccountVerifier.admit`） |
 | `workers/curio-core/src/api/_auth.js`（`requireScope`、`SCOPE_WRITE`）、`_write.js` `guardWrite`、`preview.js`、`music.js` | 写要 `curio.write` | P2 改：写组 `curio-write`；结构删除 root |
 | `workers/daymark-core/src/api/_auth.js`、`_write.js` | 写要 `daymark.write` | P2 改：`daymark-write`；删专题定 root（Gray 2026-11-11，结构删除） |

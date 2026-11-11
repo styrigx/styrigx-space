@@ -1,10 +1,12 @@
 # styrigx-account
 
+> 已被 v6 定稿取代（见 `docs/decisions/ADR-0006-identity-v6.md`）。
+
 ## 职责
 
-账号 Worker：主人账号的完整账号系统。账号身份（账号密码、账号通行密钥、恢复密钥、已登录设备、session / reauth / reset 三张票、审计、应用授权）和账号名下的数据（头像、个人资料、设置云同步、数字健康）都在这里；网关 `styrigx-space-core` 里没有任何账号鉴权代码。本 Worker 不调网关、不绑任何锁屏数据或钥匙（没有 `[[services]]`）。
+账号 Worker：主人账号的完整账号系统。账号身份（账号密码、账号通行密钥、恢复密钥、已登录设备、session / reauth / reset 三张票、审计）和账号名下的数据（头像、个人资料、设置云同步）都在这里；网关 `styrigx-space-core` 里没有任何账号鉴权代码。本 Worker 不调网关、不绑任何锁屏数据或钥匙（没有 `[[services]]`）。
 
-命名（账号命名 v2，2026-11-08）：一个概念一个词——`session`（`sudo root` 登录）、`reauth`（`sudo root reauth`，3 分钟，挂在本机 session 上）、`reset`（`sudo root reset`，恢复密钥换 3 分钟的票，不签 session）、`keys`（账号安全）、`devices`、`grants`、`audit`、`recovery key`。`root` 只出现在用户看得见的终端命令里，代码里没有。网关签发、本 Worker 只读结论头的那张凭证叫「进站会话」（`X-Styrigx-Space-Session: 1`）。
+命名（账号命名 v2，2026-11-08）：一个概念一个词——`session`（`sudo root` 登录）、`reauth`（`sudo root reauth`，3 分钟，挂在本机 session 上）、`reset`（`sudo root reset`，恢复密钥换 3 分钟的票，不签 session）、`keys`（账号安全）、`devices`、`audit`、`recovery key`。`root` 只出现在用户看得见的终端命令里，代码里没有。网关签发、本 Worker 只读结论头的那张凭证叫「进站会话」（`X-Styrigx-Space-Session: 1`）。
 
 ## 入口
 
@@ -14,18 +16,18 @@
 |---|---|---|
 | `default` | `src/app.js` | 默认 fetch 一律 404（第二道保险：即使线上残留公开路由，伪造的头也碰不到任何接口） |
 | `AccountService` | `src/rpc/account-service.js` | 网关经服务绑定 `ACCOUNT` 转发来的请求：`serviceFetch` → `gate.js` → `router.js` |
-| `AccountVerifier` | `src/rpc/account-verifier.js` | 只读 RPC，不签任何东西，调用方只有网关（服务绑定 `ACCOUNT_VERIFIER`）：`authorize(cookieHeader, clientContext, opts)` → 授权结论（见下文「结论」）；`admit(cookieHeader, method, pathname)` → v6 新会话的放行结论（P1，见「v6 身份」）。命名 v2 删了 `session()`（唯一的调用方是网关给旧账号整页的首帧提示，整页 #327 已删） |
+| `AccountVerifier` | `src/rpc/account-verifier.js` | 只读 RPC，不签任何东西，调用方只有网关（服务绑定 `ACCOUNT_VERIFIER`）：`admit(cookieHeader, method, pathname)` → v6 新会话的放行结论（P1，见「v6 身份」）。命名 v2 删了 `session()`（唯一的调用方是网关给旧账号整页的首帧提示，整页 #327 已删） |
 | `AccountJanitor` | `src/rpc/account-janitor.js` | v6 P2c：`purgeExpiredUsers(at)`——到期满 30 天宽限期（`core/user-expiry.js` 的 `EXPIRED_USER_GRACE_MS`）的用户自动删除，删法同 userdel（会话、身份栈、凭据、组；用户行留墓碑 `#deleted-<uid>`，uid 永不复用），永不删 root / styrigx。调用方只有 styrigx-status 每日一轮（服务绑定 `JOB_ACCOUNT`，03:41 CST）；本 Worker 不自带 Cron |
 
-- `src/gate.js`：只有 `AccountService` 读身份头——网关写的 `X-Styrigx-Space-*`（Session / By / Link-Id；By、Link-Id 只作审计）、`X-Styrigx-Client-*`（Address / Country / City），`src/lib/gateway.js` 白名单校验（`passedGateway`：有没有进站会话）。纵深防御：没有进站会话的 `/api/*` → 401（`PUBLIC_API` 除外：`POST /api/identity`、`GET /api/wellbeing`、`GET /api/profile`）；之后 `/api/prefs`、`/api/avatar`、`/api/profile` PUT 要账号 session + 作用域（`gate.js scopeDenial`：401 account / 403 scope）；`/api/account/*` 各入口自己验票。
+- `src/gate.js`：只有 `AccountService` 读身份头——网关写的 `X-Styrigx-Space-*`（Session / By / Link-Id；By、Link-Id 只作审计）、`X-Styrigx-Client-*`（Address / Country / City），`src/lib/gateway.js` 白名单校验（`passedGateway`：有没有进站会话）。纵深防御：没有进站会话的 `/api/*` → 401（`PUBLIC_API` 除外：`POST /api/identity`、`GET /api/profile`）；之后 `/api/prefs`、`/api/avatar`、`/api/profile` PUT 要 v6 会话（`gate.js scopeDenial`：401 session）；`/api/account/*` 各入口自己验票。
 - `src/router.js`：接口路由表 `API_ROUTES` 和头像文件 `/avatar/<尺寸>.webp`。
 - 一个文件一件事，文件名就是那件事的词：
 
 | 目录 | 文件 |
 |---|---|
-| `src/api/account/` | `status.js`（GET 状态）、`session.js`、`reauth.js`、`reset.js`、`keys.js`、`devices.js`、`grants.js`，公共的 `_request.js`（进站会话、同源、读 body、客户端地址、兜底 500） |
-| `src/api/` | `avatar.js`、`avatar-file.js`、`profile.js`、`prefs.js`、`wellbeing.js` |
-| `src/core/` | `config.js`（票 / 纪元 / cookie / challenge 用途 / rp）、`session.js`、`reauth.js`、`reset.js`、`password.js`、`password-limit.js`、`passkey.js`、`recovery-key.js`、`devices.js`、`grants.js`、`scopes.js`、`authorize.js`、`audit.js` |
+| `src/api/account/` | `status.js`（GET 状态）、`session.js`、`reauth.js`、`reset.js`、`keys.js`、`devices.js`，公共的 `_request.js`（进站会话、同源、读 body、客户端地址、兜底 500） |
+| `src/api/` | `avatar.js`、`avatar-file.js`、`profile.js`、`prefs.js` |
+| `src/core/` | `config.js`（票 / 纪元 / cookie / challenge 用途 / rp）、`session.js`、`reauth.js`、`reset.js`、`password.js`、`password-limit.js`、`passkey.js`、`recovery-key.js`、`devices.js`、`audit.js` |
 | `src/lib/` | `ticket.js`（签 / 验票）、`db.js`（D1_ACCOUNT、兜底建表）、`webauthn.js`、`gateway.js`、`attempt-limit.js`、`crypto.js`、`cookies.js`、`http.js`、`avatar.js`、`profile.js`、`security-headers.js`、`csp-hashes.js` |
 
 不 import 网关或任何别的 Worker（`space/scripts/check-layers.mjs` 规则 14）；退役的旧名字一个都不许出现（规则 22，名单在 `space/scripts/retired-names.json`）。
@@ -65,28 +67,9 @@ ADR-0006。P1 只加新路径，旧会话 / 旧入口 / 旧命令全部不动；
 | `POST /api/account/reset` | 进站会话；拿到票后只认 reset 票（401 reset） | `recovery-key { key }`；`password-set`、`passkey-list`、`passkey-add-challenge`、`passkey-add`、`passkey-delete`；`finish { signOut: all\|others\|none }`（推 reset 纪元，票只能用一次）；`end` |
 | `POST /api/account/keys` | + session + reauth（`passkey-list` 只要 session） | `password-set`、`passkey-list`、`passkey-add-challenge`、`passkey-add`、`passkey-delete`、`passkey-rename`；改了钥匙推 session 纪元、本机重签、删其他设备行 |
 | `POST /api/account/devices` | + session（`revoke-all` 还要 reauth） | `list`、`revoke { deviceId }`、`revoke-all` |
-| `POST /api/account/grants` | + session（`add` 还要 reauth） | `list`、`revoke { app }`、`add { app }` |
 
 - 两个纪元：`session`（管 session 和 reauth）、`reset`（只管 reset 票）。challenge 用途按入口分：`session` / `reauth` / `keys-add` / `reset-add`。限速按钥匙算：kind `password`、`recovery-key`。
-- 审计事件 = `<入口>-<action>`（`session-<by>`、`reauth-<by>`、`reset-recovery-key`、`reset-finish-<值>`、`keys-passkey-add`、`devices-revoke`、`grants-add`……），表 `account_audit` 的 `event` 列，保留 30 天。
-
-## 结论
-
-本 Worker 是授权的唯一来源。作用域表和授权判断只在这里有一份，网关和下游只认字符串，不 import。
-
-- 作用域表 `src/core/scopes.js`：按应用（= 数据域）各一个写作用域；读私密跟账号 session 走，不要作用域；敏感操作另要 reauth，不再多拆作用域。
-
-  | 作用域 | 应用（授权卡，中 / 英） | 另要 reauth 的敏感操作 |
-  |---|---|---|
-  | `curio.write` | 奇趣 / Curio | `POST /curio/api/import` |
-  | `daymark.write` | 日刻 / Daymark | — |
-  | `prefs.sync` | 设置同步 / Settings sync | — |
-  | `wellbeing.write` | 数字健康 / Digital wellbeing | — |
-  | `avatar.write` | 头像 / Avatar | — |
-  | `profile.write` | 个人资料 / Profile | — |
-
-- `src/core/authorize.js` `authorize(env, request, opts)` → `{ ok, reason, deviceId, scopes, reauth }`：验 session（过期、纪元变了、设备已退出都是 `ok:false`）→ `scopes` = `account_grant` 里的当前授权 ∩ 作用域表（命名 v2 删了种子逻辑：没有行就是没授权）→ 只有 `opts.reauth === true` 才验挂在这个 session 上的 reauth。只读不签，永不抛错。
-- 网关 `core/account-rpc.js` 的 `askAuthorize` 经 `AccountVerifier.authorize` 问它，再由网关 `core/conclusion.js` 交给下游。
+- 审计事件 = `<入口>-<action>`（`session-<by>`、`reauth-<by>`、`reset-recovery-key`、`reset-finish-<值>`、`keys-passkey-add`、`devices-revoke`……），表 `account_audit` 的 `event` 列，保留 30 天。
 
 ## 路由
 
@@ -101,13 +84,12 @@ ADR-0006。P1 只加新路径，旧会话 / 旧入口 / 旧命令全部不动；
 | `GET /avatar/<32\|96\|192\|512>.webp` | `api/avatar-file.js`（公开；没上传过回 Pages 上的默认头像） |
 | `GET` / `PUT /api/profile` | `api/profile.js`（GET 有进站会话即可；PUT 进站会话 + session + `profile.write`） |
 | `GET` / `POST /api/prefs` | `api/prefs.js`（设置云同步，进站会话 + session + `prefs.sync`） |
-| `POST` / `GET /api/wellbeing` | `api/wellbeing.js`（数字健康；没有 `wellbeing.write` 的上报 204 丢弃） |
 
 ## 绑定
 
 | 类别 | 名字 | 说明 |
 |---|---|---|
-| D1 `styrigx-account` | `D1_ACCOUNT` | 一个库一个名字：账号表 `account_*`（epoch、password、passkey、user_handle、challenge、attempt_limit、device、audit、grant）、设置云同步 `settings_sync`、数字健康 `wb_daily` |
+| D1 `styrigx-account` | `D1_ACCOUNT` | 一个库一个名字：账号表 `account_*`（epoch、password、passkey、user_handle、challenge、attempt_limit、device、audit）、设置云同步 `settings_sync` |
 | KV | `KV_PROFILE` | 只放公开数据：头像 `avatar:*` + 个人资料 `profile` |
 
 明文变量：`SGX_ENV = "production"`、`SGX_RP_ID`、`SGX_ORIGIN`（这两个是红线：改了所有通行密钥失效）；`placement.mode = "smart"`。

@@ -81,7 +81,6 @@ export const ROUTE_ACCESS = Object.freeze([
   { method: 'POST', path: '/api/identity', access: 'public', why: 'v6 身份命令（P2：whoami / su 登录要在进站前用；每个 action 的档在账号 Worker 判，permits）' },
   /* 公开的数据 */
   { method: 'GET', path: '/api/geo', access: 'public', why: '只回调用者自己的城市 / 时区' },
-  { method: 'GET', path: '/api/wellbeing', access: 'public', why: '屏幕时间合计（明细接口内另要账号会话）' },
   { method: 'GET', path: '/api/profile', access: 'public', why: '站点名片（姓名 / 昵称 / 签名 / 对外邮箱 + 头像版本号），公开只读（v6 P2c，定稿 v5 §五）' },
   { method: 'GET', path: '/api/find', access: 'public', why: '关键词搜索（v5 S4）：只回公开页面元数据，接口内按 IP 限流（FIND_LIMITER）' },
 ].map((r) => Object.freeze(r)));

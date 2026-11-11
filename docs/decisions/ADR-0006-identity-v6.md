@@ -2,7 +2,7 @@
 
 | 项 | 值 |
 |---|---|
-| 状态 | 已采纳（分阶段实施中：P1） |
+| 状态 | 已采纳（P1–P3 已实施，P4 收尾中）；以定稿 v5.5（2026-11-11 20:12，冻结）为准 |
 | 日期 | 2026-11-11 |
 | 决策者 | Sloan Gray |
 | 关联 | 取代 ADR-0003 §2.3、ADR-0005 §2.2.3–§2.2.4（sudo 段）；SGX-SPEC-004（路由盘点）、SGX-SPEC-005（迁移对照）、SGX-SPEC-006（STEPUP / APP 去向） |
@@ -21,16 +21,18 @@
 
 ### 2.2 用户
 
-- **root**（uid 0）：唯一超级用户，只管用户、凭据、授权与批量 / 结构删除。**代码级禁止公开登录**：访客发起的签发绝不签 uid 0，公开登录端点拒收 root 凭据；admit 也拒绝「栈底是 root 但不是救援会话」的会话。
+- **root**（uid 0）：唯一超级用户，什么都能干（root ⊇ styrigx），不配个人资料；日常只管用户、凭据、授权与批量 / 结构删除（定稿 v5.5 §二）。**代码级禁止公开登录**：访客发起的签发绝不签 uid 0，公开登录端点拒收 root 凭据；admit 也拒绝「栈底是 root 但不是救援会话」的会话。
 - **普通用户**：可多个，由 root 增删授权；**styrigx**（uid 1000）是第一个，日常态是 `styrigx@space`。新用户从 1001 起。
 - root 与普通用户凭据完全独立（各自的密码、通行密钥；通行密钥显示名区分 styrigx / root）。
-- 提示符 `<用户>@space:<路径>`；未登录提示符保持现状。头像 = whoami（访客点击预填 `su `；普通用户预填 `su root`，不在 wheel 则 profile；root 预填 `exit`）。
+- 提示符 `<用户>@space:<路径>`；未登录提示符保持现状。头像 = whoami（定稿 v5.5 §七）：访客头像点击预填 `su `；普通用户（uid 1001 起）显示站长的头像，只作装饰、不可点击；站长 styrigx 与 root 点击打开同一张账号页（只留个人信息卡、设备卡、一个退出按钮 `lock`）。
+- 徽章（顶栏盾标，四档；定稿 v5.5 §七）：点击按当前身份还能晋升到哪一档预填，只预填、回车才生效——访客 `su `、普通用户 `exit`、站长 `su root`、root `exit`。徽章与头像是两个东西。
 
 ### 2.3 权限 = 组（fail closed）
 
 - 组：`wheel`（可 su root）、`sudoers`（可 sudo）、`listen`、`ai`、`status`、`curio-write`、`daymark-write`（上传、编辑、单条内容删除）。删除不做组：**批量 / 结构删除只属 root**。
 - styrigx 默认：wheel、sudoers、listen、ai、status、curio-write、daymark-write。新用户默认无组。
-- **临时用户**（有期限）代码拒绝加入 wheel、sudoers、写组；已在这些组里的用户不能被设期限。
+- **普通用户**（uid 1001 起，含临时用户）只给只读组 `listen`、`ai`、`status`，代码拒绝加入 wheel、sudoers、写组；写接口只给站长 styrigx 与 root（定稿 v5.5 §四，取代原「临时用户」一条）。
+- 权限层级 = man 索引顺序：root → 站长 styrigx → 普通用户 → 访客，自上而下递减；后台数据控制（用户与组、设备会话、代理、导入导出、批量删除）一律 root 档，站长用 sudo 提权（定稿 v5.5 §四）。
 - 访问档：`public` / `user`（任一已登录身份）/ 组名 / `owner`（站长 = styrigx，P2）/ `root`；每条路由一档，未列入一律拒绝（SGX-SPEC-004）。判断全站只有一处：`workers/account/src/core/groups.js` `permits()`，顺序固定（定稿 v4 §三，P2 实现）：① 救援会话只放白名单路由 / action，其余一律拒、不往下走；② root 一律放行；③ 按档。admit 没有任何绕过 `permits` 的 root 快速路径。
 - 原来要复验的操作一律改成 sudo 每次重验（= root 档）。
 
@@ -53,7 +55,8 @@
 - `useradd <名> [-e YYYY-MM-DD] [-G 组]`：生成 16 位以上随机一次性密码，只显示一次，库里只存哈希；Gray 线下发；首登强制改密码，一次性密码 24 小时过期。**`-e` 按 Linux 语义：该日 00:00（Asia/Shanghai）起失效**（可用到前一天结束），存 UTC 时间戳。
 - `userdel <名>`：同时清会话、凭据、组。`usermod -aG|-rG <组> <名>`。`passwd <名>`：同样发一次性密码、首登强制改。
 - 到期：自动禁用并作废会话，宽限期后自动删除。
-- 普通用户用 `passwd`、`passkey` 改自己的凭据；**`passwd` 改自己的密码须先输当前密码**，root 替别人重置不用；通行密钥自带 WebAuthn 验证，不另加。
+- 站长 styrigx 用 `passwd`、`passkey` 改自己的凭据；普通用户（uid 1001 起）只能 `passwd` 改自己的密码，不能管通行密钥（定稿 v5.5 §八）。**`passwd` 改自己的密码须先输当前密码**，root 替别人重置不用；通行密钥自带 WebAuthn 验证，不另加。
+- `passwd` / `passkey` 指向 root 时须当前会话栈顶是 root（`su root` 或救援）；`sudo passwd root`、sudo 增删 root 通行密钥一律拒绝（定稿 v5.5 §十）。
 
 ### 2.7 epoch
 
@@ -88,9 +91,9 @@
 ### 2.11 信任域与密钥终局
 
 - LOCK（进站）：并入账号 Worker 会话，P4 删站点核心的签发。
-- STEPUP、APP：本体已删（v3 / 账号拆分）；继任者（锁侧复验、账号复验、重置票、应用授权）按 SGX-SPEC-006 逐条处理。子应用权限由组表达（app allow | deny → `usermod -aG|-rG`）。
-- 签名钥匙：v6 会话不需签名。目标只留 `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC` 一对（若 curio / daymark 子应用令牌仍需签名），**P4 删 `SGX_SPACE_PRIVATE` / `SGX_SPACE_PUBLIC` 与两把 `*_RECOVERY_KEY`**。
-- pepper 两把（`SGX_SPACE_PASSWORD_PEPPER`、`SGX_ACCOUNT_PASSWORD_PEPPER`）：迁到 styrigx 的进站密码哈希是 space pepper 做的（`pepper_id = 'space'`）。**方案 a 定稿（Gray 2026-11-11）**，实现要求见 §2.12 (b)。
+- STEPUP、APP：本体已删（v3 / 账号拆分）；继任者（锁侧复验、账号复验、重置票、应用授权）按 SGX-SPEC-006 逐条处理。应用授权整套删除（`app allow|deny`、账号页应用授权卡、授权接口与判定代码、APP 子应用令牌、`account_grant` 表）；子站写接口只按路由档（curio-write / daymark-write）拦（定稿 v5.5 §十二）。
+- 签名钥匙：v6 会话是随机令牌、不签名，APP 令牌已删：`SGX_ACCOUNT` 与 `SGX_SPACE` 两对 P4 一并删，站内不再有签名钥匙；两把 `*_RECOVERY_KEY` P4 删。P4 后账号 Worker 的 Secrets Store 只剩 `SGX_ACCOUNT_PASSWORD_PEPPER` 与 `SGX_ACCOUNT_RESCUE_KEY`（定稿 v5.5 §十二）。
+- pepper 两把（`SGX_SPACE_PASSWORD_PEPPER`、`SGX_ACCOUNT_PASSWORD_PEPPER`）：迁到 styrigx 的进站密码哈希是 space pepper 做的（`pepper_id = 'space'`）。**方案 a 定稿（Gray 2026-11-11）**，实现要求见 §2.12 (b)。 全站最终只留 `SGX_ACCOUNT_PASSWORD_PEPPER` 一把，旧 space pepper P4 连代码、绑定一并删（定稿 v5.5 §十）。
 - 分享短链 `/s/<码>`（一段）整套删除，给别人权限改为 root 建带期限的普通用户；代理订阅 `/s/<令牌>/<来源名>`（两段，另一个主机）保留。删前盘点 `share_link` 有效链接逐个处理。
 
 ### 2.12 P2 硬要求（Gray 2026-11-11）
@@ -100,7 +103,7 @@
 **(b) pepper 方案 a 定稿。**
 - 每条密码哈希记 `pepper_id`（`account` = `SGX_ACCOUNT_PASSWORD_PEPPER`，`space` = `SGX_SPACE_PASSWORD_PEPPER`）；验证时**按这条记录的 `pepper_id` 取对应 pepper**，不猜、不两把轮流试；`pepper_id` 不认识或对应 pepper 缺失 → fail closed。
 - 登录成功且 `pepper_id = 'space'` 时，用账号 pepper 重算哈希，同一次写入把 `pepper_id` 改成 `account`。
-- 旧 space pepper 保留到**所有活跃用户都已迁完**（库里不再有 `pepper_id = 'space'` 的活跃用户）为止，**P4 才删**（先核代码与绑定）。
+- 旧 space pepper 保留到**所有活跃用户都已迁完**（库里不再有 `pepper_id = 'space'` 的活跃用户）为止，**P4 才删**（先核代码与绑定）。（定稿 v5.5 §十取代：P4 连代码、绑定一并删，Gray 2026-11-11 17:25「pepper合一把」。）
 - 账号 Worker 需加绑 `SGX_SPACE_PASSWORD_PEPPER`（Secrets Store 绑定，只加绑定、不碰值）。P1 没有 v6 用户的密码验证（新会话没有签发入口，admit 只读），用不到这把 pepper，所以**绑定放在 P2**，随 `su` 验密一起加进 `workers/account/wrangler.toml`。（P2a 已加。）
 
 ### 2.13 P2a 实现要点（2026-11-11）
@@ -108,7 +111,7 @@
 - 入口：`POST /api/identity`（网关 public、转发给账号；每个 action 一档，救援白名单 = whoami / passwd / passkey-* / groups / exit / lock）。
 - 会话 cookie `sgx-session`：`Path=/; HttpOnly; Secure; SameSite=Lax`，只发给 styrigx.com 本主机（不写 Domain：子站都在同一主机路径下）。
 - `su <用户>` 只签普通用户；`issueSession` 代码级拒签 uid 0；`su root` 只压栈（≤ 1 小时）；`idle` 只弹 root 层；`sudo` 每次验自己的凭据、不压栈、不发票据，只能借 root 跑 useradd / userdel / usermod / passwd <名> / groups / who，`passwd` / `passkey` 一律 `root-creds`。
-- 数据按 uid：头像在 KV 按键前缀分（styrigx 键不变）；偏好 / 数字健康 / 旧设备表的 uid 列在 `workers/account/migrations/0007_v6_uid_columns.sql`（2026-11-11 Gray 批准，从 `migrations-pending/` 挪入，部署 job 执行）；代码两种表结构都能跑（`lib/uid-schema.js`），迁移前别的 uid 读到空、写被拒 / 丢弃。v6 的「设备」= 自己的 `account_sessions`。
+- 数据按 uid：头像在 KV 按键前缀分（styrigx 键不变）；偏好 / 数字健康（v6 P4 随数字健康整套删除，定稿 v5.5 §四）/ 旧设备表的 uid 列在 `workers/account/migrations/0007_v6_uid_columns.sql`（2026-11-11 Gray 批准，从 `migrations-pending/` 挪入，部署 job 执行）；代码两种表结构都能跑（`lib/uid-schema.js`），迁移前别的 uid 读到空、写被拒 / 丢弃。v6 的「设备」= 自己的 `account_sessions`。
 - 审计加 root 改名片（`profile`）；批量 / 结构删除在奇趣 / 日刻接口 Worker，它们接上新会话（割接，§2.15）时写 `rm-bulk`。
 
 ### 2.14 P2c 对齐定稿 v5（2026-11-11）
@@ -116,7 +119,7 @@
 - 名片 `GET /api/profile` 真正公开（§五）：网关访问表与账号 `PUBLIC_API` 都列为 public，接口不再要任何会话；只回名片四项 + 头像版本号 + 时间。PUT 不变（站长 + root）。
 - `sudo <命令>`（§六）：除身份命令外，`command = { method, path, body? }` 可借 root 执行**账号 Worker 内**任何一条路由表里的接口（`api/sudo-route.js`，同进程直接调处理函数，这一次调用里 v6 结论是 root、`sudoBy` = 真正执行的人）。仍是每次验自己的凭据、不发票据、不压栈。拒绝：`/api/identity` 本身、`/api/account/keys` / `reset`（root 凭据，`root-creds`；sudo 不能动 root 的凭据，栈顶必须是 root）、`/api/account/session` / `reauth`（旧登录 / 复验票）。别的 Worker 的接口（站点核心、奇趣、日刻）不在账号 Worker，sudo 够不到（`not-here`）；它们和 `/api/account/grants`、`/proxy` 还只认旧会话，割接时接上 v6 后 sudo 才对它们生效。
 - 到期（§八）：到期满 **30 天**宽限期（`core/user-expiry.js` 的 `EXPIRED_USER_GRACE_MS`，定稿没给数，Hark 定）自动删除，删法同 userdel；永不删 root / styrigx。不加 Cron：styrigx-status 每日一轮（03:41 CST）经服务绑定 `JOB_ACCOUNT` 调 `AccountJanitor.purgeExpiredUsers`，另在 useradd 前懒清理一次。
-- userdel / 到期删除的用户行改留墓碑（`#deleted-<uid>`、禁用）：**uid 永不复用**，免得新用户继承旧 uid 下的头像 / 偏好 / 数字健康数据；名字可再 useradd。
+- userdel / 到期删除的用户行改留墓碑（`#deleted-<uid>`、禁用）：**uid 永不复用**，免得新用户继承旧 uid 下的头像 / 偏好等数据（数字健康 v6 P4 已删，定稿 v5.5 §八）；名字可再 useradd。
 - 审计（§十）：sudo 借 root 的每一条写 `sudo <方法> <路径> [action]`（uid = 真正执行的人）；root 改名片写 `profile set …`（sudo 借来的记执行人并标 `via sudo`）；到期删除写 `expire userdel <名>`（uid null）。
 - admit 先拒不认识的档，再做 root 快速放行（与 permits 第 0 步一致，`core/admit.js admitDecision`）。
 
@@ -140,7 +143,8 @@
 | P1 | 新表；迁移对照表与脚本（不写生产）；组模型与集中权限判断；路由盘点表；admit 新路径与旧路径并存（网关在请求带新会话 cookie、旧进站会话不成立时问 `AccountVerifier.admit`）；epoch bump；审计；STEPUP / APP 映射；本 ADR。旧入口、旧会话、旧命令不动 |
 | P2 | su、sudo、exit、lock、useradd / userdel / usermod / passwd <名>、groups、who；身份栈；前台空闲计时；头像 = whoami；接口改认新结论 |
 | P3 | 绑定 `SGX_ACCOUNT_RESCUE_KEY`（Gray 已在 Store 建好）+ 救援入口 `rescue`；端到端跑通（含真机） |
-| P4 | P1–P3 线上跑稳后：处理有效分享链接后删分享短链；删站点核心进站签发、sudo root reauth、sudo -v、lock passwd / passkey、旧密钥（先核代码与绑定） |
+| P4 | P3 合并后直接做，不设观察期（定稿 v5.5 §十三）：删分享短链（任其失效）、站点核心进站签发、STEPUP、sudo root reauth、sudo -v、lock passwd / passkey、旧恢复钥匙、旧 pepper、两对签名钥匙、旧账号会话；收尾：应用授权整套删、旧校验收尾、旧 space-core 8 张表与 share_link / share_fail / account_grant、数字健康整套删除、不再使用的文案删除、v5 旧文档加取代标注 |
+| 2g | P4 之后：sessions 设备列与 `sgx-device` 设备标记、设备列表全站视图、子站认 sudo 借来的 root（定稿 v5.5 §十三） |
 
 回滚：每段单独 PR；P4 前在 dashboard 演练一次重部署上一版 Worker，作为最后手段。外观改动先截图给 Gray 批；不 force-push。
 
@@ -154,6 +158,10 @@
 | 2026-11-11 | P2c：名片 GET 公开、sudo 借 root 执行账号 Worker 内任一接口、到期满 30 天自动删除（墓碑、uid 不复用）、root 特权内容操作审计、admit 先拒未知档；§2.14 | P2c |
 | 2026-11-11 | P3：账号 Worker 绑定 `SGX_ACCOUNT_RESCUE_KEY`；`POST /api/identity` action `rescue`（读 Store 恒定时间比对 → 15 分钟一次性 root 救援会话；`account_recovery_key` 记指纹、同值复用拒、指纹写失败拒；单独限流 + 审计）；终端 `rescue`；§2.8 改为与定稿 v5.2 §九一致（Secrets Store，删「未决」） | P3 |
 | 2026-11-11 | 割接：访客入口改 su（头像 / 盾牌 / 上锁处预填 `su `）、su 的提示 `Password:`；网关 / 账号 / 奇趣 / 日刻其余路由接 v6 会话（admit 带 action、`private` action）、root 特权内容操作经 `auditRoot` 留痕；§2.15 | 割接 |
+| 2026-11-11 | P4 前端删旧：分享短链 / 分享磁贴、进站签发、旧账号会话与旧账号指令 | #409 |
+| 2026-11-11 | P4 后端删除：旧进站 / 分享 / 旧账号会话 | #410 |
+| 2026-11-11 | P4 收尾：应用授权整套删除、旧校验收尾（`conclusion()`）、旧进站 8 张表与一次性迁移脚本删除 | #411 |
+| 2026-11-11 | P4-2：数字健康整套删除（上报、接口、展示、`/wellbeing/` 跳转；drop SQL `docs/ops/v6-p4-drop-wellbeing.sql`）、应用授权前端残留、不再使用的文案、文档对齐定稿 v5.5 | P4-2 |
 
 ## 5. 后果
 

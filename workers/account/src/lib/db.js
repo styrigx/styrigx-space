@@ -12,7 +12,7 @@
  * - account_grant 不在兜底里（应用授权删除，定稿 v5.4 §十一 / §十二：部署绿后由 docs/ops/v6-p4-drop-account-grant.sql drop，不得被兜底建回）
  * - v6 身份表（IDENTITY_SCHEMA = migrations/0006_identity.sql）：account_users / user_groups / user_password / user_passkey / sessions /
  *   session_stack / user_audit / recovery_key
- * 同一个库里的 settings_sync（api/prefs.js）、wb_daily（api/wellbeing.js）也经 D1_ACCOUNT，表由 0001 / 0002 建。
+ * 同一个库里的 settings_sync（api/prefs.js）也经 D1_ACCOUNT，表由 0002 建（数字健康 wb_daily v6 P4 删，drop 见 docs/ops/v6-p4-drop-wellbeing.sql）。
  *
  * 出错一律抛（D1 未绑定、查询失败）；调用方按 fail closed 处理（签发 503、验票无效）。
  * 表不存在（迁移没跑的库）：按 ACCOUNT_SCHEMA 建表后整次操作重试一次。

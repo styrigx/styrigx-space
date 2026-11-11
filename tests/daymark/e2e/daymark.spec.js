@@ -486,18 +486,6 @@ test('主题跟主站 sgx-ui cookie：pal 换预设；accent 是自定义种子 
   expect(await ind()).toBe(custom);
 });
 
-test('P3-1 账号已登录但日刻未获授权（canWrite=false、showPrivate=true）：命令链「日刻未获账号授权」链到 /account/apps/', async ({ page }) => {
-  await mock(page, true);
-  await page.route('**/api/quotes**', (r) => (r.request().method() === 'GET'
-    ? r.fulfill({ json: { ok: true, canWrite: false, showPrivate: true, quotes: [] } })
-    : r.fulfill({ status: 403, json: { ok: false, error: 'scope', scope: 'daymark.write' } })));
-  await page.goto('/daymark/zh/#trove');
-  await expect(page.locator('#dm-signin-trove')).toBeVisible();
-  await expect(page.locator('#dm-signin-trove [data-signin-text]')).toHaveText('日刻未获账号授权');
-  await expect(page.locator('#dm-signin-trove')).toHaveAttribute('href', 'https://styrigx.com/zh/#acct=apps');
-  await expect(page.locator('#dm-signin-trove')).toHaveAttribute('data-acct-open', 'apps');
-});
-
 test('余响 · 日期条 / 前后日（/api/days）：记下的日子能点，看那天的句子（地址 #d/<日期>、命令行换日期）；cat today / 点今天格回来；那天没记下的灰掉；余响窗列最近几天', async ({ page }) => {
   await mock(page, false);
   const asked = [];

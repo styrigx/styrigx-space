@@ -140,9 +140,9 @@ test('档合法；删除两级；sudo 继任；root 不能从访客直接登录'
 test('摘要快照：各档路由数（改表必须改这里）', () => {
   const count = {};
   for (const r of RA.ROUTE_ACCESS) count[r.level] = (count[r.level] || 0) + 1;
-  assert.deepEqual(count, { public: 25, ai: 2, status: 1, root: 5, owner: 1, user: 6, 'curio-write': 8, listen: 3, 'daymark-write': 6 });
-  assert.equal(RA.ROUTE_ACCESS.length, 57, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57）');
-  assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 16, 'Gray 2026-11-11 定稿的 17 条，P4 删 lock-all-devices 后 16 条');
+  assert.deepEqual(count, { public: 24, ai: 2, status: 1, root: 5, owner: 1, user: 5, 'curio-write': 8, listen: 3, 'daymark-write': 6 });
+  assert.equal(RA.ROUTE_ACCESS.length, 55, 'v6 P4 删旧入口 20 条（78 → 58），应用授权 /api/account/grants 删除（58 → 57），数字健康 POST / GET /api/wellbeing 删除（57 → 55）');
+  assert.equal(RA.ROUTE_ACCESS.filter((r) => r.decided).length, 14, 'Gray 2026-11-11 定稿的 17 条，P4 删 lock-all-devices 后 16 条，数字健康两条删除后 14 条');
   assert.equal(RA.ROUTE_ACCESS.filter((r) => 'doubt' in r).length, 0, '不再有存疑');
   assert.equal(RA.levelOf('GET', '/curio/api/export'), 'root', '导出含私密 → root（Gray 2026-11-11）');
   assert.equal(RA.levelOf('PUT', '/api/profile'), 'owner', '站长名片只有一份：站长 + root（P2 定稿 v4）');

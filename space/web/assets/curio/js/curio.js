@@ -9,7 +9,7 @@
  *   编辑弹层：网址（「自动填写」抓标题、简介、图标）、名字、英文名和英文简介、简介、分类（可就地新建）、自定义图标、仅自己可见、上移 / 下移、删除。
  * - 不能编辑（canWrite=false）：命令链里只有一条（#cu-signin，signinHint）：
  *   没登录 →「su · su 登录后可编辑」，点了打开顶栏终端、预填 su （2c，v6 割接；data-sec-open）；
- *   已登录但奇趣没有 curio.write（在 账号 › 应用授权 取消过）→「奇趣未获账号授权」，打开应用授权那一层。写接口回 403 scope 也提示这一句。
+ *   已以 v6 用户登录但不在 curio-write → 无权限句「当前用户没有这个权限。」（「未获账号授权 → 应用授权」那一层随应用授权删除，v6 P4）。
  *   写接口回 401 account / 403 scope 时也提示这一句；导入回 401 reauth（要账号复验）时给「去验证」：打开账号终端只做 sudo root reauth，验过后当场重发导入，关下拉 reauth 即失效（#327 偏离修复）。
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
  *
@@ -218,24 +218,22 @@ function errText(e){
 }
 
 /**
- * 不能编辑时命令链里那一条（P3-1；2026-11-08 账号 UI 改版：打开顶栏账号终端，shell/topbar-panel.js 接 [data-acct-open]）：
- * 没登录账号 → sudo root 登录 → 判授权 → 关面板回本页；已登录没授权 → 应用授权那一层。
- * @param {boolean} loggedIn 接口回的 showPrivate（= 有账号会话）
+ * 不能编辑时那一条（2c 起是 su 入口，data-sec-open）：没登录 → su；已以 v6 用户登录但不在写组 → 无权限句，仍是 su。
+ * 「未获账号授权 → #acct=apps」那一支随应用授权整套删除（v6 P4，定稿 v5.5 §十二）。
  * @returns {{text: string, open: string, app: string}}
  */
-function signinHint(loggedIn){
-  if (loggedIn) return { text: T.noScope, open: 'apps', app: '' };
+function signinHint(){
   /* 2d：已经以 v6 用户登录（登录标记 sgx-id=1，同 shell/identity/api.js hasMarker）、只是不在写组 → 命令仍是 su（v6-stepup-app-map：缺组时提示 su），
      文字换成站内已上线的无权限句 noPermission「当前用户没有这个权限。」，不再说「su 登录后可编辑」 */
   if (v6SignedIn() && T.noPermission) return { text: T.noPermission, open: '', app: '', su: true };
-  /* 2c（v6 割接）：没登录 → 指向 su（打开顶栏终端，data-sec-open：没登录预填 su ）；上面那条旧账号会话没授权的分支 P4 删 */
+  /* 2c（v6 割接）：没登录 → 指向 su（打开顶栏终端，data-sec-open：没登录预填 su ） */
   return { text: T.signin, open: '', app: '', su: true };
 }
 /** 有没有 v6 登录标记（服务端随 sgx-session 写的 sgx-id=1；不含秘密） */
 function v6SignedIn(){
   try { return /(?:^|;\s*)sgx-id=1(?:;|$)/.test(doc.cookie || ''); } catch (e) { return false; }
 }
-/** 入口链接：su（data-sec-open，退路 #sec）或旧账号入口（data-acct-open / data-acct-app，退路 本语言首页 #acct=…） @param {Element} a @param {{open: string, app: string, su?: boolean}} h */
+/** 入口链接：su（data-sec-open，退路 #sec；旧账号入口 #acct…&app= 随应用授权删除，v6 P4） @param {Element} a @param {{open: string, app: string, su?: boolean}} h */
 function setAcctOpen(a, h){
   var base = (a.getAttribute('href') || '/').replace(/#.*$/, '');
   var k = a.querySelector('.sgx-cmd-k');
@@ -246,13 +244,7 @@ function setAcctOpen(a, h){
     a.setAttribute('data-sec-open', '');
     a.setAttribute('href', base + '#sec');
     if (k) k.textContent = 'su';
-    return;
   }
-  a.removeAttribute('data-sec-open');
-  a.setAttribute('data-acct-open', h.open);
-  if (h.app) a.setAttribute('data-acct-app', h.app); else a.removeAttribute('data-acct-app');
-  a.setAttribute('href', base + '#acct' + (h.open ? '=' + h.open : '') + (h.app ? '&app=' + h.app : ''));
-  if (k) k.textContent = 'sudo root';
 }
 
 /** 长按（≈550ms，手指不挪）触发 fn；触发后吞掉随后的那次点击（不打开网址） */
@@ -300,7 +292,7 @@ function applySignin(can, loggedIn){
   if (!hint) return;
   hint.classList.toggle('hidden', !!can);
   if (!can) {
-    var h = signinHint(loggedIn), t = hint.querySelector('[data-signin-text]');
+    var h = signinHint(), t = hint.querySelector('[data-signin-text]');
     if (t) t.textContent = h.text;
     setAcctOpen(hint, h);
   }

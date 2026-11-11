@@ -4,8 +4,8 @@
 # 旧的两个 Worker 已于进站 v3 L3（2026-11-09）删除；L2 第一次部署时的一次性路由接管见 git 历史（PR #337）。
 #
 # 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥；骨架见 workers/README.md）+ migrations/（D1 基线：进站 + 分享链接；旧迁移在 migrations-archive/ 只留史）。
-# 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步、数字健康）在账号 Worker styrigx-account（workers/account）：
-# 它没有任何公开路由，/api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/avatar/* 由本 Worker 验门后
+# 账号（账号密码 / 通行密钥 / 设备 / 账号会话、头像、云同步）在账号 Worker styrigx-account（workers/account）：
+# 它没有任何公开路由，/api/account、/api/prefs*、/api/avatar*、/avatar/* 由本 Worker 验门后
 # 经服务绑定 ACCOUNT 转发（src/router.js 的转发表 FORWARDING）。
 # Pages 只放静态文件（配置见 space/web/wrangler.toml），本 Worker 验完会话回源取页面。
 #

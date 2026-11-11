@@ -388,7 +388,6 @@ account:
   session:
     guest: "账号未登录"
     signIn: "登录账号"
-    lead: "账号未登录 · 选择验证方式"
   profile:
     title: "个人资料"
     hint: "头像 · 姓名 · 昵称 · 签名 · 邮箱"
@@ -510,60 +509,15 @@ account:
       no-token: "还没有下载令牌 · 用 sub token reset"
       token-unsealed: "这个令牌只存了哈希 · 用 sub token reset 换一个能重印的"
 # 进站系统（进站 v3 L1，SPACE-V3 §3.4）：锁屏 entry@space:~$、reset@space:~#、盾牌 styrigx@space:~#（shell/space/*）。命令 / 提示符 / 方式名不翻译。
+# 站内终端输入行（terminal.js → term/view/input-line.js）只读这五句；其余进站旧文案 v6 P4-2 删了
 space:
   common:
-    errLink: "分享链接进来的会话不能这样做"
-    opening: "正在打开站点安全…"
     termAria: "进站终端输入"
     secretAria: "不显示的输入"
-    backAria: "返回"
-    hidden: "输入不显示 · 可粘贴"
     interruptAria: "退出当前命令（^C）"
     noOption: "没有这个选项"
-    cancelled: "已取消"
-    notFound: "command not found: {x} · 试试 man"
-    didYouMean: "command not found: {c} — 你是想输 {x} 吗？"
-    tooMany: "sudo: 尝试次数太多"
-    retrySec: "{n} 秒后可再试"
-    retryMin: "{n} 分钟后可再试"
-    pkNoSupport: "这台设备不支持通行密钥"
-    pkTimeout: "通行密钥超时"
-    sessExp: "进站会话已过期 · 重新 sudo styrigx"
-    loading: "加载中…"
-    copy: "复制"
-    copied: "已复制"
-    copyFail: "复制失败"
-    errParams: "请求不对"
-    errNotFound: "找不到"
-    errLastKey: "至少留一个进站凭证"
-    errRetry: "请重试"
-    errServer: "服务暂时不可用"
-    errForbidden: "当前用户没有这个权限"
-    errVerify: "验证失败，请重试"
-    errUvRequired: "需要设备解锁"
-    errWrongPw: "密码不对"
-    errShort: "最短 8 位"
-    errExists: "已经设置过"
-    errNotSet: "未设置"
-    errLocked: "尝试次数太多，请稍后再试"
-    errConfig: "服务器配置有误"
-    errCancelled: "已取消"
-    errSameAsLock: "不能和解锁密码相同"
-    errSameAsAccount: "不能和账号密码相同"
-    errReset: "reset 已过期 · 重新 sudo styrigx reset"
-    errFull: "已满 20 个"
-    errUnknown: "未知错误，请稍后重试"
-    errNetwork: "网络连接失败，请重试"
-  session:
-    lead: "选择进站方式"
-  reauth:
-    expired: "reauth 已过期 · 重新 {x}"
   keys:
-    title: "进站凭证"
-    hint: "密码 · 通行密钥"
     nameAria: "名字"
-  shield:
-    # v5 S6：已进站时点盾牌 = 问一句再上锁（y = lock，回车 / n = 不动）
 # 终端里的 v6 身份层（P2b，shell/identity/layer.js）：su / sudo / exit / lock / whoami / groups / who / useradd / userdel / usermod / passwd。提示符、命令写法不翻译。
 identity:
   pwPrompt: "Password:"

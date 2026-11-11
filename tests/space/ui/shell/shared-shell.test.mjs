@@ -51,11 +51,11 @@ test('宽屏平铺（Gray 2026-11-07；2026-11 PR-A 起内容区回 1080）：�
     assert.doesNotMatch(readFileSync(path.join(web, f), 'utf8'), /sgx-flat/, f);
   }
   const home = readFileSync(path.join(web, 'index.html'), 'utf8');
-  /* 2026-11 PR-2 首屏终端：名片（#w-profile）并进居中 hero，不再是卡片；对齐 PR-B：日刻是强调线引言（.home-qt，本身无卡片底，不挂 .sgx-flat）；屏幕时间小卡不挂 */
+  /* 2026-11 PR-2 首屏终端：名片（#w-profile）并进居中 hero，不再是卡片；对齐 PR-B：日刻是强调线引言（.home-qt，本身无卡片底，不挂 .sgx-flat）（屏幕时间小卡 v6 P4 删除） */
   assert.match(home, /<div id="w-profile" class="home-id">/);
   assert.match(home, /id="w-daymark" [^>]*class="home-qt /);
   assert.doesNotMatch(home, /sgx-flat/, '主页不再用 .sgx-flat');
-  assert.doesNotMatch(home, /id="w-screen"[^>]*sgx-flat/);
+  assert.doesNotMatch(home, /id="w-screen"/);
 });
 
 test('外壳 CSS 段只用 --sgx-* 角色：没有十六进制颜色、没有旧 --m-* 令牌', () => {

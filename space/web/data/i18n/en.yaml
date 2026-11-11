@@ -23,7 +23,6 @@ home:
   wildLabel: "[04] Wild"
   wild:
     title: Wild
-    screenNone: nothing recorded today
 index:
   noLineForToday: No line for today yet
   tapToKeepOne: Tap to keep one in Daymark
@@ -115,7 +114,6 @@ js:
   space:
     homeStatusUp: "STATUS: ONLINE · {up}/{n} ACTIVE"
     homeStatusDown: "STATUS: DEGRADED · {up}/{n} ACTIVE"
-    wbTodayAllDevices: Today · all devices
     dmSourceWrap: '{s}'
   status:
     activeUp: active (running)
@@ -418,10 +416,7 @@ status:
   spaceCredentialActivity: Space credential activity
   last7DaysTime: 'Last 7 days: time, IP prefix and result'
 wild:
-  # 旷野页（/wild/，对齐 PR-B）：screen-time 窗右上的范围、读屏用的列表名、没有记录、neofetch 各行的本语言说明（鼠标悬停 title）
-  todayThisDevice: Today · this device
-  timeBreakdown: Time by area
-  noRec: nothing recorded today
+  # 旷野页（/wild/，对齐 PR-B）：neofetch 各行的本语言说明（鼠标悬停 title；screen-time 窗的文案 v6 P4 随数字健康删除）
   version: Version
   kernel: Kernel
   build: Build

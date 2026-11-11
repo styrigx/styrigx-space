@@ -1677,7 +1677,7 @@ jobs:
     # 站点核心 Worker styrigx-space-core（workers/space-core；进站 v3 L2 起取代 styrigx-auth-gateway，并入分享链接 styrigx-share）：main 上真部署。
     # 先于 Pages 部署（Pages 只放静态文件，靠它验会话），也先于奇趣 / 日刻两个接口 Worker（它们的服务绑定 SPACE → SpaceVerifier 要它先在）。
     # 路由见 workers/space-core/wrangler.toml（整站通配 styrigx.com/*，按路径分；workers_dev=false；分享短链 /s/*、/api/share v6 P4 删除）。
-    # 账号路径 /api/account、/api/prefs*、/api/avatar*、/api/wellbeing*、/api/profile、/avatar/* 验门后经服务绑定 ACCOUNT 转给账号 Worker（src/router.js FORWARDING）。
+    # 账号路径 /api/account、/api/prefs*、/api/avatar*、/api/profile、/avatar/* 验门后经服务绑定 ACCOUNT 转给账号 Worker（src/router.js FORWARDING）。
     # 部署顺序：ai → status → 账号 → 本 Worker → 奇趣 / 日刻接口 Worker → Pages。服务绑定指向的 ai / status / styrigx-account 要先在。
     # D1：进站 v3 L2b 起是 styrigx-space-core（一个绑定 D1_SPACE、一份基线、记录表 d1_migrations_core）。本 job 自己跑迁移，
     # 再查记录表和表确认真的在库里（只看到 No migrations to apply 不算数）。
@@ -1820,17 +1820,6 @@ jobs:
           }
           forged /api/account || ok=1
           forged /api/prefs || ok=1
-          # 数字健康合计（v5 S3 访问表 public）：没会话 GET 也转发给账号 Worker，回 200（只合计），X-SGX-Runtime: account
-          wb_ok=1
-          for i in 1 2 3 4 5 6; do
-            hdr=$(curl -sS -o /dev/null -D - -w 'HTTP_CODE:%{http_code}\n' -H 'X-Styrigx-Space-Session: 1' "https://styrigx.com/api/wellbeing?smoke=$GITHUB_RUN_ID" || true)
-            code=$(printf '%s' "$hdr" | sed -n 's/^HTTP_CODE://p')
-            rt=$(printf '%s' "$hdr" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-sgx-runtime"{print $2}')
-            echo "/api/wellbeing (forged header) -> $code runtime=${rt:-none} (try $i)"
-            if [ "$code" = "200" ] && [ "$rt" = "account" ]; then wb_ok=0; break; fi
-            sleep 5
-          done
-          [ $wb_ok = 0 ] || { echo "::error::GET /api/wellbeing without session expected 200 from account (public totals)"; ok=1; }
           # 账号运行时标记：公开的头像文件经网关转发，响应保留账号 Worker 的 X-SGX-Runtime: account
           avatar_ok=1
           for i in 1 2 3 4 5 6; do
@@ -1961,11 +1950,6 @@ jobs:
           ok=0
           check /api/prefs || ok=1
           check /api/avatar || ok=1
-          # 数字健康合计（v5 S3 访问表 public）：伪造头也只能拿到合计——200 + detail=false + items 为空
-          wb=$(curl -sS -H 'X-Styrigx-Space-Session: 1' -H 'X-Styrigx-Space-By: password' "https://styrigx.com/api/wellbeing?smoke=$GITHUB_RUN_ID" || true)
-          echo "forged /api/wellbeing -> $(printf '%s' "$wb" | jq -c '{ok,detail,items:(.items|length)}' 2>/dev/null || echo unparsable)"
-          printf '%s' "$wb" | jq -e '.ok == true and .detail == false and (.items | length) == 0' >/dev/null \
-            || { echo "::error::forged identity headers on /api/wellbeing must only yield public totals"; ok=1; }
           # 网关的接口和页面没被抢走
           for p in /api/lock-session-check; do
             code=$(curl -sS -o /dev/null -w '%{http_code}' "https://styrigx.com$p" || true)

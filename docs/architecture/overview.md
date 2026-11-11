@@ -1,5 +1,7 @@
 # 系统总览
 
+> 已被 v6 定稿取代（见 `docs/decisions/ADR-0006-identity-v6.md`）。
+
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-ARCH-001 |
@@ -35,7 +37,7 @@ styrigx-space-core（路由 styrigx.com/*）
   └─ /api/*
        ├─ 访问表 ROUTE_ACCESS（gate.js）：公开清单之外一律要进站会话，否则 401
        ├─ API_ROUTES（进站凭证、分享、find、geo、status、ai …）→ 本 Worker 处理
-       ├─ FORWARDING（/api/account* /api/prefs* /api/avatar* /api/wellbeing* /api/profile*、/avatar/*）
+       ├─ FORWARDING（/api/account* /api/prefs* /api/avatar* /api/profile*、/avatar/*）
        │     → 服务绑定 ACCOUNT（AccountService）→ styrigx-account
        ├─ /api/ai → 服务绑定 AI_SERVICE → styrigx-ai（SSE 原样流回）
        └─ /api/status → 服务绑定 STATUS → styrigx-status
@@ -56,7 +58,7 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 | Worker | 管什么 | 进入方式 |
 |---|---|---|
 | `styrigx-space-core` | 进站会话、进站凭证、reauth / reset 票、分享链接（含链接会话）、关键词搜索 `/api/find`、访问表与接口路由转发、安全响应头、CSP 报告 | 路由 `styrigx.com/*` |
-| `styrigx-account` | 账号密码 / 通行密钥、账号 session / reauth / reset、已登录设备、应用授权、头像与个人资料、设置云同步、数字健康 | 服务绑定 `ACCOUNT`（AccountService）、`ACCOUNT_VERIFIER`（AccountVerifier.authorize）、`JOB_ACCOUNT`（AccountJanitor，status 每日一轮） |
+| `styrigx-account` | 账号密码 / 通行密钥、账号 session / reauth / reset、已登录设备、应用授权、头像与个人资料、设置云同步（数字健康 v6 P4 删除） | 服务绑定 `ACCOUNT`（AccountService）、`ACCOUNT_VERIFIER`（AccountVerifier.authorize）、`JOB_ACCOUNT`（AccountJanitor，status 每日一轮） |
 | `styrigx-ai` | 站内对话：召回（关键词 + Vectorize 语义 + 奇趣只读查询）+ 模型流式回答 | 服务绑定 `AI_SERVICE` |
 | `styrigx-status` | 站点监测（每分钟）、Cloudflare 用量（每小时）、每日任务（经服务绑定 `JOB_SPACE` 清理过期 / 作废的分享链接；`JOB_ACCOUNT` 删到期满 30 天的用户，v6 P2c） | 服务绑定 `STATUS` |
 | `styrigx-curio-core` | 奇趣数据接口 | 路由 `styrigx.com/curio/api/*` |
@@ -139,7 +141,6 @@ proxy-rules.styrigx.com   → styrigx-proxy-rules（自定义域名，不经站�
 | `curio.write` | 奇趣 | 写接口 403 `scope`；读不变 |
 | `daymark.write` | 日刻 | 同上 |
 | `prefs.sync` | 设置同步 | `/api/prefs` 403 `scope`，只存本机 |
-| `wellbeing.write` | 数字健康 | `POST /api/wellbeing` 204 丢弃 |
 | `avatar.write` | 头像 | `PUT` / `DELETE /api/avatar` 403 `scope` |
 | `profile.write` | 个人资料 | `PUT /api/profile` 403 `scope` |
 

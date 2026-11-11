@@ -17,11 +17,6 @@ async function setUi(context, baseURL, ui) {
   await context.addCookies([{ name: 'sgx-ui', value: enc(ui), domain: u.hostname, path: '/' }]);
 }
 
-test.beforeEach(async ({ page }) => {
-  // 不让测试真的上报到线上主站
-  await page.route('https://styrigx.com/api/wellbeing', (r) => r.fulfill({ status: 204 }));
-});
-
 test('首帧应用调色板/深色/字号，换页后保持', async ({ page, context, baseURL }) => {
   await setUi(context, baseURL, {
     v: 2,
@@ -65,26 +60,4 @@ test('切换调色板会改变主色', async ({ page, context, baseURL }) => {
     getComputedStyle(document.documentElement).getPropertyValue('--sgx-primary').trim(),
   );
   expect(cherry).not.toBe(base);
-});
-
-test('文章页隐藏时上报 post:<slug>', async ({ page }) => {
-  let body = null;
-  await page.unroute('https://styrigx.com/api/wellbeing');
-  await page.route('https://styrigx.com/api/wellbeing', async (r) => {
-    body = r.request().postData();
-    await r.fulfill({ status: 204 });
-  });
-  await page.goto('/blog/zh/post/2026-10-11-agent-collaboration-whitepaper-v2/');
-  await page.mouse.click(5, 300);
-  await page.waitForTimeout(5600);
-  await page.mouse.click(5, 300);
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', { get: () => 'hidden', configurable: true });
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await expect.poll(() => body, { timeout: 5000 }).not.toBeNull();
-  const b = JSON.parse(body);
-  expect(b.s[0].k).toBe('post:2026-10-11-agent-collaboration-whitepaper-v2');
-  expect(b.s[0].sec).toBeGreaterThanOrEqual(5);
-  expect(b.s[0].t).toBeTruthy();
 });
