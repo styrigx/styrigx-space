@@ -7,8 +7,8 @@
  *   点卡片在新标签页打开网址。
  * - 能编辑（接口回 canWrite：账号已登录 + 作用域 curio.write）：页头命令链「收藏 / 管理分类 / 导入书签 / 导出书签」；长按卡片（或键盘 E 键）编辑。
  *   编辑弹层：网址（「自动填写」抓标题、简介、图标）、名字、英文名和英文简介、简介、分类（可就地新建）、自定义图标、仅自己可见、上移 / 下移、删除。
- * - 不能编辑（canWrite=false）：命令链里只有一条「sudo root」（#cu-signin，signinHint）：
- *   没登录账号 →「登录账号后可编辑」，点了打开顶栏账号终端（P3-1 同意流程：登录完先判授权，没授权 [y]/[n]，完了关面板回本页）；
+ * - 不能编辑（canWrite=false）：命令链里只有一条（#cu-signin，signinHint）：
+ *   没登录 →「su · su 登录后可编辑」，点了打开顶栏终端、预填 su （2c，v6 割接；data-sec-open）；
  *   已登录但奇趣没有 curio.write（在 账号 › 应用授权 取消过）→「奇趣未获账号授权」，打开应用授权那一层。写接口回 403 scope 也提示这一句。
  *   写接口回 401 account / 403 scope 时也提示这一句；导入回 401 reauth（要账号复验）时给「去验证」：打开账号终端只做 sudo root reauth，验过后当场重发导入，关下拉 reauth 即失效（#327 偏离修复）。
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
@@ -225,14 +225,27 @@ function errText(e){
  */
 function signinHint(loggedIn){
   if (loggedIn) return { text: T.noScope, open: 'apps', app: '' };
-  return { text: T.signin, open: '', app: 'curio' };
+  /* 2c（v6 割接）：没登录 → 指向 su（打开顶栏终端，data-sec-open：没登录预填 su ）；上面那条旧账号会话没授权的分支 P4 删 */
+  return { text: T.signin, open: '', app: '', su: true };
 }
-/** 入口链接：data-acct-open / data-acct-app，href 留没 JS 时的退路（本语言首页 #acct=…） @param {Element} a @param {{open: string, app: string}} h */
+/** 入口链接：su（data-sec-open，退路 #sec）或旧账号入口（data-acct-open / data-acct-app，退路 本语言首页 #acct=…） @param {Element} a @param {{open: string, app: string, su?: boolean}} h */
 function setAcctOpen(a, h){
+  var base = (a.getAttribute('href') || '/').replace(/#.*$/, '');
+  var k = a.querySelector('.sgx-cmd-k');
+  if (h.su) {
+    /* 2c：su 入口——data-sec-open（顶栏终端，没登录预填 su ），退路 本语言首页 #sec */
+    a.removeAttribute('data-acct-open');
+    a.removeAttribute('data-acct-app');
+    a.setAttribute('data-sec-open', '');
+    a.setAttribute('href', base + '#sec');
+    if (k) k.textContent = 'su';
+    return;
+  }
+  a.removeAttribute('data-sec-open');
   a.setAttribute('data-acct-open', h.open);
   if (h.app) a.setAttribute('data-acct-app', h.app); else a.removeAttribute('data-acct-app');
-  var base = (a.getAttribute('href') || '/').replace(/#.*$/, '');
   a.setAttribute('href', base + '#acct' + (h.open ? '=' + h.open : '') + (h.app ? '&app=' + h.app : ''));
+  if (k) k.textContent = 'sudo root';
 }
 
 /** 长按（≈550ms，手指不挪）触发 fn；触发后吞掉随后的那次点击（不打开网址） */

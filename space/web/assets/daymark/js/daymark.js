@@ -11,8 +11,8 @@
  * - 拾录：全部句子，新的在前；没有搜索。能编辑：页头命令「touch trove/ + 记一句」，点句子进编辑；私密句子带小锁（showPrivate：账号已登录）。
  * - 百味：先是自建专题（能编辑时多一张「＋ 新建」），再是按作者自动分组的「人物」；点进去是该组的句子（页内返回）。
  *   能编辑时在自建专题里可以上移 / 下移 / 移出句子、删专题。
- * - 不能编辑（canWrite=false）：余响命令链里多一条「sudo root」（#dm-signin，signinHint）：没登录账号 →「登录账号后可编辑」，点了打开顶栏账号终端
- *   （P3-1 同意流程，完了回本页）；已登录但日刻没有 daymark.write → 「日刻未获账号授权」，打开应用授权那一层。写接口回 401 account / 403 scope 分别提示这两句。
+ * - 不能编辑（canWrite=false）：余响命令链里多一条（#dm-signin，signinHint）：没登录 →「su · su 登录后可编辑」，点了打开顶栏终端、预填 su （2c）
+ *   已登录（旧账号会话）但日刻没有 daymark.write → 「日刻未获账号授权」，打开应用授权那一层。写接口回 401 account / 403 scope 分别提示这两句。
  * - 记一句（底部弹层）：顶部实时预览；句子；「＋ 加译文」；作者（自动补全 + 最近作者）；出处（类型 + 名字自动补全）；
  *   归入百味（多选 + 就地新建）；标签（回车 / 逗号成块，推荐已有标签）；随手一笔（只有账号已登录看得到）；公开开关。
  *
@@ -336,7 +336,7 @@ function send(method, url, body){
     });
   });
 }
-/** 写失败的提示：没登录账号 / 没授权 →「登录账号后可编辑」，其余通用 */
+/** 写失败的提示：没登录账号 / 没授权 →「su 登录后可编辑」，其余通用 */
 /* 2b：403 forbidden = v6 身份档不够（不在 daymark-write，或删整个专题不是 root） */
 function failText(e){ var c = e && e.code; return c === 'account' ? T.needAccount : c === 'scope' ? T.noScopeErr : c === 'forbidden' && T.noPermission ? T.noPermission : T.failed; }
 /**
@@ -346,14 +346,27 @@ function failText(e){ var c = e && e.code; return c === 'account' ? T.needAccoun
  */
 function signinHint(loggedIn){
   if (loggedIn) return { text: T.noScope, open: 'apps', app: '' };
-  return { text: T.signin, open: '', app: 'daymark' };
+  /* 2c（v6 割接）：没登录 → 指向 su（打开顶栏终端，data-sec-open：没登录预填 su ）；上面那条旧账号会话没授权的分支 P4 删 */
+  return { text: T.signin, open: '', app: '', su: true };
 }
-/** 入口链接：data-acct-open / data-acct-app，href 留没 JS 时的退路（本语言首页 #acct=…） @param {Element} a @param {{open: string, app: string}} h */
+/** 入口链接：su（data-sec-open，退路 #sec）或旧账号入口（data-acct-open / data-acct-app，退路 本语言首页 #acct=…） @param {Element} a @param {{open: string, app: string, su?: boolean}} h */
 function setAcctOpen(a, h){
+  var base = (a.getAttribute('href') || '/').replace(/#.*$/, '');
+  var k = a.querySelector('.sgx-cmd-k');
+  if (h.su) {
+    /* 2c：su 入口——data-sec-open（顶栏终端，没登录预填 su ），退路 本语言首页 #sec */
+    a.removeAttribute('data-acct-open');
+    a.removeAttribute('data-acct-app');
+    a.setAttribute('data-sec-open', '');
+    a.setAttribute('href', base + '#sec');
+    if (k) k.textContent = 'su';
+    return;
+  }
+  a.removeAttribute('data-sec-open');
   a.setAttribute('data-acct-open', h.open);
   if (h.app) a.setAttribute('data-acct-app', h.app); else a.removeAttribute('data-acct-app');
-  var base = (a.getAttribute('href') || '/').replace(/#.*$/, '');
   a.setAttribute('href', base + '#acct' + (h.open ? '=' + h.open : '') + (h.app ? '&app=' + h.app : ''));
+  if (k) k.textContent = 'sudo root';
 }
 function toast(msg){
   var el = $('#bk-toast');

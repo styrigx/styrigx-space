@@ -171,3 +171,15 @@ export function writeAccountConclusion(headers, account) {
   if (a.reauth) headers.set(ACCOUNT_CONCLUSION_HEADERS.reauth, '1');
   return headers;
 }
+
+/**
+ * 2c（v6 割接）：v6 身份够得上 AI 私密档（账号 Worker ROUTE_ACCESS POST /api/ai 的 action private，经 permits() 判）时写的结论头：
+ * 先剥，再只写 X-Styrigx-Account-Session: 1（styrigx-ai 只看这一个头决定私密召回 / 能不能切模型；v6 没有旧账号设备与作用域，不写）。
+ * @param {Headers} headers 要写的头（就地改）
+ * @returns {Headers}
+ */
+export function writeV6PrivateConclusion(headers) {
+  stripAccountConclusion(headers);
+  headers.set(ACCOUNT_CONCLUSION_HEADERS.session, '1');
+  return headers;
+}

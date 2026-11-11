@@ -3,6 +3,7 @@
  * v5 S3（整站放开）起页面对所有人都是同一份内容，守卫不再盖遮罩：
  * - 读网关注入的 <html data-sgx-lock-session>（valid / locked；没有 = 页面没经过网关，按没进站算，不画锁屏）
  * - valid：绑自动回锁（切回前台问服务端，401 → 重载，服务端画访客态页面；2b：有 v6 登录标记时先问 whoami，v6 身份还在就不重载）
+ * - 2c：v6 su / exit / lock 之后顶栏就地切标记（SESSION_EVENT live），这里切成 valid 时补绑自动回锁；标记是 locked 时自动回锁不查
  * - v5 S5 起没有锁屏界面了：进站是在终端里 sudo styrigx（shell/space/layer.js）。旧地址 ?entry=…（分享链接失效时网关回的 /?entry=1、旧书签）
  *   由终端接（topbar-panel.js：打开终端、预填 sudo styrigx；?entry=sudo 直接跑），守卫只负责已解锁页面的自动回锁
  * 进门二值（P2-3）：没有等级；进门之后的事（锁侧复验、账号）由各接口自己要。
@@ -37,6 +38,10 @@ export function isLocalDev() {
    - 已解锁页面切回前台：问服务端，401 → 重载（服务端画访客态）。立即锁定 = 服务端清 cookie。
    - 本地 sessionStorage 只记「刚跳过哪里」防死循环，从不记解锁状态。
    ============================================================ */
+
+/** 页面标记变了的事件（window 上，detail { ok, live }）：首帧 initLock 发一次（没有 live）；2c 起 v6 su / exit / lock 之后
+ *  顶栏（topbar-panel.js switchPageSession）就地切标记时发 live: true，云同步 / 名片 / AI 窗口 / 服务状态页各自接，不整页刷新 */
+export const SESSION_EVENT = 'sgx:session';
 
 /** @returns {'valid'|'locked'|'unknown'} */
 export function pageState() {
@@ -158,6 +163,8 @@ export function v6SignedIn() {
    v6 身份还在就不重载（重载了服务端照样画 valid，每次切回前台都会白刷一次），没了才重载。 */
 let lastLockCheck = 0;
 function checkSessionForAutoLock() {
+  /* 2c：v6 exit / lock 就地切回 locked 的页面不再查（访客态已经画好了，查了只会白刷一次） */
+  if (pageState() !== 'valid') return;
   const now = Date.now();
   if (now - lastLockCheck < 5000) return;
   lastLockCheck = now;
@@ -201,4 +208,6 @@ export function initLock() {
     window.dispatchEvent(new CustomEvent('sgx:session', { detail: { ok: state === 'valid' } }));
   } catch (e) {}
   if (state === 'valid') bindAutoLock();
+  /* 2c：su 之后就地切成 valid 的页面也绑自动回锁 */
+  window.addEventListener(SESSION_EVENT, function (/** @type {any} */ e) { if (e && e.detail && e.detail.live && e.detail.ok) bindAutoLock(); });
 }

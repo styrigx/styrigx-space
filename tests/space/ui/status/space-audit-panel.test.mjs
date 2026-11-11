@@ -105,9 +105,10 @@ test('apps/space-status.js：只在折叠区展开时请求 /api/space-audit；�
   assert.equal((js.match(/fetch\(AUDIT_API/g) || []).length, 1, '只有一处请求');
   const code = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert.equal((code.match(/\/api\/space-audit/g) || []).length, 1, '代码里地址只出现在 AUDIT_API 常量');
-  /* 调用 loadAudit() 的地方只有两处：toggle（且 open）和「重试」按钮 */
+  /* 调用 loadAudit() 的地方只有三处：toggle（且 open）、「重试」按钮、2c 页面标记就地切（且展开着） */
   const calls = [...js.matchAll(/(?<!function )\bloadAudit\(\)/g)].map((m) => js.slice(Math.max(0, m.index - 160), m.index));
-  assert.equal(calls.length, 2, 'loadAudit() 调用处：toggle + 重试');
+  assert.equal(calls.length, 3, 'loadAudit() 调用处：toggle + 重试 + 就地切（展开着才取）');
+  assert.ok(calls.some((c) => /auditState = 'idle';\s*if \(auditEl && auditEl\.open\)\s*$/.test(c)), '2c：就地切时只在展开着才重取');
   assert.ok(calls.some((c) => /'toggle'[\s\S]*auditEl\.open\)\s*$/.test(c)), '展开时才取');
   assert.ok(calls.some((c) => /data-audit-retry[\s\S]*auditState = 'idle';\s*$/.test(c)), '重试');
   const visible = js.slice(js.indexOf('visibleInterval(() =>'));

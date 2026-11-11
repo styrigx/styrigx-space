@@ -67,7 +67,7 @@ async function mockMovies(page, can) {
   return calls;
 }
 
-test('电影（无权限）：只读封面卡——没有新建命令、条目页没有编辑；命令链「sudo root · 登录账号后可编辑」；胶囊 = 电影', async ({ page }) => {
+test('电影（无权限）：只读封面卡——没有新建命令、条目页没有编辑；命令链「su · su 登录后可编辑」；胶囊 = 电影', async ({ page }) => {
   await mockMovies(page, false);
   await page.goto('/curio/zh/');
   await page.locator('#cu-tabs [data-ctab="movies"]').click();
@@ -79,7 +79,7 @@ test('电影（无权限）：只读封面卡——没有新建命令、条目�
   await expect(page.locator('#mv-list [data-movie="1"] .sgx-cc-im img')).toHaveCount(1);
   await expect(page.locator('#cu-tabs [data-cu-count="movies"]')).toHaveText('2');
   await expect(page.locator('#mv-fab')).toBeHidden();
-  await expect(page.locator('#cu-signin [data-signin-text]')).toHaveText('登录账号后可编辑');
+  await expect(page.locator('#cu-signin [data-signin-text]')).toHaveText('su 登录后可编辑');
   await page.locator('#mv-list [data-movie="1"]').click();
   await expect(page).toHaveURL(/\/curio\/zh\/movies\/\?id=1$/);
   await expect(page.locator('#cu-item .sgx-crumb')).toContainText('cat ~/curio/movies/');

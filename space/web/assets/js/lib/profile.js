@@ -231,9 +231,24 @@ export function initProfile() {
   if (inited || typeof document === 'undefined') return;
   inited = true;
   if (!document.querySelector('[data-sgx-profile]')) return;
+  window.addEventListener('sgx:session', function (/** @type {any} */ e) {
+    const d = e && e.detail;
+    if (d && d.live && d.ok) refreshProfile();
+  });
   const cached = readCache();
   if (Object.keys(cached).length) applyProfile(effectiveProfile(cached));
   if (doorOpen()) fetchProfile();
+}
+
+/**
+ * 2c：页面标记就地切成 valid（v6 su 之后顶栏发 window 'sgx:session' { ok: true, live: true }）→ 重新问一次 /api/profile（本页之前没进门、没问过，
+ * 或问的是上一个身份的）。页面上没有 [data-sgx-profile] 不动。initProfile 里挂上。
+ * @returns {Promise<any>|null}
+ */
+export function refreshProfile() {
+  if (typeof document === 'undefined' || !document.querySelector('[data-sgx-profile]') || !doorOpen()) return null;
+  pending = null;
+  return fetchProfile();
 }
 
 /** 只供测试：清掉记忆的默认值 / 初始化标记 */

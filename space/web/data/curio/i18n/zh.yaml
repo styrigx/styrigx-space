@@ -156,7 +156,7 @@ curioItemView:
   edit: 编辑
   close: 关闭
 curioSignin:
-  signInToYour: 登录账号后可编辑
+  signInToYour: su 登录后可编辑
 list:
   grep: 筛选
   grepPh: 名字或 #标签
@@ -216,9 +216,9 @@ js:
     makePublic: 公开
     up: 上移
     down: 下移
-    needAccount: 登录账号后可编辑。
+    needAccount: su 登录后可编辑。
     needReauth: 导入要再验证一次账号：在账号终端里验证后会立刻接着导入。
-    signin: 登录账号后可编辑
+    signin: su 登录后可编辑
     noScope: 奇趣未获账号授权
     noScopeErr: 奇趣未获账号授权。
     verifyNow: 去验证
@@ -256,7 +256,7 @@ js:
     empty: 这里还空着。
     noMatch: 这个筛选下没有。
     needName: 起个名字。
-    needAccount: 登录账号后可编辑。
+    needAccount: su 登录后可编辑。
     noScope: 奇趣未获账号授权。
     badDate: 日期不对，检查一下。
     failed: 出了点问题，请再试一次。

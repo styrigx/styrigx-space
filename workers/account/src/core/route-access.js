@@ -17,6 +17,8 @@
  * 9. owner：站长档（= styrigx 的 uid；名片属于站长），root 由 permits 第 2 步放行（P2）。
  * 10. private（割接）：公开读接口里的私密行与 canWrite 提示——GET 路由档是 public（谁都能读公开部分），actions.private 是能看私密行的那一档
  *    （= 对应的写组）；子站接口 Worker 读完路由后按 action 'private' 问 admit（同一张表、同一个 permits），不自己比组。
+ *    2c：POST /api/ai 也挂 private（= owner：站长 styrigx + root）——AI 回答召回私密条目、能切模型（GET /api/ai 的 canChoose 问同一条）；
+ *    跨奇趣 / 日刻 / 博客的私密内容，对应旧「账号会话」（= 站长本人），不按某一个写组。
  *
  * 判断不在这里：这张表只回答「要哪一档」，够不够由 core/groups.js permits() 判断（全站唯一一处）。
  * 没有公开地址、只经服务绑定 / RPC 进来的入口不进表，列在 SERVICE_ONLY（盘点用）。
@@ -42,7 +44,7 @@ const R = (r) => Object.freeze(Object.assign({ host: MAIN_HOST }, r, r.actions ?
 /** @type {ReadonlyArray<Readonly<RouteRule>>} */
 export const ROUTE_ACCESS = Object.freeze([
   /* ---------- 站点核心 styrigx-space-core 自己的接口（workers/space-core/src/router.js API_ROUTES） ---------- */
-  R({ method: 'POST', path: '/api/ai', level: 'ai', worker: 'space-core', why: 'AI 对话（转 styrigx-ai /ask）' }),
+  R({ method: 'POST', path: '/api/ai', level: 'ai', worker: 'space-core', why: 'AI 对话（转 styrigx-ai /ask；私密召回与切模型只给 owner，见 actions.private）', actions: { private: 'owner' } }),
   R({ method: 'GET', path: '/api/ai', level: 'ai', worker: 'space-core', why: 'AI 可选模型列表（转 styrigx-ai /models）' }),
   R({ method: 'GET', path: '/api/find', level: 'public', worker: 'space-core', why: '关键词搜索，只回公开页面元数据（IP 限流）' }),
   R({ method: 'GET', path: '/api/geo', level: 'public', worker: 'space-core', why: '只回调用者自己的城市 / 时区' }),

@@ -154,7 +154,7 @@ test('后端名字只在 api.js：入口、action 名、请求字段、状态字
   }
 });
 
-test('旧账号整页删干净；/account/* 都 301 到本语言首页 #acct=<层>；奇趣 / 日刻 sudo root 在终端里登录 + 授权同意', () => {
+test('旧账号整页删干净；/account/* 都 301 到本语言首页 #acct=<层>；奇趣 / 日刻入口指向 su（2c）', () => {
   for (const p of ['layouts/_default/account.html', 'layouts/_default/account-security.html', 'layouts/_default/account-devices.html', 'layouts/_default/account-apps.html',
     'layouts/_default/account-profile.html', 'layouts/_default/account-reset.html', 'content/account.md', 'content/zh/account.md', 'assets/js/apps/account.js',
     'assets/js/apps/account-security.js', 'assets/js/entries/entry-account.js', 'assets/js/shell/account-term.js', 'layouts/partials/sgx-account-card.html']) {
@@ -168,11 +168,12 @@ test('旧账号整页删干净；/account/* 都 301 到本语言首页 #acct=<�
   const tp = rd('space/web/assets/js/shell/topbar-panel.js');
   assert.match(tp, /\/\^#acct\(\?:=\(\[a-z\]\*\)\)\?\(\?:&app=\(\[a-z\]\+\)\)\?\$\//, '#acct=<层>&app=<应用>');
   assert.match(tp, /closest\('\[data-acct-open\]'\)/);
+  /* 2c（v6 割接）：奇趣 / 日刻「su 登录后可编辑」入口改指向 su（data-sec-open，打开终端预填 su ）；旧账号授权同意那层只剩「未获授权」分支（JS 换回 data-acct-open） */
   const cu = rd('space/web/layouts/partials/curio/signin.html');
-  assert.match(cu, /data-acct-open="" data-acct-app="curio"/);
-  assert.match(cu, />sudo root</);
+  assert.match(cu, /id="cu-signin" class="sgx-cmd hidden" data-sec-open=""/);
+  assert.match(cu, />su</);
   const dm = rd('space/web/layouts/daymark/section.html');
-  assert.equal((dm.match(/data-acct-open="" data-acct-app="daymark"/g) || []).length, 2);
+  assert.equal((dm.match(/data-dm-signin class="sgx-cmd hidden" data-sec-open=""/g) || []).length, 2);
   assert.doesNotMatch(dm + cu, />sudo login</);
   assert.doesNotMatch(rd('space/web/assets/curio/js/curio.js') + rd('space/web/assets/daymark/js/daymark.js'), /\?return=|\/account\//);
 });
