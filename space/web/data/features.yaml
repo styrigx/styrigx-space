@@ -14,28 +14,28 @@ features:
     user: true
     type: enum
     options:
-      - {id: dustyblue}
-      - {id: lake}
-      - {id: glacier}
-      - {id: indigo}
-      - {id: teal}
-      - {id: violet}
-      - {id: forest}
-      - {id: matcha}
-      - {id: sage}
       - {id: cherry}
       - {id: tangerine}
-      - {id: coral}
       - {id: terra}
       - {id: amber}
-      - {id: mustard}
-      - {id: champagne}
-      - {id: rose}
-      - {id: berry}
+      - {id: matcha}
+      - {id: forest}
+      - {id: teal}
+      - {id: lake}
+      - {id: indigo}
+      - {id: violet}
       - {id: orchid}
-      - {id: dustyrose}
+      - {id: berry}
+      - {id: rose}
       - {id: graphite}
+      - {id: dustyrose}
+      - {id: coral}
       - {id: cream}
+      - {id: champagne}
+      - {id: mustard}
+      - {id: sage}
+      - {id: glacier}
+      - {id: dustyblue}
     default: terra
     key: sgx-palette
     section: ""  # 对齐 PR-C：风格页（/theme/）退役，调色板只在顶栏外观弹层，不进搜索索引

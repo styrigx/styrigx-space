@@ -99,9 +99,9 @@
       <p class="sgx-th-h" id="sgx-th-pal">{{ $t.topbar.paletteKey }}</p>
       <button type="button" class="sgx-th-reset" data-qp-reset aria-disabled="true" aria-label="{{ $t.topbar.reset }}" title="{{ $t.topbar.reset }}" translate="no">reset</button>
     </div>
-    {{- /* 色板行（设计稿 tb4.html pop=1）：6 色色块（体系保留）· 等宽小写英文名（tr.paletteTerm，各语言同一份；读屏另念本语言名）· 当前 ✓ */}}
+    {{- /* 色板行（设计稿 tb4.html pop=1）：6 色色块（体系保留）· 本语言名（tr.palette：中文页 zh、英文页 en；2026-11-12 Gray 改设计，推翻 #318 的等宽小写英文名 tr.paletteTerm）· 当前 ✓ */}}
     <div class="sgx-th-pals" role="group" aria-labelledby="sgx-th-pal">
-      {{- range .pal }}<button type="button" class="sgx-th-pal" data-qp-palette="{{ .id }}" style="{{ .style | safeCSS }}" aria-pressed="false" aria-label="{{ index $t.palette .id }}"><span class="sgx-th-sw" aria-hidden="true"><u></u><u></u><u></u><u></u><u></u><u></u></span><span class="sgx-th-name" aria-hidden="true" translate="no">{{ index $t.paletteTerm .id | default .id }}</span><em aria-hidden="true">✓</em></button>{{ end }}
+      {{- range .pal }}<button type="button" class="sgx-th-pal" data-qp-palette="{{ .id }}" style="{{ .style | safeCSS }}" aria-pressed="false" aria-label="{{ index $t.palette .id }}"><span class="sgx-th-sw" aria-hidden="true"><u></u><u></u><u></u><u></u><u></u><u></u></span><span class="sgx-th-name" aria-hidden="true">{{ index $t.palette .id | default .id }}</span><em aria-hidden="true">✓</em></button>{{ end }}
     </div>
   </div>
 </dialog>
