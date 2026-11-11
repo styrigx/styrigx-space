@@ -2,7 +2,7 @@
  * v6 身份统一 P2：身份命令 POST /api/identity 与 v6 新会话下的账号接口（经 AccountService 的 serviceFetch，真 SQL：node:sqlite）。
  *
  * 覆盖定稿 v4 §十三「P2 必有测试」与本 PR 的硬要求：
- * - su <用户>：访客 → 普通用户（密码；pepper 方案 a：space pepper 的哈希验对后改成 account）；root 代码级禁止公开登录；
+ * - su <用户>：访客 → 普通用户（密码；v6 P4 起只有账号 pepper，pepper 方案 a 的 space 一档删除）；root 代码级禁止公开登录；
  *   普通用户态不能 su 到另一个普通用户（exit-first）；防枚举（用户不存在 = 密码错，同一个 401 auth）；两维限流
  * - su root：仅 wheel；压 root 层；who 路径 root via styrigx；exit 弹一层；idle 只弹 root 层；lock 删会话行
  * - sudo：每次输自己的凭据，借 root 执行一条，不压栈；sudo passwd root / passwd-user root / passkey 一律拒（root-creds）
@@ -36,7 +36,7 @@ const { _resetUidSchemaCache } = await import(SRC + 'lib/uid-schema.js');
 
 const ORIGIN = 'https://styrigx.com';
 const PEP_A = 'pepper-account-test';
-const PEP_S = 'pepper-space-test';
+const PEP_S = 'pepper-space-test'; /* v6 P4：旧 pepper 已删，只用来造一条「space」哈希，验它验不过 */
 const PW = { root: 'root-pass-01', styrigx: 'sty-pass-01', alice: 'alice-pass-01', temp: 'temp-pass-01' };
 
 function makeKv() {
@@ -57,7 +57,7 @@ async function setup() {
   _resetSecretCache();
   const env = {
     SGX_ENV: 'production', SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN,
-    SGX_ACCOUNT_PASSWORD_PEPPER: PEP_A, SGX_SPACE_PASSWORD_PEPPER: PEP_S,
+    SGX_ACCOUNT_PASSWORD_PEPPER: PEP_A,
     D1_ACCOUNT: makeAccountD1({ migrations: 'pre-uid' }), KV_PROFILE: makeKv(), /* 迁移前的表；用例里自己 exec 0007 测迁移后 */
     ASSETS: { fetch: async () => new Response('DEFAULT', { status: 200 }) },
   };
@@ -71,7 +71,7 @@ async function setup() {
     }
   };
   await addUser(0, 'root', PW.root);
-  await addUser(1000, 'styrigx', PW.styrigx, { groups: ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'], pepperId: 'space' });
+  await addUser(1000, 'styrigx', PW.styrigx, { groups: ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] });
   await addUser(1001, 'alice', PW.alice, { groups: ['listen'] });
   await addUser(1002, 'temp', PW.temp, { expiresAt: Date.now() + 30 * 86400000 });
   return env;
@@ -110,7 +110,7 @@ async function rescueToken(env) {
 
 /* ---------------- su / exit / lock / idle ---------------- */
 
-test('su styrigx：访客 → 普通用户；cookie HttpOnly / Secure / SameSite=Lax / 30 天；pepper 方案 a：space 哈希验对后改成 account；审计不含密码', async () => {
+test('su styrigx：访客 → 普通用户；cookie HttpOnly / Secure / SameSite=Lax / 30 天；账号 pepper；审计不含密码', async () => {
   const env = await setup();
   const r = await id(env, { action: 'su', user: 'styrigx', password: PW.styrigx }, undefined, freshIp());
   assert.equal(r.status, 200);
@@ -120,13 +120,13 @@ test('su styrigx：访客 → 普通用户；cookie HttpOnly / Secure / SameSite
   const c = r.cookies.find((x) => x.startsWith('sgx-session='));
   assert.match(c, /^sgx-session=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000$/);
   assert.ok(r.cookies.includes('sgx-id=1; Path=/; Secure; SameSite=Lax; Max-Age=2592000'), '登录标记（非 HttpOnly、值固定 1，P2b）');
-  assert.equal(rows(env, 'SELECT pepper_id FROM account_user_password WHERE uid = 1000')[0].pepper_id, 'account', '登录成功用账号 pepper 重算');
+  assert.equal(rows(env, 'SELECT pepper_id FROM account_user_password WHERE uid = 1000')[0].pepper_id, 'account');
   const s = rows(env, 'SELECT uid, rescue FROM account_sessions');
   assert.deepEqual(s, [{ uid: 1000, rescue: 0 }]);
   assert.notEqual(rows(env, 'SELECT id FROM account_sessions')[0].id, tokenOf(r), '库里存的是令牌的哈希');
   const w = await id(env, { action: 'whoami' }, tokenOf(r));
   assert.equal(w.json.user.path, 'styrigx');
-  /* 换了 pepper 之后用同一密码还能登 */
+  /* 同一密码再登一次 */
   await login(env, 'styrigx');
   const audits = rows(env, 'SELECT command FROM account_user_audit').map((x) => x.command);
   assert.ok(audits.includes('su styrigx'));
@@ -448,7 +448,7 @@ test('救援会话：白名单 whoami / passwd / passkey / groups / exit / lock 
     assert.equal(c.allowed, false, m + ' ' + p);
     assert.equal(c.rescue, true);
   }
-  assert.equal((await AD.admitRoute(env, req, 'POST', '/api/account/keys')).allowed, true, '标了救援的路由');
+  assert.equal((await AD.admitRoute(env, req, 'POST', '/api/account/keys')).allowed, false, 'v6 P4：旧账号钥匙接口删除，路由表里没有这一条（救援只剩 /api/identity 的白名单）');
   /* 救援 exit 直接回访客 */
   const e = await id(env, { action: 'exit' }, rt);
   assert.equal(e.json.user, null);
@@ -719,19 +719,21 @@ test('passkey ls / add / rm：只管自己的；add 的 user.id = 已有钥匙�
   assert.equal(rows(env, 'SELECT * FROM account_user_passkey WHERE uid = 1001').length, 1, 'alice 的钥匙没动');
 });
 
-test('pepper 方案 a：按 pepper_id 取 pepper；不认识的 id → 验不过（fail closed）；缺账号 pepper → 503 config；缺 space pepper → space 哈希验不过', async () => {
+test('pepper：按 pepper_id 取 pepper；v6 P4 起只有 account（space 删除）；不认识的 id / space → 验不过（fail closed）；缺账号 pepper → 503 config', async () => {
   const env = await setup();
   env.D1_ACCOUNT.raw.prepare("UPDATE account_user_password SET pepper_id = 'mystery' WHERE uid = 1001").run();
   assert.equal((await id(env, { action: 'su', user: 'alice', password: PW.alice }, undefined, freshIp())).status, 401);
-  assert.deepEqual(Object.keys(auth.PEPPERS), ['account', 'space']);
+  assert.deepEqual(Object.keys(auth.PEPPERS), ['account']);
+  /* 一条按旧 space pepper 算的哈希：P4 起验不过（部署前已核生产库没有这种行） */
+  const spaceRec = await makePasswordRecord(PW.temp, PEP_S);
+  env.D1_ACCOUNT.raw.prepare("UPDATE account_user_password SET record = ?, pepper_id = 'space' WHERE uid = 1002").run(JSON.stringify(spaceRec));
+  _resetSecretCache();
+  assert.equal((await id({ ...env, SGX_SPACE_PASSWORD_PEPPER: PEP_S }, { action: 'su', user: 'temp', password: PW.temp }, undefined, freshIp())).status, 401, '就算 env 里还有旧 pepper 也不读');
   _resetSecretCache();
   const noA = { ...env, SGX_ACCOUNT_PASSWORD_PEPPER: '' };
   const r = await id(noA, { action: 'su', user: 'styrigx', password: PW.styrigx }, undefined, freshIp());
   assert.equal(r.status, 503);
   assert.equal(r.json.error, 'config');
-  _resetSecretCache();
-  const noS = { ...env, SGX_SPACE_PASSWORD_PEPPER: '' };
-  assert.equal((await id(noS, { action: 'su', user: 'styrigx', password: PW.styrigx }, undefined, freshIp())).status, 401);
   _resetSecretCache();
 });
 
