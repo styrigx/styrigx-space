@@ -39,26 +39,26 @@ function shell({ nobody = true, find, str } = {}) {
 }
 const manNames = async (sh) => (await sh.exec('man')).out.slice(1).map((o) => o.seg[0][1]);
 
-test('listedFor：唯一判断点（audience 是身份数组；缺省都列）', () => {
+test('listedFor：唯一判断点（P4-3：audience 取最低一层，各人看自己这一层及以下，root 看全部；group 只给组员列）', () => {
   const find = { name: 'find', audience: ['nobody'] };
-  const ask = { name: 'ask', audience: ['root6'] };
-  assert.equal(listedFor(find, 'nobody'), true);
-  for (const w of ['u:alice', 'u:root']) assert.equal(listedFor(find, w), false, w);
+  const ask = { name: 'ask', audience: ['user', 'root6'], group: 'ai' };
+  for (const w of ['nobody', 'u:alice', 'u:root']) assert.equal(listedFor(find, w), true, w + '：访客层的命令谁都列');
   assert.equal(listedFor(ask, 'u:root'), true);
-  assert.equal(listedFor(ask, 'u:alice'), false);
+  assert.equal(listedFor(ask, 'u:alice', { name: 'alice', groups: ['ai'] }), true);
+  assert.equal(listedFor(ask, 'u:alice', { name: 'alice', groups: ['listen'] }), false);
   assert.equal(listedFor(ask, 'nobody'), false);
+  assert.equal(listedFor({ name: 'rescue', audience: [] }, 'u:root'), false, '空 audience 不进索引');
   for (const w of ['nobody', 'u:alice', 'u:root']) assert.equal(listedFor({ name: 'cd' }, w), true, w);
 });
 
-test('访客（nobody）：man 列 find 不列 ask；进站后列 ask 不列 find；其余命令两边一样', async () => {
-  const guest = await manNames(shell({ nobody: true }).sh);
-  const entered = await manNames(shell({ nobody: false }).sh);
+test('访客（nobody）：man 列 find 不列 ask；root 看全部（分段：root 层在前、访客层最后）', async () => {
+  const guest = (await manNames(shell({ nobody: true }).sh)).filter(Boolean);
+  const entered = (await manNames(shell({ nobody: false }).sh)).filter(Boolean);
   assert.ok(guest.includes('find') && !guest.includes('ask'), guest.join(','));
-  assert.ok(entered.includes('ask') && !entered.includes('find'), entered.join(','));
-  /* 访客只有 sudo；登录（这里是 v6 root）后多 lock 和账号 / 身份命令；其余通用命令两边一样 */
+  assert.ok(entered.includes('ask') && entered.includes('find'), entered.join(','));
   const common = ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme'];
-  assert.deepEqual(guest, common.concat(['find', 'sudo']));
-  assert.deepEqual(entered.slice(0, 13), common.concat(['ask', 'sudo', 'lock']));
+  assert.deepEqual(guest, common.concat(['find']), 'P4-3：sudo 归站长层（sudoers），访客不列');
+  assert.deepEqual(entered.slice(-11), common.concat(['find']), '访客层在最后');
   for (const n of guest.concat(entered)) assert.ok(COMMANDS.includes(n), n);
   /* man find 一页 */
   const pg = await shell().sh.exec('man find');

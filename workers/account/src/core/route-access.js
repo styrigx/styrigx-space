@@ -56,25 +56,27 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'POST', path: '/api/identity', level: 'public', worker: 'account', why: 'v6 身份命令（P2）：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue；每个 action 一档',
     actions: {
       whoami: 'public', 'su-challenge': 'public', su: 'public', exit: 'public', idle: 'public', lock: 'public', rescue: 'public',
-      passwd: 'user', 'passkey-list': 'user', 'passkey-add-challenge': 'user', 'passkey-add': 'user', 'passkey-delete': 'user', groups: 'user', who: 'user',
+      /* 定稿 v5.5 §五：通行密钥增删与列表 owner（站长 + root）；普通用户只能 passwd 改自己的密码（§八） */
+      passwd: 'user', 'passkey-list': 'owner', 'passkey-add-challenge': 'owner', 'passkey-add': 'owner', 'passkey-delete': 'owner', groups: 'user', who: 'user',
       'sudo-challenge': 'sudoers', sudo: 'sudoers',
       useradd: 'root', userdel: 'root', usermod: 'root', 'passwd-user': 'root',
     },
     rescue: true, rescueActions: ['whoami', 'exit', 'lock', 'passwd', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete', 'groups'] }),
   /* v6 P4：旧账号会话（GET /api/account、/session、/reauth、/reset、/keys）删除 */
-  R({ method: 'POST', path: '/api/account/devices', level: 'user', worker: 'account', why: '已登录设备 = 自己的会话（v6 who 只看自己）',
-    actions: { list: 'user', revoke: 'user', 'revoke-all': 'user' }, decided: 'Gray 2026-11-11 定 user：管自己的会话；root 看全部由 who 做（P2）' }),
+  R({ method: 'POST', path: '/api/account/devices', level: 'owner', worker: 'account', why: '设备会话（全站视图：列出全站会话，2g 按 sgx-device 合并同一台设备）',
+    actions: { list: 'owner', revoke: 'root', 'revoke-all': 'root' },
+    decided: '定稿 v5.5 §五：设备会话的列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图；§七：站长打开账号页时设备卡列表直接可读，只有改动才预填 sudo（Gray 2026-11-11 19:59）→ list owner、revoke / revoke-all root' }),
   R({ method: 'POST', path: '/api/account/proxy', level: 'root', worker: 'account', why: '代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥）',
     actions: { status: 'root', show: 'root', token: 'root', key: 'root', add: 'root', mv: 'root', on: 'root', off: 'root', upload: 'root', rm: 'root' },
     decided: 'Gray 2026-11-11 定 root，不加新组' }),
-  R({ method: 'PUT', path: '/api/avatar', level: 'user', worker: 'account', why: '换自己的头像（v6 头像 = whoami，按 uid）', decided: 'Gray 2026-11-11 定 user：P2 按 uid 分（uid 只取服务端会话，ADR-0006 P2 硬要求）' }),
-  R({ method: 'DELETE', path: '/api/avatar', level: 'user', worker: 'account', why: '删自己的头像（回默认）', del: 'item', decided: 'Gray 2026-11-11 定 user：同上' }),
+  R({ method: 'PUT', path: '/api/avatar', level: 'owner', worker: 'account', why: '换站点头像（全站一份配置，归站长 styrigx）', decided: '定稿 v5.5 §五：avatar、prefs 写入 owner（站长 + root）；§七：全站只有一份配置（Gray 2026-11-11 18:10–18:39）' }),
+  R({ method: 'DELETE', path: '/api/avatar', level: 'owner', worker: 'account', why: '删站点头像（回默认）', del: 'item', decided: '定稿 v5.5 §五：同上' }),
   R({ method: 'GET', path: '/avatar/:file', level: 'public', worker: 'account', why: '头像图片（页面路径）' }),
   R({ method: 'GET', path: '/api/profile', level: 'public', worker: 'account', why: '站点个人资料（公开数据）', decided: 'Gray 2026-11-11 定 public：资料是公开数据（KV_PROFILE 只放公开数据）' }),
   R({ method: 'PUT', path: '/api/profile', level: 'owner', worker: 'account', why: '改站点个人资料（站长资料，不是每个用户一份）',
     decided: 'Gray 2026-11-11 定稿 v4：站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长' }),
-  R({ method: 'GET', path: '/api/prefs', level: 'user', worker: 'account', why: '读自己的设置云同步（偏好归 styrigx，按 uid）', decided: 'Gray 2026-11-11 定 user：P2 加 uid（uid 只取服务端会话）' }),
-  R({ method: 'POST', path: '/api/prefs', level: 'user', worker: 'account', why: '写自己的设置云同步', decided: 'Gray 2026-11-11 定 user：同上' }),
+  R({ method: 'GET', path: '/api/prefs', level: 'user', worker: 'account', why: '读设置云同步（全站一份配置，归站长 styrigx；普通用户只能看）', decided: '定稿 v5.5 §七：全站只有一份配置，普通用户只能看' }),
+  R({ method: 'POST', path: '/api/prefs', level: 'owner', worker: 'account', why: '写设置云同步（全站一份配置）', decided: '定稿 v5.5 §五：avatar、prefs 写入 owner（站长 + root）' }),
   /* v6 P4：数字健康 POST / GET /api/wellbeing 随数字健康整套删除（定稿 v5.5 §四、§五） */
 
   /* ---------- 奇趣接口 styrigx-curio-core（styrigx.com/curio/api/*，不经网关；workers/curio-core/src/routes.js） ---------- */

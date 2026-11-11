@@ -47,3 +47,20 @@ export async function writeUserAudit(env, entry) {
     return false;
   }
 }
+
+/** 状态页审计卡读的命令（定稿 v5.5 §四「进站审计接口与状态页审计卡保留，恢复写入：记录 v6 的 su / sudo」）：su、sudo（定稿 §四 第 39 行；不读登录失败行，Gray 11-11 22:35）*/
+const SU_SUDO_WHERE = "(command = 'su' OR command LIKE 'su %' OR command = 'sudo' OR command LIKE 'sudo %')";
+
+/**
+ * 状态页审计卡（GET /api/space-audit，网关经 AccountVerifier.auditList 读）：最近的 v6 su / sudo 审计，新的在前。
+ * 字段按定稿 v5.5 §十 审计条：uid、命令、时间、IP 前缀（再加结果 ok）。只读；出错抛错（调用方 503）。
+ * @param {any} env @param {{limit:number, since:number, now?:number}} q
+ * @returns {Promise<Array<{ts:number, ipPrefix:string, ok:boolean, uid:number|null, command:string}>>}
+ */
+export async function listSuAudit(env, q) {
+  const now = typeof q.now === 'number' ? q.now : Date.now();
+  const limit = Math.max(1, Math.min(200, Math.floor(Number(q.limit) || 50)));
+  const rows = await onDb(env, async (d) => ((await d.prepare('SELECT ts, uid, command, ok, ip_prefix FROM account_user_audit WHERE ts >= ? AND expires_at > ? AND ' +
+    SU_SUDO_WHERE + ' ORDER BY ts DESC, id DESC LIMIT ?').bind(q.since, now, limit).all()).results) || []);
+  return rows.map((r) => ({ ts: Number(r.ts), ipPrefix: String(r.ip_prefix || ''), ok: Number(r.ok) === 1, uid: r.uid === null || r.uid === undefined ? null : Number(r.uid), command: String(r.command || '') }));
+}

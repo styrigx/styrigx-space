@@ -65,18 +65,30 @@ test('createWho（v6 P4：只有 v6）：首帧访客，refresh 问 whoami 以�
   assert.equal(w.get(), 'nobody', 'drop 回访客');
 });
 
-test('man：访客不列 v6 身份命令；v6 普通用户列 whoami / su / groups / who / lock / passwd；v6 root 再列 useradd / userdel / usermod', async () => {
-  const names = async (w) => (await run(createShell({ act, storage: mem(), who: fixedWho(w) }), 'man')).out.slice(1).map((o) => o.seg[0][1]);
+test('man（P4-3，定稿 v5.5 §四）：按 root → 站长 → 普通用户 → 访客分段、各人只看到自己这一层及以下，root 看全部；ask 按 ai 组、sudo 按 sudoers 组', async () => {
+  const out = async (w, u) => (await run(createShell({ act, storage: mem(), who: Object.assign(fixedWho(w), { v6: () => u || null }) }), 'man')).out.slice(1).map((o) => o.seg[0][1]);
+  const names = async (w, u) => (await out(w, u)).filter(Boolean);
   const n0 = await names('nobody');
-  for (const c of ['whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'lock', 'passwd', 'passkey', 'device', 'profile', 'app', 'sub', 'share']) assert.ok(!n0.includes(c), 'nobody 不列 ' + c);
-  const u = await names('u:alice');
-  /* 割接 2e：passkey 管自己的（定稿 §八），v6 普通用户也列；v6 P4：device / profile 接 v6，普通用户也列 */
-  for (const c of ['whoami', 'su', 'groups', 'who', 'lock', 'passwd', 'passkey', 'device', 'profile', 'sudo', 'exit']) assert.ok(u.includes(c), 'user 列 ' + c);
-  for (const c of ['useradd', 'userdel', 'usermod', 'sub', 'app', 'share']) assert.ok(!u.includes(c), 'user 不列 ' + c);
-  const r = await names('u:root');
-  for (const c of ['whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'passwd', 'lock', 'sub', 'device', 'profile']) assert.ok(r.includes(c), 'root6 列 ' + c);
+  for (const c of ['whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'lock', 'passwd', 'passkey', 'device', 'profile', 'sub', 'sudo', 'ask']) assert.ok(!n0.includes(c), 'nobody 不列 ' + c);
+  assert.ok(n0.includes('find') && n0.includes('man'));
+  const alice = { name: 'alice', owner: false, groups: ['listen', 'ai'] };
+  const u = await names('u:alice', alice);
+  for (const c of ['whoami', 'su', 'groups', 'who', 'lock', 'passwd', 'profile', 'exit', 'ask', 'find']) assert.ok(u.includes(c), 'user 列 ' + c);
+  for (const c of ['passkey', 'device', 'sudo', 'useradd', 'userdel', 'usermod', 'sub', 'app', 'share']) assert.ok(!u.includes(c), 'user 不列 ' + c);
+  assert.ok(!(await names('u:alice', { name: 'alice', owner: false, groups: ['listen'] })).includes('ask'), '不在 ai 组不列 ask');
+  const sty = { name: 'styrigx', owner: true, groups: ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] };
+  const o = await names('u:styrigx', sty);
+  for (const c of ['passkey', 'device', 'sudo', 'ask', 'passwd', 'whoami', 'find', 'man']) assert.ok(o.includes(c), '站长列 ' + c);
+  for (const c of ['useradd', 'userdel', 'usermod', 'sub']) assert.ok(!o.includes(c), '站长不列 root 层 ' + c);
+  const ol = await out('u:styrigx', sty);
+  assert.ok(ol.indexOf('passkey') < ol.indexOf('passwd') && ol.indexOf('passwd') < ol.indexOf('man'), '站长层在前、普通用户层其次、访客层最后');
+  assert.ok(ol.includes(''), '段与段之间空一行');
+  const r = await names('u:root', { name: 'root', root: true, groups: [] });
+  for (const c of ['whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'passwd', 'lock', 'sub', 'device', 'profile', 'passkey', 'sudo', 'ask', 'su', 'find']) assert.ok(r.includes(c), 'root6 看全部：' + c);
+  const rl = await out('u:root', { name: 'root', root: true, groups: [] });
+  assert.deepEqual(rl.slice(0, rl.indexOf('')), ['sub', 'useradd', 'userdel', 'usermod'], 'root 层在最前');
   assert.ok(!r.includes('app'), '应用授权删了（定稿 v5.3 §十二）：root6 也不列 app');
-  assert.ok(!r.includes('su'), 'root 不再列 su');
+  assert.ok(!r.includes('rescue'), 'rescue 不进索引（audience 空）');
   assert.ok(!r.includes('share'), 'v6 P4：share 删了');
 });
 
@@ -206,11 +218,12 @@ test('前台空闲计时（Page Visibility）：可见时累计、隐藏不计�
   assert.equal(fired, 2);
 });
 
-test('接线：头像 = whoami（访客 → su ；已登录（普通用户 / root）→ 账号卡片，定稿 §七 58–61；root 叠 # 标记）；身份层进终端的 layers；登录标记首帧问 whoami', () => {
+test('接线：头像 = whoami（访客 → su ；站长 / root → 账号页；普通用户只作装饰，定稿 v5.5 §七；root 叠 # 标记）；身份层进终端的 layers；登录标记首帧问 whoami', () => {
   const tp = rd('space/web/assets/js/shell/topbar-panel.js');
   assert.match(tp, /if \(!u\) return avGuest\(\) \? GUEST_LINE : '';\n\s*return '';/);
   assert.doesNotMatch(tp, /return u\.wheel \? 'su root' : 'profile'/);
-  assert.match(tp, /'\/avatar\/u' \+ u\.uid \+ '-192\.webp'/);
+  assert.doesNotMatch(tp, /'\/avatar\/u' \+ u\.uid/, 'P4-3：头像一份，归站长（定稿 v5.5 §七），不再按 uid 取');
+  assert.match(tp, /return !!\(u && !u\.root && u\.owner !== true\);/, '普通用户 = 不是 root、不是站长');
   assert.match(tp, /mark\.className = 'sgx-tb-av-root';/);
   assert.match(tp, /return \{ acct: acctTerm, ident: ident \};/);
   assert.match(tp, /if \(who && who\.v6Hinted\(\)\) who\.refresh\(\);/);

@@ -24,10 +24,30 @@ export const ERR = Object.freeze({
 });
 
 /**
+ * sudo 借 root（定稿 v5.5 §四「后台数据控制……一律 root 档，站长用 sudo 提权、不必 su root」；§七「站长预填 sudo …」）：
+ * 终端 sudo device … / sudo sub … 跑这一条命令时由身份层（shell/identity/layer.js sudoProof）给一个「证明」来源，
+ * 这条命令里每次调账号接口都改走 POST /api/identity { action:'sudo', password | {cid, credential}, command:{ method, path, body } }
+ * （服务端 api/sudo-route.js：每次验自己的凭据、不发票据、不压栈；回的就是那条接口的响应，形状不变）。
+ * 下一条命令开始前清掉（setSudo(null)）。
+ * @type {null | (() => Promise<any>)}
+ */
+let sudoVia = null;
+/** 这一条命令走不走 sudo（null = 不走） @param {null | (() => Promise<any>)} via */
+export function setSudo(via) { sudoVia = typeof via === 'function' ? via : null; }
+/** 现在是不是 sudo 这一条命令 */
+export function sudoOn() { return !!sudoVia; }
+
+/**
  * @param {string} entry 入口（devices / proxy）
  * @param {string} action @param {object} [fields]
  */
-function post(entry, action, fields) { return postJSON(ACCOUNT_API + '/' + entry, Object.assign({ action: action }, fields || {})); }
+function post(entry, action, fields) {
+  const body = Object.assign({ action: action }, fields || {});
+  if (!sudoVia) return postJSON(ACCOUNT_API + '/' + entry, body);
+  return sudoVia().then(function (/** @type {any} */ proof) {
+    return postJSON(IDENTITY_API, Object.assign({ action: 'sudo' }, proof || {}, { command: { method: 'POST', path: ACCOUNT_API + '/' + entry, body: body } }));
+  });
+}
 /**
  * v6 用户自己的通行密钥（定稿 §八「普通用户用 passwd、passkey 改自己的凭据；通行密钥自带 WebAuthn 验证」）。
  * 后端 POST /api/identity passkey-list | passkey-add-challenge | passkey-add | passkey-delete（user 档，按服务端会话的 uid，
@@ -48,7 +68,7 @@ export const v6keys = Object.freeze({
   passkeyDelete: function (n) { return postJSON(IDENTITY_API, { action: 'passkey-delete', n: n }); },
 });
 
-/** 设备 = 自己的 v6 会话（user 档） */
+/** 设备会话（定稿 v5.5 §五：list owner 档、全站视图；revoke / revoke-all root 档，站长经 sudo） */
 export const devices = Object.freeze({
   list: function () { return post('devices', 'list'); },
   /** @param {number} n 服务端列表里的编号 */

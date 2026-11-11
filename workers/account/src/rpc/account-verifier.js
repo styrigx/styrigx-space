@@ -8,6 +8,8 @@
  *   旧版本不认 action 时回的是路由档，不能当 action 的结论）；子站接口 Worker 经网关 SpaceVerifier.admit 转来问。
  * - auditRoot(cookieHeader, command, address)：root 在别的 Worker 做了特权内容操作（批量 / 结构删除、导入导出、分享管理），
  *   在账号侧身份审计（account_user_audit）留一行。会话由这里重新判定（只认真 root 层，救援不算），调用方给的身份一概不认。
+ * - auditList(cookieHeader, opts)：状态页审计卡（GET /api/space-audit，网关）读 v6 的 su / sudo 审计（定稿 v5.5 §四「恢复写入」、§十 审计条）。
+ *   会话由这里重新判定（GET /api/space-audit 的路由档 root，救援不在白名单）；不够 → { ok:false }。
  * 不签发任何东西。
  * cloudflare:workers 只在 Workers 里有：node 单测用 tests/workers/account/_cf-workers.mjs 的替身。
  */
@@ -19,7 +21,7 @@ import { admitRoute } from '../core/admit.js';
 import { admitRequest } from '../core/identity-session.js';
 import { ruleOf } from '../core/route-access.js';
 import { ROOT_UID } from '../core/groups.js';
-import { writeUserAudit } from '../core/user-audit.js';
+import { writeUserAudit, listSuAudit } from '../core/user-audit.js';
 
 const MAX_UA = 512;
 
@@ -90,6 +92,27 @@ export async function checkAuditRoot(env, cookieHeader, command, address) {
   }
 }
 
+/** 审计卡一次最多给几条（同网关 api/space-audit.js AUDIT_SHOW） */
+const AUDIT_LIST_MAX = 50;
+/** 审计卡只看最近 7 天（卡片文案「最近 7 天」） */
+const AUDIT_LIST_DAYS = 7;
+
+/**
+ * AccountVerifier.auditList 的实现：会话够 GET /api/space-audit 的档（root，非救援）才读。永不抛错（读失败 → { ok:false, error:'server' }）。
+ * @param {Record<string, any>} env @param {string} cookieHeader @param {{now?: number}} [opts]
+ * @returns {Promise<{ok:true, items:Array<{ts:number, ipPrefix:string, ok:boolean, uid:number|null, command:string}>}|{ok:false, error:string}>}
+ */
+export async function checkAuditList(env, cookieHeader, opts) {
+  try {
+    const c = await admitRoute(env || {}, verifierRequest(cookieHeader), 'GET', '/api/space-audit');
+    if (!c.allowed) return { ok: false, error: c.uid === null ? 'session' : 'forbidden' };
+    const now = opts && typeof opts.now === 'number' ? opts.now : Date.now();
+    return { ok: true, items: await listSuAudit(env, { limit: AUDIT_LIST_MAX, since: now - AUDIT_LIST_DAYS * 24 * 3600 * 1000, now }) };
+  } catch (e) {
+    return { ok: false, error: 'server' };
+  }
+}
+
 /** 放行结论与 root 留痕（服务绑定 ACCOUNT_VERIFIER：只有网关） */
 export class AccountVerifier extends WorkerEntrypoint {
   /**
@@ -106,5 +129,13 @@ export class AccountVerifier extends WorkerEntrypoint {
    */
   async auditRoot(cookieHeader, command, address) {
     return checkAuditRoot(this.env, cookieHeader, command, address);
+  }
+
+  /**
+   * 状态页审计卡：v6 的 su / sudo 审计（定稿 v5.5 §四、§十）。
+   * @param {string} cookieHeader
+   */
+  async auditList(cookieHeader) {
+    return checkAuditList(this.env, cookieHeader);
   }
 }

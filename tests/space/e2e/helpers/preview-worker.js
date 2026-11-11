@@ -22,7 +22,7 @@
  */
 import gateway from '../../../../workers/space-core/src/app.js';
 import { serviceFetch } from '../../../../workers/account/src/rpc/account-service.js';
-import { checkAdmit, checkAuditRoot } from '../../../../workers/account/src/rpc/account-verifier.js';
+import { checkAdmit, checkAuditRoot, checkAuditList } from '../../../../workers/account/src/rpc/account-verifier.js';
 
 /** 账号那一半能看到的 env 键（同 workers/account/wrangler.toml 的绑定 / 变量；预览不绑账号资料库，有就带上） */
 export const ACCOUNT_ENV_KEYS = Object.freeze([
@@ -91,9 +91,10 @@ export function gatewayEnvOf(env, ctx) {
   const acct = accountEnvOf(env);
   out.ACCOUNT = { fetch: (/** @type {Request} */ req) => serviceFetch(req, acct, ctx) };
   out.ACCOUNT_VERIFIER = {
-    /* 同正式 AccountVerifier（v6 P4 起只有 admit / auditRoot）：网关 core/identity-admit.js 经它问 v6 会话、给 root 特权操作留痕 */
+    /* 同正式 AccountVerifier（v6 P4 起 admit / auditRoot；P4-3 加 auditList，状态页审计卡读 su / sudo）：网关 core/identity-admit.js 经它问 v6 会话、给 root 特权操作留痕 */
     admit: (/** @type {string} */ cookie, /** @type {string} */ method, /** @type {string} */ path, /** @type {any} */ opts) => checkAdmit(acct, cookie, method, path, opts),
     auditRoot: (/** @type {string} */ cookie, /** @type {string} */ command, /** @type {string} */ address) => checkAuditRoot(acct, cookie, command, address),
+    auditList: (/** @type {string} */ cookie) => checkAuditList(acct, cookie),
   };
   /* P4-1：不调真实 Workers AI */
   out.AI_SERVICE = { fetch: previewAiService };

@@ -5,7 +5,7 @@
  * - 组（GROUPS）：wheel（可 su root）、sudoers（可 sudo）、listen（听歌）、ai（AI 窗口）、status（旷野状态卡）、
  *   curio-write / daymark-write（上传、编辑、单条删除）。删除不做组：批量 / 结构删除只属 root。
  * - fail-closed：新用户默认无组；styrigx 的默认组 = STYRIGX_DEFAULT_GROUPS。
- * - 临时用户（有 expires_at）永不进 wheel、sudoers、写组（canJoinGroup 拒绝，代码级，不靠 root 自觉）。
+ * - 普通用户（uid 1001 起，含临时用户）永不进 wheel、sudoers、写组（canJoinGroup 拒绝，代码级，不靠 root 自觉；定稿 v5.5 §四）。
  * - 访问档（ACCESS 的取值）：public（谁都行）/ user（任一已登录身份，含无组的临时用户：改自己的凭据、whoami 这类）/
  *   组名 / owner（站长 = styrigx 的 uid；名片属于站长，P2）/ root。不认识的档一律拒绝。
  * - 判断顺序固定（定稿 v4 §三，P2）：① 救援会话 → 只放标了 rescue 的路由 / action（白名单），其余一律拒、不往下走；
@@ -49,14 +49,18 @@ export function isTemporary(user) {
  * - 不认识的组 → unknown-group
  * - root 不进组（root 本来就是全部权限）→ root
  * - 临时用户（expiresAt > 0）进特权组或写组 → temporary
+ * - 其余普通用户（uid 1001 起，无期限）进特权组或写组 → action（定稿 v5.5 §四「代码拒绝加入 wheel、sudoers、写组」；
+ *   自上而下按 man：报找不到命令，同未知命令的错误码 action，Gray 11-11 22:36）；站长 styrigx（1000）不受限
  * @param {{uid:number, expiresAt:number}} user @param {string} group
- * @returns {{ok:true}|{ok:false, reason:'unknown-group'|'root'|'temporary'}}
+ * @returns {{ok:true}|{ok:false, reason:'unknown-group'|'root'|'temporary'|'action'}}
  */
 export function canJoinGroup(user, group) {
   if (GROUPS.indexOf(group) === -1) return { ok: false, reason: 'unknown-group' };
   if (!user || user.uid === ROOT_UID) return { ok: false, reason: 'root' };
+  const guarded = PRIVILEGED_GROUPS.indexOf(group) !== -1 || WRITE_GROUPS.indexOf(group) !== -1;
   const temporary = Number(user.expiresAt) > 0;
-  if (temporary && (PRIVILEGED_GROUPS.indexOf(group) !== -1 || WRITE_GROUPS.indexOf(group) !== -1)) return { ok: false, reason: 'temporary' };
+  if (temporary && guarded) return { ok: false, reason: 'temporary' };
+  if (guarded && Number.isInteger(user.uid) && user.uid >= FIRST_USER_UID) return { ok: false, reason: 'action' };
   return { ok: true };
 }
 

@@ -166,10 +166,11 @@ async function startEdge() {
       return res;
     },
   };
-  /* 同正式 AccountVerifier（v6 P4 起只有 admit / auditRoot） */
+  /* 同正式 AccountVerifier（v6 P4 起 admit / auditRoot；P4-3 加 auditList） */
   const ACCOUNT_VERIFIER = {
     admit: (c, m, p, o) => accountEntry.checkAdmit(accountEnv, c, m, p, o),
     auditRoot: (c, cmd, a) => accountEntry.checkAuditRoot(accountEnv, c, cmd, a),
+    auditList: (c) => accountEntry.checkAuditList(accountEnv, c),
   };
 
   /* 站点核心 Worker：只绑正式 wrangler.toml 里有的（D1_SPACE、ACCOUNT / ACCOUNT_VERIFIER；v6 P4 起没有 SGX_SPACE_*） */

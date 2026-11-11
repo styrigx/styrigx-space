@@ -2,7 +2,7 @@ import { fill } from '../../core/out.js';
 import { shellSection } from '../../core/strings.js';
 
 /**
- * man [命令]：不带参数是索引（这个身份能用的命令），带参数是那一页。结果交给终端窗口的全屏阅读页（S9，less 式：q / esc / ‹ 返回 退出，
+ * man [命令]：不带参数是索引（这个身份能用的命令；定稿 v5.5 §四按 root → 站长 → 普通用户 → 访客分段），带参数是那一页。结果交给终端窗口的全屏阅读页（S9，less 式：q / esc / ‹ 返回 退出，
  * 回到原来的命令行，滚动区不动）——不再打进滚动区。没有这一页才在滚动区打一行红字。
  * 页数据懒加载（../../man/pages.js，import()，不进首包）。文案：NAME 说明 = #sgx-i18n-shell 的 man 节，DESCRIPTION / AUTH / NOTES = manBody 节，缺了用 pages.js 的英文底。
  */
@@ -20,14 +20,19 @@ export default {
       const B = shellSection(null, 'manBody');
       /** @param {string} n */
       const desc = function (n) { return typeof D[n] === 'string' ? D[n] : P[n].d; };
-      const names = x.names().filter(function (/** @type {string} */ n) { return Object.prototype.hasOwnProperty.call(P, n); });
       if (!want) {
-        return {
-          out: [x.k.plain(x.S.manIndex)].concat(names.map(function (/** @type {string} */ n) {
-            return { t: 'line', seg: [['k', n], ['', ' — ' + desc(n)]], cls: '' };
-          })),
-          pager: 'MAN(1)',
-        };
+        /* 定稿 v5.5 §四：索引按 root → 站长 → 普通用户 → 访客分段（高的在前），各人只看到自己这一层及以下；段与段之间空一行（不加段名） */
+        /** @type {string[][]} */
+        const secs = typeof x.sections === 'function' ? x.sections() : [x.names()];
+        /** @type {any[]} */
+        const out = [x.k.plain(x.S.manIndex)];
+        secs.forEach(function (/** @type {string[]} */ sec, /** @type {number} */ i) {
+          const ns = sec.filter(function (/** @type {string} */ n) { return Object.prototype.hasOwnProperty.call(P, n); });
+          if (!ns.length) return;
+          if (i > 0 && out.length > 1) out.push({ t: 'line', seg: [['', '']], cls: '' });
+          ns.forEach(function (/** @type {string} */ n) { out.push({ t: 'line', seg: [['k', n], ['', ' — ' + desc(n)]], cls: '' }); });
+        });
+        return { out: out, pager: 'MAN(1)' };
       }
       const name = x.resolve(want);
       if (!name || !Object.prototype.hasOwnProperty.call(P, name)) return { out: [{ t: 'line', seg: fill(x.S.manNone, { x: ['k', p.args[0]] }), cls: 'err' }] };

@@ -14,9 +14,9 @@
  * - 表不存在（"no such table"，还没跑 migration）时自己补建一次再重试，同数字健康的 CREATE TABLE IF NOT EXISTS 兜底
  * - 没绑 D1_ACCOUNT → 500 config（正式 / 预览的 wrangler.toml 都绑了；缺绑定只会是配置错误）
  *
- * v6（P2）：按 uid 分（ADR-0006 §2.12 (a)：uid 只取服务端会话 context.auth.dataUid()；请求里的 uid 一概不认）。
- * - 表有 uid 列（migrations/0007 跑过）：一律 WHERE uid = ?。
- * - 还没有 uid 列：表里全是 styrigx 的，只有 styrigx 读写；别的 uid GET 回空、POST 409 not-ready（不碰 styrigx 的行）。
+ * v6 P4-3（定稿 v5.5 §七「全站只有一份配置（头像、偏好、名片等），归站长 styrigx；root 与站长共同持有；普通用户只能看」）：
+ * 读写的永远是站长那一份（uid 1000 的行；表有 uid 列时 WHERE uid = 1000，没有 uid 列时整张表本来就是 styrigx 的）。
+ * 写（POST）路由档 owner（站长 + root），普通用户只能读（GET user 档）。P2 期间别的 uid 写下的行不再读写（留在表里，删不删见 PR 未决）。
  *
  * GET  /api/prefs → { ok, items, updatedAt }
  * POST /api/prefs { changes: { key: { v, t } } } → 合并后 { ok, items, updatedAt }（只接受同源）
@@ -58,14 +58,14 @@ export const UPSERT_SQL_UID =
 const SELECT_ALL_UID = 'SELECT k, v, t, updated_at FROM settings_sync WHERE uid = ?';
 
 /**
- * 这次请求的读写方式：{ uid, byUid }；没有 uid（不该发生：门已过）→ null；表还没 uid 列且不是 styrigx → { uid, byUid:false, blocked:true }。
+ * 这次请求的读写方式：{ uid（恒为站长 1000）, byUid }；没有身份（不该发生：门已过）→ null。
  * @param {any} context @param {any} db
  */
 async function scopeOf(context, db) {
-  const uid = await context.auth.dataUid();
-  if (!Number.isInteger(uid)) return null;
+  if (!Number.isInteger(await context.auth.dataUid())) return null;
   const byUid = await hasUidColumn(db, 'settings_sync');
-  return { uid, byUid, blocked: !byUid && uid !== STYRIGX_UID };
+  /* 一份配置，归站长（定稿 v5.5 §七）：谁读写都落到 styrigx 那份 */
+  return { uid: STYRIGX_UID, byUid, blocked: false };
 }
 
 /**

@@ -494,7 +494,7 @@ test('名片 PUT /api/profile：styrigx 能改、root 能改（写审计 profile
 
 const EVIL = { 'X-Styrigx-Uid': '1000', 'X-Uid': '1000' };
 
-test('prefs（表还没 uid 列）：styrigx 读写自己的；alice 读到空、写 409 not-ready；请求里塞 uid=1000（查询串 / 请求头 / 请求体）一概不认', async () => {
+test('P4-3 prefs（表还没 uid 列）：一份配置归站长；styrigx 写、alice 读到同一份（只能看）、写 403；请求里塞 uid 一概不认（定稿 v5.5 §五 / §七）', async () => {
   const env = await setup();
   _resetUidSchemaCache(env.D1_ACCOUNT);
   const st = await login(env, 'styrigx');
@@ -502,68 +502,158 @@ test('prefs（表还没 uid 列）：styrigx 读写自己的；alice 读到空�
   const w = await call(env, 'POST', '/api/prefs', { cookie: st, body: { changes: { 'sgx-theme': { v: 'dark', t: now } } } });
   assert.equal(w.status, 200, JSON.stringify(w.json));
   const at = await login(env, 'alice');
-  const g = await call(env, 'GET', '/api/prefs?uid=1000', { cookie: at, headers: EVIL });
+  const g = await call(env, 'GET', '/api/prefs?uid=1001', { cookie: at, headers: EVIL });
   assert.equal(g.status, 200);
-  assert.deepEqual(g.json.items, {}, 'alice 看不到 styrigx 的设置');
-  const p = await call(env, 'POST', '/api/prefs?uid=1000', { cookie: at, headers: EVIL, body: { uid: 1000, changes: { 'sgx-theme': { v: 'light', t: now + 1 } } } });
-  assert.equal(p.status, 409);
-  assert.equal(p.json.error, 'not-ready');
-  assert.deepEqual(rows(env, 'SELECT k, v FROM settings_sync'), [{ k: 'sgx-theme', v: 'dark' }], 'styrigx 的行没被动');
+  assert.deepEqual(g.json.items, { 'sgx-theme': { v: 'dark', t: now } }, '普通用户看到的就是站长那一份');
+  const p = await call(env, 'POST', '/api/prefs?uid=1001', { cookie: at, headers: EVIL, body: { uid: 1001, changes: { 'sgx-theme': { v: 'light', t: now + 1 } } } });
+  assert.equal(p.status, 401, '普通用户只能看：账号 Worker 的纵深防御门（gate.js identityDenial）拒，正式环境网关先回 403 forbidden');
+  assert.deepEqual(rows(env, 'SELECT k, v FROM settings_sync'), [{ k: 'sgx-theme', v: 'dark' }], '站长那份没被动');
 });
 
-test('prefs（迁移 0007 之后，有 uid 列）：各读写各的；alice 塞 uid=1000 只写进自己的 1001；现有数据归 styrigx', async () => {
+test('P4-3 prefs（迁移 0007 之后，有 uid 列）：root 写的也落到站长那份（uid 1000）；alice 写 403；P2 期间别的 uid 的行不再读写', async () => {
   const env = await setup();
   const raw = env.D1_ACCOUNT.raw;
   raw.prepare("INSERT INTO settings_sync (k, v, t, updated_at) VALUES ('sgx-old', 'kept', 1, 1)").run();
   raw.exec(readFileSync(REPO + 'workers/account/migrations/0007_v6_uid_columns.sql', 'utf8'));
   _resetUidSchemaCache(env.D1_ACCOUNT);
-  assert.deepEqual(rows(env, 'SELECT uid, k, v FROM settings_sync'), [{ uid: 1000, k: 'sgx-old', v: 'kept' }], '现有数据归 styrigx');
+  raw.prepare("INSERT INTO settings_sync (uid, k, v, t, updated_at) VALUES (1001, 'sgx-p2', 'alice-p2', 1, 1)").run();
   const now = Date.now();
   const at = await login(env, 'alice');
-  const p = await call(env, 'POST', '/api/prefs?uid=1000', { cookie: at, headers: EVIL, body: { uid: 1000, changes: { 'sgx-old': { v: 'hacked', t: now } } } });
-  assert.equal(p.status, 200);
-  assert.deepEqual(p.json.items, { 'sgx-old': { v: 'hacked', t: now } }, 'alice 只看到自己的');
-  assert.deepEqual(rows(env, 'SELECT uid, v FROM settings_sync ORDER BY uid'), [{ uid: 1000, v: 'kept' }, { uid: 1001, v: 'hacked' }]);
+  const p = await call(env, 'POST', '/api/prefs', { cookie: at, body: { changes: { 'sgx-old': { v: 'hacked', t: now } } } });
+  assert.equal(p.status, 401, '纵深防御门拒（网关先 403）');
+  const ga = await call(env, 'GET', '/api/prefs', { cookie: at });
+  assert.deepEqual(ga.json.items, { 'sgx-old': { v: 'kept', t: 1 } }, 'alice 读的是站长那份，P2 时自己那份不再读');
   const st = await login(env, 'styrigx');
-  const g = await call(env, 'GET', '/api/prefs', { cookie: st });
-  assert.deepEqual(g.json.items, { 'sgx-old': { v: 'kept', t: 1 } });
+  await suRoot(env, st);
+  const w = await call(env, 'POST', '/api/prefs', { cookie: st, body: { changes: { 'sgx-root': { v: 'x', t: now } } } });
+  assert.equal(w.status, 200, JSON.stringify(w.json));
+  assert.deepEqual(rows(env, 'SELECT uid, k FROM settings_sync ORDER BY uid, k'), [{ uid: 1000, k: 'sgx-old' }, { uid: 1000, k: 'sgx-root' }, { uid: 1001, k: 'sgx-p2' }], 'root 写进站长那份（uid 1000），不是 uid 0');
 });
 
-test('avatar：alice 换头像（塞 uid=1000）只写 avatar:u1001:*，站点头像 avatar:* 不动；GET /avatar/u1001-96.webp 读得到', async () => {
+test('P4-3 avatar：一份配置归站长——root 换头像写站点头像 avatar:*；alice 换 / 删 403；不再写 avatar:u<uid>:*', async () => {
   const env = await setup();
   const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9]);
-  const fd = new FormData();
-  for (const s of [32, 96, 192, 512]) fd.append(String(s), new Blob([PNG], { type: 'image/png' }), s + '.png');
-  fd.append('uid', '1000');
+  const form = () => {
+    const fd = new FormData();
+    for (const s of [32, 96, 192, 512]) fd.append(String(s), new Blob([PNG], { type: 'image/png' }), s + '.png');
+    fd.append('uid', '1001');
+    return fd;
+  };
   const at = await login(env, 'alice');
-  const r = await call(env, 'PUT', '/api/avatar?uid=1000', { cookie: at, headers: EVIL, raw: fd });
-  assert.equal(r.status, 200, JSON.stringify(r.json));
-  const keys = [...env.KV_PROFILE.m.keys()].sort();
-  assert.deepEqual(keys, ['avatar:u1001:192', 'avatar:u1001:32', 'avatar:u1001:512', 'avatar:u1001:96', 'avatar:u1001:ver']);
-  const g = await call(env, 'GET', '/avatar/u1001-96.webp');
-  assert.equal(g.res.headers.get('Content-Type'), 'image/png');
+  const r = await call(env, 'PUT', '/api/avatar?uid=1001', { cookie: at, headers: EVIL, raw: form() });
+  assert.equal(r.status, 401, JSON.stringify(r.json) + '（纵深防御门拒；网关先 403）');
+  assert.equal((await call(env, 'DELETE', '/api/avatar', { cookie: at })).status, 401);
+  assert.equal(env.KV_PROFILE.m.size, 0, '普通用户什么都没写');
+  const st = await login(env, 'styrigx');
+  await suRoot(env, st);
+  const w = await call(env, 'PUT', '/api/avatar', { cookie: st, raw: form() });
+  assert.equal(w.status, 200, JSON.stringify(w.json));
+  assert.deepEqual([...env.KV_PROFILE.m.keys()].sort(), ['avatar:192', 'avatar:32', 'avatar:512', 'avatar:96', 'avatar:ver'], 'root 写的是站长那一份（站点头像）');
   const site = await call(env, 'GET', '/avatar/96.webp');
-  assert.match(site.res.headers.get('ETag'), /^"d-96"$/, '站点头像仍是默认');
-  const d = await call(env, 'DELETE', '/api/avatar', { cookie: at, headers: EVIL });
+  assert.equal(site.res.headers.get('Content-Type'), 'image/png');
+  const d = await call(env, 'DELETE', '/api/avatar', { cookie: st });
   assert.equal(d.status, 200);
   assert.equal(env.KV_PROFILE.m.size, 0);
 });
 
-test('devices（v6）：只列 / 只踢自己的会话；n 指不到别人的会话；revoke-all 只删自己的其他会话', async () => {
+test('P4-3 devices：list owner（站长直读、全站视图）；revoke / revoke-all root（站长 403，sudo 借 root 才行）；普通用户 403', async () => {
   const env = await setup();
   const st = await login(env, 'styrigx');
   const a1 = await login(env, 'alice');
   const a2 = await login(env, 'alice');
   const dv = (tok, body) => call(env, 'POST', '/api/account/devices', { cookie: tok, body, headers: EVIL });
-  const l = await dv(a1, { action: 'list', uid: 1000 });
+  assert.equal((await dv(a1, { action: 'list' })).status, 401, '普通用户看不到设备列表（纵深防御门拒；网关先 403）');
+  const l = await dv(st, { action: 'list' });
   assert.equal(l.status, 200, JSON.stringify(l.json));
-  assert.equal(l.json.devices.length, 2);
-  assert.ok(l.json.devices.every((d) => d.user === 'alice'));
-  assert.equal((await dv(a1, { action: 'revoke', n: 1 })).json.error, 'current');
-  assert.equal((await dv(a1, { action: 'revoke', n: 3 })).status, 404, '第 3 个不存在（styrigx 的会话不在 alice 的列表里）');
-  assert.equal((await dv(a1, { action: 'revoke-all', uid: 1000 })).status, 200);
-  assert.equal((await id(env, { action: 'whoami' }, a2)).json.user, null);
-  assert.equal((await id(env, { action: 'whoami' }, st)).json.user.name, 'styrigx', 'styrigx 的会话没被踢');
+  assert.equal(l.json.devices.length, 3, '全站会话（迁移前没有设备列，每个会话各算一台）');
+  assert.deepEqual(l.json.devices.map((d) => d.path), ['styrigx', 'alice', 'alice']);
+  assert.deepEqual(Object.keys(l.json.devices[0]).sort(), ['current', 'expiresAt', 'n', 'path', 'since']);
+  assert.ok(l.json.devices[0].current);
+  assert.ok(l.json.devices.every((d) => !('_id' in d) && !('device' in d)), '会话 id / 设备标记不出接口');
+  const rv = await dv(st, { action: 'revoke', n: 2 });
+  assert.equal(rv.status, 403, '踢出是 root 档：站长直接调被拒');
+  assert.equal(rv.json.need, 'root');
+  const sd = await id(env, { action: 'sudo', password: PW.styrigx, command: { method: 'POST', path: '/api/account/devices', body: { action: 'revoke', n: 2 } } }, st);
+  assert.equal(sd.status, 200, JSON.stringify(sd.json));
+  assert.equal((await id(env, { action: 'whoami' }, a1)).json.user, null, 'sudo device rm 2 踢掉了 alice 的第一个会话');
+  assert.equal((await id(env, { action: 'whoami' }, a2)).json.user.name, 'alice');
+  assert.equal((await id(env, { action: 'sudo', password: PW.styrigx, command: { method: 'POST', path: '/api/account/devices', body: { action: 'revoke', n: 1 } } }, st)).json.error, 'current', '本会话（执行 sudo 的会话）踢不了');
+  assert.ok(rows(env, "SELECT command FROM account_user_audit WHERE command LIKE 'lock device%'").some((r) => r.command === 'lock device 2 via sudo'), '审计命令字沿用 main 的 lock device <n>；记真正执行的人 + via sudo（auditActor，同 profile）');
+  const st2 = await login(env, 'styrigx');
+  await suRoot(env, st);
+  assert.equal((await dv(st, { action: 'revoke-all' })).status, 200, 'su root 后直接踢');
+  assert.equal((await id(env, { action: 'whoami' }, st2)).json.user, null, '自己（styrigx）的其他会话被踢');
+  assert.equal((await id(env, { action: 'whoami' }, a2)).json.user.name, 'alice', 'rm --all 范围同 main：别人的会话不动（Gray 11-11 22:35）');
+  assert.equal((await id(env, { action: 'whoami' }, st)).json.user.name, 'root', '本会话保留');
+});
+
+test('P4-3 2g 设备标记：su 发 sgx-device（HttpOnly / Secure / SameSite=Lax / 400 天），同一台设备沿用；有设备列后写入，设备列表按它合并同一台设备的会话；老会话留空各算一台', async () => {
+  const env = await setup();
+  const raw = env.D1_ACCOUNT.raw;
+  const old = await login(env, 'alice'); /* 迁移前签的老会话：没有设备列 */
+  raw.exec(readFileSync(REPO + 'docs/ops/v6-p4-2g-device-column.sql', 'utf8'));
+  _resetUidSchemaCache(env.D1_ACCOUNT);
+  const suWith = (user, cookie) => serviceFetch(new Request(ORIGIN + '/api/identity', { method: 'POST', headers: Object.assign({ Origin: ORIGIN, 'CF-Connecting-IP': freshIp(), 'Content-Type': 'application/json' }, cookie ? { Cookie: cookie } : {}), body: JSON.stringify({ action: 'su', user, password: PW[user] }) }), env, { waitUntil() {} });
+  const r1 = await suWith('styrigx');
+  const dc = r1.headers.getSetCookie().find((c) => c.startsWith('sgx-device='));
+  assert.ok(dc, '发了设备标记');
+  assert.match(dc, /^sgx-device=[A-Za-z0-9_-]{16}; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=34560000$/);
+  const mark = dc.split(';')[0].slice('sgx-device='.length);
+  const t1 = r1.headers.getSetCookie().find((c) => c.startsWith('sgx-session=')).split(';')[0].slice('sgx-session='.length);
+  const r2 = await suWith('alice', 'sgx-device=' + mark); /* 同一台设备换个人登录 */
+  assert.equal(r2.headers.getSetCookie().find((c) => c.startsWith('sgx-device=')).split(';')[0], 'sgx-device=' + mark, '同一台设备沿用标记');
+  await suWith('alice', 'sgx-device=bad.mark'); /* 不合法的标记 → 新发一台 */
+  assert.deepEqual(rows(env, 'SELECT device IS NULL AS n FROM account_sessions ORDER BY created_at, rowid').map((r) => r.n), [1, 0, 0, 0], '老会话留空不回填');
+  const l = await call(env, 'POST', '/api/account/devices', { cookie: t1, body: { action: 'list' } });
+  assert.equal(l.status, 200, JSON.stringify(l.json));
+  assert.equal(l.json.devices.length, 3, '4 个会话 = 老会话 1 台 + 同一台设备合并成 1 台 + 新标记 1 台');
+  const merged = l.json.devices.find((d) => d.path.indexOf(', ') !== -1);
+  assert.ok(merged && merged.current, '合并的那台含本会话');
+  assert.equal(merged.path, 'styrigx, alice');
+  assert.equal(l.json.devices.find((d) => d.path === 'alice' && !d.current) !== undefined, true);
+  void old;
+});
+
+test('P4-3 权限收紧：永久普通用户（alice）同样进不了 wheel / sudoers / 写组；普通用户不能管通行密钥（passkey-* owner）；passwd 照旧', async () => {
+  const env = await setup();
+  const st = await login(env, 'styrigx');
+  await suRoot(env, st);
+  for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) {
+    const r = await id(env, { action: 'usermod', op: '-aG', groups: [g], name: 'alice' }, st);
+    assert.equal(r.status, 400, g);
+    assert.equal(r.json.error, 'action', g + '：报找不到命令（同未知命令，Gray 11-11 22:36）');
+  }
+  assert.equal((await id(env, { action: 'usermod', op: '-aG', groups: ['ai', 'status'], name: 'alice' }, st)).status, 200, '只读组照常');
+  const ua = await id(env, { action: 'useradd', name: 'bob', groups: ['curio-write'] }, st);
+  assert.equal(ua.json.error, 'action', 'useradd -G 写组同样拒（没有期限 → 找不到命令）');
+  const at = await login(env, 'alice');
+  for (const a of ['passkey-list', 'passkey-add-challenge', 'passkey-delete']) {
+    const r = await id(env, { action: a, n: 1 }, at);
+    assert.equal(r.status, 403, a);
+    assert.equal(r.json.need, 'owner', a);
+  }
+  const pw = await id(env, { action: 'passwd', current: PW.alice, password: 'alice-pass-02' }, at);
+  assert.equal(pw.status, 200, '普通用户只能 passwd 改自己的密码');
+});
+
+test('P4-3 审计卡恢复写入（定稿 v5.5 §四、§十）：AccountVerifier.auditList 只给 root 读最近 7 天的 su / sudo（不含登录失败），字段 ts / ipPrefix / ok / uid / command', async () => {
+  const env = await setup();
+  const { checkAuditList } = await import(SRC + 'rpc/account-verifier.js');
+  const st = await login(env, 'styrigx');
+  await id(env, { action: 'su', user: 'root', password: 'wrong-pass' }, st, freshIp());
+  await id(env, { action: 'sudo', password: PW.styrigx, command: { action: 'who' } }, st);
+  await suRoot(env, st);
+  await id(env, { action: 'useradd', name: 'carol' }, st); /* 不是 su / sudo：不进审计卡 */
+  env.D1_ACCOUNT.raw.prepare("INSERT INTO account_user_audit (id, ts, uid, command, ok, ip_prefix, expires_at) VALUES ('old', ?, 1000, 'su styrigx', 1, 'x', ?)").run(Date.now() - 8 * 86400000, Date.now() + 86400000);
+  const r = await checkAuditList(env, 'sgx-session=' + st);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.items.map((x) => x.command), ['su root', 'sudo who', 'su styrigx'], '新的在前；只有 su / sudo（不读登录失败行，Gray 11-11 22:35）；8 天前的不给');
+  assert.deepEqual(Object.keys(r.items[0]).sort(), ['command', 'ipPrefix', 'ok', 'ts', 'uid']);
+  assert.equal(r.items[1].uid, 1000);
+  const at = await login(env, 'alice');
+  assert.deepEqual(await checkAuditList(env, 'sgx-session=' + at), { ok: false, error: 'forbidden' });
+  assert.deepEqual(await checkAuditList(env, ''), { ok: false, error: 'session' });
+  assert.deepEqual(await checkAuditList(env, 'sgx-session=' + (await rescueToken(env))), { ok: false, error: 'forbidden' }, '救援会话不算');
 });
 
 test('groups / who：普通用户只看自己（groups <别人> 403）；root 看全部', async () => {

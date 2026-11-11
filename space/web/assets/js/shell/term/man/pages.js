@@ -13,7 +13,7 @@ export const PAGES = Object.freeze({
   sudo: { d: 'run one command as root with your own credentials (sudoers only; no ticket kept)', syn: ['sudo useradd | userdel | usermod | passwd <name> | groups [name] | who'] },
   theme: { d: 'open the appearance panel, or set dark / light / auto', syn: ['theme', 'theme [dark | light | auto]'] },
   lock: { d: 'sign everything out and go back to visitor', syn: ['lock'], auth: 'no verification' },
-  ask: { d: 'ask Gray AI a question', syn: ['ask <question>'], desc: ['opens the Gray AI window with your question. Gray AI is only for styrigx and root.'] },
+  ask: { d: 'ask Gray AI a question', syn: ['ask <question>'], desc: ['opens the Gray AI window with your question. Gray AI is for the ai group.'] },
   find: { d: 'search the four sites’ public pages by keyword', syn: ['find <keyword>'] },
   clear: { d: 'clear the screen', syn: ['clear', 'cls'] },
   pwd: { d: 'print the current directory', syn: ['pwd'] },

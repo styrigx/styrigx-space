@@ -25,19 +25,31 @@ export function _resetUidSchemaCache(db) {
  * @returns {Promise<boolean>}
  */
 export async function hasUidColumn(db, table, now) {
+  return hasColumn(db, table, 'uid', now);
+}
+
+/**
+ * 这张表有没有某一列（v6 P4-3 起 2g 的 account_sessions.device 也用它：设备列迁移部署绿后才执行，代码两种表结构都要能跑）。
+ * 读不到表结构 → false。缓存同上：有 → 永久；没有 → 60 秒后再查。
+ * @param {any} db D1 绑定 @param {string} table @param {string} column @param {number} [now]
+ * @returns {Promise<boolean>}
+ */
+export async function hasColumn(db, table, column, now) {
   if (!/^[a-z_]+$/.test(table)) throw new Error('uid-schema: bad table ' + table);
+  if (!/^[a-z_]+$/.test(column)) throw new Error('uid-schema: bad column ' + column);
   const t = typeof now === 'number' ? now : Date.now();
   let m = cache.get(db);
   if (!m) { m = new Map(); cache.set(db, m); }
-  const hit = m.get(table);
+  const key = table + '.' + column;
+  const hit = m.get(key);
   if (hit && (hit.has || t - hit.at < RECHECK_MS)) return hit.has;
   let has = false;
   try {
     const r = await db.prepare('PRAGMA table_info(' + table + ')').all();
-    has = ((r && r.results) || []).some((c) => c && c.name === 'uid');
+    has = ((r && r.results) || []).some((c) => c && c.name === column);
   } catch (e) {
     has = false;
   }
-  m.set(table, { has, at: t });
+  m.set(key, { has, at: t });
   return has;
 }
