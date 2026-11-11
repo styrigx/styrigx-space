@@ -34,18 +34,20 @@ function shell({ nobody = true, find, str } = {}) {
     cd: () => ({ kind: 'scroll', label: '' }), theme() {},
     today: () => Promise.resolve(null), daymarkHref: () => '/daymark/',
   };
-  const who = { get: () => (nobody ? 'nobody' : 'styrigx'), on() {} };
+  const who = { get: () => (nobody ? 'nobody' : 'u:root'), on() {} };
   return { sh: createShell({ act, storage: mem(), who, str }), calls };
 }
 const manNames = async (sh) => (await sh.exec('man')).out.slice(1).map((o) => o.seg[0][1]);
 
 test('listedFor：唯一判断点（audience 是身份数组；缺省都列）', () => {
   const find = { name: 'find', audience: ['nobody'] };
-  const ask = { name: 'ask', audience: ['link', 'styrigx', 'root'] };
+  const ask = { name: 'ask', audience: ['root6'] };
   assert.equal(listedFor(find, 'nobody'), true);
-  for (const w of ['link', 'styrigx', 'root']) { assert.equal(listedFor(find, w), false, w); assert.equal(listedFor(ask, w), true, w); }
+  for (const w of ['u:alice', 'u:root']) assert.equal(listedFor(find, w), false, w);
+  assert.equal(listedFor(ask, 'u:root'), true);
+  assert.equal(listedFor(ask, 'u:alice'), false);
   assert.equal(listedFor(ask, 'nobody'), false);
-  for (const w of ['nobody', 'link', 'styrigx', 'root']) assert.equal(listedFor({ name: 'cd' }, w), true, w);
+  for (const w of ['nobody', 'u:alice', 'u:root']) assert.equal(listedFor({ name: 'cd' }, w), true, w);
 });
 
 test('访客（nobody）：man 列 find 不列 ask；进站后列 ask 不列 find；其余命令两边一样', async () => {
@@ -53,10 +55,10 @@ test('访客（nobody）：man 列 find 不列 ask；进站后列 ask 不列 fin
   const entered = await manNames(shell({ nobody: false }).sh);
   assert.ok(guest.includes('find') && !guest.includes('ask'), guest.join(','));
   assert.ok(entered.includes('ask') && !entered.includes('find'), entered.join(','));
-  /* 进站后多钥匙命令（lock / share），访客只有 sudo；其余通用命令两边一样 */
+  /* 访客只有 sudo；登录（这里是 v6 root）后多 lock 和账号 / 身份命令；其余通用命令两边一样 */
   const common = ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme'];
   assert.deepEqual(guest, common.concat(['find', 'sudo']));
-  assert.deepEqual(entered, common.concat(['ask', 'sudo', 'lock', 'share']));
+  assert.deepEqual(entered.slice(0, 13), common.concat(['ask', 'sudo', 'lock']));
   for (const n of guest.concat(entered)) assert.ok(COMMANDS.includes(n), n);
   /* man find 一页 */
   const pg = await shell().sh.exec('man find');
@@ -124,11 +126,11 @@ test('pathOf：绝对地址 → 站内路径（保留 #）；相对地址原样'
   assert.equal(pathOf('/wild/'), '/wild/');
 });
 
-test('访客判断只看服务端（v5 S5 core/who.js）：页面标记 locked / 没回答 = nobody；进站会话 = styrigx', async () => {
-  assert.equal(createWho({ check: () => Promise.resolve(null), page: () => 'locked' }).get(), 'nobody');
-  assert.equal(createWho({ check: () => Promise.resolve(null), page: () => 'unknown' }).get(), 'nobody');
-  const w = createWho({ check: () => Promise.resolve({ ok: true, by: 'password' }), page: () => 'locked' });
-  assert.equal(await w.refresh(), 'styrigx');
+test('访客判断只看服务端（core/who.js，v6 P4 起只问 whoami）：没回答 = nobody；whoami 回了用户 = 那个用户', async () => {
+  assert.equal(createWho({ whoami: () => Promise.resolve(null) }).get(), 'nobody');
+  assert.equal(await createWho({ whoami: () => Promise.resolve(null) }).refresh(), 'nobody');
+  const w = createWho({ whoami: () => Promise.resolve({ name: 'styrigx' }) });
+  assert.equal(await w.refresh(), 'u:styrigx');
 });
 
 test('文案：en / zh 都有 find / ask 提示的键', () => {

@@ -16,6 +16,7 @@ const { test } = require('@playwright/test');
    在那之前不比截图（SHOTS = false），同一用例里的布局 / 行为断言照跑。重拍时改回 true。 */
 const SHOTS = false;
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
+const { mockAccount, V6_USER } = require('../helpers/account-term.cjs');
 
 const VIEWPORTS = {
   mobile: { width: 412, height: 915 },
@@ -133,16 +134,17 @@ test('baseline-quick-panel-nav-open', async ({ page: pg }) => {
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-nav-open.png', { animations: 'disabled' });
 });
 
-/* 盾牌（v5 S6 顶栏 E）：已进站点盾牌 = 终端窗口问「退出进站会话 [y/N]」（截图名照旧） */
+/* 盾牌（v5 S6 顶栏 E）：v6 P4（定稿 v5.2 §十三）起旧的「退出进站会话 [y/N]」随旧进站会话删除；已登录（v6 身份）点盾牌 = 只打开终端（截图名照旧） */
 test('baseline-shield-open', async ({ page: pg }) => {
   await shellShotPage(pg);
   /* 替身挂在 shellShotPage（blockExternalRequests）之后：后挂的先匹配 */
-  await pg.route('**/api/lock-session-check**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password', exp: 4102444800000 }) }));
-  await pg.route('**/api/lock-reauth', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, valid: false, password: true, passkey: true }) }));
+  await mockAccount(pg, { user: V6_USER('styrigx') });
+  await pg.reload({ waitUntil: 'domcontentloaded' });
+  await waitPageReady(pg);
   await pg.click('.sgx-tb-shield');
   await expect(pg.locator('#sgx-term')).toHaveAttribute('open', '');
-  await expect(pg.locator('#sgx-term [data-term-form]')).toHaveAttribute('data-mode', 'pick');
-  await expect(pg.locator('#sgx-term [data-term-out]')).toContainText('退出进站会话？ [y/N]');
+  await expect(pg.locator('#sgx-term [data-term-ps]')).toHaveText(/^styrigx@space/, { timeout: 10000 });
+  await expect(pg.locator('#sgx-term-in')).toHaveValue('');
   await expect(pg.locator('#sgx-sec')).toHaveCount(0);
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-shield-open.png', { animations: 'disabled', caret: 'hide' });
 });
@@ -153,7 +155,7 @@ test('baseline-quick-panel-open', async ({ page: pg }) => {
   await openQuickPanel(pg);
   await expect(pg.locator('#sgx-qp [data-qp-seg="mode"]')).toHaveCount(1);
   await expect(pg.locator('#sgx-qp [data-qp-palette]').first()).toBeVisible();
-  await expect(pg.locator('#sgx-nav [data-qp="share"]')).toHaveCount(1);
+  await expect(pg.locator('#sgx-nav [data-qp="share"]')).toHaveCount(0); /* v6 P4：分享磁贴拿掉（Gray 11-11 17:47） */
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-open.png', { animations: 'disabled' });
 });
 
@@ -169,16 +171,17 @@ test('baseline-ai-panel-open', async ({ page: pg }) => {
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-ai-panel-open.png', { animations: 'disabled' });
 });
 
-/* ===== 账号（S9，Gray 2026-11-11：头像点开的账号卡片 #sgx-acct 只展示，账号的操作都在全站终端 #sgx-term 的账号层里）=====
- * 手机 412×915 / 桌面 1920×1080 × 中英 × 深浅 × 七个状态：guest（卡片：未登录）/ home（卡片：已登录，应用授权 5）——卡片；
- * pw-error（终端 sudo root 密码输错一次）/ keys（passkey，有 reauth 票，一把通行密钥）/ devices（device，两台）/ grants（app，5 个应用）/ reset（sudo root reset 恢复密钥输入）——终端。
- * 截图名 <视口>-acct-<状态>-<语言>-<主题>（SHOTS 关着，只跑布局 / 行为断言）。行为细节见 account/*.spec.js。 */
+/* ===== 账号（S9，Gray 2026-11-11：头像点开的账号卡片 #sgx-acct 只展示，账号的操作都在全站终端 #sgx-term 里）=====
+ * 手机 412×915 / 桌面 1920×1080 × 中英 × 深浅 × 七个状态：guest（卡片：未登录）/ home（卡片：root 已登录，应用授权 5）——卡片；
+ * pw-error（styrigx 敲 su root 密码输错一次）/ keys（passkey，一把通行密钥）/ devices（device，两个 v6 会话）/ grants（app，5 个应用）/ reset（访客 rescue 恢复钥匙输入）——终端。
+ * v6 P4（定稿 v5.2 §十三 P4）起身份只看 POST /api/identity whoami（替身 helpers/account-term.cjs），旧 /api/lock-session-check、GET /api/account、sudo root 删了。
+ * 截图名 <视口>-acct-<状态>-<语言>-<主题>（照旧；SHOTS 关着，只跑布局 / 行为断言）。行为细节见 account/*.spec.js。 */
 const ACCT_VPS = { mobile: VIEWPORTS.mobile, desktop: VIEWPORTS.desktop };
 const ACCT_STATES = ['guest', 'pw-error', 'home', 'keys', 'devices', 'grants', 'reset'];
-const FAR = 4102444800000;
+const ACCT_SINCE = fxStatus.NOW - 3 * 3600 * 1000;
 const ACCT_DEVICES = [
-  { deviceId: 'aaaaaaaaaaaaaaaa', current: true, name: 'Galaxy S25 Ultra', model: 'SM-S938B', platform: 'Android', browser: 'Samsung Internet', country: 'CN', by: 'passkey', lastSeen: 1760000000000 },
-  { deviceId: 'bbbbbbbbbbbbbbbb', current: false, name: 'iPad', platform: 'iOS', browser: 'Safari', country: 'CN', lastSeen: fxStatus.NOW - 3 * 3600 * 1000 },
+  { n: 1, path: 'root via styrigx', since: ACCT_SINCE, expiresAt: ACCT_SINCE + 3600000, current: true },
+  { n: 2, path: 'styrigx', since: ACCT_SINCE - 86400000, expiresAt: ACCT_SINCE + 29 * 86400000, current: false },
 ];
 for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
   for (const lang of LANGS) {
@@ -189,23 +192,16 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
           await pg.setViewportSize(vp);
           await blockExternalRequests(pg);
           await pg.emulateMedia({ reducedMotion: 'reduce' });
-          const signedIn = state !== 'guest' && state !== 'pw-error' && state !== 'reset';
-          await pg.route('**/api/account**', async (route) => {
-            const req = route.request();
-            const ok = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
-            if (req.method() === 'GET') {
-              return ok({ ok: true, signing: true, configured: { password: true, passkey: true },
-                session: signedIn ? { by: 'passkey', device: 'Galaxy S25 Ultra', authAt: 1760000000000, expiresAt: FAR } : null,
-                reauth: state === 'keys' ? { by: 'passkey', expiresAt: FAR } : null });
-            }
-            const b = JSON.parse(req.postData() || '{}');
-            /* POST /api/account/<入口> { action }（NAMING-V2 P2） */
-            const a = (new URL(req.url()).pathname.split('/')[3] || '') + '/' + b.action;
-            if (a === 'session/password') return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'wrong' }) });
-            if (a === 'grants/list') return ok({ ok: true, grants: fxGrants.grants() });
-            if (a === 'devices/list') return ok({ ok: true, devices: ACCT_DEVICES });
-            if (a === 'keys/passkey-list' || a === 'reset/passkey-list') return ok({ ok: true, keys: [{ credId: 'k1', name: 'Galaxy S26 Ultra', provider: 'samsung-pass', createdAt: 1760000000000, lastUsedAt: 1760000000000 }] });
-            return ok({ ok: true });
+          /* 身份：guest / reset = 访客；pw-error = styrigx（wheel，su root）；其余 = root via styrigx */
+          const user = state === 'guest' || state === 'reset' ? null : state === 'pw-error' ? V6_USER('styrigx') : V6_USER('root');
+          await mockAccount(pg, {
+            user,
+            handlers: {
+              'identity/su': [401, { ok: false, error: 'auth' }],
+              'grants/list': () => [200, { ok: true, grants: fxGrants.grants() }],
+              'devices/list': [200, { ok: true, devices: ACCT_DEVICES }],
+              'identity/passkey-list': [200, { ok: true, passkeys: [{ n: 1, name: 'Galaxy S26 Ultra', provider: 'samsung-pass', createdAt: 1760000000000, lastUsedAt: 1760000000000 }] }],
+            },
           });
           await pg.addInitScript(([t, ln]) => {
             try {
@@ -218,9 +214,6 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
           });
           await freezeTime(pg);
           const card = state === 'guest' || state === 'home';
-          /* 终端的身份：已进站（styrigx），账号会话看 GET /api/account */
-          await pg.route('**/api/lock-session-check**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, by: 'password' }) }));
-          if (signedIn) await pg.addInitScript(() => { try { document.cookie = 'sgx-account-signed-in=1; Path=/'; } catch (e) {} });
           await pg.goto(lang.prefix + '/wild/' + (card ? '#acct' : ''), { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
           /** 截图 / 溢出检查的面板：卡片的 sheet，或终端窗口 */
@@ -235,7 +228,7 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
             if (state === 'home') {
               await expect(d.locator('[data-at-v="grants"] .sgx-pop-v')).toHaveText('5');
               await expect(d.locator('[data-at-run]')).toHaveCount(7);
-            } else await expect(d.locator('.sgx-pop-list [data-at-run]')).toHaveAttribute('data-at-run', 'sudo root');
+            } else await expect(d.locator('.sgx-pop-list [data-at-run]')).toHaveAttribute('data-at-run', 'su root');
           } else {
             sheet = '#sgx-term';
             const t = pg.locator('#sgx-term');
@@ -244,19 +237,19 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
             const out = pg.locator('#sgx-term [data-term-out]');
             await pg.locator('#site-nav .sgx-tb-term').click();
             await expect(t).toHaveAttribute('open', '');
-            await expect(pg.locator('#sgx-term [data-term-ps]')).toHaveText(signedIn ? /^root@account/ : /^styrigx@space/, { timeout: 10000 });
+            await expect(pg.locator('#sgx-term [data-term-ps]')).toHaveText(user ? (user.root ? /^root@space/ : /^styrigx@space/) : /^nobody@space/, { timeout: 10000 });
             const run = async (line) => { await inp.fill(line); await inp.press('Enter'); };
             if (state === 'pw-error') {
-              await run('sudo root');
+              await run('su root');
               await expect(form).toHaveAttribute('data-mode', 'pick', { timeout: 10000 });
-              await inp.press('2');
+              await inp.press('1');
               await expect(form).toHaveAttribute('data-mode', 'pw');
               await inp.fill('wrong-value');
               await inp.press('Enter');
               await expect(out.locator('.sgx-at-l--er')).toHaveCount(1, { timeout: 8000 });
             } else if (state === 'reset') {
-              await run('sudo root reset');
-              await expect(form).toHaveAttribute('data-mode', 'rkey', { timeout: 10000 });
+              await run('rescue');
+              await expect(form).toHaveAttribute('data-mode', 'pw', { timeout: 10000 });
             } else {
               await run(state === 'keys' ? 'passkey' : state === 'devices' ? 'device' : 'app');
               await expect(out.locator('.sgx-at-p')).toHaveCount(state === 'keys' ? 1 : state === 'devices' ? 2 : 5, { timeout: 10000 });

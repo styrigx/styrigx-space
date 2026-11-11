@@ -66,7 +66,7 @@ for (const [lang, pages] of Object.entries(SETS)) {
   });
 }
 
-test('子站真点开：外观面板 MODE / PALETTE 顺序四站相同、没有页签；NAVIGATE 里 语言 / 布局 / 分享 / 锁定 四站相同', async ({ page }) => {
+test('子站真点开：外观面板 MODE / PALETTE 顺序四站相同、没有页签；NAVIGATE 里 语言 / 布局 / 终端 四站相同（v6 P4 拿掉分享）', async ({ page }) => {
   const seen = [];
   const navSeen = [];
   for (const p of ['/curio/', '/daymark/', '/blog/']) {
@@ -82,14 +82,14 @@ test('子站真点开：外观面板 MODE / PALETTE 顺序四站相同、没有�
     await page.locator('.sgx-tb-grid').click();
     const nav = page.locator('#sgx-nav');
     await expect(nav).toHaveAttribute('data-state', 'open');
-    await expect(nav.locator('[data-qp="share"]')).toBeVisible();
+    await expect(nav.locator('[data-qp="share"]')).toHaveCount(0);
     navSeen.push(await nav.locator('[data-qp], [data-qp-lang], [data-qp-seg] button').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp') || (e.getAttribute('data-qp-lang') ? 'lang:' + e.getAttribute('data-qp-lang') : 'seg:' + e.getAttribute('data-v')))));
     await page.keyboard.press('Escape');
     await expect(nav).toBeHidden();
   }
   expect(seen[1]).toEqual(seen[0]);
   expect(seen[2]).toEqual(seen[0]);
-  expect(navSeen[0]).toEqual(['lang:en', 'lang:system', 'lang:zh', 'seg:phone', 'seg:auto', 'seg:desktop', 'share', 'term'] /* v5 S6 去掉 lock */); /* 2026-11 PR-2：加「$ terminal」；2026-11-09：EN | Auto | 中文、Mobile | Auto | DeX */
+  expect(navSeen[0]).toEqual(['lang:en', 'lang:system', 'lang:zh', 'seg:phone', 'seg:auto', 'seg:desktop', 'term'] /* v5 S6 去掉 lock；v6 P4 去掉 share */); /* 2026-11 PR-2：加「$ terminal」；2026-11-09：EN | Auto | 中文、Mobile | Auto | DeX */
   expect(navSeen[1]).toEqual(navSeen[0]);
   expect(navSeen[2]).toEqual(navSeen[0]);
 });

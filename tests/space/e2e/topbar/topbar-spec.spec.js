@@ -363,7 +363,7 @@ test.describe('390×844 行为', () => {
   });
 
 
-  test('四格打开 NAVIGATE（v5 S6）：$ NAVIGATE 01/05 · 五项（编号 · 名字 · 路径提示，当前项「开」态）· lang / layout · share · STATUS · systemctl status / esc 关闭', async ({ page }) => {
+  test('四格打开 NAVIGATE（v5 S6）：$ NAVIGATE 01/05 · 五项（编号 · 名字 · 路径提示，当前项「开」态）· lang / layout · STATUS · systemctl status / esc 关闭（v6 P4 拿掉 share）', async ({ page }) => {
     await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
     await go(page, '/zh/');
     await page.locator('.sgx-tb-grid').click();
@@ -386,12 +386,12 @@ test.describe('390×844 行为', () => {
     const other = await nav.locator('.sgx-nav-tile[data-nav="curio"]').evaluate((el) => getComputedStyle(el).color);
     expect(cur.c).not.toBe(other);
     expect(cur.sh).toContain('inset');
-    /* 顺序：五项 → lang / layout → share → STATUS → 底行 */
+    /* 顺序：五项 → lang / layout → STATUS → 底行（v6 P4：share 那一行拿掉，Gray 11-11 17:47） */
     const order = await nav.locator('.sgx-qp-sheet > *').evaluateAll((els) => els.map((e) => e.className));
-    expect(order).toEqual(['sgx-nav-h', '', 'sgx-nav-pf', 'sgx-nav-act', 'sgx-nav-st', 'sgx-nav-f']);
+    expect(order).toEqual(['sgx-nav-h', '', 'sgx-nav-pf', 'sgx-nav-st', 'sgx-nav-f']);
     await expect(nav.locator('.sgx-nav-pfk')).toHaveText(['lang', 'layout']);
     /* 2026-11 PR-A 照稿：share / lock 两颗；v5 S6 去掉 lock（上锁走终端 lock / 已进站点盾牌）；终端（PR-2 的功能）在页脚一行「Ctrl K 终端 ›」，顶栏另有 >_ */
-    await expect(nav.locator('.sgx-nav-act button')).toHaveText(['share']);
+    await expect(nav.locator('.sgx-nav-act, [data-qp="share"]')).toHaveCount(0);
     await expect(nav.locator('.sgx-nav-f [data-qp="term"]')).toHaveText('Ctrl K 终端 ›');
     await expect(nav.locator('.sgx-nav-f [data-qp="term"]')).toHaveAccessibleName('终端');
     await expect(nav.locator('[data-st]')).toHaveCount(6);

@@ -44,7 +44,6 @@ const SRC = {
   profile: path.join(REPO, 'space/web/data/profile.yaml'),
   icons: path.join(REPO, 'space/web/layouts/partials/icon.html'),
   wordmark: path.join(REPO, 'space/web/layouts/partials/shell-wordmark.html'),
-  share: path.join(REPO, 'space/web/assets/js/shell/share-button.js'),
   topbar: path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'),
   pageHeader: path.join(REPO, 'space/web/layouts/partials/sgx-ph.html'),
   footer: path.join(REPO, 'space/web/layouts/partials/sgx-footer.html'),
@@ -63,9 +62,9 @@ const SRC = {
 export const READER_SRC = SRC.reader;
 /** shell.css 里按这个顺序拼 input.css 的标记段 */
 export const SHELL_REGIONS = ['topbar-frame', 'panel', 'inpage', 'wide', 'terminal'];
-/* 导航项以外外壳要用的图标（2026-11-04 P5-1；2026-11 顶栏 v3；v5 S6 顶栏 E）：顶栏（盾牌、外观调色盘、四格 NAVIGATE、>_ 终端）、AI 浮钮、NAVIGATE 的 share / lock、外观面板恢复默认、AI 发送 / 新对话 / 历史。
+/* 导航项以外外壳要用的图标（2026-11-04 P5-1；2026-11 顶栏 v3；v5 S6 顶栏 E）：顶栏（盾牌、外观调色盘、四格 NAVIGATE、>_ 终端）、AI 浮钮、NAVIGATE 的 lock、外观面板恢复默认、AI 发送 / 新对话 / 历史。
    都要是不含模板语法的完整内联 SVG（P4-2 删搜索层时 ai-search 随 nav.json 的 search 项一起删了） */
-export const EXTRA_ICONS = ['tb-palette', 'tb-shield', 'tb-term', 'tb-grid', 'tb-chat', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history'];
+export const EXTRA_ICONS = ['tb-palette', 'tb-shield', 'tb-term', 'tb-grid', 'tb-chat', 'lock', 'tb-undo', 'tb-send', 'tb-newchat', 'tb-history'];
 const HEAD = (src) =>
   `/* 由 space/scripts/gen-shell.mjs 从 ${src} 生成，勿手改；主站和子站同一个 Hugo 站，子站样式表直接 @import。 */\n`;
 
@@ -168,14 +167,6 @@ function renderNav() {
     JSON.stringify({ _generated: 'styrigx-space space/scripts/gen-shell.mjs ← space/web/data/shell-nav.json + profile.yaml（me.email）+ icon.html + shell-wordmark.html；勿手改', ...nav, wordmark, icons }, null, 2) +
     '\n'
   );
-}
-
-/** 子站顶栏分享按钮：原样复制（不能 import，必须导出 mountShare） */
-export function renderShare() {
-  const src = readFileSync(SRC.share, 'utf8');
-  if (/^\s*import\s/m.test(src) || /\bimport\s*\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, ''))) throw new Error('share-button.js 不能 import 任何东西（子站原样复制）');
-  if (!/^export function mountShare\(/m.test(src)) throw new Error('share-button.js 必须导出 mountShare');
-  return src;
 }
 
 /** 终端公共件目录（终端统一 T1）：terminal.js、ai-panel.js 只许 import 这里面的文件 */
@@ -333,7 +324,6 @@ export function renderAll() {
   const schemeSrc = readFileSync(SRC.scheme, 'utf8');
   const reader = renderReader(data, schemeSrc);
   /* 子站直接引用的 partial / JS：只核对约束（结果不落盘） */
-  renderShare();
   renderTopbar();
   renderPageHeader();
   renderFooter();
@@ -364,7 +354,6 @@ export function renderAll() {
 export const SHELL_FILES = Object.freeze({
   ...OUT,
   'palette-scheme.js': 'space/web/assets/js/lib/palette-scheme.js',
-  'share.js': 'space/web/assets/js/shell/share-button.js',
   'topbar.html': 'space/web/layouts/partials/shell-topbar.html',
   'page-header.html': 'space/web/layouts/partials/sgx-ph.html',
   'footer.html': 'space/web/layouts/partials/sgx-footer.html',

@@ -11,7 +11,6 @@ import { checkTermImports } from '../../../../space/scripts/gen-shell.mjs';
 import * as S from '../../../../space/web/assets/js/shell/term/core/strings.js';
 import * as P from '../../../../space/web/assets/js/shell/term/core/parse.js';
 import * as KH from '../../../../space/web/assets/js/shell/term/view/keyhint.js';
-import * as SC from '../../../../space/web/assets/js/shell/space/commands.js';
 import * as AC from '../../../../space/web/assets/js/shell/account/commands.js';
 import * as T from '../../../../space/web/assets/js/shell/terminal.js';
 
@@ -20,18 +19,16 @@ const read = (f) => readFileSync(path.join(REPO, f), 'utf8');
 
 test('宿主转出的是同一份（同一个引用）', async () => {
   assert.equal(KH.KH_EN, S.KH_EN);
-  assert.equal(SC.normCmd, P.normCmd);
   assert.equal(AC.normCmd, P.normCmd);
-  assert.equal(SC.ADMIN_COMMAND, 'styrigx');
-  assert.equal(AC.ROOT_COMMAND, 'root');
-  assert.equal(SC.ENV_GUEST, P.ENV_GUEST);
-  assert.equal(SC.ENV_ROOT, P.ENV_ROOT);
+  /* v6 P4：旧命令字 sudo styrigx / sudo root 和旧环境提示符 root@account 删了 */
+  for (const k of ['ADMIN_COMMAND', 'ROOT_COMMAND', 'ENV_GUEST', 'ENV_ROOT']) assert.equal(/** @type {any} */ (P)[k], undefined, k);
+  assert.equal(/** @type {any} */ (AC).ROOT_COMMAND, undefined);
   /* v5 S5：一个终端，身份 / 提示符只在 term/core/who.js；terminal.js 转出同一个 createWho */
   assert.equal(typeof T.createWho, 'function');
 });
 
 test('没有残留的抄写：flatStrings / normCmd / lev 只定义在 term/core', () => {
-  const files = ['terminal.js', 'ai-panel.js', 'term/view/keyhint.js', 'suggest.js', 'space/layer.js', 'account/window.js', 'account/cmd/layer.js', 'space/commands.js', 'account/commands.js'];
+  const files = ['terminal.js', 'ai-panel.js', 'term/view/keyhint.js', 'suggest.js', 'account/window.js', 'account/cmd/layer.js', 'account/commands.js'];
   for (const f of files) {
     const src = read('space/web/assets/js/shell/' + f);
     assert.doesNotMatch(src, /function (flatStrings|normCmd|lev)\(/, f);

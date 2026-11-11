@@ -6,6 +6,7 @@
  * - 访客：先 su <用户>；旧会话（旧 root / 旧 styrigx / 账号 reset 层）照旧（P4 删）
  * - sudo passkey …（v6，定稿 §十）：rootCreds「sudo 不能改 root 的密码或通行密钥 · 先 su root」（同 sudo passwd）
  * - man passkey：v6 普通用户 / root6 都列；AUTH 行 = 已上线 v6 命令 groups 的同类写法「已登录」
+ * v6 P4：旧会话（旧 root / 旧 styrigx / 账号 reset 层）和旧账号钥匙（/api/account/keys、sudo root reauth）删了，只剩 v6。
  * 运行：node --test tests/space/ui/shell/v6-passkey-command.test.mjs
  */
 import { test } from 'node:test';
@@ -50,27 +51,22 @@ test('passkey（v6）：不再回旧的「还没登录账号 · 先 sudo root」
   assert.ok(!L.calls.some((c) => c[0] === 'passkeyRm'));
 });
 
-test('passkey：访客先 su <用户>；旧会话照旧（旧 root direct 不传、旧 styrigx 提示 sudo root；账号 reset 层走旧路径）', () => {
+test('passkey：访客先 su <用户>（v6 P4 起旧会话的路径删了）', () => {
   const L = layers();
   assert.equal(text(sh('nobody').exec('passkey', L.v).out[0]), 'not signed in · su <user> first');
-  sh('root').exec('passkey', L.v);
-  sh('root').exec('passkey rm 1', L.v);
-  assert.deepEqual(L.calls, [['passkeyList'], ['passkeyRm', 1]]);
-  assert.equal(text(sh('styrigx').exec('passkey', L.v).out[0]), 'not signed in to the account · run sudo root first');
-  const R = layers(true);
-  sh('u:root').exec('passkey add', R.v);
-  assert.deepEqual(R.calls, [['cmdPasskeyAdd', true]], 'reset 层里（旧 sudo root reset）不走 v6');
+  assert.deepEqual(L.calls, []);
 });
 
-test('sudo passkey（v6）交给身份层，身份层先回 rootCreds（定稿 §十：sudo 不能为 root 增删通行密钥）；旧身份照旧给 sudo 用法', () => {
+test('sudo passkey（v6）交给身份层，身份层先回 rootCreds（定稿 §十：sudo 不能为 root 增删通行密钥）；旧写法给 sudo 用法', () => {
   const L = layers();
   assert.equal(sh('u:styrigx').exec('sudo passkey add', L.v).flow, true);
   assert.deepEqual(L.calls, [['ident.cmdSudo', ['passkey', 'add']]]);
   const layer = rd('space/web/assets/js/shell/identity/layer.js');
   assert.match(layer, /if \(argv\[0\] === 'passkey'\) \{ C\.err\(t\('rootCreds'\)\); return; \}\n\s+const cmd = sudoCommand\(argv\);/);
   const old = layers();
-  assert.equal(text(sh('styrigx').exec('sudo passkey add', old.v).out[0]), 'usage: sudo styrigx [reset] | sudo root [reauth | reset] | sudo -v', '旧身份：sudo 用法');
+  assert.equal(text(sh('nobody').exec('sudo passkey add', old.v).out[0]), 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who', '访客：同 main 不进身份层，给用法');
   assert.deepEqual(old.calls, []);
+  assert.equal(text(sh('nobody').exec('sudo styrigx', old.v).out[0]), 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who', '旧写法：sudo 用法');
   for (const lang of ['en', 'zh']) {
     const t = yaml.load(rd('space/web/data/sgx-shell-i18n/' + lang + '.yaml'));
     assert.ok(t.identity.rootCreds, lang + ' rootCreds 已上线');
@@ -79,13 +75,13 @@ test('sudo passkey（v6）交给身份层，身份层先回 rootCreds（定稿 �
 
 test('man：passkey 给 v6 普通用户与 root6 都列；AUTH 行 = 已上线 groups 的同类写法「已登录」（中英）', async () => {
   const names = async (w) => (await sh(w).exec('man')).out.slice(1).map((o) => o.seg[0][1]);
-  for (const w of ['u:styrigx', 'u:root', 'root']) assert.ok((await names(w)).includes('passkey'), w);
+  for (const w of ['u:styrigx', 'u:root']) assert.ok((await names(w)).includes('passkey'), w);
   const zh = yaml.load(rd('space/web/data/sgx-shell-i18n/zh.yaml'));
   const en = yaml.load(rd('space/web/data/sgx-shell-i18n/en.yaml'));
   assert.equal(zh.manBody.passkey.auth, zh.manBody.groups.auth.split('；')[0]);
   assert.equal(en.manBody.passkey.auth, en.manBody.groups.auth.split(';')[0]);
   const pg = rd('space/web/assets/js/shell/term/man/pages.js');
-  assert.match(pg, /passkey: \{ d: '[^']+', syn: \['passkey', 'passkey add', 'passkey rm <n>'\], auth: 'signed in' \}/);
+  assert.match(pg, /passkey: \{ d: '[^']+', syn: \['passkey', 'passkey add', 'passkey rm <n>'\], auth: 'signed in' \}/, 'SYNOPSIS 同 main（passkey ls 进 SYNOPSIS 仍是待定项）');
 });
 
 /* ---------- 账号层（./cmd/keys.js）direct ---------- */
@@ -117,7 +113,7 @@ function fakeCtx(v6reply) {
 }
 const KEYS = { s: 200, j: { ok: true, keys: [{ n: 1, credId: 'A', name: 'S25', provider: '', createdAt: 0, lastUsedAt: 0 }, { n: 2, credId: 'B', name: 'Pixel', provider: '', createdAt: 0, lastUsedAt: 0 }] } };
 
-test('账号层 passkey（direct）：列表走 v6keys、不跑旧 reauth；旧路径照旧 reauth', async () => {
+test('账号层 passkey：列表走 v6keys、不跑旧 reauth（v6 P4 起不传 direct 也一样，旧路径删了）', async () => {
   const a = fakeCtx(KEYS);
   mountV6Direct(a.C, null);
   mountKeys(a.C);
@@ -133,8 +129,8 @@ test('账号层 passkey（direct）：列表走 v6keys、不跑旧 reauth；旧�
   mountKeys(b.C);
   b.C.passkeyList();
   await settle();
-  assert.deepEqual(b.log.find((l) => l[0] === 'withReauth'), ['withReauth', 'reauth.lead.keys'], '旧路径照旧 sudo root reauth');
-  assert.deepEqual(b.sent, []);
+  assert.ok(!b.log.some((l) => l[0] === 'withReauth'), '不跑旧 sudo root reauth');
+  assert.deepEqual(b.sent, [['v6.passkeyList']]);
 });
 
 test('账号层 passkey rm（direct）：y 之后按服务端编号删（passkey-delete { n }），不碰 credId 旧接口', async () => {

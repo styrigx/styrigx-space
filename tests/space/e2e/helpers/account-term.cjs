@@ -1,59 +1,62 @@
 /**
- * 账号 e2e 共用的小工具。S9 起账号卡片（头像 #sgx-acct）只展示，账号的流程都在全站终端 #sgx-term 的账号层（shell/account/cmd/layer.js）里：
- * openTerm 打开全站终端（顶栏 >_），log / termIn / ps / mode 都指向它；身份：/api/lock-session-check 替身回已进站（styrigx），
- * 账号登录标记 cookie 首帧就有，账号层一加载就问 GET /api/account（有 session → root@account）。
+ * 账号 e2e 共用的小工具。S9 起账号卡片（头像 #sgx-acct）只展示，账号的流程都在全站终端 #sgx-term 的账号层（shell/account/cmd/layer.js）里。
+ * v6 P4（定稿 v5.2 §十三 P4）起只有 v6 身份：openTerm 打开全站终端（顶栏 >_）；身份 = POST /api/identity whoami 替身（默认 root via styrigx），
+ * v6 登录标记 cookie sgx-id=1 首帧就有（终端一挂就问 whoami）。旧的 /api/lock-session-check、GET /api/account、sgx-account-signed-in 都删了。
  *
- * 测试构建是静态服务器（没有网关）：/api/account 等接口全用 page.route 替身；锁屏禁用（SGX_TEST_NO_LOCK）。
- * 没有 /account/ 整页了：旧地址由 static/_redirects 301 到首页 #acct=<层>（静态服务器不跑 _redirects，这里直接开 #acct=…）。
+ * 测试构建是静态服务器（没有网关）：/api/identity、/api/account/<入口> 等接口全用 page.route 替身；锁屏禁用（SGX_TEST_NO_LOCK）。
  */
 const { expect } = require('@playwright/test');
 const { blockExternalRequests } = require('./helpers');
 
 const json = (o, status = 200) => ({ status, contentType: 'application/json', body: JSON.stringify(o) });
 
-/** 已登录账号会话（GET /api/account 的 session 段） */
-const SESSION = (by = 'password', device = 'Galaxy S23 Ultra') => ({ by, device, authAt: Date.now() - 1000, expiresAt: Date.now() + 3600000 });
-/** reauth 票（3 分钟） */
-const REAUTH = () => ({ by: 'password', expiresAt: Date.now() + 170000 });
-/** GET /api/account：已进门、两把钥匙都设了（字段同 workers/account/src/api/account/status.js） */
-const STATUS = (x = {}) => Object.assign({ ok: true, signing: true, configured: { password: true, passkey: true }, session: null }, x);
+/**
+ * v6 身份视图（同 workers/account/src/api/identity.js view()）：'root'（root via styrigx）/ 'styrigx'（站长，wheel + sudoers）/ 其他名字（无组普通用户）。
+ * @param {string} [name]
+ */
+const V6_USER = (name = 'root') => {
+  if (name === 'root') return { uid: 0, name: 'root', groups: [], root: true, rescue: false, via: 'styrigx', path: 'root via styrigx', owner: false, wheel: false, sudoers: false, layerExpiresAt: Date.now() + 3600000, idleMs: 0 };
+  const owner = name === 'styrigx';
+  const groups = owner ? ['wheel', 'sudoers', 'listen', 'ai', 'status', 'curio-write', 'daymark-write'] : [];
+  return { uid: owner ? 1000 : 1001, name, groups, root: false, rescue: false, via: '', path: name, owner, wheel: owner, sudoers: owner, layerExpiresAt: Date.now() + 30 * 86400000, idleMs: 0 };
+};
 
 /**
- * /api/account 替身：GET /api/account 回 status（可为函数）；POST /api/account/<入口> { action } 按 handlers['<入口>/<action>'] 回
- * （[状态码, JSON] 或 (body) => [状态码, JSON]）。记下的请求体里 action 写成 '<入口>/<action>'（比如 'session/password'）。
- * 没写的：grants/list、devices/list、keys/passkey-list、reset/passkey-list 回空列表，reauth/end、reset/end 回 ok，其余 400。
+ * v6 替身：POST /api/identity { action } → whoami 回 o.user（默认 root；null = 访客，不写登录标记），其他 action 按 handlers['identity/<action>']；
+ * POST /api/account/<入口> { action } 按 handlers['<入口>/<action>'] 回（[状态码, JSON] 或 (body) => [状态码, JSON]）。
+ * 记下的请求体里 action 写成 '<入口>/<action>'（比如 'devices/revoke'、'identity/passkey-delete'；whoami 不记）。
+ * 没写的：grants/list、devices/list、identity/passkey-list 回空列表，其余 400。
  * @param {import('@playwright/test').Page} page
- * @param {{status?: any, handlers?: Record<string, any>}} o
+ * @param {{user?: any, handlers?: Record<string, any>}} [o]
  * @returns {Promise<Array<any>>} 记录的 POST 请求体
  */
-async function mockAccount(page, o) {
+async function mockAccount(page, o = {}) {
   const calls = [];
-  /* 进站会话（终端身份 styrigx；账号会话由 GET /api/account 决定 root） */
-  await page.route('**/api/lock-session-check**', (r) => r.fulfill(json({ ok: true, by: 'password' })));
-  await page.addInitScript(() => { try { document.cookie = 'sgx-account-signed-in=1; Path=/'; } catch (e) {} });
+  const user = o.user === undefined ? V6_USER('root') : o.user;
+  if (user) await page.addInitScript(() => { try { document.cookie = 'sgx-id=1; Path=/'; } catch (e) {} });
   const defaults = {
     'grants/list': [200, { ok: true, grants: [] }],
     'devices/list': [200, { ok: true, devices: [] }],
-    'keys/passkey-list': [200, { ok: true, keys: [] }],
-    'reset/passkey-list': [200, { ok: true, keys: [] }],
-    'reauth/end': [200, { ok: true }],
-    'reset/end': [200, { ok: true }],
+    'identity/passkey-list': [200, { ok: true, passkeys: [] }],
   };
-  await page.route(/\/api\/account(\/[a-z]+)?\/?(\?.*)?$/, async (route) => {
-    const req = route.request();
-    const entry = (new URL(req.url()).pathname.match(/^\/api\/account\/([a-z]+)/) || [])[1] || '';
-    if (req.method() === 'GET' && !entry) {
-      const st = typeof o.status === 'function' ? o.status() : o.status;
-      await route.fulfill(json(st || { ok: false, error: 'session' }, st && st.ok === false ? 401 : 200));
-      return;
-    }
-    let body = {};
-    try { body = JSON.parse(req.postData() || '{}'); } catch (e) {}
-    const key = entry + '/' + body.action;
+  const answer = async (route, key, body) => {
     calls.push(Object.assign({}, body, { action: key }));
     const h = (o.handlers || {})[key] || /** @type {any} */ (defaults)[key] || [400, { ok: false, error: 'action' }];
     const r = typeof h === 'function' ? h(body) : h;
     await route.fulfill(json(r[1], r[0]));
+  };
+  await page.route(/\/api\/identity\/?(\?.*)?$/, async (route) => {
+    let body = {};
+    try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+    if (body.action === 'whoami') { await route.fulfill(json({ ok: true, user: typeof user === 'function' ? user() : user })); return; }
+    await answer(route, 'identity/' + body.action, body);
+  });
+  await page.route(/\/api\/account\/[a-z]+\/?(\?.*)?$/, async (route) => {
+    const req = route.request();
+    const entry = (new URL(req.url()).pathname.match(/^\/api\/account\/([a-z]+)/) || [])[1] || '';
+    let body = {};
+    try { body = JSON.parse(req.postData() || '{}'); } catch (e) {}
+    await answer(route, entry + '/' + body.action, body);
   });
   return calls;
 }
@@ -82,9 +85,14 @@ async function openTerm(page) {
   await expect(page.locator('#sgx-term [data-term-ps]')).not.toHaveText(/^nobody/);
   return d;
 }
-/** 点头像打开账号卡片（只展示） @param {import('@playwright/test').Page} page */
+/**
+ * 打开账号卡片（只展示）。v6 起有身份时点头像 = 终端预填下一步（定稿 §七 头像 = whoami），卡片走页面入口 [data-acct-open]（同 open ~/account）；
+ * 这里插一个没名字的入口点它（两种身份都一样）。
+ * @param {import('@playwright/test').Page} page
+ */
 async function openCard(page) {
-  await page.locator('#site-nav .sgx-tb-av').click();
+  await page.evaluate(() => { const a = document.createElement('a'); a.href = '#'; a.setAttribute('data-acct-open', ''); a.id = 'e2e-acct-open'; a.textContent = 'account'; document.body.appendChild(a); });
+  await page.locator('#e2e-acct-open').click();
   const d = page.locator('#sgx-acct');
   await expect(d).toHaveAttribute('data-state', 'open');
   await expect(d.locator('.sgx-at')).toBeVisible();
@@ -152,4 +160,4 @@ async function fakePasskey(page, o = {}) {
   }, { cancel: !!o.cancel, hang: !!o.hang });
 }
 
-module.exports = { json, SESSION, REAUTH, STATUS, mockAccount, zh, goPage, openTerm, openCard, log, termIn, ps, picks, hint, typeLine, mode, fakePasskey };
+module.exports = { json, V6_USER, mockAccount, zh, goPage, openTerm, openCard, log, termIn, ps, picks, hint, typeLine, mode, fakePasskey };

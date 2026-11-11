@@ -649,20 +649,12 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     await expect(nav(page)).toHaveAttribute('data-state', 'open');
   });
 
-  test('NAVIGATE 没有 lock 了（v5 S6）：只剩 share；上锁走终端 lock / 已进站点盾牌', async ({ page }) => {
+  test('NAVIGATE 没有 lock 了（v5 S6），v6 P4 也没有 share 了（分享磁贴拿掉，Gray 11-11 17:47）；上锁走终端 lock', async ({ page }) => {
     await go(page, '/', 'zh', false);
     await openNav(page);
     await expect(ctl(page, 'lock')).toHaveCount(0);
-    await expect(page.locator('#sgx-nav [data-qp-lock-state]')).toHaveCount(0);
-    await expect(page.locator('#sgx-nav .sgx-nav-act button')).toHaveText(['share']);
-  });
-
-  test('NAVIGATE share：主站也有分享本页（share.js 接手，读屏名「分享本页」）', async ({ page }) => {
-    await go(page, '/');
-    await openNav(page);
-    await expect(ctl(page, 'share')).toHaveAttribute('data-sgx-share', '');
-    await expect(ctl(page, 'share')).toHaveText('share');
-    await expect(ctl(page, 'share')).toHaveAccessibleName('分享本页');
+    await expect(ctl(page, 'share')).toHaveCount(0);
+    await expect(page.locator('#sgx-nav [data-qp-lock-state], #sgx-nav [data-sgx-share], #sgx-nav .sgx-nav-act')).toHaveCount(0);
   });
 
   test('P4-3 PR-4b：面板里没有齿轮和设置项，顶栏没有「设置」标签；对齐 PR-B 起主页没有分类入口，[04]「cd wild/ →」进旷野页', async ({ page }) => {
@@ -741,13 +733,13 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await inp.press('Enter');
     await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="user"]').last()).toHaveText('$ pwd');
     await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('~');
-    /* 要输入 / 验证的命令（sudo …）在 AI 窗口里不跑，提示去终端 */
-    await inp.fill('$ sudo styrigx');
+    /* 要输入 / 验证的命令（su …；v6 P4 起旧 sudo styrigx 删了）在 AI 窗口里不跑，提示去终端 */
+    await inp.fill('$ su styrigx');
     await inp.press('Enter');
-    await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('sudo styrigx：请在终端里运行（Ctrl K）');
+    await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('su styrigx：请在终端里运行（Ctrl K）');
     await inp.fill('$');
     await inp.press('ArrowUp');
-    await expect(inp).toHaveValue('$ sudo styrigx');
+    await expect(inp).toHaveValue('$ su styrigx');
     await inp.fill('$ pw');
     await inp.press('Tab');
     await expect(inp).toHaveValue('$ pwd');
@@ -756,7 +748,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ai(page).locator('[data-term]')).toHaveCount(0);
     expect(posts).toBe(0);
     const h = await page.evaluate(() => [sessionStorage.getItem('sgx-term-hist-4'), localStorage.getItem('sgx-ai-history')]);
-    expect(JSON.parse(h[0])).toEqual(['pwd', 'sudo styrigx', 'clear']);
+    expect(JSON.parse(h[0])).toEqual(['pwd', 'su styrigx', 'clear']);
     expect(h[1] || '').not.toContain('pwd');
   });
 

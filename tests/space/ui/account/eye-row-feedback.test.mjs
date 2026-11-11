@@ -142,11 +142,8 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
   const d = jsDict('account');
   assert.deepEqual(d.eyeShow, { en: 'Show password', zh: '显示密码' }, 'account eyeShow 应为显示密码');
   assert.deepEqual(d.eyeHide, { en: 'Hide password', zh: '隐藏密码' }, 'account eyeHide 应为隐藏密码');
-  /* 锁屏 sudo styrigx reset 走 /api/lock-reset（paths.js 唯一一处地址）；没有底部弹层 / 验证对话框 */
-  assert.ok(read(spaceDir + '/paths.js').includes("reset: '/api/lock-reset'"), 'reset 走 /api/lock-reset');
-  for (const f of ['layer.js', 'reset.js', 'session.js']) {
-    assert.ok(!/createMethodSheet|createVerifyDialog|mountResetFlow/.test(read(spaceDir + '/' + f)), f + ' 不用底部弹层 / 验证对话框');
-  }
+  /* v6 P4：钥匙层（shell/space/ 下的进站 / reset / 复验）随旧进站会话删了，只剩守卫 */
+  for (const f of ['paths.js', 'layer.js', 'reset.js', 'session.js']) assert.ok(!existsSync(join(spaceDir, f)), 'shell/space/' + f + ' 已删（v6 P4）');
   /* P2-3：升级验证层（shell/upgrade.js）已删除 */
   assert.ok(!existsSync(join(ROOT, 'space/web/assets/js/shell/upgrade.js')), 'shell/upgrade.js 已删除');
 });

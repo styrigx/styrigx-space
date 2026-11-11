@@ -1,6 +1,5 @@
 import { fill } from '../../core/out.js';
 import { shellSection } from '../../core/strings.js';
-import { ROOT_COMMAND, ADMIN_COMMAND } from '../../core/parse.js';
 
 /**
  * man [命令]：不带参数是索引（这个身份能用的命令），带参数是那一页。结果交给终端窗口的全屏阅读页（S9，less 式：q / esc / ‹ 返回 退出，
@@ -48,7 +47,7 @@ export default {
       /** @type {any[]} */
       const out = [{ t: 'line', seg: [['', 'NAME']], cls: 'h' }, { t: 'line', seg: [['', '    '], ['k', name], ['', ' — ' + desc(name)]], cls: '' }];
       /** @param {string} s */
-      const sub = function (s) { return s.split('{root}').join(ROOT_COMMAND).split('{admin}').join(ADMIN_COMMAND); };
+      const sub = function (/** @type {string} */ s) { return s; };
       /** @param {string} h @param {string[]|undefined} ls */
       const sec = function (h, ls) {
         if (!ls || !ls.length) return;

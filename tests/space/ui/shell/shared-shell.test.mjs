@@ -114,7 +114,8 @@ test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）
   assert.deepEqual(nav.items.map((i) => tr.en.nav[i.id].title), ['Home', 'Blog', 'Curio', 'Daymark', 'Wild']);
   for (const i of nav.items) for (const l of ['en', 'zh']) assert.ok(tr[l].foot.win[i.id], i.id + ' 页脚窗口名 ' + l);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
-  for (const k of ['tb-palette', 'tb-shield', 'tb-term', 'tb-chat', 'lock', 'tb-undo', 'share', 'tb-send', 'tb-newchat', 'tb-history']) assert.match(nav.icons[k], /^<svg[\s\S]*<\/svg>$/, k);
+  for (const k of ['tb-palette', 'tb-shield', 'tb-term', 'tb-chat', 'lock', 'tb-undo', 'tb-send', 'tb-newchat', 'tb-history']) assert.match(nav.icons[k], /^<svg[\s\S]*<\/svg>$/, k);
+  assert.equal(nav.icons.share, undefined, 'v6 P4：分享磁贴拿掉，share 图标不再进外壳（Gray 11-11 17:47）');
   assert.equal(nav.icons['apps-grid'], undefined, '旧九宫格（九个点）不用');
 });
 
@@ -213,11 +214,12 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/topbar-end.html')), 'topbar-end.html 已删');
 });
 
-test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layout 分段 + share（v5 S6 去掉 lock）+ STATUS 占位 + systemctl status · esc 关闭；外观 MODE 三段 + PALETTE 列表；tmux 页脚', () => {
+test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layout 分段（v5 S6 去掉 lock；v6 P4 拿掉 share）+ STATUS 占位 + systemctl status · esc 关闭；外观 MODE 三段 + PALETTE 列表；tmux 页脚', () => {
   const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');
   const navd = src.slice(src.indexOf('<dialog id="sgx-nav"'), src.indexOf('<dialog id="sgx-qp"'));
-  const order = ['sgx-nav-h', 'class="sgx-nav-list"', 'data-qp-langs', 'data-qp-seg="layout"', 'data-qp="share" data-sgx-share', 'data-nav-status', 'sgx-nav-flink', 'data-nav-close'].map((k) => navd.indexOf(k));
-  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '头 → 五项 → lang → layout → share → STATUS → systemctl status → esc');
+  const order = ['sgx-nav-h', 'class="sgx-nav-list"', 'data-qp-langs', 'data-qp-seg="layout"', 'data-nav-status', 'sgx-nav-flink', 'data-nav-close'].map((k) => navd.indexOf(k));
+  assert.ok(order.every((x, n) => x > 0 && (n === 0 || x > order[n - 1])), '头 → 五项 → lang → layout → STATUS → systemctl status → esc');
+  assert.doesNotMatch(navd, /data-sgx-share|data-qp="share"/, 'v6 P4：分享磁贴拿掉');
   assert.doesNotMatch(navd, /data-qp="lock"|data-qp-lock-state/, 'v5 S6：NAVIGATE 没有 lock 按钮（上锁走终端 lock / 已进站点盾牌）');
   assert.match(navd, /\{\{ printf "%02d\/%02d" \$cur \$n \}\}/, '01/05 计数');
   assert.match(navd, /<a class="sgx-nav-tile" href="\{\{ \$p \}\}" data-nav="\{\{ \.id \}\}"\{\{ if eq \.id \$\.site \}\} aria-current="page"\{\{ end \}\}><em class="sgx-nav-no"/);

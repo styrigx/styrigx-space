@@ -10,7 +10,6 @@ topbar:
   askAi: AI 助手
   dark: 深色模式
   followSystem: 跟随系统
-  share: 分享本页
   language: 语言
   palette: 调色板
   reset: 恢复默认
@@ -35,7 +34,6 @@ topbar:
   langKey: lang
   langAuto: 跟随系统语言
   layoutKey: layout
-  shareKey: share
   schemeKey: MODE
   schemeDark: 深
   schemeLight: 浅
@@ -67,15 +65,6 @@ ai:
   stop: 停止
   sources: 来源
   newTab: （在新标签页打开）
-share:
-  share: 分享
-  copied: 已复制分享链接
-  copyFail: 复制失败，请稍后再试
-  busy: 正在生成分享链接…
-  session: 会话已过期，su 登录后再分享
-  full: 分享短链已满 20 条，先去主站作废几条
-  forbidden: 只有 root 能生成分享链接 · 先 su root
-  fail: 生成分享链接失败，请稍后再试
 # 导航面板（九宫格）：站点名 + 副标题（space/web/data/shell-nav.json 只留 id / 图标 / 地址）
 nav:
   label: "站点"
@@ -185,7 +174,7 @@ term:
   opening: "打开 {x} …"
   todayNone: "今天还没有句子 · {x}"
   todayFail: "今日一句没取到 · {x}"
-  usageSudo: "用法：sudo styrigx [reset] | sudo root [reauth | reset] | sudo -v"
+  usageSudo: "用法：sudo useradd | userdel | usermod | passwd <名字> | groups [名字] | who"
   usageTheme: "用法：theme [dark | light | auto]"
   usageCat: "用法：cat daymark/today"
   themeSet: "theme → {x}"
@@ -201,10 +190,8 @@ term:
   findDown: "find: 搜索暂时不可用 · 稍后再试"
   findLimited: "find: 搜得太频繁了 · 一分钟后再试"
   askLocked: "AI 已上锁，先 {s}；搜关键词用 {f}"
-  usageLock: "用法：lock [passwd | passkey [add | rm <n>] | --all]"
-  usageShare: "用法：share [add | rm <n> | rm --all]"
+  usageLock: "用法：lock"
   usagePasswd: "用法：passwd"
-  usagePasskey: "用法：passkey [add | rm <n>]"
   # 割接（v6-commands「自己的账号」passkey ls / add / rm <n>）：v6 会话里的 passkey 用法行
   usagePasskey6: "用法：passkey [ls | add | rm <n>]"
   usageDevice: "用法：device [rm <n> | rm --all]"
@@ -217,15 +204,11 @@ term:
   usageUserdel: "用法：userdel <名字>"
   usageUsermod: "用法：usermod -aG | -rG <组[,组]> <名字>"
   usageRescue: "用法：rescue"
-  needRoot: "还没登录账号 · 先 {x}"
   needRoot6: "当前用户没有这个权限 · 先 {x}"
   needSu: "没有登录 · 先 {x}"
   suUser: "<用户>"
   exitFirst: "已经以 {u} 登录 · 先 {x}"
-  linkDenied: "分享链接进来的会话不能这样做 · 用自己的钥匙进站"
-  alreadyIn: "已经进站了 · 再验证用 {x}"
   notHere: "{x}：请在终端里运行（Ctrl K）"
-  resetOnly: "reset 里只能用：passwd · passkey [add | rm <n>] · exit"
   # #404 未决项（Gray 11-11 15:37 定稿文案）：sudo sub / sudo app 暂不支持（第 2 项）；v6 身份输已移除的旧命令（第 3 项，P4 连命令一起删）
   sudoNotYet: "sudo {x} 暂不支持 · 先 su root，再直接用 {x}"
   goneSudoV: "sudo -v 已移除 · v6 里每次 sudo 都会重新验证"
@@ -239,17 +222,16 @@ man:
   cd: "切换当前目录（要过去用 open）"
   ls: "列出目录"
   cat: "显示今天的 daymark 一句"
-  sudo: "进站（sudo styrigx）、登录账号（sudo root）或再验证（sudo -v）"
+  sudo: "输自己的凭据，用 root 权限执行一条命令（仅 sudoers 组；不留票据）"
   theme: "打开外观面板，或设为 dark / light / auto"
-  lock: "立即上锁，或管理解锁密码和通行密钥"
+  lock: "全部退出，回到访客"
   ask: "问 Gray AI 一个问题"
   find: "按关键词搜四个站的公开页面"
   clear: "清屏"
   pwd: "显示当前目录"
   open: "打开一个路径：站点、daymark/today 或账号卡片"
   history: "列出这个会话敲过的命令"
-  exit: "退回上一层、退出账号登录，或关掉终端"
-  share: "列出、新建或作废分享链接"
+  exit: "退回上一层，或关掉终端"
   passwd: "修改账号密码"
   passkey: "列出、添加或删除账号通行密钥"
   device: "列出登录的设备，或退出某一台"
@@ -264,38 +246,23 @@ man:
   userdel: "删除用户，连同会话、钥匙和组"
   usermod: "把用户加进组或移出组"
   rescue: "输恢复钥匙 → 15 分钟 root 救援会话"
-# 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；英文底在 assets/js/shell/term/man/pages.js，行数一一对应）。{root} / {admin} 换成命令字；命令写法、提示符不翻译。
+# 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；英文底在 assets/js/shell/term/man/pages.js，行数一一对应）。命令写法、提示符不翻译。
 # 中文页每一页都要有（tests/space/ui/shell/man-i18n.test.mjs 查）。
 manBody:
   ask:
     desc:
       - "ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 styrigx 和 root 开放。"
-  sudo:
-    desc:
-      - "sudo {admin}：就在这里用解锁密码或通行密钥验证；终端收起，进站动画开始。"
-      - "sudo -v：再验证 3 分钟（root@account 时验证的是账号）。"
-      - "reset：用恢复钥匙重置密码和通行密钥。"
-    notes:
-      - "分享链接进来的会话（nobody@space:~#）不能再验证、不能分享、不能改钥匙。"
   lock:
-    desc:
-      - "lock：立即锁上这台设备（不用验证）。"
-      - "passwd / passkey：进站用的钥匙（不是账号的）。"
-      - "--all：所有设备都退回访客。"
     auth: "不用验证"
   exit:
     desc:
-      - "reset 里：离开 reset。root@account：退出账号登录，回到 {admin}@space。其余：关掉终端。"
-  share:
-    desc:
-      - "share add：名字、页面、链接多久有效、要不要带会话。"
-    auth: "只有 root；列出和作废不用再验证"
+      - "退回上一层（root → styrigx → 访客；救援直接回访客）。没有登录时：关掉终端。"
   passwd:
     auth: "已登录；先输当前密码"
   passkey:
     auth: "已登录"
   device:
-    auth: "已登录账号（sudo {root}）；--all 要再验证"
+    auth: "已登录"
   app:
     desc:
       - "app：每个应用的权限范围、什么时候在哪台设备上授权的。"
@@ -306,7 +273,7 @@ manBody:
       - "profile：姓名、昵称、签名和邮箱（没改过的显示站点默认值）。"
       - "set：改一项，全站立刻跟着换。姓名最多 40 个字，昵称最多 32 个字，邮箱查格式。"
       - "avatar：选一张照片裁剪，或者移除你的头像。"
-    auth: "已登录账号（sudo {root}）"
+    auth: "已登录"
   sub:
     desc:
       - "sub：公钥（头尾）、令牌状态和每个来源：名称 · 机场域名或文件 · 节点数 · 启用 / 停用 / 出错。"

@@ -5,6 +5,7 @@
  * - 第 4 项：man lock / share / passwd / app / sub 的 AUTH 行按 v6 改写（pages.js / zh / en 同步）
  * - 第 7 项：ask 进 root6 的 man，不进普通用户（user）的
  * - #406 未决 3：v6 路径的 passkey 用法行带 ls（v6-commands「passkey ls / add / rm <n>」）
+ * v6 P4：旧身份和旧命令本身删了——「已移除」那几行对所有身份都印；share 的 man 页删了；device / profile 的 AUTH 改成「已登录」。
  * 运行：node --test tests/space/ui/shell/v6-404-pending-copy.test.mjs
  */
 import { test } from 'node:test';
@@ -74,33 +75,35 @@ test('第 3 项：v6 身份输已移除的 sudo -v / sudo root reauth / lock pas
       assert.equal(L.calls.length, 0, w + ' ' + l + ' 不跑旧层');
     }
   }
+  /* 访客：同 main 的门，先提示 su（v6 P4 不改访客的行为） */
+  for (const l of Object.keys(want)) {
+    const L = layers();
+    const o = sh('nobody').exec(l, L.v).out;
+    assert.equal(text(o[0]), 'not signed in · su <user> first', 'nobody ' + l);
+    assert.equal(L.calls.length, 0);
+  }
 });
 
-test('第 3 项：lock（不带参数）照旧清 v6 身份栈；旧身份的 sudo -v / lock passwd 照旧（P4 删）', () => {
+test('第 3 项：lock（不带参数）清 v6 身份栈；v6 P4：旧身份的 sudo -v / lock passwd 删了（印「已移除」，不进任何层）', () => {
   const L = layers();
   assert.equal(sh('u:styrigx').exec('lock', L.v).flow, true);
   assert.deepEqual(L.calls, [['ident.cmdLock']]);
-  const O = layers();
-  O.v.ident = null;
-  assert.equal(sh('styrigx').exec('sudo -v', O.v).flow, true);
-  assert.equal(sh('styrigx').exec('lock passwd', O.v).flow, true);
-  assert.equal(sh('root').exec('sudo root reauth', O.v).flow, true);
-  assert.deepEqual(O.calls.map((c) => c[0]), ['spaceReauth', 'cmdPasswd', 'acctReauth']);
-  /* 应用内终端（没有层）的 notHere 不动 */
-  assert.equal(text(sh('styrigx').exec('lock --all', {}).out[0]), 'lock --all: run it in the terminal (Ctrl K)');
+  /* 应用内终端（没有层）：已移除的一行照印，不用去终端跑 */
+  assert.equal(text(sh('u:styrigx').exec('lock --all', {}).out[0]), 'lock --all is gone · sign out all devices on the account page');
+  assert.equal(text(sh('u:styrigx').exec('lock', {}).out[0]), 'lock: run it in the terminal (Ctrl K)');
+  assert.equal(text(sh('u:styrigx').exec('lock x', L.v).out[0]), 'usage: lock');
 });
 
-test('#406 未决 3：v6 路径的 passkey 用法行带 ls；旧路径的用法行不变', () => {
+test('#406 未决 3：passkey 用法行带 ls（v6 P4 起只有这一种）', () => {
   const v6 = { v: { acct: { inReset: false } } };
   assert.equal(text(sh('u:styrigx').exec('passkey rm x', v6.v).out[0]), 'usage: passkey [ls | add | rm <n>]');
   assert.equal(text(sh('u:styrigx', ZH.term).exec('passkey foo', v6.v).out[0]), '用法：passkey [ls | add | rm <n>]');
-  assert.equal(text(sh('root').exec('passkey rm x', { acct: { inReset: false } }).out[0]), 'usage: passkey [add | rm <n>]');
+  assert.equal(TERM_EN.usagePasskey, undefined, '旧用法行删了');
 });
 
-test('第 4 项：man lock / share / passwd / app / sub 的 AUTH 行按 v6 改写（pages.js / en / zh 同步）；passkey / device / profile 不动', () => {
+test('第 4 项：man lock / passwd / app / sub 的 AUTH 行按 v6 改写（pages.js / en / zh 同步）；v6 P4：share 页删了，device / profile = 已登录', () => {
   const want = {
     lock: ['no verification', '不用验证'],
-    share: ['root only; listing and revoking need no reauth', '只有 root；列出和作废不用再验证'],
     passwd: ['signed in; asks your current password first', '已登录；先输当前密码'],
     app: ['root only; allow needs no reauth', '只有 root；allow 不用再验证'],
     sub: ['root only; show, key and token reset need no reauth', '只有 root；show、key 和 token reset 不用再验证'],
@@ -111,16 +114,21 @@ test('第 4 项：man lock / share / passwd / app / sub 的 AUTH 行按 v6 改�
     assert.equal(ZH.manBody[c].auth, zh, 'zh.' + c);
   }
   assert.equal(PAGES.passkey.auth, 'signed in');
-  assert.equal(PAGES.device.auth, 'signed in (sudo {root}); --all needs reauth');
-  assert.equal(PAGES.profile.auth, 'signed in (sudo {root})');
-  assert.equal(ZH.manBody.device.auth, '已登录账号（sudo {root}）；--all 要再验证');
+  assert.equal(PAGES.share, undefined);
+  assert.equal(EN.manBody.share, undefined);
+  assert.equal(ZH.manBody.share, undefined);
+  for (const c of ['device', 'profile']) {
+    assert.equal(PAGES[c].auth, 'signed in', c);
+    assert.equal(EN.manBody[c].auth, 'signed in', c);
+    assert.equal(ZH.manBody[c].auth, '已登录', c);
+  }
 });
 
 test('第 7 项：ask 进 root6 的 man（带一行 Gray AI 权限说明），不进普通用户的', async () => {
   const names = async (w) => (await run(sh(w), 'man')).out.slice(1).map((o) => o.seg[0][1]);
   assert.ok((await names('u:root')).includes('ask'), 'root6 列 ask');
   assert.ok(!(await names('u:alice')).includes('ask'), 'user 不列 ask');
-  for (const w of ['link', 'styrigx', 'root']) assert.ok((await names(w)).includes('ask'), w + ' 照旧列 ask');
+  assert.ok(!(await names('nobody')).includes('ask'), '访客不列 ask');
   assert.equal(PAGES.ask.desc.length, 1);
   assert.equal(EN.manBody.ask.desc[0], PAGES.ask.desc[0]);
   assert.equal(ZH.manBody.ask.desc[0], 'ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 styrigx 和 root 开放。');

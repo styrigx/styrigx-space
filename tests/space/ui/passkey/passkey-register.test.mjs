@@ -159,8 +159,9 @@ test('账号 / 进站都只经 passkey-register.js 注册：不再手写 credent
     assert.ok(!src.includes('navigator.credentials.create'), 'keys.js 不手写注册');
     assert.ok(src.includes("genPkPrefillName('')"), 'keys.js 预填名不拿界面文案兜底');
   }
-  /* 进站 v3 L1：进站通行密钥在盾牌进站凭证层（shell/space/keys.js）和 reset 终端（shell/space/reset.js）注册；命名在终端里问（Q9），没有命名弹层；apps/security-lock.js 删了 */
-  for (const f of ['space/web/assets/js/shell/space/keys.js', 'space/web/assets/js/shell/space/reset.js']) {
+  /* v6 P4：旧进站通行密钥的注册（shell/space/keys.js、reset.js）随旧进站会话删了；自己的通行密钥只在账号层 cmd/keys.js（POST /api/identity） */
+  for (const f of ['space/web/assets/js/shell/space/keys.js', 'space/web/assets/js/shell/space/reset.js']) assert.ok(!existsSync(join(root, f)), f + ' 已删（v6 P4）');
+  for (const f of []) {
     const src = rd(f);
     assert.ok(src.includes("from '../../auth/passkey-register.js'"), f);
     assert.ok(src.includes('registerPasskey({') && !src.includes('createPkNameDialog'), f + ' 终端里问名字，不用命名弹层');

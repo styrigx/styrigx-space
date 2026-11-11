@@ -3,7 +3,7 @@
  * - v5 S3 整站放开：访客页面（<html data-sgx-lock-session="locked">）顶栏照常，规则只看锁屏界面本身（<body class="sgx-entry">）
  * - input.css 把 #site-nav 藏掉（visibility: hidden），并去掉顶栏的 view-transition-name；
  *   规则在所有 @layer 之外（要压过同样不分层的 .sgx-topbar { view-transition-name }），也不在共享外壳段里（锁屏只在主站）
- * - v5 S5 起没有锁屏界面：开机动画（shell/space/unlock.js）开着时加 body.sgx-entry，收掉时去掉，顶栏随之露出
+ * - v5 S5 起没有锁屏界面；v6 P4 起开机动画（shell/space/unlock.js）也删了
  * 运行：node --test tests/space/ui/lock/lock-topbar-hidden.test.mjs
  */
 import { test } from 'node:test';
@@ -14,7 +14,6 @@ import path from 'node:path';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const css = readFileSync(path.join(REPO, 'space/web/assets/css/input.css'), 'utf8');
-const entryJs = readFileSync(path.join(REPO, 'space/web/assets/js/shell/space/unlock.js'), 'utf8');
 
 const HIDE = 'body.sgx-entry #site-nav { visibility: hidden; }';
 const NO_VT = 'body.sgx-entry #site-nav .sgx-topbar { view-transition-name: none; }';
@@ -50,10 +49,4 @@ test('input.css：访客页面（locked 标记）不再藏顶栏，也不藏锁�
   assert.doesNotMatch(css, /body\.sgx-entry[^{]*\.sgx-entry-tb/);
 });
 
-test('unlock.js：开机动画收掉时去掉 body.sgx-entry（顶栏随之露出），不再用 .sgx-entry-off', () => {
-  const i = entryJs.indexOf('const done = function () {');
-  assert.ok(i > 0, '缺 done');
-  const body = entryJs.slice(i, entryJs.indexOf('\n  };\n', i));
-  assert.match(body, /doc\.body\.classList\.remove\('sgx-entry'\)/);
-  assert.doesNotMatch(entryJs, /sgx-entry-off/);
-});
+/* v6 P4：开机动画（shell/space/unlock.js，旧进站成功后的那一段）随旧进站会话删了，没有地方再加 body.sgx-entry；上面的 CSS 规则留着不碍事 */

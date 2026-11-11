@@ -13,7 +13,6 @@ topbar:
   askAi: Ask AI
   dark: Dark mode
   followSystem: Follow system
-  share: Share this page
   language: Language
   palette: Color palette
   reset: Reset
@@ -39,7 +38,6 @@ topbar:
   langKey: lang
   langAuto: Follow system language
   layoutKey: layout
-  shareKey: share
   schemeKey: MODE
   schemeDark: Dark
   schemeLight: Light
@@ -71,15 +69,6 @@ ai:
   stop: Stop
   sources: "Sources"
   newTab: (opens in a new tab)
-share:
-  share: Share
-  copied: Share link copied
-  copyFail: Couldn’t copy. Please try again
-  busy: Creating share link…
-  session: Your session has expired. Sign in with su to share.
-  full: You already have 20 share links. Revoke some on styrigx.com first
-  forbidden: "Only root can create share links · run su root first"
-  fail: Couldn’t create a share link. Please try again
 # 导航面板（九宫格）：站点名 + 副标题（space/web/data/shell-nav.json 只留 id / 图标 / 地址）
 nav:
   label: "Sites"
@@ -174,7 +163,7 @@ paletteGroup:
   floral: "Floral"
   neutral: "Neutral"
 # 站内终端（2026-11 UI 重设计 PR-2，设计稿 term-v1）：主页首屏嵌入的终端 + 全站抽屉（Ctrl / ⌘ K），引擎 assets/js/shell/terminal.js（缺键回退那里的英文底）。
-# 命令名（help / cd / ls …）、目录名、提示符不翻译（按账号登录状态 styrigx@space / root@account，见 shell/terminal.js）。{x} {c} {help} {cd} 是占位。
+# 命令名（help / cd / ls …）、目录名、提示符不翻译（按 v6 身份 <用户>@space，见 shell/term/core/who.js）。{x} {c} {help} {cd} 是占位。
 term:
   welcome: "space os 1.0 — type {help} to see all commands, {cd} to jump there"
   hint: "tab complete · ↑ history · Ctrl K anywhere"
@@ -192,7 +181,7 @@ term:
   opening: "opening {x} …"
   todayNone: "no line for today yet · {x}"
   todayFail: "couldn’t load today’s line · {x}"
-  usageSudo: "usage: sudo styrigx [reset] | sudo root [reauth | reset] | sudo -v"
+  usageSudo: "usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who"
   usageTheme: "usage: theme [dark | light | auto]"
   usageCat: "usage: cat daymark/today"
   themeSet: "theme → {x}"
@@ -208,10 +197,8 @@ term:
   findDown: "find: search is unavailable right now · try again later"
   findLimited: "find: too many searches · try again in a minute"
   askLocked: "AI is locked · run {s} first; use {f} to search by keyword"
-  usageLock: "usage: lock [passwd | passkey [add | rm <n>] | --all]"
-  usageShare: "usage: share [add | rm <n> | rm --all]"
+  usageLock: "usage: lock"
   usagePasswd: "usage: passwd"
-  usagePasskey: "usage: passkey [add | rm <n>]"
   usagePasskey6: "usage: passkey [ls | add | rm <n>]"
   usageDevice: "usage: device [rm <n> | rm --all]"
   usageApp: "usage: app [allow <n> | deny <n>]"
@@ -223,15 +210,11 @@ term:
   usageUserdel: "usage: userdel <name>"
   usageUsermod: "usage: usermod -aG | -rG <group[,group]> <name>"
   usageRescue: "usage: rescue"
-  needRoot: "not signed in to the account · run {x} first"
   needRoot6: "permission denied · run {x} first"
   needSu: "not signed in · {x} first"
   suUser: "<user>"
   exitFirst: "signed in as {u} · {x} first"
-  linkDenied: "a share-link session can’t do this · enter with your own key"
-  alreadyIn: "already entered · {x} to verify again"
   notHere: "{x}: run it in the terminal (Ctrl K)"
-  resetOnly: "in reset: passwd · passkey [add | rm <n>] · exit"
   sudoNotYet: "sudo {x} isn’t supported yet · su root first, then run {x}"
   goneSudoV: "sudo -v is gone · in v6 every sudo verifies again"
   goneSudoReauth: "sudo root reauth is gone · to act as root, su root"
@@ -244,17 +227,16 @@ man:
   cd: "change the current directory (use open to go there)"
   ls: "list a directory"
   cat: "print today’s daymark line"
-  sudo: "enter the site (sudo styrigx), sign in to the account (sudo root), or verify again (sudo -v)"
+  sudo: "run one command as root with your own credentials (sudoers only; no ticket kept)"
   theme: "open the appearance panel, or set dark / light / auto"
-  lock: "lock now, or manage the unlock password and passkeys"
+  lock: "sign everything out and go back to visitor"
   ask: "ask Gray AI a question"
   find: "search the four sites’ public pages by keyword"
   clear: "clear the screen"
   pwd: "print the current directory"
   open: "open a path: a site, daymark/today or the account card"
   history: "list this session’s commands"
-  exit: "leave the current layer, sign out of the account, or close the terminal"
-  share: "list, create or revoke share links"
+  exit: "leave one layer, or close the terminal"
   passwd: "change the account password"
   passkey: "list, add or remove account passkeys"
   device: "list signed-in devices, or sign one out"
@@ -274,32 +256,17 @@ manBody:
   ask:
     desc:
       - "opens the Gray AI window with your question. Gray AI is only for styrigx and root."
-  sudo:
-    desc:
-      - "sudo {admin}: verify with the unlock password or a passkey right here; the terminal closes and the space boots."
-      - "sudo -v: verify again for 3 min (as root@account it verifies the account)."
-      - "reset: use a recovery key to reset passwords and passkeys."
-    notes:
-      - "A share-link session (nobody@space:~#) can’t verify again, share or change keys."
   lock:
-    desc:
-      - "lock: lock this device now (no verification)."
-      - "passwd / passkey: the keys that enter the site (not the account ones)."
-      - "--all: send every device back to visitor."
     auth: "no verification"
   exit:
     desc:
-      - "In reset: leave reset. As root@account: sign out and go back to {admin}@space. Otherwise: close the terminal."
-  share:
-    desc:
-      - "share add: name, page, how long the link lasts, and whether it carries a session."
-    auth: "root only; listing and revoking need no reauth"
+      - "Back one layer (root → styrigx → visitor; a rescue session goes straight to visitor). Not signed in: close the terminal."
   passwd:
     auth: "signed in; asks your current password first"
   passkey:
     auth: "signed in"
   device:
-    auth: "signed in (sudo {root}); --all needs reauth"
+    auth: "signed in"
   app:
     desc:
       - "app: every app with its scopes, when and on which device it was allowed."
@@ -310,7 +277,7 @@ manBody:
       - "profile: name, nickname, signature and email (a site default shows when you haven’t set one)."
       - "set: change one field; the whole site follows at once. Name up to 40, nickname up to 32, email checked for format."
       - "avatar: pick a photo and crop it, or remove yours."
-    auth: "signed in (sudo {root})"
+    auth: "signed in"
   sub:
     desc:
       - "sub: the public key (head and tail), the token state and each source: name · airport host or file · nodes · enabled / disabled / error."

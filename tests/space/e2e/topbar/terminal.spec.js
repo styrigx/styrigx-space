@@ -6,7 +6,7 @@
  * - man 索引按身份列、open blog 收起窗口滚到 [01] 博客、未知命令 · 试试 man、↑ / ↓ 历史、tab 补全 + 补全影子、theme dark / light、clear
  * 全站终端窗口（#sgx-term，桌面居中大窗、手机整块卡片）：
  * - /blog/ 上 Ctrl K 打开（提示符 ~/blog$），Esc 关、焦点还回去；NAVIGATE 里的「Ctrl K 终端 ›」也能打开；open 去别的站 = 跳转
- * - sudo styrigx 在终端里原地选方式；盾牌 / sgx:sudo 打开终端、预填 su （不替人回车）
+ * - su <用户> 在终端里原地选方式（v6 P4 起旧 sudo styrigx 删了）；盾牌 / sgx:sudo 打开终端、预填 su （不替人回车）
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
@@ -100,8 +100,8 @@ test('man（S9 全屏阅读页，less 式）：访客的索引只列通用命令
   await expect(ps).toHaveText('nobody@space:~$');
   await run(page, 'man sudo');
   await expect(home(page).locator('[data-term-man-st]')).toContainText('SUDO(1)');
-  await expect(body).toContainText('就在这里用解锁密码或通行密钥验证');
-  await expect(body).not.toContainText('verify with the unlock password');
+  await expect(body).toContainText('输自己的凭据，用 root 权限执行一条命令');
+  await expect(body).not.toContainText('sudo styrigx');
   /* esc 只退阅读页，不关终端窗口 */
   await page.keyboard.press('Escape');
   await expect(man).toBeHidden();
@@ -179,15 +179,15 @@ test('历史：↑ / ↓ 翻命令，到底回到正在打的字；clear 清屏'
   await expect(home(page).locator('[data-term-out] > *')).toHaveCount(0);
 });
 
-test('tab 补全：sudo ro → sudo root（打字时淡色影子 ot；2026-11-08 sudo account → sudo root）；多个候选列出来；空行 Tab 照常移焦点', async ({ page }) => {
+test('tab 补全：hist → history（打字时淡色影子 ory；v6 P4 起 sudo root 删了）；多个候选列出来；空行 Tab 照常移焦点', async ({ page }) => {
   await go(page, '/zh/', { term: true });
   const i = input(page);
   await i.click();
-  await i.pressSequentially('sudo ro');
-  await expect(home(page).locator('[data-term-ghost]')).toHaveText('ot');
+  await i.pressSequentially('hist');
+  await expect(home(page).locator('[data-term-ghost]')).toHaveText('ory');
   await expect(home(page).locator('[data-term-ghost]')).toBeVisible();
   await i.press('Tab');
-  await expect(i).toHaveValue('sudo root');
+  await expect(i).toHaveValue('history');
   await expect(i).toBeFocused();
   await i.fill('c');
   await i.press('Tab');
@@ -315,7 +315,7 @@ test('终端窗口（桌面）：居中大窗 min(1040px, 86vw) × 72vh，和顶
   expect(w).toBeLessThanOrEqual(390);
 });
 
-test('sudo styrigx 在终端里原地选方式（不跳锁屏）；^C 回命令行；盾牌 = 打开终端、预填 su （不替人回车）', async ({ page }) => {
+test('su styrigx 在终端里原地选方式（不跳锁屏；v6 P4 起旧 sudo styrigx 删了）；^C 回命令行；盾牌 = 打开终端、预填 su （不替人回车）', async ({ page }) => {
   await go(page, '/blog/', { lang: 'en' });
   await page.locator('#site-nav .sgx-tb-shield').click();
   const dlg = page.locator('#sgx-term');
@@ -323,8 +323,7 @@ test('sudo styrigx 在终端里原地选方式（不跳锁屏）；^C 回命令�
   const inp = page.locator('#sgx-term-in');
   await expect(inp).toHaveValue('su ');
   await expect(page).toHaveURL(/\/blog\/$/);
-  /* 割接：访客预填 su （v6）；旧入口 sudo styrigx 照旧能敲（P4 删） */
-  await inp.fill('sudo styrigx');
+  await inp.fill('su styrigx');
   await inp.press('Enter');
   await expect(dlg.locator('[data-term-form]')).toHaveAttribute('data-mode', 'pick');
   await expect(dlg.locator('[data-term-out]')).toContainText('password');
@@ -359,7 +358,7 @@ test('每次打开终端都是干净的新会话（S9）：滚动区回到欢迎
   const out = home(page).locator('[data-term-out]');
   await run(page, 'cd blog');
   await run(page, 'ls');
-  await run(page, 'sudo styrigx');
+  await run(page, 'su styrigx');
   await expect(home(page).locator('[data-term-form]')).toHaveAttribute('data-mode', 'pick');
   await page.keyboard.press('Control+k');
   await expect(page.locator('#sgx-term')).not.toHaveAttribute('open', '');
@@ -371,7 +370,7 @@ test('每次打开终端都是干净的新会话（S9）：滚动区回到欢迎
   await expect(input(page)).toHaveValue('');
   /* history 还在 */
   await input(page).press('ArrowUp');
-  await expect(input(page)).toHaveValue('sudo styrigx');
+  await expect(input(page)).toHaveValue('su styrigx');
   await run(page, 'history');
   await expect(out).toContainText('cd blog');
   await expect(page.locator('#sgx-term [role="tablist"]')).toHaveCount(0);
@@ -383,7 +382,7 @@ test('Samsung Pass（S9）：空命令行 / [y/N] 时表单里没有用户名字
   await expect(pmu).toHaveCount(0);
   await expect(input(page)).toHaveAttribute('autocomplete', 'off');
   await expect(input(page)).not.toHaveAttribute('name', /./);
-  await run(page, 'sudo styrigx');
+  await run(page, 'su styrigx');
   await expect(home(page).locator('[data-term-form]')).toHaveAttribute('data-mode', 'pick');
   await expect(pmu).toHaveCount(0);
   await expect(page.locator('#sgx-term input[name="username"], #sgx-term input[autocomplete="username"]')).toHaveCount(0);

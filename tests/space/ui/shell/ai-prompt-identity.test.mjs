@@ -42,3 +42,12 @@ for (const f of ['space/web/assets/css/input.css', 'space/web/assets/css/shell/s
     assert.doesNotMatch(s, /content: "[^"]*ask --help/);
   });
 }
+
+test('v6 P4：<html data-sgx-account-session> 不再读旧标记 sgx-account-signed-in；首帧 out，whoami 说 root（u:root）才 in', () => {
+  const lm = read('space/web/assets/js/lib/layout-mode.js');
+  assert.doesNotMatch(lm, /\.test\(document\.cookie[^)]*\)\?'in'/, '首帧不按 cookie 判 in');
+  assert.doesNotMatch(lm, /sgx-account-signed-in=1\(/, '旧标记的正则没了');
+  assert.match(lm, /setAttribute\('data-sgx-account-session','out'\)/);
+  const tp = read('space/web/assets/js/shell/topbar-panel.js');
+  assert.match(tp, /who\.on\(function \(\/\*\* @type \{string\} \*\/ w\) \{\n\s+try \{ doc\.documentElement\.setAttribute\('data-sgx-account-session', w === 'u:root' \? 'in' : 'out'\); \} catch \(e\) \{\}/);
+});

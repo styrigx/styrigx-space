@@ -1,8 +1,9 @@
 /**
  * @fileoverview 设备（D1–D9）的终端命令（v5 S5；S9 起账号卡片只展示、只有这一处）。
  *
- * - device：列表（[n] 名字 · 在线 / 上次活动 · 浏览器 · 地点 · 登录方式，本机标「此设备」）
- * - device rm <n>：[y/N] 退出那一台（本机用 exit）· device rm --all：退出其他所有设备（要 sudo root reauth，O8）
+ * v6（路由表 POST /api/account/devices = user 档，Gray 2026-11-11 定：「设备」= 自己的 v6 会话，uid 只取服务端会话）：
+ * - device：列表（[n] 身份路径 · 开始时间，本会话标「此设备」；行的写法同身份层 who）
+ * - device rm <n>：[y/N] 退出那一个会话（本会话用 exit）· device rm --all：退出自己的其他所有会话（v6 不要复验）
  */
 
 /**
@@ -19,28 +20,23 @@ export function agoText(t, ts, now) {
   return t('devices.dayAgo').replace('{n}', String(Math.floor(h / 24)));
 }
 
+/**
+ * 会话开始时间（同身份层 who 的写法：YYYY-MM-DD HH:MM，UTC）。
+ * @param {number} ts
+ */
+export function sinceText(ts) {
+  try { return new Date(ts).toISOString().slice(0, 16).replace('T', ' '); } catch (e) { return ''; }
+}
+
 /** @param {any} C 账号层上下文（./layer.js） */
 export function mountDevices(C) {
   const t = C.t;
   const tf = C.tf;
   const esc = C.esc;
   const api = C.api;
-  /** 最近一次列出的设备（rm <n> 的编号对着它） @type {any[]} */
+  /** 最近一次列出的会话（rm <n> 的编号对着它；服务端编号 n） @type {any[]} */
   let list = [];
 
-  /** @param {any} d */
-  function devSub(d) {
-    const parts = [d.current ? t('devices.activeNow') : agoText(t, d.lastSeen)];
-    if (d.browser) parts.push(d.browser);
-    else if (d.platform && d.name !== d.platform) parts.push(d.platform);
-    if (d.country) {
-      let place = d.country;
-      try { place = new Intl.DisplayNames([C.doc.documentElement.lang || 'en'], { type: 'region' }).of(d.country) || d.country; } catch (e) {}
-      parts.push(place);
-    }
-    if (d.by) parts.push(d.by === 'passkey' ? t('devices.byPasskey') : t('devices.byPassword'));
-    return parts.join(' · ');
-  }
   /** 取列表（不打印） @param {(ok: boolean) => void} then */
   function load(then) {
     C.setMode('busy');
@@ -52,13 +48,13 @@ export function mountDevices(C) {
     }, function () { C.netErr(); C.toCmd(); then(false); });
   }
 
-  /** device：列出 */
+  /** device：列出自己的会话（[n] 身份路径 · 开始时间，本会话标「此设备」；同 who 的一行） */
   C.deviceList = function () {
     load(function (ok) {
       if (!ok) return;
       list.forEach(function (/** @type {any} */ d, /** @type {number} */ i) {
-        C.out('<span class="sgx-at-p">[' + (i + 1) + ']</span> <span translate="no">' + esc(d.name || t('devices.unknown')) + '</span>' +
-          (d.current ? ' <span class="sgx-at-ok">' + esc(t('devices.current')) + '</span>' : '') + ' <span class="sgx-at-dim">· ' + esc(devSub(d)) + '</span>');
+        C.out('<span class="sgx-at-p">[' + (i + 1) + ']</span> <span translate="no">' + esc(d.path || '') + '</span>' +
+          (d.current ? ' <span class="sgx-at-ok">' + esc(t('devices.current')) + '</span>' : '') + ' <span class="sgx-at-dim">· ' + esc(sinceText(d.since)) + '</span>');
       });
       if (list.length < 2) C.note('devices.noOthers');
     });
@@ -80,9 +76,9 @@ export function mountDevices(C) {
       const d = list[n - 1];
       if (!d) { C.err(t('devices.noSuch')); C.note('devices.lsFirst', 'device'); return; }
       if (d.current) { C.note('devices.currentHint', 'exit'); return; }
-      yn(tf('devices.rmAsk', { n: d.name || t('devices.unknown') }), function () {
+      yn(tf('devices.rmAsk', { n: d.path || '' }), function () {
         C.setMode('busy');
-        api.devices.revoke(d.deviceId).then(function (/** @type {any} */ res) {
+        api.devices.revoke(d.n || n).then(function (/** @type {any} */ res) {
           C.toCmd();
           if (res.j && res.j.ok) { C.out('<span class="sgx-at-ok">✓</span> ' + esc(t('devices.outDone'))); list = []; return; }
           if (!C.authErr(res)) C.apiErr(res);
@@ -91,17 +87,15 @@ export function mountDevices(C) {
     });
   };
 
-  /** device rm --all：退出其他所有设备（要 reauth） */
+  /** device rm --all：退出自己的其他所有会话（v6 不要复验，同 lock-all-devices 定稿 user 档） */
   C.deviceRmAll = function () {
-    C.withReauth(function () {
-      yn(t('devices.revokeAllAsk'), function () {
-        C.setMode('busy');
-        api.devices.revokeAll().then(function (/** @type {any} */ res) {
-          C.toCmd();
-          if (res.j && res.j.ok) { C.out('<span class="sgx-at-ok">✓</span> ' + esc(t('devices.revokeAllDone'))); list = []; C.loadStatus(); return; }
-          if (!C.authErr(res)) C.apiErr(res);
-        }, function () { C.netErr(); C.toCmd(); });
-      });
-    }, t('reauth.lead.devices'));
+    yn(t('devices.revokeAllAsk'), function () {
+      C.setMode('busy');
+      api.devices.revokeAll().then(function (/** @type {any} */ res) {
+        C.toCmd();
+        if (res.j && res.j.ok) { C.out('<span class="sgx-at-ok">✓</span> ' + esc(t('devices.revokeAllDone'))); list = []; return; }
+        if (!C.authErr(res)) C.apiErr(res);
+      }, function () { C.netErr(); C.toCmd(); });
+    });
   };
 }
