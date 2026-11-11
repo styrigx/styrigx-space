@@ -393,8 +393,11 @@ test('deploy.yml：部署顺序 ai → status → 账号 → styrigx-space-core 
   const gw = wf.jobs['deploy-space-core'].steps.find((st) => /^Smoke test/.test(st.name)).run;
   assert.doesNotMatch(gw, /atlas\.styrigx\.com/);
   assert.doesNotMatch(gw, /why=no-cookie/);
-  assert.match(gw, /check \/status\/ 200/);
-  assert.match(gw, /check \/wild\/ 301/, '2026-11-12：旷野删除，/wild/ 301 到 /status/');
+  /* 页面与 _redirects 归 Pages：space-core 在 Pages 之前部署，它的冒烟不能查页面改动（2026-11-12 #419 因查 /status/、/wild/ 拿到旧 Pages 而回滚） */
+  assert.doesNotMatch(gw, /check \/(status|wild)\//);
+  const tree = wf.jobs['build-and-deploy'].steps.find((st) => /^Smoke test single tree/.test(st.name)).run;
+  assert.match(tree, /for p in \/status\/ \/zh\/status\/; do visitor/, '状态页在 Pages 部署后按访客页查');
+  assert.match(tree, /"\/wild\/ \/status\/" "\/zh\/wild\/ \/zh\/status\/"/, '2026-11-12：旷野删除，/wild/ 301 到 /status/（Pages 部署后查）');
   /* 网关冒烟：伪造身份头必须 401（或旧路由残留时账号默认 fetch 404），头像带账号运行时标记 */
   const smoke = wf.jobs['deploy-space-core'].steps.find((s) => /^Smoke test/.test(s.name)).run;
   assert.match(smoke, /X-Styrigx-Space-Session: 1/);

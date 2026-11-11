@@ -1100,6 +1100,18 @@ jobs:
             [ $pass = 0 ] || { echo "::error::styrigx.com/$s/$css not served directly from this deployment"; ok=1; }
           done
           for p in /blog/rss.xml /blog/zh/rss.xml /blog/sitemap-index.xml /curio/sitemap.xml /daymark/sitemap.xml; do feed "$p" || ok=1; done
+          # 状态页（2026-11-12 旷野删除）：/status/、/zh/status/ 是页面；旧 /wild/、/zh/wild/ 是 _redirects 的 301 到状态页
+          for p in /status/ /zh/status/; do visitor "$p" || ok=1; done
+          for pair in "/wild/ /status/" "/zh/wild/ /zh/status/"; do
+            set -- $pair; pass=1
+            for i in 1 2 3 4 5 6; do
+              h=$(hdr "https://styrigx.com$1"); code=$(code_of "$h"); loc=$(field "$h" location)
+              echo "styrigx.com$1 -> $code ${loc:-none} (try $i)"
+              case "$code $loc" in "301 $2"|"301 https://styrigx.com$2") pass=0; break ;; esac
+              sleep 5
+            done
+            [ $pass = 0 ] || { echo "::error::styrigx.com$1 expected 301 to $2"; ok=1; }
+          done
           for p in /curio/sgx-image-probe.png /daymark/sgx-image-probe.png; do
             h=$(hdr "https://styrigx.com$p"); code=$(code_of "$h"); ct=$(field "$h" content-type)
             echo "styrigx.com$p -> $code ${ct:-no-type}"
@@ -1789,8 +1801,7 @@ jobs:
           check / 200 || ok=1
           # P4-3 PR-4c：英文在根、中文 /zh/
           check /zh/ 200 || ok=1
-          check /status/ 200 || ok=1
-          check /wild/ 301 || ok=1
+          # /status/、/wild/ 看的是 Pages 的页面和 _redirects；Pages（build-and-deploy）在本 job 之后才部署，这里查会拿到上一版 → 挪到 build-and-deploy 的 smoke（2026-11-12 #419 部署因此回滚）
           check /security/lock/ 301 || ok=1
           check /zh/security/lock/ 301 || ok=1
           check /security/ 301 || ok=1
