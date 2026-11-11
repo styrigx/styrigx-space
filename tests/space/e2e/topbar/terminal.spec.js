@@ -44,7 +44,7 @@ test('主页（v5 S7）：首屏是 neofetch about（提示符跟身份 nobody@s
   await expect(nf).toBeVisible();
   await expect(nf.locator('.sgx-term-title')).toHaveText('about');
   await expect(nf.locator('[data-sgx-ps]')).toHaveText('nobody@space:~$');
-  await expect(nf.locator('.wild-cmd')).toHaveText('nobody@space:~$ neofetch');
+  await expect(nf.locator('.trm-cmd')).toHaveText('nobody@space:~$ neofetch');
   await expect(nf.locator('[data-about="version"]')).toContainText('Styrigx UI');
   await expect(nf.locator('[data-about="uptime"]')).toHaveText(/^\d+ days?$/);
   await openTerm(page);
@@ -162,7 +162,7 @@ test('未知命令：command not found · 试试 man（出错色）；坏目录 
 test('历史：↑ / ↓ 翻命令，到底回到正在打的字；clear 清屏', async ({ page }) => {
   await go(page, '/zh/', { term: true });
   await run(page, 'ls');
-  await expect(lastLine(home(page))).toHaveText('blog/  curio/  daymark/  wild/  account/  proxy/');
+  await expect(lastLine(home(page))).toHaveText('blog/  curio/  daymark/  account/  proxy/');
   await run(page, 'theme dark');
   const i = input(page);
   await i.fill('ma');
@@ -282,7 +282,7 @@ test('抽屉：Esc 关上后马上 Ctrl K 重开，上一次关闭迟到的 clos
 });
 
 test('抽屉：NAVIGATE 页脚的「Ctrl K 终端 ›」打开（2026-11 PR-A，原「$ terminal」按钮）；open curio 跳到奇趣（cd 不再跳页，T6b）', async ({ page }) => {
-  await go(page, '/zh/wild/');
+  await go(page, '/zh/status/');
   await page.locator('.sgx-tb-grid').click();
   await expect(page.locator('#sgx-nav')).toHaveAttribute('open', '');
   const btn = page.locator('#sgx-nav [data-qp="term"]');

@@ -114,10 +114,10 @@ test('子站接入（对齐 PR-C2）：奇趣五个分区页同一个页头（�
 });
 
 test('主站内容页：页头接入（带命令），front matter 都有 description（中英）', () => {
-  /* 对齐 PR-B：数字健康 / 关于本站 / 服务状态并进旷野页 wild（三份旧内容删除）；对齐 PR-C：风格页 theme 退役 */
-  for (const p of ['wellbeing', 'about', 'status', 'theme']) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`]) assert.ok(!has(f), f + ' 应已删除');
+  /* 对齐 PR-B：数字健康 / 关于本站并进旷野页（旧内容删除）；对齐 PR-C：风格页 theme 退役；2026-11-12：旷野删除，状态单独成页 status */
+  for (const p of ['wellbeing', 'about', 'wild', 'theme']) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`]) assert.ok(!has(f), f + ' 应已删除');
   /* 2026-11-08 账号整页删了（账号都在顶栏头像的账号终端里） */
-  const pages = ['wild'];
+  const pages = ['status'];
   /* 进站 v3 L1：安全页（/security/、/security/lock/、/security/tempkeys/）删了，盾牌下拉 */
   for (const p of ['security', 'security-lock', 'security-tempkeys']) for (const f of [`space/web/content/${p}.md`, `space/web/content/zh/${p}.md`, `space/web/layouts/_default/${p}.html`]) assert.ok(!has(f), f + ' 应已删除');
   /* 2026-11-08 云同步子页删除（Gray 04:47） */

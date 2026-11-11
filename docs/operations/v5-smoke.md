@@ -23,7 +23,7 @@
 | 1.1 | 打开 `https://styrigx.com/`、`https://styrigx.com/zh/` | 都是 200，页面完整显示（不是锁屏） |
 | 1.2 | 无 cookie 请求 `/api/ai`、`/api/status`、`/api/account` | 都是 401 |
 | 1.3 | 无 cookie 请求 `/api/find?q=test` | 200，JSON |
-| 1.4 | 打开 `/blog/`、`/curio/`、`/daymark/`、`/wild/`（访客） | 都能看，没有被踢回首页 |
+| 1.4 | 打开 `/blog/`、`/curio/`、`/daymark/`、`/status/`（访客） | 都能看，没有被踢回首页 |
 
 ## 2. 顶栏 E、盾牌、头像（S6）
 
@@ -63,7 +63,7 @@
 |---|---|---|
 | 4.1 | 访客打开 AI 窗口（右下浮钮） | 模型小矩形里是锁标；点它 → 终端打开预填 `sudo styrigx` |
 | 4.2 | 访客打开奇趣「音乐」 | 能看歌单和封面；点播放 → 终端打开预填 `sudo styrigx`，不出声 |
-| 4.3 | 访客打开旷野 `/wild/` | 屏幕时间卡可看；监控（status）卡是上锁态 |
+| 4.3 | 访客打开状态页 `/status/` | 监控（status）窗是上锁态 |
 | 4.4 | 进站后重复 4.1–4.3 | AI 可用；音乐能播；监控卡有数据 |
 | 4.5 | 进站后 `lock`，不刷新直接再点播放 / 问 AI | 被拒，终端弹出预填 `sudo styrigx`（服务端 401，不是前端缓存放行） |
 
@@ -102,7 +102,7 @@
 |---|---|---|
 | 8.1 | 访客打开首页 | hero 下面是 about 卡（neofetch 风格），**没有**嵌入终端；卡上的提示符是 `nobody@space:~$` |
 | 8.2 | 进站后再看 | 卡上提示符变 `styrigx@space:~#`；`sudo root` 后 `root@account:~#` |
-| 8.3 | 打开 `/wild/` | 没有 about 卡（只在首页） |
+| 8.3 | 打开 `/status/` | 没有 about 卡（只在首页） |
 | 8.4 | 打开 `/about/` | 301 到 `/#about` |
 
 ## 9. 代理订阅 sub v3.1

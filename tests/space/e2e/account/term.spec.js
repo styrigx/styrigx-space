@@ -29,7 +29,7 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
   /* 终端里的流程见 account/*.spec.js；这里只管入口：头像、卡片的行、旧地址 #acct=…、终端 sudo root、和全站终端互斥 */
   test('点头像开卡片（非模态、aria-expanded、地址不变）；头像仍是链接；没登录：一行「登录 su root」（Gray 11-11 17:51），没有命令行；esc 关、焦点回头像', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     const av = page.locator('.sgx-tb-av');
     await expect(av).toHaveAttribute('href', '/zh/account/');
     await expect(av).toHaveAccessibleName('账号');
@@ -38,7 +38,7 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
     await expect(d).toHaveAttribute('data-state', 'open');
     expect(await d.evaluate((el) => el.open && !el.matches(':modal'))).toBe(true);
     await expect(av).toHaveAttribute('aria-expanded', 'true');
-    await expect(page).toHaveURL(/\/zh\/wild\/$/);
+    await expect(page).toHaveURL(/\/zh\/status\/$/);
     await expect(d).toHaveAttribute('data-acct-state', 'guest');
     await expect(d.locator('.sgx-at')).toHaveAttribute('data-at-layer', 'guest');
     await expect(d.locator('[data-at-run]').last()).toContainText('登录账号');
@@ -57,7 +57,7 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
 
   test('已登录（v6 root）：个人资料 / 设备 / 退出登录 lock（P4-3 账号安全行删除、exit → lock，定稿 v5.5 §七；应用授权行删了，定稿 v5.3 §十二）；点一行 = 收起卡片、打开终端、预填对应命令（不替人回车）', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/wild/', { route: (pg) => A.mockAccount(pg) });
+    await go(page, '/zh/status/', { route: (pg) => A.mockAccount(pg) });
     const d = page.locator('#sgx-acct');
     const rows = [['个人资料', 'profile'], ['设备', 'device'], ['退出登录', 'lock']];
     await A.openCard(page);
@@ -92,7 +92,7 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
 
   test('已登录（站长 styrigx）：账号页三行；点头像 = 开账号页（定稿 v5.5 §七），不预填', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/wild/', { route: (pg) => A.mockAccount(pg, { user: A.V6_USER('styrigx') }) });
+    await go(page, '/zh/status/', { route: (pg) => A.mockAccount(pg, { user: A.V6_USER('styrigx') }) });
     const d = page.locator('#sgx-acct');
     await A.openCard(page);
     await expect(d).toHaveAttribute('data-acct-state', 'in');
@@ -133,7 +133,7 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
 
   test('卡片开着时 Ctrl+K 开全站终端：卡片收起，不叠开（同时只开一个）', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     await page.locator('.sgx-tb-av').click();
     await expect(page.locator('#sgx-acct')).toHaveAttribute('data-state', 'open');
     await page.keyboard.press('Control+k');

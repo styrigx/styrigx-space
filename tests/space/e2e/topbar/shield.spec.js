@@ -2,7 +2,7 @@
  * 盾牌 + 终端里的身份命令（v5 S5 终端合一：盾牌窗口 #sgx-sec 删了；v6 P4（定稿 v5.2 §六、§七、§十三 P4）起只有 v6 身份）。
  * - 盾牌 = 身份徽章四档（P4-3，定稿 v5.5 §七）：打开终端、按身份预填——访客 su 、普通用户 exit、站长 su root、root exit（不替人回车）；旧地址 #sec[=层] 只打开终端；
  *   Ctrl 点盾牌照旧按链接走（/#sec）。旧的「退出进站会话 [y/N]」随旧会话删了。
- * - 已登录：提示符 styrigx@space:~/wild$；man 列 lock / passkey / device，不列 share（分享短链整套删除，定稿 §二）
+ * - 已登录：提示符 styrigx@space:~$；man 列 lock / passkey / device，不列 share（分享短链整套删除，定稿 §二）
  * - lock：POST /api/identity lock（清空身份栈、删服务端会话行）→ 回访客 nobody@space；lock passwd / passkey / --all 印「已移除」
  * - 头像 = whoami（定稿 v5.5 §七）：访客预填 su ；站长与 root 开账号页；普通用户头像只作装饰、不可点
  * 测试构建（锁屏禁用、没有网关）：/api/identity 用替身（helpers/account-term.cjs mockAccount）。
@@ -19,7 +19,7 @@ async function go(page, o = {}) {
   await blockExternalRequests(page);
   await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   const calls = await A.mockAccount(page, { user: o.user === undefined ? A.V6_USER('styrigx') : o.user, handlers: o.handlers });
-  await page.goto('/zh/wild/' + (o.hash || ''), { waitUntil: 'domcontentloaded' });
+  await page.goto('/zh/status/' + (o.hash || ''), { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
   await page.waitForFunction(() => document.documentElement.hasAttribute('data-sgx-layout'));
   return calls;
@@ -36,12 +36,12 @@ async function type(page, text) {
 }
 
 test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
-  test('已登录：顶栏 >_ 打开终端（不预填），提示符 styrigx@space:~/wild$；man 列 lock / passkey / device，不列 share；没有盾牌窗口了', async ({ page }) => {
+  test('已登录：顶栏 >_ 打开终端（不预填），提示符 styrigx@space:~$；man 列 lock / passkey / device，不列 share；没有盾牌窗口了', async ({ page }) => {
     await go(page);
     await expect(page.locator('#sgx-sec')).toHaveCount(0);
     await page.locator('#site-nav .sgx-tb-term').click();
     await expect(term(page)).toHaveAttribute('open', '');
-    await expect(ps(page)).toHaveText('styrigx@space:~/wild$');
+    await expect(ps(page)).toHaveText('styrigx@space:~$');
     await expect(tIn(page)).toHaveValue('');
     await type(page, 'man');
     const body = page.locator('#sgx-term [data-term-man-body]');
@@ -93,19 +93,19 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     await page.locator('.sgx-tb-shield').click();
     await expect(term(page)).toHaveAttribute('open', '');
     await expect(tIn(page)).toHaveValue('su ');
-    await expect(ps(page)).toHaveText('nobody@space:~/wild$');
+    await expect(ps(page)).toHaveText('nobody@space:~$');
     expect(calls.length).toBe(0);
-    expect(new URL(page.url()).pathname).toBe('/zh/wild/');
+    expect(new URL(page.url()).pathname).toBe('/zh/status/');
   });
 
   test('lock：POST /api/identity lock → 回访客（nobody@space），不跳页', async ({ page }) => {
     const calls = await go(page, { handlers: { 'identity/lock': [200, { ok: true, user: null }] } });
     await page.locator('#site-nav .sgx-tb-term').click();
-    await expect(ps(page)).toHaveText('styrigx@space:~/wild$');
+    await expect(ps(page)).toHaveText('styrigx@space:~$');
     await type(page, 'lock');
-    await expect(ps(page)).toHaveText('nobody@space:~/wild$');
+    await expect(ps(page)).toHaveText('nobody@space:~$');
     expect(calls.filter((c) => c.action === 'identity/lock')).toHaveLength(1);
-    expect(new URL(page.url()).pathname).toBe('/zh/wild/');
+    expect(new URL(page.url()).pathname).toBe('/zh/status/');
   });
 
   test('已移除的 lock passwd / lock passkey / lock --all：印一行「已移除 · v6 做法」，不发请求', async ({ page }) => {
@@ -141,7 +141,7 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     for (const [st, user, want] of [['locked', null, 'su ']]) {
       await go(page, { user });
       /* 测试构建没有网关：自己给页面打上网关的标记（后注册的 route 优先），再取一次 */
-      await page.route('**/zh/wild/', async (r) => {
+      await page.route('**/zh/status/', async (r) => {
         const res = await r.fetch();
         const body = (await res.text()).replace(/<html /, '<html data-sgx-lock-session="' + st + '" ');
         await r.fulfill({ response: res, body });
@@ -159,11 +159,11 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
       }, { timeout: 10000 }).toBe(want);
       await expect(term(page)).toHaveAttribute('open', '');
       await expect(page.locator('#sgx-acct')).not.toHaveAttribute('data-state', 'open');
-      expect(new URL(page.url()).pathname).toBe('/zh/wild/');
+      expect(new URL(page.url()).pathname).toBe('/zh/status/');
     }
     /* v6 root：点头像开账号卡片，不开终端、不预填 */
     await go(page, { user: A.V6_USER('root') });
-    await page.route('**/zh/wild/', async (r) => {
+    await page.route('**/zh/status/', async (r) => {
       const res = await r.fetch();
       const body = (await res.text()).replace(/<html /, '<html data-sgx-lock-session="valid" ');
       await r.fulfill({ response: res, body });
@@ -178,7 +178,7 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     }, { timeout: 10000 }).toBe('in');
     await expect(page.locator('#sgx-acct')).toHaveAttribute('data-state', 'open');
     await expect(term(page)).not.toHaveAttribute('open', '');
-    expect(new URL(page.url()).pathname).toBe('/zh/wild/');
+    expect(new URL(page.url()).pathname).toBe('/zh/status/');
   });
 
   test('头像（P4-3，定稿 v5.5 §七）：普通用户显示站点头像、只作装饰——aria-disabled，点了不开账号页、不开终端、不跳页', async ({ page }) => {
@@ -192,6 +192,6 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     await page.waitForTimeout(300);
     await expect(page.locator('#sgx-acct')).not.toHaveAttribute('data-state', 'open');
     await expect(term(page)).not.toHaveAttribute('open', '');
-    expect(new URL(page.url()).pathname).toBe('/zh/wild/');
+    expect(new URL(page.url()).pathname).toBe('/zh/status/');
   });
 });

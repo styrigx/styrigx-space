@@ -100,7 +100,7 @@ test('账号未登录：余响居中一屏（命令行 · 日期行 · 引句 ·
      抽屉、右圆分享删除；每页底部 tmux 页脚（当前窗口 3:daymark） */
   expect(await page.locator('.sgx-topbar > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]))).toEqual(['sgx-tb-logo', 'sgx-tb-pill', 'sgx-tb-acts', 'sgx-tb-prog']);
   await expect(page.locator('#site-nav .sgx-tb-pill')).toBeHidden();
-  await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/daymark/zh/');
+  await expect(page.locator('.sgx-tb-logo')).toHaveAttribute('href', '/zh/'); /* 2026-11-12：logo 四站统一回主站首页 */
   await expect(page.locator('.sgx-tb-acts .sgx-tb-quick')).toHaveAttribute('aria-controls', 'sgx-qp');
   await expect(page.locator('#site-nav > .sgx-tb-ai')).toHaveAttribute('aria-controls', 'sgx-ai');
   /* 头像在顶栏最右（也在 AI 窗口头部），去主站账号页（子站单独起服务时也能到主站：绝对地址） */
@@ -118,11 +118,11 @@ test('账号未登录：余响居中一屏（命令行 · 日期行 · 引句 ·
   await expect(page.locator('footer')).toHaveCount(1);
   await expect(page.locator('footer.sgx-foot .sgx-foot-win a[aria-current="page"]')).toHaveAttribute('data-win', 'daymark');
   await expect(page.getByText('Powered by')).toHaveCount(0);
-  /* NAVIGATE 面板 #sgx-nav（主站共享外壳 nav.json）：01 主页 · 02 博客 · 03 奇趣 · 04 日刻 · 05 旷野，日刻是当前项；主站项绝对地址，子站之间同源相对；没有搜索框 */
+  /* NAVIGATE 面板 #sgx-nav（主站共享外壳 nav.json）：01 主页 · 02 博客 · 03 奇趣 · 04 日刻（05 旷野 2026-11-12 删除），日刻是当前项；主站项绝对地址，子站之间同源相对；没有搜索框 */
   await page.locator('.sgx-tb-grid').click();
   await expect(page.locator('#sgx-nav')).toHaveAttribute('data-state', 'open');
-  await expect(page.locator('#sgx-nav .sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '奇趣', '日刻', '旷野']);
-  await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('04/05');
+  await expect(page.locator('#sgx-nav .sgx-nav-tile .sgx-nav-name')).toHaveText(['主页', '博客', '奇趣', '日刻']);
+  await expect(page.locator('#sgx-nav [data-nav-count]')).toHaveText('04/04');
   await expect(page.locator('#sgx-nav [data-nav="home"]')).toHaveAttribute('href', 'https://styrigx.com/zh/');
   await expect(page.locator('#sgx-nav [data-nav="curio"]')).toHaveAttribute('href', '/curio/zh/');
   await expect(page.locator('#sgx-nav [data-nav="daymark"]')).toHaveAttribute('href', '/daymark/zh/');

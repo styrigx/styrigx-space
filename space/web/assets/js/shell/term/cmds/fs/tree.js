@@ -1,14 +1,14 @@
 /**
  * @fileoverview 虚拟目录树（终端统一 T6，设计稿 v1.5 §8.3）。路径写成 '~'、'blog'、'daymark/today'；只读、不跨站。
- * ~ 下：四个站的目录 + account（账号卡片，S9 起没有层）+ proxy（代理订阅 P2：ls 列来源、open 进代理订阅）。v5 S5：盾牌没有窗口了，shield/ 删掉。
+ * ~ 下：三个子站的目录 + account（账号卡片，S9 起没有层）+ proxy（代理订阅 P2：ls 列来源、open 进代理订阅）。v5 S5：盾牌没有窗口了，shield/ 删掉。
  */
 
-/** 四个站的目录（cd 的头一行、help 的 cd 那一行） */
-export const DIRS = ['blog', 'curio', 'daymark', 'wild'];
+/** 三个子站的目录（cd 的头一行、help 的 cd 那一行；同 NAVIGATE 02–04。旷野 2026-11-12 删除，状态页 /status/ 不是目录） */
+export const DIRS = ['blog', 'curio', 'daymark'];
 
 /** 目录 → 里面的东西（目录带 /）；不在表里的目录是空的 */
 const TREE = /** @type {Record<string, string[]>} */ ({
-  '~': ['blog/', 'curio/', 'daymark/', 'wild/', 'account/', 'proxy/'],
+  '~': ['blog/', 'curio/', 'daymark/', 'account/', 'proxy/'],
   daymark: ['today'],
 });
 

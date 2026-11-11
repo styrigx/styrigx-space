@@ -3,7 +3,7 @@
  * - 访客头像点了预填「su 」（不再是死按钮）；盾牌、上锁的地方（sgx:sudo）、旧锁屏地址 ?entry=1 / #sec 同一行 GUEST_LINE；
  *   ?entry=sudo 照旧直接跑旧的 sudo styrigx（旧入口 P4 删）；v6 已登录点盾牌不预填 su
  * - su root / su <用户> 的提示是「Password:」；sudo 才是「[sudo] password for <自己>:」
- * - 访客入口文案：旷野锁卡按钮 su、lockedHint、AI 窗口锁着的提示
+ * - 访客入口文案：状态页锁卡按钮 su、lockedHint、AI 窗口锁着的提示
  * 运行：node --test tests/space/ui/shell/v6-cutover.test.mjs
  */
 import { test } from 'node:test';
@@ -51,9 +51,9 @@ test('su 的密码提示 = 「Password:」（su root 也是，输的是 root 的
   }
 });
 
-test('访客入口文案跟 su：旷野锁卡按钮、lockedHint、AI 窗口锁着的提示；不再写 sudo styrigx', () => {
-  const wild = rd('space/web/layouts/_default/wild.html');
-  assert.match(wild, /<button type="button" class="st-btn wild-cmdbtn" data-st="sudo" translate="no">su<\/button>/);
+test('访客入口文案跟 su：状态页锁卡按钮、lockedHint、AI 窗口锁着的提示；不再写 sudo styrigx', () => {
+  const st = rd('space/web/layouts/_default/status.html');
+  assert.match(st, /<button type="button" class="st-btn trm-cmdbtn" data-st="sudo" translate="no">su<\/button>/);
   assert.match(rd('space/web/data/i18n/en.yaml'), /\n {2}lockedHint: visible after su\n/);
   assert.match(rd('space/web/data/i18n/zh.yaml'), /\n {2}lockedHint: su 登录后可见\n/);
   const zh = yaml('space/web/data/sgx-shell-i18n/zh.yaml');

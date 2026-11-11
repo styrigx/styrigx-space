@@ -3,7 +3,7 @@
  * - 快照：访问表整张写在这里，改表必须改这条测试（评审里一眼看得见谁被放开了）
  * - 规则：页面 / 静态文件一律 public；/api/* 和 /<站>/api/* 只有表里逐条的「方法 + 路径」public，其余 entry（fail closed）
  * - 精确匹配：多一段 /x、换方法、编码 / 大小写绕法都不算 public
- * - 访客：/wild/、/blog/、/curio/、/daymark/ 页面 200；/api/ai、/api/status、/api/space-audit、/api/account 401；屏幕时间合计公开
+ * - 访客：/status/、/blog/、/curio/、/daymark/ 页面 200；/api/ai、/api/status、/api/space-audit、/api/account 401；屏幕时间合计公开
  * - v6 会话（站长 / root）放行；没身份 401、档不够 403（v6 P4 起进站会话、分享链接会话、lock-now、纪元全部删除，对应用例一并删除）
  * 听歌三层（歌单公开 / 听要进站 / 管理要账号）在 curio-core 自己的访问表里，见 tests/workers/curio-core/movies-music.test.mjs。
  * 运行：node --test tests/workers/space-core/route-access.test.mjs
@@ -88,15 +88,15 @@ test('精确匹配：多一段、换方法、编码 / 大小写都不是 public�
   assert.equal(accessOf('POST', '/s/abc'), 'public');
   assert.equal(isApiPath('/s/abc'), false);
   /* 页面路径一律 public */
-  for (const p of ['/', '/zh/', '/wild/', '/blog/post/x/', '/curio/music/', '/daymark/', '/files-index.json', '/index.xml', '/blog/rss.xml', '/avatar/96.webp']) {
+  for (const p of ['/', '/zh/', '/status/', '/blog/post/x/', '/curio/music/', '/daymark/', '/files-index.json', '/index.xml', '/blog/rss.xml', '/avatar/96.webp']) {
     assert.equal(accessOf('GET', p), 'public', p);
     assert.equal(isApiPath(p), false, p);
   }
   for (const p of ['/api/x', '/blog/api/x', '/CURIO/api/x', '/%63urio/api/x', '//daymark//api']) assert.equal(isApiPath(p), true, p);
 });
 
-test('访客：/wild/、/blog/、/curio/、/daymark/ 页面 200 HTML（标 locked、no-store，不 302）', async () => {
-  for (const p of ['/', '/zh/', '/wild/', '/zh/wild/', '/blog/', '/blog/post/hello/', '/curio/', '/curio/music/', '/curio/zh/music/', '/daymark/', '/daymark/zh/']) {
+test('访客：/status/、/blog/、/curio/、/daymark/ 页面 200 HTML（标 locked、no-store，不 302）', async () => {
+  for (const p of ['/', '/zh/', '/status/', '/zh/status/', '/blog/', '/blog/post/hello/', '/curio/', '/curio/music/', '/curio/zh/music/', '/daymark/', '/daymark/zh/']) {
     const e = env();
     const r = await get(e, p);
     assert.equal(r.status, 200, p);
@@ -106,7 +106,7 @@ test('访客：/wild/、/blog/、/curio/、/daymark/ 页面 200 HTML（标 locke
   }
 });
 
-test('访客：三处上锁的数据接口 401（AI 窗口、旷野 status 卡、进站凭证记录）；账号接口 401；数字健康 /api/wellbeing v6 P4 删除后同样 401', async () => {
+test('访客：三处上锁的数据接口 401（AI 窗口、状态页 status 窗、进站凭证记录）；账号接口 401；数字健康 /api/wellbeing v6 P4 删除后同样 401', async () => {
   for (const [p, m] of [['/api/ai', 'GET'], ['/api/ai', 'POST'], ['/api/status', 'GET'], ['/api/space-audit', 'GET'], ['/api/account', 'GET'], ['/api/account', 'POST'], ['/api/prefs', 'GET'], ['/api/profile', 'PUT'], ['/api/lock-now', 'POST'], ['/api/geo/x', 'GET'], ['/api/wellbeing', 'GET'], ['/api/wellbeing', 'POST']]) {
     const e = env();
     const r = await get(e, p, { method: m });
@@ -143,7 +143,7 @@ test('坏 / 过期的 v6 令牌：和没会话一样 401，页面照常 200（�
   const c = await cookieOf('nobody');
   assert.equal((await get(env(), '/api/ai', { cookie: c })).status, 401);
   assert.equal((await get(env(), '/api/status', { cookie: c })).status, 401);
-  const page = await get(env(), '/wild/', { cookie: c });
+  const page = await get(env(), '/status/', { cookie: c });
   assert.equal(page.status, 200);
   assert.match(await page.text(), /data-sgx-lock-session="locked"/);
 });

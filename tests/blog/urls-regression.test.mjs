@@ -203,11 +203,13 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(html, /href="?https:\/\/x\.com\/intent\/post\?text=/);
   });
 
-  it('NAVIGATE（顶栏 v3）：主页 / 博客 / 奇趣 / 日刻 / 旷野（主站项绝对地址、三站之间相对 /<站>/），博客「开」态；头像在顶栏最右（没 JS 时去主站旧账号地址，301 → 首页 #acct；点开是账号终端）；没有搜索框', async () => {
+  it('NAVIGATE（顶栏 v3）：主页 / 博客 / 奇趣 / 日刻（主站项绝对地址、三站之间相对 /<站>/），博客「开」态；头像在顶栏最右（没 JS 时去主站旧账号地址，301 → 首页 #acct；点开是账号终端）；没有搜索框', async () => {
     const html = await (await fetch(base + '/blog/')).text();
     const hrefs = [...html.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
-    /* 对齐 PR-B：05 旷野指向独立页 /wild/ */
-    assert.deepEqual(hrefs, ['https://styrigx.com/', '/blog/', '/curio/', '/daymark/', 'https://styrigx.com/wild/']);
+    /* 2026-11-12：05 旷野删除；logo 回主站首页 /，STATUS 区按钮去主站状态页 */
+    assert.deepEqual(hrefs, ['https://styrigx.com/', '/blog/', '/curio/', '/daymark/']);
+    assert.match(html, /<a class="sgx-tb-logo" href="\/"/, 'logo 回主站首页');
+    assert.match(html, /<a href="https:\/\/styrigx\.com\/status\/" class="sgx-nav-st-go"/, 'STATUS 跳转按钮');
     assert.match(html, /class="sgx-nav-tile" href="\/blog\/" data-nav="blog" aria-current="page"/);
     /* 2026-11-08 账号 UI 改版：账号下拉 = 账号终端（内容由 shell/account/term.js 画），模板里只有骨架 */
     assert.match(html, /<dialog id="sgx-acct" class="sgx-qp sgx-pop sgx-acct"/);
@@ -217,7 +219,9 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.doesNotMatch(html, /atlas\.styrigx\.com/, '合并 PR3：不再有旧图志域名');
     const zh = await (await fetch(base + '/blog/zh/')).text();
     const zhHrefs = [...zh.matchAll(/class="sgx-nav-tile" href="([^"]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/blog/zh/', '/curio/zh/', '/daymark/zh/', 'https://styrigx.com/zh/wild/']);
+    assert.deepEqual(zhHrefs, ['https://styrigx.com/zh/', '/blog/zh/', '/curio/zh/', '/daymark/zh/']);
+    assert.match(zh, /<a class="sgx-tb-logo" href="\/zh\/"/, '中文 logo 回 /zh/');
+    assert.match(zh, /<a href="https:\/\/styrigx\.com\/zh\/status\/" class="sgx-nav-st-go"/, '中文 STATUS 跳转按钮');
     assert.match(zh, /<a class="sgx-tb-av" href="https:\/\/styrigx\.com\/zh\/account\/"/);
   });
 

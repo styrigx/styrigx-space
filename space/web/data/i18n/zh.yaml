@@ -17,9 +17,6 @@ home:
     games: { name: 游戏, latest: 在玩 }
   daymark: 日刻
   daymarkLabel: "[03] 日刻 · 今日一句"
-  wildLabel: "[04] 旷野"
-  wild:
-    title: 旷野
 index:
   noLineForToday: 今天还没有句子
   tapToKeepOne: 点开日刻，记下一句
@@ -184,7 +181,7 @@ status:
   recentIncidents: 近期故障
   spaceCredentialActivity: 进站凭证使用记录
   last7DaysTime: 最近 7 天：时间、IP 前缀和结果
-wild:
+about:
   version: 版本
   kernel: 内核
   build: 构建
@@ -245,9 +242,9 @@ features:
   lock-gate:
     name: 锁屏门禁
 spaceCats:
-  wild:
-    title: 旷野
-    sub: 屏幕时间、服务状态与关于本站
+  status:
+    title: 状态
+    sub: 服务、可用率与用量
 sites:
   space:
     title: 主站

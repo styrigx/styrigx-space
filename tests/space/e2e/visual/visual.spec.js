@@ -97,7 +97,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
 
 /* F 基准 1（日期和时间弹层）P4-2c 随日期和时间设置一起删除 */
 
-/** 快捷面板 / AI 窗口截图的共同准备：手机、减弱动效、中文、固定字体和时间，旷野子页 /wild/（P4-3 PR-4b 前是 /display/，显示页已删除） */
+/** 快捷面板 / AI 窗口截图的共同准备：手机、减弱动效、中文、固定字体和时间，旷野子页 /status/（P4-3 PR-4b 前是 /display/，显示页已删除） */
 async function shellShotPage(pg) {
   await pg.setViewportSize(VIEWPORTS.mobile);
   await blockExternalRequests(pg);
@@ -109,7 +109,7 @@ async function shellShotPage(pg) {
     content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
   });
   await freezeTime(pg);
-  await pg.goto('/zh/wild/', { waitUntil: 'domcontentloaded' }); /* P4-3 PR-4c：中文 /zh/ */
+  await pg.goto('/zh/status/', { waitUntil: 'domcontentloaded' }); /* P4-3 PR-4c：中文 /zh/ */
   await waitPageReady(pg);
 }
 /** 点快捷面板图标，等面板稳定在打开状态（不拍滑下中途）。2026-11-07 PR-4b 2/2：快捷面板只有一页（没有导航 / 快捷设置两页），导航搬到九宫格面板 */
@@ -214,7 +214,7 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
           });
           await freezeTime(pg);
           const card = state === 'guest' || state === 'home';
-          await pg.goto(lang.prefix + '/wild/' + (card ? '#acct' : ''), { waitUntil: 'domcontentloaded' });
+          await pg.goto(lang.prefix + '/status/' + (card ? '#acct' : ''), { waitUntil: 'domcontentloaded' });
           await waitPageReady(pg);
           /** 截图 / 溢出检查的面板：卡片的 sheet，或终端窗口 */
           let sheet = '#sgx-acct .sgx-qp-sheet';
@@ -279,8 +279,8 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
  * 截图名 mobile-<stem>-<lang>-<theme>：账号子页 stem = account-sub-<id>，旷野子页 stem = space-status / space-tempkeys（2026-11 从 account-sub-status / account-sub-tempkeys 改名为 settings-*，P4-3 PR-4b 再改 space-*，页面内容不变）。
  * 手机 412×915 × 中英 × 深浅色。/api/status 用 tests/fixtures/status-summary.cjs（含用量），/api/account 固定已登录（设置页不读它）、设备列表固定两台。 */
 const SUB_PAGES = [
-  /* 对齐 PR-B：服务状态并进旷野 /wild/（截图名留 space-status，新基线在重设计最后一个 PR 重拍） */
-  ['space-status', '/wild/', async (pg) => { await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 }); }],
+  /* 对齐 PR-B：服务状态并进旷野 /status/（截图名留 space-status，新基线在重设计最后一个 PR 重拍） */
+  ['space-status', '/status/', async (pg) => { await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 }); }],
   /* 账号子页（云同步 2026-11-08 删除；设备随 /account/ 整页 2026-11-08 删除，改拍账号终端 devices 层，见上「账号终端」） */
   /* 临时钥匙页 /security/tempkeys/ 随进站 v3 L1 删除（临时钥匙 / 分享链接在盾牌命令行里） */
 ];
@@ -354,7 +354,7 @@ for (const lang of LANGS) {
         content: 'html{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans CJK SC","Noto Sans CJK",sans-serif !important}',
       });
       await freezeTime(pg);
-      await pg.goto(lang.prefix + '/wild/', { waitUntil: 'domcontentloaded' });
+      await pg.goto(lang.prefix + '/status/', { waitUntil: 'domcontentloaded' });
       await waitPageReady(pg);
       await expect(pg.locator('#st-root')).toHaveAttribute('data-state', 'ready', { timeout: 10000 });
       await pg.locator('#st-audit summary').click();

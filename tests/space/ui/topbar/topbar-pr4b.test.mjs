@@ -73,7 +73,7 @@ test('v5 S6 顶栏 E：头像访客态（v6 割接起点了预填 su ，不再�
   assert.match(js, /el\.textContent = T\.ps1\(who\.get\(\), '~'\);/);
   assert.match(rd('space/web/assets/js/shell/terminal.js'), /export \{ DIRS, normDir, cwdPath, fill, parse, createWho, ps1 \};/);
   const home = rd('space/web/layouts/index.html');
-  assert.match(home, /<div id="about" class="sgx-term sgx-term--static wild-term home-about"/);
+  assert.match(home, /<div id="about" class="sgx-term sgx-term--static trm-win home-about"/);
   assert.match(home, /<span class="sgx-term-pp" data-sgx-ps>nobody@space:~\$<\/span> neofetch/);
   assert.doesNotMatch(home, /data-sgx-term="home"/, '主页不再嵌终端');
   /* 子站图标表（nav.json）里有 tb-grid */

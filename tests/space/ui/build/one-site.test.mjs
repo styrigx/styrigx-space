@@ -214,9 +214,11 @@ test('真实构建：根文件归主站、三站各在前缀下（中文 /<站>/
     const html = readFileSync(path.join(out, s, 'index.html'), 'utf8');
     const refs = [...html.matchAll(/(?:href|src)="?(\/[^"\s>]*)/g)].map((m) => m[1]);
     assert.ok(refs.length > 3, s);
-    /* 合并 PR3：导航（2026-11-04 P5-1 起在快捷面板导航页）里另两个子站是同源相对地址 /<站>/（中文 /<站>/zh/，P4-3 PR-4c），主站项 / 账号 / 头像是 https://styrigx.com 绝对地址，其余站内地址都带本站前缀 */
+    /* 合并 PR3：导航（2026-11-04 P5-1 起在快捷面板导航页）里另两个子站是同源相对地址 /<站>/（中文 /<站>/zh/，P4-3 PR-4c），主站项 / 账号 / 头像是 https://styrigx.com 绝对地址，其余站内地址都带本站前缀；
+       2026-11-12：顶栏 logo 四站统一回主站首页，子站英文页 logo 是 /（只此一处） */
     const others = SITES.filter((x) => x !== s).map((x) => '/' + x + '/');
-    assert.deepEqual(refs.filter((r) => !r.startsWith('/' + s + '/') && !others.includes(r)), [], s + '：站内地址都带 /' + s + '/（另两站的导航项除外）');
+    assert.deepEqual(refs.filter((r) => !r.startsWith('/' + s + '/') && !others.includes(r) && r !== '/'), [], s + '：站内地址都带 /' + s + '/（另两站的导航项、logo 除外）');
+    assert.equal([...html.matchAll(/class="?sgx-tb-logo"? href="?([^"\s>]+)/g)].map((m) => m[1]).join(), '/', s + '：logo 回主站首页 /');
     assert.deepEqual(others.filter((o) => !refs.includes(o)), [], s + '：导航页里另两站是相对地址');
     assert.doesNotMatch(html, /atlas\.styrigx\.com/, s + '：不再有旧图志域名');
     const canon = html.match(/<link rel="?canonical"? href="?([^"\s>]+)/);

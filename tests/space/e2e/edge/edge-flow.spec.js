@@ -125,7 +125,7 @@ test('R3 已解锁页面（v6 会话）：别的标签页 lock 后，切回来�
   expect(await lockShownWithin(page, 800)).toBe(false);
   /* 另一个标签页 lock（v6：删服务端会话行） */
   const other = await context.newPage();
-  await other.goto(MAIN + '/wild/');
+  await other.goto(MAIN + '/status/');
   const lk = await other.evaluate(() => fetch('/api/identity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'lock' }) }).then((r) => r.status));
   expect(lk).toBe(200);
   await other.close();
@@ -159,14 +159,14 @@ test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / �
   expect(forged).toEqual([401, 'worker']);
   /* v6 会话：云同步 200；接口地址不变 */
   await setV6(context);
-  await page.goto(MAIN + '/wild/');
+  await page.goto(MAIN + '/status/');
   const pr = await page.evaluate(() => fetch('/api/prefs', { cache: 'no-store' }).then((r) => r.json().then((j) => [r.status, j.ok, r.headers.get('x-sgx-runtime')])));
   expect(pr).toEqual([200, true, 'account']);
   const by = (re) => edge.log.filter((l) => re.test(new URL(l[2]).pathname)).map((l) => l[0]);
   /* 浏览器的请求都进网关（路由 styrigx.com/*）；账号的接口再经服务绑定转一跳（log 'account'）；没有一条走账号 Worker 自己的路由 */
   expect(new Set(by(/^\/(avatar\/|api\/(profile|prefs|avatar))/))).toEqual(new Set(['worker', 'account']));
   expect(by(/^\/(avatar\/|api\/(profile|prefs|avatar))/).filter((x) => x === 'account').length).toBeGreaterThanOrEqual(3);
-  expect(new Set(by(/^\/(wild\/|api\/session-check)$/))).toEqual(new Set(['worker']));
+  expect(new Set(by(/^\/(status\/|api\/session-check)$/))).toEqual(new Set(['worker']));
 });
 
 /* R8（顶栏标签页内切换）随 P4-3 PR-4b 删除：主站只剩旷野一个顶级页，shell/inpage-tabs.js 删了，没有页内切换可测。 */

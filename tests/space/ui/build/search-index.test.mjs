@@ -1,6 +1,6 @@
 /**
  * 主站全站索引 space/scripts/build-search-index.mjs（P4-3 PR-2：副标题 = 完整面包屑、text = 页面设置行文字，AI 才说得出路径；
- * PR-4b：旷野页在根路径，子页去掉 settings 一层，旷野子页的面包屑最上一级是旷野页，账号页独立）
+ * PR-4b：子页去掉 settings 一层；2026-11-12 起分类只有状态页 /status/，它的子页面包屑最上一级是状态页，账号页独立）
  * - pageText：<main> 里的分组标题、设置行标题和说明、行所在 <a> 的地址；脚本 / 图标不算，「正在读取…」占位不要
  * - build(pub)：临时目录里的假产物（CI 单测这一步还没构建，靠它跑）
  * - 最后一组对真实构建跑（先 npm run build；没构建就跳过）
@@ -45,7 +45,7 @@ const page = (/** @type {string} */ title, /** @type {string} */ main) => `<html
 const row = (/** @type {string} */ t, /** @type {string} */ sub, /** @type {string} */ href) =>
   `<a class="set-row" href="${href}"><span class="flex-1"><span class="block font-medium">${t}</span><span class="block text-xs mt-0.5">${sub}</span></span></a>`;
 
-test('build(pub)：副标题 = 完整面包屑（旷野页自己没有；子页从旷野起；账号页独立），text = 上级行说明 + 本页内容，截到 TEXT_MAX；跳转页不进；私密照旧', () => {
+test('build(pub)：副标题 = 完整面包屑（状态页自己没有；子页从状态页起；账号页独立），text = 上级行说明 + 本页内容，截到 TEXT_MAX；跳转页不进；私密照旧', () => {
   const pub = mkdtempSync(path.join(tmpdir(), 'sgx-search-index-'));
   const put = (/** @type {string} */ rel, /** @type {string} */ html) => {
     mkdirSync(path.join(pub, rel), { recursive: true });
@@ -53,35 +53,35 @@ test('build(pub)：副标题 = 完整面包屑（旷野页自己没有；子页�
   };
   writeFileSync(path.join(pub, 'files-index.json'), JSON.stringify({ items: [] }));
   /* P4-3 PR-4c：英文在根（无前缀），中文在 zh/ */
-  put('zh', page('主页', row('旷野', '', '/zh/wild/')));
-  put('zh/wild', page('旷野', '<h2 class="set-gh"><span>旷野</span></h2>' + row('服务状态', '监测、配额、存储', '/zh/wild/status/')));
-  put('zh/wild/status', page('服务状态', '<h2 class="set-gh"><span>监测</span></h2><div class="set-row"><span class="block font-medium">可用率</span><span class="block text-xs">正在读取…</span></div>' +
+  put('zh', page('主页', row('状态', '', '/zh/status/')));
+  put('zh/status', page('状态', '<h2 class="set-gh"><span>状态</span></h2>' + row('可用率', '监测、配额、存储', '/zh/status/uptime/')));
+  put('zh/status/uptime', page('可用率', '<h2 class="set-gh"><span>监测</span></h2><div class="set-row"><span class="block font-medium">可用率</span><span class="block text-xs">正在读取…</span></div>' +
     '<div class="set-row"><span class="block font-medium">长</span><span class="block text-xs">' + '字'.repeat(400) + '</span></div>'));
-  put('zh/wild/empty', page('空页', ''));
-  put('zh/wild/old', '<html><head><meta http-equiv="refresh" content="0; url=/zh/wild/"><title>旧页</title></head></html>');
+  put('zh/status/empty', page('空页', ''));
+  put('zh/status/old', '<html><head><meta http-equiv="refresh" content="0; url=/zh/status/"><title>旧页</title></head></html>');
   put('', page('Home', ''));
-  put('wild', page('Wild', row('Service status', 'Uptime, quota, storage', '/wild/status/')));
-  put('wild/status', page('Service status', ''));
+  put('status', page('Status', row('Uptime', 'Uptime, quota, storage', '/status/uptime/')));
+  put('status/uptime', page('Uptime', ''));
   put('zh/account', page('账号', ''));
   put('zh/account/security', page('账号安全', ''));
   /* 进站 v3 L1：/security/ 不是分类了，就算产物里有也不收录 */
   put('zh/security/lock', page('锁屏凭证', ''));
   const ix = S.build(pub);
   const get = (/** @type {string} */ u) => ix.items.find((x) => x.url === 'https://styrigx.com' + u);
-  const st = get('/zh/wild/status/');
+  const st = get('/zh/status/uptime/');
   assert.equal(st.lang, 'zh');
-  assert.equal(st.subtitle, '主页' + S.CRUMB + '旷野');
+  assert.equal(st.subtitle, '主页' + S.CRUMB + '状态');
   assert.ok(st.text.startsWith('监测、配额、存储 监测 可用率 长 字'), st.text);
   assert.equal(st.text.length, S.TEXT_MAX);
   assert.doesNotMatch(st.text, /正在读取/);
-  assert.equal(get('/zh/wild/').subtitle, '主页');
+  assert.equal(get('/zh/status/').subtitle, '主页');
   assert.equal(get('/zh/').subtitle, '');
   assert.equal(get('/zh/').title, '主页');
-  assert.equal(get('/zh/wild/old/'), undefined, '跳转页不进索引');
-  assert.equal(get('/wild/status/').lang, 'en');
-  assert.equal(get('/wild/status/').subtitle, 'Home › Wild');
-  assert.equal(get('/wild/status/').text, 'Uptime, quota, storage');
-  assert.equal(get('/zh/wild/empty/').text, undefined, '没有文字就不带 text');
+  assert.equal(get('/zh/status/old/'), undefined, '跳转页不进索引');
+  assert.equal(get('/status/uptime/').lang, 'en');
+  assert.equal(get('/status/uptime/').subtitle, 'Home › Status');
+  assert.equal(get('/status/uptime/').text, 'Uptime, quota, storage');
+  assert.equal(get('/zh/status/empty/').text, undefined, '没有文字就不带 text');
   assert.equal(get('/zh/security/lock/'), undefined, '安全页不再收录');
   /* 2026-11-08 账号整页删了（账号都在顶栏头像的账号终端里）：account/** 不再收录 */
   assert.equal(get('/zh/account/security/'), undefined, '账号页不进索引');
@@ -91,23 +91,23 @@ test('build(pub)：副标题 = 完整面包屑（旷野页自己没有；子页�
   assert.ok(!ix.items.some((x) => /\/settings\//.test(x.url)), '索引里没有 settings 一层的地址');
 });
 
-const BUILT = existsSync(path.join(REPO, 'space/web/public/wild/index.html'));
+const BUILT = existsSync(path.join(REPO, 'space/web/public/status/index.html'));
 
-test('真实构建：旷野 / 主页的面包屑；安全页（进站 v3 L1 删了）不在索引里；功能开关副标题带面包屑', { skip: !BUILT && '没构建 space/web/public（CI 单测这一步不构建；上面的假产物用例覆盖逻辑）' }, () => {
+test('真实构建：状态页 / 主页的面包屑；安全页（进站 v3 L1 删了）不在索引里；功能开关副标题带面包屑', { skip: !BUILT && '没构建 space/web/public（CI 单测这一步不构建；上面的假产物用例覆盖逻辑）' }, () => {
   const ix = S.build();
   const get = (/** @type {string} */ u) => ix.items.find((x) => x.url === 'https://styrigx.com' + u && x.id.startsWith('setting:'));
   assert.ok(!ix.items.some((x) => /\/security\//.test(x.url)), '进站 v3 L1：索引里没有 /security/');
-  assert.equal(get('/zh/wild/').subtitle, '主页');
+  assert.equal(get('/zh/status/').subtitle, '主页');
   assert.ok(!ix.items.some((x) => /\/theme\//.test(x.url)), '对齐 PR-C：风格页 /theme/ 退役，索引里没有');
-  /* P4-3 PR-4b：显示页删除，索引里没有 /display/；旷野页平铺入口的副标题进了子页的 text */
+  /* P4-3 PR-4b：显示页删除，索引里没有 /display/ */
   assert.ok(!ix.items.some((x) => /\/display\//.test(x.url)), '索引里没有 /display/');
   assert.ok(!ix.items.some((x) => /^https:\/\/styrigx\.com\/en\//.test(x.url)), '索引里没有 /en/（P4-3 PR-4c）');
-  /* 对齐 PR-B：主页不再有分类入口；数字健康 / 服务状态 / 关于本站并进旷野页 /wild/，旧地址不进索引 */
-  for (const old of ['wellbeing', 'status', 'about']) assert.ok(!ix.items.some((x) => new RegExp('/' + old + '/$').test(x.url)), '索引里没有 /' + old + '/');
-  assert.equal(get('/wild/').title, 'Wild');
-  assert.equal(get('/wild/').subtitle, 'Home');
-  assert.equal(get('/zh/wild/').title, '旷野');
-  assert.equal(get('/zh/wild/').subtitle, '主页');
+  /* 对齐 PR-B：主页不再有分类入口；数字健康 / 关于本站旧地址不进索引；2026-11-12 旷野删除，状态单独成页 /status/，/wild/ 不进索引 */
+  for (const old of ['wellbeing', 'wild', 'about']) assert.ok(!ix.items.some((x) => new RegExp('/' + old + '/$').test(x.url)), '索引里没有 /' + old + '/');
+  assert.equal(get('/status/').title, 'Status');
+  assert.equal(get('/status/').subtitle, 'Home');
+  assert.equal(get('/zh/status/').title, '状态');
+  assert.equal(get('/zh/status/').subtitle, '主页');
   assert.equal(get('/zh/').subtitle, '', '主页自己没有面包屑');
   assert.equal(get('/').title, 'Home');
   assert.equal(get('/zh/').title, '主页');
@@ -117,5 +117,5 @@ test('真实构建：旷野 / 主页的面包屑；安全页（进站 v3 L1 删�
   assert.ok(!ix.items.some((x) => x.id.startsWith('feature:palette:')), '调色板开关不进索引');
   /* 显示页删除：主题模式 / 布局 / 语言只在快捷面板，不进索引 */
   for (const id of ['theme-mode', 'layout', 'lang']) assert.ok(!ix.items.some((x) => x.id.startsWith('feature:' + id + ':')), id + ' 不进索引');
-  assert.equal(get('/wild/').private, undefined);
+  assert.equal(get('/status/').private, undefined);
 });

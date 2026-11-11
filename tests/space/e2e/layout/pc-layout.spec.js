@@ -32,7 +32,7 @@ function boxesIntersect(a, b) {
 
 for (const vp of PCS) {
   test.describe(`dex-wide-layout ${vp.width}x${vp.height}`, () => {
-    test('首页（2026-11 PR-2 首屏终端；对齐 PR-B 四节）：内容栏 = 顶栏内容栏（1080 居中，左右缘和字标 / 图标组对齐）；hero 居中、终端 ≤ 820 居中；各分节、日刻引言、目录 / 旷野三卡铺满内容栏', async ({ page }) => {
+    test('首页（2026-11 PR-2 首屏终端；对齐 PR-B；2026-11-12 起三节）：内容栏 = 顶栏内容栏（1080 居中，左右缘和字标 / 图标组对齐）；hero 居中、终端 ≤ 820 居中；各分节、日刻引言、目录三卡铺满内容栏', async ({ page }) => {
       await gotoWide(page, vp);
       await setHomeCards(page, { daymark: true });
       const g = await page.evaluate(() => {
@@ -42,8 +42,8 @@ for (const vp of PCS) {
         return { vw: innerWidth, wrap: box(document.querySelector('.home-wrap')), logo, acts,
           hero: box(document.getElementById('home-hero')), term: box(document.getElementById('about')), /* v5 S7：首屏终端位换成 neofetch about 卡（同宽同位） */
           secs: [...document.querySelectorAll('.home-sec')].map((e) => [e.id, box(e)]),
-          cards: [['w-daymark', document.getElementById('w-daymark')], ['curio-dirs', document.querySelector('#curio .home-dirs')], ['wild-cards', document.querySelector('#wild .home-wild')]].map(([id, e]) => [id, box(e)]),
-          rows: ['#curio .home-dirs', '#wild .home-wild'].map((s) => { const ul = document.querySelector(s); return [s, box(ul.firstElementChild), box(ul.lastElementChild), ul.children.length]; }),
+          cards: [['w-daymark', document.getElementById('w-daymark')], ['curio-dirs', document.querySelector('#curio .home-dirs')]].map(([id, e]) => [id, box(e)]),
+          rows: ['#curio .home-dirs'].map((s) => { const ul = document.querySelector(s); return [s, box(ul.firstElementChild), box(ul.lastElementChild), ul.children.length]; }),
           sw: document.scrollingElement.scrollWidth };
       });
       const m = Math.min(48, Math.max(16, 5.333 + 0.022222 * g.vw));
@@ -54,12 +54,12 @@ for (const vp of PCS) {
       expect(Math.abs(g.hero.w - g.wrap.w)).toBeLessThanOrEqual(1);
       expect(Math.abs(g.term.w - Math.min(820, g.wrap.w)), `终端宽 ${g.term.w}`).toBeLessThanOrEqual(1);
       expect(Math.abs((g.term.l + g.term.r) / 2 - (g.wrap.l + g.wrap.r) / 2), '终端居中').toBeLessThanOrEqual(1);
-      expect(g.secs.map((x) => x[0])).toEqual(['blog', 'curio', 'daymark', 'wild']);
+      expect(g.secs.map((x) => x[0])).toEqual(['blog', 'curio', 'daymark']);
       for (const [id, b] of g.secs.concat(g.cards)) {
         expect(Math.abs(b.l - g.wrap.l), `${id} 左缘`).toBeLessThanOrEqual(1);
         expect(Math.abs(b.r - g.wrap.r), `${id} 右缘`).toBeLessThanOrEqual(1);
       }
-      /* 多卡一行：第一张贴左缘、最后一张贴右缘；只有一张（旷野 v6 P4-2 删 screen-time 后只剩 status）时网格不变、只查左缘 */
+      /* 多卡一行：第一张贴左缘、最后一张贴右缘（只有一张时只查左缘） */
       for (const [s, first, last, count] of g.rows) {
         expect(Math.abs(first.l - g.wrap.l), `${s} 第一张左缘`).toBeLessThanOrEqual(1);
         if (count > 1) expect(Math.abs(last.r - g.wrap.r), `${s} 最后一张右缘`).toBeLessThanOrEqual(1);

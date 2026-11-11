@@ -1,8 +1,8 @@
 /**
- * 2026-11 对齐 PR-B（设计稿 tb4.html）：主页四节 + 旷野页的纯函数。
+ * 2026-11 对齐 PR-B（设计稿 tb4.html）：主页的纯函数（[04] 旷野小卡 2026-11-12 删除，statusSummary 只给首屏状态胶囊用）。
  * （lib/wb-view.js 的 fmtShort / charBar / termRows / renderWbTerm 用例 v6 P4 随数字健康整套删除，定稿 v5.5 §四）
- * - apps/index.js：curioSummary（[02] 奇趣三个目录卡的计数和那一条）、statusSummary（[04] status 小卡：up/n、平均延迟、检查时间）
- * 运行：node --test tests/space/ui/home/home-wild.test.mjs
+ * - apps/index.js：curioSummary（[02] 奇趣三个目录卡的计数和那一条）、statusSummary（外壳六格状态的摘要：up/n、平均延迟、检查时间；首屏胶囊用 up/n）
+ * 运行：node --test tests/space/ui/home/home-summary.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

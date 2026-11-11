@@ -45,7 +45,7 @@
 ## 未决        （可选）
 ## 部署后手动（Gray）（可选）
 ## 验收        合并后要看什么
-## 合并        squash
+## 合并        merge commit
 ```
 
 4.4 正文写明基线 `基线：main <sha>`；有任务书时引用章节并逐条写出偏离。
@@ -54,7 +54,7 @@
 
 ## 5. 合并
 
-5.1 合并方式 MUST 是 squash，并以 PR 当前 head sha 作为前置条件（防止合入未验证的提交）。
+5.1 合并方式 MUST 是 merge commit，MUST NOT 用 squash 或 rebase；以 PR 当前 head sha 作为前置条件（防止合入未验证的提交）。原因：main 保留完整历史、提交 SHA 不变（各处引用 SHA），安全代码可审计。仓库设置只开 merge commit（Settings → General → Pull Requests）。2026-11-12 前 squash 合入的提交保持原样，不改写。
 
 5.2 合并 MUST 有拥有者的授权（逐个 PR 下令，或对一组 PR 的明确预授权）且 CI 全绿。
 

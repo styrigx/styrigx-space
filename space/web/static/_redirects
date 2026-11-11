@@ -10,8 +10,8 @@
 /files/*  /  301
 /favicon-32x32.png  /avatar/32.webp  301
 /apple-touch-icon.png  /avatar/192.webp  301
-/status/  /wild/#status  301
-/zh/status/  /zh/wild/#status  301
+/wild/  /status/  301
+/zh/wild/  /zh/status/  301
 /about/  /#about  301
 /zh/about/  /zh/#about  301
 /theme/  /  301

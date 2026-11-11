@@ -1,30 +1,30 @@
-{{/* 旷野（/wild/，中文 /zh/wild/；2026-11 对齐计划 PR-B，设计稿 tb4.html pg=wild / m=1）：只看，不设。
-   页头 = 终端风标题带（$ cd wild · 旷野_ · 一句话），下面一个全宽终端窗（v5 S7 删了第三个 about，neofetch 只在主页首屏 /#about；screen-time 窗 v6 P4 随数字健康整套删除，定稿 v5.5 §四），有锚点（主页 [04] 小卡、NAVIGATE「systemctl status ›」、旧地址 301 都指过来）：
-   - #status       systemctl status space.target：服务状态（原 /status/）。六个 unit（同 NAVIGATE STATUS 六格的口径）+ 每个监测项近 90 天可用率条（点一格看那天）
+{{/* 状态页（/status/，中文 /zh/status/；2026-11-12 旷野删除，状态从 /wild/#status 搬出单独成页）：只看，不设。
+   页头 = 终端风标题带（$ systemctl status · 状态_ · 一句话），下面一个全宽终端窗：
+   - #status       systemctl status space.target：服务状态。六个 unit（同 NAVIGATE STATUS 六格的口径）+ 每个监测项近 90 天可用率条（点一格看那天）
                    + 免费额度 / 用量 / 近期故障 + 进站凭证使用记录（展开才取 /api/space-audit）。数据 GET /api/status，页面可见时每 60 秒刷新（apps/space-status.js），
                    外壳不另取（#st-root 在页里，接 sgx:status 事件）。
-   旧地址 /status/（含 /zh/）在 static/_redirects 里 301 到这里对应的锚点（/wellbeing/ 跳转 v6 P4 删除）；/about/ 301 到主页 /#about（v5 S7）。noindex（门内页，见 baseof）。 */}}
+   入口：NAVIGATE STATUS 区的跳转按钮、NAVIGATE 页脚「systemctl status ›」（顶栏 status 参数）。旧地址 /wild/（含 /zh/）在 static/_redirects 301 到这里。
+   不在 NAVIGATE 01–04 里（没有当前项，终端 cwd 为 ~）。noindex（门内页，见 baseof）。 */}}
 {{ define "main" }}
-{{ .Scratch.Set "sgx-entry" "entry-space-wild.js" }}
+{{ .Scratch.Set "sgx-entry" "entry-space-status.js" }}
 {{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
-{{ $W := $tr.wild }}
-{{ $ps := partial "sgx-envps.html" "~/wild" }}
+{{ $ps := partial "sgx-envps.html" "~" }}
 
-<div class="wild-wrap">
-{{ partial "sgx-ph.html" (dict "cmd" "cd wild" "title" .Title "desc" .Description "path" .File.Path) }}
+<div class="status-wrap">
+{{ partial "sgx-ph.html" (dict "cmd" "systemctl status" "title" .Title "desc" .Description "path" .File.Path) }}
 
-  {{/* ① status：systemctl status space.target。#st-root 及其子节点 id 同原 /status/ 页（apps/space-status.js、tests/space/e2e/space/space-status.spec.js 按 id 找）；
+  {{/* status：systemctl status space.target。#st-root 及其子节点 id 不变（apps/space-status.js、tests/space/e2e/space/space-status.spec.js 按 id 找）；
      状态 data-state：loading 骨架 · ready 有数据 · empty 还没有任何检查结果 · error 第一次就失败（之后刷新失败只在末行提示，保留旧数据）
      · locked 没进站（接口 401；v5 S3 三处上锁之一）：只剩锁卡 #st-locked，按钮发 sgx:sudo（终端预填 su ，v6 割接） */}}
-  <section class="wild-sec" id="status" aria-labelledby="wild-sys-h">
-    <div class="sgx-term sgx-term--static wild-term st-wrap" id="st-root" data-state="loading" aria-busy="true">
-      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><h2 class="sgx-term-title" id="wild-sys-h" translate="no">status</h2><em class="sgx-term-count" id="st-checked" translate="no"></em></div>
-      <div class="sgx-term-body wild-body">
-        <p class="wild-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> systemctl status space.target</p>
+  <section class="status-sec" id="status" aria-labelledby="status-sys-h">
+    <div class="sgx-term sgx-term--static trm-win st-wrap" id="st-root" data-state="loading" aria-busy="true">
+      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><h2 class="sgx-term-title" id="status-sys-h" translate="no">status</h2><em class="sgx-term-count" id="st-checked" translate="no"></em></div>
+      <div class="sgx-term-body trm-body">
+        <p class="trm-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> systemctl status space.target</p>
 
         <div id="st-banner" class="st-banner" data-state="loading" role="status" aria-live="polite">
           <p class="st-banner-l1"><span class="st-dot" aria-hidden="true">●</span> <span translate="no">space.target</span> — <span translate="no">Styrigx Personal Digital Space</span></p>
-          <p class="st-banner-l2"><span class="wild-dim" translate="no">Active:</span> <b class="st-banner-active" data-st="active">{{ $tr.status.loading }}</b> <span class="st-banner-title" data-st="title"></span><span class="st-banner-sub" data-st="sub"></span></p>
+          <p class="st-banner-l2"><span class="trm-dim" translate="no">Active:</span> <b class="st-banner-active" data-st="active">{{ $tr.status.loading }}</b> <span class="st-banner-title" data-st="title"></span><span class="st-banner-sub" data-st="sub"></span></p>
         </div>
 
         {{/* 没进站（/api/status 回 401）：锁标 + Permission denied + 一行说明 + su 按钮（v6 割接；点了终端预填 su ）。
@@ -32,23 +32,23 @@
         <div id="st-locked" class="st-msg st-locked" hidden>
           <span class="st-locked-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
           <div class="st-locked-tx">
-            <p class="st-msg-title"><span translate="no">Permission denied</span> <span class="wild-dim" data-st="lock-hint" data-auth="— {{ $tr.status.lockedHint }}" data-perm="— {{ $tr.status.lockedPermHint }}">— {{ $tr.status.lockedHint }}</span></p>
-            <p class="st-msg-sub wild-dim" data-st="lock-sub" data-auth="{{ $tr.status.lockedSub }}" data-perm="{{ $tr.status.lockedPermSub }}">{{ $tr.status.lockedSub }}</p>
-            <button type="button" class="st-btn wild-cmdbtn" data-st="sudo" translate="no">su</button>
+            <p class="st-msg-title"><span translate="no">Permission denied</span> <span class="trm-dim" data-st="lock-hint" data-auth="— {{ $tr.status.lockedHint }}" data-perm="— {{ $tr.status.lockedPermHint }}">— {{ $tr.status.lockedHint }}</span></p>
+            <p class="st-msg-sub trm-dim" data-st="lock-sub" data-auth="{{ $tr.status.lockedSub }}" data-perm="{{ $tr.status.lockedPermSub }}">{{ $tr.status.lockedSub }}</p>
+            <button type="button" class="st-btn trm-cmdbtn" data-st="sudo" translate="no">su</button>
           </div>
         </div>
 
         {{/* 第一次加载失败：一行错误 + 一个命令样式的按钮（重试） */}}
         <div id="st-error" class="st-msg" hidden>
           <p class="st-msg-title"><span class="st-dot" aria-hidden="true">●</span> <span data-st="err-title"></span></p>
-          <p class="st-msg-sub wild-dim" data-st="err-sub"></p>
-          <button type="button" class="st-btn wild-cmdbtn" data-st="err-btn"></button>
+          <p class="st-msg-sub trm-dim" data-st="err-sub"></p>
+          <button type="button" class="st-btn trm-cmdbtn" data-st="err-btn"></button>
         </div>
 
         {{/* 接口通了但还没有任何检查结果（Worker 刚上线） */}}
         <div id="st-empty" class="st-msg" hidden>
           <p class="st-msg-title">{{ $tr.status.noDataYet }}</p>
-          <p class="st-msg-sub wild-dim">{{ $tr.status.resultsShowUpAfter }}</p>
+          <p class="st-msg-sub trm-dim">{{ $tr.status.resultsShowUpAfter }}</p>
         </div>
 
         {{/* 六个 unit（space / blog / curio / daymark / gray-ai / auth；lib/status-view.js renderUnits，口径同 NAVIGATE STATUS） */}}
@@ -56,7 +56,7 @@
 
         {{/* 每个监测项一行 + 近 90 天可用率条（lib/status-view.js renderSite）：加载中先放 3 行骨架（= 监测目标数），拿到数据后整块替换 */}}
         <div id="st-uptime" class="st-block">
-          <p class="wild-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> uptime --days 90</p>
+          <p class="trm-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> uptime --days 90</p>
           <div id="st-sites" class="st-sites">
             {{ range seq 3 }}<div class="st-card st-skel" aria-hidden="true"><span class="st-skel-line st-skel-w40"></span><span class="st-skel-bar"></span></div>{{ end }}
           </div>
@@ -64,20 +64,20 @@
 
         {{/* 免费额度（今天的操作次数 / 上限），渲染 renderQuota。旧版 Worker（没有 quota 字段）整块不显示 */}}
         <section id="st-quota-wrap" class="st-block st-usage-wrap" aria-labelledby="st-quota-h" hidden>
-          <p class="wild-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> wrangler quota --today</p>
+          <p class="trm-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> wrangler quota --today</p>
           <h3 class="st-h" id="st-quota-h">{{ $tr.status.freeTierQuota }}</h3>
           <div id="st-quota" class="st-usage-card"></div>
         </section>
 
         {{/* 用量（Cloudflare 免费额度存储量），渲染 renderUsage。没配 token → 一行「用量未配置」 */}}
         <section id="st-usage-wrap" class="st-block st-usage-wrap" aria-labelledby="st-usage-h" hidden>
-          <p class="wild-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> du -sh d1 r2 kv</p>
+          <p class="trm-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> du -sh d1 r2 kv</p>
           <h3 class="st-h" id="st-usage-h">{{ $tr.status.usage }}</h3>
           <div id="st-usage" class="st-usage-card"></div>
         </section>
 
         <section id="st-inc-wrap" class="st-block st-inc-wrap" aria-labelledby="st-inc-h" hidden>
-          <p class="wild-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> journalctl -p err --since -90d</p>
+          <p class="trm-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> journalctl -p err --since -90d</p>
           <h3 class="st-h" id="st-inc-h">{{ $tr.status.recentIncidents }}</h3>
           <div id="st-inc" class="st-inc-card"></div>
         </section>
@@ -86,20 +86,20 @@
            进门二值：页面不做角色判断；接口由服务端判断（space-audit 要进门 + 账号会话）。记录保留 7 天、最多显示最近 50 条。 */}}
         <section class="st-block st-audit-wrap" aria-labelledby="st-audit-h">
           <details id="st-audit" class="st-audit-card">
-            <summary class="st-audit-sum"><span class="sgx-term-pp" aria-hidden="true" translate="no">{{ $ps }}</span> <span translate="no" aria-hidden="true">last spacekey</span> <span class="st-audit-sum-txt"><b id="st-audit-h">{{ $tr.status.spaceCredentialActivity }}</b> <span class="wild-dim">· {{ $tr.status.last7DaysTime }}</span></span><span class="st-audit-chev" aria-hidden="true"></span></summary>
+            <summary class="st-audit-sum"><span class="sgx-term-pp" aria-hidden="true" translate="no">{{ $ps }}</span> <span translate="no" aria-hidden="true">last spacekey</span> <span class="st-audit-sum-txt"><b id="st-audit-h">{{ $tr.status.spaceCredentialActivity }}</b> <span class="trm-dim">· {{ $tr.status.last7DaysTime }}</span></span><span class="st-audit-chev" aria-hidden="true"></span></summary>
             <div id="st-audit-body" class="st-audit-body" aria-live="polite" aria-busy="false"></div>
           </details>
         </section>
 
-        <p class="st-foot wild-dim" id="st-foot" aria-live="polite"></p>
+        <p class="st-foot trm-dim" id="st-foot" aria-live="polite"></p>
       </div>
     </div>
   </section>
 
-  {{/* 页末（Gray 2026-11-09 细节 5）：旷野只看不设、以后还会加窗口 → 「› more soon_」+ 闪烁光标（装饰，读屏不念；减弱动效不闪） */}}
-  <p class="sgx-eof wild-eof" aria-hidden="true" translate="no">› more soon<span class="sgx-eof-cur"></span></p>
+  {{/* 页末（Gray 2026-11-09 细节 5）：只看不设、以后还会加窗口 → 「› more soon_」+ 闪烁光标（装饰，读屏不念；减弱动效不闪） */}}
+  <p class="sgx-eof status-eof" aria-hidden="true" translate="no">› more soon<span class="sgx-eof-cur"></span></p>
   {{/* 页末结束标记（Gray 2026-11-09）：同博客列表最后一页的「-- EOF --」，终端文字样式（.sgx-eof），紧跟在 more soon 下面；装饰，读屏不念 */}}
-  <p class="sgx-eof wild-eof-end" data-wild-eof aria-hidden="true" translate="no">-- EOF --</p>
+  <p class="sgx-eof status-eof-end" data-status-eof aria-hidden="true" translate="no">-- EOF --</p>
 </div>
 
 {{ partial "space-i18n.html" (dict "tr" $tr) }}

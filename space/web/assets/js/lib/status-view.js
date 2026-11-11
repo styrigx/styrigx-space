@@ -1,5 +1,5 @@
 /**
- * @fileoverview 服务状态（旷野 /wild/ 的 systemctl 窗，2026-11 对齐 PR-B 前是 /status/ 页；更早是顶栏「状态」页）的纯函数：
+ * @fileoverview 服务状态（状态页 /status/ 的 systemctl 窗；2026-11 对齐 PR-B 到 2026-11-12 在旷野 /wild/#status，更早是顶栏「状态」页）的纯函数：
  * 北京时间格式、时长、可用率、每日色块、当前状态，以及 unit 行 / 可用率行 / 故障列表的 HTML（终端形式，CSS 在 input.css「服务状态」段）。
  * 没有 DOM、没有请求（apps/space-status.js 负责取 /api/status、插进页面、每 60 秒刷新），node --test 直接测
  * （tests/space/ui/status/status-view.test.mjs）。
@@ -278,7 +278,7 @@ export function uptime90(s) {
 }
 
 /**
- * 一个监测项的可用率行（article.st-card，旷野 systemctl 窗里 `uptime --days 90` 下面一项）：名字 · 域名 · 状态 · 最近一次检查 · 90 格可用率条。
+ * 一个监测项的可用率行（article.st-card，状态页 systemctl 窗里 `uptime --days 90` 下面一项）：名字 · 域名 · 状态 · 最近一次检查 · 90 格可用率条。
  * 色块是 span，整条 role="img" 带可读的总结；点色块的说明由 apps/space-status.js 填进 .st-detail。
  * @param {any} s
  * @param {{t:(k:string)=>string, fmt:(k:string, v?:Record<string,string|number>)=>string, lang:string, now:number, today:string}} ctx

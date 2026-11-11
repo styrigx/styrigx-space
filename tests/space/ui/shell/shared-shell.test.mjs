@@ -43,11 +43,11 @@ test('宽屏平铺（Gray 2026-11-07；2026-11 PR-A 起内容区回 1080）：�
     for (const r of rules) assert.match(r, /:root\[data-sgx-layout="desktop"\] \S+ \{$/, sel + ' 只在桌面布局');
   }
   assert.match(s, /\.sgx-flat \{ background: transparent; border: 0; border-radius: 0; box-shadow: none;/);
-  // 交互模块保留卡片：旷野页（屏幕时间 / 状态 / 关于，对齐 PR-B 起在 _default/wild.html）、安全页不挂 .sgx-flat
+  // 交互模块保留卡片：状态页（_default/status.html，2026-11-12 起；原旷野页）、安全页不挂 .sgx-flat
   const web = path.join(REPO, 'space/web/layouts');
   /* 进站 v3 L1：安全页删了（盾牌下拉） */
   for (const f of ['_default/security.html', '_default/security-lock.html']) assert.ok(!existsSync(path.join(web, f)), f + ' 已删');
-  for (const f of ['_default/wild.html']) {
+  for (const f of ['_default/status.html']) {
     assert.doesNotMatch(readFileSync(path.join(web, f), 'utf8'), /sgx-flat/, f);
   }
   const home = readFileSync(path.join(web, 'index.html'), 'utf8');
@@ -87,10 +87,11 @@ test('快捷面板（P5-1，替代抽屉；PR-4b 单页 + 导航面板）：非�
   assert.doesNotMatch(s, /is-fading|is-curtain|--sgx-curtain/);
 });
 
-test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）：01 主页 02 博客 03 奇趣 04 日刻 05 旷野，没有账号 / 设置项；终端路径提示、页脚外链；顶栏 / AI 图标都在', () => {
+test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）：01 主页 02 博客 03 奇趣 04 日刻（05 旷野 2026-11-12 删除），没有账号 / 设置项；终端路径提示、页脚外链；顶栏 / AI 图标都在', () => {
   const nav = JSON.parse(files['nav.json']);
-  assert.deepEqual(nav.items.map((i) => i.id), ['home', 'blog', 'curio', 'daymark', 'wild']);
-  assert.deepEqual(nav.items.map((i) => i.hint), ['~', 'blog/', 'curio/', 'daymark/', 'wild/']);
+  assert.deepEqual(nav.items.map((i) => i.id), ['home', 'blog', 'curio', 'daymark']);
+  assert.deepEqual(nav.items.map((i) => i.hint), ['~', 'blog/', 'curio/', 'daymark/']);
+  assert.ok(!nav.items.some((i) => i.id === 'wild' || /wild/.test(i.path)), '没有旷野项');
   // 2026-10-21：书签项换成子站 奇趣 Curio（主站书签功能下线）
   const curio = nav.items.find((i) => i.id === 'curio');
   // 合并 PR3：三站和主站同在 styrigx.com（导航里子站互相是相对地址 /curio/，见 partials/shell-topbar.html）
@@ -110,8 +111,8 @@ test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）
   assert.deepEqual(nav.me, { href: 'https://styrigx.com/account/', avatar: 'https://styrigx.com/avatar/192.webp', email: prof.email });
   assert.equal(prof.email, 'styrigx@gmail.com');
   const tr = { en: yaml.load(files['i18n-en.yaml']), zh: yaml.load(files['i18n-zh.yaml']) };
-  assert.deepEqual(nav.items.map((i) => tr.zh.nav[i.id].title), ['主页', '博客', '奇趣', '日刻', '旷野']);
-  assert.deepEqual(nav.items.map((i) => tr.en.nav[i.id].title), ['Home', 'Blog', 'Curio', 'Daymark', 'Wild']);
+  assert.deepEqual(nav.items.map((i) => tr.zh.nav[i.id].title), ['主页', '博客', '奇趣', '日刻']);
+  assert.deepEqual(nav.items.map((i) => tr.en.nav[i.id].title), ['Home', 'Blog', 'Curio', 'Daymark']);
   for (const i of nav.items) for (const l of ['en', 'zh']) assert.ok(tr[l].foot.win[i.id], i.id + ' 页脚窗口名 ' + l);
   for (const i of [...nav.items, ...nav.footer]) assert.match(nav.icons[i.icon], /^<svg[\s\S]*<\/svg>$/, i.icon);
   for (const k of ['tb-palette', 'tb-shield', 'tb-term', 'tb-chat', 'lock', 'tb-undo', 'tb-send', 'tb-newchat', 'tb-history']) assert.match(nav.icons[k], /^<svg[\s\S]*<\/svg>$/, k);
@@ -205,7 +206,7 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   assert.match(src, /<dialog id="sgx-qp" class="sgx-qp sgx-theme"/);
   assert.match(src, /<dialog id="sgx-ai" class="sgx-qp sgx-ai"/);
   const base = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.html'), 'utf8');
-  /* 主站中间：只有页名（旷野页是「旷野」），没有标签；v3 顶栏不显示，标记照给 */
+  /* 主站中间：只有页名（状态页是「状态」），没有标签；v3 顶栏不显示，标记照给 */
   assert.match(base, /\{\{ \$center := printf "<span class=\\"sgx-tb-title\\">%s<\/span>" \(htmlEscape \$pageName\) \}\}/);
   assert.doesNotMatch(base.replace(/\{\{\/\*[\s\S]*?\*\/\}\}/g, ''), /topbar-tabs|\$tabCur/);
   assert.match(base, /\{\{ partial "shell-topbar\.html" \(dict/);

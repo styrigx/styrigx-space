@@ -1,8 +1,8 @@
 /**
- * @fileoverview 主页（/，中文 /zh/）四节里要运行时取数的部分（2026-11 对齐 PR-B，设计稿 tb4.html）：
+ * @fileoverview 主页（/，中文 /zh/）三节和首屏里要运行时取数的部分（2026-11 对齐 PR-B，设计稿 tb4.html）：
  * - [02] 奇趣 三个目录卡：计数 + 最近收藏 / 在用 / 在玩（/curio/api/links、/curio/api/items，进门即可读，私密的服务端不给）
  * - [03] 日刻 今日一句（lib/daymark-today.js，/daymark/api/today 公开只读）
- * - [04] 旷野 status 小卡 + 首屏状态胶囊：接外壳 shell/topbar-panel.js mountStatus 发的 sgx:status-cells（同一份 /api/status，不另取）
+ * - 首屏状态胶囊：接外壳 shell/topbar-panel.js mountStatus 发的 sgx:status-cells（同一份 /api/status，不另取）
  * - hero：$ 行标语打字轮播（apps/home-typer.js）；# 行签名 motto 空值时整行隐藏（跟 sgx-profile-changed）
  * mountHome() 由 entries/entry-space.js 在加载时调一次（先于 initCore，事件监听在外壳取数之前挂好）。
  */
@@ -51,7 +51,7 @@ export function curioSummary(links, items, lang) {
 }
 
 /**
- * 外壳的六格状态 → 小卡文字（纯函数）：up / n、平均延迟（有数的格子取平均，四舍五入）、检查时间（北京时间 HH:MM）。
+ * 外壳的六格状态 → 摘要（纯函数；首屏胶囊用 up / n）：up / n、平均延迟（有数的格子取平均，四舍五入）、检查时间（北京时间 HH:MM）。
  * @param {{t:number, cells: Record<string, {up:boolean, ms:number|null}>}} v
  */
 export function statusSummary(v) {
@@ -120,21 +120,13 @@ export function mountHome(o) {
   } });
   else if (dmWait) dmWait.hidden = true;
 
-  /* [04] 旷野 status 小卡 + 首屏胶囊：外壳每次画 NAVIGATE STATUS 时发 sgx:status-cells */
-  const st = document.querySelector('[data-home-st]');
+  /* 首屏胶囊：外壳每次画 NAVIGATE STATUS 时发 sgx:status-cells（[04] 旷野 status 小卡 2026-11-12 随旷野删除） */
   const pill = document.querySelector('[data-home-status]');
   const pillDot = document.querySelector('[data-home-status-dot]');
   document.addEventListener('sgx:status-cells', function (/** @type {any} */ e) {
     const s = statusSummary(e && e.detail);
     if (!s.n) return;
     const ok = s.up === s.n;
-    if (st) {
-      st.setAttribute('data-up', ok ? '1' : '0');
-      const set = function (/** @type {string} */ sel, /** @type {string} */ v) { const el = st.querySelector(sel); if (el) el.textContent = v; };
-      set('[data-home-st-sum]', s.up + '/' + s.n);
-      set('[data-home-st-avg]', s.avg == null ? '—' : s.avg + 'ms');
-      set('[data-home-st-at]', s.at || '—');
-    }
     if (pill) pill.textContent = tx(ok ? 'homeStatusUp' : 'homeStatusDown', { up: s.up, n: s.n });
     if (pillDot) pillDot.setAttribute('data-up', ok ? '1' : '0');
   });

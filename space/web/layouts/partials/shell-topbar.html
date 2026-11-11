@@ -4,22 +4,22 @@
    结构：<header id="site-nav"> 通栏 .sgx-topbar（底边一条 1px 线，内容宽 = --sgx-content-w，1080）=
      [字标 ❯ + SVG 字标 Styrigx + _（光标 1.05s 闪；2026-11 PR-2 起不再是等宽文字 styrigx :~$）] [.sgx-tb-pill：页名（v3 不显示，标记留着给子站脚本 / 锁屏抄）] [盾牌 · 外观 · 四格（NAVIGATE）· 分隔 · >_（终端）· 头像（账号窗口）]（v5 S6 顶栏 E）；
      底边 .sgx-tb-prog 滑页进度条（JS 写 --sgx-prog）；右下角 AI 浮钮 .sgx-tb-ai（打开 AI 窗口）。三个窗口都是非模态 <dialog>、互斥：
-     #sgx-nav NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻 05 旷野（当前站「开」态）→ lang / layout 分段 → share（v5 S6 去掉 lock：上锁走终端 lock / 盾牌）→ STATUS（/api/status）→ systemctl status · Ctrl K 终端 · esc 关闭；
+     #sgx-nav NAVIGATE：01 主页 02 博客 03 奇趣 04 日刻（当前站「开」态；05 旷野 2026-11-12 删除）→ lang / layout 分段 → share（v5 S6 去掉 lock：上锁走终端 lock / 盾牌）→ STATUS（/api/status）→ systemctl status · Ctrl K 终端 · esc 关闭；
      #sgx-qp  外观：MODE（跟随系统 / 深 / 浅）+ PALETTE（色板列表 + 标题行 reset = 恢复默认）；（2026-11 PR-A：NAVIGATE / 外观都是锚在各自图标下的实色卡，不压暗页面、不毛玻璃）
      #sgx-ai  AI 窗口：头部 Gray AI · 新对话 · 历史 · 头像（账号页），底部「仅公开内容 · 联系我」（邮箱 = 参数 email）。
    参数（dict）：
      lang        页面语言代码（en / zh …）
      tr          共享外壳字符串表（partials/sgx-tr.html 返回值的 .shell；当前语言叠在英文上，缺键回退英文）——外壳不写任何语言的文案
      langs       语言分段的选项：[{code name short}]（hugo.yaml languages：name = 该语言自己的名字，short = 分段上的短名 EN / 中文，不翻译）
-     home        logo 链接（本站首页）
+     home        logo 链接：一律回主站首页（2026-11-12 起四站统一，英文 /、中文 /zh/；调用方用 sgx-lang-path 拼 path "/"）
      center      中间的 HTML（页名 .sgx-tb-title / 阅读进度，调用方渲染好；v3 顶栏不显示，见上）；pillClass 中间容器的额外 class
      headerClass / headerAttrs  <header> 的额外 class / 属性（博客：data-sgx-topbar-root data-mode）
-     nav         shell-nav.json（items：id icon origin path hint；名字在 tr.nav.<id>.title）；site 当前项的 nav id（NAVIGATE「开」态、计数 01/05）
+     nav         shell-nav.json（items：id icon origin path hint；名字在 tr.nav.<id>.title）；site 当前项的 nav id（NAVIGATE「开」态、计数 01/04）
      mainOrigin  主站项（origin 为 styrigx.com、不是子站的项）地址前缀：主站不传（同源相对 /）；子站传 https://styrigx.com
      icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term（终端）tb-grid（NAVIGATE 四格）tb-chat lock tb-undo share tb-send tb-newchat tb-history
      wordmark    字标 SVG（partials/shell-wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
      security    盾牌链接（没 JS / 中键时的去处：主站首页 #sec，当前语言；普通点击打开终端 #sgx-term，按身份徽章预填：访客 su 、普通用户 exit、站长 su root、root exit，定稿 v5.5 §七）
-     status      NAVIGATE 底部「systemctl status」链接：主站服务状态页（当前语言）
+     status      NAVIGATE 底部「systemctl status」链接与 STATUS 区跳转按钮：主站状态页 /status/（当前语言）
      acct        头像链接（没 JS / 中键时的去处：/account/ → 301 首页 #acct；已进站普通点击打开账号窗口 #sgx-acct，没进站是死按钮，v5 S6）；avatar 头像图片地址（顶栏头像 + AI 窗口头部 + 账号下拉）
      name / nick 账号下拉头部的姓名 / 昵称默认值（data/profile.yaml；运行时 topbar.js 再用本机缓存 sgx-profile 覆盖）
      email       对外联系邮箱（AI 窗口底部「联系我」的 mailto；主站传 data/profile.yaml 的 email，子站传 nav.json 的 me.email；
@@ -79,9 +79,10 @@
     </div>
     {{- /* STATUS（2026-11 PR-A 接真数据，设计稿 nav-v2「● 全部在线」+ 各服务延迟）：topbar-panel.js mountStatus 取 GET /api/status（主站监测，进门会话）——
        space / blog / curio / daymark 同一个 Pages、同一条网关链路 = 主站那一项；gray-ai = AI 那一项；auth = 网关自己（这一问的往返时间）。
-       拿不到（没进门 / 出错）：点是灰的、延迟空着，头部写 statusPending。数据也写进 tmux 页脚的 ● n/6。 */}}
+       拿不到（没进门 / 出错）：点是灰的、延迟空着，头部写 statusPending。数据也写进 tmux 页脚的 ● n/6。
+       头部右边一个跳转按钮（2026-11-12）：去状态页（.status 参数，同页脚 systemctl status ›；英文 /status/、中文 /zh/status/）。 */}}
     <div class="sgx-nav-st" data-nav-status>
-      <div class="sgx-nav-st-h"><span>{{ $t.nav.status }}</span><b data-st-sum data-up-text="● {{ $t.nav.allUp }}" data-off-text="{{ $t.nav.statusOff }}">{{ $t.nav.statusPending }}</b></div>
+      <div class="sgx-nav-st-h"><span>{{ $t.nav.status }}</span><b data-st-sum data-up-text="● {{ $t.nav.allUp }}" data-off-text="{{ $t.nav.statusOff }}">{{ $t.nav.statusPending }}</b><a href="{{ .status }}" class="sgx-nav-st-go" data-nav-st-go aria-label="{{ $t.nav.statusGoLabel }}">{{ $t.nav.statusGo }} ›</a></div>
       <ul class="sgx-nav-st-gd">
         {{- range slice "space" "blog" "curio" "daymark" "gray-ai" "auth" }}<li data-st="{{ . }}"><i aria-hidden="true"></i><span translate="no">{{ . }}</span><em data-st-ms></em></li>{{ end }}
       </ul>

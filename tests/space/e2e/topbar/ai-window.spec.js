@@ -26,7 +26,7 @@ const json = (o) => ({ status: 200, contentType: 'application/json', body: JSON.
 test.describe('AI 窗口（ai-v1，按设计稿）', () => {
   test('× 关窗，焦点回 AI 浮钮；桌面浮在 AI 浮钮上方、不压暗页面', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await go(page, '/wild/');
+    await go(page, '/status/');
     await page.locator('.sgx-tb-ai').click();
     const ai = page.locator('#sgx-ai');
     await expect(ai).toHaveAttribute('data-state', 'open');
@@ -46,7 +46,7 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
 
   test('没进站（v5 S3 三处上锁之一）：GET /api/ai 401 → 模型矩形只显示锁标；点锁 / 发问都不问 AI，打开终端预填 su ', async ({ page }) => {
     let posts = 0;
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     await page.route('**/api/ai', (r) => {
       if (r.request().method() !== 'GET') posts++;
       return r.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false,"error":"unauthorized"}' });
@@ -72,7 +72,7 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
 
   test('模型胶囊：登了账号能在窗口里换（写 sgx-ai-model，发问带上）；回答下站内链接成来源卡片、建议问题点了就问', async ({ page }) => {
     let body = null;
-    await go(page, '/zh/wild/');
+    await go(page, '/zh/status/');
     await page.route('**/api/ai', (r) => {
       if (r.request().method() === 'GET') return r.fulfill(json({ ok: true, default: 'g4', canChoose: true, models: [{ id: 'g4', label: 'Gemma 4' }, { id: 'gf', label: 'Gemini Flash' }] }));
       body = r.request().postDataJSON();

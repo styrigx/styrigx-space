@@ -34,7 +34,7 @@ test.describe('自己的通行密钥（v6）', () => {
     });
     await T.goPage(page);
     await openTerm(page);
-    await expect(ps(page)).toHaveText('styrigx@space:~/wild$');
+    await expect(ps(page)).toHaveText('styrigx@space:~$');
     await typeLine(page, 'passkey rm 2');
     await expect(log(page)).toContainText('删除 Google 密码管理器？ [y/N]');
     await typeLine(page, 'n');
@@ -61,7 +61,7 @@ test.describe('自己的通行密钥（v6）', () => {
     });
     await T.goPage(page);
     await openTerm(page);
-    await expect(ps(page)).toHaveText('root@space:~/wild#');
+    await expect(ps(page)).toHaveText('root@space:~#');
     await typeLine(page, 'passkey add');
     await expect(log(page)).toContainText('已注册');
     await mode(page, 'cmd');

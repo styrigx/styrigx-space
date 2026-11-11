@@ -41,7 +41,7 @@ export function isAccountOnlyKey(k) {
 export const PREVIEW_ANON_LIMITER = Object.freeze({ limit: async () => ({ success: true }) });
 
 /** 预览桩的固定来源（公开一条；有账号会话再加私密一条） */
-export const PREVIEW_AI_ANSWER = Object.freeze(['这是预览环境的固定回答。', '\n\n- 调色板：/wild/']);
+export const PREVIEW_AI_ANSWER = Object.freeze(['这是预览环境的固定回答。', '\n\n- 调色板：/status/']);
 
 /**
  * styrigx-ai 的预览桩（同服务绑定的形状：只有 fetch）。事件顺序同正式：delta… → done（2026-11-06 起不发 hits）。
@@ -55,7 +55,7 @@ export async function previewAiService(req) {
   /* v5 S4：关键词搜索的桩（固定一条公开结果；不读 KV） */
   if (url.pathname === '/find' && req.method === 'GET') {
     const q = String(url.searchParams.get('q') || '').trim();
-    return Response.json({ ok: true, q, results: q ? [{ title: 'Palette', url: 'https://styrigx.com/wild/', site: 'space', snippet: 'preview' }] : [] });
+    return Response.json({ ok: true, q, results: q ? [{ title: 'Palette', url: 'https://styrigx.com/status/', site: 'space', snippet: 'preview' }] : [] });
   }
   if (url.pathname !== '/ask') return Response.json({ ok: false, error: 'not-found' }, { status: 404 });
   if (req.method !== 'POST') return Response.json({ ok: false, error: 'method' }, { status: 405 });

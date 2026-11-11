@@ -1789,7 +1789,8 @@ jobs:
           check / 200 || ok=1
           # P4-3 PR-4c：英文在根、中文 /zh/
           check /zh/ 200 || ok=1
-          check /wild/ 200 || ok=1
+          check /status/ 200 || ok=1
+          check /wild/ 301 || ok=1
           check /security/lock/ 301 || ok=1
           check /zh/security/lock/ 301 || ok=1
           check /security/ 301 || ok=1

@@ -29,7 +29,7 @@ test.describe('设备（v6 会话）', () => {
     });
     await T.goPage(page);
     await openTerm(page);
-    await expect(ps(page)).toHaveText('styrigx@space:~/wild$');
+    await expect(ps(page)).toHaveText('styrigx@space:~$');
     await typeLine(page, 'device');
     await expect(log(page)).toContainText('[1] styrigx 当前 · 2026-11-11 08:30');
     await mode(page, 'cmd');
@@ -87,7 +87,7 @@ test.describe('设备（v6 会话）', () => {
     const calls = await mockAccount(page, { user: null });
     await T.goPage(page);
     await page.locator('#site-nav .sgx-tb-term').click();
-    await expect(ps(page)).toHaveText('nobody@space:~/wild$');
+    await expect(ps(page)).toHaveText('nobody@space:~$');
     await typeLine(page, 'device');
     await expect(log(page)).toContainText('su <用户>');
     expect(calls.length).toBe(0);

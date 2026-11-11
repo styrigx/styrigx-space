@@ -65,7 +65,7 @@
 | 操作 | 接口 | 服务端要求 | 界面 |
 |---|---|---|---|
 | 浏览四站页面 | — | 无（v5 S3 整站公开） | — |
-| AI、听歌播放、旷野监控卡 | `/api/ai`、播放令牌 / 音频、`/api/status` | 进站会话（任意 by，含 link） | 没进站 → 终端预填 `sudo styrigx` |
+| AI、听歌播放、状态页监控窗 | `/api/ai`、播放令牌 / 音频、`/api/status` | 进站会话（任意 by，含 link） | 没进站 → 终端预填 `sudo styrigx` |
 | 立即锁屏 | `POST /api/lock-now` | 无；**只锁当前设备**（清本机进站会话、reauth、reset 票） | `lock`，或已进站点盾牌答 y；不验证 |
 | 新建分享链接（含快捷面板「分享本页」） | `POST /api/share { create }` | 进站会话（不收分享链接进来的会话：by=link → 403 link） | 不验证 |
 | 分享链接列表 / 作废 | `POST /api/share { list \| revoke }` | 进站会话 + reauth | `share` / `share rm <n>` / `share rm --all`，要 `sudo -v` |

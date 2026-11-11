@@ -39,7 +39,7 @@
   "lang" $lang
   "tr" (partialCached "sgx-tr.html" $lang $lang).shell
   "langs" $langs
-  "home" (site.GetPage "/blog").RelPermalink
+  "home" (partial "sgx-lang-path.html" (dict "path" "/" "lang" $lang))
   "center" $center
   "pillClass" (printf "sgx-tb-pill--%s" $mode)
   "headerClass" "sgx-site-nav"
@@ -56,7 +56,7 @@
   "email" $nav.me.email
   "langHref" $langHref
   "security" (printf "%s#sec" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" $lang)))
-  "status" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/wild/#status" "lang" $lang))
+  "status" (partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/status/" "lang" $lang))
   "pal" $pal
 ) -}}
 {{ partial "sgx-profile-default.html" . }}

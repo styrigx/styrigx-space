@@ -40,7 +40,7 @@ async function signedIn(page) {
   await mockAccount(page, { user: T.V6_USER('styrigx') });
   await T.goPage(page);
   await openTerm(page);
-  await expect(T.ps(page)).toHaveText('styrigx@space:~/wild$');
+  await expect(T.ps(page)).toHaveText('styrigx@space:~$');
 }
 /** profile avatar（没有自定义头像）：收起终端、打开系统选照片 @param {any} page */
 async function pickPhoto(page) {

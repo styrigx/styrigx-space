@@ -1,5 +1,5 @@
 /**
- * @fileoverview 旷野 neofetch 的 Uptime 行（Gray 2026-11-09：从 2026-10-07 起算）：按北京时间（UTC+8，不分夏令时）数整天。纯函数（单测 tests/space/ui/space/uptime.test.mjs）。
+ * @fileoverview 主页首屏 neofetch 的 Uptime 行（Gray 2026-11-09：从 2026-10-07 起算）：按北京时间（UTC+8，不分夏令时）数整天。纯函数（单测 tests/space/ui/space/uptime.test.mjs）。
  */
 
 /** 北京时间偏移（毫秒） */

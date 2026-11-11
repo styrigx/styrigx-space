@@ -12,7 +12,7 @@ test.describe('lock feature flag (lock-gate)', () => {
   test('lock-gate on (default build): ?entry=1 opens the terminal with su prefilled (v6), no lock screen', async ({ page }) => {
     test.skip(flagsMode === 'gate-off', '默认构建：LOCK_GATE=true');
 
-    await page.goto('/wild/?entry=1', { waitUntil: 'domcontentloaded' });
+    await page.goto('/status/?entry=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#sgx-term')).toHaveAttribute('open', '', { timeout: 15000 });
     await expect(page.locator('#sgx-term-in')).toBeEditable({ timeout: 5000 });
     await expect(page.locator('#sgx-term-in')).toHaveValue('su ');
@@ -23,12 +23,12 @@ test.describe('lock feature flag (lock-gate)', () => {
     test.skip(flagsMode !== 'gate-off', '需要构建：SGX_TEST_LOCK_GATE=0');
 
     await page.route('**/api/lock-session-check*', async (route) => { await route.fulfill({ status: 401, contentType: 'application/json', body: '{"ok":false}' }); });
-    await page.route((u) => u.pathname === '/wild/', async (route) => {
+    await page.route((u) => u.pathname === '/status/', async (route) => {
       const res = await route.fetch();
       const html = (await res.text()).replace(/<html(\s|>)/, '<html data-sgx-lock-session="valid"$1');
       await route.fulfill({ response: res, body: html, headers: { ...res.headers(), 'content-type': 'text/html; charset=utf-8' } });
     });
-    await page.goto('/wild/?entry=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
+    await page.goto('/status/?entry=1&test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#sgx-entry, #sgx-entry-cover')).toHaveCount(0);
     let navigated = false;

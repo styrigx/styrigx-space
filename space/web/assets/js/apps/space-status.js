@@ -1,9 +1,9 @@
 /**
- * @fileoverview 旷野 › status 窗（/wild/#status，systemctl status space.target）：取 GET /api/status、渲染 space.target 两行 / 六个 unit / 可用率行 / 额度 / 用量 / 近期故障，
- * 页面可见时每 60 秒刷新。2026-11 对齐 PR-B：原 /status/ 页（卡片形式）并进旷野页，改成设计稿的终端窗；数据和行为不变（旧地址 301 到 /wild/#status）。
+ * @fileoverview 状态页的 status 窗（/status/，systemctl status space.target；2026-11-12 从旷野 /wild/#status 搬出单独成页）：取 GET /api/status、渲染 space.target 两行 / 六个 unit / 可用率行 / 额度 / 用量 / 近期故障，
+ * 页面可见时每 60 秒刷新。2026-11 对齐 PR-B：原 /status/ 页（卡片形式）并进旷野页，改成设计稿的终端窗；数据和行为不变（2026-11-12 起 /wild/ 301 到 /status/）。
  * 2026-10-24 PR4 前是顶栏三栏的「状态」页，之后挪进账号页、再搬到设置。
  *
- * - v5 S3：旷野页对所有人公开，这张卡是三处上锁之一。/api/status 要进站会话（网关访问表 entry）；进站凭证使用记录（/api/space-audit）另要账号会话。
+ * - v5 S3：状态页（原旷野页）对所有人公开，这张卡是三处上锁之一。/api/status 要进站会话（网关访问表 entry）；进站凭证使用记录（/api/space-audit）另要账号会话。
  * - 同源 cookie（credentials: 'same-origin'），no-store；没进站 401 → 锁卡（data-state=locked，#st-locked：Permission denied + 一行说明 +
  *   su 按钮（v6 割接），点了发 sgx:sudo，顶栏终端预填 su ）。锁了就不再自动重试；进站后页面会重新取（guard.js proceed）。
  * - 首帧（2026-10-24 PR3）：本机存着上次成功拿到的数据（localStorage sgx-status-cache，24 小时内）就先直接画出来，
@@ -270,7 +270,7 @@ function init() {
   }
 
   /* #404 未决项第 5 项（Gray 11-11 15:37）：403 = 已登录但不在 status 组，锁卡换「当前用户没有这个权限 / 需要 status 组，先 su root」，按钮预填 su root；
-     401 访客照旧（文案在 wild.html 的 data-auth / data-perm 里，页面语言由 Hugo 定） */
+     401 访客照旧（文案在 status.html 的 data-auth / data-perm 里，页面语言由 Hugo 定） */
   /** @param {boolean} perm */
   function lockCopy(perm) {
     if (!lockedEl) return;
