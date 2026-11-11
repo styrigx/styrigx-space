@@ -109,7 +109,9 @@ export function createWho(o) {
   /** v6 新会话的身份（whoami 的 user；null = 没有） @type {any} */
   let v6 = null;
   const pg = o.page ? o.page() : 'unknown';
-  if (pg === 'valid') lock = { ok: true, by: '' };
+  /* 2b：页面 valid 也可能只因为 v6 新会话（网关 pageStateOf）。有 v6 登录标记时首帧不猜旧进站身份（styrigx#），
+     等 refresh()：旧会话问 lock-session-check，v6 问 whoami，以回答为准 */
+  if (pg === 'valid' && !(o.v6Hint && o.v6Hint())) lock = { ok: true, by: '' };
   /** @type {Array<(w: Who) => void>} */
   const subs = [];
   let cur = whoOf(lock, account, v6);

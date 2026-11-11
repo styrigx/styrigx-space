@@ -54,6 +54,10 @@ P2c 变更（2026-11-11，对齐定稿 v5）：
 - `AccountVerifier.admit(cookie, method, path, { action })`：路由列了这个 action 才按它判，回答带回 action；子站经网关 `SpaceVerifier.admit` 转来。root 的特权内容操作经 `AccountVerifier.auditRoot` 留痕（`rm-bulk` / `import` / `export` / `share`）。
 - 旧会话（进站会话 / 账号会话 + 作用域）照旧并存，P4 删。
 
+2b 变更（2026-11-11，割接后续；档不变）：
+- 页面状态 `data-sgx-lock-session`：旧进站会话有效，**或** v6 新会话有效 → `valid`（网关 `gate.js pageStateOf`；v6 判定经 `AccountVerifier.admit` 问 `GET /api/prefs` 这条 user 档路由，救援会话不算）。云同步、名片等只在 valid 页面跑的逻辑对纯 v6 登录照常跑。
+- 网关关口、`/api/share`、`/api/status`、`/api/ai`、`/api/space-audit`：有 v6 身份但档不够 → **403 forbidden**（同子站接口 Worker）；没有身份仍 401。`/api/status`（status）、`/api/ai`（ai）接口本身也认 v6（之前只认旧进站会话）。
+
 ### 已定（Gray 2026-11-11）
 
 盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **owner** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。

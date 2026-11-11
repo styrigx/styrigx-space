@@ -19,6 +19,7 @@
  *   POST 的 body.model 由 styrigx-ai 只在有账号结论头时采纳（进站一律默认模型）。
  */
 import { lockSessionOf } from '../core/lock-session.js';
+import { entryOrV6 } from '../core/identity-admit.js';
 import { askAuthorizeFor } from '../core/account-rpc.js';
 import { writeAccountConclusion } from '../core/conclusion.js';
 import { aiIpLimit, aiGlobalGate } from '../core/ai-limit.js';
@@ -34,7 +35,10 @@ export async function onRequestPost(context) {
   if (request.method !== 'POST') return apiError(405, 'method');
   if (!isSameOrigin(request)) return originDenied();
   const sess = await lockSessionOf(context);
-  if (!sess.ok) return apiError(401, 'unauthorized');
+  /* 2b：纯 v6 登录（ai 组）也能用；有 v6 身份但不在 ai 组 403 forbidden */
+  const gate = await entryOrV6(context, sess);
+  if (gate === 'forbidden') return apiError(403, 'forbidden');
+  if (gate !== 'ok') return apiError(401, 'unauthorized');
 
   const ipLimited = await aiIpLimit(request, env);
   if (ipLimited) return ipLimited;
@@ -67,7 +71,10 @@ export async function onRequestPost(context) {
 export async function onRequestGet(context) {
   const { request, env } = context;
   const sess = await lockSessionOf(context);
-  if (!sess.ok) return apiError(401, 'unauthorized');
+  /* 2b：纯 v6 登录（ai 组）也能用；有 v6 身份但不在 ai 组 403 forbidden */
+  const gate = await entryOrV6(context, sess);
+  if (gate === 'forbidden') return apiError(403, 'forbidden');
+  if (gate !== 'ok') return apiError(401, 'unauthorized');
   const svc = env && env.AI_SERVICE;
   if (!svc || typeof svc.fetch !== 'function') return apiError(503, 'upstream');
   const account = await askAuthorizeFor(request, env);

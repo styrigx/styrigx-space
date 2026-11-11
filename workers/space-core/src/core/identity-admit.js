@@ -88,6 +88,53 @@ export async function newSessionConclusion(env, request, action) {
   return normalizeAdmit(r, action);
 }
 
+/**
+ * 网关自己的接口用（/api/status、/api/ai）：这个请求的 v6 结论（路由档）。关口（gate.js admit）问过就放在 context.data.v6，直接用；
+ * 没有（非生产关口不验、单测直接调接口）就自己问一次。
+ * @param {{ request: Request, env: any, data?: any }} context
+ */
+export async function v6ConclusionOf(context) {
+  const d = context && context.data;
+  if (d && d.v6 && typeof d.v6 === 'object' && typeof d.v6.allowed === 'boolean') return d.v6;
+  const v = await newSessionConclusion(context.env, context.request);
+  if (d) d.v6 = v;
+  return v;
+}
+
+/**
+ * 网关自己的接口的门（2b）：旧进站会话有效 → null（放行）；否则 v6 新会话的路由档够 → null；有 v6 身份但档不够 → 403 forbidden；
+ * 都没有 → 401 unauthorized。判断不在网关（账号 Worker 的 ROUTE_ACCESS + permits），这里只认结论。
+ * @param {{ request: Request, env: any, data?: any }} context @param {{ok:boolean}} sess
+ * @returns {Promise<'ok'|'forbidden'|'unauthorized'>}
+ */
+export async function entryOrV6(context, sess) {
+  if (sess && sess.ok) return 'ok';
+  const v = await v6ConclusionOf(context);
+  if (v.allowed) return 'ok';
+  return v.signedIn ? 'forbidden' : 'unauthorized';
+}
+
+/* ---------------- 2b：页面状态（data-sgx-lock-session）也认 v6 新会话 ---------------- */
+
+/**
+ * 页面状态判 v6 时问的路由：user 档的代表（ROUTE_ACCESS 里 GET /api/prefs = user：任一已登录身份；不在救援白名单 → 救援会话不算）。
+ * 用一条真实路由而不是另立一档：判断仍只在账号 Worker 的 ROUTE_ACCESS + permits()（precedence 不动），网关只传方法和路径。
+ * 单测核对它在账号路由表里是 user 档、不是救援可用。
+ */
+export const PAGE_PROBE = Object.freeze({ method: 'GET', path: '/api/prefs' });
+
+/**
+ * 这个请求有没有一个有效的 v6 身份（页面该画 valid）：带 sgx-session、账号 Worker 判 PAGE_PROBE 放行（有 uid）。
+ * 过期 / epoch 不等 / 用户禁用 / 坏令牌 → 账号 Worker 回没有 uid → false；救援会话 → user 档拒 → false。没 cookie 不问；出错 → false。
+ * @param {Record<string, any>} env @param {Request} request
+ * @returns {Promise<boolean>}
+ */
+export async function newSessionSignedIn(env, request) {
+  if (!request || !readCookie(request, NEW_SESSION_COOKIE)) return false;
+  const r = await askAdmit(env, request.headers.get('Cookie') || '', PAGE_PROBE.method, PAGE_PROBE.path);
+  return normalizeAdmit(r).allowed;
+}
+
 /** 别的 Worker 能记的 root 特权操作命令字（同账号 Worker REMOTE_AUDIT_COMMANDS） */
 const AUDIT_RE = /^(?:rm-bulk|import|export|share)(?:\s[\x20-\x7e]{0,190})?$/;
 

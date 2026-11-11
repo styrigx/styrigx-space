@@ -35,6 +35,7 @@ const STR_EN = {
   busy: "Creating share link…",
   session: "Your session has expired. Unlock again to share",
   full: "You already have 20 share links. Revoke some on styrigx.com first",
+  forbidden: "Only root can create share links · run su root first",
   fail: "Couldn’t create a share link. Please try again"
 };
 /** @param {Document} doc @returns {Record<string, string>} */
@@ -67,6 +68,8 @@ export function linkName(t) {
 export function errKey(status, j) {
   const e = j && j.error;
   if (status === 401 || e === 'session') return 'session';
+  /* 2b：v6 身份不是 root（/api/share 是 root 档，网关 403 forbidden）：不是会话过期 */
+  if (status === 403 && e === 'forbidden') return 'forbidden';
   if (status === 409 || e === 'full') return 'full';
   return 'fail';
 }

@@ -65,6 +65,7 @@ ai:
   busy: Lots of people are asking right now. Try again shortly
   tooLong: That question is too long (200 characters max)
   quota: Today’s quota is used up. Come back tomorrow
+  forbidden: "Your current user can’t use Gray AI"
   fail: Couldn’t get an answer. Please try again
   send: Send
   stop: Stop
@@ -77,6 +78,7 @@ share:
   busy: Creating share link…
   session: Your session has expired. Unlock again to share
   full: You already have 20 share links. Revoke some on styrigx.com first
+  forbidden: "Only root can create share links · run su root first"
   fail: Couldn’t create a share link. Please try again
 # 导航面板（九宫格）：站点名 + 副标题（space/web/data/shell-nav.json 只留 id / 图标 / 地址）
 nav:
@@ -221,6 +223,7 @@ term:
   usageUsermod: "usage: usermod -aG | -rG <group[,group]> <name>"
   needEntry: "not entered · run {x} first"
   needRoot: "not signed in to the account · run {x} first"
+  needRoot6: "permission denied · run {x} first"
   linkDenied: "a share-link session can’t do this · enter with your own key"
   alreadyIn: "already entered · {x} to verify again"
   notHere: "{x}: run it in the terminal (Ctrl K)"
@@ -649,6 +652,7 @@ space:
     errLastKey: "keep at least one space credential"
     errRetry: "please try again"
     errServer: "service temporarily unavailable"
+    errForbidden: "permission denied for the current user"
     errVerify: "verification failed, please retry"
     errUvRequired: "device unlock required"
     errWrongPw: "incorrect password"

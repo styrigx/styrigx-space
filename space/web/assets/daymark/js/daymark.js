@@ -337,7 +337,8 @@ function send(method, url, body){
   });
 }
 /** 写失败的提示：没登录账号 / 没授权 →「登录账号后可编辑」，其余通用 */
-function failText(e){ var c = e && e.code; return c === 'account' ? T.needAccount : c === 'scope' ? T.noScopeErr : T.failed; }
+/* 2b：403 forbidden = v6 身份档不够（不在 daymark-write，或删整个专题不是 root） */
+function failText(e){ var c = e && e.code; return c === 'account' ? T.needAccount : c === 'scope' ? T.noScopeErr : c === 'forbidden' && T.noPermission ? T.noPermission : T.failed; }
 /**
  * 不能编辑时那一条（P3-1；2026-11-08 账号 UI 改版：打开顶栏账号终端，shell/topbar-panel.js 接 [data-acct-open]）：
  * 没登录账号 → sudo root 登录 → 判授权 → 关面板回本页；已登录没授权 → 应用授权那一层。

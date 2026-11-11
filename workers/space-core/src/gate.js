@@ -14,7 +14,7 @@ import { verifyLockSession } from './core/lock-session.js';
 import { withNoStore, json, apiError } from './lib/http.js';
 import { resolveReturn } from './core/return.js';
 import { anonLimit } from './core/anon-limit.js';
-import { newSessionAdmits } from './core/identity-admit.js';
+import { newSessionConclusion, newSessionSignedIn } from './core/identity-admit.js';
 
 /* ================= HTML 会话标记（原 _kernel/html.js） ================= */
 
@@ -201,20 +201,41 @@ async function retiredEnNotFound(request, next, prefix, state) {
 /**
  * 主站和子站共用的放行：
  * - 接口（isApiPath）：有进站会话或 accessOf = public → 交给 next；否则（v6 P1 新路径，并存）请求带新会话 cookie 时问账号 Worker
- *   这个新会话够不够这条路由的档（core/identity-admit.js，一次 D1 查询在账号侧）→ 够就交给 next；都不成立 401 {ok:false}（不 302，fetch 不跟跳转）
- * - 页面 / 静态文件：一律回源，HTML 注入会话状态（valid / locked）
+ *   这个新会话够不够这条路由的档（core/identity-admit.js，一次 D1 查询在账号侧）→ 够就交给 next；有 v6 身份但档不够 403 forbidden（2b）；
+ *   都不成立 401 {ok:false}（不 302，fetch 不跟跳转）
+ * - 页面 / 静态文件：一律回源，HTML 注入会话状态（valid / locked；2b 起 v6 新会话有效也算 valid，pageStateOf）
  * @param {Request} request
  * @param {{ok:boolean}} sess
  * @param {(req?: Request) => Promise<Response>} next
  * @param {Record<string, any>} env
+ * @param {Record<string, any>} [data] context.data（主站关口）：放 v6 结论给接口用
  */
-async function admit(request, sess, next, env) {
+async function admit(request, sess, next, env, data) {
   const pathname = new URL(request.url).pathname;
   if (isApiPath(pathname)) {
-    if (!sess.ok && accessOf(request.method, pathname) !== ACCESS.PUBLIC && !(await newSessionAdmits(env, request))) return json(401, { ok: false });
+    if (!sess.ok && accessOf(request.method, pathname) !== ACCESS.PUBLIC) {
+      const v6 = await newSessionConclusion(env, request);
+      /* 结论交给接口（core/identity-admit.js v6ConclusionOf：/api/status、/api/ai 不再问一次） */
+      if (data) data.v6 = v6;
+      /* 2b：有 v6 身份但档不够（如 styrigx 调 root 档的 /api/space-audit）→ 403 forbidden（同子站接口 Worker），不是 401：
+         前端把 401 当「没登录」（清身份、预填 su），已登录的人不该被这样对待 */
+      if (!v6.allowed) return v6.signedIn ? apiError(403, 'forbidden') : json(401, { ok: false });
+    }
     return next();
   }
-  return injectSessionState(await next(), sess.ok ? 'valid' : 'locked');
+  return injectSessionState(await next(), await pageStateOf(sess, env, request));
+}
+
+/**
+ * 页面状态（注入 data-sgx-lock-session）：旧进站会话有效，或 v6 新会话有效（core/identity-admit.js newSessionSignedIn）→ valid；否则 locked。
+ * 2b（v6 割接后续）：纯 v6 登录（su styrigx / su root）的人页面也是 valid，云同步、名片等只在 valid 页面跑的逻辑照常跑。
+ * 旧会话先判（有就不问账号 Worker）；没带 sgx-session 不问。
+ * @param {{ok:boolean}} sess @param {Record<string, any>} env @param {Request} request
+ * @returns {Promise<'valid'|'locked'>}
+ */
+export async function pageStateOf(sess, env, request) {
+  if (sess && sess.ok) return 'valid';
+  return (await newSessionSignedIn(env, request)) ? 'valid' : 'locked';
 }
 
 /* 跳过会话检查的环境名（本地开发 / 单测 / passkey-e2e 预览）。其余值和缺失都按生产 */
@@ -291,7 +312,7 @@ async function handleRequest(context) {
      线上曾出现解锁会话访问 /en/ 拿到 PR-4b（77ce4d6）时代的旧英文首页（回源链路上的旧副本），所以不能只靠产物里没有 en/：
      这里一律换成回源取一个必然不存在的地址（Pages 回最近的 404.html），状态码强制 404、no-store。 */
   const enPrefix = retiredEnSitePrefix(pathname);
-  if (enPrefix !== null) return retiredEnNotFound(request, next, enPrefix, sess.ok ? 'valid' : 'locked');
+  if (enPrefix !== null) return retiredEnNotFound(request, next, enPrefix, await pageStateOf(sess, env, request));
 
   /* 无会话写接口的按 IP 总限流（防刷 D1 写入额度；超了 429 cooldown，不进端点）：见 core/anon-limit.js */
   const limited = await anonLimit(request, env, sess.ok);
@@ -307,7 +328,7 @@ async function handleRequest(context) {
     });
   }
 
-  return admit(request, sess, next, env);
+  return admit(request, sess, next, env, context.data);
 }
 
 /* ================= 子站关口（原 src/subsites.js；合并 PR3 起按主域名路径前缀） ================= */
@@ -416,6 +437,6 @@ export async function handleSubsite(request, env, origin) {
   const enPrefix = retiredEnSitePrefix(url.pathname);
   if (enPrefix === null && isStaticAsset(url.pathname)) return origin(request);
   const sess = await verifyLockSession(request, env);
-  if (enPrefix !== null) return retiredEnNotFound(request, origin, enPrefix, sess.ok ? 'valid' : 'locked');
+  if (enPrefix !== null) return retiredEnNotFound(request, origin, enPrefix, await pageStateOf(sess, env, request));
   return admit(request, sess, () => origin(request), env);
 }

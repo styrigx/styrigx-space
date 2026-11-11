@@ -73,9 +73,19 @@ export function mountLinks(C) {
     }, function () { netErr(); then(false); });
   }
 
-  /** share：列出 */
-  C.shareList = function () {
-    C.withReauth(function () {
+  /**
+   * 要 reauth 才能做的事（列表 / 作废）：旧会话先过锁侧复验（C.withReauth）；o.direct（2b：v6 root）直接做——
+   * v6 的「每次重验」就是 su root，服务端对 v6 root 不要锁侧复验。
+   * @param {{direct?: boolean}|undefined} o @param {() => void} run @param {string} lead
+   */
+  function gated(o, run, lead) {
+    if (o && o.direct) { run(); return; }
+    C.withReauth(run, lead);
+  }
+
+  /** share：列出 @param {{direct?: boolean}} [o] */
+  C.shareList = function (o) {
+    gated(o, function () {
       load(function (ok) {
         if (!ok) return;
         if (!live.length) { C.note(t('links.none')); return; }
@@ -142,9 +152,9 @@ export function mountLinks(C) {
     }, 'n', { ps: '[y/N]' });
   }
 
-  /** share rm <n> @param {number} n */
-  C.shareRm = function (n) {
-    C.withReauth(function () {
+  /** share rm <n> @param {number} n @param {{direct?: boolean}} [o] */
+  C.shareRm = function (n, o) {
+    gated(o, function () {
       load(function (ok) {
         if (!ok) return;
         const l = live[n - 1];
@@ -161,9 +171,9 @@ export function mountLinks(C) {
     }, t('reauth.lead.links'));
   };
 
-  /** share rm --all：一条一条作废 */
-  C.shareRmAll = function () {
-    C.withReauth(function () {
+  /** share rm --all：一条一条作废 @param {{direct?: boolean}} [o] */
+  C.shareRmAll = function (o) {
+    gated(o, function () {
       load(function (ok) {
         if (!ok) return;
         if (!live.length) { C.note(t('links.none')); return; }

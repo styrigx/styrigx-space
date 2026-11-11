@@ -71,6 +71,7 @@ const STR_EN = {
   busy: "Lots of people are asking right now. Try again shortly",
   tooLong: "That question is too long (200 characters max)",
   quota: "Today’s quota is used up. Come back tomorrow",
+  forbidden: "Your current user can’t use Gray AI",
   fail: "Couldn’t get an answer. Please try again",
   send: "Send",
   stop: "Stop",
@@ -200,6 +201,8 @@ export function isBadModel(status, j) {
 export function errKey(status, j) {
   const e = j && typeof j.error === 'string' ? j.error : '';
   if (status === 401) return 'unauthorized';
+  /* 2b：有 v6 身份但不在 ai 组（网关 403 forbidden）：不是「没登录」，不上锁、不预填 su */
+  if (status === 403 && e === 'forbidden') return 'forbidden';
   if (status === 429) return e === 'busy' ? 'busy' : 'cooldown';
   if (status === 400 && e === 'too-long') return 'tooLong';
   if (status === 413) return 'tooLong';

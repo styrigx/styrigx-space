@@ -7,9 +7,11 @@
  *   GET /api/status
  *   → 200 { ok, now, today, all_up, sites: [...], incidents: [...], usage, usage_reason, quota, quota_reason }
  *     （字段见 workers/status/src/monitor.js summary、src/usage.js、src/quota.js；原样转发，网关不缓存）
- *   401 没会话 · 503 监测服务不可用（没绑定 / 出错）
+ *   401 没会话 · 403 forbidden（v6 身份不在 status 组，2b）· 503 监测服务不可用（没绑定 / 出错）
+ * 2b：旧进站会话不成立时认 v6 新会话（status 组，账号 Worker 判；core/identity-admit.js entryOrV6）。
  */
 import { lockSessionOf } from '../core/lock-session.js';
+import { entryOrV6 } from '../core/identity-admit.js';
 import { apiError, NO_STORE } from '../lib/http.js';
 
 
@@ -18,7 +20,10 @@ import { apiError, NO_STORE } from '../lib/http.js';
 export async function onRequestGet(context) {
   const { env } = context;
   const sess = await lockSessionOf(context);
-  if (!sess.ok) return apiError(401, 'unauthorized');
+  /* 2b：纯 v6 登录（status 组）也能看；有 v6 身份但不在 status 组 403 forbidden */
+  const gate = await entryOrV6(context, sess);
+  if (gate === 'forbidden') return apiError(403, 'forbidden');
+  if (gate !== 'ok') return apiError(401, 'unauthorized');
   const svc = env && env.STATUS;
   if (!svc || typeof svc.fetch !== 'function') return apiError(503, 'upstream');
   try {

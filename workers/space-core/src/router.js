@@ -222,7 +222,11 @@ export async function routeShare(request, env, ctx) {
        割接起旧进站会话不成立时，v6 新会话的档够（/api/share = root）也放行 */
     if (isProd && accessOf(request.method, pathname) !== ACCESS.PUBLIC) {
       const sess = await auth.session();
-      if (!sess.ok && !(await auth.v6()).allowed) return withNoStore(json(401, { ok: false }));
+      if (!sess.ok) {
+        const v6 = await auth.v6();
+        /* 2b：有 v6 身份但不是 root（/api/share 是 root 档）→ 403 forbidden，不是 401（同网关关口） */
+        if (!v6.allowed) return withNoStore(v6.signedIn ? apiError(403, 'forbidden') : json(401, { ok: false }));
+      }
     }
     if (m) return await openShare(request, env, ctx, auth, m[1]);
     const handler = pickHandler(share, request.method);

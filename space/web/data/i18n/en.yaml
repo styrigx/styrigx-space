@@ -221,6 +221,7 @@ js:
     auditIpUnknown: Unknown IP
     auditErr: Couldn't load the records. Try again shortly.
     auditErrAuth: Session expired. Unlock again to see the records.
+    auditErrPerm: Only root can see these records. Run su root first.
     uErrorSub: Couldn't read Cloudflare usage; it retries at :41 next hour.
     site_space: "Space"
     site_proxy-rules: "Proxy rules"

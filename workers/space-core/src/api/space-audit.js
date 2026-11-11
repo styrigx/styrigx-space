@@ -8,7 +8,8 @@
  * - 返回最近 50 条审计（时间、IP 前缀、结果），新的在前；不返回 decoy / via / path 标记
  * - 只读；D1 失败 → 503
  *
- * v6（割接）：旧进站会话 / 账号会话不成立时，v6 新会话的档够（root，账号 Worker 判）也给看；两样都没有照旧 401 session / account。
+ * v6（割接）：旧进站会话 / 账号会话不成立时，v6 新会话的档够（root，账号 Worker 判）也给看；有 v6 身份但不是 root 403 forbidden（2b）；
+ * 两样都没有照旧 401 session / account。
  *
  * 存储：D1 audit 表（realm = 'lock'，经 D1_SPACE，core/space-audit.js）：一条 ORDER BY ts DESC LIMIT 50。
  * 账号拆分前写在 realm='root' 的旧审计行已在 PR4 由 --cleanup 删除（锁屏那一半先由 apply 拷成 realm='lock'）。
@@ -43,7 +44,7 @@ async function handleGet(context) {
   const account = sess.ok ? await askAuthorizeFor(request, env) : { ok: false };
   if (!sess.ok || !account.ok) {
     const v6 = await newSessionConclusion(env, request);
-    if (!v6.allowed) return apiError(401, sess.ok ? 'account' : 'session');
+    if (!v6.allowed) return v6.signedIn ? apiError(403, 'forbidden') : apiError(401, sess.ok ? 'account' : 'session'); /* 2b：有 v6 身份但不是 root → 403 */
   }
   try {
     return json(200, { ok: true, items: await listSpaceAudit(env, AUDIT_SHOW) });

@@ -1,8 +1,8 @@
 /**
  * 割接（v6 cutover）：网关这一侧——
  * - /api/share（root）：旧进站会话不成立、v6 新会话够 root → 新建 / 列表 / 作废都放行（不要锁侧复验），新建 / 作废经 auditRoot 留痕；
- *   styrigx（不是 root）/ 访客 401；旧会话照旧
- * - GET /api/space-audit（root）：v6 root 200；styrigx 401
+ *   styrigx（不是 root）/ 救援 403 forbidden（2b）、访客 401；旧会话照旧
+ * - GET /api/space-audit（root）：v6 root 200；styrigx 403 forbidden（2b）
  * - SpaceVerifier.admit / auditRoot：原样转给账号 Worker（判断不在网关），带 action；没 sgx-session 不问；出错 → allowed:false
  * - normalizeAdmit：要 uid、问了 action 要带回同一个 action
  * 放行判断用 ../_v6admit.mjs（真的 ROUTE_ACCESS + permits）。
@@ -53,7 +53,7 @@ async function share(env, body, cookie) {
   return { s: res.status, j: await res.json() };
 }
 
-test('/api/share（root）：v6 root 新建 / 列表 / 作废放行（不要锁侧复验），新建 / 作废留痕 share；styrigx、访客、救援 401', async () => {
+test('/api/share（root）：v6 root 新建 / 列表 / 作废放行（不要锁侧复验），新建 / 作废留痕 share；styrigx、救援 403 forbidden（2b），过期、访客 401', async () => {
   const { env, rec } = setup();
   const c = await share(env, { action: 'create', hours: 1 }, 'sgx-session=root');
   assert.equal(c.s, 200, JSON.stringify(c.j));
@@ -63,7 +63,13 @@ test('/api/share（root）：v6 root 新建 / 列表 / 作废放行（不要锁�
   assert.equal((await share(env, { action: 'revoke', id: c.j.link.id }, 'sgx-session=root')).s, 200);
   assert.equal((await share(env, { action: 'revoke', all: true }, 'sgx-session=root')).s, 200);
   assert.deepEqual(rec.audits.map((a) => [a[0], a[1], a[2]]), [['share create', '203.0.113.20', true], ['share revoke', '203.0.113.20', true], ['share revoke --all', '203.0.113.20', true]]);
-  for (const ck of ['sgx-session=styrigx', 'sgx-session=rescue', 'sgx-session=expired', '']) {
+  /* 2b：有 v6 身份但不是 root（styrigx、救援）→ 403 forbidden；没身份（过期 / 访客）→ 401 */
+  for (const ck of ['sgx-session=styrigx', 'sgx-session=rescue']) {
+    const r = await share(env, { action: 'list' }, ck);
+    assert.equal(r.s, 403, ck);
+    assert.equal(r.j.error, 'forbidden', ck);
+  }
+  for (const ck of ['sgx-session=expired', '']) {
     assert.equal((await share(env, { action: 'list' }, ck || undefined)).s, 401, ck || '访客');
   }
   assert.ok(rec.calls.every((x) => x[1] === 'POST' && x[2] === '/api/share' && x.length === 3), '按路由档问（/api/share 各 action 都是 root）');
@@ -80,13 +86,17 @@ test('/api/share：旧会话照旧（进门 + 锁侧复验；有旧会话时不�
   assert.equal(rec.audits.length, 0);
 });
 
-test('GET /api/space-audit（root）：v6 root 200；styrigx / 访客 401（旧会话判定原样）', async () => {
+test('GET /api/space-audit（root）：v6 root 200；styrigx 403 forbidden（2b）；访客 401（旧会话判定原样）', async () => {
   const { env } = setup();
   const get = (cookie) => SA.onRequestGet({ request: new Request('https://styrigx.com/api/space-audit', { headers: cookie ? { Cookie: cookie } : {} }), env });
   const ok = await get('sgx-session=root');
   assert.equal(ok.status, 200);
   assert.deepEqual((await ok.json()).items, []);
-  assert.equal((await get('sgx-session=styrigx')).status, 401);
+  assert.equal((await get('sgx-session=styrigx')).status, 403);
+  /* 网关这一道门：styrigx 同样 403（不到接口） */
+  const gs = await worker.fetch(new Request('https://styrigx.com/api/space-audit', { headers: { Cookie: 'sgx-session=styrigx' } }), env, ctx);
+  assert.equal(gs.status, 403);
+  assert.equal((await gs.json()).error, 'forbidden');
   assert.equal((await get('')).status, 401);
   /* 网关这一道门也认 v6 root（经 gate admit），到接口 200 */
   const res = await worker.fetch(new Request('https://styrigx.com/api/space-audit', { headers: { Cookie: 'sgx-session=root' } }), env, ctx);

@@ -231,6 +231,7 @@ js:
     impEnd: .
     impAdded_one: Added {n} link
     impCats_one: ', {n} new category'
+    noPermission: Your current user doesn’t have permission for this.
   curioList:
     count: '-- {n} / {total} --'
     noMatch: Nothing matches.
@@ -310,6 +311,7 @@ js:
     back: back to the list
     nextNone: 'end of list'
     notFound: This item doesn't exist or isn't visible to you.
+    noPermission: Your current user doesn’t have permission for this.
   curioMovies:
     add: Add a movie
     edit: Edit movie
@@ -362,3 +364,4 @@ js:
     play: Play
     pause: Pause
     speed: Speed {s}×
+    noPermission: Your current user doesn’t have permission for this.

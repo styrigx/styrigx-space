@@ -61,6 +61,7 @@ ai:
   busy: 现在问的人太多，请稍后再试
   tooLong: 问题太长了，最多 200 字
   quota: 今天的额度用完了，明天再来
+  forbidden: 当前用户没有 AI 窗口的权限
   fail: 没能拿到回答，请稍后再试
   send: 发送
   stop: 停止
@@ -73,6 +74,7 @@ share:
   busy: 正在生成分享链接…
   session: 锁屏会话已失效，请重新解锁后再分享
   full: 分享短链已满 20 条，先去主站作废几条
+  forbidden: 只有 root 能生成分享链接 · 先 su root
   fail: 生成分享链接失败，请稍后再试
 # 导航面板（九宫格）：站点名 + 副标题（space/web/data/shell-nav.json 只留 id / 图标 / 地址）
 nav:
@@ -214,6 +216,7 @@ term:
   usageUsermod: "用法：usermod -aG | -rG <组[,组]> <名字>"
   needEntry: "还没进站 · 先 {x}"
   needRoot: "还没登录账号 · 先 {x}"
+  needRoot6: "当前用户没有这个权限 · 先 {x}"
   linkDenied: "分享链接进来的会话不能这样做 · 用自己的钥匙进站"
   alreadyIn: "已经进站了 · 再验证用 {x}"
   notHere: "{x}：请在终端里运行（Ctrl K）"
@@ -643,6 +646,7 @@ space:
     errLastKey: "至少留一个进站凭证"
     errRetry: "请重试"
     errServer: "服务暂时不可用"
+    errForbidden: "当前用户没有这个权限"
     errVerify: "验证失败，请重试"
     errUvRequired: "需要设备解锁"
     errWrongPw: "密码不对"
