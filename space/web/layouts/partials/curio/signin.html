@@ -1,9 +1,5 @@
-{{- /* 不能编辑（接口回 canWrite=false）时命令链里这一条（curio.js 的 SgxCurioUI.signin 按 canWrite / showPrivate 显隐、换说明、换入口），各子页共用。
-   2026-11 对齐 PR-C2：页头命令链里的「sudo root · 登录账号后可编辑」（稿的终端风；2026-11-08 账号命令体系 v3：sudo login → sudo root）。
-   2026-11-08 账号 UI 改版：没有 /account/ 整页了，点它打开顶栏账号终端（data-acct-open，shell/topbar-panel.js 接住）：
-   没登录 → sudo root 登录 → 判授权（[y]/[n]）→ 关面板回本页；已登录没授权 → 应用授权那一层。
-   2c（v6 割接）：入口指向 su——「su · su 登录后可编辑」，点了打开顶栏终端（data-sec-open：没登录预填 su ，同 #401 头像 / 盾牌）；
-   已有旧账号会话但奇趣没授权时 curio.js 换回「sudo root · 奇趣未获账号授权」（应用授权那一层，P4 删）。
+{{- /* 不能编辑（接口回 canWrite=false）时命令链里这一条（curio.js 的 SgxCurioUI.signin 按 canWrite 显隐、换说明），各子页共用。
+   入口 su：「su · su 登录后可编辑」，点了打开顶栏终端（data-sec-open：没登录预填 su ）。
    href 只是没 JS / 中键时的退路：本语言首页 #sec（打开终端）。参数：tr（字符串表）、lang（页面语言代码） */ -}}
 {{- $tr := .tr }}{{ $lang := .lang }}
 {{- $home := partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}

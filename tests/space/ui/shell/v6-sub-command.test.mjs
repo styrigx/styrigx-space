@@ -184,8 +184,8 @@ test('旷野状态卡 403（已登录不在 status 组）留着凭据记录区�
 test('奇趣 / 日刻：已以 v6 登录但不能编辑 → 命令仍 su，文字是已上线的 noPermission；没登录照旧「su 登录后可编辑」', () => {
   for (const f of ['space/web/assets/curio/js/curio.js', 'space/web/assets/daymark/js/daymark.js']) {
     const s = rd(f);
-    assert.match(s, /if \(v6SignedIn\(\) && T\.noPermission\) return \{ text: T\.noPermission, open: '', app: '', su: true \};/, f);
-    assert.match(s, /return \{ text: T\.signin, open: '', app: '', su: true \};/, f);
+    assert.match(s, /if \(v6SignedIn\(\) && T\.noPermission\) return T\.noPermission;/, f);
+    assert.match(s, /return T\.signin;/, f);
     assert.match(s, /sgx-id=1/, f);
   }
 });

@@ -17,7 +17,7 @@
  *   归入百味（多选 + 就地新建）；标签（回车 / 逗号成块，推荐已有标签）；随手一笔（只有账号已登录看得到）；公开开关。
  *
  * 数据：GET /api/quotes、GET /api/collections、GET /api/today、GET /api/days（往前几天）；写：POST/PUT/DELETE /api/quotes、/api/collections、PUT /api/today（账号会话 + daymark.write + 同源）。
- * 读接口公开（v5 S3）；写请求回 401 = 没进站 → 发 sgx:sudo（顶栏终端预填 sudo styrigx）。纯函数导出给 tests/daymark/daymark.test.mjs。
+ * 读接口公开（v5 S3）；写请求回 401 = 没进站 → 发 sgx:sudo（顶栏终端预填 su ）。纯函数导出给 tests/daymark/daymark.test.mjs。
  */
 (function(){
 "use strict";
@@ -315,7 +315,7 @@ function esc(s){
 function reduced(){
   return doc.documentElement.classList.contains('reduced-motion') || !!(G.matchMedia && G.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
-/** 请人进站：顶栏终端预填 sudo styrigx（shell/topbar-panel.js 接 sgx:sudo，= js/lib/sudo.js SUDO_EVENT） */
+/** 请人进站：顶栏终端预填 su （shell/topbar-panel.js 接 sgx:sudo，= js/lib/sudo.js SUDO_EVENT） */
 function askSudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
 function getJSON(url){
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
@@ -336,36 +336,21 @@ function send(method, url, body){
     });
   });
 }
-/** 写失败的提示：没登录账号 / 没授权 →「su 登录后可编辑」，其余通用 */
-/* 2b：403 forbidden = v6 身份档不够（不在 daymark-write，或删整个专题不是 root） */
+/** 写失败的提示：403 forbidden = v6 身份档不够（不在 daymark-write，或删整个专题不是 root）→ 无权限句，其余通用 */
 function failText(e){ var c = e && e.code; return c === 'forbidden' && T.noPermission ? T.noPermission : T.failed; }
 /**
  * 不能编辑时那一条（2c 起是 su 入口，data-sec-open）：没登录 → su；已以 v6 用户登录但不在写组 → 无权限句，仍是 su。
- * 「未获账号授权 → #acct=apps」那一支随应用授权整套删除（v6 P4，定稿 v5.5 §十二）。
  */
 function signinHint(){
   /* 2d：已经以 v6 用户登录（登录标记 sgx-id=1，同 shell/identity/api.js hasMarker）、只是不在写组 → 命令仍是 su（v6-stepup-app-map：缺组时提示 su），
      文字换成站内已上线的无权限句 noPermission「当前用户没有这个权限。」，不再说「su 登录后可编辑」 */
-  if (v6SignedIn() && T.noPermission) return { text: T.noPermission, open: '', app: '', su: true };
-  /* 2c（v6 割接）：没登录 → 指向 su（打开顶栏终端，data-sec-open：没登录预填 su ） */
-  return { text: T.signin, open: '', app: '', su: true };
+  if (v6SignedIn() && T.noPermission) return T.noPermission;
+  /* 2c（v6 割接）：没登录 → 「su 登录后可编辑」（入口 su / data-sec-open / #sec 在模板里） */
+  return T.signin;
 }
 /** 有没有 v6 登录标记（服务端随 sgx-session 写的 sgx-id=1；不含秘密） */
 function v6SignedIn(){
   try { return /(?:^|;\s*)sgx-id=1(?:;|$)/.test(doc.cookie || ''); } catch (e) { return false; }
-}
-/** 入口链接：su（data-sec-open，退路 #sec；旧账号入口 #acct…&app= 随应用授权删除，v6 P4） @param {Element} a @param {{open: string, app: string, su?: boolean}} h */
-function setAcctOpen(a, h){
-  var base = (a.getAttribute('href') || '/').replace(/#.*$/, '');
-  var k = a.querySelector('.sgx-cmd-k');
-  if (h.su) {
-    /* 2c：su 入口——data-sec-open（顶栏终端，没登录预填 su ），退路 本语言首页 #sec */
-    a.removeAttribute('data-acct-open');
-    a.removeAttribute('data-acct-app');
-    a.setAttribute('data-sec-open', '');
-    a.setAttribute('href', base + '#sec');
-    if (k) k.textContent = 'su';
-  }
 }
 function toast(msg){
   var el = $('#bk-toast');
@@ -985,7 +970,7 @@ function boot(){
     var h = canWrite ? null : signinHint();
     doc.querySelectorAll('[data-dm-signin]').forEach(function(hint){
       hint.classList.toggle('hidden', canWrite);
-      if (h) { var t = hint.querySelector('[data-signin-text]'); if (t) t.textContent = h.text; setAcctOpen(hint, h); }
+      if (h) { var t = hint.querySelector('[data-signin-text]'); if (t) t.textContent = h; }
     });
     renderAll();
     setTab(tab, { initial: true });

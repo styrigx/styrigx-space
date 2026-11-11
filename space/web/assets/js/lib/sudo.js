@@ -1,6 +1,6 @@
 /**
  * @fileoverview 「要进站」的唯一出口（v5 S3 整站放开，三处上锁）：AI 窗口的锁、旷野 status 卡的按钮、奇趣音乐的播放，
- * 以及任何接口回 401（没进站）时，都只发这一个事件；shell/topbar-panel.js 接它：打开终端、预填 `sudo styrigx`。
+ * 以及任何接口回 401（没进站）时，都只发这一个事件；shell/topbar-panel.js 接它：打开终端、预填 `su `。
  * topbar-panel.js 不 import 任何东西，抄了一份 SUDO_EVENT；子站的 IIFE 脚本（curio / daymark）直接写同一个字符串。
  */
 

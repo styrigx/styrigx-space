@@ -32,7 +32,6 @@ const { makePasswordRecord } = await import(SRC + 'core/password.js');
 const stack = await import(SRC + 'core/identity-stack.js');
 const auth = await import(SRC + 'core/identity-auth.js');
 const users = await import(SRC + 'core/users.js');
-const { _resetUidSchemaCache } = await import(SRC + 'lib/uid-schema.js');
 
 const ORIGIN = 'https://styrigx.com';
 const PEP_A = 'pepper-account-test';
@@ -58,7 +57,7 @@ async function setup() {
   const env = {
     SGX_ENV: 'production', SGX_RP_ID: 'styrigx.com', SGX_ORIGIN: ORIGIN,
     SGX_ACCOUNT_PASSWORD_PEPPER: PEP_A,
-    D1_ACCOUNT: makeAccountD1({ migrations: 'pre-uid' }), KV_PROFILE: makeKv(), /* 迁移前的表；用例里自己 exec 0007 测迁移后 */
+    D1_ACCOUNT: makeAccountD1(), KV_PROFILE: makeKv(),
     ASSETS: { fetch: async () => new Response('DEFAULT', { status: 200 }) },
   };
   const raw = env.D1_ACCOUNT.raw;
@@ -494,30 +493,9 @@ test('名片 PUT /api/profile：styrigx 能改、root 能改（写审计 profile
 
 const EVIL = { 'X-Styrigx-Uid': '1000', 'X-Uid': '1000' };
 
-test('prefs（表还没 uid 列）：styrigx 读写自己的；alice 读到空、写 409 not-ready；请求里塞 uid=1000（查询串 / 请求头 / 请求体）一概不认', async () => {
+test('prefs：各读写各的；alice 塞 uid=1000（查询串 / 请求头 / 请求体）只写进自己的 1001', async () => {
   const env = await setup();
-  _resetUidSchemaCache(env.D1_ACCOUNT);
-  const st = await login(env, 'styrigx');
-  const now = Date.now();
-  const w = await call(env, 'POST', '/api/prefs', { cookie: st, body: { changes: { 'sgx-theme': { v: 'dark', t: now } } } });
-  assert.equal(w.status, 200, JSON.stringify(w.json));
-  const at = await login(env, 'alice');
-  const g = await call(env, 'GET', '/api/prefs?uid=1000', { cookie: at, headers: EVIL });
-  assert.equal(g.status, 200);
-  assert.deepEqual(g.json.items, {}, 'alice 看不到 styrigx 的设置');
-  const p = await call(env, 'POST', '/api/prefs?uid=1000', { cookie: at, headers: EVIL, body: { uid: 1000, changes: { 'sgx-theme': { v: 'light', t: now + 1 } } } });
-  assert.equal(p.status, 409);
-  assert.equal(p.json.error, 'not-ready');
-  assert.deepEqual(rows(env, 'SELECT k, v FROM settings_sync'), [{ k: 'sgx-theme', v: 'dark' }], 'styrigx 的行没被动');
-});
-
-test('prefs（迁移 0007 之后，有 uid 列）：各读写各的；alice 塞 uid=1000 只写进自己的 1001；现有数据归 styrigx', async () => {
-  const env = await setup();
-  const raw = env.D1_ACCOUNT.raw;
-  raw.prepare("INSERT INTO settings_sync (k, v, t, updated_at) VALUES ('sgx-old', 'kept', 1, 1)").run();
-  raw.exec(readFileSync(REPO + 'workers/account/migrations/0007_v6_uid_columns.sql', 'utf8'));
-  _resetUidSchemaCache(env.D1_ACCOUNT);
-  assert.deepEqual(rows(env, 'SELECT uid, k, v FROM settings_sync'), [{ uid: 1000, k: 'sgx-old', v: 'kept' }], '现有数据归 styrigx');
+  env.D1_ACCOUNT.raw.prepare("INSERT INTO settings_sync (uid, k, v, t, updated_at) VALUES (1000, 'sgx-old', 'kept', 1, 1)").run();
   const now = Date.now();
   const at = await login(env, 'alice');
   const p = await call(env, 'POST', '/api/prefs?uid=1000', { cookie: at, headers: EVIL, body: { uid: 1000, changes: { 'sgx-old': { v: 'hacked', t: now } } } });

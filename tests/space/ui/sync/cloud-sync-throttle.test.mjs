@@ -1,9 +1,9 @@
 /**
  * 账号云同步拉取节流（2026-10-24）：lib/cloud-sync.js initCloudSync。
- * - 普通拉取最多 5 分钟一次（sgx-sync-pull 按账号记上次成功拉取 / 推送时刻）
+ * - 普通拉取最多 5 分钟一次（sgx-sync-pull 记上次成功拉取 / 推送时刻）
  * - 回到前台（visibilitychange → visible）超过 5 分钟再拉
  * - 强制（账号页 / 云同步页 / 登录 / 打开开关）不受节流
- * - 401 / 登出清掉时刻；本机修改 1.5 秒防抖推送不变，推送成功刷新时刻
+ * - 本机修改 1.5 秒防抖推送不变，推送成功刷新时刻
  * 运行：node --test tests/space/ui/sync/cloud-sync-throttle.test.mjs
  */
 import { test, beforeEach } from 'node:test';
@@ -72,7 +72,7 @@ globalThis.fetch = (url, init) => {
 };
 
 const CS = await import('../../../../space/web/assets/js/lib/cloud-sync.js');
-const { initCloudSync, clearPullStamp, lastPullAt, pullDue, PULL_KEY, PULL_INTERVAL, PUSH_DEBOUNCE, AUTH_KEY, LAST_KEY, _resetForTest } = CS;
+const { initCloudSync, lastPullAt, pullDue, PULL_KEY, PULL_INTERVAL, PUSH_DEBOUNCE, LAST_KEY, _resetForTest } = CS;
 
 async function settle() {
   for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
@@ -119,11 +119,11 @@ test('pullDue：没拉过 / 超过 5 分钟 / 时钟回拨 → 要拉；窗口�
   assert.equal(PULL_INTERVAL, 5 * 60 * 1000);
 });
 
-test('第一次拉取成功 → 记下按账号的时刻；5 分钟内换页不再 GET', async () => {
+test('第一次拉取成功 → 记下时刻；5 分钟内换页不再 GET', async () => {
   assert.equal(await initCloudSync(), 'ok');
   assert.equal(gets(), 1);
   assert.equal(lastPullAt(), clock);
-  assert.deepEqual(JSON.parse(LS.get(PULL_KEY)), { account: clock });
+  assert.equal(LS.get(PULL_KEY), String(clock));
   for (let i = 0; i < 5; i++) {
     clock += 50_000;
     newPage();
@@ -201,50 +201,6 @@ test('同一页：普通拉取还在路上 / 刚拉完，强制就复用，不�
   assert.equal(gets(), 2, '过了复用窗口，强制照拉');
 });
 
-test('刚登录：之前标了没登录（out）也拉，成功后记 in 和时刻', async () => {
-  LS.set(AUTH_KEY, 'out');
-  assert.equal(await initCloudSync(), 'out');
-  assert.equal(gets(), 0);
-  assert.equal(await initCloudSync({ force: true }), 'ok');
-  assert.equal(gets(), 1);
-  assert.equal(LS.get(AUTH_KEY), 'in');
-  assert.ok(lastPullAt() > 0);
-});
-
-test('GET 401 → 标 out、清掉时刻；之后普通拉取不再请求', async () => {
-  await initCloudSync();
-  assert.ok(lastPullAt() > 0);
-  clock += PULL_INTERVAL + 1;
-  newPage();
-  getReply = { s: 401, j: { ok: false, error: 'account' } };
-  assert.equal(await initCloudSync(), 'out');
-  assert.equal(LS.get(AUTH_KEY), 'out');
-  assert.equal(LS.has(PULL_KEY), false);
-  newPage();
-  assert.equal(await initCloudSync(), 'out');
-  assert.equal(gets(), 2);
-});
-
-test('POST 401 → 同样清掉时刻', async () => {
-  await initCloudSync();
-  postReply = { s: 401, j: { ok: false, error: 'account' } };
-  LS.set('sgx-accent', '#123456');
-  window.dispatchEvent({ type: 'sgx-settings-changed' });
-  await tick(PUSH_DEBOUNCE);
-  assert.equal(posts().length, 1);
-  assert.equal(LS.get(AUTH_KEY), 'out');
-  assert.equal(LS.has(PULL_KEY), false);
-});
-
-test('登出：clearPullStamp 清掉，重新登录后第一次普通拉取也会拉', async () => {
-  await initCloudSync();
-  clearPullStamp();
-  assert.equal(lastPullAt(), 0);
-  newPage();
-  assert.equal(await initCloudSync(), 'ok');
-  assert.equal(gets(), 2);
-});
-
 test('本机修改：1.5 秒防抖合并推送（不受节流）；推送成功刷新上次同步和节流时刻', async () => {
   await initCloudSync();
   const t0 = lastPullAt();
@@ -277,8 +233,7 @@ test('离开页面（pagehide）立刻推掉未推的改动', async () => {
   assert.equal(posts().length, 1);
 });
 
-test('拉下来的值不同 → 就地应用，不刷新页面；派发 sgx-settings-changed；不回推；旧的刷新标记清掉', async () => {
-  SS.set('sgx-sync-reloaded', '123');
+test('拉下来的值不同 → 就地应用，不刷新页面；派发 sgx-settings-changed；不回推', async () => {
   let changed = 0;
   window.addEventListener('sgx-settings-changed', () => { changed++; });
   getReply = { s: 200, j: { ok: true, items: { 'sgx-files-view': { v: 'list', t: clock - 10 } } } };
@@ -286,7 +241,6 @@ test('拉下来的值不同 → 就地应用，不刷新页面；派发 sgx-sett
   assert.equal(LS.get('sgx-files-view'), 'list');
   assert.equal(reloads, 0, '不再刷新页面');
   assert.ok(changed >= 1, '派发了 sgx-settings-changed（页面就地重画）');
-  assert.equal(SS.has('sgx-sync-reloaded'), false);
   /* 应用引起的 sgx-settings-changed 不能被当成本机改动推回去 */
   await tick(PUSH_DEBOUNCE + 10);
   assert.equal(posts().length, 0, '没有回声推送');
@@ -321,27 +275,17 @@ test('拉下来自定义主题色：设值 → 按需加载角色引擎；清空
   assert.equal(posts().length, 0);
 });
 
-test('P2-2：不看旧等级标记（桩里永远给旧值也照常拉）；按 /api/prefs 结果：403 role / 403 scope / 401 session → skip，不标 out、不清时刻', async () => {
+test('P2-2：不看旧等级标记（桩里永远给旧值也照常拉）；按 /api/prefs 结果：403 / 401 → skip，不清时刻', async () => {
   assert.equal(await initCloudSync({ force: true }), 'ok');
   const t0 = lastPullAt();
   assert.ok(t0 > 0);
-  for (const r of [{ s: 403, j: { ok: false, error: 'role' } }, { s: 403, j: { ok: false, error: 'scope', scope: 'prefs.sync' } }, { s: 401, j: { ok: false, error: 'session' } }]) {
+  for (const r of [{ s: 403, j: { ok: false, error: 'forbidden' } }, { s: 401, j: { ok: false, error: 'unauthorized' } }]) {
     newPage();
     clock += 1;
     getReply = r;
     assert.equal(await initCloudSync({ force: true }), 'skip', JSON.stringify(r));
-    assert.notEqual(LS.get(AUTH_KEY), 'out');
     assert.equal(lastPullAt(), t0);
   }
-  /* POST 403 也不标 out */
-  newPage();
-  getReply = { s: 200, j: { ok: true, items: {} } };
-  await initCloudSync({ force: true });
-  postReply = { s: 403, j: { ok: false, error: 'role' } };
-  LS.set('sgx-accent', '#654321');
-  window.dispatchEvent({ type: 'sgx-settings-changed' });
-  await tick(PUSH_DEBOUNCE);
-  assert.notEqual(LS.get(AUTH_KEY), 'out');
 });
 
 test('锁屏没解锁 / 开关关：不请求', async () => {

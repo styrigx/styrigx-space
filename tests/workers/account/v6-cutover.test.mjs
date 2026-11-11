@@ -180,7 +180,7 @@ test('AccountVerifier.auditRoot：真 root 层才写；救援 / styrigx / 访客
   const env = await setup();
   const rt = 'sgx-session=' + (await rootToken(env));
   const sty = 'sgx-session=' + (await login(env, 'styrigx'));
-  assert.deepEqual([...REMOTE_AUDIT_COMMANDS], ['rm-bulk', 'import', 'export', 'share']);
+  assert.deepEqual([...REMOTE_AUDIT_COMMANDS], ['rm-bulk', 'import', 'export']);
   assert.equal(await checkAuditRoot(env, rt, 'rm-bulk daymark collection abc', '203.0.113.77'), true);
   assert.equal(await checkAuditRoot(env, rt, 'useradd x', '203.0.113.77'), false, '身份命令只在本 Worker 记');
   assert.equal(await checkAuditRoot(env, sty, 'rm-bulk x', '1.2.3.4'), false);

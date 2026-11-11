@@ -22,7 +22,7 @@ export function lev(a, b) {
 }
 
 /**
- * 最近的真命令：整行和每个命令比，第一个词也和每个命令的第一个词比（`sudo stryigx` → `sudo styrigx`，`hepl` → `help`）。
+ * 最近的真命令：整行和每个命令比，第一个词也和每个命令的第一个词比（`sdo` → `sudo`，`mna` → `man`）。
  * 距离 ≤ 2 且不超过较长那个的一半才算像；一样近取列表里靠前的。没有像的 → ''
  * @param {string} raw @param {string[]} cands @returns {string}
  */

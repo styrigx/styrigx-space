@@ -346,7 +346,7 @@ async function dispatch(c) {
       const rp = rpConfig(env);
       if (!rp) return rpConfigMissing();
       const r = await v6AddPasskey(env, rp, { uid: identity.uid }, body);
-      if (!r.ok) { await audit('passkey add', false); return apiError(403, r.error === 'challenge' ? 'challenge' : 'verify'); }
+      if (!r.ok) { await audit('passkey add', false); return r.error === 'challenge' ? apiError(403, 'challenge') : apiError(403, 'verify'); }
       await credentialsChanged(env, identity.uid, { sessionId: adm.sessionId });
       await audit('passkey add', true);
       return ok({ credId: r.credId });

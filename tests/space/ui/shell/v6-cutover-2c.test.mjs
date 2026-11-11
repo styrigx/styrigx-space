@@ -137,7 +137,7 @@ test('奇趣 / 日刻：「登录账号后可编辑」改指向 su（中英文 i
   assert.doesNotMatch(dmT, /data-acct-app="daymark"/);
   for (const f of ['space/web/assets/curio/js/curio.js', 'space/web/assets/daymark/js/daymark.js']) {
     const s = rd(f);
-    assert.match(s, /return \{ text: T\.signin, open: '', app: '', su: true \};/, f);
-    assert.match(s, /a\.setAttribute\('data-sec-open', ''\);\s*a\.setAttribute\('href', base \+ '#sec'\);\s*if \(k\) k\.textContent = 'su';/, f);
+    assert.match(s, /return T\.signin;/, f);
+    assert.doesNotMatch(s, /setAcctOpen|data-acct-open|data-acct-app/, f + '：入口全在模板里');
   }
 });

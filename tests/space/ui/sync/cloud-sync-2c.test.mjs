@@ -71,9 +71,8 @@ test('访客页（locked）su 成功 → 标记就地切 valid → 云同步立�
   assert.deepEqual(calls.map((c) => c.method + ' ' + c.url).sort(), ['GET /api/prefs', 'GET /api/profile']);
 });
 
-test('切成 valid 时忽略旧 out 标记与节流（可能刚换了身份）；守卫首帧事件（没有 live）不触发', async () => {
+test('切成 valid 时忽略节流（可能刚换了身份）；守卫首帧事件（没有 live）不触发', async () => {
   CS.bindSessionSync();
-  localStorage.setItem('sgx-sync-auth', 'out');
   lockState = 'valid';
   fire(true, false);
   await settle();

@@ -13,7 +13,7 @@
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
  *
  * 数据：GET /api/links；写：POST /api/links {op}、POST /api/import（原文）；GET /api/preview；导出是 /api/export 的下载链接。
- * 读接口公开（v5 S3）；写请求回 401 = 没进站 → 发 sgx:sudo（顶栏终端预填 sudo styrigx）。纯函数导出给 tests/curio/curio.test.mjs。
+ * 读接口公开（v5 S3）；写请求回 401 = 没进站 → 发 sgx:sudo（顶栏终端预填 su ）。纯函数导出给 tests/curio/curio.test.mjs。
  */
 (function(){
 "use strict";
@@ -179,7 +179,7 @@ var toastTimer = null;
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
 }
-/** 请人进站：顶栏终端预填 sudo styrigx（shell/topbar-panel.js 接 sgx:sudo，= js/lib/sudo.js SUDO_EVENT）；子页经 SgxCurioUI.sudo 用同一个 */
+/** 请人进站：顶栏终端预填 su （shell/topbar-panel.js 接 sgx:sudo，= js/lib/sudo.js SUDO_EVENT）；子页经 SgxCurioUI.sudo 用同一个 */
 function askSudo(){ try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {} }
 function getJSON(url){
   return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(r){
@@ -217,32 +217,18 @@ function errText(e){
 
 /**
  * 不能编辑时那一条（2c 起是 su 入口，data-sec-open）：没登录 → su；已以 v6 用户登录但不在写组 → 无权限句，仍是 su。
- * 「未获账号授权 → #acct=apps」那一支随应用授权整套删除（v6 P4，定稿 v5.5 §十二）。
- * @returns {{text: string, open: string, app: string}}
+ * @returns {string} 说明文字
  */
 function signinHint(){
   /* 2d：已经以 v6 用户登录（登录标记 sgx-id=1，同 shell/identity/api.js hasMarker）、只是不在写组 → 命令仍是 su（v6-stepup-app-map：缺组时提示 su），
      文字换成站内已上线的无权限句 noPermission「当前用户没有这个权限。」，不再说「su 登录后可编辑」 */
-  if (v6SignedIn() && T.noPermission) return { text: T.noPermission, open: '', app: '', su: true };
-  /* 2c（v6 割接）：没登录 → 指向 su（打开顶栏终端，data-sec-open：没登录预填 su ） */
-  return { text: T.signin, open: '', app: '', su: true };
+  if (v6SignedIn() && T.noPermission) return T.noPermission;
+  /* 2c（v6 割接）：没登录 → 「su 登录后可编辑」（入口 su / data-sec-open / #sec 在模板里） */
+  return T.signin;
 }
 /** 有没有 v6 登录标记（服务端随 sgx-session 写的 sgx-id=1；不含秘密） */
 function v6SignedIn(){
   try { return /(?:^|;\s*)sgx-id=1(?:;|$)/.test(doc.cookie || ''); } catch (e) { return false; }
-}
-/** 入口链接：su（data-sec-open，退路 #sec；旧账号入口 #acct…&app= 随应用授权删除，v6 P4） @param {Element} a @param {{open: string, app: string, su?: boolean}} h */
-function setAcctOpen(a, h){
-  var base = (a.getAttribute('href') || '/').replace(/#.*$/, '');
-  var k = a.querySelector('.sgx-cmd-k');
-  if (h.su) {
-    /* 2c：su 入口——data-sec-open（顶栏终端，没登录预填 su ），退路 本语言首页 #sec */
-    a.removeAttribute('data-acct-open');
-    a.removeAttribute('data-acct-app');
-    a.setAttribute('data-sec-open', '');
-    a.setAttribute('href', base + '#sec');
-    if (k) k.textContent = 'su';
-  }
 }
 
 /** 长按（≈550ms，手指不挪）触发 fn；触发后吞掉随后的那次点击（不打开网址） */
@@ -285,14 +271,13 @@ $('#confirm-cancel').addEventListener('click', function(){ confirmFn = null; clo
 $('#confirm-ok').addEventListener('click', function(){ var f = confirmFn; confirmFn = null; closeOverlay('confirm-wrap'); if (f) f(); });
 /* 设备 / 游戏页签（curio-items.js）共用确认框、提示条、弹层开关 */
 /** 页底那一行（#cu-signin）：能编辑就藏起来；不能编辑时按有没有账号会话换字和链接（各子页共用，curio-items.js / curio-movies.js 也调） */
-function applySignin(can, loggedIn){
+function applySignin(can){
   var hint = $('#cu-signin');
   if (!hint) return;
   hint.classList.toggle('hidden', !!can);
   if (!can) {
-    var h = signinHint(), t = hint.querySelector('[data-signin-text]');
-    if (t) t.textContent = h.text;
-    setAcctOpen(hint, h);
+    var t = hint.querySelector('[data-signin-text]');
+    if (t) t.textContent = signinHint();
   }
 }
 
@@ -646,7 +631,7 @@ function boot(){
     loaded = true;
     doc.documentElement.classList.toggle('cu-can-write', canWrite);
     ['#cu-fab', '#menu-cats', '#menu-import', '#menu-export'].forEach(function(id){ $(id).classList.toggle('hidden', !canWrite); });
-    applySignin(canWrite, showPrivate);
+    applySignin(canWrite);
     $('#cu-loading').classList.add('hidden');
     render();
   }).catch(function(e){

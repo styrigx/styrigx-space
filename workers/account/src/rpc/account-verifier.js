@@ -71,7 +71,7 @@ export async function checkAdmit(env, cookieHeader, method, pathname, opts) {
 }
 
 /** 别的 Worker 能经 auditRoot 记的命令字（root 的特权内容操作；身份命令只在本 Worker 记） */
-export const REMOTE_AUDIT_COMMANDS = Object.freeze(['rm-bulk', 'import', 'export', 'share']);
+export const REMOTE_AUDIT_COMMANDS = Object.freeze(['rm-bulk', 'import', 'export']);
 
 /**
  * AccountVerifier.auditRoot 的实现：会话的当前身份是 root（非救援）才写；命令字不在 REMOTE_AUDIT_COMMANDS → 不写。永不抛错。

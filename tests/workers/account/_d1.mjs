@@ -28,7 +28,7 @@ export const IDENTITY_MIGRATION = '0006_identity.sql';
 export const IDENTITY_SQL = readFileSync(MIG + IDENTITY_MIGRATION, 'utf8');
 export const IDENTITY_TABLES = Object.freeze(['account_users', 'account_user_groups', 'account_user_password', 'account_user_passkey',
   'account_sessions', 'account_session_stack', 'account_user_audit', 'account_recovery_key']);
-/** v6 P2 数据表加 uid 的迁移（2026-11-11 Gray 批准，从 migrations-pending/ 挪进来） */
+/** v6 P2 数据表加 uid 的迁移（2026-11-11 Gray 批准） */
 export const UID_MIGRATION = '0007_v6_uid_columns.sql';
 /** 所有迁移文件（按文件名顺序） */
 export const MIGRATION_FILES = Object.freeze(readdirSync(MIG).filter((n) => n.endsWith('.sql')).sort());

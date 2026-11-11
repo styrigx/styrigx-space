@@ -383,7 +383,7 @@ account:
     errWrongPw: "incorrect password"
     errNotSet: "not set"
     errWrongRoot: "incorrect recovery key"
-    sessExp: "session expired · run sudo styrigx again"
+    sessExp: "session expired · run su again"
     opening: "Opening account…"
   # 割接：v6 root 直接做的 sub / app 撞到服务端 401 / 403 forbidden（同身份层 notSignedIn、终端 needRoot6）
   v6:
@@ -512,8 +512,7 @@ account:
       pq-unsupported: "post-quantum keys (age1pq1…) aren’t supported yet"
       no-token: "no download token yet · run sub token reset"
       token-unsealed: "this token was stored as a hash only · run sub token reset for one that can be reprinted"
-# 进站系统（进站 v3 L1，SPACE-V3 §3.4）：锁屏 entry@space:~$、reset@space:~#、盾牌 styrigx@space:~#（shell/space/*）。命令 / 提示符 / 方式名（passkey / password）不翻译。{x} {k} {n} {t} {d} 是占位。
-# 站内终端输入行（terminal.js → term/view/input-line.js）只读这五句；其余进站旧文案 v6 P4-2 删了
+# 站内终端输入行（terminal.js → term/view/input-line.js）只读这几句。命令 / 提示符不翻译。
 space:
   common:
     termAria: "Space terminal input"

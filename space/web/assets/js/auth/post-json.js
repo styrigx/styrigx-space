@@ -27,7 +27,6 @@ const ERR_KEYS = {
   role: 'errWrongPw',
   challenge: 'errVerify',
   verify: 'errVerify',
-  'unknown-key': 'errVerify',
   'class-mismatch': 'errVerify',
   'uv-required': 'errUvRequired',
   cooldown: 'errLocked',

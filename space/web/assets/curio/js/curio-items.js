@@ -672,7 +672,7 @@ getJSON('/curio/api/items').then(function(j){
   canWrite = !!j.canWrite; showPrivate = !!j.showPrivate; devices = j.devices || []; games = j.games || []; loaded = true;
   $('#dv-fab').classList.toggle('hidden', !canWrite);
   $('#gm-fab').classList.toggle('hidden', !canWrite);
-  if (UI && UI.signin) UI.signin(canWrite, showPrivate);
+  if (UI && UI.signin) UI.signin(canWrite);
   doc.querySelectorAll('.it-loading').forEach(function(el){ el.classList.add('hidden'); });
   render();
 }).catch(function(e){

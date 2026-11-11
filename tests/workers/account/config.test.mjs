@@ -26,15 +26,12 @@ test('旧账号会话的时长只剩设备行保留期在用；三张票 / 两�
   for (const gone of ['TICKET', 'EPOCH', 'BY_PASSWORD', 'BY_PASSKEY', 'BY_RECOVERY_KEY', 'RECOVERY_KEY_SECRET']) assert.equal(gone in config, false, gone);
 });
 
-test('challenge 用途 / Secrets 名 / 显示名钉死（API 值一律小写连字符）', () => {
-  assert.deepEqual({ ...config.CHALLENGE_PURPOSE }, { session: 'session', reauth: 'reauth', keysAdd: 'keys-add', resetAdd: 'reset-add' });
-  for (const v of Object.values(config.CHALLENGE_PURPOSE)) assert.match(v, /^[a-z]+(-[a-z]+)*$/);
+test('challenge 有效期 / Secrets 名钉死', () => {
   assert.equal(config.CHALLENGE_TTL, 300);
   for (const gone of ['SIGNING_PRIVATE', 'SIGNING_PUBLIC']) assert.equal(gone in config, false, gone + '（签名钥匙对删除，定稿 v5.3 §十二）');
   assert.equal(config.PASSWORD_PEPPER_SECRET, 'SGX_ACCOUNT_PASSWORD_PEPPER');
   assert.equal(config.RESCUE_KEY_SECRET, 'SGX_ACCOUNT_RESCUE_KEY');
-  assert.equal(config.KEY_ACCOUNT_PASSKEY, 'AccountPasskey');
-  assert.equal(config.PASSKEY_DISPLAY_NAME, 'Sloan Gray');
+  for (const gone of ['CHALLENGE_PURPOSE', 'KEY_ACCOUNT_PASSKEY', 'PASSKEY_DISPLAY_NAME']) assert.equal(gone in config, false, gone + '（旧账号通行密钥入口删除）');
   assert.equal(db.DB_BINDING, 'D1_ACCOUNT');
 });
 
@@ -49,7 +46,7 @@ test('rpConfig / rpConfigMissing：两个都在才给；缺 → 503 config', asy
 test('ACCOUNT_SCHEMA + IDENTITY_SCHEMA（兜底建表）与迁移建出的 account_* 表逐列一致（到 0006 为止，account_grant 除外：兜底不建）；0007 只给 account_device 加 uid；每条都 IF NOT EXISTS', () => {
   const a = new DatabaseSync(':memory:');
   for (const s of db.ACCOUNT_SCHEMA.concat(db.IDENTITY_SCHEMA)) { assert.match(s, /IF NOT EXISTS/); a.exec(s); }
-  /* 兜底建表是迁移前（0006）的结构：uid-schema.js 两种结构都能跑；0007 之后的 account_device 多一列 uid（默认 1000），别的 account_* 不变 */
+  /* 兜底建表是迁移前（0006）的结构；0007 之后的 account_device 多一列 uid（默认 1000），别的 account_* 不变 */
   const b = makeAccountD1({ migrations: 'pre-uid' }).raw;
   const c = makeAccountD1().raw;
   const all = [...ACCOUNT_TABLES, ...IDENTITY_TABLES];
