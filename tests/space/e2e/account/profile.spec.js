@@ -110,13 +110,13 @@ test('profile set：空 / 太长 / 邮箱格式报错不发请求；保存只 PU
   await expect(log(page)).toContainText('Me@Example.com');
 });
 
-test('接口错误（没授权 profile.write）：报在终端里', async ({ page }) => {
+test('接口出错：通用失败文案报在终端里（v6 P4 删了 scope 分支）', async ({ page }) => {
   await mockAccount(page, { user: T.V6_USER('styrigx') });
-  await mockProfile(page, { putReply: () => [403, { ok: false, error: 'scope' }] });
+  await mockProfile(page, { putReply: () => [500, { ok: false, error: 'internal' }] });
   await T.goPage(page);
   await openTerm(page);
   await typeLine(page, 'profile set nick newnick');
-  await expect(log(page)).toContainText('个人资料未获账号授权');
+  await expect(log(page)).toContainText('服务暂时不可用');
   await mode(page, 'cmd');
 });
 
