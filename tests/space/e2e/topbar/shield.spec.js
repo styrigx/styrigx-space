@@ -111,8 +111,8 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     await expect(term(page)).not.toHaveAttribute('open', '');
   });
 
-  test('头像 = whoami：网关标了 locked（访客）= 预填 su ；v6 root = 预填 exit（都不开账号卡片、不跳页）', async ({ page }) => {
-    for (const [st, user, want] of [['locked', null, 'su '], ['valid', A.V6_USER('root'), 'exit']]) {
+  test('头像 = whoami：网关标了 locked（访客）= 预填 su （不开账号卡片、不跳页）；v6 root = 开账号卡片（定稿 §七 58–61）', async ({ page }) => {
+    for (const [st, user, want] of [['locked', null, 'su ']]) {
       await go(page, { user });
       /* 测试构建没有网关：自己给页面打上网关的标记（后注册的 route 优先），再取一次 */
       await page.route('**/zh/wild/', async (r) => {
@@ -135,5 +135,23 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
       await expect(page.locator('#sgx-acct')).not.toHaveAttribute('data-state', 'open');
       expect(new URL(page.url()).pathname).toBe('/zh/wild/');
     }
+    /* v6 root：点头像开账号卡片，不开终端、不预填 */
+    await go(page, { user: A.V6_USER('root') });
+    await page.route('**/zh/wild/', async (r) => {
+      const res = await r.fetch();
+      const body = (await res.text()).replace(/<html /, '<html data-sgx-lock-session="valid" ');
+      await r.fulfill({ response: res, body });
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => document.documentElement.hasAttribute('data-sgx-layout'));
+    await expect.poll(async () => {
+      await page.locator('.sgx-tb-av').click();
+      const st2 = await page.locator('#sgx-acct').getAttribute('data-acct-state');
+      if (st2 !== 'in') await page.keyboard.press('Escape');
+      return st2;
+    }, { timeout: 10000 }).toBe('in');
+    await expect(page.locator('#sgx-acct')).toHaveAttribute('data-state', 'open');
+    await expect(term(page)).not.toHaveAttribute('open', '');
+    expect(new URL(page.url()).pathname).toBe('/zh/wild/');
   });
 });

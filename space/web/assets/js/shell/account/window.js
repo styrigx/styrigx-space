@@ -32,7 +32,7 @@ export const CARD_CMDS = Object.freeze({ profile: 'profile', devices: 'device', 
  *   ms: any,
  *   S: any,
  *   run: (cmd: string) => void,
- *   who?: { v6?: () => any } | null,
+ *   who?: { v6?: () => any, on?: (f: (w: string) => void) => void } | null,
  * }} o S = 外壳字符串表的 account 节（嵌套）；run = 收起卡片、打开终端预填这条命令；who = 全站终端的身份（core/who.js）
  */
 export function mountAccountWindow(o) {
@@ -113,6 +113,8 @@ export function mountAccountWindow(o) {
   try {
     window.addEventListener(PROFILE_EVENT, function () { if (o.ms.isShown()) render(); });
   } catch (e) {}
+  /* 终端身份问完服务端（whoami）晚于卡片打开时（首帧、旧地址 #acct）：开着就按新身份重画（同 main 里 GET /api/account 回来后校正） */
+  if (o.who && typeof o.who.on === 'function') o.who.on(function () { if (o.ms.isShown()) onOpen(); });
 
   /** 打开时（topbar-panel 的 onOpen）：按终端的 v6 身份画（数据源从旧 GET /api/account 改接 v6，外观不变）；root 另取已授权应用数（grants 接口是 root 档） */
   function onOpen() {

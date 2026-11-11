@@ -27,7 +27,7 @@ const settled = (page, id) => page.waitForFunction((i) => document.getElementByI
 
 test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预填命令）', () => {
   /* 终端里的流程见 account/*.spec.js；这里只管入口：头像、卡片的行、旧地址 #acct=…、终端 sudo root、和全站终端互斥 */
-  test('点头像开卡片（非模态、aria-expanded、地址不变）；头像仍是链接；没登录：一行「登录 su 」，没有命令行；esc 关、焦点回头像', async ({ page }) => {
+  test('点头像开卡片（非模态、aria-expanded、地址不变）；头像仍是链接；没登录：一行「登录 su root」（Gray 11-11 17:51），没有命令行；esc 关、焦点回头像', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await go(page, '/zh/wild/');
     const av = page.locator('.sgx-tb-av');
@@ -42,7 +42,8 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
     await expect(d).toHaveAttribute('data-acct-state', 'guest');
     await expect(d.locator('.sgx-at')).toHaveAttribute('data-at-layer', 'guest');
     await expect(d.locator('[data-at-run]').last()).toContainText('登录账号');
-    await expect(d.locator('[data-at-run]').last()).toHaveAttribute('data-at-run', 'su ');
+    await expect(d.locator('[data-at-run]').last()).toHaveAttribute('data-at-run', 'su root');
+    await expect(d.locator('[data-at-run]').last()).toContainText('su root');
     /* 只展示：没有输入框、没有输出区；没有去 /account/ 子页的链接、没有 accountkey */
     await expect(d.locator('input, [data-at-in], [data-at-log]')).toHaveCount(0);
     await expect(d.locator('a[href*="/account/"]')).toHaveCount(0);
@@ -82,19 +83,20 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
     await expect(d.locator('.sgx-pop-edit')).toHaveAttribute('data-at-run', 'profile');
   });
 
-  test('已登录（v6 普通用户）：卡片没有「应用授权」（root 档）；头像 = whoami，点了预填 su root（wheel），不开卡片', async ({ page }) => {
+  test('已登录（v6 普通用户）：卡片行同 v5（GUI 不改）；点头像 = 开账号卡片（定稿 §七 58–61，Gray 11-11 17:44），不预填', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await go(page, '/zh/wild/', { route: (pg) => A.mockAccount(pg, { user: A.V6_USER('styrigx') }) });
     const d = page.locator('#sgx-acct');
     await A.openCard(page);
     await expect(d).toHaveAttribute('data-acct-state', 'in');
-    await expect(d.locator('.sgx-at-r').filter({ hasText: '应用授权' })).toHaveCount(0);
+    await expect(d.locator('.sgx-at-r')).toHaveCount(5);
     await page.keyboard.press('Escape');
     await expect(d).toBeHidden();
+    await settled(page, 'sgx-acct');
     await page.locator('.sgx-tb-av').click();
-    await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
-    await expect(page.locator('#sgx-term-in')).toHaveValue('su root');
-    await expect(d).toBeHidden();
+    await expect(d).toHaveAttribute('data-state', 'open');
+    await expect(d).toHaveAttribute('data-acct-state', 'in');
+    await expect(page.locator('#sgx-term')).not.toHaveAttribute('open', '');
   });
 
   test('旧地址 #acct=devices（/zh/account/devices/ 301 过来）：打开终端预填 device，去掉 hash，不开卡片', async ({ page }) => {

@@ -155,7 +155,7 @@ test('baseline-quick-panel-open', async ({ page: pg }) => {
   await openQuickPanel(pg);
   await expect(pg.locator('#sgx-qp [data-qp-seg="mode"]')).toHaveCount(1);
   await expect(pg.locator('#sgx-qp [data-qp-palette]').first()).toBeVisible();
-  await expect(pg.locator('#sgx-nav [data-qp="share"]')).toHaveCount(1);
+  await expect(pg.locator('#sgx-nav [data-qp="share"]')).toHaveCount(0); /* v6 P4：分享磁贴拿掉（Gray 11-11 17:47） */
   if (SHOTS) await expect(pg).toHaveScreenshot('baseline-quick-panel-open.png', { animations: 'disabled' });
 });
 
@@ -228,7 +228,7 @@ for (const [vpName, vp] of Object.entries(ACCT_VPS)) {
             if (state === 'home') {
               await expect(d.locator('[data-at-v="grants"] .sgx-pop-v')).toHaveText('5');
               await expect(d.locator('[data-at-run]')).toHaveCount(7);
-            } else await expect(d.locator('.sgx-pop-list [data-at-run]')).toHaveAttribute('data-at-run', 'su ');
+            } else await expect(d.locator('.sgx-pop-list [data-at-run]')).toHaveAttribute('data-at-run', 'su root');
           } else {
             sheet = '#sgx-term';
             const t = pg.locator('#sgx-term');

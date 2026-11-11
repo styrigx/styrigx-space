@@ -167,11 +167,11 @@ test('历史：↑ / ↓ 翻命令，到底回到正在打的字；clear 清屏'
   const i = input(page);
   await i.fill('ma');
   await i.press('ArrowUp');
-  await expect(i).toHaveValue('history');
+  await expect(i).toHaveValue('theme dark');
   await i.press('ArrowUp');
   await expect(i).toHaveValue('ls');
   await i.press('ArrowDown');
-  await expect(i).toHaveValue('history');
+  await expect(i).toHaveValue('theme dark');
   await i.press('ArrowDown');
   await expect(i).toHaveValue('ma');
   await i.fill('clear');
