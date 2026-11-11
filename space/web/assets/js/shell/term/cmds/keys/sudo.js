@@ -28,6 +28,11 @@ export default {
       I.cmdSudo([a0].concat(p.args.slice(1)));
       return FLOW;
     }
+    /* #404 未决项第 2 项（Gray 11-11 15:37）：sudo sub / sudo app 前端不支持——v6 的跑法是 su root 后直接用（sub / app 是 root 直通，#401 / #402） */
+    if (a0 === 'sub' || a0 === 'app') return { out: [line(x, 'sudoNotYet', a0)] };
+    /* #404 未决项第 3 项：v6 身份输已移除的 sudo -v / sudo root reauth（定稿 §十三 P4 删、v6-commands「删除」）——印一行 v6 做法，不落旧层的 notHere；P4 连命令一起删 */
+    if (isV6(w) && a0 === '-v' && !a1) return { out: [x.k.plain(x.S.goneSudoV, 'err')] };
+    if (isV6(w) && a0 === ROOT_COMMAND && a1 === 'reauth') return { out: [x.k.plain(x.S.goneSudoReauth, 'err')] };
     if (p.args.length > 2 || (a0 === '-v' && a1)) return { out: [x.k.plain(x.S.usageSudo)] };
     if (a0 === ADMIN_COMMAND && (a1 === '' || a1 === 'reset')) {
       const S = layer(x, 'space');

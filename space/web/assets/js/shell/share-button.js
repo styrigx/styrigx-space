@@ -33,7 +33,7 @@ const STR_EN = {
   copied: "Share link copied",
   copyFail: "Couldn’t copy. Please try again",
   busy: "Creating share link…",
-  session: "Your session has expired. Unlock again to share",
+  session: "Your session has expired. Sign in with su to share.",
   full: "You already have 20 share links. Revoke some on styrigx.com first",
   forbidden: "Only root can create share links · run su root first",
   fail: "Couldn’t create a share link. Please try again"

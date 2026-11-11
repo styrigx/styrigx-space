@@ -1,4 +1,5 @@
 import { gate, layer, notHere, nth, FLOW } from './gate.js';
+import { isV6 } from '../../core/who.js';
 
 /**
  * lock（v5 S5）：钥匙层。
@@ -19,6 +20,12 @@ export default {
     const usage = { out: [x.k.plain(x.S.usageLock)] };
     const I = layer(x, /** @type {any} */ ('ident'));
     if (!a.length && I && I.hasSession()) { I.cmdLock(); return FLOW; }
+    /* #404 未决项第 3 项（Gray 11-11 15:37）：v6 身份输已移除的 lock passwd / passkey / --all（定稿 §十三 P4 删、v6-commands「删除」）——印一行 v6 做法，
+       不落旧层的 notHere（应用内终端还用它，不动）；lock --all 先指账号页，等 device 接 v6 再定；P4 连这三形一起删 */
+    if (a.length && isV6(x.who())) {
+      const gone = a[0] === 'passwd' ? 'goneLockPasswd' : a[0] === 'passkey' ? 'goneLockPasskey' : a[0] === '--all' ? 'goneLockAll' : '';
+      if (gone) return { out: [x.k.plain(x.S[gone], 'err')] };
+    }
     const no = gate(x, a.length ? 'keys' : 'entered');
     if (no) return no;
     const S = layer(x, 'space');

@@ -162,7 +162,7 @@ test('mountShare：接口失败 → 只 toast 原因，不分享也不复制原�
   assert.equal(calls.length, 1);
   assert.deepEqual(log, []);
   assert.equal(toasts.length, 1);
-  assert.match(toasts[0], /重新解锁/);
+  assert.match(toasts[0], /su 登录后再分享/);
   assert.ok(!d.cls.has('is-busy'));
   assert.equal(S.mountShare({ doc: d.doc, nav }), null, '同一个按钮只绑一次');
 });
@@ -179,7 +179,7 @@ test('mountShare（进站 v3 Q3 定稿 08:00）：新建只要进站会话——
   assert.equal(cf.calls.length, 1, '只请求一次');
   assert.deepEqual(log, [], '什么也不分享');
   assert.equal(toasts.length, 1);
-  assert.match(toasts[0], /重新解锁/);
+  assert.match(toasts[0], /su 登录后再分享/);
   assert.ok(!d.cls.has('is-busy'));
   const src = readFileSync(path.join(REPO, 'space/web/assets/js/shell/share-button.js'), 'utf8');
   assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ''), /sgx-share-reauth|lock-reauth|lock-password|credentials\.get/);

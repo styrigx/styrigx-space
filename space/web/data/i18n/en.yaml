@@ -220,7 +220,7 @@ js:
     auditFail: Failed
     auditIpUnknown: Unknown IP
     auditErr: Couldn't load the records. Try again shortly.
-    auditErrAuth: Session expired. Unlock again to see the records.
+    auditErrAuth: Session expired. Sign in with su to see the records.
     auditErrPerm: Only root can see these records. Run su root first.
     uErrorSub: Couldn't read Cloudflare usage; it retries at :41 next hour.
     site_space: "Space"
@@ -443,7 +443,9 @@ baseof:
   pageNotFound: Page not found
 status:
   lockedHint: visible after su
-  lockedSub: "Service status, uptime and usage are only open to visitors who have entered."
+  lockedSub: "Service status, uptime and usage are only visible once you’re signed in."
+  lockedPermHint: "Your user doesn’t have this permission"
+  lockedPermSub: "Service status, uptime and usage need the status group. Run su root first."
   loading: Loading…
   noDataYet: No data yet
   resultsShowUpAfter: Results show up after the first round of checks, in about a minute.

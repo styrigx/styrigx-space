@@ -19,9 +19,9 @@ export const PAGES = Object.freeze({
   lock: {
     d: 'lock now, or manage the unlock password and passkeys', syn: ['lock', 'lock passwd', 'lock passkey [add | rm <n>]', 'lock --all'],
     desc: ['lock: lock this device now (no verification).', 'passwd / passkey: the keys that enter the site (not the account ones).', '--all: send every device back to visitor.'],
-    auth: 'entered; passwd, passkey and --all need reauth (sudo -v)',
+    auth: 'no verification',
   },
-  ask: { d: 'ask Gray AI a question', syn: ['ask <question>'] },
+  ask: { d: 'ask Gray AI a question', syn: ['ask <question>'], desc: ['opens the Gray AI window with your question. Gray AI is only for styrigx and root.'] },
   find: { d: 'search the four sites’ public pages by keyword', syn: ['find <keyword>'] },
   clear: { d: 'clear the screen', syn: ['clear', 'cls'] },
   pwd: { d: 'print the current directory', syn: ['pwd'] },
@@ -31,15 +31,15 @@ export const PAGES = Object.freeze({
   share: {
     d: 'list, create or revoke share links', syn: ['share', 'share add', 'share rm <n>', 'share rm --all'],
     desc: ['share add: name, page, how long the link lasts, and whether it carries a session.'],
-    auth: 'entered with your own key; listing and revoking need reauth (sudo -v)',
+    auth: 'root only; listing and revoking need no reauth',
   },
-  passwd: { d: 'change the account password', syn: ['passwd'], auth: 'signed in (sudo {root}); reauth' },
+  passwd: { d: 'change the account password', syn: ['passwd'], auth: 'signed in; asks your current password first' },
   passkey: { d: 'list, add or remove account passkeys', syn: ['passkey', 'passkey add', 'passkey rm <n>'], auth: 'signed in' },
   device: { d: 'list signed-in devices, or sign one out', syn: ['device', 'device rm <n>', 'device rm --all'], auth: 'signed in (sudo {root}); --all needs reauth' },
   app: {
     d: 'list app access, allow or deny an app', syn: ['app', 'app allow <n>', 'app deny <n>'],
     desc: ['app: every app with its scopes, when and on which device it was allowed.', 'allow: give an app access again. deny: take it away (asks y/N); the app can still read, it just can’t change anything.'],
-    auth: 'signed in (sudo {root}); allow needs reauth (sudo -v)',
+    auth: 'root only; allow needs no reauth',
   },
   profile: {
     d: 'show or change your profile and photo', syn: ['profile', 'profile set name | nick | sign | email <value>', 'profile avatar'],
@@ -60,7 +60,7 @@ export const PAGES = Object.freeze({
       'key: paste an age1… X25519 public key; every source is re-encrypted right after.',
       'token reset: makes a new token (asks y/N when one exists); every old url stops working at once.',
     ],
-    auth: 'signed in (sudo {root}); show, key and token reset need reauth (sudo -v)',
+    auth: 'root only; show, key and token reset need no reauth',
     notes: [
       'Urls are https://proxy-rules.styrigx.com/s/<token>/<name>; every output is age-encrypted to your public key.',
       'The server keeps the token sealed with its own key, so sub show can print it again.',

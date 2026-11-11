@@ -56,7 +56,8 @@ const passkey = {
       if (!a.length || (a[0] === 'ls' && a.length === 1)) { A6.passkeyList(v6); return FLOW; }
       if (a[0] === 'add' && a.length === 1) { A6.cmdPasskeyAdd(true, v6); return FLOW; }
       if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A6.passkeyRm(nth(a[1]), v6); return FLOW; }
-      return { out: [x.k.plain(x.S.usagePasskey)] };
+      /* v6 的用法行带 ls（v6-commands「passkey ls / add / rm <n>」）；旧路径的 usagePasskey 不动 */
+      return { out: [x.k.plain(x.S.usagePasskey6)] };
     }
     const no = acctGate(x, true);
     if (no) return no;

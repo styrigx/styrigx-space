@@ -63,6 +63,7 @@ export const TERM_EN = {
   usageShare: 'usage: share [add | rm <n> | rm --all]',
   usagePasswd: 'usage: passwd',
   usagePasskey: 'usage: passkey [add | rm <n>]',
+  usagePasskey6: 'usage: passkey [ls | add | rm <n>]',
   usageDevice: 'usage: device [rm <n> | rm --all]',
   usageApp: 'usage: app [allow <n> | deny <n>]',
   usageProfile: 'usage: profile [set name | nick | sign | email <value> | avatar]',
@@ -95,6 +96,12 @@ export const TERM_EN = {
   alreadyIn: 'already entered · {x} to verify again',
   notHere: '{x}: run it in the terminal (Ctrl K)',
   resetOnly: 'in reset: passwd · passkey [add | rm <n>] · exit',
+  sudoNotYet: 'sudo {x} isn’t supported yet · su root first, then run {x}',
+  goneSudoV: 'sudo -v is gone · in v6 every sudo verifies again',
+  goneSudoReauth: 'sudo root reauth is gone · to act as root, su root',
+  goneLockPasswd: 'lock passwd is gone · change your own password with passwd',
+  goneLockPasskey: 'lock passkey is gone · manage passkeys with passkey',
+  goneLockAll: 'lock --all is gone · sign out all devices on the account page',
 };
 
 /**

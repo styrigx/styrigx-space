@@ -46,12 +46,13 @@
           <p class="st-banner-l2"><span class="wild-dim" translate="no">Active:</span> <b class="st-banner-active" data-st="active">{{ $tr.status.loading }}</b> <span class="st-banner-title" data-st="title"></span><span class="st-banner-sub" data-st="sub"></span></p>
         </div>
 
-        {{/* 没进站（/api/status 回 401）：锁标 + Permission denied + 一行说明 + su 按钮（v6 割接；点了终端预填 su ） */}}
+        {{/* 没进站（/api/status 回 401）：锁标 + Permission denied + 一行说明 + su 按钮（v6 割接；点了终端预填 su ）。
+             403（已登录但不在 status 组，#404 未决项第 5 项）：apps/space-status.js 换成 data-perm 的文案，按钮预填 su root */}}
         <div id="st-locked" class="st-msg st-locked" hidden>
           <span class="st-locked-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
           <div class="st-locked-tx">
-            <p class="st-msg-title"><span translate="no">Permission denied</span> <span class="wild-dim">— {{ $tr.status.lockedHint }}</span></p>
-            <p class="st-msg-sub wild-dim">{{ $tr.status.lockedSub }}</p>
+            <p class="st-msg-title"><span translate="no">Permission denied</span> <span class="wild-dim" data-st="lock-hint" data-auth="— {{ $tr.status.lockedHint }}" data-perm="— {{ $tr.status.lockedPermHint }}">— {{ $tr.status.lockedHint }}</span></p>
+            <p class="st-msg-sub wild-dim" data-st="lock-sub" data-auth="{{ $tr.status.lockedSub }}" data-perm="{{ $tr.status.lockedPermSub }}">{{ $tr.status.lockedSub }}</p>
             <button type="button" class="st-btn wild-cmdbtn" data-st="sudo" translate="no">su</button>
           </div>
         </div>

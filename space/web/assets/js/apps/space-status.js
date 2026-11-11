@@ -176,6 +176,7 @@ function init() {
         /* 2d：403 = 已登录（只是不在 status 组）：凭据记录折叠区照常留着（它另归 root，展开后按服务端回答显示同一处已上线的
            auditErrPerm「只有 root 能看这份记录，先 su root」）；401 访客照旧整块藏起来 */
         root.toggleAttribute('data-lock-perm', status === 403);
+        lockCopy(status === 403);
       } else if (data && !isEmptySummary(data)) {
         /* 已经有数据：保留，页脚提示 */
         foot.textContent = fmt('stale', { time: fmtBjTime(gotAt, lang, bjDay(Date.now())) });
@@ -268,8 +269,19 @@ function init() {
     render();
   }
 
+  /* #404 未决项第 5 项（Gray 11-11 15:37）：403 = 已登录但不在 status 组，锁卡换「当前用户没有这个权限 / 需要 status 组，先 su root」，按钮预填 su root；
+     401 访客照旧（文案在 wild.html 的 data-auth / data-perm 里，页面语言由 Hugo 定） */
+  /** @param {boolean} perm */
+  function lockCopy(perm) {
+    if (!lockedEl) return;
+    lockedEl.querySelectorAll('[data-st="lock-hint"], [data-st="lock-sub"]').forEach((el) => {
+      const v = el.getAttribute(perm ? 'data-perm' : 'data-auth');
+      if (v) el.textContent = v;
+    });
+  }
+
   if (lockedEl) on(lockedEl, 'click', (e) => {
-    if (/** @type {HTMLElement} */ (e.target).closest('[data-st="sudo"]')) askSudo(document);
+    if (/** @type {HTMLElement} */ (e.target).closest('[data-st="sudo"]')) askSudo(document, root.hasAttribute('data-lock-perm') ? 'su root' : '');
   });
 
   /* 2c：v6 su / exit / lock 之后页面标记就地切（window 'sgx:session'，detail.live）：登录了当场重取（锁卡换成数据），

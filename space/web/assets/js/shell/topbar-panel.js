@@ -822,7 +822,10 @@ export function mountTopbar(o) {
        没有标记 = 页面没经过网关（本地 / 测试构建），不在加载时问（没有接口，只会多一条 404），等 sudo / 盾牌 / 401 时再问 */
     if (who && (who.get() !== 'nobody' || who.v6Hinted())) who.refresh();
     /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 su （不替人回车） */
-    doc.addEventListener(SUDO_EVENT, function () {
+    doc.addEventListener(SUDO_EVENT, function (/** @type {any} */ ev) {
+      /* detail.line（lib/sudo.js askSudo 第二个参数，如 /wild/ 403 的 su root，#404 未决项第 5 项）：已登录、只是权限不够——只预填这一行，不动页面标记和身份 */
+      const want = ev && ev.detail && typeof ev.detail.line === 'string' ? ev.detail.line : '';
+      if (want) { showTerm(function () { if (view) view.prefill(want); }); return; }
       /* 页面标记跟着改成 locked（AI 窗口锁、听歌等按它画访客态） */
       doc.documentElement.setAttribute('data-sgx-lock-session', 'locked');
       if (who) who.drop();

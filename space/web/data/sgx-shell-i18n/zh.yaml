@@ -72,7 +72,7 @@ share:
   copied: 已复制分享链接
   copyFail: 复制失败，请稍后再试
   busy: 正在生成分享链接…
-  session: 锁屏会话已失效，请重新解锁后再分享
+  session: 会话已过期，su 登录后再分享
   full: 分享短链已满 20 条，先去主站作废几条
   forbidden: 只有 root 能生成分享链接 · 先 su root
   fail: 生成分享链接失败，请稍后再试
@@ -205,6 +205,8 @@ term:
   usageShare: "用法：share [add | rm <n> | rm --all]"
   usagePasswd: "用法：passwd"
   usagePasskey: "用法：passkey [add | rm <n>]"
+  # 割接（v6-commands「自己的账号」passkey ls / add / rm <n>）：v6 会话里的 passkey 用法行
+  usagePasskey6: "用法：passkey [ls | add | rm <n>]"
   usageDevice: "用法：device [rm <n> | rm --all]"
   usageApp: "用法：app [allow <n> | deny <n>]"
   usageProfile: "用法：profile [set name | nick | sign | email <值> | avatar]"
@@ -224,6 +226,13 @@ term:
   alreadyIn: "已经进站了 · 再验证用 {x}"
   notHere: "{x}：请在终端里运行（Ctrl K）"
   resetOnly: "reset 里只能用：passwd · passkey [add | rm <n>] · exit"
+  # #404 未决项（Gray 11-11 15:37 定稿文案）：sudo sub / sudo app 暂不支持（第 2 项）；v6 身份输已移除的旧命令（第 3 项，P4 连命令一起删）
+  sudoNotYet: "sudo {x} 暂不支持 · 先 su root，再直接用 {x}"
+  goneSudoV: "sudo -v 已移除 · v6 里每次 sudo 都会重新验证"
+  goneSudoReauth: "sudo root reauth 已移除 · 需要 root 权限时直接 su root"
+  goneLockPasswd: "lock passwd 已移除 · 改自己的密码用 passwd"
+  goneLockPasskey: "lock passkey 已移除 · 通行密钥用 passkey 管理"
+  goneLockAll: "lock --all 已移除 · 所有设备在账号页退出"
 # 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/js/shell/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
 man:
   man: "查看命令的手册页"
@@ -258,6 +267,9 @@ man:
 # 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；英文底在 assets/js/shell/term/man/pages.js，行数一一对应）。{root} / {admin} 换成命令字；命令写法、提示符不翻译。
 # 中文页每一页都要有（tests/space/ui/shell/man-i18n.test.mjs 查）。
 manBody:
+  ask:
+    desc:
+      - "ask <问题>：开 AI 窗口，把问题发给 Gray AI；Gray AI 只对 styrigx 和 root 开放。"
   sudo:
     desc:
       - "sudo {admin}：就在这里用解锁密码或通行密钥验证；终端收起，进站动画开始。"
@@ -270,16 +282,16 @@ manBody:
       - "lock：立即锁上这台设备（不用验证）。"
       - "passwd / passkey：进站用的钥匙（不是账号的）。"
       - "--all：所有设备都退回访客。"
-    auth: "已进站；passwd、passkey 和 --all 要再验证（sudo -v）"
+    auth: "不用验证"
   exit:
     desc:
       - "reset 里：离开 reset。root@account：退出账号登录，回到 {admin}@space。其余：关掉终端。"
   share:
     desc:
       - "share add：名字、页面、链接多久有效、要不要带会话。"
-    auth: "用自己的钥匙进站；列出和作废要再验证（sudo -v）"
+    auth: "只有 root；列出和作废不用再验证"
   passwd:
-    auth: "已登录账号（sudo {root}）；要再验证"
+    auth: "已登录；先输当前密码"
   passkey:
     auth: "已登录"
   device:
@@ -288,7 +300,7 @@ manBody:
     desc:
       - "app：每个应用的权限范围、什么时候在哪台设备上授权的。"
       - "allow：重新授权一个应用。deny：取消授权（先问 y/N）；应用照样能看，只是不能改。"
-    auth: "已登录账号（sudo {root}）；allow 要再验证（sudo -v）"
+    auth: "只有 root；allow 不用再验证"
   profile:
     desc:
       - "profile：姓名、昵称、签名和邮箱（没改过的显示站点默认值）。"
@@ -305,7 +317,7 @@ manBody:
       - "enable / disable：停用的来源 404；链接或文件和成品都留着。"
       - "key：粘贴 age1… X25519 公钥；保存后所有来源立刻重新加密。"
       - "token reset：换一个新令牌（已有令牌时先问 y/N）；旧地址全部立刻失效。"
-    auth: "已登录账号（sudo {root}）；show、key 和 token reset 要再验证（sudo -v）"
+    auth: "只有 root；show、key 和 token reset 不用再验证"
     notes:
       - "地址是 https://proxy-rules.styrigx.com/s/<令牌>/<名称>；每份成品都用你的公钥 age 加密。"
       - "服务端用自己的密钥封存令牌，所以 sub show 能再印出来。"

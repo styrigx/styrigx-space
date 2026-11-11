@@ -217,7 +217,7 @@ js:
     auditFail: 失败
     auditIpUnknown: 未知 IP
     auditErr: 暂时拿不到记录，稍后再试。
-    auditErrAuth: 会话已过期，重新解锁后再看。
+    auditErrAuth: 会话已过期，su 登录后再看。
     auditErrPerm: 只有 root 能看这份记录，先 su root。
     uErrorSub: 读取 Cloudflare 用量失败，下一个整点 41 分会再试。
     site_space: "主站"
@@ -435,7 +435,10 @@ baseof:
   pageNotFound: 页面不存在
 status:
   lockedHint: su 登录后可见
-  lockedSub: 服务状态、可用率和用量只对进站后的访客开放。
+  lockedSub: 服务状态、可用率和用量要登录后才能看。
+  # 403（已登录但不在 status 组，#404 未决项第 5 项）
+  lockedPermHint: 当前用户没有这个权限
+  lockedPermSub: 服务状态、可用率和用量需要 status 组，先 su root。
   loading: 正在加载…
   noDataYet: 还没有监测数据
   resultsShowUpAfter: 第一轮检查完成后（约 1 分钟）这里会显示结果。
