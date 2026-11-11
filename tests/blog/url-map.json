@@ -11,6 +11,7 @@
     "/post/2026-11-09-one-repo-cleanup/",
     "/post/2026-11-09-terminal-redesign/",
     "/post/2026-11-10-proxy-subscription-design/",
+    "/post/2026-11-12-palette-v4/",
     "/tags/age/",
     "/tags/ai-agents/",
     "/tags/auth/",
@@ -38,6 +39,7 @@
     "/zh/post/2026-11-09-one-repo-cleanup/",
     "/zh/post/2026-11-09-terminal-redesign/",
     "/zh/post/2026-11-10-proxy-subscription-design/",
+    "/zh/post/2026-11-12-palette-v4/",
     "/zh/tags/age/",
     "/zh/tags/ai-agents/",
     "/zh/tags/auth/",
@@ -73,6 +75,7 @@
     "https://styrigx.com/blog/post/2026-11-09-one-repo-cleanup/",
     "https://styrigx.com/blog/post/2026-11-09-terminal-redesign/",
     "https://styrigx.com/blog/post/2026-11-10-proxy-subscription-design/",
+    "https://styrigx.com/blog/post/2026-11-12-palette-v4/",
     "https://styrigx.com/blog/tags/age/",
     "https://styrigx.com/blog/tags/ai-agents/",
     "https://styrigx.com/blog/tags/auth/",
@@ -100,6 +103,7 @@
     "https://styrigx.com/blog/zh/post/2026-11-09-one-repo-cleanup/",
     "https://styrigx.com/blog/zh/post/2026-11-09-terminal-redesign/",
     "https://styrigx.com/blog/zh/post/2026-11-10-proxy-subscription-design/",
+    "https://styrigx.com/blog/zh/post/2026-11-12-palette-v4/",
     "https://styrigx.com/blog/zh/tags/age/",
     "https://styrigx.com/blog/zh/tags/ai-agents/",
     "https://styrigx.com/blog/zh/tags/auth/",
@@ -121,6 +125,7 @@
   ],
   "rss": {
     "/rss.xml": [
+      "https://styrigx.com/blog/post/2026-11-12-palette-v4/",
       "https://styrigx.com/blog/post/2026-11-10-proxy-subscription-design/",
       "https://styrigx.com/blog/post/2026-11-09-terminal-redesign/",
       "https://styrigx.com/blog/post/2026-11-09-one-repo-cleanup/",
@@ -131,6 +136,7 @@
       "https://styrigx.com/blog/post/2026-10-11-agent-collaboration-whitepaper/"
     ],
     "/zh/rss.xml": [
+      "https://styrigx.com/blog/zh/post/2026-11-12-palette-v4/",
       "https://styrigx.com/blog/zh/post/2026-11-10-proxy-subscription-design/",
       "https://styrigx.com/blog/zh/post/2026-11-09-terminal-redesign/",
       "https://styrigx.com/blog/zh/post/2026-11-09-one-repo-cleanup/",
@@ -375,6 +381,30 @@
       "auto-控件语言和布局",
       "三星和-dex-优先",
       "首页",
+      "小结"
+    ],
+    "/post/2026-11-12-palette-v4/": [
+      "why-drop-lightdark-modes",
+      "splitting-light-and-dark-oklch-lightness-06",
+      "seven-colours",
+      "fixed-semantic-colours",
+      "a-fixed-code-theme",
+      "auditing-contrast",
+      "first-paint-and-old-cookies",
+      "what-was-deleted",
+      "tests",
+      "wrapping-up"
+    ],
+    "/zh/post/2026-11-12-palette-v4/": [
+      "为什么删深浅模式",
+      "深浅怎么分oklch-亮度-06",
+      "七个颜色",
+      "语义色写死",
+      "代码高亮固定主题",
+      "对比度怎么审",
+      "首帧和旧-cookie",
+      "删了什么",
+      "测试",
       "小结"
     ]
   }
