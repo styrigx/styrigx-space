@@ -595,15 +595,17 @@ export function mountTopbar(o) {
       const src0 = img.getAttribute('data-sgx-src0') || '';
       if (img.getAttribute('src') !== src0) img.setAttribute('src', src0);
     }
-    let mark = acctBtn.querySelector('.sgx-tb-av-root');
-    if (u && u.root) {
+    /* 头像角标：root「#」、站长「$」（同提示符末字，Gray 11-12 00:33）；普通用户、访客不加 */
+    const ch = u ? (u.root ? '#' : u.owner === true ? '$' : '') : '';
+    let mark = acctBtn.querySelector('.sgx-tb-av-mark');
+    if (ch) {
       if (!mark) {
         mark = doc.createElement('span');
-        mark.className = 'sgx-tb-av-root';
+        mark.className = 'sgx-tb-av-mark';
         mark.setAttribute('aria-hidden', 'true');
-        mark.textContent = '#';
         acctBtn.appendChild(mark);
       }
+      if (mark.textContent !== ch) mark.textContent = ch;
     } else if (mark) mark.remove();
     if (u) acctBtn.setAttribute('data-sgx-v6', u.root ? 'root' : 'user');
     else acctBtn.removeAttribute('data-sgx-v6');

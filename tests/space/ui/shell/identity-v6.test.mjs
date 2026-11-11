@@ -218,18 +218,19 @@ test('前台空闲计时（Page Visibility）：可见时累计、隐藏不计�
   assert.equal(fired, 2);
 });
 
-test('接线：头像 = whoami（访客 → su ；站长 / root → 账号页；普通用户只作装饰，定稿 v5.5 §七；root 叠 # 标记）；身份层进终端的 layers；登录标记首帧问 whoami', () => {
+test('接线：头像 = whoami（访客 → su ；站长 / root → 账号页；普通用户只作装饰，定稿 v5.5 §七；root 叠 #、站长叠 $ 角标）；身份层进终端的 layers；登录标记首帧问 whoami', () => {
   const tp = rd('space/web/assets/js/shell/topbar-panel.js');
   assert.match(tp, /if \(!u\) return avGuest\(\) \? GUEST_LINE : '';\n\s*return '';/);
   assert.doesNotMatch(tp, /return u\.wheel \? 'su root' : 'profile'/);
   assert.doesNotMatch(tp, /'\/avatar\/u' \+ u\.uid/, 'P4-3：头像一份，归站长（定稿 v5.5 §七），不再按 uid 取');
   assert.match(tp, /return !!\(u && !u\.root && u\.owner !== true\);/, '普通用户 = 不是 root、不是站长');
-  assert.match(tp, /mark\.className = 'sgx-tb-av-root';/);
+  assert.match(tp, /mark\.className = 'sgx-tb-av-mark';/);
+  assert.match(tp, /const ch = u \? \(u\.root \? '#' : u\.owner === true \? '\$' : ''\) : '';/, '角标：root #、站长 $、其余不加');
   assert.match(tp, /return \{ acct: acctTerm, ident: ident \};/);
   assert.match(tp, /if \(who && who\.v6Hinted\(\)\) who\.refresh\(\);/);
   const qp = rd('space/web/assets/js/shell/quick-panel.js');
   assert.match(qp, /identityTerm: mountIdentityLayer,/);
-  assert.match(rd('space/web/assets/css/input.css'), /\.sgx-tb-av-root \{/);
+  assert.match(rd('space/web/assets/css/input.css'), /\.sgx-tb-av-mark \{/);
   /* 身份层只经 ./api.js 发请求；不写 Domain、不读密码之外的东西 */
   const layer = rd('space/web/assets/js/shell/identity/layer.js');
   assert.doesNotMatch(layer, /fetch\(/);
