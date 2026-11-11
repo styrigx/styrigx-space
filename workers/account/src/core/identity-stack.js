@@ -6,7 +6,7 @@
  *   库里存它的 SHA-256（account_sessions.id）。token 不带 uid、组或栈。
  * - 栈：栈底在 account_sessions（普通用户；救援会话的 root），su root 压的那一层在 account_session_stack（深度 1，只会是 root）。
  *   访客 → 普通用户 → root，最多三层。sudo 不压栈。
- * - root 代码级禁止公开登录：issueSession 拒绝 uid = root（救援会话的签发是 P3 的事，走 issueRescueSession，这里只留函数和测试）。
+ * - root 代码级禁止公开登录：issueSession 拒绝 uid = root；救援会话走 issueRescueSession，唯一调用方是 P3 救援入口 core/rescue.js（验过恢复钥匙才签）。
  * - 时长（identity-session.js SESSION_TTL_MS）：普通用户层 30 天滑动续期（admit 只回 renew 标志，renewSession 按节流续写）；
  *   root 层 ≤ 1 小时（且不超过会话本身）；救援 15 分钟、不续期。
  *
@@ -66,7 +66,7 @@ export async function issueSession(env, user, now) {
 }
 
 /**
- * 救援会话（P3 的救援入口用；P2 只有函数和单测，没有任何调用方）：栈底 root、rescue = 1、15 分钟、不续期。出错抛错。
+ * 救援会话（唯一调用方：P3 救援入口 core/rescue.js，定稿 v5.2 §九）：栈底 root、rescue = 1、15 分钟、不续期。出错抛错。
  * @param {any} env @param {{epoch:number}} root @param {number} [now]
  */
 export async function issueRescueSession(env, root, now) {

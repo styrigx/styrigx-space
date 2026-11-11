@@ -63,6 +63,9 @@ P2c 变更（2026-11-11，对齐定稿 v5）：
 - 前端：当前页 `su` 成功（含 su 成任何 v6 用户）→ 页面标记就地切成 `valid`（终端身份 `who.onV6` → 顶栏 `switchPageSession`，发 window `sgx:session { ok, live: true }`），云同步强制拉一次、名片重取、AI 窗口解锁、服务状态卡重取、NAVIGATE STATUS 重取、守卫补绑自动回锁；`exit` / `lock` 回访客（或只剩救援会话）就地切回 `locked`。不整页刷新。规则同网关 `pageStateOf`（旧进站会话或非救援 v6 身份）。
 - 奇趣 / 日刻「登录账号后可编辑」改「su 登录后可编辑」（中英文），入口改成 `su`（`data-sec-open`，打开终端预填 su ）。
 
+P3 变更（2026-11-11，定稿 v5.2 §九；路由档不变）：
+- `POST /api/identity` 加 action `rescue` = **public**（访客的救援入口；已登录 → 409 exit-first；救援会话里再调 → permits 第 1 步拒）：输恢复钥匙，账号 Worker 读 Secrets Store `SGX_ACCOUNT_RESCUE_KEY` 恒定时间比对，通过签 15 分钟一次性 root 会话（rescue 标志、不续期）；`account_recovery_key` 记钥匙指纹（SHA-256，不存明文），同值再用直接拒，指纹写失败拒绝救援。救援白名单不变（whoami / exit / lock / passwd / passkey-* / groups），`rescue` 不在其中。
+
 ### 已定（Gray 2026-11-11）
 
 盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **owner** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。
@@ -120,7 +123,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
 | GET | `/api/account` | **public** |  |  | 保留 | 账号终端状态（访客也要读提示符状态） |  |
-| POST | `/api/identity` | **public**（救援可用：`whoami`、`exit`、`lock`、`passwd`、`passkey-*`、`groups`） | `passwd` / `passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete` / `groups` / `who` → user；`sudo-challenge` / `sudo` → sudoers；`useradd` / `userdel` / `usermod` / `passwd-user` → root；`whoami` / `su-challenge` / `su` / `exit` / `idle` / `lock` → public |  | 保留（P2 新增） | v6 身份命令：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名> |  |
+| POST | `/api/identity` | **public**（救援可用：`whoami`、`exit`、`lock`、`passwd`、`passkey-*`、`groups`） | `passwd` / `passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete` / `groups` / `who` → user；`sudo-challenge` / `sudo` → sudoers；`useradd` / `userdel` / `usermod` / `passwd-user` → root；`whoami` / `su-challenge` / `su` / `exit` / `idle` / `lock` / `rescue` → public |  | 保留（P2 新增） | v6 身份命令：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue |  |
 | POST | `/api/account/session` | **public** | `passkey-challenge` → wheel；`passkey` → wheel；`password` → wheel |  | P4（v6 su / exit） | 旧 sudo root 登录；v6 = su root（wheel + root 凭据），root 不能从访客直接登录 |  |
 | POST | `/api/account/reauth` | **root** |  |  | P4（sudo root reauth 删除，改 sudo 每次重验） | sudo root reauth（3 分钟票） |  |
 | POST | `/api/account/reset` | **public**（救援可用） | `password-set` → root；`passkey-list` → root；`passkey-add-challenge` → root；`passkey-add` → root；`passkey-delete` → root；`finish` → root |  | P3（救援入口直接签 15 分钟一次性 root 会话） | 恢复密钥换 reset 票；之后的写只在救援会话里 |  |

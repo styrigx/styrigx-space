@@ -214,6 +214,7 @@ term:
   usageUseradd: "用法：useradd <名字> [-e YYYY-MM-DD] [-G 组,组]"
   usageUserdel: "用法：userdel <名字>"
   usageUsermod: "用法：usermod -aG | -rG <组[,组]> <名字>"
+  usageRescue: "用法：rescue"
   needEntry: "还没进站 · 先 {x}"
   needRoot: "还没登录账号 · 先 {x}"
   needRoot6: "当前用户没有这个权限 · 先 {x}"
@@ -251,6 +252,7 @@ man:
   useradd: "新建用户（一次性密码，只显示一次）"
   userdel: "删除用户，连同会话、钥匙和组"
   usermod: "把用户加进组或移出组"
+  rescue: "输恢复钥匙 → 15 分钟 root 救援会话"
 # 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；英文底在 assets/js/shell/term/man/pages.js，行数一一对应）。{root} / {admin} 换成命令字；命令写法、提示符不翻译。
 # 中文页每一页都要有（tests/space/ui/shell/man-i18n.test.mjs 查）。
 manBody:
@@ -339,6 +341,12 @@ manBody:
     auth: "root，或 sudo usermod（sudoers）"
     notes:
       - "移除 wheel 或 sudoers 的最后一个成员会先问一次。"
+  rescue:
+    desc:
+      - "只能用：passwd、passkey、whoami、groups、exit、lock"
+      - "用过的钥匙不能再用，救援后去 Cloudflare 换新值"
+    notes:
+      - "换钥匙不走终端，由 Gray 在 Cloudflare dashboard 改"
 # 终端窗口底部的按键提示行（Gray 2026-11-09 细节 1）：键名同英文表
 kh:
   cmd: "enter 执行 · esc 关闭"
@@ -835,3 +843,6 @@ identity:
   passwdDone: "✓ 密码已改 · 其他会话已退出"
   usageSudo: "用法：sudo useradd | userdel | usermod | passwd <名字> | groups [名字] | who"
   usageSu: "用法：su <用户> | su root"
+  rescueKey: "恢复钥匙："
+  rescueLimit: "只能重设 root 凭据，15 分钟"
+  rescueRotate: "用过的钥匙不能再用，救援后去 Cloudflare 换新值"

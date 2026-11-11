@@ -67,11 +67,11 @@ test('ACCOUNT_SCHEMA + IDENTITY_SCHEMA（兜底建表）与迁移建出的 accou
   assert.deepEqual(names(b), [...all].sort());
 });
 
-test('secrets：五个名字 = 签名钥匙一对 + 恢复密钥 + 账号密码 pepper + 进站密码 pepper（v6 P2 pepper 方案 a，只读、P4 删）', () => {
-  assert.deepEqual([...SECRET_NAMES], ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_RECOVERY_KEY', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'SGX_SPACE_PASSWORD_PEPPER']);
+test('secrets：六个名字 = 签名钥匙一对 + 恢复密钥 + 账号密码 pepper + 进站密码 pepper（v6 P2 pepper 方案 a，只读、P4 删）+ 救援钥匙（v6 P3，定稿 §九）', () => {
+  assert.deepEqual([...SECRET_NAMES], ['SGX_ACCOUNT_PRIVATE', 'SGX_ACCOUNT_PUBLIC', 'SGX_ACCOUNT_RECOVERY_KEY', 'SGX_ACCOUNT_PASSWORD_PEPPER', 'SGX_SPACE_PASSWORD_PEPPER', 'SGX_ACCOUNT_RESCUE_KEY']);
 });
 
-test('wrangler.toml：正式段恰好这五个 Secrets Store 绑定（v6 P2 加 SGX_SPACE_PASSWORD_PEPPER），binding = secret_name，store 同网关；预览不绑；不再绑 SGX_ACCOUNT_ROOT_KEY', () => {
+test('wrangler.toml：正式段恰好这六个 Secrets Store 绑定（v6 P2 加 SGX_SPACE_PASSWORD_PEPPER，P3 加 SGX_ACCOUNT_RESCUE_KEY），binding = secret_name，store 同网关；预览不绑；不再绑 SGX_ACCOUNT_ROOT_KEY', () => {
   const toml = readFileSync(REPO + 'workers/account/wrangler.toml', 'utf8');
   const code = toml.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
   const [prod, preview] = code.split(/^\[env\.preview\]$/m);

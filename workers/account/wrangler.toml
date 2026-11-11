@@ -60,6 +60,8 @@ migrations_dir = "migrations"
 # - SGX_ACCOUNT_PASSWORD_PEPPER：账号密码哈希的 pepper，账号独占（命名 v2 起不再和网关共用）
 # - SGX_SPACE_PASSWORD_PEPPER（v6 P2，pepper 方案 a，ADR-0006 §2.12 (b)）：进站密码的 pepper，网关原来就绑着；账号 Worker 只读，
 #   用来验从进站密码迁来的 styrigx 密码（account_user_password.pepper_id = 'space'），验对后用账号 pepper 重算。只加绑定，不碰值；P4 删。
+# - SGX_ACCOUNT_RESCUE_KEY（v6 P3，定稿 v5.2 §九）：救援钥匙。救援入口（POST /api/identity action rescue）只读 get() 做恒定时间比对；
+#   Gray 在 dashboard 设值 / 换值（每次救援后换），运行时生效不用重部署。2026-11-11 05:23 Gray 已在这个 store 建好（Workers 范围）；只加绑定，不碰值。
 # 后两个部署前要先在 Cloudflare 后台建好（2026-11-08 Gray 已建）；SGX_SPACE_PASSWORD_PEPPER 早已在同一个 store 里。
 # 部署 token 要有 Secrets Store 编辑权限（带 Secrets Store 绑定部署必须 Edit，否则报 10021）。
 [[secrets_store_secrets]]
@@ -86,6 +88,11 @@ secret_name = "SGX_ACCOUNT_PASSWORD_PEPPER"
 binding = "SGX_SPACE_PASSWORD_PEPPER"
 store_id = "a5a984f365424401bad5ad6ddcd44479"
 secret_name = "SGX_SPACE_PASSWORD_PEPPER"
+
+[[secrets_store_secrets]]
+binding = "SGX_ACCOUNT_RESCUE_KEY"
+store_id = "a5a984f365424401bad5ad6ddcd44479"
+secret_name = "SGX_ACCOUNT_RESCUE_KEY"
 
 # ---- 服务绑定：代理订阅管理（设计稿 v1.7 §7；/api/account/proxy 验完会话 / reauth 后调）----
 # 订阅的数据和 SGX_PROXY_DB_KEY 只在 styrigx-proxy-rules；本 Worker 只转发。预览环境不绑（/api/account/proxy 回 503 config）。

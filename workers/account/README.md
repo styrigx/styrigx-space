@@ -121,6 +121,7 @@ Secrets Store（`src/secrets.js` 换成字符串，60 秒缓存）：
 | `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC` | 三张票的签名钥匙对（签名串带 cookie 名，票之间互相冒充不了） |
 | `SGX_ACCOUNT_RECOVERY_KEY` | 恢复密钥（`POST /api/account/reset { action:'recovery-key', key }`，只签 reset 票），与进站凭证 `SGX_SPACE_RECOVERY_KEY` 是不同的值、各自计数 |
 | `SGX_ACCOUNT_PASSWORD_PEPPER` | 账号密码哈希 pepper，账号独占（网关的锁屏密码用自己的 `SGX_SPACE_PASSWORD_PEPPER`） |
+| `SGX_ACCOUNT_RESCUE_KEY` | v6 P3 救援钥匙（定稿 v5.2 §九）：`POST /api/identity { action:'rescue', key }` 只读比对，通过签 15 分钟一次性 root 救援会话；Gray 在 dashboard 设值 / 换值，代码不写不删 |
 
 ## 数据与迁移
 

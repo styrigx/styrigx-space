@@ -74,9 +74,9 @@ export const ROUTE_ACCESS = Object.freeze([
 
   /* ---------- 账号 styrigx-account（网关 FORWARDING 转来；workers/account/src/router.js API_ROUTES） ---------- */
   R({ method: 'GET', path: '/api/account', level: 'public', worker: 'account', why: '账号终端状态（访客也要读提示符状态）' }),
-  R({ method: 'POST', path: '/api/identity', level: 'public', worker: 'account', why: 'v6 身份命令（P2）：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；每个 action 一档',
+  R({ method: 'POST', path: '/api/identity', level: 'public', worker: 'account', why: 'v6 身份命令（P2）：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue；每个 action 一档',
     actions: {
-      whoami: 'public', 'su-challenge': 'public', su: 'public', exit: 'public', idle: 'public', lock: 'public',
+      whoami: 'public', 'su-challenge': 'public', su: 'public', exit: 'public', idle: 'public', lock: 'public', rescue: 'public',
       passwd: 'user', 'passkey-list': 'user', 'passkey-add-challenge': 'user', 'passkey-add': 'user', 'passkey-delete': 'user', groups: 'user', who: 'user',
       'sudo-challenge': 'sudoers', sudo: 'sudoers',
       useradd: 'root', userdel: 'root', usermod: 'root', 'passwd-user': 'root',
