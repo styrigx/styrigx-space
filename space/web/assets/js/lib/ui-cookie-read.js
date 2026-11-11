@@ -24,11 +24,11 @@
 (function (g) {
   'use strict';
   /* @ui-cookie-presets:begin（space/scripts/gen-shell.mjs 按 space/web/data/palette-roles.json + palette-scheme.js 生成，勿手改） */
-  var PRESETS = {"cherry":"#86ad3f","tangerine":"#168f9c","terra":"#de7a58","amber":"#b54a88","matcha":"#c46a43","forest":"#f08a3c","teal":"#d6334a","lake":"#f17f72","indigo":"#f2559b","violet":"#d4628f","orchid":"#7a95ab","berry":"#e3a93b","rose":"#f2a86b","graphite":"#4f86b5","dustyrose":"#94a982","coral":"#168f9c","cream":"#168f9c","champagne":"#536dfa","mustard":"#7a95ab","sage":"#cf9494","glacier":"#f17f72","dustyblue":"#d4a72c"};
+  var PRESETS = {"cherry":"#86ad3f","tangerine":"#168f9c","terra":"#de7a58","amber":"#b54a88","matcha":"#c46a43","forest":"#f08a3c","teal":"#d6334a","lake":"#f17f72","indigo":"#f2559b","violet":"#d4628f","orchid":"#7a95ab","berry":"#e3a93b","rose":"#f2a86b","graphite":"#4f86b5","dustyrose":"#94a982","coral":"#168f9c","cream":"#168f9c","champagne":"#536dfa","mustard":"#7a95ab","lime":"#536dfa","sage":"#cf9494","aqua":"#f17f72","glacier":"#f17f72","dustyblue":"#d4a72c","lilac":"#168f9c"};
   /* 深套（底色 OKLCH L < 0.6）：dark 类只表示「当前是深套」 */
   var DARK = ["cherry","tangerine","terra","amber","matcha","forest","teal","lake","indigo","violet","orchid","berry","rose","graphite"];
   /* 每套页面底色：<meta name="theme-color"> 用 */
-  var BG = {"cherry":"#2d0605","tangerine":"#2d0701","terra":"#161412","amber":"#211200","matcha":"#0b1b00","forest":"#001c0f","teal":"#001b1b","lake":"#01172b","indigo":"#0c1233","violet":"#180e30","orchid":"#270821","berry":"#29061b","rose":"#2b0615","graphite":"#12171b","dustyrose":"#faecec","coral":"#ffebe8","cream":"#f2f0eb","champagne":"#f7efe0","mustard":"#faefd6","sage":"#edf2e8","glacier":"#e0f4fc","dustyblue":"#ebf1f5"};
+  var BG = {"cherry":"#2d0605","tangerine":"#2d0701","terra":"#161412","amber":"#211200","matcha":"#0b1b00","forest":"#001c0f","teal":"#001b1b","lake":"#01172b","indigo":"#0c1233","violet":"#180e30","orchid":"#270821","berry":"#29061b","rose":"#2b0615","graphite":"#12171b","dustyrose":"#faecec","coral":"#ffebe8","cream":"#f2f0eb","champagne":"#f7efe0","mustard":"#faefd6","lime":"#eef4d9","sage":"#edf2e8","aqua":"#e1f5f2","glacier":"#e0f4fc","dustyblue":"#ebf1f5","lilac":"#f8ebfb"};
   /* @ui-cookie-presets:end */
 
   var NAME = 'sgx-ui';

@@ -25,7 +25,7 @@ palette-scheme.js
 
 ## 1. 一套调色板是什么
 
-22 套，每套 = **七色：底、面、字、主、辅、第三、点缀**（3.0，2026-11-12）。原来的「单色 / 撞色」两组合并成一个列表，`x*` 撞色 id 删除（旧值 `x<id>` 自动迁到 `<id>`）。默认 **terra（陶土，深套）**。
+25 套（2026-11-12 加柠檬绿 lime、浅青 aqua、丁香 lilac 三套浅套，11 浅 14 深；选择器先深后浅、段内按色相），每套 = **七色：底、面、字、主、辅、第三、点缀**（3.0，2026-11-12）。原来的「单色 / 撞色」两组合并成一个列表，`x*` 撞色 id 删除（旧值 `x<id>` 自动迁到 `<id>`）。默认 **terra（陶土，深套）**。
 
 1.1 **每套只有一个模式**（3.0 起删除深浅模式 `theme-mode` 和自定义主题色 `accent`）：底色 OKLCH L ≥ 0.6 为浅套，否则为深套。
 **8 套浅**：雾霾蓝 dustyblue、冰川蓝 glacier、鼠尾草绿 sage、珊瑚 coral、芥末黄 mustard、香槟金 champagne、干枯玫瑰 dustyrose、奶油白 cream；其余 **14 套深**。
@@ -57,7 +57,7 @@ palette-scheme.js
 - 背景色 → 7 档深浅 `--sgx-bg-1..7`（浅色从页面底 L 0.97 往深走，深色从 L 0.16 往亮走）。
 - 6 个前景色按顺序有固定角色：**主交互 / 辅助强调 / 标题图标 / 标签装饰 / 图表装饰 / 低频点缀**。
   每色四档：`--sgx-fg-N`（本色，按钮 / 进度 / 填充）、`--sgx-fg-N-on`（本色上的字，自动挑深墨 / 白 ≥4.5:1）、`--sgx-fg-N-tint`（浅底，标签 / 选中底）、`--sgx-fg-N-ink`（文字 / 图标档：浅色压深、深色提亮）。
-- 22 套的值**全部由公式生成**（3.0 起每套只生成自己那个模式）（`themeSpec()` + 同一条亮度阶梯 + 对比度审计），没有逐套手调的深色值；单测断言规格里没有 `p.hd` / `tune` / `slider` 这类覆盖。
+- 25 套的值**全部由公式生成**（3.0 起每套只生成自己那个模式）（`themeSpec()` + 同一条亮度阶梯 + 对比度审计），没有逐套手调的深色值；单测断言规格里没有 `p.hd` / `tune` / `slider` 这类覆盖。
 
 ### 档位怎么用（硬规则）
 
@@ -135,11 +135,11 @@ palette-scheme.js
 - **ink = `primary`**：压深到在所有表面上 ≥4.5:1，只给文字、链接、图标、焦点环、滑块圆点。
 - **fill = `primary-fill`**：前景 1 本色（浅色 = 色池原值，深色 = `fgTones` 深色 base，就是 `--sgx-fg-1`），不压深。
   上面的字 `on-primary-fill` 由引擎 `fillPair()` 自动挑：同色相近黑深墨（L 0.24）和白里对比度高的那个；都不到 4.5:1（中间调，如电光蓝）时
-  再试更深的墨 / 纯白，取最高的；还不够才把填充本身沿亮度挪（22 套预设都不需要挪）。芥末上 = 深墨 `#291d00`（7.4:1）。
+  再试更深的墨 / 纯白，取最高的；还不够才把填充本身沿亮度挪（25 套预设都不需要挪）。芥末上 = 深墨 `#291d00`（7.4:1）。
 - 开关 / 滑块的「开着」：浅填充（芥末对白卡约 2.2:1）本身达不到控件 3:1，审计改量「轨道 / 圆点里对比度高的那个」（`@switch-on` / `@slider-on`）：
   开关圆点 = `on-primary-fill`（深墨），滑块圆点 = `primary` ink，所以状态仍 ≥3:1。
 - 辅色 / 第三色：没有带字的实色填充（状态页「正常」原来用 tertiary，已换成固定 success），不带字的填充照旧用 `secondary-fill` / `tertiary-fill`。
-- 单测：22 套 `on-primary-fill` / `primary-fill` ≥4.5:1、`primary-fill` = `--sgx-fg-1`、`primary` ink 在表面上 ≥4.5:1、审计零失败。
+- 单测：25 套 `on-primary-fill` / `primary-fill` ≥4.5:1、`primary-fill` = `--sgx-fg-1`、`primary` ink 在表面上 ≥4.5:1、审计零失败。
 
 ## 5. 组件角色表（阈值）与回退顺序
 
@@ -165,7 +165,7 @@ palette-scheme.js
 
 ## 6. 导出 token 全目录（`space/web/data/shell/palettes.json` / `space/web/assets/css/shell/tokens.css`）
 
-主站组件只引用 Shell + Semantic；共享外壳**完整导出**下面这些（22 套，每套一段 `:root[data-palette]`，值与 `tokens.css` 同名 `--sgx-*` 变量一致），子站按需索取。
+主站组件只引用 Shell + Semantic；共享外壳**完整导出**下面这些（25 套，每套一段 `:root[data-palette]`，值与 `tokens.css` 同名 `--sgx-*` 变量一致），子站按需索取。
 `palettes.json` 每套 `{ mode, tokens }`，顶层带 **`rulesVersion: "palette-rules-2"`**（本文这套用法规则的版本；3.0 起删 `schemeVersion`）。
 
 | 组 | token |

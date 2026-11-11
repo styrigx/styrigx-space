@@ -5,7 +5,7 @@
  * 和 JS（assets/js/shell/*、assets/js/lib/*），没有副本、没有同步脚本、没有 lock。
  *
  * 只剩四个由源头算出来、没法直接引用的派生文件由本脚本生成（勿手改，改源头后重跑本脚本）：
- *   space/web/assets/css/shell/tokens.css  22 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
+ *   space/web/assets/css/shell/tokens.css  25 套七色调色板的色彩角色 + 色调 token（--sgx-bg-1..7 / --sgx-fg-1..6；space/web/data/palette-roles.json，和 input.css 里 @gen-palettes 同一个函数）
  *                                          + 调色板派生 token（tag / chart）+ 组件别名层
  *   space/web/assets/css/shell/shell.css   顶栏（全大椭圆）、快捷面板 + AI 窗口、页头 / 子页共用件、宽屏平铺：input.css 里 /* @shell:begin <名> *\/ … /* @shell:end <名> *\/ 之间的原文
  *                                          （子站样式表 @import 这两份：assets/blog/css/input.css、assets/curio/css/input.css、assets/daymark/css/input.css）
@@ -133,7 +133,7 @@ function renderTokens(data) {
     .join('\n');
   return (
     HEAD('space/web/data/palette-roles.json') +
-    '/* 22 套七色调色板：<html data-palette="<id>">（默认 terra 不写）；每套只有一个模式（浅套 / 深套由底色决定），深套时 <html class="dark">。 */\n' +
+    '/* 25 套七色调色板：<html data-palette="<id>">（默认 terra 不写）；每套只有一个模式（浅套 / 深套由底色决定），深套时 <html class="dark">。 */\n' +
     block +
     '\n/* 调色板派生 token（tag / chart）：只引用上面的色调 token */\n' +
     derivedCss +
@@ -295,7 +295,7 @@ export function sharedTokens(p) {
 }
 
 function renderPalettes(data) {
-  /* 顺序 = palette-roles.json（= palette-scheme.js PRESETS = 设置页网格顺序，按 group 分组）；2026-10-23 PR-G 起 22 套七色调色板，
+  /* 顺序 = palette-roles.json（= palette-scheme.js PRESETS = 设置页网格顺序，按 group 分组）；2026-10-23 PR-G 起 25 套七色调色板，
      group = cool / nature / warm / floral / neutral，每项带 bg / fg、mode（light = 浅套 / dark = 深套）和本套 tokens */
   const ids = Object.keys(data.presets);
   return (

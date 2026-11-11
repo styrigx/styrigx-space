@@ -49,7 +49,7 @@ const cr = (a, b) => { const x = lum(a); const y = lum(b); return (Math.max(x, y
 
 test('§6.2 对比度：22 套预设（v4 起每套一个模式），非当前项 / 当前项文字都 ≥ 4.5:1', () => {
   const { presets } = JSON.parse(rd('space/web/data/shell/palettes.json'));
-  assert.equal(presets.length, 22);
+  assert.equal(presets.length, 25);
   for (const p of presets) {
     const t = p.tokens, mode = p.mode;
     const base = over(rgba(t['topbar-glass']), rgba(t.background));

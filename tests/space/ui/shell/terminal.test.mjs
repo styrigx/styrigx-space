@@ -102,7 +102,7 @@ test('complete：参数补全（passkey；第三个词不补；v6 P4 起 sudo st
   assert.deepEqual(complete('theme te'), { line: 'theme te', options: ['terra', 'teal'] });
   assert.deepEqual(complete('theme gr'), { line: 'theme graphite', options: [] });
   assert.deepEqual(ARGS.theme, PAL, 'theme 补全 = 22 个调色板 id');
-  assert.equal(PAL.length, 22);
+  assert.equal(PAL.length, 25);
   assert.deepEqual(complete('cat d'), { line: 'cat daymark/today', options: [] });
   assert.deepEqual(complete('cd blog x'), { line: 'cd blog x', options: [] });
 });

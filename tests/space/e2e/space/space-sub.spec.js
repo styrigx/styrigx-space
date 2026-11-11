@@ -268,7 +268,7 @@ test('palette 8-color test state（外观弹层）', async ({ page: pg }) => {
   const path = require('path');
   const yml = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'space', 'web', 'data', 'palettes.yaml'), 'utf8');
   const items = [...yml.matchAll(/^\s*- id: ([a-z]+)\n(?:\s+\w+: .*\n)*?\s+group: ([a-z]+)$/gm)].map((m) => m[1]);
-  expect(items.length).toBe(22);
+  expect(items.length).toBe(25);
   await expect(pg.locator('[data-pal-tab], #palette-dots-clash, .swatch-clash')).toHaveCount(0);
   /* 顺序 = palettes.yaml；每块 6 色点 */
   expect(await grid.locator('[data-qp-palette]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp-palette')))).toEqual(items);

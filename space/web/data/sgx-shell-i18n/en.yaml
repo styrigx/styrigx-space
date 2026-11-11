@@ -126,6 +126,9 @@ palette:
   dustyrose: "Dusty Rose"
   graphite: "Graphite"
   cream: "Cream"
+  lime: "Lime"
+  aqua: "Aqua"
+  lilac: "Lilac"
 paletteGroup:
   cool: "Cool"
   nature: "Nature"

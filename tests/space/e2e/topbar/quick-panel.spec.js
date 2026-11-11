@@ -185,8 +185,8 @@ test.describe('外观面板：开合', () => {
       return document.getElementById('sgx-qp').contains(a) || a === document.querySelector('.sgx-tb-quick');
     });
     let sawIcon = false;
-    /* 一圈 = 图标 + 恢复默认 + 色板 22 = 24 下（调色板 v4 删了 MODE 三段） */
-    const LOOP = 24;
+    /* 一圈 = 图标 + 恢复默认 + 色板 25 = 27 下（调色板 v4 删了 MODE 三段；2026-11-12 加三套浅套） */
+    const LOOP = 27;
     expect(await tabbables(page)).toBe(LOOP);
     for (let i = 0; i < LOOP + 10; i++) {
       await page.keyboard.press('Tab');
@@ -346,7 +346,7 @@ test.describe('外观面板：内容', () => {
     await expect(page.locator('#sgx-qp [data-qp="motion"], #sgx-nav [data-qp="motion"]')).toHaveCount(0);
     await expect(page.locator('[data-qp-seg="font-size"]')).toHaveCount(0);
     /* 22 套七色调色板一个列表（含默认 terra 和普通色板 lake），每行 6 个前景色圆点（f1–f6，2026-11 PR-2 恢复）+ 名字（2026-11-12 起跟页面语言：中文页 zh、英文页 en；读屏同名） */
-    await expect(page.locator('#sgx-qp [data-qp-palette]')).toHaveCount(22);
+    await expect(page.locator('#sgx-qp [data-qp-palette]')).toHaveCount(25);
     await expect(page.locator('#sgx-qp .sgx-th-pal .sgx-th-sw u')).toHaveCount(132);
     {
       const sw = await page.locator('#sgx-qp [data-qp-palette="lake"] .sgx-th-sw u').evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
@@ -357,7 +357,7 @@ test.describe('外观面板：内容', () => {
     /* 2026-11-12 Gray 改设计：名字跟页面语言（中文页 zh），不再是等宽小写英文；顺序先深后浅、段内按色相 */
     await expect(page.locator('#sgx-qp [data-qp-palette="lake"] .sgx-th-name')).toHaveText('湖蓝');
     await expect(page.locator('#sgx-qp [data-qp-palette="terra"] .sgx-th-name')).toHaveText('陶土');
-    await expect(page.locator('#sgx-qp .sgx-th-name')).toHaveText(['樱桃', '橘子', '陶土', '琥珀', '抹茶', '山绿', '青碧', '湖蓝', '靛蓝', '紫', '兰紫', '莓果', '蔷薇', '石墨', '干枯玫瑰', '珊瑚', '奶油白', '香槟金', '芥末黄', '鼠尾草绿', '冰川蓝', '雾霾蓝']);
+    await expect(page.locator('#sgx-qp .sgx-th-name')).toHaveText(['樱桃', '橘子', '陶土', '琥珀', '抹茶', '山绿', '青碧', '湖蓝', '靛蓝', '紫', '兰紫', '莓果', '蔷薇', '石墨', '干枯玫瑰', '珊瑚', '奶油白', '香槟金', '芥末黄', '柠檬绿', '鼠尾草绿', '浅青', '冰川蓝', '雾霾蓝', '丁香']);
     await expect(page.locator('#sgx-qp [data-qp-palette="lake"]')).toHaveAccessibleName('湖蓝');
     await expect(page.locator('#sgx-qp [data-qp-palette^="x"]')).toHaveCount(0);
     await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveText('reset');
@@ -443,7 +443,7 @@ test.describe('外观面板：内容', () => {
     await expect(page.locator('.sgx-tb-quick')).toHaveAttribute('aria-label', 'Appearance');
     await openQp(page);
     await expect(page.locator('#sgx-qp .sgx-th-h')).toHaveText(['PALETTE']);
-    await expect(page.locator('#sgx-qp .sgx-th-name')).toHaveText(['Cherry', 'Tangerine', 'Terracotta', 'Amber', 'Matcha', 'Forest', 'Teal', 'Lake', 'Indigo', 'Violet', 'Orchid', 'Berry', 'Rose', 'Graphite', 'Dusty Rose', 'Coral', 'Cream', 'Champagne', 'Mustard', 'Sage', 'Glacier', 'Dusty Blue']);
+    await expect(page.locator('#sgx-qp .sgx-th-name')).toHaveText(['Cherry', 'Tangerine', 'Terracotta', 'Amber', 'Matcha', 'Forest', 'Teal', 'Lake', 'Indigo', 'Violet', 'Orchid', 'Berry', 'Rose', 'Graphite', 'Dusty Rose', 'Coral', 'Cream', 'Champagne', 'Mustard', 'Lime', 'Sage', 'Aqua', 'Glacier', 'Dusty Blue', 'Lilac']);
     await expect(page.locator('#sgx-qp [data-qp-palette="lake"]')).toHaveAccessibleName('Lake');
     await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveText('reset');
     await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveAccessibleName('Reset');

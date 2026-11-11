@@ -121,6 +121,9 @@ palette:
   dustyrose: "干枯玫瑰"
   graphite: "石墨"
   cream: "奶油白"
+  lime: "柠檬绿"
+  aqua: "浅青"
+  lilac: "丁香"
 paletteGroup:
   cool: "冷调"
   nature: "自然"

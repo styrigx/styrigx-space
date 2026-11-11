@@ -149,6 +149,6 @@ const check = (t, label) => {
 
 test('对比度：22 套预设（每套一个模式），nav-selected 非当前项 / 当前项文字 ≥ 4.5:1', () => {
   const { presets } = JSON.parse(rd('space/web/data/shell/palettes.json'));
-  assert.equal(presets.length, 22);
+  assert.equal(presets.length, 25);
   for (const p of presets) check(p.tokens, `${p.id} ${p.mode}`);
 });
