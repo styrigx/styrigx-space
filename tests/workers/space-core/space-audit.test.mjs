@@ -89,6 +89,25 @@ test('space-audit：D1 查询出错 → 503 server；没绑 D1_SPACE → 500 con
   assert.deepEqual(await res2.json(), { ok: false, error: 'config' });
 });
 
+test('space-audit（P4-3 恢复写入，定稿 v5.5 §四）：账号侧 v6 su / sudo（ACCOUNT_VERIFIER.auditList）与旧行按时间合成，新的在前；auditList 失败 → 503；旧版本没有 auditList → 只给旧行', async () => {
+  const db = makeAuthD1();
+  const now = Date.now();
+  putAudit(db, { id: 'o1', ts: now - 5000, ip_prefix: 'old', ok: true });
+  const env = envOf(db);
+  const seen = [];
+  env.ACCOUNT_VERIFIER.auditList = async (cookie) => { seen.push(cookie); return { ok: true, items: [{ ts: now - 1000, ipPrefix: 'v6', ok: true, uid: 1000, command: 'su root' }, { ts: now - 9000, ipPrefix: 'v6b', ok: false, uid: null, command: 'login-fail su' }] }; };
+  const res = await onRequestGet({ request: await req(), env });
+  assert.equal(res.status, 200);
+  const { items } = await res.json();
+  assert.deepEqual(items.map((x) => x.ipPrefix), ['v6', 'old', 'v6b']);
+  assert.equal(items[0].command, 'su root');
+  assert.deepEqual(seen, ['sgx-session=root'], '会话 cookie 原样交给账号 Worker 重新判');
+  env.ACCOUNT_VERIFIER.auditList = async () => ({ ok: false, error: 'server' });
+  assert.equal((await onRequestGet({ request: await req(), env })).status, 503);
+  delete env.ACCOUNT_VERIFIER.auditList;
+  assert.deepEqual((await (await onRequestGet({ request: await req(), env })).json()).items.map((x) => x.ipPrefix), ['old']);
+});
+
 /* ===== 写入：只追加 ===== */
 
 test('writeSpaceAudit：每次写一行（realm=lock，只存 IP 前缀），不覆盖已有行；读出新的在前', async () => {

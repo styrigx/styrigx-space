@@ -174,7 +174,7 @@ term:
   opening: "打开 {x} …"
   todayNone: "今天还没有句子 · {x}"
   todayFail: "今日一句没取到 · {x}"
-  usageSudo: "用法：sudo useradd | userdel | usermod | passwd <名字> | groups [名字] | who"
+  usageSudo: "用法：sudo useradd | userdel | usermod | passwd <名字> | groups [名字] | who | device [rm <n> | rm --all] | sub …"
   usageTheme: "用法：theme [dark | light | auto]"
   usageCat: "用法：cat daymark/today"
   themeSet: "theme → {x}"
@@ -208,8 +208,7 @@ term:
   suUser: "<用户>"
   exitFirst: "已经以 {u} 登录 · 先 {x}"
   notHere: "{x}：请在终端里运行（Ctrl K）"
-  # #404 未决项（Gray 11-11 15:37 定稿文案）：sudo sub / sudo app 暂不支持（第 2 项）；v6 身份输已移除的旧命令（第 3 项，P4 连命令一起删）
-  sudoNotYet: "sudo {x} 暂不支持 · 先 su root，再直接用 {x}"
+  # #404 未决项（Gray 11-11 15:37 定稿文案）：v6 身份输已移除的旧命令（第 3 项，P4 连命令一起删）；sudo sub 暂不支持一句随 P4-3 接通 sudo sub / sudo device 删除
   goneSudoV: "sudo -v 已移除 · v6 里每次 sudo 都会重新验证"
   goneSudoReauth: "sudo root reauth 已移除 · 需要 root 权限时直接 su root"
   goneLockPasswd: "lock passwd 已移除 · 改自己的密码用 passwd"

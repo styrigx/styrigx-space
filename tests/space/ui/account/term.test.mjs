@@ -32,7 +32,7 @@ test('v6 P4：旧账号会话的命令字（sudo root / reauth / reset）和输�
 });
 
 test('账号卡片的行 → 终端预填的命令（S9）；profile set 的字段名', () => {
-  assert.deepEqual({ ...W.CARD_CMDS }, { profile: 'profile', devices: 'device', keys: 'passkey', exit: 'exit', login: 'su root' }, '登录行 sudo root → su root（Gray 11-11 17:51）；应用授权行随应用授权删除（定稿 v5.3 §十二）');
+  assert.deepEqual({ ...W.CARD_CMDS }, { profile: 'profile', devices: 'device', lock: 'lock', login: 'su root' }, '登录行 sudo root → su root（Gray 11-11 17:51）；应用授权行随应用授权删除（定稿 v5.3 §十二）；P4-3 账号安全行删除、退出行 exit → lock（定稿 v5.5 §七）');
   assert.deepEqual({ ...C.PROFILE_KEYS }, { name: 'name', nick: 'nickname', sign: 'motto', email: 'email' });
   const prof = ACM.ACCOUNT_CMDS.find((c) => c.name === 'profile');
   assert.deepEqual(prof.subArgs('set'), Object.keys(C.PROFILE_KEYS), '补全表和字段表一致');

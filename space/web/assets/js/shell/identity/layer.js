@@ -263,6 +263,27 @@ export function mountIdentityLayer(o) {
     proofOf(t('pwFor', { u: u.name }), 'sudo-challenge', function (proof) { runAdmin(cmd, proof, argv.join(' ')); });
   };
 
+  /**
+   * sudo 借 root 跑一条账号命令（sudo device … / sudo sub …；定稿 v5.5 §四、§七）：root 不用 sudo → done(null)；
+   * 不是 sudoers → 一行红字；否则先验自己的凭据（同 sudo <命令> 的「[sudo] password for <自己>:」），done(via)：
+   * via() 每次回一份证明（密码这一条命令里沿用同一个；通行密钥第一次用刚拿到的，之后每次重新验，challenge 一次一用）。
+   * @param {(via: null | (() => Promise<any>)) => void} done
+   */
+  C.sudoProof = function (done) {
+    const u = me();
+    if (!u) { C.err(t('notSignedIn')); return; }
+    if (u.root) { done(null); return; }
+    if (!u.sudoers) { C.err(t('notSudoers', { u: u.name })); return; }
+    proofOf(t('pwFor', { u: u.name }), 'sudo-challenge', function (proof) {
+      let first = proof;
+      done(function () {
+        if (proof && typeof proof.password === 'string') return Promise.resolve({ password: proof.password });
+        if (first) { const p = first; first = null; return Promise.resolve(p); }
+        return api.passkeyProof('sudo-challenge');
+      });
+    });
+  };
+
   /* ---------- passwd ---------- */
   /** passwd（自己）/ passwd <名>（root） @param {string} [name] */
   C.cmdPasswd = function (name) {

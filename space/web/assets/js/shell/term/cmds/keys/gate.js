@@ -19,14 +19,21 @@ export function needSu(x) {
 
 /**
  * v6 的 root 档命令（v6-commands「授权与订阅（root，或 sudo）」；路由表 /api/account/proxy 是 root 档）：
- * v6 root → { direct: true }；v6 普通用户 → 一条「当前用户没有这个权限 · 先 su root」；访客 → 先 su <用户>。
- * @param {any} x @returns {{direct: true}|{out: any[]}}
+ * v6 root → { direct: true }；别的已登录身份 → 一条「当前用户没有这个权限 · 先 <how>」（P4-3：在 sudoers 里给 sudo <这一行>，
+ * 定稿 v5.5 §四「站长用 sudo 提权」；不在 sudoers 照旧 su root）；访客 → 先 su <用户>。
+ * @param {any} x @param {string} [how] @returns {{direct: true}|{out: any[]}}
  */
-export function v6RootGate(x) {
+export function v6RootGate(x, how) {
   const w = x.who();
   if (!isV6(w)) return { out: [needSu(x)] };
-  if (!v6Root(w)) return { out: [line(x, 'needRoot6', 'su root')] };
+  if (!v6Root(w)) return { out: [line(x, 'needRoot6', how && canSudo(x) ? how : 'su root')] };
   return { direct: true };
+}
+
+/** 当前身份在不在 sudoers（whoami 的 user；没问到 → false，照旧提示 su root） @param {any} x */
+export function canSudo(x) {
+  const u = typeof x.me === 'function' ? x.me() : null;
+  return !!(u && u.sudoers === true);
 }
 
 /**

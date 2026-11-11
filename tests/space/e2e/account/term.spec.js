@@ -55,13 +55,14 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
     await expect(av).toBeFocused();
   });
 
-  test('已登录（v6 root）：个人资料 / 设备 / 账号安全 / 退出登录（应用授权行删了，定稿 v5.3 §十二）；点一行 = 收起卡片、打开终端、预填对应命令（不替人回车）', async ({ page }) => {
+  test('已登录（v6 root）：个人资料 / 设备 / 退出登录 lock（P4-3 账号安全行删除、exit → lock，定稿 v5.5 §七；应用授权行删了，定稿 v5.3 §十二）；点一行 = 收起卡片、打开终端、预填对应命令（不替人回车）', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await go(page, '/zh/wild/', { route: (pg) => A.mockAccount(pg) });
     const d = page.locator('#sgx-acct');
-    const rows = [['个人资料', 'profile'], ['设备', 'device'], ['账号安全', 'passkey'], ['退出登录', 'exit']];
+    const rows = [['个人资料', 'profile'], ['设备', 'device'], ['退出登录', 'lock']];
     await A.openCard(page);
     await expect(d.locator('.sgx-at-r').filter({ hasText: '应用授权' })).toHaveCount(0);
+    await expect(d.locator('.sgx-at-r').filter({ hasText: '账号安全' })).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(d).toBeHidden();
     await settled(page, 'sgx-acct');
@@ -89,13 +90,13 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
     await expect(d.locator('.sgx-pop-edit')).toHaveAttribute('data-at-run', 'profile');
   });
 
-  test('已登录（v6 普通用户）：卡片行同 v5（GUI 不改）；点头像 = 开账号卡片（定稿 §七 58–61，Gray 11-11 17:44），不预填', async ({ page }) => {
+  test('已登录（站长 styrigx）：账号页三行；点头像 = 开账号页（定稿 v5.5 §七），不预填', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await go(page, '/zh/wild/', { route: (pg) => A.mockAccount(pg, { user: A.V6_USER('styrigx') }) });
     const d = page.locator('#sgx-acct');
     await A.openCard(page);
     await expect(d).toHaveAttribute('data-acct-state', 'in');
-    await expect(d.locator('.sgx-at-r')).toHaveCount(4); // 个人资料 · 设备 · 账号安全 · 退出登录（应用授权行删了，定稿 v5.3 §十二）
+    await expect(d.locator('.sgx-at-r')).toHaveCount(3); // 个人资料 · 设备 · 退出登录 lock（P4-3 账号安全行删除，定稿 v5.5 §七）
     await page.keyboard.press('Escape');
     await expect(d).toBeHidden();
     await settled(page, 'sgx-acct');

@@ -64,9 +64,9 @@ test('sudo passkey（v6）交给身份层，身份层先回 rootCreds（定稿 �
   const layer = rd('space/web/assets/js/shell/identity/layer.js');
   assert.match(layer, /if \(argv\[0\] === 'passkey'\) \{ C\.err\(t\('rootCreds'\)\); return; \}\n\s+const cmd = sudoCommand\(argv\);/);
   const old = layers();
-  assert.equal(text(sh('nobody').exec('sudo passkey add', old.v).out[0]), 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who', '访客：同 main 不进身份层，给用法');
+  assert.equal(text(sh('nobody').exec('sudo passkey add', old.v).out[0]), 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who | device [rm <n> | rm --all] | sub …', '访客：同 main 不进身份层，给用法');
   assert.deepEqual(old.calls, []);
-  assert.equal(text(sh('nobody').exec('sudo styrigx', old.v).out[0]), 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who', '旧写法：sudo 用法');
+  assert.equal(text(sh('nobody').exec('sudo styrigx', old.v).out[0]), 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who | device [rm <n> | rm --all] | sub …', '旧写法：sudo 用法');
   for (const lang of ['en', 'zh']) {
     const t = yaml.load(rd('space/web/data/sgx-shell-i18n/' + lang + '.yaml'));
     assert.ok(t.identity.rootCreds, lang + ' rootCreds 已上线');

@@ -88,7 +88,7 @@ export const ERROR_CODES = Object.freeze({
   weak: [400], /* 新密码不合格（≥ 8 位、不等于用户名 / 旧密码） */
   'root-creds': [403], /* sudo / passwd <名> 不能动 root 的凭据，只能在 su root 或救援会话里 passwd */
   expiry: [400],
-  temporary: [400], /* 临时用户不能进 wheel / sudoers / 写组 */
+  temporary: [400], /* 普通用户（uid 1001 起，含临时用户）不能进 wheel / sudoers / 写组（码名沿用 P2） */
   group: [400],
   protected: [403], /* userdel / usermod 不能动 root、styrigx（带 target） */
   'last-member': [409], /* 减掉最后一个 wheel / sudoers 成员：带 force 再来一次 */

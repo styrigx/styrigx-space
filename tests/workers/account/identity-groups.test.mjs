@@ -4,7 +4,7 @@
  * - permits 顺序固定（P2，定稿 v4 §三）：救援 → root → 路由档；public 谁都行；访客只有 public；user = 任一已登录身份；
  *   root 只有 uid 0；owner = 站长 styrigx（root 由第 2 步放行）；组名：root 全过、普通用户要在组里；不认识的档拒绝
  * - 救援会话：只放标了 rescue 的路由，其余一律拒绝（即使是 root、即使是 public）
- * - canJoinGroup：临时用户进不了 wheel / sudoers / 写组；root 不进组；不认识的组拒绝
+ * - canJoinGroup：普通用户（uid 1001 起，含临时用户；定稿 v5.5 §四）进不了 wheel / sudoers / 写组；站长不受限；root 不进组；不认识的组拒绝
  * - 档的取值不和组名重名
  *
  * 运行：node --test tests/workers/account/identity-groups.test.mjs
@@ -71,12 +71,15 @@ test('isTemporary：有期限 = 临时用户', () => {
   assert.equal(G.isTemporary(null), false);
 });
 
-test('canJoinGroup：临时用户不进特权组 / 写组；root 不进组；不认识的组拒绝', () => {
+test('canJoinGroup：普通用户（uid 1001 起，临时 / 永久都算）不进特权组 / 写组；站长不受限；root 不进组；不认识的组拒绝', () => {
   const temp = { uid: 1001, expiresAt: Date.now() + 86400000 };
   const perm = { uid: 1001, expiresAt: 0 };
-  for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) assert.deepEqual(G.canJoinGroup(temp, g), { ok: false, reason: 'temporary' }, g);
-  for (const g of ['listen', 'ai', 'status']) assert.deepEqual(G.canJoinGroup(temp, g), { ok: true }, g);
-  for (const g of G.GROUPS) assert.deepEqual(G.canJoinGroup(perm, g), { ok: true }, g);
+  const owner = { uid: 1000, expiresAt: 0 };
+  for (const u of [temp, perm, { uid: 1042, expiresAt: 0 }]) {
+    for (const g of ['wheel', 'sudoers', 'curio-write', 'daymark-write']) assert.deepEqual(G.canJoinGroup(u, g), { ok: false, reason: 'temporary' }, u.uid + ' ' + g);
+    for (const g of ['listen', 'ai', 'status']) assert.deepEqual(G.canJoinGroup(u, g), { ok: true }, u.uid + ' ' + g);
+  }
+  for (const g of G.GROUPS) assert.deepEqual(G.canJoinGroup(owner, g), { ok: true }, g);
   assert.deepEqual(G.canJoinGroup({ uid: 0, expiresAt: 0 }, 'wheel'), { ok: false, reason: 'root' });
   assert.deepEqual(G.canJoinGroup(perm, 'admin'), { ok: false, reason: 'unknown-group' });
   assert.deepEqual(G.canJoinGroup(perm, 'root'), { ok: false, reason: 'unknown-group' });

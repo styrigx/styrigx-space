@@ -56,7 +56,7 @@ export const TERM_EN = {
   opening: 'opening {x} …',
   todayNone: 'no line for today yet · {x}',
   todayFail: 'couldn’t load today’s line · {x}',
-  usageSudo: 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who',
+  usageSudo: 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who | device [rm <n> | rm --all] | sub …',
   usageTheme: 'usage: theme [dark | light | auto]',
   usageCat: 'usage: cat daymark/today',
   usageLock: 'usage: lock',
@@ -89,7 +89,6 @@ export const TERM_EN = {
   suUser: '<user>',
   exitFirst: 'signed in as {u} · {x} first',
   notHere: '{x}: run it in the terminal (Ctrl K)',
-  sudoNotYet: 'sudo {x} isn’t supported yet · su root first, then run {x}',
   goneSudoV: 'sudo -v is gone · in v6 every sudo verifies again',
   goneSudoReauth: 'sudo root reauth is gone · to act as root, su root',
   goneLockPasswd: 'lock passwd is gone · change your own password with passwd',
@@ -163,6 +162,8 @@ export function createShell(o) {
   }
   who.on(emit);
 
+  /** whoami 的 user（组、owner 标记；没有 → null） */
+  const meV6 = function () { return who && typeof who.v6 === 'function' ? who.v6() : null; };
   /** 命令拿到的上下文 */
   const x = {
     S: S,
@@ -173,8 +174,12 @@ export function createShell(o) {
     setCwd: function (d) { cwd = d; emit(); },
     /** 终端身份（core/who.js；每次现读） */
     who: function () { return who.get(); },
-    /** 这个身份在 man 索引里列出的命令名（registry listed） */
-    names: function () { return REG.listed(who.get()); },
+    /** whoami 的 user（组、owner 标记；访客 / 没问到 → null） */
+    me: meV6,
+    /** 这个身份在 man 索引里列出的命令名（registry listed；组与站长看 whoami 的 user） */
+    names: function () { return REG.listed(who.get(), meV6()); },
+    /** man 索引的分段（定稿 v5.5 §四：root → 站长 → 普通用户 → 访客；registry sections） */
+    sections: function () { return REG.sections(who.get(), meV6()); },
     /** 名字或别名 → 命令名（不认识 → ''） @param {string} n */
     resolve: function (n) { const c = REG.get(n); return c ? c.name : ''; },
     history: function () { return hist.list(); },
@@ -223,7 +228,7 @@ export function createShell(o) {
     /** 新会话：cwd 回到本页（历史照旧） */
     reset: function () { cwd = cwd0; emit(); },
     /** 这个身份的 Tab 补全（第一个词只补列出的命令） @param {string} line */
-    complete: function (line) { return complete(line, REG.listed(who.get())); },
+    complete: function (line) { return complete(line, REG.listed(who.get(), meV6())); },
   };
 }
 

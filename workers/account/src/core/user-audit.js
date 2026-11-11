@@ -16,6 +16,8 @@ import { ipPrefix } from './audit.js';
 export const USER_AUDIT_TTL_MS = 90 * 24 * 3600 * 1000;
 /** 命令字白名单（审计行 command 的第一个词） */
 export const USER_AUDIT_COMMANDS = Object.freeze(['useradd', 'userdel', 'usermod', 'passwd', 'passkey', 'su', 'sudo', 'exit', 'idle', 'lock', 'rescue', 'recovery-key', 'login-fail', 'expire',
+  /* v6 P4-3：设备会话踢出 device rm <n> / --all（定稿 v5.5 §五，root 档；站长经 sudo，行尾记 via sudo） */
+  'device',
   /* root 的特权内容操作（定稿 v4 §十：root 干的事都留痕）：root 改名片 profile、批量 / 结构删除 rm-bulk（P2 起账号侧；子站接口 Worker 接上新会话后同样写） */
   'profile', 'rm-bulk',
   /* 割接（v6 cutover）：root 的其他特权操作——代理订阅 sub、分享链接 share（网关）、奇趣导入 / 导出 import / export（子站经 AccountVerifier.auditRoot）；
@@ -46,4 +48,21 @@ export async function writeUserAudit(env, entry) {
   } catch (e) {
     return false;
   }
+}
+
+/** 状态页审计卡读的命令（定稿 v5.5 §四「进站审计接口与状态页审计卡保留，恢复写入：记录 v6 的 su / sudo」）：su、sudo 及其登录失败 */
+const SU_SUDO_WHERE = "(command = 'su' OR command LIKE 'su %' OR command = 'sudo' OR command LIKE 'sudo %' OR command LIKE 'login-fail su%')";
+
+/**
+ * 状态页审计卡（GET /api/space-audit，网关经 AccountVerifier.auditList 读）：最近的 v6 su / sudo 审计，新的在前。
+ * 字段按定稿 v5.5 §十 审计条：uid、命令、时间、IP 前缀（再加结果 ok）。只读；出错抛错（调用方 503）。
+ * @param {any} env @param {{limit:number, since:number, now?:number}} q
+ * @returns {Promise<Array<{ts:number, ipPrefix:string, ok:boolean, uid:number|null, command:string}>>}
+ */
+export async function listSuAudit(env, q) {
+  const now = typeof q.now === 'number' ? q.now : Date.now();
+  const limit = Math.max(1, Math.min(200, Math.floor(Number(q.limit) || 50)));
+  const rows = await onDb(env, async (d) => ((await d.prepare('SELECT ts, uid, command, ok, ip_prefix FROM account_user_audit WHERE ts >= ? AND expires_at > ? AND ' +
+    SU_SUDO_WHERE + ' ORDER BY ts DESC, id DESC LIMIT ?').bind(q.since, now, limit).all()).results) || []);
+  return rows.map((r) => ({ ts: Number(r.ts), ipPrefix: String(r.ip_prefix || ''), ok: Number(r.ok) === 1, uid: r.uid === null || r.uid === undefined ? null : Number(r.uid), command: String(r.command || '') }));
 }

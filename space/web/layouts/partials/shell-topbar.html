@@ -18,7 +18,7 @@
      mainOrigin  主站项（origin 为 styrigx.com、不是子站的项）地址前缀：主站不传（同源相对 /）；子站传 https://styrigx.com
      icons       图标 SVG（名字 → SVG 串）：tb-palette tb-shield tb-term（终端）tb-grid（NAVIGATE 四格）tb-chat lock tb-undo share tb-send tb-newchat tb-history
      wordmark    字标 SVG（partials/shell-wordmark.html；子站经 nav.json 的 wordmark）：顶栏左边 ❯ + 字标 + 闪烁下划线光标（2026-11 PR-2 起取代等宽文字 styrigx :~$）
-     security    盾牌链接（没 JS / 中键时的去处：主站首页 #sec，当前语言；普通点击打开终端 #sgx-term：没进站预填 su （v6 割接）、已进站问退出 [y/N]，v5 S6）
+     security    盾牌链接（没 JS / 中键时的去处：主站首页 #sec，当前语言；普通点击打开终端 #sgx-term，按身份徽章预填：访客 su 、普通用户 exit、站长 su root、root exit，定稿 v5.5 §七）
      status      NAVIGATE 底部「systemctl status」链接：主站服务状态页（当前语言）
      acct        头像链接（没 JS / 中键时的去处：/account/ → 301 首页 #acct；已进站普通点击打开账号窗口 #sgx-acct，没进站是死按钮，v5 S6）；avatar 头像图片地址（顶栏头像 + AI 窗口头部 + 账号下拉）
      name / nick 账号下拉头部的姓名 / 昵称默认值（data/profile.yaml；运行时 topbar.js 再用本机缓存 sgx-profile 覆盖）
@@ -36,7 +36,7 @@
     <div class="sgx-tb-pill{{ with .pillClass }} {{ . }}{{ end }}">{{ .center | safeHTML }}</div>
     <div class="sgx-tb-acts">
       {{- /* v5 S6 顶栏 E（已批截图 E-compare）：盾牌 · 外观 · 四格（NAVIGATE）| >_ 终端 · 头像。
-         盾牌：仍是链接（没 JS / 中键去首页 #sec）；不开任何窗口，是吉祥物兼状态标志：普通点击由 topbar-panel.js 接——没进站（访客 / 分享链接会话）打开终端预填 su （v6 割接），已进站打开终端问「退出进站会话 [y/N]」。
+         盾牌：仍是链接（没 JS / 中键去首页 #sec）；不开任何窗口，是吉祥物兼状态标志：普通点击由 topbar-panel.js 接——打开终端、按身份预填（v6 P4-3 起盾牌 = 身份徽章四档，定稿 v5.5 §七；旧的「退出进站会话 [y/N]」随旧会话删除）。
          >_：打开全站终端 #sgx-term（同 Ctrl / ⌘ K）。头像：仍是链接（没 JS 去 /account/）；已进站点了开账号窗口 #sgx-acct，没进站是死按钮（aria-disabled，纯吉祥物，Gray 17:23） */}}
       <a class="sgx-tb-btn sgx-tb-shield" href="{{ .security }}" aria-label="{{ $t.topbar.security }}" title="{{ $t.topbar.security }}" aria-haspopup="dialog" aria-controls="sgx-term">{{ index $i "tb-shield" | safeHTML }}</a>
       <button type="button" class="sgx-tb-btn sgx-tb-quick" aria-label="{{ $t.topbar.theme }}" title="{{ $t.topbar.theme }}" aria-haspopup="dialog" aria-controls="sgx-qp" aria-expanded="false">{{ index $i "tb-palette" | safeHTML }}</button>

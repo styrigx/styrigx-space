@@ -1,10 +1,10 @@
 /**
  * 盾牌 + 终端里的身份命令（v5 S5 终端合一：盾牌窗口 #sgx-sec 删了；v6 P4（定稿 v5.2 §六、§七、§十三 P4）起只有 v6 身份）。
- * - 盾牌（v5 S6 顶栏 E）= 打开终端：访客预填 su （不替人回车）；已登录（v6 身份）只打开终端、不预填；旧地址 #sec[=层] 只打开终端；
+ * - 盾牌 = 身份徽章四档（P4-3，定稿 v5.5 §七）：打开终端、按身份预填——访客 su 、普通用户 exit、站长 su root、root exit（不替人回车）；旧地址 #sec[=层] 只打开终端；
  *   Ctrl 点盾牌照旧按链接走（/#sec）。旧的「退出进站会话 [y/N]」随旧会话删了。
  * - 已登录：提示符 styrigx@space:~/wild$；man 列 lock / passkey / device，不列 share（分享短链整套删除，定稿 §二）
  * - lock：POST /api/identity lock（清空身份栈、删服务端会话行）→ 回访客 nobody@space；lock passwd / passkey / --all 印「已移除」
- * - 头像 = whoami（定稿 §七）：访客预填 su ；root 预填 exit
+ * - 头像 = whoami（定稿 v5.5 §七）：访客预填 su ；站长与 root 开账号页；普通用户头像只作装饰、不可点
  * 测试构建（锁屏禁用、没有网关）：/api/identity 用替身（helpers/account-term.cjs mockAccount）。
  */
 const { test } = require('@playwright/test');
@@ -52,14 +52,40 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     expect(names).not.toContain('share');
   });
 
-  test('已登录：点盾牌只打开终端，不预填、不问 [y/N]、不发请求', async ({ page }) => {
-    const calls = await go(page);
-    await page.locator('.sgx-tb-shield').click();
-    await expect(term(page)).toHaveAttribute('open', '');
-    await expect(ps(page)).toHaveText('styrigx@space:~/wild$');
-    await expect(tIn(page)).toHaveValue('');
-    await expect(tOut(page)).not.toContainText('[y/N]');
-    expect(calls.length).toBe(0);
+  /* P4-3 盾牌 = 身份徽章四档（定稿 v5.5 §七，Gray 2026-11-11 20:03 / 20:10）：按还能晋升到哪一档预填，只预填、回车才生效；不问 [y/N]、不发别的请求 */
+  for (const [who, tier, want] of [['styrigx', 'owner', 'su root'], ['root', 'root', 'exit'], ['alice', 'user', 'exit']]) {
+    test('已登录（' + who + '）：盾牌徽章 ' + tier + '，点了打开终端、预填「' + want + '」（不替人回车、不问 [y/N]）', async ({ page }) => {
+      const calls = await go(page, { user: A.V6_USER(who) });
+      const sh = page.locator('.sgx-tb-shield');
+      await expect(sh).toHaveAttribute('data-sgx-tier', tier);
+      await sh.click();
+      await expect(term(page)).toHaveAttribute('open', '');
+      await expect(tIn(page)).toHaveValue(want);
+      await expect(tOut(page)).not.toContainText('[y/N]');
+      expect(calls.length).toBe(0);
+    });
+  }
+
+  test('徽章四档的图形（现有盾形换部件）：访客空盾、普通用户小人、站长打勾（主题色）、root 实心（主题色）', async ({ page }) => {
+    await go(page, { user: A.V6_USER('styrigx') });
+    const sh = page.locator('.sgx-tb-shield');
+    await expect(sh).toHaveAttribute('data-sgx-tier', 'owner');
+    const look = () => sh.evaluate((el) => {
+      const cs = (/** @type {string} */ q) => getComputedStyle(/** @type {Element} */ (el.querySelector(q)));
+      return { ok: cs('.sgx-sh-ok').display, u: cs('.sgx-sh-u').display, fill: cs('.sgx-sh-b').fill, color: getComputedStyle(el).color,
+        primary: getComputedStyle(document.documentElement).getPropertyValue('--sgx-primary').trim() };
+    });
+    const o = await look();
+    expect(o.ok).not.toBe('none');
+    expect(o.u).toBe('none');
+    expect(o.fill).toBe('none');
+    for (const [t, ok, u, solid] of [['guest', false, false, false], ['user', false, true, false], ['root', false, false, true]]) {
+      await sh.evaluate((el, v) => el.setAttribute('data-sgx-tier', v), t);
+      const l = await look();
+      expect(l.ok === 'none', t).toBe(!ok);
+      expect(l.u === 'none', t).toBe(!u);
+      expect(l.fill !== 'none', t).toBe(solid);
+    }
   });
 
   test('访客：点盾牌打开终端、预填 su （不替人回车）', async ({ page }) => {
@@ -151,6 +177,19 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
       return st2;
     }, { timeout: 10000 }).toBe('in');
     await expect(page.locator('#sgx-acct')).toHaveAttribute('data-state', 'open');
+    await expect(term(page)).not.toHaveAttribute('open', '');
+    expect(new URL(page.url()).pathname).toBe('/zh/wild/');
+  });
+
+  test('头像（P4-3，定稿 v5.5 §七）：普通用户显示站点头像、只作装饰——aria-disabled，点了不开账号页、不开终端、不跳页', async ({ page }) => {
+    await go(page, { user: A.V6_USER('alice') });
+    const av = page.locator('.sgx-tb-av');
+    await expect(page.locator('.sgx-tb-shield')).toHaveAttribute('data-sgx-tier', 'user');
+    await expect(av).toHaveAttribute('aria-disabled', 'true');
+    await expect(av.locator('img')).not.toHaveAttribute('src', /\/avatar\/u\d+-/);
+    await av.click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('#sgx-acct')).not.toHaveAttribute('data-state', 'open');
     await expect(term(page)).not.toHaveAttribute('open', '');
     expect(new URL(page.url()).pathname).toBe('/zh/wild/');
   });

@@ -20,18 +20,21 @@ test('访客入口预填 GUEST_LINE = 「su 」；所有 prefill 都用它；v6 
   const js = rd('space/web/assets/js/shell/topbar-panel.js');
   assert.match(js, /export const GUEST_LINE = 'su ';/);
   const prefills = [...js.matchAll(/view\.prefill\(([A-Z_]+)\)/g)].map((m) => m[1]);
-  assert.ok(prefills.length >= 4, String(prefills));
+  assert.ok(prefills.length >= 3, String(prefills));
+  /* P4-3：盾牌徽章按身份预填（shieldCmd：访客 GUEST_LINE、站长 su root、普通用户 / root exit；定稿 v5.5 §七） */
+  assert.match(js, /if \(t === 'owner'\) return 'su root';\s*if \(t === 'user' \|\| t === 'root'\) return 'exit';\s*return t === 'guest' \|\| !who \|\| who\.get\(\) === 'nobody' \? GUEST_LINE : '';/);
   assert.deepEqual([...new Set(prefills)], ['GUEST_LINE']);
   assert.equal([...js.matchAll(/\bSUDO_LINE\b/g)].length, 0, 'SUDO_LINE 删了');
   assert.match(js, /showTerm\(function \(\) \{ view\.prefill\(GUEST_LINE\); \}\);/, '?entry=… 一律预填 su ');
 });
 
-test('头像 = whoami（定稿 §七 58–61）：访客 → su ；已登录（普通用户 / root）→ 账号卡片（不预填）；访客头像不再 aria-disabled', () => {
+test('头像 = whoami（定稿 v5.5 §七）：访客 → su ；站长 / root → 账号页（不预填）；访客头像不 aria-disabled，普通用户头像 aria-disabled（只作装饰）', () => {
   const js = rd('space/web/assets/js/shell/topbar-panel.js');
   assert.match(js, /if \(!u\) return avGuest\(\) \? GUEST_LINE : '';\s*return '';/);
-  assert.doesNotMatch(js, /setAttribute\('aria-disabled', 'true'\)/);
-  /* 盾牌：v6 已登录（u:<名>）不预填 su （要换人先 exit） */
-  assert.match(js, /if \(!view\.input\.value && x\.indexOf\('u:'\) !== 0\) view\.prefill\(GUEST_LINE\);/);
+  assert.match(js, /if \(avDecor\(\)\) acctBtn\.setAttribute\('aria-disabled', 'true'\);\s*else acctBtn\.removeAttribute\('aria-disabled'\);/);
+  assert.match(js, /if \(avDecor\(\)\) \{ e\.preventDefault\(\); e\.stopImmediatePropagation\(\); return; \}/);
+  /* 盾牌：按徽章档预填，输入行有字不覆盖 */
+  assert.match(js, /const c = shieldCmd\(tierOf\(\)\);\s*if \(c && !view\.input\.value\) view\.prefill\(c\);/);
 });
 
 test('su 的密码提示 = 「Password:」（su root 也是，输的是 root 的凭据）；sudo = 「[sudo] password for <自己>:」', () => {
