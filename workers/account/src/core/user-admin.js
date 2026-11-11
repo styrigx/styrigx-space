@@ -150,16 +150,15 @@ export async function groupsOf(env, name) {
 /**
  * who：会话列表，每行一条身份路径（root via styrigx / styrigx / root (rescue)）。onlyUid 给了 → 只列这个人的会话（非 root 只看自己）。
  * 过期的不列。current = 当前会话 id。
- * withDevice：带上会话 id 与设备标记（不可枚举属性 _id / _device，只给 deviceList 归并用，不出接口）。
- * @param {any} env @param {{onlyUid?:number|null, current?:string, now?:number, withDevice?:boolean}} q
+ * withId：带上会话 id（不可枚举属性 _id，只给 deviceList 踢出用，不出接口）。
+ * @param {any} env @param {{onlyUid?:number|null, current?:string, now?:number, withId?:boolean}} q
  * @returns {Promise<Array<{n:number, path:string, user:string, since:number, expiresAt:number, current:boolean}>>}
  */
 export async function whoList(env, q) {
   const t = typeof q.now === 'number' ? q.now : Date.now();
   const only = Number.isInteger(q.onlyUid) ? q.onlyUid : null;
   const rows = await onDb(env, async (d) => {
-    const dev = q.withDevice === true;
-    const sql = 'SELECT s.id, s.uid, s.rescue, s.created_at, s.expires_at, u.name, k.expires_at AS k_exp' + (dev ? ', s.device' : '') +
+    const sql = 'SELECT s.id, s.uid, s.rescue, s.created_at, s.expires_at, u.name, k.expires_at AS k_exp' +
       ' FROM account_sessions s JOIN account_users u ON u.uid = s.uid LEFT JOIN account_session_stack k ON k.session_id = s.id AND k.depth = 1' +
       ' WHERE s.expires_at > ?' + (only === null ? '' : ' AND s.uid = ?') + ' ORDER BY s.created_at';
     const st = only === null ? d.prepare(sql).bind(t) : d.prepare(sql).bind(t, only);
@@ -170,38 +169,21 @@ export async function whoList(env, q) {
     const path = Number(r.rescue) === 1 ? 'root (rescue)' : rootOn ? 'root via ' + r.name : String(r.name);
     /** @type {any} */
     const v = { n: i + 1, path, user: String(r.name), since: Number(r.created_at), expiresAt: Number(r.expires_at), current: !!q.current && r.id === q.current };
-    if (q.withDevice === true) Object.defineProperties(v, { _id: { value: String(r.id) }, _device: { value: r.device ? String(r.device) : '' } });
+    if (q.withId === true) Object.defineProperty(v, '_id', { value: String(r.id) });
     return v;
   });
 }
 
 /**
- * 设备列表（定稿 v5.5 §五「列表为全站视图、列出全站会话」；§十一 2g「设备列表按 sgx-device 合并同一台设备的会话」）：
- * 全站会话按设备标记（account_sessions.device）归成一台台设备；没有设备标记的会话（2g 之前签的老会话）各算一台。
- * 每台：{ n, path（这台上各会话的身份路径，按开始时间，逗号分隔）, since（最早开始）, expiresAt（最晚到期）, current（含本会话） }。
- * 设备标记本身不出接口（只用来归并）。另回 ids：第 n 台的会话 id（踢出用，不出接口）。
+ * 设备列表（定稿 v5.5 §五「列表为全站视图、列出全站会话」）：全站会话，一个会话一台。
+ * 每台：{ n, path（身份路径）, since, expiresAt, current }。另回 ids：第 n 台的会话 id（踢出用，不出接口）。
  * @param {any} env @param {{current?: string, now?: number}} q
  * @returns {Promise<{devices: Array<{n:number, path:string, since:number, expiresAt:number, current:boolean}>, ids: string[][]}>}
  */
 export async function deviceList(env, q) {
-  const list = await whoList(env, { onlyUid: null, current: q.current || '', now: q.now, withDevice: true });
-  /** @type {Map<string, any[]>} */
-  const groups = new Map();
-  list.forEach((/** @type {any} */ s) => {
-    const k = s._device ? 'd:' + s._device : 's:' + s._id;
-    const g = groups.get(k);
-    if (g) g.push(s); else groups.set(k, [s]);
-  });
-  const devices = [];
-  const ids = [];
-  let n = 0;
-  for (const g of groups.values()) {
-    n++;
-    devices.push({
-      n, path: g.map((s) => s.path).join(', '), since: Math.min(...g.map((s) => s.since)), expiresAt: Math.max(...g.map((s) => s.expiresAt)),
-      current: g.some((s) => s.current),
-    });
-    ids.push(g.map((s) => s._id));
-  }
-  return { devices, ids };
+  const list = await whoList(env, { onlyUid: null, current: q.current || '', now: q.now, withId: true });
+  return {
+    devices: list.map((/** @type {any} */ s, i) => ({ n: i + 1, path: s.path, since: s.since, expiresAt: s.expiresAt, current: s.current })),
+    ids: list.map((/** @type {any} */ s) => [s._id]),
+  };
 }

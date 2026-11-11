@@ -120,7 +120,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
 | POST | `/api/identity` | **public**（救援可用：`whoami`、`exit`、`lock`、`passwd`、`passkey-*`、`groups`） | `passwd` / `groups` / `who` → user；`passkey-list` / `passkey-add-challenge` / `passkey-add` / `passkey-delete` → owner（P4-3）；`sudo-challenge` / `sudo` → sudoers；`useradd` / `userdel` / `usermod` / `passwd-user` → root；`whoami` / `su-challenge` / `su` / `exit` / `idle` / `lock` / `rescue` → public |  | 保留（P2 新增） | v6 身份命令：whoami / su / sudo / exit / lock / passwd / passkey / groups / who / useradd / userdel / usermod / passwd <名>；P3 救援入口 rescue |  |
-| POST | `/api/account/devices` | **owner** | `list` → owner；`revoke` / `revoke-all` → root（P4-3） |  | 保留 | 设备会话（全站视图：列出全站会话，2g 按 sgx-device 合并同一台设备） | 定稿 v5.5 §五：列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图；§七：站长打开账号页时设备卡列表直接可读 → list owner、revoke / revoke-all root |
+| POST | `/api/account/devices` | **owner** | `list` → owner；`revoke` / `revoke-all` → root（P4-3） |  | 保留 | 设备会话（全站视图：列出全站会话） | 定稿 v5.5 §五：列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图；§七：站长打开账号页时设备卡列表直接可读 → list owner、revoke / revoke-all root |
 | POST | `/api/account/proxy` | **root** |  |  | 保留 | 代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥） | Gray 2026-11-11 定 root，不加新组 |
 | PUT | `/api/avatar` | **owner** |  |  | 保留 | 换站点头像（全站一份配置，归站长 styrigx） | 定稿 v5.5 §五：avatar、prefs 写入 owner（站长 + root）；§七：全站只有一份配置 |
 | DELETE | `/api/avatar` | **owner** |  | 单条 → 写组 | 保留 | 删站点头像（回默认） | 定稿 v5.5 §五：同上 |

@@ -144,7 +144,7 @@
 | P2 | su、sudo、exit、lock、useradd / userdel / usermod / passwd <名>、groups、who；身份栈；前台空闲计时；头像 = whoami；接口改认新结论 |
 | P3 | 绑定 `SGX_ACCOUNT_RESCUE_KEY`（Gray 已在 Store 建好）+ 救援入口 `rescue`；端到端跑通（含真机） |
 | P4 | P3 合并后直接做，不设观察期（定稿 v5.5 §十三）：删分享短链（任其失效）、站点核心进站签发、STEPUP、sudo root reauth、sudo -v、lock passwd / passkey、旧恢复钥匙、旧 pepper、两对签名钥匙、旧账号会话；收尾：应用授权整套删、旧校验收尾、旧 space-core 8 张表与 share_link / share_fail / account_grant、数字健康整套删除、不再使用的文案删除、v5 旧文档加取代标注 |
-| 2g | P4 之后：sessions 设备列与 `sgx-device` 设备标记、设备列表全站视图、子站认 sudo 借来的 root（定稿 v5.5 §十三） |
+| 2g | P4 之后：设备列表全站视图、子站认 sudo 借来的 root（定稿 v5.5 §十三） |
 
 回滚：每段单独 PR；P4 前在 dashboard 演练一次重部署上一版 Worker，作为最后手段。外观改动先截图给 Gray 批；不 force-push。
 

@@ -568,32 +568,6 @@ test('P4-3 devices：list owner（站长直读、全站视图）；revoke / revo
   assert.equal((await id(env, { action: 'whoami' }, st)).json.user.name, 'root', '本会话保留');
 });
 
-test('P4-3 2g 设备标记：su 发 sgx-device（HttpOnly / Secure / SameSite=Lax / 400 天），同一台设备沿用；有设备列后写入，设备列表按它合并同一台设备的会话；老会话留空各算一台', async () => {
-  const env = await setup();
-  const raw = env.D1_ACCOUNT.raw;
-  const old = await login(env, 'alice');
-  raw.prepare('UPDATE account_sessions SET device = NULL').run(); /* 当作 2g 之前签的老会话：设备列留空 */
-  const suWith = (user, cookie) => serviceFetch(new Request(ORIGIN + '/api/identity', { method: 'POST', headers: Object.assign({ Origin: ORIGIN, 'CF-Connecting-IP': freshIp(), 'Content-Type': 'application/json' }, cookie ? { Cookie: cookie } : {}), body: JSON.stringify({ action: 'su', user, password: PW[user] }) }), env, { waitUntil() {} });
-  const r1 = await suWith('styrigx');
-  const dc = r1.headers.getSetCookie().find((c) => c.startsWith('sgx-device='));
-  assert.ok(dc, '发了设备标记');
-  assert.match(dc, /^sgx-device=[A-Za-z0-9_-]{16}; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=34560000$/);
-  const mark = dc.split(';')[0].slice('sgx-device='.length);
-  const t1 = r1.headers.getSetCookie().find((c) => c.startsWith('sgx-session=')).split(';')[0].slice('sgx-session='.length);
-  const r2 = await suWith('alice', 'sgx-device=' + mark); /* 同一台设备换个人登录 */
-  assert.equal(r2.headers.getSetCookie().find((c) => c.startsWith('sgx-device=')).split(';')[0], 'sgx-device=' + mark, '同一台设备沿用标记');
-  await suWith('alice', 'sgx-device=bad.mark'); /* 不合法的标记 → 新发一台 */
-  assert.deepEqual(rows(env, 'SELECT device IS NULL AS n FROM account_sessions ORDER BY created_at, rowid').map((r) => r.n), [1, 0, 0, 0], '老会话留空不回填');
-  const l = await call(env, 'POST', '/api/account/devices', { cookie: t1, body: { action: 'list' } });
-  assert.equal(l.status, 200, JSON.stringify(l.json));
-  assert.equal(l.json.devices.length, 3, '4 个会话 = 老会话 1 台 + 同一台设备合并成 1 台 + 新标记 1 台');
-  const merged = l.json.devices.find((d) => d.path.indexOf(', ') !== -1);
-  assert.ok(merged && merged.current, '合并的那台含本会话');
-  assert.equal(merged.path, 'styrigx, alice');
-  assert.equal(l.json.devices.find((d) => d.path === 'alice' && !d.current) !== undefined, true);
-  void old;
-});
-
 test('P4-3 权限收紧：永久普通用户（alice）同样进不了 wheel / sudoers / 写组；普通用户不能管通行密钥（passkey-* owner）；passwd 照旧', async () => {
   const env = await setup();
   const st = await login(env, 'styrigx');

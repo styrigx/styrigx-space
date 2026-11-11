@@ -63,7 +63,7 @@ export const ROUTE_ACCESS = Object.freeze([
     },
     rescue: true, rescueActions: ['whoami', 'exit', 'lock', 'passwd', 'passkey-list', 'passkey-add-challenge', 'passkey-add', 'passkey-delete', 'groups'] }),
   /* v6 P4：旧账号会话（GET /api/account、/session、/reauth、/reset、/keys）删除 */
-  R({ method: 'POST', path: '/api/account/devices', level: 'owner', worker: 'account', why: '设备会话（全站视图：列出全站会话，2g 按 sgx-device 合并同一台设备）',
+  R({ method: 'POST', path: '/api/account/devices', level: 'owner', worker: 'account', why: '设备会话（全站视图：列出全站会话）',
     actions: { list: 'owner', revoke: 'root', 'revoke-all': 'root' },
     decided: '定稿 v5.5 §五：设备会话的列表与踢出属后台控制，root 档（站长 sudo），列表为全站视图；§七：站长打开账号页时设备卡列表直接可读，只有改动才预填 sudo（Gray 2026-11-11 19:59）→ list owner、revoke / revoke-all root' }),
   R({ method: 'POST', path: '/api/account/proxy', level: 'root', worker: 'account', why: '代理订阅管理 sub（转 styrigx-proxy-rules ProxyAdmin；含令牌、age 公钥）',
