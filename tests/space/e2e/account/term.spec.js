@@ -63,6 +63,9 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
     await A.openCard(page);
     await expect(d.locator('.sgx-at-r').filter({ hasText: '应用授权' })).toHaveCount(0);
     await page.keyboard.press('Escape');
+    await expect(d).toBeHidden();
+    await settled(page, 'sgx-acct');
+    await page.evaluate(() => { const a = document.getElementById('e2e-acct-open'); if (a) a.remove(); });
     for (const [label, cmd] of rows) {
       await A.openCard(page);
       await expect(d).toHaveAttribute('data-acct-state', 'in');
