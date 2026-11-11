@@ -48,9 +48,9 @@ palette-scheme.js
 
 | 分组 | 色板 |
 |---|---|
-| 冷调 cool | 雾霾蓝 dustyblue（默认）、湖蓝 lake、冰川蓝 glacier、靛蓝 indigo、青碧 teal、紫 violet |
+| 冷调 cool | 雾霾蓝 dustyblue、湖蓝 lake、冰川蓝 glacier、靛蓝 indigo、青碧 teal、紫 violet |
 | 自然 nature | 山绿 forest、抹茶 matcha、鼠尾草绿 sage |
-| 暖调 warm | 樱桃 cherry、橘子 tangerine、珊瑚 coral、陶土 terra、琥珀 amber、芥末黄 mustard、香槟金 champagne |
+| 暖调 warm | 樱桃 cherry、橘子 tangerine、珊瑚 coral、陶土 terra（默认）、琥珀 amber、芥末黄 mustard、香槟金 champagne |
 | 花色 floral | 蔷薇 rose、莓果 berry、兰紫 orchid、干枯玫瑰 dustyrose |
 | 中性 neutral | 石墨 graphite、奶油白 cream |
 
@@ -129,7 +129,7 @@ palette-scheme.js
 
 ## 4. 按钮填充 vs ink（2026-10-23 PR-G 修订）
 
-浅色模式下，前景 1 往往是中间调（默认雾霾蓝的前景 1 = 芥末 `#d4a72c`）。以前 `primary` 一个角色既当文字又当填充：
+浅套里，前景 1 往往是中间调（雾霾蓝的前景 1 = 芥末 `#d4a72c`）。以前 `primary` 一个角色既当文字又当填充：
 为了白字够 4.5:1，引擎把它压深成 `#7e6000`（橄榄棕），大块 / 按钮全是这个颜色，整个首页发棕。现在拆成两档：
 
 - **ink = `primary`**：压深到在所有表面上 ≥4.5:1，只给文字、链接、图标、焦点环、滑块圆点。
