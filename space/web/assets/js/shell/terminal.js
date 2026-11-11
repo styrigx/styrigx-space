@@ -89,7 +89,6 @@ export const TERM_EN = {
   suUser: '<user>',
   exitFirst: 'signed in as {u} · {x} first',
   notHere: '{x}: run it in the terminal (Ctrl K)',
-  sudoNotYet: 'sudo {x} isn’t supported yet · su root first, then run {x}',
   goneSudoV: 'sudo -v is gone · in v6 every sudo verifies again',
   goneSudoReauth: 'sudo root reauth is gone · to act as root, su root',
   goneLockPasswd: 'lock passwd is gone · change your own password with passwd',
