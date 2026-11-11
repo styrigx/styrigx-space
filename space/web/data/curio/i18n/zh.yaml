@@ -226,6 +226,7 @@ js:
     impCats: 、{n} 个分类
     impSkipped: ，{n} 条已经有了
     impEnd: 。
+    noPermission: 当前用户没有这个权限。
   curioList:
     count: '-- {n} / {total} --'
     noMatch: 没有匹配的。
@@ -303,6 +304,7 @@ js:
     back: 回到列表
     nextNone: 已经是最后一个
     notFound: 这个条目不存在，或者你看不到它。
+    noPermission: 当前用户没有这个权限。
   curioMovies:
     add: 添加电影
     edit: 编辑电影
@@ -352,3 +354,4 @@ js:
     play: 播放
     pause: 暂停
     speed: 倍速 {s}×
+    noPermission: 当前用户没有这个权限。

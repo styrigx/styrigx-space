@@ -49,7 +49,7 @@ export const ERR_KEY = Object.freeze({
   'server': 'errServer',
   'origin': 'errServer',
   'sign-failed': 'errServer',
-  'forbidden': 'errServer',
+  'forbidden': 'errForbidden',
   'role': 'errServer',
   'challenge': 'errVerify',
   'verify': 'errVerify',

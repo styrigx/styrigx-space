@@ -87,6 +87,7 @@ export const TERM_EN = {
   askLocked: 'AI is locked · run {s} first; use {f} to search by keyword',
   needEntry: 'not entered · run {x} first',
   needRoot: 'not signed in to the account · run {x} first',
+  needRoot6: 'permission denied · run {x} first',
   linkDenied: 'a share-link session can’t do this · enter with your own key',
   alreadyIn: 'already entered · {x} to verify again',
   notHere: '{x}: run it in the terminal (Ctrl K)',

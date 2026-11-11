@@ -6,6 +6,7 @@
  *   精确定位、锁屏 / 凭证类（本来就不在 localStorage）。
  * - 每项记一个本机修改时间（localStorage sgx-sync-meta），和云端（/api/prefs）逐项比，新的赢。
  * - 时机（2026-10-24 拉取节流）：只在锁屏已解锁的页面（<html data-sgx-lock-session="valid">）请求；不看锁屏进门方式，
+ *   2b 起纯 v6 登录（su styrigx / su root）的页面网关也标 valid，数据按 v6 会话的 uid 归属（服务端 dataUid）；
  *   能不能同步直接按 /api/prefs 的结果：401 account（没登录账号）→ 记下来，之后不再请求，直到账号页重新登录；
  *   其他 401 / 403（锁屏会话过期、没有 prefs.sync 作用域）→ 这次不同步，不记 out。
  *   403 scope（P3-1：在 账号 › 应用授权 取消了「设置同步」）→ 另记一个本页内的标记（scopeDenied()），设置照常只存本机；
@@ -128,12 +129,20 @@ function call(method, body) {
 }
 
 /**
- * 节流按哪个账号记。站点只有一个账号（handle account-user-id），页面上也拿不到账号 id，
- * 所以目前就是 'account'；登出 / 401 / 换账号登录都会清掉或强制刷新这个时刻。
+ * 有没有 v6 登录标记（2b：服务端随 sgx-session 写的 sgx-id=1；非 HttpOnly、不含秘密，只用来决定行为，身份 / uid 仍只由服务端会话定）。
+ * @returns {boolean}
+ */
+export function v6Marked() {
+  try { return /(?:^|;\s*)sgx-id=1(?:;|$)/.test(document.cookie || ''); } catch (e) { return false; }
+}
+
+/**
+ * 节流按哪个账号记。页面上拿不到 uid（数据归谁由服务端会话定：v6 新会话 → 会话里的 uid，否则旧会话 → styrigx）；
+ * 旧会话记在 'account'，有 v6 登录标记记在 'v6'，两种身份的节流时刻互不影响。登出 / 401 / 换账号登录都会清掉或强制刷新这个时刻。
  * @returns {string}
  */
 function accountScope() {
-  return 'account';
+  return v6Marked() ? 'v6' : 'account';
 }
 
 /** @returns {number} 当前账号上次成功拉取 / 推送的时刻（没有 = 0） */
@@ -302,7 +311,8 @@ export function initCloudSync(opts) {
   const force = !!(opts && opts.force);
   if (document.documentElement.getAttribute('data-sgx-lock-session') !== 'valid') return Promise.resolve('skip');
   if (!syncEnabled()) return Promise.resolve('off');
-  if (!force && sget(AUTH_KEY) === 'out') return Promise.resolve('out');
+  /* 'out' 是旧账号会话的结论（401 account）；有 v6 登录标记时服务端按 v6 会话判，不受它挡（2b） */
+  if (!force && sget(AUTH_KEY) === 'out' && !v6Marked()) return Promise.resolve('out');
 
   if (!st) {
     try { sessionStorage.removeItem(OLD_RELOAD_FLAG); } catch (e) {}

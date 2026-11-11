@@ -3,7 +3,7 @@
  * - 没有 sgx-session cookie → 不问账号 Worker（线上 P1 没有签发入口，行为不变）
  * - 旧进站会话有效 → 照旧放行，不问；public 接口不问
  * - 带 sgx-session、旧会话不成立 → 经 ACCOUNT_VERIFIER.admit(cookie, 方法, 路径) 问；只认 allowed === true
- * - allowed 不是 true / RPC 抛错 / 绑定没有 admit → 401（fail closed）
+ * - allowed 不是 true / 没 uid / RPC 抛错 / 绑定没有 admit → 401（fail closed）；有 uid 但档不够 → 403 forbidden（2b）
  * - 子站关口同一个 admit
  * - cookie 名与账号 Worker 一致
  * 放行后的接口自己还按旧规则验进站会话（P2 改认新结论），这里只看网关这一道门：门回 {ok:false}，接口回 {error:'unauthorized'}。
@@ -68,13 +68,17 @@ test('旧进站会话有效 / public 接口：不问', async () => {
   assert.deepEqual(e.calls, []);
 });
 
-test('带 sgx-session、旧会话不成立：问 admit(cookie, 方法, 路径)，allowed === true 才过门', async () => {
-  const e = env((c, m, p) => ({ allowed: p === '/api/status' }));
+test('带 sgx-session、旧会话不成立：问 admit(cookie, 方法, 路径)，allowed === true 且有 uid 才过门；档不够 403 forbidden（2b）', async () => {
+  const e = env((c, m, p) => ({ allowed: p === '/api/status', uid: 1000 }));
   const r = await req(e, '/api/status', 'sgx-session=' + TOKEN);
-  assert.equal(await gateBlocked(r), false, '过了门（接口自己仍按旧规则验，P2 改）');
-  assert.equal((await r.json()).error, 'unauthorized');
-  assert.deepEqual(e.calls, [['sgx-session=' + TOKEN, 'GET', '/api/status']]);
-  assert.equal(await gateBlocked(await req(e, '/api/space-audit', 'sgx-session=' + TOKEN)), true);
+  assert.equal(await gateBlocked(r), false, '过了门');
+  assert.equal((await r.json()).error, 'upstream', '2b：接口用关口的 v6 结论（不再 401 unauthorized），测试台没有 STATUS 绑定 → 503 upstream');
+  assert.deepEqual(e.calls, [['sgx-session=' + TOKEN, 'GET', '/api/status']], '接口不再问第二次');
+  const a = await req(e, '/api/space-audit', 'sgx-session=' + TOKEN);
+  assert.equal(a.status, 403, '有 v6 身份、档不够：403 不是 401（前端 401 = 没登录）');
+  assert.equal((await a.json()).error, 'forbidden');
+  /* allowed 却没有 uid（坏回答）：不算进门 */
+  assert.equal(await gateBlocked(await req(env(() => ({ allowed: true })), '/api/status', 'sgx-session=' + TOKEN)), true);
 });
 
 test('fail closed：allowed 不是 true / RPC 抛错 / 没有 admit / 没绑定 → 401', async () => {

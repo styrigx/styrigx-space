@@ -16,7 +16,7 @@
  *   null → 「额度未配置 / 暂时拿不到」一行提示；没有 quota 字段（旧版监测 Worker）→ 整块不显示。额度卡有 Workers 请求时，用量卡不再重复那一行。
  * - 再下面是「用量」（PR3）：data.usage 有 → 每项值 / 上限 / 进度条 + 「更新于 N 分钟前」；null → 「用量未配置」等一行提示。
  * - 页底「进站凭证使用记录」折叠区（<details id="st-audit">）：默认收起，第一次展开才请求 GET /api/space-audit（KV list + 最多 50 次 get，
- *   所以不随页面加载、也不随 60 秒刷新）；成功后本页不再重复取，失败可点「重试」，401 只提示重新解锁。
+ *   所以不随页面加载、也不随 60 秒刷新）；成功后本页不再重复取，失败可点「重试」，401 只提示重新解锁，403（v6 身份不是 root，2b）提示 su root。
  *   页面不做角色判断（进门二值，没有角色）；接口照样由服务端判断。
  * 渲染全在 lib/status-view.js（纯函数，单测覆盖）；这里只管 DOM 和请求。
  */
@@ -168,8 +168,8 @@ function init() {
         render();
       }
     } catch (e) {
-      if (status === 401) {
-        /* 没进站：清缓存、只剩锁卡（服务端说了算；缓存里的旧数据也不再显示） */
+      if (status === 401 || status === 403) {
+        /* 没进站（401），或 v6 身份不在 status 组（2b：网关 403 forbidden）：清缓存、只剩锁卡（服务端说了算；缓存里的旧数据也不再显示） */
         dropCache();
         data = null;
         setState('locked');
@@ -236,8 +236,10 @@ function init() {
     } catch (e) {
       auditState = 'error';
       const auth = status === 401;
-      auditBody.innerHTML = '<p class="st-audit-msg">' + esc(t(auth ? 'auditErrAuth' : 'auditErr')) + '</p>' +
-        (auth ? '' : '<button type="button" class="st-btn st-audit-retry" data-audit-retry>' + esc(t('retry')) + '</button>');
+      /* 2b：403 = 已登录但不是 root（v6 styrigx 等，网关 403 forbidden）：提示 su root，不说「会话过期」 */
+      const perm = status === 403;
+      auditBody.innerHTML = '<p class="st-audit-msg">' + esc(t(perm ? 'auditErrPerm' : auth ? 'auditErrAuth' : 'auditErr')) + '</p>' +
+        (auth || perm ? '' : '<button type="button" class="st-btn st-audit-retry" data-audit-retry>' + esc(t('retry')) + '</button>');
     } finally {
       auditBody.setAttribute('aria-busy', 'false');
     }

@@ -121,3 +121,4 @@ js:
     noDay: Nothing was kept that day.
     notYet: That day hasn't come yet.
     dayCount: '{n} days'
+    noPermission: Your current user doesn’t have permission for this.

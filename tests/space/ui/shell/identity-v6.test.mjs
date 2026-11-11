@@ -46,7 +46,8 @@ test('提示符（定稿 v4 §七）：v6 普通用户 <名>@space:<路径>$，v
 test('createWho：whoami 回了 user 就以它为准（先于旧身份）；setV6(null) 回到旧身份；首帧标记 v6Hinted', async () => {
   let user = { name: 'styrigx', root: false };
   const w = createWho({ check: () => Promise.resolve({ ok: true, by: 'password' }), page: () => 'valid', whoami: () => Promise.resolve(user), v6Hint: () => true });
-  assert.equal(w.get(), 'styrigx', '首帧按页面标记');
+  assert.equal(w.get(), 'nobody', '2b：页面 valid 但有 v6 登录标记 → 首帧不猜旧进站身份，等 refresh');
+  assert.equal(createWho({ check: () => Promise.resolve(null), page: () => 'valid' }).get(), 'styrigx', '没有 v6 标记：首帧按页面标记');
   assert.equal(w.v6Hinted(), true);
   assert.equal(await w.refresh(), 'u:styrigx');
   w.setV6({ name: 'root', root: true, via: 'styrigx' });

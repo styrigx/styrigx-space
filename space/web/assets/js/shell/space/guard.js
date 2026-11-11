@@ -2,7 +2,7 @@
  * @fileoverview 进站守卫（core chunk 里只有这一小块；原 shell/lock-guard.js，进站 v3 L1 搬进 shell/space/）。
  * v5 S3（整站放开）起页面对所有人都是同一份内容，守卫不再盖遮罩：
  * - 读网关注入的 <html data-sgx-lock-session>（valid / locked；没有 = 页面没经过网关，按没进站算，不画锁屏）
- * - valid：绑自动回锁（切回前台问服务端，401 → 重载，服务端画访客态页面）
+ * - valid：绑自动回锁（切回前台问服务端，401 → 重载，服务端画访客态页面；2b：有 v6 登录标记时先问 whoami，v6 身份还在就不重载）
  * - v5 S5 起没有锁屏界面了：进站是在终端里 sudo styrigx（shell/space/layer.js）。旧地址 ?entry=…（分享链接失效时网关回的 /?entry=1、旧书签）
  *   由终端接（topbar-panel.js：打开终端、预填 sudo styrigx；?entry=sudo 直接跑），守卫只负责已解锁页面的自动回锁
  * 进门二值（P2-3）：没有等级；进门之后的事（锁侧复验、账号）由各接口自己要。
@@ -134,8 +134,28 @@ export function proceed(ans, unlockInPlace) {
   return 'in-place';
 }
 
+/** 页面上有没有 v6 登录标记（服务端随 sgx-session 写的 sgx-id=1；非 HttpOnly、不含秘密，同 shell/identity/api.js hasMarker） */
+export function hasV6Marker() {
+  try { return /(?:^|;\s*)sgx-id=1(?:;|$)/.test(document.cookie || ''); } catch (e) { return false; }
+}
+
+/**
+ * v6 新会话还在不在（POST /api/identity whoami）：true = 有身份 / false = 没有（服务端顺手清标记）/ null = 没问到（网络错，不当没有）。
+ * 守卫不 import shell/identity/api.js（那边带通行密钥代码），这里只发这一个请求。
+ * @returns {Promise<boolean|null>}
+ */
+export function v6SignedIn() {
+  return fetch(API.identity, {
+    method: 'POST', credentials: 'same-origin', cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'whoami' }),
+  }).then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) { return j && j.ok === true ? !!(j.user && j.user.name) : null; }, function () { return null; });
+}
+
 /* 已解锁页面：切回前台 / bfcache 恢复 / 转屏时向服务端确认，401 → 重载（服务端画访客态页面）。
-   节流 5 秒；网络错误不跳转，下次再查。 */
+   节流 5 秒；网络错误不跳转，下次再查。
+   2b：页面是 valid 也可能只因为 v6 新会话（网关 pageStateOf）；旧进站会话 401 时有 v6 登录标记就再问 whoami，
+   v6 身份还在就不重载（重载了服务端照样画 valid，每次切回前台都会白刷一次），没了才重载。 */
 let lastLockCheck = 0;
 function checkSessionForAutoLock() {
   const now = Date.now();
@@ -143,7 +163,9 @@ function checkSessionForAutoLock() {
   lastLockCheck = now;
   fetch(API.sessionCheck, { credentials: 'same-origin', cache: 'no-store' })
     .then(function (r) {
-      if (r.status === 401) sgxReload();
+      if (r.status !== 401) return;
+      if (!hasV6Marker()) { sgxReload(); return; }
+      return v6SignedIn().then(function (on) { if (on === false) sgxReload(); });
     })
     .catch(function () {});
 }

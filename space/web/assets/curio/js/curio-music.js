@@ -157,6 +157,8 @@ function req(method, url, body, type){
     });
   });
 }
+/** 失败提示：403 forbidden（2b：v6 身份不在 listen / curio-write，或 album.del 不是 root）说没权限，其余「出了点问题」 */
+function failMsg(e){ return e && e.code === 'forbidden' && T.noPermission ? T.noPermission : T.failed; }
 function album(){ return albums[cur] || null; }
 function coverUrl(a){ return '/curio/api/music-cover?album=' + a.id + (coverVer ? '&v=' + coverVer : ''); }
 
@@ -275,7 +277,7 @@ function startTrack(i, at){
   renderAlbum();
 }
 function playFrom(a, i){
-  return session(a).then(function(){ startTrack(i, 0); }).catch(function(e){ if (!e.sgxLocked) toast(T.failed); });
+  return session(a).then(function(){ startTrack(i, 0); }).catch(function(e){ if (!e.sgxLocked) toast(failMsg(e)); });
 }
 function stop(){ audio.pause(); play.i = -1; renderAlbum(); syncToggle(); }
 function syncToggle(){
@@ -333,7 +335,7 @@ $('#mu-album-del').addEventListener('click', function(){
     req('POST', '/curio/api/music', { op: 'album.del', id: a.id }).then(function(j){
       if (play.album === a.id) { audio.pause(); audio.removeAttribute('src'); play = { album: 0, list: [], i: -1, expires: 0, lines: [], line: -2, retried: false }; $('#mu-player').classList.add('hidden'); doc.documentElement.classList.remove('mu-playing'); }
       albums = j.albums || []; cur = Math.min(cur, Math.max(0, albums.length - 1)); renderCovers(); renderAlbum(); toast(T.deleted);
-    }).catch(function(e){ if (!e.sgxLocked) toast(T.failed); });
+    }).catch(function(e){ if (!e.sgxLocked) toast(failMsg(e)); });
   });
 });
 
@@ -422,7 +424,7 @@ $('#mu-up-go').addEventListener('click', function(){
     renderCovers(); select(i < 0 ? 0 : i, true);
     if (UI) UI.closeOverlay('mu-up-wrap');
     toast(failed ? T.partial(failed) : T.saved);
-  }).catch(function(e){ if (!e.sgxLocked) upMsg(T.failed, true); }).then(function(){ btn.disabled = false; });
+  }).catch(function(e){ if (!e.sgxLocked) upMsg(failMsg(e), true); }).then(function(){ btn.disabled = false; });
 });
 
 /* ---------- 启动 ---------- */

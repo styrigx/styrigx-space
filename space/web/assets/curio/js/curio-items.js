@@ -268,6 +268,7 @@ function errText(e){
   if (c === 'too-large') return T.tooLarge;
   if (c === 'account') return T.needAccount;
   if (c === 'scope') return T.noScope; /* P3-1：在 账号 › 应用授权 取消了奇趣的授权 */
+  if (c === 'forbidden') return T.noPermission || T.failed; /* 2b：v6 身份档不够（403 forbidden；电影页经 SgxCurioPhoto.errText 同一份） */
   return T.failed;
 }
 function findDev(id){ return devices.filter(function(d){ return d.id === id; })[0] || null; }

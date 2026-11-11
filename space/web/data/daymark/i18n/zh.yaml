@@ -118,3 +118,4 @@ js:
     noDay: 那天没有记下句子。
     notYet: 那天还没到。
     dayCount: '{n} 天'
+    noPermission: 当前用户没有这个权限。

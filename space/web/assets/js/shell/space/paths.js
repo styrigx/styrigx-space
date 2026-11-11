@@ -20,6 +20,8 @@ export const API = Object.freeze({
   lockNow: '/api/lock-now',
   /** POST 所有设备回锁屏（要 reauth） */
   lockAll: '/api/lock-all-devices',
+  /** POST v6 身份命令（账号 Worker）；守卫只用 whoami（2b：已解锁页面切回前台时，旧进站会话没了还要看 v6 会话在不在） */
+  identity: '/api/identity',
   /** POST 分享链接（share Worker）list / create / revoke */
   share: '/api/share',
 });
