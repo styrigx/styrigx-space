@@ -1,17 +1,16 @@
 /**
  * @fileoverview /api/status：站点监测数据（2026-10-22），给主站监测页和首页长条模块用。
  *
- * 网关只做门：验进站会话（进门即可看；没会话 401），再通过服务绑定 STATUS 转给 styrigx-status Worker。
+ * 网关只做门：v6 身份在 status 组（账号 Worker 判；没身份 401、不在组 403），再通过服务绑定 STATUS 转给 styrigx-status Worker。
  * styrigx-status 没有公开地址，只能从这里进。
  *
  *   GET /api/status
  *   → 200 { ok, now, today, all_up, sites: [...], incidents: [...], usage, usage_reason, quota, quota_reason }
  *     （字段见 workers/status/src/monitor.js summary、src/usage.js、src/quota.js；原样转发，网关不缓存）
  *   401 没会话 · 403 forbidden（v6 身份不在 status 组，2b）· 503 监测服务不可用（没绑定 / 出错）
- * 2b：旧进站会话不成立时认 v6 新会话（status 组，账号 Worker 判；core/identity-admit.js entryOrV6）。
+ * v6 P4 起旧进站会话删除，只认 v6 会话（core/identity-admit.js v6Gate）。
  */
-import { lockSessionOf } from '../core/lock-session.js';
-import { entryOrV6 } from '../core/identity-admit.js';
+import { v6Gate } from '../core/identity-admit.js';
 import { apiError, NO_STORE } from '../lib/http.js';
 
 
@@ -19,9 +18,8 @@ import { apiError, NO_STORE } from '../lib/http.js';
 /** @param {{request: Request, env: any, data?: any}} context */
 export async function onRequestGet(context) {
   const { env } = context;
-  const sess = await lockSessionOf(context);
-  /* 2b：纯 v6 登录（status 组）也能看；有 v6 身份但不在 status 组 403 forbidden */
-  const gate = await entryOrV6(context, sess);
+  /* v6 身份（status 组）才能看；有 v6 身份但不在 status 组 403 forbidden */
+  const gate = await v6Gate(context);
   if (gate === 'forbidden') return apiError(403, 'forbidden');
   if (gate !== 'ok') return apiError(401, 'unauthorized');
   const svc = env && env.STATUS;

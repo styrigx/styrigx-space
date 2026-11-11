@@ -3,15 +3,15 @@
  *
  * - stripRequest(request)：网关 fetch 第一步，删掉入站请求里所有 x-styrigx-* 和 x-sgx-*（之后的主站、子站回源、静态直通、转发用的都是剥过的请求）
  * - clientContextOf(request)：客户端上下文（IP 用 lib/http.js clientIp() 读 CF-Connecting-IP，国家城市读 request.cf）
- * - forwardToService(svc, target, lockSession, clientContext)：用 target（浏览器的请求，fetch 第一步已剥过头）构造一个新请求，
- *   再剥一次头、按验过的进站会话写全套身份头 + 客户端上下文头（lib/lock-identity.js writeLockIdentity），交给服务绑定 svc.fetch。
+ * - forwardToService(svc, target, clientContext)：用 target（浏览器的请求，fetch 第一步已剥过头）构造一个新请求，
+ *   再剥一次头、写客户端上下文头（core/lock-identity.js writeClientContext；v6 P4 起进站身份头删除），交给服务绑定 svc.fetch。
  *   URL、方法、正文、Cookie、Origin 原样（账号侧 isSameOrigin 在转发后仍成立）。出错原样抛给调用方（router.js forward 映射成 503 upstream）。
  *
  * 用户：只有 router.js forward()（router.js 转发表 FORWARDING → 服务绑定 ACCOUNT）。ai / status 不经这里：
  * api/ai.js 自己新建内部请求并写账号结论头（core/conclusion.js）；api/status.js 不写身份头。（P4-2 起 /api/search、/api/chat 退役。）
  */
 import { clientIp } from '../lib/http.js';
-import { stripInternalHeaders, writeLockIdentity } from './lock-identity.js';
+import { stripInternalHeaders, writeClientContext } from './lock-identity.js';
 
 /**
  * 剥掉入站请求里的内部头。没有要剥的 → 原对象；有 → 新 Request（cf 一并带上）。
@@ -50,14 +50,13 @@ export function clientContextOf(request) {
 }
 
 /**
- * 转给下游服务：剥头 + 写身份头，其余原样。
+ * 转给下游服务：剥头 + 写客户端上下文头，其余原样。
  * @param {{fetch: (r: Request) => Promise<Response>}} svc 服务绑定
  * @param {Request} target 要转的请求（浏览器的请求，已剥过外来内部头）
- * @param {any} lockSession verifyLockSession 的结论（没有会话 → 不写身份头）
  * @param {{address?:string, country?:string, city?:string}} clientContext
  * @returns {Promise<Response>}
  */
-export function forwardToService(svc, target, lockSession, clientContext) {
-  const headers = writeLockIdentity(new Headers(target.headers), lockSession, clientContext);
+export function forwardToService(svc, target, clientContext) {
+  const headers = writeClientContext(new Headers(target.headers), clientContext);
   return svc.fetch(new Request(target, { headers }));
 }

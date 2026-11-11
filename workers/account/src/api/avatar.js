@@ -2,16 +2,16 @@
  * PUT / DELETE /api/avatar —— 换头像、恢复默认头像（读取在 GET /avatar/<尺寸>.webp）。
  *
  * PUT（multipart/form-data，字段 32 / 96 / 192 / 512 各一张图）
- * - 进站会话 + 账号会话 + 作用域 avatar.write（方案 3.4 R12；src/gate.js scopeDenial，同一份 core/authorize.js）；必须同源。
- *   没有进站会话 401 session；没账号会话 401 account；没作用域 403 scope。
+ * - v6 会话、路由档 owner（站长 + root，src/gate.js scopeDenial → core/route-access.js）；必须同源。没有 → 401 session。
+ *   v6 P4（定稿 v5.2 §十三）起旧进站会话 + 账号会话 + 作用域 avatar.write 删除。
  * - 图在前端裁好、缩好（Workers 里没有图片库），这里只校验格式（WebP 或 PNG 文件头）和大小。
  * - 先写四张图，最后写版本号 avatar:ver；返回 { ok:true, ver }。
  *
  * DELETE
- * - 同 PUT：进站会话 + 账号会话 + avatar.write；必须同源。先删版本号（立刻回到默认图），再删四张图。
+ * - 同 PUT；必须同源。先删版本号（立刻回到默认图），再删四张图。
  *
  * v6（P2）：v6 新会话（sgx-session，档 user）也能进；头像按 uid 分（lib/avatar.js avatarPrefix）——uid 只取服务端会话
- * （context.auth.dataUid()），请求里的任何 uid 都不认。旧会话 = styrigx（站点头像，键不变）。
+ * （context.auth.dataUid()），请求里的任何 uid 都不认。
  */
 import { isSameOrigin, originDenied, json, apiError } from '../lib/http.js';
 import { AVATAR_SIZES, AVATAR_MAX, keyOf, verKeyOf, sniffImage, NO_STORE, avatarKv } from '../lib/avatar.js';

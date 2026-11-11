@@ -1,6 +1,6 @@
-# styrigx-space-core：站点核心 Worker（CI 部署；承接 styrigx.com 整站请求：进站会话检查 + 接口 + 分享链接；静态资源原样回源）
+# styrigx-space-core：站点核心 Worker（CI 部署；承接 styrigx.com 整站请求：v6 会话的门（问账号 Worker）+ 接口；静态资源原样回源）
 # 进站 v3 L2（2026-11-09）：原鉴权网关 styrigx-auth-gateway 改名为本 Worker（和 styrigx-curio-core / styrigx-daymark-core 一个模子），
-# 分享短链 Worker styrigx-share 并入（/s/<码>、/api/share 由本 Worker 的 styrigx.com/* 接，src/router.js routeShare）。
+# 分享短链 Worker styrigx-share 曾并入本 Worker；v6 P4（定稿 v5.2 §二第 19 行）起分享短链 /s/<码>、/api/share 整套删除，进站签发也删除（§十三）。
 # 旧的两个 Worker 已于进站 v3 L3（2026-11-09）删除；L2 第一次部署时的一次性路由接管见 git 历史（PR #337）。
 #
 # 主站后端代码在本目录：src/（入口、关口、路由表、接口、内核、密钥；骨架见 workers/README.md）+ migrations/（D1 基线：进站 + 分享链接；旧迁移在 migrations-archive/ 只留史）。
@@ -28,7 +28,7 @@ enabled = true
 head_sampling_rate = 1
 
 # 路由：本文件就是本 Worker 路由的唯一登记处（space/scripts/check-worker-routes.mjs 在 CI 里核对）。
-# 只有一个主机，整站一条通配路由（styrigx.com/*）；分享链接（原 styrigx-share 的 styrigx.com/s/*、styrigx.com/api/share*）也在这条里，按路径分：
+# 只有一个主机，整站一条通配路由（styrigx.com/*）：
 # - Cloudflare 的路由规则不带 * 时要求整条 URL（含查询串）完全相等，遇到 ?lock=1、?utm=… 就不命中 → 请求直达 Pages：
 #   锁屏入口 styrigx.com/?lock=1&return=… 没有会话标记；子站页面带任意查询串不验会话直出正文。
 # - 通配后新增页面目录不会漏登记（fail closed）。静态资源（/css/ /js/ /fonts/ /fav/ /images/）也进 Worker，
@@ -81,12 +81,8 @@ binding = "AI_SERVICE"
 service = "styrigx-ai"
 
 # ---- 限流（Workers Rate Limiting，2026-10-28）----
-# 无会话写接口（锁屏 / 重置 / 恢复钥匙 / 临时钥匙进门的 POST）按 IP 每 60 秒 20 次，超了 429；计数在边缘，不占存储、不收费。
-# 代码见 core/anon-limit.js（绑定缺失时 fail-closed 503；限流器调用出错时放行并记日志）。namespace_id 是本账号内自定的整数，别的 Worker 不要复用。
-[[ratelimits]]
-name = "ANON_LIMITER"
-namespace_id = "2801"
-simple = { limit = 20, period = 60 }
+# 计数在边缘，不占存储、不收费。namespace_id 是本账号内自定的整数，别的 Worker 不要复用。
+# v6 P4：无会话写接口的总限流 ANON_LIMITER（2801，锁屏 / 重置 / 分享进门的 POST）随进站接口删除；2801 不再复用。
 
 # /api/ai 第一档：每 IP 每 60 秒 6 次（P4-1，方案 5.6）；超了 429 cooldown。代码见 core/ai-limit.js（绑定缺失时放行）。
 # 单独的 namespace，不和 ANON_LIMITER 共用（共用会让 AI 请求挤占锁屏接口的配额）。
@@ -110,7 +106,7 @@ simple = { limit = 10, period = 60 }
 # 进站的认证状态全部在 D1（强一致），不绑定任何 KV。
 # - 进站的行（realm='lock'：纪元、解锁密码 / 通行密钥、user handle、challenge、输错计数、审计）和 lock_reset_switch；
 #   AI 全站总闸（attempt_limit realm='ai'，core/ai-limit.js）。
-# - 分享链接 share_link + share_fail（原 styrigx-share）。
+# - 分享链接 share_link + share_fail（原 styrigx-share）：v6 P4 起代码不再读写，删表 SQL 在 docs/ops/（手动执行，不进 migrations/）。
 # 迁移（0001_baseline.sql + v5 收尾 0002_drop_tempkey.sql：删 tempkey 表、share_link.key_id 列）由 deploy.yml 的 deploy-space-core 自己跑（token styrigx-space-core-deploy 有 D1 编辑）：
 #   cd workers/space-core && wrangler d1 migrations apply D1_SPACE --remote
 # 代码兜底建表（src/core/d1-state.js SCHEMA，遇到「no such table」时按同一份语句建，幂等）保留；分享链接不兜底（表只由迁移建）。
@@ -122,29 +118,6 @@ database_id = "1354c898-aacd-4122-92de-0ae39a3fcc1a"
 migrations_dir = "migrations"
 migrations_table = "d1_migrations_core"
 
-# ---- 密钥：Secrets Store（进站 v3 Q18 建的 SGX_SPACE_*，v5 收尾去掉临时钥匙 pepper 后 4 个；本仓库只按名字绑定，不碰值）----
-# - SGX_SPACE_PRIVATE / SGX_SPACE_PUBLIC：进站三张票（session / reauth / reset）的 Ed25519 签名钥匙对
-# - SGX_SPACE_RECOVERY_KEY：恢复钥匙（sudo styrigx reset；新值）
-# - SGX_SPACE_PASSWORD_PEPPER：解锁密码哈希的 pepper（新随机值：旧记录验不过，解锁密码要经 reset 重设一次）
-# 外部模型钥匙 SGX_CHAT_API_KEY 只绑在 styrigx-ai；账号钥匙（SGX_ACCOUNT_*）只绑在 styrigx-account。
-# 旧的四个锁屏密钥（名单见 space/scripts/retired-names.json 的 legacy）部署核对后由 Hark 在 Secrets Store 删除（Gray 2026-11-09 08:33）。
-# 换钥只在 Cloudflare 后台改，不用改代码、不用重新部署（最多 60 秒生效）。store_id 是存储的编号，不是密值。
-[[secrets_store_secrets]]
-binding = "SGX_SPACE_PRIVATE"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_SPACE_PRIVATE"
-
-[[secrets_store_secrets]]
-binding = "SGX_SPACE_PUBLIC"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_SPACE_PUBLIC"
-
-[[secrets_store_secrets]]
-binding = "SGX_SPACE_RECOVERY_KEY"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_SPACE_RECOVERY_KEY"
-
-[[secrets_store_secrets]]
-binding = "SGX_SPACE_PASSWORD_PEPPER"
-store_id = "a5a984f365424401bad5ad6ddcd44479"
-secret_name = "SGX_SPACE_PASSWORD_PEPPER"
+# ---- 密钥：v6 P4（定稿 v5.2 §十三）起本 Worker 不绑任何 Secrets Store 私密值 ----
+# 进站签发删除：SGX_SPACE_PRIVATE / SGX_SPACE_PUBLIC（进站票签名对）、SGX_SPACE_RECOVERY_KEY（旧恢复钥匙）、SGX_SPACE_PASSWORD_PEPPER（旧 pepper）
+# 的绑定一并删（Secrets Store 里的值不在本 PR 处理）。身份只由账号 Worker styrigx-account 签发（SGX_ACCOUNT_*）。

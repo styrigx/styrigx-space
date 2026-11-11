@@ -2,9 +2,9 @@
  * v6 身份统一（P2）：v6 用户的凭据——密码（account_user_password）验证 / 设置、一次性密码、两维限流、防枚举。
  *
  * - 哈希：沿用 core/password.js 的记录格式（PBKDF2-SHA256 + 盐 + pepper，记录里带 iterations）。不用 bcrypt / argon2（Worker CPU）。
- * - pepper 方案 a（ADR-0006 §2.12 (b)）：记录的 pepper_id 决定用哪把 pepper——'account' = SGX_ACCOUNT_PASSWORD_PEPPER，
- *   'space' = SGX_SPACE_PASSWORD_PEPPER（从进站密码迁来的 styrigx）。不认识的 id / 缺 pepper → 验不过（fail closed）。
- *   验对且 pepper_id 不是 'account' → 用账号 pepper 重算并改成 'account'（尽力而为，失败不挡登录）。
+ * - pepper 方案 a（ADR-0006 §2.12 (b)）：记录的 pepper_id 决定用哪把 pepper——只剩 'account' = SGX_ACCOUNT_PASSWORD_PEPPER。
+ *   v6 P4（定稿 v5.2 §十三）起 'space'（SGX_SPACE_PASSWORD_PEPPER，从进站密码迁来的旧哈希）删除：部署前已核对生产库没有 pepper_id = 'space' 的行
+ *   （docs/ops/v6-p4-predeploy-check.sql）。不认识的 id / 缺 pepper → 验不过（fail closed）。
  * - 一次性密码（useradd / passwd <名>）：16 位以上随机，只显示一次，库里只存哈希；must_change = 1，expires_at = 签发 + 24 小时；
  *   过期的一次性密码一律验不过。
  * - 限流两维（定稿 v4 §十）：按 IP 硬上限（每分钟 6 次失败，满了冷却到窗口结束）；按用户名渐进退避（1s → 5s → 30s → 5min），不硬锁。
@@ -21,7 +21,7 @@ import { checkPasswordRecord, makePasswordRecord, ITERATIONS } from './password.
 import { ROOT_UID } from './groups.js';
 
 /** pepper_id → Secrets Store 名（方案 a） */
-export const PEPPERS = Object.freeze({ account: 'SGX_ACCOUNT_PASSWORD_PEPPER', space: 'SGX_SPACE_PASSWORD_PEPPER' });
+export const PEPPERS = Object.freeze({ account: 'SGX_ACCOUNT_PASSWORD_PEPPER' });
 /** 新写的哈希一律用这把 */
 export const DEFAULT_PEPPER_ID = 'account';
 /** 自己设的密码最短长度（同 core/password.js） */
@@ -42,7 +42,7 @@ const NAME_TTL_MS = 24 * 3600 * 1000;
 
 /** pepper_id 对应的 pepper（不认识 / 缺 → ''） @param {any} env @param {string} id */
 export function pepperOf(env, id) {
-  const name = Object.prototype.hasOwnProperty.call(PEPPERS, id) ? PEPPERS[/** @type {'account'|'space'} */ (id)] : '';
+  const name = Object.prototype.hasOwnProperty.call(PEPPERS, id) ? PEPPERS[/** @type {'account'} */ (id)] : '';
   return (name && env && typeof env[name] === 'string' && env[name]) || '';
 }
 

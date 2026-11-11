@@ -13,7 +13,7 @@
 /* 清除 cookie 时追加的过期时间（网关 core/realms.js 原样再导出 COOKIE_EXPIRED） */
 export const COOKIE_EXPIRED = 'Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
 
-/** RPC 转来的 Cookie 头的长度上限（core/lock-session.js checkLockSession；账号 / 分享 Worker 同一个值） */
+/** RPC 转来的 Cookie 头的长度上限（账号 Worker 同一个值） */
 export const MAX_COOKIE_HEADER = 8192;
 
 /** @param {any} request */

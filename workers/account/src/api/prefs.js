@@ -1,8 +1,8 @@
 /**
  * 账号云同步：设置项（外观 / 时区天气 / 搜索引擎 / Good Lock 等）跨设备同步。
  *
- * 进站会话 + 账号会话 + 作用域 prefs.sync（方案 3.4 R12；src/gate.js scopeDenial，同一份 core/authorize.js）：
- * 没有进站会话 401 session；没登录账号 401 account；没作用域 403 scope。前端（lib/cloud-sync.js）遇到 401 / 403 停在「只存本机」。
+ * v6 会话 + 路由档（src/gate.js scopeDenial → core/route-access.js；v6 P4 起旧进站会话 + 账号会话 + 作用域 prefs.sync 删除）：
+ * 没有 → 401 session。前端（lib/cloud-sync.js）遇到 401 / 403 停在「只存本机」。
  *
  * 存储：D1 styrigx-account 的 settings_sync 表（绑定 D1_ACCOUNT，migrations/0002_settings_sync.sql），一项设置一行
  *   (k, v, t, updated_at)。运行时不读 KV、没有回落。
@@ -15,7 +15,7 @@
  * - 没绑 D1_ACCOUNT → 500 config（正式 / 预览的 wrangler.toml 都绑了；缺绑定只会是配置错误）
  *
  * v6（P2）：按 uid 分（ADR-0006 §2.12 (a)：uid 只取服务端会话 context.auth.dataUid()；请求里的 uid 一概不认）。
- * - 表有 uid 列（migrations/0007 跑过）：一律 WHERE uid = ?；旧会话 = styrigx。
+ * - 表有 uid 列（migrations/0007 跑过）：一律 WHERE uid = ?。
  * - 还没有 uid 列：表里全是 styrigx 的，只有 styrigx 读写；别的 uid GET 回空、POST 409 not-ready（不碰 styrigx 的行）。
  *
  * GET  /api/prefs → { ok, items, updatedAt }
@@ -76,7 +76,7 @@ function prefsDb(env) {
   return (env && env.D1_ACCOUNT) || null;
 }
 
-/** 进站会话 + 账号会话 + prefs.sync（context.auth，见 src/gate.js headerAuth / scopeDenial）；不满足返回错误响应 @param {any} context */
+/** v6 会话 + 路由档（context.auth，见 src/gate.js headerAuth / scopeDenial）；不满足返回错误响应 @param {any} context */
 async function gate(context) {
   const { env, auth } = context;
   const denied = await scopeDenial(auth, 'prefs.sync');

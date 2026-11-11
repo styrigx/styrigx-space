@@ -1,5 +1,7 @@
 /**
- * 账号已登录设备（account_device 表；接口 /api/account/devices，api/account/devices.js）。
+ * 账号已登录设备（account_device 表）。v6 P4（定稿 v5.2 §十三）起旧账号会话删除，不再写新行；/api/account/devices 只管 v6 会话。
+ * 留下的读法只给应用授权列表显示「授权时的设备」（api/account/grants.js grantListView：getDevice / deviceView）。
+ * 以下是旧账号会话时的记录方式（只作数据说明）：
  *
  * 每次账号登录（通行密钥 / 密码）在 session 票里带一个随机 deviceId，并在 account_device 记一行：
  *   record = { deviceId, by, createdAt, authAt, lastSeen, model, platform, platformVersion, browser, country, city }
@@ -18,11 +20,13 @@
  */
 import { b64urlEnc } from '../lib/crypto.js';
 import { onDb, sweepExpired, parseRecord } from '../lib/db.js';
-import { isDeviceId } from '../lib/ticket.js';
 import { readClientContext } from '../lib/gateway.js';
 import { TICKET_MAX_AGE, LEGACY_SESSION_MAX_AGE } from './config.js';
 
-export { isDeviceId };
+/** deviceId：12 字节随机的 base64url（16 字符）；只认 [A-Za-z0-9_-]{8,32}，不含 '.'（原 lib/ticket.js，v6 P4 随旧票删除搬到这里） @param {any} v */
+export function isDeviceId(v) {
+  return typeof v === 'string' && /^[A-Za-z0-9_-]{8,32}$/.test(v);
+}
 
 /* 设备行跟着 session 走：每次 touch / 登录写行时续到 now + 30 天（session 滑动续期，设备行也滑动） */
 const TTL_MS = TICKET_MAX_AGE.session * 1000;

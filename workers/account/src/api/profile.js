@@ -10,15 +10,15 @@
  *   前端（lib/profile.js）仍只在已进站的页面请求（锁屏头像替代文字用构建期默认值 + 本机缓存），接口本身不再挡。
  *
  * PUT（JSON，任意几个字段：{ name?, nickname?, motto?, email? }）
- * - 进站会话 + 账号会话 + 作用域 profile.write（src/gate.js scopeDenial，同一份 core/authorize.js）；必须同源。
- *   没有进站会话 401 session；没账号会话 401 account；没作用域 403 scope。
+ * - v6 会话、路由档 owner（src/gate.js scopeDenial → core/route-access.js）；必须同源。没有 → 401 session。
+ *   v6 P4（定稿 v5.2 §十三）起旧进站会话 + 账号会话 + 作用域 profile.write 删除。
  * - 每个字段按 lib/profile.js 的字段表校验：字符串去首尾空白；姓名 ≤40、昵称 ≤32、签名不限长度（只受请求体 4 KB 上限）、邮箱 ≤254 个字符；
  *   单行（不收控制字符 / 换行）；姓名、昵称、邮箱不能为空串，签名可以为空；邮箱要像邮箱；值为 null = 清掉回默认值。
  *   不认识的字段、空对象、不是 JSON 对象 → 400；请求体超过 4 KB → 413。任何一个字段不合法整个请求不写。
  * - 与已存的合并后写回一个键 `profile`；回 { ok:true, profile, avatar, updatedAt }（同 GET）。
  *
  * v6（P2，定稿 v4 §五）：PUT 的档是 owner——站长（styrigx）+ root（root 由 permits 放行），其余 uid 一律拒（v6 新会话按
- * core/route-access.js 判；旧会话照旧要账号会话 + profile.write）。root 改名片写身份审计（profile，root 的特权内容操作都留痕）。
+ * core/route-access.js 判）。root 改名片写身份审计（profile，root 的特权内容操作都留痕）。
  * GET：公开（P2c 起，见上）。
  */
 import { isSameOrigin, originDenied, json, apiError, clientIp } from '../lib/http.js';

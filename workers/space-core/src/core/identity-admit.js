@@ -59,7 +59,7 @@ export function normalizeAdmit(r, action) {
 
 /**
  * 问账号 Worker：这个新会话能不能走这条路由（给了 action 就按那个 action 的档）。原样回账号 Worker 的结论；没绑定 / 出错 → null。
- * 子站接口 Worker 经 SpaceVerifier.admit 转来，网关自己的接口（/api/share、/api/space-audit）经 newSessionConclusion。
+ * 子站接口 Worker 经 SpaceVerifier.admit 转来，网关自己的接口（/api/space-audit）经 newSessionConclusion。
  * @param {Record<string, any>} env @param {string} cookieHeader @param {string} method @param {string} pathname @param {string} [action]
  */
 export async function askAdmit(env, cookieHeader, method, pathname, action) {
@@ -102,13 +102,12 @@ export async function v6ConclusionOf(context) {
 }
 
 /**
- * 网关自己的接口的门（2b）：旧进站会话有效 → null（放行）；否则 v6 新会话的路由档够 → null；有 v6 身份但档不够 → 403 forbidden；
- * 都没有 → 401 unauthorized。判断不在网关（账号 Worker 的 ROUTE_ACCESS + permits），这里只认结论。
- * @param {{ request: Request, env: any, data?: any }} context @param {{ok:boolean}} sess
+ * 网关自己的接口的门（v6 P4 起只认 v6 会话）：v6 会话的路由档够 → 'ok'；有 v6 身份但档不够 → 'forbidden'；没有 → 'unauthorized'。
+ * 判断不在网关（账号 Worker 的 ROUTE_ACCESS + permits），这里只认结论。
+ * @param {{ request: Request, env: any, data?: any }} context
  * @returns {Promise<'ok'|'forbidden'|'unauthorized'>}
  */
-export async function entryOrV6(context, sess) {
-  if (sess && sess.ok) return 'ok';
+export async function v6Gate(context) {
   const v = await v6ConclusionOf(context);
   if (v.allowed) return 'ok';
   return v.signedIn ? 'forbidden' : 'unauthorized';

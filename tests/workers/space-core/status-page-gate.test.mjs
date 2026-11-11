@@ -1,29 +1,27 @@
 /**
  * 聊天 /chat/ 与服务状态 /status/（含 /zh/）和其他主站内页一样过网关 gate.js：
- *   v5 S3 整站放开：没会话 / 坏 cookie 也 200（页面标 locked，no-store，不 302）；进门会话（任何 by，含分享链接）200 标 valid。
+ *   v5 S3 整站放开：没会话 / 坏 cookie 也 200（页面标 locked，no-store，不 302）；v6 会话 200 标 valid（v6 P4 起旧进站会话不认）。
  *   监控数据 /api/status 仍要进站：没会话 401。
- *   页面本身只认进站会话，不问账号会话（没有账号 cookie、没绑 ACCOUNT_VERIFIER 也 200）。
  *   /api/status 本身的会话校验见 tests/workers/space-core/search-api.test.mjs。
  * 运行：node --test tests/workers/space-core/status-page-gate.test.mjs
- * Ed25519 测试密钥在测试内临时生成，不用生产密钥。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequest as mw } from '../../../workers/space-core/src/gate.js';
-import { testLockSession } from './_tickets.mjs';
-import { genKeyPair, withAuthD1 } from '../_harness.mjs';
-
-const { priv: PRIV, pub: PUB } = await genKeyPair();
+import '../account/_cf-workers.mjs';
+import { withAuthD1 } from '../_harness.mjs';
+import { admitFor } from '../_v6admit.mjs';
 
 function kv() {
   const m = new Map();
   return { async get(k) { return m.has(k) ? m.get(k) : null; }, async put(k, v) { m.set(k, String(v)); }, async delete(k) { m.delete(k); }, async list() { return { keys: [] }; } };
 }
-const env = () => withAuthD1({ SGX_ENV: 'production', SGX_SITE: 'space', SGX_SPACE_PUBLIC: PUB, KV_LOCK_DOOR: kv() });
+const env = () => withAuthD1({ SGX_ENV: 'production', SGX_SITE: 'space', KV_LOCK_DOOR: kv(),
+  ACCOUNT_VERIFIER: { async admit(c, m, p, o) { return admitFor(c, m, p, o); } } });
 
 function ctx(url, cookie) {
   const headers = {};
-  if (cookie) headers.Cookie = 'sgx-space-session=' + cookie;
+  if (cookie) headers.Cookie = cookie;
   return {
     request: new Request(url, { headers }),
     next: async () => new Response('<html lang="zh"><head></head><body>PAGE</body></html>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }),
@@ -36,7 +34,7 @@ const PAGES = ['/status/', '/zh/status/', '/wild/', '/zh/wild/', '/chat/', '/zh/
 
 test('没会话：/wild/、/status/、/chat/（中英）200 页面标 locked、no-store，不 302；/api/status 401', async () => {
   for (const p of PAGES) {
-    for (const cookie of ['', 'garbage.1.2']) {
+    for (const cookie of ['', 'sgx-session=garbage', 'sgx-space-session=password.0.9999999999999.']) {
       const r = await mw(ctx('https://styrigx.com' + p + '?x=1', cookie));
       assert.equal(r.status, 200, p);
       assert.equal(r.headers.get('Location'), null, p);
@@ -44,18 +42,17 @@ test('没会话：/wild/、/status/、/chat/（中英）200 页面标 locked、n
       assert.equal(r.headers.get('Cache-Control'), 'private, no-store');
     }
   }
-  for (const cookie of ['', 'garbage.1.2']) assert.equal((await mw(ctx('https://styrigx.com/api/status', cookie))).status, 401);
+  for (const cookie of ['', 'sgx-session=garbage', 'sgx-space-session=password.0.9999999999999.']) assert.equal((await mw(ctx('https://styrigx.com/api/status', cookie))).status, 401);
 });
 
-test('进门会话（没有账号会话；锁屏密码 / 锁屏通行密钥 / 分享链接进门都一样）：/status/、/chat/（中英）都放行 200，页面上没有等级标记', async () => {
-  for (const by of ['password', 'passkey', 'link']) {
-    const cookie = await testLockSession(PRIV, 0, by);
+test('v6 会话（v6 P4 起只认它）：/status/、/chat/（中英）都放行 200、页面标 valid，页面上没有等级标记', async () => {
+  for (const who of ['styrigx', 'root', 'alice']) {
     for (const p of PAGES) {
-      const r = await mw(ctx('https://styrigx.com' + p, cookie));
-      assert.equal(r.status, 200, by + ' 访问 ' + p + ' 应 200');
+      const r = await mw(ctx('https://styrigx.com' + p, 'sgx-session=' + who));
+      assert.equal(r.status, 200, who + ' 访问 ' + p + ' 应 200');
       const html = await r.text();
-      assert.match(html, /PAGE/);
-      assert.doesNotMatch(html, /data-sgx-role|data-sgx-upgrade/, by + ' ' + p); // old-name guard
+      assert.match(html, /data-sgx-lock-session="valid"[^>]*>.*PAGE/, who + ' ' + p);
+      assert.doesNotMatch(html, /data-sgx-role|data-sgx-upgrade/, who + ' ' + p); // old-name guard
     }
   }
 });

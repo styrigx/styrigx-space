@@ -1,29 +1,17 @@
 /**
  * 内部请求头：网关写的一侧（方案第 3 节；各 Worker 各自一份，不互相 import）。读的一侧只有账号 Worker：
- * workers/account/src/lib/lock-identity.js（readLockIdentity / readClientContext，同一份白名单）。
+ * workers/account/src/lib/lock-identity.js（readClientContext，同一份白名单）。
  *
- * 网关把锁屏身份、客户端上下文转给账号 Worker 时用的头名和写法：只用在 router.js 转发表里的路径
- * （router.js forward → core/forward.js forwardToService）。ai 不用这套头：api/ai.js 新建内部请求、写账号结论头
- * （core/conclusion.js）；api/status.js 不带任何身份头。（P4-2 起 /api/search、/api/chat 退役。）
+ * v6 P4（定稿 v5.2 §十三）起进站会话删除，锁屏身份头（X-Styrigx-Space-Session / By / Link-Id）不再写；只剩客户端上下文头，
+ * 只用在 router.js 转发表里的路径（router.js forward → core/forward.js forwardToService）。
  * 头名大小写不敏感（Headers 会统一小写）；剥离外来同名头时按 INTERNAL_HEADER_PREFIX（小写）匹配前缀。
  *
- * - stripInternalHeaders(headers)：删掉所有 x-styrigx-* 和旧前缀 x-sgx-*（网关 fetch 第一步剥浏览器带来的；writeLockIdentity 写之前再剥一次）
- * - writeLockIdentity(headers, lockSession, clientContext)：先剥，再按验过的进站会话写身份头和客户端上下文头（只写白名单里的值）
+ * - stripInternalHeaders(headers)：删掉所有 x-styrigx-* 和旧前缀 x-sgx-*（网关 fetch 第一步剥浏览器带来的；writeClientContext 写之前再剥一次）
+ * - writeClientContext(headers, clientContext)：先剥，再写客户端上下文头（只写白名单里的值）
  *
- * X-Styrigx-Space-Session: 1（授权骨架 P2-1，方案 2.3.1）：网关验过的进站会话有效（进门）。进门二值（P2-3）：没有等级头，
- * 只有进门与否；By / Link-Id 只作审计。
- *
- * 不带会话 id、不签名（方案第 3 节）：靠三道保险——网关剥头、账号 Worker 只在命名入口读头（默认 fetch 一律 404）、账号 Worker 没有公开路由
- * （wrangler.toml 无 [[routes]]；PR3 前的 4 条旧路由 wrangler deploy 不会自动删，部署后手动删，删之前进来的请求也只碰到默认 fetch 的 404）。
+ * 不带会话 id、不签名（方案第 3 节）：靠三道保险——网关剥头、账号 Worker 只在命名入口读头（默认 fetch 一律 404）、账号 Worker 没有公开路由。
  * 不 import 任何东西。
  */
-
-/** 锁屏身份：进门有效、凭什么进的门（只作审计）、分享链接 id（by=link，v5 S1 起取代临时钥匙 id） */
-export const LOCK_IDENTITY_HEADERS = Object.freeze({
-  session: 'X-Styrigx-Space-Session',
-  by: 'X-Styrigx-Space-By',
-  linkId: 'X-Styrigx-Space-Link-Id',
-});
 
 /** 客户端上下文：地址、国家、城市 */
 export const CLIENT_CONTEXT_HEADERS = Object.freeze({
@@ -40,8 +28,6 @@ export const INTERNAL_HEADER_PREFIX = 'x-styrigx-';
 const LEGACY_HEADER_PREFIX = 'x-sgx-';
 
 /* 白名单 */
-const BYS = Object.freeze(['password', 'passkey', 'link']);
-const LINK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const ADDRESS_RE = /^[0-9A-Fa-f:.]{1,64}$/;
 const MAX_COUNTRY = 4;
 const MAX_CITY = 40;
@@ -85,37 +71,13 @@ function normalizeClientContext(c) {
 }
 
 /**
- * 规范化进站会话（verifyLockSession 的结论）：ok === true 才算进门；by 不认识 → ''；
- * linkId 只在 by=link 时给、且格式合规。没进门 → null。
- * @param {any} s
- * @returns {{by:string, linkId:string}|null}
- */
-function normalizeLockIdentity(s) {
-  if (!s || typeof s !== 'object' || s.ok !== true) return null;
-  const byRaw = typeof s.by === 'string' ? s.by.trim() : '';
-  const by = BYS.indexOf(byRaw) !== -1 ? byRaw : '';
-  const lk = typeof s.linkId === 'string' ? s.linkId.trim() : '';
-  const linkId = by === 'link' && LINK_ID_RE.test(lk) ? lk : '';
-  return { by, linkId };
-}
-
-/**
- * 先剥掉所有内部头，再按验过的进站会话写身份头、按客户端上下文写上下文头（只写白名单里的非空值）。
- * 进门 → X-Styrigx-Space-Session: 1 + 白名单里的 By / Link-Id。
- * 没有进站会话 → 不带任何 X-Styrigx-Space-* 头（= 下游看到的是无会话）。
+ * 先剥掉所有内部头，再按客户端上下文写上下文头（只写白名单里的非空值）。
  * @param {Headers} headers 要写的头（就地改）
- * @param {any} lockSession verifyLockSession 的结论 { ok, by?, linkId? }
  * @param {any} clientContext { address, country, city }
  * @returns {Headers}
  */
-export function writeLockIdentity(headers, lockSession, clientContext) {
+export function writeClientContext(headers, clientContext) {
   stripInternalHeaders(headers);
-  const id = normalizeLockIdentity(lockSession);
-  if (id) {
-    headers.set(LOCK_IDENTITY_HEADERS.session, '1');
-    if (id.by) headers.set(LOCK_IDENTITY_HEADERS.by, id.by);
-    if (id.linkId) headers.set(LOCK_IDENTITY_HEADERS.linkId, id.linkId);
-  }
   const c = normalizeClientContext(clientContext);
   if (c.address) headers.set(CLIENT_CONTEXT_HEADERS.address, c.address);
   if (c.country) headers.set(CLIENT_CONTEXT_HEADERS.country, c.country);

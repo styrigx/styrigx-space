@@ -1,7 +1,7 @@
 /**
  * /api/ai（网关，src/api/ai.js + core/ai-limit.js；P4-1，方案 5.3 / 5.6）：
- * 同源、进门（不分进门方式）、不要账号会话、每 IP 第 7 次 429 cooldown、全站第 61 次 429 busy（跨请求共享计数、超闸不写行）、
- * D1 出错 429 busy（fail closed）、账号结论头只在有账号会话时写、转发只带 Content-Type 和结论头（不转 cookie）、
+ * 同源、v6 身份（ai 组；v6 P4 起旧进站会话 / 旧账号会话删除）、每 IP 第 7 次 429 cooldown、全站第 61 次 429 busy（跨请求共享计数、超闸不写行）、
+ * D1 出错 429 busy（fail closed）、结论头只在 v6 身份够 AI 私密档（站长 / root）时写、转发只带 Content-Type 和结论头（不转 cookie）、
  * 浏览器伪造的 X-Styrigx-Account-* 被剥（整条 app.js 链路）、SSE 原样流回、没绑定 503 / 抛错 502、wrangler.toml 绑定。
  * 运行：node --test tests/workers/space-core/ai-api.test.mjs
  */
@@ -11,16 +11,16 @@ import { readFileSync } from 'node:fs';
 import * as aiApi from '../../../workers/space-core/src/api/ai.js';
 import * as L from '../../../workers/space-core/src/core/ai-limit.js';
 import { API_ROUTES } from '../../../workers/space-core/src/router.js';
-import { testLockSession } from './_tickets.mjs';
-import { genKeyPair, withAuthD1, makeAuthD1 } from '../_harness.mjs';
+import '../account/_cf-workers.mjs';
+import { withAuthD1, makeAuthD1 } from '../_harness.mjs';
+import { admitFor } from '../_v6admit.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
 const worker = (await import(REPO + 'workers/space-core/src/app.js')).default;
 const CTX = { waitUntil() {} };
 
-const { priv: PRIV, pub: PUB } = await genKeyPair();
-const PW_SESS = await testLockSession(PRIV, 0, 'password');
-const LINK_SESS = await testLockSession(PRIV, 0, 'link');
+/* v6 身份（../_v6admit.mjs）：bob = ai 组、不是站长（只召回公开）；styrigx = 站长（私密）；temp = 无组 */
+const PW_SESS = 'bob';
 
 function kv() {
   const m = new Map();
@@ -40,10 +40,9 @@ function aiSvc(log, fn) {
   };
 }
 const ACCOUNT_VERIFIER = {
-  async authorize(cookie) {
-    if (/sgx-account-session=boom/.test(cookie)) throw new Error('rpc');
-    if (/sgx-account-session=ok/.test(cookie)) return { ok: true, reason: 'ok', deviceId: 'devtestdevtest01', scopes: ['curio.write'], reauth: false };
-    return { ok: false, reason: 'missing' };
+  async admit(c, m, p, o) {
+    if (/sgx-session=boom/.test(c) && o && o.action === 'private') throw new Error('rpc');
+    return admitFor(String(c).replace('sgx-session=boom', 'sgx-session=styrigx'), m, p, o);
   },
 };
 /** Rate Limiting 替身：每个 key 计数，超过 limit 回 success:false */
@@ -54,15 +53,14 @@ function limiter(limit) {
 
 function env(over = {}) {
   const log = [];
-  const e = withAuthD1({ SGX_ENV: 'production', SGX_SITE: 'space', SGX_SPACE_PUBLIC: PUB, KV_LOCK_DOOR: kv(), ACCOUNT_VERIFIER, AI_SERVICE: aiSvc(log), ...over });
+  const e = withAuthD1({ SGX_ENV: 'production', SGX_SITE: 'space', KV_LOCK_DOOR: kv(), ACCOUNT_VERIFIER, AI_SERVICE: aiSvc(log), ...over });
   e.log = log;
   return e;
 }
 function req({ cookie = PW_SESS, acc, origin = 'https://styrigx.com', ip = '203.0.113.7', body = { q: '主题' }, extra = {} } = {}) {
   const headers = { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip, ...extra };
   const c = [];
-  if (cookie) c.push('sgx-space-session=' + cookie);
-  if (acc) c.push('sgx-account-session=' + acc);
+  if (acc || cookie) c.push('sgx-session=' + (acc || cookie));
   if (c.length) headers.Cookie = c.join('; ');
   if (origin) headers.Origin = origin;
   return new Request('https://styrigx.com/api/ai', { method: 'POST', headers, body: typeof body === 'string' ? body : JSON.stringify(body) });
@@ -78,11 +76,10 @@ test('路由：/api/ai 在 API_ROUTES，指向 api/ai.js；POST 问、GET 取模
   assert.deepEqual(Object.keys(aiApi).filter((k) => k.startsWith('onRequest')).sort(), ['onRequestGet', 'onRequestPost']);
 });
 
-test('GET /api/ai（P4-2）：进门才转 GET /models；写账号结论头、不转 cookie；不计 AI 限流；绑定缺失 503 / 抛错 502', async () => {
+test('GET /api/ai（P4-2）：v6 身份（ai 组）才转 GET /models；站长写结论头、不转 cookie；不计 AI 限流；绑定缺失 503 / 抛错 502', async () => {
   const get = ({ cookie = PW_SESS, acc } = {}) => {
     const c = [];
-    if (cookie) c.push('sgx-space-session=' + cookie);
-    if (acc) c.push('sgx-account-session=' + acc);
+    if (acc || cookie) c.push('sgx-session=' + (acc || cookie));
     return new Request('https://styrigx.com/api/ai', { headers: c.length ? { Cookie: c.join('; '), 'CF-Connecting-IP': '203.0.113.7' } : {} });
   };
   const models = (r) => new Response(JSON.stringify({ ok: true, default: 'm', models: [], canChoose: r.headers.get('X-Styrigx-Account-Session') === '1' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -97,7 +94,7 @@ test('GET /api/ai（P4-2）：进门才转 GET /models；写账号结论头、�
   assert.equal((await r.json()).canChoose, false);
   assert.deepEqual([log[0].url, log[0].method], ['https://styrigx-ai/models', 'GET']);
   assert.equal(log[0].headers.cookie, undefined);
-  r = await aiApi.onRequestGet({ request: get({ acc: 'ok' }), env: e, data: {} });
+  r = await aiApi.onRequestGet({ request: get({ acc: 'styrigx' }), env: e, data: {} });
   assert.equal((await r.json()).canChoose, true);
   assert.match(r.headers.get('Cache-Control'), /no-store/);
   assert.equal(lim.calls.size, 0, '不计限流');
@@ -108,7 +105,7 @@ test('GET /api/ai（P4-2）：进门才转 GET /models；写账号结论头、�
   assert.equal(r.status, 502);
 });
 
-test('门：跨源 403 origin；没进门 401 unauthorized；都不转发、不计数', async () => {
+test('门：跨源 403 origin；没身份 401 unauthorized；不在 ai 组 403 forbidden；都不转发、不计数', async () => {
   const e = env({ AI_LIMITER: limiter(6) });
   let r = await call(req({ origin: 'https://evil.example' }), e);
   assert.equal(r.status, 403);
@@ -118,15 +115,18 @@ test('门：跨源 403 origin；没进门 401 unauthorized；都不转发、不�
   r = await call(req({ cookie: null }), e);
   assert.equal(r.status, 401);
   assert.equal(await errOf(r), 'unauthorized');
-  r = await call(req({ cookie: 'garbage.1.2.3.sig' }), e);
+  r = await call(req({ cookie: 'garbage' }), e);
   assert.equal(r.status, 401);
+  r = await call(req({ cookie: 'temp' }), e);
+  assert.equal(r.status, 403);
+  assert.equal(await errOf(r), 'forbidden');
   assert.equal(e.log.length, 0);
   assert.equal(e.AI_LIMITER.calls.size, 0);
   assert.deepEqual(rows(e) || [], []);
 });
 
-test('进门就行、不要账号会话：锁屏密码 / 分享链接进门都转发；没账号会话不写结论头（只召回公开）', async () => {
-  for (const cookie of [PW_SESS, LINK_SESS]) {
+test('ai 组就行：不是站长（bob）也转发，但不写结论头（只召回公开）', async () => {
+  for (const cookie of [PW_SESS]) {
     const e = env();
     const r = await call(req({ cookie }), e);
     assert.equal(r.status, 200);
@@ -143,9 +143,9 @@ test('进门就行、不要账号会话：锁屏密码 / 分享链接进门都�
   }
 });
 
-test('有账号会话 → 写账号结论头；RPC 出错 → 不写（当没有账号会话）', async () => {
+test('站长（styrigx，AI 私密档）→ 写结论头；私密档 RPC 出错 → 不写（只召回公开）', async () => {
   let e = env();
-  let r = await call(req({ acc: 'ok' }), e);
+  let r = await call(req({ acc: 'styrigx' }), e);
   assert.equal(r.headers.get('X-Styrigx-AI-Scope'), 'private');
   assert.equal(e.log[0].headers['x-styrigx-account-session'], '1');
   assert.deepEqual(Object.keys(e.log[0].headers).filter((k) => !k.startsWith('x-styrigx-account-')).sort(), ['content-type']);

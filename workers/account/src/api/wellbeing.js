@@ -118,15 +118,9 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   /* v6 新会话（档 user，permits 判过）：记在会话的 uid 下 */
   const v = context.auth.hasV6 ? await context.auth.v6() : null;
-  let uid = v && v.allowed === true && Number.isInteger(v.uid) ? v.uid : null;
-  if (uid === null) {
-    const sess = await context.auth.gateway(); /* 进站会话：网关写的身份头（src/gate.js headerAuth） */
-    if (!sess.ok) return new Response(null, { status: 401, headers: NO_STORE });
-    /* 账号会话 + wellbeing.write 才记；否则 204 丢弃（不报错，sendBeacon 不看结果） */
-    const a = await context.auth.authorize();
-    if (!a.ok || !a.scopes.includes('wellbeing.write')) return new Response(null, { status: 204, headers: NO_STORE });
-    uid = STYRIGX_UID;
-  }
+  const uid = v && v.allowed === true && Number.isInteger(v.uid) ? v.uid : null;
+  /* v6 P4（定稿 v5.2 §十三）：旧进站会话 + 账号会话（wellbeing.write）的分支删除，没有 v6 身份 401 */
+  if (uid === null) return new Response(null, { status: 401, headers: NO_STORE });
   const db = env && env.D1_ACCOUNT;
   if (!db) return new Response(null, { status: 204, headers: NO_STORE });
   const byUid = await hasUidColumn(db, 'wb_daily');
@@ -167,16 +161,15 @@ export async function onRequestPost(context) {
 /** @param {any} context */
 export async function onRequestGet(context) {
   const { request, env } = context;
-  /* v5 S3：合计公开（网关访问表 GET /api/wellbeing = public，gate.js PUBLIC_API 同一条）；明细只给进站 + 账号会话（读私密 = 账号会话，不要作用域；方案 4.2） */
-  const sess = await context.auth.gateway(); /* 进站会话：网关写的身份头（src/gate.js headerAuth） */
+  /* v5 S3：合计公开（网关访问表 GET /api/wellbeing = public，gate.js PUBLIC_API 同一条）；明细只给站长 / root（v6 会话） */
   const url = new URL(request.url);
   const qd = url.searchParams.get('d') || '';
   const d = dayOk(qd) ? qd : utcDay(new Date());
-  /* 明细只给本人（Muse 审查 v5 注意点 1）：按服务端会话的 uid 分支——有 v6 身份就只看它（站长 styrigx / root 给明细，别人只给合计）；
-     没有 v6 身份才看旧会话（进站 + 账号会话 = 站长）；访客只有合计。请求里的任何 uid 都不认 */
+  /* 明细只给本人（Muse 审查 v5 注意点 1）：按服务端会话的 uid——站长 styrigx / root 给明细，别人只给合计；访客只有合计。
+     v6 P4 起旧会话（进站 + 账号会话）的分支删除。请求里的任何 uid 都不认 */
   const v = context.auth.hasV6 ? await context.auth.v6() : null;
   const v6uid = v && v.allowed === true && Number.isInteger(v.uid) ? v.uid : null;
-  const detail = v6uid !== null ? (v6uid === STYRIGX_UID || v6uid === ROOT_UID) : (sess.ok === true && (await context.auth.authorize()).ok === true);
+  const detail = v6uid === STYRIGX_UID || v6uid === ROOT_UID;
   const empty = { ok: true, d, detail, total: 0, sections: [], items: [] };
   const db = env && env.D1_ACCOUNT;
   if (!db) return json(200, empty, NO_STORE);
