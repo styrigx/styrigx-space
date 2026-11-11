@@ -33,9 +33,12 @@ features:
       - {id: cream}
       - {id: champagne}
       - {id: mustard}
+      - {id: lime}
       - {id: sage}
+      - {id: aqua}
       - {id: glacier}
       - {id: dustyblue}
+      - {id: lilac}
     default: terra
     key: sgx-palette
     section: ""  # 对齐 PR-C：风格页（/theme/）退役，调色板只在顶栏外观弹层，不进搜索索引

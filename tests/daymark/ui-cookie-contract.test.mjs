@@ -54,7 +54,7 @@ for (const c of fx.cases) {
 test('读端预设表 / 深套表 / 默认色板 = 共享外壳 palettes.json（默认 terra，深套）', () => {
   const s = sandbox();
   assert.deepEqual(plain(s.U.PRESETS), Object.fromEntries(palettes.presets.map((p) => [p.id, p.seed])));
-  assert.equal(Object.keys(s.U.PRESETS).length, 22);
+  assert.equal(Object.keys(s.U.PRESETS).length, 25);
   assert.deepEqual(plain(s.U.DARK), palettes.presets.filter((p) => p.mode === 'dark').map((p) => p.id));
   assert.equal(s.U.DEFAULT_PAL, palettes.default);
   assert.equal(s.U.DEFAULT_PAL, 'terra');

@@ -15,9 +15,9 @@ const ids = [...yaml.matchAll(/^\s*- id: ([a-z]+)$/gm)].map((m) => m[1]);
 const custom = ids.filter((id) => id !== 'dustyblue');
 
 test('palettes.yaml 22 个色板、id 不重复、先深后浅、段内按色相（2026-11-12；默认 2026-11 PR-A 起是 terra）；撞色 x* id 已删除', () => {
-  assert.equal(ids.length, 22);
+  assert.equal(ids.length, 25);
   assert.equal(new Set(ids).size, ids.length);
-  assert.deepEqual(ids, ['cherry', 'tangerine', 'terra', 'amber', 'matcha', 'forest', 'teal', 'lake', 'indigo', 'violet', 'orchid', 'berry', 'rose', 'graphite', 'dustyrose', 'coral', 'cream', 'champagne', 'mustard', 'sage', 'glacier', 'dustyblue']);
+  assert.deepEqual(ids, ['cherry', 'tangerine', 'terra', 'amber', 'matcha', 'forest', 'teal', 'lake', 'indigo', 'violet', 'orchid', 'berry', 'rose', 'graphite', 'dustyrose', 'coral', 'cream', 'champagne', 'mustard', 'lime', 'sage', 'aqua', 'glacier', 'dustyblue', 'lilac']);
   for (const id of ids) assert.ok(!/^x(forest|terra|violet|rose|cherry|tangerine|amber|matcha|teal|indigo|orchid|dustyblue|mustard|sage|dustyrose|graphite)$/.test(id), id);
   for (const id of ['glacier', 'coral', 'berry', 'champagne', 'cream', 'lake']) assert.ok(ids.includes(id), id);
   assert.match(feats, /- id: palette[\s\S]*?default: terra/);
@@ -27,10 +27,10 @@ test('palettes.yaml 分组：group 按设计稿（冷调 / 自然 / 暖调 / 花
   const groups = [...yaml.matchAll(/^\s+group: ([a-z]+)$/gm)].map((m) => m[1]);
   assert.equal(groups.length, ids.length);
   const by = (g) => ids.filter((_, i) => groups[i] === g);
-  assert.deepEqual(by('cool'), ['teal', 'lake', 'indigo', 'violet', 'glacier', 'dustyblue']);
-  assert.deepEqual(by('nature'), ['matcha', 'forest', 'sage']);
+  assert.deepEqual(by('cool'), ['teal', 'lake', 'indigo', 'violet', 'aqua', 'glacier', 'dustyblue']);
+  assert.deepEqual(by('nature'), ['matcha', 'forest', 'lime', 'sage']);
   assert.deepEqual(by('warm'), ['cherry', 'tangerine', 'terra', 'amber', 'coral', 'champagne', 'mustard']);
-  assert.deepEqual(by('floral'), ['orchid', 'berry', 'rose', 'dustyrose']);
+  assert.deepEqual(by('floral'), ['orchid', 'berry', 'rose', 'dustyrose', 'lilac']);
   assert.deepEqual(by('neutral'), ['graphite', 'cream']);
   assert.deepEqual([...yaml.matchAll(/- \{id: ([a-z]+), zh: /g)].map((m) => m[1]), ['cool', 'nature', 'warm', 'floral', 'neutral']);
 });

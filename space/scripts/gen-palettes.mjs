@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 调色板角色 token：把 22 套七色调色板（space/web/data/palette-roles.json，每套一个模式的角色 + 状态层 + 色调 token）
+ * 调色板角色 token：把 25 套七色调色板（space/web/data/palette-roles.json，每套一个模式的角色 + 状态层 + 色调 token）
  * 生成进 space/web/assets/css/input.css 的 tokens 层（两行标记之间，见 BEGIN / END），值不手敲。
  *
  * 2026-11-12 调色板 v4：没有深浅模式了，每套只有一个模式（浅套 / 深套由底色决定，见 palette-scheme.js 的 paletteMode），

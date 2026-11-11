@@ -122,7 +122,7 @@ test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）
 
 test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 / mode + 本套 Shell + Semantic token；2026-11-12 v4 起每套一个模式），种子和 tokens.css 的 --sgx-seed 一致', () => {
   const p = JSON.parse(files['palettes.json']);
-  assert.equal(p.presets.length, 22);
+  assert.equal(p.presets.length, 25);
   assert.deepEqual(p.groups.map((g) => g.id), ['cool', 'nature', 'warm', 'floral', 'neutral']);
   for (const x of p.presets) {
     assert.ok(p.groups.some((g) => g.id === x.group), x.id);
