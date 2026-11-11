@@ -30,7 +30,6 @@ async function go(page, path, lang = 'zh', freeze = true) {
 
 const qp = (page) => page.locator('#sgx-qp');
 const nav = (page) => page.locator('#sgx-nav');
-const mode = (page, v) => page.locator(`#sgx-qp [data-qp-mode="${v}"]`);
 const ctl = (page, id) => page.locator(`#sgx-nav [data-qp="${id}"]`);
 const ls = (page, k) => page.evaluate((key) => localStorage.getItem(key), k);
 
@@ -74,7 +73,7 @@ async function expectNavClosed(page) {
 
 test.describe('外观按钮（调色盘）', () => {
   for (const [path, lang, name] of [['/', 'zh', '外观'], ['/wild/', 'zh', '外观'], ['/', 'en', 'Appearance']]) {
-    test(`${path}：顶栏「${name}」按钮控制 #sgx-qp（对话框），默认收起；面板 = MODE + PALETTE（没有页签、导航列表、磁贴）`, async ({ page }) => {
+    test(`${path}：顶栏「${name}」按钮控制 #sgx-qp（对话框），默认收起；面板 = PALETTE（v4 删 MODE；没有页签、导航列表、磁贴）`, async ({ page }) => {
       await go(page, path, lang);
       const q = page.locator('.sgx-tb-acts .sgx-tb-quick');
       expect(await q.evaluate((el) => el.tagName)).toBe('BUTTON');
@@ -85,7 +84,7 @@ test.describe('外观按钮（调色盘）', () => {
       await expect(qp(page)).toHaveAttribute('aria-label', name);
       await expect(qp(page)).toBeHidden();
       await expect(page.locator('#sgx-qp [role="tablist"], #sgx-qp [role="tab"], #sgx-qp [role="tabpanel"], #sgx-qp [data-qp-pages], #sgx-qp .sgx-qp-tile, #sgx-qp [data-nav], #sgx-qp [data-qp-lang], #sgx-qp [data-qp-seg="layout"]')).toHaveCount(0);
-      expect(await page.locator('#sgx-qp .sgx-qp-sheet').evaluate((el) => Array.from(el.children).map((c) => c.className))).toEqual(['sgx-th-h', 'sgx-th-seg', 'sgx-th-hrow', 'sgx-th-pals']);
+      expect(await page.locator('#sgx-qp .sgx-qp-sheet').evaluate((el) => Array.from(el.children).map((c) => c.className))).toEqual(['sgx-th-hrow', 'sgx-th-pals']);
     });
   }
 });
@@ -186,8 +185,8 @@ test.describe('外观面板：开合', () => {
       return document.getElementById('sgx-qp').contains(a) || a === document.querySelector('.sgx-tb-quick');
     });
     let sawIcon = false;
-    /* 一圈 = 图标 + MODE 3（跟随系统 / 深 / 浅）+ 恢复默认 + 色板 22 = 27 下 */
-    const LOOP = 27;
+    /* 一圈 = 图标 + 恢复默认 + 色板 22 = 24 下（调色板 v4 删了 MODE 三段） */
+    const LOOP = 24;
     expect(await tabbables(page)).toBe(LOOP);
     for (let i = 0; i < LOOP + 10; i++) {
       await page.keyboard.press('Tab');
@@ -338,11 +337,11 @@ test.describe('外观面板：开合', () => {
 });
 
 test.describe('外观面板：内容', () => {
-  test('中文：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 22 套色板 + 恢复默认；默认跟随系统、terra（2026-11 PR-A）', async ({ page }) => {
+  test('中文：PALETTE 22 套色板 + 恢复默认（调色板 v4：没有 MODE 三段）；默认 terra（深套）', async ({ page }) => {
     await go(page, '/');
     await openQp(page);
-    await expect(page.locator('#sgx-qp .sgx-th-h')).toHaveText(['MODE', 'PALETTE']);
-    await expect(page.locator('#sgx-qp [data-qp-mode]')).toHaveText(['跟随系统', '深', '浅']);
+    await expect(page.locator('#sgx-qp .sgx-th-h')).toHaveText(['PALETTE']);
+    await expect(page.locator('#sgx-qp [data-qp-mode], #sgx-qp .sgx-th-seg')).toHaveCount(0);
     /* 减弱动效、字体大小已删除（2026-10-23 PR-E） */
     await expect(page.locator('#sgx-qp [data-qp="motion"], #sgx-nav [data-qp="motion"]')).toHaveCount(0);
     await expect(page.locator('[data-qp-seg="font-size"]')).toHaveCount(0);
@@ -363,20 +362,18 @@ test.describe('外观面板：内容', () => {
     await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveAccessibleName('恢复默认');
     await expect(page.locator('#sgx-qp a')).toHaveCount(0);
     await expect(qp(page)).toHaveAccessibleName('外观');
-    /* 默认：跟随系统、默认色板（恢复默认置灰，默认 terra 选中） */
-    await expect(mode(page, 'system')).toHaveAttribute('aria-pressed', 'true');
-    await expect(mode(page, 'dark')).toHaveAttribute('aria-pressed', 'false');
-    await expect(mode(page, 'light')).toHaveAttribute('aria-pressed', 'false');
+    /* 默认色板（恢复默认置灰，默认 terra 选中；terra 是深套） */
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
     await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveAttribute('aria-disabled', 'true');
     await expect(page.locator('#sgx-qp [data-qp-palette][aria-pressed="true"]')).toHaveCount(1);
     await expect(page.locator('#sgx-qp [data-qp-palette="terra"]')).toHaveAttribute('aria-pressed', 'true');
-    /* 选中段 / 选中色板 = 主题色衬底 + 主题色字（和未选不同） */
-    const on = await mode(page, 'system').evaluate((el) => getComputedStyle(el).backgroundColor);
-    const off = await mode(page, 'dark').evaluate((el) => getComputedStyle(el).backgroundColor);
+    /* 选中色板 = 衬底和未选不同 */
+    const on = await page.locator('#sgx-qp [data-qp-palette="terra"]').evaluate((el) => getComputedStyle(el).backgroundColor);
+    const off = await page.locator('#sgx-qp [data-qp-palette="lake"]').evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(on).not.toBe(off);
   });
 
-  test('排版：MODE 三段一行、PALETTE 标题行右端恢复默认、色板列表竖排（面板内滚动）；412 / 360 / 宽屏都不溢出', async ({ page }) => {
+  test('排版：PALETTE 标题行右端恢复默认、色板列表竖排（面板内滚动）；412 / 360 / 宽屏都不溢出', async ({ page }) => {
     for (const vp of [{ width: 412, height: 915 }, { width: 360, height: 800 }, { width: 1366, height: 768 }]) {
       await page.setViewportSize(vp);
       await go(page, '/wild/');
@@ -386,22 +383,16 @@ test.describe('外观面板：内容', () => {
         const q = (s) => document.querySelector(s);
         const sheet = q('#sgx-qp .sgx-qp-sheet');
         return {
-          modes: Array.from(sheet.querySelectorAll('[data-qp-mode]')).map(r),
-          seg: r(q('#sgx-qp .sgx-th-seg')), hrow: r(q('#sgx-qp .sgx-th-hrow')), pals: r(q('#sgx-qp .sgx-th-pals')),
+          hrow: r(q('#sgx-qp .sgx-th-hrow')), pals: r(q('#sgx-qp .sgx-th-pals')),
           p0: r(q('#sgx-qp [data-qp-palette]')), p1: r(q('#sgx-qp [data-qp-palette]:nth-child(2)')),
           reset: r(q('#sgx-qp [data-qp-reset]')), label: r(q('#sgx-qp .sgx-th-hrow .sgx-th-h')),
           palsScroll: getComputedStyle(q('#sgx-qp .sgx-th-pals')).overflowY,
           over: Array.from(sheet.querySelectorAll('*')).filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'auto'
             && !el.matches('.sgx-th-name')).map((el) => el.className),
           sheetOver: sheet.scrollWidth > sheet.clientWidth,
-          nowrap: Array.from(sheet.querySelectorAll('[data-qp-mode]')).every((b) => b.getBoundingClientRect().height < 40),
         };
       });
-      /* MODE 三段同一行，在 PALETTE 标题行上面；色板竖排、整宽 */
-      expect(Math.abs(g.modes[0].y - g.modes[1].y)).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(g.modes[1].y - g.modes[2].y)).toBeLessThanOrEqual(0.5);
-      expect(g.nowrap, `${vp.width}：MODE 段不换行`).toBe(true);
-      expect(g.hrow.y).toBeGreaterThan(g.seg.b - 1);
+      /* 色板竖排、整宽 */
       expect(g.pals.y).toBeGreaterThan(g.hrow.b - 1);
       expect(g.p1.y).toBeGreaterThan(g.p0.b - 1);
       expect(Math.abs(g.p0.w - g.pals.w)).toBeLessThanOrEqual(1);
@@ -416,12 +407,12 @@ test.describe('外观面板：内容', () => {
     }
   });
 
-  /* 顶栏 v3 的终端风面板：实色表面（--sgx-surface，不透明、没有毛玻璃），1px 线；亮 / 暗、默认 terra、紫、奶油白都一样 */
-  for (const [dark, palette] of [[false, null], [true, null], [false, 'violet'], [false, 'cream'], [true, 'cream']]) {
+  /* 顶栏 v3 的终端风面板：实色表面（--sgx-surface，不透明、没有毛玻璃），1px 线；默认 terra（深）、紫（深）、奶油白 / 雾霾蓝（浅）都一样（v4：深浅跟调色板） */
+  for (const [dark, palette] of [[true, null], [true, 'violet'], [false, 'cream'], [false, 'dustyblue']]) {
     test(`面板底 = 实色表面（${dark ? '暗色' : '亮色'}${palette ? '，调色板 ' + palette : ''}），NAVIGATE 同一个底`, async ({ page }) => {
       await page.addInitScript(([d, p]) => {
         try {
-          localStorage.setItem('sgx-theme-mode', d ? 'dark' : 'light');
+          void d;
           if (p) localStorage.setItem('sgx-palette', p);
         } catch (e) {}
       }, [dark, palette]);
@@ -449,8 +440,7 @@ test.describe('外观面板：内容', () => {
     await go(page, '/', 'en');
     await expect(page.locator('.sgx-tb-quick')).toHaveAttribute('aria-label', 'Appearance');
     await openQp(page);
-    await expect(page.locator('#sgx-qp .sgx-th-h')).toHaveText(['MODE', 'PALETTE']);
-    await expect(page.locator('#sgx-qp [data-qp-mode]')).toHaveText(['Follow system', 'Dark', 'Light']);
+    await expect(page.locator('#sgx-qp .sgx-th-h')).toHaveText(['PALETTE']);
     await expect(page.locator('#sgx-qp [data-qp-palette="lake"] .sgx-th-name')).toHaveText('lake');
     await expect(page.locator('#sgx-qp [data-qp-palette="lake"]')).toHaveAccessibleName('Lake');
     await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveText('reset');
@@ -460,38 +450,34 @@ test.describe('外观面板：内容', () => {
 });
 
 test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个 key）', () => {
-  test('MODE 深 / 浅：写 sgx-theme-mode，即时变深 / 变浅，面板不关；换页后照旧', async ({ page }) => {
+  test('调色板 v4：深浅跟调色板走——选浅套即时变浅、选深套即时变深，theme-color 跟着换；面板不关；旧 sgx-theme-mode 不起作用', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-theme-mode', 'light'); } catch (e) {} });
     await go(page, '/');
-    await openQp(page);
-    await mode(page, 'dark').click();
-    expect(await ls(page, 'sgx-theme-mode')).toBe('dark');
     await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-    await expect(mode(page, 'dark')).toHaveAttribute('aria-pressed', 'true');
-    await expect(mode(page, 'system')).toHaveAttribute('aria-pressed', 'false');
+    expect(await ls(page, 'sgx-theme-mode')).toBeNull();
+    await openQp(page);
+    await page.locator('#sgx-qp [data-qp-palette="dustyblue"]').click();
+    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#ebf1f5');
+    await expect(page.locator('meta[name="color-scheme"]')).toHaveAttribute('content', 'light');
     await expect(qp(page)).toHaveAttribute('data-state', 'open'); /* 不关面板、不刷新 */
+    await page.locator('#sgx-qp [data-qp-palette="lake"]').click();
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#01172b');
     await page.goto('/zh/wild/', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-    await openQp(page);
-    await expect(mode(page, 'dark')).toHaveAttribute('aria-pressed', 'true');
-    await mode(page, 'light').click();
-    expect(await ls(page, 'sgx-theme-mode')).toBe('light');
-    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
-    await expect(mode(page, 'light')).toHaveAttribute('aria-pressed', 'true');
-    await expect(mode(page, 'dark')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('html')).toHaveAttribute('data-palette', 'lake');
   });
 
-  test('MODE 跟随系统：不存 key；跟着系统深浅变（面板开着即时重绘）', async ({ page }) => {
+  test('系统深浅变化不影响（没有跟随系统了）', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sgx-palette', 'sage'); } catch (e) {} });
     await go(page, '/wild/');
-    await openQp(page);
-    await mode(page, 'light').click();
-    expect(await ls(page, 'sgx-theme-mode')).toBe('light');
-    await mode(page, 'system').click();
-    expect(await ls(page, 'sgx-theme-mode')).toBeNull();
-    await expect(mode(page, 'system')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
     await page.emulateMedia({ colorScheme: 'dark' });
-    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
-    await expect(mode(page, 'system')).toHaveAttribute('aria-pressed', 'true');
-    await expect(mode(page, 'dark')).toHaveAttribute('aria-pressed', 'false');
+    await page.waitForTimeout(100);
+    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
   });
 
   test('减弱动效 / 字体大小已删除：面板和旷野页都没有，旧值不起作用', async ({ page }) => {
@@ -542,17 +528,14 @@ test.describe('外观面板 / NAVIGATE：设置即时生效（和设置同一个
     expect(await rs.boundingBox()).toEqual(box);
   });
 
-  test('恢复默认：自定义主题色时可点，点了清掉自定义色回到默认 terra', async ({ page }) => {
-    await page.addInitScript(() => { try { if (!sessionStorage.getItem('qp-seeded')) { localStorage.setItem('sgx-accent', '#ff6b9d'); sessionStorage.setItem('qp-seeded', '1'); } } catch (e) {} });
+  test('旧自定义主题色（sgx-accent）首帧清掉，不再影响恢复默认', async ({ page }) => {
+    await page.addInitScript(() => { try { if (!sessionStorage.getItem('qp-seeded')) { localStorage.setItem('sgx-accent', '#ff6b9d'); localStorage.setItem('sgx-accent-css', 'v7|#ff6b9d\nX'); sessionStorage.setItem('qp-seeded', '1'); } } catch (e) {} });
     await go(page, '/');
-    await openQp(page);
-    const rs = page.locator('#sgx-qp [data-qp-reset]');
-    await expect(rs).toHaveAttribute('aria-disabled', 'false');
-    await rs.click();
     expect(await ls(page, 'sgx-accent')).toBeNull();
-    expect(await ls(page, 'sgx-palette')).toBeNull();
+    expect(await ls(page, 'sgx-accent-css')).toBeNull();
     await expect(page.locator('style#sgx-accent-roles')).toHaveCount(0);
-    await expect(rs).toHaveAttribute('aria-disabled', 'true');
+    await openQp(page);
+    await expect(page.locator('#sgx-qp [data-qp-reset]')).toHaveAttribute('aria-disabled', 'true');
   });
 
   test('NAVIGATE layout：Mobile / Auto / DeX 三档都能选（2026-11-09 Auto 在中间）；写 sgx-layout（auto / phone / desktop），即时套用', async ({ page }) => {
@@ -1249,17 +1232,16 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
    标签页 SVG 图标：默认色板用静态 /favicon.svg，换色板后换成主题色的 data: 图标。 */
 test.describe('顶栏 logo 字标 + 标签页图标跟主题色', () => {
   const CASES = [
-    { name: '默认 terra 亮色', pal: null, dark: false },
-    { name: '默认 terra 深色', pal: null, dark: true },
-    { name: 'forest 亮色（存的是旧撞色 xforest，首屏迁到 forest）', store: 'xforest', pal: 'forest', dark: false },
-    { name: 'forest 深色', pal: 'forest', dark: true },
+    /* 调色板 v4：每套只有一个模式（terra / forest 深套，dustyblue 浅套） */
+    { name: '默认 terra（深套）', pal: null, dark: true },
+    { name: 'forest（存的是旧撞色 xforest，首屏迁到 forest）', store: 'xforest', pal: 'forest', dark: true },
+    { name: '雾霾蓝 dustyblue（浅套）', pal: 'dustyblue', dark: false },
   ];
   for (const c of CASES) {
     test(`${c.name}：终端字标 ❯ styrigx :~$_ 渲染，❯ / 光标 = --sgx-primary、名字 = --sgx-text-primary`, async ({ page }) => {
       await page.addInitScript((o) => {
         try {
           if (o.store || o.pal) localStorage.setItem('sgx-palette', o.store || o.pal);
-          localStorage.setItem('sgx-theme-mode', o.dark ? 'dark' : 'light');
         } catch (e) {}
       }, c);
       /* helpers 的拦截会把带 favicon 的地址换成占位 PNG；这里放行真的 /favicon.svg（后注册的路由优先） */

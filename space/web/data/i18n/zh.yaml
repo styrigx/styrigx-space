@@ -194,12 +194,6 @@ sgxAccountCard:
   signedIn: 已登录
   changePhoto: 更换头像
 features:
-  theme-mode:
-    name: 主题模式
-    opt:
-      system: 跟随系统
-      light: 浅色
-      dark: 深色
   palette:
     name: 调色板
     opt:
@@ -260,5 +254,4 @@ syncItems:
     look: 外观
     more: 其他
   extra:
-    sgx-accent: 自定义主题色
     sgx-ai-model: AI 模型

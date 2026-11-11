@@ -17,42 +17,45 @@ const baseof = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.h
 const start = baseof.indexOf('/* 用户偏好预读：在渲染前应用，避免闪烁 */');
 assert.ok(start > 0, '找到预读脚本');
 const end = baseof.indexOf('})();', start) + '})();'.length;
-const PAL_TPL = /\{\{ \$palIds := slice \}\}[\s\S]*?\{\{ \$palIds \| jsonify \| safeJS \}\}/;
+/* 调色板 v4：PAL = id → [是否深套, 底色]（模板由 shell/palettes.json 生成） */
+const PAL_TPL = /\{\{ \$palMeta \| jsonify \| safeJS \}\}/;
 assert.match(baseof.slice(start, end), PAL_TPL);
-const SRC = baseof.slice(start, end).replace(PAL_TPL, '["dustyblue","forest","lake","terra"]');
+const SRC = baseof.slice(start, end).replace(PAL_TPL, '{"dustyblue":[0,"#ebf1f5"],"forest":[1,"#001c0f"],"lake":[1,"#01172b"],"terra":[1,"#161412"]}');
 assert.doesNotMatch(SRC, /\{\{/, '没有剩下的模板语法');
 
-function run(storage) {
+function run(storage, { sysDark = true } = {}) {
   const attrs = {};
+  const metas = { 'color-scheme': { content: 'dark' }, 'theme-color': { content: '#161412' } };
   const classes = new Set();
   const replaced = [];
   const d = {
     setAttribute: (k, v) => { attrs[k] = String(v); },
-    classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) },
+    classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), contains: (c) => classes.has(c) },
     style: { setProperty() {} },
   };
   const ctx = {
-    document: { documentElement: d, createElement: () => ({}), head: { appendChild() {} } },
+    document: { documentElement: d, createElement: () => ({}), head: { appendChild() {} }, querySelector: (sel) => metas[/name="([^"]+)"/.exec(sel)[1]] },
     localStorage: storage,
     sessionStorage: storage,
-    matchMedia: () => ({ matches: true, addEventListener() {} }),
+    matchMedia: (q) => ({ matches: /color-scheme/.test(q) ? sysDark : true, addEventListener() {} }),
     navigator: { language: 'zh-CN' },
     location: { pathname: '/', search: '', hash: '', replace: (u) => replaced.push(u) },
     addEventListener() {},
   };
   vm.runInNewContext(SRC, ctx);
-  return { attrs, classes, replaced };
+  return { attrs, classes, replaced, metas };
 }
 
 const throwing = new Proxy({}, { get: () => () => { throw new DOMException('denied', 'SecurityError'); } });
 
-test('localStorage / sessionStorage 全部抛错：减弱动效、布局、深色仍然写上，不设调色板', () => {
+test('localStorage / sessionStorage 全部抛错：减弱动效、布局、深浅（默认 terra = 深套）仍然写上，不设调色板', () => {
   const { attrs, classes } = run(throwing);
   assert.equal(attrs['data-reduced-motion'], '1', '减弱动效跟系统');
   assert.ok(classes.has('reduced-motion'));
   assert.equal(attrs['data-layout'], 'auto');
-  assert.equal(attrs['data-theme-mode'], 'system');
+  assert.equal(attrs['data-theme-mode'], undefined, 'v4：没有深浅模式');
   assert.equal(attrs['data-dark'], '1');
+  assert.ok(classes.has('dark'));
   assert.equal(attrs['data-palette'], undefined);
 });
 
@@ -73,4 +76,26 @@ test('存储正常：调色板、布局照旧生效；默认调色板的值被�
   r = run(s);
   assert.equal(r.attrs['data-palette'], undefined);
   assert.equal(s.m.has('sgx-palette'), false);
+});
+
+test('调色板 v4：深浅只由调色板决定（不看系统）；color-scheme / theme-color 跟本套；旧键 sgx-theme-mode / sgx-accent / sgx-accent-css 清掉', () => {
+  const mk = (seed) => {
+    const m = new Map(Object.entries(seed));
+    return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), m };
+  };
+  let s = mk({ 'sgx-palette': 'dustyblue', 'sgx-theme-mode': 'dark', 'sgx-accent': '#123456', 'sgx-accent-css': 'v7|#123456\nX', theme: 'dark' });
+  let r = run(s, { sysDark: true });
+  assert.equal(r.classes.has('dark'), false, '浅套：系统深色、旧 mode=dark 都不影响');
+  assert.equal(r.attrs['data-dark'], '0');
+  assert.equal(r.metas['color-scheme'].content, 'light');
+  assert.equal(r.metas['theme-color'].content, '#ebf1f5');
+  for (const k of ['sgx-theme-mode', 'sgx-accent', 'sgx-accent-css', 'theme']) assert.equal(s.m.has(k), false, k + ' 清掉');
+  s = mk({ 'sgx-palette': 'lake', 'sgx-theme-mode': 'light' });
+  r = run(s, { sysDark: false });
+  assert.equal(r.classes.has('dark'), true, '深套：系统浅色、旧 mode=light 都不影响');
+  assert.equal(r.metas['color-scheme'].content, 'dark');
+  assert.equal(r.metas['theme-color'].content, '#01172b');
+  r = run(mk({}), { sysDark: false });
+  assert.equal(r.classes.has('dark'), true, '默认 terra 是深套');
+  assert.equal(r.metas['theme-color'].content, '#161412');
 });

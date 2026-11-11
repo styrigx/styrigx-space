@@ -1,23 +1,34 @@
-/* 由 space/scripts/blog/gen-code-tokens.mjs 生成，勿手改。代码高亮配色 = 主站色彩角色往 text-primary 混一点，
-   比例按 13 套预设 × 亮 / 暗 + 随机自定义种子都 ≥ 4.6:1 算出（行号 ≥ 3:1），背景含代码面和高亮行。 */
+/* 由 space/scripts/blog/gen-code-tokens.mjs 生成，勿手改。代码高亮是固定主题（浅 / 深两档，按 html.dark 取），不跟调色板。
+   记号 ≥ 4.6:1（实测最低 4.80:1），正文 ≥ 7:1，行号 ≥ 3:1；背景含代码面和高亮行。 */
 :root {
-  --blog-code-hl: color-mix(in srgb, var(--sgx-primary) 14%, var(--blog-code-surface));
-  /* 关键字：primary 80%（最低 4.86:1 @ #d055a9/light） */
-  --blog-code-kw: color-mix(in srgb, var(--sgx-primary) 80%, var(--sgx-text-primary));
-  /* 函数 / 类型 / 属性：secondary 80%（最低 4.73:1 @ #ff1e31/light） */
-  --blog-code-fn: color-mix(in srgb, var(--sgx-secondary) 80%, var(--sgx-text-primary));
-  /* 字符串：tertiary 75%（最低 4.71:1 @ #1202d9/light） */
-  --blog-code-str: color-mix(in srgb, var(--sgx-tertiary) 75%, var(--sgx-text-primary));
-  /* 数字 / 常量 / 转义 / 正则：danger 75%（最低 4.76:1 @ #1202d9/light） */
-  --blog-code-num: color-mix(in srgb, var(--sgx-danger) 75%, var(--sgx-text-primary));
-  /* 注释：text-secondary 95%（最低 4.68:1 @ terra/dark） */
-  --blog-code-cm: color-mix(in srgb, var(--sgx-text-secondary) 95%, var(--sgx-text-primary));
-  /* 运算符 / 标点 / 提示符 / 输出：text-secondary 95%（最低 4.68:1 @ terra/dark） */
-  --blog-code-op: color-mix(in srgb, var(--sgx-text-secondary) 95%, var(--sgx-text-primary));
-  /* 标题：primary 80%（最低 4.86:1 @ #d055a9/light） */
-  --blog-code-hd: color-mix(in srgb, var(--sgx-primary) 80%, var(--sgx-text-primary));
-  /* 行号：text-tertiary 100%（最低 3.41:1 @ #1202d9/light） */
-  --blog-code-ln: var(--sgx-text-tertiary);
+  --blog-code-surface: #f6f7f9;
+  --blog-code-hl: #fdf3c8;
+  --blog-code-fg: #1f2328;
+  --blog-code-muted: #59636e;
+  --blog-code-line: #d8dde3;
+  --blog-code-kw: #cf222e;
+  --blog-code-fn: #7340d0;
+  --blog-code-str: #0a3069;
+  --blog-code-num: #0550ae;
+  --blog-code-cm: #59636e;
+  --blog-code-op: #59636e;
+  --blog-code-hd: #0550ae;
+  --blog-code-ln: #818b97;
+}
+:root.dark {
+  --blog-code-surface: #18191c;
+  --blog-code-hl: #2f2b1f;
+  --blog-code-fg: #e6edf3;
+  --blog-code-muted: #9aa2ab;
+  --blog-code-line: #30343a;
+  --blog-code-kw: #ff7b72;
+  --blog-code-fn: #d2a8ff;
+  --blog-code-str: #a5d6ff;
+  --blog-code-num: #79c0ff;
+  --blog-code-cm: #9aa2ab;
+  --blog-code-op: #9aa2ab;
+  --blog-code-hd: #79c0ff;
+  --blog-code-ln: #6e7681;
 }
 .chroma .k, .chroma .kc, .chroma .kd, .chroma .kn, .chroma .kp, .chroma .kr, .chroma .kt, .chroma .ow, .chroma .nt { color: var(--blog-code-kw); font-weight: 600; }
 .chroma .nf, .chroma .fm, .chroma .nc, .chroma .nn, .chroma .nd, .chroma .ne, .chroma .nb, .chroma .bp, .chroma .na, .chroma .py { color: var(--blog-code-fn); }

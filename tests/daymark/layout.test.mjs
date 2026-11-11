@@ -135,8 +135,8 @@ test('robots.txt 只在图志根（root/robots.txt，Disallow: /）：本站不�
   assert.match(read('space/web/static/robots.txt'), /^User-agent: \*\nDisallow: \/$/m);
 });
 
-test('head 内联脚本和自定义色引擎不打包整份 palettes.json（预设表在共享读端里，引擎版本用读端的 SCHEME_VER）', () => {
-  for (const f of ['space/web/assets/daymark/js/sgx/ui-inherit-run.js', 'space/web/assets/daymark/js/sgx/shell-accent.js', 'space/web/assets/daymark/js/sgx/topbar-host.js']) {
+test('head 内联脚本不打包整份 palettes.json（预设表 / 深套表在共享读端里；自定义色引擎 2026-11-12 删除）', () => {
+  for (const f of ['space/web/assets/daymark/js/sgx/ui-inherit-run.js', 'space/web/assets/daymark/js/sgx/topbar-host.js']) {
     const src = read(f);
     assert.doesNotMatch(src, /^import .*palettes\.json/m, f);
     assert.doesNotMatch(src, /@params/, f);
@@ -148,7 +148,8 @@ test('head 内联脚本和自定义色引擎不打包整份 palettes.json（预�
   const uses = [...base.matchAll(/[^\n]*palettes\.json[^\n]*/g)].map((m) => m[0]).filter((l) => !/^\{\{\/\*/.test(l));
   /* 合站：色块直接读主站 data/shell/palettes.json（site.Data），模板里不再 resources.Get 副本 */
   assert.deepEqual(uses, []);
-  assert.deepEqual([...base.matchAll(/[^\n]*site\.Data\.shell\.palettes[^\n]*/g)].map((m) => m[0]), ['{{ range site.Data.shell.palettes.presets }}']);
+  /* 调色板 v4：<head> 里的 color-scheme / theme-color 默认值取默认调色板 terra 的 mode / 底色（只读两项，不整份输出） */
+  assert.deepEqual([...base.matchAll(/[^\n]*site\.Data\.shell\.palettes[^\n]*/g)].map((m) => m[0]), ['{{- range site.Data.shell.palettes.presets }}{{ if eq .id "terra" }}', '{{ range site.Data.shell.palettes.presets }}']);
   assert.doesNotMatch(base, /palettes\.json[^\n]*jsonify/);
   assert.match(base, /<script>\{\{ \(resources\.Get "js\/lib\/ui-cookie-read\.js" \| minify\)\.Content \| safeJS \}\}<\/script>/);
   assert.match(base, /js\/sgx\/ui-inherit-run\.js" \| js\.Build \(dict "format" "iife" "minify" true "target" "es2018"\)\)/);

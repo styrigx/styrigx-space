@@ -39,7 +39,6 @@ export const OUT = Object.freeze({
 const SRC = {
   roles: path.join(REPO, 'space/web/data/palette-roles.json'),
   css: path.join(REPO, 'space/web/assets/css/input.css'),
-  scheme: path.join(REPO, 'space/web/assets/js/lib/palette-scheme.js'),
   nav: path.join(REPO, 'space/web/data/shell-nav.json'),
   profile: path.join(REPO, 'space/web/data/profile.yaml'),
   icons: path.join(REPO, 'space/web/layouts/partials/icon.html'),
@@ -99,13 +98,16 @@ export function readWordmark() {
 const PRESETS_BEGIN = '  /* @ui-cookie-presets:begin（space/scripts/gen-shell.mjs 按 space/web/data/palette-roles.json + palette-scheme.js 生成，勿手改） */';
 const PRESETS_END = '  /* @ui-cookie-presets:end */';
 
-/** ui-cookie-read.js 的 @ui-cookie-presets 段：预设 id → 种子（= palettes.json 的顺序）+ 引擎版本（= palettes.json schemeVersion） */
-export function renderReader(data, schemeSrc, src = readFileSync(SRC.reader, 'utf8')) {
+/** ui-cookie-read.js 的 @ui-cookie-presets 段：预设 id → 种子（= palettes.json 的顺序）+ 深套 id 列表（DARK，首帧据此设 dark 类）+ 每套底色（BG） */
+export function renderReader(data, src = readFileSync(SRC.reader, 'utf8')) {
   const a = src.indexOf(PRESETS_BEGIN);
   const b = src.indexOf(PRESETS_END);
   if (a < 0 || b < a) throw new Error('ui-cookie-read.js 里找不到 @ui-cookie-presets:begin / end');
   const seeds = Object.fromEntries(Object.keys(data.presets).map((id) => [id, data.presets[id].seed]));
-  const body = `  var PRESETS = ${JSON.stringify(seeds)};\n  var SCHEME_VER = '${sha(schemeSrc).slice(0, 12)}';\n`;
+  const dark = Object.keys(data.presets).filter((id) => data.presets[id].mode === 'dark');
+  const bg = Object.fromEntries(Object.keys(data.presets).map((id) => [id, data.presets[id].tones['bg-1']]));
+  const body = `  var PRESETS = ${JSON.stringify(seeds)};\n  /* 深套（底色 OKLCH L < 0.6）：dark 类只表示「当前是深套」 */\n  var DARK = ${JSON.stringify(dark)};\n` +
+    `  /* 每套页面底色：<meta name="theme-color"> 用 */\n  var BG = ${JSON.stringify(bg)};\n`;
   return src.slice(0, a) + PRESETS_BEGIN + '\n' + body + src.slice(b);
 }
 
@@ -131,7 +133,7 @@ function renderTokens(data) {
     .join('\n');
   return (
     HEAD('space/web/data/palette-roles.json') +
-    '/* 22 套七色调色板（1 背景色 + 6 前景撞色）：<html data-palette="<id>">（默认 terra 不写），深色 <html class="dark">；自定义种子在运行时用 palette-scheme.js 的 rolesCss() 覆盖。 */\n' +
+    '/* 22 套七色调色板：<html data-palette="<id>">（默认 terra 不写）；每套只有一个模式（浅套 / 深套由底色决定），深套时 <html class="dark">。 */\n' +
     block +
     '\n/* 调色板派生 token（tag / chart）：只引用上面的色调 token */\n' +
     derivedCss +
@@ -256,7 +258,7 @@ export const renderPageHeader = () => renderParamsOnly(SRC.pageHeader, 'sgx-ph.h
 export const renderFooter = () => renderParamsOnly(SRC.footer, 'sgx-footer.html', 'class="sgx-foot"');
 
 /** 调色板用法规则版本（填充 vs ink、大面积块中性化、固定状态色、图表 3:1 回退、合成底审计；docs/design/palette.md） */
-export const RULES_VERSION = 'palette-rules-1';
+export const RULES_VERSION = 'palette-rules-2';
 
 /* palettes.json 每套带的 token（子站只消费这些，不自己定义主题色）：
    Shell = 页面底 / 光晕（bg-1..7）、材质（表面、容器、玻璃、遮罩）；Semantic = 主 / 辅 / 第三色族、选中、链接、边线、文字；
@@ -271,12 +273,12 @@ const SEMANTIC_KEYS = ['primary', 'on-primary', 'primary-container', 'on-primary
   /* 2026-10-23 PR-G 修订：填充档（前景 1 本色 + 自动 on 色）、固定成功色 */
   'primary-fill', 'on-primary-fill', 'success', 'on-success', 'success-container', 'on-success-container',
   'warning', 'on-warning', 'warning-container', 'on-warning-container', 'info', 'on-info', 'info-container', 'on-info-container'];
-/** 完整导出（2026-10-23 PR-G 修订：「按需索取」）：每套亮 / 暗 = 全部角色（Shell + Semantic + 交互 / 功能 / 固定状态色 / chart）
+/** 完整导出（2026-10-23 PR-G 修订：「按需索取」；2026-11-12 v4 起每套只有一个模式）：每套 = 全部角色（Shell + Semantic + 交互 / 功能 / 固定状态色 / chart）
  *  + 全部色调 token（bg-1..7、fg-1..6 本色 / -tint / -ink / -on）+ tag + 状态层（state-color 解析成颜色）。
  *  SHELL_KEYS / SEMANTIC_KEYS 只用来给子站文档分组，值不再筛掉。
- *  @param {any} p 预设 @param {'light'|'dark'} m */
-export function sharedTokens(p, m) {
-  const roles = p[m], tones = p[m + 'Tones'], st = p[m + 'State'], out = {};
+ *  @param {any} p 预设 */
+export function sharedTokens(p) {
+  const roles = p.roles, tones = p.tones, st = p.state, out = {};
   for (const k of SHELL_KEYS) out[k] = k in tones ? tones[k] : roles[k];
   for (const k of SEMANTIC_KEYS) out[k] = roles[k];
   for (const [k, v] of Object.entries(roles)) {
@@ -292,24 +294,21 @@ export function sharedTokens(p, m) {
   return out;
 }
 
-function renderPalettes(data, schemeSrc) {
+function renderPalettes(data) {
   /* 顺序 = palette-roles.json（= palette-scheme.js PRESETS = 设置页网格顺序，按 group 分组）；2026-10-23 PR-G 起 22 套七色调色板，
-     group = cool / nature / warm / floral / neutral，每项带 bg / fg 和亮暗 tokens */
+     group = cool / nature / warm / floral / neutral，每项带 bg / fg、mode（light = 浅套 / dark = 深套）和本套 tokens */
   const ids = Object.keys(data.presets);
   return (
     JSON.stringify(
       {
         _generated: 'styrigx-space space/scripts/gen-shell.mjs ← space/web/data/palette-roles.json；勿手改',
         default: DEFAULT_ID,
-        /* 子站缓存自定义色角色时用的版本号：引擎一变就变，旧缓存自动作废 */
-        schemeVersion: sha(schemeSrc).slice(0, 12),
         /* 子站据此判断自己消费的是哪一版调色板用法规则（docs/design/palette.md）；规则变了手动加一 */
         rulesVersion: RULES_VERSION,
         groups: GROUPS,
         presets: ids.map((id) => {
           const p = data.presets[id];
-          return { id, zh: p.zh, en: p.en, seed: p.seed, group: p.group, bg: p.bg, fg: p.fg,
-            tokens: { light: sharedTokens(p, 'light'), dark: sharedTokens(p, 'dark') } };
+          return { id, zh: p.zh, en: p.en, seed: p.seed, group: p.group, bg: p.bg, fg: p.fg, mode: p.mode, tokens: sharedTokens(p) };
         }),
       },
       null,
@@ -321,8 +320,7 @@ function renderPalettes(data, schemeSrc) {
 /** @returns {{files: Record<string,string>, reader: string}} 派生文件名 → 内容；reader = ui-cookie-read.js 应有的全文 */
 export function renderAll() {
   const data = JSON.parse(readFileSync(SRC.roles, 'utf8'));
-  const schemeSrc = readFileSync(SRC.scheme, 'utf8');
-  const reader = renderReader(data, schemeSrc);
+  const reader = renderReader(data);
   /* 子站直接引用的 partial / JS：只核对约束（结果不落盘） */
   renderTopbar();
   renderPageHeader();
@@ -341,7 +339,7 @@ export function renderAll() {
       'tokens.css': renderTokens(data),
       'shell.css': renderShell(),
       'nav.json': renderNav(),
-      'palettes.json': renderPalettes(data, schemeSrc),
+      'palettes.json': renderPalettes(data),
     },
     reader,
   };
@@ -353,7 +351,6 @@ export function renderAll() {
  */
 export const SHELL_FILES = Object.freeze({
   ...OUT,
-  'palette-scheme.js': 'space/web/assets/js/lib/palette-scheme.js',
   'topbar.html': 'space/web/layouts/partials/shell-topbar.html',
   'page-header.html': 'space/web/layouts/partials/sgx-ph.html',
   'footer.html': 'space/web/layouts/partials/sgx-footer.html',

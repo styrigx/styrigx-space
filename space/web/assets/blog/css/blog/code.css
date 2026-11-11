@@ -1,9 +1,9 @@
 /* 代码块（2026-10 迁 Hugo 时重新设计，取代 Expressive Code 那套「一行一个深色胶囊、框里套框」）：
-   - 一个容器：圆角跟主站卡片走，底色 --blog-code-surface = surface-container-high（亮 / 暗、13 套预设、自定义种子都跟着变）；
+   - 一个容器：圆角跟主站卡片走；底色、正文、标题栏文字都是固定代码主题（浅 / 深两档，按 html.dark 取），不跟调色板；
    - 顶部小标题栏：语言 ·（文件名）· 复制；
    - 行号和代码在同一行（Chroma lineNos inline），左侧安静的槽；横向滚动时行号贴住左边；
    - 不换行，横向滚动；hl_lines 高亮行；
-   - 记号配色在 code-tokens.css（atlas/scripts/blog/gen-code-tokens.mjs 从色彩角色生成，对比度有单测）。
+   - 配色变量和记号配色在 code-tokens.css（space/scripts/blog/gen-code-tokens.mjs 生成，对比度有单测）。
    结构：layouts/_default/_markup/render-codeblock.html。 */
 
 /* 代码里的中文：Maple Mono 只有拉丁字符，中文落到系统中文字体；按等宽节奏放大到 2 个字符宽（Maple Mono 每字 0.6em → 中文 1.2em）。
@@ -20,7 +20,6 @@
 }
 
 .article-content figure.code-block {
-  --blog-code-surface: var(--sgx-surface-container-high);
   --blog-code-fs: 13.5px;
   --blog-code-lh: 1.7;
   position: relative;
@@ -30,7 +29,7 @@
   border: 1px solid color-mix(in srgb, var(--sgx-outline-variant) 70%, transparent);
   border-radius: 20px;
   background: var(--blog-code-surface);
-  color: var(--sgx-text-primary);
+  color: var(--blog-code-fg);
 }
 
 /* 标题栏：语言 · 文件名 · 复制 */
@@ -41,8 +40,8 @@
   min-height: 40px;
   margin: 0;
   padding: 0 6px 0 16px;
-  border-bottom: 1px solid var(--sgx-divider);
-  color: var(--sgx-text-secondary);
+  border-bottom: 1px solid var(--blog-code-line);
+  color: var(--blog-code-muted);
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 600;
@@ -57,7 +56,7 @@
 .code-block .code-file {
   min-width: 0;
   overflow: hidden;
-  color: var(--sgx-text-primary);
+  color: var(--blog-code-fg);
   font-family: var(--font-code);
   font-weight: 400;
   text-overflow: ellipsis;
@@ -66,7 +65,7 @@
 
 .code-block .code-lang + .code-file::before {
   margin-right: 10px;
-  color: var(--sgx-text-tertiary);
+  color: var(--blog-code-muted);
   font-family: var(--font-ui);
   content: '·';
 }
@@ -82,7 +81,7 @@
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: var(--sgx-text-secondary);
+  color: var(--blog-code-muted);
   font: inherit;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
@@ -91,13 +90,13 @@
 
 @media (hover: hover) {
   .code-block .code-copy:hover {
-    background: var(--sgx-state-hover-bg);
-    color: var(--sgx-text-primary);
+    background: color-mix(in srgb, var(--blog-code-fg) 8%, transparent);
+    color: var(--blog-code-fg);
   }
 }
 
 .code-block .code-copy:active {
-  background: var(--sgx-state-pressed-bg);
+  background: color-mix(in srgb, var(--blog-code-fg) 12%, transparent);
 }
 
 .code-block .code-copy:focus-visible {
@@ -116,7 +115,7 @@
 
 .code-block .code-copy[data-copied] .code-copied-ic {
   display: block;
-  color: var(--sgx-primary);
+  color: var(--blog-code-kw);
 }
 
 /* 代码区：不换行，横向滚动；没有逐行背景 */
@@ -141,7 +140,7 @@
   overflow-wrap: normal;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--sgx-text-primary) 22%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--blog-code-fg) 22%, transparent) transparent;
 }
 
 .article-content .code-block pre.chroma:focus-visible {
@@ -189,7 +188,7 @@
   padding-left: 18px;
 }
 
-/* hl_lines 高亮行：整行一条淡淡的主色，行号槽一起亮 */
+/* hl_lines 高亮行：整行一条固定的高亮底，行号槽一起亮 */
 .code-block .chroma .line.hl,
 .code-block .chroma .line.hl .ln {
   background: var(--blog-code-hl);
@@ -197,7 +196,7 @@
 
 .code-block .chroma .line.hl .ln {
   color: var(--blog-code-kw);
-  box-shadow: inset 3px 0 0 var(--sgx-primary);
+  box-shadow: inset 3px 0 0 var(--blog-code-kw);
 }
 
 @media (max-width: 720px) {

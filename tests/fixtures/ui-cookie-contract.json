@@ -1,547 +1,345 @@
 {
   "_generated": "styrigx-space space/scripts/gen-ui-cookie-contract.mjs ← space/web/assets/js/lib/ui-cookie.js（写端真实产出）；勿手改",
-  "_doc": "cookie = sgx-ui 的值（document.cookie 里 sgx-ui= 后面那段）。read = SgxUI.read() 的期望（null = 当没有 cookie）；light / dark = 系统浅 / 深色时 SgxUI.resolve() 和 SgxUI.apply() 后 <html> 的期望。root.dark / reduced-motion = class；fontSize = style.fontSize；--sgx-seed = 内联变量（'' = 没有）；data-palette null = 不写。",
+  "_doc": "cookie = sgx-ui 的值（document.cookie 里 sgx-ui= 后面那段）。read = SgxUI.read() 的期望（null = 当没有 cookie）；light / dark = 系统浅 / 深色时 SgxUI.resolve() 和 SgxUI.apply() 后 <html> 的期望（v4 起两者相同：深浅只由调色板决定）。root.dark / reduced-motion = class；fontSize = style.fontSize；data-palette null = 不写。",
   "now": 1761062400000,
   "cases": [
     {
-      "name": "默认 terra 亮色",
+      "name": "空 localStorage → 默认 terra（深套）",
+      "source": "writer",
+      "local": {},
+      "cookie": "eyJ2IjoyLCJwYWwiOiJ0ZXJyYSIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSJ9",
+      "read": {
+        "v": 2,
+        "pal": "terra",
+        "fs": "standard",
+        "rm": 0,
+        "lang": "system"
+      },
+      "light": {
+        "resolve": {
+          "dark": true,
+          "pal": "terra",
+          "fs": "standard",
+          "rm": false
+        },
+        "root": {
+          "dark": true,
+          "data-dark": "1",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": null,
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "dark": true,
+          "pal": "terra",
+          "fs": "standard",
+          "rm": false
+        },
+        "root": {
+          "dark": true,
+          "data-dark": "1",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": null,
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "旧 sgx-theme-mode 残留不再带出去（v4）",
       "source": "writer",
       "local": {
         "sgx-theme-mode": "light"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJ0ZXJyYSIsImFjY2VudCI6IiNkZTdhNTgiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJ0ZXJyYSIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSJ9",
       "read": {
         "v": 2,
-        "mode": "light",
         "pal": "terra",
-        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       }
     },
     {
-      "name": "默认 terra 深色",
+      "name": "湖蓝 lake（深套）",
       "source": "writer",
       "local": {
-        "sgx-theme-mode": "dark"
-      },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6InRlcnJhIiwiYWNjZW50IjoiI2RlN2E1OCIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
-      "read": {
-        "v": 2,
-        "mode": "dark",
-        "pal": "terra",
-        "accent": "#de7a58",
-        "fs": "standard",
-        "rm": 0,
-        "mat": 1761062400000,
-        "lang": "system"
-      },
-      "light": {
-        "resolve": {
-          "mode": "dark",
-          "dark": true,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": true,
-          "data-theme-mode": "dark",
-          "data-dark": "1",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      },
-      "dark": {
-        "resolve": {
-          "mode": "dark",
-          "dark": true,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": true,
-          "data-theme-mode": "dark",
-          "data-dark": "1",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      }
-    },
-    {
-      "name": "跟随系统（空 localStorage）",
-      "source": "writer",
-      "local": {},
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidGVycmEiLCJhY2NlbnQiOiIjZGU3YTU4IiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
-      "read": {
-        "v": 2,
-        "mode": "system",
-        "pal": "terra",
-        "accent": "#de7a58",
-        "fs": "standard",
-        "rm": 0,
-        "mat": 1761062400000,
-        "lang": "system"
-      },
-      "light": {
-        "resolve": {
-          "mode": "system",
-          "dark": false,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      },
-      "dark": {
-        "resolve": {
-          "mode": "system",
-          "dark": true,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": true,
-          "data-theme-mode": "system",
-          "data-dark": "1",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      }
-    },
-    {
-      "name": "湖蓝 lake 亮色（PR-G 起是普通色板）",
-      "source": "writer",
-      "local": {
-        "sgx-theme-mode": "light",
         "sgx-palette": "lake"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJsYWtlIiwiYWNjZW50IjoiI2YxN2Y3MiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJsYWtlIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIn0",
       "read": {
         "v": 2,
-        "mode": "light",
         "pal": "lake",
-        "accent": "#f17f72",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "lake",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "lake",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "lake",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "lake",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       }
     },
     {
-      "name": "旧撞色 xforest → forest（深色）",
+      "name": "雾霾蓝 dustyblue（浅套）",
       "source": "writer",
       "local": {
-        "sgx-theme-mode": "dark",
+        "sgx-palette": "dustyblue"
+      },
+      "cookie": "eyJ2IjoyLCJwYWwiOiJkdXN0eWJsdWUiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0ifQ",
+      "read": {
+        "v": 2,
+        "pal": "dustyblue",
+        "fs": "standard",
+        "rm": 0,
+        "lang": "system"
+      },
+      "light": {
+        "resolve": {
+          "dark": false,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false
+        },
+        "root": {
+          "dark": false,
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "dustyblue",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "dark": false,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false
+        },
+        "root": {
+          "dark": false,
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "dustyblue",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "旧撞色 xforest → forest",
+      "source": "writer",
+      "local": {
         "sgx-palette": "xforest"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImZvcmVzdCIsImFjY2VudCI6IiNmMDhhM2MiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJmb3Jlc3QiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0ifQ",
       "read": {
         "v": 2,
-        "mode": "dark",
         "pal": "forest",
-        "accent": "#f08a3c",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "forest",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "forest",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "forest",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "forest",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       }
     },
     {
-      "name": "violet 跟随系统",
+      "name": "冰川蓝 glacier（浅套）",
       "source": "writer",
       "local": {
-        "sgx-theme-mode": "system",
-        "sgx-palette": "violet"
-      },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidmlvbGV0IiwiYWNjZW50IjoiI2Q0NjI4ZiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
-      "read": {
-        "v": 2,
-        "mode": "system",
-        "pal": "violet",
-        "accent": "#d4628f",
-        "fs": "standard",
-        "rm": 0,
-        "mat": 1761062400000,
-        "lang": "system"
-      },
-      "light": {
-        "resolve": {
-          "mode": "system",
-          "dark": false,
-          "pal": "violet",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": "violet",
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      },
-      "dark": {
-        "resolve": {
-          "mode": "system",
-          "dark": true,
-          "pal": "violet",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": true,
-          "data-theme-mode": "system",
-          "data-dark": "1",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": "violet",
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      }
-    },
-    {
-      "name": "新色板 glacier 亮色",
-      "source": "writer",
-      "local": {
-        "sgx-theme-mode": "light",
         "sgx-palette": "glacier"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJnbGFjaWVyIiwiYWNjZW50IjoiI2YxN2Y3MiIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJnbGFjaWVyIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIn0",
       "read": {
         "v": 2,
-        "mode": "light",
         "pal": "glacier",
-        "accent": "#f17f72",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "light",
           "dark": false,
           "pal": "glacier",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": false,
-          "data-theme-mode": "light",
           "data-dark": "0",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "glacier",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "light",
           "dark": false,
           "pal": "glacier",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": false,
-          "data-theme-mode": "light",
           "data-dark": "0",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "glacier",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       }
     },
     {
-      "name": "自定义主题色（默认色板上）",
+      "name": "旧自定义主题色残留不再带出去（v4）",
       "source": "writer",
       "local": {
-        "sgx-accent": "#1F8A70"
+        "sgx-accent": "#1F8A70",
+        "sgx-palette": "xrose"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidGVycmEiLCJhY2NlbnQiOiIjMWY4YTcwIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJyb3NlIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIn0",
       "read": {
         "v": 2,
-        "mode": "system",
-        "pal": "terra",
-        "accent": "#1f8a70",
-        "fs": "standard",
-        "rm": 0,
-        "mat": 1761062400000,
-        "lang": "system"
-      },
-      "light": {
-        "resolve": {
-          "mode": "system",
-          "dark": false,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": "#1f8a70"
-        },
-        "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "#1f8a70",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      },
-      "dark": {
-        "resolve": {
-          "mode": "system",
-          "dark": true,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": "#1f8a70"
-        },
-        "root": {
-          "dark": true,
-          "data-theme-mode": "system",
-          "data-dark": "1",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "#1f8a70",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      }
-    },
-    {
-      "name": "自定义主题色（旧撞色 xrose → rose，深色）",
-      "source": "writer",
-      "local": {
-        "sgx-theme-mode": "dark",
-        "sgx-palette": "xrose",
-        "sgx-accent": "#d0a020"
-      },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6InJvc2UiLCJhY2NlbnQiOiIjZDBhMDIwIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
-      "read": {
-        "v": 2,
-        "mode": "dark",
         "pal": "rose",
-        "accent": "#d0a020",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "rose",
           "fs": "standard",
-          "rm": false,
-          "seed": "#d0a020"
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "rose",
-          "--sgx-seed": "#d0a020",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "rose",
           "fs": "standard",
-          "rm": false,
-          "seed": "#d0a020"
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "rose",
-          "--sgx-seed": "#d0a020",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -563,116 +361,44 @@
         "sgx-weather-loc": "city",
         "sgx-weather-city": "{\"name\":\"上海\",\"lat\":31.23,\"lon\":121.47}"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidGVycmEiLCJhY2NlbnQiOiIjZGU3YTU4IiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJ0ZXJyYSIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSJ9",
       "read": {
         "v": 2,
-        "mode": "system",
         "pal": "terra",
-        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      },
-      "dark": {
-        "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      }
-    },
-    {
-      "name": "旧的小字号 key 不再生效",
-      "source": "writer",
-      "local": {
-        "sgx-font-size": "small",
-        "sgx-theme-mode": "light"
-      },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJ0ZXJyYSIsImFjY2VudCI6IiNkZTdhNTgiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJzeXN0ZW0iLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
-      "read": {
-        "v": 2,
-        "mode": "light",
-        "pal": "terra",
-        "accent": "#de7a58",
-        "fs": "standard",
-        "rm": 0,
-        "mat": 1761062400000,
-        "lang": "system"
-      },
-      "light": {
-        "resolve": {
-          "mode": "light",
-          "dark": false,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -682,58 +408,46 @@
       "name": "本地存了不认识的色板 id（写端写默认 terra）",
       "source": "writer",
       "local": {
-        "sgx-palette": "neon",
-        "sgx-theme-mode": "dark"
+        "sgx-palette": "neon"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6InRlcnJhIiwiYWNjZW50IjoiI2RlN2E1OCIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJ0ZXJyYSIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSJ9",
       "read": {
         "v": 2,
-        "mode": "dark",
         "pal": "terra",
-        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -743,58 +457,46 @@
       "name": "语言：明确选了 English → lang en",
       "source": "writer",
       "local": {
-        "sgx-lang": "en",
-        "sgx-theme-mode": "light"
+        "sgx-lang": "en"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJ0ZXJyYSIsImFjY2VudCI6IiNkZTdhNTgiLCJmcyI6InN0YW5kYXJkIiwicm0iOjAsImxhbmciOiJlbiIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJ0ZXJyYSIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6ImVuIn0",
       "read": {
         "v": 2,
-        "mode": "light",
         "pal": "terra",
-        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "en"
       },
       "light": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -804,57 +506,47 @@
       "name": "语言：明确选了中文 → lang zh",
       "source": "writer",
       "local": {
-        "sgx-lang": "zh"
+        "sgx-lang": "zh",
+        "sgx-palette": "sage"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidGVycmEiLCJhY2NlbnQiOiIjZGU3YTU4IiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoiemgiLCJtYXQiOjE3NjEwNjI0MDAwMDB9",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJzYWdlIiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoiemgifQ",
       "read": {
         "v": 2,
-        "mode": "system",
-        "pal": "terra",
-        "accent": "#de7a58",
+        "pal": "sage",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "zh"
       },
       "light": {
         "resolve": {
-          "mode": "system",
           "dark": false,
-          "pal": "terra",
+          "pal": "sage",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": false,
-          "data-theme-mode": "system",
           "data-dark": "0",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
+          "data-palette": "sage",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
-          "dark": true,
-          "pal": "terra",
+          "dark": false,
+          "pal": "sage",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": true,
-          "data-theme-mode": "system",
-          "data-dark": "1",
+          "dark": false,
+          "data-dark": "0",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
+          "data-palette": "sage",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -864,58 +556,46 @@
       "name": "语言：跟随系统 → lang system",
       "source": "writer",
       "local": {
-        "sgx-lang": "system",
-        "sgx-theme-mode": "dark"
+        "sgx-lang": "system"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6InRlcnJhIiwiYWNjZW50IjoiI2RlN2E1OCIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSIsIm1hdCI6MTc2MTA2MjQwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJ0ZXJyYSIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSJ9",
       "read": {
         "v": 2,
-        "mode": "dark",
         "pal": "terra",
-        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -927,55 +607,44 @@
       "local": {
         "sgx-lang": "klingon"
       },
-      "cookie": "eyJ2IjoyLCJtb2RlIjoic3lzdGVtIiwicGFsIjoidGVycmEiLCJhY2NlbnQiOiIjZGU3YTU4IiwiZnMiOiJzdGFuZGFyZCIsInJtIjowLCJsYW5nIjoic3lzdGVtIiwibWF0IjoxNzYxMDYyNDAwMDAwfQ",
+      "cookie": "eyJ2IjoyLCJwYWwiOiJ0ZXJyYSIsImZzIjoic3RhbmRhcmQiLCJybSI6MCwibGFuZyI6InN5c3RlbSJ9",
       "read": {
         "v": 2,
-        "mode": "system",
         "pal": "terra",
-        "accent": "#de7a58",
         "fs": "standard",
         "rm": 0,
-        "mat": 1761062400000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -988,42 +657,34 @@
       "read": null,
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1035,52 +696,41 @@
       "cookie": "eyJ2IjoxLCJ0ejEiOiJhdXRvIiwidHoyIjoiRXVyb3BlL0xvbmRvbiIsImgxMiI6MCwiY2xvY2siOiJkaWdpdGFsIiwid3giOjEsInVuaXQiOiJjIiwibG9jIjoiYXV0byIsImNpdHkiOm51bGwsInByZWNpc2UiOm51bGx9",
       "read": {
         "v": 1,
-        "mode": "system",
         "pal": "terra",
-        "accent": "",
         "fs": "standard",
         "rm": 0,
-        "mat": 0,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1092,109 +742,87 @@
       "cookie": "eyJ2IjoxLCJ0ejEiOiJhdXRvIiwiZnMiOiJsYXJnZSIsInJtIjoxfQ",
       "read": {
         "v": 1,
-        "mode": "system",
         "pal": "terra",
-        "accent": "",
         "fs": "large",
         "rm": 1,
-        "mat": 0,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "large",
-          "rm": true,
-          "seed": ""
+          "rm": true
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "large",
           "fontSize": "112.5%",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": true,
           "data-reduced-motion": "1"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "large",
-          "rm": true,
-          "seed": ""
+          "rm": true
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "large",
           "fontSize": "112.5%",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": true,
           "data-reduced-motion": "1"
         }
       }
     },
     {
-      "name": "旧 v2（PR3 前，没有 accent）",
+      "name": "旧 v2（PR3 前，没有 accent）：mode 忽略，深浅按 forest",
       "source": "handmade",
-      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImRhcmsiLCJwYWwiOiJmb3Jlc3QiLCJmcyI6InNtYWxsIiwicm0iOjAsIm1hdCI6MTc1MDAwMDAwMDAwMH0",
+      "cookie": "eyJ2IjoyLCJ0ejEiOiJhdXRvIiwidHoyIjoiIiwiaDEyIjowLCJjbG9jayI6ImRpZ2l0YWwiLCJ3eCI6MSwidW5pdCI6ImMiLCJsb2MiOiJhdXRvIiwiY2l0eSI6bnVsbCwicHJlY2lzZSI6bnVsbCwibW9kZSI6ImxpZ2h0IiwicGFsIjoiZm9yZXN0IiwiZnMiOiJzbWFsbCIsInJtIjowLCJtYXQiOjE3NTAwMDAwMDAwMDB9",
       "read": {
         "v": 2,
-        "mode": "dark",
         "pal": "forest",
-        "accent": "",
         "fs": "small",
         "rm": 0,
-        "mat": 1750000000000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "forest",
           "fs": "small",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "small",
           "fontSize": "87.5%",
           "data-palette": "forest",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "forest",
           "fs": "small",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "small",
           "fontSize": "87.5%",
           "data-palette": "forest",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1206,280 +834,225 @@
       "cookie": "eyJ2IjoyLCJtb2RlIjoiYmx1ZSIsInBhbCI6Im5lb24iLCJhY2NlbnQiOiIjR0dHR0dHIiwiZnMiOiJodWdlIiwicm0iOnRydWUsIm1hdCI6LTUsImxhbmciOiJmMSIsInR6MSI6Ii4uLy4uL2V0YyIsInR6MiI6NSwiaDEyIjoiMSIsImNsb2NrIjoic3VuZGlhbCIsInd4Ijoibm8iLCJ1bml0IjoiayIsImxvYyI6IlNPTUUgUExBQ0UiLCJjaXR5IjpbMSwyXSwicHJlY2lzZSI6IngifQ",
       "read": {
         "v": 2,
-        "mode": "system",
         "pal": "terra",
-        "accent": "",
         "fs": "standard",
         "rm": 0,
-        "mat": 0,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      },
-      "dark": {
-        "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      }
-    },
-    {
-      "name": "accent 大写 → 严格校验不认（写端永远写小写）",
-      "source": "handmade",
-      "cookie": "eyJ2IjoyLCJwYWwiOiJsYWtlIiwiYWNjZW50IjoiIzJGNUY4NiIsIm1vZGUiOiJsaWdodCJ9",
-      "read": {
-        "v": 2,
-        "mode": "light",
-        "pal": "lake",
-        "accent": "",
-        "fs": "standard",
-        "rm": 0,
-        "mat": 0,
-        "lang": "system"
-      },
-      "light": {
-        "resolve": {
-          "mode": "light",
-          "dark": false,
-          "pal": "lake",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": "lake",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
-          "pal": "lake",
+          "dark": true,
+          "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
-          "data-palette": "lake",
-          "--sgx-seed": "",
+          "data-palette": null,
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       }
     },
     {
-      "name": "旧 cookie：撞色 xforest + 旧种子 → forest 预设（不当自定义色）",
+      "name": "旧 cookie：浅套 dustyblue + mode dark → 仍是浅套（mode 忽略）",
+      "source": "handmade",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6ImR1c3R5Ymx1ZSIsImFjY2VudCI6IiNkNGE3MmMiLCJtYXQiOjE3NTAwMDAwMDAwMDB9",
+      "read": {
+        "v": 2,
+        "pal": "dustyblue",
+        "fs": "standard",
+        "rm": 0,
+        "lang": "system"
+      },
+      "light": {
+        "resolve": {
+          "dark": false,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false
+        },
+        "root": {
+          "dark": false,
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "dustyblue",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "dark": false,
+          "pal": "dustyblue",
+          "fs": "standard",
+          "rm": false
+        },
+        "root": {
+          "dark": false,
+          "data-dark": "0",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "dustyblue",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "旧 cookie：深套 lake + mode light → 仍是深套（mode 忽略）",
+      "source": "handmade",
+      "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJsYWtlIiwiYWNjZW50IjoiIzJmNWY4NiIsIm1hdCI6MTc1MDAwMDAwMDAwMH0",
+      "read": {
+        "v": 2,
+        "pal": "lake",
+        "fs": "standard",
+        "rm": 0,
+        "lang": "system"
+      },
+      "light": {
+        "resolve": {
+          "dark": true,
+          "pal": "lake",
+          "fs": "standard",
+          "rm": false
+        },
+        "root": {
+          "dark": true,
+          "data-dark": "1",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "lake",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      },
+      "dark": {
+        "resolve": {
+          "dark": true,
+          "pal": "lake",
+          "fs": "standard",
+          "rm": false
+        },
+        "root": {
+          "dark": true,
+          "data-dark": "1",
+          "data-font-size": "standard",
+          "fontSize": "",
+          "data-palette": "lake",
+          "reduced-motion": false,
+          "data-reduced-motion": "0"
+        }
+      }
+    },
+    {
+      "name": "旧 cookie：撞色 xforest → forest",
       "source": "handmade",
       "cookie": "eyJ2IjoyLCJtb2RlIjoibGlnaHQiLCJwYWwiOiJ4Zm9yZXN0IiwiYWNjZW50IjoiIzJmNmI0ZiIsIm1hdCI6MTc1MDAwMDAwMDAwMH0",
       "read": {
         "v": 2,
-        "mode": "light",
         "pal": "forest",
-        "accent": "#2f6b4f",
         "fs": "standard",
         "rm": 0,
-        "mat": 1750000000000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "forest",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "forest",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "forest",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "forest",
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       }
     },
     {
-      "name": "旧 cookie：lake + 旧默认种子 → lake 预设",
-      "source": "handmade",
-      "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6Imxha2UiLCJhY2NlbnQiOiIjMmY1Zjg2IiwibWF0IjoxNzUwMDAwMDAwMDAwfQ",
-      "read": {
-        "v": 2,
-        "mode": "dark",
-        "pal": "lake",
-        "accent": "#2f5f86",
-        "fs": "standard",
-        "rm": 0,
-        "mat": 1750000000000,
-        "lang": "system"
-      },
-      "light": {
-        "resolve": {
-          "mode": "dark",
-          "dark": true,
-          "pal": "lake",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": true,
-          "data-theme-mode": "dark",
-          "data-dark": "1",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": "lake",
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      },
-      "dark": {
-        "resolve": {
-          "mode": "dark",
-          "dark": true,
-          "pal": "lake",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": true,
-          "data-theme-mode": "dark",
-          "data-dark": "1",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": "lake",
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      }
-    },
-    {
-      "name": "旧 cookie：xrose + 自定义色 → rose + 自定义色",
+      "name": "旧 cookie：xrose + 自定义色 → rose，自定义色忽略",
       "source": "handmade",
       "cookie": "eyJ2IjoyLCJtb2RlIjoiZGFyayIsInBhbCI6Inhyb3NlIiwiYWNjZW50IjoiI2QwYTAyMCIsIm1hdCI6MTc1MDAwMDAwMDAwMH0",
       "read": {
         "v": 2,
-        "mode": "dark",
         "pal": "rose",
-        "accent": "#d0a020",
         "fs": "standard",
         "rm": 0,
-        "mat": 1750000000000,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "rose",
           "fs": "standard",
-          "rm": false,
-          "seed": "#d0a020"
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "rose",
-          "--sgx-seed": "#d0a020",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "dark",
           "dark": true,
           "pal": "rose",
           "fs": "standard",
-          "rm": false,
-          "seed": "#d0a020"
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "dark",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": "rose",
-          "--sgx-seed": "#d0a020",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1491,166 +1064,87 @@
       "cookie": "eyJ2IjoyLCJwYWwiOiJ4bmVvbiJ9",
       "read": {
         "v": 2,
-        "mode": "system",
         "pal": "terra",
-        "accent": "",
         "fs": "standard",
         "rm": 0,
-        "mat": 0,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       }
     },
     {
-      "name": "accent 简写 #abc → 不认",
+      "name": "theme 别名（旧博客契约）不认",
       "source": "handmade",
-      "cookie": "eyJ2IjoyLCJhY2NlbnQiOiIjYWJjIn0",
+      "cookie": "eyJ2IjoyLCJ0aGVtZSI6ImxpZ2h0In0",
       "read": {
         "v": 2,
-        "mode": "system",
         "pal": "terra",
-        "accent": "",
         "fs": "standard",
         "rm": 0,
-        "mat": 0,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      }
-    },
-    {
-      "name": "theme 别名（旧博客契约）不认，只看 mode",
-      "source": "handmade",
-      "cookie": "eyJ2IjoyLCJ0aGVtZSI6ImRhcmsifQ",
-      "read": {
-        "v": 2,
-        "mode": "system",
-        "pal": "terra",
-        "accent": "",
-        "fs": "standard",
-        "rm": 0,
-        "mat": 0,
-        "lang": "system"
-      },
-      "light": {
-        "resolve": {
-          "mode": "system",
-          "dark": false,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
-          "reduced-motion": false,
-          "data-reduced-motion": "0"
-        }
-      },
-      "dark": {
-        "resolve": {
-          "mode": "system",
-          "dark": true,
-          "pal": "terra",
-          "fs": "standard",
-          "rm": false,
-          "seed": ""
-        },
-        "root": {
-          "dark": true,
-          "data-theme-mode": "system",
-          "data-dark": "1",
-          "data-font-size": "standard",
-          "fontSize": "",
-          "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1659,55 +1153,44 @@
     {
       "name": "lang 大写 EN → 不认，按跟随系统（写端只写小写语言代码 / system）",
       "source": "handmade",
-      "cookie": "eyJ2IjoyLCJsYW5nIjoiRU4iLCJtb2RlIjoibGlnaHQifQ",
+      "cookie": "eyJ2IjoyLCJsYW5nIjoiRU4ifQ",
       "read": {
         "v": 2,
-        "mode": "light",
         "pal": "terra",
-        "accent": "",
         "fs": "standard",
         "rm": 0,
-        "mat": 0,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1716,55 +1199,44 @@
     {
       "name": "旧版跟随系统写的空 lang → system",
       "source": "handmade",
-      "cookie": "eyJ2IjoyLCJsYW5nIjoiIiwibW9kZSI6ImxpZ2h0In0",
+      "cookie": "eyJ2IjoyLCJsYW5nIjoiIn0",
       "read": {
         "v": 2,
-        "mode": "light",
         "pal": "terra",
-        "accent": "",
         "fs": "standard",
         "rm": 0,
-        "mat": 0,
         "lang": "system"
       },
       "light": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "light",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "light",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1776,52 +1248,41 @@
       "cookie": "eyJ2IjoyLCJsYW5nIjoiamEifQ",
       "read": {
         "v": 2,
-        "mode": "system",
         "pal": "terra",
-        "accent": "",
         "fs": "standard",
         "rm": 0,
-        "mat": 0,
         "lang": "ja"
       },
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1833,52 +1294,41 @@
       "cookie": "eyJ2IjoxLCJ0ejEiOiJhdXRvIiwibGFuZyI6ImVuIn0",
       "read": {
         "v": 1,
-        "mode": "system",
         "pal": "terra",
-        "accent": "",
         "fs": "standard",
         "rm": 0,
-        "mat": 0,
         "lang": "en"
       },
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1887,46 +1337,38 @@
     {
       "name": "未知版本 v3",
       "source": "handmade",
-      "cookie": "eyJ2IjozLCJtb2RlIjoiZGFyayIsInBhbCI6ImZvcmVzdCJ9",
+      "cookie": "eyJ2IjozLCJwYWwiOiJmb3Jlc3QifQ",
       "read": null,
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1935,46 +1377,38 @@
     {
       "name": "未知版本 v3 带 lang → 当没有 cookie（不跳语言）",
       "source": "handmade",
-      "cookie": "eyJ2IjozLCJtb2RlIjoiZGFyayIsImxhbmciOiJlbiJ9",
+      "cookie": "eyJ2IjozLCJsYW5nIjoiZW4ifQ",
       "read": null,
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -1983,46 +1417,38 @@
     {
       "name": "版本是字符串 \"2\"",
       "source": "handmade",
-      "cookie": "eyJ2IjoiMiIsIm1vZGUiOiJkYXJrIn0",
+      "cookie": "eyJ2IjoiMiIsInBhbCI6Imxha2UifQ",
       "read": null,
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -2031,46 +1457,38 @@
     {
       "name": "没有 v",
       "source": "handmade",
-      "cookie": "eyJtb2RlIjoiZGFyayIsInBhbCI6ImZvcmVzdCJ9",
+      "cookie": "eyJwYWwiOiJmb3Jlc3QifQ",
       "read": null,
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -2083,42 +1501,34 @@
       "read": null,
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -2131,42 +1541,34 @@
       "read": null,
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -2179,42 +1581,34 @@
       "read": null,
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
@@ -2227,42 +1621,34 @@
       "read": null,
       "light": {
         "resolve": {
-          "mode": "system",
-          "dark": false,
+          "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
-          "dark": false,
-          "data-theme-mode": "system",
-          "data-dark": "0",
+          "dark": true,
+          "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }
       },
       "dark": {
         "resolve": {
-          "mode": "system",
           "dark": true,
           "pal": "terra",
           "fs": "standard",
-          "rm": false,
-          "seed": ""
+          "rm": false
         },
         "root": {
           "dark": true,
-          "data-theme-mode": "system",
           "data-dark": "1",
           "data-font-size": "standard",
           "fontSize": "",
           "data-palette": null,
-          "--sgx-seed": "",
           "reduced-motion": false,
           "data-reduced-motion": "0"
         }

@@ -83,7 +83,7 @@ test('baseof：modulepreload + 构建签名 + 入口加载失败只自动刷新�
   assert.ok(m[0].indexOf('sessionStorage.getItem(k)===p') < m[0].indexOf('location.reload()'), '先查标记再刷新');
   /* 首帧脚本（主题 / 语言 / 布局）仍是 <head> 里的同步内联脚本 */
   const head = base.slice(0, base.indexOf('</head>'));
-  assert.ok(head.includes("localStorage.getItem('sgx-theme-mode')"), '主题预读仍在 head 内联');
+  assert.ok(head.includes("localStorage.getItem('sgx-palette')"), '调色板（深浅）预读仍在 head 内联');
   assert.ok(!/<script[^>]*type="module"/.test(head), 'head 里不放 module 脚本');
   const part = rd('space/web/layouts/partials/sgx-js-batch.html');
   assert.ok(part.includes('js.Batch "js/sgx"') && part.includes('| fingerprint'), 'js.Batch 构建，入口 fingerprint（/js/* 是 immutable 缓存）');
