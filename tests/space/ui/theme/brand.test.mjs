@@ -53,9 +53,9 @@ test('外壳 CSS（顶栏 v3 · PR-2）：❯ 主题色、SVG 字标（字母正
 
 test('标签页图标 + 分享卡片：静态文件齐全、尺寸对', () => {
   const svg = rd('space/web/static/favicon.svg').toString();
-  /* 2026-10-23 PR-G：方块 = 默认色板（2026-11 PR-A 起 terra）的浅色主色（palette-roles.json），和 favicon.js 的 BG 同一个值 */
-  const dflt = JSON.parse(rd('space/web/data/palette-roles.json').toString()).presets.terra.light.primary;
-  assert.equal(dflt, '#a94521');
+  /* 2026-10-23 PR-G：方块 = 当时默认色板 terra 的浅色主色 #a94521，和 favicon.js 的 BG 同一个值。
+     2026-11-12 调色板 v4 起 terra 只有深套，静态图标保持这个颜色（favicon.js 按当前调色板的 primary 换色） */
+  const dflt = '#a94521';
   assert.ok(rd('space/web/assets/js/shell/favicon.js').toString().includes(`const BG = '${dflt}';`));
   assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 1000 1000"><path fill="#a94521" d="M[^"]+"\/><path fill="#fff" d="M[^"]+"\/><\/svg>$/);
   assert.ok(svg.length < 2000, 'favicon.svg ' + svg.length);

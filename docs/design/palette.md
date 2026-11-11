@@ -3,11 +3,11 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-DES-001 |
-| 版本 | 2.0 |
-| 日期 | 2026-11-09 |
+| 版本 | 3.0 |
+| 日期 | 2026-11-12 |
 | 状态 | 现行 |
 | 取代 | `docs/palette-usage.md`（2026-11-06） |
-| 规则版本 | `palette-rules-1`（`space/scripts/gen-shell.mjs` `RULES_VERSION`，导出到 `palettes.json` 的 `rulesVersion`） |
+| 规则版本 | `palette-rules-2`（`space/scripts/gen-shell.mjs` `RULES_VERSION`，导出到 `palettes.json` 的 `rulesVersion`） |
 
 ## 0. 数据源与生成链
 
@@ -25,7 +25,26 @@ palette-scheme.js
 
 ## 1. 一套调色板是什么
 
-22 套，每套 = **1 个背景色 + 6 个前景撞色**。原来的「单色 / 撞色」两组合并成一个列表，`x*` 撞色 id 删除（旧值 `x<id>` 自动迁到 `<id>`）。默认 **dustyblue（雾霾蓝）**。
+22 套，每套 = **七色：底、面、字、主、辅、第三、点缀**（3.0，2026-11-12）。原来的「单色 / 撞色」两组合并成一个列表，`x*` 撞色 id 删除（旧值 `x<id>` 自动迁到 `<id>`）。默认 **terra（陶土，深套）**。
+
+1.1 **每套只有一个模式**（3.0 起删除深浅模式 `theme-mode` 和自定义主题色 `accent`）：底色 OKLCH L ≥ 0.6 为浅套，否则为深套。
+**8 套浅**：雾霾蓝 dustyblue、冰川蓝 glacier、鼠尾草绿 sage、珊瑚 coral、芥末黄 mustard、香槟金 champagne、干枯玫瑰 dustyrose、奶油白 cream；其余 **14 套深**。
+`<html class="dark">` / `color-scheme` / `theme-color` 由当前调色板决定，不读 `prefers-color-scheme`。
+
+1.2 陶土的底 / 面 / 字钉值 `#161412` / `#1d1b19` / `#ece6dc`（`PINS`）；石墨保留冷灰色相。
+
+1.3 语义四色写死（`SEM`），审计只校验不改值：
+
+| 档 | 成功 | 错误 | 警告 | 信息 |
+|---|---|---|---|---|
+| 浅套 | `#097334` | `#be2423` | `#864e00` | `#1666aa` |
+| 深套 | `#39e175` | `#ff6f69` | `#ffa521` | `#5aa5ff` |
+
+深套最低对比度 4.80:1。石墨的信息蓝与主色同属蓝色系，靠 i 图标和文字区分（Gray 2026-11-12 定稿）。
+
+1.4 代码高亮用固定主题（浅、深两档，`code-tokens.css`），不计入调色板。
+
+1.5 对比度 WCAG AA：正文 ≥4.5，控件 ≥3，夜间卡 ≥7；正文墨色（`fitInks`）对所有正文表面 ≥4.5；深套夜间卡对 surface ≥1.25。
 
 | 分组 | 色板 |
 |---|---|
@@ -38,13 +57,13 @@ palette-scheme.js
 - 背景色 → 7 档深浅 `--sgx-bg-1..7`（浅色从页面底 L 0.97 往深走，深色从 L 0.16 往亮走）。
 - 6 个前景色按顺序有固定角色：**主交互 / 辅助强调 / 标题图标 / 标签装饰 / 图表装饰 / 低频点缀**。
   每色四档：`--sgx-fg-N`（本色，按钮 / 进度 / 填充）、`--sgx-fg-N-on`（本色上的字，自动挑深墨 / 白 ≥4.5:1）、`--sgx-fg-N-tint`（浅底，标签 / 选中底）、`--sgx-fg-N-ink`（文字 / 图标档：浅色压深、深色提亮）。
-- 22 套的亮 / 暗两套值**全部由公式生成**（`themeSpec()` + 同一条亮度阶梯 + 对比度审计），没有逐套手调的深色值；单测断言规格里没有 `p.hd` / `tune` / `slider` 这类覆盖。
+- 22 套的值**全部由公式生成**（3.0 起每套只生成自己那个模式）（`themeSpec()` + 同一条亮度阶梯 + 对比度审计），没有逐套手调的深色值；单测断言规格里没有 `p.hd` / `tune` / `slider` 这类覆盖。
 
 ### 档位怎么用（硬规则）
 
 | 档位 | 只能用在 | 不能用在 |
 |---|---|---|
-| 背景 7 档 `--sgx-bg-1..7` | 每个模式各一条阶梯；组件只用页面底 `--sgx-bg-1` | 大面积内容表面、卡片、任何文字底下 |
+| 背景 7 档 `--sgx-bg-1..7` | 每套一条阶梯；组件只用页面底 `--sgx-bg-1` | 大面积内容表面、卡片、任何文字底下 |
 | 前景 `-tint` | 浅底：chip / 标签、选中态底色 | — |
 | 前景本色（base） | 填充：按钮、开关、进度、选中分段（上面的字由引擎自动挑 on 色，见四） | 当文字色（浅色模式下多数不到 4.5:1） |
 | 前景 `-ink` | 文字、图标、链接、焦点环 | 大面积底色 |
@@ -80,9 +99,9 @@ palette-scheme.js
 | `--sgx-tag-bg` / `--sgx-tag-fg` | 前景 4（tint / ink） | 标签 / chip 装饰 |
 | `--sgx-chart-1..6` | 前景 1..6 | 只给图表（以及快捷面板色块 / 预览） |
 | `link`、`focus-ring`、`nav-selected`、`chip-selected`、`outline`、`outline-variant`、`divider`、`text-primary` / `-secondary` / `-tertiary` | 引擎派生 | 链接、焦点、选中、边线、文字 |
-| `danger` 族 | **固定红色族，不随主题变** | 错误、故障 |
-| `warning` / `info` 族（各四个） | **固定琥珀（h 65）/ 蓝（h 250），不随主题变**，亮暗各一套、审计核对 | 先只导出，主站组件暂未接（需要时直接用） |
-| `success` / `on-success` / `success-container` / `on-success-container` | **固定绿色族（OKLCH h 150），不随主题变**，亮暗各一套、对比度审计 | 服务状态「正常」横幅 / chip / 可用率色块、验证成功提示 |
+| `danger` 族 | **固定红色族（`SEM`），不随主题变**，浅 / 深套各一值 | 错误、故障 |
+| `warning` / `info` 族（各四个） | **固定（`SEM`）**，浅 / 深套各一值、审计只核对 | 先只导出，主站组件暂未接（需要时直接用） |
+| `success` / `on-success` / `success-container` / `on-success-container` | **固定绿色族（`SEM`）**，浅 / 深套各一值、对比度审计 | 服务状态「正常」横幅 / chip / 可用率色块、验证成功提示 |
 
 **频率**：前景 1 为主，前景 2 次之，前景 3–4 少量，前景 5–6 很少（只在图表、色块预览里出现）。
 普通图标保持中性（`text-secondary`），只有关键操作用 `primary`。
@@ -120,7 +139,7 @@ palette-scheme.js
 - 开关 / 滑块的「开着」：浅填充（芥末对白卡约 2.2:1）本身达不到控件 3:1，审计改量「轨道 / 圆点里对比度高的那个」（`@switch-on` / `@slider-on`）：
   开关圆点 = `on-primary-fill`（深墨），滑块圆点 = `primary` ink，所以状态仍 ≥3:1。
 - 辅色 / 第三色：没有带字的实色填充（状态页「正常」原来用 tertiary，已换成固定 success），不带字的填充照旧用 `secondary-fill` / `tertiary-fill`。
-- 单测：22 套 × 亮暗 `on-primary-fill` / `primary-fill` ≥4.5:1、`primary-fill` = `--sgx-fg-1`、`primary` ink 在表面上 ≥4.5:1、审计零失败。
+- 单测：22 套 `on-primary-fill` / `primary-fill` ≥4.5:1、`primary-fill` = `--sgx-fg-1`、`primary` ink 在表面上 ≥4.5:1、审计零失败。
 
 ## 5. 组件角色表（阈值）与回退顺序
 
@@ -146,8 +165,8 @@ palette-scheme.js
 
 ## 6. 导出 token 全目录（`space/web/data/shell/palettes.json` / `space/web/assets/css/shell/tokens.css`）
 
-主站组件只引用 Shell + Semantic；共享外壳**完整导出**下面这些（22 套 × 亮 / 暗，值与 `tokens.css` 同名 `--sgx-*` 变量一致），子站按需索取。
-`palettes.json` 顶层带 `schemeVersion`（引擎哈希）和 **`rulesVersion: "palette-rules-1"`**（本文这套用法规则的版本）。
+主站组件只引用 Shell + Semantic；共享外壳**完整导出**下面这些（22 套，每套一段 `:root[data-palette]`，值与 `tokens.css` 同名 `--sgx-*` 变量一致），子站按需索取。
+`palettes.json` 每套 `{ mode, tokens }`，顶层带 **`rulesVersion: "palette-rules-2"`**（本文这套用法规则的版本；3.0 起删 `schemeVersion`）。
 
 | 组 | token |
 |---|---|
@@ -166,11 +185,18 @@ palette-scheme.js
 
 ## 7. 子站
 
-子站与主站是同一个 Hugo 站：样式表 `@import` 主站的 `assets/css/shell/tokens.css` / `shell.css`，模板读 `site.Data.shell.palettes`，MUST NOT 自己定义主题色。当前色板与深浅色由 `sgx-ui` cookie 带到子站首帧（SGX-SPEC-003）。子站按 `rulesVersion` 判断用法规则是否更新。
+子站与主站是同一个 Hugo 站：样式表 `@import` 主站的 `assets/css/shell/tokens.css` / `shell.css`，模板读 `site.Data.shell.palettes`，MUST NOT 自己定义主题色。当前色板由 `sgx-ui` cookie 带到子站首帧，深浅随调色板（SGX-SPEC-003）；子站不再加载自定义色引擎。子站按 `rulesVersion` 判断用法规则是否更新。
 
 ## 8. 改调色板
 
 1. `palette-scheme.js` 的 `THEMES` 加 / 改一行（6 个前景从 `FG_POOL` 挑），`space/web/data/palettes.yaml`、`space/web/data/features.yaml` 的 palette 选项同步。
 2. `node space/scripts/gen-palettes.mjs --roles`、`node space/scripts/gen-shell.mjs`，再各跑一次 `--check`。
 3. 单测 `tests/space/ui/theme/palette-scheme.test.mjs` 会核对：对比度审计全过、中性彩度 ≤ 0.012、danger / success 不变、前景 ink 在 tint 上 ≥4.5:1、
-   填充档 on 色 ≥4.5:1、22 套没有手调深色值、palettes.yaml / 定稿夹具和 THEMES 一致。
+   填充档 on 色 ≥4.5:1、`SEM` / `PINS` 不被改写、22 套没有手调值、palettes.yaml / 定稿夹具和 THEMES 一致。
+
+## 9. 修订记录
+
+| 版本 | 日期 | 内容 |
+|---|---|---|
+| 3.0 | 2026-11-12 | 删除深浅模式与自定义主题色；每套一个模式（8 浅 14 深），默认 terra；七色；语义四色写死；代码高亮固定主题；`palette-rules-2` |
+| 2.0 | 2026-11-09 | 22 套一个列表、三层 token、填充 / ink 拆分 |

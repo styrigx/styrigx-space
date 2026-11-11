@@ -1,6 +1,8 @@
 /**
  * PR3 主题色角色 token → 2026-10-23 PR-G 七色调色板：22 套（1 背景色 + 6 前景撞色；space/web/data/palette-roles.json）→ input.css（space/scripts/gen-palettes.mjs），
- * 自定义 #rrggbb 种子 → 同一套角色（space/web/assets/js/lib/palette-scheme.js，设计稿 scheme.js 的移植）。
+ * 引擎 space/web/assets/js/lib/palette-scheme.js（设计稿 scheme.js 的移植）。
+ * 2026-11-12 调色板 v4：没有深浅模式和自定义主题色。每套只有一个模式（浅套 / 深套由底色决定），JSON 每套 { mode, roles, state, tones }；
+ * 下面的 MODES(id) = [这套的模式]，DATA.presets[id][mode] / [mode + 'Tones'] / [mode + 'State'] 是测试里给 roles / tones / state 起的别名。
  * 定稿设计稿的数据在 tests/fixtures/palette-v0.3.json（id / 名字 / 背景色 / 6 前景 / 前景色池）。
  */
 import { test } from 'node:test';
@@ -8,31 +10,53 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mixHex, presetRoles, rolesFor, rolesCss, roleDecls, toneDecls, contrast, hexToOklch, audit, bgTones, fgTones, PRESETS, PINS, DEFAULT_ID, FG_POOL } from '../../../../space/web/assets/js/lib/palette-scheme.js';
+import { mixHex, presetRoles, contrast, hexToOklch, audit, bgTones, fgTones, paletteMode, PRESETS, PINS, DEFAULT_ID, FG_POOL, SEM } from '../../../../space/web/assets/js/lib/palette-scheme.js';
 import { renderBlock, splice } from '../../../../space/scripts/gen-palettes.mjs';
-import { ACCENT_CACHE_VER } from '../../../../space/web/assets/js/lib/accent.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const DATA = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/palette-roles.json'), 'utf8'));
+const RAW = readFileSync(path.join(REPO, 'space/web/data/palette-roles.json'), 'utf8');
+const DATA = JSON.parse(RAW);
+/* 测试用别名（不可枚举，不影响和引擎结果的 deepEqual）：p[mode] = roles、p[mode + 'Tones'] = tones、p[mode + 'State'] = state */
+for (const p of Object.values(DATA.presets)) {
+  Object.defineProperty(p, p.mode, { value: p.roles });
+  Object.defineProperty(p, p.mode + 'Tones', { value: p.tones });
+  Object.defineProperty(p, p.mode + 'State', { value: p.state });
+}
+const MODES = (id) => [DATA.presets[id].mode];
+/** 同模式的参照套（语义色、danger 等固定色比较用）：浅套 = dustyblue，深套 = terra */
+const REF = (m) => DATA.presets[m === 'light' ? 'dustyblue' : 'terra'][m];
 const CSS = readFileSync(path.join(REPO, 'space/web/assets/css/input.css'), 'utf8');
 const V3 = JSON.parse(readFileSync(path.join(REPO, 'tests/fixtures/palette-v0.3.json'), 'utf8'));
 const hueDist = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
 const hue = (h) => hexToOklch(h).h;
 
-test('22 套七色调色板、亮暗各 108 个角色 + 31 个色调 token（bg-1..7、fg-1..6 及 -tint / -ink / -on）', () => {
+test('22 套七色调色板、每套一个模式：108 个角色 + 31 个色调 token（bg-1..7、fg-1..6 及 -tint / -ink / -on）；schema styrigx-palette/3，没有 custom', () => {
   const ids = Object.keys(DATA.presets);
+  assert.equal(DATA.schema, 'styrigx-palette/3');
+  assert.equal(DATA.custom, undefined);
   assert.equal(ids.length, 22);
   assert.equal(ids[0], 'dustyblue');
   assert.equal(DEFAULT_ID, 'terra'); // 2026-11 PR-A 照设计稿：默认赤陶（之前 dustyblue；列表顺序不变，dustyblue 仍排第一）
-  for (const id of ids) for (const m of ['light', 'dark']) {
-    assert.equal(Object.keys(DATA.presets[id][m]).length, 108, id + ' ' + m);
-    const t = DATA.presets[id][m + 'Tones'];
-    assert.equal(Object.keys(t).length, 31, id + ' ' + m + ' tones');
-    for (let i = 1; i <= 7; i++) assert.match(t['bg-' + i], /^#[0-9a-f]{6}$/);
-    for (let i = 1; i <= 6; i++) for (const k of ['', '-tint', '-ink', '-on']) assert.match(t['fg-' + i + k], /^#[0-9a-f]{6}$/);
+  for (const id of ids) {
+    const p = DATA.presets[id];
+    assert.deepEqual(Object.keys(p).filter((k) => /light|dark/i.test(k)), [], id + ' 没有亮 / 暗两套');
+    assert.equal(Object.keys(p.roles).length, 108, id);
+    assert.equal(Object.keys(p.tones).length, 31, id + ' tones');
+    for (let i = 1; i <= 7; i++) assert.match(p.tones['bg-' + i], /^#[0-9a-f]{6}$/);
+    for (let i = 1; i <= 6; i++) for (const k of ['', '-tint', '-ink', '-on']) assert.match(p.tones['fg-' + i + k], /^#[0-9a-f]{6}$/);
   }
 });
 
+test('浅套 / 深套由底色决定（OKLCH L ≥ 0.6 = 浅套）：8 浅 14 深，默认 terra 是深套', () => {
+  const light = Object.keys(DATA.presets).filter((id) => DATA.presets[id].mode === 'light');
+  assert.deepEqual(light, ['dustyblue', 'glacier', 'sage', 'coral', 'mustard', 'champagne', 'dustyrose', 'cream']);
+  assert.equal(Object.keys(DATA.presets).length - light.length, 14);
+  assert.equal(DATA.presets.terra.mode, 'dark');
+  for (const [id, p] of Object.entries(DATA.presets)) {
+    assert.equal(paletteMode(p.roles.background), p.mode, id + ' 底色决定模式');
+    assert.equal(p.mode === 'dark', hexToOklch(p.roles.background).l < 0.6, id);
+  }
+});
 test('定稿 palette-v0.3：22 套的 id / 名字 / 背景色 / 6 前景（顺序）和设计稿一致；名字不带「· 新 / · 默认」', () => {
   assert.equal(V3.default, DEFAULT_ID);
   assert.deepEqual(FG_POOL, V3.fgPool);
@@ -57,20 +81,17 @@ test('JSON 的预设（含 id / 名字 / 种子 / 分组 / 背景 / 前景 / moo
   }
 });
 
-test('移植的引擎重算 22 套预设（角色 + 色调 token），和 JSON 一字不差（值不是手敲的）', () => {
+test('移植的引擎重算 22 套预设（角色 + 状态层 + 色调 token），和 JSON 一字不差（值不是手敲的）', () => {
   for (const id of Object.keys(DATA.presets)) {
-    const r = presetRoles(id);
-    for (const m of ['light', 'dark']) {
-      assert.deepEqual(r[m], DATA.presets[id][m], id + ' ' + m);
-      assert.deepEqual(r[m + 'Tones'], DATA.presets[id][m + 'Tones'], id + ' ' + m + ' tones');
-    }
-    assert.deepEqual(r.lightState, DATA.presets[id].lightState);
-    assert.deepEqual(r.darkState, DATA.presets[id].darkState);
+    const r = presetRoles(id), p = DATA.presets[id];
+    assert.equal(r.mode, p.mode, id);
+    assert.deepEqual(r.roles, p.roles, id);
+    assert.deepEqual(r.tones, p.tones, id + ' tones');
+    assert.deepEqual(r.state, p.state, id + ' state');
   }
 });
-
 test('22 套全部通过对比度审计（正文 ≥4.5:1，控件 ≥3:1；不修正，直接核对 JSON 里的值）', () => {
-  for (const x of PRESETS) for (const m of ['light', 'dark']) {
+  for (const x of PRESETS) for (const m of MODES(x.id)) {
     const r = { ...DATA.presets[x.id][m] };
     Object.defineProperty(r, '__dark', { value: m === 'dark' });
     const bad = audit(r, { ...x.spec, seed: x.seed, seedPrimary: r.primary }, m, false).rows.filter((row) => !row.pass);
@@ -78,57 +99,18 @@ test('22 套全部通过对比度审计（正文 ≥4.5:1，控件 ≥3:1；不�
   }
 });
 
-test('自定义种子：8 个校验种子与 JSON 一致（最近预设 + 主色 + 色调 token）', () => {
-  for (const [seed, ref] of Object.entries(DATA.custom)) {
-    const r = rolesFor(seed);
-    assert.equal(r.derivedFrom, ref.derivedFrom, seed);
-    assert.ok(PRESETS.some((p) => p.id === r.derivedFrom), seed + ' 从 22 套里派生');
-    for (const m of ['light', 'dark']) {
-      assert.deepEqual(r[m], ref[m], seed + ' ' + m);
-      assert.deepEqual(r[m + 'Tones'], ref[m + 'Tones'], seed + ' ' + m + ' tones');
-    }
-    assert.equal(r.lightTones['fg-1'], seed, seed + ' 前景 1 = 种子');
-  }
-});
-
-test('自定义种子：任意颜色的 on-primary / 正文对比度够（≥4.5:1）', () => {
-  for (const seed of ['#ffd400', '#00ff00', '#000000', '#ffffff', '#123456', '#e91e63', '#9e9e9e']) {
-    const r = rolesFor(seed);
-    for (const m of ['light', 'dark']) {
-      assert.ok(contrast(r[m]['on-primary'], r[m].primary) >= 4.5, seed + ' ' + m + ' on-primary');
-      assert.ok(contrast(r[m]['text-primary'], r[m].surface) >= 4.5, seed + ' ' + m + ' text');
-      assert.ok(contrast(r[m]['on-secondary-container'], r[m]['secondary-container']) >= 4.5, seed + ' ' + m + ' tonal btn');
-    }
-  }
-});
-
 test('input.css 里的预设角色就是 gen-palettes 生成的（改 JSON 忘了重跑 → 红）', () => {
   assert.equal(splice(CSS, renderBlock(DATA)), CSS);
 });
 
-test('每个预设都有浅色 + 深色（.dark）两段；默认 terra 兜底在 :root / :root.dark；x* 撞色段已删除', () => {
-  for (const id of Object.keys(DATA.presets)) {
-    assert.ok(CSS.includes(`:root[data-palette="${id}"]`), id);
-    assert.ok(CSS.includes(`:root.dark[data-palette="${id}"]`), id + ' dark');
-  }
+test('每个预设一段 :root[data-palette]（没有 .dark 段）；默认 terra 兜底在 :root；x* 撞色段已删除', () => {
+  for (const id of Object.keys(DATA.presets)) assert.ok(CSS.includes(`:root[data-palette="${id}"]`), id);
+  const gen = CSS.slice(CSS.indexOf('@gen-palettes:begin'), CSS.indexOf('@gen-palettes:end'));
+  assert.doesNotMatch(gen, /:root\.dark/);
   assert.match(CSS, /\n {2}:root,\n {2}:root\[data-palette="terra"\] \{/);
-  assert.match(CSS, /\n {2}:root\.dark,\n {2}:root\.dark\[data-palette="terra"\] \{/);
   assert.doesNotMatch(CSS, /data-palette="x[a-z]+"/);
   assert.doesNotMatch(CSS, /:root,\n {2}:root\[data-palette="lake"\]/);
 });
-
-test('自定义种子运行时写的变量名 = 预设的变量名（角色 + 色调 token，亮暗两段，盖过 tokens 层）', () => {
-  const names = (decls) => decls.map((d) => d.split(':')[0]).sort();
-  const p = DATA.presets.dustyblue;
-  const css = rolesCss('#ff6b9d');
-  assert.match(css, /^html:root\{--sgx-seed: #ff6b9d;/);
-  assert.match(css, /html:root\.dark\{/);
-  assert.match(css, /--sgx-bg-7: #[0-9a-f]{6};/);
-  const r = rolesFor('#ff6b9d');
-  assert.deepEqual(names([...roleDecls(r.light, r.lightState), ...toneDecls(r.lightTones)]), names([...roleDecls(p.light, p.lightState), ...toneDecls(p.lightTones)]));
-  assert.deepEqual(names([...roleDecls(r.dark, r.darkState), ...toneDecls(r.darkTones)]), names([...roleDecls(p.dark, p.darkState), ...toneDecls(p.darkTones)]));
-});
-
 test('色板列表（palettes.yaml）和角色 JSON 同一组 id / 背景色', () => {
   const yaml = readFileSync(path.join(REPO, 'space/web/data/palettes.yaml'), 'utf8');
   const items = [...yaml.matchAll(/- id: (\w+)\n\s+c: "(#[0-9a-f]{6})"/g)].map((m) => [m[1], m[2]]);
@@ -142,11 +124,6 @@ test('色板列表（palettes.yaml）和角色 JSON 同一组 id / 背景色', (
     assert.ok(blk.includes(`en: ${x.en}\n`), x.id + ' en');
     assert.ok(blk.includes(`group: ${x.group}`), x.id + ' group');
   }
-});
-
-test('baseof 首屏内联脚本认的缓存前缀 = lib/accent.js 的版本', () => {
-  const html = readFileSync(path.join(REPO, 'space/web/layouts/_default/baseof.html'), 'utf8');
-  assert.ok(html.includes(`ach='${ACCENT_CACHE_VER}|'+ac`), 'baseof 的 sgx-accent-css 前缀与 ACCENT_CACHE_VER 不一致');
 });
 
 test('C3 进入凭证按钮不再固定深蓝：--sgx-credential-btn-* 只在别名层，引用角色', () => {
@@ -164,7 +141,7 @@ test('三层规则：材质 --sgx-mat 只用中性表面色（不混主题色）
   const mix = (a, p, b) => hex(rgb(a).map((v, i) => v * p + rgb(b)[i] * (1 - p)));
   const over = (rgba, bg) => { const m = rgba.match(/[\d.]+/g).map(Number); return hex(rgb(bg).map((v, i) => m[i] * m[3] + v * (1 - m[3]))); };
   for (const [id, p] of Object.entries(DATA.presets)) {
-    for (const m of ['light', 'dark']) {
+    for (const m of MODES(id)) {
       const r = p[m];
       const sheet = mix(r.surface, 0.88, over(r.scrim, r.background));
       const k = contrast(r['nav-selected'], sheet);
@@ -179,50 +156,54 @@ test('三层规则：中性色只带一点背景色相（n.c ≤ 0.012，石墨�
     assert.ok(x.spec.n.c >= 0.004 && x.spec.n.c <= 0.012, `${x.id} n.c ${x.spec.n.c}`);
     const B = hexToOklch(x.bg);
     if (B.c >= 0.01) assert.ok(hueDist(x.spec.n.h, B.h) < 0.5, x.id + ' 中性色相 = 背景色相');
-    for (const m of ['light', 'dark']) assert.equal(DATA.presets[x.id][m].danger, DATA.presets.dustyblue[m].danger, x.id + ' ' + m + ' danger');
+    for (const m of MODES(x.id)) assert.equal(DATA.presets[x.id][m].danger, SEM[m].danger, x.id + ' ' + m + ' danger');
   }
 });
 
-test('背景 7 档：浅色从页面底往深走、深色往亮走，色相 = 背景色；页面底 = bg-1', () => {
-  for (const x of PRESETS) for (const m of ['light', 'dark']) {
-    const t = DATA.presets[x.id][m + 'Tones'];
-    const pt = (x.pin && x.pin[m] && x.pin[m].tones) || {}; // 设计稿钉死的档（terra 深色 bg-1 = #161412）
-    assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map((i) => t['bg-' + i]), bgTones(x.bg, m).map((c, i) => pt['bg-' + (i + 1)] || c), x.id + ' ' + m);
-    const L = [1, 2, 3, 4, 5, 6, 7].map((i) => hexToOklch(t['bg-' + i]).l);
-    for (let i = 1; i < 7; i++) assert.ok(m === 'light' ? L[i] < L[i - 1] : L[i] > L[i - 1], `${x.id} ${m} bg-${i + 1}`);
+test('背景 7 档：浅套从页面底往深走、深套往亮走，色相 = 背景色；页面底 bg-1 = 七色的底（= background）', () => {
+  for (const x of PRESETS) for (const m of MODES(x.id)) {
+    const t = DATA.presets[x.id][m + 'Tones'], r = DATA.presets[x.id][m];
+    const pt = (x.pin && x.pin[m] && x.pin[m].tones) || {}; // 设计稿钉死的档（terra bg-1 = #161412）
+    assert.equal(t['bg-1'], r.background, x.id + ' bg-1 = 底');
+    assert.deepEqual([2, 3, 4, 5, 6, 7].map((i) => t['bg-' + i]), bgTones(x.bg, m).slice(1).map((c, i) => pt['bg-' + (i + 2)] || c), x.id + ' ' + m);
+    const L = [2, 3, 4, 5, 6, 7].map((i) => hexToOklch(t['bg-' + i]).l);
+    for (let i = 1; i < 6; i++) assert.ok(m === 'light' ? L[i] < L[i - 1] : L[i] > L[i - 1], `${x.id} ${m} bg-${i + 2}`);
     if (hexToOklch(x.bg).c >= 0.03) assert.ok(hueDist(hue(t['bg-7']), hue(x.bg)) <= 6, `${x.id} ${m} bg hue`);
   }
 });
-
-test('前景 6 色：本色 base（浅色 = 色池原值）/ tint / ink 三档；ink 在 tint 上 ≥ 4.5:1（标签 / chip 可读）', () => {
-  for (const x of PRESETS) for (const m of ['light', 'dark']) {
-    const t = DATA.presets[x.id][m + 'Tones'];
-    x.fg.forEach((hex, i) => {
+test('前景 6 色：1–4 = 色池本色 base（浅套 = 色池原值）/ tint / ink 三档；5 / 6 由七色派生（背景色相中间调 / 底→字中性灰）；ink 同色相、在 tint 和所有正文表面上 ≥ 4.5:1', () => {
+  const S = ['background', 'surface', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high'];
+  for (const x of PRESETS) for (const m of MODES(x.id)) {
+    const t = DATA.presets[x.id][m + 'Tones'], r = DATA.presets[x.id][m];
+    x.fg.slice(0, 4).forEach((hex, i) => {
       const f = fgTones(hex, m), pb = x.pin && x.pin[m] && x.pin[m].tones && x.pin[m].tones[`fg-${i + 1}`];
-      assert.deepEqual([t[`fg-${i + 1}`], t[`fg-${i + 1}-tint`], t[`fg-${i + 1}-ink`]], [pb || f.base, f.tint, f.ink], `${x.id} ${m} fg-${i + 1}`);
+      assert.deepEqual([t[`fg-${i + 1}`], t[`fg-${i + 1}-tint`]], [pb || f.base, f.tint], `${x.id} ${m} fg-${i + 1}`);
       if (m === 'light') assert.equal(f.base, hex);
-      assert.ok(contrast(f.ink, f.tint) >= 4.5, `${x.id} ${m} fg-${i + 1} ink/tint ${contrast(f.ink, f.tint).toFixed(2)}`);
+      const ink = hexToOklch(t[`fg-${i + 1}-ink`]), o = hexToOklch(f.ink);
+      if (o.c >= 0.02) assert.ok(hueDist(ink.h, o.h) <= 3, `${x.id} fg-${i + 1}-ink 同色相`);
     });
+    for (let i = 1; i <= 6; i++) {
+      const ink = t[`fg-${i}-ink`];
+      assert.ok(contrast(ink, t[`fg-${i}-tint`]) >= 4.5, `${x.id} ${m} fg-${i} ink/tint ${contrast(ink, t[`fg-${i}-tint`]).toFixed(2)}`);
+      for (const s of S) assert.ok(contrast(ink, r[s]) >= 4.5, `${x.id} fg-${i}-ink / ${s}`);
+    }
   }
 });
-
-test('前景接进语义角色：primary ← 前景 1（浅色按对比度压深、色相不变），secondary ← 前景 2，tertiary ← 前景 3', () => {
+test('前景接进语义角色：primary ← 前景 1（浅套按对比度压深、色相不变），secondary ← 前景 2，tertiary ← 前景 3', () => {
   for (const x of PRESETS) {
-    const r = DATA.presets[x.id].light, d = DATA.presets[x.id].dark;
-    assert.ok(contrast(r.primary, r['surface-container-high']) >= 4.5, x.id + ' 浅色主色');
+    const m = DATA.presets[x.id].mode, r = DATA.presets[x.id].roles;
+    if (m === 'light') assert.ok(contrast(r.primary, r['surface-container-high']) >= 4.5, x.id + ' 浅套主色');
     assert.ok(contrast(r['on-primary'], r.primary) >= 4.5, x.id + ' on-primary');
-    assert.ok(contrast(d['on-primary'], d.primary) >= 4.5, x.id + ' dark on-primary');
     for (const [k, i] of [['primary', 0], ['secondary', 1], ['tertiary', 2]]) {
       const f = hexToOklch(x.fg[i]);
       if (f.c < 0.03) continue;
-      for (const m of ['light', 'dark']) assert.ok(hueDist(hue(DATA.presets[x.id][m][k]), f.h) <= 6, `${x.id} ${m} ${k} hue`);
+      assert.ok(hueDist(hue(r[k]), f.h) <= 6, `${x.id} ${k} hue`);
     }
-    assert.ok(hueDist(hue(r['primary-container']), hexToOklch(x.fg[0]).h) <= 8, x.id + ' 选中底 = 前景 1 浅底');
+    if (m === 'light') assert.ok(hueDist(hue(r['primary-container']), hexToOklch(x.fg[0]).h) <= 8, x.id + ' 选中底 = 前景 1 浅底');
   }
 });
-
 test('首页夜间时钟卡 night-card（特殊功能卡，克制的局部撞色）：第三色浅底、低彩度，不是饱和深色块；字 on-night-card ≥ 7:1，和卡片材质拉得开', () => {
-  for (const [id, p] of Object.entries(DATA.presets)) for (const m of ['light', 'dark']) {
+  for (const [id, p] of Object.entries(DATA.presets)) for (const m of MODES(id)) {
     const r = p[m], o = hexToOklch(r['night-card']);
     assert.ok(contrast(r['on-night-card'], r['night-card']) >= 7, `${id} ${m} on-night-card ${contrast(r['on-night-card'], r['night-card']).toFixed(2)}`);
     assert.ok(o.c <= 0.052, `${id} ${m} night-card 彩度 ${o.c.toFixed(3)}`);
@@ -235,7 +216,7 @@ test('首页夜间时钟卡 night-card（特殊功能卡，克制的局部撞色
 
 test('填充 vs ink 分工：primary-fill = 前景 1 本色（--sgx-fg-1，不压深），on-primary-fill ≥ 4.5:1（22 套 × 亮暗）；primary（ink）在表面上仍 ≥ 4.5:1', () => {
   const SURF = ['background', 'surface', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high'];
-  for (const [id, p] of Object.entries(DATA.presets)) for (const m of ['light', 'dark']) {
+  for (const [id, p] of Object.entries(DATA.presets)) for (const m of MODES(id)) {
     const r = p[m];
     assert.equal(r['primary-fill'], p[m + 'Tones']['fg-1'], `${id} ${m} primary-fill = fg-1 本色`);
     const k = contrast(r['on-primary-fill'], r['primary-fill']);
@@ -245,27 +226,11 @@ test('填充 vs ink 分工：primary-fill = 前景 1 本色（--sgx-fg-1，不�
     assert.ok(L < 0.3 || L > 0.95, `${id} ${m} on-primary-fill 是深墨或白（L ${L.toFixed(2)}）`);
     for (const s of SURF) assert.ok(contrast(r.primary, r[s]) >= 4.5, `${id} ${m} primary ink / ${s}`);
   }
-  assert.equal(DATA.presets.dustyblue.light['primary-fill'], '#d4a72c', '默认主题按钮 = 芥末本色');
+  assert.equal(DATA.presets.dustyblue.light['primary-fill'], '#d4a72c', '雾霾蓝的按钮 = 芥末本色');
   assert.ok(hexToOklch(DATA.presets.dustyblue.light['on-primary-fill']).l < 0.3, '芥末上是深色字');
-  for (const seed of ['#ffd400', '#00ff00', '#000000', '#ffffff', '#123456', '#e91e63', '#9e9e9e', '#536dfa']) {
-    const r = rolesFor(seed);
-    for (const m of ['light', 'dark']) assert.ok(contrast(r[m]['on-primary-fill'], r[m]['primary-fill']) >= 4.5, `${seed} ${m} on-primary-fill`);
-  }
 });
 
-test('状态色：success 族固定绿色（不随主题变，和 danger 一样），亮暗都过对比度', () => {
-  for (const [id, p] of Object.entries(DATA.presets)) for (const m of ['light', 'dark']) {
-    const r = p[m], d = DATA.presets.dustyblue[m];
-    for (const k of ['success', 'on-success', 'success-container', 'on-success-container']) assert.equal(r[k], d[k], `${id} ${m} ${k}`);
-    assert.ok(contrast(r['on-success'], r.success) >= 4.5, `${id} ${m} on-success`);
-    assert.ok(contrast(r['on-success-container'], r['success-container']) >= 4.5, `${id} ${m} on-success-container`);
-    assert.ok(contrast(r.success, r['surface-container-lowest']) >= 4.5, `${id} ${m} success / card`);
-  }
-  const h = hexToOklch(DATA.presets.dustyblue.light.success).h;
-  assert.ok(h > 130 && h < 165, 'success 是绿色 ' + h);
-});
-
-test('22 套亮 / 暗全部由公式生成：规格里没有逐套手调的深色值（p.hd / tune / slider 覆盖），cd = min(前景 1 彩度, 0.13)；唯一例外是设计稿钉死的 PINS（只有 terra 深色）', () => {
+test('22 套全部由公式生成：规格里没有逐套手调的深色值（p.hd / tune / slider 覆盖），cd = min(前景 1 彩度, 0.13)；唯一例外是设计稿钉死的 PINS（只有 terra，深套）', () => {
   for (const x of PRESETS) {
     const sp = x.spec;
     assert.equal(sp.tune, undefined, x.id + ' tune');
@@ -279,7 +244,7 @@ test('22 套亮 / 暗全部由公式生成：规格里没有逐套手调的深�
 });
 
 test('滑块 / 进度 / 开关 = 填充档（primary-fill）；焦点环 / 滑块圆点 = ink（primary）', () => {
-  for (const [id, p] of Object.entries(DATA.presets)) for (const m of ['light', 'dark']) {
+  for (const [id, p] of Object.entries(DATA.presets)) for (const m of MODES(id)) {
     const r = p[m];
     assert.equal(r['slider-active'], r['primary-fill'], `${id} ${m}`);
     assert.equal(r['switch-track-on'], r['primary-fill'], `${id} ${m}`);
@@ -316,7 +281,7 @@ test('大面积块中性化：首页名片 = 中性玻璃卡（不是 primary-co
 });
 
 test('不带字的填充 *-fill 在卡片上 ≥ 3:1（亮色比文字色亮，暗色 = 辅 / 第三色本身）', () => {
-  for (const x of PRESETS) for (const m of ['light', 'dark']) for (const f of ['secondary', 'tertiary']) {
+  for (const x of PRESETS) for (const m of MODES(x.id)) for (const f of ['secondary', 'tertiary']) {
     const r = DATA.presets[x.id][m];
     assert.ok(contrast(r[f + '-fill'], r['surface-container-lowest']) >= 3, `${x.id} ${m} ${f}-fill`);
     if (m === 'dark') assert.equal(r[f + '-fill'], r[f], `${x.id} dark ${f}-fill`);
@@ -333,22 +298,21 @@ test('页面底（2026-11 PR-A 照设计稿去光晕）：--sgx-bg-1 纯色 + 44
   assert.doesNotMatch(CSS, /--sgx-chart-1: var\(--sgx-fg-1\);/); // chart 是生成的角色，不再是 CSS 别名
 });
 
-test('默认色板 terra 深色 = 设计稿 tb4.html 的取值（钉死，PINS）；稿的 --mut / --dim 低于 4.5:1 时由审计提亮（可读性底线）', () => {
-  const d = DATA.presets.terra.dark, t = DATA.presets.terra.darkTones;
+test('默认色板 terra（深套）= 设计稿钉值：底 #161412、面 #1d1b19、字 #ece6dc、强调赤陶 #de7a58（PINS）；稿的 --mut / --dim 低于 4.5:1 时由审计提亮（可读性底线）', () => {
+  const p = DATA.presets.terra, d = p.roles, t = p.tones;
+  assert.equal(p.mode, 'dark');
   assert.equal(d.primary, '#de7a58');
   assert.equal(d['primary-fill'], '#de7a58');
   assert.equal(t['fg-1'], '#de7a58');
   assert.equal(t['bg-1'], '#161412');
   assert.equal(d.background, '#161412');
-  assert.equal(d.surface, '#1d1b19');
-  assert.equal(d['surface-container-lowest'], '#12100f');
-  assert.equal(d['surface-container-high'], '#2a2522');
+  assert.equal(d['surface-container-lowest'], '#1d1b19', '面 = 卡片');
   assert.equal(d['outline-variant'], '#2c2825');
   assert.equal(d['text-primary'], '#ece6dc');
   assert.ok(contrast(d['text-tertiary'], d['surface-container-high']) >= 4.5);
   assert.deepEqual(Object.keys(PINS), ['terra']);
+  assert.deepEqual(Object.keys(PINS.terra), ['dark']);
 });
-
 test('前景去重（2026-10-23）：每套 6 个前景里，有彩色（OKLCH C > 0.05）的任意两色色相差 ≥ 22°', () => {
   for (const x of PRESETS) {
     const o = x.fg.map((h, i) => ({ i, ...hexToOklch(h) })).filter((f) => f.c > 0.05);
@@ -364,7 +328,7 @@ const TXT = ['text-primary', 'text-secondary', 'primary', 'link'];
 // 玻璃卡 / 顶栏 / 抽屉 = --sgx-mat（surface 88%）叠在光晕上；光晕最浅 / 最深都可能在下面 → 7 档全量过一遍（含最浅 bg-1、最深 bg-7）
 const glassOver = (r, t) => [1, 2, 3, 4, 5, 6, 7].map((k) => mixHex(r.surface, 0.88, t['bg-' + k]));
 test('合成底审计：正文 / 次要文字 / primary ink / 链接在玻璃卡、顶栏、抽屉（材质 88% 叠在光晕 bg-1..7 任一档上）≥ 4.5:1', () => {
-  for (const [id, p] of Object.entries(DATA.presets)) for (const m of ['light', 'dark']) {
+  for (const [id, p] of Object.entries(DATA.presets)) for (const m of MODES(id)) {
     const r = p[m], t = p[m + 'Tones'];
     for (const g of glassOver(r, t)) for (const k of TXT) assert.ok(contrast(r[k], g) >= 4.5, `${id} ${m} ${k} / glass ${g} ${contrast(r[k], g).toFixed(2)}`);
     // 快捷面板磁贴玻璃（亮 = 最浅表面 62%、暗 = 高层容器 70%，叠在面板材质上）
@@ -379,7 +343,7 @@ test('合成底审计：正文 / 次要文字 / primary ink / 链接在玻璃卡
 
 test('焦点环 / 选中描边 ≥ 3:1：焦点环在所有表面和合成玻璃上；选中色块描边（text-primary）在材质上', () => {
   const S = ['background', 'surface', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high', 'surface-container-highest', 'primary-container', 'nav-selected'];
-  for (const [id, p] of Object.entries(DATA.presets)) for (const m of ['light', 'dark']) {
+  for (const [id, p] of Object.entries(DATA.presets)) for (const m of MODES(id)) {
     const r = p[m], t = p[m + 'Tones'];
     for (const s of S) assert.ok(contrast(r['focus-ring'], r[s]) >= 3, `${id} ${m} focus-ring / ${s} ${contrast(r['focus-ring'], r[s]).toFixed(2)}`);
     for (const g of glassOver(r, t)) {
@@ -392,7 +356,7 @@ test('焦点环 / 选中描边 ≥ 3:1：焦点环在所有表面和合成玻璃
 test('图表 chart-1..6：卡片和合成玻璃上 ≥ 3:1（回退顺序 fill → ink），两两分得开（都有彩色且色相差 ≥ 22°，或 OKLab ΔE ≥ 0.08）', () => {
   const lab = (h) => { const o = hexToOklch(h); return [o.l, o.c * Math.cos(o.h * Math.PI / 180), o.c * Math.sin(o.h * Math.PI / 180)]; };
   const dE = (a, b) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]));
-  for (const [id, p] of Object.entries(DATA.presets)) for (const m of ['light', 'dark']) {
+  for (const [id, p] of Object.entries(DATA.presets)) for (const m of MODES(id)) {
     const r = p[m], t = p[m + 'Tones'], card = r['surface-container-lowest'], page = mixHex(r.surface, 0.88, t['bg-1']);
     const ch = [1, 2, 3, 4, 5, 6].map((i) => r['chart-' + i]);
     ch.forEach((c, i) => {
@@ -415,25 +379,34 @@ test('图表 chart-1..6：卡片和合成玻璃上 ≥ 3:1（回退顺序 fill �
   }
 });
 
-test('固定语义色 danger / success / warning / info：22 套相同；on 色 / 容器字 ≥ 4.5:1，本色在表面上 ≥ 4.5:1', () => {
+test('固定语义四色（v4，Gray 2026-11-12 定稿）：浅 / 深各 4 个值写死（SEM），22 套同模式相同；on 色 / 容器字 ≥ 4.5:1，本色在表面上 ≥ 4.5:1', () => {
+  assert.deepEqual(SEM, {
+    light: { success: '#097334', danger: '#be2423', warning: '#864e00', info: '#1666aa' },
+    dark: { success: '#39e175', danger: '#ff6f69', warning: '#ffa521', info: '#5aa5ff' },
+  });
   const S = ['background', 'surface', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high'];
-  for (const [id, p] of Object.entries(DATA.presets)) for (const m of ['light', 'dark']) {
-    const r = p[m], d = DATA.presets.dustyblue[m];
+  for (const [id, p] of Object.entries(DATA.presets)) for (const m of MODES(id)) {
+    const r = p[m], d = REF(m);
     for (const f of ['danger', 'success', 'warning', 'info']) {
-      for (const k of [f, 'on-' + f, f + '-container', 'on-' + f + '-container']) assert.equal(r[k], d[k], `${id} ${m} ${k}`);
+      assert.equal(r[f], SEM[m][f], `${id} ${f} = 写死的值（审计不挪）`);
+      for (const k of ['on-' + f, f + '-container', 'on-' + f + '-container']) assert.equal(r[k], d[k], `${id} ${m} ${k}`);
       assert.ok(contrast(r['on-' + f], r[f]) >= 4.5, `${id} ${m} on-${f}`);
       assert.ok(contrast(r['on-' + f + '-container'], r[f + '-container']) >= 4.5, `${id} ${m} on-${f}-container`);
-      for (const s of S) assert.ok(contrast(r[f], r[s]) >= 4.5, `${id} ${m} ${f} / ${s}`);
+      for (const s of S) assert.ok(contrast(r[f], r[s]) >= 4.5, `${id} ${m} ${f} / ${s} ${contrast(r[f], r[s]).toFixed(2)}`);
     }
+    assert.equal(r.badge, r.danger, id + ' badge = danger');
   }
-  const h = (k) => hexToOklch(DATA.presets.dustyblue.light[k]).h;
-  assert.ok(h('warning') > 40 && h('warning') < 90, 'warning 是琥珀 ' + h('warning'));
-  assert.ok(h('info') > 220 && h('info') < 275, 'info 是蓝 ' + h('info'));
+  const h = (m, k) => hexToOklch(SEM[m][k]).h;
+  for (const m of ['light', 'dark']) {
+    assert.ok(h(m, 'success') > 130 && h(m, 'success') < 165, m + ' success 是绿色 ' + h(m, 'success'));
+    assert.ok(h(m, 'warning') > 40 && h(m, 'warning') < 90, m + ' warning 是琥珀 ' + h(m, 'warning'));
+    assert.ok(h(m, 'info') > 220 && h(m, 'info') < 275, m + ' info 是蓝 ' + h(m, 'info'));
+  }
 });
 
 test('完整导出的前景四档：base 上 on 色 ≥ 4.5:1（fill / on-fill）；ink 在 tint 和所有表面上 ≥ 4.5:1；tag-fg / tag-bg ≥ 4.5:1', () => {
   const S = ['background', 'surface', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high'];
-  for (const [id, p] of Object.entries(DATA.presets)) for (const m of ['light', 'dark']) {
+  for (const [id, p] of Object.entries(DATA.presets)) for (const m of MODES(id)) {
     const r = p[m], t = p[m + 'Tones'];
     for (let i = 1; i <= 6; i++) {
       assert.ok(contrast(t[`fg-${i}-on`], t[`fg-${i}`]) >= 4.5, `${id} ${m} fg-${i}-on / fg-${i} ${contrast(t[`fg-${i}-on`], t[`fg-${i}`]).toFixed(2)}`);

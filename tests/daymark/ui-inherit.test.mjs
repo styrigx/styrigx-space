@@ -51,10 +51,8 @@ test('页面接线：<html data-sgx-langs> 来自 hugo.yaml；baseof 先内联 l
   const iRun = base.indexOf('resources.Get "daymark/js/sgx/ui-inherit-run.js"');
   assert.ok(iBoot > 0 && iBoot < iReader && iReader < iRun && iRun < base.indexOf('css/main.css'));
   const run = read('space/web/assets/daymark/js/sgx/ui-inherit-run.js');
-  assert.match(run, /U\.apply\(document\.documentElement, \{ onMiss: loadEngine \}\)/);
+  assert.match(run, /U\.apply\(document\.documentElement\)/);
+  assert.ok(!base.includes('shell-accent') && !base.includes('data-sgx-accent-js'), '调色板 v4：自定义色引擎删了');
   assert.doesNotMatch(run, /location\.replace|langTarget|cookieLang/, '语言跳转只在 lang-boot.js');
-  for (const [f, src] of [['ui-inherit-run.js', run], ['shell-accent.js', read('space/web/assets/daymark/js/sgx/shell-accent.js')]]) {
-    assert.doesNotMatch(src, /atob|data-sgx-seed|'lake'|ui\.theme/, f);
-  }
-  assert.match(read('space/web/assets/daymark/js/sgx/shell-accent.js'), /U\.setRoles\(seed, rolesCss\(seed\)\)/);
+  assert.doesNotMatch(run, /atob|data-sgx-seed|'lake'|ui\.theme|onMiss|loadEngine/, 'ui-inherit-run.js');
 });

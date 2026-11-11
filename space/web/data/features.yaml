@@ -7,20 +7,8 @@
 #   旧 localStorage 值（sgx-font-size / sgx-reduced-motion / sgx-gl-sound / sgx-gl-edgeglow / sgx-gl-parallax / sgx-gl-wellbeing）不再被读取，baseof 首屏清掉。
 # - P4-2c（2026-11-05）：高级功能分类整个删除——双时钟的日期和时间（tz1-auto / tz1 / tz2 / hour12 / gl-clockstyle）、天气（weather-show / temp-unit）、
 #   快捷键（gl-keys）、隐私组的搜索引擎（search-engine）；旧 localStorage 值 baseof 首屏清掉，不再云同步。
+# - 2026-11-12 调色板 v4：深浅模式（theme-mode，key sgx-theme-mode）删除，深浅只由调色板决定；旧值 baseof 首屏清掉，不再云同步。
 features:
-  - id: theme-mode
-    build: true
-    user: true
-    type: enum
-    options:
-      - {id: system}
-      - {id: light}
-      - {id: dark}
-    default: system
-    key: sgx-theme-mode
-    section: ""  # P4-3 PR-4b：显示页（/display/）删除，开关只在快捷面板，不进搜索索引
-    requires: []
-
   - id: palette
     build: true
     user: true

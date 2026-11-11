@@ -131,19 +131,20 @@ test('设备档 resolveDevice：手机 UA / 粗指针 + 短边 < 600 → phone�
 
 /* ---------- 手动桌面 + 手机屏 → viewport 980（2026-11-07 Gray 真机：X 应用内浏览器选桌面只有顶栏变了） ---------- */
 /** 跑 layout-mode.js（带一个只有 viewport / color-scheme / theme-color meta 的假 document）：回 { meta, synced, auto, api } */
-function withDoc({ pref = null, screen = { width: 384, height: 824 }, ua = PHONE_UA, w = 384, dark = false, coarse = true, content = 'width=device-width, initial-scale=1' } = {}) {
+function withDoc({ pref = null, screen = { width: 384, height: 824 }, ua = PHONE_UA, w = 384, dark = false, coarse = true, content = 'width=device-width, initial-scale=1', theme = dark ? '#161412' : '#ebf1f5' } = {}) {
   const store = new Map(pref == null ? [] : [['sgx-layout', pref]]);
   const localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
   const mk = (attrs) => ({ a: { ...attrs }, getAttribute(k) { return k in this.a ? this.a[k] : null; }, setAttribute(k, v) { this.a[k] = String(v); } });
   const vp = mk({ name: 'viewport', content });
-  const cs = mk({ name: 'color-scheme', content: 'light dark' });
-  const tc = [mk({ name: 'theme-color', content: '#fcf3ef' }), mk({ name: 'theme-color', content: '#161412', media: '(prefers-color-scheme: dark)' })];
+  /* 调色板 v4：首帧预读已经把 theme-color 写成当前调色板的底色（theme） */
+  const cs = mk({ name: 'color-scheme', content: dark ? 'dark' : 'light' });
+  const tc = [mk({ name: 'theme-color', content: theme })];
   const styles = [];
   const html = { getAttribute: (k) => (k === 'data-dark' ? (dark ? '1' : '0') : null), classList: { contains: (c) => c === 'dark' && dark }, clientWidth: w };
   const head = { firstChild: null, insertBefore(el) { styles.unshift(el); } };
   const document = {
     documentElement: html, head,
-    querySelector: (sel) => (sel === 'meta[name="viewport"]' ? vp : null),
+    querySelector: (sel) => (sel === 'meta[name="viewport"]' ? vp : sel === 'meta[name="theme-color"]' ? tc[0] || null : null),
     querySelectorAll: (sel) => (sel === 'meta[name="color-scheme"]' ? [cs] : sel === 'meta[name="theme-color"]' ? tc : []),
     getElementById: () => null,
     createElement: () => ({ id: '', textContent: '' }),
@@ -195,20 +196,24 @@ for (const [label, o] of [
   });
 }
 
-test('首帧底色：本站深色（系统浅色）→ color-scheme / theme-color 改成深色，<head> 最前面插最低层的 html 底色', () => {
+test('首帧底色（调色板 v4）：按 data-dark 写 color-scheme，底色 / theme-color = 预读写好的当前调色板底色；<head> 最前面插最低层的 html 底色', () => {
   const r = withDoc({ dark: true });
   assert.equal(r.cs.getAttribute('content'), 'dark');
-  assert.deepEqual(r.tc.map((m) => m.getAttribute('content')), ['#161412', '#161412']);
+  assert.deepEqual(r.tc.map((m) => m.getAttribute('content')), ['#161412']);
   assert.equal(r.styles.length, 1);
   assert.equal(r.styles[0].id, 'sgx-first-paint');
   assert.equal(r.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#161412;color-scheme:dark}}');
   const l = withDoc({ dark: false });
   assert.equal(l.cs.getAttribute('content'), 'light');
-  assert.equal(l.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#fcf3ef;color-scheme:light}}');
+  assert.equal(l.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#ebf1f5;color-scheme:light}}');
+  const lake = withDoc({ dark: true, theme: '#01172b' });
+  assert.equal(lake.styles[0].textContent, '@layer sgx-first-paint{html{background-color:#01172b;color-scheme:dark}}');
 });
 
-test('默认调色板的首帧底色 = palettes.json 默认色板（terra）bg-1（换了默认调色板要跟着改）', () => {
+test('读不到 theme-color 时首帧底色 = palettes.json 默认色板（terra）bg-1（换了默认调色板要跟着改）', () => {
   const pal = JSON.parse(readFileSync(path.join(REPO, 'space/web/data/shell/palettes.json'), 'utf8'));
   const def = pal.presets.find((p) => p.id === pal.default);
-  assert.match(lib, new RegExp("bg=dk\\?'" + def.tokens.dark['bg-1'] + "':'" + def.tokens.light['bg-1'] + "'"));
+  assert.match(lib, new RegExp("\\?pc:'" + def.tokens['bg-1'] + "'"));
+  const r = withDoc({ dark: true, theme: 'bad' });
+  assert.equal(r.styles[0].textContent, '@layer sgx-first-paint{html{background-color:' + def.tokens['bg-1'] + ';color-scheme:dark}}');
 });

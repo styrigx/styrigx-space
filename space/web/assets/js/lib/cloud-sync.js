@@ -2,7 +2,7 @@
  * @fileoverview 账号云同步（设置 › 账号 › 云同步）：登录账号后，设置项跨设备同步。
  *
  * - 同步哪些：data/features.yaml 里有 localStorage key 的设置（外观 / Good Lock / 时区天气 / 搜索引擎 / 文件），
- *   加自定义主题色 sgx-accent 和账号页选的 AI 模型 sgx-ai-model（P4-2d）；不同步语言（跟随各设备系统）、布局（每台屏幕不同）、
+ *   加账号页选的 AI 模型 sgx-ai-model（P4-2d；自定义主题色 sgx-accent 随调色板 v4 删除，2026-11-12）；不同步语言（跟随各设备系统）、布局（每台屏幕不同）、
  *   精确定位、锁屏 / 凭证类（本来就不在 localStorage）。
  * - 每项记一个本机修改时间（localStorage sgx-sync-meta），和云端（/api/prefs）逐项比，新的赢。
  * - 时机（2026-10-24 拉取节流）：只在锁屏已解锁的页面（<html data-sgx-lock-session="valid">）请求；不看锁屏进门方式，
@@ -14,13 +14,12 @@
  *   本页改了设置（sgx-settings-changed）→ 记时间、1.5 秒防抖后推上去（不受节流）；推送成功也刷新上面的时刻；
  *   离开页面前也比一次。
  * - 拉下来的值和本机不同 → 写进 localStorage、刷新 sgx-ui cookie 镜像，就地生效（2026-10-28 起不再刷新页面）：
- *   features.js notifyExternal 通知订阅者（主题 / 色板 / 时钟 / 快捷面板等，和跨标签页同步同一条路），
- *   自定义主题色 sgx-accent 另外重算角色（applyAccent，按需加载）或清掉（clearAccent）。
+ *   features.js notifyExternal 通知订阅者（色板 / 快捷面板等，和跨标签页同步同一条路）。
+ *   云端旧的 sgx-theme-mode / sgx-accent 不在同步范围里，拉下来也忽略。
  *   先更新本页快照再通知，所以随之而来的 sgx-settings-changed 不会被 diff() 当成本机改动又推回去。
  * - 开关：localStorage sgx-cloud-sync = '0' 关闭（默认开）；账号页「云同步」一行切换。
  */
 import { defs, notifyExternal } from './features.js';
-import { ACCENT_KEY, clearAccent } from './accent.js';
 import { get as sget, set as sset, getJSON, setJSON } from './storage.js';
 import { syncUiCookie } from './ui-cookie.js';
 
@@ -43,7 +42,7 @@ const EXCLUDE = new Set(['sgx-lang', 'sgx-layout']);
 /** features.yaml 之外也要同步的 key */
 /* P4-2c：sgx-weather-loc / sgx-weather-city 随天气删除。
    P4-2d：sgx-ai-model（账号页选的 AI 模型 id，shell/ai-panel.js MODEL_KEY）；AI 窗口的对话历史仍只存本地、不同步 */
-const EXTRA = ['sgx-accent', 'sgx-ai-model'];
+const EXTRA = ['sgx-ai-model'];
 
 /** @returns {string[]} 要同步的 localStorage key */
 export function syncKeys() {
@@ -193,17 +192,8 @@ function onForeground() {
 /**
  * 拉下来的值就地生效（不刷新页面）。
  * @param {string[]} keys 改了的 key
- * @param {Record<string,string|null>} values
  */
-function applyLive(keys, values) {
-  if (keys.indexOf(ACCENT_KEY) !== -1) {
-    const seed = values[ACCENT_KEY];
-    if (seed) {
-      import('./accent-roles.js').then(function (m) { m.applyAccent(seed); }).catch(function () {});
-    } else {
-      try { clearAccent(); } catch (e) {}
-    }
-  }
+function applyLive(keys) {
   try { notifyExternal(keys); } catch (e) {}
 }
 
@@ -235,7 +225,7 @@ function pull() {
       /* 先对齐快照：下面的通知会派发 sgx-settings-changed，diff() 看到的就是已同步的值，不回推 */
       s.last = snapshot(s.keys);
       try { syncUiCookie(); } catch (e) {}
-      applyLive(applyKeys, p.apply);
+      applyLive(applyKeys);
     }
     return 'ok';
   }, function () {

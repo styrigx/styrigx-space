@@ -119,7 +119,7 @@ test('nav.json（顶栏 v3 NAVIGATE / tmux 页脚，2026-11 UI 重设计 PR-1）
   assert.equal(nav.icons['apps-grid'], undefined, '旧九宫格（九个点）不用');
 });
 
-test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 亮暗 Shell + Semantic token），种子和 tokens.css 的 --sgx-seed 一致', () => {
+test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 / mode + 本套 Shell + Semantic token；2026-11-12 v4 起每套一个模式），种子和 tokens.css 的 --sgx-seed 一致', () => {
   const p = JSON.parse(files['palettes.json']);
   assert.equal(p.presets.length, 22);
   assert.deepEqual(p.groups.map((g) => g.id), ['cool', 'nature', 'warm', 'floral', 'neutral']);
@@ -129,12 +129,15 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
     assert.equal(x.fg.length, 6, x.id);
     assert.equal(x.seed, x.fg[0], x.id + ' 种子 = 前景 1');
     assert.ok(!/^x[a-z]/.test(x.id), x.id + ' 撞色 x* id 已删除');
-    for (const m of ['light', 'dark']) {
-      const t = x.tokens[m];
+    assert.ok(x.mode === 'light' || x.mode === 'dark', x.id + ' mode');
+    assert.equal(x.mode, ROLES.presets[x.id].mode, x.id + ' mode = palette-roles.json');
+    assert.ok(!('light' in x.tokens) && !('dark' in x.tokens), x.id + ' tokens 不再分亮暗');
+    {
+      const m = x.mode, t = x.tokens;
       for (const k of ['bg-1', 'bg-7', 'surface', 'topbar-glass', 'primary', 'on-primary', 'primary-container', 'secondary', 'nav-selected', 'link', 'outline-variant', 'text-primary', 'text-secondary', 'chart-1', 'chart-6', 'tag-bg', 'tag-fg'])
         assert.ok(typeof t[k] === 'string' && t[k], `${x.id} ${m} ${k}`);
       // chart-N = 引擎生成的角色（本色 → ink 回退，对比度 / 区分度单测在 palette-scheme.test.mjs）
-      for (let i = 1; i <= 6; i++) assert.equal(t['chart-' + i], ROLES.presets[x.id][m]['chart-' + i], `${x.id} ${m} chart-${i}`);
+      for (let i = 1; i <= 6; i++) assert.equal(t['chart-' + i], ROLES.presets[x.id].roles['chart-' + i], `${x.id} ${m} chart-${i}`);
       // 完整导出：填充档、固定状态色、焦点环、状态层、前景四档都在
       for (const k of ['primary-fill', 'on-primary-fill', 'focus-ring', 'danger', 'on-danger-container', 'success', 'success-container', 'warning', 'on-warning',
         'warning-container', 'info', 'on-info-container', 'state-color', 'state-hover', 'state-pressed', 'fg-1-on', 'fg-6-on', 'night-card', 'switch-track-on'])
@@ -144,8 +147,8 @@ test('palettes.json：22 套七色调色板（每项带 group / bg / 6 前景 + 
     }
   }
   assert.equal(p.default, 'terra');
-  assert.equal(p.rulesVersion, 'palette-rules-1');
-  assert.equal(JSON.parse(files['palettes.json']).rulesVersion, 'palette-rules-1');
+  assert.equal(p.rulesVersion, 'palette-rules-2');
+  assert.equal(p.schemeVersion, undefined, 'v4：没有自定义色，也就没有引擎版本');
   assert.equal(p.presets[0].id, 'dustyblue');
   for (const { id, seed } of p.presets) {
     const sel = id === 'terra' ? ':root,\n:root[data-palette="terra"] {' : `:root[data-palette="${id}"] {`;
@@ -214,7 +217,7 @@ test('顶栏 v3（2026-11 UI 重设计 PR-1；PR-2 字标换 SVG、加终端抽�
   assert.ok(!existsSync(path.join(REPO, 'space/web/layouts/partials/topbar-end.html')), 'topbar-end.html 已删');
 });
 
-test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layout 分段（v5 S6 去掉 lock；v6 P4 拿掉 share）+ STATUS 占位 + systemctl status · esc 关闭；外观 MODE 三段 + PALETTE 列表；tmux 页脚', () => {
+test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layout 分段（v5 S6 去掉 lock；v6 P4 拿掉 share）+ STATUS 占位 + systemctl status · esc 关闭；外观 = PALETTE 列表（v4 删 MODE 三段）；tmux 页脚', () => {
   const src = readFileSync(path.join(REPO, 'space/web/layouts/partials/shell-topbar.html'), 'utf8');
   const navd = src.slice(src.indexOf('<dialog id="sgx-nav"'), src.indexOf('<dialog id="sgx-qp"'));
   const order = ['sgx-nav-h', 'class="sgx-nav-list"', 'data-qp-langs', 'data-qp-seg="layout"', 'data-nav-status', 'sgx-nav-flink', 'data-nav-close'].map((k) => navd.indexOf(k));
@@ -226,7 +229,7 @@ test('NAVIGATE / 外观 / 页脚（顶栏 v3）：NAVIGATE 五项 + lang / layou
   assert.match(navd, /range slice \(dict "v" "phone" "t" \$t\.topbar\.phone\) \(dict "v" "auto" "t" \$t\.topbar\.auto\) \(dict "v" "desktop" "t" \$t\.topbar\.desktop\)/, 'Mobile / Auto / DeX（2026-11-09 Auto 在中间）');
   assert.match(navd, /range slice "space" "blog" "curio" "daymark" "gray-ai" "auth"/, 'STATUS 六个单元');
   const qpd = src.slice(src.indexOf('<dialog id="sgx-qp"'), src.indexOf('<dialog id="sgx-ai"'));
-  assert.match(qpd, /range slice \(dict "v" "system" "t" \$t\.topbar\.followSystem\) \(dict "v" "dark" "t" \$t\.topbar\.schemeDark\) \(dict "v" "light" "t" \$t\.topbar\.schemeLight\)/);
+  assert.doesNotMatch(qpd, /data-qp-mode|followSystem|schemeDark|schemeLight/);
   assert.match(qpd, /data-qp-palette="\{\{ \.id \}\}"/);
   assert.match(qpd, /data-qp-reset aria-disabled="true"/);
   assert.doesNotMatch(src, /data-qp="(dark|system|lang)"|sgx-qp-lang-opts|sgx-qp-tile/, '旧快捷面板磁贴 / 语言下拉删了');

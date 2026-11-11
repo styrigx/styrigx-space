@@ -1,7 +1,7 @@
 // 外观 / 语言跟主站（sgx-ui cookie）：真页面跑一遍主站契约夹具（tests/fixtures/ui-cookie-contract.json，sync-shell 原样同步）。
 // - 每个用例：带上 cookie、系统浅色 / 深色各加载一次，<html> 状态 = 夹具的 light.root / dark.root（共享读端 SgxUI.apply 内联在 <head>）
 // - 选湖蓝 lake 必须写 data-palette="lake"（不能当默认渲染成 terra）
-// - 自定义主题色：没缓存时加载 shell-accent.js 算角色，写 <style id="sgx-accent-roles"> 和本站缓存
+// - 调色板 v4（2026-11-12）：深浅只由调色板决定（系统浅 / 深两遍结果一样）；自定义主题色删除，旧 accent 忽略、旧缓存清掉
 // - 语言（语言清理 2026-11-07：四站同一份首帧跳转 lang-boot.js）：cookie 带明确语言且版本合法 → 跳到那种语言的同一页；
 //   版本不认识 / lang 是 system / 空 / 没有 cookie = 跟随系统 → 按浏览器语言（本文件浏览器用 zh-CN，和原来中文页的用例一致）
 const { test, expect } = require('@playwright/test');
@@ -25,12 +25,10 @@ const rootState = () => {
   const h = document.documentElement;
   return {
     dark: h.classList.contains('dark'),
-    'data-theme-mode': h.getAttribute('data-theme-mode'),
     'data-dark': h.getAttribute('data-dark'),
     'data-font-size': h.getAttribute('data-font-size'),
     fontSize: h.style.fontSize,
     'data-palette': h.getAttribute('data-palette'),
-    '--sgx-seed': h.style.getPropertyValue('--sgx-seed'),
     'reduced-motion': h.classList.contains('reduced-motion'),
     'data-reduced-motion': h.getAttribute('data-reduced-motion'),
   };
@@ -57,17 +55,15 @@ test('湖蓝 lake：写 data-palette="lake"，主色取 lake 的角色（不是�
   expect(seed).toBe('#f17f72');
 });
 
-test('自定义主题色：没缓存 → 加载 shell-accent.js 算角色，写 <style id="sgx-accent-roles"> + 本站缓存；再进页首帧直接用缓存', async ({ page, context }) => {
+test('旧自定义主题色：不加载引擎、不插角色样式，旧本站缓存首帧清掉', async ({ page, context }) => {
   await setup(page);
-  await setCookie(context, fx.cases.find((c) => c.name.startsWith('自定义主题色（默认色板上）')).cookie);
+  await page.addInitScript(() => { try { localStorage.setItem('sgx-shell-accent-css', 'old|#1f8a70\nCSS'); } catch (e) {} });
+  await setCookie(context, enc({ v: 2, mode: 'dark', pal: 'dustyblue', accent: '#1f8a70' }));
   await page.goto(PAGE);
-  await expect(page.locator('#sgx-accent-js')).toHaveCount(1);
-  await expect.poll(() => page.evaluate(() => (document.getElementById('sgx-accent-roles') || {}).textContent || '')).toContain('--sgx-primary');
-  const cache = await page.evaluate(() => localStorage.getItem('sgx-shell-accent-css'));
-  expect(cache).toMatch(/^[0-9a-f]{12}\|#1f8a70\n/);
-  await page.reload();
-  await expect(page.locator('#sgx-accent-js')).toHaveCount(0);
-  expect(await page.evaluate(() => document.getElementById('sgx-accent-roles').textContent.length)).toBeGreaterThan(100);
+  await expect(page.locator('#sgx-accent-js, #sgx-accent-roles')).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('sgx-shell-accent-css'))).toBeNull();
+  await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#ebf1f5');
 });
 
 test('语言：合法 cookie 带 lang=en → 中文页换到英文同一页（保留 #页签）；版本不认识 / 没有 cookie = 跟随系统（中文浏览器）', async ({ page, context }) => {

@@ -11,10 +11,7 @@
 import { on as featOn } from '../lib/features.js';
 import { sgxNavigate, sgxReplace } from '../lib/diag-jumptrace.js';
 import {
-  themeMode,
   isDark,
-  setTheme,
-  toggleFollowSystem,
   palette,
   setPalette,
   DEFAULT_PALETTE,
@@ -22,7 +19,6 @@ import {
   setLayout,
   setLang,
 } from '../lib/prefs.js';
-import { accent } from '../lib/accent.js';
 import { isLang } from '../lib/lang-path.js';
 import { modalSheet } from './modal-sheet.js';
 import { mountTopbar } from './topbar-panel.js';
@@ -47,13 +43,9 @@ export function initQuickPanel() {
     modalSheet,
     prefs: {
       isDark,
-      themeMode,
-      setTheme,
-      toggleFollowSystem,
       palette,
       setPalette,
       DEFAULT_PALETTE,
-      hasAccent: function () { return !!accent(); },
       setLang: function (v) { return setLang(v); },
       langPref,
       layoutPref,
@@ -77,7 +69,7 @@ export function initQuickPanel() {
     keyboard: onKeyboardHeight,
     /* 设置页（或别的标签页）改了同一项：面板开着时即时重绘 */
     subscribe: function (repaint) {
-      ['theme-mode', 'palette', 'layout', 'lang'].forEach(function (id) {
+      ['palette', 'layout', 'lang'].forEach(function (id) {
         featOn(id, repaint);
       });
     },

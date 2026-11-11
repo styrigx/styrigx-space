@@ -52,9 +52,9 @@ for (const [lang, pages] of Object.entries(SETS)) {
     await page.goto('about:blank');
     const ref = await qpTree(page, pages[0]);
     expect(ref.count, pages[0]).toBe(1);
-    /* 参照本身：MODE（跟随系统 / 深 / 浅）+ PALETTE（色板 + 恢复默认）；没有页签、导航列表、分享 / 锁定 / 语言 / 布局 */
+    /* 参照本身：PALETTE（色板 + 恢复默认；调色板 v4 删 MODE）；没有页签、导航列表、分享 / 锁定 / 语言 / 布局 */
     const flat = JSON.stringify(ref.tree);
-    for (const id of ['system', 'dark', 'light']) expect(flat, id).toContain('"data-qp-mode=' + id + '"');
+    expect(flat).not.toContain('data-qp-mode');
     expect(flat).toContain('"data-qp-reset=');
     expect(flat).toContain('"data-qp-palette=');
     for (const gone of ['role=tablist', 'role=tab', 'data-qp-pages', 'data-nav=', '"data-qp=', 'data-qp-lang', 'data-qp-seg=layout']) expect(flat, gone).not.toContain(gone);
@@ -66,7 +66,7 @@ for (const [lang, pages] of Object.entries(SETS)) {
   });
 }
 
-test('子站真点开：外观面板 MODE / PALETTE 顺序四站相同、没有页签；NAVIGATE 里 语言 / 布局 / 终端 四站相同（v6 P4 拿掉分享）', async ({ page }) => {
+test('子站真点开：外观面板 PALETTE 顺序四站相同、没有页签；NAVIGATE 里 语言 / 布局 / 终端 四站相同（v6 P4 拿掉分享）', async ({ page }) => {
   const seen = [];
   const navSeen = [];
   for (const p of ['/curio/', '/daymark/', '/blog/']) {
@@ -75,8 +75,8 @@ test('子站真点开：外观面板 MODE / PALETTE 顺序四站相同、没有�
     const qp = page.locator('#sgx-qp');
     await expect(qp).toHaveAttribute('data-state', 'open');
     await expect(qp.locator('[role="tab"], [role="tabpanel"], [data-qp-pages], [data-qp]')).toHaveCount(0);
-    await expect(qp.locator('[data-qp-mode="system"]')).toBeVisible();
-    seen.push(await qp.locator('[data-qp-mode], [data-qp-palette], [data-qp-reset]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp-mode') || e.getAttribute('data-qp-palette') || 'reset')));
+    await expect(qp.locator('[data-qp-palette="terra"]')).toBeVisible();
+    seen.push(await qp.locator('[data-qp-palette], [data-qp-reset]').evaluateAll((els) => els.map((e) => e.getAttribute('data-qp-palette') || 'reset')));
     await page.keyboard.press('Escape');
     await expect(qp).toBeHidden();
     await page.locator('.sgx-tb-grid').click();

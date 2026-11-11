@@ -27,14 +27,18 @@ const listed = si.groups.flatMap((g) => g.keys);
 
 test('同步项清单 = syncKeys()（实际同步的 key），不重复；不含 sgx-lang / sgx-layout', () => {
   const real = syncKeys();
-  assert.ok(real.length >= 5, '读到了 features 定义');
+  assert.ok(real.length >= 4, '读到了 features 定义');
   assert.equal(new Set(listed).size, listed.length, '有重复');
   assert.deepEqual([...listed].sort(), [...real].sort());
   for (const k of ['sgx-lang', 'sgx-layout']) {
     assert.ok(!listed.includes(k), k);
     assert.ok(!real.includes(k), k);
   }
-  for (const k of ['sgx-theme-mode', 'sgx-palette', 'sgx-accent']) assert.ok(listed.includes(k), '主题色 / 深色模式要列出：' + k);
+  assert.ok(listed.includes('sgx-palette'), '调色板要列出');
+  for (const k of ['sgx-theme-mode', 'sgx-accent']) {
+    assert.ok(!listed.includes(k), 'v4 删了：' + k);
+    assert.ok(!real.includes(k), 'v4 删了：' + k);
+  }
 });
 
 test('每项都有中英文名字；extra 只放 features.yaml 里没有的 key', () => {

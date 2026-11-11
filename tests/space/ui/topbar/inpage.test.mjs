@@ -2,11 +2,10 @@
    - 页头 sgx-ph.html（2026-11 对齐 PR-C 取代 sgx-page-hero.html；合站后四站直接用主站这一份）
    - 对齐 PR-C 共用件（chips / 文章行 / 分页条 / 两窗）、对齐 PR-C2 共用件（下划线 tab .sgx-ctab、grep、命令链 .sgx-cmd、封面卡 .sgx-cc、排序、条目页 .sgx-item / .sgx-spec）
    - 段式标签 sgx-segtabs.html / 平铺入口 sgx-entries.html 在对齐 PR-C2 退役（文件、样式、gen-shell 核对都删了）
-   - 对比度审计：22 套预设 × 深浅色 + 自定义色（色相扫一圈 × 5 档明度 + 极端值），nav-selected 这组角色（顶栏 / 锁屏还在用）放在页面底色 / 表面色上，非当前项文字 ≥ 4.5:1、当前项 ≥ 4.5:1 */
+   - 对比度审计：22 套预设（2026-11-12 调色板 v4 起每套一个模式，自定义色删除），nav-selected 这组角色（顶栏 / 锁屏还在用）放在页面底色 / 表面色上，非当前项文字 ≥ 4.5:1、当前项 ≥ 4.5:1 */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { rolesFor } from '../../../../space/web/assets/js/lib/palette-scheme.js';
 import { SHELL_REGIONS } from '../../../../space/scripts/gen-shell.mjs';
 
 const rd = (p) => readFileSync(new URL('../../../../' + p, import.meta.url), 'utf8');
@@ -148,23 +147,8 @@ const check = (t, label) => {
   assert.ok(cr(rgba(t['on-nav-selected']), rgba(t['nav-selected'])) >= 4.5, `${label} 当前项`);
 };
 
-test('对比度：22 套预设 × 深浅色，nav-selected 非当前项 / 当前项文字 ≥ 4.5:1', () => {
+test('对比度：22 套预设（每套一个模式），nav-selected 非当前项 / 当前项文字 ≥ 4.5:1', () => {
   const { presets } = JSON.parse(rd('space/web/data/shell/palettes.json'));
   assert.equal(presets.length, 22);
-  for (const p of presets) for (const mode of ['light', 'dark']) check(p.tokens[mode], `${p.id} ${mode}`);
-});
-
-test('对比度：自定义色（色相每 10° × 5 档饱和 / 明度 + 极端值）× 深浅色 ≥ 4.5:1', () => {
-  const hsl = (h, s, l) => {
-    s /= 100; l /= 100;
-    const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
-    const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
-    return '#' + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
-  };
-  const seeds = ['#000000', '#ffffff', '#808080', '#ffd400', '#00ff00'];
-  for (let h = 0; h < 360; h += 10) for (const [s, l] of [[90, 50], [60, 40], [100, 70], [30, 30], [80, 85]]) seeds.push(hsl(h, s, l));
-  for (const seed of seeds) {
-    const r = rolesFor(seed);
-    for (const mode of ['light', 'dark']) check(r[mode], `${seed} ${mode}`);
-  }
+  for (const p of presets) check(p.tokens, `${p.id} ${p.mode}`);
 });
