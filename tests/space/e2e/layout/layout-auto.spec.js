@@ -158,14 +158,14 @@ for (const w of [719, 720, 721]) {
       await expect(page.locator('html')).toHaveClass(new RegExp('\\blayout-' + want + '\\b'));
       await expect(page.locator('#home-hero')).toBeVisible();
       /* 2026-11 PR-2：首页各块（hero、终端、分节）都铺满内容栏，不会窄到 320 以下；
-         对齐 PR-B：[02] 目录卡 / [04] 旷野两张小卡（2026-11-11 删 about）桌面两栏、手机一栏，每张 ≥ 200（720 宽桌面三栏约 218） */
+         对齐 PR-B：[02] 目录卡 / [04] 旷野小卡（2026-11-11 删 about；v6 P4-2 删 screen-time，只剩 status 一张）桌面两栏、手机一栏，每张 ≥ 200（720 宽桌面三栏约 218） */
       const m = await page.evaluate(() => ({ sw: document.scrollingElement.scrollWidth, iw: innerWidth,
         cards: [...document.querySelectorAll('#home-hero, #about, .home-sec')].filter((e) => e.offsetParent !== null).map((e) => [e.id, e.getBoundingClientRect().width]),
         minis: [...document.querySelectorAll('.home-dirs > li, .home-wild > li')].map((e) => e.getBoundingClientRect().width) }));
       expect(m.sw).toBeLessThanOrEqual(m.iw);
       expect(m.cards.length).toBeGreaterThan(0);
       for (const [id, cw] of m.cards) expect(cw, `${id} 宽 ${cw}`).toBeGreaterThanOrEqual(320);
-      expect(m.minis.length).toBe(5); /* 奇趣 3 + 旷野 2 */
+      expect(m.minis.length).toBe(4); /* 奇趣 3 + 旷野 1（v6 P4-2 删了 screen-time 小卡） */
       for (const cw of m.minis) expect(cw, `小卡宽 ${cw}`).toBeGreaterThanOrEqual(200);
     });
   }

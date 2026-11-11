@@ -506,7 +506,8 @@ test.describe('1280×800', () => {
   }
 
   test('1280：AI 浮钮右下角（桌面右 32、离底 40），NAVIGATE 宽 360 落在 >_ 下面', async ({ page }) => {
-    await go(page, '/wild/');
+    /* v6 P4-2：旷野拿掉 #screen-time 后 1280×800 一屏装得下，页脚露出来浮钮会让位（--sgx-foot-lift），改测比一屏长的主页 */
+    await go(page, '/');
     const ai = await box(page, '.sgx-tb-ai');
     expect(near(ai.x + ai.width, 1280 - 32) && near(ai.y + ai.height, 800 - 40), `AI 浮钮 ${ai.x},${ai.y}`).toBe(true);
     await page.locator('.sgx-tb-grid').click();
