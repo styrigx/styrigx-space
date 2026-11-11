@@ -1,4 +1,4 @@
-import { gate, layer, notHere, nth, FLOW } from '../keys/gate.js';
+import { gate, layer, notHere, nth, v6RootGate, FLOW } from '../keys/gate.js';
 
 /**
  * 账号命令（v5 S5，term-design-v5「账号」；要 sudo root 登录，账号的 reset 层里 passwd / passkey 也能用）：
@@ -78,18 +78,26 @@ const device = {
   },
 };
 
+/**
+ * app：割接（v6-commands「授权与订阅（root，或 sudo）」；路由表 POST /api/account/grants = root 档，#401 接了 v6）：
+ * 有 v6 会话时同 sub——v6 root 直接做（allow 不跑旧的 sudo root reauth），v6 普通用户提示先 su root，访客先 su <用户>；没有 v6 会话旧路径原样（P4 删）。
+ */
 const app = {
   name: 'app',
   args: ['allow', 'deny'],
-  audience: ROOT,
+  audience: /** @type {any} */ (['root', 'root6']),
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const a = p.args.map(function (s) { return s.toLowerCase(); });
-    const r = acct(x, 'app');
+    const v6 = v6RootGate(x);
+    if (v6 && 'out' in v6) return v6;
+    const r = v6 ? { A: layer(x, 'acct'), no: null } : acct(x, 'app');
     if (r.no) return r.no;
-    if (!a.length) { r.A.appList(); return FLOW; }
-    if (a[0] === 'allow' && a.length === 2 && nth(a[1])) { r.A.appAllow(nth(a[1])); return FLOW; }
-    if (a[0] === 'deny' && a.length === 2 && nth(a[1])) { r.A.appDeny(nth(a[1])); return FLOW; }
+    if (!r.A) return notHere(x, 'app');
+    const o = { direct: !!v6 };
+    if (!a.length) { r.A.appList(o); return FLOW; }
+    if (a[0] === 'allow' && a.length === 2 && nth(a[1])) { r.A.appAllow(nth(a[1]), o); return FLOW; }
+    if (a[0] === 'deny' && a.length === 2 && nth(a[1])) { r.A.appDeny(nth(a[1]), o); return FLOW; }
     return { out: [x.k.plain(x.S.usageApp)] };
   },
 };

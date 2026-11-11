@@ -214,9 +214,11 @@ term:
   usageUseradd: "用法：useradd <名字> [-e YYYY-MM-DD] [-G 组,组]"
   usageUserdel: "用法：userdel <名字>"
   usageUsermod: "用法：usermod -aG | -rG <组[,组]> <名字>"
-  needEntry: "还没进站 · 先 {x}"
   needRoot: "还没登录账号 · 先 {x}"
   needRoot6: "当前用户没有这个权限 · 先 {x}"
+  needSu: "没有登录 · 先 {x}"
+  suUser: "<用户>"
+  exitFirst: "已经以 {u} 登录 · 先 {x}"
   linkDenied: "分享链接进来的会话不能这样做 · 用自己的钥匙进站"
   alreadyIn: "已经进站了 · 再验证用 {x}"
   notHere: "{x}：请在终端里运行（Ctrl K）"
@@ -411,6 +413,10 @@ account:
     errWrongRoot: "恢复密钥不正确"
     sessExp: "会话已失效 · 重新 sudo styrigx"
     opening: "正在打开账号…"
+  # 割接：v6 root 直接做的 sub / app 撞到服务端 401 / 403 forbidden（同身份层 notSignedIn、终端 needRoot6）
+  v6:
+    notSignedIn: "没有登录 · 先 su <用户>"
+    forbidden: "当前用户没有这个权限 · 先 {x}"
   session:
     signedOut: "已退出登录 · 回到 styrigx@space"
     guest: "账号未登录"

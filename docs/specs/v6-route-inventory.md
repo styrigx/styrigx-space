@@ -63,6 +63,10 @@ P2c 变更（2026-11-11，对齐定稿 v5）：
 - 前端：当前页 `su` 成功（含 su 成任何 v6 用户）→ 页面标记就地切成 `valid`（终端身份 `who.onV6` → 顶栏 `switchPageSession`，发 window `sgx:session { ok, live: true }`），云同步强制拉一次、名片重取、AI 窗口解锁、服务状态卡重取、NAVIGATE STATUS 重取、守卫补绑自动回锁；`exit` / `lock` 回访客（或只剩救援会话）就地切回 `locked`。不整页刷新。规则同网关 `pageStateOf`（旧进站会话或非救援 v6 身份）。
 - 奇趣 / 日刻「登录账号后可编辑」改「su 登录后可编辑」（中英文），入口改成 `su`（`data-sec-open`，打开终端预填 su ）。
 
+2d 变更（2026-11-11，割接后续；路由档不变）：
+- 前端终端 `sub`、`app`（`POST /api/account/proxy`、`/api/account/grants`，root 档）接 v6：v6 root 直接做（不看旧账号会话、不跑旧 `sudo root reauth`）；v6 普通用户提示「当前用户没有这个权限 · 先 su root」；访客（所有要身份的命令）提示「没有登录 · 先 su <用户>」。旧会话路径不变（P4 删）。
+- 奇趣 / 日刻 / 博客的全站终端挂 v6 身份层（su / su root / sudo / exit / lock / whoami …），同主站。
+
 ### 已定（Gray 2026-11-11）
 
 盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **owner** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。

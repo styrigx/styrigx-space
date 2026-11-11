@@ -1,5 +1,7 @@
 import { ROOT_COMMAND, ADMIN_COMMAND } from '../../core/parse.js';
 import { gate, layer, notHere, line, FLOW } from './gate.js';
+import { isV6, v6Name } from '../../core/who.js';
+import { fill } from '../../core/out.js';
 import { SUDO_CMDS } from '../../core/ident-args.js';
 
 /**
@@ -30,6 +32,8 @@ export default {
       const S = layer(x, 'space');
       if (!S) return notHere(x, 'sudo ' + ADMIN_COMMAND);
       if (a1 === 'reset') { S.cmdReset(); return FLOW; }
+      /* 割接：已经以 v6 用户登录 → 同身份层「已经以 <名> 登录 · 先 exit」（定稿 §六：要换用户先 exit；sudo -v 在 v6 删除，不再指向它） */
+      if (isV6(w)) return { out: [{ t: 'line', seg: fill(x.S.exitFirst, { u: ['', v6Name(w)], x: ['k', 'exit'] }), cls: 'err' }] };
       if (w !== 'nobody') return { out: [line(x, 'alreadyIn', 'sudo -v')] };
       S.unlock();
       return FLOW;

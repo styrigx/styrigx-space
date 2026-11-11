@@ -12,6 +12,8 @@ import { modalSheet } from '../../../js/shell/modal-sheet.js';
 import { mountAiChat } from '../../../js/shell/ai-panel.js';
 import { mountAccountWindow, layerFromPath } from '../../../js/shell/account/window.js';
 import { mountAccountLayer } from '../../../js/shell/account/cmd/layer.js';
+import { mountIdentityLayer } from '../../../js/shell/identity/layer.js';
+import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../js/shell/identity/api.js';
 import { mountSpace } from '../../../js/shell/space/layer.js';
 import { PM_USER } from '../../../js/shell/space/api.js';
 import { onKeyboardHeight } from '../../../js/shell/vk.js';
@@ -43,6 +45,10 @@ function boot() {
     account: mountAccountWindow,
     accountTerm: mountAccountLayer,
     accountLayer: layerFromPath,
+    /* v6 身份层（同主站 quick-panel.js；全站一个终端，v5「终端合一」+ 定稿 §六：子站终端里 su / su root / sudo / exit / lock / whoami … 同样能用） */
+    identityTerm: mountIdentityLayer,
+    identityWhoami: identityWhoami,
+    identityMarker: identityMarker,
     space: mountSpace,
     pmUser: PM_USER.password,
     share: mountShare,

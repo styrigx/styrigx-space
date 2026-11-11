@@ -10,6 +10,8 @@ import * as terminal from '../../../js/shell/terminal.js';
 import { mountSpace } from '../../../js/shell/space/layer.js';
 import { PM_USER } from '../../../js/shell/space/api.js';
 import { mountAccountLayer } from '../../../js/shell/account/cmd/layer.js';
+import { mountIdentityLayer } from '../../../js/shell/identity/layer.js';
+import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../js/shell/identity/api.js';
 
 /** 文章阅读进度：#article-start（正文）从顶栏下沿开始读，到正文底部离开视口底部为 100%；画在长条底边。 */
 let ticking = false;
@@ -66,6 +68,10 @@ function initTopbar() {
     terminal,
     space: mountSpace,
     accountTerm: mountAccountLayer,
+    /* v6 身份层（同主站 quick-panel.js；全站一个终端：博客终端里 su / su root / sudo / exit / lock / whoami … 同样能用） */
+    identityTerm: mountIdentityLayer,
+    identityWhoami: identityWhoami,
+    identityMarker: identityMarker,
     pmUser: PM_USER.password,
     keyboard: onKeyboardHeight,
   });

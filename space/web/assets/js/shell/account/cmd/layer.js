@@ -25,6 +25,7 @@ import { mountKeys } from './keys.js';
 import { mountDevices } from './devices.js';
 import { mountGrants } from './grants.js';
 import { mountProfile } from './profile.js';
+import { mountV6Direct } from './v6-direct.js';
 
 /** 只做再验证时，等页面把要复验的事做完的上限（毫秒）；到点不管做没做完都结束 reauth */
 export const REAUTH_HOLD_MS = 60000;
@@ -133,6 +134,9 @@ export function mountAccountLayer(o) {
     }
     return false;
   };
+
+  /* 割接：v6 root 直接做的 sub / app（C.gated / C.authErrFor，见 ./v6-direct.js） */
+  mountV6Direct(C, o.who);
 
   /** 收起终端（登出、授权同意选完、只做再验证验完）；登录状态变了就重新载入 */
   C.finished = function () { o.term.close(); };

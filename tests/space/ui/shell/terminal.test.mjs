@@ -289,15 +289,15 @@ test('theme / ask / open：先打印再动（after）；访客 ask 不开 AI；o
   assert.equal(text(sh.exec('open ~/account/security').out[0]), 'open: no such directory: ~/account/security');
   assert.equal(text(sh.exec('open shield').out[0]), 'open: no such directory: shield', '盾牌没有窗口了');
   const g = createShell({ act, storage: mem(), who: fixedWho('nobody') }).exec('ask hi');
-  assert.equal(text(g.out[0]), 'AI is locked · run sudo styrigx first; use find to search by keyword');
+  assert.equal(text(g.out[0]), 'AI is locked · run su first; use find to search by keyword', '割接：入口是 su');
   assert.equal(g.after, undefined);
 });
 
-test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访客要先 sudo styrigx；分享链接不能管分享 / reauth；账号命令要 sudo root', () => {
+test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访客要先 su <用户>（割接）；分享链接不能管分享 / reauth；账号命令要 sudo root', () => {
   const { act } = fakeAct();
   const { v, calls } = fakeLayers();
   const sh = (w) => createShell({ act, storage: mem(), who: fixedWho(w) });
-  const need = 'not entered · run sudo styrigx first';
+  const need = 'not signed in · su <user> first';
   for (const l of ['sudo root', 'sudo -v', 'lock', 'share', 'passwd', 'device', 'app deny 1', 'profile', 'sub']) assert.equal(text(sh('nobody').exec(l, v).out[0]), need, l);
   for (const l of ['share', 'share add', 'sudo -v']) assert.equal(text(sh('link').exec(l, v).out[0]), TERM_EN.linkDenied, l);
   for (const l of ['passwd', 'passkey', 'device', 'app', 'profile set name x', 'sub mv a b', 'sub show']) assert.equal(text(sh('styrigx').exec(l, v).out[0]), 'not signed in to the account · run sudo root first', l);
@@ -336,8 +336,8 @@ test('要输入 / 验证的命令交给两层上下文（flow，输出和输入�
   flow('root', 'sub mv Linkcube LinkCube2');
   flow('root', 'SUB show Linkcube');
   assert.deepEqual(calls.splice(0), [['acct.cmdPasswd', true], ['acct.passkeyList'], ['acct.cmdPasskeyAdd', true], ['acct.passkeyRm', 2], ['acct.deviceList'], ['acct.deviceRm', 3], ['acct.deviceRmAll'],
-    ['acct.appList'], ['acct.appAllow', 2], ['acct.appDeny', 1], ['acct.profileShow'], ['acct.profileSet', 'sign', 'Stay  Hungry'], ['acct.profileSet', 'nick', 'Styrigx'], ['acct.profileAvatar'],
-    ['acct.cmdSub', 'sub mv Linkcube LinkCube2'], ['acct.cmdSub', 'SUB show Linkcube']], 'sub 传原样的一行（来源名大小写不变）；profile set 的值原样');
+    ['acct.appList', { direct: false }], ['acct.appAllow', 2, { direct: false }], ['acct.appDeny', 1, { direct: false }], ['acct.profileShow'], ['acct.profileSet', 'sign', 'Stay  Hungry'], ['acct.profileSet', 'nick', 'Styrigx'], ['acct.profileAvatar'],
+    ['acct.cmdSub', 'sub mv Linkcube LinkCube2', { direct: false }], ['acct.cmdSub', 'SUB show Linkcube', { direct: false }]], 'sub 传原样的一行（来源名大小写不变）；profile set 的值原样');
   assert.equal(text(sh('root').exec('device rm x', v).out[0]), TERM_EN.usageDevice);
   /* S9：app rm 换成 deny，没有兼容 */
   for (const l of ['app rm 1', 'app rm --all', 'app allow', 'app deny x']) assert.equal(text(sh('root').exec(l, v).out[0]), TERM_EN.usageApp, l);
@@ -444,7 +444,7 @@ test('代理订阅：open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示
   const { v, calls } = fakeLayers();
   const sh = createShell({ act, storage: mem(), who: fixedWho('root') });
   assert.equal(sh.exec('open ~/proxy', v).flow, true);
-  assert.deepEqual(calls.at(-1), ['acct.cmdSub', 'sub']);
+  assert.deepEqual(calls.at(-1), ['acct.cmdSub', 'sub', { direct: false }]);
   const ls = await run(sh, 'ls ~/proxy');
   assert.deepEqual(ls.out.map(text), ['Linkcube  sub.example.com  3  enabled', 'Cloady  file  1  disabled']);
   act.proxyList = () => Promise.resolve(null);

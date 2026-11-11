@@ -1,6 +1,6 @@
 /**
  * 终端 find / ask 按进站状态（v5 S4，space/web/assets/js/shell/term/cmds/ui/find.js、ask.js、term/core/registry.js listedFor）：
- * - 访客（nobody）：man 索引列 find、不列 ask；敲 ask 不开 AI，提示「AI 已上锁，先 sudo styrigx；搜关键词用 find」
+ * - 访客（nobody）：man 索引列 find、不列 ask；敲 ask 不开 AI，提示「AI 已上锁，先 su；搜关键词用 find」（句子照 Gray 定的，割接起命令是 su）
  * - 进站后：man 列 ask、不列 find；ask 照常开 AI 代发；find 仍然能跑
  * - find 输出：每条一行 标题 · 站 · 路径（链接，href = 结果地址）；没结果 / 降级 / 429 / 网络错各一行；没参数给用法
  * - v5 S5：身份来自 term/core/who.js（nobody / link / styrigx / root），help 删了（man 取代）
@@ -64,15 +64,15 @@ test('访客（nobody）：man 列 find 不列 ask；进站后列 ask 不列 fin
   assert.deepEqual(pg.out.map(text), ['NAME', '    find — search the four sites’ public pages by keyword', '', 'SYNOPSIS', '    find <keyword>']);
 });
 
-test('访客敲 ask：不开 AI，提示先 sudo styrigx、搜关键词用 find（中文照 Gray 定的句子）', () => {
+test('访客敲 ask：不开 AI，提示先 su、搜关键词用 find（中文照 Gray 定的句子；割接起命令是 su，同 AI 窗口「su 登录后可用」）', () => {
   const { sh, calls } = shell({ nobody: true });
   const r = sh.exec('ask 博客写了什么');
   assert.equal(r.after, undefined);
-  assert.equal(text(r.out[0]), 'AI is locked · run sudo styrigx first; use find to search by keyword');
-  assert.deepEqual(r.out[0].seg.filter((s) => s[0] === 'k').map((s) => s[1]), ['sudo styrigx', 'find']);
+  assert.equal(text(r.out[0]), 'AI is locked · run su first; use find to search by keyword');
+  assert.deepEqual(r.out[0].seg.filter((s) => s[0] === 'k').map((s) => s[1]), ['su', 'find']);
   assert.deepEqual(calls, []);
   const zh = shell({ nobody: true, str: ZH }).sh.exec('ask');
-  assert.equal(text(zh.out[0]), 'AI 已上锁，先 sudo styrigx；搜关键词用 find');
+  assert.equal(text(zh.out[0]), 'AI 已上锁，先 su；搜关键词用 find');
 });
 
 test('进站后 ask：照常开 AI 代发（先打印再动）', () => {
