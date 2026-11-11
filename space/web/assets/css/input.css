@@ -7429,7 +7429,8 @@
   .st-locked-ic { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 999px;
     background: var(--sgx-surface-container-high); color: var(--sgx-on-surface-variant); }
   .st-locked-tx { min-width: 0; }
-  .st-wrap[data-state="locked"] .st-audit-wrap { display: none; }
+  /* 2d：403（已登录、只是不在 status 组，data-lock-perm）留着凭据记录区——它另归 root，展开后回 auditErrPerm；401 访客整块藏 */
+  .st-wrap[data-state="locked"]:not([data-lock-perm]) .st-audit-wrap { display: none; }
   /* 近期故障：每条一行（站名 · 状态 · 原因 · 开始 / 恢复 / 持续） */
   .st-inc-list, .st-audit-list, .st-usage { list-style: none; margin: 0; padding: 0; }
   .st-inc { padding: 2px 0; }

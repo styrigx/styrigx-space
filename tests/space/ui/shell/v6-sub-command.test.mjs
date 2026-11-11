@@ -171,3 +171,31 @@ test('子站首帧不再清 sgx-theme-mode（#310 起四站同源，它就是主
     assert.match(src, /removeItem\('sgx-theme-at'\)/, s);
   }
 });
+
+test('冒烟 smoke2（已登录、无组、非 root）：sub show / sub 不再回旧的「not signed in to the account · run sudo root first」', () => {
+  const L = layers();
+  for (const l of ['sub show', 'sub', 'app']) {
+    const o = text(sh('u:smoke2').exec(l, L.v).out[0]);
+    assert.equal(o, 'permission denied · run su root first', l);
+    assert.notEqual(o, 'not signed in to the account · run sudo root first', l);
+  }
+  assert.deepEqual(L.calls, []);
+});
+
+test('旷野状态卡 403（已登录不在 status 组）留着凭据记录区（展开回已上线的 auditErrPerm）；401 访客照旧藏起来', () => {
+  const src = rd('space/web/assets/js/apps/space-status.js');
+  assert.match(src, /root\.toggleAttribute\('data-lock-perm', status === 403\)/);
+  assert.match(src, /setState\('locked'\);\n\s+root\.removeAttribute\('data-lock-perm'\);/, 'exit / lock 回访客清掉');
+  const css = rd('space/web/assets/css/input.css');
+  assert.match(css, /\.st-wrap\[data-state="locked"\]:not\(\[data-lock-perm\]\) \.st-audit-wrap \{ display: none; \}/);
+  assert.doesNotMatch(css, /\.st-wrap\[data-state="locked"\] \.st-audit-wrap \{ display: none; \}/);
+});
+
+test('奇趣 / 日刻：已以 v6 登录但不能编辑 → 命令仍 su，文字是已上线的 noPermission；没登录照旧「su 登录后可编辑」', () => {
+  for (const f of ['space/web/assets/curio/js/curio.js', 'space/web/assets/daymark/js/daymark.js']) {
+    const s = rd(f);
+    assert.match(s, /if \(v6SignedIn\(\) && T\.noPermission\) return \{ text: T\.noPermission, open: '', app: '', su: true \};/, f);
+    assert.match(s, /return \{ text: T\.signin, open: '', app: '', su: true \};/, f);
+    assert.match(s, /sgx-id=1/, f);
+  }
+});

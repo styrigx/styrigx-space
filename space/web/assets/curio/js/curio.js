@@ -225,8 +225,15 @@ function errText(e){
  */
 function signinHint(loggedIn){
   if (loggedIn) return { text: T.noScope, open: 'apps', app: '' };
+  /* 2d：已经以 v6 用户登录（登录标记 sgx-id=1，同 shell/identity/api.js hasMarker）、只是不在写组 → 命令仍是 su（v6-stepup-app-map：缺组时提示 su），
+     文字换成站内已上线的无权限句 noPermission「当前用户没有这个权限。」，不再说「su 登录后可编辑」 */
+  if (v6SignedIn() && T.noPermission) return { text: T.noPermission, open: '', app: '', su: true };
   /* 2c（v6 割接）：没登录 → 指向 su（打开顶栏终端，data-sec-open：没登录预填 su ）；上面那条旧账号会话没授权的分支 P4 删 */
   return { text: T.signin, open: '', app: '', su: true };
+}
+/** 有没有 v6 登录标记（服务端随 sgx-session 写的 sgx-id=1；不含秘密） */
+function v6SignedIn(){
+  try { return /(?:^|;\s*)sgx-id=1(?:;|$)/.test(doc.cookie || ''); } catch (e) { return false; }
 }
 /** 入口链接：su（data-sec-open，退路 #sec）或旧账号入口（data-acct-open / data-acct-app，退路 本语言首页 #acct=…） @param {Element} a @param {{open: string, app: string, su?: boolean}} h */
 function setAcctOpen(a, h){
