@@ -23,8 +23,6 @@ const ERR_KEYS = {
   wrong: 'errWrongPw',
   'not-set': 'errNotSet',
   auth: 'errWrongRoot',
-  denied: 'errWrongPw',
-  role: 'errWrongPw',
   challenge: 'errVerify',
   verify: 'errVerify',
   'class-mismatch': 'errVerify',

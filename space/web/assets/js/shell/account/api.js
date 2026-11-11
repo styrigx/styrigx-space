@@ -17,7 +17,7 @@ const IDENTITY_API = '/api/identity';
 /** 服务端错误码（面板按它分支） */
 export const ERR = Object.freeze({
   /** 密码不对 */
-  wrong: ['wrong', 'denied', 'auth'],
+  wrong: ['wrong', 'auth'],
   cooldown: 'cooldown',
   config: 'config',
   params: 'params',
