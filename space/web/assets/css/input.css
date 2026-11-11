@@ -8673,13 +8673,9 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 /* [04] 旷野小卡：等宽小字，一行一条（稿 .wild .dir，行高 1.9） */
 .home-mini { font-size: 12px; line-height: 1.9; }
 .home-mini .home-dir-n { display: block; }
-/* 小卡右上的位置计数「01 / 02」（Gray 2026-11-09 细节 2；同奇趣卡右上的计数位，装饰，读屏不念） */
+/* 小卡右上的位置计数「01 / 01」（Gray 2026-11-09 细节 2；同奇趣卡右上的计数位，装饰，读屏不念） */
 .home-mini-n { float: right; font-size: 11px; line-height: calc(14px * 1.9); color: var(--sgx-text-tertiary); }
-.home-mini-row, .home-mini-none { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.home-mini-none[hidden] { display: none; }
-.home-mini .wb-cbar b { font-weight: 400; color: var(--sgx-primary); }
-.home-mini .wb-cbar i { display: none; }
-.home-mini .wb-k { display: inline-block; min-width: 8ch; }
+.home-mini-row { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .home-st-dot { font-style: normal; color: var(--sgx-success); }
 .home-st-sum { font-weight: 400; }
 .home-mini[data-up="0"] .home-st-dot { color: var(--sgx-warning); }
@@ -8695,7 +8691,7 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 @media (hover: hover) and (pointer: fine) { .home-qt:hover .home-qt-text { color: var(--sgx-primary); } }
 
 /* 旷野（/wild/，2026-11 对齐 PR-B，设计稿 tb4.html pg=wild / m=1；只在主站）：页头（partials/sgx-ph.html）+ 三个全宽终端窗（.sgx-term--static），窗间 26px。
-   窗里等宽小字：桌面 14px、手机 11px（稿 .mob .wt .tb）；字符条 / 状态点颜色走 --sgx-primary / --sgx-success / --sgx-warning / --sgx-danger。 */
+   窗里等宽小字：桌面 14px、手机 11px（稿 .mob .wt .tb）；状态点颜色走 --sgx-primary / --sgx-success / --sgx-warning / --sgx-danger（screen-time 窗 v6 P4 随数字健康删除）。 */
 .wild-wrap { box-sizing: border-box; width: var(--sgx-col-w); margin: 0 auto; padding-bottom: 60px; font-family: var(--sgx-font-mono); }
 /* 页头（稿 .wh：顶距 50 + body 40 − 本站正文顶距 16 = 74；标题 6 / 4 外边距；一句话 16px） */
 .wild-wrap .sgx-ph, :root[data-sgx-layout="desktop"] .wild-wrap .sgx-ph { padding: 74px 0 0; }
@@ -8707,25 +8703,7 @@ html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-ses
 .wild-body p { margin: 0; }
 .wild-cmd { color: var(--sgx-text-primary); white-space: pre-wrap; overflow-wrap: anywhere; }
 .wild-dim { color: var(--sgx-text-tertiary); }
-.wild-y { color: var(--sgx-warning); }
 .wild-a { color: var(--sgx-primary); }
-/* screen-time：区域 · 字符条 · 时长 · 占比（· 最常看的一项） */
-/* 桌面：区域列随窗宽伸（最小 10ch），表占满整个窗宽，不再只用三分之一（2026-11-09 细节 14） */
-.wild-grid { display: grid; grid-template-columns: minmax(10ch, 1fr) 16ch 7ch 5ch minmax(0, 1.4fr); column-gap: 1ch; align-items: baseline; white-space: nowrap; }
-.wild-st-row > span:nth-child(2):not(.wb-cbar) { grid-column: 2 / 4; }
-.wild-st-row .wild-st-pct, .wild-st-row .wb-p { text-align: right; }
-.wild-st-row .wb-t { text-align: right; }
-.wild-st-row .wb-it { overflow: hidden; text-overflow: ellipsis; color: var(--sgx-text-tertiary); }
-.wild-st-total > span:nth-child(2) { grid-column: 2 / 4; }
-.wb-cbar { letter-spacing: 0; }
-.wb-cbar b { font-weight: 400; color: var(--sgx-primary); }
-.wb-cbar i { font-style: normal; color: var(--sgx-primary); opacity: .35; }
-.wild-st-none[hidden] { display: none; }
-/* 分隔线和表同宽（原 max-width 40ch 只有表头一半）；没有记录时随 total 行收起（wb-view.js）（2026-11-09 细节 14） */
-.wild-body .wild-rule { height: 0; margin: 4px 0; border-top: 1px solid var(--sgx-term-line); }
-[data-wb-totalrow][hidden] { display: none; }
-:root:not([data-sgx-layout="desktop"]) .wild-grid { grid-template-columns: 8ch 16ch 6ch 4ch; }
-:root:not([data-sgx-layout="desktop"]) .wild-st-row .wb-it { display: none; }
 /* about：neofetch（图标 + 键值） */
 .wild-neo { display: flex; gap: 2ch; align-items: flex-start; }
 .wild-logo { flex: none; margin: 0; font: inherit; line-height: inherit; color: var(--sgx-primary); }

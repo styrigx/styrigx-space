@@ -392,7 +392,6 @@ account:
   session:
     guest: "Not signed in"
     signIn: "Sign in to the account"
-    lead: "Not signed in · choose a method"
   profile:
     title: "Profile"
     hint: "photo · name · nickname · motto · email"
@@ -514,60 +513,15 @@ account:
       no-token: "no download token yet · run sub token reset"
       token-unsealed: "this token was stored as a hash only · run sub token reset for one that can be reprinted"
 # 进站系统（进站 v3 L1，SPACE-V3 §3.4）：锁屏 entry@space:~$、reset@space:~#、盾牌 styrigx@space:~#（shell/space/*）。命令 / 提示符 / 方式名（passkey / password）不翻译。{x} {k} {n} {t} {d} 是占位。
+# 站内终端输入行（terminal.js → term/view/input-line.js）只读这五句；其余进站旧文案 v6 P4-2 删了
 space:
   common:
-    errLink: "a share-link session can’t do this"
-    opening: "Opening security…"
     termAria: "Space terminal input"
     secretAria: "Hidden input"
-    backAria: "Back"
-    hidden: "input is hidden · paste works"
     interruptAria: "quit the current command (^C)"
     noOption: "no such option"
-    cancelled: "cancelled"
-    notFound: "command not found: {x} · try man"
-    didYouMean: "command not found: {c} — did you mean {x}?"
-    tooMany: "sudo: too many attempts"
-    retrySec: "try again in {n}s"
-    retryMin: "try again in {n} min"
-    pkNoSupport: "passkeys aren’t supported on this device"
-    pkTimeout: "passkey timed out"
-    sessExp: "space session expired · run sudo styrigx again"
-    loading: "loading…"
-    copy: "copy"
-    copied: "copied"
-    copyFail: "couldn’t copy"
-    errParams: "bad request"
-    errNotFound: "not found"
-    errLastKey: "keep at least one space credential"
-    errRetry: "please try again"
-    errServer: "service temporarily unavailable"
-    errForbidden: "permission denied for the current user"
-    errVerify: "verification failed, please retry"
-    errUvRequired: "device unlock required"
-    errWrongPw: "incorrect password"
-    errShort: "minimum 8 characters"
-    errExists: "already set"
-    errNotSet: "not set"
-    errLocked: "too many attempts, try again later"
-    errConfig: "server misconfigured"
-    errCancelled: "cancelled"
-    errSameAsLock: "can’t be the same as the unlock password"
-    errSameAsAccount: "can’t be the same as the account password"
-    errReset: "reset expired · run sudo styrigx reset again"
-    errFull: "limit reached (20)"
-    errUnknown: "unknown error, please try again later"
-    errNetwork: "network connection failed, please retry"
-  session:
-    lead: "choose how to enter"
-  reauth:
-    expired: "reauth expired · run {x} again"
   keys:
-    title: "Space credentials"
-    hint: "password · passkeys"
     nameAria: "Name"
-  shield:
-    # v5 S6：已进站时点盾牌 = 问一句再上锁（y = lock，回车 / n = 不动）
 # 终端里的 v6 身份层（P2b，shell/identity/layer.js）：su / sudo / exit / lock / whoami / groups / who / useradd / userdel / usermod / passwd。提示符、命令写法不翻译。
 identity:
   pwPrompt: "Password:"

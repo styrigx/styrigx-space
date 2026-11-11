@@ -1,11 +1,9 @@
 {{/* 旷野（/wild/，中文 /zh/wild/；2026-11 对齐计划 PR-B，设计稿 tb4.html pg=wild / m=1）：只看，不设。
-   页头 = 终端风标题带（$ cd wild · 旷野_ · 一句话），下面两个全宽终端窗（v5 S7 删了第三个 about，neofetch 只在主页首屏 /#about），各有锚点（主页 [04] 三张小卡、NAVIGATE「systemctl status ›」、旧地址 301 都指过来）：
-   - #screen-time  screen-time --today：网站数字健康（原 /wellbeing/）。先画本机记录（apps/space.js，sgx-well-v），账号已登录时 /api/wellbeing 回 detail:true 换成所有设备（lib/wb-view.js，data-wb-detail）。
-                   15 分钟提醒开关按 Gray 04:01「数字健康不做设置，做成展示页」删除。
+   页头 = 终端风标题带（$ cd wild · 旷野_ · 一句话），下面一个全宽终端窗（v5 S7 删了第三个 about，neofetch 只在主页首屏 /#about；screen-time 窗 v6 P4 随数字健康整套删除，定稿 v5.5 §四），有锚点（主页 [04] 小卡、NAVIGATE「systemctl status ›」、旧地址 301 都指过来）：
    - #status       systemctl status space.target：服务状态（原 /status/）。六个 unit（同 NAVIGATE STATUS 六格的口径）+ 每个监测项近 90 天可用率条（点一格看那天）
                    + 免费额度 / 用量 / 近期故障 + 进站凭证使用记录（展开才取 /api/space-audit）。数据 GET /api/status，页面可见时每 60 秒刷新（apps/space-status.js），
                    外壳不另取（#st-root 在页里，接 sgx:status 事件）。
-   旧地址 /status/ /wellbeing/（含 /zh/）在 static/_redirects 里 301 到这里对应的锚点；/about/ 301 到主页 /#about（v5 S7）。noindex（门内页，见 baseof）。 */}}
+   旧地址 /status/（含 /zh/）在 static/_redirects 里 301 到这里对应的锚点（/wellbeing/ 跳转 v6 P4 删除）；/about/ 301 到主页 /#about（v5 S7）。noindex（门内页，见 baseof）。 */}}
 {{ define "main" }}
 {{ .Scratch.Set "sgx-entry" "entry-space-wild.js" }}
 {{ $pageLang := partial "sgx-page-lang.html" . }}{{ $tr := partialCached "sgx-tr.html" $pageLang $pageLang }}
@@ -15,24 +13,7 @@
 <div class="wild-wrap">
 {{ partial "sgx-ph.html" (dict "cmd" "cd wild" "title" .Title "desc" .Description "path" .File.Path) }}
 
-  {{/* ① screen-time：今天各区域的停留时长（字符条 · 时长 · 占比）+ total。窗口右上 = 范围（今天 · 本机 / 今天 · 所有设备） */}}
-  <section class="wild-sec" id="screen-time" aria-labelledby="wild-st-h">
-    <div class="sgx-term sgx-term--static wild-term" id="wb-card" data-wb-root data-wb-detail data-wb-term="full">
-      <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><h2 class="sgx-term-title" id="wild-st-h" translate="no">screen-time</h2><em class="sgx-term-count" data-wb="scope">{{ $W.todayThisDevice }}</em></div>
-      <div class="sgx-term-body wild-body">
-        <p class="wild-cmd" aria-hidden="true" translate="no"><span class="sgx-term-pp">{{ $ps }}</span> screen-time --today</p>
-        <p class="wild-dim wild-grid wild-st-row" aria-hidden="true" translate="no"><span>SITE</span><span>TIME</span><span class="wild-st-pct">SHARE</span></p>
-        <div data-wb="rows" class="wild-st-rows" role="list" aria-label="{{ $W.timeBreakdown }}">
-          {{ range seq 3 }}<p class="wild-grid wild-st-row" data-wb-row role="listitem" style="visibility:hidden">&nbsp;</p>{{ end }}
-        </div>
-        <p class="wild-dim wild-st-none" data-wb="none" hidden>{{ $W.noRec }}</p>
-        <p class="wild-rule" aria-hidden="true" data-wb-totalrow></p>
-        <p class="wild-grid wild-st-row wild-st-total" data-wb-totalrow><span translate="no">total</span><span class="wild-y" data-wb="total">--</span></p>
-      </div>
-    </div>
-  </section>
-
-  {{/* ② status：systemctl status space.target。#st-root 及其子节点 id 同原 /status/ 页（apps/space-status.js、tests/space/e2e/space/space-status.spec.js 按 id 找）；
+  {{/* ① status：systemctl status space.target。#st-root 及其子节点 id 同原 /status/ 页（apps/space-status.js、tests/space/e2e/space/space-status.spec.js 按 id 找）；
      状态 data-state：loading 骨架 · ready 有数据 · empty 还没有任何检查结果 · error 第一次就失败（之后刷新失败只在末行提示，保留旧数据）
      · locked 没进站（接口 401；v5 S3 三处上锁之一）：只剩锁卡 #st-locked，按钮发 sgx:sudo（终端预填 su ，v6 割接） */}}
   <section class="wild-sec" id="status" aria-labelledby="wild-sys-h">

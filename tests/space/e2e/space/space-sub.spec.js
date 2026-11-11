@@ -49,10 +49,10 @@ test('home (mobile, 对齐 PR-B): hero, then [01] blog · [02] curio · [03] day
   /* 顶栏没有标签，页名标记是「主页」（手机布局不显示） */
   await expect(pg.locator('.sgx-tb-tab')).toHaveCount(0);
   await expect(pg.locator('.sgx-tb-title')).toHaveText('主页');
-  // 账户卡在账号页；名字（hero）、屏幕时间小卡保留
+  // 账户卡在账号页；名字（hero）保留；屏幕时间小卡 v6 P4 随数字健康删除（定稿 v5.5 §四）
   await expect(pg.locator('.sgx-account-card')).toHaveCount(0);
   await expect(pg.locator('#w-profile')).toBeVisible();
-  await expect(pg.locator('#w-screen')).toBeVisible();
+  await expect(pg.locator('#w-screen')).toHaveCount(0);
   /* 分类入口（旧 sgx-entries 平铺行 + 标题带）删除 */
   await expect(pg.locator('#space-entries, .home-wrap .sgx-ents, .home-wrap [aria-label="分类"]')).toHaveCount(0);
   // 四节顺序：hero 在上，[01]–[04] 自上而下
@@ -60,13 +60,13 @@ test('home (mobile, 对齐 PR-B): hero, then [01] blog · [02] curio · [03] day
   const ys = [];
   for (const id of ['#home-hero', '#blog', '#curio', '#daymark', '#wild']) ys.push((await pg.locator(id).boundingBox()).y);
   expect([...ys].sort((a, b) => a - b)).toEqual(ys);
-  // [02] 奇趣三个目录、[04] 旷野两张小卡（手机一栏；about 小卡 2026-11-11 删，about 只在首屏 #about）
+  // [02] 奇趣三个目录、[04] 旷野一张小卡（手机一栏；about 小卡 2026-11-11 删，about 只在首屏 #about；screen-time 小卡 v6 P4 删，编号前移）
   const dirs = pg.locator('#curio a.home-dir');
   expect(await dirs.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/zh/finds/', '/curio/zh/devices/', '/curio/zh/games/']);
   const mini = pg.locator('#wild a.home-mini');
-  expect(await mini.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/zh/wild/#screen-time', '/zh/wild/#status']);
-  await expect(mini.locator('.home-dir-n')).toHaveText(['screen-time', 'status']);
-  await expect(mini.locator('.home-mini-n')).toHaveText(['01 / 02', '02 / 02']);
+  expect(await mini.evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/zh/wild/#status']);
+  await expect(mini.locator('.home-dir-n')).toHaveText(['status']);
+  await expect(mini.locator('.home-mini-n')).toHaveText(['01 / 01']);
   expect(await pg.locator('#wild .home-wild').evaluate((ul) => getComputedStyle(ul).gridTemplateColumns.split(' ').length)).toBe(1);
   // 删掉的分类（含显示页、并进旷野的三页）不再有链接；页面上没有任何指向旧设置层的链接
   for (const gone of ['display', 'manage', 'accessibility', 'goodlock', 'advanced', 'apps', 'wellbeing', 'status', 'about']) await expect(pg.locator(`a[href="/${gone}/"], a[href="/zh/${gone}/"]`), gone).toHaveCount(0);
@@ -75,14 +75,14 @@ test('home (mobile, 对齐 PR-B): hero, then [01] blog · [02] curio · [03] day
   await expect(pg.locator('#sg-display, #sg-theme, #sg-wellbeing, #sg-about, #set-cat-nav, .set-col-r')).toHaveCount(0);
 });
 
-/* [02] 奇趣目录（3 张）/ [04] 旷野小卡（2 张，about 小卡 2026-11-11 删）：手机布局一栏，桌面布局三栏 / 两栏、同一行顶边对齐（对齐 PR-B，设计稿 tb4.html） */
+/* [02] 奇趣目录（3 张）/ [04] 旷野小卡（1 张：about 小卡 2026-11-11 删，screen-time 小卡 v6 P4 删；网格仍是桌面两栏）：手机布局一栏，桌面布局三栏 / 两栏、同一行顶边对齐（对齐 PR-B，设计稿 tb4.html） */
 for (const [w, h, cols] of [[412, 900, 1], [1100, 900, 3], [1366, 768, 3]]) {
   test(`home dirs / wild cards: ${w}px wide → ${cols} column(s)`, async ({ page: pg }) => {
     await pg.setViewportSize({ width: w, height: h });
     await pinLang(pg, 'zh');
     await gotoSettings(pg, '/zh/');
-    for (const [sel, n] of [['#curio .home-dirs', 3], ['#wild .home-wild', 2]]) {
-      const c = Math.min(cols, n);
+    for (const [sel, n, max] of [['#curio .home-dirs', 3, 3], ['#wild .home-wild', 1, 2]]) {
+      const c = Math.min(cols, max);
       const info = await pg.locator(sel).evaluate((ul) => ({
         cols: getComputedStyle(ul).gridTemplateColumns.split(' ').length,
         tops: [...ul.children].map((li) => Math.round(li.getBoundingClientRect().top)),
@@ -115,7 +115,7 @@ test('home (en): title Home, sections, wild cards to /wild/#…', async ({ page:
   await expect(pg.locator('.sgx-tb-title')).toHaveText('Home');
   await expect(pg.locator('#space-entries')).toHaveCount(0);
   await expect(pg.locator('.home-sec .home-sec-k')).toHaveText(['[01] // BLOG', '[02] // CURIO', '[03] // DAYMARK', '[04] // WILD']);
-  expect(await pg.locator('#wild a.home-mini').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/wild/#screen-time', '/wild/#status']);
+  expect(await pg.locator('#wild a.home-mini').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/wild/#status']);
   expect(await pg.locator('#curio a.home-dir').evaluateAll((els) => els.map((a) => a.getAttribute('href')))).toEqual(['/curio/finds/', '/curio/devices/', '/curio/games/']);
   await expect(pg.locator('a[href="/display/"]')).toHaveCount(0);
 });
@@ -147,12 +147,12 @@ test('old settings layer is gone: home and every subpage 404, no redirect', asyn
 });
 
 const SUBCHECKS = {
-  /* 对齐 PR-B：旷野页 = 屏幕时间 / 服务状态（v5 S7：关于本站挪到主页首屏 #about，旷野只剩两窗） */
-  wild: ['#wb-card', '#st-root'],
+  /* 对齐 PR-B：旷野页 = 服务状态（v5 S7：关于本站挪到主页首屏 #about；v6 P4：屏幕时间窗随数字健康删除） */
+  wild: ['#st-root'],
 };
 /* 2026-10-23 PR-E / 对齐 PR-B：删掉的设置项（15 分钟提醒随「数字健康不做设置」删除） */
 const GONE = {
-  wild: ['#well-v-total', '#row-welltip', '#row-reset', '#sg-wellbeing', '#sg-about', '#about'],
+  wild: ['#well-v-total', '#row-welltip', '#row-reset', '#sg-wellbeing', '#sg-about', '#about', '#screen-time', '#wb-card'],
 };
 
 for (const c of CATS) {
@@ -366,19 +366,11 @@ test('P4-2c Advanced features gone; no redirects to the old settings layer', asy
   expect(rd).not.toMatch(/goodlock|advanced|manage|accessibility/);
 });
 
-test('wild #screen-time: one screen-time window (this device when signed out), no reminder switch (对齐 PR-B)', async ({ page: pg }) => {
+test('wild: no screen-time window (v6 P4, 数字健康整套删除，定稿 v5.5 §四)', async ({ page: pg }) => {
   await pinLang(pg, 'zh');
   await gotoSettings(pg, '/zh/wild/');
-  const card = pg.locator('#wb-card');
-  await expect(card).toHaveCount(1);
-  await expect(card.locator('.sgx-term-title')).toHaveText('screen-time');
-  await expect(card.locator('[data-wb="scope"]')).toHaveText('今天 · 本机');
-  await expect(card.locator('[data-wb="total"]')).not.toHaveText('--');
-  /* P2-2：卡片带 data-wb-detail，只有 /api/wellbeing 回 detail:true（账号已登录）才换成所有设备 */
-  await expect(card).toHaveAttribute('data-wb-root', /.*/);
-  await expect(card).toHaveAttribute('data-wb-detail', /.*/);
-  /* 15 分钟提醒开关按 Gray 04:01「数字健康不做设置，做成展示页」删除 */
-  await expect(pg.locator('#row-welltip, .switch')).toHaveCount(0);
+  await expect(pg.locator('#screen-time, #wb-card, [data-wb-root]')).toHaveCount(0);
+  await expect(pg.locator('#st-root')).toHaveCount(1);
 });
 
 test('B2-2 store and its apps are gone; main-site bookmarks are gone too', async ({ page: pg }) => {

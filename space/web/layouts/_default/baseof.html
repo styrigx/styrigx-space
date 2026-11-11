@@ -280,8 +280,8 @@ __sgxLayoutWatch(__applyLayout);
 {{/* Hark：CI 锁屏开关测试专用（CI 专用，生产构建绝不设置）。
    2.8.0：legacy-lock-screen 已彻底删除，只剩 lock-gate 开关 */}}
 {{ if eq (getenv "SGX_TEST_LOCK_GATE") "0" }}{{ $featDefines = merge $featDefines (dict "SGX_FEAT_LOCK_GATE" "false") }}{{ end }}
-{{/* B2-7：测试构建（SGX_TEST_NO_WEATHER=1；名字沿用天气时代，P4-2c 天气删了，开关只管这里和首页日刻卡；静态 http-server，没有 /api）里不拉 / 不报数字健康，
-   否则 GET /api/wellbeing 404 会触发 Lighthouse errors-in-console；生产构建为 false */}}
+{{/* B2-7：测试构建（SGX_TEST_NO_WEATHER=1；名字沿用天气时代，P4-2c 天气删了，开关只管这里和首页日刻卡；静态 http-server，没有 /api）里不自动问 /api/*（奇趣计数、状态；数字健康 v6 P4 删除），
+   否则 404 会触发 Lighthouse errors-in-console；生产构建为 false */}}
 {{ $featDefines = merge $featDefines (dict "SGX_TEST_NO_WB" (cond (eq (getenv "SGX_TEST_NO_WEATHER") "1") "true" "false")) }}
 {{/* 2026-10-24 JS 拆分：所有入口一次 js.Batch 构建，共享代码拆成可缓存的 chunk（见 partials/sgx-js-batch.html）。
    主页 entry-space.js、各子页各自的入口（PR-4b 起没有页内切换，原 entry-tab-* / lazy-* 删除；2026-11 对齐 PR-C 风格页 /theme/ 退役，entry-space-sub 删除）。

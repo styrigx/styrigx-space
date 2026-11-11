@@ -19,7 +19,7 @@ import { renewSession as renewV6Session } from '../core/identity-stack.js';
 import { withNoStore, apiError } from '../lib/http.js';
 import { resolveSecrets } from '../secrets.js';
 
-/** AccountService 的接口路由表（= router.js API_ROUTES：/api/account[/*]、/api/avatar、/api/prefs、/api/profile、/api/wellbeing） */
+/** AccountService 的接口路由表（= router.js API_ROUTES：/api/account[/*]、/api/avatar、/api/prefs、/api/profile、/api/identity） */
 export const SERVICE_API_ROUTES = API_ROUTES;
 
 /**

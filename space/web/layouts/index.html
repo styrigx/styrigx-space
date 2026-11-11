@@ -7,7 +7,7 @@
 {{/* 主页（2026-11 对齐计划 PR-B，设计稿 tb4.html 主页默认 / m=1；Gray 10:43 / 10:45：功能一个不少，形式照稿）：
    首屏 = 居中 hero（状态胶囊 · $ whoami · 名字 · $ 标语打字轮播 + 闪烁光标 · # 签名）+ neofetch about 卡（v5 S7；原嵌入终端，终端挪到顶栏 >_）。
    头像只在顶栏右上；签名 2026-11-09 回到 hero 的 # 行；名字、签名都由 /api/profile 覆盖（data-sgx-profile）。
-   下面四节「[0n] // 名字」：[01] 博客 最新 3 篇 · [02] 奇趣 三个目录卡 · [03] 日刻 今日一句（强调线引言）· [04] 旷野 两张小终端卡（screen-time / status，点进 /wild/）。
+   下面四节「[0n] // 名字」：[01] 博客 最新 3 篇 · [02] 奇趣 三个目录卡 · [03] 日刻 今日一句（强调线引言）· [04] 旷野 一张小终端卡（status，点进 /wild/；screen-time 卡 v6 P4 随数字健康删除，定稿 v5.5 §四）。
    各节带 data-term-dir（终端 cd 的落点）和 data-term-label（落点提示）。内容宽 = 顶栏内容宽（--sgx-content-w 1080）。 */}}
 {{ $h := $tr.home }}
 <div class="home-wrap home-term-wrap">
@@ -124,25 +124,19 @@
     {{ end }}{{/* /日刻 */}}
   </section>
 
-  {{/* [04] 旷野（设计稿 [04] // WILD：top -n1 · systemctl status · uname + 两张小终端卡），点进 /wild/ 对应的窗：
-     screen-time = /api/wellbeing 今天各区域（lib/wb-view.js 字符条，data-wb-root 不带 data-wb-detail = 区域合计照画）；
+  {{/* [04] 旷野（设计稿 [04] // WILD：top -n1 · systemctl status · uname + 小终端卡），点进 /wild/ 对应的窗：
+     screen-time 卡 v6 P4 随数字健康整套删除，后面的卡编号前移（定稿 v5.5 §四）；
      status = 外壳取到的 /api/status（shell/topbar-panel.js mountStatus 发 sgx:status-cells，本页不另取）。
      原第三张 about 小卡（指回首屏 #about）已删（Gray 2026-11-11 00:39；about 只在首屏 neofetch），桌面两栏铺满分节。
-     每张卡右上一个位置计数「01 / 02」（Gray 2026-11-09 细节 2）。 */}}
+     每张卡右上一个位置计数「01 / 01」（Gray 2026-11-09 细节 2）。 */}}
   {{ $w := $h.wild }}
   {{ $wildUrl := partial "sgx-lang-path.html" (dict "path" "/wild/" "lang" $pageLang) }}
   <section class="home-sec" id="wild" data-term-dir="wild" data-term-label="{{ $h.wildLabel }}" aria-labelledby="home-wild-h">
     <div class="home-sec-h"><div><p class="home-sec-k" aria-hidden="true" translate="no">[04] // WILD</p><h2 class="home-sec-t" id="home-wild-h">{{ $w.title }}</h2></div><a class="home-sec-more" href="{{ $wildUrl }}" translate="no">cd wild/ →</a></div>
     <p class="home-sec-cmd" aria-hidden="true" translate="no"><span class="home-pr">$</span> top -n1 · systemctl status · uname</p>
     <ul class="home-wild" role="list">
-      <li><a class="home-dir home-mini" href="{{ $wildUrl }}#screen-time" id="w-screen" data-wb-root data-wb-term="mini">
-        <span class="home-mini-n" aria-hidden="true" translate="no">01 / 02</span>
-        <span class="home-dir-n" translate="no">screen-time</span>
-        <span class="home-mini-rows" data-wb="rows">{{ range seq 3 }}<span class="home-mini-row" data-wb-row>&nbsp;</span>{{ end }}</span>
-        <span class="home-mini-none" data-wb="none" hidden>{{ $w.screenNone }}</span>
-      </a></li>
       <li><a class="home-dir home-mini" href="{{ $wildUrl }}#status" data-home-st>
-        <span class="home-mini-n" aria-hidden="true" translate="no">02 / 02</span>
+        <span class="home-mini-n" aria-hidden="true" translate="no">01 / 01</span>
         <span class="home-dir-n" translate="no">status</span>
         <span class="home-mini-row"><i class="home-st-dot" data-home-st-dot aria-hidden="true">●</i> <span translate="no"><b class="home-st-sum" data-home-st-sum>–/6</b> active</span></span>
         <span class="home-mini-row" translate="no">avg <b class="home-st-sum" data-home-st-avg>—</b></span>

@@ -1,5 +1,7 @@
 # 主站（space）
 
+> 已被 v6 定稿取代（见 `docs/decisions/ADR-0006-identity-v6.md`）。
+
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-ARCH-010 |
@@ -16,14 +18,14 @@
 | 地址 | 模板 | 入口脚本 | 内容 |
 |---|---|---|---|
 | `/`、`/zh/` | `layouts/index.html` | `entries/entry-space.js` | 首页：hero（状态胶囊 · `$ whoami` · 名字 · `$` 标语 · `#` 签名）+ about 卡（neofetch 风格，`#about`，提示符跟身份，v5 S7；首页不再嵌终端）；下面几节 `[01]` 博客最新 3 篇、`[02]` 奇趣目录卡、`[03]` 日刻今日一句 |
-| `/wild/`、`/zh/wild/` | `layouts/_default/wild.html` | `entries/entry-space-wild.js` | 旷野：`#screen-time`（数字健康）、`#status`（服务状态，读 `/api/status`，要进站；页底进站凭证使用记录读 `/api/space-audit`）。about 卡 v5 S7 起只在首页 |
+| `/wild/`、`/zh/wild/` | `layouts/_default/wild.html` | `entries/entry-space-wild.js` | 旷野：`#status`（服务状态，读 `/api/status`，要进站；页底进站凭证使用记录读 `/api/space-audit`）。about 卡 v5 S7 起只在首页 |
 | `/404.html` | `layouts/404.html` | — | 404 |
 
 2.1 首页 `$` 行只打字轮播英文标语 `hugo.yaml` 的 `params.tagline`（中英页面相同，不翻译；`apps/home-typer.js`，减弱动效时静止）。`#` 行显示账号个人资料的签名 motto：首帧用 `data/profile.yaml` 的默认值，随后 `lib/profile.js` 以 `/api/profile` 覆盖；空值时整行隐藏，不截断、不翻译。
 
 2.2 v5 S3 起页面两态内容相同，站点核心不再剥掉任何内容（`SGX-DESKTOP` 标记已从模板删除）。
 
-2.3 已退役的页面由 `static/_redirects` 301：`/status/`、`/about/`、`/wellbeing/` → `/wild/#…`；`/theme/` → `/`；`/account/*` → `/#acct=<层>`；`/security/*` → `/#sec…`；`/owner/` → `/#sec=keys`；`/chat/`、`/search/`、`/browser/*`、`/files/*` → `/`。
+2.3 已退役的页面由 `static/_redirects` 301：`/status/`、`/about/` → `/wild/#…`（`/wellbeing/` v6 P4 删除）；`/theme/` → `/`；`/account/*` → `/#acct=<层>`；`/security/*` → `/#sec…`；`/owner/` → `/#sec=keys`；`/chat/`、`/search/`、`/browser/*`、`/files/*` → `/`。
 
 2.4 版本号唯一来源 `space/web/data/version.yaml`（`ui`、`sgx` 两个字段），模板缺字段即构建失败。
 
@@ -49,7 +51,7 @@
 
 4.2 账号已登录时 `lib/cloud-sync.js` 把 `sgx-` 开头的白名单设置同步到 `/api/prefs`（需要作用域 `prefs.sync`）。
 
-4.3 数字健康按天写 `/api/wellbeing`（需要 `wellbeing.write`），旷野 `#screen-time` 读取。
+4.3 数字健康（`/api/wellbeing`、旷野 `#screen-time`）v6 P4 整套删除（定稿 v5.5 §四）。
 
 ## 5. 测试
 

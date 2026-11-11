@@ -5,7 +5,7 @@
 | 文档编号 | SGX-SPEC-004 |
 | 版本 | 0.5 |
 | 日期 | 2026-11-11 |
-| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity；割接加 action private、其余 Worker 接 v6；P4 删旧入口 20 条） |
+| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity；割接加 action private、其余 Worker 接 v6；P4 删旧入口 20 条；P4 收尾删应用授权；P4-2 删数字健康两条） |
 
 
 > 状态：P1 定稿（2026-11-11，Gray 已定 17 条存疑），基线 main 05abe443。机器可读的唯一来源是 `workers/account/src/core/route-access.js` 的 `ROUTE_ACCESS`；
@@ -28,8 +28,8 @@
 
 | 档 | 路由数 |
 |---|---|
-| public | 25 |
-| user | 6 |
+| public | 24 |
+| user | 5 |
 | ai | 2 |
 | status | 1 |
 | listen | 3 |
@@ -37,9 +37,9 @@
 | daymark-write | 6 |
 | owner | 1 |
 | root | 5 |
-| **合计** | **57**（另有 11 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor，P4 删 ShareJanitor） |
+| **合计** | **55**（另有 11 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor，P4 删 ShareJanitor） |
 
-按 Worker：站点核心 6、账号 13、奇趣 20、日刻 13、代理 6（P4 删旧入口 20 条后）。有 action 另定档的接口 11 个（curio music、identity；割接加的 `private`：curio items / links / movies / photo / icon / music、daymark quotes / collections 的 GET；2c 加 `POST /api/ai` 的 `private`）。
+按 Worker：站点核心 6、账号 11、奇趣 20、日刻 13、代理 6（P4 删旧入口 20 条、应用授权与数字健康之后）。有 action 另定档的接口 11 个（curio music、identity；割接加的 `private`：curio items / links / movies / photo / icon / music、daymark quotes / collections 的 GET；2c 加 `POST /api/ai` 的 `private`）。
 
 P2 变更（2026-11-11）：`PUT /api/profile` root → **owner**（站长 styrigx + root，其余拒）；新增 `POST /api/identity`（v6 身份命令，public 入口，每个 action 一档，救援只放 whoami / exit / lock / passwd / passkey-* / groups）。
 
@@ -77,9 +77,11 @@ P4 变更（2026-11-11，定稿 v5.3 §十三 P4 行）：删旧入口 20 条—
 
 P4 收尾（2026-11-11，定稿 v5.3 §十二，Gray 19:41）：应用授权整套删除——`POST /api/account/grants`（app allow | deny）删去（58 → 57 条，root 6 → 5）；奇趣 / 日刻写入只按 v6 会话加组判定，`SpaceVerifier.conclusion()` 一并删除。
 
+P4-2（2026-11-11，定稿 v5.5 §四、§五）：数字健康整套删除——`POST /api/wellbeing`、`GET /api/wellbeing` 删去（57 → 55 条，public 25 → 24、user 6 → 5），网关访问表与账号 `PUBLIC_API` 的 `GET /api/wellbeing`、转发表 `/api/wellbeing` 一并删；无身份访问 `/api/wellbeing` 现按未列入的 `/api/*` 处理。
+
 ### 已定（Gray 2026-11-11）
 
-盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致（P4 删 `lock-all-devices` 后剩 16 条）。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **owner** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。
+盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致（P4 删 `lock-all-devices` 后剩 16 条，P4-2 删数字健康两条后剩 14 条）。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **owner** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。
 
 | 路由 | 定稿 | 理由 |
 |---|---|---|
@@ -89,8 +91,6 @@ P4 收尾（2026-11-11，定稿 v5.3 §十二，Gray 19:41）：应用授权整�
 | `GET /api/profile` | public | 资料本身是公开数据（主页名片） |
 | `PUT /api/profile` | **owner**（P2 定稿 v4；P1 为 root） | 站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长 |
 | `GET` / `POST /api/prefs` | user | P2 加 uid |
-| `POST /api/wellbeing` | user | P2 加 uid 列 |
-| `GET /api/wellbeing` | public | 合计公开；明细只给本人（按 uid，不按组） |
 | `GET /curio/api/items` / `links` / `movies` | public | 私密行只给写组 curio-write |
 | `GET /curio/api/export` | **root**（原拟 curio-write） | 导出全部收藏含私密 |
 | `GET /daymark/api/quotes` | public | 私密句子只给写组 daymark-write |
@@ -127,8 +127,6 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | PUT | `/api/profile` | **owner** |  |  | 保留 | 改站点个人资料（站长资料，不是每个用户一份） | Gray 2026-11-11 定稿 v4：站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长 |
 | GET | `/api/prefs` | **user** |  |  | 保留 | 读自己的设置云同步（偏好归 styrigx，按 uid） | Gray 2026-11-11 定 user：P2 加 uid（uid 只取服务端会话） |
 | POST | `/api/prefs` | **user** |  |  | 保留 | 写自己的设置云同步 | Gray 2026-11-11 定 user：同上 |
-| POST | `/api/wellbeing` | **user** |  |  | 保留 | 数字健康上报（只记自己的） | Gray 2026-11-11 定 user：P2 加 uid 列（uid 只取服务端会话） |
-| GET | `/api/wellbeing` | **public** |  |  | 保留 | 区域合计公开；明细（书名 / 文章名）只给本人 | Gray 2026-11-11 定 public：合计公开，明细只给本人（按 uid，不按组） |
 
 ### 奇趣接口 styrigx-curio-core（styrigx.com/curio/api/*，不经网关）
 
@@ -193,7 +191,7 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | ai | `GET /models` | space-core GET /api/ai | 模型列表（ai 组） |
 | ai | `GET /healthz` | styrigx-status 监测 | 健康检查 |
 | status | `GET /summary` | space-core GET /api/status（STATUS） | 监测数据（status 组） |
-| account | `AccountService.fetch` | space-core FORWARDING（ACCOUNT） | 上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/wellbeing、/api/identity、/avatar/* |
+| account | `AccountService.fetch` | space-core FORWARDING（ACCOUNT） | 上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/identity、/avatar/* |
 | account | `AccountVerifier.admit / auditRoot` | space-core（ACCOUNT_VERIFIER） | v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除） |
 | space-core | `SpaceVerifier.admit / auditRoot` | curio-core、daymark-core（SPACE） | admit / auditRoot 原样转给账号 Worker（v6 P4 起 session、ShareJanitor、conclusion 删除） |
 | account | `AccountJanitor.purgeExpiredUsers` | styrigx-status 每日一轮（JOB_ACCOUNT） | 到期满 30 天的用户自动删除（v6 P2c，定稿 v5 §八） |

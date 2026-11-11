@@ -1,6 +1,6 @@
 /**
  * P4-3 PR-4b（§6.4 / §6.5，§8 第 6 条）：主页和设置合成「旷野 / Space」，原设置子页去掉 settings 一层挂到根下。
- * - 单一数据源对得上：data/space-cats.yaml 的分类 ↔ content 的 url ↔ lib/wb-area.js SPACE_SUB_RE
+ * - 单一数据源对得上：data/space-cats.yaml 的分类 ↔ content 的 url
  * - 根下新路径不和子站前缀、账号页、各 Worker 路由、网关转发表、静态目录、_redirects 的旧跳转撞名
  * - 构建产物（有才跑；CI 在拼树之后补跑）：没有 settings/ 目录；任何 HTML 都没有指向旧设置层的 href；新地址都在
  * - 全仓 git grep 旧设置层地址只剩历史文档
@@ -59,13 +59,8 @@ export function reservedSegments() {
   return m;
 }
 
-test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 一层', async () => {
+test('space-cats.yaml ↔ content url 一致；没有 settings 一层（数字健康区域 SPACE_SUB_RE v6 P4 删除）', async () => {
   assert.deepEqual([...cats].sort(), ['wild'], '对齐 PR-B：数字健康 / 服务状态 / 关于本站并进 /wild/；对齐 PR-C：风格页 /theme/ 退役；进站 v3 L1：安全页删了（盾牌下拉）');
-  const { SPACE_SUB_RE, wbAreaOf } = await import(pathToFileURL(path.join(REPO, 'space/web/assets/js/lib/wb-area.js')).href);
-  for (const p of NEW_PATHS) {
-    assert.ok(SPACE_SUB_RE.test(p) && SPACE_SUB_RE.test('/zh' + p), p + ' 应算旷野子页');
-    assert.equal(wbAreaOf(p), 'space', p);
-  }
   /* content：中英两份，url 都是新地址 */
   const urls = [];
   for (const dir of ['space/web/content', 'space/web/content/zh']) {
@@ -98,10 +93,12 @@ test('space-cats.yaml ↔ content url ↔ SPACE_SUB_RE 一致；没有 settings 
   /* 对齐 PR-B：旧的三页 301 到旷野对应的锚点（中英）；v5 S7：about 卡挪到主页首屏，/about/ → /#about */
   assert.match(red, /^\/about\/\s+\/#about\s+301$/m, '/about/ → /#about');
   assert.match(red, /^\/zh\/about\/\s+\/zh\/#about\s+301$/m, '/zh/about/ → /zh/#about');
-  for (const [old, anchor] of [['status', 'status'], ['wellbeing', 'screen-time']]) {
+  for (const [old, anchor] of [['status', 'status']]) {
     assert.match(red, new RegExp(`^/${old}/\\s+/wild/#${anchor}\\s+301$`, 'm'), `/${old}/ → /wild/#${anchor}`);
     assert.match(red, new RegExp(`^/zh/${old}/\\s+/zh/wild/#${anchor}\\s+301$`, 'm'), `/zh/${old}/ → /zh/wild/#${anchor}`);
   }
+  /* v6 P4：/wellbeing/ 跳转随数字健康整套删除（定稿 v5.5 §四） */
+  assert.doesNotMatch(red, /^\/(zh\/)?wellbeing\//m, '_redirects 里没有 /wellbeing/');
 });
 
 test('根下新路径不和子站、账号、Worker 路由、转发表、静态目录、旧跳转撞名', () => {
@@ -158,7 +155,7 @@ test('构建产物：没有 settings/ 目录，任何 HTML 都没有 href 指向
   assert.ok(en.includes('href="/wild/"'), '主页有 /wild/ 入口');
   for (const pre of ['', 'zh/']) assert.ok(!existsSync(path.join(REPO, 'space/web/public', pre + 'security')), pre + 'security/ 不再生成（301 到盾牌）');
   for (const old of ['status', 'about', 'wellbeing']) for (const pre of ['', 'zh/']) {
-    assert.ok(!existsSync(path.join(REPO, 'space/web/public', pre + old, 'index.html')), `${pre}${old}/ 不再生成（301 到旷野）`);
+    assert.ok(!existsSync(path.join(REPO, 'space/web/public', pre + old, 'index.html')), `${pre}${old}/ 不再生成`);
   }
 });
 

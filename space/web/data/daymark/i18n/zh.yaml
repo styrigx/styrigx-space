@@ -101,7 +101,6 @@ js:
     remove: 移出专题
     needAccount: su 登录后可编辑。
     signin: su 登录后可编辑
-    noScope: 日刻未获账号授权
     noScopeErr: 日刻未获账号授权。
     del: 删除
     fromTrove: 拾录里的一句

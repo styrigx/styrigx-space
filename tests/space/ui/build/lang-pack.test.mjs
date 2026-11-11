@@ -294,11 +294,9 @@ test('Worker 名字（语言包化第二部分）：服务状态站名接口只�
   /* 授权应用名（js.account.app_*）随应用授权与 core/scopes.js 一起删除（定稿 v5.3 §十二） */
   assert.equal(Object.keys(en.account).filter((k) => k.startsWith('app_')).length, 0);
   assert.equal(Object.keys(zh.account).filter((k) => k.startsWith('app_')).length, 0);
-  /* 数字健康区域（对齐 PR-B 起终端字符条形式）：行首直接显示区域键（space / blog / book …，等宽、不翻译），旧的本语言区域名 wbArea_* 和彩色圆点 COLORS 删除 */
-  const wb = rd('space/web/assets/js/lib/wb-view.js');
-  assert.doesNotMatch(wb, /const COLORS|wbArea_/);
-  assert.ok(!Object.keys(en.space).some((k) => k.startsWith('wbArea_')) && !Object.keys(zh.space || {}).some((k) => k.startsWith('wbArea_')), '字符串表里不留 wbArea_*');
-  assert.match(wb, /<span class="wb-k" translate="no">/, '区域键标 translate="no"');
+  /* 数字健康（lib/wb-view.js 与 wbArea_* / wbTodayAllDevices 文案）v6 P4 整套删除（定稿 v5.5 §四） */
+  assert.ok(!existsSync(path.join(REPO, 'space/web/assets/js/lib/wb-view.js')), 'lib/wb-view.js 已删');
+  assert.ok(!Object.keys(en.space).some((k) => k.startsWith('wb')) && !Object.keys(zh.space || {}).some((k) => k.startsWith('wb')), '字符串表里不留 wb*');
   /* 奇趣搜索索引的页签 / 类型标签：英文底 + 中文层，缺键回退英文 */
   const { labels } = await import('../../../../workers/curio-core/src/search-index.js');
   assert.equal(labels('zh').kinds.phone, '手机');

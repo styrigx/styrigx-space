@@ -13,5 +13,5 @@ declare const SGX_FEAT_WELL_TIP: boolean;
 declare const SGX_FEAT_LOCK_GATE: boolean;
 /* Hark：CI 测试构建期禁用锁屏（SGX_TEST_NO_LOCK=1 时）；生产构建为 false */
 declare const SGX_TEST_NO_LOCK: boolean;
-/* B2-7：CI 静态测试构建（SGX_TEST_NO_WEATHER=1）不调 /api/wellbeing；生产构建为 false */
+/* B2-7：CI 静态测试构建（SGX_TEST_NO_WEATHER=1）不自动问 /api/*（数字健康 v6 P4 删除后只管奇趣计数、状态）；生产构建为 false */
 declare const SGX_TEST_NO_WB: boolean;

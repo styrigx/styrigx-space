@@ -7,12 +7,15 @@
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, nextFrames, scrolledTo, expect } = require('../helpers/helpers');
+const fxStatus = require('../../../fixtures/status-summary.cjs');
 
 test.use({ viewport: { width: 412, height: 860 }, isMobile: true, hasTouch: true, colorScheme: 'dark' });
 
-async function go(page, path) {
+async function go(page, path, setup) {
   await blockExternalRequests(page);
   await freezeTime(page);
+  /* 页面自己的 mock 要在 blockExternalRequests 之后注册（后注册的路由优先） */
+  if (setup) await setup();
   if (path.indexOf('/zh/') === 0) await page.addInitScript(() => { try { localStorage.setItem('sgx-lang', 'zh'); } catch (e) {} });
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.sgx-topbar')).toBeVisible({ timeout: 15000 });
@@ -55,11 +58,14 @@ async function startPoint(page, sel, n) {
 }
 
 test.describe('触屏：从终端窗起划滚页面', () => {
-  test('旷野两窗（v5 S7 删了 about）：在窗里上划，页面 scrollY 增加', async ({ page }) => {
-    await go(page, '/wild/');
+  test('旷野终端窗（v5 S7 删了 about；v6 P4-2 删了 screen-time，只剩 status）：在窗里上划，页面 scrollY 增加', async ({ page }) => {
+    /* 只剩 status 一窗后，状态没数据时页面不够一屏多：/api/status 用 fixture（同 space-status / visual），窗里有 unit 和可用率条，页面能滚 */
+    await go(page, '/wild/', () => page.route('**/api/status', (route) => route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify(fxStatus.withUsage(fxStatus.normal(), fxStatus.usage())) })));
+    await expect(page.locator('#st-units > li').first()).toBeVisible();
     const sel = '.wild-term .sgx-term-body';
     const n = await page.locator(sel).count();
-    expect(n).toBeGreaterThanOrEqual(2);
+    expect(n).toBeGreaterThanOrEqual(1);
     for (let i = 0; i < n; i++) {
       const p = await startPoint(page, sel, i);
       const y0 = await page.evaluate(() => window.scrollY);
@@ -101,7 +107,8 @@ test.describe('AI 浮钮给页脚让位', () => {
   }
 
   test('页脚不在视口时浮钮回到基准位置（离底 ≥ 28px）', async ({ page }) => {
-    await go(page, '/wild/');
+    /* v6 P4-2：旷野只剩 status 一窗，一屏能看到页脚；改用比一屏长的主页测「页脚不在视口」 */
+    await go(page, '/');
     await page.evaluate(() => window.scrollTo(0, 0));
     await scrolledTo(page, 0);
     await nextFrames(page, 3);

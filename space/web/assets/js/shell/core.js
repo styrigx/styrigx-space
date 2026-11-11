@@ -1,7 +1,7 @@
 /**
  * @fileoverview 全站公共 core：所有页面入口先初始化它。
  * 包含：搜索快捷键/返回历史、子页面标题联动、主题、Dock/顶栏/抽屉、
- * 高级功能全站模块（快捷键）+ 本机到访计时 / 15 分钟提醒、滚动边缘效果、布局钩子。
+ * 滚动边缘效果、布局钩子（本机到访计时与数字健康 v6 P4 删除，定稿 v5.5 §四）。
  * 必须跨脚本共享的最小 API 挂到 window.SGX（见 sgx.js）。
  */
 import { SGX } from '../lib/sgx.js';
@@ -11,7 +11,6 @@ import { initHeadButtons } from './head-buttons.js';
 import { initThemeListener } from '../lib/theme.js';
 import { applyTheme, setThemeMode } from '../lib/theme.js';
 import { initNav } from './nav.js';
-import { initGoodLock } from './goodlock.js';
 import { initScrollFx } from './scrollfx.js';
 /* 锁屏 / 升级只放守卫进 core；界面在 space/guard.js 里按需 import()（frontend-js #6） */
 import { initLock } from './space/guard.js';
@@ -20,9 +19,6 @@ import { normPalette, DEFAULT_PALETTE } from '../lib/prefs.js';
 import { toast } from '../lib/toast.js';
 import { syncUiCookie } from '../lib/ui-cookie.js';
 import { initCloudSync, bindSessionSync } from '../lib/cloud-sync.js';
-import { initWbTrack } from '../lib/wb-track.js';
-import { loadWb } from '../lib/wb-view.js';
-import { wbAreaOf } from '../lib/wb-area.js';
 import { openSheet, closeSheet } from './sheet.js';
 import { initFavicon } from './favicon.js';
 import { initProfile } from '../lib/profile.js';
@@ -61,7 +57,6 @@ export function initCore() {
   initHeadButtons();
   initThemeListener();
   initNav(S);
-  initGoodLock();
   initScrollFx(S);
   initFeatSync();
   /* Hark：CI 测试构建禁用锁屏（构建期摇掉，线上无残留） */
@@ -79,12 +74,6 @@ export function initCore() {
   initCloudSync().catch(function () {});
   /* 2c：v6 su 之后页面标记就地切成 valid → 立即强制拉一次；exit / lock 回访客 → 丢掉没推的改动 */
   bindSessionSync();
-
-  /* B2-7：网站数字健康——本页计时上报；页面上有数字健康卡片就拉今天的数据。
-     区域键每次现取（P4-3 PR-4b 起主站只有旷野一页，没有页内切换） */
-  const wbArea0 = wbAreaOf(location.pathname);
-  if (!SGX_TEST_NO_WB && wbArea0) initWbTrack({ key: function () { return wbAreaOf(location.pathname); } });
-  if (!SGX_TEST_NO_WB) loadWb();
 
   /* 跨脚本/模板桥接的最小公共 API */
   Object.assign(SGX, {

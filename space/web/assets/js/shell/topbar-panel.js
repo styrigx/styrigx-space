@@ -653,9 +653,9 @@ export function mountTopbar(o) {
     e.stopPropagation();
     acctEntry(a.getAttribute('data-acct-open') || '');
   });
-  /* 旧地址（/account/、/account/devices/ …）跳到这里带 #acct=<名字>[&app=…]：同上，去掉 hash（O1） */
+  /* 旧地址（/account/、/account/devices/ …）跳到这里带 #acct=<名字>：同上，去掉 hash（O1；&app= 随应用授权删除，v6 P4） */
   const fromHash = function () {
-    const m = /^#acct(?:=([a-z]*))?(?:&app=([a-z]+))?$/.exec(location.hash || '');
+    const m = /^#acct(?:=([a-z]*))?$/.exec(location.hash || '');
     if (!m) return;
     try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
     window.setTimeout(function () { acctEntry(m[1] || ''); }, 0);
@@ -1156,7 +1156,7 @@ export function mountStatus(d) {
       .catch(function () {})
       .then(function () { busy = false; });
   };
-  /* CI 静态测试构建（SGX_TEST_NO_WB，同数字健康）没有 /api：加载时不自动问，免得 404 进控制台（Lighthouse errors-in-console）；
+  /* CI 静态测试构建（SGX_TEST_NO_WB）没有 /api：加载时不自动问，免得 404 进控制台（Lighthouse errors-in-console）；
      e2e 要测这条时先设 window.__sgxStatusApi = true（只在测试构建里有这个分支，生产构建 define 为 false 整段摇掉；博客测试构建同样定义（partials/blog/script.html，对齐 PR-C1）；奇趣 / 日刻构建没有这个 define，按生产走） */
   const noApi = typeof SGX_TEST_NO_WB !== 'undefined' && SGX_TEST_NO_WB && !(/** @type {any} */ (window).__sgxStatusApi);
   if (noApi) return function () {};

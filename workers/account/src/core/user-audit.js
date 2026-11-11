@@ -18,8 +18,9 @@ export const USER_AUDIT_TTL_MS = 90 * 24 * 3600 * 1000;
 export const USER_AUDIT_COMMANDS = Object.freeze(['useradd', 'userdel', 'usermod', 'passwd', 'passkey', 'su', 'sudo', 'exit', 'idle', 'lock', 'rescue', 'recovery-key', 'login-fail', 'expire',
   /* root 的特权内容操作（定稿 v4 §十：root 干的事都留痕）：root 改名片 profile、批量 / 结构删除 rm-bulk（P2 起账号侧；子站接口 Worker 接上新会话后同样写） */
   'profile', 'rm-bulk',
-  /* 割接（v6 cutover）：root 的其他特权操作——代理订阅 sub、分享链接 share（网关）、奇趣导入 / 导出 import / export（子站经 AccountVerifier.auditRoot） */
-  'app', 'sub', 'share', 'import', 'export']);
+  /* 割接（v6 cutover）：root 的其他特权操作——代理订阅 sub、分享链接 share（网关）、奇趣导入 / 导出 import / export（子站经 AccountVerifier.auditRoot）；
+     应用授权 app 随应用授权整套删除（v6 P4，定稿 v5.5 §十二） */
+  'sub', 'share', 'import', 'export']);
 /** command 最长字符数 */
 export const USER_AUDIT_COMMAND_MAX = 200;
 

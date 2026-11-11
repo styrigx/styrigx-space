@@ -1,5 +1,7 @@
 # v5 真机冒烟清单（S1–S7 + sub v3.1）
 
+> 已被 v6 定稿取代（见 `docs/decisions/ADR-0006-identity-v6.md`）。
+
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-OPS-003 |

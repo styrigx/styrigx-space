@@ -24,9 +24,8 @@
         {{/* 设为今日：只在 canWrite、只在抽到一句公开的（不是今日那句）之后出现（daymark.js canSetToday）；点了改写今天那句（PUT /api/today） */}}
         <button id="dm-set-today" type="button" class="sgx-cmd hidden"><span class="sgx-cmd-k" translate="no">set today</span><i>{{ $tr.index.setAsToday }}</i></button>
         <button id="dm-back-today" type="button" class="sgx-cmd hidden"><span class="sgx-cmd-k" translate="no">cat today</span><i>{{ $tr.index.backToToday }}</i></button>
-        {{/* 不能编辑（接口回 canWrite=false）：命令链里多一条「sudo root」（2026-11-08 账号命令体系 v3），点它打开顶栏账号终端
-           （data-acct-open，shell/topbar-panel.js 接住；daymark.js signinHint 按有没有账号会话换说明和入口：没登录 → 登录 + 授权同意 → 回本页；已登录没授权 → 应用授权）。
-           href 只是没 JS / 中键时的退路：本语言首页 #acct&app=daymark */}}
+        {{/* 不能编辑（接口回 canWrite=false）：命令链里多一条「su」（2c 起 data-sec-open，打开顶栏终端预填 su ；daymark.js signinHint 按有没有 v6 登录换说明）。
+           href 只是没 JS / 中键时的退路：本语言首页 #sec（「未获授权 → #acct&app=daymark」随应用授权删除，v6 P4） */}}
         <a id="dm-signin" data-dm-signin class="sgx-cmd hidden" data-sec-open="" href="{{ partial "sgx-lang-path.html" (dict "path" "https://styrigx.com/" "lang" ($lang)) }}#sec"><span class="sgx-cmd-k" translate="no">su</span><i data-signin-text>{{ $tr.index.signInToYour }}</i></a>
       </div>
       <nav id="dm-dcal" class="dm-dcal" aria-label="{{ $tr.index.dayStrip }}"></nav>

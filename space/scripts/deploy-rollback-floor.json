@@ -26,5 +26,13 @@
   "styrigx-ai": {
     "why": "进站 v3 L3：L2b 切库（2026-11-09 12:16 CST 那次部署）之前的版本读已删的 KV styrigx-space-gateway，不退过去",
     "notBefore": "2026-11-09T04:16:00Z"
+  },
+  "styrigx-curio-core": {
+    "why": "v6 P4 收尾（#411，8b3e5701；定稿 v5.5 §十二「旧校验收尾」）：网关 SpaceVerifier.conclusion() 删除，奇趣 _auth.js 只留 v6 判定（SpaceVerifier.admit）。更早的版本先问已删的 conclusion()，退回去子站接口报错。notBefore = #411 那次 main 部署 deploy-curio-core 开始（2026-11-11 12:35:44 UTC = 20:35 CST，run 43020730870），回滚下限即 #411 部署的奇趣版本",
+    "notBefore": "2026-11-11T12:35:44Z"
+  },
+  "styrigx-daymark-core": {
+    "why": "v6 P4 收尾（#411，8b3e5701；定稿 v5.5 §十二「旧校验收尾」）：网关 SpaceVerifier.conclusion() 删除，日刻 _auth.js 只留 v6 判定（SpaceVerifier.admit）。更早的版本先问已删的 conclusion()，退回去子站接口报错。notBefore = #411 那次 main 部署 deploy-daymark-core 开始（2026-11-11 12:35:44 UTC = 20:35 CST，run 43020730870），回滚下限即 #411 部署的日刻版本",
+    "notBefore": "2026-11-11T12:35:44Z"
   }
 }

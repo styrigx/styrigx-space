@@ -246,12 +246,12 @@ test('一致性：无会话调非白名单接口', async () => {
   await same((h) => new Request('https://styrigx.com/api/geo-nope', { headers: h }));
 });
 
-test('账号路径（/api/account、头像、云同步、数字健康）不在网关路由表；有会话打过来但没绑 ACCOUNT → 503 upstream（不落回 404 / 回源）', async () => {
+test('账号路径（/api/account、头像、云同步）不在网关路由表（数字健康 v6 P4 删除）；有会话打过来但没绑 ACCOUNT → 503 upstream（不落回 404 / 回源）', async () => {
   for (const p of ['/api/account', '/api/avatar', '/api/prefs', '/api/wellbeing']) assert.equal(API_ROUTES.has(p), false, p);
   const env = baseEnv();
   const ck = 'sgx-session=root';
   await withOrigin('X', async (calls) => {
-    for (const [m, p] of [['POST', '/api/account/devices'], ['PUT', '/api/avatar'], ['GET', '/api/prefs'], ['POST', '/api/wellbeing']]) {
+    for (const [m, p] of [['POST', '/api/account/devices'], ['PUT', '/api/avatar'], ['GET', '/api/prefs']]) {
       const res = await worker.fetch(new Request('https://styrigx.com' + p, { method: m, headers: { Cookie: ck } }), env, CTX);
       assert.equal(res.status, 503, p);
       assert.deepEqual(await res.json(), { ok: false, error: 'upstream' }, p);

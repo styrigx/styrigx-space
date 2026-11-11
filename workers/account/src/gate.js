@@ -73,7 +73,7 @@ export async function scopeDenial(auth, _scope, headers) {
  * 不要身份的接口（方法 + 路径，精确匹配）。必须是网关访问表（workers/space-core/src/gate.js ROUTE_ACCESS）里
  * 转发到本 Worker 的 public 条目的同一份；tests/workers/account/service.test.mjs 核对两边一致。
  */
-export const PUBLIC_API = Object.freeze(['POST /api/identity', 'GET /api/wellbeing', 'GET /api/profile']);
+export const PUBLIC_API = Object.freeze(['POST /api/identity', 'GET /api/profile']);
 
 /**
  * 纵深防御的最小门（门本身在网关 src/gate.js 访问表，结论相同）：/api/* 不在 PUBLIC_API 里、又没有一个 v6 身份够这条路由的档 → 401 {ok:false}；

@@ -73,7 +73,7 @@ test('index.js：默认导出就是 app.js 的 default；AccountService / Accoun
 
 test('路由表（v6 P4）：/api/account/devices、proxy + 四个账号数据接口 + /api/identity；/api/account 状态与 session / reauth / reset / keys、应用授权 grants 删除', () => {
   assert.deepEqual([...index.API_ROUTES.keys()].sort(), ['/api/account/devices', '/api/account/proxy',
-    '/api/avatar', '/api/identity', '/api/prefs', '/api/profile', '/api/wellbeing']);
+    '/api/avatar', '/api/identity', '/api/prefs', '/api/profile']);
   assert.equal(ep.SERVICE_API_ROUTES, index.API_ROUTES);
 });
 

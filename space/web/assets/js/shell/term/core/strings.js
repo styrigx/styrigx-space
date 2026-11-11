@@ -22,7 +22,7 @@ export function shellSection(doc, sec) {
 }
 
 /**
- * 嵌套字符串表 → 点号键（space.session.lead → 'session.lead'）
+ * 嵌套字符串表 → 点号键（space.common.termAria → 'common.termAria'）
  * @param {any} tree @param {string} [pre] @param {Record<string, string>} [acc]
  * @returns {Record<string, string>}
  */

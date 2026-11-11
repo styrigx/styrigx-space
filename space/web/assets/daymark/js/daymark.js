@@ -12,7 +12,7 @@
  * - 百味：先是自建专题（能编辑时多一张「＋ 新建」），再是按作者自动分组的「人物」；点进去是该组的句子（页内返回）。
  *   能编辑时在自建专题里可以上移 / 下移 / 移出句子、删专题。
  * - 不能编辑（canWrite=false）：余响命令链里多一条（#dm-signin，signinHint）：没登录 →「su · su 登录后可编辑」，点了打开顶栏终端、预填 su （2c）
- *   已登录（旧账号会话）但日刻没有 daymark.write → 「日刻未获账号授权」，打开应用授权那一层。写接口回 401 account / 403 scope 分别提示这两句。
+ *   已以 v6 用户登录但不在 daymark-write → 无权限句（「未获账号授权 → 应用授权」那一层随应用授权删除，v6 P4）。
  * - 记一句（底部弹层）：顶部实时预览；句子；「＋ 加译文」；作者（自动补全 + 最近作者）；出处（类型 + 名字自动补全）；
  *   归入百味（多选 + 就地新建）；标签（回车 / 逗号成块，推荐已有标签）；随手一笔（只有账号已登录看得到）；公开开关。
  *
@@ -340,23 +340,21 @@ function send(method, url, body){
 /* 2b：403 forbidden = v6 身份档不够（不在 daymark-write，或删整个专题不是 root） */
 function failText(e){ var c = e && e.code; return c === 'account' ? T.needAccount : c === 'scope' ? T.noScopeErr : c === 'forbidden' && T.noPermission ? T.noPermission : T.failed; }
 /**
- * 不能编辑时那一条（P3-1；2026-11-08 账号 UI 改版：打开顶栏账号终端，shell/topbar-panel.js 接 [data-acct-open]）：
- * 没登录账号 → sudo root 登录 → 判授权 → 关面板回本页；已登录没授权 → 应用授权那一层。
- * @param {boolean} loggedIn 接口回的 showPrivate（= 有账号会话）
+ * 不能编辑时那一条（2c 起是 su 入口，data-sec-open）：没登录 → su；已以 v6 用户登录但不在写组 → 无权限句，仍是 su。
+ * 「未获账号授权 → #acct=apps」那一支随应用授权整套删除（v6 P4，定稿 v5.5 §十二）。
  */
-function signinHint(loggedIn){
-  if (loggedIn) return { text: T.noScope, open: 'apps', app: '' };
+function signinHint(){
   /* 2d：已经以 v6 用户登录（登录标记 sgx-id=1，同 shell/identity/api.js hasMarker）、只是不在写组 → 命令仍是 su（v6-stepup-app-map：缺组时提示 su），
      文字换成站内已上线的无权限句 noPermission「当前用户没有这个权限。」，不再说「su 登录后可编辑」 */
   if (v6SignedIn() && T.noPermission) return { text: T.noPermission, open: '', app: '', su: true };
-  /* 2c（v6 割接）：没登录 → 指向 su（打开顶栏终端，data-sec-open：没登录预填 su ）；上面那条旧账号会话没授权的分支 P4 删 */
+  /* 2c（v6 割接）：没登录 → 指向 su（打开顶栏终端，data-sec-open：没登录预填 su ） */
   return { text: T.signin, open: '', app: '', su: true };
 }
 /** 有没有 v6 登录标记（服务端随 sgx-session 写的 sgx-id=1；不含秘密） */
 function v6SignedIn(){
   try { return /(?:^|;\s*)sgx-id=1(?:;|$)/.test(doc.cookie || ''); } catch (e) { return false; }
 }
-/** 入口链接：su（data-sec-open，退路 #sec）或旧账号入口（data-acct-open / data-acct-app，退路 本语言首页 #acct=…） @param {Element} a @param {{open: string, app: string, su?: boolean}} h */
+/** 入口链接：su（data-sec-open，退路 #sec；旧账号入口 #acct…&app= 随应用授权删除，v6 P4） @param {Element} a @param {{open: string, app: string, su?: boolean}} h */
 function setAcctOpen(a, h){
   var base = (a.getAttribute('href') || '/').replace(/#.*$/, '');
   var k = a.querySelector('.sgx-cmd-k');
@@ -367,13 +365,7 @@ function setAcctOpen(a, h){
     a.setAttribute('data-sec-open', '');
     a.setAttribute('href', base + '#sec');
     if (k) k.textContent = 'su';
-    return;
   }
-  a.removeAttribute('data-sec-open');
-  a.setAttribute('data-acct-open', h.open);
-  if (h.app) a.setAttribute('data-acct-app', h.app); else a.removeAttribute('data-acct-app');
-  a.setAttribute('href', base + '#acct' + (h.open ? '=' + h.open : '') + (h.app ? '&app=' + h.app : ''));
-  if (k) k.textContent = 'sudo root';
 }
 function toast(msg){
   var el = $('#bk-toast');
@@ -990,7 +982,7 @@ function boot(){
     if (showPrivate) syncQuoteCollections();
     loaded = true;
     doc.documentElement.classList.toggle('dm-can-write', canWrite);
-    var h = canWrite ? null : signinHint(showPrivate);
+    var h = canWrite ? null : signinHint();
     doc.querySelectorAll('[data-dm-signin]').forEach(function(hint){
       hint.classList.toggle('hidden', canWrite);
       if (h) { var t = hint.querySelector('[data-signin-text]'); if (t) t.textContent = h.text; setAcctOpen(hint, h); }

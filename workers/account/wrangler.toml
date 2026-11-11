@@ -1,7 +1,7 @@
 # styrigx-account：账号 Worker（CI 部署；完整的账号系统，账号拆分 PR3）
 #
 # 管站点账号的全部身份和数据：账号密码、账号通行密钥、恢复密钥、已登录设备、session / reauth / reset 三张票、应用授权、审计（D1_ACCOUNT 的 account_* 表），
-# 以及头像 / 个人资料（KV_PROFILE）、设置云同步（D1_ACCOUNT 的 settings_sync）、数字健康（D1_ACCOUNT 的 wb_daily）。
+# 以及头像 / 个人资料（KV_PROFILE）、设置云同步（D1_ACCOUNT 的 settings_sync）。
 # 代码：src/（部署入口 index.js：默认 fetch = app.js（一律 404），命名入口 rpc/account-service.js AccountService、rpc/account-verifier.js AccountVerifier；
 # 身份头门 gate.js、路由 router.js、接口 api/、账号身份 core/、公共 lib/；骨架见 workers/README.md）+ migrations/（D1 styrigx-account）。分层与边界见 workers/account/README.md、docs/architecture/overview.md「Worker 边界」。
 #
@@ -44,8 +44,8 @@ binding = "KV_PROFILE"
 id = "b20701f5f48e498e897bc6f0bd81643f"
 
 # D1 styrigx-account：一个库两套数据，id 相同。
-# （命名 v2 起是一个库一个绑定 D1_ACCOUNT：账号 account_*、云同步 settings_sync、数字健康 wb_daily；原来同一个库挂了三个名字。）
-# 功能靠表名分开：账号 account_*（migrations/0003 → 0005_account_tables.sql）、云同步 settings_sync（0002，src/api/prefs.js）、数字健康 wb_daily（0001，src/api/wellbeing.js）。
+# （命名 v2 起是一个库一个绑定 D1_ACCOUNT：账号 account_*、云同步 settings_sync；原来同一个库挂了三个名字。）
+# 功能靠表名分开：账号 account_*（migrations/0003 → 0005_account_tables.sql）、云同步 settings_sync（0002，src/api/prefs.js）。数字健康 wb_daily（0001）v6 P4 删除，drop 见 docs/ops/v6-p4-drop-wellbeing.sql。
 # 表随账号部署 job 的 d1 migrations apply 建好。
 [[d1_databases]]
 binding = "D1_ACCOUNT"

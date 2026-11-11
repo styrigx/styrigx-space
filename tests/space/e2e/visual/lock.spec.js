@@ -90,7 +90,7 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
     await page.goto('/zh/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
     await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('#screen-time')).toBeVisible();
+    await expect(page.locator('#status')).toBeVisible();
     await expect(page.locator('#sgx-entry, #sgx-entry-cover')).toHaveCount(0);
     await expect(page.locator(SEL.dlg)).not.toHaveAttribute('open', '');
   });

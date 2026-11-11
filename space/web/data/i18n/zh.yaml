@@ -20,7 +20,6 @@ home:
   wildLabel: "[04] 旷野"
   wild:
     title: 旷野
-    screenNone: 今天还没有记录
 index:
   noLineForToday: 今天还没有句子
   tapToKeepOne: 点开日刻，记下一句
@@ -112,7 +111,6 @@ js:
   space:
     homeStatusUp: "STATUS: ONLINE · {up}/{n} ACTIVE"
     homeStatusDown: "STATUS: DEGRADED · {up}/{n} ACTIVE"
-    wbTodayAllDevices: 今天 · 所有设备
     dmSourceWrap: 《{s}》
   status:
     activeUp: active (running)
@@ -411,9 +409,6 @@ status:
   spaceCredentialActivity: 进站凭证使用记录
   last7DaysTime: 最近 7 天：时间、IP 前缀和结果
 wild:
-  todayThisDevice: 今天 · 本机
-  timeBreakdown: 各区域时长
-  noRec: 今天还没有记录
   version: 版本
   kernel: 内核
   build: 构建

@@ -75,8 +75,7 @@ export const ROUTE_ACCESS = Object.freeze([
     decided: 'Gray 2026-11-11 定稿 v4：站长（styrigx）+ root（root 由 permits 放行），其余一律拒；名片只有一份，属于站长' }),
   R({ method: 'GET', path: '/api/prefs', level: 'user', worker: 'account', why: '读自己的设置云同步（偏好归 styrigx，按 uid）', decided: 'Gray 2026-11-11 定 user：P2 加 uid（uid 只取服务端会话）' }),
   R({ method: 'POST', path: '/api/prefs', level: 'user', worker: 'account', why: '写自己的设置云同步', decided: 'Gray 2026-11-11 定 user：同上' }),
-  R({ method: 'POST', path: '/api/wellbeing', level: 'user', worker: 'account', why: '数字健康上报（只记自己的）', decided: 'Gray 2026-11-11 定 user：P2 加 uid 列（uid 只取服务端会话）' }),
-  R({ method: 'GET', path: '/api/wellbeing', level: 'public', worker: 'account', why: '区域合计公开；明细（书名 / 文章名）只给本人', decided: 'Gray 2026-11-11 定 public：合计公开，明细只给本人（按 uid，不按组）' }),
+  /* v6 P4：数字健康 POST / GET /api/wellbeing 随数字健康整套删除（定稿 v5.5 §四、§五） */
 
   /* ---------- 奇趣接口 styrigx-curio-core（styrigx.com/curio/api/*，不经网关；workers/curio-core/src/routes.js） ---------- */
   R({ method: 'GET', path: '/curio/api/items', level: 'public', worker: 'curio-core', why: '设备 / 游戏列表（私密行只给 curio-write，见 decided）', actions: { private: 'curio-write' }, decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
@@ -136,7 +135,7 @@ export const SERVICE_ONLY = Object.freeze([
   { worker: 'ai', entry: 'GET /models', caller: 'space-core GET /api/ai', why: '模型列表（ai 组）' },
   { worker: 'ai', entry: 'GET /healthz', caller: 'styrigx-status 监测', why: '健康检查' },
   { worker: 'status', entry: 'GET /summary', caller: 'space-core GET /api/status（STATUS）', why: '监测数据（status 组）' },
-  { worker: 'account', entry: 'AccountService.fetch', caller: 'space-core FORWARDING（ACCOUNT）', why: '上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/api/wellbeing、/avatar/*' },
+  { worker: 'account', entry: 'AccountService.fetch', caller: 'space-core FORWARDING（ACCOUNT）', why: '上表 /api/account*、/api/avatar*、/api/profile、/api/prefs、/avatar/*' },
   { worker: 'account', entry: 'AccountVerifier.admit / auditRoot', caller: 'space-core（ACCOUNT_VERIFIER）', why: 'v6 会话判定（只读）/ root 特权操作留痕（v6 P4 起 authorize 删除）' },
   { worker: 'space-core', entry: 'SpaceVerifier.admit / auditRoot', caller: 'curio-core、daymark-core（SPACE）', why: 'admit / auditRoot 原样转给账号 Worker（v6 P4 起 session、ShareJanitor、conclusion 删除）' },
   { worker: 'account', entry: 'AccountJanitor.purgeExpiredUsers', caller: 'styrigx-status 每日一轮（JOB_ACCOUNT）', why: '到期满 30 天的用户自动删除（v6 P2c）' },
