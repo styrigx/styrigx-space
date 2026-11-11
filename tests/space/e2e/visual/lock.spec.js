@@ -43,7 +43,8 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
   test('?entry=1：不画锁屏，打开终端、预填 su （不替人回车）；提示符 nobody@space:~/wild$，顶栏照常', async ({ page }) => {
     await freezeTime(page);
     let posted = 0;
-    await page.route('**/api/identity', (r) => { posted++; return r.fulfill(json({ ok: true, user: null })); });
+    /* 只数 whoami 以外的请求（问身份不算；不替人回车 = 不发 su） */
+    await page.route('**/api/identity', (r) => { if ((r.request().postDataJSON() || {}).action !== 'whoami') posted++; return r.fulfill(json({ ok: true, user: null })); });
     await gotoLockTerm(page);
     await expect(page.locator('#sgx-entry, #sgx-entry-cover')).toHaveCount(0);
     await expect(input(page)).toHaveValue('su ');
@@ -114,7 +115,7 @@ test.describe('终端：man / 不认识的命令 / clear / 历史 / ^C / esc', (
     await freezeTime(page);
   });
 
-  test('访客 man（S9 全屏阅读页）列 su / find，不列 ask / lock / passwd；help 已删 → command not found；clear 清屏', async ({ page }) => {
+  test('访客 man（S9 全屏阅读页）列 sudo / find，不列 su / ask / lock / passwd（同 tests/space/ui/shell/terminal.test.mjs 访客索引）；help 已删 → command not found；clear 清屏', async ({ page }) => {
     await gotoLockTerm(page);
     await lockCmd(page, 'man');
     const body = page.locator('#sgx-term [data-term-man-body]');
@@ -122,8 +123,8 @@ test.describe('终端：man / 不认识的命令 / clear / 历史 / ^C / esc', (
     await expect(body).toContainText('手册页');
     const lines = await body.locator('.sgx-term-ln').allTextContents();
     const names = lines.filter((l) => / — /.test(l)).map((l) => l.split(' — ')[0].trim());
-    for (const n of ['su', 'find', 'man']) expect(names).toContain(n);
-    for (const n of ['ask', 'lock', 'passwd', 'help']) expect(names).not.toContain(n);
+    for (const n of ['sudo', 'find', 'man']) expect(names).toContain(n);
+    for (const n of ['su', 'ask', 'lock', 'passwd', 'help']) expect(names).not.toContain(n);
     await page.keyboard.press('q');
     await expect(body).toBeHidden();
     await lockCmd(page, 'help');

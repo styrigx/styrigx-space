@@ -43,7 +43,13 @@ test('手机：?entry=1 打开终端卡片（在视口里）；su styrigx → �
 
 test('空密码回车：不发请求，还在密码态，焦点留在输入行', async ({ page }) => {
   let posted = 0;
-  await page.route('**/api/identity', (r) => { posted++; return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false,"error":"denied"}' }); });
+  /* 只数凭证请求（su）；whoami 是问身份，不算 */
+  await page.route('**/api/identity', (r) => {
+    const a = (r.request().postDataJSON() || {}).action;
+    if (a === 'whoami') return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"user":null}' });
+    posted++;
+    return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":false,"error":"denied"}' });
+  });
   await openPwByTouch(page);
   const input = page.locator(SEL.in);
   await input.press('Enter');
