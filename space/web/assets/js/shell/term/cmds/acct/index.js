@@ -1,4 +1,4 @@
-import { gate, layer, notHere, nth, v6RootGate, FLOW } from '../keys/gate.js';
+import { gate, layer, notHere, nth, v6RootGate, v6SelfGate, FLOW } from '../keys/gate.js';
 
 /**
  * 账号命令（v5 S5，term-design-v5「账号」；要 sudo root 登录，账号的 reset 层里 passwd / passkey 也能用）：
@@ -36,13 +36,28 @@ const passwd = {
   },
 };
 
+/**
+ * passkey：割接（定稿 §八「普通用户用 passwd、passkey 改自己的凭据；通行密钥自带 WebAuthn 验证」；v6-commands「自己的账号（普通用户与 root 各管各的）」
+ * passkey ls / add / rm <n>；§九 救援白名单含 passkey）：有 v6 会话（普通用户 / su root / 救援）→ 账号层 { direct: true }，管栈顶那个用户自己的
+ * （POST /api/identity passkey-*，user 档），不要 root、不跑旧 sudo root reauth；访客 → 先 su <用户>（gate）。
+ * 账号 reset 层里、没有 v6 会话 → 旧路径原样（P4 删）。sudo passkey（借 root 改 root 的通行密钥）在 keys/sudo.js 拒（定稿 §十）。
+ */
 const passkey = {
   name: 'passkey',
   args: ['add', 'rm'],
-  audience: ROOT,
+  audience: /** @type {any} */ (['root', 'user', 'root6']),
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     const a = p.args.map(function (s) { return s.toLowerCase(); });
+    const v6 = v6SelfGate(x);
+    if (v6) {
+      const A6 = layer(x, 'acct');
+      if (!A6) return notHere(x, 'passkey');
+      if (!a.length || (a[0] === 'ls' && a.length === 1)) { A6.passkeyList(v6); return FLOW; }
+      if (a[0] === 'add' && a.length === 1) { A6.cmdPasskeyAdd(true, v6); return FLOW; }
+      if (a[0] === 'rm' && a.length === 2 && nth(a[1])) { A6.passkeyRm(nth(a[1]), v6); return FLOW; }
+      return { out: [x.k.plain(x.S.usagePasskey)] };
+    }
     const no = acctGate(x, true);
     if (no) return no;
     const A = layer(x, 'acct');

@@ -37,6 +37,18 @@ export function v6RootGate(x) {
   return { direct: true };
 }
 
+/**
+ * v6 的「自己的账号」命令（定稿 §八：普通用户用 passwd、passkey 改自己的凭据；v6-commands「自己的账号（普通用户与 root 各管各的）」；
+ * 路由表 POST /api/identity passkey-* = user 档，按服务端会话的 uid）：有 v6 会话（普通用户 / root / 救援）→ { direct: true }；
+ * 没有 v6 会话 → null（访客、旧会话照旧走 gate）。账号 reset 层里（旧 sudo root reset）不走这里，照旧。
+ * @param {any} x @returns {{direct: true}|null}
+ */
+export function v6SelfGate(x) {
+  const A = layer(x, 'acct');
+  if (A && A.inReset) return null;
+  return isV6(x.who()) ? { direct: true } : null;
+}
+
 /** 这一行得在终端窗口里跑（要输入 / 选择 / 验证；AI 窗口里的 $ 命令没有这些）：拿那一层，拿不到 → null @param {any} x @param {'space'|'acct'} which */
 export function layer(x, which) {
   return x.v && x.v[which] ? x.v[which] : null;

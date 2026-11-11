@@ -287,7 +287,7 @@ manBody:
   passwd:
     auth: "signed in (sudo {root}); reauth"
   passkey:
-    auth: "signed in (sudo {root}); reauth"
+    auth: "signed in"
   device:
     auth: "signed in (sudo {root}); --all needs reauth"
   app:

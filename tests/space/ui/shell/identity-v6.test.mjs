@@ -70,8 +70,9 @@ test('man：旧四种身份列的命令不变（新命令不列）；v6 普通�
     for (const c of ['whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod']) assert.ok(!n.includes(c), w + ' 不列 ' + c);
   }
   const u = await names('u:alice');
-  for (const c of ['whoami', 'su', 'groups', 'who', 'lock', 'passwd', 'sudo', 'exit']) assert.ok(u.includes(c), 'user 列 ' + c);
-  for (const c of ['useradd', 'userdel', 'usermod', 'passkey', 'device', 'sub']) assert.ok(!u.includes(c), 'user 不列 ' + c);
+  /* 割接 2e：passkey 管自己的（定稿 §八），v6 普通用户也列 */
+  for (const c of ['whoami', 'su', 'groups', 'who', 'lock', 'passwd', 'passkey', 'sudo', 'exit']) assert.ok(u.includes(c), 'user 列 ' + c);
+  for (const c of ['useradd', 'userdel', 'usermod', 'device', 'sub']) assert.ok(!u.includes(c), 'user 不列 ' + c);
   const r = await names('u:root');
   for (const c of ['whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'passwd', 'lock']) assert.ok(r.includes(c), 'root6 列 ' + c);
   assert.ok(!r.includes('su'), 'root 不再列 su');

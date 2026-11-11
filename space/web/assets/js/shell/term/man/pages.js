@@ -34,7 +34,7 @@ export const PAGES = Object.freeze({
     auth: 'entered with your own key; listing and revoking need reauth (sudo -v)',
   },
   passwd: { d: 'change the account password', syn: ['passwd'], auth: 'signed in (sudo {root}); reauth' },
-  passkey: { d: 'list, add or remove account passkeys', syn: ['passkey', 'passkey add', 'passkey rm <n>'], auth: 'signed in (sudo {root}); reauth' },
+  passkey: { d: 'list, add or remove account passkeys', syn: ['passkey', 'passkey add', 'passkey rm <n>'], auth: 'signed in' },
   device: { d: 'list signed-in devices, or sign one out', syn: ['device', 'device rm <n>', 'device rm --all'], auth: 'signed in (sudo {root}); --all needs reauth' },
   app: {
     d: 'list app access, allow or deny an app', syn: ['app', 'app allow <n>', 'app deny <n>'],
