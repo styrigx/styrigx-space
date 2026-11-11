@@ -6,7 +6,8 @@
  *
  * makeAccountD1({ migrations })：migrations 默认 true = 按文件名顺序跑 workers/account/migrations/*.sql（0003 / 0004 的旧表，
  *   再经 0005_account_tables.sql 换成 account_*；空库上 0005 会把全部应用写成已授权，同线上首次切换）；
- *   false = 空库（测 "no such table" 自愈）；'data' = 只跑数据表（0001 / 0002）。
+ *   false = 空库（测 "no such table" 自愈）；'data' = 只跑数据表（0001 / 0002）；
+ *   'pre-uid' = 跑到 0006 为止（不跑 0007_v6_uid_columns.sql：数据表还没 uid 列，测迁移前的写法和兜底建表 SCHEMA）。
  * withAccountD1(env, db?)：给 env 挂上 D1_ACCOUNT。
  * 观测：raw（DatabaseSync）、rows(table)、statements（执行过的 SQL 列表）。
  */
@@ -27,6 +28,8 @@ export const IDENTITY_MIGRATION = '0006_identity.sql';
 export const IDENTITY_SQL = readFileSync(MIG + IDENTITY_MIGRATION, 'utf8');
 export const IDENTITY_TABLES = Object.freeze(['account_users', 'account_user_groups', 'account_user_password', 'account_user_passkey',
   'account_sessions', 'account_session_stack', 'account_user_audit', 'account_recovery_key']);
+/** v6 P2 数据表加 uid 的迁移（2026-11-11 Gray 批准，从 migrations-pending/ 挪进来） */
+export const UID_MIGRATION = '0007_v6_uid_columns.sql';
 /** 所有迁移文件（按文件名顺序） */
 export const MIGRATION_FILES = Object.freeze(readdirSync(MIG).filter((n) => n.endsWith('.sql')).sort());
 /** 读某个迁移文件 @param {string} f */
@@ -36,12 +39,13 @@ export const migrationSql = (f) => readFileSync(MIG + f, 'utf8');
 const norm = (p) => p.map((x) => (x === undefined ? null : typeof x === 'boolean' ? (x ? 1 : 0) : x));
 const tick = () => new Promise((r) => setImmediate(r));
 
-/** @param {{migrations?: boolean | 'data'}} [opts] */
+/** @param {{migrations?: boolean | 'data' | 'pre-uid'}} [opts] */
 export function makeAccountD1(opts = {}) {
   const raw = new DatabaseSync(':memory:');
   if (opts.migrations !== false) {
     for (const f of MIGRATION_FILES) {
       if (opts.migrations === 'data' && DATA_MIGRATIONS.indexOf(f) === -1) continue;
+      if (opts.migrations === 'pre-uid' && f >= UID_MIGRATION) continue;
       raw.exec(migrationSql(f));
     }
   }

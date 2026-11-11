@@ -15,7 +15,7 @@
  * - 没绑 D1_ACCOUNT → 500 config（正式 / 预览的 wrangler.toml 都绑了；缺绑定只会是配置错误）
  *
  * v6（P2）：按 uid 分（ADR-0006 §2.12 (a)：uid 只取服务端会话 context.auth.dataUid()；请求里的 uid 一概不认）。
- * - 表有 uid 列（migrations-pending/0007 跑过）：一律 WHERE uid = ?；旧会话 = styrigx。
+ * - 表有 uid 列（migrations/0007 跑过）：一律 WHERE uid = ?；旧会话 = styrigx。
  * - 还没有 uid 列：表里全是 styrigx 的，只有 styrigx 读写；别的 uid GET 回空、POST 409 not-ready（不碰 styrigx 的行）。
  *
  * GET  /api/prefs → { ok, items, updatedAt }
