@@ -23,7 +23,7 @@ import { onDb } from '../lib/db.js';
 import { ipBucket } from '../lib/http.js';
 import { readAttempt, recordAttempt, clearAttempt } from '../lib/attempt-limit.js';
 import { RESCUE_KEY_SECRET } from './config.js';
-import { IP_LIMIT, NAME_BACKOFF_MS } from './identity-auth.js';
+import { IP_LIMIT, UID_BACKOFF_MS } from './identity-auth.js';
 import { ROOT_UID } from './groups.js';
 import { getUser } from './users.js';
 import { issueRescueSession, endSession } from './identity-stack.js';
@@ -42,7 +42,7 @@ export function normalizeRecoveryKey(s) {
 /** 救援入口的计数（单独的 kind，不和 su / 旧恢复密钥共用）：IP 维度 */
 export const RESCUE_IP_LIMIT = Object.freeze({ kind: 'v6-rescue-ip', max: IP_LIMIT.max, windowMs: IP_LIMIT.windowMs });
 /** 救援入口的计数：按 uid 渐进退避（定稿 §十；目标只有 root，uid 0 一个桶） */
-export const RESCUE_BACKOFF = Object.freeze({ kind: 'v6-rescue', bucket: 'uid:' + ROOT_UID, table: NAME_BACKOFF_MS });
+export const RESCUE_BACKOFF = Object.freeze({ kind: 'v6-rescue', bucket: 'uid:' + ROOT_UID, table: UID_BACKOFF_MS });
 const BACKOFF_TTL_MS = 24 * 3600 * 1000;
 
 /** 指纹的域前缀（别的哈希撞不上） */
