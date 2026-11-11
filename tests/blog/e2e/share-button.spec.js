@@ -131,7 +131,7 @@ test.describe('NAVIGATE「分享本页」按钮', () => {
     await setup(page, { api: async () => [401, { ok: false, error: 'session' }] });
     await go(page, PAGE);
     await page.locator('[data-sgx-share]').click();
-    await expect(page.locator('.sgx-share-toast')).toContainText('重新解锁');
+    await expect(page.locator('.sgx-share-toast')).toContainText('su 登录后再分享');
     await expect(page.locator('dialog.sgx-share-reauth')).toHaveCount(0);
     expect(await log(page)).toEqual([]);
     await expect(page.locator('[data-sgx-share]')).not.toHaveAttribute('aria-busy', 'true');
@@ -141,7 +141,7 @@ test.describe('NAVIGATE「分享本页」按钮', () => {
     const calls = await setup(page, { api: async () => [401, { ok: false, error: 'reauth' }] });
     await go(page, PAGE);
     await page.locator('[data-sgx-share]').click();
-    await expect(page.locator('.sgx-share-toast')).toContainText('重新解锁');
+    await expect(page.locator('.sgx-share-toast')).toContainText('su 登录后再分享');
     await expect(page.locator('dialog.sgx-share-reauth')).toHaveCount(0);
     expect(await log(page)).toEqual([]);
     expect(calls).toHaveLength(1);

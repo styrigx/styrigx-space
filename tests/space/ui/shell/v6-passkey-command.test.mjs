@@ -46,7 +46,7 @@ test('passkey：v6 普通用户 / root / 救援都直接管自己的（direct: t
 test('passkey（v6）：不再回旧的「还没登录账号 · 先 sudo root」；参数不对给用法', () => {
   const L = layers();
   for (const l of ['passkey', 'passkey ls']) assert.equal(sh('u:styrigx').exec(l, L.v).out.length, 0, l);
-  assert.equal(text(sh('u:styrigx').exec('passkey rm x', L.v).out[0]), 'usage: passkey [add | rm <n>]');
+  assert.equal(text(sh('u:styrigx').exec('passkey rm x', L.v).out[0]), 'usage: passkey [ls | add | rm <n>]');
   assert.ok(!L.calls.some((c) => c[0] === 'passkeyRm'));
 });
 

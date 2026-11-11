@@ -76,7 +76,7 @@ share:
   copied: Share link copied
   copyFail: Couldn’t copy. Please try again
   busy: Creating share link…
-  session: Your session has expired. Unlock again to share
+  session: Your session has expired. Sign in with su to share.
   full: You already have 20 share links. Revoke some on styrigx.com first
   forbidden: "Only root can create share links · run su root first"
   fail: Couldn’t create a share link. Please try again
@@ -212,6 +212,7 @@ term:
   usageShare: "usage: share [add | rm <n> | rm --all]"
   usagePasswd: "usage: passwd"
   usagePasskey: "usage: passkey [add | rm <n>]"
+  usagePasskey6: "usage: passkey [ls | add | rm <n>]"
   usageDevice: "usage: device [rm <n> | rm --all]"
   usageApp: "usage: app [allow <n> | deny <n>]"
   usageProfile: "usage: profile [set name | nick | sign | email <value> | avatar]"
@@ -231,6 +232,12 @@ term:
   alreadyIn: "already entered · {x} to verify again"
   notHere: "{x}: run it in the terminal (Ctrl K)"
   resetOnly: "in reset: passwd · passkey [add | rm <n>] · exit"
+  sudoNotYet: "sudo {x} isn’t supported yet · su root first, then run {x}"
+  goneSudoV: "sudo -v is gone · in v6 every sudo verifies again"
+  goneSudoReauth: "sudo root reauth is gone · to act as root, su root"
+  goneLockPasswd: "lock passwd is gone · change your own password with passwd"
+  goneLockPasskey: "lock passkey is gone · manage passkeys with passkey"
+  goneLockAll: "lock --all is gone · sign out all devices on the account page"
 # 站内终端 man 页的 NAME 说明（终端统一 T5；英文底在 assets/js/shell/term/man/pages.js，懒加载）。键 = 命令名，命令写法不翻译。
 man:
   man: "read a command’s manual page"
@@ -264,6 +271,9 @@ man:
   rescue: "enter the recovery key → a 15-min root rescue session"
 # 站内终端 man 页的正文（S9：DESCRIPTION / AUTH / NOTES；= assets/js/shell/term/man/pages.js 的英文底，行数一一对应，tests/space/ui/shell/man-i18n.test.mjs 查两边一致）。
 manBody:
+  ask:
+    desc:
+      - "opens the Gray AI window with your question. Gray AI is only for styrigx and root."
   sudo:
     desc:
       - "sudo {admin}: verify with the unlock password or a passkey right here; the terminal closes and the space boots."
@@ -276,16 +286,16 @@ manBody:
       - "lock: lock this device now (no verification)."
       - "passwd / passkey: the keys that enter the site (not the account ones)."
       - "--all: send every device back to visitor."
-    auth: "entered; passwd, passkey and --all need reauth (sudo -v)"
+    auth: "no verification"
   exit:
     desc:
       - "In reset: leave reset. As root@account: sign out and go back to {admin}@space. Otherwise: close the terminal."
   share:
     desc:
       - "share add: name, page, how long the link lasts, and whether it carries a session."
-    auth: "entered with your own key; listing and revoking need reauth (sudo -v)"
+    auth: "root only; listing and revoking need no reauth"
   passwd:
-    auth: "signed in (sudo {root}); reauth"
+    auth: "signed in; asks your current password first"
   passkey:
     auth: "signed in"
   device:
@@ -294,7 +304,7 @@ manBody:
     desc:
       - "app: every app with its scopes, when and on which device it was allowed."
       - "allow: give an app access again. deny: take it away (asks y/N); the app can still read, it just can’t change anything."
-    auth: "signed in (sudo {root}); allow needs reauth (sudo -v)"
+    auth: "root only; allow needs no reauth"
   profile:
     desc:
       - "profile: name, nickname, signature and email (a site default shows when you haven’t set one)."
@@ -311,7 +321,7 @@ manBody:
       - "enable / disable: a disabled source 404s; its link or file and output are kept."
       - "key: paste an age1… X25519 public key; every source is re-encrypted right after."
       - "token reset: makes a new token (asks y/N when one exists); every old url stops working at once."
-    auth: "signed in (sudo {root}); show, key and token reset need reauth (sudo -v)"
+    auth: "root only; show, key and token reset need no reauth"
     notes:
       - "Urls are https://proxy-rules.styrigx.com/s/<token>/<name>; every output is age-encrypted to your public key."
       - "The server keeps the token sealed with its own key, so sub show can print it again."

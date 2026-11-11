@@ -81,7 +81,7 @@ finds:
   delete: 删除
   save: 保存
   categories2: 管理分类
-  aCategoryCanBe: 分类清空后才能删除。私密分类连同里面的收藏只在账号已登录时显示。
+  aCategoryCanBe: 分类清空后才能删除。私密分类连同里面的收藏只在登录后显示。
   importBookmarks: 导入浏览器书签
   exportBookmarksFromSamsung: 在三星浏览器、Chrome 等浏览器里把书签导出成 .html 文件，再在这里选它。文件夹会变成分类，已经收藏过的网址自动跳过，原文件会另存一份备份。
   chooseFile: 选择文件
@@ -330,8 +330,8 @@ js:
     title: 电影
     editCmd: 编辑
   curioMusic:
-    viewOnly: 未进站，仅可浏览
-    locked: 进站后可听
+    viewOnly: 未登录，仅可浏览
+    locked: 登录后可听
     tracks: '{n} 首'
     failed: 出了点问题，请再试一次。
     loadFail: "error: 列表没能加载  # 刷新重试"

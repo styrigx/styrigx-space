@@ -83,7 +83,7 @@ finds:
   delete: Delete
   save: Save
   categories2: Categories
-  aCategoryCanBe: A category can be deleted once it's empty. Private categories, with everything in them, are only shown when signed in to the account.
+  aCategoryCanBe: A category can be deleted once it's empty. Private categories, with everything in them, are only shown when you're signed in.
   importBookmarks: Import bookmarks
   exportBookmarksFromSamsung: Export bookmarks from Samsung Internet, Chrome or any browser as an .html file, then pick it here. Folders become categories, links you already have are skipped, and the original file is kept as a backup.
   chooseFile: Choose file
@@ -337,8 +337,8 @@ js:
     title: Movie
     editCmd: edit
   curioMusic:
-    viewOnly: "not entered, browse only"
-    locked: Enter the space to listen
+    viewOnly: "not signed in, browse only"
+    locked: Sign in to listen
     tracks: '{n} tracks'
     tracks_one: '{n} track'
     failed: Something went wrong. Please try again.

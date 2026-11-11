@@ -232,11 +232,11 @@ test('音乐（访客，没进站）：tab 在；歌单 / 封面照常；只看�
   await expect(page.locator('.mu-album-acts')).toBeHidden();
   await expect(page.locator('#mu-player')).toBeVisible();
   await expect(page.locator('#mu-now-title')).toHaveText('Blue');
-  await expect(page.locator('#mu-now-sub')).toHaveText('Joni Mitchell · 未进站，仅可浏览');
+  await expect(page.locator('#mu-now-sub')).toHaveText('Joni Mitchell · 未登录，仅可浏览');
   await expect(page.locator('#mu-dur')).toHaveText('--:--');
   await expect(page.locator('#mu-play-all .mu-ic-lock')).toBeVisible();
   await expect(page.locator('#mu-toggle .mu-ic-lock')).toBeVisible();
-  await expect(page.locator('#mu-play-all')).toHaveAttribute('aria-label', '进站后可听');
+  await expect(page.locator('#mu-play-all')).toHaveAttribute('aria-label', '登录后可听');
   for (const id of ['#mu-prev', '#mu-next', '#mu-speed', '#mu-seek']) await expect(page.locator(id)).toBeDisabled();
   await page.locator('#mu-tracks .mu-track').first().click();
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
@@ -253,7 +253,7 @@ test('音乐（页面没带标记、签令牌 401）：切到只看模式并打�
   await page.locator('#mu-play-all').click();
   await expect.poll(() => calls.filter((c) => c.play401).length).toBe(1);
   await expect(page.locator('html')).toHaveClass(/mu-view-only/);
-  await expect(page.locator('#mu-now-sub')).toHaveText('Joni Mitchell · 未进站，仅可浏览');
+  await expect(page.locator('#mu-now-sub')).toHaveText('Joni Mitchell · 未登录，仅可浏览');
   await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
   await expect(page.locator('#bk-toast')).not.toHaveText('出了点问题，请再试一次。');
 });

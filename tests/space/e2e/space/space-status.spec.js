@@ -208,7 +208,7 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'locked');
       await expect(page.locator('#st-locked')).toBeVisible();
       await expect(page.locator('#st-locked .st-msg-title')).toHaveText('Permission denied — su 登录后可见');
-      await expect(page.locator('#st-locked .st-msg-sub')).toHaveText('服务状态、可用率和用量只对进站后的访客开放。');
+      await expect(page.locator('#st-locked .st-msg-sub')).toHaveText('服务状态、可用率和用量要登录后才能看。');
       await expect(page.locator('#st-error')).toBeHidden();
       await expect(page.locator('#st-banner')).toBeHidden();
       await expect(page.locator('.st-audit-wrap')).toBeHidden();
@@ -216,6 +216,19 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
       await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
       await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
+    });
+
+    test('已登录但不在 status 组（403，#404 未决项第 5 项）：锁卡换「当前用户没有这个权限 / 需要 status 组，先 su root」；按钮预填 su root，页面标记不改', async ({ page }) => {
+      await go(page, '/zh/wild/', { api: { status: 403, body: { ok: false, error: 'forbidden' } } });
+      await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'locked');
+      await expect(page.locator('#st-root')).toHaveAttribute('data-lock-perm', '');
+      await expect(page.locator('#st-locked .st-msg-title')).toHaveText('Permission denied — 当前用户没有这个权限');
+      await expect(page.locator('#st-locked .st-msg-sub')).toHaveText('服务状态、可用率和用量需要 status 组，先 su root。');
+      const before = await page.locator('html').getAttribute('data-sgx-lock-session');
+      await page.locator('#st-locked [data-st="sudo"]').click();
+      await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
+      await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su root');
+      expect(await page.locator('html').getAttribute('data-sgx-lock-session')).toBe(before);
     });
 
     test('加载中：骨架 + 「正在加载…」，aria-busy', async ({ page }) => {
@@ -601,7 +614,7 @@ test.describe('进站凭证使用记录', () => {
     await mockAudit(page, () => ({ status: 401, body: { ok: false, error: 'session' } }));
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.locator('#st-audit summary').click();
-    await expect(page.locator('#st-audit-body .st-audit-msg')).toHaveText('会话已过期，重新解锁后再看。');
+    await expect(page.locator('#st-audit-body .st-audit-msg')).toHaveText('会话已过期，su 登录后再看。');
     await expect(page.locator('[data-audit-retry]')).toHaveCount(0);
   });
 

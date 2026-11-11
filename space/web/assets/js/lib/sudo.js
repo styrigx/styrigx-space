@@ -7,8 +7,12 @@
 /** document 上的事件名（detail 不用） */
 export const SUDO_EVENT = 'sgx:sudo';
 
-/** 请人进站：打开终端并预填 sudo styrigx @param {Document} [doc] */
-export function askSudo(doc) {
+/**
+ * 请人进站：打开终端并预填 su （v6 割接）。line 给了（如 /wild/ 403 的 'su root'，#404 未决项第 5 项）= 已登录、只是权限不够：
+ * 终端预填这一行，页面标记不改成 locked。
+ * @param {Document} [doc] @param {string} [line]
+ */
+export function askSudo(doc, line) {
   const d = doc || document;
-  try { d.dispatchEvent(new CustomEvent(SUDO_EVENT)); } catch (e) {}
+  try { d.dispatchEvent(line ? new CustomEvent(SUDO_EVENT, { detail: { line: line } }) : new CustomEvent(SUDO_EVENT)); } catch (e) {}
 }
