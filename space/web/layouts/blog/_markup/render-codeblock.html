@@ -1,7 +1,7 @@
-{{- /* 代码块（新设计，取代 Expressive Code）：一个圆角容器（--blog-code-surface = surface-container-high），
+{{- /* 代码块（新设计，取代 Expressive Code）：一个圆角容器（底色是固定代码主题），
 顶部一条小标题栏：语言 · 文件名（```lang {filename="x"} 或 {title="x"}）· 复制按钮；
 Chroma 输出 class，行号在同一行里（.ln，左侧安静的槽，横向滚动时贴住左边），不换行、横向滚动；
-hl_lines 高亮行（```go {hl_lines="2-3"}），linenos=false 可关行号。配色见 assets/css/blog/code-tokens.css（从色彩角色生成）。 */ -}}
+hl_lines 高亮行（```go {hl_lines="2-3"}），linenos=false 可关行号。配色见 assets/blog/css/blog/code-tokens.css（固定代码主题，浅 / 深两档）。 */ -}}
 {{- $lang := .Type | default "text" -}}
 {{- $label := cond (in (slice "text" "plaintext" "txt" "") $lang) (i18n "codePlain") $lang -}}
 {{- $file := or .Attributes.filename .Attributes.title "" -}}
