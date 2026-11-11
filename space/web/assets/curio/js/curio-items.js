@@ -12,7 +12,7 @@
  *   完成 → 浏览器里裁成长边 ≤1200（电影海报 ≤1600；不放大）、转 webp（不支持就 jpeg），保存时再传；保存前点缩略图可以重新调整。
  *   电影子页（curio-movies.js）借用同一套裁剪和照片状态：window.SgxCurioPhoto.box(前缀, 'movie')（海报 2:3）。
  * 账号没登录：只读、只看公开的（showPrivate=false）；「su · su 登录后可编辑」那条命令在 curio.js（#cu-signin）。
- * 写请求只有 401 unauthorized 才当锁定刷新（401 account / reauth 是账号的事，提示「su 登录后可编辑」；403 scope 提示「奇趣未获账号授权」）。
+ * 写请求 401 当锁定刷新。
  *
  * 数据：GET /api/items；写：POST /api/items {op}；照片：/api/photo?kind=device|game&id=（GET 图、POST 传、DELETE 删）。
  * 每个子页只有自己的面板和编辑弹层（设备页没有游戏的，反之亦然）：$() 找不到的元素给一个不挂在页面上的空 div，事件、画列表都落空，不用到处判断。
@@ -252,8 +252,8 @@ function send(method, url, body, type){
     body: body === undefined ? undefined : type ? body : JSON.stringify(body),
   }).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){
-      /* 只有 401 unauthorized（没进门）当锁定；401 account / reauth 是账号的事（同 curio.js isLockedReply） */
-      if (r.status === 401 && j.error !== 'account' && j.error !== 'reauth') { if (UI && UI.sudo) UI.sudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      /* 401（没进门）当锁定（同 curio.js isLockedReply） */
+      if (r.status === 401) { if (UI && UI.sudo) UI.sudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
       if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
       return j;
     });
@@ -266,8 +266,6 @@ function errText(e){
   if (/^bad-(bought|retired)-at$/.test(c)) return T.badDate;
   if (c === 'not-image') return T.notImage;
   if (c === 'too-large') return T.tooLarge;
-  if (c === 'account') return T.needAccount;
-  if (c === 'scope') return T.noScope; /* P3-1：在 账号 › 应用授权 取消了奇趣的授权 */
   if (c === 'forbidden') return T.noPermission || T.failed; /* 2b：v6 身份档不够（403 forbidden；电影页经 SgxCurioPhoto.errText 同一份） */
   return T.failed;
 }

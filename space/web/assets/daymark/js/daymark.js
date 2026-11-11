@@ -17,7 +17,7 @@
  *   归入百味（多选 + 就地新建）；标签（回车 / 逗号成块，推荐已有标签）；随手一笔（只有账号已登录看得到）；公开开关。
  *
  * 数据：GET /api/quotes、GET /api/collections、GET /api/today、GET /api/days（往前几天）；写：POST/PUT/DELETE /api/quotes、/api/collections、PUT /api/today（账号会话 + daymark.write + 同源）。
- * 读接口公开（v5 S3）；写请求回 401 unauthorized = 没进站 → 发 sgx:sudo（顶栏终端预填 sudo styrigx），401 account 是账号的事，照常提示。纯函数导出给 tests/daymark/daymark.test.mjs。
+ * 读接口公开（v5 S3）；写请求回 401 = 没进站 → 发 sgx:sudo（顶栏终端预填 sudo styrigx）。纯函数导出给 tests/daymark/daymark.test.mjs。
  */
 (function(){
 "use strict";
@@ -135,11 +135,11 @@ function canSetToday(canWrite, isDrawn, q, todayQuote){
 }
 
 /**
- * 写请求的 401 是不是「锁定了」（要刷新去锁屏）：401 account（没登录账号）/ 401 reauth 不是，其余 401 都是（同奇趣 curio.js）。
- * @param {number} status @param {string} code
+ * 写请求的 401 是不是「锁定了」（要刷新去锁屏）：401 都是（同奇趣 curio.js）。
+ * @param {number} status
  */
-function isLockedReply(status, code){
-  return status === 401 && code !== 'account' && code !== 'reauth';
+function isLockedReply(status){
+  return status === 401;
 }
 
 /** 数组里第 i 项挪 delta 位（越界不动），返回新数组 */
@@ -330,7 +330,7 @@ function send(method, url, body){
     body: body ? JSON.stringify(body) : undefined,
   }).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){
-      if (isLockedReply(r.status, j.error)) { askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      if (isLockedReply(r.status)) { askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
       if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
       return j;
     });
@@ -338,7 +338,7 @@ function send(method, url, body){
 }
 /** 写失败的提示：没登录账号 / 没授权 →「su 登录后可编辑」，其余通用 */
 /* 2b：403 forbidden = v6 身份档不够（不在 daymark-write，或删整个专题不是 root） */
-function failText(e){ var c = e && e.code; return c === 'account' ? T.needAccount : c === 'scope' ? T.noScopeErr : c === 'forbidden' && T.noPermission ? T.noPermission : T.failed; }
+function failText(e){ var c = e && e.code; return c === 'forbidden' && T.noPermission ? T.noPermission : T.failed; }
 /**
  * 不能编辑时那一条（2c 起是 su 入口，data-sec-open）：没登录 → su；已以 v6 用户登录但不在写组 → 无权限句，仍是 su。
  * 「未获账号授权 → #acct=apps」那一支随应用授权整套删除（v6 P4，定稿 v5.5 §十二）。

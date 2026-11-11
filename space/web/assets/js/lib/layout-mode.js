@@ -118,16 +118,16 @@ function __sgxFirstPaint(){
     st.textContent='@layer sgx-first-paint{html{background-color:'+bg+';color-scheme:'+cs+'}}';
   }catch(e){}
 }
-/* 环境提示符首帧（进站 v3 L1，SPACE-V3「环境提示符规则」）：除锁屏 / 盾牌 / reset 终端 / 账号下拉外，全站提示符按身份显示
-   （out：styrigx@space:~$；in：root@account:~#）。v6 P4 起旧账号会话与它的标记 cookie sgx-account-signed-in 删除；v6 的登录标记 sgx-id
-   只说「有 v6 会话」，不说是不是 root（日常态是 styrigx，定稿 v5.2 §二），所以首帧一律 out，root 由 shell/topbar-panel.js 问过 whoami 后改 in
+/* 环境提示符首帧（进站 v3 L1，SPACE-V3「环境提示符规则」）：除锁屏 / 盾牌 / reset 终端 / 账号下拉外，全站提示符谁登录显示谁，和终端提示符一致
+   （Gray 2026-11-11 22:46；nobody：nobody@space:~$；out：<名>@space:~$；in：root@space:~#）。v6 的登录标记 sgx-id 只说「有 v6 会话」，
+   不说是谁（日常态是 styrigx，定稿 v5.2 §二），所以首帧：没有标记 = nobody，有标记 = out（名字先是 styrigx）；是谁由 shell/topbar-panel.js 问过 whoami 后改
    （同 shell/term/core/who.js：服务端说了算，前端不猜）。CSS（shell.css .sgx-envps-*、.sgx-ai-msg::before）只读这个属性；只是显示，不放行任何东西。
    已经有值就不动。 */
 function __sgxAccountPs(){
   try{
     var d=document.documentElement;
     if(d.getAttribute('data-sgx-account-session'))return;
-    d.setAttribute('data-sgx-account-session','out');
+    d.setAttribute('data-sgx-account-session',/(?:^|;\s*)sgx-id=1(?:;|$)/.test(document.cookie||'')?'out':'nobody');
   }catch(e){}
 }
 try{if(typeof document!=='undefined'){__sgxViewportSync();__sgxFirstPaint();__sgxAccountPs()}}catch(e){}

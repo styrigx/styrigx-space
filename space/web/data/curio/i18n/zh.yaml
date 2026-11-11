@@ -216,11 +216,7 @@ js:
     makePublic: 公开
     up: 上移
     down: 下移
-    needAccount: su 登录后可编辑。
-    needReauth: 导入要再验证一次账号：在账号终端里验证后会立刻接着导入。
     signin: su 登录后可编辑
-    noScopeErr: 奇趣未获账号授权。
-    verifyNow: 去验证
     impAdded: 新增 {n} 条
     impCats: 、{n} 个分类
     impSkipped: ，{n} 条已经有了
@@ -255,8 +251,6 @@ js:
     empty: 这里还空着。
     noMatch: 这个筛选下没有。
     needName: 起个名字。
-    needAccount: su 登录后可编辑。
-    noScope: 奇趣未获账号授权。
     badDate: 日期不对，检查一下。
     failed: 出了点问题，请再试一次。
     loadFail: "error: 列表没能加载  # 刷新重试"

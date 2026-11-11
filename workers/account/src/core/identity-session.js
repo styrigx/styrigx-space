@@ -20,7 +20,7 @@ import { onDb } from '../lib/db.js';
 import { readCookie } from '../lib/cookies.js';
 import { GROUPS, ROOT_UID } from './groups.js';
 
-/** 新会话的 cookie 名（HttpOnly、Secure、SameSite=Lax，Domain=.styrigx.com；P2 签发时写） */
+/** 新会话的 cookie 名（HttpOnly、Secure、SameSite=Lax，不写 Domain（只发给本主机）；P2 签发时写） */
 export const SESSION_COOKIE = 'sgx-session';
 /** 令牌格式：32 字节随机数的 base64url（43 字符） */
 export const SESSION_TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;

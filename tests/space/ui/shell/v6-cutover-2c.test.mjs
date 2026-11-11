@@ -125,9 +125,10 @@ test('奇趣 / 日刻：「登录账号后可编辑」改指向 su（中英文 i
     const e = yaml.load(en);
     const flat = (o, out = []) => { for (const v of Object.values(o || {})) { if (v && typeof v === 'object') flat(v, out); else out.push(String(v)); } return out; };
     assert.ok(flat(z).includes('su 登录后可编辑'), site);
-    assert.ok(flat(z).includes('su 登录后可编辑。'), site);
     assert.ok(flat(e).includes('Sign in with su to edit'), site);
-    assert.ok(flat(e).includes('Sign in with su to edit.'), site);
+    /* 不再存在的 401 account / reauth、403 scope 的文案删了（Gray 11-11 22:46） */
+    for (const k of ['needAccount', 'needReauth', 'noScopeErr', 'noScope', 'verifyNow']) assert.ok(!new RegExp('^\\s+' + k + ':', 'm').test(zh) && !new RegExp('^\\s+' + k + ':', 'm').test(en), site + ' ' + k);
+    assert.ok(!flat(z).some((v) => /未获账号授权|去验证/.test(v)), site);
   }
   const cuT = rd('space/web/layouts/partials/curio/signin.html');
   assert.match(cuT, /<a id="cu-signin" class="sgx-cmd hidden" data-sec-open="" href="\{\{ \$home \}\}#sec"><span class="sgx-cmd-k" translate="no">su<\/span>/);

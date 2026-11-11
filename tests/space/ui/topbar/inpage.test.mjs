@@ -52,9 +52,9 @@ test('页头 .sgx-ph（2026-11 对齐 PR-C，设计稿 .hero.ph）：$ 命令 ·
   assert.doesNotMatch(shell, /\[data-sgx-layout="[a-z]+"\][^{]*\.sgx-segs[^{]*\{[^}]*display: none/, '段式标签不按布局隐藏');
   const ph = rd('space/web/layouts/partials/sgx-ph.html');
   assert.match(ph, /<header class="sgx-ph" data-sgx-ph>/);
-  /* 环境提示符规则（进站 v3 L1）：两种都写，CSS 按 <html data-sgx-account-session> 只显示一种 */
-  assert.match(ph, /<p class="sgx-ph-cmd" aria-hidden="true" translate="no"><span class="sgx-pr"><span class="sgx-envps-g" translate="no">styrigx@space:~\$<\/span><span class="sgx-envps-r" translate="no">root@account:~#<\/span><\/span> \{\{ \.cmd \}\}<\/p>/);
-  assert.ok(shell.includes('html[data-sgx-account-session="in"] .sgx-envps-g, html:not([data-sgx-account-session="in"]) .sgx-envps-r { display: none; }'), '按账号登录状态只显示一种');
+  /* 环境提示符规则（进站 v3 L1）：谁登录显示谁（Gray 11-11 22:46）——三种都写，CSS 按 <html data-sgx-account-session> 只显示一种 */
+  assert.match(ph, /<p class="sgx-ph-cmd" aria-hidden="true" translate="no"><span class="sgx-pr"><span class="sgx-envps-n" translate="no">nobody@space:~\$<\/span><span class="sgx-envps-g sgx-envps-u" translate="no">styrigx<\/span><span class="sgx-envps-g" translate="no">@space:~\$<\/span><span class="sgx-envps-r" translate="no">root@space:~#<\/span><\/span> \{\{ \.cmd \}\}<\/p>/);
+  assert.ok(shell.includes('html[data-sgx-account-session="out"] .sgx-envps-n, html[data-sgx-account-session="in"] .sgx-envps-n,\nhtml:not([data-sgx-account-session="out"]) .sgx-envps-g, html:not([data-sgx-account-session="in"]) .sgx-envps-r { display: none; }'), '按登录身份只显示一种');
   assert.match(ph, /if not \.cmd \}\}\{\{ errorf "sgx-ph:/, '缺命令构建失败');
   assert.match(ph, /if not \.desc \}\}\{\{ warnf "sgx-ph:/, '缺说明只警告');
   assert.ok(!has('space/web/layouts/partials/sgx-page-hero.html'), 'sgx-page-hero.html 退役');

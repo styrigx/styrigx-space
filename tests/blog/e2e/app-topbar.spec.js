@@ -109,7 +109,7 @@ test.describe('博客首页（对齐 PR-C，设计稿 pg=blog）：一页文章�
   test('页头 ls -lt blog/ · 博客_ · 一行说明；chips 全部 9（当前）+ 分类 + 虚线 tree blog/ →；页名胶囊 = 站名；没有分区入口 / 面板', async ({ page }) => {
     await page.goto('/blog/zh/', { waitUntil: 'domcontentloaded' });
     await listReady(page);
-    await expect(page.locator('.sgx-ph-cmd')).toHaveText('styrigx@space:~$ ls -lt blog/', { useInnerText: true });
+    await expect(page.locator('.sgx-ph-cmd')).toHaveText('nobody@space:~$ ls -lt blog/', { useInnerText: true });
     await expect(page.locator('h1.sgx-ph-title')).toHaveText('博客');
     await expect(page.locator('.sgx-ph-desc')).toContainText('共 9 篇');
     await expect(page.locator('.blog-chips [data-chip=""]').first()).toHaveAttribute('aria-current', 'true');

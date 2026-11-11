@@ -83,7 +83,7 @@ test('wrangler.toml：正式段恰好这两个 Secrets Store 绑定，binding = 
   assert.doesNotMatch(preview, /secrets_store_secrets|SGX_ACCOUNT_/);
 });
 
-test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不动；60 秒缓存；取值失败留空且不缓存', async () => {
+test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不动；60 秒缓存（救援钥匙不缓存）；取值失败留空且不缓存', async () => {
   _resetSecretCache();
   const store = (v) => ({ get: async () => v });
   const d = makeAccountD1();
@@ -96,13 +96,25 @@ test('resolveSecrets：绑定 → 字符串；字符串原样；其他绑定不�
   _resetSecretCache();
   let n = 0;
   const counting = { get: async () => 'v' + (++n) };
-  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: counting }, 0)).SGX_ACCOUNT_RESCUE_KEY, 'v1');
-  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: counting }, 60_000)).SGX_ACCOUNT_RESCUE_KEY, 'v1');
-  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: counting }, 60_001)).SGX_ACCOUNT_RESCUE_KEY, 'v2');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_PASSWORD_PEPPER: counting }, 0)).SGX_ACCOUNT_PASSWORD_PEPPER, 'v1');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_PASSWORD_PEPPER: counting }, 60_000)).SGX_ACCOUNT_PASSWORD_PEPPER, 'v1');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_PASSWORD_PEPPER: counting }, 60_001)).SGX_ACCOUNT_PASSWORD_PEPPER, 'v2');
+  _resetSecretCache();
+  /* 救援钥匙每个请求现取（定稿 §九「改完运行时即时生效」），缓存期内 pepper 照旧走缓存 */
+  let r = 0;
+  let p = 0;
+  const rescue = { get: async () => 'r' + (++r) };
+  const pepper = { get: async () => 'p' + (++p) };
+  const e1 = await resolveSecrets({ SGX_ACCOUNT_PASSWORD_PEPPER: pepper, SGX_ACCOUNT_RESCUE_KEY: rescue }, 0);
+  const e2 = await resolveSecrets({ SGX_ACCOUNT_PASSWORD_PEPPER: pepper, SGX_ACCOUNT_RESCUE_KEY: rescue }, 1);
+  assert.deepEqual([e1.SGX_ACCOUNT_RESCUE_KEY, e2.SGX_ACCOUNT_RESCUE_KEY], ['r1', 'r2'], '救援钥匙不缓存');
+  assert.deepEqual([e1.SGX_ACCOUNT_PASSWORD_PEPPER, e2.SGX_ACCOUNT_PASSWORD_PEPPER], ['p1', 'p1'], 'pepper 60 秒缓存');
   _resetSecretCache();
   const failing = { get: async () => { throw new Error('x'); } };
-  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: failing }, 0)).SGX_ACCOUNT_RESCUE_KEY, '');
-  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: store('ok') }, 1)).SGX_ACCOUNT_RESCUE_KEY, 'ok', '失败那轮没缓存');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_PASSWORD_PEPPER: failing }, 0)).SGX_ACCOUNT_PASSWORD_PEPPER, '');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_PASSWORD_PEPPER: store('ok') }, 1)).SGX_ACCOUNT_PASSWORD_PEPPER, 'ok', '失败那轮没缓存');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: failing }, 2)).SGX_ACCOUNT_RESCUE_KEY, '');
+  assert.equal((await resolveSecrets({ SGX_ACCOUNT_RESCUE_KEY: store('ok') }, 3)).SGX_ACCOUNT_RESCUE_KEY, 'ok');
   _resetSecretCache();
 });
 

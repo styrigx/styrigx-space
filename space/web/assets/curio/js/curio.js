@@ -10,11 +10,10 @@
  * - 不能编辑（canWrite=false）：命令链里只有一条（#cu-signin，signinHint）：
  *   没登录 →「su · su 登录后可编辑」，点了打开顶栏终端、预填 su （2c，v6 割接；data-sec-open）；
  *   已以 v6 用户登录但不在 curio-write → 无权限句「当前用户没有这个权限。」（「未获账号授权 → 应用授权」那一层随应用授权删除，v6 P4）。
- *   写接口回 401 account / 403 scope 时也提示这一句；导入回 401 reauth（要账号复验）时给「去验证」：打开账号终端只做 sudo root reauth，验过后当场重发导入，关下拉 reauth 即失效（#327 偏离修复）。
  * - 中英文：名字、简介各两份，当前语言那份为空时显示另一份。
  *
  * 数据：GET /api/links；写：POST /api/links {op}、POST /api/import（原文）；GET /api/preview；导出是 /api/export 的下载链接。
- * 读接口公开（v5 S3）；写请求回 401 unauthorized = 没进站 → 发 sgx:sudo（顶栏终端预填 sudo styrigx），401 account / reauth 是账号的事，照常提示。纯函数导出给 tests/curio/curio.test.mjs。
+ * 读接口公开（v5 S3）；写请求回 401 = 没进站 → 发 sgx:sudo（顶栏终端预填 sudo styrigx）。纯函数导出给 tests/curio/curio.test.mjs。
  */
 (function(){
 "use strict";
@@ -110,11 +109,11 @@ function normalizeUrl(s){
 }
 
 /**
- * 写请求的 401 是不是「锁定了」（要刷新去锁屏）：401 account（没登录账号）/ 401 reauth（要账号复验）不是，其余 401 都是。
- * @param {number} status @param {string} code
+ * 写请求的 401 是不是「锁定了」（要刷新去锁屏）：401 都是。
+ * @param {number} status
  */
-function isLockedReply(status, code){
-  return status === 401 && code !== 'account' && code !== 'reauth';
+function isLockedReply(status){
+  return status === 401;
 }
 
 /** 导入结果的一句话（文案在字符串表 js.curio.imp*） @param {{added:number, cats_added:number, skipped:number}} r @param {(k:string, v?:object)=>string} tr */
@@ -195,7 +194,7 @@ function send(url, body, type){
     body: type ? body : JSON.stringify(body),
   }).then(function(r){
     return r.json().catch(function(){ return {}; }).then(function(j){
-      if (isLockedReply(r.status, j.error)) { askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
+      if (isLockedReply(r.status)) { askSudo(); throw Object.assign(new Error('locked'), { sgxLocked: true }); }
       if (!r.ok || !j.ok) throw Object.assign(new Error(j.error || ('HTTP ' + r.status)), { code: j.error });
       return j;
     });
@@ -213,7 +212,6 @@ function errText(e){
   var c = e && e.code;
   return c === 'duplicate' ? T.dup : c === 'not-empty' ? T.notEmpty : c === 'bad-url' ? T.needUrl : c === 'bad-name' ? T.needName
     : c === 'not-bookmarks' ? T.notBookmarks : c === 'empty' ? T.emptyFile : c === 'too-large' ? T.tooLarge : c === 'limit' ? T.limit : c === 'backup' ? T.backup
-    : c === 'account' ? T.needAccount : c === 'scope' ? T.noScopeErr : c === 'reauth' ? T.needReauth
     : c === 'forbidden' ? (T.noPermission || T.failed) : T.failed; /* 2b：v6 身份档不够（403 forbidden） */
 }
 
@@ -595,21 +593,11 @@ $('#cats-add').addEventListener('click', function(){
 });
 
 var impFile = null;
-function impMsg(text, bad, link){
+function impMsg(text, bad){
   var el = $('#imp-msg');
   el.textContent = text || '';
-  if (text && link) {
-    /* 要账号复验（401 reauth）：提示后面带一个去账号页的链接（P3-1 前的简版） */
-    var a = doc.createElement('a');
-    a.href = link.href; a.textContent = link.label; a.className = 'underline font-bold ml-1';
-    if (link.open) a.setAttribute('data-acct-open', link.open);
-    el.appendChild(a);
-  }
   el.classList.toggle('hidden', !text); el.classList.toggle('text-m-error', !!bad);
 }
-/** 账号再验证（2026-11-08：打开顶栏账号终端只做 sudo root reauth）。验过后终端发 sgx-account-reauthed，这里当场重发导入；
- *  关下拉后 reauth 即失效（#327 偏离修复，和 O12 一致），所以不靠「3 分钟内再点一次导入」 */
-function reauthLink(){ var el = doc.getElementById('cu-signin'); return { href: ((el && el.getAttribute('href')) || '/').replace(/#.*$/, '') + '#acct=reauth', open: 'reauth', label: T.verifyNow }; }
 function resetImport(){
   impFile = null;
   $('#imp-file').value = '';
@@ -627,14 +615,11 @@ $('#imp-file').addEventListener('change', function(){
   $('#imp-go').disabled = !impFile;
   impMsg('');
 });
-/* 导入回了 401 reauth、还没复验：账号终端只做 reauth 验过后（sgx-account-reauthed）当场重发这一次导入 */
-var impNeedsReauth = false;
 /** @returns {Promise<void>} */
 function runImport(){
   if (!impFile) return Promise.resolve();
   var btn = $('#imp-go');
   btn.disabled = true;
-  impNeedsReauth = false;
   impMsg(T.importing);
   return impFile.text().then(function(text){
     return send('/curio/api/import' + ($('#imp-private').checked ? '' : '?private=0'), text, 'text/html');
@@ -645,18 +630,11 @@ function runImport(){
     impFile = null;
   }).catch(function(e){
     if (e.sgxLocked) return;
-    impNeedsReauth = e.code === 'reauth';
-    impMsg(errText(e), true, impNeedsReauth ? reauthLink() : null);
+    impMsg(errText(e), true);
     btn.disabled = false;
   });
 }
 $('#imp-go').addEventListener('click', function(){ runImport(); });
-doc.addEventListener('sgx-account-reauthed', function(ev){
-  if (!impNeedsReauth || !impFile) return;
-  var p = runImport();
-  var d = /** @type {any} */ (ev).detail;
-  if (d && typeof d.waitUntil === 'function') d.waitUntil(p);
-});
 
 /* ---------- 启动 ---------- */
 function boot(){

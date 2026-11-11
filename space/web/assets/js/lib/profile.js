@@ -10,7 +10,7 @@
  *    回来的非 null 字段覆盖默认值并写回缓存。
  *
  * 页面上要跟着资料变的元素标 data-sgx-profile="<字段>"（name / nickname / motto / email），默认改文字；
- * data-sgx-profile-attr="alt" 改属性；"href" 写成 mailto:<邮箱>。这些元素同时是个人信息类（translate="no" data-sgx-personal，lib/personal.js）。
+ * data-sgx-profile-attr="alt" 改属性；"href" 写成 mailto:<邮箱>。这些元素同时是个人信息类（translate="no" data-sgx-personal，partials/sgx-personal.html）。
  * 品牌 Styrigx（字标、站名、og:site_name 等）不是昵称，不标、不读这里。
  *
  * 字段表 PROFILE_FIELDS 与账号 Worker workers/account/src/lib/profile.js 同名同序同长度（tests/workers/account/profile.test.mjs 核对）；

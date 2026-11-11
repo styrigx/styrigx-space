@@ -45,7 +45,8 @@ export async function globalHot(env, kind, windowMs, slowAt) {
  * 记一次单 IP 失败（原子）。本轮连错到 max 次：count 清零、锁到 now + 锁定时长（strikes 模式下 strikes +1，
  * 锁定时长按新的 strikes 查 lockTable，超出表长取最后一项）。整行 expires_at = now + ttlMs（每次失败都续）。
  * @param {any} env @param {string} kind @param {string} bucket
- * @param {{max:number, ttlMs:number, lockMs?:number, lockTable?:number[]}} o lockMs：固定锁定时长；lockTable：按轮次递增（第 i 项 = 第 i+1 轮）
+ * 新行（第一次失败）原来只记数；o.lockFromFirst = true 时新行同样按 max 判（max 1 → 第一次失败就按第 1 轮锁，救援入口用，定稿 §十「1s→5s→30s→5min」）。
+ * @param {{max:number, ttlMs:number, lockMs?:number, lockTable?:number[], lockFromFirst?:boolean}} o lockMs：固定锁定时长；lockTable：按轮次递增（第 i 项 = 第 i+1 轮）
  * @returns {Promise<boolean>} 这次是否刚进入锁定 / 冷却
  */
 export async function recordAttempt(env, kind, bucket, o) {
@@ -62,8 +63,14 @@ export async function recordAttempt(env, kind, bucket, o) {
     lockExpr = '(CASE ' + s0 + ' + 1 ' + t.slice(0, -1).map((v, i) => 'WHEN ' + (i + 1) + ' THEN ' + v).join(' ') + ' ELSE ' + t[t.length - 1] + ' END)';
     strikesExpr = '(CASE WHEN ' + hit + ' THEN ' + s0 + ' + 1 ELSE ' + s0 + ' END)';
   }
+  /* 新行的初值：默认只记数；lockFromFirst 且 1 次就到 max → 当场锁第 1 轮 */
+  let firstVals = '1, 0, 0';
+  if (o.lockFromFirst && o.max <= 1) {
+    const first = o.lockTable && o.lockTable.length ? Math.floor(Number(o.lockTable[0])) || 0 : Math.floor(Number(o.lockMs)) || 0;
+    firstVals = '0, ' + (o.lockTable && o.lockTable.length ? 1 : 0) + ', ?3 + ' + first;
+  }
   const sql =
-    'INSERT INTO account_attempt_limit (kind, bucket, count, strikes, locked_until, window_start, expires_at) VALUES (?1, ?2, 1, 0, 0, ?3, ?3 + ?5) ' +
+    'INSERT INTO account_attempt_limit (kind, bucket, count, strikes, locked_until, window_start, expires_at) VALUES (?1, ?2, ' + firstVals + ', ?3, ?3 + ?5) ' +
     'ON CONFLICT (kind, bucket) DO UPDATE SET ' +
     'count = CASE WHEN ' + hit + ' THEN 0 ELSE ' + c0 + ' + 1 END, ' +
     'strikes = ' + strikesExpr + ', ' +

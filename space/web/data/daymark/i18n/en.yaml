@@ -102,9 +102,7 @@ js:
     up: Move up
     down: Move down
     remove: Remove from collection
-    needAccount: Sign in with su to edit.
     signin: Sign in with su to edit
-    noScopeErr: Daymark doesn’t have account access.
     del: Delete
     fromTrove: From the trove
     keptOn: Kept {d}

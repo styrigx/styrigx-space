@@ -111,13 +111,10 @@ test('importSummary：文案走字符串表 js.curio.imp*，复数按语言', ()
 });
 
 /* ===== 设备 / 游戏（curio-items.js）、首页（curio-home.js）、电影（curio-movies.js）、音乐（curio-music.js） ===== */
-test('isLockedReply：写请求只有 401 unauthorized（或没码的 401）才当锁定；401 account / reauth 不刷新（P2-2）', () => {
-  assert.equal(C.isLockedReply(401, 'unauthorized'), true);
-  assert.equal(C.isLockedReply(401, undefined), true);
-  assert.equal(C.isLockedReply(401, 'account'), false);
-  assert.equal(C.isLockedReply(401, 'reauth'), false);
-  assert.equal(C.isLockedReply(403, 'scope'), false);
-  assert.equal(C.isLockedReply(200, ''), false);
+test('isLockedReply：写请求 401 当锁定；其余不是', () => {
+  assert.equal(C.isLockedReply(401), true);
+  assert.equal(C.isLockedReply(403), false);
+  assert.equal(C.isLockedReply(200), false);
 });
 
 const IT = require('../../space/web/assets/curio/js/curio-items.js');
