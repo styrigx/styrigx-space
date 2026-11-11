@@ -222,9 +222,11 @@ term:
   usageUserdel: "usage: userdel <name>"
   usageUsermod: "usage: usermod -aG | -rG <group[,group]> <name>"
   usageRescue: "usage: rescue"
-  needEntry: "not entered · run {x} first"
   needRoot: "not signed in to the account · run {x} first"
   needRoot6: "permission denied · run {x} first"
+  needSu: "not signed in · {x} first"
+  suUser: "<user>"
+  exitFirst: "signed in as {u} · {x} first"
   linkDenied: "a share-link session can’t do this · enter with your own key"
   alreadyIn: "already entered · {x} to verify again"
   notHere: "{x}: run it in the terminal (Ctrl K)"
@@ -425,6 +427,10 @@ account:
     errWrongRoot: "incorrect recovery key"
     sessExp: "session expired · run sudo styrigx again"
     opening: "Opening account…"
+  # 割接：v6 root 直接做的 sub / app 撞到服务端 401 / 403 forbidden（同身份层 notSignedIn、终端 needRoot6）
+  v6:
+    notSignedIn: "not signed in · su <user> first"
+    forbidden: "permission denied · run {x} first"
   session:
     signedOut: "signed out · back to styrigx@space"
     guest: "Not signed in"

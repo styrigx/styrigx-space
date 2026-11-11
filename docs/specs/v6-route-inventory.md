@@ -66,6 +66,10 @@ P2c 变更（2026-11-11，对齐定稿 v5）：
 P3 变更（2026-11-11，定稿 v5.2 §九；路由档不变）：
 - `POST /api/identity` 加 action `rescue` = **public**（访客的救援入口；已登录 → 409 exit-first；救援会话里再调 → permits 第 1 步拒）：输恢复钥匙，账号 Worker 读 Secrets Store `SGX_ACCOUNT_RESCUE_KEY` 恒定时间比对，通过签 15 分钟一次性 root 会话（rescue 标志、不续期）；`account_recovery_key` 记钥匙指纹（SHA-256，不存明文），同值再用直接拒，指纹写失败拒绝救援。救援白名单不变（whoami / exit / lock / passwd / passkey-* / groups），`rescue` 不在其中。
 
+2d 变更（2026-11-11，割接后续；路由档不变）：
+- 前端终端 `sub`、`app`（`POST /api/account/proxy`、`/api/account/grants`，root 档）接 v6：v6 root 直接做（不看旧账号会话、不跑旧 `sudo root reauth`）；v6 普通用户提示「当前用户没有这个权限 · 先 su root」；访客（所有要身份的命令）提示「没有登录 · 先 su <用户>」。旧会话路径不变（P4 删）。
+- 奇趣 / 日刻 / 博客的全站终端挂 v6 身份层（su / su root / sudo / exit / lock / whoami …），同主站。
+
 ### 已定（Gray 2026-11-11）
 
 盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **owner** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。

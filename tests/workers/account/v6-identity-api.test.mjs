@@ -228,6 +228,8 @@ test('idle：只弹 root 层，普通用户层不动；lock：清栈并删服务
   assert.equal(l.json.user, null);
   assert.equal(rows(env, 'SELECT * FROM account_sessions').length, 0);
   assert.equal(rows(env, 'SELECT * FROM account_session_stack').length, 0);
+  /* 定稿 §六：lock 删服务端会话行——别的标签页（同一个令牌）下一次请求就失效，不靠前端刷新 */
+  assert.equal((await id(env, { action: 'whoami' }, tok)).json.user, null, '同一令牌再问 whoami = 访客');
 });
 
 test('身份栈最多三层：栈表 CHECK depth = 1；root 层过期（1 小时）→ admit 弹回 styrigx', async () => {

@@ -113,7 +113,7 @@ test.describe('锁屏凭证 e2e（预览站）', () => {
     await gotoLockTerm(page, BASE + '/wild/?entry=1&test-no-local-bypass=1');
     await expect(page.locator(SEL.ps)).toHaveText('nobody@space:~/wild$');
     await lockCmd(page, 'share');
-    await expect(page.locator(SEL.out)).toContainText('sudo styrigx', { timeout: 15000 });
+    await expect(page.locator(SEL.out)).toContainText('not signed in · su <user> first', { timeout: 15000 }); /* 割接：访客提示先 su <用户>（同身份层 notSignedIn） */
   });
 
   test('两把通行密钥删一把：删掉的那把 unknown-key，另一把仍能解锁', async ({ page }) => {

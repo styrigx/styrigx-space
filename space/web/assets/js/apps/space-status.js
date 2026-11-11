@@ -173,6 +173,9 @@ function init() {
         dropCache();
         data = null;
         setState('locked');
+        /* 2d：403 = 已登录（只是不在 status 组）：凭据记录折叠区照常留着（它另归 root，展开后按服务端回答显示同一处已上线的
+           auditErrPerm「只有 root 能看这份记录，先 su root」）；401 访客照旧整块藏起来 */
+        root.toggleAttribute('data-lock-perm', status === 403);
       } else if (data && !isEmptySummary(data)) {
         /* 已经有数据：保留，页脚提示 */
         foot.textContent = fmt('stale', { time: fmtBjTime(gotAt, lang, bjDay(Date.now())) });
@@ -280,6 +283,7 @@ function init() {
     dropCache();
     data = null;
     setState('locked');
+    root.removeAttribute('data-lock-perm');
   });
 
   /* 可见时每 60 秒刷新（切到后台停，回到前台立即刷一次）；第一次失败后的错误卡也照样每分钟自动再试，锁了不试 */

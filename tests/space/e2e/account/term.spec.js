@@ -115,7 +115,7 @@ test.describe('账号卡片 #sgx-acct（S9：只展示，点一行 = 终端预�
     await expect(t).toHaveAttribute('open', '');
     await inp.fill('sudo root');
     await inp.press('Enter');
-    await expect(t.locator('[data-term-out] > *').last()).toHaveText('还没进站 · 先 sudo styrigx');
+    await expect(t.locator('[data-term-out] > *').last()).toHaveText('没有登录 · 先 su <用户>');
     entered = true;
     await page.reload({ waitUntil: 'load' });
     await page.locator('#site-nav .sgx-tb-term').click();
