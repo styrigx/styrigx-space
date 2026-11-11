@@ -7857,14 +7857,15 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
   animation: sgx-av-orbit 2s linear infinite; }
 .sgx-tb-av.is-busy::before { animation-duration: .9s; }
 /* 头像 = whoami（v6 P2b）：root 身份在头像右下角叠一个「#」（同提示符的 #）；只在有 v6 新会话且是 root 时由 topbar-panel.js 插入 */
-.sgx-tb-av-root { position: absolute; z-index: 3; right: 1px; bottom: 1px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; pointer-events: none;
+.sgx-tb-av-mark { position: absolute; z-index: 3; right: 1px; bottom: 1px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; pointer-events: none;
   font: 700 10px/14px var(--sgx-font-mono); text-align: center; background: var(--sgx-primary-fill); color: var(--sgx-on-primary-fill); box-shadow: 0 0 0 1.5px var(--sgx-surface); }
 /* 盾牌身份徽章（定稿 v5.5 §七：四档，盾越实身份越高；站长与 root 主题色，访客与普通用户灰色 = 平时的次要色）：topbar-panel.js paintShield 写 data-sgx-tier；
    部件见 partials/icon.html tb-shield（打勾 .sgx-sh-ok、小人 .sgx-sh-u、盾身 .sgx-sh-b）。没写档（本地 / 测试构建、还没问到身份）= 原样 */
-.sgx-tb-shield:is([data-sgx-tier="guest"], [data-sgx-tier="user"], [data-sgx-tier="root"]) .sgx-sh-ok { display: none; }
+.sgx-tb-shield:is([data-sgx-tier="guest"], [data-sgx-tier="user"]) .sgx-sh-ok { display: none; }
 .sgx-tb-shield[data-sgx-tier="user"] .sgx-sh-u { display: inline; }
 .sgx-tb-shield:is([data-sgx-tier="owner"], [data-sgx-tier="root"]) { color: var(--sgx-primary); }
 .sgx-tb-shield[data-sgx-tier="root"] .sgx-sh-b { fill: currentColor; }
+.sgx-tb-shield[data-sgx-tier="root"] .sgx-sh-ok { stroke: var(--sgx-surface); }
 @keyframes sgx-av-orbit { to { transform: rotate(1turn); } }
 .reduced-motion .sgx-tb-av::before { animation: none; }
 @media (prefers-reduced-motion: reduce) { .sgx-tb-av::before { animation: none; } }

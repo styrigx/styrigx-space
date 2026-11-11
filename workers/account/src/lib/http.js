@@ -22,7 +22,7 @@ export function json(status, body, headers) {
 }
 
 /**
- * 错误响应：{ ok:false, error:<code>, ...extra }。code 必须登记在 ERROR_CODES（tests/workers/space-core/error-codes.test.mjs 核对）。
+ * 错误响应：{ ok:false, error:<code>, ...extra }。code 必须登记在 workers/space-core/src/lib/http.js 的 ERROR_CODES（全仓一份，tests/workers/space-core/error-codes.test.mjs 核对）。
  * 状态码按各接口原样（前端和测试依赖），这里不改写。
  * @param {number} status
  * @param {string} code
@@ -32,77 +32,6 @@ export function json(status, body, headers) {
 export function apiError(status, code, extra, headers) {
   return json(status, Object.assign({ ok: false, error: code }, extra || {}), headers);
 }
-
-/**
- * 网关 / 账号 / 分享 Worker 返回的全部 error 码和各自用到的 HTTP 状态（只登记，不改写）。
- * 新加一个码要在这里登记；前端怎么显示见 tests/workers/space-core/error-codes.test.mjs。
- */
-export const ERROR_CODES = Object.freeze({
-  /* 请求本身 */
-  method: [405],
-  body: [400],
-  params: [400],
-  action: [400],
-  origin: [403],
-  purpose: [400],
-  bad_request: [400],
-  'too-long': [400],
-  /* 会话 / 票 / 角色 */
-  session: [401, 400], /* 400：分享 Worker 的 session（有效天数）参数不对 */
-  unauthorized: [401],
-  account: [401],
-  reset: [401], /* 账号 reset 票无效（/api/account/reset） */
-  denied: [401],
-  scope: [403], /* 账号作用域不够（P2-2：/api/avatar、/api/prefs；带 scope 字段） */
-  reauth: [403],
-  challenge: [403],
-  /* 凭证 */
-  auth: [401],
-  wrong: [403],
-  verify: [403],
-  'not-set': [403],
-  exists: [403],
-  'last-key': [403],
-  short: [400],
-  password: [400],
-  cooldown: [429],
-  /* 临时钥匙 / 账号设备 */
-  code: [400],
-  name: [400],
-  duration: [400],
-  full: [409],
-  current: [400],
-  'not-found': [404],
-  /* 账号 Worker 头像、分享 Worker 短链 */
-  'bad-form': [400],
-  missing: [400],
-  'too-large': [413],
-  'bad-type': [415],
-  target: [400],
-  /* v6 身份命令（P2，/api/identity） */
-  permission: [403], /* 档不够（带 need：要哪一档） */
-  'exit-first': [409], /* 普通用户态不能 su 到另一个普通用户，先 exit */
-  'already-root': [409],
-  'must-change': [403], /* 一次性密码首登：带 newPassword 再来一次 */
-  weak: [400], /* 新密码不合格（≥ 8 位、不等于用户名 / 旧密码） */
-  'root-creds': [403], /* sudo / passwd <名> 不能动 root 的凭据，只能在 su root 或救援会话里 passwd */
-  expiry: [400],
-  temporary: [400], /* 临时用户不能进 wheel / sudoers / 写组 */
-  group: [400],
-  protected: [403], /* userdel / usermod 不能动 root、styrigx（带 target） */
-  'last-member': [409], /* 减掉最后一个 wheel / sudoers 成员：带 force 再来一次 */
-  /* 服务端 / 配置 */
-  server: [500, 503],
-  config: [500, 503],
-  epoch: [503],
-  internal: [500],
-  upstream: [502, 503],
-  no_key: [503],
-  'sign-failed': [500],
-  'session-sign-failed': [500],
-  'invalid-by': [500],
-  'no-session-key': [500],
-});
 
 /**
  * 客户端 IP（限速分桶用）：只认 Cloudflare 填的 CF-Connecting-IP；没有就是 'unknown'。

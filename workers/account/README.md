@@ -28,7 +28,7 @@
 | `src/api/account/` | `status.js`（GET 状态）、`session.js`、`reauth.js`、`reset.js`、`keys.js`、`devices.js`，公共的 `_request.js`（进站会话、同源、读 body、客户端地址、兜底 500） |
 | `src/api/` | `avatar.js`、`avatar-file.js`、`profile.js`、`prefs.js` |
 | `src/core/` | `config.js`（票 / 纪元 / cookie / challenge 用途 / rp）、`session.js`、`reauth.js`、`reset.js`、`password.js`、`password-limit.js`、`passkey.js`、`recovery-key.js`、`devices.js`、`audit.js` |
-| `src/lib/` | `ticket.js`（签 / 验票）、`db.js`（D1_ACCOUNT、兜底建表）、`webauthn.js`、`gateway.js`、`attempt-limit.js`、`crypto.js`、`cookies.js`、`http.js`、`avatar.js`、`profile.js`、`security-headers.js`、`csp-hashes.js` |
+| `src/lib/` | `ticket.js`（签 / 验票）、`db.js`（D1_ACCOUNT；表只由 migrations 建）、`webauthn.js`、`gateway.js`、`attempt-limit.js`、`crypto.js`、`cookies.js`、`http.js`、`avatar.js`、`profile.js`、`security-headers.js`、`csp-hashes.js` |
 
 不 import 网关或任何别的 Worker（`space/scripts/check-layers.mjs` 规则 14）；退役的旧名字一个都不许出现（规则 22，名单在 `space/scripts/retired-names.json`）。
 
@@ -38,7 +38,7 @@ ADR-0006。P1 只加新路径，旧会话 / 旧入口 / 旧命令全部不动；
 
 | 文件 | 做什么 |
 |---|---|
-| `migrations/0006_identity.sql` | 8 张身份表：`account_users`、`account_user_groups`、`account_user_password`（含 `pepper_id`）、`account_user_passkey`、`account_sessions`、`account_session_stack`、`account_user_audit`、`account_recovery_key`；与 `src/lib/db.js` `IDENTITY_SCHEMA` 逐条一致 |
+| `migrations/0006_identity.sql` | 8 张身份表：`account_users`、`account_user_groups`、`account_user_password`（含 `pepper_id`）、`account_user_passkey`、`account_sessions`、`account_session_stack`、`account_user_audit`、`account_recovery_key` |
 | `src/core/groups.js` | uid（root 0、styrigx 1000）、组、styrigx 默认组、临时用户不进特权 / 写组（`canJoinGroup`）、**唯一的权限判断 `permits(identity, level, { rescue })`** |
 | `src/core/route-access.js` | 全站路由访问表 v6（public / user / 组名 / root，未列入拒绝；盘点文档 `docs/specs/v6-route-inventory.md`） |
 | `src/core/identity-session.js` | 新会话判定 `admitSession`：一次 D1 查询、只读；会话时长常量与续期节流 `shouldRenew` |

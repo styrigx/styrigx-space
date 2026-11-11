@@ -270,7 +270,7 @@ test('限流：单独计数（不影响 su）；按 uid 渐进退避 1s → 5s �
     assert.equal(blocked.json.error, 'cooldown');
     unblock(env);
   }
-  assert.equal(rows(env, "SELECT * FROM account_attempt_limit WHERE kind LIKE 'v6-name%' OR kind = 'v6-ip'").length, 0, '不和 su 共用计数');
+  assert.equal(rows(env, "SELECT * FROM account_attempt_limit WHERE kind = 'v6-uid' OR kind = 'v6-ip'").length, 0, '不和 su 共用计数');
   assert.equal((await call(env, { action: 'su', user: 'styrigx', password: PW.styrigx })).status, 200, 'su 不受影响');
   /* 同一 IP 每分钟 6 次失败 */
   const env2 = await setup();

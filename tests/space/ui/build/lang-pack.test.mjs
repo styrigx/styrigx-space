@@ -16,7 +16,7 @@ const built = Object.values(PUB).every((d) => existsSync(path.join(REPO, d, 'ind
 
 /* 只在英文表里、不需要译文的键（品牌 / 产品名，回退英文就是对的） */
 /* 复数形式（键_one / _two / _few / _many / _zero，按 Intl.PluralRules 选；没有就用键本身）：只有用得上的语言写，比如中文不分单复数 */
-const EN_ONLY = /^(site\.name|js\.(account|lockmgr)\.pkProv_[a-z0-9_]+|js\.[\w]+\.[\w]+_(zero|one|two|few|many))$/;
+const EN_ONLY = /^(site\.name|js\.[\w]+\.[\w]+_(zero|one|two|few|many))$/;
 
 /* ---------------- 字符串表本身 ---------------- */
 
@@ -51,7 +51,6 @@ test('缺键回退英文：sgx-tr.html 是「英文表 ← 页面语言表」的
   assert.deepEqual(deepMerge({ a: { x: 'X', y: 'Y' }, b: 'B' }, { a: { x: '叉' } }), { a: { x: '叉', y: 'Y' }, b: 'B' });
   /* 中文表缺的品牌键拿到英文 */
   assert.equal(strings('space', 'zh').site.name, 'Styrigx');
-  assert.equal(strings('space', 'zh').js.account.pkProv_samsung_pass, 'Samsung Pass');
   /* 没有语言包的语言（假设 fr）= 全英文 */
   const fr = strings('space', 'fr');
   assert.deepEqual(flatKeys(fr).sort(), flatKeys(strings('space', 'en')).sort());
@@ -291,9 +290,15 @@ test('Worker 名字（语言包化第二部分）：服务状态站名接口只�
     assert.doesNotMatch(t.name, /[\u3400-\u9fff]/, 'targets.js ' + t.site + ' 英文原文');
     assert.ok(en.status['site_' + t.site] && zh.status['site_' + t.site], 'js.status.site_' + t.site + ' 两种语言都有');
   }
-  /* 授权应用名（js.account.app_*）随应用授权与 core/scopes.js 一起删除（定稿 v5.3 §十二） */
-  assert.equal(Object.keys(en.account).filter((k) => k.startsWith('app_')).length, 0);
-  assert.equal(Object.keys(zh.account).filter((k) => k.startsWith('app_')).length, 0);
+  /* 旧账号页的文案表 js.account（含授权应用名 app_*）没有页面输出、没有脚本读，v6 P4 收尾整节删除；
+     旧账号页模板的 account / accountApps / accountDevices / accountSecurity / accountSync / accountProfile 节同删 */
+  assert.equal(en.account, undefined);
+  assert.equal(zh.account, undefined);
+  for (const lang of ['en', 'zh']) {
+    const top = rawTable('space', lang);
+    for (const k of ['account', 'accountApps', 'accountDevices', 'accountSecurity', 'accountSync', 'accountProfile']) assert.equal(top[k], undefined, lang + ' ' + k);
+    assert.equal(top.js.core.avNoScope, undefined, lang + ' js.core.avNoScope');
+  }
   /* 数字健康（lib/wb-view.js 与 wbArea_* / wbTodayAllDevices 文案）v6 P4 整套删除（定稿 v5.5 §四） */
   assert.ok(!existsSync(path.join(REPO, 'space/web/assets/js/lib/wb-view.js')), 'lib/wb-view.js 已删');
   assert.ok(!Object.keys(en.space).some((k) => k.startsWith('wb')) && !Object.keys(zh.space || {}).some((k) => k.startsWith('wb')), '字符串表里不留 wb*');

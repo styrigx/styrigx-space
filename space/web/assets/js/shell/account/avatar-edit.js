@@ -1,6 +1,6 @@
 /**
  * @fileoverview 换头像 / 移除头像（2026-11-08 起只在账号终端 › 个人资料「头像」一行用，shell/account/profile.js；原 apps/avatar-edit.js）。
- * 服务端 /api/avatar 要账号会话 + avatar.write。
+ * 服务端 /api/avatar 是 owner 档（站长 + root）。
  *
  * 「头像」一行展开「选择照片… / 移除照片」（没有自定义头像时只有第一项），调这里导出的 chooseAvatarPhoto / removeAvatar / avatarIsCustom。
  * 选照片 → 全屏裁剪：圆形取景框，单指拖动、双指缩放（电脑上滚轮缩放），照片始终盖满取景框（O7：交互不变，只换成稿的样子）。
@@ -313,7 +313,7 @@ async function save() {
     announce(j.ver || '');
   } catch (e) {
     doneBtn.disabled = false;
-    toast(failText(e));
+    toast(TXT.failed);
   }
 }
 
@@ -339,15 +339,11 @@ export async function removeAvatar() {
     announce('');
     return true;
   } catch (e) {
-    toast(failText(e));
+    toast(TXT.failed);
     return false;
   }
 }
 
-/** 保存 / 移除失败的提示：403 scope（P3-1：在 账号 › 应用授权 取消了头像）单独说；其余照旧 @param {any} e */
-function failText(e) {
-  return e && e.message === 'scope' ? TXT.noScope : TXT.failed;
-}
 
 /* ---------- 入口 ---------- */
 

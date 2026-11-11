@@ -94,10 +94,16 @@ test('字符串表：account.* 中英键一致；旧的平铺 acct 节删了；�
   /* 动态拼的键 */
   for (const pre of ['profile.name', 'profile.nickname', 'profile.motto', 'profile.email']) assert.ok(zk.includes(pre), pre);
   /* 头像裁剪退到外壳表 account.profile.avatar.* */
-  for (const k of ['title', 'pick', 'remove', 'crop', 'cancel', 'done', 'saved', 'removed', 'failed', 'badFile', 'noScope']) assert.ok(zk.includes('profile.avatar.' + k), k);
+  for (const k of ['title', 'pick', 'remove', 'crop', 'cancel', 'done', 'saved', 'removed', 'failed', 'badFile']) assert.ok(zk.includes('profile.avatar.' + k), k);
+  /* v6 P4 收尾：服务端不再回 403 scope / 401 account / 403 reauth，对应文案和分支删了；账号安全卡片的标题行（keys.title / keys.hint）没人读也删了 */
+  for (const k of ['profile.avatar.noScope', 'profile.errScope', 'reauth.expired', 'keys.title', 'keys.hint']) assert.ok(!zk.includes(k) && !ek.includes(k), k + ' 删了');
+  assert.equal(TR.zh.account.reauth, undefined);
+  assert.doesNotMatch(strip(rd(DIR + 'avatar-edit.js')), /'scope'|noScope/);
+  assert.doesNotMatch(strip(rd(DIR + 'cmd/profile.js')), /'scope'|'account'|reauth/);
   /* auth/post-json.js errText 用的旧平铺键都接得上（term.js errT） */
   const api = rd('space/web/assets/js/auth/post-json.js');
   for (const m of api.matchAll(/: '(err\w+|sessExp)'/g)) assert.ok(zk.includes('common.' + m[1]), m[1]);
+  assert.doesNotMatch(api, /reauth/, 'post-json.js 不再映射 reauth');
 });
 
 test('后端名字只在 api.js：入口、action 名、请求字段、状态字段、密码管理器隐藏用户名（NAMING-V2 P2 已切到按入口的新接口）', () => {

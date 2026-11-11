@@ -148,7 +148,7 @@ test('root 代码级禁止公开登录：访客 su root 403；issueSession 拒�
   assert.equal(t.status, 200, '临时用户没到期可以登');
 });
 
-test('限流：同一用户名渐进退避（不硬锁）；同一 IP 每分钟 6 次失败后冷却；通行密钥 / 正确密码不计数', async () => {
+test('限流：同一账号（按 uid 一个桶）渐进退避（不硬锁）；同一 IP 每分钟 6 次失败后冷却；通行密钥 / 正确密码不计数', async () => {
   const env = await setup();
   const ip = freshIp();
   assert.equal((await id(env, { action: 'su', user: 'alice', password: 'bad-1aaaaa' }, undefined, ip)).status, 401);
@@ -156,14 +156,15 @@ test('限流：同一用户名渐进退避（不硬锁）；同一 IP 每分钟 
   const c = await id(env, { action: 'su', user: 'alice', password: PW.alice }, undefined, freshIp());
   assert.equal(c.status, 429, '第二次失败后要等（1s → 5s → 30s → 5min）');
   assert.equal(c.json.error, 'cooldown');
-  const row = rows(env, "SELECT strikes FROM account_attempt_limit WHERE kind = 'v6-name' AND bucket = 'n:alice'")[0];
+  const aliceUid = rows(env, "SELECT uid FROM account_users WHERE name = 'alice'")[0].uid;
+  const row = rows(env, "SELECT strikes FROM account_attempt_limit WHERE kind = 'v6-uid' AND bucket = ?", 'uid:' + aliceUid)[0];
   assert.equal(row.strikes, 1);
   /* IP 维度：换不同用户名，同一 IP 第 6 次失败后冷却 */
   const ip2 = freshIp();
   for (let i = 0; i < 6; i++) await id(env, { action: 'su', user: 'nobody' + i, password: 'x-pass-123' }, undefined, ip2);
   const d = await id(env, { action: 'su', user: 'styrigx', password: PW.styrigx }, undefined, ip2);
   assert.equal(d.status, 429, 'IP 硬上限');
-  assert.deepEqual(auth.NAME_BACKOFF_MS, [1000, 5000, 30000, 300000]);
+  assert.deepEqual(auth.UID_BACKOFF_MS, [1000, 5000, 30000, 300000]);
   assert.equal(auth.IP_LIMIT.max, 6);
 });
 

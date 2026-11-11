@@ -1,5 +1,6 @@
 import { layer, notHere, FLOW } from '../keys/gate.js';
 import { parseUseradd, parseUsermod } from '../../core/ident-args.js';
+import { isV6 } from '../../core/who.js';
 
 /**
  * v6 身份命令（P2b，定稿 v4 §六 / §八）：whoami · su · groups · who · useradd · userdel · usermod；P3 救援入口 rescue（§九）。
@@ -35,6 +36,8 @@ const whoami = {
 const su = {
   name: 'su',
   args: ['root'],
+  /* 补全 / 影子按身份：访客往上是进站（styrigx），已登录往上是 root（Gray 11-12 00:32） @param {any} w */
+  argsFor: function (w) { return isV6(w) ? ['root'] : ['styrigx']; },
   takesArgs: true,
   audience: /** @type {any} */ (['user']),
   /** @param {any} p @param {any} x */

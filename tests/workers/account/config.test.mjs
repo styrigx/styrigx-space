@@ -1,7 +1,7 @@
 /**
- * 账号 Worker 的命名与配置（core/config.js、lib/db.js ACCOUNT_SCHEMA、secrets.js、wrangler.toml 的 Secrets Store / D1 绑定）：
+ * 账号 Worker 的命名与配置（core/config.js、lib/db.js、secrets.js、wrangler.toml 的 Secrets Store / D1 绑定）：
  * - challenge 用途、Secrets 名钉死字面量（命名 v2；v6 P4 删三张票 / 两个纪元 / by）
- * - ACCOUNT_SCHEMA + IDENTITY_SCHEMA 与 migrations（0005 账号表、0006 v6 身份表）建出的表逐列一致
+ * - 账号 Worker 不自己建表（表只由 migrations 建）；0007 / 0008 只加列
  * - secrets：四个名字；wrangler.toml 正式段恰好这四个 Secrets Store 绑定（binding = secret_name，store 同网关），预览不绑
  * - resolveSecrets：绑定 → 字符串、60 秒缓存、取值失败留空且不缓存
  * - 退役名单（space/scripts/retired-names.json）里的旧名不出现在账号 Worker 源码里
@@ -11,7 +11,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { DatabaseSync } from 'node:sqlite';
 import { makeAccountD1, ACCOUNT_TABLES, IDENTITY_TABLES } from './_d1.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
@@ -43,21 +42,15 @@ test('rpConfig / rpConfigMissing：两个都在才给；缺 → 503 config', asy
   assert.equal((await r.json()).error, 'config');
 });
 
-test('ACCOUNT_SCHEMA + IDENTITY_SCHEMA（兜底建表）与迁移建出的 account_* 表逐列一致（到 0006 为止，account_grant 除外：兜底不建）；0007 只给 account_device 加 uid、0008 只给 account_sessions 加 device；每条都 IF NOT EXISTS', () => {
-  const a = new DatabaseSync(':memory:');
-  for (const s of db.ACCOUNT_SCHEMA.concat(db.IDENTITY_SCHEMA)) { assert.match(s, /IF NOT EXISTS/); a.exec(s); }
-  /* 兜底建表是迁移前（0006）的结构；0007 之后 account_device 多一列 uid（默认 1000），0008 之后 account_sessions 多一列 device（可空），别的 account_* 不变 */
+test('账号 Worker 不自己建表（v6 P4 收尾：表只由 migrations/ 建，部署 job 先 d1 migrations apply 再部署）；0007 只给 account_device 加 uid、0008 只给 account_sessions 加 device', () => {
+  for (const gone of ['ACCOUNT_SCHEMA', 'IDENTITY_SCHEMA', 'withSchema', 'readEpoch', 'bumpEpoch']) assert.equal(gone in db, false, gone + ' 删了');
+  assert.doesNotMatch(readFileSync(SRC + 'lib/db.js', 'utf8'), /CREATE (TABLE|INDEX)|no such table|account_epoch WHERE/i);
   const b = makeAccountD1({ migrations: 'pre-uid' }).raw;
   const c = makeAccountD1().raw;
   const all = [...ACCOUNT_TABLES, ...IDENTITY_TABLES];
-  /* account_grant 只由历史迁移 0005 建，兜底不建（应用授权删除，定稿 v5.4 §十一：部署绿后 drop，不得被建回） */
-  const fallback = all.filter((t) => t !== 'account_grant');
-  for (const s of db.ACCOUNT_SCHEMA) assert.doesNotMatch(s, /account_grant/);
   const cols = (d, t) => d.prepare('PRAGMA table_info(' + t + ')').all().map((c) => [c.name, c.type, c.notnull, c.pk, c.dflt_value]);
-  for (const t of fallback) assert.deepEqual(cols(a, t), cols(b, t), t);
   for (const t of all) assert.deepEqual(cols(c, t), t === 'account_device' ? cols(b, t).concat([['uid', 'INTEGER', 1, 0, '1000']]) : t === 'account_sessions' ? cols(b, t).concat([['device', 'TEXT', 0, 0, null]]) : cols(b, t), '0007 / 0008 后 ' + t);
   const names = (d) => d.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'account_%' ORDER BY name").all().map((r) => r.name);
-  assert.deepEqual(names(a), [...fallback].sort());
   assert.deepEqual(names(b), [...all].sort());
 });
 

@@ -338,8 +338,6 @@ kh:
   backAria: "Back"
 account:
   keys:
-    title: "Account security"
-    hint: "protected · reauth"
     passkey:
       noSuch: "no such passkey"
       lsFirst: "list them first: {x}"
@@ -409,7 +407,6 @@ account:
     errEmpty: "can’t be empty"
     errLong: "too long (max {n} characters)"
     errFormat: "invalid format"
-    errScope: "Profile isn’t allowed for this account"
     choosePhoto: "Choose photo…"
     removePhoto: "Remove photo"
     avatar:
@@ -423,7 +420,6 @@ account:
       removed: "Photo removed"
       failed: "Couldn’t save the photo. Try again."
       badFile: "This file can’t be opened as an image."
-      noScope: "Avatar doesn’t have account access"
   devices:
     noSuch: "no such device"
     lsFirst: "list them first: {x}"
@@ -440,8 +436,6 @@ account:
     hourAgo: "active {n} h ago"
     dayAgo: "active {n} d ago"
     currentHint: "can’t sign out this device here, use Sign out"
-  reauth:
-    expired: "verification expired, verify again"
   # Proxy subscription (P2, design v1.10 §8): sub-* commands run in the account terminal (tty5); sub-* typed in the site terminal / shield / AI is handed over here. Commands, hosts and source names are not translated
   proxy:
     key: "public key"

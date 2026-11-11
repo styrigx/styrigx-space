@@ -138,10 +138,8 @@ test('眼睛：各处不再内联眼睛 SVG、不再 toggle .off；模板文案�
   for (const f of ['apps/security.js', 'apps/security-lock.js', 'shell/lock.js', 'auth/cred-rows.js']) {
     assert.ok(!existsSync(join(ROOT, 'space/web/assets/js', f)), f + ' 已删');
   }
-  /* 语言包化（2026-11-07）：账号页文案表在主站字符串表 js.account */
-  const d = jsDict('account');
-  assert.deepEqual(d.eyeShow, { en: 'Show password', zh: '显示密码' }, 'account eyeShow 应为显示密码');
-  assert.deepEqual(d.eyeHide, { en: 'Hide password', zh: '隐藏密码' }, 'account eyeHide 应为隐藏密码');
+  /* v6 P4 收尾：旧账号页文案表 js.account 没有页面输出、没有脚本读，整节删了 */
+  assert.deepEqual(jsDict('account'), {}, 'js.account 删了');
   /* v6 P4：钥匙层（shell/space/ 下的进站 / reset / 复验）随旧进站会话删了，只剩守卫 */
   for (const f of ['paths.js', 'layer.js', 'reset.js', 'session.js']) assert.ok(!existsSync(join(spaceDir, f)), 'shell/space/' + f + ' 已删（v6 P4）');
   /* P2-3：升级验证层（shell/upgrade.js）已删除 */

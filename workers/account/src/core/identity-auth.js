@@ -7,7 +7,7 @@
  *   （docs/ops/v6-p4-predeploy-check.sql，只读）。不认识的 id / 缺 pepper → 验不过（fail closed）。
  * - 一次性密码（useradd / passwd <名>）：16 位以上随机，只显示一次，库里只存哈希；must_change = 1，expires_at = 签发 + 24 小时；
  *   过期的一次性密码一律验不过。
- * - 限流两维（定稿 v4 §十）：按 IP 硬上限（每分钟 6 次失败，满了冷却到窗口结束）；按用户名渐进退避（1s → 5s → 30s → 5min），不硬锁。
+ * - 限流两维（定稿 v4 §十）：按 IP 硬上限（每分钟 6 次失败，满了冷却到窗口结束）；按 uid 渐进退避（每个账号一个桶，1s → 5s → 30s → 5min），不硬锁；不存在的用户名按名字记。
  *   只有失败才写计数；通行密钥不计入、也不受用户名冷却影响。计数按用户名分桶（不存在的用户名同样计数），所以存在与否看不出来。
  * - 防枚举：用户不存在、没设密码、密码错、一次性密码过期、用户已禁用 / 到期 → 同一个错误（auth），同一条耗时路径（照样算一次哈希）。
  *
@@ -35,10 +35,10 @@ const ONE_TIME_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
 
 /** IP 维度：每分钟最多 6 次失败 */
 export const IP_LIMIT = Object.freeze({ kind: 'v6-ip', max: 6, windowMs: 60 * 1000 });
-/** 用户名维度：渐进退避（第 1、2、3、4+ 次失败后的等待） */
-export const NAME_BACKOFF_MS = Object.freeze([1000, 5000, 30000, 300000]);
-const NAME_KIND = 'v6-name';
-const NAME_TTL_MS = 24 * 3600 * 1000;
+/** uid 维度：渐进退避（第 1、2、3、4+ 次失败后的等待；定稿 §十，每个账号一个桶） */
+export const UID_BACKOFF_MS = Object.freeze([1000, 5000, 30000, 300000]);
+const UID_KIND = 'v6-uid';
+const UID_TTL_MS = 24 * 3600 * 1000;
 
 /** pepper_id 对应的 pepper（不认识 / 缺 → ''） @param {any} env @param {string} id */
 export function pepperOf(env, id) {
@@ -94,23 +94,29 @@ function parseRec(row) {
  * @param {any} env @param {string} ip @param {string} name
  * @returns {Promise<boolean>} true = 冷却中
  */
-export async function inCooldown(env, ip, name) {
+export async function inCooldown(env, ip, bucket) {
   const now = Date.now();
   const byIp = await readAttempt(env, IP_LIMIT.kind, ipBucket(ip));
   if (byIp && byIp.lockedUntil > now) return true;
-  const byName = await readAttempt(env, NAME_KIND, 'n:' + String(name));
-  return !!(byName && byName.lockedUntil > now);
+  const byUid = await readAttempt(env, UID_KIND, String(bucket));
+  return !!(byUid && byUid.lockedUntil > now);
 }
 
-/** 记一次失败（两维）。出错抛错。 @param {any} env @param {string} ip @param {string} name */
-export async function recordFailure(env, ip, name) {
+/** 记一次失败（两维）。出错抛错。 @param {any} env @param {string} ip @param {string} bucket accountBucket 的结果 */
+export async function recordFailure(env, ip, bucket) {
   await recordAttempt(env, IP_LIMIT.kind, ipBucket(ip), { max: IP_LIMIT.max, ttlMs: IP_LIMIT.windowMs, lockMs: IP_LIMIT.windowMs });
-  await recordAttempt(env, NAME_KIND, 'n:' + String(name), { max: 1, ttlMs: NAME_TTL_MS, lockTable: NAME_BACKOFF_MS.slice() });
+  await recordAttempt(env, UID_KIND, String(bucket), { max: 1, ttlMs: UID_TTL_MS, lockTable: UID_BACKOFF_MS.slice() });
 }
 
-/** 验对后清用户名维度（IP 维度按窗口自然过期）。尽力而为。 @param {any} env @param {string} name */
-export async function clearFailures(env, name) {
-  try { await clearAttempt(env, NAME_KIND, 'n:' + String(name)); } catch (e) {}
+/** 验对后清 uid 维度（IP 维度按窗口自然过期）。尽力而为。 @param {any} env @param {string} bucket */
+export async function clearFailures(env, bucket) {
+  try { await clearAttempt(env, UID_KIND, String(bucket)); } catch (e) {}
+}
+
+/** 退避桶：账号存在 = uid:<uid>（每个账号一个桶）；不存在 = 按传入的 uid 或名字 @param {any} row @param {{uid?:number, name?:string}} q */
+export function accountBucket(row, q) {
+  if (row) return 'uid:' + Number(row.uid);
+  return typeof q.uid === 'number' ? 'uid:' + q.uid : 'name:' + String(q.name || '');
 }
 
 /**
@@ -148,7 +154,7 @@ export async function verifyUserPassword(env, q) {
   } catch (e) {
     return { ok: false, error: 'server' };
   }
-  const bucket = typeof q.uid === 'number' ? (row ? String(row.name) : 'uid:' + q.uid) : String(q.name || '');
+  const bucket = accountBucket(row, q);
   try {
     if (await inCooldown(env, q.ip, bucket)) return { ok: false, error: 'cooldown' };
   } catch (e) {

@@ -109,13 +109,13 @@ const SUGGEST = COMMANDS.concat(['open blog', 'open curio', 'open daymark', 'ope
 
 /**
  * tab 补全：只补最后一个词（第一个词补命令名，第二个词按命令补参数）。
- * @param {string} line @param {string[]} [names] 第一个词的候选（缺省全部命令）
+ * @param {string} line @param {string[]} [names] 第一个词的候选（缺省全部命令） @param {any} [w] 当前身份（命令按身份给参数候选：argsFor）
  * @returns {{line: string, options: string[]}}
  */
-export function complete(line, names) {
+export function complete(line, names, w) {
   return completeLine(line, {
     names: names || COMMANDS,
-    argsOf: function (c) { return ARGS[c] || []; },
+    argsOf: function (c) { const x = REG.get(c); return x && typeof x.argsFor === 'function' ? x.argsFor(w) : (ARGS[c] || []); },
     takesArgs: function (c) { const x = REG.get(c); return !!x && (!!x.args || !!x.takesArgs); },
     subArgsOf: function (c, a) { const x = REG.get(c); return x && x.subArgs ? x.subArgs(a) : []; },
   });
@@ -228,7 +228,7 @@ export function createShell(o) {
     /** 新会话：cwd 回到本页（历史照旧） */
     reset: function () { cwd = cwd0; emit(); },
     /** 这个身份的 Tab 补全（第一个词只补列出的命令） @param {string} line */
-    complete: function (line) { return complete(line, REG.listed(who.get(), meV6())); },
+    complete: function (line) { return complete(line, REG.listed(who.get(), meV6()), who.get()); },
   };
 }
 
