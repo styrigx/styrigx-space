@@ -70,7 +70,7 @@ test('2026-11-08 Gray 04:45：账号页 / 账号下拉都没有 AI 模型行，a
   try { rd('space/web/assets/js/apps/account-ai.js'); } catch (e) { gone = true; }
   assert.ok(gone, 'account-ai.js 应已删除');
   /* 2026-11-08 账号页删了；账号终端（shell/account/）里也没有模型行 */
-  for (const f of ['window.js', 'cmd/profile.js', 'session.js']) assert.doesNotMatch(rd('space/web/assets/js/shell/account/' + f), /account-ai|initAiModelRow|aiModel/);
+  for (const f of ['window.js', 'cmd/profile.js']) assert.doesNotMatch(rd('space/web/assets/js/shell/account/' + f), /account-ai|initAiModelRow|aiModel/);
   const tb = rd('space/web/layouts/partials/shell-topbar.html');
   const acct = tb.slice(tb.indexOf('<dialog id="sgx-acct"'), tb.indexOf('</dialog>', tb.indexOf('<dialog id="sgx-acct"')));
   assert.doesNotMatch(acct, /\$t\.acct\.ai\b|"k" "ai"|data-acct-v="ai"/);

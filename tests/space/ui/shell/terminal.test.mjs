@@ -1,6 +1,6 @@
 /**
- * 终端引擎（v5 S5 终端合一，space/web/assets/js/shell/terminal.js）：一张命令表、一份历史、提示符按身份（nobody / link / styrigx / root，服务端说了算）。
- * 测行为：解析、补全、影子、目录、各身份的 man / 提示符 / 门槛、要输入验证的命令交给两层上下文（钥匙 space / 账号 acct）、exit、历史、文案。
+ * 终端引擎（v5 S5 终端合一，space/web/assets/js/shell/terminal.js）：一张命令表、一份历史、提示符按身份（v6 P4 起：访客 nobody / v6 用户 u:<名> / v6 root u:root，服务端说了算）。
+ * 测行为：解析、补全、影子、目录、各身份的 man / 提示符 / 门槛、要输入验证的命令交给两层上下文（账号 acct / v6 身份 ident）、exit、历史、文案。
  * 运行：node --test tests/space/ui/shell/terminal.test.mjs
  */
 import { test } from 'node:test';
@@ -42,14 +42,11 @@ function fixedWho(w) {
 function fakeLayers() {
   const calls = [];
   const rec = (n) => (...a) => calls.push([n, ...a]);
-  const space = { inReset: false, unlock: rec('space.unlock'), cmdReset: rec('space.cmdReset'), cmdReauth: rec('space.cmdReauth'), leaveReset: rec('space.leaveReset'),
-    lockNow: rec('space.lockNow'), lockAll: rec('space.lockAll'), lockPasswd: rec('space.lockPasswd'), lockPasskeyList: rec('space.lockPasskeyList'), lockPasskeyAdd: rec('space.lockPasskeyAdd'), lockPasskeyRm: rec('space.lockPasskeyRm'),
-    shareList: rec('space.shareList'), shareAdd: rec('space.shareAdd'), shareRm: rec('space.shareRm'), shareRmAll: rec('space.shareRmAll') };
-  const acct = { inReset: false, cmdSession: rec('acct.cmdSession'), cmdReauth: rec('acct.cmdReauth'), cmdReset: rec('acct.cmdReset'), cmdExit: rec('acct.cmdExit'), leaveReset: rec('acct.leaveReset'),
-    cmdPasswd: rec('acct.cmdPasswd'), passkeyList: rec('acct.passkeyList'), cmdPasskeyAdd: rec('acct.cmdPasskeyAdd'), passkeyRm: rec('acct.passkeyRm'),
+  const acct = { passkeyList: rec('acct.passkeyList'), cmdPasskeyAdd: rec('acct.cmdPasskeyAdd'), passkeyRm: rec('acct.passkeyRm'),
     deviceList: rec('acct.deviceList'), deviceRm: rec('acct.deviceRm'), deviceRmAll: rec('acct.deviceRmAll'), appList: rec('acct.appList'), appAllow: rec('acct.appAllow'), appDeny: rec('acct.appDeny'),
     profileShow: rec('acct.profileShow'), profileSet: rec('acct.profileSet'), profileAvatar: rec('acct.profileAvatar'), cmdSub: rec('acct.cmdSub') };
-  return { v: { space, acct }, calls };
+  const ident = { hasSession: () => true, cmdExit: (...a) => { calls.push(['ident.cmdExit', ...a]); return ident.session; }, session: false, cmdLock: rec('ident.cmdLock'), cmdPasswd: rec('ident.cmdPasswd'), cmdSudo: rec('ident.cmdSudo') };
+  return { v: { acct, ident }, calls };
 }
 /** 一行输出 → 纯文字 */
 const text = (o) => o.seg.map((s) => s[1]).join('');
@@ -66,15 +63,15 @@ test('parse：空行 null；命令名小写；参数按空白切；rest 保留�
 
 
 test('命令表（v5 S5 + sub v3.1 + S9 profile）：一张表；help / tty / tempkey / sub-* 没有了；sub 一条带子命令', () => {
-  assert.deepEqual(COMMANDS, ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find', 'ask', 'sudo', 'lock', 'share', 'passwd', 'passkey', 'device', 'app', 'profile', 'sub',
-    'whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'rescue'], 'v6 身份命令（P2b）排最后；P3 救援入口 rescue');
-  for (const gone of ['help', 'tty', 'tempkey', 'sub-key', 'sub-link', 'sub-refresh', 'sub-mv']) assert.ok(!COMMANDS.includes(gone), gone);
+  assert.deepEqual(COMMANDS, ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find', 'ask', 'sudo', 'lock', 'passwd', 'passkey', 'device', 'app', 'profile', 'sub',
+    'whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'rescue'], 'v6 身份命令（P2b）排最后；P3 救援入口 rescue；v6 P4 删 share');
+  for (const gone of ['help', 'tty', 'tempkey', 'sub-key', 'sub-link', 'sub-refresh', 'sub-mv', 'share']) assert.ok(!COMMANDS.includes(gone), gone);
   assert.deepEqual(ARGS.sub, ['show', 'add', 'upload', 'mv', 'rm', 'enable', 'disable', 'key', 'token']);
   assert.deepEqual(ARGS.app, ['allow', 'deny']);
   assert.deepEqual(ARGS.profile, ['set', 'avatar']);
-  assert.deepEqual(ARGS.sudo, ['styrigx', 'root', '-v']);
-  assert.deepEqual(ARGS.lock, ['passwd', 'passkey', '--all']);
-  assert.deepEqual(ARGS.share, ['add', 'rm']);
+  assert.deepEqual(ARGS.sudo, [], 'v6 P4：旧写法 styrigx / root / -v 的补全删了（v6 写法的补全不在本 PR 加）');
+  assert.equal(ARGS.lock, undefined, 'v6 P4：lock 没有参数了');
+  assert.deepEqual(ARGS.passkey, ['add', 'rm']);
   assert.deepEqual(ARGS.cd, ['blog', 'curio', 'daymark', 'wild', 'account', 'proxy', '~', '..'], '没有 shield/ 了');
 });
 
@@ -88,12 +85,13 @@ test('complete：命令名补全（唯一 → 补全，带参数的命令加空�
   assert.deepEqual(complete('zz'), { line: 'zz', options: [] });
 });
 
-test('complete：参数补全（sudo r → sudo root；sudo s → sudo styrigx；lock / share；第三个词不补）', () => {
-  assert.deepEqual(complete('sudo r'), { line: 'sudo root', options: [] });
-  assert.deepEqual(complete('sudo s'), { line: 'sudo styrigx', options: [] });
-  assert.deepEqual(complete('sudo '), { line: 'sudo ', options: ['styrigx', 'root', '-v'] });
-  assert.deepEqual(complete('lock p'), { line: 'lock pass', options: ['passwd', 'passkey'] });
-  assert.deepEqual(complete('share a'), { line: 'share add', options: [] });
+test('complete：参数补全（passkey；第三个词不补；v6 P4 起 sudo styrigx / sudo root / sudo -v / lock passwd / share 没有了）', () => {
+  assert.deepEqual(complete('sud'), { line: 'sudo ', options: [] });
+  assert.deepEqual(complete('sudo '), { line: 'sudo ', options: [] });
+  assert.deepEqual(complete('sudo r'), { line: 'sudo r', options: [] });
+  assert.deepEqual(complete('sudo s'), { line: 'sudo s', options: [] });
+  assert.deepEqual(complete('lock p'), { line: 'lock p', options: [] });
+  assert.deepEqual(complete('passkey a'), { line: 'passkey add', options: [] });
   assert.deepEqual(complete('device '), { line: 'device rm', options: [] });
   assert.deepEqual(complete('cd b'), { line: 'cd blog', options: [] });
   assert.deepEqual(complete('theme d'), { line: 'theme dark', options: [] });
@@ -112,11 +110,11 @@ test('complete：第三个词（S9）：sub token → reset、profile set → �
   assert.deepEqual(complete('profile set e'), { line: 'profile set email', options: [] });
   assert.deepEqual(complete('app a'), { line: 'app allow', options: [] });
   assert.deepEqual(complete('app d'), { line: 'app deny', options: [] });
-  assert.deepEqual(complete('lock passkey a'), { line: 'lock passkey a', options: [] });
+  assert.deepEqual(complete('passkey add x'), { line: 'passkey add x', options: [] });
 });
 
-test('ghost：唯一候选时给出没打的那一截（sudo ro_ot），多个 / 已完整 / 空行不给', () => {
-  assert.equal(ghost('sudo ro'), 'ot');
+test('ghost：唯一候选时给出没打的那一截（passkey a_dd），多个 / 已完整 / 空行不给', () => {
+  assert.equal(ghost('passkey a'), 'dd');
   assert.equal(ghost('the'), 'me');
   assert.equal(ghost('hist'), 'ory');
   assert.equal(ghost('c'), '');
@@ -150,7 +148,7 @@ test('fill：占位换成片段，其余原样', () => {
   assert.deepEqual(fill('{y}', {}), [['', '{y}']]);
 });
 
-test('提示符 / 标题（term-design-v5「提示符」）：nobody@space:~$ · nobody@space:~#（分享链接）· styrigx@space:~# · root@account:~#；身份一变立刻换；cd 后带路径', () => {
+test('提示符 / 标题（定稿 v5.2 §二：<用户>@space:<路径>，未登录 nobody@space 不变）：nobody@space:~$ · styrigx@space:~$ · root@space:~#；身份一变立刻换；cd 后带路径', () => {
   const { act } = fakeAct();
   const who = fixedWho('nobody');
   const sh = createShell({ act, storage: mem(), who });
@@ -160,49 +158,38 @@ test('提示符 / 标题（term-design-v5「提示符」）：nobody@space:~$ ·
   assert.equal(sh.title(), 'nobody@space: ~');
   sh.exec('cd blog');
   assert.equal(sh.ps1(), 'nobody@space:~/blog$');
-  who.set('link');
-  assert.equal(sh.ps1(), 'nobody@space:~/blog#');
-  who.set('styrigx');
-  assert.equal(sh.ps1(), 'styrigx@space:~/blog#');
-  who.set('root');
-  assert.equal(sh.ps1(), 'root@account:~/blog#');
-  assert.equal(sh.title(), 'root@account: ~/blog');
-  assert.ok(changed >= 4, '身份 / cwd 变了都通知重画');
+  who.set('u:styrigx');
+  assert.equal(sh.ps1(), 'styrigx@space:~/blog$');
+  who.set('u:root');
+  assert.equal(sh.ps1(), 'root@space:~/blog#');
+  assert.equal(sh.title(), 'root@space: ~/blog');
+  assert.ok(changed >= 3, '身份 / cwd 变了都通知重画');
   assert.equal(createShell({ act, cwd: 'curio', storage: mem() }).ps1(), 'nobody@space:~/curio$', '没有身份来源 = nobody');
   assert.equal(createShell({ act, cwd: 'nope', storage: mem() }).ps1(), 'nobody@space:~$');
 });
 
-test('createWho：首帧按页面标记，问服务端后以回答为准；分享链接 by=link；账号回答只在进站后算 root；drop 回 nobody', async () => {
+test('createWho（v6 P4）：只看 v6 whoami；没有旧进站 / 账号身份；drop 回 nobody', async () => {
   let ans = null;
-  const w = createWho({ check: () => Promise.resolve(ans), page: () => 'locked', accountHint: () => false });
+  const w = createWho({ whoami: () => Promise.resolve(ans) });
   assert.equal(w.get(), 'nobody');
-  ans = { ok: true, by: 'link' };
-  assert.equal(await w.refresh(), 'link');
-  ans = { ok: true, by: 'passkey' };
-  assert.equal(await w.refresh(), 'styrigx');
-  w.setAccount(true);
-  assert.equal(w.get(), 'root');
-  w.setAccount(false);
-  assert.equal(w.get(), 'styrigx');
+  ans = { name: 'styrigx', root: false };
+  assert.equal(await w.refresh(), 'u:styrigx');
+  assert.equal(w.setAccount, undefined, '旧账号身份 setAccount 删了');
   w.drop();
   assert.equal(w.get(), 'nobody');
-  assert.equal(createWho({ check: () => Promise.resolve(null), page: () => 'valid' }).get(), 'styrigx', '页面标记 valid = 已进站');
 });
 
-test('man 按身份列（唯一判断点 listedFor）：nobody 列 find 不列 ask、没有钥匙 / 账号命令；进站列 ask、lock、share；root 多账号命令和 sub', async () => {
+test('man 按身份列（唯一判断点 listedFor）：nobody 列 find 不列 ask、没有账号命令；v6 用户列自己的账号命令；root 多 ask / app / sub 和用户管理', async () => {
   const { act } = fakeAct();
   const names = async (w) => (await run(createShell({ act, storage: mem(), who: fixedWho(w) }), 'man')).out.slice(1).map((o) => o.seg[0][1]);
   const base = ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme'];
   assert.deepEqual(await names('nobody'), base.concat(['find', 'sudo']));
-  assert.deepEqual(await names('link'), base.concat(['ask', 'sudo', 'lock']), '分享链接进来的不列 share');
-  assert.deepEqual(await names('styrigx'), base.concat(['ask', 'sudo', 'lock', 'share']));
-  const root = await names('root');
-  assert.deepEqual(root.slice(0, 19), base.concat(['ask', 'sudo', 'lock', 'share', 'passwd', 'passkey', 'device', 'app', 'profile']));
-  assert.deepEqual(root.slice(19), ['sub'], 'sub 只给 root 列，只有一条');
+  assert.deepEqual(await names('u:alice'), base.concat(['sudo', 'lock', 'passwd', 'passkey', 'device', 'profile', 'whoami', 'su', 'groups', 'who']));
+  assert.deepEqual(await names('u:root'), base.concat(['ask', 'sudo', 'lock', 'passwd', 'passkey', 'device', 'app', 'profile', 'sub', 'whoami', 'groups', 'who', 'useradd', 'userdel', 'usermod']));
   /* Tab 补全也只补这个身份列出的命令 */
   assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('nobody') }).complete('a'), { line: 'a', options: [] });
-  assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('root') }).complete('a'), { line: 'a', options: ['ask', 'app'] });
-  assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('styrigx') }).complete('pr'), { line: 'pr', options: [] }, 'profile 只给 root');
+  assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('u:root') }).complete('a'), { line: 'a', options: ['ask', 'app'] });
+  assert.deepEqual(createShell({ act, storage: mem(), who: fixedWho('nobody') }).complete('pr'), { line: 'pr', options: [] }, 'profile 访客不列');
 });
 
 test('man / man <命令>：交给全屏阅读页（S9：pager = 页名，不进滚动区；没有 (END) / q 那一行了）；别名能查；没有的报错（进滚动区）；每条命令都有页', async () => {
@@ -293,16 +280,14 @@ test('theme / ask / open：先打印再动（after）；访客 ask 不开 AI；o
   assert.equal(g.after, undefined);
 });
 
-test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访客要先 su <用户>（割接）；分享链接不能管分享 / reauth；账号命令要 sudo root', () => {
+test('门槛（cmds/keys/gate.js，只是提示，真拦截在服务端）：访客要先 su <用户>；v6 普通用户的 root 档命令（app / sub）提示先 su root', () => {
   const { act } = fakeAct();
   const { v, calls } = fakeLayers();
   const sh = (w) => createShell({ act, storage: mem(), who: fixedWho(w) });
   const need = 'not signed in · su <user> first';
-  for (const l of ['sudo root', 'sudo -v', 'lock', 'share', 'passwd', 'device', 'app deny 1', 'profile', 'sub']) assert.equal(text(sh('nobody').exec(l, v).out[0]), need, l);
-  for (const l of ['share', 'share add', 'sudo -v']) assert.equal(text(sh('link').exec(l, v).out[0]), TERM_EN.linkDenied, l);
-  for (const l of ['passwd', 'passkey', 'device', 'app', 'profile set name x', 'sub mv a b', 'sub show']) assert.equal(text(sh('styrigx').exec(l, v).out[0]), 'not signed in to the account · run sudo root first', l);
+  for (const l of ['lock', 'passkey', 'device', 'app deny 1', 'profile', 'sub']) assert.equal(text(sh('nobody').exec(l, v).out[0]), need, l);
+  for (const l of ['app', 'sub mv a b', 'sub show']) assert.equal(text(sh('u:alice').exec(l, v).out[0]), 'permission denied · run su root first', l);
   assert.deepEqual(calls, [], '没过门槛的不进流程');
-  assert.equal(text(sh('styrigx').exec('sudo styrigx', v).out[0]), 'already entered · sudo -v to verify again');
 });
 
 test('要输入 / 验证的命令交给两层上下文（flow，输出和输入模式归那一层）；没有那一层（AI 窗口里的 $ 命令）提示去终端跑', () => {
@@ -310,58 +295,46 @@ test('要输入 / 验证的命令交给两层上下文（flow，输出和输入�
   const { v, calls } = fakeLayers();
   const sh = (w) => createShell({ act, storage: mem(), who: fixedWho(w) });
   const flow = (w, l) => { const r = sh(w).exec(l, v); assert.equal(r.flow, true, w + ' ' + l); };
-  flow('nobody', 'sudo styrigx');
-  flow('nobody', 'sudo styrigx reset');
-  flow('styrigx', 'sudo -v');
-  flow('styrigx', 'sudo root');
-  flow('styrigx', 'sudo root reauth');
-  flow('styrigx', 'sudo root reset');
-  flow('root', 'sudo -v');
-  assert.deepEqual(calls.splice(0), [['space.unlock'], ['space.cmdReset'], ['space.cmdReauth'], ['acct.cmdSession'], ['acct.cmdReauth'], ['acct.cmdReset'], ['acct.cmdReauth']],
-    'sudo -v 再验证当前这一层：styrigx → 钥匙，root → 账号');
-  flow('root', 'passwd');
-  flow('root', 'passkey');
-  flow('root', 'passkey add');
-  flow('root', 'passkey rm 2');
-  flow('root', 'device');
-  flow('root', 'device rm 3');
-  flow('root', 'device rm --all');
-  flow('root', 'app');
-  flow('root', 'app allow 2');
-  flow('root', 'app deny 1');
-  flow('root', 'profile');
-  flow('root', 'profile set sign  Stay  Hungry ');
-  flow('root', 'profile SET Nick Styrigx');
-  flow('root', 'profile avatar');
-  flow('root', 'sub mv Linkcube LinkCube2');
-  flow('root', 'SUB show Linkcube');
-  assert.deepEqual(calls.splice(0), [['acct.cmdPasswd', true], ['acct.passkeyList'], ['acct.cmdPasskeyAdd', true], ['acct.passkeyRm', 2], ['acct.deviceList'], ['acct.deviceRm', 3], ['acct.deviceRmAll'],
-    ['acct.appList', { direct: false }], ['acct.appAllow', 2, { direct: false }], ['acct.appDeny', 1, { direct: false }], ['acct.profileShow'], ['acct.profileSet', 'sign', 'Stay  Hungry'], ['acct.profileSet', 'nick', 'Styrigx'], ['acct.profileAvatar'],
-    ['acct.cmdSub', 'sub mv Linkcube LinkCube2', { direct: false }], ['acct.cmdSub', 'SUB show Linkcube', { direct: false }]], 'sub 传原样的一行（来源名大小写不变）；profile set 的值原样');
-  assert.equal(text(sh('root').exec('device rm x', v).out[0]), TERM_EN.usageDevice);
+  flow('u:root', 'passwd');
+  flow('u:root', 'passkey');
+  flow('u:root', 'passkey add');
+  flow('u:root', 'passkey rm 2');
+  flow('u:root', 'device');
+  flow('u:root', 'device rm 3');
+  flow('u:root', 'device rm --all');
+  flow('u:root', 'app');
+  flow('u:root', 'app allow 2');
+  flow('u:root', 'app deny 1');
+  flow('u:root', 'profile');
+  flow('u:root', 'profile set sign  Stay  Hungry ');
+  flow('u:root', 'profile SET Nick Styrigx');
+  flow('u:root', 'profile avatar');
+  flow('u:root', 'sub mv Linkcube LinkCube2');
+  flow('u:root', 'SUB show Linkcube');
+  const D = { direct: true };
+  assert.deepEqual(calls.splice(0), [['ident.cmdPasswd', ''], ['acct.passkeyList', D], ['acct.cmdPasskeyAdd', true, D], ['acct.passkeyRm', 2, D], ['acct.deviceList'], ['acct.deviceRm', 3], ['acct.deviceRmAll'],
+    ['acct.appList', D], ['acct.appAllow', 2, D], ['acct.appDeny', 1, D], ['acct.profileShow'], ['acct.profileSet', 'sign', 'Stay  Hungry'], ['acct.profileSet', 'nick', 'Styrigx'], ['acct.profileAvatar'],
+    ['acct.cmdSub', 'sub mv Linkcube LinkCube2', D], ['acct.cmdSub', 'SUB show Linkcube', D]], 'sub 传原样的一行（来源名大小写不变）；profile set 的值原样');
+  assert.equal(text(sh('u:root').exec('device rm x', v).out[0]), TERM_EN.usageDevice);
   /* S9：app rm 换成 deny，没有兼容 */
-  for (const l of ['app rm 1', 'app rm --all', 'app allow', 'app deny x']) assert.equal(text(sh('root').exec(l, v).out[0]), TERM_EN.usageApp, l);
-  for (const l of ['profile set', 'profile set name', 'profile set age 3', 'profile avatar x', 'profile x']) assert.equal(text(sh('root').exec(l, v).out[0]), TERM_EN.usageProfile, l);
+  for (const l of ['app rm 1', 'app rm --all', 'app allow', 'app deny x']) assert.equal(text(sh('u:root').exec(l, v).out[0]), TERM_EN.usageApp, l);
+  for (const l of ['profile set', 'profile set name', 'profile set age 3', 'profile avatar x', 'profile x']) assert.equal(text(sh('u:root').exec(l, v).out[0]), TERM_EN.usageProfile, l);
   assert.deepEqual(calls, []);
   assert.equal(text(sh('nobody').exec('sudo nope', v).out[0]), TERM_EN.usageSudo);
   /* AI 窗口（tty4）里的 $ 命令没有两层上下文 */
-  assert.equal(text(sh('nobody').exec('sudo styrigx').out[0]), 'sudo styrigx: run it in the terminal (Ctrl K)');
-  assert.equal(text(sh('root').exec('device').out[0]), 'device: run it in the terminal (Ctrl K)');
+  assert.equal(text(sh('u:root').exec('sudo who').out[0]), 'sudo who: run it in the terminal (Ctrl K)');
+  assert.equal(text(sh('u:root').exec('device').out[0]), 'device: run it in the terminal (Ctrl K)');
 });
 
-test('exit：reset 层里离开 reset；root 退出账号登录（那一层的 exit）；其余关掉终端窗口', () => {
+test('exit（v6 P4）：有 v6 会话交给身份层弹一层；没有就关掉终端窗口（旧 reset 层 / root@account 退出删了）', () => {
   const { act, calls: acts } = fakeAct();
   const { v, calls } = fakeLayers();
   const sh = (w) => createShell({ act, storage: mem(), who: fixedWho(w) });
-  v.space.inReset = true;
-  assert.equal(sh('nobody').exec('exit', v).flow, true);
-  v.space.inReset = false;
-  v.acct.inReset = true;
-  assert.equal(sh('styrigx').exec('exit', v).flow, true);
-  v.acct.inReset = false;
-  assert.equal(sh('root').exec('exit', v).flow, true);
-  assert.deepEqual(calls, [['space.leaveReset'], ['acct.leaveReset'], ['acct.cmdExit']]);
-  const r = sh('styrigx').exec('exit', v);
+  v.ident.session = true;
+  assert.equal(sh('u:root').exec('exit', v).flow, true);
+  v.ident.session = false;
+  const r = sh('nobody').exec('exit', v);
+  assert.deepEqual(calls, [['ident.cmdExit'], ['ident.cmdExit']]);
   assert.deepEqual(r.out, []);
   r.after();
   assert.deepEqual(acts.at(-1), ['close']);
@@ -442,9 +415,9 @@ test('代理订阅：open ~/proxy = sub；ls ~/proxy 列来源 / 没登录提示
   const { act } = fakeAct();
   act.proxyList = () => Promise.resolve([{ name: 'Linkcube', type: 'airport', host: 'sub.example.com', nodes: 3, enabled: true, error: '' }, { name: 'Cloady', type: 'file', host: '', nodes: 1, enabled: false, error: '' }]);
   const { v, calls } = fakeLayers();
-  const sh = createShell({ act, storage: mem(), who: fixedWho('root') });
+  const sh = createShell({ act, storage: mem(), who: fixedWho('u:root') });
   assert.equal(sh.exec('open ~/proxy', v).flow, true);
-  assert.deepEqual(calls.at(-1), ['acct.cmdSub', 'sub', { direct: false }]);
+  assert.deepEqual(calls.at(-1), ['acct.cmdSub', 'sub', { direct: true }]);
   const ls = await run(sh, 'ls ~/proxy');
   assert.deepEqual(ls.out.map(text), ['Linkcube  sub.example.com  3  enabled', 'Cloady  file  1  disabled']);
   act.proxyList = () => Promise.resolve(null);

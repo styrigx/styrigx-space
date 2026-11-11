@@ -3,24 +3,24 @@
  * 外加顶栏底边的滑页进度条 .sgx-tb-prog 和 tmux 页脚的 CST 时钟。
  * 共享外壳组件：四个站共用这一份（主站 shell/quick-panel.js 调它，子站入口脚本调它）。
  * 自成一体：不 import 任何东西；状态机（modal-sheet.js）、外观 setter（主站 lib/prefs.js / 子站 prefs-write.js）、AI 内容（ai.js）、
- * 分享（share.js）、键盘高度订阅（vk.js 的 onKeyboardHeight，转给 AI 窗口；P4-3 PR-3）都由调用方传进来。
+ * 键盘高度订阅（vk.js 的 onKeyboardHeight，转给 AI 窗口；P4-3 PR-3）都由调用方传进来。
  *
  * - 三个窗口都是非模态 <dialog>（modalSheet modal:false → show()）：从顶栏下方落下，顶栏留在上面可点；开合 / 系统返回 / Esc / bfcache 走 modalSheet。
  * - 互斥：一个开着时点顶栏（含 AI 浮钮）上别的东西，先关这个（等哨兵出栈）再补点那一下。
  * - 点遮罩（面板以外）关闭；焦点打开时进面板，关上时还给按钮；Tab / Shift+Tab 圈在「按钮 + 面板控件」里。
  * - NAVIGATE：01 主页 … 05 旷野（当前项「开」态）；已在当前项那一页时点它只关面板，其余关完再跳（不留哨兵）。
  *   lang 分段 EN | Auto | 中文（选中即保存；明确的语言和本页不同就去另一种语言的同一页，Auto 只在主站首页换）、layout 分段（Mobile | Auto | DeX，模式规则见共享外壳 layout-mode.js）、
- *   share（share.js；v5 S6 去掉 lock 按钮，上锁走终端 lock / 已进站点盾牌）、STATUS、esc 关闭。
+ *   STATUS（v6 P4 起「分享本页」磁贴随分享短链删除，Gray 11-11 17:47）、esc 关闭。
  * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
- * - 盾牌（v5 S6）：不开窗口，吉祥物兼状态标志。没进站（访客 / 分享链接会话）点 = 打开终端预填 `su `（v6 割接，GUEST_LINE；旧 sudo styrigx 照旧能敲，P4 删）；已进站（styrigx / root）点 = 打开终端问「退出进站会话 [y/N]」，
- *   y = 钥匙层 lock（只锁本机，POST /api/lock-now 后重新取这一页）。旧地址 #sec / [data-sec-open] 只打开终端（没进站预填），不问。
- * - 头像（v5 S6，Gray 17:23）：已进站点了开账号卡片（S9 起只展示，点一行 = 打开终端预填命令）；头像 = whoami（v6，定稿 §七）：
- *   没进站（页面标记 locked，或服务端说是访客 / 分享链接会话）点 = 打开终端预填 `su `（割接起不再是死按钮）；页面没有网关标记（本地 / 测试构建）不预填。
+ * - 盾牌（v5 S6）：不开窗口，吉祥物兼状态标志。访客点 = 打开终端预填 `su `（v6，GUEST_LINE）；已登录（v6 身份）点 = 只打开终端。
+ *   旧地址 #sec / [data-sec-open] 同样只打开终端（访客预填）。v6 P4 起旧的「退出进站会话 [y/N]」（钥匙层 lock）随旧会话删除。
+ * - 头像 = whoami（v6，定稿 §七）：访客点 = 打开终端预填 `su `；普通用户 → profile（wheel 组 → su root）；root → exit。
+ *   页面没有网关标记（本地 / 测试构建）且没有 v6 身份时点了开账号卡片（只展示，点一行 = 打开终端预填命令）。
  * - >_ 终端按钮（v5 S6）：开合全站终端（同 Ctrl / ⌘ K）。
- * - 终端（v5 S5 终端合一）：调用方传 terminal（shell/terminal.js 整个模块）、space（钥匙层 shell/space/layer.js mountSpace）、accountTerm（终端里的账号层
- *   shell/account/cmd/layer.js mountAccountLayer）、account（账号卡片 shell/account/window.js mountAccountWindow，S9 起只展示）；本文件仍不 import。每页一个终端 #sgx-term（桌面居中大窗、手机整块卡片）。
- *   每次打开终端都是干净的新会话（S9：view.fresh()，history 照旧）。页面上的账号入口（[data-acct-open]、旧地址 #acct=…）都去终端：子页 → 预填命令，reset / reauth / 奇趣日刻授权同意 → 账号层 entry。
- *   顶栏 >_、Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌也打开它（v5 S6：访客预填 su 、已进站问退出）。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
+ * - 终端（v5 S5 终端合一）：调用方传 terminal（shell/terminal.js 整个模块）、identityTerm（v6 身份层 shell/identity/layer.js）、accountTerm（终端里的账号层
+ *   shell/account/cmd/layer.js mountAccountLayer）、account（账号卡片 shell/account/window.js mountAccountWindow，只展示）；本文件仍不 import。每页一个终端 #sgx-term（桌面居中大窗、手机整块卡片）。
+ *   每次打开终端都是干净的新会话（S9：view.fresh()，history 照旧）。页面上的账号入口（[data-acct-open]、旧地址 #acct=…）都去终端：子页 → 预填命令。
+ *   顶栏 >_、Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌也打开它（访客预填 su ）。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
  * - 上锁的地方（v5 S3：AI 窗口、旷野 status 卡、奇趣音乐的播放，以及各处接口回 401）都只发 document 上的 `sgx:sudo` 事件（SUDO_EVENT），
  *   这里是唯一接它的地方：打开终端、输入行预填 `su `（v6 割接；不替人回车，用户名由人敲）；回车后在终端里验证。
  */
@@ -48,8 +48,6 @@ function aiOrigin(btn, dlg, sheet) {
 }
 /** 关键词搜索（v5 S4，网关 GET /api/find，公开） */
 const FIND_API = '/api/find';
-/** 有没有进站会话（同源网关；= shell/space/paths.js API.sessionCheck）：终端身份的来源 */
-const SESSION_CHECK_API = '/api/lock-session-check';
 /** 上锁的地方要人进站时发的事件（= lib/sudo.js SUDO_EVENT，本文件不 import，抄一份） */
 export const SUDO_EVENT = 'sgx:sudo';
 /** 页面标记变了的事件（window 上；= shell/space/guard.js SESSION_EVENT，本文件不 import，抄一份）。detail { ok, live }：
@@ -72,8 +70,6 @@ export function switchPageSession(doc, state) {
   try { if (w) w.dispatchEvent(new CustomEvent(SESSION_EVENT, { detail: { ok: state === 'valid', live: true } })); } catch (e) {}
   return true;
 }
-/** 旧进站命令（= term/core/parse.js ADMIN_COMMAND，本文件不 import）：只剩旧地址 ?entry=sudo 直接跑它（旧入口 P4 删） */
-const SUDO_LINE = 'sudo styrigx';
 /** 访客入口预填（v6 割接，定稿 §七：访客头像点击预填「su 」；盾牌、上锁的地方、旧锁屏地址同一行；用户名由人敲） */
 export const GUEST_LINE = 'su ';
 
@@ -114,12 +110,13 @@ export function resolveLang(v, nav, langs) {
  *   replace?: (url: string) => void,
  *   ai?: (dlg: HTMLDialogElement, o: { lang: 'zh'|'en', close: Function, navigate: Function, keyboard?: Function }) => ({ onOpen?: () => void } | void),
  *   keyboard?: (cb: (h: number) => void) => () => void,
- *   share?: (cfg: { button: Element }) => any,
  *   terminal?: any,
- *   space?: (line: any, o: any) => any,
  *   account?: (o: any) => any,
  *   accountTerm?: (o: any) => any,
- *   accountLayer?: (n: string) => { layer: string, reset: boolean, reauth: boolean },
+ *   accountLayer?: (n: string) => { cmd: string },
+ *   identityTerm?: (o: any) => any,
+ *   identityWhoami?: () => Promise<any>,
+ *   identityMarker?: (d: Document) => boolean,
  *   pmUser?: string,
  *   subscribe?: (repaint: () => void) => void,
  *   reload?: () => void,
@@ -312,8 +309,6 @@ export function mountTopbar(o) {
     nav = wire(navBtn, navDlg, 'sgxNav', function () { paintNav(); });
     if (nav) {
       const ms = nav.ms;
-      const shareBtn = ctl('share');
-      if (shareBtn && o.share) o.share({ button: shareBtn });
       /** 选了一种语言：保存；实际语言和本页不同就关面板去另一种语言的同一页。
           选 Auto（'system'）：只保存；只有在主站首页（/ ↔ /zh/，isHomePath）才按浏览器语言换过去，深链 / 子页不动（Gray 2026-11-09） @param {string} v */
       const pickLang = function (v) {
@@ -351,7 +346,6 @@ export function mountTopbar(o) {
         const c = /** @type {HTMLElement|null} */ (tg.closest('[data-qp]'));
         if (c) {
           const id = c.getAttribute('data-qp');
-          if (id === 'share') return; /* share.js 自己接这一下 */
           if (id === 'term') { ms.close(function () { window.setTimeout(openTerm, 0); }); return; }
           return;
         }
@@ -483,7 +477,7 @@ export function mountTopbar(o) {
   };
   /* ---------------- 终端（v5 S5 终端合一：锁屏 tty1、主页 tty2、盾牌 tty3、账号 tty5 合成一个；shell/terminal.js） ----------------
      一个会话、一份历史；提示符按身份（nobody / link / styrigx / root，服务端说了算）。桌面是居中大窗、手机整块卡片（#sgx-term）；
-     v5 S7 起主页首屏是 neofetch、不再嵌终端，四站都用 #sgx-term（S8 删了主页嵌入终端的代码路径）。钥匙层（o.space：shell/space/layer.js）和账号层（o.accountTerm：shell/account/cmd/layer.js）共用它的输入行。 */
+     v5 S7 起主页首屏是 neofetch、不再嵌终端，四站都用 #sgx-term（S8 删了主页嵌入终端的代码路径）。v6 身份层（o.identityTerm：shell/identity/layer.js）和账号层（o.accountTerm：shell/account/cmd/layer.js）共用它的输入行。 */
   const T = o.terminal;
   const termDlg = /** @type {HTMLDialogElement|null} */ (doc.getElementById('sgx-term'));
   const acctBtn = /** @type {HTMLElement|null} */ (doc.querySelector('#site-nav .sgx-tb-av'));
@@ -535,66 +529,41 @@ export function mountTopbar(o) {
     if (termSheet && termSheet.isOpen()) termSheet.close(f);
     else f();
   };
-  /** 当前地址去掉锁屏 / 回跳参数（上锁之后重新取这一页，服务端画访客态） */
-  const cleanHere = function () {
-    try {
-      const u = new URL(location.href);
-      ['entry', 'lock', 'why', 'return'].forEach(function (k) { u.searchParams.delete(k); });
-      return u.pathname + (u.search && u.search !== '?' ? u.search : '') + u.hash;
-    } catch (e) { return location.pathname; }
-  };
   /** 地址参数 @param {string} k */
   const qparam = function (k) { try { return new URLSearchParams(location.search).get(k) || ''; } catch (e) { return ''; } };
 
-  /* 终端身份：首帧按网关注入的页面标记，问服务端（GET /api/lock-session-check）后以回答为准 */
+  /* 终端身份（v6 P4 起只有 v6）：POST /api/identity whoami；登录标记 cookie sgx-id 在才在首帧问，以回答为准 */
   /** @type {any} */
   const who = T && typeof T.createWho === 'function' ? T.createWho({
-    check: function () {
-      const f = fetchFn();
-      if (!f) return Promise.resolve(null);
-      return f(SESSION_CHECK_API, { credentials: 'same-origin', cache: 'no-store' }).then(function (/** @type {Response} */ r) {
-        return r && r.ok ? r.json() : null;
-      }).then(function (/** @type {any} */ j) { return j && j.ok === true ? { ok: true, by: String(j.by || '') } : null; }, function () { return null; });
-    },
-    page: function () { const v = doc.documentElement.getAttribute('data-sgx-lock-session'); return v === 'valid' || v === 'locked' ? v : 'unknown'; },
-    accountHint: function () { return doc.documentElement.getAttribute('data-sgx-account-session') === 'in'; },
-    /* v6（P2b）：POST /api/identity whoami；登录标记 cookie sgx-id 在才在首帧问 */
     whoami: o.identityWhoami,
     v6Hint: function () { return !!(o.identityMarker && o.identityMarker(doc)); },
   }) : null;
-  /** 终端那一头（给终端里的账号层：登出 / 授权同意 / 只做再验证之后收起终端） */
+  /** 终端那一头（给终端里的账号层） */
   const termLink = { close: closeTerm, shown: function () { return !!(termSheet && termSheet.isShown()); } };
 
   /* ---------------- 账号卡片（头像，shell/account/window.js；S9 起只展示）：第一次打开时画 ---------------- */
   /** 入口名（旧地址 #acct=<子页>、[data-acct-open]）→ 在终端里怎么开：o.accountLayer = shell/account/commands.js layerFromPath
-   * @param {string} n @returns {{cmd: string, reset: boolean, reauth: boolean}} */
-  const acctLayer = function (n) { return o.accountLayer ? o.accountLayer(n) : { cmd: '', reset: n === 'reset', reauth: false }; };
+   * @param {string} n @returns {{cmd: string}} */
+  const acctLayer = function (n) { return o.accountLayer ? o.accountLayer(n) : { cmd: '' }; };
   /** 打开账号卡片 */
   let openAcct = function () {};
   /** 打开终端、输入行预填一条命令（账号卡片的行、页面入口的子页） @type {(cmd: string) => void} */
   let termPrefill = function () {};
-  /** 页面入口要在终端的账号层里跑（reset / reauth / 授权同意） @type {(x: any) => void} */
-  let termEntry = function () {};
-  /* 头像（v5 S6，Gray 17:23）：已进站（styrigx / root）才开账号卡片；没进站（访客 / 分享链接会话）是死按钮——不开窗、不跳终端、不按链接走。
-     判断同步看终端身份（首帧 = 网关注入的页面标记，问过服务端以回答为准）；页面没有网关标记（本地 / 测试构建）不判死。
+  /* 访客（没有 v6 身份）：判断同步看终端身份（首帧 = 网关注入的页面标记，问过服务端以回答为准）；页面没有网关标记（本地 / 测试构建）不当访客。
      捕获阶段挂在头像自己身上：比 wire 的冒泡监听先到，拦下就到此为止 */
   const avGuest = function () {
     if (!who) return false;
     const pg = doc.documentElement.getAttribute('data-sgx-lock-session');
     if (pg !== 'valid' && pg !== 'locked') return false;
-    const w = who.get();
-    if (w.indexOf('u:') === 0) return false;
-    return w !== 'styrigx' && w !== 'root';
+    return who.get().indexOf('u:') !== 0;
   };
-  /* 头像 = whoami（v6 P2b，定稿 v4 §七）：有 v6 新会话时头像是当前身份——普通用户显示自己的头像（/avatar/u<uid>-<尺寸>.webp，styrigx 用站点头像），
-     root 叠一个「#」标记；点头像打开终端预填下一步：root → exit，wheel 组的普通用户 → su root，其余 → profile。
-     割接起访客（没有 v6 会话、也没有旧的 styrigx / root 会话）点头像 = 预填「su 」（定稿 §七）；旧进站会话的头像照旧开账号卡片。 */
-  /** v6 头像该预填的命令（不是 v6 → ''） */
+  /* 头像 = whoami（定稿 v5.2 §七 58–61）：有 v6 会话时头像是当前身份——普通用户显示自己的头像（/avatar/u<uid>-<尺寸>.webp，styrigx 用站点头像），
+     root 叠一个「#」标记；已登录（普通用户 / root）点头像打开账号卡片（v5 卡片，Gray 11-11 17:44）；访客点头像 = 预填「su 」。 */
+  /** 头像该预填的命令：只有访客预填 su （已登录 → ''，交给账号卡片） */
   const avV6Cmd = function () {
     const u = who && who.v6 ? who.v6() : null;
     if (!u) return avGuest() ? GUEST_LINE : '';
-    if (u.root) return 'exit';
-    return u.wheel ? 'su root' : 'profile';
+    return '';
   };
   const paintAvV6 = function () {
     if (!acctBtn) return;
@@ -624,7 +593,7 @@ export function mountTopbar(o) {
     acctBtn.removeAttribute('aria-disabled');
   };
   if (acctBtn) {
-    /* v6 身份在 / 访客：点头像 = 打开终端预填下一步（不开账号卡片） */
+    /* 访客：点头像 = 打开终端预填 su （不开账号卡片）；已登录不拦，冒泡给账号卡片 */
     acctBtn.addEventListener('click', function (e) {
       const c = avV6Cmd();
       if (!c) return;
@@ -652,14 +621,13 @@ export function mountTopbar(o) {
       };
     }
   }
-  /** 页面入口 → 终端（子页预填命令；reset / reauth / 奇趣日刻授权同意交给账号层）或账号卡片（没指定） @param {string} name @param {string} app */
-  const acctEntry = function (name, app) {
+  /** 页面入口 → 终端（子页预填命令）或账号卡片（没指定）。v6 P4 起旧的 reset / reauth / 奇趣日刻授权同意入口删了 @param {string} name */
+  const acctEntry = function (name) {
     const lay = acctLayer(name);
-    if (lay.reset || lay.reauth || app) { termEntry({ reset: lay.reset, reauth: lay.reauth, app: app }); return; }
     if (lay.cmd) { termPrefill(lay.cmd); return; }
     openAcct();
   };
-  /* 页面上的入口：[data-acct-open="<名字>"]（可带 data-acct-app="curio|daymark"，奇趣 / 日刻的 sudo root：登录 → 判授权 → [y]/[n]，O1 / O6） */
+  /* 页面上的入口：[data-acct-open="<名字>"] */
   doc.addEventListener('click', function (e) {
     const tg = /** @type {Element|null} */ (e.target);
     const a = tg && /** @type {HTMLElement|null} */ (tg.closest('[data-acct-open]'));
@@ -668,14 +636,14 @@ export function mountTopbar(o) {
     if (me2.button !== 0 || me2.metaKey || me2.ctrlKey || me2.shiftKey || me2.altKey) return;
     e.preventDefault();
     e.stopPropagation();
-    acctEntry(a.getAttribute('data-acct-open') || '', a.getAttribute('data-acct-app') || '');
+    acctEntry(a.getAttribute('data-acct-open') || '');
   });
   /* 旧地址（/account/、/account/devices/ …）跳到这里带 #acct=<名字>[&app=…]：同上，去掉 hash（O1） */
   const fromHash = function () {
     const m = /^#acct(?:=([a-z]*))?(?:&app=([a-z]+))?$/.exec(location.hash || '');
     if (!m) return;
     try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) {}
-    window.setTimeout(function () { acctEntry(m[1] || '', m[2] || ''); }, 0);
+    window.setTimeout(function () { acctEntry(m[1] || ''); }, 0);
   };
   window.setTimeout(fromHash, 0);
   window.addEventListener('hashchange', fromHash);
@@ -804,23 +772,15 @@ export function mountTopbar(o) {
         isShown: function () { return !!(termSheet && termSheet.isShown()); },
         pmUser: o.pmUser || '',
         layers: function (/** @type {any} */ line) {
-          const space = o.space && who ? o.space(line, { who: who, close: closeTerm, reload: function () { replace(cleanHere()); } }) : null;
           const acctTerm = o.accountTerm && who ? o.accountTerm({ S: trSec('account'), line: line, who: who, term: termLink, replace: replace, reload: o.reload }) : null;
           const ident = o.identityTerm && who ? o.identityTerm({ S: trSec('identity'), line: line, who: who }) : null;
-          return { space: space, acct: acctTerm, ident: ident };
+          return { acct: acctTerm, ident: ident };
         },
       });
     }
     termPrefill = function (/** @type {string} */ c) { showTerm(function () { if (view) view.prefill(c); }); };
-    termEntry = function (/** @type {any} */ x) {
-      showTerm(function () {
-        const A = view && view.layers().acct;
-        if (A && typeof A.entry === 'function') A.entry(x);
-      });
-    };
-    /* 首帧身份按网关注入的页面标记；标了进站（valid）才问服务端细分 link / styrigx / root。标了访客（locked）不用问；
-       没有标记 = 页面没经过网关（本地 / 测试构建），不在加载时问（没有接口，只会多一条 404），等 sudo / 盾牌 / 401 时再问 */
-    if (who && (who.get() !== 'nobody' || who.v6Hinted())) who.refresh();
+    /* 首帧有 v6 登录标记（sgx-id）才问 whoami；没有 = 访客，等 su / 盾牌 / 401 时再问 */
+    if (who && who.v6Hinted()) who.refresh();
     /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 su （不替人回车） */
     doc.addEventListener(SUDO_EVENT, function (/** @type {any} */ ev) {
       /* detail.line（lib/sudo.js askSudo 第二个参数，如 /wild/ 403 的 su root，#404 未决项第 5 项）：已登录、只是权限不够——只预填这一行，不动页面标记和身份 */
@@ -831,10 +791,10 @@ export function mountTopbar(o) {
       if (who) who.drop();
       showTerm(function () { if (view) view.prefill(GUEST_LINE); });
     });
-    /* 旧地址 ?entry=…（分享链接失效时网关回的 /?entry=1、旧书签；v5 S5 起没有锁屏界面）：没进站就打开终端、预填 su ；?entry=sudo 照旧直接跑 sudo styrigx（旧入口，P4 删） */
+    /* 旧地址 ?entry=… / ?lock=…（旧书签；v5 S5 起没有锁屏界面）：没登录就打开终端、预填 su （v6 P4 起 ?entry=sudo 也一样，旧 sudo styrigx 删了） */
     const ent = qparam('entry') || qparam('lock');
     if (ent && view && (!who || who.get() === 'nobody')) {
-      window.setTimeout(function () { showTerm(function () { if (ent === 'sudo') view.run(SUDO_LINE); else view.prefill(GUEST_LINE); }); }, 0);
+      window.setTimeout(function () { showTerm(function () { view.prefill(GUEST_LINE); }); }, 0);
     }
     /* 旧地址 #sec[=<层>] / [data-sec-open]：打开终端；没进站预填 su （不问退出） */
     const openShield = function () {
@@ -845,19 +805,12 @@ export function mountTopbar(o) {
         w.then(function (/** @type {string} */ x) { if (x === 'nobody' && !view.input.value) view.prefill(GUEST_LINE); });
       });
     };
-    /* 盾牌（v5 S6 顶栏 E，Gray 16:36：一来一回对应）：不开窗口，打开终端——没进站（访客 / 分享链接会话）预填 su ；
-       已进站（styrigx / root）问「退出进站会话 [y/N]」（钥匙层 lockAsk：y = lock，回车 / n 不动）。身份以服务端为准：问过再决定 */
+    /* 盾牌（v5 S6 顶栏 E）：不开窗口，打开终端——访客预填 su ；v6 已登录（u:<名>）不预填（要换人先 exit，定稿 §六）。身份以服务端为准：问过再决定 */
     const shieldClick = function () {
       showTerm(function () {
         if (!view) return;
         const w = who ? who.refresh() : Promise.resolve('nobody');
         w.then(function (/** @type {string} */ x) {
-          if (x === 'styrigx' || x === 'root') {
-            const sp = view.layers().space;
-            if (sp && typeof sp.lockAsk === 'function' && view.line.mode === 'cmd') sp.lockAsk();
-            return;
-          }
-          /* v6 已登录（u:<名>）不预填 su （要换人先 exit，定稿 §六）；访客 / 分享链接会话预填 */
           if (!view.input.value && x.indexOf('u:') !== 0) view.prefill(GUEST_LINE);
         });
       });
@@ -880,7 +833,7 @@ export function mountTopbar(o) {
         else showTerm();
       });
     }
-    /* 主页 neofetch（v5 S7）的提示符跟身份：[data-sgx-ps]（nobody@space:~$ / nobody@space:~# / styrigx@space:~# / root@account:~#，路径 ~） */
+    /* 主页 neofetch（v5 S7）的提示符跟身份：[data-sgx-ps]（nobody@space:~$ / styrigx@space:~$ / root@space:~#，路径 ~） */
     const psEls = Array.prototype.slice.call(doc.querySelectorAll('[data-sgx-ps]'));
     if (psEls.length && who && typeof T.ps1 === 'function') {
       const paintPs = function () { psEls.forEach(function (/** @type {HTMLElement} */ el) { el.textContent = T.ps1(who.get(), '~'); }); };

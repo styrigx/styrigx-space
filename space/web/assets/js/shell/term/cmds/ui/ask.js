@@ -8,7 +8,7 @@ export default {
   name: 'ask',
   takesArgs: true,
   /* #404 未决项第 7 项（Gray 11-11 15:37）：v6 root（root6）能用 Gray AI，进它的 man；普通用户（user）不列（AI 只对 styrigx 和 root 开放，#403） */
-  audience: /** @type {any} */ (['link', 'styrigx', 'root', 'root6']),
+  audience: /** @type {any} */ (['root6']),
   /** @param {any} p @param {any} x */
   run: function (p, x) {
     if (x.who() === 'nobody') return { out: [{ t: 'line', seg: fill(x.S.askLocked, { s: ['k', 'su'], f: ['k', 'find'] }), cls: 'o' }] };

@@ -9,7 +9,7 @@ const { test, expect } = require('@playwright/test');
 const flagsMode = process.env.SGX_TEST_FLAGS; // 'gate-off' | undefined
 
 test.describe('lock feature flag (lock-gate)', () => {
-  test('lock-gate on (default build): ?entry=1 opens the terminal with sudo styrigx prefilled, no lock screen', async ({ page }) => {
+  test('lock-gate on (default build): ?entry=1 opens the terminal with su prefilled (v6), no lock screen', async ({ page }) => {
     test.skip(flagsMode === 'gate-off', '默认构建：LOCK_GATE=true');
 
     await page.goto('/wild/?entry=1', { waitUntil: 'domcontentloaded' });

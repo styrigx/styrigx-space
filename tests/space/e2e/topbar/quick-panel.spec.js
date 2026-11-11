@@ -741,13 +741,13 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await inp.press('Enter');
     await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="user"]').last()).toHaveText('$ pwd');
     await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('~');
-    /* 要输入 / 验证的命令（sudo …）在 AI 窗口里不跑，提示去终端 */
-    await inp.fill('$ sudo styrigx');
+    /* 要输入 / 验证的命令（su …；v6 P4 起旧 sudo styrigx 删了）在 AI 窗口里不跑，提示去终端 */
+    await inp.fill('$ su styrigx');
     await inp.press('Enter');
-    await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('sudo styrigx：请在终端里运行（Ctrl K）');
+    await expect(ai(page).locator('.sgx-ai-msg[data-term][data-role="assistant"]').last()).toHaveText('su styrigx：请在终端里运行（Ctrl K）');
     await inp.fill('$');
     await inp.press('ArrowUp');
-    await expect(inp).toHaveValue('$ sudo styrigx');
+    await expect(inp).toHaveValue('$ su styrigx');
     await inp.fill('$ pw');
     await inp.press('Tab');
     await expect(inp).toHaveValue('$ pwd');
@@ -756,7 +756,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     await expect(ai(page).locator('[data-term]')).toHaveCount(0);
     expect(posts).toBe(0);
     const h = await page.evaluate(() => [sessionStorage.getItem('sgx-term-hist-4'), localStorage.getItem('sgx-ai-history')]);
-    expect(JSON.parse(h[0])).toEqual(['pwd', 'sudo styrigx', 'clear']);
+    expect(JSON.parse(h[0])).toEqual(['pwd', 'su styrigx', 'clear']);
     expect(h[1] || '').not.toContain('pwd');
   });
 

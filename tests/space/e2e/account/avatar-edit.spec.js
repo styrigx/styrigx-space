@@ -12,7 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const T = require('../helpers/account-term.cjs');
 
-const { SESSION, STATUS, mockAccount, openTerm, log, typeLine, picks } = T;
+const { mockAccount, openTerm, log, typeLine, picks } = T;
 
 test.use({ viewport: { width: 412, height: 915 } });
 test.beforeEach(async ({ page }) => { await T.zh(page); });
@@ -37,10 +37,10 @@ async function makePhoto(page) {
 
 /** 已登录，打开终端 @param {any} page */
 async function signedIn(page) {
-  await mockAccount(page, { status: STATUS({ session: SESSION() }) });
+  await mockAccount(page, { user: T.V6_USER('styrigx') });
   await T.goPage(page);
   await openTerm(page);
-  await expect(T.ps(page)).toHaveText('root@account:~/wild#');
+  await expect(T.ps(page)).toHaveText('styrigx@space:~/wild$');
 }
 /** profile avatar（没有自定义头像）：收起终端、打开系统选照片 @param {any} page */
 async function pickPhoto(page) {

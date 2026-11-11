@@ -5,10 +5,8 @@ import { modalSheet } from '../../../js/shell/modal-sheet.js';
 import { mountAiChat } from '../../../js/shell/ai-panel.js';
 import { onKeyboardHeight } from '../../../js/shell/vk.js';
 import * as prefs from '../../../js/lib/prefs-write.js';
-import { mountShare } from '../../../js/shell/share-button.js';
 import * as terminal from '../../../js/shell/terminal.js';
-import { mountSpace } from '../../../js/shell/space/layer.js';
-import { PM_USER } from '../../../js/shell/space/api.js';
+import { KEY_SPACE_PASSWORD } from '../../../js/lib/key-names.js';
 import { mountAccountLayer } from '../../../js/shell/account/cmd/layer.js';
 import { mountIdentityLayer } from '../../../js/shell/identity/layer.js';
 import { whoami as identityWhoami, hasMarker as identityMarker } from '../../../js/shell/identity/api.js';
@@ -42,7 +40,7 @@ function initTopbar() {
   r.dataset.sgxReady = 'true';
 
   /* 快捷面板 + AI 窗口（共享外壳 topbar.js）：外观写端 prefs-write.js（写 localStorage + sgx-ui cookie，同源后主站同步生效）；
-     语言行写偏好，实际语言变了就去 data-href（另一种语言的同一页）；布局行写 sgx-layout（四站同一套快捷面板，PR-4b）；分享磁贴交给 share.js（带临时会话的短链，只要进站会话、不验证） */
+     语言行写偏好，实际语言变了就去 data-href（另一种语言的同一页）；布局行写 sgx-layout（四站同一套快捷面板，PR-4b） */
   mountTopbar({
     modalSheet,
     prefs: {
@@ -63,16 +61,15 @@ function initTopbar() {
       setLayout: prefs.setLayout,
     },
     ai: mountAiChat,
-    share: mountShare,
-    /* 全站终端（Ctrl / ⌘ K、NAVIGATE「Ctrl K 终端 ›」、盾牌；v5 S5 终端合一）：钥匙层（sudo styrigx / lock / share）和账号层（sudo root 与账号命令）在终端里原地跑 */
+    /* 全站终端（Ctrl / ⌘ K、NAVIGATE「Ctrl K 终端 ›」、盾牌；v5 S5 终端合一）：v6 身份层和账号层（账号命令）在终端里原地跑 */
     terminal,
-    space: mountSpace,
     accountTerm: mountAccountLayer,
     /* v6 身份层（同主站 quick-panel.js；全站一个终端：博客终端里 su / su root / sudo / exit / lock / whoami … 同样能用） */
     identityTerm: mountIdentityLayer,
     identityWhoami: identityWhoami,
     identityMarker: identityMarker,
-    pmUser: PM_USER.password,
+    /* 密码输入行的隐藏用户名（密码管理器认它；v6 su / sudo 的 Password: 行用同一个） */
+    pmUser: KEY_SPACE_PASSWORD,
     keyboard: onKeyboardHeight,
   });
 

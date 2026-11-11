@@ -4,38 +4,25 @@
  * 这里的文字是英文底：页面上 NAME 说明以 #sgx-i18n-shell 的 man 节为准（键 = 命令名），DESCRIPTION / AUTH / NOTES 以 manBody 节为准
  * （键 = 命令名，{ desc: [], auth: '', notes: [] }，行数和这里一一对应；中文页每一页都要有，tests/space/ui/shell/man-i18n.test.mjs 查）。命令写法不翻译。
  */
-/** 命令 → { d: NAME 说明, syn: SYNOPSIS 各行, desc? / auth? / notes?: 正文（{root} / {admin} 由 man.js 换成命令字；这个文件不 import，懒加载 chunk 不牵出共享代码） } */
+/** 命令 → { d: NAME 说明, syn: SYNOPSIS 各行, desc? / auth? / notes?: 正文（这个文件不 import，懒加载 chunk 不牵出共享代码）。v6 P4 起旧命令（sudo styrigx / sudo root / sudo -v、lock passwd / passkey / --all、share）的页删了或改成 v6 写法 } */
 export const PAGES = Object.freeze({
   man: { d: 'read a command’s manual page', syn: ['man', 'man <command>'] },
   cd: { d: 'change the current directory (use open to go there)', syn: ['cd [blog | curio | daymark | wild | account | proxy | ~ | ..]'] },
   ls: { d: 'list a directory', syn: ['ls [path]'] },
   cat: { d: 'print today’s daymark line', syn: ['cat daymark/today'] },
-  sudo: {
-    d: 'enter the site (sudo styrigx), sign in to the account (sudo root), or verify again (sudo -v)', syn: ['sudo {admin}', 'sudo {admin} reset', 'sudo {root} [reauth | reset]', 'sudo -v'],
-    desc: ['sudo {admin}: verify with the unlock password or a passkey right here; the terminal closes and the space boots.', 'sudo -v: verify again for 3 min (as root@account it verifies the account).', 'reset: use a recovery key to reset passwords and passkeys.'],
-    notes: ['A share-link session (nobody@space:~#) can’t verify again, share or change keys.'],
-  },
+  sudo: { d: 'run one command as root with your own credentials (sudoers only; no ticket kept)', syn: ['sudo useradd | userdel | usermod | passwd <name> | groups [name] | who'] },
   theme: { d: 'open the appearance panel, or set dark / light / auto', syn: ['theme', 'theme [dark | light | auto]'] },
-  lock: {
-    d: 'lock now, or manage the unlock password and passkeys', syn: ['lock', 'lock passwd', 'lock passkey [add | rm <n>]', 'lock --all'],
-    desc: ['lock: lock this device now (no verification).', 'passwd / passkey: the keys that enter the site (not the account ones).', '--all: send every device back to visitor.'],
-    auth: 'no verification',
-  },
+  lock: { d: 'sign everything out and go back to visitor', syn: ['lock'], auth: 'no verification' },
   ask: { d: 'ask Gray AI a question', syn: ['ask <question>'], desc: ['opens the Gray AI window with your question. Gray AI is only for styrigx and root.'] },
   find: { d: 'search the four sites’ public pages by keyword', syn: ['find <keyword>'] },
   clear: { d: 'clear the screen', syn: ['clear', 'cls'] },
   pwd: { d: 'print the current directory', syn: ['pwd'] },
   open: { d: 'open a path: a site, daymark/today or the account card', syn: ['open [path]', 'open ~/account'] },
   history: { d: 'list this session’s commands', syn: ['history'] },
-  exit: { d: 'leave the current layer, sign out of the account, or close the terminal', syn: ['exit'], desc: ['In reset: leave reset. As root@account: sign out and go back to {admin}@space. Otherwise: close the terminal.'] },
-  share: {
-    d: 'list, create or revoke share links', syn: ['share', 'share add', 'share rm <n>', 'share rm --all'],
-    desc: ['share add: name, page, how long the link lasts, and whether it carries a session.'],
-    auth: 'root only; listing and revoking need no reauth',
-  },
+  exit: { d: 'leave one layer, or close the terminal', syn: ['exit'], desc: ['Back one layer (root → styrigx → visitor; a rescue session goes straight to visitor). Not signed in: close the terminal.'] },
   passwd: { d: 'change the account password', syn: ['passwd'], auth: 'signed in; asks your current password first' },
   passkey: { d: 'list, add or remove account passkeys', syn: ['passkey', 'passkey add', 'passkey rm <n>'], auth: 'signed in' },
-  device: { d: 'list signed-in devices, or sign one out', syn: ['device', 'device rm <n>', 'device rm --all'], auth: 'signed in (sudo {root}); --all needs reauth' },
+  device: { d: 'list signed-in devices, or sign one out', syn: ['device', 'device rm <n>', 'device rm --all'], auth: 'signed in' },
   app: {
     d: 'list app access, allow or deny an app', syn: ['app', 'app allow <n>', 'app deny <n>'],
     desc: ['app: every app with its scopes, when and on which device it was allowed.', 'allow: give an app access again. deny: take it away (asks y/N); the app can still read, it just can’t change anything.'],
@@ -44,9 +31,9 @@ export const PAGES = Object.freeze({
   profile: {
     d: 'show or change your profile and photo', syn: ['profile', 'profile set name | nick | sign | email <value>', 'profile avatar'],
     desc: ['profile: name, nickname, signature and email (a site default shows when you haven’t set one).', 'set: change one field; the whole site follows at once. Name up to 40, nickname up to 32, email checked for format.', 'avatar: pick a photo and crop it, or remove yours.'],
-    auth: 'signed in (sudo {root})',
+    auth: 'signed in',
   },
-  /* 代理订阅（sub v3.1）：一条 sub + 子命令，账号命令（sudo root 之后） */
+  /* 代理订阅（sub v3.1）：一条 sub + 子命令，root 档 */
   sub: {
     d: 'proxy subscription: status, urls, sources, key and token',
     syn: ['sub', 'sub show [name]', 'sub add <name>', 'sub upload <name>', 'sub mv <old> <new>', 'sub rm <name>', 'sub enable | disable <name>', 'sub key', 'sub token reset'],

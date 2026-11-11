@@ -1,9 +1,8 @@
 /**
- * @fileoverview 代理订阅的 sub 指令（v3.1，Gray 2026-11-10 定）：一条 `sub` + 子命令，在终端里原地做完——reauth、y/N、遮挡输入、选文件、复制。
+ * @fileoverview 代理订阅的 sub 指令（v3.1，Gray 2026-11-10 定）：一条 `sub` + 子命令，在终端里原地做完——y/N、遮挡输入、选文件、复制。
  * 终端命令表里的 sub（shell/term/cmds/sub/index.js）把原样的一行交给这里（C.cmdSub）。
- * 后端：POST /api/account/proxy（api.proxy）；鉴权在服务端，旧会话下 show / token / key 要 reauth 票（v6 root 不要，#401）。令牌由服务端封存，sub show 随时重印。
+ * 后端：POST /api/account/proxy（api.proxy）；鉴权在服务端（root 档；v6 P4 起没有旧会话的 reauth 票）。令牌由服务端封存，sub show 随时重印。
  */
-import { CMD } from './commands.js';
 import { SUB_ARGS } from '../term/cmds/sub/args.js';
 
 export { SUB_ARGS };
@@ -58,7 +57,7 @@ export function mountProxy(C) {
   let urls = [];
   /** 这一行 sub 的门（割接：v6 root = { direct: true }，见 cmdSub）；终端一次只跑一条命令，跑下一条时换掉 @type {{direct?: boolean}} */
   let gate = {};
-  /** 要 reauth 的那几步（show / key / token）：v6 root 直接做，旧会话走 sudo root reauth @param {() => void} run @param {string} lead */
+  /** 原来要 reauth 的那几步（show / key / token）：v6 root 直接做 @param {() => void} run @param {string} lead */
   const gated = function (run, lead) { C.gated(gate, run, lead); };
   /** 服务端说没会话 / 档不够 / 票过期 @param {any} res @returns {boolean} */
   const authErr = function (res) { return C.authErrFor(gate, res); };
@@ -80,7 +79,6 @@ export function mountProxy(C) {
     C.setMode('busy');
     req().then(function (/** @type {any} */ res) {
       if (res.j && res.j.ok) { ok(res.j); C.toCmd(); return; }
-      if (again && !gate.direct && api.isErr(res, api.ERR.reauth)) { C.reauthExp = 0; C.toCmd(); C.withReauth(again, ''); return; }
       if (authErr(res)) { C.toCmd(); return; }
       if (res.j && res.j.kept) C.err(tf('proxy.kept', { e: t('proxy.err.' + res.j.error) || res.j.error }));
       else errOut(res);
@@ -312,15 +310,13 @@ export function mountProxy(C) {
   });
 
   /**
-   * 跑一行 sub（runCmd 已回显）。权限只在这里查一次：旧会话没登录账号 → 先 sudo root（旧路径，P4 删）；然后查参数，再分发。
-   * 割接：o.direct（终端 cmds/sub 判过是 v6 root）→ 不看旧账号会话，show / key / token 也不跑旧的 reauth（服务端对 v6 root 本来不要，#401）。
+   * 跑一行 sub（runCmd 已回显）：终端 cmds/sub 判过是 v6 root（o.direct）；查参数，再分发。
    * @param {string} raw 原样的一行 @param {{direct?: boolean}} [o]
    */
   C.cmdSub = function (raw, o) {
     const p = parseSub(raw);
     if (!p) return;
     gate = { direct: !!(o && o.direct) };
-    if (!gate.direct && (C.st !== 'in' || C.inReset)) { C.err(t('session.notSignedIn'), CMD.session); return; }
     const bad = checkSub(p);
     if (bad) { C.err('usage' in bad ? tf('proxy.usage', { x: bad.usage }) : t('proxy.badName')); return; }
     RUN[p.sub](p.args);

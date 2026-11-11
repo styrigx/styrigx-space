@@ -2,10 +2,10 @@
  * @fileoverview 终端（v5 S5 终端合一，term-design-v5）：原锁屏 tty1、主页 tty2、盾牌 tty3、账号 tty5 合成一个终端——一个会话、一份历史、一张命令表。
  * AI 窗口（tty4）不动：它里面以 $ 开头的输入照旧走这里的 createShell（自己的历史 sgx-term-hist-4）。
  *
- * - 引擎 createShell()：命令表（shell/term/cmds/index.js）、提示符（身份 shell/term/core/who.js：nobody / link / styrigx / root，服务端说了算）、
+ * - 引擎 createShell()：命令表（shell/term/cmds/index.js）、提示符（身份 shell/term/core/who.js：访客 nobody / v6 用户 / v6 root，服务端说了算）、
  *   历史（↑↓，sessionStorage sgx-term-hist，全站一份）、Tab 补全、cd 的当前目录。真正的动作（跳页 / 外观 / AI / 打开账号窗口）由调用方经 act 传进来。
  * - 视图 mountTerminal()：把一个终端窗口标记（[data-sgx-term]）接到引擎上。输入行用 shell/term/view/input-line.js（秘密输入 / 选择 / 等待 / ^C 都在那里），
- *   要输入、选择、验证的命令（sudo、lock、share、账号命令、sub）交给调用方给的两层上下文去跑（layers：钥匙层 shell/space/layer.js、
+ *   要输入、选择、验证的命令（su、sudo、exit、lock、账号命令、sub）交给调用方给的两层上下文去跑（layers：v6 身份层 shell/identity/layer.js、
  *   账号层 shell/account/cmd/layer.js），它们共用这一个输入行（shell/term/view/layer-ctx.js）。账号窗口（头像，shell/account/window.js）只展示（S9），点一行 = 打开这个终端、预填命令。
  * - man 的结果在终端窗口里的全屏阅读页显示（S9，shell/term/view/pager.js，less 式），不进滚动区。
  * - 每次打开终端窗口都是干净的新会话（S9）：滚动区回到欢迎行、提示符重画、进行中的输入 / 选择取消、cwd 回到本页；history 照旧（sessionStorage）。
@@ -14,12 +14,12 @@
  *
  * 共享外壳组件：只许 import shell/term/**（终端统一 T1，gen-shell 核对）。
  */
-import { ROOT_COMMAND, ADMIN_COMMAND, parse } from './term/core/parse.js';
+import { parse } from './term/core/parse.js';
 import { KH_EN, shellSection, flatStrings } from './term/core/strings.js';
 import { createRegistry } from './term/core/registry.js';
-import { completeLine, ghostOf, completerOf } from './term/core/complete.js';
+import { completeLine, ghostOf } from './term/core/complete.js';
 import { createHistory } from './term/core/history.js';
-import { cwdPath, ps1, title, createWho, PS_RESET } from './term/core/who.js';
+import { cwdPath, ps1, title, createWho } from './term/core/who.js';
 import { fill, outKit } from './term/core/out.js';
 import { createEngine } from './term/core/engine.js';
 import { DIRS, normDir } from './term/cmds/fs/tree.js';
@@ -56,13 +56,11 @@ export const TERM_EN = {
   opening: 'opening {x} …',
   todayNone: 'no line for today yet · {x}',
   todayFail: 'couldn’t load today’s line · {x}',
-  usageSudo: 'usage: sudo ' + ADMIN_COMMAND + ' [reset] | sudo ' + ROOT_COMMAND + ' [reauth | reset] | sudo -v',
+  usageSudo: 'usage: sudo useradd | userdel | usermod | passwd <name> | groups [name] | who',
   usageTheme: 'usage: theme [dark | light | auto]',
   usageCat: 'usage: cat daymark/today',
-  usageLock: 'usage: lock [passwd | passkey [add | rm <n>] | --all]',
-  usageShare: 'usage: share [add | rm <n> | rm --all]',
+  usageLock: 'usage: lock',
   usagePasswd: 'usage: passwd',
-  usagePasskey: 'usage: passkey [add | rm <n>]',
   usagePasskey6: 'usage: passkey [ls | add | rm <n>]',
   usageDevice: 'usage: device [rm <n> | rm --all]',
   usageApp: 'usage: app [allow <n> | deny <n>]',
@@ -87,15 +85,11 @@ export const TERM_EN = {
   findDown: 'find: search is unavailable right now · try again later',
   findLimited: 'find: too many searches · try again in a minute',
   askLocked: 'AI is locked · run {s} first; use {f} to search by keyword',
-  needRoot: 'not signed in to the account · run {x} first',
   needRoot6: 'permission denied · run {x} first',
   needSu: 'not signed in · {x} first',
   suUser: '<user>',
   exitFirst: 'signed in as {u} · {x} first',
-  linkDenied: 'a share-link session can’t do this · enter with your own key',
-  alreadyIn: 'already entered · {x} to verify again',
   notHere: '{x}: run it in the terminal (Ctrl K)',
-  resetOnly: 'in reset: passwd · passkey [add | rm <n>] · exit',
   sudoNotYet: 'sudo {x} isn’t supported yet · su root first, then run {x}',
   goneSudoV: 'sudo -v is gone · in v6 every sudo verifies again',
   goneSudoReauth: 'sudo root reauth is gone · to act as root, su root',
@@ -113,7 +107,7 @@ export function termStrings(doc) {
 }
 
 /** 打错命令时拿来比的真命令（命令名 + 几个常用的整句） */
-const SUGGEST = COMMANDS.concat(['open blog', 'open curio', 'open daymark', 'open wild', 'sudo ' + ROOT_COMMAND, 'sudo ' + ADMIN_COMMAND, 'sudo -v', 'cat daymark/today', 'lock passwd', 'lock passkey', 'share add']);
+const SUGGEST = COMMANDS.concat(['open blog', 'open curio', 'open daymark', 'open wild', 'cat daymark/today']);
 
 /**
  * tab 补全：只补最后一个词（第一个词补命令名，第二个词按命令补参数）。
@@ -214,7 +208,7 @@ export function createShell(o) {
   return {
     str: S,
     exec: exec,
-    /** 提示符：nobody@space:~$ · nobody@space:~# · styrigx@space:~/blog# · root@account:~# */
+    /** 提示符：nobody@space:~$ · styrigx@space:~/blog$ · root@space:~# */
     ps1: function () { return ps1(who.get(), cwd); },
     /** 标题栏：nobody@space: ~ */
     title: function () { return title(who.get(), cwd); },
@@ -247,10 +241,8 @@ function reduced() {
 }
 export { reduced as reducedMotion };
 
-/** reset 层只认这几条（账号 reset：passwd / passkey / exit；钥匙 reset 有自己的命令解析 shell/space/reset.js） */
-const ACCT_RESET_OK = ['passwd', 'passkey', 'exit', 'clear', 'man', 'history'];
-/** 秘密输入（不回显）的模式：解锁 / 账号密码、恢复钥匙、新密码两次、机场链接 */
-const SECRET = ['pw', 'rkey', 'newpw', 'newpw2', 'suburl'];
+/** 秘密输入（不回显）的模式：密码、新密码两次、机场链接（恢复钥匙走 pw） */
+const SECRET = ['pw', 'newpw', 'newpw2', 'suburl'];
 
 /**
  * 把一个终端窗口标记接到引擎上。标记（抽屉 shell-topbar.html）：
@@ -260,7 +252,7 @@ const SECRET = ['pw', 'rkey', 'newpw', 'newpw2', 'suburl'];
  * @param {Element} root
  * @param {ReturnType<typeof createShell>} sh
  * @param {{ kh?: string, onBack?: () => void, isShown?: () => boolean, pmUser?: string,
- *   layers?: (line: any) => { space?: any, acct?: any } }} [opts] kh = 命令行时按键提示行那一句（#sgx-i18n-shell kh 节）；onBack = 触屏「‹ 返回」/ 最外层 esc
+ *   layers?: (line: any) => { acct?: any, ident?: any } }} [opts] kh = 命令行时按键提示行那一句（#sgx-i18n-shell kh 节）；onBack = 触屏「‹ 返回」/ 最外层 esc
  */
 export function mountTerminal(root, sh, opts) {
   const o = opts || {};
@@ -277,19 +269,15 @@ export function mountTerminal(root, sh, opts) {
   const inp = input;
   const outEl = out;
   const SP = flatStrings(shellSection(doc, 'space'));
-  /** 输入行自己要的几句（秘密输入 / 命名的读屏名、^C、没有这个选项）：钥匙层那一节 @param {string} k */
+  /** 输入行自己要的几句（秘密输入 / 命名的读屏名、^C、没有这个选项）：外壳字符串表 space 节 @param {string} k */
   const t = function (k) { return SP[k] || ''; };
 
-  /** @type {{ space?: any, acct?: any }} */
+  /** @type {{ acct?: any, ident?: any }} */
   let R = {};
   /** 欢迎行（新会话回到它）：标记里首帧那几行 */
   const welcome = Array.prototype.map.call(outEl.childNodes, function (/** @type {Node} */ n) { return n.cloneNode(true); });
-  /** 当前提示符：reset 层各自的；其余按身份 */
-  function psNow() {
-    if (R.space && R.space.inReset) return PS_RESET.space;
-    if (R.acct && R.acct.inReset) return PS_RESET.account;
-    return sh.ps1();
-  }
+  /** 当前提示符：按身份 */
+  function psNow() { return sh.ps1(); }
   /** @type {any} */
   let C = null;
   C = createInputLine({
@@ -311,28 +299,18 @@ export function mountTerminal(root, sh, opts) {
     isShown: o.isShown,
     history: false,
     secretModes: SECRET,
-    complete: function (line) {
-      if (R.space && R.space.inReset) return R.space.completeReset(line);
-      if (R.acct && R.acct.inReset) return completerOf({ names: ACCT_RESET_OK, args: { passkey: ['add', 'rm'] } })(line);
-      return sh.complete(line);
-    },
+    complete: function (line) { return sh.complete(line); },
     onMode: function (m) { root.setAttribute('data-term-mode', m); paint(); },
-    onCmdInterrupt: function () {
-      if (R.space && R.space.inReset) { C.out('^C', 'd'); R.space.leaveReset(); return true; }
-      if (R.acct && R.acct.inReset) { C.out('^C', 'd'); R.acct.leaveReset(); return true; }
-      return false;
-    },
+    onCmdInterrupt: function () { return false; },
     onReveal: function () { scrollEnd(); },
     kh: {
-      cmdKey: function () { return inLayer() ? 'cmdLayer' : o.kh || ''; },
-      canBackCmd: function () { return inLayer() || !!o.onBack; },
+      cmdKey: function () { return o.kh || ''; },
+      canBackCmd: function () { return !!o.onBack; },
       onBack: function () { C.refocus = true; if (!C.interrupt() && o.onBack) o.onBack(); },
     },
     pmDefault: o.pmUser || '',
     maxLines: 400,
   });
-  /** reset 层里（esc / ‹ 返回 = 离开 reset） */
-  function inLayer() { return !!((R.space && R.space.inReset) || (R.acct && R.acct.inReset)); }
 
   /* 回显：所有层同一个写法（提示符 + 命令；终端窗口的样式） */
   /** @param {string} cmd @param {string} [ps] */
@@ -347,7 +325,7 @@ export function mountTerminal(root, sh, opts) {
     outEl.appendChild(div);
     scrollEnd();
   };
-  /** 终端窗口回前台 / 关上时各层要做的事（关上：结束 reauth 等） */
+  /** 终端窗口开着 */
   C.shown = function () { return o.isShown ? o.isShown() : true; };
 
   R = (o.layers && o.layers(C)) || {};
@@ -359,7 +337,7 @@ export function mountTerminal(root, sh, opts) {
   sh.onChange(paint);
   function paintGhost() {
     if (!gh) return;
-    const g = C.mode === 'cmd' && !inLayer() && inp.selectionStart === inp.value.length ? ghostOf(inp.value, sh.complete) : '';
+    const g = C.mode === 'cmd' && inp.selectionStart === inp.value.length ? ghostOf(inp.value, sh.complete) : '';
     gh.textContent = g;
     gh.style.left = inp.value.length + 'ch';
     gh.hidden = !g;
@@ -416,15 +394,9 @@ export function mountTerminal(root, sh, opts) {
 
   /** 命令行回车（input-line 只在命令模式调这里） @param {string} raw */
   function onCmd(raw) {
-    /* 钥匙的 reset 层：命令解析在 shell/space/reset.js（层不变），它自己回显 */
-    if (R.space && R.space.inReset) { R.space.runResetCmd(raw); paintGhost(); return; }
     const line = String(raw || '').replace(/\s+/g, ' ').trim();
     C.echo(line);
     if (!line) return;
-    if (R.acct && R.acct.inReset) {
-      const p0 = parse(line);
-      if (p0 && ACCT_RESET_OK.indexOf(p0.cmd) === -1) { print([{ t: 'line', seg: [['', String(sh.str.resetOnly || TERM_EN.resetOnly)]], cls: 'err' }]); return; }
-    }
     const r = sh.exec(line, R);
     if (r && typeof (/** @type {any} */ (r)).then === 'function') {
       /* 异步命令（cat daymark/today、find、ls ~/proxy、man）：先打一行等待提示，输入行收起，回来再放开 */
@@ -492,7 +464,7 @@ export function mountTerminal(root, sh, opts) {
   });
   paint();
 
-  /** 外面要跑一条命令（GUI 跳终端、地址 ?entry=sudo、上锁的地方）：当作敲进来的 @param {string} line */
+  /** 外面要跑一条命令：当作敲进来的 @param {string} line */
   function run(line) {
     if (C.mode !== 'cmd') C.interrupt();
     onCmd(line);
@@ -501,7 +473,7 @@ export function mountTerminal(root, sh, opts) {
     input: inp,
     /** 输入行上下文（input-line） */
     line: C,
-    /** 两层上下文（钥匙 space / 账号 acct） */
+    /** 两层上下文（账号 acct / v6 身份 ident） */
     layers: function () { return R; },
     run: run,
     /** 输入行预填（不替人回车） @param {string} s */
@@ -511,15 +483,15 @@ export function mountTerminal(root, sh, opts) {
       inp.dispatchEvent(new Event('input', { bubbles: true }));
     },
     focus: function () { C.focusIn(true); },
-    /** 窗口关上：各层收尾（reauth / reset 票、印过的明文） */
+    /** 窗口关上：各层收尾（印过的明文） */
     closed: function () {
       if (C.mode !== 'cmd' && C.mode !== 'done') C.interrupt();
       pg.close();
-      [R.space, R.acct].forEach(function (r) { if (r && r.onTermClosed) r.onTermClosed(); });
+      [R.acct].forEach(function (r) { if (r && r.onTermClosed) r.onTermClosed(); });
     },
     /**
      * 新会话（S9，每次打开终端窗口）：进行中的输入 / 选择 / 等待取消、阅读页关上、滚动区回到欢迎行、cwd 回到本页、输入行清空。
-     * 各层的收尾（离开 reset、结束 reauth）在上一次关窗口时（closed）已经做了。history 照旧。
+     * 各层的收尾在上一次关窗口时（closed）已经做了。history 照旧。
      */
     fresh: function () {
       if (C.mode !== 'cmd' && C.mode !== 'done') C.interrupt();

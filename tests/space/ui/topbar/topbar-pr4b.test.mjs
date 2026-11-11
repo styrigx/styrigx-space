@@ -38,8 +38,8 @@ test('NAVIGATE #sgx-nav（顶栏 v3；v5 S6 顶栏 E）：四格按钮（类名�
 test('立即锁屏（v5 S6）：NAVIGATE 的 lock 按钮删了，顶栏不再自己 POST /api/lock-now；上锁走终端 lock、已进站点盾牌（[y/N]）；四站同一套', () => {
   const js = rd('space/web/assets/js/shell/topbar-panel.js');
   assert.doesNotMatch(js, /LOCK_ARM_MS|LOCK_NOW_API|lockState|onLock/);
-  /* 盾牌：已进站问退出（钥匙层 lockAsk），没进站预填 sudo styrigx */
-  assert.match(js, /if \(x === 'styrigx' \|\| x === 'root'\) \{\s*const sp = view\.layers\(\)\.space;\s*if \(sp && typeof sp\.lockAsk === 'function' && view\.line\.mode === 'cmd'\) sp\.lockAsk\(\);/);
+  /* 盾牌：v6 P4 起旧的「退出进站会话 [y/N]」（钥匙层 lockAsk）随旧会话删除（定稿 v5.2 §十三 P4）；访客预填 su ，已登录只打开终端 */
+  assert.doesNotMatch(js, /lockAsk|layers\(\)\.space/);
   assert.doesNotMatch(js, /ENTRY_URL/);
   assert.doesNotMatch(rd('space/web/assets/js/shell/quick-panel.js'), /confirmLockNow/);
   for (const s of ['curio', 'daymark']) assert.doesNotMatch(rd(`space/web/assets/${s}/js/sgx/topbar-host.js`), /onLock:/, s);
@@ -59,7 +59,7 @@ test('子站布局 / 语言写端（prefs-write.js）：四个入口都把 langP
 test('v5 S6 顶栏 E：头像访客态（v6 割接起点了预填 su ，不再是死按钮；有网关标记才判）、>_ 开合终端、盾牌分两态；v5 S7 主页 neofetch 提示符跟身份', () => {
   const js = rd('space/web/assets/js/shell/topbar-panel.js');
   /* 头像：同步看终端身份；页面没有网关标记（本地 / 测试构建）不当访客；v6 普通用户（u:<名>）不算访客 */
-  assert.match(js, /const avGuest = function \(\) \{\s*if \(!who\) return false;\s*const pg = doc\.documentElement\.getAttribute\('data-sgx-lock-session'\);\s*if \(pg !== 'valid' && pg !== 'locked'\) return false;\s*const w = who\.get\(\);\s*if \(w\.indexOf\('u:'\) === 0\) return false;\s*return w !== 'styrigx' && w !== 'root';\s*\};/, 'v6 P2b：v6 普通用户（u:<名>）不算访客');
+  assert.match(js, /const avGuest = function \(\) \{\s*if \(!who\) return false;\s*const pg = doc\.documentElement\.getAttribute\('data-sgx-lock-session'\);\s*if \(pg !== 'valid' && pg !== 'locked'\) return false;\s*return who\.get\(\)\.indexOf\('u:'\) !== 0;\s*\};/, 'v6：只有 v6 身份（u:<名>）不算访客（v6 P4 旧身份删了）');
   assert.match(js, /e\.preventDefault\(\);\s*e\.stopImmediatePropagation\(\);\s*termPrefill\(c\);\s*\}, true\);/);
   assert.doesNotMatch(js, /avDead|setAttribute\('aria-disabled', 'true'\)/, '割接：访客头像不再是死按钮');
   /* >_：开合终端（同 Ctrl / ⌘ K）；终端窗口的 opener 是它 */

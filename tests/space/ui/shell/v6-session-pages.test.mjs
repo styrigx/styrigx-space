@@ -3,11 +3,12 @@
  * - 守卫 shell/space/guard.js：v6 登录标记 / whoami（旧进站会话 401 时 v6 还在就不重载）
  * - 终端 share（cmds/keys/share.js）：v6 root 直接做（不跑旧锁侧复验），v6 普通用户提示先 su root、不进流程；man 给 root6 列 share
  * - 403 forbidden（有 v6 身份但档不够）的文案：分享磁贴、AI 窗口、钥匙层错误码表、服务状态页、奇趣 / 日刻
+ * v6 P4：终端 share、分享磁贴的短链、钥匙层错误码表删了。
  * 运行：node --test tests/space/ui/shell/v6-session-pages.test.mjs
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
@@ -47,42 +48,25 @@ test('守卫：hasV6Marker 只认 sgx-id=1；v6SignedIn 按 whoami（有身份 t
   assert.match(src, /if \(on === false\) sgxReload\(\)/);
 });
 
-test('share：v6 root 直接做（direct，不跑旧锁侧复验）；v6 普通用户提示先 su root、不进流程；旧身份照旧', () => {
+test('v6 P4：终端 share 命令删了（定稿 §二 分享短链整套删除）；man 不列', async () => {
   const L = layers();
-  const root6 = createShell({ act, storage: mem(), who: fixedWho('u:root') });
-  root6.exec('share', L.v);
-  root6.exec('share rm 2', L.v);
-  root6.exec('share rm --all', L.v);
-  root6.exec('share add', L.v);
-  assert.deepEqual(L.calls, [['shareList', { direct: true }], ['shareRm', 2, { direct: true }], ['shareRmAll', { direct: true }], ['shareAdd']]);
-  const L2 = layers();
-  const u = createShell({ act, storage: mem(), who: fixedWho('u:styrigx') });
-  for (const l of ['share', 'share add', 'share rm 1']) assert.equal(text(u.exec(l, L2.v).out[0]), 'permission denied · run su root first', l);
-  assert.deepEqual(L2.calls, []);
-  const L3 = layers();
-  createShell({ act, storage: mem(), who: fixedWho('styrigx') }).exec('share', L3.v);
-  assert.deepEqual(L3.calls, [['shareList', { direct: false }]], '旧进站身份照旧走锁侧复验');
+  const r = createShell({ act, storage: mem(), who: fixedWho('u:root') }).exec('share', L.v);
+  assert.match(text(r.out[0]), /command not found: share/);
+  assert.deepEqual(L.calls, []);
+  const names = async (w) => (await createShell({ act, storage: mem(), who: fixedWho(w) }).exec('man')).out.slice(1).map((o) => o.seg[0][1]);
+  assert.ok(!(await names('u:root')).includes('share'));
   assert.equal(TERM_EN.needRoot6, 'permission denied · run {x} first');
 });
 
-test('man：root6 列 share，v6 普通用户不列', async () => {
-  const names = async (w) => (await createShell({ act, storage: mem(), who: fixedWho(w) }).exec('man')).out.slice(1).map((o) => o.seg[0][1]);
-  assert.ok((await names('u:root')).includes('share'));
-  assert.ok(!(await names('u:alice')).includes('share'));
-});
-
-test('403 forbidden 文案：分享磁贴 / AI 窗口 / 钥匙层错误码表各有自己的一句，不再落到「会话过期」或「服务不可用」', async () => {
-  const SB = await import('../../../../space/web/assets/js/shell/share-button.js');
-  assert.equal(SB.errKey(403, { error: 'forbidden' }), 'forbidden');
-  assert.equal(SB.errKey(401, {}), 'session');
+test('403 forbidden 文案：AI 窗口有自己的一句，不再落到「会话过期」或「服务不可用」（v6 P4：分享磁贴不再生成短链、钥匙层删了）', async () => {
+  assert.equal(existsSync(path.join(REPO, 'space/web/assets/js/shell/share-button.js')), false, 'v6 P4：分享磁贴拿掉（Gray 11-11 17:47）');
   const AI = await import('../../../../space/web/assets/js/shell/ai-panel.js');
   assert.equal(AI.errKey(403, { error: 'forbidden' }), 'forbidden');
   assert.equal(AI.errKey(401, {}), 'unauthorized');
-  const API = rd('space/web/assets/js/shell/space/api.js');
-  assert.match(API, /'forbidden': 'errForbidden'/);
   for (const lang of ['en', 'zh']) {
     const t = yaml.load(rd('space/web/data/sgx-shell-i18n/' + lang + '.yaml'));
-    assert.ok(t.share.forbidden && t.ai.forbidden && t.space.common.errForbidden && t.term.needRoot6, lang);
+    assert.ok(t.ai.forbidden && t.term.needRoot6, lang);
+    assert.equal(t.share, undefined, lang + ' 分享磁贴的文案整节删了');
     const st = yaml.load(rd('space/web/data/i18n/' + lang + '.yaml'));
     assert.ok(JSON.stringify(st).includes('auditErrPerm'), lang + ' 服务状态页 auditErrPerm');
   }

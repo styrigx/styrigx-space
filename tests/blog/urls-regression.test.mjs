@@ -221,7 +221,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(zh, /<a class="sgx-tb-av" href="https:\/\/styrigx\.com\/zh\/account\/"/);
   });
 
-  it('文章页：长条只有页名（文章标题）+ 阅读进度（顶栏 v3 起不显示，读屏照读），没有页签；分享本页在 NAVIGATE；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
+  it('文章页：长条只有页名（文章标题）+ 阅读进度（顶栏 v3 起不显示，读屏照读），没有页签；v6 P4 起 NAVIGATE 没有分享本页；正文里没有内联目录；顶栏不放目录（窄屏目录入口暂不放，宽屏目录卡照旧）', async () => {
     const html = await (await fetch(base + '/blog/zh/post/2026-10-11-agent-collaboration-whitepaper-v2/')).text();
     const pill = html.match(/<div class="sgx-tb-pill[\s\S]*?<\/div>/)[0];
     assert.doesNotMatch(pill, /sgx-seg/);
@@ -229,7 +229,7 @@ describe('网址回归（图志 /blog/ 下）', () => {
     assert.match(pill, new RegExp('<span class="sgx-tb-title">' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '</span>'));
     assert.match(pill, /data-sgx-progress/);
     const set = html.match(/<dialog id="sgx-nav"[\s\S]*?<\/dialog>/)[0];
-    assert.match(set, /<button type="button" class="sgx-nav-btn" data-qp="share" data-sgx-share aria-label="分享本页">/, '分享本页 = NAVIGATE 的 share 按钮');
+    assert.doesNotMatch(set, /data-sgx-share|data-qp="share"/, 'v6 P4：NAVIGATE 的分享本页磁贴拿掉（Gray 11-11 17:47）');
     assert.doesNotMatch(html, /sgx-tb-end|sgx-tb-share|sgx-tb-gbtn/, '没有右圆 / 右胶囊了');
     assert.doesNotMatch(html, /sgx-prog-title|sgx-toc-sheet|mobile-article-toc/);
     assert.doesNotMatch(html, /sgx-drawer-toc/, '抽屉删了，目录不进顶栏');

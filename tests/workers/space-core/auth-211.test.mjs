@@ -455,12 +455,9 @@ test('L1 重置 end：只清 reset cookie，不要票、幂等、不推纪元', 
   assert.equal(Number(authD1For(kv).epoch('lock-epoch') || 0), 0);
 });
 
-test('L1 重置前端（shell/space/reset.js）：无开关键名、无「管理员」、不再有 needLock / lockProof / needAccount / accountProof', async () => {
+test('L1 重置前端：v6 P4 起旧 reset 前端（shell/space/reset.js）删了——重置走 rescue / root（定稿 v5.2 §九、§十三 P4）', async () => {
   const fs = await import('node:fs');
   assert.equal(fs.existsSync(REPO + 'space/web/assets/js/shell/lock.js'), false, '旧锁屏 lock.js 已删');
   assert.equal(fs.existsSync(REPO + 'space/web/assets/js/auth/reset-flow.js'), false, 'auth/reset-flow.js 已删');
-  const src = fs.readFileSync(REPO + 'space/web/assets/js/shell/space/reset.js', 'utf8');
-  assert.ok(!/lock-reset-switch|sgx-reset-switch-hint/.test(src));
-  assert.ok(!src.includes('管理员')); // old-name guard
-  assert.ok(!/needLock|lockProof|needAccount|accountProof/.test(src));
+  assert.equal(fs.existsSync(REPO + 'space/web/assets/js/shell/space/reset.js'), false, 'shell/space/reset.js 已删');
 });

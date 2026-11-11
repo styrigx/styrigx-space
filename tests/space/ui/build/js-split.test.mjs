@@ -102,7 +102,7 @@ test('守卫在 core 里（frontend-js #6）：只带守卫，钥匙层 / 鉴权
   for (const f of ['shell/lock.js', 'shell/lock-guard.js', 'lib/lock-state.js', 'shell/space/entry.js', 'shell/space/shield.js', 'shell/space/tempkeys.js']) assert.ok(!existsSync(join(root, 'space/web/assets/js', f)), f + ' 已删');
   const guard = rd('space/web/assets/js/shell/space/guard.js');
   const staticImports = [...guard.matchAll(/^import [^\n]* from '([^']+)';$/gm)].map((m) => m[1]);
-  assert.deepEqual(staticImports, ['../../lib/diag-jumptrace.js', './state.js', './paths.js'], '守卫只静态依赖 diag-jumptrace、state、paths（接口地址常量）');
+  assert.deepEqual(staticImports, ['../../lib/diag-jumptrace.js'], '守卫只静态依赖 diag-jumptrace（v6 P4 起 state / paths 随钥匙层删了）');
   assert.ok(!/from '\.\/(api|entry|session|reset|shield|layer)\.js'/.test(guard), '守卫不带 api / 通行密钥代码');
   assert.ok(!/\bimport\(/.test(guard.replace(/\/\*[\s\S]*?\*\//g, '')), '守卫不再按需加载锁屏界面');
   assert.ok(!guard.includes('sgx-entry-cover') && !guard.includes('showEntryCover'), '没有全页遮罩');

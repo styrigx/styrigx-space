@@ -19,32 +19,27 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const rd = (p) => readFileSync(path.join(REPO, p), 'utf8');
 const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); };
 
-test('pageStateFor：旧进站会话或非救援 v6 身份 → valid；救援 / 没有 → locked', () => {
-  assert.equal(pageStateFor(true, null), 'valid');
-  assert.equal(pageStateFor(false, { name: 'styrigx' }), 'valid');
-  assert.equal(pageStateFor(false, { name: 'root', root: true }), 'valid');
-  assert.equal(pageStateFor(false, { name: 'alice' }), 'valid', 'su 成任何 v6 用户都算');
-  assert.equal(pageStateFor(false, { name: 'root', root: true, rescue: true }), 'locked', '救援会话不算登录');
-  assert.equal(pageStateFor(false, null), 'locked');
-  assert.equal(pageStateFor(false, { name: '' }), 'locked');
-  assert.equal(pageStateFor(true, { name: 'root', rescue: true }), 'valid', '旧进站会话在就还是 valid');
+test('pageStateFor（v6 P4：只看 v6）：非救援 v6 身份 → valid；救援 / 没有 → locked', () => {
+  assert.equal(pageStateFor({ name: 'styrigx' }), 'valid');
+  assert.equal(pageStateFor({ name: 'root', root: true }), 'valid');
+  assert.equal(pageStateFor({ name: 'alice' }), 'valid', 'su 成任何 v6 用户都算');
+  assert.equal(pageStateFor({ name: 'root', root: true, rescue: true }), 'locked', '救援会话不算登录');
+  assert.equal(pageStateFor(null), 'locked');
+  assert.equal(pageStateFor({ name: '' }), 'locked');
 });
 
-test('createWho：setV6（su / exit / lock）之后通知 onV6；有旧进站会话时 exit 回去仍 valid；refresh 不通知（网络错不误锁）', async () => {
-  let lock = null;
-  const who = createWho({ check: () => Promise.resolve(lock), page: () => 'locked' });
+test('createWho：setV6（su / exit / lock）之后通知 onV6；refresh 不通知（网络错不误锁）', async () => {
+  let ans = null;
+  const who = createWho({ whoami: () => Promise.resolve(ans) });
   const seen = [];
   who.onV6((s) => seen.push(s));
   who.setV6({ name: 'styrigx', uid: 1000 });
   who.setV6({ name: 'root', root: true, uid: 0 });
   who.setV6(null);
   assert.deepEqual(seen, ['valid', 'valid', 'locked']);
-  lock = { ok: true, by: 'password' };
+  ans = { name: 'styrigx' };
   await who.refresh();
   assert.deepEqual(seen, ['valid', 'valid', 'locked'], 'refresh 不通知');
-  who.setV6({ name: 'styrigx' });
-  who.setV6(null);
-  assert.deepEqual(seen.slice(3), ['valid', 'valid'], '旧进站会话还在：exit 回去仍 valid');
 });
 
 function fakeDoc(state) {
