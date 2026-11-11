@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { testLockSession } from './_tickets.mjs';
+import { v6Space } from '../_v6admit.mjs';
 import { genKeyPair, authD1For } from '../_harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,11 +21,9 @@ const REPO = path.resolve(__dirname, '../../..');
 const SH = await import(REPO + '/workers/space-core/src/lib/security-headers.js');
 const { INLINE_SCRIPT_HASHES } = await import(REPO + '/workers/space-core/src/lib/csp-hashes.js');
 const worker = (await import(REPO + '/workers/space-core/src/app.js')).default;
-const { _resetSecretCache } = await import(REPO + '/workers/space-core/src/secrets.js');
 const { parseHeaders, headersFor, matchPattern } = await import(REPO + '/space/scripts/lib/pages-headers.mjs');
 const gen = await import(REPO + '/space/scripts/gen-csp.mjs');
 
-const { priv: PRIV, pub: PUB } = await genKeyPair();
 
 function makeKv() {
   const m = new Map();
@@ -40,7 +38,7 @@ function makeKv() {
 }
 function baseEnv(over = {}) {
   const kv = makeKv();
-  return { SGX_ENV: 'production', SGX_SITE: 'space', SGX_SPACE_PUBLIC: PUB, KV_LOCK_DOOR: kv, D1_SPACE: authD1For(kv), KV_ACCOUNT_LOGIN: kv, ...over };
+  return { SGX_ENV: 'production', SGX_SITE: 'space', KV_LOCK_DOOR: kv, D1_SPACE: authD1For(kv), KV_ACCOUNT_LOGIN: kv, ACCOUNT_VERIFIER: v6Space({}), ...over };
 }
 const CTX = { waitUntil() {} };
 const PAGE = '<!DOCTYPE html><html lang="zh"><head></head><body><!-- SGX-DESKTOP-START -->desk<!-- SGX-DESKTOP-END -->x</body></html>';
@@ -175,7 +173,6 @@ test('子站安全头：强制 CSP 只有三条非脚本指令；子站已有的
 /* ---------------- 网关：主站 ---------------- */
 
 test('网关·锁屏首页（未登录 /、/zh/）：200 锁屏态 + 全套安全头 + private, no-store', async () => {
-  _resetSecretCache();
   await withOrigin(PAGE, async () => {
     for (const p of ['/', '/zh/', '/?lock=1&return=%2Fdisplay%2F']) {
       const res = await worker.fetch(new Request('https://styrigx.com' + p), baseEnv(), CTX);
@@ -189,7 +186,6 @@ test('网关·锁屏首页（未登录 /、/zh/）：200 锁屏态 + 全套安�
 });
 
 test('网关·未登录内页 → 200 页面（v5 S3 不 302），带全套安全头；要进站的接口 401 也带', async () => {
-  _resetSecretCache();
   await withOrigin(PAGE, async (calls) => {
     const res = await worker.fetch(new Request('https://styrigx.com/chat/'), baseEnv(), CTX);
     assert.equal(res.status, 200);
@@ -203,7 +199,6 @@ test('网关·未登录内页 → 200 页面（v5 S3 不 302），带全套安�
 });
 
 test('网关·域名跳转：www 301、别的域名 301 / 403、styrigx-space.pages.dev 301，都带安全头', async () => {
-  _resetSecretCache();
   const cases = [
     ['https://www.styrigx.com/display/', 301],
     ['https://evil.example/display/', 301],
@@ -217,18 +212,16 @@ test('网关·域名跳转：www 301、别的域名 301 / 403、styrigx-space.pa
   }
 });
 
-test('网关·进门的人打开门内页 / 账号区 200、?return= 302，都带安全头（进门二值：没有按角色的 302、没有升级态）', async () => {
-  _resetSecretCache();
-  const pw = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'password'));
-  const tk = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'link'));
+test('网关·有 v6 会话的人打开页面 200，都带安全头（v6 P4 起进站后的 ?return= 302 随进站签发删除，/?return= 只是首页）', async () => {
+  const pw = 'sgx-session=styrigx';
+  const tk = 'sgx-session=alice';
   await withOrigin(PAGE, async () => {
     const cases = [
       ['/security/lock/', pw, 200],
       ['/chat/', pw, 200],
       ['/security/lock/', tk, 200],
       ['/account/', tk, 200],
-      ['/?return=%2Fchat%2F', pw, 302],
-      ['/?return=%2Fsecurity%2Flock%2F', tk, 302],
+      ['/?return=%2Fchat%2F', pw, 200],
     ];
     for (const [p, cookie, st] of cases) {
       const res = await worker.fetch(new Request('https://styrigx.com' + p, { headers: { Cookie: cookie } }), baseEnv(), CTX);
@@ -239,8 +232,7 @@ test('网关·进门的人打开门内页 / 账号区 200、?return= 302，都�
 });
 
 test('网关·Pages 自己的跳转（补尾斜杠 308）经网关交回时也带安全头', async () => {
-  _resetSecretCache();
-  const pw = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'password'));
+  const pw = 'sgx-session=styrigx';
   await withOrigin('', async () => {
     const res = await worker.fetch(new Request('https://styrigx.com/display', { headers: { Cookie: pw } }), baseEnv(), CTX);
     assert.equal(res.status, 308);
@@ -249,30 +241,26 @@ test('网关·Pages 自己的跳转（补尾斜杠 308）经网关交回时也�
   }, { status: 308, headers: { Location: '/display/' } });
 });
 
-test('网关·/api/*：401、进门但没账号会话的 401 account、404 都带安全头，Cache-Control 不被安全头改掉', async () => {
-  _resetSecretCache();
-  const tk = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'link'));
-  const r1 = await worker.fetch(new Request('https://styrigx.com/api/lock-session-check'), baseEnv(), CTX);
+test('网关·/api/*：401、有身份但档不够的 403 forbidden、404 都带安全头，Cache-Control 不被安全头改掉', async () => {
+  const tk = 'sgx-session=alice';
+  const r1 = await worker.fetch(new Request('https://styrigx.com/api/status'), baseEnv(), CTX);
   assert.equal(r1.status, 401);
   assertMainHeaders(r1, '401');
   const r2 = await worker.fetch(new Request('https://styrigx.com/api/space-audit', { headers: { Cookie: tk } }), baseEnv(), CTX);
-  assert.equal(r2.status, 401);
-  assert.equal((await r2.clone().json()).error, 'account');
+  assert.equal(r2.status, 403);
+  assert.equal((await r2.clone().json()).error, 'forbidden');
   /* JSON 响应统一由 workers/space-core/src/lib/http.js json() 发，默认 private, no-store（以前这一处手写 no-store） */
   assert.equal(r2.headers.get('Cache-Control'), 'private, no-store');
-  assertMainHeaders(r2, '401 account');
-  const pw = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'password'));
-  const r3 = await worker.fetch(new Request('https://styrigx.com/api/nope', { headers: { Cookie: pw } }), baseEnv(), CTX);
-  assert.equal(r3.status, 404);
+  assertMainHeaders(r2, '403 forbidden');
+  const r3 = await worker.fetch(new Request('https://styrigx.com/api/geo/x'), baseEnv(), CTX);
+  assert.equal(r3.status, 401);
   assertMainHeaders(r3, '404');
 });
 
 test('网关·SGX_SITE 配错（500）和未处理异常（500）也带安全头', async () => {
-  _resetSecretCache();
   const r1 = await worker.fetch(new Request('https://styrigx.com/'), baseEnv({ SGX_SITE: 'blog' }), CTX);
   assert.equal(r1.status, 500);
   assertMainHeaders(r1, 'misconfig');
-  _resetSecretCache();
   const orig = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error('boom'); };
   try {
@@ -285,7 +273,6 @@ test('网关·SGX_SITE 配错（500）和未处理异常（500）也带安全头
 });
 
 test('网关·原样回源的静态资源（/css/、/robots.txt）不改头：由 Pages 的 _headers 负责', async () => {
-  _resetSecretCache();
   await withOrigin('body{}', async () => {
     const res = await worker.fetch(new Request('https://styrigx.com/css/main.abc.css'), baseEnv(), CTX);
     assert.equal(res.headers.get('X-SGX-Runtime'), null);
@@ -294,7 +281,6 @@ test('网关·原样回源的静态资源（/css/、/robots.txt）不改头：�
 });
 
 test('网关·预览（Pages 的 _worker.js，env.ASSETS）：锁屏首页同样带安全头', async () => {
-  _resetSecretCache();
   const env = baseEnv({
     SGX_ENV: 'preview',
     ASSETS: { fetch: async () => new Response(PAGE, { headers: { 'Content-Type': 'text/html' } }) },
@@ -307,8 +293,7 @@ test('网关·预览（Pages 的 _worker.js，env.ASSETS）：锁屏首页同样
 /* ---------------- 网关：子站 ---------------- */
 
 test('网关·子站：访客页面、401、会话有效的页面都带子站那组安全头，不套主站完整 CSP / Permissions-Policy', async () => {
-  _resetSecretCache();
-  const pw = 'sgx-space-session=' + (await testLockSession(PRIV, 0, 'password'));
+  const pw = 'sgx-session=styrigx';
   await withOrigin('<html><head></head><body>blog</body></html>', async () => {
     for (const host of ['styrigx.com/blog', 'styrigx.com/daymark', 'styrigx.com/curio']) {
       const lock = await worker.fetch(new Request('https://' + host + '/posts/x/'), baseEnv(), CTX);

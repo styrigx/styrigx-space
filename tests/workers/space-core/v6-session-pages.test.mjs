@@ -1,6 +1,6 @@
 /**
  * 2b（v6 割接后续）：纯 v6 登录的页面视为已登录——网关这一侧。
- * - 页面状态（data-sgx-lock-session，gate.js pageStateOf）：只有 v6 / 只有旧 / 都有 / 都没有 / v6 过期 / 救援 / RPC 出错；主站、子站、旧 /en/ 404 页同一套
+ * - 页面状态（data-sgx-lock-session，gate.js pageStateOf）：只有 v6 / 只有旧（v6 P4 起不认）/ 都没有 / v6 过期 / 救援 / RPC 出错；主站、子站、旧 /en/ 404 页同一套
  * - PAGE_PROBE 在账号路由表里是 user 档、不是救援可用（判断只在 ROUTE_ACCESS + permits）
  * - 云同步 GET /api/prefs：纯 v6 过网关门、转给账号 Worker（数据归谁由账号 Worker dataUid 按 v6 uid 定）
  * - 网关自己的接口：/api/status（status 组）、/api/ai（ai 组）认 v6；有 v6 身份但档不够 403 forbidden；访客 401
@@ -10,8 +10,7 @@
 import '../account/_cf-workers.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeAuthD1, genKeyPair } from '../_harness.mjs';
-import { testLockSession } from './_tickets.mjs';
+import { makeAuthD1 } from '../_harness.mjs';
 import { admitFor } from '../_v6admit.mjs';
 
 const REPO = new URL('../../../', import.meta.url).pathname;
@@ -19,18 +18,15 @@ const worker = (await import(REPO + 'workers/space-core/src/app.js')).default;
 const IA = await import(REPO + 'workers/space-core/src/core/identity-admit.js');
 const RA = await import(REPO + 'workers/account/src/core/route-access.js');
 
-const LOCK = await genKeyPair();
 const ctx = { waitUntil() {} };
 const HTML = '<!DOCTYPE html><html lang="en"><body>x</body></html>';
 
 function setup(o = {}) {
   const rec = { calls: [], forwarded: [] };
   const env = {
-    SGX_ENV: 'production', SGX_SITE: 'space', SGX_SPACE_PUBLIC: LOCK.pub, SGX_SPACE_PRIVATE: LOCK.priv,
+    SGX_ENV: 'production', SGX_SITE: 'space',
     D1_SPACE: makeAuthD1(),
-    ANON_LIMITER: { async limit() { return { success: true }; } },
     ACCOUNT_VERIFIER: {
-      async authorize() { return { ok: false, reason: 'no-cookie', deviceId: '', scopes: [], reauth: false }; },
       async admit(c, m, p, opts) { rec.calls.push([c, m, p]); if (o.throws) throw new Error('down'); return admitFor(c, m, p, opts); },
     },
     ACCOUNT: { async fetch(req) { rec.forwarded.push(new URL(req.url).pathname); return new Response('{"ok":true,"items":{},"updatedAt":0}', { headers: { 'Content-Type': 'application/json' } }); } },
@@ -46,7 +42,8 @@ async function page(env, path, cookie) {
   const m = /<html[^>]*data-sgx-lock-session="([a-z]+)"/.exec(html);
   return { status: res.status, state: m ? m[1] : null, cc: res.headers.get('Cache-Control') };
 }
-const oldCookie = async () => 'sgx-space-session=' + (await testLockSession(LOCK.priv, 0, 'password'));
+/** 旧进站会话 cookie 的样子（v6 P4 起网关不再验它，任何值都一样） */
+const oldCookie = async () => 'sgx-space-session=password.0.9999999999999.sig';
 
 test('PAGE_PROBE：账号路由表里是 user 档（任一已登录身份），不是救援可用', () => {
   assert.equal(RA.levelOf(IA.PAGE_PROBE.method, IA.PAGE_PROBE.path), 'user');
@@ -63,12 +60,13 @@ test('页面状态：只有 v6（styrigx / root / alice / 无组临时用户）�
   }
 });
 
-test('页面状态：只有旧会话 → valid，不问 v6；两样都有 → valid，不问 v6（旧会话先判）', async () => {
+test('页面状态（v6 P4）：只有旧进站会话 → locked、不问 v6；两样都有 → 按 v6 判（valid）', async () => {
   const { env, rec } = setup();
   const old = await oldCookie();
-  assert.equal((await page(env, '/', old)).state, 'valid');
-  assert.equal((await page(env, '/zh/', old + '; sgx-session=styrigx; sgx-id=1')).state, 'valid');
+  assert.equal((await page(env, '/', old)).state, 'locked');
   assert.equal(rec.calls.length, 0);
+  assert.equal((await page(env, '/zh/', old + '; sgx-session=styrigx; sgx-id=1')).state, 'valid');
+  assert.equal(rec.calls.length, 1);
 });
 
 test('页面状态：都没有 → locked、不问；v6 过期 / 坏令牌 → locked；救援会话 → locked；RPC 出错 → locked（fail closed）', async () => {
@@ -133,9 +131,9 @@ test('/api/ai（ai 组）：纯 v6 styrigx 能取模型列表；不在 ai 组（
   assert.equal((await get('')).status, 401);
 });
 
-test('entryOrV6 / newSessionSignedIn：旧会话有效直接 ok 不问；没 cookie 不问', async () => {
+test('newSessionSignedIn：没 cookie 不问；有 v6 会话 true；没绑定 → false（v6 P4 起 entryOrV6 随旧进站会话删除）', async () => {
   const { env, rec } = setup();
-  assert.equal(await IA.entryOrV6({ request: new Request('https://styrigx.com/api/status'), env, data: {} }, { ok: true }), 'ok');
+  assert.equal('entryOrV6' in IA, false);
   assert.equal(await IA.newSessionSignedIn(env, new Request('https://styrigx.com/')), false);
   assert.equal(rec.calls.length, 0);
   assert.equal(await IA.newSessionSignedIn(env, new Request('https://styrigx.com/', { headers: { Cookie: 'sgx-session=root' } })), true);
