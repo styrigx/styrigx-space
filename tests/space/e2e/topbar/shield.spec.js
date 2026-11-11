@@ -66,7 +66,7 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     });
   }
 
-  test('徽章四档的图形（现有盾形换部件）：访客空盾、普通用户小人、站长打勾（主题色）、root 实心（主题色）', async ({ page }) => {
+  test('徽章四档的图形（现有盾形换部件）：访客空盾、普通用户小人、站长打勾（主题色）、root 实心盾上留勾（主题色，勾用底色）', async ({ page }) => {
     await go(page, { user: A.V6_USER('styrigx') });
     const sh = page.locator('.sgx-tb-shield');
     await expect(sh).toHaveAttribute('data-sgx-tier', 'owner');
@@ -79,7 +79,7 @@ test.describe('盾牌 + 身份命令（v6，在全站终端里）', () => {
     expect(o.ok).not.toBe('none');
     expect(o.u).toBe('none');
     expect(o.fill).toBe('none');
-    for (const [t, ok, u, solid] of [['guest', false, false, false], ['user', false, true, false], ['root', false, false, true]]) {
+    for (const [t, ok, u, solid] of [['guest', false, false, false], ['user', false, true, false], ['root', true, false, true]]) {
       await sh.evaluate((el, v) => el.setAttribute('data-sgx-tier', v), t);
       const l = await look();
       expect(l.ok === 'none', t).toBe(!ok);
