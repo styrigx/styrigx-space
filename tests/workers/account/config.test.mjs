@@ -43,10 +43,10 @@ test('rpConfig / rpConfigMissing：两个都在才给；缺 → 503 config', asy
   assert.equal((await r.json()).error, 'config');
 });
 
-test('ACCOUNT_SCHEMA + IDENTITY_SCHEMA（兜底建表）与迁移建出的 account_* 表逐列一致（到 0006 为止，account_grant 除外：兜底不建）；0007 只给 account_device 加 uid；每条都 IF NOT EXISTS', () => {
+test('ACCOUNT_SCHEMA + IDENTITY_SCHEMA（兜底建表）与迁移建出的 account_* 表逐列一致（到 0006 为止，account_grant 除外：兜底不建）；0007 只给 account_device 加 uid、0008 只给 account_sessions 加 device；每条都 IF NOT EXISTS', () => {
   const a = new DatabaseSync(':memory:');
   for (const s of db.ACCOUNT_SCHEMA.concat(db.IDENTITY_SCHEMA)) { assert.match(s, /IF NOT EXISTS/); a.exec(s); }
-  /* 兜底建表是迁移前（0006）的结构；0007 之后的 account_device 多一列 uid（默认 1000），别的 account_* 不变 */
+  /* 兜底建表是迁移前（0006）的结构；0007 之后 account_device 多一列 uid（默认 1000），0008 之后 account_sessions 多一列 device（可空），别的 account_* 不变 */
   const b = makeAccountD1({ migrations: 'pre-uid' }).raw;
   const c = makeAccountD1().raw;
   const all = [...ACCOUNT_TABLES, ...IDENTITY_TABLES];
@@ -55,7 +55,7 @@ test('ACCOUNT_SCHEMA + IDENTITY_SCHEMA（兜底建表）与迁移建出的 accou
   for (const s of db.ACCOUNT_SCHEMA) assert.doesNotMatch(s, /account_grant/);
   const cols = (d, t) => d.prepare('PRAGMA table_info(' + t + ')').all().map((c) => [c.name, c.type, c.notnull, c.pk, c.dflt_value]);
   for (const t of fallback) assert.deepEqual(cols(a, t), cols(b, t), t);
-  for (const t of all) assert.deepEqual(cols(c, t), t === 'account_device' ? cols(b, t).concat([['uid', 'INTEGER', 1, 0, '1000']]) : cols(b, t), '0007 后 ' + t);
+  for (const t of all) assert.deepEqual(cols(c, t), t === 'account_device' ? cols(b, t).concat([['uid', 'INTEGER', 1, 0, '1000']]) : t === 'account_sessions' ? cols(b, t).concat([['device', 'TEXT', 0, 0, null]]) : cols(b, t), '0007 / 0008 后 ' + t);
   const names = (d) => d.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'account_%' ORDER BY name").all().map((r) => r.name);
   assert.deepEqual(names(a), [...fallback].sort());
   assert.deepEqual(names(b), [...all].sort());

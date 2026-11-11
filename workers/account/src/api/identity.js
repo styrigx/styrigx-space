@@ -42,6 +42,7 @@ import { V6_PURPOSE, v6AssertionChallenge, v6CheckAssertion, v6RegistrationChall
 import { rpConfig, rpConfigMissing } from '../core/config.js';
 import { sudoTarget, runSudoRoute } from './sudo-route.js';
 import { rescue as rescueIssue } from '../core/rescue.js';
+import { deviceMarkFor, deviceCookie } from '../core/device-mark.js';
 
 const PATH = '/api/identity';
 const BODY_MAX = 16 * 1024;
@@ -260,10 +261,12 @@ async function dispatch(c) {
       }
       const u = await getUser(env, v.uid);
       if (!u) return credError('auth');
-      const s = await issueSession(env, { uid: u.uid, epoch: u.epoch }, now);
+      const mark = deviceMarkFor(c.request); /* 2g：同一台设备沿用 sgx-device，没有就新发（定稿 v5.5 §十一） */
+      const s = await issueSession(env, { uid: u.uid, epoch: u.epoch }, now, { device: mark });
       await audit('su ' + arg(target), true, u.uid);
       const h = new Headers();
       h.append('Set-Cookie', s.cookie);
+      h.append('Set-Cookie', deviceCookie(mark));
       h.append('Set-Cookie', markerCookie(SESSION_TTL_MS.user / 1000));
       const groups = await getGroups(env, u.uid);
       return ok({ user: view({ ok: true, identity: { uid: u.uid, name: u.name, groups, rescue: false }, via: null, layerExpiresAt: s.expiresAt }) }, h);
