@@ -67,7 +67,7 @@ test('parse：空行 null；命令名小写；参数按空白切；rest 保留�
 
 test('命令表（v5 S5 + sub v3.1 + S9 profile）：一张表；help / tty / tempkey / sub-* 没有了；sub 一条带子命令', () => {
   assert.deepEqual(COMMANDS, ['man', 'open', 'cd', 'ls', 'cat', 'clear', 'history', 'exit', 'pwd', 'theme', 'find', 'ask', 'sudo', 'lock', 'share', 'passwd', 'passkey', 'device', 'app', 'profile', 'sub',
-    'whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod'], 'v6 身份命令（P2b）排最后');
+    'whoami', 'su', 'groups', 'who', 'useradd', 'userdel', 'usermod', 'rescue'], 'v6 身份命令（P2b）排最后；P3 救援入口 rescue');
   for (const gone of ['help', 'tty', 'tempkey', 'sub-key', 'sub-link', 'sub-refresh', 'sub-mv']) assert.ok(!COMMANDS.includes(gone), gone);
   assert.deepEqual(ARGS.sub, ['show', 'add', 'upload', 'mv', 'rm', 'enable', 'disable', 'key', 'token']);
   assert.deepEqual(ARGS.app, ['allow', 'deny']);

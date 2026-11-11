@@ -96,6 +96,7 @@
 | `SGX_ACCOUNT_PRIVATE` / `SGX_ACCOUNT_PUBLIC` | account | 账号票签名钥匙对 |
 | `SGX_ACCOUNT_RECOVERY_KEY` | account | 恢复密钥 |
 | `SGX_ACCOUNT_PASSWORD_PEPPER` | account | 账号密码 pepper |
+| `SGX_ACCOUNT_RESCUE_KEY` | account | v6 救援钥匙（只管 root；Gray 在 dashboard 设值 / 换值） |
 | `SGX_CHAT_API_KEY` | ai | Gemini API key |
 | `SGX_CF_USAGE_TOKEN` | status | 读取 Cloudflare 用量的只读 token |
 

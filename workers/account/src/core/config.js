@@ -69,6 +69,8 @@ export const SIGNING_PRIVATE = 'SGX_ACCOUNT_PRIVATE';
 export const SIGNING_PUBLIC = 'SGX_ACCOUNT_PUBLIC';
 export const RECOVERY_KEY_SECRET = 'SGX_ACCOUNT_RECOVERY_KEY';
 export const PASSWORD_PEPPER_SECRET = 'SGX_ACCOUNT_PASSWORD_PEPPER';
+/** v6 P3 救援钥匙（定稿 v5.2 §九；Gray 05:21 定名、已在现有 Store 建好）：只读 get()，代码不出现 Store 写 / 删 */
+export const RESCUE_KEY_SECRET = 'SGX_ACCOUNT_RESCUE_KEY';
 
 /* ---------- 通行密钥 challenge 的用途（account_challenge.purpose），5 分钟 ---------- */
 export const CHALLENGE_PURPOSE = Object.freeze({
