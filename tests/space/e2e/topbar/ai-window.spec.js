@@ -57,7 +57,7 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     await expect(chip).toHaveClass(/is-locked/);
     await expect(chip.locator('[data-ai-model-lock] svg')).toBeVisible();
     await expect(chip.locator('[data-ai-model-name]')).toBeHidden();
-    await expect(chip).toHaveAttribute('aria-label', '已上锁，sudo styrigx 进站后可用');
+    await expect(chip).toHaveAttribute('aria-label', '已上锁，su 登录后可用');
     await chip.click();
     await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
     await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
