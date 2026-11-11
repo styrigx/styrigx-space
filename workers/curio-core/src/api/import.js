@@ -14,6 +14,7 @@
 // 400 not-bookmarks（不是书签文件）/ empty（一条网址都没有）；409 limit（超出 5000 条，一条都不写）；413 too-large；503 backup（R2 不可用）
 import { json, err, methodNotAllowed } from './_lib.js';
 import { guardWrite } from './_write.js';
+import { auditRootOp } from './_auth.js';
 import { ensureSchema, listAll, LIMITS } from './_store.js';
 import { parseBookmarks, looksLikeBookmarks, UNSORTED } from './_netscape.js';
 
@@ -119,6 +120,8 @@ export async function onRequestPost(context) {
       .bind(key, bytes, parsed.found, rows.length, skipped + parsed.dupes, newCats.length, now)
   );
   await db.batch(stmts);
+  /* 割接：经 v6 放进来的 root 批量导入留痕 */
+  await auditRootOp(context, 'import curio bookmarks');
   return json({
     ok: true,
     found: parsed.found,

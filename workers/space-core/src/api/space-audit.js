@@ -8,6 +8,8 @@
  * - 返回最近 50 条审计（时间、IP 前缀、结果），新的在前；不返回 decoy / via / path 标记
  * - 只读；D1 失败 → 503
  *
+ * v6（割接）：旧进站会话 / 账号会话不成立时，v6 新会话的档够（root，账号 Worker 判）也给看；两样都没有照旧 401 session / account。
+ *
  * 存储：D1 audit 表（realm = 'lock'，经 D1_SPACE，core/space-audit.js）：一条 ORDER BY ts DESC LIMIT 50。
  * 账号拆分前写在 realm='root' 的旧审计行已在 PR4 由 --cleanup 删除（锁屏那一半先由 apply 拷成 realm='lock'）。
  */
@@ -16,6 +18,7 @@ import { listSpaceAudit } from '../core/space-audit.js';
 import { askAuthorizeFor } from '../core/account-rpc.js';
 import { json, apiError } from '../lib/http.js';
 import { REALM_LOCK } from '../core/realms.js';
+import { newSessionConclusion } from '../core/identity-admit.js';
 
 /** 显示条数 */
 export const AUDIT_SHOW = 50;
@@ -37,12 +40,10 @@ async function handleGet(context) {
   }
 
   const sess = await verifyLockSession(request, env);
-  if (!sess.ok) {
-    return apiError(401, 'session');
-  }
-  const account = await askAuthorizeFor(request, env);
-  if (!account.ok) {
-    return apiError(401, 'account');
+  const account = sess.ok ? await askAuthorizeFor(request, env) : { ok: false };
+  if (!sess.ok || !account.ok) {
+    const v6 = await newSessionConclusion(env, request);
+    if (!v6.allowed) return apiError(401, sess.ok ? 'account' : 'session');
   }
   try {
     return json(200, { ok: true, items: await listSpaceAudit(env, AUDIT_SHOW) });

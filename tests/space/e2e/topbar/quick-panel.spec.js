@@ -871,7 +871,7 @@ test.describe('AI 窗口（2026-11-04 P5-1，方案 5.5）', () => {
     expect(JSON.stringify(h)).not.toContain('hits');
   });
 
-  for (const [status, err, want] of [[429, 'cooldown', '问得太快了，请一分钟后再试'], [429, 'busy', '现在问的人太多，请稍后再试'], [401, 'session', '进站后才能问：sudo styrigx'], [502, 'upstream', '没能拿到回答，请稍后再试']]) {
+  for (const [status, err, want] of [[429, 'cooldown', '问得太快了，请一分钟后再试'], [429, 'busy', '现在问的人太多，请稍后再试'], [401, 'session', '登录后才能问：su'], [502, 'upstream', '没能拿到回答，请稍后再试']]) {
     test(`出错：${status} ${err} → 「${want}」，不进历史`, async ({ page }) => {
       await go(page, '/wild/');
       await page.route('**/api/ai', (r) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ ok: false, error: err }) }));

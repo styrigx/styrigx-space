@@ -34,7 +34,7 @@
 
   {{/* ② status：systemctl status space.target。#st-root 及其子节点 id 同原 /status/ 页（apps/space-status.js、tests/space/e2e/space/space-status.spec.js 按 id 找）；
      状态 data-state：loading 骨架 · ready 有数据 · empty 还没有任何检查结果 · error 第一次就失败（之后刷新失败只在末行提示，保留旧数据）
-     · locked 没进站（接口 401；v5 S3 三处上锁之一）：只剩锁卡 #st-locked，按钮发 sgx:sudo（终端预填 sudo styrigx） */}}
+     · locked 没进站（接口 401；v5 S3 三处上锁之一）：只剩锁卡 #st-locked，按钮发 sgx:sudo（终端预填 su ，v6 割接） */}}
   <section class="wild-sec" id="status" aria-labelledby="wild-sys-h">
     <div class="sgx-term sgx-term--static wild-term st-wrap" id="st-root" data-state="loading" aria-busy="true">
       <div class="sgx-term-bar"><span class="sgx-term-dots" aria-hidden="true"><i></i><i></i><i></i></span><h2 class="sgx-term-title" id="wild-sys-h" translate="no">status</h2><em class="sgx-term-count" id="st-checked" translate="no"></em></div>
@@ -46,13 +46,13 @@
           <p class="st-banner-l2"><span class="wild-dim" translate="no">Active:</span> <b class="st-banner-active" data-st="active">{{ $tr.status.loading }}</b> <span class="st-banner-title" data-st="title"></span><span class="st-banner-sub" data-st="sub"></span></p>
         </div>
 
-        {{/* 没进站（/api/status 回 401）：锁标 + Permission denied + 一行说明 + sudo styrigx 按钮 */}}
+        {{/* 没进站（/api/status 回 401）：锁标 + Permission denied + 一行说明 + su 按钮（v6 割接；点了终端预填 su ） */}}
         <div id="st-locked" class="st-msg st-locked" hidden>
           <span class="st-locked-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
           <div class="st-locked-tx">
             <p class="st-msg-title"><span translate="no">Permission denied</span> <span class="wild-dim">— {{ $tr.status.lockedHint }}</span></p>
             <p class="st-msg-sub wild-dim">{{ $tr.status.lockedSub }}</p>
-            <button type="button" class="st-btn wild-cmdbtn" data-st="sudo" translate="no">sudo styrigx</button>
+            <button type="button" class="st-btn wild-cmdbtn" data-st="sudo" translate="no">su</button>
           </div>
         </div>
 

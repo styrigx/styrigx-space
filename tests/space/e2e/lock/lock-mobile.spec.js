@@ -1,6 +1,6 @@
 /**
  * 进站 · 手机触屏回归（v5 S5 终端合一：锁屏界面删了，进站 = 全站终端里敲 sudo styrigx）。
- * - 旧锁屏地址 ?entry=1 打开终端（手机上整块卡片）、预填 sudo styrigx；选项（[1] passkey …）可以点；^C 是输入行下面的按钮（触屏显示）
+ * - 旧锁屏地址 ?entry=1 打开终端（手机上整块卡片）、预填 su ；选项（[1] passkey …）可以点；^C 是输入行下面的按钮（触屏显示）
  * - 要输秘密时输入行聚焦；空密码回车不发请求、还在密码态
  * - ^C 从密码态 / 等通行密钥时都能退出
  * - 不触发双击放大（html touch-action = manipulation），触屏上终端输入框字号 ≥ 16px
@@ -23,8 +23,10 @@ test.beforeEach(async ({ page }) => {
 /** 打开终端 → 点输入行 → 回车跑预填的 sudo styrigx → 点选项 [2] password → 密码态 */
 async function openPwByTouch(page) {
   await gotoLockTerm(page);
-  await expect(page.locator(SEL.in)).toHaveValue('sudo styrigx');
+  await expect(page.locator(SEL.in)).toHaveValue('su ');
   await page.tap(SEL.in);
+  /* 割接：访客预填 su （v6）；这里测旧入口 sudo styrigx（P4 删） */
+  await page.locator(SEL.in).fill('sudo styrigx');
   await page.locator(SEL.in).press('Enter');
   await lockMode(page, 'pick');
   await page.tap(SEL.out + ' [data-term-pick="2"]');

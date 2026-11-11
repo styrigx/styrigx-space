@@ -1,6 +1,6 @@
 // 奇趣拆页（P4-3）新增的两个子页（手机）：电影 /curio/movies/、私人音乐 /curio/music/。接口用 page.route 假数据，不碰线上。
 // - 电影：无权限（canWrite=false）只读，没有「电影」按钮、详情没有编辑；有权限：添加（海报「移动和缩放」→ 2:3、长边 ≤1600、webp 上传 kind=movie）、编辑、删除要确认
-// - 音乐（v5 S3 三层）：歌单谁都能看（tab 一直在）；访客（没进站）= 只看模式：播放键是锁、播放条只显示专辑，点播放打开终端预填 sudo styrigx；
+// - 音乐（v5 S3 三层）：歌单谁都能看（tab 一直在）；访客（没进站）= 只看模式：播放键是锁、播放条只显示专辑，点播放打开终端预填 su ；
 //   进站了能听，没账号 + curio.write 看不到上传 / 删除；有权限：封面横滑切专辑；整张按曲序播放（POST music-play 拿短链，<audio> 走 music-stream）；歌词跟着亮；倍速循环；下一首；
 //   上传专辑（album.add → 音频按文件名排序逐个直传、曲序 / 曲名取自文件名 → .lrc 按文件名对上 track.edit）
 const { test, expect } = require('@playwright/test');
@@ -219,7 +219,7 @@ async function mockMusic(page, who) {
   return calls;
 }
 
-test('音乐（访客，没进站）：tab 在；歌单 / 封面照常；只看模式——播放键是锁、播放条只显示专辑；点播放 / 曲目不签令牌，打开终端预填 sudo styrigx；没有上传 / 删除', async ({ page }) => {
+test('音乐（访客，没进站）：tab 在；歌单 / 封面照常；只看模式——播放键是锁、播放条只显示专辑；点播放 / 曲目不签令牌，打开终端预填 su ；没有上传 / 删除', async ({ page }) => {
   const calls = await mockMusic(page, 'visitor');
   await asVisitor(page);
   await page.goto('/curio/zh/');
@@ -240,12 +240,12 @@ test('音乐（访客，没进站）：tab 在；歌单 / 封面照常；只看�
   for (const id of ['#mu-prev', '#mu-next', '#mu-speed', '#mu-seek']) await expect(page.locator(id)).toBeDisabled();
   await page.locator('#mu-tracks .mu-track').first().click();
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
-  await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('sudo styrigx');
+  await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
   expect(calls.filter((c) => c.play401).length).toBe(0);
   expect(await page.locator('#mu-audio').evaluate((a) => a.getAttribute('src'))).toBeNull();
 });
 
-test('音乐（页面没带标记、签令牌 401）：切到只看模式并打开终端预填 sudo styrigx；不报错', async ({ page }) => {
+test('音乐（页面没带标记、签令牌 401）：切到只看模式并打开终端预填 su ；不报错', async ({ page }) => {
   const calls = await mockMusic(page, 'visitor');
   await page.goto('/curio/zh/music/');
   await expect(page.locator('.mu-cover')).toHaveCount(2);
@@ -254,7 +254,7 @@ test('音乐（页面没带标记、签令牌 401）：切到只看模式并打�
   await expect.poll(() => calls.filter((c) => c.play401).length).toBe(1);
   await expect(page.locator('html')).toHaveClass(/mu-view-only/);
   await expect(page.locator('#mu-now-sub')).toHaveText('Joni Mitchell · 未进站，仅可浏览');
-  await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('sudo styrigx');
+  await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
   await expect(page.locator('#bk-toast')).not.toHaveText('出了点问题，请再试一次。');
 });
 

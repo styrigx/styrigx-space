@@ -433,7 +433,7 @@ baseof:
   space: 旷野
   pageNotFound: 页面不存在
 status:
-  lockedHint: sudo styrigx 进站后可见
+  lockedHint: su 登录后可见
   lockedSub: 服务状态、可用率和用量只对进站后的访客开放。
   loading: 正在加载…
   noDataYet: 还没有监测数据

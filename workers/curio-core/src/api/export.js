@@ -3,7 +3,7 @@
 // 要账号会话（含私密，方案 4.2：读私密 = 账号会话，不要作用域）；必须同站（_lib.js 的 isSameSite：直接点链接下载时浏览器只带 Sec-Fetch-Site）。
 // 没进门 401 unauthorized；没账号会话 401 account。私密的也导出。
 import { err, methodNotAllowed, isSameSite } from './_lib.js';
-import { requireAccount } from './_auth.js';
+import { requireAccount, auditRootOp } from './_auth.js';
 import { ensureSchema } from './_store.js';
 import { renderBookmarks } from './_netscape.js';
 import { LANGS, DEFAULT_LANG } from '../search-index.js';
@@ -36,6 +36,8 @@ export async function onRequestGet(context) {
   const lang = LANGS.includes(want) ? want : DEFAULT_LANG;
   const now = Date.now();
   const day = new Date(now + 8 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '');
+  /* 割接：经 v6 放进来的 root 导出全部收藏（含私密）留痕 */
+  await auditRootOp(context, 'export curio bookmarks');
   return new Response(renderBookmarks(out, lang, now), {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',

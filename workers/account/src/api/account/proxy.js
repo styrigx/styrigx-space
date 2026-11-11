@@ -13,11 +13,16 @@
  * - mv { from, to } → 改名，不刷新
  * - on / off / rm { name }（终端的 sub enable / sub disable / sub rm）
  * 改动类都在 ProxyAdmin 里自动刷新一次，回的结果里带 refresh。ProxyAdmin 的业务失败原样回（422，{ ok:false, error }）。
+ *
+ * v6（割接）：请求带有效的 v6 新会话、且路由档够（root，permits 判过；sudo 借来的 root 也算）→ 不要进站会话 / 账号 session / reauth 票，
+ * 直接做；除 status 外都在身份审计记 sub <action> [源名]（不记链接、文件、公钥、令牌）。旧会话照旧（新旧并存）。
  */
 import { json, apiError } from '../../lib/http.js';
 import { verifySession } from '../../core/session.js';
 import { verifyReauth } from '../../core/reauth.js';
-import { readPost, lockDenial, guarded } from './_request.js';
+import { readPost, lockDenial, guarded, clientAddress, v6Admitted, auditActor } from './_request.js';
+import { writeUserAudit } from '../../core/user-audit.js';
+import { dbReady } from '../../lib/db.js';
 
 export const SUB_BASE = 'https://proxy-rules.styrigx.com/s/';
 const MAX_TEXT = 2 * 1024 * 1024;
@@ -35,14 +40,19 @@ export const onRequestPost = guarded(async function (context) {
   const rp0 = await readPost(request);
   if (!rp0.ok) return rp0.response;
   const { body, action } = rp0;
-  const denied = lockDenial(request, env);
-  if (denied) return denied;
+  const v6 = await v6Admitted(context);
+  if (!v6) {
+    const denied = lockDenial(request, env);
+    if (denied) return denied;
+  } else if (!dbReady(env)) return apiError(500, 'config');
   if (!ACTIONS.has(action)) return apiError(400, 'action');
-  const acc = await verifySession(request, env);
-  if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
-  if (REAUTH.has(action)) {
-    const rv = await verifyReauth(request, env, acc);
-    if (!rv.ok) return apiError(403, 'reauth', { reason: rv.reason });
+  if (!v6) {
+    const acc = await verifySession(request, env);
+    if (!acc.ok) return apiError(401, 'account', { reason: acc.reason });
+    if (REAUTH.has(action)) {
+      const rv = await verifyReauth(request, env, acc);
+      if (!rv.ok) return apiError(403, 'reauth', { reason: rv.reason });
+    }
   }
   if (!proxyReady(env)) return apiError(503, 'config');
 
@@ -95,5 +105,10 @@ export const onRequestPost = guarded(async function (context) {
     return apiError(503, 'upstream');
   }
   if (!r || typeof r !== 'object') return apiError(503, 'upstream');
+  if (v6 && action !== 'status') {
+    const who = auditActor(v6);
+    const nm = action === 'mv' ? [str(body.from, 32), str(body.to, 32)].filter(Boolean).join(' ') : (str(body.name, 32) || '');
+    await writeUserAudit(env, { uid: who.uid, command: 'sub ' + action + (nm ? ' ' + nm : '') + who.suffix, ok: r.ok === true, ip: clientAddress(request) });
+  }
   return json(r.ok ? 200 : 422, r);
 });

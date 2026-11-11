@@ -10,7 +10,7 @@
 // 错误：400 bad-json / bad-body / bad-text / bad-visibility / bad-source-type / bad-collections / nothing / bad-id；
 //       401 account；403 origin / scope；404 not-found；409 limit；413 too-large
 import { json, err, methodNotAllowed } from './_lib.js';
-import { conclusionOf, canReadPrivate, visibility } from './_auth.js';
+import { readAccess } from './_auth.js';
 import { readBody, guardWrite, idParam } from './_write.js';
 import { ensureSchema, parseQuote, rowToQuote, newId, LIMITS, QUOTE_COLS } from './_quotes.js';
 
@@ -51,9 +51,9 @@ async function fullQuote(db, id) {
 
 export async function onRequestGet(context) {
   const { env } = context;
-  const c = await conclusionOf(context);
+  const vis = await readAccess(context);
   await ensureSchema(env.D1_QUOTES);
-  const showPrivate = canReadPrivate(c);
+  const showPrivate = vis.showPrivate;
   const sql = showPrivate
     ? `SELECT ${QUOTE_COLS} FROM quotes ORDER BY created_at DESC, id`
     : `SELECT ${QUOTE_COLS} FROM quotes WHERE visibility = 'public' ORDER BY created_at DESC, id`;
@@ -68,7 +68,7 @@ export async function onRequestGet(context) {
     for (const r of m.results || []) (by[r.q] = by[r.q] || []).push(r.c);
     for (const q of quotes) q.collections = by[q.id] || [];
   }
-  return json({ ok: true, ...visibility(c), quotes });
+  return json({ ok: true, ...vis, quotes });
 }
 
 export async function onRequestPost(context) {

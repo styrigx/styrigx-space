@@ -1,7 +1,7 @@
 /**
  * 进站测试（与视觉回归 / Lighthouse 分离；生产构建，锁屏启用）。
  * v5 S5 终端合一（term-design-v5「解锁流程」）：锁屏界面 #sgx-entry 删了，进站 = 全站终端里敲 `sudo styrigx`：
- * - 旧地址 ?entry=1 / ?lock=1：打开终端、预填 sudo styrigx（不替人回车）；?entry=sudo 直接跑；上锁的地方发 sgx:sudo 同样预填
+ * - 旧地址 ?entry=1 / ?lock=1：打开终端、预填 su （不替人回车）；?entry=sudo 直接跑；上锁的地方发 sgx:sudo 同样预填
  * - `sudo styrigx` → [pick] 只列设了的 [1] passkey [2] password（没有 tempkey，也没有 `sudo styrigx password` 直达）
  * - 验过 → 向服务端确认（/api/lock-session-check）→ 终端收起 → 原进站开机动画 → 回原页（next / 访客态页面重新取一次 / 原地）
  * - 三次规则：输错 `Sorry, try again.` 再问；第 3 次 `sudo: 3 incorrect password attempts` 回命令行；服务端冷却 → 倒计时行
@@ -52,13 +52,13 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
     await zh(page);
   });
 
-  test('?entry=1：不画锁屏，打开终端、预填 sudo styrigx（不替人回车）；提示符 nobody@space:~/wild$，顶栏照常', async ({ page }) => {
+  test('?entry=1：不画锁屏，打开终端、预填 su （不替人回车）；提示符 nobody@space:~/wild$，顶栏照常', async ({ page }) => {
     await freezeTime(page);
     let posted = 0;
     await page.route('**/api/lock-password', (r) => { posted++; return r.fulfill(json({ ok: true })); });
     await gotoLockTerm(page);
     await expect(page.locator('#sgx-entry, #sgx-entry-cover')).toHaveCount(0);
-    await expect(input(page)).toHaveValue('sudo styrigx');
+    await expect(input(page)).toHaveValue('su ');
     await expect(input(page)).toBeFocused();
     await expect(ps(page)).toHaveText('nobody@space:~/wild$');
     await expect(ps(page)).toHaveAttribute('translate', 'no');
@@ -74,7 +74,7 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
     await page.setViewportSize({ width: 412, height: 915 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await gotoLockTerm(page);
-    await expect(input(page)).toHaveValue('sudo styrigx');
+    await expect(input(page)).toHaveValue('su ');
     if (SHOTS) await expect(page).toHaveScreenshot('entry-terminal.png', { animations: 'disabled' });
   });
 
@@ -88,12 +88,12 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
 
   test('旧 ?lock=1 也认（旧书签）', async ({ page }) => {
     await gotoLockTerm(page, '/wild/?lock=1');
-    await expect(input(page)).toHaveValue('sudo styrigx');
+    await expect(input(page)).toHaveValue('su ');
   });
 
   test('主页 /?entry=1：打开终端窗口（v5 S7 首屏不再嵌终端），预填在它的输入行', async ({ page }) => {
     await page.goto('/?entry=1', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#sgx-term-in')).toHaveValue('sudo styrigx', { timeout: 15000 });
+    await expect(page.locator('#sgx-term-in')).toHaveValue('su ', { timeout: 15000 });
     await expect(page.locator('#sgx-entry')).toHaveCount(0);
   });
 
@@ -107,14 +107,16 @@ test.describe('进站入口（v5 S5：没有锁屏界面，都进终端）', () 
     await expect(page.locator(SEL.dlg)).not.toHaveAttribute('open', '');
   });
 
-  test('上锁的地方发 sgx:sudo → 终端预填 sudo styrigx → 回车就在这个终端里选方式（不跳锁屏地址）', async ({ page }) => {
+  test('上锁的地方发 sgx:sudo → 终端预填 su  → 回车就在这个终端里选方式（不跳锁屏地址）', async ({ page }) => {
     await asVisitor(page, '/zh/wild/');
     await ENTRY_CFG(page);
     await page.route('**/api/lock-session-check*', (r) => r.fulfill(json({ ok: false }, 401)));
     await page.goto('/zh/wild/?test-no-local-bypass=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#site-nav .sgx-topbar')).toBeVisible({ timeout: 15000 });
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('sgx:sudo')));
-    await expect(input(page)).toHaveValue('sudo styrigx', { timeout: 8000 });
+    await expect(input(page)).toHaveValue('su ', { timeout: 8000 });
+    /* 割接：访客预填 su （v6）；这里测旧入口 sudo styrigx 在原终端里选方式（P4 删） */
+    await input(page).fill('sudo styrigx');
     await input(page).press('Enter');
     await lockMode(page, 'pick');
     const u = new URL(page.url());

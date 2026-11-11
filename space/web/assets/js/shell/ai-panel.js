@@ -48,7 +48,7 @@ export const PROFILE_KEY = 'sgx-profile';
 /** 邮箱格式（与主站 lib/profile.js EMAIL_RE 同一条） */
 const EMAIL_RE = /^[^\s@<>()",;:\\]+@[^\s@<>()",;:\\]+\.[^\s@<>()",;:\\.]{2,}$/;
 
-/** 请人进站（= lib/sudo.js SUDO_EVENT；本文件只许 import shell/term/**，抄一份）：顶栏终端预填 sudo styrigx（topbar-panel.js 接） @param {Document} doc */
+/** 请人进站（= lib/sudo.js SUDO_EVENT；本文件只许 import shell/term/**，抄一份）：顶栏终端预填 su （v6 割接；topbar-panel.js 接） @param {Document} doc */
 function askSudo(doc) {
   try { doc.dispatchEvent(new CustomEvent('sgx:sudo')); } catch (e) {}
 }
@@ -65,8 +65,8 @@ const STR_EN = {
   thinking: "Searching this site…",
   scopePublic: "Public content only",
   scopePrivate: "Includes private content",
-  unauthorized: "Gray AI opens after you enter the space: sudo styrigx",
-  locked: "Locked. Enter the space with sudo styrigx to use Gray AI",
+  unauthorized: "Gray AI opens after you sign in: su",
+  locked: "Locked. Sign in with su to use Gray AI",
   cooldown: "Too many questions. Try again in a minute",
   busy: "Lots of people are asking right now. Try again shortly",
   tooLong: "That question is too long (200 characters max)",
@@ -819,7 +819,7 @@ export function mountAiChat(dlg, opts) {
     if (busy) return;
     q = q.trim();
     if (!q) return;
-    /* 没进站（v5 S3 三处上锁之一）：不发问，打开终端预填 sudo styrigx；输入框里的问题留着 */
+    /* 没进站（v5 S3 三处上锁之一）：不发问，打开终端预填 su ；输入框里的问题留着 */
     if (locked) { askSudo(doc); return; }
     if (histOpen) showHist(false);
     if ([...q].length > Q_MAX) {

@@ -3,9 +3,9 @@
 | 项 | 值 |
 |---|---|
 | 文档编号 | SGX-SPEC-004 |
-| 版本 | 0.3 |
+| 版本 | 0.4 |
 | 日期 | 2026-11-11 |
-| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity） |
+| 状态 | 已定（v6 P1，Gray 2026-11-11 定稿 17 条存疑；P2 改名片 PUT 档、加 /api/identity；割接加 action private、其余 Worker 接 v6） |
 
 
 > 状态：P1 定稿（2026-11-11，Gray 已定 17 条存疑），基线 main 05abe443。机器可读的唯一来源是 `workers/account/src/core/route-access.js` 的 `ROUTE_ACCESS`；
@@ -22,6 +22,7 @@
 5. 删除两级：**单条内容删除归写组**；**批量 / 结构删除只属 root**。
 6. 原来要再验证（sudo -v、sudo root reauth、账号复验）的操作 → v6 **sudo 每次重验 = root 档**。
 7. 「去向」写着 P3 / P4 的是割接后要删的旧入口：P1–P3 照旧按老规则跑（旧会话判定不变），表里写的是**新会话**的档。
+9. **private**（割接）：公开读接口里的私密行与 canWrite 提示。GET 的档是 public（谁都能读公开部分），「action 另定」里的 `private` 是能看私密行的那一档（= 本站写组）；子站接口 Worker 读完路由后按 action `private` 问 admit，不自己比组。
 
 ## 摘要
 
@@ -38,7 +39,7 @@
 | root | 10 |
 | **合计** | **78**（另有 12 个只经服务绑定 / RPC 的入口；P2c 加 AccountJanitor） |
 
-按 Worker：站点核心 21、账号 18、奇趣 20、日刻 13、代理 6。割接后要删的旧入口 20 条（P3 / P4）。有 action 另定档的接口 6 个（lock-password、lock-passkey、account/session、account/reset、curio music、identity）。
+按 Worker：站点核心 21、账号 18、奇趣 20、日刻 13、代理 6。割接后要删的旧入口 20 条（P3 / P4）。有 action 另定档的接口 14 个（lock-password、lock-passkey、account/session、account/reset、curio music、identity；割接加的 `private`：curio items / links / movies / photo / icon / music、daymark quotes / collections 的 GET）。
 
 P2 变更（2026-11-11）：`PUT /api/profile` root → **owner**（站长 styrigx + root，其余拒）；新增 `POST /api/identity`（v6 身份命令，public 入口，每个 action 一档，救援只放 whoami / exit / lock / passwd / passkey-* / groups）。
 
@@ -47,9 +48,15 @@ P2c 变更（2026-11-11，对齐定稿 v5）：
 - `sudo`（`POST /api/identity` action `sudo`）的 `command` 可以是 `{ method, path, body? }`：借 root 执行**账号 Worker 内**任何一条表里的接口（`api/sudo-route.js`）。拒绝：`/api/identity` 本身、`/api/account/keys` 与 `/api/account/reset`（root 凭据，403 root-creds）、`/api/account/session` 与 `/api/account/reauth`（旧登录 / 复验票）。别的 Worker 的接口 sudo 够不到（400 not-here）。
 - 新的只经服务绑定入口 `AccountJanitor.purgeExpiredUsers`（到期满 30 天自动删除，styrigx-status 每日一轮经 JOB_ACCOUNT 调）。
 
+割接变更（2026-11-11，ADR-0006 §2.15）：
+- 档不变；奇趣 / 日刻公开读的 8 个 GET 加 action `private`（= curio-write / daymark-write，见规则 9）。
+- 新会话从此在这些接口真正生效（之前网关 admit 放进门、接口仍只认旧会话）：`/api/share`、`/api/space-audit`（root）；`/api/account/grants`、`/api/account/proxy`（root，sudo 也能借）；奇趣全部写接口（curio-write）、`export` / `import`（root）、music `album.del`（root）、听歌（listen）；日刻全部写接口（daymark-write）、`DELETE collections`（root）。
+- `AccountVerifier.admit(cookie, method, path, { action })`：路由列了这个 action 才按它判，回答带回 action；子站经网关 `SpaceVerifier.admit` 转来。root 的特权内容操作经 `AccountVerifier.auditRoot` 留痕（`rm-bulk` / `import` / `export` / `share`）。
+- 旧会话（进站会话 / 账号会话 + 作用域）照旧并存，P4 删。
+
 ### 已定（Gray 2026-11-11）
 
-盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致。只有一处改了档：`GET /curio/api/export` 由 curio-write 改为 **root**；其余按原拟定值定稿。
+盘点时拿不准的 17 条，Gray 2026-11-11 定稿；表里「已定」列与 `ROUTE_ACCESS` 的 `decided` 字段一致。改了档的两处：P1 `GET /curio/api/export` 由 curio-write 改为 **root**；P2（定稿 v4）`PUT /api/profile` 由 root 改为 **owner** = 站长（styrigx）+ root（root 由 permits 放行），其余一律拒。其余按原拟定值定稿。
 
 | 路由 | 定稿 | 理由 |
 |---|---|---|
@@ -126,20 +133,20 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 
 | 方法 | 路径 | 档 | action 另定 | 删除 | 去向 | 说明 | 已定 |
 |---|---|---|---|---|---|---|---|
-| GET | `/curio/api/items` | **public** |  |  | 保留 | 设备 / 游戏列表（私密行只给 curio-write，见 decided） | Gray 2026-11-11 定 public：私密行只给 curio-write |
+| GET | `/curio/api/items` | **public** | `private` → curio-write |  | 保留 | 设备 / 游戏列表（私密行只给 curio-write，见 decided） | Gray 2026-11-11 定 public：私密行只给 curio-write |
 | POST | `/curio/api/items` | **curio-write** |  | 单条 → 写组 | 保留 | device.* / game.*：add / edit / order；del 是单条 |  |
-| GET | `/curio/api/links` | **public** |  |  | 保留 | 收藏列表（私密行同上） | Gray 2026-11-11 定 public：私密行只给 curio-write |
+| GET | `/curio/api/links` | **public** | `private` → curio-write |  | 保留 | 收藏列表（私密行同上） | Gray 2026-11-11 定 public：私密行只给 curio-write |
 | POST | `/curio/api/links` | **curio-write** |  | 单条 → 写组 | 保留 | cat.* / link.*；link.del 单条；cat.del 只删空分类（非空 409），按单条算 |  |
-| GET | `/curio/api/movies` | **public** |  |  | 保留 | 电影列表 | Gray 2026-11-11 定 public：私密行只给 curio-write |
+| GET | `/curio/api/movies` | **public** | `private` → curio-write |  | 保留 | 电影列表 | Gray 2026-11-11 定 public：私密行只给 curio-write |
 | POST | `/curio/api/movies` | **curio-write** |  | 单条 → 写组 | 保留 | movie.add / edit / del（单条） |  |
-| GET | `/curio/api/photo` | **public** |  |  | 保留 | 设备照片 / 海报 |  |
+| GET | `/curio/api/photo` | **public** | `private` → curio-write |  | 保留 | 设备照片 / 海报（私密设备的照片只给 curio-write） |  |
 | POST | `/curio/api/photo` | **curio-write** |  |  | 保留 | 上传照片 / 海报 |  |
 | DELETE | `/curio/api/photo` | **curio-write** |  | 单条 → 写组 | 保留 | 删一张照片 |  |
-| GET | `/curio/api/icon` | **public** |  |  | 保留 | 网站图标缓存 |  |
+| GET | `/curio/api/icon` | **public** | `private` → curio-write |  | 保留 | 网站图标缓存（私密收藏的图标只给 curio-write） |  |
 | GET | `/curio/api/preview` | **curio-write** |  |  | 保留 | 添加收藏时抓标题 / 图标（算在写里） |  |
 | GET | `/curio/api/export` | **root** |  |  | 保留 | 导出全部收藏（含私密） | Gray 2026-11-11 定 root：导出全部收藏含私密 |
 | POST | `/curio/api/import` | **root** |  |  | 保留 | 批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root） |  |
-| GET | `/curio/api/music` | **public** |  |  | 保留 | 歌单（不含音频地址） |  |
+| GET | `/curio/api/music` | **public** | `private` → curio-write |  | 保留 | 歌单（不含音频地址；canWrite 提示给 curio-write） |  |
 | POST | `/curio/api/music` | **curio-write** | `album.del` → root | 单条 → 写组 | 保留 | album.add / edit、track.edit / del（单条）；album.del 连曲目一起删 = 结构删除 |  |
 | GET | `/curio/api/music-cover` | **public** |  |  | 保留 | 专辑封面 |  |
 | POST | `/curio/api/music-play` | **listen** |  |  | 保留 | 签播放令牌（听歌） |  |
@@ -155,11 +162,11 @@ user 档的硬要求（ADR-0006 · P2）：所有 user 档 handler 的 uid 只�
 | HEAD | `/daymark/api/today` | **public** |  |  | 保留 | 同上 |  |
 | OPTIONS | `/daymark/api/today` | **public** |  |  | 保留 | CORS 预检 |  |
 | PUT | `/daymark/api/today` | **daymark-write** |  |  | 保留 | 设为今日 |  |
-| GET | `/daymark/api/quotes` | **public** |  |  | 保留 | 句子列表（私密句子只给 daymark-write，见 decided） | Gray 2026-11-11 定 public：私密句子只给 daymark-write |
+| GET | `/daymark/api/quotes` | **public** | `private` → daymark-write |  | 保留 | 句子列表（私密句子只给 daymark-write，见 decided） | Gray 2026-11-11 定 public：私密句子只给 daymark-write |
 | POST | `/daymark/api/quotes` | **daymark-write** |  |  | 保留 | 新增句子 |  |
 | PUT | `/daymark/api/quotes` | **daymark-write** |  |  | 保留 | 改句子 |  |
 | DELETE | `/daymark/api/quotes` | **daymark-write** |  | 单条 → 写组 | 保留 | 删一句（日记条目） |  |
-| GET | `/daymark/api/collections` | **public** |  |  | 保留 | 百味专题列表 |  |
+| GET | `/daymark/api/collections` | **public** | `private` → daymark-write |  | 保留 | 百味专题列表（含私密句子的部分只给 daymark-write） |  |
 | POST | `/daymark/api/collections` | **daymark-write** |  |  | 保留 | 新建专题 |  |
 | PUT | `/daymark/api/collections` | **daymark-write** |  |  | 保留 | 改专题 / 重排专题里的句子 |  |
 | DELETE | `/daymark/api/collections` | **root** |  | 结构 → root | 保留 | 删整个专题（句子本身不删）= 结构删除 | Gray 2026-11-11 定 root：删整个专题 = 结构删除 |

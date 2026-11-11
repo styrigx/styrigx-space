@@ -1,6 +1,6 @@
 /**
  * 盾牌 + 钥匙命令（v5 S5 终端合一：盾牌窗口 #sgx-sec 删了，钥匙那一套在全站终端里，term-design-v5「钥匙」）。
- * - 盾牌（v5 S6 顶栏 E）= 打开终端：访客预填 sudo styrigx（不替人回车）；已进站问「退出进站会话 [y/N]」（n / 回车不动，y = lock）；旧地址 #sec[=层] 只打开终端、不问；Ctrl 点盾牌照旧按链接走（/#sec）
+ * - 盾牌（v5 S6 顶栏 E）= 打开终端：访客预填 su （不替人回车）；已进站问「退出进站会话 [y/N]」（n / 回车不动，y = lock）；旧地址 #sec[=层] 只打开终端、不问；Ctrl 点盾牌照旧按链接走（/#sec）
  * - 顶栏 >_（v5 S6）= 打开终端（已进站的钥匙命令用例都从它进）
  * - 已进站：提示符 styrigx@space:~/wild#；man 列 lock / share / ask
  * - sudo -v：终端里选方式（只列 passkey / password）→ 验证（reauth:true）→ ✓
@@ -111,11 +111,11 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
     expect(calls.filter((c) => c[0] === '/api/lock-now')).toHaveLength(1);
   });
 
-  test('访客：点盾牌打开终端、预填 sudo styrigx（不替人回车）', async ({ page }) => {
+  test('访客：点盾牌打开终端、预填 su （不替人回车）', async ({ page }) => {
     const calls = await go(page, { visitor: true });
     await page.locator('.sgx-tb-shield').click();
     await expect(term(page)).toHaveAttribute('open', '');
-    await expect(tIn(page)).toHaveValue('sudo styrigx');
+    await expect(tIn(page)).toHaveValue('su ');
     await expect(ps(page)).toHaveText('nobody@space:~/wild$');
     expect(calls.filter((c) => c[0] === '/api/lock-password')).toHaveLength(0);
   });
@@ -232,7 +232,7 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
     expect(u.pathname + u.hash).toMatch(/^\/zh\/(#sec)?$/);
     await expect(term(page)).not.toHaveAttribute('open', '');
   });
-  test('头像（v5 S6，Gray 17:23）：网关标了 locked（访客）= 死按钮（aria-disabled，点了不开账号窗、不跳页）；标了 valid 且服务端说已进站 = 开账号窗', async ({ page }) => {
+  test('头像：网关标了 locked（访客）= 点了打开终端预填 su （v6 割接，定稿 §七；不开账号窗、不跳页）；标了 valid 且服务端说已进站 = 开账号窗', async ({ page }) => {
     for (const st of ['locked', 'valid']) {
       await go(page, { visitor: st === 'locked' });
       /* 测试构建没有网关：自己给页面打上网关的标记（后注册的 route 优先），再取一次 */
@@ -246,9 +246,10 @@ test.describe('盾牌 + 钥匙命令（v5 S5：在全站终端里）', () => {
       await page.waitForFunction(() => document.documentElement.hasAttribute('data-sgx-layout'));
       const av = page.locator('.sgx-tb-av');
       if (st === 'locked') {
-        await expect(av).toHaveAttribute('aria-disabled', 'true');
-        await av.click({ force: true });
-        await page.waitForTimeout(300);
+        await expect(av).not.toHaveAttribute('aria-disabled', 'true');
+        await av.click();
+        await expect(term(page)).toHaveAttribute('open', '');
+        await expect(tIn(page)).toHaveValue('su ');
         await expect(page.locator('#sgx-acct')).not.toHaveAttribute('data-state', 'open');
         expect(new URL(page.url()).pathname).toBe('/zh/wild/');
       } else {

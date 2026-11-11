@@ -203,18 +203,18 @@ for (const [label, viewport] of VIEWPORTS) {
       await expect(page.locator('.st-card')).toHaveCount(3);
     });
 
-    test('没进站（401，v5 S3 三处上锁之一）：锁卡 Permission denied + 一行说明 + sudo styrigx；不显示横幅 / 卡片 / 凭证记录；点按钮打开终端预填 sudo styrigx', async ({ page }) => {
+    test('没进站（401，v5 S3 三处上锁之一）：锁卡 Permission denied + 一行说明 + su；不显示横幅 / 卡片 / 凭证记录；点按钮打开终端预填 su ', async ({ page }) => {
       await go(page, '/zh/wild/', { api: { status: 401, body: { ok: false, error: 'unauthorized' } } });
       await expect(page.locator('#st-root')).toHaveAttribute('data-state', 'locked');
       await expect(page.locator('#st-locked')).toBeVisible();
-      await expect(page.locator('#st-locked .st-msg-title')).toHaveText('Permission denied — sudo styrigx 进站后可见');
+      await expect(page.locator('#st-locked .st-msg-title')).toHaveText('Permission denied — su 登录后可见');
       await expect(page.locator('#st-locked .st-msg-sub')).toHaveText('服务状态、可用率和用量只对进站后的访客开放。');
       await expect(page.locator('#st-error')).toBeHidden();
       await expect(page.locator('#st-banner')).toBeHidden();
       await expect(page.locator('.st-audit-wrap')).toBeHidden();
       await page.locator('#st-locked [data-st="sudo"]').click();
       await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
-      await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('sudo styrigx');
+      await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
       await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
     });
 

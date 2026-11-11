@@ -12,17 +12,17 @@
  *   lang 分段 EN | Auto | 中文（选中即保存；明确的语言和本页不同就去另一种语言的同一页，Auto 只在主站首页换）、layout 分段（Mobile | Auto | DeX，模式规则见共享外壳 layout-mode.js）、
  *   share（share.js；v5 S6 去掉 lock 按钮，上锁走终端 lock / 已进站点盾牌）、STATUS、esc 关闭。
  * - 外观：MODE 三段（跟随系统 / 深 / 浅）、PALETTE 色板列表 + 恢复默认。
- * - 盾牌（v5 S6）：不开窗口，吉祥物兼状态标志。没进站（访客 / 分享链接会话）点 = 打开终端预填 sudo styrigx；已进站（styrigx / root）点 = 打开终端问「退出进站会话 [y/N]」，
+ * - 盾牌（v5 S6）：不开窗口，吉祥物兼状态标志。没进站（访客 / 分享链接会话）点 = 打开终端预填 `su `（v6 割接，GUEST_LINE；旧 sudo styrigx 照旧能敲，P4 删）；已进站（styrigx / root）点 = 打开终端问「退出进站会话 [y/N]」，
  *   y = 钥匙层 lock（只锁本机，POST /api/lock-now 后重新取这一页）。旧地址 #sec / [data-sec-open] 只打开终端（没进站预填），不问。
- * - 头像（v5 S6，Gray 17:23）：已进站点了开账号卡片（S9 起只展示，点一行 = 打开终端预填命令）；没进站（页面标记 locked，或服务端说是访客 / 分享链接会话）是死按钮（aria-disabled，不开窗、不跳终端）。
- *   页面没有网关标记（本地 / 测试构建）不判死。
+ * - 头像（v5 S6，Gray 17:23）：已进站点了开账号卡片（S9 起只展示，点一行 = 打开终端预填命令）；头像 = whoami（v6，定稿 §七）：
+ *   没进站（页面标记 locked，或服务端说是访客 / 分享链接会话）点 = 打开终端预填 `su `（割接起不再是死按钮）；页面没有网关标记（本地 / 测试构建）不预填。
  * - >_ 终端按钮（v5 S6）：开合全站终端（同 Ctrl / ⌘ K）。
  * - 终端（v5 S5 终端合一）：调用方传 terminal（shell/terminal.js 整个模块）、space（钥匙层 shell/space/layer.js mountSpace）、accountTerm（终端里的账号层
  *   shell/account/cmd/layer.js mountAccountLayer）、account（账号卡片 shell/account/window.js mountAccountWindow，S9 起只展示）；本文件仍不 import。每页一个终端 #sgx-term（桌面居中大窗、手机整块卡片）。
  *   每次打开终端都是干净的新会话（S9：view.fresh()，history 照旧）。页面上的账号入口（[data-acct-open]、旧地址 #acct=…）都去终端：子页 → 预填命令，reset / reauth / 奇趣日刻授权同意 → 账号层 entry。
- *   顶栏 >_、Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌也打开它（v5 S6：访客预填 sudo styrigx、已进站问退出）。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
+ *   顶栏 >_、Ctrl / ⌘ K 与 NAVIGATE 里的「$ terminal」打开它；盾牌也打开它（v5 S6：访客预填 su 、已进站问退出）。命令的动作（滚动 / 跳转 / 外观 / AI / 账号窗口）都在这里接。
  * - 上锁的地方（v5 S3：AI 窗口、旷野 status 卡、奇趣音乐的播放，以及各处接口回 401）都只发 document 上的 `sgx:sudo` 事件（SUDO_EVENT），
- *   这里是唯一接它的地方：打开终端、输入行预填 `sudo styrigx`（不替人回车）；回车后在终端里验证。
+ *   这里是唯一接它的地方：打开终端、输入行预填 `su `（v6 割接；不替人回车，用户名由人敲）；回车后在终端里验证。
  */
 
 const QP_MS = 240;
@@ -52,8 +52,10 @@ const FIND_API = '/api/find';
 const SESSION_CHECK_API = '/api/lock-session-check';
 /** 上锁的地方要人进站时发的事件（= lib/sudo.js SUDO_EVENT，本文件不 import，抄一份） */
 export const SUDO_EVENT = 'sgx:sudo';
-/** 进站的命令（= term/core/parse.js ADMIN_COMMAND，本文件不 import） */
+/** 旧进站命令（= term/core/parse.js ADMIN_COMMAND，本文件不 import）：只剩旧地址 ?entry=sudo 直接跑它（旧入口 P4 删） */
 const SUDO_LINE = 'sudo styrigx';
+/** 访客入口预填（v6 割接，定稿 §七：访客头像点击预填「su 」；盾牌、上锁的地方、旧锁屏地址同一行；用户名由人敲） */
+export const GUEST_LINE = 'su ';
 
 /**
  * 语言偏好 → 实际语言（跟随系统看浏览器语言；语言列表第一项是默认语言 = 英文）
@@ -556,7 +558,7 @@ export function mountTopbar(o) {
   /* 头像（v5 S6，Gray 17:23）：已进站（styrigx / root）才开账号卡片；没进站（访客 / 分享链接会话）是死按钮——不开窗、不跳终端、不按链接走。
      判断同步看终端身份（首帧 = 网关注入的页面标记，问过服务端以回答为准）；页面没有网关标记（本地 / 测试构建）不判死。
      捕获阶段挂在头像自己身上：比 wire 的冒泡监听先到，拦下就到此为止 */
-  const avDead = function () {
+  const avGuest = function () {
     if (!who) return false;
     const pg = doc.documentElement.getAttribute('data-sgx-lock-session');
     if (pg !== 'valid' && pg !== 'locked') return false;
@@ -566,11 +568,11 @@ export function mountTopbar(o) {
   };
   /* 头像 = whoami（v6 P2b，定稿 v4 §七）：有 v6 新会话时头像是当前身份——普通用户显示自己的头像（/avatar/u<uid>-<尺寸>.webp，styrigx 用站点头像），
      root 叠一个「#」标记；点头像打开终端预填下一步：root → exit，wheel 组的普通用户 → su root，其余 → profile。
-     没有 v6 会话时头像照旧（访客的「su 」预填留到割接，旧入口 sudo styrigx 还在用）。 */
+     割接起访客（没有 v6 会话、也没有旧的 styrigx / root 会话）点头像 = 预填「su 」（定稿 §七）；旧进站会话的头像照旧开账号卡片。 */
   /** v6 头像该预填的命令（不是 v6 → ''） */
   const avV6Cmd = function () {
     const u = who && who.v6 ? who.v6() : null;
-    if (!u) return '';
+    if (!u) return avGuest() ? GUEST_LINE : '';
     if (u.root) return 'exit';
     return u.wheel ? 'su root' : 'profile';
   };
@@ -599,11 +601,10 @@ export function mountTopbar(o) {
   };
   const paintAv = function () {
     if (!acctBtn) return;
-    if (avDead()) acctBtn.setAttribute('aria-disabled', 'true');
-    else acctBtn.removeAttribute('aria-disabled');
+    acctBtn.removeAttribute('aria-disabled');
   };
   if (acctBtn) {
-    /* v6 身份在：点头像 = 打开终端预填下一步（不开账号卡片） */
+    /* v6 身份在 / 访客：点头像 = 打开终端预填下一步（不开账号卡片） */
     acctBtn.addEventListener('click', function (e) {
       const c = avV6Cmd();
       if (!c) return;
@@ -613,15 +614,8 @@ export function mountTopbar(o) {
       e.stopImmediatePropagation();
       termPrefill(c);
     }, true);
-    acctBtn.addEventListener('click', function (e) {
-      if (!avDead()) return;
-      const me2 = /** @type {MouseEvent} */ (e);
-      if (me2.button !== 0 && me2.button !== 1) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-    }, true);
-    /* 中键 / 辅助键点（auxclick）也不按链接走 */
-    acctBtn.addEventListener('auxclick', function (e) { if (avDead()) e.preventDefault(); }, true);
+    /* 访客的中键 / 辅助键点（auxclick）不按链接走（账号卡片只给已进站的人） */
+    acctBtn.addEventListener('auxclick', function (e) { if (avGuest() && !(who && who.v6 && who.v6())) e.preventDefault(); }, true);
     paintAv();
     paintAvV6();
     if (who) { who.on(paintAv); who.on(paintAvV6); }
@@ -807,28 +801,28 @@ export function mountTopbar(o) {
     /* 首帧身份按网关注入的页面标记；标了进站（valid）才问服务端细分 link / styrigx / root。标了访客（locked）不用问；
        没有标记 = 页面没经过网关（本地 / 测试构建），不在加载时问（没有接口，只会多一条 404），等 sudo / 盾牌 / 401 时再问 */
     if (who && (who.get() !== 'nobody' || who.v6Hinted())) who.refresh();
-    /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 sudo styrigx（不替人回车） */
+    /* 上锁的地方要进站（SUDO_EVENT，发事件的都是服务端说了没进站：页面标记 locked 或接口 401）：打开终端、预填 su （不替人回车） */
     doc.addEventListener(SUDO_EVENT, function () {
       /* 页面标记跟着改成 locked（AI 窗口锁、听歌等按它画访客态） */
       doc.documentElement.setAttribute('data-sgx-lock-session', 'locked');
       if (who) who.drop();
-      showTerm(function () { if (view) view.prefill(SUDO_LINE); });
+      showTerm(function () { if (view) view.prefill(GUEST_LINE); });
     });
-    /* 旧地址 ?entry=…（分享链接失效时网关回的 /?entry=1、旧书签；v5 S5 起没有锁屏界面）：没进站就打开终端、预填 sudo styrigx；?entry=sudo 直接跑 */
+    /* 旧地址 ?entry=…（分享链接失效时网关回的 /?entry=1、旧书签；v5 S5 起没有锁屏界面）：没进站就打开终端、预填 su ；?entry=sudo 照旧直接跑 sudo styrigx（旧入口，P4 删） */
     const ent = qparam('entry') || qparam('lock');
     if (ent && view && (!who || who.get() === 'nobody')) {
-      window.setTimeout(function () { showTerm(function () { if (ent === 'sudo') view.run(SUDO_LINE); else view.prefill(SUDO_LINE); }); }, 0);
+      window.setTimeout(function () { showTerm(function () { if (ent === 'sudo') view.run(SUDO_LINE); else view.prefill(GUEST_LINE); }); }, 0);
     }
-    /* 旧地址 #sec[=<层>] / [data-sec-open]：打开终端；没进站预填 sudo styrigx（不问退出） */
+    /* 旧地址 #sec[=<层>] / [data-sec-open]：打开终端；没进站预填 su （不问退出） */
     const openShield = function () {
       showTerm(function () {
         if (!view) return;
         /* 身份以服务端为准：问过再决定预填不预填（首帧的页面标记可能还是访客） */
         const w = who ? who.refresh() : Promise.resolve('nobody');
-        w.then(function (/** @type {string} */ x) { if (x === 'nobody' && !view.input.value) view.prefill(SUDO_LINE); });
+        w.then(function (/** @type {string} */ x) { if (x === 'nobody' && !view.input.value) view.prefill(GUEST_LINE); });
       });
     };
-    /* 盾牌（v5 S6 顶栏 E，Gray 16:36：一来一回对应）：不开窗口，打开终端——没进站（访客 / 分享链接会话）预填 sudo styrigx；
+    /* 盾牌（v5 S6 顶栏 E，Gray 16:36：一来一回对应）：不开窗口，打开终端——没进站（访客 / 分享链接会话）预填 su ；
        已进站（styrigx / root）问「退出进站会话 [y/N]」（钥匙层 lockAsk：y = lock，回车 / n 不动）。身份以服务端为准：问过再决定 */
     const shieldClick = function () {
       showTerm(function () {
@@ -840,7 +834,8 @@ export function mountTopbar(o) {
             if (sp && typeof sp.lockAsk === 'function' && view.line.mode === 'cmd') sp.lockAsk();
             return;
           }
-          if (!view.input.value) view.prefill(SUDO_LINE);
+          /* v6 已登录（u:<名>）不预填 su （要换人先 exit，定稿 §六）；访客 / 分享链接会话预填 */
+          if (!view.input.value && x.indexOf('u:') !== 0) view.prefill(GUEST_LINE);
         });
       });
     };

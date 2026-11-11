@@ -6,7 +6,7 @@
  * - man 索引按身份列、open blog 收起窗口滚到 [01] 博客、未知命令 · 试试 man、↑ / ↓ 历史、tab 补全 + 补全影子、theme dark / light、clear
  * 全站终端窗口（#sgx-term，桌面居中大窗、手机整块卡片）：
  * - /blog/ 上 Ctrl K 打开（提示符 ~/blog$），Esc 关、焦点还回去；NAVIGATE 里的「Ctrl K 终端 ›」也能打开；open 去别的站 = 跳转
- * - sudo styrigx 在终端里原地选方式；盾牌 / sgx:sudo 打开终端、预填 sudo styrigx（不替人回车）
+ * - sudo styrigx 在终端里原地选方式；盾牌 / sgx:sudo 打开终端、预填 su （不替人回车）
  */
 const { test } = require('@playwright/test');
 const { blockExternalRequests, freezeTime, expect } = require('../helpers/helpers');
@@ -315,14 +315,16 @@ test('终端窗口（桌面）：居中大窗 min(1040px, 86vw) × 72vh，和顶
   expect(w).toBeLessThanOrEqual(390);
 });
 
-test('sudo styrigx 在终端里原地选方式（不跳锁屏）；^C 回命令行；盾牌 = 打开终端、预填 sudo styrigx（不替人回车）', async ({ page }) => {
+test('sudo styrigx 在终端里原地选方式（不跳锁屏）；^C 回命令行；盾牌 = 打开终端、预填 su （不替人回车）', async ({ page }) => {
   await go(page, '/blog/', { lang: 'en' });
   await page.locator('#site-nav .sgx-tb-shield').click();
   const dlg = page.locator('#sgx-term');
   await expect(dlg).toHaveAttribute('open', '');
   const inp = page.locator('#sgx-term-in');
-  await expect(inp).toHaveValue('sudo styrigx');
+  await expect(inp).toHaveValue('su ');
   await expect(page).toHaveURL(/\/blog\/$/);
+  /* 割接：访客预填 su （v6）；旧入口 sudo styrigx 照旧能敲（P4 删） */
+  await inp.fill('sudo styrigx');
   await inp.press('Enter');
   await expect(dlg.locator('[data-term-form]')).toHaveAttribute('data-mode', 'pick');
   await expect(dlg.locator('[data-term-out]')).toContainText('password');
@@ -331,14 +333,14 @@ test('sudo styrigx 在终端里原地选方式（不跳锁屏）；^C 回命令�
   await expect(dlg.locator('[data-term-ps]')).toHaveText('nobody@space:~/blog$');
 });
 
-test('上锁的地方发 sgx:sudo：打开终端、预填 sudo styrigx；旧地址 ?entry=1 同（v5 S5 没有锁屏界面）', async ({ page }) => {
+test('上锁的地方发 sgx:sudo：打开终端、预填 su ；旧地址 ?entry=1 同（v5 S5 没有锁屏界面）', async ({ page }) => {
   await go(page, '/blog/', { lang: 'en' });
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('sgx:sudo')));
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
-  await expect(page.locator('#sgx-term-in')).toHaveValue('sudo styrigx');
+  await expect(page.locator('#sgx-term-in')).toHaveValue('su ');
   await go(page, '/zh/?entry=1');
   await expect(page.locator('#sgx-entry')).toHaveCount(0);
-  await expect(input(page)).toHaveValue('sudo styrigx');
+  await expect(input(page)).toHaveValue('su ');
 });
 
 test('一个会话一份历史：主页终端窗口敲过的命令，/blog/ 的终端窗口里 ↑ 能翻到', async ({ page }) => {

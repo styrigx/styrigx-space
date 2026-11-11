@@ -44,7 +44,7 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     await expect(page.locator('.sgx-tb-ai')).toBeFocused();
   });
 
-  test('没进站（v5 S3 三处上锁之一）：GET /api/ai 401 → 模型矩形只显示锁标；点锁 / 发问都不问 AI，打开终端预填 sudo styrigx', async ({ page }) => {
+  test('没进站（v5 S3 三处上锁之一）：GET /api/ai 401 → 模型矩形只显示锁标；点锁 / 发问都不问 AI，打开终端预填 su ', async ({ page }) => {
     let posts = 0;
     await go(page, '/zh/wild/');
     await page.route('**/api/ai', (r) => {
@@ -57,16 +57,16 @@ test.describe('AI 窗口（ai-v1，按设计稿）', () => {
     await expect(chip).toHaveClass(/is-locked/);
     await expect(chip.locator('[data-ai-model-lock] svg')).toBeVisible();
     await expect(chip.locator('[data-ai-model-name]')).toBeHidden();
-    await expect(chip).toHaveAttribute('aria-label', '已上锁，sudo styrigx 进站后可用');
+    await expect(chip).toHaveAttribute('aria-label', '已上锁，su 登录后可用');
     await chip.click();
     await expect(page.locator('#sgx-term')).toHaveAttribute('open', '');
-    await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('sudo styrigx');
+    await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
     await page.keyboard.press('Escape');
     await expect(page.locator('#sgx-term')).not.toHaveAttribute('open', '');
     await page.locator('.sgx-tb-ai').click();
     await ai.locator('[data-ai-in]').fill('你好');
     await ai.locator('[data-ai-in]').press('Enter');
-    await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('sudo styrigx');
+    await expect(page.locator('#sgx-term [data-term-in]')).toHaveValue('su ');
     expect(posts).toBe(0);
   });
 

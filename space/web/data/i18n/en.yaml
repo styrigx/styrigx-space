@@ -441,7 +441,7 @@ baseof:
   space: Space
   pageNotFound: Page not found
 status:
-  lockedHint: visible after sudo styrigx
+  lockedHint: visible after su
   lockedSub: "Service status, uptime and usage are only open to visitors who have entered."
   loading: Loading…
   noDataYet: No data yet

@@ -15,6 +15,8 @@
  * 8. rescue：救援会话能走的路由（白名单）。一条路由有多个 action 时，rescueActions 列出救援能用的那几个（没列 = 整条都能用）；
  *    判断用 rescueOf(method, path, { action })，结果交给 permits 的 opts.rescue（P2，定稿 v4 §三 / §九）。
  * 9. owner：站长档（= styrigx 的 uid；名片属于站长），root 由 permits 第 2 步放行（P2）。
+ * 10. private（割接）：公开读接口里的私密行与 canWrite 提示——GET 路由档是 public（谁都能读公开部分），actions.private 是能看私密行的那一档
+ *    （= 对应的写组）；子站接口 Worker 读完路由后按 action 'private' 问 admit（同一张表、同一个 permits），不自己比组。
  *
  * 判断不在这里：这张表只回答「要哪一档」，够不够由 core/groups.js permits() 判断（全站唯一一处）。
  * 没有公开地址、只经服务绑定 / RPC 进来的入口不进表，列在 SERVICE_ONLY（盘点用）。
@@ -105,20 +107,20 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'GET', path: '/api/wellbeing', level: 'public', worker: 'account', why: '区域合计公开；明细（书名 / 文章名）只给本人', decided: 'Gray 2026-11-11 定 public：合计公开，明细只给本人（按 uid，不按组）' }),
 
   /* ---------- 奇趣接口 styrigx-curio-core（styrigx.com/curio/api/*，不经网关；workers/curio-core/src/routes.js） ---------- */
-  R({ method: 'GET', path: '/curio/api/items', level: 'public', worker: 'curio-core', why: '设备 / 游戏列表（私密行只给 curio-write，见 decided）', decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
+  R({ method: 'GET', path: '/curio/api/items', level: 'public', worker: 'curio-core', why: '设备 / 游戏列表（私密行只给 curio-write，见 decided）', actions: { private: 'curio-write' }, decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
   R({ method: 'POST', path: '/curio/api/items', level: 'curio-write', worker: 'curio-core', why: 'device.* / game.*：add / edit / order；del 是单条', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/links', level: 'public', worker: 'curio-core', why: '收藏列表（私密行同上）', decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
+  R({ method: 'GET', path: '/curio/api/links', level: 'public', worker: 'curio-core', why: '收藏列表（私密行同上）', actions: { private: 'curio-write' }, decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
   R({ method: 'POST', path: '/curio/api/links', level: 'curio-write', worker: 'curio-core', why: 'cat.* / link.*；link.del 单条；cat.del 只删空分类（非空 409），按单条算', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/movies', level: 'public', worker: 'curio-core', why: '电影列表', decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
+  R({ method: 'GET', path: '/curio/api/movies', level: 'public', worker: 'curio-core', why: '电影列表', actions: { private: 'curio-write' }, decided: 'Gray 2026-11-11 定 public：私密行只给 curio-write' }),
   R({ method: 'POST', path: '/curio/api/movies', level: 'curio-write', worker: 'curio-core', why: 'movie.add / edit / del（单条）', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/photo', level: 'public', worker: 'curio-core', why: '设备照片 / 海报' }),
+  R({ method: 'GET', path: '/curio/api/photo', level: 'public', worker: 'curio-core', why: '设备照片 / 海报（私密设备的照片只给 curio-write）', actions: { private: 'curio-write' } }),
   R({ method: 'POST', path: '/curio/api/photo', level: 'curio-write', worker: 'curio-core', why: '上传照片 / 海报' }),
   R({ method: 'DELETE', path: '/curio/api/photo', level: 'curio-write', worker: 'curio-core', why: '删一张照片', del: 'item' }),
-  R({ method: 'GET', path: '/curio/api/icon', level: 'public', worker: 'curio-core', why: '网站图标缓存' }),
+  R({ method: 'GET', path: '/curio/api/icon', level: 'public', worker: 'curio-core', why: '网站图标缓存（私密收藏的图标只给 curio-write）', actions: { private: 'curio-write' } }),
   R({ method: 'GET', path: '/curio/api/preview', level: 'curio-write', worker: 'curio-core', why: '添加收藏时抓标题 / 图标（算在写里）' }),
   R({ method: 'GET', path: '/curio/api/export', level: 'root', worker: 'curio-core', why: '导出全部收藏（含私密）', decided: 'Gray 2026-11-11 定 root：导出全部收藏含私密' }),
   R({ method: 'POST', path: '/curio/api/import', level: 'root', worker: 'curio-core', why: '批量导入书签（v5 要账号复验 → v6 sudo 每次重验 = root）' }),
-  R({ method: 'GET', path: '/curio/api/music', level: 'public', worker: 'curio-core', why: '歌单（不含音频地址）' }),
+  R({ method: 'GET', path: '/curio/api/music', level: 'public', worker: 'curio-core', why: '歌单（不含音频地址；canWrite 提示给 curio-write）', actions: { private: 'curio-write' } }),
   R({ method: 'POST', path: '/curio/api/music', level: 'curio-write', worker: 'curio-core', why: 'album.add / edit、track.edit / del（单条）；album.del 连曲目一起删 = 结构删除',
     actions: { 'album.add': 'curio-write', 'album.edit': 'curio-write', 'track.edit': 'curio-write', 'track.del': 'curio-write', 'album.del': 'root' }, del: 'item' }),
   R({ method: 'GET', path: '/curio/api/music-cover', level: 'public', worker: 'curio-core', why: '专辑封面' }),
@@ -132,11 +134,11 @@ export const ROUTE_ACCESS = Object.freeze([
   R({ method: 'HEAD', path: '/daymark/api/today', level: 'public', worker: 'daymark-core', why: '同上' }),
   R({ method: 'OPTIONS', path: '/daymark/api/today', level: 'public', worker: 'daymark-core', why: 'CORS 预检' }),
   R({ method: 'PUT', path: '/daymark/api/today', level: 'daymark-write', worker: 'daymark-core', why: '设为今日' }),
-  R({ method: 'GET', path: '/daymark/api/quotes', level: 'public', worker: 'daymark-core', why: '句子列表（私密句子只给 daymark-write，见 decided）', decided: 'Gray 2026-11-11 定 public：私密句子只给 daymark-write' }),
+  R({ method: 'GET', path: '/daymark/api/quotes', level: 'public', worker: 'daymark-core', why: '句子列表（私密句子只给 daymark-write，见 decided）', actions: { private: 'daymark-write' }, decided: 'Gray 2026-11-11 定 public：私密句子只给 daymark-write' }),
   R({ method: 'POST', path: '/daymark/api/quotes', level: 'daymark-write', worker: 'daymark-core', why: '新增句子' }),
   R({ method: 'PUT', path: '/daymark/api/quotes', level: 'daymark-write', worker: 'daymark-core', why: '改句子' }),
   R({ method: 'DELETE', path: '/daymark/api/quotes', level: 'daymark-write', worker: 'daymark-core', why: '删一句（日记条目）', del: 'item' }),
-  R({ method: 'GET', path: '/daymark/api/collections', level: 'public', worker: 'daymark-core', why: '百味专题列表' }),
+  R({ method: 'GET', path: '/daymark/api/collections', level: 'public', worker: 'daymark-core', why: '百味专题列表（含私密句子的部分只给 daymark-write）', actions: { private: 'daymark-write' } }),
   R({ method: 'POST', path: '/daymark/api/collections', level: 'daymark-write', worker: 'daymark-core', why: '新建专题' }),
   R({ method: 'PUT', path: '/daymark/api/collections', level: 'daymark-write', worker: 'daymark-core', why: '改专题 / 重排专题里的句子' }),
   R({ method: 'DELETE', path: '/daymark/api/collections', level: 'root', worker: 'daymark-core', why: '删整个专题（句子本身不删）= 结构删除', del: 'bulk',

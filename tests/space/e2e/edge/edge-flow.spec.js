@@ -2,7 +2,7 @@
  * 三站锁屏 / 解锁 / 回跳的端到端回归（真实网关 + 线上路由规则 + 真实域名 + 虚拟认证器）。
  * 测试台见 edge-harness.cjs。每条对应一次真实的用户报告（2026-10-21，三星浏览器录屏）：
  * v5 S3（整站放开）：页面对没进站的人也照常给（网关只注入 data-sgx-lock-session="locked"，不 302 锁屏）；
- *  v5 S5（终端合一）：锁屏界面删了，旧锁屏地址 /?entry（旧 ?lock）= 打开终端、预填 sudo styrigx；在终端里 sudo styrigx → passkey，
+ *  v5 S5（终端合一）：锁屏界面删了，旧锁屏地址 /?entry（旧 ?lock）= 打开终端、预填 su ；在终端里 sudo styrigx → passkey，
  *  进站后按 return 回原页。下面「锁屏出现」= 终端输入行被预填了 sudo styrigx（访客入口），「锁屏不出现」= 一次都没预填。
  *
  *  R1 直接打开 blog / daymark → 主站锁屏（带 return）→ 通行密钥 / 分享链接（v5 S1 起取代临时钥匙）都进不去、回不到子站
@@ -52,7 +52,7 @@ test.beforeEach(async ({ context }) => {
     edge.log.length = 0;
   }
   await context.route((url) => !/^https:\/\/([a-z]+\.)?styrigx\.com\//.test(url.href), (route) => route.abort());
-  /* 记下进站入口有没有出现过（哪怕只闪一下）：v5 S5 起 = 终端输入行被预填 sudo styrigx（输入框的值不触发 MutationObserver，轮询看）；R4 要求一次都不能出现 */
+  /* 记下进站入口有没有出现过（哪怕只闪一下）：v5 S5 起 = 终端输入行被预填 su （输入框的值不触发 MutationObserver，轮询看）；R4 要求一次都不能出现 */
   await context.addInitScript(() => {
     window.__sawLock = false;
     window.__sawLogin = false;
@@ -73,7 +73,7 @@ test.beforeEach(async ({ context }) => {
       const m = document.getElementById('acct-main');
       if ((m && !m.hidden) || document.querySelector('#sgx-acct .sgx-at[data-at-layer="home"]')) window.__sawMain = true;
     };
-    const sudoPrefilled = () => Array.prototype.some.call(document.querySelectorAll('[data-term-in]'), (el) => el.value === 'sudo styrigx');
+    const sudoPrefilled = () => Array.prototype.some.call(document.querySelectorAll('[data-term-in]'), (el) => el.value === 'su ');
     new MutationObserver(seen).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'data-at-layer'] });
     setInterval(() => { if (sudoPrefilled()) window.__sawLock = true; }, 50);
   });
@@ -98,9 +98,9 @@ const termOut = (page) => page.locator('#home-term [data-term-out], #sgx-term[op
 const termPs = (page) => page.locator('#home-term [data-term-ps], #sgx-term[open] [data-term-ps]').first();
 const termMode = (page) => page.locator('#home-term [data-term-form], #sgx-term[open] [data-term-form]').first();
 
-/* v5 S5：旧锁屏地址 = 打开终端、预填 sudo styrigx（不替人回车），等输入行可用 */
+/* v5 S5：旧锁屏地址 = 打开终端、预填 su （不替人回车），等输入行可用 */
 async function openMethods(page) {
-  await expect(termIn(page)).toHaveValue('sudo styrigx', { timeout: 15000 });
+  await expect(termIn(page)).toHaveValue('su ', { timeout: 15000 });
   await expect(termIn(page)).toBeEditable({ timeout: 15000 });
   await expect(page.locator('#sgx-entry')).toHaveCount(0);
 }
@@ -120,7 +120,7 @@ async function openShield(page) {
   await page.locator('.sgx-tb-term').click();
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '', { timeout: 10000 });
 }
-/** 点顶栏盾牌（v5 S6）：没进站 → 打开终端预填 sudo styrigx；已进站 → 问退出 [y/N] */
+/** 点顶栏盾牌（v5 S6）：没进站 → 打开终端预填 su ；已进站 → 问退出 [y/N] */
 async function clickShield(page) {
   await page.locator('.sgx-tb-shield').click();
   await expect(page.locator('#sgx-term')).toHaveAttribute('open', '', { timeout: 10000 });
@@ -137,7 +137,7 @@ async function lockShownWithin(page, ms) {
   // TODO(C8): 「ms 内进站入口一次都没出现」是静默窗口：终端身份异步向真实网关确认（自动锁检查还有 5 秒节流），
   // 「确认完、不预填」在页面上没有可观察的状态；要确定性就得在生产代码里加完成标记。保留原等待。
   await page.waitForTimeout(ms);
-  return page.evaluate(() => window.__sawLock === true || Array.prototype.some.call(document.querySelectorAll('[data-term-in]'), (el) => el.value === 'sudo styrigx'));
+  return page.evaluate(() => window.__sawLock === true || Array.prototype.some.call(document.querySelectorAll('[data-term-in]'), (el) => el.value === 'su '));
 }
 
 /** 当前锁屏会话的进门方式（/api/lock-session-check 的 by；没进门 = null） */
@@ -150,7 +150,7 @@ async function setReauth(context) {
   await context.addCookies([{ name: 'sgx-space-reauth', value: await edge.mintReauth(), url: MAIN + '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
 }
 
-test('R1 blog 直接打开（v5 S3：公开，网关注入 locked）→ 旧锁屏地址（?entry=1&return=原页）= 终端预填 sudo styrigx → 通行密钥 → 回到 blog 原地址', async ({ page }) => {
+test('R1 blog 直接打开（v5 S3：公开，网关注入 locked）→ 旧锁屏地址（?entry=1&return=原页）= 终端预填 su  → 通行密钥 → 回到 blog 原地址', async ({ page }) => {
   await addAuthenticator(page);
   await page.goto(BLOG + '/post/hello/');
   expect(page.url()).toBe(BLOG + '/post/hello/');
@@ -254,7 +254,7 @@ test('立即锁定（终端 lock，一敲就锁、没有确认层）→ 同一�
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
   await clickShield(page);
-  await expect(termIn(page)).toHaveValue('sudo styrigx', { timeout: 10000 });
+  await expect(termIn(page)).toHaveValue('su ', { timeout: 10000 });
   await page.goto(BLOG + '/');
   expect(page.url()).toBe(BLOG + '/');
   await expect(page.locator('html')).toHaveAttribute('data-sgx-lock-session', 'locked');
@@ -393,7 +393,7 @@ test('R5 对照：进门但没有账号会话 → 账号卡片未登录（主页
 
 test('R7 账号 Worker（账号拆分 PR3 起没有公开路由）：头像 / 数字健康 / 云同步经网关转发到 styrigx-account，页面和其他接口仍走网关', async ({ page, context }) => {
   edge.log.length = 0;
-  /* 锁着（旧锁屏地址 = 终端预填 sudo styrigx）：头像照常出来（公开），网关转发、由账号 Worker 回（X-SGX-Runtime 保留 account） */
+  /* 锁着（旧锁屏地址 = 终端预填 su ）：头像照常出来（公开），网关转发、由账号 Worker 回（X-SGX-Runtime 保留 account） */
   await page.goto(MAIN + '/?entry=1');
   await openMethods(page);
   const av = await page.evaluate(() => fetch('/avatar/96.webp', { cache: 'no-store' }).then((r) => [r.status, r.headers.get('x-sgx-runtime'), r.headers.get('etag')]));
@@ -495,7 +495,7 @@ test.describe('R9 分享短链', () => {
     expect(await sessionBy(page)).toBe(null);
   });
 
-  test('R9 作废 / 过期 / 不存在：同一个结果（旧锁屏地址 /?entry=1 → 终端预填 sudo styrigx）；作废带会话的短链后，已进来的人下一页就被锁在外面', async ({ page, context }) => {
+  test('R9 作废 / 过期 / 不存在：同一个结果（旧锁屏地址 /?entry=1 → 终端预填 su ）；作废带会话的短链后，已进来的人下一页就被锁在外面', async ({ page, context }) => {
     const live = await makeLink(page, context, { hours: 3, session: 1800 });
     await page.goto(MAIN + live.path);
     expect(await sessionBy(page)).toBe('link');
